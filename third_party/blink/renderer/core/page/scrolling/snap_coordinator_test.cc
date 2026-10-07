@@ -84,11 +84,11 @@ class SnapCoordinatorTest : public testing::Test,
 
   unsigned SizeOfSnapAreas(const ContainerNode& node) {
     for (auto& fragment : node.GetLayoutBox()->PhysicalFragments()) {
-      if (!fragment.IsScrollContainer()) {
+      if (fragment.PropagatedSnapAreas()) {
         return 0u;
       }
-      if (!fragment.SnapAreas().empty()) {
-        return fragment.SnapAreas().size();
+      if (auto* snap_areas = fragment.SnapAreas()) {
+        return snap_areas->size();
       }
     }
     return 0u;

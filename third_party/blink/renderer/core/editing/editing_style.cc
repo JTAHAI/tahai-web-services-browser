@@ -979,7 +979,9 @@ EditingTriState EditingStyle::TriStateOfStyle(
 
   if (selection.IsCaret()) {
     EditingStyle* style_at_start =
-        is_vertical_align_
+        RuntimeEnabledFeatures::
+                    ConsiderSubOrSuperScriptAncestorAlignForCaretSelectionEnabled() &&
+                is_vertical_align_
             ? EditingStyleUtilities::CreateStyleAtSelectionStart(selection,
                                                                  false, Style())
             : EditingStyleUtilities::CreateStyleAtSelectionStart(selection);
@@ -1319,7 +1321,7 @@ bool EditingStyle::ElementIsStyledSpanOrHtmlEquivalent(
     return element_is_span_or_element_equivalent;
   }
 
-  wtf_size_t matched_attributes = 0;
+  unsigned matched_attributes = 0;
   const HeapVector<Member<HtmlAttributeEquivalent>>&
       html_attribute_equivalents = HtmlAttributeEquivalents();
   for (const auto& equivalent : html_attribute_equivalents) {
@@ -1536,8 +1538,8 @@ void EditingStyle::MergeStyle(const CSSPropertyValueSet* style,
     return;
   }
 
-  wtf_size_t property_count = style->PropertyCount();
-  for (wtf_size_t i = 0; i < property_count; ++i) {
+  unsigned property_count = style->PropertyCount();
+  for (unsigned i = 0; i < property_count; ++i) {
     const CSSPropertyValue& property = style->PropertyAt(i);
     const CSSValue* value =
         mutable_style_->GetPropertyCSSValue(property.PropertyID());
@@ -1567,7 +1569,7 @@ void EditingStyle::MergeStyle(const CSSPropertyValueSet* style,
 
 static MutableCSSPropertyValueSet* StyleFromMatchedRulesForElement(
     Element* element,
-    uint32_t rules_to_include) {
+    unsigned rules_to_include) {
   auto* style =
       MakeGarbageCollected<MutableCSSPropertyValueSet>(kHTMLQuirksMode);
   StyleRuleList* matched_rules =
@@ -1578,7 +1580,7 @@ static MutableCSSPropertyValueSet* StyleFromMatchedRulesForElement(
     // merges and the overall time consumption.
     style = MakeGarbageCollected<MutableCSSPropertyValueSet>(
         matched_rules->at(0)->Properties());
-    for (wtf_size_t i = 1; i < matched_rules->size(); ++i) {
+    for (unsigned i = 1; i < matched_rules->size(); ++i) {
       style->MergeAndOverrideOnConflict(&matched_rules->at(i)->Properties());
     }
   }
@@ -1587,7 +1589,7 @@ static MutableCSSPropertyValueSet* StyleFromMatchedRulesForElement(
 
 const CSSPropertyValueSet* EditingStyle::MatchedRulesStyleForElement(
     Element* element,
-    uint32_t rules_to_include) {
+    unsigned rules_to_include) {
   return StyleFromMatchedRulesForElement(element, rules_to_include);
 }
 
@@ -1616,8 +1618,8 @@ void EditingStyle::MergeStyleFromRulesForSerialization(Element* element) {
   auto* from_computed_style =
       MakeGarbageCollected<MutableCSSPropertyValueSet>(kHTMLQuirksMode);
   {
-    wtf_size_t property_count = mutable_style_->PropertyCount();
-    for (wtf_size_t i = 0; i < property_count; ++i) {
+    unsigned property_count = mutable_style_->PropertyCount();
+    for (unsigned i = 0; i < property_count; ++i) {
       const CSSPropertyValue& property = mutable_style_->PropertyAt(i);
       const CSSValue& value = property.Value();
       const auto* primitive_value = DynamicTo<CSSPrimitiveValue>(value);
@@ -1647,15 +1649,17 @@ void EditingStyle::MergeStyleFromRulesForSerialization(Element* element) {
     mutable_style_->SetLonghandProperty(CSSPropertyID::kTextDecorationColor,
                                         CSSValueID::kInitial, false);
   }
-  ComputeValues(element);
+  if (RuntimeEnabledFeatures::ResolveVarStylesOnCopyEnabled()) {
+    ComputeValues(element);
+  }
 }
 
 static void RemovePropertiesInStyle(
     MutableCSSPropertyValueSet* style_to_remove_properties_from,
     CSSPropertyValueSet* style) {
-  wtf_size_t property_count = style->PropertyCount();
+  unsigned property_count = style->PropertyCount();
   Vector<const CSSProperty*> properties_to_remove(property_count);
-  for (wtf_size_t i = 0; i < property_count; ++i) {
+  for (unsigned i = 0; i < property_count; ++i) {
     // TODO(crbug.com/980160): Remove access to static Variable instance.
     properties_to_remove[i] =
         &CSSProperty::Get(style->PropertyAt(i).PropertyID());
@@ -1820,7 +1824,13 @@ static void ReconcileTextDecorationProperties(
 }
 
 StyleChange::StyleChange(EditingStyle* style, const Position& position)
-    : bold_tag_(html_names::kBTag),
+    : apply_bold_(false),
+      apply_italic_(false),
+      apply_underline_(false),
+      apply_line_through_(false),
+      apply_subscript_(false),
+      apply_superscript_(false),
+      bold_tag_(html_names::kBTag),
       italic_tag_(html_names::kITag),
       underline_tag_(html_names::kUTag),
       line_through_tag_(html_names::kStrikeTag),

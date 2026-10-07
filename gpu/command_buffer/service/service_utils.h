@@ -7,7 +7,6 @@
 
 #include "base/command_line.h"
 #include "base/memory/memory_pressure_listener.h"
-#include "base/memory_coordinator/memory_limit.h"
 #include "gpu/command_buffer/common/context_creation_attribs.h"
 #include "gpu/config/gpu_preferences.h"
 #include "gpu/gpu_gles2_export.h"
@@ -45,11 +44,11 @@ GPU_GLES2_EXPORT size_t UpdateShaderCacheSizeOnMemoryPressure(
     size_t max_cache_size,
     base::MemoryPressureLevel memory_pressure_level);
 
-// Returns `max_cache_size` scaled according to the `memory_limit` received from
-// the memory coordinator. Supports values over 100%.
+// Returns `max_cache_size` scaled according to the `memory_limit` (expressed as
+// a percentage) received from the memory coordinator. Supports values over
+// 100%, but does not support negative values.
 GPU_GLES2_EXPORT size_t
-UpdateShaderCacheSizeOnMemoryLimit(size_t max_cache_size,
-                                   base::MemoryLimit memory_limit);
+UpdateShaderCacheSizeOnMemoryLimit(size_t max_cache_size, int memory_limit);
 
 }  // namespace gpu
 

@@ -16,7 +16,6 @@
 #include "chrome/browser/policy/chrome_browser_policy_connector.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/signin/identity_test_environment_profile_adaptor.h"
-#include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/mixin_based_in_process_browser_test.h"
 #include "components/enterprise/connectors/core/content_analysis_browser_test_base.h"
@@ -133,7 +132,7 @@ IN_PROC_BROWSER_TEST_F(ContentAnalysisBrowserTest, PasteAllowed) {
 
   ASSERT_TRUE(ContentAnalysisDelegate::IsEnabled(browser()->GetProfile(),
                                                  browser()
-                                                     ->GetTabStripModel()
+                                                     ->tab_strip_model()
                                                      ->GetActiveWebContents()
                                                      ->GetLastCommittedURL(),
                                                  &data, BULK_DATA_ENTRY));
@@ -141,7 +140,7 @@ IN_PROC_BROWSER_TEST_F(ContentAnalysisBrowserTest, PasteAllowed) {
 
   base::RunLoop run_loop;
   ContentAnalysisDelegate::CreateForWebContents(
-      browser()->GetTabStripModel()->GetActiveWebContents(), std::move(data),
+      browser()->tab_strip_model()->GetActiveWebContents(), std::move(data),
       base::BindLambdaForTesting(
           [&run_loop](const ContentAnalysisDelegate::Data& data,
                       ContentAnalysisDelegate::Result& result) {
@@ -172,7 +171,7 @@ IN_PROC_BROWSER_TEST_F(ContentAnalysisBrowserTest, FileAttachAllowed) {
 
   ASSERT_TRUE(ContentAnalysisDelegate::IsEnabled(browser()->GetProfile(),
                                                  browser()
-                                                     ->GetTabStripModel()
+                                                     ->tab_strip_model()
                                                      ->GetActiveWebContents()
                                                      ->GetLastCommittedURL(),
                                                  &data, FILE_ATTACHED));
@@ -182,7 +181,7 @@ IN_PROC_BROWSER_TEST_F(ContentAnalysisBrowserTest, FileAttachAllowed) {
 
   base::RunLoop run_loop;
   ContentAnalysisDelegate::CreateForWebContents(
-      browser()->GetTabStripModel()->GetActiveWebContents(), std::move(data),
+      browser()->tab_strip_model()->GetActiveWebContents(), std::move(data),
       base::BindLambdaForTesting(
           [&run_loop](const ContentAnalysisDelegate::Data& data,
                       ContentAnalysisDelegate::Result& result) {

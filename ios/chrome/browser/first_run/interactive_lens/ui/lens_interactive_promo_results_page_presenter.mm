@@ -222,9 +222,9 @@ const CGFloat kOpacityAnimationDuration = 0.4;
       kCALayerMinXMinYCorner | kCALayerMaxXMinYCorner;
 
   // Activate the final layout constraints.
-  AddSameConstraintsToSides(_resultViewController.view,
-                            _baseViewController.view,
-                            LayoutSides::kBottom | LayoutSides::kHorizontal);
+  AddSameConstraintsToSides(
+      _resultViewController.view, _baseViewController.view,
+      LayoutSides::kLeading | LayoutSides::kTrailing | LayoutSides::kBottom);
   [NSLayoutConstraint activateConstraints:@[
     [_resultViewController.view.heightAnchor
         constraintEqualToAnchor:_baseViewController.view.heightAnchor
@@ -262,8 +262,9 @@ const CGFloat kOpacityAnimationDuration = 0.4;
   }
 
   [_baseViewController.view addLayoutGuide:_visibleAreaLayoutGuide];
-  AddSameConstraintsToSides(_visibleAreaLayoutGuide, _baseViewController.view,
-                            LayoutSides::kTop | LayoutSides::kHorizontal);
+  AddSameConstraintsToSides(
+      _visibleAreaLayoutGuide, _baseViewController.view,
+      LayoutSides::kLeading | LayoutSides::kTrailing | LayoutSides::kTop);
   [NSLayoutConstraint activateConstraints:@[
     [_visibleAreaLayoutGuide.bottomAnchor
         constraintEqualToAnchor:_baseViewController.view.bottomAnchor

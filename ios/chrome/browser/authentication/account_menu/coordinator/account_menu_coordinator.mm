@@ -171,7 +171,8 @@ typedef NS_ENUM(NSUInteger, AccountMenuReauthAction) {
   if (self) {
     // All authentication related work must be done in the regular profile, even
     // if started from incognito browser.
-    CHECK_EQ(browser->type(), Browser::Type::kRegular);
+    CHECK_EQ(browser->type(), Browser::Type::kRegular,
+             base::NotFatalUntil::M145);
     _accessPoint = accessPoint;
     _anchorView = anchorView;
     _accessPoint = accessPoint;
@@ -435,7 +436,7 @@ typedef NS_ENUM(NSUInteger, AccountMenuReauthAction) {
 }
 
 - (void)signinFinished {
-  CHECK(_signinInProgress);
+  CHECK(_signinInProgress, base::NotFatalUntil::M147);
   _signinInProgress.reset();
 }
 
@@ -488,7 +489,7 @@ typedef NS_ENUM(NSUInteger, AccountMenuReauthAction) {
       trusted_vault::TrustedVaultUserActionTriggerForUMA::kAccountMenu;
   SigninTrustedVaultDialogIntent intent =
       SigninTrustedVaultDialogIntentFetchKeys;
-  CHECK(!_trustedVaultReauthenticationCoordinator);
+  CHECK(!_trustedVaultReauthenticationCoordinator, base::NotFatalUntil::M145);
   _trustedVaultReauthenticationCoordinator =
       [[TrustedVaultReauthenticationCoordinator alloc]
           initWithBaseViewController:_navigationController
@@ -513,7 +514,7 @@ typedef NS_ENUM(NSUInteger, AccountMenuReauthAction) {
       trusted_vault::TrustedVaultUserActionTriggerForUMA::kAccountMenu;
   SigninTrustedVaultDialogIntent intent =
       SigninTrustedVaultDialogIntentDegradedRecoverability;
-  CHECK(!_trustedVaultReauthenticationCoordinator);
+  CHECK(!_trustedVaultReauthenticationCoordinator, base::NotFatalUntil::M145);
   _trustedVaultReauthenticationCoordinator =
       [[TrustedVaultReauthenticationCoordinator alloc]
           initWithBaseViewController:_navigationController
@@ -525,16 +526,9 @@ typedef NS_ENUM(NSUInteger, AccountMenuReauthAction) {
   [_trustedVaultReauthenticationCoordinator start];
 }
 
-- (void)openMDMErrorDialogWithSystemIdentity:(id<SystemIdentity>)identity
-                                  completion:(ProceduralBlock)completion {
+- (void)openMDMErrodDialogWithSystemIdentity:(id<SystemIdentity>)identity {
   [self stopChildrenCoordinators];
-  base::OnceCallback<void(bool)> callback = completion
-                                                ? base::BindOnce(^void(bool) {
-                                                    completion();
-                                                  })
-                                                : base::NullCallback();
-  _authenticationService->ShowMDMErrorDialogForIdentity(identity,
-                                                        std::move(callback));
+  _authenticationService->ShowMDMErrorDialogForIdentity(identity);
 }
 
 - (void)openBookmarksLimitExceededHelp {
@@ -710,7 +704,8 @@ typedef NS_ENUM(NSUInteger, AccountMenuReauthAction) {
 
 - (void)syncEncryptionPassphraseTableViewControllerDidDisappear:
     (SyncEncryptionPassphraseTableViewController*)viewController {
-  CHECK_EQ(_syncEncryptionPassphraseTableViewController, viewController);
+  CHECK_EQ(_syncEncryptionPassphraseTableViewController, viewController,
+           base::NotFatalUntil::M142);
   _syncEncryptionPassphraseTableViewController.presentationDelegate = nil;
   [_syncEncryptionPassphraseTableViewController settingsWillBeDismissed];
   _syncEncryptionPassphraseTableViewController = nil;
@@ -721,7 +716,8 @@ typedef NS_ENUM(NSUInteger, AccountMenuReauthAction) {
 
 - (void)trustedVaultReauthenticationCoordinatorWantsToBeStopped:
     (TrustedVaultReauthenticationCoordinator*)coordinator {
-  CHECK_EQ(coordinator, _trustedVaultReauthenticationCoordinator);
+  CHECK_EQ(coordinator, _trustedVaultReauthenticationCoordinator,
+           base::NotFatalUntil::M145);
   [self stopTrustedVaultReauthenticationCoordinator];
 }
 

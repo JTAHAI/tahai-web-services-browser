@@ -214,11 +214,13 @@ TypingCommand::TypingCommand(Document& document,
     : CompositeEditCommand(document, data_transfer),
       command_type_(command_type),
       text_to_insert_(NormalizeTextForInsertion(text_to_insert)),
+      open_for_more_typing_(true),
       select_inserted_text_(options & kSelectInsertedText),
       smart_delete_(options & kSmartDelete),
       granularity_(granularity),
       composition_type_(composition_type),
-      kill_ring_(options & kKillRing) {
+      kill_ring_(options & kKillRing),
+      opened_by_backward_delete_(false) {
   UpdatePreservesTypingStyle(command_type_);
 }
 
@@ -917,14 +919,19 @@ static SelectionForUndoStep AdjustSelectionForBackwardDelete(
     }
     return SelectionForUndoStep::From(selection);
   }
-  const SelectionInDomTree& adjusted =
-      NarrowSelectionToBackwardDeletionUnit(selection);
-  if (adjusted == selection) {
+  if (anchor.ComputeContainerNode() !=
+      selection.Focus().ComputeContainerNode()) {
     return SelectionForUndoStep::From(selection);
   }
-
+  if (anchor.ComputeOffsetInContainerNode() -
+          selection.Focus().ComputeOffsetInContainerNode() <=
+      1) {
+    return SelectionForUndoStep::From(selection);
+  }
+  const Position& end = selection.ComputeEndPosition();
   return SelectionForUndoStep::Builder()
-      .SetAnchorAndFocusAsBackwardSelection(adjusted.Anchor(), adjusted.Focus())
+      .SetAnchorAndFocusAsBackwardSelection(
+          end, PreviousPositionOf(end, PositionMoveType::kBackwardDeletion))
       .Build();
 }
 

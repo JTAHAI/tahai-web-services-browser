@@ -23,6 +23,7 @@
 #include "chrome/browser/first_party_sets/first_party_sets_policy_service.h"
 #include "chrome/browser/first_party_sets/first_party_sets_policy_service_factory.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/storage_access_api/storage_access_api_utils.h"
 #include "chrome/browser/webid/federated_identity_auto_reauthn_permission_context.h"
 #include "chrome/browser/webid/federated_identity_auto_reauthn_permission_context_factory.h"
 #include "chrome/browser/webid/federated_identity_permission_context.h"
@@ -33,7 +34,6 @@
 #include "components/content_settings/core/common/content_settings.h"
 #include "components/content_settings/core/common/content_settings_constraints.h"
 #include "components/content_settings/core/common/content_settings_types.h"
-#include "components/content_settings/core/common/features.h"
 #include "components/metrics/dwa/dwa_builders.h"
 #include "components/metrics/dwa/dwa_recorder.h"
 #include "components/permissions/constants.h"
@@ -61,6 +61,7 @@
 #include "net/first_party_sets/first_party_set_metadata.h"
 #include "services/network/public/mojom/cookie_manager.mojom.h"
 #include "services/network/public/mojom/permissions_policy/permissions_policy_feature.mojom-shared.h"
+#include "third_party/blink/public/common/features.h"
 #include "third_party/blink/public/common/features_generated.h"
 #include "third_party/blink/public/common/runtime_feature_state/runtime_feature_state_read_context.h"
 #include "third_party/blink/public/mojom/devtools/console_message.mojom-shared.h"
@@ -147,6 +148,8 @@ RequestOutcome RequestOutcomeFromPrompt(PermissionDecision decision,
 
 void RecordOutcomeSample(RequestOutcome outcome,
                          const net::SchemefulSite& requesting_site) {
+  base::UmaHistogramEnumeration("API.StorageAccess.RequestOutcome", outcome);
+
   dwa::builders::StorageAccess_RequestOutcome()
       .SetOutcome(static_cast<int>(outcome))
       .SetContent(requesting_site.GetURL().spec())
@@ -228,7 +231,7 @@ FederatedIdentityPermissionContext* IsAutograntViaFedCmAllowed(
 base::expected<void, content::PermissionStatusSource>
 ValidatePermissionEligibility(content::RenderFrameHost* rfh,
                               const net::SchemefulSite& requesting_site) {
-  if (rfh->IsStorageAccessRestricted()) {
+  if (IsAccessRestrictedInFrame(rfh)) {
     // No need to log anything here, since well-behaved renderers have already
     // done these checks and have logged to the console. This block is to handle
     // compromised renderers.
@@ -433,7 +436,7 @@ void StorageAccessGrantPermissionContext::DecidePermission(
   }
 
   if (!base::FeatureList::IsEnabled(
-          content_settings::features::kStorageAccessAPIRelatedWebsiteSets)) {
+          blink::features::kStorageAccessAPIRelatedWebsiteSets)) {
     CheckForAutoGrantOrAutoDenial(std::move(request_data), std::move(callback),
                                   net::FirstPartySetMetadata());
     return;
@@ -562,7 +565,7 @@ StorageAccessGrantPermissionContext::GetContentSettingStatusInternal(
     const GURL& requesting_origin,
     const GURL& embedding_origin) const {
   if (render_frame_host) {
-    if (render_frame_host->IsStorageAccessRestricted()) {
+    if (IsAccessRestrictedInFrame(render_frame_host)) {
       return CONTENT_SETTING_BLOCK;
     }
 

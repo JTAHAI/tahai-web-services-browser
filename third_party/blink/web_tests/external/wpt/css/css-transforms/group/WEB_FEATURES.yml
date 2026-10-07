@@ -1,2 +1,4 @@
-rules:
-- "*": [transforms2d]
+features:
+- name: transforms2d
+  files:
+  - "*"

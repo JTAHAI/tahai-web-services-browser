@@ -1,2 +1,4 @@
-rules:
-- box-sizing-no-interpolation.html: [box-sizing]
+features:
+- name: box-sizing
+  files:
+  - box-sizing-no-interpolation.html

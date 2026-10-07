@@ -248,7 +248,7 @@ GameDashboardToolbarView::GameDashboardToolbarView(
       1, kCornerRadius, ui::ColorIds::kColorCrosSystemHighlightBorder));
   shadow_ = SystemShadow::CreateShadowOnNinePatchLayerForView(
       this, SystemShadow::Type::kElevation12);
-  shadow_->SetRoundedCorners(gfx::RoundedCornersF(kCornerRadius));
+  shadow_->SetRoundedCornerRadius(kCornerRadius);
 
   AddShortcutTiles();
 }

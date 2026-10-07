@@ -37,14 +37,9 @@ class OmniboxPopupAimPresenter
   std::string_view GetPopupMetricPrefix() const override;
   std::optional<base::TimeDelta> ShouldDeferUntilVisualStateReady()
       const override;
-  bool ShouldDebounceResize() const override;
-  bool ShouldApplyHeightWorkarounds() const override;
   bool ShouldDetachWebContentsOnHide() const override;
-  bool ShouldEvictOnHide() const override;
-  bool ShouldSizeWebViewToPreferredHeight() const override;
   // Triggered when a file selection dialog opened by this popup is closed,
-  // initiating the focus restoration flow (only active when
-  // `omnibox::kOmniboxKeepOpenOnFileSelection` is enabled).
+  // initiating the focus restoration flow.
   void OnFileSelectionClosed() override;
 
   bool is_restoring_focus_after_file_selection() const {
@@ -80,15 +75,13 @@ class OmniboxPopupAimPresenter
       widget_observation_{this};
 
   // Observes the browser window's FocusManager to track focus restoration after
-  // the file selector closes. (Only active when
-  // `kOmniboxKeepOpenOnFileSelection` is enabled).
+  // the file selector closes.
   base::ScopedObservation<views::FocusManager, views::FocusChangeListener>
       focus_manager_observation_{this};
 
   // Set to true when the file selection dialog is closed to prevent the
   // omnibox popup from closing due to focus transitions during focus
-  // restoration. (Only active when `kOmniboxKeepOpenOnFileSelection` is
-  // enabled).
+  // restoration.
   bool is_restoring_focus_after_file_selection_ = false;
 
   base::WeakPtrFactory<OmniboxPopupAimPresenter> weak_factory_{this};

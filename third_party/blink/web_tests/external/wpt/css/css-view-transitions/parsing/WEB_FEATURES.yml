@@ -1,2 +1,4 @@
-rules:
-- view-transition-class-*: [view-transition-class]
+features:
+- name: view-transition-class
+  files:
+  - view-transition-class-*

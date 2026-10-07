@@ -1,2 +1,4 @@
-rules:
-- blur-event.window.js: [focus-events]
+features:
+- name: focus-events
+  files:
+  - blur-event.window.js

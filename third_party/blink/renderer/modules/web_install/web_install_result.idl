@@ -4,4 +4,6 @@
 
 // https://github.com/MicrosoftEdge/MSEdgeExplainers/blob/main/WebInstall/explainer.md
 
-dictionary WebInstallResult {};
+dictionary WebInstallResult {
+  USVString manifestId;
+};

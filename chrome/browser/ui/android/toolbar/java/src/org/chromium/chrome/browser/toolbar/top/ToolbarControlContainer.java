@@ -9,7 +9,6 @@ import static org.chromium.build.NullUtil.assumeNonNull;
 
 import android.annotation.SuppressLint;
 import android.content.Context;
-import android.content.res.Resources;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
@@ -37,7 +36,6 @@ import androidx.coordinatorlayout.widget.CoordinatorLayout;
 import androidx.core.content.res.ResourcesCompat;
 
 import org.chromium.base.Callback;
-import org.chromium.base.DeviceInfo;
 import org.chromium.base.Log;
 import org.chromium.base.ObserverList;
 import org.chromium.base.TraceEvent;
@@ -54,7 +52,6 @@ import org.chromium.build.annotations.Nullable;
 import org.chromium.cc.input.BrowserControlsState;
 import org.chromium.chrome.browser.browser_controls.BrowserControlsStateProvider;
 import org.chromium.chrome.browser.browser_controls.BrowserStateBrowserControlsVisibilityDelegate;
-import org.chromium.chrome.browser.browser_controls.TopControlsStacker;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.fullscreen.FullscreenManager;
 import org.chromium.chrome.browser.layouts.LayoutStateProvider;
@@ -71,9 +68,9 @@ import org.chromium.chrome.browser.toolbar.ToolbarFeatures;
 import org.chromium.chrome.browser.toolbar.ToolbarHairlineView;
 import org.chromium.chrome.browser.toolbar.ToolbarProgressBar;
 import org.chromium.chrome.browser.toolbar.top.CaptureReadinessResult.TopToolbarBlockCaptureReason;
-import org.chromium.chrome.browser.ui.vertical_tabs.VerticalTabUtils;
 import org.chromium.components.browser_ui.desktop_windowing.AppHeaderState;
 import org.chromium.components.browser_ui.desktop_windowing.DesktopWindowStateManager;
+import org.chromium.components.browser_ui.styles.SemanticColorUtils;
 import org.chromium.components.browser_ui.widget.ClipDrawableProgressBar.DrawingInfo;
 import org.chromium.components.browser_ui.widget.TouchEventObserver;
 import org.chromium.components.browser_ui.widget.ViewResourceCoordinatorLayout;
@@ -139,8 +136,6 @@ public class ToolbarControlContainer extends OptimizedFrameLayout
     private @Nullable Callback<Integer> mToolbarRightMarginCallback;
     private int mRightMargin;
     private int mTopMarginNarrowWidth;
-    private int mLastVerticalTabsTopMargin;
-    private @Nullable TopControlsStacker mTopControlsStacker;
 
     /**
      * Constructs a new control container.
@@ -177,8 +172,7 @@ public class ToolbarControlContainer extends OptimizedFrameLayout
                     @Override
                     protected void onDraw(Canvas canvas) {
                         mPaint.setColor(
-                                TabUiThemeUtil.getTabStripBackgroundColor(
-                                        getContext(), mIncognito));
+                                SemanticColorUtils.getColorSurfaceContainerHighest(getContext()));
                         canvas.drawPath(mPath, mPaint);
                     }
                 };
@@ -215,9 +209,7 @@ public class ToolbarControlContainer extends OptimizedFrameLayout
 
     @Override
     public int getToolbarHeight() {
-        // Include any top margin applied to mToolbarContainer when Vertical Tabs is active so
-        // TopControlsStacker accounts for the full top offset.
-        return mToolbarLayoutHeight + getVerticalTabsTopMargin();
+        return mToolbarLayoutHeight;
     }
 
     @Override
@@ -246,22 +238,14 @@ public class ToolbarControlContainer extends OptimizedFrameLayout
 
     @Override
     public void onTabOrModelChanged(boolean incognito) {
-        boolean incognitoChanged = mIncognito != incognito;
-        if (incognitoChanged) {
-            mIncognito = incognito;
-            // Invalidate top-left corner overlay to redraw with updated incognito state color.
-            if (mTopLeftCornerOverlayView != null) {
-                mTopLeftCornerOverlayView.invalidate();
-            }
-        }
-
         if (!DeviceFormFactor.isNonMultiDisplayContextOnTablet(getContext())
                 || getBackground() == null) {
             return;
         }
 
-        if (incognitoChanged) {
+        if (mIncognito != incognito) {
             maybeUpdateTempTabStripDrawableBackground(incognito, getAppHeaderState());
+            mIncognito = incognito;
         }
     }
 
@@ -292,7 +276,7 @@ public class ToolbarControlContainer extends OptimizedFrameLayout
     @Override
     public void setCompositorBackgroundInitialized() {
         mIsCompositorInitialized = true;
-        updateBackgroundColor();
+        setBackgroundResource(0);
     }
 
     @Override
@@ -397,16 +381,7 @@ public class ToolbarControlContainer extends OptimizedFrameLayout
     public void onHeightChanged(int tabStripHeight, int topPadding, boolean applyScrimOverlay) {
         mTabStripHeight = tabStripHeight;
         mTabStripTopPadding = topPadding;
-        // When ToolbarSnapshotRefactor is enabled, the tab strip height offset is applied to
-        // mToolbarContainer's topMargin (in updateToolbarContainerTopMargin()) rather than
-        // mToolbarView's topMargin. Keeping mToolbarView's topMargin at 0 avoids applying the
-        // offset twice on native pages (e.g. NTP) where onBrowserControlsOffsetUpdate() is not
-        // dispatched to reset mToolbarView's topMargin after a tab strip height transition.
-        // TODO(crbug.com/557679152): Revisit once TopControlsStacker / BrowserControlsManager
-        // guarantees a resting-position offset update for non-animated transitions on native pages
-        // (NTP).
-        mutateToolbarLayoutParams().topMargin =
-                ChromeFeatureList.sToolbarSnapshotRefactor.isEnabled() ? 0 : tabStripHeight;
+        mutateToolbarLayoutParams().topMargin = tabStripHeight;
 
         int toolbarAndTabStripHeight = tabStripHeight + getToolbarHeight();
         mutateHairlineLayoutParams().topMargin = toolbarAndTabStripHeight;
@@ -431,16 +406,21 @@ public class ToolbarControlContainer extends OptimizedFrameLayout
             findToolbar.setLayoutParams(layoutParams);
         }
         maybeUpdateTempTabStripDrawableBackground(mIncognito, getAppHeaderState());
-        updateToolbarRightOffset();
+        updateToolbarRightOffset(tabStripHeight);
         updateSystemGestureExclusions();
         updateTopLeftCornerOverlay();
     }
 
     @Override
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+        int tabStripHeight = 0;
         if (ChromeFeatureList.sToolbarSnapshotRefactor.isEnabled()) {
+            View toolbar = findViewById(R.id.toolbar);
             View hairline = findViewById(R.id.toolbar_hairline);
-            if (hairline != null) {
+
+            if (toolbar != null && hairline != null) {
+                tabStripHeight = mToolbar != null ? mToolbar.getTabStripHeight() : 0;
+
                 // Set the hairline's top margin to toolbar view to avoid the hairline's top
                 // margin from becoming too big (e.g. toolbar height + tab strip height).
                 MarginLayoutParams hairlineParams = (MarginLayoutParams) hairline.getLayoutParams();
@@ -449,7 +429,15 @@ public class ToolbarControlContainer extends OptimizedFrameLayout
                 }
             }
         }
-        updateToolbarContainerTopMargin();
+
+        // Set a top margin of tab strip height (if snapshot refactor is enabled) + narrow width
+        // top margin to the toolbar_container.
+        MarginLayoutParams containerParams =
+                (MarginLayoutParams) mToolbarContainer.getLayoutParams();
+        int targetTopMargin = tabStripHeight + mTopMarginNarrowWidth;
+        if (containerParams.topMargin != targetTopMargin) {
+            containerParams.topMargin = targetTopMargin;
+        }
 
         // Run the measure pass once with the correct params already in place.
         super.onMeasure(widthMeasureSpec, heightMeasureSpec);
@@ -621,7 +609,6 @@ public class ToolbarControlContainer extends OptimizedFrameLayout
      *     captures are stale and not able to be taken.
      * @param layoutStateProviderSupplier Used to check the current layout type.
      * @param fullscreenManager Used to check whether in fullscreen.
-     * @param topControlsStacker Used to access top controls state.
      */
     @Initializer
     public void setPostInitializationDependencies(
@@ -637,8 +624,7 @@ public class ToolbarControlContainer extends OptimizedFrameLayout
             FullscreenManager fullscreenManager,
             ToolbarDataProvider toolbarDataProvider,
             BrowserControlsStateProvider browserControlsStateProvider,
-            @Nullable DesktopWindowStateManager desktopWindowStateManager,
-            TopControlsStacker topControlsStacker) {
+            @Nullable DesktopWindowStateManager desktopWindowStateManager) {
         mToolbar = toolbar;
         mIncognito = isIncognito;
         mToolbarDataProvider = toolbarDataProvider;
@@ -647,7 +633,6 @@ public class ToolbarControlContainer extends OptimizedFrameLayout
         if (mDesktopWindowStateManager != null) {
             mDesktopWindowStateManager.addObserver(this);
         }
-        mTopControlsStacker = topControlsStacker;
 
         BooleanSupplier isVisible = () -> this.getVisibility() == View.VISIBLE;
         mToolbarContainer.setPostInitializationDependencies(
@@ -661,8 +646,7 @@ public class ToolbarControlContainer extends OptimizedFrameLayout
                 fullscreenManager,
                 () -> mMidVisibilityToggle,
                 toolbarDataProvider,
-                browserControlsStateProvider,
-                topControlsStacker);
+                browserControlsStateProvider);
 
         mToolbarView = toolbarView;
         assert mToolbarView != null;
@@ -740,7 +724,9 @@ public class ToolbarControlContainer extends OptimizedFrameLayout
 
     @Override
     public void onPrimaryColorChanged() {
-        updateBackgroundColor();
+        if (mShowLocationBarOnly) {
+            setBackgroundColor(mToolbarDataProvider.getPrimaryColor());
+        }
     }
 
     /** The layout that handles generating the toolbar view resource. */
@@ -774,8 +760,7 @@ public class ToolbarControlContainer extends OptimizedFrameLayout
                 FullscreenManager fullscreenManager,
                 BooleanSupplier isMidVisibilityToggle,
                 ToolbarDataProvider toolbarDataProvider,
-                BrowserControlsStateProvider browserControlsStateProvider,
-                TopControlsStacker topControlsStacker) {
+                BrowserControlsStateProvider browserControlsStateProvider) {
             mIsMidVisibilityToggle = isMidVisibilityToggle;
             ToolbarViewResourceAdapter adapter =
                     ((ToolbarViewResourceAdapter) getResourceAdapter());
@@ -789,17 +774,11 @@ public class ToolbarControlContainer extends OptimizedFrameLayout
                     layoutStateProviderSupplier,
                     fullscreenManager,
                     toolbarDataProvider,
-                    browserControlsStateProvider,
-                    topControlsStacker);
+                    browserControlsStateProvider);
         }
 
         @Override
         protected boolean isReadyForCapture() {
-            ToolbarViewResourceAdapter adapter =
-                    ((ToolbarViewResourceAdapter) getResourceAdapter());
-            if (adapter != null && adapter.isCapturingDisabled()) {
-                return false;
-            }
             // This method is checked when invalidateChildInParent happens. Returning false will
             // prevent the dirty bit from being set in ViewResourceAdapter. This is what we want
             // when the visibility of this view is being toggled. Many of our children report
@@ -851,7 +830,6 @@ public class ToolbarControlContainer extends OptimizedFrameLayout
         private @Nullable BrowserControlsStateProvider mBrowserControlsStateProvider;
         private @Nullable LayoutStateProvider mLayoutStateProvider;
         private FullscreenManager mFullscreenManager;
-        private TopControlsStacker mTopControlsStacker;
 
         private int mControlsToken = TokenHolder.INVALID_TOKEN;
 
@@ -915,7 +893,6 @@ public class ToolbarControlContainer extends OptimizedFrameLayout
          * @param controlContainerIsVisibleSupplier Whether the toolbar is visible.
          * @param layoutStateProviderSupplier Used to check the current layout type.
          * @param fullscreenManager Used to check whether in fullscreen.
-         * @param topControlsStacker Used to access top controls state.
          */
         @Initializer
         public void setPostInitializationDependencies(
@@ -929,11 +906,9 @@ public class ToolbarControlContainer extends OptimizedFrameLayout
                 OneshotSupplier<LayoutStateProvider> layoutStateProviderSupplier,
                 FullscreenManager fullscreenManager,
                 ToolbarDataProvider toolbarDataProvider,
-                BrowserControlsStateProvider browserControlsStateProvider,
-                TopControlsStacker topControlsStacker) {
+                BrowserControlsStateProvider browserControlsStateProvider) {
             assert mToolbar == null;
             mToolbar = toolbar;
-            mTopControlsStacker = topControlsStacker;
 
             // These dependencies only matter when ChromeFeatureList.SUPPRESS_TOOLBAR_CAPTURES is
             // enabled. Unfortunately this method is often called before native is initialized,
@@ -971,20 +946,6 @@ public class ToolbarControlContainer extends OptimizedFrameLayout
             }
         }
 
-        private boolean isCapturingDisabled() {
-            return DeviceInfo.isDesktop()
-                    && ChromeFeatureList.sAndroidNoCaptureWhenScrollingDisabledOnDesktop.isEnabled()
-                    && mTopControlsStacker.isScrollingDisabled();
-        }
-
-        @Override
-        public void triggerBitmapCapture() {
-            if (isCapturingDisabled()) {
-                return;
-            }
-            super.triggerBitmapCapture();
-        }
-
         private boolean shouldCaptureWhileHidden() {
             return ChromeFeatureList.sToolbarCaptureFixForSPAs.isEnabled()
                     && !mIsDestroyed
@@ -994,9 +955,6 @@ public class ToolbarControlContainer extends OptimizedFrameLayout
 
         @Override
         public boolean isDirty() {
-            if (isCapturingDisabled()) {
-                return false;
-            }
             if (!super.isDirty()) {
                 CaptureReadinessResult.logCaptureReasonFromResult(
                         CaptureReadinessResult.notReady(
@@ -1241,10 +1199,6 @@ public class ToolbarControlContainer extends OptimizedFrameLayout
         // the tab strip.
         if (isOnTabStrip(event)) return false;
 
-        // Don't consume the event if it is below the toolbar container and was not handled by any
-        // child (such as the tablet find toolbar).
-        if (isBelowToolbarContainer(event)) return false;
-
         // If we have ACTION_DOWN in this context, that means either no child consumed the event or
         // this class is the top UI at the event position. Then, we don't need to feed the event to
         // mGestureDetector here because the event is already once fed in onInterceptTouchEvent().
@@ -1263,7 +1217,6 @@ public class ToolbarControlContainer extends OptimizedFrameLayout
         // the event here.
         if (!isToolbarContainerFullyVisible()) return true;
         if (isOnTabStrip(event)) return true;
-        if (isBelowToolbarContainer(event)) return false;
 
         if (mSwipeGestureListener != null && mSwipeGestureListener.onTouchEvent(event)) return true;
 
@@ -1279,16 +1232,6 @@ public class ToolbarControlContainer extends OptimizedFrameLayout
         // Otherwise, permit bottom toolbar to handle swipe up gesture to open tab switcher.
         int tabStripHeight = mToolbar.getTabStripHeight();
         return tabStripHeight != 0 && e.getY() <= tabStripHeight;
-    }
-
-    private boolean isBelowToolbarContainer(MotionEvent e) {
-        View findToolbar = findViewById(R.id.find_toolbar);
-        if (findToolbar == null
-                || findToolbar.getVisibility() != VISIBLE
-                || findToolbar.getParent() != this) {
-            return false;
-        }
-        return mToolbarContainer != null && e.getY() > mToolbarContainer.getBottom();
     }
 
     /**
@@ -1364,16 +1307,14 @@ public class ToolbarControlContainer extends OptimizedFrameLayout
 
     @Override
     public void onAppHeaderStateChanged(AppHeaderState newState) {
-        updateToolbarRightOffset();
+        updateToolbarRightOffset(mTabStripHeight);
         updateSystemGestureExclusions();
         updateTopLeftCornerOverlay();
-        updateToolbarContainerTopMargin();
     }
 
     @Override
     public void onDesktopWindowingModeChanged(boolean isInDesktopWindow) {
         updateTopLeftCornerOverlay();
-        updateToolbarContainerTopMargin();
     }
 
     public void setIsVerticalTabsActiveSupplier(NonNullObservableSupplier<Boolean> supplier) {
@@ -1389,86 +1330,18 @@ public class ToolbarControlContainer extends OptimizedFrameLayout
 
     private void onVerticalTabsActiveChanged() {
         updateTopLeftCornerOverlay();
-        updateToolbarRightOffset();
+        updateToolbarRightOffset(mTabStripHeight);
         updateSystemGestureExclusions();
-        updateToolbarContainerTopMargin();
-    }
-
-    /**
-     * Updates the top margin of {@code mToolbarContainer} to account for the horizontal tab strip
-     * height (when {@code ToolbarSnapshotRefactor} is enabled) and any top offset needed when
-     * Vertical Tabs is active.
-     */
-    private void updateToolbarContainerTopMargin() {
-        int tabStripHeight =
-                ChromeFeatureList.sToolbarSnapshotRefactor.isEnabled() && mToolbar != null
-                        ? mToolbar.getTabStripHeight()
-                        : 0;
-        var containerParams = (MarginLayoutParams) mToolbarContainer.getLayoutParams();
-        int verticalTabsTopMargin = getVerticalTabsTopMargin();
-        int targetTopMargin = tabStripHeight + verticalTabsTopMargin;
-        if (containerParams.topMargin != targetTopMargin) {
-            containerParams.topMargin = targetTopMargin;
-            mToolbarContainer.setLayoutParams(containerParams);
-        }
-        // Only notify TopControlsStacker when the Vertical Tabs top margin (which contributes to
-        // getToolbarHeight()) changes, rather than on horizontal tabStripHeight changes (which are
-        // already managed by TabStripTopControlLayer). Triggering a layer update on tabStripHeight
-        // changes during a window transition (e.g. freeform <-> split-screen) computes layer
-        // offsets before post-transition layout settles, leaving a stale 40dp gap on native pages
-        // (e.g. NTP) where onBrowserControlsOffsetUpdate() is not dispatched afterward.
-        // TODO(crbug.com/557679152): Revisit once TopControlsStacker / BrowserControlsManager
-        // guarantees a resting-position offset update for non-animated transitions on native pages
-        // (NTP).
-        if (mLastVerticalTabsTopMargin != verticalTabsTopMargin) {
-            mLastVerticalTabsTopMargin = verticalTabsTopMargin;
-            if (mTopControlsStacker != null) {
-                mTopControlsStacker.requestLayerUpdatePost(/* requireAnimate= */ false);
-            }
-        }
-        updateBackgroundColor();
-    }
-
-    private void updateBackgroundColor() {
-        if (mToolbarDataProvider != null
-                && (mShowLocationBarOnly || getVerticalTabsTopMargin() > 0)) {
-            setBackgroundColor(mToolbarDataProvider.getPrimaryColor());
-        } else if (mIsCompositorInitialized) {
-            setBackgroundResource(Resources.ID_NULL);
-        }
-    }
-
-    /**
-     * Returns the top margin required for {@code mToolbarContainer} when Vertical Tabs is active
-     * and the horizontal tab strip is hidden (height = 0):
-     *
-     * <ul>
-     *   <li>In a freeform window, {@code getCaptionControlsTopOffset()} is 0 (no status bar inside
-     *       the window), so the margin is 0 in wide windows and {@code mTopMarginNarrowWidth}
-     *       (40dp) when Vertical Tabs auto-hides in narrow windows.
-     *   <li>In fullscreen/split-screen with transient app headers, {@code
-     *       getCaptionControlsTopOffset()} equals the status bar height, pushing the toolbar below
-     *       the status bar into the caption bar region.
-     * </ul>
-     */
-    private int getVerticalTabsTopMargin() {
-        if (!isToolbarInAppHeader()) return 0;
-
-        return assertNonNull(getAppHeaderState()).getCaptionControlsTopOffset()
-                + mTopMarginNarrowWidth;
-    }
-
-    private boolean isVerticalTabsInDesktopWindow() {
-        AppHeaderState appHeaderState = getAppHeaderState();
-        boolean isVerticalTabsActive =
-                mIsVerticalTabsActiveSupplier != null && mIsVerticalTabsActiveSupplier.get();
-        return isVerticalTabsActive && appHeaderState != null && appHeaderState.isInDesktopWindow();
     }
 
     private void updateTopLeftCornerOverlay() {
         assertNonNull(mTopLeftCornerOverlayView);
 
-        boolean enableCorner = isVerticalTabsInDesktopWindow();
+        AppHeaderState appHeaderState = getAppHeaderState();
+        boolean isInDesktopWindow = appHeaderState != null && appHeaderState.isInDesktopWindow();
+        boolean isVerticalTabsActive =
+                mIsVerticalTabsActiveSupplier != null && mIsVerticalTabsActiveSupplier.get();
+        boolean enableCorner = isInDesktopWindow && isVerticalTabsActive;
         if (enableCorner) {
             mTopLeftCornerOverlayView.setVisibility(View.VISIBLE);
             mTopLeftCornerOverlayView.bringToFront();
@@ -1483,9 +1356,6 @@ public class ToolbarControlContainer extends OptimizedFrameLayout
 
     public void setToolbarRightMarginCallback(Callback<Integer> callback) {
         mToolbarRightMarginCallback = callback;
-        if (mToolbarRightMarginCallback != null) {
-            updateToolbarRightOffset();
-        }
     }
 
     /**
@@ -1495,23 +1365,26 @@ public class ToolbarControlContainer extends OptimizedFrameLayout
      * @param hidden Whether Vertical Tabs is hidden due to narrow window width.
      */
     public void setToolbarContainerTopMarginForAutoHiddenVerticalTab(boolean hidden) {
+        // This method is triggered by an event resizing toolbar, which means |onMeasure| will
+        // always follow to reflect the update in |mTopMarginNarrowWidth|. No need to call
+        // call |ToolbarContainer.invalidate|.
         mTopMarginNarrowWidth =
                 hidden
                         ? getContext()
                                 .getResources()
                                 .getDimensionPixelSize(R.dimen.tab_strip_height)
                         : 0;
-        updateToolbarContainerTopMargin();
     }
 
-    /** Updates the toolbar right offset for the current tab strip height. */
-    public void updateToolbarRightOffset() {
+    private void updateToolbarRightOffset(int currentTabStripHeight) {
         int rightMargin = 0;
         AppHeaderState appHeaderState = getAppHeaderState();
-        boolean isVerticalTabsActive = VerticalTabUtils.isVerticalTabsEnabled(getContext());
+        boolean isVerticalTabsActive =
+                mIsVerticalTabsActiveSupplier != null && mIsVerticalTabsActiveSupplier.get();
         if (appHeaderState != null
                 && appHeaderState.isInDesktopWindow()
-                && (isVerticalTabsActive || (mTabStripHeight == 0 && mRightMargin > 0))) {
+                && isVerticalTabsActive
+                && currentTabStripHeight == 0) {
             rightMargin = appHeaderState.getRightPadding();
         }
         if (mToolbarRightMarginCallback != null && mRightMargin != rightMargin) {
@@ -1533,15 +1406,16 @@ public class ToolbarControlContainer extends OptimizedFrameLayout
         updateSystemGestureExclusions();
     }
 
-    /** Returns whether the toolbar is in the same row as the window caption buttons. */
-    public boolean isToolbarInAppHeader() {
-        return isVerticalTabsInDesktopWindow() && mTabStripHeight == 0;
-    }
-
     @Override
     public void setSystemGestureExclusionRects(List<Rect> rects) {
         AppHeaderState appHeaderState = getAppHeaderState();
-        if (isToolbarInAppHeader() && appHeaderState != null && getWidth() > 0) {
+        boolean isVerticalTabsActive =
+                mIsVerticalTabsActiveSupplier != null && mIsVerticalTabsActiveSupplier.get();
+        if (appHeaderState != null
+                && appHeaderState.isInDesktopWindow()
+                && isVerticalTabsActive
+                && mTabStripHeight == 0
+                && getWidth() > 0) {
             // The left edge of the exclusion rectangle must start at 0 so that toolbar buttons
             // located on the left of the toolbar (such as back, forward, reload, and home buttons)
             // are included in the system gesture exclusion rectangle and receive mouse clicks
@@ -1584,13 +1458,5 @@ public class ToolbarControlContainer extends OptimizedFrameLayout
             resourceAdapter.invalidate(null);
             resourceAdapter.triggerBitmapCapture();
         }
-    }
-
-    @Override
-    public boolean isCapturingDisabled() {
-        if (mToolbarContainer == null) return false;
-        ToolbarViewResourceAdapter adapter =
-                (ToolbarViewResourceAdapter) getToolbarResourceAdapter();
-        return adapter != null && adapter.isCapturingDisabled();
     }
 }

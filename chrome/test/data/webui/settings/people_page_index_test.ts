@@ -6,97 +6,35 @@ import 'chrome://settings/settings.js';
 import 'chrome://settings/lazy_load.js';
 
 import type {SettingsPeoplePageIndexElement} from 'chrome://settings/settings.js';
-import {loadTimeData, PrefsBrowserProxy, PrefService, resetRouterForTesting, Router, routes, SignedInState, StatusAction, SyncBrowserProxyImpl} from 'chrome://settings/settings.js';
+import {CrSettingsPrefs, loadTimeData, resetRouterForTesting, Router, routes, SignedInState, StatusAction, SyncBrowserProxyImpl} from 'chrome://settings/settings.js';
+// </if>
+
 import {assertEquals, assertFalse, assertTrue} from 'chrome://webui-test/chai_assert.js';
-import {eventToPromise} from 'chrome://webui-test/test_util.js';
+import {flushTasks} from 'chrome://webui-test/polymer_test_util.js';
+import {microtasksFinished} from 'chrome://webui-test/test_util.js';
 
-import {TestPrefsBrowserProxy} from './test_prefs_browser_proxy.js';
 import {TestSyncBrowserProxy} from './test_sync_browser_proxy.js';
-
-function getInitialPrefs(): chrome.settingsPrivate.PrefObject[] {
-  return [
-    {
-      key: 'signin.allowed_on_next_startup',
-      type: chrome.settingsPrivate.PrefType.BOOLEAN,
-      value: true,
-    },
-    {
-      key: 'import_dialog_autofill_form_data',
-      type: chrome.settingsPrivate.PrefType.BOOLEAN,
-      value: true,
-    },
-    {
-      key: 'import_dialog_bookmarks',
-      type: chrome.settingsPrivate.PrefType.BOOLEAN,
-      value: true,
-    },
-    {
-      key: 'import_dialog_history',
-      type: chrome.settingsPrivate.PrefType.BOOLEAN,
-      value: true,
-    },
-    {
-      key: 'import_dialog_saved_passwords',
-      type: chrome.settingsPrivate.PrefType.BOOLEAN,
-      value: true,
-    },
-    {
-      key: 'import_dialog_search_engine',
-      type: chrome.settingsPrivate.PrefType.BOOLEAN,
-      value: true,
-    },
-    {
-      key: 'bookmark_bar.show_on_all_tabs',
-      type: chrome.settingsPrivate.PrefType.BOOLEAN,
-      value: true,
-    },
-    {
-      key: 'search.suggest_enabled',
-      type: chrome.settingsPrivate.PrefType.BOOLEAN,
-      value: true,
-    },
-    {
-      key: 'url_keyed_anonymized_data_collection.enabled',
-      type: chrome.settingsPrivate.PrefType.BOOLEAN,
-      value: true,
-    },
-    {
-      key: 'spellcheck.use_spelling_service',
-      type: chrome.settingsPrivate.PrefType.BOOLEAN,
-      value: false,
-    },
-    {
-      key: 'spellcheck.dictionaries',
-      type: chrome.settingsPrivate.PrefType.LIST,
-      value: ['en-US'],
-    },
-  ];
-}
 
 suite('PeoplePageIndex', function() {
   let index: SettingsPeoplePageIndexElement;
   let browserProxy: TestSyncBrowserProxy;
 
   async function createPeoplePageIndex(): Promise<void> {
-    const prefsBrowserProxy = new TestPrefsBrowserProxy(getInitialPrefs());
-    PrefsBrowserProxy.setInstance(prefsBrowserProxy);
-    PrefService.resetInstanceForTesting();
-    await PrefService.getInstance().whenInitialized();
-
     document.body.innerHTML = window.trustedTypes!.emptyHTML;
+    const settingsPrefs = document.createElement('settings-prefs');
+    document.body.appendChild(settingsPrefs);
+    await CrSettingsPrefs.initialized;
     index = document.createElement('settings-people-page-index');
-    const whenViewEntered = eventToPromise('view-enter-finish', index);
+    index.prefs = settingsPrefs.prefs!;
     document.body.appendChild(index);
-    await whenViewEntered;
+    return flushTasks();
   }
 
-  setup(async function() {
-    // <if expr="is_chromeos">
+  setup(function() {
     loadTimeData.overrideValues({
       replaceSyncPromosWithSignInPromos: false,
     });
     resetRouterForTesting();
-    // </if>
 
     // Set SignedInState.SIGNED_IN otherwise navigating to routes.SYNC_ADVANCED
     // would automatically redirect to routes.SYNC.
@@ -108,7 +46,7 @@ suite('PeoplePageIndex', function() {
     };
 
     Router.getInstance().navigateTo(routes.BASIC);
-    await createPeoplePageIndex();
+    return createPeoplePageIndex();
   });
 
   function assertActiveView(id: string) {
@@ -121,31 +59,26 @@ suite('PeoplePageIndex', function() {
     assertEquals(routes.BASIC, Router.getInstance().getCurrentRoute());
     assertActiveView('parent');
 
-    // <if expr="is_chromeos">
-    let whenEntered = eventToPromise('view-enter-finish', index);
     Router.getInstance().navigateTo(routes.SYNC);
-    await whenEntered;
+    await microtasksFinished();
     assertActiveView('sync');
 
-    whenEntered = eventToPromise('view-enter-finish', index);
     Router.getInstance().navigateTo(routes.SYNC_ADVANCED);
-    await whenEntered;
+    await microtasksFinished();
     assertActiveView('syncControls');
-    // </if>
 
     // <if expr="not is_chromeos">
     Router.getInstance().navigateTo(routes.IMPORT_DATA);
+    await microtasksFinished();
     assertActiveView('parent');
 
-    let whenEntered = eventToPromise('view-enter-finish', index);
     Router.getInstance().navigateTo(routes.MANAGE_PROFILE);
-    await whenEntered;
+    await microtasksFinished();
     assertActiveView('manageProfile');
     // </if>
 
-    whenEntered = eventToPromise('view-enter-finish', index);
     Router.getInstance().navigateTo(routes.PEOPLE);
-    await whenEntered;
+    await microtasksFinished();
     assertActiveView('parent');
   });
 
@@ -180,14 +113,12 @@ suite('PeoplePageIndex', function() {
     resetRouterForTesting();
     await createPeoplePageIndex();
 
-    let whenEntered = eventToPromise('view-enter-finish', index);
     Router.getInstance().navigateTo(routes.ACCOUNT);
-    await whenEntered;
+    await microtasksFinished();
     assertActiveView('account');
 
-    whenEntered = eventToPromise('view-enter-finish', index);
     Router.getInstance().navigateTo(routes.GOOGLE_SERVICES);
-    await whenEntered;
+    await microtasksFinished();
     assertActiveView('googleServices');
   });
 

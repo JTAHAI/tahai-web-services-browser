@@ -144,18 +144,9 @@ public class AppBannerManager {
                 createAppDetailsObserver(requestId), url, packageName, referrer, iconSizeInPx);
     }
 
-    private static @Nullable Boolean sIsRelatedNonWebAppInstalledForTesting;
-
-    public static void setIsRelatedNonWebAppInstalledForTesting(Boolean installed) {
-        sIsRelatedNonWebAppInstalledForTesting = installed;
-    }
-
     @CalledByNative
     private static boolean isRelatedNonWebAppInstalled(
             @JniType("std::u16string") String packageName) {
-        if (sIsRelatedNonWebAppInstalledForTesting != null) {
-            return sIsRelatedNonWebAppInstalledForTesting;
-        }
         return PackageUtils.isPackageInstalled(packageName);
     }
 
@@ -209,12 +200,6 @@ public class AppBannerManager {
     /** Sets the app-banner-showing logic to ignore the Chrome channel. */
     public static void ignoreChromeChannelForTesting() {
         AppBannerManagerJni.get().ignoreChromeChannelForTesting();
-    }
-
-    public void recheckInstallability() {
-        if (mNativePointer != 0) {
-            AppBannerManagerJni.get().recheckInstallability(mNativePointer);
-        }
     }
 
     /** Returns whether the native AppBannerManager is working. */
@@ -298,8 +283,6 @@ public class AppBannerManager {
         void setTimeDeltaForTesting(int days);
 
         void setOverrideSegmentationResultForTesting(boolean show);
-
-        void recheckInstallability(long nativeAppBannerManagerAndroid);
 
         boolean isProbablyPromotable(@JniType("content::WebContents*") WebContents contents);
     }

@@ -5,6 +5,7 @@
 package org.chromium.chrome.browser.dragdrop;
 
 import static org.chromium.build.NullUtil.assertNonNull;
+import static org.chromium.build.NullUtil.assumeNonNull;
 
 import android.content.ClipDescription;
 import android.content.Context;
@@ -80,7 +81,8 @@ public class ChromeTabbedOnDragListener implements OnDragListener {
                     return false;
                 }
                 Tab selectedTab = mTabModelSelector.getCurrentTab();
-                if (selectedTab != null && selectedTab.getNativePage() instanceof NewTabPage) {
+                assumeNonNull(selectedTab);
+                if (selectedTab.getNativePage() instanceof NewTabPage) {
                     mTabToEnableFakeBox = selectedTab;
                 }
                 return true;

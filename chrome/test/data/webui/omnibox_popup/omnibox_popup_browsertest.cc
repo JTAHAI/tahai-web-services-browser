@@ -35,10 +35,6 @@ IN_PROC_BROWSER_TEST_F(OmniboxPopupTest, Searchbox) {
   RunTest("omnibox_popup/omnibox_popup_searchbox_test.js", "mocha.run();");
 }
 
-IN_PROC_BROWSER_TEST_F(OmniboxPopupTest, TextfieldModel) {
-  RunTest("omnibox_popup/textfield_model_test.js", "mocha.run();");
-}
-
 class OmniboxPopupFullTest : public WebUIMochaBrowserTest {
  protected:
   OmniboxPopupFullTest() {

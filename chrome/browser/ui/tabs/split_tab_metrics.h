@@ -29,8 +29,7 @@ enum class SplitTabCreatedSource {
   kKeyboardShortcut = 9,
   kNewTabButton = 10,
   kLinkClick = 11,
-  kMacMenuBar = 12,
-  kMaxValue = kMacMenuBar
+  kMaxValue = kLinkClick
 };
 // LINT.ThenChange(//tools/metrics/histograms/metadata/tab/enums.xml:SplitTabCreatedSource)
 

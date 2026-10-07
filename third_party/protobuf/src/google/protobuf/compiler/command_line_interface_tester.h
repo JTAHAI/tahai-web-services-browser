@@ -131,8 +131,6 @@ class CommandLineInterfaceTester : public testing::Test {
   void ExpectFileContentNotContainsSubstring(
       absl::string_view filename, absl::string_view content_substring);
 
-  std::string FileContents(absl::string_view filename) const;
-
  private:
   // The object we are testing.
   CommandLineInterface cli_;
@@ -151,6 +149,8 @@ class CommandLineInterfaceTester : public testing::Test {
   std::string captured_stdout_;
 
   std::vector<std::unique_ptr<CodeGenerator>> generators_;
+
+  std::string FileContents(absl::string_view filename) const;
 };
 
 }  // namespace compiler

@@ -2,12 +2,10 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "chrome/browser/glic/glic_profile_manager.h"
-
 #include "base/scoped_observation.h"
 #include "base/test/scoped_feature_list.h"
 #include "chrome/browser/browser_process.h"
-#include "chrome/browser/glic/glic_warming_checks.h"
+#include "chrome/browser/glic/glic_profile_manager.h"
 #include "chrome/browser/glic/host/glic_web_contents_warming_pool.h"
 #include "chrome/browser/glic/host/host.h"
 #include "chrome/browser/glic/public/glic_keyed_service.h"
@@ -18,6 +16,7 @@
 #include "chrome/browser/global_features.h"
 #include "chrome/browser/profiles/profile_manager.h"
 #include "chrome/browser/profiles/profile_test_util.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_element_identifiers.h"
 #include "chrome/common/chrome_features.h"
 #include "chrome/test/interaction/interactive_browser_test.h"
@@ -43,16 +42,16 @@ class DISABLED_GlicProfileManagerUiTest : public test::InteractiveGlicTest {
     // This will temporarily disable preloading to ensure that we don't load the
     // web client before we've initialized the embedded test server and can set
     // the correct URL.
-    SetPrewarmingEnabledForTesting(false);
-    ForceConnectionTypeForTesting(
+    GlicProfileManager::SetPrewarmingEnabledForTesting(false);
+    GlicProfileManager::ForceConnectionTypeForTesting(
         net::NetworkChangeNotifier::ConnectionType::CONNECTION_ETHERNET);
     test::InteractiveGlicTest::SetUp();
   }
 
   void TearDown() override {
     test::InteractiveGlicTest::TearDown();
-    SetPrewarmingEnabledForTesting(true);
-    ForceConnectionTypeForTesting(std::nullopt);
+    GlicProfileManager::SetPrewarmingEnabledForTesting(true);
+    GlicProfileManager::ForceConnectionTypeForTesting(std::nullopt);
   }
 
   void SetUpOnMainThread() override {
@@ -79,7 +78,7 @@ class DISABLED_GlicProfileManagerUiTest : public test::InteractiveGlicTest {
 
   auto CreateAndWarmGlic(bool primary_profile) {
     return Do([primary_profile, this]() {
-      GetService(primary_profile)->TryPreload(GlicWarmingTrigger::kStartup);
+      GetService(primary_profile)->TryPreload();
     });
   }
 
@@ -126,7 +125,8 @@ class DISABLED_GlicProfileManagerUiTest : public test::InteractiveGlicTest {
   }
 
   auto ResetPreloading() {
-    return Do([]() { SetPrewarmingEnabledForTesting(true); });
+    return Do(
+        []() { GlicProfileManager::SetPrewarmingEnabledForTesting(true); });
   }
 
   auto CacheClientContents(bool) {

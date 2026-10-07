@@ -1,2 +1,3 @@
-rules:
-- "**": [corner-shape]
+features:
+- name: corner-shape
+  files: "**"

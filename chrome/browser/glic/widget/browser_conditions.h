@@ -9,6 +9,7 @@
 
 #include "build/build_config.h"
 
+class Browser;
 class BrowserWindowInterface;
 class Profile;
 

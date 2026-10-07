@@ -152,10 +152,7 @@ void GeolocationPermissionContextAndroid::RequestPermission(
           PermissionRepromptState::kShow) {
     if (auto* manager =
             PermissionRequestManager::FromWebContents(web_contents)) {
-      // If requests are filed, and permission prompt is initiated or
-      // it is an allowlisted surface.
-      if (PermissionUtil::ShouldCurrentRequestUsePermissionElementSecondaryUI(
-              manager, web_contents) &&
+      if (manager->IsCurrentRequestEmbeddedPermissionElementInitiated() &&
           manager->Requests()[0]->request_type() == RequestType::kGeolocation) {
         manager->AddObserver(this);
         pending_reprompt_requests_.push_back(

@@ -24,7 +24,6 @@ source_set("contextual_tasks") {
     "active_task_context_provider_impl.h",
     "ai_mode_context_library_converter.h",
     "aim_message_poster.h",
-    "aim_user_agent_tab_helper.h",
     "contextual_tasks_auto_suggestion_manager.h",
     "contextual_tasks_composebox_handler_interface.h",
     "contextual_tasks_context_scoring_utils.h",
@@ -37,10 +36,7 @@ source_set("contextual_tasks") {
     "contextual_tasks_tab_visit_tracker.h",
     "contextual_tasks_ui_interface.h",
     "contextual_tasks_ui_service_delegate.h",
-    "contextual_tasks_url_loader_throttle.cc",
-    "contextual_tasks_url_loader_throttle.h",
     "contextual_tasks_utils.h",
-    "smart_tab_sharing_metrics.h",
     "smart_tab_sharing_settings_policy_handler.h",
     "task_info_delegate.h",
   ]
@@ -48,10 +44,7 @@ source_set("contextual_tasks") {
   deps = [
     "//base",
     "//chrome/browser/ui/browser_window",
-    "//components/google/core/common",
     "//components/tabs:public",
-    "//extensions/buildflags",
-    "//net",
     "//ui/base/unowned_user_data",
   ]
 
@@ -71,25 +64,9 @@ source_set("contextual_tasks") {
     "//components/page_content_annotations/core",
     "//components/passage_embeddings/core:passage_embeddings_types",
     "//content/public/browser",
-    "//services/network/public/cpp",
     "//third_party/abseil-cpp:absl",
-    "//third_party/blink/public/common:headers",
     "//third_party/omnibox_proto",
   ]
-
-  if (enable_extensions_core) {
-    sources += [
-      "contextual_tasks_extension_binder_provider.h",
-      "contextual_tasks_extension_bridge.h",
-      "contextual_tasks_extension_bridge_factory.h",
-      "contextual_tasks_extension_config_provider.h",
-    ]
-    public_deps += [
-      "//extensions/browser",
-      "//extensions/common:extension_features",
-    ]
-  }
-
   if (!is_android) {
     public_deps += [ "//components/policy/core/browser" ]
   }
@@ -107,7 +84,6 @@ source_set("impl") {
   sources = [
     "active_task_context_provider_impl.cc",
     "ai_mode_context_library_converter.cc",
-    "aim_user_agent_tab_helper.cc",
     "contextual_tasks_auto_suggestion_manager.cc",
     "contextual_tasks_context_model_executor.cc",
     "contextual_tasks_context_model_executor.h",
@@ -126,23 +102,7 @@ source_set("impl") {
     "contextual_tasks_utils.cc",
     "site_exclusion_detail.cc",
     "site_exclusion_detail.h",
-    "smart_tab_sharing_metrics.cc",
   ]
-
-  if (enable_extensions_core) {
-    sources += [
-      "contextual_tasks_extension_binder_provider.cc",
-      "contextual_tasks_extension_bridge.cc",
-      "contextual_tasks_extension_bridge_factory.cc",
-      "contextual_tasks_extension_config_provider.cc",
-    ]
-    if (!is_android) {
-      sources += [
-        "contextual_tasks_extension_handler.cc",
-        "contextual_tasks_extension_handler.h",
-      ]
-    }
-  }
 
   if (is_android) {
     sources += [
@@ -152,7 +112,9 @@ source_set("impl") {
       "android/contextual_tasks_ui_service_delegate_android.h",
       "android/contextual_tasks_utils_android.cc",
     ]
-  } else {
+  }
+
+  if (!is_android) {
     sources += [
       "contextual_tasks_ui_service_delegate_desktop.cc",
       "contextual_tasks_ui_service_delegate_desktop.h",
@@ -163,7 +125,6 @@ source_set("impl") {
   deps = [
     ":contextual_tasks",
     ":ui",
-    ":user_data",
     "//chrome/browser:browser_public_dependencies",
     "//chrome/browser/autocomplete:aim_eligibility_service",
     "//chrome/browser/contextual_search",
@@ -186,7 +147,6 @@ source_set("impl") {
     "//components/contextual_search:public",
     "//components/contextual_tasks/internal",
     "//components/contextual_tasks/public",
-    "//components/embedder_support:user_agent",
     "//components/favicon/core",
     "//components/history/core/browser",
     "//components/keyed_service/core",
@@ -205,13 +165,6 @@ source_set("impl") {
     "//third_party/lens_server_proto:lens_overlay_proto",
   ]
 
-  if (enable_extensions_core) {
-    deps += [
-      "//extensions/browser",
-      "//extensions/common",
-    ]
-  }
-
   if (is_android) {
     deps += [
       ":jni_headers",
@@ -222,9 +175,6 @@ source_set("impl") {
   } else {
     deps += [
       "//chrome/browser/ui:browser_actions",
-      "//chrome/browser/ui/lens",
-      "//chrome/browser/ui/views/permissions:permission_prompt_observer",
-      "//chrome/browser/ui/webui:webui_util",
       "//components/policy/core/browser",
     ]
   }
@@ -240,7 +190,6 @@ source_set("ui") {
     "contextual_tasks_page_handler.h",
     "contextual_tasks_side_panel_coordinator.h",
     "contextual_tasks_ui.h",
-    "contextual_tasks_ui_base.h",
     "contextual_tasks_ui_service.h",
     "contextual_tasks_ui_service_factory.h",
     "contextual_tasks_window_tracker.h",
@@ -254,7 +203,9 @@ source_set("ui") {
       "android/contextual_tasks_panel_host_desktop_android.h",
       "android/contextual_tasks_toast.h",
     ]
-  } else {
+  }
+
+  if (!is_android) {
     sources += [
       "contextual_tasks_panel_host_desktop.h",
       "contextual_tasks_web_view.h",
@@ -273,23 +224,13 @@ source_set("ui") {
     ":mojo_bindings",
     ":mojom_traits",
     "//base",
-    "//chrome/browser/actor",
-    "//chrome/browser/autocomplete:aim_eligibility_service",
-    "//chrome/browser/contextual_search",
     "//chrome/browser/tab_list",
-    "//chrome/browser/ui/browser_window",
-    "//chrome/browser/ui/side_panel",
-    "//chrome/browser/ui/webui/cr_components/composebox",
-    "//chrome/browser/ui/webui/searchbox",
     "//chrome/common",
     "//components/contextual_search:public",
-    "//components/contextual_tasks/public:feature_list",
     "//components/contextual_tasks/public:query_contextualizer",
-    "//components/optimization_guide/proto:optimization_guide_proto",
     "//components/prefs",
     "//components/signin/public/identity_manager",
     "//components/tabs:public",
-    "//components/user_education/webui",
     "//content/public/browser",
     "//content/public/common",
     "//extensions/buildflags",
@@ -299,17 +240,38 @@ source_set("ui") {
     "//ui/base/unowned_user_data",
     "//ui/shell_dialogs",
     "//ui/webui",
-    "//ui/webui/resources/cr_components/composebox:mojo_bindings",
-    "//ui/webui/resources/cr_components/help_bubble:mojo_bindings",
-    "//url",
   ]
 
   if (is_android) {
-    public_deps +=
-        [ "//chrome/browser/context_sharing/tab_bottom_sheet/android" ]
-  } else {
+    public_deps += [
+      "//chrome/browser/context_sharing/tab_bottom_sheet/android",
+      "//chrome/browser/ui/side_panel",
+    ]
+  }
+
+  # Required for the shared Composebox and Searchbox handlers to compile on
+  # Desktop and Android.
+  if (!is_ios) {
+    public_deps += [
+      "//chrome/browser/autocomplete:aim_eligibility_service",
+      "//chrome/browser/contextual_search",
+      "//chrome/browser/ui/browser_window",
+      "//chrome/browser/ui/webui/cr_components/composebox",
+      "//chrome/browser/ui/webui/searchbox",
+      "//components/contextual_tasks/public:feature_list",
+      "//components/user_education/webui",
+      "//content/public/browser",
+      "//content/public/common",
+      "//ui/webui",
+      "//ui/webui/resources/cr_components/composebox:mojo_bindings",
+      "//ui/webui/resources/cr_components/help_bubble:mojo_bindings",
+      "//url",
+    ]
+  }
+  if (!is_android) {
     public_deps += [
       "//chrome/browser/glic/browser_ui",
+      "//chrome/browser/ui/side_panel",
       "//chrome/browser/ui/side_panel:side_panel_views_dependent",
       "//chrome/browser/ui/tabs:tab_strip",
       "//chrome/browser/ui/views/bubble",
@@ -355,7 +317,6 @@ source_set("ui_impl") {
     "contextual_tasks_page_handler.cc",
     "contextual_tasks_side_panel_coordinator.cc",
     "contextual_tasks_ui.cc",
-    "contextual_tasks_ui_base.cc",
     "contextual_tasks_ui_service.cc",
     "contextual_tasks_ui_service_factory.cc",
     "contextual_tasks_url_loader_factory_interceptor.cc",
@@ -366,7 +327,31 @@ source_set("ui_impl") {
     "guest_opener_user_data.cc",
     "guest_opener_user_data.h",
   ]
-  deps = [
+  deps = []
+
+  if (is_android) {
+    sources += [
+      "android/contextual_tasks_control_coordinator_android.cc",
+      "android/contextual_tasks_control_coordinator_android.h",
+      "android/contextual_tasks_panel_host_android.cc",
+      "android/contextual_tasks_panel_host_desktop_android.cc",
+      "android/contextual_tasks_toast.cc",
+    ]
+  }
+
+  if (!is_android) {
+    sources += [
+      "contextual_tasks_panel_host_desktop.cc",
+      "contextual_tasks_web_view.cc",
+    ]
+  }
+
+  if (enable_dice_support) {
+    sources += [ "search_ai_mode_promo_tab_helper.cc" ]
+    deps += [ "//chrome/browser/ui/views/search_ai_mode" ]
+  }
+
+  deps += [
     ":impl",
     ":ui",
     ":user_data",
@@ -399,10 +384,6 @@ source_set("ui_impl") {
     "//chrome/browser/ui/tabs:tabs_public",
     "//chrome/browser/ui/webui:plural_string_handler",
     "//chrome/browser/ui/webui:webui_util",
-    "//chrome/browser/ui/webui/cr_components/composebox",
-    "//chrome/browser/ui/webui/cr_components/searchbox",
-    "//chrome/browser/ui/webui/cr_components/searchbox:searchbox_impl",
-    "//chrome/browser/ui/webui/new_tab_page/composebox/variations",
     "//chrome/browser/ui/webui/sanitized_image:sanitized_image_source",
     "//components/application_locale_storage",
     "//components/contextual_search:prefs",
@@ -427,14 +408,13 @@ source_set("ui_impl") {
     "//ui/webui/tracked_element",
   ]
 
+  if (enable_webui_contextual_tasks_composebox) {
+    # FaviconSource is only used under #if
+    # ENABLE_WEBUI_CONTEXTUAL_TASKS_COMPOSEBOX.
+    deps += [ "//chrome/browser/ui/webui:favicon_source" ]
+  }
+
   if (is_android) {
-    sources += [
-      "android/contextual_tasks_control_coordinator_android.cc",
-      "android/contextual_tasks_control_coordinator_android.h",
-      "android/contextual_tasks_panel_host_android.cc",
-      "android/contextual_tasks_panel_host_desktop_android.cc",
-      "android/contextual_tasks_toast.cc",
-    ]
     deps += [
       ":jni_headers",
       "//chrome/browser/android:tabs_public",
@@ -443,11 +423,9 @@ source_set("ui_impl") {
       "//chrome/browser/ui/side_panel/android",
       "//components/messages/android",
     ]
-  } else {
-    sources += [
-      "contextual_tasks_panel_host_desktop.cc",
-      "contextual_tasks_web_view.cc",
-    ]
+  }
+
+  if (!is_android) {
     deps += [
       "//chrome/browser/pdf",
       "//chrome/browser/resources/contextual_tasks:resources",
@@ -461,35 +439,30 @@ source_set("ui_impl") {
       "//chrome/browser/ui/views/bubble",
       "//chrome/browser/ui/views/interaction",
       "//chrome/browser/ui/views/page_info",
-      "//chrome/browser/ui/views/user_education",
       "//chrome/browser/ui/webui",
       "//chrome/browser/ui/webui/webui_toolbar:impl",
       "//components/contextual_tasks/public:feature_list",
       "//components/embedder_support:user_agent",
+      "//content/public/browser",
       "//services/network/public/cpp",
       "//services/network/public/mojom",
       "//third_party/blink/public/common:headers",
       "//third_party/lens_server_proto:lens_overlay_proto",
       "//third_party/protobuf:protobuf_lite",
-      "//ui/views/controls/webview",
       "//url",
     ]
   }
-
-  if (enable_dice_support) {
-    sources += [ "search_ai_mode_promo_tab_helper.cc" ]
-    deps += [ "//chrome/browser/ui/views/search_ai_mode" ]
-  }
-
-  if (enable_webui_contextual_tasks_composebox) {
-    # FaviconSource is only used under #if
-    # ENABLE_WEBUI_CONTEXTUAL_TASKS_COMPOSEBOX.
-    deps += [ "//chrome/browser/ui/webui:favicon_source" ]
-  }
-
-  if (enable_extensions_core) {
-    deps +=
-        [ "//chrome/browser/resources/contextual_tasks/extension:resources" ]
+  if (!is_ios) {
+    deps += [
+      "//chrome/browser/ui/webui/cr_components/composebox",
+      "//chrome/browser/ui/webui/cr_components/searchbox",
+      "//chrome/browser/ui/webui/cr_components/searchbox:searchbox_impl",
+      "//chrome/browser/ui/webui/new_tab_page/composebox/variations",
+    ]
+    if (!is_android) {
+      deps +=
+          [ "//chrome/browser/ui/webui/sanitized_image:sanitized_image_source" ]
+    }
   }
 
   if (enable_guest_view && !enable_extensions_core) {
@@ -517,13 +490,11 @@ mojom("mojo_bindings") {
   sources = [
     "contextual_tasks.mojom",
     "contextual_tasks_internals.mojom",
-    "contextual_tasks_toolbar.mojom",
     "contextual_tasks_types.mojom",
   ]
   webui_module_path = "/"
   public_deps = [
     "//mojo/public/mojom/base",
-    "//mojo/public/mojom/base:protobuf_support",
     "//ui/base/mojom",
     "//ui/webui/resources/cr_components/composebox:mojo_bindings",
     "//url/mojom:url_mojom_gurl",
@@ -552,18 +523,22 @@ if (!is_android) {
     testonly = true
     defines = [ "HAS_OUT_OF_PROC_TEST_RUNNER" ]
     sources = [
-      "aim_user_agent_tab_helper_browsertest.cc",
       "contextual_tasks_composebox_handler_browsertest.cc",
       "contextual_tasks_context_service_browsertest.cc",
-      "contextual_tasks_extension_handler_browsertest.cc",
       "contextual_tasks_page_handler_browsertest.cc",
       "contextual_tasks_ui_browsertest.cc",
       "contextual_tasks_ui_service_browsertest.cc",
       "contextual_tasks_ui_service_pdf_browsertest.cc",
       "contextual_tasks_url_loader_factory_interceptor_browsertest.cc",
     ]
+    deps = []
 
-    deps = [
+    if (enable_dice_support) {
+      sources += [ "search_ai_mode_promo_tab_helper_browsertest.cc" ]
+      deps += [ "//chrome/browser/ui/views/search_ai_mode" ]
+    }
+
+    deps += [
       ":contextual_tasks",
       ":impl",
       ":test_support",
@@ -590,7 +565,6 @@ if (!is_android) {
       "//components/contextual_search:test_support",
       "//components/contextual_tasks/public:feature_list",
       "//components/contextual_tasks/public:test_support",
-      "//components/embedder_support:user_agent",
       "//components/omnibox/browser:test_support",
       "//components/omnibox/common:features",
       "//components/optimization_guide/core:test_support",
@@ -607,11 +581,6 @@ if (!is_android) {
       "//testing/gmock",
       "//testing/gtest",
     ]
-
-    if (enable_dice_support) {
-      sources += [ "search_ai_mode_promo_tab_helper_browsertest.cc" ]
-      deps += [ "//chrome/browser/ui/views/search_ai_mode" ]
-    }
 
     if (enable_pdf) {
       deps += [ "//chrome/browser/pdf:pdf_extension_test_base" ]
@@ -649,16 +618,14 @@ source_set("unit_tests") {
 
   if (is_android) {
     sources += [ "android/contextual_tasks_bridge_unittest.cc" ]
-  } else {
+  }
+
+  if (!is_android) {
     sources += [
       "contextual_tasks_panel_host_desktop_unittest.cc",
       "contextual_tasks_utils_unittest.cc",
       "contextual_tasks_web_contents_user_data_unittest.cc",
     ]
-  }
-
-  if (enable_extensions_core) {
-    sources += [ "contextual_tasks_url_loader_throttle_unittest.cc" ]
   }
 
   deps = [
@@ -687,7 +654,6 @@ source_set("unit_tests") {
     "//chrome/browser/ui/side_panel:test_support",
     "//chrome/browser/ui/toolbar/pinned_toolbar",
     "//chrome/browser/ui/webui:webui_util",
-    "//chrome/browser/ui/webui/cr_components/searchbox",
     "//chrome/test:test_support",
     "//components/application_locale_storage",
     "//components/contextual_search:prefs",
@@ -709,7 +675,6 @@ source_set("unit_tests") {
     "//third_party/lens_server_proto:lens_overlay_proto",
     "//ui/actions:actions_headers",
     "//ui/base/unowned_user_data",
-    "//ui/webui:buildflags",
   ]
 
   if (!is_android) {
@@ -776,7 +741,6 @@ source_set("interactive_ui_tests") {
       "//chrome/browser/tab_list",
       "//chrome/browser/ui/contextual_search",
       "//chrome/browser/ui/lens",
-      "//chrome/browser/ui/lens:test_support",
       "//chrome/browser/ui/webui/searchbox:searchbox_test_utils",
       "//components/lens:enterprise_policy",
     ]
@@ -796,8 +760,6 @@ if (is_android) {
     srcjar_deps = [ ":utils_jni_headers" ]
     sources = [ "android/java/src/org/chromium/chrome/browser/contextual_tasks/ContextualTasksUtils.java" ]
     deps = [
-      "//base:features_java",
-      "//chrome/browser/flags:java",
       "//components/embedder_support/android:util_java",
       "//content/public/android:content_java",
       "//third_party/jni_zero:jni_zero_java",
@@ -813,6 +775,7 @@ if (is_android) {
       "android/java/src/org/chromium/chrome/browser/contextual_tasks/ContextualTaskBottomSheetComponentProvider.java",
       "android/java/src/org/chromium/chrome/browser/contextual_tasks/ContextualTaskBottomSheetContent.java",
       "android/java/src/org/chromium/chrome/browser/contextual_tasks/ContextualTasksBridge.java",
+      "android/java/src/org/chromium/chrome/browser/contextual_tasks/ContextualTasksFuseboxManagerImpl.java",
       "android/java/src/org/chromium/chrome/browser/contextual_tasks/ui/ContextualTasksControlCoordinator.java",
       "android/java/src/org/chromium/chrome/browser/contextual_tasks/ui/ContextualTasksControlMediator.java",
     ]
@@ -825,6 +788,7 @@ if (is_android) {
       "//build/android:build_java",
       "//chrome/browser/android/lifecycle:java",
       "//chrome/browser/context_sharing/tab_bottom_sheet/public/android:java",
+      "//chrome/browser/contextual_tasks/fusebox/android:java",
       "//chrome/browser/feedback/android:factory_java",
       "//chrome/browser/feedback/android:java",
       "//chrome/browser/flags:java",
@@ -860,18 +824,19 @@ if (is_android) {
   robolectric_library("junit") {
     sources = [
       "android/java/src/org/chromium/chrome/browser/contextual_tasks/ContextualTasksBridgeUnitTest.java",
-      "android/java/src/org/chromium/chrome/browser/contextual_tasks/ContextualTasksUtilsUnitTest.java",
+      "android/java/src/org/chromium/chrome/browser/contextual_tasks/ContextualTasksFuseboxManagerImplUnitTest.java",
       "android/java/src/org/chromium/chrome/browser/contextual_tasks/ui/ContextualTasksControlCoordinatorUnitTest.java",
+      "fusebox/android/java/src/org/chromium/chrome/browser/contextual_tasks/fusebox/ContextualTasksSessionStateUnitTest.java",
     ]
     deps = [
       ":java",
-      ":utils_java",
       "//base:base_java",
       "//base:base_java_test_support",
       "//base:base_junit_test_support",
       "//base:supplier_java",
       "//chrome/browser/android/lifecycle:java",
       "//chrome/browser/context_sharing/tab_bottom_sheet/public/android:java",
+      "//chrome/browser/contextual_tasks/fusebox/android:java",
       "//chrome/browser/feedback/android:factory_java",
       "//chrome/browser/feedback/android:java",
       "//chrome/browser/flags:java",

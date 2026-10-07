@@ -69,6 +69,17 @@ const std::vector<std::unique_ptr<AutofillField>>& fields(
   return form.fields();
 }
 
+// A field is active if it contributes to the form signature and it is are
+// included in queries to the Autofill server.
+auto is_active = absl::Overload{
+    [](const FormFieldData& field) {
+      return !IsCheckable(field.check_status());
+    },
+    [](const std::unique_ptr<AutofillField>& field) {
+      return !IsCheckable(field->check_status());
+    },
+};
+
 auto has_autocomplete = absl::Overload{
     [](const FormFieldData& field) {
       return field.parsed_autocomplete().has_value();
@@ -130,14 +141,16 @@ bool ShouldBeParsed(const T& form,
     return false;
   }
 
-  if (fields(form).size() < params.min_required_fields &&
-      (fields(form).size() <
-           params.required_fields_for_forms_with_only_password_fields ||
+  if (!AtLeastNumFieldsSatisfy(form, params.min_required_fields, is_active) &&
+      (!AtLeastNumFieldsSatisfy(
+           form, params.required_fields_for_forms_with_only_password_fields,
+           is_active) ||
        !std::ranges::all_of(fields(form), is_password_field)) &&
       std::ranges::none_of(fields(form), has_autocomplete)) {
     LOG_AF(log_manager) << LoggingScope::kAbortParsing
                         << LogMessage::kAbortParsingNotEnoughFields
-                        << fields(form).size() << form;
+                        << std::ranges::count_if(fields(form), is_active)
+                        << form;
     return false;
   }
 
@@ -163,7 +176,8 @@ template <typename T>
   requires IsForm<T>
 bool ShouldRunHeuristics(const T& form, bool ignore_small_forms) {
   if (ignore_small_forms &&
-      fields(form).size() < kMinRequiredFieldsForHeuristics) {
+      !AtLeastNumFieldsSatisfy(form, kMinRequiredFieldsForHeuristics,
+                               is_active)) {
     return false;
   }
   return HasAllowedScheme(url(form));
@@ -172,19 +186,22 @@ bool ShouldRunHeuristics(const T& form, bool ignore_small_forms) {
 template <typename T>
   requires IsForm<T>
 bool ShouldRunHeuristicsForSingleFields(const T& form) {
-  return fields(form).size() >= 1 && HasAllowedScheme(url(form));
+  return AtLeastNumFieldsSatisfy(form, 1, is_active) &&
+         HasAllowedScheme(url(form));
 }
 
 template <typename T>
   requires IsForm<T>
 bool ShouldBeQueried(const T& form) {
-  return (fields(form).size() >= kMinRequiredFieldsForQuery ||
+  return (AtLeastNumFieldsSatisfy(form, kMinRequiredFieldsForQuery,
+                                  is_active) ||
           std::ranges::any_of(fields(form), is_password_field)) &&
          ShouldBeParsed(form, {}, nullptr);
 }
 
 bool ShouldBeUploaded(const FormStructure& form) {
-  return fields(form).size() >= kMinRequiredFieldsForUpload &&
+  return AtLeastNumFieldsSatisfy(form, kMinRequiredFieldsForUpload,
+                                 is_active) &&
          ShouldBeParsed(form, {}, nullptr);
 }
 

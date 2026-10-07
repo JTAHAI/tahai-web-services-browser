@@ -87,10 +87,6 @@ BASE_FEATURE(kCATransactionV2, base::FEATURE_DISABLED_BY_DEFAULT);
 // Make live-resize of an NSWindow be asynchronous (so it doesn't block the
 // UI thread).
 BASE_FEATURE(kAsyncLiveResize, base::FEATURE_DISABLED_BY_DEFAULT);
-
-// Keeps the NSWindow invisible (via its `alphaValue`) until the first
-// compositor frame has been received.
-BASE_FEATURE(kAlphaInsteadOfCATransaction, base::FEATURE_ENABLED_BY_DEFAULT);
 #endif  // BUILDFLAG(IS_MAC)
 
 #if BUILDFLAG(IS_CHROMEOS)
@@ -113,7 +109,10 @@ bool IsNotificationsIgnoreRequireInteractionEnabled() {
   return base::FeatureList::IsEnabled(kNotificationsIgnoreRequireInteraction);
 }
 
-// TODO(b/544631920): To clean up the AreF11AndF12ShortcutsEnabled()
+// Enables settings that allow users to remap the F11 and F12 keys in the
+// "Customize keyboard keys" page.
+BASE_FEATURE(kSupportF11AndF12KeyShortcuts, base::FEATURE_ENABLED_BY_DEFAULT);
+
 bool AreF11AndF12ShortcutsEnabled() {
   // TODO(crbug.com/40203434): Remove this once kDeviceI18nShortcutsEnabled
   // policy is deprecated. This policy allows managed users to still be able to
@@ -122,10 +121,12 @@ bool AreF11AndF12ShortcutsEnabled() {
     ::ui::ShortcutMappingPrefDelegate* instance =
         ::ui::ShortcutMappingPrefDelegate::GetInstance();
     if (instance && instance->IsDeviceEnterpriseManaged()) {
-      return instance->IsI18nShortcutPrefEnabled();
+      return instance->IsI18nShortcutPrefEnabled() &&
+             base::FeatureList::IsEnabled(
+                 features::kSupportF11AndF12KeyShortcuts);
     }
   }
-  return true;
+  return base::FeatureList::IsEnabled(features::kSupportF11AndF12KeyShortcuts);
 }
 #endif  // BUILDFLAG(IS_CHROMEOS)
 
@@ -237,9 +238,6 @@ BASE_FEATURE(kFocusFollowsCursor, base::FEATURE_DISABLED_BY_DEFAULT);
 
 BASE_FEATURE(kDragDropOnlySynthesizeHttpOrHttpsUrlsFromText,
              base::FEATURE_ENABLED_BY_DEFAULT);
-
-// Enables applying scroll railing in the renderer.
-BASE_FEATURE(kApplyScrollRailingInRenderer, base::FEATURE_DISABLED_BY_DEFAULT);
 
 #if BUILDFLAG(IS_CHROMEOS)
 bool IsImprovedKeyboardShortcutsEnabled() {
@@ -452,6 +450,9 @@ BASE_FEATURE(kWriteBookmarkWithoutTitle, base::FEATURE_ENABLED_BY_DEFAULT);
 // If enabled, fullscreen window state is updated asynchronously.
 BASE_FEATURE(kAsyncFullscreenWindowState, base::FEATURE_DISABLED_BY_DEFAULT);
 
+// Feature flag for enabling platform clipboard monitoring.
+BASE_FEATURE(kPlatformClipboardMonitor, base::FEATURE_ENABLED_BY_DEFAULT);
+
 // If enabled, clipboard read APIs are non-blocking on UI thread.
 BASE_FEATURE(kNonBlockingOsClipboardReads, base::FEATURE_ENABLED_BY_DEFAULT);
 
@@ -495,12 +496,7 @@ BASE_FEATURE(kAsyncVirtualFileExtraction, base::FEATURE_ENABLED_BY_DEFAULT);
 BASE_FEATURE(kVirtualFileChunkedRead, base::FEATURE_ENABLED_BY_DEFAULT);
 
 BASE_FEATURE(kCompensateGestureScrollUpdateLatency,
-#if BUILDFLAG(IS_ANDROID)
-             base::FEATURE_ENABLED_BY_DEFAULT
-#else
-             base::FEATURE_DISABLED_BY_DEFAULT
-#endif  // BUILDFLAG(IS_ANDROID)
-);
+             base::FEATURE_DISABLED_BY_DEFAULT);
 BASE_FEATURE_PARAM(int,
                    kCompensationExpectedLatencyMs,
                    &kCompensateGestureScrollUpdateLatency,
@@ -512,27 +508,21 @@ BASE_FEATURE_PARAM(int,
                    "acceptable_latency_ms",
                    50);
 
+BASE_FEATURE(kSplitViewLinkOpen, base::FEATURE_ENABLED_BY_DEFAULT);
+
 BASE_FEATURE(kDesktopGlowUp, base::FEATURE_DISABLED_BY_DEFAULT);
 
 BASE_FEATURE(kGlassFrame, base::FEATURE_DISABLED_BY_DEFAULT);
-BASE_FEATURE_PARAM(bool, kGlassExpandOnHoverEnabled, &kGlassFrame, true);
+BASE_FEATURE_PARAM(double, kGlassTintOpacityForLightMode, &kGlassFrame, -1.0);
+BASE_FEATURE_PARAM(double, kGlassTintOpacityForDarkMode, &kGlassFrame, -1.0);
+BASE_FEATURE_PARAM(double, kGlassExpandOnHoverOpacity, &kGlassFrame, 0.95);
+BASE_FEATURE_PARAM(double, kGlassExpandOnHoverBlurRadius, &kGlassFrame, 5.0);
 
 BASE_FEATURE(kRoundedIcons, base::FEATURE_DISABLED_BY_DEFAULT);
 BASE_FEATURE(kWebUIRoundedIcons, base::FEATURE_DISABLED_BY_DEFAULT);
 
 // Updates the default dark neutrals for the theme palette.
 BASE_FEATURE(kChromeDarkNeutrals26, base::FEATURE_DISABLED_BY_DEFAULT);
-
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
-BASE_FEATURE(kUsePortalAccentColor, base::FEATURE_ENABLED_BY_DEFAULT);
-#endif
-
-// Enables performance optimizations for theme changes, including caching
-// ColorProviderKey, hierarchical theme observation, and coalescing updates.
-BASE_FEATURE(kThemeChangeOptimization, base::FEATURE_DISABLED_BY_DEFAULT);
-
-BASE_FEATURE(kColorIdCssStyleSheetOptimization,
-             base::FEATURE_DISABLED_BY_DEFAULT);
 
 bool IsGlassFrameEnabled() {
 #if BUILDFLAG(IS_MAC)
@@ -550,10 +540,6 @@ bool IsRoundedIconsEnabled() {
 
 bool IsWebUIRoundedIconsEnabled() {
   return base::FeatureList::IsEnabled(kWebUIRoundedIcons);
-}
-
-bool IsColorIdCssStyleSheetOptimizationEnabled() {
-  return base::FeatureList::IsEnabled(kColorIdCssStyleSheetOptimization);
 }
 
 }  // namespace features

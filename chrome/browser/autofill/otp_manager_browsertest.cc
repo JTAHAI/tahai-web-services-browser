@@ -1,4 +1,4 @@
-// Copyright 2026 The Chromium Authors
+// Copyright 2025 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,7 +17,7 @@
 #include "components/autofill/core/browser/foundations/browser_autofill_manager.h"
 #include "components/autofill/core/browser/foundations/browser_autofill_manager_test_api.h"
 #include "components/autofill/core/browser/foundations/test_autofill_manager_waiter.h"
-#include "components/autofill/core/browser/test_utils/autofill_test_util.h"
+#include "components/autofill/core/browser/test_utils/autofill_test_utils.h"
 #include "components/autofill/core/browser/ui/test_autofill_external_delegate.h"
 #include "components/autofill/core/common/signatures.h"
 #include "components/one_time_tokens/core/browser/gmail_otp_backend.h"
@@ -92,24 +92,10 @@ class FakeGmailOtpBackend : public one_time_tokens::GmailOtpBackend {
     return one_time_tokens::ExpiringSubscription();
   }
 
-  one_time_tokens::ExpiringSubscription SubscribeToTickles(
-      base::Time expiration,
-      TickleCallback callback) override {
-    return one_time_tokens::ExpiringSubscription();
-  }
-
   // one_time_tokens::GmailOtpBackend:
   void OnIncomingOneTimeTokenBackendNotification(
       const one_time_tokens::OneTimeTokenBackendNotification& notification)
       override {}
-
-  void FetchUserDataProcessingConsent(
-      one_time_tokens::GmailOtpBackend::FetchUserDataProcessingConsentCallback
-          callback) override {
-    std::move(callback).Run(/*consent_states=*/std::nullopt);
-  }
-
-  bool HasPendingRequests() const override { return false; }
 
   // Simulates the reception of a Gmail OTP.
   void ProcessCallbacks(

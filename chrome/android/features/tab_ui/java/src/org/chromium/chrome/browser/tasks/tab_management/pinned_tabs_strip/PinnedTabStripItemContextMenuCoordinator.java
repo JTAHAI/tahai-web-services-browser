@@ -21,6 +21,7 @@ import org.chromium.chrome.browser.app.tabwindow.TabWindowManagerSingleton;
 import org.chromium.chrome.browser.bookmarks.BookmarkModel;
 import org.chromium.chrome.browser.bookmarks.TabBookmarker;
 import org.chromium.chrome.browser.collaboration.CollaborationServiceFactory;
+import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.TabId;
@@ -141,7 +142,7 @@ public class PinnedTabStripItemContextMenuCoordinator
 
     private ListItem buildGroupItem(Tab tab, boolean isIncognito) {
         Collection<TabModelSelector> selectors =
-                TabGroupUiUtils.isCrossWindowTabGroupOperationsEnabled()
+                ChromeFeatureList.sCrossWindowTabGroupOperations.isEnabled()
                         ? TabWindowManagerSingleton.getInstance().getAllTabModelSelectors()
                         : null;
         boolean hasTabGroups = TabGroupUtils.hasTabGroups(mTabModel, selectors);

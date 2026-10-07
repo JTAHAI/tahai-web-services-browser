@@ -42,6 +42,7 @@
 #include <utility>
 #include <vector>
 
+#include "google/protobuf/stubs/common.h"
 #include "google/protobuf/testing/file.h"
 #include "google/protobuf/testing/file.h"
 #include <gtest/gtest.h>
@@ -360,7 +361,7 @@ TEST_F(IoTest, GzipIo) {
           }
           GzipOutputStream gzout(&output, options);
           WriteStuff(&gzout);
-          (void)gzout.Close();
+          gzout.Close();
           size = output.ByteCount();
         }
         {
@@ -395,7 +396,7 @@ TEST_F(IoTest, GzipIoWithFlush) {
           GzipOutputStream gzout(&output, options);
           WriteStuff(&gzout);
           EXPECT_TRUE(gzout.Flush());
-          (void)gzout.Close();
+          gzout.Close();
           size = output.ByteCount();
         }
         {
@@ -427,7 +428,7 @@ TEST_F(IoTest, GzipIoContiguousFlushes) {
   WriteStuff(&gzout);
   EXPECT_TRUE(gzout.Flush());
   EXPECT_TRUE(gzout.Flush());
-  (void)gzout.Close();
+  gzout.Close();
   size = output.ByteCount();
 
   ArrayInputStream input(buffer, size, block_size);
@@ -460,7 +461,7 @@ TEST_F(IoTest, GzipIoReadAfterFlush) {
   GzipInputStream gzin(&input, GzipInputStream::GZIP, gzip_buffer_size);
   ReadStuff(&gzin);
 
-  (void)gzout.Close();
+  gzout.Close();
 
   delete[] buffer;
 }
@@ -482,7 +483,7 @@ TEST_F(IoTest, ZlibIo) {
           }
           GzipOutputStream gzout(&output, options);
           WriteStuff(&gzout);
-          (void)gzout.Close();
+          gzout.Close();
           size = output.ByteCount();
         }
         {
@@ -506,7 +507,7 @@ TEST_F(IoTest, ZlibIoInputAutodetect) {
     options.format = GzipOutputStream::ZLIB;
     GzipOutputStream gzout(&output, options);
     WriteStuff(&gzout);
-    (void)gzout.Close();
+    gzout.Close();
     size = output.ByteCount();
   }
   {
@@ -520,7 +521,7 @@ TEST_F(IoTest, ZlibIoInputAutodetect) {
     options.format = GzipOutputStream::GZIP;
     GzipOutputStream gzout(&output, options);
     WriteStuff(&gzout);
-    (void)gzout.Close();
+    gzout.Close();
     size = output.ByteCount();
   }
   {
@@ -782,7 +783,7 @@ TEST(DefaultReadCordTest, ReadCordEof) {
 
   absl::Cord dest;
   ArrayInputStream input(source.data(), source.size());
-  (void)input.Skip(1);
+  input.Skip(1);
   EXPECT_FALSE(input.ReadCord(&dest, source.size()));
 
   absl::Cord expected(source);
@@ -980,7 +981,7 @@ TEST_F(IoTest, ReadCordEof) {
 
   absl::Cord dest;
   CordInputStream input(&source);
-  (void)input.Skip(1);
+  input.Skip(1);
   EXPECT_FALSE(input.ReadCord(&dest, source.size()));
 
   absl::Cord expected = source;
@@ -1264,7 +1265,7 @@ TEST(CordOutputStreamTest, UsesPrivateCapacityInAppendedCord) {
 
   // Add cord. Clearing it makes it privately owned by 'output' as it's non
   // trivial size guarantees it is ref counted, not deep copied.
-  (void)output.WriteCord(cord);
+  output.WriteCord(cord);
   cord.Clear();
 
   ASSERT_TRUE(output.Next(&data, &size));
@@ -1513,8 +1514,8 @@ TEST_F(IoTest, GzipFileIo) {
         FileOutputStream output(file, kBlockSizes[i]);
         GzipOutputStream gzout(&output);
         WriteStuffLarge(&gzout);
-        (void)gzout.Close();
-        (void)output.Flush();
+        gzout.Close();
+        output.Flush();
         EXPECT_EQ(0, output.GetErrno());
       }
 

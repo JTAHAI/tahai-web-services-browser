@@ -7,8 +7,6 @@
 
 #include <string>
 
-class BrowserWindowInterface;
-
 namespace skills {
 
 // A delegate responsible for handling lifecycle and interaction events from the
@@ -23,9 +21,6 @@ class SkillsDialogDelegate {
 
   // Called by the WebUI when a skill is deleted.
   virtual void OnSkillDeleted(const std::string& skill_id) = 0;
-
-  // Returns the browser window associated with the dialog.
-  virtual BrowserWindowInterface* GetBrowserWindowInterface() = 0;
 
  protected:
   virtual ~SkillsDialogDelegate() = default;

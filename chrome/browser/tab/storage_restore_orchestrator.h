@@ -5,6 +5,7 @@
 #ifndef CHROME_BROWSER_TAB_STORAGE_RESTORE_ORCHESTRATOR_H_
 #define CHROME_BROWSER_TAB_STORAGE_RESTORE_ORCHESTRATOR_H_
 
+#include <memory>
 #include <optional>
 
 #include "base/memory/raw_ptr.h"

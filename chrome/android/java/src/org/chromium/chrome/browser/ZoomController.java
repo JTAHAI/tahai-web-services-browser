@@ -10,8 +10,6 @@ import android.os.SystemClock;
 
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
-import org.chromium.chrome.browser.pdf.PdfPage;
-import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.components.browser_ui.accessibility.PageZoomUtils;
 import org.chromium.components.zoom.ZoomConstants;
 import org.chromium.content_public.browser.BrowserContextHandle;
@@ -35,7 +33,7 @@ public class ZoomController {
      * @return True if there was a zoom change, false otherwise.
      */
     public static boolean zoomIn(@Nullable WebContents webContents) {
-        return changePageZoomLevel(webContents, /* decrease= */ false);
+        return zoomInPage(webContents);
     }
 
     /**
@@ -46,27 +44,27 @@ public class ZoomController {
      * @return True if there was a zoom change, false otherwise.
      */
     public static boolean zoomOut(@Nullable WebContents webContents) {
-        return changePageZoomLevel(webContents, /* decrease= */ true);
+        return zoomOutPage(webContents);
     }
 
     /**
      * Zooms in the WebContents using Page Zoom (layout reflow).
      *
-     * @param tab {@link Tab} to zoom in.
+     * @param webContents {@link WebContents} to zoom in.
      * @return True if there was a zoom change, false otherwise.
      */
-    public static boolean zoomInPage(@Nullable Tab tab) {
-        return changeTabZoomLevel(tab, /* decrease= */ false);
+    public static boolean zoomInPage(@Nullable WebContents webContents) {
+        return changePageZoomLevel(webContents, /* decrease= */ false);
     }
 
     /**
      * Zooms out the WebContents using Page Zoom (layout reflow).
      *
-     * @param tab {@link Tab} to zoom out.
+     * @param webContents {@link WebContents} to zoom out.
      * @return True if there was a zoom change, false otherwise.
      */
-    public static boolean zoomOutPage(@Nullable Tab tab) {
-        return changeTabZoomLevel(tab, /* decrease= */ true);
+    public static boolean zoomOutPage(@Nullable WebContents webContents) {
+        return changePageZoomLevel(webContents, /* decrease= */ true);
     }
 
     /**
@@ -98,29 +96,22 @@ public class ZoomController {
     public static boolean zoomReset(
             @Nullable WebContents webContents,
             @Nullable BrowserContextHandle browserContextHandle) {
-        if (webContents == null || browserContextHandle == null) return false;
-        double defaultZoomFactor = HostZoomMap.getDefaultZoomLevel(browserContextHandle);
-        HostZoomMap.setZoomLevel(webContents, defaultZoomFactor);
-        return true;
+        return zoomResetPage(webContents, browserContextHandle);
     }
 
     /**
      * Resets the zoom factor of the WebContents using Page Zoom (layout reflow).
      *
-     * @param tab {@link Tab} to reset the zoom of.
-     * @param browserContextHandle {@link BrowserContextHandle} to get the default zoom level from.
+     * @param webContents {@link WebContents} to reset the zoom of.
      * @return True if there was a zoom change, false otherwise.
      */
     public static boolean zoomResetPage(
-            @Nullable Tab tab, @Nullable BrowserContextHandle browserContextHandle) {
-        if (tab == null) return false;
-        if (tab.isNativePage()) {
-            if (tab.getNativePage() instanceof PdfPage pdfPage) {
-                return pdfPage.resetZoomLevel();
-            }
-            return false;
-        }
-        return zoomReset(tab.getWebContents(), browserContextHandle);
+            @Nullable WebContents webContents,
+            @Nullable BrowserContextHandle browserContextHandle) {
+        if (webContents == null || browserContextHandle == null) return false;
+        double defaultZoomFactor = HostZoomMap.getDefaultZoomLevel(browserContextHandle);
+        HostZoomMap.setZoomLevel(webContents, defaultZoomFactor);
+        return true;
     }
 
     /**
@@ -141,17 +132,6 @@ public class ZoomController {
         eventForwarder.onGestureEvent(GestureEventType.PINCH_BY, timeMs, delta);
         eventForwarder.onGestureEvent(GestureEventType.PINCH_END, timeMs, 0.f);
         return true;
-    }
-
-    private static boolean changeTabZoomLevel(@Nullable Tab tab, boolean decrease) {
-        if (tab == null) return false;
-        if (tab.isNativePage()) {
-            if (tab.getNativePage() instanceof PdfPage pdfPage) {
-                return pdfPage.changeZoomLevel(decrease);
-            }
-            return false;
-        }
-        return changePageZoomLevel(tab.getWebContents(), decrease);
     }
 
     private static boolean changePageZoomLevel(

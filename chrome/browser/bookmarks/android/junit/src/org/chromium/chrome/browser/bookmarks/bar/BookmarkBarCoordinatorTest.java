@@ -235,8 +235,7 @@ public class BookmarkBarCoordinatorTest {
                         mSideUiStateProviderSupplier,
                         mTabObscuringHandler,
                         () -> mModalDialogManager,
-                        () -> mSnackbarManager,
-                        ObservableSuppliers.createNonNull(false));
+                        () -> mSnackbarManager);
 
         assertNotNull("Verify view stub inflation during construction.", mView);
 

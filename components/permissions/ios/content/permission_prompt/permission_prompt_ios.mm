@@ -18,6 +18,11 @@ PermissionPromptIOS::PermissionPromptIOS(content::WebContents* web_contents,
     : web_contents_(web_contents), delegate_(delegate) {
   DCHECK(web_contents_);
   DCHECK(delegate_);
+  std::transform(delegate_->Requests().begin(), delegate_->Requests().end(),
+                 std::back_inserter(requests_),
+                 [](const std::unique_ptr<PermissionRequest>& request_ptr) {
+                   return request_ptr->GetSafeRef();
+                 });
 }
 
 PermissionPromptIOS::~PermissionPromptIOS() = default;
@@ -36,6 +41,9 @@ std::optional<gfx::Rect> PermissionPromptIOS::GetViewBoundsInScreen() const {
   return std::nullopt;
 }
 
+bool PermissionPromptIOS::ShouldFinalizeRequestAfterDecided() const {
+  return true;
+}
 
 std::vector<permissions::ElementAnchoredBubbleVariant>
 PermissionPromptIOS::GetPromptVariants() const {
@@ -82,13 +90,13 @@ size_t PermissionPromptIOS::PermissionCount() const {
 
 ContentSettingsType PermissionPromptIOS::GetContentSettingType(
     size_t position) const {
-  const std::vector<std::unique_ptr<PermissionRequest>>& requests = Requests();
+  const std::vector<base::SafeRef<PermissionRequest>>& requests = Requests();
   CHECK_LT(position, requests.size());
   return requests[position]->GetContentSettingsType();
 }
 
 static bool IsValidMediaRequestGroup(
-    const std::vector<std::unique_ptr<PermissionRequest>>& requests) {
+    const std::vector<base::SafeRef<PermissionRequest>>& requests) {
   if (requests.size() < 2) {
     return false;
   }
@@ -99,14 +107,14 @@ static bool IsValidMediaRequestGroup(
 }
 
 void PermissionPromptIOS::CheckValidRequestGroup(
-    const std::vector<std::unique_ptr<PermissionRequest>>& requests) const {
+    const std::vector<base::SafeRef<PermissionRequest>>& requests) const {
   DCHECK_EQ(static_cast<size_t>(2u), requests.size());
   DCHECK((IsValidMediaRequestGroup(requests)));
 }
 
 PermissionRequest::AnnotatedMessageText
 PermissionPromptIOS::GetAnnotatedMessageText() const {
-  const std::vector<std::unique_ptr<PermissionRequest>>& requests = Requests();
+  const std::vector<base::SafeRef<PermissionRequest>>& requests = Requests();
   if (requests.size() == 1) {
     return requests[0]->GetDialogAnnotatedMessageText(
         delegate_->GetEmbeddingOrigin());
@@ -129,9 +137,9 @@ GURL PermissionPromptIOS::GetRequestingOrigin() const {
   return delegate_->GetRequestingOrigin();
 }
 
-const std::vector<std::unique_ptr<permissions::PermissionRequest>>&
+const std::vector<base::SafeRef<permissions::PermissionRequest>>&
 PermissionPromptIOS::Requests() const {
-  return delegate_->Requests();
+  return requests_;
 }
 
 }  // namespace permissions

@@ -10,128 +10,125 @@ import decorators
 
 
 class NoRaiseExceptionDecoratorTest(unittest.TestCase):
-    def testFunctionDoesNotRaiseException(self):
-        """Tests that the |NoRaiseException| decorator catches exception."""
 
-        @decorators.NoRaiseException()
-        def raiseException():
-            raise Exception()
+  def testFunctionDoesNotRaiseException(self):
+    """Tests that the |NoRaiseException| decorator catches exception."""
 
-        try:
-            raiseException()
-        except Exception:  # pylint: disable=broad-except
-            self.fail(
-                'Exception was not caught by |NoRaiseException| decorator'
-            )
+    @decorators.NoRaiseException()
+    def raiseException():
+      raise Exception()
 
-    def testFunctionReturnsCorrectValues(self):
-        """Tests that the |NoRaiseException| decorator returns correct values."""
+    try:
+      raiseException()
+    except Exception:  # pylint: disable=broad-except
+      self.fail('Exception was not caught by |NoRaiseException| decorator')
 
-        @decorators.NoRaiseException(default_return_value=111)
-        def raiseException():
-            raise Exception()
+  def testFunctionReturnsCorrectValues(self):
+    """Tests that the |NoRaiseException| decorator returns correct values."""
 
-        @decorators.NoRaiseException(default_return_value=111)
-        def doesNotRaiseException():
-            return 999
+    @decorators.NoRaiseException(default_return_value=111)
+    def raiseException():
+      raise Exception()
 
-        self.assertEqual(raiseException(), 111)
-        self.assertEqual(doesNotRaiseException(), 999)
+    @decorators.NoRaiseException(default_return_value=111)
+    def doesNotRaiseException():
+      return 999
 
-    def testFunctionReturnsCorrectValuesWithExceptionType(self):
-        """Tests that the |NoRaiseException| decorator returns correct values."""
+    self.assertEqual(raiseException(), 111)
+    self.assertEqual(doesNotRaiseException(), 999)
 
-        @decorators.NoRaiseException(
-            default_return_value=111, exception_type=OSError
-        )
-        def raiseException():
-            raise OSError('test')
+  def testFunctionReturnsCorrectValuesWithExceptionType(self):
+    """Tests that the |NoRaiseException| decorator returns correct values."""
 
-        @decorators.NoRaiseException(
-            default_return_value=111, exception_type=OSError
-        )
-        def doesNotRaiseException():
-            return 999
+    @decorators.NoRaiseException(default_return_value=111,
+                                 exception_type=OSError)
+    def raiseException():
+      raise OSError('test')
 
-        @decorators.NoRaiseException(
-            default_return_value=111, exception_type=OSError
-        )
-        def raiseOtherException():
-            raise ValueError('test')
+    @decorators.NoRaiseException(default_return_value=111,
+                                 exception_type=OSError)
+    def doesNotRaiseException():
+      return 999
 
-        @decorators.NoRaiseException(default_return_value=111)
-        def raiseDefaultException():
-            raise Exception('test')
+    @decorators.NoRaiseException(default_return_value=111,
+                                 exception_type=OSError)
+    def raiseOtherException():
+      raise ValueError('test')
 
-        self.assertEqual(raiseException(), 111)
-        self.assertEqual(doesNotRaiseException(), 999)
-        self.assertEqual(raiseDefaultException(), 111)
-        with self.assertRaises(ValueError):
-            raiseOtherException()
+    @decorators.NoRaiseException(default_return_value=111)
+    def raiseDefaultException():
+      raise Exception('test')
+
+    self.assertEqual(raiseException(), 111)
+    self.assertEqual(doesNotRaiseException(), 999)
+    self.assertEqual(raiseDefaultException(), 111)
+    with self.assertRaises(ValueError):
+      raiseOtherException()
 
 
 class MemoizeDecoratorTest(unittest.TestCase):
-    def testFunctionExceptionNotMemoized(self):
-        """Tests that |Memoize| decorator does not cache exception results."""
 
-        class ExceptionType1(Exception):
-            pass
+  def testFunctionExceptionNotMemoized(self):
+    """Tests that |Memoize| decorator does not cache exception results."""
 
-        class ExceptionType2(Exception):
-            pass
+    class ExceptionType1(Exception):
+      pass
 
-        @decorators.Memoize
-        def raiseExceptions():
-            if raiseExceptions.count == 0:
-                raiseExceptions.count += 1
-                raise ExceptionType1()
+    class ExceptionType2(Exception):
+      pass
 
-            if raiseExceptions.count == 1:
-                raise ExceptionType2()
+    @decorators.Memoize
+    def raiseExceptions():
+      if raiseExceptions.count == 0:
+        raiseExceptions.count += 1
+        raise ExceptionType1()
 
-        raiseExceptions.count = 0
+      if raiseExceptions.count == 1:
+        raise ExceptionType2()
 
-        with self.assertRaises(ExceptionType1):
-            raiseExceptions()
-        with self.assertRaises(ExceptionType2):
-            raiseExceptions()
+    raiseExceptions.count = 0
 
-    def testFunctionResultMemoized(self):
-        """Tests that |Memoize| decorator caches results."""
+    with self.assertRaises(ExceptionType1):
+      raiseExceptions()
+    with self.assertRaises(ExceptionType2):
+      raiseExceptions()
 
-        @decorators.Memoize
-        def memoized():
-            memoized.count += 1
-            return memoized.count
+  def testFunctionResultMemoized(self):
+    """Tests that |Memoize| decorator caches results."""
 
-        memoized.count = 0
+    @decorators.Memoize
+    def memoized():
+      memoized.count += 1
+      return memoized.count
 
-        def notMemoized():
-            notMemoized.count += 1
-            return notMemoized.count
+    memoized.count = 0
 
-        notMemoized.count = 0
+    def notMemoized():
+      notMemoized.count += 1
+      return notMemoized.count
 
-        self.assertEqual(memoized(), 1)
-        self.assertEqual(memoized(), 1)
-        self.assertEqual(memoized(), 1)
+    notMemoized.count = 0
 
-        self.assertEqual(notMemoized(), 1)
-        self.assertEqual(notMemoized(), 2)
-        self.assertEqual(notMemoized(), 3)
+    self.assertEqual(memoized(), 1)
+    self.assertEqual(memoized(), 1)
+    self.assertEqual(memoized(), 1)
 
-    def testFunctionMemoizedBasedOnArgs(self):
-        """Tests that |Memoize| caches results based on args and kwargs."""
+    self.assertEqual(notMemoized(), 1)
+    self.assertEqual(notMemoized(), 2)
+    self.assertEqual(notMemoized(), 3)
 
-        @decorators.Memoize
-        def returnValueBasedOnArgsKwargs(a, k=0):
-            return a + k
+  def testFunctionMemoizedBasedOnArgs(self):
+    """Tests that |Memoize| caches results based on args and kwargs."""
 
-        self.assertEqual(returnValueBasedOnArgsKwargs(1, 1), 2)
-        self.assertEqual(returnValueBasedOnArgsKwargs(1, 2), 3)
-        self.assertEqual(returnValueBasedOnArgsKwargs(2, 1), 3)
-        self.assertEqual(returnValueBasedOnArgsKwargs(3, 3), 6)
+    @decorators.Memoize
+    def returnValueBasedOnArgsKwargs(a, k=0):
+      return a + k
+
+    self.assertEqual(returnValueBasedOnArgsKwargs(1, 1), 2)
+    self.assertEqual(returnValueBasedOnArgsKwargs(1, 2), 3)
+    self.assertEqual(returnValueBasedOnArgsKwargs(2, 1), 3)
+    self.assertEqual(returnValueBasedOnArgsKwargs(3, 3), 6)
 
 
 if __name__ == '__main__':
-    unittest.main(verbosity=2)
+  unittest.main(verbosity=2)

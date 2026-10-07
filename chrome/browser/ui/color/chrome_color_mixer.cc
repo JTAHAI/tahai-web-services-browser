@@ -304,10 +304,8 @@ void AddChromeColorMixer(ui::ColorProvider* provider,
     mixer[params.dialog_id] = {params.context_menu_id};
   }
 
-  mixer[kColorActorUiHandoffButtonBackground] = {ui::kColorSysSurface};
   mixer[kColorActorUiHandoffButtonBorder] =
       SelectActorUiColorBasedOnNearWhiteInput();
-  mixer[kColorActorUiHandoffButtonForeground] = {ui::kColorSysOnSurface};
   mixer[kColorActorUiOverlayBorder] = SelectActorUiColorBasedOnNearWhiteInput();
   mixer[kColorActorUiOverlayBorderGlow] =
       SelectActorUiColorBasedOnNearWhiteInput();
@@ -327,18 +325,6 @@ void AddChromeColorMixer(ui::ColorProvider* provider,
   mixer[kColorAppMenuHighlightPrimary] = {ui::kColorButtonBackgroundProminent};
   mixer[kColorAppMenuExpandedForegroundPrimary] = {
       ui::kColorButtonForegroundProminent};
-  mixer[kColorAppMenuYourChromeBackground] = {ui::kColorSysTonalContainer};
-  mixer[kColorAppMenuToolsAndActionsBackground] = {
-      ui::kColorSysNeutralContainer};
-  mixer[kColorAppMenuBlockButtonBackground] = {ui::kColorSysSurface};
-  mixer[kColorAppMenuBlockButtonBackgroundHovered] = {
-      ui::kColorSysTonalContainer};
-  mixer[kColorAppMenuBlockButtonBorder] = {ui::kColorSysInversePrimary};
-  mixer[kColorAppMenuBlockButtonForeground] = {ui::kColorSysPrimary};
-  mixer[kColorAppMenuFooterButtonForeground] = {ui::kColorSysPrimary};
-  mixer[kColorAppMenuFooterButtonForegroundHovered] = {ui::kColorSysPrimary};
-  mixer[kColorAppMenuFooterButtonBackgroundHovered] = {
-      ui::kColorSysStateHoverOnSubtle};
   mixer[kColorAvatarButtonHighlightDefault] =
       AdjustHighlightColorForContrast(ui::kColorAccent, kColorToolbar);
   mixer[kColorAvatarButtonHighlightSyncError] = AdjustHighlightColorForContrast(
@@ -463,8 +449,11 @@ void AddChromeColorMixer(ui::ColorProvider* provider,
       ui::GetColorWithMaxContrast({ui::kColorFrameActive});
   mixer[kColorFrameCaptionInactive] =
       ui::GetColorWithMaxContrast({ui::kColorFrameInactive});
-  mixer[kColorGlicBackground] = {dark_mode ? SK_ColorBLACK
-                                           : SkColorSetRGB(0xFD, 0xFC, 0xFC)};
+  if (dark_mode) {
+    mixer[kColorGlicBackground] = {SkColorSetRGB(0x13, 0x13, 0x14)};
+  } else {
+    mixer[kColorGlicBackground] = {ui::kColorBubbleBackground};
+  }
   // Invert modal colors w.r.t. Chrome dark mode.
   mixer[kColorGlicModalBackground] = {dark_mode
                                           ? SkColorSetRGB(0xE3, 0xE3, 0xE3)
@@ -829,7 +818,6 @@ void AddChromeColorMixer(ui::ColorProvider* provider,
   mixer[kColorToolbarTopSeparatorFrameInactive] =
       GetToolbarTopSeparatorColorTransform(kColorToolbar,
                                            ui::kColorFrameInactive);
-  mixer[kColorSettingsWebuiPageBackground] = {ui::kColorSysSurface2};
   mixer[kColorWebContentsBackground] =
       ui::SetAlpha(kColorNewTabPageBackground, SK_AlphaOPAQUE);
   mixer[kColorWebContentsBackgroundLetterboxing] =
@@ -926,15 +914,6 @@ void AddChromeColorMixer(ui::ColorProvider* provider,
       SkColorSetRGB(18, 74, 115)};
   mixer[kColorReadAnythingPreviousReadAloudHighlightLowContrastDark] = {
       SkColorSetRGB(91, 179, 240)};
-  mixer[kColorReadAnythingAiPlaybackBackground] = {
-      SkColorSetRGB(0xF0, 0xF4, 0xF9)};
-  mixer[kColorReadAnythingAiPlaybackHoverBackground] = {
-      SkColorSetRGB(0xE2, 0xE7, 0xEB)};
-  mixer[kColorReadAnythingAiPlaybackIcon] = {SkColorSetRGB(0x44, 0x47, 0x46)};
-  mixer[kColorReadAnythingAiPlaybackActiveBackground] = {
-      SkColorSetRGB(0x1E, 0x64, 0xD4)};
-  mixer[kColorReadAnythingAiPlaybackActiveIcon] = {
-      SkColorSetRGB(0xFF, 0xFF, 0xFF)};
   mixer[kColorReadAnythingAudioPlayerBackground] = {
       ui::kColorSysTonalContainer};
   mixer[kColorReadAnythingAudioPlayerBackgroundBlue] = {

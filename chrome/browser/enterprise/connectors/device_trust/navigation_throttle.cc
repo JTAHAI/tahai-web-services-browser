@@ -10,6 +10,10 @@
 #include "base/values.h"
 #include "build/build_config.h"
 #include "chrome/browser/browser_process.h"
+#include "chrome/browser/enterprise/connectors/device_trust/common/common_types.h"
+#include "chrome/browser/enterprise/connectors/device_trust/common/device_trust_constants.h"
+#include "chrome/browser/enterprise/connectors/device_trust/common/metrics_utils.h"
+#include "chrome/browser/enterprise/connectors/device_trust/device_trust_service.h"
 #include "chrome/browser/enterprise/connectors/device_trust/device_trust_service_factory.h"
 #include "chrome/browser/enterprise/signals/user_permission_service_factory.h"
 #include "chrome/browser/profiles/profile.h"
@@ -17,10 +21,6 @@
 #include "components/device_signals/core/browser/pref_names.h"
 #include "components/device_signals/core/browser/user_permission_service.h"
 #include "components/enterprise/connectors/core/connectors_prefs.h"
-#include "components/enterprise/device_trust/core/common_types.h"
-#include "components/enterprise/device_trust/core/device_trust_constants.h"
-#include "components/enterprise/device_trust/core/device_trust_service.h"
-#include "components/enterprise/device_trust/core/metrics_utils.h"
 #include "components/prefs/pref_service.h"
 #include "components/user_prefs/user_prefs.h"
 #include "content/public/browser/browser_context.h"
@@ -31,7 +31,6 @@
 
 #if BUILDFLAG(IS_CHROMEOS)
 #include "chrome/browser/ash/profiles/profile_helper.h"
-#include "chromeos/ash/components/install_attributes/install_attributes.h"
 #endif  // BUILDFLAG(IS_CHROMEOS)
 
 namespace enterprise_connectors {
@@ -199,7 +198,7 @@ DeviceTrustNavigationThrottle::AddHeadersIfNeeded() {
 #if BUILDFLAG(IS_CHROMEOS)
     LogOrigin(GetAttestationFlowOrigin(
         navigation_handle()->GetWebContents()->GetBrowserContext()));
-    LogEnrollmentStatus(ash::InstallAttributes::Get()->IsEnterpriseManaged());
+    LogEnrollmentStatus();
 #endif  // BUILDFLAG(IS_CHROMEOS)
     LogAttestationFunnelStep(DTAttestationFunnelStep::kAttestationFlowStarted);
     navigation_handle()->SetRequestHeader(kDeviceTrustHeader,

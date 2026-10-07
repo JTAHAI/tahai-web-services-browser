@@ -39,7 +39,6 @@ class DocumentLoaderImpl : public DocumentLoader {
   uint32_t GetDocumentSize() const override;
   uint32_t BytesReceived() const override;
   void ClearPendingRequests() override;
-  std::string GetFileNameFromContentDisposition() const override;
 
   // Exposed for unit tests.
   void SetPartialLoadingEnabled(bool enabled);
@@ -115,7 +114,6 @@ class DocumentLoaderImpl : public DocumentLoader {
   const raw_ptr<Client> client_;
   std::string url_;
   std::unique_ptr<URLLoaderWrapper> loader_;
-  std::string content_disposition_file_name_;
 
   DataStream chunk_stream_;
   bool partial_loading_enabled_;  // Default determined by `kPdfPartialLoading`.

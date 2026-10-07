@@ -7,7 +7,7 @@ package org.chromium.chrome.browser.autofill.editors.autofill_ai;
 import static org.chromium.build.NullUtil.assumeNonNull;
 import static org.chromium.chrome.browser.autofill.editors.autofill_ai.EntityEditorProperties.VISIBLE;
 
-import androidx.fragment.app.FragmentActivity;
+import android.app.Activity;
 
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
@@ -63,10 +63,7 @@ public class EntityEditorCoordinator {
      * @param entityInstance The entity instance to be edited.
      */
     public EntityEditorCoordinator(
-            FragmentActivity activity,
-            Delegate delegate,
-            Profile profile,
-            EntityInstance entityInstance) {
+            Activity activity, Delegate delegate, Profile profile, EntityInstance entityInstance) {
         mMediator =
                 new EntityEditorMediator(
                         activity,

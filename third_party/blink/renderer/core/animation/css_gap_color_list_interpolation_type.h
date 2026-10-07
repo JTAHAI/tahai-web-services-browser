@@ -57,6 +57,10 @@ class CORE_EXPORT CSSGapColorListInterpolationType
                                          const ComputedStyle& style);
 
  private:
+  void GetInitialStyleColorList(const CSSProperty& property,
+                                const ComputedStyle& style,
+                                HeapVector<StyleColor, 1>& result) const;
+
   InterpolationValue MaybeConvertNeutral(
       const InterpolationValue& underlying,
       ConversionCheckers& conversion_checkers) const final;

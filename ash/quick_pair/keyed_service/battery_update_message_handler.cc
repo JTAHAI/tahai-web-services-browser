@@ -4,8 +4,7 @@
 
 #include "ash/quick_pair/keyed_service/battery_update_message_handler.h"
 
-#include <ranges>
-
+#include "base/containers/adapters.h"
 #include "base/functional/bind.h"
 #include "base/functional/callback.h"
 #include "components/cross_device/logging/logging.h"
@@ -76,7 +75,7 @@ void BatteryUpdateMessageHandler::GetBatteryUpdateFromMessageStream(
   DCHECK(message_stream);
 
   // Iterate over messages for battery update if it already exists.
-  for (const auto& message : std::views::reverse(message_stream->messages())) {
+  for (const auto& message : base::Reversed(message_stream->messages())) {
     if (message->is_battery_update()) {
       SetBatteryInfo(device_address, message->get_battery_update());
       return;

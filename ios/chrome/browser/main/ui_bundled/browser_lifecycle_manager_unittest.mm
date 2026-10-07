@@ -32,6 +32,7 @@
 #import "ios/chrome/browser/sessions/model/test_session_restoration_service.h"
 #import "ios/chrome/browser/shared/coordinator/layout_guide/layout_guide_scene_agent.h"
 #import "ios/chrome/browser/shared/coordinator/scene/scene_state.h"
+#import "ios/chrome/browser/shared/coordinator/scene/scene_state_options.h"
 #import "ios/chrome/browser/shared/model/browser/browser.h"
 #import "ios/chrome/browser/shared/model/browser/browser_list.h"
 #import "ios/chrome/browser/shared/model/browser/browser_list_factory.h"
@@ -80,7 +81,7 @@ class BrowserLifecycleManagerTest : public PlatformTest {
         ios::BookmarkModelFactory::GetDefaultFactory());
     test_profile_builder.AddTestingFactory(
         AuthenticationServiceFactory::GetInstance(),
-        AuthenticationServiceFactory::GetFactoryWithDelegateForTesting(
+        AuthenticationServiceFactory::GetFactoryWithDelegate(
             std::make_unique<FakeAuthenticationServiceDelegate>()));
     test_profile_builder.AddTestingFactory(
         SyncServiceFactory::GetInstance(),
@@ -104,8 +105,8 @@ class BrowserLifecycleManagerTest : public PlatformTest {
     profile_state_.profile = profile_.get();
 
     scene_state_ = [[SceneState alloc] init];
-    scene_state_.profileState = profile_state_;
-    scene_state_.sceneSessionID = "scene";
+    [scene_state_ connectWithOptions:{.profile_state = profile_state_,
+                                      .identifier = "scene"}];
 
     LayoutGuideSceneAgent* layout_guide_scene_agent =
         [[LayoutGuideSceneAgent alloc] init];

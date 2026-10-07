@@ -25,7 +25,6 @@
 #include "third_party/blink/public/common/input/web_input_event.h"
 #include "third_party/blink/public/common/use_counter/use_counter_feature.h"
 #include "url/gurl.h"
-#include "url/scheme_host_port.h"
 
 namespace blink {
 struct JavaScriptFrameworkDetectionResult;
@@ -41,8 +40,6 @@ struct LoadTimingInfo;
 }
 
 namespace page_load_metrics {
-
-struct SoftNavigationData;
 
 // Storage types reported to page load metrics observers on storage accesses.
 enum class StorageType {
@@ -107,18 +104,6 @@ struct ExtraRequestCompleteInfo {
 
   // Additional timing information.
   const std::unique_ptr<net::LoadTimingInfo> load_timing_info;
-};
-
-// Information related to resource loads from the in-renderer memory cache.
-struct MemoryResourceLoadInfo {
-  // The scheme, host, and port of the loaded memory cache resource.
-  const url::SchemeHostPort url;
-
-  // The request destination of the resource (e.g. script, image, style).
-  const network::mojom::RequestDestination request_destination;
-
-  // The ID of the frame tree node that initiated the request.
-  const content::FrameTreeNodeId frame_tree_node_id;
 };
 
 // Information related to failed provisional loads.
@@ -361,16 +346,9 @@ class PageLoadMetricsObserverInterface {
   virtual void OnTimingUpdate(content::RenderFrameHost* subframe_rfh,
                               const mojom::PageLoadTiming& timing) = 0;
 
-  // The callback is invoked when a soft navigation first contentful paint is
-  // observed.
+  // The callback is invoked when a soft navigation is detected.
   // See https://github.com/WICG/soft-navigations for more details.
-  virtual void OnSoftNavigationFirstContentfulPaint(
-      const mojom::SoftNavigationMetrics& soft_navigation_metrics) = 0;
-
-  // The callback is invoked when a soft navigation has completed.
-  // See https://github.com/WICG/soft-navigations for more details.
-  virtual void OnSoftNavigationCompleted(
-      const SoftNavigationData& soft_navigation_data) = 0;
+  virtual void OnSoftNavigation() = 0;
 
   // The callback is invoked when one or more soft largest contentful
   // paint candidates arrive in the browser process.
@@ -565,14 +543,6 @@ class PageLoadMetricsObserverInterface {
   virtual void OnLoadedResource(
       const ExtraRequestCompleteInfo& extra_request_complete_info) = 0;
 
-  // Called whenever a resource is loaded from the in-renderer memory cache.
-  // Note: in-renderer memory cache loads do not trigger OnLoadedResource().
-  // Observers that need to track all resource loads (both network/HTTP cache
-  // and in-renderer memory cache) should implement both OnLoadedResource() and
-  // DidLoadResourceFromMemoryCache().
-  virtual void DidLoadResourceFromMemoryCache(
-      const MemoryResourceLoadInfo& memory_resource_load_info) = 0;
-
   virtual void FrameReceivedUserActivation(
       content::RenderFrameHost* render_frame_host) = 0;
 
@@ -631,6 +601,9 @@ class PageLoadMetricsObserverInterface {
                                  const GURL& first_party_url,
                                  bool blocked_by_policy,
                                  StorageType access_type) = 0;
+
+  // Called when prefetch is likely to occur in this page load.
+  virtual void OnPrefetchLikely() = 0;
 
   // Called when the page tracked was just activated after being prerendered.
   // |navigation_handle| is for the activation navigation.

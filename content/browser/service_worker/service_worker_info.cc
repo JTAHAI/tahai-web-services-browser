@@ -6,7 +6,6 @@
 
 #include "base/byte_size.h"
 #include "content/browser/service_worker/service_worker_consts.h"
-#include "content/common/service_worker/service_worker_router_evaluator.h"
 #include "content/public/browser/child_process_host.h"
 #include "ipc/constants.mojom.h"
 #include "third_party/blink/public/common/service_worker/embedded_worker_status.h"
@@ -37,8 +36,7 @@ ServiceWorkerVersionInfo::ServiceWorkerVersionInfo(
     int devtools_agent_route_id,
     ukm::SourceId ukm_source_id,
     blink::mojom::AncestorFrameType ancestor_frame_type,
-    std::optional<std::string> router_rules,
-    std::vector<ServiceWorkerRouterRule> typed_router_rules)
+    std::optional<std::string> router_rules)
     : ServiceWorkerVersionBaseInfo(script_url,
                                    scope,
                                    storage_key,
@@ -53,8 +51,7 @@ ServiceWorkerVersionInfo::ServiceWorkerVersionInfo(
       thread_id(thread_id),
       devtools_agent_route_id(devtools_agent_route_id),
       ukm_source_id(ukm_source_id),
-      router_rules(std::move(router_rules)),
-      typed_router_rules(std::move(typed_router_rules)) {}
+      router_rules(router_rules) {}
 
 ServiceWorkerVersionInfo::ServiceWorkerVersionInfo(
     const ServiceWorkerVersionInfo& other) = default;

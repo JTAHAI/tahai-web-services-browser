@@ -1,2 +1,3 @@
-rules:
-- "**": [autocorrect]
+features:
+- name: autocorrect
+  files: "**"

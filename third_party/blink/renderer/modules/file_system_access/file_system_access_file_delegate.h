@@ -10,7 +10,6 @@
 #include "mojo/public/cpp/bindings/pending_remote.h"
 #include "third_party/blink/public/mojom/file_system_access/file_system_access_file_handle.mojom-blink.h"
 #include "third_party/blink/renderer/core/execution_context/execution_context.h"
-#include "third_party/blink/renderer/modules/modules_export.h"
 #include "third_party/blink/renderer/platform/heap/garbage_collected.h"
 
 namespace blink {
@@ -27,7 +26,7 @@ class FileSystemAccessFileDelegate
  public:
   virtual ~FileSystemAccessFileDelegate() = default;
 
-  static MODULES_EXPORT FileSystemAccessFileDelegate* Create(
+  static FileSystemAccessFileDelegate* Create(
       ExecutionContext* context,
       mojom::blink::FileSystemAccessRegularFilePtr regular_file);
   static FileSystemAccessFileDelegate* CreateForIncognito(

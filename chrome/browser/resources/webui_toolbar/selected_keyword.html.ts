@@ -17,12 +17,9 @@ export function getHtml(this: SelectedKeywordElement) {
   </icon-from-table>
   <div id="text-wrap">
     <div id="short-wrap">
-      <span id="short" aria-hidden="true">${
-          this.selectedKeywordState.shortName}</span>
+      <span id="short">${this.selectedKeywordState.shortName}</span>
     </div>
-    <!-- Since long is always a11y visible, it's the one we announce -->
-    <span id="long" aria-live="polite" aria-atomic="true">${
-        this.selectedKeywordState.fullName}</span>
+    <span id="long">${this.selectedKeywordState.fullName}</span>
   </div>
 </div>
 <div id="separator"></div>

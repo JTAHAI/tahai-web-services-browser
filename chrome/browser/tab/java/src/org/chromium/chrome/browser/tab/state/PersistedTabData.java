@@ -201,9 +201,7 @@ public abstract class PersistedTabData implements UserData {
                         config.getId(),
                         (data) -> {
                             if (tab.isDestroyed()) {
-                                PostTask.postTask(
-                                        TaskTraits.UI_DEFAULT,
-                                        () -> onPersistedTabDataResult(null, tab, clazz, key));
+                                onInvalidTab(callback);
                                 return;
                             }
                             // No stored {@link PersistedTabData} found, return null.
@@ -222,11 +220,7 @@ public abstract class PersistedTabData implements UserData {
                                         TaskTraits.USER_BLOCKING_MAY_BLOCK,
                                         () -> {
                                             if (tab.isDestroyed()) {
-                                                PostTask.postTask(
-                                                        TaskTraits.UI_DEFAULT,
-                                                        () ->
-                                                                onPersistedTabDataResult(
-                                                                        null, tab, clazz, key));
+                                                onInvalidTab(callback);
                                                 return;
                                             }
                                             persistedTabData.deserializeAndLog(data);
@@ -240,11 +234,6 @@ public abstract class PersistedTabData implements UserData {
                                         });
                             }
                         });
-    }
-
-    static boolean isCallbackCachedForTesting(Tab tab, Class<? extends PersistedTabData> clazz) {
-        String key = String.format(Locale.ENGLISH, "%d-%s", tab.getId(), clazz);
-        return sCachedCallbacks.containsKey(key);
     }
 
     private static <T extends PersistedTabData> void onInvalidTab(Callback<@Nullable T> callback) {
@@ -298,7 +287,6 @@ public abstract class PersistedTabData implements UserData {
 
     private static <T extends PersistedTabData> void onPersistedTabDataResult(
             @Nullable T pPersistedTabData, Tab tab, Class<T> clazz, String key) {
-        ThreadUtils.assertOnUiThread();
         final T persistedTabData = tab.isDestroyed() ? null : pPersistedTabData;
         if (persistedTabData != null) {
             setUserData(tab, clazz, persistedTabData);

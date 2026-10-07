@@ -5,9 +5,13 @@
 #ifndef COMPONENTS_WEBAUTHN_CORE_BROWSER_IMPORT_IMPORTED_PASSKEY_CHECKER_H_
 #define COMPONENTS_WEBAUTHN_CORE_BROWSER_IMPORT_IMPORTED_PASSKEY_CHECKER_H_
 
-namespace webauthn {
+#include <cstddef>
 
-struct PasskeyImportCandidate;
+namespace sync_pb {
+class WebauthnCredentialSpecifics;
+}  // namespace sync_pb
+
+namespace webauthn {
 
 // Represents status of a validity check for an about to be imported passkey.
 //
@@ -32,31 +36,15 @@ enum class ImportedPasskeyStatus {
   // Relying Party Identifier is a required field
   // (https://www.w3.org/TR/webauthn-2/#relying-party-identifier).
   kRpIdMissing = 5,
-  // Private key cannot be parsed as a valid PKCS#8 block.
-  kPrivateKeyInvalid = 6,
-  // Private key uses an algorithm not supported by GPM.
-  kPrivateKeyUnsupportedAlgorithm = 7,
-  // Failed to encrypt the passkey data.
-  kEncryptionFailed = 8,
-  // HMAC secret does not have the required 32-byte length.
-  kHmacSecretInvalidSize = 9,
-  // HMAC secret uses an algorithm not supported by GPM.
-  kHmacSecretUnsupportedAlgorithm = 10,
-  // Large blob is present without uncompressed size, or vice versa.
-  kLargeBlobInvalid = 11,
-  // Large blob exceeds the maximum allowed compressed size.
-  kLargeBlobTooLarge = 12,
-  // Large blob exceeds the maximum uncompressed size.
-  kLargeBlobUncompressedSizeTooLarge = 13,
-  kMaxValue = kLargeBlobUncompressedSizeTooLarge,
+  kMaxValue = kRpIdMissing,
 };
-// LINT.ThenChange(//tools/metrics/histograms/metadata/webauthn/enums.xml:ImportedPasskeyStatus)
+// LINT.ThenChange(/tools/metrics/histograms/metadata/webauthn/enums.xml:PasskeyImportStatus)
 
-// Checks the validity of a passkey that is about to be imported.
-// This includes WebAuthn spec conformance (credential ID and user ID bounds,
-// required fields) as well as private key validity and algorithm support.
+// Checks the validity of a passkey that is about to be imported. This mostly
+// includes conformance to the WebAuthn spec (more details in possible statuses
+// above).
 ImportedPasskeyStatus CheckImportedPasskey(
-    const PasskeyImportCandidate& passkey);
+    const sync_pb::WebauthnCredentialSpecifics& passkey);
 
 }  // namespace webauthn
 

@@ -43,16 +43,14 @@ ContextualSearchService::ContextualSearchService(
     variations::VariationsClient* variations_client,
     version_info::Channel channel,
     const std::string& locale,
-    std::unique_ptr<ContextualSearchSessionHandle::TabValidator> tab_validator,
-    GetAuthHeadersCallback get_auth_headers_callback)
+    std::unique_ptr<ContextualSearchSessionHandle::TabValidator> tab_validator)
     : tab_validator_(std::move(tab_validator)),
       identity_manager_(identity_manager),
       url_loader_factory_(std::move(url_loader_factory)),
       template_url_service_(template_url_service),
       variations_client_(variations_client),
       channel_(channel),
-      locale_(locale),
-      get_auth_headers_callback_(get_auth_headers_callback) {}
+      locale_(locale) {}
 
 ContextualSearchService::~ContextualSearchService() = default;
 
@@ -90,7 +88,7 @@ ContextualSearchService::CreateComposeboxQueryController(
   return std::make_unique<ComposeboxQueryController>(
       identity_manager_, url_loader_factory_, channel_, locale_,
       template_url_service_, variations_client_,
-      std::move(query_controller_config_params), get_auth_headers_callback_);
+      std::move(query_controller_config_params));
 }
 
 std::unique_ptr<ContextualSearchSessionHandle>

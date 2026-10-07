@@ -107,29 +107,28 @@ FillingProduct GetFillingProductFromSuggestionType(SuggestionType type) {
     case SuggestionType::kAtMemoryGenericError:
     case SuggestionType::kAtMemoryInactivityNudge:
     case SuggestionType::kAtMemoryNoConnection:
-    case SuggestionType::kAtMemoryOpenGemini:
     case SuggestionType::kAtMemorySearchAffordance:
     case SuggestionType::kAutocompleteAtMemoryButton:
     case SuggestionType::kBnplFootnote:
     case SuggestionType::kInsecureContextPaymentDisabledMessage:
     case SuggestionType::kLoadingThrobber:
+    case SuggestionType::kMixedFormMessage:
+    case SuggestionType::kOpenGemini:
     case SuggestionType::kPersonalContextNotice:
     case SuggestionType::kSeePromoCodeDetails:
     case SuggestionType::kSeparator:
     case SuggestionType::kTitle:
-    case SuggestionType::kUndo:
+    case SuggestionType::kUndoOrClear:
       return FillingProduct::kNone;
     case SuggestionType::kAutofillAiOtherOrders:
     case SuggestionType::kAutofillAiOtherShipments:
     case SuggestionType::kAutofillAiPrivateInferenceNotice:
-    case SuggestionType::kAutofillAiSourceAttribution:
     case SuggestionType::kFetchingAmbientData:
     case SuggestionType::kFillAutofillAi:
     case SuggestionType::kManageAutofillAi:
     case SuggestionType::kManageAutofillAiIdentityDocs:
     case SuggestionType::kManageAutofillAiShopping:
     case SuggestionType::kManageAutofillAiTravel:
-    case SuggestionType::kRemoveAutofillAi:
       return FillingProduct::kAutofillAi;
     case SuggestionType::kAllLoyaltyCardsEntry:
     case SuggestionType::kLoyaltyCardEntry:
@@ -139,7 +138,6 @@ FillingProduct GetFillingProductFromSuggestionType(SuggestionType type) {
       return FillingProduct::kIdentityCredential;
     case SuggestionType::kOneTimePasswordEntry:
       return FillingProduct::kOneTimePassword;
-    case SuggestionType::kAtMemoryFetching:
     case SuggestionType::kAtMemorySearchResult:
     case SuggestionType::kAtMemorySourceAttribution:
     case SuggestionType::kManageEnhancedAutofill:

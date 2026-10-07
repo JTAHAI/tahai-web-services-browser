@@ -9,7 +9,6 @@
 
 #include "base/feature_list.h"
 #include "base/synchronization/waitable_event.h"
-#include "base/task/bind_post_task.h"
 #include "base/task/single_thread_task_runner.h"
 #include "base/time/time.h"
 #include "chrome/services/sharing/nearby/nearby_connections_conversions.h"
@@ -596,10 +595,8 @@ void NearbyConnections::RequestConnectionV3(
           GetPresenceDevice(service_id, endpoint_id), connection_options,
           CreateConnectionListenerV3(
               std::move(listener),
-              base::BindPostTask(
-                  thread_task_runner_,
-                  base::BindOnce(&NearbyConnections::RemovePresenceDevice,
-                                 weak_ptr_factory_.GetWeakPtr(), service_id))),
+              base::BindOnce(&NearbyConnections::RemovePresenceDevice,
+                             weak_ptr_factory_.GetWeakPtr(), service_id)),
           ResultCallbackFromMojom(std::move(callback)));
 }
 
@@ -730,17 +727,12 @@ void NearbyConnections::RejectConnectionV3(
           presence_device,
           [cb = std::move(callback),
            task_runner = base::SequencedTaskRunner::GetCurrentDefault(),
-           service_id, endpoint_id = remote_device->endpoint_id,
-           weak_ptr = weak_ptr_factory_.GetWeakPtr()](Status status) mutable {
+           &service_id, &remote_device, this](Status status) mutable {
             task_runner->PostTask(
                 FROM_HERE,
                 base::BindOnce(std::move(cb), StatusToMojom(status.value)));
 
-            task_runner->PostTask(
-                FROM_HERE,
-                base::BindOnce(&NearbyConnections::RemovePresenceDevice,
-                               std::move(weak_ptr), std::move(service_id),
-                               std::move(endpoint_id)));
+            RemovePresenceDevice(service_id, remote_device->endpoint_id);
           });
 }
 
@@ -756,17 +748,12 @@ void NearbyConnections::DisconnectFromDeviceV3(
           presence_device,
           [cb = std::move(callback),
            task_runner = base::SequencedTaskRunner::GetCurrentDefault(),
-           service_id, endpoint_id = remote_device->endpoint_id,
-           weak_ptr = weak_ptr_factory_.GetWeakPtr()](Status status) mutable {
+           &service_id, &remote_device, this](Status status) mutable {
             task_runner->PostTask(
                 FROM_HERE,
                 base::BindOnce(std::move(cb), StatusToMojom(status.value)));
 
-            task_runner->PostTask(
-                FROM_HERE,
-                base::BindOnce(&NearbyConnections::RemovePresenceDevice,
-                               std::move(weak_ptr), std::move(service_id),
-                               std::move(endpoint_id)));
+            RemovePresenceDevice(service_id, remote_device->endpoint_id);
           });
 }
 

@@ -78,11 +78,19 @@ std::string GenerateExecutionId() {
   return "on-device:" + base::Uuid::GenerateRandomV4().AsLowercaseString();
 }
 
+bool GetOnDeviceModelWithholdNewlines() {
+  static const base::FeatureParam<bool> kOnDeviceModelWitholdNewlines{
+      &features::kOptimizationGuideOnDeviceModel,
+      "on_device_model_withhold_newlines", true};
+  return kOnDeviceModelWitholdNewlines.Get();
+}
+
 // Returns whether the feature tracks repetition.
 // TODO(crbug.com/512149280): Move repetition checker to manifest config.
 bool IsRepetitionTrackedFeature(mojom::OnDeviceFeature feature) {
   switch (feature) {
     case mojom::OnDeviceFeature::kProofreaderApi:
+    case mojom::OnDeviceFeature::kClassifier:
       return false;
     default:
       return true;
@@ -214,11 +222,16 @@ void OnDeviceExecution::OnRequestSafetyResult(
 
   // Handle the result.
   if (safety_result.is_unsafe || safety_result.is_unsupported_language) {
-    CancelPendingResponse(Result::kRequestUnsafe,
-                          safety_result.is_unsupported_language
-                              ? OnDeviceError::kUnsupportedLanguage
-                              : OnDeviceError::kFiltered);
-    return;
+    if (histogram_logger_) {
+      histogram_logger_->set_result(Result::kRequestUnsafe);
+    }
+    if (features::GetOnDeviceModelRetractUnsafeContent()) {
+      CancelPendingResponse(Result::kRequestUnsafe,
+                            safety_result.is_unsupported_language
+                                ? OnDeviceError::kUnsupportedLanguage
+                                : OnDeviceError::kFiltered);
+      return;
+    }
   }
   BeginRequestExecution(std::move(options));
 }
@@ -244,13 +257,19 @@ void OnDeviceExecution::OnResponse(
         telemetry_logger_.GetTimeToFirstResponse().InMilliseconds());
   }
 
-  NewlineBuffer::Chunk trimmed_chunk = newline_buffer_.Append(chunk->text);
-  if (trimmed_chunk.text.empty()) {
-    return;
+  if (GetOnDeviceModelWithholdNewlines()) {
+    NewlineBuffer::Chunk trimmed_chunk = newline_buffer_.Append(chunk->text);
+    if (trimmed_chunk.text.empty()) {
+      return;
+    }
+    current_response_ += trimmed_chunk.text;
+    num_unchecked_response_tokens_ += trimmed_chunk.num_tokens;
+    num_response_tokens_ += trimmed_chunk.num_tokens;
+  } else {
+    current_response_ += chunk->text;
+    num_unchecked_response_tokens_++;
+    num_response_tokens_++;
   }
-  current_response_ += trimmed_chunk.text;
-  num_unchecked_response_tokens_ += trimmed_chunk.num_tokens;
-  num_response_tokens_ += trimmed_chunk.num_tokens;
 
   if (IsRepetitionTrackedFeature(feature_) &&
       HasRepeatingSuffix(current_response_)) {
@@ -364,12 +383,18 @@ void OnDeviceExecution::OnRawOutputSafetyResult(
         completeness != ResponseCompleteness::kComplete) {
       return;
     }
+    if (histogram_logger_) {
+      histogram_logger_->set_result(Result::kUsedOnDeviceOutputUnsafe);
+    }
     AddModelExecutionLogs(std::move(safety_result.logs));
-    CancelPendingResponse(Result::kUsedOnDeviceOutputUnsafe,
-                          safety_result.is_unsupported_language
-                              ? OnDeviceError::kUnsupportedLanguage
-                              : OnDeviceError::kFiltered);
-    return;
+    if (features::GetOnDeviceModelRetractUnsafeContent()) {
+      CancelPendingResponse(Result::kUsedOnDeviceOutputUnsafe,
+                            safety_result.is_unsupported_language
+                                ? OnDeviceError::kUnsupportedLanguage
+                                : OnDeviceError::kFiltered);
+
+      return;
+    }
   }
   if (completeness == ResponseCompleteness::kComplete) {
     AddModelExecutionLogs(std::move(safety_result.logs));
@@ -442,11 +467,17 @@ void OnDeviceExecution::OnResponseSafetyResult(
         completeness != ResponseCompleteness::kComplete) {
       return;
     }
-    CancelPendingResponse(Result::kUsedOnDeviceOutputUnsafe,
-                          safety_result.is_unsupported_language
-                              ? OnDeviceError::kUnsupportedLanguage
-                              : OnDeviceError::kFiltered);
-    return;
+    if (histogram_logger_) {
+      histogram_logger_->set_result(Result::kUsedOnDeviceOutputUnsafe);
+    }
+    if (features::GetOnDeviceModelRetractUnsafeContent()) {
+      CancelPendingResponse(Result::kUsedOnDeviceOutputUnsafe,
+                            safety_result.is_unsupported_language
+                                ? OnDeviceError::kUnsupportedLanguage
+                                : OnDeviceError::kFiltered);
+
+      return;
+    }
   }
   if (completeness == ResponseCompleteness::kPartial) {
     SendPartialResponseCallback(output);

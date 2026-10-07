@@ -98,4 +98,3 @@ chrome.test.getConfig(config => chrome.test.runTests([
     chrome.test.succeed();
   },
 ]));
-

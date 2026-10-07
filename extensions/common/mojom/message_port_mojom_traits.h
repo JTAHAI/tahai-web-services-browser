@@ -5,7 +5,6 @@
 #ifndef EXTENSIONS_COMMON_MOJOM_MESSAGE_PORT_MOJOM_TRAITS_H_
 #define EXTENSIONS_COMMON_MOJOM_MESSAGE_PORT_MOJOM_TRAITS_H_
 
-#include <optional>
 #include <string>
 
 #include "extensions/common/api/messaging/message.h"
@@ -90,12 +89,12 @@ struct StructTraits<extensions::mojom::PortIdDataView, extensions::PortId> {
 template <>
 struct StructTraits<extensions::mojom::MessagingEndpointDataView,
                     extensions::MessagingEndpoint> {
-  static const std::optional<std::string>& native_app_name(
+  static std::optional<std::string> native_app_name(
       const extensions::MessagingEndpoint& endpoint) {
     return endpoint.native_app_name;
   }
 
-  static const std::optional<std::string>& extension_id(
+  static std::optional<std::string> extension_id(
       const extensions::MessagingEndpoint& endpoint) {
     return endpoint.extension_id;
   }

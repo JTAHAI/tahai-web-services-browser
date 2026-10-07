@@ -133,14 +133,14 @@ LockImpl::~LockImpl() {
   DCHECK_EQ(rv, 0) << ". " << SystemErrorCodeToString(rv);
 }
 
-void LockImpl::LockInternal(const LockMetricTagList& tags) {
+void LockImpl::LockInternal() {
 #if BUILDFLAG(IS_POSIX)
   if (TrySpin()) {
     return;
   }
 #endif  // BUILDFLAG(IS_POSIX)
 
-  LockMetricsRecorder::ScopedLockAcquisitionTimer timer(tags);
+  LockMetricsRecorder::ScopedLockAcquisitionTimer timer;
   int rv = pthread_mutex_lock(&native_handle_);
   DCHECK_EQ(rv, 0) << ". " << SystemErrorCodeToString(rv);
 }

@@ -29,7 +29,6 @@
 #include "third_party/blink/renderer/platform/heap/thread_state.h"
 #include "third_party/blink/renderer/platform/network/network_state_notifier.h"
 #include "third_party/blink/renderer/platform/testing/unit_test_helpers.h"
-#include "third_party/blink/renderer/platform/wtf/text/format.h"
 
 namespace blink {
 
@@ -81,10 +80,10 @@ TEST_P(LazyLoadMediaParamsTest, LazyLoadVideoFarFromViewport) {
 
   LoadURL("https://example.com/");
 
-  main_resource.Complete(Format(
+  main_resource.Complete(String::Format(
       R"HTML(
         <body onload='console.log("main body onload");'>
-        <div style='height: {}px;'></div>
+        <div style='height: %dpx;'></div>
         <video src='https://example.com/video.mp4' loading='lazy'
                onloadstart='console.log("video loadstart");'
                onloadedmetadata='console.log("video loadedmetadata");'>
@@ -118,10 +117,10 @@ TEST_P(LazyLoadMediaParamsTest, LazyLoadVideoNearViewport) {
 
   LoadURL("https://example.com/");
 
-  main_resource.Complete(Format(
+  main_resource.Complete(String::Format(
       R"HTML(
         <body onload='console.log("main body onload");'>
-        <div style='height: {}px;'></div>
+        <div style='height: %dpx;'></div>
         <video src='https://example.com/video.mp4' loading='lazy'
                style='width: 300px; height: 150px;'
                onloadstart='console.log("video loadstart");'>
@@ -149,10 +148,10 @@ TEST_P(LazyLoadMediaParamsTest, LazyLoadAudioFarFromViewport) {
 
   LoadURL("https://example.com/");
 
-  main_resource.Complete(Format(
+  main_resource.Complete(String::Format(
       R"HTML(
         <body onload='console.log("main body onload");'>
-        <div style='height: {}px;'></div>
+        <div style='height: %dpx;'></div>
         <audio src='https://example.com/audio.mp3' loading='lazy' controls
                onloadstart='console.log("audio loadstart");'>
         </audio>
@@ -191,10 +190,10 @@ TEST_P(LazyLoadMediaParamsTest, DISABLED_LazyLoadAudioNearViewport) {
 
   LoadURL("https://example.com/");
 
-  main_resource.Complete(Format(
+  main_resource.Complete(String::Format(
       R"HTML(
         <body onload='console.log("main body onload");'>
-        <div style='height: {}px;'></div>
+        <div style='height: %dpx;'></div>
         <audio src='https://example.com/audio.mp3' loading='lazy' controls
                onloadstart='console.log("audio loadstart");'>
         </audio>
@@ -250,10 +249,10 @@ TEST_F(LazyLoadMediaTest, VideoAttributeChangedFromLazyToEager) {
 
   LoadURL("https://example.com/");
 
-  main_resource.Complete(Format(
+  main_resource.Complete(String::Format(
       R"HTML(
         <body onload='console.log("main body onload");'>
-        <div style='height: {}px;'></div>
+        <div style='height: %dpx;'></div>
         <video id='my_video' src='https://example.com/video.mp4' loading='lazy'
                onloadstart='console.log("video loadstart");'>
         </video>
@@ -289,10 +288,10 @@ TEST_F(LazyLoadMediaTest, AudioAttributeChangedFromLazyToEager) {
 
   LoadURL("https://example.com/");
 
-  main_resource.Complete(Format(
+  main_resource.Complete(String::Format(
       R"HTML(
         <body onload='console.log("main body onload");'>
-        <div style='height: {}px;'></div>
+        <div style='height: %dpx;'></div>
         <audio id='my_audio' src='https://example.com/audio.mp3' loading='lazy' controls
                onloadstart='console.log("audio loadstart");'>
         </audio>
@@ -326,10 +325,10 @@ TEST_F(LazyLoadMediaTest, LazyVideoLoadsOnScroll) {
 
   LoadURL("https://example.com/");
 
-  main_resource.Complete(Format(
+  main_resource.Complete(String::Format(
       R"HTML(
         <body onload='console.log("main body onload");'>
-        <div style='height: {}px;'></div>
+        <div style='height: %dpx;'></div>
         <video id='my_video' src='https://example.com/video.mp4' loading='lazy'
                onloadstart='console.log("video loadstart");'>
         </video>
@@ -366,10 +365,10 @@ TEST_F(LazyLoadMediaTest, EagerVideoLoadsImmediately) {
 
   LoadURL("https://example.com/");
 
-  main_resource.Complete(Format(
+  main_resource.Complete(String::Format(
       R"HTML(
         <body onload='console.log("main body onload");'>
-        <div style='height: {}px;'></div>
+        <div style='height: %dpx;'></div>
         <video src='https://example.com/video.mp4' loading='eager'
                onloadstart='console.log("video loadstart");'>
         </video>
@@ -400,10 +399,10 @@ TEST_F(LazyLoadMediaTest, VideoWithoutLoadingAttributeLoadsImmediately) {
 
   LoadURL("https://example.com/");
 
-  main_resource.Complete(Format(
+  main_resource.Complete(String::Format(
       R"HTML(
         <body onload='console.log("main body onload");'>
-        <div style='height: {}px;'></div>
+        <div style='height: %dpx;'></div>
         <video src='https://example.com/video.mp4'
                onloadstart='console.log("video loadstart");'>
         </video>
@@ -431,10 +430,10 @@ TEST_F(LazyLoadMediaTest, LazyLoadVideoWithSourceAndPosterDeferred) {
 
   LoadURL("https://example.com/");
 
-  main_resource.Complete(Format(
+  main_resource.Complete(String::Format(
       R"HTML(
         <body onload='console.log("main body onload");'>
-        <div style='height: {}px;'></div>
+        <div style='height: %dpx;'></div>
         <video poster='https://example.com/poster.jpg' loading='lazy'
                onloadstart='console.log("video loadstart");'>
           <source src='https://example.com/video.mp4' type='video/mp4'>
@@ -454,10 +453,10 @@ TEST_F(LazyLoadMediaTest, LazyLoadAudioWithSourceDeferred) {
 
   LoadURL("https://example.com/");
 
-  main_resource.Complete(Format(
+  main_resource.Complete(String::Format(
       R"HTML(
         <body onload='console.log("main body onload");'>
-        <div style='height: {}px;'></div>
+        <div style='height: %dpx;'></div>
         <audio loading='lazy' controls
                onloadstart='console.log("audio loadstart");'>
           <source src='https://example.com/audio.mp3' type='audio/mpeg'>
@@ -478,10 +477,10 @@ TEST_F(LazyLoadMediaTest, LazyLoadTakesPrecedenceOverPreloadAuto) {
 
   LoadURL("https://example.com/");
 
-  main_resource.Complete(Format(
+  main_resource.Complete(String::Format(
       R"HTML(
         <body onload='console.log("main body onload");'>
-        <div style='height: {}px;'></div>
+        <div style='height: %dpx;'></div>
         <video src='https://example.com/video.mp4' loading='lazy' preload='auto'
                onloadstart='console.log("video loadstart");'>
         </video>
@@ -502,10 +501,10 @@ TEST_F(LazyLoadMediaTest, LazyLoadVideoWithAutoplayDeferred) {
 
   LoadURL("https://example.com/");
 
-  main_resource.Complete(Format(
+  main_resource.Complete(String::Format(
       R"HTML(
         <body onload='console.log("main body onload");'>
-        <div style='height: {}px;'></div>
+        <div style='height: %dpx;'></div>
         <video src='https://example.com/video.mp4' loading='lazy' autoplay muted
                onloadstart='console.log("video loadstart");'
                onplay='console.log("video play");'>
@@ -529,10 +528,10 @@ TEST_F(LazyLoadMediaTest, LazyLoadVideoPosterDeferred) {
 
   LoadURL("https://example.com/");
 
-  main_resource.Complete(Format(
+  main_resource.Complete(String::Format(
       R"HTML(
         <body onload='console.log("main body onload");'>
-        <div style='height: {}px;'></div>
+        <div style='height: %dpx;'></div>
         <video src='https://example.com/video.mp4' loading='lazy'
                onloadstart='console.log("video loadstart");'>
         </video>
@@ -552,9 +551,9 @@ TEST_F(LazyLoadMediaTest, LazyLoadVideoFileUrls) {
   SimRequest main_resource("file:///test.html", "text/html");
 
   LoadURL("file:///test.html");
-  main_resource.Complete(Format(
+  main_resource.Complete(String::Format(
       R"HTML(
-        <div style='height: {}px;'></div>
+        <div style='height: %dpx;'></div>
         <video id='lazy' src='file:///video.mp4' loading='lazy'
                onloadstart='console.log("video loadstart");'/>
       )HTML",
@@ -587,10 +586,10 @@ TEST_F(LazyLoadMediaTest, LazyLoadVideoWithTrackDefersTrackLoading) {
 
   LoadURL("https://example.com/");
 
-  main_resource.Complete(Format(
+  main_resource.Complete(String::Format(
       R"HTML(
         <body onload='console.log("main body onload");'>
-        <div style='height: {}px;'></div>
+        <div style='height: %dpx;'></div>
         <video id='my_video' src='https://example.com/video.mp4' loading='lazy'
                onloadstart='console.log("video loadstart");'>
           <track kind='subtitles' src='https://example.com/subs.vtt'
@@ -634,10 +633,10 @@ TEST_F(LazyLoadMediaTest, LazyLoadVideoWithTrackDefersTrackLoading) {
 TEST_F(LazyLoadMediaTest, GarbageCollectDeferredLazyLoadMedia) {
   SimRequest main_resource("https://example.com/", "text/html");
   LoadURL("https://example.com/");
-  main_resource.Complete(Format(
+  main_resource.Complete(String::Format(
       R"HTML(
         <body>
-        <div style='height: {}px;'></div>
+        <div style='height: %dpx;'></div>
         <video src='https://example.com/video.mp4' loading='lazy'>
         </video>
         </body>)HTML",
@@ -668,10 +667,10 @@ TEST_F(LazyLoadMediaTest, RemovedLazyVideoDoesNotCrashOnPrint) {
 
   LoadURL("https://example.com/");
 
-  main_resource.Complete(Format(
+  main_resource.Complete(String::Format(
       R"HTML(
         <body>
-        <div style='height: {}px;'></div>
+        <div style='height: %dpx;'></div>
         <video id='my_video' src='https://example.com/video.mp4' loading='lazy'>
         </video>
         </body>)HTML",

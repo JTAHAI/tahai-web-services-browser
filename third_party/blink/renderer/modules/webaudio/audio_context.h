@@ -25,7 +25,6 @@
 #include "third_party/blink/renderer/core/html/media/autoplay_policy.h"
 #include "third_party/blink/renderer/core/page/page_visibility_observer.h"
 #include "third_party/blink/renderer/modules/webaudio/base_audio_context.h"
-#include "third_party/blink/renderer/modules/webaudio/realtime_audio_destination_node.h"
 #include "third_party/blink/renderer/platform/audio/audio_frame_stats_accumulator.h"
 #include "third_party/blink/renderer/platform/heap/collection_support/heap_deque.h"
 #include "third_party/blink/renderer/platform/heap/garbage_collected.h"
@@ -53,6 +52,7 @@ class MediaElementAudioSourceNode;
 class MediaStream;
 class MediaStreamAudioDestinationNode;
 class MediaStreamAudioSourceNode;
+class RealtimeAudioDestinationNode;
 class ScriptState;
 class V8UnionAudioSinkOptionsOrString;
 class WebAudioLatencyHint;
@@ -238,11 +238,8 @@ class MODULES_EXPORT AudioContext final
   AudioPlaybackStats* playbackStats();
 
 
-  // Cannot be called from the audio thread. This method returns a
-  // GarbageCollected object, which must not be accessed on the real-time audio
-  // thread. For audio thread access, use the corresponding
-  // AudioDestinationHandler instead.
-  RealtimeAudioDestinationNode* destinationNode() const override;
+  // Cannot be called from the audio thread.
+  RealtimeAudioDestinationNode* GetRealtimeAudioDestinationNode() const;
 
   void HandleAudibility(AudioBus* destination_bus);
 
@@ -526,7 +523,7 @@ class MODULES_EXPORT AudioContext final
   // all that's needed.
   size_t total_audible_renders_ = 0;
 
-  SelfKeepAlive<AudioContext> keep_alive_{{}, this};
+  SelfKeepAlive<AudioContext> keep_alive_{this};
 
   // Initially, we assume that the microphone permission is denied. But this
   // will be corrected after the actual construction.
@@ -641,6 +638,10 @@ class MODULES_EXPORT AudioContext final
   // is called, cleared when it executes. Also cleared by close() or resume().
   bool pending_transition_to_suspend_
       GUARDED_BY_CONTEXT(main_thread_sequence_checker_) = false;
+
+  // Stores promise resolvers for suspend().
+  HeapVector<Member<ScriptPromiseResolver<IDLUndefined>>>
+      pending_suspend_resolvers_;
 
   // https://webaudio.github.io/web-audio-api/#dom-audiocontext-pending-resume-promises-slot
   HeapVector<Member<ScriptPromiseResolver<IDLUndefined>>>

@@ -14,8 +14,7 @@
 
 namespace ui {
 
-class COMPONENT_EXPORT(AX_PLATFORM) BrowserAccessibilityMac
-    : public BrowserAccessibility {
+class BrowserAccessibilityMac : public BrowserAccessibility {
  public:
   ~BrowserAccessibilityMac() override;
   BrowserAccessibilityMac(const BrowserAccessibilityMac&) = delete;
@@ -23,10 +22,8 @@ class COMPONENT_EXPORT(AX_PLATFORM) BrowserAccessibilityMac
 
   // BrowserAccessibility overrides.
   void OnDataChanged() override;
-  void UpdatePlatformNode() override;
   size_t PlatformChildCount() const override;
   BrowserAccessibility* PlatformGetChild(size_t child_index) const override;
-  bool IsLeaf() const override;
 
   BrowserAccessibility* PlatformGetFirstChild() const override;
   BrowserAccessibility* PlatformGetLastChild() const override;

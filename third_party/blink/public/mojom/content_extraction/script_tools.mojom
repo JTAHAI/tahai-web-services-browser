@@ -13,7 +13,6 @@ import "mojo/public/mojom/base/unguessable_token.mojom";
 struct ScriptToolAnnotations {
   bool read_only;
   bool untrusted_content;
-  bool consequential;
 };
 
 // See ModelContextTool in model_context_tool.idl for details of
@@ -93,9 +92,6 @@ interface ModelContextHost {
                           url.mojom.Origin expected_target_origin,
                           string name,
                           string input_arguments) => (string? result, bool success);
-
-  // Cancels a pending execution of a remote script tool.
-  CancelRemoteScriptTool(mojo_base.mojom.UnguessableToken invocation_id);
 };
 
 // Interface implemented by `blink::ModelContext` for the browser to notify the
@@ -114,7 +110,4 @@ interface ModelContext {
   ExecuteScriptTool(mojo_base.mojom.UnguessableToken invocation_id,
                     string name, string input_arguments)
       => (string? result, bool success);
-
-  // Cancels a pending execution of a script tool in this Document.
-  CancelScriptTool(mojo_base.mojom.UnguessableToken invocation_id);
 };

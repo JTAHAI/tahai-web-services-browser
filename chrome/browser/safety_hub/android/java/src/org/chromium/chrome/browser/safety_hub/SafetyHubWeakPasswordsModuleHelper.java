@@ -7,10 +7,11 @@ package org.chromium.chrome.browser.safety_hub;
 import static org.chromium.chrome.browser.safety_hub.SafetyHubMetricUtils.recordDashboardInteractions;
 
 import android.content.Context;
-import android.view.View.OnClickListener;
+import android.view.View;
+
+import androidx.annotation.Nullable;
 
 import org.chromium.build.annotations.NullMarked;
-import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.safety_hub.SafetyHubMetricUtils.DashboardInteractions;
 import org.chromium.chrome.browser.safety_hub.SafetyHubModuleMediator.ModuleState;
 
@@ -68,7 +69,7 @@ public class SafetyHubWeakPasswordsModuleHelper implements SafetyHubModuleHelper
     }
 
     @Override
-    public OnClickListener getPrimaryButtonListener() {
+    public View.OnClickListener getPrimaryButtonListener() {
         if (mAccountWeakPasswordsCount > 0 && mLocalWeakPasswordsCount > 0) {
             return v -> {
                 // TODO(crbug.com/407931779): Change to open the SH passwords page.
@@ -96,7 +97,7 @@ public class SafetyHubWeakPasswordsModuleHelper implements SafetyHubModuleHelper
     }
 
     @Override
-    public @Nullable OnClickListener getSecondaryButtonListener() {
+    public @Nullable View.OnClickListener getSecondaryButtonListener() {
         if (mUnifiedModule && !(mAccountWeakPasswordsCount > 0 && mLocalWeakPasswordsCount > 0)) {
             return v -> {
                 // TODO(crbug.com/407931779): Change to open the SH passwords page.

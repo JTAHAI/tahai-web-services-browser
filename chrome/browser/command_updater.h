@@ -42,12 +42,15 @@ class CommandUpdater {
   // disposition.
   // Returns true if the command was executed (i.e. it is supported and is
   // enabled).
-  bool ExecuteCommand(
+  bool ExecuteCommand(int id,
+                      base::TimeTicks time_stamp = base::TimeTicks::Now()) {
+    return ExecuteCommandImpl(id, time_stamp, std::nullopt);
+  }
+  bool ExecuteCommandWithContext(
       int id,
-      std::optional<actions::ActionInvocationContext> context = std::nullopt,
+      actions::ActionInvocationContext context,
       base::TimeTicks time_stamp = base::TimeTicks::Now()) {
-    return ExecuteCommandWithDispositionAndContext(
-        id, WindowOpenDisposition::CURRENT_TAB, std::move(context), time_stamp);
+    return ExecuteCommandImpl(id, time_stamp, std::move(context));
   }
 
   // Performs the action associated with this command ID using the given
@@ -57,11 +60,28 @@ class CommandUpdater {
   bool ExecuteCommandWithDisposition(
       int id,
       WindowOpenDisposition disposition,
-      std::optional<actions::ActionInvocationContext> context = std::nullopt,
       base::TimeTicks time_stamp = base::TimeTicks::Now()) {
-    return ExecuteCommandWithDispositionAndContext(
-        id, disposition, std::move(context), time_stamp);
+    return ExecuteCommandWithDispositionImpl(id, disposition, time_stamp,
+                                             std::nullopt);
   }
+  bool ExecuteCommandWithDispositionAndContext(
+      int id,
+      WindowOpenDisposition disposition,
+      actions::ActionInvocationContext context,
+      base::TimeTicks time_stamp = base::TimeTicks::Now()) {
+    return ExecuteCommandWithDispositionImpl(id, disposition, time_stamp,
+                                             std::move(context));
+  }
+
+  virtual bool ExecuteCommandImpl(
+      int id,
+      base::TimeTicks time_stamp,
+      std::optional<actions::ActionInvocationContext> context) = 0;
+  virtual bool ExecuteCommandWithDispositionImpl(
+      int id,
+      WindowOpenDisposition disposition,
+      base::TimeTicks time_stamp,
+      std::optional<actions::ActionInvocationContext> context) = 0;
 
   // Adds an observer to the state of a particular command. If the command does
   // not exist, it is created, initialized to false.
@@ -86,13 +106,6 @@ class CommandUpdater {
 
   // Returns all registered command IDs.
   virtual std::vector<int> GetAllIds() const = 0;
-
- protected:
-  virtual bool ExecuteCommandWithDispositionAndContext(
-      int id,
-      WindowOpenDisposition disposition,
-      std::optional<actions::ActionInvocationContext> context,
-      base::TimeTicks time_stamp) = 0;
 };
 
 #endif  // CHROME_BROWSER_COMMAND_UPDATER_H_

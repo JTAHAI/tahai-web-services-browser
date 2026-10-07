@@ -28,11 +28,6 @@
   return YES;
 }
 
-- (void)setObscuredInsets:(UIEdgeInsets)obscuredInsets
-          initialVelocity:(CGFloat)initialVelocity {
-  _obscuredInsets = obscuredInsets;
-}
-
 - (void)setMinimumViewportInset:(UIEdgeInsets)minInset
            maximumViewportInset:(UIEdgeInsets)maxInset {
 }

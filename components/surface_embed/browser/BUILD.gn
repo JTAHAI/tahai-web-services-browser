@@ -28,7 +28,6 @@ static_library("browser") {
     "//components/viz/common",
     "//content/public/browser",
     "//skia",
-    "//ui/accessibility",
     "//ui/compositor",
     "//ui/gfx/geometry",
   ]

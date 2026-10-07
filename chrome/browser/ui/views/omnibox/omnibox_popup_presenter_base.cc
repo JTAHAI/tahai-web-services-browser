@@ -339,12 +339,7 @@ views::View* OmniboxPopupPresenterBase::GetOuterView() {
   return GetResultsFrame();
 }
 
-OmniboxPopupWebUIBaseContent* OmniboxPopupPresenterBase::GetWebUIContent() {
-  return const_cast<OmniboxPopupWebUIBaseContent*>(
-      std::as_const(*this).GetWebUIContent());
-}
-
-const OmniboxPopupWebUIBaseContent* OmniboxPopupPresenterBase::GetWebUIContent()
+OmniboxPopupWebUIBaseContent* OmniboxPopupPresenterBase::GetWebUIContent()
     const {
   return omnibox_popup_webui_content_;
 }
@@ -356,13 +351,6 @@ void OmniboxPopupPresenterBase::SetWebUIContent(
 
   Observe(omnibox_popup_webui_content_->GetWebContents());
   EnsureWidgetCreated();
-
-  // Explicitly put the presenter into its resting hidden state upon creation.
-  // This ensures the pre-warmed widget and WebContents are marked hidden and
-  // detached from the GPU compositor until `Show()` is called.
-  if (base::FeatureList::IsEnabled(omnibox::kOmniboxWebUIPopupHideOnCreation)) {
-    Hide();
-  }
 }
 
 void OmniboxPopupPresenterBase::EnsureWidgetCreated() {

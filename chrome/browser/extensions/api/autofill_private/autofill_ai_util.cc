@@ -28,8 +28,8 @@
 #include "components/autofill/core/browser/data_model/autofill_ai/entity_type_names.h"
 #include "components/autofill/core/browser/field_types.h"
 #include "components/autofill/core/browser/integrators/autofill_ai/autofill_ai_labels.h"
-#include "components/autofill/core/browser/integrators/autofill_ai/autofill_ai_wallet_util.h"
-#include "components/autofill/core/browser/integrators/autofill_ai/management_util.h"
+#include "components/autofill/core/browser/integrators/autofill_ai/autofill_ai_wallet_utils.h"
+#include "components/autofill/core/browser/integrators/autofill_ai/management_utils.h"
 #include "components/autofill/core/browser/proto/server.pb.h"
 #include "components/autofill/core/common/autofill_features.h"
 #include "components/strings/grit/components_strings.h"
@@ -210,16 +210,12 @@ std::optional<EntityInstance> PrivateApiEntityInstanceToEntityInstance(
       private_api_entity_instance.stored_in_wallet.value_or(false) &&
       entity_supports_wallet_storage;
 
-  EntityInstance::RecordTypeData record_type_data =
-      save_entity_to_wallet ? EntityInstance::RecordTypeData(
-                                  EntityInstance::WalletRecordTypePayload{})
-                            : EntityInstance::RecordTypeData(
-                                  EntityInstance::LocalRecordTypePayload{});
-
   return EntityInstance(
       std::move(entity_type), attribute_instances, std::move(guid),
       private_api_entity_instance.nickname, base::Time::Now(), /*use_count=*/0,
-      /*use_date=*/base::Time::Now(), std::move(record_type_data),
+      /*use_date=*/base::Time::Now(),
+      save_entity_to_wallet ? EntityInstance::RecordType::kServerWallet
+                            : EntityInstance::RecordType::kLocal,
       EntityInstance::AreAttributesReadOnly(
           private_api_entity_instance.is_read_only.value_or(false)),
       /*frecency_override=*/"");

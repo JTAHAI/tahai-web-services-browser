@@ -153,7 +153,8 @@ void OnListVmDisks(
 
   if (image->image_type() !=
       vm_tools::concierge::DiskImageType::DISK_IMAGE_RAW) {
-    // Only raw disk images can be resized.
+    // Can't resize qcow2 images and don't know how to handle auto or pluginvm
+    // images.
     disk_info->can_resize = false;
     std::move(callback).Run(std::move(disk_info));
     return;

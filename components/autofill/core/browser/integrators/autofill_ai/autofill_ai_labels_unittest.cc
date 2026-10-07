@@ -11,8 +11,8 @@
 #include "components/autofill/core/browser/data_model/autofill_ai/entity_instance.h"
 #include "components/autofill/core/browser/data_model/autofill_ai/entity_type.h"
 #include "components/autofill/core/browser/data_model/autofill_ai/entity_type_names.h"
-#include "components/autofill/core/browser/test_utils/autofill_test_util.h"
-#include "components/autofill/core/browser/test_utils/entity_data_test_util.h"
+#include "components/autofill/core/browser/test_utils/autofill_test_utils.h"
+#include "components/autofill/core/browser/test_utils/entity_data_test_utils.h"
 #include "components/autofill/core/common/autofill_features.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -201,9 +201,9 @@ TEST_F(AutofillAiLabelsTest, ObfuscateSensitiveTypes) {
       {&passport_1, &passport_2}, /*attribute_type_names_to_ignore=*/{},
       /*only_disambiguating_types=*/false, /*obfuscate_sensitive_types=*/true);
 
-  EXPECT_THAT(labels,
-              ElementsAre(base::StrCat({kDots, kDots, kDots, kDots, u"7890"}),
-                          base::StrCat({kDots, kDots, kDots, kDots, u"4321"})));
+  ASSERT_EQ(labels.size(), 2u);
+  EXPECT_EQ(labels[0], base::StrCat({kDots, kDots, kDots, kDots, u"7890"}));
+  EXPECT_EQ(labels[1], base::StrCat({kDots, kDots, kDots, kDots, u"4321"}));
 }
 
 struct DisambiguationTestCase {

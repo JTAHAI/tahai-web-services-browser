@@ -431,14 +431,6 @@ class MODULES_EXPORT WebGLRenderingContextBase
                          const WebGLCopyElementImageConfig* config,
                          ExceptionState& exception_state);
 
-  void texElementSubImage2D(GLenum target,
-                            GLint level,
-                            GLint xoffset,
-                            GLint yoffset,
-                            const V8UnionElementOrElementImage* element,
-                            const WebGLCopyElementImageConfig* config,
-                            ExceptionState& exception_state);
-
   void texParameterf(GLenum target, GLenum pname, GLfloat param);
   void texParameteri(GLenum target, GLenum pname, GLint param);
 
@@ -664,7 +656,7 @@ class MODULES_EXPORT WebGLRenderingContextBase
   // JavaScript cannot allocate bigger ArrayBuffers anyways. Only with
   // WebAssembly it is possible to allocate bigger ArrayBuffers.
   static constexpr size_t kMaximumSupportedArrayBufferSize =
-      ::partition_alloc::MaxAllocationSize();
+      ::partition_alloc::internal::MaxDirectMapped();
 
  protected:
   // Implementation helpers.
@@ -2008,10 +2000,7 @@ class MODULES_EXPORT WebGLRenderingContextBase
   void Dispose() override;
 
   void TexElementImage2DInternal(GLenum target,
-                                 std::optional<GLenum> internalformat,
-                                 GLint level,
-                                 GLint xoffset,
-                                 GLint yoffset,
+                                 GLenum internalformat,
                                  std::optional<GLfloat> sx,
                                  std::optional<GLfloat> sy,
                                  std::optional<GLfloat> swidth,

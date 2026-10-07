@@ -7,8 +7,7 @@
 
 #include "base/callback_list.h"
 #include "base/functional/callback.h"
-
-class BrowserWindowInterface;
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 
 namespace glic {
 

@@ -191,7 +191,7 @@ constexpr CGFloat kPromoTextLabelMinHeightWideLayout = 60;
   UIButtonConfiguration* buttonConfiguration =
       [UIButtonConfiguration plainButtonConfiguration];
   buttonConfiguration.image =
-      SymbolWithConfiguration(SymbolXMark, symbolConfiguration);
+      DefaultSymbolWithConfiguration(kXMarkSymbol, symbolConfiguration);
   buttonConfiguration.baseForegroundColor =
       [UIColor colorNamed:kTextTertiaryColor];
   closeButton.configuration = buttonConfiguration;

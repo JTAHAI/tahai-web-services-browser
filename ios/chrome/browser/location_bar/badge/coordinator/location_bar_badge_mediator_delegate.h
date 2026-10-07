@@ -7,7 +7,6 @@
 
 #import <UIKit/UIKit.h>
 
-@class GeminiStartupState;
 @class LocationBarBadgeMediator;
 
 // Usage is for parity with ContextualPanelEntryPointConsumer.
@@ -35,10 +34,6 @@
 
 // Gets the in-product help anchor point in window coordinates.
 - (CGPoint)helpAnchorUsingBottomOmnibox:(BOOL)isBottomOmnibox;
-
-// Starts the Gemini entry flow for the given startup state.
-- (void)locationBarBadgeMediator:(LocationBarBadgeMediator*)mediator
-    startGeminiEntryFlowWithStartupState:(GeminiStartupState*)startupState;
 
 @end
 

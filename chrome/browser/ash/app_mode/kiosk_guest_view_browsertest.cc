@@ -10,9 +10,10 @@
 #include "chrome/browser/ash/app_mode/test/kiosk_mixin.h"
 #include "chrome/browser/ash/app_mode/test/kiosk_test_utils.h"
 #include "chrome/browser/ash/login/demo_mode/demo_mode_window_closer.h"
+#include "chrome/browser/ui/browser.h"
+#include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
-#include "chrome/browser/ui/browser_window/public/create_browser_window.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/mixin_based_in_process_browser_test.h"
@@ -32,7 +33,6 @@
 #include "extensions/browser/guest_view/web_view/web_view_guest.h"
 #include "pdf/buildflags.h"
 #include "testing/gtest/include/gtest/gtest.h"
-#include "ui/base/base_window.h"
 #include "ui/base/window_open_disposition.h"
 
 #if BUILDFLAG(ENABLE_PDF)
@@ -79,17 +79,16 @@ content::WebContents* OpenUrlInBrowser(GURL page_url) {
   ash::kiosk::test::CurrentProfile().GetPrefs()->SetBoolean(
       ash::prefs::kKioskTroubleshootingToolsEnabled, true);
 
-  BrowserWindowCreateParams params(
-      BrowserWindowInterface::Type::TYPE_NORMAL,
-      /*profile=*/&ash::kiosk::test::CurrentProfile(),
-      /*from_user_gesture=*/true);
-  BrowserWindowInterface& new_browser =
-      CHECK_DEREF(CreateBrowserWindow(std::move(params)));
+  Browser::CreateParams params =
+      Browser::CreateParams(Browser::Type::TYPE_NORMAL,
+                            /*profile=*/&ash::kiosk::test::CurrentProfile(),
+                            /*user_gesture=*/true);
+  auto& new_browser = CHECK_DEREF(Browser::Create(params));
   new_browser.GetWindow()->Show();
   ui_test_utils::NavigateToURLWithDisposition(
       &new_browser, page_url, WindowOpenDisposition::NEW_FOREGROUND_TAB,
       ui_test_utils::BROWSER_TEST_WAIT_FOR_LOAD_STOP);
-  return new_browser.GetTabStripModel()->GetActiveWebContents();
+  return new_browser.tab_strip_model()->GetActiveWebContents();
 }
 
 guest_view::TestGuestViewManager& GetGuestViewManager(

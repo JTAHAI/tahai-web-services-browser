@@ -53,7 +53,9 @@ public class ActorNavigationConfirmationDialogRenderTest {
     @Feature({"RenderTest"})
     public void testDialog() throws Exception {
         ThreadUtils.runOnUiThreadBlocking(
-                () -> ActorNavigationConfirmationDialog.show(mActivity, mModalDialogManager, null));
+                () -> {
+                    ActorNavigationConfirmationDialog.show(mActivity, mModalDialogManager, null);
+                });
 
         CriteriaHelper.pollUiThread(() -> mModalDialogManager.isShowing());
 

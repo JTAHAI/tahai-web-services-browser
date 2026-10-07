@@ -30,8 +30,7 @@ class Writer final
   Writer(ScriptState* script_state,
          scoped_refptr<base::SequencedTaskRunner> task_runner,
          mojo::PendingRemote<mojom::blink::AIWriter> pending_remote,
-         WriterCreateOptions* options,
-         uint64_t context_window);
+         WriterCreateOptions* options);
   void Trace(Visitor* visitor) const override;
 
   // AIWritingAssistanceBase:

@@ -23,10 +23,6 @@ class MockUserEducationContext : public UserEducationContext {
               GetAcceleratorProvider,
               (),
               (const, override));
-  MOCK_METHOD(user_education::AnchorElementFilter,
-              GetDefaultElementFilter,
-              (),
-              (const, override));
 
  protected:
   ~MockUserEducationContext() override;

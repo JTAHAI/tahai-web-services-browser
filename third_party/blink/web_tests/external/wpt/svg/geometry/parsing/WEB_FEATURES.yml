@@ -1,2 +1,4 @@
-rules:
-- sizing-properties-computed.svg: [width-height]
+features:
+- name: width-height
+  files:
+  - sizing-properties-computed.svg

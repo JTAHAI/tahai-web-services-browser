@@ -200,7 +200,6 @@ class ShellSurface : public ShellSurfaceBase, public ash::WindowStateObserver {
   void SetRootSurface(Surface* root_surface) override;
 
   // Overridden from ui::LayerOwner::Observer:
-  using views::View::OnLayerRecreated;
   void OnLayerRecreated(ui::Layer* old_layer) override;
 
   void EndDrag();

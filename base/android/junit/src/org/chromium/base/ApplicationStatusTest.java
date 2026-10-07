@@ -39,7 +39,9 @@ import java.util.List;
 
 /** Unit tests for {@link ApplicationStatus}. */
 @RunWith(BaseRobolectricTestRunner.class)
-@Config(shadows = {ApplicationStatusTest.TrackingShadowActivity.class})
+@Config(
+        manifest = Config.NONE,
+        shadows = {ApplicationStatusTest.TrackingShadowActivity.class})
 public class ApplicationStatusTest {
     private static class WindowCallbackWrapper implements Window.Callback {
         final Window.Callback mWrapped;

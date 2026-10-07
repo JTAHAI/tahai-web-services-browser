@@ -215,10 +215,11 @@ std::u16string WebUI::GetJavascriptCall(std::string_view function_name,
 }
 
 WebUIImpl::WebUIImpl(WebContents* web_contents)
-    : web_contents_(web_contents),
+    : requestable_schemes_({kChromeUIScheme, url::kFileScheme}),
+      web_contents_(web_contents),
       web_contents_observer_(
           std::make_unique<WebUIMainFrameObserver>(this, web_contents_)) {
-  CHECK(web_contents_, base::NotFatalUntil::M158);
+  DCHECK(web_contents_);
 }
 
 WebUIImpl::WebUIImpl(NavigationRequest* request)
@@ -239,7 +240,7 @@ WebUIImpl::~WebUIImpl() {
 }
 
 void WebUIImpl::SetProperty(const std::string& name, const std::string& value) {
-  CHECK(remote_, base::NotFatalUntil::M158);
+  DCHECK(remote_);
   remote_->SetProperty(name, value);
 }
 
@@ -269,11 +270,10 @@ void WebUIImpl::SetRenderFrameHost(RenderFrameHost* render_frame_host) {
   frame_host_ =
       static_cast<RenderFrameHostImpl*>(render_frame_host)->GetWeakPtr();
   // Assert that we can only open WebUI for the active or speculative pages.
-  CHECK(frame_host_->lifecycle_state() ==
-                RenderFrameHostImpl::LifecycleStateImpl::kActive ||
-            frame_host_->lifecycle_state() ==
-                RenderFrameHostImpl::LifecycleStateImpl::kSpeculative,
-        base::NotFatalUntil::M158);
+  DCHECK(frame_host_->lifecycle_state() ==
+             RenderFrameHostImpl::LifecycleStateImpl::kActive ||
+         frame_host_->lifecycle_state() ==
+             RenderFrameHostImpl::LifecycleStateImpl::kSpeculative);
 }
 
 void WebUIImpl::WebUIRenderFrameCreated(RenderFrameHost* render_frame_host,
@@ -413,7 +413,7 @@ bool WebUIImpl::CanCallJavascript() {
 void WebUIImpl::CallJavascriptFunctionUnsafe(
     std::string_view function_name,
     base::span<const base::ValueView> args) {
-  CHECK(base::IsStringASCII(function_name), base::NotFatalUntil::M158);
+  DCHECK(base::IsStringASCII(function_name));
   ExecuteJavascript(GetJavascriptCall(function_name, args));
 }
 
@@ -450,7 +450,7 @@ WebUIImpl::GetHandlersForTesting() {
 
 void WebUIImpl::AddMessageHandler(
     std::unique_ptr<WebUIMessageHandler> handler) {
-  CHECK(!handler->web_ui(), base::NotFatalUntil::M158);
+  DCHECK(!handler->web_ui());
   handler->set_web_ui(this);
   handler->RegisterMessages();
   handlers_.push_back(std::move(handler));

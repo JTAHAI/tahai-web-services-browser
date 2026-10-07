@@ -26,12 +26,6 @@ suite('<settings-fingerprint-list-subpage>', () => {
   let addAnotherButton: HTMLButtonElement;
   let browserProxy: TestFingerprintBrowserProxy;
 
-  interface SettingsFingerprintListSubpageElementInternal {
-    updateFingerprintsList_: () => void;
-    onFingerprintDeleteTapped_: (e: Event) => void;
-    onFingerprintLabelChanged_: (e: Event) => void;
-  }
-
   function createFakeEvent(index: number, label?: string) {
     return {model: {index: index, item: label || ''}} as DomRepeatEvent<string>;
   }
@@ -208,9 +202,7 @@ suite('<settings-fingerprint-list-subpage>', () => {
   // setup dialog is hidden.
   test('EnrollingThirdFingerprint', async () => {
     browserProxy.setFingerprints(['1', '2']);
-    (fingerprintList as unknown as
-     SettingsFingerprintListSubpageElementInternal)
-        .updateFingerprintsList_();
+    fingerprintList['updateFingerprintsList_']();
 
     openDialog();
     await browserProxy.whenCalled('startEnroll');
@@ -300,13 +292,11 @@ suite('<settings-fingerprint-list-subpage>', () => {
     const quickUnlockPrivateApi = new FakeQuickUnlockPrivate();
     fingerprintList.set('authToken', quickUnlockPrivateApi.getFakeToken());
     browserProxy.setFingerprints(['Label 1', 'Label 2']);
-    const list = fingerprintList as unknown as
-        SettingsFingerprintListSubpageElementInternal;
-    list.updateFingerprintsList_();
+    fingerprintList['updateFingerprintsList_']();
     await browserProxy.whenCalled('getFingerprintsList');
     browserProxy.resetResolver('getFingerprintsList');
     assertEquals(2, fingerprintList.get('fingerprints_').length);
-    list.onFingerprintDeleteTapped_(createFakeEvent(0));
+    fingerprintList['onFingerprintDeleteTapped_'](createFakeEvent(0));
 
     await Promise.all([
       browserProxy.whenCalled('removeEnrollment'),
@@ -321,9 +311,7 @@ suite('<settings-fingerprint-list-subpage>', () => {
     // This is equivalent to the settings id.
     const settingId = '1111';
     browserProxy.setFingerprints(['Label 1', 'Label 2']);
-    (fingerprintList as unknown as
-     SettingsFingerprintListSubpageElementInternal)
-        .updateFingerprintsList_();
+    fingerprintList['updateFingerprintsList_']();
     await browserProxy.whenCalled('getFingerprintsList');
 
     const params = new URLSearchParams();
@@ -348,9 +336,7 @@ suite('<settings-fingerprint-list-subpage>', () => {
     browserProxy.setFingerprints(['Label 1', 'Label 2']);
     const quickUnlockPrivateApi = new FakeQuickUnlockPrivate();
     fingerprintList.set('authToken', quickUnlockPrivateApi.getFakeToken());
-    (fingerprintList as unknown as
-     SettingsFingerprintListSubpageElementInternal)
-        .updateFingerprintsList_();
+    fingerprintList['updateFingerprintsList_']();
     await browserProxy.whenCalled('getFingerprintsList');
 
     const params = new URLSearchParams();
@@ -370,9 +356,7 @@ suite('<settings-fingerprint-list-subpage>', () => {
 
   test('ChangeFingerprintLabel', async () => {
     browserProxy.setFingerprints(['Label 1']);
-    const list = fingerprintList as unknown as
-        SettingsFingerprintListSubpageElementInternal;
-    list.updateFingerprintsList_();
+    fingerprintList['updateFingerprintsList_']();
 
     await browserProxy.whenCalled('getFingerprintsList');
     assertEquals(1, fingerprintList.get('fingerprints_').length);
@@ -380,7 +364,8 @@ suite('<settings-fingerprint-list-subpage>', () => {
 
     // Verify that by sending a fingerprint input change event, the new
     // label gets changed as expected.
-    list.onFingerprintLabelChanged_(createFakeEvent(0, 'New Label 1'));
+    fingerprintList['onFingerprintLabelChanged_'](
+        createFakeEvent(0, 'New Label 1'));
 
     await Promise.all([
       browserProxy.whenCalled('changeEnrollmentLabel'),
@@ -391,9 +376,7 @@ suite('<settings-fingerprint-list-subpage>', () => {
 
   test('AddingNewFingerprint', async () => {
     browserProxy.setFingerprints(['1', '2', '3']);
-    const list = fingerprintList as unknown as
-        SettingsFingerprintListSubpageElementInternal;
-    list.updateFingerprintsList_();
+    fingerprintList['updateFingerprintsList_']();
     const quickUnlockPrivateApi = new FakeQuickUnlockPrivate();
     fingerprintList.set('authToken', quickUnlockPrivateApi.getFakeToken());
     // Verify that new fingerprints cannot be added when there are already three
@@ -406,7 +389,7 @@ suite('<settings-fingerprint-list-subpage>', () => {
             '.action-button');
     assertTrue(!!actionButton);
     assertTrue(actionButton.disabled);
-    list.onFingerprintDeleteTapped_(createFakeEvent(0));
+    fingerprintList['onFingerprintDeleteTapped_'](createFakeEvent(0));
 
     await Promise.all([
       browserProxy.whenCalled('removeEnrollment'),

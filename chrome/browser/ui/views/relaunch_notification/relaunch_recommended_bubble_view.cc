@@ -11,6 +11,7 @@
 #include "base/metrics/user_metrics_action.h"
 #include "base/time/time.h"
 #include "build/build_config.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "chrome/browser/ui/views/chrome_layout_provider.h"
@@ -43,7 +44,8 @@ views::Widget* RelaunchRecommendedBubbleView::ShowBubble(
   DCHECK(browser);
 
   // Anchor the popup to the browser's app menu.
-  auto* browser_view = BrowserView::GetBrowserViewForBrowser(browser);
+  auto* browser_view = BrowserView::GetBrowserViewForBrowser(
+      browser->GetBrowserForMigrationOnly());
   auto* control = browser_view->toolbar_button_provider()->GetAppMenuControl();
   views::BubbleAnchor anchor =
       control ? control->GetAnchor() : views::BubbleAnchor();

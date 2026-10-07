@@ -90,13 +90,6 @@ export class PasswordChangeDetailsElement extends
         'passwords-icon:psychiatry' :
         'passwords-icon:psychiatry-old';
   }
-
-  protected getColumnDescriptionHeader_(): string {
-    return this.i18n(
-        this.isPasswordChangeWithPrivateInferenceLoginCheckEnabled_ ?
-            'columnHeadingWhenOn' :
-            'columnHeadingWhenUsed');
-  }
 }
 
 declare global {

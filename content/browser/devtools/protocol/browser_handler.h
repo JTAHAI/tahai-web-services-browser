@@ -7,7 +7,6 @@
 
 #include <map>
 
-#include "base/containers/flat_map.h"
 #include "base/containers/flat_set.h"
 #include "base/memory/raw_ptr.h"
 #include "base/metrics/histogram.h"
@@ -15,14 +14,12 @@
 #include "components/download/public/common/download_item.h"
 #include "content/browser/devtools/protocol/browser.h"
 #include "content/browser/devtools/protocol/devtools_domain_handler.h"
-#include "content/browser/devtools/protocol/devtools_download_manager_delegate.h"
 
 namespace content {
 
 class BrowserContext;
 class DevToolsAgentHostImpl;
 class FrameTreeNode;
-class MockCaptureDeviceController;
 
 namespace protocol {
 
@@ -67,8 +64,6 @@ class BrowserHandler : public DevToolsDomainHandler,
   Response GetBrowserCommandLine(
       std::unique_ptr<protocol::Array<std::string>>* arguments) override;
 
-  Response AddMockCamera(const std::string& device_id) override;
-
   void SetPermission(
       std::unique_ptr<protocol::Browser::PermissionDescriptor> permission,
       const protocol::Browser::PermissionSetting& setting,
@@ -106,9 +101,6 @@ class BrowserHandler : public DevToolsDomainHandler,
   Response Crash() override;
   Response CrashGpuProcess() override;
 
-  Response GetGlobalPrivacyControl(bool* out_gpc) override;
-  Response SetGlobalPrivacyControl(bool in_gpc, bool* out_gpc) override;
-
   // DownloadItem::Observer overrides
   void OnDownloadUpdated(download::DownloadItem* item) override;
   void OnDownloadDestroyed(download::DownloadItem* item) override;
@@ -132,10 +124,7 @@ class BrowserHandler : public DevToolsDomainHandler,
 
   std::unique_ptr<Browser::Frontend> frontend_;
   base::flat_set<std::string> contexts_with_overridden_permissions_;
-  base::flat_map<
-      std::string,
-      DevToolsDownloadManagerDelegate::DownloadBehaviorOverrideHandle>
-      download_behavior_overrides_;
+  base::flat_set<std::string> contexts_with_overridden_downloads_;
   bool download_events_enabled_;
   const bool allow_set_download_behavior_;
   base::flat_set<raw_ptr<download::DownloadItem, CtnExperimental>>
@@ -143,8 +132,6 @@ class BrowserHandler : public DevToolsDomainHandler,
   // Stores past histogram snapshots for producing histogram deltas.
   std::map<std::string, std::unique_ptr<base::HistogramSamples>, std::less<>>
       histograms_snapshots_;
-
-  std::unique_ptr<MockCaptureDeviceController> mock_capture_device_controller_;
 
   base::WeakPtrFactory<BrowserHandler> weak_ptr_factory_{this};
 };

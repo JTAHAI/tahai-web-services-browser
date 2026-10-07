@@ -21,7 +21,6 @@ import org.chromium.base.CallbackUtils;
 import org.chromium.base.ObserverList;
 import org.chromium.base.lifetime.Destroyable;
 import org.chromium.base.metrics.RecordHistogram;
-import org.chromium.base.supplier.SupplierUtils;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.feature_engagement.TrackerFactory;
@@ -224,7 +223,7 @@ public class BackPressManager implements Destroyable, BackPressHandlerRegistry {
     private @Nullable OnBackInvokedCallback mOnSystemNavigationCallback;
     private Runnable mFallbackOnBackPressed;
     private int mLastCalledHandlerType = -1;
-    private Supplier<Boolean> mIsGestureNavEnabledSupplier = SupplierUtils.alwaysFalse();
+    private Supplier<Boolean> mIsGestureNavEnabledSupplier = () -> false;
     private @Nullable Supplier<Profile> mProfileSupplier;
     private final ObserverList<OnSystemNavigationObserver> mOnSystemNavigationObservers =
             new ObserverList<>();
@@ -482,7 +481,13 @@ public class BackPressManager implements Destroyable, BackPressHandlerRegistry {
     @VisibleForTesting
     @RequiresApi(api = Build.VERSION_CODES.TIRAMISU)
     void createOnSystemNavigationCallback() {
-        mOnSystemNavigationCallback = this::onSystemNavigationInternal;
+        mOnSystemNavigationCallback =
+                new OnBackInvokedCallback() {
+                    @Override
+                    public void onBackInvoked() {
+                        onSystemNavigationInternal();
+                    }
+                };
     }
 
     @Override

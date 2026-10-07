@@ -5,12 +5,11 @@
 #ifndef EXTENSIONS_BROWSER_EXTENSION_FUNCTION_REGISTRY_H_
 #define EXTENSIONS_BROWSER_EXTENSION_FUNCTION_REGISTRY_H_
 
+#include <map>
 #include <string>
-#include <string_view>
 
 #include "base/memory/scoped_refptr.h"
 #include "extensions/browser/extension_function_histogram_value.h"
-#include "third_party/abseil-cpp/absl/container/flat_hash_map.h"
 
 class ExtensionFunction;
 
@@ -43,7 +42,7 @@ class ExtensionFunctionRegistry {
     extensions::functions::HistogramValue histogram_value_ =
         extensions::functions::UNKNOWN;
   };
-  using FactoryMap = absl::flat_hash_map<std::string_view, FactoryEntry>;
+  using FactoryMap = std::map<std::string, FactoryEntry>;
 
   static ExtensionFunctionRegistry& GetInstance();
   ExtensionFunctionRegistry();

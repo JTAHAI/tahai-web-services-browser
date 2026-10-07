@@ -29,7 +29,7 @@ class CONTENT_EXPORT BackgroundFetchRequestMatchParams {
 
   // Only call this method if a valid request_to_match was previously provided.
   const blink::mojom::FetchAPIRequestPtr& request_to_match() const {
-    CHECK(request_to_match_, base::NotFatalUntil::M158);
+    DCHECK(request_to_match_);
     return request_to_match_;
   }
 

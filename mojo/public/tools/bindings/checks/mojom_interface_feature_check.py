@@ -21,9 +21,8 @@ class Check(check.Check):
       return
     interface = kind.kind.mojom_name
     raise check.CheckException(
-      self.module,
-      f"interface {interface} has a RuntimeFeature but is not nullable",
-    )
+        self.module,
+        f"interface {interface} has a RuntimeFeature but is not nullable")
 
   # `param` can be a lot of things so check if it is a remote/receiver.
   # Array/Map must be recursed into.

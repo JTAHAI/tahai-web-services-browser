@@ -29,4 +29,4 @@ public:
 
 }
 
-#endif  // NON_VIRTUAL_TRACE_H_
+#endif

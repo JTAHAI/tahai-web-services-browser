@@ -248,7 +248,7 @@ public class TabGridContextMenuCoordinator extends TabOverflowMenuCoordinator<@T
         boolean isIncognito = tab.isIncognitoBranded();
 
         Collection<TabModelSelector> selectors =
-                TabGroupUiUtils.isCrossWindowTabGroupOperationsEnabled()
+                ChromeFeatureList.sCrossWindowTabGroupOperations.isEnabled()
                         ? TabWindowManagerSingleton.getInstance().getAllTabModelSelectors()
                         : null;
         boolean hasTabGroups = TabGroupUtils.hasTabGroups(mTabModel, selectors);

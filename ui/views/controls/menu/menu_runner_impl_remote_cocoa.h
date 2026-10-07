@@ -16,10 +16,6 @@
 #include "mojo/public/cpp/bindings/receiver_set.h"
 #include "ui/views/controls/menu/menu_runner_impl_interface.h"
 
-namespace ui {
-class ColorProvider;
-}
-
 namespace views {
 
 // Menu runner implementation that serializes the menu model over mojo, to then
@@ -79,8 +75,7 @@ class VIEWS_EXPORT MenuRunnerImplRemoteCocoa
   // menu items in the model do in fact have unique command IDs.
   std::vector<remote_cocoa::mojom::MenuItemPtr> ModelToMojo(
       const ui::MenuModel& menu_model,
-      std::set<int>& command_ids,
-      const ui::ColorProvider* color_provider);
+      std::set<int>& command_ids);
 
   raw_ptr<ui::MenuModel> menu_model_;
   mojo::Receiver<remote_cocoa::mojom::MenuHost> host_receiver_{this};

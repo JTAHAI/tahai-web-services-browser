@@ -11,7 +11,6 @@
 
 #include "base/containers/heap_array.h"
 #include "base/containers/span.h"
-#include "base/containers/span_writer.h"
 #include "base/numerics/safe_conversions.h"
 
 namespace media {
@@ -28,6 +27,8 @@ class Cluster {
 
   ~Cluster();
 
+  // TODO(frs): This should be changed to return a span.
+  const uint8_t* data() const { return data_.data(); }
   int bytes_used() const { return bytes_used_; }
 
   // Returns a span over the `bytes_used()` valid bytes of the cluster.
@@ -53,18 +54,21 @@ class ClusterBuilder {
   void AddSimpleBlock(int track_num,
                       int64_t timecode,
                       int flags,
-                      base::span<const uint8_t> data);
+                      const uint8_t* data,
+                      int size);
   void AddBlockGroup(int track_num,
                      int64_t timecode,
                      int duration,
                      int flags,
                      bool is_key_frame,
-                     base::span<const uint8_t> data);
+                     const uint8_t* data,
+                     int size);
   void AddBlockGroupWithoutBlockDuration(int track_num,
                                          int64_t timecode,
                                          int flags,
                                          bool is_key_frame,
-                                         base::span<const uint8_t> data);
+                                         const uint8_t* data,
+                                         int size);
 
   std::unique_ptr<Cluster> Finish();
   std::unique_ptr<Cluster> FinishWithUnknownSize();
@@ -76,15 +80,17 @@ class ClusterBuilder {
                              int duration,
                              int flags,
                              bool is_key_frame,
-                             base::span<const uint8_t> data);
+                             const uint8_t* data,
+                             int size);
   void Reset();
   void ExtendBuffer(size_t bytes_needed);
-  void UpdateUInt64(size_t offset, int64_t value);
-  void WriteBlock(base::SpanWriter<uint8_t>& writer,
+  void UpdateUInt64(int offset, int64_t value);
+  void WriteBlock(uint8_t* buf,
                   int track_num,
                   int64_t timecode,
                   int flags,
-                  base::span<const uint8_t> data);
+                  const uint8_t* data,
+                  int size);
 
   base::HeapArray<uint8_t> buffer_;
   size_t bytes_used_;

@@ -38,6 +38,7 @@ import org.robolectric.shadows.ShadowLooper;
 
 import org.chromium.base.Callback;
 import org.chromium.base.test.BaseRobolectricTestRunner;
+import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.HistogramWatcher;
 import org.chromium.content_public.browser.WebContents;
 import org.chromium.ui.base.WindowAndroid;
@@ -49,6 +50,7 @@ import java.util.concurrent.Executor;
 
 /** Tests for the ThirdPartyCredentialManagerBridge. */
 @RunWith(BaseRobolectricTestRunner.class)
+@Batch(Batch.PER_CLASS)
 public class ThirdPartyCredentialManagerBridgeTest {
 
     private static final String USERNAME = "username";

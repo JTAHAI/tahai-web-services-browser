@@ -1,2 +1,3 @@
-rules:
-- "**": [app-file-handlers]
+features:
+- name: app-file-handlers
+  files: "**"

@@ -13,6 +13,8 @@
 #include "base/check_deref.h"
 #include "chrome/browser/ash/crostini/crostini_export_import.h"
 #include "chrome/browser/ash/crostini/crostini_export_import_factory.h"
+#include "chrome/browser/notifications/notification_display_service.h"
+#include "chrome/browser/notifications/notification_display_service_factory.h"
 #include "chrome/browser/platform_util.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/navigator/browser_navigator.h"
@@ -20,10 +22,8 @@
 #include "chrome/grit/generated_resources.h"
 #include "chromeos/ash/components/browser_context_helper/browser_context_helper.h"
 #include "chromeos/ash/experiences/settings_ui/settings_app_manager.h"
-#include "components/user_manager/user.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/chromeos/styles/cros_tokens_color_mappings.h"
-#include "ui/message_center/message_center.h"
 #include "ui/message_center/public/cpp/notification.h"
 #include "ui/message_center/public/cpp/notification_delegate.h"
 
@@ -90,15 +90,9 @@ CrostiniExportImportNotificationController::
 void CrostiniExportImportNotificationController::ForceRedisplay() {
   hidden_ = false;
 
-  const user_manager::User& user = CHECK_DEREF(
-      ash::BrowserContextHelper::Get()->GetUserByBrowserContext(profile_));
-  auto notification = std::make_unique<message_center::Notification>(
-      ash::CreateUserScopedNotificationId(notification_->id(),
-                                          user.username_hash()),
-      *notification_);
-  notification->set_profile_id(user.GetAccountId().GetUserEmail());
-  message_center::MessageCenter::Get()->AddNotification(
-      std::move(notification));
+  NotificationDisplayServiceFactory::GetForProfile(profile_)->Display(
+      NotificationHandler::Type::TRANSIENT, *notification_,
+      /*metadata=*/nullptr);
 }
 
 void CrostiniExportImportNotificationController::SetStatusRunningUI(
@@ -197,12 +191,8 @@ void CrostiniExportImportNotificationController::SetStatusCancelledUI() {
   delegate_->SetCallback(
       CrostiniExportImportClickCloseDelegate::ButtonClickCallback());
 
-  const user_manager::User& user = CHECK_DEREF(
-      ash::BrowserContextHelper::Get()->GetUserByBrowserContext(profile_));
-  message_center::MessageCenter::Get()->RemoveNotification(
-      ash::CreateUserScopedNotificationId(notification_->id(),
-                                          user.username_hash()),
-      /*by_user=*/false);
+  NotificationDisplayServiceFactory::GetForProfile(profile_)->Close(
+      NotificationHandler::Type::TRANSIENT, notification_->id());
 }
 
 void CrostiniExportImportNotificationController::SetStatusFailedWithMessageUI(

@@ -2,6 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import '/strings.m.js';
+
 import {html} from '//resources/lit/v3_0/lit.rollup.js';
 
 import type {ContextualTasksComposeboxElement} from './composebox.js';
@@ -65,7 +67,7 @@ export function getHtml(this: ContextualTasksComposeboxElement) {
           .isFollowupQuery="${!this.isZeroState}"
           .enableFileHint="${this.enableFileHint_}"
           .isCanvasQuerySubmitted="${this.isCanvasQuerySubmitted()}"
-          .clearAllInputsWhenSubmittingQuery="${this.clearAllInputsWhenSubmittingQuery_}"
+          .clearAllInputsWhenSubmittingQuery="${true}"
           .queryZpsOnLoad="${false}"
           .showVoiceSearch="${true}"
           .usePecApi="${this.usePecApi_}"
@@ -103,7 +105,7 @@ export function getHtml(this: ContextualTasksComposeboxElement) {
           .isFollowupQuery="${!this.isZeroState}"
           .enableFileHint="${this.enableFileHint_}"
           .isCanvasQuerySubmitted="${this.isCanvasQuerySubmitted()}"
-          .clearAllInputsWhenSubmittingQuery="${this.clearAllInputsWhenSubmittingQuery_}"
+          .clearAllInputsWhenSubmittingQuery="${true}"
           .queryZpsOnLoad="${false}"
           .showVoiceSearch="${true}"
           .usePecApi="${this.usePecApi_}"

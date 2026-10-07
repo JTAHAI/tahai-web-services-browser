@@ -35,7 +35,6 @@
 #include "third_party/blink/renderer/platform/platform_export.h"
 #include "third_party/blink/renderer/platform/wtf/allocator/allocator.h"
 #include "third_party/blink/renderer/platform/wtf/pod_interval_tree.h"
-#include "third_party/blink/renderer/platform/wtf/text/format.h"
 #include "third_party/blink/renderer/platform/wtf/vector.h"
 #include "ui/gfx/geometry/point_f.h"
 #include "ui/gfx/geometry/rect_f.h"
@@ -143,9 +142,9 @@ template <>
 struct ValueToString<FloatPolygonEdge*> {
   STATIC_ONLY(ValueToString);
   static String ToString(const FloatPolygonEdge* edge) {
-    return Format("{:p} ({:f},{:f} {:f},{:f})", edge, edge->Vertex1().x(),
-                  edge->Vertex1().y(), edge->Vertex2().x(),
-                  edge->Vertex2().y());
+    return String::Format("%p (%f,%f %f,%f)", edge, edge->Vertex1().x(),
+                          edge->Vertex1().y(), edge->Vertex2().x(),
+                          edge->Vertex2().y());
   }
 };
 #endif

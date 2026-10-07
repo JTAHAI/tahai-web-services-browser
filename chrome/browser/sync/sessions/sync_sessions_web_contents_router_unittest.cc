@@ -11,10 +11,6 @@
 #include "chrome/browser/ui/sync/browser_synced_tab_delegate.h"
 #include "chrome/test/base/chrome_render_view_host_test_harness.h"
 #include "chrome/test/base/testing_profile.h"
-#include "components/tabs/public/mock_tab_interface.h"
-#include "components/tabs/public/tab_interface.h"
-#include "testing/gmock/include/gmock/gmock.h"
-#include "ui/base/unowned_user_data/unowned_user_data_host.h"
 
 namespace sync_sessions {
 
@@ -48,38 +44,12 @@ class SyncSessionsWebContentsRouterTest
     router_ =
         SyncSessionsWebContentsRouterFactory::GetInstance()->GetForProfile(
             profile());
-#if !BUILDFLAG(IS_ANDROID)
-    // Associate the contents with the tab so that delegate lookups can find
-    // it. In production this association is maintained by TabModel.
-    tabs::TabLookupFromWebContents::CreateForWebContents(web_contents(), &tab_);
-    ON_CALL(tab_, GetUnownedUserDataHost())
-        .WillByDefault(::testing::ReturnRef(user_data_host_));
-#endif
-  }
-
-#if !BUILDFLAG(IS_ANDROID)
-  void CreateDelegate() {
-    delegate_ =
-        std::make_unique<BrowserSyncedTabDelegate>(tab_, web_contents());
-  }
-#endif
-
-  void TearDown() override {
-#if !BUILDFLAG(IS_ANDROID)
-    delegate_.reset();
-#endif
-    ChromeRenderViewHostTestHarness::TearDown();
   }
 
   SyncSessionsWebContentsRouter* router() { return router_; }
 
  private:
   raw_ptr<SyncSessionsWebContentsRouter, DanglingUntriaged> router_ = nullptr;
-#if !BUILDFLAG(IS_ANDROID)
-  ui::UnownedUserDataHost user_data_host_;
-  tabs::MockTabInterface tab_;
-  std::unique_ptr<BrowserSyncedTabDelegate> delegate_;
-#endif
 };
 
 // Disabled on android due to complexity of creating a full TabAndroid object
@@ -95,7 +65,7 @@ TEST_F(SyncSessionsWebContentsRouterTest, FlareNotRun) {
   router()->NotifyTabModified(web_contents(), false);
   EXPECT_FALSE(mock.was_run());
 
-  CreateDelegate();
+  BrowserSyncedTabDelegate::CreateForWebContents(web_contents());
 
   // There's a delegate for the tab, but it's not a load completed event, so the
   // flare still shouldn't run.
@@ -105,12 +75,12 @@ TEST_F(SyncSessionsWebContentsRouterTest, FlareNotRun) {
 
 // Make sure we don't crash when there's not a flare.
 TEST_F(SyncSessionsWebContentsRouterTest, FlareNotSet) {
-  CreateDelegate();
+  BrowserSyncedTabDelegate::CreateForWebContents(web_contents());
   router()->NotifyTabModified(web_contents(), false);
 }
 
 TEST_F(SyncSessionsWebContentsRouterTest, FlareRunsForLoadCompleted) {
-  CreateDelegate();
+  BrowserSyncedTabDelegate::CreateForWebContents(web_contents());
 
   StartSyncFlareMock mock;
   router()->InjectStartSyncFlare(base::BindRepeating(

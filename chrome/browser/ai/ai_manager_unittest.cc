@@ -23,6 +23,7 @@
 #include "components/optimization_guide/core/delivery/model_info.h"
 #include "components/optimization_guide/core/model_execution/on_device_capability.h"
 #include "components/optimization_guide/core/model_execution/on_device_model_download_progress_manager.h"
+#include "components/optimization_guide/core/model_execution/test/fake_model_broker.h"
 #include "components/optimization_guide/core/model_execution/test/mock_on_device_capability.h"
 #include "components/optimization_guide/core/optimization_guide_features.h"
 #include "components/optimization_guide/core/optimization_guide_proto_util.h"
@@ -35,7 +36,6 @@
 #include "content/public/browser/web_contents.h"
 #include "mojo/public/cpp/test_support/test_utils.h"
 #include "mojo/public/mojom/base/work_in_progress.mojom.h"
-#include "services/on_device_model/public/cpp/features.h"
 #include "services/on_device_model/public/mojom/download_observer.mojom.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/blink/public/common/features_generated.h"
@@ -48,9 +48,7 @@
 
 #if !BUILDFLAG(IS_ANDROID)
 #include "chrome/browser/component_updater/ai_embeddings_component_installer.h"
-#include "components/optimization_guide/core/model_execution/manifest_broker/test/scenario_builder.h"
 #include "components/optimization_guide/core/model_execution/test/fake_component_update_service.h"
-#include "components/optimization_guide/proto/feature_configs.pb.h"
 #endif
 
 using optimization_guide::MockSession;
@@ -60,8 +58,6 @@ using testing::AtMost;
 using testing::NiceMock;
 
 namespace {
-
-namespace proto = ::optimization_guide::proto;
 
 class AISemanticEmbedderServiceLauncherForTest
     : public AISemanticEmbedderServiceLauncher {};
@@ -75,11 +71,11 @@ std::vector<blink::mojom::AILanguageCodePtr> MakeLanguageCodeVector(
   return result;
 }
 
-class TestCreateSemanticEmbedderClient
+class MockCreateSemanticEmbedderClient
     : public blink::mojom::AIManagerCreateSemanticEmbedderClient {
  public:
-  TestCreateSemanticEmbedderClient() = default;
-  ~TestCreateSemanticEmbedderClient() override = default;
+  MockCreateSemanticEmbedderClient() = default;
+  ~MockCreateSemanticEmbedderClient() override = default;
 
   void OnResult(
       mojo::PendingRemote<blink::mojom::AISemanticEmbedder> embedder) override {
@@ -176,61 +172,14 @@ class AIManagerTest : public AITestUtils::AITestBase {
   }
 
  protected:
-  proto::SolutionConfig CreateSolution() override {
-    proto::OnDeviceModelExecutionFeatureConfig config;
+  optimization_guide::proto::OnDeviceModelExecutionFeatureConfig CreateConfig()
+      override {
+    optimization_guide::proto::OnDeviceModelExecutionFeatureConfig config;
     config.set_can_skip_text_safety(true);
-    config.set_feature(proto::ModelExecutionFeature::
+    config.set_feature(optimization_guide::proto::ModelExecutionFeature::
                            MODEL_EXECUTION_FEATURE_PROMPT_API);
-
-    proto::SolutionConfig solution_config;
-    *solution_config.mutable_feature() = config;
-    return solution_config;
+    return config;
   }
-
-#if !BUILDFLAG(IS_ANDROID)
-  void SetupBroker() override {
-    fake_broker_ = std::make_unique<optimization_guide::FakeManifestBroker>();
-    proto::PromptApiFeatureConfig prompt_api_cfg;
-    prompt_api_cfg.set_default_use_case("prompt_api");
-
-    proto::WritingAssistanceApiFeatureConfig writer_cfg;
-    writer_cfg.set_default_use_case("writing_assistance_api");
-
-    proto::SummarizerFeatureConfig summarizer_cfg;
-    summarizer_cfg.set_default_use_case("summarizer_api");
-
-    // Explicit BaseModelRecipeArgs and empty FakeBaseModelAsset::Content are
-    // needed: ScenarioBuilder::AddBaseModel(name) defaults to 100 max_tokens
-    // and non-empty cache weights (1015, 1016, 1017), which causes
-    // FakeOnDeviceModel to emit dummy cache weight response chunks.
-    constexpr uint32_t kDefaultMaxTokens = 8096;
-
-    optimization_guide::ScenarioBuilder(fake_broker_->component_state())
-        .AddBaseModel(
-            "base",
-            optimization_guide::BaseModelRecipeArgs(
-                proto::BaseModelRecipe::BACKEND_TYPE_GPU,
-                proto::BaseModelRecipe::PERFORMANCE_HINT_HIGHEST_QUALITY, {},
-                kDefaultMaxTokens),
-            optimization_guide::FakeBaseModelAsset::Content{}, "1.0.0.0")
-        .AddSafetyModel("safety")
-        .AddSafeSolution("prompt_api", "base", "safety", CreateSolution())
-        .AddSafeSolution("writing_assistance_api", "base", "safety",
-                         CreateSolution())
-        .AddSafeSolution("summarizer_api", "base", "safety", CreateSolution())
-        .SetFeatureConfig("prompt_api",
-                          optimization_guide::AnyWrapProto(prompt_api_cfg))
-        .SetFeatureConfig("writing_assistance_api",
-                          optimization_guide::AnyWrapProto(writer_cfg))
-        .SetFeatureConfig("summarizer_api",
-                          optimization_guide::AnyWrapProto(summarizer_cfg))
-        .Finish();
-
-    fake_broker_->settings().performance_class =
-        on_device_model::mojom::PerformanceClass::kHigh;
-    fake_broker_->Startup();
-  }
-#endif
 
  private:
   base::test::ScopedFeatureList scoped_feature_list_;
@@ -308,86 +257,6 @@ TEST_F(AIManagerTest, CanCreate) {
 #endif  // !BUILDFLAG(IS_ANDROID)
 }
 
-TEST_F(AIManagerTest, CanCreateSpeculativeDecodingSamplingOptions) {
-  base::test::ScopedFeatureList feature_list;
-  feature_list.InitAndEnableFeature(
-      on_device_model::features::kOnDeviceModelSpeculativeDecoding);
-
-  // Default options (no explicit greedy params/mode) should return
-  // incompatible.
-  {
-    base::test::TestFuture<blink::mojom::ModelAvailabilityCheckResult> future;
-    ai_manager_->CanCreateLanguageModel(
-        blink::mojom::AILanguageModelCreateOptions::New(),
-        future.GetCallback());
-    EXPECT_EQ(future.Get(),
-              blink::mojom::ModelAvailabilityCheckResult::
-                  kUnavailableIncompatibleSpeculativeDecodingOptions);
-  }
-
-  // Explicit greedy options (top_k = 1, temperature = 0.5) should return
-  // downloadable.
-  {
-    auto sampling_params = blink::mojom::AILanguageModelSamplingParams::New();
-    sampling_params->top_k = 1;
-    sampling_params->temperature = 0.5f;
-
-    auto options = blink::mojom::AILanguageModelCreateOptions::New();
-    options->sampling_params = std::move(sampling_params);
-
-    base::test::TestFuture<blink::mojom::ModelAvailabilityCheckResult> future;
-    ai_manager_->CanCreateLanguageModel(std::move(options),
-                                        future.GetCallback());
-    EXPECT_EQ(future.Get(),
-              blink::mojom::ModelAvailabilityCheckResult::kDownloadable);
-  }
-
-  // Non-greedy options (top_k = 2, temperature = 0.5) should return
-  // incompatible.
-  {
-    auto sampling_params = blink::mojom::AILanguageModelSamplingParams::New();
-    sampling_params->top_k = 2;
-    sampling_params->temperature = 0.5f;
-
-    auto options = blink::mojom::AILanguageModelCreateOptions::New();
-    options->sampling_params = std::move(sampling_params);
-
-    base::test::TestFuture<blink::mojom::ModelAvailabilityCheckResult> future;
-    ai_manager_->CanCreateLanguageModel(std::move(options),
-                                        future.GetCallback());
-    EXPECT_EQ(future.Get(),
-              blink::mojom::ModelAvailabilityCheckResult::
-                  kUnavailableIncompatibleSpeculativeDecodingOptions);
-  }
-
-  // Compatible sampling mode (kMostPredictable) should return downloadable.
-  {
-    auto options = blink::mojom::AILanguageModelCreateOptions::New();
-    options->sampling_mode =
-        blink::mojom::AILanguageModelSamplingMode::kMostPredictable;
-
-    base::test::TestFuture<blink::mojom::ModelAvailabilityCheckResult> future;
-    ai_manager_->CanCreateLanguageModel(std::move(options),
-                                        future.GetCallback());
-    EXPECT_EQ(future.Get(),
-              blink::mojom::ModelAvailabilityCheckResult::kDownloadable);
-  }
-
-  // Incompatible sampling mode (kBalanced) should return incompatible.
-  {
-    auto options = blink::mojom::AILanguageModelCreateOptions::New();
-    options->sampling_mode =
-        blink::mojom::AILanguageModelSamplingMode::kBalanced;
-
-    base::test::TestFuture<blink::mojom::ModelAvailabilityCheckResult> future;
-    ai_manager_->CanCreateLanguageModel(std::move(options),
-                                        future.GetCallback());
-    EXPECT_EQ(future.Get(),
-              blink::mojom::ModelAvailabilityCheckResult::
-                  kUnavailableIncompatibleSpeculativeDecodingOptions);
-  }
-}
-
 TEST_F(AIManagerTest, CanCreateSemanticEmbedderCrashLimit) {
   base::test::ScopedFeatureList scoped_feature_list;
   scoped_feature_list.InitWithFeatures(
@@ -434,6 +303,44 @@ TEST_F(AIManagerTest, CanCreateSemanticEmbedderCrashLimit) {
   service_launcher->controller()->MaybeUpdateModelInfo(std::nullopt);
 }
 
+TEST_F(AIManagerTest, CanCreateNotEnabled) {
+  base::test::ScopedFeatureList scoped_feature_list;
+  scoped_feature_list.InitWithFeatures(
+      /*enabled_features=*/{},
+      /*disabled_features=*/{
+          optimization_guide::features::kOptimizationGuideModelExecution,
+          blink::features::kAIEmbeddingsAPI});
+  {
+    base::test::TestFuture<blink::mojom::ModelAvailabilityCheckResult> future;
+    ai_manager_->CanCreateLanguageModel(/*options=*/{}, future.GetCallback());
+    EXPECT_EQ(future.Get(), blink::mojom::ModelAvailabilityCheckResult::
+                                kUnavailableFeatureNotEnabled);
+  }
+  {
+    base::test::TestFuture<blink::mojom::ModelAvailabilityCheckResult> future;
+    ai_manager_->CanCreateWriter(/*options=*/{}, future.GetCallback());
+    EXPECT_EQ(future.Get(), blink::mojom::ModelAvailabilityCheckResult::
+                                kUnavailableFeatureNotEnabled);
+  }
+  {
+    base::test::TestFuture<blink::mojom::ModelAvailabilityCheckResult> future;
+    ai_manager_->CanCreateSummarizer(/*options=*/{}, future.GetCallback());
+    EXPECT_EQ(future.Get(), blink::mojom::ModelAvailabilityCheckResult::
+                                kUnavailableFeatureNotEnabled);
+  }
+  {
+    base::test::TestFuture<blink::mojom::ModelAvailabilityCheckResult> future;
+    ai_manager_->CanCreateRewriter(/*options=*/{}, future.GetCallback());
+    EXPECT_EQ(future.Get(), blink::mojom::ModelAvailabilityCheckResult::
+                                kUnavailableFeatureNotEnabled);
+  }
+  {
+    base::test::TestFuture<blink::mojom::ModelAvailabilityCheckResult> future;
+    ai_manager_->CanCreateSemanticEmbedder(future.GetCallback());
+    EXPECT_EQ(future.Get(), blink::mojom::ModelAvailabilityCheckResult::
+                                kUnavailableFeatureNotEnabled);
+  }
+}
 
 TEST_F(AIManagerTest, CanCreateFeatureDisabled) {
   base::test::ScopedFeatureList scoped_feature_list;
@@ -630,7 +537,7 @@ TEST_F(AIManagerTest, CreateSemanticEmbedderWaitsForModel) {
   // Model is not yet available.
   EXPECT_FALSE(service_launcher->controller()->IsModelAvailable());
 
-  TestCreateSemanticEmbedderClient client;
+  MockCreateSemanticEmbedderClient client;
   MockDownloadObserver monitor;
 
   ai_manager_->CreateSemanticEmbedder(client.BindNewPipeAndPassRemote(),
@@ -664,7 +571,7 @@ TEST_F(AIManagerTest, CreateSemanticEmbedderDownloadProgress) {
   auto* service_launcher = AISemanticEmbedderServiceLauncher::Get();
   service_launcher->RecordSuccessfulUse();
 
-  TestCreateSemanticEmbedderClient client;
+  MockCreateSemanticEmbedderClient client;
   MockDownloadObserver monitor;
 
   EXPECT_CALL(monitor,
@@ -727,7 +634,7 @@ TEST_F(AIManagerTest, CreateSemanticEmbedderCrashLimit) {
 
   EXPECT_FALSE(service_launcher->AllowedToLaunch());
 
-  TestCreateSemanticEmbedderClient client;
+  MockCreateSemanticEmbedderClient client;
   MockDownloadObserver monitor;
 
   ai_manager_->CreateSemanticEmbedder(client.BindNewPipeAndPassRemote(),
@@ -746,7 +653,7 @@ TEST_F(AIManagerTest, CreateSemanticEmbedderComponentUpdateFailed) {
   // Model is not yet available.
   EXPECT_FALSE(service_launcher->controller()->IsModelAvailable());
 
-  TestCreateSemanticEmbedderClient client;
+  MockCreateSemanticEmbedderClient client;
   MockDownloadObserver monitor;
 
   // Expect OnDemandUpdate and capture the callback.

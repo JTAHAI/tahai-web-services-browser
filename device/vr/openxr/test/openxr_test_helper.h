@@ -16,12 +16,9 @@
 #include "base/synchronization/lock.h"
 #include "device/vr/openxr/openxr_platform.h"
 #include "device/vr/openxr/openxr_view_configuration.h"
-#include "device/vr/public/mojom/test/xr_test_hook.test-mojom.h"
-#include "mojo/public/cpp/bindings/pending_remote.h"
-#include "mojo/public/cpp/bindings/shared_remote.h"
+#include "device/vr/test/test_hook.h"
 #include "third_party/abseil-cpp/absl/container/flat_hash_map.h"
 #include "third_party/openxr/src/include/openxr/openxr.h"
-#include "third_party/skia/include/core/SkColor.h"
 
 #if BUILDFLAG(IS_WIN)
 #include <wrl.h>
@@ -35,10 +32,8 @@ namespace gfx {
 class Transform;
 }  // namespace gfx
 
-class OpenXrTestHelper {
+class OpenXrTestHelper : public device::ServiceTestHook {
  public:
-  static OpenXrTestHelper& Get();
-
   OpenXrTestHelper();
   ~OpenXrTestHelper();
 
@@ -50,7 +45,7 @@ class OpenXrTestHelper {
   void TestFailure();
 
   // TestHookRegistration
-  void SetTestHook(mojo::PendingRemote<device_test::mojom::XRTestHook> hook);
+  void SetTestHook(device::VRTestHook* hook) final;
 
   // Helper methods called by the mock OpenXR runtime. These methods will
   // call back into the test hook, thus communicating with the test object
@@ -129,14 +124,6 @@ class OpenXrTestHelper {
 #if BUILDFLAG(IS_ANDROID)
   void SetOpenGLESInfo(EGLDisplay display, EGLContext context);
   const std::vector<uint32_t>& GetSwapchainTextureIDs(XrSwapchain swapchain);
-#endif
-#if BUILDFLAG(IS_LINUX)
-  // Stashed from xrCreateVulkanInstanceKHR so the later Vulkan device calls
-  // can resolve functions without the caller passing them back in.
-  void SetVulkanGetInstanceProcAddr(PFN_vkGetInstanceProcAddr proc_addr);
-  void SetVulkanInstance(VkInstance vk_instance);
-  PFN_vkGetInstanceProcAddr GetVulkanGetInstanceProcAddr() const;
-  VkInstance GetVulkanInstance() const;
 #endif
 
   uint32_t NextSwapchainImageIndex(XrSwapchain swapchain);
@@ -234,8 +221,8 @@ class OpenXrTestHelper {
   void CopyTextureDataIntoFrameData(XrSwapchain swapchain,
                                     uint32_t x_start,
                                     device::ViewData& data);
-  SkColor ReadTextureColor(const XrSwapchainSubImage&);
-  std::vector<SkColor> ReadCubeMapFirstPixelColor(XrSwapchain swapchain);
+  device::Color ReadTextureColor(const XrSwapchainSubImage&);
+  std::vector<device::Color> ReadCubeMapFirstPixelColor(XrSwapchain swapchain);
 #endif
   void AddDimensions(const device::OpenXrViewConfiguration& view_config,
                      uint32_t& width,
@@ -282,9 +269,6 @@ class OpenXrTestHelper {
   absl::flat_hash_map<XrSwapchain, uint32_t> acquired_swapchain_textures_;
   absl::flat_hash_map<XrSwapchain, std::vector<uint32_t>>
       opengl_es_textures_arrays_;
-#elif BUILDFLAG(IS_LINUX)
-  PFN_vkGetInstanceProcAddr vulkan_get_instance_proc_addr_ = nullptr;
-  VkInstance vulkan_instance_ = VK_NULL_HANDLE;
 #endif
 
   // paths_ is used to keep tracked of strings that already has a corresponding
@@ -323,16 +307,11 @@ class OpenXrTestHelper {
   std::unordered_map<XrViewConfigurationType, device::OpenXrViewConfiguration>
       secondary_configs_supported_;
 
-  std::vector<device::ControllerFrameData> controllers_;
-  std::optional<gfx::Transform> presenting_pose_;
+  std::array<device::ControllerFrameData, device::kMaxControllers> controllers_;
 
   std::queue<XrEventDataBuffer> event_queue_;
 
-  void OnTestHookDisconnected();
-  mojo::SharedRemote<device_test::mojom::XRTestHook> GetTestHook();
-
-  mojo::SharedRemote<device_test::mojom::XRTestHook> test_hook_
-      GUARDED_BY(lock_);
+  raw_ptr<device::VRTestHook> test_hook_ GUARDED_BY(lock_) = nullptr;
   base::Lock lock_;
 };
 

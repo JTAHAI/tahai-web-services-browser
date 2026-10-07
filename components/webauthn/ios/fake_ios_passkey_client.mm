@@ -84,14 +84,6 @@ void FakeIOSPasskeyClient::SetBiometricsEnabled(bool enabled) {
   biometrics_enabled_ = enabled;
 }
 
-void FakeIOSPasskeyClient::OnPasskeyCreated() {
-  on_passkey_created_called_ = true;
-}
-
-bool FakeIOSPasskeyClient::DidOnPasskeyCreated() const {
-  return on_passkey_created_called_;
-}
-
 PasskeyUserVerificationStatus
 FakeIOSPasskeyClient::last_user_verification_status() const {
   return last_user_verification_status_;

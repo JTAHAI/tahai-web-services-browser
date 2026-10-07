@@ -201,7 +201,7 @@ export class CrActionMenuElement extends PolymerElement {
     }
   }
 
-  protected onNativeDialogClose_(e: Event) {
+  private onNativeDialogClose_(e: Event) {
     // Ignore any 'close' events not fired directly by the <dialog> element.
     if (e.target !== this.$.dialog) {
       return;
@@ -212,14 +212,14 @@ export class CrActionMenuElement extends PolymerElement {
     this.fire_('close');
   }
 
-  protected onClick_(e: Event) {
+  private onClick_(e: Event) {
     if (e.target === this) {
       this.close();
       e.stopPropagation();
     }
   }
 
-  protected onKeyDown_(e: KeyboardEvent) {
+  private onKeyDown_(e: KeyboardEvent) {
     e.stopPropagation();
 
     if (e.key === 'Tab' || e.key === 'Escape') {
@@ -453,7 +453,7 @@ export class CrActionMenuElement extends PolymerElement {
     this.$.dialog.style.top = menuTop + 'px';
   }
 
-  protected onSlotchange_() {
+  private onSlotchange_() {
     for (const node of this.$.contentNode.assignedElements({flatten: true})) {
       if (node.classList.contains(DROPDOWN_ITEM_CLASS) &&
           !node.getAttribute('role')) {

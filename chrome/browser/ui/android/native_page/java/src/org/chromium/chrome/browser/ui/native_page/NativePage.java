@@ -9,13 +9,11 @@ import android.view.View;
 import androidx.annotation.ColorInt;
 import androidx.annotation.IntDef;
 
+import org.chromium.components.extensions.ExtensionsBuildflags;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
-import org.chromium.chrome.browser.settings.SettingsInTab;
 import org.chromium.components.embedder_support.util.UrlConstants;
-import org.chromium.components.embedder_support.util.UrlUtilities;
-import org.chromium.components.extensions.ExtensionsBuildflags;
 import org.chromium.url.GURL;
 
 import java.lang.annotation.Retention;
@@ -168,9 +166,6 @@ public interface NativePage {
         return true;
     }
 
-    /** Triggers downloading for the native page. */
-    default void download() {}
-
     /** Notify the native page that it is about to be navigated back or hidden by a back press. */
     default void notifyHidingWithBack() {}
 
@@ -279,11 +274,12 @@ public interface NativePage {
      */
     private static @NativePageType int chromePageType(
             GURL url, @Nullable NativePage candidatePage, boolean isIncognito) {
-        if (!UrlUtilities.isChromeScheme(url)) {
+        String host = url.getHost();
+        String scheme = url.getScheme();
+        if (!UrlConstants.CHROME_NATIVE_SCHEME.equals(scheme)
+                && !UrlConstants.CHROME_SCHEME.equals(scheme)) {
             return NativePageType.NONE;
         }
-
-        String host = url.getHost();
 
         if (candidatePage != null && candidatePage.getHost().equals(host)) {
             return NativePageType.CANDIDATE;
@@ -302,20 +298,18 @@ public interface NativePage {
         } else if (UrlConstants.EXPLORE_HOST.equals(host)) {
             return NativePageType.EXPLORE;
         } else if (UrlConstants.MANAGEMENT_HOST.equals(host)) {
-            // WebUI chrome://management is enabled by default on Desktop Android (which supports
-            // extensions core) and gated behind an experiment flag on Mobile Android.
+            // WebUI chrome://management is enabled by default on Desktop Android
+            // (which supports extensions core) and gated behind an experiment flag on Mobile Android.
             if (ExtensionsBuildflags.ENABLE_EXTENSIONS_CORE
                     || ChromeFeatureList.sMigrateManagementToWebUIOnMobile.isEnabled()) {
                 return NativePageType.NONE;
             }
             return NativePageType.MANAGEMENT;
-        } else if ((UrlConstants.BRICKS_HOST.equals(host)
-                        || UrlConstants.BRICKS_JAVA_HOST.equals(host))
+        } else if (UrlConstants.BRICKS_HOST.equals(host)
                 && ChromeFeatureList.isEnabled(ChromeFeatureList.ANDROID_BRICKS_NATIVE_PAGE)) {
             return NativePageType.BRICKS;
         } else if (UrlConstants.SETTINGS_HOST.equals(host)
-                && SettingsInTab.isEnabled()
-                && !isIncognito) {
+                && ChromeFeatureList.isEnabled(ChromeFeatureList.SETTINGS_IN_TAB)) {
             return NativePageType.SETTINGS;
         } else {
             return NativePageType.NONE;

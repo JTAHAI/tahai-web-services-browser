@@ -41,7 +41,6 @@ import org.chromium.base.test.util.Features.DisableFeatures;
 import org.chromium.base.test.util.Features.EnableFeatures;
 import org.chromium.base.test.util.Restriction;
 import org.chromium.chrome.R;
-import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.browser.preferences.Pref;
 import org.chromium.chrome.browser.profiles.ProfileManager;
@@ -74,10 +73,6 @@ import org.chromium.ui.widget.ChromeImageButton;
 @DoNotBatch(reason = "This test relies on native initialization")
 @CommandLineFlags.Add({ChromeSwitches.DISABLE_FIRST_RUN_EXPERIENCE})
 @EnableFeatures({SigninFeatures.SIGNIN_LEVEL_UP_BUTTON, SigninFeatures.PROFILE_DISC_ON_ALL_PAGES})
-@DisableFeatures({
-    ChromeFeatureList.SETTINGS_IN_TAB, // crbug.com/521895796
-    ChromeFeatureList.USE_WEB_UI_NTP_ANDROID // crbug.com/555414915
-})
 public class SigninButtonCoordinatorTest {
 
     // Mock sign-in environment needs to be destroyed after ChromeTabbedActivity in case there are
@@ -410,10 +405,7 @@ public class SigninButtonCoordinatorTest {
 
         // Clicking the sign-in button should lead to the sign-in bottom sheet.
         onView(withId(R.id.signin_button)).perform(click());
-        ViewUtils.waitForVisibleView(
-                allOf(
-                        withId(R.id.account_picker_header_title),
-                        withText(R.string.signin_account_picker_bottom_sheet_title)));
+        ViewUtils.waitForVisibleView(withText(R.string.signin_account_picker_bottom_sheet_title));
     }
 
     @Test

@@ -14,7 +14,6 @@
 
 #include "absl/base/internal/thread_identity.h"
 
-#include <cstdint>
 #include <thread>  // NOLINT(build/c++11)
 #include <vector>
 
@@ -23,7 +22,6 @@
 #include "absl/base/internal/spinlock.h"
 #include "absl/base/macros.h"
 #include "absl/base/thread_annotations.h"
-#include "absl/synchronization/internal/create_thread_identity.h"
 #include "absl/synchronization/internal/per_thread_sem.h"
 #include "absl/synchronization/mutex.h"
 

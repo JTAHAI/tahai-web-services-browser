@@ -27,7 +27,6 @@
 #include "components/policy/core/common/policy_map.h"
 #include "components/policy/core/common/policy_types.h"
 #include "components/policy/policy_constants.h"
-#include "components/signin/public/base/signin_switches.h"
 #include "components/sync/engine/cycle/sync_cycle_snapshot.h"
 #include "components/sync/engine/loopback_server/persistent_permanent_entity.h"
 #include "components/sync/service/sync_service.h"
@@ -100,10 +99,8 @@ class TwoClientBookmarksSyncTest
  public:
   TwoClientBookmarksSyncTest() : SyncTest(TWO_CLIENT) {
     if (GetSetupSyncMode() == SetupSyncMode::kSyncTransportOnly) {
-      feature_overrides_.InitWithFeatures(
-          {syncer::kReplaceSyncPromosWithSignInPromos,
-           switches::kSyncEnableBookmarksInTransportMode},
-          {});
+      feature_overrides_.InitAndEnableFeature(
+          syncer::kReplaceSyncPromosWithSignInPromos);
     }
   }
   ~TwoClientBookmarksSyncTest() override = default;

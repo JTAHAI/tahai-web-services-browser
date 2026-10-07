@@ -19,7 +19,6 @@
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_tabstrip.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
-#include "chrome/browser/ui/browser_window/public/create_browser_window.h"
 #include "chrome/browser/ui/browser_window/public/desktop_browser_window_capabilities.h"
 #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "chrome/browser/ui/exclusive_access/exclusive_access_manager.h"
@@ -35,7 +34,6 @@
 #include "chrome/browser/ui/webui_browser/webui_browser_ui.h"
 #include "chrome/browser/ui/webui_browser/webui_browser_window.h"
 #include "chrome/common/chrome_features.h"
-#include "chrome/common/webui_url_constants.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/ui_test_utils.h"
 #include "components/bookmarks/browser/bookmark_model.h"
@@ -54,7 +52,6 @@
 #include "net/dns/mock_host_resolver.h"
 #include "third_party/skia/include/core/SkBitmap.h"
 #include "third_party/skia/include/core/SkColor.h"
-#include "ui/base/base_window.h"
 #include "ui/gfx/geometry/rect.h"
 #include "ui/gfx/geometry/size.h"
 
@@ -527,10 +524,8 @@ IN_PROC_BROWSER_TEST_F(WebUIBrowserTest, SetContentsSizeResizesWindow) {
 
 IN_PROC_BROWSER_TEST_F(WebUIBrowserTest, SetContentsSizeEarlyResizesWindow) {
   // 1) Create a new browser window and add a default tab
-  BrowserWindowInterface* new_browser =
-      CreateBrowserWindow(BrowserWindowCreateParams(
-          BrowserWindowInterface::Type::TYPE_NORMAL, browser()->GetProfile(),
-          /*from_user_gesture=*/true));
+  Browser* new_browser = Browser::Create(Browser::CreateParams(
+      Browser::Type::TYPE_NORMAL, browser()->GetProfile(), true));
   chrome::AddTabAt(new_browser, GURL(), -1, true);
 
   auto* window = WebUIBrowserWindow::FromBrowser(new_browser);
@@ -544,7 +539,7 @@ IN_PROC_BROWSER_TEST_F(WebUIBrowserTest, SetContentsSizeEarlyResizesWindow) {
   // 3) Show the window and navigate to our layout testing page
   new_browser->GetWindow()->Show();
   content::WebContents* tab_contents =
-      new_browser->GetTabStripModel()->GetActiveWebContents();
+      new_browser->tab_strip_model()->GetActiveWebContents();
   ASSERT_TRUE(tab_contents);
   GURL url = embedded_https_test_server().GetURL("a.com", "/empty.html");
   EXPECT_TRUE(content::NavigateToURL(tab_contents, url));
@@ -566,15 +561,13 @@ IN_PROC_BROWSER_TEST_F(WebUIBrowserTest, DevToolsWindowDoesNotCrash) {
 IN_PROC_BROWSER_TEST_F(WebUIBrowserTest,
                        ActiveTabHasNonZeroSizeOnWindowCreation) {
   // Create a new browser window with a tab.
-  BrowserWindowInterface* new_browser =
-      CreateBrowserWindow(BrowserWindowCreateParams(
-          BrowserWindowInterface::Type::TYPE_NORMAL, browser()->GetProfile(),
-          /*from_user_gesture=*/true));
+  Browser* new_browser = Browser::Create(Browser::CreateParams(
+      Browser::Type::TYPE_NORMAL, browser()->GetProfile(), true));
   chrome::AddTabAt(new_browser, GURL(), -1, true);
   new_browser->GetWindow()->Show();
 
   content::WebContents* active_contents =
-      new_browser->GetTabStripModel()->GetActiveWebContents();
+      new_browser->tab_strip_model()->GetActiveWebContents();
   ASSERT_TRUE(active_contents);
 
   // The active tab's size must be non-zero immediately after the browser window

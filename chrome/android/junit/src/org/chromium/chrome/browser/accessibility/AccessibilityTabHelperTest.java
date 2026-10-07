@@ -21,6 +21,7 @@ import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
+import org.robolectric.annotation.Config;
 
 import org.chromium.base.UserDataHost;
 import org.chromium.base.test.BaseRobolectricTestRunner;
@@ -30,6 +31,7 @@ import org.chromium.content.browser.webcontents.WebContentsImpl;
 
 /** Unit tests for {@link AccessibilityTabHelper}. */
 @RunWith(BaseRobolectricTestRunner.class)
+@Config(manifest = Config.NONE)
 public class AccessibilityTabHelperTest {
 
     @Rule public MockitoRule mMockitoRule = MockitoJUnit.rule();

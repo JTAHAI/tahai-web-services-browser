@@ -27,7 +27,6 @@
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/browser_process_platform_part_ash.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/signin/identity_manager_factory.h"
 #include "chrome/browser/ui/webui/ash/in_session_password_change/password_change_dialogs.h"
 #include "chromeos/ash/components/login/auth/auth_session_authenticator.h"
 #include "chromeos/ash/components/login/auth/public/authentication_error.h"
@@ -317,7 +316,7 @@ void InSessionPasswordChangeManager::ShowStandardExpiryNotification(
     base::TimeDelta time_until_expiry) {
   // Show a notification, and reshow it each time the screen is unlocked.
   renotify_on_unlock_ = true;
-  PasswordExpiryNotification::Show(*primary_user_, time_until_expiry);
+  PasswordExpiryNotification::Show(primary_profile_, time_until_expiry);
   UrgentPasswordExpiryNotificationDialog::Dismiss();
 }
 
@@ -325,12 +324,12 @@ void InSessionPasswordChangeManager::ShowUrgentExpiryNotification() {
   // Show a notification, and reshow it each time the screen is unlocked.
   renotify_on_unlock_ = true;
   UrgentPasswordExpiryNotificationDialog::Show();
-  PasswordExpiryNotification::Dismiss(*primary_user_);
+  PasswordExpiryNotification::Dismiss(primary_profile_);
 }
 
 void InSessionPasswordChangeManager::DismissExpiryNotification() {
   UrgentPasswordExpiryNotificationDialog::Dismiss();
-  PasswordExpiryNotification::Dismiss(*primary_user_);
+  PasswordExpiryNotification::Dismiss(primary_profile_);
 }
 
 void InSessionPasswordChangeManager::OnExpiryNotificationDismissedByUser() {
@@ -446,7 +445,7 @@ void InSessionPasswordChangeManager::OnPasswordUpdateSuccess(
   DismissExpiryNotification();
   PasswordChangeDialog::Dismiss();
   ConfirmPasswordChangeDialog::Dismiss();
-  PasswordChangeSuccessNotification::Show(*primary_user_);
+  PasswordChangeSuccessNotification::Show(primary_profile_);
 
   // We request a new sync token. It will be updated locally and signal the fact
   // of password change to other devices owned by the user.
@@ -489,8 +488,7 @@ void InSessionPasswordChangeManager::OnApiCallFailed(
 
 void InSessionPasswordChangeManager::CreateTokenAsync() {
   password_sync_token_fetcher_ = std::make_unique<PasswordSyncTokenFetcher>(
-      primary_profile_->GetURLLoaderFactory(),
-      IdentityManagerFactory::GetForProfile(primary_profile_.get()), this);
+      primary_profile_->GetURLLoaderFactory(), primary_profile_, this);
   password_sync_token_fetcher_->StartTokenCreate();
 }
 

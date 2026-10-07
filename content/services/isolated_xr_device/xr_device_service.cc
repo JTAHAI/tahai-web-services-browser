@@ -4,20 +4,15 @@
 
 #include "content/services/isolated_xr_device/xr_device_service.h"
 
-#include "base/check_is_test.h"
 #include "base/task/single_thread_task_runner.h"
 #include "build/build_config.h"
 #include "content/services/isolated_xr_device/xr_runtime_provider.h"
-#include "device/vr/buildflags/buildflags.h"
+#include "content/services/isolated_xr_device/xr_service_test_hook.h"
 #include "mojo/public/cpp/bindings/self_owned_receiver.h"
 
 #if BUILDFLAG(IS_WIN)
 #include "base/win/com_init_check_hook.h"
 #endif  // BUILDFLAG(IS_WIN)
-
-#if BUILDFLAG(ENABLE_OPENXR)
-#include "device/vr/openxr/openxr_platform_helper.h"
-#endif  // BUILDFLAG(ENABLE_OPENXR)
 
 namespace device {
 
@@ -42,12 +37,10 @@ void XrDeviceService::BindRuntimeProvider(
       std::move(receiver));
 }
 
-void XrDeviceService::BindHookForTesting(
-    mojo::ScopedMessagePipeHandle receiver) {
-  CHECK_IS_TEST();
-#if BUILDFLAG(ENABLE_OPENXR)
-  OpenXrPlatformHelper::BindHookForTesting(std::move(receiver));
-#endif  // BUILDFLAG(ENABLE_OPENXR)
+void XrDeviceService::BindTestHook(
+    mojo::PendingReceiver<device_test::mojom::XRServiceTestHook> receiver) {
+  mojo::MakeSelfOwnedReceiver(std::make_unique<XRServiceTestHook>(),
+                              std::move(receiver));
 }
 
 }  // namespace device

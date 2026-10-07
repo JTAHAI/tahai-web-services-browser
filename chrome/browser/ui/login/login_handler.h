@@ -20,6 +20,7 @@
 #include "base/synchronization/lock.h"
 #include "components/password_manager/core/browser/http_auth_manager.h"
 #include "components/password_manager/core/browser/password_form.h"
+#include "content/public/browser/content_browser_client.h"
 #include "content/public/browser/global_request_id.h"
 #include "content/public/browser/login_delegate.h"
 #include "content/public/browser/web_contents.h"
@@ -105,9 +106,12 @@ class LoginHandler : public content::LoginDelegate {
   // Notify observers that authentication is cancelled.
   virtual void NotifyAuthCancelled();
 
+  base::WeakPtr<LoginHandler> GetWeakPtr() {
+    return weak_factory_.GetWeakPtr();
+  }
+
  private:
   FRIEND_TEST_ALL_PREFIXES(LoginHandlerTest, DialogStringsAndRealm);
-  FRIEND_TEST_ALL_PREFIXES(LoginHandlerTest, MakeInputForPasswordManager);
 
   // When any handler finishes, called on every other handler. |username| and
   // |password| are only valid if |supplied| is true. If |supplied| is false

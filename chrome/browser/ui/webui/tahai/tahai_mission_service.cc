@@ -25,13 +25,13 @@
 #include "base/values.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/tahai/tahai_operational_workflow_queue.h"
-#include "chrome/browser/ui/webui/tahai/tahai_mission_capsule.h"
 #include "chrome/browser/ui/webui/tahai/tahai_local_oi_redactor.h"
+#include "chrome/browser/ui/webui/tahai/tahai_mission_capsule.h"
 #include "chrome/common/pref_names.h"
 #include "chrome/common/tahai_skins/tahai_operational_skin_manifest.h"
-#include "components/prefs/pref_service.h"
 #include "components/os_crypt/async/browser/os_crypt_async.h"
 #include "components/os_crypt/async/common/encryptor.h"
+#include "components/prefs/pref_service.h"
 #include "components/prefs/scoped_user_pref_update.h"
 #include "crypto/sha2.h"
 #include "url/gurl.h"
@@ -84,30 +84,31 @@ constexpr std::array<std::string_view, 7> kOperationalWorkflowRunStates = {
     "ready", "running", "waiting-for-input", "paused", "succeeded",
     "failed", "cancelled"};
 
-bool HasKnownStoredFields(
-    const base::DictValue* record,
-    std::initializer_list<std::string_view> fields) {
+bool HasKnownStoredFields(const base::DictValue* record,
+                          std::initializer_list<std::string_view> fields) {
   return !record || std::ranges::all_of(*record, [&fields](const auto entry) {
     return std::ranges::find(fields, entry.first) != fields.end();
   });
 }
 
 bool HasKnownMissionNestedFields(const base::DictValue& mission) {
-  const auto check_records = [&mission](
-      std::string_view key, std::initializer_list<std::string_view> fields) {
-    const auto* records = mission.FindList(key);
-    return !records || std::ranges::all_of(*records, [&fields](const auto& item) {
-      return HasKnownStoredFields(item.GetIfDict(), fields);
-    });
-  };
+  const auto check_records =
+      [&mission](std::string_view key,
+                 std::initializer_list<std::string_view> fields) {
+        const auto* records = mission.FindList(key);
+        return !records ||
+               std::ranges::all_of(*records, [&fields](const auto& item) {
+                 return HasKnownStoredFields(item.GetIfDict(), fields);
+               });
+      };
   if (!HasKnownStoredFields(mission.FindDict("operational_workflow"),
-                           {"skin_id", "workflow_id", "archive_sha256",
-                            "run_state", "adapter_version"}) ||
+                            {"skin_id", "workflow_id", "archive_sha256",
+                             "run_state", "adapter_version"}) ||
       !HasKnownStoredFields(mission.FindDict("links"), {"oi"}) ||
-      !HasKnownStoredFields(
-          mission.FindDict("links") ? mission.FindDict("links")->FindDict("oi")
-                                    : nullptr,
-          {"opaque_reference", "hosted_deep_link"}) ||
+      !HasKnownStoredFields(mission.FindDict("links")
+                                ? mission.FindDict("links")->FindDict("oi")
+                                : nullptr,
+                            {"opaque_reference", "hosted_deep_link"}) ||
       !check_records("evidence", {"label", "capture_scope", "captured_at"}) ||
       !check_records("notes", {"text", "created_at"}) ||
       !check_records("timeline", {"kind", "detail", "created_at",
@@ -132,14 +133,15 @@ bool HasKnownMissionNestedFields(const base::DictValue& mission) {
       }
       continue;
     }
-    if (!check_records(key,
-                       {"label", "complete", "assign", "wait_seconds",
-                        "wait_remaining_ms", "wait_state", "wait_timeout_seconds",
-                        "wait_timeout_remaining_ms", "workflow_step_id",
-                        "requires_native_action", "action_state", "native_action_error",
-                        "condition_predicate", "variable_condition_result",
-                        "condition_input_id", "condition_from_variable",
-                        "condition_compare", "condition_equals"})) {
+    if (!check_records(
+            key,
+            {"label", "complete", "assign", "wait_seconds", "wait_remaining_ms",
+             "wait_state", "wait_timeout_seconds", "wait_timeout_remaining_ms",
+             "workflow_step_id", "requires_native_action", "action_state",
+             "native_action_error", "condition_predicate",
+             "variable_condition_result", "condition_input_id",
+             "condition_from_variable", "condition_compare",
+             "condition_equals"})) {
       return false;
     }
   }
@@ -150,8 +152,9 @@ bool HasKnownMissionNestedFields(const base::DictValue& mission) {
     if (const auto* records = mission.FindList(key)) {
       for (const auto& item : *records) {
         const auto* record = item.GetIfDict();
-        if (record && !HasKnownStoredFields(record->FindDict("validation"),
-                    {"min_bytes", "max_bytes", "minimum", "maximum"})) {
+        if (record && !HasKnownStoredFields(
+                          record->FindDict("validation"),
+                          {"min_bytes", "max_bytes", "minimum", "maximum"})) {
           return false;
         }
       }
@@ -1750,22 +1753,23 @@ std::optional<MissionSummary> MissionService::CreateOperationalWorkflowMission(
   return mission;
 }
 
-bool MissionService::BeginNativeWorkflowStep(std::string_view id, size_t index,
-                                            std::string* pending_token,
-                                            std::string_view expected_token) {
+bool MissionService::BeginNativeWorkflowStep(std::string_view id,
+                                             size_t index,
+                                             std::string* pending_token,
+                                             std::string_view expected_token) {
   const std::string owned_id(id);
   const auto* reviewed = FindMission(owned_id);
   // Deadline settlement can notify observers before the attempt is opened.
   // Never turn their replacement review into authority for this invocation.
-  const std::string reviewed_token =
-      expected_token.empty() && reviewed ? reviewed->mutation_token
-                                        : std::string(expected_token);
+  const std::string reviewed_token = expected_token.empty() && reviewed
+                                         ? reviewed->mutation_token
+                                         : std::string(expected_token);
   if (!SettleWorkflowDeadlines()) {
     return false;
   }
   auto* mission = FindMission(owned_id);
-  if (shutting_down_ || !CanStoreProtectedInputs() ||
-      !mission || mission->mutation_token != reviewed_token ||
+  if (shutting_down_ || !CanStoreProtectedInputs() || !mission ||
+      mission->mutation_token != reviewed_token ||
       !CanBeginMissionNativeStep(*mission, index)) {
     return false;
   }
@@ -1793,10 +1797,12 @@ bool MissionService::CanContinueNativeWorkflowStep(std::string_view id,
          index < mission->steps.size() &&
          mission->steps[index].requires_native_action &&
          mission->steps[index].action_state == "pending" &&
-         MissionWorkflowNativeTimeRemaining(mission->steps[index]).value_or(0) > 0;
+         MissionWorkflowNativeTimeRemaining(mission->steps[index]).value_or(0) >
+             0;
 }
 
-bool MissionService::AssignWorkflowVariable(std::string_view id, size_t index,
+bool MissionService::AssignWorkflowVariable(std::string_view id,
+                                            size_t index,
                                             std::string_view expected_token) {
   const std::string owned_id(id);
   const std::string reviewed_token(expected_token);
@@ -1860,9 +1866,10 @@ bool MissionService::AssignWorkflowVariable(std::string_view id, size_t index,
   return true;
 }
 
-bool MissionService::ControlWorkflowWait(std::string_view id, size_t index,
-                                        bool complete,
-                                        std::string_view expected_token) {
+bool MissionService::ControlWorkflowWait(std::string_view id,
+                                         size_t index,
+                                         bool complete,
+                                         std::string_view expected_token) {
   const std::string owned_id(id);
   const std::string reviewed_token(expected_token);
   if (!SettleWorkflowDeadlines()) {
@@ -1871,7 +1878,9 @@ bool MissionService::ControlWorkflowWait(std::string_view id, size_t index,
   auto* mission = FindMission(owned_id);
   if (shutting_down_ || !CanStoreProtectedInputs() || !mission ||
       (!reviewed_token.empty() && mission->mutation_token != reviewed_token) ||
-      !CanControlMissionWorkflowWait(*mission, index, complete)) return false;
+      !CanControlMissionWorkflowWait(*mission, index, complete)) {
+    return false;
+  }
   auto& step = mission->steps[index];
   FreezeRecordedConditionsThrough(*mission, index);
   if (complete) {
@@ -1955,12 +1964,13 @@ bool MissionService::SetOperationalWorkflowRunState(
     return false;
   }
   MissionSummary* mission = FindMission(owned_id);
-  if (shutting_down_ || !mission || mission->archived || !mission->operational_workflow ||
+  if (shutting_down_ || !mission || mission->archived ||
+      !mission->operational_workflow ||
       (!reviewed_token.empty() && mission->mutation_token != reviewed_token) ||
       (!IsOperationalWorkflowRunState(run_state) ||
        (mission->operational_workflow->run_state != run_state &&
         !IsAllowedOperationalWorkflowTransition(
-          mission->operational_workflow->run_state, run_state)))) {
+            mission->operational_workflow->run_state, run_state)))) {
     return false;
   }
   // Launch can already have placed a recipe in its requested state before a
@@ -2211,9 +2221,9 @@ bool MissionService::SetOperationalWorkflowInputValue(
   if (!mission || mission->archived || !mission->operational_workflow ||
       (!reviewed_token.empty() && mission->mutation_token != reviewed_token) ||
       IsTerminalWorkflowState(mission->operational_workflow->run_state) ||
-      std::ranges::any_of(mission->steps, [](const auto& step) {
-        return step.action_state == "pending";
-      }) ||
+      std::ranges::any_of(
+          mission->steps,
+          [](const auto& step) { return step.action_state == "pending"; }) ||
       !IsSafeOperationalIdentifier(input_id)) {
     return false;
   }

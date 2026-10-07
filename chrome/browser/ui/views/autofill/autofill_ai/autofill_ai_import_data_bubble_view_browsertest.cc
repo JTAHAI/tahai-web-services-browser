@@ -7,8 +7,6 @@
 #include <tuple>
 #include <utility>
 
-#include "base/i18n/rtl.h"
-#include "base/i18n/test/scoped_rtl_for_testing.h"
 #include "base/strings/strcat.h"
 #include "chrome/browser/ui/autofill/autofill_ai/mock_autofill_ai_import_data_controller.h"
 #include "chrome/browser/ui/browser_window.h"
@@ -49,17 +47,12 @@ class AutofillAiImportDataBubbleViewBrowsertest
   void SetUpOnMainThread() override {
     UiBrowserTest::SetUpOnMainThread();
 
-    scoped_rtl_ = std::make_unique<base::i18n::ScopedRTLForTesting>(
-        IsBrowserLanguageRTL(this->GetParam()));
+    base::i18n::SetRTLForTesting(IsBrowserLanguageRTL(this->GetParam()));
     ON_CALL(mock_controller(), GetSaveUpdateDialogTitleImagesResourceId())
         .WillByDefault(
             Return(IDR_AUTOFILL_SAVE_PASSPORT_AND_NATIONAL_ID_CARD_LOTTIE));
     ON_CALL(mock_controller(), GetNoticeStringId())
         .WillByDefault(Return(IDS_AUTOFILL_AI_SAVE_ENTITY_DIALOG_SUBTITLE));
-  }
-  void TearDownOnMainThread() override {
-    scoped_rtl_.reset();
-    UiBrowserTest::TearDownOnMainThread();
   }
 
   void DismissUi() override { bubble_ = nullptr; }
@@ -91,7 +84,7 @@ class AutofillAiImportDataBubbleViewBrowsertest
   void ShowUi(const std::string& name) override {
     auto bubble = std::make_unique<AutofillAiImportDataBubbleView>(
         views::BubbleAnchor(),
-        browser()->GetTabStripModel()->GetActiveWebContents(),
+        browser()->tab_strip_model()->GetActiveWebContents(),
         &mock_controller());
     bubble->set_has_parent(false);
     bubble_ = bubble.get();
@@ -118,7 +111,6 @@ class AutofillAiImportDataBubbleViewBrowsertest
   base::test::ScopedFeatureList features_;
   raw_ptr<AutofillAiImportDataBubbleView> bubble_ = nullptr;
   testing::NiceMock<MockAutofillAiImportDataController> mock_controller_;
-  std::unique_ptr<base::i18n::ScopedRTLForTesting> scoped_rtl_;
 };
 
 // `TypicalPassportCase` here and in other test(s) means that this test creates
@@ -193,7 +185,7 @@ IN_PROC_BROWSER_TEST_P(AutofillAiImportDataBubbleViewBrowsertest,
   ON_CALL(mock_controller(), IsWalletableEntity()).WillByDefault(Return(true));
   ON_CALL(mock_controller(), GetNoticeStringId())
       .WillByDefault(
-          Return(IDS_AUTOFILL_AI_SAVE_ENTITY_TO_WALLET_DIALOG_SUBTITLE_NEW));
+          Return(IDS_AUTOFILL_AI_SAVE_ENTITY_TO_WALLET_DIALOG_SUBTITLE));
   ON_CALL(mock_controller(), GetPrimaryAccountEmail())
       .WillByDefault(Return(u"machadodeassis@gmail.com"));
   std::vector<EntityAttributeUpdateDetails> details = {

@@ -20,8 +20,6 @@
 #include "chrome/browser/actor/actor_keyed_service.h"
 #include "chrome/browser/actor/actor_task.h"
 #include "chrome/browser/glic/experimental_opt_in/glic_experimental_opt_in_controller.h"
-#include "chrome/browser/glic/experimental_triggering/actor_log.h"
-#include "chrome/browser/glic/experimental_triggering/glic_experimental_triggering_converters.h"
 #include "chrome/browser/glic/experimental_triggering/glic_experimental_triggering_manager.h"
 #include "chrome/browser/glic/experimental_triggering/glic_experimental_triggering_metrics.h"
 #include "chrome/browser/glic/host/glic.mojom.h"
@@ -35,17 +33,17 @@
 #include "chrome/browser/glic/service/glic_instance_impl.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/tab_list/tab_list_interface.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#if !BUILDFLAG(IS_ANDROID)
+#include "chrome/browser/ui/browser.h"           // nogncheck
+#include "chrome/browser/ui/browser_commands.h"  // nogncheck
+#include "chrome/browser/ui/browser_window.h"    // nogncheck
+#endif
 #include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
 #include "chrome/common/chrome_features.h"
 #include "mojo/public/cpp/bindings/pending_receiver.h"
 #include "mojo/public/cpp/bindings/pending_remote.h"
 #include "mojo/public/cpp/bindings/receiver.h"
 #include "third_party/abseil-cpp/absl/functional/overload.h"
-
-#if !BUILDFLAG(IS_ANDROID)
-#include "chrome/browser/ui/browser_commands.h"  // nogncheck
-#endif
 
 namespace glic {
 
@@ -303,16 +301,10 @@ class ExperimentalTriggeringUpdatesHandler
                 mojom::SubscriberObservationType observation) override {
     switch (observation) {
       case mojom::SubscriberObservationType::kComplete:
-        if (!terminal_update_sent_) {
-          terminal_update_sent_ = true;
-          SendTaskUpdateMessage(TaskUpdate::State::kComplete);
-        }
+        SendTaskUpdateMessage(TaskUpdate::State::kComplete);
         break;
       case mojom::SubscriberObservationType::kError:
-        if (!terminal_update_sent_) {
-          terminal_update_sent_ = true;
-          SendTaskUpdateMessage(TaskUpdate::State::kFailed);
-        }
+        SendTaskUpdateMessage(TaskUpdate::State::kFailed);
         break;
       case mojom::SubscriberObservationType::kUpdate: {
         if (!update) {
@@ -338,18 +330,15 @@ class ExperimentalTriggeringUpdatesHandler
                                   std::move(update->data), std::move(metadata));
             break;
           case mojom::ExperimentalTriggeringUpdateType::kTerminalCompletion:
-            terminal_update_sent_ = true;
             SendTaskUpdateMessage(TaskUpdate::State::kComplete,
                                   TaskUpdate::DataType::kFinalResponse,
                                   std::move(update->data), std::move(metadata));
             break;
           case mojom::ExperimentalTriggeringUpdateType::kTerminalStopped:
-            terminal_update_sent_ = true;
             SendTaskUpdateMessage(TaskUpdate::State::kStopped, std::nullopt,
                                   std::move(update->data), std::move(metadata));
             break;
           case mojom::ExperimentalTriggeringUpdateType::kTerminalFailed:
-            terminal_update_sent_ = true;
             SendTaskUpdateMessage(TaskUpdate::State::kFailed,
                                   TaskUpdate::DataType::kErrorMessage,
                                   std::move(update->data), std::move(metadata));
@@ -387,7 +376,6 @@ class ExperimentalTriggeringUpdatesHandler
     return true;
   }
 
- private:
   void SubscribeForTriggeringUpdates(base::WeakPtr<GlicInstance> instance) {
     instance_ = std::move(instance);
     if (instance_ && !receiver_.is_bound()) {
@@ -680,16 +668,6 @@ class ExperimentalTriggeringUpdatesHandler
                                        std::nullopt, "", request_metadata,
                                        sequence_generator_.GetNext());
     }
-
-    // If task is not yet started by glic session or is in a pending state,
-    // clean up any pending state in actor related to the context.
-    if (coordinator_) {
-      if (auto* actor_service =
-              actor::ActorKeyedService::Get(coordinator_->profile_)) {
-        actor_service->OnMessageTriggerTaskStopped(context_id_);
-      }
-    }
-
     return response;
   }
 
@@ -829,7 +807,6 @@ class ExperimentalTriggeringUpdatesHandler
 
   std::optional<int64_t> last_seen_sequence_number_;
   GlicExperimentalTriggeringUpdateCallback update_callback_;
-  bool terminal_update_sent_ = false;
 
   base::WeakPtrFactory<ExperimentalTriggeringUpdatesHandler> weak_ptr_factory_{
       this};
@@ -849,9 +826,7 @@ GlicExperimentalTriggeringCoordinator::GetBrowserWindow() const {
   BrowserWindowInterface* browser = nullptr;
   ForEachCurrentBrowserWindowInterfaceOrderedByActivation(
       [&browser, this](BrowserWindowInterface* b) {
-        if (b->GetProfile() == profile_ &&
-            b->GetType() == BrowserWindowInterface::Type::TYPE_NORMAL &&
-            !b->IsDeleteScheduled()) {
+        if (b->GetProfile() == profile_) {
           browser = b;
           return false;  // Stop iteration
         }
@@ -867,68 +842,11 @@ tabs::TabInterface* GlicExperimentalTriggeringCoordinator::GetActiveTab()
 }
 
 std::optional<ExperimentalTriggeringResponse>
-GlicExperimentalTriggeringCoordinator::OnProtoMessage(
-    const std::string& context_id,
-    const components_sharing_message::GlicExperimentalTriggering& proto,
-    ScopedIncomingMessageResultLogger result_logger,
-    GlicExperimentalTriggeringUpdateCallback update_callback,
-    tabs::TabInterface* prepared_tab) {
-  actor::ActorKeyedService* actor_service =
-      actor::ActorKeyedService::Get(profile_);
-  LogGlicExperimentalTriggeringProto(
-      actor_service, "GlicExperimentalTriggering", context_id, proto);
-
-  auto request_metadata = ProtoToTaskMetadata(proto);
-  const TaskMetadata* request_metadata_ptr =
-      request_metadata.has_value() ? &*request_metadata : nullptr;
-
-  GlicKeyedService* glic_service =
-      GlicKeyedServiceFactory::GetGlicKeyedService(profile_, /*create=*/false);
-  auto local_version =
-      glic_service ? glic_service->enabling().GetExperimentalTriggeringVersion()
-                   : std::nullopt;
-  if (proto.has_glic_experimental_triggering_version() &&
-      (!local_version.has_value() ||
-       proto.glic_experimental_triggering_version() > *local_version)) {
-    result_logger.set_result(GlicExperimentalTriggeringIncomingMessageResult::
-                                 kVersionMismatchOrUnavailable);
-    return CreateResponseMessage(context_id, TaskUpdate::State::kFailed,
-                                 TaskUpdate::DataType::kErrorMessage,
-                                 "Rejected: version mismatch or unavailable.",
-                                 request_metadata_ptr,
-                                 /*sender_sequence_number=*/0);
-  }
-
-  const bool has_valid_request =
-      proto.has_request() &&
-      proto.request().payload_case() !=
-          components_sharing_message::GlicExperimentalTriggering::
-              ExperimentalTriggeringRequest::PAYLOAD_NOT_SET;
-  if (!has_valid_request && !proto.has_task_metadata_updated()) {
-    result_logger.set_result(
-        GlicExperimentalTriggeringIncomingMessageResult::kMissingPayload);
-    return CreateResponseMessage(
-        context_id, TaskUpdate::State::kFailed,
-        TaskUpdate::DataType::kErrorMessage,
-        "Received GlicExperimentalTriggering message with no request payload.",
-        request_metadata_ptr,
-        /*sender_sequence_number=*/0);
-  }
-
-  ExperimentalTriggeringRequest domain_request = ProtoToRequest(proto);
-  domain_request.context_id = context_id;
-
-  return OnRequest(context_id, domain_request, std::move(result_logger),
-                   std::move(update_callback), prepared_tab);
-}
-
-std::optional<ExperimentalTriggeringResponse>
 GlicExperimentalTriggeringCoordinator::OnRequest(
     const std::string& context_id,
     const ExperimentalTriggeringRequest& request,
     ScopedIncomingMessageResultLogger result_logger,
-    GlicExperimentalTriggeringUpdateCallback update_callback,
-    tabs::TabInterface* prepared_tab) {
+    GlicExperimentalTriggeringUpdateCallback update_callback) {
   auto it = context_id_to_updates_handler_map_.find(context_id);
   ExperimentalTriggeringUpdatesHandler* handler = nullptr;
   if (it != context_id_to_updates_handler_map_.end()) {
@@ -947,7 +865,7 @@ GlicExperimentalTriggeringCoordinator::OnRequest(
   CHECK(handler);
 
   return handler->OnRequest(request, std::move(result_logger),
-                            std::move(update_callback), prepared_tab);
+                            std::move(update_callback), nullptr);
 }
 
 void GlicExperimentalTriggeringCoordinator::OnUpdatesHandlerCleanup(

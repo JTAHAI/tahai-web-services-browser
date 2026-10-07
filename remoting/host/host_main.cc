@@ -30,11 +30,10 @@
 
 #include "base/files/file_util.h"
 #include "base/posix/eintr_wrapper.h"
-#include "base/strings/string_number_conversions.h"
 #include "remoting/base/file_path_util_linux.h"
 #endif  // BUILDFLAG(IS_LINUX)
 
-#include "base/memory_coordinator/dummy_memory_consumer_registry.h"
+#include "remoting/base/memory_consumer_registry.h"
 #include "remoting/host/base/host_exit_codes.h"
 #include "remoting/host/base/switches.h"
 #include "remoting/host/evaluate_capability.h"
@@ -221,7 +220,7 @@ MainRoutineFn SelectMainRoutine(const std::string& process_type) {
 }  // namespace
 
 int HostMain(int argc, char** argv) {
-  base::ScopedMemoryConsumerRegistry<base::DummyMemoryConsumerRegistry>
+  base::ScopedMemoryConsumerRegistry<remoting::MemoryConsumerRegistry>
       memory_consumer_registry;
 
 #if BUILDFLAG(IS_APPLE)
@@ -285,29 +284,7 @@ int HostMain(int argc, char** argv) {
   // the crash reports uploaded.
   if (IsUsageStatsAllowed()) {
 #if BUILDFLAG(IS_LINUX)
-    if (command_line->HasSwitch(kCrashpadHandlerSocketFd)) {
-      std::string fd_str =
-          command_line->GetSwitchValueASCII(kCrashpadHandlerSocketFd);
-      int fd = -1;
-      if (base::StringToInt(fd_str, &fd) && fd >= 0) {
-        pid_t pid = -1;
-        if (command_line->HasSwitch(kCrashpadHandlerPid)) {
-          std::string pid_str =
-              command_line->GetSwitchValueASCII(kCrashpadHandlerPid);
-          int pid_int = -1;
-          if (base::StringToInt(pid_str, &pid_int)) {
-            pid = static_cast<pid_t>(pid_int);
-          }
-        }
-        if (!InitializeCrashpadClient(base::ScopedFD(fd), pid)) {
-          LOG(ERROR) << "Failed to initialize Crashpad client.";
-        }
-      } else {
-        LOG(ERROR) << "Invalid Crashpad handler socket switch values.";
-      }
-    } else {
-      InitializeCrashpadReporting();
-    }
+    InitializeCrashpadReporting();
 #elif BUILDFLAG(IS_WIN)
     // TODO: joedow - Enable crash reporting for the RDP process.
     if (process_type == kProcessTypeDaemon) {

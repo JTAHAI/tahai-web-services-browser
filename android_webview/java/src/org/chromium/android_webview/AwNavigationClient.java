@@ -5,7 +5,6 @@
 package org.chromium.android_webview;
 
 import org.jni_zero.CalledByNative;
-import org.jni_zero.JniType;
 
 import org.chromium.android_webview.common.Lifetime;
 import org.chromium.build.annotations.NullMarked;
@@ -109,13 +108,6 @@ public class AwNavigationClient implements Page.PageDeletionListener {
         }
     }
 
-    public void onNavigationVisible(NavigationHandle navigation) {
-        AwNavigation awNavigation = getOrUpdateAwNavigationFor(navigation);
-        for (AwNavigationListener listener : mNavigationListeners) {
-            listener.onNavigationVisible(awNavigation);
-        }
-    }
-
     // Page.PageDeletionListener implementation
     @Override
     public void onWillDeletePage(Page page) {
@@ -158,8 +150,7 @@ public class AwNavigationClient implements Page.PageDeletionListener {
     }
 
     @CalledByNative
-    public void onPerformanceMark(
-            Page page, @JniType("std::string") String markName, long markTimeMs) {
+    public void onPerformanceMark(Page page, String markName, long markTimeMs) {
         AwPage awPage = getAwPageFor(page);
         for (AwNavigationListener listener : mNavigationListeners) {
             listener.onPerformanceMark(awPage, markName, markTimeMs);

@@ -6,6 +6,7 @@
 
 #include <stddef.h>
 
+#include "base/compiler_specific.h"
 #include "base/notreached.h"
 #include "chromeos/ash/components/network/network_event_log.h"
 #include "chromeos/ash/components/network/tether_constants.h"
@@ -42,9 +43,9 @@ struct ShillToBitFlagEntry {
                           {kTypeTether, kNetworkTypeTether}};
 
 NetworkTypeBitFlag ShillNetworkTypeToFlag(const std::string& shill_type) {
-  for (const ShillToBitFlagEntry& entry : shill_type_to_flag) {
-    if (entry.shill_network_type == shill_type) {
-      return entry.bit_flag;
+  for (size_t i = 0; i < std::size(shill_type_to_flag); ++i) {
+    if (UNSAFE_TODO(shill_type_to_flag[i]).shill_network_type == shill_type) {
+      return UNSAFE_TODO(shill_type_to_flag[i]).bit_flag;
     }
   }
   NET_LOG(ERROR) << "ShillNetworkTypeToFlag unknown type: " << shill_type;
@@ -157,13 +158,13 @@ std::string NetworkTypePattern::ToDebugString() const {
 
   // Note: shill_type_to_flag includes kTypeTether.
   std::string str;
-  for (const ShillToBitFlagEntry& entry : shill_type_to_flag) {
-    if (!(pattern_ & entry.bit_flag)) {
+  for (size_t i = 0; i < std::size(shill_type_to_flag); ++i) {
+    if (!(pattern_ & UNSAFE_TODO(shill_type_to_flag[i]).bit_flag)) {
       continue;
     }
     if (!str.empty())
       str += "|";
-    str += entry.shill_network_type;
+    str += UNSAFE_TODO(shill_type_to_flag[i]).shill_network_type;
   }
   return str;
 }

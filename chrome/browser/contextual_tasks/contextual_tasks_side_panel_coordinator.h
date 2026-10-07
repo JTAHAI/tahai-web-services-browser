@@ -147,8 +147,7 @@ class ContextualTasksSidePanelCoordinator
   void MoveTaskUiToNewTab() override;
   void NotifyExpandToFullTabStateChanged() override;
   bool CanExpandToFullTab() const override;
-  void ShowPageInfoBubble(bool is_pointer_interaction) override;
-  void OnLogoPointerDown() override;
+  void ShowPageInfoBubble() override;
 
   // ContextualTasksPanelHost::Observer:
   void OnSurfaceStateChanged(

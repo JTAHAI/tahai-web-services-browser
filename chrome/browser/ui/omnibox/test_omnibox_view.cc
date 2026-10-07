@@ -43,14 +43,6 @@ gfx::Range TestOmniboxView::GetSelectionBounds() const {
   return selection_;
 }
 
-void TestOmniboxView::SetSelectionBounds(gfx::Range selection) {
-  selection_ = selection;
-}
-
-bool TestOmniboxView::HasSelection() const {
-  return selection_.IsValid();
-}
-
 void TestOmniboxView::SelectAll(bool reversed) {
   if (reversed) {
     selection_ = gfx::Range(text_.size(), 0);

@@ -10,6 +10,7 @@
 #include "cc/paint/paint_flags.h"
 #include "chrome/browser/glic/browser_ui/tab_underline_controller.h"
 #include "chrome/browser/themes/theme_service.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/layout_constants.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
@@ -202,9 +203,9 @@ int TabUnderlineView::ComputeDimension() {
     return kMinUnderlineWidth;
   }
 
-  gfx::Insets insets = insets_.value_or(parent()->GetInsets());
-  int insets_dim = (orientation_ == Orientation::kHorizontal) ? insets.width()
-                                                              : insets.height();
+  int insets_dim = (orientation_ == Orientation::kHorizontal)
+                       ? parent()->GetInsets().width()
+                       : parent()->GetInsets().height();
 
   // Underline should use either the width of the tab's contents bounds or the
   // width of the favicon, whichever is greater.
@@ -218,11 +219,6 @@ int TabUnderlineView::ComputeDimension() {
 
 void TabUnderlineView::SetOrientation(Orientation orientation) {
   orientation_ = orientation;
-}
-
-void TabUnderlineView::SetInsets(const gfx::Insets& insets) {
-  insets_ = insets;
-  SchedulePaint();
 }
 
 void TabUnderlineView::DrawEffect(gfx::Canvas* canvas,

@@ -139,8 +139,7 @@ _builder(
 _builder(
     name = "mac-asan-media-rel",
     cores = None,
-    # TODO(crbug.com/543006750): Revert to MAC_DEFAULT after arm migration.
-    os = os.MAC_15,
+    os = os.MAC_DEFAULT,
     mirror_of = "ci/Mac ASAN Release Media",
 )
 
@@ -208,9 +207,6 @@ def _test_builder(**kwargs):
                 "third_party/libFuzzer/.+",
             ],
         ),
-        experiments = {
-            "luci.buildbucket.run_in_turboci": 100,
-        },
         **kwargs
     )
 

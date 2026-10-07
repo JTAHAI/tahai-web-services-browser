@@ -41,8 +41,6 @@ mojom::ActionResultCode ToActionResultCode(int code) {
       return mojom::ActionResultCode::kOk;
     case ActionTargetResultCode::kCoordinatesOutOfBounds:
       return mojom::ActionResultCode::kCoordinatesOutOfBounds;
-    case ActionTargetResultCode::kArgumentsInvalid:
-      return mojom::ActionResultCode::kArgumentsInvalid;
   }
   NOTREACHED();
 }
@@ -88,13 +86,15 @@ ActionTargetJavaScriptFeature* ActionTargetJavaScriptFeature::GetInstance() {
   return instance.get();
 }
 
-void ActionTargetJavaScriptFeature::GetTargetFrame(web::WebState* web_state,
-                                                   web::WebFrame* web_frame,
-                                                   const ActionTarget& target,
-                                                   TargetFrameCallback callback,
-                                                   int depth) {
+void ActionTargetJavaScriptFeature::GetTargetFrame(
+    web::WebState* web_state,
+    web::WebFrame* web_frame,
+    const optimization_guide::proto::ActionTarget& target,
+    TargetFrameCallback callback,
+    int depth) {
   CHECK(web_frame);
   CHECK(web_state);
+  CHECK(target.has_coordinate() || target.has_document_identifier());
 
   if (depth >= kMaxTargetIframeDepth) {
     std::move(callback).Run(base::unexpected(
@@ -102,10 +102,10 @@ void ActionTargetJavaScriptFeature::GetTargetFrame(web::WebState* web_state,
     return;
   }
 
-  if (target.node_id().has_value()) {
+  if (target.has_document_identifier()) {
     GetTargetFrameByDocumentIdentifier(web_state, target, std::move(callback));
     return;
-  } else if (target.coordinate().has_value()) {
+  } else if (target.has_coordinate()) {
     GetTargetFrameByCoordinate(web_state, web_frame, target,
                                std::move(callback), depth);
   }
@@ -124,12 +124,11 @@ ActionTargetJavaScriptFeature::~ActionTargetJavaScriptFeature() = default;
 
 void ActionTargetJavaScriptFeature::GetTargetFrameByDocumentIdentifier(
     web::WebState* web_state,
-    const ActionTarget& target,
+    const optimization_guide::proto::ActionTarget& target,
     TargetFrameCallback callback) {
-  CHECK(target.node_id().has_value());
   base::expected<web::WebFrame*, ToolExecutionResult> target_frame =
-      GetWebFrameByRemoteFrameToken(web_state,
-                                    target.node_id()->document_identifier);
+      GetWebFrameByRemoteFrameToken(
+          web_state, target.document_identifier().serialized_token());
 
   if (!target_frame.has_value()) {
     std::move(callback).Run(base::unexpected(target_frame.error()));
@@ -142,12 +141,13 @@ void ActionTargetJavaScriptFeature::GetTargetFrameByDocumentIdentifier(
 void ActionTargetJavaScriptFeature::GetTargetFrameByCoordinate(
     web::WebState* web_state,
     web::WebFrame* web_frame,
-    const ActionTarget& target,
+    const optimization_guide::proto::ActionTarget& target,
     TargetFrameCallback callback,
     int depth) {
-  CHECK(target.coordinate().has_value());
   base::ListValue parameters;
-  parameters.Append(target.ToDictValue());
+  parameters.Append(target.coordinate().x());
+  parameters.Append(target.coordinate().y());
+  parameters.Append(static_cast<int>(target.coordinate().pixel_type()));
 
   auto [cb_for_js, cb_for_error] = base::SplitOnceCallback(std::move(callback));
   bool sent = CallJavaScriptFunction(
@@ -166,7 +166,7 @@ void ActionTargetJavaScriptFeature::GetTargetFrameByCoordinate(
 }
 
 void ActionTargetJavaScriptFeature::OnTargetIframeResolved(
-    ActionTarget target,
+    optimization_guide::proto::ActionTarget target,
     base::WeakPtr<web::WebState> web_state,
     base::WeakPtr<web::WebFrame> current_frame,
     TargetFrameCallback callback,
@@ -191,8 +191,7 @@ void ActionTargetJavaScriptFeature::OnTargetIframeResolved(
   }
 
   if (!parsed_result->has_value()) {
-    std::move(callback).Run(
-        TargetFrameResult{current_frame.get(), std::move(target)});
+    std::move(callback).Run(TargetFrameResult{current_frame.get(), target});
     return;
   }
 
@@ -206,8 +205,9 @@ void ActionTargetJavaScriptFeature::OnTargetIframeResolved(
     return;
   }
 
-  ActionTarget child_target = target;
-  child_target.UpdateCoordinate(child_data.frame_x, child_data.frame_y);
+  optimization_guide::proto::ActionTarget child_target = target;
+  child_target.mutable_coordinate()->set_x(child_data.frame_x);
+  child_target.mutable_coordinate()->set_y(child_data.frame_y);
 
   // Recurse into the frame to find nested frames.
   GetTargetFrame(web_state.get(), *target_frame, child_target,

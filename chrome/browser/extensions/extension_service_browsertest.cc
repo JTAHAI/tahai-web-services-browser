@@ -15,8 +15,8 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profile_manager.h"
 #include "chrome/browser/profiles/profile_test_util.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_window.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/test/base/ui_test_utils.h"
 #include "components/keyed_service/content/browser_context_keyed_service_shutdown_notifier_factory.h"
 #include "components/keyed_service/core/keyed_service_shutdown_notifier.h"
@@ -171,7 +171,7 @@ IN_PROC_BROWSER_TEST_F(ExtensionServiceBrowserTest,
   content::WaitForLoadStop(web_contents.get());
 
   // Create a browser for the profile
-  BrowserWindowInterface* new_browser = CreateBrowser(profile);
+  Browser* new_browser = CreateBrowser(profile);
   ASSERT_TRUE(new_browser);
 
   // Close the browser window to trigger profile shutdown
@@ -206,7 +206,7 @@ IN_PROC_BROWSER_TEST_F(ExtensionServiceBrowserTest,
       ui_test_utils::NavigateToURL(browser(), GURL("chrome://settings")));
 
   content::WebContents* web_contents =
-      browser()->GetTabStripModel()->GetActiveWebContents();
+      browser()->tab_strip_model()->GetActiveWebContents();
   content::WebUI* web_ui = web_contents->GetWebUI();
   ASSERT_TRUE(web_ui);
 

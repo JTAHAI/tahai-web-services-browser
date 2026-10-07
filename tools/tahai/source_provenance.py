@@ -69,9 +69,16 @@ def capture_source(root):
 
 def capture(root, build_directory):
     record, patch = capture_source(root)
-    build_directory = Path(build_directory).resolve(strict=True)
-    build_directory.relative_to(Path(record["sourceRoot"]))
+    # The source checkout owns the logical output path. A dedicated output
+    # junction may place its data on another disk; record that resolved target
+    # as well so changing the junction invalidates the release snapshot.
+    build_directory = Path(os.path.abspath(build_directory))
+    build_directory.relative_to(Path(record["sourceRoot"]) / "out")
+    resolved_build = build_directory.resolve(strict=True)
+    if not resolved_build.is_dir():
+        raise ValueError("Build output must be a directory beneath source/out.")
     record["buildDirectory"] = str(build_directory)
+    record["resolvedBuildDirectory"] = str(resolved_build)
     record["sourceIdentitySha256"] = record["identitySha256"]
     record["identity"]["buildArgsSha256"] = sha256(
         (build_directory / "args.gn").read_bytes())

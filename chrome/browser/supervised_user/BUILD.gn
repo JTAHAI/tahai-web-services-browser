@@ -254,6 +254,7 @@ source_set("unit_tests") {
     ":test_support",
     "//base",
     "//base/test:test_support",
+    "//chrome/browser",
     "//chrome/browser/profiles:profile",
     "//chrome/browser/signin",
     "//chrome/browser/sync",
@@ -345,7 +346,6 @@ if (!is_android) {
       "//chrome/browser/signin",
       "//chrome/browser/ssl",
       "//chrome/browser/ui",
-      "//chrome/browser/ui:tab_ui_helper",
       "//chrome/browser/ui:test_support",
       "//chrome/browser/ui/browser_window",
       "//chrome/common",
@@ -377,9 +377,6 @@ if (!is_android) {
       "//ui/events:test_support",
       "//url",
     ]
-    if (enable_extensions) {
-      deps += [ "//chrome/browser/ui/views/supervised_user" ]
-    }
 
     if (is_chromeos) {
       deps += [

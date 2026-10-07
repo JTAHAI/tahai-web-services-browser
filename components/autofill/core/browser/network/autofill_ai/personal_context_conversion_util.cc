@@ -4,14 +4,10 @@
 
 #include "components/autofill/core/browser/network/autofill_ai/personal_context_conversion_util.h"
 
-#include <algorithm>
-#include <cmath>
 #include <string>
-#include <string_view>
 #include <utility>
 #include <vector>
 
-#include "base/check.h"
 #include "base/containers/flat_set.h"
 #include "base/i18n/time_formatting.h"
 #include "base/notreached.h"
@@ -95,45 +91,9 @@ void AddStringAttribute(AttributeTypeName type,
   AddAttribute(type, base::UTF8ToUTF16(value), attributes, passkey);
 }
 
-std::optional<EntityInstance::PersonalContextRecordTypePayload::Source>
-PersonalContextSourceReferenceToSource(
-    const personal_context::proto::SourceReference& source_reference) {
-  using Source = EntityInstance::PersonalContextRecordTypePayload::Source;
-  switch (source_reference.source_reference_case()) {
-    case personal_context::proto::SourceReference::kGmail:
-      return Source{.type = Source::Type::kGmail,
-                    .url = std::string(source_reference.gmail().message_url())};
-    case personal_context::proto::SourceReference::kPhotos:
-      return Source{.type = Source::Type::kPhotos,
-                    .url = std::string(source_reference.photos().photos_url())};
-    case personal_context::proto::SourceReference::kDrive:
-    case personal_context::proto::SourceReference::SOURCE_REFERENCE_NOT_SET:
-      return std::nullopt;
-  }
-  return std::nullopt;
-}
-
-EntityInstance::PersonalContextRecordTypePayload
-SourceReferencesToPersonalContextPayload(
-    const personal_context::proto::Entity& entity) {
-  std::vector<EntityInstance::PersonalContextRecordTypePayload::Source> sources;
-  sources.reserve(entity.source_references().size());
-  for (const personal_context::proto::SourceReference& source_ref :
-       entity.source_references()) {
-    if (std::optional<EntityInstance::PersonalContextRecordTypePayload::Source>
-            source = PersonalContextSourceReferenceToSource(source_ref)) {
-      sources.push_back(std::move(*source));
-    }
-  }
-  return EntityInstance::PersonalContextRecordTypePayload{
-      .sources = std::move(sources)};
-}
-
-EntityInstance CreateEntityInstance(
-    EntityTypeName type_name,
-    std::vector<AttributeInstance> attributes,
-    const personal_context::proto::Entity& entity,
-    std::string frecency_override = "") {
+EntityInstance CreateEntityInstance(EntityTypeName type_name,
+                                    std::vector<AttributeInstance> attributes,
+                                    std::string frecency_override = "") {
   return EntityInstance(
       EntityType(type_name),
       base::flat_set<AttributeInstance, AttributeInstance::CompareByType>(
@@ -143,17 +103,14 @@ EntityInstance CreateEntityInstance(
       /*nickname=*/"",
       /*date_modified=*/base::Time::Now(),
       /*use_count=*/0,
-      /*use_date=*/base::Time(),
-      SourceReferencesToPersonalContextPayload(entity),
+      /*use_date=*/base::Time(), EntityInstance::RecordType::kPersonalContext,
       EntityInstance::AreAttributesReadOnly(true),
       std::move(frecency_override));
 }
 
 EntityInstance PersonalContextPassportToEntityInstance(
-    const personal_context::proto::Entity& entity,
+    const personal_context::proto::Passport& passport,
     std::optional<AttributeInstance::MarkAsMaskedPasskey> passkey) {
-  CHECK(entity.has_passport());
-  const personal_context::proto::Passport& passport = entity.passport();
   std::vector<AttributeInstance> attributes;
   AddStringAttribute(kPassportName, passport.name(), attributes);
   AddStringAttribute(kPassportNumber, passport.number(), attributes, passkey);
@@ -167,15 +124,12 @@ EntityInstance PersonalContextPassportToEntityInstance(
                  attributes);
   }
 
-  return CreateEntityInstance(EntityTypeName::kPassport, std::move(attributes),
-                              entity);
+  return CreateEntityInstance(EntityTypeName::kPassport, std::move(attributes));
 }
 
 EntityInstance PersonalContextDriversLicenseToEntityInstance(
-    const personal_context::proto::Entity& entity,
+    const personal_context::proto::DriversLicense& dl,
     std::optional<AttributeInstance::MarkAsMaskedPasskey> passkey) {
-  CHECK(entity.has_drivers_license());
-  const personal_context::proto::DriversLicense& dl = entity.drivers_license();
   std::vector<AttributeInstance> attributes;
   AddStringAttribute(kDriversLicenseName, dl.name(), attributes);
   AddStringAttribute(kDriversLicenseNumber, dl.number(), attributes, passkey);
@@ -190,14 +144,12 @@ EntityInstance PersonalContextDriversLicenseToEntityInstance(
   }
 
   return CreateEntityInstance(EntityTypeName::kDriversLicense,
-                              std::move(attributes), entity);
+                              std::move(attributes));
 }
 
 EntityInstance PersonalContextNationalIdToEntityInstance(
-    const personal_context::proto::Entity& entity,
+    const personal_context::proto::NationalId& nid,
     std::optional<AttributeInstance::MarkAsMaskedPasskey> passkey) {
-  CHECK(entity.has_national_id());
-  const personal_context::proto::NationalId& nid = entity.national_id();
   std::vector<AttributeInstance> attributes;
   AddStringAttribute(kNationalIdCardName, nid.name(), attributes);
   AddStringAttribute(kNationalIdCardNumber, nid.number(), attributes, passkey);
@@ -212,14 +164,11 @@ EntityInstance PersonalContextNationalIdToEntityInstance(
   }
 
   return CreateEntityInstance(EntityTypeName::kNationalIdCard,
-                              std::move(attributes), entity);
+                              std::move(attributes));
 }
 
 EntityInstance PersonalContextFlightReservationToEntityInstance(
-    const personal_context::proto::Entity& entity) {
-  CHECK(entity.has_flight_reservation());
-  const personal_context::proto::FlightReservation& flight =
-      entity.flight_reservation();
+    const personal_context::proto::FlightReservation& flight) {
   std::vector<AttributeInstance> attributes;
   AddStringAttribute(kFlightReservationFlightNumber, flight.flight_number(),
                      attributes);
@@ -245,14 +194,12 @@ EntityInstance PersonalContextFlightReservationToEntityInstance(
   }
 
   return CreateEntityInstance(EntityTypeName::kFlightReservation,
-                              std::move(attributes), entity,
+                              std::move(attributes),
                               std::move(frecency_override));
 }
 
 EntityInstance PersonalContextVehicleToEntityInstance(
-    const personal_context::proto::Entity& entity) {
-  CHECK(entity.has_vehicle());
-  const personal_context::proto::Vehicle& vehicle = entity.vehicle();
+    const personal_context::proto::Vehicle& vehicle) {
   std::vector<AttributeInstance> attributes;
   AddStringAttribute(kVehicleMake, vehicle.vehicle_make(), attributes);
   AddStringAttribute(kVehicleModel, vehicle.vehicle_model(), attributes);
@@ -265,14 +212,11 @@ EntityInstance PersonalContextVehicleToEntityInstance(
                      attributes);
   AddStringAttribute(kVehicleOwner, vehicle.owner_name(), attributes);
 
-  return CreateEntityInstance(EntityTypeName::kVehicle, std::move(attributes),
-                              entity);
+  return CreateEntityInstance(EntityTypeName::kVehicle, std::move(attributes));
 }
 
 EntityInstance PersonalContextOrderToEntityInstance(
-    const personal_context::proto::Entity& entity) {
-  CHECK(entity.has_order());
-  const personal_context::proto::Order& order = entity.order();
+    const personal_context::proto::Order& order) {
   std::vector<AttributeInstance> attributes;
   AddStringAttribute(kOrderId, order.order_id(), attributes);
   AddStringAttribute(kOrderAccount, order.account(), attributes);
@@ -288,14 +232,11 @@ EntityInstance PersonalContextOrderToEntityInstance(
                        attributes);
   }
 
-  return CreateEntityInstance(EntityTypeName::kOrder, std::move(attributes),
-                              entity);
+  return CreateEntityInstance(EntityTypeName::kOrder, std::move(attributes));
 }
 
 EntityInstance PersonalContextShipmentToEntityInstance(
-    const personal_context::proto::Entity& entity) {
-  CHECK(entity.has_shipment());
-  const personal_context::proto::Shipment& shipment = entity.shipment();
+    const personal_context::proto::Shipment& shipment) {
   std::vector<AttributeInstance> attributes;
   AddStringAttribute(kShipmentTrackingNumber, shipment.tracking_number(),
                      attributes);
@@ -316,65 +257,30 @@ EntityInstance PersonalContextShipmentToEntityInstance(
     AddStringAttribute(kShipmentProductNames, base::JoinString(products, ", "),
                        attributes);
   }
+  if (shipment.associated_order_ids_size() > 0) {
+    const std::vector<std::string> order_ids(
+        shipment.associated_order_ids().begin(),
+        shipment.associated_order_ids().end());
+    AddStringAttribute(kShipmentOrderIds, base::JoinString(order_ids, ", "),
+                       attributes);
+  }
 
-  return CreateEntityInstance(EntityTypeName::kShipment, std::move(attributes),
-                              entity);
+  return CreateEntityInstance(EntityTypeName::kShipment, std::move(attributes));
 }
 
 EntityInstance PersonalContextKnownTravelerNumberToEntityInstance(
-    const personal_context::proto::Entity& entity,
+    const personal_context::proto::KnownTravelerNumber& ktn,
     std::optional<AttributeInstance::MarkAsMaskedPasskey> passkey) {
-  CHECK(entity.has_known_traveler_number());
-  const personal_context::proto::KnownTravelerNumber& ktn =
-      entity.known_traveler_number();
   std::vector<AttributeInstance> attributes;
   AddStringAttribute(kKnownTravelerNumberName, ktn.name(), attributes);
   AddStringAttribute(kKnownTravelerNumberNumber, ktn.number(), attributes,
                      passkey);
 
   return CreateEntityInstance(EntityTypeName::kKnownTravelerNumber,
-                              std::move(attributes), entity);
+                              std::move(attributes));
 }
 
 }  // namespace
-
-void MaskSpiiEntityFields(personal_context::proto::Entity& entity) {
-  auto GetMaskedValue = [](std::string_view value) {
-    if (value.empty()) {
-      return std::string();
-    }
-    // Implements ceiling with integer division.
-    const size_t suffix_length = std::min<size_t>(4, (value.length() + 3) / 4);
-    return std::string(value.substr(value.length() - suffix_length));
-  };
-
-  switch (entity.entity_case()) {
-    case personal_context::proto::Entity::kPassport:
-      entity.mutable_passport()->set_number(
-          GetMaskedValue(entity.passport().number()));
-      break;
-    case personal_context::proto::Entity::kDriversLicense:
-      entity.mutable_drivers_license()->set_number(
-          GetMaskedValue(entity.drivers_license().number()));
-      break;
-    case personal_context::proto::Entity::kNationalId:
-      entity.mutable_national_id()->set_number(
-          GetMaskedValue(entity.national_id().number()));
-      break;
-    case personal_context::proto::Entity::kKnownTravelerNumber:
-      entity.mutable_known_traveler_number()->set_number(
-          GetMaskedValue(entity.known_traveler_number().number()));
-      break;
-    case personal_context::proto::Entity::kOrder:
-    case personal_context::proto::Entity::kShipment:
-    case personal_context::proto::Entity::kFlightReservation:
-    case personal_context::proto::Entity::kVehicle:
-    case personal_context::proto::Entity::kSensitivePiiPresence:
-    case personal_context::proto::Entity::kEncryptedEntity:
-    case personal_context::proto::Entity::ENTITY_NOT_SET:
-      break;
-  }
-}
 
 std::optional<EntityInstance> PersonalContextEntityToEntityInstance(
     const personal_context::proto::Entity& entity,
@@ -385,30 +291,31 @@ std::optional<EntityInstance> PersonalContextEntityToEntityInstance(
   }
   switch (entity.entity_case()) {
     case personal_context::proto::Entity::kPassport:
-      return PersonalContextPassportToEntityInstance(entity, passkey);
+      return PersonalContextPassportToEntityInstance(entity.passport(),
+                                                     passkey);
     case personal_context::proto::Entity::kDriversLicense:
-      return PersonalContextDriversLicenseToEntityInstance(entity, passkey);
+      return PersonalContextDriversLicenseToEntityInstance(
+          entity.drivers_license(), passkey);
     case personal_context::proto::Entity::kNationalId:
-      return PersonalContextNationalIdToEntityInstance(entity, passkey);
+      return PersonalContextNationalIdToEntityInstance(entity.national_id(),
+                                                       passkey);
     case personal_context::proto::Entity::kFlightReservation:
-      return PersonalContextFlightReservationToEntityInstance(entity);
+      return PersonalContextFlightReservationToEntityInstance(
+          entity.flight_reservation());
     case personal_context::proto::Entity::kVehicle:
-      return PersonalContextVehicleToEntityInstance(entity);
+      return PersonalContextVehicleToEntityInstance(entity.vehicle());
     case personal_context::proto::Entity::kOrder:
-      return PersonalContextOrderToEntityInstance(entity);
+      return PersonalContextOrderToEntityInstance(entity.order());
     case personal_context::proto::Entity::kShipment:
-      return PersonalContextShipmentToEntityInstance(entity);
+      return PersonalContextShipmentToEntityInstance(entity.shipment());
     case personal_context::proto::Entity::kKnownTravelerNumber:
-      return PersonalContextKnownTravelerNumberToEntityInstance(entity,
-                                                                passkey);
+      return PersonalContextKnownTravelerNumberToEntityInstance(
+          entity.known_traveler_number(), passkey);
     case personal_context::proto::Entity::kSensitivePiiPresence:
       return std::nullopt;
-    case personal_context::proto::Entity::kEncryptedEntity:
-      return std::nullopt;
     case personal_context::proto::Entity::ENTITY_NOT_SET:
-      return std::nullopt;
+      NOTREACHED();
   }
-  return std::nullopt;
 }
 
 personal_context::proto::EntityType
@@ -456,7 +363,6 @@ std::optional<EntityType> ToEntityType(
     case personal_context::proto::Entity::kKnownTravelerNumber:
       return EntityType(EntityTypeName::kKnownTravelerNumber);
     case personal_context::proto::Entity::kSensitivePiiPresence:
-    case personal_context::proto::Entity::kEncryptedEntity:
     case personal_context::proto::Entity::ENTITY_NOT_SET:
       return std::nullopt;
   }

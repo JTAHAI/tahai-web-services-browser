@@ -96,6 +96,7 @@ import org.chromium.ui.text.ChromeClickableSpan;
 
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Supplier;
@@ -259,16 +260,17 @@ public class ArchivedTabsDialogCoordinator implements SnackbarManager.SnackbarMa
                                             mPaneManagerSupplier.get().getDefaultPane();
                             assumeNonNull(tabSwitcherPaneBase);
                             Callback<Integer> requestOpenTabGroupDialog =
-                                    (Integer rootId) ->
-                                            hide(
-                                                    ANIM_DURATION_MS,
-                                                    () ->
-                                                            tabSwitcherPaneBase
-                                                                    .requestOpenTabGroupDialog(
-                                                                            rootId));
+                                    (rootId) -> {
+                                        hide(
+                                                ANIM_DURATION_MS,
+                                                () -> {
+                                                    tabSwitcherPaneBase.requestOpenTabGroupDialog(
+                                                            rootId);
+                                                });
+                                    };
                             // Archive status is reset through any tab group open action in
                             // LocalTabGroupMutationHelper#createNewTabGroup().
-                            TabSwitcherUtils.focusTabGroup(
+                            TabSwitcherUtils.openTabGroupDialog(
                                     syncId,
                                     mTabGroupSyncService,
                                     mTabGroupUiActionHandlerSupplier.get(),
@@ -283,7 +285,7 @@ public class ArchivedTabsDialogCoordinator implements SnackbarManager.SnackbarMa
                 }
 
                 @Override
-                public void onTabSelecting(int tabId) {
+                public void onTabSelecting(int tabId, boolean fromActionButton) {
                     mIsOpeningLastItem = getArchivedTabCount() == 1;
                     Tab tab = mArchivedTabModel.getTabById(tabId);
                     assumeNonNull(tab);
@@ -291,7 +293,7 @@ public class ArchivedTabsDialogCoordinator implements SnackbarManager.SnackbarMa
                             .getTabArchiver()
                             .unarchiveAndRestoreTabs(
                                     mRegularTabCreator,
-                                    Collections.singletonList(tab),
+                                    Arrays.asList(tab),
                                     /* updateTimestamp= */ true,
                                     /* areTabsBeingOpened= */ true);
 
@@ -328,7 +330,12 @@ public class ArchivedTabsDialogCoordinator implements SnackbarManager.SnackbarMa
             };
 
     private final TabArchiveSettings.Observer mTabArchiveSettingsObserver =
-            this::updateIphPropertyModel;
+            new TabArchiveSettings.Observer() {
+                @Override
+                public void onSettingChanged() {
+                    updateIphPropertyModel();
+                }
+            };
 
     private final TabGroupSyncService.Observer mTabGroupSyncObserver =
             new TabGroupSyncService.Observer() {
@@ -890,7 +897,7 @@ public class ArchivedTabsDialogCoordinator implements SnackbarManager.SnackbarMa
                         .withNegativeButton(R.string.cancel)
                         .withSupportStopShowing(false)
                         .build(),
-                (_, buttonClickResult, _) -> {
+                (dismissHandler, buttonClickResult, stopShowing) -> {
                     if (buttonClickResult == ButtonClickResult.POSITIVE) {
                         mArchivedTabModel
                                 .getTabRemover()
@@ -950,7 +957,7 @@ public class ArchivedTabsDialogCoordinator implements SnackbarManager.SnackbarMa
         if (mIphMessagePropertyModel == null) return;
         mIphMessagePropertyModel.set(
                 MessageCardViewProperties.DESCRIPTION_TEXT,
-                getIphDescription(mActivity, mTabArchiveSettings, (_) -> onIphReviewClicked()));
+                getIphDescription(mActivity, mTabArchiveSettings, (view) -> onIphReviewClicked()));
     }
 
     private void refreshArchivedTabList() {
@@ -1069,6 +1076,10 @@ public class ArchivedTabsDialogCoordinator implements SnackbarManager.SnackbarMa
         mTabListEditorCoordinator = tabListEditorCoordinator;
     }
 
+    ArchiveDelegate getArchiveDelegateForTesting() {
+        return mArchiveDelegate;
+    }
+
     TabListEditorCoordinator.LifecycleObserver getTabListEditorLifecycleObserver() {
         return mTabListEditorLifecycleObserver;
     }
@@ -1090,5 +1101,9 @@ public class ArchivedTabsDialogCoordinator implements SnackbarManager.SnackbarMa
     @VisibleForTesting
     FrameLayout getCloseAllTabsButtonContainer() {
         return mDialogView.findViewById(R.id.close_all_tabs_button_container);
+    }
+
+    DestroyChecker getDestroyCheckerForTesting() {
+        return mDestroyChecker;
     }
 }

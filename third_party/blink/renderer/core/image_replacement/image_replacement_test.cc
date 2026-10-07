@@ -17,9 +17,7 @@
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/blink/public/common/features.h"
 #include "third_party/blink/public/mojom/image_replacement/image_replacement.mojom-blink.h"
-#include "third_party/blink/public/web/web_element.h"
 #include "third_party/blink/public/web/web_frame.h"
-#include "third_party/blink/public/web/web_image_replacement.h"
 #include "third_party/blink/public/web/web_script_source.h"
 #include "third_party/blink/renderer/core/dom/document.h"
 #include "third_party/blink/renderer/core/dom/events/native_event_listener.h"
@@ -204,8 +202,6 @@ TEST_F(ImageReplacementSimTest, ImageReplacementLifecycle) {
   ASSERT_TRUE(img->complete());
   ASSERT_TRUE(img->GetLayoutObject());
   EXPECT_TRUE(img->GetLayoutObject()->IsLayoutImage());
-  EXPECT_FALSE(img->replacedByUserAgent());
-  EXPECT_FALSE(WebImageReplacement::IsReplacedByUserAgent(WebElement(img)));
 
   auto result = ImageReplacement::CreateAndBindReceiver(*img);
   ASSERT_TRUE(result.has_value());
@@ -220,8 +216,6 @@ TEST_F(ImageReplacementSimTest, ImageReplacementLifecycle) {
 
   // Verify replacement state
   EXPECT_TRUE(img->GetLayoutObject()->IsLayoutImageReplacement());
-  EXPECT_TRUE(img->replacedByUserAgent());
-  EXPECT_TRUE(WebImageReplacement::IsReplacedByUserAgent(WebElement(img)));
   ASSERT_TRUE(img->UserAgentShadowRoot());
 
   auto* iframe =
@@ -245,8 +239,6 @@ TEST_F(ImageReplacementSimTest, ImageReplacementLifecycle) {
   Compositor().BeginFrame();
 
   EXPECT_TRUE(img->GetLayoutObject()->IsLayoutImage());
-  EXPECT_FALSE(img->replacedByUserAgent());
-  EXPECT_FALSE(WebImageReplacement::IsReplacedByUserAgent(WebElement(img)));
   EXPECT_FALSE(img->UserAgentShadowRoot()->HasChildren());
   EXPECT_FALSE(DocumentImageReplacements::FromIfExists(GetDocument())
                    ->GetImageReplacement(img));

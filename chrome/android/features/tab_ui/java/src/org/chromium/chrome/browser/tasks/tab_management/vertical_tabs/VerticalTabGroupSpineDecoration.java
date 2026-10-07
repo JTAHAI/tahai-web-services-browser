@@ -25,7 +25,6 @@ import org.chromium.chrome.browser.tabmodel.TabModelSelector;
 import org.chromium.chrome.browser.tasks.tab_management.TabListItemAnimator;
 import org.chromium.chrome.browser.tasks.tab_management.TabListModel;
 import org.chromium.chrome.browser.tasks.tab_management.TabProperties;
-import org.chromium.chrome.browser.ui.vertical_tabs.VerticalTabUtils;
 import org.chromium.chrome.tab_ui.R;
 import org.chromium.components.tab_groups.TabGroupColorId;
 import org.chromium.components.tab_groups.TabGroupColorPickerUtils;
@@ -107,12 +106,7 @@ class VerticalTabGroupSpineDecoration extends RecyclerView.ItemDecoration {
         Resources res = context.getResources();
         mSpineWidth = res.getDimensionPixelSize(R.dimen.vertical_tab_spine_width);
         mSpineRadius = res.getDimensionPixelSize(R.dimen.vertical_tab_spine_radius);
-        boolean isTablet = VerticalTabUtils.isTablet(context);
-        mMarginBottom =
-                res.getDimensionPixelSize(
-                        isTablet
-                                ? R.dimen.vertical_tab_item_margin_bottom_tablet
-                                : R.dimen.vertical_tab_item_margin_bottom);
+        mMarginBottom = res.getDimensionPixelSize(R.dimen.vertical_tab_item_margin_bottom);
 
         mCurrentTabModelObserver = this::onCurrentTabModelChanged;
         mTabModelSelector

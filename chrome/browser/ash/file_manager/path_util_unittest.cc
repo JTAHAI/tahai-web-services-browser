@@ -592,11 +592,11 @@ TEST_F(FileManagerPathUtilTest, ConvertBetweenFileSystemURLAndPathInsideVM) {
       profile_.get(), FilePath("/path/not/under/mount"), vm_mount,
       /*map_crostini_home=*/false, &url));
 
-  // The ChromeOS hostname is matched case-insensitively.
+  // Special case for PluginVM case-insensitive hostname matching.
   EXPECT_TRUE(ConvertPathInsideVMToFileSystemURL(
-      profile_.get(), FilePath("//chromeos/MyFiles/path/in/shared"),
+      profile_.get(), FilePath("//chromeos/MyFiles/path/in/pluginvm"),
       FilePath("//ChromeOS"), /*map_crostini_home=*/false, &url));
-  EXPECT_EQ("Downloads-testing_profile%40test-hash/path/in/shared",
+  EXPECT_EQ("Downloads-testing_profile%40test-hash/path/in/pluginvm",
             url.virtual_path().value());
 
   profile_.reset();
@@ -1399,6 +1399,10 @@ TEST_F(FileManagerPathUtilTest, GetDisplayablePathTest) {
       {
           "/mount_path/my_files/Downloads/foo",
           "My files/Downloads/foo",
+      },
+      {
+          "/mount_path/my_files/PvmDefault",
+          "My files/Windows files",
       },
       {
           "/mount_path/my_files/Camera/foo",

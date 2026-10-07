@@ -8,7 +8,6 @@
 #include <optional>
 
 #include "base/component_export.h"
-#include "base/functional/callback.h"
 #include "base/memory/raw_ptr.h"
 #include "mojo/public/cpp/bindings/pending_remote.h"
 #include "mojo/public/cpp/bindings/remote.h"
@@ -48,10 +47,6 @@ class COMPONENT_EXPORT(NETWORK_SERVICE) NetworkServiceNetworkDelegate
   void set_enable_referrers(bool enable_referrers) {
     enable_referrers_ = enable_referrers;
   }
-
-  // Sets a callback invoked by OnShouldForceIgnoreSiteForCookies().
-  void SetShouldForceIgnoreSiteForCookiesCallbackForTesting(
-      base::RepeatingCallback<void(const net::URLRequest&)> callback);
 
  private:
   // net::NetworkDelegateImpl implementation.
@@ -131,9 +126,6 @@ class COMPONENT_EXPORT(NETWORK_SERVICE) NetworkServiceNetworkDelegate
   bool validate_referrer_policy_on_initial_request_;
   mojo::Remote<mojom::ProxyErrorClient> proxy_error_client_;
   raw_ptr<NetworkContext> network_context_;
-
-  base::RepeatingCallback<void(const net::URLRequest&)>
-      should_force_ignore_site_for_cookies_callback_for_testing_;
 
   mutable base::WeakPtrFactory<NetworkServiceNetworkDelegate> weak_ptr_factory_{
       this};

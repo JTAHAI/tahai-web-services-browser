@@ -17,8 +17,8 @@ namespace multistep_filter {
 
 // Represents the UI label for a filter attribute.
 struct FilterAttributeUiLabel {
-  explicit FilterAttributeUiLabel(
-      FilterSuggestionCandidateAttribute candidate_attribute);
+  FilterAttributeUiLabel(FilterSuggestionCandidateAttribute candidate_attribute,
+                         FilterAttribute annotation_attribute);
 
   FilterAttributeUiLabel(const FilterAttributeUiLabel&) = default;
   FilterAttributeUiLabel(FilterAttributeUiLabel&&) = default;

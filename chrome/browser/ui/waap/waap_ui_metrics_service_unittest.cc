@@ -5,9 +5,11 @@
 #include "chrome/browser/ui/waap/waap_ui_metrics_service.h"
 
 #include "base/test/metrics/histogram_tester.h"
+#include "base/test/scoped_feature_list.h"
 #include "base/time/time.h"
 #include "chrome/browser/ui/waap/waap_ui_metrics_recorder.h"
 #include "chrome/browser/ui/waap/waap_ui_metrics_service_factory.h"
+#include "chrome/common/chrome_features.h"
 #include "chrome/test/base/testing_profile.h"
 #include "components/startup_metric_utils/browser/startup_metric_utils.h"
 #include "content/public/test/browser_task_environment.h"
@@ -25,8 +27,8 @@ class WaapUIMetricsServiceTest : public testing::Test {
   ~WaapUIMetricsServiceTest() override = default;
 
   void SetUp() override {
-    startup_metric_utils::GetBrowser().ResetSessionForTesting();
-    WaapUIMetricsService::ResetForTesting();
+    // WaapUIMetricsService is only available when the feature is enabled.
+    feature_list_.InitAndEnableFeature(features::kInitialWebUIMetrics);
   }
 
  protected:
@@ -35,9 +37,24 @@ class WaapUIMetricsServiceTest : public testing::Test {
 
  private:
   content::BrowserTaskEnvironment task_environment_;
+  base::test::ScopedFeatureList feature_list_;
   base::HistogramTester histogram_tester_;
   TestingProfile profile_;
 };
+
+// Tests that the WaapUIMetricsService is not created when the kInitialWebUI
+// feature is disabled.
+TEST(WaapUIMetricsServiceFeatureDisabledTest, ServiceNotCreated) {
+  base::test::ScopedFeatureList feature_list;
+  feature_list.InitAndDisableFeature(features::kInitialWebUIMetrics);
+
+  content::BrowserTaskEnvironment task_environment;
+  TestingProfile profile;
+
+  WaapUIMetricsService* service =
+      WaapUIMetricsServiceFactory::GetForProfile(&profile);
+  EXPECT_FALSE(service);
+}
 
 #if !BUILDFLAG(IS_CHROMEOS)
 // Tests that the OnFirstPaint method records a histogram on the first call,

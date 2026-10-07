@@ -23,7 +23,7 @@
 #include "chromeos/ash/experiences/arc/mojom/app.mojom-forward.h"
 #endif  // BUILDFLAG(IS_CHROMEOS)
 
-class BrowserWindowInterface;
+class Browser;
 class Profile;
 
 namespace base {
@@ -45,7 +45,7 @@ std::vector<base::FilePath> GetLaunchFilesFromCommandLine(
 
 // When a command line launch has an unknown app id, we open a browser with only
 // the new tab page.
-BrowserWindowInterface* CreateBrowserWithNewTabPage(Profile* profile);
+Browser* CreateBrowserWithNewTabPage(Profile* profile);
 
 // Helper to create AppLaunchParams using event flags that allows user to
 // override the user-configured container using modifier keys. |display_id| is

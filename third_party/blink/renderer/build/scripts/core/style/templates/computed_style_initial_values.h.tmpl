@@ -44,12 +44,11 @@ class ComputedStyleInitialValues{
   }
   static StyleImage* InitialBorderImageSource() { return nullptr; }
   static float InitialBorderWidth() { return 3; }
-  static int InitialGapRuleWidth() { return 3; }
   static GapDataList<int> InitialColumnRuleWidth() {
-    return GapDataList<int>(InitialGapRuleWidth());
+    return GapDataList<int>::DefaultGapWidthDataList();
   }
   static GapDataList<int> InitialRowRuleWidth() {
-    return GapDataList<int>(InitialGapRuleWidth());
+    return GapDataList<int>::DefaultGapWidthDataList();
   }
 
 

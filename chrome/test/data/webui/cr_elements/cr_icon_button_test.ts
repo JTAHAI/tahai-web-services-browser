@@ -96,7 +96,7 @@ suite('cr-icon-button', function() {
   });
 
   test('cr-icon children svg and img elements role set to none', async () => {
-    button.ironIcon = 'cr:close';
+    button.ironIcon = 'cr:clear';
     await microtasksFinished();
     assertTrue(!!button.shadowRoot);
     const ironIcons = button.shadowRoot.querySelectorAll('cr-icon');

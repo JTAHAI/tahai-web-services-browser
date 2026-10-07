@@ -15,7 +15,7 @@ using CastViewsTest = views::ViewsTestBase;
 
 TEST_F(CastViewsTest, ProgressBar) {
   std::unique_ptr<CastWindowManager> window_manager =
-      std::make_unique<CastWindowManagerAura>();
+      std::make_unique<CastWindowManagerAura>(true /* enable input */);
   gfx::Rect bounds = window_manager->GetRootWindow()->bounds();
 
   views::ProgressBar* progress_bar = new views::ProgressBar();

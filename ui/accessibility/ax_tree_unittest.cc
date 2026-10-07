@@ -1241,19 +1241,18 @@ TEST(AXTreeTest, TreeObserverIsNotCalledForReparenting) {
 
 // https://crbug.com/1359080
 // UAF caught by ax_tree_fuzzer
-TEST(AXTreeTest, BogusAXTree) {
+TEST(AXTreeTest, DISABLED_BogusAXTree) {
   AXTreeUpdate initial_state;
   AXNodeData node;
   node.id = 0;
   initial_state.nodes.push_back(node);
   initial_state.nodes.push_back(node);
   AXTree tree;
-#if AX_FAIL_FAST_BUILD()
+#if DCHECK_IS_ON()
   EXPECT_DEATH_IF_SUPPORTED(tree.Unserialize(initial_state),
                             "AXTreeUpdate contains invalid node");
 #else
-  EXPECT_FALSE(tree.Unserialize(initial_state));
-  EXPECT_EQ("Tree or update must have a valid root.", tree.error());
+  tree.Unserialize(initial_state);
 #endif
 }
 

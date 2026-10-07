@@ -29,7 +29,8 @@ TaskAttributionTaskState* TaskAttributionTaskState::GetCurrent(
     return nullptr;
   }
   v8::HandleScope handle_scope(isolate);
-  v8::Local<v8::Data> v8_data = isolate->GetContinuationPreservedEmbedderData();
+  v8::Local<v8::Data> v8_data =
+      isolate->GetContinuationPreservedEmbedderDataV2();
   if (v8_data->IsValue()) {
     DCHECK(v8::Value::Cast(*v8_data)->IsNullOrUndefined());
     return nullptr;
@@ -58,10 +59,10 @@ void TaskAttributionTaskState::SetCurrent(
   // and V8 has a fast path if the CPED is undefined, so treat null `task_state`
   // as undefined.
   if (!task_state) {
-    isolate->SetContinuationPreservedEmbedderData(v8::Undefined(isolate));
+    isolate->SetContinuationPreservedEmbedderDataV2(v8::Undefined(isolate));
   } else {
     v8::HandleScope handle_scope(isolate);
-    isolate->SetContinuationPreservedEmbedderData(
+    isolate->SetContinuationPreservedEmbedderDataV2(
         v8::CppHeapExternal::New<TaskAttributionTaskState>(
             isolate, task_state, kTaskAttributionTaskStateTag));
   }

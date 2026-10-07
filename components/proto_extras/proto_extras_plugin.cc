@@ -43,6 +43,7 @@ struct ProtoExtrasGeneratorOptions {
   bool generate_to_value_serialization = false;
   bool generate_stream_operator = false;
   bool generate_equality = false;
+  bool protobuf_full_support = false;
 };
 
 bool GetAllClassNames(const Descriptor& message,
@@ -267,6 +268,15 @@ void CreateEqualityOperatorDefinition(
       {{"message_type", message_type},
        {"compare_fields",
         [&]() {
+          // If protobuf_full_support is enabled, use MessageDifferencerEquals
+          // to compare the messages as the messages should be full Message
+          // types.
+          if (options.protobuf_full_support) {
+            printer->Print(
+                "if (!::proto_extras::MessageDifferencerEquals(lhs, rhs)) "
+                "return false;\n");
+            return;
+          }
           printer->Print(
               "if (lhs.unknown_fields() != rhs.unknown_fields()) return "
               "false;\n");
@@ -398,6 +408,8 @@ class ProtoExtrasGenerator : public google::protobuf::compiler::CodeGenerator {
         .generate_stream_operator =
             command_line_options.contains("generate_stream_operator"),
         .generate_equality = command_line_options.contains("generate_equality"),
+        .protobuf_full_support =
+            command_line_options.contains("protobuf_full_support"),
     };
     // The current design of this library assumes that only one of the
     // serialization options is enabled.
@@ -530,6 +542,10 @@ $function_declarations$
                 .ReplaceExtension(FILE_PATH_LITERAL("equal.h"))
                 .AsUTF8Unsafe());
       }
+    }
+    if (generator_options.protobuf_full_support) {
+      impl_user_includes.insert(
+          "components/proto_extras/protobuf_full_support.h");
     }
     cc_printer.Emit(
         {

@@ -44,13 +44,11 @@ DesktopMediaPickerController::~DesktopMediaPickerController() = default;
 void DesktopMediaPickerController::Show(
     const Params& params,
     const std::vector<DesktopMediaList::Type>& sources,
-    DoneCallback done_callback,
-    base::OnceClosure on_show_picker) {
+    DoneCallback done_callback) {
   DCHECK(!std::ranges::contains(sources, DesktopMediaList::Type::kNone));
   DCHECK(!done_callback_);
 
   done_callback_ = std::move(done_callback);
-  on_show_picker_ = std::move(on_show_picker);
   params_ = params;
 
   Observe(params.web_contents);
@@ -138,10 +136,6 @@ void DesktopMediaPickerController::ShowPickerDialog() {
     OnPickerDialogResults(
         "Desktop Capture API is not yet implemented for this platform.", {});
     return;
-  }
-
-  if (on_show_picker_) {
-    std::move(on_show_picker_).Run();
   }
 
   picker_->Show(

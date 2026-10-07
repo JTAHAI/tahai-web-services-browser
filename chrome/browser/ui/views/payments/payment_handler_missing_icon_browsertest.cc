@@ -28,11 +28,8 @@ namespace payments {
 class PaymentHandlerMissingIconTest : public PaymentRequestBrowserTestBase {
  protected:
   PaymentHandlerMissingIconTest() {
-    SetBypassUserInteractionForTesting();
-    scoped_feature_list_.InitWithFeatures(
-        {features::kAllowJITInstallationWhenAppIconIsMissing,
-         features::kPaymentRequestMandatoryPaymentAppUi},
-        {});
+    scoped_feature_list_.InitAndEnableFeature(
+        features::kAllowJITInstallationWhenAppIconIsMissing);
   }
 
   ~PaymentHandlerMissingIconTest() override = default;
@@ -106,7 +103,7 @@ IN_PROC_BROWSER_TEST_F(PaymentHandlerMissingIconTest, CantSkipTheSheet) {
 
   // Click on Pay to install Kylepay and complete the payment.
   ResetEventWaiterForSequence(
-      {DialogEvent::LOADING_VIEW_SHOWN, DialogEvent::DIALOG_CLOSED});
+      {DialogEvent::PROCESSING_SPINNER_SHOWN, DialogEvent::DIALOG_CLOSED});
   ClickOnDialogViewAndWait(DialogViewID::PAY_BUTTON, dialog_view());
   ExpectBodyContains({"kylepay.test/webpay"});
 }

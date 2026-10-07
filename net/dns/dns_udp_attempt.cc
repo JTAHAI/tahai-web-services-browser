@@ -122,6 +122,10 @@ int DnsUDPAttempt::DoConnectComplete(int rv) {
     return ERR_CONNECTION_REFUSED;
   }
   next_state_ = STATE_SEND_QUERY;
+  IPEndPoint local_address;
+  if (socket_->GetLocalAddress(&local_address) == OK) {
+    udp_tracker_->RecordQuery(local_address.port(), query_->id());
+  }
   return OK;
 }
 
@@ -168,10 +172,6 @@ int DnsUDPAttempt::DoReadResponseComplete(int rv) {
   read_size_ = rv;
 
   bool parse_result = response_->InitParse(rv, *query_);
-  IPEndPoint local_address;
-  if (socket_->GetLocalAddress(&local_address) == OK) {
-    udp_tracker_->RecordQuery(local_address.port(), query_->id());
-  }
   if (response_->id()) {
     udp_tracker_->RecordResponseId(query_->id(), response_->id().value());
   }

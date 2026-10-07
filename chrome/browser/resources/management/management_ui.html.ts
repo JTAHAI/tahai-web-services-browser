@@ -34,7 +34,7 @@ export function getHtml(this: ManagementUiElement) {
 <if expr="is_chromeos">
       <section class="eol-section" ?hidden="${!this.eolMessage_}">
         <div class="eol-warning-icon">
-          <cr-icon icon="cr20:warning"></cr-icon>
+          <cr-icon icon="cr20:banner-warning"></cr-icon>
         </div>
         <div class="eol-message">
           <div>${this.eolMessage_}</div>
@@ -68,8 +68,7 @@ export function getHtml(this: ManagementUiElement) {
         <section>
           <h3 class="cr-title-text">$i18n{threatProtectionTitle}</h3>
           <div class="subtitle">${this.threatProtectionInfo_!.description}</div>
-          <!-- Wide Screen View: Semantic Table -->
-          <table class="content-indented wide-screen-only">
+          <table class="content-indented">
             <tr>
               <th class="protection-name">$i18n{connectorEvent}</th>
               <th class="protection-permissions">
@@ -85,20 +84,6 @@ export function getHtml(this: ManagementUiElement) {
               </tr>
             `)}
           </table>
-
-          <!-- Small Screen View: Semantic Stacked List -->
-          <ul class="content-indented small-screen-only" role="list">
-            ${this.threatProtectionInfo_!.info.map(item => html`
-              <li class="connector-item" role="listitem">
-                <div class="connector-item-title">
-                  <strong>$i18n{connectorEvent}:</strong> ${this.i18n(item.title)}
-                </div>
-                <div class="connector-item-value">
-                  <strong>$i18n{connectorVisibleData}:</strong> ${this.i18n(item.permission)}
-                </div>
-              </li>
-            `)}
-          </ul>
         </section>
       ` : ''}
 
@@ -159,6 +144,10 @@ export function getHtml(this: ManagementUiElement) {
               </div>
             `)}
           </div>
+          <div class="subtitle"
+              ?hidden="${!this.pluginVmDataCollectionEnabled_}">
+            $i18nRaw{pluginVmDataCollection}
+          </div>
         </section>
       ` : ''}
 </if>
@@ -203,9 +192,7 @@ export function getHtml(this: ManagementUiElement) {
         <section class="extension-reporting">
           <h3 class="cr-title-text">$i18n{extensionReporting}</h3>
           <div class="subtitle">${this.extensionReportingSubtitle_}</div>
-
-          <!-- Wide Screen View: Semantic Table -->
-          <table class="content-indented wide-screen-only">
+          <table class="content-indented">
             <tr>
               <th class="extension-name">$i18n{extensionName}</th>
               <th class="extension-permissions">
@@ -230,29 +217,6 @@ export function getHtml(this: ManagementUiElement) {
               </tr>
             `)}
           </table>
-
-          <!-- Small Screen View: Semantic Stacked List -->
-          <ul class="content-indented small-screen-only" role="list">
-            ${this.extensions_!.map(item => html`
-              <li class="connector-item" role="listitem">
-                <div class="connector-item-title">
-                  <strong>$i18n{extensionName}:</strong>
-                  <div .title="${item.name}" role="presentation" class="extension-title-container">
-                    <img .src="${item.icon || ''}" alt="" aria-hidden="true">
-                    <span>${item.name}</span>
-                  </div>
-                </div>
-                <div class="connector-item-value">
-                  <strong>$i18n{extensionPermissions}:</strong>
-                  <ul>
-                    ${item.permissions.map(permission => html`
-                      <li>${permission}</li>
-                    `)}
-                  </ul>
-                </div>
-              </li>
-            `)}
-          </ul>
         </section>
       ` : ''}
 
@@ -272,9 +236,7 @@ export function getHtml(this: ManagementUiElement) {
         <section class="application-reporting">
           <h3 class="cr-title-text">$i18n{applicationReporting}</h3>
           <div class="subtitle">${this.applicationReportingSubtitle_}</div>
-
-          <!-- Wide Screen View: Semantic Table -->
-          <table class="content-indented wide-screen-only">
+          <table class="content-indented">
             <tr>
               <th class="application-name">$i18n{applicationName}</th>
               <th class="extension-permissions">
@@ -299,29 +261,6 @@ export function getHtml(this: ManagementUiElement) {
               </tr>
             `)}
           </table>
-
-          <!-- Small Screen View: Semantic Stacked List -->
-          <ul class="content-indented small-screen-only" role="list">
-            ${this.applications_!.map(item => html`
-              <li class="connector-item" role="listitem">
-                <div class="connector-item-title">
-                  <strong>$i18n{applicationName}:</strong>
-                  <div .title="${item.name}" role="presentation" class="extension-title-container">
-                    <img .src="${item.icon || ''}" alt="" aria-hidden="true">
-                    <span>${item.name}</span>
-                  </div>
-                </div>
-                <div class="connector-item-value">
-                  <strong>$i18n{applicationPermissions}:</strong>
-                  <ul>
-                    ${item.permissions.map(permission => html`
-                      <li>${permission}</li>
-                    `)}
-                  </ul>
-                </div>
-              </li>
-            `)}
-          </ul>
         </section>
       ` : ''}
     </div>

@@ -179,7 +179,7 @@
 #pragma mark - TOSCoordinatorDelegate
 
 - (void)TOSCoordinatorWantsToBeStopped:(TOSCoordinator*)coordinator {
-  CHECK_EQ(_TOSCoordinator, coordinator);
+  CHECK_EQ(_TOSCoordinator, coordinator, base::NotFatalUntil::M144);
   [self stopTOSCoordinator];
 }
 

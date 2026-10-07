@@ -3,11 +3,13 @@
 // found in the LICENSE file.
 
 #include <memory>
+#include <optional>
 #include <string_view>
 
 #include "base/callback_list.h"
 #include "base/functional/bind.h"
 #include "base/metrics/field_trial_params.h"
+#include "base/run_loop.h"
 #include "base/strings/utf_string_conversions.h"
 #include "chrome/browser/ash/login/test/customizable_test_env_browser_test_base.h"
 #include "chrome/browser/ash/login/test/device_state_mixin.h"
@@ -16,6 +18,7 @@
 #include "chrome/browser/ash/settings/scoped_testing_cros_settings.h"
 #include "chrome/browser/ash/settings/stub_cros_settings_provider.h"
 #include "chrome/browser/feature_engagement/tracker_factory.h"
+#include "chrome/browser/notifications/notification_display_service_tester.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/ash/google_one/google_one_offer_iph_tab_helper_constants.h"
 #include "chrome/browser/ui/browser.h"
@@ -32,7 +35,6 @@
 #include "content/public/test/browser_test.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
-#include "ui/message_center/message_center.h"
 #include "ui/message_center/public/cpp/notification.h"
 #include "url/gurl.h"
 
@@ -62,12 +64,20 @@ class GoogleOneOfferIphTabHelperTest
     ash::CustomizableTestEnvBrowserTestBase::SetUp();
   }
 
- protected:
-  const message_center::Notification* GetNotification() {
-    return message_center::MessageCenter::Get()->FindNotificationById(
-        kIPHGoogleOneOfferNotificationId);
+  void SetUpOnMainThread() override {
+    // `ash::CustomizableTestEnvBrowserTestBase::SetUpOnMainThread` must be
+    // called before our `SetUpOnMainThread` as login happens in the method,
+    // i.e. profile is not available before it.
+    ash::CustomizableTestEnvBrowserTestBase::SetUpOnMainThread();
+    CHECK(browser()->GetProfile());
+
+    display_service_tester_ =
+        std::make_unique<NotificationDisplayServiceTester>(
+            browser()->GetProfile());
   }
 
+ protected:
+  std::unique_ptr<NotificationDisplayServiceTester> display_service_tester_;
   std::unique_ptr<base::test::ScopedFeatureList> scoped_feature_list_;
   std::unique_ptr<feature_engagement::test::ScopedIphFeatureList>
       scoped_iph_feature_list_;
@@ -115,11 +125,17 @@ class GoogleOneOfferIphTabHelperTestWithUIStringParams
 
 IN_PROC_BROWSER_TEST_F(GoogleOneOfferIphTabHelperTestWithUIStringParams,
                        UIStringParams) {
+  base::RunLoop added_run_loop;
+  display_service_tester_->SetNotificationAddedClosure(
+      added_run_loop.QuitClosure());
   ASSERT_TRUE(nullptr !=
               ui_test_utils::NavigateToURL(browser(), GURL(kGoogleDriveUrl)));
+  added_run_loop.Run();
 
-  const message_center::Notification* notification = GetNotification();
-  ASSERT_TRUE(notification);
+  std::optional<message_center::Notification> notification =
+      display_service_tester_->GetNotification(
+          kIPHGoogleOneOfferNotificationId);
+  ASSERT_TRUE(notification.has_value());
   EXPECT_EQ(notification->display_source(),
             base::UTF8ToUTF16(std::string_view(kNotificationDisplaySource)));
   EXPECT_EQ(notification->title(),
@@ -133,14 +149,20 @@ IN_PROC_BROWSER_TEST_F(GoogleOneOfferIphTabHelperTestWithUIStringParams,
 
 IN_PROC_BROWSER_TEST_F(GoogleOneOfferIphTabHelperTest,
                        NotificationOnGoogleDriveClickGetPerk) {
+  base::RunLoop added_run_loop;
+  display_service_tester_->SetNotificationAddedClosure(
+      added_run_loop.QuitClosure());
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), GURL(kGoogleDriveUrl)) !=
               nullptr);
+  added_run_loop.Run();
 
   // Make sure that fallback texts are set if UI strings are not provided via
   // params. Note that UI strings should be provided via params on prod and
   // fallback texts should not be used. This is to test fail-safe case.
-  const message_center::Notification* notification = GetNotification();
-  ASSERT_TRUE(notification);
+  std::optional<message_center::Notification> notification =
+      display_service_tester_->GetNotification(
+          kIPHGoogleOneOfferNotificationId);
+  ASSERT_TRUE(notification.has_value());
   EXPECT_EQ(
       notification->display_source(),
       base::UTF8ToUTF16(std::string_view(kFallbackNotificationDisplaySource)));
@@ -169,10 +191,14 @@ IN_PROC_BROWSER_TEST_F(GoogleOneOfferIphTabHelperTest,
               Dismissed(testing::Ref(
                   feature_engagement::kIPHGoogleOneOfferNotificationFeature)));
 
+  base::RunLoop closed_run_loop;
+  display_service_tester_->SetNotificationClosedClosure(
+      closed_run_loop.QuitClosure());
   ui_test_utils::TabAddedWaiter tab_added_waiter(browser());
-  message_center::MessageCenter::Get()->ClickOnNotificationButton(
-      kIPHGoogleOneOfferNotificationId, kGetPerkButtonIndex);
-  EXPECT_FALSE(GetNotification());
+  display_service_tester_->SimulateClick(NotificationHandler::Type::TRANSIENT,
+                                         kIPHGoogleOneOfferNotificationId,
+                                         kGetPerkButtonIndex, std::nullopt);
+  closed_run_loop.Run();
   tab_added_waiter.Wait();
   EXPECT_EQ(GURL(kGoogleOneOfferUrl),
             browser()->tab_strip_model()->GetActiveWebContents()->GetURL());
@@ -180,14 +206,21 @@ IN_PROC_BROWSER_TEST_F(GoogleOneOfferIphTabHelperTest,
 
 IN_PROC_BROWSER_TEST_F(GoogleOneOfferIphTabHelperTest,
                        NotificationOnGooglePhotos) {
+  base::RunLoop added_run_loop;
+  display_service_tester_->SetNotificationAddedClosure(
+      added_run_loop.QuitClosure());
   ASSERT_TRUE(nullptr !=
               ui_test_utils::NavigateToURL(browser(), GURL(kGooglePhotosUrl)));
-  EXPECT_TRUE(GetNotification());
+  added_run_loop.Run();
 }
 
 IN_PROC_BROWSER_TEST_F(GoogleOneOfferIphTabHelperTest, NotificationDismiss) {
+  base::RunLoop added_run_loop;
+  display_service_tester_->SetNotificationAddedClosure(
+      added_run_loop.QuitClosure());
   ASSERT_TRUE(nullptr !=
               ui_test_utils::NavigateToURL(browser(), GURL(kGoogleDriveUrl)));
+  added_run_loop.Run();
 
   raw_ptr<feature_engagement::test::MockTracker> mock_tracker =
       static_cast<feature_engagement::test::MockTracker*>(
@@ -204,9 +237,12 @@ IN_PROC_BROWSER_TEST_F(GoogleOneOfferIphTabHelperTest, NotificationDismiss) {
               Dismissed(testing::Ref(
                   feature_engagement::kIPHGoogleOneOfferNotificationFeature)));
 
-  // Remove a notification as a user event.
-  message_center::MessageCenter::Get()->RemoveNotification(
-      kIPHGoogleOneOfferNotificationId, /*by_user=*/true);
+  // Remove a notification as a user event. `RemoveNotification` does not
+  // trigger notification closed closure which can be set with
+  // `NotificationDisplayServiceTester::SetNotificationClosedClosure`.
+  display_service_tester_->RemoveNotification(
+      NotificationHandler::Type::TRANSIENT, kIPHGoogleOneOfferNotificationId,
+      /*by_user=*/true);
   EXPECT_EQ(GURL(kGoogleDriveUrl),
             browser()->tab_strip_model()->GetActiveWebContents()->GetURL());
 }
@@ -260,7 +296,10 @@ IN_PROC_BROWSER_TEST_P(GoogleOneOfferIphTabHelperTestParameterized,
   ASSERT_TRUE(nullptr !=
               ui_test_utils::NavigateToURL(browser(), GURL(kGoogleDriveUrl)));
 
-  EXPECT_EQ(nullptr, GetNotification());
+  std::optional<message_center::Notification> notification =
+      display_service_tester_->GetNotification(
+          kIPHGoogleOneOfferNotificationId);
+  EXPECT_EQ(std::nullopt, notification);
 }
 
 }  // namespace

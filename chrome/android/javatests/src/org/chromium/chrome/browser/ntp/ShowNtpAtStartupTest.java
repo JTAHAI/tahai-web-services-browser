@@ -33,7 +33,6 @@ import androidx.test.filters.LargeTest;
 import androidx.test.filters.MediumTest;
 
 import org.hamcrest.Matchers;
-import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -61,6 +60,7 @@ import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.browser.incognito.IncognitoUtils;
 import org.chromium.chrome.browser.layouts.LayoutTestUtils;
 import org.chromium.chrome.browser.layouts.LayoutType;
+import org.chromium.chrome.browser.logo.LegacyLogoView;
 import org.chromium.chrome.browser.logo.LogoBridge.Logo;
 import org.chromium.chrome.browser.logo.LogoContainerView;
 import org.chromium.chrome.browser.logo.LogoUtils;
@@ -113,13 +113,6 @@ public class ShowNtpAtStartupTest {
         EducationalTipModuleUtils.setEducationalTipActiveForTesting(false);
         // TODO(https://crbug.com/454091341): Enable incognito mode on this test suite.
         IncognitoUtils.setEnabledForTesting(false);
-    }
-
-    @After
-    public void tearDown() {
-        if (mActivityTestRule.getActivity() != null) {
-            ActivityTestUtils.clearActivityOrientation(mActivityTestRule.getActivity());
-        }
     }
 
     @Test
@@ -268,7 +261,6 @@ public class ShowNtpAtStartupTest {
     @MediumTest
     @Feature({"StartSurface"})
     @EnableFeatures(START_SURFACE_RETURN_TIME_IMMEDIATE)
-    @DisableFeatures(ChromeFeatureList.NTP_AURORA)
     public void testSingleTabModule() throws IOException {
         HomeSurfaceTestUtils.prepareTabStateMetadataFile(
                 new int[] {0, 1}, new String[] {TAB_URL, TAB_URL_1}, 0);
@@ -293,7 +285,6 @@ public class ShowNtpAtStartupTest {
     @MediumTest
     @Feature({"StartSurface"})
     @EnableFeatures({START_SURFACE_RETURN_TIME_IMMEDIATE})
-    @DisableFeatures(ChromeFeatureList.NTP_AURORA)
     public void testSingleTabModule_MagicStack() throws IOException {
         HomeSurfaceTestUtils.prepareTabStateMetadataFile(
                 new int[] {0, 1}, new String[] {TAB_URL, TAB_URL_1}, 0);
@@ -315,21 +306,40 @@ public class ShowNtpAtStartupTest {
     @Test
     @MediumTest
     @Feature({"StartSurface"})
-    public void testNtpLogoSize() {
+    @EnableFeatures({ChromeFeatureList.LOGO_VIEW_REFACTOR})
+    public void testNtpLogoSize_logoViewRefactorFlagEnabled() {
         mActivityTestRule.startOnNtp();
         Resources res = mActivityTestRule.getActivity().getResources();
         int expectedLogoHeight = res.getDimensionPixelSize(R.dimen.ntp_logo_height);
-        int expectedTopMargin = LogoUtils.getTopMarginForLogo(res);
+        int expectedTopMargin = res.getDimensionPixelSize(R.dimen.ntp_logo_margin_top);
         int expectedBottomMargin = res.getDimensionPixelSize(R.dimen.ntp_logo_margin_bottom);
 
         // Verifies the logo size is decreased, and top bottom margins are updated.
-        testLogoSizeImpl(expectedLogoHeight, expectedTopMargin, expectedBottomMargin);
+        testLogoSizeImpl_logoViewRefactorEnabled(
+                expectedLogoHeight, expectedTopMargin, expectedBottomMargin);
     }
 
     @Test
     @MediumTest
     @Feature({"StartSurface"})
-    public void testNtpDoodleSize() {
+    @DisableFeatures({ChromeFeatureList.LOGO_VIEW_REFACTOR})
+    public void testNtpLogoSize_logoViewRefactorFlagDisabled() {
+        mActivityTestRule.startOnNtp();
+        Resources res = mActivityTestRule.getActivity().getResources();
+        int expectedLogoHeight = res.getDimensionPixelSize(R.dimen.ntp_logo_height);
+        int expectedTopMargin = res.getDimensionPixelSize(R.dimen.ntp_logo_margin_top);
+        int expectedBottomMargin = res.getDimensionPixelSize(R.dimen.ntp_logo_margin_bottom);
+
+        // Verifies the logo size is decreased, and top bottom margins are updated.
+        testLogoSizeImpl_logoViewRefactorDisabled(
+                expectedLogoHeight, expectedTopMargin, expectedBottomMargin);
+    }
+
+    @Test
+    @MediumTest
+    @Feature({"StartSurface"})
+    @EnableFeatures({ChromeFeatureList.LOGO_VIEW_REFACTOR})
+    public void testNtpDoodleSize_logoViewRefactorFlagEnabled() {
         mActivityTestRule.startOnNtp();
 
         ChromeTabbedActivity cta = mActivityTestRule.getActivity();
@@ -348,10 +358,7 @@ public class ShowNtpAtStartupTest {
                                     /* altText= */ null,
                                     /* animatedLogoUrl= */ null,
                                     /* darkAnimatedLogoUrl= */ null,
-                                    /* logUrl= */ null,
-                                    /* darkLogUrl= */ null,
-                                    /* ctaLogUrl= */ null,
-                                    /* darkCtaLogUrl= */ null);
+                                    /* logUrl= */ null);
                     logoView.updateLogo(logo);
                     logoView.endAnimationsForTesting();
 
@@ -366,7 +373,49 @@ public class ShowNtpAtStartupTest {
         int expectedBottomMargin = expectedValues[2];
 
         // Verifies the logo size is decreased, and top bottom margins are updated.
-        testLogoSizeImpl(expectedLogoHeight, expectedTopMargin, expectedBottomMargin);
+        testLogoSizeImpl_logoViewRefactorEnabled(
+                expectedLogoHeight, expectedTopMargin, expectedBottomMargin);
+    }
+
+    @Test
+    @MediumTest
+    @Feature({"StartSurface"})
+    @DisableFeatures({ChromeFeatureList.LOGO_VIEW_REFACTOR})
+    public void testNtpDoodleSize_logoViewRefactorFlagDisabled() {
+        mActivityTestRule.startOnNtp();
+
+        ChromeTabbedActivity cta = mActivityTestRule.getActivity();
+        NewTabPage ntp = (NewTabPage) mActivityTestRule.getActivityTab().getNativePage();
+        final int[] expectedValues = new int[3];
+        ThreadUtils.runOnUiThreadBlocking(
+                () -> {
+                    LegacyLogoView logoView =
+                            (LegacyLogoView) ntp.getView().findViewById(R.id.search_provider_logo);
+                    Logo logo =
+                            new Logo(
+                                    /* image= */ Bitmap.createBitmap(1, 1, Config.ALPHA_8),
+                                    /* darkImage= */ Bitmap.createBitmap(1, 1, Config.ARGB_8888),
+                                    /* onClickUrl= */ null,
+                                    /* altText= */ null,
+                                    /* animatedLogoUrl= */ null,
+                                    /* darkAnimatedLogoUrl= */ null,
+                                    /* logUrl= */ null);
+                    logoView.updateLogo(logo);
+                    logoView.endAnimationsForTesting();
+
+                    Resources res = cta.getResources();
+                    expectedValues[0] = LogoUtils.getDoodleHeight(res);
+                    expectedValues[1] = LogoUtils.getTopMarginForDoodle(res);
+                    expectedValues[2] = res.getDimensionPixelSize(R.dimen.ntp_logo_margin_bottom);
+                });
+
+        int expectedLogoHeight = expectedValues[0];
+        int expectedTopMargin = expectedValues[1];
+        int expectedBottomMargin = expectedValues[2];
+
+        // Verifies the logo size is decreased, and top bottom margins are updated.
+        testLogoSizeImpl_logoViewRefactorDisabled(
+                expectedLogoHeight, expectedTopMargin, expectedBottomMargin);
     }
 
     @Test
@@ -413,7 +462,7 @@ public class ShowNtpAtStartupTest {
         verifyTabCountAndActiveTabUrl(cta, 1, TAB_URL, /* expectHomeSurfaceUiShown= */ null);
     }
 
-    private void testLogoSizeImpl(
+    private void testLogoSizeImpl_logoViewRefactorEnabled(
             int expectedLogoHeight, int expectedTopMargin, int expectedBottomMargin) {
         ChromeTabbedActivity cta = mActivityTestRule.getActivity();
         HomeSurfaceTestUtils.waitForTabModel(cta);
@@ -430,6 +479,22 @@ public class ShowNtpAtStartupTest {
         Assert.assertEquals(expectedLogoHeight, logoViewLayoutParams.height);
         Assert.assertEquals(expectedTopMargin, logoViewLayoutParams.topMargin);
         Assert.assertEquals(expectedBottomMargin, logoContainerLayoutParams.bottomMargin);
+    }
+
+    private void testLogoSizeImpl_logoViewRefactorDisabled(
+            int expectedLogoHeight, int expectedTopMargin, int expectedBottomMargin) {
+        ChromeTabbedActivity cta = mActivityTestRule.getActivity();
+        HomeSurfaceTestUtils.waitForTabModel(cta);
+        waitForNtpLoaded(mActivityTestRule.getActivityTab());
+
+        NewTabPage ntp = (NewTabPage) mActivityTestRule.getActivityTab().getNativePage();
+        View logoView = ntp.getView().findViewById(R.id.search_provider_logo);
+
+        // Verifies the logo size and margins.
+        MarginLayoutParams marginLayoutParams = (MarginLayoutParams) logoView.getLayoutParams();
+        Assert.assertEquals(expectedLogoHeight, marginLayoutParams.height);
+        Assert.assertEquals(expectedTopMargin, marginLayoutParams.topMargin);
+        Assert.assertEquals(expectedBottomMargin, marginLayoutParams.bottomMargin);
     }
 
     /**
@@ -526,7 +591,7 @@ public class ShowNtpAtStartupTest {
 
         // Re-fetch view to avoid potential staleness after orientation change.
         mRenderTestRule.render(
-                getNtpLayout().findViewById(R.id.search_box), "ntp_search_box_landscape_v4");
+                getNtpLayout().findViewById(R.id.search_box), "ntp_search_box_landscape_v2");
 
         // Switch to portrait screen orientation.
         ActivityTestUtils.rotateActivityToOrientation(
@@ -534,7 +599,7 @@ public class ShowNtpAtStartupTest {
 
         // Re-fetch view to avoid potential staleness after orientation change.
         mRenderTestRule.render(
-                getNtpLayout().findViewById(R.id.search_box), "ntp_search_box_portrait_v4");
+                getNtpLayout().findViewById(R.id.search_box), "ntp_search_box_portrait_v2");
     }
 
     @Test
@@ -546,6 +611,8 @@ public class ShowNtpAtStartupTest {
         ChromeTabbedActivity cta = mActivityTestRule.getActivity();
         HomeSurfaceTestUtils.waitForTabModel(cta);
         waitForNtpLoaded(mActivityTestRule.getActivityTab());
+
+        NewTabPage ntp = (NewTabPage) mActivityTestRule.getActivityTab().getNativePage();
 
         verifyFakeSearchBoxWidth();
     }
@@ -560,6 +627,8 @@ public class ShowNtpAtStartupTest {
         ChromeTabbedActivity cta = mActivityTestRule.getActivity();
         HomeSurfaceTestUtils.waitForTabModel(cta);
         waitForNtpLoaded(mActivityTestRule.getActivityTab());
+
+        NewTabPage ntp = (NewTabPage) mActivityTestRule.getActivityTab().getNativePage();
 
         verifyMostVisitedTileMargin();
     }

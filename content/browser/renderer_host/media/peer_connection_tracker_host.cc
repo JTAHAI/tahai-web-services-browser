@@ -10,7 +10,6 @@
 #include <utility>
 
 #include "base/barrier_closure.h"
-#include "base/feature_list.h"
 #include "base/functional/bind.h"
 #include "base/no_destructor.h"
 #include "base/observer_list.h"
@@ -19,7 +18,6 @@
 #include "content/public/browser/global_routing_id.h"
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/render_process_host.h"
-#include "media/base/media_switches.h"
 #include "services/service_manager/public/cpp/interface_provider.h"
 
 namespace content {
@@ -31,13 +29,13 @@ using ObserverListType =
                        /*check_empty=*/true,
                        base::ObserverListReentrancyPolicy::kDisallowReentrancy>;
 ObserverListType& GetObserverList() {
-  CHECK_CURRENTLY_ON(BrowserThread::UI, base::NotFatalUntil::M158);
+  DCHECK_CURRENTLY_ON(BrowserThread::UI);
   static base::NoDestructor<ObserverListType> observer_list{};
   return *observer_list;
 }
 
 std::set<PeerConnectionTrackerHost*>& AllHosts() {
-  CHECK_CURRENTLY_ON(BrowserThread::UI, base::NotFatalUntil::M158);
+  DCHECK_CURRENTLY_ON(BrowserThread::UI);
   static base::NoDestructor<std::set<PeerConnectionTrackerHost*>> all_hosts{};
   return *all_hosts;
 }
@@ -55,7 +53,7 @@ void RemoveHost(PeerConnectionTrackerHost* host) {
 void PeerConnectionTrackerHost::AddObserver(
     base::PassKey<PeerConnectionTrackerHostObserver>,
     PeerConnectionTrackerHostObserver* observer) {
-  CHECK_CURRENTLY_ON(BrowserThread::UI, base::NotFatalUntil::M158);
+  DCHECK_CURRENTLY_ON(BrowserThread::UI);
   GetObserverList().AddObserver(observer);
 }
 
@@ -63,14 +61,14 @@ void PeerConnectionTrackerHost::AddObserver(
 void PeerConnectionTrackerHost::RemoveObserver(
     base::PassKey<PeerConnectionTrackerHostObserver>,
     PeerConnectionTrackerHostObserver* observer) {
-  CHECK_CURRENTLY_ON(BrowserThread::UI, base::NotFatalUntil::M158);
+  DCHECK_CURRENTLY_ON(BrowserThread::UI);
   GetObserverList().RemoveObserver(observer);
 }
 
 // static
 const std::set<PeerConnectionTrackerHost*>&
 PeerConnectionTrackerHost::GetAllHosts() {
-  CHECK_CURRENTLY_ON(BrowserThread::UI, base::NotFatalUntil::M158);
+  DCHECK_CURRENTLY_ON(BrowserThread::UI);
   return AllHosts();
 }
 
@@ -78,13 +76,8 @@ PeerConnectionTrackerHost::PeerConnectionTrackerHost(RenderFrameHost* frame)
     : DocumentUserData<PeerConnectionTrackerHost>(frame),
       frame_id_(frame->GetGlobalId()),
       peer_pid_(frame->GetProcess()->GetProcess().Pid()) {
-  CHECK_CURRENTLY_ON(BrowserThread::UI, base::NotFatalUntil::M158);
+  DCHECK_CURRENTLY_ON(BrowserThread::UI);
   RegisterHost(this);
-#if BUILDFLAG(IS_ANDROID)
-  if (base::FeatureList::IsEnabled(media::kAndroidSuspendWebRtcOnScreenOff)) {
-    base::android::ScreenStateReceiver::AddObserver(this);
-  }
-#endif
   auto* power_monitor = base::PowerMonitor::GetInstance();
   power_monitor->AddPowerSuspendObserver(this);
   // Ensure that the initial thermal state is known by the |tracker_|.
@@ -100,17 +93,12 @@ PeerConnectionTrackerHost::PeerConnectionTrackerHost(RenderFrameHost* frame)
 }
 
 PeerConnectionTrackerHost::~PeerConnectionTrackerHost() {
-  CHECK_CURRENTLY_ON(BrowserThread::UI, base::NotFatalUntil::M158);
+  DCHECK_CURRENTLY_ON(BrowserThread::UI);
   for (int lid : peer_connection_lids_) {
     for (auto& observer : GetObserverList()) {
       observer.OnPeerConnectionRemoved(frame_id_, lid);
     }
   }
-#if BUILDFLAG(IS_ANDROID)
-  if (base::FeatureList::IsEnabled(media::kAndroidSuspendWebRtcOnScreenOff)) {
-    base::android::ScreenStateReceiver::RemoveObserver(this);
-  }
-#endif
   RemoveHost(this);
   auto* power_monitor = base::PowerMonitor::GetInstance();
   power_monitor->RemovePowerSuspendObserver(this);
@@ -119,7 +107,7 @@ PeerConnectionTrackerHost::~PeerConnectionTrackerHost() {
 
 void PeerConnectionTrackerHost::AddPeerConnection(
     blink::mojom::PeerConnectionInfoPtr info) {
-  CHECK_CURRENTLY_ON(BrowserThread::UI, base::NotFatalUntil::M158);
+  DCHECK_CURRENTLY_ON(BrowserThread::UI);
 
   const std::string& url =
       (info->url == std::nullopt) ? std::string() : *info->url;
@@ -132,7 +120,7 @@ void PeerConnectionTrackerHost::AddPeerConnection(
 }
 
 void PeerConnectionTrackerHost::RemovePeerConnection(int lid) {
-  CHECK_CURRENTLY_ON(BrowserThread::UI, base::NotFatalUntil::M158);
+  DCHECK_CURRENTLY_ON(BrowserThread::UI);
 
   peer_connection_lids_.erase(lid);
   for (auto& observer : GetObserverList()) {
@@ -143,7 +131,7 @@ void PeerConnectionTrackerHost::RemovePeerConnection(int lid) {
 void PeerConnectionTrackerHost::UpdatePeerConnection(int lid,
                                                      const std::string& type,
                                                      const std::string& value) {
-  CHECK_CURRENTLY_ON(BrowserThread::UI, base::NotFatalUntil::M158);
+  DCHECK_CURRENTLY_ON(BrowserThread::UI);
 
   for (auto& observer : GetObserverList()) {
     observer.OnPeerConnectionUpdated(frame_id_, lid, type, value);
@@ -154,7 +142,7 @@ void PeerConnectionTrackerHost::OnPeerConnectionSessionIdSet(
     int lid,
     const std::string& session_id,
     base::OnceClosure callback) {
-  CHECK_CURRENTLY_ON(BrowserThread::UI, base::NotFatalUntil::M158);
+  DCHECK_CURRENTLY_ON(BrowserThread::UI);
 
   // The observer list does not have a method to query the number of observers.
   // The correctness of `count` relies on OnPeerConnectionSessionIdSet not
@@ -171,7 +159,7 @@ void PeerConnectionTrackerHost::OnPeerConnectionSessionIdSet(
 
 void PeerConnectionTrackerHost::AddStandardStats(int lid,
                                                  base::ListValue value) {
-  CHECK_CURRENTLY_ON(BrowserThread::UI, base::NotFatalUntil::M158);
+  DCHECK_CURRENTLY_ON(BrowserThread::UI);
 
   for (auto& observer : GetObserverList()) {
     observer.OnAddStandardStats(frame_id_, lid, value.Clone());
@@ -184,7 +172,7 @@ void PeerConnectionTrackerHost::GetUserMedia(
     bool video,
     const std::string& audio_constraints,
     const std::string& video_constraints) {
-  CHECK_CURRENTLY_ON(BrowserThread::UI, base::NotFatalUntil::M158);
+  DCHECK_CURRENTLY_ON(BrowserThread::UI);
 
   for (auto& observer : GetObserverList()) {
     observer.OnGetUserMedia(frame_id_, peer_pid_, request_id, audio, video,
@@ -197,7 +185,7 @@ void PeerConnectionTrackerHost::GetUserMediaSuccess(
     const std::string& stream_id,
     const std::string& audio_track_info,
     const std::string& video_track_info) {
-  CHECK_CURRENTLY_ON(BrowserThread::UI, base::NotFatalUntil::M158);
+  DCHECK_CURRENTLY_ON(BrowserThread::UI);
 
   for (auto& observer : GetObserverList()) {
     observer.OnGetUserMediaSuccess(frame_id_, peer_pid_, request_id, stream_id,
@@ -209,7 +197,7 @@ void PeerConnectionTrackerHost::GetUserMediaFailure(
     int request_id,
     const std::string& error,
     const std::string& error_message) {
-  CHECK_CURRENTLY_ON(BrowserThread::UI, base::NotFatalUntil::M158);
+  DCHECK_CURRENTLY_ON(BrowserThread::UI);
 
   for (auto& observer : GetObserverList()) {
     observer.OnGetUserMediaFailure(frame_id_, peer_pid_, request_id, error,
@@ -223,7 +211,7 @@ void PeerConnectionTrackerHost::GetDisplayMedia(
     bool video,
     const std::string& audio_constraints,
     const std::string& video_constraints) {
-  CHECK_CURRENTLY_ON(BrowserThread::UI, base::NotFatalUntil::M158);
+  DCHECK_CURRENTLY_ON(BrowserThread::UI);
 
   for (auto& observer : GetObserverList()) {
     observer.OnGetDisplayMedia(frame_id_, peer_pid_, request_id, audio, video,
@@ -236,7 +224,7 @@ void PeerConnectionTrackerHost::GetDisplayMediaSuccess(
     const std::string& stream_id,
     const std::string& audio_track_info,
     const std::string& video_track_info) {
-  CHECK_CURRENTLY_ON(BrowserThread::UI, base::NotFatalUntil::M158);
+  DCHECK_CURRENTLY_ON(BrowserThread::UI);
 
   for (auto& observer : GetObserverList()) {
     observer.OnGetDisplayMediaSuccess(frame_id_, peer_pid_, request_id,
@@ -249,7 +237,7 @@ void PeerConnectionTrackerHost::GetDisplayMediaFailure(
     int request_id,
     const std::string& error,
     const std::string& error_message) {
-  CHECK_CURRENTLY_ON(BrowserThread::UI, base::NotFatalUntil::M158);
+  DCHECK_CURRENTLY_ON(BrowserThread::UI);
 
   for (auto& observer : GetObserverList()) {
     observer.OnGetDisplayMediaFailure(frame_id_, peer_pid_, request_id, error,
@@ -260,7 +248,7 @@ void PeerConnectionTrackerHost::GetDisplayMediaFailure(
 void PeerConnectionTrackerHost::WebRtcEventLogWrite(
     int lid,
     const std::vector<uint8_t>& output) {
-  CHECK_CURRENTLY_ON(BrowserThread::UI, base::NotFatalUntil::M158);
+  DCHECK_CURRENTLY_ON(BrowserThread::UI);
 
   std::string message(output.begin(), output.end());
   for (auto& observer : GetObserverList()) {
@@ -269,41 +257,41 @@ void PeerConnectionTrackerHost::WebRtcEventLogWrite(
 }
 
 void PeerConnectionTrackerHost::OnSuspend() {
-  CHECK_CURRENTLY_ON(BrowserThread::UI, base::NotFatalUntil::M158);
+  DCHECK_CURRENTLY_ON(BrowserThread::UI);
   tracker_->OnSuspend();
 }
 
 void PeerConnectionTrackerHost::OnThermalStateChange(
     base::PowerThermalObserver::DeviceThermalState new_state) {
-  CHECK_CURRENTLY_ON(BrowserThread::UI, base::NotFatalUntil::M158);
+  DCHECK_CURRENTLY_ON(BrowserThread::UI);
   tracker_->OnThermalStateChange(
       static_cast<blink::mojom::DeviceThermalState>(new_state));
 }
 
 void PeerConnectionTrackerHost::StartEventLog(int lid, int output_period_ms) {
-  CHECK_CURRENTLY_ON(BrowserThread::UI, base::NotFatalUntil::M158);
+  DCHECK_CURRENTLY_ON(BrowserThread::UI);
   tracker_->StartEventLog(lid, output_period_ms);
 }
 
 void PeerConnectionTrackerHost::StopEventLog(int lid) {
-  CHECK_CURRENTLY_ON(BrowserThread::UI, base::NotFatalUntil::M158);
+  DCHECK_CURRENTLY_ON(BrowserThread::UI);
   tracker_->StopEventLog(lid);
 }
 
 void PeerConnectionTrackerHost::StartDataChannelLog(int lid) {
-  CHECK_CURRENTLY_ON(BrowserThread::UI, base::NotFatalUntil::M158);
+  DCHECK_CURRENTLY_ON(BrowserThread::UI);
   tracker_->StartDataChannelLog(lid);
 }
 
 void PeerConnectionTrackerHost::StopDataChannelLog(int lid) {
-  CHECK_CURRENTLY_ON(BrowserThread::UI, base::NotFatalUntil::M158);
+  DCHECK_CURRENTLY_ON(BrowserThread::UI);
   tracker_->StopDataChannelLog(lid);
 }
 
 void PeerConnectionTrackerHost::WebRtcDataChannelLogWrite(
     int lid,
     const std::vector<uint8_t>& output) {
-  CHECK_CURRENTLY_ON(BrowserThread::UI, base::NotFatalUntil::M158);
+  DCHECK_CURRENTLY_ON(BrowserThread::UI);
 
   std::string message(output.begin(), output.end());
   for (auto& observer : GetObserverList()) {
@@ -312,33 +300,22 @@ void PeerConnectionTrackerHost::WebRtcDataChannelLogWrite(
 }
 
 void PeerConnectionTrackerHost::GetStandardStats() {
-  CHECK_CURRENTLY_ON(BrowserThread::UI, base::NotFatalUntil::M158);
+  DCHECK_CURRENTLY_ON(BrowserThread::UI);
   tracker_->GetStandardStats();
 }
 
 void PeerConnectionTrackerHost::GetCurrentState() {
-  CHECK_CURRENTLY_ON(BrowserThread::UI, base::NotFatalUntil::M158);
+  DCHECK_CURRENTLY_ON(BrowserThread::UI);
   tracker_->GetCurrentState();
 }
 
 void PeerConnectionTrackerHost::BindReceiver(
     mojo::PendingReceiver<blink::mojom::PeerConnectionTrackerHost>
         pending_receiver) {
-  CHECK_CURRENTLY_ON(BrowserThread::UI, base::NotFatalUntil::M158);
+  DCHECK_CURRENTLY_ON(BrowserThread::UI);
   receiver_.reset();
   receiver_.Bind(std::move(pending_receiver));
 }
 
 DOCUMENT_USER_DATA_KEY_IMPL(PeerConnectionTrackerHost);
-
-#if BUILDFLAG(IS_ANDROID)
-// Android does not provide an API for apps to be notified of system suspend.
-// Therefore, base::PowerSuspendObserver::OnSuspend is never triggered on
-// Android. As a workaround, we use the SCREEN_OFF event as a proxy to trigger
-// WebRTC suspend, ensuring hardware resources are released.
-void PeerConnectionTrackerHost::OnScreenOff() {
-  CHECK_CURRENTLY_ON(BrowserThread::UI, base::NotFatalUntil::M158);
-  OnSuspend();
-}
-#endif
 }  // namespace content

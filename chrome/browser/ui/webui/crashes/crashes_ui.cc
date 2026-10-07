@@ -254,7 +254,7 @@ CrashesUI::CrashesUI(content::WebUI* web_ui) : WebUIController(web_ui) {
 }
 
 // static
-scoped_refptr<base::RefCountedMemory> CrashesUI::GetFaviconResourceBytes(
+base::RefCountedMemory* CrashesUI::GetFaviconResourceBytes(
     ui::ResourceScaleFactor scale_factor) {
   return ui::ResourceBundle::GetSharedInstance().LoadDataResourceBytesForScale(
       IDR_CRASH_SAD_FAVICON, scale_factor);

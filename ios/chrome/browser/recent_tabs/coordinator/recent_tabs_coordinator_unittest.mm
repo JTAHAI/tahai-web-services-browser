@@ -125,7 +125,7 @@ class RecentTabsTableCoordinatorTest : public BlockCleanupTest {
                               ios::FaviconServiceFactory::GetDefaultFactory());
     builder.AddTestingFactory(
         AuthenticationServiceFactory::GetInstance(),
-        AuthenticationServiceFactory::GetFactoryWithDelegateForTesting(
+        AuthenticationServiceFactory::GetFactoryWithDelegate(
             std::make_unique<FakeAuthenticationServiceDelegate>()));
     builder.AddTestingFactory(
         IOSChromeLargeIconServiceFactory::GetInstance(),

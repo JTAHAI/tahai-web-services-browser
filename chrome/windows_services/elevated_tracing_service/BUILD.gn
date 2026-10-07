@@ -12,9 +12,8 @@ midl("tracing_service_idl") {
 
   writes_tlb = true
   if (is_tahai_branded) {
-    # Chromium 154 changed AcceptInvitation from a string to a handle. Use a
-    # new TAHAI IID for that incompatible ABI, keeping the service CLSID stable.
-    # The unused custom proxy is not compiled; COM uses typelib marshaling.
+    # The official .158 IDL uses the handle invitation ABI. Keep the CLSID
+    # stable and use the reviewed TAHAI IID for that exact interface.
     dynamic_guids = "ignore_proxy_stub," +
                     "E0B03E2D-7682-4D83-B9FF-4574AF720500=" +
                     "E91BA5EB-59CF-50E3-8BC8-175FE36F3E79"

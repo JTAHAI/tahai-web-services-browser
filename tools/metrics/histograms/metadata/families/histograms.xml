@@ -64,7 +64,7 @@ Current expiration date for histograms owned by cros-families-eng@google.com:
 </histogram>
 
 <histogram name="AddSupervisionDialog.EnrollmentCompletedUserTime" units="ms"
-    expires_after="2027-01-28">
+    expires_after="2026-09-08">
   <owner>zhangwenyu@google.com</owner>
   <owner>longbowei@google.com</owner>
   <owner>cros-families-eng@google.com</owner>
@@ -76,7 +76,7 @@ Current expiration date for histograms owned by cros-families-eng@google.com:
 </histogram>
 
 <histogram name="AddSupervisionDialog.EnrollmentNotCompletedUserTime"
-    units="ms" expires_after="2027-01-28">
+    units="ms" expires_after="2026-09-08">
   <owner>zhangwenyu@google.com</owner>
   <owner>longbowei@google.com</owner>
   <owner>cros-families-eng@google.com</owner>
@@ -89,7 +89,7 @@ Current expiration date for histograms owned by cros-families-eng@google.com:
 </histogram>
 
 <histogram name="AddSupervisionDialog.SignoutCompletedUserTime" units="ms"
-    expires_after="2027-01-28">
+    expires_after="2026-09-08">
   <owner>zhangwenyu@google.com</owner>
   <owner>longbowei@google.com</owner>
   <owner>cros-families-eng@google.com</owner>
@@ -423,7 +423,7 @@ Current expiration date for histograms owned by cros-families-eng@google.com:
 </histogram>
 
 <histogram name="FamilyLinkUser.LocalWebApprovalCompleteRequestTotalDuration"
-    units="ms" expires_after="2027-02-07">
+    units="ms" expires_after="2026-11-29">
   <owner>anthie@google.com</owner>
   <owner>ljjlee@google.com</owner>
   <owner>chrome-kids-eng@google.com</owner>
@@ -437,7 +437,7 @@ Current expiration date for histograms owned by cros-families-eng@google.com:
 </histogram>
 
 <histogram name="FamilyLinkUser.LocalWebApprovalErrorType"
-    enum="LocalWebApprovalErrorType" expires_after="2027-01-31">
+    enum="LocalWebApprovalErrorType" expires_after="2026-11-29">
   <owner>anthie@google.com</owner>
   <owner>ddac@google.com</owner>
   <owner>chrome-kids-eng@google.com</owner>
@@ -448,7 +448,7 @@ Current expiration date for histograms owned by cros-families-eng@google.com:
 </histogram>
 
 <histogram name="FamilyLinkUser.LocalWebApprovalResult"
-    enum="FamilyLinkUserLocalApprovalResult" expires_after="2027-01-31">
+    enum="FamilyLinkUserLocalApprovalResult" expires_after="2026-11-29">
   <owner>agawronska@chromium.org</owner>
   <owner>cros-families-eng@google.com</owner>
   <owner>chrome-kids-eng@google.com</owner>
@@ -684,7 +684,7 @@ Current expiration date for histograms owned by cros-families-eng@google.com:
 
 <histogram name="FamilyUser.WebFilterType.PerRecord"
     enum="SupervisedUserWebFilterType" expires_after="2027-01-10">
-  <owner>tju@google.com</owner>
+  <owner>fernandex@chromium.org</owner>
   <owner>zhangwenyu@google.com</owner>
   <owner>longbowei@google.com</owner>
   <owner>chrome-kids-eng@google.com</owner>
@@ -698,10 +698,6 @@ Current expiration date for histograms owned by cros-families-eng@google.com:
     is emitted for every UMA record from the current session. In contrast,
     FamilyUser.WebFilterType is recorded less frequently; see its histogram
     description.
-
-    Reported value reflects the effective web filter type.
-
-    Android: takes into account both account and device parental controls.
   </summary>
 </histogram>
 
@@ -837,7 +833,7 @@ Current expiration date for histograms owned by cros-families-eng@google.com:
 
 <histogram
     name="SupervisedUsers.ClassifyUrlThrottle.EarlierThanContentResponse"
-    units="ms" expires_after="2027-02-07">
+    units="ms" expires_after="2026-12-06">
   <owner>tju@google.com</owner>
   <owner>chrome-kids-eng@google.com</owner>
   <summary>
@@ -934,6 +930,18 @@ Current expiration date for histograms owned by cros-families-eng@google.com:
   </summary>
 </histogram>
 
+<histogram name="SupervisedUsers.FamilyLinkSupervisionConflict"
+    enum="BooleanHasConflict" expires_after="2026-05-17">
+  <owner>tju@google.com</owner>
+  <owner>chrome-signin-team@google.com</owner>
+  <summary>
+    Recorded each time when Family Link supervision is detected for a user that
+    already has local supervision enabled.
+
+    Recorded only for Android clients.
+  </summary>
+</histogram>
+
 <histogram name="SupervisedUsers.ParentPermissionDialog"
     enum="SupervisedUserParentPermissionDialog" expires_after="2026-11-01">
   <owner>zhangwenyu@google.com</owner>
@@ -1015,7 +1023,7 @@ Current expiration date for histograms owned by cros-families-eng@google.com:
 
 <histogram
     name="SupervisedUsers.SkipParentApprovalToInstallExtensions.PerRecord"
-    enum="SupervisedUserToggleState" expires_after="2027-02-07">
+    enum="SupervisedUserToggleState" expires_after="2026-11-29">
   <owner>anthie@google.com</owner>
   <owner>chrome-kids-eng@google.com</owner>
   <owner>cros-families-eng@google.com</owner>
@@ -1203,7 +1211,7 @@ Current expiration date for histograms owned by cros-families-eng@google.com:
 </histogram>
 
 <histogram name="{RequestType}.{Status}.Latency" units="ms"
-    expires_after="2027-02-07">
+    expires_after="2026-11-29">
   <owner>tju@google.com</owner>
   <owner>chrome-kids-eng@google.com</owner>
   <summary>

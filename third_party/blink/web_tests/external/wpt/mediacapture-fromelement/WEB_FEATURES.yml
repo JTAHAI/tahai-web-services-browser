@@ -1,7 +1,11 @@
-rules:
-- capture-muted.html: [capture-stream-audio-video]
-- capture.html: [capture-stream-audio-video]
-- creation.html: [capture-stream-audio-video]
-- cross-origin.html: [capture-stream-audio-video]
-- ended.html: [capture-stream-audio-video]
-- HTMLCanvasElement-*: [capture-stream-canvas]
+features:
+- name: capture-stream-audio-video
+  files:
+  - capture-muted.html
+  - capture.html
+  - creation.html
+  - cross-origin.html
+  - ended.html
+- name: capture-stream-canvas
+  files:
+  - HTMLCanvasElement-*

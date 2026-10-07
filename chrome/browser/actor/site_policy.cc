@@ -85,6 +85,13 @@ mojom::ActionResultCode BlockReasonToResultCode(MayActOnUrlBlockReason reason,
       for_navigation ? ActionResultCode::kTriggeredNavigationBlocked
                      : ActionResultCode::kUrlBlocked;
 
+  auto maybe_granular = [generic_block_code](
+                            mojom::ActionResultCode specific_code) {
+    return base::FeatureList::IsEnabled(kGlicGranularBlockingActionResultCodes)
+               ? specific_code
+               : generic_block_code;
+  };
+
   switch (reason) {
     case MayActOnUrlBlockReason::kAllowed:
       return ActionResultCode::kOk;
@@ -96,22 +103,22 @@ mojom::ActionResultCode BlockReasonToResultCode(MayActOnUrlBlockReason reason,
     }
     case MayActOnUrlBlockReason::kLookalikeDomain:
     case MayActOnUrlBlockReason::kBlockedByStaticList:
-      return ActionResultCode::kActionsBlockedForSiteRisk;
+      return maybe_granular(ActionResultCode::kActionsBlockedForSiteRisk);
     case MayActOnUrlBlockReason::kSafeBrowsing:
-      return ActionResultCode::kActionsBlockedSafeBrowsingDisabled;
+      return maybe_granular(
+          ActionResultCode::kActionsBlockedSafeBrowsingDisabled);
     case MayActOnUrlBlockReason::kEnterprisePolicy:
-      return ActionResultCode::kActionsBlockedByEnterprisePolicy;
+      return maybe_granular(
+          ActionResultCode::kActionsBlockedByEnterprisePolicy);
     case MayActOnUrlBlockReason::kWrongScheme:
-      return ActionResultCode::kActionsBlockedForScheme;
+      return maybe_granular(ActionResultCode::kActionsBlockedForScheme);
     case MayActOnUrlBlockReason::kTabIsErrorDocument:
-      return ActionResultCode::kActionsBlockedOnErrorPage;
-    case MayActOnUrlBlockReason::kDangerousMimeType:
+      return maybe_granular(ActionResultCode::kActionsBlockedOnErrorPage);
     case MayActOnUrlBlockReason::kIpAddress:
     case MayActOnUrlBlockReason::kOptimizationGuideBlock:
+    case MayActOnUrlBlockReason::kUrlNotInAllowlist:
     case MayActOnUrlBlockReason::kBlockedByContainerConfig:
       return generic_block_code;
-    case MayActOnUrlBlockReason::kTaskCancelled:
-      return ActionResultCode::kTaskWentAway;
   }
 }
 

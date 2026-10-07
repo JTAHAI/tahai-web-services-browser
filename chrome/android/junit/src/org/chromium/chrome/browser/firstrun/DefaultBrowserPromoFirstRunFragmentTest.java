@@ -35,7 +35,6 @@ import org.mockito.junit.MockitoRule;
 import org.chromium.base.FeatureOverrides;
 import org.chromium.base.supplier.OneshotSupplierImpl;
 import org.chromium.base.test.BaseRobolectricTestRunner;
-import org.chromium.base.test.util.Features.DisableFeatures;
 import org.chromium.base.test.util.Features.EnableFeatures;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.feature_engagement.TrackerFactory;
@@ -51,7 +50,6 @@ import org.chromium.ui.base.WindowAndroid;
 /** Robolectric tests for {@link DefaultBrowserPromoFirstRunFragment}. */
 @RunWith(BaseRobolectricTestRunner.class)
 @EnableFeatures({ChromeFeatureList.DEFAULT_BROWSER_PROMO_FRE})
-@DisableFeatures({ChromeFeatureList.ANDROID_FRE_LAYOUT_UPDATE})
 public class DefaultBrowserPromoFirstRunFragmentTest {
 
     /**

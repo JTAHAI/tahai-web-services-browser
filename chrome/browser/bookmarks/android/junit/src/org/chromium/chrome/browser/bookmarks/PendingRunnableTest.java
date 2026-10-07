@@ -19,8 +19,10 @@ import org.robolectric.annotation.Config;
 import org.chromium.base.task.TaskTraits;
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.base.test.RobolectricUtil;
+import org.chromium.base.test.util.Batch;
 
 /** Unit tests for {@link PendingRunnable}. */
+@Batch(Batch.UNIT_TESTS)
 @RunWith(BaseRobolectricTestRunner.class)
 @Config(manifest = Config.NONE)
 public class PendingRunnableTest {

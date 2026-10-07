@@ -20,7 +20,7 @@
 #include "components/webapps/common/web_app_id.h"
 #include "url/gurl.h"
 
-class BrowserWindowInterface;
+class Browser;
 class PrefService;
 class Profile;
 
@@ -103,7 +103,7 @@ void TestDeclineDialogCallback(
     std::unique_ptr<WebAppInstallInfo> web_app_info,
     WebAppInstallationAcceptanceCallback acceptance_callback);
 
-webapps::AppId InstallPwaForCurrentUrl(BrowserWindowInterface* browser);
+webapps::AppId InstallPwaForCurrentUrl(Browser* browser);
 
 void CheckServiceWorkerStatus(const GURL& url,
                               content::StoragePartition* storage_partition,

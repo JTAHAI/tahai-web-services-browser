@@ -35,7 +35,6 @@
 #include <cstdint>
 #include <optional>
 
-#include "services/network/public/mojom/ip_address_space.mojom-blink.h"
 #include "third_party/blink/renderer/bindings/core/v8/active_script_wrappable.h"
 #include "third_party/blink/renderer/bindings/core/v8/capture_source_location.h"
 #include "third_party/blink/renderer/bindings/modules/v8/v8_binary_type.h"
@@ -97,9 +96,7 @@ class MODULES_EXPORT DOMWebSocket
 
   void Connect(const String& url,
                const Vector<String>& protocols,
-               ExceptionState&,
-               network::mojom::blink::IPAddressSpace target_address_space =
-                   network::mojom::blink::IPAddressSpace::kUnknown);
+               ExceptionState&);
 
   void send(const String& message, ExceptionState&);
   void send(DOMArrayBuffer*, ExceptionState&);

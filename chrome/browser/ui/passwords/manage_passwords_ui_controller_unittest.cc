@@ -39,6 +39,7 @@
 #include "chrome/browser/ui/views/passwords/manage_passwords_page_action_controller.h"
 #include "chrome/test/base/chrome_render_view_host_test_harness.h"
 #include "components/affiliations/core/browser/mock_affiliation_service.h"
+#include "components/autofill/core/common/autofill_features.h"
 #include "components/device_reauth/device_authenticator.h"
 #include "components/metrics/profile_metrics_service.h"
 #include "components/password_manager/core/browser/features/password_features.h"
@@ -53,7 +54,6 @@
 #include "components/password_manager/core/browser/password_store/interactions_stats.h"
 #include "components/password_manager/core/browser/password_store/mock_password_store_interface.h"
 #include "components/password_manager/core/browser/password_store/password_form_converters.h"
-#include "components/password_manager/core/browser/password_string.h"
 #include "components/password_manager/core/browser/stub_password_manager_client.h"
 #include "components/password_manager/core/browser/undo_password_change_controller.h"
 #include "components/password_manager/core/common/password_manager_features.h"
@@ -82,7 +82,6 @@ using ReauthSucceeded =
 using InsecureType = password_manager::InsecureType;
 using password_manager::InsecurityMetadata;
 using password_manager::PasswordForm;
-using password_manager::PasswordString;
 using password_manager::StoredCredential;
 using ::testing::_;
 using ::testing::AtLeast;
@@ -154,17 +153,8 @@ class TestPasswordManagerClient
               (override));
 #endif
 
-  void SetAccountPasswordStore(
-      scoped_refptr<MockPasswordStoreInterface> store) {
-    mock_account_store_ = std::move(store);
-  }
-
   MockPasswordStoreInterface* GetProfilePasswordStore() const override {
     return mock_profile_store_.get();
-  }
-
-  MockPasswordStoreInterface* GetAccountPasswordStore() const override {
-    return mock_account_store_.get();
   }
 
   const syncer::SyncService* GetSyncService() const override {
@@ -174,7 +164,6 @@ class TestPasswordManagerClient
  private:
   syncer::TestSyncService sync_service_;
   scoped_refptr<MockPasswordStoreInterface> mock_profile_store_;
-  scoped_refptr<MockPasswordStoreInterface> mock_account_store_;
 };
 
 // This subclass is used to disable some code paths which are not essential for
@@ -191,7 +180,7 @@ class TestManagePasswordsUIController : public ManagePasswordsUIController {
               CreateAccountChooser,
               (CredentialManagerDialogController*),
               (override));
-  MOCK_METHOD(std::unique_ptr<AutoSigninFirstRunPrompt>,
+  MOCK_METHOD(AutoSigninFirstRunPrompt*,
               CreateAutoSigninPrompt,
               (CredentialManagerDialogController*),
               (override));
@@ -343,21 +332,24 @@ class MockPasswordChangeService : public ChromePasswordChangeService {
 password_manager::PasswordForm CreatePasswordForm(
     const std::string& url,
     const std::u16string& username,
-    std::u16string password) {
+    const std::u16string& password) {
   PasswordForm password_form;
   password_form.url = GURL(url);
   password_form.signon_realm = GURL(url).GetWithEmptyPath().spec();
   password_form.username_value = username;
-  password_form.password_value = PasswordString(std::move(password));
+  password_form.password_value = password;
   return password_form;
 }
 
 }  // namespace
 
-class ManagePasswordsUIControllerTest : public ChromeRenderViewHostTestHarness {
+class ManagePasswordsUIControllerTest : public base::test::WithFeatureOverride,
+                                        public ChromeRenderViewHostTestHarness {
  public:
   ManagePasswordsUIControllerTest()
-      : ChromeRenderViewHostTestHarness(
+      : base::test::WithFeatureOverride(
+            autofill::features::kAutofillShowBubblesBasedOnPriorities),
+        ChromeRenderViewHostTestHarness(
             base::test::TaskEnvironment::TimeSource::MOCK_TIME) {}
 
   void SetUp() override;
@@ -403,7 +395,7 @@ void ManagePasswordsUIControllerTest::SetUp() {
       test_local_form_.url.DeprecatedGetOriginAsURL().spec();
   test_local_form_.username_value = u"username";
   test_local_form_.username_element = u"username_element";
-  test_local_form_.password_value = PasswordString(u"12345");
+  test_local_form_.password_value = u"12345";
   test_local_form_.password_element = u"password_element";
   test_local_form_.match_type = PasswordForm::MatchType::kExact;
 
@@ -417,7 +409,7 @@ void ManagePasswordsUIControllerTest::SetUp() {
 
   submitted_form_ = test_local_form_;
   submitted_form_.username_value = u"submitted_username";
-  submitted_form_.password_value = PasswordString(u"pass12345");
+  submitted_form_.password_value = u"pass12345";
 
   // We need to be on a "webby" URL for most tests.
   content::NavigationSimulator::NavigateAndCommitFromBrowser(web_contents(),
@@ -435,13 +427,13 @@ void ManagePasswordsUIControllerTest::WaitForPasswordStore() {
   task_environment()->RunUntilIdle();
 }
 
-TEST_F(ManagePasswordsUIControllerTest, DefaultState) {
+TEST_P(ManagePasswordsUIControllerTest, DefaultState) {
   EXPECT_TRUE(controller()->GetOrigin().opaque());
 
   EXPECT_EQ(password_manager::ui::INACTIVE_STATE, controller()->GetState());
 }
 
-TEST_F(ManagePasswordsUIControllerTest, PasswordAutofilled) {
+TEST_P(ManagePasswordsUIControllerTest, PasswordAutofilled) {
   std::vector<PasswordForm> forms = {test_local_form()};
   EXPECT_CALL(*controller(), OnUpdateBubbleAndIconVisibility());
   controller()->OnPasswordAutofilled(
@@ -459,7 +451,7 @@ TEST_F(ManagePasswordsUIControllerTest, PasswordAutofilled) {
   EXPECT_EQ(password_manager::ui::MANAGE_STATE, controller()->GetState());
 }
 
-TEST_F(ManagePasswordsUIControllerTest, PasswordSubmitted) {
+TEST_P(ManagePasswordsUIControllerTest, PasswordSubmitted) {
   std::vector<PasswordForm> best_matches;
   auto test_form_manager =
       CreateFormManagerWithBestMatches(best_matches, &submitted_form());
@@ -473,7 +465,7 @@ TEST_F(ManagePasswordsUIControllerTest, PasswordSubmitted) {
             controller()->GetState());
 }
 
-TEST_F(ManagePasswordsUIControllerTest, BlocklistedFormPasswordSubmitted) {
+TEST_P(ManagePasswordsUIControllerTest, BlocklistedFormPasswordSubmitted) {
   std::vector<PasswordForm> best_matches;
   auto test_form_manager = CreateFormManagerWithBestMatches(
       best_matches, &submitted_form(), /*is_blocklisted=*/true);
@@ -485,7 +477,7 @@ TEST_F(ManagePasswordsUIControllerTest, BlocklistedFormPasswordSubmitted) {
             controller()->GetState());
 }
 
-TEST_F(ManagePasswordsUIControllerTest, PasswordSubmittedBubbleSuppressed) {
+TEST_P(ManagePasswordsUIControllerTest, PasswordSubmittedBubbleSuppressed) {
   std::vector<PasswordForm> best_matches;
   auto test_form_manager =
       CreateFormManagerWithBestMatches(best_matches, &submitted_form());
@@ -505,7 +497,7 @@ TEST_F(ManagePasswordsUIControllerTest, PasswordSubmittedBubbleSuppressed) {
             controller()->GetState());
 }
 
-TEST_F(ManagePasswordsUIControllerTest, PasswordSubmittedBubbleNotSuppressed) {
+TEST_P(ManagePasswordsUIControllerTest, PasswordSubmittedBubbleNotSuppressed) {
   std::vector<PasswordForm> best_matches;
   auto test_form_manager =
       CreateFormManagerWithBestMatches(best_matches, &submitted_form());
@@ -524,7 +516,7 @@ TEST_F(ManagePasswordsUIControllerTest, PasswordSubmittedBubbleNotSuppressed) {
             controller()->GetState());
 }
 
-TEST_F(ManagePasswordsUIControllerTest, PasswordSubmittedBubbleCancelled) {
+TEST_P(ManagePasswordsUIControllerTest, PasswordSubmittedBubbleCancelled) {
   // Test on the real controller.
   std::unique_ptr<content::WebContents> web_content(CreateTestWebContents());
   content::NavigationSimulator::NavigateAndCommitFromBrowser(web_content.get(),
@@ -549,7 +541,7 @@ TEST_F(ManagePasswordsUIControllerTest, PasswordSubmittedBubbleCancelled) {
   EXPECT_FALSE(controller->IsAutomaticallyOpeningBubble());
 }
 
-TEST_F(ManagePasswordsUIControllerTest, PasswordSaved) {
+TEST_P(ManagePasswordsUIControllerTest, PasswordSaved) {
   auto* mock_sentiment_service_ = static_cast<MockTrustSafetySentimentService*>(
       TrustSafetySentimentServiceFactory::GetInstance()
           ->SetTestingFactoryAndUse(
@@ -574,7 +566,7 @@ TEST_F(ManagePasswordsUIControllerTest, PasswordSaved) {
 
 // If the user started the trusted vault error resolution flow, we must
 // automatically save the password after the error is fixed.
-TEST_F(ManagePasswordsUIControllerTest, PasswordSavedAfterErrorResolution) {
+TEST_P(ManagePasswordsUIControllerTest, PasswordSavedAfterErrorResolution) {
   base::test::ScopedFeatureList scoped_feature_list{
       password_manager::features::kPasswordSaveInContextErrorResolution};
 
@@ -607,7 +599,7 @@ TEST_F(ManagePasswordsUIControllerTest, PasswordSavedAfterErrorResolution) {
   // error state didn't change. In this case the password should remain in the
   // pending state.
   controller()->OnErrorStateChanged(
-      client().GetProfilePasswordStore(),
+      /*unused source store:*/ nullptr,
       password_manager::ActionableError::kTrustedVaultKeyNeeded);
   EXPECT_EQ(password_manager::ui::PENDING_PASSWORD_STATE,
             controller()->GetState());
@@ -618,7 +610,7 @@ TEST_F(ManagePasswordsUIControllerTest, PasswordSavedAfterErrorResolution) {
   EXPECT_CALL(*client().GetProfilePasswordStore(), GetError())
       .WillRepeatedly(Return(password_manager::ActionableError::kNoError));
   controller()->OnErrorStateChanged(
-      client().GetProfilePasswordStore(),
+      /*unused source store:*/ nullptr,
       password_manager::ActionableError::kNoError);
   WaitForPasswordStore();
   EXPECT_EQ(password_manager::ui::MANAGE_STATE, controller()->GetState());
@@ -630,7 +622,7 @@ TEST_F(ManagePasswordsUIControllerTest, PasswordSavedAfterErrorResolution) {
 // the profile menu notification, or by performing the trusted vault encryption
 // reset in a different browser) - we must not automatically save the password.
 // The UI should remain in PENDING_PASSWORD_STATE and Save() must not be called.
-TEST_F(ManagePasswordsUIControllerTest,
+TEST_P(ManagePasswordsUIControllerTest,
        PasswordBubbleClosedAfterErrorResolutionElsewhere) {
   base::test::ScopedFeatureList scoped_feature_list{
       password_manager::features::kPasswordSaveInContextErrorResolution};
@@ -664,7 +656,7 @@ TEST_F(ManagePasswordsUIControllerTest,
   EXPECT_CALL(*client().GetProfilePasswordStore(), GetError())
       .WillRepeatedly(Return(password_manager::ActionableError::kNoError));
   controller()->OnErrorStateChanged(
-      client().GetProfilePasswordStore(),
+      /*unused source store:*/ nullptr,
       password_manager::ActionableError::kNoError);
 
   // We expect the pending state in this case.
@@ -672,44 +664,7 @@ TEST_F(ManagePasswordsUIControllerTest,
             controller()->GetState());
 }
 
-TEST_F(ManagePasswordsUIControllerTest,
-       OnErrorStateChangedIgnoresNonRelevantStore) {
-  base::test::ScopedFeatureList scoped_feature_list{
-      password_manager::features::kPasswordSaveInContextErrorResolution};
-
-  std::vector<PasswordForm> best_matches;
-  std::unique_ptr<MockPasswordFormManagerForUI> test_form_manager =
-      CreateFormManagerWithBestMatches(best_matches, &submitted_form());
-  EXPECT_CALL(*controller(), OnUpdateBubbleAndIconVisibility());
-  EXPECT_CALL(*test_form_manager,
-              GetPasswordStoreForSaving(Eq(submitted_form())))
-      .WillRepeatedly(
-          Return(password_manager::PasswordForm::Store::kProfileStore));
-
-  controller()->OnPasswordSubmitted(std::move(test_form_manager));
-  EXPECT_EQ(password_manager::ui::PENDING_PASSWORD_STATE,
-            controller()->GetState());
-  EXPECT_TRUE(controller()->opened_automatic_bubble());
-
-  auto account_store = base::MakeRefCounted<MockPasswordStoreInterface>();
-  client().SetAccountPasswordStore(account_store);
-
-  // Error state changes from non-relevant store (account store when saving to
-  // profile store) should be ignored and the bubble must remain open.
-  controller()->OnErrorStateChanged(
-      account_store.get(),
-      password_manager::ActionableError::kTrustedVaultKeyNeeded);
-  EXPECT_TRUE(controller()->opened_automatic_bubble());
-
-  // Error state changes from the relevant store (profile store) should cause
-  // the bubble to be hidden to avoid showing stale UI.
-  controller()->OnErrorStateChanged(
-      client().GetProfilePasswordStore(),
-      password_manager::ActionableError::kTrustedVaultKeyNeeded);
-  EXPECT_FALSE(controller()->opened_automatic_bubble());
-}
-
-TEST_F(ManagePasswordsUIControllerTest, BackupPasswordSaved) {
+TEST_P(ManagePasswordsUIControllerTest, BackupPasswordSaved) {
   using UkmEntry = ukm::builders::PasswordManager_ChangeRecovery;
   base::HistogramTester histogram_tester;
   ukm::TestAutoSetUkmRecorder test_ukm_recorder;
@@ -722,11 +677,10 @@ TEST_F(ManagePasswordsUIControllerTest, BackupPasswordSaved) {
   const std::u16string backup_password = u"backup";
   PasswordForm submitted_form;
   submitted_form.username_value = kExampleUsername;
-  submitted_form.password_value =
-      PasswordString(std::u16string(backup_password));
+  submitted_form.password_value = backup_password;
   PasswordForm stored_matching_form;
   stored_matching_form.username_value = kExampleUsername;
-  stored_matching_form.password_value = PasswordString(kExamplePassword);
+  stored_matching_form.password_value = kExamplePassword;
   stored_matching_form.SetPasswordBackupNote(backup_password);
   stored_matching_form.type =
       password_manager::PasswordForm::Type::kChangeSubmission;
@@ -757,7 +711,7 @@ TEST_F(ManagePasswordsUIControllerTest, BackupPasswordSaved) {
               kPrimaryPasswordUpdated));
 }
 
-TEST_F(ManagePasswordsUIControllerTest, PhishedPasswordUpdated) {
+TEST_P(ManagePasswordsUIControllerTest, PhishedPasswordUpdated) {
   auto* mock_sentiment_service = static_cast<MockTrustSafetySentimentService*>(
       TrustSafetySentimentServiceFactory::GetInstance()
           ->SetTestingFactoryAndUse(
@@ -778,7 +732,7 @@ TEST_F(ManagePasswordsUIControllerTest, PhishedPasswordUpdated) {
   EXPECT_EQ(password_manager::ui::MANAGE_STATE, controller()->GetState());
 }
 
-TEST_F(ManagePasswordsUIControllerTest, PasswordSavedUKMRecording) {
+TEST_P(ManagePasswordsUIControllerTest, PasswordSavedUKMRecording) {
   using UkmEntry = ukm::builders::PasswordForm;
   const struct {
     // Whether to simulate editing the username or picking a different password.
@@ -814,7 +768,7 @@ TEST_F(ManagePasswordsUIControllerTest, PasswordSavedUKMRecording) {
                 OnUpdateUsernameFromPrompt(std::u16string(u"other_username")))
         .Times(test.edit_username);
     EXPECT_CALL(*test_form_manager,
-                OnUpdatePasswordFromPrompt(PasswordString(u"other_pwd")))
+                OnUpdatePasswordFromPrompt(std::u16string(u"other_pwd")))
         .Times(test.change_password);
     EXPECT_CALL(*test_form_manager, Save());
     controller()->OnPasswordSubmitted(std::move(test_form_manager));
@@ -822,8 +776,7 @@ TEST_F(ManagePasswordsUIControllerTest, PasswordSavedUKMRecording) {
     controller()->SavePassword(
         test.edit_username ? u"other_username"
                            : submitted_form().username_value,
-        test.change_password ? PasswordString(u"other_pwd")
-                             : submitted_form().password_value);
+        test.change_password ? u"other_pwd" : submitted_form().password_value);
     EXPECT_EQ(password_manager::ui::MANAGE_STATE, controller()->GetState());
 
     // Fake navigation so that the old form manager gets destroyed and
@@ -870,7 +823,7 @@ TEST_F(ManagePasswordsUIControllerTest, PasswordSavedUKMRecording) {
   }
 }
 
-TEST_F(ManagePasswordsUIControllerTest, PasswordBlocklisted) {
+TEST_P(ManagePasswordsUIControllerTest, PasswordBlocklisted) {
   std::vector<PasswordForm> best_matches;
   auto test_form_manager =
       CreateFormManagerWithBestMatches(best_matches, &submitted_form());
@@ -884,7 +837,7 @@ TEST_F(ManagePasswordsUIControllerTest, PasswordBlocklisted) {
   EXPECT_EQ(password_manager::ui::INACTIVE_STATE, controller()->GetState());
 }
 
-TEST_F(ManagePasswordsUIControllerTest,
+TEST_P(ManagePasswordsUIControllerTest,
        PasswordBlocklistedWithExistingCredentials) {
   std::vector<PasswordForm> best_matches = {test_local_form()};
   auto test_form_manager =
@@ -898,7 +851,7 @@ TEST_F(ManagePasswordsUIControllerTest,
   EXPECT_EQ(password_manager::ui::MANAGE_STATE, controller()->GetState());
 }
 
-TEST_F(ManagePasswordsUIControllerTest, NormalNavigations) {
+TEST_P(ManagePasswordsUIControllerTest, NormalNavigations) {
   std::vector<PasswordForm> best_matches = {test_local_form()};
   auto test_form_manager =
       CreateFormManagerWithBestMatches(best_matches, &submitted_form());
@@ -916,7 +869,7 @@ TEST_F(ManagePasswordsUIControllerTest, NormalNavigations) {
             controller()->GetState());
 }
 
-TEST_F(ManagePasswordsUIControllerTest, NormalNavigationsClosedBubble) {
+TEST_P(ManagePasswordsUIControllerTest, NormalNavigationsClosedBubble) {
   std::vector<PasswordForm> best_matches;
   auto test_form_manager =
       CreateFormManagerWithBestMatches(best_matches, &submitted_form());
@@ -936,7 +889,7 @@ TEST_F(ManagePasswordsUIControllerTest, NormalNavigationsClosedBubble) {
   EXPECT_EQ(password_manager::ui::INACTIVE_STATE, controller()->GetState());
 }
 
-TEST_F(ManagePasswordsUIControllerTest, PasswordSubmittedToNonWebbyURL) {
+TEST_P(ManagePasswordsUIControllerTest, PasswordSubmittedToNonWebbyURL) {
   // Navigate to a non-webby URL, then see what happens!
   EXPECT_CALL(*controller(), OnUpdateBubbleAndIconVisibility());
   content::NavigationSimulator::NavigateAndCommitFromBrowser(
@@ -952,14 +905,14 @@ TEST_F(ManagePasswordsUIControllerTest, PasswordSubmittedToNonWebbyURL) {
   EXPECT_EQ(password_manager::ui::INACTIVE_STATE, controller()->GetState());
 }
 
-TEST_F(ManagePasswordsUIControllerTest,
+TEST_P(ManagePasswordsUIControllerTest,
        OnBiometricAuthTransitionWhenStateInactive) {
   EXPECT_EQ(password_manager::ui::INACTIVE_STATE, controller()->GetState());
   controller()->OnBiometricAuthenticationForFilling(profile()->GetPrefs());
   ASSERT_EQ(password_manager::ui::INACTIVE_STATE, controller()->GetState());
 }
 
-TEST_F(ManagePasswordsUIControllerTest, BlocklistedElsewhere) {
+TEST_P(ManagePasswordsUIControllerTest, BlocklistedElsewhere) {
   std::u16string kTestUsername = u"test_username";
   std::vector<PasswordForm> forms;
   forms.push_back(test_local_form());
@@ -980,7 +933,7 @@ TEST_F(ManagePasswordsUIControllerTest, BlocklistedElsewhere) {
   EXPECT_EQ(password_manager::ui::MANAGE_STATE, controller()->GetState());
 }
 
-TEST_F(ManagePasswordsUIControllerTest, AutomaticPasswordSave) {
+TEST_P(ManagePasswordsUIControllerTest, AutomaticPasswordSave) {
   std::vector<PasswordForm> best_matches;
   std::unique_ptr<MockPasswordFormManagerForUI> test_form_manager =
       CreateFormManagerWithBestMatches(best_matches, &submitted_form());
@@ -1004,7 +957,7 @@ TEST_F(ManagePasswordsUIControllerTest, AutomaticPasswordSave) {
   EXPECT_EQ(password_manager::ui::MANAGE_STATE, controller()->GetState());
 }
 
-TEST_F(ManagePasswordsUIControllerTest, ChooseCredentialLocal) {
+TEST_P(ManagePasswordsUIControllerTest, ChooseCredentialLocal) {
   std::vector<std::unique_ptr<PasswordForm>> local_credentials;
   local_credentials.emplace_back(new PasswordForm(test_local_form()));
   url::Origin origin = url::Origin::Create(GURL(kExampleUrl));
@@ -1037,7 +990,7 @@ TEST_F(ManagePasswordsUIControllerTest, ChooseCredentialLocal) {
   EXPECT_EQ(password_manager::ui::MANAGE_STATE, controller()->GetState());
 }
 
-TEST_F(ManagePasswordsUIControllerTest, ChooseCredentialLocalButFederated) {
+TEST_P(ManagePasswordsUIControllerTest, ChooseCredentialLocalButFederated) {
   std::vector<std::unique_ptr<PasswordForm>> local_credentials;
   local_credentials.emplace_back(new PasswordForm(test_federated_form()));
   url::Origin origin = url::Origin::Create(GURL(kExampleUrl));
@@ -1070,7 +1023,7 @@ TEST_F(ManagePasswordsUIControllerTest, ChooseCredentialLocalButFederated) {
   EXPECT_EQ(password_manager::ui::MANAGE_STATE, controller()->GetState());
 }
 
-TEST_F(ManagePasswordsUIControllerTest, ChooseCredentialCancel) {
+TEST_P(ManagePasswordsUIControllerTest, ChooseCredentialCancel) {
   std::vector<std::unique_ptr<PasswordForm>> local_credentials;
   local_credentials.emplace_back(new PasswordForm(test_local_form()));
   url::Origin origin = url::Origin::Create(GURL(kExampleUrl));
@@ -1097,7 +1050,7 @@ TEST_F(ManagePasswordsUIControllerTest, ChooseCredentialCancel) {
   EXPECT_EQ(password_manager::ui::MANAGE_STATE, controller()->GetState());
 }
 
-TEST_F(ManagePasswordsUIControllerTest, ChooseCredentialPrefetch) {
+TEST_P(ManagePasswordsUIControllerTest, ChooseCredentialPrefetch) {
   std::vector<std::unique_ptr<PasswordForm>> local_credentials;
   local_credentials.emplace_back(new PasswordForm(test_local_form()));
   url::Origin origin = url::Origin::Create(GURL(kExampleUrl));
@@ -1111,7 +1064,7 @@ TEST_F(ManagePasswordsUIControllerTest, ChooseCredentialPrefetch) {
   EXPECT_EQ(password_manager::ui::INACTIVE_STATE, controller()->GetState());
 }
 
-TEST_F(ManagePasswordsUIControllerTest, ChooseCredentialPSL) {
+TEST_P(ManagePasswordsUIControllerTest, ChooseCredentialPSL) {
   test_local_form().match_type = PasswordForm::MatchType::kPSL;
   std::vector<std::unique_ptr<PasswordForm>> local_credentials;
   local_credentials.emplace_back(new PasswordForm(test_local_form()));
@@ -1145,7 +1098,7 @@ TEST_F(ManagePasswordsUIControllerTest, ChooseCredentialPSL) {
   EXPECT_THAT(controller()->GetCurrentForms(), IsEmpty());
 }
 
-TEST_F(ManagePasswordsUIControllerTest, AutoSignin) {
+TEST_P(ManagePasswordsUIControllerTest, AutoSignin) {
   std::vector<std::unique_ptr<PasswordForm>> local_credentials;
   local_credentials.emplace_back(new PasswordForm(test_local_form()));
   EXPECT_CALL(*controller(), OnUpdateBubbleAndIconVisibility());
@@ -1161,19 +1114,17 @@ TEST_F(ManagePasswordsUIControllerTest, AutoSignin) {
   EXPECT_EQ(password_manager::ui::MANAGE_STATE, controller()->GetState());
 }
 
-TEST_F(ManagePasswordsUIControllerTest, AutoSigninFirstRun) {
-  auto prompt = std::make_unique<CredentialManagementDialogPromptMock>();
-  auto* prompt_ptr = prompt.get();
+TEST_P(ManagePasswordsUIControllerTest, AutoSigninFirstRun) {
   EXPECT_CALL(*controller(), CreateAutoSigninPrompt(_))
-      .WillOnce(Return(std::move(prompt)));
-  EXPECT_CALL(*prompt_ptr, ShowAutoSigninPrompt());
+      .WillOnce(Return(&dialog_prompt()));
+  EXPECT_CALL(dialog_prompt(), ShowAutoSigninPrompt());
   controller()->OnPromptEnableAutoSignin();
 
   EXPECT_EQ(password_manager::ui::INACTIVE_STATE, controller()->GetState());
-  EXPECT_CALL(*prompt_ptr, ControllerGone());
+  EXPECT_CALL(dialog_prompt(), ControllerGone());
 }
 
-TEST_F(ManagePasswordsUIControllerTest, AutoSigninFirstRunAfterAutofill) {
+TEST_P(ManagePasswordsUIControllerTest, AutoSigninFirstRunAfterAutofill) {
   // Setup the managed state first.
   const PasswordForm* test_form_ptr = &test_local_form();
   const std::u16string kTestUsername = test_form_ptr->username_value;
@@ -1184,39 +1135,35 @@ TEST_F(ManagePasswordsUIControllerTest, AutoSigninFirstRunAfterAutofill) {
   EXPECT_EQ(password_manager::ui::MANAGE_STATE, controller()->GetState());
 
   // Pop up the autosignin promo. The state should stay intact.
-  auto prompt = std::make_unique<CredentialManagementDialogPromptMock>();
-  auto* prompt_ptr = prompt.get();
   EXPECT_CALL(*controller(), CreateAutoSigninPrompt(_))
-      .WillOnce(Return(std::move(prompt)));
-  EXPECT_CALL(*prompt_ptr, ShowAutoSigninPrompt());
+      .WillOnce(Return(&dialog_prompt()));
+  EXPECT_CALL(dialog_prompt(), ShowAutoSigninPrompt());
   controller()->OnPromptEnableAutoSignin();
 
   EXPECT_EQ(password_manager::ui::MANAGE_STATE, controller()->GetState());
   EXPECT_EQ(url::Origin::Create(test_form_ptr->url), controller()->GetOrigin());
   EXPECT_THAT(controller()->GetCurrentForms(),
               ElementsAre(Pointee(*test_form_ptr)));
-  EXPECT_CALL(*prompt_ptr, ControllerGone());
+  EXPECT_CALL(dialog_prompt(), ControllerGone());
 }
 
-TEST_F(ManagePasswordsUIControllerTest, AutoSigninFirstRunAfterNavigation) {
+TEST_P(ManagePasswordsUIControllerTest, AutoSigninFirstRunAfterNavigation) {
   // Pop up the autosignin promo.
-  auto prompt = std::make_unique<CredentialManagementDialogPromptMock>();
-  auto* prompt_ptr = prompt.get();
   EXPECT_CALL(*controller(), CreateAutoSigninPrompt(_))
-      .WillOnce(Return(std::move(prompt)));
-  EXPECT_CALL(*prompt_ptr, ShowAutoSigninPrompt());
+      .WillOnce(Return(&dialog_prompt()));
+  EXPECT_CALL(dialog_prompt(), ShowAutoSigninPrompt());
   controller()->OnPromptEnableAutoSignin();
 
   // The dialog should survive any navigation.
-  EXPECT_CALL(*prompt_ptr, ControllerGone()).Times(0);
+  EXPECT_CALL(dialog_prompt(), ControllerGone()).Times(0);
   EXPECT_CALL(*controller(), OnUpdateBubbleAndIconVisibility());
   content::NavigationSimulator::NavigateAndCommitFromBrowser(web_contents(),
                                                              GURL(kExampleUrl));
-  ASSERT_TRUE(testing::Mock::VerifyAndClearExpectations(prompt_ptr));
-  EXPECT_CALL(*prompt_ptr, ControllerGone());
+  ASSERT_TRUE(testing::Mock::VerifyAndClearExpectations(&dialog_prompt()));
+  EXPECT_CALL(dialog_prompt(), ControllerGone());
 }
 
-TEST_F(ManagePasswordsUIControllerTest, AutofillDuringAutoSignin) {
+TEST_P(ManagePasswordsUIControllerTest, AutofillDuringAutoSignin) {
   std::vector<std::unique_ptr<PasswordForm>> local_credentials;
   local_credentials.emplace_back(new PasswordForm(test_local_form()));
   EXPECT_CALL(*controller(), OnUpdateBubbleAndIconVisibility());
@@ -1232,7 +1179,7 @@ TEST_F(ManagePasswordsUIControllerTest, AutofillDuringAutoSignin) {
   EXPECT_EQ(password_manager::ui::AUTO_SIGNIN_STATE, controller()->GetState());
 }
 
-TEST_F(ManagePasswordsUIControllerTest, ActiveOnPSLMatched) {
+TEST_P(ManagePasswordsUIControllerTest, ActiveOnPSLMatched) {
   std::u16string kTestUsername = u"test_username";
   std::vector<PasswordForm> forms;
   PasswordForm psl_matched_test_form(test_local_form());
@@ -1245,7 +1192,7 @@ TEST_F(ManagePasswordsUIControllerTest, ActiveOnPSLMatched) {
   EXPECT_EQ(password_manager::ui::MANAGE_STATE, controller()->GetState());
 }
 
-TEST_F(ManagePasswordsUIControllerTest, UpdatePasswordSubmitted) {
+TEST_P(ManagePasswordsUIControllerTest, UpdatePasswordSubmitted) {
   std::vector<PasswordForm> best_matches = {test_local_form()};
   auto test_form_manager =
       CreateFormManagerWithBestMatches(best_matches, &submitted_form());
@@ -1255,7 +1202,7 @@ TEST_F(ManagePasswordsUIControllerTest, UpdatePasswordSubmitted) {
             controller()->GetState());
 }
 
-TEST_F(ManagePasswordsUIControllerTest, PasswordUpdated) {
+TEST_P(ManagePasswordsUIControllerTest, PasswordUpdated) {
   std::vector<PasswordForm> best_matches = {test_local_form()};
   auto test_form_manager =
       CreateFormManagerWithBestMatches(best_matches, &submitted_form());
@@ -1273,7 +1220,7 @@ TEST_F(ManagePasswordsUIControllerTest, PasswordUpdated) {
   controller()->OnBubbleHidden();
 }
 
-TEST_F(ManagePasswordsUIControllerTest, SavePendingStatePasswordAutofilled) {
+TEST_P(ManagePasswordsUIControllerTest, SavePendingStatePasswordAutofilled) {
   // Set the bubble state to PENDING_PASSWORD_STATE.
   std::vector<PasswordForm> best_matches;
   std::unique_ptr<MockPasswordFormManagerForUI> test_form_manager =
@@ -1294,7 +1241,7 @@ TEST_F(ManagePasswordsUIControllerTest, SavePendingStatePasswordAutofilled) {
             controller()->GetState());
 }
 
-TEST_F(ManagePasswordsUIControllerTest, UpdatePendingStatePasswordAutofilled) {
+TEST_P(ManagePasswordsUIControllerTest, UpdatePendingStatePasswordAutofilled) {
   // Set the bubble state to PENDING_PASSWORD_UPDATE_STATE.
   std::vector<PasswordForm> best_matches;
   std::unique_ptr<MockPasswordFormManagerForUI> test_form_manager =
@@ -1316,7 +1263,7 @@ TEST_F(ManagePasswordsUIControllerTest, UpdatePendingStatePasswordAutofilled) {
             controller()->GetState());
 }
 
-TEST_F(ManagePasswordsUIControllerTest, ConfirmationStatePasswordAutofilled) {
+TEST_P(ManagePasswordsUIControllerTest, ConfirmationStatePasswordAutofilled) {
   // Set the bubble state to SAVE_CONFIRMATION_STATE.
   std::vector<PasswordForm> best_matches;
   std::unique_ptr<MockPasswordFormManagerForUI> test_form_manager =
@@ -1342,7 +1289,7 @@ TEST_F(ManagePasswordsUIControllerTest, ConfirmationStatePasswordAutofilled) {
             controller()->GetState());
 }
 
-TEST_F(ManagePasswordsUIControllerTest, OpenBubbleTwice) {
+TEST_P(ManagePasswordsUIControllerTest, OpenBubbleTwice) {
   {
     // Open the autosignin bubble.
     std::vector<std::unique_ptr<PasswordForm>> local_credentials;
@@ -1368,7 +1315,7 @@ TEST_F(ManagePasswordsUIControllerTest, OpenBubbleTwice) {
   EXPECT_FALSE(proxy_delegate);
 }
 
-TEST_F(ManagePasswordsUIControllerTest, ManualFallbackForSaving_UseFallback) {
+TEST_P(ManagePasswordsUIControllerTest, ManualFallbackForSaving_UseFallback) {
   using UkmEntry = ukm::builders::PasswordForm;
   for (bool is_update : {false, true}) {
     SCOPED_TRACE(testing::Message("is_update = ") << is_update);
@@ -1430,7 +1377,7 @@ TEST_F(ManagePasswordsUIControllerTest, ManualFallbackForSaving_UseFallback) {
 // Verifies that after OnHideManualFallbackForSaving, the password manager icon
 // goes into a state that allows managing existing passwords, if these existed
 // before the manual fallback.
-TEST_F(ManagePasswordsUIControllerTest,
+TEST_P(ManagePasswordsUIControllerTest,
        ManualFallbackForSaving_HideFallback_WithPreexistingPasswords) {
   for (bool is_update : {false, true}) {
     SCOPED_TRACE(testing::Message("is_update = ") << is_update);
@@ -1460,7 +1407,7 @@ TEST_F(ManagePasswordsUIControllerTest,
 
 // Verify that after OnHideManualFallbackForSaving, the password manager icon
 // goes away if no passwords were persisted before the manual fallback.
-TEST_F(ManagePasswordsUIControllerTest,
+TEST_P(ManagePasswordsUIControllerTest,
        ManualFallbackForSaving_HideFallback_WithoutPreexistingPasswords) {
   // Create password form manager without stored passwords.
   std::vector<PasswordForm> matches;
@@ -1483,7 +1430,7 @@ TEST_F(ManagePasswordsUIControllerTest,
   EXPECT_EQ(password_manager::ui::INACTIVE_STATE, controller()->GetState());
 }
 
-TEST_F(ManagePasswordsUIControllerTest,
+TEST_P(ManagePasswordsUIControllerTest,
        ManualFallbackForSaving_HideFallback_Timeout) {
   for (bool enforce_navigation : {false, true}) {
     SCOPED_TRACE(testing::Message("enforce_navigation = ")
@@ -1520,7 +1467,7 @@ TEST_F(ManagePasswordsUIControllerTest,
   }
 }
 
-TEST_F(ManagePasswordsUIControllerTest,
+TEST_P(ManagePasswordsUIControllerTest,
        ManualFallbackForSaving_OpenBubbleBlocksFallbackHiding) {
   for (bool user_saved_password : {false, true}) {
     SCOPED_TRACE(testing::Message("user_saved_password = ")
@@ -1566,14 +1513,14 @@ TEST_F(ManagePasswordsUIControllerTest,
   }
 }
 
-TEST_F(ManagePasswordsUIControllerTest,
+TEST_P(ManagePasswordsUIControllerTest,
        ManualFallbackForSavingFollowedByAutomaticBubble) {
   std::vector<PasswordForm> matches;
   auto test_form_manager =
       CreateFormManagerWithBestMatches(matches, &submitted_form());
   PasswordForm pending = test_local_form();
   pending.username_value = u"manual_username";
-  pending.password_value = PasswordString(u"manual_pass1234");
+  pending.password_value = u"manual_pass1234";
   EXPECT_CALL(*test_form_manager, GetPendingCredentials())
       .WillRepeatedly(ReturnRef(pending));
 
@@ -1590,7 +1537,7 @@ TEST_F(ManagePasswordsUIControllerTest,
 
   // Automatic form submission detected.
   submitted_form().username_value = u"new_username";
-  submitted_form().password_value = PasswordString(u"12345");
+  submitted_form().password_value = u"12345";
   test_form_manager =
       CreateFormManagerWithBestMatches(matches, &submitted_form());
   EXPECT_CALL(*controller(), OnUpdateBubbleAndIconVisibility());
@@ -1603,7 +1550,7 @@ TEST_F(ManagePasswordsUIControllerTest,
   EXPECT_EQ(u"12345", controller()->GetPendingPassword().password_value);
 }
 
-TEST_F(ManagePasswordsUIControllerTest,
+TEST_P(ManagePasswordsUIControllerTest,
        ManualFallbackForSaving_HideAutomaticBubble) {
   // Open the automatic bubble first.
   std::vector<PasswordForm> best_matches;
@@ -1621,7 +1568,7 @@ TEST_F(ManagePasswordsUIControllerTest,
       CreateFormManagerWithBestMatches(best_matches, &test_local_form());
   PasswordForm pending = test_local_form();
   pending.username_value = u"manual_username";
-  pending.password_value = PasswordString(u"manual_pass1234");
+  pending.password_value = u"manual_pass1234";
   EXPECT_CALL(*test_form_manager, GetPendingCredentials())
       .WillRepeatedly(ReturnRef(pending));
   controller()->OnShowManualFallbackForSaving(
@@ -1636,7 +1583,7 @@ TEST_F(ManagePasswordsUIControllerTest,
             controller()->GetOrigin());
 }
 
-TEST_F(ManagePasswordsUIControllerTest,
+TEST_P(ManagePasswordsUIControllerTest,
        ManualFallbackForSaving_GeneratedPassword) {
   for (bool user_closed_bubble : {false, true}) {
     SCOPED_TRACE(testing::Message("user_closed_bubble = ")
@@ -1664,13 +1611,13 @@ TEST_F(ManagePasswordsUIControllerTest,
   }
 }
 
-TEST_F(ManagePasswordsUIControllerTest,
+TEST_P(ManagePasswordsUIControllerTest,
        PasswordDetails_OnShowPasswordIsInitialBubbleCredential) {
   std::unique_ptr<base::AutoReset<bool>> bypass_user_auth =
       controller()->BypassUserAuthtForTesting();
   password_manager::PasswordForm form;
   form.username_value = u"user";
-  form.password_value = PasswordString(u"passw0rd");
+  form.password_value = u"passw0rd";
   controller()->OnOpenPasswordDetailsBubble(form);
 
   EXPECT_EQ(
@@ -1679,13 +1626,13 @@ TEST_F(ManagePasswordsUIControllerTest,
   EXPECT_EQ(controller()->GetState(), password_manager::ui::MANAGE_STATE);
 }
 
-TEST_F(ManagePasswordsUIControllerTest,
+TEST_P(ManagePasswordsUIControllerTest,
        PasswordDetails_BubbleIsInactiveAfterClosingPasswordDetails) {
   std::unique_ptr<base::AutoReset<bool>> bypass_user_auth =
       controller()->BypassUserAuthtForTesting();
   password_manager::PasswordForm details_form;
   details_form.username_value = u"user";
-  details_form.password_value = PasswordString(u"passw0rd");
+  details_form.password_value = u"passw0rd";
   controller()->OnOpenPasswordDetailsBubble(details_form);
   ASSERT_EQ(
       controller()->GetManagePasswordsSingleCredentialDetailsModeCredential(),
@@ -1699,7 +1646,7 @@ TEST_F(ManagePasswordsUIControllerTest,
   EXPECT_EQ(controller()->GetState(), password_manager::ui::INACTIVE_STATE);
 }
 
-TEST_F(ManagePasswordsUIControllerTest,
+TEST_P(ManagePasswordsUIControllerTest,
        PasswordDetails_BubbleSwitchesToListAfterClosingPasswordDetails) {
   std::unique_ptr<base::AutoReset<bool>> bypass_user_auth =
       controller()->BypassUserAuthtForTesting();
@@ -1711,7 +1658,7 @@ TEST_F(ManagePasswordsUIControllerTest,
 
   password_manager::PasswordForm details_form;
   details_form.username_value = u"user";
-  details_form.password_value = PasswordString(u"passw0rd");
+  details_form.password_value = u"passw0rd";
   controller()->OnOpenPasswordDetailsBubble(details_form);
   ASSERT_EQ(
       controller()->GetManagePasswordsSingleCredentialDetailsModeCredential(),
@@ -1728,7 +1675,7 @@ TEST_F(ManagePasswordsUIControllerTest,
 // The following test is being run on platforms that support device
 // authentication, as on others the callback is stubbed to return `true`.
 #if BUILDFLAG(IS_MAC) || BUILDFLAG(IS_WIN) || BUILDFLAG(IS_CHROMEOS)
-TEST_F(ManagePasswordsUIControllerTest, PasswordDetails_IsntShownIfAuthFailed) {
+TEST_P(ManagePasswordsUIControllerTest, PasswordDetails_IsntShownIfAuthFailed) {
   auto mock_authenticator =
       std::make_unique<device_reauth::MockDeviceAuthenticator>();
   EXPECT_CALL(*mock_authenticator, AuthenticateWithMessage)
@@ -1740,7 +1687,7 @@ TEST_F(ManagePasswordsUIControllerTest, PasswordDetails_IsntShownIfAuthFailed) {
 
   password_manager::PasswordForm form;
   form.username_value = u"user";
-  form.password_value = PasswordString(u"passw0rd");
+  form.password_value = u"passw0rd";
   controller()->OnOpenPasswordDetailsBubble(form);
 
   EXPECT_EQ(
@@ -1750,7 +1697,7 @@ TEST_F(ManagePasswordsUIControllerTest, PasswordDetails_IsntShownIfAuthFailed) {
 }
 #endif
 
-TEST_F(ManagePasswordsUIControllerTest, AutofillDuringSignInPromo) {
+TEST_P(ManagePasswordsUIControllerTest, AutofillDuringSignInPromo) {
   std::vector<PasswordForm> matches;
   auto test_form_manager =
       CreateFormManagerWithBestMatches(matches, &submitted_form());
@@ -1775,7 +1722,7 @@ TEST_F(ManagePasswordsUIControllerTest, AutofillDuringSignInPromo) {
   controller()->OnBubbleHidden();
 }
 
-TEST_F(ManagePasswordsUIControllerTest, SaveBubbleAfterLeakCheck) {
+TEST_P(ManagePasswordsUIControllerTest, SaveBubbleAfterLeakCheck) {
   std::vector<PasswordForm> matches;
   auto test_form_manager =
       CreateFormManagerWithBestMatches(matches, &submitted_form());
@@ -1817,7 +1764,7 @@ TEST_F(ManagePasswordsUIControllerTest, SaveBubbleAfterLeakCheck) {
             controller()->GetState());
 }
 
-TEST_F(ManagePasswordsUIControllerTest,
+TEST_P(ManagePasswordsUIControllerTest,
        NoSaveBubbleAfterLeakCheckForBlocklistedWebsites) {
   std::vector<PasswordForm> matches;
   auto test_form_manager = CreateFormManagerWithBestMatches(
@@ -1857,7 +1804,7 @@ TEST_F(ManagePasswordsUIControllerTest,
             controller()->GetState());
 }
 
-TEST_F(ManagePasswordsUIControllerTest, UpdateBubbleAfterLeakCheck) {
+TEST_P(ManagePasswordsUIControllerTest, UpdateBubbleAfterLeakCheck) {
   std::vector<PasswordForm> matches = {test_local_form()};
   auto test_form_manager =
       CreateFormManagerWithBestMatches(matches, &submitted_form());
@@ -1895,7 +1842,7 @@ TEST_F(ManagePasswordsUIControllerTest, UpdateBubbleAfterLeakCheck) {
 // If the leaked password is the backup password of the login credentials, we
 // should not offer password change and instead, we will show the old leak
 // warning dialogue.
-TEST_F(ManagePasswordsUIControllerTest,
+TEST_P(ManagePasswordsUIControllerTest,
        PasswordChangeDialogueIsSupressedForBackupPassword) {
   std::vector<PasswordForm> matches = {test_local_form()};
   auto test_form_manager =
@@ -1933,7 +1880,7 @@ TEST_F(ManagePasswordsUIControllerTest,
             controller()->GetState());
 }
 
-TEST_F(ManagePasswordsUIControllerTest, OpenBubbleForMovableForm) {
+TEST_P(ManagePasswordsUIControllerTest, OpenBubbleForMovableForm) {
   base::HistogramTester histogram_tester;
 
   std::vector<PasswordForm> matches = {test_local_form()};
@@ -1964,7 +1911,7 @@ TEST_F(ManagePasswordsUIControllerTest, OpenBubbleForMovableForm) {
       1);
 }
 
-TEST_F(ManagePasswordsUIControllerTest, OpenMoveBubbleFromManagementBubble) {
+TEST_P(ManagePasswordsUIControllerTest, OpenMoveBubbleFromManagementBubble) {
   const PasswordForm* test_form_ptr = &test_local_form();
   std::vector<PasswordForm> forms = {*test_form_ptr};
   EXPECT_CALL(*controller(), OnUpdateBubbleAndIconVisibility());
@@ -1991,7 +1938,7 @@ TEST_F(ManagePasswordsUIControllerTest, OpenMoveBubbleFromManagementBubble) {
   EXPECT_EQ(password_manager::ui::MANAGE_STATE, controller()->GetState());
 }
 
-TEST_F(ManagePasswordsUIControllerTest, CloseMoveBubble) {
+TEST_P(ManagePasswordsUIControllerTest, CloseMoveBubble) {
   const PasswordForm* test_form_ptr = &test_local_form();
   std::vector<PasswordForm> forms = {*test_form_ptr};
   EXPECT_CALL(*controller(), OnUpdateBubbleAndIconVisibility());
@@ -2011,12 +1958,12 @@ TEST_F(ManagePasswordsUIControllerTest, CloseMoveBubble) {
   EXPECT_EQ(password_manager::ui::MANAGE_STATE, controller()->GetState());
 }
 
-TEST_F(ManagePasswordsUIControllerTest, OpenSafeStateBubble) {
+TEST_P(ManagePasswordsUIControllerTest, OpenSafeStateBubble) {
   profile()->GetPrefs()->SetDouble(
       password_manager::prefs::kLastTimePasswordCheckCompleted,
       (base::Time::Now() - base::Minutes(1)).InSecondsFSinceUnixEpoch());
   submitted_form() = test_local_form();
-  submitted_form().password_value = PasswordString(u"new_password");
+  submitted_form().password_value = u"new_password";
 
   std::vector<PasswordForm> best_matches = {test_local_form()};
   auto test_form_manager =
@@ -2057,12 +2004,12 @@ TEST_F(ManagePasswordsUIControllerTest, OpenSafeStateBubble) {
             controller()->GetState());
 }
 
-TEST_F(ManagePasswordsUIControllerTest, OpenMoreToFixBubble) {
+TEST_P(ManagePasswordsUIControllerTest, OpenMoreToFixBubble) {
   profile()->GetPrefs()->SetDouble(
       password_manager::prefs::kLastTimePasswordCheckCompleted,
       (base::Time::Now() - base::Minutes(1)).InSecondsFSinceUnixEpoch());
   submitted_form() = test_local_form();
-  submitted_form().password_value = PasswordString(u"new_password");
+  submitted_form().password_value = u"new_password";
 
   std::vector<PasswordForm> best_matches = {test_local_form()};
   auto test_form_manager =
@@ -2107,12 +2054,12 @@ TEST_F(ManagePasswordsUIControllerTest, OpenMoreToFixBubble) {
             controller()->GetState());
 }
 
-TEST_F(ManagePasswordsUIControllerTest, NoMoreToFixBubbleIfPromoStillOpen) {
+TEST_P(ManagePasswordsUIControllerTest, NoMoreToFixBubbleIfPromoStillOpen) {
   profile()->GetPrefs()->SetDouble(
       password_manager::prefs::kLastTimePasswordCheckCompleted,
       (base::Time::Now() - base::Minutes(1)).InSecondsFSinceUnixEpoch());
   submitted_form() = test_local_form();
-  submitted_form().password_value = PasswordString(u"new_password");
+  submitted_form().password_value = u"new_password";
 
   std::vector<PasswordForm> best_matches = {test_local_form()};
   auto test_form_manager =
@@ -2136,7 +2083,7 @@ TEST_F(ManagePasswordsUIControllerTest, NoMoreToFixBubbleIfPromoStillOpen) {
   EXPECT_EQ(password_manager::ui::MANAGE_STATE, controller()->GetState());
 }
 
-TEST_F(ManagePasswordsUIControllerTest, UsernameAdded) {
+TEST_P(ManagePasswordsUIControllerTest, UsernameAdded) {
   std::vector<PasswordForm> best_matches;
   auto test_form_manager =
       CreateFormManagerWithBestMatches(best_matches, &submitted_form());
@@ -2163,7 +2110,7 @@ TEST_F(ManagePasswordsUIControllerTest, UsernameAdded) {
             controller()->GetState());
 }
 
-TEST_F(ManagePasswordsUIControllerTest, IsDeviceAuthenticatorObtained) {
+TEST_P(ManagePasswordsUIControllerTest, IsDeviceAuthenticatorObtained) {
   base::MockCallback<base::OnceCallback<void(bool)>> result_callback;
 #if !BUILDFLAG(IS_MAC) && !BUILDFLAG(IS_WIN) && !BUILDFLAG(IS_CHROMEOS)
   EXPECT_CALL(result_callback, Run(/*success=*/true));
@@ -2180,7 +2127,7 @@ TEST_F(ManagePasswordsUIControllerTest, IsDeviceAuthenticatorObtained) {
       /*message=*/u"Do you want to enable this feature", result_callback.Get());
 }
 
-TEST_F(ManagePasswordsUIControllerTest, PasskeySavedWithoutGpmPinCreation) {
+TEST_P(ManagePasswordsUIControllerTest, PasskeySavedWithoutGpmPinCreation) {
   EXPECT_CALL(*controller(), OnUpdateBubbleAndIconVisibility());
   controller()->OnPasskeySaved(/*gpm_pin_created=*/false, kExampleRpId);
   EXPECT_EQ(controller()->PasskeyRpId(), kExampleRpId);
@@ -2190,7 +2137,7 @@ TEST_F(ManagePasswordsUIControllerTest, PasskeySavedWithoutGpmPinCreation) {
   EXPECT_FALSE(controller()->GpmPinCreatedDuringRecentPasskeyCreation());
 }
 
-TEST_F(ManagePasswordsUIControllerTest, PasskeySavedWithGpmPinCreation) {
+TEST_P(ManagePasswordsUIControllerTest, PasskeySavedWithGpmPinCreation) {
   EXPECT_CALL(*controller(), OnUpdateBubbleAndIconVisibility());
   controller()->OnPasskeySaved(/*gpm_pin_created=*/true, kExampleRpId);
   EXPECT_EQ(controller()->PasskeyRpId(), kExampleRpId);
@@ -2200,7 +2147,7 @@ TEST_F(ManagePasswordsUIControllerTest, PasskeySavedWithGpmPinCreation) {
   EXPECT_TRUE(controller()->GpmPinCreatedDuringRecentPasskeyCreation());
 }
 
-TEST_F(ManagePasswordsUIControllerTest, InvalidPasskeyDeleted) {
+TEST_P(ManagePasswordsUIControllerTest, InvalidPasskeyDeleted) {
   EXPECT_CALL(*controller(), OnUpdateBubbleAndIconVisibility());
   controller()->OnPasskeyDeleted();
   EXPECT_TRUE(controller()->opened_automatic_bubble());
@@ -2208,7 +2155,7 @@ TEST_F(ManagePasswordsUIControllerTest, InvalidPasskeyDeleted) {
             controller()->GetState());
 }
 
-TEST_F(ManagePasswordsUIControllerTest, OpenPasskeyUpdatedBubble) {
+TEST_P(ManagePasswordsUIControllerTest, OpenPasskeyUpdatedBubble) {
   std::string rp_id = "touhou.example.com";
   EXPECT_CALL(*controller(), OnUpdateBubbleAndIconVisibility());
   controller()->OnPasskeyUpdated(rp_id);
@@ -2218,7 +2165,7 @@ TEST_F(ManagePasswordsUIControllerTest, OpenPasskeyUpdatedBubble) {
             controller()->GetState());
 }
 
-TEST_F(ManagePasswordsUIControllerTest, OpenPasskeyNotAcceptedBubble) {
+TEST_P(ManagePasswordsUIControllerTest, OpenPasskeyNotAcceptedBubble) {
   std::string rp_id = "touhou.example.com";
   EXPECT_CALL(*controller(), OnUpdateBubbleAndIconVisibility());
   controller()->OnPasskeyNotAccepted(rp_id);
@@ -2228,7 +2175,7 @@ TEST_F(ManagePasswordsUIControllerTest, OpenPasskeyNotAcceptedBubble) {
             controller()->GetState());
 }
 
-TEST_F(ManagePasswordsUIControllerTest, PasswordChangeFinishedSuccessfully) {
+TEST_P(ManagePasswordsUIControllerTest, PasswordChangeFinishedSuccessfully) {
   PasswordChangeServiceFactory::GetInstance()->SetTestingFactory(
       profile(),
       base::BindLambdaForTesting([](content::BrowserContext* context)
@@ -2265,7 +2212,7 @@ TEST_F(ManagePasswordsUIControllerTest, PasswordChangeFinishedSuccessfully) {
 }
 
 #if BUILDFLAG(IS_MAC) || BUILDFLAG(IS_WIN) || BUILDFLAG(IS_CHROMEOS)
-TEST_F(ManagePasswordsUIControllerTest,
+TEST_P(ManagePasswordsUIControllerTest,
        ShouldShowBiometricAuthenticationForFillingPromo) {
   std::vector<PasswordForm> best_matches;
   auto test_form_manager =
@@ -2290,7 +2237,7 @@ TEST_F(ManagePasswordsUIControllerTest,
 
 // Test if BiometricAuthForFilling promo is not shown if user interacted with
 // the promo earlier.
-TEST_F(ManagePasswordsUIControllerTest,
+TEST_P(ManagePasswordsUIControllerTest,
        ShouldNotShowBiometricAuthenticationForFillingPromoUserInteracted) {
   profile()->GetPrefs()->SetBoolean(
       password_manager::prefs::kHasUserInteractedWithBiometricAuthPromo, true);
@@ -2308,7 +2255,7 @@ TEST_F(ManagePasswordsUIControllerTest,
 
 // Test if BiometricAuthForFilling promo is not shown if User turned on the
 // feature manually in settings.
-TEST_F(ManagePasswordsUIControllerTest,
+TEST_P(ManagePasswordsUIControllerTest,
        ShouldNotShowBiometricAuthenticationForFillingPromoUserTurnedOnManualy) {
   profile()->GetPrefs()->SetBoolean(
       password_manager::prefs::kHasUserInteractedWithBiometricAuthPromo, false);
@@ -2326,7 +2273,7 @@ TEST_F(ManagePasswordsUIControllerTest,
 
 // Test if BiometricAuthForFilling promo is not shown if User turned on the
 // feature through promo.
-TEST_F(
+TEST_P(
     ManagePasswordsUIControllerTest,
     ShouldNotShowBiometricAuthenticationForFillingPromoUserTurnedOnViaPromo) {
   profile()->GetPrefs()->SetBoolean(
@@ -2346,7 +2293,7 @@ TEST_F(
 // Test if BiometricAuthForFilling promo is not shown if User have seen promo
 // more than
 // `kMaxNumberOfTimesBiometricAuthForFillingPromoWillBeShown` times.
-TEST_F(ManagePasswordsUIControllerTest,
+TEST_P(ManagePasswordsUIControllerTest,
        ShouldNotShowBiometricAuthenticationForFillingPromoCounterLimit) {
   profile()->GetPrefs()->SetBoolean(
       password_manager::prefs::kHasUserInteractedWithBiometricAuthPromo, false);
@@ -2366,7 +2313,7 @@ TEST_F(ManagePasswordsUIControllerTest,
 
 // On one specific tab BiometricAuthForFilling promo should be shown no more
 // than once.
-TEST_F(ManagePasswordsUIControllerTest,
+TEST_P(ManagePasswordsUIControllerTest,
        ShouldNotShowBiometricAuthenticationForFillingPromoTwiceOnTheSameTab) {
   std::vector<PasswordForm> best_matches;
   auto test_form_manager =
@@ -2389,7 +2336,7 @@ TEST_F(ManagePasswordsUIControllerTest,
   controller()->OnBiometricAuthenticationForFilling(profile()->GetPrefs());
 }
 
-TEST_F(ManagePasswordsUIControllerTest,
+TEST_P(ManagePasswordsUIControllerTest,
        BiometricAuthPromoNotShowIfThereIsAnotherDialog) {
   // Show account chooser dialog.
   std::vector<std::unique_ptr<PasswordForm>> local_credentials;
@@ -2435,7 +2382,7 @@ TEST_F(ManagePasswordsUIControllerTest,
   EXPECT_EQ(password_manager::ui::MANAGE_STATE, controller()->GetState());
 }
 
-TEST_F(ManagePasswordsUIControllerTest, BiometricActivationConfirmation) {
+TEST_P(ManagePasswordsUIControllerTest, BiometricActivationConfirmation) {
   std::vector<PasswordForm> best_matches;
   auto test_form_manager =
       CreateFormManagerWithBestMatches(best_matches, &submitted_form());
@@ -2450,7 +2397,7 @@ TEST_F(ManagePasswordsUIControllerTest, BiometricActivationConfirmation) {
   EXPECT_EQ(password_manager::ui::MANAGE_STATE, controller()->GetState());
 }
 
-TEST_F(ManagePasswordsUIControllerTest,
+TEST_P(ManagePasswordsUIControllerTest,
        BiometricActivationConfirmationNotShownOnTopOfAnotherDialog) {
   // Show account chooser dialog.
   std::vector<std::unique_ptr<PasswordForm>> local_credentials;
@@ -2475,7 +2422,7 @@ TEST_F(ManagePasswordsUIControllerTest,
             controller()->GetState());
 }
 
-TEST_F(ManagePasswordsUIControllerTest,
+TEST_P(ManagePasswordsUIControllerTest,
        AuthenticateWithMessageTwiceCancelsFirstCall) {
   auto mock_authenticator =
       std::make_unique<device_reauth::MockDeviceAuthenticator>();
@@ -2498,7 +2445,7 @@ TEST_F(ManagePasswordsUIControllerTest,
   controller()->AuthenticateUserWithMessage(/*message=*/u"", base::DoNothing());
 }
 
-TEST_F(ManagePasswordsUIControllerTest, AuthenticationCancledOnPageChange) {
+TEST_P(ManagePasswordsUIControllerTest, AuthenticationCancledOnPageChange) {
   base::MockCallback<base::OnceCallback<void(bool)>> result_callback;
   auto mock_authenticator =
       std::make_unique<device_reauth::MockDeviceAuthenticator>();
@@ -2516,7 +2463,7 @@ TEST_F(ManagePasswordsUIControllerTest, AuthenticationCancledOnPageChange) {
       ->PrimaryPageChanged(controller()->GetWebContents()->GetPrimaryPage());
 }
 
-TEST_F(ManagePasswordsUIControllerTest, OnBiometricAuthBeforeFillingDeclined) {
+TEST_P(ManagePasswordsUIControllerTest, OnBiometricAuthBeforeFillingDeclined) {
   std::vector<PasswordForm> best_matches;
   auto test_form_manager =
       CreateFormManagerWithBestMatches(best_matches, &submitted_form());
@@ -2533,7 +2480,7 @@ TEST_F(ManagePasswordsUIControllerTest, OnBiometricAuthBeforeFillingDeclined) {
 #endif  // BUILDFLAG(IS_MAC) || BUILDFLAG(IS_WIN)
 
 #if BUILDFLAG(IS_MAC)
-TEST_F(ManagePasswordsUIControllerTest, OnKeychainErrorShouldShowBubble) {
+TEST_P(ManagePasswordsUIControllerTest, OnKeychainErrorShouldShowBubble) {
   base::test::ScopedFeatureList scoped_feature_list;
   scoped_feature_list.InitAndEnableFeature(
       password_manager::features::kRestartToGainAccessToKeychain);
@@ -2545,7 +2492,7 @@ TEST_F(ManagePasswordsUIControllerTest, OnKeychainErrorShouldShowBubble) {
             controller()->GetState());
 }
 
-TEST_F(ManagePasswordsUIControllerTest, OnKeychainErrorShouldNotShowBubble) {
+TEST_P(ManagePasswordsUIControllerTest, OnKeychainErrorShouldNotShowBubble) {
   base::test::ScopedFeatureList scoped_feature_list;
   scoped_feature_list.InitAndEnableFeature(
       password_manager::features::kRestartToGainAccessToKeychain);
@@ -2557,7 +2504,7 @@ TEST_F(ManagePasswordsUIControllerTest, OnKeychainErrorShouldNotShowBubble) {
 }
 #endif
 
-TEST_F(ManagePasswordsUIControllerTest, ShowChangePasswordBubble) {
+TEST_P(ManagePasswordsUIControllerTest, ShowChangePasswordBubble) {
   EXPECT_CALL(*controller(), OnUpdateBubbleAndIconVisibility());
   controller()->ShowChangePasswordBubble(kExampleUsername, kExamplePassword);
   EXPECT_EQ(controller()->PasswordChangeUsername(), kExampleUsername);
@@ -2571,7 +2518,7 @@ TEST_F(ManagePasswordsUIControllerTest, ShowChangePasswordBubble) {
   EXPECT_EQ(password_manager::ui::INACTIVE_STATE, controller()->GetState());
 }
 
-TEST_F(ManagePasswordsUIControllerTest,
+TEST_P(ManagePasswordsUIControllerTest,
        UpdatePasswordBubbleSuppressedDuringPasswordChange) {
   PasswordChangeServiceFactory::GetInstance()->SetTestingFactory(
       profile(),
@@ -2600,7 +2547,7 @@ TEST_F(ManagePasswordsUIControllerTest,
   EXPECT_EQ(controller()->GetState(), password_manager::ui::INACTIVE_STATE);
 }
 
-TEST_F(ManagePasswordsUIControllerTest, AutomatedPasswordChangeOffered) {
+TEST_P(ManagePasswordsUIControllerTest, AutomatedPasswordChangeOffered) {
   base::HistogramTester histogram_tester;
   PasswordChangeServiceFactory::GetInstance()->SetTestingFactory(
       profile(),
@@ -2641,3 +2588,5 @@ TEST_F(ManagePasswordsUIControllerTest, AutomatedPasswordChangeOffered) {
       "PasswordManager.PasswordChange.UserHasPasswordSavedOnAPCLaunch", true,
       1);
 }
+
+INSTANTIATE_FEATURE_OVERRIDE_TEST_SUITE(ManagePasswordsUIControllerTest);

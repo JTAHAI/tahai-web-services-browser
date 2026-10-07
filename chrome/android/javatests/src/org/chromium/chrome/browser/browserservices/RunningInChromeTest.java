@@ -48,7 +48,6 @@ import org.chromium.components.browser_ui.notifications.MockNotificationManagerP
 import org.chromium.components.browser_ui.notifications.NotificationProxyUtils;
 import org.chromium.components.embedder_support.util.Origin;
 import org.chromium.net.test.EmbeddedTestServerRule;
-import org.chromium.ui.base.DeviceFormFactor;
 import org.chromium.ui.test.util.DeviceRestriction;
 
 import java.util.Arrays;
@@ -105,7 +104,6 @@ public class RunningInChromeTest {
 
     @Test
     @MediumTest
-    @Restriction(DeviceFormFactor.PHONE)
     public void showsNewRunningInChrome() throws TimeoutException {
         launch(createTrustedWebActivityIntent(mTestPage));
 
@@ -117,7 +115,7 @@ public class RunningInChromeTest {
 
     @Test
     @MediumTest
-    @Restriction({DeviceFormFactor.PHONE, DeviceRestriction.RESTRICTION_TYPE_NON_AUTO})
+    @Restriction(DeviceRestriction.RESTRICTION_TYPE_NON_AUTO)
     public void showsNotification() throws TimeoutException {
         NotificationProxyUtils.setNotificationEnabledForTest(true);
 
@@ -141,7 +139,7 @@ public class RunningInChromeTest {
 
     @Test
     @MediumTest
-    @Restriction({DeviceFormFactor.PHONE, DeviceRestriction.RESTRICTION_TYPE_NON_AUTO})
+    @Restriction(DeviceRestriction.RESTRICTION_TYPE_NON_AUTO)
     public void dismissesNotification_onNavigation() throws TimeoutException {
         NotificationProxyUtils.setNotificationEnabledForTest(true);
 
@@ -157,7 +155,7 @@ public class RunningInChromeTest {
 
     @Test
     @MediumTest
-    @Restriction({DeviceFormFactor.PHONE, DeviceRestriction.RESTRICTION_TYPE_NON_AUTO})
+    @Restriction(DeviceRestriction.RESTRICTION_TYPE_NON_AUTO)
     public void dismissesNotification_onActivityClose() throws TimeoutException {
         NotificationProxyUtils.setNotificationEnabledForTest(true);
 

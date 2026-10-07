@@ -145,7 +145,11 @@ const ActivationListTestData kActivationListTestData[] = {
      ActivationList::PHISHING_INTERSTITIAL,
      safe_browsing::SBThreatType::SB_THREAT_TYPE_URL_PHISHING,
      {}},
-    {kActivationListBetterAds,
+    {kActivationListSubresourceFilter,
+     ActivationList::SUBRESOURCE_FILTER,
+     safe_browsing::SBThreatType::SB_THREAT_TYPE_SUBRESOURCE_FILTER,
+     {}},
+    {kActivationListSubresourceFilter,
      ActivationList::BETTER_ADS,
      safe_browsing::SBThreatType::SB_THREAT_TYPE_SUBRESOURCE_FILTER,
      {{SBType::BETTER_ADS, SBLevel::ENFORCE}}},
@@ -234,7 +238,7 @@ class SafeBrowsingPageActivationThrottleTest
   virtual void Configure() {
     scoped_configuration_.ResetConfiguration(Configuration(
         mojom::ActivationLevel::kEnabled, ActivationScope::ACTIVATION_LIST,
-        ActivationList::BETTER_ADS));
+        ActivationList::SUBRESOURCE_FILTER));
   }
 
   void TearDown() override {
@@ -346,20 +350,12 @@ class SafeBrowsingPageActivationThrottleTest
               SimulateCommit(navigation_simulator()));
   }
 
-  static safe_browsing::ThreatMetadata GetBetterAdsThreatMetadata() {
-    safe_browsing::ThreatMetadata metadata;
-    metadata.subresource_filter_match
-        [safe_browsing::SubresourceFilterType::BETTER_ADS] =
-        safe_browsing::SubresourceFilterLevel::ENFORCE;
-    return metadata;
-  }
-
   void ConfigureForMatch(
       const GURL& url,
       safe_browsing::SBThreatType pattern_type =
           safe_browsing::SBThreatType::SB_THREAT_TYPE_SUBRESOURCE_FILTER,
       const safe_browsing::ThreatMetadata& metadata =
-          GetBetterAdsThreatMetadata()) {
+          safe_browsing::ThreatMetadata()) {
     fake_safe_browsing_database_->AddBlocklistedUrl(url, pattern_type,
                                                     metadata);
   }
@@ -553,7 +549,7 @@ TEST_F(SafeBrowsingPageActivationThrottleTest,
        ActivationLevelDisabled_NoActivation) {
   scoped_configuration()->ResetConfiguration(Configuration(
       mojom::ActivationLevel::kDisabled, ActivationScope::ACTIVATION_LIST,
-      ActivationList::BETTER_ADS));
+      ActivationList::SUBRESOURCE_FILTER));
   GURL url(kURL);
 
   SimulateNavigateAndCommit({url}, main_rfh());
@@ -639,6 +635,8 @@ TEST_F(SafeBrowsingPageActivationThrottleTest, ActivationList) {
        SB_THREAT_TYPE_SAFE},
       {mojom::ActivationLevel::kEnabled, ActivationList::PHISHING_INTERSTITIAL,
        SB_THREAT_TYPE_URL_PHISHING},
+      {mojom::ActivationLevel::kEnabled, ActivationList::SUBRESOURCE_FILTER,
+       SB_THREAT_TYPE_SUBRESOURCE_FILTER},
       {mojom::ActivationLevel::kDisabled, ActivationList::PHISHING_INTERSTITIAL,
        SB_THREAT_TYPE_SUBRESOURCE_FILTER},
   };
@@ -792,9 +790,9 @@ TEST_F(SafeBrowsingPageActivationThrottleTest,
 
 TEST_P(SafeBrowsingPageActivationThrottleScopeTest, ActivateForScopeType) {
   const ActivationScopeTestData& test_data = GetParam();
-  scoped_configuration()->ResetConfiguration(
-      Configuration(mojom::ActivationLevel::kEnabled,
-                    test_data.activation_scope, ActivationList::BETTER_ADS));
+  scoped_configuration()->ResetConfiguration(Configuration(
+      mojom::ActivationLevel::kEnabled, test_data.activation_scope,
+      ActivationList::SUBRESOURCE_FILTER));
 
   const GURL test_url(kURLWithParams);
   if (test_data.url_matches_activation_list) {
@@ -815,9 +813,9 @@ TEST_P(SafeBrowsingPageActivationThrottleScopeTest, ActivateForScopeType) {
 TEST_P(SafeBrowsingPageActivationThrottleScopeTest,
        ActivateForSupportedUrlScheme) {
   const ActivationScopeTestData& test_data = GetParam();
-  scoped_configuration()->ResetConfiguration(
-      Configuration(mojom::ActivationLevel::kEnabled,
-                    test_data.activation_scope, ActivationList::BETTER_ADS));
+  scoped_configuration()->ResetConfiguration(Configuration(
+      mojom::ActivationLevel::kEnabled, test_data.activation_scope,
+      ActivationList::SUBRESOURCE_FILTER));
 
   // data URLs are also not supported, but not listed here, as it's not possible
   // for a page to redirect to them after https://crbug.com/594215 is fixed.
@@ -986,10 +984,10 @@ TEST_F(SafeBrowsingPageActivationThrottleTest, RedirectPositionLogged) {
   GURL bad_url("https://example.bad");
   GURL worse_url("https://example.worse");
 
-  // Set up the configurations, make phishing worse than better ads.
+  // Set up the configurations, make phishing worse than subresource_filter.
   Configuration config_p1(mojom::ActivationLevel::kEnabled,
                           ActivationScope::ACTIVATION_LIST,
-                          ActivationList::BETTER_ADS);
+                          ActivationList::SUBRESOURCE_FILTER);
   config_p1.activation_conditions.priority = 1;
   Configuration config_p2(mojom::ActivationLevel::kEnabled,
                           ActivationScope::ACTIVATION_LIST,

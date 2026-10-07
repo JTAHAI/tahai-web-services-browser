@@ -145,9 +145,12 @@ void HatsServiceDesktop::DelayedSurveyTask::Launch() {
     return;
   }
 
-  BrowserWindowInterface* browser =
+  BrowserWindowInterface* browser_interface =
       GlobalBrowserCollection::GetInstance()->FindBrowserWithTab(
           web_contents());
+  Browser* browser = browser_interface
+                         ? browser_interface->GetBrowserForMigrationOnly()
+                         : nullptr;
 
   hats_service_->ShowSurvey(
       browser, trigger_, std::move(success_callback_),
@@ -206,8 +209,10 @@ HatsService::LaunchError HatsServiceDesktop::LaunchSurvey(
   BrowserWindowInterface* const browser =
       ProfileBrowserCollection::GetForProfile(profile())
           ->GetLastActiveBrowser();
+  Browser* raw_browser =
+      browser ? browser->GetBrowserForMigrationOnly() : nullptr;
 
-  return ShowSurvey(browser, trigger, std::move(success_callback),
+  return ShowSurvey(raw_browser, trigger, std::move(success_callback),
                     std::move(failure_callback), product_specific_bits_data,
                     product_specific_string_data, supplied_trigger_id);
 }
@@ -236,8 +241,10 @@ HatsService::LaunchError HatsServiceDesktop::LaunchSurveyForWebContents(
 
   BrowserWindowInterface* browser =
       GlobalBrowserCollection::GetInstance()->FindBrowserWithTab(web_contents);
+  Browser* raw_browser =
+      browser ? browser->GetBrowserForMigrationOnly() : nullptr;
 
-  return ShowSurvey(browser, trigger, std::move(success_callback),
+  return ShowSurvey(raw_browser, trigger, std::move(success_callback),
                     std::move(failure_callback), product_specific_bits_data,
                     product_specific_string_data, supplied_trigger_id);
 }
@@ -642,7 +649,7 @@ void HatsServiceDesktop::RemoveTask(const DelayedSurveyTask& task) {
 }
 
 HatsService::LaunchError HatsServiceDesktop::RunLaunchChecks(
-    BrowserWindowInterface* browser,
+    Browser* browser,
     const std::string& trigger) const {
   LaunchError error = RunCommonLaunchChecks(trigger);
   if (error != LaunchError::kNone) {
@@ -685,11 +692,10 @@ HatsService::LaunchError HatsServiceDesktop::RunLaunchChecks(
 }
 
 bool HatsServiceDesktop::IsRightBrowserType(
-    BrowserWindowInterface* browser,
+    Browser* browser,
     hats::SurveyConfig::RequestedBrowserType requested_browser_type) const {
   if (!browser ||
-      (browser->GetType() != BrowserWindowInterface::Type::TYPE_NORMAL &&
-       browser->GetType() != BrowserWindowInterface::Type::TYPE_DEVTOOLS)) {
+      (!browser->is_type_normal() && !browser->is_type_devtools())) {
     return false;
   }
 
@@ -702,7 +708,7 @@ bool HatsServiceDesktop::IsRightBrowserType(
 }
 
 HatsService::LaunchError HatsServiceDesktop::ShowSurvey(
-    BrowserWindowInterface* browser,
+    Browser* browser,
     const std::string& trigger,
     base::OnceClosure success_callback,
     base::OnceClosure failure_callback,

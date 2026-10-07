@@ -5,18 +5,13 @@
 #include "content/browser/media/capture/native_screen_capture_picker_mac.h"
 
 #import <AppKit/AppKit.h>
-#import <CoreMedia/CoreMedia.h>
-#import <CoreVideo/CoreVideo.h>
 #import <ScreenCaptureKit/ScreenCaptureKit.h>
 
-#include <atomic>
 #include <unordered_map>
 #include <utility>
 
 #include "base/check.h"
-#include "base/containers/span.h"
 #include "base/features.h"
-#include "base/functional/callback_helpers.h"
 #include "base/logging.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/notreached.h"
@@ -25,14 +20,10 @@
 #include "content/browser/media/capture/desktop_capture_util_mac.h"
 #include "content/browser/media/capture/native_screen_capture_picker.h"
 #include "content/browser/media/capture/screen_capture_kit_device_mac.h"
-#include "content/public/browser/browser_thread.h"
 #include "content/public/browser/desktop_media_id.h"
 #include "media/capture/video/video_capture_device.h"
-#include "skia/ext/skia_utils_mac.h"
 #include "third_party/abseil-cpp/absl/container/flat_hash_map.h"
 #include "third_party/abseil-cpp/absl/container/flat_hash_set.h"
-#include "third_party/skia/include/core/SkBitmap.h"
-#include "third_party/skia/include/core/SkPixmap.h"
 #include "third_party/webrtc/modules/desktop_capture/mac/window_list_utils.h"
 
 // Enables the allowsChangingSelectedContent property on the native macOS
@@ -136,169 +127,6 @@ API_AVAILABLE(macos(14.0))
 }
 @end
 
-namespace {
-
-// Frame queue depth for one-shot screenshot capture. Setting to 1 minimizes
-// frame buffer allocation and latency in ScreenCaptureKit.
-constexpr NSInteger kScreenshotQueueDepth = 1;
-
-// Maximum duration to wait for a frame from ScreenCaptureKit before timing out.
-constexpr base::TimeDelta kScreenshotTimeout = base::Seconds(5);
-
-// Delay allowing the system picker window to complete its fade-out animation
-// before capturing the screen.
-constexpr base::TimeDelta kPickerFadeOutDelay = base::Milliseconds(250);
-
-// Default resolution used as fallback when filter content rect is empty.
-constexpr int kDefaultFallbackWidth = 1920;
-constexpr int kDefaultFallbackHeight = 1080;
-
-}  // namespace
-
-// Helper object that captures a single video frame from an SCStream and stops
-// capture immediately. SCScreenshotManager unconditionally enforces
-// system-level TCC screen recording permissions in macOS System Settings
-// (returning error -3801 when not granted), whereas SCStream is officially
-// authorized by Apple to capture without global permissions when using an
-// SCContentFilter originating from the SCContentSharingPicker.
-API_AVAILABLE(macos(14.0))
-@interface EphemeralFrameGrabber : NSObject <SCStreamOutput, SCStreamDelegate>
-- (instancetype)initWithCallback:
-    (base::OnceCallback<void(const SkBitmap&)>)callback;
-- (void)startWithFilter:(SCContentFilter*)filter
-          configuration:(SCStreamConfiguration*)config;
-- (void)finishWithBitmap:(const SkBitmap&)bitmap;
-@end
-
-API_AVAILABLE(macos(14.0))
-@implementation EphemeralFrameGrabber {
-  base::OnceCallback<void(const SkBitmap&)> _callback;
-  SCStream* __strong _stream;
-  std::unique_ptr<base::OneShotTimer> _timeoutTimer;
-  scoped_refptr<base::SingleThreadTaskRunner> _taskRunner;
-  EphemeralFrameGrabber* __strong _selfRetain;
-}
-
-- (instancetype)initWithCallback:
-    (base::OnceCallback<void(const SkBitmap&)>)callback {
-  if ((self = [super init])) {
-    _callback = std::move(callback);
-    _taskRunner = base::SingleThreadTaskRunner::GetCurrentDefault();
-    _timeoutTimer = std::make_unique<base::OneShotTimer>();
-  }
-  return self;
-}
-
-- (void)startWithFilter:(SCContentFilter*)filter
-          configuration:(SCStreamConfiguration*)config {
-  DCHECK(_taskRunner->RunsTasksInCurrentSequence());
-  NSError* error = nil;
-  _stream = [[SCStream alloc] initWithFilter:filter
-                               configuration:config
-                                    delegate:self];
-  if (!_stream) {
-    [self finishWithBitmap:SkBitmap()];
-    return;
-  }
-
-  if (![_stream addStreamOutput:self
-                           type:SCStreamOutputTypeScreen
-             sampleHandlerQueue:dispatch_get_main_queue()
-                          error:&error] ||
-      error) {
-    [self finishWithBitmap:SkBitmap()];
-    return;
-  }
-
-  _selfRetain = self;
-
-  _timeoutTimer->Start(FROM_HERE, kScreenshotTimeout,
-                       base::BindOnce(
-                           [](EphemeralFrameGrabber* grabber) {
-                             [grabber finishWithBitmap:SkBitmap()];
-                           },
-                           base::Unretained(self)));
-
-  __block EphemeralFrameGrabber* strongSelf = self;
-  [_stream startCaptureWithCompletionHandler:^(NSError* _Nullable startError) {
-    if (startError) {
-      [strongSelf finishWithBitmap:SkBitmap()];
-    }
-  }];
-}
-
-- (void)stream:(SCStream*)stream
-    didOutputSampleBuffer:(CMSampleBufferRef)sampleBuffer
-                   ofType:(SCStreamOutputType)type {
-  DCHECK(_taskRunner->RunsTasksInCurrentSequence());
-  if (type != SCStreamOutputTypeScreen || !_callback) {
-    return;
-  }
-
-  CVPixelBufferRef pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer);
-  if (!pixelBuffer) {
-    [self finishWithBitmap:SkBitmap()];
-    return;
-  }
-
-  if (CVPixelBufferLockBaseAddress(pixelBuffer, kCVPixelBufferLock_ReadOnly) !=
-      kCVReturnSuccess) {
-    [self finishWithBitmap:SkBitmap()];
-    return;
-  }
-
-  const size_t width = CVPixelBufferGetWidth(pixelBuffer);
-  const size_t height = CVPixelBufferGetHeight(pixelBuffer);
-  const size_t bytes_per_row = CVPixelBufferGetBytesPerRow(pixelBuffer);
-  const void* src = CVPixelBufferGetBaseAddress(pixelBuffer);
-
-  SkBitmap bitmap;
-  if (src && width > 0 && height > 0) {
-    SkImageInfo info = SkImageInfo::Make(width, height, kBGRA_8888_SkColorType,
-                                         kPremul_SkAlphaType);
-    if (bitmap.tryAllocPixels(info)) {
-      SkPixmap src_pixmap(info, src, bytes_per_row);
-      bitmap.writePixels(src_pixmap);
-    }
-  }
-  CVPixelBufferUnlockBaseAddress(pixelBuffer, kCVPixelBufferLock_ReadOnly);
-
-  [self finishWithBitmap:bitmap];
-}
-
-- (void)stream:(SCStream*)stream didStopWithError:(NSError*)error {
-  [self finishWithBitmap:SkBitmap()];
-}
-
-- (void)finishWithBitmap:(const SkBitmap&)bitmap {
-  if (!_taskRunner->RunsTasksInCurrentSequence()) {
-    _taskRunner->PostTask(
-        FROM_HERE,
-        base::BindOnce([](EphemeralFrameGrabber* grabber,
-                          SkBitmap bmp) { [grabber finishWithBitmap:bmp]; },
-                       base::Unretained(self), bitmap));
-    return;
-  }
-
-  if (!_callback) {
-    return;
-  }
-
-  _timeoutTimer->Stop();
-  auto callback = std::move(_callback);
-  SCStream* stream = _stream;
-  _stream = nil;
-
-  if (stream) {
-    [stream stopCaptureWithCompletionHandler:^(NSError* _Nullable error){
-    }];
-  }
-
-  std::move(callback).Run(bitmap);
-  _selfRetain = nil;
-}
-@end
-
 namespace content {
 
 // When enabled, this allows you to change the maximum number of streams you can
@@ -308,7 +136,6 @@ constexpr base::FeatureParam<int> kMaxContentShareCountValue = {
     &kMaxContentShareCount, "max_content_share_count", 50};
 
 namespace {
-
 // These values are persisted to logs. Entries should not be renumbered and
 // numeric values should never be reused.
 enum class SCContentSharingPickerSessionEvent {
@@ -339,49 +166,7 @@ pid_t GetWindowOwnerPid(DesktopMediaID::Id id) {
   }
   return webrtc::GetWindowOwnerPid(id);
 }
-
-// Returns the backing scale factor of the NSScreen that contains the majority
-// of the given `rect` (specified in ScreenCaptureKit's logical coordinates).
-CGFloat GetBackingScaleFactorForRect(CGRect rect) {
-  NSRect flipped_rect;
-  flipped_rect.origin.x = rect.origin.x;
-  flipped_rect.size = rect.size;
-
-  // Convert ScreenCaptureKit coordinates (y=0 at the top-left of primary
-  // screen) to AppKit coordinates (y=0 at the bottom-left of primary screen).
-  NSArray<NSScreen*>* screens = [NSScreen screens];
-  if (screens.count == 0) {
-    return 1.0;
-  }
-
-  CGFloat primary_height = screens[0].frame.size.height;
-  flipped_rect.origin.y = primary_height - (rect.origin.y + rect.size.height);
-
-  // We find the screen with the largest overlapping intersection area with our
-  // rect. We do not use a simple contains check because the window might span
-  // multiple monitors or be partially offscreen.
-  NSScreen* best_screen = screens[0];
-  CGFloat max_area = 0;
-  for (NSScreen* screen in screens) {
-    const NSRect intersection = NSIntersectionRect(screen.frame, flipped_rect);
-    const CGFloat area = intersection.size.width * intersection.size.height;
-    if (area > max_area) {
-      max_area = area;
-      best_screen = screen;
-    }
-  }
-  return best_screen.backingScaleFactor;
-}
-
-API_AVAILABLE(macos(14.0))
-std::atomic<NativeScreenCapturePickerMac*> g_instance{nullptr};
 }  // namespace
-
-// static
-NativeScreenCapturePickerMac* NativeScreenCapturePickerMac::GetInstance() {
-  CHECK(BrowserThread::CurrentlyOn(BrowserThread::UI));
-  return g_instance.load();
-}
 
 void API_AVAILABLE(macos(14.0))
     NativeScreenCapturePickerMac::SetGetWindowOwnerPidForTesting(  // IN-TEST
@@ -393,16 +178,9 @@ NativeScreenCapturePickerMac::CaptureSession::CaptureSession() = default;
 NativeScreenCapturePickerMac::CaptureSession::~CaptureSession() = default;
 
 NativeScreenCapturePickerMac::NativeScreenCapturePickerMac()
-    : device_task_runner_(base::SingleThreadTaskRunner::GetCurrentDefault()) {
-  DCHECK_CURRENTLY_ON(BrowserThread::UI);
-  CHECK(!g_instance.load())
-      << "Only one instance of NativeScreenCapturePickerMac is allowed.";
-  g_instance.store(this);
-}
+    : device_task_runner_(base::SingleThreadTaskRunner::GetCurrentDefault()) {}
 
-NativeScreenCapturePickerMac::~NativeScreenCapturePickerMac() {
-  g_instance.store(nullptr);
-}
+NativeScreenCapturePickerMac::~NativeScreenCapturePickerMac() = default;
 
 void NativeScreenCapturePickerMac::Open(
     DesktopMediaID::Type type,
@@ -748,95 +526,6 @@ NativeScreenCapturePickerMac::GetOrCreateCaptureSession(DesktopMediaID::Id id) {
 base::WeakPtr<NativeScreenCapturePicker>
 NativeScreenCapturePickerMac::GetWeakPtr() {
   return weak_ptr_factory_.GetWeakPtr();
-}
-
-void NativeScreenCapturePickerMac::CaptureScreenshot(
-    DesktopMediaID::Id session_id,
-    base::OnceCallback<void(const SkBitmap&)> callback) {
-  CHECK(device_task_runner_->RunsTasksInCurrentSequence());
-  // The system picker requires a short delay to fully close and fade out,
-  // otherwise the picker UI itself is captured in the screenshot.
-  device_task_runner_->PostDelayedTask(
-      FROM_HERE,
-      base::BindOnce(&NativeScreenCapturePickerMac::CaptureScreenshotInternal,
-                     weak_ptr_factory_.GetWeakPtr(), session_id,
-                     std::move(callback)),
-      kPickerFadeOutDelay);
-}
-
-void NativeScreenCapturePickerMac::CaptureScreenshotInternal(
-    DesktopMediaID::Id session_id,
-    base::OnceCallback<void(const SkBitmap&)> callback) {
-  CHECK(device_task_runner_->RunsTasksInCurrentSequence());
-
-  auto it = sessions_.find(session_id);
-  // If the session was closed or does not contain a valid capture filter
-  // (e.g., if the user cancelled the picker or the window became invalid),
-  // we cannot take a screenshot. Return a null bitmap.
-  if (it == sessions_.end() || !it->second->filter) {
-    std::move(callback).Run(SkBitmap());
-    return;
-  }
-
-  SCContentFilter* filter = it->second->filter;
-  SCStreamConfiguration* config = [[SCStreamConfiguration alloc] init];
-
-  config.ignoreShadowsSingleWindow = YES;
-  config.backgroundColor = CGColorGetConstantColor(kCGColorClear);
-  config.scalesToFit = YES;
-  // Request 32BGRA format to match SkBitmap's expected color type.
-  config.pixelFormat = kCVPixelFormatType_32BGRA;
-  config.showsCursor = NO;
-
-  const CGRect rect = filter.contentRect;
-
-  // ScreenCaptureKit's output dimensions (config.width/height) are specified in
-  // physical pixels, while filter.contentRect is in logical points. We must
-  // explicitly scale the dimensions by the backing scale factor to capture the
-  // window at its native Retina resolution (otherwise it will be downscaled and
-  // look blurry).
-  //
-  // If the content rect is empty (e.g., if the window is invalid or closed), we
-  // fall back to a default size (1920x1080) to prevent passing 0 dimensions to
-  // ScreenCaptureKit, which would cause a crash.
-  if (!CGRectIsEmpty(rect)) {
-    const CGFloat scale = GetBackingScaleFactorForRect(rect);
-    config.width = rect.size.width * scale;
-    config.height = rect.size.height * scale;
-  } else {
-    config.width = kDefaultFallbackWidth;
-    config.height = kDefaultFallbackHeight;
-  }
-
-  config.queueDepth = kScreenshotQueueDepth;
-
-  EphemeralFrameGrabber* grabber =
-      [[EphemeralFrameGrabber alloc] initWithCallback:std::move(callback)];
-  [grabber startWithFilter:filter configuration:config];
-}
-
-void CaptureScreenshotFromMacNativePicker(
-    DesktopMediaID::Id session_id,
-    base::OnceCallback<void(const SkBitmap&)> callback) {
-  if (@available(macOS 14.0, *)) {
-    content::GetUIThreadTaskRunner({})->PostTask(
-        FROM_HERE,
-        base::BindOnce(
-            [](DesktopMediaID::Id session_id,
-               base::OnceCallback<void(const SkBitmap&)> callback) {
-              if (auto* picker = NativeScreenCapturePickerMac::GetInstance()) {
-                picker->CaptureScreenshot(session_id, std::move(callback));
-              } else {
-                std::move(callback).Run(SkBitmap());
-              }
-            },
-            session_id,
-            base::BindPostTask(
-                base::SingleThreadTaskRunner::GetCurrentDefault(),
-                std::move(callback))));
-    return;
-  }
-  std::move(callback).Run(SkBitmap());
 }
 
 std::unique_ptr<NativeScreenCapturePicker>

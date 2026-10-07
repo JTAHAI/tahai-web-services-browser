@@ -7,18 +7,12 @@
 
 #import "ios/public/provider/chrome/browser/mini_map/mini_map_api.h"
 
-class GURL;
-
 // A protocol to replace the Mini Map providers in tests.
-@protocol MiniMapControllerFactory <NSObject>
+@protocol MiniMapControllerFactory
 
 - (id<MiniMapController>)createMiniMapController;
 
 - (BOOL)canHandleURL:(NSURL*)url;
-
-@optional
-- (GURL)URLByAppendingCampaignTokenIfNeeded:(const GURL&)url;
-- (BOOL)URLHasCampaignToken:(const GURL&)url;
 
 @end
 

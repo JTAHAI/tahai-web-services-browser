@@ -5,7 +5,6 @@
 #include "build/build_config.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser_element_identifiers.h"
-#include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/views/toolbar/toolbar_accessibility_test.h"
 #include "chrome/common/chrome_features.h"
 #include "chrome/common/pref_names.h"
@@ -110,9 +109,9 @@ IN_PROC_BROWSER_TEST_P(HomeButtonAccessibilityTest, MAYBE_MiddleClickHome) {
       InstrumentTab(kWebContentsElementId),
       NavigateWebContents(kWebContentsElementId, url),
       WaitForElementNonzeroSize(kToolbarHomeButtonElementId),
-      Check([&]() { return browser()->GetTabStripModel()->count() == 1; }),
+      Check([&]() { return browser()->tab_strip_model()->count() == 1; }),
       PollState(kTabCountState,
-                [this]() { return browser()->GetTabStripModel()->count(); }),
+                [this]() { return browser()->tab_strip_model()->count(); }),
       MoveMouseToElement(kToolbarHomeButtonElementId),
       ClickMouse(ui_controls::MIDDLE), WaitForState(kTabCountState, 2));
 }

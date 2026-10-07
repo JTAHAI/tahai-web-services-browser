@@ -31,6 +31,7 @@
 #include "chrome/browser/ui/read_anything/read_anything_controller.h"
 #include "chrome/browser/ui/read_anything/read_anything_enums.h"
 #include "chrome/browser/ui/read_anything/read_anything_prefs.h"
+#include "chrome/browser/ui/read_anything/read_anything_side_panel_controller.h"
 #include "chrome/browser/ui/tabs/public/tab_features.h"
 #include "chrome/browser/ui/toolbar/pinned_toolbar/pinned_toolbar_actions_model.h"
 #include "chrome/common/chrome_isolated_world_ids.h"
@@ -108,23 +109,12 @@ using read_anything::mojom::UntrustedPage;
 using read_anything::mojom::UntrustedPageHandler;
 using read_anything::mojom::VoicePackInstallationState;
 
-// A helper class that orchestrates page distillation using the
-// DomDistillerService.
-//
-// It triggers distillation via StartDistillation() and implements the
-// dom_distiller::ViewRequestDelegate interface to receive the results.
-//
-// It holds a dom_distiller::ViewerHandle to manage the lifetime of the active
-// distillation request. Resetting or replacing this handle cancels any
-// outstanding request, ensuring that only one distillation request is active
-// at any given time. Once distillation completes, it forwards the resulting
-// article to the enclosing ReadAnythingUntrustedPageHandler.
-class ReadAnythingUntrustedPageHandler::DomDistillerDelegate
+class ReadAnythingUntrustedPageHandler::DistillerDelegate
     : public dom_distiller::ViewRequestDelegate {
  public:
-  explicit DomDistillerDelegate(ReadAnythingUntrustedPageHandler* handler)
+  explicit DistillerDelegate(ReadAnythingUntrustedPageHandler* handler)
       : handler_(handler) {}
-  ~DomDistillerDelegate() override = default;
+  ~DistillerDelegate() override = default;
 
   void StartDistillation(dom_distiller::DomDistillerService* service,
                          content::WebContents* contents) {
@@ -334,6 +324,9 @@ void ReadAnythingWebContentsObserver::DidFinishNavigation(
 }
 
 void ReadAnythingUntrustedPageHandler::MaybeUpdateImmersivePinStatus() {
+  if (!features::IsImmersiveReadAnythingEnabled()) {
+    return;
+  }
   CHECK(pinned_toolbar_);
   const bool is_pinned_in_toolbar =
       pinned_toolbar_->Contains(kActionSidePanelShowReadAnything);
@@ -377,15 +370,26 @@ ReadAnythingUntrustedPageHandler::ReadAnythingUntrustedPageHandler(
 #else
   extension_wrapper_->ActivateSpeechEngine(profile_);
 #endif
-  read_anything_controller_ =
-      ReadAnythingControllerGlue::FromWebContents(web_ui_->GetWebContents())
-          ->controller();
-  CHECK(read_anything_controller_);
-  read_anything_controller_->AddObserver(this);
-  tab_ = read_anything_controller_->tab();
-  pinned_toolbar_ = PinnedToolbarActionsModel::Get(Profile::FromWebUI(web_ui));
-  pinned_toolbar_actions_observation_.Observe(pinned_toolbar_);
-  MaybeUpdateImmersivePinStatus();
+  if (features::IsImmersiveReadAnythingEnabled()) {
+    read_anything_controller_ =
+        ReadAnythingControllerGlue::FromWebContents(web_ui_->GetWebContents())
+            ->controller();
+    CHECK(read_anything_controller_);
+    read_anything_controller_->AddObserver(this);
+    tab_ = read_anything_controller_->tab();
+    pinned_toolbar_ =
+        PinnedToolbarActionsModel::Get(Profile::FromWebUI(web_ui));
+    pinned_toolbar_actions_observation_.Observe(pinned_toolbar_);
+    MaybeUpdateImmersivePinStatus();
+  } else {
+    side_panel_controller_ =
+        ReadAnythingSidePanelControllerGlue::FromWebContents(
+            web_ui_->GetWebContents())
+            ->controller();
+    side_panel_controller_->AddPageHandlerAsObserver(
+        weak_factory_.GetWeakPtr());
+    tab_ = side_panel_controller_->tab();
+  }
 
   tab_discard_subscription_ = tab_->RegisterWillDiscardContents(
       base::BindRepeating(&ReadAnythingUntrustedPageHandler::OnTabDiscarded,
@@ -421,7 +425,7 @@ ReadAnythingUntrustedPageHandler::ReadAnythingUntrustedPageHandler(
           ISOLATED_WORLD_ID_CHROME_INTERNAL);
     }
 
-    distiller_delegate_ = std::make_unique<DomDistillerDelegate>(this);
+    distiller_delegate_ = std::make_unique<DistillerDelegate>(this);
   }
 
   // Enable accessibility for the top level render frame and all descendants.
@@ -441,10 +445,6 @@ ReadAnythingUntrustedPageHandler::ReadAnythingUntrustedPageHandler(
 }
 
 ReadAnythingUntrustedPageHandler::~ReadAnythingUntrustedPageHandler() {
-  if (listen_to_this_page_playback_state_ !=
-      ListenToThisPagePlaybackMetricState::kInactive) {
-    RecordListenToThisPagePlaybackMetric(/*successful_playback=*/false);
-  }
   OnReadAloudAudioStateChange(false);
 #if !BUILDFLAG(IS_CHROMEOS)
   content::TtsController::GetInstance()->RemoveUpdateLanguageStatusDelegate(
@@ -459,6 +459,13 @@ ReadAnythingUntrustedPageHandler::~ReadAnythingUntrustedPageHandler() {
   if (read_anything_controller_) {
     read_anything_controller_->RemoveObserver(this);
   }
+  if (side_panel_controller_) {
+    // If |this| is destroyed before the |ReadAnythingSidePanelController|, then
+    // remove |this| from the observer lists. In the cases where the coordinator
+    // is destroyed first, these will have been destroyed before this call.
+    side_panel_controller_->RemovePageHandlerAsObserver(
+        weak_factory_.GetWeakPtr());
+  }
 
 #if BUILDFLAG(IS_CHROMEOS)
   auto* session_controller = ash::SessionController::Get();
@@ -471,10 +478,6 @@ ReadAnythingUntrustedPageHandler::~ReadAnythingUntrustedPageHandler() {
 }
 
 void ReadAnythingUntrustedPageHandler::PrimaryPageChanged() {
-  if (listen_to_this_page_playback_state_ !=
-      ListenToThisPagePlaybackMetricState::kInactive) {
-    RecordListenToThisPagePlaybackMetric(/*successful_playback=*/false);
-  }
   SetUpPdfObserver();
   OnActiveAXTreeIDChanged();
 }
@@ -523,13 +526,6 @@ bool ReadAnythingUntrustedPageHandler::AreInnerContentsPdfContent(
 #else
   return false;
 #endif
-}
-
-bool ReadAnythingUntrustedPageHandler::IsGoogleDocs(const GURL& url) const {
-  return url.SchemeIsHTTPOrHTTPS() &&
-         (url.DomainIs("docs.google.com") ||
-          url.DomainIs("docs.sandbox.google.com")) &&
-         url.GetPath().starts_with("/document");
 }
 
 void ReadAnythingUntrustedPageHandler::WebContentsDestroyed() {
@@ -702,24 +698,33 @@ void ReadAnythingUntrustedPageHandler::SendNextLanguageRequest() {
 }
 #endif
 
+// Will only return a valid state if IsImmersiveReadAnythingEnabled() is true,
+// otherwise do nothing.
+// TODO(crbug.com/463728166): Remove IsImmersiveReadAnythingEnabled flag when no
+// longer flag-guarded code.
 ReadAnythingController*
 ReadAnythingUntrustedPageHandler::GetReadAnythingController() {
-  content::WebContents* main_web_contents = main_observer_->web_contents();
-  CHECK(main_web_contents);
+  if (features::IsImmersiveReadAnythingEnabled()) {
+    content::WebContents* main_web_contents = main_observer_->web_contents();
+    CHECK(main_web_contents);
 
-  tabs::TabInterface* tab =
-      tabs::TabInterface::GetFromContents(main_web_contents);
-  CHECK(tab);
+    tabs::TabInterface* tab =
+        tabs::TabInterface::GetFromContents(main_web_contents);
+    CHECK(tab);
 
-  auto* ra_controller = ReadAnythingController::From(tab);
-  return ra_controller;
+    auto* ra_controller = ReadAnythingController::From(tab);
+    return ra_controller;
+  }
+  return nullptr;
 }
 
 void ReadAnythingUntrustedPageHandler::OnGetPresentationState() {
-  auto* ra_controller = GetReadAnythingController();
-  CHECK(ra_controller);
+  if (features::IsImmersiveReadAnythingEnabled()) {
+    auto* ra_controller = GetReadAnythingController();
+    CHECK(ra_controller);
 
-  page_->OnGetPresentationState(ra_controller->GetPresentationState());
+    page_->OnGetPresentationState(ra_controller->GetPresentationState());
+  }
 }
 
 void ReadAnythingUntrustedPageHandler::GetPresentationState() {
@@ -728,29 +733,31 @@ void ReadAnythingUntrustedPageHandler::GetPresentationState() {
 
 void ReadAnythingUntrustedPageHandler::OnDistillationStateChanged(
     read_anything::mojom::ReadAnythingDistillationState new_state) {
-  // Distillation state transitions to kNotAttempted are only valid during
-  // initialization (i.e. when the current state is kUndefined).
-  if (distillation_state_ !=
-          read_anything::mojom::ReadAnythingDistillationState::kUndefined &&
-      new_state ==
-          read_anything::mojom::ReadAnythingDistillationState::kNotAttempted) {
-    mojo::ReportBadMessage("Invalid distillation state transition");
-    return;
+  if (features::IsImmersiveReadAnythingEnabled()) {
+    // Distillation state transitions to kNotAttempted are only valid during
+    // initialization (i.e. when the current state is kUndefined).
+    if (distillation_state_ !=
+            read_anything::mojom::ReadAnythingDistillationState::kUndefined &&
+        new_state == read_anything::mojom::ReadAnythingDistillationState::
+                         kNotAttempted) {
+      mojo::ReportBadMessage("Invalid distillation state transition");
+      return;
+    }
+
+    // Distillation state transitions to kUndefined are not valid, regardless of
+    // what the current state is.
+    if (new_state ==
+        read_anything::mojom::ReadAnythingDistillationState::kUndefined) {
+      mojo::ReportBadMessage("Invalid distillation state transition");
+      return;
+    }
+
+    distillation_state_ = new_state;
+    auto* ra_controller = GetReadAnythingController();
+    CHECK(ra_controller);
+
+    ra_controller->OnDistillationStateChanged(new_state);
   }
-
-  // Distillation state transitions to kUndefined are not valid, regardless of
-  // what the current state is.
-  if (new_state ==
-      read_anything::mojom::ReadAnythingDistillationState::kUndefined) {
-    mojo::ReportBadMessage("Invalid distillation state transition");
-    return;
-  }
-
-  distillation_state_ = new_state;
-  auto* ra_controller = GetReadAnythingController();
-  CHECK(ra_controller);
-
-  ra_controller->OnDistillationStateChanged(new_state);
 }
 
 void ReadAnythingUntrustedPageHandler::OnGetVoicePackInfo(
@@ -903,49 +910,18 @@ void ReadAnythingUntrustedPageHandler::OnLinksEnabledChanged(bool enabled) {
       prefs::kAccessibilityReadAnythingLinksEnabled, enabled);
 }
 
-std::string ReadAnythingUntrustedPageHandler::GetDisplayLanguage() {
-  std::string source_lang = current_language_code_;
-
-  content::WebContents* main_contents = GetWebContents();
-  if (!main_contents) {
-    return source_lang;
-  }
-
-  ChromeTranslateClient* main_client =
-      ChromeTranslateClient::FromWebContents(main_contents);
-  if (!main_client) {
-    return source_lang;
-  }
-
-  const translate::LanguageState& main_language_state =
-      main_client->GetLanguageState();
-
-  // Use the main page's translated language if it has already been translated.
-  if (main_language_state.IsPageTranslated()) {
-    return main_language_state.current_language();
-  }
-
-  // Fall back to the main page's source language if ours is unknown.
-  if (source_lang.empty() || source_lang == "und" || source_lang == "und-und") {
-    return main_language_state.source_language();
-  }
-
-  return source_lang;
-}
-
 void ReadAnythingUntrustedPageHandler::OnTranslationRequested() {
   if (!features::IsReadAnythingTranslateEntryPointEnabled()) {
     mojo::ReportBadMessage("Translate entry point not enabled");
     return;
   }
-  content::WebContents* side_panel_contents = web_ui_->GetWebContents();
-  if (!side_panel_contents) {
+  content::WebContents* contents = GetWebContents();
+  if (!contents) {
     return;
   }
 
-  ChromeTranslateClient::CreateForWebContents(side_panel_contents);
   ChromeTranslateClient* translate_client =
-      ChromeTranslateClient::FromWebContents(side_panel_contents);
+      ChromeTranslateClient::FromWebContents(contents);
   if (!translate_client) {
     return;
   }
@@ -953,34 +929,7 @@ void ReadAnythingUntrustedPageHandler::OnTranslationRequested() {
   translate::TranslateManager* translate_manager =
       translate_client->GetTranslateManager();
   if (translate_manager) {
-    // Sync the article's true source language to the side panel
-    // TranslateManager (using the current language if the main page was
-    // translated) and preserve any existing target language before opening the
-    // Translate bubble.
-    std::optional<std::string> target_lang;
-    translate::LanguageState* language_state =
-        translate_manager->GetLanguageState();
-
-    if (language_state) {
-      if (language_state->IsPageTranslated()) {
-        target_lang = language_state->current_language();
-      }
-
-      std::string source_lang = GetDisplayLanguage();
-
-      if (target_lang == source_lang) {
-        target_lang = std::nullopt;
-      }
-      if (!source_lang.empty() && source_lang != "und" &&
-          source_lang != "und-und") {
-        language_state->LanguageDetermined(
-            source_lang, /*page_level_translation_criteria_met=*/true);
-      }
-      language_state->set_translation_pending(false);
-    }
-    translate_manager->ShowTranslateUI(/*source_code=*/std::nullopt,
-                                       /*target_code=*/target_lang,
-                                       /*auto_translate=*/true,
+    translate_manager->ShowTranslateUI(/*auto_translate=*/true,
                                        /*triggered_from_menu=*/true);
   }
 }
@@ -1042,33 +991,8 @@ void ReadAnythingUntrustedPageHandler::OnLineFocusChanged(
   }
 }
 
-void ReadAnythingUntrustedPageHandler::UpdateForListenToThisPage(
-    bool& playing) {
-  if (playing) {
-    if (listen_to_this_page_playback_state_ ==
-        ListenToThisPagePlaybackMetricState::kWaitingForAudioStart) {
-      listen_to_this_page_playback_state_ =
-          ListenToThisPagePlaybackMetricState::kWaitingForSustainedPlayback;
-      listen_to_this_page_playback_timer_.Start(
-          FROM_HERE, kListenToThisPagePlaybackSustainedDuration,
-          base::BindOnce(&ReadAnythingUntrustedPageHandler::
-                             RecordListenToThisPagePlaybackMetric,
-                         base::Unretained(this),
-                         /*successful_playback=*/true));
-    }
-  } else {
-    if (listen_to_this_page_playback_state_ ==
-        ListenToThisPagePlaybackMetricState::kWaitingForSustainedPlayback) {
-      RecordListenToThisPagePlaybackMetric(/*successful_playback=*/false);
-    }
-  }
-}
-
 void ReadAnythingUntrustedPageHandler::OnReadAloudAudioStateChange(
     bool playing) {
-  if (features::IsReadAnythingImprovedUiEnabled()) {
-    UpdateForListenToThisPage(playing);
-  }
   // Show the tab audio icon when read aloud is playing, and hide it when it
   // stops playing.
   content::WebContents* contents = !!pdf_observer_
@@ -1225,22 +1149,20 @@ void ReadAnythingUntrustedPageHandler::ScrollToTargetNode(
 }
 
 void ReadAnythingUntrustedPageHandler::CloseUI() {
-  CHECK(read_anything_controller_);
-  // Because Mojo messages from the untrusted WebUI arrive asynchronously, the
-  // presentation state may have already changed away from kInImmersiveOverlay
-  // (e.g., due to tab switching or closing the overlay). Ignore stale close
-  // requests rather than DCHECK / CHECK-ing.
-  if (read_anything_controller_->GetPresentationState() !=
-      ReadAnythingController::PresentationState::kInImmersiveOverlay) {
-    VLOG(1) << "Received CloseUI request when presentation state is not "
-               "kInImmersiveOverlay";
+  if (!features::IsImmersiveReadAnythingEnabled()) {
     return;
   }
+  CHECK(read_anything_controller_);
+  DCHECK(read_anything_controller_->GetPresentationState() ==
+         ReadAnythingController::PresentationState::kInImmersiveOverlay);
   read_anything_controller_->CloseImmersiveUI(
       ReadAnythingCloseReason::kClosedByUser);
 }
 
 void ReadAnythingUntrustedPageHandler::TogglePinState() {
+  if (!features::IsImmersiveReadAnythingEnabled()) {
+    return;
+  }
   CHECK(pinned_toolbar_);
   immersive_read_anything_pin_state_ = !immersive_read_anything_pin_state_;
   pinned_toolbar_->UpdatePinnedState(kActionSidePanelShowReadAnything,
@@ -1252,13 +1174,17 @@ void ReadAnythingUntrustedPageHandler::SendPinStateRequest() {
 }
 
 void ReadAnythingUntrustedPageHandler::TogglePresentation() {
-  CHECK(read_anything_controller_);
-  read_anything_controller_->TogglePresentation(/*is_user_initiated=*/true);
+  if (features::IsImmersiveReadAnythingEnabled()) {
+    CHECK(read_anything_controller_);
+    read_anything_controller_->TogglePresentation(/*is_user_initiated=*/true);
+  }
 }
 
 void ReadAnythingUntrustedPageHandler::AckReadingModeHidden() {
-  ack_timed_out_for_testing_ = false;
-  reading_mode_hidden_ack_timer_.Stop();
+  if (features::IsImmersiveReadAnythingEnabled()) {
+    ack_timed_out_for_testing_ = false;
+    reading_mode_hidden_ack_timer_.Stop();
+  }
 }
 
 void ReadAnythingUntrustedPageHandler::OnSpeechEngineStalled() {
@@ -1277,7 +1203,6 @@ void ReadAnythingUntrustedPageHandler::RequestReadabilityDistillation() {
   if (!features::IsReadAnythingWithReadabilityEnabled()) {
     return;
   }
-  readability_distillation_tree_change_start_time_ = base::TimeTicks();
   RequestDomDistillerDistillation(tab_->GetContents());
 }
 
@@ -1396,36 +1321,18 @@ void ReadAnythingUntrustedPageHandler::Activate(
   active_ = active;
   if (active_) {
     last_open_trigger_ = open_trigger;
-    if (features::IsReadAnythingImprovedUiEnabled() &&
-        open_trigger == ReadAnythingOpenTrigger::kListenToThisPageContextMenu) {
-      if (listen_to_this_page_playback_state_ !=
-          ListenToThisPagePlaybackMetricState::kInactive) {
-        RecordListenToThisPagePlaybackMetric(/*successful_playback=*/false);
-      }
-      listen_to_this_page_playback_state_ =
-          ListenToThisPagePlaybackMetricState::kWaitingForAudioStart;
-      listen_to_this_page_playback_timer_.Start(
-          FROM_HERE, kListenToThisPagePlaybackStartupTimeout,
-          base::BindOnce(&ReadAnythingUntrustedPageHandler::
-                             RecordListenToThisPagePlaybackMetric,
-                         base::Unretained(this),
-                         /*successful_playback=*/false));
-    }
     page_->OnReadingModeShown(
         static_cast<read_anything::mojom::ReadAnythingOpenTrigger>(
             open_trigger));
     tab_will_detach_ = false;
-    // Signal that reading mode has been re-opened and is no longer hidden if
-    // it was previously marked as hidden.
-    OnGetPresentationState();
+    if (features::IsImmersiveReadAnythingEnabled()) {
+      // Signal that reading mode has been re-opened and is no longer hidden if
+      // it was previously marked as hidden.
+      OnGetPresentationState();
+    }
     RestoreSettingsFromPrefs();
   }
   if (!active && !tab_will_detach_) {
-    if (features::IsReadAnythingImprovedUiEnabled() &&
-        listen_to_this_page_playback_state_ !=
-            ListenToThisPagePlaybackMetricState::kInactive) {
-      RecordListenToThisPagePlaybackMetric(/*successful_playback=*/false);
-    }
     page_->OnReadingModeHidden(tab_->IsActivated());
 
     // When Reading mode is hidden (with immersive flag enabled), we need to
@@ -1437,15 +1344,21 @@ void ReadAnythingUntrustedPageHandler::Activate(
     // hidden because if the user notices a crash they will likely try to close
     // and reopen RM. Detecting a crash programmatically is often slower than
     // the user noticing, so this handles that case.
-    reading_mode_hidden_ack_timer_.Start(
-        FROM_HERE, kReadingModeHiddenAckTimeout,
-        base::BindOnce(
-            &ReadAnythingUntrustedPageHandler::OnReadingModeHiddenAckTimeout,
-            base::Unretained(this)));
+    if (features::IsImmersiveReadAnythingEnabled()) {
+      reading_mode_hidden_ack_timer_.Start(
+          FROM_HERE, kReadingModeHiddenAckTimeout,
+          base::BindOnce(
+              &ReadAnythingUntrustedPageHandler::OnReadingModeHiddenAckTimeout,
+              base::Unretained(this)));
+    }
   }
 }
 
 void ReadAnythingUntrustedPageHandler::OnReadingModeHiddenAckTimeout() {
+  if (!features::IsImmersiveReadAnythingEnabled()) {
+    return;
+  }
+
   ack_timed_out_for_testing_ = true;
   CHECK(read_anything_controller_);
   read_anything_controller_->RecreateWebUIWrapper();
@@ -1459,6 +1372,9 @@ void ReadAnythingUntrustedPageHandler::OnReadingModePresenterChanged() {
 // the main frame.
 void ReadAnythingUntrustedPageHandler::DidFinishNavigation(
     content::NavigationHandle* navigation_handle) {
+  if (!active_ && !features::IsImmersiveReadAnythingEnabled()) {
+    return;
+  }
   if (!navigation_handle->IsInPrimaryMainFrame() ||
       !navigation_handle->HasCommitted() ||
       !navigation_handle->IsSameDocument()) {
@@ -1488,6 +1404,7 @@ void ReadAnythingUntrustedPageHandler::OnTabDiscarded(
 }
 
 void ReadAnythingUntrustedPageHandler::OnDestroyed() {
+  side_panel_controller_ = nullptr;
   read_anything_controller_ = nullptr;
 }
 
@@ -1570,6 +1487,17 @@ void ReadAnythingUntrustedPageHandler::OnActiveAXTreeIDChanged() {
   is_pdf_with_frame_ = false;
   is_waiting_for_pdf_frame_ = false;
 
+  // If the side panel is not active, we should not send the active tree id.
+  // This check is skipped when immersive read anything is enabled because
+  // there are times when the side panel is inactive but the Reading Mode
+  // application is still running, so we do need to send the active tree id.
+  if (!active_ && !features::IsImmersiveReadAnythingEnabled()) {
+    VLOG(1) << "Sending unknown tree because not active";
+    page_->OnActiveAXTreeIDChanged(ui::AXTreeIDUnknown(), ukm::kInvalidSourceId,
+                                   /*is_pdf=*/false);
+    return;
+  }
+
   content::WebContents* contents = !!pdf_observer_
                                        ? pdf_observer_->web_contents()
                                        : main_observer_->web_contents();
@@ -1623,29 +1551,20 @@ void ReadAnythingUntrustedPageHandler::OnActiveAXTreeIDChanged() {
   // with the TS text segmentation method. Therefore, it doesn't work with
   // Readability. Until phrase highlighting works with TSTextSegmentation,
   // default to using Screen2x when the phrase highlighting flag is enabled.
-  // Google Docs enforces a strict TrustedHTML Content Security Policy that
-  // causes Readability script injection to fail. Avoid requesting Readability
-  // distillation when on Google Docs so the renderer can fall back cleanly to
-  // Screen2x.
   const bool use_readability =
       features::IsReadAnythingWithReadabilityEnabled() && !is_pdf_with_frame_ &&
-      !IsGoogleDocs(contents->GetLastCommittedURL()) &&
       !features::IsReadAnythingReadAloudPhraseHighlightingEnabled();
 
   if (use_readability) {
-    readability_distillation_tree_change_start_time_ = base::TimeTicks::Now();
-
-    if (!features::IsReadAnythingDistillerRefactorEnabled()) {
-      // We must emit `kDistillationInProgress` before sending the new tree ID
-      // to the renderer with page_->OnActiveAXTreeIDChanged. This ensures the
-      // renderer pauses its update processing
-      // (`ReadAnythingAppController::IsUpdateProcessingPaused() == true`) for
-      // the new tree. If we reverse this order, any A11y events arriving in the
-      // gap will be processed on an incomplete tree and cause a crash.
-      page_->OnReadabilityDistillationStateChanged(
-          read_anything::mojom::ReadAnythingDistillationState::
-              kDistillationInProgress);
-    }
+    // We must emit `kDistillationInProgress` before sending the new tree ID
+    // to the renderer with page_->OnActiveAXTreeIDChanged. This ensures the
+    // renderer pauses its update processing
+    // (`ReadAnythingAppController::IsUpdateProcessingPaused() == true`) for the
+    // new tree. If we reverse this order, any A11y events arriving in the gap
+    // will be processed on an incomplete tree and cause a crash.
+    page_->OnReadabilityDistillationStateChanged(
+        read_anything::mojom::ReadAnythingDistillationState::
+            kDistillationInProgress);
   }
 
   // When IsReadAnythingWithReadabilityEnabled is true, we still send AX tree
@@ -1654,11 +1573,6 @@ void ReadAnythingUntrustedPageHandler::OnActiveAXTreeIDChanged() {
                                  /*is_pdf=*/false);
 
   if (use_readability) {
-    // This flag initiates a Readability Distillation in the renderer, so don't
-    // request a distillation here if it's enabled.
-    if (features::IsReadAnythingDistillerRefactorEnabled()) {
-      return;
-    }
     // Now that the renderer is prepped, request distillation. If this fails
     // synchronously, the renderer will correctly fall back to Screen2x for the
     // *new* tree.
@@ -1669,8 +1583,7 @@ void ReadAnythingUntrustedPageHandler::RequestDomDistillerDistillation(
     content::WebContents* content) {
   if (!features::IsReadAnythingWithReadabilityEnabled() ||
       features::IsReadAnythingReadAloudPhraseHighlightingEnabled() ||
-      is_pdf_with_frame_ ||
-      (content && IsGoogleDocs(content->GetLastCommittedURL()))) {
+      is_pdf_with_frame_) {
     return;
   }
 
@@ -1708,27 +1621,6 @@ void ReadAnythingUntrustedPageHandler::RequestDomDistillerDistillation(
       read_anything::mojom::ReadAnythingDistillationState::
           kDistillationInProgress);
   distiller_delegate_->StartDistillation(dom_distiller_service, content);
-}
-
-void ReadAnythingUntrustedPageHandler::RecordListenToThisPagePlaybackMetric(
-    bool successful_playback) {
-  if (!features::IsReadAnythingImprovedUiEnabled() ||
-      listen_to_this_page_playback_state_ ==
-          ListenToThisPagePlaybackMetricState::kInactive) {
-    return;
-  }
-  listen_to_this_page_playback_timer_.Stop();
-  listen_to_this_page_playback_state_ =
-      ListenToThisPagePlaybackMetricState::kInactive;
-  base::UmaHistogramBoolean(
-      "Accessibility.ReadAnything.ListenToThisPage."
-      "AudioPlaybackStartedWithin5Seconds",
-      successful_playback);
-}
-
-void ReadAnythingUntrustedPageHandler::
-    RecordListenToThisPagePlaybackMetricForTesting(bool successful_playback) {
-  RecordListenToThisPagePlaybackMetric(successful_playback);
 }
 
 void ReadAnythingUntrustedPageHandler::RecordDistillationSchemeHistogram(
@@ -1781,13 +1673,6 @@ void ReadAnythingUntrustedPageHandler::ProcessDistilledArticle(
       if (features::IsReadAnythingDistillationQualityEvaluationEnabled()) {
         EvaluateDistillationQuality(dom_distiller_content().value());
       }
-      if (!readability_distillation_tree_change_start_time_.is_null()) {
-        base::UmaHistogramMediumTimes(
-            "Accessibility.ReadAnything."
-            "TimeFromTreeChangedToDistillationComplete",
-            base::TimeTicks::Now() -
-                readability_distillation_tree_change_start_time_);
-      }
     }
   } else {
     page_->OnReadabilityDistillationStateChanged(
@@ -1795,9 +1680,6 @@ void ReadAnythingUntrustedPageHandler::ProcessDistilledArticle(
             kDistillationEmpty);
     page_->UpdateContent(/*title=*/"", /*content=*/"");
   }
-  // Reset the tree-change start time once distillation has finished,
-  // regardless of whether content was successfully produced.
-  readability_distillation_tree_change_start_time_ = base::TimeTicks();
 }
 
 void ReadAnythingUntrustedPageHandler::EvaluateDistillationQuality(

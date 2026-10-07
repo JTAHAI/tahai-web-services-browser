@@ -45,10 +45,9 @@ public class SafeModeInfo {
                     @Override
                     public void onServiceConnected(ComponentName className, IBinder service) {
                         // This is called when the connection with the service is established.
-                        ISafeModeService safeModeService =
-                                ISafeModeService.Stub.asInterface(service);
+                        ISafeModeService mService = ISafeModeService.Stub.asInterface(service);
                         try {
-                            long activationTime = safeModeService.getSafeModeActivationTimestamp();
+                            long activationTime = mService.getSafeModeActivationTimestamp();
                             callback.accept(activationTime);
                         } catch (RemoteException e) {
                             Log.e(

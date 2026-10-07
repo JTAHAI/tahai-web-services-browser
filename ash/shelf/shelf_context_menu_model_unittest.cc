@@ -108,7 +108,6 @@ TEST_P(ShelfContextMenuModelTest, Basic) {
   for (size_t i = 0; i < menu.GetItemCount(); ++i) {
     EXPECT_TRUE(menu.IsEnabledAt(i));
     EXPECT_TRUE(menu.IsVisibleAt(i));
-    EXPECT_FALSE(menu.GetIconAt(i).IsEmpty());
   }
 
   // Check the alignment submenu.
@@ -328,7 +327,6 @@ TEST_P(DeskButtonContextMenuModelTest, Basic) {
   for (size_t i = 0; i < shelf_menu.GetItemCount(); ++i) {
     EXPECT_TRUE(shelf_menu.IsEnabledAt(i));
     EXPECT_TRUE(shelf_menu.IsVisibleAt(i));
-    EXPECT_FALSE(shelf_menu.GetIconAt(i).IsEmpty());
   }
 
   // On the shelf, the context menu should also have the desk button visibility
@@ -345,7 +343,6 @@ TEST_P(DeskButtonContextMenuModelTest, Basic) {
   for (size_t i = 0; i < non_shelf_menu.GetItemCount(); ++i) {
     EXPECT_TRUE(non_shelf_menu.IsEnabledAt(i));
     EXPECT_TRUE(non_shelf_menu.IsVisibleAt(i));
-    EXPECT_FALSE(non_shelf_menu.GetIconAt(i).IsEmpty());
   }
 }
 

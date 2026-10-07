@@ -10,8 +10,6 @@
 #include "chrome/browser/sync/test/integration/sync_test.h"
 #include "chrome/browser/sync/test/integration/updated_progress_marker_checker.h"
 #include "components/bookmarks/browser/bookmark_model.h"
-#include "components/browser_sync/browser_sync_switches.h"
-#include "components/signin/public/base/signin_switches.h"
 #include "components/sync/test/nigori_test_utils.h"
 #include "content/public/test/browser_test.h"
 #include "content/public/test/test_launcher.h"
@@ -43,10 +41,8 @@ class TwoClientCustomPassphraseSyncTest
  public:
   TwoClientCustomPassphraseSyncTest() : SyncTest(TWO_CLIENT) {
     if (GetSetupSyncMode() == SetupSyncMode::kSyncTransportOnly) {
-      scoped_feature_list_.InitWithFeatures(
-          {syncer::kReplaceSyncPromosWithSignInPromos,
-           switches::kSyncEnableBookmarksInTransportMode},
-          {});
+      scoped_feature_list_.InitAndEnableFeature(
+          syncer::kReplaceSyncPromosWithSignInPromos);
     }
   }
   ~TwoClientCustomPassphraseSyncTest() override = default;

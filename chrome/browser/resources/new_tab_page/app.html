@@ -78,7 +78,6 @@ import {SubmitButtonIconType} from '//resources/cr_components/composebox/compose
               .showVoiceSearch="${true}"
               .smartTabSharingVisible="${this.smartTabSharingVisible_}"
               .contextManagementInComposeboxEnabled="${this.contextManagementInComposeboxEnabled_}"
-              @context-menu-opened="${this.onComposeboxContextMenuOpened_}"
               @close-composebox="${this.onCloseComposebox_}"
               @voice-search-action="${this.onComposeVoiceSearchAction_}"
               .submitButtonIconType="${SubmitButtonIconType.FORWARD}"
@@ -86,7 +85,7 @@ import {SubmitButtonIconType} from '//resources/cr_components/composebox/compose
               .closeOnEscape="${false}"
               .energyEffectEnabled="${this.energyEffectEnabled_}"
               .energyEffectAnimationEnabled="${this.energyEffectAnimationEnabled_}"
-              >
+              ?is-dark="${this.isThemeDark_()}">
           </ntp-composebox>
         ${this.enableThreadsRail_ ? html`
           <cr-threads-rail id="threadsRail">
@@ -129,6 +128,12 @@ import {SubmitButtonIconType} from '//resources/cr_components/composebox/compose
           @most-visited-auto-removed="${this.onMostVisitedAutoRemoved_}">
       </cr-most-visited>
     ` : ''}
+    ${this.middleSlotPromoEnabled_ ? html`
+      <ntp-middle-slot-promo
+          @ntp-middle-slot-promo-loaded="${this.onNtpMiddleSlotPromoLoaded_}"
+          ?hidden="${!this.promoAndModulesLoaded_}">
+      </ntp-middle-slot-promo>
+    ` : ''}
     ${this.modulesEnabled_ ? html`
       ${html`
         <ntp-modules id="modules"
@@ -137,7 +142,7 @@ import {SubmitButtonIconType} from '//resources/cr_components/composebox/compose
             @customize-module="${this.onCustomizeModule_}"
             @modules-loaded="${this.onModulesLoaded_}"
             @modules-auto-removed="${this.onModulesAutoRemoved_}"
-            ?hidden="${!this.modulesLoaded_}">
+            ?hidden="${!this.promoAndModulesLoaded_}">
         </ntp-modules>
       `}
     ` : ''}

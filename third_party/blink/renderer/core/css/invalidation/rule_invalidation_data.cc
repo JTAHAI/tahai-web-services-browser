@@ -4,7 +4,6 @@
 
 #include "third_party/blink/renderer/core/css/invalidation/rule_invalidation_data.h"
 
-#include "base/memory/raw_ptr.h"
 #include "base/memory/values_equivalent.h"
 #include "third_party/blink/renderer/core/dom/element.h"
 #include "third_party/blink/renderer/core/dom/space_split_string.h"
@@ -347,7 +346,7 @@ bool RuleInvalidationData::NeedsHasInvalidationForInsertedOrRemovedElement(
     }
   }
 
-  return (!attributes_in_has_argument.empty() && element.hasAttributes()) ||
+  return !attributes_in_has_argument.empty() ||
          NeedsHasInvalidationForTagName(element.LocalNameForSelectorMatching());
 }
 
@@ -372,8 +371,7 @@ String RuleInvalidationData::ToString() const {
 
   struct Entry {
     String name;
-    raw_ptr<const InvalidationSet, UnprotectedInRelease | DanglingUntriaged>
-        set;
+    const InvalidationSet* set;
     unsigned flags;
   };
 

@@ -12,7 +12,6 @@
 #include "chrome/browser/notifications/notification_permission_context.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser_window.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/common/chrome_features.h"
 #include "chrome/test/base/ui_test_utils.h"
@@ -112,8 +111,8 @@ int NotificationsTest::GetNotificationPopupCount() {
   return message_center::MessageCenter::Get()->GetPopupNotifications().size();
 }
 
-void NotificationsTest::CrashTab(BrowserWindowInterface* browser, int index) {
-  content::CrashTab(browser->GetTabStripModel()->GetWebContentsAt(index));
+void NotificationsTest::CrashTab(Browser* browser, int index) {
+  content::CrashTab(browser->tab_strip_model()->GetWebContentsAt(index));
 }
 
 void NotificationsTest::DenyOrigin(const GURL& origin) {
@@ -138,14 +137,13 @@ void NotificationsTest::SetDefaultContentSetting(ContentSetting setting) {
       ->SetDefaultContentSetting(ContentSettingsType::NOTIFICATIONS, setting);
 }
 
-std::string NotificationsTest::CreateNotification(
-    BrowserWindowInterface* browser,
-    bool wait_for_new_balloon,
-    const char* icon,
-    const char* title,
-    const char* body,
-    const char* replace_id,
-    const char* onclick) {
+std::string NotificationsTest::CreateNotification(Browser* browser,
+                                                  bool wait_for_new_balloon,
+                                                  const char* icon,
+                                                  const char* title,
+                                                  const char* body,
+                                                  const char* replace_id,
+                                                  const char* onclick) {
   std::string script = base::StringPrintf(
       "createNotification('%s', '%s', '%s', '%s', (e) => { %s });", icon, title,
       body, replace_id, onclick);
@@ -161,14 +159,14 @@ std::string NotificationsTest::CreateNotification(
 }
 
 std::string NotificationsTest::CreateSimpleNotification(
-    BrowserWindowInterface* browser,
+    Browser* browser,
     bool wait_for_new_balloon) {
   return CreateNotification(browser, wait_for_new_balloon, "no_such_file.png",
                             "My Title", "My Body", "");
 }
 
 std::string NotificationsTest::RequestAndRespondToPermission(
-    BrowserWindowInterface* browser,
+    Browser* browser,
     permissions::PermissionRequestManager::AutoResponseType bubble_response) {
   content::WebContents* web_contents = GetActiveWebContents(browser);
   permissions::PermissionRequestManager::FromWebContents(web_contents)
@@ -176,29 +174,25 @@ std::string NotificationsTest::RequestAndRespondToPermission(
   return content::EvalJs(web_contents, "requestPermission();").ExtractString();
 }
 
-bool NotificationsTest::RequestAndAcceptPermission(
-    BrowserWindowInterface* browser) {
+bool NotificationsTest::RequestAndAcceptPermission(Browser* browser) {
   std::string result = RequestAndRespondToPermission(
       browser, permissions::PermissionRequestManager::ACCEPT_ALL);
   return "request-callback-granted" == result;
 }
 
-bool NotificationsTest::RequestAndDenyPermission(
-    BrowserWindowInterface* browser) {
+bool NotificationsTest::RequestAndDenyPermission(Browser* browser) {
   std::string result = RequestAndRespondToPermission(
       browser, permissions::PermissionRequestManager::DENY_ALL);
   return "request-callback-denied" == result;
 }
 
-bool NotificationsTest::RequestAndDismissPermission(
-    BrowserWindowInterface* browser) {
+bool NotificationsTest::RequestAndDismissPermission(Browser* browser) {
   std::string result = RequestAndRespondToPermission(
       browser, permissions::PermissionRequestManager::DISMISS);
   return "request-callback-default" == result;
 }
 
-bool NotificationsTest::RequestPermissionAndWait(
-    BrowserWindowInterface* browser) {
+bool NotificationsTest::RequestPermissionAndWait(Browser* browser) {
   content::WebContents* web_contents = GetActiveWebContents(browser);
   EXPECT_TRUE(ui_test_utils::NavigateToURL(browser, GetTestPageURL()));
   permissions::PermissionRequestObserver observer(web_contents);
@@ -208,15 +202,14 @@ bool NotificationsTest::RequestPermissionAndWait(
   return observer.request_shown();
 }
 
-std::string NotificationsTest::QueryPermissionStatus(
-    BrowserWindowInterface* browser) {
+std::string NotificationsTest::QueryPermissionStatus(Browser* browser) {
   content::WebContents* web_contents = GetActiveWebContents(browser);
   return content::EvalJs(web_contents, "queryPermissionStatus();")
       .ExtractString();
 }
 
 bool NotificationsTest::CancelNotification(const char* notification_id,
-                                           BrowserWindowInterface* browser) {
+                                           Browser* browser) {
   std::string script =
       base::StringPrintf("cancelNotification('%s');", notification_id);
 
@@ -262,8 +255,8 @@ GURL NotificationsTest::GetTestPageURL() const {
 }
 
 content::WebContents* NotificationsTest::GetActiveWebContents(
-    BrowserWindowInterface* browser) {
-  return browser->GetTabStripModel()->GetActiveWebContents();
+    Browser* browser) {
+  return browser->tab_strip_model()->GetActiveWebContents();
 }
 
 NotificationsTestWithPermissionsEmbargo ::

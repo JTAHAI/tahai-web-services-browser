@@ -1,2 +1,3 @@
-rules:
-- "**": [keyboard-events]
+features:
+- name: keyboard-events
+  files: "**"

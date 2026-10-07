@@ -20,6 +20,7 @@ import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
+import org.robolectric.annotation.Config;
 
 import org.chromium.base.Callback;
 import org.chromium.base.supplier.ObservableSuppliers;
@@ -30,6 +31,7 @@ import org.chromium.cc.input.BrowserControlsState;
 
 /** Unit tests for the BrowserStateBrowserControlsVisibilityDelegate. */
 @RunWith(BaseRobolectricTestRunner.class)
+@Config(manifest = Config.NONE)
 public class BrowserStateBrowserControlsVisibilityDelegateTest {
     @Rule public final MockitoRule mMockitoRule = MockitoJUnit.rule();
     @Mock private Callback<Integer> mCallback;

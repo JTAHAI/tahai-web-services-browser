@@ -14,11 +14,10 @@ namespace chrome_for_testing {
 
 namespace {
 
-// All initially registered components are typically updated in a few seconds.
-// However, some components may depend on components that are registered
-// earlier, so we give them up to 5 minutes to update.
+// All registered components are typically updated in less than 3 seconds, so
+// set the default timeout anticipating slower networks.
 constexpr base::TimeDelta kDefaultRequiredComponentsUpdateTimeout =
-    base::Minutes(5);
+    base::Seconds(15);
 
 }  // namespace
 

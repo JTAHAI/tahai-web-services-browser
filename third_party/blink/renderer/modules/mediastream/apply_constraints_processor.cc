@@ -111,12 +111,8 @@ void ApplyConstraintsProcessor::ProcessAudioRequest() {
       }
       current_track->SetVoiceIsolationExactConstraint(voice_isolation_exact);
     }
-#if BUILDFLAG(CHROME_WIDE_ECHO_CANCELLATION)
-    audio_source->SetVoiceIsolation(
-        settings.audio_processing_properties().voice_isolation ==
-        blink::AudioProcessingProperties::VoiceIsolationType::
-            kVoiceIsolationEnabled);
-#endif
+    audio_source->SetAudioProcessingProperties(
+        settings.audio_processing_properties());
     ApplyConstraintsSucceeded();
   } else {
     ApplyConstraintsFailed(settings.failed_constraint_name());

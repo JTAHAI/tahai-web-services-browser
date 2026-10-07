@@ -9,6 +9,8 @@ import android.content.Context;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 
+import java.util.function.Supplier;
+
 /** Factory interface for creating {@link ContextMenuPopulator}s. */
 @NullMarked
 public interface ContextMenuPopulatorFactory {
@@ -37,6 +39,11 @@ public interface ContextMenuPopulatorFactory {
      */
     default boolean isEnabled() {
         return true;
+    }
+
+    /** Returns a supplier providing the left side UI width in px. */
+    default Supplier<Integer> getLeftSideUiWidthSupplier() {
+        return () -> 0;
     }
 
     void onDestroy();

@@ -19,7 +19,6 @@
 #include <algorithm>
 
 #include "base/logging.h"
-#include "build/build_config.h"
 
 namespace crashpad {
 namespace internal {

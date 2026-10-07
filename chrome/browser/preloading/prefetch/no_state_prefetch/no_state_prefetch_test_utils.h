@@ -30,8 +30,6 @@
 #include "content/public/browser/render_widget_host_observer.h"
 #include "url/gurl.h"
 
-class BrowserWindowInterface;
-
 namespace prerender {
 
 namespace test_utils {
@@ -318,11 +316,9 @@ class PrerenderInProcessBrowserTest : virtual public InProcessBrowserTest {
 
   void set_autostart_test_server(bool value) { autostart_test_server_ = value; }
 
-  void set_browser(BrowserWindowInterface* browser) {
-    explicitly_set_browser_ = browser;
-  }
+  void set_browser(Browser* browser) { explicitly_set_browser_ = browser; }
 
-  BrowserWindowInterface* current_browser() const {
+  Browser* current_browser() const {
     return explicitly_set_browser_ ? explicitly_set_browser_.get() : browser();
   }
 
@@ -376,8 +372,7 @@ class PrerenderInProcessBrowserTest : virtual public InProcessBrowserTest {
       safe_browsing_factory_;
   raw_ptr<TestNoStatePrefetchContentsFactory, AcrossTasksDanglingUntriaged>
       no_state_prefetch_contents_factory_;
-  raw_ptr<BrowserWindowInterface, AcrossTasksDanglingUntriaged>
-      explicitly_set_browser_;
+  raw_ptr<Browser, AcrossTasksDanglingUntriaged> explicitly_set_browser_;
   bool autostart_test_server_;
   base::HistogramTester histogram_tester_;
   std::unique_ptr<net::EmbeddedTestServer> https_src_server_;

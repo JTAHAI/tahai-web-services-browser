@@ -71,9 +71,6 @@ const tests = [
 
     await tryIncorrectPassword('incorrect');
     await tryCorrectPassword('ownerpass');
-
-    const toolbar = viewer.shadowRoot.querySelector('viewer-toolbar')!;
-    chrome.test.assertFalse(toolbar.annotationAvailable);
     chrome.test.succeed();
   },
 ];

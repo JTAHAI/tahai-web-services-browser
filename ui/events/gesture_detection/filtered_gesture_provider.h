@@ -74,7 +74,6 @@ class GESTURE_DETECTION_EXPORT FilteredGestureProvider final
   const ui::MotionEvent* GetCurrentDownEvent() const;
   const ui::MotionEvent* GetLastEventWithoutHistory() const;
   void OnUnconfirmedTapConvertedToTap();
-  void DisableScrollUpdateCompensation();
 
   GestureDetector* GetGestureDetectorForTesting();
 

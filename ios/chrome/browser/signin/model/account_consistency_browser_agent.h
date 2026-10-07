@@ -60,7 +60,8 @@ class AccountConsistencyBrowserAgent
   // the Add Account View.
   void OnAddUnkwownAccount(const GURL& url);
 
-  void StopSigninCoordinator();
+  void StopSigninCoordinator(SigninCoordinatorResult result,
+                             id<SystemIdentity> identity);
 
   // `base_view_controller` is the view controller which UI will be presented
   // from.

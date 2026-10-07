@@ -31,7 +31,6 @@ class MessageBannerCoordinator {
     private final MessageBannerView mView;
     private final View mParentView;
     private final PropertyModel mModel;
-    private final PropertyModelChangeProcessor mModelChangeProcessor;
     private final RunnableTimer mTimer;
     private final Supplier<Long> mAutodismissDurationMs;
     private final Runnable mOnTimeUp;
@@ -69,8 +68,7 @@ class MessageBannerCoordinator {
         mView = view;
         mParentView = parentView;
         mModel = model;
-        mModelChangeProcessor =
-                PropertyModelChangeProcessor.create(model, view, MessageBannerViewBinder::bind);
+        PropertyModelChangeProcessor.create(model, view, MessageBannerViewBinder::bind);
         mMediator =
                 new MessageBannerMediator(
                         model,
@@ -215,11 +213,6 @@ class MessageBannerCoordinator {
 
     void setOnTouchRunnable(@Nullable Runnable runnable) {
         mMediator.setOnTouchRunnable(runnable);
-    }
-
-    void destroy() {
-        mMediator.destroy();
-        mModelChangeProcessor.destroy();
     }
 
     private void updateAccessibilityPane(int toIndex) {

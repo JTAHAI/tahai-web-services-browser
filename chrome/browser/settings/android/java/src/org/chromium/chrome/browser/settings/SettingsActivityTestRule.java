@@ -72,7 +72,6 @@ public class SettingsActivityTestRule<T extends Fragment>
         Context context = ApplicationProvider.getApplicationContext();
         SettingsNavigation settingsNavigation =
                 SettingsNavigationFactory.createSettingsNavigation();
-        settingsNavigation.setUseSettingsActivityForTesting(true);
         Intent intent =
                 settingsNavigation.createSettingsIntent(context, mFragmentClass, fragmentArgs);
         launchActivity(intent);

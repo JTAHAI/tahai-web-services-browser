@@ -31,7 +31,6 @@ class UserCloudPolicyStatusProviderChromeOS
 
   // CloudPolicyCoreStatusProvider implementation.
   base::DictValue GetStatus() override;
-  policy::mojom::StatusPtr GetStatusMojo() override;
 
  private:
   raw_ptr<Profile> profile_;

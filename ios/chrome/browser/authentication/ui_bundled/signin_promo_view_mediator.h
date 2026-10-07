@@ -15,6 +15,7 @@
 class AuthenticationService;
 class ChromeAccountManagerService;
 class PrefService;
+@protocol SigninPresenter;
 @protocol AccountSettingsPresenter;
 typedef NS_ENUM(NSUInteger, SigninCoordinatorResult);
 @class SigninPromoViewConfigurator;
@@ -185,7 +186,7 @@ enum class SigninPromoAction {
 // superviews is removed). The mediator should not be used after this is called.
 - (void)disconnect;
 
-// Callback for the Signin.
+// Callback for the SigninPresenter.
 - (void)signinDidCompleteWithResult:(SigninCoordinatorResult)result;
 
 @end

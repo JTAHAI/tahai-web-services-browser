@@ -63,33 +63,35 @@ ScrollToolJavaScriptFeature::~ScrollToolJavaScriptFeature() = default;
 
 void ScrollToolJavaScriptFeature::Scroll(
     base::WeakPtr<web::WebFrame> target_frame,
-    const ActionTarget& target,
-    optimization_guide::proto::ScrollAction_ScrollDirection direction,
-    float distance,
+    const optimization_guide::proto::ScrollAction& action,
     ToolExecutionCallback callback) {
-  ExecuteScrollAction(target_frame, target,
+  CHECK(action.has_target());
+  CHECK(action.has_direction() && action.has_distance());
+  ExecuteScrollAction(target_frame, action.target(),
                       /*direction_and_distance=*/
-                      std::make_pair(direction, static_cast<int>(distance)),
+                      std::make_pair(action.direction(), action.distance()),
                       std::move(callback));
 }
 
 void ScrollToolJavaScriptFeature::ScrollTo(
     base::WeakPtr<web::WebFrame> target_frame,
-    const ActionTarget& target,
+    const optimization_guide::proto::ScrollToAction& action,
     ToolExecutionCallback callback) {
-  ExecuteScrollAction(target_frame, target,
+  CHECK(action.has_target());
+  ExecuteScrollAction(target_frame, action.target(),
                       /*direction_and_distance=*/std::nullopt,
                       std::move(callback));
 }
 
 void ScrollToolJavaScriptFeature::ExecuteScrollAction(
     base::WeakPtr<web::WebFrame> web_frame,
-    const ActionTarget& target,
+    const optimization_guide::proto::ActionTarget& target,
     std::optional<
         std::pair<optimization_guide::proto::ScrollAction_ScrollDirection, int>>
         direction_and_distance,
     ToolExecutionCallback callback) {
-  CHECK(target.is_valid());
+  CHECK(target.has_coordinate() ||
+        (target.has_content_node_id() && target.has_document_identifier()));
 
   if (!web_frame) {
     std::move(callback).Run(
@@ -98,7 +100,17 @@ void ScrollToolJavaScriptFeature::ExecuteScrollAction(
   }
 
   base::ListValue parameters;
-  parameters.Append(target.ToDictValue());
+  std::string function_name;
+
+  if (target.has_content_node_id()) {
+    function_name = "scroll_tool.scrollByNodeId";
+    parameters.Append(target.content_node_id());
+  } else {
+    function_name = "scroll_tool.scrollByCoordinate";
+    parameters.Append(target.coordinate().x());
+    parameters.Append(target.coordinate().y());
+    parameters.Append(static_cast<int>(target.coordinate().pixel_type()));
+  }
 
   if (direction_and_distance.has_value()) {
     parameters.Append(static_cast<int>(direction_and_distance->first));
@@ -107,7 +119,7 @@ void ScrollToolJavaScriptFeature::ExecuteScrollAction(
 
   auto [cb_for_js, cb_for_error] = base::SplitOnceCallback(std::move(callback));
   bool sent = CallJavaScriptFunction(
-      web_frame.get(), "scroll_tool.scroll", parameters,
+      web_frame.get(), function_name, parameters,
       base::BindOnce(
           [](ToolExecutionCallback callback, const base::Value* result) {
             std::move(callback).Run(ParseJavaScriptResultWithResultCode(

@@ -43,16 +43,11 @@ class CaptionButton : public SubclassedWindow {
   const std::wstring& tool_tip_text() const;
   void set_tool_tip_text(const std::wstring& tool_tip_text);
 
-  void UpdateThemeState();
-
   CR_BEGIN_MSG_MAP_EX(CaptionButton)
     CR_MESSAGE_RANGE_HANDLER_EX(WM_MOUSEFIRST, WM_MOUSELAST, OnMouseMessage)
     CR_MESSAGE_HANDLER_EX(WM_MOUSEMOVE, OnMouseMove)
     CR_MESSAGE_HANDLER_EX(WM_MOUSEHOVER, OnMouseHover)
     CR_MESSAGE_HANDLER_EX(WM_MOUSELEAVE, OnMouseLeave)
-    CR_MESSAGE_HANDLER_EX(WM_THEMECHANGED, OnThemeChanged)
-    CR_MESSAGE_HANDLER_EX(WM_SYSCOLORCHANGE, OnThemeChanged)
-    CR_MESSAGE_HANDLER_EX(WM_SETTINGCHANGE, OnThemeChanged)
   CR_END_MSG_MAP()
 
  private:
@@ -62,7 +57,6 @@ class CaptionButton : public SubclassedWindow {
   LRESULT OnMouseMove(UINT msg, WPARAM wparam, LPARAM lparam);
   LRESULT OnMouseHover(UINT msg, WPARAM wparam, LPARAM lparam);
   LRESULT OnMouseLeave(UINT msg, WPARAM wparam, LPARAM lparam);
-  LRESULT OnThemeChanged(UINT msg, WPARAM wparam, LPARAM lparam);
 
   COLORREF bk_color_ = RGB(0, 0, 0);
   base::win::ScopedGDIObject<HBRUSH> foreground_brush_;
@@ -71,7 +65,6 @@ class CaptionButton : public SubclassedWindow {
   std::wstring tool_tip_text_;
   bool is_tracking_mouse_events_ = false;
   bool is_mouse_hovering_ = false;
-  bool is_high_contrast_ = false;
 
   CR_MSG_MAP_CLASS_DECLARATIONS(CaptionButton)
 };
@@ -142,7 +135,6 @@ class OwnerDrawTitleBarWindow : public gfx::WindowImpl {
     CR_COMMAND_ID_HANDLER_EX(kButtonClose, OnClose)
     CR_COMMAND_ID_HANDLER_EX(kButtonMaximize, OnMaximize)
     CR_COMMAND_ID_HANDLER_EX(kButtonMinimize, OnMinimize)
-    CR_MESSAGE_HANDLER_EX(WM_SETCURSOR, OnSetCursor)
   CR_END_MSG_MAP()
 
  private:
@@ -162,7 +154,6 @@ class OwnerDrawTitleBarWindow : public gfx::WindowImpl {
   LRESULT OnEraseBkgnd(UINT msg, WPARAM wparam, LPARAM lparam);
   LRESULT OnSize(UINT msg, WPARAM wparam, LPARAM lparam);
   LRESULT OnDrawItem(UINT msg, WPARAM wparam, LPARAM lparam);
-  LRESULT OnSetCursor(UINT msg, WPARAM wparam, LPARAM lparam);
   void OnClose(UINT notify_code, int id, HWND ctl);
   void OnMaximize(UINT notify_code, int id, HWND ctl);
   void OnMinimize(UINT notify_code, int id, HWND ctl);
@@ -222,18 +213,11 @@ class CustomDlgColors {
                             LRESULT& result,
                             DWORD msg_map_id = 0);
 
-  void UpdateThemeState();
-
-  bool is_high_contrast() const { return is_high_contrast_; }
-  bool is_dark_mode() const { return is_dark_mode_; }
-
  private:
   COLORREF text_color_ = RGB(0xFF, 0xFF, 0xFF);
   COLORREF bk_color_ = RGB(0, 0, 0);
   base::win::ScopedGDIObject<HBRUSH> bk_brush_;
   base::win::ScopedGDIObject<HBRUSH> dark_bk_brush_;
-  bool is_high_contrast_ = false;
-  bool is_dark_mode_ = false;
 };
 
 // Subclassed (via `SetWindowSubclass`) progress bar control providing a
@@ -246,15 +230,11 @@ class CustomProgressBarCtrl : public SubclassedWindow {
   CustomProgressBarCtrl& operator=(const CustomProgressBarCtrl&) = delete;
   ~CustomProgressBarCtrl() override;
 
-  void UpdateThemeState();
-
   CR_BEGIN_MSG_MAP_EX(CustomProgressBarCtrl)
     CR_MESSAGE_HANDLER_EX(WM_ERASEBKGND, OnEraseBkgnd)
     CR_MESSAGE_HANDLER_EX(WM_PAINT, OnPaint)
     CR_MESSAGE_HANDLER_EX(WM_TIMER, OnTimer)
-    CR_MESSAGE_HANDLER_EX(WM_SYSCOLORCHANGE, OnThemeChanged)
-    CR_MESSAGE_HANDLER_EX(WM_THEMECHANGED, OnThemeChanged)
-    CR_MESSAGE_HANDLER_EX(WM_SETTINGCHANGE, OnThemeChanged)
+    CR_MESSAGE_HANDLER_EX(WM_SYSCOLORCHANGE, OnSysColorChange)
     CR_MESSAGE_HANDLER_EX(PBM_SETPOS, OnSetPos)
     CR_MESSAGE_HANDLER_EX(PBM_SETMARQUEE, OnSetMarquee)
     CR_MESSAGE_HANDLER_EX(PBM_SETBARCOLOR, OnSetBarColor)
@@ -270,7 +250,7 @@ class CustomProgressBarCtrl : public SubclassedWindow {
   LRESULT OnEraseBkgnd(UINT msg, WPARAM wparam, LPARAM lparam);
   LRESULT OnPaint(UINT msg, WPARAM wparam, LPARAM lparam);
   LRESULT OnTimer(UINT msg, WPARAM wparam, LPARAM lparam);
-  LRESULT OnThemeChanged(UINT msg, WPARAM wparam, LPARAM lparam);
+  LRESULT OnSysColorChange(UINT msg, WPARAM wparam, LPARAM lparam);
 
   LRESULT OnSetPos(UINT msg, WPARAM wparam, LPARAM lparam);
   LRESULT OnSetMarquee(UINT msg, WPARAM wparam, LPARAM lparam);
@@ -288,9 +268,6 @@ class CustomProgressBarCtrl : public SubclassedWindow {
   COLORREF bar_color_ = kProgressBarFillColor;
   COLORREF empty_fill_color_ = kProgressEmptyFillColor;
 
-  bool is_high_contrast_ = false;
-  bool is_dark_mode_ = false;
-
   CR_MSG_MAP_CLASS_DECLARATIONS(CustomProgressBarCtrl)
 };
 
@@ -304,8 +281,6 @@ class FlatButton : public SubclassedWindow {
   FlatButton& operator=(const FlatButton&) = delete;
   ~FlatButton() override;
 
-  void UpdateThemeState();
-
   CR_BEGIN_MSG_MAP_EX(FlatButton)
     CR_MESSAGE_RANGE_HANDLER_EX(WM_MOUSEFIRST, WM_MOUSELAST, OnMouseMessage)
     CR_MESSAGE_HANDLER_EX(WM_MOUSEMOVE, OnMouseMove)
@@ -314,8 +289,7 @@ class FlatButton : public SubclassedWindow {
     CR_MESSAGE_HANDLER_EX(WM_PAINT, OnPaint)
     CR_MESSAGE_HANDLER_EX(WM_ERASEBKGND, OnEraseBkgnd)
     CR_MESSAGE_HANDLER_EX(WM_THEMECHANGED, OnThemeChanged)
-    CR_MESSAGE_HANDLER_EX(WM_SYSCOLORCHANGE, OnThemeChanged)
-    CR_MESSAGE_HANDLER_EX(WM_SETTINGCHANGE, OnThemeChanged)
+    CR_MESSAGE_HANDLER_EX(WM_SYSCOLORCHANGE, OnSysColorChange)
   CR_END_MSG_MAP()
 
   void SetIsPrimary(bool is_primary);
@@ -328,12 +302,11 @@ class FlatButton : public SubclassedWindow {
   LRESULT OnPaint(UINT msg, WPARAM wparam, LPARAM lparam);
   LRESULT OnEraseBkgnd(UINT msg, WPARAM wparam, LPARAM lparam);
   LRESULT OnThemeChanged(UINT msg, WPARAM wparam, LPARAM lparam);
+  LRESULT OnSysColorChange(UINT msg, WPARAM wparam, LPARAM lparam);
 
   bool is_tracking_mouse_events_ = false;
   bool is_mouse_hovering_ = false;
   bool is_primary_ = true;
-  bool is_high_contrast_ = false;
-  bool is_dark_mode_ = false;
 
   CR_MSG_MAP_CLASS_DECLARATIONS(FlatButton)
 };

@@ -10,11 +10,12 @@
 #include "base/functional/bind.h"
 #include "base/memory/raw_ptr.h"
 #include "base/no_destructor.h"
-#include "base/task/sequenced_task_runner.h"
 #include "base/task/thread_pool.h"
+#include "base/task/sequenced_task_runner.h"
 #include "base/time/time.h"
 #include "base/uuid.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
@@ -36,19 +37,26 @@
 namespace tahai {
 
 std::string CompleteMissionNativeAttempt(base::WeakPtr<MissionService> service,
-                                         std::string_view id, size_t index,
+                                         std::string_view id,
+                                         size_t index,
                                          std::string_view result) {
-  if (!service) return "unavailable";
+  if (!service) {
+    return "unavailable";
+  }
   const std::string owned_id(id);
   service->FinishNativeWorkflowStep(owned_id, index, result);
-  if (!service) return "unavailable";
+  if (!service) {
+    return "unavailable";
+  }
   const auto mission =
       std::ranges::find(service->missions(), owned_id, &MissionSummary::id);
-  if (mission == service->missions().end() || index >= mission->steps.size())
+  if (mission == service->missions().end() || index >= mission->steps.size()) {
     return "unavailable";
+  }
   const auto& state = mission->steps[index].action_state;
   return state == "dispatched" || state == "rejected" || state == "unknown"
-             ? state : "unavailable";
+             ? state
+             : "unavailable";
 }
 
 namespace {
@@ -108,11 +116,9 @@ class WorkflowNativeHandler final : public content::WebUIMessageHandler,
       return nullptr;
     }
     auto* window = GlobalBrowserCollection::GetInstance()->FindBrowserWithTab(contents);
-    auto* browser = window ? window : nullptr;
-    if (!browser ||
-        !(browser->GetType() == BrowserWindowInterface::Type::TYPE_NORMAL) ||
-        browser->GetProfile() != profile_ ||
-        browser->GetTabStripModel()->GetActiveWebContents() != contents) {
+    auto* browser = window ? window->GetBrowserForMigrationOnly() : nullptr;
+    if (!browser || !browser->is_type_normal() || browser->GetProfile() != profile_ ||
+        browser->tab_strip_model()->GetActiveWebContents() != contents) {
       return nullptr;
     }
     return WindowModeController::GetForBrowser(browser);
@@ -173,13 +179,20 @@ class WorkflowNativeHandler final : public content::WebUIMessageHandler,
     }
     const auto self = weak_factory_.GetWeakPtr();
     const auto service_weak = service->GetWeakPtr();
-    const Invocation invocation{id, index, key, mission->mutation_token,
+    const Invocation invocation{
+        id,
+        index,
+        key,
+        mission->mutation_token,
         std::string(target->active_operational_mode_id()),
-        std::string(target->active_custom_mode_id()), *command,
-        target->GetWeakPtr(), web_contents()->GetPrimaryMainFrame()->GetWeakDocumentPtr(),
+        std::string(target->active_custom_mode_id()),
+        *command,
+        target->GetWeakPtr(),
+        web_contents()->GetPrimaryMainFrame()->GetWeakDocumentPtr(),
         base::TimeTicks::Now() + kMissionNativeAttemptTimeout};
     // Block reentrant launches before Begin notifies observers. Cancellation
-    // retires this invocation before closing its attempt, never after callbacks.
+    // retires this invocation before closing its attempt, never after
+    // callbacks.
     active_ = invocation;
     std::string pending_token;
     const bool began = service->BeginNativeWorkflowStep(
@@ -187,7 +200,9 @@ class WorkflowNativeHandler final : public content::WebUIMessageHandler,
     if (!self) {
       // Cancel may have run before Begin actually opened the attempt (while
       // settling another deadline). Close it without touching this dead UI.
-      if (began) CompleteMissionNativeAttempt(service_weak, id, index, "unknown");
+      if (began) {
+        CompleteMissionNativeAttempt(service_weak, id, index, "unknown");
+      }
       return;
     }
     const auto* pending = Find(service_weak.get(), id);
@@ -197,20 +212,26 @@ class WorkflowNativeHandler final : public content::WebUIMessageHandler,
         invocation.document.AsRenderFrameHostIfValid() !=
             web_contents()->GetPrimaryMainFrame() ||
         invocation.window->active_operational_mode_id() != invocation.mode_id ||
-        invocation.window->active_custom_mode_id() != invocation.custom_mode_id ||
+        invocation.window->active_custom_mode_id() !=
+            invocation.custom_mode_id ||
         !pending || pending->mutation_token != pending_token ||
         !service_weak->CanContinueNativeWorkflowStep(id, index) ||
-        Resolve(invocation.window.get(), pending, index) != invocation.command) {
+        Resolve(invocation.window.get(), pending, index) !=
+            invocation.command) {
       active_.reset();
-      const auto accepted = began
-          ? CompleteMissionNativeAttempt(service_weak, id, index, "rejected")
-          : std::string("unavailable");
-      if (self) Reply(id, index, accepted);
+      const auto accepted = began ? CompleteMissionNativeAttempt(
+                                        service_weak, id, index, "rejected")
+                                  : std::string("unavailable");
+      if (self) {
+        Reply(id, index, accepted);
+      }
       return;
     }
     active_->mutation_token = std::move(pending_token);
     Reply(id, index, "pending");
-    if (!self) return;
+    if (!self) {
+      return;
+    }
     JournalSequence()->PostTaskAndReplyWithResult(FROM_HERE,
         base::BindOnce(&ReserveWorkflowAttempt, profile_->GetPath(), std::move(key)),
         base::BindOnce(&WorkflowNativeHandler::Reserved, weak_factory_.GetWeakPtr()));
@@ -232,19 +253,25 @@ class WorkflowNativeHandler final : public content::WebUIMessageHandler,
       const auto self = weak_factory_.GetWeakPtr();
       const auto accepted = CompleteMissionNativeAttempt(
           service->GetWeakPtr(), invocation.id, invocation.index, result);
-      if (self) Reply(invocation.id, invocation.index, accepted);
+      if (self) {
+        Reply(invocation.id, invocation.index, accepted);
+      }
       return;
     }
     auto* target = Target(false);
     const auto* mission = Find(service, invocation.id);
     const auto command = Resolve(target, mission, invocation.index);
-    const bool valid = target && target == invocation.window.get() && mission &&
-        service->CanContinueNativeWorkflowStep(invocation.id, invocation.index) &&
+    const bool valid =
+        target && target == invocation.window.get() && mission &&
+        service->CanContinueNativeWorkflowStep(invocation.id,
+                                               invocation.index) &&
         target->active_operational_mode_id() == invocation.mode_id &&
         target->active_custom_mode_id() == invocation.custom_mode_id &&
-        invocation.document.AsRenderFrameHostIfValid() == web_contents()->GetPrimaryMainFrame() &&
+        invocation.document.AsRenderFrameHostIfValid() ==
+            web_contents()->GetPrimaryMainFrame() &&
         base::TimeTicks::Now() < invocation.deadline &&
-        mission->mutation_token == invocation.mutation_token && command == invocation.command;
+        mission->mutation_token == invocation.mutation_token &&
+        command == invocation.command;
     const auto path = profile_->GetPath();
     auto service_weak = service->GetWeakPtr();
     auto self = weak_factory_.GetWeakPtr();
@@ -261,7 +288,8 @@ class WorkflowNativeHandler final : public content::WebUIMessageHandler,
                           base::WeakPtr<WorkflowNativeHandler> handler,
                           std::string id, size_t index, bool did_dispatch, bool saved) {
           const std::string_view result = !saved ? "unknown" : did_dispatch ? "dispatched" : "rejected";
-          const auto accepted = CompleteMissionNativeAttempt(mission_service, id, index, result);
+          const auto accepted =
+              CompleteMissionNativeAttempt(mission_service, id, index, result);
           if (handler) handler->Reply(id, index, accepted);
         }, service_weak, self, invocation.id, invocation.index, dispatched));
   }
@@ -271,7 +299,10 @@ class WorkflowNativeHandler final : public content::WebUIMessageHandler,
     const auto invocation = std::exchange(active_, std::nullopt);
     if (invocation) {
       auto* service = MissionServiceFactory::GetForProfile(profile_);
-      if (service) service->FinishNativeWorkflowStep(invocation->id, invocation->index, "unknown");
+      if (service) {
+        service->FinishNativeWorkflowStep(invocation->id, invocation->index,
+                                          "unknown");
+      }
     }
   }
 

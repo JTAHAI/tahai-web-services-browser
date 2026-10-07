@@ -155,11 +155,6 @@ void ProvisioningDomainFetcher::CompleteFetch(
     CHECK_NE(result.error().status,
              ProvisioningDomainFetchResultStatus::kSuccess)
         << "ProvisioningDomainFetchError status cannot be kSuccess";
-    if (result.error().status ==
-        ProvisioningDomainFetchResultStatus::kTokenFetchError) {
-      CHECK(result.error().token_fetch_error.has_value())
-          << "token_fetch_error must be populated for kTokenFetchError";
-    }
   }
 
   ProvisioningDomainFetchResultStatus status =

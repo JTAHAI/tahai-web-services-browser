@@ -6,9 +6,7 @@
 
 #include <memory>
 
-#include "base/i18n/language_tag.h"
 #include "base/i18n/rtl.h"
-#include "base/i18n/test/scoped_icu_locale.h"
 #include "base/i18n/unicodestring.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
@@ -21,21 +19,30 @@
 typedef testing::Test MessageFormatterTest;
 
 namespace base::i18n {
-namespace {
 
 class MessageFormatterTest : public testing::Test {
+ protected:
+  MessageFormatterTest() {
+    original_locale_ = GetConfiguredLocale();
+    SetICUDefaultLocale("en-US");
+  }
+  ~MessageFormatterTest() override { SetICUDefaultLocale(original_locale_); }
+
  private:
-  ScopedDefaultIcuLocale restore_locale_{GetKnownLanguageTag("en-US")};
+  std::string original_locale_;
 };
 
+namespace {
+
 void AppendFormattedDateTime(const std::unique_ptr<icu::DateFormat>& df,
-                             Time now,
+                             const Time& now,
                              std::u16string* result) {
   icu::UnicodeString formatted;
   result->append(UnicodeStringToString16(df->format(
       static_cast<UDate>(now.InMillisecondsFSinceUnixEpoch()), formatted)));
 }
 
+}  // namespace
 
 TEST_F(MessageFormatterTest, PluralNamedArgs) {
   const std::u16string pattern =
@@ -168,5 +175,4 @@ TEST_F(MessageFormatterTest, SelectorSingleOrMultiple) {
   EXPECT_EQ(u"UNUSED", result);
 }
 
-}  // namespace
 }  // namespace base::i18n

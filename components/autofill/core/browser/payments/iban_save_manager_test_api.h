@@ -5,20 +5,9 @@
 #ifndef COMPONENTS_AUTOFILL_CORE_BROWSER_PAYMENTS_IBAN_SAVE_MANAGER_TEST_API_H_
 #define COMPONENTS_AUTOFILL_CORE_BROWSER_PAYMENTS_IBAN_SAVE_MANAGER_TEST_API_H_
 
-#include <optional>
-#include <string>
-#include <string_view>
-#include <vector>
-
-#include "base/barrier_closure.h"
-#include "base/functional/bind.h"
-#include "base/memory/raw_ref.h"
-#include "components/autofill/core/browser/payments/client_behavior_constants.h"
 #include "components/autofill/core/browser/payments/iban_save_manager.h"
 
 namespace autofill {
-
-class Iban;
 
 class IbanSaveManagerTestApi {
  public:
@@ -33,12 +22,13 @@ class IbanSaveManagerTestApi {
                                                    user_decision, nickname);
   }
 
-  std::unique_ptr<Iban> OnUserDidDecideOnUploadSave(
+  void OnUserDidDecideOnUploadSave(
       const Iban& import_candidate,
+      bool show_save_prompt,
       payments::PaymentsAutofillClient::SaveIbanOfferUserDecision user_decision,
       std::u16string_view nickname = u"") {
-    return iban_save_manager_->OnUserDidDecideOnUploadSave(
-        import_candidate, user_decision, nickname);
+    iban_save_manager_->OnUserDidDecideOnUploadSave(
+        import_candidate, show_save_prompt, user_decision, nickname);
   }
 
   IbanSaveStrikeDatabase* GetIbanSaveStrikeDatabase() {
@@ -49,11 +39,11 @@ class IbanSaveManagerTestApi {
     iban_save_manager_->observer_for_testing_ = observer;
   }
 
-  bool AttemptToOfferLocalSave(const Iban& iban) {
+  bool AttemptToOfferLocalSave(Iban& iban) {
     return iban_save_manager_->AttemptToOfferLocalSave(iban);
   }
 
-  bool AttemptToOfferUploadSave(const Iban& iban) {
+  bool AttemptToOfferUploadSave(Iban& iban) {
     return iban_save_manager_->AttemptToOfferUploadSave(iban);
   }
 
@@ -63,11 +53,15 @@ class IbanSaveManagerTestApi {
   }
 
   void OnDidUploadIban(
-      std::unique_ptr<Iban> import_candidate,
+      const Iban& import_candidate,
       bool show_save_prompt,
       payments::PaymentsAutofillClient::PaymentsRpcResult result) {
-    iban_save_manager_->OnDidUploadIban(std::move(import_candidate),
-                                        show_save_prompt, result);
+    iban_save_manager_->OnDidUploadIban(import_candidate, show_save_prompt,
+                                        result);
+  }
+
+  bool HasContextToken() const {
+    return !iban_save_manager_->context_token_.empty();
   }
 
  private:

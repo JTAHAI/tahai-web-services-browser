@@ -15,6 +15,7 @@
 #include "build/build_config.h"
 #include "chrome/browser/apps/app_service/app_registry_cache_waiter.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "chrome/browser/ui/navigator/browser_navigator_params.h"
@@ -108,7 +109,7 @@ IN_PROC_BROWSER_TEST_P(
   ASSERT_TRUE(GetProvider().registrar_unsafe().AppMatches(
       app_id, WebAppFilter::InstalledInOperatingSystemForTesting()));
 
-  BrowserWindowInterface* browser = LaunchWebAppBrowser(app_id);
+  Browser* browser = LaunchWebAppBrowser(app_id);
   ASSERT_TRUE(browser);
 }
 
@@ -120,7 +121,7 @@ IN_PROC_BROWSER_TEST_P(LaunchWebAppWithFirstRunServiceBrowserTest,
   ASSERT_TRUE(GetProvider().registrar_unsafe().AppMatches(
       app_id, WebAppFilter::InstalledInOperatingSystemForTesting()));
 
-  BrowserWindowInterface* browser = LaunchBrowserForWebAppInTab(app_id);
+  Browser* browser = LaunchBrowserForWebAppInTab(app_id);
   ASSERT_TRUE(browser);
 }
 

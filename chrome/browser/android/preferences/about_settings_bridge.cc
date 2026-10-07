@@ -2,6 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include <jni.h>
+
 #include <string>
 
 #include "base/android/apk_info.h"
@@ -15,13 +17,16 @@
 
 const char kSeparator[] = " ";
 
-static std::string JNI_AboutSettingsBridge_GetApplicationVersion() {
+using base::android::ConvertUTF8ToJavaString;
+using base::android::ScopedJavaLocalRef;
+
+static std::string JNI_AboutSettingsBridge_GetApplicationVersion(JNIEnv* env) {
   return base::JoinString({base::android::apk_info::host_package_label(),
                            version_info::GetVersionNumber()},
                           kSeparator);
 }
 
-static std::string JNI_AboutSettingsBridge_GetOSVersion() {
+static std::string JNI_AboutSettingsBridge_GetOSVersion(JNIEnv* env) {
   return base::JoinString(
       {version_info::GetOSType(), AndroidAboutAppInfo::GetOsInfo()},
       kSeparator);

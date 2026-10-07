@@ -5,14 +5,11 @@
 package org.chromium.chrome.browser.bookmarks.bar;
 
 import android.content.res.ColorStateList;
-import android.view.View;
 
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.ui.modelutil.PropertyKey;
-import org.chromium.ui.modelutil.PropertyModel.WritableIntDefPropertyKey;
 import org.chromium.ui.modelutil.PropertyModel.WritableIntPropertyKey;
 import org.chromium.ui.modelutil.PropertyModel.WritableObjectPropertyKey;
-import org.chromium.ui.util.ViewVisibility;
 
 /** Properties for the bookmark bar which provides users with bookmark access from top chrome. */
 @NullMarked
@@ -23,15 +20,14 @@ class BookmarkBarProperties {
             new WritableObjectPropertyKey<>();
 
     /** The visibility of the bookmark bar overflow button. */
-    public static final WritableIntDefPropertyKey<ViewVisibility> OVERFLOW_BUTTON_VISIBILITY =
-            new WritableIntDefPropertyKey<>(View.VISIBLE);
+    public static final WritableIntPropertyKey OVERFLOW_BUTTON_VISIBILITY =
+            new WritableIntPropertyKey();
 
     /** The top margin to use during bookmark bar layout. */
     public static final WritableIntPropertyKey TOP_MARGIN = new WritableIntPropertyKey();
 
     /** The visibility of the bookmark bar. */
-    public static final WritableIntDefPropertyKey<ViewVisibility> VISIBILITY =
-            new WritableIntDefPropertyKey<>(View.VISIBLE);
+    public static final WritableIntPropertyKey VISIBILITY = new WritableIntPropertyKey();
 
     /** The tint for the overflow button. */
     public static final WritableObjectPropertyKey<ColorStateList> OVERFLOW_BUTTON_TINT_LIST =

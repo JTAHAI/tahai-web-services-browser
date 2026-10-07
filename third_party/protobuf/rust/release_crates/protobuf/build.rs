@@ -8,7 +8,8 @@
 fn main() {
     cc::Build::new()
         .flag("-std=c99")
-        .flag_if_supported("-flto=thin")
+        // TODO: Come up with a way to enable lto
+        // .flag("-flto=thin")
         .warnings(false)
         .include("libupb")
         .include("libupb/third_party/utf8_range")

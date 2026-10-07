@@ -317,9 +317,9 @@ public final class ResolvedFlagsTest {
     @Test
     @SmallTest
     public void testResolve_returnsOnlyMatchingConstrainedValue() {
-        FlagValue.ConstrainedValue matchingValue =
+        FlagValue.ConstrainedValue matching_value =
                 stringConstrainedValue("matching_test_flag_value").setAppId("test_app_id").build();
-        FlagValue.ConstrainedValue nonmatchingValue =
+        FlagValue.ConstrainedValue nonmatching_value =
                 stringConstrainedValue("nonmatching_test_flag_value")
                         .setAppId("nonmatching_app_id")
                         .build();
@@ -329,8 +329,8 @@ public final class ResolvedFlagsTest {
                                         singleFlag(
                                                 "test_flag",
                                                 FlagValue.newBuilder()
-                                                        .addConstrainedValues(matchingValue)
-                                                        .addConstrainedValues(nonmatchingValue)),
+                                                        .addConstrainedValues(matching_value)
+                                                        .addConstrainedValues(nonmatching_value)),
                                         "test_app_id",
                                         "1.2.3.4",
                                         /* isTelemetryEnabled= */ true)
@@ -342,8 +342,8 @@ public final class ResolvedFlagsTest {
                                         singleFlag(
                                                 "test_flag",
                                                 FlagValue.newBuilder()
-                                                        .addConstrainedValues(nonmatchingValue)
-                                                        .addConstrainedValues(matchingValue)),
+                                                        .addConstrainedValues(nonmatching_value)
+                                                        .addConstrainedValues(matching_value)),
                                         "test_app_id",
                                         "1.2.3.4",
                                         /* isTelemetryEnabled= */ true)

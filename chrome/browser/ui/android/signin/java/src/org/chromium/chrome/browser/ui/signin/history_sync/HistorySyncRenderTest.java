@@ -11,7 +11,6 @@ import static org.hamcrest.Matchers.allOf;
 
 import static org.chromium.ui.test.util.ViewUtils.onViewWaiting;
 
-import android.app.Activity;
 import android.content.res.Configuration;
 
 import androidx.appcompat.app.AppCompatDelegate;
@@ -45,7 +44,6 @@ import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.browser.profiles.ProfileManager;
 import org.chromium.chrome.browser.sync.SyncServiceFactory;
-import org.chromium.chrome.browser.ui.signin.SigninUtils;
 import org.chromium.chrome.test.ChromeJUnit4RunnerDelegate;
 import org.chromium.chrome.test.util.ActivityTestUtils;
 import org.chromium.chrome.test.util.browser.signin.SigninTestRule;
@@ -66,61 +64,24 @@ import java.util.List;
 @ParameterAnnotations.UseRunnerDelegate(ChromeJUnit4RunnerDelegate.class)
 @CommandLineFlags.Add({ChromeSwitches.DISABLE_FIRST_RUN_EXPERIENCE})
 @DisableFeatures({ChromeFeatureList.USE_ALTERNATE_HISTORY_SYNC_ILLUSTRATION})
-@EnableFeatures({ChromeFeatureList.ANDROID_FRE_LAYOUT_UPDATE})
 @DoNotBatch(reason = "This test relies on native initialization")
 public class HistorySyncRenderTest {
-    /** Parameter provider for night mode, orientation, and FRE state. */
-    public static class NightModeOrientationAndFreParameterProvider implements ParameterProvider {
+    /** Parameter provider for night mode state and device orientation. */
+    public static class NightModeAndOrientationParameterProvider implements ParameterProvider {
         private static final List<ParameterSet> sParams =
                 Arrays.asList(
                         new ParameterSet()
-                                .value(
-                                        /* nightModeEnabled */ false,
-                                        Configuration.ORIENTATION_PORTRAIT,
-                                        /* isFre */ false)
-                                .name("NightModeDisabled_Portrait_Standard"),
+                                .value(/* firstArg= */ false, Configuration.ORIENTATION_PORTRAIT)
+                                .name("NightModeDisabled_Portrait"),
                         new ParameterSet()
-                                .value(
-                                        /* nightModeEnabled */ false,
-                                        Configuration.ORIENTATION_PORTRAIT,
-                                        /* isFre */ true)
-                                .name("NightModeDisabled_Portrait_Centered"),
+                                .value(/* firstArg= */ false, Configuration.ORIENTATION_LANDSCAPE)
+                                .name("NightModeDisabled_Landscape"),
                         new ParameterSet()
-                                .value(
-                                        /* nightModeEnabled */ false,
-                                        Configuration.ORIENTATION_LANDSCAPE,
-                                        /* isFre */ false)
-                                .name("NightModeDisabled_Landscape_Standard"),
+                                .value(/* firstArg= */ true, Configuration.ORIENTATION_PORTRAIT)
+                                .name("NightModeEnabled_Portrait"),
                         new ParameterSet()
-                                .value(
-                                        /* nightModeEnabled */ false,
-                                        Configuration.ORIENTATION_LANDSCAPE,
-                                        /* isFre */ true)
-                                .name("NightModeDisabled_Landscape_Centered"),
-                        new ParameterSet()
-                                .value(
-                                        /* nightModeEnabled */ true,
-                                        Configuration.ORIENTATION_PORTRAIT,
-                                        /* isFre */ false)
-                                .name("NightModeEnabled_Portrait_Standard"),
-                        new ParameterSet()
-                                .value(
-                                        /* nightModeEnabled */ true,
-                                        Configuration.ORIENTATION_PORTRAIT,
-                                        /* isFre */ true)
-                                .name("NightModeEnabled_Portrait_Centered"),
-                        new ParameterSet()
-                                .value(
-                                        /* nightModeEnabled */ true,
-                                        Configuration.ORIENTATION_LANDSCAPE,
-                                        /* isFre */ false)
-                                .name("NightModeEnabled_Landscape_Standard"),
-                        new ParameterSet()
-                                .value(
-                                        /* nightModeEnabled */ true,
-                                        Configuration.ORIENTATION_LANDSCAPE,
-                                        /* isFre */ true)
-                                .name("NightModeEnabled_Landscape_Centered"));
+                                .value(/* firstArg= */ true, Configuration.ORIENTATION_LANDSCAPE)
+                                .name("NightModeEnabled_Landscape"));
 
         @Override
         public Iterable<ParameterSet> getParameters() {
@@ -141,7 +102,7 @@ public class HistorySyncRenderTest {
     public final RenderTestRule mRenderTestRule =
             RenderTestRule.Builder.withPublicCorpus()
                     .setBugComponent(RenderTestRule.Component.SERVICES_SIGN_IN)
-                    .setRevision(4)
+                    .setRevision(3)
                     .setDescription("Update button stacking")
                     .build();
 
@@ -151,9 +112,8 @@ public class HistorySyncRenderTest {
     private HistorySyncCoordinator mHistorySyncCoordinator;
 
     @ParameterAnnotations.UseMethodParameterBefore(
-            HistorySyncRenderTest.NightModeOrientationAndFreParameterProvider.class)
-    public void setupNightModeAndDeviceOrientation(
-            boolean nightModeEnabled, int orientation, boolean isFre) {
+            HistorySyncRenderTest.NightModeAndOrientationParameterProvider.class)
+    public void setupNightModeAndDeviceOrientation(boolean nightModeEnabled, int orientation) {
         ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     AppCompatDelegate.setDefaultNightMode(
@@ -163,8 +123,7 @@ public class HistorySyncRenderTest {
                 });
         mRenderTestRule.setNightModeEnabled(nightModeEnabled);
         mRenderTestRule.setVariantPrefix(
-                (orientation == Configuration.ORIENTATION_PORTRAIT ? "Portrait" : "Landscape")
-                        + (isFre ? "_Centered" : "_Standard"));
+                orientation == Configuration.ORIENTATION_PORTRAIT ? "Portrait" : "Landscape");
     }
 
     @Before
@@ -183,21 +142,19 @@ public class HistorySyncRenderTest {
                         mHistorySyncCoordinator = null;
                     });
         }
-        ActivityTestUtils.clearActivityOrientation(mActivityTestRule.getActivity());
     }
 
     @Test
     @MediumTest
     @Feature("RenderTest")
     @ParameterAnnotations.UseMethodParameter(
-            HistorySyncRenderTest.NightModeOrientationAndFreParameterProvider.class)
-    public void testHistorySyncView(boolean nightModeEnabled, int orientation, boolean isFre)
-            throws IOException {
+            HistorySyncRenderTest.NightModeAndOrientationParameterProvider.class)
+    public void testHistorySyncView(boolean nightModeEnabled, int orientation) throws IOException {
         Assume.assumeFalse(
                 DeviceInfo.isDesktop() && orientation == Configuration.ORIENTATION_PORTRAIT);
         mSigninTestRule.addAccountThenSignin(TestAccounts.AADC_ADULT_ACCOUNT);
 
-        buildHistorySyncCoordinator(orientation, isFre);
+        buildHistorySyncCoordinator(orientation);
 
         onViewWaiting(withId(R.id.button_primary));
         mRenderTestRule.render(mHistorySyncCoordinator.getView(), "history_sync");
@@ -207,13 +164,13 @@ public class HistorySyncRenderTest {
     @MediumTest
     @Feature("RenderTest")
     @ParameterAnnotations.UseMethodParameter(
-            HistorySyncRenderTest.NightModeOrientationAndFreParameterProvider.class)
+            HistorySyncRenderTest.NightModeAndOrientationParameterProvider.class)
     public void testHistorySyncViewWithMinorModeRestrictions(
-            boolean nightModeEnabled, int orientation, boolean isFre) throws IOException {
+            boolean nightModeEnabled, int orientation) throws IOException {
         Assume.assumeFalse(
                 DeviceInfo.isDesktop() && orientation == Configuration.ORIENTATION_PORTRAIT);
         mSigninTestRule.addAccountThenSignin(TestAccounts.AADC_MINOR_ACCOUNT);
-        buildHistorySyncCoordinator(orientation, isFre);
+        buildHistorySyncCoordinator(orientation);
 
         onViewWaiting(withId(R.id.button_primary));
         mRenderTestRule.render(
@@ -224,29 +181,23 @@ public class HistorySyncRenderTest {
     @MediumTest
     @Feature("RenderTest")
     @ParameterAnnotations.UseMethodParameter(
-            HistorySyncRenderTest.NightModeOrientationAndFreParameterProvider.class)
+            HistorySyncRenderTest.NightModeAndOrientationParameterProvider.class)
     @EnableFeatures({ChromeFeatureList.USE_ALTERNATE_HISTORY_SYNC_ILLUSTRATION})
     public void testHistorySyncViewWithAlternateIllustration(
-            boolean nightModeEnabled, int orientation, boolean isFre) throws IOException {
+            boolean nightModeEnabled, int orientation) throws IOException {
         Assume.assumeFalse(
                 DeviceInfo.isDesktop() && orientation == Configuration.ORIENTATION_PORTRAIT);
         mSigninTestRule.addAccountThenSignin(TestAccounts.AADC_ADULT_ACCOUNT);
 
-        buildHistorySyncCoordinator(orientation, isFre);
+        buildHistorySyncCoordinator(orientation);
 
         onViewWaiting(withId(R.id.button_primary));
         mRenderTestRule.render(
                 mHistorySyncCoordinator.getView(), "history_sync_alternate_illustration");
     }
 
-    private void buildHistorySyncCoordinator(int orientation, boolean isFre) {
-        Activity activity = mActivityTestRule.getActivity();
-        ActivityTestUtils.rotateActivityToOrientation(activity, orientation);
-        if (orientation == Configuration.ORIENTATION_LANDSCAPE) {
-            Assume.assumeTrue(
-                    "Landscape layout is not supported on this device size",
-                    SigninUtils.shouldShowDualPanesHorizontalLayout(activity));
-        }
+    private void buildHistorySyncCoordinator(int orientation) {
+        ActivityTestUtils.rotateActivityToOrientation(mActivityTestRule.getActivity(), orientation);
         ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mHistorySyncCoordinator =
@@ -264,7 +215,6 @@ public class HistorySyncRenderTest {
                                     SigninAccessPoint.WEB_SIGNIN,
                                     /* showEmailInFooter= */ false,
                                     /* shouldSignOutOnDecline= */ false,
-                                    isFre,
                                     null);
                     mActivityTestRule
                             .getActivity()

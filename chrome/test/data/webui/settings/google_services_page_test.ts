@@ -6,28 +6,22 @@ import 'chrome://settings/lazy_load.js';
 
 import {webUIListenerCallback} from 'chrome://resources/js/cr.js';
 import type {SettingsGoogleServicesPageElement} from 'chrome://settings/lazy_load.js';
-import {Router, routes, SignedInState, StatusAction, SyncBrowserProxyImpl} from 'chrome://settings/settings.js';
+import {loadTimeData, resetRouterForTesting, Router, routes, SignedInState, StatusAction, SyncBrowserProxyImpl} from 'chrome://settings/settings.js';
 import {assertEquals, assertTrue} from 'chrome://webui-test/chai_assert.js';
 import {microtasksFinished} from 'chrome://webui-test/test_util.js';
 
 import {TestSyncBrowserProxy} from './test_sync_browser_proxy.js';
-
-// <if expr="is_chromeos">
-import {loadTimeData, resetRouterForTesting} from 'chrome://settings/settings.js';
-// </if>
 
 
 suite('GoogleServicesPage', function() {
   let googleServicesPage: SettingsGoogleServicesPageElement;
   let testSyncBrowserProxy: TestSyncBrowserProxy;
 
-  setup(async function() {
+  setup(function() {
     document.body.innerHTML = window.trustedTypes!.emptyHTML;
 
-    // <if expr="is_chromeos">
     loadTimeData.overrideValues({replaceSyncPromosWithSignInPromos: true});
     resetRouterForTesting();
-    // </if>
 
     testSyncBrowserProxy = new TestSyncBrowserProxy();
     SyncBrowserProxyImpl.setInstance(testSyncBrowserProxy);
@@ -41,7 +35,7 @@ suite('GoogleServicesPage', function() {
     document.body.appendChild(googleServicesPage);
     Router.getInstance().navigateTo(routes.GOOGLE_SERVICES);
 
-    await microtasksFinished();
+    return microtasksFinished();
   });
 
   // Tests that all elements are visible.
@@ -49,7 +43,7 @@ suite('GoogleServicesPage', function() {
     assertEquals(
         routes.GOOGLE_SERVICES, Router.getInstance().getCurrentRoute());
 
-    assertTrue(!!googleServicesPage.shadowRoot.querySelector(
+    assertTrue(!!googleServicesPage.shadowRoot!.querySelector(
         'settings-personalization-options'));
   });
 

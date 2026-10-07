@@ -499,14 +499,6 @@ UseCounterMetricsRecorder::GetAllowedUkmFeatures() {
           WebFeature::kWebSpeechTtsSuccess,
           WebFeature::kWebSpeechTtsError,
           WebFeature::kViewportFitCover,
-          WebFeature::kModelContextRegisterTool,
-          WebFeature::kModelContextRegisterDeclarativeTool,
-          WebFeature::kModelContextExecuteTool,
-          WebFeature::kModelContextExecuteDeclarativeTool,
-          WebFeature::kModelContextExecuteDeclarativeAutosubmit,
-          WebFeature::kModelContextGetTools,
-          WebFeature::kXmlCAPAlert,
-          WebFeature::kXmlCAPAlertWithXSLT,
           // NOTE: before adding new use counters here, verify in UMA that
           // their emissions are very rare, e.g. <1% of page loads.
       }));

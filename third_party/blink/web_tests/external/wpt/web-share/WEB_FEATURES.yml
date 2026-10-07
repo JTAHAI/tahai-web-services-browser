@@ -1,2 +1,3 @@
-rules:
-- "**": [share]
+features:
+- name: share
+  files: "**"

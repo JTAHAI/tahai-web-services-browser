@@ -32,6 +32,8 @@
 #include "net/dns/host_resolver_cache.h"
 #include "net/dns/host_resolver_internal_result.h"
 #include "net/dns/public/util.h"
+#include "net/ssl/ssl_config_service.h"
+#include "net/url_request/url_request_context.h"
 
 namespace net {
 
@@ -221,12 +223,27 @@ std::vector<IPEndPoint> ExtractAddressResultsForSort(
 }
 
 // Returns whether an HTTPS/SVCB response is required for `host`.
-bool DetermineIfHttpsSvcbRequired(bool is_secure_dns, EchMode ech_mode) {
+bool DetermineIfHttpsSvcbRequired(bool is_secure_dns,
+                                  const ResolveContext& resolve_context,
+                                  std::string_view host) {
   if (is_secure_dns && features::kUseDnsHttpsSvcbEnforceSecureResponse.Get()) {
     return true;
   }
 
-  return ech_mode == EchMode::kStrict;
+  if (!resolve_context.url_request_context() ||
+      !resolve_context.url_request_context()->ssl_config_service()) {
+    return false;
+  }
+
+  SSLConfigService* ssl_config_service =
+      resolve_context.url_request_context()->ssl_config_service();
+  // TODO(crbug.com/534432929): Deprecate `ech_enabled` and consolidate on
+  // `EchMode`.
+  if (!ssl_config_service->GetSSLContextConfig().ech_enabled) {
+    return false;
+  }
+
+  return ssl_config_service->GetEchMode(host) == EchMode::kStrict;
 }
 
 }  // namespace
@@ -280,14 +297,15 @@ HostResolverDnsTask::HostResolverDnsTask(
       task_start_time_(tick_clock_->NowTicks()),
       fallback_available_(fallback_available),
       https_svcb_options_(https_svcb_options),
-      ech_mode_(
-          resolve_context->GetEchMode(host_.GetHostnameWithoutBrackets())),
-      https_svcb_required_(DetermineIfHttpsSvcbRequired(secure(), ech_mode_)) {
+      https_svcb_required_(
+          DetermineIfHttpsSvcbRequired(secure(),
+                                       *resolve_context,
+                                       host_.GetHostnameWithoutBrackets())) {
   DCHECK(client_);
   DCHECK(delegate_);
 
   if (!secure()) {
-    DCHECK(client_->CanUseInsecureDnsTransactions(ech_mode_));
+    DCHECK(client_->CanUseInsecureDnsTransactions());
   }
 
   PushTransactionsNeeded(MaybeDisableAdditionalQueries(query_types));
@@ -309,7 +327,7 @@ void HostResolverDnsTask::StartNextTransaction() {
   transactions_needed_.pop_front();
 
   DCHECK(IsAddressType(transaction_info->type) || secure() ||
-         client_->CanQueryAdditionalTypesViaInsecureDns(ech_mode_));
+         client_->CanQueryAdditionalTypesViaInsecureDns());
 
   // Record how long this transaction has been waiting to be created.
   base::TimeDelta time_queued = tick_clock_->NowTicks() - task_start_time_;
@@ -377,8 +395,7 @@ DnsQueryTypeSet HostResolverDnsTask::MaybeDisableAdditionalQueries(
   }
 
   if (types.Has(DnsQueryType::HTTPS)) {
-    if (!secure() &&
-        !client_->CanQueryAdditionalTypesViaInsecureDns(ech_mode_)) {
+    if (!secure() && !client_->CanQueryAdditionalTypesViaInsecureDns()) {
       https_disabled_ = true;
       types.Remove(DnsQueryType::HTTPS);
     } else {

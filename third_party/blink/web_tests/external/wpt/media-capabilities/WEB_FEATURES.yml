@@ -1,2 +1,3 @@
-rules:
-- "**": [media-capabilities]
+features:
+- name: media-capabilities
+  files: "**"

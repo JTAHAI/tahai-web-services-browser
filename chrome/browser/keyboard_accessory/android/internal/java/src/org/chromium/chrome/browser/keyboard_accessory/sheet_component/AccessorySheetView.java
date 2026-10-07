@@ -94,6 +94,10 @@ class AccessorySheetView extends LinearLayout {
         mViewPager.setAdapter(adapter);
     }
 
+    void addOnPageChangeListener(ViewPager.OnPageChangeListener pageChangeListener) {
+        mViewPager.addOnPageChangeListener(pageChangeListener);
+    }
+
     void setCurrentItem(int index) {
         mViewPager.setCurrentItem(index);
         // There is a small chance that the function is called too early and ViewPager will reset

@@ -145,11 +145,11 @@ std::optional<std::pair<ui::DomCode, int>> ParseKeyboardKey(
   int modifiers = 0;
   if (modifier_list) {
     for (const base::Value& val : *modifier_list) {
-      if (base::EqualsCaseInsensitiveASCII(val.GetString(), kCtrl)) {
+      if (base::ToLowerASCII(val.GetString()) == kCtrl) {
         modifiers |= ui::EF_CONTROL_DOWN;
-      } else if (base::EqualsCaseInsensitiveASCII(val.GetString(), kShift)) {
+      } else if (base::ToLowerASCII(val.GetString()) == kShift) {
         modifiers |= ui::EF_SHIFT_DOWN;
-      } else if (base::EqualsCaseInsensitiveASCII(val.GetString(), kAlt)) {
+      } else if (base::ToLowerASCII(val.GetString()) == kAlt) {
         modifiers |= ui::EF_ALT_DOWN;
       } else {
         LOG(WARNING) << "Modifier {" << val.GetString() << "} not considered.";

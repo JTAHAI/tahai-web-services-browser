@@ -20,6 +20,7 @@ import org.jni_zero.NativeMethods;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.omnibox.MatchClassificationStyle;
+import org.chromium.components.omnibox.AnswerTypeProto.AnswerType;
 import org.chromium.components.omnibox.GroupsProto.GroupId;
 import org.chromium.components.omnibox.RichAnswerTemplateProto.RichAnswerTemplate;
 import org.chromium.components.omnibox.SuggestTemplateInfoProto.SuggestTemplateInfo;
@@ -81,6 +82,7 @@ public class AutocompleteMatch {
     private String mDescription;
     private final List<MatchClassification> mDescriptionClassifications;
     private @Nullable RichAnswerTemplate mAnswerTemplate;
+    private AnswerType mAnswerType;
     private final String mFillIntoEdit;
     private GURL mUrl;
     private final GURL mImageUrl;
@@ -119,6 +121,7 @@ public class AutocompleteMatch {
             String description,
             List<MatchClassification> descriptionClassifications,
             byte @Nullable [] serializedAnswerTemplate,
+            int answerType,
             String fillIntoEdit,
             GURL url,
             GURL imageUrl,
@@ -161,6 +164,7 @@ public class AutocompleteMatch {
                 // When parsing error occurs, leave template as null.
             }
         }
+        mAnswerType = AnswerType.forNumber(answerType);
         mFillIntoEdit = TextUtils.isEmpty(fillIntoEdit) ? displayText : fillIntoEdit;
         assert url != null;
         mUrl = url;
@@ -228,6 +232,7 @@ public class AutocompleteMatch {
             @JniType("std::vector<int32_t>") int[] descriptionClassificationOffsets,
             @JniType("std::vector<int32_t>") int[] descriptionClassificationStyles,
             byte[] serializedAnswerTemplate,
+            int answerType,
             @JniType("std::u16string") String fillIntoEdit,
             @JniType("GURL") GURL url,
             @JniType("GURL") GURL imageUrl,
@@ -276,6 +281,7 @@ public class AutocompleteMatch {
                         description,
                         new ArrayList<>(),
                         serializedAnswerTemplate,
+                        answerType,
                         fillIntoEdit,
                         url,
                         imageUrl,
@@ -370,6 +376,11 @@ public class AutocompleteMatch {
     }
 
     @CalledByNative
+    private void setAnswerType(int answerType) {
+        mAnswerType = AnswerType.forNumber(answerType);
+    }
+
+    @CalledByNative
     private void setDescription(
             @JniType("std::u16string") String description,
             @JniType("std::vector<int32_t>") int[] descriptionClassificationOffsets,
@@ -413,6 +424,10 @@ public class AutocompleteMatch {
         return mAnswerTemplate;
     }
 
+    public AnswerType getAnswerType() {
+        return mAnswerType;
+    }
+
     public String getFillIntoEdit() {
         return mFillIntoEdit;
     }
@@ -440,13 +455,13 @@ public class AutocompleteMatch {
         return mIsDeletable;
     }
 
-    /** Returns whether the match type is a search or url match to what the user typed. */
+    /** {@return whether the match type is a search or url match to what the user typed} */
     public static boolean isWhatYouTyped(@OmniboxSuggestionType int type) {
         return type == OmniboxSuggestionType.URL_WHAT_YOU_TYPED
                 || type == OmniboxSuggestionType.SEARCH_WHAT_YOU_TYPED;
     }
 
-    /** Returns whether the member match type is a search or url match to what the user typed. */
+    /** {@return whether the member match type is a search or url match to what the user typed} */
     public boolean isWhatYouTyped() {
         return isWhatYouTyped(mType);
     }
@@ -574,6 +589,7 @@ public class AutocompleteMatch {
                 && Arrays.equals(mPostData, suggestion.mPostData)
                 && mGroupId == suggestion.mGroupId
                 && mSwapContentsAndDescription == suggestion.mSwapContentsAndDescription
+                && mAnswerType == suggestion.mAnswerType
                 && mAndroidTabId == suggestion.mAndroidTabId
                 && answerTemplateIsEqual
                 && suggestTemplateIsEqual
@@ -719,6 +735,7 @@ public class AutocompleteMatch {
                 input.getDescription(),
                 descriptionClassifications,
                 /* serializedAnswerTemplate= */ null,
+                /* answerType= */ 0,
                 input.getFillIntoEdit(),
                 new GURL(input.getUrl()),
                 new GURL(input.getImageUrl()),

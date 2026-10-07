@@ -13,7 +13,6 @@
 #include "services/network/public/cpp/permissions_policy/permissions_policy_declaration.h"
 #include "services/network/public/cpp/web_sandbox_flags.h"
 #include "services/network/public/mojom/web_sandbox_flags.mojom.h"
-#include "third_party/perfetto/include/perfetto/tracing/track.h"
 
 namespace features {
 BASE_FEATURE(kNewBrowsingContextStateOnBrowsingContextGroupSwap,
@@ -42,15 +41,13 @@ BrowsingContextState::BrowsingContextState(
     : replication_state_(std::move(replication_state)),
       parent_(parent),
       browsing_instance_id_(browsing_instance_id) {
-  TRACE_EVENT_BEGIN(
-      "navigation.debug", "BrowsingContextState",
-      perfetto::NamedTrack::FromPointer("BrowsingContextState", this),
-      "browsing_context_state_when_created", this);
+  TRACE_EVENT_BEGIN("navigation.debug", "BrowsingContextState",
+                    perfetto::Track::FromPointer(this),
+                    "browsing_context_state_when_created", this);
 }
 
 BrowsingContextState::~BrowsingContextState() {
-  TRACE_EVENT_END("navigation.debug", perfetto::NamedTrack::FromPointer(
-                                          "BrowsingContextState", this));
+  TRACE_EVENT_END("navigation.debug", perfetto::Track::FromPointer(this));
   CHECK(proxy_hosts_.empty());
 }
 

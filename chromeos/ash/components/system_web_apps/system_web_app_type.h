@@ -1,4 +1,3 @@
-  // Print Preview CrOS was removed.
 // Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
@@ -112,7 +111,10 @@ enum class SystemWebAppType {
   // Contact: assistive-eng@google.com
   VC_BACKGROUND = 25,
 
-  // PRINT_PREVIEW_CROS = 26,
+  // CrOS implementation of the print preview surface.
+  // Source: //ash/webui/print_preview_cros/
+  // Contact: cros-device-enablement@google.com
+  PRINT_PREVIEW_CROS = 26,
 
   // Boca implementation.
   // Source: //ash/webui/boca_ui/

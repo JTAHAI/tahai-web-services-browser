@@ -32,7 +32,6 @@
 
 #include <memory>
 
-#include "third_party/blink/renderer/platform/instrumentation/tracing/trace_event.h"
 #include "third_party/blink/renderer/platform/wtf/math_extras.h"
 #include "third_party/fdlibm/ieee754.h"
 
@@ -102,8 +101,6 @@ DownSampler::DownSampler(unsigned input_block_size)
 
 void DownSampler::Process(base::span<const float> source,
                           base::span<float> dest) {
-  TRACE_EVENT0(TRACE_DISABLED_BY_DEFAULT("webaudio.audionode"),
-               "DownSampler::Process");
   const size_t source_frames_to_process = source.size();
   DCHECK_EQ(source_frames_to_process, input_block_size_);
 

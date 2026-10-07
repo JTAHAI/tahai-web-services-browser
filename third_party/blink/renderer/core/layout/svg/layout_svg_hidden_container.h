@@ -56,8 +56,7 @@ class LayoutSVGHiddenContainer : public LayoutSVGContainer {
   }
   void QuadsInAncestorInternal(Vector<gfx::QuadF>&,
                                const LayoutBoxModelObject* ancestor,
-                               MapCoordinatesFlags,
-                               BoxQuadType) const final {
+                               MapCoordinatesFlags) const final {
     NOT_DESTROYED();
   }
 

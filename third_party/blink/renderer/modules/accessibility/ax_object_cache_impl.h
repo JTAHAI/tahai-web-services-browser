@@ -416,8 +416,6 @@ class MODULES_EXPORT AXObjectCacheImpl : public AXObjectCacheBase {
   // Called when the scroll offset changes.
   void HandleScrollPositionChanged(LayoutObject*) override;
 
-  void HandleScrollDimensionsChanged(LayoutObject*) override;
-
   void HandleScrollMarkerTabSelectionChanged(Element& scroller) override;
 
   void HandleScrolledToAnchor(const Node* anchor_node) override;

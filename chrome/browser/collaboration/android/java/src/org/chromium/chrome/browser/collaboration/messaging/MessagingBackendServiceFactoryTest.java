@@ -45,12 +45,15 @@ public class MessagingBackendServiceFactoryTest {
         mActivityTestRule.startOnBlankPage();
 
         ThreadUtils.runOnUiThreadBlocking(
-                () -> {
-                    MessagingBackendService messagingBackendService =
-                            MessagingBackendServiceFactory.getForProfile(
-                                    ProfileManager.getLastUsedRegularProfile());
-                    Assert.assertNotNull(messagingBackendService);
-                    Assert.assertEquals(messagingBackendService, testService);
+                new Runnable() {
+                    @Override
+                    public void run() {
+                        MessagingBackendService messagingBackendService =
+                                MessagingBackendServiceFactory.getForProfile(
+                                        ProfileManager.getLastUsedRegularProfile());
+                        Assert.assertNotNull(messagingBackendService);
+                        Assert.assertEquals(messagingBackendService, testService);
+                    }
                 });
     }
 
@@ -62,11 +65,14 @@ public class MessagingBackendServiceFactoryTest {
         mActivityTestRule.startOnBlankPage();
 
         ThreadUtils.runOnUiThreadBlocking(
-                () -> {
-                    MessagingBackendService messagingBackendService =
-                            MessagingBackendServiceFactory.getForProfile(
-                                    ProfileManager.getLastUsedRegularProfile());
-                    Assert.assertNotNull(messagingBackendService);
+                new Runnable() {
+                    @Override
+                    public void run() {
+                        MessagingBackendService messagingBackendService =
+                                MessagingBackendServiceFactory.getForProfile(
+                                        ProfileManager.getLastUsedRegularProfile());
+                        Assert.assertNotNull(messagingBackendService);
+                    }
                 });
     }
 }

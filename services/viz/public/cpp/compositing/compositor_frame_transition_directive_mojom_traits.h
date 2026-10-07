@@ -8,10 +8,8 @@
 #include <vector>
 
 #include "base/time/time.h"
-#include "base/types/expected.h"
 #include "components/viz/common/quads/compositor_frame_transition_directive.h"
 #include "components/viz/common/quads/compositor_render_pass.h"
-#include "mojo/public/cpp/bindings/deserialization_error.h"
 #include "services/viz/public/mojom/compositing/compositor_frame_transition_directive.mojom-shared.h"
 #include "ui/gfx/display_color_spaces.h"
 
@@ -42,7 +40,7 @@ struct StructTraits<
     return element.view_transition_element_resource_id;
   }
 
-  static base::expected<void, DeserializationError> Read(
+  static bool Read(
       viz::mojom::CompositorFrameTransitionDirectiveSharedElementDataView data,
       viz::CompositorFrameTransitionDirective::SharedElement* out);
 };
@@ -85,9 +83,8 @@ struct StructTraits<viz::mojom::CompositorFrameTransitionDirectiveDataView,
     return directive.delay_layer_tree_view_deletion();
   }
 
-  static base::expected<void, DeserializationError> Read(
-      viz::mojom::CompositorFrameTransitionDirectiveDataView data,
-      viz::CompositorFrameTransitionDirective* out);
+  static bool Read(viz::mojom::CompositorFrameTransitionDirectiveDataView data,
+                   viz::CompositorFrameTransitionDirective* out);
 };
 
 }  // namespace mojo

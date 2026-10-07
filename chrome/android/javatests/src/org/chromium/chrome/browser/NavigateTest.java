@@ -43,6 +43,7 @@ import org.chromium.base.test.util.UrlUtils;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.back_press.BackPressMetrics;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
+import org.chromium.chrome.browser.tab.EmptyTabObserver;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.Tab.LoadUrlResult;
 import org.chromium.chrome.browser.tab.TabObserver;
@@ -400,7 +401,7 @@ public class NavigateTest {
         mActivityTestRule.assertWaitForPageScaleFactorMatch(0.5f);
 
         TabObserver onPageLoadStartedObserver =
-                new TabObserver() {
+                new EmptyTabObserver() {
                     @Override
                     public void onPageLoadStarted(Tab tab, GURL newUrl) {
                         tab.removeObserver(this);
@@ -896,7 +897,7 @@ public class NavigateTest {
         mActivityTestRule.assertWaitForPageScaleFactorMatch(0.5f);
 
         TabObserver onPageLoadStartedObserver =
-                new TabObserver() {
+                new EmptyTabObserver() {
                     @Override
                     public void onLoadUrl(
                             Tab tab, LoadUrlParams params, LoadUrlResult loadUrlResult) {

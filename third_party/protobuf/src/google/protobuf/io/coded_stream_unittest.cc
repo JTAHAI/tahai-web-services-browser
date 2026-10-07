@@ -179,19 +179,8 @@ TEST_F(CodedStreamTest, EmptyInputBeforeEos) {
     int count_;
   } in;
   CodedInputStream input(&in);
-  // TODO: Remove this suppression.
-  (void)input.ReadTagNoLastTag();
+  input.ReadTagNoLastTag();
   EXPECT_TRUE(input.ConsumedEntireMessage());
-}
-
-TEST_F(CodedStreamTest, ReadRawFailsGracefullyOnBadSize) {
-  char buf[10]{};
-  ArrayInputStream in(buf, sizeof(buf));
-  CodedInputStream input(&in);
-  int c;
-  EXPECT_FALSE(input.ReadRaw(&c, -1));
-  EXPECT_FALSE(input.ReadRaw(&c, -1));
-  EXPECT_FALSE(input.ReadRaw(&c, -1));
 }
 
 class VarintCases : public CodedStreamTest,
@@ -211,8 +200,7 @@ TEST_P(VarintCases, ExpectTag) {
     // Read one byte to force coded_input.Refill() to be called.  Otherwise,
     // ExpectTag() will return a false negative.
     uint8_t dummy;
-    // TODO: Remove this suppression.
-    (void)coded_input.ReadRaw(&dummy, 1);
+    coded_input.ReadRaw(&dummy, 1);
     EXPECT_EQ((uint)'\0', (uint)dummy);
 
     uint32_t expected_value = static_cast<uint32_t>(kVarintCases_case.value);
@@ -751,27 +739,6 @@ TEST_P(BlockSizes, ReadRaw) {
   EXPECT_EQ(sizeof(kRawBytes), input.ByteCount());
 }
 
-TEST_P(BlockSizes, ReadRawFailsGracefullyAtEndOfStream) {
-  int kBlockSizes_case = GetParam();
-  memcpy(buffer_, kRawBytes, sizeof(kRawBytes));
-  ArrayInputStream input(buffer_, sizeof(buffer_), kBlockSizes_case);
-
-  CodedInputStream coded_input(&input);
-  char c[10];
-  while (coded_input.ReadRaw(c, sizeof(c))) {
-    // nothing. Just consuming it.
-  }
-  // and we can call it a few times without UB
-  EXPECT_FALSE(coded_input.ReadRaw(c, sizeof(c)));
-  EXPECT_FALSE(coded_input.ReadRaw(c, sizeof(c)));
-  EXPECT_FALSE(coded_input.ReadRaw(c, sizeof(c)));
-
-  // Read zero is fine too
-  EXPECT_TRUE(coded_input.ReadRaw(nullptr, 0));
-  EXPECT_TRUE(coded_input.ReadRaw(nullptr, 0));
-  EXPECT_TRUE(coded_input.ReadRaw(nullptr, 0));
-}
-
 TEST_P(BlockSizes, WriteRaw) {
   int kBlockSizes_case = GetParam();
   ArrayOutputStream output(buffer_, sizeof(buffer_), kBlockSizes_case);
@@ -864,8 +831,7 @@ TEST_P(BlockSizes, ReadStringReservesMemoryOnPushedLimit) {
 
   {
     CodedInputStream coded_input(&input);
-    // TODO: Remove this suppression.
-    (void)coded_input.PushLimit(sizeof(buffer_));
+    coded_input.PushLimit(sizeof(buffer_));
 
     std::string str;
     EXPECT_TRUE(coded_input.ReadString(&str, strlen(kRawBytes)));
@@ -910,8 +876,7 @@ TEST_F(CodedStreamTest, ReadStringNoReservationSizeIsNegative) {
 
   {
     CodedInputStream coded_input(&input);
-    // TODO: Remove this suppression.
-    (void)coded_input.PushLimit(sizeof(buffer_));
+    coded_input.PushLimit(sizeof(buffer_));
 
     std::string str;
     EXPECT_FALSE(coded_input.ReadString(&str, -1));
@@ -931,8 +896,7 @@ TEST_F(CodedStreamTest, ReadStringNoReservationSizeIsLarge) {
 
   {
     CodedInputStream coded_input(&input);
-    // TODO: Remove this suppression.
-    (void)coded_input.PushLimit(sizeof(buffer_));
+    coded_input.PushLimit(sizeof(buffer_));
 
     std::string str;
     EXPECT_FALSE(coded_input.ReadString(&str, 1 << 30));
@@ -949,8 +913,7 @@ TEST_F(CodedStreamTest, ReadStringNoReservationSizeIsOverTheLimit) {
 
   {
     CodedInputStream coded_input(&input);
-    // TODO: Remove this suppression.
-    (void)coded_input.PushLimit(16);
+    coded_input.PushLimit(16);
 
     std::string str;
     EXPECT_FALSE(coded_input.ReadString(&str, strlen(kRawBytes)));
@@ -991,8 +954,7 @@ TEST_F(CodedStreamTest,
 
   {
     CodedInputStream coded_input(&input);
-    // TODO: Remove this suppression.
-    (void)coded_input.PushLimit(sizeof(buffer_));
+    coded_input.PushLimit(sizeof(buffer_));
     coded_input.SetTotalBytesLimit(16);
 
     std::string str;
@@ -1014,8 +976,7 @@ TEST_F(CodedStreamTest,
 
   {
     CodedInputStream coded_input(&input);
-    // TODO: Remove this suppression.
-    (void)coded_input.PushLimit(16);
+    coded_input.PushLimit(16);
     coded_input.SetTotalBytesLimit(sizeof(buffer_));
     EXPECT_EQ(sizeof(buffer_), coded_input.BytesUntilTotalBytesLimit());
 

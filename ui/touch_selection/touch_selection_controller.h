@@ -140,9 +140,6 @@ class UI_TOUCH_SELECTION_EXPORT TouchSelectionController
   // showing allowance.
   void HideAndDisallowShowingAutomatically();
 
-  // Hide the touch selection and destroy the handles natively.
-  void HideAndDestroy();
-
   // Override the handle visibility according to |hidden|.
   void SetTemporarilyHidden(bool hidden);
 

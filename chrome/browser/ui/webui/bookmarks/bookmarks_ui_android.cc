@@ -9,7 +9,7 @@
 #include "ui/base/resource/resource_bundle.h"
 
 // static
-scoped_refptr<base::RefCountedMemory> BookmarksUI::GetFaviconResourceBytes(
+base::RefCountedMemory* BookmarksUI::GetFaviconResourceBytes(
     ui::ResourceScaleFactor scale_factor) {
   return ui::ResourceBundle::GetSharedInstance().LoadDataResourceBytesForScale(
       IDR_BOOKMARKS_FAVICON, scale_factor);

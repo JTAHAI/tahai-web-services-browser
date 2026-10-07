@@ -21,7 +21,6 @@
 #include "components/password_manager/core/browser/password_form_cache_impl.h"
 #include "components/password_manager/core/browser/password_form_manager.h"
 #include "components/password_manager/core/browser/password_save_manager_impl.h"
-#include "components/password_manager/core/browser/password_string.h"
 #include "components/password_manager/core/browser/stub_form_saver.h"
 #include "components/password_manager/core/browser/stub_password_manager_client.h"
 #include "components/password_manager/core/browser/stub_password_manager_driver.h"
@@ -345,8 +344,7 @@ TEST_F(UndoPasswordChangeControllerTest,
 
 TEST_F(UndoPasswordChangeControllerTest,
        OnLoginPotentiallyFailed_BackupUsed_Ignored) {
-  failed_login_form_.password_value =
-      PasswordString(std::u16string(kBackupPassword));
+  failed_login_form_.password_value = kBackupPassword;
   best_match_form_.SetPasswordBackupNote(kBackupPassword);
   auto form_manager = CreateFormManager(best_match_form_);
 

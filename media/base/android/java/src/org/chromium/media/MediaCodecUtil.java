@@ -21,9 +21,9 @@ import org.chromium.base.Log;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 
-import java.util.Arrays;
 import java.util.Iterator;
 import java.util.Locale;
+import java.util.NoSuchElementException;
 
 /** A collection of MediaCodec utility functions. */
 @JNINamespace("media")
@@ -51,47 +51,62 @@ class MediaCodecUtil {
 
     /**
      * Class to abstract platform version API differences for interacting with the MediaCodecList.
-     * This class uses the Initialization-on-demand holder idiom for thread-safe lazy loading.
      */
     private static class MediaCodecListHelper implements Iterable<MediaCodecInfo> {
-        private static final class LazyHolder {
-            private static final MediaCodecListHelper sInstance = new MediaCodecListHelper();
-        }
-
-        public static MediaCodecListHelper getInstance() {
-            return LazyHolder.sInstance;
-        }
-
-        private final MediaCodecInfo[] mCodecInfos;
-
-        private MediaCodecListHelper() {
-            MediaCodecInfo[] infos = null;
+        MediaCodecListHelper() {
             try {
-                infos = new MediaCodecList(MediaCodecList.ALL_CODECS).getCodecInfos();
+                mCodecList = new MediaCodecList(MediaCodecList.ALL_CODECS).getCodecInfos();
             } catch (Throwable e) {
                 // Swallow the exception due to bad Android implementation and pretend
                 // MediaCodecList is not supported.
-                Log.w(TAG, "Failed to retrieve MediaCodecList using ALL_CODECS", e);
             }
-
-            if (infos == null) {
-                try {
-                    infos = new MediaCodecList(MediaCodecList.REGULAR_CODECS).getCodecInfos();
-                } catch (Throwable e) {
-                    Log.w(TAG, "Failed to retrieve MediaCodecList using REGULAR_CODECS", e);
-                }
-            }
-
-            mCodecInfos = (infos != null) ? infos : new MediaCodecInfo[0];
-        }
-
-        public boolean hasCodecList() {
-            return mCodecInfos.length > 0;
         }
 
         @Override
         public Iterator<MediaCodecInfo> iterator() {
-            return Arrays.asList(mCodecInfos).iterator();
+            return new CodecInfoIterator();
+        }
+
+        @SuppressWarnings("deprecation")
+        private int getCodecCount() {
+            if (mCodecList != null) return mCodecList.length;
+            try {
+                return MediaCodecList.getCodecCount();
+            } catch (RuntimeException e) {
+                // Swallow the exception due to bad Android implementation and pretend
+                // MediaCodecList is not supported.
+                return 0;
+            }
+        }
+
+        @SuppressWarnings("deprecation")
+        private MediaCodecInfo getCodecInfoAt(int index) {
+            if (mCodecList != null) return mCodecList[index];
+            return MediaCodecList.getCodecInfoAt(index);
+        }
+
+        private MediaCodecInfo @Nullable [] mCodecList;
+
+        private class CodecInfoIterator implements Iterator<MediaCodecInfo> {
+            private int mPosition;
+
+            @Override
+            public boolean hasNext() {
+                return mPosition < getCodecCount();
+            }
+
+            @Override
+            public MediaCodecInfo next() {
+                if (mPosition == getCodecCount()) {
+                    throw new NoSuchElementException();
+                }
+                return getCodecInfoAt(mPosition++);
+            }
+
+            @Override
+            public void remove() {
+                throw new UnsupportedOperationException();
+            }
         }
     }
 
@@ -132,7 +147,8 @@ class MediaCodecUtil {
             boolean requireHardwareCodec,
             boolean requireSecure) {
         assert !(requireSoftwareCodec && requireHardwareCodec);
-        for (MediaCodecInfo info : MediaCodecListHelper.getInstance()) {
+        MediaCodecListHelper codecListHelper = new MediaCodecListHelper();
+        for (MediaCodecInfo info : codecListHelper) {
             int codecDirection =
                     info.isEncoder() ? MediaCodecDirection.ENCODER : MediaCodecDirection.DECODER;
             if (codecDirection != direction) continue;
@@ -186,8 +202,8 @@ class MediaCodecUtil {
             return false;
         }
 
-        MediaCodecListHelper codecListHelper = MediaCodecListHelper.getInstance();
-        if (codecListHelper.hasCodecList()) {
+        MediaCodecListHelper codecListHelper = new MediaCodecListHelper();
+        if (codecListHelper.mCodecList != null) {
             for (MediaCodecInfo info : codecListHelper) {
                 if (info.isEncoder()) continue;
 
@@ -242,7 +258,8 @@ class MediaCodecUtil {
     @CalledByNative
     private static Object[] getSupportedCodecProfileLevels() {
         CodecProfileLevelList profileLevels = new CodecProfileLevelList();
-        for (MediaCodecInfo info : MediaCodecListHelper.getInstance()) {
+        MediaCodecListHelper codecListHelper = new MediaCodecListHelper();
+        for (MediaCodecInfo info : codecListHelper) {
             for (String mime : info.getSupportedTypes()) {
                 if (!isDecoderSupportedForDevice(mime)) {
                     Log.w(TAG, "Decoder for type %s disabled on this device", mime);
@@ -398,20 +415,6 @@ class MediaCodecUtil {
             Log.e(TAG, "Cannot retrieve codec information", e);
         }
         return false;
-    }
-
-    @CalledByNative
-    public static boolean requiresSecureDecoderComponent(
-            @Nullable MediaCrypto mediaCrypto, String mimeType) {
-        if (mediaCrypto == null) {
-            return false;
-        }
-        try {
-            return mediaCrypto.requiresSecureDecoderComponent(mimeType);
-        } catch (Exception e) {
-            Log.e(TAG, "Failed requiresSecureDecoderComponent check for " + mimeType, e);
-            return false;
-        }
     }
 
     @NativeMethods

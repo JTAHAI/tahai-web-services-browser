@@ -30,30 +30,11 @@
     'normal',
   ];
 
-  async function getVisibilityState(expectedVisibility) {
-    return await session.evaluateAsync(async (expected) => {
-      if (document.visibilityState === expected) {
-        return document.visibilityState;
-      }
-      return await new Promise(resolve => {
-        const handler = () => {
-          if (document.visibilityState === expected) {
-            document.removeEventListener('visibilitychange', handler);
-            resolve(document.visibilityState);
-          }
-        };
-        document.addEventListener('visibilitychange', handler);
-      });
-    }, expectedVisibility);
-  }
-
   for (const state of windowStates) {
     await dp.Browser.setWindowBounds({windowId, bounds: {windowState: state}});
 
     const {bounds} = (await dp.Browser.getWindowBounds({windowId})).result;
-    const expectedVisibility =
-        (bounds.windowState === 'minimized') ? 'hidden' : 'visible';
-    const visibilityState = await getVisibilityState(expectedVisibility);
+    const visibilityState = await session.evaluate(`document.visibilityState`);
     testRunner.log(`${bounds.left},${bounds.top} ${bounds.width}x${
         bounds.height} ${bounds.windowState} ${visibilityState}`);
   }

@@ -120,6 +120,7 @@ interface FrameHost {
   // or creating a URLRequest for the main frame resource.
   [Sync]
   ShouldOverrideUrlLoading(mojo_base.mojom.String16 url,
-                           bool has_user_gesture)
+                           bool has_user_gesture, bool is_redirect,
+                           bool is_outermost_main_frame)
       => (bool result);
 };

@@ -24,7 +24,6 @@
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/lifetime/application_lifetime.h"
 #include "chrome/browser/lifetime/application_lifetime_desktop.h"
-#include "chrome/browser/prefs/incognito_mode_prefs.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profile_attributes_entry.h"
 #include "chrome/browser/profiles/profile_attributes_storage.h"
@@ -34,6 +33,7 @@
 #include "chrome/browser/signin/identity_manager_factory.h"
 #include "chrome/browser/signin/signin_ui_util.h"
 #include "chrome/browser/signin/signin_util.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/dialogs/browser_dialogs.h"
 #include "chrome/browser/ui/startup/startup_tab_provider.h"
@@ -41,7 +41,6 @@
 #include "chrome/common/chrome_switches.h"
 #include "chrome/common/pref_names.h"
 #include "chrome/common/url_constants.h"
-#include "components/policy/core/common/policy_pref_names.h"
 #include "components/prefs/pref_service.h"
 #include "components/signin/public/base/signin_pref_names.h"
 #include "components/signin/public/identity_manager/account_info.h"
@@ -52,6 +51,7 @@
 
 #if !BUILDFLAG(IS_ANDROID)
 #include "chrome/browser/ui/browser_window.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "chrome/browser/ui/browser_window/public/profile_browser_collection.h"
 #include "chrome/browser/ui/startup/startup_browser_creator.h"
@@ -93,12 +93,8 @@ void FindOrCreateNewWindowForProfile(
                profile->GetPath());
 
   if (!always_create) {
-    const bool match_original_profiles =
-        IncognitoModePrefs::GetAvailability(profile->GetPrefs()) ==
-        policy::IncognitoModeAvailability::kForced;
     BrowserWindowInterface* browser =
-        ProfileBrowserCollection::GetForProfile(profile)->FindTabbedBrowser(
-            match_original_profiles);
+        ProfileBrowserCollection::GetForProfile(profile)->FindTabbedBrowser();
     if (browser) {
       browser->GetWindow()->Activate();
       return;
@@ -129,12 +125,11 @@ void FindOrCreateNewWindowForProfile(
                                 /*restore_tabbed_browser=*/true);
 }
 
-void OpenBrowserWindowForProfile(
-    base::OnceCallback<void(BrowserWindowInterface*)> callback,
-    bool always_create,
-    bool is_new_profile,
-    bool open_command_line_urls,
-    Profile* profile) {
+void OpenBrowserWindowForProfile(base::OnceCallback<void(Browser*)> callback,
+                                 bool always_create,
+                                 bool is_new_profile,
+                                 bool open_command_line_urls,
+                                 Profile* profile) {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
   TRACE_EVENT1("browser", "OpenBrowserWindowForProfile", "profile_path",
                profile->GetPath().AsUTF8Unsafe());
@@ -177,16 +172,12 @@ void OpenBrowserWindowForProfile(
   // case, as you could manually activate an incorrect browser and trigger
   // a false positive.
   if (!always_create) {
-    const bool match_original_profiles =
-        IncognitoModePrefs::GetAvailability(profile->GetPrefs()) ==
-        policy::IncognitoModeAvailability::kForced;
     BrowserWindowInterface* browser =
-        ProfileBrowserCollection::GetForProfile(profile)->FindTabbedBrowser(
-            match_original_profiles);
+        ProfileBrowserCollection::GetForProfile(profile)->FindTabbedBrowser();
     if (browser) {
       browser->GetWindow()->Activate();
       if (callback) {
-        std::move(callback).Run(browser);
+        std::move(callback).Run(browser->GetBrowserForMigrationOnly());
       }
       return;
     }
@@ -221,7 +212,7 @@ void LoadProfileAsync(const base::FilePath& path,
 
 void SwitchToProfile(const base::FilePath& path,
                      bool always_create,
-                     base::OnceCallback<void(BrowserWindowInterface*)> callback,
+                     base::OnceCallback<void(Browser*)> callback,
                      bool open_command_line_urls) {
   base::OnceCallback<void(Profile*)> open_browser_callback =
       base::BindOnce(&profiles::OpenBrowserWindowForProfile,
@@ -232,8 +223,7 @@ void SwitchToProfile(const base::FilePath& path,
       base::BindOnce(&ProfileLoadedCallback, std::move(open_browser_callback)));
 }
 
-void SwitchToGuestProfile(
-    base::OnceCallback<void(BrowserWindowInterface*)> callback) {
+void SwitchToGuestProfile(base::OnceCallback<void(Browser*)> callback) {
   SwitchToProfile(ProfileManager::GetGuestProfilePath(),
                   /*always_create=*/false, std::move(callback));
 }
@@ -253,7 +243,7 @@ void CloseProfileWindows(Profile* profile) {
 
 BrowserAddedForProfileObserver::BrowserAddedForProfileObserver(
     Profile* profile,
-    base::OnceCallback<void(BrowserWindowInterface*)> callback)
+    base::OnceCallback<void(Browser*)> callback)
     : profile_(profile->GetWeakPtr()), callback_(std::move(callback)) {
   DCHECK(callback_);
   browser_collection_observation_.Observe(
@@ -270,27 +260,12 @@ void BrowserAddedForProfileObserver::OnBrowserCreated(
     return;
   }
 
-  if (!profile_) {
-    // The profile has been deleted.
+  if (browser->GetProfile() != profile_.get()) {
+    // The profile has been deleted, or this is a different profile.
     return;
   }
 
-  // A browser matches if it is associated with the exact profile being
-  // observed, or if incognito mode is forced by policy for the profile and the
-  // browser is an off-the-record window for that original profile.
-  const bool is_matching_browser =
-      (browser->GetProfile() == profile_.get()) ||
-      (IncognitoModePrefs::GetAvailability(profile_->GetPrefs()) ==
-           policy::IncognitoModeAvailability::kForced &&
-       browser->GetProfile()->GetOriginalProfile() ==
-           profile_->GetOriginalProfile());
-
-  if (!is_matching_browser) {
-    // This is a different profile.
-    return;
-  }
-
-  browser_ = browser;
+  browser_ = browser->GetBrowserForMigrationOnly();
   // By the time the browser is added a tab (or multiple) are about to be added.
   // Post the callback to the message loop so it gets executed after the tabs
   // are created.

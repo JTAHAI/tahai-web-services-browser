@@ -25,6 +25,8 @@
 #include "base/types/expected.h"
 #include "base/types/optional_ref.h"
 #include "base/types/pass_key.h"
+#include "base/version_info/channel.h"
+#include "base/version_info/version_info.h"
 #include "chrome/browser/ai/ai_context_bound_object.h"
 #include "chrome/browser/ai/ai_context_bound_object_set.h"
 #include "chrome/browser/ai/ai_language_model.h"
@@ -41,6 +43,7 @@
 #include "chrome/browser/optimization_guide/optimization_guide_keyed_service.h"
 #include "chrome/browser/optimization_guide/optimization_guide_keyed_service_factory.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/common/channel_info.h"
 #include "components/language/core/common/locale_util.h"
 #include "components/on_device_ai/ai_utils.h"
 #include "components/optimization_guide/core/delivery/model_util.h"
@@ -54,7 +57,6 @@
 #include "components/optimization_guide/core/optimization_guide_switches.h"
 #include "components/optimization_guide/proto/common_types.pb.h"
 #include "components/optimization_guide/proto/feature_configs.pb.h"
-#include "components/optimization_guide/proto/features/prompt_api.pb.h"
 #include "components/optimization_guide/public/mojom/model_broker.mojom-shared.h"
 #include "components/policy/core/common/policy_pref_names.h"
 #include "components/prefs/pref_service.h"
@@ -90,18 +92,12 @@ constexpr float kMostPredictableTemperature = 0.0f;
 constexpr uint32_t kMostPredictableTopK = 1;
 
 constexpr float kPredictableTemperature = 0.3f;
-constexpr uint32_t kPredictableTopK = 32;
+constexpr uint32_t kPredictableTopK = 30;
 
-constexpr float kSlightlyPredictableTemperature = 0.7f;
-constexpr uint32_t kSlightlyPredictableTopK = 64;
-
-constexpr float kBalancedTemperature = 1.0f;
+constexpr float kBalancedTemperature = 0.7f;
 constexpr uint32_t kBalancedTopK = 64;
 
-constexpr float kSlightlyCreativeTemperature = 1.1f;
-constexpr uint32_t kSlightlyCreativeTopK = 72;
-
-constexpr float kCreativeTemperature = 1.15f;
+constexpr float kCreativeTemperature = 1.1f;
 constexpr uint32_t kCreativeTopK = 80;
 
 constexpr float kMostCreativeTemperature = 1.2f;
@@ -237,26 +233,6 @@ bool HasInvalidOutputTypes(
   return false;
 }
 
-bool IsSpeculativeDecodingCompatibleWithSampling(
-    const blink::mojom::AILanguageModelCreateOptionsPtr& options) {
-  if (!base::FeatureList::IsEnabled(
-          on_device_model::features::kOnDeviceModelSpeculativeDecoding)) {
-    return true;
-  }
-  if (!options) {
-    return false;
-  }
-  if (options->sampling_params) {
-    return options->sampling_params->top_k == 1 ||
-           options->sampling_params->temperature == 0.0f;
-  }
-  if (options->sampling_mode.has_value()) {
-    return options->sampling_mode.value() ==
-           blink::mojom::AILanguageModelSamplingMode::kMostPredictable;
-  }
-  return false;
-}
-
 on_device_model::Capabilities GetExpectedInputCapabilities(
     base::optional_ref<
         const std::vector<blink::mojom::AILanguageModelExpectedPtr>>
@@ -327,6 +303,15 @@ void Insert(LanguageSet& set, const std::vector<AILanguageCodePtr>& languages) {
 template <typename FeatureConfigProto>
 std::optional<std::string> GetExperimentalUseCaseByModelVersion(
     const FeatureConfigProto& feature_config) {
+  // Support experimental use cases on Canary/Dev/Unknown and unofficial builds.
+  version_info::Channel channel = chrome::GetChannel();
+  if (channel != version_info::Channel::CANARY &&
+      channel != version_info::Channel::DEV &&
+      channel != version_info::Channel::UNKNOWN &&
+      version_info::IsOfficialBuild()) {
+    return std::nullopt;
+  }
+
   if (base::FeatureList::IsEnabled(kAIApiFoundationalModel)) {
     std::string model_version = base::GetFieldTrialParamValueByFeature(
         kAIApiFoundationalModel, kModelVersionParam);
@@ -569,6 +554,7 @@ enum class SpeedPreferenceIncompatibilityReason {
   kTypeNotSupported,
   kLengthNotSupported,
   kManifestBrokerDisabled,
+  kLiteRTBackendDisabled,
 };
 
 base::expected<void, SpeedPreferenceIncompatibilityReason>
@@ -578,6 +564,11 @@ IsSpeedPreferenceCompatible(
           optimization_guide::kOptimizationGuideManifestBroker)) {
     return base::unexpected(
         SpeedPreferenceIncompatibilityReason::kManifestBrokerDisabled);
+  }
+  if (!base::FeatureList::IsEnabled(
+          on_device_model::features::kOnDeviceModelLitertLmBackend)) {
+    return base::unexpected(
+        SpeedPreferenceIncompatibilityReason::kLiteRTBackendDisabled);
   }
 
   auto supported_langs =
@@ -684,27 +675,6 @@ uint32_t GetInputContextLimit(const OptionsPtr& options) {
   return blink::mojom::kWritingAssistanceMaxInputTokenSize;
 }
 
-std::string_view AILanguageModelSamplingModeToString(
-    blink::mojom::AILanguageModelSamplingMode sampling_mode) {
-  switch (sampling_mode) {
-    case blink::mojom::AILanguageModelSamplingMode::kMostPredictable:
-      return "most-predictable";
-    case blink::mojom::AILanguageModelSamplingMode::kPredictable:
-      return "predictable";
-    case blink::mojom::AILanguageModelSamplingMode::kSlightlyPredictable:
-      return "slightly-predictable";
-    case blink::mojom::AILanguageModelSamplingMode::kBalanced:
-      return "balanced";
-    case blink::mojom::AILanguageModelSamplingMode::kSlightlyCreative:
-      return "slightly-creative";
-    case blink::mojom::AILanguageModelSamplingMode::kCreative:
-      return "creative";
-    case blink::mojom::AILanguageModelSamplingMode::kMostCreative:
-      return "most-creative";
-  }
-  NOTREACHED();
-}
-
 }  // namespace
 
 // Feature flag for enabling foundational models in the AI API, requires the
@@ -793,12 +763,6 @@ void AIManager::CanCreateLanguageModel(
       }
       input_capabilities.Put(on_device_model::CapabilityFlags::kToolUse);
     }
-    if (!IsSpeculativeDecodingCompatibleWithSampling(options)) {
-      std::move(callback).Run(
-          blink::mojom::ModelAvailabilityCheckResult::
-              kUnavailableIncompatibleSpeculativeDecodingOptions);
-      return;
-    }
   }
 
   if (!CheckAndFixLanguages(
@@ -840,12 +804,11 @@ void AIManager::CreateLanguageModel(
           options, "LanguageModel",
           AILanguageModel::GetEnabledLanguageBaseCodes(),
           AILanguageModel::GetDefaultSupportedLanguageBaseCodes())) {
-    receivers_.ReportBadMessage("Unsupported language options");
-    return;
-  }
-
-  if (!IsSpeculativeDecodingCompatibleWithSampling(options)) {
-    receivers_.ReportBadMessage("Incompatible speculative decoding options");
+    mojo::Remote<blink::mojom::AIManagerCreateLanguageModelClient>
+        client_remote(std::move(client));
+    on_device_ai::SendClientRemoteError(
+        client_remote,
+        blink::mojom::AIManagerCreateClientError::kUnsupportedLanguage);
     return;
   }
 
@@ -908,7 +871,7 @@ void AIManager::CreateLanguageModelInternal(
       std::move(options->sampling_params);
   auto params = on_device_model::mojom::SessionParams::New();
 
-  // Get sampling mode params values from model metadata, or use fallbacks.
+  // TODO(crbug.com/502214118): Get values from model-specific configs.
   if (options->sampling_mode.has_value()) {
     switch (options->sampling_mode.value()) {
       case blink::mojom::AILanguageModelSamplingMode::kMostPredictable:
@@ -919,17 +882,9 @@ void AIManager::CreateLanguageModelInternal(
         params->temperature = kPredictableTemperature;
         params->top_k = kPredictableTopK;
         break;
-      case blink::mojom::AILanguageModelSamplingMode::kSlightlyPredictable:
-        params->temperature = kSlightlyPredictableTemperature;
-        params->top_k = kSlightlyPredictableTopK;
-        break;
       case blink::mojom::AILanguageModelSamplingMode::kBalanced:
         params->temperature = kBalancedTemperature;
         params->top_k = kBalancedTopK;
-        break;
-      case blink::mojom::AILanguageModelSamplingMode::kSlightlyCreative:
-        params->temperature = kSlightlyCreativeTemperature;
-        params->top_k = kSlightlyCreativeTopK;
         break;
       case blink::mojom::AILanguageModelSamplingMode::kCreative:
         params->temperature = kCreativeTemperature;
@@ -939,40 +894,6 @@ void AIManager::CreateLanguageModelInternal(
         params->temperature = kMostCreativeTemperature;
         params->top_k = kMostCreativeTopK;
         break;
-    }
-
-    std::string_view mode_str =
-        AILanguageModelSamplingModeToString(options->sampling_mode.value());
-    auto metadata = model_client->GetFeatureMetadata();
-    if (!metadata.has_value()) {
-      VLOG(1)
-          << "Manifest metadata missing when resolving sampling preset for: "
-          << mode_str;
-    } else {
-      auto parsed_metadata = AILanguageModel::ParseMetadata(metadata.value());
-      bool preset_found = false;
-      for (const auto& preset : parsed_metadata.sampling_presets()) {
-        if (preset.name() == mode_str) {
-          preset_found = true;
-          if (preset.has_temperature()) {
-            params->temperature = preset.temperature();
-          } else {
-            VLOG(1) << "Sampling preset '" << mode_str
-                    << "' missing temperature in manifest metadata.";
-          }
-          if (preset.has_top_k()) {
-            params->top_k = preset.top_k();
-          } else {
-            VLOG(1) << "Sampling preset '" << mode_str
-                    << "' missing top_k in manifest metadata.";
-          }
-          break;
-        }
-      }
-      if (!preset_found) {
-        VLOG(1) << "Manifest metadata missing sampling preset for: "
-                << mode_str;
-      }
     }
   } else if (sampling_params) {
     params->temperature = sampling_params->temperature;
@@ -1001,7 +922,11 @@ void AIManager::CreateLanguageModelInternal(
   // Models can generate text and tool calls, but not multimodal content or
   // tool responses.
   if (HasInvalidOutputTypes(options->expected_outputs)) {
-    receivers_.ReportBadMessage("Invalid output types");
+    mojo::Remote<blink::mojom::AIManagerCreateLanguageModelClient>
+        client_remote(std::move(client));
+    on_device_ai::SendClientRemoteError(
+        client_remote,
+        blink::mojom::AIManagerCreateClientError::kUnableToCreateSession);
     return;
   }
   if (!params->capabilities.empty()) {
@@ -1118,7 +1043,11 @@ void AIManager::CreateSummarizer(
   if (!CheckAndFixLanguages(
           options, "Summarizer", AISummarizer::GetEnabledLanguageBaseCodes(),
           AISummarizer::GetDefaultSupportedLanguageBaseCodes())) {
-    receivers_.ReportBadMessage("Unsupported language options");
+    mojo::Remote<blink::mojom::AIManagerCreateSummarizerClient> client_remote(
+        std::move(client));
+    on_device_ai::SendClientRemoteError(
+        client_remote,
+        blink::mojom::AIManagerCreateClientError::kUnsupportedLanguage);
     return;
   }
 
@@ -1132,7 +1061,11 @@ void AIManager::CreateSummarizer(
     }
     auto result = IsSpeedPreferenceCompatible(options);
     if (!result.has_value()) {
-      receivers_.ReportBadMessage("Incompatible speed preference options");
+      mojo::Remote<blink::mojom::AIManagerCreateSummarizerClient> client_remote(
+          std::move(client));
+      on_device_ai::SendClientRemoteError(
+          client_remote, blink::mojom::AIManagerCreateClientError::
+                             kIncompatiblePreferenceOptions);
       return;
     }
     if (options->format == blink::mojom::AISummarizerFormat::kMarkDown) {
@@ -1257,7 +1190,11 @@ void AIManager::CreateProofreader(
   if (!CheckAndFixLanguages(
           options, "Proofreader", AIProofreader::GetEnabledLanguageBaseCodes(),
           AIProofreader::GetDefaultSupportedLanguageBaseCodes())) {
-    receivers_.ReportBadMessage("Unsupported language options");
+    mojo::Remote<blink::mojom::AIManagerCreateProofreaderClient> client_remote(
+        std::move(client));
+    on_device_ai::SendClientRemoteError(
+        client_remote,
+        blink::mojom::AIManagerCreateClientError::kUnsupportedLanguage);
     return;
   }
 
@@ -1403,7 +1340,11 @@ void AIManager::CreateWriter(
   if (!CheckAndFixLanguages(options, "Writer",
                             AIWriter::GetEnabledLanguageBaseCodes(),
                             AIWriter::GetDefaultSupportedLanguageBaseCodes())) {
-    receivers_.ReportBadMessage("Unsupported language options");
+    mojo::Remote<blink::mojom::AIManagerCreateWriterClient> client_remote(
+        std::move(client));
+    on_device_ai::SendClientRemoteError(
+        client_remote,
+        blink::mojom::AIManagerCreateClientError::kUnsupportedLanguage);
     return;
   }
 
@@ -1510,7 +1451,11 @@ void AIManager::CreateRewriter(
   if (!CheckAndFixLanguages(
           options, "Rewriter", AIRewriter::GetEnabledLanguageBaseCodes(),
           AIRewriter::GetDefaultSupportedLanguageBaseCodes())) {
-    receivers_.ReportBadMessage("Unsupported language options");
+    mojo::Remote<blink::mojom::AIManagerCreateRewriterClient> client_remote(
+        std::move(client));
+    on_device_ai::SendClientRemoteError(
+        client_remote,
+        blink::mojom::AIManagerCreateClientError::kUnsupportedLanguage);
     return;
   }
 
@@ -1701,12 +1646,11 @@ void AIManager::OnSessionCreated(
   }
 
   mojo::PendingRemote<ContextBoundObjectReceiverInterface> pending_remote;
-  const uint32_t context_window = GetInputContextLimit(options);
   context_bound_object_set_.AddContextBoundObject(
       std::make_unique<ContextBoundObjectType>(
           context_bound_object_set_, std::move(session), std::move(options),
           pending_remote.InitWithNewPipeAndPassReceiver()));
-  client_remote->OnResult(std::move(pending_remote), context_window);
+  client_remote->OnResult(std::move(pending_remote));
 }
 
 template <typename ContextBoundObjectType,
@@ -1724,12 +1668,12 @@ void AIManager::OnGotExecutionInputSizeInTokens(
         blink::mojom::AIManagerCreateClientError::kUnableToCalculateTokenSize);
     return;
   }
-  const uint32_t context_window = GetInputContextLimit(options);
-  if (result.value() > context_window) {
+  uint32_t context_window_size = GetInputContextLimit(options);
+  if (result.value() > context_window_size) {
     on_device_ai::SendClientRemoteError(
         client_remote,
         blink::mojom::AIManagerCreateClientError::kInitialInputTooLarge,
-        blink::mojom::QuotaErrorInfo::New(result.value(), context_window));
+        blink::mojom::QuotaErrorInfo::New(result.value(), context_window_size));
     return;
   }
   mojo::PendingRemote<ContextBoundObjectReceiverInterface> pending_remote;
@@ -1737,7 +1681,7 @@ void AIManager::OnGotExecutionInputSizeInTokens(
       std::make_unique<ContextBoundObjectType>(
           context_bound_object_set_, std::move(session), std::move(options),
           pending_remote.InitWithNewPipeAndPassReceiver()));
-  client_remote->OnResult(std::move(pending_remote), context_window);
+  client_remote->OnResult(std::move(pending_remote));
 }
 
 void AIManager::MaybeTryEagerInit() {

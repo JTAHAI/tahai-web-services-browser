@@ -19,13 +19,6 @@ BASE_FEATURE(kAtMemoryNoDeviceReauthCheck, base::FEATURE_DISABLED_BY_DEFAULT);
 // and other) for local testing and teamfooding.
 BASE_FEATURE(kAtMemorySkipEnablementChecks, base::FEATURE_DISABLED_BY_DEFAULT);
 
-// If enabled, all checks in ShouldShowPrivateInferenceNotice are skipped
-// (except triggering field being an Autofill AI type and
-// kAutofillAiUsePrivateAi being enabled) and the notice is forced to show for
-// testing.
-BASE_FEATURE(kAutofillAiAlwaysShowPrivateAiNotice,
-             base::FEATURE_DISABLED_BY_DEFAULT);
-
 // When enabled, Wallet private passes are supported on devices without re-auth.
 BASE_FEATURE(kAutofillAiDisableReauthRequirement,
              base::FEATURE_DISABLED_BY_DEFAULT);
@@ -33,6 +26,11 @@ BASE_FEATURE(kAutofillAiDisableReauthRequirement,
 // When enabled, the user will be considered to be opted-in to Autofill AI by
 // default. Used for development purposes.
 BASE_FEATURE(kAutofillAiForceOptIn, base::FEATURE_DISABLED_BY_DEFAULT);
+
+// When enabled, all ambient autofill eligibility checks will be overridden and
+// return true. Used for development purposes.
+BASE_FEATURE(kAutofillAmbientAutofillSkipEligibilityChecks,
+             base::FEATURE_DISABLED_BY_DEFAULT);
 
 // Testing tool that collects metrics during a run of the captured site tests
 // and dumps the collected metrics into a specified output directory.
@@ -87,13 +85,7 @@ BASE_FEATURE(kAutofillDisableSuggestionStrikeDatabase,
 
 // When enabled `ChromeAutofillClient` will always behave as if there is an
 // active `ActorTask`.
-BASE_FEATURE(kAutofillForceActorMode,
-// Use the iOS build flag to prevent a cross-platform default.
-#if BUILDFLAG(IS_IOS)
-             base::FEATURE_DISABLED_BY_DEFAULT);
-#else
-             base::FEATURE_DISABLED_BY_DEFAULT);
-#endif  // BUILDFLAG(IS_IOS)
+BASE_FEATURE(kAutofillForceActorMode, base::FEATURE_DISABLED_BY_DEFAULT);
 
 // Enables logging the content of chrome://autofill-internals to the terminal.
 BASE_FEATURE(kAutofillLogToTerminal, base::FEATURE_DISABLED_BY_DEFAULT);

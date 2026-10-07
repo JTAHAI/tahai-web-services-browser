@@ -1,3 +1,5 @@
-rules:
-- legend-focusable.html: [fieldset]
-- legend.html: [fieldset]
+features:
+- name: fieldset
+  files:
+  - legend-focusable.html
+  - legend.html

@@ -17,15 +17,9 @@
 namespace autofill {
 
 void LogPersonalContextCacheReadinessOnFirstInteraction(
-    EntityType type,
     PersonalContextCacheReadinessOnFirstInteraction readiness) {
   base::UmaHistogramEnumeration(
       "Autofill.Ai.PersonalContext.Cache.ReadinessOnFirstInteraction",
-      readiness);
-  base::UmaHistogramEnumeration(
-      base::StrCat(
-          {"Autofill.Ai.PersonalContext.Cache.ReadinessOnFirstInteraction.",
-           EntityTypeToMetricsString(type)}),
       readiness);
 }
 

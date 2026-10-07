@@ -21,7 +21,7 @@
 #include "chrome/browser/ui/tahai/tahai_window_presentation.h"
 #include "components/tabs/public/tab_interface.h"
 
-class BrowserWindowInterface;
+class Browser;
 
 namespace tahai {
 
@@ -42,14 +42,14 @@ class WindowModeController : public ModeService::Observer {
     virtual void OnTahaiWindowModeChanged() = 0;
   };
 
-  explicit WindowModeController(BrowserWindowInterface* browser);
+  explicit WindowModeController(Browser* browser);
   WindowModeController(const WindowModeController&) = delete;
   WindowModeController& operator=(const WindowModeController&) = delete;
   ~WindowModeController() override;
 
   // Returns the controller owned by |browser|'s BrowserView. Returns null for
   // non-windowed Browser instances, including off-the-record windows.
-  static WindowModeController* GetForBrowser(BrowserWindowInterface* browser);
+  static WindowModeController* GetForBrowser(Browser* browser);
   // One mapping shared by toolbar/app-menu radio state and command dispatch.
   // Empty for commands unrelated to rail presentation.
   static std::string_view RailStateForCommandId(int command_id);
@@ -70,7 +70,7 @@ class WindowModeController : public ModeService::Observer {
   const std::vector<std::string>& operational_rail_modules() const {
     return operational_rail_modules_;
   }
-  BrowserWindowInterface* browser() const { return browser_; }
+  Browser* browser() const { return browser_; }
   skins::SkinColorSupplier* window_skin_palette() const;
   const TahaiOperationalSkinManifest* operational_manifest() const;
   std::optional<std::string> operational_archive_sha256() const;
@@ -137,7 +137,7 @@ class WindowModeController : public ModeService::Observer {
   void DiscardSurfacePreview();
   std::vector<tabs::TabHandle> SurfaceTabs() const;
 
-  const raw_ptr<BrowserWindowInterface> browser_;
+  const raw_ptr<Browser> browser_;
   const raw_ptr<ModeService> mode_service_;
   std::string active_mode_id_;
   std::string active_custom_mode_id_;

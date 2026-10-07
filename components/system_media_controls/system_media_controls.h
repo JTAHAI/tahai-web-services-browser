@@ -66,7 +66,6 @@ class COMPONENT_EXPORT(SYSTEM_MEDIA_CONTROLS) SystemMediaControls {
   virtual void SetAlbum(const std::u16string& value) = 0;
   virtual void SetThumbnail(const SkBitmap& bitmap) = 0;
   virtual void SetPosition(const media_session::MediaPosition& position) {}
-  virtual void ClearPosition() {}
 
   // Helpers for metadata
   virtual void ClearThumbnail() = 0;

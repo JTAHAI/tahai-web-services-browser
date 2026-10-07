@@ -46,11 +46,8 @@ class ChromeDevToolsManagerDelegate : public content::DevToolsManagerDelegate,
   // Resets |device_manager_|.
   void ResetAndroidDeviceManagerForTesting();
 
-  std::vector<base::WeakPtr<content::BrowserContext>> GetBrowserContexts()
-      override;
+  std::vector<content::BrowserContext*> GetBrowserContexts() override;
   content::BrowserContext* GetDefaultBrowserContext() override;
-  content::BrowserContext* GetBrowserContext(
-      const std::string& context_id) override;
 
   // Closes browser soon, not in the current task.
   static void CloseBrowserSoon();

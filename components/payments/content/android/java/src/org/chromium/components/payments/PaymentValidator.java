@@ -36,15 +36,13 @@ public class PaymentValidator {
 
     public static @SecurePaymentConfirmationRequestValidationError int
             validateSecurePaymentConfirmationRequest(
-                    SecurePaymentConfirmationRequest request,
-                    Origin initiatorOrigin,
-                    String applicationLocale) {
+                    SecurePaymentConfirmationRequest request, Origin initiatorOrigin) {
         if (request == null || initiatorOrigin == null) {
             return SecurePaymentConfirmationRequestValidationError.INTERNAL_ERROR;
         }
         return PaymentValidatorJni.get()
                 .validateSecurePaymentConfirmationRequestAndroid(
-                        request.serialize(), initiatorOrigin, applicationLocale);
+                        request.serialize(), initiatorOrigin);
     }
 
     @NativeMethods
@@ -55,8 +53,6 @@ public class PaymentValidator {
 
         @SecurePaymentConfirmationRequestValidationError
         int validateSecurePaymentConfirmationRequestAndroid(
-                ByteBuffer buffer,
-                @JniType("url::Origin") Origin initiatorOrigin,
-                @JniType("std::string") String applicationLocale);
+                ByteBuffer buffer, @JniType("url::Origin") Origin initiatorOrigin);
     }
 }

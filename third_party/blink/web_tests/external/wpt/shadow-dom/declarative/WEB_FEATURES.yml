@@ -1,3 +1,6 @@
-rules:
-- gethtml*: [gethtml, declarative-shadow-dom]
-- "**": [declarative-shadow-dom]
+features:
+- name: declarative-shadow-dom
+  files: "**"
+- name: gethtml
+  files:
+  - gethtml*

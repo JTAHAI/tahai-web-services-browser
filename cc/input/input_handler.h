@@ -232,17 +232,21 @@ class CC_EXPORT InputHandler : public InputDelegateForCompositor {
   struct ScrollStatus {
     ScrollThread thread = ScrollThread::kScrollOnImplThread;
 
-    // If not empty, it tells the caller that the input handler detected a case
+    // If nonzero, it tells the caller that the input handler detected a case
     // where it cannot reliably target a scroll node and needs the main thread
-    // to perform a hit test.
-    MainThreadHitTestReasons main_thread_hit_test_reasons;
+    // to perform a hit test. If nonzero, this will be one or more values from
+    // MainThreadScrollingReason::kHitTestReasons.
+    uint32_t main_thread_hit_test_reasons =
+        MainThreadScrollingReason::kNotScrollingOnMain;
 
-    // A non-empty value means we have performed the scroll (i.e. updated the
+    // A nonzero value means we have performed the scroll (i.e. updated the
     // offset in the scroll tree) on the compositor thread, but we will need a
     // main thread lifecycle update + commit before the user will see the new
     // pixels (for example, because the scroller does not have a composited
-    // layer).
-    MainThreadRepaintReasons main_thread_repaint_reasons;
+    // layer). If nonzero, this will be one or more values from the
+    // MainThreadScrollingReason::kRepaintReasons.
+    uint32_t main_thread_repaint_reasons =
+        MainThreadScrollingReason::kNotScrollingOnMain;
 
     // TODO(crbug.com/40735567): This is a temporary workaround for GuestViews
     // as they create viewport nodes and want to bubble scroll if the
@@ -682,7 +686,8 @@ class CC_EXPORT InputHandler : public InputDelegateForCompositor {
   struct ScrollHitTestResult {
     raw_ptr<ScrollNode> scroll_node;
     bool hit_test_successful;
-    MainThreadHitTestReasons main_thread_hit_test_reasons;
+    uint32_t main_thread_hit_test_reasons =
+        MainThreadScrollingReason::kNotScrollingOnMain;
   };
   ScrollHitTestResult HitTestScrollNode(
       const gfx::PointF& device_viewport_point) const;

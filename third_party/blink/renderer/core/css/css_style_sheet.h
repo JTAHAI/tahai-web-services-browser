@@ -86,10 +86,6 @@ class CORE_EXPORT CSSStyleSheet final : public StyleSheet,
       StyleSheetContents*,
       Node& owner_node,
       const TextPosition& start_position = TextPosition::MinimumPosition());
-  static CSSParserContext* InlineParserContext(
-      Document&,
-      const KURL& base_url,
-      const TextEncoding& encoding = TextEncoding());
 
   explicit CSSStyleSheet(StyleSheetContents*,
                          CSSImportRule* owner_rule = nullptr);
@@ -204,6 +200,10 @@ class CORE_EXPORT CSSStyleSheet final : public StyleSheet,
     constructor_document_ = &document;
   }
 
+  void AddToCustomElementTagNames(const AtomicString& local_tag_name) {
+    custom_element_tag_names_.insert(local_tag_name);
+  }
+
   class RuleMutationScope {
     STACK_ALLOCATED();
 
@@ -225,8 +225,6 @@ class CORE_EXPORT CSSStyleSheet final : public StyleSheet,
     kSheet,
     // Rules in the CSSStyleSheet changed.
     kRules,
-    // StyleSheetContents changed.
-    kContents,
   };
   void DidMutate(Mutation mutation);
 
@@ -324,6 +322,7 @@ class CORE_EXPORT CSSStyleSheet final : public StyleSheet,
   // The Document this stylesheet was constructed for. Always non-null for
   // constructed stylesheets. Always null for other sheets.
   Member<Document> constructor_document_;
+  HashSet<AtomicString> custom_element_tag_names_;
 
   TextPosition start_position_;
   Member<MediaList> media_cssom_wrapper_;

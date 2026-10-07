@@ -33,7 +33,6 @@
 #include "third_party/blink/renderer/core/xml/parser/xml_document_parser_scope.h"
 #include "third_party/blink/renderer/core/xml/parser/xml_parser_input.h"
 #include "third_party/blink/renderer/core/xml/xsl_style_sheet.h"
-#include "third_party/blink/renderer/core/xml/xslt_extensions.h"
 #include "third_party/blink/renderer/core/xml/xslt_processor.h"
 #include "third_party/blink/renderer/platform/loader/fetch/fetch_initiator_type_names.h"
 #include "third_party/blink/renderer/platform/loader/fetch/fetch_parameters.h"
@@ -272,8 +271,6 @@ void XSLStyleSheet::LoadChildSheet(const String& href) {
 }
 
 xsltStylesheetPtr XSLStyleSheet::CompileStyleSheet() {
-  InitializeLibXSLT();
-
   // FIXME: Hook up error reporting for the stylesheet compilation process.
   if (embedded_)
     return xsltLoadStylesheetPI(GetDocument());

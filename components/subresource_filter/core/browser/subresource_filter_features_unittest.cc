@@ -641,14 +641,13 @@ TEST_F(SubresourceFilterFeaturesTest,
       {{kEnablePresetsParameterName, kPhishing + "," + kPerfTest + "," + kBAS},
        {kActivationLevelParameterName, kActivationLevelDryRun},
        {kActivationScopeParameterName, kActivationScopeActivationList},
-       {kActivationListsParameterName,
-        kActivationListSocialEngineeringAdsInterstitial},
+       {kActivationListsParameterName, kActivationListSubresourceFilter},
        {kActivationPriorityParameterName, "750"},
        {kRulesetFlavorParameterName, kTestRulesetFlavor}});
 
-  Configuration experimental_config(
-      mojom::ActivationLevel::kDryRun, ActivationScope::ACTIVATION_LIST,
-      ActivationList::SOCIAL_ENG_ADS_INTERSTITIAL);
+  Configuration experimental_config(mojom::ActivationLevel::kDryRun,
+                                    ActivationScope::ACTIVATION_LIST,
+                                    ActivationList::SUBRESOURCE_FILTER);
   experimental_config.activation_conditions.priority = 750;
   experimental_config.general_settings.ruleset_flavor = kTestRulesetFlavor;
 

@@ -31,12 +31,10 @@ constexpr char kIdleDisconnectReason[] = "Disconnected due to idle timeout.";
 
 // The amount of time a session can remain inactive before the model unloads.
 const base::FeatureParam<base::TimeDelta> kModelIdleTimeout{
-    &optimization_guide::features::kOptimizationGuideModelExecution,
+    &optimization_guide::features::kOptimizationGuideOnDeviceModel,
     "on_device_model_active_session_idle_timeout", kDefaultModelIdleTimeout};
 
 constexpr base::TimeDelta kAsrIdleTimerUpdateInterval = base::Seconds(10);
-
-}  // namespace
 
 class AsrStreamWrapper;
 
@@ -83,8 +81,6 @@ class SessionWrapper final : public mojom::Session {
   bool IsForeground() const {
     return priority_ == mojom::Priority::kForeground;
   }
-
-  void OnAsrStreamDisconnected();
 
  private:
   void AppendInternal(mojom::AppendOptionsPtr options,
@@ -150,20 +146,11 @@ class AsrStreamWrapper final : public mojom::AsrStreamInput {
  public:
   AsrStreamWrapper(base::WeakPtr<SessionWrapper> session,
                    mojo::PendingReceiver<mojom::AsrStreamInput> receiver)
-      : session_(session), receiver_(this, std::move(receiver)) {
-    receiver_.set_disconnect_handler(base::BindOnce(
-        &AsrStreamWrapper::OnDisconnect, weak_ptr_factory_.GetWeakPtr()));
-  }
+      : session_(session), receiver_(this, std::move(receiver)) {}
   ~AsrStreamWrapper() override = default;
 
   AsrStreamWrapper(const AsrStreamWrapper&) = delete;
   AsrStreamWrapper& operator=(const AsrStreamWrapper&) = delete;
-
-  void OnDisconnect() {
-    if (session_) {
-      session_->OnAsrStreamDisconnected();
-    }
-  }
 
   void AddAudioChunk(mojom::AudioDataPtr data) override {
     if (!session_) {
@@ -197,10 +184,6 @@ SessionWrapper::SessionWrapper(base::WeakPtr<OnDeviceModelMojomImpl> model,
       priority_(priority) {}
 
 SessionWrapper::~SessionWrapper() = default;
-
-void SessionWrapper::OnAsrStreamDisconnected() {
-  asr_session_.reset();
-}
 
 void SessionWrapper::Append(mojom::AppendOptionsPtr options,
                             mojo::PendingRemote<mojom::ContextClient> client) {
@@ -327,12 +310,14 @@ void SessionWrapper::AsrStreamInternal(
   if (!model_) {
     return;
   }
+  DCHECK_EQ(asr_session_, nullptr);
   auto speech_stream_wrapper = std::make_unique<AsrStreamWrapper>(
       weak_ptr_factory_.GetWeakPtr(), std::move(stream));
   asr_session_ = std::move(speech_stream_wrapper);
   session_->AsrStream(std::move(options), std::move(response));
-  std::move(on_complete).Run();
 }
+
+}  // namespace
 
 struct OnDeviceModelMojomImpl::PendingTask {
   base::WeakPtr<SessionWrapper> session;

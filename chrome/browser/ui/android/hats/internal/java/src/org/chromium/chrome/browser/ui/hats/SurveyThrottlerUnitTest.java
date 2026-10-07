@@ -13,6 +13,7 @@ import android.content.SharedPreferences;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.robolectric.annotation.Config;
 
 import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.BaseRobolectricTestRunner;
@@ -27,6 +28,7 @@ import java.util.Calendar;
 
 /** Unit tests for {@link SurveyThrottler}. */
 @RunWith(BaseRobolectricTestRunner.class)
+@Config(manifest = Config.NONE)
 public class SurveyThrottlerUnitTest {
     private static final int TEST_YEAR = 2023;
     private static final int TEST_MONTH = Calendar.JANUARY;

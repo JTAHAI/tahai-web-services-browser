@@ -1,3 +1,7 @@
-rules:
-- text-underline-offset-*: [text-underline-offset]
-- text-decoration-*: [text-decoration]
+features:
+- name: text-underline-offset
+  files:
+  - text-underline-offset-*
+- name: text-decoration
+  files:
+  - "text-decoration-*"

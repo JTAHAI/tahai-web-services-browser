@@ -2,15 +2,14 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "chrome/browser/metrics/desktop_session_duration/chrome_visibility_observer.h"
-
 #include "base/run_loop.h"
 #include "base/task/sequenced_task_runner.h"
 #include "build/build_config.h"
 #include "chrome/browser/chrome_browser_main.h"
 #include "chrome/browser/chrome_browser_main_extra_parts.h"
+#include "chrome/browser/metrics/desktop_session_duration/chrome_visibility_observer.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_window.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/interactive_test_utils.h"
 #include "chrome/test/base/ui_test_utils.h"
@@ -162,11 +161,11 @@ IN_PROC_BROWSER_TEST_F(ChromeVisibilityObserverInteractiveTest,
 #endif  // !BUILDFLAG(IS_MAC)
 
   // Creating and closing new browsers should keep the observer active.
-  BrowserWindowInterface* new_browser = CreateBrowser(browser()->GetProfile());
+  Browser* new_browser = CreateBrowser(browser()->GetProfile());
   ASSERT_TRUE(ui_test_utils::BringBrowserWindowToFront(new_browser));
   WaitForActive(/*active=*/true);
 
-  BrowserWindowInterface* incognito_browser = CreateIncognitoBrowser();
+  Browser* incognito_browser = CreateIncognitoBrowser();
   ASSERT_TRUE(ui_test_utils::BringBrowserWindowToFront(incognito_browser));
   WaitForActive(/*active=*/true);
 

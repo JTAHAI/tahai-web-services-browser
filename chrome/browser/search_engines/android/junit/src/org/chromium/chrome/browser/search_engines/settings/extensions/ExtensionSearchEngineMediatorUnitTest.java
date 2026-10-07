@@ -23,6 +23,7 @@ import org.mockito.Mockito;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
 import org.robolectric.RuntimeEnvironment;
+import org.robolectric.annotation.Config;
 
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.chrome.browser.profiles.Profile;
@@ -49,6 +50,7 @@ import java.util.Collections;
 
 /** Unit tests for {@link ExtensionSearchEngineMediator}. */
 @RunWith(BaseRobolectricTestRunner.class)
+@Config(manifest = Config.NONE)
 public class ExtensionSearchEngineMediatorUnitTest {
     @Rule public MockitoRule mockitoRule = MockitoJUnit.rule();
 

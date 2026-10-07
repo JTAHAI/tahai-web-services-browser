@@ -7,7 +7,6 @@
 
 #include <cstdint>
 
-#include "base/memory/raw_ptr.h"
 #include "third_party/blink/renderer/core/core_export.h"
 #include "third_party/blink/renderer/platform/heap/garbage_collected.h"
 #include "third_party/blink/renderer/platform/heap/member.h"
@@ -55,9 +54,7 @@ class CORE_EXPORT InteractionEffectsMonitor
   void Trace(Visitor*) const;
 
  private:
-  raw_ptr<WebInteractionEffectsMonitorObserver,
-          UnprotectedInRelease | DanglingUntriaged>
-      observer_ = nullptr;
+  WebInteractionEffectsMonitorObserver* observer_ = nullptr;
   Member<SoftNavigationHeuristics> soft_navigation_heuristics_;
   uint64_t total_painted_area_ = 0;
   uint64_t min_context_id_ = 0;

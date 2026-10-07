@@ -4,28 +4,12 @@
 
 #import <UIKit/UIKit.h>
 
-#import <optional>
-
-#import "ios/public/provider/chrome/browser/bwg/bwg_gateway_protocol.h"
 #import "ios/public/provider/chrome/browser/bwg/gemini_api.h"
-
-@interface FakeBWGGateway : NSObject <BWGGatewayProtocol>
-@end
-
-@implementation FakeBWGGateway
-@synthesize actuationHandler = _actuationHandler;
-@synthesize cameraHandler = _cameraHandler;
-@synthesize consentProviderHandler = _consentProviderHandler;
-@synthesize pageStateChangeHandler = _pageStateChangeHandler;
-@synthesize sessionHandler = _sessionHandler;
-@synthesize suggestionHandler = _suggestionHandler;
-@synthesize tabPickerHandler = _tabPickerHandler;
-@end
 
 namespace ios::provider {
 
 void ConfigureWithStartupConfiguration(
-    GeminiStartupConfiguration* startup_configuration) {}
+    GeminiStartupConfiguration* gemini_startup_configuration) {}
 
 void StartGeminiOverlay(GeminiConfiguration* gemini_configuration) {}
 
@@ -44,7 +28,7 @@ const std::u16string GetPageContextShouldDetachScript() {
 }
 
 id<BWGGatewayProtocol> CreateGeminiGateway() {
-  return [[FakeBWGGateway alloc] init];
+  return nil;
 }
 
 void CheckGeminiEligibility(AuthenticationService* auth_service,
@@ -52,26 +36,14 @@ void CheckGeminiEligibility(AuthenticationService* auth_service,
 
 static GeminiViewState g_current_view_state = GeminiViewState::kUnknown;
 static GeminiViewMode g_current_mode = GeminiViewMode::kUnknown;
-static GeminiPageContextAttachmentState g_current_attachment_state =
-    GeminiPageContextAttachmentState::kUnknown;
-static std::optional<gemini::EntryPoint>
-    g_last_update_prompt_action_entry_point;
-static NSString* g_last_update_prompt_action_prompt = nil;
-static BOOL g_last_update_prompt_action_should_auto_submit = NO;
 
 void ResetGemini() {
   g_current_mode = GeminiViewMode::kUnknown;
   g_current_view_state = GeminiViewState::kUnknown;
-  g_current_attachment_state = GeminiPageContextAttachmentState::kUnknown;
-  g_last_update_prompt_action_entry_point.reset();
-  g_last_update_prompt_action_prompt = nil;
-  g_last_update_prompt_action_should_auto_submit = NO;
 }
 
 void UpdatePageAttachmentState(
-    GeminiPageContextAttachmentState gemini_attachment_state) {
-  g_current_attachment_state = gemini_attachment_state;
-}
+    GeminiPageContextAttachmentState gemini_attachment_state) {}
 
 // Mock value used by unit tests to override the return value of IsProtectedUrl.
 static bool g_mock_protected_url = false;
@@ -86,6 +58,8 @@ void SetMockProtectedUrl(bool is_protected) {
 bool IsProtectedUrl(std::string url) {
   return g_mock_protected_url;
 }
+
+void UpdatePageContext(GeminiPageContext* gemini_page_context) {}
 
 void UpdateActivePageContext(GeminiPageContext* gemini_page_context,
                              NSArray<GeminiPageContext*>* shared_tabs) {}
@@ -112,24 +86,7 @@ void UpdateGeminiViewState(GeminiViewState view_state, bool animated) {
 }
 
 void UpdatePromptAction(gemini::EntryPoint entry_point,
-                        NSString* prepopulated_prompt,
-                        bool should_auto_submit) {
-  g_last_update_prompt_action_entry_point = entry_point;
-  g_last_update_prompt_action_prompt = [prepopulated_prompt copy];
-  g_last_update_prompt_action_should_auto_submit = should_auto_submit;
-}
-
-std::optional<gemini::EntryPoint> GetLastUpdatePromptActionEntryPoint() {
-  return g_last_update_prompt_action_entry_point;
-}
-
-NSString* GetLastUpdatePromptActionPrompt() {
-  return g_last_update_prompt_action_prompt;
-}
-
-BOOL GetLastUpdatePromptActionShouldAutoSubmit() {
-  return g_last_update_prompt_action_should_auto_submit;
-}
+                        NSString* prepopulated_prompt) {}
 
 GeminiViewState GetCurrentGeminiViewState() {
   return g_current_view_state;
@@ -144,7 +101,7 @@ GeminiClientMode GetCurrentClientMode() {
 }
 
 GeminiPageContextAttachmentState GetCurrentPageContextAttachmentState() {
-  return g_current_attachment_state;
+  return GeminiPageContextAttachmentState::kUnknown;
 }
 
 void SwitchToMode(GeminiViewMode mode, bool animated) {
@@ -177,10 +134,6 @@ int GetLiveCaptionsNumberOfLines() {
 }
 
 void SetShouldShowSuggestionChips(bool should_show) {}
-
-void SetBlockQuerySubmissionWhileLoading(bool block_submission) {}
-
-void SetShowPageLoadingSnackbarOnOpeningInvocation(bool show_snackbar) {}
 
 void ShowAccountSnackbar() {}
 

@@ -17,7 +17,11 @@ promise_test(async t => {
   const writable = bidi_stream.writable;
   writable.close();
 
-  const info = await query_stream_close_info(id);
+  await wait(10);
+  const data = await query(id);
+
+  assert_own_property(data, 'stream-close-info');
+  const info = data['stream-close-info'];
 
   assert_equals(info.source, 'FIN', 'source');
 }, 'Close outgoing stream / bidi-1');
@@ -34,7 +38,11 @@ promise_test(async t => {
   const writable = bidi.writable;
   writable.close();
 
-  const info = await query_stream_close_info(id);
+  await wait(10);
+  const data = await query(id);
+
+  assert_own_property(data, 'stream-close-info');
+  const info = data['stream-close-info'];
 
   assert_equals(info.source, 'FIN', 'source');
 }, 'Close outgoing stream / bidi-2');
@@ -48,7 +56,11 @@ promise_test(async t => {
   const writable = await wt.createUnidirectionalStream();
   writable.close();
 
-  const info = await query_stream_close_info(id);
+  await wait(10);
+  const data = await query(id);
+
+  assert_own_property(data, 'stream-close-info');
+  const info = data['stream-close-info'];
 
   assert_equals(info.source, 'FIN', 'source');
 }, 'Close outgoing stream / uni');
@@ -68,9 +80,13 @@ promise_test(async t => {
   await writable.abort(
       new WebTransportError({streamErrorCode: WT_CODE}));
 
-  const info = await query_stream_close_info(id);
+  await wait(10);
+  const data = await query(id);
 
   // Check that stream is aborted with RESET_STREAM with the code and reason
+  assert_own_property(data, 'stream-close-info');
+  const info = data['stream-close-info'];
+
   assert_equals(info.source, 'reset', 'reset stream');
   assert_equals(info.code, HTTP_CODE, 'code');
 }, 'Abort client-created bidirectional stream');
@@ -92,9 +108,13 @@ promise_test(async t => {
   await writer.abort(
       new WebTransportError({streamErrorCode: WT_CODE}));
 
-  const info = await query_stream_close_info(id);
+  await wait(10);
+  const data = await query(id);
 
   // Check that stream is aborted with RESET_STREAM with the code and reason
+  assert_own_property(data, 'stream-close-info');
+  const info = data['stream-close-info'];
+
   assert_equals(info.source, 'reset', 'reset_stream');
   assert_equals(info.code, HTTP_CODE, 'code');
 }, 'Abort server-initiated bidirectional stream');
@@ -112,9 +132,13 @@ promise_test(async t => {
   await writable.abort(
       new WebTransportError({streamErrorCode: WT_CODE}));
 
-  const info = await query_stream_close_info(id);
+  await wait(10);
+  const data = await query(id);
 
   // Check that stream is aborted with RESET_STREAM with the code and reason
+  assert_own_property(data, 'stream-close-info');
+  const info = data['stream-close-info'];
+
   assert_equals(info.source, 'reset', 'reset_stream');
   assert_equals(info.code, HTTP_CODE, 'code');
 }, 'Abort unidirectional stream with WebTransportError');
@@ -147,9 +171,13 @@ promise_test(async t => {
   await promise_rejects_exactly(t, e, abort_promise, 'abort_promise');
   writer.releaseLock();
 
-  const info = await query_stream_close_info(id);
+  await wait(10);
+  const data = await query(id);
 
   // Check that stream is aborted with RESET_STREAM with the code and reason
+  assert_own_property(data, 'stream-close-info');
+  const info = data['stream-close-info'];
+
   assert_equals(info.source, 'reset', 'reset_stream');
   assert_equals(info.code, HTTP_CODE, 'code');
 }, 'Close and abort unidirectional stream');
@@ -163,9 +191,13 @@ promise_test(async t => {
   const writable = await wt.createUnidirectionalStream();
   await writable.abort();
 
-  const info = await query_stream_close_info(id);
+  await wait(10);
+  const data = await query(id);
 
   // Check that stream is aborted with RESET_STREAM with the code and reason
+  assert_own_property(data, 'stream-close-info');
+  const info = data['stream-close-info'];
+
   assert_equals(info.source, 'reset', 'reset_stream');
   assert_equals(info.code, webtransport_code_to_http_code(0), 'code');
 }, 'Abort unidirectional stream with default error code');

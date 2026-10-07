@@ -1,2 +1,3 @@
-rules:
-- "**": [print]
+features:
+- name: print
+  files: "**"

@@ -328,19 +328,6 @@ base::expected<double, std::string> CalculateConv2dOutputSize(
         ErrorWithLabel(label, "The effective filter size is too large."));
   }
 
-  // The effective (dilated) filter window must fit within the padded input;
-  // otherwise the window can never be fully placed and the operation has no
-  // valid output. Reject it here so that unbounded filter/dilation values can
-  // not flow unchecked into backends. Computed in 64-bit to avoid overflow.
-  const uint64_t padded_size =
-      uint64_t{input_size} + beginning_padding + ending_padding;
-  if (checked_effective_filter_size.ValueOrDie() > padded_size) {
-    return base::unexpected(ErrorWithLabel(
-        label,
-        "The effective filter size should not be larger than the padded input "
-        "size."));
-  }
-
   // Calculate the output size in double precision floating point number that
   // ensures all dimension values of type uint32_t can be exactly represented.
   // https://en.wikipedia.org/wiki/Double-precision_floating-point_format#Precision_limitations_on_integer_values
@@ -692,24 +679,6 @@ ValidateAndCalculateConv2dOutputSizes(uint32_t input_height,
         ErrorWithLabel(label, "All dilations should be greater than 0."));
   }
 
-  // A stride or dilation larger than the padded input spatial size can place
-  // the window at most once, so any such value is equivalent to a much smaller
-  // one and serves no legitimate purpose. Reject them here so that unbounded
-  // uint32 values can not flow unchecked into backends. Padding is included so
-  // that valid padded windows are not rejected.
-  const uint64_t padded_height =
-      uint64_t{input_height} + padding.beginning.height + padding.ending.height;
-  const uint64_t padded_width =
-      uint64_t{input_width} + padding.beginning.width + padding.ending.width;
-  if (strides.height > padded_height || strides.width > padded_width) {
-    return base::unexpected(ErrorWithLabel(
-        label, "Strides should not be larger than the padded input size."));
-  }
-  if (dilations.height > padded_height || dilations.width > padded_width) {
-    return base::unexpected(ErrorWithLabel(
-        label, "Dilations should not be larger than the padded input size."));
-  }
-
   const auto float_output_height = CalculateConv2dOutputSize(
       input_height, filter_height, padding.beginning.height,
       padding.ending.height, strides.height, dilations.height, label);
@@ -990,23 +959,6 @@ ValidateConvTranspose2dAndInferOutput(
             attributes.output_padding, label));
     output_height = output_sizes.height;
     output_width = output_sizes.width;
-  }
-
-  // A stride or dilation larger than the resolved output size can only arise
-  // when input==1 or filter==1, where its value is a pure no-op. Reject such
-  // values so that unbounded uint32 strides/dilations cannot flow unchecked
-  // into backends. This is checked against the resolved output size rather than
-  // the minimum calculated size, so that a valid graph whose outputSizes lies
-  // in [calculated, calculated + stride - 1] is not wrongly rejected.
-  if (attributes.strides.height > output_height ||
-      attributes.strides.width > output_width) {
-    return base::unexpected(ErrorWithLabel(
-        label, "Strides should not be larger than the output size."));
-  }
-  if (attributes.dilations.height > output_height ||
-      attributes.dilations.width > output_width) {
-    return base::unexpected(ErrorWithLabel(
-        label, "Dilations should not be larger than the output size."));
   }
 
   Conv2dInputOutputInfo output_info{.batches = input_info.batches,
@@ -1571,16 +1523,12 @@ ValidateGruAndInferOutput(const ContextProperties& context_properties,
           context_properties, input.data_type(),
           std::array{num_directions, batch_size, hidden_size}, label));
   outputs.push_back(std::move(output));
-
-  // Validate the full-sequence output tensor unconditionally since some
-  // backends may produce this output internally even when `return_sequence` is
-  // false.
-  ASSIGN_OR_RETURN(
-      OperandDescriptor return_sequence_output,
-      OperandDescriptor::Create(
-          context_properties, input.data_type(),
-          std::array{steps, num_directions, batch_size, hidden_size}, label));
   if (attributes.return_sequence) {
+    ASSIGN_OR_RETURN(
+        OperandDescriptor return_sequence_output,
+        OperandDescriptor::Create(
+            context_properties, input.data_type(),
+            std::array{steps, num_directions, batch_size, hidden_size}, label));
     outputs.push_back(std::move(return_sequence_output));
   }
 
@@ -1987,16 +1935,13 @@ ValidateLstmAndInferOutput(const ContextProperties& context_properties,
           std::array{direction_count, batch_size, hidden_size}, label));
   outputs.push_back(output);
   outputs.push_back(std::move(output));
-
-  // Validate the full-sequence output tensor unconditionally since some
-  // backends may produce this output internally even when `return_sequence` is
-  // false.
-  ASSIGN_OR_RETURN(
-      OperandDescriptor return_sequence_output,
-      OperandDescriptor::Create(
-          context_properties, input.data_type(),
-          std::array{steps, direction_count, batch_size, hidden_size}, label));
   if (attributes.return_sequence) {
+    ASSIGN_OR_RETURN(
+        OperandDescriptor return_sequence_output,
+        OperandDescriptor::Create(
+            context_properties, input.data_type(),
+            std::array{steps, direction_count, batch_size, hidden_size},
+            label));
     outputs.push_back(std::move(return_sequence_output));
   }
 
@@ -2472,17 +2417,16 @@ base::expected<OperandDescriptor, std::string> ValidatePreluAndInferOutput(
     return base::unexpected(ErrorWithLabel(
         label, "The data type of slope doesn't match the data type of input."));
   }
-  // WebNN allows input and slope to be bidirectionally broadcastable, producing
-  // an output whose shape is the broadcast of the two.
-  std::optional<std::vector<uint32_t>> output_shape =
-      BroadcastShapes(slope.shape(), input.shape(), /*bidirectional=*/true);
-  if (!output_shape) {
+  // TODO(crbug.com/387892103): Use bidirectional broadcasting.
+  // BroadcastShape unidirectionally broadcasts slope.dimensions to
+  // input.dimensions.
+  if (!BroadcastShapes(slope.shape(), input.shape(), /*bidirectional=*/false)) {
     return base::unexpected(ErrorWithLabel(
-        label, "The shapes of input and slope are not broadcastable."));
+        label,
+        "The shape of slope is not broadcastable to the shape of input."));
   }
 
-  return OperandDescriptor::Create(context_properties, input.data_type(),
-                                   *output_shape, label);
+  return input;
 }
 
 base::expected<OperandDescriptor, std::string> ValidateReduceAndInferOutput(
@@ -2530,9 +2474,9 @@ base::expected<OperandDescriptor, std::string> ValidateReduceAndInferOutput(
                                    output_shape, label);
 }
 
-// Per the WebNN spec, the output size for resample2d is
-// floor(input size * scale):
-// https://www.w3.org/TR/webnn/#api-mlgraphbuilder-resample2d-method
+// The current WebNN spec doesn't define the calculation formula of the output
+// size for resample2d. An issue has been filed to track it -
+// https://github.com/webmachinelearning/webnn/issues/360.
 base::expected<uint32_t, std::string> CalculateResample2dOutputSize(
     const uint32_t input_size,
     const float scale,

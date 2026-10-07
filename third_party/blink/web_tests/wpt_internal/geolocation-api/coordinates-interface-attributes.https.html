@@ -7,7 +7,7 @@
 </head>
 <body>
 <script type="module">
-import {GeolocationMock, GeolocationPermissionStatus} from './resources/geolocation-mock.js';
+import {GeolocationMock} from './resources/geolocation-mock.js';
 
 description("Test the attribute handling of the Coordinates interface");
 
@@ -26,7 +26,7 @@ let currentTestIndex = -1;
 let globalCoordinates = null;
 
 const mock = new GeolocationMock();
-mock.setGeolocationPermission(GeolocationPermissionStatus.GRANTED_PRECISE);
+mock.setGeolocationPermission(true);
 
 function runNextTest()
 {

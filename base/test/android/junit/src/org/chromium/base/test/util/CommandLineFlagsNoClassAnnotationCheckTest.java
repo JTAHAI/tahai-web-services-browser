@@ -7,6 +7,7 @@ package org.chromium.base.test.util;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.robolectric.annotation.Config;
 
 import org.chromium.base.CommandLine;
 import org.chromium.base.test.BaseRobolectricTestRunner;
@@ -16,6 +17,7 @@ import org.chromium.base.test.BaseRobolectricTestRunner;
  * annotation on the class level.
  */
 @RunWith(BaseRobolectricTestRunner.class)
+@Config(manifest = Config.NONE)
 public class CommandLineFlagsNoClassAnnotationCheckTest {
     @Test
     public void testNoAnnotation() throws Throwable {

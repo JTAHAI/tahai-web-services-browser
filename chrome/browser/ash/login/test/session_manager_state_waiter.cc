@@ -4,7 +4,6 @@
 
 #include "chrome/browser/ash/login/test/session_manager_state_waiter.h"
 
-#include "base/check.h"
 #include "base/run_loop.h"
 #include "base/trace_event/trace_event.h"
 #include "chrome/browser/ash/login/existing_user_controller.h"
@@ -30,9 +29,7 @@ void WaitForPrimaryUserSessionStart() {
 
 SessionStateWaiter::SessionStateWaiter(
     std::optional<session_manager::SessionState> target_state)
-    : target_state_(target_state) {
-  CHECK(session_manager::SessionManager::Get());
-}
+    : target_state_(target_state) {}
 
 SessionStateWaiter::~SessionStateWaiter() = default;
 

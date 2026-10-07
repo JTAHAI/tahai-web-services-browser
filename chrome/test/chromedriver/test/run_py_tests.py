@@ -115,8 +115,6 @@ _OS_SPECIFIC_FILTER['linux'] = [
 _OS_SPECIFIC_FILTER['mac'] = [
     # Flaky: crbug.com/40651570
     'ChromeDriverTest.testActionsMultiTouchPoint',
-    # Flaky: https://crbug.com/535680157
-    'ChromeDriverTest.testCloseWindowWhileExecutingCommands',
     # Flaky: https://crbug.com/446461733 (consistently times out on first attempt
     # then succeeds on retry)
     'ChromeDriverTest.testDoesntCrashOnClosingBrowserFromAsyncScript',
@@ -255,8 +253,7 @@ _ANDROID_NEGATIVE_FILTER['chrome'] = (
         'ChromeDownloadDirTest.*',
         # https://crbug.com/41037474
         'ChromeDriverTest.testCloseWindow',
-        # The Android test configuration does not provide a resizable
-        # desktop-windowing environment.
+        # Most window operations don't make sense on Android.
         'ChromeDriverTest.testWindowFullScreen',
         'ChromeDriverTest.testWindowPosition',
         'ChromeDriverTest.testWindowSize',
@@ -280,7 +277,7 @@ _ANDROID_NEGATIVE_FILTER['chrome'] = (
         'ChromeDriverTest.testCanClickAlertInIframes',
         # Tests of the desktop Chrome launch process.
         'LaunchDesktopTest.*',
-        # The Android test configuration cannot resize the browser window.
+        # setWindowBounds not supported on Android
         'ChromeDriverTest.testTakeLargeElementScreenshot',
         # Android has no concept of tab or window, and will always lose focus
         # on tab creation. https://crbug.com/chromedriver/3018
@@ -4122,9 +4119,7 @@ class ChromeDriverTest(ChromeDriverBaseTestWithWebServer):
     self.assertEqual(
         is_desktop,
         self._driver.capabilities['webauthn:virtualAuthenticators'])
-    for extension in [
-        'largeBlob', 'minPinLength', 'credBlob', 'prf', 'cmtgKey'
-    ]:
+    for extension in ['largeBlob', 'minPinLength', 'credBlob', 'prf']:
       self.assertEqual(
           is_desktop,
           self._driver.capabilities['webauthn:extension:' + extension])
@@ -4790,49 +4785,6 @@ class ChromeDriverSecureContextTest(ChromeDriverBaseTestWithWebServer):
     self.assertEqual("marisa", credentials[0]["userName"])
     self.assertEqual("Marisa Kirisame", credentials[0]["userDisplayName"])
 
-  def testAddCredentialNullSignCount(self):
-    script = """
-      let done = arguments[0];
-      getCredential({
-        type: "public-key",
-        id: new TextEncoder().encode("cred-1"),
-        transports: ["usb"],
-      }).then(done);
-    """
-    self._driver.Load(self.GetHttpsUrlForFile(
-        '/chromedriver/webauthn_test.html', 'chromedriver.test'))
-
-    authenticatorId = self._driver.AddVirtualAuthenticator(
-        protocol = 'ctap2',
-        transport = 'usb',
-        hasResidentKey = True,
-        hasUserVerification = False,
-    )
-
-    # Register a credential with null signCount.
-    self._driver.AddCredential(
-      userHandle = self.URLSafeBase64Encode("marisa"),
-      authenticatorId = authenticatorId,
-      credentialId = self.URLSafeBase64Encode("cred-1"),
-      isResidentCredential=True,
-      rpId="chromedriver.test",
-      privateKey=self.privateKey,
-      signCount=None,
-      userName="marisa",
-      userDisplayName="Marisa Kirisame",
-    )
-
-    # Try authenticating with the credential.
-    # Assertion should return signature counter 0.
-    result = self._driver.ExecuteAsyncScript(script)
-    self.assertEqual('OK', result['status'])
-    self.assertEqual(0, result['signCount'])
-
-    # GetCredentials should return signCount as None.
-    credentials = self._driver.GetCredentials(authenticatorId)
-    self.assertEqual(1, len(credentials))
-    self.assertIsNone(credentials[0]["signCount"])
-
   def testAddCredentialLargeBlob(self):
     script = """
       let done = arguments[0];
@@ -5166,210 +5118,6 @@ class ChromeDriverSecureContextTest(ChromeDriverBaseTestWithWebServer):
         self.assertEqual(credentialId, credentials[0]['credentialId'])
         self.assertEqual(backupEligibility, credentials[0]['backupEligibility'])
         self.assertEqual(backupState, credentials[0]['backupState'])
-
-  def testSetCredentialPropertiesSignCount(self):
-    script = """
-      let done = arguments[0];
-      getCredential({
-        type: "public-key",
-        id: new Uint8Array([0xfb, 0xff, 0xff]),
-        transports: ["usb"],
-      }).then(done);
-    """
-    self._driver.Load(self.GetHttpsUrlForFile(
-        '/chromedriver/webauthn_test.html', 'chromedriver.test'))
-
-    authenticatorId = self._driver.AddVirtualAuthenticator(
-        protocol = 'ctap2',
-        transport = 'usb',
-        hasResidentKey = True,
-        hasUserVerification = True,
-        isUserVerified = True,
-    )
-    raw_credential_id = bytes([0xfb, 0xff, 0xff])
-    credentialId = self.URLSafeBase64Encode(raw_credential_id)
-
-    self._driver.AddCredential(
-      authenticatorId = authenticatorId,
-      credentialId = credentialId,
-      userHandle = self.URLSafeBase64Encode('melia'),
-      isResidentCredential = True,
-      rpId = "chromedriver.test",
-      privateKey = self.privateKey,
-      signCount = 1,
-    )
-
-    # Update signCount to 10.
-    self._driver.SetCredentialProperties(
-        authenticatorId = authenticatorId, credentialId = credentialId,
-        signCount = 10)
-
-    # Next assertion should increment it to 11.
-    result = self._driver.ExecuteAsyncScript(script)
-    self.assertEqual('OK', result['status'])
-    self.assertEqual(11, result['signCount'])
-
-    # GetCredentials should return 11.
-    credentials = self._driver.GetCredentials(authenticatorId)
-    self.assertEqual(11, credentials[0]['signCount'])
-
-    # Update signCount to None (null).
-    self._driver.SetCredentialProperties(
-        authenticatorId = authenticatorId, credentialId = credentialId,
-        signCount = None)
-
-    # Next assertion should return 0.
-    result = self._driver.ExecuteAsyncScript(script)
-    self.assertEqual('OK', result['status'])
-    self.assertEqual(0, result['signCount'])
-
-    # GetCredentials should return None.
-    credentials = self._driver.GetCredentials(authenticatorId)
-    self.assertIsNone(credentials[0]['signCount'])
-
-    # Update signCount to 2**32 - 1.
-    self._driver.SetCredentialProperties(
-        authenticatorId = authenticatorId, credentialId = credentialId,
-        signCount = 2**32 - 1)
-    credentials = self._driver.GetCredentials(authenticatorId)
-    self.assertEqual(2**32 - 1, credentials[0]['signCount'])
-
-    # Invalid signCount values should raise InvalidArgument.
-    for invalid_sign_count in [-1, 2**32, "zero", True]:
-      self.assertRaises(
-          chromedriver.InvalidArgument,
-          self._driver.SetCredentialProperties,
-          authenticatorId = authenticatorId,
-          credentialId = credentialId,
-          signCount = invalid_sign_count,
-      )
-
-  def testCmtgKeys(self):
-    self._driver.Load(self.GetHttpsUrlForFile(
-        '/chromedriver/webauthn_test.html', 'chromedriver.test'))
-
-    authenticatorId = self._driver.AddVirtualAuthenticator(
-        protocol = 'ctap2',
-        transport = 'usb',
-        hasResidentKey = True,
-        hasUserVerification = True,
-        isUserVerified = True,
-        extensions = ['cmtgKey'],
-    )
-
-    safe_credential_id = self.URLSafeBase64Encode("cred-safe")
-    # Inject a credential with a CMTG key.
-    self._driver.AddCredential(
-        authenticatorId = authenticatorId,
-        credentialId = safe_credential_id,
-        userHandle = self.URLSafeBase64Encode('melia'),
-        isResidentCredential = True,
-        rpId = "chromedriver.test",
-        privateKey = self.privateKey,
-        signCount = 1,
-        cmtgKeys = [self.privateKey],
-        activeCmtgKeyIndex = 0,
-        generateCmtgKeyOnNextOperation = False,
-    )
-
-    # Verify it was injected correctly.
-    credentials = self._driver.GetCredentials(authenticatorId)
-    self.assertEqual(1, len(credentials))
-    self.assertEqual(safe_credential_id, credentials[0]['credentialId'])
-    self.assertEqual(1, len(credentials[0]['cmtgKeys']))
-    self.assertEqual(self.privateKey, credentials[0]['cmtgKeys'][0])
-    self.assertEqual(0, credentials[0]['activeCmtgKeyIndex'])
-    self.assertFalse(credentials[0]['generateCmtgKeyOnNextOperation'])
-
-    # Set generateCmtgKeyOnNextOperation to True.
-    self._driver.SetCredentialProperties(
-        authenticatorId = authenticatorId,
-        credentialId = safe_credential_id,
-        generateCmtgKeyOnNextOperation = True,
-    )
-
-    # Verify it updated.
-    credentials = self._driver.GetCredentials(authenticatorId)
-    self.assertTrue(credentials[0]['generateCmtgKeyOnNextOperation'])
-
-    # Assert and verify a new CMTG key is generated.
-    assert_script = """
-      let done = arguments[0];
-      getCredential({
-        type: "public-key",
-        id: new TextEncoder().encode("cred-safe"),
-        transports: ["usb"],
-      }, {
-        extensions: {
-          cmtgKey: true,
-        }
-      }).then(done);
-    """
-    result = self._driver.ExecuteAsyncScript(assert_script)
-    self.assertEqual("OK", result['status'])
-    self.assertIn('cmtgKey', result['extensions'])
-
-    # Verify the store now has 2 CMTG keys and active index is updated.
-    credentials = self._driver.GetCredentials(authenticatorId)
-    self.assertEqual(2, len(credentials[0]['cmtgKeys']))
-    self.assertEqual(1, credentials[0]['activeCmtgKeyIndex'])
-    self.assertFalse(credentials[0]['generateCmtgKeyOnNextOperation'])
-
-  def testAddCredentialCmtgKeysErrors(self):
-    self._driver.Load(self.GetHttpsUrlForFile(
-        '/chromedriver/webauthn_test.html', 'chromedriver.test'))
-
-    authenticatorId = self._driver.AddVirtualAuthenticator(
-        protocol = 'ctap2',
-        transport = 'usb',
-        hasResidentKey = True,
-        hasUserVerification = True,
-        isUserVerified = True,
-        extensions = ['cmtgKey'],
-    )
-
-    # Try adding a credential with cmtgKeys not being a list.
-    self.assertRaisesRegex(
-        chromedriver.InvalidArgument,
-        'cmtgKeys must be a list',
-        self._driver.AddCredential,
-        authenticatorId = authenticatorId,
-        credentialId = self.URLSafeBase64Encode('cred-1'),
-        userHandle = self.URLSafeBase64Encode('melia'),
-        isResidentCredential = True,
-        rpId = 'chromedriver.test',
-        privateKey = self.privateKey,
-        cmtgKeys = 'not-a-list',
-    )
-
-    # Try adding a credential with cmtgKeys containing non-base64url encoded
-    # items.
-    self.assertRaisesRegex(
-        chromedriver.InvalidArgument,
-        'cmtgKeys items must be base64url encoded strings',
-        self._driver.AddCredential,
-        authenticatorId = authenticatorId,
-        credentialId = self.URLSafeBase64Encode('cred-2'),
-        userHandle = self.URLSafeBase64Encode('melia'),
-        isResidentCredential = True,
-        rpId = 'chromedriver.test',
-        privateKey = self.privateKey,
-        cmtgKeys = [self.privateKey, 'invalid+base64url'],
-    )
-
-    # Try adding a credential with cmtgKeys containing non-string items.
-    self.assertRaisesRegex(
-        chromedriver.InvalidArgument,
-        'cmtgKeys items must be base64url encoded strings',
-        self._driver.AddCredential,
-        authenticatorId = authenticatorId,
-        credentialId = self.URLSafeBase64Encode('cred-3'),
-        userHandle = self.URLSafeBase64Encode('melia'),
-        isResidentCredential = True,
-        rpId = 'chromedriver.test',
-        privateKey = self.privateKey,
-        cmtgKeys = [self.privateKey, 42],
-    )
 
   def testCreateVirtualSensorWithInvalidSensorName(self):
     self.assertRaisesRegex(chromedriver.InvalidArgument,
@@ -6289,6 +6037,22 @@ class ChromeDriverFencedFrame(ChromeDriverBaseTestWithWebServer):
     self.assertIsNotNone(fencedframe)
     self._driver.SwitchToFrame(fencedframe)
 
+  def testSharedStorageWorkletTarget(self):
+    self._http_server.SetDataForPath('/simple_module.js', bytes('''
+       class Simple {
+          async run(urls, data) {
+            return 0;
+          }
+       }
+       register('simple', Simple);
+    ''', 'utf-8'))
+
+    self._driver.Load(self.GetHttpUrlForFile('/chromedriver/empty.html'))
+    self._driver.ExecuteScript('''
+       window.sharedStorage.worklet.addModule(
+                               "/shared-storage/resources/simple-module.js")''')
+    window_handles = self._driver.GetWindowHandles()
+    self.assertEqual(len(window_handles), 1)
 
 class ChromeDriverSiteIsolation(ChromeDriverBaseTestWithWebServer):
   """Tests for ChromeDriver with the new Site Isolation Chrome feature.
@@ -7464,22 +7228,22 @@ class MobileEmulationCapabilityTest(ChromeDriverBaseTestWithWebServer):
 
   def testDeviceName(self):
     driver = self.CreateDriver(
-        mobile_emulation = {'deviceName': 'Pixel 10'})
+        mobile_emulation = {'deviceName': 'Nexus 5'})
     driver.Load(self._http_server.GetUrl() + '/userAgentUseDeviceWidth')
-    self.assertEqual(412, driver.ExecuteScript('return window.screen.width'))
-    self.assertEqual(924, driver.ExecuteScript('return window.screen.height'))
+    self.assertEqual(360, driver.ExecuteScript('return window.screen.width'))
+    self.assertEqual(640, driver.ExecuteScript('return window.screen.height'))
     body_tag = driver.FindElement('tag name', 'body')
     self.assertRegex(
         body_tag.GetText(),
         '^' +
-        re.escape('Mozilla/5.0 (Linux; Android 16; Pixel 10) '
+        re.escape('Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) '
                   'AppleWebKit/537.36 (KHTML, like Gecko) Chrome/') +
         r'\d+\.\d+\.\d+\.\d+' +
         re.escape(' Mobile Safari/537.36') + '$')
 
   def testSendKeysToElement(self):
     driver = self.CreateDriver(
-        mobile_emulation = {'deviceName': 'Pixel 10'})
+        mobile_emulation = {'deviceName': 'Nexus 5'})
     text = driver.ExecuteScript(
         'document.body.innerHTML = \'<input type="text">\';'
         'var input = document.getElementsByTagName("input")[0];'
@@ -7494,7 +7258,7 @@ class MobileEmulationCapabilityTest(ChromeDriverBaseTestWithWebServer):
 
   def testClickElement(self):
     driver = self.CreateDriver(
-        mobile_emulation = {'deviceName': 'Pixel 10'})
+        mobile_emulation = {'deviceName': 'Nexus 5'})
     driver.Load('about:blank')
     div = driver.ExecuteScript(
         'document.body.innerHTML = "<div>old</div>";'
@@ -7510,7 +7274,7 @@ class MobileEmulationCapabilityTest(ChromeDriverBaseTestWithWebServer):
   def testTapElement(self):
     driver = self.CreateDriver(
         send_w3c_capability=False, send_w3c_request=False,
-        mobile_emulation = {'deviceName': 'Pixel 10'})
+        mobile_emulation = {'deviceName': 'Nexus 5'})
     driver.Load('about:blank')
     div = driver.ExecuteScript(
         'document.body.innerHTML = "<div>old</div>";'
@@ -7539,7 +7303,7 @@ class MobileEmulationCapabilityTest(ChromeDriverBaseTestWithWebServer):
   def testNetworkConnectionEnabled(self):
     # mobileEmulation must be enabled for networkConnection to be enabled
     driver = self.CreateDriver(
-        mobile_emulation={'deviceName': 'Pixel 10'},
+        mobile_emulation={'deviceName': 'Nexus 5'},
         network_connection=True,
         send_w3c_capability=False, send_w3c_request=False)
     self.assertTrue(driver.capabilities['mobileEmulationEnabled'])
@@ -7547,7 +7311,7 @@ class MobileEmulationCapabilityTest(ChromeDriverBaseTestWithWebServer):
 
   def testEmulateNetworkConnection4g(self):
     driver = self.CreateDriver(
-        mobile_emulation={'deviceName': 'Pixel 10'},
+        mobile_emulation={'deviceName': 'Nexus 5'},
         network_connection=True)
     # Test 4G connection.
     connection_type = 0x8
@@ -7558,7 +7322,7 @@ class MobileEmulationCapabilityTest(ChromeDriverBaseTestWithWebServer):
 
   def testEmulateNetworkConnectionMultipleBits(self):
     driver = self.CreateDriver(
-        mobile_emulation={'deviceName': 'Pixel 10'},
+        mobile_emulation={'deviceName': 'Nexus 5'},
         network_connection=True)
     # Connection with 4G, 3G, and 2G bits on.
     # Tests that 4G takes precedence.
@@ -7570,7 +7334,7 @@ class MobileEmulationCapabilityTest(ChromeDriverBaseTestWithWebServer):
 
   def testWifiAndAirplaneModeEmulation(self):
     driver = self.CreateDriver(
-        mobile_emulation={'deviceName': 'Pixel 10'},
+        mobile_emulation={'deviceName': 'Nexus 5'},
         network_connection=True)
     # Connection with both Wifi and Airplane Mode on.
     # Tests that Wifi takes precedence over Airplane Mode.
@@ -7591,7 +7355,7 @@ class MobileEmulationCapabilityTest(ChromeDriverBaseTestWithWebServer):
       '/helloworld', respondWithString)
 
     driver = self.CreateDriver(
-        mobile_emulation={'deviceName': 'Pixel 10'},
+        mobile_emulation={'deviceName': 'Nexus 5'},
         network_connection=True)
 
     # Set network to online
@@ -7625,7 +7389,7 @@ class MobileEmulationCapabilityTest(ChromeDriverBaseTestWithWebServer):
 
   def testNetworkConnectionTypeIsAppliedToAllTabs(self):
     driver = self.CreateDriver(
-        mobile_emulation={'deviceName': 'Pixel 10'},
+        mobile_emulation={'deviceName': 'Nexus 5'},
         network_connection=True)
     driver.Load(self._http_server.GetUrl() +'/chromedriver/page_test.html')
     window1_handle = driver.GetCurrentWindowHandle()
@@ -7801,9 +7565,9 @@ class MobileEmulationCapabilityTest(ChromeDriverBaseTestWithWebServer):
     self.assertEqual('12', hints['platformVersion'])
     self.assertEqual(False, hints['wow64'])
 
-  def testClientHintsDeviceNamePixel10(self):
+  def testClientHintsDeviceNameNexus5(self):
     driver = self.CreateDriver(
-        mobile_emulation = {'deviceName': 'Pixel 10'})
+        mobile_emulation = {'deviceName': 'Nexus 5'})
     driver.Load(self._http_server.GetUrl() + '/userAgent')
     self.assertEqual('Android', driver.ExecuteScript(
         'return navigator.userAgentData.platform'))
@@ -7812,21 +7576,21 @@ class MobileEmulationCapabilityTest(ChromeDriverBaseTestWithWebServer):
     hints = self.getHighEntropyClientHints(driver)
     self.assertEqual('', hints['architecture'])
     self.assertEqual('', hints['bitness'])
-    self.assertEqual('Pixel 10', hints['model'])
-    self.assertEqual('16', hints['platformVersion'])
+    self.assertEqual('Nexus 5', hints['model'])
+    self.assertEqual('6.0', hints['platformVersion'])
     self.assertEqual(False, hints['wow64'])
     major_version = driver.capabilities['browserVersion'].split('.')[0]
     expected_ua = ''.join(('Mozilla/5.0 ',
-                           '(Linux; Android 16; Pixel 10) ',
+                           '(Linux; Android 6.0; Nexus 5 Build/MRA58N) ',
                            'AppleWebKit/537.36 (KHTML, like Gecko) ',
                            f'Chrome/{major_version}.0.0.0 ',
                            'Mobile Safari/537.36'))
     actual_ua = driver.ExecuteScript('return navigator.userAgent')
     self.assertEqual(expected_ua, actual_ua)
 
-  def testClientHintsDeviceNameIPhone16(self):
+  def testClientHintsDeviceNameIPhoneX(self):
     driver = self.CreateDriver(
-        mobile_emulation = {'deviceName': 'iPhone 16'})
+        mobile_emulation = {'deviceName': 'iPhone X'})
     driver.Load(self._http_server.GetUrl() + '/userAgent')
     self.assertEqual('iOS', driver.ExecuteScript(
         'return navigator.userAgentData.platform'))
@@ -7836,19 +7600,19 @@ class MobileEmulationCapabilityTest(ChromeDriverBaseTestWithWebServer):
     self.assertEqual('', hints['architecture'])
     self.assertEqual('', hints['bitness'])
     self.assertEqual('iPhone', hints['model'])
-    self.assertEqual('18.5', hints['platformVersion'])
+    self.assertEqual('13.2.3', hints['platformVersion'])
     self.assertEqual(False, hints['wow64'])
     expected_ua = ''.join(('Mozilla/5.0 ',
-                           '(iPhone; CPU iPhone OS 18_5 like Mac OS X) ',
+                           '(iPhone; CPU iPhone OS 13_2_3 like Mac OS X) ',
                            'AppleWebKit/605.1.15 (KHTML, like Gecko) ',
-                           'Version/18.5 ',
+                           'Version/13.0.3 ',
                            'Mobile/15E148 Safari/604.1'))
     actual_ua = driver.ExecuteScript('return navigator.userAgent')
     self.assertEqual(expected_ua, actual_ua)
 
   def testClientHintsDeviceNameIPad(self):
     driver = self.CreateDriver(
-        mobile_emulation = {'deviceName': 'iPad Mini'})
+        mobile_emulation = {'deviceName': 'iPad'})
     driver.Load(self._http_server.GetUrl() + '/userAgent')
     self.assertEqual('iOS', driver.ExecuteScript(
         'return navigator.userAgentData.platform'))
@@ -7858,11 +7622,11 @@ class MobileEmulationCapabilityTest(ChromeDriverBaseTestWithWebServer):
     self.assertEqual('', hints['architecture'])
     self.assertEqual('', hints['bitness'])
     self.assertEqual('iPad', hints['model'])
-    self.assertEqual('18.5', hints['platformVersion'])
+    self.assertEqual('11.0', hints['platformVersion'])
     self.assertEqual(False, hints['wow64'])
-    expected_ua = ''.join(('Mozilla/5.0 (iPad; CPU OS 18_5 like Mac OS X) ',
-                           'AppleWebKit/605.1.15 (KHTML, like Gecko) ',
-                           'Version/18.5 Mobile/15E148 Safari/604.1'
+    expected_ua = ''.join(('Mozilla/5.0 (iPad; CPU OS 11_0 like Mac OS X) ',
+                           'AppleWebKit/604.1.34 (KHTML, like Gecko) ',
+                           'Version/11.0 Mobile/15A5341f Safari/604.1'
                            ))
     actual_ua = driver.ExecuteScript('return navigator.userAgent')
     self.assertEqual(expected_ua, actual_ua)

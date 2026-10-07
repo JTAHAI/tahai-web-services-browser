@@ -5,10 +5,12 @@
 #include "chrome/browser/ui/waap/initial_webui_window_metrics_manager.h"
 
 #include "base/test/metrics/histogram_tester.h"
+#include "base/test/scoped_feature_list.h"
 #include "base/time/time.h"
 #include "chrome/browser/ui/browser_window/test/mock_browser_window_interface.h"
 #include "chrome/browser/ui/ui_features.h"
 #include "chrome/browser/ui/waap/waap_utils.h"
+#include "chrome/common/chrome_features.h"
 #include "chrome/test/base/testing_profile.h"
 #include "content/public/test/browser_task_environment.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -23,7 +25,7 @@ constexpr base::TimeDelta kTestLatency = base::Milliseconds(100);
 class InitialWebUIWindowMetricsManagerTest : public testing::Test {
  protected:
   void SetUp() override {
-    InitialWebUIWindowMetricsManager::ResetForTesting();
+    feature_list_.InitAndEnableFeature(features::kInitialWebUIMetrics);
     EXPECT_CALL(browser_window_, GetProfile())
         .WillRepeatedly(testing::Return(&profile_));
     EXPECT_CALL(browser_window_, GetUnownedUserDataHost())
@@ -31,6 +33,7 @@ class InitialWebUIWindowMetricsManagerTest : public testing::Test {
   }
 
   content::BrowserTaskEnvironment task_environment_;
+  base::test::ScopedFeatureList feature_list_;
   TestingProfile profile_;
   MockBrowserWindowInterface browser_window_;
   ui::UnownedUserDataHost unowned_user_data_host_;
@@ -133,12 +136,13 @@ TEST_F(InitialWebUIWindowMetricsManagerTest, RecordsShowRequestedToFirstPaint) {
 
   tester.ExpectUniqueTimeSample(
       "InitialWebUI.NewWindow.AllSources.WithoutExistingWindow.BrowserWindow."
-      "ShowRequestedToFirstPaint2",
+      "ShowRequestedToFirstPaint.FromConstructor2",
       expected_delta, 1);
   tester.ExpectUniqueTimeSample(
       "InitialWebUI.NewWindow.BrowserInitiated.WithoutExistingWindow."
       "BrowserWindow."
-      "ShowRequestedToFirstPaint2",
+      "ShowRequestedToFirstPaint."
+      "FromConstructor2",
       expected_delta, 1);
 }
 
@@ -172,7 +176,8 @@ TEST_F(InitialWebUIWindowMetricsManagerTest,
 
   tester.ExpectUniqueTimeSample(
       "InitialWebUI.NewWindow.AllSources.WithoutExistingWindow.BrowserWindow."
-      "ShowRequestedToFirstPaint2",
+      "ShowRequestedToFirstPaint."
+      "FromConstructor2",
       expected_delta, 1);
 }
 

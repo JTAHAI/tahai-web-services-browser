@@ -118,7 +118,6 @@ class TestRenderViewContextMenu : public RenderViewContextMenu {
 
   // RenderViewContextMenu:
   void Show() override;
-  GURL GetIndigoReplacementImageURL() const override;
 #if BUILDFLAG(IS_CHROMEOS)
   const policy::DlpRulesManager* GetDlpRulesManager() const override;
 #endif

@@ -20,8 +20,6 @@
 #include "components/services/storage/public/mojom/cache_storage_control.mojom.h"
 #include "content/browser/loader/navigation_loader_interceptor.h"
 #include "content/browser/loader/response_head_update_params.h"
-#include "content/browser/renderer_host/frame_tree_node.h"
-#include "content/browser/renderer_host/render_frame_host_impl.h"
 #include "content/browser/service_worker/embedded_worker_test_helper.h"
 #include "content/browser/service_worker/fake_embedded_worker_instance_client.h"
 #include "content/browser/service_worker/fake_service_worker.h"
@@ -40,17 +38,13 @@
 #include "content/public/common/content_features.h"
 #include "content/public/test/browser_task_environment.h"
 #include "content/public/test/mock_render_process_host.h"
-#include "content/public/test/navigation_simulator.h"
 #include "content/public/test/test_content_browser_client.h"
-#include "content/public/test/test_renderer_host.h"
-#include "content/public/test/web_contents_tester.h"
 #include "content/test/fake_network_url_loader_factory.h"
 #include "mojo/public/cpp/system/data_pipe_utils.h"
 #include "net/test/cert_test_util.h"
 #include "net/test/test_data_directory.h"
 #include "services/network/public/cpp/features.h"
 #include "services/network/public/cpp/single_request_url_loader_factory.h"
-#include "services/network/public/cpp/timing_allow_origin_parser.h"
 #include "services/network/public/cpp/weak_wrapper_shared_url_loader_factory.h"
 #include "services/network/public/mojom/fetch_api.mojom.h"
 #include "services/network/public/mojom/service_worker_router_info.mojom-shared.h"
@@ -77,10 +71,7 @@ class MockSearchPrefetchContentBrowserClient : public TestContentBrowserClient {
   URLLoaderRequestHandler
   CreateURLLoaderHandlerForServiceWorkerInitiatedNavigationRequest(
       FrameTreeNodeId frame_tree_node_id,
-      const network::ResourceRequest& resource_request,
-      int64_t navigation_id,
-      scoped_refptr<base::SequencedTaskRunner> navigation_response_task_runner)
-      override {
+      const network::ResourceRequest& resource_request) override {
     if (handler_) {
       return std::move(handler_);
     }
@@ -607,17 +598,6 @@ class ServiceWorkerMainResourceLoaderTest : public testing::Test {
     return helper_->context()->GetStorageControl();
   }
 
-  void SetUpTestWebContentsAndNavigation(const GURL& url) {
-    web_contents_ = WebContentsTester::CreateTestWebContents(
-        helper_->browser_context(), nullptr);
-    frame_tree_node_id_ =
-        web_contents_->GetPrimaryMainFrame()->GetFrameTreeNodeId();
-
-    navigation_simulator_ =
-        NavigationSimulator::CreateBrowserInitiated(url, web_contents_.get());
-    navigation_simulator_->Start();
-  }
-
   // Starts a request. After calling this, the request is ongoing and the
   // caller can use functions like client_.RunUntilComplete() to wait for
   // completion.
@@ -625,10 +605,8 @@ class ServiceWorkerMainResourceLoaderTest : public testing::Test {
     // Create a ServiceWorkerClient and simulate what
     // ServiceWorkerControlleeRequestHandler does to assign it a controller.
     if (!service_worker_client_) {
-      service_worker_client_ =
-          std::make_unique<ScopedServiceWorkerClient>(CreateServiceWorkerClient(
-              helper_->context(), request->url,
-              /*are_ancestors_secure=*/true, frame_tree_node_id_));
+      service_worker_client_ = std::make_unique<ScopedServiceWorkerClient>(
+          CreateServiceWorkerClient(helper_->context(), request->url));
       service_worker_client()->AddMatchingRegistration(registration_.get());
       service_worker_client()->SetControllerRegistration(
           registration_, /*notify_controllerchange=*/false);
@@ -961,11 +939,6 @@ class ServiceWorkerMainResourceLoaderTest : public testing::Test {
   bool did_call_fallback_callback_ = false;
   base::OnceClosure quit_closure_for_fallback_callback_;
   ResponseHeadUpdateParams response_head_update_params_;
-
-  RenderViewHostTestEnabler rvh_test_enabler_;
-  std::unique_ptr<WebContents> web_contents_;
-  std::unique_ptr<NavigationSimulator> navigation_simulator_;
-  FrameTreeNodeId frame_tree_node_id_;
 };
 
 TEST_F(ServiceWorkerMainResourceLoaderTest, Basic) {
@@ -1578,7 +1551,6 @@ TEST_F(ServiceWorkerMainResourceLoaderTest, FencedFrameNavigationPreload) {
   registration_->EnableNavigationPreload(true);
 
   std::unique_ptr<network::ResourceRequest> request = CreateRequest();
-  SetUpTestWebContentsAndNavigation(request->url);
   request->destination = network::mojom::RequestDestination::kFencedframe;
 
   // Perform the request.
@@ -2220,7 +2192,6 @@ TEST_F(ServiceWorkerMainResourceLoaderTest, SearchPrefetchHitInSyntheticResponse
       }));
 
   std::unique_ptr<network::ResourceRequest> request = CreateRequest();
-  SetUpTestWebContentsAndNavigation(request->url);
   request->is_outermost_main_frame = true;
 
   StartRequest(std::move(request));
@@ -2374,120 +2345,6 @@ TEST_F(ServiceWorkerMainResourceLoaderTest,
   EXPECT_FALSE(loader);
   EXPECT_FALSE(race_client_remote.is_connected());
 }
-
-struct TimingAllowTestCase {
-  std::optional<std::string> request_initiator;
-  network::mojom::FetchResponseType response_type;
-  std::optional<std::string> timing_allow_origin;
-  bool expected_timing_allow_passed;
-};
-
-class ServiceWorkerMainResourceLoaderTimingAllowTest
-    : public ServiceWorkerMainResourceLoaderTest,
-      public testing::WithParamInterface<TimingAllowTestCase> {};
-
-TEST_P(ServiceWorkerMainResourceLoaderTimingAllowTest, CheckTimingAllowPassed) {
-  const auto& test_case = GetParam();
-  service_worker_->DeferResponse();
-  auto request = CreateRequest();
-  if (test_case.request_initiator) {
-    request->request_initiator =
-        url::Origin::Create(GURL(*test_case.request_initiator));
-  } else {
-    request->request_initiator = std::nullopt;
-  }
-  StartRequest(std::move(request));
-  service_worker_->RunUntilFetchEvent();
-
-  auto response = blink::mojom::FetchAPIResponse::New();
-  response->status_code = 200;
-  response->status_text = "OK";
-  response->response_type = test_case.response_type;
-  if (test_case.timing_allow_origin) {
-    response->parsed_headers = network::mojom::ParsedHeaders::New();
-    response->parsed_headers->timing_allow_origin =
-        network::ParseTimingAllowOrigin(*test_case.timing_allow_origin);
-  }
-
-  service_worker_->FinishRespondWithCustomResponse(std::move(response));
-  client_.RunUntilComplete();
-  EXPECT_EQ(test_case.expected_timing_allow_passed,
-            client_.response_head()->timing_allow_passed);
-}
-
-INSTANTIATE_TEST_SUITE_P(
-    ServiceWorkerMainResourceLoaderTest,
-    ServiceWorkerMainResourceLoaderTimingAllowTest,
-    testing::Values(
-        // 1. Same-origin request initiator (https://example.com):
-        // Same-origin (kBasic) and synthetic (kDefault) responses pass.
-        TimingAllowTestCase{"https://example.com",
-                            network::mojom::FetchResponseType::kBasic,
-                            std::nullopt, true},
-        TimingAllowTestCase{"https://example.com",
-                            network::mojom::FetchResponseType::kDefault,
-                            std::nullopt, true},
-        // Filtered responses without Timing-Allow-Origin header fail.
-        TimingAllowTestCase{"https://example.com",
-                            network::mojom::FetchResponseType::kCors,
-                            std::nullopt, false},
-        TimingAllowTestCase{"https://example.com",
-                            network::mojom::FetchResponseType::kError,
-                            std::nullopt, false},
-        TimingAllowTestCase{"https://example.com",
-                            network::mojom::FetchResponseType::kOpaque,
-                            std::nullopt, false},
-        TimingAllowTestCase{"https://example.com",
-                            network::mojom::FetchResponseType::kOpaqueRedirect,
-                            std::nullopt, false},
-        // Filtered responses with valid Timing-Allow-Origin pass.
-        TimingAllowTestCase{"https://example.com",
-                            network::mojom::FetchResponseType::kCors, "*",
-                            true},
-        TimingAllowTestCase{"https://example.com",
-                            network::mojom::FetchResponseType::kOpaque, "*",
-                            true},
-        TimingAllowTestCase{"https://example.com",
-                            network::mojom::FetchResponseType::kCors,
-                            "https://example.com", true},
-        // Filtered responses with mismatching Timing-Allow-Origin fail.
-        TimingAllowTestCase{"https://example.com",
-                            network::mojom::FetchResponseType::kCors,
-                            "https://other.example.com", false},
-        TimingAllowTestCase{"https://example.com",
-                            network::mojom::FetchResponseType::kOpaque,
-                            "https://other.example.com", false},
-
-        // 2. Cross-origin request initiator (https://other.example.com):
-        // Same-origin responses without TAO fail because initiator is
-        // cross-origin.
-        TimingAllowTestCase{"https://other.example.com",
-                            network::mojom::FetchResponseType::kBasic,
-                            std::nullopt, false},
-        TimingAllowTestCase{"https://other.example.com",
-                            network::mojom::FetchResponseType::kDefault,
-                            std::nullopt, false},
-        // With matching TAO, they pass.
-        TimingAllowTestCase{"https://other.example.com",
-                            network::mojom::FetchResponseType::kBasic,
-                            "https://other.example.com", true},
-        TimingAllowTestCase{"https://other.example.com",
-                            network::mojom::FetchResponseType::kDefault,
-                            "https://other.example.com", true},
-        TimingAllowTestCase{"https://other.example.com",
-                            network::mojom::FetchResponseType::kCors,
-                            "https://other.example.com", true},
-        TimingAllowTestCase{"https://other.example.com",
-                            network::mojom::FetchResponseType::kCors,
-                            std::nullopt, false},
-
-        // 3. No request initiator:
-        TimingAllowTestCase{std::nullopt,
-                            network::mojom::FetchResponseType::kBasic,
-                            std::nullopt, false},
-        TimingAllowTestCase{std::nullopt,
-                            network::mojom::FetchResponseType::kCors, "*",
-                            false}));
 
 }  // namespace service_worker_main_resource_loader_unittest
 }  // namespace content

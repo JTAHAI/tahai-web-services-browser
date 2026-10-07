@@ -146,8 +146,6 @@ DedicatedWorkerGlobalScope::ParseCreationParams(
       creation_params->parent_is_isolated_context;
   parsed_creation_params.direct_sockets_force_enabled_in_parent =
       creation_params->direct_sockets_force_enabled_in_parent;
-  parsed_creation_params.creator_document_policy =
-      std::move(creation_params->creator_document_policy);
 
   parsed_creation_params.creation_params = std::move(creation_params);
   return parsed_creation_params;
@@ -202,8 +200,6 @@ DedicatedWorkerGlobalScope::DedicatedWorkerGlobalScope(
               begin_frame_provider_params)),
       storage_access_api_status_(
           parsed_creation_params.parent_storage_access_api_status),
-      creator_document_policy_(
-          std::move(parsed_creation_params.creator_document_policy)),
       dedicated_worker_start_time_(dedicated_worker_start_time) {
   // TODO(mkwst): This needs a specification.
   if (!parsed_creation_params.parent_is_isolated_context) {
@@ -261,38 +257,34 @@ void DedicatedWorkerGlobalScope::Initialize(
   // parsing the `Referrer-Policy` header of response."
   SetReferrerPolicy(response_referrer_policy);
 
-  // The following implements the Content-Security-Policy and Document-Policy
-  // parts of "Initialize worker global scope's policy container":
+  // The following is the Content-Security-Policy part of "Initialize worker
+  // global scope's policy container"
   // https://html.spec.whatwg.org/#initialize-worker-policy-container
   //
-  // For both, workers delivered from network schemes use the policy parsed from
-  // the response headers, while local schemes inherit it from the owner.
-  //
-  // Note: `filesystem:` is a Chromium-specific scheme and is not part of
-  // Fetch's `local scheme` (about/blob/data). It is included here to mirror the
-  // existing policy-container inheritance behavior for such URLs.
-  const bool is_local_scheme =
-      response_url.ProtocolIsAbout() || response_url.ProtocolIsData() ||
-      response_url.ProtocolIs("blob") || response_url.ProtocolIs("filesystem");
-
-  // Content-Security-Policy: inherit from the owner for local schemes,
-  // otherwise use the CSP parsed from the response headers.
+  // For workers delivered from network schemes we use the parsed CSP from the
+  // response headers, while for local schemes CSP is inherited from the owner.
   Vector<network::mojom::blink::ContentSecurityPolicyPtr> csp_list =
-      is_local_scheme ? mojo::Clone(OutsideContentSecurityPolicies())
-                      : std::move(response_csp);
+      response_url.ProtocolIsAbout() || response_url.ProtocolIsData() ||
+              response_url.ProtocolIs("blob") ||
+              response_url.ProtocolIs("filesystem")
+          ? mojo::Clone(OutsideContentSecurityPolicies())
+          : std::move(response_csp);
   InitContentSecurityPolicyFromVector(std::move(csp_list));
   BindContentSecurityPolicyToExecutionContext();
 
-  // Document-Policy: inherit from the owner for local schemes, otherwise use
-  // the DP parsed from the response headers.
+  // The following is the Document-Policy part of "Initialize worker
+  // global scope's policy container"
+  // https://html.spec.whatwg.org/#initialize-worker-policy-container
+  //
+  // For workers delivered from network schemes we use the parsed DP from the
+  // response headers.
+  // TODO(crbug.com/450845903): For local schemes DP is inherited from the
+  // owner.
   if (RuntimeEnabledFeatures::DocumentPolicyInDedicatedWorkerEnabled()) {
-    DocumentPolicy::DocumentPolicyBundle document_policy_bundle =
-        is_local_scheme ? std::move(creator_document_policy_)
-                        : std::move(response_document_policy);
     SecurityContextInit security_init(GetExecutionContext());
     security_init.ApplyDocumentPolicy(
-        document_policy_bundle.policy,
-        String(document_policy_bundle.report_only_header));
+        response_document_policy.policy,
+        String(response_document_policy.report_only_header));
   }
 
   // Step 14.11. "If is shared is false and response's url's scheme is \"data\",
@@ -333,8 +325,7 @@ void DedicatedWorkerGlobalScope::FetchAndRunClassicScript(
               "DedicatedWorkerGlobalScope::FetchAndRunClassicScript",
               "script_url", script_url);
   TRACE_EVENT_BEGIN("blink.worker", "DedicatedWorkerGlobalScope Fetch",
-                    perfetto::NamedTrack::FromPointer(
-                        "blink::DedicatedWorkerGlobalScope", this));
+                    perfetto::Track::FromPointer(this));
   fetch_classic_script_start_time_ = base::TimeTicks::Now();
 
   if (policy_container) {
@@ -485,9 +476,7 @@ void DedicatedWorkerGlobalScope::DidFetchClassicScript(
   DCHECK(IsContextThread());
   TRACE_EVENT("blink.worker",
               "DedicatedWorkerGlobalScope::DidFetchClassicScript");
-  TRACE_EVENT_END("blink.worker",
-                  perfetto::NamedTrack::FromPointer(
-                      "blink::DedicatedWorkerGlobalScope", this));
+  TRACE_EVENT_END("blink.worker", perfetto::Track::FromPointer(this));
   base::UmaHistogramTimes(
       "Worker.TopLevelScript.FetchClassicScriptTime",
       base::TimeTicks::Now() - fetch_classic_script_start_time_);

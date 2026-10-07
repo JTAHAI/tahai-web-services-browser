@@ -13,7 +13,6 @@
 #import "components/password_manager/core/browser/password_form.h"
 #import "components/password_manager/core/browser/password_manager_test_utils.h"
 #import "components/password_manager/core/browser/password_store/test_password_store.h"
-#import "components/password_manager/core/browser/password_string.h"
 #import "components/password_manager/core/browser/ui/credential_ui_entry.h"
 #import "ios/chrome/browser/affiliations/model/ios_chrome_affiliation_service_factory.h"
 #import "ios/chrome/browser/passwords/model/ios_chrome_password_check_manager_factory.h"
@@ -43,7 +42,6 @@
 using password_manager::CredentialUIEntry;
 using password_manager::InsecureType;
 using password_manager::PasswordForm;
-using password_manager::PasswordString;
 using password_manager::TestPasswordStore;
 using password_manager::WarningType;
 
@@ -154,7 +152,7 @@ class PasswordCheckupViewControllerTest
     cred.username_element = u"Email";
     cred.username_value = u"test@egmail.com";
     cred.password_element = u"Passwd";
-    cred.password_value = PasswordString(u"test");
+    cred.password_value = u"test";
     cred.signon_realm = url;
     cred.scheme = password_manager::PasswordForm::Scheme::kHtml;
     cred.in_store = password_manager::PasswordForm::Store::kProfileStore;
@@ -170,7 +168,7 @@ class PasswordCheckupViewControllerTest
     cred.username_element = u"Email";
     cred.username_value = u"test@egmail.com";
     cred.password_element = u"Passwd";
-    cred.password_value = PasswordString(u"test");
+    cred.password_value = u"test";
     cred.signon_realm = url;
     cred.scheme = password_manager::PasswordForm::Scheme::kHtml;
     cred.in_store = password_manager::PasswordForm::Store::kProfileStore;
@@ -198,7 +196,7 @@ class PasswordCheckupViewControllerTest
       NSString* detail_text,
       bool indicator_hidden,
       bool trailing_icon_hidden,
-      Symbol trailing_icon_symbol,
+      NSString* trailing_icon_name,
       NSString* trailing_icon_color_name,
       UITableViewCellAccessoryType accessory_type) {
     SettingsCheckItem* cell =
@@ -211,7 +209,7 @@ class PasswordCheckupViewControllerTest
     if (trailing_icon_hidden) {
       EXPECT_TRUE(nil == cell.trailingImage);
     } else {
-      EXPECT_NSEQ(SymbolTemplateWithPointSize(trailing_icon_symbol, 22),
+      EXPECT_NSEQ(DefaultSymbolTemplateWithPointSize(trailing_icon_name, 22),
                   cell.trailingImage);
       EXPECT_TRUE([cell.trailingImageTintColor
           isEqual:[UIColor colorNamed:trailing_icon_color_name]]);
@@ -303,7 +301,7 @@ TEST_F(PasswordCheckupViewControllerTest, PasswordCheckupHomepageStateRunning) {
       /*detail_text=*/compromised_detail_text_,
       /*indicator_hidden=*/NO,
       /*trailing_icon_hidden=*/YES,
-      /*trailing_icon_symbol=*/SymbolNone,
+      /*trailing_icon_name=*/@"",
       /*trailing_icon_color_name=*/@"",
       /*accessory_type=*/UITableViewCellAccessoryNone);
   CheckItemFromInsecureTypesSection(
@@ -311,7 +309,7 @@ TEST_F(PasswordCheckupViewControllerTest, PasswordCheckupHomepageStateRunning) {
       /*detail_text=*/reused_detail_text_,
       /*indicator_hidden=*/NO,
       /*trailing_icon_hidden=*/YES,
-      /*trailing_icon_symbol=*/SymbolNone,
+      /*trailing_icon_name=*/@"",
       /*trailing_icon_color_name=*/@"",
       /*accessory_type=*/UITableViewCellAccessoryNone);
   CheckItemFromInsecureTypesSection(
@@ -319,7 +317,7 @@ TEST_F(PasswordCheckupViewControllerTest, PasswordCheckupHomepageStateRunning) {
       /*detail_text=*/weak_detail_text_,
       /*indicator_hidden=*/NO,
       /*trailing_icon_hidden=*/YES,
-      /*trailing_icon_symbol=*/SymbolNone,
+      /*trailing_icon_name=*/@"",
       /*trailing_icon_color_name=*/@"",
       /*accessory_type=*/UITableViewCellAccessoryNone);
 
@@ -347,7 +345,7 @@ TEST_F(PasswordCheckupViewControllerTest, PasswordCheckupHomepageStateSafe) {
       /*detail_text=*/compromised_detail_text_,
       /*indicator_hidden=*/YES,
       /*trailing_icon_hidden=*/NO,
-      /*trailing_icon_symbol=*/SymbolCheckmarkCircleFill,
+      /*trailing_icon_name=*/kCheckmarkCircleFillSymbol,
       /*trailing_icon_color_name=*/kGreen500Color,
       /*accessory_type=*/UITableViewCellAccessoryNone);
   CheckItemFromInsecureTypesSection(
@@ -355,7 +353,7 @@ TEST_F(PasswordCheckupViewControllerTest, PasswordCheckupHomepageStateSafe) {
       /*detail_text=*/reused_detail_text_,
       /*indicator_hidden=*/YES,
       /*trailing_icon_hidden=*/NO,
-      /*trailing_icon_symbol=*/SymbolCheckmarkCircleFill,
+      /*trailing_icon_name=*/kCheckmarkCircleFillSymbol,
       /*trailing_icon_color_name=*/kGreen500Color,
       /*accessory_type=*/UITableViewCellAccessoryNone);
   CheckItemFromInsecureTypesSection(
@@ -363,7 +361,7 @@ TEST_F(PasswordCheckupViewControllerTest, PasswordCheckupHomepageStateSafe) {
       /*detail_text=*/weak_detail_text_,
       /*indicator_hidden=*/YES,
       /*trailing_icon_hidden=*/NO,
-      /*trailing_icon_symbol=*/SymbolCheckmarkCircleFill,
+      /*trailing_icon_name=*/kCheckmarkCircleFillSymbol,
       /*trailing_icon_color_name=*/kGreen500Color,
       /*accessory_type=*/UITableViewCellAccessoryNone);
 
@@ -396,7 +394,7 @@ TEST_F(PasswordCheckupViewControllerTest,
       /*detail_text=*/compromised_detail_text_,
       /*indicator_hidden=*/YES,
       /*trailing_icon_hidden=*/NO,
-      /*trailing_icon_symbol=*/SymbolErrorCircleFill,
+      /*trailing_icon_name=*/kErrorCircleFillSymbol,
       /*trailing_icon_color_name=*/kRed500Color,
       /*accessory_type=*/UITableViewCellAccessoryDisclosureIndicator);
   CheckItemFromInsecureTypesSection(
@@ -404,7 +402,7 @@ TEST_F(PasswordCheckupViewControllerTest,
       /*detail_text=*/reused_detail_text_,
       /*indicator_hidden=*/YES,
       /*trailing_icon_hidden=*/NO,
-      /*trailing_icon_symbol=*/SymbolCheckmarkCircleFill,
+      /*trailing_icon_name=*/kCheckmarkCircleFillSymbol,
       /*trailing_icon_color_name=*/kGreen500Color,
       /*accessory_type=*/UITableViewCellAccessoryNone);
   CheckItemFromInsecureTypesSection(
@@ -412,7 +410,7 @@ TEST_F(PasswordCheckupViewControllerTest,
       /*detail_text=*/weak_detail_text_,
       /*indicator_hidden=*/YES,
       /*trailing_icon_hidden=*/NO,
-      /*trailing_icon_symbol=*/SymbolCheckmarkCircleFill,
+      /*trailing_icon_name=*/kCheckmarkCircleFillSymbol,
       /*trailing_icon_color_name=*/kGreen500Color,
       /*accessory_type=*/UITableViewCellAccessoryNone);
 
@@ -443,7 +441,7 @@ TEST_F(PasswordCheckupViewControllerTest,
       /*detail_text=*/compromised_detail_text_,
       /*indicator_hidden=*/YES,
       /*trailing_icon_hidden=*/NO,
-      /*trailing_icon_symbol=*/SymbolErrorCircleFill,
+      /*trailing_icon_name=*/kErrorCircleFillSymbol,
       /*trailing_icon_color_name=*/kYellow500Color,
       /*accessory_type=*/UITableViewCellAccessoryDisclosureIndicator);
   CheckItemFromInsecureTypesSection(
@@ -451,7 +449,7 @@ TEST_F(PasswordCheckupViewControllerTest,
       /*detail_text=*/reused_detail_text_,
       /*indicator_hidden=*/YES,
       /*trailing_icon_hidden=*/NO,
-      /*trailing_icon_symbol=*/SymbolCheckmarkCircleFill,
+      /*trailing_icon_name=*/kCheckmarkCircleFillSymbol,
       /*trailing_icon_color_name=*/kGreen500Color,
       /*accessory_type=*/UITableViewCellAccessoryNone);
   CheckItemFromInsecureTypesSection(
@@ -459,7 +457,7 @@ TEST_F(PasswordCheckupViewControllerTest,
       /*detail_text=*/weak_detail_text_,
       /*indicator_hidden=*/YES,
       /*trailing_icon_hidden=*/NO,
-      /*trailing_icon_symbol=*/SymbolCheckmarkCircleFill,
+      /*trailing_icon_name=*/kCheckmarkCircleFillSymbol,
       /*trailing_icon_color_name=*/kGreen500Color,
       /*accessory_type=*/UITableViewCellAccessoryNone);
 
@@ -493,7 +491,7 @@ TEST_F(PasswordCheckupViewControllerTest,
       /*detail_text=*/compromised_detail_text_,
       /*indicator_hidden=*/YES,
       /*trailing_icon_hidden=*/NO,
-      /*trailing_icon_symbol=*/SymbolCheckmarkCircleFill,
+      /*trailing_icon_name=*/kCheckmarkCircleFillSymbol,
       /*trailing_icon_color_name=*/kGreen500Color,
       /*accessory_type=*/UITableViewCellAccessoryNone);
   CheckItemFromInsecureTypesSection(
@@ -501,7 +499,7 @@ TEST_F(PasswordCheckupViewControllerTest,
       /*detail_text=*/reused_detail_text_,
       /*indicator_hidden=*/YES,
       /*trailing_icon_hidden=*/NO,
-      /*trailing_icon_symbol=*/SymbolErrorCircleFill,
+      /*trailing_icon_name=*/kErrorCircleFillSymbol,
       /*trailing_icon_color_name=*/kYellow500Color,
       /*accessory_type=*/UITableViewCellAccessoryDisclosureIndicator);
   CheckItemFromInsecureTypesSection(
@@ -509,7 +507,7 @@ TEST_F(PasswordCheckupViewControllerTest,
       /*detail_text=*/weak_detail_text_,
       /*indicator_hidden=*/YES,
       /*trailing_icon_hidden=*/NO,
-      /*trailing_icon_symbol=*/SymbolCheckmarkCircleFill,
+      /*trailing_icon_name=*/kCheckmarkCircleFillSymbol,
       /*trailing_icon_color_name=*/kGreen500Color,
       /*accessory_type=*/UITableViewCellAccessoryNone);
 
@@ -541,7 +539,7 @@ TEST_F(PasswordCheckupViewControllerTest,
       /*detail_text=*/compromised_detail_text_,
       /*indicator_hidden=*/YES,
       /*trailing_icon_hidden=*/NO,
-      /*trailing_icon_symbol=*/SymbolCheckmarkCircleFill,
+      /*trailing_icon_name=*/kCheckmarkCircleFillSymbol,
       /*trailing_icon_color_name=*/kGreen500Color,
       /*accessory_type=*/UITableViewCellAccessoryNone);
   CheckItemFromInsecureTypesSection(
@@ -549,7 +547,7 @@ TEST_F(PasswordCheckupViewControllerTest,
       /*detail_text=*/reused_detail_text_,
       /*indicator_hidden=*/YES,
       /*trailing_icon_hidden=*/NO,
-      /*trailing_icon_symbol=*/SymbolCheckmarkCircleFill,
+      /*trailing_icon_name=*/kCheckmarkCircleFillSymbol,
       /*trailing_icon_color_name=*/kGreen500Color,
       /*accessory_type=*/UITableViewCellAccessoryNone);
   CheckItemFromInsecureTypesSection(
@@ -557,7 +555,7 @@ TEST_F(PasswordCheckupViewControllerTest,
       /*detail_text=*/weak_detail_text_,
       /*indicator_hidden=*/YES,
       /*trailing_icon_hidden=*/NO,
-      /*trailing_icon_symbol=*/SymbolErrorCircleFill,
+      /*trailing_icon_name=*/kErrorCircleFillSymbol,
       /*trailing_icon_color_name=*/kYellow500Color,
       /*accessory_type=*/UITableViewCellAccessoryDisclosureIndicator);
 

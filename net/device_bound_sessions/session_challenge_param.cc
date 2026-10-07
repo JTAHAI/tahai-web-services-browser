@@ -41,8 +41,13 @@ std::optional<SessionChallengeParam> SessionChallengeParam::ParseItem(
     return std::nullopt;
   }
 
-  const std::string* challenge = session_challenge.member[0].item.GetIfString();
-  if (!challenge || challenge->empty()) {
+  const structured_headers::Item& item = session_challenge.member[0].item;
+  if (!item.is_string()) {
+    return std::nullopt;
+  }
+
+  std::string challenge(item.GetString());
+  if (challenge.empty()) {
     return std::nullopt;
   }
 
@@ -51,17 +56,18 @@ std::optional<SessionChallengeParam> SessionChallengeParam::ParseItem(
           session_challenge.params, kSessionIdKey,
           &std::pair<std::string, structured_headers::Item>::first);
       it != session_challenge.params.end()) {
-    const std::string* string = it->second.GetIfString();
-    if (!string) {
+    const auto& param = it->second;
+    if (!param.is_string()) {
       return std::nullopt;
     }
 
-    if (!string->empty()) {
-      session_id = *string;
+    auto id = param.GetString();
+    if (!id.empty()) {
+      session_id = std::move(id);
     }
   }
 
-  return SessionChallengeParam(std::move(session_id), *challenge);
+  return SessionChallengeParam(std::move(session_id), std::move(challenge));
 }
 
 // static

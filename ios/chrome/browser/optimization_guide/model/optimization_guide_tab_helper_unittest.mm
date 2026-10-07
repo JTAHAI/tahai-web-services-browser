@@ -8,7 +8,6 @@
 #import "base/memory/raw_ptr.h"
 #import "base/test/metrics/histogram_tester.h"
 #import "base/test/scoped_feature_list.h"
-#import "components/optimization_guide/core/hints/hints_manager.h"
 #import "components/optimization_guide/core/hints/optimization_guide_navigation_data.h"
 #import "components/optimization_guide/core/hints/test_hints_config.h"
 #import "components/optimization_guide/core/optimization_guide_features.h"
@@ -96,9 +95,9 @@ class OptimizationGuideTabHelperTest : public PlatformTest {
  public:
   OptimizationGuideTabHelperTest() {
     base::CommandLine::ForCurrentProcess()->AppendSwitch(
-        optimization_guide::kPurgeHintsStoreSwitch);
+        optimization_guide::switches::kPurgeHintsStore);
     base::CommandLine::ForCurrentProcess()->AppendSwitchASCII(
-        optimization_guide::kHintsProtoOverrideSwitch,
+        optimization_guide::switches::kHintsProtoOverride,
         optimization_guide::CreateHintsConfig(
             GURL(kHintsURL), optimization_guide::proto::NOSCRIPT,
             /*metadata=*/nullptr));

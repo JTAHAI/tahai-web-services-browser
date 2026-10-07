@@ -29,7 +29,6 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profile_manager.h"
 #include "chrome/common/chrome_paths.h"
-#include "chrome/test/base/chrome_test_path_utils.h"
 #include "chrome/test/base/chrome_test_utils.h"
 #include "components/browsing_data/content/browsing_data_model.h"
 #include "components/browsing_data/content/browsing_data_test_util.h"
@@ -51,7 +50,7 @@
 
 #if !BUILDFLAG(IS_ANDROID)
 #include "chrome/browser/download/download_browsertest_utils.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/test/base/ui_test_utils.h"
 #endif
 
@@ -120,7 +119,7 @@ void BrowsingDataRemoverBrowserTestBase::InitFeatureLists(
 }
 
 #if !BUILDFLAG(IS_ANDROID)
-BrowserWindowInterface* BrowsingDataRemoverBrowserTestBase::GetBrowser() const {
+Browser* BrowsingDataRemoverBrowserTestBase::GetBrowser() const {
   return incognito_browser_ ? incognito_browser_.get() : browser();
 }
 
@@ -258,7 +257,7 @@ BrowsingDataRemoverBrowserTestBase::GetActiveWebContents() {
 
 #if !BUILDFLAG(IS_ANDROID)
 content::WebContents* BrowsingDataRemoverBrowserTestBase::GetActiveWebContents(
-    BrowserWindowInterface* browser) {
+    Browser* browser) {
   return browser->tab_strip_model()->GetActiveWebContents();
 }
 #endif  // !BUILDFLAG(IS_ANDROID)
@@ -309,7 +308,7 @@ void BrowsingDataRemoverBrowserTestBase::CheckUserDirectoryForString(
     }
 
     // Check file name.
-    if (file.contains(hostname)) {
+    if (file.find(hostname) != std::string::npos) {
       ADD_FAILURE() << "Found file name: " << file << " containing "
                     << hostname;
     }
@@ -349,7 +348,7 @@ void BrowsingDataRemoverBrowserTestBase::CheckUserDirectoryForString(
         for (it->SeekToFirst(); it->Valid(); it->Next()) {
           std::string entry =
               it->key().ToString() + ":" + it->value().ToString();
-          if (entry.contains(hostname)) {
+          if (entry.find(hostname) != std::string::npos) {
             ADD_FAILURE() << "Found leveldb entry: " << file << " " << entry;
           }
         }

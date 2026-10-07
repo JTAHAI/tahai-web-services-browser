@@ -44,8 +44,8 @@
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/compositor/compositor.h"
+#include "ui/compositor/layer.h"
 #include "ui/compositor/layer_animation_observer.h"
-#include "ui/compositor/layer_solid_color.h"
 #include "ui/compositor/scoped_layer_animation_settings.h"
 #include "ui/events/event.h"
 #include "ui/events/types/event_type.h"
@@ -200,7 +200,8 @@ class BackgroundAnimation : public AppListFolderView::Animation,
         clip_rect.IsEmpty() ? background_bounds
                             : clip_rect + background_bounds.OffsetFromOrigin();
     shadow_->SetContentBounds(content_bounds);
-    shadow_->SetRoundedCorners(background_layer->rounded_corner_radii());
+    shadow_->SetRoundedCornerRadius(
+        background_layer->rounded_corner_radii().upper_left());
   }
 
   // True if opening the folder.
@@ -703,7 +704,9 @@ AppListFolderView::AppListFolderView(AppListFolderController* folder_controller,
 
   // Create a shadow under `background_view_`.
   shadow_ = SystemShadow::CreateShadowOnNinePatchLayer(
-      SystemShadow::Type::kElevation12);
+      SystemShadow::Type::kElevation12,
+      base::BindRepeating(&AppListFolderView::OnShadowLayerRecreated,
+                          base::Unretained(this)));
   background_view_->AddLayerToRegion(shadow_->GetLayer(),
                                      views::LayerRegion::kBelow);
 
@@ -1054,6 +1057,12 @@ void AppListFolderView::UpdatePreferredBounds() {
 
 void AppListFolderView::UpdateShadowBounds() {
   shadow_->SetContentBounds(background_view_->layer()->bounds());
+}
+
+void AppListFolderView::OnShadowLayerRecreated(ui::Layer* old_layer,
+                                               ui::Layer* new_layer) {
+  background_view_->RemoveLayerFromRegions(old_layer);
+  background_view_->AddLayerToRegion(new_layer, views::LayerRegion::kBelow);
 }
 
 int AppListFolderView::GetYOffsetForFolder() {

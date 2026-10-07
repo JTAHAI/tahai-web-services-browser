@@ -7,9 +7,6 @@
 
 #include <stdint.h>
 
-#include <optional>
-
-#include "base/byte_size.h"
 #include "base/feature_list.h"
 #include "base/functional/callback_forward.h"
 #include "net/base/net_export.h"
@@ -56,18 +53,18 @@ bool CleanupDirectorySync(const base::FilePath& path);
 
 // Returns the preferred max cache size given the available disk space and
 // cache type.
-NET_EXPORT_PRIVATE base::ByteSize PreferredCacheSize(
-    std::optional<base::ByteSize> available,
+NET_EXPORT_PRIVATE int PreferredCacheSize(
+    int64_t available,
     net::CacheType type = net::DISK_CACHE);
 
 // Returns the preferred max cache size given a cache path and type.
-NET_EXPORT_PRIVATE base::ByteSize PreferredCacheSizeForPath(
-    const base::FilePath& path,
-    net::CacheType type = net::DISK_CACHE);
+NET_EXPORT_PRIVATE int64_t
+PreferredCacheSizeForPath(const base::FilePath& path,
+                          net::CacheType type = net::DISK_CACHE);
 
 // The default cache size should not ideally be exposed, but the blockfile
 // backend uses it for reasons that include testing.
-NET_EXPORT_PRIVATE extern const base::ByteSize kDefaultCacheSize;
+NET_EXPORT_PRIVATE extern const int kDefaultCacheSize;
 
 }  // namespace disk_cache
 

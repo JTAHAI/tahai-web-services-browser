@@ -6,6 +6,7 @@
 #define CONTENT_COMMON_MEMORY_COORDINATOR_MEMORY_CONSUMER_REGISTRY_H_
 
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -35,8 +36,6 @@ class CONTENT_EXPORT MemoryConsumerRegistry
 
   // MemoryConsumerGroupHost:
   void UpdateConsumers(std::vector<MemoryConsumerUpdate> updates) override;
-  void SetOverrideLimit(uint32_t consumer_id, int percentage) override;
-  void ClearOverrideLimit(uint32_t consumer_id, int policy_limit) override;
 
   // Returns the number of consumers with different IDs.
   size_t size() const { return consumer_groups_.size(); }
@@ -46,13 +45,13 @@ class CONTENT_EXPORT MemoryConsumerRegistry
   // identically.
   class ConsumerGroup {
    public:
-    explicit ConsumerGroup(base::MemoryConsumerTraits traits,
+    explicit ConsumerGroup(std::optional<base::MemoryConsumerTraits> traits,
                            std::string_view consumer_name);
 
     ~ConsumerGroup();
 
     void ReleaseMemory();
-    void UpdateMemoryLimit(base::MemoryLimit memory_limit);
+    void UpdateMemoryLimit(int percentage);
 
     // Adds/removes a consumer.
     void AddMemoryConsumer(base::MemoryConsumer* consumer);
@@ -62,12 +61,12 @@ class CONTENT_EXPORT MemoryConsumerRegistry
 
     bool empty() const { return memory_consumers_.empty(); }
 
-    base::MemoryConsumerTraits traits() const { return traits_; }
+    std::optional<base::MemoryConsumerTraits> traits() const { return traits_; }
 
    private:
-    base::MemoryConsumerTraits traits_;
+    std::optional<base::MemoryConsumerTraits> traits_;
 
-    base::MemoryLimit memory_limit_ = base::MemoryLimit::Default();
+    int memory_limit_ = base::MemoryConsumer::kDefaultMemoryLimit;
 
     base::ObserverList<base::MemoryConsumer> memory_consumers_;
     std::string consumer_name_;
@@ -76,7 +75,7 @@ class CONTENT_EXPORT MemoryConsumerRegistry
   // base::MemoryConsumerRegistry:
   void OnMemoryConsumerAdded(uint32_t consumer_id,
                              std::string_view consumer_name,
-                             base::MemoryConsumerTraits traits,
+                             std::optional<base::MemoryConsumerTraits> traits,
                              base::MemoryConsumer* consumer) override;
   void OnMemoryConsumerRemoved(uint32_t consumer_id,
                                base::MemoryConsumer* consumer) override;

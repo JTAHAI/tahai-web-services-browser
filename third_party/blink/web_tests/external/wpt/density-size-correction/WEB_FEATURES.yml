@@ -1,2 +1,4 @@
-rules:
-- srcset*.html: [srcset]
+features:
+- name: srcset
+  files:
+  - "srcset*.html"

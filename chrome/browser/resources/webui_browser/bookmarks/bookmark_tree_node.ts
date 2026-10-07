@@ -37,7 +37,6 @@ export class BookmarkTreeNodeElement extends CrLitElement {
       children: [],
       permanentFolderType: null,
       isSynced: false,
-      legacy: null,
     },
   };
 
@@ -58,7 +57,6 @@ export class BookmarkTreeNodeElement extends CrLitElement {
         url: 'chrome://new-tab-page',
         faviconUrl: null,
         isSynced: false,
-        legacy: null,
       },
     };
 
@@ -80,7 +78,6 @@ export class BookmarkTreeNodeElement extends CrLitElement {
         children: [],
         permanentFolderType: null,
         isSynced: false,
-        legacy: null,
       },
     };
 
@@ -99,7 +96,6 @@ export class BookmarkTreeNodeElement extends CrLitElement {
           url: 'http://updated.somewhere',
           faviconUrl: null,
           isSynced: false,
-          legacy: null,
         },
       };
 
@@ -112,7 +108,6 @@ export class BookmarkTreeNodeElement extends CrLitElement {
           children: [],
           permanentFolderType: null,
           isSynced: false,
-          legacy: null,
         },
       };
 

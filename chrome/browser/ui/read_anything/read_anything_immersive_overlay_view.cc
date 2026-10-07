@@ -11,7 +11,6 @@
 #include "chrome/browser/ui/read_anything/read_anything_immersive_web_view.h"
 #include "chrome/browser/ui/view_ids.h"
 #include "chrome/browser/ui/views/frame/contents_web_view.h"
-#include "chrome/browser/ui/webui/top_chrome/webui_contents_wrapper.h"
 #include "chrome/grit/generated_resources.h"
 #include "components/tabs/public/tab_interface.h"
 #include "ui/base/l10n/l10n_util.h"
@@ -92,7 +91,8 @@ void ReadAnythingImmersiveOverlayView::OnShowImmersive(
 }
 
 void ReadAnythingImmersiveOverlayView::OnCloseImmersive() {
-  ReadAnythingContentsWrapper wrapper = CloseUI();
+  std::unique_ptr<WebUIContentsWrapperT<ReadAnythingUntrustedUI>> wrapper =
+      CloseUI();
   if (wrapper && controller_) {
     controller_->TransferWebUiOwnership(
         std::move(wrapper),
@@ -105,36 +105,19 @@ void ReadAnythingImmersiveOverlayView::OnDestroyed() {
 }
 
 void ReadAnythingImmersiveOverlayView::ShowUI(
-    ReadAnythingContentsWrapper contents_wrapper,
+    std::unique_ptr<WebUIContentsWrapperT<ReadAnythingUntrustedUI>>
+        contents_wrapper,
     ReadAnythingOpenTrigger trigger) {
   CHECK(!immersive_web_view_);
-  // Record has_shown_ui() before constructing ReadAnythingImmersiveWebView,
-  // because attaching the WebContents inside the constructor will trigger
-  // OnVisibilityChanged and set has_shown_ui() to true even on first open.
-  const bool has_shown_ui_before_attaching =
-      controller_ && controller_->has_shown_ui();
-
   auto immersive_web_view = std::make_unique<ReadAnythingImmersiveWebView>(
       base::BindOnce(&ReadAnythingImmersiveOverlayView::OnShowUI,
                      base::Unretained(this)),
-      std::move(contents_wrapper).release(), trigger);
+      std::move(contents_wrapper), trigger);
   immersive_web_view_ = AddChildView(std::move(immersive_web_view));
   immersive_view_focus_subscription_ =
       immersive_web_view_->AddWebContentsFocusedCallback(base::BindRepeating(
           &ReadAnythingImmersiveOverlayView::OnImmersiveWebViewFocused,
           base::Unretained(this)));
-
-  // Calling immersive_web_view_->ShowUI() is not necessary if it has
-  // not been shown yet - the WebUI will call ShowUI() when it is ready. If the
-  // UI has been shown once (e.g. from the Side Panel), the reused WebUI is
-  // already available but won't send a new "showUI" message.
-  // We manually call ShowUI() synchronously now that immersive_web_view_ is
-  // attached to the view hierarchy so that RequestFocus() executes within the
-  // active user gesture. This synchronous focus transition is required by
-  // macOS.
-  if (has_shown_ui_before_attaching) {
-    immersive_web_view_->ShowUI();
-  }
 }
 
 void ReadAnythingImmersiveOverlayView::OnShowUI() {
@@ -154,14 +137,13 @@ void ReadAnythingImmersiveOverlayView::OnShowUI() {
       IDS_IMMERSIVE_READING_MODE_OPENED_ANNOUNCEMENT));
 
   DUMP_WILL_BE_CHECK(immersive_web_view_);
-  // Only request focus if the tab is active so that an inactive tab in Split
-  // View does not steal focus when its immersive overlay is shown.
-  if (immersive_web_view_ && (!tab || tab->IsActivated())) {
+  if (immersive_web_view_) {
     immersive_web_view_->RequestFocus();
   }
 }
 
-ReadAnythingContentsWrapper ReadAnythingImmersiveOverlayView::CloseUI() {
+std::unique_ptr<WebUIContentsWrapperT<ReadAnythingUntrustedUI>>
+ReadAnythingImmersiveOverlayView::CloseUI() {
   immersive_view_focus_subscription_ = {};
   SetVisible(false);
 
@@ -182,7 +164,7 @@ ReadAnythingContentsWrapper ReadAnythingImmersiveOverlayView::CloseUI() {
     contents_web_view_->RequestFocus();
   }
 
-  return ReadAnythingContentsWrapper(web_view->CloseAndTakeContentsWrapper());
+  return web_view->CloseAndTakeContentsWrapper();
 }
 
 base::CallbackListSubscription

@@ -13,7 +13,6 @@
 #include "base/functional/callback_forward.h"
 #include "base/memory/raw_ref.h"
 #include "base/observer_list.h"
-#include "build/build_config.h"
 #include "components/keyed_service/core/keyed_service.h"
 #include "components/policy/core/common/cloud/cloud_policy_client.h"
 #include "components/policy/core/common/cloud/cloud_policy_client_types.h"
@@ -126,8 +125,6 @@ class ExtensionInstallPolicyServiceImpl
   std::vector<PolicyManagerInfo> GetPolicyManagerInfos() const;
   std::vector<PolicyManagerInfo> GetConnectedPolicyManagerInfos() const;
 
-  bool IsPolicyChecksEnabled(const PolicyManagerInfo& info) const;
-
   // Adds or removes from CloudPolicyClient::types_to_fetch_ based on
   // the current value of the pref
   // `kExtensionInstallCloudPolicyChecksEnabled`.
@@ -146,9 +143,7 @@ class ExtensionInstallPolicyServiceImpl
       initialization_waiters_;
 
   PrefChangeRegistrar pref_change_registrar_;
-#if !BUILDFLAG(IS_CHROMEOS)
   PrefChangeRegistrar local_state_change_registrar_;
-#endif
 };
 
 }  // namespace policy

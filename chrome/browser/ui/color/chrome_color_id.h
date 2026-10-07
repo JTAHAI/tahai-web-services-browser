@@ -26,19 +26,8 @@
   E_CPONLY(kColorAppMenuExpandedForegroundPrimary) \
   E_CPONLY(kColorAppMenuChipInkDropHover) \
   E_CPONLY(kColorAppMenuChipInkDropRipple) \
-  E_CPONLY(kColorAppMenuYourChromeBackground) \
-  E_CPONLY(kColorAppMenuToolsAndActionsBackground) \
-  E_CPONLY(kColorAppMenuBlockButtonBackground) \
-  E_CPONLY(kColorAppMenuBlockButtonBackgroundHovered) \
-  E_CPONLY(kColorAppMenuBlockButtonBorder) \
-  E_CPONLY(kColorAppMenuBlockButtonForeground) \
-  E_CPONLY(kColorAppMenuFooterButtonForeground) \
-  E_CPONLY(kColorAppMenuFooterButtonForegroundHovered) \
-  E_CPONLY(kColorAppMenuFooterButtonBackgroundHovered) \
   /* Actor UI colors.*/ \
-  E_CPONLY(kColorActorUiHandoffButtonBackground) \
   E_CPONLY(kColorActorUiHandoffButtonBorder) \
-  E_CPONLY(kColorActorUiHandoffButtonForeground) \
   E_CPONLY(kColorActorUiOverlayBorder) \
   E_CPONLY(kColorActorUiOverlayBorderGlow) \
   E_CPONLY(kColorActorUiScrimStart) \
@@ -245,12 +234,6 @@
   /* Intent Picker colors. */ \
   E_CPONLY(kColorIntentPickerItemBackgroundHovered) \
   E_CPONLY(kColorIntentPickerItemBackgroundSelected) \
-  /* Isolated Tab Page colors. */ \
-  E_CPONLY(kColorIsolatedTabPageBackground) \
-  E_CPONLY(kColorIsolatedTabPageCardBackground) \
-  E_CPONLY(kColorIsolatedTabPageLink) \
-  E_CPONLY(kColorIsolatedTabPageNoticeBorder) \
-  E_CPONLY(kColorIsolatedTabPageNoticeIcon) \
   /* Glic colors */ \
   E_CPONLY(kColorGlicBackground) \
   E_CPONLY(kColorGlicModalBackground) \
@@ -315,7 +298,6 @@
   E_CPONLY(kColorNewTabPageActiveBackground) \
   E_CPONLY(kColorNewTabPageAddShortcutBackground) \
   E_CPONLY(kColorNewTabPageAddShortcutForeground) \
-  E_CPONLY(kColorNewTabPageAddShortcutBackgroundHovered) \
   E_CPONLY(kColorNewTabPageAttributionForeground) \
   E_CPONLY(kColorNewTabPageBackground) \
   E_CPONLY(kColorNewTabPageBackgroundOverride) \
@@ -727,11 +709,6 @@
   E_CPONLY(kColorReadAnythingPreviousReadAloudHighlightHighContrast) \
   E_CPONLY(kColorReadAnythingPreviousReadAloudHighlightLowContrastLight) \
   E_CPONLY(kColorReadAnythingPreviousReadAloudHighlightLowContrastDark) \
-  E_CPONLY(kColorReadAnythingAiPlaybackBackground) \
-  E_CPONLY(kColorReadAnythingAiPlaybackHoverBackground) \
-  E_CPONLY(kColorReadAnythingAiPlaybackIcon) \
-  E_CPONLY(kColorReadAnythingAiPlaybackActiveBackground) \
-  E_CPONLY(kColorReadAnythingAiPlaybackActiveIcon) \
   E_CPONLY(kColorReadAnythingAudioPlayerBackground) \
   E_CPONLY(kColorReadAnythingAudioPlayerBackgroundBlue) \
   E_CPONLY(kColorReadAnythingAudioPlayerBackgroundDark) \
@@ -853,8 +830,6 @@
   E_CPONLY(kColorSettingsColumnedSectionDescriptionHeader) \
   /* Settings info card colors. */ \
   E_CPONLY(kColorSettingsInfoCardBackground) \
-  /* Settings page colors. */ \
-  E_CPONLY(kColorSettingsWebuiPageBackground) \
   /* Share-this-tab dialog colors. */ \
   E_CPONLY(kColorShareThisTabAudioToggleBackground) \
   E_CPONLY(kColorShareThisTabSourceViewBorder) \

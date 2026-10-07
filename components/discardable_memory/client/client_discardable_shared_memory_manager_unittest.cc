@@ -485,12 +485,12 @@ TEST_F(ClientDiscardableSharedMemoryManagerTest, OnReleaseMemory) {
   EXPECT_GT(expected_freelist_size, 0u);
 
   // At moderate pressure, memory should NOT be released.
-  NotifyUpdateMemoryLimitAndRun(base::MemoryLimit::ModeratePressureThreshold());
+  NotifyUpdateMemoryLimitAndRun(base::kModerateMemoryPressureThreshold);
   NotifyReleaseMemoryAndRun();
   EXPECT_EQ(client->GetFreelistSize(), expected_freelist_size);
 
   // At critical pressure, memory SHOULD be released.
-  NotifyUpdateMemoryLimitAndRun(base::MemoryLimit::CriticalPressureThreshold());
+  NotifyUpdateMemoryLimitAndRun(base::kCriticalMemoryPressureThreshold);
   NotifyReleaseMemoryAndRun();
   EXPECT_EQ(client->GetFreelistSize(), 0u);
 }

@@ -7,7 +7,7 @@
  * for testing.
  */
 
-import {PrefService} from 'chrome://settings/settings.js';
+import type {SettingsPrefsElement} from 'chrome://settings/settings.js';
 import {FakeChromeEvent} from 'chrome://webui-test/fake_chrome_event.js';
 import {TestBrowserProxy} from 'chrome://webui-test/test_browser_proxy.js';
 
@@ -15,6 +15,8 @@ import {TestBrowserProxy} from 'chrome://webui-test/test_browser_proxy.js';
  * Fake of the chrome.languageSettingsPrivate API.
  */
 export class FakeLanguageSettingsPrivate extends TestBrowserProxy {
+  private settingsPrefs_: SettingsPrefsElement|null = null;
+
   onSpellcheckDictionariesChanged: FakeChromeEvent;
   onCustomDictionaryChanged: FakeChromeEvent;
   onInputMethodAdded: FakeChromeEvent;
@@ -191,6 +193,10 @@ export class FakeLanguageSettingsPrivate extends TestBrowserProxy {
     ];
   }
 
+  setSettingsPrefs(settingsPrefs: SettingsPrefsElement) {
+    this.settingsPrefs_ = settingsPrefs;
+  }
+
   // LanguageSettingsPrivate fake.
 
   /**
@@ -205,9 +211,7 @@ export class FakeLanguageSettingsPrivate extends TestBrowserProxy {
    */
   getAlwaysTranslateLanguages() {
     const alwaysTranslateMap =
-        PrefService.getInstance()
-            .getPref<Record<string, string>>('translate_allowlists')
-            .value;
+        this.settingsPrefs_!.get('prefs.translate_allowlists.value');
     return Promise.resolve(Object.keys(alwaysTranslateMap));
   }
 
@@ -219,27 +223,23 @@ export class FakeLanguageSettingsPrivate extends TestBrowserProxy {
     // Need to create a copy of the translate_allowlist object so that
     // preference observers are notified during tests.
     const alwaysTranslateMap = Object.assign(
-        {},
-        PrefService.getInstance()
-            .getPref<Record<string, string>>('translate_allowlists')
-            .value);
+        {}, this.settingsPrefs_!.get('prefs.translate_allowlists.value'));
     if (alwaysTranslate) {
       // The target language is not used in tests so set to 'en'.
       alwaysTranslateMap[languageCode] = 'en';
     } else {
       delete alwaysTranslateMap[languageCode];
     }
-    PrefService.getInstance().setPrefValue(
-        'translate_allowlists', alwaysTranslateMap);
+    this.settingsPrefs_!.set(
+        'prefs.translate_allowlists.value', alwaysTranslateMap);
   }
 
   /**
    * Gets languages that should never be offered to translate.
    */
   getNeverTranslateLanguages() {
-    return Promise.resolve(PrefService.getInstance()
-                               .getPref<string[]>('translate_blocked_languages')
-                               .value);
+    return Promise.resolve(
+        this.settingsPrefs_!.get('prefs.translate_blocked_languages.value'));
   }
 
   /**
@@ -247,33 +247,33 @@ export class FakeLanguageSettingsPrivate extends TestBrowserProxy {
    * which languages to translate, generate the Accept-Language header, etc.).
    */
   enableLanguage(languageCode: string) {
-    const languageCodes = PrefService.getInstance()
-                              .getPref<string>('intl.accept_languages')
-                              .value;
+    let languageCodes =
+        this.settingsPrefs_!.get('prefs.intl.accept_languages.value');
     const languages = languageCodes.split(',');
     if (languages.indexOf(languageCode) !== -1) {
       return;
     }
     languages.push(languageCode);
-    PrefService.getInstance().setPrefValue(
-        'intl.accept_languages', languages.join(','));
+    languageCodes = languages.join(',');
+    this.settingsPrefs_!.set(
+        'prefs.intl.accept_languages.value', languageCodes);
   }
 
   /**
    * Disables a language, removing it from the Accept-Language list.
    */
   disableLanguage(languageCode: string) {
-    const languageCodes = PrefService.getInstance()
-                              .getPref<string>('intl.accept_languages')
-                              .value;
+    let languageCodes =
+        this.settingsPrefs_!.get('prefs.intl.accept_languages.value');
     const languages = languageCodes.split(',');
     const index = languages.indexOf(languageCode);
     if (index === -1) {
       return;
     }
     languages.splice(index, 1);
-    PrefService.getInstance().setPrefValue(
-        'intl.accept_languages', languages.join(','));
+    languageCodes = languages.join(',');
+    this.settingsPrefs_!.set(
+        'prefs.intl.accept_languages.value', languageCodes);
   }
 
   /**
@@ -282,23 +282,21 @@ export class FakeLanguageSettingsPrivate extends TestBrowserProxy {
    * preferences.
    */
   setEnableTranslationForLanguage(languageCode: string, enable: boolean) {
-    const pref = PrefService.getInstance().getPref<string[]>(
-        'translate_blocked_languages');
-    const index = pref.value.indexOf(languageCode);
+    const index =
+        this.settingsPrefs_!.get('prefs.translate_blocked_languages.value')
+            .indexOf(languageCode);
     if (enable) {
       if (index === -1) {
         return;
       }
-      const updated = [...pref.value];
-      updated.splice(index, 1);
-      PrefService.getInstance().setPrefValue(
-          'translate_blocked_languages', updated);
+      this.settingsPrefs_!.splice(
+          'prefs.translate_blocked_languages.value', index, 1);
     } else {
       if (index !== -1) {
         return;
       }
-      PrefService.getInstance().appendPrefListItem(
-          'translate_blocked_languages', languageCode);
+      this.settingsPrefs_!.push(
+          'prefs.translate_blocked_languages.value', languageCode);
     }
   }
 
@@ -308,9 +306,8 @@ export class FakeLanguageSettingsPrivate extends TestBrowserProxy {
    */
   moveLanguage(
       languageCode: string, moveType: chrome.languageSettingsPrivate.MoveType) {
-    const languageCodes = PrefService.getInstance()
-                              .getPref<string>('intl.accept_languages')
-                              .value;
+    let languageCodes =
+        this.settingsPrefs_!.get('prefs.intl.accept_languages.value');
     const languages = languageCodes.split(',');
     const index = languages.indexOf(languageCode);
 
@@ -326,7 +323,7 @@ export class FakeLanguageSettingsPrivate extends TestBrowserProxy {
         return;
       }
 
-      const temp = languages[index - 1]!;
+      const temp = languages[index - 1];
       languages[index - 1] = languageCode;
       languages[index] = temp;
     } else if (moveType === chrome.languageSettingsPrivate.MoveType.DOWN) {
@@ -334,13 +331,14 @@ export class FakeLanguageSettingsPrivate extends TestBrowserProxy {
         return;
       }
 
-      const temp = languages[index + 1]!;
+      const temp = languages[index + 1];
       languages[index + 1] = languageCode;
       languages[index] = temp;
     }
 
-    PrefService.getInstance().setPrefValue(
-        'intl.accept_languages', languages.join(','));
+    languageCodes = languages.join(',');
+    this.settingsPrefs_!.set(
+        'prefs.intl.accept_languages.value', languageCodes);
   }
 
   /**
@@ -354,8 +352,8 @@ export class FakeLanguageSettingsPrivate extends TestBrowserProxy {
    * Sets the translate target language.
    */
   setTranslateTargetLanguage(languageCode: string) {
-    PrefService.getInstance().setPrefValue(
-        'translate_recent_target', languageCode);
+    this.settingsPrefs_!.set(
+        'prefs.translate_recent_target.value', languageCode);
   }
 
   /**

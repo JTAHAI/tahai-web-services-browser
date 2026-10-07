@@ -7,7 +7,6 @@
 
 #include <array>
 
-#include "base/memory/raw_ptr.h"
 #include "base/task/sequence_manager/task_time_observer.h"
 #include "base/time/time.h"
 #include "third_party/blink/renderer/core/core_export.h"
@@ -136,8 +135,7 @@ class CORE_EXPORT PerformanceMonitor final
   // TaskTimeObserver implementation
   void WillProcessTask(base::TimeTicks start_time) override;
   void DidProcessTask(base::TimeTicks start_time,
-                      base::TimeTicks end_time,
-                      base::TimeTicks desired_execution_time) override;
+                      base::TimeTicks end_time) override;
 
   void WillExecuteScript(ExecutionContext*);
   void DidExecuteScript();
@@ -158,14 +156,14 @@ class CORE_EXPORT PerformanceMonitor final
   unsigned script_depth_ = 0;
   unsigned layout_depth_ = 0;
   unsigned user_callback_depth_ = 0;
-  raw_ptr<const void, UnprotectedInRelease | DanglingUntriaged> user_callback_;
+  const void* user_callback_;
 
   std::array<base::TimeDelta, kAfterLast> thresholds_;
 
   Member<LocalFrame> local_root_;
   Member<ExecutionContext> task_execution_context_;
   // This is needed for calling v8::metrics::LongTaskStats::Reset.
-  const raw_ptr<v8::Isolate, UnprotectedInRelease | DanglingUntriaged> isolate_;
+  v8::Isolate* const isolate_;
   bool task_has_multiple_contexts_ = false;
   bool task_should_be_reported_ = false;
   using ClientThresholds = GCedHeapHashMap<WeakMember<Client>, base::TimeDelta>;

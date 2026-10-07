@@ -183,7 +183,8 @@ const CGFloat kCompletionRowSpacing = 16.0;
   badgeContainer.translatesAutoresizingMaskIntoConstraints = NO;
 
   UIImageView* completionBadgeView = [[UIImageView alloc]
-      initWithImage:SymbolWithPointSize(SymbolSealFill, kCompletionBadgeSize)];
+      initWithImage:DefaultSymbolWithPointSize(kSealFillSymbol,
+                                               kCompletionBadgeSize)];
   completionBadgeView.contentMode = UIViewContentModeScaleAspectFit;
   completionBadgeView.frame =
       CGRectMake(0, 0, kCompletionBadgeSize, kCompletionBadgeSize);
@@ -201,7 +202,7 @@ const CGFloat kCompletionRowSpacing = 16.0;
   completionBadgeIconView.tintColor =
       [UIColor colorNamed:kPrimaryBackgroundColor];
   completionBadgeIconView.image =
-      SymbolWithPointSize(SymbolFlagCheckered, kCheckeredFlagIconSize);
+      DefaultSymbolWithPointSize(@"flag.checkered", kCheckeredFlagIconSize);
   [badgeContainer addSubview:completionBadgeIconView];
 
   AddSameCenterConstraints(completionBadgeIconView, badgeContainer);

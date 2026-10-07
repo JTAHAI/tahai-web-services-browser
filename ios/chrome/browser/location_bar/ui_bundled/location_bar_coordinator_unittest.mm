@@ -9,7 +9,6 @@
 #import <vector>
 
 #import "base/test/scoped_feature_list.h"
-#import "components/feature_engagement/public/event_constants.h"
 #import "components/feature_engagement/public/feature_constants.h"
 #import "components/feature_engagement/public/tracker.h"
 #import "components/feature_engagement/test/mock_tracker.h"
@@ -48,7 +47,6 @@
 #import "ios/chrome/browser/shared/public/commands/qr_scanner_commands.h"
 #import "ios/chrome/browser/shared/public/commands/quick_delete_commands.h"
 #import "ios/chrome/browser/shared/public/commands/scene_commands.h"
-#import "ios/chrome/browser/shared/public/commands/send_tab_to_self_commands.h"
 #import "ios/chrome/browser/shared/public/commands/settings_commands.h"
 #import "ios/chrome/browser/shared/public/commands/toolbar_commands.h"
 #import "ios/chrome/browser/sync/model/sync_service_factory.h"
@@ -215,10 +213,6 @@ class LocationBarCoordinatorTest : public PlatformTest {
         OCMProtocolMock(@protocol(BrowserCoordinatorCommands));
     [dispatcher startDispatchingToTarget:mock_browser_coordinator_handler_
                              forProtocol:@protocol(BrowserCoordinatorCommands)];
-    mock_send_tab_to_self_handler_ =
-        OCMProtocolMock(@protocol(SendTabToSelfCommands));
-    [dispatcher startDispatchingToTarget:mock_send_tab_to_self_handler_
-                             forProtocol:@protocol(SendTabToSelfCommands)];
 
     delegate_ = [[TestOmniboxFocusDelegate alloc] init];
 
@@ -244,7 +238,6 @@ class LocationBarCoordinatorTest : public PlatformTest {
   TestOmniboxFocusDelegate* delegate_;
   SceneState* scene_state_;
   id mock_browser_coordinator_handler_;
-  id mock_send_tab_to_self_handler_;
 };
 
 TEST_F(LocationBarCoordinatorTest, Stops) {
@@ -438,7 +431,7 @@ TEST_F(LocationBarCoordinatorTest, CanSendTabToSelfNoService) {
 }
 
 // Test that locationBarSendTabToSelfTapped triggers the browser coordinator
-// command to show the UI and notifies the feature engagement tracker.
+// command to show the UI.
 TEST_F(LocationBarCoordinatorTest, SendTabToSelfTapped) {
   base::test::ScopedFeatureList scoped_feature_list;
   scoped_feature_list.InitAndEnableFeature(
@@ -453,15 +446,8 @@ TEST_F(LocationBarCoordinatorTest, SendTabToSelfTapped) {
   id partial_mock_coordinator = OCMPartialMock(coordinator_);
   OCMStub([partial_mock_coordinator webState]).andReturn(fake_web_state.get());
 
-  feature_engagement::test::MockTracker* tracker =
-      static_cast<feature_engagement::test::MockTracker*>(
-          feature_engagement::TrackerFactory::GetForProfile(profile_.get()));
-  EXPECT_CALL(
-      *tracker,
-      NotifyEvent(feature_engagement::events::kSendTabToSelfOmniboxUsed));
-
   // Note: `ignoringNonObjectArgs` because OCMock cannot handle C++ references.
-  [[[mock_send_tab_to_self_handler_ expect] ignoringNonObjectArgs]
+  [[[mock_browser_coordinator_handler_ expect] ignoringNonObjectArgs]
       showSendTabToSelfUI:GURL()
                     title:@"Test Title"
                entryPoint:send_tab_to_self::ShareEntryPoint::kOmniboxMenu];
@@ -470,7 +456,7 @@ TEST_F(LocationBarCoordinatorTest, SendTabToSelfTapped) {
 
   // `self` is needed by OCMVerifyAll macro in C++ tests.
   id self = nil;
-  OCMVerifyAll(mock_send_tab_to_self_handler_);
+  OCMVerifyAll(mock_browser_coordinator_handler_);
 }
 
 }  // namespace

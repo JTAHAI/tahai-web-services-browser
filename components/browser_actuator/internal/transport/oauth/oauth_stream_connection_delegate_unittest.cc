@@ -136,7 +136,7 @@ TEST_F(OAuthStreamConnectionDelegateTest, AbortsOnTokenError) {
   delegate->PrepareRequest(std::make_unique<network::ResourceRequest>(),
                            future.GetCallback());
   identity_test_env_.WaitForAccessTokenRequestIfNecessaryAndRespondWithError(
-      GoogleServiceAuthError::FromServiceError(""));
+      GoogleServiceAuthError(GoogleServiceAuthError::SERVICE_ERROR));
   EXPECT_FALSE(future.Take());
 }
 

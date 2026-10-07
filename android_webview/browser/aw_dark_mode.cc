@@ -22,7 +22,7 @@ using base::android::ScopedJavaLocalRef;
 namespace android_webview {
 namespace {
 const void* const kAwDarkModeUserDataKey = &kAwDarkModeUserDataKey;
-bool sEnableLegacyDarkMode = false;
+bool sShouldEnableSimplifiedDarkMode = false;
 
 bool IsForceDarkEnabled(content::WebContents* web_contents) {
   AwContents* contents = AwContents::FromWebContents(web_contents);
@@ -40,12 +40,8 @@ static int64_t JNI_AwDarkMode_Init(JNIEnv* env,
   return reinterpret_cast<intptr_t>(new AwDarkMode(env, obj, web_contents));
 }
 
-static void JNI_AwDarkMode_EnableLegacyDarkMode(JNIEnv* env) {
-  sEnableLegacyDarkMode = true;
-}
-
-static void JNI_AwDarkMode_ResetForTesting(JNIEnv* env) {
-  sEnableLegacyDarkMode = false;
+static void JNI_AwDarkMode_EnableSimplifiedDarkMode(JNIEnv* env) {
+  sShouldEnableSimplifiedDarkMode = true;
 }
 
 AwDarkMode* AwDarkMode::FromWebContents(content::WebContents* contents) {
@@ -72,9 +68,9 @@ void AwDarkMode::PopulateWebPreferences(
     int force_dark_mode,
     int force_dark_behavior,
     bool algorithmic_darkening_allowed) {
-  if (sEnableLegacyDarkMode) {
-    PopulateWebPreferencesForLegacy(web_prefs, force_dark_mode,
-                                    force_dark_behavior);
+  if (!sShouldEnableSimplifiedDarkMode) {
+    PopulateWebPreferencesForPreT(web_prefs, force_dark_mode,
+                                  force_dark_behavior);
     return;
   }
   prefers_dark_from_theme_ = IsAppUsingDarkTheme();
@@ -94,7 +90,7 @@ void AwDarkMode::PopulateWebPreferences(
   }
 }
 
-void AwDarkMode::PopulateWebPreferencesForLegacy(
+void AwDarkMode::PopulateWebPreferencesForPreT(
     blink::web_pref::WebPreferences* web_prefs,
     int force_dark_mode,
     int force_dark_behavior) {

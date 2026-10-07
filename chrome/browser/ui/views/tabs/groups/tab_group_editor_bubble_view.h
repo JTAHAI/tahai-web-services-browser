@@ -26,6 +26,7 @@
 #include "base/memory/raw_ref.h"
 #endif
 
+class Browser;
 class BrowserWindowInterface;
 
 namespace tab_groups {
@@ -72,7 +73,7 @@ class TabGroupEditorBubbleView : public views::BubbleDialogDelegateView,
 
   // Shows the editor for `group`. Returns the bubble's widget.
   static std::unique_ptr<views::Widget> Show(
-      BrowserWindowInterface* browser,
+      Browser* browser,
       const tab_groups::TabGroupId& group,
       views::View* anchor_view,
       std::optional<gfx::Rect> anchor_rect,
@@ -86,7 +87,7 @@ class TabGroupEditorBubbleView : public views::BubbleDialogDelegateView,
   void AddedToWidget() override;
 
  private:
-  TabGroupEditorBubbleView(BrowserWindowInterface* browser,
+  TabGroupEditorBubbleView(Browser* browser,
                            const tab_groups::TabGroupId& group,
                            views::View* anchor_view,
                            std::optional<gfx::Rect> anchor_rect,
@@ -152,6 +153,17 @@ class TabGroupEditorBubbleView : public views::BubbleDialogDelegateView,
   // tabstrip contains more than just the tabs in the current group.
   bool CanMoveGroupToNewWindow();
 
+  // If the saved tab group service exists, this method disconnects the group
+  // from the saved tab group so that actions can be performed on the group
+  // without updating the saved group. If the service doesnt exist, it does
+  // nothing.
+  void MaybeDisconnectSavedGroup();
+
+  // Closes all of the tabs in the tab group in the tabstrip. If the tab group
+  // Is the only thing in the tabstrip, adds a new tab first so that the window
+  // isn't closed.
+  void DeleteGroupFromTabstrip();
+
   void OnBubbleClose();
 
 #if BUILDFLAG(IS_CHROMEOS)
@@ -166,8 +178,7 @@ class TabGroupEditorBubbleView : public views::BubbleDialogDelegateView,
 
   // the implementation of the ungroup command. This method is static so that
   // it can be called from dialogs as a callback.
-  static void Ungroup(BrowserWindowInterface* browser,
-                      tab_groups::TabGroupId group);
+  static void Ungroup(Browser* browser, tab_groups::TabGroupId group);
 
   class TitleFieldController : public views::TextfieldController {
    public:
@@ -218,16 +229,16 @@ class TabGroupEditorBubbleView : public views::BubbleDialogDelegateView,
   class Footer : public views::View {
     METADATA_HEADER(Footer, views::View)
    public:
-    explicit Footer(BrowserWindowInterface* browser_);
+    explicit Footer(Browser* browser_);
     ~Footer() override = default;
 
-    static void OpenLearnMorePage(const BrowserWindowInterface* browser_);
+    static void OpenLearnMorePage(const Browser* browser_);
   };
 
   TitleFieldController title_field_controller_;
   Colors colors_;
 
-  raw_ptr<BrowserWindowInterface> browser_;
+  raw_ptr<Browser> browser_;
   const tab_groups::TabGroupId group_;
 
   // Ptr access to specific children. Must be cleared and reset by

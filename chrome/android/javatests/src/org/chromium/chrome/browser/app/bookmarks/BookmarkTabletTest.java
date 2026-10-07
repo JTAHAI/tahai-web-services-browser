@@ -16,7 +16,6 @@ import static androidx.test.espresso.matcher.ViewMatchers.withText;
 
 import static org.hamcrest.CoreMatchers.allOf;
 import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.startsWith;
 import static org.junit.Assert.assertEquals;
 
 import static org.chromium.chrome.browser.url_constants.UrlConstantResolver.getOriginalNativeBookmarksUrl;
@@ -37,16 +36,14 @@ import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.util.CallbackHelper;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.DoNotBatch;
-import org.chromium.base.test.util.Features.DisableFeatures;
 import org.chromium.base.test.util.Restriction;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.bookmarks.BookmarkManagerCoordinator;
 import org.chromium.chrome.browser.bookmarks.BookmarkModel;
 import org.chromium.chrome.browser.bookmarks.BookmarkPage;
-import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
+import org.chromium.chrome.browser.tab.EmptyTabObserver;
 import org.chromium.chrome.browser.tab.Tab;
-import org.chromium.chrome.browser.tab.TabObserver;
 import org.chromium.chrome.browser.ui.native_page.NativePage;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.chrome.test.transit.ChromeTransitTestRules;
@@ -55,7 +52,7 @@ import org.chromium.chrome.test.util.BookmarkTestUtil;
 import org.chromium.chrome.test.util.ChromeTabUtils;
 import org.chromium.chrome.test.util.TabStripUtils;
 import org.chromium.components.embedder_support.util.UrlConstants;
-import org.chromium.ui.accessibility.AccessibilityStateTestHelper;
+import org.chromium.ui.accessibility.AccessibilityState;
 import org.chromium.ui.base.DeviceFormFactor;
 import org.chromium.ui.base.DeviceInput;
 
@@ -65,10 +62,6 @@ import org.chromium.ui.base.DeviceInput;
 @Restriction(DeviceFormFactor.TABLET_OR_DESKTOP)
 // TODO(crbug.com/40899175): Investigate batching.
 @DoNotBatch(reason = "Test has side-effects (bookmarks, pageloads) and thus can't be batched.")
-@DisableFeatures({
-    ChromeFeatureList.ANDROID_DESKTOP_BOOKMARK_LAYOUT,
-    ChromeFeatureList.ANDROID_DESKTOP_BOOKMARK_DIALOG
-})
 public class BookmarkTabletTest {
     @Rule
     public FreshCtaTransitTestRule mActivityTestRule =
@@ -91,21 +84,16 @@ public class BookmarkTabletTest {
     private void openBookmarkManager() throws InterruptedException {
         BookmarkTestUtil.waitForBookmarkModelLoaded();
 
-        String rootFolderId = "folder/0";
-        mActivityTestRule.loadUrl(getOriginalNativeBookmarksUrl() + rootFolderId);
+        mActivityTestRule.loadUrl(getOriginalNativeBookmarksUrl());
+        mItemsContainer =
+                mActivityTestRule.getActivity().findViewById(R.id.selectable_list_recycler_view);
+        mItemsContainer.setItemAnimator(null); // Disable animation to reduce flakiness.
+        mBookmarkManagerCoordinator =
+                ((BookmarkPage) mActivityTestRule.getActivityTab().getNativePage())
+                        .getManagerForTesting();
+
         ThreadUtils.runOnUiThreadBlocking(
-                () -> {
-                    mItemsContainer =
-                            mActivityTestRule
-                                    .getActivity()
-                                    .findViewById(R.id.selectable_list_recycler_view);
-                    mItemsContainer.setItemAnimator(null); // Disable animation to reduce flakiness.
-                    mBookmarkManagerCoordinator =
-                            ((BookmarkPage) mActivityTestRule.getActivityTab().getNativePage())
-                                    .getManagerForTesting();
-                    AccessibilityStateTestHelper.setIsAnyAccessibilityServiceEnabledForTesting(
-                            false);
-                });
+                () -> AccessibilityState.setIsAnyAccessibilityServiceEnabledForTesting(false));
     }
 
     /**
@@ -163,7 +151,7 @@ public class BookmarkTabletTest {
                 () -> {
                     Tab tab = mActivityTestRule.getActivity().getActivityTab();
                     tab.addObserver(
-                            new TabObserver() {
+                            new EmptyTabObserver() {
                                 NativePage mBookmarksNativePage;
 
                                 @Override
@@ -184,9 +172,8 @@ public class BookmarkTabletTest {
                                 }
                             });
                 });
-        String rootFolderId = "folder/0";
-        mActivityTestRule.loadUrl(getOriginalNativeBookmarksUrl() + rootFolderId);
-        onView(withText(startsWith("Mobile bookmarks"))).check(matches(isDisplayed()));
+        mActivityTestRule.loadUrl(getOriginalNativeBookmarksUrl());
+        onView(withText("Mobile bookmarks")).check(matches(isDisplayed()));
         assertEquals(0, callbackHelper.getCallCount());
     }
 
@@ -209,11 +196,11 @@ public class BookmarkTabletTest {
                 .check(matches(isDisplayed()));
 
         onView(allOf(withId(R.id.clear_text_button), isDisplayed())).perform(click());
-        onView(withText(startsWith("Mobile bookmarks"))).perform(click());
+        onView(withText("Mobile bookmarks")).perform(click());
         onView(allOf(isDescendantOfA(withId(R.id.action_bar)), withText("Mobile bookmarks")))
                 .check(matches(isDisplayed()));
 
-        // After navigating to a new folder, the search bar should not be focused.
+        // After navigating to a new folder, the search bar should be focused again.
         BookmarkTestUtil.getSearchBoxViewInteraction().check(matches(not(isFocused())));
         // And the search text should be cleared.
         BookmarkTestUtil.getSearchBoxViewInteraction().check(matches(withText("")));
@@ -222,7 +209,7 @@ public class BookmarkTabletTest {
         // user's query is empty in the search bar
         BookmarkTestUtil.getSearchBoxViewInteraction().perform(replaceText(""));
         // user's query is empty the context inside bookmarks should not change
-        onView(withText(startsWith("Mobile bookmarks"))).check(matches(isDisplayed()));
+        onView(withText("Mobile bookmarks")).check(matches(isDisplayed()));
     }
 
     @Test
@@ -244,7 +231,7 @@ public class BookmarkTabletTest {
                 .check(matches(isDisplayed()));
 
         onView(allOf(withId(R.id.clear_text_button), isDisplayed())).perform(click());
-        onView(withText(startsWith("Mobile bookmarks"))).perform(click());
+        onView(withText("Mobile bookmarks")).perform(click());
         onView(allOf(isDescendantOfA(withId(R.id.action_bar)), withText("Mobile bookmarks")))
                 .check(matches(isDisplayed()));
 
@@ -257,6 +244,6 @@ public class BookmarkTabletTest {
         // user's query is empty in the search bar
         BookmarkTestUtil.getSearchBoxViewInteraction().perform(replaceText(""));
         // user's query is empty the context inside bookmarks should not change
-        onView(withText(startsWith("Mobile bookmarks"))).check(matches(isDisplayed()));
+        onView(withText("Mobile bookmarks")).check(matches(isDisplayed()));
     }
 }

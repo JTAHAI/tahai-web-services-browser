@@ -1638,18 +1638,11 @@ error::Error GLES2DecoderPassthroughImpl::DoGetIntegerv(GLenum pname,
                                                         GLsizei bufsize,
                                                         GLsizei* length,
                                                         GLint* params) {
-  error::Error result = GetNumericHelper(
+  return GetNumericHelper(
       pname, bufsize, length, params,
       [this](GLenum pname, GLsizei bufsize, GLsizei* length, GLint* params) {
         api()->glGetIntegervRobustANGLEFn(pname, bufsize, length, params);
       });
-  if (result == error::kNoError && pname == GL_MAX_TEXTURE_IMAGE_UNITS &&
-      feature_info_->workarounds().max_texture_image_units_13) {
-    if (bufsize >= 1 && params) {
-      params[0] = std::min(params[0], 13);
-    }
-  }
-  return result;
 }
 
 error::Error GLES2DecoderPassthroughImpl::DoGetInternalformativ(GLenum target,

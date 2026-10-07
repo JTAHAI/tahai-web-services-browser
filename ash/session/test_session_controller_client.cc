@@ -168,7 +168,7 @@ void TestSessionControllerClient::LockScreen() {
 }
 
 void TestSessionControllerClient::UnlockScreen() {
-  SetSessionState(session_manager::SessionState::ACTIVE);
+  RequestHideLockScreen();
 }
 
 void TestSessionControllerClient::FlushForTest() {
@@ -202,6 +202,11 @@ void TestSessionControllerClient::RequestLockScreen() {
       FROM_HERE, base::BindOnce(&TestSessionControllerClient::SetSessionState,
                                 weak_ptr_factory_.GetWeakPtr(),
                                 session_manager::SessionState::LOCKED));
+}
+
+void TestSessionControllerClient::RequestHideLockScreen() {
+  ++request_hide_lock_screen_count_;
+  SetSessionState(session_manager::SessionState::ACTIVE);
 }
 
 void TestSessionControllerClient::RequestSignOut() {
@@ -276,6 +281,8 @@ void TestSessionControllerClient::ShowMultiProfileLogin() {
   multi_profile_login_widget_->Init(std::move(params));
   multi_profile_login_widget_->Show();
 }
+
+void TestSessionControllerClient::EmitAshInitialized() {}
 
 PrefService* TestSessionControllerClient::GetSigninScreenPrefService() {
   return prefs_provider_->GetSigninPrefs();

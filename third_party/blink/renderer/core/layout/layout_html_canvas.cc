@@ -114,17 +114,15 @@ void LayoutHTMLCanvas::InvalidatePaint(
 void LayoutHTMLCanvas::StyleDidChange(
     StyleDifference diff,
     const ComputedStyle* old_style,
-    const ComputedStyle& new_style,
     const StyleChangeContext& style_change_context) {
   NOT_DESTROYED();
-  LayoutReplaced::StyleDidChange(diff, old_style, new_style,
-                                 style_change_context);
-  To<HTMLCanvasElement>(GetNode())->StyleDidChange(old_style, new_style);
+  LayoutReplaced::StyleDidChange(diff, old_style, style_change_context);
+  To<HTMLCanvasElement>(GetNode())->StyleDidChange(old_style, StyleRef());
 }
 
-void LayoutHTMLCanvas::WillBeDestroyed(const ComputedStyle* style) {
+void LayoutHTMLCanvas::WillBeDestroyed() {
   NOT_DESTROYED();
-  LayoutReplaced::WillBeDestroyed(style);
+  LayoutReplaced::WillBeDestroyed();
   To<HTMLCanvasElement>(GetNode())->LayoutObjectDestroyed();
 }
 

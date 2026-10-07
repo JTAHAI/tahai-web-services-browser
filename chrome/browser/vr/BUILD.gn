@@ -450,8 +450,6 @@ if (enable_vr) {
       sources = [
         "test/mock_xr_device_hook_base.cc",
         "test/mock_xr_device_hook_base.h",
-        "test/mock_xr_input_source.cc",
-        "test/mock_xr_input_source.h",
       ]
 
       deps = [
@@ -459,7 +457,7 @@ if (enable_vr) {
         "//chrome/common:constants",
         "//chrome/test:xr_browser_tests_common",
         "//device/vr",
-        "//device/vr:vr_test_utils",
+        "//device/vr:vr_test_hook",
         "//device/vr/buildflags",
         "//device/vr/orientation",
         "//device/vr/public/mojom:isolated_xr_service",
@@ -499,14 +497,14 @@ if (enable_vr) {
           "//device/vr:directx_helpers",
           "//device/vr:openxr_data",
         ]
-      }
 
-      if (enable_openxr) {
-        deps += [
-          "//device/vr:openxr_test_helper",
-          "//third_party/openxr",
-        ]
-        data_deps += [ "//device/vr:openxr_mock" ]
+        if (enable_openxr) {
+          deps += [
+            "//device/vr:openxr_test_helper",
+            "//third_party/openxr",
+          ]
+          data_deps += [ "//device/vr:openxr_mock" ]
+        }
       }
     }
   }

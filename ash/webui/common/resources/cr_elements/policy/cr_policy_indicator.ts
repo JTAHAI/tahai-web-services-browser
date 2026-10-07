@@ -48,7 +48,7 @@ export class CrPolicyIndicatorElement extends CrPolicyIndicatorElementBase {
    *     See chrome.settingsPrivate.PrefObject.controlledByName
    * @return The tooltip text for |type|.
    */
-  protected getIndicatorTooltip_(
+  private getIndicatorTooltip_(
       indicatorType: CrPolicyIndicatorType,
       indicatorSourceName: string): string {
     return this.getIndicatorTooltip(indicatorType, indicatorSourceName);

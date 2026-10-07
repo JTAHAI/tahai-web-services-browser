@@ -1,2 +1,3 @@
-rules:
-- "**": [imagebitmaprenderingcontext]
+features:
+- name: imagebitmaprenderingcontext
+  files: "**"

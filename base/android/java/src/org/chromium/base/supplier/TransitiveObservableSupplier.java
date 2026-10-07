@@ -88,7 +88,7 @@ class TransitiveObservableSupplier<
     public ChildT get() {
         // If we have no observers, our copy of the value is not kept current.
         // Also - do not call any delegates after destroy(), since it might not be safe to do so.
-        if (!isDestroyed() && !hasObservers()) {
+        if (mObservers != null && mObservers.isEmpty()) {
             ChildT ret = null;
             ParentT parentValue = mParentSupplier.get();
             if (parentValue != null) {
@@ -115,8 +115,8 @@ class TransitiveObservableSupplier<
         // Ensure that if we are non-null or monotonic, that the transitive supplier is non-null or
         // monotonic.
         assert mDefaultValue != null
-                        || mAllowSetToNull
-                        || !BaseObservableSupplierImpl.allowsSetToNull(other)
+                        || !Boolean.FALSE.equals(mAllowSetToNull)
+                        || !Boolean.TRUE.equals(BaseObservableSupplierImpl.allowsSetToNull(other))
                 : "Root supplier set as non-null, but the transitive one is not.";
     }
 

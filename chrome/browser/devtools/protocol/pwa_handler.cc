@@ -22,6 +22,7 @@
 #include "chrome/browser/badging/badge_manager_factory.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profile_manager.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/web_applications/isolated_web_apps/install/isolated_web_app_dev_install_manager.h"
 #include "chrome/browser/web_applications/locks/app_lock.h"
@@ -703,9 +704,8 @@ protocol::Response PWAHandler::OpenCurrentPageInApp(
                       " cannot be opened in its app. Check if the app is "
                       "correctly installed."}));
   }
-  BrowserWindowInterface* browser =
-      provider->ui_manager().ReparentAppTabToWindow(contents, app_id,
-                                                    shortcut_created);
+  Browser* browser = provider->ui_manager().ReparentAppTabToWindow(
+      contents, app_id, shortcut_created);
   if (browser == nullptr) {
     return protocol::Response::InvalidRequest(base::StrCat(
         {"The current page ", contents->GetLastCommittedURL().spec(),

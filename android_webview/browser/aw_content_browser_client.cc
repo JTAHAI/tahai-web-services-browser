@@ -25,6 +25,7 @@
 #include "android_webview/browser/aw_feature_list_creator.h"
 #include "android_webview/browser/aw_http_auth_handler.h"
 #include "android_webview/browser/aw_http_cache_manager.h"
+#include "android_webview/browser/aw_origin_matched_header.h"
 #include "android_webview/browser/aw_policy_blocklist_service_factory.h"
 #include "android_webview/browser/aw_settings.h"
 #include "android_webview/browser/aw_speech_recognition_manager_delegate.h"
@@ -34,7 +35,6 @@
 #include "android_webview/browser/content_restriction/aw_content_restriction_navigation_throttle.h"
 #include "android_webview/browser/content_restriction/aw_content_restriction_url_loader_throttle.h"
 #include "android_webview/browser/cookie_manager.h"
-#include "android_webview/browser/http_headers/aw_origin_matched_header.h"
 #include "android_webview/browser/network_service/aw_browser_context_io_thread_handle.h"
 #include "android_webview/browser/network_service/aw_proxy_config_monitor.h"
 #include "android_webview/browser/network_service/aw_proxying_restricted_cookie_manager.h"
@@ -73,7 +73,6 @@
 #include "base/strings/utf_string_conversions.h"
 #include "base/task/sequenced_task_runner.h"
 #include "base/task/thread_pool/thread_pool_instance.h"
-#include "base/timer/elapsed_timer.h"
 #include "base/trace_event/trace_event.h"
 #include "build/build_config.h"
 #include "components/crash/content/browser/crash_handler_host_linux.h"
@@ -82,7 +81,6 @@
 #include "components/embedder_support/user_agent_utils.h"
 #include "components/heap_profiling/in_process/heap_profiler_controller.h"
 #include "components/navigation_interception/intercept_navigation_delegate.h"
-#include "components/network_session_configurator/common/network_switches.h"
 #include "components/page_load_metrics/browser/metrics_navigation_throttle.h"
 #include "components/page_load_metrics/browser/metrics_web_contents_observer.h"
 #include "components/policy/content/policy_blocklist_navigation_throttle.h"
@@ -95,8 +93,6 @@
 #include "components/safe_browsing/core/common/features.h"
 #include "components/safe_browsing/core/common/hashprefix_realtime/hash_realtime_utils.h"
 #include "components/sampling_profiler/process_type.h"
-#include "components/security_state/content/content_utils.h"
-#include "components/security_state/core/security_state.h"
 #include "components/url_matcher/url_matcher.h"
 #include "components/url_matcher/url_util.h"
 #include "components/user_prefs/user_prefs.h"
@@ -129,7 +125,6 @@
 #include "mojo/public/cpp/bindings/pending_receiver.h"
 #include "net/android/network_library.h"
 #include "net/base/features.h"
-#include "net/base/url_util.h"
 #include "net/cookies/cookie_setting_override.h"
 #include "net/cookies/site_for_cookies.h"
 #include "net/http/http_util.h"
@@ -205,6 +200,7 @@ base::WeakPtr<AsyncCheckTracker> GetAsyncCheckTracker(
              /*should_sync_checker_check_allowlist=*/false)
       ->GetWeakPtr();
 }
+
 }  // anonymous namespace
 
 std::string GetProduct() {
@@ -298,21 +294,18 @@ void AwContentBrowserClient::OnNetworkServiceCreated(
   if (net::features::IsDnsPlatformSupported() &&
       base::FeatureList::IsEnabled(features::kWebViewEnableDnsPlatform)) {
     // Using the platform DNS APIs requires:
-    // 1. Enabling the built-in DNS in platform mode
-    // (net::InsecureDnsMode::kEnabledPlatform or
-    // net::InsecureDnsMode::kEnabledPlatformNoSystem)
+    // 1. Enabling the built-in DNS client (insecure_dns_client_enabled = true)
     // 2. Disabling DoH queries, these do not yet use the platform DNS APIs
     //    (net::SecureDnsMode::kOff)
-    net::InsecureDnsMode insecure_dns_mode =
-        features::kWebViewEnableDnsPlatformNoSystem.Get()
-            ? net::InsecureDnsMode::kEnabledPlatformNoSystem
-            : net::InsecureDnsMode::kEnabledPlatform;
+    // 3. Make HostResolverManager use the platform DNS APIs
+    //    (insecure_dns_via_platform_apis_enabled = true)
     network_service->ConfigureStubHostResolver(
-        insecure_dns_mode,
+        /*insecure_dns_client_enabled=*/true,
         /*happy_eyeballs_v3_enabled=*/false, net::SecureDnsMode::kOff,
         net::DnsOverHttpsConfig(),
         /*additional_dns_types_enabled=*/true,
-        /*fallback_doh_nameservers=*/std::vector<net::IPEndPoint>());
+        /*fallback_doh_nameservers=*/std::vector<net::IPEndPoint>(),
+        /*insecure_dns_via_platform_apis_enabled=*/true);
   }
 }
 
@@ -370,11 +363,25 @@ AwContentBrowserClient::CreateBrowserMainParts(bool /* is_integration_test */) {
   return std::make_unique<AwBrowserMainParts>(this);
 }
 
+bool AwContentBrowserClient::ShouldRunStartupTasksAsync() {
+  if (!should_run_startup_tasks_async_.has_value()) {
+    should_run_startup_tasks_async_ =
+        AwBrowserMainParts::runStartupTasksAsync();
+  }
+  return *should_run_startup_tasks_async_ ||
+         run_startup_tasks_async_for_testing_;
+}
+
 void AwContentBrowserClient::PostAfterStartupTask(
     const base::Location& from_here,
     const scoped_refptr<base::SequencedTaskRunner>& task_runner,
     base::OnceClosure task) {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
+  if (!ShouldRunStartupTasksAsync()) {
+    task_runner->PostTask(from_here, std::move(task));
+    return;
+  }
+
   if (startup_info_.startup_complete) {
     task_runner->PostTask(from_here, std::move(task));
     return;
@@ -392,7 +399,9 @@ void AwContentBrowserClient::OnStartupComplete() {
   DCHECK(!startup_info_.startup_complete);
 
   startup_info_.startup_complete = true;
-  YieldToLooperChecker::GetInstance().SetStartupRunning(false);
+  if (ShouldRunStartupTasksAsync()) {
+    YieldToLooperChecker::GetInstance().SetStartupRunning(false);
+  }
 
   // if the native ui task execution isn't enabled already, enable it.
   if (!startup_info_.enable_native_task_execution_callback.is_null()) {
@@ -409,10 +418,17 @@ void AwContentBrowserClient::OnStartupComplete() {
 
 void AwContentBrowserClient::OnUiTaskRunnerReady(
     base::OnceClosure enable_native_task_execution_callback) {
+  if (!ShouldRunStartupTasksAsync()) {
+    std::move(enable_native_task_execution_callback).Run();
+    return;
+  }
+
   startup_info_.enable_native_task_execution_callback =
       std::move(enable_native_task_execution_callback);
 
-  YieldToLooperChecker::GetInstance().SetStartupRunning(true);
+  if (ShouldRunStartupTasksAsync()) {
+    YieldToLooperChecker::GetInstance().SetStartupRunning(true);
+  }
 }
 
 std::unique_ptr<content::WebContentsViewDelegate>
@@ -567,32 +583,6 @@ void AwContentBrowserClient::AllowCertificateError(
     std::move(split_callback.second)
         .Run(content::CERTIFICATE_REQUEST_RESULT_TYPE_DENY);
   }
-}
-
-bool AwContentBrowserClient::IsSecurityLevelAcceptableForWebAuthn(
-    content::RenderFrameHost* rfh,
-    const url::Origin& caller_origin) {
-  if (!base::FeatureList::IsEnabled(
-          android_webview::features::kWebViewWebAuthnRequiresSecureOrigin)) {
-    return true;
-  }
-  content::WebContents* web_contents =
-      content::WebContents::FromRenderFrameHost(rfh);
-  if (!web_contents) {
-    return false;
-  }
-  if (net::IsLocalhost(caller_origin.GetURL())) {
-    return true;
-  }
-  auto state = security_state::GetVisibleSecurityState(web_contents);
-  if (!state) {
-    return false;
-  }
-  security_state::SecurityLevel security_level =
-      security_state::GetSecurityLevel(*state);
-  return security_level == security_state::SecurityLevel::SECURE ||
-         base::CommandLine::ForCurrentProcess()->HasSwitch(
-             switches::kIgnoreCertificateErrors);
 }
 
 base::OnceClosure AwContentBrowserClient::SelectClientCertificate(
@@ -1175,8 +1165,7 @@ void AwContentBrowserClient::WillCreateURLLoaderFactory(
     bool* bypass_redirect_checks,
     bool* disable_secure_dns,
     network::mojom::URLLoaderFactoryOverridePtr* factory_override,
-    scoped_refptr<base::SequencedTaskRunner> navigation_response_task_runner,
-    bool is_for_network_service) {
+    scoped_refptr<base::SequencedTaskRunner> navigation_response_task_runner) {
   TRACE_EVENT0("android_webview",
                "AwContentBrowserClient::WillCreateURLLoaderFactory");
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
@@ -1207,10 +1196,6 @@ void AwContentBrowserClient::WillCreateURLLoaderFactory(
       base::MakeRefCounted<AwBrowserContextIoThreadHandle>(
           static_cast<AwBrowserContext*>(browser_context));
 
-  bool was_blocked = !browser_context->GetDefaultStoragePartition()
-                          ->IsNetworkContextInitialized();
-  base::ElapsedTimer timer;
-
   mojo::PendingRemote<network::mojom::CookieManager> cookie_manager;
   browser_context->GetDefaultStoragePartition()
       ->GetNetworkContext()
@@ -1218,9 +1203,6 @@ void AwContentBrowserClient::WillCreateURLLoaderFactory(
 
   AwBrowserContext* aw_browser_context =
       static_cast<AwBrowserContext*>(browser_context);
-  AwBrowserContext::RecordNetworkContextInitializationBlocking(
-      "Navigation", timer.Elapsed(), was_blocked);
-
   AwCookieAccessPolicy* cookie_access_policy =
       aw_browser_context->GetCookieManager()->cookie_access_policy();
 
@@ -1315,7 +1297,6 @@ bool AwContentBrowserClient::WillCreateRestrictedCookieManager(
     bool is_service_worker,
     int process_id,
     int routing_id,
-    bool prefer_bound_cookie_context,
     mojo::PendingReceiver<network::mojom::RestrictedCookieManager>* receiver) {
   mojo::PendingReceiver<network::mojom::RestrictedCookieManager> orig_receiver =
       std::move(*receiver);
@@ -1458,6 +1439,29 @@ bool AwContentBrowserClient::AllowNonActivatedCrossOriginPaintHolding() {
   // TODO(crbug.com/368087192): We can consider disabling it while monitoring
   // for any breakages.
   return true;
+}
+
+bool AwContentBrowserClient::IsSharedStorageAllowed(
+    content::BrowserContext* browser_context,
+    content::RenderFrameHost* rfh,
+    const url::Origin& top_frame_origin,
+    const url::Origin& accessing_origin,
+    std::string* out_debug_message,
+    bool* out_block_is_site_setting_specific) {
+  // TODO(https://crbug.com/401255068): We should have a more stringent check
+  // here before launching beyond DEV.
+  return base::FeatureList::IsEnabled(network::features::kSharedStorageAPI);
+}
+
+bool AwContentBrowserClient::IsSharedStorageSelectURLAllowed(
+    content::BrowserContext* browser_context,
+    const url::Origin& top_frame_origin,
+    const url::Origin& accessing_origin,
+    std::string* out_debug_message,
+    bool* out_block_is_site_setting_specific) {
+  // TODO(https://crbug.com/401255068): We should have a more stringent check
+  // here before launching beyond DEV.
+  return base::FeatureList::IsEnabled(network::features::kSharedStorageAPI);
 }
 
 bool AwContentBrowserClient::ShouldAnimateBackForwardTransitions() {

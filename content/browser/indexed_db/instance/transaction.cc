@@ -376,10 +376,8 @@ void Transaction::CreateObjectStore(int64_t object_store_id,
                 object_store_id <= transaction.connection_->database()
                                        ->metadata()
                                        .max_object_store_id) {
-              ReportBadMessage(
-                  BadMessageReason::kTransactionCreateObjectStoreInvalidId,
-                  "Invalid object_store_id",
-                  std::move(report_bad_message_callback));
+              std::move(report_bad_message_callback)
+                  .Run("Invalid object_store_id");
               return Status::InvalidArgument("Invalid object_store_id.");
             }
 
@@ -414,9 +412,7 @@ void Transaction::Put(int64_t object_store_id,
                       std::vector<IndexedDBIndexKeys> index_keys,
                       blink::mojom::IDBTransaction::PutCallback callback) {
   if (mode_ == blink::mojom::IDBTransactionMode::ReadOnly) {
-    ReportBadMessage(BadMessageReason::kTransactionPutReadOnly,
-                     "Attempted to Put on readonly txn.",
-                     receiver_.GetBadMessageCallback());
+    receiver_.ReportBadMessage("Attempted to Put on readonly txn.");
     return;
   }
 
@@ -431,9 +427,7 @@ void Transaction::Put(int64_t object_store_id,
 
   if (input_value->bits.storage_type() ==
       mojo_base::BigBuffer::StorageType::kInvalidBuffer) {
-    ReportBadMessage(BadMessageReason::kTransactionPutInvalidValue,
-                     "Attempted to Put invalid SSV.",
-                     receiver_.GetBadMessageCallback());
+    receiver_.ReportBadMessage("Attempted to Put invalid SSV.");
     return;
   }
 
@@ -442,9 +436,7 @@ void Transaction::Put(int64_t object_store_id,
   if (!input_value->external_objects.empty() &&
       !CreateExternalObjects(input_value, &external_objects,
                              &total_blob_size)) {
-    ReportBadMessage(BadMessageReason::kTransactionPutInvalidExternalObjects,
-                     "Couldn't deserialize external objects.",
-                     receiver_.GetBadMessageCallback());
+    receiver_.ReportBadMessage("Couldn't deserialize external objects.");
     return;
   }
 
@@ -501,15 +493,12 @@ Status Transaction::DoPut(int64_t object_store_id,
   const IndexedDBObjectStoreMetadata* object_store =
       connection_->database()->GetObjectStoreMetadataIfExists(object_store_id);
   if (!object_store) {
-    ReportBadMessage(BadMessageReason::kTransactionDoPutInvalidObjectStoreId,
-                     "Invalid object_store_id",
-                     std::move(bad_message_callback));
+    std::move(bad_message_callback).Run("Invalid object_store_id");
     return Status::InvalidArgument("Invalid object_store_id.");
   }
   for (const IndexedDBIndexKeys& it : index_keys) {
     if (!object_store->indexes.contains(it.id)) {
-      ReportBadMessage(BadMessageReason::kTransactionDoPutInvalidIndexId,
-                       "Invalid index id", std::move(bad_message_callback));
+      std::move(bad_message_callback).Run("Invalid index id");
       return Status::InvalidArgument("Invalid index id");
     }
   }
@@ -528,8 +517,7 @@ Status Transaction::DoPut(int64_t object_store_id,
   }
 
   if (!key.IsValid()) {
-    ReportBadMessage(BadMessageReason::kTransactionDoPutInvalidKey,
-                     "Invalid key", std::move(bad_message_callback));
+    std::move(bad_message_callback).Run("Invalid key");
     return Status::InvalidArgument("Invalid key");
   }
 
@@ -553,9 +541,7 @@ Status Transaction::DoPut(int64_t object_store_id,
       [&](IndexWriterError error) {
         switch (error.type) {
           case IndexWriterError::Type::kInvalidKey:
-            ReportBadMessage(BadMessageReason::kTransactionDoPutInvalidIndexKey,
-                             "Invalid index key",
-                             std::move(bad_message_callback));
+            std::move(bad_message_callback).Run("Invalid index key");
             return Status::InvalidArgument("Invalid index key");
           case IndexWriterError::Type::kBackingStoreError:
             on_put_error(
@@ -579,9 +565,7 @@ Status Transaction::DoPut(int64_t object_store_id,
   // `ASSIGN_OR_RETURN` when SQLite is the only backing store.
   if (!new_record.has_value()) {
     if (new_record.error().IsInvalidArgument()) {
-      ReportBadMessage(BadMessageReason::kTransactionDoPutInvalidRecord,
-                       new_record.error().ToString(),
-                       std::move(bad_message_callback));
+      std::move(bad_message_callback).Run(new_record.error().ToString());
     }
     return new_record.error();
   }
@@ -628,16 +612,14 @@ void Transaction::SetIndexKeys(int64_t object_store_id,
   }
 
   if (mode() != blink::mojom::IDBTransactionMode::VersionChange) {
-    ReportBadMessage(
-        BadMessageReason::kTransactionSetIndexKeysWrongMode,
+    mojo::ReportBadMessage(
         "SetIndexKeys must be called from a version change transaction.");
     return;
   }
 
   if (!primary_key.IsValid() ||
       !std::ranges::all_of(index_keys.keys, &IndexedDBKey::IsValid)) {
-    ReportBadMessage(BadMessageReason::kTransactionSetIndexKeysInvalidKey,
-                     "SetIndexKeys used with invalid key.");
+    mojo::ReportBadMessage("SetIndexKeys used with invalid key.");
     return;
   }
 
@@ -709,8 +691,7 @@ void Transaction::SetIndexKeysDone() {
   }
 
   if (mode() != blink::mojom::IDBTransactionMode::VersionChange) {
-    ReportBadMessage(
-        BadMessageReason::kTransactionSetIndexKeysDoneWrongMode,
+    mojo::ReportBadMessage(
         "SetIndexKeysDone must be called from a version change transaction.");
     return;
   }
@@ -728,9 +709,7 @@ void Transaction::SetIndexKeysDone() {
             if (transaction.pending_preemptive_events_ == 0) {
               constexpr std::string_view kErrorMessage =
                   "SetIndexKeysDone called without beginning indexing";
-              ReportBadMessage(
-                  BadMessageReason::kTransactionSetIndexKeysDoneWithoutIndexing,
-                  kErrorMessage, std::move(report_bad_message_callback));
+              std::move(report_bad_message_callback).Run(kErrorMessage);
               return Status::InvalidArgument(kErrorMessage);
             }
             return Status::OK();
@@ -1299,10 +1278,7 @@ Transaction::VerificationCallback Transaction::ObjectStoreMustExist(
          Transaction& transaction) {
         if (!transaction.connection_->database()->IsObjectStoreIdInMetadata(
                 object_store_id)) {
-          ReportBadMessage(
-              BadMessageReason::kTransactionObjectStoreMustExistInvalidId,
-              "Invalid object_store_id",
-              std::move(report_bad_message_callback));
+          std::move(report_bad_message_callback).Run("Invalid object_store_id");
           return Status::InvalidArgument("Invalid object_store_id.");
         }
 
@@ -1321,21 +1297,15 @@ Transaction::VerificationCallback Transaction::ObjectStoreAndIndexMustExist(
          Transaction& transaction) {
         if (index_id.has_value() &&
             *index_id == IndexedDBIndexMetadata::kInvalidId) {
-          ReportBadMessage(
-              BadMessageReason::
-                  kTransactionObjectStoreAndIndexMustExistInvalidIndexId,
-              "index_id must be valid", std::move(report_bad_message_callback));
+          std::move(report_bad_message_callback).Run("index_id must be valid");
           return Status::InvalidArgument("index_id must be valid.");
         }
         if (!transaction.connection_->database()
                  ->IsObjectStoreIdAndMaybeIndexIdInMetadata(
                      object_store_id,
                      index_id.value_or(IndexedDBIndexMetadata::kInvalidId))) {
-          ReportBadMessage(
-              BadMessageReason::
-                  kTransactionObjectStoreAndIndexMustExistInvalidIds,
-              "Invalid object_store_id or index_id",
-              std::move(report_bad_message_callback));
+          std::move(report_bad_message_callback)
+              .Run("Invalid object_store_id or index_id");
           return Status::InvalidArgument(
               "Invalid object_store_id or index_id.");
         }

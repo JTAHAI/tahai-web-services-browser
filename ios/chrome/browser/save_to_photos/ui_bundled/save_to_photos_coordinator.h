@@ -8,6 +8,7 @@
 #import "ios/chrome/browser/shared/coordinator/chrome_coordinator/chrome_coordinator.h"
 
 class GURL;
+@protocol SigninPresenter;
 @protocol SystemIdentity;
 
 #import <string>

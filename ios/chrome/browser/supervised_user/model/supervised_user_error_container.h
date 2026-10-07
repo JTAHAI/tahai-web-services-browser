@@ -10,7 +10,9 @@
 #import "base/memory/raw_ref.h"
 #import "base/memory/weak_ptr.h"
 #import "base/scoped_observation.h"
+#import "components/security_interstitials/core/controller_client.h"
 #import "components/supervised_user/core/browser/supervised_user_interstitial.h"
+#import "components/supervised_user/core/browser/supervised_user_service_observer.h"
 #import "components/supervised_user/core/browser/supervised_user_url_filtering_service.h"
 #import "components/supervised_user/core/browser/supervised_user_utils.h"
 #import "ios/components/security_interstitials/ios_blocking_page_controller_client.h"
@@ -22,7 +24,6 @@
 @protocol ParentAccessCommands;
 
 namespace supervised_user {
-class FamilyLinkSettingsService;
 class SupervisedUserService;
 }  // namespace supervised_user
 
@@ -40,6 +41,7 @@ using RequestUrlAccessRemoteCallback = base::OnceCallback<void(bool)>;
 // interstitial functionality and error page.
 class SupervisedUserErrorContainer
     : public web::WebStateUserData<SupervisedUserErrorContainer>,
+      public SupervisedUserServiceObserver,
       public supervised_user::SupervisedUserUrlFilteringService::Observer {
  public:
   SupervisedUserErrorContainer(SupervisedUserErrorContainer& other);
@@ -92,6 +94,8 @@ class SupervisedUserErrorContainer
   // Checks if the `url` host has been already requested for approval.
   bool IsRemoteApprovalPendingForUrl(const GURL& url);
 
+  // SupervisedUserServiceObserver override:
+  void OnURLFilterChanged() override;
   void OnUrlFilteringServiceChanged() override;
 
   // Sets the parent access bottom sheet CommandDispatcher.
@@ -112,8 +116,6 @@ class SupervisedUserErrorContainer
   // Handler used to request showing the parent access bottom sheet.
   __weak id<ParentAccessCommands> commands_handler_;
   std::unique_ptr<SupervisedUserErrorInfo> supervised_user_error_info_;
-  raw_ref<supervised_user::FamilyLinkSettingsService>
-      family_link_settings_service_;
   raw_ref<supervised_user::SupervisedUserService> supervised_user_service_;
   raw_ref<supervised_user::SupervisedUserUrlFilteringService>
       supervised_user_url_filtering_service_;

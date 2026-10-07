@@ -46,8 +46,8 @@ class PageStabilityMonitor;
 }
 
 namespace safe_browsing {
-class ContentPhishingClassifierDelegate;
-class ContentPhishingImageEmbedderDelegate;
+class PhishingClassifierDelegate;
+class PhishingImageEmbedderDelegate;
 }  // namespace safe_browsing
 
 namespace translate {
@@ -225,9 +225,9 @@ class ChromeRenderFrameObserver : public content::RenderFrameObserver,
   raw_ptr<translate::TranslateAgent> translate_agent_;
   raw_ptr<optimization_guide::PageTextAgent> page_text_agent_;
 #if BUILDFLAG(SAFE_BROWSING_AVAILABLE)
-  raw_ptr<safe_browsing::ContentPhishingClassifierDelegate>
-      phishing_classifier_ = nullptr;
-  raw_ptr<safe_browsing::ContentPhishingImageEmbedderDelegate>
+  raw_ptr<safe_browsing::PhishingClassifierDelegate> phishing_classifier_ =
+      nullptr;
+  raw_ptr<safe_browsing::PhishingImageEmbedderDelegate>
       phishing_image_embedder_ = nullptr;
 #endif
 

@@ -58,7 +58,6 @@
 #include "third_party/blink/renderer/core/xmlns_names.h"
 #include "third_party/blink/renderer/platform/runtime_enabled_features.h"
 #include "third_party/blink/renderer/platform/wtf/text/strcat.h"
-#include "third_party/blink/renderer/platform/wtf/text/string_view.h"
 
 namespace blink {
 namespace {
@@ -251,21 +250,8 @@ void XMLDocumentParserRs::HandleError(XMLErrors::ErrorType type,
 }
 
 void XMLDocumentParserRs::Append(const String& xml_string) {
-  if (!xml_string.empty()) {
-    // Resume parsing, recover from unbalanced root error at previous chunk
-    // boundary.
-    carry_unbalanced_root_error_ = std::nullopt;
-  }
-  if (RuntimeEnabledFeatures::XMLParserReplaceLoneSurrogatesEnabled()) {
-    // Replace lone surrogates with U+FFFD so the parser does a best-effort
-    // parse instead of rejecting the whole input (crbug.com/40814739).
-    xml_ffi::append_to_source(*read_state_,
-                              base::StringViewToRustSlice(xml_string.Utf8(
-                                  Utf8ConversionMode::kStrictReplacingErrors)));
-  } else {
-    xml_ffi::append_to_source(*read_state_,
-                              base::StringViewToRustSlice(xml_string.Utf8()));
-  }
+  xml_ffi::append_to_source(*read_state_,
+                            base::StringViewToRustSlice(xml_string.Utf8()));
   ProcessEvents();
 }
 
@@ -404,6 +390,7 @@ void XMLDocumentParserRs::StartElementNs(
 
   bool is_first_element = !saw_first_element_;
   saw_first_element_ = true;
+
   if (!parsing_fragment_ && is_first_element && local_name == "alert" &&
       has_ns && IsCAPAlertNamespace(RustStrToAtomicString(ns))) {
     UseCounter::Count(document_, WebFeature::kXmlCAPAlert);
@@ -459,7 +446,8 @@ void XMLDocumentParserRs::StartElementNs(
   for (const auto& attr : prefixed_attributes) {
     if (attr.GetName() == html_names::kIsAttr) {
       is = attr.Value();
-    } else if (attr.GetName() == html_names::kCustomelementregistryAttr) {
+    } else if (RuntimeEnabledFeatures::ScopedCustomElementRegistryEnabled() &&
+               attr.GetName() == html_names::kCustomelementregistryAttr) {
       has_customelementregistry_attr = true;
     }
   }
@@ -475,7 +463,8 @@ void XMLDocumentParserRs::StartElementNs(
   }
 
   CustomElementRegistry* registry = nullptr;
-  if (!has_customelementregistry_attr) {
+  if (RuntimeEnabledFeatures::ScopedCustomElementRegistryEnabled() &&
+      !has_customelementregistry_attr) {
     // If the element doesn't have the customelementregistry attribute, then
     // it should inherit its registry from its parent.
     if (auto* parent_element = DynamicTo<Element>(current_node_.Get())) {
@@ -503,18 +492,12 @@ void XMLDocumentParserRs::StartElementNs(
       reactions.emplace(isolate);
     }
   }
-  CreateElementFlags flags =
-      parsing_fragment_ ? CreateElementFlags::ByFragmentParser(document_)
-                        : CreateElementFlags::ByParser(document_);
-  if (RuntimeEnabledFeatures::DOMParserXmlScriptAlreadyStartedEnabled() &&
-      document_->IsDOMParserDocument() &&
-      (q_name.Matches(html_names::kScriptTag) ||
-       q_name.Matches(svg_names::kScriptTag))) {
-    flags.SetAlreadyStarted(true);
-  }
 
-  Element* new_element =
-      current_node_->GetDocument().CreateElement(q_name, flags, is, registry);
+  Element* new_element = current_node_->GetDocument().CreateElement(
+      q_name,
+      parsing_fragment_ ? CreateElementFlags::ByFragmentParser(document_)
+                        : CreateElementFlags::ByParser(document_),
+      is, registry);
 
   if (!new_element) {
     StopParsing();

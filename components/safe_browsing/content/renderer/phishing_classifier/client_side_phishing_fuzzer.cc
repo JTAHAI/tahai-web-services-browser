@@ -5,26 +5,16 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "base/check.h"
 #include "base/command_line.h"
 #include "base/memory/read_only_shared_memory_region.h"
 #include "components/safe_browsing/content/renderer/phishing_classifier/client_side_phishing_fuzzer.pb.h"
-#include "components/safe_browsing/content/renderer/phishing_classifier/client_side_phishing_fuzzer_fuzzable.pb.h"
 #include "components/safe_browsing/core/common/phishing_classifier/features.h"
 #include "components/safe_browsing/core/common/phishing_classifier/flatbuffer_utils.h"
 #include "components/safe_browsing/core/common/phishing_classifier/scorer.h"
 #include "testing/libfuzzer/proto/lpm_interface.h"
 
-DEFINE_PROTO_FUZZER(const fuzzable::safe_browsing::ClientSidePhishingFuzzerCase&
-                        fuzzable_fuzzing_case) {
-  std::string serialized;
-  CHECK(fuzzable_fuzzing_case.SerializeToString(&serialized));
-  safe_browsing::ClientSidePhishingFuzzerCase fuzzing_case;
-  // Recursion limits can cause parsing to fail.
-  if (!fuzzing_case.ParseFromString(serialized)) {
-    return;
-  }
-
+DEFINE_PROTO_FUZZER(
+    const safe_browsing::ClientSidePhishingFuzzerCase& fuzzing_case) {
   base::CommandLine::Init(0, nullptr);
   const std::string model_str = fuzzing_case.memory_region();
   base::MappedReadOnlyRegion mapped_region =

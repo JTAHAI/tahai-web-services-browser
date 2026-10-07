@@ -20,13 +20,11 @@ source_set("suggestions") {
     "//base",
     "//chrome/browser/contextual_cueing",
     "//chrome/browser/profiles:profile",
-    "//components/contextual_cueing",
     "//components/optimization_guide/core",
     "//components/page_content_annotations/content",
     "//components/page_content_annotations/core",
     "//components/prefs",
     "//content/public/browser",
-    "//ui/base/unowned_user_data",
   ]
   deps = [ "//chrome/common:buildflags" ]
 }
@@ -60,7 +58,6 @@ source_set("impl") {
     "//chrome/browser/predictors",
     "//chrome/browser/profiles:profile",
     "//chrome/browser/search_engines",
-    "//chrome/browser/sync",
     "//chrome/browser/ui",
     "//chrome/browser/ui/side_panel",
     "//chrome/browser/ui/side_panel:side_panel_ui_provider",
@@ -75,7 +72,6 @@ source_set("impl") {
     "//components/page_content_annotations/core",
     "//components/pdf/common:constants",
     "//components/prefs",
-    "//components/sync/service",
     "//components/variations/service",
     "//pdf:buildflags",
     "//services/metrics/public/cpp:metrics_cpp",
@@ -128,24 +124,17 @@ source_set("unit_tests") {
     "//chrome/browser/optimization_guide:test_support",
     "//chrome/browser/page_content_annotations",
     "//chrome/browser/page_content_annotations:extraction_service",
-    "//chrome/browser/sync",
     "//chrome/browser/ui:ui_features",
     "//chrome/common:buildflags",
     "//chrome/test:test_support",
     "//components/page_content_annotations/core:test_support",
     "//components/pdf/common:constants",
-    "//components/sync:test_support",
     "//components/sync_preferences:test_support",
-    "//components/tabs:test_support",
     "//pdf:buildflags",
     "//testing/gmock",
     "//testing/gtest",
-    "//ui/base/unowned_user_data",
   ]
   if (is_chromeos) {
     deps += [ "//chrome/browser/ash/test:test_support" ]
-  }
-  if (!is_android) {
-    deps += [ "//chrome/browser/ui/browser_window/test:test_support" ]
   }
 }

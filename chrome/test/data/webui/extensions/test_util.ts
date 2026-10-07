@@ -97,9 +97,6 @@ export class MockItemDelegate extends ClickMock implements ItemDelegate {
   uninstallItem(_id: string) {
     return Promise.resolve();
   }
-  openReviewPage(_id: string) {
-    return Promise.resolve();
-  }
   setItemSafetyCheckWarningAcknowledged(_id: string) {}
   setItemEnabled(_id: string, _isEnabled: boolean) {
     return Promise.resolve();

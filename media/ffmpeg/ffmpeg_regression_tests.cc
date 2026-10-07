@@ -164,8 +164,8 @@ FFMPEG_TEST_CASE(Cr140647,
                  DEMUXER_ERROR_COULD_NOT_OPEN);
 FFMPEG_TEST_CASE(Cr142738,
                  "crbug142738.ogg",
-                 PIPELINE_OK,
-                 PIPELINE_OK);
+                 DEMUXER_ERROR_COULD_NOT_PARSE,
+                 DEMUXER_ERROR_COULD_NOT_PARSE);
 FFMPEG_TEST_CASE(Cr152691,
                  "security/152691.mp3",
                  PIPELINE_ERROR_DECODE,

@@ -37,7 +37,10 @@ CharacterIteratorAlgorithm<Strategy>::CharacterIteratorAlgorithm(
     const PositionTemplate<Strategy>& start,
     const PositionTemplate<Strategy>& end,
     const TextIteratorBehavior& behavior)
-    : text_iterator_(start, end, behavior) {
+    : offset_(0),
+      run_offset_(0),
+      at_break_(true),
+      text_iterator_(start, end, behavior) {
   Initialize();
 }
 
@@ -66,7 +69,7 @@ const Node& CharacterIteratorAlgorithm<Strategy>::CurrentContainer() const {
 }
 
 template <typename Strategy>
-wtf_size_t CharacterIteratorAlgorithm<Strategy>::StartOffset() const {
+int CharacterIteratorAlgorithm<Strategy>::StartOffset() const {
   if (!text_iterator_.AtEnd()) {
     if (text_iterator_.length() > 1)
       return text_iterator_.StartOffsetInCurrentContainer() + run_offset_;
@@ -76,7 +79,7 @@ wtf_size_t CharacterIteratorAlgorithm<Strategy>::StartOffset() const {
 }
 
 template <typename Strategy>
-wtf_size_t CharacterIteratorAlgorithm<Strategy>::EndOffset() const {
+int CharacterIteratorAlgorithm<Strategy>::EndOffset() const {
   if (!text_iterator_.AtEnd()) {
     if (text_iterator_.length() > 1)
       return text_iterator_.StartOffsetInCurrentContainer() + run_offset_ + 1;
@@ -103,8 +106,7 @@ PositionTemplate<Strategy> CharacterIteratorAlgorithm<Strategy>::StartPosition()
   if (!text_iterator_.AtEnd()) {
     if (text_iterator_.length() > 1) {
       const Node& node = text_iterator_.CurrentContainer();
-      wtf_size_t offset =
-          text_iterator_.StartOffsetInCurrentContainer() + run_offset_;
+      int offset = text_iterator_.StartOffsetInCurrentContainer() + run_offset_;
       return PositionTemplate<Strategy>::EditingPositionOf(&node, offset);
     }
     DCHECK(!run_offset_);
@@ -118,8 +120,7 @@ PositionTemplate<Strategy> CharacterIteratorAlgorithm<Strategy>::EndPosition()
   if (!text_iterator_.AtEnd()) {
     if (text_iterator_.length() > 1) {
       const Node& node = text_iterator_.CurrentContainer();
-      wtf_size_t offset =
-          text_iterator_.StartOffsetInCurrentContainer() + run_offset_;
+      int offset = text_iterator_.StartOffsetInCurrentContainer() + run_offset_;
       return PositionTemplate<Strategy>::EditingPositionOf(&node, offset + 1);
     }
     DCHECK(!run_offset_);
@@ -128,7 +129,7 @@ PositionTemplate<Strategy> CharacterIteratorAlgorithm<Strategy>::EndPosition()
 }
 
 template <typename Strategy>
-void CharacterIteratorAlgorithm<Strategy>::Advance(wtf_size_t count) {
+void CharacterIteratorAlgorithm<Strategy>::Advance(int count) {
   if (count <= 0) {
     DCHECK(!count);
     return;
@@ -139,7 +140,7 @@ void CharacterIteratorAlgorithm<Strategy>::Advance(wtf_size_t count) {
   at_break_ = false;
 
   // easy if there is enough left in the current text_iterator_ run
-  wtf_size_t remaining = text_iterator_.length() - run_offset_;
+  int remaining = text_iterator_.length() - run_offset_;
   if (count < remaining) {
     run_offset_ += count;
     offset_ += count;
@@ -152,7 +153,7 @@ void CharacterIteratorAlgorithm<Strategy>::Advance(wtf_size_t count) {
 
   // move to a subsequent text_iterator_ run
   for (text_iterator_.Advance(); !AtEnd(); text_iterator_.Advance()) {
-    wtf_size_t run_length = text_iterator_.length();
+    int run_length = text_iterator_.length();
     if (!run_length) {
       at_break_ = text_iterator_.BreaksAtReplacedElement();
     } else {
@@ -176,9 +177,8 @@ void CharacterIteratorAlgorithm<Strategy>::Advance(wtf_size_t count) {
 
 template <typename Strategy>
 EphemeralRangeTemplate<Strategy>
-CharacterIteratorAlgorithm<Strategy>::CalculateCharacterSubrange(
-    wtf_size_t offset,
-    wtf_size_t length) {
+CharacterIteratorAlgorithm<Strategy>::CalculateCharacterSubrange(int offset,
+                                                                 int length) {
   Advance(offset);
   const PositionTemplate<Strategy> start_pos = StartPosition();
 
@@ -190,8 +190,8 @@ CharacterIteratorAlgorithm<Strategy>::CalculateCharacterSubrange(
 }
 
 EphemeralRange CalculateCharacterSubrange(const EphemeralRange& range,
-                                          wtf_size_t character_offset,
-                                          wtf_size_t character_count) {
+                                          int character_offset,
+                                          int character_count) {
   CharacterIterator entire_range_iterator(
       range, TextIteratorBehavior::Builder()
                  .SetEmitsObjectReplacementCharacter(true)

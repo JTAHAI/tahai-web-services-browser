@@ -159,6 +159,9 @@ public abstract class PageInfoControllerDelegate {
      */
     public abstract void showCookieFeedback(Activity activity);
 
+    /** Show ad personalization settings. */
+    public abstract void showAdPersonalizationSettings();
+
     /**
      * Creates Cookie Controls Bridge.
      *

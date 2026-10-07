@@ -2397,12 +2397,15 @@ class URLRequestSameSiteCookiesTest
  public:
   URLRequestSameSiteCookiesTest() {
     if (DoesCookieSameSiteConsiderRedirectChain()) {
-      AddScopedFeatureList().InitAndEnableFeature(
+      feature_list_.InitAndEnableFeature(
           features::kCookieSameSiteConsidersRedirectChain);
     }
   }
 
   bool DoesCookieSameSiteConsiderRedirectChain() { return GetParam(); }
+
+ private:
+  base::test::ScopedFeatureList feature_list_;
 };
 
 TEST_P(URLRequestSameSiteCookiesTest, SameSiteCookies) {
@@ -4026,6 +4029,8 @@ class URLRequestTestHTTP : public URLRequestTest {
   HttpTestServer* http_test_server() { return &test_server_; }
 
  private:
+  base::test::ScopedFeatureList feature_list_;
+
   HttpTestServer test_server_;
 };
 
@@ -6176,7 +6181,8 @@ TEST_F(URLRequestTestHTTP, STSNotProcessedOnIP) {
 }
 
 TEST_F(URLRequestTestHTTP, STSNotProcessedOnLocalhost) {
-  AddScopedFeatureList().InitAndEnableFeature(
+  base::test::ScopedFeatureList scoped_feature_list_;
+  scoped_feature_list_.InitAndEnableFeature(
       net::features::kIgnoreHSTSForLocalhost);
   EmbeddedTestServer https_test_server(net::EmbeddedTestServer::TYPE_HTTPS);
   https_test_server.SetSSLConfig(
@@ -6201,7 +6207,8 @@ TEST_F(URLRequestTestHTTP, STSNotProcessedOnLocalhost) {
 }
 
 TEST_F(URLRequestTestHTTP, STSProcessedOnLocalhostWhenFeatureDisabled) {
-  AddScopedFeatureList().InitAndDisableFeature(
+  base::test::ScopedFeatureList scoped_feature_list_;
+  scoped_feature_list_.InitAndDisableFeature(
       net::features::kIgnoreHSTSForLocalhost);
   EmbeddedTestServer https_test_server(net::EmbeddedTestServer::TYPE_HTTPS);
   https_test_server.SetSSLConfig(
@@ -6226,7 +6233,8 @@ TEST_F(URLRequestTestHTTP, STSProcessedOnLocalhostWhenFeatureDisabled) {
 }
 
 TEST_F(URLRequestTestHTTP, PKPBypassRecorded) {
-  AddScopedFeatureList().InitAndEnableFeature(
+  base::test::ScopedFeatureList scoped_feature_list_;
+  scoped_feature_list_.InitAndEnableFeature(
       net::features::kStaticKeyPinningEnforcement);
   EmbeddedTestServer https_test_server(net::EmbeddedTestServer::TYPE_HTTPS);
   https_test_server.SetSSLConfig(
@@ -7424,7 +7432,8 @@ TEST_F(URLRequestTestHTTP, BasicAuthWithCookiesCancelAuth) {
 
 // Tests the IsolationInfo is updated appropriately on redirect.
 TEST_F(URLRequestTestHTTP, IsolationInfoUpdatedOnRedirect) {
-  AddScopedFeatureList().InitAndEnableFeature(
+  base::test::ScopedFeatureList feature_list;
+  feature_list.InitAndEnableFeature(
       net::features::kSplitCacheByNetworkIsolationKey);
 
   ASSERT_TRUE(http_test_server()->Start());
@@ -9411,7 +9420,7 @@ class HTTPSRequestTest : public TestWithTaskEnvironment {
   HTTPSRequestTest() {
     auto context_builder = CreateTestURLRequestContextBuilder();
     default_context_ = context_builder->Build();
-    AddScopedFeatureList().InitAndDisableFeature(
+    scoped_feature_list_.InitAndDisableFeature(
         features::kPermitTcpSocketPoolConnectBackupJobs);
   }
   ~HTTPSRequestTest() override {
@@ -9422,6 +9431,7 @@ class HTTPSRequestTest : public TestWithTaskEnvironment {
 
  private:
   std::unique_ptr<URLRequestContext> default_context_;
+  base::test::ScopedFeatureList scoped_feature_list_;
 };
 
 TEST_F(HTTPSRequestTest, HTTPSGetTest) {
@@ -9609,7 +9619,8 @@ TEST_F(HTTPSRequestTest, HTTPSPreloadedHSTSTest) {
 // This tests that cached HTTPS page loads do not cause any updates to the
 // TransportSecurityState.
 TEST_F(HTTPSRequestTest, HTTPSErrorsNoClobberTSSTest) {
-  AddScopedFeatureList().InitAndEnableFeature(
+  base::test::ScopedFeatureList scoped_feature_list_;
+  scoped_feature_list_.InitAndEnableFeature(
       net::features::kStaticKeyPinningEnforcement);
   SetTransportSecurityStateSourceForTesting(&test_default::kHSTSSource);
 
@@ -13072,7 +13083,7 @@ INSTANTIATE_TEST_SUITE_P(,
 class PartitionConnectionsByNetworkAnonymizationKey : public URLRequestTest {
  public:
   PartitionConnectionsByNetworkAnonymizationKey() {
-    AddScopedFeatureList().InitAndEnableFeature(
+    scoped_feature_list_.InitAndEnableFeature(
         net::features::kPartitionConnectionsByNetworkIsolationKey);
   }
   const SchemefulSite kTestSiteA = SchemefulSite(GURL("http://a.test/"));
@@ -13080,6 +13091,9 @@ class PartitionConnectionsByNetworkAnonymizationKey : public URLRequestTest {
   const SchemefulSite kTestSiteC = SchemefulSite(GURL("http://c.test/"));
   const base::UnguessableToken kNonceA = base::UnguessableToken::Create();
   const base::UnguessableToken kNonceB = base::UnguessableToken::Create();
+
+ private:
+  base::test::ScopedFeatureList scoped_feature_list_;
 };
 
 TEST_F(PartitionConnectionsByNetworkAnonymizationKey,
@@ -13593,6 +13607,7 @@ TEST_P(StorageAccessHeaderRetryURLRequestTest, Retry) {
   }
   auto context = context_builder->Build();
   TestDelegate d;
+  base::HistogramTester histogram_tester;
 
   std::unique_ptr<URLRequest> req(context->CreateRequest(
       http_test_server()->GetURL(kStorageAccessRetryPath), DEFAULT_PRIORITY, &d,
@@ -13621,6 +13636,20 @@ TEST_P(StorageAccessHeaderRetryURLRequestTest, Retry) {
             CookieSettingOverrides(
                 {CookieSettingOverride::
                      kStorageAccessGrantEligibleViaHeader})));
+    histogram_tester.ExpectBucketCount(
+        "API.StorageAccessHeader.ActivateStorageAccessRetryOutcome",
+        /*sample=*/
+        net::cookie_util::ActivateStorageAccessRetryOutcome::kSuccess,
+        /*expected_count=*/1);
+    // We expect this record since the retried response still includes the
+    // header, but it doesn't result in a successful retry the second time
+    // around.
+    histogram_tester.ExpectBucketCount(
+        "API.StorageAccessHeader.ActivateStorageAccessRetryOutcome",
+        /*sample=*/
+        net::cookie_util::ActivateStorageAccessRetryOutcome::
+            kFailureIneffectiveRetry,
+        /*expected_count=*/1);
   } else {
     // Expect 2 records for 1 request, since the request is not retried.
     EXPECT_THAT(

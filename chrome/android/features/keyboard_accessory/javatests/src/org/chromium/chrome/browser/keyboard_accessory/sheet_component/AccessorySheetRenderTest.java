@@ -35,7 +35,6 @@ import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
 
 import org.chromium.base.Callback;
-import org.chromium.base.CallbackUtils;
 import org.chromium.base.ThreadUtils;
 import org.chromium.base.supplier.ObservableSuppliers;
 import org.chromium.base.supplier.SettableMonotonicObservableSupplier;
@@ -204,16 +203,12 @@ public class AccessorySheetRenderTest {
                                 .setDisplayText("Password")
                                 .setA11yDescription("Password for No username")
                                 .setIsObfuscated(true)
-                                .setCallback(CallbackUtils.emptyCallback())
+                                .setCallback(cb -> {})
                                 .build());
         sheet.getFooterCommands()
-                .add(
-                        new KeyboardAccessoryData.FooterCommand(
-                                "Suggest strong password", CallbackUtils.emptyCallback()));
+                .add(new KeyboardAccessoryData.FooterCommand("Suggest strong password", cb -> {}));
         sheet.getFooterCommands()
-                .add(
-                        new KeyboardAccessoryData.FooterCommand(
-                                "Manage Passwords", CallbackUtils.emptyCallback()));
+                .add(new KeyboardAccessoryData.FooterCommand("Manage Passwords", cb -> {}));
 
         PasswordAccessorySheetCoordinator coordinator =
                 ThreadUtils.runOnUiThreadBlocking(
@@ -246,7 +241,7 @@ public class AccessorySheetRenderTest {
                                 .setDisplayText("**** 9219")
                                 .setA11yDescription("Card for Todd Tester")
                                 .setId("1")
-                                .setCallback(CallbackUtils.emptyCallback())
+                                .setCallback(result -> {})
                                 .build());
         sheet.getUserInfoList()
                 .get(0)
@@ -257,7 +252,7 @@ public class AccessorySheetRenderTest {
                                 .setDisplayText("10")
                                 .setA11yDescription("10")
                                 .setId("-1")
-                                .setCallback(CallbackUtils.emptyCallback())
+                                .setCallback(result -> {})
                                 .build());
         sheet.getUserInfoList()
                 .get(0)
@@ -268,7 +263,7 @@ public class AccessorySheetRenderTest {
                                 .setDisplayText("2021")
                                 .setA11yDescription("2021")
                                 .setId("-1")
-                                .setCallback(CallbackUtils.emptyCallback())
+                                .setCallback(result -> {})
                                 .build());
         sheet.getUserInfoList()
                 .get(0)
@@ -278,7 +273,7 @@ public class AccessorySheetRenderTest {
                                 .setDisplayText("Todd Tester")
                                 .setA11yDescription("Todd Tester")
                                 .setId("0")
-                                .setCallback(CallbackUtils.emptyCallback())
+                                .setCallback(result -> {})
                                 .build());
         sheet.getUserInfoList()
                 .get(0)
@@ -288,7 +283,7 @@ public class AccessorySheetRenderTest {
                                 .setDisplayText("123")
                                 .setA11yDescription("123")
                                 .setId("-1")
-                                .setCallback(CallbackUtils.emptyCallback())
+                                .setCallback(result -> {})
                                 .build());
         sheet.getPromoCodeInfoList().add(new KeyboardAccessoryData.PromoCodeInfo());
         sheet.getPromoCodeInfoList()
@@ -299,13 +294,11 @@ public class AccessorySheetRenderTest {
                                 .setDisplayText("50$OFF")
                                 .setA11yDescription("Promo Code for Todd Tester")
                                 .setId("1")
-                                .setCallback(CallbackUtils.emptyCallback())
+                                .setCallback(result -> {})
                                 .build(),
                         /* detailsText= */ "Get $50 off when you use this code at checkout.");
         sheet.getFooterCommands()
-                .add(
-                        new KeyboardAccessoryData.FooterCommand(
-                                "Manage payment methods", CallbackUtils.emptyCallback()));
+                .add(new KeyboardAccessoryData.FooterCommand("Manage payment methods", cb -> {}));
 
         CreditCardAccessorySheetCoordinator coordinator =
                 ThreadUtils.runOnUiThreadBlocking(
@@ -336,12 +329,10 @@ public class AccessorySheetRenderTest {
                                 .setSuggestionType(AccessorySuggestionType.CREDIT_CARD_NUMBER)
                                 .setDisplayText("CH56 •••• •••• •••• •800 9")
                                 .setId("123456")
-                                .setCallback(CallbackUtils.emptyCallback())
+                                .setCallback(result -> {})
                                 .build());
         sheet.getFooterCommands()
-                .add(
-                        new KeyboardAccessoryData.FooterCommand(
-                                "Manage payment methods", CallbackUtils.emptyCallback()));
+                .add(new KeyboardAccessoryData.FooterCommand("Manage payment methods", cb -> {}));
 
         CreditCardAccessorySheetCoordinator coordinator =
                 ThreadUtils.runOnUiThreadBlocking(
@@ -373,12 +364,10 @@ public class AccessorySheetRenderTest {
                                         .setSuggestionType(AccessorySuggestionType.LOYALTY_CARD)
                                         .setDisplayText("987654321")
                                         .setId("")
-                                        .setCallback(CallbackUtils.emptyCallback())
+                                        .setCallback(result -> {})
                                         .build()));
         sheet.getFooterCommands()
-                .add(
-                        new KeyboardAccessoryData.FooterCommand(
-                                "Manage loyalty cards", CallbackUtils.emptyCallback()));
+                .add(new KeyboardAccessoryData.FooterCommand("Manage loyalty cards", cb -> {}));
 
         CreditCardAccessorySheetCoordinator coordinator =
                 ThreadUtils.runOnUiThreadBlocking(
@@ -409,7 +398,7 @@ public class AccessorySheetRenderTest {
                                 .setSuggestionType(AccessorySuggestionType.NAME_FULL)
                                 .setDisplayText("Todd Tester")
                                 .setA11yDescription("Todd Tester")
-                                .setCallback(CallbackUtils.emptyCallback())
+                                .setCallback(item -> {})
                                 .build());
         sheet.getUserInfoList()
                 .get(0)
@@ -417,7 +406,7 @@ public class AccessorySheetRenderTest {
                         new UserInfoField.Builder()
                                 .setSuggestionType(AccessorySuggestionType.COMPANY_NAME)
                                 .setDisplayText("")
-                                .setCallback(CallbackUtils.emptyCallback())
+                                .setCallback(item -> {})
                                 .build());
         sheet.getUserInfoList()
                 .get(0)
@@ -426,7 +415,7 @@ public class AccessorySheetRenderTest {
                                 .setSuggestionType(AccessorySuggestionType.ADDRESS_LINE2)
                                 .setDisplayText("112 Second Str")
                                 .setA11yDescription("112 Second Str")
-                                .setCallback(CallbackUtils.emptyCallback())
+                                .setCallback(item -> {})
                                 .build());
         sheet.getUserInfoList()
                 .get(0)
@@ -434,7 +423,7 @@ public class AccessorySheetRenderTest {
                         new UserInfoField.Builder()
                                 .setSuggestionType(AccessorySuggestionType.ADDRESS_LINE2)
                                 .setDisplayText("")
-                                .setCallback(CallbackUtils.emptyCallback())
+                                .setCallback(item -> {})
                                 .build());
         sheet.getUserInfoList()
                 .get(0)
@@ -442,7 +431,7 @@ public class AccessorySheetRenderTest {
                         new UserInfoField.Builder()
                                 .setSuggestionType(AccessorySuggestionType.ZIP)
                                 .setDisplayText("")
-                                .setCallback(CallbackUtils.emptyCallback())
+                                .setCallback(item -> {})
                                 .build());
         sheet.getUserInfoList()
                 .get(0)
@@ -451,7 +440,7 @@ public class AccessorySheetRenderTest {
                                 .setSuggestionType(AccessorySuggestionType.CITY)
                                 .setDisplayText("Budatest")
                                 .setA11yDescription("Budatest")
-                                .setCallback(CallbackUtils.emptyCallback())
+                                .setCallback(item -> {})
                                 .build());
         sheet.getUserInfoList()
                 .get(0)
@@ -459,7 +448,7 @@ public class AccessorySheetRenderTest {
                         new UserInfoField.Builder()
                                 .setSuggestionType(AccessorySuggestionType.STATE)
                                 .setDisplayText("")
-                                .setCallback(CallbackUtils.emptyCallback())
+                                .setCallback(item -> {})
                                 .build());
         sheet.getUserInfoList()
                 .get(0)
@@ -467,7 +456,7 @@ public class AccessorySheetRenderTest {
                         new UserInfoField.Builder()
                                 .setSuggestionType(AccessorySuggestionType.COUNTRY)
                                 .setDisplayText("")
-                                .setCallback(CallbackUtils.emptyCallback())
+                                .setCallback(item -> {})
                                 .build());
         sheet.getUserInfoList()
                 .get(0)
@@ -476,7 +465,7 @@ public class AccessorySheetRenderTest {
                                 .setSuggestionType(AccessorySuggestionType.PHONE_NUMBER)
                                 .setDisplayText("+088343188321")
                                 .setA11yDescription("+088343188321")
-                                .setCallback(CallbackUtils.emptyCallback())
+                                .setCallback(item -> {})
                                 .build());
         sheet.getUserInfoList()
                 .get(0)
@@ -485,12 +474,10 @@ public class AccessorySheetRenderTest {
                                 .setSuggestionType(AccessorySuggestionType.EMAIL_ADDRESS)
                                 .setDisplayText("todd.tester@gmail.com")
                                 .setA11yDescription("todd.tester@gmail.com")
-                                .setCallback(CallbackUtils.emptyCallback())
+                                .setCallback(item -> {})
                                 .build());
         sheet.getFooterCommands()
-                .add(
-                        new KeyboardAccessoryData.FooterCommand(
-                                "Manage addresses", CallbackUtils.emptyCallback()));
+                .add(new KeyboardAccessoryData.FooterCommand("Manage addresses", cb -> {}));
 
         AddressAccessorySheetCoordinator coordinator =
                 ThreadUtils.runOnUiThreadBlocking(

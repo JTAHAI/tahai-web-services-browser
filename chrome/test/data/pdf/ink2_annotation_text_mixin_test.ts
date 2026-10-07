@@ -108,7 +108,6 @@ chrome.test.runTests([
       styles: {
         [TextStyle.BOLD]: false,
         [TextStyle.ITALIC]: false,
-        [TextStyle.STRIKETHROUGH]: false,
       },
     });
     assertDeepEquals(newColor, testElement.currentColor);

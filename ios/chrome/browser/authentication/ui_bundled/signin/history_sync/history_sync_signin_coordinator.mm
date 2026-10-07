@@ -101,11 +101,11 @@
     case HistorySyncResult::kUserCanceled:
     case HistorySyncResult::kSkipped:
       signinResult = SigninCoordinatorResultSuccess;
-      CHECK(primaryIdentity);
+      CHECK(primaryIdentity, base::NotFatalUntil::M145);
       break;
     case HistorySyncResult::kPrimaryIdentityRemoved:
       signinResult = SigninCoordinatorResultInterrupted;
-      CHECK(!primaryIdentity);
+      CHECK(!primaryIdentity, base::NotFatalUntil::M145);
       break;
   }
   if (primaryIdentity && _showSnackbar) {

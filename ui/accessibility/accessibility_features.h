@@ -55,10 +55,6 @@ AX_BASE_EXPORT BASE_DECLARE_FEATURE(
     kAccessibilityPruneRedundantInlineConnectivity);
 AX_BASE_EXPORT bool IsAccessibilityPruneRedundantInlineConnectivityEnabled();
 
-// Check AXNodeIDs sent over Mojo
-AX_BASE_EXPORT BASE_DECLARE_FEATURE(kAccessibilityCheckAXNodeIDs);
-AX_BASE_EXPORT bool IsAccessibilityCheckAXNodeIDsEnabled();
-
 // Enables the addition of text formatting information to the Android
 // AccessibilityNodeInfo accessibility tree.
 AX_BASE_EXPORT BASE_DECLARE_FEATURE(kAccessibilityTextFormatting);
@@ -191,14 +187,6 @@ AX_BASE_EXPORT BASE_DECLARE_FEATURE(kUiaEventOptimization);
 // technologies.
 AX_BASE_EXPORT BASE_DECLARE_FEATURE(kUiaMathMlSupport);
 AX_BASE_EXPORT bool IsUiaMathMlSupportEnabled();
-
-// Group location-changed events by sending a single location changed event
-// on the root of the subtree containing all location-change events. This
-// feature-flag is enabled by default as a kill-switch for the event semantics
-// change.
-AX_BASE_EXPORT BASE_DECLARE_FEATURE(
-    kAccessibilityGroupLocationChangeByCommonAncestor);
-AX_BASE_EXPORT bool IsAccessibilityGroupLocationChangeByCommonAncestorEnabled();
 #endif  // BUILDFLAG(IS_WIN)
 
 #if BUILDFLAG(IS_CHROMEOS)
@@ -264,10 +252,6 @@ AX_BASE_EXPORT bool IsAccessibilityManifestV3EnabledForGoogleTts();
 AX_BASE_EXPORT BASE_DECLARE_FEATURE(kAccessibilityChromeVoxJapaneseBraille);
 AX_BASE_EXPORT bool IsAccessibilityChromeVoxJapaneseBrailleEnabled();
 
-// Controls whether Google TTS automatically attempts to reconnect.
-AX_BASE_EXPORT BASE_DECLARE_FEATURE(kAccessibilityGoogleTtsAutomaticReconnect);
-AX_BASE_EXPORT bool IsAccessibilityGoogleTtsAutomaticReconnectEnabled();
-
 #endif  // BUILDFLAG(IS_CHROMEOS)
 
 #if BUILDFLAG(IS_ANDROID)
@@ -307,6 +291,10 @@ AX_BASE_EXPORT bool IsReadAloudNativeEnabled();
 AX_BASE_EXPORT BASE_DECLARE_FEATURE(kAXTreeFixing);
 AX_BASE_EXPORT bool IsAXTreeFixingEnabled();
 
+// Enable Immersive Mode for Read Anything.
+AX_BASE_EXPORT BASE_DECLARE_FEATURE(kImmersiveReadAnything);
+AX_BASE_EXPORT bool IsImmersiveReadAnythingEnabled();
+
 // Identify and annotate the main node of the AXTree where one was not already
 // provided.
 AX_BASE_EXPORT BASE_DECLARE_FEATURE(kMainNodeAnnotations);
@@ -345,11 +333,6 @@ AX_BASE_EXPORT bool IsReadAnythingMenuShuffleExperimentEnabled();
 AX_BASE_EXPORT BASE_DECLARE_FEATURE(kReadAnythingReadabilitySelectText);
 AX_BASE_EXPORT bool IsReadAnythingReadabilitySelectTextEnabled();
 
-// Enable the experimental playback UI for Read Anything Read Aloud.
-AX_BASE_EXPORT BASE_DECLARE_FEATURE(
-    kReadAnythingReadAloudExperimentalPlaybackUi);
-AX_BASE_EXPORT bool IsReadAnythingReadAloudExperimentalPlaybackUiEnabled();
-
 // Enable phrase highlighting in Read Anything Read Aloud.
 AX_BASE_EXPORT BASE_DECLARE_FEATURE(kReadAnythingReadAloudPhraseHighlighting);
 AX_BASE_EXPORT bool IsReadAnythingReadAloudPhraseHighlightingEnabled();
@@ -374,6 +357,11 @@ AX_BASE_EXPORT bool IsReadAnythingLineFocusEnabled();
 AX_BASE_EXPORT BASE_DECLARE_FEATURE(kHatsReadingModeSurvey);
 AX_BASE_EXPORT bool IsHatsReadingModeSurveyEnabled();
 
+// Enable images to be distilled via algorithm. Should be disabled by
+// default.
+AX_BASE_EXPORT BASE_DECLARE_FEATURE(kReadAnythingImagesViaAlgorithm);
+AX_BASE_EXPORT bool IsReadAnythingImagesViaAlgorithmEnabled();
+
 AX_BASE_EXPORT bool IsReadAnythingDocsIntegrationEnabled();
 
 // Enable "load more" button to show at the end of Reading Mode panel.
@@ -388,11 +376,6 @@ AX_BASE_EXPORT bool IsReadAnythingWithReadabilityEnabled();
 // Enable distillation quality evaluation for Reading Mode.
 AX_BASE_EXPORT BASE_DECLARE_FEATURE(kReadAnythingDistillationQualityEvaluation);
 AX_BASE_EXPORT bool IsReadAnythingDistillationQualityEvaluationEnabled();
-
-// Enables unifying distillation triggers to the renderer and decoupling
-// distillation logic.
-AX_BASE_EXPORT BASE_DECLARE_FEATURE(kReadAnythingDistillerRefactor);
-AX_BASE_EXPORT bool IsReadAnythingDistillerRefactorEnabled();
 
 // ScreenAI library's Main Content Extraction service is enabled.
 AX_BASE_EXPORT bool IsScreenAIMainContentExtractionEnabled();

@@ -12,10 +12,8 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.ui.modelutil.PropertyKey;
-import org.chromium.ui.modelutil.PropertyModel.WritableIntDefPropertyKey;
 import org.chromium.ui.modelutil.PropertyModel.WritableIntPropertyKey;
 import org.chromium.ui.modelutil.PropertyModel.WritableObjectPropertyKey;
-import org.chromium.ui.util.ViewVisibility;
 
 /** Properties for the NTP customization Chrome Colors bottom sheet. */
 @NullMarked
@@ -32,8 +30,8 @@ public class NtpChromeColorsProperties {
             new WritableIntPropertyKey();
     public static final WritableIntPropertyKey PRIMARY_COLOR_CIRCLE_VIEW_COLOR =
             new WritableIntPropertyKey();
-    public static final WritableIntDefPropertyKey<ViewVisibility>
-            CUSTOM_COLOR_PICKER_CONTAINER_VISIBILITY = new WritableIntDefPropertyKey<>(View.GONE);
+    public static final WritableIntPropertyKey CUSTOM_COLOR_PICKER_CONTAINER_VISIBILITY =
+            new WritableIntPropertyKey();
     public static final WritableObjectPropertyKey<RecyclerView.LayoutManager>
             RECYCLER_VIEW_LAYOUT_MANAGER = new WritableObjectPropertyKey<>();
     public static final WritableObjectPropertyKey<RecyclerView.Adapter> RECYCLER_VIEW_ADAPTER =

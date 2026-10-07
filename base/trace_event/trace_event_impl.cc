@@ -22,8 +22,9 @@ perfetto::ThreadTrack ConvertThreadId(const ::base::PlatformThreadId& thread) {
 
 }  // namespace legacy
 
-TraceTimestamp TraceTimestampTraits<
-    ::base::TimeTicks>::ConvertTimestampToTraceTimeNs(::base::TimeTicks ticks) {
+TraceTimestamp
+TraceTimestampTraits<::base::TimeTicks>::ConvertTimestampToTraceTimeNs(
+    const ::base::TimeTicks& ticks) {
   return {static_cast<uint32_t>(::base::TrackEvent::GetTraceClockId()),
           static_cast<uint64_t>(ticks.since_origin().InNanoseconds())};
 }

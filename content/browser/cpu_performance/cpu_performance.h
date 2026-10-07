@@ -5,7 +5,6 @@
 #ifndef CONTENT_BROWSER_CPU_PERFORMANCE_CPU_PERFORMANCE_H_
 #define CONTENT_BROWSER_CPU_PERFORMANCE_CPU_PERFORMANCE_H_
 
-#include <optional>
 #include <string>
 
 #include "content/common/content_export.h"
@@ -14,9 +13,9 @@
 
 namespace content::cpu_performance {
 
-// Returns the CPU performance tier from an integer, or std::nullopt if the
-// value is out of range.
-CONTENT_EXPORT std::optional<Tier> TierFromInt(int value);
+// Returns the CPU performance tier from an integer. The value must be
+// within the valid range of PerformanceTier.
+CONTENT_EXPORT Tier TierFromInt(int value);
 
 enum class Manufacturer {
   kUnknown,

@@ -6,7 +6,6 @@
 
 #include <algorithm>
 
-#include "base/check_deref.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/notreached.h"
 #include "base/strings/string_split.h"
@@ -554,9 +553,9 @@ bool OnDeviceSpeechRecognitionImpl::IsLanguageAvailabilityMaskedForOrigin(
     PrefService* profile_prefs) {
   if (base::FeatureList::IsEnabled(media::kPreemptiveSodaDownload) &&
       profile_prefs) {
-    if (language == speech::GetDefaultLiveCaptionLanguage(
-                        g_browser_process->GetApplicationLocale(),
-                        CHECK_DEREF(profile_prefs))) {
+    if (language ==
+        speech::GetDefaultLiveCaptionLanguage(
+            g_browser_process->GetApplicationLocale(), profile_prefs)) {
       return false;
     }
   }

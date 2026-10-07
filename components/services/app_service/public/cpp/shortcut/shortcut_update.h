@@ -52,10 +52,8 @@ class COMPONENT_EXPORT(SHORTCUT) ShortcutUpdate {
   bool ShortcutInitialized() const;
 
  private:
-  // Pointed-to Shortcut instances are ephemeral and guaranteed to outlive this
-  // update wrapper during notification dispatch.
-  raw_ptr<const Shortcut> state_ = nullptr;
-  raw_ptr<const Shortcut> delta_ = nullptr;
+  raw_ptr<const Shortcut, DanglingUntriaged> state_ = nullptr;
+  raw_ptr<const Shortcut, DanglingUntriaged> delta_ = nullptr;
 };
 
 // For logging and debug purposes.

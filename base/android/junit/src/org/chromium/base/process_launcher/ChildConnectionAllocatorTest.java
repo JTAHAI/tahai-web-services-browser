@@ -34,6 +34,7 @@ import org.mockito.invocation.InvocationOnMock;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
 import org.mockito.stubbing.Answer;
+import org.robolectric.annotation.Config;
 
 import org.chromium.base.ChildBindingState;
 import org.chromium.base.test.BaseRobolectricTestRunner;
@@ -44,6 +45,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 /** Unit tests for the ChildConnectionAllocator class. */
+@Config(manifest = Config.NONE)
 @RunWith(BaseRobolectricTestRunner.class)
 public class ChildConnectionAllocatorTest {
     @Rule public MockitoRule mMockitoRule = MockitoJUnit.rule();
@@ -311,7 +313,7 @@ public class ChildConnectionAllocatorTest {
         assertNotNull(connection);
         assertEquals(1, allocator.allocatedConnectionsCountForTesting());
 
-        final ChildProcessConnection[] newConnection = new ChildProcessConnection[2];
+        final ChildProcessConnection newConnection[] = new ChildProcessConnection[2];
         Runnable allocate1 =
                 () -> {
                     newConnection[0] =

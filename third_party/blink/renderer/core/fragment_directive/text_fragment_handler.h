@@ -88,9 +88,8 @@ class CORE_EXPORT TextFragmentHandler final
   // The result will be returned by invoking DidFinishSelectorGeneration().
   void StartGeneratingForCurrentSelection();
 
-  // Returns the range of the paragraph at the viewport's target reading
-  // position.
-  RangeInFlatTree* GetRangeForReadingPosition();
+  // Returns the range of the paragraph at the viewport's geometric center.
+  RangeInFlatTree* GetRangeForViewportCenter();
 
   // Called to reply to the client's RequestSelector call with the result.
   void InvokeReplyCallback(const TextFragmentSelector& selector,

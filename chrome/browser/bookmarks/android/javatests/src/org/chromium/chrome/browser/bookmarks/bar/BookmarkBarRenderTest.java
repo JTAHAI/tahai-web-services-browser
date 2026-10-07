@@ -151,8 +151,7 @@ public class BookmarkBarRenderTest {
                             mSideUiStateProviderSupplier,
                             mTabObscuringHandler,
                             () -> mModalDialogManager,
-                            () -> mSnackbarManager,
-                            ObservableSuppliers.createNonNull(false));
+                            () -> mSnackbarManager);
 
                     assertNotNull(mView);
                     ChromeRenderTestRule.sanitize(mView);

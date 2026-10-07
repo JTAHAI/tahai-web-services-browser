@@ -583,18 +583,12 @@ gfx::NativeViewAccessible ViewAXPlatformNodeDelegate::GetParent() const {
 
   if (Widget* widget = view()->GetWidget()) {
     Widget* top_widget = widget->GetTopLevelWidget();
-    if (top_widget && widget != top_widget && top_widget->GetRootView() &&
-        !IsInHiddenWidget()) {
+    if (top_widget && widget != top_widget && top_widget->GetRootView()) {
       return top_widget->GetRootView()->GetNativeViewAccessible();
     }
   }
 
   return gfx::NativeViewAccessible();
-}
-
-bool ViewAXPlatformNodeDelegate::IsInHiddenWidget() const {
-  const Widget* widget = view()->GetWidget();
-  return widget && !widget->IsVisible();
 }
 
 bool ViewAXPlatformNodeDelegate::IsLeaf() const {

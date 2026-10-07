@@ -33,9 +33,7 @@ impl ValueRange {
     ///
     /// # Panics
     ///
-    /// In debug builds, if the range accepts no values. For an exclusive range
-    /// (`start..end`) that means `end` must be greater than `start`, so both
-    /// reversed ranges like `10..5` and empty ranges like `5..5` panic.
+    /// If the end is less than the start (debug builds)
     ///
     /// # Examples
     ///
@@ -50,16 +48,11 @@ impl ValueRange {
     /// let range = ValueRange::new(..=10);
     /// ```
     ///
-    /// While these will panic:
+    /// While this will panic:
     /// ```should_panic
     /// # use clap_builder as clap;
     /// # use clap::builder::ValueRange;
-    /// let range = ValueRange::new(10..5);  // Panics! (reversed)
-    /// ```
-    /// ```should_panic
-    /// # use clap_builder as clap;
-    /// # use clap::builder::ValueRange;
-    /// let range = ValueRange::new(5..5);  // Panics! (empty)
+    /// let range = ValueRange::new(10..5);  // Panics!
     /// ```
     pub fn new(range: impl Into<Self>) -> Self {
         range.into()

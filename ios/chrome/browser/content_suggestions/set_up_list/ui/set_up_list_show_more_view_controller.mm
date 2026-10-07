@@ -138,7 +138,7 @@ NSString* const kSetUpListTitleAxId = @"kSetUpListTitleAxId";
     [setUpListItemStackView addArrangedSubview:separator];
     [NSLayoutConstraint activateConstraints:@[
       [separator.heightAnchor
-          constraintEqualToConstant:AlignValueToLowerPixel(kSeparatorHeight)],
+          constraintEqualToConstant:AlignValueToPixel(kSeparatorHeight)],
       [separator.leadingAnchor
           constraintEqualToAnchor:setUpListItemStackView.leadingAnchor],
       [separator.trailingAnchor

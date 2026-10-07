@@ -35,8 +35,7 @@ enum class GetAppAudioCaptureIdMacResult {
   kSuccess = 0,
   kFailedToFindBundleId = 1,
   kFailedToFindBrowserForPWA = 2,
-  kInvalidBundleId = 3,
-  kMaxValue = kInvalidBundleId,
+  kMaxValue = kFailedToFindBrowserForPWA,
 };
 
 void RecordGetAppAudioCaptureIdMetrics(base::TimeDelta elapsed,
@@ -98,12 +97,6 @@ std::optional<std::string> GetBundleIdForProcess(pid_t pid) {
       base::SysNSStringToUTF8(app.bundleIdentifier));
 }
 
-bool IsValidBundleId(std::string_view bundle_id) {
-  return !bundle_id.empty() && std::ranges::all_of(bundle_id, [](char c) {
-    return base::IsAsciiAlphaNumeric(c) || c == '-' || c == '.';
-  });
-}
-
 }  // namespace
 
 std::optional<desktop_capture::ApplicationAudioCaptureId>
@@ -118,15 +111,6 @@ GetApplicationAudioCaptureIdForProcess(pid_t pid) {
                            pid, timer.Elapsed().InMillisecondsF()));
     RecordGetAppAudioCaptureIdMetrics(
         timer.Elapsed(), GetAppAudioCaptureIdMacResult::kFailedToFindBundleId);
-    return std::nullopt;
-  }
-
-  if (!IsValidBundleId(*bundle_id)) {
-    MediaStreamManager::SendMessageToNativeLog(base::StringPrintf(
-        "AudioCaptureId: Invalid Bundle ID '%s' for PID %d. Duration: %.3f ms",
-        bundle_id->c_str(), pid, timer.Elapsed().InMillisecondsF()));
-    RecordGetAppAudioCaptureIdMetrics(
-        timer.Elapsed(), GetAppAudioCaptureIdMacResult::kInvalidBundleId);
     return std::nullopt;
   }
 

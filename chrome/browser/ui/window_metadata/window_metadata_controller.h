@@ -8,11 +8,12 @@
 #include <string>
 
 #include "base/memory/raw_ptr.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "components/tabs/public/tab_interface.h"
 #include "ui/base/unowned_user_data/scoped_unowned_user_data.h"
 #include "ui/gfx/image/image.h"
 
-class BrowserWindowInterface;
+class Browser;
 
 namespace content {
 class WebContents;
@@ -76,7 +77,9 @@ class WindowMetadataController {
   const std::string& user_title() const { return user_title_; }
 
  private:
-  raw_ptr<BrowserWindowInterface> browser_;
+  // TODO(crbug.com/496674143): Migrate to use BrowserWindowInterface directly
+  // once the needed methods are available on the interface.
+  raw_ptr<Browser> browser_;
 
   // User-defined window title. Empty if not set.
   std::string user_title_;

@@ -283,13 +283,12 @@ TEST_F(AwPrefetchManagerNoNetworkServiceDedicatedThreadTest,
   // 3. Forward the time after TTL.
   task_environment_.FastForwardBy(base::Seconds(ttl_in_sec + 1));
 
-  // 4. Third request for same URL should succeed because staleness is tracked
-  // via `AwPrefetchHandleWrapper::IsPrefetchStale()` ->
-  // `CrossThreadPrefetchHandle::IsPrefetchStale()`.
+  // 4. Third request for same URL should still fail because `AwPrefetchManager`
+  // doesn't track staleness.
   int key3 = prefetch_manager.StartPrefetchRequest(
       env_, prefetch_url, /*prefetch_params=*/nullptr, /*callback=*/nullptr,
       /*callback_executor=*/nullptr);
-  EXPECT_NE(key3, NO_PREFETCH_KEY);
+  EXPECT_EQ(key3, NO_PREFETCH_KEY);
 }
 
 // Tests that the latest prefetch origin and JavaScript enabled status are

@@ -82,7 +82,7 @@ public class PreferenceParser {
                 TypedArray ta = context.obtainStyledAttributes(attrs, R.styleable.Settings);
                 try {
                     String title = ta.getString(R.styleable.Settings_android_title);
-                    if (tagName.endsWith("PreferenceCategory")) {
+                    if ("PreferenceCategory".equals(tagName)) {
                         header = title;
                     } else {
                         String key = ta.getString(R.styleable.Settings_android_key);

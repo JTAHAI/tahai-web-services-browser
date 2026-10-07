@@ -1,3 +1,4 @@
-dmurph@chromium.org
+peconn@chromium.org
+eirage@chromium.org
 
 per-file ...AuthTabVerifier*=file://chrome/android/java/src/org/chromium/chrome/browser/customtabs/OWNERS

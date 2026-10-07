@@ -121,14 +121,13 @@ bool FakeTabSlotController::IsGroupCollapsed(
   return tab_strip_controller_->IsGroupCollapsed(group);
 }
 
-std::optional<tab_groups::TabGroupId> FakeTabSlotController::GetFocusedGroup()
-    const {
-  return tab_strip_controller_->GetFocusedGroup();
-}
-
 SkColor FakeTabSlotController::GetPaintedGroupColor(
     const tab_groups::TabGroupColorId& color_id) const {
   return SkColor();
+}
+
+Browser* FakeTabSlotController::GetBrowser() {
+  return nullptr;
 }
 
 BrowserWindowInterface* FakeTabSlotController::GetBrowserWindowInterface() {

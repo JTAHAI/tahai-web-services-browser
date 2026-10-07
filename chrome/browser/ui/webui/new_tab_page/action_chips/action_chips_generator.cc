@@ -526,48 +526,36 @@ std::vector<ActionChipPtr> CreateChipsForSteadyState(
 
   using GeneratorFn = const base::FunctionRef<std::optional<ActionChipPtr>(
       std::string_view, const AimEligibilityService*)>;
-
-  // Scaled action chips.
-  static const GeneratorFn kScaledGenerators[] = {
+  static const GeneratorFn kNewGenerators[] = {
       &CreateBrainstormChipIfEligible,
       &CreateLearnChipIfEligible,
       &CreateWriteChipIfEligible,
+      &CreateStarterChipIfEligible,
       // TODO(crbug.com/537040757): Remove from here, only adding for test
       // purposes until the server sends new chip types.
       &CreateAddImageChipIfEligible,
-  };
-
-  // Pre-scaled fallback chips with starter chip and canvas tool.
-  static const GeneratorFn kNewGenerators[] = {
-      &CreateStarterChipIfEligible,
       &CreateImageCreationChipIfEligible,
       &CreateCanvasChipIfEligible,
       &CreateDeepSearchChipIfEligible,
   };
-
-  // Legacy baseline fallback chips.
   static const GeneratorFn kOldGenerators[] = {
       &CreateDeepSearchChipIfEligible,
       &CreateImageCreationChipIfEligible,
   };
 
-  base::span<const GeneratorFn> generators;
-  if (IsScaledChipsEnabled()) {
-    generators = kScaledGenerators;
-  } else if (base::FeatureList::IsEnabled(ntp_features::kNtpNextCanvasChip) ||
-             base::FeatureList::IsEnabled(ntp_features::kNtpStarterChip)) {
-    generators = kNewGenerators;
-  } else {
-    generators = kOldGenerators;
-  }
-
+  const base::span<GeneratorFn> generators =
+      base::FeatureList::IsEnabled(ntp_features::kNtpNextCanvasChip) ||
+              base::FeatureList::IsEnabled(ntp_features::kNtpStarterChip) ||
+              IsScaledChipsEnabled()
+          ? base::span<GeneratorFn>(kNewGenerators)
+          : base::span<GeneratorFn>(kOldGenerators);
   const size_t max_num_chips = GetMaxNumChips();
   for (const GeneratorFn generator : generators) {
     if (chips.size() >= max_num_chips) {
       break;
     }
     if (std::optional<ActionChipPtr> chip =
-            generator(/*suggestion=*/"", aim_eligibility_service)) {
+            generator("", aim_eligibility_service)) {
       chips.push_back(std::move(*chip));
     }
   }

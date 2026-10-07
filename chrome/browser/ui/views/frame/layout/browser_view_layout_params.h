@@ -134,9 +134,6 @@ struct ClientFrameElementInfo {
   // The minimum height of any toolbar. Zero if not present.
   int toolbar_minimum_height = 0;
 
-  // The preferred height of any toolbar. Zero if not present.
-  int toolbar_preferred_height = 0;
-
   // Get the full top area height.
   int top_area_height() const {
     return tabstrip_preferred_height + toolbar_minimum_height;

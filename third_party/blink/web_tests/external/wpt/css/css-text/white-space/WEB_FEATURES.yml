@@ -1,7 +1,19 @@
-rules:
-- text-wrap-balance-*: [text-wrap-balance]
-- text-wrap-nowrap-*: [text-wrap]
-- seg-break-transformation-*: []
-- white-space-collapse-*: [white-space-collapse]
-- line-edge-white-space-collapse-*: [white-space-collapse]
-- "*": [white-space]
+features:
+- name: text-wrap-balance
+  files:
+  - text-wrap-balance-*
+- name: text-wrap
+  files:
+  - text-wrap-nowrap-*
+- name: white-space
+  files:
+  - "*"
+  - "!seg-break-transformation-*"
+  - "!text-wrap-balance-*"
+  - "!text-wrap-nowrap-*"
+  - "!white-space-collapse-*"
+  - "!line-edge-white-space-collapse-*"
+- name: white-space-collapse
+  files:
+  - white-space-collapse-*
+  - line-edge-white-space-collapse-*

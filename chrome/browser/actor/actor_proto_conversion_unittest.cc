@@ -7,14 +7,15 @@
 #include <optional>
 #include <vector>
 
-#include "components/optimization_guide/proto/features/common_quality_data.pb.h"
-#include "components/optimization_guide/proto/features/common_quality_data_fuzzable.pb.h"
 #include "components/origin_gating/core/actor_container_config.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
-#include "third_party/fuzztest/src/fuzztest/fuzztest.h"
 #include "url/gurl.h"
 #include "url/origin.h"
+
+#if BUILDFLAG(USE_FUZZING_ENGINE)
+#include "third_party/fuzztest/src/fuzztest/fuzztest.h"  // nogncheck
+#endif
 
 namespace actor {
 
@@ -332,52 +333,13 @@ TEST_F(ActorProtoConversionTest,
             }}));
 }
 
-TEST_F(ActorProtoConversionTest, ValidateActionsAreScriptTools_EmptyActions) {
-  optimization_guide::proto::Actions actions;
-  EXPECT_TRUE(ValidateActionsAreScriptTools(actions));
-}
-
-TEST_F(ActorProtoConversionTest,
-       ValidateActionsAreScriptTools_OnlyScriptTools) {
-  optimization_guide::proto::Actions actions;
-  auto* action1 = actions.add_actions();
-  action1->mutable_script_tool();
-  auto* action2 = actions.add_actions();
-  action2->mutable_script_tool();
-
-  EXPECT_TRUE(ValidateActionsAreScriptTools(actions));
-}
-
-TEST_F(ActorProtoConversionTest,
-       ValidateActionsAreScriptTools_NonScriptToolAction) {
-  optimization_guide::proto::Actions actions;
-  auto* action = actions.add_actions();
-  action->mutable_wait();
-
-  EXPECT_FALSE(ValidateActionsAreScriptTools(actions));
-}
-
-TEST_F(ActorProtoConversionTest, ValidateActionsAreScriptTools_MixedActions) {
-  optimization_guide::proto::Actions actions;
-  auto* action1 = actions.add_actions();
-  action1->mutable_script_tool();
-  auto* action2 = actions.add_actions();
-  action2->mutable_click();
-
-  EXPECT_FALSE(ValidateActionsAreScriptTools(actions));
-}
-
+#if BUILDFLAG(USE_FUZZING_ENGINE)
 void CanConvertAnyProto(
-    const fuzzable::optimization_guide::proto::AgentContainerConfig&
-        fuzzable_config_proto) {
-  std::string serialized;
-  CHECK(fuzzable_config_proto.SerializeToString(&serialized));
-  optimization_guide::proto::AgentContainerConfig config_proto;
-  CHECK(config_proto.ParseFromString(serialized));
-
+    const optimization_guide::proto::AgentContainerConfig& config_proto) {
   ConvertAgentContainerConfig(config_proto);
 }
 
 FUZZ_TEST(ActorProtoConversionFuzzTest, CanConvertAnyProto);
+#endif
 
 }  // namespace actor

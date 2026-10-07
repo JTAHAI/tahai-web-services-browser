@@ -4,21 +4,27 @@
 
 import 'chrome-untrusted://read-anything-side-panel.top-chrome/read_anything.js';
 
-import type {NodeStore} from 'chrome-untrusted://read-anything-side-panel.top-chrome/read_anything.js';
-import {currentReadHighlightClass, MovementGranularity, PARENT_OF_HIGHLIGHT_CLASS, PhraseHighlight, previousReadHighlightClass, ReadAloudNode, SentenceHighlight, WordHighlight} from 'chrome-untrusted://read-anything-side-panel.top-chrome/read_anything.js';
+import {currentReadHighlightClass, MovementGranularity, NodeStore, PARENT_OF_HIGHLIGHT_CLASS, PhraseHighlight, previousReadHighlightClass, ReadAloudNode, SentenceHighlight, WordHighlight} from 'chrome-untrusted://read-anything-side-panel.top-chrome/read_anything.js';
 import {assertEquals, assertFalse, assertGT, assertNotEquals, assertStringContains, assertStringExcludes, assertTrue} from 'chrome-untrusted://webui-test/chai_assert.js';
 
-import {setupTestEnvironment, setWindowSize} from './common.js';
+import {setWindowSize} from './common.js';
+import {FakeReadingMode} from './fake_reading_mode.js';
 
 suite('Movement', () => {
   let nodeStore: NodeStore;
 
   setup(() => {
-    const result = setupTestEnvironment();
+    // Clearing the DOM should always be done first.
+    document.body.innerHTML = window.trustedTypes!.emptyHTML;
+
     // Always set a large innerHeight and innerWidth to ensure elements are
     // considered visible and don't wrap unexpectedly in tests.
     setWindowSize(1000, 1000);
-    nodeStore = result.nodeStore;
+
+    const readingMode = new FakeReadingMode();
+    chrome.readingMode = readingMode as unknown as typeof chrome.readingMode;
+    nodeStore = NodeStore.getInstance();
+    nodeStore.clear();
   });
 
   function assertHtml(html: string, id: number) {
@@ -133,7 +139,7 @@ suite('Movement', () => {
       document.body.appendChild(container);
       // Add enough content to cause scrolling.
       const spacer = document.createElement('div');
-      spacer.style.height = '10000px';
+      spacer.style.height = '2000px';
       container.appendChild(spacer);
       // This is the target element, initially not visible.
       const targetP = document.createElement('p');
@@ -174,7 +180,7 @@ suite('Movement', () => {
       document.body.appendChild(container);
       // Add enough content to cause scrolling.
       const spacer = document.createElement('div');
-      spacer.style.height = '10000px';
+      spacer.style.height = '2000px';
       container.appendChild(spacer);
       // This is the target element, initially not visible.
       const targetP = document.createElement('p');
@@ -233,7 +239,7 @@ suite('Movement', () => {
 
       // Add content to push the next element off-screen.
       const spacer = document.createElement('div');
-      spacer.style.height = '10000px';
+      spacer.style.height = '2000px';
       container.appendChild(spacer);
 
       // Add an off-screen paragraph.

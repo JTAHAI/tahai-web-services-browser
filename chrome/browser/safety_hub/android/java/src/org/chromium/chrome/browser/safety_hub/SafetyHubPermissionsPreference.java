@@ -9,10 +9,10 @@ import android.graphics.drawable.Drawable;
 import android.view.View;
 import android.widget.ImageView;
 
+import androidx.annotation.NonNull;
 import androidx.preference.PreferenceViewHolder;
 
 import org.chromium.build.annotations.NullMarked;
-import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.settings.FaviconLoader;
 import org.chromium.components.browser_ui.settings.ChromeBasePreference;
 import org.chromium.components.browser_ui.settings.FaviconViewUtils;
@@ -20,14 +20,15 @@ import org.chromium.components.favicon.LargeIconBridge;
 import org.chromium.ui.widget.ButtonCompat;
 import org.chromium.url.GURL;
 
-@NullMarked
 class SafetyHubPermissionsPreference extends ChromeBasePreference implements View.OnClickListener {
-    private final PermissionsData mPermissionsData;
-    private final LargeIconBridge mLargeIconBridge;
+    private final @NonNull PermissionsData mPermissionsData;
+    private final @NonNull LargeIconBridge mLargeIconBridge;
     private boolean mFaviconFetched;
 
     SafetyHubPermissionsPreference(
-            Context context, PermissionsData permissionsData, LargeIconBridge largeIconBridge) {
+            Context context,
+            @NonNull PermissionsData permissionsData,
+            @NonNull LargeIconBridge largeIconBridge) {
         super(context);
 
         mPermissionsData = permissionsData;
@@ -74,16 +75,18 @@ class SafetyHubPermissionsPreference extends ChromeBasePreference implements Vie
         }
     }
 
+    @NonNull
     PermissionsData getPermissionsData() {
         return mPermissionsData;
     }
 
-    private void onFaviconAvailable(@Nullable Drawable drawable) {
+    private void onFaviconAvailable(Drawable drawable) {
         if (drawable != null) {
             setIcon(drawable);
         }
     }
 
+    @NullMarked
     private String createSummary() {
         // TODO(crbug.com/406473591): Consider adding separate string for mixed (unused +
         // notifications revocation) cases.
@@ -101,6 +104,7 @@ class SafetyHubPermissionsPreference extends ChromeBasePreference implements Vie
         return createUnusedOrDisruptivePermissionsSummary();
     }
 
+    @NullMarked
     private String createUnusedOrDisruptivePermissionsSummary() {
         String[] permissionNames =
                 UnusedSitePermissionsBridge.contentSettingsTypeToString(

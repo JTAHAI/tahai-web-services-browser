@@ -30,7 +30,6 @@
 #include "services/network/public/mojom/referrer_policy.mojom-shared.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/blink/public/mojom/loader/fetch_client_settings_object.mojom-forward.h"
-#include "third_party/blink/public/mojom/service_worker/service_worker_ancestor_frame_type.mojom.h"
 #include "third_party/blink/public/mojom/service_worker/service_worker_provider.mojom.h"
 #include "third_party/blink/public/mojom/service_worker/service_worker_registration.mojom.h"
 
@@ -165,9 +164,7 @@ std::unique_ptr<ServiceWorkerHost> CreateServiceWorkerHost(
 scoped_refptr<ServiceWorkerRegistration> CreateNewServiceWorkerRegistration(
     ServiceWorkerRegistry& registry,
     const blink::mojom::ServiceWorkerRegistrationOptions& options,
-    const blink::StorageKey& key,
-    blink::mojom::AncestorFrameType ancestor_frame_type =
-        blink::mojom::AncestorFrameType::kNormalFrame);
+    const blink::StorageKey& key);
 
 // Calls CreateNewVersion() synchronously.
 scoped_refptr<ServiceWorkerVersion> CreateNewServiceWorkerVersion(

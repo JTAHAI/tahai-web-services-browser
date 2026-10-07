@@ -25,49 +25,25 @@ class VulkanDeviceQueue;
 
 namespace android_webview {
 
-// Encapsulates mutable per-draw state for a secondary command buffer rendering
-// pass. This state is owned by ScopedSecondaryCBDraw during recording and held
-// until PostDrawVk() is invoked by Android HWUI.
-struct SecondaryCBDrawState {
-  sk_sp<GrVkSecondaryCBDrawContext> draw_context;
-  std::vector<VkSemaphore> post_submit_semaphores;
-  std::vector<base::OnceClosure> post_submit_tasks;
-};
-
 // Lifetime: WebView
 class AwVulkanContextProvider final : public viz::VulkanContextProvider {
  public:
-  // Short-lived per draw pass. Created in DrawVk() and destroyed in
-  // PostDrawVk().
-  //
-  // Manages the lifecycle of a secondary command buffer draw pass:
-  // - On creation, registers this draw's SecondaryCBDrawState with the provider
-  // so Viz can record into it during synchronous DrawOnRT().
-  // - RecordingFinished() detaches the draw state from the provider once
-  // DrawOnRT() returns, allowing subsequent WebViews to safely record on a
-  // shared provider.
-  // - On destruction (in PostDrawVk()), hands over the draw context,
-  // semaphores, and post-submit callbacks to the provider for submission and
-  // cleanup.
+  // Short-lived. Created and destroyed for each (Vulkan) draw.
   class ScopedSecondaryCBDraw {
    public:
     ScopedSecondaryCBDraw(AwVulkanContextProvider* provider,
-                          sk_sp<GrVkSecondaryCBDrawContext> draw_context);
-
-    ScopedSecondaryCBDraw(ScopedSecondaryCBDraw&&);
-    ScopedSecondaryCBDraw& operator=(ScopedSecondaryCBDraw&&);
+                          sk_sp<GrVkSecondaryCBDrawContext> draw_context)
+        : provider_(provider) {
+      provider_->SecondaryCBDrawBegin(std::move(draw_context));
+    }
 
     ScopedSecondaryCBDraw(const ScopedSecondaryCBDraw&) = delete;
     ScopedSecondaryCBDraw& operator=(const ScopedSecondaryCBDraw&) = delete;
 
-    ~ScopedSecondaryCBDraw();
-
-    void RecordingFinished();
+    ~ScopedSecondaryCBDraw() { provider_->SecondaryCMBDrawSubmitted(); }
 
    private:
-    raw_ptr<AwVulkanContextProvider> provider_;
-    SecondaryCBDrawState state_;
-    bool recording_active_ = true;
+    raw_ptr<AwVulkanContextProvider> const provider_;
   };
 
   AwVulkanContextProvider(const AwVulkanContextProvider&) = delete;
@@ -97,9 +73,8 @@ class AwVulkanContextProvider final : public viz::VulkanContextProvider {
   ~AwVulkanContextProvider() override;
 
   bool Initialize(AwDrawFn_InitVkParams* params);
-  void SecondaryCBDrawBegin(SecondaryCBDrawState* state);
-  void SecondaryCBDrawRecordingFinished(SecondaryCBDrawState* state);
-  void SecondaryCBDrawSubmitted(SecondaryCBDrawState state);
+  void SecondaryCBDrawBegin(sk_sp<GrVkSecondaryCBDrawContext> draw_context);
+  void SecondaryCMBDrawSubmitted();
 
   // Lifetime: Singleton
   //
@@ -124,10 +99,9 @@ class AwVulkanContextProvider final : public viz::VulkanContextProvider {
   static Globals* g_globals;
 
   scoped_refptr<Globals> globals_;
-  // Temporary pointer to the SecondaryCBDrawState of the WebView currently
-  // executing synchronous Viz recording in DrawOnRT(). Non-null strictly during
-  // DrawOnRT() on the RenderThread.
-  raw_ptr<SecondaryCBDrawState> active_draw_state_ = nullptr;
+  sk_sp<GrVkSecondaryCBDrawContext> draw_context_;
+  std::vector<base::OnceClosure> post_submit_tasks_;
+  std::vector<VkSemaphore> post_submit_semaphores_;
 };
 
 }  // namespace android_webview

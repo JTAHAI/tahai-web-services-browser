@@ -38,7 +38,6 @@ class GlicInstanceHelper {
     virtual std::optional<std::string> conversation_id() const = 0;
     virtual std::string conversation_title() const = 0;
     virtual std::optional<int> task_id() const = 0;
-    virtual bool IsShowing() const = 0;
   };
 
   explicit GlicInstanceHelper(tabs::TabInterface* tab);
@@ -53,7 +52,6 @@ class GlicInstanceHelper {
 
   void OnPinnedByInstance(Instance* instance);
   void OnUnpinnedByInstance(Instance* instance);
-  void OnPinnedInstanceVisibilityChanged(Instance* instance);
 
   std::vector<Instance*> GetPinnedInstances() const;
 
@@ -69,8 +67,6 @@ class GlicInstanceHelper {
 #endif
 
  private:
-  void UpdateGlicPinnedToVisibleInstanceProperty();
-
   raw_ptr<Instance> bound_instance_ = nullptr;
   base::flat_set<raw_ptr<Instance>> pinned_instances_;
   raw_ptr<tabs::TabInterface> tab_;

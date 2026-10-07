@@ -3,6 +3,6 @@
 // found in the LICENSE file.
 
 [ImplementedAs=HTMLUserMediaElementMediaStream]
-partial interface HTMLUserMediaElement {
+partial interface mixin HTMLMediaCaptureElementBase {
     readonly attribute MediaStream? stream;
 };

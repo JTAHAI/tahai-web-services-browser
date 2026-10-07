@@ -25,11 +25,6 @@ class SelectMutationObserver : public MutationObserver::Delegate {
 
   void Disconnect();
 
-  static bool IsInteractiveElement(const Node& node);
-  static bool HasTabIndexAttribute(const Node& node);
-  static bool IsContenteditable(const Node& node);
-  static bool IsWhitespaceOrEmpty(const Node& node);
-
  private:
   void CheckAddedNodes(MutationRecord* record,
                        HeapHashSet<Member<Node>>& visited_nodes);
@@ -40,6 +35,7 @@ class SelectMutationObserver : public MutationObserver::Delegate {
       Node& node,
       HeapHashSet<Member<Node>>& visited_nodes);
   bool IsAllowedInteractiveElement(Node& node);
+  bool IsInteractiveElement(const Node& node);
   void RecordIssueByType(ElementAccessibilityIssueReason issue_reason);
   ElementAccessibilityIssueReason CheckForIssue(const Node& descendant);
   bool IsAllowedDescendantOfSelect(const Node& descendant, const Node& parent);
@@ -48,8 +44,11 @@ class SelectMutationObserver : public MutationObserver::Delegate {
   bool IsAllowedDescendantOfButton(const Node& descendant);
   ElementAccessibilityIssueReason CheckDescedantOfOption(
       const Node& descendant);
+  bool HasTabIndexAttribute(const Node& node);
+  bool IsContenteditable(const Node& node);
   ElementAccessibilityIssueReason TraverseAncestorsAndCheckDescendant(
       const Node& descendant);
+  bool IsWhitespaceOrEmpty(const Node& node);
   bool IsAllowedPhrasingContent(const Node& node);
   bool IsAutonomousCustomElement(const Node& node);
 

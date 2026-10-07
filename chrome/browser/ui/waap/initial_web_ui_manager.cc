@@ -106,10 +106,6 @@ bool InitialWebUIManager::IsShowPending() const {
   return is_show_pending_;
 }
 
-bool InitialWebUIManager::IsInitialWebUIPending() const {
-  return is_initial_web_ui_pending_;
-}
-
 void InitialWebUIManager::OnWebUIToolbarLoaded() {
   is_initial_web_ui_pending_ = false;
   is_show_pending_ = false;

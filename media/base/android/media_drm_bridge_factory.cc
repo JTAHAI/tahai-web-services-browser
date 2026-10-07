@@ -45,10 +45,10 @@ void MediaDrmBridgeFactory::Create(
   // Set security level.
   if (cdm_config.key_system == kWidevineKeySystem) {
     security_level_ = cdm_config.use_hw_secure_codecs
-                          ? MediaDrmBridge::SECURITY_LEVEL_HW_SECURE_ALL
-                          : MediaDrmBridge::SECURITY_LEVEL_SW_SECURE_CRYPTO;
+                          ? MediaDrmBridge::SECURITY_LEVEL_1
+                          : MediaDrmBridge::SECURITY_LEVEL_3;
   } else if (media::IsExternalClearKey(cdm_config.key_system)) {
-    security_level_ = MediaDrmBridge::SECURITY_LEVEL_UNKNOWN;
+    security_level_ = MediaDrmBridge::SECURITY_LEVEL_DEFAULT;
   } else if (!cdm_config.use_hw_secure_codecs) {
     // Assume other key systems require hardware-secure codecs and thus do not
     // support full compositing.
@@ -64,62 +64,62 @@ void MediaDrmBridgeFactory::Create(
   session_expiration_update_cb_ = session_expiration_update_cb;
   cdm_created_cb_ = std::move(cdm_created_cb);
 
-  // Create MediaDrmBridge synchronously.
-  // For ClearKey, we require media crypto immediately since we don't use
-  // storage. For others, we set requires_media_crypto to false during
-  // pre-allocation, as we don't have the origin ID yet.
-  const bool is_clearkey = media::IsExternalClearKey(cdm_config.key_system);
-  auto storage = std::make_unique<MediaDrmStorageBridge>();
-
-  auto result = MediaDrmBridge::CreateInternal(
-      scheme_uuid_, "", security_level_, "User",
-      /*requires_media_crypto=*/is_clearkey, std::move(storage),
-      create_fetcher_cb_, session_message_cb_, session_closed_cb_,
-      session_keys_change_cb_, session_expiration_update_cb_);
-
-  if (!result.has_value()) {
-    std::move(cdm_created_cb_).Run(nullptr, std::move(result).code());
+  if (media::IsExternalClearKey(cdm_config.key_system)) {
+    // We don't use storage in ClearKey so we return before creation, and
+    // initialize the Media Drm Bridge with an empty string.
+    CreateMediaDrmBridge("");
     return;
   }
-  media_drm_bridge_ = std::move(result).value();
+  // MediaDrmStorage may be lazy created in MediaDrmStorageBridge.
+  storage_ = std::make_unique<MediaDrmStorageBridge>();
 
-  if (is_clearkey) {
-    media_drm_bridge_->SetMediaCryptoReadyCB(
-        base::BindOnce(&MediaDrmBridgeFactory::OnMediaCryptoReady,
-                       weak_factory_.GetWeakPtr()));
-  } else {
-    media_drm_bridge_->storage()->Initialize(
-        create_storage_cb_,
-        base::BindOnce(&MediaDrmBridgeFactory::OnStorageInitialized,
-                       weak_factory_.GetWeakPtr()));
-  }
+  storage_->Initialize(
+      create_storage_cb_,
+      base::BindOnce(&MediaDrmBridgeFactory::OnStorageInitialized,
+                     weak_factory_.GetWeakPtr()));
 }
 
 void MediaDrmBridgeFactory::OnStorageInitialized(bool success) {
-  DCHECK(media_drm_bridge_);
+  DCHECK(storage_);
   DVLOG(2) << __func__ << ": success = " << success
-           << ", origin_id = " << media_drm_bridge_->storage()->origin_id();
+           << ", origin_id = " << storage_->origin_id();
 
-  // If storage initialization fails, discard the pre-allocated bridge and fail
-  // creation.
+  // MediaDrmStorageBridge should only be created on a successful Initialize().
   if (!success) {
-    media_drm_bridge_ = nullptr;
     std::move(cdm_created_cb_)
         .Run(nullptr, CreateCdmStatus::kGetCdmOriginIdFailed);
     return;
   }
 
-  media_drm_bridge_->CompleteInitialization(
-      media_drm_bridge_->storage()->origin_id(),
-      base::BindOnce(&MediaDrmBridgeFactory::OnMediaCryptoReady,
-                     weak_factory_.GetWeakPtr()));
+  CreateMediaDrmBridge(storage_->origin_id());
+}
+
+void MediaDrmBridgeFactory::CreateMediaDrmBridge(const std::string& origin_id) {
+  DCHECK(!media_drm_bridge_);
+
+  // Requires MediaCrypto so that it can be used by MediaCodec-based decoders.
+  const bool requires_media_crypto = true;
+
+  auto result = MediaDrmBridge::CreateInternal(
+      scheme_uuid_, origin_id, security_level_, "User", requires_media_crypto,
+      std::move(storage_), create_fetcher_cb_, session_message_cb_,
+      session_closed_cb_, session_keys_change_cb_,
+      session_expiration_update_cb_);
+
+  if (!result.has_value()) {
+    std::move(cdm_created_cb_).Run(nullptr, std::move(result).code());
+    return;
+  }
+
+  media_drm_bridge_ = std::move(result).value();
+  media_drm_bridge_->SetMediaCryptoReadyCB(base::BindOnce(
+      &MediaDrmBridgeFactory::OnMediaCryptoReady, weak_factory_.GetWeakPtr()));
 }
 
 void MediaDrmBridgeFactory::OnMediaCryptoReady(
     base::android::ScopedJavaGlobalRef<jobject> media_crypto,
     bool requires_secure_video_codec) {
   DCHECK(media_crypto);
-
   if (!media_crypto) {
     media_drm_bridge_ = nullptr;
     std::move(cdm_created_cb_)

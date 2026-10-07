@@ -17,9 +17,9 @@ import * as path from 'path';
 import * as process from 'process';
 import {fileURLToPath} from 'url';
 
-import {CodeWriter} from './code_writer.js';
-import {MojomModel} from './converter.js';
-import type {MojomAst} from './mojom_types.js';
+import {CodeWriter} from './code_writer.ts';
+import {MojomModel} from './converter.ts';
+import type {MojomAst} from './mojom_types.ts';
 
 function generateTs(c: MojomModel): string {
   const writer = new CodeWriter();
@@ -45,7 +45,6 @@ function generateTs(c: MojomModel): string {
     'ReadableStream',
     'Promise',
     'Record',
-    'Date',
   ]);
   for (const t of c.referencedTypes) {
     if (!c.generatedNames.has(t) && !BUILTIN_TYPES.has(t)) {
@@ -137,11 +136,8 @@ function updateGlicApiExports(
 function getAst(dirname: string): MojomAst {
   const parsePyPath = path.resolve(dirname, 'parse.py');
   try {
-    const vpythonCmd =
-        process.platform === 'win32' ? 'vpython3.bat' : 'vpython3';
-    const jsonStr = execFileSync(
-        vpythonCmd, [parsePyPath],
-        {encoding: 'utf-8', shell: process.platform === 'win32'});
+    const jsonStr =
+        execFileSync('vpython3', [parsePyPath], {encoding: 'utf-8'});
     return JSON.parse(jsonStr) as MojomAst;
   } catch (e) {
     console.error('Failed to run parse.py:', e);
@@ -159,11 +155,7 @@ function main() {
   }
 
   const scriptPath = fileURLToPath(import.meta.url);
-  let scriptDir = path.dirname(scriptPath);
-  if (!fs.existsSync(path.join(scriptDir, 'parse.py')) &&
-      process.env['GENERATE_IMPL_DIR']) {
-    scriptDir = process.env['GENERATE_IMPL_DIR'];
-  }
+  const scriptDir = path.dirname(scriptPath);
 
   const ast = getAst(scriptDir);
 

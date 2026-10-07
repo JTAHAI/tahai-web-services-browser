@@ -15,7 +15,7 @@ import org.chromium.build.annotations.Nullable;
 @NullMarked
 public abstract class ActivityLifecycleCallbacksAdapter
         implements Application.ActivityLifecycleCallbacks {
-    public void onStateChanged(Activity activity, @ActivityState int newState) {}
+    public abstract void onStateChanged(Activity activity, @ActivityState int newState);
 
     @Override
     public void onActivityCreated(Activity activity, @Nullable Bundle savedInstanceState) {

@@ -62,7 +62,6 @@ class CORE_EXPORT LayoutTableCell : public LayoutBlockFlow {
 
   void StyleDidChange(StyleDifference diff,
                       const ComputedStyle* old_style,
-                      const ComputedStyle& new_style,
                       const StyleChangeContext&) final;
 
   void WillBeRemovedFromTree() override;

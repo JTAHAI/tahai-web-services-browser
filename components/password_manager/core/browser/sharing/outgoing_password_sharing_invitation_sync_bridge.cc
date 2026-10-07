@@ -45,9 +45,8 @@ CreateOutgoingPasswordSharingInvitationSpecifics(
                                 ->mutable_password_group_data();
   password_group_data->set_username_value(
       base::UTF16ToUTF8(passwords[0].username_value));
-  std::u16string password_value_plain = passwords[0].password_value.value();
   password_group_data->set_password_value(
-      base::UTF16ToUTF8(password_value_plain));
+      base::UTF16ToUTF8(passwords[0].password_value));
 
   for (const PasswordForm& password : passwords) {
     sync_pb::PasswordSharingInvitationData::PasswordGroupElementData*
@@ -103,9 +102,8 @@ void OutgoingPasswordSharingInvitationSyncBridge::SendPasswordGroup(
   CHECK_EQ(std::ranges::count(passwords, passwords[0].username_value,
                               &PasswordForm::username_value),
            static_cast<int>(passwords.size()));
-  CHECK_EQ(std::ranges::count(
-               passwords, passwords[0].password_value.value(),
-               [](const PasswordForm& f) { return f.password_value.value(); }),
+  CHECK_EQ(std::ranges::count(passwords, passwords[0].password_value,
+                              &PasswordForm::password_value),
            static_cast<int>(passwords.size()));
 
   if (!change_processor()->IsTrackingMetadata()) {

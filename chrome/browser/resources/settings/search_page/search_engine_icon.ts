@@ -11,11 +11,9 @@
 import 'chrome://resources/cr_elements/cr_auto_img/cr_auto_img.js';
 import '../site_favicon.js';
 
-import type {PropertyValues} from 'chrome://resources/lit/v3_0/lit.rollup.js';
-import {CrLitElement} from 'chrome://resources/lit/v3_0/lit.rollup.js';
+import {PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
-import {getCss} from './search_engine_icon.css.js';
-import {getHtml} from './search_engine_icon.html.js';
+import {getTemplate} from './search_engine_icon.html.js';
 import type {SearchEngine} from './search_engines_browser_proxy.js';
 
 export interface SettingsSearchEngineIconElement {
@@ -24,56 +22,48 @@ export interface SettingsSearchEngineIconElement {
   };
 }
 
-export class SettingsSearchEngineIconElement extends CrLitElement {
+export class SettingsSearchEngineIconElement extends PolymerElement {
   static get is() {
     return 'settings-search-engine-icon';
   }
 
-  static override get styles() {
-    return getCss();
+  static get template() {
+    return getTemplate();
   }
 
-  override render() {
-    return getHtml.bind(this)();
-  }
-
-  static override get properties() {
+  static get properties() {
     return {
-      engine: {type: Object},
-      showDownloadedIcon_: {type: Boolean},
+      engine: {
+        type: Object,
+        observer: 'onEngineChanged_',
+      },
+
+      showDownloadedIcon_: {
+        type: Boolean,
+        value: false,
+      },
     };
   }
 
-  accessor engine: SearchEngine|null = null;
-  protected accessor showDownloadedIcon_: boolean = false;
+  declare engine: SearchEngine;
+  private declare showDownloadedIcon_: boolean;
   private timeoutId_: number|null = null;
 
-  override willUpdate(changedProperties: PropertyValues<this>) {
-    super.willUpdate(changedProperties);
-
-    if (changedProperties.has('engine')) {
-      const oldEngine = changedProperties.get('engine');
-      this.onEngineChanged_(this.engine, oldEngine);
-    }
-  }
-
-  protected getIconUrl_(): string {
-    const iconURL = this.engine?.iconURL;
+  private getIconUrl_(iconURL: string): string {
     if (!iconURL) {
       return '';
     }
     try {
-      const url = new URL(iconURL);
-      return url.protocol === 'https:' || url.protocol === 'http:' ? iconURL :
-                                                                     '';
+      new URL(iconURL);
+      return iconURL;
     } catch (e) {
       return '';
     }
   }
 
   private onEngineChanged_(
-      newEngine: SearchEngine|null, oldEngine: SearchEngine|null|undefined) {
-    if (oldEngine && newEngine?.iconURL === oldEngine.iconURL) {
+      newEngine: SearchEngine, oldEngine: SearchEngine|undefined) {
+    if (oldEngine && newEngine.iconURL === oldEngine.iconURL) {
       return;
     }
     this.showDownloadedIcon_ = false;
@@ -92,7 +82,7 @@ export class SettingsSearchEngineIconElement extends CrLitElement {
     }, 1000);
   }
 
-  protected onDownloadedIconLoad_() {
+  private onDownloadedIconLoadSuccess_() {
     this.showDownloadedIcon_ = true;
     if (this.timeoutId_) {
       clearTimeout(this.timeoutId_);
@@ -100,13 +90,13 @@ export class SettingsSearchEngineIconElement extends CrLitElement {
     }
   }
 
-  protected onDownloadedIconError_() {
+  private onDownloadedIconLoadError_() {
     this.showDownloadedIcon_ = false;
   }
 
-  protected shouldShowDownloadedIcon_(): boolean {
-    return this.showDownloadedIcon_ && !this.engine?.iconPath &&
-        !!this.engine?.iconURL;
+  private shouldShowDownloadedIcon_(): boolean {
+    return this.showDownloadedIcon_ && !this.engine.iconPath &&
+        !!this.engine.iconURL;
   }
 }
 

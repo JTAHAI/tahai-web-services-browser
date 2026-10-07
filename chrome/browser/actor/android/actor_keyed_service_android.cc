@@ -6,15 +6,14 @@
 
 #include <vector>
 
-#include "base/android/callback_android.h"
 #include "base/android/jni_android.h"
+#include "base/android/jni_array.h"
 #include "base/android/jni_string.h"
 #include "base/functional/bind.h"
 #include "chrome/browser/actor/actor_keyed_service_factory.h"
 #include "chrome/browser/actor/android/actor_task_android.h"
 #include "chrome/browser/android/tab_android.h"
 #include "chrome/browser/profiles/profile.h"
-#include "third_party/jni_zero/default_conversions.h"
 
 // Must come after all headers that specialize FromJniType() / ToJniType().
 #include "chrome/browser/actor/android/jni_headers/ActorKeyedServiceFactory_jni.h"
@@ -23,6 +22,7 @@
 using base::android::AttachCurrentThread;
 using base::android::JavaRef;
 using base::android::ScopedJavaLocalRef;
+using base::android::ToJavaIntArray;
 
 namespace actor {
 
@@ -44,7 +44,9 @@ ActorKeyedServiceAndroid* ActorKeyedServiceAndroid::Get(
 }
 
 ScopedJavaLocalRef<jobject> JNI_ActorKeyedServiceFactory_GetForProfile(
-    Profile* profile) {
+    JNIEnv* env,
+    const JavaRef<jobject>& jprofile) {
+  Profile* profile = Profile::FromJavaObject(jprofile);
   if (!profile) {
     return nullptr;
   }
@@ -77,19 +79,9 @@ ActorKeyedServiceAndroid::ActorKeyedServiceAndroid(ActorKeyedService* service)
       base::BindRepeating(&ActorKeyedServiceAndroid::OnTaskStateChanged,
                           base::Unretained(this)));
 
-  task_step_progress_subscription_ =
-      service_->AddTaskStepProgressChangedCallback(base::BindRepeating(
-          &ActorKeyedServiceAndroid::OnTaskStepProgressChanged,
-          base::Unretained(this)));
-
   ensure_fgs_started_subscription_ =
       service_->AddForegroundServiceStartedCallback(base::BindRepeating(
           &ActorKeyedServiceAndroid::EnsureForegroundServiceStarted,
-          base::Unretained(this)));
-
-  message_trigger_task_stopped_subscription_ =
-      service_->AddMessageTriggerTaskStoppedCallback(base::BindRepeating(
-          &ActorKeyedServiceAndroid::OnMessageTriggerTaskStopped,
           base::Unretained(this)));
 }
 
@@ -103,21 +95,27 @@ ActorKeyedServiceAndroid::GetJavaObject() {
   return ScopedJavaLocalRef<jobject>(java_obj_);
 }
 
-std::vector<jni_zero::ScopedJavaLocalRef<jobject>>
-ActorKeyedServiceAndroid::GetActiveTasks() {
+base::android::ScopedJavaLocalRef<jobjectArray>
+ActorKeyedServiceAndroid::GetActiveTasks(JNIEnv* env) {
   std::vector<ScopedJavaLocalRef<jobject>> j_tasks;
   for (const auto& [id, task] : service_->GetActiveTasks()) {
     j_tasks.push_back(ActorTaskAndroid::GetForTask(const_cast<ActorTask*>(task))
                           ->GetJavaObject());
   }
-  return j_tasks;
+  // TODO(crbug.com/489134045): Try using JniType to convert this array.
+  return base::android::ToTypedJavaArrayOfObjects(
+      env, j_tasks,
+      base::android::GetClass(env,
+                              "org/chromium/chrome/browser/actor/ActorTask")
+          .obj());
 }
 
-int32_t ActorKeyedServiceAndroid::GetActiveTasksCount() {
+int32_t ActorKeyedServiceAndroid::GetActiveTasksCount(JNIEnv* env) {
   return static_cast<int32_t>(service_->GetActiveTasksCount());
 }
 
 base::android::ScopedJavaLocalRef<jobject> ActorKeyedServiceAndroid::GetTask(
+    JNIEnv* env,
     int32_t task_id) {
   ActorTask* task = service_->GetTask(TaskId(task_id));
   if (!task) {
@@ -126,19 +124,30 @@ base::android::ScopedJavaLocalRef<jobject> ActorKeyedServiceAndroid::GetTask(
   return ActorTaskAndroid::GetForTask(task)->GetJavaObject();
 }
 
-void ActorKeyedServiceAndroid::StopTask(int32_t task_id, int32_t stop_reason) {
+void ActorKeyedServiceAndroid::StopTask(JNIEnv* env,
+                                        int32_t task_id,
+                                        int32_t stop_reason) {
   service_->StopTask(TaskId(task_id),
                      static_cast<ActorTask::StoppedReason>(stop_reason));
 }
 
 void ActorKeyedServiceAndroid::SetPreparedBackgroundTab(
-    TabAndroid* tab,
-    const std::string& glic_trigger_message_id) {
+    JNIEnv* env,
+    const base::android::JavaRef<jobject>& j_tab,
+    const base::android::JavaRef<jstring>& j_glic_trigger_message_id) {
+  TabAndroid* tab = TabAndroid::GetNativeTab(env, j_tab);
+  std::string glic_trigger_message_id =
+      base::android::ConvertJavaStringToUTF8(env, j_glic_trigger_message_id);
+
   service_->NotifyBackgroundTabReady(tab, glic_trigger_message_id);
 }
 
 void ActorKeyedServiceAndroid::NotifyBackgroundSetupFailed(
-    const std::string& glic_trigger_message_id) {
+    JNIEnv* env,
+    const base::android::JavaRef<jstring>& j_glic_trigger_message_id) {
+  std::string glic_trigger_message_id =
+      base::android::ConvertJavaStringToUTF8(env, j_glic_trigger_message_id);
+
   service_->NotifyBackgroundSetupFailed(glic_trigger_message_id);
 }
 
@@ -149,56 +158,12 @@ void ActorKeyedServiceAndroid::OnTaskStateChanged(ActorTask& task) {
                                             static_cast<int>(task.GetState()));
 }
 
-void ActorKeyedServiceAndroid::OnTaskStepProgressChanged(
-    ActorTask& task,
-    const std::string& step_progress) {
-  JNIEnv* env = AttachCurrentThread();
-  Java_ActorKeyedService_onTaskStepProgressChanged(
-      env, java_obj_, task.id().GetUnsafeValue(), step_progress);
-}
-
 void ActorKeyedServiceAndroid::EnsureForegroundServiceStarted(
     const std::string& glic_trigger_message_id) {
   JNIEnv* env = AttachCurrentThread();
   Java_ActorKeyedService_ensureForegroundServiceStarted(
-      env, java_obj_, glic_trigger_message_id);
-}
-
-void CreateBackgroundTabForTask(
-    Profile* profile,
-    TaskId task_id,
-    ActorKeyedService::CreateActorTabCallback callback) {
-  ActorKeyedService* service =
-      ActorKeyedServiceFactory::GetActorKeyedService(profile);
-  if (!service) {
-    std::move(callback).Run(nullptr);
-    return;
-  }
-  ActorKeyedServiceAndroid* bridge = ActorKeyedServiceAndroid::Get(service);
-  JNIEnv* env = AttachCurrentThread();
-  auto j_callback = base::android::ToJniCallback(
-      env, base::BindOnce(
-               [](ActorKeyedService::CreateActorTabCallback callback,
-                  const base::android::JavaRef<jobject>& j_tab) {
-                 tabs::TabInterface* tab = nullptr;
-                 if (j_tab) {
-                   if (TabAndroid* tab_android = TabAndroid::GetNativeTab(
-                           AttachCurrentThread(), j_tab)) {
-                     tab = tab_android;
-                   }
-                 }
-                 std::move(callback).Run(tab);
-               },
-               std::move(callback)));
-  Java_ActorKeyedService_createBackgroundTabForTask(
-      env, bridge->GetJavaObject(), profile, task_id.value(), j_callback);
-}
-
-void ActorKeyedServiceAndroid::OnMessageTriggerTaskStopped(
-    const std::string& glic_trigger_message_id) {
-  JNIEnv* env = base::android::AttachCurrentThread();
-  Java_ActorKeyedService_onMessageTriggerTaskStopped(env, java_obj_,
-                                                     glic_trigger_message_id);
+      env, java_obj_,
+      base::android::ConvertUTF8ToJavaString(env, glic_trigger_message_id));
 }
 
 }  // namespace actor

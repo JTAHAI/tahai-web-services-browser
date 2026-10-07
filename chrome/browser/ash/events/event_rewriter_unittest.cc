@@ -6,7 +6,6 @@
 
 #include <memory>
 #include <optional>
-#include <ranges>
 #include <vector>
 
 #include "ash/accelerators/accelerator_controller_impl.h"
@@ -23,6 +22,7 @@
 #include "ash/system/toast/anchored_nudge_manager_impl.h"
 #include "base/check_deref.h"
 #include "base/command_line.h"
+#include "base/containers/adapters.h"
 #include "base/containers/flat_set.h"
 #include "base/memory/ptr_util.h"
 #include "base/memory/raw_ptr.h"
@@ -53,6 +53,7 @@
 #include "ui/base/ime/ash/mock_input_method_manager.h"
 #include "ui/base/ime/ash/mock_input_method_manager_impl.h"
 #include "ui/base/shortcut_mapping_pref_delegate.h"
+#include "ui/base/ui_base_features.h"
 #include "ui/events/ash/caps_lock_event_rewriter.h"
 #include "ui/events/ash/discard_key_event_rewriter.h"
 #include "ui/events/ash/event_rewriter_ash.h"
@@ -724,15 +725,23 @@ class EventRewriterTestBase : public ChromeAshTestBase {
 
     source_.AddEventRewriter(keyboard_device_id_event_rewriter_.get());
     source_.AddEventRewriter(keyboard_modifier_event_rewriter_.get());
-    source_.AddEventRewriter(caps_lock_event_rewriter_.get());
+    if (features::IsModifierSplitEnabled()) {
+      source_.AddEventRewriter(caps_lock_event_rewriter_.get());
+    }
     source_.AddEventRewriter(event_rewriter_ash_.get());
-    source_.AddEventRewriter(discard_key_event_rewriter_.get());
+    if (features::IsModifierSplitEnabled()) {
+      source_.AddEventRewriter(discard_key_event_rewriter_.get());
+    }
   }
 
   void TearDown() override {
-    source_.RemoveEventRewriter(discard_key_event_rewriter_.get());
+    if (features::IsModifierSplitEnabled()) {
+      source_.RemoveEventRewriter(discard_key_event_rewriter_.get());
+    }
     source_.RemoveEventRewriter(event_rewriter_ash_.get());
-    source_.RemoveEventRewriter(caps_lock_event_rewriter_.get());
+    if (features::IsModifierSplitEnabled()) {
+      source_.RemoveEventRewriter(caps_lock_event_rewriter_.get());
+    }
     source_.RemoveEventRewriter(keyboard_modifier_event_rewriter_.get());
     source_.RemoveEventRewriter(keyboard_device_id_event_rewriter_.get());
 
@@ -803,7 +812,7 @@ class EventRewriterTestBase : public ChromeAshTestBase {
 
     // Send modifier key release events to unset rewriter'.s modifier flag
     // state.
-    for (const auto& modifier : std::views::reverse(kModifierList)) {
+    for (const auto& modifier : base::Reversed(kModifierList)) {
       if (!(extra_flags & modifier.flag)) {
         continue;
       }
@@ -982,17 +991,38 @@ class EventRewriterTestBase : public ChromeAshTestBase {
       input_device_settings_notification_controller_;  // Not owned.
 };
 
-class EventRewriterTest : public EventRewriterTestBase {
+class EventRewriterTest
+    : public EventRewriterTestBase,
+      public testing::WithParamInterface<bool> {
  public:
   void SetUp() override {
+    if (GetParam()) {
+      modifier_split_feature_list_.InitAndEnableFeature(
+          ash::features::kModifierSplit);
+    } else {
+      modifier_split_feature_list_.InitAndDisableFeature(
+          ash::features::kModifierSplit);
+    }
 
     EventRewriterTestBase::SetUp();
   }
+
+  void TearDown() override {
+    EventRewriterTestBase::TearDown();
+    modifier_split_feature_list_.Reset();
+  }
+
+ private:
+  base::test::ScopedFeatureList modifier_split_feature_list_;
 };
+
+INSTANTIATE_TEST_SUITE_P(All,
+                         EventRewriterTest,
+                         testing::Bool());
 
 // TestKeyRewriteLatency checks that the event rewriter
 // publishes a latency metric every time a key is pressed.
-TEST_F(EventRewriterTest, TestKeyRewriteLatency) {
+TEST_P(EventRewriterTest, TestKeyRewriteLatency) {
   SendKeyEvent(KeyLControl::Pressed());
 
   base::HistogramTester histogram_tester;
@@ -1004,7 +1034,7 @@ TEST_F(EventRewriterTest, TestKeyRewriteLatency) {
       "ChromeOS.Inputs.EventRewriter.KeyRewriteLatency", 2);
 }
 
-TEST_F(EventRewriterTest, ModifiersNotRemappedWhenSuppressed) {
+TEST_P(EventRewriterTest, ModifiersNotRemappedWhenSuppressed) {
   // Remap Control -> Alt.
   Preferences::RegisterProfilePrefs(
       CHECK_DEREF(TestingBrowserProcess::GetGlobal()->local_state()),
@@ -1023,7 +1053,7 @@ TEST_F(EventRewriterTest, ModifiersNotRemappedWhenSuppressed) {
             RunRewriter(KeyB::Typed(), ui::EF_CONTROL_DOWN));
 }
 
-TEST_F(EventRewriterTest, TestRewriteNumPadKeys) {
+TEST_P(EventRewriterTest, TestRewriteNumPadKeys) {
   // Even if most Chrome OS keyboards do not have numpad, they should still
   // handle it the same way as generic PC keyboards.
   for (const auto& keyboard : kNonAppleKeyboardVariants) {
@@ -1096,7 +1126,7 @@ TEST_F(EventRewriterTest, TestRewriteNumPadKeys) {
 }
 
 // Tests if the rewriter can handle a Command + Num Pad event.
-TEST_F(EventRewriterTest, TestRewriteNumPadKeysOnAppleKeyboard) {
+TEST_P(EventRewriterTest, TestRewriteNumPadKeysOnAppleKeyboard) {
   // Simulate the default initialization of the Apple Command key remap pref to
   // Ctrl.
   Preferences::RegisterProfilePrefs(
@@ -1120,7 +1150,7 @@ TEST_F(EventRewriterTest, TestRewriteNumPadKeysOnAppleKeyboard) {
             RunRewriter(KeyNumpad1::Typed(), ui::EF_COMMAND_DOWN));
 }
 
-TEST_F(EventRewriterTest, TestRewriteModifiersNoRemap) {
+TEST_P(EventRewriterTest, TestRewriteModifiersNoRemap) {
   for (const auto& keyboard : kAllKeyboardVariants) {
     SCOPED_TRACE(keyboard.name);
     SetUpKeyboard(keyboard);
@@ -1142,7 +1172,7 @@ TEST_F(EventRewriterTest, TestRewriteModifiersNoRemap) {
   }
 }
 
-TEST_F(EventRewriterTest, TestRewriteModifiersNoRemapMultipleKeys) {
+TEST_P(EventRewriterTest, TestRewriteModifiersNoRemapMultipleKeys) {
   for (const auto& keyboard : kAllKeyboardVariants) {
     SCOPED_TRACE(keyboard.name);
     SetUpKeyboard(keyboard);
@@ -1192,7 +1222,7 @@ TEST_F(EventRewriterTest, TestRewriteModifiersNoRemapMultipleKeys) {
   }
 }
 
-TEST_F(EventRewriterTest, TestRewriteModifiersDisableSome) {
+TEST_P(EventRewriterTest, TestRewriteModifiersDisableSome) {
   // Disable Search, Control and Escape keys.
   Preferences::RegisterProfilePrefs(
       CHECK_DEREF(TestingBrowserProcess::GetGlobal()->local_state()),
@@ -1257,7 +1287,7 @@ TEST_F(EventRewriterTest, TestRewriteModifiersDisableSome) {
   }
 }
 
-TEST_F(EventRewriterTest, TestRewriteModifiersRemapToControl) {
+TEST_P(EventRewriterTest, TestRewriteModifiersRemapToControl) {
   // Remap Search to Control.
   Preferences::RegisterProfilePrefs(
       CHECK_DEREF(TestingBrowserProcess::GetGlobal()->local_state()),
@@ -1315,7 +1345,7 @@ TEST_F(EventRewriterTest, TestRewriteModifiersRemapToControl) {
   }
 }
 
-TEST_F(EventRewriterTest, TestRewriteModifiersRemapToEscape) {
+TEST_P(EventRewriterTest, TestRewriteModifiersRemapToEscape) {
   // Remap Search to Escape.
   Preferences::RegisterProfilePrefs(
       CHECK_DEREF(TestingBrowserProcess::GetGlobal()->local_state()),
@@ -1332,7 +1362,7 @@ TEST_F(EventRewriterTest, TestRewriteModifiersRemapToEscape) {
   }
 }
 
-TEST_F(EventRewriterTest, TestRewriteModifiersRemapEscapeToAlt) {
+TEST_P(EventRewriterTest, TestRewriteModifiersRemapEscapeToAlt) {
   // Remap Escape to Alt.
   Preferences::RegisterProfilePrefs(
       CHECK_DEREF(TestingBrowserProcess::GetGlobal()->local_state()),
@@ -1349,7 +1379,7 @@ TEST_F(EventRewriterTest, TestRewriteModifiersRemapEscapeToAlt) {
   }
 }
 
-TEST_F(EventRewriterTest, TestRewriteModifiersRemapAltToControl) {
+TEST_P(EventRewriterTest, TestRewriteModifiersRemapAltToControl) {
   // Remap Alt to Control.
   Preferences::RegisterProfilePrefs(
       CHECK_DEREF(TestingBrowserProcess::GetGlobal()->local_state()),
@@ -1376,7 +1406,7 @@ TEST_F(EventRewriterTest, TestRewriteModifiersRemapAltToControl) {
   }
 }
 
-TEST_F(EventRewriterTest, TestRewriteModifiersRemapUnderEscapeControlAlt) {
+TEST_P(EventRewriterTest, TestRewriteModifiersRemapUnderEscapeControlAlt) {
   Preferences::RegisterProfilePrefs(
       CHECK_DEREF(TestingBrowserProcess::GetGlobal()->local_state()),
       prefs()->registry());
@@ -1421,7 +1451,7 @@ TEST_F(EventRewriterTest, TestRewriteModifiersRemapUnderEscapeControlAlt) {
   }
 }
 
-TEST_F(EventRewriterTest,
+TEST_P(EventRewriterTest,
        TestRewriteModifiersRemapUnderEscapeControlAltSearch) {
   Preferences::RegisterProfilePrefs(
       CHECK_DEREF(TestingBrowserProcess::GetGlobal()->local_state()),
@@ -1464,7 +1494,7 @@ TEST_F(EventRewriterTest,
   }
 }
 
-TEST_F(EventRewriterTest, TestRewriteModifiersRemapBackspaceToEscape) {
+TEST_P(EventRewriterTest, TestRewriteModifiersRemapBackspaceToEscape) {
   // Remap Backspace to Escape.
   Preferences::RegisterProfilePrefs(
       CHECK_DEREF(TestingBrowserProcess::GetGlobal()->local_state()),
@@ -1481,7 +1511,7 @@ TEST_F(EventRewriterTest, TestRewriteModifiersRemapBackspaceToEscape) {
   }
 }
 
-TEST_F(EventRewriterTest,
+TEST_P(EventRewriterTest,
        TestRewriteNonModifierToModifierWithRemapBetweenKeyEvents) {
   // Remap Escape to Alt.
   Preferences::RegisterProfilePrefs(
@@ -1508,7 +1538,7 @@ TEST_F(EventRewriterTest,
   EXPECT_EQ(KeyA::Typed(), RunRewriter(KeyA::Typed()));
 }
 
-TEST_F(EventRewriterTest, TestRewriteModifiersRemapToCapsLock) {
+TEST_P(EventRewriterTest, TestRewriteModifiersRemapToCapsLock) {
   // Remap Search to Caps Lock.
   Preferences::RegisterProfilePrefs(
       CHECK_DEREF(TestingBrowserProcess::GetGlobal()->local_state()),
@@ -1576,7 +1606,7 @@ TEST_F(EventRewriterTest, TestRewriteModifiersRemapToCapsLock) {
   EXPECT_TRUE(fake_ime_keyboard_.IsCapsLockEnabled());
 }
 
-TEST_F(EventRewriterTest, TestRewriteCapsLock) {
+TEST_P(EventRewriterTest, TestRewriteCapsLock) {
   Preferences::RegisterProfilePrefs(
       CHECK_DEREF(TestingBrowserProcess::GetGlobal()->local_state()),
       prefs()->registry());
@@ -1615,7 +1645,7 @@ TEST_F(EventRewriterTest, TestRewriteCapsLock) {
   EXPECT_TRUE(fake_ime_keyboard_.IsCapsLockEnabled());
 }
 
-TEST_F(EventRewriterTest, TestRewriteExternalCapsLockWithDifferentScenarios) {
+TEST_P(EventRewriterTest, TestRewriteExternalCapsLockWithDifferentScenarios) {
   Preferences::RegisterProfilePrefs(
       CHECK_DEREF(TestingBrowserProcess::GetGlobal()->local_state()),
       prefs()->registry());
@@ -1657,7 +1687,7 @@ TEST_F(EventRewriterTest, TestRewriteExternalCapsLockWithDifferentScenarios) {
   EXPECT_FALSE(fake_ime_keyboard_.IsCapsLockEnabled());
 }
 
-TEST_F(EventRewriterTest, TestRewriteCapsLockToControl) {
+TEST_P(EventRewriterTest, TestRewriteCapsLockToControl) {
   // Remap CapsLock to Control.
   Preferences::RegisterProfilePrefs(
       CHECK_DEREF(TestingBrowserProcess::GetGlobal()->local_state()),
@@ -1683,7 +1713,7 @@ TEST_F(EventRewriterTest, TestRewriteCapsLockToControl) {
             RunRewriter(KeyA::Typed(), ui::EF_ALT_DOWN | ui::EF_MOD3_DOWN));
 }
 
-TEST_F(EventRewriterTest, TestRewriteCapsLockMod3InUse) {
+TEST_P(EventRewriterTest, TestRewriteCapsLockMod3InUse) {
   // Remap CapsLock to Control.
   Preferences::RegisterProfilePrefs(
       CHECK_DEREF(TestingBrowserProcess::GetGlobal()->local_state()),
@@ -1701,7 +1731,7 @@ TEST_F(EventRewriterTest, TestRewriteCapsLockMod3InUse) {
   input_method_manager_mock_->set_mod3_used(false);
 }
 
-TEST_F(EventRewriterTest, TestRewriteToQuickInsert) {
+TEST_P(EventRewriterTest, TestRewriteToQuickInsert) {
   // Remap QuickInsert to Control
   Preferences::RegisterProfilePrefs(
       CHECK_DEREF(TestingBrowserProcess::GetGlobal()->local_state()),
@@ -1723,7 +1753,10 @@ TEST_F(EventRewriterTest, TestRewriteToQuickInsert) {
   }
 }
 
-TEST_F(EventRewriterTest, FnAndQuickInsertKeyPressedMetrics) {
+TEST_P(EventRewriterTest, FnAndQuickInsertKeyPressedMetrics) {
+  if (!features::IsModifierSplitEnabled()) {
+    GTEST_SKIP() << "Test is only valid with the modifier split flag enabled";
+  }
   base::HistogramTester histogram_tester;
   SetUpKeyboard(kInternalChromeSplitModifierLayoutKeyboard);
   SendKeyEvent(KeyFunction::Pressed());
@@ -1758,7 +1791,11 @@ TEST_F(EventRewriterTest, FnAndQuickInsertKeyPressedMetrics) {
       ui::ModifierKeyUsageMetric::kAssistant, 1);
 }
 
-TEST_F(EventRewriterTest, TestRewriteToFunction) {
+TEST_P(EventRewriterTest, TestRewriteToFunction) {
+  if (!features::IsModifierSplitEnabled()) {
+    GTEST_SKIP() << "Test is only valid with the modifier split flag enabled";
+  }
+
   SetUpKeyboard(kInternalChromeSplitModifierLayoutKeyboard);
 
   // Remap QuickInsert to Control
@@ -1781,7 +1818,7 @@ TEST_F(EventRewriterTest, TestRewriteToFunction) {
   EXPECT_EQ(KeyA::Typed(), RunRewriter(KeyA::Typed()));
 }
 
-TEST_F(EventRewriterTest, TestRewriteFromFunction) {
+TEST_P(EventRewriterTest, TestRewriteFromFunction) {
   // Remap Function to Control
   RemapModifierKey(ui::mojom::ModifierKey::kFunction,
                    ui::mojom::ModifierKey::kControl);
@@ -1827,7 +1864,11 @@ TEST_F(EventRewriterTest, TestRewriteFromFunction) {
   }
 }
 
-TEST_F(EventRewriterTest, TestRewriteFromQuickInsert) {
+TEST_P(EventRewriterTest, TestRewriteFromQuickInsert) {
+  if (!features::IsModifierSplitEnabled()) {
+    GTEST_SKIP() << "Test is only valid with the modifier split flag enabled";
+  }
+
   SetUpKeyboard(kInternalChromeSplitModifierLayoutKeyboard);
 
   // Test that identity is working as expected.
@@ -1864,7 +1905,7 @@ TEST_F(EventRewriterTest, TestRewriteFromQuickInsert) {
   EXPECT_EQ(KeyUnknown::Typed(), RunRewriter(KeyQuickInsert::Typed()));
 }
 
-TEST_F(EventRewriterTest, TestRewriteExtendedKeysAltVariants) {
+TEST_P(EventRewriterTest, TestRewriteExtendedKeysAltVariants) {
   Preferences::RegisterProfilePrefs(
       CHECK_DEREF(TestingBrowserProcess::GetGlobal()->local_state()),
       prefs()->registry());
@@ -1944,7 +1985,7 @@ TEST_F(EventRewriterTest, TestRewriteExtendedKeysAltVariants) {
   }
 }
 
-TEST_F(EventRewriterTest, TestRewriteExtendedKeyInsertDeprecatedNotification) {
+TEST_P(EventRewriterTest, TestRewriteExtendedKeyInsertDeprecatedNotification) {
   Preferences::RegisterProfilePrefs(
       CHECK_DEREF(TestingBrowserProcess::GetGlobal()->local_state()),
       prefs()->registry());
@@ -1974,7 +2015,7 @@ TEST_F(EventRewriterTest, TestRewriteExtendedKeyInsertDeprecatedNotification) {
   }
 }
 
-TEST_F(EventRewriterTest, TestRewriteExtendedKeyInsert) {
+TEST_P(EventRewriterTest, TestRewriteExtendedKeyInsert) {
   Preferences::RegisterProfilePrefs(
       CHECK_DEREF(TestingBrowserProcess::GetGlobal()->local_state()),
       prefs()->registry());
@@ -1999,7 +2040,7 @@ TEST_F(EventRewriterTest, TestRewriteExtendedKeyInsert) {
   }
 }
 
-TEST_F(EventRewriterTest, TestRewriteExtendedKeysSearchVariants) {
+TEST_P(EventRewriterTest, TestRewriteExtendedKeysSearchVariants) {
   base::test::ScopedFeatureList scoped_feature_list;
   scoped_feature_list.InitAndDisableFeature(
       features::kAltClickAndSixPackCustomization);
@@ -2043,7 +2084,7 @@ TEST_F(EventRewriterTest, TestRewriteExtendedKeysSearchVariants) {
   }
 }
 
-TEST_F(EventRewriterTest, TestNumberRowIsNotRewritten) {
+TEST_P(EventRewriterTest, TestNumberRowIsNotRewritten) {
   Preferences::RegisterProfilePrefs(
       CHECK_DEREF(TestingBrowserProcess::GetGlobal()->local_state()),
       prefs()->registry());
@@ -2070,7 +2111,7 @@ TEST_F(EventRewriterTest, TestNumberRowIsNotRewritten) {
   }
 }
 
-TEST_F(EventRewriterTest, TestRewriteSearchNumberToFunctionKey) {
+TEST_P(EventRewriterTest, TestRewriteSearchNumberToFunctionKey) {
   TestShortcutMappingPrefDelegate delegate;
   CHECK(!::features::IsImprovedKeyboardShortcutsEnabled());
   ASSERT_FALSE(::features::IsImprovedKeyboardShortcutsEnabled());
@@ -2111,7 +2152,7 @@ TEST_F(EventRewriterTest, TestRewriteSearchNumberToFunctionKey) {
   }
 }
 
-TEST_F(EventRewriterTest, TestRewriteSearchNumberToFunctionKeyNoAction) {
+TEST_P(EventRewriterTest, TestRewriteSearchNumberToFunctionKeyNoAction) {
   Preferences::RegisterProfilePrefs(
       CHECK_DEREF(TestingBrowserProcess::GetGlobal()->local_state()),
       prefs()->registry());
@@ -2149,7 +2190,7 @@ TEST_F(EventRewriterTest, TestRewriteSearchNumberToFunctionKeyNoAction) {
   }
 }
 
-TEST_F(EventRewriterTest, TestFunctionKeysNotRewrittenBySearch) {
+TEST_P(EventRewriterTest, TestFunctionKeysNotRewrittenBySearch) {
   Preferences::RegisterProfilePrefs(
       CHECK_DEREF(TestingBrowserProcess::GetGlobal()->local_state()),
       prefs()->registry());
@@ -2177,7 +2218,7 @@ TEST_F(EventRewriterTest, TestFunctionKeysNotRewrittenBySearch) {
   }
 }
 
-TEST_F(EventRewriterTest, TestRewriteFunctionKeysNonCustomLayouts) {
+TEST_P(EventRewriterTest, TestRewriteFunctionKeysNonCustomLayouts) {
   Preferences::RegisterProfilePrefs(
       CHECK_DEREF(TestingBrowserProcess::GetGlobal()->local_state()),
       prefs()->registry());
@@ -2275,7 +2316,7 @@ TEST_F(EventRewriterTest, TestRewriteFunctionKeysNonCustomLayouts) {
   }
 }
 
-TEST_F(EventRewriterTest, TestRewriteFunctionKeysCustomLayoutsFKeyUnchanged) {
+TEST_P(EventRewriterTest, TestRewriteFunctionKeysCustomLayoutsFKeyUnchanged) {
   Preferences::RegisterProfilePrefs(
       CHECK_DEREF(TestingBrowserProcess::GetGlobal()->local_state()),
       prefs()->registry());
@@ -2300,7 +2341,7 @@ TEST_F(EventRewriterTest, TestRewriteFunctionKeysCustomLayoutsFKeyUnchanged) {
   }
 }
 
-TEST_F(EventRewriterTest, TestRewriteFunctionKeysCustomLayoutsActionUnchanged) {
+TEST_P(EventRewriterTest, TestRewriteFunctionKeysCustomLayoutsActionUnchanged) {
   Preferences::RegisterProfilePrefs(
       CHECK_DEREF(TestingBrowserProcess::GetGlobal()->local_state()),
       prefs()->registry());
@@ -2325,7 +2366,7 @@ TEST_F(EventRewriterTest, TestRewriteFunctionKeysCustomLayoutsActionUnchanged) {
   EXPECT_EQ(std::vector({volume_down}), SendKeyEvent(volume_down));
 }
 
-TEST_F(EventRewriterTest,
+TEST_P(EventRewriterTest,
        TestRewriteFunctionKeysCustomLayoutsActionSuppressedUnchanged) {
   // For EF_COMMAND_DOWN modifier.
   SendKeyEvent(KeyLMeta::Pressed());
@@ -2357,7 +2398,7 @@ TEST_F(EventRewriterTest,
   EXPECT_EQ(std::vector({volume_down}), SendKeyEvent(volume_down));
 }
 
-TEST_F(EventRewriterTest,
+TEST_P(EventRewriterTest,
        TestRewriteFunctionKeysCustomLayoutsActionSuppressedWithTopRowAreFKeys) {
   // For EF_COMMAND_DOWN.
   SendKeyEvent(KeyLMeta::Pressed());
@@ -2401,7 +2442,7 @@ TEST_F(EventRewriterTest,
   EXPECT_EQ(std::vector({f3}), SendKeyEvent(volume_down));
 }
 
-TEST_F(EventRewriterTest, TestRewriteFunctionKeysCustomLayouts) {
+TEST_P(EventRewriterTest, TestRewriteFunctionKeysCustomLayouts) {
   Preferences::RegisterProfilePrefs(
       CHECK_DEREF(TestingBrowserProcess::GetGlobal()->local_state()),
       prefs()->registry());
@@ -2447,13 +2488,19 @@ TEST_F(EventRewriterTest, TestRewriteFunctionKeysCustomLayouts) {
     }
     EXPECT_EQ(expected_events, RunRewriter(unknowns, ui::EF_COMMAND_DOWN));
 
+    if (features::IsModifierSplitEnabled()) {
       // With fn down, nothing should change since this keyboard uses Search
       // based rewriting.
       EXPECT_EQ(unknowns, RunRewriter(unknowns, ui::EF_FUNCTION_DOWN));
+    }
   }
 }
 
-TEST_F(EventRewriterTest, TestRewriteFunctionKeysCustomLayoutsWithFunction) {
+TEST_P(EventRewriterTest, TestRewriteFunctionKeysCustomLayoutsWithFunction) {
+  if (!features::IsModifierSplitEnabled()) {
+    GTEST_SKIP() << "Test is only valid with the modifier split flag enabled";
+  }
+
   // On devices with custom layouts, scan codes that match the layout
   // map get mapped to F-Keys based only on the scan code. The search
   // key also gets treated as unpressed in the remapped event.
@@ -2508,7 +2555,7 @@ TEST_F(EventRewriterTest, TestRewriteFunctionKeysCustomLayoutsWithFunction) {
   }
 }
 
-TEST_F(EventRewriterTest, TestRewriteFunctionKeysLayout2) {
+TEST_P(EventRewriterTest, TestRewriteFunctionKeysLayout2) {
   Preferences::RegisterProfilePrefs(
       CHECK_DEREF(TestingBrowserProcess::GetGlobal()->local_state()),
       prefs()->registry());
@@ -2602,7 +2649,7 @@ TEST_F(EventRewriterTest, TestRewriteFunctionKeysLayout2) {
             RunRewriter(KeyF12::Typed(), ui::EF_ALT_DOWN));
 }
 
-TEST_F(EventRewriterTest,
+TEST_P(EventRewriterTest,
        TestFunctionKeysLayout2SuppressMetaTopRowKeyRewrites) {
   Preferences::RegisterProfilePrefs(
       CHECK_DEREF(TestingBrowserProcess::GetGlobal()->local_state()),
@@ -2666,7 +2713,7 @@ TEST_F(EventRewriterTest,
             RunRewriter(KeyF12::Typed(), ui::EF_COMMAND_DOWN));
 }
 
-TEST_F(EventRewriterTest, RecordEventRemappedToRightClick) {
+TEST_P(EventRewriterTest, RecordEventRemappedToRightClick) {
   Preferences::RegisterProfilePrefs(
       CHECK_DEREF(TestingBrowserProcess::GetGlobal()->local_state()),
       prefs()->registry());
@@ -2683,7 +2730,7 @@ TEST_F(EventRewriterTest, RecordEventRemappedToRightClick) {
   EXPECT_EQ(1, prefs()->GetInteger(prefs::kAltEventRemappedToRightClick));
 }
 
-TEST_F(
+TEST_P(
     EventRewriterTest,
     TestFunctionKeysLayout2SuppressMetaTopRowKeyRewritesWithTreatTopRowAsFKeys) {
   Preferences::RegisterProfilePrefs(
@@ -2732,7 +2779,7 @@ TEST_F(
             RunRewriter(KeyF12::Typed(), ui::EF_COMMAND_DOWN));
 }
 
-TEST_F(EventRewriterTest, TestRewriteFunctionKeysWilcoLayouts) {
+TEST_P(EventRewriterTest, TestRewriteFunctionKeysWilcoLayouts) {
   Preferences::RegisterProfilePrefs(
       CHECK_DEREF(TestingBrowserProcess::GetGlobal()->local_state()),
       prefs()->registry());
@@ -2890,7 +2937,7 @@ TEST_F(EventRewriterTest, TestRewriteFunctionKeysWilcoLayouts) {
             RunRewriter(KeyF12::Typed(), ui::EF_COMMAND_DOWN));
 }
 
-TEST_F(EventRewriterTest, TestRewriteActionKeysWilcoLayouts) {
+TEST_P(EventRewriterTest, TestRewriteActionKeysWilcoLayouts) {
   Preferences::RegisterProfilePrefs(
       CHECK_DEREF(TestingBrowserProcess::GetGlobal()->local_state()),
       prefs()->registry());
@@ -2997,7 +3044,7 @@ TEST_F(EventRewriterTest, TestRewriteActionKeysWilcoLayouts) {
   }
 }
 
-TEST_F(EventRewriterTest,
+TEST_P(EventRewriterTest,
        TestRewriteActionKeysWilcoLayoutsSuppressMetaTopRowKeyRewrites) {
   Preferences::RegisterProfilePrefs(
       CHECK_DEREF(TestingBrowserProcess::GetGlobal()->local_state()),
@@ -3074,7 +3121,7 @@ TEST_F(EventRewriterTest,
   }
 }
 
-TEST_F(
+TEST_P(
     EventRewriterTest,
     TestRewriteActionKeysWilcoLayoutsSuppressMetaTopRowKeyRewritesWithTopRowAreFkeys) {
   Preferences::RegisterProfilePrefs(
@@ -3152,7 +3199,7 @@ TEST_F(
   }
 }
 
-TEST_F(EventRewriterTest, TestTopRowAsFnKeysForKeyboardWilcoLayouts) {
+TEST_P(EventRewriterTest, TestTopRowAsFnKeysForKeyboardWilcoLayouts) {
   Preferences::RegisterProfilePrefs(
       CHECK_DEREF(TestingBrowserProcess::GetGlobal()->local_state()),
       prefs()->registry());
@@ -3267,7 +3314,7 @@ TEST_F(EventRewriterTest, TestTopRowAsFnKeysForKeyboardWilcoLayouts) {
   }
 }
 
-TEST_F(EventRewriterTest, TestRewriteFunctionKeysInvalidLayout) {
+TEST_P(EventRewriterTest, TestRewriteFunctionKeysInvalidLayout) {
   Preferences::RegisterProfilePrefs(
       CHECK_DEREF(TestingBrowserProcess::GetGlobal()->local_state()),
       prefs()->registry());
@@ -3292,7 +3339,7 @@ TEST_F(EventRewriterTest, TestRewriteFunctionKeysInvalidLayout) {
 }
 
 // Tests that event rewrites still work even if modifiers are remapped.
-TEST_F(EventRewriterTest, TestRewriteExtendedKeysWithControlRemapped) {
+TEST_P(EventRewriterTest, TestRewriteExtendedKeysWithControlRemapped) {
   // Remap Control to Search.
   Preferences::RegisterProfilePrefs(
       CHECK_DEREF(TestingBrowserProcess::GetGlobal()->local_state()),
@@ -3315,7 +3362,7 @@ TEST_F(EventRewriterTest, TestRewriteExtendedKeysWithControlRemapped) {
   }
 }
 
-TEST_F(EventRewriterTest, TestRewriteKeyEventSentByXSendEvent) {
+TEST_P(EventRewriterTest, TestRewriteKeyEventSentByXSendEvent) {
   // Remap Control to Alt.
   Preferences::RegisterProfilePrefs(
       CHECK_DEREF(TestingBrowserProcess::GetGlobal()->local_state()),
@@ -3333,7 +3380,7 @@ TEST_F(EventRewriterTest, TestRewriteKeyEventSentByXSendEvent) {
   }
 }
 
-TEST_F(EventRewriterTest, TestRewriteNonNativeEvent) {
+TEST_P(EventRewriterTest, TestRewriteNonNativeEvent) {
   // Remap Control to Alt.
   Preferences::RegisterProfilePrefs(
       CHECK_DEREF(TestingBrowserProcess::GetGlobal()->local_state()),
@@ -3361,7 +3408,7 @@ TEST_F(EventRewriterTest, TestRewriteNonNativeEvent) {
             events[0]->flags() & (ui::EF_CONTROL_DOWN | ui::EF_ALT_DOWN));
 }
 
-TEST_F(EventRewriterTest, TopRowKeysAreFunctionKeys) {
+TEST_P(EventRewriterTest, TopRowKeysAreFunctionKeys) {
   Preferences::RegisterProfilePrefs(
       CHECK_DEREF(TestingBrowserProcess::GetGlobal()->local_state()),
       prefs()->registry());
@@ -3549,7 +3596,7 @@ void EventRewriterTestBase::DontRewriteIfNotRewritten(int right_click_flags) {
   }
 }
 
-TEST_F(EventRewriterTest, DontRewriteIfNotRewritten_AltClickIsRightClick) {
+TEST_P(EventRewriterTest, DontRewriteIfNotRewritten_AltClickIsRightClick) {
   base::test::ScopedFeatureList scoped_feature_list;
   scoped_feature_list.InitAndDisableFeature(
       features::kAltClickAndSixPackCustomization);
@@ -3557,7 +3604,7 @@ TEST_F(EventRewriterTest, DontRewriteIfNotRewritten_AltClickIsRightClick) {
   EXPECT_EQ(message_center_.NotificationCount(), 0u);
 }
 
-TEST_F(EventRewriterTest, DontRewriteIfNotRewritten_AltClickIsRightClick_New) {
+TEST_P(EventRewriterTest, DontRewriteIfNotRewritten_AltClickIsRightClick_New) {
   // Enabling the kImprovedKeyboardShortcuts feature does not change alt+click
   // behavior or create a notification.
   base::test::ScopedFeatureList scoped_feature_list;
@@ -3567,7 +3614,7 @@ TEST_F(EventRewriterTest, DontRewriteIfNotRewritten_AltClickIsRightClick_New) {
   EXPECT_EQ(message_center_.NotificationCount(), 0u);
 }
 
-TEST_F(EventRewriterTest, DontRewriteIfNotRewritten_AltClickDeprecated) {
+TEST_P(EventRewriterTest, DontRewriteIfNotRewritten_AltClickDeprecated) {
   // Pressing search+click with alt+click deprecated works, but does not
   // generate a notification.
   base::test::ScopedFeatureList scoped_feature_list;
@@ -3578,7 +3625,7 @@ TEST_F(EventRewriterTest, DontRewriteIfNotRewritten_AltClickDeprecated) {
   EXPECT_EQ(message_center_.NotificationCount(), 0u);
 }
 
-TEST_F(EventRewriterTest, DeprecatedAltClickGeneratesNotification) {
+TEST_P(EventRewriterTest, DeprecatedAltClickGeneratesNotification) {
   base::test::ScopedFeatureList scoped_feature_list;
   scoped_feature_list.InitWithFeatures(
       {::features::kDeprecateAltClick},
@@ -3665,7 +3712,7 @@ TEST_F(EventRewriterTest, DeprecatedAltClickGeneratesNotification) {
   }
 }
 
-TEST_F(EventRewriterTest, StickyKeyEventDispatchImpl) {
+TEST_P(EventRewriterTest, StickyKeyEventDispatchImpl) {
   Shell::Get()->sticky_keys_controller()->Enable(true);
   // Test the actual key event dispatch implementation.
   {
@@ -3691,7 +3738,7 @@ TEST_F(EventRewriterTest, StickyKeyEventDispatchImpl) {
   }
 }
 
-TEST_F(EventRewriterTest, MouseEventDispatchImpl) {
+TEST_P(EventRewriterTest, MouseEventDispatchImpl) {
   Shell::Get()->sticky_keys_controller()->Enable(true);
   SendKeyEvents(KeyLControl::Typed());
 
@@ -3727,7 +3774,7 @@ TEST_F(EventRewriterTest, MouseEventDispatchImpl) {
   }
 }
 
-TEST_F(EventRewriterTest, MouseWheelEventDispatchImpl) {
+TEST_P(EventRewriterTest, MouseWheelEventDispatchImpl) {
   Shell::Get()->sticky_keys_controller()->Enable(true);
   // Test positive mouse wheel event is correctly modified and modifier release
   // event is sent.
@@ -3773,7 +3820,7 @@ TEST_F(EventRewriterTest, MouseWheelEventDispatchImpl) {
 
 // Tests that if modifier keys are remapped, the flags of a mouse wheel event
 // will be rewritten properly.
-TEST_F(EventRewriterTest, MouseWheelEventModifiersRewritten) {
+TEST_P(EventRewriterTest, MouseWheelEventModifiersRewritten) {
   Preferences::RegisterProfilePrefs(
       CHECK_DEREF(TestingBrowserProcess::GetGlobal()->local_state()),
       prefs()->registry());
@@ -3815,7 +3862,7 @@ TEST_F(EventRewriterTest, MouseWheelEventModifiersRewritten) {
   }
 }
 
-TEST_F(EventRewriterTest, MouseEventMaintainNativeEvent) {
+TEST_P(EventRewriterTest, MouseEventMaintainNativeEvent) {
   Preferences::RegisterProfilePrefs(
       CHECK_DEREF(TestingBrowserProcess::GetGlobal()->local_state()),
       prefs()->registry());
@@ -3847,7 +3894,7 @@ TEST_F(EventRewriterTest, MouseEventMaintainNativeEvent) {
 }
 
 // Tests edge cases of key event rewriting (see https://crbug.com/40605692).
-TEST_F(EventRewriterTest, KeyEventRewritingEdgeCases) {
+TEST_P(EventRewriterTest, KeyEventRewritingEdgeCases) {
   Preferences::RegisterProfilePrefs(
       CHECK_DEREF(TestingBrowserProcess::GetGlobal()->local_state()),
       prefs()->registry());
@@ -3885,7 +3932,7 @@ TEST_F(EventRewriterTest, KeyEventRewritingEdgeCases) {
   }
 }
 
-TEST_F(EventRewriterTest, ScrollEventDispatchImpl) {
+TEST_P(EventRewriterTest, ScrollEventDispatchImpl) {
   Shell::Get()->sticky_keys_controller()->Enable(true);
   // Test scroll event is correctly modified.
   SendKeyEvents(KeyLControl::Typed());
@@ -3945,7 +3992,7 @@ TEST_F(EventRewriterTest, ScrollEventDispatchImpl) {
 }
 
 #if BUILDFLAG(GOOGLE_CHROME_BRANDING)
-TEST_F(EventRewriterTest, RemapHangulOnCros1p) {
+TEST_P(EventRewriterTest, RemapHangulOnCros1p) {
   Preferences::RegisterProfilePrefs(
       CHECK_DEREF(TestingBrowserProcess::GetGlobal()->local_state()),
       prefs()->registry());
@@ -3974,13 +4021,22 @@ TEST_F(EventRewriterTest, RemapHangulOnCros1p) {
 }
 #endif
 
-class StickyKeysOverlayTest : public EventRewriterTestBase {
+class StickyKeysOverlayTest
+    : public EventRewriterTestBase,
+      public testing::WithParamInterface<bool> {
  public:
   StickyKeysOverlayTest() : overlay_(nullptr) {}
 
   ~StickyKeysOverlayTest() override = default;
 
   void SetUp() override {
+    if (GetParam()) {
+      modifier_split_feature_list_.InitAndEnableFeature(
+          ash::features::kModifierSplit);
+    } else {
+      modifier_split_feature_list_.InitAndDisableFeature(
+          ash::features::kModifierSplit);
+    }
 
     EventRewriterTestBase::SetUp();
     auto* sticky_keys_controller = Shell::Get()->sticky_keys_controller();
@@ -3990,9 +4046,16 @@ class StickyKeysOverlayTest : public EventRewriterTestBase {
   }
 
   raw_ptr<StickyKeysOverlay, DanglingUntriaged> overlay_;
+
+ private:
+  base::test::ScopedFeatureList modifier_split_feature_list_;
 };
 
-TEST_F(StickyKeysOverlayTest, OneModifierEnabled) {
+INSTANTIATE_TEST_SUITE_P(All,
+                         StickyKeysOverlayTest,
+                         testing::Bool());
+
+TEST_P(StickyKeysOverlayTest, OneModifierEnabled) {
   EXPECT_FALSE(overlay_->is_visible());
   EXPECT_EQ(STICKY_KEY_STATE_DISABLED,
             overlay_->GetModifierKeyState(ui::EF_CONTROL_DOWN));
@@ -4010,7 +4073,7 @@ TEST_F(StickyKeysOverlayTest, OneModifierEnabled) {
             overlay_->GetModifierKeyState(ui::EF_CONTROL_DOWN));
 }
 
-TEST_F(StickyKeysOverlayTest, TwoModifiersEnabled) {
+TEST_P(StickyKeysOverlayTest, TwoModifiersEnabled) {
   EXPECT_FALSE(overlay_->is_visible());
   EXPECT_EQ(STICKY_KEY_STATE_DISABLED,
             overlay_->GetModifierKeyState(ui::EF_CONTROL_DOWN));
@@ -4035,7 +4098,7 @@ TEST_F(StickyKeysOverlayTest, TwoModifiersEnabled) {
             overlay_->GetModifierKeyState(ui::EF_SHIFT_DOWN));
 }
 
-TEST_F(StickyKeysOverlayTest, LockedModifier) {
+TEST_P(StickyKeysOverlayTest, LockedModifier) {
   EXPECT_FALSE(overlay_->is_visible());
   EXPECT_EQ(STICKY_KEY_STATE_DISABLED,
             overlay_->GetModifierKeyState(ui::EF_ALT_DOWN));
@@ -4054,7 +4117,7 @@ TEST_F(StickyKeysOverlayTest, LockedModifier) {
             overlay_->GetModifierKeyState(ui::EF_ALT_DOWN));
 }
 
-TEST_F(StickyKeysOverlayTest, LockedAndNormalModifier) {
+TEST_P(StickyKeysOverlayTest, LockedAndNormalModifier) {
   EXPECT_FALSE(overlay_->is_visible());
   EXPECT_EQ(STICKY_KEY_STATE_DISABLED,
             overlay_->GetModifierKeyState(ui::EF_CONTROL_DOWN));
@@ -4085,7 +4148,7 @@ TEST_F(StickyKeysOverlayTest, LockedAndNormalModifier) {
             overlay_->GetModifierKeyState(ui::EF_SHIFT_DOWN));
 }
 
-TEST_F(StickyKeysOverlayTest, ModifiersDisabled) {
+TEST_P(StickyKeysOverlayTest, ModifiersDisabled) {
   EXPECT_FALSE(overlay_->is_visible());
   EXPECT_EQ(STICKY_KEY_STATE_DISABLED,
             overlay_->GetModifierKeyState(ui::EF_CONTROL_DOWN));
@@ -4133,7 +4196,7 @@ TEST_F(StickyKeysOverlayTest, ModifiersDisabled) {
             overlay_->GetModifierKeyState(ui::EF_COMMAND_DOWN));
 }
 
-TEST_F(StickyKeysOverlayTest, ModifierVisibility) {
+TEST_P(StickyKeysOverlayTest, ModifierVisibility) {
   // All but AltGr and Mod3 should initially be visible.
   EXPECT_TRUE(overlay_->GetModifierVisible(ui::EF_CONTROL_DOWN));
   EXPECT_TRUE(overlay_->GetModifierVisible(ui::EF_SHIFT_DOWN));
@@ -4175,7 +4238,7 @@ TEST_F(StickyKeysOverlayTest, ModifierVisibility) {
   EXPECT_FALSE(overlay_->GetModifierVisible(ui::EF_MOD3_DOWN));
 }
 
-TEST_F(EventRewriterTest, RewrittenModifier) {
+TEST_P(EventRewriterTest, RewrittenModifier) {
   Preferences::RegisterProfilePrefs(
       CHECK_DEREF(TestingBrowserProcess::GetGlobal()->local_state()),
       prefs()->registry());
@@ -4210,7 +4273,7 @@ TEST_F(EventRewriterTest, RewrittenModifier) {
             RunRewriter(KeyB::Typed(), ui::EF_ALT_DOWN));
 }
 
-TEST_F(EventRewriterTest, RewriteNumpadExtensionCommand) {
+TEST_P(EventRewriterTest, RewriteNumpadExtensionCommand) {
   // Register Control + NUMPAD1 as an extension shortcut.
   SetExtensionCommands({{{ui::VKEY_NUMPAD1, ui::EF_CONTROL_DOWN}}});
   // Check that extension shortcuts that involve numpads keys are properly
@@ -4226,7 +4289,7 @@ TEST_F(EventRewriterTest, RewriteNumpadExtensionCommand) {
             RunRewriter(KeyNumpadEnd::Typed(), ui::EF_CONTROL_DOWN));
 }
 
-TEST_F(EventRewriterTest, RecordRewritingToFunctionKeys) {
+TEST_P(EventRewriterTest, RecordRewritingToFunctionKeys) {
   TestShortcutMappingPrefDelegate delegate;
   ASSERT_FALSE(::features::IsImprovedKeyboardShortcutsEnabled());
 
@@ -4339,7 +4402,7 @@ TEST_F(EventRewriterTest, RecordRewritingToFunctionKeys) {
   histogram_tester.ExpectTotalCount("ChromeOS.Inputs.Keyboard.F1Pressed", 6u);
 }
 
-TEST_F(EventRewriterTest, AltgrLatch) {
+TEST_P(EventRewriterTest, AltgrLatch) {
   // TODO(b/331906341): Consider to use real latvian layout.
   keyboard_layout_engine_->SetCustomLookupTableForTesting({
       {ui::DomCode::QUOTE, ui::DomKey::ALT_GRAPH_LATCH,
@@ -4379,7 +4442,11 @@ TEST_F(EventRewriterTest, AltgrLatch) {
             SendKeyEvent(KeyLatvianQuote::Released()));
 }
 
-TEST_F(EventRewriterTest, SixPackRemappingsFnBased) {
+TEST_P(EventRewriterTest, SixPackRemappingsFnBased) {
+  if (!features::IsModifierSplitEnabled()) {
+    GTEST_SKIP() << "Test is only valid with the modifier split flag enabled";
+  }
+
   SetUpKeyboard(kInternalChromeSplitModifierLayoutKeyboard);
 
   // Test each case while applying additional flags to confirm flags get
@@ -4399,7 +4466,11 @@ TEST_F(EventRewriterTest, SixPackRemappingsFnBased) {
   }
 }
 
-TEST_F(EventRewriterTest, NotifyShortcutEventRewriteBlockedByFnKey) {
+TEST_P(EventRewriterTest, NotifyShortcutEventRewriteBlockedByFnKey) {
+  if (!features::IsModifierSplitEnabled()) {
+    GTEST_SKIP() << "Test is only valid with the modifier split flag enabled";
+  }
+
   AnchoredNudgeManagerImpl* nudge_manager =
       Shell::Get()->anchored_nudge_manager();
   ASSERT_TRUE(nudge_manager);
@@ -4428,7 +4499,11 @@ TEST_F(EventRewriterTest, NotifyShortcutEventRewriteBlockedByFnKey) {
   nudge_manager->Cancel(kTopRowKeyNoMatchNudgeId);
 }
 
-TEST_F(EventRewriterTest, CapsLockRemappingFnBased) {
+TEST_P(EventRewriterTest, CapsLockRemappingFnBased) {
+  if (!features::IsModifierSplitEnabled()) {
+    GTEST_SKIP() << "Test is only valid with the modifier split flag enabled";
+  }
+
   SetUpKeyboard(kInternalChromeSplitModifierLayoutKeyboard);
 
   for (const auto flag :
@@ -4447,7 +4522,11 @@ TEST_F(EventRewriterTest, CapsLockRemappingFnBased) {
   }
 }
 
-TEST_F(EventRewriterTest, CapsLockRemappingFnBasedJpnLayout) {
+TEST_P(EventRewriterTest, CapsLockRemappingFnBasedJpnLayout) {
+  if (!features::IsModifierSplitEnabled()) {
+    GTEST_SKIP() << "Test is only valid with the modifier split flag enabled";
+  }
+
   SetUpKeyboard(kInternalChromeSplitModifierLayoutKeyboard);
 
   EXPECT_EQ(KeyCapsLock::Typed(ui::EF_CAPS_LOCK_ON),
@@ -4463,7 +4542,11 @@ TEST_F(EventRewriterTest, CapsLockRemappingFnBasedJpnLayout) {
   EXPECT_FALSE(fake_ime_keyboard_.IsCapsLockEnabled());
 }
 
-TEST_F(EventRewriterTest, FnDiscarded) {
+TEST_P(EventRewriterTest, FnDiscarded) {
+  if (!features::IsModifierSplitEnabled()) {
+    GTEST_SKIP() << "Test is only valid with the modifier split flag enabled";
+  }
+
   SetUpKeyboard(kInternalChromeSplitModifierLayoutKeyboard);
 
   EXPECT_EQ(KeyA::Typed(), RunRewriter(KeyA::Typed(), ui::EF_FUNCTION_DOWN));
@@ -4477,7 +4560,11 @@ TEST_F(EventRewriterTest, FnDiscarded) {
 // Tests that when you press Fn -> Quick Insert -> Release Fn -> Release Quick
 // Insert that the release of Quick Insert is remapped to CapsLock to match the
 // remapped press.
-TEST_F(EventRewriterTest, CapsLockRemappingFnBasedReleaseOrdering) {
+TEST_P(EventRewriterTest, CapsLockRemappingFnBasedReleaseOrdering) {
+  if (!features::IsModifierSplitEnabled()) {
+    GTEST_SKIP() << "Test is only valid with the modifier split flag enabled";
+  }
+
   SetUpKeyboard(kInternalChromeSplitModifierLayoutKeyboard);
 
   EXPECT_EQ(std::vector<TestKeyEvent>(),
@@ -4810,17 +4897,26 @@ TEST_P(ModifierPressedMetricsTest, KeyReleasedTest) {
       modifier_key_usage_mapping_, 0);
 }
 
-class EventRewriterSixPackKeysTest : public EventRewriterTestBase {
+class EventRewriterSixPackKeysTest
+    : public EventRewriterTestBase,
+      public testing::WithParamInterface<bool> {
  public:
   void SetUp() override {
-    scoped_feature_list_.InitWithFeatures(
-        {features::kAltClickAndSixPackCustomization}, {});
+    std::vector<base::test::FeatureRef> enabled_features, disabled_features;
+    enabled_features.push_back(features::kAltClickAndSixPackCustomization);
+    (GetParam() ? enabled_features : disabled_features)
+        .push_back(ash::features::kModifierSplit);
+    scoped_feature_list_.InitWithFeatures(enabled_features, disabled_features);
 
     EventRewriterTestBase::SetUp();
   }
 };
 
-TEST_F(EventRewriterSixPackKeysTest, TestRewriteSixPackKeysSearchVariants) {
+INSTANTIATE_TEST_SUITE_P(All,
+                         EventRewriterSixPackKeysTest,
+                         testing::Bool());
+
+TEST_P(EventRewriterSixPackKeysTest, TestRewriteSixPackKeysSearchVariants) {
   Preferences::RegisterProfilePrefs(
       CHECK_DEREF(TestingBrowserProcess::GetGlobal()->local_state()),
       prefs()->registry());
@@ -4867,7 +4963,7 @@ TEST_F(EventRewriterSixPackKeysTest, TestRewriteSixPackKeysSearchVariants) {
   }
 }
 
-TEST_F(EventRewriterSixPackKeysTest, TestRewriteSixPackKeysAltVariants) {
+TEST_P(EventRewriterSixPackKeysTest, TestRewriteSixPackKeysAltVariants) {
   Preferences::RegisterProfilePrefs(
       CHECK_DEREF(TestingBrowserProcess::GetGlobal()->local_state()),
       prefs()->registry());
@@ -4921,7 +5017,7 @@ TEST_F(EventRewriterSixPackKeysTest, TestRewriteSixPackKeysAltVariants) {
   }
 }
 
-TEST_F(EventRewriterSixPackKeysTest, TestRewriteSixPackKeysBlockedBySetting) {
+TEST_P(EventRewriterSixPackKeysTest, TestRewriteSixPackKeysBlockedBySetting) {
   Preferences::RegisterProfilePrefs(
       CHECK_DEREF(TestingBrowserProcess::GetGlobal()->local_state()),
       prefs()->registry());
@@ -4956,14 +5052,26 @@ TEST_F(EventRewriterSixPackKeysTest, TestRewriteSixPackKeysBlockedBySetting) {
   ClearNotifications();
 }
 
-class EventRewriterExtendedFkeysTest : public EventRewriterTestBase {
+class EventRewriterExtendedFkeysTest
+    : public EventRewriterTestBase,
+      public testing::WithParamInterface<bool> {
  public:
   void SetUp() override {
+    std::vector<base::test::FeatureRef> enabled_features, disabled_features;
+    enabled_features.push_back(::features::kSupportF11AndF12KeyShortcuts);
+    (GetParam() ? enabled_features : disabled_features)
+        .push_back(ash::features::kModifierSplit);
+    scoped_feature_list_.InitWithFeatures(enabled_features, disabled_features);
+
     EventRewriterTestBase::SetUp();
   }
 };
 
-TEST_F(EventRewriterExtendedFkeysTest, TestRewriteExtendedFkeys) {
+INSTANTIATE_TEST_SUITE_P(All,
+                         EventRewriterExtendedFkeysTest,
+                         testing::Bool());
+
+TEST_P(EventRewriterExtendedFkeysTest, TestRewriteExtendedFkeys) {
   Preferences::RegisterProfilePrefs(
       CHECK_DEREF(TestingBrowserProcess::GetGlobal()->local_state()),
       prefs()->registry());
@@ -4989,7 +5097,7 @@ TEST_F(EventRewriterExtendedFkeysTest, TestRewriteExtendedFkeys) {
   EXPECT_EQ(KeyF12::Typed(), RunRewriter(KeyF2::Typed(), ui::EF_ALT_DOWN));
 }
 
-TEST_F(EventRewriterExtendedFkeysTest,
+TEST_P(EventRewriterExtendedFkeysTest,
        TestRewriteExtendedFkeysBlockedBySetting) {
   Preferences::RegisterProfilePrefs(
       CHECK_DEREF(TestingBrowserProcess::GetGlobal()->local_state()),
@@ -5008,7 +5116,7 @@ TEST_F(EventRewriterExtendedFkeysTest,
             RunRewriter(KeyF1::Typed(), ui::EF_ALT_DOWN));
 }
 
-TEST_F(EventRewriterExtendedFkeysTest, TestRewriteExtendedFkeysTopRowAreFkeys) {
+TEST_P(EventRewriterExtendedFkeysTest, TestRewriteExtendedFkeysTopRowAreFkeys) {
   Preferences::RegisterProfilePrefs(
       CHECK_DEREF(TestingBrowserProcess::GetGlobal()->local_state()),
       prefs()->registry());
@@ -5036,15 +5144,25 @@ TEST_F(EventRewriterExtendedFkeysTest, TestRewriteExtendedFkeysTopRowAreFkeys) {
       RunRewriter(KeyF2::Typed(), ui::EF_COMMAND_DOWN | ui::EF_SHIFT_DOWN));
 }
 
-class EventRewriterSettingsSplitTest : public EventRewriterTestBase {
+class EventRewriterSettingsSplitTest
+    : public EventRewriterTestBase,
+      public testing::WithParamInterface<bool> {
  public:
   void SetUp() override {
+    std::vector<base::test::FeatureRef> enabled_features, disabled_features;
+    (GetParam() ? enabled_features : disabled_features)
+        .push_back(ash::features::kModifierSplit);
+    scoped_feature_list_.InitWithFeatures(enabled_features, disabled_features);
 
     EventRewriterTestBase::SetUp();
   }
 };
 
-TEST_F(EventRewriterSettingsSplitTest, TopRowAreFKeys) {
+INSTANTIATE_TEST_SUITE_P(All,
+                         EventRewriterSettingsSplitTest,
+                         testing::Bool());
+
+TEST_P(EventRewriterSettingsSplitTest, TopRowAreFKeys) {
   mojom::KeyboardSettings settings;
   EXPECT_CALL(*input_device_settings_controller_mock_,
               GetKeyboardSettings(kKeyboardDeviceId))
@@ -5060,7 +5178,7 @@ TEST_F(EventRewriterSettingsSplitTest, TopRowAreFKeys) {
   EXPECT_EQ(KeyF1::Typed(), RunRewriter(KeyF1::Typed()));
 }
 
-TEST_F(EventRewriterSettingsSplitTest,
+TEST_P(EventRewriterSettingsSplitTest,
        TopRowAreFKeys_unknownDeviceRespectsPreference) {
   // Create the preference.
   Preferences::RegisterProfilePrefs(
@@ -5080,7 +5198,7 @@ TEST_F(EventRewriterSettingsSplitTest,
   EXPECT_EQ(RunRewriter(KeyF1::Typed()), KeyBrowserBack::Typed());
 }
 
-TEST_F(EventRewriterSettingsSplitTest, RewriteMetaTopRowKeyComboEvents) {
+TEST_P(EventRewriterSettingsSplitTest, RewriteMetaTopRowKeyComboEvents) {
   mojom::KeyboardSettings settings;
   settings.top_row_are_fkeys = true;
   EXPECT_CALL(*input_device_settings_controller_mock_,
@@ -5097,7 +5215,7 @@ TEST_F(EventRewriterSettingsSplitTest, RewriteMetaTopRowKeyComboEvents) {
             RunRewriter(KeyF1::Typed(), ui::EF_COMMAND_DOWN));
 }
 
-TEST_F(EventRewriterSettingsSplitTest, ModifierRemapping) {
+TEST_P(EventRewriterSettingsSplitTest, ModifierRemapping) {
   mojom::KeyboardSettings settings;
   EXPECT_CALL(*input_device_settings_controller_mock_,
               GetKeyboardSettings(kKeyboardDeviceId))
@@ -5165,11 +5283,15 @@ TEST_P(KeyEventRemappedToSixPackKeyTest, KeyEventRemappedTest) {
 
 class EventRewriterRemapToRightClickTest
     : public EventRewriterTestBase,
-      public message_center::MessageCenterObserver {
+      public message_center::MessageCenterObserver,
+      public testing::WithParamInterface<bool> {
  public:
   void SetUp() override {
-    scoped_feature_list_.InitWithFeatures(
-        {features::kAltClickAndSixPackCustomization}, {});
+    std::vector<base::test::FeatureRef> enabled_features, disabled_features;
+    enabled_features.push_back(features::kAltClickAndSixPackCustomization);
+    (GetParam() ? enabled_features : disabled_features)
+        .push_back(ash::features::kModifierSplit);
+    scoped_feature_list_.InitWithFeatures(enabled_features, disabled_features);
 
     EventRewriterTestBase::SetUp();
 
@@ -5215,7 +5337,11 @@ class EventRewriterRemapToRightClickTest
       observation_{this};
 };
 
-TEST_F(EventRewriterRemapToRightClickTest, AltClickRemappedToRightClick) {
+INSTANTIATE_TEST_SUITE_P(All,
+                         EventRewriterRemapToRightClickTest,
+                         testing::Bool());
+
+TEST_P(EventRewriterRemapToRightClickTest, AltClickRemappedToRightClick) {
   SetSimulateRightClickSetting(ui::mojom::SimulateRightClickModifier::kAlt);
   int flag_masks = ui::EF_ALT_DOWN | ui::EF_LEFT_MOUSE_BUTTON;
 
@@ -5232,7 +5358,7 @@ TEST_F(EventRewriterRemapToRightClickTest, AltClickRemappedToRightClick) {
   EXPECT_EQ(ui::EF_RIGHT_MOUSE_BUTTON, result.changed_button_flags());
 }
 
-TEST_F(EventRewriterRemapToRightClickTest, SearchClickRemappedToRightClick) {
+TEST_P(EventRewriterRemapToRightClickTest, SearchClickRemappedToRightClick) {
   SetSimulateRightClickSetting(ui::mojom::SimulateRightClickModifier::kSearch);
   int flag_masks = ui::EF_COMMAND_DOWN | ui::EF_LEFT_MOUSE_BUTTON;
 
@@ -5249,7 +5375,7 @@ TEST_F(EventRewriterRemapToRightClickTest, SearchClickRemappedToRightClick) {
   EXPECT_EQ(ui::EF_RIGHT_MOUSE_BUTTON, result.changed_button_flags());
 }
 
-TEST_F(EventRewriterRemapToRightClickTest, RemapToRightClickBlockedBySetting) {
+TEST_P(EventRewriterRemapToRightClickTest, RemapToRightClickBlockedBySetting) {
   ui::DeviceDataManager* device_data_manager =
       ui::DeviceDataManager::GetInstance();
   std::vector<ui::TouchpadDevice> touchpad_devices(1);
@@ -5286,7 +5412,7 @@ TEST_F(EventRewriterRemapToRightClickTest, RemapToRightClickBlockedBySetting) {
   }
 }
 
-TEST_F(EventRewriterRemapToRightClickTest, RemapToRightClickIsDisabled) {
+TEST_P(EventRewriterRemapToRightClickTest, RemapToRightClickIsDisabled) {
   ui::DeviceDataManager* device_data_manager =
       ui::DeviceDataManager::GetInstance();
   std::vector<ui::TouchpadDevice> touchpad_devices(1);
@@ -5307,9 +5433,17 @@ TEST_F(EventRewriterRemapToRightClickTest, RemapToRightClickIsDisabled) {
   EXPECT_EQ(notification_count(), 1);
 }
 
-class FKeysRewritingPeripheralCustomizationTest : public EventRewriterTestBase {
+class FKeysRewritingPeripheralCustomizationTest
+    : public EventRewriterTestBase,
+      public testing::WithParamInterface<bool> {
  public:
   void SetUp() override {
+    std::vector<base::test::FeatureRef> enabled_features, disabled_features;
+    enabled_features.push_back(features::kPeripheralCustomization);
+    (GetParam() ? enabled_features : disabled_features)
+        .push_back(ash::features::kModifierSplit);
+    scoped_feature_list_.InitWithFeatures(enabled_features, disabled_features);
+
     EventRewriterTestBase::SetUp();
   }
 
@@ -5317,7 +5451,11 @@ class FKeysRewritingPeripheralCustomizationTest : public EventRewriterTestBase {
   mojom::MouseSettings mouse_settings_;
 };
 
-TEST_F(FKeysRewritingPeripheralCustomizationTest, FKeysNotRewritten) {
+INSTANTIATE_TEST_SUITE_P(All,
+                         FKeysRewritingPeripheralCustomizationTest,
+                         testing::Bool());
+
+TEST_P(FKeysRewritingPeripheralCustomizationTest, FKeysNotRewritten) {
   EXPECT_CALL(*input_device_settings_controller_mock_,
               GetKeyboardSettings(kMouseDeviceId))
       .WillRepeatedly(testing::Return(nullptr));

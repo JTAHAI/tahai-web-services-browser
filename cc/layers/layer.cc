@@ -9,7 +9,6 @@
 
 #include <algorithm>
 #include <cmath>
-#include <limits>
 #include <string>
 #include <unordered_set>
 #include <utility>
@@ -97,9 +96,7 @@ Layer::LayerTreeInputs::~LayerTreeInputs() = default;
 
 int Layer::GetNextLayerId() {
   // Layer IDs start from 1.
-  int prev = g_next_layer_id.GetNext();
-  CHECK_LT(prev, std::numeric_limits<int>::max());
-  return prev + 1;
+  return g_next_layer_id.GetNext() + 1;
 }
 
 scoped_refptr<Layer> Layer::Create() {

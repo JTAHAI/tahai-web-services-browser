@@ -284,10 +284,11 @@ public abstract class AsyncInitializationActivity extends ChromeBaseAppCompatAct
             assert getProfileProviderSupplier().get() != null;
             getProfileProviderSupplier()
                     .runSyncOrOnAvailable(
-                            (ProfileProvider profileProvider) ->
-                                    WarmupManager.getInstance()
-                                            .maybePreconnectUrlAndSubResources(
-                                                    profileProvider.getOriginalProfile(), url));
+                            (profileProvider) -> {
+                                WarmupManager.getInstance()
+                                        .maybePreconnectUrlAndSubResources(
+                                                profileProvider.getOriginalProfile(), url);
+                            });
         } finally {
             TraceEvent.end("maybePreconnect");
         }
@@ -305,7 +306,22 @@ public abstract class AsyncInitializationActivity extends ChromeBaseAppCompatAct
         // Set up the initial orientation of the device.
         checkOrientation();
         findViewById(android.R.id.content)
-                .addOnLayoutChangeListener((_, _, _, _, _, _, _, _, _) -> checkOrientation());
+                .addOnLayoutChangeListener(
+                        new View.OnLayoutChangeListener() {
+                            @Override
+                            public void onLayoutChange(
+                                    View v,
+                                    int left,
+                                    int top,
+                                    int right,
+                                    int bottom,
+                                    int oldLeft,
+                                    int oldTop,
+                                    int oldRight,
+                                    int oldBottom) {
+                                checkOrientation();
+                            }
+                        });
         mNativeInitializationController.onNativeInitializationComplete();
         mLifecycleDispatcher.dispatchNativeInitializationFinished();
     }
@@ -569,7 +585,7 @@ public abstract class AsyncInitializationActivity extends ChromeBaseAppCompatAct
      * @return The timestamp for OnPause event before activity restarts due to unfolding in ms.
      */
     protected long getOnPauseBeforeFoldRecreateTimestampMs() {
-        try (TraceEvent _ =
+        try (TraceEvent e =
                 TraceEvent.scoped(
                         "AsyncInit.getOnPauseBeforeFoldRecreateTimestampMs",
                         Long.toString(mOnPauseBeforeFoldRecreateTimestampMs))) {
@@ -578,7 +594,7 @@ public abstract class AsyncInitializationActivity extends ChromeBaseAppCompatAct
     }
 
     protected void setOnPauseBeforeFoldRecreateTimestampMs() {
-        try (TraceEvent _ =
+        try (TraceEvent e =
                 TraceEvent.scoped(
                         "AsyncInit.setOnPauseBeforeFoldRecreateTimestampMs",
                         Long.toString(mOnPauseTimestampMs))) {

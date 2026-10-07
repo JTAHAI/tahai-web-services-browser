@@ -16,7 +16,6 @@
 #include "content/public/test/browser_test.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "ui/base/l10n/l10n_util.h"
-#include "ui/views/controls/button/md_text_button.h"
 
 namespace ash {
 

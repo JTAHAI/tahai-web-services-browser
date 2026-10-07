@@ -4,9 +4,8 @@
 
 #include "ash/wm/window_state.h"
 #include "ash/wm/wm_event.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_window.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
-#include "chrome/browser/ui/browser_window/public/create_browser_window.h"
 #include "chrome/browser/ui/views/frame/browser_native_widget_ash.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/test/base/in_process_browser_test.h"
@@ -44,19 +43,15 @@ IN_PROC_BROWSER_TEST_P(BrowserTestParam,
 
   // Open a new browser window (app or tabbed depending on a parameter).
   bool is_test_app = CreateV1App();
-  auto create_params = [this, is_test_app]() {
-    return is_test_app ? BrowserWindowCreateParams::CreateForApp(
-                             "test_browser_app", /*trusted_source=*/true,
-                             gfx::Rect(), browser()->GetProfile(),
-                             /*user_gesture=*/true)
-                       : BrowserWindowCreateParams(browser()->GetProfile(),
-                                                   /*from_user_gesture=*/true);
-  };
+  Browser::CreateParams params =
+      is_test_app ? Browser::CreateParams::CreateForApp(
+                        "test_browser_app", true /* trusted_source */,
+                        gfx::Rect(), browser()->GetProfile(), true)
+                  : Browser::CreateParams(browser()->GetProfile(), true);
   gfx::Rect original_bounds(gfx::Rect(150, 250, 510, 150));
-  BrowserWindowCreateParams params = create_params();
   params.initial_show_state = ui::mojom::WindowShowState::kNormal;
   params.initial_bounds = original_bounds;
-  BrowserWindowInterface* browser = CreateBrowserWindow(std::move(params));
+  Browser* browser = Browser::Create(params);
   browser->GetWindow()->Show();
 
   // The bounds passed via |initial_bounds| should be respected regardless of
@@ -67,10 +62,8 @@ IN_PROC_BROWSER_TEST_P(BrowserTestParam,
   // Don't provide initial bounds. The bounds should have been saved, but for
   // tabbed windows, the position should be auto-managed.
   browser->GetWindow()->Close();
-  BrowserWindowCreateParams params2 = create_params();
-  params2.initial_show_state = ui::mojom::WindowShowState::kNormal;
-  params2.initial_bounds = gfx::Rect();
-  browser = CreateBrowserWindow(std::move(params2));
+  params.initial_bounds = gfx::Rect();
+  browser = Browser::Create(params);
   browser->GetWindow()->Show();
 
   // For tabbed browser window, it will be centered to work area by auto window
@@ -97,7 +90,7 @@ IN_PROC_BROWSER_TEST_F(BrowserFrameAshTest, SnappedWindowSaveBounds) {
   auto* profile = browser()->GetProfile();
 
   // Get the params using the same profile.
-  BrowserWindowInterface* browser = CreateBrowser(profile);
+  Browser* browser = CreateBrowser(profile);
   aura::Window* window = browser->GetWindow()->GetNativeWindow();
   const gfx::Rect restored_bounds(600, 600);
   window->SetBounds(restored_bounds);
@@ -113,7 +106,7 @@ IN_PROC_BROWSER_TEST_F(BrowserFrameAshTest, SnappedWindowSaveBounds) {
 
   // Recreate the browser window. Test that the bounds are the same as the
   // snapped size (position has been shifted by the ash auto window positioner).
-  BrowserWindowInterface* new_browser = CreateBrowser(profile);
+  Browser* new_browser = CreateBrowser(profile);
   new_browser->GetWindow()->Show();
   aura::Window* new_window = new_browser->GetWindow()->GetNativeWindow();
   EXPECT_EQ(snapped_size, new_window->GetBoundsInScreen().size());

@@ -20,6 +20,7 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.robolectric.Shadows;
+import org.robolectric.annotation.Config;
 
 import org.chromium.base.task.PostTask;
 import org.chromium.base.task.TaskTraits;
@@ -33,6 +34,7 @@ import java.util.concurrent.FutureTask;
 
 /** Test class for {@link UnownedUserDataKey}, which also describes typical usage. */
 @RunWith(BaseRobolectricTestRunner.class)
+@Config(manifest = Config.NONE)
 public class UnownedUserDataKeyTest {
     private static void forceGC() {
         try {

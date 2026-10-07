@@ -25,7 +25,7 @@ class TrustedVaultThrottlingConnectionImpl
   // `storage` is guaranteed to outlive this object.
   TrustedVaultThrottlingConnectionImpl(
       std::unique_ptr<TrustedVaultConnection> delegate,
-      ConnectionThrottlingStorage* storage);
+      raw_ptr<StandaloneTrustedVaultStorage> storage);
 
   TrustedVaultThrottlingConnectionImpl(
       const TrustedVaultThrottlingConnectionImpl& other) = delete;
@@ -90,17 +90,17 @@ class TrustedVaultThrottlingConnectionImpl
 
   static std::unique_ptr<TrustedVaultThrottlingConnectionImpl> CreateForTesting(
       std::unique_ptr<TrustedVaultConnection> delegate,
-      ConnectionThrottlingStorage* storage,
+      raw_ptr<StandaloneTrustedVaultStorage> storage,
       raw_ptr<base::Clock> clock);
 
  private:
   TrustedVaultThrottlingConnectionImpl(
       std::unique_ptr<TrustedVaultConnection> delegate,
-      ConnectionThrottlingStorage* storage,
+      raw_ptr<StandaloneTrustedVaultStorage> storage,
       raw_ptr<base::Clock> clock);
 
   const std::unique_ptr<TrustedVaultConnection> delegate_;
-  const raw_ptr<ConnectionThrottlingStorage> storage_;
+  const raw_ptr<StandaloneTrustedVaultStorage> storage_;
 
   // Used to determine current time, set to base::DefaultClock in prod and can
   // be overridden in tests.

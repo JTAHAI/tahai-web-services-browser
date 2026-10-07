@@ -16,6 +16,7 @@
 #include "chrome/browser/feature_engagement/non_iph_promo.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser_tabstrip.h"
+#include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/commerce/commerce_page_action_controller.h"
@@ -482,7 +483,11 @@ views::BubbleAnchor CommerceUiTabHelper::GetDiscountsBubbleAnchor() {
   BrowserWindowInterface* bwi = tab().GetBrowserWindowInterface();
   CHECK(bwi);
 
-  auto* browser_view = BrowserView::GetBrowserViewForBrowser(bwi);
+  // TODO(https://crbug.com/425953501): Remove GetBrowserForMigrationOnly since
+  // Browser* will not be needed once ToolBarButtonProvider is migrated to
+  // BrowserWindowInterface.
+  auto* browser_view =
+      BrowserView::GetBrowserViewForBrowser(bwi->GetBrowserForMigrationOnly());
   if (!browser_view) {
     return views::BubbleAnchor();
   }
@@ -687,6 +692,13 @@ CommerceUiTabHelper::GetPageActionControllerNotificationCallback(
       std::move(page_action_icon_update_callback));
 }
 
+void CommerceUiTabHelper::UpdatePageActionIconView(PageActionIconType type) {
+  BrowserWindowInterface* bwi = tab().GetBrowserWindowInterface();
+  if (!bwi) {
+    return;
+  }
 
+  BrowserWindow::FromBrowser(bwi)->UpdatePageActionIcon(type);
+}
 
 }  // namespace commerce

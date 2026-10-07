@@ -42,7 +42,6 @@ import org.chromium.chrome.browser.toolbar.optional_button.ButtonData;
 import org.chromium.chrome.browser.toolbar.top.OptionalBrowsingModeButtonController;
 import org.chromium.chrome.browser.ui.appmenu.AppMenuHandler;
 import org.chromium.components.browser_ui.styles.ChromeColors;
-import org.chromium.ui.base.ViewUtils;
 import org.chromium.ui.modelutil.ListModelChangeProcessor;
 import org.chromium.ui.modelutil.PropertyKey;
 import org.chromium.ui.modelutil.PropertyListModel;
@@ -85,9 +84,8 @@ public class CustomTabToolbarButtonsCoordinator
                                 closeButtonVisible,
                                 intentDataProvider.getCloseButtonDrawable(),
                                 closeButtonPosition,
-                                /* clickListener= */ ViewUtils
-                                        .emptyClickListener()) // Real value set
-                        // later by #setCloseButtonClickHandler.
+                                /* clickListener= */ v -> {}) // Real value set later by
+                        // #setCloseButtonClickHandler.
                         : new CloseButtonData();
 
         mIsOptionalButtonSupported = intentDataProvider.isOptionalButtonSupported();

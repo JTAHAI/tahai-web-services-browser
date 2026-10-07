@@ -1,2 +1,3 @@
-rules:
-- "**": [writingsuggestions]
+features:
+- name: writingsuggestions
+  files: "**"

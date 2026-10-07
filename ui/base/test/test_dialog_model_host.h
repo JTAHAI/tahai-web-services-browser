@@ -51,7 +51,6 @@ class TestDialogModelHost final : public DialogModelHost,
   const std::u16string& GetLabel(ButtonId button_id);
   ElementIdentifier GetId(ButtonId button_id);
   ElementIdentifier GetInitiallyFocusedField();
-  bool GetEnableInputProtection();
 
  private:
   // DialogModelHost:

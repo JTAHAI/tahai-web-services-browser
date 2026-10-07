@@ -13,13 +13,13 @@ package org.chromium.chromecast.base;
 public interface Scope extends AutoCloseable {
     // Implements AutoCloseable, with the added constraint that no checked exceptions are thrown.
     @Override
-    void close();
+    public void close();
 
     /**
      * Combines this Scope with another Scope to make a new Scope that, when closed, closes both.
      *
-     * <p>The other scope is closed before |this|. This mirrors the behavior of variables on the
-     * stack, where objects are destroyed in a Last In First Out (LIFO) order.
+     * The other scope is closed before |this|. This mirrors the behavior of variables on the stack,
+     * where objects are destroyed in a Last In First Out (LIFO) order.
      */
     default Scope and(Scope other) {
         return () -> {

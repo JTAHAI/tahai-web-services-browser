@@ -179,9 +179,6 @@ def _validate_entity(entity):
           for msg in _validate_attributes(entity, constraint, allow_empty=False)
       )
 
-  if not entity['merge constraints']:
-    yield '"merge constraints": value must not be empty'
-
   if not isinstance(entity['read only'], bool):
     yield '"read only": value is not a Boolean'
 

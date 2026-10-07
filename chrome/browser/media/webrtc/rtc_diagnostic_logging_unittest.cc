@@ -134,7 +134,6 @@ class RTCDiagnosticLoggingTest : public ChromeRenderViewHostTestHarness {
   }
 
   void SetUp() override {
-    scoped_feature_list_.InitAndEnableFeature(kWebRtcLogUploaderExcludesGuid);
 #if BUILDFLAG(IS_CHROMEOS)
     ash::system::StatisticsProvider::SetTestProvider(
         &fake_statistics_provider_);
@@ -390,6 +389,10 @@ TEST_F(RTCDiagnosticLoggingTest, StartFinishAndUploadDiagnosticLogging) {
   //
   // 147.0.7684.0
   // ------**--yradnuoBgoLtrapitluMklaTelgooG--**----
+  // Content-Disposition: form-data; name="guid"
+  //
+  // 0
+  // ------**--yradnuoBgoLtrapitluMklaTelgooG--**----
   // Content-Disposition: form-data; name="type"
   //
   // webrtc_log
@@ -441,7 +444,7 @@ TEST_F(RTCDiagnosticLoggingTest, StartFinishAndUploadDiagnosticLogging) {
   std::vector<std::string> multipart_data = base::SplitStringUsingSubstr(
       uploaded, "\r\n", base::TRIM_WHITESPACE, base::SPLIT_WANT_ALL);
 
-  ASSERT_EQ(multipart_data.size(), 23u);
+  ASSERT_EQ(multipart_data.size(), 27u);
 
   EXPECT_EQ(multipart_data[0], boundary);
   EXPECT_EQ(multipart_data[1], "Content-Disposition: form-data; name=\"prod\"");
@@ -455,30 +458,36 @@ TEST_F(RTCDiagnosticLoggingTest, StartFinishAndUploadDiagnosticLogging) {
   EXPECT_FALSE(multipart_data[7].empty());
 
   EXPECT_EQ(multipart_data[8], boundary);
-  EXPECT_EQ(multipart_data[9], "Content-Disposition: form-data; name=\"type\"");
+  EXPECT_EQ(multipart_data[9], "Content-Disposition: form-data; name=\"guid\"");
   EXPECT_TRUE(multipart_data[10].empty());
-  EXPECT_EQ(multipart_data[11], WebRtcLogUploader::kWebRtcLogContentType);
+  EXPECT_FALSE(multipart_data[11].empty());
 
   EXPECT_EQ(multipart_data[12], boundary);
   EXPECT_EQ(multipart_data[13],
-            "Content-Disposition: form-data; name=\"__uuid__\"");
+            "Content-Disposition: form-data; name=\"type\"");
   EXPECT_TRUE(multipart_data[14].empty());
-  EXPECT_TRUE(IsValidUuid(multipart_data[15]));
+  EXPECT_EQ(multipart_data[15], WebRtcLogUploader::kWebRtcLogContentType);
 
   EXPECT_EQ(multipart_data[16], boundary);
   EXPECT_EQ(multipart_data[17],
-            base::StrCat(
-                {"Content-Disposition: form-data; name=\"", test_key, "\""}));
+            "Content-Disposition: form-data; name=\"__uuid__\"");
   EXPECT_TRUE(multipart_data[18].empty());
-  EXPECT_EQ(multipart_data[19], test_value);
+  EXPECT_TRUE(IsValidUuid(multipart_data[19]));
 
   EXPECT_EQ(multipart_data[20], boundary);
   EXPECT_EQ(multipart_data[21],
+            base::StrCat(
+                {"Content-Disposition: form-data; name=\"", test_key, "\""}));
+  EXPECT_TRUE(multipart_data[22].empty());
+  EXPECT_EQ(multipart_data[23], test_value);
+
+  EXPECT_EQ(multipart_data[24], boundary);
+  EXPECT_EQ(multipart_data[25],
             base::StrCat({"Content-Disposition: form-data; name=\"",
                           WebRtcLogUploader::kCrossSiteContentName, "\"; ",
                           "filename=\"",
                           WebRtcLogUploader::kCrossSiteContentName, ".gz\""}));
-  EXPECT_TRUE(multipart_data[22].empty());
+  EXPECT_TRUE(multipart_data[26].empty());
 }
 
 TEST_F(RTCDiagnosticLoggingTest, UploadSiteOriginLogging) {

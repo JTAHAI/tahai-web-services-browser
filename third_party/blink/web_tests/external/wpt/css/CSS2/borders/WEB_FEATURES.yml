@@ -1,2 +1,3 @@
-rules:
-- "**": [borders]
+features:
+- name: borders
+  files: "**"

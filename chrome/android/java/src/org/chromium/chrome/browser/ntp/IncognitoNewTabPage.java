@@ -43,7 +43,9 @@ public class IncognitoNewTabPage extends BasicNativePage
 
     private boolean mIsLoaded;
 
+    private final IncognitoNewTabPageManager mIncognitoNewTabPageManager;
     private EdgeToEdgePadAdjuster mEdgeToEdgePadAdjuster;
+
 
     private void showIncognitoLearnMore() {
         HelpAndFeedbackLauncherImpl.getForProfile(mProfile)
@@ -78,14 +80,14 @@ public class IncognitoNewTabPage extends BasicNativePage
 
         mIncognitoNtpBackgroundColor = host.getContext().getColor(R.color.ntp_bg_incognito);
 
-        IncognitoNewTabPageManager incognitoNewTabPageManager = createIncognitoNewTabPageManager();
+        mIncognitoNewTabPageManager = createIncognitoNewTabPageManager();
 
         mTitle = host.getContext().getString(R.string.new_incognito_tab_title);
 
         LayoutInflater inflater = LayoutInflater.from(host.getContext());
         mIncognitoNewTabPageView =
                 (IncognitoNewTabPageView) inflater.inflate(R.layout.new_tab_page_incognito, null);
-        mIncognitoNewTabPageView.initialize(incognitoNewTabPageManager);
+        mIncognitoNewTabPageView.initialize(mIncognitoNewTabPageManager);
 
         // Work around https://crbug.com/41447943 and https://crbug.com/41458988 where default focus
         // highlight shows up after toggling dark mode.

@@ -12,8 +12,6 @@
 #include <vector>
 
 #include "base/check.h"
-#include "base/memory/raw_ptr.h"
-#include "base/memory/raw_ref.h"
 #include "third_party/blink/renderer/platform/wtf/wtf_size_t.h"
 
 namespace blink {
@@ -128,10 +126,8 @@ class MyersDiffer {
 
   class ResultWriter;
 
-  raw_ptr<InspectorDiff::Input, UnprotectedInRelease | DanglingUntriaged>
-      input_;
-  raw_ptr<InspectorDiff::Output, UnprotectedInRelease | DanglingUntriaged>
-      output_;
+  InspectorDiff::Input* input_;
+  InspectorDiff::Output* output_;
 
   // Stores the x-value of the furthest reaching path for each k-diagonal.
   // k-diagonals are numbered from '-height' to 'width', centered on (0,0) and
@@ -348,8 +344,7 @@ class MyersDiffer {
     }
 
    private:
-    raw_ptr<InspectorDiff::Output, UnprotectedInRelease | DanglingUntriaged>
-        output_;
+    InspectorDiff::Output* output_;
   };
 
   // Takes an edit path and "fills in the blanks". That is we notify the
@@ -408,21 +403,19 @@ class MappingInput : public InspectorDiff::Input {
         end_offset_(end_offset) {}
 
   int GetLength1() override {
-    return list_a_->size() - start_offset_ - end_offset_;
+    return list_a_.size() - start_offset_ - end_offset_;
   }
   int GetLength2() override {
-    return list_b_->size() - start_offset_ - end_offset_;
+    return list_b_.size() - start_offset_ - end_offset_;
   }
   bool Equals(int index1, int index2) override {
-    return list_a_->at(index1 + start_offset_) ==
-           list_b_->at(index2 + start_offset_);
+    return list_a_.at(index1 + start_offset_) ==
+           list_b_.at(index2 + start_offset_);
   }
 
  private:
-  const raw_ref<const Vector<String>, UnprotectedInRelease | DanglingUntriaged>
-      list_a_;
-  const raw_ref<const Vector<String>, UnprotectedInRelease | DanglingUntriaged>
-      list_b_;
+  const Vector<String>& list_a_;
+  const Vector<String>& list_b_;
   int start_offset_;
   int end_offset_;
 };
@@ -453,8 +446,8 @@ class MappingOutput : public InspectorDiff::Output {
   }
 
  private:
-  raw_ptr<InspectorIndexMap, UnprotectedInRelease | DanglingUntriaged> a_to_b_;
-  raw_ptr<InspectorIndexMap, UnprotectedInRelease | DanglingUntriaged> b_to_a_;
+  InspectorIndexMap* a_to_b_;
+  InspectorIndexMap* b_to_a_;
   int start_offset_;
 };
 

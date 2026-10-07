@@ -7,23 +7,13 @@
 
 #include "base/memory/raw_ptr.h"
 #include "components/prefs/pref_change_registrar.h"
-#include "ui/base/unowned_user_data/scoped_unowned_user_data.h"
 
-class BrowserWindowInterface;
 class TabStripModel;
 
 class OverscrollPrefManager {
  public:
-  DECLARE_USER_DATA(OverscrollPrefManager);
-
-  OverscrollPrefManager(TabStripModel* tab_strip_model,
-                        bool is_type_devtools,
-                        ui::UnownedUserDataHost& host);
+  OverscrollPrefManager(TabStripModel* tab_strip_model, bool is_type_devtools);
   ~OverscrollPrefManager();
-
-  // Returns the manager for `browser_window`, or null if it does not have
-  // one.
-  static OverscrollPrefManager* From(BrowserWindowInterface* browser_window);
 
   // Called to determine if the active tab of the hosting Browser can be
   // overscrolled with touch/wheel gestures.
@@ -34,8 +24,6 @@ class OverscrollPrefManager {
   void OnOverscrollHistoryNavigationEnabledChanged();
 
   const raw_ptr<TabStripModel> tab_strip_model_;
-
-  ui::ScopedUnownedUserData<OverscrollPrefManager> scoped_unowned_user_data_;
 
   PrefChangeRegistrar local_state_pref_registrar_;
 

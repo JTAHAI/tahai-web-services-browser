@@ -43,10 +43,6 @@ public class AppMenuItemProperties {
     public static final WritableObjectPropertyKey<CharSequence> TITLE_CONDENSED =
             new WritableObjectPropertyKey<>("TITLE_CONDENSED");
 
-    /** The max lines of the title. */
-    public static final WritableIntPropertyKey TITLE_MAX_LINES =
-            new WritableIntPropertyKey("TITLE_MAX_LINES");
-
     /** Whether the menu item is enabled. */
     public static final WritableBooleanPropertyKey ENABLED =
             new WritableBooleanPropertyKey("ENABLED");
@@ -90,16 +86,8 @@ public class AppMenuItemProperties {
     public static final WritableObjectPropertyKey<LazyOneshotSupplier<Drawable>> ICON_SUPPLIER =
             new WritableObjectPropertyKey<>("ICON_SUPPLIER");
 
-    /** The start margin for the end icon. */
-    public static final WritableIntPropertyKey END_ICON_MARGIN_START =
-            new WritableIntPropertyKey("END_ICON_MARGIN_START");
-
-    /** The end icon for the menu item. */
-    public static final WritableObjectPropertyKey<Drawable> END_ICON =
-            new WritableObjectPropertyKey<>("END_ICON");
-
     /** The the menu item's position in the menu. */
-    public static final WritableIntPropertyKey POSITION = new WritableIntPropertyKey("POSITION");
+    static final WritableIntPropertyKey POSITION = new WritableIntPropertyKey("POSITION");
 
     /** The click handler for the menu item. */
     public static final WritableObjectPropertyKey<@Nullable AppMenuClickHandler> CLICK_HANDLER =
@@ -151,7 +139,6 @@ public class AppMenuItemProperties {
                 TITLE,
                 TITLE_ID,
                 TITLE_CONDENSED,
-                TITLE_MAX_LINES,
                 ENABLED,
                 HIGHLIGHTED,
                 CHECKABLE,
@@ -168,8 +155,6 @@ public class AppMenuItemProperties {
                 MENU_ICON_AT_START,
                 ADDITIONAL_ICONS,
                 ICON_NO_TINT,
-                ICON_SUPPLIER,
-                END_ICON_MARGIN_START,
-                END_ICON
+                ICON_SUPPLIER
             };
 }

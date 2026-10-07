@@ -41,7 +41,10 @@ public class SubKeyRequesterIntegrationTest {
     @Feature({"Autofill"})
     public void testLoadSubKeysForRegion() {
         // Trivial test to ensure this API does not crash.
-        ThreadUtils.runOnUiThreadBlocking(() -> mSubKeyRequester.loadRulesForSubKeys("CA"));
+        ThreadUtils.runOnUiThreadBlocking(
+                () -> {
+                    mSubKeyRequester.loadRulesForSubKeys("CA");
+                });
     }
 
     @Test
@@ -51,8 +54,16 @@ public class SubKeyRequesterIntegrationTest {
     public void testGetRegionSubKeys_validRegion() throws TimeoutException {
         CallbackHelper callbackHelper = new CallbackHelper();
         SubKeyRequester.GetSubKeysRequestDelegate delegate =
-                (_, _) -> callbackHelper.notifyCalled();
-        ThreadUtils.runOnUiThreadBlocking(() -> mSubKeyRequester.getRegionSubKeys("MX", delegate));
+                new SubKeyRequester.GetSubKeysRequestDelegate() {
+                    @Override
+                    public void onSubKeysReceived(String[] subKeysCodes, String[] subKeysNames) {
+                        callbackHelper.notifyCalled();
+                    }
+                };
+        ThreadUtils.runOnUiThreadBlocking(
+                () -> {
+                    mSubKeyRequester.getRegionSubKeys("MX", delegate);
+                });
         callbackHelper.waitForOnly();
     }
 }

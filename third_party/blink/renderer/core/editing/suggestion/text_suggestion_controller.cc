@@ -77,7 +77,7 @@ bool ShouldDeleteNextCharacter(const Node& marker_text_node,
 
 EphemeralRangeInFlatTree ComputeRangeSurroundingCaret(
     const PositionInFlatTree& caret_position) {
-  const wtf_size_t position_offset_in_node =
+  const unsigned position_offset_in_node =
       caret_position.ComputeOffsetInContainerNode();
   auto* text_node = DynamicTo<Text>(caret_position.ComputeContainerNode());
   // If we're in the interior of a text node, we can avoid calling
@@ -206,7 +206,9 @@ SuggestionInfosWithNodeAndHighlightColor ComputeSuggestionInfos(
 }  // namespace
 
 TextSuggestionController::TextSuggestionController(LocalDOMWindow& window)
-    : window_(&window), text_suggestion_host_(&window) {}
+    : is_suggestion_menu_open_(false),
+      window_(&window),
+      text_suggestion_host_(&window) {}
 
 bool TextSuggestionController::IsMenuOpen() const {
   return is_suggestion_menu_open_;
@@ -567,11 +569,11 @@ TextSuggestionController::FirstMarkerIntersectingRange(
     DocumentMarker::MarkerTypes types) const {
   const Node* const range_start_container =
       range.StartPosition().ComputeContainerNode();
-  const wtf_size_t range_start_offset =
+  const unsigned range_start_offset =
       range.StartPosition().ComputeOffsetInContainerNode();
   const Node* const range_end_container =
       range.EndPosition().ComputeContainerNode();
-  const wtf_size_t range_end_offset =
+  const unsigned range_end_offset =
       range.EndPosition().ComputeOffsetInContainerNode();
 
   for (const Node& node : range.Nodes()) {
@@ -579,9 +581,9 @@ TextSuggestionController::FirstMarkerIntersectingRange(
     if (!text_node)
       continue;
 
-    const wtf_size_t start_offset =
+    const unsigned start_offset =
         node == range_start_container ? range_start_offset : 0;
-    const wtf_size_t end_offset =
+    const unsigned end_offset =
         node == range_end_container ? range_end_offset : text_node->length();
 
     const DocumentMarker* const found_marker =

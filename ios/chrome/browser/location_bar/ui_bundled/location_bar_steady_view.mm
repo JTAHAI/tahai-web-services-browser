@@ -191,21 +191,14 @@ const CGFloat kCustomLeadingViewAnimationDuration = 0.3;
   NSArray<NSLayoutConstraint*>* _containerActiveConstraints;
 }
 
-- (instancetype)initWithTextOnly:(BOOL)textOnly {
+- (instancetype)init {
   self = [super initWithFrame:CGRectZero];
   if (self) {
     [self setUpViews];
     [self setUpLayout];
-    if (textOnly) {
-      [self configureAsTextOnlyWithIcons];
-    }
   }
   [self setUpAccessibility];
   return self;
-}
-
-- (instancetype)init {
-  return [self initWithTextOnly:NO];
 }
 
 - (void)updateCustomLeadingViewVisibility:(BOOL)visible
@@ -752,14 +745,6 @@ const CGFloat kCustomLeadingViewAnimationDuration = 0.3;
 }
 
 #pragma mark - private
-
-// Configures the view to display location text, security icon, and incognito
-// icon only, aligned to the trailing edge.
-- (void)configureAsTextOnlyWithIcons {
-  [self setTrailingButtonHidden:YES];
-  self.badgesContainerView.hidden = YES;
-  [self updateCustomLeadingViewVisibility:NO animated:NO];
-}
 
 // Updates the location accessibility label and adds the correct views to
 // accessible elements depending on their current displayed state.

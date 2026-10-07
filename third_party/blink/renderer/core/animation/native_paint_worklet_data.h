@@ -5,16 +5,12 @@
 #ifndef THIRD_PARTY_BLINK_RENDERER_CORE_ANIMATION_NATIVE_PAINT_WORKLET_DATA_H_
 #define THIRD_PARTY_BLINK_RENDERER_CORE_ANIMATION_NATIVE_PAINT_WORKLET_DATA_H_
 
-#include "base/memory/ref_counted.h"
 #include "third_party/blink/renderer/core/animation/animation.h"
-#include "third_party/blink/renderer/core/animation/compositor_animation_curve.h"
-#include "third_party/blink/renderer/core/core_export.h"
 #include "third_party/blink/renderer/platform/heap/garbage_collected.h"
 
 namespace blink {
 
-class CORE_EXPORT NativePaintWorkletData
-    : public GarbageCollected<NativePaintWorkletData> {
+class NativePaintWorkletData : public GarbageCollected<NativePaintWorkletData> {
  public:
   NativePaintWorkletData(Element* element,
                          Animation::NativePaintWorkletProperties property)
@@ -60,24 +56,11 @@ class CORE_EXPORT NativePaintWorkletData
 
   bool SetStatus(CompositedPaintStatus status);
 
-  void MaybeSetNeedsKeyframeSnapshot(const Element& element,
-                                     const ComputedStyle& new_style,
-                                     bool forced_update);
   void SetNeedsKeyframeSnapshot();
-
-  void SetAnimation(Animation* animation);
 
   Animation* GetAnimation() const { return animation_; }
 
-  scoped_refptr<CompositorAnimationCurve> GetAnimationCurve();
-
-  void SetAnimationCurve(scoped_refptr<CompositorAnimationCurve> curve) {
-    animation_curve_ = std::move(curve);
-  }
-
-  bool NeedsKeyframeSnapshotUpdate() {
-    return needs_keyframes_snapshot_update_;
-  }
+  void SetAnimation(Animation* animation) { animation_ = animation; }
 
   void Trace(Visitor*) const;
 
@@ -90,8 +73,7 @@ class CORE_EXPORT NativePaintWorkletData
       CompositedPaintStatus::kNoAnimation;
   bool update_triggers_paint_property_update_ = false;
   WeakMember<Animation> animation_;
-  scoped_refptr<CompositorAnimationCurve> animation_curve_;
-  bool needs_keyframes_snapshot_update_ = false;
+  // TODO: Add paint worklet deferred input / image.
 };
 
 }  // namespace blink

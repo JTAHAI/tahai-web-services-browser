@@ -16,8 +16,6 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewOutlineProvider;
 import android.view.ViewPropertyAnimator;
-import android.view.accessibility.AccessibilityEvent;
-import android.view.accessibility.AccessibilityNodeInfo;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.TextView;
@@ -26,11 +24,9 @@ import androidx.annotation.ColorInt;
 import androidx.annotation.IntDef;
 import androidx.annotation.VisibleForTesting;
 
-import org.chromium.base.ResettersForTesting;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
-import org.chromium.chrome.browser.bookmarks.BookmarkUiPrefs.BookmarkRowDisplayPref;
-import org.chromium.components.browser_ui.widget.RoundedCornerImageView;
+import org.chromium.components.browser_ui.widget.RoundedCornerOutlineProvider;
 import org.chromium.components.browser_ui.widget.selectable_list.SelectableListUtils;
 import org.chromium.ui.listmenu.ListMenuButton;
 import org.chromium.ui.listmenu.ListMenuDelegate;
@@ -60,11 +56,9 @@ public class ImprovedBookmarkRow extends ViewLookupCachingFrameLayout
         int SOLO = 3;
     }
 
-    private static boolean sEnableIconAnimationForTesting = true;
-
     private ViewGroup mContainer;
     // The start image view which is shows the favicon.
-    private RoundedCornerImageView mStartImageView;
+    private ImageView mStartImageView;
     private ImprovedBookmarkFolderView mFolderIconView;
     // Displays the title of the bookmark.
     private TextView mTitleView;
@@ -109,12 +103,7 @@ public class ImprovedBookmarkRow extends ViewLookupCachingFrameLayout
                                 : R.layout.improved_bookmark_row_layout,
                         row);
         row.onFinishInflate();
-        @BookmarkRowDisplayPref
-        int displayPref = isVisual ? BookmarkRowDisplayPref.VISUAL : BookmarkRowDisplayPref.COMPACT;
-        row.setStartImageCornerRadius(
-                BookmarkViewUtils.getImageIconCornerRadius(context.getResources(), displayPref));
-        row.setStartImageSize(
-                BookmarkViewUtils.getImageIconSize(context.getResources(), displayPref));
+        row.setStartImageRoundedCornerOutlineProvider(isVisual);
         return row;
     }
 
@@ -123,7 +112,6 @@ public class ImprovedBookmarkRow extends ViewLookupCachingFrameLayout
         super(context, attrs);
         // The view from buildView should have a focus highlight, so avoid duplicate focus
         setDefaultFocusHighlightEnabled(false);
-        setFocusable(true);
     }
 
     public void setDragEnabled(boolean dragEnabled) {
@@ -160,21 +148,18 @@ public class ImprovedBookmarkRow extends ViewLookupCachingFrameLayout
         }
     }
 
-    void setStartImageCornerRadius(int radius) {
-        if (mStartImageView != null) {
-            mStartImageView.setRoundedCorners(radius, radius, radius, radius);
-        }
-    }
+    void setStartImageRoundedCornerOutlineProvider(boolean isVisual) {
+        assert mStartImageView != null;
 
-    void setStartImageSize(int size) {
-        if (mStartImageView != null) {
-            ViewGroup.LayoutParams params = mStartImageView.getLayoutParams();
-            if (params != null) {
-                params.width = size;
-                params.height = size;
-                mStartImageView.setLayoutParams(params);
-            }
-        }
+        mStartImageView.setOutlineProvider(
+                new RoundedCornerOutlineProvider(
+                        getContext()
+                                .getResources()
+                                .getDimensionPixelSize(
+                                        isVisual
+                                                ? R.dimen.improved_bookmark_row_outer_corner_radius
+                                                : R.dimen.improved_bookmark_icon_radius)));
+        mStartImageView.setClipToOutline(true);
     }
 
     @Override
@@ -239,7 +224,6 @@ public class ImprovedBookmarkRow extends ViewLookupCachingFrameLayout
 
     void setRowEnabled(boolean enabled) {
         setEnabled(enabled);
-        setFocusable(enabled);
         int alphaRes = enabled ? R.dimen.default_enabled_alpha : R.dimen.default_disabled_alpha;
         float alpha = ValueUtils.getFloat(getResources(), alphaRes);
         mContainer.setAlpha(alpha);
@@ -274,8 +258,8 @@ public class ImprovedBookmarkRow extends ViewLookupCachingFrameLayout
         cancelAnimation();
 
         mStartImageView.setImageDrawable(drawable);
-        // No need to fade-in a null drawable or when animations are disabled in tests.
-        if (drawable == null || !sEnableIconAnimationForTesting) return;
+        // No need to fade-in a null drawable.
+        if (drawable == null) return;
 
         mStartImageView.setAlpha(0f);
 
@@ -288,7 +272,7 @@ public class ImprovedBookmarkRow extends ViewLookupCachingFrameLayout
     }
 
     void setStartAreaBackgroundColor(@ColorInt int color) {
-        mStartImageView.setRoundedFillColor(color);
+        mStartImageView.setBackgroundColor(color);
     }
 
     void setAccessoryView(@Nullable View view) {
@@ -312,24 +296,12 @@ public class ImprovedBookmarkRow extends ViewLookupCachingFrameLayout
         mMoreButton.addPopupListener(listener);
     }
 
-    @Override
-    public void onInitializeAccessibilityNodeInfo(AccessibilityNodeInfo info) {
-        super.onInitializeAccessibilityNodeInfo(info);
-        info.setCheckable(mSelectionEnabled);
-        info.setChecked(mSelectionEnabled && mIsSelected);
-    }
-
     void setIsSelected(boolean selected) {
-        boolean changed = mIsSelected != selected;
         mIsSelected = selected;
         updateView();
-        if (changed && mSelectionEnabled) {
-            sendAccessibilityEvent(AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED);
-        }
     }
 
     void setSelectionEnabled(boolean selectionEnabled) {
-        boolean changed = mSelectionEnabled != selectionEnabled;
         mSelectionEnabled = selectionEnabled;
         mMoreButton.setClickable(!selectionEnabled);
         mMoreButton.setEnabled(!selectionEnabled);
@@ -338,9 +310,6 @@ public class ImprovedBookmarkRow extends ViewLookupCachingFrameLayout
                         ? IMPORTANT_FOR_ACCESSIBILITY_YES
                         : IMPORTANT_FOR_ACCESSIBILITY_NO);
         updateView();
-        if (changed) {
-            sendAccessibilityEvent(AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED);
-        }
     }
 
     // TODO: Maybe this can be removed.
@@ -376,7 +345,6 @@ public class ImprovedBookmarkRow extends ViewLookupCachingFrameLayout
     }
 
     void updateView() {
-        setDefaultFocusHighlightEnabled(mIsSelected);
         mContainer.setBackgroundResource(
                 mIsSelected
                         ? R.drawable.rounded_rectangle_surface_container_low
@@ -404,7 +372,7 @@ public class ImprovedBookmarkRow extends ViewLookupCachingFrameLayout
 
     // Testing specific methods below.
 
-    public void setStartImageViewForTesting(RoundedCornerImageView startImageView) {
+    public void setStartImageViewForTesting(ImageView startImageView) {
         mStartImageView = startImageView;
     }
 
@@ -414,10 +382,5 @@ public class ImprovedBookmarkRow extends ViewLookupCachingFrameLayout
 
     public String getTitleForTesting() {
         return mTitleView.getText().toString();
-    }
-
-    public static void setEnableIconAnimationForTesting(boolean enable) {
-        sEnableIconAnimationForTesting = enable;
-        ResettersForTesting.register(() -> sEnableIconAnimationForTesting = true);
     }
 }

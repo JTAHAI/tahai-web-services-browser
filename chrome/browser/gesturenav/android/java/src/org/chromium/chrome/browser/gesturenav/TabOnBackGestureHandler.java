@@ -31,7 +31,7 @@ public class TabOnBackGestureHandler implements UserData {
         return tab.getUserDataHost().setUserData(USER_DATA_KEY, new TabOnBackGestureHandler(tab));
     }
 
-    private long mNativePtr;
+    private final long mNativePtr;
 
     private TabOnBackGestureHandler(Tab tab) {
         mNativePtr = TabOnBackGestureHandlerJni.get().init(tab);
@@ -42,34 +42,24 @@ public class TabOnBackGestureHandler implements UserData {
             @BackGestureEventSwipeEdge int edge,
             boolean forward,
             boolean isGestureMode) {
-        if (mNativePtr == 0) return;
         TabOnBackGestureHandlerJni.get()
                 .onBackStarted(mNativePtr, progress, edge, forward, isGestureMode);
     }
 
-    /**
-     * Returns whether this handler is still driving the caller's gesture. When it returns false the
-     * caller owns the gesture again: it must drop its reference to this handler and do its own back
-     * handling, otherwise the navigation is lost. The handler is not necessarily idle then: on an
-     * edge mismatch it may still be driving a newer gesture for another owner.
-     */
-    public boolean onBackProgressed(
+    public void onBackProgressed(
             float progress,
             @BackGestureEventSwipeEdge int edge,
             boolean forward,
             boolean isGestureMode) {
-        if (mNativePtr == 0) return false;
-        return TabOnBackGestureHandlerJni.get()
+        TabOnBackGestureHandlerJni.get()
                 .onBackProgressed(mNativePtr, progress, edge, forward, isGestureMode);
     }
 
     public void onBackCancelled(boolean isGestureMode) {
-        if (mNativePtr == 0) return;
         TabOnBackGestureHandlerJni.get().onBackCancelled(mNativePtr, isGestureMode);
     }
 
     public void onBackInvoked(boolean isGestureMode) {
-        if (mNativePtr == 0) return;
         TabOnBackGestureHandlerJni.get().onBackInvoked(mNativePtr, isGestureMode);
     }
 
@@ -80,10 +70,7 @@ public class TabOnBackGestureHandler implements UserData {
 
     @Override
     public void destroy() {
-        if (mNativePtr != 0) {
-            TabOnBackGestureHandlerJni.get().destroy(mNativePtr);
-            mNativePtr = 0;
-        }
+        TabOnBackGestureHandlerJni.get().destroy(mNativePtr);
     }
 
     @NativeMethods
@@ -97,7 +84,7 @@ public class TabOnBackGestureHandler implements UserData {
                 boolean forward,
                 boolean isGestureMode);
 
-        boolean onBackProgressed(
+        void onBackProgressed(
                 long nativeTabOnBackGestureHandler,
                 float progress,
                 int edge,

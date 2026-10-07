@@ -69,7 +69,6 @@
 #include "third_party/blink/renderer/core/layout/layout_text_fragment.h"
 #include "third_party/blink/renderer/core/layout/layout_view.h"
 #include "third_party/blink/renderer/platform/heap/collection_support/heap_hash_set.h"
-#include "third_party/blink/renderer/platform/wtf/text/format.h"
 
 namespace blink {
 
@@ -1385,7 +1384,7 @@ void DocumentMarkerController::ShowMarkers() const {
     }
     for (auto& node_iterator : *marker_map) {
       const Text* node = node_iterator.key;
-      FormatTo(builder, "{}", node);
+      builder.AppendFormat("%p", node);
       DocumentMarkerList* const list = node_iterator.value;
       const HeapVector<Member<DocumentMarker>>& markers_in_list =
           list->GetMarkers();
@@ -1395,9 +1394,9 @@ void DocumentMarkerController::ShowMarkers() const {
           is_active_match = text_match->IsActiveMatch();
         }
 
-        FormatTo(builder, " {}:[{}:{}]({})",
-                 static_cast<uint32_t>(marker->GetType()),
-                 marker->StartOffset(), marker->EndOffset(), is_active_match);
+        builder.AppendFormat(
+            " %u:[%u:%u](%d)", static_cast<uint32_t>(marker->GetType()),
+            marker->StartOffset(), marker->EndOffset(), is_active_match);
       }
     }
     builder.Append("\n");

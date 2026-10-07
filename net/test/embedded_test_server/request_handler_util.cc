@@ -47,17 +47,12 @@ std::string GetContentType(const base::FilePath& path) {
       path.MatchesExtension(FILE_PATH_LITERAL(".jpg"))) {
     return "image/jpeg";
   }
-  if (path.MatchesExtension(FILE_PATH_LITERAL(".js")) ||
-      path.MatchesExtension(FILE_PATH_LITERAL(".mjs"))) {
+  if (path.MatchesExtension(FILE_PATH_LITERAL(".js")))
     return "application/javascript";
-  }
   if (path.MatchesExtension(FILE_PATH_LITERAL(".json")))
     return "application/json";
   if (path.MatchesExtension(FILE_PATH_LITERAL(".pdf")))
     return "application/pdf";
-  if (path.MatchesExtension(FILE_PATH_LITERAL(".png"))) {
-    return "image/png";
-  }
   if (path.MatchesExtension(FILE_PATH_LITERAL(".svg")))
     return "image/svg+xml";
   if (path.MatchesExtension(FILE_PATH_LITERAL(".txt")))

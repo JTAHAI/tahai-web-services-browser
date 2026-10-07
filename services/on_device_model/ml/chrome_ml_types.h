@@ -42,7 +42,6 @@ using InputPiece = std::variant<Token,
                                 SkBitmap,
                                 AudioBuffer,
                                 ToolDeclaration,
-                                ToolCall,
                                 ToolResponse,
                                 bool>;
 

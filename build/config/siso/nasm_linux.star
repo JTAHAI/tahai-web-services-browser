@@ -7,7 +7,6 @@
 load("@builtin//path.star", "path")
 load("@builtin//struct.star", "module")
 load("./config.star", "config")
-load("./platform.star", "platform")
 
 def __filegroups(ctx):
     return {}
@@ -21,9 +20,8 @@ def __step_config(ctx, step_config):
         nasm_path = path.join(toolchain, "nasm")
         rules.append({
             "name": path.join("nasm", toolchain),
-            "command_prefix": platform.python_bin + " ../../build/gn_run_binary.py " + nasm_path,
+            "command_prefix": "python3 ../../build/gn_run_binary.py " + nasm_path,
             "remote": remote_run,
-            "remote_command": platform.remote_python_bin,
             # chromeos generates default.profraw?
             "ignore_extra_output_pattern": ".*default.profraw",
             "timeout": "2m",

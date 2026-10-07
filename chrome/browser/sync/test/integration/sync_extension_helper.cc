@@ -67,6 +67,9 @@ void SyncExtensionHelper::SetupIfNecessary(SyncTest* test) {
   for (int i = 0; i < test->num_clients(); ++i) {
     SetupProfile(test->GetProfile(i));
   }
+  if (test->UseVerifier()) {
+    SetupProfile(test->verifier());
+  }
 
   setup_completed_ = true;
 }

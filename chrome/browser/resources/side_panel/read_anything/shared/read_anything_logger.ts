@@ -2,10 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import type {VisualBrowserProxy} from '../app/visual_browser_proxy.js';
-import {VisualBrowserProxyImpl} from '../app/visual_browser_proxy.js';
-import type {AudioBrowserProxy} from '../read_aloud/audio_browser_proxy.js';
-import {AudioBrowserProxyImpl} from '../read_aloud/audio_browser_proxy.js';
 import {hasEspeakIdentifier, hasNaturalIdentifier} from '../read_aloud/voice_language_conversions.js';
 
 import {MetricsBrowserProxyImpl, ReadAnythingSpeechError, ReadAnythingVoiceType, UmaName} from './metrics_browser_proxy.js';
@@ -45,10 +41,6 @@ export enum ViewMode {
 // Handles the business logic for logging.
 export class ReadAnythingLogger {
   private metrics: MetricsBrowserProxy = MetricsBrowserProxyImpl.getInstance();
-  private visualBrowserProxy_: VisualBrowserProxy =
-      VisualBrowserProxyImpl.getInstance();
-  private audioBrowserProxy_: AudioBrowserProxy =
-      AudioBrowserProxyImpl.getInstance();
   // When this class is first instantiated, it will be because reading mode
   // is visible, so isHidden_ should be false be default.
   private isHidden_: boolean = false;
@@ -219,19 +211,21 @@ export class ReadAnythingLogger {
 
     const playbackTime = Date.now() - startTime;
     this.metrics.recordSpeechPlaybackLengthLegacy(playbackTime);
+    if (!chrome.readingMode.isImmersiveEnabled) {
+      return;
+    }
 
-    const activePresentationState =
-        this.visualBrowserProxy_.getActivePresentationState();
+    const activePresentationState = chrome.readingMode.activePresentationState;
     const isImmersiveState = activePresentationState ===
-        this.visualBrowserProxy_.getInImmersiveOverlayPresentationState();
+        chrome.readingMode.inImmersiveOverlayPresentationState;
     if (!isImmersiveState &&
         activePresentationState !==
-            this.visualBrowserProxy_.getInSidePanelPresentationState()) {
+            chrome.readingMode.inSidePanelPresentationState) {
       return;
     }
 
     const pageType =
-        this.visualBrowserProxy_.isPdf() ? PageType.PDF : PageType.WEB_PAGE;
+        chrome.readingMode.isPdf ? PageType.PDF : PageType.WEB_PAGE;
     const viewMode =
         isImmersiveState ? ViewMode.FULL_PAGE : ViewMode.SIDE_PANEL;
     const umaName = `${UmaName.SPEECH_PLAYBACK}.${pageType}In${viewMode}`;
@@ -244,13 +238,13 @@ export class ReadAnythingLogger {
   }
 
   logLineFocusSession() {
-    if (this.visualBrowserProxy_.isLineFocusEnabled()) {
+    if (chrome.readingMode.isLineFocusEnabled) {
       this.metrics.recordLineFocusSession();
     }
   }
 
   logLineFocusToggled(enabled: boolean) {
-    if (this.visualBrowserProxy_.isLineFocusEnabled()) {
+    if (chrome.readingMode.isLineFocusEnabled) {
       this.metrics.recordLineFocusToggled(enabled);
     }
   }
@@ -276,7 +270,7 @@ export class ReadAnythingLogger {
 
     this.logOverallStructureMetrics_(headerCounts, paragraphs.length);
     this.logTopTwoHeaderMetrics_(headerCounts);
-    if (this.visualBrowserProxy_.isPdf()) {
+    if (chrome.readingMode.isPdf) {
       this.logPdfDistilledPageStructure_(headerCounts, paragraphs.length);
     }
 
@@ -284,7 +278,7 @@ export class ReadAnythingLogger {
   }
 
   private logEnglishKeyPointsMetrics_(wordCountContainer: Element) {
-    const lang = this.audioBrowserProxy_.getBaseLanguageForSpeech();
+    const lang = chrome.readingMode.baseLanguageForSpeech;
     if (!lang || !lang.toLowerCase().startsWith('en')) {
       return;
     }
@@ -308,7 +302,7 @@ export class ReadAnythingLogger {
         maybeHasKeyPoints);
 
     const maybeHasKeyPointsOnPage =
-        this.visualBrowserProxy_.maybeHasKeyPointsSection();
+        chrome.readingMode.maybeHasKeyPointsSection();
     this.metrics.recordBoolean(
         'Accessibility.ReadAnything.PageStructure.EnglishKeyPointsOnPage',
         maybeHasKeyPointsOnPage);
@@ -418,7 +412,7 @@ export class ReadAnythingLogger {
 
   private getKeyPointsRegex_(): RegExp {
     if (!this.keyPointsRegex_) {
-      const regexStr = this.visualBrowserProxy_.getKeyPointsRegex();
+      const regexStr = chrome.readingMode.getKeyPointsRegex();
       this.keyPointsRegex_ = new RegExp(regexStr, 'i');
     }
     return this.keyPointsRegex_;

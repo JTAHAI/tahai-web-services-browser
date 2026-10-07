@@ -63,7 +63,6 @@
 #include "third_party/blink/renderer/platform/json/json_parser.h"
 #include "third_party/blink/renderer/platform/network/content_security_policy_parsers.h"
 #include "third_party/blink/renderer/platform/runtime_enabled_features.h"
-#include "third_party/blink/renderer/platform/wtf/text/format.h"
 #include "third_party/blink/renderer/platform/wtf/text/strcat.h"
 #include "third_party/blink/renderer/platform/wtf/text/string_to_number.h"
 
@@ -311,10 +310,11 @@ void HTMLIFrameElement::ParseAttribute(
       // invalid 'csp' attribute.
       required_csp_ = g_null_atom;
       GetDocument().AddConsoleMessage(MakeGarbageCollected<ConsoleMessage>(
-          ConsoleMessage::Source::kOther, ConsoleMessage::Level::kError,
-          Format("'csp' attribute too long. The max length for the 'csp' "
-                 "attribute is {} bytes.",
-                 kMaxLengthCSPAttribute)));
+          mojom::blink::ConsoleMessageSource::kOther,
+          mojom::blink::ConsoleMessageLevel::kError,
+          String::Format("'csp' attribute too long. The max length for the "
+                         "'csp' attribute is %zu bytes.",
+                         kMaxLengthCSPAttribute)));
     } else if (required_csp_ != value) {
       required_csp_ = value;
       should_call_did_change_attributes = true;
@@ -379,6 +379,28 @@ void HTMLIFrameElement::ParseAttribute(
       if (!params.new_value.IsNull()) {
         UseCounter::Count(GetDocument(),
                           WebFeature::kSharedStorageAPI_Iframe_Attribute);
+      }
+    }
+  } else if (name == html_names::kSharedstoragewritableAttr &&
+             GetExecutionContext() &&
+             RuntimeEnabledFeatures::SharedStorageAPIEnabled(
+                 GetExecutionContext())) {
+    if (!GetExecutionContext()->IsSecureContext()) {
+      GetDocument().AddConsoleMessage(MakeGarbageCollected<ConsoleMessage>(
+          mojom::blink::ConsoleMessageSource::kOther,
+          mojom::blink::ConsoleMessageLevel::kError,
+          String("sharedStorageWritable: sharedStorage operations "
+                 "are only available in secure contexts.")));
+    } else {
+      if (params.new_value.IsNull() != params.old_value.IsNull()) {
+        should_call_did_change_attributes = true;
+      }
+      if (!params.new_value.IsNull()) {
+        UseCounter::Count(GetDocument(),
+                          WebFeature::kSharedStorageAPI_Iframe_Attribute);
+        Deprecation::CountDeprecation(
+            GetExecutionContext(),
+            mojom::blink::WebFeature::kSharedStorageAPIAll);
       }
     }
   } else if (name == html_names::kCredentiallessAttr &&
@@ -690,6 +712,12 @@ void HTMLIFrameElement::DidChangeAttributes() {
       ParseConnectionAllowlistAttribute(required_connection_allowlist_);
   attributes->credentialless = credentialless_;
 
+
+  if (RuntimeEnabledFeatures::SharedStorageAPIEnabled(GetExecutionContext()) &&
+      GetExecutionContext()->IsSecureContext()) {
+    attributes->shared_storage_writable_opted_in =
+        FastHasAttribute(html_names::kSharedstoragewritableAttr);
+  }
 
   attributes->id = ConvertToReportValue(id_);
   attributes->name = ConvertToReportValue(name_);

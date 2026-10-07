@@ -27,7 +27,6 @@ import androidx.browser.customtabs.PostMessageServiceConnection;
 
 import org.chromium.base.ContextUtils;
 import org.chromium.base.SysUtils;
-import org.chromium.base.TriState;
 import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.base.task.PostTask;
 import org.chromium.base.task.TaskTraits;
@@ -622,10 +621,9 @@ class ClientManager {
                     BrowserCallbackWrapper callback = getCallbackForSession(session);
                     if (callback != null) {
                         Bundle extras = null;
-                        if (verified && online != TriState.NOT_SET) {
+                        if (verified && online != null) {
                             extras = new Bundle();
-                            extras.putBoolean(
-                                    CustomTabsCallback.ONLINE_EXTRAS_KEY, online == TriState.TRUE);
+                            extras.putBoolean(CustomTabsCallback.ONLINE_EXTRAS_KEY, online);
                         }
                         callback.onRelationshipValidationResult(
                                 relation, origin.uri(), verified, extras);
@@ -715,7 +713,7 @@ class ClientManager {
      * @return The package name associated with the client owning the given session.
      */
     public @Nullable String getClientPackageNameForSession(@Nullable SessionHolder<?> session) {
-        return callOnSession(session, null, SessionParams::getPackageName);
+        return callOnSession(session, null, params -> params.getPackageName());
     }
 
     /**
@@ -748,7 +746,7 @@ class ClientManager {
      */
     public @Nullable BrowserCallbackWrapper getCallbackForSession(
             @Nullable SessionHolder<?> session) {
-        return callOnSession(session, null, SessionParams::getCallback);
+        return callOnSession(session, null, params -> params.getCallback());
     }
 
     /**
@@ -999,7 +997,9 @@ class ClientManager {
             @Nullable SessionHolder<?> session, boolean isInForeground) {
         callOnSession(
                 session,
-                (SessionParams params) -> params.mCustomTabIsInForeground = isInForeground);
+                params -> {
+                    params.mCustomTabIsInForeground = isInForeground;
+                });
     }
 
     public void setEngagementSignalsCallbackForSession(

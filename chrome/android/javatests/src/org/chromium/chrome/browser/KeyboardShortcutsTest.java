@@ -42,8 +42,7 @@ import org.mockito.junit.MockitoRule;
 import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.BaseJUnit4ClassRunner;
 import org.chromium.base.test.util.Batch;
-import org.chromium.base.test.util.CriteriaHelper;
-import org.chromium.base.test.util.CriteriaNotSatisfiedException;
+import org.chromium.base.test.util.DisabledTest;
 import org.chromium.base.test.util.Feature;
 import org.chromium.base.test.util.Features;
 import org.chromium.base.ui.KeyboardUtils;
@@ -82,6 +81,7 @@ import java.util.Set;
 public class KeyboardShortcutsTest {
 
     private static final int TAB_ID = 0;
+    private static final int TAB_ID_2 = 0;
     // Want this to be less than 8 so we can test that "go to tab" keyboard shortcut is not called.
     private static final int SMALL_NUMBER_OF_TABS = 7;
     // Want this to be greater than 10 so we can test "go to tab" keyboard shortcut.
@@ -229,20 +229,6 @@ public class KeyboardShortcutsTest {
 
     @Test
     @SmallTest
-    public void testCloseWindow() {
-        boolean isKeyEventHandled =
-                keyDown(
-                        KeyEvent.KEYCODE_W,
-                        (KeyEvent.META_CTRL_ON | KeyEvent.META_SHIFT_ON),
-                        /* isCurrentTabVisible= */ true);
-
-        assertTrue("Expected key event to be handled", isKeyEventHandled);
-        verify(mMenuOrKeyboardActionController, times(1))
-                .onMenuOrKeyboardAction(/* id= */ eq(R.id.close_window), /* fromMenu= */ eq(false));
-    }
-
-    @Test
-    @SmallTest
     public void testCloseTab_singlePinnedTab_firstAttempt_tabShouldNotClose() {
         // Setup the first closure attempt of a pinned tab.
         setUpTabModelSelector(List.of(mTab));
@@ -262,11 +248,12 @@ public class KeyboardShortcutsTest {
 
         // Verify pinned tab is not closed and toast is shown.
         verify(mTabRemover, never()).closeTabs(any(), anyBoolean());
-        verify(mPinnedTabCloseManager).showToast(any(), eq(1));
+        verify(mPinnedTabCloseManager).showToast(any());
     }
 
     @Test
     @SmallTest
+    @DisabledTest(message = "Flaky - crbug.com/490369117")
     public void testCloseTab_singlePinnedTab_firstAttempt_timeout() {
         // Setup the first closure attempt of a pinned tab.
         setUpTabModelSelector(List.of(mTab));
@@ -286,19 +273,11 @@ public class KeyboardShortcutsTest {
 
         // Verify pinned tab is not closed and toast is shown.
         verify(mTabRemover, never()).closeTabs(any(), anyBoolean());
-        verify(mPinnedTabCloseManager).showToast(any(), eq(1));
+        verify(mPinnedTabCloseManager).showToast(any());
 
         // Verify pending state is cleared after ~4 seconds.
-        CriteriaHelper.pollInstrumentationThread(
-                () -> {
-                    try {
-                        verify(mPinnedTabCloseManager).clearPendingState(mTabModelSelector);
-                    } catch (AssertionError e) {
-                        throw new CriteriaNotSatisfiedException(e);
-                    }
-                },
-                CriteriaHelper.DEFAULT_MAX_TIME_TO_POLL_LONG,
-                CriteriaHelper.DEFAULT_POLLING_INTERVAL);
+        SystemClock.sleep(4000);
+        verify(mPinnedTabCloseManager).clearPendingState(mTabModelSelector);
     }
 
     @Test
@@ -345,8 +324,8 @@ public class KeyboardShortcutsTest {
 
     @Test
     @SmallTest
-    public void testCloseTab_mixedPinnedAndUnpinnedTabs_multiselect_tabShouldClose() {
-        // Setup multi-select closure attempt with mixed tabs (1 pinned, 1 unpinned).
+    public void testCloseTab_pinnedTab_multiselect_tabShouldClose() {
+        // Setup multi-select closure attempt.
         setUpTabModelSelector(List.of(mTab, mTab2));
         when(mTab.getIsPinned()).thenReturn(true);
         when(mTabModel.isTabMultiSelected(0)).thenReturn(true);
@@ -378,52 +357,6 @@ public class KeyboardShortcutsTest {
                                         .build()),
                         /* allowDialog= */ eq(true));
         verify(mPinnedTabCloseManager).clearPendingState(mTabModelSelector);
-    }
-
-    @Test
-    @SmallTest
-    public void testCloseTab_multiplePinnedTabs_multiselect_requiresConfirmation() {
-        // Setup multi-select closure attempt where ALL tabs are pinned.
-        setUpTabModelSelector(List.of(mTab, mTab2));
-        when(mTab.getIsPinned()).thenReturn(true);
-        when(mTab2.getIsPinned()).thenReturn(true);
-        when(mTabModel.isTabMultiSelected(0)).thenReturn(true);
-        when(mTabModel.isTabMultiSelected(1)).thenReturn(true);
-        when(mTabModel.getOrderedMultiSelectedTabs()).thenReturn(List.of(mTab, mTab2));
-
-        // First Ctrl+W attempt should show plural toast and not close tabs.
-        ThreadUtils.runOnUiThreadBlocking(
-                () -> {
-                    boolean isKeyEventHandled =
-                            keyDown(
-                                    KeyEvent.KEYCODE_W,
-                                    KeyEvent.META_CTRL_ON,
-                                    /* isCurrentTabVisible= */ true);
-                    assertTrue("Expected key event to be handled", isKeyEventHandled);
-                });
-
-        verify(mTabRemover, never()).closeTabs(any(), anyBoolean());
-        verify(mPinnedTabCloseManager).showToast(any(), eq(2));
-
-        // Second Ctrl+W attempt should close tabs.
-        ThreadUtils.runOnUiThreadBlocking(
-                () -> {
-                    boolean isKeyEventHandled =
-                            keyDown(
-                                    KeyEvent.KEYCODE_W,
-                                    KeyEvent.META_CTRL_ON,
-                                    /* isCurrentTabVisible= */ true);
-                    assertTrue("Expected key event to be handled", isKeyEventHandled);
-                });
-
-        verify(mTabRemover)
-                .closeTabs(
-                        eq(
-                                TabClosureParams.closeTabs(List.of(mTab, mTab2))
-                                        .allowUndo(false)
-                                        .tabClosingSource(TabClosingSource.KEYBOARD_SHORTCUT)
-                                        .build()),
-                        /* allowDialog= */ eq(true));
     }
 
     // Bookmarks shortcuts
@@ -666,24 +599,6 @@ public class KeyboardShortcutsTest {
         verify(mMenuOrKeyboardActionController, times(1))
                 .onMenuOrKeyboardAction(
                         /* id= */ eq(R.id.tab_search_side_ui), /* fromMenu= */ eq(false));
-    }
-
-    @Test
-    @SmallTest
-    public void testMoveToNextTab() {
-        assertTrue(dispatchKeyEvent(KeyEvent.KEYCODE_TAB, KeyEvent.META_CTRL_ON));
-        verify(mMenuOrKeyboardActionController, times(1))
-                .onMenuOrKeyboardAction(eq(R.id.select_next_tab), eq(false));
-    }
-
-    @Test
-    @SmallTest
-    public void testMoveToPreviousTab() {
-        assertTrue(
-                dispatchKeyEvent(
-                        KeyEvent.KEYCODE_TAB, KeyEvent.META_CTRL_ON | KeyEvent.META_SHIFT_ON));
-        verify(mMenuOrKeyboardActionController, times(1))
-                .onMenuOrKeyboardAction(eq(R.id.select_previous_tab), eq(false));
     }
 
     @Test

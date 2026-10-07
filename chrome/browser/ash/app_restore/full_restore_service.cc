@@ -14,6 +14,7 @@
 #include "ash/constants/ash_pref_names.h"
 #include "ash/constants/ash_switches.h"
 #include "ash/constants/web_app_id_constants.h"
+#include "ash/glanceables/post_login_glanceables_metrics_recorder.h"
 #include "ash/public/cpp/session/session_controller.h"
 #include "ash/shell.h"
 #include "ash/wm/desks/templates/saved_desk_controller.h"
@@ -525,6 +526,12 @@ void FullRestoreService::MaybeShowRestoreDialog(
       ExitTypeService::GetInstanceForProfile(profile_);
   if (last_session_crashed && exit_type_service) {
     crashed_lock_ = exit_type_service->CreateCrashedLock();
+  }
+
+  if (Shell::HasInstance()) {
+    Shell::Get()
+        ->post_login_glanceables_metrics_reporter()
+        ->RecordPostLoginFullRestoreShown();
   }
 
   CHECK(delegate_);

@@ -49,7 +49,6 @@ public class ChannelsInitializerTest {
 
     @Before
     public void setUp() {
-        ChannelsInitializer.resetForTesting();
         mContext = RuntimeEnvironment.getApplication();
         mNotificationManagerProxy = BaseNotificationManagerProxyFactory.create();
 

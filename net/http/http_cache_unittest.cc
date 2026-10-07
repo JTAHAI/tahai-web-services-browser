@@ -1265,13 +1265,16 @@ class HttpCacheTestSplitCacheFeature
       public ::testing::WithParamInterface<SplitCacheTestCase> {
  public:
   HttpCacheTestSplitCacheFeature() {
-    AddScopedFeatureList().InitWithFeatureState(
+    split_cache_feature_list_.InitWithFeatureState(
         features::kSplitCacheByNetworkIsolationKey, IsSplitCacheEnabled());
   }
 
   bool IsSplitCacheEnabled() const {
     return GetParam() != SplitCacheTestCase::kDisabled;
   }
+
+ private:
+  base::test::ScopedFeatureList split_cache_feature_list_;
 };
 
 TEST_P(HttpCacheTestSplitCacheFeature, SimpleGetVerifyGoogleFontMetrics) {
@@ -1312,9 +1315,12 @@ INSTANTIATE_TEST_SUITE_P(
 class HttpCacheTestSplitCacheFeatureEnabled : public HttpCacheTest {
  public:
   HttpCacheTestSplitCacheFeatureEnabled() {
-    AddScopedFeatureList().InitAndEnableFeature(
+    split_cache_enabled_feature_list_.InitAndEnableFeature(
         features::kSplitCacheByNetworkIsolationKey);
   }
+
+ private:
+  base::test::ScopedFeatureList split_cache_enabled_feature_list_;
 };
 
 TEST_F(HttpCacheSimpleGetTest, NoDiskCache) {
@@ -11233,12 +11239,11 @@ TEST_F(HttpCacheTest, CachedRedirect) {
 // Verify that no-cache resources are stored in cache, but are not fetched from
 // cache during normal loads.
 void HttpCacheTest::CacheControlNoCacheNormalLoad(bool skip_feature_enabled) {
+  base::test::ScopedFeatureList feature_list;
   if (skip_feature_enabled) {
-    AddScopedFeatureList().InitAndEnableFeature(
-        features::kHttpCacheSkipUnusableEntry);
+    feature_list.InitAndEnableFeature(features::kHttpCacheSkipUnusableEntry);
   } else {
-    AddScopedFeatureList().InitAndDisableFeature(
-        features::kHttpCacheSkipUnusableEntry);
+    feature_list.InitAndDisableFeature(features::kHttpCacheSkipUnusableEntry);
   }
 
   for (bool use_memory_entry_data : {false, true}) {
@@ -11994,7 +11999,8 @@ TEST_F(HttpCacheTest, SplitCacheEnabledByDefault) {
 
 TEST_F(HttpCacheTest, SplitCacheEnabledByDefaultButOverridden) {
   HttpCache::ClearGlobalsForTesting();
-  AddScopedFeatureList().InitAndDisableFeature(
+  base::test::ScopedFeatureList feature_list;
+  feature_list.InitAndDisableFeature(
       features::kSplitCacheByNetworkIsolationKey);
 
   // Enabling it here should have no effect as it is already overridden.
@@ -12132,7 +12138,8 @@ TEST_F(HttpCacheTestSplitCacheFeatureEnabled, SharedResourceUsesSharedCache) {
 }
 
 TEST_F(HttpCacheTest, NonSplitCache) {
-  AddScopedFeatureList().InitAndDisableFeature(
+  base::test::ScopedFeatureList feature_list;
+  feature_list.InitAndDisableFeature(
       features::kSplitCacheByNetworkIsolationKey);
 
   MockHttpCache cache;
@@ -13461,8 +13468,8 @@ TEST_F(HttpCacheTest, CacheEntryStatusCantConditionalize) {
 }
 
 TEST_F(HttpSplitCacheKeyTest, GetResourceURLFromHttpCacheKey) {
-  AddScopedFeatureList().InitAndEnableFeature(
-      features::kSplitCacheByNetworkIsolationKey);
+  base::test::ScopedFeatureList feature_list;
+  feature_list.InitAndEnableFeature(features::kSplitCacheByNetworkIsolationKey);
   MockHttpCache cache;
   std::string urls[] = {"http://www.a.com/", "https://b.com/example.html",
                         "http://example.com/Some Path/Some Leaf?some query"};
@@ -14464,59 +14471,6 @@ TEST_P(HttpCacheGenerateCacheKeyTest, GenerateCachePartitionKeyForRequest) {
             HttpCache::GenerateCachePartitionKeyForRequest(request));
 }
 
-TEST_P(HttpCacheGenerateCacheKeyTest, GenerateCacheKey) {
-  const GenerateCacheKeyTestParams& params = GetParam();
-  const auto& [upload_data_stream, request] =
-      GenerateRequestFromTestParams(params);
-
-  const std::optional<int64_t> upload_data_identifier =
-      upload_data_stream ? std::optional(upload_data_stream->identifier())
-                         : std::nullopt;
-  EXPECT_EQ(params.expected_key,
-            HttpCache::GenerateCacheKey(
-                request.url, request.load_flags, request.network_isolation_key,
-                upload_data_identifier, request.is_subframe_document_resource,
-                request.is_main_frame_navigation, request.is_shared_resource,
-                request.initiator, /*include_url=*/true));
-
-  EXPECT_EQ(params.expected_key,
-            HttpCache::GenerateCacheKey(
-                request.url, request.load_flags, request.network_isolation_key,
-                upload_data_identifier, request.is_subframe_document_resource,
-                request.is_main_frame_navigation, request.is_shared_resource,
-                request.initiator));
-
-  EXPECT_EQ(params.expected_partition_key,
-            HttpCache::GenerateCacheKey(
-                request.url, request.load_flags, request.network_isolation_key,
-                upload_data_identifier, request.is_subframe_document_resource,
-                request.is_main_frame_navigation, request.is_shared_resource,
-                request.initiator, /*include_url=*/false));
-}
-
-TEST_F(HttpCacheTest, GenerateCacheKeyUploadDataIdentifier) {
-  const GURL url("http://example.com/");
-  const NetworkIsolationKey nik;
-  EXPECT_EQ("1/0/http://example.com/",
-            HttpCache::GenerateCacheKey(
-                url, LOAD_NORMAL, nik, /*upload_data_identifier=*/std::nullopt,
-                /*is_subframe_document_resource=*/false,
-                /*is_mainframe_navigation=*/false, /*is_shared_resource=*/false,
-                /*initiator=*/std::nullopt));
-  EXPECT_EQ("1/0/http://example.com/",
-            HttpCache::GenerateCacheKey(
-                url, LOAD_NORMAL, nik, /*upload_data_identifier=*/0,
-                /*is_subframe_document_resource=*/false,
-                /*is_mainframe_navigation=*/false, /*is_shared_resource=*/false,
-                /*initiator=*/std::nullopt));
-  EXPECT_EQ("1/42/http://example.com/",
-            HttpCache::GenerateCacheKey(
-                url, LOAD_NORMAL, nik, /*upload_data_identifier=*/42,
-                /*is_subframe_document_resource=*/false,
-                /*is_mainframe_navigation=*/false, /*is_shared_resource=*/false,
-                /*initiator=*/std::nullopt));
-}
-
 const GenerateCacheKeyTestParams kGenerateCacheKeyTestParams[] = {
     {"NoSplitting", "http://a.com/", LOAD_NORMAL,
      IsSubframeDocumentResource::kNo, IsMainFrameNavigation::kNo, std::nullopt,
@@ -14607,8 +14561,7 @@ class HttpCacheNoVarySearchTestBase
     } else {
       disabled_features.push_back(split_cache_feature);
     }
-    AddScopedFeatureList().InitWithFeatures(enabled_features,
-                                            disabled_features);
+    scoped_feature_list_.InitWithFeatures(enabled_features, disabled_features);
   }
 
   ~HttpCacheNoVarySearchTestBase() {
@@ -14691,6 +14644,8 @@ class HttpCacheNoVarySearchTestBase
     return data_iterator;
   }
 
+  base::test::ScopedFeatureList scoped_feature_list_;
+
   // MockTransaction doesn't own the URL or response headers, so we store them
   // in this map.
   std::map<GURL, std::string> mock_transaction_data_;
@@ -14700,8 +14655,8 @@ class HttpCacheNoVarySearchTestBase
   // stability.
   std::list<ScopedMockTransaction> scoped_mock_transactions_;
 
-  // Need to delay construction until we have set up the
-  // `AddScopedFeatureList()` in the constructor.
+  // Need to delay construction until we have set up the `scoped_feature_list_`
+  // in the constructor.
   std::optional<MockHttpCache> http_cache_;
 };
 
@@ -15849,8 +15804,8 @@ TEST_F(HttpCacheTest, EncodedBodySizeNotStoredWithoutSharedDictionary) {
 }
 
 TEST_F(HttpCacheTest, InvalidationFilter) {
-  AddScopedFeatureList().InitAndEnableFeature(
-      net::features::kLogicalClearHttpCache);
+  base::test::ScopedFeatureList feature_list;
+  feature_list.InitAndEnableFeature(net::features::kLogicalClearHttpCache);
 
   MockHttpCache cache;
 
@@ -16000,8 +15955,8 @@ void PrimeCacheWithCompressedBody(
 // HttpCache::Transaction or CacheBodyDecompressor branches on
 // Content-Encoding, and zstd_uncompressed_body_size is the sole signal.
 TEST_F(HttpCacheTest, ZstdDecompressHappyPath) {
-  AddScopedFeatureList().InitAndEnableFeature(
-      features::kHttpCacheZstdDecompression);
+  base::test::ScopedFeatureList feature_list;
+  feature_list.InitAndEnableFeature(features::kHttpCacheZstdDecompression);
   MockHttpCache cache;
 
   // ~16 KB of repeating text: large enough to exercise the leftover-byte
@@ -16056,8 +16011,8 @@ TEST_F(HttpCacheTest, ZstdDecompressHappyPath) {
 // Verifies decompression when the decompressed output exceeds the consumer's
 // read buffer, exercising the leftover-byte draining path.
 TEST_F(HttpCacheTest, ZstdDecompressMultiChunkBody) {
-  AddScopedFeatureList().InitAndEnableFeature(
-      features::kHttpCacheZstdDecompression);
+  base::test::ScopedFeatureList feature_list;
+  feature_list.InitAndEnableFeature(features::kHttpCacheZstdDecompression);
   MockHttpCache cache;
   // ~32KB of repeating text compresses to a few hundred bytes. The first
   // disk read decompresses into far more data than the 256-byte consumer
@@ -16108,8 +16063,8 @@ TEST_F(HttpCacheTest, ZstdDecompressMultiChunkBody) {
 // ZstdDecompressRejectsOverDecompression below, which fires the mid-stream
 // guard and never reaches the EOF check.)
 TEST_F(HttpCacheTest, ZstdDecompressSizeMismatch) {
-  AddScopedFeatureList().InitAndEnableFeature(
-      features::kHttpCacheZstdDecompression);
+  base::test::ScopedFeatureList feature_list;
+  feature_list.InitAndEnableFeature(features::kHttpCacheZstdDecompression);
   MockHttpCache cache;
   const std::string plaintext = "<html><body>Google Blah Blah</body></html>";
   std::vector<uint8_t> compressed = ZstdCompress(plaintext);
@@ -16152,8 +16107,8 @@ TEST_F(HttpCacheTest, ZstdDecompressSizeMismatch) {
 // The transaction must reject this at EOF via the frame_complete check
 // with End reason="truncated_frame".
 TEST_F(HttpCacheTest, ZstdDecompressTruncatedFrame) {
-  AddScopedFeatureList().InitAndEnableFeature(
-      features::kHttpCacheZstdDecompression);
+  base::test::ScopedFeatureList feature_list;
+  feature_list.InitAndEnableFeature(features::kHttpCacheZstdDecompression);
   MockHttpCache cache;
   const std::string plaintext = "<html><body>Google Blah Blah</body></html>";
   std::vector<uint8_t> compressed = ZstdCompress(plaintext);
@@ -16199,8 +16154,8 @@ TEST_F(HttpCacheTest, ZstdDecompressTruncatedFrame) {
 // (cache_body_decompressor.cc:98), distinct from the EOF frame_complete
 // check in ZstdDecompressTruncatedFrame.
 TEST_F(HttpCacheTest, ZstdDecompressCorruptedMidStream) {
-  AddScopedFeatureList().InitAndEnableFeature(
-      features::kHttpCacheZstdDecompression);
+  base::test::ScopedFeatureList feature_list;
+  feature_list.InitAndEnableFeature(features::kHttpCacheZstdDecompression);
   MockHttpCache cache;
   // Use a moderately-compressible plaintext (16-token alphabet) so zstd
   // emits entropy-coded blocks where corruption breaks the FSE/Huffman
@@ -16263,8 +16218,8 @@ TEST_F(HttpCacheTest, ZstdDecompressCorruptedMidStream) {
 // Verifies that a range request on a compressed entry dooms the entry and
 // falls back to the network, returning the expected range response.
 TEST_F(HttpCacheTest, ZstdDecompressRangeRequestFallback) {
-  AddScopedFeatureList().InitAndEnableFeature(
-      features::kHttpCacheZstdDecompression);
+  base::test::ScopedFeatureList feature_list;
+  feature_list.InitAndEnableFeature(features::kHttpCacheZstdDecompression);
   MockHttpCache cache;
   const std::string plaintext = "<html><body>Google Blah Blah</body></html>";
   std::vector<uint8_t> compressed = ZstdCompress(plaintext);
@@ -16293,8 +16248,8 @@ TEST_F(HttpCacheTest, ZstdDecompressRangeRequestFallback) {
 // construct a range request using compressed byte offsets, but the origin
 // server only understands uncompressed offsets.
 TEST_F(HttpCacheTest, ZstdDecompressTruncatedEntryFallback) {
-  AddScopedFeatureList().InitAndEnableFeature(
-      features::kHttpCacheZstdDecompression);
+  base::test::ScopedFeatureList feature_list;
+  feature_list.InitAndEnableFeature(features::kHttpCacheZstdDecompression);
   MockHttpCache cache;
   const std::string plaintext = "<html><body>Google Blah Blah</body></html>";
   std::vector<uint8_t> compressed = ZstdCompress(plaintext);
@@ -16320,8 +16275,8 @@ TEST_F(HttpCacheTest, ZstdDecompressTruncatedEntryFallback) {
 // not deferred to the EOF size check. Distinct from ZstdDecompressSizeMismatch
 // above which exercises the EOF (under-decompression) direction.
 TEST_F(HttpCacheTest, ZstdDecompressRejectsOverDecompression) {
-  AddScopedFeatureList().InitAndEnableFeature(
-      features::kHttpCacheZstdDecompression);
+  base::test::ScopedFeatureList feature_list;
+  feature_list.InitAndEnableFeature(features::kHttpCacheZstdDecompression);
   MockHttpCache cache;
   // Real body is 200 bytes, but we'll advertise
   // zstd_uncompressed_body_size: 10.
@@ -16364,8 +16319,8 @@ TEST_F(HttpCacheTest, ZstdDecompressRejectsOverDecompression) {
 // Verifies that an empty body (Content-Length: 0) with a compressed entry
 // returns EOF cleanly without errors.
 TEST_F(HttpCacheTest, ZstdDecompressEmptyBody) {
-  AddScopedFeatureList().InitAndEnableFeature(
-      features::kHttpCacheZstdDecompression);
+  base::test::ScopedFeatureList feature_list;
+  feature_list.InitAndEnableFeature(features::kHttpCacheZstdDecompression);
   MockHttpCache cache;
   const std::string plaintext;
   std::vector<uint8_t> compressed = ZstdCompress(plaintext);
@@ -16415,8 +16370,8 @@ TEST_F(HttpCacheTest, ZstdDecompressEmptyBody) {
 // the resulting bursts of zero-output decompress calls. Our writer never
 // produces such streams, but a corrupt or malicious entry might.
 TEST_F(HttpCacheTest, ZstdDecompressSkippableFramesPrefix) {
-  AddScopedFeatureList().InitAndEnableFeature(
-      features::kHttpCacheZstdDecompression);
+  base::test::ScopedFeatureList feature_list;
+  feature_list.InitAndEnableFeature(features::kHttpCacheZstdDecompression);
   MockHttpCache cache;
   const std::string plaintext = "<html><body>Google Blah Blah</body></html>";
   ASSERT_EQ(std::string(kSimpleGET_Transaction.data), plaintext);
@@ -16486,8 +16441,8 @@ TEST_F(HttpCacheTest, ZstdDecompressSkippableFramesPrefix) {
 // entry is doomed and the request falls back to the network. No
 // HTTP_CACHE_DECOMPRESS event should fire.
 TEST_F(HttpCacheTest, ZstdDecompressFeatureDisabledFallback) {
-  AddScopedFeatureList().InitAndDisableFeature(
-      features::kHttpCacheZstdDecompression);
+  base::test::ScopedFeatureList feature_list;
+  feature_list.InitAndDisableFeature(features::kHttpCacheZstdDecompression);
   MockHttpCache cache;
   const std::string plaintext = "<html><body>Google Blah Blah</body></html>";
   std::vector<uint8_t> compressed = ZstdCompress(plaintext);
@@ -16512,8 +16467,8 @@ TEST_F(HttpCacheTest, ZstdDecompressFeatureDisabledFallback) {
 // disabled returns ERR_CACHE_MISS (not a network request) when the request
 // sets LOAD_ONLY_FROM_CACHE. No HTTP_CACHE_DECOMPRESS event should fire.
 TEST_F(HttpCacheTest, ZstdDecompressFeatureDisabledCacheOnlyReturnsMiss) {
-  AddScopedFeatureList().InitAndDisableFeature(
-      features::kHttpCacheZstdDecompression);
+  base::test::ScopedFeatureList feature_list;
+  feature_list.InitAndDisableFeature(features::kHttpCacheZstdDecompression);
   MockHttpCache cache;
   const std::string plaintext = "<html><body>Google Blah Blah</body></html>";
   std::vector<uint8_t> compressed = ZstdCompress(plaintext);
@@ -16548,8 +16503,8 @@ TEST_F(HttpCacheTest, ZstdDecompressFeatureDisabledCacheOnlyReturnsMiss) {
 // No HTTP_CACHE_DECOMPRESS event should fire — the entry is doomed before
 // the decompression path runs.
 TEST_F(HttpCacheTest, ZstdDecompressRangeRequestCacheOnlyReturnsMiss) {
-  AddScopedFeatureList().InitAndEnableFeature(
-      features::kHttpCacheZstdDecompression);
+  base::test::ScopedFeatureList feature_list;
+  feature_list.InitAndEnableFeature(features::kHttpCacheZstdDecompression);
   MockHttpCache cache;
   const std::string plaintext = "<html><body>Google Blah Blah</body></html>";
   std::vector<uint8_t> compressed = ZstdCompress(plaintext);
@@ -16614,10 +16569,10 @@ constexpr char kCompressibleBody[] =
 
 // Happy path: CDT response is compressed on write, decompressed on read.
 TEST_F(HttpCacheTest, ZstdCompressWriteAndRead) {
-  AddScopedFeatureList().InitWithFeatures(
-      {features::kHttpCacheZstdCompression,
-       features::kHttpCacheZstdDecompression},
-      {});
+  base::test::ScopedFeatureList feature_list;
+  feature_list.InitWithFeatures({features::kHttpCacheZstdCompression,
+                                 features::kHttpCacheZstdDecompression},
+                                {});
   MockHttpCache cache;
 
   ScopedMockTransaction transaction(kSimpleGET_Transaction);
@@ -16670,8 +16625,8 @@ TEST_F(HttpCacheTest, ZstdCompressWriteAndRead) {
 
 // Feature flag off: no compression, body stored uncompressed.
 TEST_F(HttpCacheTest, ZstdCompressFeatureDisabledNoCompression) {
-  AddScopedFeatureList().InitAndDisableFeature(
-      features::kHttpCacheZstdCompression);
+  base::test::ScopedFeatureList feature_list;
+  feature_list.InitAndDisableFeature(features::kHttpCacheZstdCompression);
   MockHttpCache cache;
 
   ScopedMockTransaction transaction(kSimpleGET_Transaction);
@@ -16696,10 +16651,10 @@ TEST_F(HttpCacheTest, ZstdCompressFeatureDisabledNoCompression) {
 
 // Non-CDT response (did_use_shared_dictionary=false): no compression.
 TEST_F(HttpCacheTest, ZstdCompressNonCdtNotCompressed) {
-  AddScopedFeatureList().InitWithFeatures(
-      {features::kHttpCacheZstdCompression,
-       features::kHttpCacheZstdDecompression},
-      {});
+  base::test::ScopedFeatureList feature_list;
+  feature_list.InitWithFeatures({features::kHttpCacheZstdCompression,
+                                 features::kHttpCacheZstdDecompression},
+                                {});
   MockHttpCache cache;
 
   ScopedMockTransaction transaction(kSimpleGET_Transaction);
@@ -16722,10 +16677,10 @@ TEST_F(HttpCacheTest, ZstdCompressNonCdtNotCompressed) {
 
 // Compressed disk body is smaller than the plaintext for compressible data.
 TEST_F(HttpCacheTest, ZstdCompressLargeBodySizeReduction) {
-  AddScopedFeatureList().InitWithFeatures(
-      {features::kHttpCacheZstdCompression,
-       features::kHttpCacheZstdDecompression},
-      {});
+  base::test::ScopedFeatureList feature_list;
+  feature_list.InitWithFeatures({features::kHttpCacheZstdCompression,
+                                 features::kHttpCacheZstdDecompression},
+                                {});
   MockHttpCache cache;
 
   ScopedMockTransaction transaction(kSimpleGET_Transaction);
@@ -16747,10 +16702,10 @@ TEST_F(HttpCacheTest, ZstdCompressLargeBodySizeReduction) {
 
 // Full end-to-end round trip: write compressed, read decompressed, byte match.
 TEST_F(HttpCacheTest, ZstdCompressWriteReadRoundTrip) {
-  AddScopedFeatureList().InitWithFeatures(
-      {features::kHttpCacheZstdCompression,
-       features::kHttpCacheZstdDecompression},
-      {});
+  base::test::ScopedFeatureList feature_list;
+  feature_list.InitWithFeatures({features::kHttpCacheZstdCompression,
+                                 features::kHttpCacheZstdDecompression},
+                                {});
   MockHttpCache cache;
 
   // Use a less trivially compressible but still compressible pattern.
@@ -16791,10 +16746,10 @@ TEST_F(HttpCacheTest, ZstdCompressWriteReadRoundTrip) {
 // Network drop mid-body while compressing: entry must be doomed (not
 // truncated), because a partial zstd frame is undecodable.
 TEST_F(HttpCacheTest, ZstdCompressTruncatedEntryDoomed) {
-  AddScopedFeatureList().InitWithFeatures(
-      {features::kHttpCacheZstdCompression,
-       features::kHttpCacheZstdDecompression},
-      {});
+  base::test::ScopedFeatureList feature_list;
+  feature_list.InitWithFeatures({features::kHttpCacheZstdCompression,
+                                 features::kHttpCacheZstdDecompression},
+                                {});
   MockHttpCache cache;
 
   ScopedMockTransaction transaction(kSimpleGET_Transaction);
@@ -16829,10 +16784,10 @@ TEST_F(HttpCacheTest, ZstdCompressTruncatedEntryDoomed) {
 // CDT response with standard Content-Encoding (gzip) should NOT be compressed.
 // CDT encodings (dcb, dcz) are allowed through; standard ones are rejected.
 TEST_F(HttpCacheTest, ZstdCompressContentEncodingSkipped) {
-  AddScopedFeatureList().InitWithFeatures(
-      {features::kHttpCacheZstdCompression,
-       features::kHttpCacheZstdDecompression},
-      {});
+  base::test::ScopedFeatureList feature_list;
+  feature_list.InitWithFeatures({features::kHttpCacheZstdCompression,
+                                 features::kHttpCacheZstdDecompression},
+                                {});
   MockHttpCache cache;
 
   ScopedMockTransaction transaction(kSimpleGET_Transaction);
@@ -16859,10 +16814,10 @@ TEST_F(HttpCacheTest, ZstdCompressContentEncodingSkipped) {
 
 // CDT Content-Encoding: dcb is allowed through the compression allowlist.
 TEST_F(HttpCacheTest, ZstdCompressContentEncodingDcbAllowed) {
-  AddScopedFeatureList().InitWithFeatures(
-      {features::kHttpCacheZstdCompression,
-       features::kHttpCacheZstdDecompression},
-      {});
+  base::test::ScopedFeatureList feature_list;
+  feature_list.InitWithFeatures({features::kHttpCacheZstdCompression,
+                                 features::kHttpCacheZstdDecompression},
+                                {});
   MockHttpCache cache;
 
   ScopedMockTransaction transaction(kSimpleGET_Transaction);
@@ -16888,10 +16843,10 @@ TEST_F(HttpCacheTest, ZstdCompressContentEncodingDcbAllowed) {
 
 // CDT Content-Encoding: dcz is allowed through the compression allowlist.
 TEST_F(HttpCacheTest, ZstdCompressContentEncodingDczAllowed) {
-  AddScopedFeatureList().InitWithFeatures(
-      {features::kHttpCacheZstdCompression,
-       features::kHttpCacheZstdDecompression},
-      {});
+  base::test::ScopedFeatureList feature_list;
+  feature_list.InitWithFeatures({features::kHttpCacheZstdCompression,
+                                 features::kHttpCacheZstdDecompression},
+                                {});
   MockHttpCache cache;
 
   ScopedMockTransaction transaction(kSimpleGET_Transaction);
@@ -16919,10 +16874,10 @@ TEST_F(HttpCacheTest, ZstdCompressContentEncodingDczAllowed) {
 // num_bytes == 0, so the early return fires before the compression
 // decision block. The compressor is never created.
 TEST_F(HttpCacheTest, ZstdCompressEmptyBody) {
-  AddScopedFeatureList().InitWithFeatures(
-      {features::kHttpCacheZstdCompression,
-       features::kHttpCacheZstdDecompression},
-      {});
+  base::test::ScopedFeatureList feature_list;
+  feature_list.InitWithFeatures({features::kHttpCacheZstdCompression,
+                                 features::kHttpCacheZstdDecompression},
+                                {});
   MockHttpCache cache;
 
   ScopedMockTransaction transaction(kSimpleGET_Transaction);
@@ -16948,10 +16903,10 @@ TEST_F(HttpCacheTest, ZstdCompressEmptyBody) {
 // Compression error mid-stream: entry should be doomed and the transaction
 // should continue reading from the network without data loss.
 TEST_F(HttpCacheTest, ZstdCompressErrorMidStreamFallback) {
-  AddScopedFeatureList().InitWithFeatures(
-      {features::kHttpCacheZstdCompression,
-       features::kHttpCacheZstdDecompression},
-      {});
+  base::test::ScopedFeatureList feature_list;
+  feature_list.InitWithFeatures({features::kHttpCacheZstdCompression,
+                                 features::kHttpCacheZstdDecompression},
+                                {});
   MockHttpCache cache;
 
   // Trigger a compression failure after 256 uncompressed bytes.
@@ -16990,10 +16945,10 @@ TEST_F(HttpCacheTest, ZstdCompressErrorMidStreamFallback) {
 // Multi-chunk delivery: body arrives in small reads, exercising multiple
 // CompressAndWriteBlock appends at growing disk offsets.
 TEST_F(HttpCacheTest, ZstdCompressMultiChunkDelivery) {
-  AddScopedFeatureList().InitWithFeatures(
-      {features::kHttpCacheZstdCompression,
-       features::kHttpCacheZstdDecompression},
-      {});
+  base::test::ScopedFeatureList feature_list;
+  feature_list.InitWithFeatures({features::kHttpCacheZstdCompression,
+                                 features::kHttpCacheZstdDecompression},
+                                {});
   MockHttpCache cache;
 
   const std::string body(kCompressibleBody);
@@ -17054,10 +17009,10 @@ TEST_F(HttpCacheTest, ZstdCompressMultiChunkDelivery) {
 // Writers before any data arrives, so all_writers_.size() == 2 prevents
 // compression. Both get byte-correct uncompressed bodies.
 TEST_F(HttpCacheTest, ZstdCompressParallelWritersNoCompression) {
-  AddScopedFeatureList().InitWithFeatures(
-      {features::kHttpCacheZstdCompression,
-       features::kHttpCacheZstdDecompression},
-      {});
+  base::test::ScopedFeatureList feature_list;
+  feature_list.InitWithFeatures({features::kHttpCacheZstdCompression,
+                                 features::kHttpCacheZstdDecompression},
+                                {});
   MockHttpCache cache;
 
   ScopedMockTransaction transaction(kSimpleGET_Transaction);
@@ -17107,10 +17062,10 @@ TEST_F(HttpCacheTest, ZstdCompressParallelWritersNoCompression) {
 // actually received. The truncation check must detect this and doom the entry
 // rather than finalizing a truncated zstd frame.
 TEST_F(HttpCacheTest, ZstdCompressPrematureEofDoomed) {
-  AddScopedFeatureList().InitWithFeatures(
-      {features::kHttpCacheZstdCompression,
-       features::kHttpCacheZstdDecompression},
-      {});
+  base::test::ScopedFeatureList feature_list;
+  feature_list.InitWithFeatures({features::kHttpCacheZstdCompression,
+                                 features::kHttpCacheZstdDecompression},
+                                {});
   MockHttpCache cache;
 
   // Body to deliver (200 bytes of compressible text).
@@ -17163,10 +17118,10 @@ TEST_F(HttpCacheTest, ZstdCompressPrematureEofDoomed) {
 // DoCacheWriteCompressedMetadataComplete, the entry must be doomed to prevent
 // serving a compressed body with no decompression marker.
 TEST_F(HttpCacheTest, ZstdCompressMetadataWriteFailureDoomed) {
-  AddScopedFeatureList().InitWithFeatures(
-      {features::kHttpCacheZstdCompression,
-       features::kHttpCacheZstdDecompression},
-      {});
+  base::test::ScopedFeatureList feature_list;
+  feature_list.InitWithFeatures({features::kHttpCacheZstdCompression,
+                                 features::kHttpCacheZstdDecompression},
+                                {});
   MockHttpCache cache;
 
   ScopedMockTransaction transaction(kSimpleGET_Transaction);
@@ -17238,10 +17193,10 @@ TEST_F(HttpCacheTest, ZstdCompressMetadataWriteFailureDoomed) {
 // join as a parallel writer. The old CanJoin() had a bug where !compressor_
 // evaluated to true, making the OR expression return true.
 TEST_F(HttpCacheTest, ZstdCompressCanJoinBlocksDuringCompression) {
-  AddScopedFeatureList().InitWithFeatures(
-      {features::kHttpCacheZstdCompression,
-       features::kHttpCacheZstdDecompression},
-      {});
+  base::test::ScopedFeatureList feature_list;
+  feature_list.InitWithFeatures({features::kHttpCacheZstdCompression,
+                                 features::kHttpCacheZstdDecompression},
+                                {});
   MockHttpCache cache;
 
   ScopedMockTransaction transaction(kSimpleGET_Transaction);
@@ -17341,8 +17296,8 @@ TEST_F(HttpCacheTest, ZstdCompressCanJoinBlocksDuringCompression) {
 #endif  // !defined(NET_DISABLE_ZSTD)
 
 TEST_F(HttpCacheTest, InvalidationFilterDomains) {
-  AddScopedFeatureList().InitAndEnableFeature(
-      net::features::kLogicalClearHttpCache);
+  base::test::ScopedFeatureList feature_list;
+  feature_list.InitAndEnableFeature(net::features::kLogicalClearHttpCache);
 
   MockHttpCache cache;
 
@@ -17395,8 +17350,8 @@ class HttpCacheTestWithMockTime : public TestWithTaskEnvironment {
 };
 
 TEST_F(HttpCacheTestWithMockTime, InvalidationFilterTimeBoundaries) {
-  AddScopedFeatureList().InitAndEnableFeature(
-      net::features::kLogicalClearHttpCache);
+  base::test::ScopedFeatureList feature_list;
+  feature_list.InitAndEnableFeature(net::features::kLogicalClearHttpCache);
 
   MockHttpCache cache;
 
@@ -17433,8 +17388,8 @@ TEST_F(HttpCacheTestWithMockTime, InvalidationFilterTimeBoundaries) {
 }
 
 TEST_F(HttpCacheTest, InvalidationFilterRevocation) {
-  AddScopedFeatureList().InitAndEnableFeature(
-      net::features::kLogicalClearHttpCache);
+  base::test::ScopedFeatureList feature_list;
+  feature_list.InitAndEnableFeature(net::features::kLogicalClearHttpCache);
 
   MockHttpCache cache;
 
@@ -17463,39 +17418,6 @@ TEST_F(HttpCacheTest, InvalidationFilterRevocation) {
   // Second request should be HIT again.
   RunTransactionTest(cache.http_cache(), kSimpleGET_Transaction);
   EXPECT_EQ(cache.network_layer()->transaction_count(), current_count);
-}
-
-TEST_F(HttpCacheTest, InvalidationFilterCap) {
-  AddScopedFeatureList().InitAndEnableFeatureWithParameters(
-      net::features::kLogicalClearHttpCache,
-      {{net::features::kLogicalClearHttpCacheMaxFilters.name, "5"}});
-
-  base::HistogramTester histograms;
-  MockHttpCache cache;
-
-  for (size_t i = 0; i < 10; ++i) {
-    HttpCache::InvalidationFilter filter;
-    filter.begin_time =
-        base::Time::FromDeltaSinceWindowsEpoch(base::Microseconds(i + 1));
-    filter.end_time = base::Time::Max();
-    filter.filter_type = UrlFilterType::kTrueIfMatches;
-    cache.http_cache()->AddInvalidationFilter(std::move(filter));
-  }
-
-  EXPECT_EQ(cache.http_cache()->GetInvalidationFilterCountForTesting(), 5u);
-
-  const std::vector<HttpCache::InvalidationFilter>& filters =
-      cache.http_cache()->invalidation_filters();
-  ASSERT_EQ(filters.size(), 5u);
-  EXPECT_EQ(filters.front().begin_time,
-            base::Time::FromDeltaSinceWindowsEpoch(base::Microseconds(6)));
-
-  histograms.ExpectTotalCount(
-      "Net.HttpCache.LogicalInvalidation.ActiveFilterCountOnAddition", 10);
-  histograms.ExpectBucketCount(
-      "Net.HttpCache.LogicalInvalidation.FilterCapEvicted", true, 5);
-  histograms.ExpectBucketCount(
-      "Net.HttpCache.LogicalInvalidation.FilterCapEvicted", false, 5);
 }
 
 // Tests that restarting a transaction cleanly resets

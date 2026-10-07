@@ -7,7 +7,6 @@
 #import "base/metrics/field_trial_params.h"
 #import "base/time/time.h"
 #import "components/omnibox/common/omnibox_features.h"
-#import "ui/base/device_form_factor.h"
 
 BASE_FEATURE(kComposeboxDevTools, base::FEATURE_DISABLED_BY_DEFAULT);
 
@@ -53,11 +52,7 @@ BASE_FEATURE(kComposeboxAdditionalAdvancedTools,
 
 bool ShowComposeboxAdditionalAdvancedTools() {
   if (!EnableComposeboxServerSideState()) {
-    return false;
-  }
-  // Launched by default on phones.
-  if (ui::GetDeviceFormFactor() != ui::DEVICE_FORM_FACTOR_TABLET) {
-    return true;
+    return NO;
   }
   return base::FeatureList::IsEnabled(kComposeboxAdditionalAdvancedTools);
 }
@@ -65,31 +60,16 @@ bool ShowComposeboxAdditionalAdvancedTools() {
 BASE_FEATURE(kComposeboxCompactMode, base::FEATURE_ENABLED_BY_DEFAULT);
 
 bool ShowDeepSearchTool() {
-  // Launched by default on phones.
-  if (ui::GetDeviceFormFactor() != ui::DEVICE_FORM_FACTOR_TABLET) {
-    return true;
-  }
   return base::FeatureList::IsEnabled(kComposeboxDeepSearch);
 }
 
 BASE_FEATURE(kComposeboxDeepSearch, base::FEATURE_DISABLED_BY_DEFAULT);
 
 bool EnableComposeboxServerSideState() {
-  // Launched by default on phones.
-  if (ui::GetDeviceFormFactor() != ui::DEVICE_FORM_FACTOR_TABLET) {
-    return true;
-  }
   return base::FeatureList::IsEnabled(kComposeboxServerSideState);
 }
 
 BASE_FEATURE(kComposeboxServerSideState, base::FEATURE_DISABLED_BY_DEFAULT);
-
-bool IsComposeboxVerbatimSuggestionInAIMEnabled() {
-  return base::FeatureList::IsEnabled(kComposeboxVerbatimSuggestionInAIM);
-}
-
-BASE_FEATURE(kComposeboxVerbatimSuggestionInAIM,
-             base::FEATURE_ENABLED_BY_DEFAULT);
 
 bool IsComposeboxCompactModeEnabled() {
   return base::FeatureList::IsEnabled(kComposeboxCompactMode);
@@ -152,11 +132,4 @@ BASE_FEATURE(kComposeboxAimRichAPCExtraction,
 
 bool IsComposeboxAimRichAPCExtractionEnabled() {
   return base::FeatureList::IsEnabled(kComposeboxAimRichAPCExtraction);
-}
-
-BASE_FEATURE(kComposeboxConnectedAppsSetting,
-             base::FEATURE_DISABLED_BY_DEFAULT);
-
-bool IsComposeboxConnectedAppsSettingEnabled() {
-  return base::FeatureList::IsEnabled(kComposeboxConnectedAppsSetting);
 }

@@ -1,2 +1,3 @@
-rules:
-- "**": [text-spacing-trim]
+features:
+- name: text-spacing-trim
+  files: "**"

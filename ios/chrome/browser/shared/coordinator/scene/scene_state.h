@@ -17,17 +17,44 @@
 @class AppState;
 @protocol BrowserProviderInterface;
 @class IncognitoState;
+@class LayoutState;
 @class LensOverlayStateNotifier;
 @class ProfileState;
-@protocol SceneAgent;
 @class SceneController;
-@class SceneLayoutState;
 @class SceneState;
-@protocol SceneStateAnimator;
 @class SceneStatePrefs;
-@class SceneUIBlockerState;
 class SigninInProgress;
+struct SceneStateOptions;
+@class SceneUIBlockerState;
 @class TabGridState;
+
+// During profile switching, it is possible that an animation is displayed
+// over the SceneState until the transition is complete. In that case the
+// object responsible should implement this protocol to allow cancellation
+// of the animation if the Profile initialisation needs to present wait for
+// the user to interact with some mandatory interactive step.
+@protocol SceneStateAnimator
+
+// Cancel any in progress animation. The animation can be restarted with
+// the -restartAnimation method.
+- (void)cancelAnimation;
+
+// Restart the animation if it has been cancelled. Does nothing if the
+// animation has not been cancelled before.
+- (void)restartAnimation;
+
+@end
+
+// Scene agents are objects owned by a scene state and providing some
+// scene-scoped function. They can be driven by SceneStateObserver events.
+@protocol SceneAgent <NSObject>
+
+@required
+// Sets the associated scene state. Called once and only once. Consider using
+// this method to add the agent as an observer.
+- (void)setSceneState:(SceneState*)scene;
+
+@end
 
 // An object containing the state of a UIWindowScene. One state object
 // corresponds to one scene.
@@ -66,7 +93,7 @@ class SigninInProgress;
 
 // The persistent identifier for the scene session. This should be used instead
 // of -[UISceneSession persistentIdentifier].
-@property(nonatomic, assign) std::string_view sceneSessionID;
+@property(nonatomic, readonly) std::string_view sceneSessionID;
 
 // The controller for this scene.
 @property(nonatomic, weak) SceneController* controller;
@@ -107,14 +134,14 @@ class SigninInProgress;
 @property(nonatomic, strong, readonly) TabGridState* tabGridState;
 
 // Object containing the state of the layout.
-@property(nonatomic, strong, readonly) SceneLayoutState* layoutState;
+@property(nonatomic, strong, readonly) LayoutState* layoutState;
 
 // Object used to notify of changes to the LensOverlay state.
 @property(nonatomic, strong, readonly)
     LensOverlayStateNotifier* lensOverlayStateNotifier;
 
 // Object allowing access to the SceneState scoped preferences.
-@property(nonatomic, strong) SceneStatePrefs* prefs;
+@property(nonatomic, readonly) SceneStatePrefs* prefs;
 
 // Adds an observer to this scene state. The observers will be notified about
 // scene state changes per SceneStateObserver protocol.
@@ -132,6 +159,9 @@ class SigninInProgress;
 // Records that an extra sign-in process started. When the returned value is
 // destructed, the sign-in ended.
 - (std::unique_ptr<SigninInProgress>)createSigninInProgress;
+
+// Connects the SceneState with the given `options`.
+- (void)connectWithOptions:(SceneStateOptions)options;
 
 @end
 

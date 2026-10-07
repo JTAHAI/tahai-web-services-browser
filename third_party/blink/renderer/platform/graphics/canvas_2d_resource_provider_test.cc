@@ -186,6 +186,18 @@ std::unique_ptr<Canvas2DResourceProvider> MakeCanvas2DResourceProvider(
       RasterMode::kGPU, shared_image_usage_flags);
 }
 
+scoped_refptr<CanvasResource> UpdateResource(
+    Canvas2DResourceProvider* provider) {
+  if (provider->Recorder().HasReleasableDrawOps()) {
+    provider->RasterRecord(provider->Recorder().ReleaseMainRecording());
+  }
+  provider->ProduceCanvasResource();
+  // Resource updated after draw.
+  provider->GetCanvasForTesting().clear(SkColors::kWhite);
+  provider->RasterRecord(provider->Recorder().ReleaseMainRecording());
+  return provider->ProduceCanvasResource();
+}
+
 TEST_F(Canvas2DResourceProviderTest, SharedImageResourceRecycling) {
   const gfx::Size kSize(10, 10);
   const SkImageInfo kInfo =
@@ -222,9 +234,8 @@ TEST_F(Canvas2DResourceProviderTest, SharedImageResourceRecycling) {
   EXPECT_EQ(resource, provider->ProduceCanvasResource());
   EXPECT_EQ(sync_token, GetSyncToken(resource.get()));
 
-  MemoryManagedPaintRecorder recorder(provider->Size(), nullptr);
-  recorder.getRecordingCanvas().clear(SkColors::kWhite);
-  provider->RasterRecord(recorder.ReleaseMainRecording());
+  provider->GetCanvasForTesting().clear(SkColors::kWhite);
+  provider->RasterRecord(provider->Recorder().ReleaseMainRecording());
   auto new_resource = provider->ProduceCanvasResource();
   EXPECT_NE(resource, new_resource);
   EXPECT_NE(GetSyncToken(resource.get()), GetSyncToken(new_resource.get()));
@@ -232,8 +243,8 @@ TEST_F(Canvas2DResourceProviderTest, SharedImageResourceRecycling) {
 
   EnsureResourceRecycled(std::move(resource));
 
-  recorder.getRecordingCanvas().clear(SkColors::kBlack);
-  provider->RasterRecord(recorder.ReleaseMainRecording());
+  provider->GetCanvasForTesting().clear(SkColors::kBlack);
+  provider->RasterRecord(provider->Recorder().ReleaseMainRecording());
   auto resource_again = provider->ProduceCanvasResource();
   EXPECT_EQ(resource_ptr, resource_again);
   EXPECT_NE(sync_token, GetSyncToken(resource_again.get()));
@@ -245,10 +256,7 @@ TEST_F(Canvas2DResourceProviderTest, UnusedResources) {
   auto provider = MakeCanvas2DResourceProvider(context_provider_wrapper_);
 
   auto resource = provider->ProduceCanvasResource();
-  MemoryManagedPaintRecorder recorder(provider->Size(), nullptr);
-  recorder.getRecordingCanvas().clear(SkColors::kWhite);
-  provider->RasterRecord(recorder.ReleaseMainRecording());
-  auto new_resource = provider->ProduceCanvasResource();
+  auto new_resource = UpdateResource(provider.get());
   ASSERT_NE(resource, new_resource);
 
   ASSERT_NE(GetSyncToken(resource.get()), GetSyncToken(new_resource.get()));
@@ -278,10 +286,7 @@ TEST_F(Canvas2DResourceProviderTest,
   auto provider = MakeCanvas2DResourceProvider(context_provider_wrapper_);
 
   auto resource = provider->ProduceCanvasResource();
-  MemoryManagedPaintRecorder recorder(provider->Size(), nullptr);
-  recorder.getRecordingCanvas().clear(SkColors::kWhite);
-  provider->RasterRecord(recorder.ReleaseMainRecording());
-  auto new_resource = provider->ProduceCanvasResource();
+  auto new_resource = UpdateResource(provider.get());
   ASSERT_NE(resource, new_resource);
   ASSERT_NE(GetSyncToken(resource.get()), GetSyncToken(new_resource.get()));
   EXPECT_FALSE(
@@ -300,10 +305,7 @@ TEST_F(Canvas2DResourceProviderTest, UnusedResourcesAreNotCollectedWhenYoung) {
   auto provider = MakeCanvas2DResourceProvider(context_provider_wrapper_);
 
   auto resource = provider->ProduceCanvasResource();
-  MemoryManagedPaintRecorder recorder(provider->Size(), nullptr);
-  recorder.getRecordingCanvas().clear(SkColors::kWhite);
-  provider->RasterRecord(recorder.ReleaseMainRecording());
-  auto new_resource = provider->ProduceCanvasResource();
+  auto new_resource = UpdateResource(provider.get());
   ASSERT_NE(resource, new_resource);
   ASSERT_NE(GetSyncToken(resource.get()), GetSyncToken(new_resource.get()));
   EXPECT_FALSE(
@@ -321,13 +323,9 @@ TEST_F(Canvas2DResourceProviderTest, UnusedResourcesAreNotCollectedWhenYoung) {
   EXPECT_TRUE(
       provider->unused_resources_reclaim_timer_is_running_for_testing());
 
-  recorder.getRecordingCanvas().clear(SkColors::kWhite);
-  provider->RasterRecord(recorder.ReleaseMainRecording());
-  resource = provider->ProduceCanvasResource();
+  resource = UpdateResource(provider.get());
   EXPECT_FALSE(provider->HasUnusedResourcesForTesting());
-  recorder.getRecordingCanvas().clear(SkColors::kWhite);
-  provider->RasterRecord(recorder.ReleaseMainRecording());
-  new_resource = provider->ProduceCanvasResource();
+  new_resource = UpdateResource(provider.get());
   ASSERT_NE(resource, new_resource);
   ASSERT_NE(GetSyncToken(resource.get()), GetSyncToken(new_resource.get()));
 
@@ -373,49 +371,96 @@ TEST_F(Canvas2DResourceProviderTest, SharedImageStaticBitmapImage) {
             image->GetSharedImage());
 
   // Resource updated after draw.
-  MemoryManagedPaintRecorder recorder(provider->Size(), nullptr);
-  recorder.getRecordingCanvas().clear(SkColors::kWhite);
-  provider->RasterRecord(recorder.ReleaseMainRecording());
+  provider->GetCanvasForTesting().clear(SkColors::kWhite);
+  provider->RasterRecord(provider->Recorder().ReleaseMainRecording());
   new_image = provider->Snapshot();
   EXPECT_NE(new_image->GetSharedImage(), image->GetSharedImage());
 
   // Resource recycled.
   auto original_shared_image = image->GetSharedImage();
   image.reset();
-  recorder.getRecordingCanvas().clear(SkColors::kBlack);
-  provider->RasterRecord(recorder.ReleaseMainRecording());
+  provider->GetCanvasForTesting().clear(SkColors::kBlack);
+  provider->RasterRecord(provider->Recorder().ReleaseMainRecording());
   EXPECT_EQ(original_shared_image, provider->Snapshot()->GetSharedImage());
 }
 
-TEST_F(Canvas2DResourceProviderTest, EstimatedSizeInBytesSoftware) {
-  constexpr gfx::Size kSize(20, 20);
-  viz::SharedImageFormat format = viz::SharedImageFormat::N32Format();
-  auto sii_provider =
-      std::make_unique<TestWebGraphicsSharedImageInterfaceProvider>(
-          test_context_provider_->SharedImageInterface());
-
-  ScopedTestingPlatformSupport<GpuCompositingTestPlatform> platform;
-  platform->SetGpuCompositingDisabled(true);
-
-  auto provider =
-      Canvas2DResourceProvider::CreateWithClearForSoftwareCompositor(
-          kSize, format, kPremul_SkAlphaType, gfx::ColorSpace::CreateSRGB(),
-          gfx::HDRMetadata(), sii_provider.get());
-
-  ASSERT_TRUE(provider && provider->IsValid());
-  EXPECT_TRUE(provider->IsSoftware());
-  EXPECT_EQ(provider->EstimatedSizeInBytes(),
-            base::ByteSize(kSize.width() * kSize.height() * 4));
-}
-
-TEST_F(Canvas2DResourceProviderTest, EstimatedSizeInBytesAccelerated) {
-  constexpr gfx::Size kSize(10, 10);
+TEST_F(Canvas2DResourceProviderTest, ImageCacheOnContextLost) {
   auto provider = MakeCanvas2DResourceProvider(context_provider_wrapper_);
 
-  ASSERT_TRUE(provider && provider->IsValid());
-  EXPECT_TRUE(provider->IsAccelerated());
-  EXPECT_EQ(provider->EstimatedSizeInBytes(),
-            base::ByteSize(kSize.width() * kSize.height() * 4));
+  Vector<cc::DrawImage> images = {
+      cc::DrawImage(cc::CreateDiscardablePaintImage(gfx::Size(10, 10)), false,
+                    SkIRect::MakeWH(10, 10),
+                    cc::PaintFlags::FilterQuality::kNone, SkM44(), 0u,
+                    cc::TargetColorParams()),
+      cc::DrawImage(cc::CreateDiscardablePaintImage(gfx::Size(20, 20)), false,
+                    SkIRect::MakeWH(5, 5), cc::PaintFlags::FilterQuality::kNone,
+                    SkM44(), 0u, cc::TargetColorParams())};
+  provider->GetCanvasForTesting().drawImage(images[0].paint_image(), 0u, 0u,
+                                            SkSamplingOptions(), nullptr);
+
+  static_cast<WebGraphicsContext3DProviderWrapper::DestructionObserver*>(
+      provider.get())
+      ->OnContextDestroyed();
+  // We should unref all images on the cache when the context is destroyed.
+  EXPECT_EQ(image_decode_cache_.num_locked_images(), 0);
+  image_decode_cache_.set_disallow_cache_use(true);
+  provider->GetCanvasForTesting().drawImage(images[1].paint_image(), 0u, 0u,
+                                            SkSamplingOptions(), nullptr);
+}
+
+TEST_F(Canvas2DResourceProviderTest, FlushCanvasReleasesAllReleasableOps) {
+  auto provider = MakeCanvas2DResourceProvider(context_provider_wrapper_);
+
+  EXPECT_FALSE(provider->Recorder().HasRecordedDrawOps());
+  EXPECT_FALSE(provider->Recorder().HasReleasableDrawOps());
+
+  provider->GetCanvasForTesting().drawRect({0, 0, 10, 10}, cc::PaintFlags());
+  EXPECT_TRUE(provider->Recorder().HasRecordedDrawOps());
+  EXPECT_TRUE(provider->Recorder().HasReleasableDrawOps());
+
+  // `FlushCanvas` releases all ops, leaving the canvas clean.
+  provider->RasterRecord(provider->Recorder().ReleaseMainRecording());
+  EXPECT_FALSE(provider->Recorder().HasRecordedDrawOps());
+  EXPECT_FALSE(provider->Recorder().HasReleasableDrawOps());
+}
+
+TEST_F(Canvas2DResourceProviderTest, FlushCanvasReleasesAllOpsOutsideLayers) {
+  auto provider = MakeCanvas2DResourceProvider(context_provider_wrapper_);
+
+  EXPECT_FALSE(provider->Recorder().HasRecordedDrawOps());
+  EXPECT_FALSE(provider->Recorder().HasReleasableDrawOps());
+  EXPECT_FALSE(provider->Recorder().HasSideRecording());
+
+  // Side canvases (used for canvas 2d layers) cannot be flushed until closed.
+  // Open one and validate that flushing the canvas only flushed that main
+  // recording, not the side one.
+  provider->GetCanvasForTesting().drawRect({0, 0, 10, 10}, cc::PaintFlags());
+  provider->Recorder().BeginSideRecording();
+  provider->GetCanvasForTesting().saveLayerAlphaf(0.5f);
+  provider->GetCanvasForTesting().drawRect({0, 0, 10, 10}, cc::PaintFlags());
+  EXPECT_TRUE(provider->Recorder().HasRecordedDrawOps());
+  EXPECT_TRUE(provider->Recorder().HasReleasableDrawOps());
+  EXPECT_TRUE(provider->Recorder().HasSideRecording());
+
+  provider->RasterRecord(provider->Recorder().ReleaseMainRecording());
+  EXPECT_TRUE(provider->Recorder().HasRecordedDrawOps());
+  EXPECT_FALSE(provider->Recorder().HasReleasableDrawOps());
+  EXPECT_TRUE(provider->Recorder().HasSideRecording());
+
+  provider->GetCanvasForTesting().restore();
+  EXPECT_TRUE(provider->Recorder().HasRecordedDrawOps());
+  EXPECT_FALSE(provider->Recorder().HasReleasableDrawOps());
+  EXPECT_TRUE(provider->Recorder().HasSideRecording());
+
+  provider->Recorder().EndSideRecording();
+  EXPECT_TRUE(provider->Recorder().HasRecordedDrawOps());
+  EXPECT_TRUE(provider->Recorder().HasReleasableDrawOps());
+  EXPECT_FALSE(provider->Recorder().HasSideRecording());
+
+  provider->RasterRecord(provider->Recorder().ReleaseMainRecording());
+  EXPECT_FALSE(provider->Recorder().HasRecordedDrawOps());
+  EXPECT_FALSE(provider->Recorder().HasReleasableDrawOps());
+  EXPECT_FALSE(provider->Recorder().HasSideRecording());
 }
 
 }  // namespace blink

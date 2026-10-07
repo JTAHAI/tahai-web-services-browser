@@ -346,10 +346,7 @@ public class TabStripTransitionCoordinator implements ComponentCallbacks, AppHea
     /** Set whether the tab strip should be suppressed for other UIs. */
     public void suppressTabStrip(boolean suppress) {
         mHeightTransitionHandler.suppressTabStrip(suppress);
-        mFadeTransitionHandler.suppressTabStrip(
-                suppress,
-                getTabStripWidth(),
-                AppHeaderUtils.isAppInDesktopWindow(mDesktopWindowStateManager));
+        mFadeTransitionHandler.suppressTabStrip(suppress);
     }
 
     /** Add observer for tab strip transition finished events. */
@@ -395,17 +392,7 @@ public class TabStripTransitionCoordinator implements ComponentCallbacks, AppHea
     private void updateTabStripTransitionThreshold() {
         DisplayMetrics displayMetrics = controlContainerView().getResources().getDisplayMetrics();
         mHeightTransitionHandler.updateTabStripTransitionThreshold(displayMetrics);
-        mFadeTransitionHandler.updateTabStripTransitionThreshold(
-                displayMetrics,
-                getTabStripWidth(),
-                AppHeaderUtils.isAppInDesktopWindow(mDesktopWindowStateManager));
-    }
-
-    private int getTabStripWidth() {
-        if (mAppHeaderState != null && mAppHeaderState.isInDesktopWindow()) {
-            return mAppHeaderState.getUnoccludedRectWidth();
-        }
-        return controlContainerView().getWidth();
+        mFadeTransitionHandler.updateTabStripTransitionThreshold(displayMetrics);
     }
 
     private View controlContainerView() {

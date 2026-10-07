@@ -103,6 +103,18 @@ FocusableState HTMLAnchorElementBase::SupportsFocus(
   return HTMLElement::SupportsFocus(update_behavior);
 }
 
+bool HTMLAnchorElementBase::ShouldHaveFocusAppearance() const {
+  if (RuntimeEnabledFeatures::AnchorFocusRingFixEnabled()) {
+    // When this flag is removed, we can remove
+    // HTMLAnchorElementBase::ShouldHaveFocusAppearance.
+    return HTMLElement::ShouldHaveFocusAppearance();
+  }
+  // TODO(crbug.com/1444450): Can't this be done with focus-visible now?
+  return (GetDocument().LastFocusType() != mojom::blink::FocusType::kMouse) ||
+         HTMLElement::SupportsFocus(UpdateBehavior::kNoneForFocusManagement) !=
+             FocusableState::kNotFocusable;
+}
+
 FocusableState HTMLAnchorElementBase::IsFocusableState(
     UpdateBehavior update_behavior) const {
   if (!IsFocusableStyle(update_behavior)) {
@@ -228,7 +240,16 @@ void HTMLAnchorElementBase::ParseAttribute(
     if (params.old_value == params.new_value) {
       return;
     }
-    AnchorElementUtils::UpdateHref(*this, params.new_value);
+    bool was_link = IsLink();
+    SetIsLink(!params.new_value.IsNull());
+    if (was_link || IsLink()) {
+      PseudoStateChanged(CSSSelector::kPseudoLink);
+      PseudoStateChanged(CSSSelector::kPseudoVisited);
+      if (was_link != IsLink()) {
+        PseudoStateChanged(CSSSelector::kPseudoWebkitAnyLink);
+        PseudoStateChanged(CSSSelector::kPseudoAnyLink);
+      }
+    }
     if (isConnected() && params.old_value != params.new_value) {
       if (auto* document_rules =
               DocumentSpeculationRules::FromIfExists(GetDocument())) {
@@ -327,7 +348,7 @@ KURL HTMLAnchorElementBase::Url() const {
   return href;
 }
 
-void HTMLAnchorElementBase::SetUrl(const KURL& url) {
+void HTMLAnchorElementBase::SetURL(const KURL& url) {
   SetHref(AtomicString(url.GetString()));
 }
 
@@ -388,7 +409,7 @@ void HTMLAnchorElementBase::NavigateToHyperlink(
   frame_request.SetNavigationPolicy(navigation_policy);
   frame_request.SetClientNavigationReason(ClientNavigationReason::kAnchorClick);
   frame_request.SetSourceElement(this);
-  const AtomicString& target =
+  const AtomicString target =
       frame_request.CleanNavigationTarget(GetEffectiveTarget());
 
   AnchorElementUtils::HandleRelAttribute(frame_request, frame->GetSettings(),
@@ -466,7 +487,8 @@ void HTMLAnchorElementBase::HandleClick(MouseEvent& event) {
                       WebFeature::kAnchorClickDispatchForNonConnectedNode);
     // Disconnected <area> elements should not trigger navigation.
     // https://html.spec.whatwg.org/multipage/links.html#cannot-navigate
-    if (IsA<HTMLAreaElement>(this)) {
+    if (RuntimeEnabledFeatures::DisallowDisconnectedAreaNavigationEnabled() &&
+        IsA<HTMLAreaElement>(this)) {
       return;
     }
   }
@@ -493,6 +515,8 @@ void HTMLAnchorElementBase::HandleClick(MouseEvent& event) {
       link_relations_, GetDocument());
 
   LocalFrame* frame = window->GetFrame();
+  request.SetHasUserGesture(LocalFrame::HasTransientUserActivation(frame));
+
   NavigationPolicy navigation_policy = NavigationPolicyFromEvent(&event);
 
   // Respect the download attribute only if we can read the content, and the

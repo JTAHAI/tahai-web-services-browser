@@ -22,7 +22,7 @@ class SigninUIError;
 // error if this is the case.
 SigninUIError CanOfferSignin(Profile* profile,
                              const GaiaId& gaia_id,
-                             std::string_view email,
+                             const std::string& email,
                              bool allow_account_from_other_profile,
                              bool ignore_reauth_error = false);
 

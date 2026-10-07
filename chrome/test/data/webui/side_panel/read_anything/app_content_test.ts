@@ -3,30 +3,30 @@
 // found in the LICENSE file.
 import 'chrome-untrusted://read-anything-side-panel.top-chrome/read_anything.js';
 
-import type {AppElement, ContentController, LanguageToastElement, NodeStore, SpeechController, SpEmptyStateElement, VoiceNotificationManager} from 'chrome-untrusted://read-anything-side-panel.top-chrome/read_anything.js';
-import {AppStyleUpdater, ContentType, LineFocusController, LineFocusMovement, LineFocusStyle, ReadAloudNode, ToolbarEvent, VoiceClientSideStatusCode} from 'chrome-untrusted://read-anything-side-panel.top-chrome/read_anything.js';
+import type {AppElement, LanguageToastElement, SpEmptyStateElement} from 'chrome-untrusted://read-anything-side-panel.top-chrome/read_anything.js';
+import {AppStyleUpdater, BrowserProxy, ContentController, ContentType, LineFocusController, LineFocusMovement, LineFocusStyle, NodeStore, ReadAloudNode, setInstance, SpeechBrowserProxyImpl, SpeechController, ToolbarEvent, VoiceClientSideStatusCode, VoiceLanguageController, VoiceNotificationManager} from 'chrome-untrusted://read-anything-side-panel.top-chrome/read_anything.js';
 import {assertEquals, assertFalse, assertLT, assertStringContains, assertTrue} from 'chrome-untrusted://webui-test/chai_assert.js';
 import {keyDownOn} from 'chrome-untrusted://webui-test/keyboard_mock_interactions.js';
 import {microtasksFinished, whenCheck} from 'chrome-untrusted://webui-test/test_util.js';
 
-import {createApp, emitEvent, setContent, setupAppTestEnvironment, setupBasicSpeech} from './common.js';
-import type {TestContentBrowserProxy} from './test_content_browser_proxy.js';
-import type {TestReadAloudModelBrowserProxy} from './test_read_aloud_browser_proxy.js';
-import type {TestSpeechBrowserProxy} from './test_speech_browser_proxy.js';
-import type {TestVisualBrowserProxy} from './test_visual_browser_proxy.js';
+import {createApp, emitEvent, setContent, setupBasicSpeech} from './common.js';
+import {FakeReadingMode} from './fake_reading_mode.js';
+import {TestColorUpdaterBrowserProxy} from './test_color_updater_browser_proxy.js';
+import {TestReadAloudModelBrowserProxy} from './test_read_aloud_browser_proxy.js';
+import {TestSpeechBrowserProxy} from './test_speech_browser_proxy.js';
 
 suite('AppContent', () => {
   let app: AppElement;
-  let contentBrowserProxy: TestContentBrowserProxy;
+  let readingMode: FakeReadingMode;
   let contentController: ContentController;
   let emptyState: SpEmptyStateElement;
   let speechController: SpeechController;
+  let voiceLanguageController: VoiceLanguageController;
   let nodeStore: NodeStore;
   let notificationManager: VoiceNotificationManager;
   let readAloudModel: TestReadAloudModelBrowserProxy;
   let speech: TestSpeechBrowserProxy;
   let lineFocusController: LineFocusController;
-  let visualBrowserProxy: TestVisualBrowserProxy;
 
   function getLineFocusPadding(): number {
     const val = app.style.getPropertyValue('--line-focus-padding');
@@ -34,17 +34,30 @@ suite('AppContent', () => {
   }
 
   setup(async () => {
-    const result = await setupAppTestEnvironment();
-    app = result.app;
-    contentBrowserProxy = result.contentBrowserProxy;
-    contentController = result.contentController;
-    speechController = result.speechController;
-    nodeStore = result.nodeStore;
-    notificationManager = result.notificationManager;
-    readAloudModel = result.readAloudModel;
-    speech = result.speech;
-    lineFocusController = result.lineFocusController;
-    visualBrowserProxy = result.visualBrowserProxy;
+    // Clearing the DOM should always be done first.
+    document.body.innerHTML = window.trustedTypes!.emptyHTML;
+    BrowserProxy.setInstance(new TestColorUpdaterBrowserProxy());
+    readingMode = new FakeReadingMode();
+    chrome.readingMode = readingMode as unknown as typeof chrome.readingMode;
+
+    speech = new TestSpeechBrowserProxy();
+    SpeechBrowserProxyImpl.setInstance(speech);
+    readAloudModel = new TestReadAloudModelBrowserProxy();
+    setInstance(readAloudModel);
+    nodeStore = new NodeStore();
+    NodeStore.setInstance(nodeStore);
+    notificationManager = new VoiceNotificationManager();
+    VoiceNotificationManager.setInstance(notificationManager);
+    voiceLanguageController = new VoiceLanguageController();
+    VoiceLanguageController.setInstance(voiceLanguageController);
+    speechController = new SpeechController();
+    SpeechController.setInstance(speechController);
+    contentController = new ContentController();
+    ContentController.setInstance(contentController);
+    lineFocusController = new LineFocusController();
+    LineFocusController.setInstance(lineFocusController);
+
+    app = await createApp();
     emptyState =
         app.shadowRoot.querySelector<SpEmptyStateElement>('sp-empty-state')!;
     setupBasicSpeech(speech);
@@ -63,6 +76,7 @@ suite('AppContent', () => {
   test(
       'connected callback adds line focus mouse listener in toolbar',
       async () => {
+        chrome.readingMode.isLineFocusEnabled = true;
         emitEvent(
             app, ToolbarEvent.LINE_FOCUS_MOVEMENT,
             {detail: {data: LineFocusMovement.CURSOR}});
@@ -88,6 +102,7 @@ suite('AppContent', () => {
       });
 
   test('connected callback adds line focus mouse listener', async () => {
+    chrome.readingMode.isLineFocusEnabled = true;
     emitEvent(
         app, ToolbarEvent.LINE_FOCUS_MOVEMENT,
         {detail: {data: LineFocusMovement.CURSOR}});
@@ -114,6 +129,7 @@ suite('AppContent', () => {
   });
 
   test('new content updates padding for line focus', async () => {
+    chrome.readingMode.isLineFocusEnabled = true;
     app.connectedCallback();
     emitEvent(app, ToolbarEvent.LINE_FOCUS_TOGGLE, {detail: {data: true}});
     emitEvent(
@@ -134,7 +150,7 @@ suite('AppContent', () => {
   test(
       'new content does not update padding for line focus with flag disabled',
       async () => {
-        visualBrowserProxy.lineFocusEnabled = false;
+        chrome.readingMode.isLineFocusEnabled = false;
         app.connectedCallback();
         emitEvent(
             app, ToolbarEvent.LINE_FOCUS_MOVEMENT,
@@ -154,6 +170,7 @@ suite('AppContent', () => {
   test(
       'new content does not update padding for line focus with line focus off',
       async () => {
+        chrome.readingMode.isLineFocusEnabled = true;
         app.connectedCallback();
         emitEvent(
             app, ToolbarEvent.LINE_FOCUS_MOVEMENT,
@@ -169,6 +186,7 @@ suite('AppContent', () => {
       });
 
   test('line focus shortcut toggles line focus', async () => {
+    chrome.readingMode.isLineFocusEnabled = true;
     assertFalse(lineFocusController.isEnabled());
 
     // Alt+'l' toggle
@@ -212,6 +230,7 @@ suite('AppContent', () => {
   });
 
   test('line focus shortcut updates padding', async () => {
+    chrome.readingMode.isLineFocusEnabled = true;
     // Ensure app is registered as a line focus listener.
     app.connectedCallback();
     await microtasksFinished();
@@ -242,6 +261,8 @@ suite('AppContent', () => {
   });
 
   test('line focus only shows on content', async () => {
+    chrome.readingMode.isLineFocusEnabled = true;
+
     contentController.setState(ContentType.NO_CONTENT);
     await microtasksFinished();
     assertTrue(app.$.lineFocus.hasAttribute('hidden'));
@@ -259,6 +280,7 @@ suite('AppContent', () => {
       'onContentStateChange updates line focus style when enabled and ' +
           'has content',
       async () => {
+        chrome.readingMode.isLineFocusEnabled = true;
         emitEvent(app, ToolbarEvent.LINE_FOCUS_TOGGLE, {detail: {data: true}});
         emitEvent(
             app, ToolbarEvent.LINE_FOCUS_STYLE,
@@ -275,6 +297,7 @@ suite('AppContent', () => {
   test(
       'onContentStateChange disables line focus style when no content',
       async () => {
+        chrome.readingMode.isLineFocusEnabled = true;
         emitEvent(app, ToolbarEvent.LINE_FOCUS_TOGGLE, {detail: {data: true}});
         emitEvent(
             app, ToolbarEvent.LINE_FOCUS_STYLE,
@@ -289,6 +312,7 @@ suite('AppContent', () => {
       });
 
   test('onContentStateChange line focus showing if has content', async () => {
+    chrome.readingMode.isLineFocusEnabled = true;
     emitEvent(app, ToolbarEvent.LINE_FOCUS_TOGGLE, {detail: {data: true}});
     emitEvent(
         app, ToolbarEvent.LINE_FOCUS_STYLE,
@@ -304,6 +328,7 @@ suite('AppContent', () => {
   test(
       'onContentStateChange line focus not showing if off but has content',
       async () => {
+        chrome.readingMode.isLineFocusEnabled = true;
         emitEvent(app, ToolbarEvent.LINE_FOCUS_TOGGLE, {detail: {data: false}});
         await microtasksFinished();
 
@@ -315,6 +340,7 @@ suite('AppContent', () => {
 
   test(
       'onContentStateChange line focus not showing if no content', async () => {
+        chrome.readingMode.isLineFocusEnabled = true;
         emitEvent(app, ToolbarEvent.LINE_FOCUS_TOGGLE, {detail: {data: true}});
         emitEvent(
             app, ToolbarEvent.LINE_FOCUS_STYLE,
@@ -337,17 +363,8 @@ suite('AppContent', () => {
     assertStringContains(emptyState.imagePath, spinner);
   });
 
-  test('showLoading event triggers showLoading', async () => {
-    const spinner = 'throbber';
-
-    contentBrowserProxy.showLoading.callListeners();
-    await microtasksFinished();
-
-    assertStringContains(emptyState.darkImagePath, spinner);
-    assertStringContains(emptyState.imagePath, spinner);
-  });
-
   test('showLoading marks line focus showing if enabled', async () => {
+    chrome.readingMode.isLineFocusEnabled = true;
     emitEvent(app, ToolbarEvent.LINE_FOCUS_TOGGLE, {detail: {data: true}});
     emitEvent(
         app, ToolbarEvent.LINE_FOCUS_STYLE,
@@ -361,6 +378,7 @@ suite('AppContent', () => {
   });
 
   test('showLoading does not mark line focus showing if disabled', async () => {
+    chrome.readingMode.isLineFocusEnabled = true;
     emitEvent(app, ToolbarEvent.LINE_FOCUS_TOGGLE, {detail: {data: false}});
     await microtasksFinished();
 
@@ -373,16 +391,15 @@ suite('AppContent', () => {
   test(
       'read aloud state resets on new content (Readability enabled)',
       async () => {
-        contentBrowserProxy.activeDistillationMethod =
-            contentBrowserProxy.distillationTypeReadability;
+        chrome.readingMode.activeDistillationMethod =
+            chrome.readingMode.distillationTypeReadability;
 
         let resetCallCount = 0;
         speechController.resetForNewContent = () => {
           resetCallCount++;
         };
 
-        contentBrowserProxy.htmlContent =
-            '<div> My name is Regina George.</div>';
+        readingMode.htmlContent = '<div> My name is Regina George.</div>';
 
         app.updateContent();
         await microtasksFinished();
@@ -433,7 +450,7 @@ suite('AppContent', () => {
 
   suite('updateContent', () => {
     test('playable if done with distillation', async () => {
-      contentBrowserProxy.requiresDistillationVal = false;
+      readingMode.requiresDistillation = false;
       app.updateContent();
       await microtasksFinished();
 
@@ -441,7 +458,7 @@ suite('AppContent', () => {
     });
 
     test('not playable if still requires distillation', async () => {
-      contentBrowserProxy.requiresDistillationVal = true;
+      readingMode.requiresDistillation = true;
       app.updateContent();
       await microtasksFinished();
 
@@ -450,8 +467,8 @@ suite('AppContent', () => {
 
     test('clears content on receiving new content', async () => {
       const text = 'If there\'s a prize for rotten judgment';
-      contentBrowserProxy.textContentMap = {2: text};
-      contentBrowserProxy.rootId = 0;
+      readingMode.getTextContent = () => text;
+      readingMode.rootId = 0;
 
       app.updateContent();
       await microtasksFinished();
@@ -461,20 +478,9 @@ suite('AppContent', () => {
 
     test('shows new content', async () => {
       const text = 'I guess I\'ve already won that';
-      contentBrowserProxy.textContentMap = {2: text};
+      readingMode.getTextContent = () => text;
 
       app.updateContent();
-      await microtasksFinished();
-
-      assertTrue(contentController.hasContent());
-      assertEquals(text, app.$.container.textContent);
-    });
-
-    test('updateContent event calls updateContent', async () => {
-      const text = 'I guess I\'ve already won that';
-      contentBrowserProxy.textContentMap = {2: text};
-
-      contentBrowserProxy.updateContent.callListeners();
       await microtasksFinished();
 
       assertTrue(contentController.hasContent());
@@ -486,7 +492,7 @@ suite('AppContent', () => {
       const nav = document.createElement('nav');
       app.$.appFlexParent.appendChild(nav);
 
-      contentBrowserProxy.hasValidSelectionVal = true;
+      readingMode.hasValidSelection = true;
       app.updateContent();
       await microtasksFinished();
 
@@ -500,7 +506,7 @@ suite('AppContent', () => {
       const nav = document.createElement('nav');
       app.$.appFlexParent.appendChild(nav);
 
-      contentBrowserProxy.hasValidSelectionVal = false;
+      readingMode.hasValidSelection = false;
       app.updateContent();
       await microtasksFinished();
 
@@ -511,7 +517,7 @@ suite('AppContent', () => {
 
     test('sets empty if no new content', async () => {
       const empty = 'empty';
-      contentBrowserProxy.textContentMap = {2: ''};
+      readingMode.getTextContent = () => '';
 
       app.updateContent();
       await microtasksFinished();
@@ -523,29 +529,37 @@ suite('AppContent', () => {
 
     test('sends distilled word count', async () => {
       const text = 'Honey we can see right through ya';
-      contentBrowserProxy.textContentMap = {2: text};
+      readingMode.getTextContent = () => text;
       const expectedWordCount = 7;
+      let sentWordCount = 0;
+      readingMode.onDistilled = (wordCount) => {
+        sentWordCount = wordCount;
+      };
 
       app.updateContent();
+      await microtasksFinished();
 
-      const sentWordCount = await contentBrowserProxy.whenCalled('onDistilled');
       assertEquals(expectedWordCount, sentWordCount);
     });
 
     test('sends 0 if no new content', async () => {
-      contentBrowserProxy.textContentMap = {2: ''};
+      readingMode.getTextContent = () => '';
+      let sentWordCount = -1;
+      readingMode.onDistilled = (wordCount) => {
+        sentWordCount = wordCount;
+      };
 
       app.updateContent();
+      await microtasksFinished();
 
-      const sentWordCount = await contentBrowserProxy.whenCalled('onDistilled');
       assertEquals(0, sentWordCount);
     });
 
     test(
         'calls updateContentForScreen2x if readability enabled and has failed',
         async () => {
-          contentBrowserProxy.activeDistillationMethod =
-              contentBrowserProxy.distillationTypeScreen2x;
+          chrome.readingMode.activeDistillationMethod =
+              chrome.readingMode.distillationTypeScreen2x;
 
           let callCount = 0;
           contentController.updateContentForScreen2x =
@@ -565,8 +579,8 @@ suite('AppContent', () => {
     test(
         'calls updateContentForReadability if readability enabled and success',
         async () => {
-          contentBrowserProxy.activeDistillationMethod =
-              contentBrowserProxy.distillationTypeReadability;
+          chrome.readingMode.activeDistillationMethod =
+              chrome.readingMode.distillationTypeReadability;
 
           let callCount = 0;
           contentController.updateContentForReadability =
@@ -586,7 +600,7 @@ suite('AppContent', () => {
     test(
         'sends rendered blocks after layout for readability selection',
         async () => {
-          contentBrowserProxy.isReadabilitySelectTextEnabledFlag = true;
+          chrome.readingMode.isReadabilitySelectTextEnabled = true;
           let blocksCalled = false;
           contentController.onRenderedTextBlocksAvailable = (container) => {
             assertEquals(app.$.container, container);
@@ -613,20 +627,21 @@ suite('AppContent', () => {
     const url = 'www.mountainview.gov';
 
     setup(() => {
-      contentBrowserProxy.rootId = linkId;
-      contentBrowserProxy.htmlTagMap = {[linkId]: 'a'};
-      contentBrowserProxy.textContentMap = {[textId]: linkText};
-      contentBrowserProxy.childrenMap = {[linkId]: [textId]};
-      contentBrowserProxy.urlMap = {[linkId]: url};
+      readingMode.rootId = linkId;
+      readingMode.getHtmlTag = (id) => (id === linkId) ? 'a' : '';
+      readingMode.getTextContent = (id) => (id === linkId) ? '' : linkText;
+      readingMode.getChildren = (id) => (id === linkId) ? [textId] : [];
+      readingMode.getUrl = () => url;
     });
 
     test('shows links when enabled', async () => {
-      const expectedHtml = '<a href="' + url + '">' + linkText + '</a>';
+      const expectedHtml =
+          '<a dir="ltr" href="' + url + '" lang="en-us">' + linkText + '</a>';
       app.updateContent();
       await microtasksFinished();
       assertTrue(contentController.hasContent());
 
-      visualBrowserProxy.linksEnabled = true;
+      readingMode.linksEnabled = true;
       emitEvent(app, ToolbarEvent.LINKS);
       await microtasksFinished();
 
@@ -635,13 +650,13 @@ suite('AppContent', () => {
     });
 
     test('hides links when disabled', async () => {
-      const expectedHtml =
-          '<span data-link="' + url + '">' + linkText + '</span>';
+      const expectedHtml = '<span dir="ltr" lang="en-us" data-link="' + url +
+          '">' + linkText + '</span>';
       app.updateContent();
       await microtasksFinished();
       assertTrue(contentController.hasContent());
 
-      visualBrowserProxy.linksEnabled = false;
+      readingMode.linksEnabled = false;
       emitEvent(app, ToolbarEvent.LINKS);
       await microtasksFinished();
 
@@ -650,10 +665,10 @@ suite('AppContent', () => {
     });
 
     suite('with speech', () => {
-      const noLinksHtml = '<span data-link="' + url +
+      const noLinksHtml = '<span dir="ltr" lang="en-us" data-link="' + url +
           '"><span class="parent-of-highlight"><span class="' +
           'current-read-highlight">Try</span> to keep it hidden</span></span>';
-      const linksHtml = '<a href="' + url +
+      const linksHtml = '<a dir="ltr" lang="en-us" href="' + url +
           '"><span class="parent-of-highlight"><span class="' +
           'current-read-highlight">Try</span> to keep it hidden</span></a>';
 
@@ -695,7 +710,7 @@ suite('AppContent', () => {
       });
 
       test('shows links when speech finished', async () => {
-        const expectedHTML = '<a href="' + url +
+        const expectedHTML = '<a dir="ltr" lang="en-us" href="' + url +
             '"><span class="parent-of-highlight"><span class="">' +
             'Try</span> to keep it hidden</span></a>';
         emitEvent(app, ToolbarEvent.PLAY_PAUSE);
@@ -708,7 +723,7 @@ suite('AppContent', () => {
       });
 
       test('hides links when speech active and links disabled', async () => {
-        visualBrowserProxy.linksEnabled = false;
+        readingMode.linksEnabled = false;
         emitEvent(app, ToolbarEvent.LINKS);
         await microtasksFinished();
 
@@ -718,7 +733,7 @@ suite('AppContent', () => {
       });
 
       test('hides links when speech paused and links disabled', async () => {
-        visualBrowserProxy.linksEnabled = false;
+        readingMode.linksEnabled = false;
         emitEvent(app, ToolbarEvent.LINKS);
         await microtasksFinished();
         emitEvent(app, ToolbarEvent.PLAY_PAUSE);
@@ -737,21 +752,37 @@ suite('AppContent', () => {
     const textNodeContent = 'Some text';
 
     setup(() => {
-      contentBrowserProxy.rootId = 1;
-      contentBrowserProxy.htmlTagMap = {1: 'div', 2: 'img'};
-      contentBrowserProxy.altText = altText;
-      contentBrowserProxy.childrenMap = {1: [2, 3]};
-      contentBrowserProxy.textContentMap = {3: textNodeContent};
+      readingMode.rootId = 1;
+      readingMode.getHtmlTag = (id) => {
+        if (id === 1) {
+          return 'div';
+        }
+        if (id === 2) {
+          return 'img';
+        }
+        return '';
+      };
+      readingMode.getAltText = () => altText;
+      readingMode.getChildren = (id) => {
+        if (id === 1) {
+          return [2, 3];
+        }
+        return [];
+      };
+      readingMode.getTextContent = (id) => id === 3 ? textNodeContent : '';
     });
 
     test('shows images when enabled', async () => {
+      readingMode.imagesFeatureEnabled = true;
       app.updateContent();
       await microtasksFinished();
       assertTrue(contentController.hasContent());
 
-      visualBrowserProxy.imagesEnabled = true;
-      const expectedHtmlWithImage = '<div><canvas alt="' + altText +
-          '" class="downloaded-image"></canvas>' + textNodeContent + '</div>';
+      readingMode.imagesEnabled = true;
+      const expectedHtmlWithImage =
+          '<div dir="ltr" lang="en-us"><canvas dir="ltr" alt="' + altText +
+          '" class="downloaded-image" lang="en-us" style=""></canvas>' +
+          textNodeContent + '</div>';
       emitEvent(app, ToolbarEvent.IMAGES);
       await microtasksFinished();
 
@@ -759,14 +790,32 @@ suite('AppContent', () => {
     });
 
     test('hides images when disabled', async () => {
-      const expectedHtml = '<div><canvas alt="' + altText +
-          '" class="downloaded-image" style="display: none;"></canvas>' +
+      readingMode.imagesFeatureEnabled = true;
+      const expectedHtml =
+          '<div dir="ltr" lang="en-us"><canvas dir="ltr" alt="' + altText +
+          '" class="downloaded-image" lang="en-us" style="display: none;"></canvas>' +
           textNodeContent + '</div>';
       app.updateContent();
       await microtasksFinished();
       assertTrue(contentController.hasContent());
 
-      visualBrowserProxy.imagesEnabled = false;
+      readingMode.imagesEnabled = false;
+      emitEvent(app, ToolbarEvent.IMAGES);
+      await microtasksFinished();
+
+      assertEquals(expectedHtml, app.$.container.innerHTML);
+    });
+
+    test('does not show images when feature flag disabled', async () => {
+      readingMode.imagesFeatureEnabled = false;
+      const expectedHtml =
+          '<div dir="ltr" lang="en-us"><canvas dir="ltr" alt="' + altText +
+          '" class="downloaded-image" lang="en-us" style="display: none;"></canvas>' +
+          textNodeContent + '</div>';
+      app.updateContent();
+      await microtasksFinished();
+
+      readingMode.imagesEnabled = true;
       emitEvent(app, ToolbarEvent.IMAGES);
       await microtasksFinished();
 
@@ -781,45 +830,80 @@ suite('AppContent', () => {
       const caption = 'That\'s ancient history';
 
       setup(() => {
-        contentBrowserProxy.rootId = figureId;
-        contentBrowserProxy.htmlTagMap = {
-          [figureId]: 'figure',
-          [imageId]: 'img',
-          [captionId]: 'figcaption',
+        readingMode.rootId = figureId;
+        readingMode.getAltText = () => '';
+        readingMode.getHtmlTag = (id) => {
+          if (id === figureId) {
+            return 'figure';
+          } else if (id === imageId) {
+            return 'img';
+          } else if (id === captionId) {
+            return 'figcaption';
+          } else {
+            return '';
+          }
         };
-        contentBrowserProxy.childrenMap = {
-          [figureId]: [imageId, captionId],
-          [captionId]: [textId],
+        readingMode.getChildren = (id) => {
+          if (id === figureId) {
+            return [imageId, captionId];
+          } else if (id === captionId) {
+            return [textId];
+          } else {
+            return [];
+          }
         };
-        contentBrowserProxy.textContentMap = {[textId]: caption};
+        readingMode.getTextContent = () => caption;
       });
 
       test('shows figures and captions when enabled', async () => {
-        const expectedHtml = '<figure><canvas alt="' + altText +
-            '" class="downloaded-image">' +
-            '</canvas><figcaption>' + caption + '</figcaption></figure>';
+        readingMode.imagesFeatureEnabled = true;
+
+        const expectedHtml =
+            '<figure dir="ltr" lang="en-us" style=""><canvas dir=' +
+            '"ltr" alt="" class="downloaded-image" lang="en-us" style="">' +
+            '</canvas><figcaption dir="ltr" lang="en-us">' + caption +
+            '</figcaption></figure>';
         app.updateContent();
         await microtasksFinished();
         assertTrue(contentController.hasContent());
 
-        visualBrowserProxy.imagesEnabled = true;
+        readingMode.imagesEnabled = true;
         emitEvent(app, ToolbarEvent.IMAGES);
         await microtasksFinished();
-
 
         assertEquals(expectedHtml, app.$.container.innerHTML);
       });
 
       test('hides figures and captions when disabled', async () => {
-        const expectedHtml = '<figure style="display:' +
-            ' none;"><canvas alt="' + altText + '" class="downloaded-image"' +
-            ' style="display: none;"></canvas><figcaption' +
-            '>' + caption + '</figcaption></figure>';
+        readingMode.imagesFeatureEnabled = true;
+
+        const expectedHtml = '<figure dir="ltr" lang="en-us" style="display:' +
+            ' none;"><canvas dir="ltr" alt="" class="downloaded-image" lang=' +
+            '"en-us" style="display: none;"></canvas><figcaption dir="ltr"' +
+            ' lang="en-us">' + caption + '</figcaption></figure>';
         app.updateContent();
         await microtasksFinished();
         assertTrue(contentController.hasContent());
 
-        visualBrowserProxy.imagesEnabled = false;
+        readingMode.imagesEnabled = false;
+        emitEvent(app, ToolbarEvent.IMAGES);
+        await microtasksFinished();
+
+        assertEquals(expectedHtml, app.$.container.innerHTML);
+      });
+
+      test('does not show figures or captions when flag disabled', async () => {
+        readingMode.imagesFeatureEnabled = false;
+
+        const expectedHtml = '<figure dir="ltr" lang="en-us" style="display:' +
+            ' none;"><canvas dir="ltr" alt="" class="downloaded-image" lang=' +
+            '"en-us" style="display: none;"></canvas><figcaption dir="ltr"' +
+            ' lang="en-us">' + caption + '</figcaption></figure>';
+        app.updateContent();
+        await microtasksFinished();
+        assertTrue(contentController.hasContent());
+
+        readingMode.imagesEnabled = false;
         emitEvent(app, ToolbarEvent.IMAGES);
         await microtasksFinished();
 
@@ -830,12 +914,14 @@ suite('AppContent', () => {
 
   suite('on image toggle with readability', () => {
     setup(() => {
-      contentBrowserProxy.activeDistillationMethod =
-          contentBrowserProxy.distillationTypeReadability;
+      chrome.readingMode.activeDistillationMethod =
+          chrome.readingMode.distillationTypeReadability;
     });
 
     test('shows and hides images when toggled', async () => {
-      contentBrowserProxy.htmlContent = '<img src="foo.png">;';
+      readingMode.imagesFeatureEnabled = true;
+
+      readingMode.htmlContent = '<img src="foo.png">;';
 
       app.updateContent();
       await microtasksFinished();
@@ -843,7 +929,7 @@ suite('AppContent', () => {
 
       const img = app.$.container.querySelector('img')!;
 
-      visualBrowserProxy.imagesEnabled = true;
+      readingMode.imagesEnabled = true;
       emitEvent(app, ToolbarEvent.IMAGES);
       await microtasksFinished();
 
@@ -851,19 +937,38 @@ suite('AppContent', () => {
       assertEquals('', img.style.display);  // Visible
 
       // Verify toggle off.
-      visualBrowserProxy.imagesEnabled = false;
+      readingMode.imagesEnabled = false;
       emitEvent(app, ToolbarEvent.IMAGES);
       await microtasksFinished();
       assertEquals('none', img.style.display);
     });
 
+    test(
+        'does not show images when images feature flag is disabled',
+        async () => {
+          readingMode.imagesFeatureEnabled = false;
+          readingMode.htmlContent = '<img src="foo.png">;';
+          app.updateContent();
+          await microtasksFinished();
+
+          const img = app.$.container.querySelector('img')!;
+
+          readingMode.imagesEnabled = true;
+          emitEvent(app, ToolbarEvent.IMAGES);
+          await microtasksFinished();
+
+          assertTrue(!!img);
+          assertEquals('none', img.style.display);
+        });
+
     suite('figure with caption', () => {
       const caption = 'That\'s ancient history';
 
       test('shows figures and captions when enabled', async () => {
-        contentBrowserProxy.htmlContent =
-            '<figure><img src="foo.png"><figcaption>' + caption +
-            '</figcaption></figure>';
+        readingMode.imagesFeatureEnabled = true;
+
+        readingMode.htmlContent = '<figure><img src="foo.png"><figcaption>' +
+            caption + '</figcaption></figure>';
 
         app.updateContent();
         await microtasksFinished();
@@ -872,7 +977,7 @@ suite('AppContent', () => {
         const figure = app.$.container.querySelector('figure')!;
         const figcaption = app.$.container.querySelector('figcaption')!;
 
-        visualBrowserProxy.imagesEnabled = true;
+        readingMode.imagesEnabled = true;
         emitEvent(app, ToolbarEvent.IMAGES);
         await microtasksFinished();
 
@@ -881,7 +986,27 @@ suite('AppContent', () => {
             caption, figcaption.textContent);  // Caption text should be there
 
         // Verify toggle off.
-        visualBrowserProxy.imagesEnabled = false;
+        readingMode.imagesEnabled = false;
+        emitEvent(app, ToolbarEvent.IMAGES);
+        await microtasksFinished();
+        assertEquals(
+            'none', figure.style.display);  // figcaption will also be hidden if
+                                            // it's parent is hidden.
+      });
+
+      test('does not show figures or captions when flag disabled', async () => {
+        readingMode.imagesFeatureEnabled = false;
+
+        readingMode.htmlContent = '<figure><img src="foo.png"><figcaption>' +
+            caption + '</figcaption></figure>';
+
+        app.updateContent();
+        await microtasksFinished();
+        assertTrue(contentController.hasContent());
+
+        const figure = app.$.container.querySelector('figure')!;
+
+        readingMode.imagesEnabled = true;
         emitEvent(app, ToolbarEvent.IMAGES);
         await microtasksFinished();
         assertEquals(
@@ -928,14 +1053,14 @@ suite('AppContent', () => {
     test('toggles links with Readability', async () => {
       const url = 'https://www.google.com/';
       const text = 'the best link ever';
-      contentBrowserProxy.activeDistillationMethod =
-          contentBrowserProxy.distillationTypeReadability;
-      contentBrowserProxy.htmlContent = `<a href="${url}">${text}</a>`;
+      chrome.readingMode.activeDistillationMethod =
+          chrome.readingMode.distillationTypeReadability;
+      readingMode.htmlContent = `<a href="${url}">${text}</a>`;
       app.updateContent();
       await microtasksFinished();
 
       // By default, links are enabled.
-      visualBrowserProxy.linksEnabled = true;
+      chrome.readingMode.linksEnabled = true;
 
       let link = app.$.container.querySelector('a');
       assertTrue(!!link, '<a> should be present before speech');
@@ -1093,6 +1218,7 @@ suite('AppContent', () => {
   });
 
   test('onNeedScrollForLineFocus scrolls', () => {
+    chrome.readingMode.isLineFocusEnabled = true;
     const startingScrollTop = app.$.containerScroller.scrollTop;
     let scrollTo = 0;
     app.$.containerScroller.scrollTo = (options) => {
@@ -1109,7 +1235,8 @@ suite('AppContent', () => {
     let appStyleUpdater: AppStyleUpdater;
 
     setup(async () => {
-      document.body.innerHTML = window.trustedTypes!.emptyHTML;
+      app.remove();
+      chrome.readingMode.isImmersiveEnabled = true;
       app = await createApp();
       appStyleUpdater = new AppStyleUpdater(app);
     });
@@ -1122,7 +1249,7 @@ suite('AppContent', () => {
 
           app.$.container.style.fontSize = `${fontSize}px`;
           appStyleUpdater.setFontSize();
-          contentBrowserProxy.textContentMap = {2: text};
+          readingMode.getTextContent = () => text;
           app.updateContent();
           await microtasksFinished();
 
@@ -1163,8 +1290,8 @@ suite('AppContent', () => {
       setup(() => {
         scroller = app.$.containerScroller;
         assertTrue(!!scroller);
-        visualBrowserProxy.onPresentationStateReceived.callListeners(
-            visualBrowserProxy.inImmersiveOverlayPresentationState);
+        chrome.readingMode.onPresentationStateReceived(
+            chrome.readingMode.inImmersiveOverlayPresentationState);
       });
 
       test('mousemove toggles hover class', () => {
@@ -1205,8 +1332,8 @@ suite('AppContent', () => {
       });
 
       test('mousemove does nothing if not in full page immersive mode', () => {
-        visualBrowserProxy.onPresentationStateReceived.callListeners(
-            visualBrowserProxy.inSidePanelPresentationState);
+        chrome.readingMode.onPresentationStateReceived(
+            chrome.readingMode.inSidePanelPresentationState);
         scroller.getBoundingClientRect = () => {
           return {
             left: 0,
@@ -1235,11 +1362,12 @@ suite('AppContent', () => {
         async () => {
           const divId = 10;
           const textId = 11;
-          contentBrowserProxy.rootId = divId;
-          contentBrowserProxy.htmlTagMap = {[divId]: 'div'};
-          contentBrowserProxy.childrenMap = {[divId]: [textId]};
-          contentBrowserProxy.textContentMap = {[textId]: 'Some text content'};
-          contentBrowserProxy.htmlIdMap = {[divId]: 'footnote-target'};
+          readingMode.rootId = divId;
+          readingMode.getHtmlTag = (id) => (id === divId) ? 'div' : '';
+          readingMode.getChildren = (id) => (id === divId) ? [textId] : [];
+          readingMode.getTextContent = (id) =>
+              (id === textId) ? 'Some text content' : '';
+          readingMode.htmlIds.set(divId, 'footnote-target');
 
           app.updateContent();
           await microtasksFinished();
@@ -1258,23 +1386,46 @@ suite('AppContent', () => {
           const documentUrl = 'https://www.example.com/page.html';
           const targetUrl = 'https://www.example.com/page.html#footnote-1';
 
-          contentBrowserProxy.rootId = 1;
-          contentBrowserProxy.childrenMap = {
-            1: [linkId, targetId],
-            [linkId]: [textId],
+          readingMode.rootId = 1;
+          readingMode.getChildren = (id) => {
+            if (id === 1) {
+              return [linkId, targetId];
+            }
+            if (id === linkId) {
+              return [textId];
+            }
+            return [];
           };
-          contentBrowserProxy.htmlTagMap = {
-            1: 'div',
-            [linkId]: 'a',
-            [targetId]: 'p',
+          readingMode.getHtmlTag = (id) => {
+            if (id === 1) {
+              return 'div';
+            }
+            if (id === linkId) {
+              return 'a';
+            }
+            if (id === targetId) {
+              return 'p';
+            }
+            return '';
           };
-          contentBrowserProxy.textContentMap = {
-            [textId]: 'Footnote Link',
-            [targetId]: 'Footnote Target Content',
+          readingMode.getTextContent = (id) => {
+            if (id === textId) {
+              return 'Footnote Link';
+            }
+            if (id === targetId) {
+              return 'Footnote Target Content';
+            }
+            return '';
           };
-          contentBrowserProxy.urlMap = {[linkId]: targetUrl};
-          contentBrowserProxy.htmlIdMap = {[targetId]: 'footnote-1'};
-          contentBrowserProxy.documentUrl = documentUrl;
+          readingMode.getUrl = (id) => (id === linkId) ? targetUrl : '';
+          readingMode.htmlIds.set(targetId, 'footnote-1');
+          readingMode.documentUrl = documentUrl;
+
+          // Spies
+          let linkClickedId = -1;
+          readingMode.onLinkClicked = (id) => {
+            linkClickedId = id;
+          };
 
           app.updateContent();
           await microtasksFinished();
@@ -1297,15 +1448,12 @@ suite('AppContent', () => {
           linkElement.click();
 
           // Clicking should notify C++ (onLinkClicked) but not scroll yet.
-          const linkClickedId =
-              await contentBrowserProxy.whenCalled('onLinkClicked');
           assertEquals(linkId, linkClickedId);
           assertFalse(scrollIntoViewCalled);
 
           // Triggering the callback from C++ navigation should execute the
           // scroll.
-          contentBrowserProxy.onMainFrameSameDocumentNavigation.callListeners(
-              targetUrl);
+          chrome.readingMode.onMainFrameSameDocumentNavigation(targetUrl);
           assertTrue(scrollIntoViewCalled);
           assertTrue(!!scrollOptions);
           assertEquals('smooth', scrollOptions.behavior);
@@ -1317,12 +1465,22 @@ suite('AppContent', () => {
       const documentUrl = 'https://www.example.com/page.html';
       const targetUrl = 'https://www.different-domain.com/page.html#footnote-1';
 
-      contentBrowserProxy.rootId = 1;
-      contentBrowserProxy.childrenMap = {1: [linkId], [linkId]: [textId]};
-      contentBrowserProxy.htmlTagMap = {1: 'div', [linkId]: 'a'};
-      contentBrowserProxy.textContentMap = {[textId]: 'External Link'};
-      contentBrowserProxy.urlMap = {[linkId]: targetUrl};
-      contentBrowserProxy.documentUrl = documentUrl;
+      readingMode.rootId = 1;
+      readingMode.getChildren = (id) => (id === 1) ? [linkId] :
+          (id === linkId)                          ? [textId] :
+                                                     [];
+      readingMode.getHtmlTag = (id) => (id === 1) ? 'div' :
+          (id === linkId)                         ? 'a' :
+                                                    '';
+      readingMode.getTextContent = (id) =>
+          (id === textId) ? 'External Link' : '';
+      readingMode.getUrl = (id) => (id === linkId) ? targetUrl : '';
+      readingMode.documentUrl = documentUrl;
+
+      let linkClickedId = -1;
+      readingMode.onLinkClicked = (id) => {
+        linkClickedId = id;
+      };
 
       app.updateContent();
       await microtasksFinished();
@@ -1341,8 +1499,6 @@ suite('AppContent', () => {
       assertTrue(!!linkElement);
       linkElement.click();
 
-      const linkClickedId =
-          await contentBrowserProxy.whenCalled('onLinkClicked');
       assertEquals(linkId, linkClickedId);
       assertFalse(scrollIntoViewCalled);
 
@@ -1360,12 +1516,22 @@ suite('AppContent', () => {
           const documentUrl = 'https://www.example.com/page.html';
           const targetUrl = 'mailto:test@example.com';
 
-          contentBrowserProxy.rootId = 1;
-          contentBrowserProxy.childrenMap = {1: [linkId], [linkId]: [textId]};
-          contentBrowserProxy.htmlTagMap = {1: 'div', [linkId]: 'a'};
-          contentBrowserProxy.textContentMap = {[textId]: 'Email Link'};
-          contentBrowserProxy.urlMap = {[linkId]: targetUrl};
-          contentBrowserProxy.documentUrl = documentUrl;
+          readingMode.rootId = 1;
+          readingMode.getChildren = (id) => (id === 1) ? [linkId] :
+              (id === linkId)                          ? [textId] :
+                                                         [];
+          readingMode.getHtmlTag = (id) => (id === 1) ? 'div' :
+              (id === linkId)                         ? 'a' :
+                                                        '';
+          readingMode.getTextContent = (id) =>
+              (id === textId) ? 'Email Link' : '';
+          readingMode.getUrl = (id) => (id === linkId) ? targetUrl : '';
+          readingMode.documentUrl = documentUrl;
+
+          let linkClickedId = -1;
+          readingMode.onLinkClicked = (id) => {
+            linkClickedId = id;
+          };
 
           // Mock containerScroller.scrollTo to verify we do not scroll
           let scrollToCalled = false;
@@ -1383,8 +1549,6 @@ suite('AppContent', () => {
           linkElement.click();
 
           // Confirm that onLinkClicked is called on the mailto link.
-          const linkClickedId =
-              await contentBrowserProxy.whenCalled('onLinkClicked');
           assertEquals(linkId, linkClickedId);
           assertFalse(scrollToCalled, 'Should not scroll');
         });
@@ -1398,13 +1562,22 @@ suite('AppContent', () => {
           const targetUrl =
               'https://www.example.com/page.html#footnote-missing';
 
-          contentBrowserProxy.rootId = 1;
-          contentBrowserProxy.childrenMap = {1: [linkId], [linkId]: [textId]};
-          contentBrowserProxy.htmlTagMap = {1: 'div', [linkId]: 'a'};
-          contentBrowserProxy
-              .textContentMap = {[textId]: 'Missing Target Link'};
-          contentBrowserProxy.urlMap = {[linkId]: targetUrl};
-          contentBrowserProxy.documentUrl = documentUrl;
+          readingMode.rootId = 1;
+          readingMode.getChildren = (id) => (id === 1) ? [linkId] :
+              (id === linkId)                          ? [textId] :
+                                                         [];
+          readingMode.getHtmlTag = (id) => (id === 1) ? 'div' :
+              (id === linkId)                         ? 'a' :
+                                                        '';
+          readingMode.getTextContent = (id) =>
+              (id === textId) ? 'Missing Target Link' : '';
+          readingMode.getUrl = (id) => (id === linkId) ? targetUrl : '';
+          readingMode.documentUrl = documentUrl;
+
+          let linkClickedId = -1;
+          readingMode.onLinkClicked = (id) => {
+            linkClickedId = id;
+          };
 
           // Mock containerScroller.scrollTo to verify we do not scroll to top
           let scrollToCalled = false;
@@ -1421,8 +1594,6 @@ suite('AppContent', () => {
           assertTrue(!!linkElement);
           linkElement.click();
 
-          const linkClickedId =
-              await contentBrowserProxy.whenCalled('onLinkClicked');
           assertEquals(linkId, linkClickedId);
           assertFalse(scrollToCalled);
         });
@@ -1447,7 +1618,7 @@ suite('AppContent', () => {
           scrollOptions = options as ScrollIntoViewOptions;
         };
 
-        contentBrowserProxy.documentUrl = 'https://example.com/page.html';
+        chrome.readingMode.documentUrl = 'https://example.com/page.html';
         const result = contentController.scrollToAnchor(
             'https://example.com/page.html#footnote-1', root);
 
@@ -1464,7 +1635,7 @@ suite('AppContent', () => {
           scrollToOptions = options as ScrollToOptions;
         };
 
-        contentBrowserProxy.documentUrl = 'https://example.com/page.html';
+        chrome.readingMode.documentUrl = 'https://example.com/page.html';
         const result = contentController.scrollToAnchor(
             'https://example.com/page.html', root);
 
@@ -1485,7 +1656,7 @@ suite('AppContent', () => {
           scrollIntoViewCalled = true;
         };
 
-        contentBrowserProxy.documentUrl = 'https://example.com/page.html';
+        chrome.readingMode.documentUrl = 'https://example.com/page.html';
 
         // Test hash only
         let result = contentController.scrollToAnchor('#footnote-1', root);
@@ -1501,21 +1672,21 @@ suite('AppContent', () => {
       });
 
       test('ignores different page URLs', () => {
-        contentBrowserProxy.documentUrl = 'https://example.com/page.html';
+        chrome.readingMode.documentUrl = 'https://example.com/page.html';
         const result = contentController.scrollToAnchor(
             'https://different.com/page.html#footnote-1', root);
         assertFalse(result);
       });
 
       test('ignores different pathnames', () => {
-        contentBrowserProxy.documentUrl = 'https://example.com/page.html';
+        chrome.readingMode.documentUrl = 'https://example.com/page.html';
         const result = contentController.scrollToAnchor(
             'https://example.com/other.html#footnote-1', root);
         assertFalse(result);
       });
 
       test('ignores different search parameters', () => {
-        contentBrowserProxy.documentUrl =
+        chrome.readingMode.documentUrl =
             'https://example.com/page.html?query=1';
         const result = contentController.scrollToAnchor(
             'https://example.com/page.html?query=2#footnote-1', root);
@@ -1533,7 +1704,7 @@ suite('AppContent', () => {
           scrollIntoViewCalled = true;
         };
 
-        contentBrowserProxy.documentUrl =
+        chrome.readingMode.documentUrl =
             'https://example.com/page.html?query=1';
         const result = contentController.scrollToAnchor(
             'https://example.com/page.html?query=1#footnote-1', root);
@@ -1546,13 +1717,13 @@ suite('AppContent', () => {
       });
 
       test('handles invalid URLs gracefully', () => {
-        contentBrowserProxy.documentUrl = 'https://example.com/page.html';
+        chrome.readingMode.documentUrl = 'https://example.com/page.html';
         const result = contentController.scrollToAnchor('invalid://url', root);
         assertFalse(result);
       });
 
       test('handles malformed URI percent-encoding gracefully', () => {
-        contentBrowserProxy.documentUrl = 'https://example.com/page.html';
+        chrome.readingMode.documentUrl = 'https://example.com/page.html';
 
         // Test hash only with malformed percent-encoding
         let result = contentController.scrollToAnchor('#foo%2', root);
@@ -1571,7 +1742,7 @@ suite('AppContent', () => {
           scrollToOptions = options as ScrollToOptions;
         };
 
-        contentBrowserProxy.documentUrl = 'https://example.com/page.html';
+        chrome.readingMode.documentUrl = 'https://example.com/page.html';
 
         // Test hash only
         let result = contentController.scrollToAnchor('#top', root);
@@ -1601,7 +1772,7 @@ suite('AppContent', () => {
           scrollIntoViewCalled = true;
         };
 
-        contentBrowserProxy.documentUrl = 'https://example.com/page.html';
+        chrome.readingMode.documentUrl = 'https://example.com/page.html';
         const result = contentController.scrollToAnchor('#top', root);
         assertTrue(result);
         assertTrue(scrollIntoViewCalled);
@@ -1617,13 +1788,29 @@ suite('AppContent', () => {
       const documentUrl = 'https://www.example.com/page.html';
       const targetUrl = 'https://www.example.com/page.html#footnote-1';
 
-      contentBrowserProxy.rootId = 1;
-      contentBrowserProxy.childrenMap = {1: [targetId], [targetId]: [textId]};
-      contentBrowserProxy.htmlTagMap = {1: 'div', [targetId]: 'p'};
-      contentBrowserProxy
-          .textContentMap = {[textId]: 'Footnote Target Content'};
-      contentBrowserProxy.htmlIdMap = {[targetId]: 'footnote-1'};
-      contentBrowserProxy.documentUrl = documentUrl;
+      readingMode.rootId = 1;
+      readingMode.getChildren = (id) => {
+        if (id === 1) {
+          return [targetId];
+        }
+        if (id === targetId) {
+          return [textId];
+        }
+        return [];
+      };
+      readingMode.getHtmlTag = (id) => {
+        if (id === 1) {
+          return 'div';
+        }
+        if (id === targetId) {
+          return 'p';
+        }
+        return '';
+      };
+      readingMode.getTextContent = (id) =>
+          (id === textId) ? 'Footnote Target Content' : '';
+      readingMode.htmlIds.set(targetId, 'footnote-1');
+      readingMode.documentUrl = documentUrl;
 
       app.updateContent();
       await microtasksFinished();
@@ -1640,8 +1827,7 @@ suite('AppContent', () => {
       };
 
       // Trigger same document navigation
-      contentBrowserProxy.onMainFrameSameDocumentNavigation.callListeners(
-          targetUrl);
+      chrome.readingMode.onMainFrameSameDocumentNavigation(targetUrl);
 
       assertTrue(scrollIntoViewCalled);
       assertTrue(!!scrollOptions);
@@ -1654,11 +1840,11 @@ suite('AppContent', () => {
           const documentUrl = 'https://www.example.com/page.html';
           const targetUrl = 'https://www.example.com/page.html';  // empty hash
 
-          contentBrowserProxy.rootId = 1;
-          contentBrowserProxy.childrenMap = {1: []};
-          contentBrowserProxy.htmlTagMap = {1: 'div'};
-          contentBrowserProxy.textContentMap = {1: 'Some content'};
-          contentBrowserProxy.documentUrl = documentUrl;
+          readingMode.rootId = 1;
+          readingMode.getChildren = () => [];
+          readingMode.getHtmlTag = (id) => (id === 1) ? 'div' : '';
+          readingMode.getTextContent = (id) => (id === 1) ? 'Some content' : '';
+          readingMode.documentUrl = documentUrl;
 
           app.updateContent();
           await microtasksFinished();
@@ -1674,8 +1860,7 @@ suite('AppContent', () => {
           };
 
           // Trigger same document navigation back to top
-          contentBrowserProxy.onMainFrameSameDocumentNavigation.callListeners(
-              targetUrl);
+          chrome.readingMode.onMainFrameSameDocumentNavigation(targetUrl);
 
           assertTrue(scrollToCalled);
           assertTrue(!!scrollOptions);
@@ -1692,14 +1877,29 @@ suite('AppContent', () => {
           const targetUrl =
               'https://www.different-domain.com/page.html#footnote-1';
 
-          contentBrowserProxy.rootId = 1;
-          contentBrowserProxy
-              .childrenMap = {1: [targetId], [targetId]: [textId]};
-          contentBrowserProxy.htmlTagMap = {1: 'div', [targetId]: 'p'};
-          contentBrowserProxy
-              .textContentMap = {[textId]: 'Footnote Target Content'};
-          contentBrowserProxy.htmlIdMap = {[targetId]: 'footnote-1'};
-          contentBrowserProxy.documentUrl = documentUrl;
+          readingMode.rootId = 1;
+          readingMode.getChildren = (id) => {
+            if (id === 1) {
+              return [targetId];
+            }
+            if (id === targetId) {
+              return [textId];
+            }
+            return [];
+          };
+          readingMode.getHtmlTag = (id) => {
+            if (id === 1) {
+              return 'div';
+            }
+            if (id === targetId) {
+              return 'p';
+            }
+            return '';
+          };
+          readingMode.getTextContent = (id) =>
+              (id === textId) ? 'Footnote Target Content' : '';
+          readingMode.htmlIds.set(targetId, 'footnote-1');
+          readingMode.documentUrl = documentUrl;
 
           app.updateContent();
           await microtasksFinished();
@@ -1714,34 +1914,9 @@ suite('AppContent', () => {
           };
 
           // Trigger same document navigation for different page
-          contentBrowserProxy.onMainFrameSameDocumentNavigation.callListeners(
-              targetUrl);
+          chrome.readingMode.onMainFrameSameDocumentNavigation(targetUrl);
 
           assertFalse(scrollIntoViewCalled);
         });
-  });
-
-  test('<pre> tags wrap and inherit font', () => {
-    // Some sites (e.g. Wattpad) incorrectly wrap large blocks of text
-    // in <pre> tags, which would cause reading mode to format this text in
-    // monospace and without wrapping to new lines.
-    const preElement = document.createElement('pre');
-    preElement.textContent =
-        'This is a text not code & reading mode should not format it as code.';
-    app.$.container.appendChild(preElement);
-
-    // Set a custom Reading Mode font and emit the font change event to update
-    // styles
-    const expectedFont = 'Andika';
-    visualBrowserProxy.fontName = expectedFont;
-    emitEvent(app, ToolbarEvent.FONT);
-
-    const computedStyle = window.getComputedStyle(preElement);
-    assertEquals('pre-wrap', computedStyle.whiteSpace);
-    assertEquals('break-word', computedStyle.overflowWrap);
-
-    const actualFont =
-        computedStyle.fontFamily.toLowerCase().replaceAll('"', '');
-    assertEquals(expectedFont.toLowerCase(), actualFont);
   });
 });

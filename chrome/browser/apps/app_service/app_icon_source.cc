@@ -33,8 +33,10 @@ void LoadDefaultImage(content::URLDataSource::GotDataCallback callback) {
   std::string_view contents =
       ui::ResourceBundle::GetSharedInstance().GetRawDataResourceForScale(
           IDR_APP_DEFAULT_ICON, apps_util::GetPrimaryDisplayUIScaleFactor());
-  std::move(callback).Run(base::MakeRefCounted<base::RefCountedBytes>(
-      base::as_byte_span(contents)));
+
+  base::RefCountedBytes* image_bytes = new base::RefCountedBytes();
+  image_bytes->as_vector().assign(contents.begin(), contents.end());
+  std::move(callback).Run(image_bytes);
 }
 
 void RunCallback(content::URLDataSource::GotDataCallback callback,
@@ -43,8 +45,9 @@ void RunCallback(content::URLDataSource::GotDataCallback callback,
     LoadDefaultImage(std::move(callback));
     return;
   }
-  std::move(callback).Run(
-      base::MakeRefCounted<base::RefCountedBytes>(iv->compressed));
+  base::RefCountedBytes* image_bytes =
+      new base::RefCountedBytes(iv->compressed);
+  std::move(callback).Run(image_bytes);
 }
 
 }  // namespace

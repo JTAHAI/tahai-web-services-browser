@@ -48,8 +48,13 @@ NSProcessInfoThermalStateToDeviceThermalState(
 }
 
 // Fetches the CPU speed limit from IOKit. This is a potentially blocking call.
-int GetCurrentSpeedLimit() {
-  ScopedBlockingCall scoped_blocking_call(FROM_HERE, BlockingType::MAY_BLOCK);
+// If |may_block| is true, it indicates that the function is running on a
+// thread where blocking is permissible.
+int DoGetCurrentSpeedLimit(bool may_block) {
+  std::optional<ScopedBlockingCall> scoped_blocking_call;
+  if (may_block) {
+    scoped_blocking_call.emplace(FROM_HERE, BlockingType::MAY_BLOCK);
+  }
 
   apple::ScopedCFTypeRef<CFDictionaryRef> dictionary;
   IOReturn result = IOPMCopyCPUPowerStatus(dictionary.InitializeInto());
@@ -70,6 +75,15 @@ int GetCurrentSpeedLimit() {
     DVLOG(1) << __func__ << "Unable to get speed limit";
   }
   return PowerThermalObserver::kSpeedLimitMax;
+}
+
+// Posts a task to fetch the speed limit on a worker thread and runs the
+// callback on the originating thread with the result.
+void PostTaskToGetSpeedLimit(
+    const ThermalStateObserverMac::SpeedLimitUpdateCallback& callback) {
+  ThreadPool::PostTaskAndReplyWithResult(
+      FROM_HERE, {MayBlock()}, BindOnce(&DoGetCurrentSpeedLimit, true),
+      BindOnce(callback));
 }
 
 }  // namespace
@@ -109,9 +123,13 @@ ThermalStateObserverMac::ThermalStateObserverMac(
                   usingBlock:on_state_change_block];
 
   auto on_speed_change_block = ^() {
-    ThreadPool::PostTaskAndReplyWithResult(
-        FROM_HERE, {MayBlock()}, BindOnce(&GetCurrentSpeedLimit),
-        BindOnce(speed_limit_update_callback));
+    if (FeatureList::IsEnabled(features::kReducePPMs)) {
+      PostTaskToGetSpeedLimit(speed_limit_update_callback);
+    } else {
+      int speed_limit = GetCurrentSpeedLimit();
+      DVLOG(1) << __func__ << ": " << speed_limit;
+      speed_limit_update_callback.Run(speed_limit);
+    }
   };
 
   uint32_t result = notify_register_dispatch(power_notification_key_,
@@ -145,4 +163,7 @@ ThermalStateObserverMac::GetCurrentThermalState() {
   return NSProcessInfoThermalStateToDeviceThermalState(nsinfo_state);
 }
 
+int ThermalStateObserverMac::GetCurrentSpeedLimit() const {
+  return DoGetCurrentSpeedLimit(false);
+}
 }  // namespace base

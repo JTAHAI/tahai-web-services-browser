@@ -110,7 +110,7 @@ void FrameViewLinux::CreateCaptionButtons() {
   restore_button_ = create_button(
       base::BindRepeating(&Widget::Restore, base::Unretained(widget_)),
       CAPTION_BUTTON_ICON_MAXIMIZE_RESTORE, HTMAXBUTTON,
-      features::IsRoundedIconsEnabled() ? kChromeRestoreIcon
+      features::IsRoundedIconsEnabled() ? kChromeRestoreFilledIcon
                                         : kWindowControlRestoreOldIcon,
       IDS_APP_ACCNAME_RESTORE);
 }

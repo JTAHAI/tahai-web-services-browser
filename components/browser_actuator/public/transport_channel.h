@@ -9,10 +9,6 @@
 
 #include "components/browser_actuator/public/common.h"
 
-namespace google::protobuf {
-class MessageLite;
-}  // namespace google::protobuf
-
 namespace browser_actuator {
 
 class TransportHandlerFactoryRegistry;
@@ -28,10 +24,9 @@ class TransportChannel {
   virtual TransportSessionRegistry* GetSessionRegistry() = 0;
 
   // Sends an upstream message through the TransportChannel for a session.
-  virtual void SendUpstreamMessage(
-      std::string_view session_id,
-      PayloadType payload_type,
-      const google::protobuf::MessageLite& message) = 0;
+  virtual void SendUpstreamMessage(std::string_view session_id,
+                                   PayloadType payload_type,
+                                   std::string_view payload) = 0;
 };
 
 }  // namespace browser_actuator

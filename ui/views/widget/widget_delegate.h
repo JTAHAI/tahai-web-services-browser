@@ -197,6 +197,9 @@ namespace native_app_window {
 class NativeAppWindowViews;
 }
 
+namespace plus_addresses {
+class PlusAddressCreationDialogDelegate;
+}
 
 namespace remoting {
 class MessageBoxCore;
@@ -461,6 +464,7 @@ class VIEWS_EXPORT WidgetDelegate {
     friend class ::SigninViewControllerDelegateViews;
     friend class ::ash::InformedRestoreController;
     friend class ::native_app_window::NativeAppWindowViews;
+    friend class ::plus_addresses::PlusAddressCreationDialogDelegate;
     friend class ::remoting::MessageBoxCore;
     friend class DefaultWidgetDelegate;
     friend class TableViewFocusTest;

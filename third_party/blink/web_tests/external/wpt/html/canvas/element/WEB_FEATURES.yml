@@ -1,2 +1,4 @@
-rules:
-- "*": [canvas-2d]
+features:
+- name: canvas-2d
+  files:
+  - '*'

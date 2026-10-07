@@ -25,6 +25,7 @@ import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.ChromeTabbedActivity;
+import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.multiwindow.MultiInstanceManager.NewWindowAppSource;
 import org.chromium.chrome.browser.preferences.ChromePreferenceKeys;
 import org.chromium.chrome.browser.preferences.ChromeSharedPreferences;
@@ -120,7 +121,7 @@ public class TabbedCrashRecoveryDelegate {
                 if (windowId == hostActivity.getWindowId()) continue;
                 // Since recovery is cancelled, mark all windows as non-recoverable. Additionally,
                 // finish tasks for windows without any normal tabs to avoid keeping unusable tasks.
-                cleanUpWindow(windowId, appTasks, MultiWindowUtils.hasNoNormalTabs(windowId));
+                cleanUpWindow(windowId, appTasks, hasNoNormalTabs(windowId));
             }
             return false;
         }
@@ -143,13 +144,14 @@ public class TabbedCrashRecoveryDelegate {
             // not be usable after a crash. Clean them up (e.g. finish their live tasks and mark
             // them as non-recoverable) so we don't restore them or leave orphaned, unusable tasks
             // in Android Recents.
-            if (MultiWindowUtils.hasNoNormalTabs(windowId)) {
+            if (hasNoNormalTabs(windowId)) {
                 cleanUpWindow(windowId, appTasks, /* shouldFinishTask= */ true);
                 continue;
             }
 
             nonHostCrashedWindowCount++;
-            if (MultiWindowUtils.isTaskAlive(windowId, appTasks)) {
+            int persistedTaskId = ChromeMultiInstancePersistentStore.readTaskId(windowId);
+            if (appTasks.containsKey(persistedTaskId)) {
                 crashedWindowTaskCount++;
             }
 
@@ -209,7 +211,7 @@ public class TabbedCrashRecoveryDelegate {
      * initialization.
      */
     /* package */ void initializeCrashRecoveryMetadata() {
-        if (!MultiWindowUtils.isSessionRestoreAfterCrashEnabled()) {
+        if (!ChromeFeatureList.sSessionRestoreAfterCrash.isEnabled()) {
             return;
         }
 
@@ -444,6 +446,13 @@ public class TabbedCrashRecoveryDelegate {
                 appTasks.remove(persistedTaskId);
             }
         }
+    }
+
+    /**
+     * @return {@code true} if the window has no regular/normal tabs.
+     */
+    private boolean hasNoNormalTabs(int windowId) {
+        return ChromeMultiInstancePersistentStore.readNormalTabCount(windowId) == 0;
     }
 
     @VisibleForTesting

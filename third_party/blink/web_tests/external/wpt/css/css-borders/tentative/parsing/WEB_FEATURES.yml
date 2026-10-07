@@ -1,5 +1,9 @@
-rules:
-- border-block-*-radius-*: []
-- border-inline-*-radius-*: []
-- border-*-radius-*: [border-radius]
-- box-shadow-*: [box-shadow]
+features:
+- name: border-radius
+  files:
+  - border-*-radius-*
+  - "!border-block-*-radius-*"
+  - "!border-inline-*-radius-*"
+- name: box-shadow
+  files:
+  - box-shadow-*

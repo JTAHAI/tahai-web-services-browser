@@ -10,6 +10,7 @@
 #include "chrome/browser/picture_in_picture/picture_in_picture_occlusion_tracker.h"
 #include "chrome/browser/picture_in_picture/picture_in_picture_window_manager.h"
 #include "chrome/browser/platform_util.h"
+#include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
@@ -21,7 +22,6 @@
 #include "chrome/browser/ui/views/location_bar/location_bar_bubble_delegate_view.h"
 #include "chrome/browser/ui/views/title_origin_label.h"
 #include "components/permissions/chooser_controller.h"
-#include "components/tabs/public/tab_interface.h"
 #include "content/public/browser/weak_document_ptr.h"
 #include "extensions/buildflags/buildflags.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
@@ -29,13 +29,12 @@
 #include "ui/display/types/display_constants.h"
 #include "ui/views/bubble/bubble_dialog_delegate_view.h"
 #include "ui/views/bubble/bubble_frame_view.h"
-#include "ui/views/controls/button/md_text_button.h"
 #include "ui/views/controls/table/table_view_observer.h"
 #include "ui/views/layout/fill_layout.h"
 #include "ui/views/widget/widget.h"
 
-#if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
-#include "chrome/browser/ui/views/extensions/chooser_dialog_view.h"
+#if BUILDFLAG(ENABLE_EXTENSIONS)
+#include "chrome/browser/ui/extensions/extensions_dialogs.h"
 #include "chrome/browser/ui/views/extensions/extensions_container_views.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/frame/toolbar_button_provider.h"
@@ -49,12 +48,11 @@ using bubble_anchor_util::AnchorConfiguration;
 
 namespace {
 
-AnchorConfiguration GetChooserAnchorConfiguration(
-    BrowserWindowInterface* browser) {
+AnchorConfiguration GetChooserAnchorConfiguration(Browser* browser) {
   return bubble_anchor_util::GetPageInfoAnchorConfiguration(browser);
 }
 
-gfx::Rect GetChooserAnchorRect(BrowserWindowInterface* browser) {
+gfx::Rect GetChooserAnchorRect(Browser* browser) {
   return bubble_anchor_util::GetPageInfoAnchorRect(browser);
 }
 
@@ -68,7 +66,7 @@ class ChooserBubbleUiViewDelegate : public LocationBarBubbleDelegateView,
 
  public:
   ChooserBubbleUiViewDelegate(
-      BrowserWindowInterface* browser,
+      Browser* browser,
       content::WebContents* contents,
       std::unique_ptr<permissions::ChooserController> chooser_controller,
       base::ScopedClosureRunner fullscreen_blocker);
@@ -94,7 +92,7 @@ class ChooserBubbleUiViewDelegate : public LocationBarBubbleDelegateView,
 
   // Updates the anchor's arrow and view. Also repositions the bubble so it's
   // displayed in the correct location.
-  void UpdateAnchor(BrowserWindowInterface* browser);
+  void UpdateAnchor(Browser* browser);
 
   void UpdateTableView() const;
 
@@ -112,7 +110,7 @@ class ChooserBubbleUiViewDelegate : public LocationBarBubbleDelegateView,
 };
 
 ChooserBubbleUiViewDelegate::ChooserBubbleUiViewDelegate(
-    BrowserWindowInterface* browser,
+    Browser* browser,
     content::WebContents* contents,
     std::unique_ptr<permissions::ChooserController> chooser_controller,
     base::ScopedClosureRunner fullscreen_blocker)
@@ -181,8 +179,7 @@ void ChooserBubbleUiViewDelegate::OnSelectionChanged() {
   DialogModelChanged();
 }
 
-void ChooserBubbleUiViewDelegate::UpdateAnchor(
-    BrowserWindowInterface* browser) {
+void ChooserBubbleUiViewDelegate::UpdateAnchor(Browser* browser) {
   AnchorConfiguration configuration = GetChooserAnchorConfiguration(browser);
   SetAnchor(configuration.anchor);
   // In fullscreen, `anchor` may be nullptr therefore anchor to the browser
@@ -250,8 +247,8 @@ std::optional<ChooserDialogHost> DropFullscreenForChooserDialog(
     const content::WeakDocumentPtr& weak_document) {
   auto* browser =
       GlobalBrowserCollection::GetInstance()->FindBrowserWithTab(contents);
-  if (!browser || !browser->GetActiveTabInterface() ||
-      browser->GetActiveTabInterface()->GetContents() != contents) {
+  if (!browser ||
+      browser->GetTabStripModel()->GetActiveWebContents() != contents) {
     return std::nullopt;
   }
 
@@ -272,15 +269,15 @@ std::optional<ChooserDialogHost> DropFullscreenForChooserDialog(
 
   browser =
       GlobalBrowserCollection::GetInstance()->FindBrowserWithTab(contents);
-  if (!browser || !browser->GetActiveTabInterface() ||
-      browser->GetActiveTabInterface()->GetContents() != contents) {
+  if (!browser ||
+      browser->GetTabStripModel()->GetActiveWebContents() != contents) {
     return std::nullopt;
   }
 
   return ChooserDialogHost{browser, contents, std::move(*fullscreen_blocker)};
 }
 
-#if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
+#if BUILDFLAG(ENABLE_EXTENSIONS)
 base::OnceClosure ShowDeviceChooserDialogForExtension(
     content::RenderFrameHost* owner,
     const extensions::Extension* extension,
@@ -307,15 +304,15 @@ base::OnceClosure ShowDeviceChooserDialogForExtension(
   }
 
   auto bubble = std::make_unique<ChooserBubbleUiViewDelegate>(
-      host->browser, host->contents, std::move(controller),
-      std::move(host->fullscreen_blocker));
+      host->browser->GetBrowserForMigrationOnly(), host->contents,
+      std::move(controller), std::move(host->fullscreen_blocker));
   base::OnceClosure close_closure = bubble->MakeCloseClosure();
   extensions_toolbar->ShowWidgetForExtension(
       views::BubbleDialogDelegateView::CreateBubble(std::move(bubble)),
       extension->id());
   return close_closure;
 }
-#endif  // BUILDFLAG(ENABLE_EXTENSIONS_CORE)
+#endif  // BUILDFLAG(ENABLE_EXTENSIONS)
 
 }  // namespace
 
@@ -325,7 +322,7 @@ base::OnceClosure ShowDeviceChooserDialog(
   content::WeakDocumentPtr weak_document = owner->GetWeakDocumentPtr();
   auto* contents = content::WebContents::FromRenderFrameHost(owner);
 
-#if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
+#if BUILDFLAG(ENABLE_EXTENSIONS)
   auto* browser_context = owner->GetBrowserContext();
   if (extensions::AppWindowRegistry::Get(browser_context)
           ->GetAppWindowForWebContents(contents)) {
@@ -346,7 +343,7 @@ base::OnceClosure ShowDeviceChooserDialog(
     return ShowDeviceChooserDialogForExtension(owner, extension,
                                                std::move(controller));
   }
-#endif  // BUILDFLAG(ENABLE_EXTENSIONS_CORE)
+#endif  // BUILDFLAG(ENABLE_EXTENSIONS)
 
   std::optional<ChooserDialogHost> host =
       DropFullscreenForChooserDialog(contents, weak_document);
@@ -356,10 +353,10 @@ base::OnceClosure ShowDeviceChooserDialog(
   BrowserWindowInterface* browser = host->browser;
 
   auto bubble = std::make_unique<ChooserBubbleUiViewDelegate>(
-      browser, host->contents, std::move(controller),
-      std::move(host->fullscreen_blocker));
+      browser->GetBrowserForMigrationOnly(), host->contents,
+      std::move(controller), std::move(host->fullscreen_blocker));
 
-  bubble->UpdateAnchor(browser);
+  bubble->UpdateAnchor(browser->GetBrowserForMigrationOnly());
 
   base::OnceClosure close_closure = bubble->MakeCloseClosure();
   views::Widget* widget =

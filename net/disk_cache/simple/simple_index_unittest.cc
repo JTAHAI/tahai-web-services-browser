@@ -813,10 +813,13 @@ TEST_F(SimpleIndexTest, EvictPrioritizationOutOfPeriod) {
 class SimpleIndexPrioritizedCachingDisabledTest : public SimpleIndexTest {
  public:
   SimpleIndexPrioritizedCachingDisabledTest() {
-    AddScopedFeatureList().InitAndDisableFeature(
+    feature_list_.InitAndDisableFeature(
         net::features::kSimpleCachePrioritizedCaching);
   }
   ~SimpleIndexPrioritizedCachingDisabledTest() override = default;
+
+ private:
+  base::test::ScopedFeatureList feature_list_;
 };
 
 TEST_F(SimpleIndexPrioritizedCachingDisabledTest,

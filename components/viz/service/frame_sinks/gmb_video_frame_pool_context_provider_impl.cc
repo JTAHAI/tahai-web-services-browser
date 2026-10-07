@@ -34,28 +34,35 @@ class GmbVideoFramePoolContext
     DETACH_FROM_SEQUENCE(gpu_sequence_checker_);
 
     // TODO(vikassoni): Verify this is the right GPU thread/sequence for DrDC.
-    auto sequence = std::make_unique<gpu::SchedulerSequence>(
+    sequence_ = std::make_unique<gpu::SchedulerSequence>(
         gpu_service_->GetGpuScheduler(), gpu_service_->main_runner(),
         /*target_thread_is_always_available=*/true);
-    gpu::SingleTaskSequence* sequence_ptr = sequence.get();
 
     base::WaitableEvent event;
-    sequence_ptr->ScheduleTask(
+
+    sequence_->ScheduleTask(
         base::BindOnce(&GmbVideoFramePoolContext::InitializeOnGpu,
-                       base::Unretained(this), std::move(sequence), &event),
+                       base::Unretained(this), &event),
         /*sync_token_fences=*/{}, gpu::SyncToken());
 
     event.Wait();
   }
 
   ~GmbVideoFramePoolContext() override {
+    // SharedImageInterfaceInProcess' dtor blocks on GPU, which we want to do as
+    // well, so run it now before we grab the GPU thread:
+    sii_in_process_ = nullptr;
+
     base::WaitableEvent event;
-    sii_in_process_->task_sequence()->ScheduleTask(
+
+    sequence_->ScheduleTask(
         base::BindOnce(&GmbVideoFramePoolContext::DestroyOnGpu,
                        base::Unretained(this), &event),
         /*sync_token_fences=*/{}, gpu::SyncToken());
 
     event.Wait();
+
+    sequence_ = nullptr;
   }
 
   scoped_refptr<gpu::ClientSharedImage> CreateSharedImage(
@@ -88,8 +95,7 @@ class GmbVideoFramePoolContext
   }
 
  private:
-  void InitializeOnGpu(std::unique_ptr<gpu::SingleTaskSequence> sequence,
-                       base::WaitableEvent* event) {
+  void InitializeOnGpu(base::WaitableEvent* event) {
     DCHECK_CALLED_ON_VALID_SEQUENCE(gpu_sequence_checker_);
     CHECK(!initialized_);
     CHECK(gpu_service_);
@@ -108,7 +114,7 @@ class GmbVideoFramePoolContext
     // ensure that it is available for usage on the IO thread to create native
     // GMB handles in response to CreateSharedImage() calls.
     sii_in_process_ = gpu::SharedImageInterfaceInProcess::Create(
-        std::move(sequence), gpu_service_->gpu_preferences(),
+        sequence_.get(), gpu_service_->gpu_preferences(),
         gpu_service_->gpu_driver_bug_workarounds(),
         gpu_service_->gpu_feature_info(), shared_context_state_.get(),
         gpu_service_->shared_image_manager(),
@@ -148,6 +154,7 @@ class GmbVideoFramePoolContext
   // True iff the context was initialized on GPU.
   bool initialized_ = false;
 
+  std::unique_ptr<gpu::SchedulerSequence> sequence_;
   scoped_refptr<gpu::SharedContextState> shared_context_state_;
 
   scoped_refptr<gpu::SharedImageInterfaceInProcess> sii_in_process_;

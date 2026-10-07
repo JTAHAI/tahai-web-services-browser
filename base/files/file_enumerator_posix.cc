@@ -198,11 +198,7 @@ FilePath FileEnumerator::Next() {
         for (auto& info : directory_entries_) {
           info.subdirs_ = subdirs_;
           if (info.IsDirectory()) {
-            if (root_path_.IsVirtualDocumentPath()) {
-              pending_paths_.push(root_path_.Append(info.GetName()));
-            } else {
-              pending_paths_.push(info.content_uri_);
-            }
+            pending_paths_.push(info.content_uri_);
             pending_subdirs_.push(subdirs_);
             pending_subdirs_.top().push_back(info.GetName().value());
           }
@@ -310,7 +306,7 @@ FilePath FileEnumerator::Next() {
   }
 
 #if BUILDFLAG(IS_ANDROID)
-  if (root_path_.IsContentUri()) {
+  if (root_path_.IsContentUri() || root_path_.IsVirtualDocumentPath()) {
     return directory_entries_[current_directory_entry_].content_uri_;
   }
 #endif

@@ -8,7 +8,7 @@
 #include <optional>
 
 #include "android_webview/browser/aw_browser_context.h"
-#include "android_webview/browser/http_headers/aw_origin_matched_header.h"
+#include "android_webview/browser/aw_origin_matched_header.h"
 #include "android_webview/browser/metrics/aw_metrics_service_accessor.h"
 #include "android_webview/browser/metrics/aw_metrics_service_client.h"
 #include "android_webview/browser/network_service/aw_proxying_url_loader_factory.h"
@@ -22,7 +22,6 @@
 #include "base/check_is_test.h"
 #include "base/no_destructor.h"
 #include "base/notimplemented.h"
-#include "base/timer/elapsed_timer.h"
 #include "base/trace_event/trace_event.h"
 #include "components/prefs/pref_registry_simple.h"
 #include "components/prefs/pref_service.h"
@@ -30,7 +29,6 @@
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/prefetch_deduplication_utils.h"
 #include "content/public/browser/preload_pipeline_info.h"
-#include "content/public/browser/storage_partition.h"
 #include "content/public/common/content_constants.h"
 #include "content/public/common/content_features.h"
 
@@ -68,6 +66,9 @@ void NotifyStartFailedDuplicate(
 }
 
 }  // namespace
+
+BASE_FEATURE(kWebViewPrefetchDisableBlockUntilHeadTimeout,
+             base::FEATURE_ENABLED_BY_DEFAULT);
 
 // Listens to the status of a prefetch request and propagates it to Java
 // callbacks.
@@ -150,12 +151,6 @@ static PrefService* g_pref_service_for_testing = nullptr;
 // thread.
 network::HttpRequestHeadersUpdateParams GetAwPrefetchHeadersOnNonUIThread(
     const network::ResourceRequest& request) {
-  if (::features::kPrefetchOffTheMainThreadCheckWillCreateURLLoaderFactory
-          .Get()) {
-    // The headers below will be added via `AwProxyingURLLoaderFactory`.
-    return {};
-  }
-
   network::HttpRequestHeadersUpdateParams headers_update_params;
   // We can safely ignore any processing handled in
   // `shouldInterceptRequest`, because prefetch intentionally bypasses it.
@@ -436,13 +431,11 @@ int AwPrefetchManager::StartRequest(
         additional_headers, std::move(request_status_listener),
         base::Seconds(aw_prefetch_manager_data_.GetTtlInSec()),
         /*should_append_variations_header=*/false,
-        /*should_disable_block_until_head_timeout=*/true,
+        base::FeatureList::IsEnabled(
+            kWebViewPrefetchDisableBlockUntilHeadTimeout),
         should_bypass_http_cache);
   } else {
     DCHECK_CURRENTLY_ON(BrowserThread::UI);
-    bool was_blocked = !browser_context_->GetDefaultStoragePartition()
-                            ->IsNetworkContextInitialized();
-    base::ElapsedTimer timer;
     prefetch_handle = browser_context_->StartBrowserPrefetchRequest(
         pf_url, AW_PREFETCH_METRICS_SUFFIX, javascript_enabled,
         expected_no_vary_search,
@@ -454,10 +447,9 @@ int AwPrefetchManager::StartRequest(
         std::move(request_status_listener),
         base::Seconds(aw_prefetch_manager_data_.GetTtlInSec()),
         /*should_append_variations_header=*/false,
-        /*should_disable_block_until_head_timeout=*/true,
+        base::FeatureList::IsEnabled(
+            kWebViewPrefetchDisableBlockUntilHeadTimeout),
         should_bypass_http_cache);
-    AwBrowserContext::RecordNetworkContextInitializationBlocking(
-        "Prefetch", timer.Elapsed(), was_blocked);
   }
 
   if (IsWebViewPrefetchOffTheMainThreadEnabled()) {

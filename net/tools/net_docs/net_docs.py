@@ -8,6 +8,7 @@
 files passed as arguments. Intended for rendering network stack documentation
 stored as Markdown in the source tree to a human-readable format."""
 
+
 import argparse
 import os.path
 import sys
@@ -58,9 +59,8 @@ def FormatPage(markdown_html, title):
   return TEMPLATE.format(title=title, body=markdown_html)
 
 
-def ProcessDocs(
-  input_filenames, input_pathname, output_pathname, extensions=None
-):
+def ProcessDocs(input_filenames, input_pathname, output_pathname,
+                extensions=None):
   """Processes a list of Markdown documentation files.
 
   If input_pathname and output_pathname are specified, outputs HTML files
@@ -105,18 +105,11 @@ def ProcessDocs(
 
 def main():
   parser = argparse.ArgumentParser(
-    description='Parse and render Markdown documentation'
-  )
-  parser.add_argument(
-    '--input_path',
-    default=None,
-    help="Input path for Markdown; required only if output_path set",
-  )
-  parser.add_argument(
-    '--output_path',
-    default=None,
-    help="Output path for rendered HTML; if unspecified, won't output",
-  )
+      description='Parse and render Markdown documentation')
+  parser.add_argument('--input_path', default=None,
+      help="Input path for Markdown; required only if output_path set")
+  parser.add_argument('--output_path', default=None,
+      help="Output path for rendered HTML; if unspecified, won't output")
   parser.add_argument('filenames', nargs=argparse.REMAINDER)
   args = parser.parse_args()
 

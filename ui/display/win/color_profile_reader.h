@@ -10,9 +10,8 @@
 
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
-#include "skia/ext/color_profile.h"
 #include "ui/display/display_export.h"
-#include "ui/gfx/color_space.h"
+#include "ui/gfx/icc_profile.h"
 
 namespace display {
 namespace win {
@@ -43,7 +42,7 @@ class DISPLAY_EXPORT ColorProfileReader {
 
  private:
   using DisplayIdToPathMap = std::map<int64_t, std::wstring>;
-  using DisplayIdToProfileMap = std::map<int64_t, sk_sp<skia::ColorProfile>>;
+  using DisplayIdToProfileMap = std::map<int64_t, gfx::ICCProfile>;
 
   // Enumerate displays and return a map to their ICC profile path. This
   // needs to be run off of the main thread.

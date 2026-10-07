@@ -1,2 +1,3 @@
-rules:
-- "**": [box-shadow]
+features:
+- name: box-shadow
+  files: "**"

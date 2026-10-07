@@ -4,6 +4,5 @@
 
 import gpu_path_util
 
-gpu_path_util.AddDirToPathIfNeeded(
-  gpu_path_util.CATAPULT_DIR, 'third_party', 'typ'
-)
+gpu_path_util.AddDirToPathIfNeeded(gpu_path_util.CATAPULT_DIR, 'third_party',
+                                   'typ')

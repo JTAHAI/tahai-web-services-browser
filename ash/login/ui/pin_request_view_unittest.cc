@@ -429,15 +429,11 @@ TEST_F(PinRequestViewTest, PinKeyboard) {
   PinRequestWidget* widget = PinRequestWidget::Get();
   auto* view = PinRequestWidget::TestApi(widget).pin_request_view();
   PinRequestView::TestApi test_api(view);
+  LoginPinView::TestApi test_pin_keyboard(test_api.pin_keyboard_view());
   EXPECT_FALSE(test_api.submit_button()->GetEnabled());
 
   for (int i = 0; i < 6; ++i) {
-    views::View* button;
-    {
-      LoginPinView::TestApi test_pin_keyboard(test_api.pin_keyboard_view());
-      button = test_pin_keyboard.GetButton(i);
-    }
-    LeftClickOn(button);
+    LeftClickOn(test_pin_keyboard.GetButton(i));
     base::RunLoop().RunUntilIdle();
   }
   EXPECT_EQ(1, pin_submitted_);

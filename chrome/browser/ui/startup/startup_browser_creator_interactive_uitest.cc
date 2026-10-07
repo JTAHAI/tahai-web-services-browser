@@ -2,8 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "chrome/browser/ui/startup/startup_browser_creator.h"
-
 #include <memory>
 #include <vector>
 
@@ -19,11 +17,13 @@
 #include "chrome/browser/profiles/profile_manager.h"
 #include "chrome/browser/profiles/profile_test_util.h"
 #include "chrome/browser/sessions/session_restore.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window/public/profile_browser_collection.h"
+#include "chrome/browser/ui/startup/startup_browser_creator.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
-#include "chrome/test/base/chrome_test_path_utils.h"
+#include "chrome/test/base/chrome_test_utils.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "content/public/test/browser_test.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -92,10 +92,10 @@ IN_PROC_BROWSER_TEST_F(StartupBrowserCreatorTest, LastUsedProfileActivated) {
   ASSERT_TRUE(new_browser);
   EXPECT_TRUE(new_browser->GetWindow()->IsVisible());
 
-  // When dialog surfaces (bubble or modal) are used for default browser
-  // prompts, focus will be on the dialog instead of the browser window.
-  if (default_browser::GetDefaultBrowserPromptSurface() ==
-      default_browser::DefaultBrowserPromptSurface::kInfobar) {
+  // When bubble dialog surface is used for default browser prompts, focus will
+  // be on the bubble dialog instead.
+  if (default_browser::GetDefaultBrowserPromptSurface() !=
+      default_browser::DefaultBrowserPromptSurface::kBubbleDialog) {
     EXPECT_TRUE(new_browser->GetWindow()->IsActive());
   }
 
@@ -174,7 +174,7 @@ IN_PROC_BROWSER_TEST_F(StartupPageTest, StartupPageFocus) {
 
   // Focus should land in the content area.
   content::WebContents* contents =
-      browser()->GetTabStripModel()->GetActiveWebContents();
+      browser()->tab_strip_model()->GetActiveWebContents();
   EXPECT_TRUE(contents->GetContentNativeView()->HasFocus());
 }
 #endif  // defined(USE_AURA)

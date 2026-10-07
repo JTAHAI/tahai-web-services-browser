@@ -13,6 +13,7 @@
 
 enum class ComposeboxInputPlateControls : unsigned int;
 enum class ComposeboxModelOption;
+@class ComposeboxServerStrings;
 @class ComposeboxUIInputState;
 
 // Consumer for the composebox composebox.
@@ -36,9 +37,6 @@ enum class ComposeboxModelOption;
 
 // Called when the text field height changes.
 - (void)updatePreferredContentSizeForNewTextFieldHeight;
-
-// Whether to force disable the send functionality.
-- (void)disableSending:(BOOL)disableSending;
 
 @end
 

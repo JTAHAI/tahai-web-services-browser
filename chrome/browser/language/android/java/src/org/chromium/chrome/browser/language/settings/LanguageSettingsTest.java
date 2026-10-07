@@ -45,8 +45,8 @@ import org.chromium.chrome.browser.language.R;
 import org.chromium.chrome.browser.preferences.Pref;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.profiles.ProfileManager;
-import org.chromium.chrome.browser.ChromeBaseAppCompatActivity;
-import org.chromium.chrome.browser.settings.SettingsTestRule;
+import org.chromium.chrome.browser.settings.SettingsActivity;
+import org.chromium.chrome.browser.settings.SettingsActivityTestRule;
 import org.chromium.chrome.browser.translate.TranslateBridge;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.components.browser_ui.widget.RecyclerViewTestUtils;
@@ -63,16 +63,15 @@ import org.chromium.ui.listmenu.ListMenuButton;
 @Batch(Batch.PER_CLASS)
 public class LanguageSettingsTest {
     @Rule
-    public final SettingsTestRule<LanguageSettings> mSettingsActivityTestRule =
-            new SettingsTestRule<>(LanguageSettings.class);
+    public final SettingsActivityTestRule<LanguageSettings> mSettingsActivityTestRule =
+            new SettingsActivityTestRule<>(LanguageSettings.class);
 
-    private ChromeBaseAppCompatActivity mActivity;
+    private SettingsActivity mActivity;
     private Profile mProfile;
 
     @Before
     public void setUp() throws Exception {
-        mSettingsActivityTestRule.startSettingsActivity();
-        mActivity = mSettingsActivityTestRule.getActivity();
+        mActivity = mSettingsActivityTestRule.startSettingsActivity();
         mProfile =
                 ThreadUtils.runOnUiThreadBlocking(() -> ProfileManager.getLastUsedRegularProfile());
     }

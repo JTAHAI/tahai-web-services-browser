@@ -12,7 +12,6 @@
 #include "ash/test/ash_test_base.h"
 #include "ash/test/view_drawn_waiter.h"
 #include "base/i18n/rtl.h"
-#include "base/i18n/test/scoped_rtl_for_testing.h"
 #include "base/test/test_future.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -44,7 +43,7 @@ TEST_F(QuickInsertSubmenuControllerTest, ShowsWidget) {
 }
 
 TEST_F(QuickInsertSubmenuControllerTest, ShowsWidgetAlignedWithAnchorLTR) {
-  base::i18n::ScopedRTLForTesting scoped_rtl(false);
+  base::i18n::SetRTLForTesting(false);
   UpdateDisplay("2000x1000");
   QuickInsertSubmenuController controller;
   auto anchor_widget = CreateFramelessTestWidget();
@@ -69,7 +68,7 @@ TEST_F(QuickInsertSubmenuControllerTest, ShowsWidgetAlignedWithAnchorLTR) {
 }
 
 TEST_F(QuickInsertSubmenuControllerTest, ShowsWidgetAlignedWithAnchorRTL) {
-  base::i18n::ScopedRTLForTesting scoped_rtl(true);
+  base::i18n::SetRTLForTesting(true);
   UpdateDisplay("2000x1000");
   QuickInsertSubmenuController controller;
   auto anchor_widget = CreateFramelessTestWidget();

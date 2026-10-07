@@ -1,3 +1,7 @@
-rules:
-- lang-*: [lang]
-- details-open-pseudo-*: [open-pseudo]
+features:
+- name: lang
+  files:
+  - lang-*
+- name: open-pseudo
+  files:
+  - details-open-pseudo-*

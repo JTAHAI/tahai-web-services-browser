@@ -11,19 +11,16 @@
 #include "base/check.h"
 #include "base/feature_list.h"
 #include "base/functional/bind.h"
-#include "base/functional/callback_helpers.h"
 #include "base/logging.h"
 #include "base/memory/raw_ptr.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/time/time.h"
-#include "chrome/browser/ui/content_settings/content_setting_image_view_delegate.h"
 #include "chrome/browser/ui/location_bar/location_bar.h"
 #include "chrome/browser/ui/page_info/page_info_dialog.h"
 #include "chrome/browser/ui/views/content_setting_bubble_contents.h"
 #include "chrome/browser/ui/views/omnibox/omnibox_view_views.h"
 #include "chrome/browser/ui/views/page_info/page_info_bubble_specification.h"
 #include "chrome/browser/ui/views/page_info/page_info_bubble_view.h"
-#include "chrome/browser/ui/views/permissions/chip/permission_chip_constants.h"
 #include "chrome/browser/ui/views/permissions/chip/permission_dashboard_controller.h"
 #include "chrome/browser/ui/views/permissions/chip/permission_dashboard_view.h"
 #include "chrome/browser/ui/views/permissions/chip/permission_prompt_chip_model.h"
@@ -48,6 +45,12 @@
 #include "ui/views/controls/button/button_controller.h"
 #include "ui/views/widget/widget.h"
 
+namespace {
+
+constexpr auto kConfirmationDisplayDuration = base::Seconds(4);
+
+}  // namespace
+
 ChipController::ChipController(
     LocationBar* location_bar,
     ContentSettingImageViewDelegate* content_settings_image_delegate,
@@ -66,7 +69,11 @@ ChipController::~ChipController() {
   if (chip_) {
     chip_->SetBubbleOwner(nullptr);
   }
-  ResetPermissionPromptChip();
+  views::Widget* current = GetBubbleWidget();
+  if (current) {
+    current->RemoveObserver(this);
+    current->Close();
+  }
   if (active_chip_permission_request_manager_.has_value()) {
     active_chip_permission_request_manager_.value()->RemoveObserver(this);
   }
@@ -152,8 +159,8 @@ void ChipController::RestartTimersOnMouseHover() {
   }
 
   if (is_confirmation_showing_) {
-    collapse_timer_.Start(FROM_HERE, kPermissionConfirmationDisplayDuration,
-                          this, &ChipController::CollapseConfirmation);
+    collapse_timer_.Start(FROM_HERE, kConfirmationDisplayDuration, this,
+                          &ChipController::CollapseConfirmation);
   } else if (chip_->IsFullyCollapsed()) {
     // Quiet chip can collapse from a verbose state to an icon state. After it
     // is collapsed, it should be dismissed.
@@ -347,11 +354,8 @@ void ChipController::ShowPermissionUi(
   SyncChipWithModel();
 
   chip_->SetBubbleOwner(this);
-  // Discard `is_pointer_interaction` (indicating pointer vs. keyboard event)
-  // as it is not needed when handling request chip presses.
-  chip_->SetPressedCallback(base::IgnoreArgs<bool>(
-      base::BindRepeating(&ChipController::OnRequestChipButtonPressed,
-                          weak_factory_.GetWeakPtr())));
+  chip_->SetPressedCallback(base::BindRepeating(
+      &ChipController::OnRequestChipButtonPressed, weak_factory_.GetWeakPtr()));
   chip_->ResetAnimation(PermissionChipInterface::AnimationState::kCollapsed);
   ObservePromptBubble();
 
@@ -399,7 +403,7 @@ void ChipController::RemoveBubbleObserverAndResetTimersAndChipCallbacks() {
   }
 
   // Reset button click callback
-  chip_->SetPressedCallback(base::RepeatingCallback<void(bool)>());
+  chip_->SetPressedCallback(base::RepeatingClosure());
 
   ResetTimers();
 }
@@ -538,16 +542,14 @@ void ChipController::HandleConfirmation(
       AnimateExpand();
     }
 
-    // Discard `is_pointer_interaction` (indicating pointer vs. keyboard event)
-    // as it is not needed when showing the page info dialog.
-    chip_->SetPressedCallback(base::IgnoreArgs<bool>(base::BindRepeating(
-        &ChipController::ShowPageInfoDialog, weak_factory_.GetWeakPtr())));
+    chip_->SetPressedCallback(base::BindRepeating(
+        &ChipController::ShowPageInfoDialog, weak_factory_.GetWeakPtr()));
     AnnouncePermissionRequestForAccessibility(
         permission_prompt_model_->GetAccessibilityChipText());
 
     if (!do_no_collapse_for_testing_) {
-      collapse_timer_.Start(FROM_HERE, kPermissionConfirmationDisplayDuration,
-                            this, &ChipController::CollapseConfirmation);
+      collapse_timer_.Start(FROM_HERE, kConfirmationDisplayDuration, this,
+                            &ChipController::CollapseConfirmation);
     }
   } else {
     ResetPermissionPromptChip();
@@ -617,7 +619,6 @@ void ChipController::HideChip() {
 void ChipController::OpenPermissionPromptBubble() {
   DCHECK(!IsBubbleShowing());
   if (!permission_prompt_model_ || !permission_prompt_model_->GetDelegate() ||
-      permission_prompt_model_->GetDelegate()->Requests().empty() ||
       !location_bar_->GetWebContents()) {
     return;
   }
@@ -659,7 +660,7 @@ void ChipController::OpenPermissionPromptBubble() {
               std::make_unique<ContentSettingQuietRequestBubbleModel>(
                   content_settings_image_delegate_
                       ->GetContentSettingBubbleModelDelegate(),
-                  web_contents->GetPrimaryPage());
+                  web_contents);
       ui::TrackedElement* anchor = location_bar_->GetAnchorOrNull();
       DCHECK(anchor);  // We should get here only if location bar is visible.
       ContentSettingBubbleContents* quiet_request_bubble =

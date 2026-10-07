@@ -6,10 +6,8 @@
 #define COMPONENTS_AUTOFILL_CORE_BROWSER_INTEGRATORS_ONE_TIME_TOKENS_OTP_MANAGER_IMPL_H_
 
 #include <optional>
-#include <string>
 #include <vector>
 
-#include "base/callback_list.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/raw_ref.h"
 #include "base/memory/weak_ptr.h"
@@ -23,13 +21,10 @@
 #include "components/one_time_tokens/core/browser/one_time_token_retrieval_error.h"
 #include "components/one_time_tokens/core/browser/one_time_token_service.h"
 #include "components/one_time_tokens/core/browser/util/expiring_subscription.h"
-#include "url/origin.h"
 
 namespace autofill {
 
 class BrowserAutofillManager;
-class FormStructure;
-class LogBuffer;
 
 // Used for histograms. Do not reorder.
 enum class OneTimeTokensPhishGuardVerdict {
@@ -38,9 +33,6 @@ enum class OneTimeTokensPhishGuardVerdict {
   kNotPhishing = 2,
   kMaxValue = kNotPhishing,
 };
-
-LogBuffer& operator<<(LogBuffer& buffer,
-                      OneTimeTokensPhishGuardVerdict verdict);
 
 // This class triggers the fetching of OTPs from the `OneTimeTokenService` as
 // soon as `OnFieldTypesDetermined()` is notified about the classification of
@@ -61,9 +53,7 @@ class OtpManagerImpl : public OtpManager, public AutofillManager::Observer {
   // OtpManager:
   // Returns any cached OTPs (if they exist) and renews a subscription so that
   // incoming OTPs can be reported.
-  void GetOtpSuggestions(const FormStructure& form,
-                         const url::Origin& origin,
-                         GetOtpSuggestionsCallback callback) override;
+  void GetOtpSuggestions(GetOtpSuggestionsCallback callback) override;
 
   // AutofillManager::Observer:
   void OnFieldTypesDetermined(AutofillManager& manager,
@@ -74,9 +64,6 @@ class OtpManagerImpl : public OtpManager, public AutofillManager::Observer {
                                 FormGlobalId form,
                                 FieldGlobalId field) override;
   void OnBeforeFocusOnNonFormField(AutofillManager& manager) override;
-
-  // Callback handler for `log_subscription_`.
-  void OnLogMessage(std::string_view message);
 
   // Returns the most recent token from a list of tokens. Relevance is
   // determined by the on-device arrival time.
@@ -113,14 +100,10 @@ class OtpManagerImpl : public OtpManager, public AutofillManager::Observer {
   // Subscription to a `OneTimetokenService`.
   one_time_tokens::ExpiringSubscription subscription_;
 
-  // Subscription to log events of `one_time_token_services_`.
-  base::CallbackListSubscription log_subscription_;
-
   // Only the last call from the UI to generate suggestions is retained as such
   // a callback corresponds to the desire to show an autofill dropdown. A new
   // call to `GetOtpSuggestions()` invalidates the previous call.
   GetOtpSuggestionsCallback last_pending_get_suggestions_callback_;
-  url::Origin last_pending_field_origin_;
 
   // The time when the phish guard check was started.
   base::TimeTicks phish_guard_check_start_time_;

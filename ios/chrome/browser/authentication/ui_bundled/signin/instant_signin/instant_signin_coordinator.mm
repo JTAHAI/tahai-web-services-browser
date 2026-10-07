@@ -72,7 +72,7 @@
                               contextStyle:contextStyle
                                accessPoint:accessPoint];
   if (self) {
-    CHECK(viewController);
+    CHECK(viewController, base::NotFatalUntil::M142);
     CHECK(continuationProvider);
     _identity = identity;
     _promoAction = promoAction;
@@ -94,7 +94,8 @@
   [super start];
   signin::IdentityManager* identityManager =
       IdentityManagerFactory::GetForProfile(self.profile->GetOriginalProfile());
-  CHECK(!identityManager->HasPrimaryAccount(signin::ConsentLevel::kSignin));
+  CHECK(!identityManager->HasPrimaryAccount(signin::ConsentLevel::kSignin),
+        base::NotFatalUntil::M148);
   metrics::ProfileMetricsService* profileMetricsService =
       IOSProfileMetricsServiceFactory::GetForProfile(
           self.profile->GetOriginalProfile());
@@ -168,9 +169,9 @@
   } else {
     [self stopActivityOverlay];
   }
-  CHECK(!_addAccountSigninCoordinator);
-  CHECK(!_activityOverlayCoordinator);
-  CHECK(!_identityChooserCoordinator);
+  CHECK(!_addAccountSigninCoordinator, base::NotFatalUntil::M145);
+  CHECK(!_activityOverlayCoordinator, base::NotFatalUntil::M145);
+  CHECK(!_identityChooserCoordinator, base::NotFatalUntil::M145);
   _signinLogger = nil;
   // Methods on mediator's delegate should not be called anymore. If the sign-in
   // is progress, when calling the mediator disconnect method, it will call
@@ -270,7 +271,7 @@
 
 - (void)instantSigninMediatorSigninIsImpossible:
     (InstantSigninMediator*)mediator {
-  CHECK_EQ(mediator, _mediator);
+  CHECK_EQ(mediator, _mediator, base::NotFatalUntil::M144);
   [self runCompletionWithSigninResult:SigninCoordinatorResultInterrupted
                    completionIdentity:nil];
 }

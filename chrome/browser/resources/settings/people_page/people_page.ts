@@ -13,70 +13,81 @@ import 'chrome://resources/cr_elements/cr_link_row/cr_link_row.js';
 import 'chrome://resources/cr_elements/cr_toast/cr_toast.js';
 import 'chrome://resources/cr_elements/icons.html.js';
 import 'chrome://resources/cr_elements/policy/cr_policy_indicator.js';
+import 'chrome://resources/cr_elements/cr_shared_style.css.js';
+import 'chrome://resources/cr_elements/cr_shared_vars.css.js';
 import '../controls/settings_toggle_button.js';
 // <if expr="not is_chromeos">
 import './sync_account_control.js';
 // </if>
 import '../icons.html.js';
 import '../settings_page/settings_section.js';
+import '../settings_shared.css.js';
 
 import type {ProfileInfo} from '/shared/settings/people_page/profile_info_browser_proxy.js';
 import {ProfileInfoBrowserProxyImpl} from '/shared/settings/people_page/profile_info_browser_proxy.js';
 import type {StoredAccount, SyncBrowserProxy, SyncStatus} from '/shared/settings/people_page/sync_browser_proxy.js';
-import {SignedInState, StatusAction, SyncBrowserProxyImpl} from '/shared/settings/people_page/sync_browser_proxy.js';
+import {ChromeSigninAccessPoint, SignedInState, StatusAction, SyncBrowserProxyImpl} from '/shared/settings/people_page/sync_browser_proxy.js';
 // <if expr="is_chromeos">
 import {convertImageSequenceToPng} from 'chrome://resources/ash/common/cr_picture/png.js';
 // </if>
 import type {CrToastElement} from 'chrome://resources/cr_elements/cr_toast/cr_toast.js';
-import {WebUiListenerMixinLit} from 'chrome://resources/cr_elements/web_ui_listener_mixin_lit.js';
+import {WebUiListenerMixin} from 'chrome://resources/cr_elements/web_ui_listener_mixin.js';
 import {assert, assertNotReached} from 'chrome://resources/js/assert.js';
 import {focusWithoutInk} from 'chrome://resources/js/focus_without_ink.js';
 import {getImage} from 'chrome://resources/js/icon.js';
 import {OpenWindowProxyImpl} from 'chrome://resources/js/open_window_proxy.js';
 import {isChromeOS} from 'chrome://resources/js/platform.js';
-import {CrLitElement} from 'chrome://resources/lit/v3_0/lit.rollup.js';
-import type {PropertyValues} from 'chrome://resources/lit/v3_0/lit.rollup.js';
+import {PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
 import {loadTimeData} from '../i18n_setup.js';
 import {routes} from '../route.js';
 import type {Route} from '../router.js';
-import {Router} from '../router.js';
-import {SettingsViewMixinLit} from '../settings_page/settings_view_mixin_lit.js';
+import {RouteObserverMixin, Router} from '../router.js';
+import {SettingsViewMixin} from '../settings_page/settings_view_mixin.js';
+
+// </if>
 
 // <if expr="is_chromeos">
 import {AccountManagerBrowserProxyImpl} from './account_manager_browser_proxy.js';
 // </if>
 
-import {getCss} from './people_page.css.js';
-import {getHtml} from './people_page.html.js';
+import {getTemplate} from './people_page.html.js';
 
 export interface SettingsPeoplePageElement {
   $: {
-    // <if expr="not is_chromeos">
     importDataDialogTrigger: HTMLElement,
-    // </if>
     toast: CrToastElement,
   };
 }
 
+// <if expr="not is_chromeos">
 const SettingsPeoplePageElementBase =
-    SettingsViewMixinLit(WebUiListenerMixinLit(CrLitElement));
+    SettingsViewMixin(RouteObserverMixin(WebUiListenerMixin(PolymerElement)));
+// </if>
+// <if expr="is_chromeos">
+const SettingsPeoplePageElementBase =
+    SettingsViewMixin(WebUiListenerMixin(PolymerElement));
+// </if>
 
 export class SettingsPeoplePageElement extends SettingsPeoplePageElementBase {
   static get is() {
     return 'settings-people-page';
   }
 
-  static override get styles() {
-    return getCss();
+  static get template() {
+    return getTemplate();
   }
 
-  override render() {
-    return getHtml.bind(this)();
-  }
-
-  static override get properties() {
+  static get properties() {
     return {
+      /**
+       * Preferences state.
+       */
+      prefs: {
+        type: Object,
+        notify: true,
+      },
+
       /**
        * This flag is used to conditionally show a set of new sign-in UIs to the
        * profiles that have been migrated to be consistent with the web
@@ -85,7 +96,12 @@ export class SettingsPeoplePageElement extends SettingsPeoplePageElementBase {
        * migrated, this should be removed, and UIs hidden behind it should
        * become default.
        */
-      signinAllowed_: {type: Boolean},
+      signinAllowed_: {
+        type: Boolean,
+        value() {
+          return loadTimeData.getBoolean('signinAllowed');
+        },
+      },
 
       /**
        * This property stores whether the profile is a Dasherless profiles,
@@ -93,76 +109,113 @@ export class SettingsPeoplePageElement extends SettingsPeoplePageElementBase {
        * sign in and sync service will be different because they are not
        * available for these profiles.
        */
-      isDasherlessProfile_: {type: Boolean},
+      isDasherlessProfile_: {
+        type: Boolean,
+        value() {
+          return loadTimeData.getBoolean('isDasherlessProfile');
+        },
+      },
 
       // <if expr="not is_chromeos">
       /**
        * Stored accounts to the system, supplied by SyncBrowserProxy.
        */
-      storedAccounts: {type: Array},
+      storedAccounts: Object,
       // </if>
 
       /**
        * The current sync status, supplied by SyncBrowserProxy.
        */
-      syncStatus: {type: Object},
+      syncStatus: Object,
 
       /**
        * Authentication token provided by settings-lock-screen.
        */
-      authToken_: {type: String},
+      authToken_: {
+        type: String,
+        value: '',
+      },
 
       /**
        * The currently selected profile icon URL. May be a data URL.
        */
-      profileIconUrl_: {type: String},
+      profileIconUrl_: String,
 
       /**
        * Whether the profile row is clickable. The behavior depends on the
        * platform.
        */
-      isProfileActionable_: {type: Boolean},
+      isProfileActionable_: {
+        type: Boolean,
+        value() {
+          if (!isChromeOS) {
+            // Opens profile manager.
+            return true;
+          }
+          // Post-SplitSettings links out to account manager if it is available.
+          return loadTimeData.getBoolean('isAccountManagerEnabled');
+        },
+        readOnly: true,
+      },
 
       /**
        * The current profile name.
        */
-      profileName_: {type: String},
+      profileName_: String,
 
-      primaryAccountName_: {type: String},
-      primaryAccountEmail_: {type: String},
-      primaryAccountIconUrl_: {type: String},
+      primaryAccountName_: String,
+      primaryAccountEmail_: String,
+      primaryAccountIconUrl_: String,
 
-      replaceSyncPromosWithSignInPromos_: {type: Boolean},
+      replaceSyncPromosWithSignInPromos_: {
+        type: Boolean,
+        value: () =>
+            loadTimeData.getBoolean('replaceSyncPromosWithSignInPromos'),
+      },
 
       // <if expr="not is_chromeos">
-      shouldShowGoogleAccount_: {type: Boolean},
-      showImportDataDialog_: {type: Boolean},
-      showSignoutDialog_: {type: Boolean},
+      shouldShowGoogleAccount_: {
+        type: Boolean,
+        value: false,
+        computed:
+            'computeShouldShowGoogleAccount_(storedAccounts, syncStatus,' +
+            'storedAccounts.length, syncStatus.signedIn, syncStatus.hasError)',
+      },
+
+      showImportDataDialog_: {
+        type: Boolean,
+        value: false,
+      },
+
+      showSignoutDialog_: Boolean,
       // </if>
+
+      // Exposes ChromeSigninAccessPoint enum to HTML bindings.
+      accessPointEnum_: {
+        type: Object,
+        value: ChromeSigninAccessPoint,
+      },
     };
   }
 
-  protected accessor signinAllowed_: boolean =
-      loadTimeData.getBoolean('signinAllowed');
-  protected accessor isDasherlessProfile_: boolean =
-      loadTimeData.getBoolean('isDasherlessProfile');
-  accessor syncStatus: SyncStatus|null = null;
-  protected accessor authToken_: string = '';
-  protected accessor profileIconUrl_: string = '';
-  protected accessor isProfileActionable_: boolean =
-      !isChromeOS || loadTimeData.getBoolean('isAccountManagerEnabled');
-  protected accessor profileName_: string = '';
-  protected accessor replaceSyncPromosWithSignInPromos_: boolean =
-      loadTimeData.getBoolean('replaceSyncPromosWithSignInPromos');
-  protected accessor primaryAccountName_: string = '';
-  protected accessor primaryAccountEmail_: string = '';
-  protected accessor primaryAccountIconUrl_: string = '';
+  declare prefs: Record<string, unknown>;
+  declare private signinAllowed_: boolean;
+  declare private isDasherlessProfile_: boolean;
+  declare syncStatus: SyncStatus|null;
+  declare private authToken_: string;
+  declare private profileIconUrl_: string;
+  declare private isProfileActionable_: boolean;
+  declare private profileName_: string;
+  declare private replaceSyncPromosWithSignInPromos_: boolean;
+  declare private primaryAccountName_: string;
+  declare private primaryAccountEmail_: string;
+  declare private primaryAccountIconUrl_: string;
 
   // <if expr="not is_chromeos">
-  accessor storedAccounts: StoredAccount[]|null = null;
-  protected accessor shouldShowGoogleAccount_: boolean = false;
-  protected accessor showImportDataDialog_: boolean = false;
-  protected accessor showSignoutDialog_: boolean = false;
+  declare storedAccounts: StoredAccount[]|null;
+  declare private shouldShowGoogleAccount_: boolean;
+  declare private showImportDataDialog_: boolean;
+  declare private showSignoutDialog_: boolean;
   // </if>
 
   private syncBrowserProxy_: SyncBrowserProxy =
@@ -205,17 +258,6 @@ export class SettingsPeoplePageElement extends SettingsPeoplePageElementBase {
     });
     // </if>
   }
-
-  // <if expr="not is_chromeos">
-  override willUpdate(changedProperties: PropertyValues<this>) {
-    super.willUpdate(changedProperties);
-
-    if (changedProperties.has('storedAccounts') ||
-        changedProperties.has('syncStatus')) {
-      this.shouldShowGoogleAccount_ = this.computeShouldShowGoogleAccount_();
-    }
-  }
-  // </if>
 
   // <if expr="not is_chromeos">
   override currentRouteChanged(newRoute: Route, oldRoute?: Route) {
@@ -279,27 +321,48 @@ export class SettingsPeoplePageElement extends SettingsPeoplePageElementBase {
    * Handler for when the sync state is pushed from the browser.
    */
   private handleSyncStatus_(syncStatus: SyncStatus) {
+    // <if expr="is_chromeos">
     this.syncStatus = syncStatus;
+    // </if>
+    // <if expr="not is_chromeos">
+    // Sign-in impressions should be recorded only if the sign-in promo is
+    // shown. They should be recorder only once, the first time
+    // |this.syncStatus| is set.
+    // With `ReplaceSyncPromosWithSignInPromos`, this is not a sign in promo, so
+    // we should not record.
+    const shouldRecordSigninImpression = !this.syncStatus && syncStatus &&
+        this.signinAllowed_ && !this.isSyncing_() &&
+        !this.replaceSyncPromosWithSignInPromos_;
+
+    this.syncStatus = syncStatus;
+
+    if (shouldRecordSigninImpression && !this.shouldShowSyncAccountControl_()) {
+      // SyncAccountControl records the impressions user actions.
+      chrome.metricsPrivate.recordUserAction('Signin_Impression_FromSettings');
+    }
+    // </if>
   }
 
   // <if expr="not is_chromeos">
   private computeShouldShowGoogleAccount_(): boolean {
-    if (!this.storedAccounts || !this.syncStatus) {
+    if (this.storedAccounts === undefined || this.syncStatus === undefined) {
       return false;
     }
 
-    if (this.syncStatus.hasError &&
-        this.syncStatus.statusAction !== StatusAction.UPGRADE_CLIENT &&
-        this.syncStatus.statusAction !==
+    if (this.syncStatus!.hasError &&
+        this.syncStatus!.statusAction !== StatusAction.UPGRADE_CLIENT &&
+        this.syncStatus!.statusAction !==
             StatusAction.SHOW_BOOKMARKS_LIMIT_HELP_ARTICLE) {
       return false;
     }
 
-    return this.isSyncing_();
+    return (!this.replaceSyncPromosWithSignInPromos_ &&
+            this.storedAccounts!.length > 0) ||
+        this.isSyncing_();
   }
   // </if>
 
-  protected onProfileClick_() {
+  private onProfileClick_() {
     // <if expr="is_chromeos">
     if (loadTimeData.getBoolean('isAccountManagerEnabled')) {
       // Post-SplitSettings. The browser C++ code loads OS settings in a window.
@@ -313,7 +376,7 @@ export class SettingsPeoplePageElement extends SettingsPeoplePageElementBase {
   }
 
   // <if expr="not is_chromeos">
-  protected onDisconnectDialogClose_() {
+  private onDisconnectDialogClosed_() {
     this.showSignoutDialog_ = false;
 
     if (Router.getInstance().getCurrentRoute() === routes.SIGN_OUT) {
@@ -322,44 +385,44 @@ export class SettingsPeoplePageElement extends SettingsPeoplePageElementBase {
   }
   // </if>
 
-  protected onSyncClick_() {
+  private onSyncClick_() {
     // Users can go to sync subpage regardless of sync status.
     Router.getInstance().navigateTo(routes.SYNC);
   }
 
-  protected onAccountClick_() {
+  private onAccountClick_() {
     Router.getInstance().navigateTo(routes.ACCOUNT);
   }
 
-  protected onGoogleServicesClick_() {
+  private onGoogleServicesClick_() {
     Router.getInstance().navigateTo(routes.GOOGLE_SERVICES);
   }
 
-  protected shouldLinkToAccountSettingsPage_(): boolean {
+  private shouldLinkToAccountSettingsPage_(): boolean {
     return this.replaceSyncPromosWithSignInPromos_ && !!this.syncStatus &&
         this.syncStatus.signedInState === SignedInState.SIGNED_IN;
   }
 
   // <if expr="not is_chromeos">
-  protected onImportDataClick_() {
+  private onImportDataClick_() {
     Router.getInstance().navigateTo(routes.IMPORT_DATA);
   }
 
-  protected onImportDataDialogClose_() {
+  private onImportDataDialogClosed_() {
     Router.getInstance().navigateToPreviousRoute();
     focusWithoutInk(this.$.importDataDialogTrigger);
   }
 
-  protected shouldLinkToProfileRow_(): boolean {
+  private shouldLinkToProfileRow_(): boolean {
     return !this.shouldShowSyncAccountControl_() &&
         !this.shouldLinkToAccountSettingsPage_();
   }
 
-  protected shouldShowSyncAccountControl_(): boolean {
-    if (!this.syncStatus) {
+  private shouldShowSyncAccountControl_(): boolean {
+    if (this.syncStatus === undefined) {
       return false;
     }
-    return !!this.syncStatus.syncSystemEnabled && this.signinAllowed_ &&
+    return !!this.syncStatus!.syncSystemEnabled && this.signinAllowed_ &&
         !this.shouldLinkToAccountSettingsPage_();
   }
 
@@ -381,7 +444,7 @@ export class SettingsPeoplePageElement extends SettingsPeoplePageElementBase {
   /**
    * Open URL for managing your Google Account.
    */
-  protected onGoogleAccountClick_() {
+  private openGoogleAccount_() {
     OpenWindowProxyImpl.getInstance().openUrl(
         loadTimeData.getString('googleAccountUrl'));
     chrome.metricsPrivate.recordUserAction('ManageGoogleAccount_Clicked');
@@ -390,19 +453,19 @@ export class SettingsPeoplePageElement extends SettingsPeoplePageElementBase {
   /**
    * @return A CSS image-set for multiple scale factors.
    */
-  protected getIconImageSet_(iconUrl?: string): string {
+  private getIconImageSet_(iconUrl?: string): string {
     if (!iconUrl) {
       return '';
     }
     return getImage(iconUrl);
   }
 
-  protected isSyncing_() {
+  private isSyncing_() {
     return !!this.syncStatus &&
         this.syncStatus.signedInState === SignedInState.SYNCING;
   }
 
-  protected getSyncAndNonPersonalizedServicesSubtext_(): string {
+  private getSyncAndNonPersonalizedServicesSubtext_(): string {
     // <if expr="is_chromeos">
     if (this.syncStatus && this.syncStatus.hasError &&
         this.syncStatus.statusText) {
@@ -412,13 +475,13 @@ export class SettingsPeoplePageElement extends SettingsPeoplePageElementBase {
     return '';
   }
 
-  protected shouldHideSyncSetupLinkRow_() {
+  private shouldHideSyncSetupLinkRow_() {
     return this.replaceSyncPromosWithSignInPromos_ &&
         (!this.syncStatus ||
          this.syncStatus.signedInState !== SignedInState.SYNCING);
   }
 
-  protected getAccountRowSubtitle_(): string {
+  private getAccountRowSubtitle_(): string {
     if (this.syncStatus && this.syncStatus.statusText) {
       if (this.syncStatus.statusAction === StatusAction.ENTER_PASSPHRASE) {
         return loadTimeData.substituteString(
@@ -493,7 +556,8 @@ export class SettingsPeoplePageElement extends SettingsPeoplePageElementBase {
 
     assert(triggerId);
 
-    const control = this.shadowRoot.querySelector<HTMLElement>(`#${triggerId}`);
+    const control =
+        this.shadowRoot!.querySelector<HTMLElement>(`#${triggerId}`);
     assert(
         control,
         `Failed to find associated control for child '${childViewId}'`);

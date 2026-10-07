@@ -15,10 +15,7 @@ import org.junit.runner.RunWith;
 import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.CommandLineFlags;
-import org.chromium.base.test.util.DisabledTest;
-import org.chromium.base.test.util.Features.DisableFeatures;
 import org.chromium.base.test.util.RequiresRestart;
-import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.chrome.test.transit.AutoResetCtaTransitTestRule;
@@ -30,7 +27,6 @@ import org.chromium.components.profile_metrics.BrowserProfileType;
 @RunWith(ChromeJUnit4ClassRunner.class)
 @Batch(Batch.PER_CLASS)
 @CommandLineFlags.Add({ChromeSwitches.DISABLE_FIRST_RUN_EXPERIENCE})
-@DisableFeatures(ChromeFeatureList.SETTINGS_IN_TAB) // crbug.com/521895796
 public class ProfileTest {
     @Rule
     public final AutoResetCtaTransitTestRule mActivityTestRule =
@@ -48,7 +44,6 @@ public class ProfileTest {
     /** Test if two calls for incognito profile return the same object. */
     @Test
     @LargeTest
-    @DisabledTest(message = "crbug.com/549119110")
     public void testIncognitoProfileConsistency() {
         Assert.assertNull(mRegularProfile.getOtrProfileId());
         // Open an new Incognito Tab page to create a new primary OTR profile.

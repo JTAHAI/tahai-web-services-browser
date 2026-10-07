@@ -16,8 +16,7 @@
 #import "ios/chrome/browser/assistant/ui/assistant_container_view.h"
 #import "ios/chrome/browser/assistant/ui/assistant_grabber_button.h"
 #import "ios/chrome/browser/keyboard/ui_bundled/UIKeyCommand+Chrome.h"
-#import "ios/chrome/browser/shared/coordinator/scene/state/browser_layout_state.h"
-#import "ios/chrome/browser/shared/coordinator/scene/state/scene_layout_state.h"
+#import "ios/chrome/browser/shared/coordinator/scene/state/layout_state.h"
 #import "ios/chrome/browser/shared/public/features/features.h"
 #import "ios/chrome/browser/shared/ui/chrome_overlay_window/chrome_overlay_container_view.h"
 #import "ios/chrome/browser/shared/ui/util/layout_constants.h"
@@ -74,8 +73,7 @@ inline LayoutStateAssistantPassKey PassKey() {
 
 @interface AssistantContainerViewController () <
     AssistantContainerAccessibilityManagerDelegate,
-    BrowserLayoutStateObserver,
-    SceneLayoutStateObserver,
+    LayoutStateObserver,
     UIGestureRecognizerDelegate>
 @end
 
@@ -279,12 +277,6 @@ inline LayoutStateAssistantPassKey PassKey() {
   return kInvalidDetentHeight;
 }
 
-- (void)animateToDetent:(AssistantContainerDetent)detent {
-  [self animateToDetent:detent
-               duration:kAssistantSheetSpringDuration
-                  curve:UIViewAnimationCurveEaseInOut];
-}
-
 - (void)animateToDetent:(AssistantContainerDetent)detentIdentifier
                duration:(NSTimeInterval)duration
                   curve:(UIViewAnimationCurve)curve {
@@ -344,10 +336,10 @@ inline LayoutStateAssistantPassKey PassKey() {
   BOOL isSheetPresented = presented && isSheet;
   CGFloat targetRadius =
       isSheetPresented ? (_bottomCornerRadius + _bottomMargin) : 0.0;
-  [self.sceneLayoutState setAssistantContainerCutoutRadius:targetRadius
-                                                   passKey:PassKey()];
-  [self.sceneLayoutState setAssistantContainerInvoked:isSheetPresented
+  [self.layoutState setAssistantContainerCutoutRadius:targetRadius
                                               passKey:PassKey()];
+  [self.layoutState setAppBarLockedInFullscreen:isSheetPresented
+                                        passKey:PassKey()];
 }
 
 - (BOOL)isGrabberHidden {
@@ -370,25 +362,18 @@ inline LayoutStateAssistantPassKey PassKey() {
 
 #pragma mark - Properties
 
-- (void)setBrowserLayoutState:(BrowserLayoutState*)browserLayoutState {
-  if (_browserLayoutState == browserLayoutState) {
+- (void)setLayoutState:(LayoutState*)layoutState {
+  if (_layoutState == layoutState) {
     return;
   }
-  [_browserLayoutState removeObserver:self];
-  _browserLayoutState = browserLayoutState;
-  [_browserLayoutState addObserver:self];
-}
+  [_layoutState removeObserver:self];
+  _layoutState = layoutState;
+  [_layoutState addObserver:self];
 
-- (void)setSceneLayoutState:(SceneLayoutState*)sceneLayoutState {
-  if (_sceneLayoutState == sceneLayoutState) {
-    return;
+  if (_layoutState) {
+    [self updatePresentationContextForSupportedState:
+              _layoutState.containedLayoutSupported];
   }
-  [_sceneLayoutState removeObserver:self];
-  _sceneLayoutState = sceneLayoutState;
-  [_sceneLayoutState addObserver:self];
-  [self
-      updatePresentationContextForSupportedState:sceneLayoutState
-                                                     .containedLayoutSupported];
 }
 
 - (void)setPresentationContext:
@@ -399,9 +384,8 @@ inline LayoutStateAssistantPassKey PassKey() {
   _presentationContext = presentationContext;
 
   if (_presentationContext != AssistantPresentationContext::kSheet) {
-    [self.sceneLayoutState setAssistantContainerCutoutRadius:0.0
-                                                     passKey:PassKey()];
-    [self.sceneLayoutState setAssistantContainerInvoked:NO passKey:PassKey()];
+    [self.layoutState setAssistantContainerCutoutRadius:0.0 passKey:PassKey()];
+    [self.layoutState setAppBarLockedInFullscreen:NO passKey:PassKey()];
   }
 
   if ([self.delegate respondsToSelector:@selector(assistantContainer:
@@ -538,7 +522,9 @@ inline LayoutStateAssistantPassKey PassKey() {
 // Completes the orientation transition by animating to the active detent.
 - (void)completeOrientationTransitionWithDetent:
     (AssistantContainerDetent)detent {
-  [self animateToDetent:detent];
+  [self animateToDetent:detent
+               duration:kAssistantSheetSpringDuration
+                  curve:UIViewAnimationCurveEaseInOut];
 }
 
 // Resumes all the previously paused scroll views.
@@ -596,9 +582,9 @@ inline LayoutStateAssistantPassKey PassKey() {
 
   if (IsChromeNextIaEnabled()) {
     BOOL isAppBarAtBottom =
-        self.sceneLayoutState.appBarPosition == AppBarPosition::kBottom;
+        self.layoutState.appBarPosition == AppBarPosition::kBottom;
     BOOL isToolbarAtTop =
-        self.browserLayoutState.toolbarPosition == ToolbarPosition::kTop;
+        self.layoutState.toolbarPosition == ToolbarPosition::kTop;
     if (isAppBarAtBottom && isToolbarAtTop) {
       constraints.bottom_corner_radius =
           std::max(kAppBarCornerRadius, constraints.bottom_corner_radius);
@@ -631,17 +617,17 @@ inline LayoutStateAssistantPassKey PassKey() {
   }
 }
 
-// Updates the App Bar cutout radius on SceneLayoutState using the current
-// styling values.
+// Updates the App Bar cutout radius on LayoutState using the current styling
+// values.
 - (void)updateLayoutStateCutoutRadius {
   CGFloat radius = 0.0;
   if (self.presentationContext == AssistantPresentationContext::kSheet) {
     radius = _bottomCornerRadius + _bottomMargin;
   }
   if (IsCornerRadiusChangeSignificant(
-          self.sceneLayoutState.assistantContainerCutoutRadius, radius)) {
-    [self.sceneLayoutState setAssistantContainerCutoutRadius:radius
-                                                     passKey:PassKey()];
+          self.layoutState.assistantContainerCutoutRadius, radius)) {
+    [self.layoutState setAssistantContainerCutoutRadius:radius
+                                                passKey:PassKey()];
   }
 }
 
@@ -778,7 +764,9 @@ inline LayoutStateAssistantPassKey PassKey() {
 
   AssistantContainerDetent targetDetent = currentDetents[nextIndex];
 
-  [self animateToDetent:targetDetent];
+  [self animateToDetent:targetDetent
+               duration:kAssistantSheetSpringDuration
+                  curve:UIViewAnimationCurveEaseInOut];
 }
 
 // Handles the pan gesture on the header to resize the container.
@@ -827,7 +815,9 @@ inline LayoutStateAssistantPassKey PassKey() {
     return;
   }
 
-  [self animateToDetent:detent];
+  [self animateToDetent:detent
+               duration:kAssistantSheetSpringDuration
+                  curve:UIViewAnimationCurveEaseInOut];
 }
 
 // Handles the state when the pan gesture begins.
@@ -1130,10 +1120,9 @@ inline LayoutStateAssistantPassKey PassKey() {
   // Trigger initial adaptive layout once the view is successfully in the
   // hierarchy.
   [self applyLayoutForPresentationContext];
-  [self updatePresentationContextForSupportedState:
-            self.sceneLayoutState
-                ? self.sceneLayoutState.containedLayoutSupported
-                : NO];
+  [self
+      updatePresentationContextForSupportedState:self.layoutState
+                                                     .containedLayoutSupported];
 }
 
 // Updates the presentation context based on the layout state.
@@ -1192,21 +1181,17 @@ inline LayoutStateAssistantPassKey PassKey() {
       }];
 }
 
-#pragma mark - SceneLayoutStateObserver
+#pragma mark - LayoutStateObserver
 
-- (void)layoutState:(SceneLayoutState*)layoutState
+- (void)layoutState:(LayoutState*)layoutState
     didChangeContainedLayoutSupported:(BOOL)supported {
   [self updatePresentationContextForSupportedState:supported];
 }
 
-#pragma mark - BrowserLayoutStateObserver
-
-- (void)browserLayoutState:(BrowserLayoutState*)browserLayoutState
+- (void)layoutState:(LayoutState*)layoutState
     didChangeToolbarPosition:(ToolbarPosition)toolbarPosition {
   [self updateContainerStylingForHeight:_heightConstraint.constant];
 }
-
-#pragma mark - Private
 
 // Configures the constraints for the panel layout.
 - (void)applyPanelLayoutConstraints {
@@ -1350,7 +1335,9 @@ inline LayoutStateAssistantPassKey PassKey() {
 
 - (void)accessibilityManagerDidRequestDetentChange:
     (AssistantContainerDetent)detent {
-  [self animateToDetent:detent];
+  [self animateToDetent:detent
+               duration:kAssistantSheetSpringDuration
+                  curve:UIViewAnimationCurveEaseInOut];
 }
 
 #pragma mark - UIResponder
@@ -1365,7 +1352,9 @@ inline LayoutStateAssistantPassKey PassKey() {
     AssistantContainerDetent currentDetent =
         _activeDetent.value_or(currentDetents.front());
     if (currentDetent != AssistantContainerDetent::kMinimized) {
-      [self animateToDetent:AssistantContainerDetent::kMinimized];
+      [self animateToDetent:AssistantContainerDetent::kMinimized
+                   duration:kAssistantSheetSpringDuration
+                      curve:UIViewAnimationCurveEaseInOut];
       return YES;
     }
   }

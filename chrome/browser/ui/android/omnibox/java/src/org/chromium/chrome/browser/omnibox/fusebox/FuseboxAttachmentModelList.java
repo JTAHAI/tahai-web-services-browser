@@ -18,7 +18,6 @@ import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.omnibox.fusebox.ComposeboxQueryControllerBridge.ContextUploadObserver;
 import org.chromium.chrome.browser.omnibox.fusebox.FuseboxAttachmentRecyclerViewAdapter.FuseboxAttachmentType;
-import org.chromium.chrome.browser.omnibox.styles.OmniboxResourceProvider;
 import org.chromium.chrome.browser.ui.theme.BrandedColorScheme;
 import org.chromium.components.contextual_search.ContextUploadErrorType;
 import org.chromium.components.contextual_search.ContextUploadStatus;
@@ -44,6 +43,8 @@ public class FuseboxAttachmentModelList
         implements ContextUploadObserver, Iterable<FuseboxAttachment> {
 
     private final ModelList mModelList = new ModelList();
+    private final SimpleRecyclerViewAdapter mAdapter =
+            new FuseboxAttachmentRecyclerViewAdapter(mModelList);
 
     public static int getMaxAttachments() {
         return OmniboxFeatures.sMultiattachmentFusebox.getValue() ? 10 : 1;
@@ -88,8 +89,8 @@ public class FuseboxAttachmentModelList
     }
 
     /** Creates a new adapter for the attachments in this list. */
-    public SimpleRecyclerViewAdapter createAdapter(OmniboxResourceProvider resourceProvider) {
-        return new FuseboxAttachmentRecyclerViewAdapter(mModelList, resourceProvider);
+    public SimpleRecyclerViewAdapter getAdapter() {
+        return mAdapter;
     }
 
     @Override
@@ -215,7 +216,6 @@ public class FuseboxAttachmentModelList
      * for adding attachments.
      *
      * @param attachment The attachment to add
-     * @return Whether the attachment was successfully added.
      */
     public boolean add(FuseboxAttachment attachment) {
         if (mComposeboxQueryControllerBridge == null || getRemainingAttachments() == 0) {
@@ -230,7 +230,6 @@ public class FuseboxAttachmentModelList
                 mComposeboxQueryControllerBridge, /* bypassTabCacheThisTime= */ false)) {
             // Upload failed, abandon session if we just started it
             if (isEmpty()) mComposeboxQueryControllerBridge.notifySessionAbandoned();
-            notifyAttachmentUploadFailed();
             return false;
         }
 

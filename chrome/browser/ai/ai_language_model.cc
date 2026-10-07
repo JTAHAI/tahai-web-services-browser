@@ -53,23 +53,10 @@ namespace {
 
 using ::on_device_model::mojom::InputPiece;
 using ::on_device_model::mojom::InputPiecePtr;
-using ::on_device_model::mojom::ToolCall;
-using ::on_device_model::mojom::ToolCallPtr;
 using ::on_device_model::mojom::ToolDeclaration;
 using ::on_device_model::mojom::ToolResponse;
 using ::on_device_model::mojom::ToolResponsePtr;
 using ::optimization_guide::proto::PromptApiMetadata;
-
-ToolCallPtr GetToolCallFromDict(const base::DictValue& dict) {
-  const std::string* call_id = dict.FindString("callID");
-  const std::string* name = dict.FindString("name");
-  const base::DictValue* arguments = dict.FindDict("arguments");
-  if (!call_id || !name || !arguments) {
-    return nullptr;
-  }
-
-  return ToolCall::New(*call_id, *name, arguments->Clone());
-}
 
 ToolResponsePtr GetToolResponseFromDict(const base::DictValue& dict) {
   const std::string* call_id = dict.FindString("callID");
@@ -147,17 +134,9 @@ on_device_model::mojom::InputPtr ConvertToInput(
               InputPiece::NewAudio(content->get_audio().Clone()));
           break;
         }
-        case blink::mojom::AILanguageModelPromptContent::Tag::kToolCall: {
-          if (!capabilities.Has(on_device_model::CapabilityFlags::kToolUse)) {
-            return nullptr;
-          }
-          auto call = GetToolCallFromDict(content->get_tool_call());
-          if (!call) {
-            return nullptr;
-          }
-          input->pieces.push_back(InputPiece::NewToolCall(std::move(call)));
-          break;
-        }
+        case blink::mojom::AILanguageModelPromptContent::Tag::kToolCall:
+          // TODO(crbug.com/422803232): Support on_device_model tool use.
+          return nullptr;
         case blink::mojom::AILanguageModelPromptContent::Tag::kToolResponse: {
           if (!capabilities.Has(on_device_model::CapabilityFlags::kToolUse)) {
             return nullptr;
@@ -319,13 +298,9 @@ class AILanguageModel::PromptState
   }
 
   on_device_model::mojom::InputPtr TakeInput() { return std::move(input_); }
-  std::vector<on_device_model::mojom::ToolCallPtr> TakeToolCalls() {
-    return std::move(tool_calls_);
-  }
   const std::string& response() const { return full_response_; }
   // The total token count for this request including input and output tokens.
   uint32_t token_count() const { return token_count_; }
-  uint32_t response_token_count() const { return response_token_count_; }
   Mode mode() const { return mode_; }
 
  private:
@@ -348,6 +323,8 @@ class AILanguageModel::PromptState
 
   // on_device_model::mojom::ContextClient:
   void OnComplete(uint32_t tokens_processed) override {
+    base::UmaHistogramCounts10000("AI.Session.LanguageModel.ContextTokens",
+                                  tokens_processed);
     CHECK(telemetry_logger_.has_value());
     telemetry_logger_->RecordContextTime();
     base::UmaHistogramMediumTimes(
@@ -361,6 +338,7 @@ class AILanguageModel::PromptState
           << base::NumberToString(tokens_processed) << " tokens:\n"
           << optimization_guide::OnDeviceInputToString(*input_);
     }
+    generate_start_ = base::TimeTicks::Now();
     context_receiver_.reset();
     token_count_ = tokens_processed;
     if (mode_ == Mode::kAppendOnly) {
@@ -374,6 +352,9 @@ class AILanguageModel::PromptState
     if (output_tokens_ == 0) {
       CHECK(telemetry_logger_.has_value());
       telemetry_logger_->RecordFirstResponse();
+      base::UmaHistogramMediumTimes(
+          "AI.Session.LanguageModel.FirstResponseTime",
+          telemetry_logger_->GetTimeToFirstResponse());
     }
     output_tokens_++;
     full_response_ += chunk->text;
@@ -397,11 +378,15 @@ class AILanguageModel::PromptState
 
   void OnComplete(on_device_model::mojom::ResponseSummaryPtr summary) override {
     completed_ = true;
-    response_token_count_ = summary->output_token_count;
     token_count_ += summary->output_token_count;
 
     CHECK(telemetry_logger_.has_value());
     telemetry_logger_->RecordCompletion(summary->output_token_count);
+    base::UmaHistogramMediumTimes(
+        "AI.Session.LanguageModel.ResponseCompleteTime",
+        base::TimeTicks::Now() - generate_start_);
+    base::UmaHistogramCounts10000("AI.Session.LanguageModel.ResponseTokens",
+                                  summary->output_token_count);
 
     // The `OnComplete()` method on `responder_` will be called in
     // `AILanguageModel::OnPromptOutputComplete()` after adding the response to
@@ -424,7 +409,6 @@ class AILanguageModel::PromptState
     std::vector<blink::mojom::ToolCallPtr> blink_tool_calls;
     blink_tool_calls.reserve(tool_calls.size());
     for (auto& tc : tool_calls) {
-      tool_calls_.push_back(tc->Clone());
       auto blink_tc = blink::mojom::ToolCall::New();
       blink_tc->call_id = std::move(tc->call_id);
       blink_tc->name = std::move(tc->name);
@@ -548,14 +532,10 @@ class AILanguageModel::PromptState
 
   // Total number of tokens in input and output.
   uint32_t token_count_ = 0;
-  // Number of output response tokens in the latest turn.
-  uint32_t response_token_count_ = 0;
   // The full response so far.
   std::string full_response_;
   // Number of tokens in the response.
   uint32_t output_tokens_ = 0;
-  // Generated tool calls retained for context replay.
-  std::vector<on_device_model::mojom::ToolCallPtr> tool_calls_;
   // The response since safety check was last run.
   std::string unchecked_response_;
   // Number of tokens since safety check was last run.
@@ -568,6 +548,7 @@ class AILanguageModel::PromptState
 
   std::optional<optimization_guide::OnDeviceRequestTelemetryLogger>
       telemetry_logger_;
+  base::TimeTicks generate_start_;
 
   base::WeakPtrFactory<PromptState> weak_factory_{this};
 };
@@ -719,6 +700,9 @@ AILanguageModel::AILanguageModel(
 
 AILanguageModel::~AILanguageModel() {
   const bool crashed = !initial_session_;
+  // If the initial session has been reset, the session crashed.
+  base::UmaHistogramBoolean("AI.Session.LanguageModel.Crashed", crashed);
+
   if (logger_ && logger_->ShouldEnableDebugLogs()) {
     OPTIMIZATION_GUIDE_LOGGER(
         optimization_guide_common::mojom::LogSource::MODEL_EXECUTION,
@@ -862,7 +846,6 @@ AILanguageModel::GetLanguageModelInstanceInfo() {
       case on_device_model::CapabilityFlags::kToolUse:
         // TODO(crbug.com/422803232): Expose tool support as a dedicated
         // bool field on AILanguageModelInstanceInfo instead of an input type.
-        input_types.insert(blink::mojom::AILanguageModelPromptType::kToolCall);
         input_types.insert(
             blink::mojom::AILanguageModelPromptType::kToolResponse);
         break;
@@ -870,8 +853,13 @@ AILanguageModel::GetLanguageModelInstanceInfo() {
   }
 
   // TODO(crbug.com/462283904): Obtain canonical model input format parameters.
-  std::optional<int> audio_sample_rate_hz = 16000;
-  std::optional<int> audio_channel_count = 1;
+  std::optional<int> audio_sample_rate_hz;
+  std::optional<int> audio_channel_count;
+  if (base::FeatureList::IsEnabled(
+          on_device_model::features::kOnDeviceModelLitertLmBackend)) {
+    audio_sample_rate_hz = 16000;
+    audio_channel_count = 1;
+  }
   uint32_t max_tokens = GetMaxTokens(model_client_.get());
   uint32_t total_tokens =
       context_->non_evictable_tokens() + context_->evictable_tokens();
@@ -965,23 +953,19 @@ void AILanguageModel::InitializeSafetyChecksComplete(
   create_client_.set_disconnect_handler(
       base::BindOnce(&AILanguageModel::OnCreateClientDisconnected,
                      weak_ptr_factory_.GetWeakPtr()));
-  if (!input) {
-    // The empty Append serves purely as an initialization barrier signal to
-    // ensure the ML backend session engine and weights are ready before
-    // resolving the create promise, with zero overhead on token count or
-    // inference compute.
-    input = on_device_model::mojom::Input::New();
-  } else {
+  if (input) {
     initial_input_ = input.Clone();
+    initial_session_->Append(
+        MakeAppendOptions(std::move(input),
+                          on_device_model::mojom::InputSource::kUserInput),
+        initial_append_receiver_.BindNewPipeAndPassRemote());
+    initial_append_receiver_.set_disconnect_handler(
+        base::BindOnce(&AILanguageModel::OnInitialAppendDisconnected,
+                       weak_ptr_factory_.GetWeakPtr()));
+  } else {
+    // Proceed with session creation, leaving `initial_input_` null.
+    OnComplete(/*tokens_processed=*/0);
   }
-
-  initial_session_->Append(
-      MakeAppendOptions(std::move(input),
-                        on_device_model::mojom::InputSource::kUserInput),
-      initial_append_receiver_.BindNewPipeAndPassRemote());
-  initial_append_receiver_.set_disconnect_handler(
-      base::BindOnce(&AILanguageModel::OnInitialAppendDisconnected,
-                     weak_ptr_factory_.GetWeakPtr()));
 }
 
 void AILanguageModel::OnComplete(uint32_t tokens_processed) {
@@ -1135,11 +1119,9 @@ void AILanguageModel::OnPromptOutputComplete() {
   if (prompt_state_->mode() == PromptState::Mode::kAppendAndGenerate) {
     item.input->pieces.push_back(
         InputPiece::NewText(prompt_state_->response()));
-    for (auto& tool_call : prompt_state_->TakeToolCalls()) {
-      item.input->pieces.push_back(
-          InputPiece::NewToolCall(std::move(tool_call)));
-    }
     item.input->pieces.push_back(InputPiece::NewToken(ml::Token::kEnd));
+    // One extra token for the end token on the model output.
+    item.tokens++;
   }
 
   auto responder = prompt_state_->TakeResponder();
@@ -1166,8 +1148,8 @@ void AILanguageModel::OnPromptOutputComplete() {
   }
   uint32_t total_tokens =
       context_->non_evictable_tokens() + context_->evictable_tokens();
-  responder->OnCompletion(blink::mojom::ModelExecutionContextInfo::New(
-      total_tokens, prompt_state_->response_token_count()));
+  responder->OnCompletion(
+      blink::mojom::ModelExecutionContextInfo::New(total_tokens));
   if (model_client_) {
     model_client_->solution().ReportHealthyCompletion();
   }

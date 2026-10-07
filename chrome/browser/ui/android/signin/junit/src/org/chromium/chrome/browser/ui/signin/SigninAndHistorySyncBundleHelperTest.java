@@ -12,6 +12,7 @@ import androidx.test.filters.SmallTest;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.robolectric.annotation.Config;
 
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.chrome.browser.ui.signin.account_picker.AccountPickerBottomSheetStrings;
@@ -21,6 +22,7 @@ import org.chromium.google_apis.gaia.GaiaId;
 
 /** Unit tests for {@link SigninAndHistorySyncBundleHelper}. */
 @RunWith(BaseRobolectricTestRunner.class)
+@Config(manifest = Config.NONE)
 public class SigninAndHistorySyncBundleHelperTest {
 
     @Test

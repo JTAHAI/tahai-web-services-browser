@@ -15,17 +15,12 @@
 #include "third_party/blink/renderer/core/dom/space_split_string.h"
 #include "third_party/blink/renderer/core/event_type_names.h"
 #include "third_party/blink/renderer/core/frame/local_dom_window.h"
-#include "third_party/blink/renderer/core/html/html_camera_element.h"
 #include "third_party/blink/renderer/core/html/html_media_capture_element_base.h"
-#include "third_party/blink/renderer/core/html/html_media_track_element_base.h"
-#include "third_party/blink/renderer/core/html/html_microphone_element.h"
-#include "third_party/blink/renderer/modules/mediastream/html_media_track_element_media_track.h"
 #include "third_party/blink/renderer/modules/mediastream/html_user_media_element_media_stream.h"
 #include "third_party/blink/renderer/modules/mediastream/media_stream.h"
-#include "third_party/blink/renderer/modules/mediastream/media_stream_track.h"
 #include "third_party/blink/renderer/modules/mediastream/overconstrained_error.h"
-#include "third_party/blink/renderer/modules/mediastream/media_capture_element_constraints.h"
 #include "third_party/blink/renderer/modules/mediastream/user_media_client.h"
+#include "third_party/blink/renderer/modules/mediastream/user_media_element_constraints.h"
 #include "third_party/blink/renderer/modules/mediastream/user_media_request.h"
 #include "third_party/blink/renderer/platform/mediastream/media_stream_descriptor.h"
 
@@ -47,32 +42,9 @@ void UserMediaRequestProviderCallbacks::OnSuccess(
     return;
   }
   MediaStream* stream = streams[0];
-  if (auto* track_element =
-          DynamicTo<HTMLMediaTrackElementBase>(element_.Get())) {
-    MediaStreamTrack* track = nullptr;
-    if (track_element->IsHTMLCameraElement()) {
-      MediaStreamTrackVector video_tracks = stream->getVideoTracks();
-      track = video_tracks.empty() ? nullptr : video_tracks[0];
-    } else if (track_element->IsHTMLMicrophoneElement()) {
-      MediaStreamTrackVector audio_tracks = stream->getAudioTracks();
-      track = audio_tracks.empty() ? nullptr : audio_tracks[0];
-    }
-    if (track) {
-      HTMLMediaTrackElementMediaTrack::From(*track_element).SetMediaTrack(track);
-      track_element->EnqueueEvent(*Event::Create(event_type_names::kTrack),
-                                  TaskType::kDOMManipulation);
-    } else {
-      element_->SetError(MakeGarbageCollected<DOMException>(
-          DOMExceptionCode::kNotFoundError, "No matching media track found"));
-      element_->EnqueueEvent(*Event::Create(event_type_names::kError),
-                             TaskType::kDOMManipulation);
-    }
-  } else if (auto* user_media =
-                 DynamicTo<HTMLUserMediaElement>(element_.Get())) {
-    HTMLUserMediaElementMediaStream::From(*user_media).SetMediaStream(stream);
-    element_->EnqueueEvent(*Event::Create(event_type_names::kStream),
-                           TaskType::kDOMManipulation);
-  }
+  HTMLUserMediaElementMediaStream::From(*element_).SetMediaStream(stream);
+  element_->EnqueueEvent(*Event::Create(event_type_names::kStream),
+                         TaskType::kDOMManipulation);
 }
 
 void UserMediaRequestProviderCallbacks::OnError(
@@ -97,7 +69,7 @@ void UserMediaRequestProviderCallbacks::OnError(
     } else {
       base::UmaHistogramBoolean(
           "Blink.CapabilityElement.UserMedia.GumApi.OverconstrainedError",
-          error && error->IsOverconstrainedError());
+          error->IsOverconstrainedError());
       element_->EnqueueEvent(*Event::Create(event_type_names::kError),
                              TaskType::kDOMManipulation);
     }
@@ -145,43 +117,29 @@ void UserMediaRequestProviderImpl::StartRequest(
     return;
   }
 
-  if (auto* user_media = DynamicTo<HTMLUserMediaElement>(element)) {
-    MediaStream* existing_stream =
-        HTMLUserMediaElementMediaStream::stream(*user_media);
-    if (existing_stream && existing_stream->active()) {
-      return;
-    }
-  } else if (auto* track_element =
-                 DynamicTo<HTMLMediaTrackElementBase>(element)) {
-    MediaStreamTrack* existing_track =
-        HTMLMediaTrackElementMediaTrack::From(*track_element).MediaTrack();
-    if (existing_track && !existing_track->Ended()) {
-      return;
-    }
+  MediaStream* existing_stream =
+      HTMLUserMediaElementMediaStream::stream(*element);
+  if (existing_stream && existing_stream->active()) {
+    return;
   }
 
-  // Retrieve stored constraints for this element (populated via
-  // setConstraints).
+  // Constraints that are set on the media capture element.
   const HTMLMediaStreamConstraints* constraints =
-      MediaCaptureElementConstraints::From(*element).Constraints();
+      UserMediaElementConstraints::From(*element).Constraints();
 
   if (!constraints) {
     HTMLMediaStreamConstraints* default_constraints =
         HTMLMediaStreamConstraints::Create();
-    if (element->IsHTMLCameraElement()) {
-      default_constraints->setVideo(MediaTrackConstraints::Create());
-    } else if (element->IsHTMLMicrophoneElement()) {
-      default_constraints->setAudio(MediaTrackConstraints::Create());
-    } else {
-      default_constraints->setVideo(MediaTrackConstraints::Create());
-      default_constraints->setAudio(MediaTrackConstraints::Create());
-    }
+    default_constraints->setVideo(MediaTrackConstraints::Create());
+    default_constraints->setAudio(MediaTrackConstraints::Create());
     constraints = default_constraints;
   }
 
-  // Validate presence of required constraints based on requested permissions.
+  // Constraints that will be used for the UserMediaRequest.
+  MediaStreamConstraints* request_constraints = nullptr;
+
   if (permission_descriptors.size() == 2) {
-    // Both camera and microphone requested.
+    // Camera and Microphone element.
     if (!constraints->hasAudio() && !constraints->hasVideo()) {
       element->SetError(MakeGarbageCollected<DOMException>(
           DOMExceptionCode::kNotSupportedError, "No constraints set"));
@@ -189,9 +147,20 @@ void UserMediaRequestProviderImpl::StartRequest(
                             TaskType::kDOMManipulation);
       return;
     }
+    request_constraints = MediaStreamConstraints::Create();
+    if (constraints->hasAudio()) {
+      request_constraints->setAudio(
+          MakeGarbageCollected<V8UnionBooleanOrMediaTrackConstraints>(
+              static_cast<const MediaTrackConstraints*>(constraints->audio())));
+    }
+    if (constraints->hasVideo()) {
+      request_constraints->setVideo(
+          MakeGarbageCollected<V8UnionBooleanOrMediaTrackConstraints>(
+              static_cast<const MediaTrackConstraints*>(constraints->video())));
+    }
   } else if (permission_descriptors[0]->name ==
              mojom::blink::PermissionName::AUDIO_CAPTURE) {
-    // Microphone / audio-only element.
+    // Audio only element.
     if (!constraints->hasAudio()) {
       element->SetError(MakeGarbageCollected<DOMException>(
           DOMExceptionCode::kNotSupportedError, "No audio constraints set"));
@@ -199,8 +168,12 @@ void UserMediaRequestProviderImpl::StartRequest(
                             TaskType::kDOMManipulation);
       return;
     }
+    request_constraints = MediaStreamConstraints::Create();
+    request_constraints->setAudio(
+        MakeGarbageCollected<V8UnionBooleanOrMediaTrackConstraints>(
+            static_cast<const MediaTrackConstraints*>(constraints->audio())));
   } else {
-    // Camera / video-only element.
+    // Video only element.
     CHECK_EQ(permission_descriptors[0]->name,
              mojom::blink::PermissionName::VIDEO_CAPTURE);
     if (!constraints->hasVideo()) {
@@ -210,16 +183,7 @@ void UserMediaRequestProviderImpl::StartRequest(
                             TaskType::kDOMManipulation);
       return;
     }
-  }
-
-  MediaStreamConstraints* request_constraints =
-      MediaStreamConstraints::Create();
-  if (constraints->hasAudio()) {
-    request_constraints->setAudio(
-        MakeGarbageCollected<V8UnionBooleanOrMediaTrackConstraints>(
-            static_cast<const MediaTrackConstraints*>(constraints->audio())));
-  }
-  if (constraints->hasVideo()) {
+    request_constraints = MediaStreamConstraints::Create();
     request_constraints->setVideo(
         MakeGarbageCollected<V8UnionBooleanOrMediaTrackConstraints>(
             static_cast<const MediaTrackConstraints*>(constraints->video())));

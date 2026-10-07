@@ -299,6 +299,11 @@ void SessionControllerImpl::LockScreen() {
     client_->RequestLockScreen();
 }
 
+void SessionControllerImpl::HideLockScreen() {
+  if (client_)
+    client_->RequestHideLockScreen();
+}
+
 void SessionControllerImpl::RequestSignOut() {
   if (client_) {
     client_->RequestSignOut();

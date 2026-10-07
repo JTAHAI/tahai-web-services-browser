@@ -11,7 +11,6 @@ import android.text.TextUtils;
 
 import androidx.annotation.VisibleForTesting;
 
-import org.chromium.base.TriState;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.components.dom_distiller.core.DomDistillerUrlUtils;
@@ -68,7 +67,7 @@ public class ShareParams {
     private @Nullable Uri mPreviewImageUri;
 
     /** The boolean result of link to text generation. */
-    private final @TriState int mLinkToTextSuccessful;
+    private final @Nullable Boolean mLinkToTextSuccessful;
 
     /** The sharing hub preview text. */
     private final @Nullable String mPreviewText;
@@ -99,7 +98,7 @@ public class ShareParams {
             @Nullable Bitmap previewImageBitmap,
             @Nullable Uri previewImageUri,
             @Nullable TargetChosenCallback callback,
-            @TriState int linkToTextSuccessful,
+            @Nullable Boolean linkToTextSuccessful,
             @Nullable String previewText,
             @Nullable String previewTextFormat,
             int origin) {
@@ -230,10 +229,8 @@ public class ShareParams {
         mCallback = callback;
     }
 
-    /**
-     * @return The boolean result of link to text generation.
-     */
-    public @TriState int getLinkToTextSuccessful() {
+    /** @return The boolean result of link to text generation. */
+    public @Nullable Boolean getLinkToTextSuccessful() {
         return mLinkToTextSuccessful;
     }
 
@@ -278,7 +275,7 @@ public class ShareParams {
         private @Nullable Bitmap mPreviewImageBitmap;
         private @Nullable Uri mPreviewImageUri;
         private @Nullable TargetChosenCallback mCallback;
-        private @TriState int mLinkToTextSuccessful;
+        private @Nullable Boolean mLinkToTextSuccessful;
         private @Nullable String mPreviewText;
         private @Nullable String mPreviewTextFormat;
         private int mOrigin;
@@ -362,7 +359,7 @@ public class ShareParams {
         }
 
         /** Sets the boolean result of link to text generation. */
-        public Builder setLinkToTextSuccessful(@TriState int linkToTextSuccessful) {
+        public Builder setLinkToTextSuccessful(@Nullable Boolean linkToTextSuccessful) {
             mLinkToTextSuccessful = linkToTextSuccessful;
             return this;
         }

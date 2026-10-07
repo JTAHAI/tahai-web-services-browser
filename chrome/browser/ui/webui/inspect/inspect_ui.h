@@ -24,7 +24,7 @@ namespace content {
 class DevToolsAgentHost;
 }
 
-class BrowserWindowInterface;
+class Browser;
 class DevToolsTargetsUIHandler;
 class InspectUI;
 class PortForwardingStatusSerializer;
@@ -70,7 +70,7 @@ class InspectUI : public content::WebUIController,
   void StartListeningNotifications();
   void StopListeningNotifications();
 
-  static void InspectDevices(BrowserWindowInterface* browser);
+  static void InspectDevices(Browser* browser);
 
  private:
   // content::WebContentsObserver:
@@ -104,7 +104,6 @@ class InspectUI : public content::WebUIController,
 
   // A scoped container for preference change registries.
   PrefChangeRegistrar pref_change_registrar_;
-  PrefChangeRegistrar local_state_pref_change_registrar_;
 
   std::map<std::string, std::unique_ptr<DevToolsTargetsUIHandler>>
       target_handlers_;

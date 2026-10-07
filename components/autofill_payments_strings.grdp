@@ -1361,12 +1361,6 @@
   <message name="IDS_AUTOFILL_PROMO_CODE_SUGGESTIONS_FOOTER_TEXT" desc="Label for the footer text of the autofill suggestions popup when a user clicks on a promo code field. It redirects the user to the offer webview page for more details on the promo code offers suggested. An example of details the user can see is the terms and conditions of the promo code offers that are shown in the autofill suggestions popup.">
     See promo code details
   </message>
-  <message name="IDS_AUTOFILL_WALLET_DIRECT_OFFERS_IPH_BUBBLE_LABEL" desc="Text shown in the IPH bubble for merchant promo code fields when direct offers from Google Wallet are available.">
-    Select the promo code field to autofill offers from Google Wallet
-  </message>
-  <message name="IDS_AUTOFILL_WALLET_DIRECT_OFFERS_IPH_BUBBLE_LABEL_SCREENREADER" is_accessibility_with_no_ui="true" desc="Screenreader text for the IPH bubble for merchant promo code fields when direct offers from Google Wallet are available.">
-    Select the promo code field to autofill offers from Google Wallet
-  </message>
   <if expr="not is_ios and not is_android">
     <message name="IDS_AUTOFILL_OFFERS_REMINDER_ICON_TOOLTIP_TEXT" desc="The tooltip text for the offer icon in the location bar.">
       Offer available
@@ -1427,11 +1421,6 @@
     </message>
   </if>
 
-  <!-- Payments Wallet Reminder Notice strings -->
-  <message name="IDS_AUTOFILL_PAYMENT_METHODS_WALLET_REMINDER_NOTICE" desc="Shown in the payments section of settings. Descriptive text to inform the user that data and privacy preferences, payment methods, and passes can be accessed via link. Google Wallet should not be translated because it is the product name. Has three links that open different pages on Google Wallet." formatter_data="android_java">
-    Visit Google Wallet to control <ph name="BEGIN_LINK1">&lt;link1&gt;</ph>data and privacy preferences<ph name="END_LINK1">&lt;/link1&gt;</ph> or manage <ph name="BEGIN_LINK2">&lt;link2&gt;</ph>payment methods<ph name="END_LINK2">&lt;/link2&gt;</ph> and <ph name="BEGIN_LINK3">&lt;link3&gt;</ph>passes<ph name="END_LINK3">&lt;/link3&gt;</ph> like loyalty cards and IDs
-  </message>
-
   <!-- Autofill credit card preferences -->
   <if expr="is_android">
     <message name="IDS_AUTOFILL_EDIT_CREDIT_CARD" desc="Button that allows the user to edit a card that can be automatically filled into web page forms. This can be either credit, debit, or prepaid card. [CHAR_LIMIT=32]" formatter_data="android_java">
@@ -1451,40 +1440,6 @@
     </message>
     <message name="IDS_AUTOFILL_CREATE_FIRST_CREDIT_CARD_BUTTON_TEXT" desc="Button text for a call to action settings preference to add a new autofill credit card when the user does not have any cards added." formatter_data="android_java">
       Add payment method
-    </message>
-  </if>
-
-  <!-- Payments churned users strings -->
-  <message name="IDS_AUTOFILL_CHURNED_USERS_BUBBLE_ACCEPT_BUTTON_LABEL" desc="Accept button label for the payments churned users bubble. On acceptance, payments autofill is turned on for a user and a confirmation bubble is shown.">
-    Turn on
-  </message>
-  <message name="IDS_AUTOFILL_CHURNED_USERS_BUBBLE_CANCEL_BUTTON_LABEL" desc="Cancel button label for the payments churned users bubble. On cancellation, the bubble is closed.">
-    No thanks
-  </message>
-  <message name="IDS_AUTOFILL_CHURNED_USERS_BUBBLE_SECURITY_TITLE" desc="Security title for the payments churned users bubble. On acceptance, payments autofill is turned on for a user and a confirmation bubble is shown.">
-    Check out securely with autofill
-  </message>
-  <message name="IDS_AUTOFILL_CHURNED_USERS_BUBBLE_CONVENIENCE_TITLE" desc="Convenience title for the payments churned users bubble. On acceptance, payments autofill is turned on for a user and a confirmation bubble is shown.">
-    Check out faster with autofill
-  </message>
-  <message name="IDS_AUTOFILL_CHURNED_USERS_BUBBLE_SECURITY_DESCRIPTION" desc="Security description for the payments churned users bubble. On acceptance, payments autofill is turned on for a user and a confirmation bubble is shown.">
-    Turn on autofill to safely check out online. Your card details are encrypted in Google Wallet.
-  </message>
-  <message name="IDS_AUTOFILL_CHURNED_USERS_BUBBLE_CONVENIENCE_DESCRIPTION" desc="Convenience description for the payments churned users bubble. On acceptance, payments autofill is turned on for a user and a confirmation bubble is shown.">
-    Fill card details automatically when you check out online. Cards are saved in Google Wallet securely.
-  </message>
-  <message name="IDS_AUTOFILL_CHURNED_USERS_CONFIRMATION_BUBBLE_TITLE" desc="Title for the churned users confirmation bubble, which comes after the user has accepted the churned users bubble, letting the user know that autofill is turned on.">
-    Autofill turned on
-  </message>
-  <message name="IDS_AUTOFILL_CHURNED_USERS_CONFIRMATION_BUBBLE_LINK_TEXT" desc="Link text in the description for the churned users confirmation bubble, which comes after the user has accepted the churned users bubble, letting the user know that autofill is turned on.">
-    View autofill settings
-  </message>
-  <message name="IDS_AUTOFILL_CHURNED_USERS_CONFIRMATION_BUBBLE_DESCRIPTION" desc="Description for the churned users confirmation bubble, which comes after the user has accepted the churned users bubble, letting the user know that autofill is turned on.">
-    Now you can save payment methods to autofill at checkout in Chrome. <ph name="LINK_TEXT">$1<ex>View autofill settings</ex></ph>
-  </message>
-  <if expr="not is_android">
-    <message name="IDS_AUTOFILL_CHURNED_USERS_CONFIRMATION_BUBBLE_LOADING_THROBBER_ACCESSIBLE_NAME" desc="Accessible name announced by the screenreader for virtual card prompt in loading state showing a throbber." is_accessibility_with_no_ui="true" formatter_data="android_java">
-      Turning on autofill
     </message>
   </if>
 

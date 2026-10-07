@@ -107,10 +107,10 @@ LayoutBoxModelObject::LayoutBoxModelObject(ContainerNode* node)
 
 LayoutBoxModelObject::~LayoutBoxModelObject() = default;
 
-void LayoutBoxModelObject::WillBeDestroyed(const ComputedStyle* style) {
+void LayoutBoxModelObject::WillBeDestroyed() {
   NOT_DESTROYED();
 
-  LayoutObject::WillBeDestroyed(style);
+  LayoutObject::WillBeDestroyed();
 
   if (HasLayer())
     DestroyLayer();
@@ -126,7 +126,6 @@ void LayoutBoxModelObject::WillBeDestroyed(const ComputedStyle* style) {
 
 void LayoutBoxModelObject::StyleWillChange(
     StyleDifference diff,
-    const ComputedStyle* old_style,
     const ComputedStyle& new_style,
     StyleChangeContext& style_change_context) {
   NOT_DESTROYED();
@@ -134,23 +133,21 @@ void LayoutBoxModelObject::StyleWillChange(
   // descendant PaintLayer's PaintingContainer, so we need to eagerly
   // invalidate the current PaintingContainer chain which may have painted
   // cached subsequences containing this object or descendant objects.
-  if (old_style &&
-      (IsStacked(*old_style) != IsStacked(new_style) ||
-       IsStackingContext(*old_style) != IsStackingContext(new_style)) &&
+  if (Style() &&
+      (IsStacked() != IsStacked(new_style) ||
+       IsStackingContext() != IsStackingContext(new_style)) &&
       // ObjectPaintInvalidator requires this.
       IsRooted()) {
     ObjectPaintInvalidator(*this).SlowSetPaintingLayerNeedsRepaint();
   }
 
-  LayoutObject::StyleWillChange(diff, old_style, new_style,
-                                style_change_context);
+  LayoutObject::StyleWillChange(diff, new_style, style_change_context);
 }
 
 DISABLE_CFI_PERF
 void LayoutBoxModelObject::StyleDidChange(
     StyleDifference diff,
     const ComputedStyle* old_style,
-    const ComputedStyle& new_style,
     const StyleChangeContext& style_change_context) {
   NOT_DESTROYED();
   bool had_transform_related_property = HasTransformRelatedProperty();
@@ -161,8 +158,7 @@ void LayoutBoxModelObject::StyleDidChange(
   bool could_contain_fixed = CanContainFixedPositionObjects();
   bool could_contain_absolute = CanContainAbsolutePositionObjects();
 
-  LayoutObject::StyleDidChange(diff, old_style, new_style,
-                               style_change_context);
+  LayoutObject::StyleDidChange(diff, old_style, style_change_context);
   UpdateFromStyle();
 
   // When an out-of-flow-positioned element changes its display between block
@@ -176,21 +172,20 @@ void LayoutBoxModelObject::StyleDidChange(
   // block/inline position.
   // Position changes and other types of display changes are handled elsewhere.
   if (old_style && IsOutOfFlowPositioned() && Parent() &&
-      (new_style.GetPosition() == old_style->GetPosition()) &&
-      (new_style.IsOriginalDisplayInlineType() !=
-       old_style->IsOriginalDisplayInlineType())) {
+      (StyleRef().GetPosition() == old_style->GetPosition()) &&
+      (StyleRef().IsOriginalDisplayInlineType() !=
+       old_style->IsOriginalDisplayInlineType()))
     Parent()->SetNeedsLayout(layout_invalidation_reason::kChildChanged,
                              kMarkContainerChain);
-  }
 
   if (Layer() && old_style->HasStickyConstrainedPosition()) {
     // Clear our sticky constraints if we are no longer sticky.
-    if (!new_style.HasStickyConstrainedPosition()) {
+    if (!StyleRef().HasStickyConstrainedPosition()) {
       ClearStickyConstraints(kPhysicalAxesBoth);
     } else {
       // When still sticky, clear out axes that no longer exist.
       const PhysicalAxes old_axes = StickyConstrainedAxes(*old_style);
-      const PhysicalAxes new_axes = StickyConstrainedAxes(new_style);
+      const PhysicalAxes new_axes = StickyConstrainedAxes(StyleRef());
       if (const PhysicalAxes remove_axes = old_axes ^ (old_axes & new_axes)) {
         ClearStickyConstraints(remove_axes);
       }
@@ -198,7 +193,7 @@ void LayoutBoxModelObject::StyleDidChange(
   }
 
   if (RuntimeEnabledFeatures::AnnotationSpaceOnStartEnabled() &&
-      new_style.GetTextEmphasisMark() != TextEmphasisMark::kNone) {
+      StyleRef().GetTextEmphasisMark() != TextEmphasisMark::kNone) {
     View()->SetContainsAnnotations();
   }
 
@@ -216,10 +211,10 @@ void LayoutBoxModelObject::StyleDidChange(
       CreateLayerAfterStyleChange();
     }
   } else if (Layer()) {
-    Layer()->UpdateFilters(diff, old_style, new_style);
-    Layer()->UpdateBackdropFilters(old_style, new_style);
-    Layer()->UpdateClipPath(old_style, new_style);
-    Layer()->UpdateOffsetPath(old_style, new_style);
+    Layer()->UpdateFilters(diff, old_style, StyleRef());
+    Layer()->UpdateBackdropFilters(old_style, StyleRef());
+    Layer()->UpdateClipPath(old_style, StyleRef());
+    Layer()->UpdateOffsetPath(old_style, StyleRef());
     // Calls DestroyLayer() which clears the layer.
     Layer()->RemoveOnlyThisLayerAfterStyleChange(old_style);
     if (EverHadLayout())
@@ -304,11 +299,11 @@ void LayoutBoxModelObject::StyleDidChange(
       if (auto* body_object =
               DynamicTo<LayoutBoxModelObject>(body->GetLayoutObject())) {
         bool new_body_background_transfers =
-            body_object->BackgroundTransfersToView(&new_style);
+            body_object->BackgroundTransfersToView(Style());
         bool old_body_background_transfers =
             old_style && body_object->BackgroundTransfersToView(old_style);
         if (new_body_background_transfers != old_body_background_transfers &&
-            body_object->StyleRef().HasBackground()) {
+            body_object->Style() && body_object->StyleRef().HasBackground()) {
           body_object->SetBackgroundNeedsFullPaintInvalidation();
         }
       }
@@ -316,7 +311,7 @@ void LayoutBoxModelObject::StyleDidChange(
   }
 
   if (old_style &&
-      old_style->BackfaceVisibility() != new_style.BackfaceVisibility()) {
+      old_style->BackfaceVisibility() != StyleRef().BackfaceVisibility()) {
     SetNeedsPaintPropertyUpdate();
   }
 
@@ -330,7 +325,7 @@ void LayoutBoxModelObject::StyleDidChange(
   }
 
   if (Element* element = DynamicTo<Element>(GetNode())) {
-    if (NeedsAnchorPositionScrollData(*element, new_style)) {
+    if (NeedsAnchorPositionScrollData(*element, StyleRef())) {
       element->EnsureAnchorPositionScrollData();
     } else {
       element->RemoveAnchorPositionScrollData();
@@ -499,7 +494,7 @@ void LayoutBoxModelObject::UpdateFromStyle() {
   SetHasBoxDecorationBackground(style.HasBoxDecorationBackground());
   SetInline(ShouldBeHandledAsInline(style));
   SetPositionState(ToPositionedState(style.GetPosition()));
-  SetIsHorizontalWritingMode(style.IsHorizontalWritingMode());
+  SetHorizontalWritingMode(style.IsHorizontalWritingMode());
 
   const bool is_fixed_container = ComputeIsFixedContainer(style);
   SetCanContainFixedPositionObjects(is_fixed_container);
@@ -582,11 +577,9 @@ StickyConstraintsData LayoutBoxModelObject::ComputeStickyPositionConstraints(
   const PhysicalOffset scroll_container_border_offset =
       scroll_container->BorderOutsets().Offset();
 
-  MapCoordinatesFlags flags = {
-      MapCoordinatesMode::kIgnoreTransforms,
-      MapCoordinatesMode::kIgnoreScrollOffset,
-      MapCoordinatesMode::kIgnoreStickyOffset,
-      MapCoordinatesMode::kIgnoreScrollOriginAndOffset};
+  MapCoordinatesFlags flags = kIgnoreTransforms | kIgnoreScrollOffset |
+                              kIgnoreStickyOffset |
+                              kIgnoreScrollOriginAndOffset;
 
   // Compute the sticky-container rect.
   PhysicalRect scroll_container_relative_containing_block_rect;
@@ -628,7 +621,9 @@ StickyConstraintsData LayoutBoxModelObject::ComputeStickyPositionConstraints(
     }
   }
 
-  const LayoutObject* container = Container();
+  // The location container for boxes is not always the containing block.
+  LayoutObject* location_container =
+      IsLayoutInline() ? Container() : To<LayoutBox>(this)->LocationContainer();
 
   // Compute the sticky-box rect.
   PhysicalRect sticky_box_rect;
@@ -642,8 +637,9 @@ StickyConstraintsData LayoutBoxModelObject::ComputeStickyPositionConstraints(
           PhysicalRect(box.PhysicalLocation(), box.StitchedSize());
     }
 
-    scroll_container_relative_sticky_box_rect = container->LocalToAncestorRect(
-        sticky_box_rect, scroll_container, flags);
+    scroll_container_relative_sticky_box_rect =
+        location_container->LocalToAncestorRect(sticky_box_rect,
+                                                scroll_container, flags);
 
     // Make relative to the padding-box instead of border-box.
     scroll_container_relative_sticky_box_rect.Move(
@@ -655,9 +651,9 @@ StickyConstraintsData LayoutBoxModelObject::ComputeStickyPositionConstraints(
   // sticky-container, and between the sticky-container and their
   // scroll-container.
   //
-  // Store the endpoints of the half-open ranges [container, sticky_container)
-  // and [sticky_container, scroll_container) so the nearest sticky ancestors
-  // can be recomputed on demand.
+  // The respective search ranges are [location_container, sticky_container)
+  // and [sticky_container, scroll_container). Store the range endpoints so the
+  // nearest sticky ancestors can be recomputed on demand.
   const PhysicalRect constraining_rect =
       scroll_container->ComputeStickyConstrainingRect();
 
@@ -701,10 +697,10 @@ StickyConstraintsData LayoutBoxModelObject::ComputeStickyPositionConstraints(
     return MakeGarbageCollected<
         StickyPositionScrollingConstraints::PerAxisData>(
         axis, scroll_container_relative_containing_block_rect,
-        scroll_container_relative_sticky_box_rect, constraining_rect, container,
-        sticky_container, &scroll_container_layer, is_fixed_to_view, min_inset,
-        max_inset, min_inset_for_get_computed_style,
-        max_inset_for_get_computed_style);
+        scroll_container_relative_sticky_box_rect, constraining_rect,
+        location_container, sticky_container, &scroll_container_layer,
+        is_fixed_to_view, min_inset, max_inset,
+        min_inset_for_get_computed_style, max_inset_for_get_computed_style);
   };
 
   const auto& style = StyleRef();
@@ -772,8 +768,7 @@ PhysicalOffset LayoutBoxModelObject::OffsetFromContainerInternal(
     MapCoordinatesFlags mode) const {
   NOT_DESTROYED();
   PhysicalOffset offset;
-  if (IsStickyPositioned() &&
-      !mode.Has(MapCoordinatesMode::kIgnoreStickyOffset)) {
+  if (IsStickyPositioned() && !(mode & kIgnoreStickyOffset)) {
     offset += StickyPositionOffset();
   }
   return offset + LayoutObject::OffsetFromContainerInternal(container, mode);

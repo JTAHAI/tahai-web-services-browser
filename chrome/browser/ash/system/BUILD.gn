@@ -49,7 +49,6 @@ static_library("system") {
     "//components/prefs",
     "//components/session_manager/core",
     "//components/user_manager",
-    "//services/network/public/cpp",
     "//ui/base",
     "//ui/events/devices",
   ]
@@ -117,7 +116,6 @@ source_set("browser_tests") {
     "//chrome/browser:browser_process_platform_part",
     "//chrome/browser/ash/accessibility",
     "//chrome/browser/ash/login:test_support",
-    "//chrome/browser/ash/login/lock:test_support",
     "//chrome/browser/ash/policy/core:test_support",
     "//chrome/browser/ash/policy/test_support",
     "//chrome/browser/ash/settings",

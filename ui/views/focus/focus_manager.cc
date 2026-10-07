@@ -48,12 +48,6 @@ FocusManager::~FocusManager() {
                                  this);
 }
 
-bool FocusManager::ShouldSkipAcceleratorProcessing(
-    const ui::KeyEvent& event) const {
-  return focused_view_ && focused_view_->SkipDefaultKeyEventProcessing(event) &&
-         !accelerator_manager_.HasPriorityHandler(ui::Accelerator(event));
-}
-
 bool FocusManager::OnKeyEvent(const ui::KeyEvent& event) {
   const ui::KeyboardCode key_code = event.key_code();
 
@@ -69,7 +63,8 @@ bool FocusManager::OnKeyEvent(const ui::KeyEvent& event) {
   ui::Accelerator accelerator(event);
 
   // If the focused view wants to process the key event as is, let it be.
-  if (ShouldSkipAcceleratorProcessing(event)) {
+  if (focused_view_ && focused_view_->SkipDefaultKeyEventProcessing(event) &&
+      !accelerator_manager_.HasPriorityHandler(accelerator)) {
     return true;
   }
 
@@ -581,11 +576,6 @@ void FocusManager::AddFocusChangeListener(FocusChangeListener* listener) {
 
 void FocusManager::RemoveFocusChangeListener(FocusChangeListener* listener) {
   focus_change_listeners_.RemoveObserver(listener);
-}
-
-bool FocusManager::HasFocusChangeListener(
-    const FocusChangeListener* listener) const {
-  return focus_change_listeners_.HasObserver(listener);
 }
 
 bool FocusManager::ProcessArrowKeyTraversal(const ui::KeyEvent& event) {

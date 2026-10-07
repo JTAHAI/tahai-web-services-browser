@@ -79,7 +79,6 @@ public class BottomControlsCoordinator implements BackPressHandler {
 
     private final ScrollingBottomViewResourceFrameLayout mRootFrameLayout;
     private final ScrollingBottomViewSceneLayer mSceneLayer;
-    private final ResourceManager mResourceManager;
 
     private boolean mIsDestroyed;
 
@@ -120,7 +119,6 @@ public class BottomControlsCoordinator implements BackPressHandler {
             NullableObservableSupplier<@BrowserControlsState Integer> constraintsSupplier,
             Supplier<Boolean> readAloudRestoringSupplier) {
         mRootFrameLayout = root;
-        mResourceManager = resourceManager;
         root.setConstraintsSupplier(constraintsSupplier);
         PropertyModel model = new PropertyModel(BottomControlsProperties.ALL_KEYS);
 
@@ -155,7 +153,7 @@ public class BottomControlsCoordinator implements BackPressHandler {
                         edgeToEdgeControllerSupplier,
                         tabSupplier,
                         readAloudRestoringSupplier);
-        mResourceManager
+        resourceManager
                 .getDynamicResourceLoader()
                 .registerResource(root.getId(), root.getResourceAdapter());
 
@@ -227,7 +225,6 @@ public class BottomControlsCoordinator implements BackPressHandler {
         mIsDestroyed = true;
         // The previously-provided supplier will have been destroyed, so prevent further use of it.
         mRootFrameLayout.setConstraintsSupplier(null);
-        mResourceManager.getDynamicResourceLoader().unregisterResource(mRootFrameLayout.getId());
 
         BottomControlsContentDelegate contentDelegate = mContentDelegateSupplier.get();
         if (contentDelegate != null) contentDelegate.destroy();

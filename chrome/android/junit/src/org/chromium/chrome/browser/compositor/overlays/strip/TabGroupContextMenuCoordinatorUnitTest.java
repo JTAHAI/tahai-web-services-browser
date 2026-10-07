@@ -8,7 +8,6 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
@@ -43,13 +42,13 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
-import org.mockito.Mockito;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
 import org.robolectric.Robolectric;
 import org.robolectric.annotation.Config;
 import org.robolectric.shadows.ShadowLooper;
 
+import org.chromium.base.MathUtils;
 import org.chromium.base.Token;
 import org.chromium.base.supplier.ObservableSuppliers;
 import org.chromium.base.supplier.SettableNonNullObservableSupplier;
@@ -99,7 +98,6 @@ import org.chromium.components.tab_group_sync.SavedTabGroup;
 import org.chromium.components.tab_group_sync.TabGroupSyncService;
 import org.chromium.components.tab_groups.TabGroupsFeatureMap;
 import org.chromium.ui.KeyboardVisibilityDelegate;
-import org.chromium.ui.UiUtils;
 import org.chromium.ui.base.LocalizationUtils;
 import org.chromium.ui.base.TestActivity;
 import org.chromium.ui.base.WindowAndroid;
@@ -788,28 +786,6 @@ public class TabGroupContextMenuCoordinatorUnitTest {
         return tabsInGroup;
     }
 
-    private void verifyGroupReorderOption(
-            ModelList modelList,
-            String expectedTitle,
-            Token expectedGroupId,
-            boolean expectedToStart) {
-        ListItem item = findItemByTitle(modelList, expectedTitle);
-        assertNotNull("Expected reorder item '" + expectedTitle + "' to be present", item);
-        item.model.get(ListMenuItemProperties.CLICK_LISTENER).onClick(mMenuView);
-        verify(mReorderFunction).accept(expectedGroupId, expectedToStart);
-        Mockito.clearInvocations((Object) mReorderFunction);
-    }
-
-    private @Nullable ListItem findItemByTitle(ModelList modelList, String title) {
-        for (int i = 0; i < modelList.size(); i++) {
-            ListItem item = modelList.get(i);
-            if (item.model.containsKey(TITLE) && title.equals(item.model.get(TITLE))) {
-                return item;
-            }
-        }
-        return null;
-    }
-
     @SuppressWarnings("DirectInvocationOnMock")
     private void verifyNormalListItems(ModelList modelList, int closeGroupPosition) {
         verifyNormalListItems(modelList, closeGroupPosition, false, List.of(WINDOW_TITLE_2));
@@ -1073,102 +1049,6 @@ public class TabGroupContextMenuCoordinatorUnitTest {
                     mActivity.getString(R.string.move_tab_group_left),
                     listItem.model.get(ListMenuItemProperties.TITLE));
         }
-    }
-
-    @Test
-    @Feature("Tab Strip Group Context Menu")
-    @EnableFeatures(ChromeFeatureList.ANDROID_VERTICAL_TABS)
-    @Config(qualifiers = "sw600dp")
-    public void testVerticalTabs_moveGroupUpDown() {
-        initializeCoordinatorForTesting(TabStripLayoutType.VERTICAL);
-        mTabGroupContextMenuCoordinator.setGroupDataForTesting(TAB_GROUP_ID);
-        setUpReorderingMocks();
-
-        mTabGroupContextMenuCoordinator.showMenu(new RectProvider(), TAB_GROUP_ID);
-        ModelList modelList = mTabGroupContextMenuCoordinator.getModelListForTesting();
-
-        verifyGroupReorderOption(
-                modelList,
-                mActivity.getString(R.string.move_tab_group_up),
-                TAB_GROUP_ID,
-                /* expectedToStart= */ true);
-        verifyGroupReorderOption(
-                modelList,
-                mActivity.getString(R.string.move_tab_group_down),
-                TAB_GROUP_ID,
-                /* expectedToStart= */ false);
-    }
-
-    @Test
-    @Feature("Tab Strip Group Context Menu")
-    @EnableFeatures(ChromeFeatureList.ANDROID_VERTICAL_TABS)
-    @Config(qualifiers = "sw600dp")
-    public void testVerticalTabs_moveGroupUpDown_RTL() {
-        LocalizationUtils.setRtlForTesting(true);
-        initializeCoordinatorForTesting(TabStripLayoutType.VERTICAL);
-        mTabGroupContextMenuCoordinator.setGroupDataForTesting(TAB_GROUP_ID);
-        setUpReorderingMocks();
-
-        mTabGroupContextMenuCoordinator.showMenu(new RectProvider(), TAB_GROUP_ID);
-        ModelList modelList = mTabGroupContextMenuCoordinator.getModelListForTesting();
-
-        // In VT with RTL, "Move tab group up" should still move toward the start (true) without
-        // inversion.
-        verifyGroupReorderOption(
-                modelList,
-                mActivity.getString(R.string.move_tab_group_up),
-                TAB_GROUP_ID,
-                /* expectedToStart= */ true);
-        verifyGroupReorderOption(
-                modelList,
-                mActivity.getString(R.string.move_tab_group_down),
-                TAB_GROUP_ID,
-                /* expectedToStart= */ false);
-    }
-
-    @Test
-    @Feature("Tab Strip Group Context Menu")
-    @EnableFeatures(ChromeFeatureList.ANDROID_VERTICAL_TABS)
-    @Config(qualifiers = "sw600dp")
-    public void testVerticalTabs_moveGroup_boundaries_firstAndLastGroup() {
-        initializeCoordinatorForTesting(TabStripLayoutType.VERTICAL);
-        mTabGroupContextMenuCoordinator.setGroupDataForTesting(TAB_GROUP_ID);
-        mTabGroupContextMenuCoordinator.setIsGesturesEnabledForTesting(true);
-
-        List<Tab> tabsInGroup = setUpReorderingMocks();
-        when(mTabModel.indexOf(tabsInGroup.get(0))).thenReturn(0);
-        when(mTabModel.getCount()).thenReturn(3);
-
-        String moveUpTitle = mActivity.getString(R.string.move_tab_group_up);
-        String moveDownTitle = mActivity.getString(R.string.move_tab_group_down);
-
-        // First group cannot move up.
-        mTabGroupContextMenuCoordinator.showMenu(new RectProvider(), TAB_GROUP_ID);
-        ModelList firstGroupModelList = mTabGroupContextMenuCoordinator.getModelListForTesting();
-        assertNull(
-                "First group should not have 'Move tab group up'",
-                findItemByTitle(firstGroupModelList, moveUpTitle));
-        assertNotNull(
-                "First group should have 'Move tab group down'",
-                findItemByTitle(firstGroupModelList, moveDownTitle));
-        mTabGroupContextMenuCoordinator.destroyMenuForTesting();
-
-        // Last group cannot move down.
-        initializeCoordinatorForTesting(TabStripLayoutType.VERTICAL);
-        mTabGroupContextMenuCoordinator.setGroupDataForTesting(TAB_GROUP_ID);
-        mTabGroupContextMenuCoordinator.setIsGesturesEnabledForTesting(true);
-        when(mTabModel.indexOf(tabsInGroup.get(0))).thenReturn(2);
-        when(mTabModel.indexOf(tabsInGroup.get(tabsInGroup.size() - 1))).thenReturn(2);
-        when(mTabModel.getCount()).thenReturn(3);
-
-        mTabGroupContextMenuCoordinator.showMenu(new RectProvider(), TAB_GROUP_ID);
-        ModelList lastGroupModelList = mTabGroupContextMenuCoordinator.getModelListForTesting();
-        assertNotNull(
-                "Last group should have 'Move tab group up'",
-                findItemByTitle(lastGroupModelList, moveUpTitle));
-        assertNull(
-                "Last group should not have 'Move tab group down'",
-                findItemByTitle(lastGroupModelList, moveDownTitle));
     }
 
     @Test
@@ -1459,14 +1339,11 @@ public class TabGroupContextMenuCoordinatorUnitTest {
         TabGroupColorPickerContainer colorPicker =
                 container.findViewById(R.id.color_picker_container);
 
-        int minWidthPx = mActivity.getResources().getDimensionPixelSize(R.dimen.menu_width_min);
+        int minWidthPx = mActivity.getResources().getDimensionPixelSize(R.dimen.list_menu_width);
         int maxWidthPx =
                 mActivity
                         .getResources()
                         .getDimensionPixelSize(R.dimen.tab_strip_group_context_menu_max_width);
-        int marginPx =
-                mActivity.getResources().getDimensionPixelSize(R.dimen.menu_horizontal_margin);
-        int windowWidthPx = mActivity.getResources().getDisplayMetrics().widthPixels;
 
         int expectedWidth;
         int singleRowWidth = colorPicker.getSingleRowWidth();
@@ -1478,17 +1355,19 @@ public class TabGroupContextMenuCoordinatorUnitTest {
 
         // Also considers list item widths.
         ListAdapter listAdapter = listView.getAdapter();
-        int[] contentDimensions =
-                UiUtils.computeListAdapterContentDimensions(listAdapter, listView);
-        expectedWidth = Math.max(expectedWidth, contentDimensions[0]);
+        int maxItemWidth = 0;
+        for (int i = 0; i < listAdapter.getCount(); i++) {
+            View listItem = listAdapter.getView(i, null, listView);
+            listItem.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED);
+            maxItemWidth = Math.max(maxItemWidth, listItem.getMeasuredWidth());
+        }
 
+        expectedWidth = Math.max(expectedWidth, maxItemWidth);
         expectedWidth =
-                UiUtils.computeMenuWidth(
+                MathUtils.clamp(
                         expectedWidth + listView.getPaddingLeft() + listView.getPaddingRight(),
                         minWidthPx,
-                        maxWidthPx,
-                        marginPx,
-                        windowWidthPx);
+                        maxWidthPx);
 
         assertEquals("Menu width is incorrect", expectedWidth, width);
     }

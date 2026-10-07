@@ -26,13 +26,9 @@ class ScrollAccessibilityHelper {
     private class HandlerCallback implements Handler.Callback {
         public static final int MSG_VIEW_SCROLLED = 1;
 
-        private View mEventSender;
+        private final View mEventSender;
 
         public HandlerCallback(View eventSender) {
-            mEventSender = eventSender;
-        }
-
-        public void setEventSender(View eventSender) {
             mEventSender = eventSender;
         }
 
@@ -51,7 +47,6 @@ class ScrollAccessibilityHelper {
         }
     }
 
-    private final HandlerCallback mCallback;
     private final Handler mHandler;
     private boolean mMsgViewScrolledQueued;
     private boolean mIsInAScroll;
@@ -74,13 +69,7 @@ class ScrollAccessibilityHelper {
             };
 
     public ScrollAccessibilityHelper(View eventSender) {
-        mCallback = new HandlerCallback(eventSender);
-        mHandler = new Handler(mCallback);
-    }
-
-    public void setContainerView(View eventSender) {
-        removePostedCallbacks();
-        mCallback.setEventSender(eventSender);
+        mHandler = new Handler(new HandlerCallback(eventSender));
     }
 
     public void setIsInAScroll(boolean isScrolling) {

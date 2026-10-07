@@ -357,20 +357,26 @@ TEST_F(ExtensionUserScriptLoaderTest, ComponentExtensionContentScriptIsLoaded) {
     }
     const ui::TemplateReplacements* GetTemplateReplacementsForExtension(
         const ExtensionId& extension_id,
-        content::BrowserContext* context) const override {
+        const content::BrowserContext* context) const override {
       return nullptr;
     }
     bool IsDynamicComponentExtensionResource(
         const ExtensionId& extension_id,
         const std::string& path,
-        content::BrowserContext* context) const override {
+        const content::BrowserContext* context) const override {
       return false;
     }
     std::string GetDynamicResourceContent(
         const ExtensionId& extension_id,
         const std::string& path,
-        content::BrowserContext* context) const override {
+        const content::BrowserContext* context) const override {
       return "";
+    }
+    [[nodiscard]] base::ScopedClosureRunner RegisterTemplateDataProvider(
+        const ExtensionId& extension_id,
+        const content::BrowserContext* context,
+        TemplateDataProvider provider) const override {
+      return base::ScopedClosureRunner();
     }
   };
 

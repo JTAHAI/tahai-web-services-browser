@@ -72,9 +72,9 @@ public class NotificationSuspender {
     public void suspendNotificationsFromDomains(List<String> fqdns) {
         getActiveNotificationsForOrigins(
                 getOriginsForDomains(fqdns),
-                (List<NotificationWrapper> activeNotifications) ->
-                        cancelNotificationsWithIds(
-                                storeNotificationResources(activeNotifications)));
+                (activeNotifications) -> {
+                    cancelNotificationsWithIds(storeNotificationResources(activeNotifications));
+                });
     }
 
     /**

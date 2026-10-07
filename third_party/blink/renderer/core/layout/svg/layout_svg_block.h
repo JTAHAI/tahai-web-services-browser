@@ -63,7 +63,7 @@ class LayoutSVGBlock : public LayoutBlockFlow {
   SVGElement* GetElement() const;
 
  protected:
-  void WillBeDestroyed(const ComputedStyle*) override;
+  void WillBeDestroyed() override;
   void InsertedIntoTree() override;
   void WillBeRemovedFromTree() override;
 
@@ -73,11 +73,8 @@ class LayoutSVGBlock : public LayoutBlockFlow {
       VisualRectFlags) const final;
 
   AffineTransform local_transform_;
-  // True if `local_transform_` is not up-to-date.
-  bool needs_transform_update_ : 1 = true;
-  // The transform applied to the object depends on the reference box (i.e
-  // translate(50%, 50%) or similar).
-  bool transform_uses_reference_box_ : 1 = false;
+  bool needs_transform_update_ : 1;
+  bool transform_uses_reference_box_ : 1;
 
   bool IsSVG() const final {
     NOT_DESTROYED();
@@ -90,7 +87,6 @@ class LayoutSVGBlock : public LayoutBlockFlow {
   bool UpdateTransformAfterLayout(const SVGLayoutInfo&, bool bounds_changed);
   void StyleDidChange(StyleDifference,
                       const ComputedStyle* old_style,
-                      const ComputedStyle& new_style,
                       const StyleChangeContext&) override;
   bool ShouldBeHandledAsFloating(const ComputedStyle&) const override {
     NOT_DESTROYED();

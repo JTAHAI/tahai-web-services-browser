@@ -208,9 +208,8 @@ AudioParamHandler::AudioParamHandler(BaseAudioContext& context,
   // null.  However, if the destination is gone, the AudioParam will never get
   // pulled, so this is ok.  We have checks for the destination handler existing
   // when the AudioParam want to use it.
-  if (context.destinationNode()) {
-    destination_handler_ =
-        &context.destinationNode()->GetAudioDestinationHandler();
+  if (context.destination()) {
+    destination_handler_ = &context.destination()->GetAudioDestinationHandler();
   }
 }
 

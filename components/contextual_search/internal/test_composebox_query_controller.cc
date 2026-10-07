@@ -64,8 +64,7 @@ TestComposeboxQueryController::TestComposeboxQueryController(
                                 locale,
                                 template_url_service,
                                 variations_client,
-                                std::move(config_params),
-                                base::DoNothing()),
+                                std::move(config_params)),
       enable_cluster_info_ttl_(enable_cluster_info_ttl) {}
 TestComposeboxQueryController::~TestComposeboxQueryController() = default;
 

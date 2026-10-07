@@ -8,9 +8,6 @@
 #include "base/check_deref.h"
 #include "base/check_is_test.h"
 #include "chrome/app/chrome_command_ids.h"
-// TODO(crbug.com/365146870): on_task_locked_controller.h|cc and associated code
-// will be removed.
-#include "chrome/browser/ash/boca/on_task/on_task_locked_controller.h"
 #include "chrome/browser/ash/browser_delegate/browser_type.h"
 #include "chrome/browser/ash/browser_delegate/browser_type_conversion.h"
 #include "chrome/browser/devtools/devtools_window.h"
@@ -25,25 +22,20 @@
 #include "chrome/browser/ui/location_bar/location_bar.h"
 #include "chrome/browser/ui/navigator/browser_navigator.h"
 #include "chrome/browser/ui/navigator/browser_navigator_params.h"
-#include "chrome/browser/ui/tabs/tab_group_model.h"
 #include "chrome/browser/ui/tabs/tab_model.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/unload_controller.h"
-#include "chrome/browser/ui/views/frame/browser_view.h"
-#include "chrome/browser/ui/views/frame/contents_web_view.h"
 #include "chrome/browser/ui/web_applications/app_browser_controller.h"
 #include "chrome/browser/ui/web_applications/web_app_launch_utils.h"
-#include "chrome/browser/ui/window_metadata/window_metadata_controller.h"
 #include "chrome/browser/web_applications/web_app_helpers.h"
 #include "chromeos/ash/components/browser_context_helper/annotated_account_id.h"
 #include "components/tab_groups/tab_group_id.h"
 #include "components/tab_groups/tab_group_info.h"
-#include "components/tabs/public/tab_group.h"
 #include "ui/base/base_window.h"
 
 namespace ash {
 
-BrowserDelegateImpl::BrowserDelegateImpl(BrowserWindowInterface* browser)
+BrowserDelegateImpl::BrowserDelegateImpl(Browser* browser)
     : browser_(CHECK_DEREF(browser)) {}
 
 BrowserDelegateImpl::~BrowserDelegateImpl() = default;
@@ -53,11 +45,11 @@ BrowserWindowInterface& BrowserDelegateImpl::GetBrowser() const {
 }
 
 BrowserType BrowserDelegateImpl::GetType() const {
-  return FromInternalBrowserType(browser_->GetType());
+  return FromInternalBrowserType(browser_->type());
 }
 
 SessionID BrowserDelegateImpl::GetSessionID() const {
-  return browser_->GetSessionID();
+  return browser_->session_id();
 }
 
 const AccountId& BrowserDelegateImpl::GetAccountId() const {
@@ -77,12 +69,12 @@ bool BrowserDelegateImpl::IsOffTheRecord() const {
 
 bool BrowserDelegateImpl::IsCreatedByStartupCreator() const {
   return BrowserInitState::From(&*browser_)->creation_source() ==
-         BrowserWindowCreateParams::CreationSource::kStartupCreator;
+         Browser::CreationSource::kStartupCreator;
 }
 
 bool BrowserDelegateImpl::IsCreatedBySessionRestoreForStartupUrls() const {
   return BrowserInitState::From(&*browser_)->creation_source() ==
-         BrowserWindowCreateParams::CreationSource::kLastAndUrlsStartupPref;
+         Browser::CreationSource::kLastAndUrlsStartupPref;
 }
 
 gfx::Rect BrowserDelegateImpl::GetBounds() const {
@@ -100,11 +92,6 @@ size_t BrowserDelegateImpl::GetWebContentsCount() const {
 content::WebContents* BrowserDelegateImpl::GetWebContentsAt(
     size_t index) const {
   return browser_->tab_strip_model()->GetWebContentsAt(index);
-}
-
-tabs::TabIteratorRange BrowserDelegateImpl::GetTabIterator() const {
-  TabStripModel* tab_strip_model = browser_->tab_strip_model();
-  return {tab_strip_model->begin(), tab_strip_model->end()};
 }
 
 content::WebContents* BrowserDelegateImpl::GetInspectedWebContents() const {
@@ -131,16 +118,9 @@ aura::Window* BrowserDelegateImpl::GetNativeWindow() const {
 std::optional<webapps::AppId> BrowserDelegateImpl::GetAppId() const {
   // The implementation of `GetAppIdFromApplicationName()` isn't specific to
   // WebApps, although the function resides in web_app_helpers.cc|h.
-  std::string app_id = web_app::GetAppIdFromApplicationName(
-      BrowserInitState::From(&*browser_)->create_params().app_name);
+  std::string app_id =
+      web_app::GetAppIdFromApplicationName(browser_->app_name());
   return app_id.empty() ? std::nullopt : std::optional<webapps::AppId>(app_id);
-}
-
-std::optional<std::string> BrowserDelegateImpl::GetUserDefinedWindowTitle()
-    const {
-  const std::string& title =
-      CHECK_DEREF(WindowMetadataController::From(&*browser_)).user_title();
-  return title.empty() ? std::nullopt : std::optional<std::string>(title);
 }
 
 bool BrowserDelegateImpl::IsWebApp() const {
@@ -173,16 +153,6 @@ bool BrowserDelegateImpl::IsVisible() const {
   return browser_->GetWindow()->IsVisible();
 }
 
-bool BrowserDelegateImpl::IsFullscreen() const {
-  return browser_->GetWindow()->IsFullscreen();
-}
-
-void BrowserDelegateImpl::SetFullscreen(bool fullscreen) {
-  if (IsFullscreen() != fullscreen) {
-    chrome::ToggleFullscreenMode(&*browser_, /*user_initiated=*/false);
-  }
-}
-
 void BrowserDelegateImpl::Show() {
   browser_->GetWindow()->Show();
 }
@@ -201,12 +171,6 @@ void BrowserDelegateImpl::Minimize() {
 
 void BrowserDelegateImpl::Close() {
   browser_->GetWindow()->Close();
-}
-
-void BrowserDelegateImpl::SetSkipWarningUserOnClose(bool skip) {
-  if (auto* unload_controller = UnloadController::From(&*browser_)) {
-    unload_controller->set_force_skip_warning_user_on_close(skip);
-  }
 }
 
 void BrowserDelegateImpl::AddTab(const GURL& url,
@@ -230,7 +194,7 @@ content::WebContents* BrowserDelegateImpl::NavigateWebApp(
     std::optional<webapps::LaunchParams> launch_params) {
   CHECK(GetType() == BrowserType::kApp || GetType() == BrowserType::kAppPopup)
       << "Unexpected browser type " << static_cast<int>(GetType()) << "("
-      << browser_->GetType() << ")";
+      << browser_->type() << ")";
 
   NavigateParams nav_params(&browser_.get(), url,
                             ui::PAGE_TRANSITION_AUTO_BOOKMARK);
@@ -259,23 +223,6 @@ void BrowserDelegateImpl::CreateTabGroup(
   const tab_groups::TabGroupId new_group_id =
       tab_strip_model->AddToNewGroup(indices);
   tab_strip_model->ChangeTabGroupVisuals(new_group_id, tab_group.visual_data);
-}
-
-std::vector<tab_groups::TabGroupInfo> BrowserDelegateImpl::GetTabGroupInfos()
-    const {
-  std::vector<tab_groups::TabGroupInfo> tab_groups;
-  const TabGroupModel* group_model = browser_->tab_strip_model()->group_model();
-  if (group_model) {
-    for (const auto& group_id : group_model->ListTabGroups()) {
-      const TabGroup* tab_group = group_model->GetTabGroup(group_id);
-      tab_groups.emplace_back(
-          gfx::Range(tab_group->ListTabs()),
-          tab_groups::TabGroupVisualData(*(tab_group->visual_data())));
-    }
-  } else {
-    CHECK(!browser_->tab_strip_model()->SupportsTabGroups());
-  }
-  return tab_groups;
 }
 
 void BrowserDelegateImpl::PinTab(size_t tab_index) {
@@ -307,83 +254,29 @@ void BrowserDelegateImpl::ResetLocationBar() {
   BrowserWindow::FromBrowser(&*browser_)->GetLocationBar()->Revert();
 }
 
-void BrowserDelegateImpl::SetOnTaskState(OnTaskState state) {
-  switch (state) {
-    case OnTaskState::kUnlocked:
-      if (IsLockedFullscreen()) {
-        LeaveLockedFullscreen();
-      }
-      SetDevToolsCommandsEnabled(true);
-      boca::OnTaskLockedController::From(&browser_.get())
-          ->set_locked_for_on_task(false);
-      break;
-    case OnTaskState::kPrepared:
-      if (IsLockedFullscreen()) {
-        LeaveLockedFullscreen();
-      }
-      SetDevToolsCommandsEnabled(false);
-      boca::OnTaskLockedController::From(&browser_.get())
-          ->set_locked_for_on_task(true);
-      break;
-    case OnTaskState::kLocked:
-      boca::OnTaskLockedController::From(&browser_.get())
-          ->set_locked_for_on_task(true);
-      if (!IsLockedFullscreen()) {
-        EnterLockedFullscreen();
-        BrowserWindow::FromBrowser(&*browser_)->FocusToolbar();
-      }
-      SetTabSwitchCommandsEnabled(true);
-      break;
-    case OnTaskState::kPaused:
-      SetTabSwitchCommandsEnabled(false);
-      break;
-  }
-}
-
-bool BrowserDelegateImpl::IsOnTaskState(OnTaskState state) const {
-  switch (state) {
-    case OnTaskState::kUnlocked:
-      return !boca::OnTaskLockedController::From(&browser_.get())
-                  ->is_locked_for_on_task() &&
-             !IsLockedFullscreen();
-    case OnTaskState::kPrepared:
-      return boca::OnTaskLockedController::From(&browser_.get())
-                 ->is_locked_for_on_task() &&
-             !IsLockedFullscreen();
-    // In non-unified mode, there is no explicit state for paused, so just
-    // return true if it's locked, as this is temporary.
-    case OnTaskState::kPaused:
-    case OnTaskState::kLocked:
-      return boca::OnTaskLockedController::From(&browser_.get())
-                 ->is_locked_for_on_task() &&
-             IsLockedFullscreen();
-  }
-}
-
-void BrowserDelegateImpl::EnterLockedFullscreen() {
+void BrowserDelegateImpl::EnterLockedFullscreen(bool focus_toolbar) {
   CHECK(!IsLockedFullscreen());
   ash::PinWindow(GetNativeWindow(), /*trusted=*/true);
-  chrome::BrowserCommandController::From(&browser_.get())
-      ->LockedFullscreenStateChanged();
+  browser_->command_controller()->LockedFullscreenStateChanged();
+  if (focus_toolbar) {
+    BrowserWindow::FromBrowser(&*browser_)->FocusToolbar();
+  }
 }
 
 void BrowserDelegateImpl::LeaveLockedFullscreen() {
   CHECK(IsLockedFullscreen());
   ash::UnpinWindow(GetNativeWindow());
-  chrome::BrowserCommandController::From(&browser_.get())
-      ->LockedFullscreenStateChanged();
+  browser_->command_controller()->LockedFullscreenStateChanged();
 }
 
 bool BrowserDelegateImpl::IsLockedFullscreen() const {
-  // TODO(crbug.com/438540029): Rename WindowPinType::kLockedFullscreen to
-  // WindowPinType::kTrustedPinned.
   return ash::GetWindowPinType(GetNativeWindow()) ==
          chromeos::WindowPinType::kLockedFullscreen;
 }
 
 void BrowserDelegateImpl::SetDevToolsCommandsEnabled(bool enabled) {
   chrome::BrowserCommandController* const command_controller =
-      chrome::BrowserCommandController::From(&browser_.get());
+      browser_->command_controller();
   command_controller->UpdateCommandEnabled(IDC_DEV_TOOLS, enabled);
   command_controller->UpdateCommandEnabled(IDC_DEV_TOOLS_CONSOLE, enabled);
   command_controller->UpdateCommandEnabled(IDC_DEV_TOOLS_DEVICES, enabled);
@@ -392,21 +285,24 @@ void BrowserDelegateImpl::SetDevToolsCommandsEnabled(bool enabled) {
 }
 
 void BrowserDelegateImpl::SetTabSwitchCommandsEnabled(bool enabled) {
-  chrome::BrowserCommandController::From(&browser_.get())
-      ->SetTabSwitchCommandsEnabled(enabled);
+  chrome::BrowserCommandController* const command_controller =
+      browser_->command_controller();
+  command_controller->UpdateCommandEnabled(IDC_SELECT_NEXT_TAB, enabled);
+  command_controller->UpdateCommandEnabled(IDC_SELECT_PREVIOUS_TAB, enabled);
+  command_controller->UpdateCommandEnabled(IDC_CYCLE_TO_NEXT_TAB, enabled);
+  command_controller->UpdateCommandEnabled(IDC_CYCLE_TO_PREV_TAB, enabled);
+  command_controller->UpdateCommandEnabled(IDC_SELECT_TAB_0, enabled);
+  command_controller->UpdateCommandEnabled(IDC_SELECT_TAB_1, enabled);
+  command_controller->UpdateCommandEnabled(IDC_SELECT_TAB_2, enabled);
+  command_controller->UpdateCommandEnabled(IDC_SELECT_TAB_3, enabled);
+  command_controller->UpdateCommandEnabled(IDC_SELECT_TAB_4, enabled);
+  command_controller->UpdateCommandEnabled(IDC_SELECT_TAB_5, enabled);
+  command_controller->UpdateCommandEnabled(IDC_SELECT_TAB_6, enabled);
+  command_controller->UpdateCommandEnabled(IDC_SELECT_TAB_7, enabled);
 }
 
 void BrowserDelegateImpl::ActivateWebContentsAt(size_t index) {
   browser_->tab_strip_model()->ActivateTabAt(static_cast<int>(index));
-}
-
-void BrowserDelegateImpl::SetContentsBackgroundVisible(bool visible) {
-  BrowserView& browser_view =
-      CHECK_DEREF(BrowserView::GetBrowserViewForBrowser(&browser_.get()));
-  for (ContentsWebView* contents_view :
-       browser_view.GetAllVisibleContentsWebViews()) {
-    contents_view->SetBackgroundVisible(visible);
-  }
 }
 
 }  // namespace ash

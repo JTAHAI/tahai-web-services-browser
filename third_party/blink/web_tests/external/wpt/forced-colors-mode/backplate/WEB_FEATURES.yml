@@ -1,2 +1,4 @@
-rules:
-- "*": [forced-colors]
+features:
+- name: forced-colors
+  files:
+  - "*"

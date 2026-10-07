@@ -259,8 +259,9 @@ const CGFloat kCloseButtonPadding = 16.0f;
   [self.view addSubview:self.tableView];
   [self.view addSubview:_closeButton];
 
-  AddSameConstraintsToSides(self.tableView, self.view,
-                            LayoutSides::kBottom | LayoutSides::kHorizontal);
+  AddSameConstraintsToSides(
+      self.tableView, self.view,
+      LayoutSides::kLeading | LayoutSides::kTrailing | LayoutSides::kBottom);
   AddSameConstraintsToSidesWithInsets(
       _closeButton, self.view, LayoutSides::kTop | LayoutSides::kTrailing,
       NSDirectionalEdgeInsetsMake(kCloseButtonPadding, 0, 0,

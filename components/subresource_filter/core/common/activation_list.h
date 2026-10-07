@@ -9,24 +9,22 @@
 
 namespace subresource_filter {
 
-// These values are persisted to logs. Entries should not be renumbered and
-// numeric values should never be reused.
-//
-// LINT.IfChange(ActivationList)
+// This enum backs a histogram. Make sure all updates are reflected in
+// enums.xml.
 enum class ActivationList : int {
-  NONE = 0,
-  SOCIAL_ENG_ADS_INTERSTITIAL = 1,
-  PHISHING_INTERSTITIAL = 2,
+  NONE,
+  SOCIAL_ENG_ADS_INTERSTITIAL,
+  PHISHING_INTERSTITIAL,
+  SUBRESOURCE_FILTER,
 
   // Site violates the better ads standard.
-  BETTER_ADS = 4,
+  BETTER_ADS,
 
-  ABUSIVE = 5,
+  ABUSIVE,
 
   // Make sure new elements added update the LAST value.
   LAST = ABUSIVE
 };
-// LINT.ThenChange(//tools/metrics/histograms/enums.xml:ActivationList)
 
 // For logging use only.
 std::ostream& operator<<(std::ostream& os, const ActivationList& type);

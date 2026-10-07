@@ -5,9 +5,7 @@
 #ifndef SERVICES_VIZ_PUBLIC_CPP_COMPOSITING_TREES_IN_VIZ_TIMING_MOJOM_TRAITS_H_
 #define SERVICES_VIZ_PUBLIC_CPP_COMPOSITING_TREES_IN_VIZ_TIMING_MOJOM_TRAITS_H_
 
-#include "base/types/expected.h"
 #include "components/viz/common/quads/trees_in_viz_timing.h"
-#include "mojo/public/cpp/bindings/deserialization_error.h"
 #include "services/viz/public/mojom/compositing/trees_in_viz_timing.mojom-shared.h"
 
 namespace mojo {
@@ -35,9 +33,8 @@ struct StructTraits<viz::mojom::TreesInVizTimingDataView,
     return frame_timing_details.submit_compositor_frame;
   }
 
-  static base::expected<void, DeserializationError> Read(
-      viz::mojom::TreesInVizTimingDataView data,
-      viz::TreesInVizTiming* out);
+  static bool Read(viz::mojom::TreesInVizTimingDataView data,
+                   viz::TreesInVizTiming* out);
 };
 
 }  // namespace mojo

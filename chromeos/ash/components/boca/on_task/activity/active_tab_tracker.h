@@ -7,23 +7,17 @@
 
 #include <string>
 
-#include "base/memory/raw_ref.h"
 #include "chromeos/ash/components/boca/boca_window_observer.h"
 
 namespace ash::boca {
 
-class BocaSessionManager;
-
 class ActiveTabTracker : public boca::BocaWindowObserver {
  public:
-  explicit ActiveTabTracker(BocaSessionManager* boca_session_manager);
+  ActiveTabTracker();
   ~ActiveTabTracker() override;
 
   // BocaWindowObserver:
   void OnActiveTabChanged(const std::u16string& tab_title) override;
-
- private:
-  const raw_ref<BocaSessionManager> boca_session_manager_;
 };
 
 }  // namespace ash::boca

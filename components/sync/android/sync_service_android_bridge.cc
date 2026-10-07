@@ -184,6 +184,10 @@ void SyncServiceAndroidBridge::AcknowledgeBookmarksLimitExceededError(
           source));
 }
 
+bool SyncServiceAndroidBridge::IsSyncFeatureEnabled() {
+  return native_sync_service_->IsSyncFeatureEnabled();
+}
+
 bool SyncServiceAndroidBridge::IsSyncDisabledByEnterprisePolicy() {
   return native_sync_service_->HasDisableReason(
       SyncService::DISABLE_REASON_ENTERPRISE_POLICY);

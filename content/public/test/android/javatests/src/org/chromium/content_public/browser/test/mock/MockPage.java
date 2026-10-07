@@ -4,11 +4,8 @@
 
 package org.chromium.content_public.browser.test.mock;
 
-import androidx.annotation.AnyThread;
-
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.content_public.browser.Page;
-import org.chromium.content_public.browser.PageState;
 import org.chromium.url.GURL;
 
 /** Mock class for {@link Page}. */
@@ -16,11 +13,6 @@ import org.chromium.url.GURL;
 public class MockPage implements Page {
     private boolean mIsPrerendering;
     private GURL mUrl = GURL.emptyGURL();
-    private volatile PageState mMostRecentPageState;
-
-    public MockPage() {
-        takePageSnapshot();
-    }
 
     @Override
     public void setPageDeletionListener(PageDeletionListener listener) {}
@@ -43,17 +35,5 @@ public class MockPage implements Page {
     @Override
     public void setUrl(GURL url) {
         mUrl = url;
-        takePageSnapshot();
-    }
-
-    @Override
-    @AnyThread
-    public PageState getMostRecentPageState() {
-        return mMostRecentPageState;
-    }
-
-    /** Take a snapshot of the current state of Page */
-    private void takePageSnapshot() {
-        mMostRecentPageState = new PageState(mUrl);
     }
 }

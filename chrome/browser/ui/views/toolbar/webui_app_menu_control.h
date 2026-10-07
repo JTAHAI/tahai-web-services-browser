@@ -8,7 +8,6 @@
 #include <memory>
 
 #include "base/memory/raw_ref.h"
-#include "base/memory/weak_ptr.h"
 #include "base/observer_list.h"
 #include "chrome/browser/ui/toolbar/app_menu_icon_controller.h"
 #include "chrome/browser/ui/views/toolbar/app_menu_control.h"
@@ -18,9 +17,9 @@
 
 namespace views {
 class AccessiblePaneView;
+class MenuRunner;
 }  // namespace views
 
-class AppMenu;
 class AppMenuButtonObserver;
 class AppMenuModel;
 class WebUIToolbarControlDelegate;
@@ -46,7 +45,7 @@ class WebUIAppMenuControl : public AppMenuControl {
   void Focus(views::AccessiblePaneView* pane) override;
   void SetTypeAndSeverity(
       AppMenuIconController::TypeAndSeverity type_and_severity) override;
-  void SetIsMaximizedOrFullscreen(bool maximized_or_fullscreen) override;
+  void SetTrailingMargin(int margin) override;
   views::View* GetFocusablePaneView() override;
 
   // Returns the current state of the app menu control.
@@ -67,14 +66,13 @@ class WebUIAppMenuControl : public AppMenuControl {
   AppMenuIconController::TypeAndSeverity type_and_severity_{
       AppMenuIconController::IconType::kNone,
       AppMenuIconController::Severity::kNone};
-  bool window_is_maximized_or_fullscreen_ = false;
+  int trailing_margin_ = 0;
   // Caches the focus state of the button within the WebUI.
   bool focused_ = false;
-  base::ObserverList<AppMenuButtonObserver>::Unchecked observer_list_;
   std::unique_ptr<AppMenuModel> menu_model_;
-  std::unique_ptr<AppMenu> menu_;
+  std::unique_ptr<views::MenuRunner> menu_runner_;
 
-  base::WeakPtrFactory<WebUIAppMenuControl> weak_ptr_factory_{this};
+  base::ObserverList<AppMenuButtonObserver>::Unchecked observer_list_;
 };
 
 #endif  // CHROME_BROWSER_UI_VIEWS_TOOLBAR_WEBUI_APP_MENU_CONTROL_H_

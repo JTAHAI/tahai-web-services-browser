@@ -126,10 +126,7 @@ enum class ApplyRuntimeMutableChangesResult {
   kUpdateFeatureStateFailed = 14,
   kApplyRuntimeFieldTrialOverrideFailed = 15,
   kValidationFailed = 16,
-  kRuntimeExperimentHasGoogleWebId = 17,
-  kOverriddenTrialHasGoogleWebId = 18,
-  kRuntimeExperimentHasParams = 19,
-  kMaxValue = kRuntimeExperimentHasParams,
+  kMaxValue = kValidationFailed,
 };
 // LINT.ThenChange(//tools/metrics/histograms/metadata/variations/enums.xml:VariationsApplyRuntimeMutableChangesResult)
 

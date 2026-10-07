@@ -148,7 +148,7 @@ class SimpleMenuItemViewBinder {
     android:orientation="horizontal"
     android:background="@color/modern_primary_color">
 
-    <ImageView
+    <org.chromium.ui.widget.ChromeImageView
         android:id="@+id/simple_menu_icon"
         android:layout_width="18dp"
         android:layout_height="18dp"

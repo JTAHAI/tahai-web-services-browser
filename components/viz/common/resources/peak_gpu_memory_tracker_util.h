@@ -7,6 +7,8 @@
 
 #include <stdint.h>
 
+#include <utility>
+
 #include "components/viz/common/viz_common_export.h"
 
 namespace viz {

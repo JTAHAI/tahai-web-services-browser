@@ -7,6 +7,7 @@ package org.chromium.chrome.browser.tab;
 import static org.chromium.build.NullUtil.assumeNonNull;
 
 import org.chromium.base.BinderCallsListener;
+import org.chromium.base.ObserverList.RewindableIterator;
 import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
@@ -87,36 +88,46 @@ public final class TabGestureStateListener extends TabWebContentsUserData {
 
                     @Override
                     public void onGestureBegin() {
-                        for (TabObserver observer : ((TabImpl) mTab).getTabObservers()) {
-                            observer.onGestureBegin();
+                        RewindableIterator<TabObserver> observers =
+                                ((TabImpl) mTab).getTabObservers();
+                        while (observers.hasNext()) {
+                            observers.next().onGestureBegin();
                         }
                     }
 
                     @Override
                     public void onGestureEnd() {
-                        for (TabObserver observer : ((TabImpl) mTab).getTabObservers()) {
-                            observer.onGestureEnd();
+                        RewindableIterator<TabObserver> observers =
+                                ((TabImpl) mTab).getTabObservers();
+                        while (observers.hasNext()) {
+                            observers.next().onGestureEnd();
                         }
                     }
 
                     @Override
                     public void onTouchDown() {
-                        for (TabObserver observer : ((TabImpl) mTab).getTabObservers()) {
-                            observer.onTouchDown();
+                        RewindableIterator<TabObserver> observers =
+                                ((TabImpl) mTab).getTabObservers();
+                        while (observers.hasNext()) {
+                            observers.next().onTouchDown();
                         }
                     }
 
                     @Override
                     public void onTouchUp() {
-                        for (TabObserver observer : ((TabImpl) mTab).getTabObservers()) {
-                            observer.onTouchUp();
+                        RewindableIterator<TabObserver> observers =
+                                ((TabImpl) mTab).getTabObservers();
+                        while (observers.hasNext()) {
+                            observers.next().onTouchUp();
                         }
                     }
 
                     private void onScrollingStateChanged() {
                         boolean scrolling = manager.isScrollInProgress();
-                        for (TabObserver observer : ((TabImpl) mTab).getTabObservers()) {
-                            observer.onContentViewScrollingStateChanged(scrolling);
+                        RewindableIterator<TabObserver> observers =
+                                ((TabImpl) mTab).getTabObservers();
+                        while (observers.hasNext()) {
+                            observers.next().onContentViewScrollingStateChanged(scrolling);
                         }
                     }
                 };

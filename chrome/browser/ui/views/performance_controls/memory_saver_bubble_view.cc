@@ -16,6 +16,7 @@
 #include "chrome/browser/ui/performance_controls/memory_saver_utils.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/views/frame/toolbar_button_provider.h"
+#include "chrome/browser/ui/views/page_action/page_action_icon_view.h"
 #include "chrome/browser/ui/views/performance_controls/memory_saver_resource_view.h"
 #include "chrome/grit/branded_strings.h"
 #include "chrome/grit/generated_resources.h"
@@ -41,7 +42,7 @@ DEFINE_CLASS_ELEMENT_IDENTIFIER_VALUE(MemorySaverBubbleView,
 
 namespace {
 // The lower limit of memory usage that we would display to the user in bytes.
-constexpr base::ByteSize kMemoryUsageThreshold = base::MiB(10);
+constexpr base::ByteSize kMemoryUsageThreshold = base::MiBU(10);
 
 void AddBubbleBodyText(
     ui::DialogModel::Builder* dialog_model_builder,

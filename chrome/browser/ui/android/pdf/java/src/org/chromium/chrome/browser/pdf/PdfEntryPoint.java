@@ -24,7 +24,7 @@ public interface PdfEntryPoint {
             String url,
             @Nullable String filepath,
             String title,
-            Object tab,
+            int tabId,
             PdfFragmentViewTracker pdfFragmentViewTracker);
 
     List<View> findAllPdfFragmentViews(FragmentActivity activity);

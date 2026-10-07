@@ -74,12 +74,7 @@ public class BrowserControlsManager implements ActivityStateListener, BrowserCon
     private final Activity mActivity;
     private final BrowserStateBrowserControlsVisibilityDelegate mBrowserVisibilityDelegate;
     @ControlsPosition private int mControlsPosition;
-    private final TokenHolder mHidingTokenHolder =
-            new TokenHolder(
-                    () ->
-                            scheduleVisibilityUpdate(
-                                    /* immediate= */ ChromeFeatureList.sBrowserControlsHidingToken
-                                            .isEnabled()));
+    private final TokenHolder mHidingTokenHolder = new TokenHolder(this::scheduleVisibilityUpdate);
 
     /**
      * An observable for browser controls being at its minimum height or not. This is as good as the
@@ -161,7 +156,7 @@ public class BrowserControlsManager implements ActivityStateListener, BrowserCon
                         return;
                     }
 
-                    try (TraceEvent _ =
+                    try (TraceEvent e =
                             TraceEvent.scoped(
                                     "BrowserControlsManager.onAndroidVisibilityChanged")) {
                         mControlContainer.getView().setVisibility(visibility);
@@ -483,7 +478,7 @@ public class BrowserControlsManager implements ActivityStateListener, BrowserCon
                 && mBottomControlsMinHeight == bottomControlsMinHeight) {
             return;
         }
-        try (TraceEvent _ = TraceEvent.scoped("BrowserControlsManager.setBottomControlsHeight")) {
+        try (TraceEvent e = TraceEvent.scoped("BrowserControlsManager.setBottomControlsHeight")) {
             final int oldBottomControlsHeight = mBottomControlsHeight;
             final int oldBottomControlsMinHeight = mBottomControlsMinHeight;
             mBottomControlsHeight = bottomControlsHeight;
@@ -552,7 +547,7 @@ public class BrowserControlsManager implements ActivityStateListener, BrowserCon
                 && mTopControlsMinHeight == topControlsMinHeight) {
             return;
         }
-        try (TraceEvent _ = TraceEvent.scoped("BrowserControlsManager.setTopControlsHeight")) {
+        try (TraceEvent e = TraceEvent.scoped("BrowserControlsManager.setTopControlsHeight")) {
             final int oldTopHeight = mTopControlsHeight;
             final int oldTopMinHeight = mTopControlsMinHeight;
             mTopControlsHeight = topControlsHeight;
@@ -635,10 +630,6 @@ public class BrowserControlsManager implements ActivityStateListener, BrowserCon
         // - If we transition to a SHOWN state, the browser also needs to update the offsets,
         // otherwise the animation to show the controls will start with a frame where the controls
         // are fully visible.
-        if (constraints == BrowserControlsState.HIDDEN) {
-            return true;
-        }
-
         boolean areControlsOffscreen = false;
         if (getControlsPosition() == ControlsPosition.TOP) {
             areControlsOffscreen = getContentOffset() == getTopControlsMinHeight();
@@ -646,7 +637,9 @@ public class BrowserControlsManager implements ActivityStateListener, BrowserCon
             areControlsOffscreen = getBottomContentOffset() == getBottomControlsMinHeight();
         }
 
-        return (areControlsOffscreen && constraints == BrowserControlsState.SHOWN);
+        return (areControlsOffscreen
+                && (constraints == BrowserControlsState.HIDDEN
+                        || constraints == BrowserControlsState.SHOWN));
     }
 
     @Override
@@ -746,7 +739,7 @@ public class BrowserControlsManager implements ActivityStateListener, BrowserCon
                         || controlsPosition == ControlsPosition.BOTTOM
                 : "Cannot change to ControlPosition.NONE after initialization";
         if (mControlsPosition == controlsPosition) return;
-        try (TraceEvent _ = TraceEvent.scoped("BrowserControlsManager.setControlsPosition")) {
+        try (TraceEvent e = TraceEvent.scoped("BrowserControlsManager.setControlsPosition")) {
             topControlsAnimationMaybeStarted(
                     mTopControlsHeight,
                     mTopControlsMinHeight,
@@ -819,16 +812,10 @@ public class BrowserControlsManager implements ActivityStateListener, BrowserCon
     }
 
     /**
-     * Utility routine for updating controls container visibility.
-     *
-     * <p>When driven by scrolling, visibility updates are synchronized with animation via {@link
-     * View#postOnAnimation} to prevent message loop stalls due to untimely invalidation. When
-     * explicitly requested via `immediate` (e.g. when hiding via hiding tokens), updates are
-     * applied immediately to avoid a flash of the Android view before the next animation frame.
-     *
-     * @param immediate Whether the update should be run immediately.
+     * Utility routine for ensuring visibility updates are synchronized with animation, preventing
+     * message loop stalls due to untimely invalidation.
      */
-    private void scheduleVisibilityUpdate(boolean immediate) {
+    private void scheduleVisibilityUpdate() {
         if (mControlContainer == null) {
             return;
         }
@@ -837,15 +824,7 @@ public class BrowserControlsManager implements ActivityStateListener, BrowserCon
             return;
         }
         mControlContainer.getView().removeCallbacks(mUpdateVisibilityRunnable);
-        if (immediate) {
-            mUpdateVisibilityRunnable.run();
-        } else {
-            mControlContainer.getView().postOnAnimation(mUpdateVisibilityRunnable);
-        }
-    }
-
-    private void scheduleVisibilityUpdate() {
-        scheduleVisibilityUpdate(/* immediate= */ false);
+        mControlContainer.getView().postOnAnimation(mUpdateVisibilityRunnable);
     }
 
     /**
@@ -869,12 +848,6 @@ public class BrowserControlsManager implements ActivityStateListener, BrowserCon
     @Override
     public void releaseAndroidControlsHidingToken(int token) {
         mHidingTokenHolder.releaseToken(token);
-    }
-
-    @Override
-    @VisibleForTesting
-    public boolean hasHidingTokens() {
-        return mHidingTokenHolder.hasTokens();
     }
 
     @EnsuresNonNullIf({"mControlContainer"})
@@ -986,7 +959,7 @@ public class BrowserControlsManager implements ActivityStateListener, BrowserCon
     }
 
     private void notifyControlOffsetChanged() {
-        try (TraceEvent _ =
+        try (TraceEvent e =
                 TraceEvent.scoped("BrowserControlsManager.notifyControlOffsetChanged")) {
             scheduleVisibilityUpdate();
             if (shouldShowAndroidControls() && mControlsPosition == ControlsPosition.TOP) {
@@ -1229,10 +1202,11 @@ public class BrowserControlsManager implements ActivityStateListener, BrowserCon
 
         boolean isNtpScrollOffEnabled =
                 BottomBarConfigUtils.isNtpScrollOffEnabled(getTab(), mActivity);
+        boolean useBottomControls = isNtpScrollOffEnabled;
         final float hiddenRatio =
-                isNtpScrollOffEnabled ? getBottomControlHiddenRatio() : getTopControlHiddenRatio();
+                useBottomControls ? getBottomControlHiddenRatio() : getTopControlHiddenRatio();
 
-        int startOffset = isNtpScrollOffEnabled ? getBottomControlOffset() : getTopControlOffset();
+        int startOffset = useBottomControls ? getBottomControlOffset() : getTopControlOffset();
         if (startOffset == 0) {
             return;
         }
@@ -1262,8 +1236,8 @@ public class BrowserControlsManager implements ActivityStateListener, BrowserCon
                     int value = (int) animator.getAnimatedValue();
                     updateBrowserControlsOffsets(
                             false,
-                            isNtpScrollOffEnabled ? 0 : value,
-                            isNtpScrollOffEnabled ? value : 0,
+                            useBottomControls ? 0 : value,
+                            useBottomControls ? value : 0,
                             getTopControlsHeight(),
                             getTopControlsMinHeight(),
                             getBottomControlsMinHeight());
@@ -1284,8 +1258,9 @@ public class BrowserControlsManager implements ActivityStateListener, BrowserCon
 
         boolean isNtpScrollOffEnabled =
                 BottomBarConfigUtils.isNtpScrollOffEnabled(getTab(), mActivity);
+        boolean useBottomControls = isNtpScrollOffEnabled;
         final float hiddenRatio =
-                isNtpScrollOffEnabled ? getBottomControlHiddenRatio() : getTopControlHiddenRatio();
+                useBottomControls ? getBottomControlHiddenRatio() : getTopControlHiddenRatio();
 
         final int bottomControlHeight = getBottomControlsHeight();
         final int bottomControlOffset = getBottomControlOffset();
@@ -1294,14 +1269,12 @@ public class BrowserControlsManager implements ActivityStateListener, BrowserCon
         final int topControlHeight = getTopControlsHeight();
         final int topControlOffset = getTopControlOffset();
         final int targetTopOffset =
-                isNtpScrollOffEnabled
-                        ? topControlOffset
-                        : getTopControlsMinHeight() - topControlHeight;
+                useBottomControls ? topControlOffset : getTopControlsMinHeight() - topControlHeight;
 
         final int startContentOffset =
-                isNtpScrollOffEnabled ? getTopControlsHeight() : getContentOffset();
+                useBottomControls ? getTopControlsHeight() : getContentOffset();
         final int targetContentOffset =
-                isNtpScrollOffEnabled ? getTopControlsHeight() : getTopControlsMinHeight();
+                useBottomControls ? getTopControlsHeight() : getTopControlsMinHeight();
 
         if (topControlOffset == targetTopOffset
                 && bottomControlOffset == targetBottomOffset

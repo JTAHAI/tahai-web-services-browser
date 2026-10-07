@@ -100,7 +100,7 @@ export class SwitchAccess {
     if (shouldRecover) {
       setTimeout(Navigator.byItem.moveToValidNode.bind(Navigator.byItem), 0);
     }
-    const errorTypeCountForUMA = ErrorType.COUNT;
+    const errorTypeCountForUMA = Object.keys(ErrorType).length;
     chrome.metricsPrivate.recordEnumerationValue(
         'Accessibility.CrosSwitchAccess.Error', errorType,
         errorTypeCountForUMA);

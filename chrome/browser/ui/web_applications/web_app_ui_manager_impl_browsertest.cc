@@ -8,10 +8,10 @@
 #include "base/run_loop.h"
 #include "base/test/bind.h"
 #include "base/test/test_future.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
 #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
-#include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/web_applications/test/web_app_browsertest_util.h"
 #include "chrome/browser/web_applications/mojom/user_display_mode.mojom.h"
 #include "chrome/browser/web_applications/test/fake_os_integration_manager.h"
@@ -54,7 +54,7 @@ class WebAppUiManagerImplBrowserTest : public InProcessBrowserTest {
     return web_app::test::InstallWebApp(profile(), std::move(web_app_info));
   }
 
-  BrowserWindowInterface* LaunchWebApp(const webapps::AppId& app_id) {
+  Browser* LaunchWebApp(const webapps::AppId& app_id) {
     return LaunchWebAppBrowser(profile(), app_id);
   }
 
@@ -92,7 +92,7 @@ IN_PROC_BROWSER_TEST_F(WebAppUiManagerImplBrowserTest,
   EXPECT_EQ(1u, GlobalBrowserCollection::GetInstance()->GetSize());
   BrowserWindowInterface* const app_browser =
       GetLastActiveBrowserWindowInterfaceWithAnyProfile();
-  BrowserWaiter waiter(app_browser);
+  BrowserWaiter waiter(app_browser->GetBrowserForMigrationOnly());
   // Uninstalling should close the |app_browser|, but keep the browser
   // object alive long enough to complete the uninstall.
   test::UninstallWebApp(app_browser->GetProfile(), foo_app_id);
@@ -214,13 +214,13 @@ IN_PROC_BROWSER_TEST_F(WebAppUiManagerImplBrowserTest,
 
   const GURL app_url = embedded_test_server()->GetURL("/empty.html");
   const webapps::AppId app_id = InstallWebApp(app_url);
-  BrowserWindowInterface* const app_browser = LaunchWebApp(app_id);
+  Browser* const app_browser = LaunchWebApp(app_id);
 
   EXPECT_TRUE(app_browser);
   EXPECT_EQ(1u, ui_manager().GetNumWindowsForApp(app_id));
 
   content::WebContents* const web_contents =
-      app_browser->GetTabStripModel()->GetActiveWebContents();
+      app_browser->tab_strip_model()->GetActiveWebContents();
 
   // Inject beforeunload handler.
   ASSERT_TRUE(

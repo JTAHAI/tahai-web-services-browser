@@ -57,7 +57,7 @@ class InitializationSubTask : public DatabaseTask {
       : DatabaseTask(host),
         sub_task_init_(sub_task_init),
         done_closure_(std::move(done_closure)) {
-    CHECK(sub_task_init_.initialization_data, base::NotFatalUntil::M158);
+    DCHECK(sub_task_init_.initialization_data);
   }
 
   InitializationSubTask(const InitializationSubTask&) = delete;
@@ -244,8 +244,7 @@ class GetRequestsTask : public InitializationSubTask {
         FinishWithError(blink::mojom::BackgroundFetchError::STORAGE_ERROR);
         return;
       }
-      CHECK_EQ(sub_task_init().unique_id, active_request.unique_id(),
-               base::NotFatalUntil::M158);
+      DCHECK_EQ(sub_task_init().unique_id, active_request.unique_id());
 
       auto request_info = base::MakeRefCounted<BackgroundFetchRequestInfo>(
           active_request.request_index(),
@@ -486,8 +485,7 @@ void GetInitializationDataTask::DidGetRegistrations(
   for (const auto& ud : user_data) {
     auto insertion_result = initialization_data_map_.emplace(
         ud.second, BackgroundFetchInitializationData());
-    CHECK(insertion_result.second,
-          base::NotFatalUntil::M158);  // Check unique_id is in fact unique.
+    DCHECK(insertion_result.second);  // Check unique_id is in fact unique.
 
     AddSubTask(std::make_unique<FillBackgroundFetchInitializationDataTask>(
         this,

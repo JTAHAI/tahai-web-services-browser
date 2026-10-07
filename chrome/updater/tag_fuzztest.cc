@@ -10,8 +10,6 @@
 #include <utility>
 #include <vector>
 
-#include "base/containers/span.h"
-#include "base/containers/to_vector.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
 #include "chrome/updater/tag.h"
@@ -134,8 +132,7 @@ auto BinaryTag() {
   return fuzztest::Map(
       [](std::string prefix, std::vector<std::string> tags,
          std::string suffix) {
-        std::vector<uint8_t> result =
-            base::ToVector(base::as_byte_span(prefix));
+        std::vector<uint8_t> result(prefix.begin(), prefix.end());
         for (const auto& tag : tags) {
           result.insert(result.end(), std::begin(kTagMagicUtf8),
                         std::end(kTagMagicUtf8));

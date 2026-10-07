@@ -11,6 +11,7 @@ import static org.chromium.chrome.browser.customtabs.features.branding.SharedPre
 
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.robolectric.annotation.Config;
 
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.base.test.RobolectricUtil;
@@ -21,6 +22,7 @@ import java.util.function.Function;
 
 /** Unit test for {@link SharedPreferencesBrandingTimeStorage}. */
 @RunWith(BaseRobolectricTestRunner.class)
+@Config(manifest = Config.NONE)
 public class SharedPreferencesBrandingTimeStorageUnitTest {
     @Test
     public void nonPackageIdEntrySizeCapped() {

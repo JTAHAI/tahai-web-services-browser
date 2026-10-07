@@ -8,7 +8,6 @@
 
 #include "base/command_line.h"
 #include "base/feature_list.h"
-#include "base/metrics/histogram_functions.h"
 #include "base/strings/string_number_conversions.h"
 #include "chrome/browser/enterprise/watermark/watermark_features.h"
 #include "chrome/common/channel_info.h"
@@ -19,9 +18,6 @@
 #include "third_party/icu/source/i18n/unicode/timezone.h"
 
 namespace {
-
-constexpr char kTimestampTimezoneTypeHistogram[] =
-    "Enterprise.Watermark.TimestampTimezoneType";
 
 // Minimum font size as per WatermarkStyle.yaml schema.
 constexpr int kMinFontSize = 1;
@@ -66,27 +62,13 @@ int GetOpacity(const PrefService* prefs,
 // Returns the default value if the string is invalid.
 // Validity is defined by the IANA timezone database.
 std::string ResolveTimestampTimezone(const std::string& timezone) {
-  if (timezone ==
-      enterprise_connectors::kWatermarkStyleTimestampTimezoneDefault) {
-    base::UmaHistogramEnumeration(
-        kTimestampTimezoneTypeHistogram,
-        enterprise_watermark::TimestampTimezoneType::kUserDevice);
-    return timezone;
-  }
-
   std::unique_ptr<icu::TimeZone> icu_timezone(
       icu::TimeZone::createTimeZone(icu::UnicodeString::fromUTF8(timezone)));
 
   if (!icu_timezone || *icu_timezone == icu::TimeZone::getUnknown()) {
-    base::UmaHistogramEnumeration(
-        kTimestampTimezoneTypeHistogram,
-        enterprise_watermark::TimestampTimezoneType::kInvalidFallback);
     return enterprise_watermark::GetDefaultTimestampTimezone();
   }
 
-  base::UmaHistogramEnumeration(
-      kTimestampTimezoneTypeHistogram,
-      enterprise_watermark::TimestampTimezoneType::kValidIANATimeZone);
   return timezone;
 }
 }  // namespace
@@ -148,15 +130,6 @@ int GetFontSize(const PrefService* prefs) {
 std::string GetTimestampTimezone(const PrefService* prefs) {
   if (!base::FeatureList::IsEnabled(
           enterprise_data_protection::kEnableWatermarkTimestampTimezone)) {
-    return GetDefaultTimestampTimezone();
-  }
-
-  const PrefService::Preference* pref = prefs->FindPreference(
-      enterprise_connectors::kWatermarkStyleTimestampTimezonePref);
-
-  if (!pref || pref->IsDefaultValue()) {
-    base::UmaHistogramEnumeration(kTimestampTimezoneTypeHistogram,
-                                  TimestampTimezoneType::kDefault);
     return GetDefaultTimestampTimezone();
   }
 

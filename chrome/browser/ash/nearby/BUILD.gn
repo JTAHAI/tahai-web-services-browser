@@ -6,8 +6,6 @@ assert(is_chromeos)
 
 static_library("nearby") {
   sources = [
-    "mdns/nearby_connections_mdns_manager.cc",
-    "mdns/nearby_connections_mdns_manager.h",
     "nearby_dependencies_provider.cc",
     "nearby_dependencies_provider.h",
     "nearby_dependencies_provider_factory.cc",
@@ -32,7 +30,6 @@ static_library("nearby") {
     "//base",
     "//chrome/browser/ash/nearby/presence/credential_storage/",
     "//chrome/browser/ash/profiles",
-    "//chrome/browser/local_discovery",
     "//chrome/browser/nearby_sharing",
     "//chrome/browser/nearby_sharing/common",
     "//chrome/browser/profiles:profile",
@@ -113,7 +110,6 @@ source_set("unit_tests") {
 
   sources = [
     "bluetooth_adapter_manager_unittest.cc",
-    "mdns/nearby_connections_mdns_manager_unittest.cc",
     "nearby_process_manager_impl_unittest.cc",
   ]
 
@@ -125,8 +121,6 @@ source_set("unit_tests") {
     "//base/test:test_support",
     "//chrome/browser",
     "//chrome/browser/ash/nearby/presence/credential_storage:unit_tests",
-    "//chrome/browser/local_discovery",
-    "//chrome/browser/local_discovery:test_support",
     "//chrome/browser/nearby_sharing/common",
     "//chrome/browser/profiles:profile_util",
     "//chrome/services/sharing/nearby/test_support",

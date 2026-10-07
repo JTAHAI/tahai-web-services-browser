@@ -65,7 +65,7 @@ std::optional<base::FilePath> ModelInfo::GetAdditionalFileWithBaseName(
   return std::nullopt;
 }
 
-std::optional<ModelInfo> LoadAndVerifyModelOffThread(
+std::unique_ptr<proto::PredictionModel> LoadAndVerifyModelOffThread(
     proto::OptimizationTarget optimization_target,
     const base::FilePath& base_model_dir) {
   TRACE_EVENT("optimization_guide", "LoadAndVerifyModelOffThread", "target",
@@ -73,42 +73,40 @@ std::optional<ModelInfo> LoadAndVerifyModelOffThread(
 
   auto model_info = ParseModelInfoFromFile(
       base_model_dir.Append(GetBaseFileNameForModelInfo()));
-  if (!model_info || !model_info->has_version()) {
-    return std::nullopt;
+  if (!model_info) {
+    return nullptr;
   }
   DCHECK_EQ(optimization_target, model_info->optimization_target());
   // Make sure the model file, the full modelinfo file and all additional
   // files still exist.
   auto file_paths_to_check = GetModelFilePaths(*model_info, base_model_dir);
   if (!CheckAllPathsExist(file_paths_to_check)) {
-    return std::nullopt;
+    return nullptr;
   }
+  std::unique_ptr<proto::PredictionModel> model =
+      std::make_unique<proto::PredictionModel>();
+  *model->mutable_model_info() = *model_info;
+  model->mutable_model()->set_download_url(
+      FilePathToString(base_model_dir.Append(GetBaseFileNameForModels())));
 
-  std::vector<base::FilePath> additional_files;
-  additional_files.reserve(model_info->additional_files_size());
-  for (const proto::AdditionalModelFile& additional_file :
-       model_info->additional_files()) {
-    std::optional<base::FilePath> additional_file_path =
-        StringToFilePath(additional_file.file_path());
-    if (!additional_file_path) {
-      continue;
+  // Convert the additional files to absolute paths.
+  model->mutable_model_info()->clear_additional_files();
+  for (const auto& additional_file : model_info->additional_files()) {
+    auto additional_filepath = StringToFilePath(additional_file.file_path());
+    if (!additional_filepath->IsAbsolute()) {
+      additional_filepath = base_model_dir.Append(*additional_filepath);
     }
-    if (!additional_file_path->IsAbsolute()) {
-      additional_file_path = base_model_dir.Append(*additional_file_path);
-    }
-    additional_files.push_back(std::move(*additional_file_path));
+    model->mutable_model_info()->add_additional_files()->set_file_path(
+        FilePathToString(*additional_filepath));
   }
+  return model;
+}
 
-  std::optional<proto::Any> model_metadata;
-  if (model_info->has_model_metadata()) {
-    model_metadata = model_info->model_metadata();
-  }
-
-  return ModelInfo{
-      .model_file_path = base_model_dir.Append(GetBaseFileNameForModels()),
-      .additional_files = std::move(additional_files),
-      .version = model_info->version(),
-      .model_metadata = std::move(model_metadata),
-  };
+std::optional<ModelInfo> LoadAndVerifyModelInfoOffThread(
+    proto::OptimizationTarget optimization_target,
+    const base::FilePath& base_model_dir) {
+  std::unique_ptr<proto::PredictionModel> model =
+      LoadAndVerifyModelOffThread(optimization_target, base_model_dir);
+  return model ? ModelInfo::CreateFromProto(*model) : std::nullopt;
 }
 }  // namespace optimization_guide

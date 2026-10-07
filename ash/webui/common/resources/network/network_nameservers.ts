@@ -6,20 +6,21 @@
  * @fileoverview Polymer element for displaying network nameserver options.
  */
 
+import '//resources/polymer/v3_0/iron-flex-layout/iron-flex-layout-classes.js';
 import '//resources/ash/common/cr_elements/cr_input/cr_input.js';
 import '//resources/ash/common/cr_elements/cr_radio_button/cr_radio_button.js';
 import '//resources/ash/common/cr_elements/cr_radio_group/cr_radio_group.js';
-import '//resources/ash/common/cr_elements/md_select.css.js';
 import '//resources/ash/common/cr_elements/policy/cr_policy_indicator.js';
-import '//resources/polymer/v3_0/iron-flex-layout/iron-flex-layout-classes.js';
+import '//resources/ash/common/cr_elements/md_select.css.js';
 import './network_shared.css.js';
 
-import type {CrRadioGroupElement} from '//resources/ash/common/cr_elements/cr_radio_group/cr_radio_group.js';
-import {I18nMixin, type I18nMixinInterface} from '//resources/ash/common/cr_elements/i18n_mixin.js';
 import {assert} from '//resources/js/assert.js';
 import type {ManagedProperties} from '//resources/mojo/chromeos/services/network_config/public/mojom/cros_network_config.mojom-webui.js';
 import {IPConfigType} from '//resources/mojo/chromeos/services/network_config/public/mojom/network_types.mojom-webui.js';
 import {mixinBehaviors, PolymerElement} from '//resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+import type {CrRadioGroupElement} from 'chrome://resources/ash/common/cr_elements/cr_radio_group/cr_radio_group.js';
+import type {I18nMixinInterface} from 'chrome://resources/ash/common/cr_elements/i18n_mixin.js';
+import {I18nMixin} from 'chrome://resources/ash/common/cr_elements/i18n_mixin.js';
 
 import type {CrPolicyNetworkBehaviorMojoInterface} from './cr_policy_network_behavior_mojo.js';
 import {CrPolicyNetworkBehaviorMojo} from './cr_policy_network_behavior_mojo.js';
@@ -77,9 +78,6 @@ export class NetworkNameserversElement extends NetworkNameserversElementBase {
        */
       nameservers_: {
         type: Array,
-        value() {
-          return [];
-        },
       },
 
       /**
@@ -87,7 +85,6 @@ export class NetworkNameserversElement extends NetworkNameserversElementBase {
        */
       nameserversType_: {
         type: String,
-        value: NameserversType.AUTOMATIC,
       },
 
       /**
@@ -111,32 +108,27 @@ export class NetworkNameserversElement extends NetworkNameserversElementBase {
     };
   }
 
-  declare disabled: boolean;
-  declare managedProperties: ManagedProperties|undefined;
+  disabled: boolean;
+  managedProperties: ManagedProperties|undefined;
   // Saved nameservers from the NameserversType.CUSTOM tab. If this is empty, it
-  // means that the user has not entered any custom nameservers yet.
-  declare private nameservers_: string[];
-  declare private nameserversType_: NameserversType;
-  declare private readonly nameserversTypeEnum_: typeof NameserversType;
-  declare private googleNameserversText_: string;
-  declare private canChangeConfigType_: boolean;
+  // that the user has not entered any custom nameservers yet.
+  private nameservers_: string[] = [];
+  private nameserversType_: NameserversType = NameserversType.AUTOMATIC;
+  private readonly nameserversTypeEnum_: NameserversType[];
+  private googleNameserversText_: string =
+      this.i18nAdvanced(
+              'networkNameserversGoogle', {substitutions: [], tags: ['a']})
+          .toString();
+  private canChangeConfigType_: boolean;
   private savedCustomNameservers_: string[] = [];
   // The last manually performed selection of the nameserver type. If this is
   // null, no explicit selection has been done for this network yet.
   private savedNameserversType_: NameserversType|null = null;
 
-  override connectedCallback(): void {
-    super.connectedCallback();
-    this.googleNameserversText_ =
-        this.i18nAdvanced(
-                'networkNameserversGoogle', {substitutions: [], tags: ['a']})
-            .toString();
-  }
-
-  /**
+  /*
    * Returns the nameserver type CrRadioGroupElement.
    */
-  public getNameserverRadioButtons(): HTMLElement|null {
+  getNameserverRadioButtons(): HTMLElement|null {
     return this.shadowRoot!.querySelector('#nameserverType');
   }
 
@@ -254,7 +246,7 @@ export class NetworkNameserversElement extends NetworkNameserversElementBase {
    */
   private setNameservers_(
       nameserversType: NameserversType, nameservers: string[],
-      sendNameservers: boolean): void {
+      sendNameservers: boolean) {
     if (nameserversType === NameserversType.CUSTOM) {
       // Add empty entries for unset custom nameservers.
       for (let i = nameservers.length; i < MAX_NAMESERVERS; ++i) {
@@ -271,7 +263,7 @@ export class NetworkNameserversElement extends NetworkNameserversElementBase {
   }
 
   /**
-   * Returns true if the nameservers config type can be changed.
+   * @return True if the nameservers config type type can be changed.
    */
   private computeCanChangeConfigType_(managedProperties: ManagedProperties):
       boolean {
@@ -308,12 +300,12 @@ export class NetworkNameserversElement extends NetworkNameserversElementBase {
   }
 
   private showNameservers_(
-      nameserversType: NameserversType, buttonNameserversType: NameserversType,
+      nameserversType: NameserversType, buttonNameserverstype: NameserversType,
       nameservers: string[]): boolean {
-    if (nameserversType !== buttonNameserversType) {
+    if (nameserversType !== buttonNameserverstype) {
       return false;
     }
-    return buttonNameserversType === NameserversType.CUSTOM ||
+    return buttonNameserverstype === NameserversType.CUSTOM ||
         nameservers.length > 0;
   }
 

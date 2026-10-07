@@ -69,8 +69,14 @@ public class ClearDataDialogActivity extends AppCompatActivity {
                                     finish();
                                 })
                         .setNegativeButton(
-                                R.string.twa_clear_data_dialog_keep_data, (_, _) -> finish())
-                        .setOnCancelListener(_ -> finish());
+                                R.string.twa_clear_data_dialog_keep_data,
+                                (ignored1, ignored2) -> {
+                                    finish();
+                                })
+                        .setOnCancelListener(
+                                (ignored) -> {
+                                    finish();
+                                });
 
         builder.create().show();
     }

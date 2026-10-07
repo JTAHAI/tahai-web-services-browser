@@ -333,8 +333,7 @@ IntersectionObserver::IntersectionObserver(
       track_fraction_of_root_(params.semantics == kFractionOfRoot),
       always_report_root_bounds_(params.always_report_root_bounds),
       use_overflow_clip_edge_(params.use_overflow_clip_edge),
-      expose_occluder_id_(params.expose_occluder_id),
-      hit_node_cb_(std::move(params.hit_node_cb)) {
+      expose_occluder_id_(params.expose_occluder_id) {
   if (params.root) {
     if (params.root->IsDocumentNode()) {
       To<Document>(params.root)
@@ -346,10 +345,6 @@ IntersectionObserver::IntersectionObserver(
           ->EnsureIntersectionObserverData()
           .AddObserver(*this);
     }
-  }
-  if (params.hit_node_cb) {
-    DCHECK(track_visibility_);
-    DCHECK(!hit_node_cb_->is_null());
   }
 }
 

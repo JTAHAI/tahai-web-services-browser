@@ -39,7 +39,6 @@ class AuthenticationService;
 class BrowserPolicyConnectorIOS;
 @protocol CobaltCommands;
 @protocol FindInPageCommands;
-@protocol FullscreenCommands;
 @protocol GeminiCommands;
 @protocol HelpCommands;
 class HomeBackgroundCustomizationService;
@@ -50,7 +49,6 @@ class HomeBackgroundCustomizationService;
 @class OverflowMenuOrderer;
 class OverlayPresenter;
 @protocol PageInfoCommands;
-@protocol PictureInPictureCommands;
 @protocol PopupMenuCommands;
 class PrefService;
 @protocol PriceTrackedItemsCommands;
@@ -106,11 +104,9 @@ class WebStateList;
 @property(nonatomic, weak) id<WhatsNewCommands> whatsNewHandler;
 @property(nonatomic, weak) id<LevelUpCommands> levelUpHandler;
 @property(nonatomic, weak) id<ReaderModeCommands> readerModeHandler;
-@property(nonatomic, weak) id<FullscreenCommands> fullscreenHandler;
 @property(nonatomic, weak) id<GeminiCommands> geminiHandler;
 @property(nonatomic, weak) id<CobaltCommands> cobaltHandler;
 @property(nonatomic, weak) id<NewTabPageCommands> NTPCommandHandler;
-@property(nonatomic, weak) id<PictureInPictureCommands> pictureInPictureHandler;
 
 // Navigation agent for reloading pages.
 @property(nonatomic, assign) WebNavigationBrowserAgent* navigationAgent;

@@ -101,10 +101,6 @@ bool PassageEmbedderImpl::LoadModels(base::File embeddings_model_file,
                                      uint32_t embeddings_input_window_size) {
   UnloadModelFiles();
 
-  if (!embeddings_model_file.IsValid() || !sp_file.IsValid()) {
-    return false;
-  }
-
   embeddings_model_file_ = std::move(embeddings_model_file);
 
   base::ElapsedTimer sp_timer;

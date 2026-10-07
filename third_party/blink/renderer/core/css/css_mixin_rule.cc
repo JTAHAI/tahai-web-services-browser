@@ -27,35 +27,31 @@ String CSSMixinRule::cssText() const {
   StringBuilder result;
   result.Append("@mixin ");
   SerializeIdentifier(name(), result);
+  result.Append('(');
 
-  // A parameterless @mixin serializes without parentheses.
-  const HeapVector<StyleRuleFunction::Parameter>& parameters =
-      MixinRule().GetParameters();
-  if (!parameters.empty()) {
-    result.Append('(');
-    bool first_param = true;
-    for (const StyleRuleFunction::Parameter& param : parameters) {
-      if (!first_param) {
-        result.Append(", ");
-      }
-      if (param.name == "@contents") {
-        result.Append(param.name);
-      } else {
-        SerializeIdentifier(param.name, result);
-      }
-      if (!param.type.IsUniversal()) {
-        result.Append(" ");
-        AppendCSSType(param.type, result);
-      }
-      if (param.default_value) {
-        result.Append(": ");
-        result.Append(param.default_value->Serialize());
-      }
-      first_param = false;
+  bool first_param = true;
+  for (const StyleRuleFunction::Parameter& param :
+       MixinRule().GetParameters()) {
+    if (!first_param) {
+      result.Append(", ");
     }
-    result.Append(')');
+    if (param.name == "@contents") {
+      result.Append(param.name);
+    } else {
+      SerializeIdentifier(param.name, result);
+    }
+    if (!param.type.IsUniversal()) {
+      result.Append(" ");
+      AppendCSSType(param.type, result);
+    }
+    if (param.default_value) {
+      result.Append(": ");
+      result.Append(param.default_value->Serialize());
+    }
+    first_param = false;
   }
 
+  result.Append(')');
   AppendCSSTextForItems(result);
   return result.ReleaseString();
 }

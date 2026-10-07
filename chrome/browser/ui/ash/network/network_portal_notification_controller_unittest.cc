@@ -6,13 +6,14 @@
 
 #include "base/check_deref.h"
 #include "base/command_line.h"
+#include "chrome/browser/notifications/notification_display_service_tester.h"
+#include "chrome/browser/notifications/system_notification_helper.h"
 #include "chrome/browser/ui/ash/network/network_portal_signin_controller.h"
 #include "chrome/test/base/browser_with_test_window_test.h"
 #include "chrome/test/base/testing_browser_process.h"
 #include "chrome/test/base/testing_profile_manager.h"
 #include "chromeos/ash/components/network/network_state.h"
 #include "third_party/cros_system_api/dbus/shill/dbus-constants.h"
-#include "ui/message_center/message_center.h"
 
 namespace ash {
 
@@ -49,6 +50,11 @@ class NetworkPortalNotificationControllerTest
 
     controller_.emplace();
 
+    TestingBrowserProcess::GetGlobal()->SetSystemNotificationHelper(
+        std::make_unique<SystemNotificationHelper>());
+    display_service_ = std::make_unique<NotificationDisplayServiceTester>(
+        nullptr /* profile */);
+
     // This initializes the global instance. In production, it is initialized by
     // ChromeBrowserMainExtraPartsAsh.
     NetworkPortalSigninController::Init(
@@ -67,10 +73,10 @@ class NetworkPortalNotificationControllerTest
   }
 
   bool HasNotification() {
-    return !!message_center::MessageCenter::Get()->FindVisibleNotificationById(
-        kNotificationId);
+    return !!display_service_->GetNotification(kNotificationId);
   }
 
+  std::unique_ptr<NotificationDisplayServiceTester> display_service_;
   std::optional<NetworkPortalNotificationController> controller_;
 };
 
@@ -125,8 +131,8 @@ TEST_F(NetworkPortalNotificationControllerTest, NetworkChanged) {
   PortalStateChanged(&wifi1, NetworkState::PortalState::kPortal);
   EXPECT_TRUE(HasNotification());
 
-  message_center::MessageCenter::Get()->RemoveNotification(kNotificationId,
-                                                           /*by_user=*/true);
+  display_service_->RemoveNotification(NotificationHandler::Type::TRANSIENT,
+                                       kNotificationId, true /* by_user */);
   EXPECT_FALSE(HasNotification());
 
   // User already closed notification about portal state for this network,
@@ -153,13 +159,12 @@ TEST_F(NetworkPortalNotificationControllerTest, NotificationUpdated) {
   wifi1.PropertyChanged("Name", base::Value("wifi1"));
   PortalStateChanged(&wifi1, NetworkState::PortalState::kPortal);
   EXPECT_TRUE(HasNotification());
-  EXPECT_EQ(
-      1u,
-      message_center::MessageCenter::Get()->GetVisibleNotifications().size());
+  EXPECT_EQ(1u, display_service_
+                    ->GetDisplayedNotificationsForType(
+                        NotificationHandler::Type::TRANSIENT)
+                    .size());
   const std::u16string initial_message =
-      message_center::MessageCenter::Get()
-          ->FindVisibleNotificationById(kNotificationId)
-          ->message();
+      display_service_->GetNotification(kNotificationId)->message();
 
   // Second network is also behind a captive portal, so notification
   // should be updated.
@@ -167,16 +172,16 @@ TEST_F(NetworkPortalNotificationControllerTest, NotificationUpdated) {
   wifi2.PropertyChanged("Name", base::Value("wifi2"));
   PortalStateChanged(&wifi2, NetworkState::PortalState::kPortal);
   EXPECT_TRUE(HasNotification());
-  EXPECT_EQ(
-      1u,
-      message_center::MessageCenter::Get()->GetVisibleNotifications().size());
-  EXPECT_NE(initial_message, message_center::MessageCenter::Get()
-                                 ->FindVisibleNotificationById(kNotificationId)
-                                 ->message());
+  EXPECT_EQ(1u, display_service_
+                    ->GetDisplayedNotificationsForType(
+                        NotificationHandler::Type::TRANSIENT)
+                    .size());
+  EXPECT_NE(initial_message,
+            display_service_->GetNotification(kNotificationId)->message());
 
   // User closes the notification.
-  message_center::MessageCenter::Get()->RemoveNotification(kNotificationId,
-                                                           /*by_user=*/true);
+  display_service_->RemoveNotification(NotificationHandler::Type::TRANSIENT,
+                                       kNotificationId, true /* by_user */);
   EXPECT_FALSE(HasNotification());
 
   // Portal detector notified that second network is still behind captive

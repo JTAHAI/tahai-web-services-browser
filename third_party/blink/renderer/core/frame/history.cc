@@ -334,6 +334,13 @@ void History::StateObjectAdded(scoped_refptr<SerializedScriptValue> data,
   }
 
   if (!window->GetFrame()->navigation_rate_limiter().CanProceed()) {
+    if (RuntimeEnabledFeatures::
+            ThrottledHistoryAPIThrowsSecurityErrorEnabled()) {
+      exception_state.ThrowSecurityError(
+          "Throttling history state changes to "
+          "prevent the browser from hanging.");
+    }
+
     return;
   }
 

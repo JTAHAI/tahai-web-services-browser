@@ -22,8 +22,6 @@
 #include "chrome/browser/ash/child_accounts/time_limits/app_types.h"
 #include "chrome/browser/extensions/extension_service.h"
 #include "chrome/browser/extensions/test_extension_system.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
-#include "chrome/browser/ui/browser_window/public/create_browser_window.h"
 #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "chrome/test/base/chrome_render_view_host_test_harness.h"
 #include "chrome/test/base/test_browser_window_aura.h"
@@ -142,12 +140,11 @@ class FamilyUserChromeActivityMetricsTest
         nullptr, aura::client::WINDOW_TYPE_NORMAL);
     window->SetId(0);
     window->Init(ui::LAYER_TEXTURED);
-    BrowserWindowCreateParams params(profile(), true);
+    Browser::CreateParams params(profile(), true);
     auto browser_window =
         std::make_unique<TestBrowserWindowAura>(std::move(window));
     params.window = browser_window.release();
-    test_browser_ =
-        DeprecatedCreateOwnedBrowserWindowForTesting(std::move(params));
+    test_browser_ = Browser::DeprecatedCreateOwnedForTesting(params);
   }
 
   void SetSessionState(session_manager::SessionState state) {
@@ -156,7 +153,7 @@ class FamilyUserChromeActivityMetricsTest
 
   PrefService* pref_service() { return profile()->GetPrefs(); }
 
-  std::unique_ptr<BrowserWindowInterface> test_browser_;
+  std::unique_ptr<Browser> test_browser_;
 
  private:
   std::unique_ptr<FamilyUserChromeActivityMetrics>
@@ -185,12 +182,11 @@ TEST_F(FamilyUserChromeActivityMetricsTest, Basic) {
       std::make_unique<aura::Window>(nullptr, aura::client::WINDOW_TYPE_NORMAL);
   window->SetId(0);
   window->Init(ui::LAYER_TEXTURED);
-  BrowserWindowCreateParams params(profile(), true);
+  Browser::CreateParams params(profile(), true);
   auto another_browser_window =
       std::make_unique<TestBrowserWindowAura>(std::move(window));
   params.window = another_browser_window.release();
-  auto another_browser =
-      DeprecatedCreateOwnedBrowserWindowForTesting(std::move(params));
+  auto another_browser = Browser::DeprecatedCreateOwnedForTesting(params);
 
   EXPECT_EQ(2U, GlobalBrowserCollection::GetInstance()->GetSize());
 

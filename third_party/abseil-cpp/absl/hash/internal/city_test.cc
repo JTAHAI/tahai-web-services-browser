@@ -15,11 +15,8 @@
 #include "absl/hash/internal/city.h"
 
 #include <string.h>
-
-#include <cstdint>
 #include <cstdio>
 #include <iostream>
-
 #include "gtest/gtest.h"
 
 namespace absl {

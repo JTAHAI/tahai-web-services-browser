@@ -12,6 +12,7 @@
 
 #include "base/functional/callback_helpers.h"
 #include "base/gtest_prod_util.h"
+#include "base/memory/memory_pressure_listener.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/timer/timer.h"
@@ -99,6 +100,10 @@ class TabManager : public LifecycleUnitObserver,
 
   // LifecycleUnits managed by this.
   LifecycleUnitSet lifecycle_units_;
+
+  // A listener to global memory pressure events.
+  std::unique_ptr<base::MemoryPressureListenerRegistration>
+      memory_pressure_listener_registration_;
 
   // Weak pointer factory used for posting delayed tasks.
   base::WeakPtrFactory<TabManager> weak_ptr_factory_{this};

@@ -17,14 +17,14 @@ namespace trusted_vault {
 
 TrustedVaultThrottlingConnectionImpl::TrustedVaultThrottlingConnectionImpl(
     std::unique_ptr<TrustedVaultConnection> delegate,
-    ConnectionThrottlingStorage* storage)
+    raw_ptr<StandaloneTrustedVaultStorage> storage)
     : TrustedVaultThrottlingConnectionImpl(std::move(delegate),
                                            storage,
                                            base::DefaultClock::GetInstance()) {}
 
 TrustedVaultThrottlingConnectionImpl::TrustedVaultThrottlingConnectionImpl(
     std::unique_ptr<TrustedVaultConnection> delegate,
-    ConnectionThrottlingStorage* storage,
+    raw_ptr<StandaloneTrustedVaultStorage> storage,
     raw_ptr<base::Clock> clock)
     : delegate_(std::move(delegate)), storage_(storage), clock_(clock) {
   CHECK(delegate_);
@@ -36,7 +36,7 @@ TrustedVaultThrottlingConnectionImpl::TrustedVaultThrottlingConnectionImpl(
 std::unique_ptr<TrustedVaultThrottlingConnectionImpl>
 TrustedVaultThrottlingConnectionImpl::CreateForTesting(
     std::unique_ptr<TrustedVaultConnection> delegate,
-    ConnectionThrottlingStorage* storage,
+    raw_ptr<StandaloneTrustedVaultStorage> storage,
     raw_ptr<base::Clock> clock) {
   return base::WrapUnique(new TrustedVaultThrottlingConnectionImpl(
       std::move(delegate), storage, clock));
@@ -47,16 +47,12 @@ TrustedVaultThrottlingConnectionImpl::~TrustedVaultThrottlingConnectionImpl() =
 
 bool TrustedVaultThrottlingConnectionImpl::AreRequestsThrottled(
     const CoreAccountInfo& account_info) {
-  const int64_t last_failed_request_millis =
-      storage_->GetLastFailedRequestMillis(account_info.gaia);
-  if (last_failed_request_millis == 0) {
-    // No failed requests recorded yet, so not throttled.
-    return false;
-  }
+  auto* per_user_vault = storage_->FindUserVault(account_info.gaia);
+  CHECK(per_user_vault);
 
   const base::Time current_time = clock_->Now();
-  base::Time last_failed_request_time =
-      ProtoTimeToTime(last_failed_request_millis);
+  base::Time last_failed_request_time = ProtoTimeToTime(
+      per_user_vault->last_failed_request_millis_since_unix_epoch());
 
   // Fix |last_failed_request_time| if it's set to the future.
   if (last_failed_request_time > current_time) {
@@ -69,8 +65,12 @@ bool TrustedVaultThrottlingConnectionImpl::AreRequestsThrottled(
 
 void TrustedVaultThrottlingConnectionImpl::RecordFailedRequestForThrottling(
     const CoreAccountInfo& account_info) {
-  storage_->SetLastFailedRequestMillis(account_info.gaia,
-                                       TimeToProtoTime(clock_->Now()));
+  auto* per_user_vault = storage_->FindUserVault(account_info.gaia);
+  CHECK(per_user_vault);
+
+  per_user_vault->set_last_failed_request_millis_since_unix_epoch(
+      TimeToProtoTime(clock_->Now()));
+  storage_->WriteDataToDisk();
 }
 
 std::unique_ptr<TrustedVaultConnection::Request>

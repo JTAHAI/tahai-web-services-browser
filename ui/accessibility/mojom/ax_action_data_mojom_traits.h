@@ -7,6 +7,7 @@
 
 #include <stdint.h>
 
+#include <optional>
 #include <string>
 
 #include "ui/accessibility/ax_action_data.h"
@@ -71,7 +72,8 @@ struct StructTraits<ax::mojom::AXActionDataDataView, ui::AXActionData> {
   static ax::mojom::ScrollBehavior scroll_behavior(const ui::AXActionData& a) {
     return a.scroll_behavior;
   }
-  static const ui::AXTreeID& child_tree_id(const ui::AXActionData& a) {
+  static const std::optional<ui::AXTreeID> child_tree_id(
+      const ui::AXActionData& a) {
     return a.child_tree_id;
   }
   static const base::flat_map<ax::mojom::IntListAttribute,

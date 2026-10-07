@@ -15,6 +15,7 @@ BASE_DECLARE_FEATURE(kAndroidCancelPermissionPromptOnTouchOutside);
 BASE_DECLARE_FEATURE(kPermissionsAndroidClapperLoud);
 extern const base::FeatureParam<base::TimeDelta> kClapperLoudTimeout;
 
+BASE_DECLARE_FEATURE(kPermissionsAndroidClapperQuiet);
 BASE_DECLARE_FEATURE(kPermissionsGestureGatedPrompts);
 }  // namespace permissions
 

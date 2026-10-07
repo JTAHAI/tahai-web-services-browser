@@ -6,7 +6,6 @@
 
 #include <memory>
 
-#include "base/memory/raw_ptr.h"
 #include "base/test/scoped_feature_list.h"
 #include "components/viz/common/surfaces/tracked_element_rects.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -653,8 +652,7 @@ class ScriptOnDestroyPlugin : public GarbageCollected<ScriptOnDestroyPlugin>,
   bool DestroyCalled() const { return destroy_called_; }
 
  private:
-  raw_ptr<WebPluginContainer, UnprotectedInRelease | DanglingUntriaged>
-      container_;
+  WebPluginContainer* container_;
   bool destroy_called_ = false;
 };
 
@@ -924,7 +922,6 @@ TEST_F(ElementTest, ParseFocusgroupAttrWrapIgnoredInDescendantsWithoutOwnWrap) {
 }
 
 TEST_F(ElementTest, ParseFocusgroupAttrGrid) {
-  ScopedFocusgroupV2ForTest v2_enabled{true};
   Document& document = GetDocument();
   SetBodyContent(R"HTML(
     <!-- Not an error, since an author might provide the table structure in CSS. -->
@@ -1089,27 +1086,6 @@ TEST_F(ElementTest, ParseFocusgroupAttrNoMemoryToken) {
   EXPECT_TRUE(focusgroup::IsActualFocusgroup(b->GetFocusgroupData()));
 }
 
-TEST_F(ElementTest, ParseFocusgroupAttrFeed) {
-  ScopedFocusgroupV2ForTest v2_enabled{true};
-  Document& document = GetDocument();
-  SetBodyContent(R"HTML(
-    <div id=a focusgroup="feed"></div>
-    <div id=b focusgroup="feed noitemcontrols"></div>
-  )HTML");
-
-  auto* a = document.getElementById(AtomicString("a"));
-  auto* b = document.getElementById(AtomicString("b"));
-  ASSERT_TRUE(a);
-  ASSERT_TRUE(b);
-
-  EXPECT_EQ(
-      a->GetFocusgroupData(),
-      FocusgroupData(FocusgroupBehavior::kFeed,
-                     FocusgroupFlags::kBlock | FocusgroupFlags::kItemControls));
-  EXPECT_EQ(b->GetFocusgroupData(),
-            FocusgroupData(FocusgroupBehavior::kFeed, FocusgroupFlags::kBlock));
-}
-
 TEST_F(ElementTest, ParseFocusgroupAttrValueRecomputedAfterDOMStructureChange) {
   Document& document = GetDocument();
   SetBodyContent(R"HTML(
@@ -1257,12 +1233,6 @@ TEST_F(ElementTest, FocusgroupFlagsToString) {
   EXPECT_EQ(
       "toolbar:(block|nomemory)",
       focusgroup::FocusgroupDataToStringForTesting(toolbar_no_memory_data));
-
-  FocusgroupData feed_data{
-      FocusgroupBehavior::kFeed,
-      FocusgroupFlags::kBlock | FocusgroupFlags::kItemControls};
-  EXPECT_EQ("feed:(block|itemcontrols)",
-            focusgroup::FocusgroupDataToStringForTesting(feed_data));
 }
 
 TEST_F(ElementTest, FocusgroupMinimumAriaRole) {
@@ -1289,9 +1259,6 @@ TEST_F(ElementTest, FocusgroupMinimumAriaRole) {
   EXPECT_EQ(ax::mojom::blink::Role::kMenuBar,
             focusgroup::FocusgroupMinimumAriaRole(
                 {FocusgroupBehavior::kMenubar, FocusgroupFlags::kNone}));
-  EXPECT_EQ(ax::mojom::blink::Role::kFeed,
-            focusgroup::FocusgroupMinimumAriaRole(
-                {FocusgroupBehavior::kFeed, FocusgroupFlags::kNone}));
   EXPECT_EQ(ax::mojom::blink::Role::kGrid,
             focusgroup::FocusgroupMinimumAriaRole(
                 {FocusgroupBehavior::kGrid, FocusgroupFlags::kNone}));
@@ -1305,13 +1272,6 @@ TEST_F(ElementTest, FocusgroupMinimumAriaRole) {
   EXPECT_EQ(ax::mojom::blink::Role::kGrid,
             focusgroup::FocusgroupMinimumAriaRole(
                 {FocusgroupBehavior::kGrid, FocusgroupFlags::kWrapInline}));
-}
-
-TEST_F(ElementTest, FocusgroupFeedItemMinimumAriaRole) {
-  EXPECT_EQ(ax::mojom::blink::Role::kArticle,
-            focusgroup::FocusgroupItemMinimumAriaRole(
-                {FocusgroupBehavior::kFeed,
-                 FocusgroupFlags::kBlock | FocusgroupFlags::kItemControls}));
 }
 
 TEST_F(ElementTest, MixStyleAttributeAndCSSOMChanges) {
@@ -1800,7 +1760,6 @@ TEST_F(ElementTest, OverscrollBackdropPseudoElement) {
       <div id="container" overscrollcontainer>
         <div id="menu" overscrollarea></div>
       </div>
-      <button command="toggle-overscroll" commandfor="menu"></button>
       )HTML");
 
     GetDocument().UpdateStyleAndLayoutTree();
@@ -1827,7 +1786,6 @@ TEST_F(ElementTest, OverscrollBackdropPseudoElement) {
       <div id="container" overscrollcontainer>
         <div id="menu" overscrollarea></div>
       </div>
-      <button command="toggle-overscroll" commandfor="menu"></button>
       )HTML");
 
     GetDocument().UpdateStyleAndLayoutTree();
@@ -1866,7 +1824,6 @@ TEST_F(ElementTest, OverscrollBackdropClickDisposeCrash) {
     <div id="container" overscrollcontainer>
       <div id="menu" overscrollarea></div>
     </div>
-    <button command="toggle-overscroll" commandfor="menu"></button>
   )HTML");
 
   GetDocument().UpdateStyleAndLayoutTree();

@@ -69,7 +69,7 @@ export const LoginScreenMixin = dedupingMixin(
         /* ******************  Default screen API below.  ******************* */
 
         // If defined, invoked when CANCEL accelerator is pressed.
-        cancel?: () => void;
+        cancel: () => void | undefined;
 
         /**
          * Returns UI state to be used when showing this screen. Default

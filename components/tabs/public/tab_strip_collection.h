@@ -41,19 +41,10 @@ class TabStripCollection : public TabCollection {
 
   size_t IndexOfFirstNonPinnedTab() const;
 
-  void AddTabRecursive(ScopedTab tab,
+  void AddTabRecursive(std::unique_ptr<TabInterface> tab,
                        size_t index,
                        std::optional<tab_groups::TabGroupId> new_group_id,
                        bool new_pinned_state);
-  template <typename T>
-    requires std::derived_from<T, TabInterface>
-  void AddTabRecursive(std::unique_ptr<T> tab,
-                       size_t index,
-                       std::optional<tab_groups::TabGroupId> new_group_id,
-                       bool new_pinned_state) {
-    AddTabRecursive(ScopedTab(tab.release()), index, new_group_id,
-                    new_pinned_state);
-  }
 
   void MoveTabRecursive(size_t initial_index,
                         size_t final_index,
@@ -69,12 +60,12 @@ class TabStripCollection : public TabCollection {
   // Removes the tab present at a recursive index in the collection and
   // returns the unique_ptr to the tab model. If there is no tab present
   // due to bad input then CHECK.
-  ScopedTab RemoveTabAtIndexRecursive(size_t index);
+  std::unique_ptr<TabInterface> RemoveTabAtIndexRecursive(size_t index);
 
   // TabCollection:
   // Tabs and Collections are not allowed to be removed from TabStripCollection.
   // `MaybeRemoveTab` and `MaybeRemoveCollection` will return nullptr.
-  ScopedTab MaybeRemoveTab(TabInterface* tab) override;
+  std::unique_ptr<TabInterface> MaybeRemoveTab(TabInterface* tab) override;
   std::unique_ptr<TabCollection> MaybeRemoveCollection(
       TabCollection* collection) override;
 
@@ -167,7 +158,8 @@ class TabStripCollection : public TabCollection {
   // index.
   // TODO(crbug.com/457463822): Look into combining these to single node
   // methods.
-  void AddTabImpl(ScopedTab tab, const TabCollection::Position& position);
+  void AddTabImpl(std::unique_ptr<TabInterface> tab,
+                  const TabCollection::Position& position);
   void AddTabCollectionImpl(std::unique_ptr<TabCollection> collection,
                             const TabCollection::Position& position);
 
@@ -176,7 +168,7 @@ class TabStripCollection : public TabCollection {
   // 1. Removing the node to the target collection at the specified direct
   // index.
   // 2. Notifying observers that a node has been removed.
-  ScopedTab RemoveTabImpl(TabInterface* tab);
+  std::unique_ptr<TabInterface> RemoveTabImpl(TabInterface* tab);
   std::unique_ptr<TabCollection> RemoveTabCollectionImpl(
       TabCollection* collection);
 

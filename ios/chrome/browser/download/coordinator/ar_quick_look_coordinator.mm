@@ -12,8 +12,6 @@
 #import "base/ios/block_types.h"
 #import "base/metrics/histogram_functions.h"
 #import "base/scoped_observation.h"
-#import "ios/chrome/browser/download/coordinator/ar_quick_look_mediator.h"
-#import "ios/chrome/browser/download/coordinator/ar_quick_look_mediator_delegate.h"
 #import "ios/chrome/browser/download/model/ar_quick_look_tab_helper.h"
 #import "ios/chrome/browser/download/model/ar_quick_look_tab_helper_delegate.h"
 #import "ios/chrome/browser/shared/model/browser/browser.h"
@@ -128,8 +126,7 @@ PresentQLPreviewController GetHistogramEnum(
 
 @end
 
-@interface ARQuickLookCoordinator () <ARQuickLookMediatorDelegate,
-                                      ARQuickLookTabHelperDelegate,
+@interface ARQuickLookCoordinator () <ARQuickLookTabHelperDelegate,
                                       TabsDependencyInstalling>
 @end
 
@@ -137,10 +134,6 @@ PresentQLPreviewController GetHistogramEnum(
   // Bridge which observes WebStateList and alerts this coordinator when this
   // needs to register the Mediator with a new WebState.
   TabsDependencyInstallerBridge _dependencyInstallerBridge;
-  // Mediator that monitors the active WebState and triggers preview dismissal.
-  ARQuickLookMediator* _mediator;
-  // The preview controller currently presented.
-  QLPreviewController* _previewController;
   // The delegate passed to the QLPreviewController. It informs the WebState
   // that it may be hidden (during the presentation of the USDZ file) and it
   // serves as a data source for the preview controller.
@@ -151,9 +144,6 @@ PresentQLPreviewController GetHistogramEnum(
                                    browser:(Browser*)browser {
   if ((self = [super initWithBaseViewController:baseViewController
                                         browser:browser])) {
-    _mediator = [[ARQuickLookMediator alloc]
-        initWithWebStateList:browser->GetWebStateList()];
-    _mediator.delegate = self;
     _dependencyInstallerBridge.StartObserving(self, browser);
   }
   return self;
@@ -162,9 +152,6 @@ PresentQLPreviewController GetHistogramEnum(
 - (void)stop {
   // Stop observing the WebStateList before destroying the bridge object.
   _dependencyInstallerBridge.StopObserving();
-  [_mediator disconnect];
-  _mediator = nil;
-  _previewController = nil;
   _delegate = nil;
 }
 
@@ -213,34 +200,21 @@ PresentQLPreviewController GetHistogramEnum(
             [weakSelf previewDismissed];
           }];
 
-  _previewController = [[QLPreviewController alloc] init];
-  _previewController.dataSource = _delegate;
-  _previewController.delegate = _delegate;
+  QLPreviewController* viewController = [[QLPreviewController alloc] init];
+  viewController.dataSource = _delegate;
+  viewController.delegate = _delegate;
 
   __weak ARQuickLookPreviewControllerDelegate* weakDelegate = _delegate;
-  [self.baseViewController presentViewController:_previewController
+  [self.baseViewController presentViewController:viewController
                                         animated:YES
                                       completion:^{
                                         [weakDelegate viewPresented];
                                       }];
 }
 
-#pragma mark - ARQuickLookMediatorDelegate
-
-- (void)dismissUSDZPreview {
-  if (_previewController) {
-    [_previewController.presentingViewController
-        dismissViewControllerAnimated:YES
-                           completion:nil];
-    _previewController = nil;
-    _delegate = nil;
-  }
-}
-
 #pragma mark - Private
 
 - (void)previewDismissed {
-  _previewController = nil;
   _delegate = nil;
 }
 

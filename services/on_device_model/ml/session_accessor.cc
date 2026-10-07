@@ -71,17 +71,6 @@ std::optional<ml::InputPiece> ConvertMojomInputPieceToMlInputPiece(
       }
       return output;
     }
-    case odmm::InputPiece::Tag::kToolCall: {
-      auto& input = piece->get_tool_call();
-      ml::ToolCall output;
-      output.call_id = std::move(input->call_id);
-      output.name = std::move(input->name);
-      if (!base::JSONWriter::Write(input->arguments, &output.arguments_json)) {
-        LOG(WARNING) << "Failed to serialize tool call arguments.";
-        return std::nullopt;
-      }
-      return output;
-    }
     case odmm::InputPiece::Tag::kToolResponse: {
       auto& input = piece->get_tool_response();
       bool has_error =
@@ -523,8 +512,6 @@ std::optional<odmm::AsrError> SessionAccessor::CreateAsrStreamInternal(
       .sample_rate_hz = asr_options->sample_rate_hz,
       .output_fn = &output_fn,
       .decoder_prefill_backoff = -1,
-      .language =
-          asr_options->language ? asr_options->language->c_str() : nullptr,
   };
   if (base::FeatureList::IsEnabled(
           on_device_model::features::kOnDeviceModelAsrDecoderPrefill)) {
@@ -542,9 +529,7 @@ void SessionAccessor::AsrAddAudioChunkInternal(odmm::AudioDataPtr data) {
   TRACE_EVENT("optimization_guide.debug",
               "SessionAccessor::AsrAddAudioChunkInternal");
   DCHECK(task_runner_->RunsTasksInCurrentSequence());
-  if (asr_stream_ == 0) {
-    return;
-  }
+  CHECK_NE(asr_stream_, 0u) << "ASR stream must be created first.";
   ml::AudioBuffer audio;
   audio.sample_rate_hz = data->sample_rate;
   audio.num_channels = data->channel_count;

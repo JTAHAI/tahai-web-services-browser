@@ -7,7 +7,6 @@
 #include <variant>
 
 #include "base/base64.h"
-#include "base/cfi_buildflags.h"
 #include "base/files/file_util.h"
 #include "base/functional/callback.h"
 #include "base/functional/callback_helpers.h"
@@ -316,7 +315,7 @@ class MockDelegate : public OidcAuthenticationSigninInterceptor::Delegate {
               (override));
   MOCK_METHOD(void,
               ShowFirstRunExperienceInNewProfile,
-              (BrowserWindowInterface*,
+              (Browser*,
                const CoreAccountId&,
                WebSigninInterceptor::SigninInterceptionType),
               (override));
@@ -965,14 +964,8 @@ IN_PROC_BROWSER_TEST_P(OidcAuthenticationSigninInterceptorTest,
       OidcInterceptionResult::kInterceptionInProgress, 1);
 }
 
-#if (BUILDFLAG(IS_LINUX) && BUILDFLAG(CFI_ICALL_CHECK)) || \
-    defined(UNDEFINED_SANITIZER)
-#define MAYBE_OidcCallbackResetOnSuccess DISABLED_OidcCallbackResetOnSuccess
-#else
-#define MAYBE_OidcCallbackResetOnSuccess OidcCallbackResetOnSuccess
-#endif
 IN_PROC_BROWSER_TEST_P(OidcAuthenticationSigninInterceptorTest,
-                       MAYBE_OidcCallbackResetOnSuccess) {
+                       OidcCallbackResetOnSuccess) {
   if (!base::FeatureList::IsEnabled(
           profile_management::features::kOidcNavigationThrottleAsyncMode)) {
     GTEST_SKIP() << "Test only relevant when async mode is enabled.";
@@ -1004,14 +997,8 @@ IN_PROC_BROWSER_TEST_P(OidcAuthenticationSigninInterceptorTest,
   EXPECT_FALSE(callback_called);
 }
 
-#if (BUILDFLAG(IS_LINUX) && BUILDFLAG(CFI_ICALL_CHECK)) || \
-    defined(UNDEFINED_SANITIZER)
-#define MAYBE_OidcCallbackRunOnFailure DISABLED_OidcCallbackRunOnFailure
-#else
-#define MAYBE_OidcCallbackRunOnFailure OidcCallbackRunOnFailure
-#endif
 IN_PROC_BROWSER_TEST_P(OidcAuthenticationSigninInterceptorTest,
-                       MAYBE_OidcCallbackRunOnFailure) {
+                       OidcCallbackRunOnFailure) {
   if (!base::FeatureList::IsEnabled(
           profile_management::features::kOidcNavigationThrottleAsyncMode)) {
     GTEST_SKIP() << "Test only relevant when async mode is enabled.";

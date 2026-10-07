@@ -19,11 +19,14 @@ namespace ash {
 
 namespace {
 
-// Different types of SystemShadow implementations.
+// Different types of SystemShadow extensions.
 enum class SystemShadowType {
-  kShadowOnNinePatchLayer,        // Instance of standard `SystemShadowImpl`.
-  kViewShadowOnNinePatchLayer,    // Instance of `SystemViewShadow`.
-  kWindowShadowOnNinePatchLayer,  // Instance of `SystemWindowShadow`.
+  kShadowOnNinePatchLayer,        // Instance of `SystemShadowOnNinePatchLayer`.
+  kViewShadowOnNinePatchLayer,    // Instance of
+                                  // `SystemViewShadowOnNinePatchLayer`.
+  kWindowShadowOnNinePatchLayer,  // Instance of
+                                  // `SystemWindowShadowOnNinePatchLayer`.
+  kShadowOnTextureLayer,          // Instance of `SystemShadowOnTextureLayer`.
 };
 
 // Gets the key and ambient shadow colors from a shadow.
@@ -84,19 +87,22 @@ class SystemShadowColorTest
         return MakeViewShadowOnNinePatchLayer(type);
       case SystemShadowType::kWindowShadowOnNinePatchLayer:
         return MakeWindowShadowOnNinePatchLayer(type);
+      case SystemShadowType::kShadowOnTextureLayer:
+        return MakeShadowOnTextureLayer(type);
     }
   }
 
  private:
-  // Creates an instance of `SystemShadowImpl`.
+  // Creates an instance of `SystemShadowOnNinePatchLayer`.
   std::unique_ptr<SystemShadow> MakeShadowOnNinePatchLayer(
       SystemShadow::Type type) {
-    auto shadow = SystemShadow::CreateShadowOnNinePatchLayer(type);
+    auto shadow = SystemShadow::CreateShadowOnNinePatchLayer(
+        type, SystemShadow::LayerRecreatedCallback());
     AddShadowToWidget(shadow.get(), widget_.get());
     return shadow;
   }
 
-  // Creates an instance of `SystemViewShadow`.
+  // Creates an instance of `SystemViewShadowOnNinePatchLayer`.
   std::unique_ptr<SystemShadow> MakeViewShadowOnNinePatchLayer(
       SystemShadow::Type type) {
     auto shadow = SystemShadow::CreateShadowOnNinePatchLayerForView(
@@ -104,11 +110,19 @@ class SystemShadowColorTest
     return shadow;
   }
 
-  // Creates an instance of `SystemWindowShadow`.
+  // Creates an instance of `SystemWindowShadowOnNinePatchLayer`.
   std::unique_ptr<SystemShadow> MakeWindowShadowOnNinePatchLayer(
       SystemShadow::Type type) {
     auto shadow = SystemShadow::CreateShadowOnNinePatchLayerForWindow(
         widget_->GetNativeWindow(), type);
+    return shadow;
+  }
+
+  // Creates an instance of `SystemShadowOnTextureLayer`.
+  std::unique_ptr<SystemShadow> MakeShadowOnTextureLayer(
+      SystemShadow::Type type) {
+    auto shadow = SystemShadow::CreateShadowOnTextureLayer(type);
+    AddShadowToWidget(shadow.get(), widget_.get());
     return shadow;
   }
 
@@ -121,7 +135,8 @@ INSTANTIATE_TEST_SUITE_P(
     SystemShadowColorTest,
     testing::Values(SystemShadowType::kShadowOnNinePatchLayer,
                     SystemShadowType::kViewShadowOnNinePatchLayer,
-                    SystemShadowType::kWindowShadowOnNinePatchLayer),
+                    SystemShadowType::kWindowShadowOnNinePatchLayer,
+                    SystemShadowType::kShadowOnTextureLayer),
     [](const testing::TestParamInfo<SystemShadowColorTest::ParamType>& info) {
       switch (info.param) {
         case SystemShadowType::kShadowOnNinePatchLayer:
@@ -130,6 +145,8 @@ INSTANTIATE_TEST_SUITE_P(
           return "ViewShadowOnNinePatchLayer";
         case SystemShadowType::kWindowShadowOnNinePatchLayer:
           return "WindowShadowOnNinePatcherLayer";
+        case SystemShadowType::kShadowOnTextureLayer:
+          return "ShadowOnTextureLayer";
       }
     });
 

@@ -89,11 +89,10 @@ export const SkillsClientDef = defInterface({
       }>(),
     },
     {
-      name: 'notifySkillsEnabledChanged',
+      name: 'notifySkillToInvokeChanged',
       request: defMessage<{
-        enabled: boolean,
+        skill: Skill,
       }>(),
-      backgroundAllowed: true,
     },
   ],
 });

@@ -16,7 +16,7 @@
 
 class BookmarkMergedSurfaceService;
 class Profile;
-class BrowserWindowInterface;
+class Browser;
 
 namespace bookmarks {
 class BookmarkModel;
@@ -48,7 +48,7 @@ class BookmarkUIOperationsHelper {
       size_t index,
       bool copy,
       chrome::BookmarkReorderDropTarget target,
-      BrowserWindowInterface* browser = nullptr);
+      Browser* browser = nullptr);
 
   // Copies nodes onto the clipboard. The nodes are copied in such a way that if
   // pasted again new nodes can be created. Pass the calling context through as
@@ -100,7 +100,7 @@ class BookmarkUIOperationsHelper {
   virtual void MoveBookmarkNodeData(const bookmarks::BookmarkNodeData& data,
                                     const base::FilePath& profile_path,
                                     size_t index_to_add_at,
-                                    BrowserWindowInterface* browser) = 0;
+                                    Browser* browser) = 0;
   virtual const TargetParent* target_parent() const = 0;
 
  private:
@@ -108,7 +108,8 @@ class BookmarkUIOperationsHelper {
                           base::OnceClosure callback,
                           std::unique_ptr<bookmarks::BookmarkNodeData> data);
 
-  void OnReadTextComplete(size_t index,
+  void OnReadTextComplete(std::unique_ptr<bookmarks::BookmarkNodeData> data,
+                          size_t index,
                           base::OnceClosure callback,
                           std::u16string text);
 
@@ -157,7 +158,7 @@ class BookmarkUIOperationsHelperNonMergedSurfaces
   void MoveBookmarkNodeData(const bookmarks::BookmarkNodeData& data,
                             const base::FilePath& profile_path,
                             size_t index_to_add_at,
-                            BrowserWindowInterface* browser) override;
+                            Browser* browser) override;
   const internal::BookmarkUIOperationsHelper::TargetParent* target_parent()
       const override;
 
@@ -231,7 +232,7 @@ class BookmarkUIOperationsHelperMergedSurfaces
   void MoveBookmarkNodeData(const bookmarks::BookmarkNodeData& data,
                             const base::FilePath& profile_path,
                             size_t index_to_add_at,
-                            BrowserWindowInterface* browser) override;
+                            Browser* browser) override;
   const internal::BookmarkUIOperationsHelper::TargetParent* target_parent()
       const override;
 

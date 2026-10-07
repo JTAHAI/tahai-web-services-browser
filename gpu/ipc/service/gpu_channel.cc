@@ -185,8 +185,6 @@ class GPU_IPC_SERVICE_EXPORT GpuChannelMessageFilter
       base::UnsafeSharedMemoryRegion shared_memory,
       CopyNativeGmbToSharedMemoryAsyncCallback callback) override;
 #endif  // BUILDFLAG(IS_WIN) || BUILDFLAG(IS_ANDROID)
-  void SignalSyncToken(const std::vector<gpu::SyncToken>& sync_tokens,
-                       SignalSyncTokenCallback callback) override;
   void WaitForTokenInRange(int32_t routing_id,
                            int32_t start,
                            int32_t end,
@@ -637,32 +635,6 @@ void GpuChannelMessageFilter::CopyNativeGmbToSharedMemoryAsync(
 }
 #endif  // BUILDFLAG(IS_WIN) || BUILDFLAG(IS_ANDROID)
 
-void GpuChannelMessageFilter::SignalSyncToken(
-    const std::vector<gpu::SyncToken>& sync_tokens,
-    SignalSyncTokenCallback callback) {
-  base::AutoLock auto_lock(gpu_channel_lock_);
-  if (!gpu_channel_) {
-    std::move(callback).Run();
-    std::visit([](auto& receiver) { receiver.reset(); }, receiver_);
-    return;
-  }
-  int32_t routing_id =
-      static_cast<int32_t>(GpuChannelReservedRoutes::kSharedImageInterface);
-  auto it = route_sequences_.find(routing_id);
-  if (it == route_sequences_.end()) {
-    LOG(ERROR) << "Could not find SharedImageInterface route id!";
-    std::move(callback).Run();
-    return;
-  }
-
-  auto run_on_main = base::BindOnce(
-      [](SignalSyncTokenCallback callback) { std::move(callback).Run(); },
-      base::BindPostTask(base::SequencedTaskRunner::GetCurrentDefault(),
-                         std::move(callback)));
-  scheduler_->ScheduleTask(Scheduler::Task(it->second, std::move(run_on_main),
-                                           sync_tokens, SyncToken()));
-}
-
 void GpuChannelMessageFilter::WaitForTokenInRange(
     int32_t routing_id,
     int32_t start,
@@ -798,14 +770,14 @@ void GpuChannel::Stop() {
   Destroy();
 }
 
-void GpuChannel::Init(mojo::MessagePipeHandle channel_handle) {
-  channel_proxy_ =
-      std::make_unique<IPC::ChannelProxy>(this, io_task_runner_, task_runner_);
-  channel_proxy_->AddAssociatedInterfaceForIOThread(
+void GpuChannel::Init(mojo::MessagePipeHandle channel_handle,
+                      base::WaitableEvent* shutdown_event) {
+  sync_channel_ = IPC::SyncChannel::Create(this, io_task_runner_.get(),
+                                           task_runner_.get(), shutdown_event);
+  sync_channel_->AddAssociatedInterfaceForIOThread(
       base::BindRepeating(&GpuChannelMessageFilter::BindGpuChannel, filter_));
-  channel_proxy_->Init(mojo::ScopedMessagePipeHandle(channel_handle),
-                       IPC::Channel::MODE_SERVER,
-                       /*create_pipe_now=*/false);
+  sync_channel_->Init(channel_handle, IPC::Channel::MODE_SERVER,
+                      /*create_pipe_now=*/false);
 }
 
 base::WeakPtr<GpuChannel> GpuChannel::AsWeakPtr() {

@@ -62,8 +62,7 @@ class InfobarModalCompletionNotifier {
    private:
     // Used as a completion callback for the modal OverlayRequests for
     // `infobar`.
-    void ModalCompleted(base::WeakPtr<InfoBarIOS> infobar,
-                        OverlayResponse* response);
+    void ModalCompleted(InfoBarIOS* infobar, OverlayResponse* response);
 
     // OverlayRequestCallbackInstaller:
     const OverlayRequestSupport* GetRequestSupport() const override;

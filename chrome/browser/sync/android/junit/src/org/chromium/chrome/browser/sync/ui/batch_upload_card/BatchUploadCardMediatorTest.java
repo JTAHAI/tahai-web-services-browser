@@ -8,10 +8,9 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
-import static org.mockito.Mockito.verify;
 
-import androidx.lifecycle.Lifecycle;
-import androidx.lifecycle.LifecycleObserver;
+import android.app.Activity;
+
 import androidx.lifecycle.LifecycleOwner;
 import androidx.test.ext.junit.rules.ActivityScenarioRule;
 
@@ -20,9 +19,7 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
-import org.mockito.Mockito;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
 import org.robolectric.ParameterizedRobolectricTestRunner;
@@ -84,6 +81,7 @@ public class BatchUploadCardMediatorTest {
     @Mock private IdentityServicesProvider mIdentityServicesProvider;
     @Mock private IdentityManager mIdentityManager;
 
+    private Activity mActivity;
     private BatchUploadCardMediator mMediator;
     private final boolean mIsIdentityManagerSourceOfAccounts;
 
@@ -446,36 +444,5 @@ public class BatchUploadCardMediatorTest {
                                             EntryPoint.SETTINGS);
                         });
         Assert.assertTrue(mMediator.shouldBeVisible());
-    }
-
-    @Test
-    public void testDestroyRemovesLifecycleObserver() {
-        LifecycleOwner mockLifecycleOwner = Mockito.mock(LifecycleOwner.class);
-        Lifecycle mockLifecycle = Mockito.mock(Lifecycle.class);
-        doReturn(mockLifecycle).when(mockLifecycleOwner).getLifecycle();
-
-        mActivityScenarioRule
-                .getScenario()
-                .onActivity(
-                        (activity) -> {
-                            mMediator =
-                                    new BatchUploadCardMediator(
-                                            activity,
-                                            mockLifecycleOwner,
-                                            mModalDialogManager,
-                                            mProfile,
-                                            mModel,
-                                            mSnackbarManager,
-                                            () -> {},
-                                            EntryPoint.BOOKMARK_MANAGER);
-                        });
-
-        ArgumentCaptor<LifecycleObserver> observerCaptor =
-                ArgumentCaptor.forClass(LifecycleObserver.class);
-        verify(mockLifecycle).addObserver(observerCaptor.capture());
-
-        mMediator.destroy();
-
-        verify(mockLifecycle).removeObserver(observerCaptor.getValue());
     }
 }

@@ -1,3 +1,8 @@
-rules:
-- message-channel-transferable.html: [channel-messaging]
-- "*": [postmessage]
+features:
+- name: channel-messaging
+  files:
+  - message-channel-transferable.html
+- name: postmessage
+  files:
+  - '*'
+  - '!message-channel-transferable.html'

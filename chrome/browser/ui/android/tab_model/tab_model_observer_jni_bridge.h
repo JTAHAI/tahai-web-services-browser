@@ -46,11 +46,6 @@ class TabModelObserverJniBridge {
 
   void DidSelectTab(JNIEnv* env, TabAndroid* tab, int type, int last_id);
 
-  void WillCloseTabs(JNIEnv* env,
-                     const std::vector<TabAndroid*>& tabs,
-                     bool is_all_tabs,
-                     bool allow_undo);
-
   void WillCloseTab(JNIEnv* env, TabAndroid* tab);
 
   void DidRemoveTabForClosure(JNIEnv* env, TabAndroid* tab);
@@ -60,12 +55,6 @@ class TabModelObserverJniBridge {
   void OnFinishingMultipleTabClosure(JNIEnv* env,
                                      const std::vector<TabAndroid*>& tabs,
                                      bool can_restore);
-
-  void OnTabCloseCommitted(JNIEnv* env,
-                           const std::vector<TabAndroid*>& tabs,
-                           bool is_all_tabs,
-                           bool can_restore,
-                           int source);
 
   void WillAddTab(JNIEnv* env, TabAndroid* tab, int type);
 
@@ -100,9 +89,6 @@ class TabModelObserverJniBridge {
   void OnTabGroupMoved(JNIEnv* env, base::Token group_id, int old_index);
 
   void OnTabGroupVisualsChanged(JNIEnv* env, base::Token group_id);
-
-  void OnWillActiveStateChange(JNIEnv* env, TabModel* tab_model, bool active);
-  void OnDidActiveStateChange(JNIEnv* env, TabModel* tab_model, bool active);
 
   void AddObserver(TabModelObserver* observer);
   void AddTabListInterfaceObserver(TabListInterfaceObserver* observer);

@@ -425,6 +425,14 @@ UIImage* ArrowDownImage() {
   _canUpdateViewsOnScroll = NO;
 }
 
+- (void)viewDidDisappear:(BOOL)animated {
+  [super viewDidDisappear:animated];
+  if (self.isBeingDismissed &&
+      [self.delegate respondsToSelector:@selector(didDismissViewController)]) {
+    [self.delegate didDismissViewController];
+  }
+}
+
 - (void)viewWillAppear:(BOOL)animated {
   [super viewWillAppear:animated];
 
@@ -480,7 +488,7 @@ UIImage* ArrowDownImage() {
         self.headerBackgroundImage == nil
             ? _noBackgroundHeaderImageTopMarginPercentage
             : kHeaderImageBackgroundTopMarginPercentage;
-    _headerBackgroundImageViewTopMargin.constant = AlignValueToLowerPixel(
+    _headerBackgroundImageViewTopMargin.constant = AlignValueToPixel(
         self.view.bounds.size.height * headerImageTopMarginPercentage);
   }
 }
@@ -721,12 +729,6 @@ UIImage* ArrowDownImage() {
     base::UmaHistogramEnumeration("IOS.PromoStyleSheet.Outcome",
                                   PromoStyleSheetAction::kTertiaryButtonTapped);
     [self.delegate didTapTertiaryActionButton];
-  }
-}
-
-- (void)didDismissButtonStackViewController {
-  if ([self.delegate respondsToSelector:@selector(didDismissViewController)]) {
-    [self.delegate didDismissViewController];
   }
 }
 

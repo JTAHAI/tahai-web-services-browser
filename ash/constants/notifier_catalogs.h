@@ -97,7 +97,7 @@ enum class NotificationCatalogName {
   kPhoneHubTetherFailed = 77,
   kCapsLock = 78,
   kNightLight = 79,
-  // [Deprecated] kPluginVMUninstaller = 80,
+  kPluginVMUninstaller = 80,
   // [Deprecated] kTPMAutoUpdate = 81,
   kIt2MeConfirmation = 82,
   kHPSNotify = 83,
@@ -223,8 +223,7 @@ enum class NotificationCatalogName {
   kFrozenUpdateNotification = 203,
   kDeviceCommandGeolocation = 204,
   kLocalAuthFactorsComplexity = 205,
-  kIsolatedWebAppUpdate = 206,
-  kMaxValue = kIsolatedWebAppUpdate
+  kMaxValue = kLocalAuthFactorsComplexity
 };
 // LINT.ThenChange(//tools/metrics/histograms/enums.xml:NotificationCatalogName)
 

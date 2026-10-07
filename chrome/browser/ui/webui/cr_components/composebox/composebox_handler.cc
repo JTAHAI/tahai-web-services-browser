@@ -316,10 +316,9 @@ void ComposeboxHandler::SubmitQuery(
                                std::move(additional_params), is_voice_search);
 }
 
-void ComposeboxHandler::ProcessContextAndOpenUrl(
-    GURL url,
-    const WindowOpenDisposition disposition) {
-  ContextualSearchboxHandler::ProcessContextAndOpenUrl(url, disposition);
+void ComposeboxHandler::OpenUrl(GURL url,
+                                const WindowOpenDisposition disposition) {
+  ContextualSearchboxHandler::OpenUrl(url, disposition);
   // To keep the current composebox in a valid state after passing along its
   // session handle and input state model, clear both of these values. This
   // way the state will reset on the next use of the composebox. Clear the
@@ -368,14 +367,7 @@ void ComposeboxHandler::CanShowNextboxAnimation(
   std::move(callback).Run(can_show);
 }
 
-void ComposeboxHandler::RecordNextboxAnimationImpression(bool shown) {
-  base::UmaHistogramBoolean(
-      "Omnibox.ContextMenu.AnimationShown.ContextualTasks", shown);
-
-  if (!shown) {
-    return;
-  }
-
+void ComposeboxHandler::RecordNextboxAnimationImpression() {
   PrefService* prefs = profile_->GetPrefs();
   const base::DictValue& state_dict =
       prefs->GetDict(prefs::kContextMenuAnimationState);

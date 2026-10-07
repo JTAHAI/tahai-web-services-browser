@@ -26,7 +26,6 @@ import androidx.test.espresso.intent.Intents;
 import androidx.test.filters.LargeTest;
 
 import org.hamcrest.Matcher;
-import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -36,7 +35,7 @@ import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.browser.incognito.R;
 import org.chromium.chrome.browser.privacy.settings.PrivacySettings;
-import org.chromium.chrome.browser.settings.SettingsTestRule;
+import org.chromium.chrome.browser.settings.SettingsActivityTestRule;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 
 /**
@@ -47,9 +46,10 @@ import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 @CommandLineFlags.Add({ChromeSwitches.DISABLE_FIRST_RUN_EXPERIENCE})
 @DisableFeatures(ChromeFeatureList.SETTINGS_MULTI_COLUMN)
 public class IncognitoReauthSettingTest {
-    @Rule
-    public final SettingsTestRule<PrivacySettings> mSettingsTestRule =
-            new SettingsTestRule<>(PrivacySettings.class);
+    private final SettingsActivityTestRule<PrivacySettings> mSettingsActivityTestRule =
+            new SettingsActivityTestRule<>(PrivacySettings.class);
+
+    private PrivacySettings mPrivacySettings;
 
     private void scrollToSetting(Matcher<View> matcher) {
         onView(withId(R.id.recycler_view))
@@ -57,7 +57,8 @@ public class IncognitoReauthSettingTest {
     }
 
     private void startSettings() {
-        mSettingsTestRule.startSettingsActivity();
+        mSettingsActivityTestRule.startSettingsActivity();
+        mPrivacySettings = mSettingsActivityTestRule.getFragment();
     }
 
     @Test

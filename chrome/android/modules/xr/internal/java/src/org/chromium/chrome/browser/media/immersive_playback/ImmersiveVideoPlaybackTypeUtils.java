@@ -20,11 +20,9 @@ public class ImmersiveVideoPlaybackTypeUtils {
             @ImmersiveProjectionType int projectionType) {
         switch (projectionType) {
             case ImmersiveProjectionType.QUAD:
-                // TODO(crbug.com/550356627): Switch back to the QUAD shape once updated to the
-                // latest SceneCore version.
-                return XrSurfaceEntityShape.ROUNDED_QUAD;
+                return XrSurfaceEntityShape.QUAD;
             case ImmersiveProjectionType.SPHERE:
-                return XrSurfaceEntityShape.SEAMLESS_SPHERE;
+                return XrSurfaceEntityShape.SPHERE;
             case ImmersiveProjectionType.HEMISPHERE:
                 return XrSurfaceEntityShape.HEMISPHERE;
             case ImmersiveProjectionType.CUSTOM:

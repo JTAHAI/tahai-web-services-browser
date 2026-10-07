@@ -17,7 +17,6 @@
 #include "base/functional/callback_helpers.h"
 #include "base/i18n/rtl.h"
 #include "base/i18n/time_formatting.h"
-#include "base/metrics/histogram_functions.h"
 #include "base/notreached.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/utf_string_conversions.h"
@@ -25,13 +24,10 @@
 #include "base/time/time.h"
 #include "chrome/browser/bookmarks/bookmark_model_factory.h"
 #include "chrome/browser/content_settings/host_content_settings_map_factory.h"
-#include "chrome/browser/critical_actions/critical_action_factory.h"
-#include "chrome/browser/critical_actions/critical_action_ui_utils.h"
 #include "chrome/browser/favicon/large_icon_service_factory.h"
 #include "chrome/browser/history/history_service_factory.h"
 #include "chrome/browser/history/history_utils.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/signin/account_preview_data_service_factory.h"
 #include "chrome/browser/signin/chrome_signin_pref_names.h"
 #include "chrome/browser/signin/identity_manager_factory.h"
 #include "chrome/browser/signin/signin_ui_util.h"
@@ -54,9 +50,6 @@
 #include "chrome/common/pref_names.h"
 #include "components/bookmarks/browser/bookmark_model.h"
 #include "components/bookmarks/browser/bookmark_utils.h"
-#include "components/critical_actions/core/browser/critical_action_service.h"
-#include "components/critical_actions/core/browser/critical_action_types.h"
-#include "components/critical_actions/core/browser/features.h"
 #include "components/favicon/core/fallback_url_util.h"
 #include "components/favicon/core/large_icon_service.h"
 #include "components/favicon_base/favicon_url_parser.h"
@@ -82,7 +75,6 @@
 #include "components/sync_device_info/device_info_tracker.h"
 #include "content/public/browser/url_data_source.h"
 #include "content/public/browser/web_ui.h"
-#include "third_party/abseil-cpp/absl/container/flat_hash_map.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/l10n/time_format.h"
 #include "ui/webui/resources/cr_components/history/history.mojom.h"
@@ -356,67 +348,7 @@ history::mojom::HistoryEntryPtr HistoryEntryToMojom(
     result_mojom->debug = std::move(debug_mojom);
   }
 
-  // Initialize critical_actions array.
-  result_mojom->critical_actions =
-      std::vector<history::mojom::CriticalActionPtr>();
-
   return result_mojom;
-}
-
-history::mojom::CriticalActionPtr CriticalActionToMojom(
-    const critical_actions::CriticalActionEntry& action) {
-  auto action_mojom = history::mojom::CriticalAction::New();
-  action_mojom->id = action.critical_action_id;
-  action_mojom->linkout_url =
-      critical_actions::GetCriticalActionLinkoutUrl(action);
-  action_mojom->label = action.GetLabel();
-  action_mojom->tooltip = action.GetTooltip();
-  action_mojom->action_type =
-      static_cast<history::mojom::CriticalActionType>(action.action_type);
-  return action_mojom;
-}
-
-struct ActionGroupKey {
-  std::string_view conversation_id;
-  std::string_view actor_task_id;
-  int64_t visit_id;
-  critical_actions::ActionType action_type;
-  auto operator<=>(const ActionGroupKey&) const = default;
-};
-
-std::vector<critical_actions::CriticalActionEntry> DeduplicateCriticalActions(
-    const std::vector<critical_actions::CriticalActionEntry>& raw_actions,
-    base::TimeDelta time_tolerance) {
-  if (raw_actions.empty()) {
-    return {};
-  }
-
-  base::flat_map<ActionGroupKey, base::Time> group_latest_times;
-  std::vector<critical_actions::CriticalActionEntry> deduped_results;
-  deduped_results.reserve(raw_actions.size());
-
-  for (const auto& action : raw_actions) {
-    ActionGroupKey key{.conversation_id = action.conversation_id,
-                       .actor_task_id = action.actor_task_id,
-                       .visit_id = action.visit_id,
-                       .action_type = action.action_type};
-
-    auto it = group_latest_times.find(key);
-
-    // The database returns actions sorted by timestamp DESC (latest first).
-    // A subsequent action falls into the tolerance window of the previous
-    // action if its timestamp is greater than or equal to the
-    // (last_accepted_timestamp - time_tolerance).
-    if (it != group_latest_times.end() &&
-        action.timestamp >= (it->second - time_tolerance)) {
-      continue;  // It's a duplicate, skip it.
-    }
-
-    group_latest_times[key] = action.timestamp;
-    deduped_results.push_back(action);
-  }
-
-  return deduped_results;
 }
 
 }  // namespace
@@ -540,7 +472,6 @@ void BrowsingHistoryHandler::SendHistoryQuery(
     std::optional<double> begin_timestamp,
     bool include_user_visits,
     bool include_actor_visits) {
-  query_timer_ = base::ElapsedTimer();
   history::QueryOptions options;
   options.max_count = max_count;
   options.policy_for_404_visits = history::VisitQuery404sPolicy::kExclude404s;
@@ -621,7 +552,8 @@ void BrowsingHistoryHandler::TurnOnHistorySync() {
       GlobalBrowserCollection::GetInstance()->FindBrowserWithTab(web_contents_);
   if (browser) {
     signin_ui_util::SignInAndEnableHistorySync(
-        browser, profile_, signin_metrics::AccessPoint::kRecentTabs);
+        browser, profile_,
+        signin_metrics::AccessPoint::kRecentTabs);
   }
 #else
   // This is not expected to be called on ChromeOS as the screen that uses this
@@ -680,9 +612,8 @@ void BrowsingHistoryHandler::IncrementHistoryPageHistorySyncPromoShownCount() {
 }
 
 int BrowsingHistoryHandler::GetHistoryPageHistorySyncPromoShownCount() const {
-  const AccountInfo account = signin_ui_util::GetSingleAccountForPromos(
-      &identity_manager_.get(),
-      AccountPreviewDataServiceFactory::GetForProfile(profile_));
+  const AccountInfo account =
+      signin_ui_util::GetSingleAccountForPromos(&identity_manager_.get());
   if (account.GetGaiaId().empty()) {
     return profile_->GetPrefs()->GetInteger(
         prefs::kHistoryPageHistorySyncPromoShownCountPerProfile);
@@ -695,9 +626,8 @@ int BrowsingHistoryHandler::GetHistoryPageHistorySyncPromoShownCount() const {
 base::Time
 BrowsingHistoryHandler::GetHistoryPageHistorySyncPromoLastDismissedTimestamp()
     const {
-  const AccountInfo account = signin_ui_util::GetSingleAccountForPromos(
-      &identity_manager_.get(),
-      AccountPreviewDataServiceFactory::GetForProfile(profile_));
+  const AccountInfo account =
+      signin_ui_util::GetSingleAccountForPromos(&identity_manager_.get());
   if (account.GetGaiaId().empty()) {
     return profile_->GetPrefs()->GetTime(
         prefs::kHistoryPageHistorySyncPromoLastDismissedTimestampPerProfile);
@@ -710,9 +640,8 @@ BrowsingHistoryHandler::GetHistoryPageHistorySyncPromoLastDismissedTimestamp()
 
 bool BrowsingHistoryHandler::IsHistoryPageHistorySyncPromoShownAfterDismissal()
     const {
-  const AccountInfo account = signin_ui_util::GetSingleAccountForPromos(
-      &identity_manager_.get(),
-      AccountPreviewDataServiceFactory::GetForProfile(profile_));
+  const AccountInfo account =
+      signin_ui_util::GetSingleAccountForPromos(&identity_manager_.get());
   if (account.GetGaiaId().empty()) {
     return profile_->GetPrefs()->GetBoolean(
         prefs::kHistoryPageHistorySyncPromoShownAfterDismissalPerProfile);
@@ -724,9 +653,8 @@ bool BrowsingHistoryHandler::IsHistoryPageHistorySyncPromoShownAfterDismissal()
 
 void BrowsingHistoryHandler::
     SetHistoryPageHistorySyncPromoLastDismissedTimestamp(base::Time time) {
-  const AccountInfo account = signin_ui_util::GetSingleAccountForPromos(
-      &identity_manager_.get(),
-      AccountPreviewDataServiceFactory::GetForProfile(profile_));
+  const AccountInfo account =
+      signin_ui_util::GetSingleAccountForPromos(&identity_manager_.get());
   if (account.GetGaiaId().empty()) {
     profile_->GetPrefs()->SetTime(
         prefs::kHistoryPageHistorySyncPromoLastDismissedTimestampPerProfile,
@@ -740,9 +668,8 @@ void BrowsingHistoryHandler::
 
 void BrowsingHistoryHandler::
     IncrementHistoryPageHistorySyncPromoShownCountPref() {
-  const AccountInfo account = signin_ui_util::GetSingleAccountForPromos(
-      &identity_manager_.get(),
-      AccountPreviewDataServiceFactory::GetForProfile(profile_));
+  const AccountInfo account =
+      signin_ui_util::GetSingleAccountForPromos(&identity_manager_.get());
   if (account.GetGaiaId().empty()) {
     const int promo_shown_count = profile_->GetPrefs()->GetInteger(
         prefs::kHistoryPageHistorySyncPromoShownCountPerProfile);
@@ -757,9 +684,8 @@ void BrowsingHistoryHandler::
 
 void BrowsingHistoryHandler::
     SetHistoryPageHistorySyncPromoShownAfterDismissal() {
-  const AccountInfo account = signin_ui_util::GetSingleAccountForPromos(
-      &identity_manager_.get(),
-      AccountPreviewDataServiceFactory::GetForProfile(profile_));
+  const AccountInfo account =
+      signin_ui_util::GetSingleAccountForPromos(&identity_manager_.get());
   if (account.GetGaiaId().empty()) {
     profile_->GetPrefs()->SetBoolean(
         prefs::kHistoryPageHistorySyncPromoShownAfterDismissalPerProfile, true);
@@ -786,69 +712,6 @@ void BrowsingHistoryHandler::OnQueryComplete(
     base::OnceClosure continuation_closure) {
   query_history_continuation_ = std::move(continuation_closure);
   CHECK(profile_);
-
-  if (base::FeatureList::IsEnabled(
-          critical_actions::features::kCriticalActionHistory)) {
-    std::vector<int64_t> actor_visit_ids;
-    for (const auto& entry : results) {
-      if (entry.is_actor_visit) {
-        actor_visit_ids.insert(actor_visit_ids.end(),
-                               entry.all_visit_ids.begin(),
-                               entry.all_visit_ids.end());
-      }
-    }
-
-    if (!actor_visit_ids.empty()) {
-      critical_actions::CriticalActionService* critical_action_service =
-          critical_actions::CriticalActionFactory::GetForProfile(profile_);
-      if (critical_action_service) {
-        critical_actions::CriticalActionQueryOptions options;
-        options.visit_ids = std::move(actor_visit_ids);
-        critical_action_service->GetCriticalActions(
-            options,
-            base::BindOnce(&BrowsingHistoryHandler::CriticalActionsFetched,
-                           weak_factory_.GetWeakPtr(), results,
-                           query_results_info, base::ElapsedTimer()));
-        return;
-      }
-    }
-  }
-
-  HandleQueryResults(results, query_results_info, {});
-}
-
-void BrowsingHistoryHandler::CriticalActionsFetched(
-    const std::vector<BrowsingHistoryService::HistoryEntry>& results,
-    const BrowsingHistoryService::QueryResultsInfo& query_results_info,
-    base::ElapsedTimer critical_actions_timer,
-    std::vector<critical_actions::CriticalActionEntry> critical_actions) {
-  base::UmaHistogramTimes("HistoryPage.CriticalActionsQueryTime",
-                          critical_actions_timer.Elapsed());
-  HandleQueryResults(results, query_results_info, std::move(critical_actions));
-}
-
-void BrowsingHistoryHandler::HandleQueryResults(
-    const std::vector<BrowsingHistoryService::HistoryEntry>& results,
-    const BrowsingHistoryService::QueryResultsInfo& query_results_info,
-    std::vector<critical_actions::CriticalActionEntry> critical_actions) {
-  if (query_timer_.has_value()) {
-    const bool has_actor_visits =
-        std::any_of(results.begin(), results.end(),
-                    [](const auto& entry) { return entry.is_actor_visit; });
-    if (has_actor_visits &&
-        base::FeatureList::IsEnabled(
-            critical_actions::features::kCriticalActionHistory)) {
-      base::UmaHistogramTimes(
-          "HistoryPage.QueryHistoryTotalTime.WithCriticalActions",
-          query_timer_->Elapsed());
-    } else {
-      base::UmaHistogramTimes(
-          "HistoryPage.QueryHistoryTotalTime.WithoutCriticalActions",
-          query_timer_->Elapsed());
-    }
-    query_timer_.reset();
-  }
-
   BookmarkModel* bookmark_model =
       BookmarkModelFactory::GetForBrowserContext(profile_);
 
@@ -857,49 +720,10 @@ void BrowsingHistoryHandler::HandleQueryResults(
           ->GetDeviceInfoTracker();
 
   DCHECK(tracker);
-
-  absl::flat_hash_map<history::VisitID,
-                      std::vector<history::mojom::CriticalActionPtr>>
-      actions_by_visit_id;
-
-  // Deduplicate actions belonging to the same task and visit.
-  // 5 seconds is chosen as a safe heuristic upper bound to accommodate
-  // potential latency delays between the Actor and Chrome side logs
-  // of the same event, while being small enough to avoid merging separate
-  // events.
-  std::vector<critical_actions::CriticalActionEntry> processed_actions =
-      DeduplicateCriticalActions(critical_actions, base::Seconds(5));
-
-  for (const auto& action : processed_actions) {
-    if (action.visit_id == history::kInvalidVisitID ||
-        action.action_type == critical_actions::ActionType::kUnknown) {
-      continue;
-    }
-    actions_by_visit_id[action.visit_id].push_back(
-        CriticalActionToMojom(action));
-  }
-
   std::vector<history::mojom::HistoryEntryPtr> results_mojom;
   for (const BrowsingHistoryService::HistoryEntry& entry : results) {
-    history::mojom::HistoryEntryPtr entry_mojom =
-        HistoryEntryToMojom(entry, bookmark_model, *profile_, tracker, clock_);
-
-    if (entry.is_actor_visit &&
-        base::FeatureList::IsEnabled(
-            critical_actions::features::kCriticalActionHistory)) {
-      for (history::VisitID visit_id : entry.all_visit_ids) {
-        auto it = actions_by_visit_id.find(visit_id);
-        if (it != actions_by_visit_id.end()) {
-          for (auto& action : it->second) {
-            entry_mojom->critical_actions.push_back(std::move(action));
-          }
-        }
-      }
-      base::UmaHistogramCounts100("HistoryPage.CriticalActionsPerVisitCount",
-                                  entry_mojom->critical_actions.size());
-    }
-
-    results_mojom.push_back(std::move(entry_mojom));
+    results_mojom.push_back(
+        HistoryEntryToMojom(entry, bookmark_model, *profile_, tracker, clock_));
   }
 
   auto results_info = history::mojom::HistoryQuery::New();
@@ -912,9 +736,8 @@ void BrowsingHistoryHandler::HandleQueryResults(
   final_results->info = std::move(results_info);
   final_results->value = std::move(results_mojom);
 
-  if (query_history_callback_) {
-    std::move(query_history_callback_).Run(std::move(final_results));
-  }
+  std::move(query_history_callback_).Run(std::move(final_results));
+  return;
 }
 
 void BrowsingHistoryHandler::OnRemoveVisitsComplete() {
@@ -957,9 +780,8 @@ Profile* BrowsingHistoryHandler::GetProfile() {
 void BrowsingHistoryHandler::RequestAccountInfo(
     RequestAccountInfoCallback callback) {
 #if !BUILDFLAG(IS_CHROMEOS)
-  AccountInfo account_info = signin_ui_util::GetSingleAccountForPromos(
-      &identity_manager_.get(),
-      AccountPreviewDataServiceFactory::GetForProfile(profile_));
+  AccountInfo account_info =
+      signin_ui_util::GetSingleAccountForPromos(&identity_manager_.get());
   std::move(callback).Run(CreateAccountInfoDataMojo(account_info));
 
   if (!identity_manager_observation_.IsObserving()) {
@@ -975,12 +797,11 @@ void BrowsingHistoryHandler::RequestAccountInfo(
 void BrowsingHistoryHandler::OnExtendedAccountInfoUpdated(
     const AccountInfo& info) {
 #if !BUILDFLAG(IS_CHROMEOS)
-  AccountInfo account_to_display = signin_ui_util::GetSingleAccountForPromos(
-      &identity_manager_.get(),
-      AccountPreviewDataServiceFactory::GetForProfile(profile_));
+  AccountInfo account_to_display =
+      signin_ui_util::GetSingleAccountForPromos(&identity_manager_.get());
 
   if (info.IsEmpty() || !info.IsValid() ||
-      info.GetAccountId() != account_to_display.GetAccountId()) {
+      info.account_id != account_to_display.account_id) {
     return;
   }
   page_->SendAccountInfo(CreateAccountInfoDataMojo(info));

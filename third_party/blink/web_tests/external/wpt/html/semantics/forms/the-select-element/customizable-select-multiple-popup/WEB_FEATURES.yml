@@ -1,2 +1,3 @@
-rules:
-- "**": [customizable-select]
+features:
+- name: customizable-select
+  files: "**"

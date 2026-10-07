@@ -38,7 +38,7 @@
     return;
   }
 
-  tabHelper->FetchZeroStateSuggestionsAsStrings(
+  tabHelper->ExecuteZeroStateSuggestions(
       base::BindOnce(^(NSArray<NSString*>* suggestions) {
         completion(suggestions);
       }));

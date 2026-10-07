@@ -1,2 +1,3 @@
-rules:
-- "**": [partitioned-cookies]
+features:
+- name: partitioned-cookies
+  files: "**"

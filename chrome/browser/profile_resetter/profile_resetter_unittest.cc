@@ -19,6 +19,7 @@
 #include "base/run_loop.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/test/bind.h"
+#include "base/test/scoped_feature_list.h"
 #include "base/test/scoped_path_override.h"
 #include "base/test/with_feature_override.h"
 #include "build/build_config.h"
@@ -47,12 +48,9 @@
 #include "components/content_settings/core/browser/host_content_settings_map.h"
 #include "components/content_settings/core/browser/website_settings_info.h"
 #include "components/prefs/pref_service.h"
-#include "components/prefs/scoped_user_pref_update.h"
-#include "components/search_engines/enterprise/enterprise_search_manager.h"
 #include "components/search_engines/search_engines_switches.h"
 #include "components/search_engines/template_url_service.h"
 #include "content/public/browser/web_contents.h"
-#include "content/public/test/test_storage_partition.h"
 #include "content/public/test/test_utils.h"
 #include "extensions/browser/disable_reason.h"
 #include "extensions/browser/extension_registrar.h"
@@ -174,13 +172,19 @@ class ProfileResetterTest : public extensions::ExtensionServiceTestBase,
  private:
 #if BUILDFLAG(IS_WIN)
   base::ScopedPathOverride user_desktop_override_;
+  base::ScopedPathOverride app_dir_override_;
+  base::ScopedPathOverride start_menu_override_;
+  base::ScopedPathOverride taskbar_pins_override_;
   base::win::ScopedCOMInitializer com_init_;
 #endif
 };
 
 ProfileResetterTest::ProfileResetterTest()
 #if BUILDFLAG(IS_WIN)
-    : user_desktop_override_(base::DIR_USER_DESKTOP)
+    : user_desktop_override_(base::DIR_USER_DESKTOP),
+      app_dir_override_(base::DIR_ROAMING_APP_DATA),
+      start_menu_override_(base::DIR_START_MENU),
+      taskbar_pins_override_(base::DIR_TASKBAR_PINS)
 #endif
 {}
 
@@ -468,134 +472,6 @@ TEST_F(ProfileResetterTest, ResetDefaultSearchEnginePartially) {
   EXPECT_EQ(urls, model->GetTemplateURLs());
 }
 
-TEST_F(ProfileResetterTest, ResetDefaultSearchEngineRemovesCustomKeywords) {
-  TemplateURLService* model =
-      TemplateURLServiceFactory::GetForProfile(profile());
-  ASSERT_TRUE(model);
-
-  {
-    TemplateURLData custom_engine_data;
-    custom_engine_data.SetShortName(u"Custom Engine");
-    custom_engine_data.SetKeyword(u"custom");
-    custom_engine_data.SetURL("https://custom.search.com?q={searchTerms}");
-    TemplateURL* custom_engine =
-        model->Add(std::make_unique<TemplateURL>(custom_engine_data));
-    ASSERT_TRUE(custom_engine);
-    EXPECT_EQ(custom_engine, model->GetTemplateURLForKeyword(u"custom"));
-  }
-
-  ResetAndWait(ProfileResetter::DEFAULT_SEARCH_ENGINE);
-
-  EXPECT_FALSE(model->GetTemplateURLForKeyword(u"custom"));
-}
-
-TEST_F(ProfileResetterTest,
-       ResetDefaultSearchEngine_RestoresPolicySiteSearchEngines) {
-  TemplateURLService* model =
-      TemplateURLServiceFactory::GetForProfile(profile());
-  ASSERT_TRUE(model);
-  model->Load();
-
-  EnterpriseSearchManager::OwnedTemplateURLDataVector enterprise_search_engines;
-  auto data = std::make_unique<TemplateURLData>();
-  data->SetShortName(u"workname");
-  data->SetKeyword(u"work");
-  data->SetURL("https://work.com/q={searchTerms}");
-  data->policy_origin = TemplateURLData::PolicyOrigin::kSiteSearch;
-  data->enforced_by_policy = false;
-  data->is_active = TemplateURLData::ActiveStatus::kTrue;
-  data->favicon_url = GURL("https://work.com/favicon.ico");
-  data->safe_for_autoreplace = false;
-  enterprise_search_engines.push_back(std::move(data));
-
-  SetManagedSearchSettingsPreference(enterprise_search_engines,
-                                     static_cast<TestingProfile*>(profile()));
-
-  TemplateURL* turl = model->GetTemplateURLForKeyword(u"work");
-  ASSERT_TRUE(turl);
-  EXPECT_TRUE(turl->CanPolicyBeOverridden());
-
-  // Remove the recommended engine, causing its keyword to be marked as
-  // overridden.
-  model->Remove(turl);
-  EXPECT_FALSE(model->GetTemplateURLForKeyword(u"work"));
-  PrefService* prefs = profile()->GetPrefs();
-  EXPECT_FALSE(prefs
-                   ->GetList(EnterpriseSearchManager::
-                                 kSiteSearchSettingsOverriddenKeywordsPrefName)
-                   .empty());
-
-  ResetAndWait(ProfileResetter::DEFAULT_SEARCH_ENGINE);
-
-  EXPECT_TRUE(prefs
-                  ->GetList(EnterpriseSearchManager::
-                                kSiteSearchSettingsOverriddenKeywordsPrefName)
-                  .empty());
-  EXPECT_TRUE(model->GetTemplateURLForKeyword(u"work"));
-}
-
-TEST_F(ProfileResetterTest,
-       ResetDefaultSearchEngine_RestoresAllSearchEngineTypes) {
-  TemplateURLService* model =
-      TemplateURLServiceFactory::GetForProfile(profile());
-  ASSERT_TRUE(model);
-  ResetAndWait(ProfileResetter::DEFAULT_SEARCH_ENGINE);
-
-  // 1. Setup Policy site search engine ("work") and remove it.
-  EnterpriseSearchManager::OwnedTemplateURLDataVector enterprise_search_engines;
-  auto data = std::make_unique<TemplateURLData>();
-  data->SetShortName(u"workname");
-  data->SetKeyword(u"work");
-  data->SetURL("https://work.com/q={searchTerms}");
-  data->policy_origin = TemplateURLData::PolicyOrigin::kSiteSearch;
-  data->enforced_by_policy = false;
-  data->is_active = TemplateURLData::ActiveStatus::kTrue;
-  data->favicon_url = GURL("https://work.com/favicon.ico");
-  data->safe_for_autoreplace = false;
-  enterprise_search_engines.push_back(std::move(data));
-
-  SetManagedSearchSettingsPreference(enterprise_search_engines,
-                                     static_cast<TestingProfile*>(profile()));
-  TemplateURL* policy_turl = model->GetTemplateURLForKeyword(u"work");
-  ASSERT_TRUE(policy_turl);
-  model->Remove(policy_turl);
-  EXPECT_FALSE(model->GetTemplateURLForKeyword(u"work"));
-
-  // 2. Remove a starter pack engine (e.g. "@history" or "@bookmarks").
-  TemplateURL* starter_pack_turl =
-      model->GetTemplateURLForKeyword(u"@bookmarks");
-  if (!starter_pack_turl) {
-    starter_pack_turl = model->GetTemplateURLForKeyword(u"@history");
-  }
-  ASSERT_TRUE(starter_pack_turl);
-  std::u16string starter_pack_keyword = starter_pack_turl->keyword();
-  model->Remove(starter_pack_turl);
-  EXPECT_FALSE(model->GetTemplateURLForKeyword(starter_pack_keyword));
-
-  // 3. Remove a prepopulated search engine (that is not default).
-  TemplateURLService::TemplateURLVector template_urls =
-      model->GetTemplateURLs();
-  std::u16string prepopulated_keyword;
-  for (TemplateURL* turl : template_urls) {
-    if (turl->prepopulate_id() != 0 &&
-        turl != model->GetDefaultSearchProvider()) {
-      prepopulated_keyword = turl->keyword();
-      model->Remove(turl);
-      break;
-    }
-  }
-  ASSERT_FALSE(prepopulated_keyword.empty());
-  EXPECT_FALSE(model->GetTemplateURLForKeyword(prepopulated_keyword));
-
-  // 4. Invoke ProfileResetter to reset search engines.
-  ResetAndWait(ProfileResetter::DEFAULT_SEARCH_ENGINE);
-
-  // 5. Verify ALL THREE types of engines are restored!
-  EXPECT_TRUE(model->GetTemplateURLForKeyword(u"work"));
-  EXPECT_TRUE(model->GetTemplateURLForKeyword(starter_pack_keyword));
-  EXPECT_TRUE(model->GetTemplateURLForKeyword(prepopulated_keyword));
-}
-
 TEST_F(ProfileResetterTest, ResetHomepageNonOrganic) {
   PrefService* prefs = profile()->GetPrefs();
   DCHECK(prefs);
@@ -685,17 +561,6 @@ TEST_F(ProfileResetterTest, ResetContentSettings) {
         host_content_settings_map->GetSettingsForOneType(content_type);
     EXPECT_EQ(1U, host_settings.size());
   }
-}
-
-TEST_F(ProfileResetterTest, ResetContentSettings_BluetoothAllowedDevicesMap) {
-  content::StoragePartition* partition =
-      profile()->GetDefaultStoragePartition();
-  ASSERT_TRUE(partition);
-
-  // Verifies that resetting content settings invokes
-  // ClearBluetoothAllowedDevicesMap across loaded storage partitions
-  // without crashing.
-  ResetAndWait(ProfileResetter::CONTENT_SETTINGS);
 }
 
 TEST_F(ProfileResetterTest, ResetExtensionsByDisabling) {

@@ -18,7 +18,6 @@ import android.widget.ScrollView;
 import androidx.annotation.RequiresApi;
 
 import org.chromium.base.Callback;
-import org.chromium.base.CallbackUtils;
 import org.chromium.base.DeviceInfo;
 import org.chromium.base.Token;
 import org.chromium.base.metrics.RecordHistogram;
@@ -346,7 +345,7 @@ public class TabUiUtils {
         if (localTabGroupId == null) return;
 
         dataSharingTabManager.createOrManageFlow(
-                EitherGroupId.createLocalId(localTabGroupId), entry, CallbackUtils.emptyCallback());
+                EitherGroupId.createLocalId(localTabGroupId), entry, (ignored) -> {});
     }
 
     /**
@@ -406,7 +405,7 @@ public class TabUiUtils {
     }
 
     /**
-     * Mark the tab switcher view as sensitive if at least one of the tabs in {@code tabList} has
+     * Mark the tab switcher view as sensitive if at least one of the tabs in {@param tabList} has
      * sensitive content. Note that if all sensitive tabs are removed from the tab switcher, the tab
      * switcher will have to be closed and opened again to become not sensitive.
      *
@@ -449,7 +448,7 @@ public class TabUiUtils {
     }
 
     /**
-     * Mark the tab switcher view as sensitive if at least one of the tabs in {@code tabList} has
+     * Mark the tab switcher view as sensitive if at least one of the tabs in {@param tabList} has
      * sensitive content. Note that if all sensitive tabs are removed from the tab switcher, the tab
      * switcher will have to be closed and opened again to become not sensitive.
      *

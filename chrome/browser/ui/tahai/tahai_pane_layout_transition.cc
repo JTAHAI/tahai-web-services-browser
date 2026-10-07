@@ -10,8 +10,8 @@
 #include "base/functional/bind.h"
 #include "base/functional/callback_helpers.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_tabstrip.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/tabs/tab_strip_model_delegate.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
@@ -37,19 +37,18 @@ std::vector<tabs::TabHandle> SplitMembers(
 
 }  // namespace
 
-bool ApplyNativePaneLayout(BrowserWindowInterface* browser,
+bool ApplyNativePaneLayout(Browser* browser,
                            size_t member_count,
                            split_tabs::SplitTabLayout layout,
                            const PaneCreationCallback& create_pane) {
-  if (!browser ||
-      !(browser->GetType() == BrowserWindowInterface::Type::TYPE_NORMAL) ||
-      member_count < 2 || member_count > 4 ||
+  if (!browser || !browser->is_type_normal() || member_count < 2 ||
+      member_count > 4 ||
       (layout != split_tabs::SplitTabLayout::kSideBySide &&
        layout != split_tabs::SplitTabLayout::kStacked)) {
     return false;
   }
-  const auto weak_browser = browser->GetWeakPtr();
-  auto* model = browser->GetTabStripModel();
+  const auto weak_browser = browser->AsWeakPtr();
+  auto* model = browser->tab_strip_model();
   if (!model->delegate()->IsTabStripEditable() || !model->GetActiveTab()) {
     return false;
   }
@@ -98,15 +97,15 @@ bool ApplyNativePaneLayout(BrowserWindowInterface* browser,
   const GURL new_tab_url(chrome::kChromeUINewTabURL);
   std::vector<tabs::TabHandle> created;
   base::ScopedClosureRunner rollback(base::BindOnce(
-      [](base::WeakPtr<BrowserWindowInterface> weak_browser,
-         const GURL& new_tab_url, std::vector<tabs::TabHandle>* created) {
+      [](base::WeakPtr<Browser> weak_browser, const GURL& new_tab_url,
+         std::vector<tabs::TabHandle>* created) {
         // No raw tab pointer survives calls that may destroy or move a
         // tab/window. Reacquire the model after each browser-lifetime check.
         for (auto handle : *created) {
           if (!weak_browser) {
             return;
           }
-          auto* model = weak_browser->GetTabStripModel();
+          auto* model = weak_browser->tab_strip_model();
           auto* tab = handle.Get();
           if (!tab || model->GetIndexOfTab(tab) == TabStripModel::kNoTab ||
               tab->IsSplit()) {

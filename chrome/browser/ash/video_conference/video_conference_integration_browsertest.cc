@@ -37,7 +37,6 @@
 #include "chrome/browser/media/webrtc/webrtc_browsertest_base.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
-#include "chrome/browser/ui/browser_window/public/create_browser_window.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/common/chrome_switches.h"
 #include "chrome/test/base/testing_profile.h"
@@ -56,7 +55,6 @@
 #include "content/public/test/browser_test_utils.h"
 #include "content/public/test/test_utils.h"
 #include "testing/gtest/include/gtest/gtest.h"
-#include "ui/base/base_window.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/events/base_event_utils.h"
 #include "ui/gfx/codec/jpeg_codec.h"
@@ -165,11 +163,12 @@ class VideoConferenceIntegrationTest
 
     ASSERT_TRUE(embedded_test_server()->Start());
 
+    // Create an incognito browser when parameter is true.
     if (is_incognito_mode_) {
-      browser_ = CreateBrowserWindow(BrowserWindowCreateParams(
-          browser()->GetProfile()->GetPrimaryOTRProfile(
-              /*create_if_needed=*/true),
-          /*from_user_gesture=*/true));
+      browser_ = Browser::Create(
+          Browser::CreateParams(browser()->GetProfile()->GetPrimaryOTRProfile(
+                                    /*create_if_needed=*/true),
+                                true));
       // This creates a blank page which is more consistent with normal mode.
       ui_test_utils::NavigateToURLWithDispositionBlockUntilNavigationsComplete(
           browser_, GURL("chrome://blank"), 1,
@@ -361,7 +360,7 @@ class VideoConferenceIntegrationTest
   }
 
  protected:
-  raw_ptr<BrowserWindowInterface, DanglingUntriaged> browser_ = nullptr;
+  raw_ptr<Browser, DanglingUntriaged> browser_ = nullptr;
 
   base::FilePath camera_background_img_dir_;
   base::FilePath camera_background_run_dir_;
@@ -648,7 +647,7 @@ IN_PROC_BROWSER_TEST_P(VideoConferenceIntegrationTest, OneTabReturnToApp) {
                      /*use_screen_sharing=*/false);
 
   // Switch to the default tab at 0; this should make the `web_contents` hidden.
-  browser_->GetTabStripModel()->ActivateTabAt(0);
+  browser_->tab_strip_model()->ActivateTabAt(0);
   WAIT_FOR_CONDITION(web_contents->GetVisibility() ==
                      content::Visibility::HIDDEN);
 

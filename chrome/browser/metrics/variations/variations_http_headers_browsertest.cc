@@ -75,7 +75,6 @@
 #include "services/network/public/cpp/resource_request.h"
 #include "services/network/public/cpp/shared_url_loader_factory.h"
 #include "services/network/public/cpp/simple_url_loader.h"
-#include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/blink/public/common/features.h"
 #include "third_party/zlib/google/compression_utils.h"
@@ -87,7 +86,6 @@
 #include "chrome/browser/ui/android/tab_model/tab_model_list.h"
 #include "chrome/test/base/android/android_ui_test_utils.h"
 #else
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/test/base/ui_test_utils.h"
 #endif
 
@@ -370,6 +368,26 @@ class VariationsHttpHeadersBrowserTest : public PlatformBrowserTest {
 
   ~VariationsHttpHeadersBrowserTest() override = default;
 
+  void TearDownOnMainThread() override {
+    DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+
+#if BUILDFLAG(IS_ANDROID)
+    // TODO(crbug.com/480962318): Remove this workaround when fixed.
+    // On Android there seems to be a race between deinitialization of the
+    // FeatureList through the browsertest and Android actual UI thread.
+    // This results in rare crash in
+    // BluetoothNotificationManager.clearBluetoothNotifications().
+    // The workaround is to drain the RunLoop before allowing the test
+    // to tear down.
+    base::RunLoop run_loop;
+    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+        FROM_HERE, run_loop.QuitClosure());
+    run_loop.Run();
+    sync();
+#endif
+    PlatformBrowserTest::TearDownOnMainThread();
+  }
+
   // TODO(crbug.com/452922329): Share the helpers around Android Incognito in
   // more general helper library if it actually doesn't flake for a while.
   void CreateIncognitoTab() {
@@ -382,7 +400,7 @@ class VariationsHttpHeadersBrowserTest : public PlatformBrowserTest {
             /*create_if_needed=*/true);
     OpenUrlInNewTab(otr_profile, GetWebContents(), url);
 #else
-    BrowserWindowInterface* incognito =
+    Browser* incognito =
         CreateIncognitoBrowser(chrome_test_utils::GetProfile(this));
     SetBrowser(incognito);
     NavigateToURL(url);
@@ -690,9 +708,27 @@ class VariationsHttpHeadersBrowserTestWithLimitedLayerBase
   }
 
   bool SetUpUserDataDirectoryWithGroup(std::optional<Study::Experiment> group) {
-    WriteSeedData(base::PathService::CheckedGet(chrome::DIR_USER_DATA),
-                  CreateTestSeedWithLimitedEntropyLayer(
-                      /*limited_layer_study_group=*/group));
+    const base::FilePath user_data_dir =
+        base::PathService::CheckedGet(chrome::DIR_USER_DATA);
+    const base::FilePath seed_file_path =
+        user_data_dir.AppendASCII("VariationsSeedV1");
+    const base::FilePath local_state_path =
+        user_data_dir.Append(chrome::kLocalStateFilename);
+
+    std::string serialized_seed = CreateTestSeedWithLimitedEntropyLayer(
+                                      /*limited_layer_study_group=*/group)
+                                      .SerializeAsString();
+    std::string compressed_seed;
+    compression::GzipCompress(serialized_seed, &compressed_seed);
+
+    // Write the seed for the seed file experiment's treatment-group clients.
+    CHECK(base::WriteFile(seed_file_path, compressed_seed));
+
+    // Write the seed for the seed file experiment's control-group clients.
+    base::DictValue local_state;
+    local_state.SetByDottedPath(prefs::kVariationsCompressedSeed,
+                                base::Base64Encode(compressed_seed));
+    CHECK(JSONFileValueSerializer(local_state_path).Serialize(local_state));
     return true;
   }
 
@@ -993,7 +1029,7 @@ IN_PROC_BROWSER_TEST_F(VariationsHttpHeadersBrowserTest, UserNotSignedIn) {
 }
 
 IN_PROC_BROWSER_TEST_F(VariationsHttpHeadersBrowserTestWithSetLowEntropySource,
-                       OmitLowEntropySourceValue) {
+                       CheckLowEntropySourceValue) {
   auto entropy_providers = g_browser_process->GetMetricsServicesManager()
                                ->CreateEntropyProvidersForTesting();
   // `with_google_web_experiment_ids` is true so that the low entropy provider
@@ -1011,18 +1047,13 @@ IN_PROC_BROWSER_TEST_F(VariationsHttpHeadersBrowserTestWithSetLowEntropySource,
   ASSERT_TRUE(
       ExtractVariationIds(header.value(), &variation_ids, &trigger_ids));
 
-  // Check that the header contains only experiment IDs and trigger experiment
-  // IDs associated with FieldTrials. Notably, there should be no ID
-  // representing an offset low entropy source value.
-  //
-  // Also, check that the reported group in the header is consistent with the
-  // low entropy source. 33 is the group that is derived from the low entropy
-  // source value of 5.
-  EXPECT_THAT(variation_ids, ::testing::ContainerEq(
-                                 std::set<int>{33, kGenericExperimentGroupId}));
-  EXPECT_THAT(
-      trigger_ids,
-      ::testing::ContainerEq(std::set<int>{kGenericExperimentGroupTriggerId}));
+  // 3320983 is the offset value of kLowEntropySourceVariationIdRangeMin + 5.
+  EXPECT_TRUE(variation_ids.contains(3320983));
+
+  // Check that the reported group in the header is consistent with the low
+  // entropy source. 33 is the group that is derived from the low entropy source
+  // value of 5.
+  EXPECT_TRUE(variation_ids.contains(33));
 }
 
 INSTANTIATE_TEST_SUITE_P(
@@ -1096,6 +1127,46 @@ IN_PROC_BROWSER_TEST_P(VariationsHttpHeadersBrowserTestWithActiveLimitedLayer,
   EXPECT_THAT(ids, ::testing::UnorderedElementsAreArray(expected_ids));
   EXPECT_THAT(trigger_ids,
               ::testing::UnorderedElementsAreArray(expected_trigger_ids));
+}
+
+// Verifies that a client's low entropy source value is included in the
+// X-Client-Data header when a seed with an inactive limited layer is applied. A
+// limited layer is inactive when the seed contains a limited layer but no
+// limited-layer-constrained studies apply to the client's channel, platform,
+// and Chrome version.
+IN_PROC_BROWSER_TEST_F(VariationsHttpHeadersBrowserTestWithInactiveLimitedLayer,
+                       SendLowEntropySource) {
+  // Check that both the low and limited entropy sources have been generated.
+  ASSERT_FALSE(IsPrefDefaultValue(
+      metrics::prefs::kMetricsLimitedEntropyRandomizationSource));
+  ASSERT_FALSE(IsPrefDefaultValue((metrics::prefs::kMetricsLowEntropySource)));
+
+  // Check that the seed was applied by checking that the generic study was
+  // registered.
+  ASSERT_TRUE(base::FieldTrialList::TrialExists(kSomeStudyName));
+
+  // Check that the limited-layer-constrained study was not registered.
+  ASSERT_FALSE(base::FieldTrialList::TrialExists(kLimitedLayerStudyName));
+
+  // Make a request and get its VariationIDs.
+  ASSERT_TRUE(NavigateToURL(GetGoogleUrl(server())));
+  std::optional<std::string> header =
+      GetReceivedHeader(GetGoogleUrl(server()), "X-Client-Data");
+  ASSERT_FALSE(header == std::nullopt);
+  std::set<VariationID> ids;
+  std::set<VariationID> trigger_ids;
+  ASSERT_TRUE(ExtractVariationIds(header.value(), &ids, &trigger_ids));
+
+  // Check that the client's offset low entropy source value was included in
+  // the X-Client-Data header.
+  const int low_entropy_source =
+      local_state()->GetInteger(metrics::prefs::kMetricsLowEntropySource);
+  const int offset_low_entropy_source =
+      low_entropy_source + internal::kLowEntropySourceVariationIdRangeMin;
+  EXPECT_THAT(ids, ::testing::UnorderedElementsAreArray(
+                       {kGenericExperimentGroupId, offset_low_entropy_source}));
+  EXPECT_THAT(trigger_ids, ::testing::UnorderedElementsAreArray(
+                               {kGenericExperimentGroupTriggerId}));
 }
 
 IN_PROC_BROWSER_TEST_F(

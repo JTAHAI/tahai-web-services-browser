@@ -9,7 +9,6 @@
 
 #include <algorithm>
 
-#include "base/check_op.h"
 #include "base/compiler_specific.h"
 #include "base/containers/span.h"
 #include "third_party/blink/renderer/platform/audio/vector_math_scalar.h"
@@ -26,9 +25,8 @@ using scalar::Conv;
 ALWAYS_INLINE static void Vadd(base::span<const float> source1,
                                base::span<const float> source2,
                                base::span<float> dest) {
-  // CHECK allows the compiler to elide bounds checks (docs/unsafe_buffers.md).
-  CHECK_EQ(source1.size(), dest.size());
-  CHECK_EQ(source2.size(), dest.size());
+  DCHECK_EQ(source1.size(), dest.size());
+  DCHECK_EQ(source2.size(), dest.size());
 
   const size_t n = dest.size();
   const size_t tail_frames = n % kPackedFloatsPerRegister;
@@ -42,7 +40,7 @@ ALWAYS_INLINE static void Vadd(base::span<const float> source1,
             vld1q_f32(source2.subspan(i, kPackedFloatsPerRegister).data())));
   }
 
-  if (tail_frames > 0u) {
+  if (tail_frames) {
     scalar::Vadd(source1.subspan(aligned_frames, tail_frames),
                  source2.subspan(aligned_frames, tail_frames),
                  dest.subspan(aligned_frames, tail_frames));
@@ -52,9 +50,8 @@ ALWAYS_INLINE static void Vadd(base::span<const float> source1,
 ALWAYS_INLINE static void Vsub(base::span<const float> source1,
                                base::span<const float> source2,
                                base::span<float> dest) {
-  // CHECK allows the compiler to elide bounds checks (docs/unsafe_buffers.md).
-  CHECK_EQ(source1.size(), dest.size());
-  CHECK_EQ(source2.size(), dest.size());
+  DCHECK_EQ(source1.size(), dest.size());
+  DCHECK_EQ(source2.size(), dest.size());
 
   const size_t n = dest.size();
   const size_t tail_frames = n % kPackedFloatsPerRegister;
@@ -68,7 +65,7 @@ ALWAYS_INLINE static void Vsub(base::span<const float> source1,
             vld1q_f32(source2.subspan(i, kPackedFloatsPerRegister).data())));
   }
 
-  if (tail_frames > 0u) {
+  if (tail_frames) {
     scalar::Vsub(source1.subspan(aligned_frames, tail_frames),
                  source2.subspan(aligned_frames, tail_frames),
                  dest.subspan(aligned_frames, tail_frames));
@@ -79,8 +76,7 @@ ALWAYS_INLINE static void Vclip(base::span<const float> source,
                                 float low_threshold,
                                 float high_threshold,
                                 base::span<float> dest) {
-  // CHECK allows the compiler to elide bounds checks (docs/unsafe_buffers.md).
-  CHECK_EQ(source.size(), dest.size());
+  DCHECK_EQ(source.size(), dest.size());
 
   const size_t n = dest.size();
   const size_t tail_frames = n % kPackedFloatsPerRegister;
@@ -136,9 +132,8 @@ ALWAYS_INLINE static void Vmaxmgv(const float* source_p,
 ALWAYS_INLINE static void Vmul(base::span<const float> source1,
                                base::span<const float> source2,
                                base::span<float> dest) {
-  // CHECK allows the compiler to elide bounds checks (docs/unsafe_buffers.md).
-  CHECK_EQ(source1.size(), dest.size());
-  CHECK_EQ(source2.size(), dest.size());
+  DCHECK_EQ(source1.size(), dest.size());
+  DCHECK_EQ(source2.size(), dest.size());
 
   const size_t n = dest.size();
   const size_t tail_frames = n % kPackedFloatsPerRegister;
@@ -152,82 +147,92 @@ ALWAYS_INLINE static void Vmul(base::span<const float> source1,
             vld1q_f32(source2.subspan(i, kPackedFloatsPerRegister).data())));
   }
 
-  if (tail_frames > 0u) {
+  if (tail_frames) {
     scalar::Vmul(source1.subspan(aligned_frames, tail_frames),
                  source2.subspan(aligned_frames, tail_frames),
                  dest.subspan(aligned_frames, tail_frames));
   }
 }
 
-ALWAYS_INLINE static void Vsma(base::span<const float> source,
-                               float scale,
-                               base::span<float> dest) {
-  // CHECK allows the compiler to elide bounds checks (docs/unsafe_buffers.md).
-  CHECK_EQ(source.size(), dest.size());
-  size_t n = dest.size();
-  size_t tail_frames = n % kPackedFloatsPerRegister;
-  size_t aligned_frames = n - tail_frames;
+ALWAYS_INLINE static void Vsma(const float* source_p,
+                               int source_stride,
+                               const float* scale,
+                               float* dest_p,
+                               int dest_stride,
+                               size_t frames_to_process) {
+  size_t n = frames_to_process;
 
-  float32x4_t k = vdupq_n_f32(scale);
-  for (size_t i = 0; i < aligned_frames; i += kPackedFloatsPerRegister) {
-    auto dest_subspan = dest.subspan(i, kPackedFloatsPerRegister);
-    float32x4_t source_vec =
-        vld1q_f32(source.subspan(i, kPackedFloatsPerRegister).data());
-    float32x4_t dest_vec = vld1q_f32(dest_subspan.data());
+  if (source_stride == 1 && dest_stride == 1) {
+    size_t tail_frames = n % kPackedFloatsPerRegister;
+    const float* end_p = UNSAFE_TODO(dest_p + n - tail_frames);
 
-    dest_vec = vmlaq_f32(dest_vec, source_vec, k);
-    vst1q_f32(dest_subspan.data(), dest_vec);
+    float32x4_t k = vdupq_n_f32(*scale);
+    while (dest_p < end_p) {
+      float32x4_t source = vld1q_f32(source_p);
+      float32x4_t dest = vld1q_f32(dest_p);
+
+      dest = vmlaq_f32(dest, source, k);
+      vst1q_f32(dest_p, dest);
+
+      UNSAFE_TODO(source_p += kPackedFloatsPerRegister);
+      UNSAFE_TODO(dest_p += kPackedFloatsPerRegister);
+    }
+    n = tail_frames;
   }
 
-  if (tail_frames > 0u) {
-    scalar::Vsma(source.subspan(aligned_frames, tail_frames), scale,
-                 dest.subspan(aligned_frames, tail_frames));
-  }
+  scalar::Vsma(source_p, source_stride, scale, dest_p, dest_stride, n);
 }
 
-ALWAYS_INLINE static void Vsmul(base::span<const float> source,
-                                float scale,
-                                base::span<float> dest) {
-  // CHECK allows the compiler to elide bounds checks (docs/unsafe_buffers.md).
-  CHECK_EQ(source.size(), dest.size());
-  size_t n = dest.size();
-  size_t tail_frames = n % kPackedFloatsPerRegister;
-  size_t aligned_frames = n - tail_frames;
+ALWAYS_INLINE static void Vsmul(const float* source_p,
+                                int source_stride,
+                                const float* scale,
+                                float* dest_p,
+                                int dest_stride,
+                                size_t frames_to_process) {
+  size_t n = frames_to_process;
 
-  for (size_t i = 0; i < aligned_frames; i += kPackedFloatsPerRegister) {
-    float32x4_t source_vec =
-        vld1q_f32(source.subspan(i, kPackedFloatsPerRegister).data());
-    vst1q_f32(dest.subspan(i, kPackedFloatsPerRegister).data(),
-              vmulq_n_f32(source_vec, scale));
+  if (source_stride == 1 && dest_stride == 1) {
+    float k = *scale;
+    size_t tail_frames = n % kPackedFloatsPerRegister;
+    const float* end_p = UNSAFE_TODO(dest_p + n - tail_frames);
+
+    while (dest_p < end_p) {
+      float32x4_t source = vld1q_f32(source_p);
+      vst1q_f32(dest_p, vmulq_n_f32(source, k));
+
+      UNSAFE_TODO(source_p += kPackedFloatsPerRegister);
+      UNSAFE_TODO(dest_p += kPackedFloatsPerRegister);
+    }
+    n = tail_frames;
   }
 
-  if (tail_frames > 0u) {
-    scalar::Vsmul(source.subspan(aligned_frames, tail_frames), scale,
-                  dest.subspan(aligned_frames, tail_frames));
-  }
+  scalar::Vsmul(source_p, source_stride, scale, dest_p, dest_stride, n);
 }
 
-ALWAYS_INLINE static void Vsadd(base::span<const float> source,
-                                float addend,
-                                base::span<float> dest) {
-  // CHECK allows the compiler to elide bounds checks (docs/unsafe_buffers.md).
-  CHECK_EQ(source.size(), dest.size());
-  size_t n = dest.size();
-  size_t tail_frames = n % kPackedFloatsPerRegister;
-  size_t aligned_frames = n - tail_frames;
+ALWAYS_INLINE static void Vsadd(const float* source_p,
+                                int source_stride,
+                                const float* addend,
+                                float* dest_p,
+                                int dest_stride,
+                                size_t frames_to_process) {
+  size_t n = frames_to_process;
 
-  float32x4_t k = vdupq_n_f32(addend);
-  for (size_t i = 0; i < aligned_frames; i += kPackedFloatsPerRegister) {
-    float32x4_t source_vec =
-        vld1q_f32(source.subspan(i, kPackedFloatsPerRegister).data());
-    vst1q_f32(dest.subspan(i, kPackedFloatsPerRegister).data(),
-              vaddq_f32(source_vec, k));
+  if (source_stride == 1 && dest_stride == 1) {
+    float32x4_t k = vld1q_dup_f32(addend);
+    size_t tail_frames = n % kPackedFloatsPerRegister;
+    const float* end_p = UNSAFE_TODO(dest_p + n - tail_frames);
+
+    while (dest_p < end_p) {
+      float32x4_t source = vld1q_f32(source_p);
+      vst1q_f32(dest_p, vaddq_f32(source, k));
+
+      UNSAFE_TODO(source_p += kPackedFloatsPerRegister);
+      UNSAFE_TODO(dest_p += kPackedFloatsPerRegister);
+    }
+    n = tail_frames;
   }
 
-  if (tail_frames > 0u) {
-    scalar::Vsadd(source.subspan(aligned_frames, tail_frames), addend,
-                  dest.subspan(aligned_frames, tail_frames));
-  }
+  scalar::Vsadd(source_p, source_stride, addend, dest_p, dest_stride, n);
 }
 
 ALWAYS_INLINE static void Vsvesq(const float* source_p,

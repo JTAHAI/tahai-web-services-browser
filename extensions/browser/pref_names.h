@@ -136,11 +136,6 @@ inline constexpr char kExtensionInstallTypeBlocklist[] =
 
 // Properties in kExtensions dictionaries --------------------------------------
 
-// The time at which the extension was installed, used to record the time to
-// first extension action click metric. Only set on initial installation.
-inline constexpr char kPrefInstallTimeForActionMetric[] =
-    "install_time_for_action_metric";
-
 // Extension-controlled preferences.
 inline constexpr char kPrefPreferences[] = "preferences";
 

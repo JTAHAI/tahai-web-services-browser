@@ -547,7 +547,8 @@ void HTMLDocumentParser::PrepareToStopParsing() {
 
   DocumentParser::PrepareToStopParsing();
 
-  if (script_runner_ && !IsParsingFragment()) {
+  // We will not have a scriptRunner when parsing a DocumentFragment.
+  if (script_runner_) {
     GetDocument()->SetReadyState(Document::kInteractive);
   }
 
@@ -557,9 +558,7 @@ void HTMLDocumentParser::PrepareToStopParsing() {
     return;
   }
 
-  if (!IsParsingFragment()) {
-    GetDocument()->OnPrepareToStopParsing();
-  }
+  GetDocument()->OnPrepareToStopParsing();
 
   AttemptToRunDeferredScriptsAndEnd();
 
@@ -1163,9 +1162,7 @@ TextPosition HTMLDocumentParser::GetTextPosition() const {
 }
 
 bool HTMLDocumentParser::IsWaitingForScripts() const {
-  if (IsParsingFragment() &&
-      GetParserContentPolicy() !=
-          kAllowScriptingContentAndMarkAsParserInserted) {
+  if (IsParsingFragment()) {
     // HTMLTreeBuilder may have a parser blocking script element, but we
     // ignore it during fragment parsing.
     DCHECK(!(tree_builder_->HasParserBlockingScript() ||
@@ -1173,12 +1170,6 @@ bool HTMLDocumentParser::IsWaitingForScripts() const {
              reentry_permit_->ParserPauseFlag()));
     return false;
   }
-
-  // kAllowScriptingContentAndMarkAsParserInserted is only used by HTML
-  // streaming, which is the only case where the fragment parser can have a
-  // parser blocking script.
-  CHECK(!IsParsingFragment() ||
-        RuntimeEnabledFeatures::NewHTMLSettingMethodsEnabled());
 
   // When the TreeBuilder encounters a </script> tag, it returns to the
   // HTMLDocumentParser where the script is transfered from the treebuilder to
@@ -1242,7 +1233,7 @@ void HTMLDocumentParser::NotifyScriptLoaded() {
   DCHECK(script_runner_);
   DCHECK(!IsExecutingScript());
 
-  if (IsStopped() || IsDetached()) {
+  if (IsStopped()) {
     return;
   }
 

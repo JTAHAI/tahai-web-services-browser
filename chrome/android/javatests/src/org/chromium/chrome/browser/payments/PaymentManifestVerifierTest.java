@@ -27,7 +27,6 @@ import org.chromium.components.payments.CSPChecker;
 import org.chromium.components.payments.PackageManagerDelegate;
 import org.chromium.components.payments.PaymentManifestDownloader;
 import org.chromium.components.payments.PaymentManifestParser;
-import org.chromium.components.payments.PaymentManifestParser.PaymentMethodManifest;
 import org.chromium.components.payments.PaymentManifestVerifier;
 import org.chromium.components.payments.PaymentManifestVerifier.ManifestVerifyCallback;
 import org.chromium.components.payments.WebAppManifestSection;
@@ -156,14 +155,17 @@ public class PaymentManifestVerifierTest {
         mParser =
                 new PaymentManifestParser() {
                     @Override
-                    public PaymentMethodManifest parsePaymentMethodManifest(
-                            GURL paymentMethodManifestUrl, String content) {
-                        return new PaymentMethodManifest(
+                    public void parsePaymentMethodManifest(
+                            GURL paymentMethodManifestUrl,
+                            String content,
+                            ManifestParseCallback callback) {
+                        callback.onPaymentMethodManifestParseSuccess(
                                 new GURL[] {new GURL("https://bobpay.test/app.json")}, new GURL[0]);
                     }
 
                     @Override
-                    public WebAppManifestSection[] parseWebAppManifest(String content) {
+                    public void parseWebAppManifest(
+                            String content, ManifestParseCallback callback) {
                         WebAppManifestSection[] manifest = new WebAppManifestSection[1];
                         int minVersion = 10;
                         manifest[0] =
@@ -171,7 +173,7 @@ public class PaymentManifestVerifierTest {
                                         "com.bobpay.app",
                                         minVersion,
                                         BOB_PAY_SIGNATURE_FINGERPRINTS);
-                        return manifest;
+                        callback.onWebAppManifestParseSuccess(manifest);
                     }
                 };
 
@@ -290,9 +292,11 @@ public class PaymentManifestVerifierTest {
                         mDownloader,
                         new PaymentManifestParser() {
                             @Override
-                            public PaymentMethodManifest parsePaymentMethodManifest(
-                                    GURL paymentMethodManifestUrl, String content) {
-                                return null;
+                            public void parsePaymentMethodManifest(
+                                    GURL paymentMethodManifestUrl,
+                                    String content,
+                                    ManifestParseCallback callback) {
+                                callback.onManifestParseFailure();
                             }
                         },
                         mPackageManagerDelegate,
@@ -319,16 +323,19 @@ public class PaymentManifestVerifierTest {
                         mDownloader,
                         new PaymentManifestParser() {
                             @Override
-                            public PaymentMethodManifest parsePaymentMethodManifest(
-                                    GURL paymentMethodManifestUrl, String content) {
-                                return new PaymentMethodManifest(
+                            public void parsePaymentMethodManifest(
+                                    GURL paymentMethodManifestUrl,
+                                    String content,
+                                    ManifestParseCallback callback) {
+                                callback.onPaymentMethodManifestParseSuccess(
                                         new GURL[] {new GURL("https://alicepay.test/app.json")},
                                         new GURL[0]);
                             }
 
                             @Override
-                            public WebAppManifestSection[] parseWebAppManifest(String content) {
-                                return null;
+                            public void parseWebAppManifest(
+                                    String content, ManifestParseCallback callback) {
+                                callback.onManifestParseFailure();
                             }
                         },
                         mPackageManagerDelegate,
@@ -380,9 +387,11 @@ public class PaymentManifestVerifierTest {
         CountingParser parser =
                 new CountingParser() {
                     @Override
-                    public PaymentMethodManifest parsePaymentMethodManifest(
-                            GURL paymentMethodManifestUrl, String content) {
-                        return new PaymentMethodManifest(
+                    public void parsePaymentMethodManifest(
+                            GURL paymentMethodManifestUrl,
+                            String content,
+                            ManifestParseCallback callback) {
+                        callback.onPaymentMethodManifestParseSuccess(
                                 new GURL[] {
                                     new GURL("https://alicepay.test/app.json"),
                                     new GURL("https://bobpay.test/app.json")
@@ -391,9 +400,10 @@ public class PaymentManifestVerifierTest {
                     }
 
                     @Override
-                    public WebAppManifestSection[] parseWebAppManifest(String content) {
+                    public void parseWebAppManifest(
+                            String content, ManifestParseCallback callback) {
                         mParseWebAppManifestCounter++;
-                        return null;
+                        callback.onManifestParseFailure();
                     }
                 };
 
@@ -448,9 +458,11 @@ public class PaymentManifestVerifierTest {
         CountingParser parser =
                 new CountingParser() {
                     @Override
-                    public PaymentMethodManifest parsePaymentMethodManifest(
-                            GURL paymentMethodManifestUrl, String content) {
-                        return new PaymentMethodManifest(
+                    public void parsePaymentMethodManifest(
+                            GURL paymentMethodManifestUrl,
+                            String content,
+                            ManifestParseCallback callback) {
+                        callback.onPaymentMethodManifestParseSuccess(
                                 new GURL[] {
                                     new GURL("https://alicepay.test/app.json"),
                                     new GURL("https://bobpay.test/app.json")
@@ -459,11 +471,12 @@ public class PaymentManifestVerifierTest {
                     }
 
                     @Override
-                    public WebAppManifestSection[] parseWebAppManifest(String content) {
+                    public void parseWebAppManifest(
+                            String content, ManifestParseCallback callback) {
                         if (mParseWebAppManifestCounter++ == 0) {
-                            return null;
+                            callback.onManifestParseFailure();
                         } else {
-                            return new WebAppManifestSection[0];
+                            callback.onWebAppManifestParseSuccess(new WebAppManifestSection[0]);
                         }
                     }
                 };

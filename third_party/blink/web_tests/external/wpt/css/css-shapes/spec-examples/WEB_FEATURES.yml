@@ -1,2 +1,4 @@
-rules:
-- shape-outside-*: [shape-outside]
+features:
+- name: shape-outside
+  files:
+  - shape-outside-*

@@ -28,7 +28,6 @@
 
 using AXRange = ui::AXPlatformNodeDelegate::AXRange;
 using base::apple::CFToNSPtrCast;
-using base::apple::ObjCCastStrict;
 
 namespace {
 
@@ -1725,7 +1724,7 @@ TEST_P(AXPlatformNodeCocoaTest, AXValueOnSliderReturnsNSNumber) {
   root.AddFloatAttribute(ax::mojom::FloatAttribute::kValueForRange, 0.5f);
   Init(root);
   AXPlatformNodeCocoa* node = GetCocoaNode(GetRoot());
-  NSNumber* value = ObjCCastStrict<NSNumber>([node AXValue]);
+  NSNumber* value = base::apple::ObjCCastStrict<NSNumber>([node AXValue]);
   EXPECT_FLOAT_EQ(value.floatValue, 0.5f);
 }
 
@@ -1737,7 +1736,7 @@ TEST_P(AXPlatformNodeCocoaTest,
   root.AddStringAttribute(ax::mojom::StringAttribute::kValue, "50%");
   Init(root);
   AXPlatformNodeCocoa* node = GetCocoaNode(GetRoot());
-  NSString* value = ObjCCastStrict<NSString>([node AXValue]);
+  NSString* value = base::apple::ObjCCastStrict<NSString>([node AXValue]);
   EXPECT_NSEQ(value, @"50%");
 }
 
@@ -1748,7 +1747,7 @@ TEST_P(AXPlatformNodeCocoaTest, AXValueOnProgressIndicatorReturnsNSNumber) {
   root.AddFloatAttribute(ax::mojom::FloatAttribute::kValueForRange, 0.75f);
   Init(root);
   AXPlatformNodeCocoa* node = GetCocoaNode(GetRoot());
-  NSNumber* value = ObjCCastStrict<NSNumber>([node AXValue]);
+  NSNumber* value = base::apple::ObjCCastStrict<NSNumber>([node AXValue]);
   EXPECT_FLOAT_EQ(value.floatValue, 0.75f);
 }
 
@@ -1759,7 +1758,7 @@ TEST_P(AXPlatformNodeCocoaTest, AXValueOnTextFieldReturnsString) {
   root.AddStringAttribute(ax::mojom::StringAttribute::kValue, "hello");
   Init(root);
   AXPlatformNodeCocoa* node = GetCocoaNode(GetRoot());
-  NSString* value = ObjCCastStrict<NSString>([node AXValue]);
+  NSString* value = base::apple::ObjCCastStrict<NSString>([node AXValue]);
   EXPECT_NSEQ(value, @"hello");
 }
 

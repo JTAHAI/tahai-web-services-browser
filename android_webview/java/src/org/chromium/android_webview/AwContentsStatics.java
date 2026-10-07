@@ -218,9 +218,7 @@ public class AwContentsStatics {
     interface Natives {
         void logCommandLineForDebugging();
 
-        void logFlagMetrics(
-                @JniType("std::set<std::string>") String[] switches,
-                @JniType("std::set<std::string>") String[] features);
+        void logFlagMetrics(String[] switches, String[] features);
 
         @JniType("std::string")
         String getSafeBrowsingPrivacyPolicyUrl();
@@ -230,11 +228,9 @@ public class AwContentsStatics {
         @JniType("std::string")
         String getUnreachableWebDataUrl();
 
-        @JniType("std::string")
         String getProductVersion();
 
-        void setSafeBrowsingAllowlist(
-                @JniType("std::vector<std::string>") String[] urls, Callback<Boolean> callback);
+        void setSafeBrowsingAllowlist(String[] urls, Callback<Boolean> callback);
 
         void setCheckClearTextPermitted(boolean permitted);
 
@@ -242,6 +238,7 @@ public class AwContentsStatics {
 
         @JniType("std::string")
         String getVariationsHeader();
+
 
         void forceVariationIdsForTesting( // IN-TEST
                 @JniType("std::vector<std::string>") List<String> variationIds,

@@ -4,65 +4,61 @@
 
 import 'chrome://settings/settings.js';
 
+import {flush} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 import type {CrCollapseElement, SettingsRadioGroupElement} from 'chrome://settings/lazy_load.js';
 import type {SettingsMemoryPageElement} from 'chrome://settings/settings.js';
-import {MEMORY_SAVER_MODE_AGGRESSIVENESS_PREF, MEMORY_SAVER_MODE_PREF, MemorySaverModeAggressiveness, MemorySaverModeState, PerformanceMetricsProxyImpl, PrefsBrowserProxy, PrefService} from 'chrome://settings/settings.js';
+import {MEMORY_SAVER_MODE_AGGRESSIVENESS_PREF, MEMORY_SAVER_MODE_PREF, MemorySaverModeAggressiveness, MemorySaverModeState, PerformanceMetricsProxyImpl} from 'chrome://settings/settings.js';
 import {assertEquals, assertFalse, assertTrue} from 'chrome://webui-test/chai_assert.js';
-import {microtasksFinished} from 'chrome://webui-test/test_util.js';
 
 import {TestPerformanceMetricsProxy} from './test_performance_metrics_proxy.js';
-import {TestPrefsBrowserProxy} from './test_prefs_browser_proxy.js';
 
-const INITIAL_PREFS: chrome.settingsPrivate.PrefObject[] = [
-  {
-    key: MEMORY_SAVER_MODE_PREF,
-    type: chrome.settingsPrivate.PrefType.NUMBER,
-    value: MemorySaverModeState.DISABLED,
+const memorySaverModeMockPrefs = {
+  high_efficiency_mode: {
+    state: {
+      type: chrome.settingsPrivate.PrefType.NUMBER,
+      value: MemorySaverModeState.DISABLED,
+    },
+    aggressiveness: {
+      type: chrome.settingsPrivate.PrefType.NUMBER,
+      value: MemorySaverModeAggressiveness.MEDIUM,
+    },
   },
-  {
-    key: MEMORY_SAVER_MODE_AGGRESSIVENESS_PREF,
-    type: chrome.settingsPrivate.PrefType.NUMBER,
-    value: MemorySaverModeAggressiveness.MEDIUM,
-  },
-];
+};
 
 suite('MemorySaver', function() {
   let memoryPage: SettingsMemoryPageElement;
   let performanceMetricsProxy: TestPerformanceMetricsProxy;
-  let prefsBrowserProxy: TestPrefsBrowserProxy;
-  let prefService: PrefService;
 
-  setup(async function() {
+  setup(function() {
     document.body.innerHTML = window.trustedTypes!.emptyHTML;
 
     performanceMetricsProxy = new TestPerformanceMetricsProxy();
     PerformanceMetricsProxyImpl.setInstance(performanceMetricsProxy);
 
-    prefsBrowserProxy = new TestPrefsBrowserProxy(INITIAL_PREFS);
-    PrefsBrowserProxy.setInstance(prefsBrowserProxy);
-    PrefService.resetInstanceForTesting();
-    prefService = PrefService.getInstance();
-    await prefService.whenInitialized();
-
     memoryPage = document.createElement('settings-memory-page');
+    memoryPage.set('prefs', {
+      performance_tuning: {
+        ...memorySaverModeMockPrefs,
+      },
+    });
     document.body.appendChild(memoryPage);
-    await microtasksFinished();
+    flush();
   });
 
-  test('MemorySaverModeEnabled', async function() {
-    await prefService.setPrefValue(
+  test('MemorySaverModeEnabled', function() {
+    memoryPage.setPrefValue(
         MEMORY_SAVER_MODE_PREF, MemorySaverModeState.ENABLED);
     assertTrue(memoryPage.$.toggleButton.checked);
   });
 
-  test('MemorySaverModeDisabled', async function() {
-    await prefService.setPrefValue(
+  test('MemorySaverModeDisabled', function() {
+    memoryPage.setPrefValue(
         MEMORY_SAVER_MODE_PREF, MemorySaverModeState.DISABLED);
     assertFalse(memoryPage.$.toggleButton.checked);
   });
 
   test('MemorySaverModeChangeState', async function() {
-    await prefService.setPrefValue(
+    memoryPage.setPrefValue(
         MEMORY_SAVER_MODE_PREF, MemorySaverModeState.DISABLED);
 
     memoryPage.$.toggleButton.click();
@@ -70,7 +66,7 @@ suite('MemorySaver', function() {
         'recordMemorySaverModeChanged');
     assertEquals(state, MemorySaverModeState.ENABLED);
     assertEquals(
-        prefService.getPref(MEMORY_SAVER_MODE_PREF).value,
+        memoryPage.getPref(MEMORY_SAVER_MODE_PREF).value,
         MemorySaverModeState.ENABLED);
 
     performanceMetricsProxy.reset();
@@ -79,7 +75,7 @@ suite('MemorySaver', function() {
         'recordMemorySaverModeChanged');
     assertEquals(state, MemorySaverModeState.DISABLED);
     assertEquals(
-        prefService.getPref(MEMORY_SAVER_MODE_PREF).value,
+        memoryPage.getPref(MEMORY_SAVER_MODE_PREF).value,
         MemorySaverModeState.DISABLED);
   });
 });
@@ -92,8 +88,6 @@ suite('MemorySaverAggressiveness', function() {
   let aggressiveButton: HTMLElement;
   let radioGroup: SettingsRadioGroupElement;
   let radioGroupCollapse: CrCollapseElement;
-  let prefsBrowserProxy: TestPrefsBrowserProxy;
-  let prefService: PrefService;
 
   /**
    * Used to get elements from the performance page that may or may not exist,
@@ -103,27 +97,26 @@ suite('MemorySaverAggressiveness', function() {
    */
   function getMemoryPageElement<T extends HTMLElement = HTMLElement>(
       id: string): T {
-    const el = memoryPage.shadowRoot.querySelector<T>(`#${id}`);
-    assertTrue(el !== null);
+    const el = memoryPage.shadowRoot!.querySelector<T>(`#${id}`);
+    assertTrue(!!el);
     assertTrue(el instanceof HTMLElement);
     return el;
   }
 
-  setup(async function() {
+  setup(function() {
     document.body.innerHTML = window.trustedTypes!.emptyHTML;
 
     performanceMetricsProxy = new TestPerformanceMetricsProxy();
     PerformanceMetricsProxyImpl.setInstance(performanceMetricsProxy);
 
-    prefsBrowserProxy = new TestPrefsBrowserProxy(INITIAL_PREFS);
-    PrefsBrowserProxy.setInstance(prefsBrowserProxy);
-    PrefService.resetInstanceForTesting();
-    prefService = PrefService.getInstance();
-    await prefService.whenInitialized();
-
     memoryPage = document.createElement('settings-memory-page');
+    memoryPage.set('prefs', {
+      performance_tuning: {
+        ...memorySaverModeMockPrefs,
+      },
+    });
     document.body.appendChild(memoryPage);
-    await microtasksFinished();
+    flush();
 
     conservativeButton = getMemoryPageElement('conservativeButton');
     mediumButton = getMemoryPageElement('mediumButton');
@@ -132,18 +125,16 @@ suite('MemorySaverAggressiveness', function() {
     radioGroupCollapse = getMemoryPageElement('radioGroupCollapse');
   });
 
-  test('MemorySaverModeDisabled', async function() {
-    await prefService.setPrefValue(
+  test('MemorySaverModeDisabled', function() {
+    memoryPage.setPrefValue(
         MEMORY_SAVER_MODE_PREF, MemorySaverModeState.DISABLED);
-    await microtasksFinished();
     assertFalse(memoryPage.$.toggleButton.checked);
     assertFalse(radioGroupCollapse.opened);
   });
 
-  test('MemorySaverModeEnabled', async function() {
-    await prefService.setPrefValue(
+  test('MemorySaverModeEnabled', function() {
+    memoryPage.setPrefValue(
         MEMORY_SAVER_MODE_PREF, MemorySaverModeState.ENABLED);
-    await microtasksFinished();
     assertTrue(memoryPage.$.toggleButton.checked);
     assertTrue(radioGroupCollapse.opened);
     assertEquals(
@@ -160,7 +151,7 @@ suite('MemorySaverAggressiveness', function() {
           'recordMemorySaverModeChanged');
       assertEquals(state, expectedState);
       assertEquals(
-          prefService.getPref(MEMORY_SAVER_MODE_PREF).value, expectedState);
+          memoryPage.getPref(MEMORY_SAVER_MODE_PREF).value, expectedState);
     }
 
     async function testMemorySaverModeChangeAggressiveness(
@@ -173,13 +164,13 @@ suite('MemorySaverAggressiveness', function() {
           'recordMemorySaverModeAggressivenessChanged');
       assertEquals(aggressiveness, expectedAggressiveness);
       assertEquals(
-          prefService.getPref(MEMORY_SAVER_MODE_AGGRESSIVENESS_PREF).value,
+          memoryPage.getPref(MEMORY_SAVER_MODE_AGGRESSIVENESS_PREF).value,
           expectedAggressiveness);
     }
 
-    await prefService.setPrefValue(
+    memoryPage.setPrefValue(
         MEMORY_SAVER_MODE_PREF, MemorySaverModeState.DISABLED);
-    await prefService.setPrefValue(
+    memoryPage.setPrefValue(
         MEMORY_SAVER_MODE_AGGRESSIVENESS_PREF,
         MemorySaverModeAggressiveness.MEDIUM);
 
@@ -197,31 +188,30 @@ suite('MemorySaverAggressiveness', function() {
     await testMemorySaverModeChangeState(MemorySaverModeState.DISABLED);
   });
 
-  test('MemorySaverModeAggressiveness', async function() {
-    async function assertMemorySaverModeAggressivenessPolicyIndicatorExists(
+  test('MemorySaverModeAggressiveness', function() {
+    function assertMemorySaverModeAggressivenessPolicyIndicatorExists(
         mode: MemorySaverModeAggressiveness, el: HTMLElement) {
-      await prefService.setPrefValue(
-          MEMORY_SAVER_MODE_AGGRESSIVENESS_PREF, mode);
-      await microtasksFinished();
+      memoryPage.setPrefValue(MEMORY_SAVER_MODE_AGGRESSIVENESS_PREF, mode);
+      flush();
       assertTrue(!!el.shadowRoot!.querySelector('cr-policy-pref-indicator'));
     }
 
-    await prefService.setPrefValue(
+    memoryPage.setPrefValue(
         MEMORY_SAVER_MODE_PREF, MemorySaverModeState.ENABLED);
-    prefsBrowserProxy.fakeApi.sendPrefChanges([{
-      key: MEMORY_SAVER_MODE_AGGRESSIVENESS_PREF,
-      value: MemorySaverModeAggressiveness.MEDIUM,
+    memoryPage.set(`prefs.${MEMORY_SAVER_MODE_AGGRESSIVENESS_PREF}`, {
       enforcement: chrome.settingsPrivate.Enforcement.ENFORCED,
       controlledBy: chrome.settingsPrivate.ControlledBy.USER_POLICY,
-    }]);
+      type: chrome.settingsPrivate.PrefType.NUMBER,
+      value: MemorySaverModeAggressiveness.MEDIUM,
+    });
 
-    await assertMemorySaverModeAggressivenessPolicyIndicatorExists(
+    assertMemorySaverModeAggressivenessPolicyIndicatorExists(
         MemorySaverModeAggressiveness.CONSERVATIVE, conservativeButton);
 
-    await assertMemorySaverModeAggressivenessPolicyIndicatorExists(
+    assertMemorySaverModeAggressivenessPolicyIndicatorExists(
         MemorySaverModeAggressiveness.MEDIUM, mediumButton);
 
-    await assertMemorySaverModeAggressivenessPolicyIndicatorExists(
+    assertMemorySaverModeAggressivenessPolicyIndicatorExists(
         MemorySaverModeAggressiveness.AGGRESSIVE, aggressiveButton);
   });
 });

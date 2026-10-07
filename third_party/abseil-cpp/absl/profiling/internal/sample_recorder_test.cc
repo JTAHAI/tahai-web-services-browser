@@ -14,7 +14,6 @@
 
 #include "absl/profiling/internal/sample_recorder.h"
 
-#include <algorithm>
 #include <atomic>
 #include <cassert>
 #include <cstddef>

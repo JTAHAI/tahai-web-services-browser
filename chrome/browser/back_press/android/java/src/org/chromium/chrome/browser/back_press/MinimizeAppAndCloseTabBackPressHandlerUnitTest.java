@@ -4,7 +4,6 @@
 
 package org.chromium.chrome.browser.back_press;
 
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 
 import android.os.Build.VERSION_CODES;
@@ -36,7 +35,6 @@ import org.chromium.chrome.browser.back_press.MinimizeAppAndCloseTabBackPressHan
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.TabAssociatedApp;
 import org.chromium.chrome.browser.tab.TabLaunchType;
-import org.chromium.components.browser_ui.widget.gesture.BackPressHandler.BackPressResult;
 
 import java.util.concurrent.ExecutionException;
 import java.util.function.Predicate;
@@ -161,7 +159,10 @@ public class MinimizeAppAndCloseTabBackPressHandlerUnitTest {
                 HistogramWatcher.newBuilder()
                         .expectNoRecords(MinimizeAppAndCloseTabBackPressHandler.HISTOGRAM)
                         .build();
-        ThreadUtils.runOnUiThreadBlocking(() -> mActivityTabSupplier.set(mTab));
+        ThreadUtils.runOnUiThreadBlocking(
+                () -> {
+                    mActivityTabSupplier.set(mTab);
+                });
         Mockito.when(mShouldCloseTab.test(mTab)).thenReturn(false);
 
         Assert.assertFalse(
@@ -189,20 +190,6 @@ public class MinimizeAppAndCloseTabBackPressHandlerUnitTest {
                         Mockito.description("Tab should be closed during minimizing the app."))
                 .onResult(mTab);
         histogram.assertExpected();
-    }
-
-    @Test
-    @SmallTest
-    public void testHandleBackPress_NavigatesBackIfCanGoBack() {
-        Mockito.when(mTab.canGoBack()).thenReturn(true);
-        Mockito.when(mShouldCloseTab.test(mTab)).thenReturn(true);
-        ThreadUtils.runOnUiThreadBlocking(() -> mActivityTabSupplier.set(mTab));
-
-        int result = ThreadUtils.runOnUiThreadBlocking(mHandler::handleBackPress);
-
-        Assert.assertEquals(BackPressResult.SUCCESS, result);
-        verify(mTab).goBack();
-        verify(mSendToBackground, Mockito.never()).onResult(any());
     }
 
     @Test

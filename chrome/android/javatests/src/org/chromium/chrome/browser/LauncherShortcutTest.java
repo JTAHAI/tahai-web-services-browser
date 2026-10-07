@@ -25,7 +25,6 @@ import org.junit.runner.RunWith;
 
 import org.chromium.base.ApplicationStatus;
 import org.chromium.base.ContextUtils;
-import org.chromium.base.DeviceInfo;
 import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.params.ParameterAnnotations;
 import org.chromium.base.test.params.ParameterProvider;
@@ -296,21 +295,15 @@ public class LauncherShortcutTest {
         List<String> expectedLabels;
         int expectedSize;
         if (IncognitoUtils.shouldOpenIncognitoAsWindow()) {
-            if (DeviceInfo.isDesktop()) {
-                expectedLabels = Arrays.asList("New Incognito window");
-                expectedSize = 1;
-            } else {
-                expectedLabels = Arrays.asList("New window", "New Incognito window");
-                expectedSize = 2;
-            }
+            expectedLabels = Arrays.asList("New Incognito window");
+            expectedSize = 1;
         } else {
             expectedLabels = Arrays.asList("New Incognito tab");
             expectedSize = 1;
         }
 
         IncognitoUtils.setEnabledForTesting(true);
-        LauncherShortcutActivity.updateDynamicLauncherShortcuts(
-                mActivityTestRule.getProfile(false));
+        LauncherShortcutActivity.updateIncognitoShortcut(mActivityTestRule.getProfile(false));
         ShortcutManager shortcutManager =
                 mActivityTestRule.getActivity().getSystemService(ShortcutManager.class);
 
@@ -332,8 +325,7 @@ public class LauncherShortcutTest {
                 });
 
         IncognitoUtils.setEnabledForTesting(false);
-        LauncherShortcutActivity.updateDynamicLauncherShortcuts(
-                mActivityTestRule.getProfile(false));
+        LauncherShortcutActivity.updateIncognitoShortcut(mActivityTestRule.getProfile(false));
         CriteriaHelper.pollInstrumentationThread(
                 () -> {
                     Criteria.checkThat(
@@ -343,8 +335,7 @@ public class LauncherShortcutTest {
                 });
 
         IncognitoUtils.setEnabledForTesting(true);
-        LauncherShortcutActivity.updateDynamicLauncherShortcuts(
-                mActivityTestRule.getProfile(false));
+        LauncherShortcutActivity.updateIncognitoShortcut(mActivityTestRule.getProfile(false));
         CriteriaHelper.pollInstrumentationThread(
                 () -> {
                     Criteria.checkThat(
@@ -362,19 +353,13 @@ public class LauncherShortcutTest {
 
     private void testDynamicShortcuts_LanguageChangeInternal() {
         IncognitoUtils.setEnabledForTesting(true);
-        LauncherShortcutActivity.updateDynamicLauncherShortcuts(
-                mActivityTestRule.getProfile(false));
+        LauncherShortcutActivity.updateIncognitoShortcut(mActivityTestRule.getProfile(false));
 
         List<String> expectedLabels;
         int expectedSize;
         if (IncognitoUtils.shouldOpenIncognitoAsWindow()) {
-            if (DeviceInfo.isDesktop()) {
-                expectedLabels = Arrays.asList("New Incognito window");
-                expectedSize = 1;
-            } else {
-                expectedLabels = Arrays.asList("New window", "New Incognito window");
-                expectedSize = 2;
-            }
+            expectedLabels = Arrays.asList("New Incognito window");
+            expectedSize = 1;
         } else {
             expectedLabels = Arrays.asList("New Incognito tab");
             expectedSize = 1;
@@ -401,8 +386,7 @@ public class LauncherShortcutTest {
                 });
 
         LauncherShortcutActivity.setDynamicShortcutStringForTesting("Foo");
-        LauncherShortcutActivity.updateDynamicLauncherShortcuts(
-                mActivityTestRule.getProfile(false));
+        LauncherShortcutActivity.updateIncognitoShortcut(mActivityTestRule.getProfile(false));
 
         CriteriaHelper.pollInstrumentationThread(
                 () -> {

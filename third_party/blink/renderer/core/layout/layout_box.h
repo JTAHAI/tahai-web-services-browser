@@ -242,8 +242,6 @@ class CORE_EXPORT LayoutBox : public LayoutBoxModelObject {
     return StyleRef().IsHorizontalWritingMode() ? size.height : size.width;
   }
 
-  LayoutUnit StitchedBlockSize() const;
-
   // Return the size of all fragments stitched together in the block direction.
   //
   // <div style="columns:2; column-fill:auto; height:100px;">
@@ -304,7 +302,7 @@ class CORE_EXPORT LayoutBox : public LayoutBoxModelObject {
 
   // The content box converted to absolute coords (taking transforms into
   // account).
-  gfx::QuadF AbsoluteContentQuad(MapCoordinatesFlags = {}) const;
+  gfx::QuadF AbsoluteContentQuad(MapCoordinatesFlags = 0) const;
 
   // The enclosing rectangle of the background with given opacity requirement.
   PhysicalRect PhysicalBackgroundRect(BackgroundRectType) const;
@@ -406,8 +404,7 @@ class CORE_EXPORT LayoutBox : public LayoutBoxModelObject {
 
   void QuadsInAncestorInternal(Vector<gfx::QuadF>&,
                                const LayoutBoxModelObject* ancestor,
-                               MapCoordinatesFlags,
-                               BoxQuadType) const override;
+                               MapCoordinatesFlags) const override;
   gfx::RectF LocalBoundingBoxRectForAccessibility(
       IncludeDescendants include_descendants) const override;
 
@@ -859,10 +856,11 @@ class CORE_EXPORT LayoutBox : public LayoutBoxModelObject {
   //
   // When applying offsets and not clips, the TransformAccumulation is
   // respected. If there is a clip, the TransformState is flattened first.
-  bool MapContentsRectToBoxSpace(TransformState&,
-                                 TransformState::TransformAccumulation,
-                                 const LayoutObject& contents,
-                                 VisualRectFlags = {}) const;
+  bool MapContentsRectToBoxSpace(
+      TransformState&,
+      TransformState::TransformAccumulation,
+      const LayoutObject& contents,
+      VisualRectFlags = kDefaultVisualRectFlags) const;
 
   // True if the contents scroll relative to this object. |this| must be a
   // containing block for |contents|.
@@ -922,6 +920,7 @@ class CORE_EXPORT LayoutBox : public LayoutBoxModelObject {
   void EnsureIsReadyForPaintInvalidation() override;
   void ClearPaintFlags() override;
 
+  bool HasControlClip() const;
 
   class MutableForPainting : public LayoutObject::MutableForPainting {
    public:
@@ -1158,18 +1157,16 @@ class CORE_EXPORT LayoutBox : public LayoutBoxModelObject {
 
   virtual OverflowClipAxes ComputeOverflowClipAxes() const;
 
-  void WillBeDestroyed(const ComputedStyle*) override;
+  void WillBeDestroyed() override;
 
   void InsertedIntoTree() override;
   void WillBeRemovedFromTree() override;
 
   void StyleWillChange(StyleDifference,
-                       const ComputedStyle* old_style,
                        const ComputedStyle& new_style,
                        StyleChangeContext&) override;
   void StyleDidChange(StyleDifference,
                       const ComputedStyle* old_style,
-                      const ComputedStyle& new_style,
                       const StyleChangeContext&) override;
   virtual bool ShouldBeHandledAsFloating(const ComputedStyle& style) const;
   bool ShouldBeHandledAsFloating() const {

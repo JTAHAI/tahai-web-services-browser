@@ -72,7 +72,9 @@ public class BookmarkPaneTest {
     public void tearDown() {
         ChromeTabbedActivity cta = mCtaTestRule.getActivity();
         runOnUiThreadBlocking(
-                () -> clearBookmarks(cta.getProfileProviderSupplier().get().getOriginalProfile()));
+                () -> {
+                    clearBookmarks(cta.getProfileProviderSupplier().get().getOriginalProfile());
+                });
     }
 
     @Test

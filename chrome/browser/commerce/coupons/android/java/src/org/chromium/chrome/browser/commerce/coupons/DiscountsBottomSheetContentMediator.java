@@ -118,7 +118,7 @@ public class DiscountsBottomSheetContentMediator {
                 RecordHistogram.recordEnumeratedHistogram(
                         "Commerce.Discounts.BottomSheet.ClusterTypeOnCopy",
                         discountInfo.clusterType,
-                        DiscountClusterType.MAX_VALUE + 1);
+                        DiscountClusterType.MAX_VALUE);
                 mCopyButtonClickedHistogramRecorded = true;
             }
 

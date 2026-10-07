@@ -1,2 +1,3 @@
-rules:
-- "**": [webvtt-regions]
+features:
+- name: webvtt-regions
+  files: "**"

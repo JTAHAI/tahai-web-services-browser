@@ -55,7 +55,11 @@ void GetDebugInfoForModule(HMODULE module_handle,
     return;
   }
   *pdb_name = FilePath(std::move(pdb_filename)).BaseName();
-  *build_id = AsBuildId(guid, age);
+
+  auto buffer = win::WStringFromGUID(guid);
+  RemoveChars(buffer, L"{}-", &buffer);
+  buffer.append(NumberToWString(age));
+  *build_id = WideToUTF8(buffer);
 }
 
 // Returns true if the address is in the address space accessible to
@@ -162,13 +166,6 @@ std::unique_ptr<ModuleCache::Module> CreateModuleForHandle(
 }
 
 }  // namespace
-
-BASE_EXPORT std::string AsBuildId(const GUID& guid, DWORD age) {
-  auto buffer = win::WStringFromGUID(guid);
-  RemoveChars(buffer, L"{}-", &buffer);
-  buffer.append(NumberToWString(age));
-  return WideToUTF8(buffer);
-}
 
 // static
 std::unique_ptr<const ModuleCache::Module> ModuleCache::CreateModuleForAddress(

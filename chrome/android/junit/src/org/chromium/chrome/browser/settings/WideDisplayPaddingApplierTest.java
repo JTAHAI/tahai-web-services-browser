@@ -5,6 +5,7 @@
 package org.chromium.chrome.browser.settings;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.when;
@@ -97,7 +98,7 @@ public class WideDisplayPaddingApplierTest {
     }
 
     @Test
-    public void testPreferenceFragment_appliesPaddingOnViewCreated() {
+    public void testPreferenceFragment_appliesPaddingOnGlobalLayout() {
         TestPreferenceFragment fragment = new TestPreferenceFragment();
         mTestActivity
                 .getSupportFragmentManager()
@@ -110,13 +111,19 @@ public class WideDisplayPaddingApplierTest {
         RecyclerView recyclerView = view.findViewById(R.id.recycler_view);
         assertNotNull(recyclerView);
 
-        // Padding decoration should be applied synchronously on view creation.
+        // Initially no padded decoration.
+        assertFalse(hasPaddedItemDecoration(recyclerView));
+
+        // Trigger global layout to execute WideDisplayPadding.apply().
+        view.getViewTreeObserver().dispatchOnGlobalLayout();
+
+        // Now it should have the padded decoration.
         assertTrue(hasPaddedItemDecoration(recyclerView));
     }
 
     @Test
     @Config(qualifiers = "sw320dp") // Start with narrow display
-    public void testMainFragmentWithMatchingTag_appliesPadding() {
+    public void testMainFragmentWithMatchingTag_appliesPaddingOnGlobalLayout() {
         TestFragment fragment = new TestFragment();
         mTestActivity
                 .getSupportFragmentManager()
@@ -126,6 +133,9 @@ public class WideDisplayPaddingApplierTest {
 
         View view = fragment.getView();
         assertNotNull(view);
+
+        // Trigger global layout to execute WideDisplayPadding.apply().
+        view.getViewTreeObserver().dispatchOnGlobalLayout();
 
         // Transition to wide.
         Configuration config = new Configuration(mTestActivity.getResources().getConfiguration());
@@ -152,6 +162,9 @@ public class WideDisplayPaddingApplierTest {
 
         View view = fragment.getView();
         assertNotNull(view);
+
+        // Trigger global layout to execute WideDisplayPadding.apply().
+        view.getViewTreeObserver().dispatchOnGlobalLayout();
 
         // Transition to wide
         Configuration config = new Configuration(mTestActivity.getResources().getConfiguration());

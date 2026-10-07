@@ -11,27 +11,28 @@ from pylib.base import output_manager
 
 # pylint: disable=no-self-use
 
-
 class NoopOutputManager(output_manager.OutputManager):
-    # override
-    def _CreateArchivedFile(self, out_filename, out_subdir, datatype, package):
-        del out_filename, out_subdir, datatype, package
-        return NoopArchivedFile()
+
+  #override
+  def _CreateArchivedFile(self, out_filename, out_subdir, datatype, package):
+    del out_filename, out_subdir, datatype, package
+    return NoopArchivedFile()
 
 
 class NoopArchivedFile(output_manager.ArchivedFile):
-    def __init__(self):
-        super().__init__(None, None, None)
 
-    def Link(self):
-        """NoopArchivedFiles are not retained."""
-        return ''
+  def __init__(self):
+    super().__init__(None, None, None)
 
-    def _Link(self):
-        pass
+  def Link(self):
+    """NoopArchivedFiles are not retained."""
+    return ''
 
-    def Archive(self):
-        """NoopArchivedFiles are not retained."""
+  def _Link(self):
+    pass
 
-    def _Archive(self):
-        pass
+  def Archive(self):
+    """NoopArchivedFiles are not retained."""
+
+  def _Archive(self):
+    pass

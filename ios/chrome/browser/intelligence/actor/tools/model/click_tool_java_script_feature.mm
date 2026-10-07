@@ -60,11 +60,13 @@ ClickToolJavaScriptFeature::~ClickToolJavaScriptFeature() = default;
 
 void ClickToolJavaScriptFeature::Click(
     base::WeakPtr<web::WebFrame> target_frame,
-    const ActionTarget& target,
-    optimization_guide::proto::ClickAction_ClickType click_type,
-    int click_count,
+    const optimization_guide::proto::ClickAction& action,
     ToolExecutionCallback callback) {
-  CHECK(target.is_valid());
+  CHECK(action.has_target());
+  CHECK(action.has_click_count() && action.has_click_type());
+  CHECK(action.target().has_coordinate() ||
+        (action.target().has_content_node_id() &&
+         action.target().has_document_identifier()));
 
   if (!target_frame) {
     std::move(callback).Run(
@@ -73,13 +75,28 @@ void ClickToolJavaScriptFeature::Click(
   }
 
   base::ListValue parameters;
-  parameters.Append(target.ToDictValue());
-  parameters.Append(static_cast<int>(click_type));
-  parameters.Append(click_count);
+  std::string function_name;
+
+  if (action.target().has_content_node_id()) {
+    parameters.Append(action.target().content_node_id());
+    parameters.Append(static_cast<int>(action.click_type()));
+    parameters.Append(static_cast<int>(action.click_count()));
+    function_name = "click_tool.clickByNodeId";
+  } else if (action.target().has_coordinate()) {
+    parameters.Append(action.target().coordinate().x());
+    parameters.Append(action.target().coordinate().y());
+    parameters.Append(static_cast<int>(action.click_type()));
+    parameters.Append(static_cast<int>(action.click_count()));
+    parameters.Append(
+        static_cast<int>(action.target().coordinate().pixel_type()));
+    function_name = "click_tool.clickByCoordinate";
+  } else {
+    NOTREACHED();
+  }
 
   auto [cb_for_js, cb_for_error] = base::SplitOnceCallback(std::move(callback));
   bool sent = CallJavaScriptFunction(
-      target_frame.get(), "click_tool.click", parameters,
+      target_frame.get(), function_name, parameters,
       base::BindOnce(
           [](ToolExecutionCallback cb, const base::Value* result) {
             std::move(cb).Run(ParseJavaScriptResultWithResultCode(

@@ -97,8 +97,7 @@ void RecordCacheStorageSchedulerUMA(CacheStorageSchedulerUMA uma_type,
                                     CacheStorageSchedulerClient client_type,
                                     CacheStorageSchedulerOp op_type,
                                     int value) {
-  CHECK(uma_type == CacheStorageSchedulerUMA::kQueueLength,
-        base::NotFatalUntil::M158);
+  DCHECK(uma_type == CacheStorageSchedulerUMA::kQueueLength);
   std::string histogram_name = GetClientHistogramName(uma_type, client_type);
   base::UmaHistogramCounts10000(histogram_name, value);
   if (!ShouldRecordOpUMA(op_type))
@@ -111,9 +110,8 @@ void RecordCacheStorageSchedulerUMA(CacheStorageSchedulerUMA uma_type,
                                     CacheStorageSchedulerClient client_type,
                                     CacheStorageSchedulerOp op_type,
                                     base::TimeDelta value) {
-  CHECK(uma_type == CacheStorageSchedulerUMA::kOperationDuration ||
-            uma_type == CacheStorageSchedulerUMA::kQueueDuration,
-        base::NotFatalUntil::M158);
+  DCHECK(uma_type == CacheStorageSchedulerUMA::kOperationDuration ||
+         uma_type == CacheStorageSchedulerUMA::kQueueDuration);
   std::string histogram_name = GetClientHistogramName(uma_type, client_type);
   base::UmaHistogramLongTimes(histogram_name, value);
   if (!ShouldRecordOpUMA(op_type))

@@ -94,9 +94,8 @@ void EventTarget::GetPreTargetHandlers(EventHandlerList* list) {
   std::stable_sort(temp.begin(), temp.end());
 
   // Add the sorted handlers to the result list, in order.
-  for (auto& t : temp) {
-    list->insert(list->end(), t.handler.get());
-  }
+  for (size_t i = 0; i < temp.size(); ++i)
+    list->insert(list->end(), temp[i].handler);
 }
 
 void EventTarget::GetPostTargetHandlers(EventHandlerList* list) {

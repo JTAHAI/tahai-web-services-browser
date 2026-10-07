@@ -94,34 +94,26 @@ bool ElementAnimations::HasCompositedPaintWorkletAnimation() {
 
 void ElementAnimations::RecalcCompositedStatusForKeyframeChange(
     Element& element,
-    const ComputedStyle& new_style,
-    Animation::NativePaintWorkletReasons properties,
-    bool force_update) {
+    Animation::NativePaintWorkletReasons properties) {
   // Usually kInStyleRecalc or kInLayout, but sometimes SMIL can cause updates
   // post-style/layout. See crbug.com/523313381.
   if ((element.GetDocument().Lifecycle().GetState() <
        DocumentLifecycle::kInStyleRecalc) ||
-      (element.GetDocument().Lifecycle().GetState() >=
-       DocumentLifecycle::kInPrePaint)) {
-    LOG(ERROR) << "Lifecycle phase: "
-               << static_cast<int>(
-                      element.GetDocument().Lifecycle().GetState());
+      (element.GetDocument().Lifecycle().GetState() >
+       DocumentLifecycle::kLayoutClean)) {
     DCHECK(false) << "RecalcCompositedStatusForKeyframeChange must not be "
                   << "called outside of style/layout.";
     base::debug::DumpWithoutCrashing();
   }
-
   if (!element.GetLayoutObject()) {
     return;
   }
 
   if (background_color_npw_data_) {
-    background_color_npw_data_->MaybeSetNeedsKeyframeSnapshot(
-        element, new_style, force_update);
+    background_color_npw_data_->SetNeedsKeyframeSnapshot();
   }
   if (clip_path_npw_data_) {
-    clip_path_npw_data_->MaybeSetNeedsKeyframeSnapshot(element, new_style,
-                                                       force_update);
+    clip_path_npw_data_->SetNeedsKeyframeSnapshot();
   }
 }
 
@@ -144,9 +136,7 @@ NativePaintWorkletData* ElementAnimations::EnsureClipPathNpwData(
   return clip_path_npw_data_;
 }
 
-void ElementAnimations::RecalcCompositedStatus(
-    Element* element,
-    Animation::CompositorPendingReason pending_reason) {
+void ElementAnimations::RecalcCompositedStatus(Element* element) {
   Animation::NativePaintWorkletReasons reasons = Animation::kNoPaintWorklet;
   // Multiple animations targeting the same property cannot be composited as
   // the compositor does not support composite-ordering. The overlapping_reasons
@@ -154,19 +144,9 @@ void ElementAnimations::RecalcCompositedStatus(
   Animation::NativePaintWorkletReasons overlapping_reasons =
       Animation::kNoPaintWorklet;
   for (auto& entry : Animations()) {
-    const Animation* animation = entry.key;
-    V8AnimationPlayState::Enum play_state =
-        animation->CalculateAnimationPlayState();
-    if (play_state == V8AnimationPlayState::Enum::kIdle) {
+    if (entry.key->CalculateAnimationPlayState() ==
+        V8AnimationPlayState::Enum::kIdle) {
       continue;
-    }
-    // A finished animation that is not in effect (i.e. no fill-mode) can
-    // be treated as if idle. This animation will stop ticking until reset via
-    // an API call. It will no longer appear in a getAnimations() call.
-    if (play_state == V8AnimationPlayState::Enum::kFinished) {
-      if (!animation->effect() || !animation->effect()->IsInEffect()) {
-        continue;
-      }
     }
 
     Animation::NativePaintWorkletReasons reasons_to_add =
@@ -186,14 +166,6 @@ void ElementAnimations::RecalcCompositedStatus(
   if (background_color_npw_data_) {
     background_color_npw_data_->UpdateCompositedPaintStatus(
         reasons, overlapping_reasons);
-    if (pending_reason ==
-        Animation::CompositorPendingReason::kPendingEffectChange) {
-      // TODO(kevers): We are over invalidating if the effect is invalidated
-      // on a different animation from the one animating background color.
-      // Recalc compositedStatus could take the animation instead of the
-      // element as a parameter to remedy.
-      background_color_npw_data_->SetAnimationCurve(nullptr);
-    }
   }
 
   if (clip_path_npw_data_) {
@@ -254,6 +226,9 @@ void ElementAnimations::CancelCompositedAnimationsAffectingProperties(
     }
 
     for (const auto& property : effect->Model()->DynamicProperties()) {
+      if (!property.IsCSSProperty()) {
+        continue;
+      }
       if (property_bitset.Has(property.GetCSSProperty().PropertyID())) {
         entry.key->SetCompositorPending(
             Animation::CompositorPendingReason::kPendingCancel);

@@ -17,7 +17,7 @@
 #include "components/autofill/core/browser/data_model/autofill_ai/entity_instance.h"
 #include "components/autofill/core/browser/data_model/autofill_ai/entity_type.h"
 #include "components/autofill/core/browser/data_model/autofill_ai/entity_type_names.h"
-#include "components/autofill/core/browser/test_utils/entity_data_test_util.h"
+#include "components/autofill/core/browser/test_utils/entity_data_test_utils.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
 namespace autofill {
@@ -90,7 +90,7 @@ TEST_F(EntityInstanceAndroidTest, ToEntityInstance_ReuseExistingAttribute) {
   EntityInstance existing_entity(
       entity_type, {existing_attribute}, EntityInstance::EntityId(kGuid),
       /*nickname=*/"", base::Time::Now(), /*use_count=*/1, base::Time::Now(),
-      EntityInstance::LocalRecordTypePayload{},
+      EntityInstance::RecordType::kLocal,
       EntityInstance::AreAttributesReadOnly(false),
       /*frecency_override=*/"");
 
@@ -164,7 +164,7 @@ TEST_F(EntityInstanceAndroidTest, ToEntityInstance_UpdateExistingAttribute) {
       {existing_passport_name_attribute, existing_passport_number_attribute},
       EntityInstance::EntityId(kGuid),
       /*nickname=*/"", base::Time::Now(), /*use_count=*/1, base::Time::Now(),
-      EntityInstance::LocalRecordTypePayload{},
+      EntityInstance::RecordType::kLocal,
       EntityInstance::AreAttributesReadOnly(false),
       /*frecency_override=*/"");
 

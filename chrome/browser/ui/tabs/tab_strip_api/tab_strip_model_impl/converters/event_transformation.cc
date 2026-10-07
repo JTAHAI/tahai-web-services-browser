@@ -107,15 +107,16 @@ mojom::OnNodeMovedEventPtr ToEvent(
 
 mojom::OnDataChangedEventPtr ToEvent(
     const tabs_api::TabStripModelAdapter& adapter,
-    tabs::TabInterface* tab,
+    size_t index,
     TabChangeType change_type) {
   auto tab_change = mojom::TabChange::New();
-  if (tab) {
-    tabs::TabHandle handle = tab->GetHandle();
+  auto tabs = adapter.GetTabs();
+  if (index < tabs.size()) {
+    auto& handle = tabs.at(index);
     const ui::ColorProvider& color_provider = adapter.GetColorProvider();
 
     tab_change->data = tabs_api::converters::BuildMojoTab(
-        tab, color_provider, adapter.GetTabStates(handle));
+        handle.Get(), color_provider, adapter.GetTabStates(handle));
     tab_change->mask = tabs_api::converters::BuildTabFieldMask(change_type);
   }
 
@@ -168,8 +169,8 @@ std::vector<Event> ToEvent(const TabStripSelectionChange& selection,
         base::STLSetDifference<std::set<size_t>>(old_selected, new_selected);
 
     auto tabs = adapter.GetTabs();
-    // TODO(crbug.com/crbug.com/542677767): There is a bug here where a selected
-    // state might not be correctly cleared due to index shift. This is very
+    // TODO(crbug.com/412738255): There is a bug here where a selected state
+    // might not be correctly cleared due to index shift. This is very
     // difficult to solve at this point, so we should probably change the
     // selection change event to use handles instead of indices to fix this
     // issue.

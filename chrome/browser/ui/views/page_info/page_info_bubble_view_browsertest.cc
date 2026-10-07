@@ -27,13 +27,11 @@
 #include "chrome/browser/privacy_sandbox/privacy_sandbox_service.h"
 #include "chrome/browser/privacy_sandbox/privacy_sandbox_service_factory.h"
 #include "chrome/browser/safe_browsing/chrome_password_protection_service.h"
-#include "chrome/browser/ssl/chrome_security_state_util.h"
 #include "chrome/browser/ssl/https_upgrades_interceptor.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/file_system_access/file_system_access_ui_helpers.h"
 #include "chrome/browser/ui/hats/mock_trust_safety_sentiment_service.h"
 #include "chrome/browser/ui/hats/trust_safety_sentiment_service_factory.h"
-#include "chrome/browser/ui/immersive/immersive_mode_controller.h"
 #include "chrome/browser/ui/page_info/chrome_page_info_delegate.h"
 #include "chrome/browser/ui/page_info/page_info_dialog.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
@@ -42,7 +40,9 @@
 #include "chrome/browser/ui/views/controls/rich_hover_button.h"
 #include "chrome/browser/ui/views/file_system_access/file_system_access_test_utils.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
-#include "chrome/browser/ui/views/location_bar/location_icon_test_accessor.h"
+#include "chrome/browser/ui/views/location_bar/location_bar_view.h"
+#include "chrome/browser/ui/views/location_bar/location_icon_view.h"
+#include "chrome/browser/ui/views/page_info/page_info_ad_personalization_content_view.h"
 #include "chrome/browser/ui/views/page_info/page_info_cookies_content_view.h"
 #include "chrome/browser/ui/views/page_info/page_info_permission_content_view.h"
 #include "chrome/browser/ui/views/page_info/page_info_view_factory.h"
@@ -52,15 +52,15 @@
 #include "chrome/common/pref_names.h"
 #include "chrome/common/url_constants.h"
 #include "chrome/common/webui_url_constants.h"
-#include "chrome/test/base/chrome_test_path_utils.h"
+#include "chrome/test/base/chrome_test_utils.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/ui_test_utils.h"
 #include "chromeos/constants/pref_names.h"
 #include "components/content_settings/core/common/content_settings_types.h"
 #include "components/content_settings/core/common/features.h"
 #include "components/content_settings/core/common/pref_names.h"
-#include "components/optimization_guide/core/optimization_guide_permissions_util.h"
 #include "components/optimization_guide/core/optimization_guide_proto_util.h"
+#include "components/optimization_guide/core/optimization_guide_switches.h"
 #include "components/page_info/core/about_this_site_service.h"
 #include "components/page_info/core/about_this_site_validation.h"
 #include "components/page_info/core/features.h"
@@ -75,6 +75,7 @@
 #include "components/safe_browsing/core/common/features.h"
 #include "components/safe_browsing/core/common/proto/csd.pb.h"
 #include "components/security_interstitials/core/features.h"
+#include "components/security_state/content/security_state_tab_helper.h"
 #include "components/strings/grit/components_strings.h"
 #include "components/strings/grit/privacy_sandbox_strings.h"
 #include "components/ukm/test_ukm_recorder.h"
@@ -130,8 +131,13 @@ void PerformMouseClickOnView(views::View* view) {
 }
 
 // Clicks the location icon to open the page info bubble.
-void OpenPageInfoBubble(BrowserWindowInterface* browser) {
-  LocationIconTestAccessor(browser).ShowBubble();
+void OpenPageInfoBubble(Browser* browser) {
+  BrowserView* browser_view = BrowserView::GetBrowserViewForBrowser(browser);
+  LocationIconView* location_icon_view =
+      browser_view->toolbar()->location_bar_view()->location_icon_view();
+  ASSERT_TRUE(location_icon_view);
+  ui::test::TestEvent event;
+  location_icon_view->ShowBubble(event);
   views::BubbleDialogDelegateView* page_info =
       PageInfoBubbleView::GetPageInfoBubbleForTesting();
   EXPECT_NE(nullptr, page_info);
@@ -164,8 +170,7 @@ void ClickAndWaitForSettingsPageToOpen(views::View* site_settings_button) {
 
 // Returns the URL of the new tab that's opened on clicking the "Site settings"
 // button from Page Info.
-const GURL OpenSiteSettingsForUrl(BrowserWindowInterface* browser,
-                                  const GURL& url) {
+const GURL OpenSiteSettingsForUrl(Browser* browser, const GURL& url) {
   EXPECT_TRUE(ui_test_utils::NavigateToURL(browser, url));
   OpenPageInfoBubble(browser);
   // Get site settings button.
@@ -173,12 +178,12 @@ const GURL OpenSiteSettingsForUrl(BrowserWindowInterface* browser,
       PageInfoViewFactory::VIEW_ID_PAGE_INFO_LINK_OR_BUTTON_SITE_SETTINGS);
   ClickAndWaitForSettingsPageToOpen(site_settings_button);
 
-  return browser->GetTabStripModel()
+  return browser->tab_strip_model()
       ->GetActiveWebContents()
       ->GetLastCommittedURL();
 }
 
-void AddHintForTesting(BrowserWindowInterface* browser,
+void AddHintForTesting(Browser* browser,
                        const GURL& url,
                        page_info::proto::SiteInfo site_info) {
   optimization_guide::OptimizationMetadata optimization_metadata;
@@ -258,7 +263,7 @@ class PageInfoBubbleViewBrowserTest : public InProcessBrowserTest {
   }
 
   content::WebContents* web_contents() {
-    return browser()->GetTabStripModel()->GetActiveWebContents();
+    return browser()->tab_strip_model()->GetActiveWebContents();
   }
 
   net::EmbeddedTestServer* bad_https_server() { return &bad_https_server_; }
@@ -296,6 +301,13 @@ class PageInfoBubbleViewBrowserTest : public InProcessBrowserTest {
                     ->presenter_for_testing();
     DCHECK(presenter);
     return presenter;
+  }
+
+  void SetAdPersonalizationInfo(
+      const PageInfoUI::AdPersonalizationInfo& identity_info) {
+    auto* presenter = GetPresenter();
+    EXPECT_TRUE(presenter->ui_for_testing());
+    presenter->ui_for_testing()->SetAdPersonalizationInfo(identity_info);
   }
 
   void SetPageInfoBubbleIdentityInfo(
@@ -496,8 +508,10 @@ IN_PROC_BROWSER_TEST_F(PageInfoBubbleViewBrowserTest,
   views::View* allowlist_password_reuse_button = GetView(
       PageInfoViewFactory::VIEW_ID_PAGE_INFO_BUTTON_ALLOWLIST_PASSWORD_REUSE);
 
+  SecurityStateTabHelper* helper =
+      SecurityStateTabHelper::FromWebContents(web_contents());
   std::unique_ptr<security_state::VisibleSecurityState> visible_security_state =
-      chrome_security_state::GetVisibleSecurityState(web_contents());
+      helper->GetVisibleSecurityState();
   ASSERT_EQ(security_state::MALICIOUS_CONTENT_STATUS_ENTERPRISE_PASSWORD_REUSE,
             visible_security_state->malicious_content_status);
   ASSERT_EQ(l10n_util::GetStringUTF16(
@@ -536,8 +550,7 @@ IN_PROC_BROWSER_TEST_F(PageInfoBubbleViewBrowserTest,
                            safe_browsing::WarningAction::MARK_AS_LEGITIMATE),
                        1)));
   // Security state will change after allowlisting.
-  visible_security_state =
-      chrome_security_state::GetVisibleSecurityState(web_contents());
+  visible_security_state = helper->GetVisibleSecurityState();
   EXPECT_EQ(security_state::MALICIOUS_CONTENT_STATUS_NONE,
             visible_security_state->malicious_content_status);
 }
@@ -574,8 +587,10 @@ IN_PROC_BROWSER_TEST_F(PageInfoBubbleViewBrowserTest,
   views::View* allowlist_password_reuse_button = GetView(
       PageInfoViewFactory::VIEW_ID_PAGE_INFO_BUTTON_ALLOWLIST_PASSWORD_REUSE);
 
+  SecurityStateTabHelper* helper =
+      SecurityStateTabHelper::FromWebContents(web_contents());
   std::unique_ptr<security_state::VisibleSecurityState> visible_security_state =
-      chrome_security_state::GetVisibleSecurityState(web_contents());
+      helper->GetVisibleSecurityState();
   ASSERT_EQ(security_state::MALICIOUS_CONTENT_STATUS_SAVED_PASSWORD_REUSE,
             visible_security_state->malicious_content_status);
 
@@ -612,8 +627,7 @@ IN_PROC_BROWSER_TEST_F(PageInfoBubbleViewBrowserTest,
                            safe_browsing::WarningAction::MARK_AS_LEGITIMATE),
                        1)));
   // Security state will change after allowlisting.
-  visible_security_state =
-      chrome_security_state::GetVisibleSecurityState(web_contents());
+  visible_security_state = helper->GetVisibleSecurityState();
   EXPECT_EQ(security_state::MALICIOUS_CONTENT_STATUS_NONE,
             visible_security_state->malicious_content_status);
 }
@@ -689,7 +703,7 @@ IN_PROC_BROWSER_TEST_F(PageInfoBubbleViewBrowserTest,
           std::vector<base::FilePath>{test_file}));
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), url));
   content::WebContents* web_contents =
-      browser()->GetTabStripModel()->GetActiveWebContents();
+      browser()->tab_strip_model()->GetActiveWebContents();
 
   FileSystemAccessPermissionRequestManager::FromWebContents(web_contents)
       ->set_auto_response_for_test(permissions::PermissionAction::GRANTED);
@@ -772,7 +786,7 @@ IN_PROC_BROWSER_TEST_F(PageInfoBubbleViewBrowserTest,
       chrome::GetSettingsUrl(chrome::kFileSystemSettingsSubpage), kParamRequest,
       origin_string);
   content::WebContents* updated_web_contents =
-      browser()->GetTabStripModel()->GetActiveWebContents();
+      browser()->tab_strip_model()->GetActiveWebContents();
   EXPECT_EQ(link_destination, updated_web_contents->GetVisibleURL().spec());
   EXPECT_TRUE(base::DeleteFile(test_file));
 }
@@ -918,6 +932,46 @@ IN_PROC_BROWSER_TEST_F(PageInfoBubbleViewBrowserTest,
           u" " + l10n_util::GetStringUTF16(IDS_LEARN_MORE));
 }
 
+IN_PROC_BROWSER_TEST_F(PageInfoBubbleViewBrowserTest, AdPrivacyStrings) {
+  base::UserActionTester user_actions_stats;
+  net::EmbeddedTestServer https_server(net::EmbeddedTestServer::TYPE_HTTPS);
+  https_server.AddDefaultHandlers(
+      base::FilePath(FILE_PATH_LITERAL("chrome/test/data")));
+  ASSERT_TRUE(https_server.Start());
+
+  ASSERT_TRUE(ui_test_utils::NavigateToURL(
+      browser(), https_server.GetURL("/simple.html")));
+
+  // Setup the bogus ad personalization info.
+  PageInfoUI::AdPersonalizationInfo info;
+  info.has_joined_user_to_interest_group = true;
+
+  auto* pscs = content_settings::PageSpecificContentSettings::GetForFrame(
+      browser()
+          ->tab_strip_model()
+          ->GetActiveWebContents()
+          ->GetPrimaryMainFrame());
+  pscs->OnTopicAccessed(
+      url::Origin::Create(GURL("https://a.test")), false,
+      privacy_sandbox::CanonicalTopic(browsing_topics::Topic(1), 1));
+
+  OpenPageInfoBubble(browser());
+
+  SetAdPersonalizationInfo(info);
+
+  views::View* button =
+      GetView(PageInfoViewFactory::VIEW_ID_PAGE_INFO_AD_PERSONALIZATION_BUTTON);
+  PerformMouseClickOnView(button);
+
+  auto* label = PageInfoBubbleView::GetPageInfoBubbleForTesting()->GetViewByID(
+      PageInfoViewFactory::VIEW_ID_PAGE_INFO_AD_PERSONALIZATION_LABEL);
+  ASSERT_TRUE(label);
+
+  EXPECT_EQ(user_actions_stats.GetActionCount(
+                "PageInfo.AdPersonalization.OpenedWithTopics"),
+            1);
+}
+
 IN_PROC_BROWSER_TEST_F(PageInfoBubbleViewBrowserTest, UnwantedSoftwareStrings) {
   net::EmbeddedTestServer https_server(net::EmbeddedTestServer::TYPE_HTTPS);
   https_server.AddDefaultHandlers(
@@ -941,26 +995,6 @@ IN_PROC_BROWSER_TEST_F(PageInfoBubbleViewBrowserTest, UnwantedSoftwareStrings) {
   EXPECT_EQ(GetPageInfoBubbleViewDetailText(),
             l10n_util::GetStringUTF16(IDS_PAGE_INFO_UNWANTED_SOFTWARE_DETAILS) +
                 u" " + l10n_util::GetStringUTF16(IDS_LEARN_MORE));
-}
-
-IN_PROC_BROWSER_TEST_F(PageInfoBubbleViewBrowserTest,
-                       SuspiciousSiteBannerAndSecurityStatus) {
-  net::EmbeddedTestServer https_server(net::EmbeddedTestServer::TYPE_HTTPS);
-  https_server.AddDefaultHandlers(
-      base::FilePath(FILE_PATH_LITERAL("chrome/test/data")));
-  ASSERT_TRUE(https_server.Start());
-
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(
-      browser(), https_server.GetURL("/simple.html")));
-
-  PageInfoUI::IdentityInfo identity;
-  identity.safe_browsing_status =
-      PageInfo::SAFE_BROWSING_STATUS_WARNABLE_SUSPICIOUS_SITE;
-  OpenPageInfoBubble(browser());
-
-  SetPageInfoBubbleIdentityInfo(identity);
-
-  EXPECT_TRUE(PageInfoBubbleView::GetPageInfoBubbleForTesting());
 }
 
 // Navigate to a page with an SSL warning (but no malware status) and click
@@ -1134,9 +1168,8 @@ class PageInfoBubbleViewAboutThisSiteBrowserTest : public InProcessBrowserTest {
   }
 
   void SetUpCommandLine(base::CommandLine* cmd) override {
-    cmd->AppendSwitch(
-        optimization_guide::
-            kDisableCheckingUserPermissionsForTestingSwitch);
+    cmd->AppendSwitch(optimization_guide::switches::
+                          kDisableCheckingUserPermissionsForTesting);
   }
 
   page_info::proto::SiteInfo CreateValidSiteInfo() {
@@ -1157,7 +1190,7 @@ class PageInfoBubbleViewAboutThisSiteBrowserTest : public InProcessBrowserTest {
   }
 
   content::WebContents* web_contents() {
-    return browser()->GetTabStripModel()->GetActiveWebContents();
+    return browser()->tab_strip_model()->GetActiveWebContents();
   }
 
   void TriggerSafeBrowsingWarning() {
@@ -1753,27 +1786,3 @@ IN_PROC_BROWSER_TEST_F(PageInfoBubbleViewBrowserTest,
       l10n_util::GetStringUTF16(IDS_PAGE_INFO_PERMISSION_AUTOMATICALLY_BLOCKED),
       state_label->GetText());
 }
-
-#if BUILDFLAG(IS_MAC)
-// Verifies that opening the PageInfo bubble by clicking the location bar icon
-// while in Mac immersive fullscreen mode reveals the top container and
-// correctly parents the bubble widget to the top container (overlay_widget).
-IN_PROC_BROWSER_TEST_F(PageInfoBubbleViewBrowserTest,
-                       ImmersiveFullscreenParenting) {
-  ui_test_utils::ToggleFullscreenModeAndWait(browser());
-  ImmersiveModeController* controller =
-      ImmersiveModeController::From(browser());
-  EXPECT_TRUE(controller->IsEnabled());
-
-  OpenPageInfoBubble(browser());
-
-  EXPECT_TRUE(controller->IsRevealed());
-  views::BubbleDialogDelegateView* bubble =
-      PageInfoBubbleViewBase::GetPageInfoBubbleForTesting();
-  ASSERT_TRUE(bubble);
-  BrowserView* browser_view = BrowserView::GetBrowserViewForBrowser(browser());
-  EXPECT_EQ(bubble->GetWidget()->parent(), browser_view->overlay_widget());
-
-  bubble->GetWidget()->CloseNow();
-}
-#endif

@@ -7,6 +7,7 @@
 #include <cmath>
 #include <cstddef>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -46,7 +47,7 @@ class MockPolicy : public MemoryCoordinatorPolicy {
   // MemoryCoordinatorPolicy:
   void OnConsumerGroupAdded(uint32_t consumer_id,
                             std::string_view consumer_name,
-                            base::MemoryConsumerTraits traits,
+                            std::optional<base::MemoryConsumerTraits> traits,
                             ProcessType process_type,
                             ChildProcessId child_process_id) override {}
   void OnConsumerGroupRemoved(uint32_t consumer_id,
@@ -60,14 +61,6 @@ class MockMemoryConsumerGroupHost : public MemoryConsumerGroupHost {
   MOCK_METHOD(void,
               UpdateConsumers,
               (std::vector<MemoryConsumerUpdate> updates),
-              (override));
-  MOCK_METHOD(void,
-              SetOverrideLimit,
-              (uint32_t consumer_id, int percentage),
-              (override));
-  MOCK_METHOD(void,
-              ClearOverrideLimit,
-              (uint32_t consumer_id, int policy_limit),
               (override));
 };
 
@@ -254,19 +247,22 @@ TEST_F(MemoryCoordinatorPolicyManagerTest, SetMemoryLimitOverride) {
   policy_manager().OnConsumerGroupAdded(kConsumerId, kConsumerName,
                                         kTestTraits1, kChildId);
 
-  // Set override.
-  EXPECT_CALL(host, SetOverrideLimit(kConsumerId, 42));
-  policy_manager().SetMemoryLimitOverride(kConsumerId, 42);
+  // Add override.
+  EXPECT_CALL(host, UpdateConsumers(ElementsAre(
+                        MemoryConsumerUpdate{kConsumerId, 42, false})));
+  policy_manager().AddMemoryLimitOverrideForTesting(kConsumerId, 42);
   Mock::VerifyAndClearExpectations(&host);
 
   // Update override.
-  EXPECT_CALL(host, SetOverrideLimit(kConsumerId, 24));
-  policy_manager().SetMemoryLimitOverride(kConsumerId, 24);
+  EXPECT_CALL(host, UpdateConsumers(ElementsAre(
+                        MemoryConsumerUpdate{kConsumerId, 24, false})));
+  policy_manager().UpdateMemoryLimitOverrideForTesting(kConsumerId, 24);
   Mock::VerifyAndClearExpectations(&host);
 
   // Clear override. Reverts to default (100%).
-  EXPECT_CALL(host, ClearOverrideLimit(kConsumerId, 100));
-  policy_manager().ClearMemoryLimitOverride(kConsumerId);
+  EXPECT_CALL(host, UpdateConsumers(ElementsAre(
+                        MemoryConsumerUpdate{kConsumerId, 100, false})));
+  policy_manager().ClearMemoryLimitOverrideForTesting(kConsumerId);
   Mock::VerifyAndClearExpectations(&host);
 
   // Clean up.
@@ -284,85 +280,19 @@ TEST_F(MemoryCoordinatorPolicyManagerTest, SetMemoryLimitOverride_Persistence) {
   const uint32_t kConsumerId = base::PersistentHash(kConsumerName);
 
   // Set override BEFORE adding consumer.
-  // Since host is already added, it should receive the IPC immediately.
-  EXPECT_CALL(host, SetOverrideLimit(kConsumerId, 42));
-  policy_manager().SetMemoryLimitOverride(kConsumerId, 42);
-  Mock::VerifyAndClearExpectations(&host);
+  policy_manager().AddMemoryLimitOverrideForTesting(kConsumerId, 42);
 
-  // Adding consumer to an out-of-process host should NOT send a duplicate
-  // override IPC since the host was already notified.
-  EXPECT_CALL(host, SetOverrideLimit(_, _)).Times(0);
+  // Adding consumer should immediately apply override.
+  EXPECT_CALL(host, UpdateConsumers(ElementsAre(
+                        MemoryConsumerUpdate{kConsumerId, 42, false})));
   policy_manager().OnConsumerGroupAdded(kConsumerId, kConsumerName,
                                         kTestTraits1, kChildId);
   Mock::VerifyAndClearExpectations(&host);
 
   // Clean up.
-  EXPECT_CALL(host, ClearOverrideLimit(kConsumerId, 100));
-  policy_manager().ClearMemoryLimitOverride(kConsumerId);
+  policy_manager().ClearMemoryLimitOverrideForTesting(kConsumerId);
   policy_manager().OnConsumerGroupRemoved(kConsumerId, kChildId);
   policy_manager().RemoveMemoryConsumerGroupHost(kChildId);
-}
-
-TEST_F(MemoryCoordinatorPolicyManagerTest,
-       SetMemoryLimitOverride_HostPersistence) {
-  MockMemoryConsumerGroupHost host;
-  const ChildProcessId kChildId(1);
-
-  static constexpr char kConsumerName[] = "consumer";
-  const uint32_t kConsumerId = base::PersistentHash(kConsumerName);
-
-  // Set override BEFORE adding host.
-  policy_manager().SetMemoryLimitOverride(kConsumerId, 42);
-
-  // Adding host should immediately send the override.
-  EXPECT_CALL(host, SetOverrideLimit(kConsumerId, 42));
-  policy_manager().AddMemoryConsumerGroupHost(PROCESS_TYPE_RENDERER, kChildId,
-                                              &host);
-  Mock::VerifyAndClearExpectations(&host);
-
-  // Adding consumer to an out-of-process host should NOT send a duplicate
-  // override IPC since the host was already notified.
-  EXPECT_CALL(host, SetOverrideLimit(_, _)).Times(0);
-  policy_manager().OnConsumerGroupAdded(kConsumerId, kConsumerName,
-                                        kTestTraits1, kChildId);
-  Mock::VerifyAndClearExpectations(&host);
-
-  // Clean up.
-  EXPECT_CALL(host, ClearOverrideLimit(kConsumerId, 100));
-  policy_manager().ClearMemoryLimitOverride(kConsumerId);
-  policy_manager().OnConsumerGroupRemoved(kConsumerId, kChildId);
-  policy_manager().RemoveMemoryConsumerGroupHost(kChildId);
-}
-
-TEST_F(MemoryCoordinatorPolicyManagerTest,
-       SetMemoryLimitOverride_InProcessPersistence) {
-  MockMemoryConsumerGroupHost host;
-  const ChildProcessId kInProcessChildId;
-
-  static constexpr char kConsumerName[] = "consumer";
-  const uint32_t kConsumerId = base::PersistentHash(kConsumerName);
-
-  // Set override BEFORE adding host.
-  policy_manager().SetMemoryLimitOverride(kConsumerId, 42);
-
-  // Adding in-process host.
-  EXPECT_CALL(host, SetOverrideLimit(kConsumerId, 42));
-  policy_manager().AddMemoryConsumerGroupHost(PROCESS_TYPE_BROWSER,
-                                              kInProcessChildId, &host);
-  Mock::VerifyAndClearExpectations(&host);
-
-  // Adding consumer to an in-process host SHOULD notify the host so that
-  // in-process registries (which do not buffer overrides) apply the limit.
-  EXPECT_CALL(host, SetOverrideLimit(kConsumerId, 42));
-  policy_manager().OnConsumerGroupAdded(kConsumerId, kConsumerName,
-                                        kTestTraits1, kInProcessChildId);
-  Mock::VerifyAndClearExpectations(&host);
-
-  // Clean up.
-  EXPECT_CALL(host, ClearOverrideLimit(kConsumerId, 100));
-  policy_manager().ClearMemoryLimitOverride(kConsumerId);
-  policy_manager().OnConsumerGroupRemoved(kConsumerId, kInProcessChildId);
-  policy_manager().RemoveMemoryConsumerGroupHost(kInProcessChildId);
 }
 
 TEST_F(MemoryCoordinatorPolicyManagerTest, NotifyReleaseMemory) {
@@ -473,11 +403,11 @@ TEST_F(MemoryCoordinatorPolicyManagerTest, UpdateConsumers_Filter) {
 
   policy.manager().UpdateConsumers(
       &policy,
-      [](uint32_t consumer_id, std::string_view consumer_name,
-         base::MemoryConsumerTraits traits, ProcessType process_type,
-         ChildProcessId child_process_id) {
-        return traits.supports_memory_limit ==
-               base::MemoryConsumerTraits::SupportsMemoryLimit::kYes;
+      [](uint32_t consumer_id, std::optional<base::MemoryConsumerTraits> traits,
+         ProcessType process_type, ChildProcessId child_process_id) {
+        return traits.has_value() &&
+               traits->supports_memory_limit ==
+                   base::MemoryConsumerTraits::SupportsMemoryLimit::kYes;
       },
       50, true);
 
@@ -502,7 +432,7 @@ class MockObserverPolicy : public MemoryCoordinatorPolicy {
               OnConsumerGroupAdded,
               (uint32_t consumer_id,
                std::string_view consumer_name,
-               base::MemoryConsumerTraits traits,
+               std::optional<base::MemoryConsumerTraits> traits,
                ProcessType process_type,
                ChildProcessId child_process_id),
               (override));
@@ -522,7 +452,7 @@ class MockDiagnosticObserver
               OnMemoryLimitChanged,
               (uint32_t consumer_id,
                ChildProcessId child_process_id,
-               base::MemoryLimit memory_limit),
+               int memory_limit),
               (override));
 };
 #endif
@@ -544,9 +474,9 @@ TEST_F(MemoryCoordinatorPolicyObserverTest, PolicyNotification) {
   static constexpr char kConsumerName[] = "consumer";
   const uint32_t kConsumerId = base::PersistentHash(kConsumerName);
 
-  EXPECT_CALL(policy,
-              OnConsumerGroupAdded(kConsumerId, kConsumerName, kTestTraits1,
-                                   PROCESS_TYPE_RENDERER, kChildId));
+  EXPECT_CALL(policy, OnConsumerGroupAdded(kConsumerId, kConsumerName,
+                                           std::make_optional(kTestTraits1),
+                                           PROCESS_TYPE_RENDERER, kChildId));
   policy_manager().OnConsumerGroupAdded(kConsumerId, kConsumerName,
                                         kTestTraits1, kChildId);
   Mock::VerifyAndClearExpectations(&policy);
@@ -575,9 +505,9 @@ TEST_F(MemoryCoordinatorPolicyObserverTest, AddPolicyNotifiesExistingGroups) {
   MockObserverPolicy policy(policy_manager());
 
   // Adding the policy should trigger notification of the existing group.
-  EXPECT_CALL(policy,
-              OnConsumerGroupAdded(kConsumerId, kConsumerName, kTestTraits1,
-                                   PROCESS_TYPE_RENDERER, kChildId));
+  EXPECT_CALL(policy, OnConsumerGroupAdded(kConsumerId, kConsumerName,
+                                           std::make_optional(kTestTraits1),
+                                           PROCESS_TYPE_RENDERER, kChildId));
   MemoryCoordinatorPolicyRegistration registration(policy_manager(), policy);
   Mock::VerifyAndClearExpectations(&policy);
 
@@ -772,9 +702,7 @@ TEST_F(MemoryCoordinatorPolicyManagerTest,
 
   // Adding a diagnostic observer should immediately notify the current limit.
   MockDiagnosticObserver observer;
-  EXPECT_CALL(observer, OnMemoryLimitChanged(
-                            kConsumerId, kChildId,
-                            base::MemoryLimit::ModeratePressureThreshold()));
+  EXPECT_CALL(observer, OnMemoryLimitChanged(kConsumerId, kChildId, 50));
   policy_manager().AddDiagnosticObserver(&observer);
   Mock::VerifyAndClearExpectations(&observer);
 

@@ -5,7 +5,6 @@
 #include "testing/libfuzzer/tests/fuzz_target.h"
 
 #include "base/base_paths.h"
-#include "base/check.h"
 #include "base/files/file_enumerator.h"
 #include "base/files/file_util.h"
 #include "base/path_service.h"
@@ -39,9 +38,13 @@ std::optional<FuzzTarget> FuzzTarget::Make(std::string_view fuzzer_name) {
   return target;
 }
 
-base::CommandLine FuzzTarget::LibfuzzerCommandLine() const {
+base::CommandLine FuzzTarget::LibfuzzerCommandLine(
+    const FuzzOptions& options) const {
   base::CommandLine cmd(fuzz_target_path_);
-  cmd.AppendArg("-runs=10");
+  cmd.AppendArg(base::StrCat({
+      "-max_total_time=",
+      base::NumberToString(options.timeout_secs),
+  }));
   cmd.AppendArg(base::StrCat({
       "-artifact_prefix=",
       temp_dir_.GetPath().AppendASCII("crash-").MaybeAsASCII(),
@@ -50,14 +53,19 @@ base::CommandLine FuzzTarget::LibfuzzerCommandLine() const {
   return cmd;
 }
 
-base::CommandLine FuzzTarget::CentipedeCommandLine() const {
+base::CommandLine FuzzTarget::CentipedeCommandLine(
+    const FuzzOptions& options) const {
   base::CommandLine cmd(BinaryPath("centipede"));
   cmd.AppendArg("--j=1");
   cmd.AppendArg(base::StrCat({
       "--binary=",
       fuzz_target_path_.MaybeAsASCII(),
   }));
-  cmd.AppendArg("--num_runs=10");
+  cmd.AppendArg(base::StrCat({
+      "--stop_after=",
+      base::NumberToString(options.timeout_secs),
+      "s",
+  }));
   cmd.AppendArg(base::StrCat({
       "--workdir=",
       temp_dir_.GetPath().MaybeAsASCII(),
@@ -65,23 +73,17 @@ base::CommandLine FuzzTarget::CentipedeCommandLine() const {
   return cmd;
 }
 
-base::CommandLine FuzzTarget::FuzzCommandLine() const {
+base::CommandLine FuzzTarget::FuzzCommandLine(
+    const FuzzOptions& options) const {
 #if BUILDFLAG(USE_CENTIPEDE)
-  return CentipedeCommandLine();
+  return CentipedeCommandLine(options);
 #else
-  return LibfuzzerCommandLine();
+  return LibfuzzerCommandLine(options);
 #endif
 }
 
-bool FuzzTarget::Fuzz() {
-  base::Process process =
-      base::LaunchProcess(FuzzCommandLine(), base::LaunchOptions());
-  CHECK(process.IsValid());
-  int exit_code = 0;
-  if (!process.WaitForExit(&exit_code)) {
-    return false;
-  }
-  return exit_code == 0;
+bool FuzzTarget::Fuzz(const FuzzOptions& options) {
+  return base::GetAppOutputAndError(FuzzCommandLine(options), &output_);
 }
 
 base::FilePath FuzzTarget::CrashingInputsDir() const {

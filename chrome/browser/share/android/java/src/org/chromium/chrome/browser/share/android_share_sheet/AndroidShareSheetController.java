@@ -19,7 +19,6 @@ import androidx.annotation.VisibleForTesting;
 import org.chromium.base.Callback;
 import org.chromium.base.Log;
 import org.chromium.base.ResettersForTesting;
-import org.chromium.base.TriState;
 import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.base.supplier.MonotonicObservableSupplier;
 import org.chromium.build.annotations.NullMarked;
@@ -295,7 +294,7 @@ public class AndroidShareSheetController implements ChromeOptionShareCallback {
 
         // If link to text generate is already populated, this means the share has already handled
         // by mLinkToTextCoordinator. We don't have to go through such routing again.
-        if (params.getLinkToTextSuccessful() != TriState.NOT_SET) {
+        if (params.getLinkToTextSuccessful() != null) {
             return false;
         }
 

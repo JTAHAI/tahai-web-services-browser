@@ -9,7 +9,6 @@
 #include <vector>
 
 #include "base/i18n/rtl.h"
-#include "base/i18n/test/scoped_rtl_for_testing.h"
 #include "cc/paint/paint_record.h"
 #include "cc/paint/paint_recorder.h"
 #include "third_party/skia/include/core/SkCanvas.h"
@@ -104,7 +103,7 @@ TEST(VectorIconTest, FillRuleNonZero) {
 
 TEST(VectorIconTest, FlipsInRtl) {
   // We need to set RTL, otherwise FLIPS_IN_RTL does nothing.
-  base::i18n::ScopedRTLForTesting scoped_rtl(true);
+  base::i18n::SetRTLForTesting(true);
   ASSERT_TRUE(base::i18n::IsRTL());
 
   const int canvas_size = 20;
@@ -145,6 +144,8 @@ TEST(VectorIconTest, FlipsInRtl) {
   // quarter of the original icon, since each side should be scaled down by a
   // factor of two.
   EXPECT_EQ(100, colored_pixel_count);
+
+  base::i18n::SetRTLForTesting(false);
 }
 
 TEST(VectorIconTest, CorrectSizePainted) {

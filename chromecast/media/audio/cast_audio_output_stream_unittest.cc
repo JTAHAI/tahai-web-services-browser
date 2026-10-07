@@ -9,6 +9,7 @@
 #include <memory>
 #include <utility>
 
+#include "base/compiler_specific.h"
 #include "base/functional/bind.h"
 #include "base/memory/ptr_util.h"
 #include "base/memory/ref_counted.h"
@@ -19,6 +20,7 @@
 #include "chromecast/media/api/decoder_buffer_base.h"
 #include "chromecast/media/api/test/mock_cma_backend_factory.h"
 #include "chromecast/media/audio/cast_audio_manager.h"
+
 #include "chromecast/media/audio/mock_cast_audio_manager_helper_delegate.h"
 #include "chromecast/media/base/default_monotonic_clock.h"
 #include "chromecast/public/task_runner.h"
@@ -485,11 +487,11 @@ TEST_F(CastAudioOutputStreamTest, ClosePreventsCallbacks) {
 }
 
 TEST_F(CastAudioOutputStreamTest, Format) {
-  ::media::AudioParameters::Format formats[] = {
+  ::media::AudioParameters::Format format[] = {
       ::media::AudioParameters::AUDIO_PCM_LINEAR,
       ::media::AudioParameters::AUDIO_PCM_LOW_LATENCY};
-  for (::media::AudioParameters::Format format : formats) {
-    format_ = format;
+  for (size_t i = 0; i < std::size(format); ++i) {
+    format_ = UNSAFE_TODO(format[i]);
     ::media::AudioOutputStream* stream = CreateStream();
     ASSERT_TRUE(stream);
     EXPECT_TRUE(stream->Open());
@@ -507,11 +509,11 @@ TEST_F(CastAudioOutputStreamTest, Format) {
 }
 
 TEST_F(CastAudioOutputStreamTest, ChannelLayout) {
-  ::media::ChannelLayoutConfig layouts[] = {
+  ::media::ChannelLayoutConfig layout[] = {
       ::media::ChannelLayoutConfig::Mono(),
       ::media::ChannelLayoutConfig::Stereo()};
-  for (const ::media::ChannelLayoutConfig& layout : layouts) {
-    channel_layout_config_ = layout;
+  for (size_t i = 0; i < std::size(layout); ++i) {
+    channel_layout_config_ = UNSAFE_TODO(layout[i]);
     ::media::AudioOutputStream* stream = CreateStream();
     ASSERT_TRUE(stream);
     EXPECT_TRUE(stream->Open());

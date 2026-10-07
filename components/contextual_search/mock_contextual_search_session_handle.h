@@ -39,10 +39,6 @@ class MockContextualSearchSessionHandle : public ContextualSearchSessionHandle {
               GetSubmittedContextFileInfos,
               (),
               (const, override));
-  MOCK_METHOD(ContextualSearchMetricsRecorder*,
-              GetMetricsRecorder,
-              (),
-              (const, override));
   MOCK_METHOD(ContextualSearchContextController*,
               GetController,
               (),

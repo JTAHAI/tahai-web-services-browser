@@ -26,7 +26,6 @@
 #include "ash/test/pixel/ash_pixel_test_helper.h"
 #include "ash/test/pixel/ash_pixel_test_init_params.h"
 #include "base/i18n/rtl.h"
-#include "base/i18n/test/scoped_rtl_for_testing.h"
 #include "base/test/scoped_feature_list.h"
 #include "chromeos/constants/chromeos_features.h"
 #include "ui/wm/core/window_util.h"
@@ -142,7 +141,7 @@ INSTANTIATE_TEST_SUITE_P(
 TEST_P(StatusAreaParameterizedPixelTest, DISABLED_SystemTrayTest) {
   GetPrimaryShelf()->SetAlignment(GetShelfAlignment());
   ShellTestApi().SetTabletModeEnabledForTest(IsTabletMode());
-  base::i18n::ScopedRTLForTesting scoped_rtl(IsRTL());
+  base::i18n::SetRTLForTesting(IsRTL());
 
   auto* system_tray = GetSystemTray();
   system_tray->SetIsActive(IsActive());
@@ -157,7 +156,7 @@ TEST_P(StatusAreaParameterizedPixelTest, DISABLED_SystemTrayTest) {
 TEST_P(StatusAreaParameterizedPixelTest, DISABLED_DateTrayTest) {
   GetPrimaryShelf()->SetAlignment(GetShelfAlignment());
   ShellTestApi().SetTabletModeEnabledForTest(IsTabletMode());
-  base::i18n::ScopedRTLForTesting scoped_rtl(IsRTL());
+  base::i18n::SetRTLForTesting(IsRTL());
 
   auto* date_tray = GetDateTray();
   date_tray->SetIsActive(IsActive());
@@ -173,7 +172,7 @@ TEST_P(StatusAreaParameterizedPixelTest,
        DISABLED_NotificationTrayCounterWithSingleCount) {
   GetPrimaryShelf()->SetAlignment(GetShelfAlignment());
   ShellTestApi().SetTabletModeEnabledForTest(IsTabletMode());
-  base::i18n::ScopedRTLForTesting scoped_rtl(IsRTL());
+  base::i18n::SetRTLForTesting(IsRTL());
 
   notification_test_api()->AddNotification();
   auto* notification_tray = notification_test_api()->GetTray();

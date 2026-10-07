@@ -2,6 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+
 #include "ui/display/manager/display_change_observer.h"
 
 #include <algorithm>
@@ -16,7 +17,6 @@
 #include "base/check.h"
 #include "base/check_op.h"
 #include "base/command_line.h"
-#include "base/debug/dump_without_crashing.h"
 #include "base/json/json_reader.h"
 #include "base/notreached.h"
 #include "base/values.h"
@@ -238,15 +238,7 @@ void DisplayChangeObserver::OnDisplayConfigurationChanged(
     if (!mode_info)
       continue;
 
-    ManagedDisplayInfo info =
-        CreateManagedDisplayInfoInternal(state, mode_info);
-    if (info.bounds_in_native().IsEmpty()) {
-      LOG(ERROR) << "Received display with empty bounds: " << info.ToString()
-                 << ", internal="
-                 << (IsInternalDisplayId(info.id()) ? "yes" : "no");
-      base::debug::DumpWithoutCrashing();
-    }
-    displays.emplace_back(info);
+    displays.emplace_back(CreateManagedDisplayInfoInternal(state, mode_info));
   }
 
   display_manager_->touch_device_manager()->AssociateTouchscreens(

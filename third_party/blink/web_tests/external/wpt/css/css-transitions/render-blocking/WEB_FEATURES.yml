@@ -1,2 +1,4 @@
-rules:
-- "*": [transitions]
+features:
+- name: transitions
+  files:
+  - "*"

@@ -53,6 +53,6 @@ public class LocalBroadcastReceiverScope implements Scope {
 
     /** Functional interface to handle received Intents. */
     public interface IntentReceivedCallback {
-        void onReceive(Intent intent);
+        public void onReceive(Intent intent);
     }
 }

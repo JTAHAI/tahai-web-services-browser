@@ -3,7 +3,6 @@
 // found in the LICENSE file.
 
 import {FakeMethodResolver} from 'chrome://resources/ash/common/fake_method_resolver.js';
-import {assert} from 'chrome://resources/js/assert.js';
 
 import type {KeyboardInfo} from './input.mojom-webui.js';
 import type {ConnectedDevices, ConnectedDevicesObserverRemote, InputDataProviderInterface, InternalDisplayPowerStateObserverRemote, KeyboardObserverRemote, LidStateObserverRemote, TabletModeObserverRemote, TouchDeviceInfo} from './input_data_provider.mojom-webui.js';
@@ -18,10 +17,10 @@ export class FakeInputDataProvider implements InputDataProviderInterface {
   private observers: ConnectedDevicesObserverRemote[] = [];
   private keyboards: KeyboardInfo[] = [];
   private keyboardObservers: KeyboardObserverRemote[][] = [];
-  private tabletModeObserver: TabletModeObserverRemote|null = null;
-  private lidStateObserver: LidStateObserverRemote|null = null;
+  private tabletModeObserver: TabletModeObserverRemote;
+  private lidStateObserver: LidStateObserverRemote;
   private internalDisplayPowerStateObserver:
-      InternalDisplayPowerStateObserverRemote|null = null;
+      InternalDisplayPowerStateObserverRemote;
   private touchDevices: TouchDeviceInfo[] = [];
   private moveAppToTestingScreenCalled: number = 0;
   private moveAppBackToPreviousScreenCalled: number = 0;
@@ -35,10 +34,6 @@ export class FakeInputDataProvider implements InputDataProviderInterface {
     this.methods = new FakeMethodResolver();
     this.observers = [];
     this.keyboards = [];
-    this.keyboardObservers = [];
-    this.tabletModeObserver = null;
-    this.lidStateObserver = null;
-    this.internalDisplayPowerStateObserver = null;
     this.touchDevices = [];
     this.moveAppToTestingScreenCalled = 0;
     this.moveAppBackToPreviousScreenCalled = 0;
@@ -79,7 +74,6 @@ export class FakeInputDataProvider implements InputDataProviderInterface {
    * Sets the internal display power state to be on.
    */
   setInternalDisplayPowerOn(): void {
-    assert(this.internalDisplayPowerStateObserver);
     this.internalDisplayPowerStateObserver.onInternalDisplayPowerStateChanged(
         true);
   }
@@ -88,7 +82,6 @@ export class FakeInputDataProvider implements InputDataProviderInterface {
    * Sets the internal display power state to be off.
    */
   setInternalDisplayPowerOff(): void {
-    assert(this.internalDisplayPowerStateObserver);
     this.internalDisplayPowerStateObserver.onInternalDisplayPowerStateChanged(
         false);
   }
@@ -118,12 +111,10 @@ export class FakeInputDataProvider implements InputDataProviderInterface {
   }
 
   setLidStateOpen(): void {
-    assert(this.lidStateObserver);
     this.lidStateObserver.onLidStateChanged(true);
   }
 
   setLidStateClosed(): void {
-    assert(this.lidStateObserver);
     this.lidStateObserver.onLidStateChanged(false);
   }
 
@@ -141,7 +132,6 @@ export class FakeInputDataProvider implements InputDataProviderInterface {
    * Mock starting tablet mode.
    */
   startTabletMode(): void {
-    assert(this.tabletModeObserver);
     this.tabletModeObserver.onTabletModeChanged(true);
   }
 
@@ -149,7 +139,6 @@ export class FakeInputDataProvider implements InputDataProviderInterface {
    * Mock ending tablet mode.
    */
   endTabletMode(): void {
-    assert(this.tabletModeObserver);
     this.tabletModeObserver.onTabletModeChanged(false);
   }
 

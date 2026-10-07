@@ -28,6 +28,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import org.chromium.base.ContextUtils;
+import org.chromium.base.ObserverList;
 import org.chromium.base.ThreadUtils;
 import org.chromium.base.library_loader.LibraryLoader;
 import org.chromium.base.metrics.RecordHistogram;
@@ -42,6 +43,7 @@ import org.chromium.chrome.browser.ChromeTabbedActivity;
 import org.chromium.chrome.browser.app.ChromeActivity;
 import org.chromium.chrome.browser.app.metrics.LaunchCauseMetrics;
 import org.chromium.chrome.browser.firstrun.FirstRunStatus;
+import org.chromium.chrome.browser.tab.EmptyTabObserver;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.TabHidingType;
 import org.chromium.chrome.browser.tab.TabObserver;
@@ -124,7 +126,7 @@ public class TabReparentingTest {
             final Tab tabToBeReparented = getActivity().getActivityTab();
             final CallbackHelper tabHiddenHelper = new CallbackHelper();
             TabObserver observer =
-                    new TabObserver() {
+                    new EmptyTabObserver() {
                         @Override
                         public void onHidden(Tab tab, @TabHidingType int type) {
                             tabHiddenHelper.notifyCalled();
@@ -169,9 +171,10 @@ public class TabReparentingTest {
             ThreadUtils.runOnUiThreadBlocking(
                     () -> {
                         tabToBeReparented.removeObserver(observer);
-                        for (TabObserver tabObserver :
-                                TabTestUtils.getTabObservers(tabToBeReparented)) {
-                            Assert.assertFalse(tabObserver instanceof CustomTabObserver);
+                        ObserverList.RewindableIterator<TabObserver> observers =
+                                TabTestUtils.getTabObservers(tabToBeReparented);
+                        while (observers.hasNext()) {
+                            Assert.assertFalse(observers.next() instanceof CustomTabObserver);
                         }
                     });
             return newActivity;

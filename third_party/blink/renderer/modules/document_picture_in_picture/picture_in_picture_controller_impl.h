@@ -142,7 +142,8 @@ class MODULES_EXPORT PictureInPictureControllerImpl
   // initialized successfully.
   bool EnsureService();
 
-  void DispatchEnterEvent(LocalDOMWindow* document_picture_in_picture_window);
+  // Resolves a call to |CreateDocumentPictureInPictureWindow()|.
+  void ResolveOpenDocumentPictureInPicture();
 
   // Observer to watch a Document Picture in Picture window, so that the opener
   // can find out when it is being destroyed.
@@ -185,6 +186,13 @@ class MODULES_EXPORT PictureInPictureControllerImpl
   // `document_picture_in_picture_owner_` (if this controller's Document is
   // attached to a document picture-in-picture window).
   Member<DocumentPictureInPictureObserver> document_pip_context_observer_;
+
+  // Used to force |CreateDocumentPictureInPictureWindow()| to be asynchronous.
+  TaskHandle open_document_pip_task_;
+
+  // The |ScriptPromiseResolverBase| associated with the most recent call to
+  // |CreateDocumentPictureInPictureWindow()| if it has not yet been resolved.
+  Member<ScriptPromiseResolver<DOMWindow>> open_document_pip_resolver_;
 
   // The Picture-in-Picture element for the associated document.
   Member<HTMLVideoElement> picture_in_picture_element_;

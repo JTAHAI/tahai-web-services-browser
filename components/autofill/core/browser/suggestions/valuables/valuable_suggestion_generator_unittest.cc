@@ -20,7 +20,7 @@
 #include "components/autofill/core/browser/suggestions/suggestion_test_helpers.h"
 #include "components/autofill/core/browser/suggestions/suggestion_type.h"
 #include "components/autofill/core/common/autofill_features.h"
-#include "components/autofill/core/common/autofill_test_util.h"
+#include "components/autofill/core/common/autofill_test_utils.h"
 #include "components/feature_engagement/public/feature_constants.h"
 #include "components/strings/grit/components_strings.h"
 #include "testing/gmock/include/gmock/gmock.h"
@@ -198,7 +198,7 @@ TEST_F(ValuableSuggestionGeneratorTest, WithMatchingDomain) {
 #if !BUILDFLAG(IS_ANDROID)
   const Suggestion& lc_submenu_suggestion = suggestions_with_matching_domain[3];
   EXPECT_EQ(lc_submenu_suggestion.acceptability,
-            Suggestion::Acceptability::kSelectableButUnacceptable);
+            Suggestion::Acceptability::kUnacceptable);
   EXPECT_THAT(
       lc_submenu_suggestion.children,
       testing::ElementsAre(
@@ -214,8 +214,7 @@ TEST_F(ValuableSuggestionGeneratorTest, WithMatchingDomain) {
 TEST_F(ValuableSuggestionGeneratorTest, WithMatchingDomainAndFieldAutofilled) {
   set_last_committed_primary_main_frame_url(
       GURL("https://domain2.example/test"));
-  field().AddFieldModifier(FieldModifier::kAutofill);
-  field().set_filling_product(FillingProduct::kLoyaltyCard);
+  field_data().set_is_autofilled_according_to_renderer(true);
   std::vector<Suggestion> suggestions_with_matching_domain =
       GetSuggestionsForLoyaltyCards(form().ToFormData(), &form(), field(),
                                     &field(), PasswordFormClassification(),
@@ -235,13 +234,13 @@ TEST_F(ValuableSuggestionGeneratorTest, WithMatchingDomainAndFieldAutofilled) {
                   IDS_AUTOFILL_LOYALTY_CARDS_ALL_YOUR_CARDS_SUBMENU_TITLE)),
 #endif  // !BUILDFLAG(IS_ANDROID)
           EqualsSuggestion(SuggestionType::kSeparator),
-          EqualsSuggestion(SuggestionType::kUndo),
+          EqualsSuggestion(SuggestionType::kUndoOrClear),
           EqualsManageLoyaltyCardsSuggestion()));
 
 #if !BUILDFLAG(IS_ANDROID)
   const Suggestion& lc_submenu_suggestion = suggestions_with_matching_domain[3];
   EXPECT_EQ(lc_submenu_suggestion.acceptability,
-            Suggestion::Acceptability::kSelectableButUnacceptable);
+            Suggestion::Acceptability::kUnacceptable);
   EXPECT_THAT(
       lc_submenu_suggestion.children,
       testing::ElementsAre(
@@ -381,7 +380,7 @@ TEST_F(ValuableSuggestionGeneratorTest,
               l10n_util::GetStringUTF16(IDS_AUTOFILL_MANAGE_ADDRESSES))));
   const Suggestion& lc_submenu_suggestion = email_suggestions[3];
   EXPECT_EQ(lc_submenu_suggestion.acceptability,
-            Suggestion::Acceptability::kSelectableButUnacceptable);
+            Suggestion::Acceptability::kUnacceptable);
   EXPECT_THAT(
       lc_submenu_suggestion.children,
       testing::ElementsAre(
@@ -463,7 +462,7 @@ TEST_F(ValuableSuggestionGeneratorTest,
       Suggestion(u"test-email2@domain2.example", SuggestionType::kAddressEntry),
       Suggestion(SuggestionType::kSeparator),
       Suggestion(l10n_util::GetStringUTF16(IDS_AUTOFILL_UNDO_MENU_ITEM),
-                 SuggestionType::kUndo),
+                 SuggestionType::kUndoOrClear),
       Suggestion(l10n_util::GetStringUTF16(IDS_AUTOFILL_MANAGE_ADDRESSES),
                  SuggestionType::kManageAddress)};
 
@@ -484,7 +483,7 @@ TEST_F(ValuableSuggestionGeneratorTest,
                            u"test-email2@domain2.example"),
           EqualsSuggestion(SuggestionType::kSeparator),
           EqualsSuggestion(
-              SuggestionType::kUndo,
+              SuggestionType::kUndoOrClear,
               l10n_util::GetStringUTF16(IDS_AUTOFILL_UNDO_MENU_ITEM)),
           EqualsSuggestion(
               SuggestionType::kManageAddress,
@@ -507,14 +506,14 @@ TEST_F(ValuableSuggestionGeneratorTest,
                                IDS_AUTOFILL_LOYALTY_CARDS_SUBMENU_TITLE)),
           EqualsSuggestion(SuggestionType::kSeparator),
           EqualsSuggestion(
-              SuggestionType::kUndo,
+              SuggestionType::kUndoOrClear,
               l10n_util::GetStringUTF16(IDS_AUTOFILL_UNDO_MENU_ITEM)),
           EqualsSuggestion(
               SuggestionType::kManageAddress,
               l10n_util::GetStringUTF16(IDS_AUTOFILL_MANAGE_ADDRESSES))));
   const Suggestion& lc_submenu_suggestion = email_suggestions[3];
   EXPECT_EQ(lc_submenu_suggestion.acceptability,
-            Suggestion::Acceptability::kSelectableButUnacceptable);
+            Suggestion::Acceptability::kUnacceptable);
   EXPECT_THAT(
       lc_submenu_suggestion.children,
       testing::ElementsAre(
@@ -639,7 +638,7 @@ TEST_F(
   ASSERT_FALSE(suggestions.empty());
   const Suggestion& lc_submenu_suggestion = suggestions[0];
   EXPECT_EQ(lc_submenu_suggestion.acceptability,
-            Suggestion::Acceptability::kSelectableButUnacceptable);
+            Suggestion::Acceptability::kUnacceptable);
   EXPECT_THAT(
       lc_submenu_suggestion.children,
       testing::ElementsAre(
@@ -694,7 +693,7 @@ TEST_F(
 
   const Suggestion& lc_submenu_suggestion = suggestions_with_matching_domain[3];
   EXPECT_EQ(lc_submenu_suggestion.acceptability,
-            Suggestion::Acceptability::kSelectableButUnacceptable);
+            Suggestion::Acceptability::kUnacceptable);
   EXPECT_THAT(
       lc_submenu_suggestion.children,
       testing::ElementsAre(
@@ -765,7 +764,7 @@ TEST_F(ValuableSuggestionGeneratorWithNonAffiliationSupportTest,
 
   const Suggestion& lc_submenu_suggestion = suggestions_with_matching_domain[3];
   EXPECT_EQ(lc_submenu_suggestion.acceptability,
-            Suggestion::Acceptability::kSelectableButUnacceptable);
+            Suggestion::Acceptability::kUnacceptable);
   EXPECT_THAT(
       lc_submenu_suggestion.children,
       testing::ElementsAre(
@@ -791,8 +790,7 @@ TEST_F(ValuableSuggestionGeneratorWithNonAffiliationSupportTest,
 }
 
 // Tests that no loyalty card suggestions are shown when no data is available.
-TEST_F(ValuableSuggestionGeneratorWithNonAffiliationSupportTest,
-       LoyaltyCardsEmpty) {
+TEST_F(ValuableSuggestionGeneratorTest, LoyaltyCardsEmpty) {
   TestAutofillClient client;
   EXPECT_THAT(GetSuggestionsForLoyaltyCards(
                   form().ToFormData(), &form(), field(), &field(),

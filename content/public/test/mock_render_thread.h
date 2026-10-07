@@ -42,7 +42,7 @@ class MockRenderThread : public RenderThread {
   }
 
   // RenderThread implementation:
-  IPC::ChannelProxy* GetChannel() override;
+  IPC::SyncChannel* GetChannel() override;
   std::string GetLocale() override;
   scoped_refptr<base::SingleThreadTaskRunner> GetIOTaskRunner() override;
   void BindHostReceiver(mojo::GenericPendingReceiver receiver) override;

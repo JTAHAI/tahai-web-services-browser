@@ -17,7 +17,7 @@
 #include "components/android_autofill/browser/mock_form_field_data_android_bridge.h"
 #include "components/autofill/core/browser/autofill_type.h"
 #include "components/autofill/core/browser/form_structure.h"
-#include "components/autofill/core/common/autofill_test_util.h"
+#include "components/autofill/core/common/autofill_test_utils.h"
 #include "components/autofill/core/common/form_data.h"
 #include "components/autofill/core/common/form_data_test_api.h"
 #include "components/autofill/core/common/form_field_data.h"
@@ -52,6 +52,7 @@ FormFieldData CreateTestField(std::u16string name = u"SomeName") {
   f.set_name_attribute(f.name());
   f.set_id_attribute(u"some_id");
   f.set_form_control_type(FormControlType::kInputText);
+  f.set_check_status(FormFieldData::CheckStatus::kChecked);
   f.set_role(FormFieldData::RoleAttribute::kOther);
   f.set_is_focusable(true);
   f.set_renderer_id(FieldRendererId(renderer_id++));
@@ -195,6 +196,25 @@ TEST_F(FormDataAndroidTest, SimilarFormAs_Fields) {
   f = af.form();
   test_api(f).field(0).set_name(f.fields().front().name() + u"x");
   EXPECT_FALSE(af.SimilarFormAs(f));
+}
+
+// Tests that `GetSimilarFieldIndex` only checks field similarity.
+TEST_F(FormDataAndroidTest, GetSimilarFieldIndex) {
+  FormData f = CreateTestForm();
+  f.set_fields({CreateTestField(u"name1"), CreateTestField(u"name2")});
+  FormDataAndroid af(f, kSampleSessionId);
+
+  size_t index = 100;
+  // Value is not part of a field similarity check, so this field is similar to
+  // af.form().fields[1].
+  test_api(f).field(1).set_value(u"some value");
+  EXPECT_TRUE(af.GetSimilarFieldIndex(f.fields()[1], &index));
+  EXPECT_EQ(index, 1u);
+
+  // Name is a part of the field similarity check, so there is no field similar
+  // to this one.
+  test_api(f).field(1).set_name(u"name3");
+  EXPECT_FALSE(af.GetSimilarFieldIndex(f.fields()[1], &index));
 }
 
 // Tests that calling `OnFormFieldDidChange` propagates the changes to the

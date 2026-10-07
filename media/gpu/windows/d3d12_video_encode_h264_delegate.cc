@@ -352,8 +352,7 @@ EncoderStatus D3D12VideoEncodeH264Delegate::EncodeImpl(
     ID3D12Resource* input_frame,
     UINT input_frame_subresource,
     const VideoEncoder::EncodeOptions& options,
-    const gfx::ColorSpace& input_color_space,
-    const gfx::HDRMetadata& input_hdr_metadata) {
+    const gfx::ColorSpace& input_color_space) {
   // Filling the |input_arguments_| according to
   // https://github.com/microsoft/DirectX-Specs/blob/master/d3d/D3D12VideoEncoding.md#6120-struct-d3d12_video_encoder_input_arguments
 
@@ -857,10 +856,6 @@ EncoderStatus D3D12VideoEncodeH264Delegate::InitializeVideoEncoder(
       {.DataSize = sizeof(codec_config_h264_),
        .pH264Config = &codec_config_h264_},
       input_size_);
-  if (!video_encoder_wrapper_) {
-    return {EncoderStatus::Codes::kEncoderInitializationError,
-            "Failed to create D3D12VideoEncoderWrapper."};
-  }
   // We use full frame mode so the number of subregions is always 1.
   if (!video_encoder_wrapper_->Initialize(/*max_subregions_number=*/1)) {
     return EncoderStatus::Codes::kEncoderInitializationError;

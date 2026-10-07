@@ -166,8 +166,6 @@ class TaskGraphTest : public testing::Test {
     CommandBufferId command_buffer_id;
   };
 
-  base::test::ScopedFeatureList scoped_feature_list_;
-
   base::test::SingleThreadTaskEnvironment task_environment_;
 
   std::vector<int> tasks_executed_;
@@ -184,6 +182,8 @@ class TaskGraphTest : public testing::Test {
   const CommandBufferNamespace kNamespaceId = CommandBufferNamespace::GPU_IO;
 
   int num_tasks_added_ = 0;
+
+  base::test::ScopedFeatureList scoped_feature_list_;
 };
 
 TEST_F(TaskGraphTest, DestroySequenceReleasesSyncPoints) {

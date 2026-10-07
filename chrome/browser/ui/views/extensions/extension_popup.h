@@ -77,7 +77,6 @@ class ExtensionPopup : public views::BubbleDialogDelegateView,
   gfx::Size CalculatePreferredSize(
       const views::SizeBounds& available_size) const override;
   void AddedToWidget() override;
-  views::View* GetInitiallyFocusedView() override;
 
   // views::WidgetObserver:
   void OnWidgetDestroying(views::Widget* widget) override;
@@ -149,11 +148,7 @@ class ExtensionPopup : public views::BubbleDialogDelegateView,
                           extensions::ExtensionRegistryObserver>
       extension_registry_observation_{this};
 
-  // Action (as requested by the caller) to be done when the popup gets shown.
-  const PopupShowAction show_action_;
-
-  // Whether DevTools is currently inspecting the popup contents.
-  bool inspected_ = false;
+  PopupShowAction show_action_;
 
   ShowPopupCallback shown_callback_;
 

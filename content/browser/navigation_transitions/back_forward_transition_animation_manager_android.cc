@@ -69,13 +69,21 @@ void BackForwardTransitionAnimationManagerAndroid::OnGestureStarted(
       navigation_direction == NavigationDirection::kForward
           ? navigation_controller_->GetIndexForGoForward()
           : navigation_controller_->GetIndexForGoBack();
-  CHECK(index.has_value())
-      << "The embedder should only delegate the history navigation task to "
-         "this manager if there is a destination entry.";
+  if (!index.has_value()) {
+    // TODO(crbug.com/530682179): The embedder should only delegate the
+    // history navigation task to this manager if there is a destination
+    // entry.
+    // Make it a CHECK once we have figured the root cause for this call.
+    return;
+  }
   auto* destination_entry = navigation_controller_->GetEntryAtIndex(*index);
-  CHECK(destination_entry)
-      << "The embedder should only delegate the history navigation task to "
-         "this manager if there is a destination entry.";
+  if (!destination_entry) {
+    // TODO(crbug.com/530682179): The embedder should only delegate the
+    // history navigation task to this manager if there is a destination
+    // entry.
+    // Make it a CHECK once we have figured the root cause for this call.
+    return;
+  }
 
   // Each previous gesture should finished with `OnGestureCancelled()` or
   // `OnGestureInvoked()`. In both cases we reset `destination_entry_id_` to
@@ -119,7 +127,12 @@ void BackForwardTransitionAnimationManagerAndroid::OnGestureProgressed(
 }
 
 void BackForwardTransitionAnimationManagerAndroid::OnGestureCancelled() {
-  CHECK_NE(destination_entry_id_, NavigationTransitionData::kInvalidId);
+  if (destination_entry_id_ == NavigationTransitionData::kInvalidId) {
+    // TODO(crbug.com/530682179): The caller should ensure this is not called
+    // unless there is an active transition. Make it a CHECK once we have
+    // figured the root cause for this call.
+    return;
+  }
   if (animator_) {
     animator_->OnGestureCancelled();
     MaybeDestroyAnimator();

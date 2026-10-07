@@ -67,6 +67,7 @@ import org.chromium.ui.test.util.DeviceRestriction;
 @EnableFeatures({
     PermissionsAndroidFeatureList.APPROXIMATE_GEOLOCATION_PERMISSION,
     PermissionsAndroidFeatureList.PERMISSIONS_ANDROID_CLAPPER_LOUD,
+    PermissionsAndroidFeatureList.PERMISSIONS_ANDROID_CLAPPER_QUIET,
     PermissionsAndroidFeatureList.PERMISSIONS_GESTURE_GATED_PROMPTS
 })
 @Batch(Batch.PER_CLASS)
@@ -133,7 +134,7 @@ public class PermissionGestureGatedTest {
             mPermissionRule.runJavaScriptCodeInCurrentTab(
                     "window.onclick = function() { if (window.functionToRun) {"
                             + " eval(window.functionToRun); } };");
-            mPermissionRule.runJavaScriptCodeWithUserGestureInCurrentTab(
+            mPermissionRule.runJavaScriptCodeInCurrentTabWithGesture(
                     "Notification.requestPermission()");
         } else {
             mPermissionRule.runJavaScriptCodeInCurrentTab("Notification.requestPermission()");
@@ -146,7 +147,7 @@ public class PermissionGestureGatedTest {
             mPermissionRule.runJavaScriptCodeInCurrentTab(
                     "window.onclick = function() { if (window.functionToRun) {"
                             + " eval(window.functionToRun); } };");
-            mPermissionRule.runJavaScriptCodeWithUserGestureInCurrentTab(
+            mPermissionRule.runJavaScriptCodeInCurrentTabWithGesture(
                     "navigator.geolocation.getCurrentPosition(function(){})");
         } else {
             // Use setTimeout to ensure any transient user gesture from the test runner is lost.

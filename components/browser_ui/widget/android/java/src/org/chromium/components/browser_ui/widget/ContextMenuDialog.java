@@ -93,6 +93,7 @@ public class ContextMenuDialog extends AlwaysDismissedDialog {
     private final int mBottomMarginPx;
 
     private final @Nullable Integer mPopupMargin;
+    private final @Nullable Integer mDesiredPopupContentWidth;
 
     private final @Nullable Runnable mOnDismissCallback;
 
@@ -126,6 +127,7 @@ public class ContextMenuDialog extends AlwaysDismissedDialog {
      * @param shouldRemoveScrim Whether the context menu should removes the scrim behind the dialog
      *     visually.
      * @param popupMargin The margin for the context menu.
+     * @param desiredPopupContentWidth The desired width for the content of the context menu.
      * @param touchEventDelegateView View View that is showing behind the context menu. If menu is
      *     shown as a popup without scrim, and this view is provided, the context menu will dispatch
      *     touch events other than ACTION_DOWN.
@@ -148,6 +150,7 @@ public class ContextMenuDialog extends AlwaysDismissedDialog {
             boolean isFlyout,
             boolean shouldRemoveScrim,
             @Nullable Integer popupMargin,
+            @Nullable Integer desiredPopupContentWidth,
             @Nullable View touchEventDelegateView,
             Rect rect,
             boolean shouldPadForWindowInsets,
@@ -164,6 +167,7 @@ public class ContextMenuDialog extends AlwaysDismissedDialog {
         mIsFlyout = isFlyout;
         mShouldRemoveScrim = shouldRemoveScrim;
         mPopupMargin = popupMargin;
+        mDesiredPopupContentWidth = desiredPopupContentWidth;
         mTouchEventDelegateView = touchEventDelegateView;
         mRect = rect;
         mOnDismissCallback = onDismissCallback;
@@ -294,15 +298,6 @@ public class ContextMenuDialog extends AlwaysDismissedDialog {
                             Rect popupRect = new Rect(mRect);
                             popupRect.offset(-layoutScreenLocation[0], -layoutScreenLocation[1]);
 
-                            // Ensure that the context menu does not occupy the entire screen and
-                            // leaves space to click outside to dismiss the menu.
-                            int maxHeight =
-                                    mActivity.getWindow().getDecorView().getHeight()
-                                            - mActivity
-                                                    .getResources()
-                                                    .getDimensionPixelSize(
-                                                            R.dimen.min_touch_target_size);
-
                             AnchoredPopupWindow.Builder builder =
                                     new AnchoredPopupWindow.Builder(
                                                     mActivity,
@@ -312,7 +307,6 @@ public class ContextMenuDialog extends AlwaysDismissedDialog {
                                                     new RectProvider(popupRect))
                                             .setSmartAnchorWithMaxWidth(true)
                                             .setVerticalOverlapAnchor(true)
-                                            .setMaxHeight(maxHeight)
                                             .setOutsideTouchable(true)
                                             .setAnimateFromAnchor(true)
                                             // Set popup focusable so the screen reader can announce
@@ -337,6 +331,9 @@ public class ContextMenuDialog extends AlwaysDismissedDialog {
 
                             if (mPopupMargin != null) {
                                 builder.setMargin(mPopupMargin);
+                            }
+                            if (mDesiredPopupContentWidth != null) {
+                                builder.setDesiredContentWidth(mDesiredPopupContentWidth);
                             }
                             if (mIsFlyout) {
                                 builder.setSpecCalculator(

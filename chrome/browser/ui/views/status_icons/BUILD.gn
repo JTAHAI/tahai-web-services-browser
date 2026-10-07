@@ -90,10 +90,10 @@ source_set("status_icons") {
   }
 }
 
-if (is_win || use_dbus) {
+if (is_win) {
   source_set("unit_tests") {
     testonly = true
-    sources = []
+    sources = [ "status_tray_win_unittest.cc" ]
     deps = [
       ":status_icons",
       "//chrome/browser/status_icons",
@@ -101,19 +101,8 @@ if (is_win || use_dbus) {
       "//ui/gfx",
       "//ui/views:test_support",
     ]
-
-    if (is_win) {
-      sources += [ "status_tray_win_unittest.cc" ]
-    }
-
-    if (use_dbus) {
-      sources += [ "status_icon_linux_dbus_unittest.cc" ]
-      deps += [ "//dbus:test_support" ]
-    }
   }
-}
 
-if (is_win) {
   source_set("interactive_ui_tests") {
     testonly = true
     defines = [ "HAS_OUT_OF_PROC_TEST_RUNNER" ]

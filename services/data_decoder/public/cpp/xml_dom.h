@@ -104,31 +104,24 @@ class Node {
   Type GetType() const;
   const Node* parent() const { return parent_; }
 
-  // Returns the name of the element node. Returns nullptr if called on
+  // These methods are only usable on element nodes and will crash if called on
   // non-element nodes.
-  const OwnedName* GetName() const;
-  const std::string* GetLocalName() const;
-  // The namespace prefix of the element name, or nullptr if the
-  // node is not an element node. Shorthand for `GetName()->prefix`.
+  const OwnedName& GetName() const;
+  const std::string& GetLocalName() const;
+  // The namespace prefix of the element name, or the empty string if the
+  // element name is unprefixed. Shorthand for `GetName().prefix`.
   //   <html:br /> -> returns "html"
   //   <element /> -> returns ""
-  const std::string* GetNamespacePrefix() const;
+  const std::string& GetNamespacePrefix() const;
 
-  // Returns the attributes of the element node. Returns nullptr if called on
-  // non-element nodes.
-  const absl::flat_hash_map<OwnedName, std::string>* GetAttributes() const;
+  const absl::flat_hash_map<OwnedName, std::string>& GetAttributes() const;
   // The value of the attribute with the given `name`, or `nullptr` if the
-  // element does not specify an attribute with `name` or the node is not an
-  // element node.
+  // element does not specify an attribute with `name`.
   const std::string* GetAttribute(Name name) const;
 
-  // Returns the namespace definitions of the element node. Returns nullptr if
-  // called on non-element nodes.
-  const absl::flat_hash_map<std::string, std::string>* GetNamespaces() const;
+  const absl::flat_hash_map<std::string, std::string>& GetNamespaces() const;
 
-  // Returns the children of the element node. Returns nullptr if called on
-  // non-element nodes.
-  const std::vector<std::unique_ptr<Node>>* GetChildren() const;
+  const std::vector<std::unique_ptr<Node>>& GetChildren() const;
   std::vector<const Node*> GetChildrenByTagName(Name name) const;
   const Node* FindFirstChildByTagName(Name name) const;
 

@@ -17,8 +17,8 @@
 #include "components/optimization_guide/core/hints/optimization_guide_store.h"
 #include "components/optimization_guide/core/optimization_guide_features.h"
 #include "components/optimization_guide/core/optimization_guide_logger.h"
-#include "components/optimization_guide/core/optimization_guide_permissions_util.h"
 #include "components/optimization_guide/core/optimization_guide_prefs.h"
+#include "components/optimization_guide/core/optimization_guide_switches.h"
 #include "components/optimization_guide/core/proto_database_provider_test_base.h"
 #include "components/sync_preferences/testing_pref_service_syncable.h"
 #include "components/unified_consent/unified_consent_service.h"
@@ -193,8 +193,7 @@ class ChromeHintsManagerFetchingTest
 
 TEST_F(ChromeHintsManagerFetchingTest, HintsFetched_AtSRP_DuplicatesRemoved) {
   base::CommandLine::ForCurrentProcess()->AppendSwitch(
-      optimization_guide::
-          kDisableCheckingUserPermissionsForTestingSwitch);
+      optimization_guide::switches::kDisableCheckingUserPermissionsForTesting);
   hints_manager()->RegisterOptimizationTypes(
       {optimization_guide::proto::DEFER_ALL_SCRIPT});
 
@@ -248,8 +247,7 @@ TEST_F(ChromeHintsManagerFetchingTest, HintsFetched_AtSRP_DuplicatesRemoved) {
 TEST_F(ChromeHintsManagerFetchingTest,
        HintsFetched_AtSRP_NonHTTPOrHTTPSHostsRemoved) {
   base::CommandLine::ForCurrentProcess()->AppendSwitch(
-      optimization_guide::
-          kDisableCheckingUserPermissionsForTestingSwitch);
+      optimization_guide::switches::kDisableCheckingUserPermissionsForTesting);
   hints_manager()->RegisterOptimizationTypes(
       {optimization_guide::proto::DEFER_ALL_SCRIPT});
 
@@ -284,8 +282,7 @@ TEST_F(ChromeHintsManagerFetchingTest,
 
 TEST_F(ChromeHintsManagerFetchingTest, HintsFetched_AtSRP) {
   base::CommandLine::ForCurrentProcess()->AppendSwitch(
-      optimization_guide::
-          kDisableCheckingUserPermissionsForTestingSwitch);
+      optimization_guide::switches::kDisableCheckingUserPermissionsForTesting);
   hints_manager()->RegisterOptimizationTypes(
       {optimization_guide::proto::DEFER_ALL_SCRIPT});
 
@@ -314,8 +311,7 @@ TEST_F(ChromeHintsManagerFetchingTest, HintsFetched_AtSRP) {
 
 TEST_F(ChromeHintsManagerFetchingTest, HintsFetched_AtSRP_GoogleLinksIgnored) {
   base::CommandLine::ForCurrentProcess()->AppendSwitch(
-      optimization_guide::
-          kDisableCheckingUserPermissionsForTestingSwitch);
+      optimization_guide::switches::kDisableCheckingUserPermissionsForTesting);
   hints_manager()->RegisterOptimizationTypes(
       {optimization_guide::proto::DEFER_ALL_SCRIPT});
 
@@ -345,8 +341,7 @@ TEST_F(ChromeHintsManagerFetchingTest, HintsFetched_AtSRP_GoogleLinksIgnored) {
 
 TEST_F(ChromeHintsManagerFetchingTest, HintsFetched_AtNonSRP) {
   base::CommandLine::ForCurrentProcess()->AppendSwitch(
-      optimization_guide::
-          kDisableCheckingUserPermissionsForTestingSwitch);
+      optimization_guide::switches::kDisableCheckingUserPermissionsForTesting);
   hints_manager()->RegisterOptimizationTypes(
       {optimization_guide::proto::DEFER_ALL_SCRIPT});
 
@@ -383,8 +378,7 @@ TEST_F(ChromeHintsManagerFetchingTest, PushManagerSet) {
 
 TEST_F(ChromeHintsManagerFetchingTest, NoOptimizationGuideWebContentsObserver) {
   base::CommandLine::ForCurrentProcess()->AppendSwitch(
-      optimization_guide::
-          kDisableCheckingUserPermissionsForTestingSwitch);
+      optimization_guide::switches::kDisableCheckingUserPermissionsForTesting);
   hints_manager()->RegisterOptimizationTypes(
       {optimization_guide::proto::DEFER_ALL_SCRIPT});
 

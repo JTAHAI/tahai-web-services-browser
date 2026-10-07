@@ -104,7 +104,7 @@ DatabaseStatus ToDatabaseStatus(blink::ServiceWorkerStatusCode status) {
 bool ToBackgroundFetchRegistration(
     const proto::BackgroundFetchMetadata& metadata_proto,
     blink::mojom::BackgroundFetchRegistrationData* registration_data) {
-  CHECK(registration_data, base::NotFatalUntil::M158);
+  DCHECK(registration_data);
   const auto& registration_proto = metadata_proto.registration();
 
   registration_data->developer_id = registration_proto.developer_id();
@@ -155,7 +155,7 @@ bool MojoFailureReasonFromRegistrationProto(
     proto::BackgroundFetchRegistration::BackgroundFetchFailureReason
         proto_failure_reason,
     blink::mojom::BackgroundFetchFailureReason* failure_reason) {
-  CHECK(failure_reason, base::NotFatalUntil::M158);
+  DCHECK(failure_reason);
   switch (proto_failure_reason) {
     case proto::BackgroundFetchRegistration::NONE:
       *failure_reason = blink::mojom::BackgroundFetchFailureReason::NONE;

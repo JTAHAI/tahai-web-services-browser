@@ -7,9 +7,6 @@
 
 #include <set>
 #include <string>
-#include <vector>
-
-#include "base/memory/weak_ptr.h"
 
 // Custom spellcheck dictionary. Words in this dictionary are always correctly
 // spelled. Words that are not in this dictionary may or may not be correctly
@@ -26,9 +23,6 @@ class CustomDictionaryEngine {
   // Initialize the custom dictionary engine.
   void Init(const std::set<std::string>& words);
 
-  // Initialize the custom dictionary engine asynchronously on a worker thread.
-  void InitAsync(const std::vector<std::string>& custom_words);
-
   // Spellcheck |text|. Assumes that another spelling engine has set
   // |misspelling_start| and |misspelling_len| to indicate a misspelling.
   // Returns true if there are no misspellings, otherwise returns false.
@@ -41,12 +35,8 @@ class CustomDictionaryEngine {
                                  const std::set<std::string>& words_removed);
 
  private:
-  void OnDictionaryBuilt(std::set<std::u16string> dictionary);
-
   // Correctly spelled words.
   std::set<std::u16string> dictionary_;
-
-  base::WeakPtrFactory<CustomDictionaryEngine> weak_ptr_factory_{this};
 };
 
 #endif  // COMPONENTS_SPELLCHECK_RENDERER_CUSTOM_DICTIONARY_ENGINE_H_

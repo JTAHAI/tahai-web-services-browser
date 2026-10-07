@@ -22,7 +22,7 @@ namespace indigo {
 class IndigoPageActionController;
 }
 
-class GlicPasswordChangeActuator;
+class PasswordChangeFromCheckupDelegate;
 
 namespace ttc {
 class AiOverlayTools;
@@ -58,7 +58,7 @@ class InvokeWithAutoSubmitPasskeyProvider {
       content::GlobalRenderFrameHostId rfh_id);
   friend class extensions::GlicPrivateInvokeFunction;
   friend class extensions::PdfViewerPrivateGlicSummarizeFunction;
-  friend class ::GlicPasswordChangeActuator;
+  friend class ::PasswordChangeFromCheckupDelegate;
   friend class GlicInternalsPageHandler;
   friend class GlicInstanceCoordinatorBrowserTest;
   friend class GlicInvokeBrowserTest;

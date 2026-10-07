@@ -4,6 +4,7 @@
 
 #include "chrome/browser/ui/tabs/tab_attachment_tracker.h"
 
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_tabstrip.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
@@ -32,7 +33,7 @@ IN_PROC_BROWSER_TEST_F(TabAttachmentTrackerBrowserTest,
   EXPECT_EQ(tracker->attachment_count(), 1);
 
   // 2. Create a second browser window.
-  BrowserWindowInterface* browser2 = CreateBrowser(browser()->GetProfile());
+  Browser* browser2 = CreateBrowser(browser()->GetProfile());
   ASSERT_TRUE(browser2);
 
   // 3. Move the tab from the first browser to the second browser.
@@ -40,8 +41,8 @@ IN_PROC_BROWSER_TEST_F(TabAttachmentTrackerBrowserTest,
       tab_strip_model()->DetachTabAtForInsertion(0);
   ASSERT_TRUE(tab_model);
 
-  browser2->GetTabStripModel()->InsertDetachedTabAt(0, std::move(tab_model),
-                                                    AddTabTypes::ADD_ACTIVE);
+  browser2->tab_strip_model()->InsertDetachedTabAt(0, std::move(tab_model),
+                                                   AddTabTypes::ADD_ACTIVE);
 
   // 4. Verify that the tracker's attachment count has incremented to 2.
   EXPECT_EQ(tracker->attachment_count(), 2);

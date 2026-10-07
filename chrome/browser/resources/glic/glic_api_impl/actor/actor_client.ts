@@ -65,7 +65,6 @@ export class GlicBrowserHostActor implements Partial<GlicBrowserHost> {
       this.resumeActorTask = undefined;
       this.interruptActorTask = undefined;
       this.uninterruptActorTask = undefined;
-      this.updateActorTaskStepProgress = undefined;
       this.getActorTaskState = undefined;
       this.createActorTab = undefined;
       this.getActOnWebCapability = undefined;
@@ -218,13 +217,6 @@ export class GlicBrowserHostActor implements Partial<GlicBrowserHost> {
   uninterruptActorTask?(taskId: number): void {
     this.actorSender?.requestNoResponse('uninterruptActorTask', {
       taskId,
-    });
-  }
-
-  updateActorTaskStepProgress?(taskId: number, stepProgress: string): void {
-    this.actorSender?.requestNoResponse('updateActorTaskStepProgress', {
-      taskId,
-      stepProgress,
     });
   }
 

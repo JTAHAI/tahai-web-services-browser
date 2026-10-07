@@ -20,7 +20,6 @@
 #include "base/containers/span.h"
 #include "base/functional/bind.h"
 #include "base/functional/callback_forward.h"
-#include "base/functional/callback_helpers.h"
 #include "base/functional/function_ref.h"
 #include "base/memory/raw_ref.h"
 #include "base/memory/scoped_refptr.h"
@@ -214,15 +213,8 @@ class AutofillManager
         FormGlobalId form,
         FieldGlobalId field) {}
 
-    // The set of `forms` for the before and after call are guaranteed to be
-    // identical, even in case the server did not send responses for some forms
-    // or the server request failed.
-    virtual void OnBeforeLoadedServerPredictions(
-        AutofillManager& manager,
-        base::span<const FormGlobalId> forms) {}
-    virtual void OnAfterLoadedServerPredictions(
-        AutofillManager& manager,
-        base::span<const FormGlobalId> forms) {}
+    virtual void OnBeforeLoadedServerPredictions(AutofillManager& manager) {}
+    virtual void OnAfterLoadedServerPredictions(AutofillManager& manager) {}
 
     // Fired when the field types predictions of a form *may* have changed.
     // At the moment, we cannot distinguish whether autocomplete attributes or
@@ -293,11 +285,11 @@ class AutofillManager
     virtual void OnBeforeFormWithEmailVerificationTokenSubmitted(
         AutofillManager& manager,
         const FormData& form,
-        const FieldGlobalId& email_field_id) {}
+        const FieldGlobalId& field) {}
     virtual void OnAfterFormWithEmailVerificationTokenSubmitted(
         AutofillManager& manager,
         const FormData& form,
-        const FieldGlobalId& email_field_id) {}
+        const FieldGlobalId& field) {}
   };
 
   template <bool IsConst>
@@ -538,7 +530,7 @@ class AutofillManager
                                    mojom::SubmissionSource source) = 0;
   virtual void OnFormWithEmailVerificationTokenSubmittedImpl(
       const FormData& form,
-      const FieldGlobalId& email_field_id) = 0;
+      const FieldGlobalId& field_id) = 0;
   virtual void OnCaretMovedInFormFieldImpl(const FormData& form,
                                            const FieldGlobalId& field_id,
                                            const gfx::Rect& caret_bounds) = 0;
@@ -562,8 +554,7 @@ class AutofillManager
       const FieldGlobalId& field_id,
       const gfx::Rect& caret_bounds,
       AutofillSuggestionTriggerSource trigger_source,
-      std::optional<PasswordSuggestionRequest> password_request,
-      base::ScopedClosureRunner scoped_on_after_ask_for_values_to_fill) = 0;
+      std::optional<PasswordSuggestionRequest> password_request) = 0;
   virtual void OnDidAutofillFormImpl(const FormData& form) = 0;
   virtual void SuppressAutomaticRefillsImpl(const FillId& fill_id) = 0;
   virtual void RequestRefillImpl(const FillId& fill_id) = 0;

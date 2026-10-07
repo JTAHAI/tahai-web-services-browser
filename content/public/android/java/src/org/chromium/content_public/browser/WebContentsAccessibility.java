@@ -133,5 +133,5 @@ public interface WebContentsAccessibility {
      *     or empty.
      * @param viewId A unique ID for the view (e.g., View.getId()).
      */
-    void setOccludingRect(@Nullable Rect rect, int viewId);
+    public void setOccludingRect(@Nullable Rect rect, int viewId);
 }

@@ -53,7 +53,10 @@ namespace network {
 struct CorsErrorStatus;
 struct ResourceRequest;
 struct URLLoaderCompletionStatus;
-namespace mojom {}
+namespace mojom {
+class URLLoaderFactoryOverride;
+class TrustedURLLoaderHeaderClient;
+}
 }  // namespace network
 
 namespace content {
@@ -61,10 +64,12 @@ class BrowserContext;
 class DevToolsAgentHostClient;
 class DevToolsAgentHostImpl;
 class DevToolsIOContext;
+class DevToolsURLLoaderInterceptor;
 class RenderFrameHostImpl;
 class NavigationRequest;
 class SignedExchangeEnvelope;
 class StoragePartition;
+struct InterceptedRequestInfo;
 struct SignedExchangeError;
 
 namespace protocol {
@@ -85,6 +90,7 @@ class NetworkHandler : public DevToolsDomainHandler,
                  DevToolsIOContext* io_context,
                  DevToolsSession* session,
                  StoragePartition* maybe_storage_partition,
+                 base::RepeatingClosure update_loader_factories_callback,
                  DevToolsAgentHostClient* client,
                  base::OnceClosure cleanup_after_modifications_callback =
                      base::OnceClosure());
@@ -96,9 +102,15 @@ class NetworkHandler : public DevToolsDomainHandler,
 
   static std::vector<NetworkHandler*> ForAgentHost(DevToolsAgentHostImpl* host);
 
+  // static helpers used by other agents that depend on types defined
+  // in network domain.
+  static net::Error NetErrorFromString(const std::string& error, bool* ok);
   static std::string NetErrorToString(int net_error);
   static const char* ResourceTypeToString(
       blink::mojom::ResourceType resource_type);
+  static bool AddInterceptedResourceType(
+      const std::string& resource_type,
+      base::flat_set<blink::mojom::ResourceType>* intercepted_resource_types);
   static std::unique_ptr<Array<Network::Cookie>> BuildCookieArray(
       const std::vector<net::CanonicalCookie>& cookie_list);
   static void SetCookies(
@@ -107,6 +119,12 @@ class NetworkHandler : public DevToolsDomainHandler,
       DevToolsAgentHostClient& client,
       bool is_webui,
       base::OnceCallback<void(bool)> callback);
+
+  static void ClearCookies(
+      StoragePartition* storage_partition,
+      DevToolsAgentHostClient& client,
+      base::RepeatingCallback<bool(const net::CanonicalCookie&)> filter,
+      base::OnceClosure callback);
 
   static bool CanAccessCookie(DevToolsAgentHostClient& client,
                               bool is_webui,
@@ -165,6 +183,11 @@ class NetworkHandler : public DevToolsDomainHandler,
 
   Response SetCacheDisabled(bool cache_disabled) override;
 
+  Response SetAcceptedEncodings(
+      std::unique_ptr<Array<Network::ContentEncoding>> encodings) override;
+
+  Response ClearAcceptedEncodingsOverride() override;
+
   void ClearBrowserCache(
       std::unique_ptr<ClearBrowserCacheCallback> callback) override;
 
@@ -218,14 +241,53 @@ class NetworkHandler : public DevToolsDomainHandler,
       std::unique_ptr<protocol::Array<String>>* rule_ids_result) override;
   Response SetBypassServiceWorker(bool bypass) override;
 
+  DispatchResponse SetRequestInterception(
+      std::unique_ptr<protocol::Array<protocol::Network::RequestPattern>>
+          patterns) override;
+  void ContinueInterceptedRequest(
+      const std::string& request_id,
+      std::optional<std::string> error_reason,
+      std::optional<protocol::Binary> raw_response,
+      std::optional<std::string> url,
+      std::optional<std::string> method,
+      std::optional<std::string> post_data,
+      std::unique_ptr<protocol::Network::Headers> headers,
+      std::unique_ptr<protocol::Network::AuthChallengeResponse>
+          auth_challenge_response,
+      std::unique_ptr<ContinueInterceptedRequestCallback> callback) override;
+
+  void GetResponseBodyForInterception(
+      const String& interception_id,
+      std::unique_ptr<GetResponseBodyForInterceptionCallback> callback)
+      override;
   void GetResponseBody(
       const String& request_id,
       std::unique_ptr<GetResponseBodyCallback> callback) override;
+  void TakeResponseBodyForInterceptionAsStream(
+      const String& interception_id,
+      std::unique_ptr<TakeResponseBodyForInterceptionAsStreamCallback> callback)
+      override;
 
-  void ApplyOverrides(net::HttpRequestHeaders* headers,
-                      bool* skip_service_worker,
-                      bool* disable_cache,
-                      GURL* referrer_override);
+  // Note that |frame_token| below is for the frame that is associated with the
+  // factory being created, and is therefore not necessarily the same as one
+  // associated with the NetworkHandler itself (which is the token of the local
+  // root frame).
+  bool MaybeCreateProxyForInterception(
+      int process_id,
+      StoragePartition* storage_partition,
+      const base::UnguessableToken& frame_token,
+      bool is_navigation,
+      bool is_download,
+      network::mojom::URLLoaderFactoryOverride* intercepting_factory,
+      mojo::PendingRemote<network::mojom::TrustedURLLoaderHeaderClient>*
+          header_client);
+
+  void ApplyOverrides(
+      net::HttpRequestHeaders* headers,
+      bool* skip_service_worker,
+      bool* disable_cache,
+      std::optional<std::vector<net::SourceStreamType>>* accepted_stream_types,
+      GURL* referrer_override);
   void ApplyCookieControlsOverrides(net::CookieSettingOverrides& overrides);
   void PrefetchRequestWillBeSent(
       const std::string& request_id,
@@ -395,6 +457,7 @@ class NetworkHandler : public DevToolsDomainHandler,
                                      bool success,
                                      int net_error,
                                      std::string content);
+  void RequestIntercepted(std::unique_ptr<InterceptedRequestInfo> request_info);
   void SetNetworkConditions(
       std::vector<network::mojom::MatchedNetworkConditionsPtr>
           matched_conditions,
@@ -403,6 +466,11 @@ class NetworkHandler : public DevToolsDomainHandler,
       const String& request_id,
       std::unique_ptr<GetResponseBodyCallback> callback,
       std::optional<mojo_base::BigBuffer> durable_message);
+  void OnResponseBodyPipeTaken(
+      std::unique_ptr<TakeResponseBodyForInterceptionAsStreamCallback> callback,
+      Response response,
+      mojo::ScopedDataPipeConsumerHandle pipe,
+      const std::string& mime_type);
 
   void GotAllCookies(std::unique_ptr<GetAllCookiesCallback> callback,
                      const std::vector<net::CanonicalCookie>& cookies);
@@ -433,13 +501,16 @@ class NetworkHandler : public DevToolsDomainHandler,
       device_bound_session_receiver_;
 #endif  // BUILDFLAG(ENABLE_DEVICE_BOUND_SESSIONS)
   std::vector<std::pair<std::string, std::string>> extra_headers_;
+  std::unique_ptr<DevToolsURLLoaderInterceptor> url_loader_interceptor_;
   bool bypass_service_worker_;
   bool cache_disabled_;
   std::unique_ptr<BackgroundSyncRestorer> background_sync_restorer_;
+  base::RepeatingClosure update_loader_factories_callback_;
   std::map<std::unique_ptr<DevToolsNetworkResourceLoader>,
            std::unique_ptr<LoadNetworkResourceCallback>,
            base::UniquePtrComparator>
       loaders_;
+  std::optional<std::set<net::SourceStreamType>> accepted_stream_types_;
   absl::flat_hash_map<String, std::pair<String, bool>> received_body_data_;
   bool did_modifications_ = false;
   base::OnceClosure cleanup_after_modifications_callback_;

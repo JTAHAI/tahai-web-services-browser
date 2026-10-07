@@ -66,12 +66,8 @@ class FakeGpuHostForTesting : public viz::mojom::GpuHost {
       const webnn::EpDeviceInfo& target_device,
       mojo::PendingReceiver<webnn::mojom::WebNNCompilerContext>
           compiler_context_receiver,
-      mojo::PendingRemote<webnn::mojom::WebNNModelLoader> model_loader_remote,
-      RequestWebNNCompilerContextCallback callback) override;
-#endif
-#if BUILDFLAG(IS_APPLE)
-  void CopyWebNNCompiledModel(const base::FilePath& compiler_model_path,
-                              CopyWebNNCompiledModelCallback callback) override;
+      mojo::PendingRemote<webnn::mojom::WebNNModelLoader> model_loader_remote)
+      override;
 #endif
   void CreateWebNNWeightsFile(CreateWebNNWeightsFileCallback callback) override;
 
@@ -107,10 +103,6 @@ class WebNNTestEnvironment {
   // BindWebNNContextProvider to disconnect. Call in test TearDown after
   // resetting remotes to ensure deterministic cleanup.
   void TearDown();
-
-  std::vector<std::string_view> GetContextBackendNames() const {
-    return context_provider_->GetContextBackendNamesForTesting();
-  }
 
  private:
   void OnReceiverDisconnected();

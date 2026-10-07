@@ -3,24 +3,25 @@
 // found in the LICENSE file.
 
 import 'chrome://resources/cr_elements/cr_view_manager/cr_view_manager.js';
+import '/shared/settings/prefs/prefs.js';
+import '../settings_shared.css.js';
 import './battery_page.js';
 import './memory_page.js';
 import './performance_page.js';
 import './speed_page.js';
 
 import type {CrViewManagerElement} from 'chrome://resources/cr_elements/cr_view_manager/cr_view_manager.js';
-import {WebUiListenerMixinLit} from 'chrome://resources/cr_elements/web_ui_listener_mixin_lit.js';
-import {CrLitElement} from 'chrome://resources/lit/v3_0/lit.rollup.js';
+import {WebUiListenerMixin} from 'chrome://resources/cr_elements/web_ui_listener_mixin.js';
+import {PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
 import {PerformanceBrowserProxyImpl} from '../performance_page/performance_browser_proxy.js';
 import {routes} from '../route.js';
-import {RouteObserverMixinLit} from '../router.js';
+import {RouteObserverMixin} from '../router.js';
 import type {Route} from '../router.js';
 import type {SettingsPlugin} from '../settings_main/settings_plugin.js';
-import {SearchableViewContainerMixinLit} from '../settings_page/searchable_view_container_mixin_lit.js';
+import {SearchableViewContainerMixin} from '../settings_page/searchable_view_container_mixin.js';
 
-import {getCss} from './performance_page_index.css.js';
-import {getHtml} from './performance_page_index.html.js';
+import {getTemplate} from './performance_page_index.html.js';
 
 
 export interface SettingsPerformancePageIndexElement {
@@ -29,8 +30,8 @@ export interface SettingsPerformancePageIndexElement {
   };
 }
 
-const SettingsPerformancePageIndexElementBase = SearchableViewContainerMixinLit(
-    RouteObserverMixinLit(WebUiListenerMixinLit(CrLitElement)));
+const SettingsPerformancePageIndexElementBase = SearchableViewContainerMixin(
+    RouteObserverMixin(WebUiListenerMixin(PolymerElement)));
 
 export class SettingsPerformancePageIndexElement extends
     SettingsPerformancePageIndexElementBase implements SettingsPlugin {
@@ -38,22 +39,24 @@ export class SettingsPerformancePageIndexElement extends
     return 'settings-performance-page-index';
   }
 
-  static override get styles() {
-    return getCss();
-  }
-
-  override render() {
-    return getHtml.bind(this)();
+  static get template() {
+    return getTemplate();
   }
 
   // Used to hide battery settings section if the device has no battery.
-  static override get properties() {
+  static get properties() {
     return {
-      showBatterySettings_: {type: Boolean},
+      prefs: Object,
+
+      showBatterySettings_: {
+        type: Boolean,
+        value: false,
+      },
     };
   }
 
-  protected accessor showBatterySettings_: boolean = false;
+  declare prefs: Record<string, unknown>;
+  declare private showBatterySettings_: boolean;
 
   private showDefaultViews_() {
     this.$.viewManager.switchViews(
@@ -104,8 +107,6 @@ declare global {
     'settings-performance-page-index': SettingsPerformancePageIndexElement;
   }
 }
-
-export {SettingsPerformancePageIndexElement as PerformancePageIndexElement};
 
 customElements.define(
     SettingsPerformancePageIndexElement.is,

@@ -92,8 +92,7 @@ export class TabStripElement extends CrLitElement implements
       },
       dragInProgress_: {
         type: Boolean,
-        reflect: true,
-        attribute: 'drag-in-progress',
+        state: true,
       },
       inactiveFrame: {
         type: Boolean,
@@ -240,23 +239,14 @@ export class TabStripElement extends CrLitElement implements
       if (!this.dropTargetRegistration_) {
         return;
       }
-      const hostRect = this.getBoundingClientRect();
-      const tabstripRect = this.$.tabstrip.getBoundingClientRect();
-      const x = tabstripRect.left;
-      const y = tabstripRect.top;
-      const width = Math.max(0, hostRect.right - tabstripRect.left);
-      const height = tabstripRect.height;
-
+      const rect = this.$.tabstrip.getBoundingClientRect();
       this.dropTargetRegistration_.onBoundsChanged({
-        x: Math.round(x),
-        y: Math.round(y),
-        width: Math.round(width),
-        height: Math.round(height),
+        x: Math.round(rect.left),
+        y: Math.round(rect.top),
+        width: Math.round(rect.width),
+        height: Math.round(rect.height),
       });
-
-      this.dragDelegate_.onRecalculateBounds();
     });
-    this.resizeObserver_.observe(this);
     this.resizeObserver_.observe(this.$.tabstrip);
   }
 
@@ -475,12 +465,8 @@ export class TabStripElement extends CrLitElement implements
     this.$.tabstrip.classList.toggle('nodrag', noDrag);
   }
 
-  getDragContainerBounds(): DOMRect {
-    const hostRect = this.getBoundingClientRect();
-    const tabstripRect = this.$.tabstrip.getBoundingClientRect();
-    return new DOMRect(
-        tabstripRect.left, tabstripRect.top,
-        Math.max(0, hostRect.right - tabstripRect.left), tabstripRect.height);
+  getDragContainerBounds() {
+    return this.$.tabstrip.getBoundingClientRect();
   }
 
   dragMouseDown(e: MouseEvent) {
@@ -488,11 +474,10 @@ export class TabStripElement extends CrLitElement implements
   }
 
   // DropTargetInterface implementation
-  onDragEntered(
-      sourceTabIds: NodeId[], localPoint: Point, mouseToTabXRatio: number) {
+  onDragEntered(sourceTabIds: NodeId[], localPoint: Point) {
     this.dragInProgress_ = true;
     const nodeId = sourceTabIds[0]!;
-    this.dragDelegate_.onMojoDragEntered(nodeId, localPoint, mouseToTabXRatio);
+    this.dragDelegate_.onMojoDragEntered(nodeId, localPoint);
   }
 
   onDrag(localPoint: Point) {

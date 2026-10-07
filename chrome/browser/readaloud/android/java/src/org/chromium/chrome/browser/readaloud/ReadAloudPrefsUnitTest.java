@@ -11,6 +11,7 @@ import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
+import org.chromium.chrome.modules.readaloud.PlaybackArgs.PlaybackMode;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -18,17 +19,18 @@ import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
+import org.robolectric.annotation.Config;
 
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.base.test.util.HistogramWatcher;
 import org.chromium.chrome.browser.readaloud.testing.MockPrefServiceHelper;
-import org.chromium.chrome.modules.readaloud.PlaybackArgs.PlaybackMode;
 import org.chromium.components.prefs.PrefService;
 
 import java.util.Map;
 
 /** Unit tests for {@link ReadAloudPrefs}. */
 @RunWith(BaseRobolectricTestRunner.class)
+@Config(manifest = Config.NONE)
 public class ReadAloudPrefsUnitTest {
     @Rule public final MockitoRule mMockitoRule = MockitoJUnit.rule();
     private MockPrefServiceHelper mMockPrefServiceHelper;
@@ -98,8 +100,7 @@ public class ReadAloudPrefsUnitTest {
     @Test
     public void setPlaybackMode() {
         ReadAloudPrefs.setPlaybackMode(mPrefService, PlaybackMode.OVERVIEW);
-        verify(mPrefService)
-                .setInteger(eq("readaloud.playback_mode"), eq(PlaybackMode.OVERVIEW.getValue()));
+        verify(mPrefService).setInteger(eq("readaloud.playback_mode"), eq(PlaybackMode.OVERVIEW.getValue()));
     }
 
     @Test

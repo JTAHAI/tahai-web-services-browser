@@ -43,8 +43,8 @@ export class NetworkHealthContainerElement extends PolymerElement {
     };
   }
 
-  declare expanded: boolean;
-  declare label: string;
+  expanded: boolean;
+  label: string;
 
   /**
    * Returns the correct arrow icon depending on if the container is expanded.

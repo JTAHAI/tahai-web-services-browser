@@ -393,7 +393,7 @@ void AppListBubbleAppsPage::AnimateShowPage() {
 
   ui::Layer* scroll_view_layer = scroll_view_->layer();
   DCHECK(scroll_view_layer);
-  DCHECK(scroll_view_layer->AsTextured());
+  DCHECK_EQ(scroll_view_layer->type(), ui::LAYER_TEXTURED);
 
   ui::AnimationThroughputReporter reporter(
       scroll_view_layer->GetAnimator(),
@@ -459,7 +459,7 @@ void AppListBubbleAppsPage::AnimateHidePage() {
 
   ui::Layer* scroll_view_layer = scroll_view_->layer();
   DCHECK(scroll_view_layer);
-  DCHECK(scroll_view_layer->AsTextured());
+  DCHECK_EQ(scroll_view_layer->type(), ui::LAYER_TEXTURED);
 
   ui::AnimationThroughputReporter reporter(
       scroll_view_layer->GetAnimator(),

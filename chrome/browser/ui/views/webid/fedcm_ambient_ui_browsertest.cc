@@ -6,8 +6,8 @@
 #include "base/test/run_until.h"
 #include "base/test/scoped_feature_list.h"
 #include "chrome/browser/ui/actions/chrome_action_id.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/page_action/page_action_controller.h"
 #include "chrome/browser/ui/page_action/page_action_icon_type.h"
 #include "chrome/browser/ui/page_action/page_action_observer.h"
@@ -51,8 +51,6 @@ class MockDelegate : public AccountSelectionView::Delegate {
   MOCK_METHOD(void, OnLoginToIdP, (const GURL&, const GURL&), (override));
   MOCK_METHOD(void, OnMoreDetails, (), (override));
   MOCK_METHOD(void, OnAccountsDisplayed, (), (override));
-  MOCK_METHOD(void, OnNativeAppResult, (const std::string&), (override));
-  MOCK_METHOD(void, OnNativeAppLoginFinished, (), (override));
   MOCK_METHOD(gfx::NativeView, GetNativeView, (), (override));
   MOCK_METHOD(content::WebContents*, GetWebContents, (), (override));
   MOCK_METHOD(content::IdentityRequestDialogController::PassiveDialogVolume,
@@ -72,7 +70,7 @@ class FedCmAmbientUiBrowserTest : public InProcessBrowserTest {
     InProcessBrowserTest::SetUpOnMainThread();
     delegate_ = std::make_unique<NiceMock<MockDelegate>>();
     content::WebContents* web_contents =
-        browser()->GetTabStripModel()->GetActiveWebContents();
+        browser()->tab_strip_model()->GetActiveWebContents();
     ON_CALL(*delegate_, GetWebContents())
         .WillByDefault(testing::Return(web_contents));
     ON_CALL(*delegate_, GetNativeView())
@@ -401,7 +399,7 @@ IN_PROC_BROWSER_TEST_F(FedCmAmbientUiBrowserTest, ReloadPage) {
 
   // Reload the page.
   content::WebContents* web_contents =
-      browser()->GetTabStripModel()->GetActiveWebContents();
+      browser()->tab_strip_model()->GetActiveWebContents();
   content::TestNavigationObserver navigation(web_contents);
   chrome::Reload(browser(), WindowOpenDisposition::CURRENT_TAB);
   navigation.Wait();
@@ -431,11 +429,11 @@ IN_PROC_BROWSER_TEST_F(FedCmAmbientUiBrowserTest, TabSwitching) {
 
   // Add a new tab and switch to it.
   ASSERT_TRUE(AddTabAtIndex(1, GURL("about:blank"), ui::PAGE_TRANSITION_TYPED));
-  EXPECT_EQ(1, browser()->GetTabStripModel()->active_index());
+  EXPECT_EQ(1, browser()->tab_strip_model()->active_index());
 
   // Switch back to the first tab.
-  browser()->GetTabStripModel()->ActivateTabAt(0);
-  EXPECT_EQ(0, browser()->GetTabStripModel()->active_index());
+  browser()->tab_strip_model()->ActivateTabAt(0);
+  EXPECT_EQ(0, browser()->tab_strip_model()->active_index());
 
   // The view should still be there and able to activate.
   view()->OnPageActionClicked();
@@ -792,11 +790,11 @@ IN_PROC_BROWSER_TEST_F(FedCmAmbientUiBrowserTest,
 
   // Add a new tab and switch to it.
   ASSERT_TRUE(AddTabAtIndex(1, GURL("about:blank"), ui::PAGE_TRANSITION_TYPED));
-  EXPECT_EQ(1, browser()->GetTabStripModel()->active_index());
+  EXPECT_EQ(1, browser()->tab_strip_model()->active_index());
 
   // Switch back to the first tab.
-  browser()->GetTabStripModel()->ActivateTabAt(0);
-  EXPECT_EQ(0, browser()->GetTabStripModel()->active_index());
+  browser()->tab_strip_model()->ActivateTabAt(0);
+  EXPECT_EQ(0, browser()->tab_strip_model()->active_index());
 
   // Verify that switching back did not trigger an additional impression log.
   histograms.ExpectBucketCount("Blink.FedCm.Ambient.Impression",

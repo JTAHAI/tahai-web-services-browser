@@ -21,9 +21,9 @@ import org.robolectric.ParameterizedRobolectricTestRunner.Parameters;
 
 import org.chromium.base.ActivityState;
 import org.chromium.base.ApplicationStatus;
-import org.chromium.base.BaseSwitches;
 import org.chromium.base.FeatureOverrides;
 import org.chromium.base.test.BaseRobolectricTestRule;
+import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.Features.EnableFeatures;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
@@ -38,11 +38,15 @@ import java.util.Collection;
  * MAKE_IDENTITY_MANAGER_SOURCE_OF_ACCOUNT_PART2 launch.
  */
 @RunWith(ParameterizedRobolectricTestRunner.class)
+@Batch(Batch.UNIT_TESTS)
 @CommandLineFlags.Add({
     ChromeSwitches.DISABLE_FIRST_RUN_EXPERIENCE,
-    BaseSwitches.DISABLE_NATIVE_INITIALIZATION,
+    ChromeSwitches.DISABLE_NATIVE_INITIALIZATION,
 })
-@EnableFeatures({ChromeFeatureList.CCT_REPORT_PRERENDER_EVENTS})
+@EnableFeatures({
+    ChromeFeatureList.CCT_REPORT_PRERENDER_EVENTS,
+    ChromeFeatureList.XPLAT_SYNCED_SETUP
+})
 public class FirstRunFilterTouchUnitTest {
 
     @Rule(order = Rule.DEFAULT_ORDER - 1)

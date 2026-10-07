@@ -24,7 +24,6 @@
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_tabstrip.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/tab_sharing/tab_sharing_infobar_delegate.h"
 #include "chrome/browser/ui/tabs/tab_enums.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
@@ -46,8 +45,8 @@
 namespace {
 static const char kMainWebrtcTestHtmlPage[] = "/webrtc/webrtc_jsep01_test.html";
 
-content::WebContents* GetWebContents(BrowserWindowInterface* browser, int tab) {
-  return browser->GetTabStripModel()->GetWebContentsAt(tab);
+content::WebContents* GetWebContents(Browser* browser, int tab) {
+  return browser->tab_strip_model()->GetWebContentsAt(tab);
 }
 
 content::DesktopMediaID GetDesktopMediaIDForScreen() {
@@ -55,8 +54,7 @@ content::DesktopMediaID GetDesktopMediaIDForScreen() {
                                  content::DesktopMediaID::kFakeId);
 }
 
-content::DesktopMediaID GetDesktopMediaIDForTab(BrowserWindowInterface* browser,
-                                                int tab) {
+content::DesktopMediaID GetDesktopMediaIDForTab(Browser* browser, int tab) {
   content::RenderFrameHost* main_frame =
       GetWebContents(browser, tab)->GetPrimaryMainFrame();
   return content::DesktopMediaID(
@@ -67,9 +65,7 @@ content::DesktopMediaID GetDesktopMediaIDForTab(BrowserWindowInterface* browser,
           main_frame->GetRoutingID()));
 }
 
-infobars::ContentInfoBarManager* GetInfoBarManager(
-    BrowserWindowInterface* browser,
-    int tab) {
+infobars::ContentInfoBarManager* GetInfoBarManager(Browser* browser, int tab) {
   return infobars::ContentInfoBarManager::FromWebContents(
       GetWebContents(browser, tab));
 }
@@ -79,24 +75,22 @@ infobars::ContentInfoBarManager* GetInfoBarManager(
   return infobars::ContentInfoBarManager::FromWebContents(contents);
 }
 
-TabSharingInfoBarDelegate* GetDelegate(BrowserWindowInterface* browser,
-                                       int tab) {
+TabSharingInfoBarDelegate* GetDelegate(Browser* browser, int tab) {
   return static_cast<TabSharingInfoBarDelegate*>(
       GetInfoBarManager(browser, tab)->infobars()[0]->delegate());
 }
 
 class InfobarUIChangeObserver : public TabStripModelObserver {
  public:
-  explicit InfobarUIChangeObserver(BrowserWindowInterface* browser)
-      : browser_{browser} {
-    for (int tab = 0; tab < browser_->GetTabStripModel()->count(); ++tab) {
-      auto* contents = browser_->GetTabStripModel()->GetWebContentsAt(tab);
+  explicit InfobarUIChangeObserver(Browser* browser) : browser_{browser} {
+    for (int tab = 0; tab < browser_->tab_strip_model()->count(); ++tab) {
+      auto* contents = browser_->tab_strip_model()->GetWebContentsAt(tab);
       observers_[contents] =
           std::make_unique<InfoBarChangeObserver>(base::BindOnce(
               &InfobarUIChangeObserver::EraseObserver, base::Unretained(this)));
       GetInfoBarManager(contents)->AddObserver(observers_[contents].get());
     }
-    browser_->GetTabStripModel()->AddObserver(this);
+    browser_->tab_strip_model()->AddObserver(this);
   }
 
   ~InfobarUIChangeObserver() override {
@@ -106,7 +100,7 @@ class InfobarUIChangeObserver : public TabStripModelObserver {
 
       GetInfoBarManager(contents)->RemoveObserver(observer);
     }
-    browser_->GetTabStripModel()->RemoveObserver(this);
+    browser_->tab_strip_model()->RemoveObserver(this);
     observers_.clear();
   }
 
@@ -142,6 +136,7 @@ class InfobarUIChangeObserver : public TabStripModelObserver {
     }
   }
   void OnTabChangedAt(tabs::TabInterface* tab,
+                      int index,
                       TabChangeType change_type) override {
     if (observers_.find(tab->GetContents()) == observers_.end()) {
       observers_[tab->GetContents()] =
@@ -210,7 +205,7 @@ class InfobarUIChangeObserver : public TabStripModelObserver {
   std::unique_ptr<base::RunLoop> run_loop_;
   std::map<content::WebContents*, std::unique_ptr<InfoBarChangeObserver>>
       observers_;
-  raw_ptr<BrowserWindowInterface> browser_;
+  raw_ptr<Browser> browser_;
   base::RepeatingClosure barrier_closure_;
 };
 

@@ -1,2 +1,3 @@
-rules:
-- "**": [closewatcher]
+features:
+- name: closewatcher
+  files: "**"

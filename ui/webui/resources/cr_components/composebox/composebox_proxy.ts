@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {PageCallbackRouter as SearchboxPageCallbackRouter, PageHandlerRemote as SearchboxPageHandlerRemote, SuggestStyle} from '//resources/mojo/components/omnibox/browser/searchbox.mojom-webui.js';
+import {PageCallbackRouter as SearchboxPageCallbackRouter, PageHandlerRemote as SearchboxPageHandlerRemote} from '//resources/mojo/components/omnibox/browser/searchbox.mojom-webui.js';
 import type {AutocompleteMatch} from '//resources/mojo/components/omnibox/browser/searchbox.mojom-webui.js';
 
 import {PageHandlerFactory, PageHandlerRemote} from './composebox.mojom-webui.js';
@@ -17,7 +17,6 @@ export function createAutocompleteMatch(
     isSearchType: false,
     isEnterpriseSearchAggregatorPeopleType: false,
     swapContentsAndDescription: false,
-    showContextualDescription: false,
     supportsDeletion: false,
     suggestionGroupId: -1,
     contents: '',
@@ -35,11 +34,11 @@ export function createAutocompleteMatch(
     removeButtonA11yLabel: '',
     type: '',
     isContextualSuggestion: false,
-    isTwoRowSuggestion: false,
+    isRichSuggestion: false,
+    isWeatherAnswerSuggestion: null,
+    answer: null,
     tailSuggestCommonPrefix: null,
     keywordModel: null,
-    fuseboxAction: null,
-    suggestStyle: SuggestStyle.kUnspecified,
     ...config,
   };
 }
@@ -81,7 +80,6 @@ export class ComposeboxProxyImpl implements ComposeboxProxy {
     return this.searchboxCallbackRouter.updateSmartTabSharingActive.addListener(
         callback);
   }
-
   // </if>
 
   static getInstance(): ComposeboxProxyImpl {

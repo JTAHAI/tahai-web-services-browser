@@ -42,8 +42,7 @@ ComposeboxEverywhereHandler::ComposeboxEverywhereHandler(
     Profile* profile,
     content::WebContents* web_contents,
     GetSessionHandleCallback get_session_callback,
-    ClearSessionHandleCallback clear_session_callback,
-    ScreenshareDelegate* screenshare_delegate)
+    ClearSessionHandleCallback clear_session_callback)
     : ComposeboxHandler(
           std::move(pending_handler),
           std::move(pending_searchbox_handler),
@@ -55,9 +54,7 @@ ComposeboxEverywhereHandler::ComposeboxEverywhereHandler(
                                                        this),
           std::move(get_session_callback),
           std::move(clear_session_callback)),
-      service_(OmniboxEverywhereServiceFactory::GetForProfile(profile)) {
-  set_screenshare_delegate(screenshare_delegate);
-}
+      service_(OmniboxEverywhereServiceFactory::GetForProfile(profile)) {}
 
 ComposeboxEverywhereHandler::~ComposeboxEverywhereHandler() = default;
 
@@ -91,15 +88,4 @@ void ComposeboxEverywhereHandler::CleanupDrivePicker() {
   // cancel, or error) so that the widget can regain focus and restore standard
   // auto-dismissal.
   service_->OnDrivePickerClosed();
-}
-
-void ComposeboxEverywhereHandler::OpenUrl(
-    GURL url,
-    const WindowOpenDisposition disposition,
-    base::OnceCallback<void(content::NavigationHandle&)>
-        navigation_handle_callback) {
-  if (service_) {
-    service_->OpenUrl(url, disposition, ui::PAGE_TRANSITION_LINK,
-                      std::move(navigation_handle_callback));
-  }
 }

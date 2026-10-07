@@ -58,9 +58,8 @@ class BrowserFinderWithDesksTest : public InProcessBrowserTest {
     browser->GetWindow()->Activate();
   }
 
-  BrowserWindowInterface* CreateTestBrowser() {
-    BrowserWindowInterface* new_browser =
-        CreateBrowser(browser()->GetProfile());
+  Browser* CreateTestBrowser() {
+    Browser* new_browser = CreateBrowser(browser()->GetProfile());
     new_browser->GetWindow()->Show();
     ActivateBrowser(new_browser);
     return new_browser;
@@ -89,7 +88,7 @@ IN_PROC_BROWSER_TEST_F(BrowserFinderWithDesksTest, FindAnyBrowser) {
   // Switch to desk_2 and create a browser there.
   ash::ActivateDesk(desk_2);
   EXPECT_TRUE(desk_2->is_active());
-  BrowserWindowInterface* browser_2 = CreateTestBrowser();
+  Browser* browser_2 = CreateTestBrowser();
   auto* window_2 = browser_2->GetWindow()->GetNativeWindow();
   EXPECT_EQ(2u, ProfileBrowserCollection::GetForProfile(browser()->GetProfile())
                     ->GetSize());
@@ -183,7 +182,7 @@ IN_PROC_BROWSER_TEST_F(BrowserFinderChromeOSBrowserTest,
       ash::BrowserContextHelper::Get()->GetBrowserContextByAccountId(
           kPrimaryAccountId));
 
-  BrowserWindowInterface* primary_browser = CreateBrowser(primary_profile);
+  Browser* primary_browser = CreateBrowser(primary_profile);
   EXPECT_EQ(primary_browser, ui_test_utils::FindAnyBrowser(primary_profile));
   EXPECT_EQ(primary_browser,
             ui_test_utils::FindAnyBrowser(primary_profile,
@@ -194,8 +193,7 @@ IN_PROC_BROWSER_TEST_F(BrowserFinderChromeOSBrowserTest,
   EXPECT_FALSE(ui_test_utils::FindAnyBrowser(primary_profile));
 
   // Create an incognito browser.
-  BrowserWindowInterface* incognito_browser =
-      CreateIncognitoBrowser(primary_profile);
+  Browser* incognito_browser = CreateIncognitoBrowser(primary_profile);
 
   // Exact profile match returns nothing (only the incognito browser exists,
   // and it belongs to the OTR profile).
@@ -222,7 +220,7 @@ IN_PROC_BROWSER_TEST_F(BrowserFinderChromeOSBrowserTest,
       session_manager::SessionManager::Get()->GetActiveSession()->account_id(),
       kPrimaryAccountId);
 
-  BrowserWindowInterface* primary_browser = CreateBrowser(primary_profile);
+  Browser* primary_browser = CreateBrowser(primary_profile);
   auto* window_manager = ash::Shell::Get()->multi_user_window_manager();
 
   // The browser is shown for the owning user, so FindAnyBrowser finds it

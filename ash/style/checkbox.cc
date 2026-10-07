@@ -30,8 +30,7 @@ Checkbox::Checkbox(int button_width,
                        std::move(callback),
                        label,
                        insets,
-                       image_label_spacing,
-                       ClickBehavior::kToggle) {
+                       image_label_spacing) {
   GetViewAccessibility().SetRole(ax::mojom::Role::kCheckBox);
 }
 

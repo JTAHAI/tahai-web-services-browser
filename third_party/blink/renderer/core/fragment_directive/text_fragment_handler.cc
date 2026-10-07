@@ -4,8 +4,6 @@
 
 #include "third_party/blink/renderer/core/fragment_directive/text_fragment_handler.h"
 
-#include <algorithm>
-
 #include "base/metrics/histogram_functions.h"
 #include "base/strings/strcat.h"
 #include "components/shared_highlighting/core/common/disabled_sites.h"
@@ -184,7 +182,7 @@ void TextFragmentHandler::RequestSelectorForViewportCenter(
     return;
   }
 
-  RangeInFlatTree* range = GetRangeForReadingPosition();
+  RangeInFlatTree* range = GetRangeForViewportCenter();
 
   if (!range) {
     error_ = shared_highlighting::LinkGenerationError::kEmptySelection;
@@ -336,22 +334,17 @@ void TextFragmentHandler::StartGeneratingForCurrentSelection() {
                WrapWeakPersistent(this)));
 }
 
-RangeInFlatTree* TextFragmentHandler::GetRangeForReadingPosition() {
+RangeInFlatTree* TextFragmentHandler::GetRangeForViewportCenter() {
   LocalFrameView* view = GetFrame()->View();
   if (!view) {
     return nullptr;
   }
 
+  // Hit-test at the center of the visual viewport.
   VisualViewport& visual_viewport = GetFrame()->GetPage()->GetVisualViewport();
-  const gfx::RectF visible_rect = visual_viewport.VisibleRect();
-  // Eye-tracking research indicates that users typically focus around the
-  // upper third (35%) of the viewport when reading digital content.
-  constexpr float kViewportHitTestYRatio = 0.35f;
-  const gfx::PointF hit_point_in_viewport(
-      visible_rect.CenterPoint().x(),
-      visible_rect.y() + visible_rect.height() * kViewportHitTestYRatio);
+  gfx::PointF center_in_viewport = visual_viewport.VisibleRect().CenterPoint();
 
-  HitTestLocation location(view->ViewportToFrame(hit_point_in_viewport));
+  HitTestLocation location(view->ViewportToFrame(center_in_viewport));
 
   HitTestRequest::HitTestRequestType hit_type = HitTestRequest::kReadOnly |
                                                 HitTestRequest::kActive |

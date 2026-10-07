@@ -45,8 +45,8 @@
 }
 
 - (void)dealloc {
-  CHECK(!self.mediator);
-  CHECK(!self.accountChooserViewController);
+  CHECK(!self.mediator, base::NotFatalUntil::M144);
+  CHECK(!self.accountChooserViewController, base::NotFatalUntil::M144);
 }
 
 #pragma mark - ChromeCoordinator
@@ -119,7 +119,8 @@
 
 - (void)consistencyAccountChooserTableViewControllerWantsToGoBack:
     (ConsistencyAccountChooserViewController*)viewController {
-  CHECK_EQ(viewController, self.accountChooserViewController);
+  CHECK_EQ(viewController, self.accountChooserViewController,
+           base::NotFatalUntil::M140);
   [self.delegate consistencyAccountChooserCoordinatorWantsToBeStopped:self];
 }
 

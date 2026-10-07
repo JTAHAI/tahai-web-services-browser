@@ -51,10 +51,10 @@ export class PrintPreviewDpiSettingsElement extends
     ];
   }
 
-  declare capability: DpiCapability;
-  declare disabled: boolean;
-  declare private capabilityWithLabels_: DpiCapability;
-  private lastSelectedValue_: DpiOption|null = null;
+  capability: DpiCapability;
+  disabled: boolean;
+  private capabilityWithLabels_: DpiCapability;
+  private lastSelectedValue_: DpiOption;
 
   /**
    * Adds default labels for each option.

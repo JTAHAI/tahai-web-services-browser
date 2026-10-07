@@ -21,8 +21,8 @@ namespace {
 UIImage* GetEnterpriseIcon() {
   UIColor* color = [UIColor colorNamed:kTextSecondaryColor];
   return SymbolWithPalette(
-      SymbolWithConfiguration(
-          SymbolEnterprise,
+      CustomSymbolWithConfiguration(
+          kEnterpriseSymbol,
           [UIImageSymbolConfiguration
               configurationWithFont:
                   [UIFont preferredFontForTextStyle:UIFontTextStyleFootnote]]),

@@ -11,6 +11,7 @@ import org.chromium.components.autofill.PaymentsUiClosedReason;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController.StateChangeReason;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetObserver;
+import org.chromium.components.browser_ui.bottomsheet.EmptyBottomSheetObserver;
 
 /**
  * Creates the model, and the view, and connects them. It also executes the commands from the native
@@ -23,7 +24,7 @@ class MandatoryReauthOptInBottomSheetCoordinator
     private final MandatoryReauthOptInBottomSheetComponent.Delegate mDelegate;
     private final MandatoryReauthOptInBottomSheet mView;
     private final BottomSheetObserver mObserver =
-            new BottomSheetObserver() {
+            new EmptyBottomSheetObserver() {
                 @Override
                 public void onSheetClosed(@StateChangeReason int reason) {
                     switch (reason) {

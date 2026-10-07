@@ -40,8 +40,7 @@ PrivateAiServiceFactory::~PrivateAiServiceFactory() = default;
 std::unique_ptr<KeyedService>
 PrivateAiServiceFactory::BuildServiceInstanceForBrowserContext(
     content::BrowserContext* context) const {
-  version_info::Channel channel = chrome::GetChannel();
-  if (!PrivateAiService::CanPrivateAiBeEnabled(channel)) {
+  if (!PrivateAiService::CanPrivateAiBeEnabled(chrome::GetChannel())) {
     return nullptr;
   }
 
@@ -58,9 +57,9 @@ PrivateAiServiceFactory::BuildServiceInstanceForBrowserContext(
           ->GetURLLoaderFactoryForBrowserProcess(),
       std::move(network_driver), std::move(oak_session_driver),
       profile->GetDefaultStoragePartition()->GetNetworkContext(),
-      kPrivateAiUrl.Get(), PrivateAiService::GetApiKey(channel),
+      kPrivateAiUrl.Get(), PrivateAiService::GetApiKey(chrome::GetChannel()),
       kPrivateAiProxyServerUrl.Get(),
-      base::FeatureList::IsEnabled(kPrivateAiUseTokenAttestation), channel);
+      base::FeatureList::IsEnabled(kPrivateAiUseTokenAttestation));
 }
 
 }  // namespace private_ai

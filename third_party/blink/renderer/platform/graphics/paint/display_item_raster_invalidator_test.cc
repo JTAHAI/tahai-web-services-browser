@@ -362,7 +362,8 @@ TEST_P(DisplayItemRasterInvalidatorTest, Incremental) {
   gfx::Rect initial_rect(100, 100, 100, 100);
   std::array<Persistent<FakeDisplayItemClient>, 6> clients;
   for (size_t i = 0; i < std::size(clients); i++) {
-    clients[i] = MakeGarbageCollected<FakeDisplayItemClient>(String::Number(i));
+    clients[i] =
+        MakeGarbageCollected<FakeDisplayItemClient>(String::Format("%zu", i));
   }
   {
     RasterInvalidationPaintController paint_controller(GetPersistentData(),

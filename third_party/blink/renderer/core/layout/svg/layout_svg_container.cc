@@ -23,7 +23,6 @@
 
 #include "third_party/blink/renderer/core/layout/svg/layout_svg_container.h"
 
-#include "third_party/blink/renderer/core/layout/geometry/physical_rect.h"
 #include "third_party/blink/renderer/core/layout/hit_test_location.h"
 #include "third_party/blink/renderer/core/layout/hit_test_result.h"
 #include "third_party/blink/renderer/core/layout/svg/svg_layout_info.h"
@@ -37,7 +36,11 @@
 namespace blink {
 
 LayoutSVGContainer::LayoutSVGContainer(SVGElement* node)
-    : LayoutSVGModelObject(node) {}
+    : LayoutSVGModelObject(node),
+      needs_transform_update_(true),
+      transform_uses_reference_box_(false),
+      has_non_isolated_blending_descendants_(false),
+      has_non_isolated_blending_descendants_dirty_(false) {}
 
 LayoutSVGContainer::~LayoutSVGContainer() = default;
 
@@ -158,11 +161,9 @@ void LayoutSVGContainer::RemoveChild(LayoutObject* child) {
 void LayoutSVGContainer::StyleDidChange(
     StyleDifference diff,
     const ComputedStyle* old_style,
-    const ComputedStyle& new_style,
     const StyleChangeContext& style_change_context) {
   NOT_DESTROYED();
-  LayoutSVGModelObject::StyleDidChange(diff, old_style, new_style,
-                                       style_change_context);
+  LayoutSVGModelObject::StyleDidChange(diff, old_style, style_change_context);
 
   if (IsSVGHiddenContainer()) {
     return;
@@ -172,7 +173,7 @@ void LayoutSVGContainer::StyleDidChange(
       old_style &&
       SVGLayoutSupport::WillIsolateBlendingDescendantsForStyle(*old_style);
   const bool will_isolate_blending_descendants =
-      SVGLayoutSupport::WillIsolateBlendingDescendantsForStyle(new_style);
+      SVGLayoutSupport::WillIsolateBlendingDescendantsForStyle(StyleRef());
   const bool isolation_changed =
       had_isolation != will_isolate_blending_descendants;
 
@@ -258,11 +259,9 @@ bool LayoutSVGContainer::NodeAtPoint(HitTestResult& result,
         local_location->Intersects(bounds)) {
       UpdateHitTestResult(result, PhysicalOffset::FromPointFRound(
                                       local_location->TransformedPoint()));
-      if (result.AddNodeToListBasedTestResult(
-              GetElement(), *local_location,
-              PhysicalRect::EnclosingRect(bounds)) == kStopHitTesting) {
+      if (result.AddNodeToListBasedTestResult(GetElement(), *local_location) ==
+          kStopHitTesting)
         return true;
-      }
     }
   }
   // 16.4: "If there are no graphics elements whose relevant graphics content is

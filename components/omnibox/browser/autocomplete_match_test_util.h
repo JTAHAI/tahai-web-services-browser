@@ -7,6 +7,7 @@
 
 #include "components/omnibox/browser/autocomplete_match.h"
 #include "components/omnibox/browser/autocomplete_match_type.h"
+#include "third_party/omnibox_proto/answer_type.pb.h"
 #include "third_party/omnibox_proto/suggest_template_info.pb.h"
 
 AutocompleteMatch CreateAutocompleteMatch(std::string name,
@@ -58,6 +59,8 @@ AutocompleteMatch CreateHistoryUrlMlScoredMatch(
     float ml_output);
 
 AutocompleteMatch CreateAnswerMlScoredMatch(std::string name,
+                                            omnibox::AnswerType answer_type,
+                                            std::string answer_json,
                                             bool allowed_to_be_default_match,
                                             int traditional_relevance,
                                             float ml_output);

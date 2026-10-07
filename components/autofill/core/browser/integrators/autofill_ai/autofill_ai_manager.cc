@@ -8,7 +8,6 @@
 #include <map>
 #include <memory>
 #include <optional>
-#include <ranges>
 #include <string>
 #include <utility>
 #include <variant>
@@ -27,7 +26,6 @@
 #include "base/memory/weak_ptr.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/metrics/histogram_macros.h"
-#include "base/notreached.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
 #include "base/strings/stringprintf.h"
@@ -35,20 +33,21 @@
 #include "base/time/time.h"
 #include "base/timer/timer.h"
 #include "base/types/optional_ref.h"
+#include "base/types/zip.h"
 #include "components/autofill/core/browser/autofill_ai_form_rationalization.h"
 #include "components/autofill/core/browser/autofill_field.h"
 #include "components/autofill/core/browser/data_manager/autofill_ai/entity_data_manager.h"
 #include "components/autofill/core/browser/data_model/autofill_ai/entity_instance.h"
 #include "components/autofill/core/browser/data_model/autofill_ai/entity_type.h"
 #include "components/autofill/core/browser/data_model/autofill_ai/entity_type_names.h"
-#include "components/autofill/core/browser/field_type_util.h"
+#include "components/autofill/core/browser/field_type_utils.h"
 #include "components/autofill/core/browser/form_processing/autofill_ai/determine_attribute_types.h"
 #include "components/autofill/core/browser/form_structure.h"
 #include "components/autofill/core/browser/foundations/autofill_client.h"
 #include "components/autofill/core/browser/foundations/autofill_driver.h"
 #include "components/autofill/core/browser/foundations/autofill_driver_factory.h"
-#include "components/autofill/core/browser/integrators/autofill_ai/autofill_ai_import_util.h"
-#include "components/autofill/core/browser/integrators/autofill_ai/autofill_ai_wallet_util.h"
+#include "components/autofill/core/browser/integrators/autofill_ai/autofill_ai_import_utils.h"
+#include "components/autofill/core/browser/integrators/autofill_ai/autofill_ai_wallet_utils.h"
 #include "components/autofill/core/browser/integrators/autofill_ai/metrics/autofill_ai_logger.h"
 #include "components/autofill/core/browser/integrators/autofill_ai/metrics/autofill_ai_metrics.h"
 #include "components/autofill/core/browser/integrators/autofill_ai/metrics/personal_context_metrics.h"
@@ -56,7 +55,7 @@
 #include "components/autofill/core/browser/ml_model/autofill_ai/autofill_ai_model_executor.h"
 #include "components/autofill/core/browser/network/autofill_ai/autofill_ai_personal_context_access_manager.h"
 #include "components/autofill/core/browser/network/autofill_ai/wallet_pass_access_manager.h"
-#include "components/autofill/core/browser/permissions/autofill_ai/autofill_ai_permission_util.h"
+#include "components/autofill/core/browser/permissions/autofill_ai/autofill_ai_permission_utils.h"
 #include "components/autofill/core/browser/strike_databases/autofill_ai/autofill_ai_save_strike_database_by_attribute.h"
 #include "components/autofill/core/browser/strike_databases/autofill_ai/autofill_ai_save_strike_database_by_host.h"
 #include "components/autofill/core/browser/strike_databases/autofill_ai/autofill_ai_update_strike_database.h"
@@ -67,7 +66,6 @@
 #include "components/autofill/core/common/autofill_features.h"
 #include "components/autofill/core/common/autofill_internals/log_message.h"
 #include "components/autofill/core/common/autofill_internals/logging_scope.h"
-#include "components/autofill/core/common/autofill_prefs.h"
 #include "components/autofill/core/common/dense_set.h"
 #include "components/autofill/core/common/form_data.h"
 #include "components/autofill/core/common/form_field_data.h"
@@ -82,6 +80,36 @@
 namespace autofill {
 
 namespace {
+
+bool DidUserExplicitlyAcceptedImportPrompt(
+    AutofillClient::AutofillAiBubbleResult result) {
+  switch (result) {
+    case AutofillClient::AutofillAiBubbleResult::kAccepted:
+    case AutofillClient::AutofillAiBubbleResult::kEditAccepted:
+      return true;
+    case AutofillClient::AutofillAiBubbleResult::kCancelled:
+    case AutofillClient::AutofillAiBubbleResult::kClosed:
+    case AutofillClient::AutofillAiBubbleResult::kUnknown:
+    case AutofillClient::AutofillAiBubbleResult::kNotInteracted:
+    case AutofillClient::AutofillAiBubbleResult::kLostFocus:
+      return false;
+  }
+}
+
+bool DidUserExplicitlyDeclineImportPrompt(
+    AutofillClient::AutofillAiBubbleResult result) {
+  switch (result) {
+    case AutofillClient::AutofillAiBubbleResult::kCancelled:
+    case AutofillClient::AutofillAiBubbleResult::kClosed:
+      return true;
+    case AutofillClient::AutofillAiBubbleResult::kUnknown:
+    case AutofillClient::AutofillAiBubbleResult::kAccepted:
+    case AutofillClient::AutofillAiBubbleResult::kEditAccepted:
+    case AutofillClient::AutofillAiBubbleResult::kNotInteracted:
+    case AutofillClient::AutofillAiBubbleResult::kLostFocus:
+      return false;
+  }
+}
 
 // Given an `entity`, returns the string to use as a strike key for each entry
 // in `entity.type().strike_keys()`.
@@ -143,22 +171,10 @@ EntityInstance GetMergedEntity(
   new_attributes.insert_range(observed_entity.attributes());
   // Add the remaining attributes from the saved entity.
   new_attributes.insert_range(saved_entity.attributes());
-  auto record_type_data = [&] -> EntityInstance::RecordTypeData {
-    switch (target_record_type) {
-      case EntityInstance::RecordType::kLocal:
-        return EntityInstance::LocalRecordTypePayload{};
-      case EntityInstance::RecordType::kServerWallet:
-        return EntityInstance::WalletRecordTypePayload{};
-      case EntityInstance::RecordType::kPersonalContext:
-        // pContext entities are read-only.
-        NOTREACHED();
-    }
-    NOTREACHED();
-  }();
   return EntityInstance(saved_entity.type(), std::move(new_attributes),
                         saved_entity.guid(), saved_entity.nickname(),
                         base::Time::Now(), saved_entity.use_count(),
-                        base::Time::Now(), std::move(record_type_data),
+                        base::Time::Now(), target_record_type,
                         EntityInstance::AreAttributesReadOnly(false),
                         /*frecency_override=*/"");
 }
@@ -174,27 +190,25 @@ bool IsSaveAsynchronous(EntityType type,
 
 void PrefetchAmbientAutofillContext(AutofillClient& client,
                                     AutofillManager& manager) {
-  DenseSet<EntityType> types;
+  DenseSet<EntityType> relevant_types;
   manager.ForEachCachedForm([&](const FormStructure& form) {
-    types.insert_all(GetRelevantEntityTypesForFields(form.fields()));
+    relevant_types.insert_all(GetRelevantEntityTypesForFields(form.fields()));
   });
-
-  // Filter for allowed types in a separate pass to avoid redundant
-  // `MayPerformAutofillAiAction` calls.
-  for (EntityType type : types) {
-    if (!MayPerformAutofillAiAction(
-            client, AutofillAiAction::kTypeSupportsAmbientAutofillData, type)) {
-      types.erase(type);
-    }
-  }
-
-  if (types.empty()) {
+  if (relevant_types.empty()) {
     return;
   }
 
   if (AutofillAiPersonalContextAccessManager* access_manager =
           client.GetAutofillAiPersonalContextAccessManager()) {
-    access_manager->PrefetchContext(types);
+    base::flat_set<EntityType> requested_types(std::from_range, relevant_types);
+    base::EraseIf(requested_types, [&](const EntityType& type) {
+      return !MayPerformAutofillAiAction(
+          client, AutofillAiAction::kTypeSupportsAmbientAutofillData, type);
+    });
+    if (requested_types.empty()) {
+      return;
+    }
+    access_manager->PrefetchContext(requested_types);
   }
 }
 
@@ -297,15 +311,6 @@ void AutofillAiManager::OnAutofillAiSuggestionsShown(
           .accepted_entity_record_type = std::nullopt,
           .autofill_ai_field_types = field.Type().GetAutofillAiTypes()}});
   }
-
-  if (std::ranges::contains(shown_suggestions,
-                            SuggestionType::kAutofillAiPrivateInferenceNotice,
-                            &Suggestion::type)) {
-    if (PrefService* const prefs = client_->GetPrefs()) {
-      prefs->SetTime(prefs::kAutofillAiPrivateInferenceNoticeShownTimestamp,
-                     base::Time::Now());
-    }
-  }
 }
 
 void AutofillAiManager::OnFormSeen(const FormStructure& form) {
@@ -337,7 +342,6 @@ void AutofillAiManager::OnFormInteracted(const FormStructure& form,
           client_->GetAutofillAiPersonalContextAccessManager();
       if (access_manager) {
         LogPersonalContextCacheReadinessOnFirstInteraction(
-            *supported_type,
             GetCacheReadinessState(*access_manager,
                                    client_->GetEntityDataManager(),
                                    *supported_type));
@@ -398,8 +402,7 @@ void AutofillAiManager::OnEditedAutofilledField(const FormStructure& form,
 }
 
 void AutofillAiManager::OnAfterLoadedServerPredictions(
-    AutofillManager& manager,
-    base::span<const FormGlobalId> forms) {
+    AutofillManager& manager) {
   if (MayPerformAutofillAiAction(*client_,
                                  AutofillAiAction::kAmbientAutofill)) {
     PrefetchAmbientAutofillContext(*client_, manager);
@@ -496,8 +499,7 @@ bool AutofillAiManager::MaybeImportForm(const FormStructure& form,
     prompt_shown = true;
     AutofillClient::EntityImportPromptResultCallback prompt_result_callback =
         base::BindOnce(&AutofillAiManager::HandlePromptResult, GetWeakPtr(),
-                       form.ToFormData(), candidate_entity, ukm_source_id,
-                       prompt_type);
+                       form.ToFormData(), candidate_entity, ukm_source_id, prompt_type);
 
     std::optional<EntityInstance> old_entity;
     if (prompt_type == AutofillClient::AutofillAiImportPromptType::kUpdate) {
@@ -852,7 +854,7 @@ AutofillAiManager::GetSavePromptCandidates(
         entities_mergeabilities) const {
   std::vector<EntityImportPromptCandidate> save_candidates;
   for (const auto [observed_entity, mergeabilities] :
-       std::views::zip(observed_entities, entities_mergeabilities)) {
+       base::zip(observed_entities, entities_mergeabilities)) {
     // Discard `observed_entity` if it is a subset of some saved entity.
     if (std::ranges::any_of(
             mergeabilities,
@@ -867,7 +869,7 @@ AutofillAiManager::GetSavePromptCandidates(
     // here because they cannot be updated.
     bool has_non_readonly_mergeable_entity = false;
     for (auto [mergeability, saved_entity] :
-         std::views::zip(mergeabilities, saved_entities)) {
+         base::zip(mergeabilities, saved_entities)) {
       if (mergeability && !mergeability->mergeable_attributes.empty()) {
         // Read-only entities cannot be updated, so they do not block saving the
         // observed entity as a new entity. However, this save-promoting
@@ -901,7 +903,7 @@ AutofillAiManager::GetUpdatePromptCandidates(
         entities_mergeabilities) const {
   std::vector<EntityImportPromptCandidate> update_candidates;
   for (const auto [observed_entity, mergeabilities] :
-       std::views::zip(observed_entities, entities_mergeabilities)) {
+       base::zip(observed_entities, entities_mergeabilities)) {
     // Discard `observed_entity` if it is a subset of some saved entity.
     if (std::ranges::any_of(
             mergeabilities,
@@ -915,7 +917,7 @@ AutofillAiManager::GetUpdatePromptCandidates(
     // For each saved entity that is mergeable with `observed_entity`, we should
     // add an update prompt candidate.
     for (auto [mergeability, saved_entity] :
-         std::views::zip(mergeabilities, saved_entities)) {
+         base::zip(mergeabilities, saved_entities)) {
       if (!mergeability || mergeability->mergeable_attributes.empty() ||
           saved_entity.are_attributes_read_only() ||
           IsUpdateBlockedByStrikeDatabase(saved_entity.guid())) {

@@ -9,8 +9,8 @@
 #include "chrome/browser/bookmarks/bookmark_model_factory.h"
 #include "chrome/browser/content_settings/host_content_settings_map_factory.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/common/chrome_switches.h"
 #include "chrome/test/base/in_process_browser_test.h"
@@ -40,9 +40,8 @@ class PersistentStorageBrowserTest : public InProcessBrowserTest {
   void SetUpOnMainThread() override;
 
  protected:
-  content::RenderFrameHost* GetRenderFrameHost(
-      BrowserWindowInterface* browser) {
-    return browser->GetTabStripModel()
+  content::RenderFrameHost* GetRenderFrameHost(Browser* browser) {
+    return browser->tab_strip_model()
         ->GetActiveWebContents()
         ->GetPrimaryMainFrame();
   }
@@ -51,7 +50,7 @@ class PersistentStorageBrowserTest : public InProcessBrowserTest {
     return GetRenderFrameHost(browser());
   }
 
-  void Bookmark(BrowserWindowInterface* browser) {
+  void Bookmark(Browser* browser) {
     bookmarks::BookmarkModel* bookmark_model =
         BookmarkModelFactory::GetForBrowserContext(browser->GetProfile());
     bookmarks::test::WaitForBookmarkModelToLoad(bookmark_model);
@@ -165,13 +164,13 @@ IN_PROC_BROWSER_TEST_F(PersistentStorageBrowserTest, FirstTabSeesResult) {
 
   EXPECT_TRUE(RequestPermission());
 
-  browser()->GetTabStripModel()->ActivateTabAt(0);
+  browser()->tab_strip_model()->ActivateTabAt(0);
   EXPECT_TRUE(CheckPermission());
   EXPECT_EQ("granted", CheckPermissionUsingPermissionApi());
 }
 
 IN_PROC_BROWSER_TEST_F(PersistentStorageBrowserTest, Incognito) {
-  BrowserWindowInterface* browser = CreateIncognitoBrowser();
+  Browser* browser = CreateIncognitoBrowser();
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser, url_));
 
   Bookmark(browser);

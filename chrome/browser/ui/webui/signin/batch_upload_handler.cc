@@ -9,7 +9,7 @@
 #include <variant>
 
 #include "base/strings/to_string.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/webui/signin/batch_upload/batch_upload.mojom.h"
 #include "chrome/browser/ui/webui/signin/signin_utils.h"
 #include "chrome/grit/generated_resources.h"
@@ -19,22 +19,18 @@
 #include "components/sync/service/local_data_description.h"
 #include "net/base/url_util.h"
 #include "ui/base/l10n/l10n_util.h"
-#include "ui/base/ui_base_features.h"
 #include "url/gurl.h"
 #include "url/url_constants.h"
 
 #if BUILDFLAG(IS_MAC) || BUILDFLAG(IS_WIN)
 #include "chrome/browser/device_reauth/chrome_device_authenticator_factory.h"
 #include "components/device_reauth/device_authenticator.h"
-#include "components/tabs/public/tab_interface.h"
 #endif
 
 namespace {
 
 constexpr char kFolderIconUrl[] =
     "chrome://resources/images/icon_folder_open.svg";
-constexpr char kFolderOldIconUrl[] =
-    "chrome://resources/images/icon_folder_open_old.svg";
 
 // The subtitle of the dialog depends on which type of data is shown and the
 // number of different types.
@@ -151,8 +147,7 @@ GURL ComputeIconUrl(const syncer::LocalDataItemModel::Icon& icon) {
   }
 
   if (std::holds_alternative<syncer::LocalDataItemModel::FolderIcon>(icon)) {
-    return GURL(features::IsWebUIRoundedIconsEnabled() ? kFolderIconUrl
-                                                       : kFolderOldIconUrl);
+    return GURL(kFolderIconUrl);
   }
 
   NOTREACHED() << "Unsupported icon type, index: " << icon.index();
@@ -164,7 +159,7 @@ BatchUploadHandler::BatchUploadHandler(
     mojo::PendingReceiver<batch_upload::mojom::PageHandler> receiver,
     mojo::PendingRemote<batch_upload::mojom::Page> page,
     const AccountInfo& account_info,
-    BrowserWindowInterface* browser,
+    Browser* browser,
     std::vector<syncer::LocalDataDescription> local_data_description_list,
     base::RepeatingCallback<void(int)> update_view_height_callback,
     base::RepeatingCallback<void(bool)> allow_web_view_input_callback,
@@ -241,8 +236,8 @@ void BatchUploadHandler::SaveToAccount(
 
     device_authenticator_ = ChromeDeviceAuthenticatorFactory::GetForProfile(
         browser_->GetProfile(),
-        browser_->GetActiveTabInterface()
-            ->GetContents()
+        browser_->tab_strip_model()
+            ->GetActiveWebContents()
             ->GetTopLevelNativeWindow(),
         params);
 
@@ -284,7 +279,7 @@ BatchUploadHandler::ConstructMojoBatchUploadData(
 
   batch_upload::mojom::BatchUploadAccountInfoPtr account_info_mojo =
       batch_upload::mojom::BatchUploadAccountInfo::New();
-  account_info_mojo->email = account_info.GetEmail();
+  account_info_mojo->email = account_info.email;
   account_info_mojo->data_picture_url =
       signin::GetAccountPictureUrl(account_info);
 

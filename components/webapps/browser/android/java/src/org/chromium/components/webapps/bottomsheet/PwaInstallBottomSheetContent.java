@@ -58,7 +58,8 @@ public class PwaInstallBottomSheetContent implements BottomSheetContent {
 
     @Override
     public int getVerticalScrollOffset() {
-        return mView.getVerticalScrollOffset();
+        // TODO(finnur): Handle this correctly for small screens.
+        return 0;
     }
 
     @Override

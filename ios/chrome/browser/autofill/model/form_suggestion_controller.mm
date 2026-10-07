@@ -20,6 +20,7 @@
 #import "components/autofill/ios/browser/autofill_java_script_feature.h"
 #import "components/autofill/ios/browser/form_suggestion.h"
 #import "components/autofill/ios/browser/form_suggestion_provider.h"
+#import "components/autofill/ios/common/features.h"
 #import "components/autofill/ios/form_util/form_activity_params.h"
 #import "components/prefs/pref_service.h"
 #import "ios/chrome/browser/autofill/autofill_ai/public/autofill_ai_ui_util.h"
@@ -101,25 +102,31 @@ void RunSearchPipeline(NSArray<PipelineBlock>* blocks,
 UIImage* DefaultIconForType(FormSuggestion* suggestion,
                             web::WebState* web_state) {
   switch (suggestion.type) {
-    case autofill::SuggestionType::kUndo:
-      return SymbolWithPalette(
-          SymbolWithPointSize(SymbolArrowUTurnBackward, kSymbolActionPointSize),
-          @[
-            [UIColor colorNamed:kTextPrimaryColor],
-          ]);
+    case autofill::SuggestionType::kUndoOrClear:
+      if (suggestion.suggestionIconType == SuggestionIconType::kUndoAutofill &&
+          base::FeatureList::IsEnabled(kAutofillUndoIos)) {
+        return SymbolWithPalette(
+            DefaultSymbolWithPointSize(kArrowUTurnBackwardSymbol,
+                                       kSymbolActionPointSize),
+            @[
+              [UIColor colorNamed:kTextPrimaryColor],
+            ]);
+      } else {
+        return nil;
+      }
     case autofill::SuggestionType::kGeneratePasswordEntry:
       return MakeSymbolMulticolor(
-          SymbolWithPointSize(SymbolPasswordManager, kSymbolPointSize));
+          CustomSymbolWithPointSize(kPasswordManagerSymbol, kSymbolPointSize));
     case autofill::SuggestionType::kAddressEntry: {
       switch (suggestion.suggestionIconType) {
         case SuggestionIconType::kAccountHome:
           return SymbolWithPalette(
-              SymbolWithPointSize(SymbolHome, kSymbolPointSize), @[
+              DefaultSymbolWithPointSize(kHomeSymbol, kSymbolPointSize), @[
                 [UIColor colorNamed:kTextPrimaryColor],
               ]);
         case SuggestionIconType::kAccountWork:
           return SymbolWithPalette(
-              SymbolWithPointSize(SymbolWork, kSymbolPointSize), @[
+              DefaultSymbolWithPointSize(kWorkSymbol, kSymbolPointSize), @[
                 [UIColor colorNamed:kTextPrimaryColor],
               ]);
         default:
@@ -153,9 +160,10 @@ UIImage* DefaultIconForType(FormSuggestion* suggestion,
           /*tint_color=*/nil);
     }
     case autofill::SuggestionType::kAutocompleteAtMemoryButton:
-      return SymbolWithPalette(SymbolWithPointSize(SymbolMagnifyingglassSpark,
-                                                   kSymbolActionPointSize),
-                               @[ [UIColor colorNamed:kTextPrimaryColor] ]);
+      return SymbolWithPalette(
+          CustomSymbolWithPointSize(kMagnifyingglassSparkSymbol,
+                                    kSymbolActionPointSize),
+          @[ [UIColor colorNamed:kTextPrimaryColor] ]);
     case autofill::SuggestionType::kAutocompleteEntry:
     default:
       return nil;
@@ -303,8 +311,8 @@ bool IsRequestDedupingAllowed() {
         formRendererID:params.form_renderer_id
        fieldIdentifier:base::SysUTF8ToNSString(params.field_identifier)
        fieldRendererID:params.field_renderer_id
-             fieldType:params.field_type
-                  type:params.type
+             fieldType:base::SysUTF8ToNSString(params.field_type)
+                  type:base::SysUTF8ToNSString(params.type)
             typedValue:base::SysUTF8ToNSString(params.value)
                frameID:base::SysUTF8ToNSString(params.frame_id)
           onlyPassword:NO];

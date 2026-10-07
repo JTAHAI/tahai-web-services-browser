@@ -21,8 +21,7 @@ namespace webnn {
 struct OfflineCompilationSupport {
   // The supported device type.
   mojom::Device device_type;
-  // Supported device IDs corresponding to the device type. An empty span means
-  // all device IDs of `device_type` are supported.
+  // Supported device IDs corresponding to the device type.
   base::raw_span<const uint32_t> device_ids;
   // Libraries that must be preloaded before sandbox lockdown. This list should
   // only contain workarounds when compiling a graph has issues to load a
@@ -52,20 +51,6 @@ inline constexpr OfflineCompilationSupport kOpenVINOOfflineCompilation[] = {
                 // issue.
                 "openvino_intel_npu_compiler.dll",
             },
-    },
-};
-
-// The WebGPU EP is vendor-agnostic and backs a generic virtual GPU device, so
-// it supports offline compilation for any GPU regardless of device ID. The
-// default empty `device_ids` span expresses that "any device ID" support.
-// Combined with the EP-level `vendor_id` of 0, this represents a
-// vendor-agnostic generic virtual device, which is only registered when the
-// environment is created with "allow_virtual_devices" enabled; device matching
-// in the sandboxed Compiler process then resolves the target to that virtual
-// device.
-inline constexpr OfflineCompilationSupport kWebGpuOfflineCompilation[] = {
-    {
-        .device_type = mojom::Device::kGpu,
     },
 };
 
@@ -99,6 +84,11 @@ struct EpWorkarounds {
   // NCHW layout. `ContextProperties.resample_2d_axes` will be updated to
   // respect this limit.
   bool resample2d_limit_to_nchw = false;
+
+  // The maximum K dimension size of batched MatMul on certain NPU devices.
+  // It is unnecessary to compute `|=` operation result across EP devices,
+  // because there will be only one NPU device EP.
+  std::optional<uint32_t> npu_batched_matmul_k_dimension_limit;
 
   // Whether the EP may report the NPU driver version in legacy concatenated
   // format (e.g., "1004404") instead of 4-part dot-separated format.
@@ -193,6 +183,11 @@ inline constexpr auto kKnownEPs = base::MakeFixedFlatMap<std::string_view,
             .workarounds =
                 {
                     .resample2d_limit_to_nchw = true,
+                    // The OpenVINO NPU limits the batched MatMul K dimension
+                    // size to 8192.
+                    // For more details, see GraphBuilderOrt::AddMatMulOperation
+                    // in src/services/webnn/graph_builder_ort.cc.
+                    .npu_batched_matmul_k_dimension_limit = 8192,
                     // The OpenVINO EP currently reports NPU driver versions in
                     // legacy concatenated format (e.g., "1004404").
                     .npu_concatenated_driver_version = true,
@@ -283,27 +278,6 @@ inline constexpr auto kKnownEPs = base::MakeFixedFlatMap<std::string_view,
             // https://github.com/microsoft/onnxruntime/blob/a91b0b4/onnxruntime/core/providers/webgpu/ep/factory.cc#L66
             .vendor_id = 0,
             .enabled = false,
-            // The WebGPU EP does not enable int64 ops by default. WebNN
-            // requires int64 support, so enable it explicitly. Key and value
-            // must align with the ORT WebGPU EP implementation. See:
-            // https://github.com/microsoft/onnxruntime/blob/47faa11b035d53c49f3f93e815d004e616d360ca/onnxruntime/core/providers/webgpu/webgpu_provider_options.h#L18
-            //
-            // The WebGPU EP disables robust buffer access by default in
-            // release builds (for performance). Enable it explicitly so
-            // out-of-bounds accesses in generated shaders are
-            // clamped/bounds-checked by the WebGPU runtime instead of reading
-            // or writing arbitrary GPU memory. WebNN runs untrusted web
-            // content, so this is enabled to harden Chrome's security. Key and
-            // value must align with the ORT WebGPU EP implementation. See:
-            // https://github.com/microsoft/onnxruntime/blob/4576ea193c1c322115d2a75bb88026310add77c0/onnxruntime/core/providers/webgpu/webgpu_provider_options.h#L37
-            .config_entries =
-                (const SessionConfigEntry[]){
-                    {.key = "ep.webgpuexecutionprovider.enableInt64",
-                     .value = "1"},
-                    {.key = "ep.webgpuexecutionprovider.enableRobustness",
-                     .value = "1"},
-                },
-            .offline_compilation_support = internal::kWebGpuOfflineCompilation,
         },
     },
 });

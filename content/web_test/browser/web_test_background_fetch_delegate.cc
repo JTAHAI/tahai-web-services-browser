@@ -224,8 +224,7 @@ class WebTestBackgroundFetchDelegate::WebTestBackgroundFetchDownloadClient
                      download::GetUploadDataCallback callback) override {
     if (!guid_to_request_body_mapping_[guid]) {
       base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
-          FROM_HERE, base::BindOnce(std::move(callback),
-                                    download::DownloadRequestParameters()));
+          FROM_HERE, base::BindOnce(std::move(callback), nullptr));
       return;
     }
 
@@ -235,25 +234,16 @@ class WebTestBackgroundFetchDelegate::WebTestBackgroundFetchDownloadClient
                        weak_ptr_factory_.GetWeakPtr(), std::move(callback)));
   }
 
-  void DidGetUploadData(
-      download::GetUploadDataCallback callback,
-      content::BackgroundFetchDelegate::Client::GetUploadDataResponse
-          response) {
-    download::DownloadRequestParameters params;
-    params.url_loader_factory = std::move(response.url_loader_factory);
+  void DidGetUploadData(download::GetUploadDataCallback callback,
+                        blink::mojom::SerializedBlobPtr blob) {
+    mojo::PendingRemote<network::mojom::DataPipeGetter> data_pipe_getter_remote;
+    mojo::Remote<blink::mojom::Blob> blob_remote(std::move(blob->blob));
+    blob_remote->AsDataPipeGetter(
+        data_pipe_getter_remote.InitWithNewPipeAndPassReceiver());
 
-    if (response.blob) {
-      mojo::PendingRemote<network::mojom::DataPipeGetter>
-          data_pipe_getter_remote;
-      mojo::Remote<blink::mojom::Blob> blob_remote(
-          std::move(response.blob->blob));
-      blob_remote->AsDataPipeGetter(
-          data_pipe_getter_remote.InitWithNewPipeAndPassReceiver());
-
-      params.post_body = base::MakeRefCounted<network::ResourceRequestBody>();
-      params.post_body->AppendDataPipe(std::move(data_pipe_getter_remote));
-    }
-    std::move(callback).Run(std::move(params));
+    auto request_body = base::MakeRefCounted<network::ResourceRequestBody>();
+    request_body->AppendDataPipe(std::move(data_pipe_getter_remote));
+    std::move(callback).Run(std::move(request_body));
   }
 
   const base::WeakPtr<content::BackgroundFetchDelegate::Client>& client()
@@ -328,8 +318,7 @@ void WebTestBackgroundFetchDelegate::DownloadUrl(
     ::network::mojom::CredentialsMode credentials_mode,
     const net::NetworkTrafficAnnotationTag& traffic_annotation,
     const net::HttpRequestHeaders& headers,
-    bool has_request_body,
-    scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory) {
+    bool has_request_body) {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
 
   background_fetch_client_->RegisterDownload(download_guid, job_unique_id,
@@ -341,7 +330,6 @@ void WebTestBackgroundFetchDelegate::DownloadUrl(
   params.request_params.method = method;
   params.request_params.url = url;
   params.request_params.request_headers = headers;
-  params.request_params.url_loader_factory = std::move(url_loader_factory);
   params.traffic_annotation =
       net::MutableNetworkTrafficAnnotationTag(traffic_annotation);
 

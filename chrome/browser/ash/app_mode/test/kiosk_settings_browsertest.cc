@@ -15,10 +15,9 @@
 #include "chrome/browser/ash/app_mode/kiosk_system_session.h"
 #include "chrome/browser/ash/app_mode/test/kiosk_mixin.h"
 #include "chrome/browser/ash/app_mode/test/kiosk_test_utils.h"
-#include "chrome/browser/ash/browser_delegate/browser_delegate.h"
 #include "chrome/browser/chromeos/app_mode/kiosk_settings_navigation_throttle.h"
 #include "chrome/browser/ui/ash/login/login_display_host.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/navigator/browser_navigator.h"
 #include "chrome/browser/ui/navigator/browser_navigator_params.h"
 #include "chrome/test/base/in_process_browser_test.h"
@@ -30,7 +29,6 @@
 #include "extensions/browser/app_window/app_window.h"
 #include "extensions/browser/app_window/app_window_registry.h"
 #include "testing/gtest/include/gtest/gtest.h"
-#include "ui/base/base_window.h"
 #include "ui/base/page_transition_types.h"
 #include "ui/base/window_open_disposition.h"
 
@@ -50,8 +48,10 @@ KioskSystemSession& GetKioskSystemSession() {
   return CHECK_DEREF(KioskController::Get().GetKioskSystemSession());
 }
 
-content::WebContents& ActiveWebContents(BrowserDelegate& browser) {
-  return CHECK_DEREF(browser.GetActiveWebContents());
+content::WebContents& ActiveWebContents(Browser& browser) {
+  content::WebContents& web_contents =
+      CHECK_DEREF(browser.tab_strip_model()->GetActiveWebContents());
+  return web_contents;
 }
 
 NavigateParams NavigateAndReturnParams(const GURL& url,
@@ -71,14 +71,14 @@ bool OpenPopup(const GURL& url) {
 }
 
 // Navigates to `url` in the current tab, and returns the browser.
-BrowserWindowInterface& NavigateInCurrentTab(const GURL& url) {
+Browser& NavigateInCurrentTab(const GURL& url) {
   auto params =
       NavigateAndReturnParams(url, WindowOpenDisposition::CURRENT_TAB);
   CHECK(params.browser);
-  return *params.browser;
+  return CHECK_DEREF(params.browser->GetBrowserForMigrationOnly());
 }
 
-GURL NavigateInBrowser(BrowserDelegate& browser, const GURL& url) {
+GURL NavigateInBrowser(Browser& browser, const GURL& url) {
   auto& web_contents = ActiveWebContents(browser);
   NavigateToURLBlockUntilNavigationsComplete(
       /*web_contents=*/&web_contents, url,
@@ -87,7 +87,7 @@ GURL NavigateInBrowser(BrowserDelegate& browser, const GURL& url) {
   return web_contents.GetLastCommittedURL();
 }
 
-GURL NextCommittedUrl(BrowserDelegate& browser) {
+GURL NextCommittedUrl(Browser& browser) {
   auto& web_contents = ActiveWebContents(browser);
   content::TestNavigationObserver(&web_contents,
                                   /*expected_number_of_navigations=*/1)
@@ -96,7 +96,7 @@ GURL NextCommittedUrl(BrowserDelegate& browser) {
 }
 
 // Navigates within the page, and waits for it to take effect.
-void NavigateInPage(BrowserDelegate& browser, const GURL& url) {
+void NavigateInPage(Browser& browser, const GURL& url) {
   auto& web_contents = ActiveWebContents(browser);
   content::TestNavigationObserver observer(&web_contents, 1);
 
@@ -163,8 +163,7 @@ IN_PROC_BROWSER_TEST_P(KioskSettingsTest, CanNavigateToSettingsUrl) {
   ASSERT_TRUE(OpenPopup(settings_url));
 
   auto& session = GetKioskSystemSession();
-  BrowserDelegate& settings =
-      CHECK_DEREF(session.GetSettingsBrowserForTesting());
+  Browser& settings = CHECK_DEREF(session.GetSettingsBrowserForTesting());
   ASSERT_EQ(NextCommittedUrl(settings), settings_url);
 }
 
@@ -179,8 +178,7 @@ IN_PROC_BROWSER_TEST_P(KioskSettingsTest, CanNavigateToSettingsSubUrl) {
   ASSERT_TRUE(OpenPopup(settings_suburl));
 
   auto& session = GetKioskSystemSession();
-  BrowserDelegate& settings =
-      CHECK_DEREF(session.GetSettingsBrowserForTesting());
+  Browser& settings = CHECK_DEREF(session.GetSettingsBrowserForTesting());
   EXPECT_EQ(NextCommittedUrl(settings), settings_suburl);
 }
 
@@ -199,8 +197,7 @@ IN_PROC_BROWSER_TEST_P(KioskSettingsTest, CannotNavigateToNonSettingsUrl) {
   ASSERT_TRUE(OpenPopup(settings_url));
 
   auto& session = GetKioskSystemSession();
-  BrowserDelegate& settings =
-      CHECK_DEREF(session.GetSettingsBrowserForTesting());
+  Browser& settings = CHECK_DEREF(session.GetSettingsBrowserForTesting());
   ASSERT_EQ(NextCommittedUrl(settings), settings_url);
 
   const GURL committed_url = NavigateInBrowser(settings, other_url);
@@ -222,8 +219,7 @@ IN_PROC_BROWSER_TEST_P(KioskSettingsTest, CannotNavigateToDisallowedSubUrl) {
   // Navigating away from settings in an existing settings window doesn't work.
   ASSERT_TRUE(OpenPopup(settings_url));
   auto& session = GetKioskSystemSession();
-  BrowserDelegate& settings =
-      CHECK_DEREF(session.GetSettingsBrowserForTesting());
+  Browser& settings = CHECK_DEREF(session.GetSettingsBrowserForTesting());
   ASSERT_EQ(NextCommittedUrl(settings), settings_url);
 
   const GURL committed_url = NavigateInBrowser(settings, settings_suburl);
@@ -237,11 +233,10 @@ IN_PROC_BROWSER_TEST_P(KioskSettingsTest, CannotNavigateInPageToDisallowedUrl) {
   ASSERT_TRUE(OpenPopup(settings_url));
 
   auto& session = GetKioskSystemSession();
-  BrowserDelegate& settings =
-      CHECK_DEREF(session.GetSettingsBrowserForTesting());
+  Browser& settings = CHECK_DEREF(session.GetSettingsBrowserForTesting());
   ASSERT_EQ(NextCommittedUrl(settings), settings_url);
 
-  ui_test_utils::BrowserDestroyedObserver observer(&settings.GetBrowser());
+  ui_test_utils::BrowserDestroyedObserver observer(&settings);
 
   NavigateInPage(settings, invalid_url);
 
@@ -257,8 +252,7 @@ IN_PROC_BROWSER_TEST_P(KioskSettingsTest, CanNavigateInPageToAllowedSubUrl) {
   ASSERT_TRUE(OpenPopup(settings_url));
 
   auto& session = GetKioskSystemSession();
-  BrowserDelegate& settings =
-      CHECK_DEREF(session.GetSettingsBrowserForTesting());
+  Browser& settings = CHECK_DEREF(session.GetSettingsBrowserForTesting());
   ASSERT_EQ(NextCommittedUrl(settings), settings_url);
 
   NavigateInPage(settings, settings_suburl);
@@ -279,13 +273,12 @@ IN_PROC_BROWSER_TEST_P(KioskSettingsTest, DoesNotOpenTwoSettingsBrowsers) {
   ASSERT_TRUE(OpenPopup(settings_url_1));
 
   auto& session = GetKioskSystemSession();
-  BrowserDelegate& first_settings =
-      CHECK_DEREF(session.GetSettingsBrowserForTesting());
+  Browser& first_settings = CHECK_DEREF(session.GetSettingsBrowserForTesting());
   ASSERT_EQ(NextCommittedUrl(first_settings), settings_url_1);
 
   ASSERT_TRUE(OpenPopup(settings_url_2));
 
-  BrowserDelegate& second_settings =
+  Browser& second_settings =
       CHECK_DEREF(session.GetSettingsBrowserForTesting());
   ASSERT_EQ(NextCommittedUrl(second_settings), settings_url_2);
 
@@ -302,14 +295,13 @@ IN_PROC_BROWSER_TEST_P(KioskSettingsTest,
 
   // Navigation in the current tab creates a new browser of app type, and closes
   // the non-app one.
-  BrowserWindowInterface& browser = NavigateInCurrentTab(settings_url);
+  Browser& browser = NavigateInCurrentTab(settings_url);
   EXPECT_FALSE(DidKioskCloseNewWindow());
   EXPECT_FALSE(DidKioskCloseNewWindow());
 
-  BrowserDelegate* settings =
-      GetKioskSystemSession().GetSettingsBrowserForTesting();
+  Browser* settings = GetKioskSystemSession().GetSettingsBrowserForTesting();
   ASSERT_NE(settings, nullptr);
-  EXPECT_NE(&browser, &settings->GetBrowser());
+  EXPECT_NE(&browser, settings);
 }
 
 IN_PROC_BROWSER_TEST_P(KioskSettingsTest,
@@ -326,11 +318,11 @@ IN_PROC_BROWSER_TEST_P(KioskSettingsTest,
 
   // Settings browser is no longer null once a settings window opens.
   ASSERT_TRUE(OpenPopup(settings_url));
-  BrowserDelegate* settings = session.GetSettingsBrowserForTesting();
+  Browser* settings = session.GetSettingsBrowserForTesting();
   ASSERT_NE(settings, nullptr);
 
   // Settings browser becomes null when the settings window closes.
-  CloseBrowserSynchronously(&settings->GetBrowser());
+  CloseBrowserSynchronously(settings);
   ASSERT_EQ(session.GetSettingsBrowserForTesting(), nullptr);
 }
 
@@ -339,8 +331,7 @@ IN_PROC_BROWSER_TEST_P(KioskSettingsTest, CanRefocusSettings) {
   ASSERT_TRUE(OpenPopup(GURL("chrome://os-settings/manageAccessibility")));
 
   auto& session = GetKioskSystemSession();
-  BrowserDelegate& settings =
-      CHECK_DEREF(session.GetSettingsBrowserForTesting());
+  Browser& settings = CHECK_DEREF(session.GetSettingsBrowserForTesting());
 
   // The settings browser is focused.
   EXPECT_TRUE(settings.GetWindow()->IsActive());

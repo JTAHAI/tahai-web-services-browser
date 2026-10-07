@@ -25,7 +25,6 @@ public class SecurityButtonAnimationDelegate {
     private final View mSecurityIconOffsetTarget;
     private final AnimatorSet mSecurityButtonShowAnimator;
     private final AnimatorSet mSecurityButtonHideAnimator;
-    private final ObjectAnimator mTranslateRight;
     private final ObjectAnimator mTranslateLeft;
     private ImageButton mSecurityButton;
     private int mSecurityButtonWidth;
@@ -40,37 +39,42 @@ public class SecurityButtonAnimationDelegate {
                 mSecurityButton.getResources().getDimensionPixelSize(securityButtonIconSize);
 
         mSecurityButtonShowAnimator = new AnimatorSet();
-        mTranslateRight =
-                ObjectAnimator.ofFloat(
-                        mSecurityIconOffsetTarget, View.TRANSLATION_X, -mSecurityButtonWidth, 0);
-        mTranslateRight.setInterpolator(Interpolators.FAST_OUT_SLOW_IN_INTERPOLATOR);
-        mTranslateRight.setDuration(SLIDE_DURATION_MS);
+        Animator translateRight =
+                ObjectAnimator.ofFloat(mSecurityIconOffsetTarget, View.TRANSLATION_X, 0);
+        translateRight.setInterpolator(Interpolators.FAST_OUT_SLOW_IN_INTERPOLATOR);
+        translateRight.setDuration(SLIDE_DURATION_MS);
 
-        Animator fadeIn = ObjectAnimator.ofFloat(mSecurityButton, View.ALPHA, 1f);
+        Animator fadeIn = ObjectAnimator.ofFloat(mSecurityButton, View.ALPHA, 1);
         fadeIn.setInterpolator(Interpolators.LINEAR_OUT_SLOW_IN_INTERPOLATOR);
         fadeIn.setDuration(FADE_DURATION_MS);
-        mSecurityButtonShowAnimator.playSequentially(mTranslateRight, fadeIn);
+        fadeIn.addListener(
+                new CancelAwareAnimatorListener() {
+                    @Override
+                    public void onStart(Animator animation) {
+                        mSecurityButton.setVisibility(View.VISIBLE);
+                    }
+                });
+        mSecurityButtonShowAnimator.playSequentially(translateRight, fadeIn);
 
         mSecurityButtonHideAnimator = new AnimatorSet();
-        Animator fadeOut = ObjectAnimator.ofFloat(mSecurityButton, View.ALPHA, 0f);
+        Animator fadeOut = ObjectAnimator.ofFloat(mSecurityButton, View.ALPHA, 0);
         fadeOut.setInterpolator(Interpolators.FAST_OUT_LINEAR_IN_INTERPOLATOR);
         fadeOut.setDuration(FADE_DURATION_MS);
-
-        mTranslateLeft =
-                ObjectAnimator.ofFloat(
-                        mSecurityIconOffsetTarget, View.TRANSLATION_X, 0, -mSecurityButtonWidth);
-        mTranslateLeft.setInterpolator(Interpolators.FAST_OUT_SLOW_IN_INTERPOLATOR);
-        mTranslateLeft.setDuration(SLIDE_DURATION_MS);
-        mTranslateLeft.addListener(
+        fadeOut.addListener(
                 new CancelAwareAnimatorListener() {
                     @Override
                     public void onEnd(Animator animation) {
-                        mSecurityButton.setVisibility(View.GONE);
+                        mSecurityButton.setVisibility(View.INVISIBLE);
                         // No icon to display.
                         mSecurityButton.setImageDrawable(null);
-                        mSecurityIconOffsetTarget.setTranslationX(0);
                     }
                 });
+
+        mTranslateLeft =
+                ObjectAnimator.ofFloat(
+                        mSecurityIconOffsetTarget, View.TRANSLATION_X, -mSecurityButtonWidth);
+        mTranslateLeft.setInterpolator(Interpolators.FAST_OUT_SLOW_IN_INTERPOLATOR);
+        mTranslateLeft.setDuration(SLIDE_DURATION_MS);
         mSecurityButtonHideAnimator.playSequentially(fadeOut, mTranslateLeft);
     }
 
@@ -91,13 +95,10 @@ public class SecurityButtonAnimationDelegate {
      */
     void setSecurityButtonWidth(int width) {
         mSecurityButtonWidth = width;
-        mTranslateRight.setFloatValues(-mSecurityButtonWidth, 0);
-        mTranslateLeft.setFloatValues(0, -mSecurityButtonWidth);
+        mTranslateLeft.setFloatValues(-mSecurityButtonWidth);
     }
 
-    /**
-     * @see SecurityButtonAnimationDelegate#updateSecurityButton(int, boolean, boolean)
-     */
+    /** {@see SecurityButtonAnimationDelegate#updateSecurityButton(int, boolean, boolean)} */
     public void updateSecurityButton(int securityIconResource, boolean animate) {
         updateSecurityButton(securityIconResource, animate, /* isActualResourceChange= */ true);
     }
@@ -128,52 +129,32 @@ public class SecurityButtonAnimationDelegate {
     private void showSecurityButton(boolean animate) {
         if (mSecurityButtonHideAnimator.isStarted()) mSecurityButtonHideAnimator.cancel();
         if (mSecurityButtonShowAnimator.isStarted()
-                || (mSecurityButton.getVisibility() == View.VISIBLE
-                        && mSecurityButton.getAlpha() == 1f
-                        && mSecurityIconOffsetTarget.getTranslationX() == 0)) {
+                || mSecurityButton.getVisibility() == View.VISIBLE) {
             return;
-        }
-
-        if (!animate) {
-            // Directly update to end state without animation.
-            mSecurityButton.setVisibility(View.VISIBLE);
-            mSecurityButton.setAlpha(1f);
-            mSecurityIconOffsetTarget.setTranslationX(0);
-            return;
-        }
-
-        if (mSecurityButton.getVisibility() != View.VISIBLE) {
-            mSecurityButton.setVisibility(View.VISIBLE);
-            mSecurityButton.setAlpha(0f);
-            mSecurityIconOffsetTarget.setTranslationX(-mSecurityButtonWidth);
-            mTranslateRight.setFloatValues(-mSecurityButtonWidth, 0);
-        } else {
-            mTranslateRight.setFloatValues(mSecurityIconOffsetTarget.getTranslationX(), 0);
         }
 
         mSecurityButtonShowAnimator.start();
+
+        if (!animate) {
+            // Directly update to end state without animation.
+            mSecurityButtonShowAnimator.end();
+        }
     }
 
     /** Hides the security button, either immediately or via an animation. */
     private void hideSecurityButton(boolean animate) {
         if (mSecurityButtonShowAnimator.isStarted()) mSecurityButtonShowAnimator.cancel();
         if (mSecurityButtonHideAnimator.isStarted()
-                || (mSecurityButton.getVisibility() == View.GONE
-                        && mSecurityIconOffsetTarget.getTranslationX() == 0)) {
+                || mSecurityIconOffsetTarget.getTranslationX() == -mSecurityButtonWidth) {
             return;
         }
+
+        mSecurityButtonHideAnimator.start();
 
         if (!animate) {
             // Directly update to end state without animation.
-            mSecurityButton.setVisibility(View.GONE);
-            mSecurityButton.setImageDrawable(null);
-            mSecurityIconOffsetTarget.setTranslationX(0);
-            return;
+            mSecurityButtonHideAnimator.end();
         }
-
-        mTranslateLeft.setFloatValues(
-                mSecurityIconOffsetTarget.getTranslationX(), -mSecurityButtonWidth);
-        mSecurityButtonHideAnimator.start();
     }
 
     /** Returns whether an animation is currently running. */

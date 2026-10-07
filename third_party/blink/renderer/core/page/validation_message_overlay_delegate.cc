@@ -29,7 +29,6 @@
 #include "third_party/blink/renderer/platform/heap/garbage_collected.h"
 #include "third_party/blink/renderer/platform/text/platform_locale.h"
 #include "third_party/blink/renderer/platform/web_test_support.h"
-#include "third_party/blink/renderer/platform/wtf/text/format.h"
 
 namespace blink {
 
@@ -160,10 +159,8 @@ void ValidationMessageOverlayDelegate::CreatePage(const FrameOverlay& overlay) {
       nullptr, FrameInsertType::kInsertInConstructor, LocalFrameToken(),
       nullptr, nullptr, mojo::NullRemote());
   frame->SetView(MakeGarbageCollected<LocalFrameView>(*frame, view_size));
-  frame->Init(/*opener=*/nullptr, DocumentToken(),
-              /*initiator_state_token=*/base::UnguessableToken::Create(),
-              /*policy_container=*/nullptr, StorageKey(),
-              /*document_ukm_source_id=*/ukm::kInvalidSourceId,
+  frame->Init(/*opener=*/nullptr, DocumentToken(), /*policy_container=*/nullptr,
+              StorageKey(), /*document_ukm_source_id=*/ukm::kInvalidSourceId,
               /*creator_base_url=*/NullUrl());
   frame->View()->SetCanHaveScrollbars(false);
   frame->View()->SetBaseBackgroundColor(Color::kTransparent);
@@ -356,7 +353,7 @@ void ValidationMessageOverlayDelegate::AdjustBubblePosition(
                            AtomicString("shown-fully bottom-arrow"));
     container.SetInlineStyleProperty(
         CSSPropertyID::kTransformOrigin,
-        Format("{:.2f}% bottom", arrow_anchor_percent));
+        String::Format("%.2f%% bottom", arrow_anchor_percent));
   } else {
     GetElementById(AtomicString("outer-arrow-top"))
         .SetInlineStyleProperty(CSSPropertyID::kLeft, arrow_x,
@@ -367,7 +364,7 @@ void ValidationMessageOverlayDelegate::AdjustBubblePosition(
     container.setAttribute(html_names::kClassAttr, AtomicString("shown-fully"));
     container.SetInlineStyleProperty(
         CSSPropertyID::kTransformOrigin,
-        Format("{:.2f}% top", arrow_anchor_percent));
+        String::Format("%.2f%% top", arrow_anchor_percent));
   }
 }
 

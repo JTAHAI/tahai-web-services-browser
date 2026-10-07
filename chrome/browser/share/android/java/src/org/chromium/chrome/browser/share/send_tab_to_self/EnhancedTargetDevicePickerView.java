@@ -9,22 +9,19 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewParent;
-import android.view.WindowInsets;
+import android.widget.RelativeLayout;
 
 import androidx.annotation.Px;
 import androidx.annotation.StringRes;
-import androidx.core.view.WindowInsetsCompat;
-import androidx.recyclerview.widget.RecyclerView;
 
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.R;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController;
-import org.chromium.components.browser_ui.bottomsheet.BottomSheetController.SheetState;
-import org.chromium.components.browser_ui.bottomsheet.BottomSheetController.StateChangeReason;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetListViewBase;
 import org.chromium.components.browser_ui.bottomsheet.ItemDividerBase;
 
+import java.util.Objects;
 import java.util.Set;
 
 /** View for the Send Tab To Self Enhanced Bottom Sheet. */
@@ -48,42 +45,31 @@ class EnhancedTargetDevicePickerView extends BottomSheetListViewBase {
 
     final View mSendButton;
     final View mBottomActionsBlock;
-    final View mManageDevicesBlock;
     final View mManageDevicesLink;
 
     EnhancedTargetDevicePickerView(Context context, BottomSheetController bottomSheetController) {
         super(
                 bottomSheetController,
-                LayoutInflater.from(context)
-                        .inflate(R.layout.send_tab_to_self_enhanced_sheet, null),
+                (RelativeLayout)
+                        LayoutInflater.from(context)
+                                .inflate(R.layout.send_tab_to_self_enhanced_sheet, null),
                 true);
-        mSendButton = getContentView().findViewById(R.id.send_button);
-        // TODO(crbug.com/532092798): Explore methods to avoid jank during state transitions.
-        mBottomActionsBlock = getContentView().findViewById(R.id.bottom_actions_block);
-        mManageDevicesBlock = getContentView().findViewById(R.id.manage_devices_block);
-        mManageDevicesLink = getContentView().findViewById(R.id.manage_devices_link);
-        if (bottomSheetController.isLargeFormFactorUiEnabled(this)) {
-            updateManageDevicesVisibility(true);
-        }
+        mSendButton =
+                Objects.requireNonNull(
+                        getContentView().findViewById(R.id.send_button), "send_button not found");
+        mBottomActionsBlock =
+                Objects.requireNonNull(
+                        getContentView().findViewById(R.id.bottom_actions_block),
+                        "bottom_actions_block not found");
+        mManageDevicesLink =
+                Objects.requireNonNull(
+                        getContentView().findViewById(R.id.manage_devices_link),
+                        "manage_devices_link not found");
 
         setSheetItemListView(getContentView().findViewById(R.id.sheet_item_list));
         getSheetItemListView().addItemDecoration(new HorizontalDividerItemDecoration(context));
 
         getContentView().addOnAttachStateChangeListener(new ClipLayoutHelper());
-        if (bottomSheetController.isLargeFormFactorUiEnabled(this)) {
-            getContentView()
-                    .addOnLayoutChangeListener(
-                            (v, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom) -> {
-                                if (bottom - top != oldBottom - oldTop) {
-                                    int state = getBottomSheetController().getSheetState();
-                                    if (state == SheetState.HALF) {
-                                        handleHalfStateOverflow(getSheetItemListView());
-                                    } else if (state == SheetState.FULL) {
-                                        handleFullStateOverflow(getSheetItemListView());
-                                    }
-                                }
-                            });
-        }
     }
 
     @Override
@@ -123,84 +109,31 @@ class EnhancedTargetDevicePickerView extends BottomSheetListViewBase {
 
     @Override
     protected @Px int getDesiredSheetHeightPx() {
-        return getNonListHeightForState(/* forHalfState= */ true) + getInitialListHeight();
+        if (mSendButton.getMeasuredHeight() == 0) {
+            remeasure();
+        }
+        int sendButtonHeight = mSendButton.getMeasuredHeight();
+        int paddingTop = mBottomActionsBlock.getPaddingTop();
+        return super.getDesiredSheetHeightPx() + sendButtonHeight + paddingTop + getSideMarginPx();
     }
 
     @Override
     protected @Px int getMaximumSheetHeightPx() {
-        return getNonListHeightForState(/* forHalfState= */ false) + calculateListHeight();
-    }
-
-    private @Px int getNonListHeightForState(boolean forHalfState) {
-        int height = getHeaderAndHandlebarHeightPx();
-        int paddingTop = mBottomActionsBlock.getPaddingTop();
-        int paddingBottom = mBottomActionsBlock.getPaddingBottom();
-        int sendButtonHeight = getHeightWithMarginsPx(mSendButton);
-        height += paddingTop + sendButtonHeight + paddingBottom;
-        boolean isDesktop = getBottomSheetController().isLargeFormFactorUiEnabled(this);
-        if (!forHalfState || isDesktop) {
-            height += getHeightWithMarginsPx(mManageDevicesBlock);
-        }
-        return height;
-    }
-
-    private @Px int getHeaderAndHandlebarHeightPx() {
-        return getHeightWithMarginsPx(getHandlebar()) + getHeightWithMarginsPx(getHeaderView());
-    }
-
-    private @Px int getInitialListHeight() {
-        int initialHeight = super.getDesiredSheetHeightPx() - getHeaderAndHandlebarHeightPx();
-        if (initialHeight <= 0 && getBottomSheetController().isLargeFormFactorUiEnabled(this)) {
-            RecyclerView listView = getSheetItemListView();
-            if (listView.getAdapter() == null || listView.getAdapter().getItemCount() == 0) {
-                return 0;
-            }
-            int itemCount = listView.getAdapter().getItemCount();
-            int defaultItemHeight = getDefaultListHeightPx(listView, 1);
-            float visibleItemCount = Math.min(itemCount, MAX_FULLY_VISIBLE_LIST_ITEM_COUNT + 0.5f);
-            initialHeight = (int) (defaultItemHeight * visibleItemCount);
-        }
-        return Math.max(0, initialHeight);
-    }
-
-    private @Px int calculateListHeight() {
-        RecyclerView sheetItemListView = getSheetItemListView();
-        if (sheetItemListView.getAdapter() == null) {
-            return 0;
-        }
-
-        // itemCount is the total number of items in the adapter.
-        int itemCount = sheetItemListView.getAdapter().getItemCount();
-        if (itemCount == 0) {
-            return 0;
-        }
-
-        // childCount is the number of child views currently layouted in the RecyclerView.
-        int childCount = sheetItemListView.getChildCount();
-        View firstChild = childCount > 0 ? sheetItemListView.getChildAt(0) : null;
-        int itemHeight =
-                firstChild != null
-                        ? getHeightWithMarginsPx(firstChild)
-                        : getDefaultListHeightPx(sheetItemListView, 1);
-        return itemHeight * itemCount;
-    }
-
-    private @Px int getDefaultListHeightPx(RecyclerView listView, int itemCount) {
-        int defaultItemHeightPx =
-                listView.getContext()
-                        .getResources()
-                        .getDimensionPixelSize(R.dimen.stts_enhanced_list_item_height);
-        return itemCount * defaultItemHeightPx;
+        int maxHeight = super.getMaximumSheetHeightPx();
+        int bottomBlockHeight = mBottomActionsBlock.getMeasuredHeight();
+        return maxHeight + bottomBlockHeight;
     }
 
     @Override
     protected @Px int getConclusiveMarginHeightPx() {
-        return getContentView().getResources().getDimensionPixelSize(R.dimen.stts_sheet_padding);
+        int bottomBlockHeight = mBottomActionsBlock.getMeasuredHeight();
+        return bottomBlockHeight
+                + getContentView().getResources().getDimensionPixelSize(R.dimen.stts_sheet_padding);
     }
 
     @Override
     protected @Px int getSideMarginPx() {
-        return 0;
+        return getContentView().getResources().getDimensionPixelSize(R.dimen.stts_sheet_margin);
     }
 
     @Override
@@ -211,122 +144,6 @@ class EnhancedTargetDevicePickerView extends BottomSheetListViewBase {
     @Override
     protected Set<Integer> footerItemTypes() {
         return Set.of();
-    }
-
-    @Override
-    protected void onSheetStateChanged(@SheetState int newState, @StateChangeReason int reason) {
-        super.onSheetStateChanged(newState, reason);
-        onSheetStateChange(newState);
-    }
-
-    private void onSheetStateChange(@SheetState int newState) {
-        boolean inHalfState = newState == SheetState.HALF;
-        boolean isDesktop = getBottomSheetController().isLargeFormFactorUiEnabled(this);
-        updateManageDevicesVisibility(!inHalfState || isDesktop);
-        if (!isDesktop) {
-            remeasure();
-        }
-        RecyclerView sheetItemListView = getSheetItemListView();
-        if (inHalfState) {
-            handleHalfStateOverflow(sheetItemListView);
-        } else {
-            handleFullStateOverflow(sheetItemListView);
-        }
-    }
-
-    private void handleHalfStateOverflow(RecyclerView sheetItemListView) {
-        updateOverflowState(
-                sheetItemListView,
-                getInitialListHeight() < calculateListHeight(),
-                () -> limitListHeightForHalfState());
-    }
-
-    private void handleFullStateOverflow(RecyclerView sheetItemListView) {
-        int maxContainerHeight = getMaxAvailableHeightPx();
-        int nonListHeight = getNonListHeightForState(/* forHalfState= */ false);
-        int totalMaxHeight = nonListHeight + calculateListHeight();
-        boolean overflows = maxContainerHeight > 0 && totalMaxHeight > maxContainerHeight;
-        updateOverflowState(
-                sheetItemListView,
-                overflows,
-                () -> limitListHeightForFullState(maxContainerHeight, nonListHeight));
-    }
-
-    private void updateOverflowState(
-            RecyclerView sheetItemListView, boolean overflows, Runnable limitHeightAction) {
-        if (overflows) {
-            enableFadingEdge(sheetItemListView);
-            limitHeightAction.run();
-        } else {
-            disableFadingEdge(sheetItemListView);
-            resetListHeightToWrapContent(sheetItemListView);
-        }
-    }
-
-    private void limitListHeightForFullState(int maxContainerHeight, int nonListHeight) {
-        setSheetItemListHeightPx(Math.max(0, maxContainerHeight - nonListHeight));
-    }
-
-    private void updateManageDevicesVisibility(boolean visible) {
-        int visibility = visible ? View.VISIBLE : View.GONE;
-        if (mManageDevicesBlock.getVisibility() == visibility) return;
-        mManageDevicesBlock.setVisibility(visibility);
-    }
-
-    private @Px int getMaxAvailableHeightPx() {
-        if (getBottomSheetController().isLargeFormFactorUiEnabled(this)) {
-            int maxHeight = getBottomSheetController().getMaxSheetHeight();
-            return maxHeight > 0 ? maxHeight : getBottomSheetController().getContainerHeight();
-        }
-        return getBottomSheetController().getContainerHeight() - getSystemWindowInsetBottomPx();
-    }
-
-    private @Px int getSystemWindowInsetBottomPx() {
-        WindowInsets insets = getContentView().getRootWindowInsets();
-        if (insets == null) return 0;
-        return WindowInsetsCompat.toWindowInsetsCompat(insets, getContentView())
-                .getInsets(WindowInsetsCompat.Type.systemBars())
-                .bottom;
-    }
-
-    private void enableFadingEdge(RecyclerView listView) {
-        listView.setVerticalFadingEdgeEnabled(true);
-        int fadeLength =
-                listView.getResources().getDimensionPixelSize(R.dimen.stts_fading_edge_length);
-        listView.setFadingEdgeLength(fadeLength);
-    }
-
-    private void disableFadingEdge(RecyclerView listView) {
-        listView.setVerticalFadingEdgeEnabled(false);
-    }
-
-    private void limitListHeightForHalfState() {
-        int maxListHeight = getInitialListHeight();
-        int availableListHeight =
-                getMaxAvailableHeightPx() - getNonListHeightForState(/* forHalfState= */ true);
-        if (availableListHeight > 0 && maxListHeight > availableListHeight) {
-            maxListHeight = availableListHeight;
-        }
-        if (maxListHeight > 0) {
-            setSheetItemListHeightPx(maxListHeight);
-        }
-    }
-
-    private void resetListHeightToWrapContent(RecyclerView listView) {
-        ViewGroup.LayoutParams params = listView.getLayoutParams();
-        if (params != null && params.height != ViewGroup.LayoutParams.WRAP_CONTENT) {
-            params.height = ViewGroup.LayoutParams.WRAP_CONTENT;
-            listView.setLayoutParams(params);
-        }
-    }
-
-    private void setSheetItemListHeightPx(int targetHeight) {
-        RecyclerView sheetItemListView = getSheetItemListView();
-        ViewGroup.LayoutParams params = sheetItemListView.getLayoutParams();
-        if (params == null || params.height == targetHeight) return;
-
-        params.height = targetHeight;
-        sheetItemListView.setLayoutParams(params);
     }
 
     @Override

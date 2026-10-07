@@ -7,16 +7,18 @@
  * 'settings-keyboard-shortcut-page' is the settings page containing
  * the keyboard shortcut setting.
  */
+import 'chrome://resources/cr_elements/cr_shared_style.css.js';
+import 'chrome://resources/cr_elements/cr_shared_vars.css.js';
 import '../settings_page/settings_section.js';
+import '../settings_shared.css.js';
 import '../controls/settings_dropdown_menu.js';
 
-import {CrLitElement} from 'chrome://resources/lit/v3_0/lit.rollup.js';
+import {PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
 import type {DropdownMenuOptionList, SettingsDropdownMenuElement} from '../controls/settings_dropdown_menu.js';
 import {loadTimeData} from '../i18n_setup.js';
 
-import {getCss} from './keyboard_shortcut_page.css.js';
-import {getHtml} from './keyboard_shortcut_page.html.js';
+import {getTemplate} from './keyboard_shortcut_page.html.js';
 import {SearchEnginesBrowserProxyImpl, SearchEnginesInteractions} from './search_engines_browser_proxy.js';
 
 export interface KeyboardShortcutPageElement {
@@ -25,37 +27,40 @@ export interface KeyboardShortcutPageElement {
   };
 }
 
-export class KeyboardShortcutPageElement extends CrLitElement {
+export class KeyboardShortcutPageElement extends PolymerElement {
   static get is() {
     return 'settings-keyboard-shortcut-page';
   }
 
-  static override get styles() {
-    return getCss();
+  static get template() {
+    return getTemplate();
   }
 
-  override render() {
-    return getHtml.bind(this)();
-  }
-
-  static override get properties() {
+  static get properties() {
     return {
-      keyboardShortcutMenuOptions_: {type: Array},
+      keyboardShortcutMenuOptions_: {
+        readOnly: true,
+        type: Array,
+        value() {
+          return [
+            {
+              value: 'true',
+              name: loadTimeData.getString(
+                  'searchEnginesKeyboardShortcutsSpaceOrTab'),
+            },
+            {
+              value: 'false',
+              name: loadTimeData.getString('searchEnginesKeyboardShortcutsTab'),
+            },
+          ];
+        },
+      },
     };
   }
 
-  protected accessor keyboardShortcutMenuOptions_: DropdownMenuOptionList = [
-    {
-      value: 'true',
-      name: loadTimeData.getString('searchEnginesKeyboardShortcutsSpaceOrTab'),
-    },
-    {
-      value: 'false',
-      name: loadTimeData.getString('searchEnginesKeyboardShortcutsTab'),
-    },
-  ];
+  declare private keyboardShortcutMenuOptions_: DropdownMenuOptionList;
 
-  protected onKeyboardShortcutSettingsControlChange_() {
+  private onKeyboardShortcutSettingChange_() {
     const spaceEnabled = this.$.dropdown.getSelectedValue() === 'true';
 
     SearchEnginesBrowserProxyImpl.getInstance()

@@ -29,18 +29,11 @@ class PaymentHandlerProgressBar : public views::ProgressBar {
   PaymentHandlerProgressBar();
   ~PaymentHandlerProgressBar() override;
 
-  void SetThemeColor(std::optional<SkColor> theme_color);
   void SetColorBasedOnBackground(SkColor background_color);
-
-  // views::View:
-  void OnThemeChanged() override;
 
   base::WeakPtr<PaymentHandlerProgressBar> GetWeakPtr();
 
  private:
-  void UpdateColors();
-
-  std::optional<SkColor> theme_color_;
   base::WeakPtrFactory<PaymentHandlerProgressBar> weak_ptr_factory_{this};
 };
 
@@ -52,18 +45,11 @@ class PaymentHandlerOriginLabel : public views::Label {
   PaymentHandlerOriginLabel();
   ~PaymentHandlerOriginLabel() override;
 
-  void SetThemeColor(std::optional<SkColor> theme_color);
   void SetColorBasedOnBackground(SkColor background_color);
-
-  // views::View:
-  void OnThemeChanged() override;
 
   base::WeakPtr<PaymentHandlerOriginLabel> GetWeakPtr();
 
  private:
-  void UpdateColors();
-
-  std::optional<SkColor> theme_color_;
   base::WeakPtrFactory<PaymentHandlerOriginLabel> weak_ptr_factory_{this};
 };
 
@@ -76,18 +62,11 @@ class PaymentHandlerCloseButton : public views::ImageButton {
       views::Button::PressedCallback pressed_callback);
   ~PaymentHandlerCloseButton() override;
 
-  void SetThemeColor(std::optional<SkColor> theme_color);
   void SetColorBasedOnBackground(SkColor background_color);
-
-  // views::View:
-  void OnThemeChanged() override;
 
   base::WeakPtr<PaymentHandlerCloseButton> GetWeakPtr();
 
  private:
-  void UpdateColors();
-
-  std::optional<SkColor> theme_color_;
   base::WeakPtrFactory<PaymentHandlerCloseButton> weak_ptr_factory_{this};
 };
 

@@ -736,7 +736,6 @@ class CookieStoreContentBrowserClient
       bool is_service_worker,
       int process_id,
       int routing_id,
-      bool prefer_bound_cookie_context,
       mojo::PendingReceiver<network::mojom::RestrictedCookieManager>* receiver)
       override {
     mojo::PendingReceiver<network::mojom::RestrictedCookieManager>

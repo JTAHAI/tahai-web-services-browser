@@ -1132,13 +1132,7 @@ pub(crate) unsafe fn search_slice_with_raw(
     let start = haystack.as_ptr();
     let end = start.add(haystack.len());
     let found = find_raw(start, end)?;
-    let idx = found.distance(start);
-    // Required by safety invariant required for find_raw
-    // this lets the compiler know the returned index is in bounds for the slice
-    if idx >= haystack.len() {
-        core::hint::unreachable_unchecked();
-    }
-    Some(idx)
+    Some(found.distance(start))
 }
 
 /// Performs a forward byte-at-a-time loop until either `ptr >= end_ptr` or

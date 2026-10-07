@@ -4,8 +4,7 @@
 
 #include "chrome/browser/ui/webui/ash/settings/pages/privacy/metrics_choice_handler.h"
 
-#include <ranges>
-
+#include "base/containers/adapters.h"
 #include "base/metrics/user_metrics.h"
 #include "base/values.h"
 #include "chrome/browser/ash/ownership/owner_settings_service_ash.h"
@@ -217,7 +216,7 @@ class MetricsChoiceHandlerTest : public testing::Test {
   bool GetMetricsChoiceStateMessage(std::string* pref_name,
                                     bool* is_configurable) {
     for (const std::unique_ptr<content::TestWebUI::CallData>& data :
-         std::views::reverse(web_ui_->call_data())) {
+         base::Reversed(web_ui_->call_data())) {
       const std::string* name = data->arg1()->GetIfString();
 
       if (data->function_name() != "cr.webUIResponse" || !name ||
@@ -240,7 +239,7 @@ class MetricsChoiceHandlerTest : public testing::Test {
 
   bool UpdateMetricsChoiceMessage(bool* current_choice) {
     for (const std::unique_ptr<content::TestWebUI::CallData>& data :
-         std::views::reverse(web_ui_->call_data())) {
+         base::Reversed(web_ui_->call_data())) {
       const std::string* name = data->arg1()->GetIfString();
 
       if (data->function_name() != "cr.webUIResponse" || !name ||

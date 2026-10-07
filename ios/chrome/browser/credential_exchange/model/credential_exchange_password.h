@@ -25,7 +25,7 @@
 // Note associated with the credential.
 @property(nonatomic, copy) NSString* note;
 
-// Creation date of the credential in the exporting password manager.
+// Creation date of the credential.
 @property(nonatomic, copy) NSDate* creationDate;
 
 - (instancetype)initWithURL:(NSURL*)URL

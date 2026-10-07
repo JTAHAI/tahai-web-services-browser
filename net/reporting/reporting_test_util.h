@@ -348,9 +348,6 @@ class TestReportingService : public ReportingService {
   void SendReportsAndRemoveSource(
       const base::UnguessableToken& reporting_source) override {}
 
-  void SendReportsForSource(
-      const base::UnguessableToken& reporting_source) override {}
-
   void QueueReport(
       const GURL& url,
       const std::optional<base::UnguessableToken>& reporting_source,

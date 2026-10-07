@@ -8,8 +8,6 @@
 #include <utility>
 
 #include "base/functional/callback_helpers.h"
-#include "base/i18n/rtl.h"
-#include "base/i18n/test/scoped_rtl_for_testing.h"
 #include "base/strings/strcat.h"
 #include "chrome/browser/signin/identity_manager_factory.h"
 #include "chrome/browser/ui/browser.h"
@@ -67,7 +65,7 @@ class WalletablePassSaveBubbleViewBrowserTest
   void SetUpOnMainThread() override {
     UiBrowserTest::SetUpOnMainThread();
 
-    scoped_rtl_.emplace(IsBrowserLanguageRTL(this->GetParam()));
+    base::i18n::SetRTLForTesting(IsBrowserLanguageRTL(this->GetParam()));
     mock_controller_ = std::make_unique<
         testing::NiceMock<MockWalletablePassSaveBubbleController>>(
         browser()->tab_strip_model()->GetTabAtIndex(0));
@@ -80,7 +78,6 @@ class WalletablePassSaveBubbleViewBrowserTest
 
   void TearDownOnMainThread() override {
     mock_controller_.reset();
-    scoped_rtl_.reset();
     UiBrowserTest::TearDownOnMainThread();
   }
 
@@ -132,7 +129,6 @@ class WalletablePassSaveBubbleViewBrowserTest
   raw_ptr<WalletablePassSaveBubbleView> bubble_ = nullptr;
   std::unique_ptr<testing::NiceMock<MockWalletablePassSaveBubbleController>>
       mock_controller_ = nullptr;
-  std::optional<base::i18n::ScopedRTLForTesting> scoped_rtl_;
 };
 
 IN_PROC_BROWSER_TEST_P(WalletablePassSaveBubbleViewBrowserTest, LoyaltyCard) {

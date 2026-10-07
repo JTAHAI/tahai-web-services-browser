@@ -2,13 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "base/functional/function_ref.h"
 #include "chrome/browser/vr/test/mock_xr_device_hook_base.h"
 #include "chrome/browser/vr/test/multi_class_browser_test.h"
 #include "chrome/browser/vr/test/webxr_vr_browser_test.h"
 #include "device/vr/buildflags/buildflags.h"
 #include "device/vr/public/mojom/vr_service.mojom.h"
-#include "ui/gfx/geometry/point_f.h"
 
 // Browser test equivalent of
 // chrome/android/javatests/src/.../browser/vr/WebXrVrTransitionTest.java.
@@ -123,7 +121,7 @@ WEBXR_VR_ALL_RUNTIMES_BROWSER_TEST_F(TestEndSessionFromBlink) {
 // Tests that WebXR session ends when certain events are received.
 void TestWebXRSessionEndWhenEventTriggered(
     WebXrVrBrowserTestBase* t,
-    base::FunctionRef<void(MockXRDeviceHookBase&)> trigger_event) {
+    device_test::mojom::EventType event_type) {
   MockXRDeviceHookBase transition_mock;
   t->LoadFileAndAwaitInitialization("test_webxr_presentation_ended");
   t->EnterSessionWithUserGestureOrFail();
@@ -132,7 +130,9 @@ void TestWebXRSessionEndWhenEventTriggered(
   ASSERT_TRUE(
       t->PollJavaScriptBoolean("hasPresentedFrame", t->kPollTimeoutMedium))
       << "No frame submitted";
-  trigger_event(transition_mock);
+  device_test::mojom::EventData data = {};
+  data.type = event_type;
+  transition_mock.PopulateEvent(data);
   // Tell JavaScript that it is done with the test.
   t->WaitOnJavaScriptStep();
   t->EndTest();
@@ -140,12 +140,12 @@ void TestWebXRSessionEndWhenEventTriggered(
 
 IN_PROC_BROWSER_TEST_F(WebXrVrOpenXrBrowserTest, TestSessionEnded) {
   TestWebXRSessionEndWhenEventTriggered(
-      this, [](MockXRDeviceHookBase& mock) { mock.SimulateSessionLost(); });
+      this, device_test::mojom::EventType::kSessionLost);
 }
 
 IN_PROC_BROWSER_TEST_F(WebXrVrOpenXrBrowserTest, TestInsanceLost) {
   TestWebXRSessionEndWhenEventTriggered(
-      this, [](MockXRDeviceHookBase& mock) { mock.SimulateInstanceLost(); });
+      this, device_test::mojom::EventType::kInstanceLost);
 }
 
 IN_PROC_BROWSER_TEST_F(WebXrVrOpenXrBrowserTest, TestSessionExited) {
@@ -176,7 +176,9 @@ IN_PROC_BROWSER_TEST_F(WebXrVrOpenXrBrowserTest,
   for (size_t i = 0; i < 5; i++) {
     EnterSessionWithUserGestureOrFail();
     mock.WaitNumFrames(5);
-    mock.SimulateSessionLost();
+    device_test::mojom::EventData data = {};
+    data.type = device_test::mojom::EventType::kSessionLost;
+    mock.PopulateEvent(data);
     WaitForSessionEndOrFail();
   }
 
@@ -186,15 +188,10 @@ IN_PROC_BROWSER_TEST_F(WebXrVrOpenXrBrowserTest,
 IN_PROC_BROWSER_TEST_F(WebXrVrOpenXrBrowserTest,
                        TestVisibilityMaskChangeEventReceived) {
   MockXRDeviceHookBase mock;
-  auto visibility_mask = device::mojom::XRVisibilityMask::New();
-  visibility_mask->vertices = {
-      gfx::PointF(0.0f, 0.0f),
-      gfx::PointF(1.0f, 0.0f),
-      gfx::PointF(0.0f, 1.0f),
-  };
-  visibility_mask->unvalidated_indices = {0, 1, 2};
-  mock.SetVisibilityMaskForTesting(0, visibility_mask.Clone());
-  mock.SetVisibilityMaskForTesting(1, std::move(visibility_mask));
+  device::VisibilityMaskData visibility_mask{
+      .vertices = {0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f}, .indices = {0, 1, 2}};
+  mock.SetVisibilityMaskForTesting(0, visibility_mask);
+  mock.SetVisibilityMaskForTesting(1, visibility_mask);
 
   LoadFileAndAwaitInitialization("test_visibility_mask_change_event");
   EnterSessionWithUserGestureOrFail();
@@ -216,7 +213,9 @@ IN_PROC_BROWSER_TEST_F(WebXrVrOpenXrBrowserTest, TestVisibilityChanged) {
 
   RunJavaScriptOrFail("subscribeToVisibilityChange()");
 
-  transition_mock.SimulateVisibilityBlurred();
+  device_test::mojom::EventData event_data = {};
+  event_data.type = device_test::mojom::EventType::kVisibilityVisibleBlurred;
+  transition_mock.PopulateEvent(event_data);
 
   PollJavaScriptBooleanOrFail("visibility_change_count == 1",
                               kPollTimeoutMedium);
@@ -235,7 +234,9 @@ IN_PROC_BROWSER_TEST_F(WebXrVrOpenXrBrowserTest, TestFramesWhenVisibleBlurred) {
   ASSERT_TRUE(PollJavaScriptBoolean("hasPresentedFrame", kPollTimeoutMedium))
       << "No frame submitted";
 
-  transition_mock.SimulateVisibilityBlurred();
+  device_test::mojom::EventData event_data = {};
+  event_data.type = device_test::mojom::EventType::kVisibilityVisibleBlurred;
+  transition_mock.PopulateEvent(event_data);
 
   PollJavaScriptBooleanOrFail("isVisibilityEqualTo('visible-blurred')",
                               kPollTimeoutMedium);

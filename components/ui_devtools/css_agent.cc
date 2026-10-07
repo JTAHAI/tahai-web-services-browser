@@ -273,9 +273,8 @@ Response CSSAgent::setStyleTexts(
 
     if (!ui_element)
       return Response::ServerError("Node id not found");
-    if (stylesheet_id < 0 ||
-        !ui_element->SetPropertiesFromString(static_cast<size_t>(stylesheet_id),
-                                             edit->getText())) {
+    // Handle setting properties from metadata for elements which use metadata.
+    if (!ui_element->SetPropertiesFromString(edit->getText())) {
       gfx::Rect updated_bounds;
       bool visible = false;
       if (!GetPropertiesForUIElement(ui_element, &updated_bounds, &visible))

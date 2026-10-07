@@ -6,7 +6,6 @@
 
 #include <optional>
 #include <string>
-#include <string_view>
 #include <utility>
 
 #include "base/functional/bind.h"
@@ -21,9 +20,23 @@
 #include "url/gurl.h"
 
 using net::registry_controlled_domains::GetDomainAndRegistry;
+using net::registry_controlled_domains::GetRegistryLength;
 using net::registry_controlled_domains::INCLUDE_PRIVATE_REGISTRIES;
 using net::registry_controlled_domains::INCLUDE_UNKNOWN_REGISTRIES;
 using TimeRange = net::CookieDeletionInfo::TimeRange;
+
+namespace {
+
+std::string GetRegistry(const GURL& url) {
+  size_t registry_length = GetRegistryLength(url, INCLUDE_UNKNOWN_REGISTRIES,
+                                             INCLUDE_PRIVATE_REGISTRIES);
+  if (registry_length == 0)
+    return std::string();
+  return std::string(url.GetHost(), url.GetHost().length() - registry_length,
+                     registry_length);
+}
+
+}  // namespace
 
 namespace net {
 
@@ -200,10 +213,7 @@ void DelayedCookieMonster::SetCookieableSchemes(
 //
 CookieURLHelper::CookieURLHelper(const std::string& url_string)
     : url_(url_string),
-      registry_(GetRegistry(url_,
-                            INCLUDE_UNKNOWN_REGISTRIES,
-                            INCLUDE_PRIVATE_REGISTRIES)
-                    .value_or("")),
+      registry_(GetRegistry(url_)),
       domain_and_registry_(
           GetDomainAndRegistry(url_, INCLUDE_PRIVATE_REGISTRIES)) {}
 

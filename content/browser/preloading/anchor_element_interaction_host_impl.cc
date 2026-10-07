@@ -138,54 +138,37 @@ void AnchorElementInteractionHostImpl::Create(
   new AnchorElementInteractionHostImpl(*frame_host, std::move(receiver));
 }
 
-void AnchorElementInteractionHostImpl::OnPointerDown(const GURL& url,
-                                                     bool renderer_enacted) {
-  if (!render_frame_host().IsActive()) {
-    return;
-  }
+void AnchorElementInteractionHostImpl::OnPointerDown(const GURL& url) {
   auto* preloading_decider =
       PreloadingDecider::GetOrCreateForCurrentDocument(&render_frame_host());
-  preloading_decider->OnPointerDown(url, renderer_enacted);
+  preloading_decider->OnPointerDown(url);
   MaybePrewarmHttpDiskCache(url, render_frame_host());
   MaybeWarmUpServiceWorkerOnPointerDown(url, render_frame_host());
 }
 
 void AnchorElementInteractionHostImpl::OnPointerHoverEager(
     const GURL& url,
-    blink::mojom::AnchorElementPointerDataPtr mouse_data,
-    bool renderer_enacted) {
-  if (!render_frame_host().IsActive()) {
-    return;
-  }
+    blink::mojom::AnchorElementPointerDataPtr mouse_data) {
   auto* preloading_decider =
       PreloadingDecider::GetOrCreateForCurrentDocument(&render_frame_host());
-  preloading_decider->OnPointerHover(url, std::move(mouse_data),
-                                     blink::mojom::SpeculationEagerness::kEager,
-                                     renderer_enacted);
+  preloading_decider->OnPointerHover(
+      url, std::move(mouse_data), blink::mojom::SpeculationEagerness::kEager);
 }
 
 void AnchorElementInteractionHostImpl::OnPointerHoverModerate(
     const GURL& url,
-    blink::mojom::AnchorElementPointerDataPtr mouse_data,
-    bool renderer_enacted) {
-  if (!render_frame_host().IsActive()) {
-    return;
-  }
+    blink::mojom::AnchorElementPointerDataPtr mouse_data) {
   auto* preloading_decider =
       PreloadingDecider::GetOrCreateForCurrentDocument(&render_frame_host());
   preloading_decider->OnPointerHover(
-      url, std::move(mouse_data), blink::mojom::SpeculationEagerness::kModerate,
-      renderer_enacted);
+      url, std::move(mouse_data),
+      blink::mojom::SpeculationEagerness::kModerate);
   MaybePrewarmHttpDiskCache(url, render_frame_host());
   MaybeWarmUpServiceWorkerOnPointerHover(url, render_frame_host());
 }
 
 void AnchorElementInteractionHostImpl::OnModerateViewportHeuristicTriggered(
-    const GURL& url,
-    bool renderer_enacted) {
-  if (!render_frame_host().IsActive()) {
-    return;
-  }
+    const GURL& url) {
   if (!base::FeatureList::IsEnabled(
           blink::features::kPreloadingModerateViewportHeuristics)) {
     ReportBadMessageAndDeleteThis(
@@ -197,15 +180,11 @@ void AnchorElementInteractionHostImpl::OnModerateViewportHeuristicTriggered(
 
   auto* preloading_decider =
       PreloadingDecider::GetOrCreateForCurrentDocument(&render_frame_host());
-  preloading_decider->OnModerateViewportHeuristicTriggered(url,
-                                                           renderer_enacted);
+  preloading_decider->OnModerateViewportHeuristicTriggered(url);
 }
 
 void AnchorElementInteractionHostImpl::OnEagerViewportHeuristicTriggered(
-    std::vector<blink::mojom::AnchorElementInteractionTargetPtr> targets) {
-  if (!render_frame_host().IsActive()) {
-    return;
-  }
+    const std::vector<GURL>& target_urls) {
   if (!base::FeatureList::IsEnabled(
           blink::features::kPreloadingEagerViewportHeuristics)) {
     ReportBadMessageAndDeleteThis(
@@ -216,9 +195,8 @@ void AnchorElementInteractionHostImpl::OnEagerViewportHeuristicTriggered(
 
   auto* preloading_decider =
       PreloadingDecider::GetOrCreateForCurrentDocument(&render_frame_host());
-  for (const auto& target : targets) {
-    preloading_decider->OnEagerViewportHeuristicTriggered(
-        target->url, target->renderer_enacted);
+  for (const GURL& url : target_urls) {
+    preloading_decider->OnEagerViewportHeuristicTriggered(url);
   }
 }
 

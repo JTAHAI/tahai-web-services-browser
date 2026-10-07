@@ -64,6 +64,8 @@ class TabStateStorageServiceTest : public ::testing::Test {
   void SetUp() override {
     ASSERT_TRUE(temp_dir_.CreateUniqueTempDir());
     auto packager = std::make_unique<TestTabStoragePackager>();
+    TabCanonicalizer canonicalizer =
+        base::BindRepeating([](const TabInterface* tab) { return tab; });
     RestoreEntityTrackerFactory tracker_factory = base::BindRepeating(
         [](OnTabAssociation,
            OnCollectionAssociation) -> std::unique_ptr<RestoreEntityTracker> {
@@ -72,7 +74,7 @@ class TabStateStorageServiceTest : public ::testing::Test {
 
     service_ = std::make_unique<TabStateStorageService>(
         temp_dir_.GetPath(), /*support_off_the_record_data=*/false,
-        std::move(packager), tracker_factory);
+        std::move(packager), canonicalizer, tracker_factory);
   }
 
   void TearDown() override { service_.reset(); }

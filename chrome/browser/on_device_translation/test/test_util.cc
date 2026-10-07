@@ -9,7 +9,7 @@
 #include "base/task/single_thread_task_runner.h"
 #include "base/threading/thread_restrictions.h"
 #include "chrome/browser/browser_process.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "components/on_device_translation/public/language_pack.h"
 #include "components/on_device_translation/public/pref_names.h"
@@ -215,20 +215,20 @@ std::string CreateFakeDictionaryData(const std::string_view sourceLang,
   return base::StringPrintf("%s to %s: ", sourceLang, targetLang);
 }
 
-void TestSimpleTranslationWorks(BrowserWindowInterface* browser,
+void TestSimpleTranslationWorks(Browser* browser,
                                 LanguagePackKey language_pack_key) {
   TestSimpleTranslationWorks(browser, GetSourceLanguageCode(language_pack_key),
                              GetTargetLanguageCode(language_pack_key));
 }
 
-void TestSimpleTranslationWorks(BrowserWindowInterface* browser,
+void TestSimpleTranslationWorks(Browser* browser,
                                 const std::string_view sourceLang,
                                 const std::string_view targetLang) {
   // Translate "hello" from `sourceLang` to `targetLang`.
   // Note: the mock TranslateKit component returns the concatenation of the
   // content of "dict.dat" in the language pack and the input text.
   // See comments in mock_translate_kit_lib.cc for more details.
-  EXPECT_EQ(EvalJs(browser->GetTabStripModel()->GetActiveWebContents(),
+  EXPECT_EQ(EvalJs(browser->tab_strip_model()->GetActiveWebContents(),
                    base::StringPrintf(R"(
         (async () => {
           try {
@@ -247,7 +247,7 @@ void TestSimpleTranslationWorks(BrowserWindowInterface* browser,
             base::StringPrintf("%s to %s: hello", sourceLang, targetLang));
 }
 
-void TestCreateTranslator(BrowserWindowInterface* browser,
+void TestCreateTranslator(Browser* browser,
                           LanguagePackKey language_pack_key,
                           const std::string_view result) {
   TestCreateTranslator(browser, GetSourceLanguageCode(language_pack_key),
@@ -255,11 +255,11 @@ void TestCreateTranslator(BrowserWindowInterface* browser,
 }
 
 // Tests that the createTranslator() returns the expected result.
-void TestCreateTranslator(BrowserWindowInterface* browser,
+void TestCreateTranslator(Browser* browser,
                           const std::string_view sourceLang,
                           const std::string_view targetLang,
                           const std::string_view result) {
-  ASSERT_EQ(EvalJs(browser->GetTabStripModel()->GetActiveWebContents(),
+  ASSERT_EQ(EvalJs(browser->tab_strip_model()->GetActiveWebContents(),
                    base::StringPrintf(R"(
   (async () => {
     try {
@@ -280,11 +280,11 @@ void TestCreateTranslator(BrowserWindowInterface* browser,
 
 // Tests that availability() method returns the expected result for the given
 // languages.
-void TestTranslationAvailable(BrowserWindowInterface* browser,
+void TestTranslationAvailable(Browser* browser,
                               const std::string_view sourceLang,
                               const std::string_view targetLang,
                               const std::string_view result) {
-  ASSERT_EQ(EvalJs(browser->GetTabStripModel()->GetActiveWebContents(),
+  ASSERT_EQ(EvalJs(browser->tab_strip_model()->GetActiveWebContents(),
                    base::StringPrintf(R"(
   (async () => {
     try {

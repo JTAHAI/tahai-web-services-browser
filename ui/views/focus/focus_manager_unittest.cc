@@ -153,9 +153,7 @@ TEST_F(FocusManagerTest, FocusChangeListener) {
   GetContentsView()->AddChildViewRaw(view2);
 
   TestFocusChangeListener listener;
-  EXPECT_FALSE(GetFocusManager()->HasFocusChangeListener(&listener));
   AddFocusChangeListener(&listener);
-  EXPECT_TRUE(GetFocusManager()->HasFocusChangeListener(&listener));
 
   // Required for VS2010:
   // http://connect.microsoft.com/VisualStudio/feedback/details/520043/error-converting-from-null-to-a-pointer-type-in-std-pair
@@ -176,7 +174,6 @@ TEST_F(FocusManagerTest, FocusChangeListener) {
   EXPECT_TRUE(listener.focus_changes()[0] == ViewPair(view2, null_view));
 
   RemoveFocusChangeListener(&listener);
-  EXPECT_FALSE(GetFocusManager()->HasFocusChangeListener(&listener));
 }
 
 namespace {

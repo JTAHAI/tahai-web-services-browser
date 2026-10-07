@@ -176,15 +176,12 @@ public class ExtensionsToolbarBridge implements Destroyable {
     }
 
     @CalledByNative
-    public void triggerPopup(
-            @JniType("std::string") String actionId,
-            ExtensionActionPopupContents popupContents,
-            boolean inspectWithDevTools) {
+    public void triggerPopup(@JniType("std::string") String actionId, long nativeHostPtr) {
         // {@link mActionListDelegate} should be set in {@code ExtensionActionListMediator}'s
         // constructor.
         assert mActionListDelegate != null;
 
-        mActionListDelegate.triggerPopup(actionId, popupContents, inspectWithDevTools);
+        mActionListDelegate.triggerPopup(actionId, nativeHostPtr);
     }
 
     @CalledByNative
@@ -321,10 +318,7 @@ public class ExtensionsToolbarBridge implements Destroyable {
 
     public interface ActionListDelegate {
         // Called when the popup should be shown.
-        void triggerPopup(
-                String actionId,
-                ExtensionActionPopupContents popupContents,
-                boolean inspectWithDevTools);
+        void triggerPopup(String actionId, long nativeHostPtr);
 
         // Called when the context menu should be shown.
         void showContextMenu(String actionId);

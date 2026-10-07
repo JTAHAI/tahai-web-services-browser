@@ -291,15 +291,11 @@ export class RecordingWaveElement extends CrLitElement {
         reflect: true,
         type: Boolean,
       },
-      transcript: {type: String},
-      receivedSpeech: {type: Boolean},
     };
   }
 
   accessor isListening: boolean = false;
   accessor darkThemeColorsEnabled: boolean = true;
-  accessor transcript: string = '';
-  accessor receivedSpeech: boolean = false;
 
   private barsData_: Bar[] = [];
   private lastDrawTimestamp_: number = performance.now();
@@ -337,13 +333,6 @@ export class RecordingWaveElement extends CrLitElement {
 
   override updated(changedProperties: PropertyValues<this>) {
     super.updated(changedProperties);
-
-    if (changedProperties.has('transcript')) {
-      AudioProcessor.updateTranscript(this.transcript);
-    }
-    if (changedProperties.has('receivedSpeech')) {
-      AudioProcessor.updateReceivedSpeech(this.receivedSpeech);
-    }
 
     if (changedProperties.has('isListening') ||
         changedProperties.has('darkThemeColorsEnabled')) {

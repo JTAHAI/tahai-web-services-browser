@@ -6,7 +6,6 @@
 
 #include "base/callback_list.h"
 #include "base/feature_list.h"
-#include "base/test/run_until.h"
 #include "base/test/scoped_feature_list.h"
 #include "chrome/browser/commerce/shopping_service_factory.h"
 #include "chrome/browser/glic/host/glic.mojom-shared.h"
@@ -19,7 +18,7 @@
 #include "chrome/browser/optimization_guide/optimization_guide_keyed_service.h"
 #include "chrome/browser/optimization_guide/optimization_guide_keyed_service_factory.h"
 #include "chrome/browser/signin/identity_test_environment_profile_adaptor.h"
-#include "chrome/browser/sync/send_tab_to_self_sync_service_factory.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
 #include "chrome/browser/ui/tabs/existing_base_sub_menu_model.h"
@@ -47,11 +46,6 @@
 #include "components/optimization_guide/core/model_execution/model_execution_features.h"
 #include "components/optimization_guide/core/optimization_guide_features.h"
 #include "components/prefs/testing_pref_service.h"
-#include "components/send_tab_to_self/fake_send_tab_to_self_model.h"
-#include "components/send_tab_to_self/features.h"
-#include "components/send_tab_to_self/send_tab_to_self_model.h"
-#include "components/send_tab_to_self/stub_send_tab_to_self_sync_service.h"
-#include "components/send_tab_to_self/target_device_info.h"
 #include "components/tabs/public/split_tab_data.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/test/browser_test.h"
@@ -70,7 +64,8 @@ class TabMenuModelBrowserTest : public MenuModelTest,
   void ActivateSwapWithSplitSubmenuCommand(
       int tab_index,
       SplitTabSwapMenuModel::CommandId command_id) {
-    TabMenuModel menu(&delegate_, TabMenuModelDelegate::From(browser()),
+    TabMenuModel menu(&delegate_,
+                      browser()->GetFeatures().tab_menu_model_delegate(),
                       browser()->tab_strip_model(), tab_index);
     size_t submenu_index =
         menu.GetIndexOfCommandId(TabStripModel::CommandSwapWithActiveSplit)
@@ -87,7 +82,8 @@ class TabMenuModelBrowserTest : public MenuModelTest,
 
 IN_PROC_BROWSER_TEST_F(TabMenuModelBrowserTest, Basics) {
   chrome::NewTab(browser(), NewTabTypes::kNoUserAction);
-  TabMenuModel model(&delegate_, TabMenuModelDelegate::From(browser()),
+  TabMenuModel model(&delegate_,
+                     browser()->GetFeatures().tab_menu_model_delegate(),
                      browser()->tab_strip_model(), 0);
 
   // Verify it has items. The number varies by platform, so we don't check
@@ -103,7 +99,8 @@ IN_PROC_BROWSER_TEST_F(TabMenuModelBrowserTest, Basics) {
 
 IN_PROC_BROWSER_TEST_F(TabMenuModelBrowserTest, MoveToNewWindow) {
   chrome::NewTab(browser(), NewTabTypes::kNoUserAction);
-  TabMenuModel model(&delegate_, TabMenuModelDelegate::From(browser()),
+  TabMenuModel model(&delegate_,
+                     browser()->GetFeatures().tab_menu_model_delegate(),
                      browser()->tab_strip_model(), 0);
 
   // Verify that CommandMoveTabsToNewWindow is in the menu.
@@ -124,7 +121,8 @@ IN_PROC_BROWSER_TEST_F(TabMenuModelBrowserTest, AddToExistingGroupSubmenu) {
   tab_strip_model->AddToNewGroup({1});
   tab_strip_model->AddToNewGroup({2});
 
-  TabMenuModel menu(&delegate_, TabMenuModelDelegate::From(browser()),
+  TabMenuModel menu(&delegate_,
+                    browser()->GetFeatures().tab_menu_model_delegate(),
                     tab_strip_model, 3);
 
   size_t submenu_index =
@@ -158,7 +156,8 @@ IN_PROC_BROWSER_TEST_F(TabMenuModelBrowserTest,
   tab_strip_model->AddToNewGroup({1});
   tab_strip_model->AddToNewGroup({2});
 
-  TabMenuModel menu(&delegate_, TabMenuModelDelegate::From(browser()),
+  TabMenuModel menu(&delegate_,
+                    browser()->GetFeatures().tab_menu_model_delegate(),
                     tab_strip_model, 1);
 
   size_t submenu_index =
@@ -190,7 +189,8 @@ IN_PROC_BROWSER_TEST_F(TabMenuModelBrowserTest,
   TabStripModel* tab_strip_model = browser()->tab_strip_model();
   tab_strip_model->AddToNewGroup({0});
 
-  TabMenuModel menu(&delegate_, TabMenuModelDelegate::From(browser()),
+  TabMenuModel menu(&delegate_,
+                    browser()->GetFeatures().tab_menu_model_delegate(),
                     tab_strip_model, 1);
 
   size_t submenu_index =
@@ -225,7 +225,8 @@ IN_PROC_BROWSER_TEST_F(TabMenuModelBrowserTest, ActiveTabNotSplit) {
 
   // Active tab is not split, context menu index is active tab
   {
-    TabMenuModel menu_model(&delegate_, TabMenuModelDelegate::From(browser()),
+    TabMenuModel menu_model(&delegate_,
+                            browser()->GetFeatures().tab_menu_model_delegate(),
                             tab_strip_model, 0);
 
     EXPECT_TRUE(menu_model.GetIndexOfCommandId(TabStripModel::CommandAddToSplit)
@@ -241,7 +242,8 @@ IN_PROC_BROWSER_TEST_F(TabMenuModelBrowserTest, ActiveTabNotSplit) {
 
   // Active tab is not split, context menu index is on inactive tab
   {
-    TabMenuModel menu_model(&delegate_, TabMenuModelDelegate::From(browser()),
+    TabMenuModel menu_model(&delegate_,
+                            browser()->GetFeatures().tab_menu_model_delegate(),
                             tab_strip_model, 1);
 
     EXPECT_TRUE(menu_model.GetIndexOfCommandId(TabStripModel::CommandAddToSplit)
@@ -257,7 +259,8 @@ IN_PROC_BROWSER_TEST_F(TabMenuModelBrowserTest, ActiveTabNotSplit) {
 
   // Active tab is not split, context menu index is on inactive split tab
   {
-    TabMenuModel menu_model(&delegate_, TabMenuModelDelegate::From(browser()),
+    TabMenuModel menu_model(&delegate_,
+                            browser()->GetFeatures().tab_menu_model_delegate(),
                             tab_strip_model, 2);
 
     EXPECT_FALSE(
@@ -287,7 +290,8 @@ IN_PROC_BROWSER_TEST_F(TabMenuModelBrowserTest, SplitActiveTab) {
 
   // Active tab is split, context menu index is active tab
   {
-    TabMenuModel menu_model(&delegate_, TabMenuModelDelegate::From(browser()),
+    TabMenuModel menu_model(&delegate_,
+                            browser()->GetFeatures().tab_menu_model_delegate(),
                             tab_strip_model, 3);
 
     EXPECT_FALSE(
@@ -304,7 +308,8 @@ IN_PROC_BROWSER_TEST_F(TabMenuModelBrowserTest, SplitActiveTab) {
 
   // Active tab is split, context menu index is on inactive tab
   {
-    TabMenuModel menu_model(&delegate_, TabMenuModelDelegate::From(browser()),
+    TabMenuModel menu_model(&delegate_,
+                            browser()->GetFeatures().tab_menu_model_delegate(),
                             tab_strip_model, 1);
 
     EXPECT_FALSE(
@@ -333,7 +338,8 @@ IN_PROC_BROWSER_TEST_F(TabMenuModelBrowserTest, MultiSelectTabs) {
   tab_strip_model->AddSelectionFromAnchorTo(2);
 
   {
-    TabMenuModel menu_model(&delegate_, TabMenuModelDelegate::From(browser()),
+    TabMenuModel menu_model(&delegate_,
+                            browser()->GetFeatures().tab_menu_model_delegate(),
                             tab_strip_model, 2);
 
     auto index =
@@ -347,7 +353,8 @@ IN_PROC_BROWSER_TEST_F(TabMenuModelBrowserTest, MultiSelectTabs) {
   tab_strip_model->AddSelectionFromAnchorTo(2);
 
   {
-    TabMenuModel menu_model(&delegate_, TabMenuModelDelegate::From(browser()),
+    TabMenuModel menu_model(&delegate_,
+                            browser()->GetFeatures().tab_menu_model_delegate(),
                             tab_strip_model, 2);
 
     auto index =
@@ -369,7 +376,7 @@ class TabMenuModelSplitViewHorizontalBrowserTest
       int tab_index,
       std::unique_ptr<TabMenuModel>& out_menu_model) {
     out_menu_model = std::make_unique<TabMenuModel>(
-        &delegate_, TabMenuModelDelegate::From(browser()),
+        &delegate_, browser()->GetFeatures().tab_menu_model_delegate(),
         browser()->tab_strip_model(), tab_index);
     size_t arrange_submenu_index =
         out_menu_model->GetIndexOfCommandId(TabStripModel::CommandArrangeSplit)
@@ -451,7 +458,8 @@ class TabMenuModelSplitViewHorizontalDirectAccessBrowserTest
     ASSERT_EQ(tab_strip_model->count(), 2);
     ASSERT_EQ(tab_strip_model->active_index(), 1);
 
-    TabMenuModel menu_model(&delegate_, TabMenuModelDelegate::From(browser()),
+    TabMenuModel menu_model(&delegate_,
+                            browser()->GetFeatures().tab_menu_model_delegate(),
                             tab_strip_model, 0);
 
     size_t submenu_index =
@@ -567,7 +575,8 @@ IN_PROC_BROWSER_TEST_F(TabMenuModelBrowserTest, SwapWithSplitActiveTabChanged) {
   EXPECT_EQ(tab_strip_model->active_index(), 0);
 
   // Create the TabMenuModel for tab 2. This instantiates SplitTabSwapMenuModel.
-  TabMenuModel menu(&delegate_, TabMenuModelDelegate::From(browser()),
+  TabMenuModel menu(&delegate_,
+                    browser()->GetFeatures().tab_menu_model_delegate(),
                     tab_strip_model, 2);
   size_t submenu_index =
       menu.GetIndexOfCommandId(TabStripModel::CommandSwapWithActiveSplit)
@@ -632,7 +641,8 @@ IN_PROC_BROWSER_TEST_F(TabMenuModelGlicMultiTabTest, NotShared) {
   chrome::NewTab(browser(), NewTabTypes::kNoUserAction);
 
   TabStripModel* tab_strip_model = browser()->tab_strip_model();
-  TabMenuModel model(&delegate_, TabMenuModelDelegate::From(browser()),
+  TabMenuModel model(&delegate_,
+                     browser()->GetFeatures().tab_menu_model_delegate(),
                      tab_strip_model, 1);
   EXPECT_TRUE(
       model.GetIndexOfCommandId(TabStripModel::CommandGlicShare).has_value());
@@ -644,7 +654,8 @@ IN_PROC_BROWSER_TEST_F(TabMenuModelGlicMultiTabTest, SomeShared) {
   chrome::NewTab(browser(), NewTabTypes::kNoUserAction);
 
   auto* service = glic::GlicKeyedService::Get(profile());
-  service->ShowUI(browser(), glic::mojom::InvocationSource::kOsButtonMenu);
+  service->ToggleUI(browser(), true,
+                    glic::mojom::InvocationSource::kOsButtonMenu);
   auto* instance =
       service->GetInstanceForTab(browser()->GetActiveTabInterface());
   ASSERT_TRUE(instance);
@@ -652,7 +663,8 @@ IN_PROC_BROWSER_TEST_F(TabMenuModelGlicMultiTabTest, SomeShared) {
       {tab_strip()->GetTabAtIndex(0)->GetHandle()},
       glic::GlicPinTrigger::kContextMenu);
 
-  TabMenuModel model(&delegate_, TabMenuModelDelegate::From(browser()),
+  TabMenuModel model(&delegate_,
+                     browser()->GetFeatures().tab_menu_model_delegate(),
                      tab_strip(), 1);
   EXPECT_TRUE(
       model.GetIndexOfCommandId(TabStripModel::CommandGlicShare).has_value());
@@ -662,7 +674,8 @@ IN_PROC_BROWSER_TEST_F(TabMenuModelGlicMultiTabTest, SomeShared) {
 
 IN_PROC_BROWSER_TEST_F(TabMenuModelGlicMultiTabTest, TooManyShared) {
   auto* service = glic::GlicKeyedService::Get(profile());
-  service->ShowUI(browser(), glic::mojom::InvocationSource::kOsButtonMenu);
+  service->ToggleUI(browser(), true,
+                    glic::mojom::InvocationSource::kOsButtonMenu);
   auto* instance =
       service->GetInstanceForTab(browser()->GetActiveTabInterface());
   ASSERT_TRUE(instance);
@@ -679,79 +692,4 @@ IN_PROC_BROWSER_TEST_F(TabMenuModelGlicMultiTabTest, TooManyShared) {
       {tab_strip()->GetTabAtIndex(limit)->GetHandle()},
       glic::GlicPinTrigger::kContextMenu);
   EXPECT_FALSE(sharing_manager(instance).IsTabPinned(TabHandleAtIndex(limit)));
-}
-
-class TabMenuModelSendTabToSelfBrowserTest : public TabMenuModelBrowserTest {
- public:
-  TabMenuModelSendTabToSelfBrowserTest() {
-    feature_list_.InitAndEnableFeature(
-        send_tab_to_self::kSendTabToSelfEnhancedDesktopUI);
-  }
-
-  void SetUpBrowserContextKeyedServices(
-      content::BrowserContext* context) override {
-    TabMenuModelBrowserTest::SetUpBrowserContextKeyedServices(context);
-    SendTabToSelfSyncServiceFactory::GetInstance()->SetTestingFactory(
-        context, base::BindRepeating([](content::BrowserContext* context)
-                                         -> std::unique_ptr<KeyedService> {
-          return std::make_unique<
-              send_tab_to_self::StubSendTabToSelfSyncService>();
-        }));
-  }
-
-  send_tab_to_self::FakeSendTabToSelfModel* model() {
-    return static_cast<send_tab_to_self::StubSendTabToSelfSyncService*>(
-               SendTabToSelfSyncServiceFactory::GetForProfile(profile()))
-        ->GetFakeSendTabToSelfModel();
-  }
-
- private:
-  base::test::ScopedFeatureList feature_list_;
-};
-
-IN_PROC_BROWSER_TEST_F(TabMenuModelSendTabToSelfBrowserTest,
-                       SendMultipleSelectedTabs) {
-  std::vector<send_tab_to_self::TargetDeviceInfo> devices;
-  devices.emplace_back("Device 0", "guid0",
-                       syncer::DeviceInfo::FormFactor::kDesktop,
-                       syncer::DeviceInfo::OsType::kLinux, base::Time::Now());
-  model()->SetTargetDeviceInfoSortedList(devices);
-
-  ASSERT_TRUE(embedded_test_server()->Start());
-  const GURL url1 = embedded_test_server()->GetURL("/title1.html");
-  const GURL url2 = embedded_test_server()->GetURL("/title2.html");
-  const GURL url3 = embedded_test_server()->GetURL("/title3.html");
-
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), url1));
-  ASSERT_TRUE(AddTabAtIndex(1, url2, ui::PAGE_TRANSITION_TYPED));
-  ASSERT_TRUE(AddTabAtIndex(2, url3, ui::PAGE_TRANSITION_TYPED));
-
-  TabStripModel* tab_strip = browser()->tab_strip_model();
-  ASSERT_EQ(tab_strip->count(), 3);
-
-  // Multi-select tabs 1 and 2
-  tab_strip->ActivateTabAt(1);
-  tab_strip->AddSelectionFromAnchorTo(2);
-
-  TabMenuModel menu(&delegate_, TabMenuModelDelegate::From(browser()),
-                    tab_strip, 2);
-
-  size_t submenu_index =
-      menu.GetIndexOfCommandId(TabStripModel::CommandSendTabToSelf).value();
-  ui::SimpleMenuModel* submenu =
-      static_cast<ui::SimpleMenuModel*>(menu.GetSubmenuModelAt(submenu_index));
-
-  // Trigger send to device 0.
-  submenu->ActivatedAt(0);
-
-  // Wait for async SendTabToDevice requests (scroll position generation) to
-  // complete.
-  ASSERT_TRUE(base::test::RunUntil(
-      [&]() { return model()->GetAllGuids().size() == 2u; }));
-
-  std::vector<GURL> sent_urls;
-  for (const std::string& guid : model()->GetAllGuids()) {
-    sent_urls.push_back(model()->GetEntryByGUID(guid)->GetURL());
-  }
-  EXPECT_THAT(sent_urls, testing::UnorderedElementsAre(url2, url3));
 }

@@ -57,13 +57,13 @@ std::pair<bool, bool> CheckHasDefaultAnchorReferences(
                         box->NeedsAnchorPositionScrollAdjustmentInY());
 }
 
-const LayoutBoxModelObject* ContainerIgnoreLayoutViewForFixedPos(
+const LayoutObject* ContainerIgnoreLayoutViewForFixedPos(
     const LayoutObject& o) {
   const auto* container = o.Container();
   if (!container || (o.IsFixedPositioned() && container->IsLayoutView())) {
     return nullptr;
   }
-  return To<LayoutBoxModelObject>(container);
+  return container;
 }
 
 }  // namespace
@@ -139,7 +139,7 @@ AnchorPositionScrollData::ComputeAdjustmentContainersData(
   const auto* anchor_element = DynamicTo<Element>(anchor.GetNode());
   CHECK(anchor_element);
   result.anchor_element = anchor_element;
-  const LayoutBoxModelObject* bounding_container =
+  const auto* bounding_container =
       ContainerIgnoreLayoutViewForFixedPos(*anchored_layout_object);
 
   if (bounding_container && bounding_container->IsScrollContainer()) {
@@ -148,19 +148,6 @@ AnchorPositionScrollData::ComputeAdjustmentContainersData(
     result.anchored_element_container_scroll_offset =
         PhysicalOffset::FromVector2dFFloor(scrollable_area->GetScrollOffset());
   }
-
-  auto get_transformed_offset = [&](PhysicalOffset offset,
-                                    const LayoutObject* container) {
-    if (offset.IsZero()) {
-      return PhysicalOffset();
-    }
-    PhysicalOffset transformed_origin = container->LocalToAncestorPoint(
-        PhysicalOffset(), bounding_container,
-        {MapCoordinatesMode::kIgnoreScrollOffset});
-    PhysicalOffset transformed_offset = container->LocalToAncestorPoint(
-        offset, bounding_container, {MapCoordinatesMode::kIgnoreScrollOffset});
-    return transformed_offset - transformed_origin;
-  };
 
   for (const auto* container = &anchor;
        container && container != bounding_container;
@@ -172,10 +159,8 @@ AnchorPositionScrollData::ComputeAdjustmentContainersData(
           may_need_scroll_adjustment(To<LayoutBox>(container))) {
         result.adjustment_container_ids.push_back(
             scrollable_area->GetScrollElementId());
-        PhysicalOffset scroll_offset = PhysicalOffset::FromVector2dFFloor(
+        result.accumulated_adjustment += PhysicalOffset::FromVector2dFFloor(
             scrollable_area->GetScrollOffset());
-        result.accumulated_adjustment +=
-            get_transformed_offset(scroll_offset, container);
         result.accumulated_adjustment_scroll_origin +=
             scrollable_area->ScrollOrigin().OffsetFromOrigin();
         if (scrollable_area->GetLayoutBox()->IsLayoutView()) {
@@ -189,8 +174,7 @@ AnchorPositionScrollData::ComputeAdjustmentContainersData(
             CompositorElementIdFromUniqueObjectId(
                 box_model->UniqueId(),
                 CompositorElementIdNamespace::kStickyTranslation));
-        result.accumulated_adjustment -= get_transformed_offset(
-            box_model->StickyPositionOffset(), container);
+        result.accumulated_adjustment -= box_model->StickyPositionOffset();
       }
     }
     if (const auto* box = DynamicTo<LayoutBox>(container)) {
@@ -210,11 +194,9 @@ AnchorPositionScrollData::ComputeAdjustmentContainersData(
           // chained anchor. The reason is that the layout position of the
           // anchor already accounts for this offset. However, we still need it
           // to compute the correct non overflowing range.
-          PhysicalOffset adjustment_offset =
+          result.accumulated_range_adjustment_offset +=
               data->ComputeDefaultAnchorAdjustmentData()
                   .accumulated_range_adjustment_offset;
-          result.accumulated_range_adjustment_offset +=
-              get_transformed_offset(adjustment_offset, container);
         }
       }
     }

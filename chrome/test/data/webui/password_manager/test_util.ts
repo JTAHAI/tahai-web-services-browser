@@ -57,7 +57,6 @@ export interface PasswordEntryParams {
   changePasswordUrl?: string;
   affiliatedDomains?: chrome.passwordsPrivate.DomainInfo[];
   hidden?: boolean;
-  compromisedInfo?: chrome.passwordsPrivate.CompromisedInfo;
 }
 
 /**
@@ -106,7 +105,6 @@ export function createPasswordEntry(params?: PasswordEntryParams):
     affiliatedDomains: params.affiliatedDomains || [domain],
     creationTime: params.isPasskey ? 1000000000 : undefined,
     hidden: params.hidden || false,
-    compromisedInfo: params.compromisedInfo,
   };
 }
 
@@ -159,11 +157,6 @@ export function makePasswordManagerPrefs() {
     },
     credentials_enable_automatic_passkey_upgrades: {
       key: 'credentials_enable_automatic_passkey_upgrades',
-      type: chrome.settingsPrivate.PrefType.BOOLEAN,
-      value: true,
-    },
-    automated_password_change_enabled: {
-      key: 'automated_password_change_enabled',
       type: chrome.settingsPrivate.PrefType.BOOLEAN,
       value: true,
     },

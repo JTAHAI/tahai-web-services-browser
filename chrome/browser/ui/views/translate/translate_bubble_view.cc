@@ -226,18 +226,11 @@ void TranslateBubbleView::Init() {
   should_never_translate_language_ = model_->ShouldNeverTranslateLanguage();
   should_never_translate_site_ = model_->ShouldNeverTranslateSite();
   translate_view_ = AddChildView(CreateView());
+  advanced_view_source_ = AddChildView(CreateViewAdvancedSource());
+  advanced_view_target_ = AddChildView(CreateViewAdvancedTarget());
   error_view_ = AddChildView(CreateViewError());
 
   AddAccelerator(ui::Accelerator(ui::VKEY_RETURN, ui::EF_NONE));
-
-  // Create the target / source languages search view only when a user selects
-  // the option to change the target / source language.
-  if (GetViewState() == TranslateBubbleModel::VIEW_STATE_SOURCE_LANGUAGE) {
-    advanced_view_source_ = AddChildView(CreateViewAdvancedSource());
-  } else if (GetViewState() ==
-             TranslateBubbleModel::VIEW_STATE_TARGET_LANGUAGE) {
-    advanced_view_target_ = AddChildView(CreateViewAdvancedTarget());
-  }
 
   UpdateChildVisibilities();
 
@@ -1145,16 +1138,6 @@ void TranslateBubbleView::SwitchView(
   }
 
   SwitchTabForViewState(view_state);
-
-  // Only create the target / source language search view when the user wants
-  // to change the target / source language.
-  if (view_state == TranslateBubbleModel::VIEW_STATE_SOURCE_LANGUAGE &&
-      !advanced_view_source_) {
-    advanced_view_source_ = AddChildView(CreateViewAdvancedSource());
-  } else if (view_state == TranslateBubbleModel::VIEW_STATE_TARGET_LANGUAGE &&
-             !advanced_view_target_) {
-    advanced_view_target_ = AddChildView(CreateViewAdvancedTarget());
-  }
 
   UpdateViewState(view_state);
   if (view_state == TranslateBubbleModel::VIEW_STATE_SOURCE_LANGUAGE ||

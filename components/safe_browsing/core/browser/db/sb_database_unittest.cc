@@ -140,7 +140,9 @@ class SBDatabaseTest : public PlatformTest {
   SBDatabaseTest()
       : sb_database_(std::unique_ptr<SBDatabase, base::OnTaskRunnerDeleter>(
             nullptr,
-            base::OnTaskRunnerDeleter(nullptr))) {}
+            base::OnTaskRunnerDeleter(nullptr))),
+        linux_malware_id_(LINUX_PLATFORM, URL, MALWARE_THREAT),
+        win_malware_id_(WINDOWS_PLATFORM, URL, MALWARE_THREAT) {}
 
   void SetUp() override {
     PlatformTest::SetUp();
@@ -170,7 +172,22 @@ class SBDatabaseTest : public PlatformTest {
 
   const StoreMap* GetStoreMap() { return sb_database_->store_map_.get(); }
 
-  virtual void SetupInfoMapAndExpectedState() = 0;
+  // TODO(crbug.com/362791941): Once v5 checks are handled, this can be moved
+  // to the parameterized test fixture's `SetupInfoMapAndExpectedState` else
+  // case instead.
+  virtual void SetupInfoMapAndExpectedState() {
+    list_infos_.emplace_back(true, "win_url_malware", win_malware_id_,
+                             SBThreatType::SB_THREAT_TYPE_URL_MALWARE);
+    expected_identifiers_.push_back(win_malware_id_);
+    expected_store_paths_.push_back(
+        database_dirname_.AppendASCII("win_url_malware.store"));
+
+    list_infos_.emplace_back(true, "linux_url_malware", linux_malware_id_,
+                             SBThreatType::SB_THREAT_TYPE_URL_MALWARE);
+    expected_identifiers_.push_back(linux_malware_id_);
+    expected_store_paths_.push_back(
+        database_dirname_.AppendASCII("linux_url_malware.store"));
+  }
 
   void NewDatabaseReadyWithExpectedStorePathsAndIds(
       base::OnceClosure callback,
@@ -257,6 +274,7 @@ class SBDatabaseTest : public PlatformTest {
   StoreStateMap expected_store_state_map_;
   std::unordered_map<ListIdentifier, raw_ptr<SBStore, CtnExperimental>>
       old_stores_map_;
+  const ListIdentifier linux_malware_id_, win_malware_id_;
 };
 
 // Parameterized test fixture that runs both for v4 and v5.
@@ -283,7 +301,8 @@ class SBDatabaseTest_V4V5 : public SBDatabaseTest,
     }
   }
 
-  // Sets up the list info map and expected store states.
+  // Sets up the list info map and expected store states. Overridden to handle
+  // v5.
   void SetupInfoMapAndExpectedState() override {
     if (IsV5Enabled()) {
       ListIdentifier malware_id_v5(SBThreatType::SB_THREAT_TYPE_URL_MALWARE);
@@ -301,19 +320,7 @@ class SBDatabaseTest_V4V5 : public SBDatabaseTest,
       expected_store_paths_.push_back(
           database_dirname_.AppendASCII("linux_url_malware_v5.store"));
     } else {
-      ListIdentifier win_malware_id(WINDOWS_PLATFORM, URL, MALWARE_THREAT);
-      list_infos_.emplace_back(true, "win_url_malware", win_malware_id,
-                               SBThreatType::SB_THREAT_TYPE_URL_MALWARE);
-      expected_identifiers_.push_back(win_malware_id);
-      expected_store_paths_.push_back(
-          database_dirname_.AppendASCII("win_url_malware.store"));
-
-      ListIdentifier linux_malware_id(LINUX_PLATFORM, URL, MALWARE_THREAT);
-      list_infos_.emplace_back(true, "linux_url_malware", linux_malware_id,
-                               SBThreatType::SB_THREAT_TYPE_URL_MALWARE);
-      expected_identifiers_.push_back(linux_malware_id);
-      expected_store_paths_.push_back(
-          database_dirname_.AppendASCII("linux_url_malware.store"));
+      SBDatabaseTest::SetupInfoMapAndExpectedState();
     }
   }
 
@@ -725,82 +732,98 @@ TEST_P(SBDatabaseTest_V4V5, UsingWeakPtrDropsCallback) {
   EXPECT_FALSE(test_callback.was_called());
 }
 
-TEST_P(SBDatabaseTest_V4V5, TestFactorySelection) {
-  base::HistogramTester histogram_tester;
-
-  // Clear and setup list_infos_ with base name (no extension).
+TEST_F(SBDatabaseTest, TestFactorySelectionV4) {
+  // Clear and setup list_infos_ with base name (no extension)
   list_infos_.clear();
   expected_identifiers_.clear();
   expected_store_paths_.clear();
 
-  if (IsV5Enabled()) {
-    // Use different threat types for V5 to avoid duplicate keys in StoreMap.
-    ListIdentifier malware_id_v5(SBThreatType::SB_THREAT_TYPE_URL_MALWARE);
-    ListIdentifier phishing_id_v5(SBThreatType::SB_THREAT_TYPE_URL_PHISHING);
+  list_infos_.emplace_back(true, "win_url_malware", win_malware_id_,
+                           SBThreatType::SB_THREAT_TYPE_URL_MALWARE);
+  expected_identifiers_.push_back(win_malware_id_);
+  expected_store_paths_.push_back(
+      database_dirname_.AppendASCII("win_url_malware.store"));
 
-    list_infos_.emplace_back(true, "win_url_malware", malware_id_v5,
-                             SBThreatType::SB_THREAT_TYPE_URL_MALWARE);
-    expected_identifiers_.push_back(malware_id_v5);
-    expected_store_paths_.push_back(
-        database_dirname_.AppendASCII("win_url_malware_v5.store"));
+  list_infos_.emplace_back(true, "linux_url_malware", linux_malware_id_,
+                           SBThreatType::SB_THREAT_TYPE_URL_MALWARE);
+  expected_identifiers_.push_back(linux_malware_id_);
+  expected_store_paths_.push_back(
+      database_dirname_.AppendASCII("linux_url_malware.store"));
 
-    list_infos_.emplace_back(true, "linux_url_malware", phishing_id_v5,
-                             SBThreatType::SB_THREAT_TYPE_URL_PHISHING);
-    expected_identifiers_.push_back(phishing_id_v5);
-    expected_store_paths_.push_back(
-        database_dirname_.AppendASCII("linux_url_malware_v5.store"));
-  } else {
-    ListIdentifier win_malware_id(WINDOWS_PLATFORM, URL, MALWARE_THREAT);
-    ListIdentifier linux_malware_id(LINUX_PLATFORM, URL, MALWARE_THREAT);
-
-    list_infos_.emplace_back(true, "win_url_malware", win_malware_id,
-                             SBThreatType::SB_THREAT_TYPE_URL_MALWARE);
-    expected_identifiers_.push_back(win_malware_id);
-    expected_store_paths_.push_back(
-        database_dirname_.AppendASCII("win_url_malware.store"));
-
-    list_infos_.emplace_back(true, "linux_url_malware", linux_malware_id,
-                             SBThreatType::SB_THREAT_TYPE_URL_MALWARE);
-    expected_identifiers_.push_back(linux_malware_id);
-    expected_store_paths_.push_back(
-        database_dirname_.AppendASCII("linux_url_malware.store"));
-  }
+  base::test::ScopedFeatureList feature_list;
+  feature_list.InitAndDisableFeature(kLocalListsUseSBv5);
+  base::HistogramTester histogram_tester;
 
   // Do not register fake factory, let it use the default.
   WaitForSBDatabaseReady(CreateTaskRunner(), {});
 
   ASSERT_TRUE(sb_database_);
 
-  if (IsV5Enabled()) {
-    // V5 store read should be logged, V4 should not.
-    histogram_tester.ExpectBucketCount("SafeBrowsing.V5StoreRead.Result",
-                                       V5StoreReadResult::kFileOpenFailure,
-                                       list_infos_.size());
-    histogram_tester.ExpectTotalCount("SafeBrowsing.V4StoreRead.Result", 0);
+  // V4 store read should be logged, V5 should not.
+  histogram_tester.ExpectBucketCount("SafeBrowsing.V4StoreRead.Result",
+                                     FILE_UNREADABLE_FAILURE,
+                                     list_infos_.size());
+  histogram_tester.ExpectTotalCount("SafeBrowsing.V5StoreRead.Result", 0);
 
-    // V5 store ready on startup should be logged as false, V4 should not be
-    // logged.
-    histogram_tester.ExpectUniqueSample("SafeBrowsing.V5Store.ReadyOnStartup",
-                                        false, list_infos_.size());
-    histogram_tester.ExpectTotalCount("SafeBrowsing.V4Store.ReadyOnStartup", 0);
-  } else {
-    // V4 store read should be logged, V5 should not.
-    histogram_tester.ExpectBucketCount("SafeBrowsing.V4StoreRead.Result",
-                                       FILE_UNREADABLE_FAILURE,
-                                       list_infos_.size());
-    histogram_tester.ExpectTotalCount("SafeBrowsing.V5StoreRead.Result", 0);
-
-    // V4 store ready on startup should be logged as false, V5 should not be
-    // logged.
-    histogram_tester.ExpectUniqueSample("SafeBrowsing.V4Store.ReadyOnStartup",
-                                        false, list_infos_.size());
-    histogram_tester.ExpectTotalCount("SafeBrowsing.V5Store.ReadyOnStartup", 0);
-  }
+  // V4 store ready on startup should be logged as false, V5 should not be
+  // logged.
+  histogram_tester.ExpectUniqueSample("SafeBrowsing.V4Store.ReadyOnStartup",
+                                      false, list_infos_.size());
+  histogram_tester.ExpectTotalCount("SafeBrowsing.V5Store.ReadyOnStartup", 0);
   histogram_tester.ExpectUniqueSample("SafeBrowsing.SBStore.ReadyOnStartup",
                                       false, list_infos_.size());
 }
 
-TEST_P(SBDatabaseTest_V4V5, TestRecordFileSizeHistograms) {
+TEST_F(SBDatabaseTest, TestFactorySelectionV5) {
+  base::test::ScopedFeatureList feature_list;
+  feature_list.InitAndEnableFeature(kLocalListsUseSBv5);
+  base::HistogramTester histogram_tester;
+
+  // Use different threat types for V5 to avoid duplicate keys in StoreMap.
+  ListIdentifier malware_id_v5(SBThreatType::SB_THREAT_TYPE_URL_MALWARE);
+  ListIdentifier phishing_id_v5(SBThreatType::SB_THREAT_TYPE_URL_PHISHING);
+
+  // Clear and setup list_infos_ with V5 identifiers and base name (no
+  // extension)
+  list_infos_.clear();
+  expected_identifiers_.clear();
+  expected_store_paths_.clear();
+
+  list_infos_.emplace_back(true, "win_url_malware", malware_id_v5,
+                           SBThreatType::SB_THREAT_TYPE_URL_MALWARE);
+  expected_identifiers_.push_back(malware_id_v5);
+  expected_store_paths_.push_back(
+      database_dirname_.AppendASCII("win_url_malware_v5.store"));
+
+  list_infos_.emplace_back(true, "linux_url_malware", phishing_id_v5,
+                           SBThreatType::SB_THREAT_TYPE_URL_PHISHING);
+  expected_identifiers_.push_back(phishing_id_v5);
+  expected_store_paths_.push_back(
+      database_dirname_.AppendASCII("linux_url_malware_v5.store"));
+
+  // Do not register fake factory, let it use the default.
+  WaitForSBDatabaseReady(CreateTaskRunner(), {});
+
+  ASSERT_TRUE(sb_database_);
+
+  // V5 store read should be logged, V4 should not.
+  histogram_tester.ExpectBucketCount("SafeBrowsing.V5StoreRead.Result",
+                                     V5StoreReadResult::kFileOpenFailure,
+                                     list_infos_.size());
+  histogram_tester.ExpectTotalCount("SafeBrowsing.V4StoreRead.Result", 0);
+
+  // V5 store ready on startup should be logged as false, V4 should not be
+  // logged.
+  histogram_tester.ExpectUniqueSample("SafeBrowsing.V5Store.ReadyOnStartup",
+                                      false, list_infos_.size());
+  histogram_tester.ExpectTotalCount("SafeBrowsing.V4Store.ReadyOnStartup", 0);
+  histogram_tester.ExpectUniqueSample("SafeBrowsing.SBStore.ReadyOnStartup",
+                                      false, list_infos_.size());
+}
+
+TEST_F(SBDatabaseTest, TestRecordFileSizeHistogramsV5) {
+  base::test::ScopedFeatureList feature_list;
+  feature_list.InitAndEnableFeature(kLocalListsUseSBv5);
   base::HistogramTester histogram_tester;
 
   // Setup list_infos_ with a few stores.
@@ -808,111 +831,62 @@ TEST_P(SBDatabaseTest_V4V5, TestRecordFileSizeHistograms) {
   expected_identifiers_.clear();
   expected_store_paths_.clear();
 
-  if (IsV5Enabled()) {
-    ListIdentifier malware_id(SBThreatType::SB_THREAT_TYPE_URL_MALWARE);
-    ListIdentifier soceng_id(SBThreatType::SB_THREAT_TYPE_URL_PHISHING);
-    list_infos_.emplace_back(true, "UrlMalware", malware_id,
-                             SBThreatType::SB_THREAT_TYPE_URL_MALWARE);
-    expected_identifiers_.push_back(malware_id);
-    expected_store_paths_.push_back(
-        database_dirname_.AppendASCII("UrlMalware_v5.store"));
+  ListIdentifier malware_id(SBThreatType::SB_THREAT_TYPE_URL_MALWARE);
+  ListIdentifier soceng_id(SBThreatType::SB_THREAT_TYPE_URL_PHISHING);
+  list_infos_.emplace_back(true, "UrlMalware", malware_id,
+                           SBThreatType::SB_THREAT_TYPE_URL_MALWARE);
+  expected_identifiers_.push_back(malware_id);
+  expected_store_paths_.push_back(
+      database_dirname_.AppendASCII("UrlMalware_v5.store"));
 
-    list_infos_.emplace_back(true, "UrlSoceng", soceng_id,
-                             SBThreatType::SB_THREAT_TYPE_URL_PHISHING);
-    expected_identifiers_.push_back(soceng_id);
-    expected_store_paths_.push_back(
-        database_dirname_.AppendASCII("UrlSoceng_v5.store"));
-  } else {
-    ListIdentifier malware_id(WINDOWS_PLATFORM, URL, MALWARE_THREAT);
-    ListIdentifier soceng_id(WINDOWS_PLATFORM, URL, SOCIAL_ENGINEERING);
-    list_infos_.emplace_back(true, "UrlMalware", malware_id,
-                             SBThreatType::SB_THREAT_TYPE_URL_MALWARE);
-    expected_identifiers_.push_back(malware_id);
-    expected_store_paths_.push_back(
-        database_dirname_.AppendASCII("UrlMalware.store"));
-
-    list_infos_.emplace_back(true, "UrlSoceng", soceng_id,
-                             SBThreatType::SB_THREAT_TYPE_URL_PHISHING);
-    expected_identifiers_.push_back(soceng_id);
-    expected_store_paths_.push_back(
-        database_dirname_.AppendASCII("UrlSoceng.store"));
-  }
+  list_infos_.emplace_back(true, "UrlSoceng", soceng_id,
+                           SBThreatType::SB_THREAT_TYPE_URL_PHISHING);
+  expected_identifiers_.push_back(soceng_id);
+  expected_store_paths_.push_back(
+      database_dirname_.AppendASCII("UrlSoceng_v5.store"));
 
   // Do not register fake factory, let it use the default.
   WaitForSBDatabaseReady(CreateTaskRunner(), {});
   // Record and verify histograms.
   sb_database_->RecordFileSizeHistograms();
-  if (IsV5Enabled()) {
-    histogram_tester.ExpectUniqueSample("SafeBrowsing.V5Database.Size", 0, 1);
-    histogram_tester.ExpectUniqueSample("SafeBrowsing.V5Database.SizeLinear", 0,
-                                        1);
-    // Confirm V5Store receives appropriate metric prefix.
-    histogram_tester.ExpectUniqueSample(
-        "SafeBrowsing.V5Database.Size.UrlMalware_v5", 0, 1);
-    histogram_tester.ExpectUniqueSample(
-        "SafeBrowsing.V5Database.Size.UrlSoceng_v5", 0, 1);
-  } else {
-    histogram_tester.ExpectUniqueSample("SafeBrowsing.V4Database.Size", 0, 1);
-    histogram_tester.ExpectUniqueSample("SafeBrowsing.V4Database.SizeLinear", 0,
-                                        1);
-    // Confirm V4Store receives appropriate metric prefix.
-    histogram_tester.ExpectUniqueSample(
-        "SafeBrowsing.V4Database.Size.UrlMalware", 0, 1);
-    histogram_tester.ExpectUniqueSample(
-        "SafeBrowsing.V4Database.Size.UrlSoceng", 0, 1);
-  }
+  histogram_tester.ExpectUniqueSample("SafeBrowsing.V5Database.Size", 0, 1);
+  histogram_tester.ExpectUniqueSample("SafeBrowsing.V5Database.SizeLinear", 0,
+                                      1);
+  // Confirm V5Store receives appropriate metric prefix.
+  histogram_tester.ExpectUniqueSample(
+      "SafeBrowsing.V5Database.Size.UrlMalware_v5", 0, 1);
+  histogram_tester.ExpectUniqueSample(
+      "SafeBrowsing.V5Database.Size.UrlSoceng_v5", 0, 1);
 }
 
-TEST_P(SBDatabaseTest_V4V5, TestRecordDatabaseUpdateLatency) {
+TEST_F(SBDatabaseTest, TestRecordDatabaseUpdateLatencyV5) {
+  base::test::ScopedFeatureList feature_list;
+  feature_list.InitAndEnableFeature(kLocalListsUseSBv5);
   base::HistogramTester histogram_tester;
 
-  // Setup list_infos_ with a store.
+  // Setup list_infos_ with a V5 store.
   list_infos_.clear();
   expected_identifiers_.clear();
   expected_store_paths_.clear();
 
-  ListIdentifier malware_id =
-      IsV5Enabled() ? ListIdentifier(SBThreatType::SB_THREAT_TYPE_URL_MALWARE)
-                    : ListIdentifier(WINDOWS_PLATFORM, URL, MALWARE_THREAT);
-  if (IsV5Enabled()) {
-    list_infos_.emplace_back(true, "UrlMalware", malware_id,
-                             SBThreatType::SB_THREAT_TYPE_URL_MALWARE);
-    expected_identifiers_.push_back(malware_id);
-    expected_store_paths_.push_back(
-        database_dirname_.AppendASCII("UrlMalware_v5.store"));
-  } else {
-    list_infos_.emplace_back(true, "UrlMalware", malware_id,
-                             SBThreatType::SB_THREAT_TYPE_URL_MALWARE);
-    expected_identifiers_.push_back(malware_id);
-    expected_store_paths_.push_back(
-        database_dirname_.AppendASCII("UrlMalware.store"));
-  }
+  ListIdentifier malware_id(SBThreatType::SB_THREAT_TYPE_URL_MALWARE);
+  list_infos_.emplace_back(true, "UrlMalware", malware_id,
+                           SBThreatType::SB_THREAT_TYPE_URL_MALWARE);
+  expected_identifiers_.push_back(malware_id);
+  expected_store_paths_.push_back(
+      database_dirname_.AppendASCII("UrlMalware_v5.store"));
 
-  // Do not register fake factory, let it use the default.
+  // Do not register fake factory, let it use the default (V5Store).
   WaitForSBDatabaseReady(CreateTaskRunner(), {});
   ASSERT_TRUE(sb_database_);
-
-  std::string latency_metric = IsV5Enabled()
-                                   ? "SafeBrowsing.V5Database.UpdateLatency"
-                                   : "SafeBrowsing.V4Database.UpdateLatency";
 
   // First update to set last_update_ and version to "version_1".
   {
     auto update_map = std::make_unique<SBUpdateResponseMap>();
     auto sb_response = std::make_unique<SBUpdateResponse>();
-    if (IsV5Enabled()) {
-      auto v5_response = std::make_unique<V5::HashList>();
-      v5_response->set_version("version_1");
-      sb_response->v5_response = std::move(v5_response);
-    } else {
-      auto lur = std::make_unique<ListUpdateResponse>();
-      lur->set_platform_type(malware_id.platform_type());
-      lur->set_threat_entry_type(malware_id.threat_entry_type());
-      lur->set_threat_type(malware_id.threat_type());
-      lur->set_new_client_state("version_1");
-      lur->set_response_type(ListUpdateResponse::FULL_UPDATE);
-      sb_response->v4_response = std::move(lur);
-    }
+    auto v5_response = std::make_unique<V5::HashList>();
+    v5_response->set_version("version_1");
+    sb_response->v5_response = std::move(v5_response);
     update_map->insert({malware_id, std::move(sb_response)});
 
     base::RunLoop run_loop;
@@ -921,26 +895,16 @@ TEST_P(SBDatabaseTest_V4V5, TestRecordDatabaseUpdateLatency) {
   }
 
   // Histogram should not be logged yet.
-  histogram_tester.ExpectTotalCount(latency_metric, 0);
+  histogram_tester.ExpectTotalCount("SafeBrowsing.V5Database.UpdateLatency", 0);
 
   // Second update to "version_2" should log the histogram. Logged from
   // `UpdatedStoreReady`.
   {
     auto update_map = std::make_unique<SBUpdateResponseMap>();
     auto sb_response = std::make_unique<SBUpdateResponse>();
-    if (IsV5Enabled()) {
-      auto v5_response = std::make_unique<V5::HashList>();
-      v5_response->set_version("version_2");
-      sb_response->v5_response = std::move(v5_response);
-    } else {
-      auto lur = std::make_unique<ListUpdateResponse>();
-      lur->set_platform_type(malware_id.platform_type());
-      lur->set_threat_entry_type(malware_id.threat_entry_type());
-      lur->set_threat_type(malware_id.threat_type());
-      lur->set_new_client_state("version_2");
-      lur->set_response_type(ListUpdateResponse::FULL_UPDATE);
-      sb_response->v4_response = std::move(lur);
-    }
+    auto v5_response = std::make_unique<V5::HashList>();
+    v5_response->set_version("version_2");
+    sb_response->v5_response = std::move(v5_response);
     update_map->insert({malware_id, std::move(sb_response)});
 
     base::RunLoop run_loop;
@@ -949,26 +913,16 @@ TEST_P(SBDatabaseTest_V4V5, TestRecordDatabaseUpdateLatency) {
   }
 
   // Histogram should be logged now.
-  histogram_tester.ExpectTotalCount(latency_metric, 1);
+  histogram_tester.ExpectTotalCount("SafeBrowsing.V5Database.UpdateLatency", 1);
 
   // Third update to "version_2" (no change) should log the histogram again.
   // Logged from `ApplyUpdate`.
   {
     auto update_map = std::make_unique<SBUpdateResponseMap>();
     auto sb_response = std::make_unique<SBUpdateResponse>();
-    if (IsV5Enabled()) {
-      auto v5_response = std::make_unique<V5::HashList>();
-      v5_response->set_version("version_2");
-      sb_response->v5_response = std::move(v5_response);
-    } else {
-      auto lur = std::make_unique<ListUpdateResponse>();
-      lur->set_platform_type(malware_id.platform_type());
-      lur->set_threat_entry_type(malware_id.threat_entry_type());
-      lur->set_threat_type(malware_id.threat_type());
-      lur->set_new_client_state("version_2");
-      lur->set_response_type(ListUpdateResponse::FULL_UPDATE);
-      sb_response->v4_response = std::move(lur);
-    }
+    auto v5_response = std::make_unique<V5::HashList>();
+    v5_response->set_version("version_2");
+    sb_response->v5_response = std::move(v5_response);
     update_map->insert({malware_id, std::move(sb_response)});
 
     base::RunLoop run_loop;
@@ -977,7 +931,7 @@ TEST_P(SBDatabaseTest_V4V5, TestRecordDatabaseUpdateLatency) {
   }
 
   // Histogram should be logged again (total 2).
-  histogram_tester.ExpectTotalCount(latency_metric, 2);
+  histogram_tester.ExpectTotalCount("SafeBrowsing.V5Database.UpdateLatency", 2);
 }
 
 TEST(SBDatabaseListInfoTest, TestV4ModeProperties) {

@@ -61,6 +61,7 @@ public class CrossDevicePaneRenderTest {
             new BaseActivityTestRule<>(BlankUiTestActivity.class);
 
     private final boolean mNightModeEnabled;
+    private CrossDeviceListCoordinator mCoordinator;
     private CrossDevicePaneView mView;
     private PropertyModel mModel;
     private FrameLayout mContentView;

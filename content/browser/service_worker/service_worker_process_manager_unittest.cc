@@ -127,9 +127,6 @@ class ServiceWorkerProcessManagerTest : public testing::Test {
     return process_manager_->worker_process_map_;
   }
 
- private:
-  base::test::ScopedFeatureList scoped_feature_list_;
-
  protected:
   content::BrowserTaskEnvironment task_environment_;
   std::unique_ptr<TestBrowserContext> browser_context_;
@@ -137,6 +134,9 @@ class ServiceWorkerProcessManagerTest : public testing::Test {
   GURL script_url_;
   std::unique_ptr<SiteInstanceRenderProcessHostFactory>
       render_process_host_factory_;
+
+ private:
+  base::test::ScopedFeatureList scoped_feature_list_;
 };
 
 TEST_F(ServiceWorkerProcessManagerTest,

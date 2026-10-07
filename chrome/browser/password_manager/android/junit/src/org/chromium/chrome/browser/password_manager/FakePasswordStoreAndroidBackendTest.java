@@ -42,7 +42,9 @@ import java.util.concurrent.TimeoutException;
 
 /** Tests for {@link FakePasswordStoreAndroidBackend}. */
 @RunWith(BaseRobolectricTestRunner.class)
-@Config(shadows = {ShadowSystemClock.class})
+@Config(
+        manifest = Config.NONE,
+        shadows = {ShadowSystemClock.class})
 public class FakePasswordStoreAndroidBackendTest {
     private FakePasswordStoreAndroidBackend mBackend;
 

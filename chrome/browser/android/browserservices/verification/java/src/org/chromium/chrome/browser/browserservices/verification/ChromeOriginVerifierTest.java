@@ -17,7 +17,6 @@ import org.junit.runner.RunWith;
 
 import org.chromium.base.ContextUtils;
 import org.chromium.base.ThreadUtils;
-import org.chromium.base.TriState;
 import org.chromium.base.task.PostTask;
 import org.chromium.base.task.TaskTraits;
 import org.chromium.base.test.util.Batch;
@@ -72,7 +71,7 @@ public class ChromeOriginVerifierTest {
     private class TestOriginVerificationListener implements OriginVerificationListener {
         @Override
         public void onOriginVerified(
-                String packageName, Origin origin, boolean verified, @TriState int online) {
+                String packageName, Origin origin, boolean verified, Boolean online) {
             mLastPackageName = packageName;
             mLastOrigin = origin;
             mLastVerified = verified;

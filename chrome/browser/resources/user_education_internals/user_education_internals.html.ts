@@ -57,11 +57,11 @@ export function getHtml(this: UserEducationInternalsElement) {
   <div id="main">
     <cr-toast id="errorMessageToast" duration="5000">
       <cr-icon id="errorMessageIcon" class="error-outline"
-          icon="cr:error">
+          icon="cr:error-outline">
       </cr-icon>
       <span id="errorMessage">${this.featurePromoErrorMessage_}</span>
     </cr-toast>
-    <div id="content" @promo-action="${this.onPromoAction_}">
+    <div id="content">
       <div id="warning">
         <h2>User Education Debug Page</h2>
         <p>
@@ -79,7 +79,7 @@ export function getHtml(this: UserEducationInternalsElement) {
         </p>
       </div>
       <cr-page-selector ?hidden="${!this.initialized_}"
-                        .selected="${this.selectedTabIndex}" show-all="true"
+                        .selected="${this.selectedTabIndex_}" show-all="true"
                         id="selector">
         <div id="iph" class="promo-list">
           <h2>Feature Promos</h2>
@@ -88,7 +88,9 @@ export function getHtml(this: UserEducationInternalsElement) {
                 id="${item.internalName}"
                 ?hidden="${!this.promoFilter_(item)}"
                 .promo="${item}"
-                .actions="${this.getPromoActions_()}">
+                show-action
+                @promo-launch="${this.onFeaturePromoPromoLaunch_}"
+                @clear-promo-data="${this.onFeaturePromoClearPromoData_}">
             </user-education-internals-card>`)}
           <p class="if-empty">
             No IPH match the search filter.
@@ -101,7 +103,8 @@ export function getHtml(this: UserEducationInternalsElement) {
                 id="${item.internalName}"
                 ?hidden="${!this.promoFilter_(item)}"
                 .promo="${item}"
-                .actions="${this.getTutorialActions_()}">
+                show-action
+                @promo-launch="${this.onTutorialPromoLaunch_}">
             </user-education-internals-card>`)}
           <p class="if-empty">
             No Tutorials match the search filter.
@@ -114,7 +117,7 @@ export function getHtml(this: UserEducationInternalsElement) {
                 id="${item.internalName}"
                 ?hidden="${!this.promoFilter_(item)}"
                 .promo="${item}"
-                .actions="${this.getNewBadgeActions_()}">
+                @clear-promo-data="${this.onNewBadgeClearPromoData_}">
             </user-education-internals-card>`)}
           <p class="if-empty">
             No "New" Badges match the search filter.
@@ -127,7 +130,7 @@ export function getHtml(this: UserEducationInternalsElement) {
                 id="${item.internalName}"
                 ?hidden="${!this.promoFilter_(item)}"
                 .promo="${item}"
-                .actions="${this.getNonIphPromoActions_()}">
+                @clear-promo-data="${this.onNonIphClearPromoData_}">
             </user-education-internals-card>`)}
           <p class="if-empty">
             No non-IPH promos match the search filter.
@@ -162,7 +165,7 @@ export function getHtml(this: UserEducationInternalsElement) {
                 id="${item.internalName}"
                 ?hidden="${!this.promoFilter_(item)}"
                 .promo="${item}"
-                .actions="${this.getNtpPromoActions_()}">
+                @clear-promo-data="${this.onNtpPromoClearPromoData_}">
             </user-education-internals-card>`)}
           <p class="if-empty">
             No NTP Promos match the search filter.

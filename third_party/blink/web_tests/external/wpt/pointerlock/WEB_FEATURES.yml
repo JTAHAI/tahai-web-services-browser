@@ -1,2 +1,3 @@
-rules:
-- "**": [pointer-lock]
+features:
+- name: pointer-lock
+  files: "**"

@@ -18,6 +18,7 @@
 
 namespace blink {
 
+class ActiveNavigationCondition;
 class CSSParserContext;
 class CSSParserTokenStream;
 class CSSParserObserver;
@@ -105,6 +106,9 @@ class CORE_EXPORT CSSSelectorParser {
       const StyleRule* parent_rule_for_nesting,
       StyleSheetContents*,
       HeapVector<CSSSelector>&);
+
+  static ActiveNavigationCondition* ParseActiveNavigationCondition(
+      CSSParserTokenStream&);
 
  private:
   enum ResultFlag {
@@ -241,9 +245,6 @@ class CORE_EXPORT CSSSelectorParser {
       base::span<CSSSelector> selectors);
 
   void SetInSupportsParsing() { in_supports_parsing_ = true; }
-
-  void PushUnparsedComplexSelector(CSSNestingType nesting_type,
-                                   AtomicString invalid_selector_text);
 
   const CSSParserContext* context_;
   // The parent rule pointed to by the nesting selector (&).

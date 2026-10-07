@@ -13,7 +13,6 @@
 #include "base/test/scoped_feature_list.h"
 #include "chrome/browser/autocomplete/aim_eligibility_service_factory.h"
 #include "chrome/browser/contextual_tasks/contextual_tasks_cookie_synchronizer.h"
-#include "chrome/browser/contextual_tasks/contextual_tasks_eligibility_manager.h"
 #include "chrome/browser/contextual_tasks/contextual_tasks_panel_controller.h"
 #include "chrome/browser/contextual_tasks/contextual_tasks_service_factory.h"
 #include "chrome/browser/contextual_tasks/contextual_tasks_side_panel_coordinator.h"
@@ -25,7 +24,7 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/search_engines/template_url_service_factory.h"
 #include "chrome/browser/signin/identity_manager_factory.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/contextual_search/tab_contextualization_controller.h"
 #include "chrome/browser/ui/lens/lens_overlay_controller.h"
 #include "chrome/browser/ui/lens/lens_overlay_side_panel_coordinator.h"
@@ -113,8 +112,9 @@ class TestingContextualTasksUiService
       auto web_contents = content::WebContents::Create(params);
       stub_web_contents_ = web_contents.get();
       Observe(stub_web_contents_);
-      browser_window_interface->GetTabStripModel()->AppendWebContents(
-          std::move(web_contents), /*foreground=*/false);
+      Browser* browser = static_cast<Browser*>(browser_window_interface);
+      browser->tab_strip_model()->AppendWebContents(std::move(web_contents),
+                                                    /*foreground=*/false);
     }
     std::string webui_url = "chrome://contextual-tasks/?aimUrl=" + url.spec();
     stub_web_contents_->GetController().LoadURL(
@@ -137,8 +137,9 @@ class TestingContextualTasksUiService
         content::WebContents::CreateParams(profile_));
     stub_web_contents_ = web_contents.get();
     Observe(stub_web_contents_);
-    browser_window_interface->GetTabStripModel()->AppendWebContents(
-        std::move(web_contents), /*foreground=*/false);
+    Browser* browser = static_cast<Browser*>(browser_window_interface);
+    browser->tab_strip_model()->AppendWebContents(std::move(web_contents),
+                                                  /*foreground=*/false);
     stub_web_contents_->GetController().LoadURL(
         GURL("about:blank"), content::Referrer(), ui::PAGE_TRANSITION_LINK,
         std::string());
@@ -825,7 +826,7 @@ IN_PROC_BROWSER_TEST_F(
       panel_contents,
       "document.querySelector('contextual-tasks-app').shadowRoot."
       "querySelector('contextual-tasks-composebox').shadowRoot."
-      "querySelector('#composebox').onLensClick_()"));
+      "querySelector('cr-composebox').onLensClick_()"));
 
   // Wait for the invocation source to be updated to ContextualTasksComposebox.
   ASSERT_TRUE(base::test::RunUntil([&]() {
@@ -843,7 +844,7 @@ IN_PROC_BROWSER_TEST_F(
                panel_contents,
                "document.querySelector('contextual-tasks-app').shadowRoot."
                "querySelector('contextual-tasks-composebox').shadowRoot."
-               "querySelector('#composebox').hasFiles()")
+               "querySelector('cr-composebox').hasFiles()")
         .ExtractBool();
   }));
 

@@ -50,7 +50,8 @@ void SetFaviconTask(Profile* profile,
                     const std::vector<unsigned char>& image_data,
                     favicon_base::IconType icon_type) {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
-  auto bitmap_data = base::MakeRefCounted<base::RefCountedBytes>(image_data);
+  scoped_refptr<base::RefCountedMemory> bitmap_data(
+      new base::RefCountedBytes(image_data));
   gfx::Size pixel_size(gfx::kFaviconSize, gfx::kFaviconSize);
   favicon::FaviconService* favicon_service =
       FaviconServiceFactory::GetForProfile(profile,
@@ -152,16 +153,22 @@ int64_t PartnerBookmarksReader::AddPartnerBookmark(
     // Handle favicon and touchicon
     if (profile_ != nullptr) {
       if (!favicon.is_null() || !touchicon.is_null()) {
-        const JavaRef<jbyteArray>& icon =
-            (!touchicon.is_null()) ? touchicon : favicon;
+        jbyteArray icon =
+            (!touchicon.is_null()) ? touchicon.obj() : favicon.obj();
         const favicon_base::IconType icon_type =
             touchicon ? favicon_base::IconType::kTouchIcon
                       : favicon_base::IconType::kFavicon;
-        SkBitmap icon_bitmap = gfx::PNGCodec::Decode(
-            icon.CreateViewCritical<uint8_t>(env).as_span());
-        if (!icon_bitmap.isNull()) {
-          PrepareAndSetFavicon(icon_bitmap, node.get(), profile_, icon_type);
+        int8_t* icon_bytes = env->GetByteArrayElements(icon, nullptr);
+        if (icon_bytes) {
+          const int icon_len = env->GetArrayLength(icon);
+          // SAFETY: Pointer and length come from JNI; assume those are
+          // implemented correctly.
+          base::span<uint8_t> icon_span =
+              UNSAFE_BUFFERS(base::span(reinterpret_cast<uint8_t*>(icon_bytes),
+                                        base::checked_cast<size_t>(icon_len)));
+          PrepareAndSetFavicon(icon_span, node.get(), profile_, icon_type);
         }
+        env->ReleaseByteArrayElements(icon, icon_bytes, JNI_ABORT);
       } else {
         // We should attempt to read the favicon from cache or retrieve it from
         // a server and cache it.
@@ -351,10 +358,14 @@ void PartnerBookmarksReader::OnFaviconFetched(
 
 // static
 void PartnerBookmarksReader::PrepareAndSetFavicon(
-    const SkBitmap& icon_bitmap,
+    base::span<uint8_t> icon,
     BookmarkNode* node,
     Profile* profile,
     favicon_base::IconType icon_type) {
+  SkBitmap icon_bitmap = gfx::PNGCodec::Decode(icon);
+  if (icon_bitmap.isNull()) {
+    return;
+  }
   std::optional<std::vector<uint8_t>> image_data =
       gfx::PNGCodec::EncodeBGRASkBitmap(icon_bitmap,
                                         /*discard_transparency=*/false);

@@ -148,7 +148,6 @@ public class TabSwitcherActionProviderUnitTest {
 
     @After
     public void tearDown() {
-        DeviceInfo.resetIsDesktopForTesting();
         UserPrefsJni.setInstanceForTesting(null);
         TabGroupSyncServiceFactory.setForTesting(null);
     }
@@ -377,13 +376,5 @@ public class TabSwitcherActionProviderUnitTest {
         assertEquals(
                 FeatureConstants.IPH_TAB_SWITCHER_XR,
                 mModel.get(ActionProperties.IPH_INTENT).getFeatureNameForTesting());
-    }
-
-    @Test
-    @EnableFeatures(ChromeFeatureList.DISABLE_GRID_TAB_SWITCHER)
-    public void testButtonState_disabledOnDesktop() {
-        DeviceInfo.setIsDesktopForTesting(true);
-        mTabCountSupplier.set(5);
-        assertEquals(ButtonState.UNCLICKABLE, mModel.get(ActionProperties.BUTTON_STATE));
     }
 }

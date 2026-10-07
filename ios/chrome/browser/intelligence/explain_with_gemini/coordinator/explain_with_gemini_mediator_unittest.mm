@@ -69,7 +69,7 @@ class ExplainWithGeminiMediatorTest : public PlatformTest {
     TestProfileIOS::Builder builder;
     builder.AddTestingFactory(
         AuthenticationServiceFactory::GetInstance(),
-        AuthenticationServiceFactory::GetFactoryWithDelegateForTesting(
+        AuthenticationServiceFactory::GetFactoryWithDelegate(
             std::make_unique<FakeAuthenticationServiceDelegate>()));
     builder.AddTestingFactory(
         IdentityManagerFactory::GetInstance(),
@@ -171,14 +171,10 @@ TEST_F(ExplainWithGeminiMediatorTest, TriggerAction_StartsFlow) {
     NSString* testText = @"Hello World";
 
     OCMExpect([mockGeminiHandler
-        startGeminiEntryFlowWithStartupState:[OCMArg checkWithBlock:^BOOL(
-                                                         id value) {
+        startGeminiFlowWithStartupState:[OCMArg checkWithBlock:^BOOL(id value) {
           GeminiStartupState* startupState = (GeminiStartupState*)value;
           return [startupState.prepopulatedPrompt containsString:testText];
-        }]
-                          baseViewController:OCMOCK_ANY
-                    showSnackbarOnCompletion:YES
-                                  completion:OCMOCK_ANY]);
+        }]]);
 
     [partialMock triggerExplainWithGeminiForText:testText
                                         webState:web_state_.get()];
@@ -264,14 +260,10 @@ TEST_F(ExplainWithGeminiMediatorTest, TriggerAction_StartsFlow_NoMock) {
     // Expect that starting the Gemini flow will be called with a prompt
     // containing the test text.
     OCMExpect([mockGeminiHandler
-        startGeminiEntryFlowWithStartupState:[OCMArg checkWithBlock:^BOOL(
-                                                         id value) {
+        startGeminiFlowWithStartupState:[OCMArg checkWithBlock:^BOOL(id value) {
           GeminiStartupState* startupState = (GeminiStartupState*)value;
           return [startupState.prepopulatedPrompt containsString:testText];
-        }]
-                          baseViewController:OCMOCK_ANY
-                    showSnackbarOnCompletion:YES
-                                  completion:OCMOCK_ANY]);
+        }]]);
 
     [mediator_ triggerExplainWithGeminiForText:testText
                                       webState:web_state_.get()];

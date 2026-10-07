@@ -20,7 +20,7 @@ UIImage* GetDefaultFavicon() {
       configurationWithPointSize:gfx::kFaviconSize
                           weight:UIImageSymbolWeightBold
                            scale:UIImageSymbolScaleMedium];
-  return SymbolWithConfiguration(SymbolGlobeAmericas, configuration);
+  return DefaultSymbolWithConfiguration(kGlobeAmericasSymbol, configuration);
 }
 
 GeminiPageContext* CreatePartialPageContextForWebState(web::WebState* web_state,

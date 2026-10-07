@@ -63,9 +63,9 @@ PersonalDataManager::PersonalDataManager(
   }
 
   Refresh();
-  if (pref_service_) {
-    autofill_metrics::LogIsAutofillEnabledAtStartup(*pref_service_);
-  }
+  autofill_metrics::LogIsAutofillEnabledAtStartup(
+      address_data_manager_->IsAutofillProfileEnabled() ||
+      payments_data_manager_->IsAutofillPaymentMethodsEnabled());
 }
 
 PersonalDataManager::~PersonalDataManager() = default;

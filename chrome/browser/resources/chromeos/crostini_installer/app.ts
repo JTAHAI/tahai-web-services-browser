@@ -179,9 +179,12 @@ class CrostiniInstallerAppElement extends PolymerElement {
   declare private username_: string;
   declare private usernameError_: string;
   declare private MAX_USERNAME_LENGTH: number;
-  private listenerIds_: number[] = [];
-  private diskSpacePromise_ =
-      BrowserProxy.getInstance().handler.requestAmountOfFreeDiskSpace();
+  private listenerIds_: number[];
+  private diskSpacePromise_: Promise<{
+    ticks: DiskSliderTick[],
+    defaultIndex: number,
+    isLowSpaceAvailable: boolean,
+  }>;
   private onNextButtonClickIsRunning_: boolean = false;
 
   override connectedCallback() {
@@ -209,6 +212,10 @@ class CrostiniInstallerAppElement extends PolymerElement {
       callbackRouter.onCanceled.addListener(() => this.closePage_()),
       callbackRouter.requestClose.addListener(() => this.cancelOrBack_(true)),
     ];
+
+    // Query the disk space sooner than later to minimize delay.
+    this.diskSpacePromise_ =
+        BrowserProxy.getInstance().handler.requestAmountOfFreeDiskSpace();
 
     document.addEventListener('keyup', event => {
       if (event.key === 'Escape') {

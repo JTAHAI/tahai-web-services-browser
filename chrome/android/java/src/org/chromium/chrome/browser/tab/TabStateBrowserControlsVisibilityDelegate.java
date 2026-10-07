@@ -9,7 +9,6 @@ import static org.chromium.build.NullUtil.assertNonNull;
 import android.annotation.SuppressLint;
 import android.os.Handler;
 import android.os.Message;
-import android.util.ArraySet;
 
 import androidx.annotation.IntDef;
 
@@ -24,7 +23,7 @@ import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.util.ChromeAccessibilityUtil;
 import org.chromium.components.browser_ui.util.BrowserControlsVisibilityDelegate;
 import org.chromium.components.dom_distiller.core.DomDistillerUrlUtils;
-import org.chromium.components.embedder_support.util.UrlUtilities;
+import org.chromium.components.embedder_support.util.UrlConstants;
 import org.chromium.components.security_state.SecurityStateModel;
 import org.chromium.content_public.browser.ImeAdapter;
 import org.chromium.content_public.browser.ImeEventObserver;
@@ -35,6 +34,7 @@ import org.chromium.url.GURL;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
+import java.util.HashSet;
 import java.util.Set;
 
 /**
@@ -85,8 +85,7 @@ public class TabStateBrowserControlsVisibilityDelegate extends BrowserControlsVi
     private boolean mIsFullscreenWaitingForLoad;
     private boolean mIsFocusedNodeEditable;
 
-    // There shouldn't be very many outstanding navigations at once so an ArraySet should be fine.
-    private final Set<Long> mOutstandingNavigations = new ArraySet<>();
+    private final Set<Long> mOutstandingNavigations = new HashSet<>();
 
     /**
      * Basic constructor.
@@ -96,7 +95,7 @@ public class TabStateBrowserControlsVisibilityDelegate extends BrowserControlsVi
     public TabStateBrowserControlsVisibilityDelegate(Tab tab) {
         mTab = (TabImpl) tab;
         mTab.addObserver(
-                new TabObserver() {
+                new EmptyTabObserver() {
                     @SuppressLint("HandlerLeak")
                     private final Handler mHandler =
                             new Handler() {
@@ -238,6 +237,8 @@ public class TabStateBrowserControlsVisibilityDelegate extends BrowserControlsVi
 
                     @Override
                     public void onDestroyed(Tab tab) {
+                        super.onDestroyed(tab);
+
                         // Remove pending handler actions to prevent memory leaks.
                         mHandler.removeCallbacksAndMessages(null);
                     }
@@ -271,7 +272,8 @@ public class TabStateBrowserControlsVisibilityDelegate extends BrowserControlsVi
         GURL url = mTab.getUrl();
         boolean enableHidingBrowserControls = true;
         int flags = 0;
-        if (UrlUtilities.isChromeScheme(url)) {
+        if (url.getScheme().equals(UrlConstants.CHROME_SCHEME)
+                || url.getScheme().equals(UrlConstants.CHROME_NATIVE_SCHEME)) {
             enableHidingBrowserControls = false;
             flags |= (1 << (int) LockReason.CHROME_URL);
         }

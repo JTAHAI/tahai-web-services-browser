@@ -41,7 +41,6 @@
 #include "third_party/blink/renderer/platform/fonts/web_font_typeface_factory.h"
 #include "third_party/blink/renderer/platform/instrumentation/tracing/trace_event.h"
 #include "third_party/blink/renderer/platform/wtf/shared_buffer.h"
-#include "third_party/blink/renderer/platform/wtf/text/format.h"
 #include "third_party/blink/renderer/platform/wtf/text/string_builder.h"
 #include "third_party/blink/renderer/platform/wtf/text/wtf_string.h"
 #include "third_party/ots/src/include/ots-memory-stream.h"
@@ -188,8 +187,8 @@ base::expected<DecodedWebFont, String> DecodedWebFont::Create(
   static const size_t kMaxDecompressedSize =
       kMaxDecompressedSizeMb * 1024 * 1024;
   if (buffer->size() > kMaxDecompressedSize) {
-    return base::unexpected(
-        Format("Web font size more than {}MB", kMaxDecompressedSizeMb));
+    return base::unexpected(String::Format("Web font size more than %zuMB",
+                                           kMaxDecompressedSizeMb));
   }
 
   // Most web fonts are compressed, so the result can be much larger than

@@ -27,7 +27,6 @@ import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
 import org.robolectric.annotation.Config;
 
-import org.chromium.base.CallbackUtils;
 import org.chromium.base.ServiceLoaderUtil;
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.chrome.browser.media.MediaCapturePickerHeadlessFragment.CaptureAction;
@@ -107,8 +106,7 @@ public class MediaCapturePickerInvokerTest {
         mActivityScenarioRule.getScenario().onActivity(activity -> mActivity = activity);
         mPickerDelegate = new FakeMediaCapturePickerDelegate();
         ServiceLoaderUtil.setInstanceForTesting(MediaCapturePickerDelegate.class, mPickerDelegate);
-        MediaCapturePickerManager.setBringTabToFrontCallbackForTesting(
-                CallbackUtils.emptyCallback());
+        MediaCapturePickerManager.setBringTabToFrontCallbackForTesting(tab -> {});
     }
 
     @After

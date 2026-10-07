@@ -17,7 +17,6 @@ import {PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bu
 import {getTemplate} from './edu_coexistence_app.html.js';
 
 export enum Screens {
-  UNSET = 'unset',
   ONLINE_FLOW = 'edu-coexistence-ui',
   ERROR = 'edu-coexistence-error',
   OFFLINE = 'edu-coexistence-offline',
@@ -53,7 +52,7 @@ export class EduCoexistenceApp extends EduCoexistenceAppBase {
   }
 
   declare isErrorShown: boolean;
-  private currentScreen: Screens = Screens.UNSET;
+  currentScreen: Screens;
 
   override ready() {
     super.ready();

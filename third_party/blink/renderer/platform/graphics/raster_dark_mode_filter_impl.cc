@@ -4,10 +4,7 @@
 
 #include "third_party/blink/renderer/platform/graphics/raster_dark_mode_filter_impl.h"
 
-#include <memory>
-
 #include "base/notreached.h"
-#include "base/synchronization/lock.h"
 #include "third_party/blink/renderer/platform/graphics/dark_mode_filter.h"
 #include "third_party/blink/renderer/platform/graphics/dark_mode_settings_builder.h"
 #include "third_party/blink/renderer/platform/wtf/std_lib_extras.h"
@@ -23,20 +20,12 @@ RasterDarkModeFilterImpl& RasterDarkModeFilterImpl::Instance() {
 
 RasterDarkModeFilterImpl::RasterDarkModeFilterImpl(
     const DarkModeSettings& settings)
-    : settings_(settings) {}
+    : dark_mode_filter_(std::make_unique<DarkModeFilter>(settings)) {}
 
 sk_sp<cc::ColorFilter> RasterDarkModeFilterImpl::ApplyToImage(
     const SkPixmap& pixmap,
     const SkIRect& src) const {
-  return GetDarkModeFilter().GenerateImageFilter(pixmap, src);
-}
-
-DarkModeFilter& RasterDarkModeFilterImpl::GetDarkModeFilter() const {
-  base::AutoLock lock(lock_);
-  if (!dark_mode_filter_) {
-    dark_mode_filter_ = std::make_unique<DarkModeFilter>(settings_);
-  }
-  return *dark_mode_filter_;
+  return dark_mode_filter_->GenerateImageFilter(pixmap, src);
 }
 
 }  // namespace blink

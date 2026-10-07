@@ -1,2 +1,4 @@
-rules:
-- document.title-*: [title]
+features:
+- name: title
+  files:
+  - "document.title-*"

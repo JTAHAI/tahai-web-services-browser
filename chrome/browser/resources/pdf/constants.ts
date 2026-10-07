@@ -81,7 +81,6 @@ export enum TextAlignment {
 export enum TextStyle {
   BOLD = 'bold',
   ITALIC = 'italic',
-  STRIKETHROUGH = 'strikethrough',
 }
 
 // LINT.IfChange(TextTypeface)

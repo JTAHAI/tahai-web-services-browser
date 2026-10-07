@@ -44,7 +44,8 @@
 #include "chrome/browser/extensions/component_loader.h"
 #include "chrome/browser/platform_util.h"
 #include "chrome/browser/ui/ash/system_web_apps/system_web_app_ui_utils.h"
-#include "chrome/browser/ui/browser_init_state.h"
+#include "chrome/browser/ui/browser.h"
+#include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "chrome/browser/web_applications/web_app_helpers.h"
@@ -525,9 +526,8 @@ IN_PROC_BROWSER_TEST_P(MediaAppIntegrationTest, MediaAppLaunchPdfMulti) {
   WaitForBrowserCount(3);  // 1 extra for the browser test browser.
   EXPECT_EQ(3u, GlobalBrowserCollection::GetInstance()->GetSize());
 
-  BrowserWindowInterface* const pdf_img_browser =
-      browser_created_observer.Wait();
-  BrowserWindowInterface* const pdf_tall_browser =
+  Browser* const pdf_img_browser = browser_created_observer.Wait();
+  Browser* const pdf_tall_browser =
       ui_test_utils::GetBrowserNotInSet({browser(), pdf_img_browser});
 
   content::TitleWatcher watcher1(
@@ -1093,7 +1093,7 @@ IN_PROC_BROWSER_TEST_P(MediaAppIntegrationWithFilesAppAllProfilesTest,
   // Check that chrome://media-app launched and the test file loads.
   EXPECT_NE(test_browser, app_browser);
   EXPECT_EQ(web_app::GetAppIdFromApplicationName(
-                BrowserInitState::From(app_browser)->create_params().app_name),
+                app_browser->GetBrowserForMigrationOnly()->app_name()),
             MediaAppAppId());
   EXPECT_EQ("800x600", WaitForImageAlt(web_ui, kFilePng800x600));
 

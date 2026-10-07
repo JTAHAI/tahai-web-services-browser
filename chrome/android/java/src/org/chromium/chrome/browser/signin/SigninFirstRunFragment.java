@@ -14,10 +14,6 @@ import android.content.Intent;
 import android.content.res.Configuration;
 import android.graphics.drawable.Drawable;
 import android.os.Bundle;
-import android.transition.Scene;
-import android.transition.Transition;
-import android.transition.TransitionInflater;
-import android.transition.TransitionManager;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -40,7 +36,6 @@ import org.chromium.chrome.browser.firstrun.FirstRunFragment;
 import org.chromium.chrome.browser.firstrun.FirstRunUtils;
 import org.chromium.chrome.browser.firstrun.MobileFreProgress;
 import org.chromium.chrome.browser.firstrun.SkipTosDialogPolicyListener;
-import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.privacy.settings.PrivacyPreferencesManagerImpl;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.profiles.ProfileProvider;
@@ -78,7 +73,6 @@ public class SigninFirstRunFragment extends Fragment
     private @Nullable DeviceLockCoordinator mDeviceLockCoordinator;
     private boolean mExitFirstRunCalled;
     private boolean mDelayedExitFirstRunCalledForTesting;
-    private boolean mCenteredLayoutInflated;
 
     public SigninFirstRunFragment() {}
 
@@ -330,24 +324,15 @@ public class SigninFirstRunFragment extends Fragment
 
     private View inflateFragmentView(LayoutInflater inflater, Activity activity) {
         boolean useLandscapeLayout = SigninUtils.shouldShowDualPanesHorizontalLayout(activity);
-        boolean useCentered = useCenteredLayout();
-
-        int layoutId;
-        if (useLandscapeLayout) {
-            layoutId =
-                    useCentered
-                            ? R.layout.fullscreen_signin_landscape_centered_view
-                            : R.layout.fullscreen_signin_landscape_view;
-        } else {
-            layoutId =
-                    useCentered
-                            ? R.layout.fullscreen_signin_portrait_centered_view
-                            : R.layout.fullscreen_signin_portrait_view;
-        }
 
         final FullscreenSigninView view =
-                (FullscreenSigninView) inflater.inflate(layoutId, null, false);
-        mCenteredLayoutInflated = useCentered;
+                (FullscreenSigninView)
+                        inflater.inflate(
+                                useLandscapeLayout
+                                        ? R.layout.fullscreen_signin_landscape_view
+                                        : R.layout.fullscreen_signin_portrait_view,
+                                null,
+                                false);
         mFullscreenSigninCoordinator.setView(view);
         return view;
     }
@@ -429,47 +414,5 @@ public class SigninFirstRunFragment extends Fragment
 
     @Nullable BadgeConfig getContinueButtonBadgeConfigForTesting() {
         return mFullscreenSigninCoordinator.getContinueButtonBadgeConfigForTesting(); // IN-TEST
-    }
-
-    @Override
-    public void onInitialLoadCompleted() {
-        if (!isAdded()) return;
-        if (mCenteredLayoutInflated) return;
-        if (mFragmentView == null) return;
-
-        if (useCenteredLayout()) {
-            // TODO(crbug.com/537826242): This scene transition is only needed to support
-            // flag-guarding by transitioning between two different layout files
-            // (standard vs centered). Once the flag is permanently enabled, we should merge them
-            // into a single ConstraintLayout file and move this transition back to the view binder
-            // (reusing beginDelayedTransition) to remove this scene transition code.
-            mCenteredLayoutInflated = true;
-            final FrameLayout fragmentView = mFragmentView;
-            boolean useLandscapeLayout =
-                    SigninUtils.shouldShowDualPanesHorizontalLayout(getActivity());
-            int layoutId =
-                    useLandscapeLayout
-                            ? R.layout.fullscreen_signin_landscape_centered_view
-                            : R.layout.fullscreen_signin_portrait_centered_view;
-
-            Scene scene = Scene.getSceneForLayout(fragmentView, layoutId, getActivity());
-            scene.setEnterAction(
-                    () -> {
-                        FullscreenSigninView newView =
-                                assertNonNull(fragmentView.findViewById(R.id.fullscreen_signin));
-                        mMainView = newView;
-                        mFullscreenSigninCoordinator.setView(newView);
-                    });
-            Transition transition =
-                    TransitionInflater.from(getActivity())
-                            .inflateTransition(R.transition.fullscreen_signin_transition);
-
-            TransitionManager.go(scene, transition);
-        }
-    }
-
-    private boolean useCenteredLayout() {
-        return getNativeInitializationPromise().isFulfilled()
-                && ChromeFeatureList.isEnabled(ChromeFeatureList.ANDROID_FRE_LAYOUT_UPDATE);
     }
 }

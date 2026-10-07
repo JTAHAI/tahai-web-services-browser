@@ -11,7 +11,6 @@
 #include "base/synchronization/lock.h"
 #include "base/task/single_thread_task_runner.h"
 #include "base/time/time.h"
-#include "components/metrics/call_stacks/call_stack_profile_encoding.h"
 #include "mojo/public/cpp/base/proto_wrapper.h"
 #include "third_party/metrics_proto/sampled_profile.pb.h"
 
@@ -23,10 +22,10 @@ ChildCallStackProfileCollector::ProfileState::ProfileState(ProfileState&&) =
 
 ChildCallStackProfileCollector::ProfileState::ProfileState(
     base::TimeTicks start_timestamp,
-    mojom::TriggerEvent trigger_event,
+    mojom::ProfileType profile_type,
     mojom::SampledProfilePtr profile)
     : start_timestamp(start_timestamp),
-      trigger_event(trigger_event),
+      profile_type(profile_type),
       profile(std::move(profile)) {}
 
 ChildCallStackProfileCollector::ProfileState::~ProfileState() = default;
@@ -57,7 +56,7 @@ void ChildCallStackProfileCollector::SetParentProfileCollector(
     parent_collector_.Bind(std::move(parent_collector));
     if (parent_collector_) {
       for (ProfileState& state : profiles_) {
-        parent_collector_->Collect(state.start_timestamp, state.trigger_event,
+        parent_collector_->Collect(state.start_timestamp, state.profile_type,
                                    std::move(state.profile));
       }
     }
@@ -90,17 +89,19 @@ void ChildCallStackProfileCollector::Collect(base::TimeTicks start_timestamp,
   mojom::SampledProfilePtr mojo_profile = mojom::SampledProfile::New();
   mojo_profile->contents = mojo_base::ProtoWrapper(profile);
 
-  const mojom::TriggerEvent trigger_event =
-      ToMojomTriggerEvent(profile.trigger_event());
+  const mojom::ProfileType profile_type =
+      profile.trigger_event() == SampledProfile::PERIODIC_HEAP_COLLECTION
+          ? mojom::ProfileType::kHeap
+          : mojom::ProfileType::kCPU;
 
   if (parent_collector_) {
-    parent_collector_->Collect(start_timestamp, trigger_event,
+    parent_collector_->Collect(start_timestamp, profile_type,
                                std::move(mojo_profile));
     return;
   }
 
   if (retain_profiles_) {
-    profiles_.emplace_back(start_timestamp, trigger_event,
+    profiles_.emplace_back(start_timestamp, profile_type,
                            std::move(mojo_profile));
   }
 }

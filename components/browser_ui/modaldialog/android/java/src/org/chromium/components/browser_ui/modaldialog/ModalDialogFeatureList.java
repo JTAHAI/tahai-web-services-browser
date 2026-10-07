@@ -14,7 +14,6 @@ import org.chromium.build.annotations.NullMarked;
  */
 @NullMarked
 public abstract class ModalDialogFeatureList {
-    public static final String DIALOGS_ON_LARGE_FORM_FACTORS = "DialogsOnLargeFormFactors";
     public static final String MODAL_DIALOG_LAYOUT_WITH_SYSTEM_INSETS =
             "ModalDialogLayoutWithSystemInsets";
 }

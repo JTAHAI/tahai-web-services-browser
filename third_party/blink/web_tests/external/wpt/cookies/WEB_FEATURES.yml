@@ -1,3 +1,8 @@
-rules:
-- cookie-enabled-noncookie-frame.html: [cookie-enabled]
-- "*": [cookies]
+features:
+- name: cookie-enabled
+  files:
+  - cookie-enabled-noncookie-frame.html
+- name: cookies
+  files:
+  - "*"
+  - "!cookie-enabled-noncookie-frame.html"

@@ -10,7 +10,7 @@
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/time/time.h"
-#include "chrome/browser/ui/search/most_visited_metrics_logger.h"
+#include "chrome/browser/ui/search/ntp_user_data_logger.h"
 #include "chrome/common/search/ntp_logging_events.h"
 #include "components/ntp_tiles/most_visited_sites.h"
 #include "components/ntp_tiles/ntp_tile.h"
@@ -59,17 +59,18 @@ class MostVisitedHandler : public most_visited::mojom::MostVisitedPageHandler,
       mojo::PendingRemote<most_visited::mojom::MostVisitedPage> pending_page,
       Profile* profile,
       content::WebContents* web_contents,
-      std::unique_ptr<MostVisitedMetricsLogger> logger,
-      const base::Time& navigation_start_time = base::Time());
+      const GURL& ntp_url,
+      const base::Time& ntp_navigation_start_time,
+      base::TimeTicks ntp_navigation_start_time_ticks);
   MostVisitedHandler(const MostVisitedHandler&) = delete;
   MostVisitedHandler& operator=(const MostVisitedHandler&) = delete;
   ~MostVisitedHandler() override;
 
   // See MostVisitedSites::EnableTileTypes.
-  virtual void EnableTileTypes(
+  void EnableTileTypes(
       const ntp_tiles::MostVisitedSites::EnableTileTypesOptions& options);
   // See MostVisitedSites::SetShortcutsVisible.
-  virtual void SetShortcutsVisible(bool visible);
+  void SetShortcutsVisible(bool visible);
 
   // most_visited::mojom::MostVisitedPageHandler:
   void AddMostVisitedTile(const GURL& url,
@@ -130,8 +131,8 @@ class MostVisitedHandler : public most_visited::mojom::MostVisitedPageHandler,
 
   std::unique_ptr<ntp_tiles::MostVisitedSites> most_visited_sites_;
   raw_ptr<content::WebContents> web_contents_;
-  std::unique_ptr<MostVisitedMetricsLogger> logger_;
-  base::Time navigation_start_time_;
+  NTPUserDataLogger logger_;
+  base::Time ntp_navigation_start_time_;
   GURL last_blocklisted_;
 
   mojo::Receiver<most_visited::mojom::MostVisitedPageHandler> page_handler_;

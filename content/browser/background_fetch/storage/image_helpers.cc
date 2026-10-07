@@ -39,7 +39,7 @@ bool ShouldPersistIcon(const SkBitmap& icon) {
 }
 
 void SerializeIcon(const SkBitmap& icon, SerializeIconCallback callback) {
-  CHECK(!icon.isNull(), base::NotFatalUntil::M158);
+  DCHECK(!icon.isNull());
   // Do the serialization on a seperate thread to avoid blocking on
   // expensive operations (image conversions), then post back to current
   // thread and continue normally.
@@ -52,7 +52,7 @@ void SerializeIcon(const SkBitmap& icon, SerializeIconCallback callback) {
 
 void DeserializeIcon(std::unique_ptr<std::string> serialized_icon,
                      DeserializeIconCallback callback) {
-  CHECK(serialized_icon, base::NotFatalUntil::M158);
+  DCHECK(serialized_icon);
   // Do the deserialization on a seperate thread to avoid blocking on
   // expensive operations (image conversions), then post back to current
   // thread and continue normally.

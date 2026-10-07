@@ -32,8 +32,8 @@
 
 namespace {
 
-NSString* const kSendTabToSelfConclusionNotification =
-    @"SendTabToSelfConclusionNotification";
+NSString* const kSendTabToSendConclusionNotification =
+    @"SendTabToSendConclusionNotification";
 
 // Returns the index of the WebState in `web_state_list` belonging to the most
 // recently received Send Tab to Self batch, ignoring previously received tabs.
@@ -71,18 +71,17 @@ namespace send_tab_to_self {
 // static
 std::unique_ptr<IOSSendTabToSelfInfoBarDelegate>
 IOSSendTabToSelfInfoBarDelegate::Create(const SendTabToSelfEntry* entry,
-                                        size_t opened_tab_count,
                                         SendTabToSelfModel* model,
                                         id<SceneCommands> scene_handler,
                                         WebStateList* web_state_list) {
   return std::make_unique<IOSSendTabToSelfInfoBarDelegate>(
-      entry, opened_tab_count, model, scene_handler, web_state_list);
+      entry, model, scene_handler, web_state_list);
 }
 
 IOSSendTabToSelfInfoBarDelegate::~IOSSendTabToSelfInfoBarDelegate() {
   [[NSNotificationCenter defaultCenter]
       removeObserver:registration_
-                name:kSendTabToSelfConclusionNotification
+                name:kSendTabToSendConclusionNotification
               object:nil];
 }
 
@@ -92,12 +91,10 @@ const std::string& IOSSendTabToSelfInfoBarDelegate::GetGUID() const {
 
 IOSSendTabToSelfInfoBarDelegate::IOSSendTabToSelfInfoBarDelegate(
     const SendTabToSelfEntry* entry,
-    size_t opened_tab_count,
     SendTabToSelfModel* model,
     id<SceneCommands> scene_handler,
     WebStateList* web_state_list)
     : model_(model),
-      opened_tab_count_(opened_tab_count),
       scene_handler_(scene_handler),
       web_state_list_(web_state_list),
       guid_(entry->GetGUID()),
@@ -111,7 +108,7 @@ IOSSendTabToSelfInfoBarDelegate::IOSSendTabToSelfInfoBarDelegate(
       weak_ptr_factory_.GetWeakPtr();
   // Observe for conclusion notification from other instances.
   registration_ = [[NSNotificationCenter defaultCenter]
-      addObserverForName:kSendTabToSelfConclusionNotification
+      addObserverForName:kSendTabToSendConclusionNotification
                   object:nil
                    queue:nil
               usingBlock:^(NSNotification* note) {
@@ -154,16 +151,14 @@ int IOSSendTabToSelfInfoBarDelegate::GetIconId() const {
 }
 
 void IOSSendTabToSelfInfoBarDelegate::InfoBarDismissed() {
-  send_tab_to_self::RecordNotificationStatus(
-      send_tab_to_self::NotificationStatus::kDismissed);
+  send_tab_to_self::RecordNotificationDismissed();
   Cancel();
 }
 
 std::u16string IOSSendTabToSelfInfoBarDelegate::GetTitleText() const {
   if (base::FeatureList::IsEnabled(send_tab_to_self::kSendTabToSelfAutoOpen)) {
-    return l10n_util::GetPluralStringFUTF16(
-        IDS_SEND_TAB_TO_SELF_INFOBAR_AUTO_OPEN_TITLE,
-        static_cast<int>(opened_tab_count_));
+    return l10n_util::GetStringUTF16(
+        IDS_SEND_TAB_TO_SELF_INFOBAR_AUTO_OPEN_TITLE);
   }
   return std::u16string();
 }
@@ -180,8 +175,7 @@ std::u16string IOSSendTabToSelfInfoBarDelegate::GetMessageText() const {
 }
 
 bool IOSSendTabToSelfInfoBarDelegate::Accept() {
-  send_tab_to_self::RecordNotificationStatus(
-      send_tab_to_self::NotificationStatus::kOpened);
+  send_tab_to_self::RecordNotificationOpened();
   SendConclusionNotification();
 
   const SendTabToSelfEntry* entry = model_->GetEntryByGUID(guid_);
@@ -218,7 +212,7 @@ bool IOSSendTabToSelfInfoBarDelegate::Cancel() {
 
 void IOSSendTabToSelfInfoBarDelegate::SendConclusionNotification() {
   [[NSNotificationCenter defaultCenter]
-      postNotificationName:kSendTabToSelfConclusionNotification
+      postNotificationName:kSendTabToSendConclusionNotification
                     object:registration_
                   userInfo:nil];
 }

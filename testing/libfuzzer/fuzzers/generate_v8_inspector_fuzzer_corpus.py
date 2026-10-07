@@ -32,16 +32,14 @@ def load_file(output_file, input_file, loaded_files, load_root):
 def generate_content(output_file, input_file, load_root):
   # The fuzzer does not provide the same methods on 'utils' as the
   # inspector-test executable. Thus mock out non-existing ones via a proxy.
-  output_file.write(
-    """
+  output_file.write("""
 utils = new Proxy(utils, {
     get: function(target, prop) {
       if (prop in target) return target[prop];
       return i=>i;
     }
   });
-""".lstrip()
-  )
+""".lstrip())
 
   # Always prepend the 'protocol-test.js' file, which is always loaded first
   # by the test runner for inspector tests.
@@ -55,10 +53,8 @@ utils = new Proxy(utils, {
 def main():
   if len(sys.argv) != 3:
     print(
-      'Usage: {} <path to input directory> <path to output directory>'.format(
-        sys.argv[0]
-      )
-    )
+        'Usage: {} <path to input directory> <path to output directory>'.format(
+            sys.argv[0]))
     sys.exit(1)
 
   input_root = sys.argv[1]

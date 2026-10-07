@@ -37,7 +37,6 @@
 #include "third_party/blink/public/common/dom/dom_node_id.h"
 #include "third_party/blink/public/common/frame/frame_owner_element_type.h"
 #include "third_party/blink/public/common/tokens/tokens.h"
-#include "third_party/blink/public/mojom/browser_interface_broker.mojom-forward.h"
 #include "third_party/blink/public/mojom/devtools/console_message.mojom-forward.h"
 #include "third_party/blink/public/mojom/devtools/inspector_issue.mojom-forward.h"
 #include "third_party/blink/public/mojom/favicon/favicon_url.mojom-forward.h"
@@ -91,8 +90,6 @@ class Size;
 namespace mojo {
 template <typename T>
 class PendingReceiver;
-template <typename T>
-class PendingRemote;
 }  // namespace mojo
 
 namespace net {
@@ -227,18 +224,6 @@ class CONTENT_EXPORT RenderFrameHost : public IPC::Listener {
 
   // Returns the route id for this frame.
   virtual int GetRoutingID() const = 0;
-
-  // Returns the ID of the NavigationHandle that created the document that this
-  // RenderFrameHost represents, if there was such a navigation. The value is
-  // assigned after receiving the DidCommitNavigation IPC. It is not updated
-  // after same-document navigations (which may have their own navigation
-  // IDs).
-  //
-  // Returns 0 if this RenderFrameHost is for an initial empty document of a
-  // frame, and thus was not created for a navigation. This may later change to
-  // a non-zero value if the RenderFrameHost is reused for a navigation to a
-  // non-initial document.
-  virtual int64_t GetNavigationId() const = 0;
 
   // Returns the frame token for this frame.
   virtual const blink::LocalFrameToken& GetFrameToken() const = 0;
@@ -846,11 +831,6 @@ class CONTENT_EXPORT RenderFrameHost : public IPC::Listener {
   // DisallowActivationReasonId.kMinEmbedderDisallowActivationReason.
   virtual bool IsInactiveAndDisallowActivation(uint64_t reason) = 0;
 
-  // Returns whether the frame is focused. A frame is considered focused when it
-  // is the parent chain of the focused frame within the frame tree. In
-  // addition, its associated RenderWidgetHost has to be focused.
-  virtual bool IsFocused() = 0;
-
   // Get the number of proxies to this frame, in all processes. Exposed for
   // use by resource metrics.
   virtual size_t GetProxyCount() = 0;
@@ -1161,20 +1141,6 @@ class CONTENT_EXPORT RenderFrameHost : public IPC::Listener {
   // example, helper methods for MojoJs to better work with Web API objects.
   virtual void EnableMojoJsBindings(mojom::ExtraMojoJsFeaturesPtr features) = 0;
 
-  // Like EnableMojoJsBindings(), but JavaScript calls to Mojo.bindInterface
-  // are routed to |broker| instead of the frame's BrowserInterfaceBroker, so
-  // the page can only reach the interfaces |broker| chooses to serve. Should
-  // be called in ReadyToCommitNavigation. The caller retains ownership of the
-  // broker implementation and must keep it alive for as long as the document
-  // may use it. Callers for frames without an associated WebUI must be
-  // sanctioned by ContentBrowserClient::ShouldAllowMojoJsBindingsForFrame().
-  virtual void EnableMojoJsBindingsWithBroker(
-      mojo::PendingRemote<blink::mojom::BrowserInterfaceBroker> broker) = 0;
-
-  // Indicates that this frame wants stack traces included in console error
-  // notifications (`untrusted_stack_trace` in `DidAddMessageToConsole`).
-  virtual void SetWantErrorMessageStackTrace() = 0;
-
   // Whether the current document is loaded inside iframe credentialless.
   // Updated on every cross-document navigation.
   virtual bool IsCredentialless() const = 0;
@@ -1250,10 +1216,6 @@ class CONTENT_EXPORT RenderFrameHost : public IPC::Listener {
 
   // Returns true if this RenderFrameHost has access to cookies.
   virtual bool IsFullCookieAccessAllowed() = 0;
-
-  // Returns true if this RenderFrameHost is disallowed from interacting with
-  // unpartitioned storage and the Storage Access API.
-  virtual bool IsStorageAccessRestricted() = 0;
 
   // Sets the Storage Access API status for this RenderFrameHost.
   //

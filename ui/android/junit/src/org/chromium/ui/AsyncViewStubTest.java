@@ -19,6 +19,7 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.robolectric.RuntimeEnvironment;
+import org.robolectric.annotation.Config;
 
 import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.BaseRobolectricTestRunner;
@@ -29,6 +30,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 /** Tests logic in the AsyncViewStub class. */
 @RunWith(BaseRobolectricTestRunner.class)
+@Config(manifest = Config.NONE)
 @NullMarked
 public class AsyncViewStubTest {
     private LinearLayout mMainView;

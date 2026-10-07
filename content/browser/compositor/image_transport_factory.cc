@@ -16,7 +16,7 @@ ImageTransportFactory* g_image_transport_factory = nullptr;
 // static
 void ImageTransportFactory::SetFactory(
     std::unique_ptr<ImageTransportFactory> factory) {
-  CHECK(!g_image_transport_factory, base::NotFatalUntil::M159);
+  DCHECK(!g_image_transport_factory);
   g_image_transport_factory = factory.release();
 }
 

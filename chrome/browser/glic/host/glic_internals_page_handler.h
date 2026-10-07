@@ -53,12 +53,6 @@ class GlicInternalsPageHandler : public glic::mojom::InternalsPageHandler {
 
   void ShowExperimentalOptIn() override;
 
-  void RevokeExperimentalTriggeringConsent() override;
-
-  void RevokeGlicConsent() override;
-
-  void RevokeActuationConsent() override;
-
  private:
   void OnInvokeSuccess(TriggerInvokeFromInternalsActionCallback callback,
                        bool take_screenshot,

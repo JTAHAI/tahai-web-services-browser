@@ -128,6 +128,8 @@ void FontAccess::DidGetEnumerationResponse(
 
   // Font data exists; process and fill in the data.
   base::ReadOnlySharedMemoryMapping mapping = region.Map();
+  FontEnumerationTable table;
+
   if (mapping.size() > INT_MAX) {
     // Cannot deserialize without overflow.
     resolver->Reject(V8ThrowDOMException::CreateOrDie(
@@ -137,26 +139,25 @@ void FontAccess::DidGetEnumerationResponse(
   }
 
   // Used to compare with data coming from the browser to avoid conversions.
-  const bool has_postscript_name_filter = options->hasPostscriptNames();
+  const bool hasPostscriptNameFilter = options->hasPostscriptNames();
   std::set<std::string> selection_utf8;
-  if (has_postscript_name_filter) {
-    for (const String& postscript_name : options->postscriptNames()) {
+  if (hasPostscriptNameFilter) {
+    for (const String& postscriptName : options->postscriptNames()) {
       // While postscript names are encoded in a subset of ASCII, we convert the
       // input into UTF8. This will still allow exact matches to occur.
-      selection_utf8.insert(postscript_name.Utf8());
+      selection_utf8.insert(postscriptName.Utf8());
     }
   }
 
-  base::span<const uint8_t> mapped_mem(mapping);
-  FontEnumerationTable table;
-  table.ParseFromString(base::as_string_view(mapped_mem));
-
   HeapVector<Member<FontMetadata>> entries;
+  base::span<const uint8_t> mapped_mem(mapping);
+  table.ParseFromArray(mapped_mem.data(),
+                       base::checked_cast<int>(mapped_mem.size()));
   for (const auto& element : table.fonts()) {
     // If the optional postscript name filter is set in QueryOptions,
     // only allow items that match.
-    if (has_postscript_name_filter &&
-        !selection_utf8.contains(element.postscript_name())) {
+    if (hasPostscriptNameFilter &&
+        !selection_utf8.contains(element.postscript_name().c_str())) {
       continue;
     }
 
@@ -166,7 +167,7 @@ void FontAccess::DidGetEnumerationResponse(
         .family = String::FromUtf8(element.family()),
         .style = String::FromUtf8(element.style()),
     };
-    entries.push_back(MakeGarbageCollected<FontMetadata>(std::move(entry)));
+    entries.push_back(FontMetadata::Create(std::move(entry)));
   }
 
   resolver->Resolve(std::move(entries));

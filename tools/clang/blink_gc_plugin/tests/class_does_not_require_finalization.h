@@ -40,4 +40,4 @@ class DoesNeedFinalizer2 : public GarbageCollected<DoesNeedFinalizer2>,
 };
 }
 
-#endif  // CLASS_DOES_NOT_REQUIRE_FINALIZATION_BASE_H_
+#endif

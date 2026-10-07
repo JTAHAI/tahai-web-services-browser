@@ -75,6 +75,11 @@ enum class TrustedVaultUserActionTriggerForUMA;
 // Hides the composebox on the next run loop.
 - (void)hideComposebox;
 
+// Hides the composebox and, upon completion, opens the share sheet.
+// This is a temporary command that is only introduced for an experiment, see
+// crbug.com/479521675 for context.
+- (void)hideComposeboxAndShowShareSheet;
+
 // Hides the compose box on the next run loop. The completion block is called
 // once hidden.
 - (void)hideComposeboxWithCompletion:(ProceduralBlock)completion;
@@ -85,6 +90,12 @@ enum class TrustedVaultUserActionTriggerForUMA;
 
 // Shows the AddCreditCard UI.
 - (void)showAddCreditCard;
+
+// Shows the dialog for sending the page with `url` and `title` between a user's
+// devices.
+- (void)showSendTabToSelfUI:(const GURL&)url
+                      title:(NSString*)title
+                 entryPoint:(send_tab_to_self::ShareEntryPoint)entryPoint;
 
 #if !defined(NDEBUG)
 // Inserts a new tab showing the HTML source of the current page.
@@ -115,22 +126,19 @@ enum class TrustedVaultUserActionTriggerForUMA;
 - (void)stopVoiceSearch;
 
 // Dismiss the password suggestions.
-// TODO(crbug.com/543354673): Remove this.
 - (void)dismissPasswordSuggestions;
 
 // Dismiss the payments suggestions.
 - (void)dismissPaymentSuggestions;
 
+// Dismisses the passkey creation bottom sheet.
+- (void)dismissPasskeyCreation;
+
 // Dismiss the card unmask authentication prompt.
-// Deprecated: use AutofillCommands instead.
-- (void)legacyDismissCardUnmaskAuthentication;
+- (void)dismissCardUnmaskAuthentication;
 
 // Dismiss the virtual card enrollment bottom sheet.
-// Deprecated: use AutofillCommands instead.
-- (void)legacyDismissVirtualCardEnrollmentBottomSheet;
-
-// Command to reset the autofill suggestions loading states.
-- (void)resetAutofillSuggestionsLoadingStates;
+- (void)dismissVirtualCardEnrollmentBottomSheet;
 
 // Shows the omnibox position choice screen.
 - (void)showOmniboxPositionChoice;

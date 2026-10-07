@@ -29,16 +29,13 @@ enum class FocusgroupBehavior : uint8_t {
   kListbox,
   kMenu,
   kMenubar,
-
-  // Behaviors gated on the FocusgroupV2 runtime feature:
-  kFeed,
+  // Grid behavior gated on FocusgroupGrid runtime feature.
   kGrid,
-
   // Explicit opt-out (standalone, cannot be combined with any modifiers).
   kOptOut,
 };
 
-enum FocusgroupFlags : uint16_t {
+enum FocusgroupFlags : uint8_t {
   kNone = 0,  // No focusgroup behavior (default / sentinel).
 
   // Primary navigation axis:
@@ -57,10 +54,6 @@ enum FocusgroupFlags : uint16_t {
 
   // Memory behavior override disables history-based focus restoration:
   kNoMemory = 1 << 6,
-
-  // Modifier gated on the FocusgroupV2 runtime feature:
-  // Include controls associated with the active item in sequential navigation.
-  kItemControls = 1 << 7,
 };
 
 inline constexpr FocusgroupFlags operator&(FocusgroupFlags a,

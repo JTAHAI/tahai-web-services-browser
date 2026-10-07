@@ -35,6 +35,7 @@ import type {Route} from '../router.js';
 import {Router, routes} from '../router.js';
 
 import {getTemplate} from './keyboard_and_text_input_page.html.js';
+import type {KeyboardAndTextInputPageBrowserProxy} from './keyboard_and_text_input_page_browser_proxy.js';
 import {KeyboardAndTextInputPageBrowserProxyImpl} from './keyboard_and_text_input_page_browser_proxy.js';
 
 interface LocaleInfo {
@@ -169,23 +170,22 @@ export class SettingsKeyboardAndTextInputPageElement extends
   declare private dictationLearnMoreUrl_: string;
   declare private dictationLocaleMenuSubtitle_: string;
   declare private dictationLocaleOptions_: LocaleInfo[];
-  private dictationLocaleSubtitleOverride_: string = '';
+  private dictationLocaleSubtitleOverride_: string;
   declare private dictationLocalesList_: LocaleInfo[];
   declare private isKioskModeActive_: boolean;
-  declare private focusHighlightEnabledPref_:
+  private focusHighlightEnabledPref_:
       chrome.settingsPrivate.PrefObject<boolean>;
   declare private focusHighlightEnabledVirtualPref_:
       chrome.settingsPrivate.PrefObject<boolean>;
-  private keyboardAndTextInputBrowserProxy_ =
-      KeyboardAndTextInputPageBrowserProxyImpl.getInstance();
+  private keyboardAndTextInputBrowserProxy_:
+      KeyboardAndTextInputPageBrowserProxy;
   declare private stickyKeysEnabledVirtualPref_:
       chrome.settingsPrivate.PrefObject<boolean>;
   declare private showDictationLocaleMenu_: boolean;
-  private useDictationLocaleSubtitleOverride_: boolean = false;
+  private useDictationLocaleSubtitleOverride_: boolean;
   declare private caretBlinkIntervalVirtualPref_:
       chrome.settingsPrivate.PrefObject<number>;
-  private defaultCaretBlinkRateMs_: number =
-      loadTimeData.getInteger('defaultCaretBlinkIntervalMs');
+  private defaultCaretBlinkRateMs_: number;
   private caretBlinkIntervalOffSliderValue_ = 40;
   declare private slowKeysDelayVirtualPref_:
       chrome.settingsPrivate.PrefObject<number>;
@@ -196,8 +196,23 @@ export class SettingsKeyboardAndTextInputPageElement extends
   private filterKeysSliderMaxMillis_ = 2000;
   private filterKeysSliderIncrementMillis = 100;
 
-  // RouteOriginMixin override
-  override route = routes.A11Y_KEYBOARD_AND_TEXT_INPUT;
+
+  constructor() {
+    super();
+
+    /** RouteOriginMixin override */
+    this.route = routes.A11Y_KEYBOARD_AND_TEXT_INPUT;
+
+    this.keyboardAndTextInputBrowserProxy_ =
+        KeyboardAndTextInputPageBrowserProxyImpl.getInstance();
+
+    this.dictationLocaleSubtitleOverride_ = '';
+
+    this.useDictationLocaleSubtitleOverride_ = false;
+
+    this.defaultCaretBlinkRateMs_ =
+        loadTimeData.getInteger('defaultCaretBlinkIntervalMs');
+  }
 
   override ready(): void {
     super.ready();

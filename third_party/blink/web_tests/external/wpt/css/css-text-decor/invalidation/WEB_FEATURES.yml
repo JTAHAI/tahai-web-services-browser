@@ -1,3 +1,7 @@
-rules:
-- selection-pseudo-with-decoration-invalidation-*: [text-decoration-selection]
-- text-decoration-*: [text-decoration]
+features:
+- name: text-decoration-selection
+  files:
+  - "selection-pseudo-with-decoration-invalidation-*"
+- name: text-decoration
+  files:
+  - "text-decoration-*"

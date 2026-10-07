@@ -39,8 +39,7 @@ dictionary ProfileState {
 enum InvocationSource {
   "unknown",
   "universal-cart",
-  "promotion-page",
-  "web-continuity"
+  "promotion-page"
 };
 
 dictionary GetStateParams {
@@ -62,12 +61,6 @@ dictionary InvokeDetails {
 
   // Whether should invoke the task in a new tab. Default to false.
   boolean inNewTab;
-
-  // The conversation ID to focus in Glic, optional.
-  DOMString conversationId;
-
-  // The turn ID to focus within the conversation in Glic, optional.
-  DOMString turnId;
 };
 
 enum ErrorCode {

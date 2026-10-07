@@ -1,2 +1,4 @@
-rules:
-- mask-type-*: [mask-type]
+features:
+- name: mask-type
+  files:
+  - mask-type-*

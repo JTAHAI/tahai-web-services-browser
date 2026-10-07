@@ -5,7 +5,7 @@
 #ifndef CHROMEOS_ASH_SERVICES_QUICK_PAIR_PUBLIC_MOJOM_FAST_PAIR_TRAITS_H_
 #define CHROMEOS_ASH_SERVICES_QUICK_PAIR_PUBLIC_MOJOM_FAST_PAIR_TRAITS_H_
 
-#include <array>
+#include <algorithm>
 #include <cstdint>
 #include <optional>
 #include <vector>
@@ -51,14 +51,12 @@ class StructTraits<DecryptedResponseDataView, DecryptedResponse> {
         r.message_type);
   }
 
-  static const std::array<uint8_t, kDecryptedResponseAddressByteSize>&
-  address_bytes(const DecryptedResponse& r) {
-    return r.address_bytes;
+  static std::vector<uint8_t> address_bytes(const DecryptedResponse& r) {
+    return std::vector<uint8_t>(r.address_bytes.begin(), r.address_bytes.end());
   }
 
-  static const std::array<uint8_t, kDecryptedResponseSaltByteSize>& salt(
-      const DecryptedResponse& r) {
-    return r.salt;
+  static std::vector<uint8_t> salt(const DecryptedResponse& r) {
+    return std::vector<uint8_t>(r.salt.begin(), r.salt.end());
   }
 
   static std::optional<uint8_t> flags(const DecryptedResponse& r) {
@@ -69,10 +67,13 @@ class StructTraits<DecryptedResponseDataView, DecryptedResponse> {
     return r.num_addresses;
   }
 
-  static const std::optional<
-      std::array<uint8_t, kDecryptedResponseAddressByteSize>>&
-  secondary_address_bytes(const DecryptedResponse& r) {
-    return r.secondary_address_bytes;
+  static std::optional<std::vector<uint8_t>> secondary_address_bytes(
+      const DecryptedResponse& r) {
+    if (!r.secondary_address_bytes.has_value()) {
+      return std::nullopt;
+    }
+    return std::vector<uint8_t>(r.secondary_address_bytes.value().begin(),
+                                r.secondary_address_bytes.value().end());
   }
 
   static bool Read(DecryptedResponseDataView data, DecryptedResponse* out);
@@ -131,7 +132,7 @@ template <>
 class StructTraits<NotDiscoverableAdvertisementDataView,
                    NotDiscoverableAdvertisement> {
  public:
-  static const std::vector<uint8_t>& account_key_filter(
+  static std::vector<uint8_t> account_key_filter(
       const NotDiscoverableAdvertisement& r) {
     return r.account_key_filter;
   }
@@ -140,12 +141,11 @@ class StructTraits<NotDiscoverableAdvertisementDataView,
     return r.show_ui;
   }
 
-  static const std::vector<uint8_t>& salt(
-      const NotDiscoverableAdvertisement& r) {
+  static std::vector<uint8_t> salt(const NotDiscoverableAdvertisement& r) {
     return r.salt;
   }
 
-  static const std::optional<BatteryNotification>& battery_notification(
+  static std::optional<BatteryNotification> battery_notification(
       const NotDiscoverableAdvertisement& r) {
     return r.battery_notification;
   }

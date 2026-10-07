@@ -7,16 +7,15 @@
 
 #include "base/callback_list.h"
 #include "base/memory/raw_ptr.h"
-#include "chrome/browser/ui/read_anything/read_anything_contents_wrapper.h"
 #include "chrome/browser/ui/read_anything/read_anything_controller.h"
 #include "chrome/browser/ui/read_anything/read_anything_enums.h"
 #include "chrome/browser/ui/read_anything/read_anything_immersive_activation_observer.h"
 #include "chrome/browser/ui/read_anything/read_anything_lifecycle_observer.h"
+#include "chrome/browser/ui/webui/side_panel/read_anything/read_anything_untrusted_ui.h"
+#include "chrome/browser/ui/webui/top_chrome/webui_contents_wrapper.h"
 #include "ui/base/metadata/metadata_header_macros.h"
 #include "ui/views/controls/webview/webview.h"
 #include "ui/views/view.h"
-
-using read_anything::mojom::ReadAnythingOpenTrigger;
 
 class ContentsWebView;
 class ReadAnythingImmersiveWebView;
@@ -39,12 +38,13 @@ class ReadAnythingImmersiveOverlayView
   ReadAnythingImmersiveOverlayView& operator=(
       const ReadAnythingImmersiveOverlayView&) = delete;
 
-  void ShowUI(ReadAnythingContentsWrapper contents_wrapper,
+  void ShowUI(std::unique_ptr<WebUIContentsWrapperT<ReadAnythingUntrustedUI>>
+                  contents_wrapper,
               ReadAnythingOpenTrigger trigger);
 
   // Closes the overlay and returns ownership of the WebUIContentsWrapper to the
   // caller.
-  ReadAnythingContentsWrapper CloseUI();
+  std::unique_ptr<WebUIContentsWrapperT<ReadAnythingUntrustedUI>> CloseUI();
 
   // ReadAnythingImmersiveActivationObserver:
   void OnShowImmersive(ReadAnythingOpenTrigger trigger) override;

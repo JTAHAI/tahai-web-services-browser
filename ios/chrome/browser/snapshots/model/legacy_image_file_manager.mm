@@ -209,7 +209,7 @@ void RemoveAllImages(const base::FilePath& directory) {
 // Helper function to delete images created before `threshold_date` from disk.
 void PurgeImagesOlderThan(
     const base::FilePath& directory,
-    base::Time threshold_date,
+    const base::Time& threshold_date,
     const std::vector<SnapshotID>& keep_alive_snapshot_ids,
     ImageScale snapshot_scale) {
   base::ScopedBlockingCall scoped_blocking_call(FROM_HERE,

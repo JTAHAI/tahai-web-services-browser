@@ -75,7 +75,3 @@ void WebUIContentsPreloadManagerTestAPI::SetPreloadCandidateSelector(
   return preload_manager()->SetPreloadCandidateSelector(
       std::move(preload_candidate_selector));
 }
-
-void WebUIContentsPreloadManagerTestAPI::ReregisterMemoryConsumer() {
-  preload_manager()->ReregisterMemoryConsumerForTesting();
-}

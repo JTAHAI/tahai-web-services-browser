@@ -50,14 +50,14 @@ void UiUtils::PollForBrowserRenderer(base::RunLoop* wait_loop) {
 
 void UiUtils::WaitForVisibilityStatus(
     const UserFriendlyElementName& element_name,
-    const bool& visible,
-    base::TimeDelta timeout) {
+    const bool& visible) {
   base::RunLoop wait_loop(base::RunLoop::Type::kNestableTasksAllowed);
 
   std::optional<UiVisibilityState> visibility_expectation =
       std::make_optional<UiVisibilityState>();
   visibility_expectation->element_to_watch = element_name;
-  visibility_expectation->timeout_ms = timeout;
+  visibility_expectation->timeout_ms =
+      base::Milliseconds(kDefaultUiQuiescenceTimeout);
   visibility_expectation->expected_visibile = visible;
   visibility_expectation->on_visibility_change_result = base::BindOnce(
       [](base::RunLoop* loop, bool visibility_matched) {

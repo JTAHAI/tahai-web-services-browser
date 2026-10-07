@@ -17,6 +17,7 @@
 #import "ios/chrome/common/material_timing.h"
 #import "ios/chrome/common/ui/colors/semantic_color_names.h"
 #import "ios/chrome/common/ui/util/ui_util.h"
+#import "ui/gfx/ios/uikit_util.h"
 
 namespace {
 
@@ -107,7 +108,7 @@ UIColor* SelectionCircleColor() {
       [_arrowView setFrame:imageSize];
     }
 
-    CGFloat borderWidth = AlignValueToUpperPixel(kToolbarSeparatorHeight);
+    CGFloat borderWidth = ui::AlignValueToUpperPixel(kToolbarSeparatorHeight);
 
     CGRect borderFrame = CGRectMake(0, 0, borderWidth, self.frame.size.height);
     UIView* border = [[UIView alloc] initWithFrame:borderFrame];
@@ -276,7 +277,7 @@ UIColor* SelectionCircleColor() {
   // Move `selectionCircleLayer_` without animations.
   CGRect bounds = self.bounds;
   CGPoint center = CGPointMake(CGRectGetMidX(bounds), CGRectGetMidY(bounds));
-  [_arrowView setCenter:AlignPointToLowerPixel(center)];
+  [_arrowView setCenter:AlignPointToPixel(center)];
   [CATransaction begin];
   [CATransaction setDisableActions:YES];
   [_selectionCircleLayer setPosition:center];
@@ -449,7 +450,7 @@ UIColor* SelectionCircleColor() {
   }
   CGRect bounds = self.bounds;
   CGPoint center = CGPointMake(CGRectGetMidX(bounds), CGRectGetMidY(bounds));
-  [_arrowView setCenter:AlignPointToLowerPixel(center)];
+  [_arrowView setCenter:AlignPointToPixel(center)];
 }
 
 // Animate navigation with the duration `animationTime` and execute completion

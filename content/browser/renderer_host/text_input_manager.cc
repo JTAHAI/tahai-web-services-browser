@@ -14,7 +14,6 @@
 #include "build/build_config.h"
 #include "content/browser/renderer_host/render_widget_host_impl.h"
 #include "content/browser/renderer_host/render_widget_host_view_base.h"
-#include "ui/base/ime/text_input_flags.h"
 #include "ui/gfx/geometry/rect.h"
 #include "ui/gfx/range/range.h"
 
@@ -22,28 +21,12 @@ namespace content {
 
 namespace {
 
-#if defined(USE_AURA)
-bool ShouldUpdateForFlagChanges(int old_flags, int new_flags) {
-#if BUILDFLAG(IS_WIN)
-  if ((old_flags & ui::TEXT_INPUT_FLAG_HAS_BEEN_PASSWORD) &&
-      (new_flags & ui::TEXT_INPUT_FLAG_HAS_BEEN_PASSWORD)) {
-    // The custom password flag adds no new TSF semantics once a field has been
-    // a native password field. Refocusing TSF for this flag alone changes the
-    // virtual keyboard layout on older versions of Windows.
-    old_flags &= ~ui::TEXT_INPUT_FLAG_HAS_BEEN_CUSTOM_PASSWORD;
-    new_flags &= ~ui::TEXT_INPUT_FLAG_HAS_BEEN_CUSTOM_PASSWORD;
-  }
-#endif
-  return old_flags != new_flags;
-}
-#endif  // defined(USE_AURA)
-
 bool ShouldUpdateTextInputState(const ui::mojom::TextInputState& old_state,
                                 const ui::mojom::TextInputState& new_state) {
 #if defined(USE_AURA)
   return old_state.node_id != new_state.node_id ||
          old_state.type != new_state.type || old_state.mode != new_state.mode ||
-         ShouldUpdateForFlagChanges(old_state.flags, new_state.flags) ||
+         old_state.flags != new_state.flags ||
          old_state.can_compose_inline != new_state.can_compose_inline;
 #elif BUILDFLAG(IS_APPLE)
   return old_state.type != new_state.type ||
@@ -158,9 +141,7 @@ std::optional<ui::GrammarFragment> TextInputManager::GetGrammarFragment(
 
 const TextInputManager::SelectionRegion* TextInputManager::GetSelectionRegion(
     RenderWidgetHostViewBase* view) const {
-  // TODO(crbug.com/552952740): CHECK-exclusion: Convert to a CHECK once we are
-  // confident it won't be triggered.
-  DCHECK(!view || IsRegistered(view));
+  CHECK(!view || IsRegistered(view), base::NotFatalUntil::M153);
   if (!view)
     view = active_view_;
   return view ? &selection_region_map_.at(view) : nullptr;

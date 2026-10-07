@@ -19,7 +19,7 @@
 class BookmarkBarView;
 class BookmarkMenuControllerObserver;
 class BookmarkMenuDelegate;
-class BrowserWindowInterface;
+class Browser;
 
 namespace ui {
 class OSExchangeData;
@@ -41,7 +41,7 @@ class BookmarkMenuController : public BookmarkMergedSurfaceServiceObserver,
  public:
   // Creates a BookmarkMenuController showing the children of `folder` starting
   // at `start_child_index`.
-  BookmarkMenuController(BrowserWindowInterface* browser,
+  BookmarkMenuController(Browser* browser,
                          views::Widget* parent,
                          const BookmarkParentFolder& folder,
                          size_t start_child_index,

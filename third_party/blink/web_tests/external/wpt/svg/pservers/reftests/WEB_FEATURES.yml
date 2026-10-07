@@ -1,2 +1,4 @@
-rules:
-- pattern-opacity-01.svg: [opacity-svg]
+features:
+- name: opacity-svg
+  files:
+  - pattern-opacity-01.svg

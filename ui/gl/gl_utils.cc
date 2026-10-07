@@ -127,6 +127,19 @@ void SetGlWorkarounds(const GlWorkarounds& workarounds) {
 }
 
 #if BUILDFLAG(IS_WIN)
+unsigned int DirectCompositionRootSurfaceBufferCount() {
+  if (switches::GetFakeVsyncIntervalFromCommandLine().has_value()) {
+    // We assume 2 swapchain buffers are intended for a standard 60Hz display.
+    // If we are simulating a high refresh rate, we increase the buffer count
+    // to 10 to prevent blocking on presentation if the actual hardware
+    // display refresh rate is slower.
+    // Note: The simulated refresh rate is used here as a heuristic for
+    // debugging high refresh rate behaviors and does not need to be exact.
+    return 10u;
+  }
+  return 2u;
+}
+
 // Labels swapchain buffers with the string name_prefix + _Buffer_ +
 // <buffer_number>
 void LabelSwapChainBuffers(IDXGISwapChain3* swap_chain,
@@ -234,7 +247,7 @@ ScopedPixelStore::~ScopedPixelStore() {
     glPixelStorei(name_, old_value_);
 }
 
-std::string_view GetDebugSourceString(unsigned int source) {
+const char* GetDebugSourceString(unsigned int source) {
   switch (source) {
     case GL_DEBUG_SOURCE_API:
       return "OpenGL";
@@ -253,7 +266,7 @@ std::string_view GetDebugSourceString(unsigned int source) {
   }
 }
 
-std::string_view GetDebugTypeString(unsigned int type) {
+const char* GetDebugTypeString(unsigned int type) {
   switch (type) {
     case GL_DEBUG_TYPE_ERROR:
       return "Error";
@@ -274,7 +287,7 @@ std::string_view GetDebugTypeString(unsigned int type) {
   }
 }
 
-std::string_view GetDebugSeverityString(unsigned int severity) {
+const char* GetDebugSeverityString(unsigned int severity) {
   switch (severity) {
     case GL_DEBUG_SEVERITY_HIGH:
       return "High";

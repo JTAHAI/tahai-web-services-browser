@@ -3,7 +3,6 @@
 // found in the LICENSE file.
 
 import './icons.html.js';
-import './searchbox_config_icons.html.js';
 import './composebox_tab_favicon.js';
 import './composebox_favicon_group.js';
 import '//resources/cr_elements/icons.html.js';
@@ -12,7 +11,7 @@ import '//resources/cr_elements/cr_icon/cr_icon.js';
 
 import {ComposeboxContextAddedMethod} from '//resources/cr_components/search/constants.js';
 import {AnchorAlignment} from '//resources/cr_elements/cr_action_menu/cr_action_menu.js';
-import type {CrActionMenuElement, ShowAtPositionConfig} from '//resources/cr_elements/cr_action_menu/cr_action_menu.js';
+import type {CrActionMenuElement} from '//resources/cr_elements/cr_action_menu/cr_action_menu.js';
 import {I18nMixinLit} from '//resources/cr_elements/i18n_mixin_lit.js';
 import {assert} from '//resources/js/assert.js';
 import {loadTimeData} from '//resources/js/load_time_data.js';
@@ -24,7 +23,7 @@ import type {InputState} from '//resources/mojo/components/omnibox/composebox/co
 import {InputType, ModelMode, ToolMode} from '//resources/mojo/components/omnibox/composebox/composebox_query.mojom-webui.js';
 import type {UnguessableToken} from '//resources/mojo/mojo/public/mojom/base/unguessable_token.mojom-webui.js';
 
-import {getLoadTimeBoolean, recordBoolean, recordContextAdditionMethod, recordEnumerationValue, SmartTabSharingSurface, TabUploadOrigin} from './common.js';
+import {getLoadTimeBoolean, recordBoolean, recordContextAdditionMethod, TabUploadOrigin} from './common.js';
 import {getCss} from './contextual_action_menu.css.js';
 import {getHtml} from './contextual_action_menu.html.js';
 import {WindowProxy} from './window_proxy.js';
@@ -41,8 +40,9 @@ export const VIEWPORT_BUFFER_PX = 16;
 export const MIN_MENU_HEIGHT_PX = 100;
 export const SHARE_TABS_FLYOUT_MAX_HEIGHT_PX = 344;
 export const SHARE_TABS_FLYOUT_INDENT_PX = 114;
-// From the CSS file (default max-height):
+// From the CSS file (default max-height and min-height):
 export const DEFAULT_MAX_MENU_HEIGHT_PX = 540;
+export const DEFAULT_MIN_MENU_HEIGHT_PX = 144;
 
 // Gap between tab shared menu and context menu in px.
 const MENU_GAP = 0;
@@ -109,7 +109,7 @@ export class ContextualActionMenuElement extends
     return {
       fileNum: {type: Number},
       nonTabFileNum: {type: Number},
-      selectedTabIds: {type: Object},
+      disabledTabIds: {type: Object},
       aimThreadRestoredTabs: {type: Array},
       tabSuggestions: {type: Array},
       inputState: {type: Object},
@@ -138,19 +138,13 @@ export class ContextualActionMenuElement extends
       uploadButtonDisabled: {type: Boolean},
       isSidePanel: {type: Boolean},
       recentTabId: {type: Number},
-      unboundedMenuEnabled: {
-        reflect: true,
-        type: Boolean,
-        attribute: 'unbounded-menu-enabled',
-      },
-      isOpen_: {type: Boolean},
     };
   }
 
   accessor recentTabId: number|null = null;
   accessor fileNum: number = 0;
   accessor nonTabFileNum: number = 0;
-  accessor selectedTabIds: Map<number, UnguessableToken> = new Map();
+  accessor disabledTabIds: Map<number, UnguessableToken> = new Map();
   accessor aimThreadRestoredTabs: TabInfo[] = [];
   accessor tabSuggestions: TabInfo[] = [];
   accessor inputState: InputState|null = null;
@@ -161,7 +155,6 @@ export class ContextualActionMenuElement extends
   accessor uploadButtonDisabled: boolean = false;
   accessor isSidePanel: boolean = false;
   accessor shareTabsFlyoutOpen: boolean = false;
-  accessor unboundedMenuEnabled: boolean = false;
 
   private setShareTabsFlyoutOpen_(open: boolean) {
     if (this.shareTabsFlyoutOpen === open) {
@@ -201,8 +194,6 @@ export class ContextualActionMenuElement extends
   private anchor_: HTMLElement|null = null;
   private wasShareTabsTriggerShown_: boolean = false;
   private wasShareTabsFlyoutOpen_: boolean = false;
-  private wasSmartTabSharingOptionShown_: boolean = false;
-  private accessor isOpen_: boolean = false;
 
   protected get supportedTools_(): Map<ToolMode, {
     icon: string,
@@ -211,19 +202,56 @@ export class ContextualActionMenuElement extends
       [
         ToolMode.kImageGen,
         {
-          icon: 'composebox:nanoBanana-custom',
+          icon: 'composebox:nanoBanana',
         },
       ],
       [
         ToolMode.kDeepSearch,
         {
-          icon: 'composebox:travel-explore',
+          icon: 'composebox:deepSearch',
         },
       ],
       [
         ToolMode.kCanvas,
         {
-          icon: 'composebox:draft-spark',
+          icon: 'composebox:canvas',
+        },
+      ],
+    ]);
+  }
+
+  protected get supportedModels_(): Map<ModelMode, {
+    icon: string,
+  }> {
+    return new Map([
+      [
+        ModelMode.kGeminiRegular,
+        {
+          icon: 'composebox:acute',
+        },
+      ],
+      [
+        ModelMode.kGeminiProAutoroute,
+        {
+          icon: 'composebox:autoModel',
+        },
+      ],
+      [
+        ModelMode.kGeminiPro,
+        {
+          icon: 'composebox:thinkingModel',
+        },
+      ],
+      [
+        ModelMode.kGeminiProNoGenUi,
+        {
+          icon: 'composebox:thinkingModel',
+        },
+      ],
+      [
+        ModelMode.kGeminiFlashLatest,
+        {
+          icon: 'composebox:regularModel',
         },
       ],
     ]);
@@ -242,9 +270,9 @@ export class ContextualActionMenuElement extends
   override willUpdate(changedProperties: PropertyValues<this>) {
     super.willUpdate(changedProperties);
 
-    if (!this.closeMenuOnSelect && changedProperties.has('selectedTabIds') &&
+    if (!this.closeMenuOnSelect && changedProperties.has('disabledTabIds') &&
         this.pendingTabAddId_ !== null) {
-      if (this.selectedTabIds.has(this.pendingTabAddId_)) {
+      if (this.disabledTabIds.has(this.pendingTabAddId_)) {
         // Tab was added. Start the timer now to ignore pointerleave.
         this.firstTabBeingAdded_ = true;
         WindowProxy.getInstance().setTimeout(() => {
@@ -262,7 +290,7 @@ export class ContextualActionMenuElement extends
     super.updated(changedProperties);
 
     if (this.contextManagementInComposeboxEnabled) {
-      if (changedProperties.has('selectedTabIds') ||
+      if (changedProperties.has('disabledTabIds') ||
           changedProperties.has('aimThreadRestoredTabs')) {
         this.updateSharingTabsText_();
       }
@@ -291,7 +319,7 @@ export class ContextualActionMenuElement extends
       }
     }
 
-    const isShownNow = this.isOpen_ &&
+    const isShownNow = this.open &&
         this.isInputTypeAllowed_(InputType.kBrowserTab) &&
         this.contextManagementInComposeboxEnabled &&
         (this.tabSuggestions?.length > 0 || this.smartTabSharingActive) &&
@@ -312,28 +340,6 @@ export class ContextualActionMenuElement extends
           'ContextualSearch.AddTabsFlyout.Shown.' + this.metricsSource_, true);
     }
     this.wasShareTabsFlyoutOpen_ = isFlyoutOpenNow;
-
-    const isOptionVisibleDirectly = this.isOpen_ &&
-        this.smartTabSharingVisible && this.smartTabSharingActive;
-    const isOptionVisibleInFlyout =
-        isFlyoutOpenNow && this.smartTabSharingVisible;
-
-    if ((isOptionVisibleDirectly || isOptionVisibleInFlyout) &&
-        !this.wasSmartTabSharingOptionShown_) {
-      let surface: SmartTabSharingSurface|null = null;
-      if (this.metricsSource_ === 'NewTabPage' ||
-          this.metricsSource_ === 'Omnibox') {
-        surface = SmartTabSharingSurface.OMNIBOX_COMPOSEBOX;
-      } else if (this.metricsSource_ === 'ContextualTasks') {
-        surface = SmartTabSharingSurface.CONTEXTUAL_SEARCHBOX;
-      }
-      if (surface !== null) {
-        recordEnumerationValue(
-            'ContextualSearch.SmartTabSharing.MenuOptionShown', surface,
-            SmartTabSharingSurface.MAX_VALUE + 1);
-        this.wasSmartTabSharingOptionShown_ = true;
-      }
-    }
   }
   get open(): boolean {
     return this.$.menu.open;
@@ -345,7 +351,7 @@ export class ContextualActionMenuElement extends
 
   private onWindowBlur_ = this.close.bind(this);
   private layoutResizeObserver_?: ResizeObserver|null = null;
-  private lastConfig_?: Parameters<CrActionMenuElement['showAt']>[1];
+  private lastConfig_?: unknown;
 
   private reposition_() {
     if (!this.anchor_ || !this.open || !this.lastConfig_) {
@@ -362,16 +368,16 @@ export class ContextualActionMenuElement extends
     const scrollLeft = doc.scrollLeft;
     const scrollTop = doc.scrollTop;
 
-    const config: ShowAtPositionConfig = {
-      ...this.lastConfig_,
-      top: rect.top + scrollTop,
-      left: rect.left + scrollLeft,
-      height: height,
-      width: rect.width,
-    };
+    const config =
+        Object.assign({}, this.lastConfig_ as Record<string, unknown>, {
+          top: rect.top + scrollTop,
+          left: rect.left + scrollLeft,
+          height: height,
+          width: rect.width,
+        });
 
     ((this.$.menu as unknown) as {
-      positionDialog_: (c: ShowAtPositionConfig) => void,
+      positionDialog_: (c: unknown) => void,
     }).positionDialog_(config);
     if (this.shareTabsFlyoutOpen) {
       this.updateFlyoutPosition_();
@@ -402,6 +408,13 @@ export class ContextualActionMenuElement extends
     // creates larger height, which will cause the menu to overlap with the plus button.
     this.$.menu.style.setProperty(
         '--contextual-menu-max-height', `${constrainedHeight}px`);
+    // Only if constrainedHeight < CSS default, override the CSS default to allow shrinkage.
+    if (constrainedHeight < DEFAULT_MIN_MENU_HEIGHT_PX) {
+      this.$.menu.style.setProperty(
+          '--contextual-menu-min-height', `${constrainedHeight}px`);
+    } else {
+      this.$.menu.style.removeProperty('--contextual-menu-min-height');
+    }
   }
 
   private computeHorizontalLimit_(iconRect: DOMRect): number {
@@ -426,7 +439,6 @@ export class ContextualActionMenuElement extends
   }
 
   showAt(anchor: HTMLElement) {
-    this.wasSmartTabSharingOptionShown_ = false;
     this.shouldResetFlyoutScroll_ = true;
     this.anchor_ = anchor;
     const rect = anchor.getBoundingClientRect();
@@ -446,7 +458,6 @@ export class ContextualActionMenuElement extends
       anchorAlignmentY: AnchorAlignment.AFTER_END,
       noOffset: true,
     });
-    this.isOpen_ = true;
     const iconElement = anchor.querySelector('#entrypointIcon') || anchor;
     const iconRect = iconElement.getBoundingClientRect();
 
@@ -578,7 +589,7 @@ export class ContextualActionMenuElement extends
     const restoredCount = (this.aimThreadRestoredTabs?.length > 0) ?
         this.aimThreadRestoredTabs.length :
         0;
-    const totalTabs = this.selectedTabIds.size + restoredCount;
+    const totalTabs = this.disabledTabIds.size + restoredCount;
     if (!this.contextManagementInComposeboxEnabled || totalTabs === 0) {
       this.sharingTabsText_ = this.i18n('shareTabs');
       return;
@@ -647,7 +658,7 @@ export class ContextualActionMenuElement extends
           }
           return restoredTab.tabId === tabId;
         });
-    return this.selectedTabIds.has(tabId) || isAimThreadRestored;
+    return this.disabledTabIds.has(tabId) || isAimThreadRestored;
   }
 
   protected getSubmittedTabIds_(): Set<number> {
@@ -776,7 +787,7 @@ export class ContextualActionMenuElement extends
     }
 
     // Tabs selected in the current turn must remain enabled for deselection.
-    const isCurrentlySelected = this.selectedTabIds.has(tab.tabId);
+    const isCurrentlySelected = this.disabledTabIds.has(tab.tabId);
     if (isCurrentlySelected) {
       return false;
     }
@@ -790,7 +801,7 @@ export class ContextualActionMenuElement extends
       if (this.inputState && this.inputState.maxTotalInputs > 0) {
         maxTotal = this.inputState.maxTotalInputs;
       }
-      const totalSelected = this.nonTabFileNum + this.selectedTabIds.size +
+      const totalSelected = this.nonTabFileNum + this.disabledTabIds.size +
           (this.contextManagementInComposeboxEnabled ?
                (this.aimThreadRestoredTabs || []).length :
                0);
@@ -802,13 +813,13 @@ export class ContextualActionMenuElement extends
   }
 
   protected getSelectedTabs_(): TabInfo[] {
-    // Get the selected tab IDs from the `selectedTabIds` map and
+    // Get the selected tab IDs from the `disabledTabIds` map and
     // `aimThreadRestoredTabs`. Because of how maps work in JS, the order when
     // converting to an array is least recently added to most recently added.
     const suggestionsMap =
         new Map(this.tabSuggestions.map(tab => [tab.tabId, tab]));
     const allSelectedIds = [
-      ...this.selectedTabIds.keys(),
+      ...this.disabledTabIds.keys(),
     ];
 
     // Get selected tabs in the order they were added. But because the selected
@@ -899,8 +910,7 @@ export class ContextualActionMenuElement extends
   protected maybeCloseMenuBasedOnEntrypoint_() {
     if (!this.enableMultiTabSelection_ ||
         (this.closeMenuOnSelect && this.metricsSource_ === 'NewTabPage') ||
-        this.metricsSource_ === 'Omnibox' || this.unboundedMenuEnabled ||
-        this.metricsSource_ === 'OmniboxEverywhere') {
+        this.metricsSource_ === 'Omnibox') {
       this.$.menu.close();
     }
   }
@@ -1055,8 +1065,6 @@ export class ContextualActionMenuElement extends
       }
 
       if (this.shouldResetFlyoutScroll_) {
-        // Reset scroll position to top when freshly opening the flyout so the
-        // recent tabs list starts from the top.
         flyout.scrollTop = 0;
         requestAnimationFrame(() => {
           if (flyout) {
@@ -1081,33 +1089,6 @@ export class ContextualActionMenuElement extends
 
       flyout.setAttribute('data-position', this.shareTabsFlyoutPosition_);
 
-      // In unbounded mode, the dialog uses a flex container to expand around
-      // both menu cards. Align the top of the flyout row with the trigger
-      // item using margin-top relative to the main menu card, and set
-      // data-flyout-position to drive the flex-direction.
-      if (this.unboundedMenuEnabled) {
-        const wrapper =
-            this.shadowRoot.querySelector<HTMLElement>('.menu-outer-wrapper');
-        if (wrapper) {
-          wrapper.setAttribute(
-              'data-flyout-position', this.shareTabsFlyoutPosition_);
-        }
-
-        if (this.shareTabsFlyoutPosition_ !== 'bottom') {
-          const card =
-              this.shadowRoot.querySelector<HTMLElement>('.main-menu-card');
-          const offsetTop = (trigger && card) ?
-              Math.max(
-                  0,
-                  trigger.getBoundingClientRect().top -
-                      card.getBoundingClientRect().top) :
-              Math.max(0, trigger.offsetTop);
-          flyout.style.marginTop = `${offsetTop}px`;
-        } else {
-          flyout.style.marginTop = '0px';
-        }
-      }
-
       let flyoutIndent = 0;
       if (this.shareTabsFlyoutPosition_ === 'bottom') {
         const rtl = getComputedStyle(this).direction === 'rtl';
@@ -1129,7 +1110,6 @@ export class ContextualActionMenuElement extends
       if (this.shareTabsFlyoutPosition_ === 'bottom') {
         flyoutTop = triggerRect.bottom + SHARE_TABS_FLYOUT_GAP_PX;
       }
-
       const spaceBelow = window.innerHeight - flyoutTop;
       const maxFlyoutHeight = Math.max(
           MIN_MENU_HEIGHT_PX,
@@ -1244,10 +1224,9 @@ export class ContextualActionMenuElement extends
     this.lastConfig_ = undefined;
     this.resetShareTabsFlyout_();
     this.$.menu.style.removeProperty('--contextual-menu-max-height');
+    this.$.menu.style.removeProperty('--contextual-menu-min-height');
     this.wasShareTabsTriggerShown_ = false;
     this.wasShareTabsFlyoutOpen_ = false;
-    this.wasSmartTabSharingOptionShown_ = false;
-    this.isOpen_ = false;
     this.fire('close');
   }
 
@@ -1256,28 +1235,7 @@ export class ContextualActionMenuElement extends
   }
 
   protected getIconForModelMode_(mode: ModelMode): string|undefined {
-    if (getLoadTimeBoolean('useSearchboxConfigIconIds', false) &&
-        this.inputState) {
-      const config = this.inputState.modelConfigs.find(c => c.model === mode);
-      if (config && config.icon) {
-        return `searchbox_config:${config.icon}`;
-      }
-    }
-    // Fallback to legacy hardcoded model mapping if flag is disabled or no icon
-    // is specified in config.
-    switch (mode) {
-      case ModelMode.kGeminiRegular:
-        return 'composebox:acute';
-      case ModelMode.kGeminiProAutoroute:
-        return 'composebox:autorenew';
-      case ModelMode.kGeminiPro:
-      case ModelMode.kGeminiProNoGenUi:
-        return 'composebox:timer';
-      case ModelMode.kGeminiFlashLatest:
-        return 'composebox:bolt';
-      default:
-        return undefined;
-    }
+    return this.supportedModels_.get(mode)?.icon;
   }
 }
 

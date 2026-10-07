@@ -28,7 +28,7 @@ class ReadAnythingLifecycleObserver : public base::CheckedObserver {
   //                              successfully shown).
   virtual void Activate(
       bool active,
-      read_anything::mojom::ReadAnythingOpenTrigger trigger,
+      ReadAnythingOpenTrigger trigger,
       std::optional<base::TimeDelta> completed_session_duration) {}
   virtual void OnDestroyed() = 0;
   virtual void OnReadingModePresenterChanged() {}

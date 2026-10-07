@@ -5,29 +5,25 @@
 // This file handles messages from the browser, sending messages to the client.
 
 import type {PageMetadata as PageMetadataMojo} from '../../ai_page_content_metadata.mojom-webui.js';
-import type {AdditionalContext as AdditionalContextMojo, FileUploadPolicyState, FocusedTabData as FocusedTabDataMojo, GeminiEnterpriseSettings as GeminiEnterpriseSettingsMojo, InvokeOptions as InvokeOptionsMojo, OpenPanelInfo as OpenPanelInfoMojo, PanelOpeningData as PanelOpeningDataMojo, PanelState as PanelStateMojo, TabData as TabDataMojo, WebClientInterface} from '../../glic.mojom-webui.js';
+import type {AdditionalContext as AdditionalContextMojo, FileUploadPolicyState, FocusedTabData as FocusedTabDataMojo, GeminiEnterpriseSettings as GeminiEnterpriseSettingsMojo, InvokeOptions as InvokeOptionsMojo, OpenPanelInfo as OpenPanelInfoMojo, PanelOpeningData as PanelOpeningDataMojo, PanelState as PanelStateMojo, TabData as TabDataMojo, WebClientInterface, ZeroStateSuggestionsOptions as ZeroStateSuggestionsOptionsMojo, ZeroStateSuggestionsV2 as ZeroStateSuggestionsV2Mojo} from '../../glic.mojom-webui.js';
 import type {WebClient} from '../request_types.js';
 import {ResponseExtras} from '../transport/messaging.js';
 import type {PostMessageRemote} from '../transport/post_message_transport.js';
 
-import {additionalContextToClient, fileUploadPolicyStateToClient, focusedTabDataToClient, idToClient, invokeOptionsToClient, pageMetadataToClient, panelOpeningDataToClient, panelStateToClient, tabDataToClient, timeDeltaFromClient, webClientModeToMojo} from './conversions.js';
-import type {GlicApiHost} from './glic_api_host.js';
+import {additionalContextToClient, fileUploadPolicyStateToClient, focusedTabDataToClient, idToClient, invokeOptionsToClient, pageMetadataToClient, panelOpeningDataToClient, panelStateToClient, tabDataToClient, timeDeltaFromClient, webClientModeToMojo, zeroStateSuggestionsToClient} from './conversions.js';
+import type {ApiHostEmbedder, GlicApiHost} from './glic_api_host.js';
 import {PanelOpenState} from './types.js';
 
 export class WebClientImpl implements WebClientInterface {
   private sender: PostMessageRemote<WebClient>;
   private clientCreated = Promise.withResolvers<void>();
 
-  constructor(private host: GlicApiHost) {
+  constructor(private host: GlicApiHost, private embedder: ApiHostEmbedder) {
     this.sender = this.host.sender;
   }
 
   markCreated() {
     this.clientCreated.resolve();
-  }
-
-  async checkResponsive(): Promise<void> {
-    return this.sender.requestWithResponse('checkResponsive', undefined);
   }
 
   async processNotifyPanelWillOpen(panelOpeningData: PanelOpeningDataMojo):
@@ -43,6 +39,12 @@ export class WebClientImpl implements WebClientInterface {
       this.host.setWaitingOnPanelWillOpen(false);
       this.host.panelOpenStateChanged(PanelOpenState.OPEN);
     }
+
+    // The web client is ready to show, ensure the webview is
+    // displayed.
+    const canUserResize = result.openPanelInfo?.canUserResize ?? true;
+    this.embedder.enableDragResize(canUserResize);
+    this.embedder.webClientReady();
 
     const openPanelInfoMojo: OpenPanelInfoMojo = {
       webClientMode: webClientModeToMojo(result.openPanelInfo?.startingMode),
@@ -153,10 +155,6 @@ export class WebClientImpl implements WebClientInterface {
     });
   }
 
-  notifyZoomLevelChanged(zoomFactor: number): void {
-    this.host.onZoomLevelChanged(zoomFactor);
-  }
-
   notifyFocusedTabChanged(focusedTabData: (FocusedTabDataMojo)): void {
     const extras = new ResponseExtras();
     this.sender.requestNoResponse(
@@ -204,6 +202,15 @@ export class WebClientImpl implements WebClientInterface {
         {tabData: tabDataToClient(tabData, extras)}, extras.transfers);
   }
 
+
+  notifyZeroStateSuggestionsChanged(
+      suggestions: ZeroStateSuggestionsV2Mojo,
+      options: ZeroStateSuggestionsOptionsMojo): void {
+    this.sender.requestNoResponse('zeroStateSuggestionsChanged', {
+      suggestions: zeroStateSuggestionsToClient(suggestions),
+      options: options,
+    });
+  }
 
   notifyPageMetadataChanged(tabId: number, metadata: PageMetadataMojo|null):
       void {

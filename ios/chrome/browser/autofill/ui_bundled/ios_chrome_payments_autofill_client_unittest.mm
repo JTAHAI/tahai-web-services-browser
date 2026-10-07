@@ -13,7 +13,7 @@
 #import "components/autofill/core/browser/metrics/payments/credit_card_save_metrics.h"
 #import "components/autofill/core/browser/payments/autofill_error_dialog_context.h"
 #import "components/autofill/core/browser/payments/virtual_card_enrollment_manager.h"
-#import "components/autofill/core/browser/test_utils/autofill_test_util.h"
+#import "components/autofill/core/browser/test_utils/autofill_test_utils.h"
 #import "components/autofill/core/browser/ui/payments/bubble_show_options.h"
 #import "components/autofill/core/browser/ui/payments/virtual_card_enroll_ui_model.h"
 #import "components/autofill/core/common/autofill_payments_features.h"
@@ -79,8 +79,6 @@
 
 - (void)showCardUnmaskAuthentication {
 }
-- (void)dismissCardUnmaskAuthentication {
-}
 - (void)continueCardUnmaskWithOtpAuth {
 }
 - (void)continueCardUnmaskWithCvcAuth {
@@ -92,8 +90,7 @@
 - (void)showScanCardSaveAndFillBottomSheet:
     (const autofill::FormActivityParams&)params {
 }
-- (void)dismissPaymentAndScanCardSheets {
-}
+
 - (void)showSaveCardBottomSheetOnOriginWebState:(web::WebState*)originWebState {
   _showSaveCardBottomSheet = YES;
 }
@@ -101,17 +98,10 @@
 - (void)dismissSaveCardBottomSheet {
 }
 
-- (void)showWalletReminderNoticeOnOriginWebState:(web::WebState*)originWebState
-                               legalMessageLines:(autofill::LegalMessageLines)
-                                                     legalMessageLines {
-}
-
 - (void)showVirtualCardEnrollmentBottomSheet:
             (std::unique_ptr<autofill::VirtualCardEnrollUiModel>)model
                               originWebState:(web::WebState*)originWebState {
   _virtualCardEnrollUiModel = std::move(model);
-}
-- (void)dismissVirtualCardEnrollmentBottomSheet {
 }
 
 - (void)showEditAddressBottomSheet {
@@ -120,7 +110,7 @@
 - (void)dismissEditAddressBottomSheet {
 }
 
-- (void)legacyResetAutofillSuggestionsLoadingStates {
+- (void)resetAutofillSuggestionsLoadingStates {
 }
 
 - (void)showAutofillErrorDialog:
@@ -159,16 +149,6 @@
 
 - (void)dismissAmbientAutofillNotice {
   // TODO(crbug.com/533502803): Implement dismissal of the ambient notice sheet.
-}
-
-- (void)showAutofillAIPrivateInferenceNotice {
-  // TODO(crbug.com/552031299): Implement displaying of the private inference
-  // notice bottom sheet.
-}
-
-- (void)dismissAutofillAIPrivateInferenceNotice {
-  // TODO(crbug.com/552031299): Implement dismissal of the private inference
-  // notice bottom sheet.
 }
 
 @end
@@ -244,16 +224,6 @@ class IOSChromePaymentsAutofillClientTest : public PlatformTest {
     bottomsheet_tab_helper_->SetAutofillBottomSheetHandler(autofill_commands_);
 
     autofill_client_->set_commands_handler(autofill_commands_);
-  }
-
-  void TearDown() override {
-    bottomsheet_tab_helper_ = nullptr;
-    autofill_commands_ = nil;
-    autofill_agent_ = nil;
-    autofill_client_.reset();
-    web_state_.reset();
-    profile_.reset();
-    PlatformTest::TearDown();
   }
 
   TestChromeAutofillClient* client() { return autofill_client_.get(); }
@@ -919,16 +889,6 @@ TEST_F(IOSChromePaymentsAutofillClientTest, IsAutofillPaymentMethodsEnabled) {
       GURL("https://www.google.com"));
 
   EXPECT_TRUE(payments_client()->IsAutofillPaymentMethodsEnabled());
-}
-
-TEST_F(IOSChromePaymentsAutofillClientTest,
-       GetWalletReminderNoticeUiDelegate_ReturnsNonNull) {
-  EXPECT_NE(payments_client()->GetWalletReminderNoticeUiDelegate(), nullptr);
-}
-
-TEST_F(IOSChromePaymentsAutofillClientTest,
-       GetWalletReminderNoticeManager_ReturnsNonNull) {
-  EXPECT_NE(payments_client()->GetWalletReminderNoticeManager(), nullptr);
 }
 
 }  // namespace

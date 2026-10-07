@@ -141,7 +141,9 @@ void AttachBrowserAgentsForActiveBrowser(Browser* browser) {
       FullscreenBrowserAgent::CreateForBrowser(browser);
     }
     FullscreenController::CreateForBrowser(browser);
-    ReaderModeBrowserAgent::CreateForBrowser(browser);
+    if (IsReaderModeAvailable()) {
+      ReaderModeBrowserAgent::CreateForBrowser(browser);
+    }
   }
 
   WebNavigationBrowserAgent::CreateForBrowser(browser);
@@ -212,13 +214,13 @@ void AttachBrowserAgentsForActiveBrowser(Browser* browser) {
   CredentialProviderBrowserAgent::CreateForBrowser(browser);
 #endif
 
-  if (!browser_is_inactive && !browser_is_temporary && IsActorEnabled()) {
-    ActorBrowserAgent::CreateForBrowser(browser);
-  }
-
   if (!browser_is_inactive && !browser_is_temporary && !browser_is_off_record &&
       IsPageActionMenuEnabled()) {
     GeminiBrowserAgent::CreateForBrowser(browser);
+  }
+
+  if (!browser_is_inactive && !browser_is_temporary && IsActorEnabled()) {
+    ActorBrowserAgent::CreateForBrowser(browser);
   }
 
   if (!browser_is_inactive && !browser_is_temporary && !browser_is_off_record) {

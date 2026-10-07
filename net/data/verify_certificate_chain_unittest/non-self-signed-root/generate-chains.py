@@ -7,7 +7,6 @@
 self-issued for that matter)."""
 
 import sys
-
 sys.path += ['../..']
 
 import gencerts

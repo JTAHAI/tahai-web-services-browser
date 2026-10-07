@@ -16,9 +16,9 @@
 #include "chrome/browser/sessions/session_restore.h"
 #include "chrome/browser/sessions/session_service_base.h"
 #include "chrome/browser/sessions/session_service_lookup.h"
+#include "chrome/browser/tab_contents/tab_util.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_window.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/send_tab_to_self/send_tab_to_self_activation_tracker.h"
 #include "chrome/browser/ui/tab_ui_helper.h"
 #include "chrome/browser/ui/tabs/public/tab_features.h"
@@ -51,7 +51,7 @@ namespace chrome {
 namespace {
 
 std::unique_ptr<WebContents> CreateRestoredTab(
-    BrowserWindowInterface* browser,
+    Browser* browser,
     base::span<const SerializedNavigationEntry> navigations,
     int selected_navigation,
     const std::string& extension_app_id,
@@ -62,6 +62,7 @@ std::unique_ptr<WebContents> CreateRestoredTab(
     const std::map<std::string, std::string>& extra_data,
     bool initially_hidden,
     bool from_session_restore) {
+  GURL restore_url = navigations[selected_navigation].virtual_url();
   // TODO(ajwong): Remove the temporary session_storage_namespace_map when
   // we teach session restore to understand that one tab can have multiple
   // SessionStorageNamespace objects. Also remove the
@@ -70,7 +71,9 @@ std::unique_ptr<WebContents> CreateRestoredTab(
   content::SessionStorageNamespaceMap session_storage_namespace_map =
       content::CreateMapWithDefaultSessionStorageNamespace(
           browser->GetProfile(), session_storage_namespace);
-  WebContents::CreateParams create_params(browser->GetProfile());
+  WebContents::CreateParams create_params(
+      browser->GetProfile(),
+      tab_util::GetSiteInstanceForNewTab(browser->GetProfile(), restore_url));
   create_params.initially_hidden = initially_hidden;
   create_params.desired_renderer_state =
       WebContents::CreateParams::kNoRendererProcess;
@@ -110,7 +113,7 @@ std::unique_ptr<WebContents> CreateRestoredTab(
 // different windowing system. Starting to load here ensures consistent behavior
 // across desktop platforms and allows FirstWebContentsProfiler to have strict
 // cross-platform expectations about events it observes.
-void LoadRestoredTabIfVisible(BrowserWindowInterface* browser,
+void LoadRestoredTabIfVisible(Browser* browser,
                               content::WebContents* web_contents) {
   if (web_contents->GetVisibility() != content::Visibility::VISIBLE) {
     return;
@@ -134,7 +137,7 @@ void LoadRestoredTabIfVisible(BrowserWindowInterface* browser,
 }
 
 WebContents* AddRestoredTabImpl(std::unique_ptr<WebContents> web_contents,
-                                BrowserWindowInterface* browser,
+                                Browser* browser,
                                 int tab_index,
                                 std::optional<tab_groups::TabGroupId> group,
                                 bool select,
@@ -253,7 +256,7 @@ WebContents* AddRestoredTabImpl(std::unique_ptr<WebContents> web_contents,
 // fail. Skip LoadRestoredTabIfVisible if OS_MAC && the browser is an app
 // browser.
 #if BUILDFLAG(IS_MAC)
-  should_load = (browser->GetType() != BrowserWindowInterface::Type::TYPE_APP);
+  should_load = (browser->type() != Browser::Type::TYPE_APP);
 #endif  // BUILDFLAG(IS_MAC)
 
   if (should_load) {
@@ -266,7 +269,7 @@ WebContents* AddRestoredTabImpl(std::unique_ptr<WebContents> web_contents,
 }  // namespace
 
 WebContents* AddRestoredTab(
-    BrowserWindowInterface* browser,
+    Browser* browser,
     base::span<const SerializedNavigationEntry> navigations,
     int tab_index,
     int selected_navigation,
@@ -293,7 +296,7 @@ WebContents* AddRestoredTab(
 }
 
 WebContents* ReplaceRestoredTab(
-    BrowserWindowInterface* browser,
+    Browser* browser,
     base::span<const SerializedNavigationEntry> navigations,
     int selected_navigation,
     const std::string& extension_app_id,

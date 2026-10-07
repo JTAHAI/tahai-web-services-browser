@@ -6,7 +6,6 @@
 
 #include <deque>
 
-#include "base/memory/raw_ptr.h"
 #include "base/notimplemented.h"
 #include "base/task/single_thread_task_runner.h"
 #include "base/test/scoped_feature_list.h"
@@ -147,7 +146,7 @@ class MockScriptedIdleTaskControllerScheduler final : public ThreadScheduler {
   v8::Isolate* GetIsolate() { return isolate_; }
 
  private:
-  raw_ptr<v8::Isolate, UnprotectedInRelease | DanglingUntriaged> isolate_;
+  v8::Isolate* isolate_;
   bool should_yield_;
   std::deque<Thread::IdleTask> idle_tasks_;
   scoped_refptr<TestTaskRunner> task_runner_ =
@@ -244,9 +243,7 @@ class IdleTaskControllerFrameScheduler : public FrameScheduler {
   }
 
  private:
-  raw_ptr<MockScriptedIdleTaskControllerScheduler,
-          UnprotectedInRelease | DanglingUntriaged>
-      scripted_idle_scheduler_;
+  MockScriptedIdleTaskControllerScheduler* scripted_idle_scheduler_;
   std::unique_ptr<PageScheduler> page_scheduler_;
   base::WeakPtrFactory<FrameScheduler> weak_ptr_factory_{this};
 };

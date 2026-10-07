@@ -5,10 +5,10 @@
 #include "base/test/run_until.h"
 #include "base/test/scoped_feature_list.h"
 #include "chrome/browser/ui/actions/chrome_action_id.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_actions.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/side_panel/side_panel_action_callback.h"
 #include "chrome/browser/ui/side_panel/side_panel_entry_id.h"
 #include "chrome/browser/ui/side_panel/side_panel_entry_key.h"
@@ -32,9 +32,7 @@ class TabsFromOtherDevicesSidePanelBrowserTest : public InProcessBrowserTest {
     return SidePanelCoordinator::From(browser());
   }
 
-  SidePanel* GetSidePanel() {
-    return BrowserView::GetBrowserViewForBrowser(browser())->side_panel();
-  }
+  SidePanel* GetSidePanel() { return browser()->GetBrowserView().side_panel(); }
 
  private:
   base::test::ScopedFeatureList features_;
@@ -53,7 +51,7 @@ IN_PROC_BROWSER_TEST_F(TabsFromOtherDevicesSidePanelBrowserTest,
 
   actions::ActionItem* action_item = actions::ActionManager::Get().FindAction(
       kActionSidePanelShowTabsFromOtherDevices,
-      BrowserActions::From(browser())->root_action_item());
+      browser()->browser_actions()->root_action_item());
   EXPECT_NE(action_item, nullptr);
   EXPECT_TRUE(action_item->GetVisible());
   EXPECT_EQ(action_item->GetProperty(actions::kActionItemPinnableKey),

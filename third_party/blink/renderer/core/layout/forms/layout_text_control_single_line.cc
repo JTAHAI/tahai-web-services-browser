@@ -28,12 +28,10 @@ Element* LayoutTextControlSingleLine::ContainerElement() const {
 void LayoutTextControlSingleLine::StyleDidChange(
     StyleDifference style_diff,
     const ComputedStyle* old_style,
-    const ComputedStyle& new_style,
     const StyleChangeContext& style_change_context) {
-  LayoutBlockFlow::StyleDidChange(style_diff, old_style, new_style,
-                                  style_change_context);
+  LayoutBlockFlow::StyleDidChange(style_diff, old_style, style_change_context);
   layout_text_control::StyleDidChange(InnerEditorElement(), old_style,
-                                      new_style);
+                                      StyleRef());
 }
 
 bool LayoutTextControlSingleLine::NodeAtPoint(

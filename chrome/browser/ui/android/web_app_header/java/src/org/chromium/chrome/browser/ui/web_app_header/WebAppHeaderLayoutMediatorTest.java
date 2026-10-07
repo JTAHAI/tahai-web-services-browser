@@ -193,9 +193,9 @@ public class WebAppHeaderLayoutMediatorTest {
                         "Package name");
 
         assertEquals(
-                "Header height should match app header height",
+                "Header min height should match app header height",
                 SYS_APP_HEADER_HEIGHT,
-                mModel.get(WebAppHeaderLayoutProperties.HEADER_HEIGHT));
+                mModel.get(WebAppHeaderLayoutProperties.MIN_HEIGHT));
         assertEquals(
                 "Header paddings should match system insets",
                 new Rect(LEFT_INSET, 0, RIGHT_INSET, 0),
@@ -211,9 +211,9 @@ public class WebAppHeaderLayoutMediatorTest {
 
         mMediator.onAppHeaderStateChanged(mAppHeaderState);
         assertEquals(
-                "Header height should match app header height",
+                "Header min height should match app header height",
                 SYS_APP_HEADER_HEIGHT,
-                mModel.get(WebAppHeaderLayoutProperties.HEADER_HEIGHT));
+                mModel.get(WebAppHeaderLayoutProperties.MIN_HEIGHT));
         assertEquals(
                 "Header paddings should match updated system insets",
                 new Rect(LEFT_INSET, 0, RIGHT_INSET, 0),
@@ -267,9 +267,9 @@ public class WebAppHeaderLayoutMediatorTest {
 
         mMediator.onAppHeaderStateChanged(mAppHeaderState);
         assertEquals(
-                "Header height should match default min height",
+                "Header min height should match default min height",
                 SYS_APP_HEADER_HEIGHT,
-                mModel.get(WebAppHeaderLayoutProperties.HEADER_HEIGHT));
+                mModel.get(WebAppHeaderLayoutProperties.MIN_HEIGHT));
         assertEquals(
                 "Header paddings should match initial view paddings",
                 initialPaddings,
@@ -329,9 +329,9 @@ public class WebAppHeaderLayoutMediatorTest {
 
         mMediator.onAppHeaderStateChanged(mAppHeaderState);
         assertEquals(
-                "Header height should match default min height",
+                "Header min height should match default min height",
                 SYS_APP_HEADER_HEIGHT,
-                mModel.get(WebAppHeaderLayoutProperties.HEADER_HEIGHT));
+                mModel.get(WebAppHeaderLayoutProperties.MIN_HEIGHT));
         assertEquals(
                 "Vertical paddings should be 0 when system bar is less than min height",
                 new Rect(LEFT_INSET, 0, RIGHT_INSET, 0),
@@ -349,9 +349,9 @@ public class WebAppHeaderLayoutMediatorTest {
 
         mMediator.onAppHeaderStateChanged(mAppHeaderState);
         assertEquals(
-                "Header height should match app header height",
+                "Header min height should match app header height",
                 headerHeight,
-                mModel.get(WebAppHeaderLayoutProperties.HEADER_HEIGHT));
+                mModel.get(WebAppHeaderLayoutProperties.MIN_HEIGHT));
         assertEquals(
                 "Top padding should match exceeding size of the app header",
                 new Rect(LEFT_INSET, 10, RIGHT_INSET, 0),
@@ -523,7 +523,7 @@ public class WebAppHeaderLayoutMediatorTest {
                 "Light color should be set initially",
                 LIGHT_COLOR,
                 mModel.get(WebAppHeaderLayoutProperties.BACKGROUND_COLOR));
-        verify(mDesktopWindowStateManager).onBackgroundColorChanged(LIGHT_COLOR);
+        verify(mDesktopWindowStateManager).updateForegroundColor(LIGHT_COLOR);
     }
 
     @Test
@@ -537,7 +537,7 @@ public class WebAppHeaderLayoutMediatorTest {
                 DARK_COLOR,
                 mModel.get(WebAppHeaderLayoutProperties.BACKGROUND_COLOR));
 
-        verify(mDesktopWindowStateManager).onBackgroundColorChanged(DARK_COLOR);
+        verify(mDesktopWindowStateManager).updateForegroundColor(DARK_COLOR);
     }
 
     @Test

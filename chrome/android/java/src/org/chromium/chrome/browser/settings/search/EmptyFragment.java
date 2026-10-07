@@ -112,13 +112,10 @@ public class EmptyFragment extends Fragment implements EmbeddableSettingsPage {
     void clear() {
         // No need to actively hide the widgets when the fragment is going away.
         Activity activity = getActivity();
-        if (isRemoving() || activity == null || activity.isDestroyed()) return;
+        if (isRemoving() || activity.isDestroyed()) return;
 
-        View icon = activity.findViewById(R.id.empty_state_icon);
-        if (icon != null) icon.setVisibility(View.GONE);
-        View title = activity.findViewById(R.id.empty_state_text_title);
-        if (title != null) title.setVisibility(View.GONE);
-        View description = activity.findViewById(R.id.empty_state_text_description);
-        if (description != null) description.setVisibility(View.GONE);
+        activity.findViewById(R.id.empty_state_icon).setVisibility(View.GONE);
+        activity.findViewById(R.id.empty_state_text_title).setVisibility(View.GONE);
+        activity.findViewById(R.id.empty_state_text_description).setVisibility(View.GONE);
     }
 }

@@ -16,7 +16,6 @@ namespace {
 // components/browser_ui/notifications/android/features.h or in other
 // locations in the code base (e.g. content_features.h).
 const base::Feature* const kFeaturesExposedToJava[] = {
-    &kAndroidResizeLargeNotificationBitmaps,
     &kCacheNotificationsEnabled,
 };
 

@@ -50,7 +50,8 @@ public class HomepageSettings extends ChromeBaseSettingsFragment {
         SettingsUtils.addPreferencesFromResource(this, R.xml.homepage_preferences);
 
         // Set up preferences inside the activity.
-        ChromeSwitchPreference homepageSwitch = findPreference(PREF_HOMEPAGE_SWITCH);
+        ChromeSwitchPreference homepageSwitch =
+                (ChromeSwitchPreference) findPreference(PREF_HOMEPAGE_SWITCH);
         homepageSwitch.setManagedPreferenceDelegate(
                 new ChromeManagedPreferenceDelegate(getProfile()) {
                     @Override
@@ -67,7 +68,8 @@ public class HomepageSettings extends ChromeBaseSettingsFragment {
                     }
                 });
 
-        mRadioButtons = findPreference(PREF_HOMEPAGE_RADIO_GROUP);
+        mRadioButtons =
+                (RadioButtonGroupHomepagePreference) findPreference(PREF_HOMEPAGE_RADIO_GROUP);
         mRadioButtons.setManagedPreferenceDelegate(
                 new ChromeManagedPreferenceDelegate(getProfile()) {
                     @Override
@@ -96,7 +98,7 @@ public class HomepageSettings extends ChromeBaseSettingsFragment {
         boolean isHomepageEnabled = mHomepageManager.isHomepageEnabled();
         homepageSwitch.setChecked(isHomepageEnabled);
         homepageSwitch.setOnPreferenceChangeListener(
-                (Preference _, Object newValue) -> {
+                (preference, newValue) -> {
                     onSwitchPreferenceChange((boolean) newValue);
                     return true;
                 });
@@ -255,7 +257,7 @@ public class HomepageSettings extends ChromeBaseSettingsFragment {
     }
 
     ChromeSwitchPreference getHomepageSwitchForTesting() {
-        return findPreference(PREF_HOMEPAGE_SWITCH);
+        return (ChromeSwitchPreference) findPreference(PREF_HOMEPAGE_SWITCH);
     }
 
     RadioButtonGroupHomepagePreference getHomepageRadioGroupForTesting() {

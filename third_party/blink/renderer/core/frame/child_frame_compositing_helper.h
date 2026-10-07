@@ -7,7 +7,6 @@
 
 #include <stdint.h>
 
-#include "base/memory/raw_ptr.h"
 #include "base/timer/timer.h"
 #include "cc/layers/content_layer_client.h"
 #include "cc/layers/surface_layer.h"
@@ -49,8 +48,7 @@ class CORE_EXPORT ChildFrameCompositingHelper : public cc::ContentLayerClient {
                               AllowPaintHolding allow_paint_holding);
   void PaintHoldingTimerFired();
 
-  const raw_ptr<ChildFrameCompositor, UnprotectedInRelease | DanglingUntriaged>
-      child_frame_compositor_;
+  ChildFrameCompositor* const child_frame_compositor_;
   viz::SurfaceId surface_id_;
   scoped_refptr<cc::SurfaceLayer> surface_layer_;
   scoped_refptr<cc::PictureLayer> crash_ui_layer_;

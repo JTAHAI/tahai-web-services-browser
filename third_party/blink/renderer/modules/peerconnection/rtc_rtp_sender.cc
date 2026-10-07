@@ -581,8 +581,9 @@ webrtc::RtpEncodingParameters ToRtpEncodingParameters(
 
 RTCRtpHeaderExtensionParameters* ToRtpHeaderExtensionParameters(
     const webrtc::RtpExtension& webrtc_header) {
-  auto* header = RTCRtpHeaderExtensionParameters::Create();
-  header->setUri(String(webrtc_header.uri));
+  RTCRtpHeaderExtensionParameters* header =
+      RTCRtpHeaderExtensionParameters::Create();
+  header->setUri(webrtc_header.uri.c_str());
   header->setId(webrtc_header.id.value());
   header->setEncrypted(webrtc_header.encrypt);
   return header;
@@ -719,7 +720,7 @@ RTCRtpSendParameters* RTCRtpSender::getParameters() {
   std::unique_ptr<webrtc::RtpParameters> webrtc_parameters =
       sender_->GetParameters();
 
-  parameters->setTransactionId(String(webrtc_parameters->transaction_id));
+  parameters->setTransactionId(webrtc_parameters->transaction_id.c_str());
 
   if (webrtc_parameters->degradation_preference.has_value()) {
     V8RTCDegradationPreference::Enum degradation_preference_enum;
@@ -743,8 +744,8 @@ RTCRtpSendParameters* RTCRtpSender::getParameters() {
     }
     parameters->setDegradationPreference(degradation_preference_enum);
   }
-  auto* rtcp = RTCRtcpParameters::Create();
-  rtcp->setCname(String(webrtc_parameters->rtcp.cname));
+  RTCRtcpParameters* rtcp = RTCRtcpParameters::Create();
+  rtcp->setCname(webrtc_parameters->rtcp.cname.c_str());
   rtcp->setReducedSize(webrtc_parameters->rtcp.reduced_size);
   parameters->setRtcp(rtcp);
 

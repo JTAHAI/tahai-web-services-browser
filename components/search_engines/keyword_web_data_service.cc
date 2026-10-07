@@ -39,8 +39,8 @@ std::unique_ptr<WDTypedResult> GetKeywordsImpl(WebDatabase* db) {
       keyword_table->GetBuiltinKeywordDataVersion();
   metadata.builtin_keyword_country = regional_capabilities::CountryIdHolder(
       keyword_table->GetBuiltinKeywordCountry());
-  metadata.prepopulated_engines_migration_state =
-      keyword_table->GetPrepopulatedEnginesMigrationState();
+  metadata.prepopulated_engines_migration_enabled =
+      keyword_table->IsPrepopulatedEnginesMigrationEnabled();
   metadata.starter_pack_version = keyword_table->GetStarterPackKeywordVersion();
 
   result.metadata = metadata;
@@ -62,11 +62,11 @@ WebDatabase::State SetBuiltinKeywordCountryImpl(CountryId country_id,
              : WebDatabase::COMMIT_NOT_NEEDED;
 }
 
-WebDatabase::State SetPrepopulatedEnginesMigrationStateImpl(
-    KeywordTable::PrepopulatedEngineMigrationSet migration_state,
+WebDatabase::State SetPrepopulatedEnginesMigrationEnabledImpl(
+    bool is_migration_enabled,
     WebDatabase* db) {
   return KeywordTable::FromWebDatabase(db)
-                 ->SetPrepopulatedEnginesMigrationState(migration_state)
+                 ->SetPrepopulatedEnginesMigrationEnabled(is_migration_enabled)
              ? WebDatabase::COMMIT_NEEDED
              : WebDatabase::COMMIT_NOT_NEEDED;
 }
@@ -176,11 +176,11 @@ void KeywordWebDataService::SetBuiltinKeywordCountry(CountryId version) {
                         base::BindOnce(&SetBuiltinKeywordCountryImpl, version));
 }
 
-void KeywordWebDataService::SetPrepopulatedEnginesMigrationState(
-    KeywordTable::PrepopulatedEngineMigrationSet migration_state) {
+void KeywordWebDataService::SetPrepopulatedEnginesMigrationEnabled(
+    bool is_migration_enabled) {
   wdbs_->ScheduleDBTask(
-      FROM_HERE, base::BindOnce(&SetPrepopulatedEnginesMigrationStateImpl,
-                                migration_state));
+      FROM_HERE, base::BindOnce(&SetPrepopulatedEnginesMigrationEnabledImpl,
+                                is_migration_enabled));
 }
 
 void KeywordWebDataService::SetStarterPackKeywordVersion(int version) {

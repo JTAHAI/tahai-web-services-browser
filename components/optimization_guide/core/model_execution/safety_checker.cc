@@ -274,7 +274,6 @@ SafetyChecker::GetSession() {
     return session_;
   }
   client_->StartSession(session_.BindNewPipeAndPassReceiver());
-  session_.reset_on_disconnect();
   return session_;
 }
 

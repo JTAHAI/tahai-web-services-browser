@@ -38,7 +38,7 @@
 
 namespace blink {
 
-PlainTextRange::PlainTextRange() = default;
+PlainTextRange::PlainTextRange() : start_(kNotFound), end_(kNotFound) {}
 
 PlainTextRange::PlainTextRange(const PlainTextRange&) = default;
 
@@ -60,8 +60,11 @@ EphemeralRange PlainTextRange::CreateRange(const ContainerNode& scope) const {
 
 EphemeralRange PlainTextRange::CreateRangeForSelection(
     const ContainerNode& scope) const {
-  const TextIteratorBehavior behavior = TextIteratorBehavior::
-      AllVisiblePositionsIncludingShadowRootRangeLengthBehavior();
+  const TextIteratorBehavior behavior =
+      RuntimeEnabledFeatures::EnterInOpenShadowRootsEnabled()
+          ? TextIteratorBehavior::
+                AllVisiblePositionsIncludingShadowRootRangeLengthBehavior()
+          : TextIteratorBehavior::AllVisiblePositionsRangeLengthBehavior();
   return CreateRangeFor(scope, behavior);
 }
 

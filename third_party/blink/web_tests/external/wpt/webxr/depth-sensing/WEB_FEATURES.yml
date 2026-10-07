@@ -1,2 +1,3 @@
-rules:
-- "**": [webxr-depth-sensing]
+features:
+- name: webxr-depth-sensing
+  files: '**'

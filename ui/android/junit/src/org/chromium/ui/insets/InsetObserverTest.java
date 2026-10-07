@@ -53,6 +53,7 @@ import java.util.Collections;
 
 /** Tests for {@link InsetObserver} class. */
 @RunWith(BaseRobolectricTestRunner.class)
+@Config(manifest = Config.NONE)
 public class InsetObserverTest {
     @Rule public MockitoRule mMockitoRule = MockitoJUnit.rule();
 

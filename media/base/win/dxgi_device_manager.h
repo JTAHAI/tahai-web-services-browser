@@ -11,7 +11,7 @@
 
 #include "base/memory/ref_counted.h"
 #include "base/memory/scoped_refptr.h"
-#include "base/synchronization/lock.h"
+#include "base/sequence_checker.h"
 #include "base/thread_annotations.h"
 #include "base/types/pass_key.h"
 #include "media/base/media_export.h"
@@ -92,12 +92,11 @@ class MEDIA_EXPORT DXGIDeviceManager
       CHROME_LUID luid);
   virtual ~DXGIDeviceManager();
 
-  Microsoft::WRL::ComPtr<IMFDXGIDeviceManager> mf_dxgi_device_manager_
-      GUARDED_BY(lock_);
-  UINT d3d_device_reset_token_ GUARDED_BY(lock_) = 0;
-  CHROME_LUID luid_ GUARDED_BY(lock_) = {0, 0};
+  Microsoft::WRL::ComPtr<IMFDXGIDeviceManager> mf_dxgi_device_manager_;
+  UINT d3d_device_reset_token_ = 0;
+  CHROME_LUID luid_ = {0, 0};
 
-  base::Lock lock_;
+  SEQUENCE_CHECKER(sequence_checker_);
 };
 
 }  // namespace media

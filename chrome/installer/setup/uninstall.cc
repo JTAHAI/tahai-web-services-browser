@@ -795,9 +795,9 @@ void RemoveChromeLegacyRegistryKeys(const base::FilePath& chrome_exe) {
 #endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING
 
   HKEY roots[] = {HKEY_LOCAL_MACHINE, HKEY_CURRENT_USER};
-  for (HKEY root : roots) {
+  for (size_t i = 0; i < std::size(roots); ++i) {
     std::wstring suffix;
-    if (root == HKEY_LOCAL_MACHINE) {
+    if (UNSAFE_TODO(roots[i]) == HKEY_LOCAL_MACHINE) {
       suffix = ShellUtil::GetCurrentInstallationSuffix(chrome_exe);
     }
 
@@ -806,13 +806,15 @@ void RemoveChromeLegacyRegistryKeys(const base::FilePath& chrome_exe) {
     ext_prog_id.push_back(base::FilePath::kSeparators[0]);
     ext_prog_id.append(kChromeExtProgId);
     ext_prog_id.append(suffix);
-    DeleteRegistryKey(root, ext_prog_id, WorkItem::kWow64Default);
+    DeleteRegistryKey(UNSAFE_TODO(roots[i]), ext_prog_id,
+                      WorkItem::kWow64Default);
 
     // Delete Software\Classes\.crx,
     std::wstring ext_association(ShellUtil::kRegClasses);
     ext_association.append(L"\\");
     ext_association.append(L".crx");
-    DeleteRegistryKey(root, ext_association, WorkItem::kWow64Default);
+    DeleteRegistryKey(UNSAFE_TODO(roots[i]), ext_association,
+                      WorkItem::kWow64Default);
   }
 }
 

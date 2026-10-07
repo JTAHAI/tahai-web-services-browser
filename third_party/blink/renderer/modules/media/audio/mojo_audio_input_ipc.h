@@ -75,7 +75,6 @@ class MODULES_EXPORT MojoAudioInputIPC
   // AudioProcessorControls implementation
   void GetStats(GetStatsCB callback) override;
   void SetPreferredNumCaptureChannels(int32_t num_preferred_channels) override;
-  void SetVoiceIsolation(bool enabled) override;
 
  private:
   void StreamCreated(

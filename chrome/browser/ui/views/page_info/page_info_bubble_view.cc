@@ -8,8 +8,8 @@
 
 #include "chrome/browser/page_info/page_info_features.h"
 #include "chrome/browser/platform_util.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_window.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/page_info/chrome_page_info_delegate.h"
 #include "chrome/browser/ui/page_info/chrome_page_info_ui_delegate.h"
 #include "chrome/browser/ui/page_info/page_info_dialog.h"
@@ -37,7 +37,7 @@
 #include "ui/views/layout/box_layout.h"
 #include "url/gurl.h"
 
-#if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
+#if BUILDFLAG(ENABLE_EXTENSIONS)
 #include "chrome/browser/extensions/extension_ui_util.h"
 #include "extensions/common/constants.h"
 #endif
@@ -50,7 +50,7 @@ namespace {
 
 bool IsExtensionPageInfoBubble(const GURL& url,
                                content::WebContents* web_contents) {
-#if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
+#if BUILDFLAG(ENABLE_EXTENSIONS)
   // The chrome-extension:// scheme is checked unconditionally, not via
   // `GetEnabledExtensionNameForUrl()`, because the latter returns empty for an
   // extension that is not currently enabled (or not installed). Such URLs still
@@ -185,8 +185,7 @@ PageInfoBubbleView::PageInfoBubbleView(
     const GURL& url,
     base::OnceClosure initialized_callback,
     PageInfoClosingCallback closing_callback,
-    bool allow_extended_site_info,
-    ChromePageInfoDelegate::GetBrowserCallback get_browser_callback)
+    bool allow_extended_site_info)
     : PageInfoBubbleViewBase(anchor,
                              anchor_rect,
                              parent_window,
@@ -205,9 +204,8 @@ PageInfoBubbleView::PageInfoBubbleView(
   ui_delegate_ =
       std::make_unique<ChromePageInfoUiDelegate>(web_contents(), url);
   presenter_ = std::make_unique<PageInfo>(
-      std::make_unique<ChromePageInfoDelegate>(web_contents(),
-                                               std::move(get_browser_callback)),
-      web_contents(), url);
+      std::make_unique<ChromePageInfoDelegate>(web_contents()), web_contents(),
+      url);
   view_factory_ = std::make_unique<PageInfoViewFactory>(
       presenter_.get(), ui_delegate_.get(), this, allow_extended_site_info);
 
@@ -258,8 +256,7 @@ views::BubbleDialogDelegateView* PageInfoBubbleView::CreatePageInfoBubble(
       new PageInfoBubbleView(anchor, anchor_rect, parent_view, web_contents,
                              url, specification->initialized_callback(),
                              specification->page_info_closing_callback(),
-                             specification->show_extended_site_info(),
-                             specification->get_browser_callback());
+                             specification->show_extended_site_info());
   if (specification->permission_page_type().has_value()) {
     bubble->OpenPermissionPage(specification->permission_page_type().value());
   }
@@ -300,6 +297,17 @@ void PageInfoBubbleView::OpenPermissionPage(ContentSettingsType type) {
   AnnouncePageOpened(PageInfoUI::PermissionTypeToUIString(type));
 }
 
+void PageInfoBubbleView::OpenAdPersonalizationPage() {
+  presenter_->RecordPageInfoAction(
+      page_info::PAGE_INFO_AD_PERSONALIZATION_PAGE_OPENED);
+  std::unique_ptr<views::View> ad_personalization_page_view =
+      view_factory_->CreateAdPersonalizationPageView();
+  ad_personalization_page_view->SetID(
+      PageInfoViewFactory::VIEW_ID_PAGE_INFO_CURRENT_VIEW);
+  page_container_->SwitchToPage(std::move(ad_personalization_page_view));
+  AnnouncePageOpened(
+      l10n_util::GetStringUTF16(IDS_PAGE_INFO_AD_PRIVACY_HEADER));
+}
 
 void PageInfoBubbleView::OpenCookiesPage() {
   presenter_->OnCookiesPageOpened();
@@ -389,7 +397,7 @@ void PageInfoBubbleView::AnnouncePageOpened(std::u16string announcement) {
   back_button->RequestFocus();
 }
 
-void ShowPageInfoDialogImpl(BrowserWindowInterface* browser,
+void ShowPageInfoDialogImpl(Browser* browser,
                             content::WebContents* web_contents,
                             const GURL& virtual_url,
                             bubble_anchor_util::Anchor anchor,

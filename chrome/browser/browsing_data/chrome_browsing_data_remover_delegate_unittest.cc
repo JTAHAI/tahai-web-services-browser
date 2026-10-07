@@ -104,10 +104,10 @@
 #include "components/autofill/core/browser/data_manager/addresses/address_data_manager.h"
 #include "components/autofill/core/browser/data_manager/payments/payments_data_manager.h"
 #include "components/autofill/core/browser/data_manager/personal_data_manager.h"
-#include "components/autofill/core/browser/data_manager/personal_data_manager_test_util.h"
+#include "components/autofill/core/browser/data_manager/personal_data_manager_test_utils.h"
 #include "components/autofill/core/browser/data_model/addresses/autofill_profile.h"
 #include "components/autofill/core/browser/data_model/payments/credit_card.h"
-#include "components/autofill/core/browser/test_utils/autofill_test_util.h"
+#include "components/autofill/core/browser/test_utils/autofill_test_utils.h"
 #include "components/autofill/core/browser/test_utils/test_autofill_clock.h"
 #include "components/autofill/core/common/autofill_constants.h"
 #include "components/autofill/core/common/autofill_features.h"
@@ -324,6 +324,8 @@ using testing::WithArgs;
 namespace constants = chrome_browsing_data_remover;
 
 namespace {
+
+constexpr int kTopicsAPITestTaxonomyVersion = 1;
 
 const char kTestRegisterableDomain1[] = "host1.com";
 const char kTestRegisterableDomain3[] = "host3.com";
@@ -818,15 +820,6 @@ class RemoveDownloadsTester {
 
     EXPECT_CALL(*download_manager_, GetBrowserContext())
         .WillRepeatedly(Return(testing_profile));
-    ON_CALL(*download_manager_, RemoveDownloadsByURLAndTime(_, _, _, _))
-        .WillByDefault(
-            [](const base::RepeatingCallback<bool(const GURL&)>& url_filter,
-               base::Time remove_begin, base::Time remove_end,
-               base::OnceClosure callback) {
-              if (callback) {
-                std::move(callback).Run();
-              }
-            });
     EXPECT_CALL(*download_manager_, Shutdown());
   }
 
@@ -922,11 +915,6 @@ class MockReportingService : public net::ReportingService {
   }
 
   void SendReportsAndRemoveSource(
-      const base::UnguessableToken& reporting_source) override {
-    NOTREACHED();
-  }
-
-  void SendReportsForSource(
       const base::UnguessableToken& reporting_source) override {
     NOTREACHED();
   }
@@ -2703,8 +2691,7 @@ TEST_F(ChromeBrowsingDataRemoverDelegateTest,
 // ChromeDownloadManagerDelegate is correctly created and shut down.
 TEST_F(ChromeBrowsingDataRemoverDelegateTest, RemoveDownloads) {
   RemoveDownloadsTester tester(GetProfile());
-  EXPECT_CALL(*tester.download_manager(),
-              RemoveDownloadsByURLAndTime(_, _, _, _));
+  EXPECT_CALL(*tester.download_manager(), RemoveDownloadsByURLAndTime(_, _, _));
 
   BlockUntilBrowsingDataRemoved(
       base::Time(), base::Time::Max(),
@@ -3383,6 +3370,33 @@ TEST_F(ChromeBrowsingDataRemoverDelegateTest,
                          net::NetworkAnonymizationKey()));
 }
 
+TEST_F(ChromeBrowsingDataRemoverDelegateTest, RemoveTopicSettings) {
+  auto* privacy_sandbox_settings =
+      PrivacySandboxSettingsFactory::GetForProfile(GetProfile());
+  privacy_sandbox::CanonicalTopic topic_one(browsing_topics::Topic(1),
+                                            kTopicsAPITestTaxonomyVersion);
+  privacy_sandbox::CanonicalTopic topic_two(browsing_topics::Topic(2),
+                                            kTopicsAPITestTaxonomyVersion);
+  EXPECT_TRUE(privacy_sandbox_settings->IsTopicAllowed(topic_one));
+  EXPECT_TRUE(privacy_sandbox_settings->IsTopicAllowed(topic_two));
+
+  // Block topic_one.
+  privacy_sandbox_settings->SetTopicAllowed(topic_one, false);
+  EXPECT_FALSE(privacy_sandbox_settings->IsTopicAllowed(topic_one));
+  task_environment()->AdvanceClock(base::Days(1));
+  // Block topic_two.
+  privacy_sandbox_settings->SetTopicAllowed(topic_two, false);
+  EXPECT_FALSE(privacy_sandbox_settings->IsTopicAllowed(topic_two));
+
+  // Apply deletion.
+  BlockUntilBrowsingDataRemoved(base::Time(), base::Time::Max(),
+                                constants::DATA_TYPE_CONTENT_SETTINGS, false);
+
+  // Verify topics are unblocked after deletion.
+  EXPECT_TRUE(privacy_sandbox_settings->IsTopicAllowed(topic_one));
+  EXPECT_TRUE(privacy_sandbox_settings->IsTopicAllowed(topic_two));
+}
+
 TEST_F(ChromeBrowsingDataRemoverDelegateTest, ClearPermissionPromptCounts) {
   RemovePermissionPromptCountsTest tester(GetProfile());
 
@@ -3931,8 +3945,8 @@ TEST_F(ChromeBrowsingDataRemoverDelegateTest, WipeCustomDictionaryData) {
 
   std::string contents;
   base::ReadFileToString(dict_path, &contents);
-  EXPECT_FALSE(contents.contains("wug"));
-  EXPECT_FALSE(contents.contains("spowing"));
+  EXPECT_EQ(std::string::npos, contents.find("wug"));
+  EXPECT_EQ(std::string::npos, contents.find("spowing"));
   EXPECT_FALSE(base::PathExists(backup_path));
 }
 
@@ -4303,6 +4317,55 @@ TEST_F(ChromeBrowsingDataRemoverDelegateTest,
 }
 #endif  // !BUILDFLAG(IS_ANDROID)
 
+// When most cookies are cleared, PrivacySandboxSettings should call the
+// OnTopicsDataAccessibleSinceUpdated() method of its observers.
+TEST_F(ChromeBrowsingDataRemoverDelegateTest,
+       Call_OnTopicsDataAccessibleSinceUpdated_WhenClearingMostCookies) {
+  privacy_sandbox::PrivacySandboxSettings* settings =
+      PrivacySandboxSettingsFactory::GetForProfile(GetProfile());
+  privacy_sandbox_test_util::MockPrivacySandboxObserver observer;
+  base::ScopedObservation<privacy_sandbox::PrivacySandboxSettings,
+                          privacy_sandbox::PrivacySandboxSettings::Observer>
+      obs(&observer);
+  obs.Observe(settings);
+
+  EXPECT_CALL(observer, OnTopicsDataAccessibleSinceUpdated()).Times(1);
+
+  std::unique_ptr<BrowsingDataFilterBuilder> filter_builder =
+      BrowsingDataFilterBuilder::Create(
+          BrowsingDataFilterBuilder::Mode::kPreserve);
+  filter_builder->AddRegisterableDomain("example.test");
+  ASSERT_TRUE(filter_builder->MatchesMostOriginsAndDomains());
+  BlockUntilOriginDataRemoved(base::Time::Min(), base::Time::Max(),
+                              content::BrowsingDataRemover::DATA_TYPE_COOKIES,
+                              std::move(filter_builder));
+}
+
+// If only some cookies are cleared, PrivacySandboxSettings should NOT call the
+// OnTopicsDataAccessibleSinceUpdated() method of its observers.
+TEST_F(
+    ChromeBrowsingDataRemoverDelegateTest,
+    DontCall_OnTopicsDataAccessibleSinceUpdated_WhenOnlyClearingPartitionedCookies) {
+  privacy_sandbox::PrivacySandboxSettings* settings =
+      PrivacySandboxSettingsFactory::GetForProfile(GetProfile());
+  privacy_sandbox_test_util::MockPrivacySandboxObserver observer;
+  base::ScopedObservation<privacy_sandbox::PrivacySandboxSettings,
+                          privacy_sandbox::PrivacySandboxSettings::Observer>
+      obs(&observer);
+  obs.Observe(settings);
+
+  EXPECT_CALL(observer, OnTopicsDataAccessibleSinceUpdated()).Times(0);
+
+  // Create a filter builder that deletes only partitioned cookies.
+  std::unique_ptr<BrowsingDataFilterBuilder> filter_builder =
+      BrowsingDataFilterBuilder::Create(
+          BrowsingDataFilterBuilder::Mode::kPreserve);
+  filter_builder->SetPartitionedCookiesOnly(true);
+  ASSERT_FALSE(filter_builder->MatchesMostOriginsAndDomains());
+  BlockUntilOriginDataRemoved(base::Time::Min(), base::Time::Max(),
+                              content::BrowsingDataRemover::DATA_TYPE_COOKIES,
+                              std::move(filter_builder));
+}
 
 #if !BUILDFLAG(IS_ANDROID)
 // Ensures New Tab page local storage is clear when Microsoft auth service

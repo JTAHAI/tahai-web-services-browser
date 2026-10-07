@@ -58,6 +58,7 @@ using SetUpUrlForwarderResponse =
     protocol::UrlForwarderControl::SetUpUrlForwarderResponse;
 
 DesktopSessionProxy::DesktopSessionProxy(
+    scoped_refptr<base::SingleThreadTaskRunner> audio_capture_task_runner,
     scoped_refptr<base::SingleThreadTaskRunner> io_task_runner,
     base::WeakPtr<ClientSessionControl> client_session_control,
     base::WeakPtr<ClientSessionEvents> client_session_events,
@@ -65,7 +66,7 @@ DesktopSessionProxy::DesktopSessionProxy(
     const DesktopEnvironmentOptions& options)
     : base::RefCountedDeleteOnSequence<DesktopSessionProxy>(
           base::SequencedTaskRunner::GetCurrentDefault()),
-      main_task_runner_(base::SequencedTaskRunner::GetCurrentDefault()),
+      audio_capture_task_runner_(audio_capture_task_runner),
       io_task_runner_(io_task_runner),
       client_session_control_(client_session_control),
       client_session_events_(client_session_events),
@@ -312,7 +313,7 @@ bool DesktopSessionProxy::AttachToDesktop(
 
   // Connect to the desktop process.
   desktop_channel_ = IPC::ChannelProxy::Create(
-      std::move(desktop_pipe), IPC::Channel::MODE_CLIENT, this,
+      desktop_pipe.release(), IPC::Channel::MODE_CLIENT, this,
       io_task_runner_.get(), base::SingleThreadTaskRunner::GetCurrentDefault());
 
   // Reset the associated remote to allow us to connect to the new desktop
@@ -393,21 +394,10 @@ void DesktopSessionProxy::OnDesktopSessionAgentStarted(
 }
 
 void DesktopSessionProxy::SetAudioCapturer(
-    base::WeakPtr<IpcAudioCapturer> audio_capturer) {
-  main_task_runner_->PostTask(
-      FROM_HERE,
-      base::BindOnce(&DesktopSessionProxy::SetAudioCapturerOnMainSequence, this,
-                     std::move(audio_capturer),
-                     base::SequencedTaskRunner::GetCurrentDefault()));
-}
+    const base::WeakPtr<IpcAudioCapturer>& audio_capturer) {
+  DCHECK(audio_capture_task_runner_->BelongsToCurrentThread());
 
-void DesktopSessionProxy::SetAudioCapturerOnMainSequence(
-    base::WeakPtr<IpcAudioCapturer> audio_capturer,
-    scoped_refptr<base::SequencedTaskRunner> audio_capture_task_runner) {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  DCHECK(!audio_capture_task_runner_);
-  audio_capturer_ = std::move(audio_capturer);
-  audio_capture_task_runner_ = std::move(audio_capture_task_runner);
+  audio_capturer_ = audio_capturer;
 }
 
 void DesktopSessionProxy::SetMouseCursorMonitor(
@@ -758,11 +748,10 @@ void DesktopSessionProxy::OnAudioPacket(
     std::unique_ptr<AudioPacket> audio_packet) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
-  if (audio_capture_task_runner_) {
-    audio_capture_task_runner_->PostTask(
-        FROM_HERE, base::BindOnce(&IpcAudioCapturer::OnAudioPacket,
-                                  audio_capturer_, std::move(audio_packet)));
-  }
+  // Pass the captured audio packet to |audio_capturer_|.
+  audio_capture_task_runner_->PostTask(
+      FROM_HERE, base::BindOnce(&IpcAudioCapturer::OnAudioPacket,
+                                audio_capturer_, std::move(audio_packet)));
 }
 
 void DesktopSessionProxy::OnDesktopDisplayChanged(

@@ -21,7 +21,7 @@ namespace testing {
 
 // This class is used to implement a test credential based off a
 // CGaiaCredential.
-class __declspec(novtable) CTestGaiaCredential
+class ATL_NO_VTABLE CTestGaiaCredential
     : public CTestCredentialBase<CGaiaCredential> {
  public:
   DECLARE_NO_REGISTRY()
@@ -43,7 +43,7 @@ CTestGaiaCredential::~CTestGaiaCredential() = default;
 
 // This class is used to implement a test credential based off a
 // COtherUserGaiaCredential.
-class __declspec(novtable) CTestOtherUserGaiaCredential
+class ATL_NO_VTABLE CTestOtherUserGaiaCredential
     : public CTestCredentialBase<COtherUserGaiaCredential> {
  public:
   DECLARE_NO_REGISTRY()

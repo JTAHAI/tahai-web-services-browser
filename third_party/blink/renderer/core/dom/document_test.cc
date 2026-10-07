@@ -33,7 +33,6 @@
 #include <algorithm>
 #include <memory>
 
-#include "base/memory/raw_ptr.h"
 #include "base/strings/stringprintf.h"
 #include "base/time/time.h"
 #include "build/build_config.h"
@@ -460,7 +459,7 @@ TEST_F(DocumentTest, StyleVersion) {
   EXPECT_NE(previous_style_version, GetDocument().StyleVersion());
 }
 
-// This tests that meta-theme-color can be found correctly.
+// This tests that meta-theme-color can be found correctly
 TEST_F(DocumentTest, ThemeColor) {
   {
     SetHtmlInnerHTML(
@@ -513,6 +512,58 @@ TEST_F(DocumentTest, ValidationMessageCleanup) {
   EXPECT_FALSE(mock_client->show_validation_message_was_called);
 
   GetPage().SetValidationMessageClientForTesting(original_client);
+}
+
+// Verifies that calling EnsurePaintLocationDataValidForNode cleans compositor
+// inputs only when necessary. We generally want to avoid cleaning the inputs,
+// as it is more expensive than just doing layout.
+TEST_F(DocumentTest,
+       EnsurePaintLocationDataValidForNodeCompositingInputsOnlyWhenNecessary) {
+  GetDocument().body()->SetInnerHTMLWithoutTrustedTypes(R"HTML(
+    <div id='ancestor'>
+      <div id='sticky' style='position:sticky;'>
+        <div id='stickyChild'></div>
+      </div>
+      <div id='nonSticky'></div>
+    </div>
+  )HTML");
+  GetDocument().UpdateStyleAndLayoutTree();
+  EXPECT_EQ(DocumentLifecycle::kStyleClean,
+            GetDocument().Lifecycle().GetState());
+
+  // Asking for any element that is not affected by a sticky element should only
+  // advance the lifecycle to layout clean.
+  GetDocument().EnsurePaintLocationDataValidForNode(
+      GetDocument().getElementById(AtomicString("ancestor")),
+      DocumentUpdateReason::kTest);
+  EXPECT_EQ(DocumentLifecycle::kLayoutClean,
+            GetDocument().Lifecycle().GetState());
+
+  GetDocument().EnsurePaintLocationDataValidForNode(
+      GetDocument().getElementById(AtomicString("nonSticky")),
+      DocumentUpdateReason::kTest);
+  EXPECT_EQ(DocumentLifecycle::kLayoutClean,
+            GetDocument().Lifecycle().GetState());
+
+  // However, asking for either the sticky element or it's descendents should
+  // clean compositing inputs as well.
+  GetDocument().EnsurePaintLocationDataValidForNode(
+      GetDocument().getElementById(AtomicString("sticky")),
+      DocumentUpdateReason::kTest);
+  EXPECT_EQ(DocumentLifecycle::kLayoutClean,
+            GetDocument().Lifecycle().GetState());
+
+  // Dirty layout.
+  GetDocument().body()->setAttribute(html_names::kStyleAttr,
+                                     AtomicString("background: red;"));
+  EXPECT_EQ(DocumentLifecycle::kVisualUpdatePending,
+            GetDocument().Lifecycle().GetState());
+
+  GetDocument().EnsurePaintLocationDataValidForNode(
+      GetDocument().getElementById(AtomicString("stickyChild")),
+      DocumentUpdateReason::kTest);
+  EXPECT_EQ(DocumentLifecycle::kLayoutClean,
+            GetDocument().Lifecycle().GetState());
 }
 
 // Tests that the difference in computed style of direction on the html and body
@@ -1632,7 +1683,7 @@ TEST_F(UnassociatedListedElementTest,
   EXPECT_EQ(0u, listed_elements.size());
 }
 
-class OutermostFormsListTest : public DocumentTest {
+class TopLevelFormsListTest : public DocumentTest {
  public:
   HTMLFormElement* GetFormElement(const char* id) {
     return DynamicTo<HTMLFormElement>(GetElementById(id));
@@ -1643,8 +1694,8 @@ class OutermostFormsListTest : public DocumentTest {
   }
 };
 
-// Tests that `GetOutermostForms` correctly lists forms in the light DOM.
-TEST_F(OutermostFormsListTest, FormsInLightDom) {
+// Tests that `GetTopLevelForms` correctly lists forms in the light DOM.
+TEST_F(TopLevelFormsListTest, FormsInLightDom) {
   SetHtmlInnerHTML(R"HTML(
     <form id="f1">
       <input type="text">
@@ -1655,16 +1706,16 @@ TEST_F(OutermostFormsListTest, FormsInLightDom) {
       </form>
     </div>
   )HTML");
-  EXPECT_THAT(GetDocument().GetOutermostForms(),
+  EXPECT_THAT(GetDocument().GetTopLevelForms(),
               ElementsAre(GetFormElement("f1"), GetFormElement("f2")));
   // A second call has the same result.
-  EXPECT_THAT(GetDocument().GetOutermostForms(),
+  EXPECT_THAT(GetDocument().GetTopLevelForms(),
               ElementsAre(GetFormElement("f1"), GetFormElement("f2")));
 }
 
-// Tests that `GetOutermostForms` functions correctly after dynamic form element
+// Tests that `GetTopLevelForms` functions correctly after dynamic form element
 // insertion and removal.
-TEST_F(OutermostFormsListTest, FormsInLightDomInsertionAndRemoval) {
+TEST_F(TopLevelFormsListTest, FormsInLightDomInsertionAndRemoval) {
   SetHtmlInnerHTML(R"HTML(
     <form id="f1">
       <input type="text">
@@ -1675,28 +1726,28 @@ TEST_F(OutermostFormsListTest, FormsInLightDomInsertionAndRemoval) {
       </form>
     </div>
   )HTML");
-  EXPECT_THAT(GetDocument().GetOutermostForms(),
+  EXPECT_THAT(GetDocument().GetTopLevelForms(),
               ElementsAre(GetFormElement("f1"), GetFormElement("f2")));
 
   // Adding a new form element invalidates the cache.
   Element* new_form = CreateElement(AtomicString("form"));
   new_form->SetIdAttribute(AtomicString("f3"));
-  EXPECT_THAT(GetDocument().GetOutermostForms(),
+  EXPECT_THAT(GetDocument().GetTopLevelForms(),
               ElementsAre(GetFormElement("f1"), GetFormElement("f2")));
   GetDocument().body()->AppendChild(new_form);
-  EXPECT_THAT(GetDocument().GetOutermostForms(),
+  EXPECT_THAT(GetDocument().GetTopLevelForms(),
               ElementsAre(GetFormElement("f1"), GetFormElement("f3"),
                           GetFormElement("f2")));
 
   // Removing a form element invalidates the cache.
   GetFormElement("f2")->remove();
-  EXPECT_THAT(GetDocument().GetOutermostForms(),
+  EXPECT_THAT(GetDocument().GetTopLevelForms(),
               ElementsAre(GetFormElement("f1"), GetFormElement("f3")));
 }
 
-// Tests that outermost forms inside shadow DOM are listed correctly and
+// Tests that top level forms inside shadow DOM are listed correctly and
 // insertion and removal updates the cache.
-TEST_F(OutermostFormsListTest, FormsInShadowDomInsertionAndRemoval) {
+TEST_F(TopLevelFormsListTest, FormsInShadowDomInsertionAndRemoval) {
   GetDocument().body()->SetHTMLUnsafeWithoutTrustedTypes(R"HTML(
     <form id="f1">
       <input type="text">
@@ -1711,20 +1762,20 @@ TEST_F(OutermostFormsListTest, FormsInShadowDomInsertionAndRemoval) {
   )HTML");
   HTMLFormElement* f2 =
       GetFormElement("f2", *GetElementById("d")->GetShadowRoot());
-  EXPECT_THAT(GetDocument().GetOutermostForms(),
+  EXPECT_THAT(GetDocument().GetTopLevelForms(),
               ElementsAre(GetFormElement("f1"), f2));
 
   // Removing f1 updates the cache.
   GetFormElement("f1")->remove();
-  EXPECT_THAT(GetDocument().GetOutermostForms(), ElementsAre(f2));
+  EXPECT_THAT(GetDocument().GetTopLevelForms(), ElementsAre(f2));
 
   // Removing f2 also updates the cache.
   f2->remove();
-  EXPECT_THAT(GetDocument().GetOutermostForms(), IsEmpty());
+  EXPECT_THAT(GetDocument().GetTopLevelForms(), IsEmpty());
 }
 
-// Tests that nested forms across shadow DOM are ignored by `GetOutermostForms`.
-TEST_F(OutermostFormsListTest, GetOutermostFormsIgnoresNestedChildren) {
+// Tests that nested forms across shadow DOM are ignored by `GetTopLevelForms`.
+TEST_F(TopLevelFormsListTest, GetTopLevelFormsIgnoresNestedChildren) {
   GetDocument().body()->SetHTMLUnsafeWithoutTrustedTypes(R"HTML(
     <form id="f1">
       <input type="text">
@@ -1737,7 +1788,7 @@ TEST_F(OutermostFormsListTest, GetOutermostFormsIgnoresNestedChildren) {
       </div>
     </form>
   )HTML");
-  EXPECT_THAT(GetDocument().GetOutermostForms(),
+  EXPECT_THAT(GetDocument().GetTopLevelForms(),
               ElementsAre(GetFormElement("f1")));
 }
 
@@ -1786,8 +1837,7 @@ class DocumentURLCacheTest : public DocumentTest {
 
  private:
   base::test::ScopedFeatureList scoped_feature_list_;
-  raw_ptr<Document::URLCache, UnprotectedInRelease | DanglingUntriaged> cache_ =
-      nullptr;
+  Document::URLCache* cache_ = nullptr;
 };
 
 TEST_F(DocumentURLCacheTest, Get) {
@@ -1930,7 +1980,7 @@ TEST_F(DocumentTest,
   )HTML");
   Document& document = GetDocument();
 
-  document.GetOutermostForms();
+  document.GetTopLevelForms();
 
   EXPECT_TRUE(document.IsUseCounted(
       blink::mojom::WebFeature::kAutofillMaybeSyntheticSelect));
@@ -1949,7 +1999,7 @@ TEST_F(DocumentTest,
   )HTML");
   Document& document = GetDocument();
 
-  document.GetOutermostForms();
+  document.GetTopLevelForms();
 
   EXPECT_FALSE(document.IsUseCounted(
       blink::mojom::WebFeature::kAutofillMaybeSyntheticSelect));
@@ -1976,7 +2026,7 @@ TEST_P(ParametrizedSyntheticSelectTest, MetricsAreReported_WhenSelectIsInForm) {
   SetHtmlInnerHTML(html);
   Document& document = GetDocument();
 
-  document.GetOutermostForms();
+  document.GetTopLevelForms();
 
   EXPECT_EQ(document.IsUseCounted(
                 blink::mojom::WebFeature::kAutofillMaybeSyntheticSelect),
@@ -1992,7 +2042,7 @@ TEST_P(ParametrizedSyntheticSelectTest,
   SetHtmlInnerHTML(test_case.html);
   Document& document = GetDocument();
 
-  document.GetOutermostForms();
+  document.GetTopLevelForms();
 
   EXPECT_FALSE(document.IsUseCounted(
       blink::mojom::WebFeature::kAutofillMaybeSyntheticSelect));

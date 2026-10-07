@@ -31,7 +31,7 @@ NSString* const kNSHTTPCookieSameSiteNone = @"none";
 // Converts NSHTTPCookie to net::CanonicalCookie.
 std::unique_ptr<net::CanonicalCookie> CanonicalCookieFromSystemCookie(
     NSHTTPCookie* cookie,
-    base::Time creation_time) {
+    const base::Time& creation_time) {
   net::CookieSameSite same_site = net::CookieSameSite::UNSPECIFIED;
   if ([cookie.sameSitePolicy isEqual:NSHTTPCookieSameSiteLax]) {
     same_site = net::CookieSameSite::LAX_MODE;

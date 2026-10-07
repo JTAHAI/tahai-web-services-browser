@@ -37,7 +37,8 @@ class ContextualTasksBridge {
  public:
   DECLARE_USER_DATA(ContextualTasksBridge);
 
-  ContextualTasksBridge(const jni_zero::JavaRef<jobject>& obj,
+  ContextualTasksBridge(JNIEnv* env,
+                        const jni_zero::JavaRef<jobject>& obj,
                         BrowserWindowInterface* window,
                         Profile* profile);
   ~ContextualTasksBridge();
@@ -49,22 +50,31 @@ class ContextualTasksBridge {
   // Returns the ContextualTasksBridge for the given |window|, if one exists.
   static ContextualTasksBridge* From(BrowserWindowInterface* window);
 
+  // Returns the task ID for the given WebContents.
+  static std::string GetTaskIdForTab(content::WebContents* web_contents);
+
   // Asynchronously requests the task title associated with the given tab.
   static void GetTaskTitleForTab(
       content::WebContents* web_contents,
       base::OnceCallback<void(std::string)> callback);
 
-  void Destroy();
+  void Destroy(JNIEnv* env);
 
   // Called from Java via JNI to undo the closure of the sheet.
-  void UndoClose();
+  void UndoClose(JNIEnv* env);
 
   // Called from Java via JNI to start the Android system voice recognition.
   void StartPlatformVoiceRecognition();
 
   // Called from Java via JNI to send voice search results to WebUI.
-  void OnVoiceTranscribed(const std::string& query);
+  void OnVoiceTranscribed(JNIEnv* env, const std::string& query);
 
+  // Notification methods to call into Java.
+  void NotifyWebUIReady(const base::Uuid& task_id,
+                        content::WebContents* web_contents);
+  void NotifyWebUIDestroyed(const std::optional<base::Uuid>& task_id);
+  void NotifyTaskChanged(const std::optional<base::Uuid>& old_task_id,
+                         const std::optional<base::Uuid>& new_task_id);
   void NotifyShowUndoSnackbar();
   void NotifyOpenFeedbackUi(const GURL& page_url);
 

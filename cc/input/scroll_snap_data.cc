@@ -410,7 +410,7 @@ SnapPositionData SnapContainerData::FindSnapPosition(
     // snapping along both axes and the snap positions are off screen.
     if (should_snap_on_x && should_snap_on_y &&
         !strategy.ShouldRespectSnapStop() &&
-        FindSnapPositionForMutualSnap(strategy, result)) {
+        FindSnapPositionForMutualSnap(strategy, &result.position)) {
       result.type = SnapPositionData::Type::kAligned;
     }
 
@@ -534,7 +534,7 @@ SnapPositionData SnapContainerData::FindSnapPosition(
 // of the corridors.
 bool SnapContainerData::FindSnapPositionForMutualSnap(
     const SnapSelectionStrategy& strategy,
-    SnapPositionData& result) const {
+    gfx::PointF* snap_position) const {
   DCHECK(strategy.ShouldSnapOnX() && strategy.ShouldSnapOnY());
   bool found = false;
   gfx::Vector2dF smallest_distance(std::numeric_limits<float>::max(),
@@ -565,10 +565,8 @@ bool SnapContainerData::FindSnapPositionForMutualSnap(
         (distance.y() == smallest_distance.y() &&
          distance.x() < smallest_distance.x())) {
       smallest_distance = distance;
-      result.position.set_x(x_candidate.snap_offset());
-      result.position.set_y(y_candidate.snap_offset());
-      result.target_element_ids.x = x_candidate.element_id();
-      result.target_element_ids.y = y_candidate.element_id();
+      snap_position->set_x(x_candidate.snap_offset());
+      snap_position->set_y(y_candidate.snap_offset());
       found = true;
     }
   }

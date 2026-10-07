@@ -25,21 +25,21 @@ class TextSegments final {
      public:
       Position();
 
-      static Position Before(wtf_size_t offset);
-      static Position After(wtf_size_t offset);
+      static Position Before(unsigned offset);
+      static Position After(unsigned offset);
 
       bool IsAfter() const { return type_ == kAfter; }
       bool IsBefore() const { return type_ == kBefore; }
       bool IsNone() const { return type_ == kNone; }
 
-      wtf_size_t Offset() const;
+      unsigned Offset() const;
 
      private:
       enum Type { kNone, kBefore, kAfter };
 
-      Position(wtf_size_t value, Type type);
+      Position(unsigned value, Type type);
 
-      const wtf_size_t offset_ = 0;
+      const unsigned offset_ = 0;
       const Type type_ = kNone;
     };
 
@@ -47,7 +47,7 @@ class TextSegments final {
     // Note: |text| must contains character 16.
     // Note: Since implementations can have state, |Find()| function isn't
     // marked |const| intentionally.
-    virtual Position Find(const String text, wtf_size_t offset) = 0;
+    virtual Position Find(const String text, unsigned offset) = 0;
   };
 
   // Returns a boundary position found by |finder| followed by |position|

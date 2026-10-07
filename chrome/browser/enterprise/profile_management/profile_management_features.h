@@ -11,6 +11,9 @@
 
 namespace profile_management::features {
 
+// Controls whether third-party profile management is enabled.
+BASE_DECLARE_FEATURE(kThirdPartyProfileManagement);
+
 // Controls whether token-based profile management is enabled.
 BASE_DECLARE_FEATURE(kEnableProfileTokenManagement);
 
@@ -23,6 +26,9 @@ BASE_DECLARE_FEATURE(kOidcAuthResponseInterception);
 
 // Controls whether OIDC enrollment process can time out (and after how long).
 BASE_DECLARE_FEATURE(kOidcEnrollmentTimeout);
+
+// Controls whether the generic OIDC-response profile management is enabled.
+BASE_DECLARE_FEATURE(kEnableGenericOidcAuthProfileManagement);
 
 // Controls whether to add a list of hosts that are eligible for OIDC profile
 // enrollments.

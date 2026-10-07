@@ -12,7 +12,7 @@
 namespace ash {
 
 // This class enables Blink extensions for IWAs on ChromeOS when the
-// `blink::features::kSetShape` feature flag is enabled.
+// `kCrosIsolatedWebAppSetShape` feature flag is enabled.
 class COMPONENT_EXPORT(CHROMEOS_ASH_COMPONENTS_ISOLATED_WEB_APP)
     CrosIsolatedWebAppEnabler
     : public content::WebContentsObserver,

@@ -7,6 +7,7 @@ package org.chromium.content_public.browser;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.robolectric.annotation.Config;
 
 import org.chromium.base.test.BaseRobolectricTestRunner;
 
@@ -15,6 +16,7 @@ import java.nio.charset.StandardCharsets;
 
 /** Unit tests for MessagePayload. Note: After new type is added, please add a test case here. */
 @RunWith(BaseRobolectricTestRunner.class)
+@Config(manifest = Config.NONE)
 public class MessagePayloadTest {
     @Test
     public void testString() {

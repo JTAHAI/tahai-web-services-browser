@@ -111,7 +111,7 @@ suite('DiceWebSigninInterceptChromeSigninTest', function() {
     // Set Supervised user badge source. The badge becomes visible.
     let newParams = {
       ...PARAMETERS,
-      managedUserBadge: 'cr:family-link',
+      managedUserBadge: 'cr:kite',
       userBadgeAltText: 'Managed by your parent',
     };
     webUIListenerCallback(

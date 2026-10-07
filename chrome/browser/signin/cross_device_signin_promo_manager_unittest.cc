@@ -145,7 +145,7 @@ TEST_F(CrossDeviceSigninPromoManagerTest, ShouldShowPromo_AuthError) {
   AccountInfo account_info = identity_test_env()->MakePrimaryAccountAvailable(
       "user@gmail.com", signin::ConsentLevel::kSignin);
   identity_test_env()->UpdatePersistentErrorOfRefreshTokenForAccount(
-      account_info.GetAccountId(),
+      account_info.account_id,
       GoogleServiceAuthError::FromInvalidGaiaCredentialsReason(
           GoogleServiceAuthError::InvalidGaiaCredentialsReason::UNKNOWN));
 

@@ -66,7 +66,6 @@ UIImage* kPrimaryAccountAvatar = [[UIImage alloc] init];
 @property(nonatomic, strong, readwrite) UIImage* primaryAccountAvatar;
 @property(nonatomic, assign, readwrite) BOOL primaryAccountAvatarNeedsRing;
 @property(nonatomic, strong, readwrite) NSString* primaryAccountAITierFullName;
-@property(nonatomic, strong, readwrite) NSString* primaryAccountAITierName;
 @end
 
 @implementation FakeAccountMenuDataSource {
@@ -77,7 +76,6 @@ UIImage* kPrimaryAccountAvatar = [[UIImage alloc] init];
 @synthesize primaryAccountAvatarNeedsRing = _primaryAccountAvatarNeedsRing;
 @synthesize primaryAccountAITierFullName = _primaryAccountAITierFullName;
 @synthesize primaryAccountUserFullName = _primaryAccountUserFullName;
-@synthesize primaryAccountAITierName = _primaryAccountAITierName;
 @synthesize managementDescription = _managementDescription;
 
 - (instancetype)init {
@@ -89,7 +87,6 @@ UIImage* kPrimaryAccountAvatar = [[UIImage alloc] init];
     _primaryAccountAvatar = kPrimaryAccountAvatar;
     _primaryAccountAvatarNeedsRing = NO;
     _primaryAccountAITierFullName = nil;
-    _primaryAccountAITierName = nil;
     _primaryAccountUserFullName = kPrimaryIdentity.userFullName;
     _managementDescription = @"managementDescription";
   }
@@ -143,7 +140,7 @@ class AccountMenuViewControllerTest : public PlatformTest {
     TestProfileIOS::Builder builder;
     builder.AddTestingFactory(
         AuthenticationServiceFactory::GetInstance(),
-        AuthenticationServiceFactory::GetFactoryWithDelegateForTesting(
+        AuthenticationServiceFactory::GetFactoryWithDelegate(
             std::make_unique<FakeAuthenticationServiceDelegate>()));
     builder.AddTestingFactory(SyncServiceFactory::GetInstance(),
                               base::BindRepeating(&CreateTestSyncService));
@@ -282,8 +279,8 @@ TEST_F(AccountMenuViewControllerTest, TestDefaultSetting) {
   CentralAccountView* table_header_view =
       static_cast<CentralAccountView*>(table_header_view_);
   EXPECT_EQ(table_header_view.avatarImage, kPrimaryAccountAvatar);
-  EXPECT_EQ(table_header_view.title, kPrimaryIdentity.userFullName);
-  EXPECT_EQ(table_header_view.subtitle, kPrimaryIdentity.userEmail);
+  EXPECT_EQ(table_header_view.name, kPrimaryIdentity.userFullName);
+  EXPECT_EQ(table_header_view.email, kPrimaryIdentity.userEmail);
   EXPECT_EQ(table_header_view.managed, true);
 }
 
@@ -440,8 +437,8 @@ TEST_F(AccountMenuViewControllerTest, TestMissingGivenName) {
   EXPECT_TRUE([header isKindOfClass:[CentralAccountView class]]);
   CentralAccountView* centralAccountView =
       static_cast<CentralAccountView*>(header);
-  EXPECT_NSEQ(centralAccountView.title, identity.userFullName);
-  EXPECT_NSEQ(centralAccountView.subtitle, identity.userEmail);
+  EXPECT_NSEQ(centralAccountView.name, identity.userFullName);
+  EXPECT_NSEQ(centralAccountView.email, identity.userEmail);
 }
 
 // Test the account menu with an identity with missing names.
@@ -464,8 +461,8 @@ TEST_F(AccountMenuViewControllerTest, TestMissingNames) {
   EXPECT_TRUE([header isKindOfClass:[CentralAccountView class]]);
   CentralAccountView* centralAccountView =
       static_cast<CentralAccountView*>(header);
-  EXPECT_NSEQ(centralAccountView.title, identity.userEmail);
-  EXPECT_NSEQ(centralAccountView.subtitle, nil);
+  EXPECT_NSEQ(centralAccountView.name, identity.userEmail);
+  EXPECT_NSEQ(centralAccountView.email, nil);
 }
 
 // Tests that calling `-[AccountMenuViewController updateErrorSection:nil]`
@@ -537,15 +534,4 @@ TEST_F(AccountMenuViewControllerTest, TransitionBetweenErrorTypes) {
   ExpectTextAtPath(
       l10n_util::GetNSString(IDS_IOS_ACCOUNT_TABLE_ERROR_VERIFY_ITS_YOU_BUTTON),
       path_for_error_button);
-}
-
-// Tests the effect of centralAccountViewDidTapAISubscriptionChip.
-TEST_F(AccountMenuViewControllerTest,
-       TestcentralAccountViewDidTapAISubscriptionChip) {
-  EXPECT_EQ(user_actions_.GetActionCount("Signin_AccountMenu_SubscriptionChip"),
-            0);
-  [(id<CentralAccountViewDelegate>)view_controller_
-      centralAccountViewDidTapAISubscriptionChip:nil];
-  EXPECT_EQ(user_actions_.GetActionCount("Signin_AccountMenu_SubscriptionChip"),
-            1);
 }

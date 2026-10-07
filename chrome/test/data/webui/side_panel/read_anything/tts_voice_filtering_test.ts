@@ -54,12 +54,11 @@ suite('tts_utils', () => {
     // Android voices should be filtered out only on ChromeOS Ash
     const possibleVoices: SpeechSynthesisVoice[] = [voice1, voice2];
 
-    // <if expr="is_chromeos">
-    assertDeepEquals([voice1], getFilteredVoiceList(possibleVoices));
-    // </if>
-    // <if expr="not is_chromeos">
-    assertDeepEquals([voice2], getFilteredVoiceList(possibleVoices));
-    // </if>
+    if (chrome.readingMode.isChromeOsAsh) {
+      assertDeepEquals([voice1], getFilteredVoiceList(possibleVoices));
+    } else {
+      assertDeepEquals([voice2], getFilteredVoiceList(possibleVoices));
+    }
   });
 
   test('getFilteredVoiceList filters eSpeak voices', () => {
@@ -76,19 +75,18 @@ suite('tts_utils', () => {
 
     const possibleVoices: SpeechSynthesisVoice[] = [voice1, voice2, voice3];
 
-    // <if expr="is_chromeos">
-    // Welsh isn't a Google TTS locale, so the Welsh eSpeak voice should be
-    // kept, but the English eSpeak voices should be filtered out because
-    // Google TTS voices in English (even if in a different locale) exist.
-    assertDeepEquals([voice2], getFilteredVoiceList(possibleVoices));
-    // </if>
-    // <if expr="not is_chromeos">
-    // en-us is kept because it is an exact Google TTS locale. cy is kept
-    // because there is no Google TTS locale that supports it. en-cb is not
-    // kept because there are other locales supported by Google TTS for the
-    // same language.
-    assertDeepEquals([voice1, voice2], getFilteredVoiceList(possibleVoices));
-    // </if>
+    if (chrome.readingMode.isChromeOsAsh) {
+      // Welsh isn't a Google TTS locale, so the Welsh eSpeak voice should be
+      // kept, but the English eSpeak voices should be filtered out because
+      // Google TTS voices in English (even if in a different locale) exist.
+      assertDeepEquals([voice2], getFilteredVoiceList(possibleVoices));
+    } else {
+      // en-us is kept because it is an exact Google TTS locale. cy is kept
+      // because there is no Google TTS locale that supports it. en-cb is not
+      // kept because there are other locales supported by Google TTS for the
+      // same language.
+      assertDeepEquals([voice1, voice2], getFilteredVoiceList(possibleVoices));
+    }
   });
 
   test(
@@ -147,15 +145,15 @@ suite('tts_utils', () => {
         const possibleVoices: SpeechSynthesisVoice[] =
             [voice1, voice2, voice3, voice4, voice5, voice6, voice7, voice8];
 
-        // <if expr="is_chromeos">
-        // Don't filter out any system voices on ChromeOS.
-        assertDeepEquals(possibleVoices, getFilteredVoiceList(possibleVoices));
-        // </if>
-        // <if expr="not is_chromeos">
-        // Keep only the default system voice per language.
-        assertDeepEquals(
-            [voice1, voice2, voice4, voice5, voice6, voice8],
-            getFilteredVoiceList(possibleVoices));
-        // </if>
+        if (chrome.readingMode.isChromeOsAsh) {
+          // Don't filter out any system voices on ChromeOS.
+          assertDeepEquals(
+              possibleVoices, getFilteredVoiceList(possibleVoices));
+        } else {
+          // Keep only the default system voice per language.
+          assertDeepEquals(
+              [voice1, voice2, voice4, voice5, voice6, voice8],
+              getFilteredVoiceList(possibleVoices));
+        }
       });
 });

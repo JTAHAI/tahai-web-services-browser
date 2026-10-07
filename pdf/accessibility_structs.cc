@@ -15,14 +15,16 @@ AccessibilityTextStyleInfo::AccessibilityTextStyleInfo(
     float font_size,
     uint32_t fill_color,
     uint32_t stroke_color,
-    bool is_italic)
+    bool is_italic,
+    bool is_bold)
     : font_name(font_name),
       font_weight(font_weight),
       render_mode(render_mode),
       font_size(font_size),
       fill_color(fill_color),
       stroke_color(stroke_color),
-      is_italic(is_italic) {}
+      is_italic(is_italic),
+      is_bold(is_bold) {}
 
 AccessibilityTextStyleInfo::AccessibilityTextStyleInfo(
     const AccessibilityTextStyleInfo& other) = default;

@@ -10,7 +10,6 @@
 #include "content/public/browser/navigation_handle.h"
 #include "content/public/browser/web_contents_observer.h"
 #include "content/public/browser/web_contents_user_data.h"
-#include "third_party/blink/public/common/features.h"
 #include "third_party/blink/public/common/runtime_feature_state/runtime_feature_state_context.h"
 #include "url/origin.h"
 
@@ -32,13 +31,14 @@ void CrosIsolatedWebAppEnabler::ReadyToCommitNavigation(
   // Enable if the origin is in the allowlist or the chrome flag is toggled on.
   if (!CanOriginAccessCrosIwaApi(
           url::Origin::Create(navigation_handle->GetURL())) &&
-      !base::FeatureList::IsEnabled(blink::features::kSetShape)) {
+      !chromeos::features::IsCrosIsolatedWebAppSetShapeEnabled()) {
     return;
   }
 
   blink::RuntimeFeatureStateContext& context =
       navigation_handle->GetMutableRuntimeFeatureStateContext();
-  context.SetSetShapeEnabled(true);
+  context.SetBlinkExtensionChromeOSEnabled(true);
+  context.SetBlinkExtensionChromeOSIsolatedWebAppSetShapeEnabled(true);
 }
 
 WEB_CONTENTS_USER_DATA_KEY_IMPL(CrosIsolatedWebAppEnabler);

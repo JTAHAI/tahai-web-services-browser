@@ -21,7 +21,6 @@
 #include "third_party/blink/renderer/platform/graphics/paint/display_item.h"
 #include "third_party/blink/renderer/platform/graphics/paint/display_item_list.h"
 #include "third_party/blink/renderer/platform/graphics/paint/paint_artifact.h"
-#include "third_party/blink/renderer/platform/wtf/text/format.h"
 #include "third_party/blink/renderer/platform/wtf/text/wtf_string.h"
 #include "ui/gfx/geometry/rect_conversions.h"
 #include "ui/gfx/geometry/skia_conversions.h"
@@ -283,9 +282,9 @@ void RecordVideoOcclusionState(
 
   for (wtf_size_t i = 0; i < occluding_rects.size(); ++i) {
     const auto& rect = gfx::SkIRectToRect(occluding_rects[i]);
-    occluding_rects_stream << Format("[x: {}, y: {}, width: {}, height: {}]",
-                                     rect.x(), rect.y(), rect.width(),
-                                     rect.height());
+    occluding_rects_stream << String::Format(
+        "[x: %d, y: %d, width: %d, height: %d]", rect.x(), rect.y(),
+        rect.width(), rect.height());
     if (i < occluding_rects.size() - 1) {
       occluding_rects_stream << ", ";
     }
@@ -299,31 +298,33 @@ void RecordVideoOcclusionState(
   const String intersection_rect_string =
       intersection_rect.IsEmpty()
           ? "None"
-          : Format("x: {}, y: {}, width: {}, height: {}",
-                   intersection_rect.X().ToInt(), intersection_rect.Y().ToInt(),
-                   intersection_rect.Width().ToInt(),
-                   intersection_rect.Height().ToInt());
+          : String::Format("x: %d, y: %d, width: %d, height: %d",
+                           intersection_rect.X().ToInt(),
+                           intersection_rect.Y().ToInt(),
+                           intersection_rect.Width().ToInt(),
+                           intersection_rect.Height().ToInt());
 
   const auto& video_element_rect = occlusion_state.video_element_rect;
   const String video_element_rect_string =
       video_element_rect.IsEmpty()
           ? "None"
-          : Format("x: {}, y: {}, width: {}, height: {}",
-                   video_element_rect.X().ToInt(),
-                   video_element_rect.Y().ToInt(),
-                   video_element_rect.Width().ToInt(),
-                   video_element_rect.Height().ToInt());
+          : String::Format("x: %d, y: %d, width: %d, height: %d",
+                           video_element_rect.X().ToInt(),
+                           video_element_rect.Y().ToInt(),
+                           video_element_rect.Width().ToInt(),
+                           video_element_rect.Height().ToInt());
 
-  const String occlusion_state_string = Format(
-      "has sufficiently visible video: {{{}}}, occluded area: {{{:.2f}}}, "
-      "occluding rects: {{{}}}, intersection rect: {{{}}}, video element rect: "
-      "{{{}}}, visibility threshold: {{{}}}",
+  const String occlusion_state_string = UNSAFE_TODO(String::Format(
+      "has sufficiently visible video: {%s}, occluded area: {%.2f}, occluding "
+      "rects: {%s}, intersection rect: {%s}, video element rect: {%s}, "
+      "visibility threshold: {%d}",
       has_sufficiently_visible_video ? "True" : "False",
-      occlusion_state.occluded_area, occluding_rects_stream.str(),
-      intersection_rect_string.Ascii(), video_element_rect_string.Ascii(),
-      visibility_threshold);
+      occlusion_state.occluded_area, occluding_rects_stream.str().c_str(),
+      intersection_rect_string.Ascii().c_str(),
+      video_element_rect_string.Ascii().c_str(), visibility_threshold));
 
-  video_element.RecordVideoOcclusionState(occlusion_state_string.Ascii());
+  video_element.RecordVideoOcclusionState(
+      occlusion_state_string.Ascii().c_str());
 }
 
 }  // anonymous namespace
@@ -589,10 +590,7 @@ MediaVideoVisibilityTracker::GetClientIdsSet(
 ListBasedHitTestBehavior MediaVideoVisibilityTracker::ComputeOcclusion(
     const ClientIdsSet& client_ids_set,
     Metrics& counts,
-    const Node& node,
-    const PhysicalRect*,
-    const gfx::QuadF*,
-    const cc::Region*) {
+    const Node& node) {
   counts.total_hit_tested_nodes++;
 
   if (node == VideoElement()) {

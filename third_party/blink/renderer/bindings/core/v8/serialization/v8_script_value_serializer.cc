@@ -226,14 +226,7 @@ V8ScriptValueSerializer::V8ScriptValueSerializer(ScriptState* script_state,
                                                  const Options& options)
     : script_state_(script_state),
       serialized_script_value_(SerializedScriptValue::Create()),
-      serializer_(
-          script_state_->GetIsolate(),
-          this,
-          (options.for_storage == SerializedScriptValue::kForStorage ||
-           !ExecutionContext::From(script_state_)
-                ->SharedArrayBufferTransferAllowed())
-              ? v8::ValueSerializer::SharedImmutableArrayBufferMode::kDisabled
-              : v8::ValueSerializer::SharedImmutableArrayBufferMode::kEnabled),
+      serializer_(script_state_->GetIsolate(), this),
       transferables_(options.transferables),
       blob_info_array_(options.blob_info),
       wasm_policy_(options.wasm_policy),
@@ -308,8 +301,6 @@ scoped_refptr<SerializedScriptValue> V8ScriptValueSerializer::Serialize(
   }
 
   // Finalize the results.
-  serialized_script_value_->MoveSharedImmutableBackingStores(
-      serializer_.ReleaseSharedImmutableBackingStores());
   auto [buffer_ptr, buffer_size] = serializer_.Release();
   auto buffer =
       // SAFETY: The size from Release() is promised to be the size of the
@@ -889,6 +880,14 @@ bool V8ScriptValueSerializer::WriteDOMObject(ScriptWrappable* wrappable,
     WriteUint32(config->deprecated_should_freeze_initial_size(PassKey()));
     std::optional<KURL> urn_uuid = config->urn_uuid(PassKey());
     WriteUTF8String(urn_uuid ? urn_uuid->GetString() : g_empty_string);
+
+    // The serialization process does not distinguish between null and empty
+    // strings. Storing whether the current string is null or not allows us to
+    // get this functionality back, which is needed for Shared Storage.
+    WriteUint32(!config->GetSharedStorageContext().IsNull());
+    if (!config->GetSharedStorageContext().IsNull()) {
+      WriteUTF8String(config->GetSharedStorageContext());
+    }
 
     std::optional<gfx::Size> container_size = config->container_size(PassKey());
     WriteUint32(container_size.has_value());

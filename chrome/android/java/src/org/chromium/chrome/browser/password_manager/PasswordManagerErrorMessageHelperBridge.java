@@ -5,19 +5,16 @@
 package org.chromium.chrome.browser.password_manager;
 
 import android.app.Activity;
-import android.os.Bundle;
 
-import androidx.activity.result.ActivityResult;
 import androidx.annotation.VisibleForTesting;
 
 import org.jni_zero.CalledByNative;
-import org.jni_zero.JniType;
 
 import org.chromium.base.CallbackUtils;
+import org.chromium.base.IntentUtils;
 import org.chromium.base.TimeUtils;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
-import org.chromium.chrome.browser.ChromeBaseAppCompatActivity;
 import org.chromium.chrome.browser.preferences.ChromePreferenceKeys;
 import org.chromium.chrome.browser.preferences.ChromeSharedPreferences;
 import org.chromium.chrome.browser.preferences.Pref;
@@ -34,10 +31,8 @@ import org.chromium.components.sync.SyncService;
 import org.chromium.components.trusted_vault.TrustedVaultClient;
 import org.chromium.components.trusted_vault.TrustedVaultUserActionTriggerForUMA;
 import org.chromium.components.user_prefs.UserPrefs;
-import org.chromium.ui.base.ActivityResultTracker;
 import org.chromium.ui.base.WindowAndroid;
 
-import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 /** The bridge provides a way to interact with the Android sign in flow. */
@@ -50,15 +45,6 @@ public class PasswordManagerErrorMessageHelperBridge {
     @VisibleForTesting
     static final long MINIMAL_INTERVAL_TO_SYNC_ERROR_MS =
             TimeUnit.MILLISECONDS.convert(30, TimeUnit.MINUTES);
-
-    /**
-     * Restoration key provided solely to satisfy the {@link ActivityResultTracker.ResultListener}
-     * interface requirement. The listener is registered dynamically for a single UI flow and is not
-     * re-registered on Activity recreation, making restoration intentionally unsupported.
-     */
-    @VisibleForTesting
-    static final String TRUSTED_VAULT_KEY_RETRIEVAL_RESTORATION_KEY_NOT_TO_BE_RESTORED =
-            "PasswordManagerErrorMessageHelperBridge.TrustedVaultKeyRetrieval";
 
     /**
      * Checks whether the right amount of time has passed since the last error UI messages were
@@ -116,8 +102,7 @@ public class PasswordManagerErrorMessageHelperBridge {
         final Activity activity = windowAndroid.getActivity().get();
         assert activity != null : "Activity should not be null";
         AccountManagerFacadeProvider.getInstance()
-                .updateCredentials(
-                        primaryAccountInfo.getId(), activity, CallbackUtils.emptyCallback());
+                .updateCredentials(primaryAccountInfo.getId(), activity, (success) -> {});
     }
 
     /**
@@ -128,23 +113,14 @@ public class PasswordManagerErrorMessageHelperBridge {
     static void startTrustedVaultKeyRetrievalFlow(
             WindowAndroid windowAndroid,
             Profile profile,
-            @TrustedVaultUserActionTriggerForUMA int trustedVaultUserActionTriggerForUMA,
-            @JniType("base::OnceClosure&&") Runnable completionCallback) {
+            @TrustedVaultUserActionTriggerForUMA int trustedVaultUserActionTriggerForUMA) {
         SyncService syncService = SyncServiceFactory.getForProfile(profile);
         assert syncService != null;
         final CoreAccountInfo primaryAccountInfo = syncService.getAccountInfo();
         // If the account has been removed before calling this method, there is nothing to do.
-        if (primaryAccountInfo == null) {
-            completionCallback.run();
-            return;
-        }
+        if (primaryAccountInfo == null) return;
         final Activity activity = windowAndroid.getActivity().get();
-        if (activity == null) {
-            completionCallback.run();
-            return;
-        }
-        assert activity instanceof ChromeBaseAppCompatActivity;
-        final ChromeBaseAppCompatActivity chromeActivity = (ChromeBaseAppCompatActivity) activity;
+        assert activity != null;
 
         TrustedVaultClient.get()
                 .createKeyRetrievalIntent(primaryAccountInfo)
@@ -153,37 +129,9 @@ public class PasswordManagerErrorMessageHelperBridge {
                             var proxyIntent =
                                     SyncTrustedVaultProxyActivity.createKeyRetrievalProxyIntent(
                                             intent, trustedVaultUserActionTriggerForUMA);
-                            ActivityResultTracker tracker =
-                                    chromeActivity.getActivityResultTracker();
-                            ActivityResultTracker.ResultListener listener =
-                                    new ActivityResultTracker.ResultListener() {
-                                        @Override
-                                        public void onActivityResult(
-                                                ActivityResult result,
-                                                @Nullable Bundle savedInstanceData) {
-                                            tracker.unregister(this);
-                                            completionCallback.run();
-                                        }
-
-                                        @Override
-                                        public String getRestorationKey() {
-                                            return TRUSTED_VAULT_KEY_RETRIEVAL_RESTORATION_KEY_NOT_TO_BE_RESTORED
-                                                    + "_"
-                                                    + UUID.randomUUID();
-                                        }
-                                    };
-                            tracker.register(listener);
-                            try {
-                                tracker.startActivity(
-                                        listener, proxyIntent, /* savedInstanceData= */ null);
-                            } catch (Exception e) {
-                                tracker.unregister(listener);
-                                completionCallback.run();
-                            }
+                            IntentUtils.safeStartActivity(activity, proxyIntent);
                         },
-                        // Rejection handler
-                        (e) -> {
-                            completionCallback.run();
-                        });
+                        // Ignore failure.
+                        CallbackUtils.emptyCallback());
     }
 }

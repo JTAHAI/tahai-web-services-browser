@@ -71,10 +71,12 @@ class ClipRectsContext {
       OverlayScrollbarClipBehavior overlay_scrollbar_clip_behavior =
           kIgnoreOverlayScrollbarSize,
       ShouldRespectOverflowClipType root_layer_clip_behavior =
-          kRespectOverflowClip)
+          kRespectOverflowClip,
+      const PhysicalOffset& sub_pixel_accumulation = PhysicalOffset())
       : root_layer(root),
         root_fragment(fragment),
         overlay_scrollbar_clip_behavior(overlay_scrollbar_clip_behavior),
+        sub_pixel_accumulation(sub_pixel_accumulation),
         respect_overflow_clip(root_layer_clip_behavior) {}
 
   bool ShouldRespectRootLayerClip() const;
@@ -86,6 +88,7 @@ class ClipRectsContext {
  private:
   friend class PaintLayerClipper;
 
+  PhysicalOffset sub_pixel_accumulation;
   ShouldRespectOverflowClipType respect_overflow_clip;
 };
 

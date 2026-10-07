@@ -66,11 +66,7 @@ import java.util.List;
  */
 @RunWith(ChromeJUnit4ClassRunner.class)
 @CommandLineFlags.Add({ChromeSwitches.DISABLE_FIRST_RUN_EXPERIENCE})
-// TODO(b/555414915): Update Android tests with WebUI NTP enabled on AL.
-@DisableFeatures({
-    ChromeFeatureList.CHANGE_UNFOCUSED_PRIORITY,
-    ChromeFeatureList.USE_WEB_UI_NTP_ANDROID
-})
+@DisableFeatures({ChromeFeatureList.CHANGE_UNFOCUSED_PRIORITY})
 @Batch(Batch.PER_CLASS)
 public class TabPersistentStoreIntegrationTest {
     @Rule
@@ -462,6 +458,8 @@ public class TabPersistentStoreIntegrationTest {
     @Feature({"TabPersistentStore"})
     @RequiresRestart("Multiple activities make this complicated without a restart.")
     public void testFallbackNtpRestorationOrder() throws Exception {
+        final ChromeTabbedActivity originalActivity =
+                mActivityTestRule.getActivity();
         // 1. Start with 1 tab (blank). Load ok.txt in a new tab.
         final Tab tab0 = mActivityTestRule.loadUrlInNewTab(mTestUrl, false);
         // Now we have [Blank, tab0]. tab0 is active.

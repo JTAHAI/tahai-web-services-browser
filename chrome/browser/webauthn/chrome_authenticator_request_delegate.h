@@ -306,7 +306,8 @@ class ChromeAuthenticatorRequestDelegate
 
   const content::GlobalRenderFrameHostId render_frame_host_id_;
   const scoped_refptr<AuthenticatorRequestDialogModel> dialog_model_;
-  std::unique_ptr<AuthenticatorRequestDialogController> dialog_controller_;
+  const std::unique_ptr<AuthenticatorRequestDialogController>
+      dialog_controller_;
   base::OnceClosure cancel_callback_;
   base::OnceClosure immediate_not_found_callback_;
   base::RepeatingClosure start_over_callback_;

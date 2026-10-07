@@ -27,8 +27,7 @@
 #include "components/credential_management/android/features.h"
 #include "components/credential_management/android/third_party_credential_manager_impl.h"
 #include "components/prefs/pref_service.h"
-#include "components/security_state/content/android/security_state_client.h"
-#include "components/security_state/content/android/security_state_model_delegate.h"
+#include "components/security_state/content/security_state_tab_helper.h"
 #include "components/user_prefs/user_prefs.h"
 #include "content/public/browser/browser_context.h"
 #include "content/public/browser/navigation_controller.h"
@@ -192,9 +191,9 @@ url::Origin AndroidAutofillClient::GetLastCommittedPrimaryMainFrameOrigin()
 
 security_state::SecurityLevel
 AndroidAutofillClient::GetSecurityLevelForUmaHistograms() {
-  if (SecurityStateModelDelegate* delegate =
-          security_state::GetSecurityStateModelDelegate()) {
-    return delegate->GetSecurityLevel(&GetWebContents());
+  if (SecurityStateTabHelper* helper =
+          ::SecurityStateTabHelper::FromWebContents(&GetWebContents())) {
+    return helper->GetSecurityLevel();
   }
 
   // If there is no helper, it means we are not in a "web" state or the embedder
@@ -273,14 +272,12 @@ bool AndroidAutofillClient::UsesPlatformAutofill() const {
 }
 
 bool AndroidAutofillClient::IsContextSecure() const {
-  // Note: As of crbug.com/701018, Chrome determines whether the page is
-  // secure from the embedder-enriched security state, exposed here through
-  // SecurityStateModelDelegate. WebView does not register a
-  // SecurityStateClient, so it uses the SSLStatus fallback below.
-  if (SecurityStateModelDelegate* delegate =
-          security_state::GetSecurityStateModelDelegate()) {
-    return security_state::IsSslCertificateValid(
-        delegate->GetSecurityLevel(&GetWebContents()));
+  // Note: As of crbug.com/701018, Chrome relies on ChromeSecurityStateTabHelper
+  // to determine whether the page is secure, but WebView can only access a
+  // small part of the functionality so the helper will be null for now.
+  if (SecurityStateTabHelper* helper =
+          SecurityStateTabHelper::FromWebContents(&GetWebContents())) {
+    return security_state::IsSslCertificateValid(helper->GetSecurityLevel());
   }
 
   content::NavigationEntry* navigation_entry =

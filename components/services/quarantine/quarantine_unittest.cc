@@ -14,7 +14,6 @@
 #include "base/run_loop.h"
 #include "base/test/task_environment.h"
 #include "build/build_config.h"
-#include "components/services/quarantine/test_support.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "url/gurl.h"
 
@@ -36,10 +35,9 @@ void CheckQuarantineResult(QuarantineFileResult expected,
   EXPECT_EQ(expected, actual);
 }
 
-class QuarantineTest : public QuarantineTestBase {
+class QuarantineTest : public testing::Test {
  public:
   void SetUp() override {
-    QuarantineTestBase::SetUp();
 #if BUILDFLAG(IS_WIN)
     ASSERT_TRUE(com_initializer_.Succeeded());
 #endif

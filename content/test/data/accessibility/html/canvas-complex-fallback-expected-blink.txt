@@ -24,11 +24,15 @@ rootWebArea
 ++++++++++staticText name='<newline>    '
 ++++++++staticText name='<newline>  '
 ++++++canvas
+++++++++staticText name='<newline>    '
 ++++++++genericContainer
+++++++++++staticText name='<newline>      '
 ++++++++++paragraph
 ++++++++++++staticText name='Here we list the contents:'
 ++++++++++++++inlineTextBox name='Here we list the contents:'
+++++++++++staticText name='<newline>      '
 ++++++++++list
+++++++++++++staticText name='<newline>        '
 ++++++++++++listItem hierarchicalLevel=1
 ++++++++++++++listMarker name='1. '
 ++++++++++++++++staticText ignored
@@ -48,3 +52,6 @@ rootWebArea
 ++++++++++++++++staticText name='Welcome to canvas'
 ++++++++++++++++++inlineTextBox name='Welcome '
 ++++++++++++++++++inlineTextBox name='to canvas'
+++++++++++++++staticText name='<newline>      '
+++++++++++staticText name='<newline>    '
+++++++++staticText name='<newline>  '

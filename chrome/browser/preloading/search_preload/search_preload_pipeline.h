@@ -41,8 +41,7 @@ class SearchPreloadPipeline {
       const GURL& prefetch_url,
       content::PreloadingPredictor predictor,
       const std::optional<net::HttpNoVarySearchData>& no_vary_search_hint,
-      bool is_navigation_likely,
-      bool should_ignore_saver_modes);
+      bool is_navigation_likely);
   // Starts prerender if not triggered yet and prefetch is alive.
   SearchPreloadSignalResult StartPrerender(
       content::WebContents& web_contents,

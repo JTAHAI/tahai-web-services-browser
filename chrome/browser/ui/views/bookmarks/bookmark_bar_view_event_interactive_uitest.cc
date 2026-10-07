@@ -2,6 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include "chrome/browser/ui/views/bookmarks/bookmark_bar_view.h"
+
 #include <algorithm>
 #include <memory>
 #include <optional>
@@ -37,14 +39,12 @@
 #include "chrome/browser/ui/actions/chrome_actions.h"
 #include "chrome/browser/ui/bookmarks/bookmark_utils.h"
 #include "chrome/browser/ui/bookmarks/bookmark_utils_desktop.h"
-#include "chrome/browser/ui/bookmarks/controllers/bookmark_bar_ui_controller.h"
 #include "chrome/browser/ui/bookmarks/test_bookmark_navigation_wrapper.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_tabstrip.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
-#include "chrome/browser/ui/browser_window/public/create_browser_window.h"
+#include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/toolbar/pinned_toolbar/pinned_toolbar_actions_model.h"
-#include "chrome/browser/ui/views/bookmarks/bookmark_bar_view.h"
 #include "chrome/browser/ui/views/bookmarks/bookmark_bar_view_observer.h"
 #include "chrome/browser/ui/views/bookmarks/bookmark_context_menu.h"
 #include "chrome/browser/ui/views/bookmarks/bookmark_menu_controller_views.h"
@@ -350,8 +350,8 @@ class BookmarkBarViewEventTestBase : public ViewEventTestBase {
         BookmarkMergedSurfaceServiceFactory::GetForProfile(profile_.get()));
     profile_->GetPrefs()->SetBoolean(bookmarks::prefs::kShowBookmarkBar, true);
 
-    BrowserWindowCreateParams native_params(profile_.get(), true);
-    browser_ = CreateBrowserWithTestWindowForParams(std::move(native_params));
+    Browser::CreateParams native_params(profile_.get(), true);
+    browser_ = CreateBrowserWithTestWindowForParams(native_params);
 
     model_->DisableWritesToDiskForTest();
     PinnedToolbarActionsModel::Get(browser_->GetProfile())
@@ -366,7 +366,7 @@ class BookmarkBarViewEventTestBase : public ViewEventTestBase {
     ViewEventTestBase::SetUp();
     ASSERT_TRUE(bb_view_);
 
-    static_cast<TestBrowserWindow*>(browser_->GetWindow())
+    static_cast<TestBrowserWindow*>(BrowserWindow::FromBrowser(browser_.get()))
         ->SetNativeWindow(window()->GetNativeWindow());
 
     bookmarks::BookmarkNavigationWrapper::SetInstanceForTesting(&wrapper_);
@@ -385,7 +385,7 @@ class BookmarkBarViewEventTestBase : public ViewEventTestBase {
     }
     actions::ActionIdMap::ResetMapsForTesting();
 
-    browser_->GetTabStripModel()->CloseAllTabs();
+    browser_->tab_strip_model()->CloseAllTabs();
     browser_.reset();
     profile_.reset();
 
@@ -406,11 +406,11 @@ class BookmarkBarViewEventTestBase : public ViewEventTestBase {
 
  protected:
   std::unique_ptr<views::View> CreateContentsView() override {
-    auto bb_view =
-        std::make_unique<BookmarkBarView>(browser_.get(), nullptr, nullptr);
+    auto bb_view = std::make_unique<BookmarkBarView>(browser_.get(), nullptr);
     // Real bookmark bars get a BookmarkBarViewBackground. Set an opaque
     // background here just to avoid triggering subpixel rendering issues.
     bb_view->SetBackground(views::CreateSolidBackground(SK_ColorWHITE));
+    bb_view->SetPageNavigator(&navigator_);
     bb_view_ = bb_view.get();
     return bb_view;
   }
@@ -492,6 +492,7 @@ class BookmarkBarViewEventTestBase : public ViewEventTestBase {
 
   raw_ptr<BookmarkModel, AcrossTasksDanglingUntriaged> model_ = nullptr;
   raw_ptr<BookmarkBarView, AcrossTasksDanglingUntriaged> bb_view_ = nullptr;
+  TestingPageNavigator navigator_;
   TestingBookmarkNavigationWrapper wrapper_;
 
  private:
@@ -531,7 +532,7 @@ class BookmarkBarViewEventTestBase : public ViewEventTestBase {
   std::unique_ptr<ChromeContentClient> content_client_;
   std::unique_ptr<ChromeContentBrowserClient> browser_content_client_;
   std::unique_ptr<TestingProfile> profile_;
-  std::unique_ptr<BrowserWindowInterface> browser_;
+  std::unique_ptr<Browser> browser_;
 };
 
 class BookmarkBarViewDragTestBase : public BookmarkBarViewEventTestBase,

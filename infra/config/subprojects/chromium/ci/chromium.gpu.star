@@ -10,7 +10,6 @@ load("@chromium-luci//builder_health_indicators.star", "health_spec")
 load("@chromium-luci//ci.star", "ci")
 load("@chromium-luci//consoles.star", "consoles")
 load("@chromium-luci//gn_args.star", "gn_args")
-load("@chromium-luci//gpu.star", shared_gpu = "gpu")
 load("@chromium-luci//targets.star", "targets")
 load("//lib/ci_constants.star", "ci_constants")
 load("//lib/gardener_rotations.star", "gardener_rotations")
@@ -20,7 +19,7 @@ load("//lib/siso.star", "siso")
 ci.defaults.set(
     executable = ci_constants.DEFAULT_EXECUTABLE,
     builder_group = "chromium.gpu",
-    pool = shared_gpu.ci.POOL,
+    pool = gpu.ci.POOL,
     gardener_rotations = gardener_rotations.CHROMIUM_GPU,
     tree_closing = True,
     tree_closing_notifiers = gpu.ci.TREE_CLOSING_NOTIFIERS,
@@ -64,7 +63,7 @@ consoles.console_view(
     },
 )
 
-shared_gpu.ci.linux_builder(
+gpu.ci.linux_builder(
     name = "Android Release (Pixel 2)",
     branch_selector = branches.selector.ANDROID_BRANCHES,
     description_html = "Runs a subset of release GPU tests on stable Pixel 2 configs",
@@ -99,16 +98,18 @@ shared_gpu.ci.linux_builder(
             "remoteexec",
             "arm64",
             "static_angle",
-            "android_with_static_analysis",
+            "android_fastbuild",
         ],
     ),
     targets = targets.bundle(
         targets = [
-            "gpu_android_arm_release_gtests",
-            "gpu_android_arm_release_telemetry_tests",
+            "gpu_common_android_telemetry_tests",
         ],
         mixins = [
             "chromium_pixel_2_q",
+            # TODO(crbug.com/538273327): Return these tests to CQ after device
+            # pool stabalizes (or we increase its size?)
+            "ci_only",
         ],
     ),
     targets_settings = targets.settings(
@@ -123,7 +124,7 @@ shared_gpu.ci.linux_builder(
     cq_mirrors_console_view = "mirrors",
 )
 
-shared_gpu.ci.linux_builder(
+gpu.ci.linux_builder(
     name = "GPU Linux Builder",
     branch_selector = branches.selector.LINUX_BRANCHES,
     description_html = "Builds release Linux x64 binaries for GPU testing",
@@ -166,7 +167,7 @@ shared_gpu.ci.linux_builder(
     cq_mirrors_console_view = "mirrors",
 )
 
-shared_gpu.ci.linux_builder(
+gpu.ci.linux_builder(
     name = "GPU Linux Builder (dbg)",
     description_html = "Builds debug Linux x64 binaries for GPU testing",
     builder_spec = builder_config.builder_spec(
@@ -201,7 +202,7 @@ shared_gpu.ci.linux_builder(
     ),
 )
 
-shared_gpu.ci.mac_builder(
+gpu.ci.mac_builder(
     name = "GPU Mac Builder",
     branch_selector = branches.selector.MAC_BRANCHES,
     description_html = "Builds release Mac x64 binaries for GPU testing",
@@ -245,7 +246,7 @@ shared_gpu.ci.mac_builder(
     cq_mirrors_console_view = "mirrors",
 )
 
-shared_gpu.ci.mac_builder(
+gpu.ci.mac_builder(
     name = "GPU Mac Builder (dbg)",
     description_html = "Builds debug Mac x64 binaries for GPU testing",
     builder_spec = builder_config.builder_spec(
@@ -279,7 +280,7 @@ shared_gpu.ci.mac_builder(
     ),
 )
 
-shared_gpu.ci.mac_builder(
+gpu.ci.mac_builder(
     name = "GPU Mac arm64 Builder",
     branch_selector = branches.selector.MAC_BRANCHES,
     description_html = "Builds release Mac arm64 binaries for GPU testing",
@@ -322,7 +323,7 @@ shared_gpu.ci.mac_builder(
     ),
 )
 
-shared_gpu.ci.windows_builder(
+gpu.ci.windows_builder(
     name = "GPU Win x64 Builder",
     branch_selector = branches.selector.WINDOWS_BRANCHES,
     description_html = "Builds release x64 Windows binaries for GPU testing",
@@ -365,7 +366,7 @@ shared_gpu.ci.windows_builder(
     cq_mirrors_console_view = "mirrors",
 )
 
-shared_gpu.ci.windows_builder(
+gpu.ci.windows_builder(
     name = "GPU Win x64 Builder (dbg)",
     description_html = "Builds debug Windows x64 binaries for GPU testing",
     builder_spec = builder_config.builder_spec(
@@ -422,8 +423,8 @@ ci.thin_tester(
     ),
     targets = targets.bundle(
         targets = [
-            "gpu_linux_debug_gtests",
-            "gpu_linux_debug_telemetry_tests",
+            "gpu_desktop_passthrough_gtests",
+            "gpu_common_linux_telemetry_tests",
         ],
         mixins = [
             "linux_nvidia_gtx_1660_stable",
@@ -468,8 +469,8 @@ ci.thin_tester(
     ),
     targets = targets.bundle(
         targets = [
-            "gpu_linux_release_gtests",
-            "gpu_linux_release_telemetry_tests",
+            "gpu_desktop_passthrough_gtests",
+            "gpu_common_linux_telemetry_tests",
         ],
         mixins = [
             "linux_nvidia_gtx_1660_stable",
@@ -509,8 +510,8 @@ ci.thin_tester(
     ),
     targets = targets.bundle(
         targets = [
-            "gpu_mac_debug_gtests",
-            "gpu_mac_debug_telemetry_tests",
+            "gpu_desktop_passthrough_gtests",
+            "gpu_common_metal_passthrough_graphite_telemetry_tests",
         ],
         mixins = [
             "mac_mini_intel_gpu_stable",
@@ -564,8 +565,8 @@ ci.thin_tester(
     ),
     targets = targets.bundle(
         targets = [
-            "gpu_mac_release_gtests",
-            "gpu_mac_release_telemetry_tests",
+            "gpu_desktop_passthrough_gtests",
+            "gpu_common_metal_passthrough_graphite_telemetry_tests",
         ],
         mixins = [
             "mac_mini_intel_gpu_stable",
@@ -604,8 +605,8 @@ ci.thin_tester(
     ),
     targets = targets.bundle(
         targets = [
-            "gpu_mac_debug_gtests",
-            "gpu_mac_debug_telemetry_tests",
+            "gpu_desktop_passthrough_gtests",
+            "gpu_common_metal_passthrough_graphite_telemetry_tests",
         ],
         mixins = [
             "mac_retina_amd_gpu_stable",
@@ -654,8 +655,8 @@ ci.thin_tester(
     ),
     targets = targets.bundle(
         targets = [
-            "gpu_mac_release_gtests",
-            "gpu_mac_release_telemetry_tests",
+            "gpu_desktop_passthrough_gtests",
+            "gpu_common_metal_passthrough_graphite_telemetry_tests",
         ],
         mixins = [
             "mac_retina_amd_gpu_stable",
@@ -696,8 +697,8 @@ ci.thin_tester(
     ),
     targets = targets.bundle(
         targets = [
-            "gpu_mac_release_gtests",
-            "gpu_mac_release_telemetry_tests",
+            "gpu_desktop_passthrough_gtests",
+            "gpu_common_metal_passthrough_graphite_telemetry_tests",
         ],
         mixins = [
             "mac_arm64_apple_m2_retina_gpu_stable",
@@ -736,8 +737,8 @@ ci.thin_tester(
     ),
     targets = targets.bundle(
         targets = [
-            "gpu_win_debug_gtests",
-            "gpu_win_debug_telemetry_tests",
+            "gpu_win_gtests",
+            "gpu_common_win_telemetry_tests",
         ],
         mixins = [
             "win10_nvidia_gtx_1660_stable",
@@ -803,13 +804,12 @@ ci.thin_tester(
     ),
     targets = targets.bundle(
         targets = [
-            "gpu_win_release_gtests",
-            "gpu_win_release_telemetry_tests",
+            "gpu_win_gtests",
+            "gpu_common_win_telemetry_tests",
         ],
         mixins = [
             "win10_nvidia_gtx_1660_stable",
             "puppet_production",
-            "isolate_profile_data",
         ],
         per_test_modifications = {
             "pixel_skia_gold_passthrough_test": targets.per_test_modification(

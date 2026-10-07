@@ -17,12 +17,14 @@
 #include "base/test/task_environment.h"
 #include "base/test/test_future.h"
 #include "base/types/expected.h"
+#include "base/version_info/channel.h"
+#include "base/version_info/version_info.h"
 #include "chrome/browser/ai/ai_test_utils.h"
 #include "chrome/browser/ai/features.h"
 #include "chrome/browser/optimization_guide/mock_optimization_guide_keyed_service.h"
+#include "chrome/common/channel_info.h"
 #include "components/optimization_guide/core/model_execution/manifest_broker/test/fake_manifest_broker.h"
 #include "components/optimization_guide/core/model_execution/manifest_broker/test/scenario_builder.h"
-#include "components/optimization_guide/core/model_execution/test/feature_config_builder.h"
 #include "components/optimization_guide/core/model_execution/test/mock_on_device_capability.h"
 #include "components/optimization_guide/core/model_execution/test/substitution_builder.h"
 #include "components/optimization_guide/core/optimization_guide_proto_util.h"
@@ -42,8 +44,6 @@
 #include "third_party/blink/public/mojom/ai/model_streaming_responder.mojom.h"
 
 namespace {
-
-namespace proto = ::optimization_guide::proto;
 
 using ::base::test::TestFuture;
 using ::blink::mojom::AILanguageCode;
@@ -84,9 +84,8 @@ class TestCreateRewriterClient
     return receiver_.BindNewPipeAndPassRemote();
   }
 
-  void OnResult(mojo::PendingRemote<::blink::mojom::AIRewriter> rewriter,
-                uint64_t context_window) override {
-    context_window_ = context_window;
+  void OnResult(
+      mojo::PendingRemote<::blink::mojom::AIRewriter> rewriter) override {
     result_.SetValue(std::move(rewriter));
   }
 
@@ -97,11 +96,9 @@ class TestCreateRewriterClient
   }
 
   TestFuture<CreateRewriterResult>& result() { return result_; }
-  uint64_t context_window() const { return context_window_; }
 
  private:
   TestFuture<CreateRewriterResult> result_;
-  uint64_t context_window_ = 0;
   mojo::Receiver<blink::mojom::AIManagerCreateRewriterClient> receiver_{this};
 };
 
@@ -174,11 +171,16 @@ class AIRewriterTest : public AITestUtils::AITestBase {
   }
 
  protected:
-  proto::SolutionConfig CreateSolution() override {
-    proto::SolutionConfig solution_config;
-    *solution_config.mutable_feature() = CreateRewriterConfig();
-    *solution_config.mutable_safety() = CreateSafetyConfig();
-    return solution_config;
+  optimization_guide::proto::OnDeviceModelExecutionFeatureConfig CreateConfig()
+      override {
+    return CreateRewriterConfig();
+  }
+
+  optimization_guide::proto::OnDeviceModelExecutionFeatureConfig
+  CreateSafeConfig() {
+    auto config = CreateConfig();
+    config.set_can_skip_text_safety(false);
+    return config;
   }
 
   mojo::Remote<blink::mojom::AIRewriter> GetAIRewriterRemote(
@@ -273,8 +275,8 @@ TEST_F(AIRewriterTest, CreateRewriterModelNotEligible) {
         {{"compatible_on_device_performance_classes", "3,4,5,6"}}}},
       {{on_device_model::features::kOnDeviceModelCpuBackend}});
 
-  fake_broker_->settings().performance_class =
-      on_device_model::mojom::PerformanceClass::kVeryLow;
+  fake_broker_->service_settings().performance_class =
+      PerformanceClass::kVeryLow;
 
   TestCreateRewriterClient create_rewriter_client;
   GetAIManagerRemote()->CreateRewriter(
@@ -287,16 +289,77 @@ TEST_F(AIRewriterTest, CreateRewriterModelNotEligible) {
             blink::mojom::AIManagerCreateClientError::kUnableToCreateSession);
 }
 
-#if BUILDFLAG(IS_ANDROID)
+TEST_F(AIRewriterTest, CreateRewriterWaitsForBaseModel) {
+  fake_broker_->InstallBaseModel(nullptr);
+
+  TestCreateRewriterClient create_rewriter_client;
+  GetAIManagerRemote()->CreateRewriter(
+      create_rewriter_client.BindNewPipeAndPassRemote(), GetDefaultOptions(),
+      /*monitor=*/mojo::NullRemote());
+
+  TestFuture<CreateRewriterResult>& future = create_rewriter_client.result();
+  task_environment()->FastForwardBy(base::Hours(1));
+  EXPECT_FALSE(future.IsReady());
+
+  fake_broker_->InstallBaseModel(
+      std::make_unique<optimization_guide::FakeBaseModelAsset>());
+
+  EXPECT_OK(future.Take());
+}
+
+TEST_F(AIRewriterTest, CreateRewriterWaitsForModelAdaptation) {
+  fake_broker_->model_provider().RemoveModel(
+      optimization_guide::proto::
+          OPTIMIZATION_TARGET_MODEL_EXECUTION_FEATURE_WRITING_ASSISTANCE_API);
+
+  TestCreateRewriterClient create_rewriter_client;
+  GetAIManagerRemote()->CreateRewriter(
+      create_rewriter_client.BindNewPipeAndPassRemote(), GetDefaultOptions(),
+      /*monitor=*/mojo::NullRemote());
+
+  TestFuture<CreateRewriterResult>& future = create_rewriter_client.result();
+  task_environment()->FastForwardBy(base::Hours(1));
+  EXPECT_FALSE(future.IsReady());
+
+  optimization_guide::FakeAdaptationAsset fake_asset(
+      {.config = CreateConfig()});
+  fake_broker_->UpdateModelAdaptation(fake_asset);
+
+  EXPECT_OK(future.Take());
+}
+
+TEST_F(AIRewriterTest, CreateRewriterWaitsForTextSafetyModel) {
+  optimization_guide::FakeAdaptationAsset fake_asset(
+      {.config = CreateSafeConfig()});
+  fake_broker_->UpdateModelAdaptation(fake_asset);
+
+  TestCreateRewriterClient create_rewriter_client;
+  GetAIManagerRemote()->CreateRewriter(
+      create_rewriter_client.BindNewPipeAndPassRemote(), GetDefaultOptions(),
+      /*monitor=*/mojo::NullRemote());
+
+  TestFuture<CreateRewriterResult>& future = create_rewriter_client.result();
+  task_environment()->FastForwardBy(base::Hours(1));
+  EXPECT_FALSE(future.IsReady());
+
+  optimization_guide::FakeSafetyModelAsset safety_asset(CreateSafetyConfig());
+  fake_broker_->UpdateSafetyModel(safety_asset);
+
+  EXPECT_OK(future.Take());
+}
+
 TEST_F(AIRewriterTest, CreateRewriterSafetyConfigNotAvailable) {
-  SetSolutionConfig([&]() {
-    auto solution_config = CreateSolution();
-    solution_config.mutable_feature()->set_can_skip_text_safety(false);
-    // Provide a safety asset that does not support rewriter.
-    solution_config.mutable_safety()->set_feature(
+  optimization_guide::FakeAdaptationAsset fake_asset(
+      {.config = CreateSafeConfig()});
+  fake_broker_->UpdateModelAdaptation(fake_asset);
+  // Provide a safety asset that does not support rewriter.
+  optimization_guide::FakeSafetyModelAsset safety_asset([] {
+    auto safety_config = CreateSafetyConfig();
+    safety_config.set_feature(
         optimization_guide::proto::MODEL_EXECUTION_FEATURE_TEST);
-    return solution_config;
+    return safety_config;
   }());
+  fake_broker_->UpdateSafetyModel(safety_asset);
 
   TestCreateRewriterClient create_rewriter_client;
   GetAIManagerRemote()->CreateRewriter(
@@ -308,18 +371,16 @@ TEST_F(AIRewriterTest, CreateRewriterSafetyConfigNotAvailable) {
   EXPECT_EQ(result.error().error,
             blink::mojom::AIManagerCreateClientError::kUnableToCreateSession);
 }
-#endif
 
 TEST_F(AIRewriterTest, CreateRewriterUnableToCalculateTokenSize) {
   // Incorrect `request_base_name` cause session to fail constructing input
   // string and checking token size.
-  SetSolutionConfig([&]() {
-    auto solution_config = CreateSolution();
-    solution_config.mutable_feature()
-        ->mutable_input_config()
-        ->set_request_base_name("InvalidRequestBaseName");
-    return solution_config;
-  }());
+  auto config = CreateConfig();
+  auto& input_config = *config.mutable_input_config();
+  input_config.set_request_base_name("InvalidRequestBaseName");
+
+  optimization_guide::FakeAdaptationAsset fake_asset({.config = config});
+  fake_broker_->UpdateModelAdaptation(fake_asset);
 
   TestCreateRewriterClient create_rewriter_client;
   GetAIManagerRemote()->CreateRewriter(
@@ -349,17 +410,6 @@ TEST_F(AIRewriterTest, CreateRewriterContextLimitExceededError) {
   EXPECT_EQ(result.error().quota_error_info->requested,
             blink::mojom::kWritingAssistanceMaxInputTokenSize + 1);
   EXPECT_EQ(result.error().quota_error_info->quota,
-            blink::mojom::kWritingAssistanceMaxInputTokenSize);
-}
-
-TEST_F(AIRewriterTest, ContextWindowUsesContextLimit) {
-  TestCreateRewriterClient client;
-  GetAIManagerRemote()->CreateRewriter(client.BindNewPipeAndPassRemote(),
-                                       GetDefaultOptions(),
-                                       /*monitor=*/mojo::NullRemote());
-  CreateRewriterResult result = client.result().Take();
-  ASSERT_TRUE(result.has_value());
-  EXPECT_EQ(client.context_window(),
             blink::mojom::kWritingAssistanceMaxInputTokenSize);
 }
 
@@ -418,9 +468,9 @@ TEST_F(AIRewriterTest, CanCreateUnIsLanguagesSupported) {
 TEST_F(AIRewriterTest, ToProtoOptionsLanguagesSupported) {
   // Rewriter proto expects base language display names in English.
   std::vector<std::pair<std::string, std::string>> languages = {
-      {"en", "English"},  {"en-us", "English"},  {"en-gb", "English"},
-      {"es", "Spanish"},  {"es-es", "Spanish"},  {"es-mx", "Spanish"},
-      {"ja", "Japanese"}, {"ja-jp", "Japanese"},
+      {"en", "English"},  {"en-us", "English"},  {"en-uk", "English"},
+      {"es", "Spanish"},  {"es-sp", "Spanish"},  {"es-mx", "Spanish"},
+      {"ja", "Japanese"}, {"ja-jp", "Japanese"}, {"ja-foo", "Japanese"},
   };
   blink::mojom::AIRewriterCreateOptionsPtr options = GetDefaultOptions();
   for (const auto& language : languages) {
@@ -534,11 +584,11 @@ TEST_F(AIRewriterTest, Priority) {
 }
 
 TEST_F(AIRewriterTest, TextSafetyInput) {
-  SetSolutionConfig([&]() {
-    auto solution_config = CreateSolution();
-    solution_config.mutable_feature()->set_can_skip_text_safety(false);
-    return solution_config;
-  }());
+  optimization_guide::FakeAdaptationAsset fake_asset(
+      {.config = CreateSafeConfig()});
+  fake_broker_->UpdateModelAdaptation(fake_asset);
+  optimization_guide::FakeSafetyModelAsset safety_asset(CreateSafetyConfig());
+  fake_broker_->UpdateSafetyModel(safety_asset);
 
   fake_broker_->settings().set_execute_result({"hi"});
   auto rewriter_remote = GetAIRewriterRemote();
@@ -553,11 +603,11 @@ TEST_F(AIRewriterTest, TextSafetyInput) {
 }
 
 TEST_F(AIRewriterTest, TextSafetyContext) {
-  SetSolutionConfig([&]() {
-    auto solution_config = CreateSolution();
-    solution_config.mutable_feature()->set_can_skip_text_safety(false);
-    return solution_config;
-  }());
+  optimization_guide::FakeAdaptationAsset fake_asset(
+      {.config = CreateSafeConfig()});
+  fake_broker_->UpdateModelAdaptation(fake_asset);
+  optimization_guide::FakeSafetyModelAsset safety_asset(CreateSafetyConfig());
+  fake_broker_->UpdateSafetyModel(safety_asset);
 
   fake_broker_->settings().set_execute_result({"hi"});
   auto rewriter_remote = GetAIRewriterRemote();
@@ -572,11 +622,11 @@ TEST_F(AIRewriterTest, TextSafetyContext) {
 }
 
 TEST_F(AIRewriterTest, TextSafetySharedContext) {
-  SetSolutionConfig([&]() {
-    auto solution_config = CreateSolution();
-    solution_config.mutable_feature()->set_can_skip_text_safety(false);
-    return solution_config;
-  }());
+  optimization_guide::FakeAdaptationAsset fake_asset(
+      {.config = CreateSafeConfig()});
+  fake_broker_->UpdateModelAdaptation(fake_asset);
+  optimization_guide::FakeSafetyModelAsset safety_asset(CreateSafetyConfig());
+  fake_broker_->UpdateSafetyModel(safety_asset);
 
   const auto options = blink::mojom::AIRewriterCreateOptions::New(
       "unsafe", blink::mojom::AIRewriterTone::kAsIs,
@@ -597,14 +647,15 @@ TEST_F(AIRewriterTest, TextSafetySharedContext) {
 }
 
 TEST_F(AIRewriterTest, TextSafetyOutput) {
-  SetSolutionConfig([&]() {
-    auto solution_config = CreateSolution();
-    solution_config.mutable_feature()->set_can_skip_text_safety(false);
-    solution_config.mutable_safety()
-        ->mutable_partial_output_checks()
-        ->set_minimum_tokens(1000);
-    return solution_config;
+  optimization_guide::FakeAdaptationAsset fake_asset(
+      {.config = CreateSafeConfig()});
+  fake_broker_->UpdateModelAdaptation(fake_asset);
+  optimization_guide::FakeSafetyModelAsset safety_asset([] {
+    auto safety_config = CreateSafetyConfig();
+    safety_config.mutable_partial_output_checks()->set_minimum_tokens(1000);
+    return safety_config;
   }());
+  fake_broker_->UpdateSafetyModel(safety_asset);
 
   // Fake text safety checker looks for the string "unsafe".
   fake_broker_->settings().set_execute_result(
@@ -620,17 +671,16 @@ TEST_F(AIRewriterTest, TextSafetyOutput) {
 }
 
 TEST_F(AIRewriterTest, TextSafetyOutputPartial) {
-  SetSolutionConfig([&]() {
-    auto solution_config = CreateSolution();
-    solution_config.mutable_feature()->set_can_skip_text_safety(false);
-    solution_config.mutable_safety()
-        ->mutable_partial_output_checks()
-        ->set_minimum_tokens(3);
-    solution_config.mutable_safety()
-        ->mutable_partial_output_checks()
-        ->set_token_interval(2);
-    return solution_config;
+  optimization_guide::FakeAdaptationAsset fake_asset(
+      {.config = CreateSafeConfig()});
+  fake_broker_->UpdateModelAdaptation(fake_asset);
+  optimization_guide::FakeSafetyModelAsset safety_asset([] {
+    auto safety_config = CreateSafetyConfig();
+    safety_config.mutable_partial_output_checks()->set_minimum_tokens(3);
+    safety_config.mutable_partial_output_checks()->set_token_interval(2);
+    return safety_config;
   }());
+  fake_broker_->UpdateSafetyModel(safety_asset);
 
   // Fake text safety checker looks for the string "unsafe".
   fake_broker_->settings().set_execute_result(
@@ -653,7 +703,7 @@ TEST_F(AIRewriterTest, ServiceCrash) {
   AITestUtils::TestStreamingResponder responder;
   rewriter_remote->Rewrite(kInputString, kContextString,
                            responder.BindRemote());
-  fake_broker_->launcher().CrashService();
+  fake_broker_->CrashService();
 
   EXPECT_FALSE(responder.WaitForCompletion());
   // TODO(crbug.com/494980521): Crashes should be yield kErrorSessionDestroyed.
@@ -668,7 +718,7 @@ TEST_F(AIRewriterTest, ServiceCrash) {
 
 TEST_F(AIRewriterTest, CrashRecoveryMeasureInputUsage) {
   auto rewriter_remote = GetAIRewriterRemote();
-  fake_broker_->launcher().CrashService();
+  fake_broker_->CrashService();
 
   base::test::TestFuture<std::optional<uint32_t>> measure_future;
   rewriter_remote->MeasureUsage(kInputString, kContextString,
@@ -749,59 +799,88 @@ TEST_F(AIRewriterTest, CreateOnDeviceAiUserSettingDisabled) {
   SetOnDeviceAiUserSetting(true);
 }
 
-#if !BUILDFLAG(IS_ANDROID)
-class AIRewriterWithFeatureConfigTest : public AIRewriterTest {
+class AIRewriterManifestTest : public AITestUtils::AITestManifestBase {
  public:
-  void SetupBroker() override {
-    proto::WritingAssistanceApiFeatureConfig writer_cfg;
-    writer_cfg.set_default_use_case("writing_assistance_api");
-    (*writer_cfg.mutable_experimental_use_cases())["v4"] =
-        "rewriter_gemma4";
+  AIRewriterManifestTest() {
+    scoped_feature_list_.InitWithFeatures(
+        {blink::features::kAIRewriterAPI,
+         optimization_guide::kOptimizationGuideManifestBroker,
+         on_device_model::features::kOnDeviceModelLitertLmBackend},
+        {});
+  }
 
-    // Explicit BaseModelRecipeArgs and empty FakeBaseModelAsset::Content are
-    // needed: ScenarioBuilder::AddBaseModel(name) defaults to 100 max_tokens
-    // and non-empty cache weights (1015, 1016, 1017), which causes
-    // FakeOnDeviceModel to emit dummy cache weight response chunks.
-    constexpr uint32_t kDefaultMaxTokens = 8096;
-    proto::SolutionConfig default_solution = CreateSolution();
+ protected:
+  void SetupManifest() override {
+    optimization_guide::proto::WritingAssistanceApiFeatureConfig rewriter_cfg;
+    rewriter_cfg.set_default_use_case("rewriter_api");
+    (*rewriter_cfg.mutable_experimental_use_cases())["v4"] = "rewriter_gemma4";
 
-    fake_broker_ = std::make_unique<optimization_guide::FakeManifestBroker>();
-    optimization_guide::ScenarioBuilder(fake_broker_->component_state())
+    optimization_guide::proto::Any any_cfg;
+    any_cfg.set_type_url(
+        "type.googleapis.com/"
+        "optimization_guide.proto.WritingAssistanceApiFeatureConfig");
+    any_cfg.set_value(rewriter_cfg.SerializeAsString());
+
+    constexpr uint32_t kTestMaxTokens = 100u;
+
+    optimization_guide::proto::SolutionConfig solution_config;
+    *solution_config.mutable_feature() = CreateConfig();
+    solution_config.mutable_safety()->set_feature(
+        optimization_guide::proto::ModelExecutionFeature::
+            MODEL_EXECUTION_FEATURE_WRITING_ASSISTANCE_API);
+
+    optimization_guide::ScenarioBuilder(
+        fake_manifest_broker_->component_state())
         .AddBaseModel(
-            "base",
+            "rewriter_gemma4_solution",
             optimization_guide::BaseModelRecipeArgs(
-                proto::BaseModelRecipe::BACKEND_TYPE_GPU,
-                proto::BaseModelRecipe::PERFORMANCE_HINT_HIGHEST_QUALITY,
-                {}, kDefaultMaxTokens),
-            optimization_guide::FakeBaseModelAsset::Content{}, "1.0.0.0")
+                optimization_guide::proto::BaseModelRecipe::BACKEND_TYPE_GPU,
+                optimization_guide::proto::BaseModelRecipe::
+                    PERFORMANCE_HINT_HIGHEST_QUALITY,
+                {}, kTestMaxTokens))
         .AddBaseModel(
-            "gemma4_base",
+            "rewriter_api_solution",
             optimization_guide::BaseModelRecipeArgs(
-                proto::BaseModelRecipe::BACKEND_TYPE_GPU,
-                proto::BaseModelRecipe::PERFORMANCE_HINT_HIGHEST_QUALITY,
-                {}, kDefaultMaxTokens),
-            optimization_guide::FakeBaseModelAsset::Content{}, "1.0.0.0")
+                optimization_guide::proto::BaseModelRecipe::BACKEND_TYPE_GPU,
+                optimization_guide::proto::BaseModelRecipe::
+                    PERFORMANCE_HINT_HIGHEST_QUALITY,
+                {}, kTestMaxTokens))
         .AddSafetyModel("safety")
-        .AddSafeSolution("writing_assistance_api", "base", "safety",
-                         default_solution)
-        .AddSafeSolution("rewriter_gemma4", "gemma4_base", "safety",
-                         default_solution)
-        .SetFeatureConfig("writing_assistance_api",
-                          optimization_guide::AnyWrapProto(writer_cfg))
+        .AddSafeSolution("rewriter_api", "rewriter_api_solution", "safety",
+                         solution_config)
+        .AddSafeSolution("rewriter_gemma4", "rewriter_gemma4_solution",
+                         "safety", solution_config)
+        .SetFeatureConfig(optimization_guide::DeviceCategory::kGpuHighTier,
+                          "writing_assistance_api", any_cfg)
         .Finish();
 
-    fake_broker_->settings().performance_class =
+    fake_manifest_broker_->settings().performance_class =
         on_device_model::mojom::PerformanceClass::kHigh;
-    fake_broker_->Startup();
   }
+
+  optimization_guide::proto::OnDeviceModelExecutionFeatureConfig CreateConfig()
+      override {
+    return CreateRewriterConfig();
+  }
+
+  base::test::ScopedFeatureList scoped_feature_list_;
 };
 
-TEST_F(AIRewriterWithFeatureConfigTest, CanCreateAndCreateWithManifestGemma4) {
+TEST_F(AIRewriterManifestTest, CanCreateAndCreateWithManifestGemma4) {
+  version_info::Channel channel = chrome::GetChannel();
+  if (channel != version_info::Channel::CANARY &&
+      channel != version_info::Channel::DEV &&
+      channel != version_info::Channel::UNKNOWN &&
+      version_info::IsOfficialBuild()) {
+    GTEST_SKIP() << "Experimental use case support is limited to "
+                    "Canary/Dev/Unknown channels and unofficial builds.";
+  }
+
   base::test::ScopedFeatureList scoped_feature_list;
   scoped_feature_list.InitAndEnableFeatureWithParameters(
       kAIApiFoundationalModel, {{"model_version", "v4"}});
 
-  fake_broker_->client().RequestAssetsFor("rewriter_gemma4");
+  fake_manifest_broker_->client().RequestAssetsFor("rewriter_gemma4");
   ASSERT_TRUE(base::test::RunUntil([&] {
     base::test::TestFuture<blink::mojom::ModelAvailabilityCheckResult> future;
     ai_manager_->CanCreateRewriter(GetDefaultOptions(), future.GetCallback());
@@ -819,20 +898,28 @@ TEST_F(AIRewriterWithFeatureConfigTest, CanCreateAndCreateWithManifestGemma4) {
   EXPECT_TRUE(result.has_value());
 }
 
-TEST_F(AIRewriterWithFeatureConfigTest, CanCreateBeforeDownloadGemma4) {
+TEST_F(AIRewriterManifestTest, CanCreateBeforeDownloadGemma4) {
+  version_info::Channel channel = chrome::GetChannel();
+  if (channel != version_info::Channel::CANARY &&
+      channel != version_info::Channel::DEV &&
+      channel != version_info::Channel::UNKNOWN &&
+      version_info::IsOfficialBuild()) {
+    GTEST_SKIP() << "Experimental use case support is limited to "
+                    "Canary/Dev/Unknown channels and unofficial builds.";
+  }
+
   base::test::ScopedFeatureList scoped_feature_list;
   scoped_feature_list.InitAndEnableFeatureWithParameters(
       kAIApiFoundationalModel, {{"model_version", "v4"}});
 
-  // Assets are requested for writing_assistance_api, but since gemma4 is the
-  // configured model_version, we should get kDownloadable for gemma4.
-  fake_broker_->client().RequestAssetsFor("writing_assistance_api");
+  // Assets are requested for rewriter_api, but since gemma4 is the configured
+  // model_version, we should get kDownloadable for gemma4.
+  fake_manifest_broker_->client().RequestAssetsFor("rewriter_api");
 
   base::test::TestFuture<blink::mojom::ModelAvailabilityCheckResult> future;
   ai_manager_->CanCreateRewriter(GetDefaultOptions(), future.GetCallback());
   EXPECT_EQ(future.Get(),
             blink::mojom::ModelAvailabilityCheckResult::kDownloadable);
 }
-#endif  // !BUILDFLAG(IS_ANDROID)
 
 }  // namespace

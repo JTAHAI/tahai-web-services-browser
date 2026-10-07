@@ -7,10 +7,6 @@
 
 #include <string_view>
 
-namespace google::protobuf {
-class MessageLite;
-}  // namespace google::protobuf
-
 namespace browser_actuator {
 
 // Interface that feature clients implement to receive messages for a specific
@@ -19,8 +15,10 @@ class TransportHandler {
  public:
   virtual ~TransportHandler() = default;
 
-  // Process incoming downstream or wake-up message.
-  virtual void OnMessage(const google::protobuf::MessageLite& message) = 0;
+  // Process incoming downstream message.
+  // TODO(crbug.com/532660606): Replace this raw payload with a structured
+  // type once incoming payload protos are finalized.
+  virtual void OnMessage(std::string_view payload) = 0;
 };
 
 }  // namespace browser_actuator

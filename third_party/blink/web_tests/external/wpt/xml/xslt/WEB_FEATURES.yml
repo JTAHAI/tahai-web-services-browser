@@ -1,2 +1,3 @@
-rules:
-- "**": [xslt]
+features:
+- name: xslt
+  files: '**'

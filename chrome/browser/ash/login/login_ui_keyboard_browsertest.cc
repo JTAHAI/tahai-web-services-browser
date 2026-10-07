@@ -473,12 +473,8 @@ class FirstLoginKeyboardTest : public LoginManagerTest {
   }
 
  protected:
-  const LoginManagerMixin::TestUserInfo test_user_{
-      AccountId::FromUserEmailGaiaId(kTestUser1, kTestUser1GaiaId),
-      test::UserAuthConfig::Create(test::kDefaultAuthSetup)
-          .WithOnlinePassword(kPassword)};
-
-  LoginManagerMixin login_manager_{&mixin_host_, {test_user_}};
+  AccountId test_user_{
+      AccountId::FromUserEmailGaiaId(kTestUser1, kTestUser1GaiaId)};
   DeviceStateMixin device_state_{
       &mixin_host_, DeviceStateMixin::State::OOBE_COMPLETED_UNOWNED};
 };
@@ -487,23 +483,19 @@ class FirstLoginKeyboardTest : public LoginManagerTest {
 // session unlock.
 IN_PROC_BROWSER_TEST_F(FirstLoginKeyboardTest,
                        UsersLastInputMethodPersistsOnLoginOrUnlock) {
-  EXPECT_TRUE(
-      lock_screen_utils::GetUserLastInputMethodId(
-          CHECK_DEREF(g_browser_process->local_state()), test_user_.account_id)
-          .empty());
+  EXPECT_TRUE(lock_screen_utils::GetUserLastInputMethodId(
+                  CHECK_DEREF(g_browser_process->local_state()), test_user_)
+                  .empty());
 
   // Non canonical display email (typed) should not affect input method storage.
   LoginDisplayHost::default_host()->SetDisplayEmail(
       kTestUser1NonCanonicalDisplayEmail);
-
-  login_manager_.LoginWithDefaultContext(test_user_);
-  login_manager_.WaitForActiveSession();
+  LoginUser(test_user_);
 
   // Last input method should be stored.
-  EXPECT_FALSE(
-      lock_screen_utils::GetUserLastInputMethodId(
-          CHECK_DEREF(g_browser_process->local_state()), test_user_.account_id)
-          .empty());
+  EXPECT_FALSE(lock_screen_utils::GetUserLastInputMethodId(
+                   CHECK_DEREF(g_browser_process->local_state()), test_user_)
+                   .empty());
 
   ScreenLockerTester locker_tester;
   locker_tester.Lock();
@@ -511,21 +503,18 @@ IN_PROC_BROWSER_TEST_F(FirstLoginKeyboardTest,
   // Clear user input method.
   input_method::InputMethodPersistence::
       SetUserLastInputMethodPreferenceForTesting(
-          CHECK_DEREF(g_browser_process->local_state()), test_user_.account_id,
-          std::string());
-  EXPECT_TRUE(
-      lock_screen_utils::GetUserLastInputMethodId(
-          CHECK_DEREF(g_browser_process->local_state()), test_user_.account_id)
-          .empty());
+          *g_browser_process->local_state(), test_user_, std::string());
+  EXPECT_TRUE(lock_screen_utils::GetUserLastInputMethodId(
+                  CHECK_DEREF(g_browser_process->local_state()), test_user_)
+                  .empty());
 
-  locker_tester.UnlockWithPassword(test_user_.account_id, kPassword);
+  locker_tester.UnlockWithPassword(test_user_, "password");
   locker_tester.WaitForUnlock();
 
   // Last input method should be stored.
-  EXPECT_FALSE(
-      lock_screen_utils::GetUserLastInputMethodId(
-          CHECK_DEREF(g_browser_process->local_state()), test_user_.account_id)
-          .empty());
+  EXPECT_FALSE(lock_screen_utils::GetUserLastInputMethodId(
+                   CHECK_DEREF(g_browser_process->local_state()), test_user_)
+                   .empty());
 }
 
 class EphemeralUserKeyboardTest : public LoginManagerTest {

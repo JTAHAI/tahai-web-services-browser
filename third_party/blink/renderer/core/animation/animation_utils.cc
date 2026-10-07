@@ -42,6 +42,9 @@ void AnimationUtils::ForEachInterpolatedPropertyValue(
       resolver.StyleForInterpolations(*target, interpolations);
 
   for (const auto& property : properties) {
+    if (!property.IsCSSProperty())
+      continue;
+
     const CSSValue* value = KeyframeValueFromComputedStyle(
         property, *style, target->GetDocument(), target->GetLayoutObject());
     if (!value)

@@ -17,6 +17,7 @@
 
 #if BUILDFLAG(ENTERPRISE_LOCAL_CONTENT_ANALYSIS)
 #include "chrome/browser/enterprise/connectors/analysis/content_analysis_sdk_manager.h"  // nogncheck
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
 #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
@@ -130,6 +131,22 @@ void ConnectorsManager::OnTabStripModelChanged(
 }
 #endif  // BUILDFLAG(ENTERPRISE_LOCAL_CONTENT_ANALYSIS)
 
+void ConnectorsManager::CacheAnalysisConnectorPolicy(
+    AnalysisConnector connector) const {
+  analysis_connector_settings_.erase(connector);
+
+  // Connectors with non-existing policies should not reach this code.
+  const char* pref = AnalysisConnectorPref(connector);
+  DCHECK(pref);
+
+  const base::ListValue& policy_value = prefs()->GetList(pref);
+  for (const base::Value& service_settings : policy_value) {
+    analysis_connector_settings_[connector].push_back(
+        std::make_unique<AnalysisServiceSettings>(service_settings,
+                                                  *service_provider_config_));
+  }
+}
+
 #if BUILDFLAG(ENTERPRISE_LOCAL_CONTENT_ANALYSIS)
 void ConnectorsManager::MaybeCloseLocalContentAnalysisAgentConnection() {
   for (auto connector : kLocalAnalysisConnectors) {
@@ -152,6 +169,9 @@ void ConnectorsManager::OnAnalysisPrefChanged(AnalysisConnector connector) {
 }
 
 DataRegion ConnectorsManager::GetDataRegion(AnalysisConnector connector) const {
+#if BUILDFLAG(IS_ANDROID)
+  return DataRegion::NO_PREFERENCE;
+#else
   // Connector's policy scope determines the DRZ policy scope to use.
   policy::PolicyScope scope = static_cast<policy::PolicyScope>(
       prefs()->GetInteger(AnalysisConnectorScopePref(connector)));
@@ -168,14 +188,7 @@ DataRegion ConnectorsManager::GetDataRegion(AnalysisConnector connector) const {
 
   return ChromeDataRegionSettingToEnum(
       pref_service->GetInteger(prefs::kChromeDataRegionSetting));
-}
-
-std::unique_ptr<AnalysisServiceSettingsBase>
-ConnectorsManager::MakeAnalysisServiceSettings(
-    const base::Value& settings_value,
-    const ServiceProviderConfig& service_provider_config) const {
-  return std::make_unique<AnalysisServiceSettings>(settings_value,
-                                                   service_provider_config);
+#endif
 }
 
 }  // namespace enterprise_connectors

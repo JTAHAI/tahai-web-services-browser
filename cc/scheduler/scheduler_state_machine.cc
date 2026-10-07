@@ -18,7 +18,6 @@
 #include "build/build_config.h"
 #include "cc/base/features.h"
 #include "cc/scheduler/commit_earlyout_reason.h"
-#include "cc/trees/proxy_common.h"
 #include "components/viz/common/features.h"
 #include "components/viz/common/frame_sinks/begin_frame_args.h"
 #include "third_party/perfetto/include/perfetto/tracing/track.h"
@@ -1624,15 +1623,9 @@ bool SchedulerStateMachine::ImplLatencyTakesPriority() const {
   return false;
 }
 
-void SchedulerStateMachine::SetNeedsBeginMainFrame(bool now, bool unthrottled) {
-  TRACE_EVENT("cc", __PRETTY_FUNCTION__, "now", now, "unthrottled",
-              unthrottled);
+void SchedulerStateMachine::SetNeedsBeginMainFrame(bool now) {
+  TRACE_EVENT1("cc", __PRETTY_FUNCTION__, "now", now);
   needs_begin_main_frame_ = true;
-
-  if (unthrottled) {
-    // Reset the throttling interval for the next frame only.
-    main_frame_consecutive_no_damage_throttled_interval_ = base::TimeDelta();
-  }
 
   if (now) {
     last_sent_begin_main_frame_time_ = base::TimeTicks();
@@ -1815,10 +1808,24 @@ void SchedulerStateMachine::UpdateConsecutiveNoDamageThrottlingInterval() {
     return;
   }
 
-  const int factor = GetThrottlingFactor(consecutive_no_damage_main_frames_);
-  main_frame_consecutive_no_damage_throttled_interval_ =
-      factor ? ThrottledFrameRateWithSlack(unthrottled_frame_interval_, factor)
-             : base::TimeDelta();
+  const int count = consecutive_no_damage_main_frames_;
+  base::TimeDelta interval;
+
+  if (count >= repeated_no_damage_frame_throttling_threshold2_ +
+                   repeated_no_damage_frame_throttling_threshold1_) {
+    interval = ThrottledFrameRateWithSlack(
+        unthrottled_frame_interval_,
+        repeated_no_damage_frame_throttling_factor2_ *
+            repeated_no_damage_frame_throttling_factor1_);
+  } else if (count >= repeated_no_damage_frame_throttling_threshold1_) {
+    interval = ThrottledFrameRateWithSlack(
+        unthrottled_frame_interval_,
+        repeated_no_damage_frame_throttling_factor1_);
+  } else {
+    interval = base::TimeDelta();
+  }
+
+  main_frame_consecutive_no_damage_throttled_interval_ = interval;
 }
 
 void SchedulerStateMachine::SetRequestHighFramerate(bool flag) {

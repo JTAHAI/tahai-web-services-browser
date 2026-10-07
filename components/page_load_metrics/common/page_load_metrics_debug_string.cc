@@ -340,30 +340,19 @@ std::string DebugString(
     const mojom::SoftNavigationMetrics& soft_navigation_metrics) {
   std::vector<std::pair<std::string, std::string>> entries;
   entries.emplace_back(
-      "performance_timeline_navigation_id",
+      "soft_navigation_offset",
+      base::NumberToString(soft_navigation_metrics.soft_navigation_offset));
+  entries.emplace_back(
+      "start_time", base::NumberToString(
+                        soft_navigation_metrics.start_time.InMillisecondsF()));
+  entries.emplace_back(
+      "soft_navigation_slicing_time",
       base::NumberToString(
-          soft_navigation_metrics.performance_timeline_navigation_id));
-  if (soft_navigation_metrics.commit) {
-    entries.emplace_back(
-        "start_time",
-        base::NumberToString(
-            soft_navigation_metrics.commit->start_time.InMillisecondsF()));
-    entries.emplace_back(
-        "soft_navigation_slicing_time",
-        base::NumberToString(
-            soft_navigation_metrics.commit->soft_navigation_slicing_time
-                .since_origin()
-                .InMilliseconds()));
-    entries.emplace_back("navigation_type",
-                         NavigationTypeToString(
-                             soft_navigation_metrics.commit->navigation_type));
-  }
-  if (soft_navigation_metrics.first_contentful_paint) {
-    entries.emplace_back(
-        "first_contentful_paint",
-        base::NumberToString(
-            soft_navigation_metrics.first_contentful_paint->InMillisecondsF()));
-  }
+          soft_navigation_metrics.soft_navigation_slicing_time.since_origin()
+              .InMilliseconds()));
+  entries.emplace_back(
+      "navigation_type",
+      NavigationTypeToString(soft_navigation_metrics.navigation_type));
   return EntriesToString(entries);
 }
 }  // namespace page_load_metrics

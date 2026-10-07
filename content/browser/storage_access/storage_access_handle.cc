@@ -52,10 +52,11 @@ void StorageAccessHandle::Create(
     RenderFrameHost* host,
     mojo::PendingReceiver<blink::mojom::StorageAccessHandle> receiver) {
   CHECK(host);
-  if (host->IsStorageAccessRestricted() || !host->IsFullCookieAccessAllowed()) {
+  if (!host->IsFullCookieAccessAllowed()) {
+#if DCHECK_IS_ON()
     mojo::ReportBadMessage(
-        "Binding a StorageAccessHandle requires third-party cookie access and "
-        "an unrestricted frame context.");
+        "Binding a StorageAccessHandle requires third-party cookie access.");
+#endif
     return;
   }
   new StorageAccessHandle(*host, std::move(receiver));

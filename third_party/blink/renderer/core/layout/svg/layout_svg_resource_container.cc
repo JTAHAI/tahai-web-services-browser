@@ -66,7 +66,9 @@ float ObjectBoundingBoxUnitToUserUnits(const Length& length,
 }  // namespace
 
 LayoutSVGResourceContainer::LayoutSVGResourceContainer(SVGElement* node)
-    : LayoutSVGHiddenContainer(node) {}
+    : LayoutSVGHiddenContainer(node),
+      completed_invalidations_mask_(0),
+      is_invalidating_(false) {}
 
 LayoutSVGResourceContainer::~LayoutSVGResourceContainer() = default;
 
@@ -186,20 +188,19 @@ void LayoutSVGResourceContainer::InvalidateClientsIfActiveResource() {
   GetDocument().ScheduleSVGResourceInvalidation(*resource);
 }
 
-void LayoutSVGResourceContainer::WillBeDestroyed(const ComputedStyle* style) {
+void LayoutSVGResourceContainer::WillBeDestroyed() {
   NOT_DESTROYED();
   // The resource is being torn down.
   InvalidateClientsIfActiveResource();
-  LayoutSVGHiddenContainer::WillBeDestroyed(style);
+  LayoutSVGHiddenContainer::WillBeDestroyed();
 }
 
 void LayoutSVGResourceContainer::StyleDidChange(
     StyleDifference diff,
     const ComputedStyle* old_style,
-    const ComputedStyle& new_style,
     const StyleChangeContext& style_change_context) {
   NOT_DESTROYED();
-  LayoutSVGHiddenContainer::StyleDidChange(diff, old_style, new_style,
+  LayoutSVGHiddenContainer::StyleDidChange(diff, old_style,
                                            style_change_context);
   if (old_style)
     return;

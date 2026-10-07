@@ -35,7 +35,6 @@ public class ImprovedBookmarkRowCoordinator {
     private final BookmarkUiPrefs mBookmarkUiPrefs;
     private final ShoppingService mShoppingService;
     private int mImageSize;
-    private int mImageCornerRadius;
 
     /**
      * @param context The calling context.
@@ -60,8 +59,6 @@ public class ImprovedBookmarkRowCoordinator {
 
     private void onBookmarkRowDisplayPrefChanged(@BookmarkRowDisplayPref int displayPref) {
         mImageSize = BookmarkViewUtils.getImageIconSize(mContext.getResources(), displayPref);
-        mImageCornerRadius =
-                BookmarkViewUtils.getImageIconCornerRadius(mContext.getResources(), displayPref);
     }
 
     /** Sets the given bookmark id. */
@@ -71,12 +68,8 @@ public class ImprovedBookmarkRowCoordinator {
         PowerBookmarkMeta meta = mBookmarkModel.getPowerBookmarkMeta(bookmarkId);
         final @BookmarkRowDisplayPref int displayPref =
                 mBookmarkUiPrefs.getBookmarkRowDisplayPref();
-        onBookmarkRowDisplayPrefChanged(displayPref);
 
         propertyModel.set(BookmarkManagerProperties.BOOKMARK_ID, bookmarkId);
-        propertyModel.set(ImprovedBookmarkRowProperties.START_IMAGE_SIZE, mImageSize);
-        propertyModel.set(
-                ImprovedBookmarkRowProperties.START_IMAGE_CORNER_RADIUS, mImageCornerRadius);
 
         // Title.
         if (displayPref == BookmarkRowDisplayPref.COMPACT && bookmarkItem.isFolder()) {

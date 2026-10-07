@@ -4,7 +4,7 @@
 
 package org.chromium.chrome.browser.autofill.editors.autofill_ai;
 
-import androidx.fragment.app.FragmentActivity;
+import android.app.Activity;
 
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.chrome.browser.autofill.editors.common.EditorViewBase;
@@ -16,9 +16,9 @@ public class EntityEditorView extends EditorViewBase {
      * Builds the editor dialog.
      *
      * @param activity The activity on top of which the UI should be displayed.
-     * @param fragmentManager FragmentManager for displaying dialogs.
+     * @param profile The Profile being edited.
      */
-    public EntityEditorView(FragmentActivity activity) {
-        super(activity, activity.getSupportFragmentManager());
+    public EntityEditorView(Activity activity) {
+        super(activity);
     }
 }

@@ -315,7 +315,8 @@ class ConnectionTest : public testing::Test, public Session::EventHandler {
     WebrtcTransport::SetDataChannelPollingIntervalForTests(base::TimeDelta());
 
     host_connection_ = std::make_unique<WebrtcConnectionToClient>(
-        /*ice_config_fetcher=*/nullptr);
+        /*ice_config_fetcher=*/nullptr,
+        task_environment_.GetMainThreadTaskRunner());
     client_connection_ = std::make_unique<WebrtcConnectionToHost>();
 
     // Setup host side.

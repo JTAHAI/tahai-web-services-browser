@@ -99,7 +99,7 @@ class NET_EXPORT_PRIVATE WebSocketBasicStream final : public WebSocketStream {
   };
 
   // Adapter that allows WebSocketBasicStream to use
-  // a TCP/IP or TLS socket, an HTTP/2 stream, or an HTTP/3 stream.
+  // either a TCP/IP or TLS socket, or an HTTP/2 stream.
   class Adapter {
    public:
     virtual ~Adapter() = default;
@@ -195,8 +195,8 @@ class NET_EXPORT_PRIVATE WebSocketBasicStream final : public WebSocketStream {
   // The best read buffer size for the current throughput.
   size_t target_read_buffer_size_;
 
-  // The connection adapter wrapping the underlying transport (TCP/TLS socket,
-  // HTTP/2 stream, or HTTP/3 stream).
+  // The connection, wrapped in a ClientSocketHandle so that we can prevent it
+  // from being returned to the pool.
   std::unique_ptr<Adapter> connection_;
 
   // Storage for payload of multiple control frames.
@@ -214,7 +214,7 @@ class NET_EXPORT_PRIVATE WebSocketBasicStream final : public WebSocketStream {
   // parses frames.
   WebSocketFrameParser parser_;
 
-  // The negotiated sub-protocol, or empty for none.
+  // The negotated sub-protocol, or empty for none.
   const std::string sub_protocol_;
 
   // The extensions negotiated with the remote server.

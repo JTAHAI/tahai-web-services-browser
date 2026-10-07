@@ -56,7 +56,11 @@ public class HistorySyncPromoCoordinator
             Runnable removeModuleCallback) {
         mActionDelegate = actionDelegate;
 
-        mRemoveModuleRunnable = callbackController.makeCancelable(removeModuleCallback);
+        mRemoveModuleRunnable =
+                callbackController.makeCancelable(
+                        () -> {
+                            removeModuleCallback.run();
+                        });
 
         if (SigninFeatureMap.getInstance().isActivitylessSigninAllEntryPointEnabled()) {
             mSignInCoordinator =
@@ -85,9 +89,9 @@ public class HistorySyncPromoCoordinator
                                                         .createHistorySyncBottomSheetConfig());
                             } else {
                                 // removeModuleCallback is passed as a callable to
-                                // ChromeTabbedActivity so that the promo is dismissed only after
-                                // the history sync activity is complete. Otherwise the promo will
-                                // be dismissed too early.
+                                // ChromeTabbedActivity so that the promo is dismssed only after the
+                                // history sync activity is complete. Otherwise the promo will be
+                                // dismissed too early.
                                 mActionDelegate.showHistorySyncOptInLegacy(removeModuleCallback);
                             }
                             onModuleClickedCallback.run();

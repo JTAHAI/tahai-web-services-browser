@@ -120,12 +120,11 @@ export class BatteryStatusCardElement extends BatteryStatusCardElementBase {
   declare private batteryInfo: BatteryInfo;
   declare private routines: RoutineType[];
   declare private powerTimeString: string;
-  private readonly systemDataProvider: SystemDataProviderInterface =
+  private systemDataProvider: SystemDataProviderInterface =
       getSystemDataProvider();
   private batteryChargeStatusObserverReceiver:
-      BatteryChargeStatusObserverReceiver|null = null;
-  private batteryHealthObserverReceiver: BatteryHealthObserverReceiver|null =
-      null;
+      BatteryChargeStatusObserverReceiver|null;
+  private batteryHealthObserverReceiver: BatteryHealthObserverReceiver|null;
 
   constructor() {
     super();

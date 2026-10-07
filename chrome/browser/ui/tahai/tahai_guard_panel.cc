@@ -17,9 +17,9 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/tahai_guard/guard_profile_service_factory.h"
 #include "chrome/browser/tahai_guard/tahai_guard_configuration_registry.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_window.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/common/pref_names.h"
 #include "chrome/grit/generated_resources.h"
 #include "components/prefs/pref_change_registrar.h"
@@ -51,25 +51,23 @@ DEFINE_ELEMENT_IDENTIFIER_VALUE(kGuardPanelElementId);
 DEFINE_ELEMENT_IDENTIFIER_VALUE(kGuardPauseElementId);
 DEFINE_ELEMENT_IDENTIFIER_VALUE(kGuardSiteExceptionElementId);
 
-bool CanShowGuardPanel(BrowserWindowInterface* browser) {
-  return browser &&
-         (browser->GetType() == BrowserWindowInterface::Type::TYPE_NORMAL) &&
+bool CanShowGuardPanel(Browser* browser) {
+  return browser && browser->is_type_normal() &&
          !browser->GetProfile()->IsGuestSession() &&
          !browser->GetProfile()->IsSystemProfile();
 }
 
-GuardPanelController::GuardPanelController(BrowserWindowInterface* browser,
+GuardPanelController::GuardPanelController(Browser* browser,
                                            base::RepeatingClosure invalidated)
-    : browser_(browser ? browser->GetWeakPtr()
-                       : base::WeakPtr<BrowserWindowInterface>()),
+    : browser_(browser ? browser->AsWeakPtr() : base::WeakPtr<Browser>()),
       invalidated_(std::move(invalidated)) {
   if (!CanShowGuardPanel(browser)) {
     invalid_ = true;
     return;
   }
-  tab_strip_model_ = browser->GetTabStripModel();
+  tab_strip_model_ = browser->tab_strip_model();
   tab_strip_model_->AddObserver(this);
-  Observe(browser->GetTabStripModel()->GetActiveWebContents());
+  Observe(browser->tab_strip_model()->GetActiveWebContents());
   if (web_contents() && web_contents()->GetPrimaryMainFrame()) {
     auto* frame = web_contents()->GetPrimaryMainFrame();
     document_ = frame->GetWeakDocumentPtr();
@@ -92,7 +90,7 @@ bool GuardPanelController::IsCurrent() const {
          !frame->GetParentOrOuterDocumentOrEmbedder() && web_contents() &&
          web_contents()->GetPrimaryMainFrame() == frame &&
          web_contents()->GetBrowserContext() == browser_->GetProfile() &&
-         browser_->GetTabStripModel()->GetActiveWebContents() ==
+         browser_->tab_strip_model()->GetActiveWebContents() ==
              web_contents() &&
          frame->GetLastCommittedOrigin() == origin_ && !origin_.opaque() &&
          origin_.GetURL().SchemeIsHTTPOrHTTPS();
@@ -270,8 +268,7 @@ int StatusMessage(const GuardProfileService::Snapshot& state) {
 
 class GuardPanelView final : public views::DialogDelegate {
  public:
-  explicit GuardPanelView(BrowserWindowInterface* browser)
-      : browser_(browser->GetWeakPtr()) {
+  explicit GuardPanelView(Browser* browser) : browser_(browser->AsWeakPtr()) {
     auto contents = std::make_unique<views::View>();
     contents_ = contents.get();
     SetContentsView(std::move(contents));
@@ -467,7 +464,7 @@ class GuardPanelView final : public views::DialogDelegate {
                   base::NumberToString16(state->unavailable))
             : l10n_util::GetStringUTF16(IDS_TAHAI_GUARD_NO_COUNTS));
   }
-  base::WeakPtr<BrowserWindowInterface> browser_;
+  base::WeakPtr<Browser> browser_;
   raw_ptr<views::View> contents_ = nullptr;
   std::unique_ptr<GuardPanelController> controller_;
   raw_ptr<views::View> rows_ = nullptr;
@@ -487,7 +484,7 @@ class GuardPanelView final : public views::DialogDelegate {
 
 }  // namespace
 
-void ShowGuardPanel(BrowserWindowInterface* browser) {
+void ShowGuardPanel(Browser* browser) {
   if (!CanShowGuardPanel(browser)) {
     return;
   }

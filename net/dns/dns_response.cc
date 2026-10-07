@@ -4,8 +4,6 @@
 
 #include "net/dns/dns_response.h"
 
-#include <stddef.h>
-
 #include <algorithm>
 #include <cstdint>
 #include <limits>
@@ -15,11 +13,11 @@
 #include <utility>
 #include <vector>
 
+#include "base/big_endian.h"
 #include "base/containers/span.h"
 #include "base/containers/span_reader.h"
 #include "base/containers/span_writer.h"
 #include "base/logging.h"
-#include "base/numerics/byte_conversions.h"
 #include "base/numerics/safe_conversions.h"
 #include "base/strings/string_util.h"
 #include "base/strings/string_view_util.h"

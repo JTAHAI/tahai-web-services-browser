@@ -26,6 +26,7 @@
 #include "chrome/browser/signin/account_consistency_mode_manager.h"
 #include "chrome/browser/signin/identity_manager_factory.h"
 #include "chrome/browser/signin/signin_promo.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/signin/signin_modal_dialog.h"
@@ -134,7 +135,7 @@ class SignInObserver : public signin::IdentityManager::Observer {
 // Synchronously waits for the Sync confirmation to be closed.
 class SyncConfirmationClosedObserver : public LoginUIService::Observer {
  public:
-  explicit SyncConfirmationClosedObserver(BrowserWindowInterface* browser) {
+  explicit SyncConfirmationClosedObserver(Browser* browser) {
     login_ui_service_observation_.Observe(
         LoginUIServiceFactory::GetForProfile(browser->GetProfile()));
   }
@@ -288,7 +289,7 @@ namespace login_ui_test_utils {
 class SigninViewControllerTestUtil {
  public:
   static bool TryDismissSyncConfirmationDialog(
-      BrowserWindowInterface* browser,
+      Browser* browser,
       SyncConfirmationDialogAction action) {
 #if BUILDFLAG(IS_CHROMEOS)
     NOTREACHED();
@@ -304,7 +305,7 @@ class SigninViewControllerTestUtil {
   }
 
   static bool TryDismissHistorySyncOptinDialog(
-      BrowserWindowInterface* browser,
+      Browser* browser,
       HistorySyncOptinDialogAction action) {
 #if BUILDFLAG(IS_CHROMEOS)
     NOTREACHED();
@@ -329,7 +330,7 @@ class SigninViewControllerTestUtil {
   }
 
   static bool TryCompleteSigninEmailConfirmationDialog(
-      BrowserWindowInterface* browser,
+      Browser* browser,
       SigninEmailConfirmationDialog::Action action) {
 #if BUILDFLAG(IS_CHROMEOS)
     NOTREACHED();
@@ -363,8 +364,7 @@ class SigninViewControllerTestUtil {
 #endif
   }
 
-  static bool TryCompleteProfileCustomizationDialog(
-      BrowserWindowInterface* browser) {
+  static bool TryCompleteProfileCustomizationDialog(Browser* browser) {
 #if BUILDFLAG(IS_CHROMEOS)
     NOTREACHED();
 #else
@@ -391,7 +391,7 @@ class SigninViewControllerTestUtil {
 #endif
   }
 
-  static bool ShowsModalDialog(BrowserWindowInterface* browser) {
+  static bool ShowsModalDialog(Browser* browser) {
 #if BUILDFLAG(IS_CHROMEOS)
     NOTREACHED();
 #else
@@ -401,7 +401,7 @@ class SigninViewControllerTestUtil {
 
  private:
 #if !BUILDFLAG(IS_CHROMEOS)
-  static bool TryDismissModalDialog(BrowserWindowInterface* browser,
+  static bool TryDismissModalDialog(Browser* browser,
                                     const std::string& app,
                                     const std::string& button_id) {
     SigninViewController* signin_view_controller =
@@ -426,10 +426,10 @@ class SigninViewControllerTestUtil {
 #endif  // !BUILDFLAG(IS_CHROMEOS)
 };
 
-void WaitUntilUIReady(BrowserWindowInterface* browser) {
+void WaitUntilUIReady(Browser* browser) {
   ASSERT_EQ("ready",
             content::EvalJs(
-                browser->GetTabStripModel()->GetActiveWebContents(),
+                browser->tab_strip_model()->GetActiveWebContents(),
                 "new Promise(resolve => {"
                 "  var handler = function() {"
                 "    resolve('ready');"
@@ -548,7 +548,7 @@ bool TryUntilSuccessWithTimeout(base::RepeatingCallback<bool()> try_callback,
   return false;
 }
 
-bool DismissSyncConfirmationDialog(BrowserWindowInterface* browser,
+bool DismissSyncConfirmationDialog(Browser* browser,
                                    base::TimeDelta timeout,
                                    SyncConfirmationDialogAction action) {
   SyncConfirmationClosedObserver confirmation_closed_observer(browser);
@@ -568,7 +568,7 @@ bool DismissSyncConfirmationDialog(BrowserWindowInterface* browser,
 
 class SiginInModalDialogObserver : public SigninViewController::Observer {
  public:
-  explicit SiginInModalDialogObserver(BrowserWindowInterface* browser) {
+  explicit SiginInModalDialogObserver(Browser* browser) {
     CHECK(SigninViewControllerTestUtil::ShowsModalDialog(browser));
     signin_view_controller_observation_.Observe(
         browser->GetFeatures().signin_view_controller());
@@ -625,7 +625,7 @@ class HistorySyncServiceObserverImpl
 };
 #endif  // !BUILDFLAG(IS_CHROMEOS)
 
-bool DismissHistorySyncOptinDialog(BrowserWindowInterface* browser,
+bool DismissHistorySyncOptinDialog(Browser* browser,
                                    base::TimeDelta timeout,
                                    HistorySyncOptinDialogAction action,
                                    bool wait_for_dismiss = true) {
@@ -660,13 +660,12 @@ bool DismissHistorySyncOptinDialog(BrowserWindowInterface* browser,
   return false;
 }
 
-bool ConfirmSyncConfirmationDialog(BrowserWindowInterface* browser,
-                                   base::TimeDelta timeout) {
+bool ConfirmSyncConfirmationDialog(Browser* browser, base::TimeDelta timeout) {
   return DismissSyncConfirmationDialog(browser, timeout,
                                        SyncConfirmationDialogAction::kConfirm);
 }
 
-bool ConfirmHistorySyncOptinDialog(BrowserWindowInterface* browser,
+bool ConfirmHistorySyncOptinDialog(Browser* browser,
                                    base::TimeDelta timeout,
                                    bool wait_for_dismiss) {
   return DismissHistorySyncOptinDialog(browser, timeout,
@@ -674,7 +673,7 @@ bool ConfirmHistorySyncOptinDialog(BrowserWindowInterface* browser,
                                        wait_for_dismiss);
 }
 
-bool RejectHistorySyncOptinDialog(BrowserWindowInterface* browser,
+bool RejectHistorySyncOptinDialog(Browser* browser,
                                   base::TimeDelta timeout,
                                   bool wait_for_dismiss) {
   return DismissHistorySyncOptinDialog(browser, timeout,
@@ -682,20 +681,19 @@ bool RejectHistorySyncOptinDialog(BrowserWindowInterface* browser,
                                        wait_for_dismiss);
 }
 
-bool GoToSettingsSyncConfirmationDialog(BrowserWindowInterface* browser,
+bool GoToSettingsSyncConfirmationDialog(Browser* browser,
                                         base::TimeDelta timeout) {
   return DismissSyncConfirmationDialog(browser, timeout,
                                        SyncConfirmationDialogAction::kSettings);
 }
 
-bool CancelSyncConfirmationDialog(BrowserWindowInterface* browser,
-                                  base::TimeDelta timeout) {
+bool CancelSyncConfirmationDialog(Browser* browser, base::TimeDelta timeout) {
   return DismissSyncConfirmationDialog(browser, timeout,
                                        SyncConfirmationDialogAction::kCancel);
 }
 
 bool CompleteSigninEmailConfirmationDialog(
-    BrowserWindowInterface* browser,
+    Browser* browser,
     base::TimeDelta timeout,
     SigninEmailConfirmationDialog::Action action) {
   return TryUntilSuccessWithTimeout(
@@ -705,7 +703,7 @@ bool CompleteSigninEmailConfirmationDialog(
       timeout);
 }
 
-bool CompleteProfileCustomizationDialog(BrowserWindowInterface* browser,
+bool CompleteProfileCustomizationDialog(Browser* browser,
                                         base::TimeDelta timeout) {
   return TryUntilSuccessWithTimeout(
       base::BindRepeating(

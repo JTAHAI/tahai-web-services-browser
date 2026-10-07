@@ -24,7 +24,6 @@
   #include <ptrauth.h>
 #endif
 
-#include "build/build_config.h"
 #include "util/misc/address_types.h"
 
 namespace crashpad {

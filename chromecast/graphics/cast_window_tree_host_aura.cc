@@ -4,6 +4,7 @@
 
 #include "chromecast/graphics/cast_window_tree_host_aura.h"
 
+#include "ui/aura/null_window_targeter.h"
 #include "ui/gfx/geometry/size_conversions.h"
 #include "ui/gfx/geometry/transform.h"
 #include "ui/platform_window/platform_window_init_properties.h"
@@ -11,14 +12,24 @@
 namespace chromecast {
 
 CastWindowTreeHostAura::CastWindowTreeHostAura(
+    bool enable_input,
     ui::PlatformWindowInitProperties properties)
-    : WindowTreeHostPlatform(std::move(properties)) {
+    : WindowTreeHostPlatform(std::move(properties)),
+      enable_input_(enable_input) {
+  if (!enable_input) {
+    window()->SetEventTargeter(std::make_unique<aura::NullWindowTargeter>());
+  }
+
   ui_event_source_ = UiEventSource::Create(this);
 }
 
 CastWindowTreeHostAura::~CastWindowTreeHostAura() {}
 
 void CastWindowTreeHostAura::DispatchEvent(ui::Event* event) {
+  if (!enable_input_) {
+    return;
+  }
+
   if (ui_event_source_ && event != nullptr &&
       !ui_event_source_->ShouldDispatchEvent(*event)) {
     // Filter out unnecessary events.

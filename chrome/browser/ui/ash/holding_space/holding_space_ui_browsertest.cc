@@ -51,7 +51,6 @@
 #include "chrome/browser/ash/file_suggest/file_suggest_keyed_service.h"
 #include "chrome/browser/ash/file_suggest/file_suggest_keyed_service_factory.h"
 #include "chrome/browser/ash/file_suggest/local_file_suggestion_provider.h"
-#include "chrome/browser/ash/login/lock/screen_locker_tester.h"
 #include "chrome/browser/download/chrome_download_manager_delegate.h"
 #include "chrome/browser/download/download_core_service.h"
 #include "chrome/browser/download/download_core_service_factory.h"
@@ -820,7 +819,7 @@ IN_PROC_BROWSER_TEST_F(HoldingSpaceUiBrowserTest, LockScreen) {
       gfx::ScopedAnimationDurationScaleMode::ZERO_DURATION);
 
   ASSERT_TRUE(test_api().IsShowingInShelf());
-  ash::ScreenLockerTester().Lock();
+  RequestAndAwaitLockScreen();
   ASSERT_FALSE(test_api().IsShowingInShelf());
 }
 
@@ -851,8 +850,7 @@ IN_PROC_BROWSER_TEST_F(HoldingSpaceUiBrowserTest, PinAndUnpinItems) {
 
   // Attempt to pin a screen capture via context menu.
   RightClick(screen_capture_views.front());
-  ASSERT_TRUE(SelectMenuItemWithCommandId(screen_capture_views.front(),
-                                          HoldingSpaceCommandId::kPinItem));
+  ASSERT_TRUE(SelectMenuItemWithCommandId(HoldingSpaceCommandId::kPinItem));
   PressAndReleaseKey(ui::KeyboardCode::VKEY_RETURN);
   pinned_file_chips = test_api().GetPinnedFileChips();
   ASSERT_EQ(pinned_file_chips.size(), 2u);
@@ -863,8 +861,7 @@ IN_PROC_BROWSER_TEST_F(HoldingSpaceUiBrowserTest, PinAndUnpinItems) {
   // Attempt to pin a completed download via context menu. Note that the first
   // download is the in-progress download, so don't select that one.
   RightClick(download_chips.at(1));
-  ASSERT_TRUE(SelectMenuItemWithCommandId(download_chips.at(1),
-                                          HoldingSpaceCommandId::kPinItem));
+  ASSERT_TRUE(SelectMenuItemWithCommandId(HoldingSpaceCommandId::kPinItem));
   PressAndReleaseKey(ui::KeyboardCode::VKEY_RETURN);
   pinned_file_chips = test_api().GetPinnedFileChips();
   ASSERT_EQ(pinned_file_chips.size(), 3u);
@@ -875,10 +872,8 @@ IN_PROC_BROWSER_TEST_F(HoldingSpaceUiBrowserTest, PinAndUnpinItems) {
   // download is in-progress, it should neither be pin- or unpin-able.
   RightClick(download_chips.front());
   ASSERT_TRUE(views::MenuController::GetActiveInstance());
-  ASSERT_FALSE(SelectMenuItemWithCommandId(download_chips.front(),
-                                           HoldingSpaceCommandId::kPinItem));
-  ASSERT_FALSE(SelectMenuItemWithCommandId(download_chips.front(),
-                                           HoldingSpaceCommandId::kUnpinItem));
+  ASSERT_FALSE(SelectMenuItemWithCommandId(HoldingSpaceCommandId::kPinItem));
+  ASSERT_FALSE(SelectMenuItemWithCommandId(HoldingSpaceCommandId::kUnpinItem));
   PressAndReleaseKey(ui::KeyboardCode::VKEY_ESCAPE);
 
   // Attempt to unpin the pinned download via context menu without de-selecting
@@ -886,8 +881,7 @@ IN_PROC_BROWSER_TEST_F(HoldingSpaceUiBrowserTest, PinAndUnpinItems) {
   // not in-progress and all of those items are pinned, the selection should be
   // unpin-able.
   RightClick(download_chips.at(1), ui::EF_CONTROL_DOWN);
-  ASSERT_TRUE(SelectMenuItemWithCommandId(download_chips.at(1),
-                                          HoldingSpaceCommandId::kUnpinItem));
+  ASSERT_TRUE(SelectMenuItemWithCommandId(HoldingSpaceCommandId::kUnpinItem));
   PressAndReleaseKey(ui::KeyboardCode::VKEY_RETURN);
   pinned_file_chips = test_api().GetPinnedFileChips();
   ASSERT_EQ(pinned_file_chips.size(), 2u);
@@ -901,8 +895,7 @@ IN_PROC_BROWSER_TEST_F(HoldingSpaceUiBrowserTest, PinAndUnpinItems) {
   // those items are unpinned, the selection should be pin-able.
   test::Click(pinned_file_chips.front(), ui::EF_CONTROL_DOWN);
   RightClick(download_chips.front());
-  ASSERT_TRUE(SelectMenuItemWithCommandId(download_chips.front(),
-                                          HoldingSpaceCommandId::kPinItem));
+  ASSERT_TRUE(SelectMenuItemWithCommandId(HoldingSpaceCommandId::kPinItem));
   PressAndReleaseKey(ui::KeyboardCode::VKEY_RETURN);
   pinned_file_chips = test_api().GetPinnedFileChips();
   ASSERT_EQ(pinned_file_chips.size(), 3u);
@@ -996,8 +989,7 @@ IN_PROC_BROWSER_TEST_F(HoldingSpaceUiBrowserTest, RemoveItem) {
   ASSERT_TRUE(views::MenuController::GetActiveInstance());
 
   // There should be no `kRemoveItem` command for pinned items.
-  ASSERT_FALSE(SelectMenuItemWithCommandId(pinned_file_chips.front(),
-                                           HoldingSpaceCommandId::kRemoveItem));
+  ASSERT_FALSE(SelectMenuItemWithCommandId(HoldingSpaceCommandId::kRemoveItem));
 
   // Close the context menu.
   PressAndReleaseKey(ui::KeyboardCode::VKEY_ESCAPE);
@@ -1013,8 +1005,7 @@ IN_PROC_BROWSER_TEST_F(HoldingSpaceUiBrowserTest, RemoveItem) {
   ASSERT_TRUE(views::MenuController::GetActiveInstance());
 
   // There should be no `kRemoveItem` command since a pinned item is selected.
-  ASSERT_FALSE(SelectMenuItemWithCommandId(download_chips.front(),
-                                           HoldingSpaceCommandId::kRemoveItem));
+  ASSERT_FALSE(SelectMenuItemWithCommandId(HoldingSpaceCommandId::kRemoveItem));
 
   // Close the context menu.
   PressAndReleaseKey(ui::KeyboardCode::VKEY_ESCAPE);
@@ -1026,8 +1017,7 @@ IN_PROC_BROWSER_TEST_F(HoldingSpaceUiBrowserTest, RemoveItem) {
   ASSERT_TRUE(views::MenuController::GetActiveInstance());
 
   // There should be a `kRemoveItem` command in the context menu.
-  ASSERT_TRUE(SelectMenuItemWithCommandId(download_chips.front(),
-                                          HoldingSpaceCommandId::kRemoveItem));
+  ASSERT_TRUE(SelectMenuItemWithCommandId(HoldingSpaceCommandId::kRemoveItem));
 
   // Bind an observer to watch for updates to the holding space model.
   testing::NiceMock<MockHoldingSpaceModelObserver> mock;
@@ -1070,8 +1060,7 @@ IN_PROC_BROWSER_TEST_F(HoldingSpaceUiBrowserTest, RemoveItem) {
   ASSERT_TRUE(views::MenuController::GetActiveInstance());
 
   // There should be a `kRemoveItem` command in the context menu.
-  ASSERT_TRUE(SelectMenuItemWithCommandId(screen_capture_views.front(),
-                                          HoldingSpaceCommandId::kRemoveItem));
+  ASSERT_TRUE(SelectMenuItemWithCommandId(HoldingSpaceCommandId::kRemoveItem));
 
   {
     // Cache `item_id` of the screen capture item to be removed.
@@ -1115,13 +1104,11 @@ IN_PROC_BROWSER_TEST_F(HoldingSpaceUiBrowserTest, RemoveItem) {
     }
 
     // Show the context menu. There should be a `kRemoveItem` command.
-    views::View* const target_chip = download_chips.size()
-                                         ? download_chips.front()
-                                         : screen_capture_views.front();
-    RightClick(target_chip);
+    RightClick(download_chips.size() ? download_chips.front()
+                                     : screen_capture_views.front());
     ASSERT_TRUE(views::MenuController::GetActiveInstance());
-    ASSERT_TRUE(SelectMenuItemWithCommandId(
-        target_chip, HoldingSpaceCommandId::kRemoveItem));
+    ASSERT_TRUE(
+        SelectMenuItemWithCommandId(HoldingSpaceCommandId::kRemoveItem));
 
     {
       // Cache `item_ids` of download and screen capture items to be removed.
@@ -1756,8 +1743,7 @@ IN_PROC_BROWSER_TEST_F(HoldingSpaceUiInProgressDownloadsBrowserTest,
 
   // Pause the download.
   RightClick(download_chips.at(0));
-  EXPECT_TRUE(SelectMenuItemWithCommandId(download_chips.at(0),
-                                          HoldingSpaceCommandId::kPauseItem));
+  EXPECT_TRUE(SelectMenuItemWithCommandId(HoldingSpaceCommandId::kPauseItem));
   PressAndReleaseKey(ui::VKEY_RETURN);
 
   // When paused with no bytes received, the `secondary_label` should display
@@ -1794,8 +1780,7 @@ IN_PROC_BROWSER_TEST_F(HoldingSpaceUiInProgressDownloadsBrowserTest,
 
   // Resume the download.
   RightClick(download_chips.at(0));
-  EXPECT_TRUE(SelectMenuItemWithCommandId(download_chips.at(0),
-                                          HoldingSpaceCommandId::kResumeItem));
+  EXPECT_TRUE(SelectMenuItemWithCommandId(HoldingSpaceCommandId::kResumeItem));
   PressAndReleaseKey(ui::VKEY_RETURN);
 
   // If resumed with bytes received, the `secondary_label` should display only
@@ -1830,8 +1815,7 @@ IN_PROC_BROWSER_TEST_F(HoldingSpaceUiInProgressDownloadsBrowserTest,
 
   // Pause the download.
   RightClick(download_chips.at(0));
-  EXPECT_TRUE(SelectMenuItemWithCommandId(download_chips.at(0),
-                                          HoldingSpaceCommandId::kPauseItem));
+  EXPECT_TRUE(SelectMenuItemWithCommandId(HoldingSpaceCommandId::kPauseItem));
   PressAndReleaseKey(ui::VKEY_RETURN);
 
   // If paused with both the number of bytes received and the total number of
@@ -2021,8 +2005,7 @@ IN_PROC_BROWSER_TEST_F(HoldingSpaceUiInProgressDownloadsBrowserTest,
   // Right click the `completed_download_chip`. Because the underlying download
   // is completed, the context menu should *not* contain a "Cancel" command.
   RightClick(completed_download_chip);
-  ASSERT_FALSE(SelectMenuItemWithCommandId(completed_download_chip,
-                                           HoldingSpaceCommandId::kCancelItem));
+  ASSERT_FALSE(SelectMenuItemWithCommandId(HoldingSpaceCommandId::kCancelItem));
 
   // Close the context menu and control-right click the
   // `in_progress_download_chip`. Because the `completed_download_chip` is still
@@ -2030,8 +2013,7 @@ IN_PROC_BROWSER_TEST_F(HoldingSpaceUiInProgressDownloadsBrowserTest,
   // *not* contain a "Cancel" command.
   PressAndReleaseKey(ui::KeyboardCode::VKEY_ESCAPE);
   RightClick(in_progress_download_chip, ui::EF_CONTROL_DOWN);
-  ASSERT_FALSE(SelectMenuItemWithCommandId(in_progress_download_chip,
-                                           HoldingSpaceCommandId::kCancelItem));
+  ASSERT_FALSE(SelectMenuItemWithCommandId(HoldingSpaceCommandId::kCancelItem));
 
   // Close the context menu, press the `in_progress_download_chip` and then
   // right click it. Because the `in_progress_download_chip` is the only chip
@@ -2040,8 +2022,7 @@ IN_PROC_BROWSER_TEST_F(HoldingSpaceUiInProgressDownloadsBrowserTest,
   PressAndReleaseKey(ui::KeyboardCode::VKEY_ESCAPE);
   test::Click(in_progress_download_chip);
   RightClick(in_progress_download_chip);
-  ASSERT_TRUE(SelectMenuItemWithCommandId(in_progress_download_chip,
-                                          HoldingSpaceCommandId::kCancelItem));
+  ASSERT_TRUE(SelectMenuItemWithCommandId(HoldingSpaceCommandId::kCancelItem));
 
   // Cache the holding space item IDs associated with the two download chips.
   const std::string completed_download_id =
@@ -2264,8 +2245,7 @@ IN_PROC_BROWSER_TEST_F(HoldingSpaceUiInProgressDownloadsBrowserTest,
   // download is in-progress, the context menu should *not* contain a "Remove"
   // command.
   RightClick(in_progress_download_chip);
-  ASSERT_FALSE(SelectMenuItemWithCommandId(in_progress_download_chip,
-                                           HoldingSpaceCommandId::kRemoveItem));
+  ASSERT_FALSE(SelectMenuItemWithCommandId(HoldingSpaceCommandId::kRemoveItem));
 
   // Close the context menu and control-right click the
   // `completed_download_chip`. Because the `in_progress_download_chip` is still
@@ -2273,8 +2253,7 @@ IN_PROC_BROWSER_TEST_F(HoldingSpaceUiInProgressDownloadsBrowserTest,
   // should *not* contain a "Remove" command.
   PressAndReleaseKey(ui::KeyboardCode::VKEY_ESCAPE);
   RightClick(completed_download_chip, ui::EF_CONTROL_DOWN);
-  ASSERT_FALSE(SelectMenuItemWithCommandId(completed_download_chip,
-                                           HoldingSpaceCommandId::kRemoveItem));
+  ASSERT_FALSE(SelectMenuItemWithCommandId(HoldingSpaceCommandId::kRemoveItem));
 
   // Close the context menu, press the `completed_download_chip` and then
   // right click it. Because the `completed_download_chip` is the only chip
@@ -2283,8 +2262,7 @@ IN_PROC_BROWSER_TEST_F(HoldingSpaceUiInProgressDownloadsBrowserTest,
   PressAndReleaseKey(ui::KeyboardCode::VKEY_ESCAPE);
   test::Click(completed_download_chip);
   RightClick(completed_download_chip);
-  ASSERT_TRUE(SelectMenuItemWithCommandId(completed_download_chip,
-                                          HoldingSpaceCommandId::kRemoveItem));
+  ASSERT_TRUE(SelectMenuItemWithCommandId(HoldingSpaceCommandId::kRemoveItem));
 
   // Cache the holding space item IDs associated with the two download chips.
   const std::string completed_download_id =
@@ -2327,8 +2305,7 @@ IN_PROC_BROWSER_TEST_F(HoldingSpaceUiInProgressDownloadsBrowserTest,
   // Because the in-progress download has been completed, right clicking it
   // should now surface the "Remove" command.
   RightClick(download_chips.front());
-  ASSERT_TRUE(SelectMenuItemWithCommandId(download_chips.front(),
-                                          HoldingSpaceCommandId::kRemoveItem));
+  ASSERT_TRUE(SelectMenuItemWithCommandId(HoldingSpaceCommandId::kRemoveItem));
 }
 
 // Base class for tests of the pause or resume commands, parameterized by the
@@ -2387,8 +2364,7 @@ IN_PROC_BROWSER_TEST_P(HoldingSpaceUiPauseOrResumeBrowserTest,
   // is completed, the context menu should *not* contain a "Pause" or "Resume"
   // command.
   RightClick(completed_download_chip);
-  ASSERT_FALSE(SelectMenuItemWithCommandId(completed_download_chip,
-                                           GetPauseOrResumeCommandId()));
+  ASSERT_FALSE(SelectMenuItemWithCommandId(GetPauseOrResumeCommandId()));
 
   // Close the context menu and control-right click the
   // `in_progress_download_chip`. Because the `completed_download_chip` is still
@@ -2396,8 +2372,7 @@ IN_PROC_BROWSER_TEST_P(HoldingSpaceUiPauseOrResumeBrowserTest,
   // *not* contain a "Pause" or "Resume" command.
   PressAndReleaseKey(ui::KeyboardCode::VKEY_ESCAPE);
   RightClick(in_progress_download_chip, ui::EF_CONTROL_DOWN);
-  ASSERT_FALSE(SelectMenuItemWithCommandId(in_progress_download_chip,
-                                           GetPauseOrResumeCommandId()));
+  ASSERT_FALSE(SelectMenuItemWithCommandId(GetPauseOrResumeCommandId()));
 
   // Close the context menu, press the `in_progress_download_chip` and then
   // right click it. Because the `in_progress_download_chip` is the only chip
@@ -2406,8 +2381,7 @@ IN_PROC_BROWSER_TEST_P(HoldingSpaceUiPauseOrResumeBrowserTest,
   PressAndReleaseKey(ui::KeyboardCode::VKEY_ESCAPE);
   test::Click(in_progress_download_chip);
   RightClick(in_progress_download_chip);
-  ASSERT_TRUE(SelectMenuItemWithCommandId(in_progress_download_chip,
-                                          GetPauseOrResumeCommandId()));
+  ASSERT_TRUE(SelectMenuItemWithCommandId(GetPauseOrResumeCommandId()));
 
   // Bind an observer to watch for updates to the holding space model.
   testing::NiceMock<MockHoldingSpaceModelObserver> mock;
@@ -2726,8 +2700,8 @@ IN_PROC_BROWSER_TEST_F(HoldingSpaceSuggestionUiBrowserTest, RemoveSuggestion) {
   ASSERT_TRUE(views::MenuController::GetActiveInstance());
 
   // Remove the selected suggestion chips through context menu.
-  auto* menu_item = SelectMenuItemWithCommandId(
-      suggestion_chips[1], HoldingSpaceCommandId::kRemoveItem);
+  auto* menu_item =
+      SelectMenuItemWithCommandId(HoldingSpaceCommandId::kRemoveItem);
   ASSERT_TRUE(menu_item);
   test::Click(menu_item);
   WaitForSuggestionsInModel(
@@ -2740,8 +2714,7 @@ IN_PROC_BROWSER_TEST_F(HoldingSpaceSuggestionUiBrowserTest, RemoveSuggestion) {
   ASSERT_FALSE(views::MenuController::GetActiveInstance());
   RightClick(suggestion_chips.front());
   ASSERT_TRUE(views::MenuController::GetActiveInstance());
-  menu_item = SelectMenuItemWithCommandId(suggestion_chips.front(),
-                                          HoldingSpaceCommandId::kRemoveItem);
+  menu_item = SelectMenuItemWithCommandId(HoldingSpaceCommandId::kRemoveItem);
   ASSERT_TRUE(menu_item);
   test::Click(menu_item);
 

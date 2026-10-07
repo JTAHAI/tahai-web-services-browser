@@ -154,14 +154,12 @@ public class HistorySyncHelper {
 
     private void recordUserAlreadyOptedIn(@SigninAccessPoint int accessPoint) {
         RecordHistogram.recordEnumeratedHistogram(
-                "Signin.HistorySyncOptIn.AlreadyOptedIn",
-                accessPoint,
-                SigninAccessPoint.MAX_VALUE + 1);
+                "Signin.HistorySyncOptIn.AlreadyOptedIn", accessPoint, SigninAccessPoint.MAX_VALUE);
     }
 
     private void recordHistorySyncSkipped(@SigninAccessPoint int accessPoint) {
         RecordHistogram.recordEnumeratedHistogram(
                 "Signin.HistorySyncOptIn.Skipped", accessPoint,
-                SigninAccessPoint.MAX_VALUE + 1);
+                SigninAccessPoint.MAX_VALUE);
     }
 }

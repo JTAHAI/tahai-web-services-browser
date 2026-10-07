@@ -107,7 +107,7 @@ public class DefaultBrowserPromoCoordinator
         bottomSheetController.requestShowContent(mDefaultBrowserBottomSheetContent, true);
         ButtonCompat bottomSheetButton = defaultBrowserBottomSheetView.findViewById(R.id.button);
         bottomSheetButton.setOnClickListener(
-                _ -> {
+                (v) -> {
                     IntentUtils.safeStartActivity(context, createBottomSheetOnClickIntent());
                     bottomSheetController.hideContent(
                             assumeNonNull(mDefaultBrowserBottomSheetContent),

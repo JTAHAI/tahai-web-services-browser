@@ -10,8 +10,8 @@
 #include "chrome/browser/glic/host/host.h"
 #include "chrome/browser/glic/test_support/glic_browser_test.h"
 #include "chrome/browser/tab_list/tab_list_interface.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_element_identifiers.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/frame/tab_strip_region_view.h"
 #include "chrome/browser/ui/views/tabs/tab/alert_indicator_button.h"
@@ -182,22 +182,17 @@ class TabUnderlineViewBrowserTest : public GlicBrowserTest {
 
   GURL Title2() const { return embedded_test_server()->GetURL("/title2.html"); }
 
-  TabUnderlineView* GetUnderlineOfTab(BrowserWindowInterface* target_browser,
-                                      int index) {
+  TabUnderlineView* GetUnderlineOfTab(Browser* target_browser, int index) {
     TabStripRegionView* tab_strip_view =
         BrowserView::GetBrowserViewForBrowser(target_browser)->tab_strip_view();
     views::View* underline =
-        tab_strip_view
-            ->GetTabAnchorView(target_browser->tab_strip_model()
-                                   ->GetTabAtIndex(index)
-                                   ->GetHandle())
-            ->GetViewByElementId(TabUnderlineView::kGlicTabUnderlineElementId);
+        tab_strip_view->GetTabAnchorViewAt(index)->GetViewByElementId(
+            TabUnderlineView::kGlicTabUnderlineElementId);
     CHECK(underline);
     return views::AsViewClass<TabUnderlineView>(underline);
   }
 
-  TabUnderlineView* GetUnderlineOfActiveTab(
-      BrowserWindowInterface* target_browser = nullptr) {
+  TabUnderlineView* GetUnderlineOfActiveTab(Browser* target_browser = nullptr) {
     if (!target_browser) {
       target_browser = browser();
     }
@@ -211,8 +206,7 @@ class TabUnderlineViewBrowserTest : public GlicBrowserTest {
         BrowserView::GetBrowserViewForBrowser(browser())->tab_strip_view();
     views::View* button =
         tab_strip_view
-            ->GetTabAnchorView(
-                browser()->tab_strip_model()->GetActiveTab()->GetHandle())
+            ->GetTabAnchorViewAt(GetTabListInterface()->GetActiveIndex())
             ->GetViewByElementId(kTabAlertIndicatorButtonElementId);
     return views::AsViewClass<AlertIndicatorButton>(button);
   }
@@ -433,7 +427,7 @@ IN_PROC_BROWSER_TEST_F(TabUnderlineViewBrowserTest,
 }
 
 IN_PROC_BROWSER_TEST_F(TabUnderlineViewBrowserTest, IncognitoModeCrash) {
-  BrowserWindowInterface* incognito_browser = CreateIncognitoBrowser();
+  Browser* incognito_browser = CreateIncognitoBrowser();
   ASSERT_TRUE(
       ui_test_utils::NavigateToURL(incognito_browser, GURL("about:blank")));
 }
@@ -450,7 +444,7 @@ IN_PROC_BROWSER_TEST_F(TabUnderlineViewBrowserTest,
   // Set up two windows, each with one tab
   ASSERT_EQ(GetTabListInterface()->GetTabCount(), 1);
   // Second browser window
-  BrowserWindowInterface* browser2 = CreateBrowser(browser()->GetProfile());
+  Browser* browser2 = CreateBrowser(browser()->GetProfile());
   browser2->GetWindow()->Activate();
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser2, Title2()));
   ASSERT_EQ(GetTabListInterface()->GetTabCount(), 1);

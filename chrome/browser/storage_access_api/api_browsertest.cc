@@ -4,10 +4,9 @@
 
 #include <initializer_list>
 #include <memory>
-#include <ranges>
 #include <string_view>
 
-#include "base/cfi_buildflags.h"
+#include "base/containers/adapters.h"
 #include "base/containers/map_util.h"
 #include "base/containers/span.h"
 #include "base/feature_list.h"
@@ -23,15 +22,13 @@
 #include "base/test/run_until.h"
 #include "base/test/scoped_feature_list.h"
 #include "base/types/optional_util.h"
-#include "build/build_config.h"
 #include "chrome/browser/content_settings/cookie_settings_factory.h"
 #include "chrome/browser/content_settings/host_content_settings_map_factory.h"
 #include "chrome/browser/net/storage_test_utils.h"
 #include "chrome/browser/policy/policy_test_utils.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/storage_access_api/storage_access_grant_permission_context.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
-#include "chrome/browser/ui/browser_window/public/create_browser_window.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/omnibox/omnibox_next_features.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/webid/federated_identity_permission_context.h"
@@ -120,6 +117,8 @@ constexpr std::string_view kHostC = "c.test";
 constexpr std::string_view kHostD = "d.test";
 
 constexpr std::string_view kUseCounterHistogram = "Blink.UseCounter.Features";
+constexpr std::string_view kRequestOutcomeHistogram =
+    "API.StorageAccess.RequestOutcome";
 constexpr std::string_view kGrantIsImplicitHistogram =
     "API.StorageAccess.GrantIsImplicit";
 
@@ -360,11 +359,11 @@ class StorageAccessAPIBaseBrowserTest : public policy::PolicyTest {
   }
 
   std::unique_ptr<permissions::MockPermissionPromptFactory> MakePromptFactory(
-      BrowserWindowInterface* browser_ptr) {
+      Browser* browser_ptr) {
     CHECK(browser_ptr);
     return std::make_unique<permissions::MockPermissionPromptFactory>(
         permissions::PermissionRequestManager::FromWebContents(
-            browser_ptr->GetTabStripModel()->GetActiveWebContents()));
+            browser_ptr->tab_strip_model()->GetActiveWebContents()));
   }
 
   void TearDownOnMainThread() override { prompt_factory_.reset(); }
@@ -424,7 +423,7 @@ class StorageAccessAPIBaseBrowserTest : public policy::PolicyTest {
   }
 
   void NavigateToPageWithFrame(std::string_view host,
-                               BrowserWindowInterface* browser_ptr = nullptr,
+                               Browser* browser_ptr = nullptr,
                                bool credentialless = false) {
     GURL main_url(https_server_.GetURL(
         host, credentialless ? "/iframe_credentialless.html" : "/iframe.html"));
@@ -457,10 +456,10 @@ class StorageAccessAPIBaseBrowserTest : public policy::PolicyTest {
   }
 
   void NavigateFrameTo(const GURL& url,
-                       BrowserWindowInterface* browser_ptr = nullptr,
+                       Browser* browser_ptr = nullptr,
                        std::string_view iframe_id = "test") {
     content::WebContents* web_contents = (browser_ptr ? browser_ptr : browser())
-                                             ->GetTabStripModel()
+                                             ->tab_strip_model()
                                              ->GetActiveWebContents();
     EXPECT_TRUE(NavigateIframeToURL(web_contents, iframe_id, url));
   }
@@ -514,7 +513,7 @@ class StorageAccessAPIBaseBrowserTest : public policy::PolicyTest {
                         const GURL& destination) {
     GURL url = destination;
 
-    for (const auto& host : std::views::reverse(hosts)) {
+    for (const auto& host : base::Reversed(hosts)) {
       url = https_server().GetURL(host, ServerRedirectPath(url));
     }
     return url;
@@ -568,20 +567,18 @@ class StorageAccessAPIBaseBrowserTest : public policy::PolicyTest {
   }
 
   content::RenderFrameHost* GetPrimaryMainFrame(
-      BrowserWindowInterface* browser_ptr = nullptr) {
+      Browser* browser_ptr = nullptr) {
     content::WebContents* web_contents = (browser_ptr ? browser_ptr : browser())
-                                             ->GetTabStripModel()
+                                             ->tab_strip_model()
                                              ->GetActiveWebContents();
     return web_contents->GetPrimaryMainFrame();
   }
 
-  content::RenderFrameHost* GetFrame(
-      BrowserWindowInterface* browser_ptr = nullptr) {
+  content::RenderFrameHost* GetFrame(Browser* browser_ptr = nullptr) {
     return ChildFrameAt(GetPrimaryMainFrame(browser_ptr), 0);
   }
 
-  content::RenderFrameHost* GetNestedFrame(
-      BrowserWindowInterface* browser_ptr = nullptr) {
+  content::RenderFrameHost* GetNestedFrame(Browser* browser_ptr = nullptr) {
     return ChildFrameAt(GetFrame(browser_ptr), 0);
   }
 
@@ -592,7 +589,7 @@ class StorageAccessAPIBaseBrowserTest : public policy::PolicyTest {
   }
 
   void EnsureUserInteractionOn(std::string_view host,
-                               BrowserWindowInterface* browser_ptr = nullptr) {
+                               Browser* browser_ptr = nullptr) {
     if (browser_ptr == nullptr) {
       browser_ptr = browser();
     }
@@ -601,7 +598,7 @@ class StorageAccessAPIBaseBrowserTest : public policy::PolicyTest {
     // ExecJs runs with a synthetic user interaction (by default), which is all
     // we need, so our script is a no-op.
     ASSERT_TRUE(content::ExecJs(
-        browser_ptr->GetTabStripModel()->GetActiveWebContents(), ""));
+        browser_ptr->tab_strip_model()->GetActiveWebContents(), ""));
   }
 
   void OpenConnectToPage(content::RenderFrameHost* frame) {
@@ -987,6 +984,7 @@ IN_PROC_BROWSER_TEST_F(StorageAccessAPIBrowserTest, PermissionQueryCrossSite) {
 
 IN_PROC_BROWSER_TEST_F(StorageAccessAPIBrowserTest,
                        Permission_Denied_WithoutInteraction) {
+  base::HistogramTester histogram_tester;
   SetBlockThirdPartyCookies(true);
 
   NavigateToPageWithFrame(kHostA);
@@ -1001,6 +999,13 @@ IN_PROC_BROWSER_TEST_F(StorageAccessAPIBrowserTest,
   EXPECT_FALSE(content::ExecJs(GetFrame(), "document.requestStorageAccess()",
                                content::EXECUTE_SCRIPT_NO_USER_GESTURE));
   EXPECT_EQ(ReadCookies(GetFrame(), kHostB), kNoCookies);
+
+  metrics::SubprocessMetricsProvider::MergeHistogramDeltasForTesting();
+
+  EXPECT_THAT(
+      histogram_tester.GetBucketCount(kRequestOutcomeHistogram,
+                                      RequestOutcome::kDeniedByPrerequisites),
+      Gt(0));
 }
 
 // Validate that a cross-site iframe can bypass third-party cookie blocking via
@@ -1064,19 +1069,8 @@ IN_PROC_BROWSER_TEST_F(StorageAccessAPIBrowserTest,
   EXPECT_FALSE(content::ExecJs(nested_frame, fetch_blob_url_js));
 }
 
-// TODO(https://crbug.com/540611509): Fails on Linux CFI and Linux debug builds.
-#if BUILDFLAG(IS_LINUX) &&                                      \
-    (!defined(NDEBUG) ||                                        \
-     BUILDFLAG(CFI_CAST_CHECK) || BUILDFLAG(CFI_ICALL_CHECK) || \
-     BUILDFLAG(CFI_ENFORCEMENT_TRAP) || BUILDFLAG(CFI_ENFORCEMENT_DIAGNOSTIC))
-#define MAYBE_AccessGranted_DoesNotConsumeUserInteraction \
-  DISABLED_AccessGranted_DoesNotConsumeUserInteraction
-#else
-#define MAYBE_AccessGranted_DoesNotConsumeUserInteraction \
-  AccessGranted_DoesNotConsumeUserInteraction
-#endif
 IN_PROC_BROWSER_TEST_F(StorageAccessAPIBrowserTest,
-                       MAYBE_AccessGranted_DoesNotConsumeUserInteraction) {
+                       AccessGranted_DoesNotConsumeUserInteraction) {
   SetBlockThirdPartyCookies(true);
   prompt_factory()->set_response_type(
       permissions::PermissionRequestManager::ACCEPT_ALL);
@@ -1608,6 +1602,7 @@ IN_PROC_BROWSER_TEST_F(StorageAccessAPIBrowserTest, SandboxTokenResolves) {
 
 // Validates that expired grants don't get reused.
 IN_PROC_BROWSER_TEST_F(StorageAccessAPIBrowserTest, ThirdPartyGrantsExpiry) {
+  base::HistogramTester histogram_tester;
   SetBlockThirdPartyCookies(true);
 
   NavigateToPageWithFrame(kHostA);
@@ -1638,11 +1633,19 @@ IN_PROC_BROWSER_TEST_F(StorageAccessAPIBrowserTest, ThirdPartyGrantsExpiry) {
   // The iframe should request for new grant since the existing one is expired.
   EXPECT_TRUE(storage::test::RequestAndCheckStorageAccessForFrame(GetFrame()));
 
+  // Validate that only one permission was newly granted.
+  histogram_tester.ExpectUniqueSample(kRequestOutcomeHistogram,
+                                      RequestOutcome::kGrantedByUser, 1);
+
   // The nested iframe reuses the existing grant without prompting.
   EXPECT_TRUE(
       storage::test::RequestAndCheckStorageAccessForFrame(GetNestedFrame()));
   EXPECT_EQ(ReadCookies(GetNestedFrame(), kHostC),
             CookieBundle("cross-site=c.test"));
+
+  histogram_tester.ExpectTotalCount(kRequestOutcomeHistogram, 2);
+  histogram_tester.ExpectBucketCount(
+      kRequestOutcomeHistogram, RequestOutcome::kReusedPreviousDecision, 1);
 
   NavigateFrameTo(kHostB, "/iframe.html");
   NavigateNestedFrameTo(EchoCookiesURL(kHostC));
@@ -1990,6 +1993,7 @@ IN_PROC_BROWSER_TEST_F(StorageAccessAPIBrowserTest,
 // access after requesting access.
 IN_PROC_BROWSER_TEST_F(StorageAccessAPIBrowserTest,
                        NestedSameOriginCookieAccess_CrossSiteAncestorChain) {
+  base::HistogramTester histogram_tester;
   SetBlockThirdPartyCookies(true);
 
   NavigateToPageWithFrame(kHostA);
@@ -2007,6 +2011,9 @@ IN_PROC_BROWSER_TEST_F(StorageAccessAPIBrowserTest,
   EXPECT_EQ(0, prompt_factory()->TotalRequestCount());
   EXPECT_EQ(ReadCookies(GetNestedFrame(), kHostA),
             CookieBundle("cross-site=a.test"));
+  histogram_tester.ExpectTotalCount(kRequestOutcomeHistogram, 1);
+  histogram_tester.ExpectBucketCount(kRequestOutcomeHistogram,
+                                     RequestOutcome::kAllowedBySameSite, 1);
 }
 
 // Validate that in a A(B(sub.A)) frame tree, the inner iframe can obtain cookie
@@ -2511,7 +2518,7 @@ class StorageAccessAPIWithFirstPartySetsBrowserTest
     std::vector<base::test::FeatureRefAndParams> enabled =
         StorageAccessAPIBaseBrowserTest::GetEnabledFeatures();
     enabled.push_back(
-        {content_settings::features::kStorageAccessAPIRelatedWebsiteSets, {}});
+        {blink::features::kStorageAccessAPIRelatedWebsiteSets, {}});
     return enabled;
   }
 
@@ -2586,6 +2593,7 @@ IN_PROC_BROWSER_TEST_F(StorageAccessAPIWithFirstPartySetsBrowserTest,
 
 IN_PROC_BROWSER_TEST_F(StorageAccessAPIWithFirstPartySetsBrowserTest,
                        Permission_AutograntedWithinFirstPartySet) {
+  base::HistogramTester histogram_tester;
   // Note: kHostA and kHostB are considered same-party due to the use of
   // `network::switches::kUseFirstPartySet`.
   SetBlockThirdPartyCookies(true);
@@ -2602,6 +2610,13 @@ IN_PROC_BROWSER_TEST_F(StorageAccessAPIWithFirstPartySetsBrowserTest,
 
   EXPECT_EQ(ReadCookiesAndContent(GetFrame(), kHostB), kNoCookiesWithContent);
   EXPECT_FALSE(storage::test::HasStorageAccessForFrame(GetFrame()));
+
+  metrics::SubprocessMetricsProvider::MergeHistogramDeltasForTesting();
+
+  EXPECT_THAT(
+      histogram_tester.GetBucketCount(kRequestOutcomeHistogram,
+                                      RequestOutcome::kGrantedByFirstPartySet),
+      Gt(0));
 }
 
 IN_PROC_BROWSER_TEST_F(StorageAccessAPIWithFirstPartySetsBrowserTest,
@@ -2611,6 +2626,8 @@ IN_PROC_BROWSER_TEST_F(StorageAccessAPIWithFirstPartySetsBrowserTest,
 
   EnsureUserInteractionOn(kHostA);
   SetBlockThirdPartyCookies(true);
+
+  base::HistogramTester histogram_tester;
 
   NavigateToPageWithFrame(kHostD);
   NavigateFrameTo(EchoCookiesURL(kHostA));
@@ -2628,6 +2645,10 @@ IN_PROC_BROWSER_TEST_F(StorageAccessAPIWithFirstPartySetsBrowserTest,
   EXPECT_EQ(ReadCookiesAndContent(GetFrame(), kHostA), kNoCookiesWithContent);
   EXPECT_FALSE(storage::test::HasStorageAccessForFrame(GetFrame()));
 
+  metrics::SubprocessMetricsProvider::MergeHistogramDeltasForTesting();
+  EXPECT_THAT(histogram_tester.GetBucketCount(kRequestOutcomeHistogram,
+                                              RequestOutcome::kDeniedByUser),
+              Gt(0));
   // Ensure that the denied state is not exposed to developers, per the spec.
   EXPECT_EQ(QueryPermission(GetFrame()), "prompt");
 }
@@ -2664,6 +2685,7 @@ IN_PROC_BROWSER_TEST_F(
 
 IN_PROC_BROWSER_TEST_F(StorageAccessAPIWithFirstPartySetsBrowserTest,
                        Permission_AutodeniedOutsideFirstPartySet_Overridden) {
+  base::HistogramTester histogram_tester;
   // Note: kHostA and kHostC are considered cross-party, since kHostA's set does
   // not include kHostC.
   SetBlockThirdPartyCookies(true);
@@ -2680,11 +2702,18 @@ IN_PROC_BROWSER_TEST_F(StorageAccessAPIWithFirstPartySetsBrowserTest,
 
   EXPECT_TRUE(storage::test::RequestAndCheckStorageAccessForFrame(GetFrame()));
   EXPECT_EQ(ReadCookies(GetFrame(), kHostC), CookieBundle("cross-site=c.test"));
+
+  metrics::SubprocessMetricsProvider::MergeHistogramDeltasForTesting();
+
+  EXPECT_THAT(histogram_tester.GetBucketCount(kRequestOutcomeHistogram,
+                                              RequestOutcome::kGrantedByUser),
+              Gt(0));
 }
 
 IN_PROC_BROWSER_TEST_F(
     StorageAccessAPIWithFirstPartySetsBrowserTest,
     Permission_AutodeniedInsideFirstPartySet_WithoutInteraction) {
+  base::HistogramTester histogram_tester;
   SetBlockThirdPartyCookies(true);
 
   NavigateToPageWithFrame(kHostA);
@@ -2699,6 +2728,13 @@ IN_PROC_BROWSER_TEST_F(
   EXPECT_FALSE(content::ExecJs(GetFrame(), "document.requestStorageAccess()",
                                content::EXECUTE_SCRIPT_NO_USER_GESTURE));
   EXPECT_EQ(ReadCookies(GetFrame(), kHostB), kNoCookies);
+
+  metrics::SubprocessMetricsProvider::MergeHistogramDeltasForTesting();
+
+  EXPECT_THAT(
+      histogram_tester.GetBucketCount(kRequestOutcomeHistogram,
+                                      RequestOutcome::kDeniedByPrerequisites),
+      Gt(0));
 }
 
 IN_PROC_BROWSER_TEST_F(StorageAccessAPIWithFirstPartySetsBrowserTest,
@@ -2725,6 +2761,7 @@ IN_PROC_BROWSER_TEST_F(StorageAccessAPIWithFirstPartySetsBrowserTest,
 IN_PROC_BROWSER_TEST_F(StorageAccessAPIWithFirstPartySetsBrowserTest,
                        Permission_GrantedForServiceDomain) {
   SetBlockThirdPartyCookies(true);
+  base::HistogramTester histogram_tester;
 
   NavigateToPageWithFrame(kHostA);
   NavigateFrameTo(EchoCookiesURL(kHostD));
@@ -2736,6 +2773,12 @@ IN_PROC_BROWSER_TEST_F(StorageAccessAPIWithFirstPartySetsBrowserTest,
   // should be auto-granted.
   EXPECT_TRUE(content::ExecJs(GetFrame(), "document.requestStorageAccess()"));
   EXPECT_TRUE(storage::test::HasStorageAccessForFrame(GetFrame()));
+
+  metrics::SubprocessMetricsProvider::MergeHistogramDeltasForTesting();
+  EXPECT_THAT(
+      histogram_tester.GetBucketCount(kRequestOutcomeHistogram,
+                                      RequestOutcome::kGrantedByFirstPartySet),
+      Gt(0));
 }
 
 IN_PROC_BROWSER_TEST_F(StorageAccessAPIWithFirstPartySetsBrowserTest,
@@ -2768,7 +2811,7 @@ class StorageAccessAPIWithFirstPartySetsAndImplicitGrantsBrowserTest
     std::vector<base::test::FeatureRefAndParams> enabled =
         StorageAccessAPIBaseBrowserTest::GetEnabledFeatures();
     enabled.push_back(
-        {content_settings::features::kStorageAccessAPIRelatedWebsiteSets, {}});
+        {blink::features::kStorageAccessAPIRelatedWebsiteSets, {}});
     return enabled;
   }
 
@@ -2941,10 +2984,9 @@ IN_PROC_BROWSER_TEST_F(StorageAccessAPIBrowserTest,
   // Even though there was previous interaction in the regular profile, requests
   // made by incognito profiles should be denied, due to the top-level user
   // interaction requirement.
-  BrowserWindowInterface* incognito_browser = CreateBrowserWindow(
-      BrowserWindowCreateParams(browser()->GetProfile()->GetPrimaryOTRProfile(
-                                    /*create_if_needed=*/true),
-                                /*from_user_gesture=*/true));
+  Browser* incognito_browser = Browser::Create(Browser::CreateParams(
+      browser()->GetProfile()->GetPrimaryOTRProfile(/*create_if_needed=*/true),
+      /*user_gesture=*/true));
 
   NavigateToURLWithDisposition(incognito_browser,
                                https_server().GetURL(kHostA, "/iframe.html"),
@@ -2957,10 +2999,9 @@ IN_PROC_BROWSER_TEST_F(StorageAccessAPIBrowserTest,
 }
 
 IN_PROC_BROWSER_TEST_F(StorageAccessAPIBrowserTest, IncognitoCanUseAPI) {
-  BrowserWindowInterface* incognito_browser = CreateBrowserWindow(
-      BrowserWindowCreateParams(browser()->GetProfile()->GetPrimaryOTRProfile(
-                                    /*create_if_needed=*/true),
-                                /*from_user_gesture=*/true));
+  Browser* incognito_browser = Browser::Create(Browser::CreateParams(
+      browser()->GetProfile()->GetPrimaryOTRProfile(/*create_if_needed=*/true),
+      /*user_gesture=*/true));
 
   NavigateToURLWithDisposition(incognito_browser,
                                https_server().GetURL(kHostA, "/empty.html"),
@@ -3023,6 +3064,8 @@ IN_PROC_BROWSER_TEST_F(StorageAccessAPIWithImplicitGrantsBrowserTest,
   // Access is denied since kHostB has already exhausted both of its implicit
   // grants, and we've set the prompt_factory to always deny.
   EXPECT_FALSE(content::ExecJs(GetFrame(), "document.requestStorageAccess()"));
+  histogram_tester.ExpectBucketCount(
+      kRequestOutcomeHistogram, /*sample=*/RequestOutcome::kDeniedByUser, 1);
 
   NavigateToPageWithFrame(kHostB);
   NavigateFrameTo(EchoCookiesURL(kHostA));

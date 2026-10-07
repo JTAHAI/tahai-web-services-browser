@@ -117,30 +117,34 @@ TEST_F(DeleteAfterRebootHelperTest, TestStringListToMultiSZConversions) {
       {L"deletes", L"foo\0\0bar\0\0bizz\0\0", 16 * sizeof(wchar_t), 3},
   };
 
-  for (const StringTest& test : tests) {
+  for (size_t i = 0; i < std::size(tests); i++) {
     std::vector<PendingMove> string_list;
     EXPECT_TRUE(SUCCEEDED(MultiSZBytesToStringArray(
-        reinterpret_cast<const char*>(test.str), test.length, &string_list)))
-        << test.test_name;
-    EXPECT_EQ(test.count, string_list.size()) << test.test_name;
+        reinterpret_cast<const char*>(UNSAFE_TODO(tests[i]).str),
+        UNSAFE_TODO(tests[i]).length, &string_list)))
+        << UNSAFE_TODO(tests[i]).test_name;
+    EXPECT_EQ(UNSAFE_TODO(tests[i]).count, string_list.size())
+        << UNSAFE_TODO(tests[i]).test_name;
     std::vector<char> buffer;
     buffer.resize(WStringPairListSize(string_list));
     StringArrayToMultiSZBytes(string_list, &buffer);
-    EXPECT_TRUE(CompareBuffers(const_cast<const char*>(&buffer[0]),
-                               reinterpret_cast<const char*>(test.str),
-                               test.length))
-        << test.test_name;
+    EXPECT_TRUE(
+        CompareBuffers(const_cast<const char*>(&buffer[0]),
+                       reinterpret_cast<const char*>(UNSAFE_TODO(tests[i]).str),
+                       UNSAFE_TODO(tests[i]).length))
+        << UNSAFE_TODO(tests[i]).test_name;
   }
 
   StringTest failures[] = {
       {L"malformed", reinterpret_cast<const wchar_t*>("oddnumb\0\0"), 9, 1},
   };
 
-  for (const StringTest& test : failures) {
+  for (size_t i = 0; i < std::size(failures); i++) {
     std::vector<PendingMove> string_list;
     EXPECT_FALSE(SUCCEEDED(MultiSZBytesToStringArray(
-        reinterpret_cast<const char*>(test.str), test.length, &string_list)))
-        << test.test_name;
+        reinterpret_cast<const char*>(UNSAFE_TODO(failures[i]).str),
+        UNSAFE_TODO(failures[i]).length, &string_list)))
+        << UNSAFE_TODO(failures[i]).test_name;
   }
 }
 
@@ -172,10 +176,11 @@ TEST_F(DeleteAfterRebootHelperTest, TestFileDeleteScheduleAndUnschedule) {
   // Check that each of the deletes we expect are there in order.
   base::FilePath expected_paths[] = {temp_file_, temp_subdir_file_,
                                      temp_subdir_, temp_dir_};
-  for (const base::FilePath& expected_path : expected_paths) {
+  for (size_t i = 0; i < std::size(expected_paths); ++i) {
     EXPECT_FALSE(iter == pending_moves.end());
     if (iter != pending_moves.end()) {
-      base::FilePath short_path_name(GetShortPathName(expected_path));
+      base::FilePath short_path_name(
+          GetShortPathName(UNSAFE_TODO(expected_paths[i])));
       base::FilePath move_path(iter->first);
       EXPECT_TRUE(MatchPendingDeletePath(short_path_name, move_path));
       ++iter;
@@ -226,10 +231,11 @@ TEST_F(DeleteAfterRebootHelperTest, TestFileDeleteSchedulingWithActualDeletes) {
   // Check that each of the deletes we expect are there in order.
   base::FilePath expected_paths[] = {temp_file_, temp_subdir_file_,
                                      temp_subdir_, temp_dir_};
-  for (const base::FilePath& expected_path : expected_paths) {
+  for (size_t i = 0; i < std::size(expected_paths); ++i) {
     EXPECT_FALSE(iter == pending_moves.end());
     if (iter != pending_moves.end()) {
-      base::FilePath short_path_name(GetShortPathName(expected_path));
+      base::FilePath short_path_name(
+          GetShortPathName(UNSAFE_TODO(expected_paths[i])));
       base::FilePath move_path(iter->first);
       EXPECT_TRUE(MatchPendingDeletePath(short_path_name, move_path));
       ++iter;

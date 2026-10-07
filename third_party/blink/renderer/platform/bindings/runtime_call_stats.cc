@@ -17,7 +17,6 @@
 #include "third_party/blink/renderer/platform/instrumentation/tracing/trace_event.h"
 #include "third_party/blink/renderer/platform/instrumentation/tracing/traced_value.h"
 #include "third_party/blink/renderer/platform/runtime_enabled_features.h"
-#include "third_party/blink/renderer/platform/wtf/text/format.h"
 #include "third_party/blink/renderer/platform/wtf/text/string_builder.h"
 
 namespace blink {
@@ -117,7 +116,7 @@ void RuntimeCallStats::Dump(TracedValue& value) const {
 }
 
 namespace {
-constexpr char kRowFormat[] = "{:55}  {:8}  {:9.3f}\n";
+const char row_format[] = "%-55s  %8" PRIu64 "  %9.3f\n";
 }
 
 String RuntimeCallStats::ToString() const {
@@ -127,8 +126,9 @@ String RuntimeCallStats::ToString() const {
       "Name                                                    Count     Time "
       "(ms)\n\n");
   for (const auto& counter : counters_) {
-    FormatTo(builder, kRowFormat, counter.GetName(), counter.GetCount(),
-             counter.GetTime().InMillisecondsF());
+    UNSAFE_TODO(builder.AppendFormat(row_format, counter.GetName(),
+                                     counter.GetCount(),
+                                     counter.GetTime().InMillisecondsF()));
   }
 
 #if BUILDFLAG(RCS_COUNT_EVERYTHING)
@@ -182,10 +182,11 @@ Vector<RuntimeCallCounter*> RuntimeCallStats::CounterMapToSortedArray() const {
 
 void RuntimeCallStats::AddCounterMapStatsToBuilder(
     StringBuilder& builder) const {
-  FormatTo(builder, "\nNumber of counters in map: {}\n\n", counter_map_.size());
+  builder.AppendFormat("\nNumber of counters in map: %u\n\n",
+                       counter_map_.size());
   for (RuntimeCallCounter* counter : CounterMapToSortedArray()) {
-    FormatTo(builder, kRowFormat, counter->GetName(), counter->GetCount(),
-             counter->GetTime().InMillisecondsF());
+    builder.AppendFormat(row_format, counter->GetName(), counter->GetCount(),
+                         counter->GetTime().InMillisecondsF());
   }
 }
 #endif

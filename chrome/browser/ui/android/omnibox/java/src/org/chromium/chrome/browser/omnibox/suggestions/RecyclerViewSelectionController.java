@@ -36,7 +36,8 @@ public class RecyclerViewSelectionController extends SelectionController
     // index-in-layout-manager.
     private final Map<Integer, Callback<Boolean>> mVirtualViews = new TreeMap<>();
 
-    public RecyclerViewSelectionController(LayoutManager layoutManager, @TraversalMode int mode) {
+    public RecyclerViewSelectionController(
+            LayoutManager layoutManager, @SelectionController.Mode int mode) {
         super(mode);
         mLayoutManager = layoutManager;
         reset();

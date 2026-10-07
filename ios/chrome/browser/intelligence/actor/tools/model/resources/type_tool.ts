@@ -7,8 +7,7 @@
  */
 
 import {setInputElementValue, valueForElement} from '//components/autofill/ios/form_util/resources/fill_util.js';
-import type {ActionTarget, Coordinate} from '//ios/chrome/browser/intelligence/actor/tools/model/resources/actor_tool_utils.js';
-import {getElementFromPoint, isCoordinateTarget, isNodeIdTarget} from '//ios/chrome/browser/intelligence/actor/tools/model/resources/actor_tool_utils.js';
+import {getElementFromPoint} from '//ios/chrome/browser/intelligence/actor/tools/model/resources/actor_tool_utils.js';
 import {getNodeById} from '//ios/chrome/browser/intelligence/proto_wrappers/resources/dom_node_ids.js';
 import {CrWebApi, gCrWeb} from '//ios/web/public/js_messaging/resources/gcrweb.js';
 
@@ -148,17 +147,22 @@ function updateElementAndDispatchTypeEvents(
 }
 
 /**
- * Simulates typing into an element at the specified coordinates.
- * @param coordinate The target coordinate.
+ * Simulates typing at a coordinate.
+ * @param x The x-coordinate.
+ * @param y The y-coordinate.
+ * @param pixelType The type of pixels.
  * @param text The text to type.
  * @param mode The type mode.
- * @param followByEnter Whether to press enter after typing.
- * @return An object containing the result of the type attempt.
+ * @param followByEnter Whether to press enter.
+ * @return an object containing the result of the type attempt.
  */
 function typeByCoordinate(
-    coordinate: Coordinate, text: string, mode: number,
-    followByEnter: boolean): {resultCode: number, message: string} {
-  const {element} = getElementFromPoint(coordinate);
+    x: number, y: number, pixelType: number, text: string, mode: number,
+    followByEnter: boolean): {
+  resultCode: number,
+  message: string,
+} {
+  const {element} = getElementFromPoint(x, y, pixelType);
 
   if (!element || !(element instanceof HTMLElement)) {
     return {
@@ -171,16 +175,18 @@ function typeByCoordinate(
 }
 
 /**
- * Simulates typing into an element with the given DOM node ID.
- * @param nodeId The DOM node ID of the target element.
+ * Simulates typing into an element specified by its DOM node ID.
+ * @param nodeId The ID of the node.
  * @param text The text to type.
  * @param mode The type mode.
- * @param followByEnter Whether to press enter after typing.
+ * @param followByEnter Whether to press enter.
  * @return an object containing the result of the type attempt.
  */
 function typeByNodeId(
-    nodeId: number, text: string, mode: number,
-    followByEnter: boolean): {resultCode: number, message: string} {
+    nodeId: number, text: string, mode: number, followByEnter: boolean): {
+  resultCode: number,
+  message: string,
+} {
   const node = getNodeById(nodeId, window);
   if (!node) {
     return {
@@ -204,31 +210,7 @@ function typeByNodeId(
   return updateElementAndDispatchTypeEvents(element, text, mode, followByEnter);
 }
 
-/**
- * Simulates typing into an element specified by an ActionTarget.
- * @param target The action target (coordinate or node ID).
- * @param text The text to type.
- * @param mode The type mode.
- * @param followByEnter Whether to press enter.
- * @return an object containing the result of the type attempt.
- */
-function type(
-    target: ActionTarget, text: string, mode: number, followByEnter: boolean): {
-  resultCode: number,
-  message: string,
-} {
-  if (isNodeIdTarget(target)) {
-    return typeByNodeId(target.contentNodeId, text, mode, followByEnter);
-  } else if (isCoordinateTarget(target)) {
-    return typeByCoordinate(target.coordinate, text, mode, followByEnter);
-  }
-
-  return {
-    resultCode: TypeToolResultCode.INVALID_ARGUMENTS,
-    message: 'Invalid target.',
-  };
-}
-
 const typeToolApi = new CrWebApi('type_tool');
-typeToolApi.addFunction('type', type);
+typeToolApi.addFunction('typeByCoordinate', typeByCoordinate);
+typeToolApi.addFunction('typeByNodeId', typeByNodeId);
 gCrWeb.registerApi(typeToolApi);

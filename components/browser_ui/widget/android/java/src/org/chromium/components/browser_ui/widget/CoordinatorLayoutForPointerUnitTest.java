@@ -7,7 +7,6 @@ package org.chromium.components.browser_ui.widget;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
-
 import android.app.Activity;
 import android.content.Context;
 import android.view.MotionEvent;
@@ -21,10 +20,12 @@ import org.robolectric.Robolectric;
 import org.robolectric.annotation.Config;
 
 import org.chromium.base.test.BaseRobolectricTestRunner;
+import org.chromium.base.test.util.Batch;
 
 /** Unit tests for {@link CoordinatorLayoutForPointer}. */
 @RunWith(BaseRobolectricTestRunner.class)
 @Config(manifest = Config.NONE)
+@Batch(Batch.UNIT_TESTS)
 public class CoordinatorLayoutForPointerUnitTest {
 
     private Activity mActivity;

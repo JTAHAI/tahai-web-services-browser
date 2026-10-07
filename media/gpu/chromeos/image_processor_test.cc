@@ -278,7 +278,6 @@ bool SupportsNecessaryGLExtension() {
 }
 
 scoped_refptr<VideoFrame> CreateNV12Frame(
-    const gfx::ColorSpace& color_space,
     const gfx::Size& size,
     VideoFrame::StorageType type,
     gpu::TestSharedImageInterface* test_sii) {
@@ -286,24 +285,19 @@ scoped_refptr<VideoFrame> CreateNV12Frame(
   constexpr base::TimeDelta kNullTimestamp;
   if (type == VideoFrame::STORAGE_MAPPABLE_SHARED_IMAGE) {
     return CreateMappableSharedImageVideoFrame(
-        VideoPixelFormat::PIXEL_FORMAT_NV12, color_space, size, visible_rect,
-        size, kNullTimestamp, gfx::BufferUsage::SCANOUT_CPU_READ_WRITE,
-        test_sii);
+        VideoPixelFormat::PIXEL_FORMAT_NV12, gfx::ColorSpace::CreateREC709(),
+        size, visible_rect, size, kNullTimestamp,
+        gfx::BufferUsage::SCANOUT_CPU_READ_WRITE, test_sii);
   } else {
     DCHECK(type == VideoFrame::STORAGE_DMABUFS);
-    const auto frame = CreatePlatformVideoFrame(
-        VideoPixelFormat::PIXEL_FORMAT_NV12, size, visible_rect, size,
-        kNullTimestamp, gfx::BufferUsage::SCANOUT_CPU_READ_WRITE);
-    DCHECK(frame);
-    frame->set_color_space(color_space);
-    return frame;
+    return CreatePlatformVideoFrame(VideoPixelFormat::PIXEL_FORMAT_NV12, size,
+                                    visible_rect, size, kNullTimestamp,
+                                    gfx::BufferUsage::SCANOUT_CPU_READ_WRITE);
   }
 }
 
-scoped_refptr<VideoFrame> CreateRandomMM21Frame(
-    const gfx::ColorSpace& color_space,
-    const gfx::Size& size,
-    VideoFrame::StorageType type) {
+scoped_refptr<VideoFrame> CreateRandomMM21Frame(const gfx::Size& size,
+                                                VideoFrame::StorageType type) {
   DCHECK_EQ(static_cast<unsigned int>(size.width()),
             base::bits::AlignUp(static_cast<unsigned int>(size.width()),
                                 MM21_TILE_WIDTH));
@@ -312,7 +306,7 @@ scoped_refptr<VideoFrame> CreateRandomMM21Frame(
                                 MM21_TILE_HEIGHT));
 
   scoped_refptr<VideoFrame> ret =
-      CreateNV12Frame(color_space, size, type, /*test_sii=*/nullptr);
+      CreateNV12Frame(size, type, /*test_sii=*/nullptr);
   if (!ret) {
     LOG(ERROR) << "Failed to create MM21 frame";
     return nullptr;
@@ -716,7 +710,6 @@ TEST(ImageProcessorBackendTest, CompareLibYUVAndGLBackendsForMM21Image) {
                     "the command line arguments.";
   }
 
-  constexpr gfx::ColorSpace kColorSpace = gfx::ColorSpace::CreateREC709();
   constexpr gfx::Size kTestImageSize(1920, 1088);
   constexpr gfx::Rect kTestImageVisibleRect(kTestImageSize);
   const ImageProcessor::PixelLayoutCandidate candidate = {Fourcc(Fourcc::MM21),
@@ -753,18 +746,18 @@ TEST(ImageProcessorBackendTest, CompareLibYUVAndGLBackendsForMM21Image) {
           client_task_runner, pick_format_cb, error_cb);
   ASSERT_TRUE(gl_image_processor) << "Error creating GLImageProcessor";
 
-  scoped_refptr<VideoFrame> input_frame = CreateRandomMM21Frame(
-      kColorSpace, kTestImageSize, VideoFrame::STORAGE_DMABUFS);
+  scoped_refptr<VideoFrame> input_frame =
+      CreateRandomMM21Frame(kTestImageSize, VideoFrame::STORAGE_DMABUFS);
   ASSERT_TRUE(input_frame) << "Error creating input frame";
 
   auto test_sii = base::MakeRefCounted<gpu::TestSharedImageInterface>();
-  scoped_refptr<VideoFrame> gl_output_frame = CreateNV12Frame(
-      kColorSpace, kTestImageSize, VideoFrame::STORAGE_MAPPABLE_SHARED_IMAGE,
-      test_sii.get());
+  scoped_refptr<VideoFrame> gl_output_frame =
+      CreateNV12Frame(kTestImageSize, VideoFrame::STORAGE_MAPPABLE_SHARED_IMAGE,
+                      test_sii.get());
   ASSERT_TRUE(gl_output_frame) << "Error creating GL output frame";
-  scoped_refptr<VideoFrame> libyuv_output_frame = CreateNV12Frame(
-      kColorSpace, kTestImageSize, VideoFrame::STORAGE_MAPPABLE_SHARED_IMAGE,
-      test_sii.get());
+  scoped_refptr<VideoFrame> libyuv_output_frame =
+      CreateNV12Frame(kTestImageSize, VideoFrame::STORAGE_MAPPABLE_SHARED_IMAGE,
+                      test_sii.get());
   ASSERT_TRUE(libyuv_output_frame) << "Error creating LibYUV output frame";
 
   int outstanding_processors = 2;

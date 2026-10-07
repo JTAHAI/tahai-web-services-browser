@@ -13,7 +13,6 @@
 
 #include "base/feature_list.h"
 #include "base/i18n/rtl.h"
-#include "base/i18n/test/scoped_rtl_for_testing.h"
 #include "base/memory/raw_ptr.h"
 #include "base/scoped_observation.h"
 #include "base/strings/string_number_conversions.h"
@@ -2134,9 +2133,8 @@ TEST_P(TableViewTest, KeyUpDownHorizontalScrollbarStability) {
     GTEST_SKIP() << "platform doesn't support table keyboard navigation";
   }
   EXPECT_FALSE(base::i18n::IsRTL());
-  std::optional<base::i18n::ScopedRTLForTesting> scoped_rtl;
   if (use_rtl()) {
-    scoped_rtl.emplace(true);
+    base::i18n::SetRTLForTesting(true);
     EXPECT_TRUE(base::i18n::IsRTL());
   }
   table_->RequestFocus();
@@ -2153,7 +2151,9 @@ TEST_P(TableViewTest, KeyUpDownHorizontalScrollbarStability) {
   PressKey(ui::VKEY_UP);
   EXPECT_EQ(1u, table_->ViewToModel(1));
   EXPECT_EQ(visible_bounds, table_->GetVisibleBounds());
-  scoped_rtl.reset();
+  if (use_rtl()) {
+    base::i18n::SetRTLForTesting(false);
+  }
   EXPECT_FALSE(base::i18n::IsRTL());
 }
 
@@ -2162,9 +2162,8 @@ TEST_P(TableViewTest, KeyUpDownHorizontalScrollbarStability) {
 // testing the RTL layout and false for testing the LTR layout
 TEST_P(TableViewTest, ClickRowHorizontalScrollbarStability) {
   EXPECT_FALSE(base::i18n::IsRTL());
-  std::optional<base::i18n::ScopedRTLForTesting> scoped_rtl;
   if (use_rtl()) {
-    scoped_rtl.emplace(true);
+    base::i18n::SetRTLForTesting(true);
     EXPECT_TRUE(base::i18n::IsRTL());
   }
   table_->RequestFocus();
@@ -2181,7 +2180,9 @@ TEST_P(TableViewTest, ClickRowHorizontalScrollbarStability) {
   ClickOnRow(3, 0);
   EXPECT_EQ(3u, table_->ViewToModel(3));
   EXPECT_EQ(visible_bounds, table_->GetVisibleBounds());
-  scoped_rtl.reset();
+  if (use_rtl()) {
+    base::i18n::SetRTLForTesting(false);
+  }
   EXPECT_FALSE(base::i18n::IsRTL());
 }
 
@@ -3142,7 +3143,7 @@ TEST_F(TableViewPaintIconBoundsTest, TestPaintIconBoundsForNormally) {
     EXPECT_EQ(src_image_bounds, gfx::Rect(image.size()));
   }
   {
-    base::i18n::ScopedRTLForTesting scoped_rtl(true);
+    base::i18n::SetRTLForTesting(true);
     EXPECT_TRUE(base::i18n::IsRTL());
     gfx::Rect dest_image_bounds =
         helper_->GetPaintIconDestBounds(cell_bounds, text_bounds.x());
@@ -3160,6 +3161,7 @@ TEST_F(TableViewPaintIconBoundsTest, TestPaintIconBoundsForNormally) {
     gfx::Rect src_image_bounds =
         helper_->GetPaintIconSrcBounds(image.size(), dest_image_bounds.width());
     EXPECT_EQ(src_image_bounds, gfx::Rect(image.size()));
+    base::i18n::SetRTLForTesting(false);
   }
 }
 
@@ -3215,7 +3217,7 @@ TEST_F(TableViewPaintIconBoundsTest, TestPaintIconBoundsForClipped) {
   }
   {
     // When the layout is RTL.
-    base::i18n::ScopedRTLForTesting scoped_rtl(true);
+    base::i18n::SetRTLForTesting(true);
     EXPECT_TRUE(base::i18n::IsRTL());
     gfx::Rect dest_image_bounds =
         helper_->GetPaintIconDestBounds(cell_bounds, text_bounds.x());
@@ -3240,6 +3242,7 @@ TEST_F(TableViewPaintIconBoundsTest, TestPaintIconBoundsForClipped) {
     EXPECT_EQ(src_image_bounds,
               gfx::Rect(image.width() - src_image_bounds.width(), 0,
                         image.width() / 2, image.height()));
+    base::i18n::SetRTLForTesting(false);
   }
 }
 
@@ -3273,11 +3276,12 @@ TEST_F(TableViewPaintIconBoundsTest, TestPaintIconBoundsNotNeedDisplay) {
     EXPECT_TRUE(dest_image_bounds.IsEmpty());
   }
   {
-    base::i18n::ScopedRTLForTesting scoped_rtl(true);
+    base::i18n::SetRTLForTesting(true);
     EXPECT_TRUE(base::i18n::IsRTL());
     gfx::Rect dest_image_bounds =
         helper_->GetPaintIconDestBounds(cell_bounds, text_bounds.x());
     EXPECT_TRUE(dest_image_bounds.IsEmpty());
+    base::i18n::SetRTLForTesting(false);
   }
 }
 }  // namespace views

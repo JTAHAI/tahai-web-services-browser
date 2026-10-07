@@ -7,11 +7,9 @@
 #include <stdint.h>
 
 #include <algorithm>
-#include <array>
 #include <optional>
 
 #include "base/base_paths.h"
-#include "base/check_op.h"
 #include "base/clang_profiling_buildflags.h"
 #include "base/compiler_specific.h"
 #include "base/containers/span.h"
@@ -21,7 +19,6 @@
 #include "base/strings/string_number_conversions.h"
 #include "build/build_config.h"
 #include "build/buildflag.h"
-#include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
 namespace base {
@@ -49,8 +46,8 @@ using Instruction = uint8_t;
 constexpr Instruction kRet = 0xc3;
 // INT3 ; UD2
 
-constexpr auto kRequiredBody = std::to_array<Instruction>({0xcc, 0x0f, 0x0b});
-constexpr auto kOptionalFooter = std::array<Instruction, 0u>{};
+constexpr Instruction kRequiredBody[] = {0xcc, 0x0f, 0x0b};
+constexpr Instruction kOptionalFooter[] = {};
 #endif  // defined(OFFICIAL_BUILD)
 
 #elif defined(ARCH_CPU_ARMEL)
@@ -62,8 +59,8 @@ using Instruction = uint16_t;
 constexpr Instruction kRet = 0x4770;
 
 // BKPT #0; UDF #0
-constexpr auto kRequiredBody = std::to_array<Instruction>({0xbe00, 0xde00});
-constexpr auto kOptionalFooter = std::array<Instruction, 0u>{};
+constexpr Instruction kRequiredBody[] = {0xbe00, 0xde00};
+constexpr Instruction kOptionalFooter[] = {};
 #endif  // defined(OFFICIAL_BUILD)
 
 #elif defined(ARCH_CPU_ARM64)
@@ -86,20 +83,20 @@ enum : Instruction {
 
 #if BUILDFLAG(IS_WIN)
 
-constexpr auto kRequiredBody = std::to_array<Instruction>({kBrkF000, kBrk1});
-constexpr auto kOptionalFooter = std::array<Instruction, 0u>{};
+constexpr Instruction kRequiredBody[] = {kBrkF000, kBrk1};
+constexpr Instruction kOptionalFooter[] = {};
 
 #elif BUILDFLAG(IS_MAC)
 
-constexpr auto kRequiredBody = std::to_array<Instruction>({kBrk0, kHlt0});
+constexpr Instruction kRequiredBody[] = {kBrk0, kHlt0};
 // Some clangs emit a BRK #1 for __builtin_unreachable(), but some do not, so
 // it is allowed but not required to occur.
-constexpr auto kOptionalFooter = std::to_array<Instruction>({kBrk1});
+constexpr Instruction kOptionalFooter[] = {kBrk1};
 
 #else
 
-constexpr auto kRequiredBody = std::to_array<Instruction>({kBrk0, kHlt0});
-constexpr auto kOptionalFooter = std::array<Instruction, 0u>{};
+constexpr Instruction kRequiredBody[] = {kBrk0, kHlt0};
+constexpr Instruction kOptionalFooter[] = {};
 
 #endif
 
@@ -155,34 +152,62 @@ void GetTestFunctionInstructions(std::vector<Instruction>* body) {
 
 #if defined(OFFICIAL_BUILD)
 
-// Consumes as many elements from the front of `instructions` as match
-// in `kOptionalFooter`, returning the result.
-span<const Instruction> MaybeSkipOptionalFooter(
-    span<const Instruction> instructions) {
-  for (const auto inst : kOptionalFooter) {
-    if (instructions.empty() || inst != instructions[0u]) {
-      break;
+std::optional<std::vector<Instruction>> ExpectImmediateCrashInvocation(
+    std::vector<Instruction> instructions) {
+  auto iter = instructions.begin();
+  for (const auto inst : kRequiredBody) {
+    if (iter == instructions.end()) {
+      return std::nullopt;
     }
-    instructions.take_first<1u>();
+    EXPECT_EQ(inst, *iter);
+    iter++;
   }
-  return instructions;
+  return std::make_optional(std::vector<Instruction>(iter, instructions.end()));
 }
 
-span<const Instruction> MaybeSkipCoverageHook(
-    span<const Instruction> instructions) {
+std::vector<Instruction> MaybeSkipOptionalFooter(
+    std::vector<Instruction> instructions) {
+  auto iter = instructions.begin();
+  for (const auto inst : kOptionalFooter) {
+    if (iter == instructions.end() || *iter != inst) {
+      break;
+    }
+    iter++;
+  }
+  return std::vector<Instruction>(iter, instructions.end());
+}
+
+#if BUILDFLAG(USE_CLANG_COVERAGE) || BUILDFLAG(CLANG_PROFILING)
+bool MatchPrefix(const std::vector<Instruction>& haystack,
+                 const base::span<const Instruction>& needle) {
+  for (size_t i = 0; i < needle.size(); i++) {
+    if (i >= haystack.size() || needle[i] != haystack[i]) {
+      return false;
+    }
+  }
+  return true;
+}
+
+std::vector<Instruction> DropUntilMatch(
+    std::vector<Instruction> haystack,
+    const base::span<const Instruction>& needle) {
+  while (!haystack.empty() && !MatchPrefix(haystack, needle)) {
+    haystack.erase(haystack.begin());
+  }
+  return haystack;
+}
+
+#endif  // USE_CLANG_COVERAGE || BUILDFLAG(CLANG_PROFILING)
+
+std::vector<Instruction> MaybeSkipCoverageHook(
+    std::vector<Instruction> instructions) {
 #if BUILDFLAG(USE_CLANG_COVERAGE) || BUILDFLAG(CLANG_PROFILING)
   // Warning: it is not illegal for the entirety of the expected crash sequence
   // to appear as a subsequence of the coverage hook code. If that happens, this
   // code will falsely exit early, having not found the real expected crash
   // sequence, so this may not adequately ensure that the immediate crash
   // sequence is present. We do check when not under coverage, at least.
-  while (instructions.size() >= kRequiredBody.size()) {
-    if (instructions.first<kRequiredBody.size()>() == kRequiredBody) {
-      return instructions;
-    }
-    instructions.take_first<1u>();
-  }
-  return {};
+  return DropUntilMatch(instructions, span(kRequiredBody));
 #else
   return instructions;
 #endif  // USE_CLANG_COVERAGE || BUILDFLAG(CLANG_PROFILING)
@@ -220,15 +245,12 @@ TEST(ImmediateCrashTest, ExpectedOpcodeSequence) {
   it++;
 
   body = std::vector<Instruction>(it, body.end());
-  base::span<const Instruction> result = MaybeSkipCoverageHook(body);
-  // `result` must have a `kRequiredBody`.
-  ASSERT_TRUE(std::ranges::starts_with(result, kRequiredBody));
-  result.take_first<kRequiredBody.size()>();
-
-  result = MaybeSkipOptionalFooter(result);
-  result = MaybeSkipCoverageHook(result);
-  // `result` must have a second `kRequiredBody`.
-  ASSERT_TRUE(std::ranges::starts_with(result, kRequiredBody));
+  std::optional<std::vector<Instruction>> result = MaybeSkipCoverageHook(body);
+  result = ExpectImmediateCrashInvocation(result.value());
+  result = MaybeSkipOptionalFooter(result.value());
+  result = MaybeSkipCoverageHook(result.value());
+  result = ExpectImmediateCrashInvocation(result.value());
+  ASSERT_TRUE(result);
 #endif  // defined(OFFICIAL_BUILD)
 }
 

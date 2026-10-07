@@ -97,7 +97,7 @@ IN_PROC_BROWSER_TEST_P(DiagnosticsAppIntegrationTest, LaunchMetricsTest) {
 IN_PROC_BROWSER_TEST_P(DiagnosticsAppIntegrationTest, UsageMetricsTest) {
   WaitForTestSystemAppInstall();
 
-  BrowserWindowInterface* system_app_browser = nullptr;
+  Browser* system_app_browser;
   // Launch app and allow UI to load.
   LaunchApp(ash::SystemWebAppType::DIAGNOSTICS, &system_app_browser);
 
@@ -206,8 +206,10 @@ IN_PROC_BROWSER_TEST_P(DiagnosticsAppIntegrationTest,
 
   ash::BrowserDelegate* app_browser_delegate = ash::FindSystemWebAppBrowser(
       profile(), ash::SystemWebAppType::DIAGNOSTICS, ash::BrowserType::kApp);
-  BrowserWindowInterface* app_browser =
-      app_browser_delegate ? &app_browser_delegate->GetBrowser() : nullptr;
+  Browser* app_browser =
+      app_browser_delegate
+          ? app_browser_delegate->GetBrowser().GetBrowserForMigrationOnly()
+          : nullptr;
   EXPECT_TRUE(app_browser);
   // DiagnosticsApp launched in its own browser.
   EXPECT_NE(browser(), app_browser);
@@ -220,7 +222,7 @@ IN_PROC_BROWSER_TEST_P(DiagnosticsAppIntegrationTest,
       WindowOpenDisposition::CURRENT_TAB, /*browser_test_flags=*/0);
 
   auto* browser_web_contents =
-      browser()->GetTabStripModel()->GetActiveWebContents();
+      browser()->tab_strip_model()->GetActiveWebContents();
   EXPECT_FALSE(content::EvalJs(browser_web_contents, kFindDiagnosticsAppScript)
                    .ExtractBool());
   EXPECT_TRUE(content::EvalJs(app_web_contents, kFindDiagnosticsAppScript)

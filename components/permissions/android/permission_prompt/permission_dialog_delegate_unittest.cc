@@ -6,6 +6,7 @@
 #include <memory>
 #include <vector>
 
+#include "base/memory/safe_ref.h"
 #include "base/memory/weak_ptr.h"
 #include "base/test/scoped_feature_list.h"
 #include "components/content_settings/core/common/content_settings_types.h"
@@ -82,6 +83,9 @@ TEST_F(PermissionDialogDelegateTest, PropagateGeolocationAccuracy) {
       PermissionRequestGestureType::GESTURE,
       std::optional<GeolocationPromptType>(
           GeolocationPromptType::kApproximateOrPrecise)));
+
+  std::vector<base::SafeRef<PermissionRequest>> requests;
+  requests.push_back(owned_requests[0]->GetSafeRef());
 
   ON_CALL(mock_delegate, Requests())
       .WillByDefault(testing::ReturnRef(owned_requests));

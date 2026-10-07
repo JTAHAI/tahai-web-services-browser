@@ -98,6 +98,7 @@ TEST_F(SandboxedDMGAnalyzerTest, AnalyzeDMG) {
 
   EXPECT_TRUE(results.success);
   EXPECT_TRUE(results.has_executable);
+  EXPECT_EQ(2, results.archived_binary.size());
 
   bool got_executable = false, got_dylib = false;
   for (const auto& binary : results.archived_binary) {
@@ -106,11 +107,11 @@ TEST_F(SandboxedDMGAnalyzerTest, AnalyzeDMG) {
         safe_browsing::ClientDownloadRequest_MachOHeaders>& headers =
         binary.image_headers().mach_o_headers();
 
+    EXPECT_EQ(safe_browsing::ClientDownloadRequest_DownloadType_MAC_EXECUTABLE,
+              binary.download_type());
+
     if (file_name.find("executablefat") != std::string::npos) {
       got_executable = true;
-      EXPECT_EQ(
-          safe_browsing::ClientDownloadRequest_DownloadType_MAC_EXECUTABLE,
-          binary.download_type());
       ASSERT_EQ(2, headers.size());
 
       const safe_browsing::ClientDownloadRequest_MachOHeaders& arch32 =
@@ -132,9 +133,6 @@ TEST_F(SandboxedDMGAnalyzerTest, AnalyzeDMG) {
           actual_sha256);
     } else if (file_name.find("lib64.dylib") != std::string::npos) {
       got_dylib = true;
-      EXPECT_EQ(
-          safe_browsing::ClientDownloadRequest_DownloadType_MAC_EXECUTABLE,
-          binary.download_type());
       ASSERT_EQ(1, headers.size());
 
       const safe_browsing::ClientDownloadRequest_MachOHeaders& arch =
@@ -148,6 +146,8 @@ TEST_F(SandboxedDMGAnalyzerTest, AnalyzeDMG) {
       EXPECT_EQ(
           "2012CE4987B0FA4A5D285DF7E810560E841CFAB3054BC19E1AAB345F862A6C4E",
           actual_sha256);
+    } else {
+      ADD_FAILURE() << "Unexpected result file " << binary.file_path();
     }
   }
 
@@ -173,6 +173,7 @@ TEST_F(SandboxedDMGAnalyzerTest, AnalyzeDMGNoPartitionName) {
 
   EXPECT_TRUE(results.success);
   EXPECT_TRUE(results.has_executable);
+  EXPECT_EQ(2, results.archived_binary.size());
 
   bool got_executable = false, got_dylib = false;
   for (const auto& binary : results.archived_binary) {
@@ -181,11 +182,11 @@ TEST_F(SandboxedDMGAnalyzerTest, AnalyzeDMGNoPartitionName) {
         safe_browsing::ClientDownloadRequest_MachOHeaders>& headers =
         binary.image_headers().mach_o_headers();
 
+    EXPECT_EQ(safe_browsing::ClientDownloadRequest_DownloadType_MAC_EXECUTABLE,
+              binary.download_type());
+
     if (file_name.find("executablefat") != std::string::npos) {
       got_executable = true;
-      EXPECT_EQ(
-          safe_browsing::ClientDownloadRequest_DownloadType_MAC_EXECUTABLE,
-          binary.download_type());
       ASSERT_EQ(2, headers.size());
 
       const safe_browsing::ClientDownloadRequest_MachOHeaders& arch32 =
@@ -207,9 +208,6 @@ TEST_F(SandboxedDMGAnalyzerTest, AnalyzeDMGNoPartitionName) {
           actual_sha256);
     } else if (file_name.find("lib64.dylib") != std::string::npos) {
       got_dylib = true;
-      EXPECT_EQ(
-          safe_browsing::ClientDownloadRequest_DownloadType_MAC_EXECUTABLE,
-          binary.download_type());
       ASSERT_EQ(1, headers.size());
 
       const safe_browsing::ClientDownloadRequest_MachOHeaders& arch =
@@ -223,6 +221,8 @@ TEST_F(SandboxedDMGAnalyzerTest, AnalyzeDMGNoPartitionName) {
       EXPECT_EQ(
           "2012CE4987B0FA4A5D285DF7E810560E841CFAB3054BC19E1AAB345F862A6C4E",
           actual_sha256);
+    } else {
+      ADD_FAILURE() << "Unexpected result file " << binary.file_path();
     }
   }
 

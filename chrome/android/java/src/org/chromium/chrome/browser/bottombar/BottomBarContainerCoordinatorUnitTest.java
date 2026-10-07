@@ -380,10 +380,7 @@ public class BottomBarContainerCoordinatorUnitTest {
     }
 
     @Test
-    @EnableFeatures({
-        ChromeFeatureList.ANDROID_BOTTOM_BAR_AIM,
-        ChromeFeatureList.ANDROID_BOTTOM_BAR + ":bypass_aim_geofencing/true"
-    })
+    @EnableFeatures(ChromeFeatureList.ANDROID_BOTTOM_BAR_AIM)
     public void testCountrySupplier_AuCountry_BindsAiModeExtraButton() {
         GlicEnabling.setEnabledForTesting(/* isEnabled= */ true);
         when(mProfile.getOriginalProfile()).thenReturn(mProfile);

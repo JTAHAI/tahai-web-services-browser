@@ -89,7 +89,7 @@ void SqlPersistentStore::BackendShard::OpenOrCreateEntry(
 
 void SqlPersistentStore::BackendShard::OpenEntry(
     const CacheEntryKey& key,
-    EntryInfoOrErrorCallback callback) {
+    OptionalEntryInfoOrErrorCallback callback) {
   backend_.AsyncCall(&SqlPersistentStore::Backend::OpenEntry)
       .WithArgs(key, base::TimeTicks::Now())
       .Then(WrapCallback(std::move(callback)));
@@ -159,18 +159,17 @@ void SqlPersistentStore::BackendShard::DoomEntry(const CacheEntryKey& key,
 void SqlPersistentStore::BackendShard::DeleteDoomedEntry(
     const CacheEntryKey& key,
     ResId res_id,
-    DeletedSharedCacheResourceOrErrorCallback callback) {
+    ErrorCallback callback) {
   backend_.AsyncCall(&SqlPersistentStore::Backend::DeleteDoomedEntry)
       .WithArgs(key, res_id, base::TimeTicks::Now())
-      .Then(WrapCallback(std::move(callback)));
+      .Then(WrapCallbackWithStoreStatus(std::move(callback)));
 }
 
-void SqlPersistentStore::BackendShard::DeleteLiveEntry(
-    const CacheEntryKey& key,
-    DeletedSharedCacheResourcesOrErrorCallback callback) {
+void SqlPersistentStore::BackendShard::DeleteLiveEntry(const CacheEntryKey& key,
+                                                       ErrorCallback callback) {
   // If the entry is not in the in-memory index, we can skip the DB lookup.
   if (GetIndexStateForHash(key.hash()) == IndexState::kHashNotFound) {
-    std::move(callback).Run(base::unexpected(Error::kNotFound));
+    std::move(callback).Run(Error::kNotFound);
     return;
   }
   backend_.AsyncCall(&SqlPersistentStore::Backend::DeleteLiveEntry)
@@ -202,7 +201,7 @@ void SqlPersistentStore::BackendShard::DeleteLiveEntriesBetween(
     base::Time initial_time,
     base::Time end_time,
     base::flat_set<ResId> excluded_res_ids,
-    DeletedSharedCacheResourcesOrErrorCallback callback) {
+    ErrorCallback callback) {
   backend_.AsyncCall(&SqlPersistentStore::Backend::DeleteLiveEntriesBetween)
       .WithArgs(initial_time, end_time, std::move(excluded_res_ids),
                 base::TimeTicks::Now())
@@ -355,8 +354,7 @@ void SqlPersistentStore::BackendShard::ResumePendingEviction(
     EvictionResultCallback callback) {
   if (pending_eviction_targets_.empty()) {
     std::move(callback).Run(
-        EvictionResult(Error::kOk, /*evicted_entry_count=*/0,
-                       /*deleted_shared_cache_resources=*/{}));
+        EvictionResult(Error::kOk, /*evicted_entry_count=*/0));
     return;
   }
   backend_.AsyncCall(&SqlPersistentStore::Backend::ResumePendingEviction)
@@ -416,7 +414,7 @@ void SqlPersistentStore::BackendShard::LoadInMemoryIndex(
 }
 
 bool SqlPersistentStore::BackendShard::MaybeRunCleanupDoomedEntries(
-    DeletedSharedCacheResourcesOrErrorCallback callback) {
+    ErrorCallback callback) {
   if (to_be_deleted_res_ids_.empty()) {
     return false;
   }
@@ -489,6 +487,13 @@ std::optional<MemoryEntryDataHints>
 SqlPersistentStore::BackendShard::GetInMemoryEntryDataHints(
     CacheEntryKey::Hash key_hash) const {
   return index_.has_value() ? index_->GetEntryDataHints(key_hash)
+                            : std::nullopt;
+}
+
+std::optional<SqlPersistentStore::ResId>
+SqlPersistentStore::BackendShard::TryGetSingleResIdFromInMemoryIndex(
+    CacheEntryKey::Hash key_hash) const {
+  return index_.has_value() ? index_->TryGetSingleResId(key_hash)
                             : std::nullopt;
 }
 
@@ -600,19 +605,17 @@ SqlPersistentStore::BackendShard::WrapEntryInfoOrErrorCallback(
 }
 
 base::OnceCallback<
-    void(SqlPersistentStore::DeleteLiveEntryResultOrErrorAndStoreStatus)>
+    void(SqlPersistentStore::HashAndResIdListOrErrorAndStoreStatus)>
 SqlPersistentStore::BackendShard::WrapErrorCallbackToRemoveFromIndex(
-    DeletedSharedCacheResourcesOrErrorCallback callback,
+    ErrorCallback callback,
     IndexMismatchLocation location) {
   return base::BindOnce(
-      [](base::WeakPtr<BackendShard> weak_ptr,
-         DeletedSharedCacheResourcesOrErrorCallback callback,
+      [](base::WeakPtr<BackendShard> weak_ptr, ErrorCallback callback,
          IndexMismatchLocation location,
-         DeleteLiveEntryResultOrErrorAndStoreStatus result) {
+         HashAndResIdListOrErrorAndStoreStatus result) {
         if (weak_ptr) {
           if (result.result.has_value() && weak_ptr->index_.has_value()) {
-            for (const auto& hash_and_res_id :
-                 result.result->deleted_hash_and_res_ids) {
+            for (const auto& hash_and_res_id : result.result.value()) {
               if (!weak_ptr->index_->Remove(hash_and_res_id.hash,
                                             hash_and_res_id.res_id)) {
                 weak_ptr->RecordIndexMismatch(location);
@@ -620,12 +623,9 @@ SqlPersistentStore::BackendShard::WrapErrorCallbackToRemoveFromIndex(
             }
           }
           weak_ptr->store_status_ = result.store_status;
-          if (result.result.has_value()) {
-            std::move(callback).Run(
-                std::move(result.result->deleted_shared_cache_resources));
-          } else {
-            std::move(callback).Run(base::unexpected(result.result.error()));
-          }
+          // We should not run the callback when `this` was deleted.
+          std::move(callback).Run(
+              std::move(result.result.error_or(Error::kOk)));
         }
       },
       weak_factory_.GetWeakPtr(), std::move(callback), location);

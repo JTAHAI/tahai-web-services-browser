@@ -5,8 +5,6 @@
 #ifndef CHROME_BROWSER_UI_SEARCH_ENGINES_DEFAULT_SEARCH_EXTENSION_CONTROLLED_CONTROLLER_H_
 #define CHROME_BROWSER_UI_SEARCH_ENGINES_DEFAULT_SEARCH_EXTENSION_CONTROLLED_CONTROLLER_H_
 
-#include <optional>
-
 #include "base/functional/callback.h"
 #include "base/memory/raw_ref.h"
 #include "base/memory/weak_ptr.h"
@@ -31,13 +29,8 @@ class DefaultSearchExtensionControlledController {
   static DefaultSearchExtensionControlledController* From(
       BrowserWindowInterface* browser);
 
-  // Run when the confirmation request completes. `std::nullopt` means no
-  // dialog was ever shown. The confirmation turned out to be unnecessary, or
-  // the extension state changed before the dialog could be built. Callers that
-  // deferred work pending confirmation must resume it in that case; a dialog
-  // the user never saw must never be treated as a decision the user made.
   using ConfirmationCallback = base::OnceCallback<void(
-      std::optional<SettingsOverriddenDialogController::DialogResult> result)>;
+      SettingsOverriddenDialogController::DialogResult result)>;
 
   explicit DefaultSearchExtensionControlledController(
       BrowserWindowInterface& browser_window_interface,
@@ -53,18 +46,16 @@ class DefaultSearchExtensionControlledController {
   // already acknowledged).
   bool ShouldRequestConfirmationForExtensionDse(const GURL& url) const;
 
-  // Shows the confirmation dialog. The callback is run when the request
-  // completes -- see ConfirmationCallback for the no-dialog-shown case.
+  // Shows the confirmation dialog. The callback is run when the user makes a
+  // decision.
   void ShowConfirmationDialog(content::WebContents& web_contents,
                               ConfirmationCallback callback);
 
   void DialogResolved(
-      std::optional<SettingsOverriddenDialogController::DialogResult>
-          dialog_result);
+      SettingsOverriddenDialogController::DialogResult dialog_result);
 
  private:
   void OnParamsLoaded(
-      ConfirmationCallback callback,
       std::unique_ptr<ExtensionSettingsOverriddenDialog::Params> params);
 
   // Tracks the active controller instance currently showing (or preparing to

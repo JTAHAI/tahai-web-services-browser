@@ -52,12 +52,9 @@ class ZeroStateSuggestionsService {
   ZeroStateSuggestionsService& operator=(const ZeroStateSuggestionsService&) =
       delete;
 
-  // Fetches zero-state suggestions. `is_model_led_eligible` specifies whether
-  // page context is eligible for model-led suggestions generation. If false,
-  // this will return only the relevant static suggestions.
+  // Fetches zero-state suggestions.
   void FetchZeroStateSuggestions(
-      base::OnceCallback<void(NSArray<ZeroStateSuggestion*>*)> callback,
-      bool is_model_led_eligible = true);
+      base::OnceCallback<void(NSArray<ZeroStateSuggestion*>*)> callback);
 
   // Clears cached suggestions.
   void ClearCachedSuggestions();
@@ -74,7 +71,7 @@ class ZeroStateSuggestionsService {
       ai::mojom::ModelLedSuggestionsResponseResultPtr result);
 
   // Builds a suggestions array from raw suggestions.
-  NSArray<ZeroStateSuggestion*>* BuildStaticAndModelLedSuggestions(
+  NSArray<ZeroStateSuggestion*>* BuildSuggestions(
       const std::vector<std::string>& model_led_suggestions);
 
   // Helper methods to create static suggestions.

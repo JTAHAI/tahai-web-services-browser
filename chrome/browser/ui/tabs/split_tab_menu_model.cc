@@ -17,7 +17,7 @@
 #include "chrome/app/vector_icons/vector_icons.h"
 #include "chrome/browser/feedback/show_feedback_page.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
 #include "chrome/browser/ui/tabs/features.h"
 #include "chrome/browser/ui/tabs/split_tab_metrics.h"
@@ -33,7 +33,6 @@
 #include "components/tabs/public/split_tab_data.h"
 #include "components/tabs/public/tab_interface.h"
 #include "components/vector_icons/vector_icons.h"
-#include "content/public/browser/web_contents.h"
 #include "ui/base/interaction/element_identifier.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/models/image_model.h"
@@ -244,7 +243,7 @@ ui::ImageModel SplitTabMenuModel::GetIconForCommandId(int command_id) const {
                                                   : kBottomPanelCloseOldIcon);
   } else if (id == CommandId::kToggleOrientation) {
     icon = GetSplitLayout() == split_tabs::SplitTabLayout::kSideBySide
-               ? &kSplitScene2Icon
+               ? &kSplitSceneHorizontalCustomIcon
                : &(features::IsRoundedIconsEnabled() ? kSplitSceneIcon
                                                      : kSplitSceneOldIcon);
   }
@@ -272,17 +271,17 @@ void SplitTabMenuModel::ExecuteCommand(int command_id, int event_flags) {
       tab_strip_model_->ReverseTabsInSplit(split_id);
       break;
     case CommandId::kCloseSpecifiedTab:
-      CloseWebContents(
-          tab_strip_model_->GetWebContentsAt(split_tab_index_.value()));
+      CloseTabAtIndex(split_tab_index_.value());
       break;
     case CommandId::kCloseStartTab: {
       int startIndex = base::i18n::IsRTL() ? 1 : 0;
-      CloseWebContents(tabs_in_split[startIndex]->GetContents());
+      CloseTabAtIndex(
+          tab_strip_model_->GetIndexOfTab(tabs_in_split[startIndex]));
       break;
     }
     case CommandId::kCloseEndTab: {
       int endIndex = base::i18n::IsRTL() ? 0 : 1;
-      CloseWebContents(tabs_in_split[endIndex]->GetContents());
+      CloseTabAtIndex(tab_strip_model_->GetIndexOfTab(tabs_in_split[endIndex]));
       break;
     }
     case CommandId::kExitSplit:
@@ -357,10 +356,10 @@ split_tabs::SplitTabLayout SplitTabMenuModel::GetSplitLayout() const {
   return visual_data->split_layout();
 }
 
-void SplitTabMenuModel::CloseWebContents(content::WebContents* contents) {
-  tab_strip_model_->CloseWebContents(
-      contents, TabCloseTypes::CLOSE_USER_GESTURE |
-                    TabCloseTypes::CLOSE_CREATE_HISTORICAL_TAB);
+void SplitTabMenuModel::CloseTabAtIndex(int index) {
+  tab_strip_model_->CloseWebContentsAt(
+      index, TabCloseTypes::CLOSE_USER_GESTURE |
+                 TabCloseTypes::CLOSE_CREATE_HISTORICAL_TAB);
 }
 
 void SplitTabMenuModel::SendFeedback() {

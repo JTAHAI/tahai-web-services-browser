@@ -22,7 +22,6 @@
 #import "components/signin/public/identity_manager/primary_account_change_event.h"
 #import "ios/chrome/browser/favicon/model/favicon_service_factory.h"
 #import "ios/chrome/browser/feature_engagement/model/tracker_factory.h"
-#import "ios/chrome/browser/fullscreen/coordinator/fullscreen_coordinator.h"
 #import "ios/chrome/browser/fullscreen/model/fullscreen_browser_agent.h"
 #import "ios/chrome/browser/fullscreen/ui_bundled/fullscreen_controller.h"
 #import "ios/chrome/browser/intelligence/bwg/metrics/gemini_metrics.h"
@@ -30,7 +29,6 @@
 #import "ios/chrome/browser/intelligence/bwg/model/gemini_page_context.h"
 #import "ios/chrome/browser/intelligence/bwg/model/gemini_session_handler.h"
 #import "ios/chrome/browser/intelligence/bwg/model/gemini_tab_helper.h"
-#import "ios/chrome/browser/intelligence/bwg/utils/gemini_test_utils.h"
 #import "ios/chrome/browser/intelligence/features/features.h"
 #import "ios/chrome/browser/intelligence/persist_tab_context/model/persist_tab_context_browser_agent.h"
 #import "ios/chrome/browser/intelligence/proto_wrappers/page_context_extractor_java_script_feature.h"
@@ -54,8 +52,6 @@
 #import "ios/chrome/browser/shared/public/commands/snackbar_commands.h"
 #import "ios/chrome/browser/shared/public/features/features.h"
 #import "ios/chrome/browser/shared/public/snackbar/snackbar_message.h"
-#import "ios/chrome/browser/signin/model/identity_manager_factory.h"
-#import "ios/chrome/browser/signin/model/identity_test_environment_browser_state_adaptor.h"
 #import "ios/chrome/browser/snapshots/model/fake_snapshot_generator_delegate.h"
 #import "ios/chrome/browser/snapshots/model/snapshot_source_tab_helper.h"
 #import "ios/chrome/browser/snapshots/model/snapshot_tab_helper.h"
@@ -105,22 +101,16 @@ class GeminiBrowserAgentTest : public PlatformTest {
     profile_builder.AddTestingFactory(
         feature_engagement::TrackerFactory::GetInstance(),
         base::BindRepeating(&BuildFeatureEngagementMockTracker));
-    profile_builder.AddTestingFactory(
-        IdentityManagerFactory::GetInstance(),
-        base::BindRepeating(IdentityTestEnvironmentBrowserStateAdaptor::
-                                BuildIdentityManagerForTests));
     profile_ =
         profile_manager_.AddProfileWithBuilder(std::move(profile_builder));
-
-    gemini::test::SetUpEligibleAccount(profile_);
     mock_tracker_ = static_cast<feature_engagement::test::MockTracker*>(
         feature_engagement::TrackerFactory::GetForProfile(profile_));
     web::test::OverrideJavaScriptFeatures(
         profile_, {web::FindInPageJavaScriptFeature::GetInstance(),
                    PageContextExtractorJavaScriptFeature::GetInstance()});
-    scene_state_ = [[SceneState alloc] init];
-    browser_ = std::make_unique<TestBrowser>(profile_, scene_state_);
-    InitFullscreenCoordinatorIfNeeded();
+    SceneState* scene_state = [[SceneState alloc] init];
+    browser_ = std::make_unique<TestBrowser>(profile_, scene_state);
+    FullscreenBrowserAgent::CreateForBrowser(browser_.get());
     PersistTabContextBrowserAgent::CreateForBrowser(browser_.get());
     GeminiBrowserAgent::CreateForBrowser(browser_.get());
     gemini_browser_agent_ = GeminiBrowserAgent::FromBrowser(browser_.get());
@@ -145,6 +135,28 @@ class GeminiBrowserAgentTest : public PlatformTest {
     [browser_->GetCommandDispatcher()
         startDispatchingToTarget:mock_location_bar_badge_handler_
                      forProtocol:@protocol(LocationBarBadgeCommands)];
+
+    // TODO(crbug.com/535867411): Replace legacy FullscreenController in
+    // GeminiBrowserAgentTest.
+    mock_fullscreen_handler_ = OCMProtocolMock(@protocol(FullscreenCommands));
+    OCMStub([mock_fullscreen_handler_ disableFullscreenAnimated:YES])
+        .andDo(^(NSInvocation*) {
+          FullscreenController::FromBrowser(browser_.get())
+              ->IncrementDisabledCounter();
+        });
+    OCMStub([mock_fullscreen_handler_ disableFullscreenAnimated:NO])
+        .andDo(^(NSInvocation*) {
+          FullscreenController::FromBrowser(browser_.get())
+              ->IncrementDisabledCounter();
+        });
+    OCMStub([mock_fullscreen_handler_ reenableFullscreen])
+        .andDo(^(NSInvocation*) {
+          FullscreenController::FromBrowser(browser_.get())
+              ->DecrementDisabledCounter();
+        });
+    [browser_->GetCommandDispatcher()
+        startDispatchingToTarget:mock_fullscreen_handler_
+                     forProtocol:@protocol(FullscreenCommands)];
 
     std::unique_ptr<web::FakeWebState> web_state =
         std::make_unique<web::FakeWebState>();
@@ -197,8 +209,6 @@ class GeminiBrowserAgentTest : public PlatformTest {
   }
 
   void TearDown() override {
-    [fullscreen_coordinator_ stop];
-    fullscreen_coordinator_ = nil;
     fake_main_frame_ = nullptr;
     web_state_ = nullptr;
     profile_ = nullptr;
@@ -207,11 +217,11 @@ class GeminiBrowserAgentTest : public PlatformTest {
     optimization_guide_service_ = nullptr;
     mock_settings_handler_ = nil;
     mock_gemini_handler_ = nil;
+    mock_fullscreen_handler_ = nil;
     mock_omnibox_handler_ = nil;
     mock_location_bar_badge_handler_ = nil;
     fake_snapshot_delegate_ = nullptr;
     browser_.reset();
-    scene_state_ = nil;
     profile_manager_.PrepareForDestruction();
   }
 
@@ -306,6 +316,11 @@ class GeminiBrowserAgentTest : public PlatformTest {
     return gemini_browser_agent_->GetSharedTabs().count;
   }
 
+  // Getter for `bwg_session_handler_`.
+  GeminiSessionHandler* GetSessionHandler() {
+    return gemini_browser_agent_->bwg_session_handler_;
+  }
+
   // Wrapper for `DetachTabWithID`.
   void DetachTabWithID(NSString* tab_id) {
     gemini_browser_agent_->DetachTabWithID(tab_id);
@@ -318,16 +333,10 @@ class GeminiBrowserAgentTest : public PlatformTest {
     gemini_browser_agent_->UpdateLocalTabAttachmentState(tab_id, new_state);
   }
 
-  // Wrapper for `HasGivenAllLivePermissions`.
-  bool HasGivenAllLivePermissions() {
-    return gemini_browser_agent_->HasGivenAllLivePermissions();
-  }
-
   base::test::ScopedFeatureList feature_list_;
   web::ScopedTestingWebClient web_client_;
   web::WebTaskEnvironment task_environment_;
   IOSChromeScopedTestingLocalState scoped_testing_local_state_;
-  SceneState* scene_state_;
   std::unique_ptr<TestBrowser> browser_;
   TestProfileManagerIOS profile_manager_;
   raw_ptr<TestProfileIOS> profile_;
@@ -338,37 +347,11 @@ class GeminiBrowserAgentTest : public PlatformTest {
   raw_ptr<web::FakeWebFrame> fake_main_frame_;
   id mock_settings_handler_;
   id mock_gemini_handler_;
+  id mock_fullscreen_handler_;
   id mock_omnibox_handler_;
   id mock_location_bar_badge_handler_;
   FakeSnapshotGeneratorDelegate* fake_snapshot_delegate_;
   raw_ptr<feature_engagement::test::MockTracker> mock_tracker_;
-  FullscreenCoordinator* fullscreen_coordinator_;
-
-  // Instantiates FullscreenBrowserAgent and starts FullscreenCoordinator if
-  // FullscreenRefactoring feature is enabled and coordinator is not yet
-  // created.
-  void InitFullscreenCoordinatorIfNeeded() {
-    if (IsFullscreenRefactoringEnabled() && !fullscreen_coordinator_) {
-      FullscreenBrowserAgent::CreateForBrowser(browser_.get());
-      fullscreen_coordinator_ = [[FullscreenCoordinator alloc]
-          initWithBaseViewController:nil
-                             browser:browser_.get()];
-      [fullscreen_coordinator_ start];
-    }
-  }
-
-  // Returns whether fullscreen is enabled using FullscreenBrowserAgent if the
-  // refactoring is enabled, or FullscreenController otherwise.
-  bool IsFullscreenEnabled() {
-    if (IsFullscreenRefactoringEnabled()) {
-      FullscreenBrowserAgent* agent =
-          FullscreenBrowserAgent::FromBrowser(browser_.get());
-      return agent && agent->IsEnabled();
-    }
-    FullscreenController* controller =
-        FullscreenController::FromBrowser(browser_.get());
-    return controller && controller->IsEnabled();
-  }
 };
 
 // A test observer for GeminiBrowserAgent.
@@ -477,9 +460,6 @@ TEST_F(GeminiBrowserAgentTest, TestActiveWebStateChanged) {
 
   std::unique_ptr<TestBrowser> scoped_browser =
       std::make_unique<TestBrowser>(profile_);
-  if (IsFullscreenRefactoringEnabled()) {
-    FullscreenBrowserAgent::CreateForBrowser(scoped_browser.get());
-  }
   GeminiBrowserAgent::CreateForBrowser(scoped_browser.get());
   GeminiBrowserAgent* agent =
       GeminiBrowserAgent::FromBrowser(scoped_browser.get());
@@ -774,24 +754,6 @@ TEST_F(GeminiBrowserAgentTest, TestForceDismissedWhenTemporarilyHidden) {
   EXPECT_TRUE(IsConversationIdPrefCleared());
 }
 
-// Tests that calling `OnWillEnterIncognito` when bottom sheet migration is
-// enabled does not crash when the floaty is not invoked (crbug.com/541166486).
-TEST_F(GeminiBrowserAgentTest,
-       TestOnWillEnterIncognitoWithBottomSheetMigration) {
-  base::test::ScopedFeatureList scoped_feature_list;
-  scoped_feature_list.InitWithFeatures(
-      {kAssistantContainer, kIOSGeminiBottomSheetMigration}, {});
-
-  // Create GeminiBrowserAgent after setting the flags.
-  std::unique_ptr<TestBrowser> scoped_browser =
-      std::make_unique<TestBrowser>(profile_);
-  GeminiBrowserAgent::CreateForBrowser(scoped_browser.get());
-  GeminiBrowserAgent* agent =
-      GeminiBrowserAgent::FromBrowser(scoped_browser.get());
-
-  agent->OnWillEnterIncognito();
-}
-
 // Tests that when the floaty is expanded/focused while temporarily hidden,
 // it becomes visible again, resetting the temporary hidden state.
 TEST_F(GeminiBrowserAgentTest,
@@ -929,9 +891,6 @@ TEST_F(GeminiBrowserAgentTest, TestStartGeminiFlowNoActiveWebState) {
   [empty_browser->GetCommandDispatcher()
       startDispatchingToTarget:mock_gemini_handler
                    forProtocol:@protocol(GeminiCommands)];
-  if (IsFullscreenRefactoringEnabled()) {
-    FullscreenBrowserAgent::CreateForBrowser(empty_browser.get());
-  }
   GeminiBrowserAgent::CreateForBrowser(empty_browser.get());
   GeminiBrowserAgent* empty_agent =
       GeminiBrowserAgent::FromBrowser(empty_browser.get());
@@ -1181,125 +1140,44 @@ TEST_F(GeminiBrowserAgentTest, TestOnGeminiLiveUserDidBargeIn) {
             ios::provider::GeminiClientMode::kTranscribing);
 }
 
-// Tests that OnProcessingStatusChanged records prompt context attachment
-// Tests that OnProcessingStatusChanged records prompt context attachment
-// metrics when transitioning to kThinking in Live mode.
+// Tests that fullscreen is temporarily disabled when floaty is invoked, and
+// re-enabled once the UI appears or collapses.
 TEST_F(GeminiBrowserAgentTest,
-       TestOnProcessingStatusChangedThinkingLivePromptMetric) {
-  base::test::ScopedFeatureList scoped_feature_list;
-  scoped_feature_list.InitWithFeatures({kGeminiLive}, {});
-  base::HistogramTester histogram_tester;
-  base::UserActionTester user_action_tester;
-
-  SetIsFloatyInvoked(true);
-
-  // Switch to Live mode.
-  ios::provider::SwitchToMode(ios::provider::GeminiViewMode::kLive,
-                              /*animated=*/false);
-  ASSERT_TRUE(gemini_browser_agent_->IsInGeminiLiveMode());
-
-  // By default, page context is attached.
-  ios::provider::UpdatePageAttachmentState(
-      ios::provider::GeminiPageContextAttachmentState::kAttached);
-
-  // Transitioning to kTranscribing should not record prompt sent metrics yet.
-  gemini_browser_agent_->OnProcessingStatusChanged(
-      ios::provider::GeminiClientMode::kTranscribing,
-      ios::provider::GeminiDormantReason::kUnknown);
-
-  histogram_tester.ExpectTotalCount(kPromptContextAttachmentHistogram, 0);
-  histogram_tester.ExpectTotalCount(kPromptLiveContextAttachmentHistogram, 0);
-  EXPECT_EQ(0, user_action_tester.GetActionCount("MobileGeminiPromptSent"));
-  EXPECT_EQ(0, user_action_tester.GetActionCount("MobileGeminiLivePromptSent"));
-  EXPECT_EQ(0, user_action_tester.GetActionCount("MobileGeminiChatPromptSent"));
-
-  // Transitioning to kThinking records the Live prompt sent metric.
-  gemini_browser_agent_->OnProcessingStatusChanged(
-      ios::provider::GeminiClientMode::kThinking,
-      ios::provider::GeminiDormantReason::kUnknown);
-
-  histogram_tester.ExpectUniqueSample(kPromptContextAttachmentHistogram, true,
-                                      1);
-  histogram_tester.ExpectUniqueSample(kPromptLiveContextAttachmentHistogram,
-                                      true, 1);
-  histogram_tester.ExpectTotalCount(kPromptChatContextAttachmentHistogram, 0);
-  EXPECT_EQ(1, user_action_tester.GetActionCount("MobileGeminiPromptSent"));
-  EXPECT_EQ(1, user_action_tester.GetActionCount("MobileGeminiLivePromptSent"));
-  EXPECT_EQ(0, user_action_tester.GetActionCount("MobileGeminiChatPromptSent"));
-
-  // Consecutive kThinking call should not record duplicate metrics.
-  gemini_browser_agent_->OnProcessingStatusChanged(
-      ios::provider::GeminiClientMode::kThinking,
-      ios::provider::GeminiDormantReason::kUnknown);
-
-  histogram_tester.ExpectTotalCount(kPromptContextAttachmentHistogram, 1);
-  histogram_tester.ExpectTotalCount(kPromptLiveContextAttachmentHistogram, 1);
-  EXPECT_EQ(1, user_action_tester.GetActionCount("MobileGeminiPromptSent"));
-  EXPECT_EQ(1, user_action_tester.GetActionCount("MobileGeminiLivePromptSent"));
-  EXPECT_EQ(0, user_action_tester.GetActionCount("MobileGeminiChatPromptSent"));
-
-  // Transition to responding, then detach context and transition to
-  // thinking again.
-  gemini_browser_agent_->OnProcessingStatusChanged(
-      ios::provider::GeminiClientMode::kResponding,
-      ios::provider::GeminiDormantReason::kUnknown);
-  ios::provider::UpdatePageAttachmentState(
-      ios::provider::GeminiPageContextAttachmentState::kDetached);
-
-  gemini_browser_agent_->OnProcessingStatusChanged(
-      ios::provider::GeminiClientMode::kThinking,
-      ios::provider::GeminiDormantReason::kUnknown);
-
-  histogram_tester.ExpectBucketCount(kPromptContextAttachmentHistogram, false,
-                                     1);
-  histogram_tester.ExpectBucketCount(kPromptLiveContextAttachmentHistogram,
-                                     false, 1);
-  histogram_tester.ExpectTotalCount(kPromptContextAttachmentHistogram, 2);
-  histogram_tester.ExpectTotalCount(kPromptLiveContextAttachmentHistogram, 2);
-  histogram_tester.ExpectTotalCount(kPromptChatContextAttachmentHistogram, 0);
-  EXPECT_EQ(2, user_action_tester.GetActionCount("MobileGeminiPromptSent"));
-  EXPECT_EQ(2, user_action_tester.GetActionCount("MobileGeminiLivePromptSent"));
-  EXPECT_EQ(0, user_action_tester.GetActionCount("MobileGeminiChatPromptSent"));
-}
-
-// Tests that fullscreen is disabled when floaty is invoked, and re-enabled
-// once the UI appears.
-TEST_F(GeminiBrowserAgentTest, TestFloatyReenablesFullscreenWhenUIAppears) {
+       TestFloatyKeepsFullscreenDisabledUntilDismissed) {
   base::test::ScopedFeatureList scoped_feature_list;
   scoped_feature_list.InitWithFeatures(
       {kChromeNextIa, kAppBarHideInFullscreen, kComposeboxIpad}, {});
 
-  InitFullscreenCoordinatorIfNeeded();
-
-  EXPECT_TRUE(IsFullscreenEnabled());
+  FullscreenController* controller =
+      FullscreenController::FromBrowser(browser_.get());
+  ASSERT_NE(controller, nullptr);
+  EXPECT_TRUE(controller->IsEnabled());
 
   InvokeFloaty([[GeminiConfiguration alloc] init]);
-  EXPECT_FALSE(IsFullscreenEnabled());
+  EXPECT_FALSE(controller->IsEnabled());
 
-  // Fullscreen should be re-enabled once the floaty UI appears.
+  // Fullscreen should be re-enabled once UI appears.
   gemini_browser_agent_->OnGeminiUIDidAppear();
-  EXPECT_TRUE(IsFullscreenEnabled());
+  EXPECT_TRUE(controller->IsEnabled());
 
-  // Fullscreen should remain enabled when state is collapsed.
+  // Fullscreen remains enabled in collapsed state.
   gemini_browser_agent_->OnViewStateChanged(
       ios::provider::GeminiViewState::kCollapsed);
-  EXPECT_TRUE(IsFullscreenEnabled());
+  EXPECT_TRUE(controller->IsEnabled());
 
   // Fullscreen should remain enabled once floaty is dismissed.
   gemini_browser_agent_->DismissFloaty();
-  EXPECT_TRUE(IsFullscreenEnabled());
+  EXPECT_TRUE(controller->IsEnabled());
 
   // Fullscreen should be disabled once the state transitions to expanded again.
-  gemini_browser_agent_->SetLastShownViewState(
-      ios::provider::GeminiViewState::kCollapsed);
   gemini_browser_agent_->OnViewStateChanged(
       ios::provider::GeminiViewState::kExpanded);
-  EXPECT_FALSE(IsFullscreenEnabled());
+  EXPECT_FALSE(controller->IsEnabled());
 
   // Fullscreen should be re-enabled once the state transitions to hidden.
   gemini_browser_agent_->OnViewStateChanged(
       ios::provider::GeminiViewState::kHidden);
-  EXPECT_TRUE(IsFullscreenEnabled());
+  EXPECT_TRUE(controller->IsEnabled());
 }
 
 // Tests that when the floaty is un-minimized (expanded), we check if the
@@ -1936,40 +1814,5 @@ TEST_F(GeminiBrowserAgentTest,
 
   EXPECT_TRUE(completion_called);
   EXPECT_TRUE(completion_granted);
-  [mock_device stopMocking];
-}
-
-// Tests that switching to Live mode only records session started metrics if all
-// Live permissions and preferences have been granted.
-TEST_F(GeminiBrowserAgentTest,
-       TestOnModeChangedLiveSessionMetricsGatedOnPermissions) {
-  base::test::ScopedFeatureList scoped_feature_list;
-  scoped_feature_list.InitWithFeatures({kGeminiLive}, {});
-  base::UserActionTester user_action_tester;
-
-  // Initially, permissions are not granted.
-  EXPECT_FALSE(HasGivenAllLivePermissions());
-
-  gemini_browser_agent_->OnModeChanged(ios::provider::GeminiViewMode::kLive);
-  EXPECT_EQ(
-      0, user_action_tester.GetActionCount("MobileGeminiLiveSessionStarted"));
-
-  // Grant user consent, intro played, and Chrome microphone preference.
-  profile_->GetPrefs()->SetBoolean(prefs::kIOSGeminiLiveConsent, true);
-  profile_->GetPrefs()->SetBoolean(prefs::kIOSGeminiLiveIntroPlayed, true);
-  profile_->GetPrefs()->SetBoolean(prefs::kIOSGeminiLiveMicrophoneSetting,
-                                   true);
-
-  // Stub OS-level microphone authorization.
-  id mock_device = OCMClassMock([AVCaptureDevice class]);
-  OCMStub([mock_device authorizationStatusForMediaType:AVMediaTypeAudio])
-      .andReturn(AVAuthorizationStatusAuthorized);
-
-  EXPECT_TRUE(HasGivenAllLivePermissions());
-
-  gemini_browser_agent_->OnModeChanged(ios::provider::GeminiViewMode::kLive);
-  EXPECT_EQ(
-      1, user_action_tester.GetActionCount("MobileGeminiLiveSessionStarted"));
-
   [mock_device stopMocking];
 }

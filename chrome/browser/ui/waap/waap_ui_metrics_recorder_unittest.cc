@@ -8,6 +8,7 @@
 #include "base/test/task_environment.h"
 #include "chrome/browser/ui/waap/waap_ui_metrics_service.h"
 #include "chrome/browser/ui/waap/waap_ui_metrics_service_factory.h"
+#include "chrome/common/chrome_features.h"
 #include "chrome/test/base/testing_profile.h"
 #include "content/public/test/browser_task_environment.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -19,6 +20,11 @@
 
 class WaapUIMetricsRecorderTest : public testing::Test {
  public:
+  WaapUIMetricsRecorderTest() {
+    // WaapUIMetricsService is only available when the feature is enabled.
+    feature_list_.InitAndEnableFeature(features::kInitialWebUIMetrics);
+  }
+
   void SetUp() override {
     profile_ = std::make_unique<TestingProfile>();
     WaapUIMetricsServiceFactory::GetInstance();
@@ -34,6 +40,7 @@ class WaapUIMetricsRecorderTest : public testing::Test {
  protected:
   content::BrowserTaskEnvironment task_environment_{
       base::test::TaskEnvironment::TimeSource::MOCK_TIME};
+  base::test::ScopedFeatureList feature_list_;
   base::HistogramTester histogram_tester_;
   std::unique_ptr<TestingProfile> profile_;
   std::unique_ptr<WaapUIMetricsRecorder> recorder_;

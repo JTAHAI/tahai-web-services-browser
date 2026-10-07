@@ -63,13 +63,7 @@ public class SettingsIntentUtil {
             @Nullable String fragmentName,
             @Nullable Bundle fragmentArgs,
             boolean addToBackStack) {
-        return createIntent(
-                context,
-                fragmentName,
-                fragmentArgs,
-                addToBackStack,
-                /* tag= */ null,
-                SettingsInTab.isEnabled());
+        return createIntent(context, fragmentName, fragmentArgs, addToBackStack, /* tag= */ null);
     }
 
     /**
@@ -81,8 +75,6 @@ public class SettingsIntentUtil {
      * @param fragmentArgs A bundle of extra arguments given to the main fragment. Can be null.
      * @param addToBackStack if true, the fragment will be added to fragment manager's back stack.
      * @param tag A tag used to identify the fragment transaction.
-     * @param useSettingsInTab whether to use SettingsInTab (if available). Pass false to force the
-     *     use of SettingsActivity.
      * @return An intent ready to launch the settings activity.
      */
     public static Intent createIntent(
@@ -90,11 +82,10 @@ public class SettingsIntentUtil {
             @Nullable String fragmentName,
             @Nullable Bundle fragmentArgs,
             boolean addToBackStack,
-            @Nullable String tag,
-            boolean useSettingsInTab) {
+            @Nullable String tag) {
         Intent intent = new Intent();
         boolean isStandaloneFragment = isStandaloneFragment(context, fragmentName);
-        if (useSettingsInTab && !isStandaloneFragment) {
+        if (SettingsInTab.isEnabled() && !isStandaloneFragment) {
             intent.setAction(Intent.ACTION_VIEW);
             // TODO(crbug.com/521895796): When URLs for settings subpages exist (e.g.
             // chrome://settings/appearance) use them and stop adding fragment information

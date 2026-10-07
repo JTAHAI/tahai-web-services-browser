@@ -17,7 +17,7 @@
 
 struct AccountInfo;
 
-class BrowserWindowInterface;
+class Browser;
 
 #if BUILDFLAG(IS_MAC) || BUILDFLAG(IS_WIN)
 namespace device_reauth {
@@ -34,7 +34,7 @@ class BatchUploadHandler : public batch_upload::mojom::PageHandler {
       mojo::PendingReceiver<batch_upload::mojom::PageHandler> receiver,
       mojo::PendingRemote<batch_upload::mojom::Page> page,
       const AccountInfo& account_info,
-      BrowserWindowInterface* browser,
+      Browser* browser,
       std::vector<syncer::LocalDataDescription> local_data_description_list,
       base::RepeatingCallback<void(int)> update_view_height_callback,
       base::RepeatingCallback<void(bool)> allow_web_view_input_callback,
@@ -75,7 +75,7 @@ class BatchUploadHandler : public batch_upload::mojom::PageHandler {
                std::vector<syncer::LocalDataItemModel::DataId>> ids_to_move,
       bool allowed);
 
-  raw_ref<BrowserWindowInterface> browser_;
+  raw_ref<Browser> browser_;
   std::vector<syncer::LocalDataDescription> local_data_description_list_;
   base::RepeatingCallback<void(int)> update_view_height_callback_;
   base::RepeatingCallback<void(bool)> allow_web_view_input_callback_;

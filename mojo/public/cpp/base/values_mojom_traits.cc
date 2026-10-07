@@ -17,7 +17,9 @@ bool StructTraits<mojo_base::mojom::DictionaryValueDataView, base::DictValue>::
   mojo::MapDataView<mojo::StringDataView, mojo_base::mojom::ValueDataView> view;
   data.GetStorageDataView(&view);
 
-  out->reserve(view.size());
+  if (base::features::IsReducePPMsEnabled()) {
+    out->reserve(view.size());
+  }
 
   for (size_t i = 0; i < view.size(); ++i) {
     std::string_view key;
@@ -25,7 +27,11 @@ bool StructTraits<mojo_base::mojom::DictionaryValueDataView, base::DictValue>::
     if (!view.keys().Read(i, &key) || !view.values().Read(i, &value)) {
       return false;
     }
-    out->Set_HintAtEnd(key, std::move(value));
+    if (base::features::IsReducePPMsEnabled()) {
+      out->Set_HintAtEnd(key, std::move(value));
+    } else {
+      out->Set(key, std::move(value));
+    }
   }
   return true;
 }
@@ -36,7 +42,9 @@ bool StructTraits<mojo_base::mojom::ListValueDataView, base::ListValue>::Read(
   mojo::ArrayDataView<mojo_base::mojom::ValueDataView> view;
   data.GetStorageDataView(&view);
 
-  out->reserve(view.size());
+  if (base::features::IsReducePPMsEnabled()) {
+    out->reserve(view.size());
+  }
 
   base::Value element;
   for (size_t i = 0; i < view.size(); ++i) {

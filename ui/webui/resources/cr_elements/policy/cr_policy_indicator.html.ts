@@ -11,7 +11,6 @@ export function getHtml(this: CrPolicyIndicatorElement) {
 <cr-tooltip-icon ?hidden="${!this.getIndicatorVisible_()}"
     tooltip-text="${this.getIndicatorTooltip_()}"
     icon-class="${this.getIndicatorIcon_()}"
-    icon-aria-label="${this.iconAriaLabel}"
-    tooltip-position="${this.tooltipPosition}">
+    icon-aria-label="${this.iconAriaLabel}">
 </cr-tooltip-icon>`;
 }

@@ -44,7 +44,8 @@ void SetPrimitiveVariables(
     Context* context) {
   SetCommonFieldVariables(descriptor, info, variables);
 
-  (*variables)["empty_list"] = "emptyProtobufList()";
+  (*variables)["empty_list"] =
+      "com.google.protobuf.GeneratedMessageLite.emptyProtobufList()";
 
   (*variables)["default"] =
       ImmutableDefaultValue(descriptor, name_resolver, context->options());
@@ -167,9 +168,10 @@ void ImmutableStringFieldLiteGenerator::GenerateInterfaceMembers(
 void ImmutableStringFieldLiteGenerator::GenerateMembers(
     io::Printer* printer) const {
   if (!google::protobuf::internal::IsOss()) {
-    printer->Print(variables_,
-                   "@com.google.protobuf.ProtoField(\n"
-                   "  isRequired=$required$)\n");
+    printer->Print(
+        variables_,
+        "@com.google.protobuf.ProtoField(\n"
+        "  isRequired=$required$)\n");
     if (HasHasbit(descriptor_)) {
       printer->Print(variables_,
                      "@com.google.protobuf.ProtoPresenceCheckedField(\n"

@@ -100,7 +100,7 @@
 }
 
 - (void)dealloc {
-  CHECK(_disconnected);
+  CHECK(_disconnected, base::NotFatalUntil::M143);
 }
 
 - (void)reset {

@@ -12,7 +12,6 @@
 #import "components/autofill/core/browser/payments/virtual_card_enroll_metrics_logger.h"
 #import "components/autofill/core/browser/ui/payments/virtual_card_enroll_ui_model.h"
 #import "ios/chrome/browser/autofill/model/credit_card/credit_card_data.h"
-#import "ios/chrome/browser/autofill/model/message/autofill_legal_message_line.h"
 #import "ios/chrome/browser/autofill/ui_bundled/bottom_sheet/bottom_sheet_constants.h"
 #import "ios/chrome/browser/autofill/ui_bundled/bottom_sheet/virtual_card_enrollment_bottom_sheet_data.h"
 #import "ios/chrome/browser/shared/public/commands/browser_coordinator_commands.h"
@@ -95,10 +94,10 @@ class UiModelObserverBridge
                                     model->cancel_action_text())
               learnMoreLinkText:base::SysUTF16ToNSString(
                                     model->learn_more_link_text())
-        googleLegalMessageLines:[AutofillLegalMessageLine
+        googleLegalMessageLines:[SaveCardMessageWithLinks
                                     convertFrom:model->enrollment_fields()
                                                     .google_legal_message]
-        issuerLegalMessageLines:[AutofillLegalMessageLine
+        issuerLegalMessageLines:[SaveCardMessageWithLinks
                                     convertFrom:model->enrollment_fields()
                                                     .issuer_legal_message]];
     _model = std::move(model);
@@ -138,7 +137,7 @@ class UiModelObserverBridge
   _callbacks.reset();
   [self logResultMetric:autofill::VirtualCardEnrollmentBubbleResult::
                             VIRTUAL_CARD_ENROLLMENT_BUBBLE_CANCELLED];
-  [_browserCoordinatorHandler legacyDismissVirtualCardEnrollmentBottomSheet];
+  [_browserCoordinatorHandler dismissVirtualCardEnrollmentBottomSheet];
 }
 
 #pragma mark - VirtualCardEnrollUiModel Observer
@@ -159,8 +158,7 @@ class UiModelObserverBridge
     case autofill::VirtualCardEnrollUiModel::EnrollmentProgress::kFailed:
       // Dismiss the virtual card enrollment bottom sheet. Failure messages are
       // expected to be initiated by the IOSChromePaymentsAutofillClient.
-      [_browserCoordinatorHandler
-          legacyDismissVirtualCardEnrollmentBottomSheet];
+      [_browserCoordinatorHandler dismissVirtualCardEnrollmentBottomSheet];
       break;
     case autofill::VirtualCardEnrollUiModel::EnrollmentProgress::kOffered:
       // The enrollment progress is set by IOSChromePaymentsAutofillClient to
@@ -180,7 +178,7 @@ class UiModelObserverBridge
 
 // Handles dismissal after confirmation was shown with a delay.
 - (void)onFinishedConfirmationDelay {
-  [_browserCoordinatorHandler legacyDismissVirtualCardEnrollmentBottomSheet];
+  [_browserCoordinatorHandler dismissVirtualCardEnrollmentBottomSheet];
 }
 
 @end

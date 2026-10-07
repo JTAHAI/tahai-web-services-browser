@@ -32,13 +32,13 @@ class ToyTabDragWindowAdapter : public TabDragWindowAdapter {
     return gfx::NativeWindow();
   }
   gfx::Rect GetBoundsInScreen() const override;
-  bool ShouldDragWholeWindow(size_t dragged_tab_count) const override;
+  bool IsDraggingEntireWindow(size_t dragged_tab_count) const override;
   gfx::Point ConvertScreenPointToLocal(
       gfx::NativeView target_view,
       const gfx::Point& screen_point) const override;
-
-  void Activate() override { activated_ = true; }
-  bool activated() const { return activated_; }
+  void SetCapture() override;
+  void ReleaseCapture() override;
+  bool HasCapture() const override;
 
   // TabDragWindowAdapter overrides:
   base::expected<TabDragWindowId, mojo_base::mojom::ErrorPtr> DetachToNewWindow(
@@ -61,7 +61,6 @@ class ToyTabDragWindowAdapter : public TabDragWindowAdapter {
       const gfx::Vector2d& drag_offset,
       WindowMoveCallback move_callback) override {
     run_window_move_loop_called_ = true;
-
     last_move_loop_point_ = screen_point;
     last_move_loop_offset_ = drag_offset;
 
@@ -105,7 +104,6 @@ class ToyTabDragWindowAdapter : public TabDragWindowAdapter {
   bool run_window_move_loop_called() const {
     return run_window_move_loop_called_;
   }
-
   const gfx::Point& last_move_loop_point() const {
     return last_move_loop_point_;
   }
@@ -122,8 +120,7 @@ class ToyTabDragWindowAdapter : public TabDragWindowAdapter {
  private:
   size_t tab_count_ = 2;
   gfx::Rect bounds_;
-
-  bool activated_ = false;
+  bool has_capture_ = false;
   TabDragWindowId id_;
   raw_ptr<TabDragWindowRegistry> registry_;
 

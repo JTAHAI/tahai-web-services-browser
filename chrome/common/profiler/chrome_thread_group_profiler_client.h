@@ -30,8 +30,6 @@ class ChromeThreadGroupProfilerClient : public base::ThreadGroupProfilerClient {
   base::StackSamplingProfiler::SamplingParams GetSamplingParams() override;
   std::unique_ptr<base::ProfileBuilder> CreateProfileBuilder(
       base::OnceClosure builder_completed_callback) override;
-  std::unique_ptr<base::PeriodicSamplingScheduler>
-  CreatePeriodicSamplingScheduler() override;
   base::StackSamplingProfiler::UnwindersFactory GetUnwindersFactory() override;
   bool IsProfilerEnabledForCurrentProcess() override;
   bool IsSingleProcess(const base::CommandLine& command_line) override;

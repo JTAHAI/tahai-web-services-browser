@@ -85,7 +85,7 @@ class AccountMenuCoordinatorTest : public PlatformTest {
     TestProfileIOS::Builder builder;
     builder.AddTestingFactory(
         AuthenticationServiceFactory::GetInstance(),
-        AuthenticationServiceFactory::GetFactoryWithDelegateForTesting(
+        AuthenticationServiceFactory::GetFactoryWithDelegate(
             std::make_unique<FakeAuthenticationServiceDelegate>()));
     builder.AddTestingFactory(
         SyncServiceFactory::GetInstance(),
@@ -363,11 +363,10 @@ TEST_F(AccountMenuCoordinatorTest, testDegradedRecoverability) {
   AssertOpenAndStop();
 }
 
-// Tests that `openMDMErrorDialogWithSystemIdentity:completion:` has no effects
-// on the mediator and view controller.
+// Tests that `openMDMErrodDialogWithSystemIdentity` has no effects on the
+// mediator and view controller.
 TEST_F(AccountMenuCoordinatorTest, testMDMError) {
-  [coordinator_ openMDMErrorDialogWithSystemIdentity:kPrimaryIdentity
-                                          completion:nil];
+  [coordinator_ openMDMErrodDialogWithSystemIdentity:kPrimaryIdentity];
   AssertOpenAndStop();
 }
 

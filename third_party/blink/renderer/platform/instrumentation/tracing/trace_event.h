@@ -25,15 +25,8 @@ PLATFORM_EXPORT void EnableTracingForTesting(const String& category_filter);
 PLATFORM_EXPORT void DisableTracingForTesting();
 
 using TraceSessionObserver = base::trace_event::TraceSessionObserver;
-template <typename T>
-void AddTraceSessionObserver(T* observer) {
-  base::trace_event::TraceSessionObserverList::AddObserver(observer);
-}
-
-template <typename T>
-void RemoveTraceSessionObserver(T* observer) {
-  base::trace_event::TraceSessionObserverList::RemoveObserver(observer);
-}
+PLATFORM_EXPORT void AddTraceSessionObserver(TraceSessionObserver*);
+PLATFORM_EXPORT void RemoveTraceSessionObserver(TraceSessionObserver*);
 
 }  // namespace trace_event
 }  // namespace blink

@@ -175,7 +175,7 @@ base::OnceClosure VulkanFenceHelper::CreateExternalCallback() {
 }
 
 void VulkanFenceHelper::EnqueueSemaphoreCleanupForSubmittedWork(
-    base::RawPtrIfPtrT<VkSemaphore, DanglingUntriaged> semaphore) {
+    VkSemaphore semaphore) {
   if (semaphore == VK_NULL_HANDLE)
     return;
 
@@ -183,15 +183,13 @@ void VulkanFenceHelper::EnqueueSemaphoreCleanupForSubmittedWork(
 }
 
 void VulkanFenceHelper::EnqueueSemaphoresCleanupForSubmittedWork(
-    std::vector<base::RawPtrIfPtrT<VkSemaphore, DanglingUntriaged>>
-        semaphores) {
+    std::vector<VkSemaphore> semaphores) {
   if (semaphores.empty())
     return;
 
   EnqueueCleanupTaskForSubmittedWork(base::BindOnce(
-      [](std::vector<base::RawPtrIfPtrT<VkSemaphore, DanglingUntriaged>>
-             semaphores,
-         VulkanDeviceQueue* device_queue, bool /* is_lost */) {
+      [](std::vector<VkSemaphore> semaphores, VulkanDeviceQueue* device_queue,
+         bool /* is_lost */) {
         for (VkSemaphore semaphore : semaphores) {
           vkDestroySemaphore(device_queue->GetVulkanDevice(), semaphore,
                              nullptr);

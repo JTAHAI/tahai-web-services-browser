@@ -78,10 +78,9 @@ float NormalizeAxis(T value, T min, T max) {
   return (2.0f * (value - min) / static_cast<float>(max - min)) - 1.0f;
 }
 
-// Returns a 32-bit mask with the lowest |bits| bits set. |bits| can be 32, so
-// the shift is done in 64 bits to avoid undefined behavior.
+// Returns a 32-bit mask with the lowest |bits| bits set.
 unsigned long GetBitmask(unsigned short bits) {
-  return static_cast<unsigned long>((1ULL << bits) - 1);
+  return (1 << bits) - 1;
 }
 
 // Interprets `value` as a signed value with `bits` bits and extends the sign

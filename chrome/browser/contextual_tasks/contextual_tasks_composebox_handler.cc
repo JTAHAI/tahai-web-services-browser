@@ -55,7 +55,6 @@
 #include "components/omnibox/common/composebox_features.h"
 #include "components/omnibox/common/input_state.h"
 #include "components/sessions/content/session_tab_helper.h"
-#include "components/sessions/core/session_id.h"
 #include "components/tabs/public/tab_handle_factory.h"
 #include "components/tabs/public/tab_interface.h"
 #include "components/url_deduplication/url_deduplication_helper.h"
@@ -414,6 +413,9 @@ void ContextualTasksComposeboxHandler::CreateAndSendQueryMessage(
   std::optional<base::Uuid> task_id = web_ui_interface_->GetTaskId();
   auto* contextual_tasks_service = GetContextualTasksService();
 
+  MaybeTriggerSmartTabSharingPromo(query,
+                                   web_ui_interface_->GetWebUIWebContents());
+
   bool is_only_visual_selection =
       has_visual_selection && !IsAnyContextUploading() && session_handle &&
       session_handle->GetUploadedContextTokens().empty();
@@ -475,23 +477,23 @@ void ContextualTasksComposeboxHandler::CreateAndSendQueryMessage(
   // Kick off the on-submit contextualization flow to upload delayed tabs and
   // recontextualize the active tab.
   recontextualization_pending_count_++;
-  // It is safe to use base::Unretained(this) here because `recontextualizer_`
-  // is owned by `this` and will be destroyed when `this` is destroyed,
-  // cancelling any pending callbacks.
   auto callback = base::BindOnce(
-      [](ContextualTasksComposeboxHandler* handler, std::string query,
-         std::optional<base::Uuid> task_id,
+      [](base::WeakPtr<ContextualTasksComposeboxHandler> handler,
+         std::string query, std::optional<base::Uuid> task_id,
          std::optional<base::UnguessableToken> token, bool voice,
          std::map<std::string, std::string> cgi_params,
          base::WeakPtr<contextual_search::ContextualSearchSessionHandle>
              handle) {
+        if (!handler) {
+          return;
+        }
         // The session handle is accessed via GetContextualSessionHandle(),
         // so we ignore it here.
         handler->ContinueCreateAndSendQueryMessage(query, task_id, token, voice,
                                                    std::move(cgi_params));
       },
-      base::Unretained(this), query, task_id, overlay_token, is_voice_search,
-      additional_cgi_params);
+      weak_factory_.GetWeakPtr(), query, task_id, overlay_token,
+      is_voice_search, additional_cgi_params);
 
   contextual_tasks::QueryContextualizer::ContextualizeParams params;
   params.task_id = task_id;
@@ -500,11 +502,11 @@ void ContextualTasksComposeboxHandler::CreateAndSendQueryMessage(
   params.auto_suggested_chip_tabs = tabs_to_force_contextualize;
   params.on_ineligible_callback = base::BindRepeating(
       &ContextualTasksComposeboxHandler::OnPageContextIneligible,
-      base::Unretained(this));
+      weak_factory_.GetWeakPtr());
   params.on_processed_callback =
       base::BindRepeating(&ContextualTasksComposeboxHandler::
                               OnTabProcessedForQueryContextualization,
-                          base::Unretained(this));
+                          weak_factory_.GetWeakPtr());
   params.complete_callback = std::move(callback);
   params.enable_smart_tab_selection = IsSmartTabSharingActive();
   recontextualizer_->Contextualize(std::move(params));
@@ -528,6 +530,9 @@ void ContextualTasksComposeboxHandler::UpdateStateFromUrl(const GURL& url) {
 void ContextualTasksComposeboxHandler::OnTaskChanged() {
   ClearFiles(/*should_block_auto_suggested_tabs=*/false);
   SetSmartTabSharingActive(false);
+  // Maybe trigger lens overlay when Side Panel is done with navigation
+  // which triggers OnTaskChanged().
+  MaybeTriggerLens();
   InitializeInputStateModel();
 }
 
@@ -562,13 +567,6 @@ void ContextualTasksComposeboxHandler::InitializeInputStateModel() {
       }
       user_data->set_input_state_model(std::move(current_input_state));
       input_state_model_ = user_data->input_state_model();
-
-      smart_tab_sharing_active_for_thread_ =
-          input_state_model_->IsSmartTabSharingActive();
-      if (auto* session_handle = GetContextualSessionHandle()) {
-        session_handle->set_smart_tab_sharing_active(
-            input_state_model_->IsSmartTabSharingActive());
-      }
 
       input_state_subscription_ =
           input_state_model_->subscribe(base::BindRepeating(
@@ -614,15 +612,11 @@ void ContextualTasksComposeboxHandler::InitializeInputStateModel() {
                          .GetHandleForSessionId(
                              file_info.tab_session_id.value().id());
             // In case the tab is not mapped.
-            if (tab_id == tabs::TabHandle::NullValue &&
-                SessionID::IsValidValue(
-                    file_info.tab_session_id.value().id())) {
+            if (tab_id == tabs::TabHandle::NullValue) {
               tab_id = file_info.tab_session_id.value().id();
             }
           }
-          tab_info->tab_id = SessionID::IsValidValue(tab_id)
-                                 ? tab_id
-                                 : tabs::TabHandle::NullValue;
+          tab_info->tab_id = tab_id;
           tab_info->title = file_info.tab_title.value_or("");
           tab_info->url = file_info.tab_url.value_or(GURL());
           submitted_tabs.push_back(std::move(tab_info));
@@ -1205,6 +1199,24 @@ bool ContextualTasksComposeboxHandler::HasAutoSuggestedTab() {
   auto* auto_suggestion_manager = web_ui_interface_->GetAutoSuggestionManager();
   return auto_suggestion_manager &&
          auto_suggestion_manager->GetCurrentSuggestion() != nullptr;
+}
+
+void ContextualTasksComposeboxHandler::MaybeTriggerLens() {
+#if !BUILDFLAG(IS_ANDROID)
+  if (!omnibox::kAskGCoBrowseWithVisualSelection.Get()) {
+    return;
+  }
+  if (auto* controller = GetLensSearchController()) {
+    if (controller->invocation_source() ==
+            lens::LensOverlayInvocationSource::kOmniboxPageAction) {
+      DCHECK(controller->invocation_source().has_value());
+      controller->SetThumbnailCreatedCallback(base::BindRepeating(
+          &ContextualTasksComposeboxHandler::OnLensThumbnailCreated,
+          weak_factory_.GetWeakPtr()));
+      controller->OpenLensOverlay(controller->invocation_source().value());
+    }
+  }
+#endif
 }
 
 void ContextualTasksComposeboxHandler::UpdateSuggestedTabContext(

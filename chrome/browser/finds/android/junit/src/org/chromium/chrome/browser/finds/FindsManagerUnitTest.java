@@ -20,6 +20,7 @@ import org.mockito.junit.MockitoRule;
 import org.robolectric.Robolectric;
 
 import org.chromium.base.test.BaseRobolectricTestRunner;
+import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.Features.EnableFeatures;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.profiles.Profile;
@@ -30,6 +31,7 @@ import org.chromium.components.user_prefs.UserPrefs;
 
 /** Unit tests for {@link FindsManager}. */
 @RunWith(BaseRobolectricTestRunner.class)
+@Batch(Batch.UNIT_TESTS)
 public class FindsManagerUnitTest {
     @Rule public final MockitoRule mMockitoRule = MockitoJUnit.rule();
 

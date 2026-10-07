@@ -9,7 +9,6 @@
 #include "base/task/single_thread_task_runner.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/actions/chrome_action_id.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/navigator/browser_navigator.h"
 #include "chrome/browser/ui/navigator/browser_navigator_params.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
@@ -29,7 +28,6 @@
 #include "ui/views/controls/image_view.h"
 #include "ui/views/controls/label.h"
 #include "ui/views/layout/box_layout.h"
-#include "ui/views/layout/layout_provider.h"
 #include "ui/views/view.h"
 
 namespace autofill {
@@ -83,7 +81,7 @@ AtMemoryPromoBubbleView::AtMemoryPromoBubbleView(
   SetButtonLabel(ui::mojom::DialogButton::kCancel,
                  l10n_util::GetStringUTF16(IDS_AT_MEMORY_PROMO_GOT_IT_BUTTON));
   SetButtonStyle(ui::mojom::DialogButton::kOk, ui::ButtonStyle::kProminent);
-  SetButtonStyle(ui::mojom::DialogButton::kCancel, ui::ButtonStyle::kTonal);
+  SetButtonStyle(ui::mojom::DialogButton::kCancel, ui::ButtonStyle::kDefault);
   SetDefaultButton(static_cast<int>(ui::mojom::DialogButton::kNone));
 
   SetAcceptCallback(base::BindOnce(&AtMemoryPromoBubbleView::OnLearnMoreClicked,
@@ -101,7 +99,7 @@ void AtMemoryPromoBubbleView::OnLearnMoreClicked() {
   if (!browser_view) {
     return;
   }
-  BrowserWindowInterface* browser = browser_view->browser();
+  Browser* browser = browser_view->browser();
   if (browser) {
     // `PostTask` is used to avoid a use-after-free. Both `Navigate()`
     // and `NotifyUserAction()` trigger the destruction of this bubble. If
@@ -110,7 +108,7 @@ void AtMemoryPromoBubbleView::OnLearnMoreClicked() {
     // it destroys the view before navigation can be initiated.
     base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
         FROM_HERE, base::BindOnce(
-                       [](base::WeakPtr<BrowserWindowInterface> browser) {
+                       [](base::WeakPtr<Browser> browser) {
                          if (!browser) {
                            return;
                          }
@@ -123,7 +121,7 @@ void AtMemoryPromoBubbleView::OnLearnMoreClicked() {
                              WindowOpenDisposition::NEW_FOREGROUND_TAB;
                          Navigate(&params);
                        },
-                       browser->GetWeakPtr()));
+                       browser->AsWeakPtr()));
   }
 
   NotifyUserAction(CustomHelpBubbleUi::UserAction::kDismiss);

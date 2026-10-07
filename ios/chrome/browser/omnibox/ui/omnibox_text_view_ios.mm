@@ -43,6 +43,7 @@
 #import "ui/base/l10n/l10n_util_mac.h"
 #import "ui/gfx/color_palette.h"
 #import "ui/gfx/image/image.h"
+#import "ui/gfx/ios/NSString+CrStringDrawing.h"
 #import "ui/gfx/scoped_cg_context_save_gstate_mac.h"
 
 using enum OmniboxKeyboardAction;
@@ -125,13 +126,10 @@ const CGFloat kVerticalOffset = 1;
     self.autocorrectionType = UITextAutocorrectionTypeNo;
     self.autocapitalizationType = UITextAutocapitalizationTypeNone;
     self.enablesReturnKeyAutomatically = YES;
-    BOOL isCobrowse =
-        _presentationContext == OmniboxPresentationContext::kCobrowse;
-    self.returnKeyType = isCobrowse ? UIReturnKeyDefault : UIReturnKeyGo;
+    self.returnKeyType = UIReturnKeyGo;
     self.spellCheckingType = UITextSpellCheckingTypeNo;
     self.textAlignment = NSTextAlignmentNatural;
-    self.keyboardType =
-        isCobrowse ? UIKeyboardTypeDefault : UIKeyboardTypeWebSearch;
+    self.keyboardType = UIKeyboardTypeWebSearch;
     self.smartQuotesType = UITextSmartQuotesTypeNo;
     self.dataDetectorTypes = UIDataDetectorTypeNone;
     self.allowsEditingTextAttributes = NO;
@@ -187,7 +185,7 @@ const CGFloat kVerticalOffset = 1;
 
 - (void)setPlaceholderLabel:(UILabel*)placeholderLabel {
   placeholderLabel.font = self.font;
-  placeholderLabel.textColor = [UIColor colorNamed:kTextSecondaryColor];
+  placeholderLabel.textColor = [UIColor colorNamed:kTextfieldPlaceholderColor];
   placeholderLabel.isAccessibilityElement = NO;
   _placeholderLabel = placeholderLabel;
 
@@ -1041,7 +1039,7 @@ const CGFloat kVerticalOffset = 1;
   }
 
   CHECK_LE(self.attributedAdditionalText.length, self.attributedText.length,
-           base::NotFatalUntil::M160);
+           base::NotFatalUntil::M150);
   /// This should not happen, tracking occurences with NotFatalUntil
   /// crbug.com/421229993.
   if (self.attributedText.length < self.attributedAdditionalText.length) {
@@ -1324,9 +1322,7 @@ const CGFloat kVerticalOffset = 1;
   // trigger submission. Other unicode line breaks (e.g. pasted paragraph
   // separators) should be allowed to be inserted as text.
   BOOL isNewline = [text isEqualToString:@"\n"] || [text isEqualToString:@"\r"];
-  BOOL isCobrowse =
-      _presentationContext == OmniboxPresentationContext::kCobrowse;
-  if (isNewline && !_insertingNewline && !isCobrowse) {
+  if (isNewline && !_insertingNewline) {
     return [self.omniboxTextInputDelegate textInputShouldReturn:self];
   }
   return [self.omniboxTextInputDelegate textInput:self

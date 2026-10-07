@@ -20,11 +20,9 @@ import org.chromium.base.supplier.NonNullObservableSupplier;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.profiles.Profile;
-import org.chromium.chrome.browser.tabmodel.TabModelType;
 import org.chromium.chrome.browser.ui.native_page.NativePage;
 import org.chromium.components.embedder_support.view.ContentView;
 import org.chromium.components.tabs.DetachReason;
-import org.chromium.components.tabs.TabAlert;
 import org.chromium.content_public.browser.LoadUrlParams;
 import org.chromium.content_public.browser.NavigationHandle;
 import org.chromium.content_public.browser.WebContents;
@@ -243,10 +241,6 @@ public interface Tab extends TabLifecycle {
      */
     boolean isIncognitoBranded();
 
-    /** Returns the {@link TabModelType} of the tab model this tab is configured for. */
-    @TabModelType
-    int getTabModelType();
-
     /** Returns whether the {@link Tab} is currently showing an error page. */
     boolean isShowingErrorPage();
 
@@ -376,9 +370,6 @@ public interface Tab extends TabLifecycle {
      */
     boolean isTabInBrowser();
 
-    /** Returns true if the {@link Tab} is hosted in a popup window. */
-    boolean isTabInPopup();
-
     /**
      * Returns the last time this tab was shown or the time of its initialization if it wasn't yet
      * shown.
@@ -490,12 +481,6 @@ public interface Tab extends TabLifecycle {
      */
     void setIsPinned(boolean isPinned);
 
-    /**
-     * Returns the active alert state for this tab, or {@link TabAlert#NONE} if no alert applies.
-     */
-    @TabAlert
-    int getAlertState();
-
     /** Returns the media state of the tab. */
     @MediaState
     int getMediaState();
@@ -527,6 +512,9 @@ public interface Tab extends TabLifecycle {
      * TabDragStateData}. This exists as a convenience method for plumbing the data to native.
      */
     boolean isDragging();
+
+    /** Returns whether the tab has a TabInterfaceAndroid object. */
+    boolean hasTabInterfaceAndroid();
 
     /** Returns the supplier for whether the tab is currently being used for offscreen rendering. */
     NonNullObservableSupplier<Boolean> getIsOffscreenRenderingSupplier();

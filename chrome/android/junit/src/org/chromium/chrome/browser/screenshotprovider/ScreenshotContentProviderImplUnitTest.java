@@ -41,7 +41,9 @@ import java.util.function.Supplier;
 
 /** Unit tests for {@link ScreenshotContentProviderImpl}. */
 @RunWith(BaseRobolectricTestRunner.class)
-@Config(shadows = {ShadowContentResolver.class})
+@Config(
+        manifest = Config.NONE,
+        shadows = {ShadowContentResolver.class})
 public class ScreenshotContentProviderImplUnitTest {
 
     @Rule public MockitoRule mMockitoRule = MockitoJUnit.rule();

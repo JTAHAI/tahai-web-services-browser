@@ -60,9 +60,8 @@ BirchKeyedService* BirchKeyedServiceFactory::GetService(
 std::unique_ptr<KeyedService>
 BirchKeyedServiceFactory::BuildServiceInstanceForBrowserContext(
     content::BrowserContext* context) const {
-  Profile* profile = Profile::FromBrowserContext(context);
   return std::make_unique<BirchKeyedService>(
-      profile, IdentityManagerFactory::GetForProfile(profile));
+      Profile::FromBrowserContext(context));
 }
 
 }  // namespace ash

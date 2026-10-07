@@ -126,8 +126,4 @@ void TestDocumentLoader::ClearPendingRequests() {
   pending_ranges_.Clear();
 }
 
-std::string TestDocumentLoader::GetFileNameFromContentDisposition() const {
-  return content_disposition_file_name_;
-}
-
 }  // namespace chrome_pdf

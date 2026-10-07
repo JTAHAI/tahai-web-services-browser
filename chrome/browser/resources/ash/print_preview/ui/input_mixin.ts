@@ -23,18 +23,21 @@ export const InputMixin = dedupingMixin(
     <T extends Constructor<PolymerElement>>(superClass: T): T&
     Constructor<InputMixinInterface> => {
       class InputMixin extends superClass {
-        /**
-         * The last known value of the input. Used to ensure 'input-change'
-         * events are only dispatched when user input actually alters the text.
-         */
-        private lastValue_: string = '';
+        static get properties() {
+          return {
+            lastValue_: {
+              type: String,
+              value: '',
+            },
+          };
+        }
 
+        private lastValue_: string|null;
         /** Timeout used to delay processing of the input, in ms. */
         private timeout_: number|null = null;
 
         override connectedCallback() {
           super.connectedCallback();
-          this.lastValue_ = this.getInputValue_();
           this.getInput().addEventListener('input', () => this.resetTimeout_());
           this.getInput().addEventListener(
               'keydown', (e: KeyboardEvent) => this.onKeyDown_(e));
@@ -42,10 +45,6 @@ export const InputMixin = dedupingMixin(
 
         getInput(): HTMLInputElement {
           assertNotReached();
-        }
-
-        private getInputValue_(): string {
-          return this.getInput().value || '';
         }
 
         /**
@@ -87,7 +86,7 @@ export const InputMixin = dedupingMixin(
          */
         private onTimeout_() {
           this.timeout_ = null;
-          const value = this.getInputValue_();
+          const value = this.getInput().value || '';
           if (this.lastValue_ !== value) {
             this.lastValue_ = value;
             this.dispatchEvent(new CustomEvent(
@@ -97,7 +96,7 @@ export const InputMixin = dedupingMixin(
         }
 
         resetString() {
-          this.lastValue_ = this.getInputValue_();
+          this.lastValue_ = null;
         }
 
         resetAndUpdate() {
@@ -113,21 +112,14 @@ export const InputMixin = dedupingMixin(
 
 export interface InputMixinInterface {
   /**
-   * @return The cr-input or input element the mixin should manage. Should be
-   *     overridden by elements using this mixin.
+   * @return The cr-input or input element the behavior should use. Should be
+   *     overridden by elements using this behavior.
    */
   getInput(): (CrInputElement|HTMLInputElement);
 
-  /**
-   * Notifies the mixin that the input element's value was updated
-   * programmatically, ensuring subsequent user edits correctly trigger
-   * change events.
-   */
+  // Resets the lastValue_ so that future inputs trigger a change event.
   resetString(): void;
 
-  /**
-   * Clears any pending input timeout and immediately processes the current
-   * value.
-   */
+  // Called to clear the timeout and update the value.
   resetAndUpdate(): void;
 }

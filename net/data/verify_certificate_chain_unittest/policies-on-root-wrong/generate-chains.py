@@ -7,7 +7,6 @@ policies on the root which don't match the policies in the rest of the chain.
 This should fail to verify if the policies on the root are processed."""
 
 import sys
-
 sys.path += ['../..']
 
 import gencerts
@@ -18,12 +17,10 @@ root.get_extensions().set_property('certificatePolicies', 'critical,1.2.3.5')
 
 # Intermediate certificate.
 intermediate = gencerts.create_intermediate_certificate('Intermediate', root)
-intermediate.get_extensions().set_property(
-  'certificatePolicies', 'critical,1.2.3.4'
-)
-intermediate.get_extensions().set_property(
-  'policyConstraints', 'critical,requireExplicitPolicy:0'
-)
+intermediate.get_extensions().set_property('certificatePolicies',
+                                           'critical,1.2.3.4')
+intermediate.get_extensions().set_property('policyConstraints',
+                                           'critical,requireExplicitPolicy:0')
 
 # Target certificate.
 target = gencerts.create_end_entity_certificate('Target', intermediate)

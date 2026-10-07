@@ -16,7 +16,6 @@ import {getCss} from './searchbox_dropdown.css.js';
 import {getHtml} from './searchbox_dropdown.html.js';
 import {kDefaultSelection} from './searchbox_match.js';
 import type {SearchboxMatchElement} from './searchbox_match.js';
-import {selectionsEqual} from './searchbox_selection_mixin.js';
 import {renderTypeToClass, sideTypeToClass} from './utils.js';
 
 // The '%' operator in JS returns negative numbers. This workaround avoids that.
@@ -141,18 +140,6 @@ export class SearchboxDropdownElement extends CrLitElement {
         changedProperties.has('canShowSecondarySide')) {
       this.showSecondarySide_ = this.computeShowSecondarySide_();
     }
-
-    if (changedProperties.has('result') && this.virtualFocusEnabled) {
-      if (this.selection.state !== SelectionLineState.kNormal &&
-          this.selection.state !== SelectionLineState.kFocusedButtonAim) {
-        this.selection = {
-          line: this.selection.line,
-          state: SelectionLineState.kNormal,
-          actionIndex: 0,
-        };
-        this.fire('selection-changed', {value: this.selection});
-      }
-    }
   }
 
   override updated(changedProperties: PropertyValues<this>) {
@@ -180,9 +167,6 @@ export class SearchboxDropdownElement extends CrLitElement {
   unselect() {
     this.selectedMatchIndex = -1;
     this.selection = kDefaultSelection;
-    if (this.virtualFocusEnabled) {
-      this.fire('selection-changed', {value: this.selection});
-    }
   }
 
   /** Focuses the selected match, if any. */
@@ -198,19 +182,16 @@ export class SearchboxDropdownElement extends CrLitElement {
   /** Selects the match at the given index. */
   selectIndex(index: number) {
     this.selectedMatchIndex = index;
-    if (this.virtualFocusEnabled) {
+    if (this.virtualFocusEnabled && this.selection.line !== index) {
       const match = this.result?.matches[index];
-      const newSelection: OmniboxPopupSelection =
-          match && (!match.isHidden || match.allowedToBeDefaultMatch) ?
-          {
-            line: index,
-            state: SelectionLineState.kNormal,
-            actionIndex: 0,
-          } :
-          kDefaultSelection;
-      if (!selectionsEqual(this.selection, newSelection)) {
-        this.selection = newSelection;
-        this.fire('selection-changed', {value: this.selection});
+      if (match && (!match.isHidden || match.allowedToBeDefaultMatch)) {
+        this.selection = {
+          line: index,
+          state: SelectionLineState.kNormal,
+          actionIndex: 0,
+        };
+      } else {
+        this.selection = kDefaultSelection;
       }
     }
     return this.updateComplete;
@@ -316,9 +297,7 @@ export class SearchboxDropdownElement extends CrLitElement {
   }
 
   protected isSelected_(match: AutocompleteMatch): boolean {
-    const selectedIndex = this.virtualFocusEnabled ? this.selection.line :
-                                                     this.selectedMatchIndex;
-    return this.matchIndex_(match) === selectedIndex;
+    return this.matchIndex_(match) === this.selectedMatchIndex;
   }
 
   /**

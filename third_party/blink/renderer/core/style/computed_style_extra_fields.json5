@@ -485,14 +485,6 @@
       field_group: "*",
     },
     {
-      name: "IsInShrinkToFitSubtree",
-      inherited: true,
-      field_template: "primitive",
-      type_name: "bool",
-      default_value: "false",
-      field_group: "*",
-    },
-    {
       name: "EffectiveTouchAction",
       inherited: true,
       field_template: "primitive",
@@ -1042,6 +1034,13 @@
       custom_compare: true,
     },
     {
+      name: "IsEnsuredOutsideFlatTree",
+      field_template: "monotonic_flag",
+      default_value: "false",
+      custom_compare: true,
+      inherited: true,
+    },
+    {
       name: "IsInsideDisplayIgnoringFloatingChildren",
       field_template: "monotonic_flag",
       default_value: "false",
@@ -1241,18 +1240,9 @@
       invalidate: ["layout"],
     },
     {
-      name: "HasLayoutContainmentForViewTransitionScope",
-      field_template: "primitive",
-      type_name: "bool",
-      field_group: "*",
-      default_value: "false",
-      invalidate: ["layout"],
-    },
-    {
       name: "HasSizeContainmentForViewTransitionScope",
       field_template: "primitive",
       type_name: "bool",
-      field_group: "*",
       default_value: "false",
       invalidate: ["layout"],
     },

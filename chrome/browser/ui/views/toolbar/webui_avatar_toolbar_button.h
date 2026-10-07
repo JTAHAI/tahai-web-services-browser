@@ -14,6 +14,7 @@
 #include "components/browser_apis/ui_controllers/toolbar/icon_handle.h"
 #include "ui/views/controls/button/button.h"
 
+class Browser;
 class AvatarToolbarButtonStateManager;
 class WebUIToolbarControlDelegate;
 class AvatarToolbarButtonTestAccessor;
@@ -22,7 +23,8 @@ class AvatarToolbarButtonTestAccessor;
 // WebUI-based implementation of the avatar button in the toolbar.
 class WebUIAvatarToolbarButton : public AvatarToolbarButtonInterface {
  public:
-  explicit WebUIAvatarToolbarButton(WebUIToolbarControlDelegate* delegate);
+  WebUIAvatarToolbarButton(WebUIToolbarControlDelegate* delegate,
+                           Browser* browser);
   WebUIAvatarToolbarButton(const WebUIAvatarToolbarButton&) = delete;
   WebUIAvatarToolbarButton& operator=(const WebUIAvatarToolbarButton&) = delete;
   ~WebUIAvatarToolbarButton() override;

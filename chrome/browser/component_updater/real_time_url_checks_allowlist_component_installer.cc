@@ -4,7 +4,6 @@
 
 #include "chrome/browser/component_updater/real_time_url_checks_allowlist_component_installer.h"
 
-#include <cstdint>
 #include <memory>
 #include <string>
 #include <utility>
@@ -108,7 +107,8 @@ RealTimeUrlChecksAllowlistComponentInstallerPolicy::GetRelativeInstallDir()
 
 void RealTimeUrlChecksAllowlistComponentInstallerPolicy::GetHash(
     std::vector<uint8_t>* hash) const {
-  hash->assign_range(kRealTimeUrlChecksAllowlistPublicKeySHA256);
+  hash->assign(std::begin(kRealTimeUrlChecksAllowlistPublicKeySHA256),
+               std::end(kRealTimeUrlChecksAllowlistPublicKeySHA256));
 }
 
 std::string RealTimeUrlChecksAllowlistComponentInstallerPolicy::GetName()

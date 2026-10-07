@@ -15,6 +15,7 @@
 #include "base/task/single_thread_task_runner.h"
 #include "base/threading/sequence_bound.h"
 #include "components/private_verification_tokens/common/private_verification_tokens_database.h"
+#include "components/private_verification_tokens/common/private_verification_tokens_public_key.h"
 #include "components/private_verification_tokens/common/private_verification_tokens_token.h"
 #include "url/origin.h"
 
@@ -39,7 +40,8 @@ class PrivateVerificationTokensStore {
   ~PrivateVerificationTokensStore();
 
   const std::map<url::Origin, TokenWithId>& tokens() const;
-  size_t TokenCountForIssuer(const url::Origin& issuer) const;
+  const std::map<url::Origin, PrivateVerificationTokensPublicKey>& public_keys()
+      const;
   bool is_initialized() const { return initialized_; }
 
   void DeleteAllTokens();
@@ -51,8 +53,6 @@ class PrivateVerificationTokensStore {
   void StoreTokens(std::vector<PrivateVerificationTokensToken> tokens,
                    base::OnceClosure callback);
 
-  void DeleteToken(int64_t token_id, base::OnceClosure callback);
-
  private:
   explicit PrivateVerificationTokensStore(
       scoped_refptr<base::SequencedTaskRunner> task_runner,
@@ -60,12 +60,12 @@ class PrivateVerificationTokensStore {
       base::FilePath path_to_database,
       base::OnceCallback<void()> cache_initialized_callback);
 
-  void CacheTokens(TokensAndCounts tokens_and_counts);
+  void CacheKeys(std::vector<PrivateVerificationTokensPublicKey> keys);
+  void CacheTokens(std::map<url::Origin, TokenWithId> tokens);
   void OnCacheInitialized(base::OnceCallback<void()> callback);
   void InitializeCache(base::OnceCallback<void()> callback, bool file_exists);
   void OnTokensDeleted(base::OnceClosure callback, bool success);
   void OnTokensStored(base::OnceClosure callback, bool success);
-  void OnTokenDeleted(base::OnceClosure callback, bool success);
 
   base::SequenceBound<PrivateVerificationTokensDatabase> database_;
 
@@ -73,8 +73,8 @@ class PrivateVerificationTokensStore {
   // database.
   std::map<url::Origin, TokenWithId> tokens_;
 
-  // Holds the count of tokens for each issuer.
-  std::map<url::Origin, size_t> token_counts_;
+  // Holds cached public keys. Keys are read from the database.
+  std::map<url::Origin, PrivateVerificationTokensPublicKey> public_keys_;
 
   bool initialized_ = false;
 

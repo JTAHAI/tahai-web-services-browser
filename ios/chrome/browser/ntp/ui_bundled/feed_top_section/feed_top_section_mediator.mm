@@ -94,7 +94,6 @@ using base::UserMetricsAction;
 - (void)shutdown {
   _identityObserverBridge.reset();
   _provisionalPushNotificationService = nullptr;
-  _signinPromoConfigurator = nil;
   self.authenticationService = nullptr;
   self.identityManager = nullptr;
   self.prefService = nullptr;
@@ -140,9 +139,10 @@ using base::UserMetricsAction;
 #pragma mark - SigninPromoViewConsumer
 
 - (void)configureSigninPromoWithConfigurator:
-    (SigninPromoViewConfigurator*)configurator {
-  _signinPromoConfigurator = configurator;
-  [self.consumer updateSigninPromoWithConfigurator:configurator];
+            (SigninPromoViewConfigurator*)configurator
+                             identityChanged:(BOOL)identityChanged {
+  // No-op: The NTP is always recreated when the identity changes, so this is
+  // not needed.
 }
 
 - (void)signinPromoViewMediatorCloseButtonWasTapped:

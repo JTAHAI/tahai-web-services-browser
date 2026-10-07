@@ -152,8 +152,7 @@ class ComboboxMenuOptionGroup : public RadioButtonGroup {
     auto* button = AddChildView(std::make_unique<ComboboxMenuOption>(
         group_width_ - inside_border_insets_.width(), std::move(callback),
         label));
-    button->set_button_selected_callback(base::BindRepeating(
-        &ComboboxMenuOptionGroup::OnButtonSelected, base::Unretained(this)));
+    button->set_delegate(this);
     buttons_.push_back(button);
     return button;
   }

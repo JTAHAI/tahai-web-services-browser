@@ -6,18 +6,17 @@
 #define COMPONENTS_PAYMENTS_CONTENT_ANDROID_PAYMENT_MANIFEST_PARSER_ANDROID_H_
 
 #include <jni.h>
-
 #include <memory>
 
 #include "base/android/jni_android.h"
-#include "base/android/scoped_java_ref.h"
 #include "components/payments/content/utility/payment_manifest_parser.h"
 
 namespace payments {
 
 class ErrorLogger;
 
-// Android wrapper for parsing manifest contents.
+// Android wrapper for the host of the utility process that parses manifest
+// contents.
 class PaymentManifestParserAndroid {
  public:
   explicit PaymentManifestParserAndroid(std::unique_ptr<ErrorLogger> log);
@@ -28,14 +27,15 @@ class PaymentManifestParserAndroid {
 
   ~PaymentManifestParserAndroid();
 
-  base::android::ScopedJavaLocalRef<jobject> ParsePaymentMethodManifest(
+  void ParsePaymentMethodManifest(
       JNIEnv* env,
       const base::android::JavaRef<jobject>& jmanifest_url,
-      const base::android::JavaRef<jstring>& jcontent);
+      const base::android::JavaRef<jstring>& jcontent,
+      const base::android::JavaRef<jobject>& jcallback);
 
-  base::android::ScopedJavaLocalRef<jobjectArray> ParseWebAppManifest(
-      JNIEnv* env,
-      const base::android::JavaRef<jstring>& jcontent);
+  void ParseWebAppManifest(JNIEnv* env,
+                           const base::android::JavaRef<jstring>& jcontent,
+                           const base::android::JavaRef<jobject>& jcallback);
 
   void DestroyPaymentManifestParserAndroid(JNIEnv* env);
 

@@ -219,7 +219,8 @@ bool VideoCaptureDeviceApple::Init(VideoCaptureApi capture_api_type) {
 }
 
 void VideoCaptureDeviceApple::ReceiveFrame(
-    base::span<const uint8_t> sample,
+    const uint8_t* video_frame,
+    int video_frame_length,
     const VideoCaptureFormat& frame_format,
     const gfx::ColorSpace color_space,
     int aspect_numerator,
@@ -236,8 +237,9 @@ void VideoCaptureDeviceApple::ReceiveFrame(
   }
 
   client_->OnIncomingCapturedData(
-      sample, frame_format, color_space, rotation /* clockwise_rotation */,
-      false /* flip_y */, base::TimeTicks::Now(), timestamp, capture_begin_time,
+      video_frame, video_frame_length, frame_format, color_space,
+      rotation /* clockwise_rotation */, false /* flip_y */,
+      base::TimeTicks::Now(), timestamp, capture_begin_time,
       GetVideoFrameMetadata());
 }
 
@@ -400,13 +402,6 @@ VideoFrameMetadata VideoCaptureDeviceApple::GetVideoFrameMetadata() {
   }
 
   return metadata;
-}
-
-void VideoCaptureDeviceApple::InvalidateBuffers() {
-  DCHECK(task_runner_->BelongsToCurrentThread());
-  if (client_) {
-    client_->InvalidateBuffers();
-  }
 }
 
 }  // namespace media

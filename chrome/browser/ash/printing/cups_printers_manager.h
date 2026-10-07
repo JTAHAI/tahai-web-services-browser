@@ -19,7 +19,6 @@
 #include "chromeos/printing/uri.h"
 #include "components/keyed_service/core/keyed_service.h"
 
-class ApplicationLocaleStorage;
 class PrefRegistrySimple;
 class PrefService;
 class Profile;
@@ -79,19 +78,11 @@ class CupsPrintersManager : public PrinterInstallationManager,
       base::OnceCallback<void(const chromeos::CupsPrinterStatus&)>;
 
   // Factory function.
-  // `application_locale_storage` must be non-null and must outlive the returned
-  // object.
-  static std::unique_ptr<CupsPrintersManager> Create(
-      PrefService& local_state,
-      const ApplicationLocaleStorage* application_locale_storage,
-      Profile* profile);
+  static std::unique_ptr<CupsPrintersManager> Create(Profile* profile);
 
   // Factory function that allows injected dependencies, for testing.  Ownership
   // is not taken of any of the raw-pointer arguments.
-  // `application_locale_storage` must be non-null and must outlive the returned
-  // object.
   static std::unique_ptr<CupsPrintersManager> CreateForTesting(
-      const ApplicationLocaleStorage* application_locale_storage,
       SyncedPrintersManager* synced_printers_manager,
       std::unique_ptr<PrinterDetector> usb_printer_detector,
       std::unique_ptr<PrinterDetector> zeroconf_printer_detector,

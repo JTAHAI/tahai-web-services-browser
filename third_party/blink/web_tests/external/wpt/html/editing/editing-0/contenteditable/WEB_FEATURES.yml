@@ -1,2 +1,3 @@
-rules:
-- "**": [contenteditable]
+features:
+- name: contenteditable
+  files: "**"

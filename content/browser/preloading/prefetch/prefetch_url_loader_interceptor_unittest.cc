@@ -386,7 +386,7 @@ class PrefetchURLLoaderInterceptorTestBase : public PrefetchingMetricsTestBase {
         *test_content_browser_client(),
         WillCreateURLLoaderFactory(
             _, _, _, ContentBrowserClient::URLLoaderFactoryType::kNavigation, _,
-            _, _, _, _, _, _, _, _, _, _))
+            _, _, _, _, _, _, _, _, _))
         .Times(::testing::AtMost(1));
   }
 
@@ -430,8 +430,7 @@ TEST_F(PrefetchURLLoaderInterceptorTest,
                   ukm::SourceIdObj::FromInt64(
                       navigation_request()->GetNextPageUkmSourceId()),
                   testing::_, testing::IsNull(), testing::NotNull(),
-                  testing::IsNull(), testing::IsNull(), testing::IsNull(),
-                  /*is_for_network_service=*/false));
+                  testing::IsNull(), testing::IsNull(), testing::IsNull()));
 
   auto prefetch_container = CreateSpeculationRulesPrefetchContainer(
       kTestUrl, PrefetchType(PreloadingTriggerType::kSpeculationRule,
@@ -483,8 +482,7 @@ TEST_F(PrefetchURLLoaderInterceptorTest,
                   ukm::SourceIdObj::FromInt64(
                       navigation_request()->GetNextPageUkmSourceId()),
                   testing::_, testing::IsNull(), testing::NotNull(),
-                  testing::IsNull(), testing::IsNull(), testing::IsNull(),
-                  /*is_for_network_service=*/false));
+                  testing::IsNull(), testing::IsNull(), testing::IsNull()));
 
   auto prefetch_container = CreateSpeculationRulesPrefetchContainer(
       kTestUrl, PrefetchType(PreloadingTriggerType::kSpeculationRule,
@@ -545,8 +543,7 @@ TEST_F(PrefetchURLLoaderInterceptorTest,
                   ukm::SourceIdObj::FromInt64(
                       navigation_request()->GetNextPageUkmSourceId()),
                   testing::_, testing::IsNull(), testing::NotNull(),
-                  testing::IsNull(), testing::IsNull(), testing::IsNull(),
-                  /*is_for_network_service=*/false));
+                  testing::IsNull(), testing::IsNull(), testing::IsNull()));
 
   // No cookies are copied for prefetches where |use_isolated_network_context|
   // is false (i.e. same origin prefetches).
@@ -594,8 +591,7 @@ TEST_F(PrefetchURLLoaderInterceptorTest,
                   ukm::SourceIdObj::FromInt64(
                       navigation_request()->GetNextPageUkmSourceId()),
                   testing::_, testing::IsNull(), testing::NotNull(),
-                  testing::IsNull(), testing::IsNull(), testing::IsNull(),
-                  /*is_for_network_service=*/false));
+                  testing::IsNull(), testing::IsNull(), testing::IsNull()));
 
   // Creates a same-origin embedder prefetch, which means cookie copy is not
   // needed.
@@ -871,8 +867,7 @@ TEST_F(PrefetchURLLoaderInterceptorTest, DISABLE_ASAN(ProbeSuccess)) {
                   ukm::SourceIdObj::FromInt64(
                       navigation_request()->GetNextPageUkmSourceId()),
                   testing::_, testing::IsNull(), testing::NotNull(),
-                  testing::IsNull(), testing::IsNull(), testing::IsNull(),
-                  /*is_for_network_service=*/false));
+                  testing::IsNull(), testing::IsNull(), testing::IsNull()));
 
   auto prefetch_container = CreateSpeculationRulesPrefetchContainer(
       kTestUrl, PrefetchType(PreloadingTriggerType::kSpeculationRule,
@@ -1125,8 +1120,7 @@ TEST_F(PrefetchURLLoaderInterceptorTest, DISABLE_ASAN(HandleRedirects)) {
                   ukm::SourceIdObj::FromInt64(
                       navigation_request()->GetNextPageUkmSourceId()),
                   testing::_, testing::IsNull(), testing::NotNull(),
-                  testing::IsNull(), testing::IsNull(), testing::IsNull(),
-                  /*is_for_network_service=*/false))
+                  testing::IsNull(), testing::IsNull(), testing::IsNull()))
       .Times(2);
 
   auto prefetch_container = CreateSpeculationRulesPrefetchContainer(
@@ -1198,8 +1192,7 @@ TEST_F(PrefetchURLLoaderInterceptorTest,
                   ukm::SourceIdObj::FromInt64(
                       navigation_request()->GetNextPageUkmSourceId()),
                   testing::_, testing::IsNull(), testing::NotNull(),
-                  testing::IsNull(), testing::IsNull(), testing::IsNull(),
-                  /*is_for_network_service=*/false))
+                  testing::IsNull(), testing::IsNull(), testing::IsNull()))
       .Times(2);
 
   auto prefetch_container = CreateSpeculationRulesPrefetchContainer(
@@ -1410,8 +1403,6 @@ TEST_F(PrefetchURLLoaderInterceptorTest,
 
   CreateInterceptor(MainDocumentToken());
   MaybeCreateLoader(kTestUrl);
-  // Wait asynchronous `PrefetchMatchResolver::UnblockInternal()` call.
-  task_environment()->RunUntilIdle();
 
   // A decision on whether the navigation should be intercepted shouldn't be
   // made until the origin probe is complete.

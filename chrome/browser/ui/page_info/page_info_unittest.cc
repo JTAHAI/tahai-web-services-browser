@@ -135,6 +135,9 @@ class MockPageInfoUI : public PageInfoUI {
   MOCK_METHOD(void, SetPermissionInfoStub, ());
   MOCK_METHOD(void, SetIdentityInfo, (const IdentityInfo& identity_info));
   MOCK_METHOD(void, SetPageFeatureInfo, (const PageFeatureInfo& info));
+  MOCK_METHOD(void,
+              SetAdPersonalizationInfo,
+              (const AdPersonalizationInfo& info));
 
   void SetPermissionInfo(
       const PermissionInfoList& permission_info_list,
@@ -381,7 +384,9 @@ TEST_F(PageInfoTest, PermissionStringsHaveMidSentenceVersion) {
       case ContentSettingsType::MIDI_SYSEX:
       case ContentSettingsType::NFC:
       case ContentSettingsType::USB_GUARD:
+#if !BUILDFLAG(IS_ANDROID)
       case ContentSettingsType::HID_GUARD:
+#endif
         EXPECT_EQ(normal, mid_sentence);
         break;
 #if BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_WIN)
@@ -2062,6 +2067,35 @@ TEST_F(PageInfoTest, TimeOpenMetrics) {
   page_info();
 }
 
+TEST_F(PageInfoTest, AdPersonalization) {
+  constexpr int kTaxonomyVersion = 1;
+  privacy_sandbox::CanonicalTopic kFirstTopic(
+      browsing_topics::Topic(24),  // "Blues"
+      kTaxonomyVersion);
+  privacy_sandbox::CanonicalTopic kSecondTopic(
+      browsing_topics::Topic(23),  // "Music & audio"
+      kTaxonomyVersion);
+
+  std::vector<privacy_sandbox::CanonicalTopic> accessed_topics = {kFirstTopic,
+                                                                  kSecondTopic};
+  EXPECT_CALL(*mock_ui(),
+              SetAdPersonalizationInfo(::testing::Field(
+                  &PageInfoUI::AdPersonalizationInfo::accessed_topics,
+                  accessed_topics)));
+
+  content_settings::PageSpecificContentSettings* pscs =
+      content_settings::PageSpecificContentSettings::GetForFrame(
+          web_contents()->GetPrimaryMainFrame());
+  EXPECT_FALSE(pscs->HasAccessedTopics());
+  EXPECT_THAT(pscs->GetAccessedTopics(), testing::IsEmpty());
+
+  pscs->OnTopicAccessed(url::Origin::Create(GURL("https://foo.com")), false,
+                        kSecondTopic);
+  pscs->OnTopicAccessed(url::Origin::Create(GURL("https://foo.com")), false,
+                        kFirstTopic);
+  page_info();
+}
+
 // Tests that metrics are recorded on a PageInfo for pages with
 // various Safety Tip statuses.
 // See https://crbug.com/40710931 for why the test is disabled on Android.
@@ -3005,3 +3039,32 @@ TEST_F(PageInfoTest, PermanentNotificationSubscribeShowPermission) {
 }
 #endif  // BUILDFLAG(IS_ANDROID)
 
+class PageInfoAdPrivacyDeprecationTest : public PageInfoTest {
+ public:
+  void SetUp() override {
+    PageInfoTest::SetUp();
+    feature_list_.InitAndEnableFeature(
+        privacy_sandbox::kPrivacySandboxAdPrivacyUxDeprecation);
+  }
+
+ private:
+  base::test::ScopedFeatureList feature_list_;
+};
+
+TEST_F(PageInfoAdPrivacyDeprecationTest, AdPersonalizationButtonRemoved) {
+  constexpr int kTaxonomyVersion = 1;
+  privacy_sandbox::CanonicalTopic kFirstTopic(
+      browsing_topics::Topic(24),  // "Blues"
+      kTaxonomyVersion);
+
+  EXPECT_CALL(*mock_ui(), SetAdPersonalizationInfo(testing::_)).Times(0);
+
+  content_settings::PageSpecificContentSettings* pscs =
+      content_settings::PageSpecificContentSettings::GetForFrame(
+          web_contents()->GetPrimaryMainFrame());
+
+  pscs->OnTopicAccessed(url::Origin::Create(GURL("https://foo.com")), false,
+                        kFirstTopic);
+
+  page_info();
+}

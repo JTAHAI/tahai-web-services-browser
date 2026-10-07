@@ -5,9 +5,7 @@
 #ifndef RLZ_WIN_LIB_REGISTRY_UTIL_H_
 #define RLZ_WIN_LIB_REGISTRY_UTIL_H_
 
-#include <optional>
-#include <string>
-#include <string_view>
+#include <stddef.h>
 
 namespace base {
 namespace win {
@@ -17,12 +15,14 @@ class RegKey;
 
 namespace rlz_lib {
 
-std::optional<std::string> RegKeyReadValue(const base::win::RegKey& key,
-                                           const wchar_t* name);
+bool RegKeyReadValue(const base::win::RegKey& key,
+                     const wchar_t* name,
+                     char* value,
+                     size_t* value_size);
 
 bool RegKeyWriteValue(base::win::RegKey* key,
                       const wchar_t* name,
-                      std::string_view value);
+                      const char* value);
 
 bool HasUserKeyAccess(bool write_access);
 

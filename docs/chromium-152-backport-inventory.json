@@ -1,0 +1,1925 @@
+{
+  "schema_version": 1,
+  "scope": "Source backport decisions only; GN, compilation, native/browser/service tests, runtime and package acceptance remain required.",
+  "native_checkpoint": "d8853eed913a95ab86d15466cf1d65976b3a59b6",
+  "checkpoint_engine": "152.0.7977.83",
+  "product_source": "e2b0aec57550f5d3e696579f877ef500513106ef",
+  "official_target_commit": "9007248033443cbe529d18cf911d6954f5ce4f49",
+  "official_target_tree": "360dc46643393f1cc27ef1cf8221c14cff20acec",
+  "target_engine": "152.0.7977.158",
+  "product_version": "2.0.33.0",
+  "release_lane_repairs": [
+    {
+      "category": "E",
+      "paths": [
+        "chrome/browser/ui/BUILD.gn",
+        "chrome/browser/ui/toolbar/BUILD.gn",
+        "chrome/browser/ui/views/toolbar/BUILD.gn",
+        "chrome/browser/ui/webui/BUILD.gn",
+        "chrome/test/BUILD.gn"
+      ],
+      "rationale": "Chromium 152 GN check reproduced seven private or missing include-dependency errors. Declare the browser tests' accelerator and browser-window dependencies, the toolbar implementation's skin profile service, and both Mission test targets' key-provider interface. Move mode command value types into a narrowly visible header target shared by UI and app-menu headers, preserving implementation ownership and avoiding a UI/toolbar cycle. Retain GN include checking and existing private dependency boundaries."
+    }
+  ],
+  "upstream_changes": {
+    "paths": 597,
+    "exact_upstream_paths_in_prepared_tree": 587,
+    "mixed_product_paths": [
+      "chrome/browser/sessions/session_restore_browsertest.cc",
+      "chrome/browser/sessions/tab_restore_service_unittest.cc",
+      "chrome/browser/ui/browser_commands.cc",
+      "chrome/browser/ui/views/frame/browser_view.cc",
+      "chrome/install_static/chromium_install_modes.h",
+      "chrome/windows_services/elevated_tracing_service/system_tracing_session_unittest.cc",
+      "components/sessions/core/tab_restore_service_helper.cc",
+      "components/sessions/core/tab_restore_service_helper.h",
+      "components/sessions/core/tab_restore_service_impl.cc",
+      "tools/metrics/histograms/metadata/sql/histograms.xml"
+    ]
+  },
+  "categories": {
+    "A": "Required 2.0.33 product behavior",
+    "B": "Required security/reliability repair",
+    "C": "Required Royal branding/resource repair",
+    "D": "Required Store/MSIX/evidence repair",
+    "E": "Required tests/acceptance coverage",
+    "F": "154-only compatibility excluded",
+    "G": "Historical diagnostics/docs/site excluded"
+  },
+  "records": [
+    {
+      "path": ".gitattributes",
+      "category": "C",
+      "rationale": "Force CSS LF checkout so the creator kit reproduces in fresh Windows exports; retain the focused fresh-checkout regression.",
+      "commits": [
+        "c32b793b057f1e04538e98c8edbec3def52754e5"
+      ],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": ".github/workflows/native-release.yml",
+      "category": "D",
+      "rationale": "Release/source evidence and packaging gates; adapt source pins and defaults to verified 152.",
+      "commits": [
+        "11a2af52186de249c1823c9197dace8c552248d7"
+      ],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": ".github/workflows/source-checks.yml",
+      "category": "D",
+      "rationale": "Release/source evidence and packaging gates; adapt source pins and defaults to verified 152.",
+      "commits": [
+        "11a2af52186de249c1823c9197dace8c552248d7"
+      ],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "build/toolchain/win/midl.py",
+      "category": "B",
+      "rationale": "Retain the 152 pipeline and baseline bytes. Backport exact dynamic compiler-path comment normalization and shallow=False byte comparison, proved by 8 focused tests.",
+      "commits": [
+        "606c9f46838a1e87c2a8a3010d2d5cebfcd44f83",
+        "56bb2b68b074a5a5fd970b97419272aea1a0de9c"
+      ],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/android/BUILD.gn",
+      "category": "A",
+      "rationale": "Retain the already-present 152 TAHAI integration. No post-checkpoint product delta is required; exclude the 154 engine/API migration of this file.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/android/chrome_public_apk_tmpl.gni",
+      "category": "A",
+      "rationale": "Retain the already-present 152 TAHAI integration. No post-checkpoint product delta is required; exclude the 154 engine/API migration of this file.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/app/chrome_command_ids.h",
+      "category": "A",
+      "rationale": "Retain the already-present 152 TAHAI integration. No post-checkpoint product delta is required; exclude the 154 engine/API migration of this file.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/app/chrome_exe.rc",
+      "category": "A",
+      "rationale": "Retain the already-present 152 TAHAI integration. No post-checkpoint product delta is required; exclude the 154 engine/API migration of this file.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/app/generated_resources.grd",
+      "category": "A",
+      "rationale": "Retain the already-present 152 TAHAI integration. No post-checkpoint product delta is required; exclude the 154 engine/API migration of this file.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/app/tahai_strings.grd",
+      "category": "F",
+      "rationale": "Exclude 154-only Lens context-menu and Omnibox tray menu additions. In 152, the existing tray tooltip is already defined in generated_resources.grd, whose header its consumer uses.",
+      "commits": [
+        "e2b0aec57550f5d3e696579f877ef500513106ef"
+      ],
+      "action": "Excluded from backport"
+    },
+    {
+      "path": "chrome/app/theme/chrome_unscaled_resources.grd",
+      "category": "A",
+      "rationale": "Retain the already-present 152 TAHAI integration. No post-checkpoint product delta is required; exclude the 154 engine/API migration of this file.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/BUILD.gn",
+      "category": "A",
+      "rationale": "Retain the already-present 152 TAHAI integration. No post-checkpoint product delta is required; exclude the 154 engine/API migration of this file.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/actor/execution_engine_unittest.cc",
+      "category": "E",
+      "rationale": "Retain focused product regressions; inspect engine API context before applying.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/browser_resources.grd",
+      "category": "A",
+      "rationale": "Retain the already-present 152 TAHAI integration. No post-checkpoint product delta is required; exclude the 154 engine/API migration of this file.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/chrome_content_browser_client.cc",
+      "category": "A",
+      "rationale": "Retain the already-present 152 TAHAI integration. No post-checkpoint product delta is required; exclude the 154 engine/API migration of this file.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/policy/configuration_policy_handler_list_factory.cc",
+      "category": "A",
+      "rationale": "Retain the already-present 152 TAHAI integration. No post-checkpoint product delta is required; exclude the 154 engine/API migration of this file.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/prefs/browser_prefs.cc",
+      "category": "A",
+      "rationale": "Retain the already-present 152 TAHAI integration. No post-checkpoint product delta is required; exclude the 154 engine/API migration of this file.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/profiles/BUILD.gn",
+      "category": "A",
+      "rationale": "Retain the already-present 152 TAHAI integration. No post-checkpoint product delta is required; exclude the 154 engine/API migration of this file.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/profiles/chrome_browser_main_extra_parts_profiles.cc",
+      "category": "A",
+      "rationale": "Retain the already-present 152 TAHAI integration. No post-checkpoint product delta is required; exclude the 154 engine/API migration of this file.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/sessions/session_restore.cc",
+      "category": "A",
+      "rationale": "Retain the already-present 152 TAHAI integration. No post-checkpoint product delta is required; exclude the 154 engine/API migration of this file.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/sessions/session_restore_browsertest.cc",
+      "category": "E",
+      "rationale": "Retain focused product regressions; inspect engine API context before applying.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/sessions/session_service.cc",
+      "category": "A",
+      "rationale": "Retain the already-present 152 TAHAI integration. No post-checkpoint product delta is required; exclude the 154 engine/API migration of this file.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/sessions/session_service_base.cc",
+      "category": "A",
+      "rationale": "Retain the already-present 152 TAHAI integration. No post-checkpoint product delta is required; exclude the 154 engine/API migration of this file.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/sessions/session_service_unittest.cc",
+      "category": "E",
+      "rationale": "Retain focused product regressions; inspect engine API context before applying.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/sessions/tab_restore_service_unittest.cc",
+      "category": "E",
+      "rationale": "Retain focused product regressions; inspect engine API context before applying.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/shell_integration_win.cc",
+      "category": "A",
+      "rationale": "Retain the already-present 152 TAHAI integration. No post-checkpoint product delta is required; exclude the 154 engine/API migration of this file.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/tahai_guard/BUILD.gn",
+      "category": "B",
+      "rationale": "TAHAI lifetime, persistence, consent and recovery repairs. Exclude 154 API migrations at hunk level.",
+      "commits": [
+        "e2b0aec57550f5d3e696579f877ef500513106ef"
+      ],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/tahai_guard/guard_engine_browsertest.cc",
+      "category": "E",
+      "rationale": "Retain focused product regressions; inspect engine API context before applying.",
+      "commits": [
+        "e2b0aec57550f5d3e696579f877ef500513106ef"
+      ],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/tahai_guard/guard_request_browsertest.cc",
+      "category": "E",
+      "rationale": "Retain focused product regressions; inspect engine API context before applying.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/tahai_skins/skin_decoder_browsertest.cc",
+      "category": "E",
+      "rationale": "Retain focused product regressions; inspect engine API context before applying.",
+      "commits": [
+        "ea84d4d6ad175e99579a060d2ae1add1542ff073",
+        "ec332243e106ce19f5ed95cd68af764385a889bc",
+        "fe8f5bb97e3827dcd24d66a0071ffb33aa0880cd"
+      ],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/tahai_skins/skin_profile_service.cc",
+      "category": "B",
+      "rationale": "TAHAI lifetime, persistence, consent and recovery repairs. Exclude 154 API migrations at hunk level.",
+      "commits": [
+        "ec332243e106ce19f5ed95cd68af764385a889bc"
+      ],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/tahai_skins/skin_profile_service.h",
+      "category": "B",
+      "rationale": "TAHAI lifetime, persistence, consent and recovery repairs. Exclude 154 API migrations at hunk level.",
+      "commits": [
+        "ec332243e106ce19f5ed95cd68af764385a889bc"
+      ],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/themes/theme_service.cc",
+      "category": "A",
+      "rationale": "Retain the already-present 152 TAHAI integration. No post-checkpoint product delta is required; exclude the 154 engine/API migration of this file.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/themes/theme_service.h",
+      "category": "A",
+      "rationale": "Retain the already-present 152 TAHAI integration. No post-checkpoint product delta is required; exclude the 154 engine/API migration of this file.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/ui/BUILD.gn",
+      "category": "B",
+      "rationale": "Declare the version_info dependency used by existing TAHAI UI code.",
+      "commits": [
+        "fe8f5bb97e3827dcd24d66a0071ffb33aa0880cd"
+      ],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/ui/android/tab_model/android_live_tab_context.cc",
+      "category": "A",
+      "rationale": "Retain the already-present 152 TAHAI integration. No post-checkpoint product delta is required; exclude the 154 engine/API migration of this file.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/ui/android/tab_model/android_live_tab_context.h",
+      "category": "A",
+      "rationale": "Retain the already-present 152 TAHAI integration. No post-checkpoint product delta is required; exclude the 154 engine/API migration of this file.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/ui/browser_command_controller.cc",
+      "category": "A",
+      "rationale": "Retain the already-present 152 TAHAI integration. No post-checkpoint product delta is required; exclude the 154 engine/API migration of this file.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/ui/browser_commands.cc",
+      "category": "B",
+      "rationale": "Preserve official .158 security/lifetime changes while retaining the pre-checkpoint TAHAI integration; reviewed individually in the mixed upstream-path audit.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/ui/browser_commands.h",
+      "category": "A",
+      "rationale": "Retain the already-present 152 TAHAI integration. No post-checkpoint product delta is required; exclude the 154 engine/API migration of this file.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/ui/browser_live_tab_context.cc",
+      "category": "A",
+      "rationale": "Retain the already-present 152 TAHAI integration. No post-checkpoint product delta is required; exclude the 154 engine/API migration of this file.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/ui/browser_live_tab_context.h",
+      "category": "A",
+      "rationale": "Retain the already-present 152 TAHAI integration. No post-checkpoint product delta is required; exclude the 154 engine/API migration of this file.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/ui/startup/infobar_utils.cc",
+      "category": "A",
+      "rationale": "Retain the already-present 152 TAHAI integration. No post-checkpoint product delta is required; exclude the 154 engine/API migration of this file.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/ui/tab_helpers.cc",
+      "category": "A",
+      "rationale": "Retain the already-present 152 TAHAI integration. No post-checkpoint product delta is required; exclude the 154 engine/API migration of this file.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/ui/tabs/split_tab_menu_model.cc",
+      "category": "A",
+      "rationale": "Retain the already-present 152 TAHAI integration. No post-checkpoint product delta is required; exclude the 154 engine/API migration of this file.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/ui/tabs/split_tab_metrics.cc",
+      "category": "A",
+      "rationale": "Retain the already-present 152 TAHAI integration. No post-checkpoint product delta is required; exclude the 154 engine/API migration of this file.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/ui/tabs/tab_strip_model.cc",
+      "category": "A",
+      "rationale": "Retain the already-present 152 TAHAI integration. No post-checkpoint product delta is required; exclude the 154 engine/API migration of this file.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/ui/tabs/tab_strip_model.h",
+      "category": "A",
+      "rationale": "Retain the already-present 152 TAHAI integration. No post-checkpoint product delta is required; exclude the 154 engine/API migration of this file.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/ui/tabs/tab_strip_model_unittest.cc",
+      "category": "E",
+      "rationale": "Retain focused product regressions; inspect engine API context before applying.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/ui/tahai/tahai_capability_broker.cc",
+      "category": "B",
+      "rationale": "TAHAI lifetime, persistence, consent and recovery repairs. Exclude 154 API migrations at hunk level.",
+      "commits": [
+        "ec332243e106ce19f5ed95cd68af764385a889bc",
+        "9aa416efe3373785120a51f6720882f1b236fff0"
+      ],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/ui/tahai/tahai_environment_guard_registry.cc",
+      "category": "B",
+      "rationale": "TAHAI lifetime, persistence, consent and recovery repairs. Exclude 154 API migrations at hunk level.",
+      "commits": [
+        "ec332243e106ce19f5ed95cd68af764385a889bc"
+      ],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/ui/tahai/tahai_finder.cc",
+      "category": "B",
+      "rationale": "TAHAI lifetime, persistence, consent and recovery repairs. Exclude 154 API migrations at hunk level.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/ui/tahai/tahai_finder.h",
+      "category": "B",
+      "rationale": "TAHAI lifetime, persistence, consent and recovery repairs. Exclude 154 API migrations at hunk level.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/ui/tahai/tahai_finder_browsertest.cc",
+      "category": "E",
+      "rationale": "Retain focused product regressions; inspect engine API context before applying.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/ui/tahai/tahai_guard_panel.cc",
+      "category": "B",
+      "rationale": "TAHAI lifetime, persistence, consent and recovery repairs. Exclude 154 API migrations at hunk level.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/ui/tahai/tahai_guard_panel.h",
+      "category": "B",
+      "rationale": "TAHAI lifetime, persistence, consent and recovery repairs. Exclude 154 API migrations at hunk level.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/ui/tahai/tahai_mode_command_model.cc",
+      "category": "B",
+      "rationale": "TAHAI lifetime, persistence, consent and recovery repairs. Exclude 154 API migrations at hunk level.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/ui/tahai/tahai_mode_command_model.h",
+      "category": "B",
+      "rationale": "TAHAI lifetime, persistence, consent and recovery repairs. Exclude 154 API migrations at hunk level.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/ui/tahai/tahai_mode_service.cc",
+      "category": "B",
+      "rationale": "TAHAI lifetime, persistence, consent and recovery repairs. Exclude 154 API migrations at hunk level.",
+      "commits": [
+        "ec332243e106ce19f5ed95cd68af764385a889bc",
+        "9aa416efe3373785120a51f6720882f1b236fff0"
+      ],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/ui/tahai/tahai_mode_service.h",
+      "category": "B",
+      "rationale": "TAHAI lifetime, persistence, consent and recovery repairs. Exclude 154 API migrations at hunk level.",
+      "commits": [
+        "0c823f3d4547ddb61e222ce49ea4b5a583fc9889",
+        "9aa416efe3373785120a51f6720882f1b236fff0"
+      ],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/ui/tahai/tahai_named_workspace_controller.cc",
+      "category": "B",
+      "rationale": "TAHAI lifetime, persistence, consent and recovery repairs. Exclude 154 API migrations at hunk level.",
+      "commits": [
+        "9aa416efe3373785120a51f6720882f1b236fff0"
+      ],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/ui/tahai/tahai_named_workspace_controller.h",
+      "category": "B",
+      "rationale": "TAHAI lifetime, persistence, consent and recovery repairs. Exclude 154 API migrations at hunk level.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/ui/tahai/tahai_named_workspace_manager_view.cc",
+      "category": "B",
+      "rationale": "TAHAI lifetime, persistence, consent and recovery repairs. Exclude 154 API migrations at hunk level.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/ui/tahai/tahai_named_workspace_store.cc",
+      "category": "B",
+      "rationale": "TAHAI lifetime, persistence, consent and recovery repairs. Exclude 154 API migrations at hunk level.",
+      "commits": [
+        "ec332243e106ce19f5ed95cd68af764385a889bc",
+        "9aa416efe3373785120a51f6720882f1b236fff0"
+      ],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/ui/tahai/tahai_operational_workflow_queue.cc",
+      "category": "B",
+      "rationale": "TAHAI lifetime, persistence, consent and recovery repairs. Exclude 154 API migrations at hunk level.",
+      "commits": [
+        "32f3e9851590102a387aafc8873140395854d394",
+        "fe8f5bb97e3827dcd24d66a0071ffb33aa0880cd"
+      ],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/ui/tahai/tahai_operational_workflow_queue.h",
+      "category": "B",
+      "rationale": "TAHAI lifetime, persistence, consent and recovery repairs. Exclude 154 API migrations at hunk level.",
+      "commits": [
+        "32f3e9851590102a387aafc8873140395854d394"
+      ],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/ui/tahai/tahai_pane_layout_transition.cc",
+      "category": "B",
+      "rationale": "TAHAI lifetime, persistence, consent and recovery repairs. Exclude 154 API migrations at hunk level.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/ui/tahai/tahai_pane_layout_transition.h",
+      "category": "B",
+      "rationale": "TAHAI lifetime, persistence, consent and recovery repairs. Exclude 154 API migrations at hunk level.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/ui/tahai/tahai_skin_manager.cc",
+      "category": "B",
+      "rationale": "TAHAI lifetime, persistence, consent and recovery repairs. Exclude 154 API migrations at hunk level.",
+      "commits": [
+        "32f3e9851590102a387aafc8873140395854d394",
+        "ec332243e106ce19f5ed95cd68af764385a889bc",
+        "fe8f5bb97e3827dcd24d66a0071ffb33aa0880cd"
+      ],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/ui/tahai/tahai_skin_manager.h",
+      "category": "B",
+      "rationale": "TAHAI lifetime, persistence, consent and recovery repairs. Exclude 154 API migrations at hunk level.",
+      "commits": [
+        "ec332243e106ce19f5ed95cd68af764385a889bc",
+        "fe8f5bb97e3827dcd24d66a0071ffb33aa0880cd"
+      ],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/ui/tahai/tahai_skin_studio_draft.cc",
+      "category": "B",
+      "rationale": "TAHAI lifetime, persistence, consent and recovery repairs. Exclude 154 API migrations at hunk level.",
+      "commits": [
+        "fe8f5bb97e3827dcd24d66a0071ffb33aa0880cd"
+      ],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/ui/tahai/tahai_window_mode_controller.cc",
+      "category": "B",
+      "rationale": "TAHAI lifetime, persistence, consent and recovery repairs. Exclude 154 API migrations at hunk level.",
+      "commits": [
+        "ec332243e106ce19f5ed95cd68af764385a889bc"
+      ],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/ui/tahai/tahai_window_mode_controller.h",
+      "category": "B",
+      "rationale": "TAHAI lifetime, persistence, consent and recovery repairs. Exclude 154 API migrations at hunk level.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/ui/tahai/tahai_workspace_rail_view.cc",
+      "category": "B",
+      "rationale": "TAHAI lifetime, persistence, consent and recovery repairs. Exclude 154 API migrations at hunk level.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/ui/toolbar/app_menu_model.cc",
+      "category": "A",
+      "rationale": "Retain the already-present 152 TAHAI integration. No post-checkpoint product delta is required; exclude the 154 engine/API migration of this file.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/ui/toolbar/app_menu_model.h",
+      "category": "A",
+      "rationale": "Retain the already-present 152 TAHAI integration. No post-checkpoint product delta is required; exclude the 154 engine/API migration of this file.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/ui/toolbar/app_menu_model_browsertest.cc",
+      "category": "E",
+      "rationale": "Retain focused product regressions; inspect engine API context before applying.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/ui/toolbar/app_menu_model_unittest.cc",
+      "category": "E",
+      "rationale": "Retain focused product regressions; inspect engine API context before applying.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/ui/views/frame/browser_view.cc",
+      "category": "B",
+      "rationale": "Preserve official .158 security/lifetime changes while retaining the pre-checkpoint TAHAI integration; reviewed individually in the mixed upstream-path audit.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/ui/views/frame/browser_view.h",
+      "category": "A",
+      "rationale": "Retain the already-present 152 TAHAI integration. No post-checkpoint product delta is required; exclude the 154 engine/API migration of this file.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/ui/views/frame/browser_widget.cc",
+      "category": "A",
+      "rationale": "Retain the already-present 152 TAHAI integration. No post-checkpoint product delta is required; exclude the 154 engine/API migration of this file.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/ui/views/frame/browser_window_property_manager_win.cc",
+      "category": "A",
+      "rationale": "Retain the already-present 152 TAHAI integration. No post-checkpoint product delta is required; exclude the 154 engine/API migration of this file.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/ui/views/frame/layout/browser_view_layout.h",
+      "category": "A",
+      "rationale": "Retain the already-present 152 TAHAI integration. No post-checkpoint product delta is required; exclude the 154 engine/API migration of this file.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc",
+      "category": "A",
+      "rationale": "Retain the already-present 152 TAHAI integration. No post-checkpoint product delta is required; exclude the 154 engine/API migration of this file.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/ui/views/frame/multi_contents_view.cc",
+      "category": "A",
+      "rationale": "Retain the already-present 152 TAHAI integration. No post-checkpoint product delta is required; exclude the 154 engine/API migration of this file.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/ui/views/frame/multi_contents_view.h",
+      "category": "A",
+      "rationale": "Retain the already-present 152 TAHAI integration. No post-checkpoint product delta is required; exclude the 154 engine/API migration of this file.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/ui/views/frame/multi_contents_view_browsertest.cc",
+      "category": "E",
+      "rationale": "Retain focused product regressions; inspect engine API context before applying.",
+      "commits": [
+        "1f9a9af60992e45d5af95ff96d9449d16bcaf750",
+        "0c823f3d4547ddb61e222ce49ea4b5a583fc9889",
+        "9aa416efe3373785120a51f6720882f1b236fff0"
+      ],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/ui/views/frame/multi_contents_view_delegate.cc",
+      "category": "A",
+      "rationale": "Retain the already-present 152 TAHAI integration. No post-checkpoint product delta is required; exclude the 154 engine/API migration of this file.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/ui/views/frame/multi_contents_view_delegate.h",
+      "category": "A",
+      "rationale": "Retain the already-present 152 TAHAI integration. No post-checkpoint product delta is required; exclude the 154 engine/API migration of this file.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/ui/views/profiles/profile_picker_view.cc",
+      "category": "A",
+      "rationale": "Retain the already-present 152 TAHAI integration. No post-checkpoint product delta is required; exclude the 154 engine/API migration of this file.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/ui/views/tabs/common/split_tab_view.cc",
+      "category": "A",
+      "rationale": "Retain the already-present 152 TAHAI integration. No post-checkpoint product delta is required; exclude the 154 engine/API migration of this file.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/ui/views/tabs/common/split_tab_view_browsertest.cc",
+      "category": "E",
+      "rationale": "Retain focused product regressions; inspect engine API context before applying.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/ui/views/tabs/tab.cc",
+      "category": "A",
+      "rationale": "Retain the already-present 152 TAHAI integration. No post-checkpoint product delta is required; exclude the 154 engine/API migration of this file.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/ui/views/tabs/tab/tab_accessibility.cc",
+      "category": "A",
+      "rationale": "Retain the already-present 152 TAHAI integration. No post-checkpoint product delta is required; exclude the 154 engine/API migration of this file.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/ui/views/toolbar/toolbar_view.cc",
+      "category": "A",
+      "rationale": "Retain the already-present 152 TAHAI integration. No post-checkpoint product delta is required; exclude the 154 engine/API migration of this file.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/ui/views/toolbar/toolbar_view.h",
+      "category": "A",
+      "rationale": "Retain the already-present 152 TAHAI integration. No post-checkpoint product delta is required; exclude the 154 engine/API migration of this file.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/ui/webui/BUILD.gn",
+      "category": "E",
+      "rationale": "Register mode-service and named-workspace-store unit tests and their version_info dependency in the 152 native target.",
+      "commits": [
+        "9aa416efe3373785120a51f6720882f1b236fff0",
+        "fe8f5bb97e3827dcd24d66a0071ffb33aa0880cd"
+      ],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/ui/webui/chrome_web_ui_configs.cc",
+      "category": "A",
+      "rationale": "Retain the already-present 152 TAHAI integration. No post-checkpoint product delta is required; exclude the 154 engine/API migration of this file.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/ui/webui/tahai/tahai_capability_broker_unittest.cc",
+      "category": "E",
+      "rationale": "Retain focused product regressions; inspect engine API context before applying.",
+      "commits": [
+        "ec332243e106ce19f5ed95cd68af764385a889bc",
+        "9aa416efe3373785120a51f6720882f1b236fff0"
+      ],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/ui/webui/tahai/tahai_local_oi_browsertest.cc",
+      "category": "E",
+      "rationale": "Retain focused product regressions; inspect engine API context before applying.",
+      "commits": [
+        "9aa416efe3373785120a51f6720882f1b236fff0"
+      ],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/ui/webui/tahai/tahai_local_oi_model.cc",
+      "category": "B",
+      "rationale": "TAHAI lifetime, persistence, consent and recovery repairs. Exclude 154 API migrations at hunk level.",
+      "commits": [
+        "9aa416efe3373785120a51f6720882f1b236fff0"
+      ],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/ui/webui/tahai/tahai_local_oi_model.h",
+      "category": "B",
+      "rationale": "TAHAI lifetime, persistence, consent and recovery repairs. Exclude 154 API migrations at hunk level.",
+      "commits": [
+        "9aa416efe3373785120a51f6720882f1b236fff0"
+      ],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/ui/webui/tahai/tahai_local_oi_service.cc",
+      "category": "B",
+      "rationale": "TAHAI lifetime, persistence, consent and recovery repairs. Exclude 154 API migrations at hunk level.",
+      "commits": [
+        "0c823f3d4547ddb61e222ce49ea4b5a583fc9889",
+        "9aa416efe3373785120a51f6720882f1b236fff0"
+      ],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/ui/webui/tahai/tahai_local_oi_service.h",
+      "category": "B",
+      "rationale": "TAHAI lifetime, persistence, consent and recovery repairs. Exclude 154 API migrations at hunk level.",
+      "commits": [
+        "0c823f3d4547ddb61e222ce49ea4b5a583fc9889",
+        "9aa416efe3373785120a51f6720882f1b236fff0"
+      ],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/ui/webui/tahai/tahai_local_oi_store.cc",
+      "category": "B",
+      "rationale": "TAHAI lifetime, persistence, consent and recovery repairs. Exclude 154 API migrations at hunk level.",
+      "commits": [
+        "ec332243e106ce19f5ed95cd68af764385a889bc",
+        "9aa416efe3373785120a51f6720882f1b236fff0"
+      ],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/ui/webui/tahai/tahai_local_oi_store.h",
+      "category": "B",
+      "rationale": "TAHAI lifetime, persistence, consent and recovery repairs. Exclude 154 API migrations at hunk level.",
+      "commits": [
+        "9aa416efe3373785120a51f6720882f1b236fff0"
+      ],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/ui/webui/tahai/tahai_local_oi_store_unittest.cc",
+      "category": "E",
+      "rationale": "Retain focused product regressions; inspect engine API context before applying.",
+      "commits": [
+        "ec332243e106ce19f5ed95cd68af764385a889bc",
+        "9aa416efe3373785120a51f6720882f1b236fff0"
+      ],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/ui/webui/tahai/tahai_mission_service.cc",
+      "category": "B",
+      "rationale": "TAHAI lifetime, persistence, consent and recovery repairs. Exclude 154 API migrations at hunk level.",
+      "commits": [
+        "0c823f3d4547ddb61e222ce49ea4b5a583fc9889",
+        "ea84d4d6ad175e99579a060d2ae1add1542ff073",
+        "5aef3747ced1ed50a48e6bab66e8edbab96d8dd9",
+        "32f3e9851590102a387aafc8873140395854d394",
+        "ec332243e106ce19f5ed95cd68af764385a889bc",
+        "9aa416efe3373785120a51f6720882f1b236fff0"
+      ],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/ui/webui/tahai/tahai_mission_service.h",
+      "category": "B",
+      "rationale": "TAHAI lifetime, persistence, consent and recovery repairs. Exclude 154 API migrations at hunk level.",
+      "commits": [
+        "0c823f3d4547ddb61e222ce49ea4b5a583fc9889",
+        "ea84d4d6ad175e99579a060d2ae1add1542ff073",
+        "5aef3747ced1ed50a48e6bab66e8edbab96d8dd9",
+        "32f3e9851590102a387aafc8873140395854d394",
+        "ec332243e106ce19f5ed95cd68af764385a889bc",
+        "9aa416efe3373785120a51f6720882f1b236fff0"
+      ],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/ui/webui/tahai/tahai_mission_service_unittest.cc",
+      "category": "E",
+      "rationale": "Retain focused product regressions; inspect engine API context before applying.",
+      "commits": [
+        "0c823f3d4547ddb61e222ce49ea4b5a583fc9889",
+        "6b84b65aff638f7290ff9f5f352cdbd8df3237a0",
+        "ea84d4d6ad175e99579a060d2ae1add1542ff073",
+        "5aef3747ced1ed50a48e6bab66e8edbab96d8dd9",
+        "ec332243e106ce19f5ed95cd68af764385a889bc",
+        "9aa416efe3373785120a51f6720882f1b236fff0",
+        "fe8f5bb97e3827dcd24d66a0071ffb33aa0880cd"
+      ],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/ui/webui/tahai/tahai_mode_service_unittest.cc",
+      "category": "E",
+      "rationale": "Retain focused product regressions; inspect engine API context before applying.",
+      "commits": [
+        "ec332243e106ce19f5ed95cd68af764385a889bc",
+        "9aa416efe3373785120a51f6720882f1b236fff0"
+      ],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/ui/webui/tahai/tahai_named_workspace_store_unittest.cc",
+      "category": "E",
+      "rationale": "Retain focused product regressions; inspect engine API context before applying.",
+      "commits": [
+        "ec332243e106ce19f5ed95cd68af764385a889bc",
+        "9aa416efe3373785120a51f6720882f1b236fff0"
+      ],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/ui/webui/tahai/tahai_native_mode_editor.h",
+      "category": "B",
+      "rationale": "TAHAI lifetime, persistence, consent and recovery repairs. Exclude 154 API migrations at hunk level.",
+      "commits": [
+        "9aa416efe3373785120a51f6720882f1b236fff0"
+      ],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/ui/webui/tahai/tahai_skin_studio_draft_unittest.cc",
+      "category": "E",
+      "rationale": "Retain focused product regressions; inspect engine API context before applying.",
+      "commits": [
+        "fe8f5bb97e3827dcd24d66a0071ffb33aa0880cd"
+      ],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/ui/webui/tahai/tahai_surface_editor_handler.cc",
+      "category": "B",
+      "rationale": "TAHAI lifetime, persistence, consent and recovery repairs. Exclude 154 API migrations at hunk level.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/ui/webui/tahai/tahai_sync_key_service.cc",
+      "category": "B",
+      "rationale": "TAHAI lifetime, persistence, consent and recovery repairs. Exclude 154 API migrations at hunk level.",
+      "commits": [
+        "0c823f3d4547ddb61e222ce49ea4b5a583fc9889",
+        "6b84b65aff638f7290ff9f5f352cdbd8df3237a0",
+        "ea84d4d6ad175e99579a060d2ae1add1542ff073",
+        "ec332243e106ce19f5ed95cd68af764385a889bc"
+      ],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/ui/webui/tahai/tahai_sync_key_service.h",
+      "category": "B",
+      "rationale": "TAHAI lifetime, persistence, consent and recovery repairs. Exclude 154 API migrations at hunk level.",
+      "commits": [
+        "0c823f3d4547ddb61e222ce49ea4b5a583fc9889",
+        "ea84d4d6ad175e99579a060d2ae1add1542ff073"
+      ],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/ui/webui/tahai/tahai_ui.cc",
+      "category": "B",
+      "rationale": "TAHAI lifetime, persistence, consent and recovery repairs. Exclude 154 API migrations at hunk level.",
+      "commits": [
+        "1f9a9af60992e45d5af95ff96d9449d16bcaf750",
+        "0c823f3d4547ddb61e222ce49ea4b5a583fc9889",
+        "9aa416efe3373785120a51f6720882f1b236fff0",
+        "fe8f5bb97e3827dcd24d66a0071ffb33aa0880cd"
+      ],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/ui/webui/tahai/tahai_workflow_native_handler.cc",
+      "category": "B",
+      "rationale": "TAHAI lifetime, persistence, consent and recovery repairs. Exclude 154 API migrations at hunk level.",
+      "commits": [
+        "0c823f3d4547ddb61e222ce49ea4b5a583fc9889",
+        "ea84d4d6ad175e99579a060d2ae1add1542ff073"
+      ],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/ui/webui/tahai/tahai_workflow_native_handler.h",
+      "category": "B",
+      "rationale": "TAHAI lifetime, persistence, consent and recovery repairs. Exclude 154 API migrations at hunk level.",
+      "commits": [
+        "ea84d4d6ad175e99579a060d2ae1add1542ff073"
+      ],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/browser/ui/webui/tahai/tahai_workflow_native_unittest.cc",
+      "category": "E",
+      "rationale": "Retain focused product regressions; inspect engine API context before applying.",
+      "commits": [
+        "0c823f3d4547ddb61e222ce49ea4b5a583fc9889",
+        "ea84d4d6ad175e99579a060d2ae1add1542ff073",
+        "32f3e9851590102a387aafc8873140395854d394",
+        "9aa416efe3373785120a51f6720882f1b236fff0"
+      ],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/common/BUILD.gn",
+      "category": "A",
+      "rationale": "Retain the already-present 152 TAHAI integration. No post-checkpoint product delta is required; exclude the 154 engine/API migration of this file.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/common/chrome_content_client.cc",
+      "category": "A",
+      "rationale": "Retain the already-present 152 TAHAI integration. No post-checkpoint product delta is required; exclude the 154 engine/API migration of this file.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/common/pref_names.h",
+      "category": "A",
+      "rationale": "Retain the already-present 152 TAHAI integration. No post-checkpoint product delta is required; exclude the 154 engine/API migration of this file.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/elevation_service/BUILD.gn",
+      "category": "F",
+      "rationale": "Retain official 152 dependency/policy/service/compiler state; do not copy 154 changes.",
+      "commits": [],
+      "action": "Excluded from backport"
+    },
+    {
+      "path": "chrome/elevation_service/service_main_unittest.cc",
+      "category": "E",
+      "rationale": "Backport configured-TAHAI-IID/type-library sentinel and BSTR allocation regression against 152 service APIs.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/install_static/chromium_install_modes.h",
+      "category": "B",
+      "rationale": "Preserve TAHAI identity and CLSIDs. Official .158 introduces the handle invitation ABI; use its reviewed TAHAI IID and reject the previous ABI IID.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/install_static/install_modes_unittest.cc",
+      "category": "E",
+      "rationale": "Retain focused product regressions; inspect engine API context before applying.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/installer/util/BUILD.gn",
+      "category": "A",
+      "rationale": "Retain the already-present 152 TAHAI integration. No post-checkpoint product delta is required; exclude the 154 engine/API migration of this file.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/installer/win/tahai_msix/AppxManifest.xml",
+      "category": "D",
+      "rationale": "Set the source manifest version to 2.0.33.0 while preserving name, publisher, application IDs, architecture and capabilities. The packaging pipeline still checks exact evidence.",
+      "action": "Updated"
+    },
+    {
+      "path": "chrome/installer/win/tahai_msix/package_unsigned_msix.ps1",
+      "category": "D",
+      "rationale": "Release/source evidence and packaging gates; adapt source pins and defaults to verified 152.",
+      "commits": [
+        "11a2af52186de249c1823c9197dace8c552248d7"
+      ],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/installer/win/tahai_msix/release_evidence.ps1",
+      "category": "D",
+      "rationale": "Release/source evidence and packaging gates; adapt source pins and defaults to verified 152.",
+      "commits": [
+        "1f9a9af60992e45d5af95ff96d9449d16bcaf750",
+        "0c823f3d4547ddb61e222ce49ea4b5a583fc9889",
+        "ea84d4d6ad175e99579a060d2ae1add1542ff073",
+        "5aef3747ced1ed50a48e6bab66e8edbab96d8dd9",
+        "32f3e9851590102a387aafc8873140395854d394",
+        "ec332243e106ce19f5ed95cd68af764385a889bc",
+        "11a2af52186de249c1823c9197dace8c552248d7",
+        "9aa416efe3373785120a51f6720882f1b236fff0",
+        "fe8f5bb97e3827dcd24d66a0071ffb33aa0880cd"
+      ],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/installer/win/tahai_msix/release_evidence_test.ps1",
+      "category": "E",
+      "rationale": "Retain focused product regressions; inspect engine API context before applying.",
+      "commits": [
+        "1f9a9af60992e45d5af95ff96d9449d16bcaf750",
+        "0c823f3d4547ddb61e222ce49ea4b5a583fc9889",
+        "ea84d4d6ad175e99579a060d2ae1add1542ff073",
+        "5aef3747ced1ed50a48e6bab66e8edbab96d8dd9",
+        "32f3e9851590102a387aafc8873140395854d394",
+        "ec332243e106ce19f5ed95cd68af764385a889bc",
+        "11a2af52186de249c1823c9197dace8c552248d7",
+        "9aa416efe3373785120a51f6720882f1b236fff0",
+        "fe8f5bb97e3827dcd24d66a0071ffb33aa0880cd"
+      ],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/installer/win/tahai_msix/verify_release_resources_test.py",
+      "category": "E",
+      "rationale": "Retain focused product regressions; inspect engine API context before applying.",
+      "commits": [
+        "4b45bf911a9e94fdefe804c54a6220c4a26e3bab"
+      ],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/renderer/chrome_render_frame_observer.cc",
+      "category": "A",
+      "rationale": "Retain the already-present 152 TAHAI integration. No post-checkpoint product delta is required; exclude the 154 engine/API migration of this file.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/renderer/chrome_render_frame_observer.h",
+      "category": "A",
+      "rationale": "Retain the already-present 152 TAHAI integration. No post-checkpoint product delta is required; exclude the 154 engine/API migration of this file.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/test/BUILD.gn",
+      "category": "E",
+      "rationale": "Register product regression sources against 152 test targets only.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/utility/services.cc",
+      "category": "A",
+      "rationale": "Retain the already-present 152 TAHAI integration. No post-checkpoint product delta is required; exclude the 154 engine/API migration of this file.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/windows_services/elevated_tracing_service/BUILD.gn",
+      "category": "B",
+      "rationale": "Map the official .158 typelib/IID to the existing reviewed TAHAI handle-ABI IID; preserve checked-in upstream baselines and strict MIDL comparison.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "chrome/windows_services/elevated_tracing_service/system_tracing_session_unittest.cc",
+      "category": "E",
+      "rationale": "Backport configured CLSID/IID/type-library and obsolete tracing ABI rejection sentinels; .158 has the same handle ABI.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "components/policy/resources/templates/policies.yaml",
+      "category": "F",
+      "rationale": "Retain official 152 dependency/policy/service/compiler state; do not copy 154 changes.",
+      "commits": [],
+      "action": "Excluded from backport"
+    },
+    {
+      "path": "components/prefs/pref_service.cc",
+      "category": "B",
+      "rationale": "Expose validated raw user-store values without changing effective preference/type-filtering behavior, for TAHAI fail-closed storage preservation regressions.",
+      "commits": [
+        "ec332243e106ce19f5ed95cd68af764385a889bc"
+      ],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "components/prefs/pref_service.h",
+      "category": "B",
+      "rationale": "Declare the raw user-value API used by tested TAHAI fail-closed storage repairs.",
+      "commits": [
+        "ec332243e106ce19f5ed95cd68af764385a889bc"
+      ],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "components/resources/BUILD.gn",
+      "category": "A",
+      "rationale": "Retain the already-present 152 TAHAI integration. No post-checkpoint product delta is required; exclude the 154 engine/API migration of this file.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "components/sessions/core/live_tab_context.h",
+      "category": "A",
+      "rationale": "Retain the already-present 152 TAHAI integration. No post-checkpoint product delta is required; exclude the 154 engine/API migration of this file.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "components/sessions/core/tab_restore_service_helper.cc",
+      "category": "B",
+      "rationale": "Preserve official .158 security/lifetime changes while retaining the pre-checkpoint TAHAI integration; reviewed individually in the mixed upstream-path audit.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "components/sessions/core/tab_restore_service_helper.h",
+      "category": "B",
+      "rationale": "Preserve official .158 security/lifetime changes while retaining the pre-checkpoint TAHAI integration; reviewed individually in the mixed upstream-path audit.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "components/sessions/core/tab_restore_service_impl.cc",
+      "category": "B",
+      "rationale": "Preserve official .158 security/lifetime changes while retaining the pre-checkpoint TAHAI integration; reviewed individually in the mixed upstream-path audit.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "components/strings/BUILD.gn",
+      "category": "F",
+      "rationale": "Keep the 152 catalog-derived XTB dependencies and every locale; its target has no 154 explicit input list to repair.",
+      "commits": [
+        "4b45bf911a9e94fdefe804c54a6220c4a26e3bab"
+      ],
+      "action": "Excluded from backport"
+    },
+    {
+      "path": "components/tabs/impl/tab_strip_collection.cc",
+      "category": "A",
+      "rationale": "Retain the already-present 152 TAHAI integration. No post-checkpoint product delta is required; exclude the 154 engine/API migration of this file.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "components/tabs/public/tab_strip_collection.h",
+      "category": "A",
+      "rationale": "Retain the already-present 152 TAHAI integration. No post-checkpoint product delta is required; exclude the 154 engine/API migration of this file.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "docs/tahai-154-build-handoff.md",
+      "category": "G",
+      "rationale": "Historical documentation/site material; no runtime backport without product need.",
+      "commits": [
+        "1f9a9af60992e45d5af95ff96d9449d16bcaf750",
+        "0c823f3d4547ddb61e222ce49ea4b5a583fc9889",
+        "11a2af52186de249c1823c9197dace8c552248d7",
+        "9aa416efe3373785120a51f6720882f1b236fff0",
+        "fe8f5bb97e3827dcd24d66a0071ffb33aa0880cd",
+        "1858e6106dcfb97e0933cbdc6515e32a298b4ed6"
+      ],
+      "action": "Excluded from backport"
+    },
+    {
+      "path": "docs/tahai-guard-engine.md",
+      "category": "G",
+      "rationale": "Historical documentation/site material; no runtime backport without product need.",
+      "commits": [],
+      "action": "Excluded from backport"
+    },
+    {
+      "path": "docs/tahai-rc-engineering-review-2026-09-30.md",
+      "category": "G",
+      "rationale": "Historical documentation/site material; no runtime backport without product need.",
+      "commits": [
+        "ef4d5eaa398575a97c9ee686c4b47169dd9ac410",
+        "9aa416efe3373785120a51f6720882f1b236fff0",
+        "fe8f5bb97e3827dcd24d66a0071ffb33aa0880cd",
+        "1858e6106dcfb97e0933cbdc6515e32a298b4ed6"
+      ],
+      "action": "Excluded from backport"
+    },
+    {
+      "path": "docs/tahai-review-fixes-2026-10-01.md",
+      "category": "G",
+      "rationale": "Historical documentation/site material; no runtime backport without product need.",
+      "commits": [
+        "4b45bf911a9e94fdefe804c54a6220c4a26e3bab",
+        "1f9a9af60992e45d5af95ff96d9449d16bcaf750",
+        "0c823f3d4547ddb61e222ce49ea4b5a583fc9889",
+        "6b84b65aff638f7290ff9f5f352cdbd8df3237a0",
+        "ea84d4d6ad175e99579a060d2ae1add1542ff073",
+        "5aef3747ced1ed50a48e6bab66e8edbab96d8dd9",
+        "32f3e9851590102a387aafc8873140395854d394",
+        "ec332243e106ce19f5ed95cd68af764385a889bc",
+        "c32b793b057f1e04538e98c8edbec3def52754e5",
+        "11a2af52186de249c1823c9197dace8c552248d7"
+      ],
+      "action": "Excluded from backport"
+    },
+    {
+      "path": "docs/tahai-skins/OPERATIONAL_SKIN_V2.md",
+      "category": "C",
+      "rationale": "Product resources and generated assets; regenerate from reviewed source.",
+      "commits": [
+        "fe8f5bb97e3827dcd24d66a0071ffb33aa0880cd"
+      ],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "docs/tahai-skins/SKIN_AUTHORING.md",
+      "category": "C",
+      "rationale": "Product resources and generated assets; regenerate from reviewed source.",
+      "commits": [
+        "fe8f5bb97e3827dcd24d66a0071ffb33aa0880cd"
+      ],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "docs/tahai-skins/build_creator_kit.py",
+      "category": "C",
+      "rationale": "Product resources and generated assets; regenerate from reviewed source.",
+      "commits": [
+        "fe8f5bb97e3827dcd24d66a0071ffb33aa0880cd"
+      ],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "docs/tahai-skins/operational-skin-v2.example.json",
+      "category": "C",
+      "rationale": "Product resources and generated assets; regenerate from reviewed source.",
+      "commits": [
+        "fe8f5bb97e3827dcd24d66a0071ffb33aa0880cd"
+      ],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "docs/tahai-skins/operational-starter-skin.tahaiskin",
+      "category": "C",
+      "rationale": "Product resources and generated assets; regenerate from reviewed source.",
+      "commits": [
+        "fe8f5bb97e3827dcd24d66a0071ffb33aa0880cd"
+      ],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "docs/tahai-skins/operational-starter-skin/manifest.json",
+      "category": "C",
+      "rationale": "Product resources and generated assets; regenerate from reviewed source.",
+      "commits": [
+        "fe8f5bb97e3827dcd24d66a0071ffb33aa0880cd"
+      ],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "docs/tahai-skins/skin-creator-kit.zip",
+      "category": "C",
+      "rationale": "Product resources and generated assets; regenerate from reviewed source.",
+      "commits": [
+        "fe8f5bb97e3827dcd24d66a0071ffb33aa0880cd"
+      ],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "docs/tahai-skins/starter-skin.tahaiskin",
+      "category": "C",
+      "rationale": "Product resources and generated assets; regenerate from reviewed source.",
+      "commits": [
+        "fe8f5bb97e3827dcd24d66a0071ffb33aa0880cd"
+      ],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "docs/tahai-skins/starter-skin/README.md",
+      "category": "C",
+      "rationale": "Product resources and generated assets; regenerate from reviewed source.",
+      "commits": [
+        "fe8f5bb97e3827dcd24d66a0071ffb33aa0880cd"
+      ],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "docs/tahai-skins/starter-skin/manifest.json",
+      "category": "C",
+      "rationale": "Product resources and generated assets; regenerate from reviewed source.",
+      "commits": [
+        "fe8f5bb97e3827dcd24d66a0071ffb33aa0880cd"
+      ],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "docs/tahai-skins/studio-default.js",
+      "category": "C",
+      "rationale": "Product resources and generated assets; regenerate from reviewed source.",
+      "commits": [
+        "fe8f5bb97e3827dcd24d66a0071ffb33aa0880cd"
+      ],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "docs/tahai-skins/studio.css",
+      "category": "C",
+      "rationale": "Normalize the existing stylesheet to its LF attribute so the regenerated creator kit reproduces from a fresh Windows export; the 35-test creator release suite passes.",
+      "action": "Normalized line endings"
+    },
+    {
+      "path": "docs/tahai-skins/studio.html",
+      "category": "C",
+      "rationale": "Product resources and generated assets; regenerate from reviewed source.",
+      "commits": [
+        "fe8f5bb97e3827dcd24d66a0071ffb33aa0880cd"
+      ],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "docs/tahai-skins/studio.js",
+      "category": "C",
+      "rationale": "Product resources and generated assets; regenerate from reviewed source.",
+      "commits": [
+        "fe8f5bb97e3827dcd24d66a0071ffb33aa0880cd"
+      ],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "docs/tahai-skins/test_build_skin.py",
+      "category": "C",
+      "rationale": "Product resources and generated assets; regenerate from reviewed source.",
+      "commits": [
+        "c32b793b057f1e04538e98c8edbec3def52754e5",
+        "fe8f5bb97e3827dcd24d66a0071ffb33aa0880cd"
+      ],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "extensions/strings/BUILD.gn",
+      "category": "A",
+      "rationale": "Retain the already-present 152 TAHAI integration. No post-checkpoint product delta is required; exclude the 154 engine/API migration of this file.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "ios/build/chrome_build.gni",
+      "category": "A",
+      "rationale": "Retain the already-present 152 TAHAI integration. No post-checkpoint product delta is required; exclude the 154 engine/API migration of this file.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "ios/chrome/app/resources/BUILD.gn",
+      "category": "A",
+      "rationale": "Retain the already-present 152 TAHAI integration. No post-checkpoint product delta is required; exclude the 154 engine/API migration of this file.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "third_party/rust/aho_corasick/v1/BUILD.gn",
+      "category": "F",
+      "rationale": "Retain exact 152 crate configuration and generated policy; do not copy the 154 unsafe exception or safe-group policy.",
+      "commits": [
+        "e2b0aec57550f5d3e696579f877ef500513106ef"
+      ],
+      "action": "Excluded from backport"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/Cargo.lock",
+      "category": "F",
+      "rationale": "Retain official 152 dependency/policy/service/compiler state; do not copy 154 changes.",
+      "commits": [],
+      "action": "Excluded from backport"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/Cargo.toml",
+      "category": "F",
+      "rationale": "Retain official 152 dependency/policy/service/compiler state; do not copy 154 changes.",
+      "commits": [],
+      "action": "Excluded from backport"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/gnrt_config.toml",
+      "category": "F",
+      "rationale": "Retain exact 152 crate configuration and generated policy; do not copy the 154 unsafe exception or safe-group policy.",
+      "commits": [
+        "e2b0aec57550f5d3e696579f877ef500513106ef"
+      ],
+      "action": "Excluded from backport"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/arrayvec-v0_7/Cargo.lock",
+      "category": "B",
+      "rationale": "Restore omitted source inventory/build registration for the exact already-pinned Guard dependencies; no package versions or unsafe policy changed.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "third_party/rust/chromium_crates_io/vendor/semver-v1/Cargo.lock",
+      "category": "B",
+      "rationale": "Restore omitted source inventory/build registration for the exact already-pinned Guard dependencies; no package versions or unsafe policy changed.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "third_party/rust/precomputed_hash/v0_1/BUILD.gn",
+      "category": "B",
+      "rationale": "Restore omitted source inventory/build registration for the exact already-pinned Guard dependencies; no package versions or unsafe policy changed.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "third_party/rust/precomputed_hash/v0_1/README.chromium",
+      "category": "B",
+      "rationale": "Restore omitted source inventory/build registration for the exact already-pinned Guard dependencies; no package versions or unsafe policy changed.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "third_party/rust/regex/v1/BUILD.gn",
+      "category": "F",
+      "rationale": "Retain official 152 dependency/policy/service/compiler state; do not copy 154 changes.",
+      "commits": [],
+      "action": "Excluded from backport"
+    },
+    {
+      "path": "third_party/rust/regex/v1/README.chromium",
+      "category": "F",
+      "rationale": "Retain official 152 dependency/policy/service/compiler state; do not copy 154 changes.",
+      "commits": [],
+      "action": "Excluded from backport"
+    },
+    {
+      "path": "third_party/rust/regex_automata/v0_4/BUILD.gn",
+      "category": "F",
+      "rationale": "Retain official 152 dependency/policy/service/compiler state; do not copy 154 changes.",
+      "commits": [],
+      "action": "Excluded from backport"
+    },
+    {
+      "path": "third_party/rust/rustc_hash/v1/BUILD.gn",
+      "category": "B",
+      "rationale": "Restore omitted source inventory/build registration for the exact already-pinned Guard dependencies; no package versions or unsafe policy changed.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "third_party/rust/rustc_hash/v1/README.chromium",
+      "category": "B",
+      "rationale": "Restore omitted source inventory/build registration for the exact already-pinned Guard dependencies; no package versions or unsafe policy changed.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "third_party/rust/serde/v1/BUILD.gn",
+      "category": "F",
+      "rationale": "Retain official 152 dependency/policy/service/compiler state; do not copy 154 changes.",
+      "commits": [],
+      "action": "Excluded from backport"
+    },
+    {
+      "path": "third_party/rust/serde_core/v1/BUILD.gn",
+      "category": "F",
+      "rationale": "Retain official 152 dependency/policy/service/compiler state; do not copy 154 changes.",
+      "commits": [],
+      "action": "Excluded from backport"
+    },
+    {
+      "path": "tools/gritsettings/resource_ids.spec",
+      "category": "A",
+      "rationale": "Retain the already-present 152 TAHAI integration. No post-checkpoint product delta is required; exclude the 154 engine/API migration of this file.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "tools/metrics/histograms/metadata/sql/histograms.xml",
+      "category": "B",
+      "rationale": "Preserve official .158 security/lifetime changes while retaining the pre-checkpoint TAHAI integration; reviewed individually in the mixed upstream-path audit.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "tools/tahai/aho_corasick_policy_test.py",
+      "category": "F",
+      "rationale": "Exclude hardcoded 154 policy/source identities. The separate 152 audit verifies unchanged official aho 1.1.4 source, existing sandbox-only allow_unsafe policy, exact features, consumers and service confinement.",
+      "commits": [
+        "e2b0aec57550f5d3e696579f877ef500513106ef"
+      ],
+      "action": "Excluded from backport"
+    },
+    {
+      "path": "tools/tahai/assemble_release_evidence.ps1",
+      "category": "D",
+      "rationale": "Release/source evidence and packaging gates; adapt source pins and defaults to verified 152.",
+      "commits": [
+        "ec332243e106ce19f5ed95cd68af764385a889bc",
+        "11a2af52186de249c1823c9197dace8c552248d7"
+      ],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "tools/tahai/audit_guard_dependencies.py",
+      "category": "D",
+      "rationale": "Release/source evidence and packaging gates; adapt source pins and defaults to verified 152.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "tools/tahai/audit_guard_dependencies_test.py",
+      "category": "E",
+      "rationale": "Retain focused product regressions; inspect engine API context before applying.",
+      "commits": [],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "tools/tahai/check_windows_build_prerequisites.py",
+      "category": "D",
+      "rationale": "Release/source evidence and packaging gates; adapt source pins and defaults to verified 152.",
+      "commits": [
+        "1858e6106dcfb97e0933cbdc6515e32a298b4ed6"
+      ],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "tools/tahai/check_windows_build_prerequisites_test.py",
+      "category": "E",
+      "rationale": "Retain focused product regressions; inspect engine API context before applying.",
+      "commits": [
+        "1858e6106dcfb97e0933cbdc6515e32a298b4ed6"
+      ],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "tools/tahai/guard_rust_policy_test.py",
+      "category": "E",
+      "rationale": "Register the dedicated 152 dependency/policy audit; 41 checks pass without changing safety policy.",
+      "action": "Added"
+    },
+    {
+      "path": "tools/tahai/local_oi_navigation_test.js",
+      "category": "E",
+      "rationale": "Retain focused product regressions; inspect engine API context before applying.",
+      "commits": [
+        "9aa416efe3373785120a51f6720882f1b236fff0"
+      ],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "tools/tahai/midl_dynamic_paths_test.py",
+      "category": "E",
+      "rationale": "Retain focused product regressions; inspect engine API context before applying.",
+      "commits": [
+        "606c9f46838a1e87c2a8a3010d2d5cebfcd44f83",
+        "56bb2b68b074a5a5fd970b97419272aea1a0de9c"
+      ],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "tools/tahai/offline_creator_test.js",
+      "category": "E",
+      "rationale": "Retain focused product regressions; inspect engine API context before applying.",
+      "commits": [
+        "fe8f5bb97e3827dcd24d66a0071ffb33aa0880cd"
+      ],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "tools/tahai/rc-validation-x64.gn",
+      "category": "D",
+      "rationale": "Release/source evidence and packaging gates; adapt source pins and defaults to verified 152.",
+      "commits": [
+        "1858e6106dcfb97e0933cbdc6515e32a298b4ed6"
+      ],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "tools/tahai/royal_brand_render_test.py",
+      "category": "E",
+      "rationale": "Retain focused product regressions; inspect engine API context before applying.",
+      "commits": [
+        "ef4d5eaa398575a97c9ee686c4b47169dd9ac410"
+      ],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "tools/tahai/source-check-requirements.txt",
+      "category": "D",
+      "rationale": "Release/source evidence and packaging gates; adapt source pins and defaults to verified 152.",
+      "commits": [
+        "11a2af52186de249c1823c9197dace8c552248d7"
+      ],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "tools/tahai/source_preflight.ps1",
+      "category": "D",
+      "rationale": "Release/source evidence and packaging gates; adapt source pins and defaults to verified 152.",
+      "commits": [
+        "e2b0aec57550f5d3e696579f877ef500513106ef",
+        "56bb2b68b074a5a5fd970b97419272aea1a0de9c",
+        "11a2af52186de249c1823c9197dace8c552248d7"
+      ],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "tools/tahai/source_preflight_test.ps1",
+      "category": "E",
+      "rationale": "Retain focused product regressions; inspect engine API context before applying.",
+      "commits": [
+        "11a2af52186de249c1823c9197dace8c552248d7"
+      ],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "tools/tahai/source_preflight_test_fixture.ps1",
+      "category": "D",
+      "rationale": "Release/source evidence and packaging gates; adapt source pins and defaults to verified 152.",
+      "commits": [
+        "11a2af52186de249c1823c9197dace8c552248d7"
+      ],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "tools/tahai/source_provenance.py",
+      "category": "D",
+      "rationale": "Release/source evidence and packaging gates; adapt source pins and defaults to verified 152.",
+      "commits": [
+        "11a2af52186de249c1823c9197dace8c552248d7"
+      ],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "tools/tahai/source_provenance_test.py",
+      "category": "E",
+      "rationale": "Retain focused product regressions; inspect engine API context before applying.",
+      "commits": [
+        "11a2af52186de249c1823c9197dace8c552248d7"
+      ],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "tools/tahai/studio_transfer_test.js",
+      "category": "E",
+      "rationale": "Retain focused product regressions; inspect engine API context before applying.",
+      "commits": [
+        "fe8f5bb97e3827dcd24d66a0071ffb33aa0880cd"
+      ],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "tools/tahai/verify_source.ps1",
+      "category": "D",
+      "rationale": "Release/source evidence and packaging gates; adapt source pins and defaults to verified 152.",
+      "commits": [
+        "11a2af52186de249c1823c9197dace8c552248d7",
+        "9aa416efe3373785120a51f6720882f1b236fff0",
+        "fe8f5bb97e3827dcd24d66a0071ffb33aa0880cd",
+        "1858e6106dcfb97e0933cbdc6515e32a298b4ed6"
+      ],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "tools/tahai/verify_upgrade.ps1",
+      "category": "D",
+      "rationale": "Release/source evidence and packaging gates; adapt source pins and defaults to verified 152.",
+      "commits": [
+        "e2b0aec57550f5d3e696579f877ef500513106ef",
+        "11a2af52186de249c1823c9197dace8c552248d7",
+        "fe8f5bb97e3827dcd24d66a0071ffb33aa0880cd",
+        "1858e6106dcfb97e0933cbdc6515e32a298b4ed6"
+      ],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "tools/tahai/verify_upgrade_test.py",
+      "category": "E",
+      "rationale": "Retain focused product regressions; inspect engine API context before applying.",
+      "commits": [
+        "1858e6106dcfb97e0933cbdc6515e32a298b4ed6"
+      ],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    },
+    {
+      "path": "tools/tahai/work_modes_events_test.js",
+      "category": "E",
+      "rationale": "Retain focused product regressions; inspect engine API context before applying.",
+      "commits": [
+        "9aa416efe3373785120a51f6720882f1b236fff0"
+      ],
+      "action": "Retained or semantically backported against Chromium 152 APIs; native acceptance pending"
+    }
+  ],
+  "integration_method": "Explicit reviewed 152 base merge-tree in shallow history; native merge parents retain the verified TAHAI checkpoint and official .158 tag. No 154 branch merge or ancestry fabrication.",
+  "resolutions": [
+    {
+      "path": "chrome/install_static/chromium_install_modes.h",
+      "rationale": "Keep exact TAHAI Store/application/CLSID identity. The official .158 tag changes tracing AcceptInvitation to UINT32, so bind a distinct reviewed IID and preserve old TAHAI IID cleanup, retaining upstream unbranded behavior."
+    },
+    {
+      "path": "chrome/windows_services/elevated_tracing_service/BUILD.gn",
+      "rationale": "The source .158 IDL has upstream IID E0B03E2D and handle-based ABI; update only dynamic TAHAI GUID mapping to match install constants. Do not rebaseline MIDL output."
+    },
+    {
+      "path": "chrome/elevation_service/BUILD.gn",
+      "rationale": "The 152 checkpoint install constants already name custom TAHAI IID 8D296EFE but generated IDL still names upstream BB19A0E5. Apply the reviewed dynamic mapping to align interface and typelib without changing IDL or baselines."
+    },
+    {
+      "path": "components/sessions/core/tab_restore_service_helper.cc",
+      "rationale": "Keep TAHAI two-to-four pane iteration and reconstruct API while adopting upstream .158 weak tab collection and survivor projection."
+    }
+  ],
+  "backport_resolutions": [
+    {
+      "path": "build/toolchain/win/midl.py",
+      "rationale": "Retain the exact 152 MIDL pipeline, add only exact compiler-settings comment normalization for dynamic paths and mandatory byte comparison. No baselines changed."
+    },
+    {
+      "path": "chrome/browser/tahai_skins/skin_decoder_browsertest.cc",
+      "rationale": "Retain 152 Browser include and add theme/pref observer includes required by new product regressions."
+    },
+    {
+      "path": "chrome/browser/ui/tahai/tahai_named_workspace_controller.cc",
+      "rationale": "Backport restoration identity/generation/lifetime repairs using 152 Browser::Create/AsWeakPtr and supported tab APIs; omit the 154 browser-window migration."
+    },
+    {
+      "path": "chrome/browser/ui/tahai/tahai_skin_manager.h",
+      "rationale": "Add activation element identifiers while preserving 152 Browser parameter types."
+    },
+    {
+      "path": "chrome/browser/ui/tahai/tahai_window_mode_controller.cc",
+      "rationale": "Retain product observer coalescing, generation and lifetime fixes; use the existing 152 Browser and session APIs."
+    },
+    {
+      "path": "chrome/browser/ui/tahai/tahai_window_mode_controller.h",
+      "rationale": "Declare product notification coalescing state without migrating the Browser interface."
+    },
+    {
+      "path": "chrome/browser/ui/views/frame/multi_contents_view_browsertest.cc",
+      "rationale": "Retain 152 test file and apply only post-integration product regressions. Collection observer APIs are present in official 152; inspect added callbacks during native GN checks."
+    },
+    {
+      "path": "chrome/browser/ui/webui/tahai/tahai_ui.cc",
+      "rationale": "Preserve post-launch continuation checks with 152 FindBrowserForWebContents result type."
+    },
+    {
+      "path": "chrome/installer/win/tahai_msix/release_evidence.ps1",
+      "rationale": "Retain complete version-3 source/native/browser/service evidence gates and rejection coverage; select a dedicated 152 output default."
+    },
+    {
+      "path": "chrome/installer/win/tahai_msix/release_evidence_test.ps1",
+      "rationale": "Retain complete version-3 source/native/browser/service evidence gates and rejection coverage; select a dedicated 152 output default."
+    },
+    {
+      "path": "tools/tahai/assemble_release_evidence.ps1",
+      "rationale": "Retain complete version-3 source/native/browser/service evidence gates and rejection coverage; select a dedicated 152 output default."
+    },
+    {
+      "path": "tools/tahai/verify_source.ps1",
+      "rationale": "Retain complete version-3 source/native/browser/service evidence gates and rejection coverage; select a dedicated 152 output default."
+    },
+    {
+      "path": "tools/tahai/verify_upgrade.ps1",
+      "rationale": "Retain complete version-3 source/native/browser/service evidence gates and rejection coverage; select a dedicated 152 output default."
+    },
+    {
+      "path": "components/strings/BUILD.gn",
+      "rationale": "152 grit_strings has no 154 explicit XTB inputs list; retain its catalog-derived dependency pipeline and every locale. Do not carry the 154-only repair."
+    },
+    {
+      "path": "tools/tahai/source_preflight.ps1",
+      "rationale": "Exclude the inapplicable 154-specific exception audit; preserve 152 gnrt and generated sandbox policy. A separate 152 consistency audit is required."
+    },
+    {
+      "path": "tools/tahai/audit_guard_dependencies.py",
+      "rationale": "Backport source-inventory audit against existing reviewed checksums and exact 152 vendored packages; never relax expected hashes."
+    },
+    {
+      "path": "tools/tahai/audit_guard_dependencies_test.py",
+      "rationale": "Backport source-inventory audit against existing reviewed checksums and exact 152 vendored packages; never relax expected hashes."
+    },
+    {
+      "path": "docs/tahai-skins/starter-skin/manifest.json",
+      "rationale": "Bundled source templates must explicitly target the 152 engine; regenerate all archives in the fallback worktree."
+    },
+    {
+      "path": "docs/tahai-skins/operational-starter-skin/manifest.json",
+      "rationale": "Bundled source templates must explicitly target the 152 engine; regenerate all archives in the fallback worktree."
+    },
+    {
+      "path": "docs/tahai-skins/operational-skin-v2.example.json",
+      "rationale": "Bundled source templates must explicitly target the 152 engine; regenerate all archives in the fallback worktree."
+    }
+  ],
+  "additional_reviews": [
+    "TAHAI window/workspace lifecycle repairs use Browser::Create and AsWeakPtr; TabInterface, WebContents, controllers and SkinProfileService retain their supported GetWeakPtr methods.",
+    "Retain complete required-test/evidence gates, service tests, source preflight, one native test job and zero retries; choose a dedicated 152 build output.",
+    "Generated creator archives were regenerated for explicit 152 compatibility; normalize studio.css to its LF attribute and retain the fresh Windows export regression.",
+    "Restore precomputed-hash/rustc-hash build registration only for versions already locked by 152 Guard. The template delta in 154 affects testonly overrides; neither restored target has testonly or overrides, and the 152 template is preserved.",
+    "No preserved reusable 152 objects/binaries were found. Fresh output is required; historical test evidence is diagnostic only."
+  ]
+}

@@ -28,7 +28,8 @@ TEST(KeySystemSupportAndroidTest, SoftwareSecureWidevine) {
   base::test::SingleThreadTaskEnvironment task_environment;
   base::test::ScopedFeatureList scoped_feature_list;
   scoped_feature_list.InitWithFeatureStates(
-      {{media::kMediaDrmQueryInSeparateProcess, false}});
+      {{media::kMediaDrmQueryInSeparateProcess, false},
+       {media::kUseSecurityLevelWhenCheckingMediaDrmVersion, false}});
 
   base::test::TestFuture<media::CdmCapabilityOrStatus> capability;
   GetAndroidCdmCapability(kWidevineKeySystem,
@@ -46,7 +47,8 @@ TEST(KeySystemSupportAndroidTest, HardwareSecureWidevine) {
   base::test::SingleThreadTaskEnvironment task_environment;
   base::test::ScopedFeatureList scoped_feature_list;
   scoped_feature_list.InitWithFeatureStates(
-      {{media::kMediaDrmQueryInSeparateProcess, false}});
+      {{media::kMediaDrmQueryInSeparateProcess, false},
+       {media::kUseSecurityLevelWhenCheckingMediaDrmVersion, false}});
 
   base::test::TestFuture<media::CdmCapabilityOrStatus> capability;
   GetAndroidCdmCapability(kWidevineKeySystem,
@@ -63,7 +65,8 @@ TEST(KeySystemSupportAndroidTest, UnknownKeySystem) {
   base::test::SingleThreadTaskEnvironment task_environment;
   base::test::ScopedFeatureList scoped_feature_list;
   scoped_feature_list.InitWithFeatureStates(
-      {{media::kMediaDrmQueryInSeparateProcess, false}});
+      {{media::kMediaDrmQueryInSeparateProcess, false},
+       {media::kUseSecurityLevelWhenCheckingMediaDrmVersion, false}});
 
   base::test::TestFuture<media::CdmCapabilityOrStatus> capability;
   GetAndroidCdmCapability(kUnsupportedKeySystem,

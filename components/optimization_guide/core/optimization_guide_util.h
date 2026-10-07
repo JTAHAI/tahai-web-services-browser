@@ -16,7 +16,9 @@
 #include "components/optimization_guide/core/optimization_guide_permissions_util.h"
 #include "components/optimization_guide/core/optimization_guide_switches.h"
 #include "components/optimization_guide/proto/common_types.pb.h"
+#include "components/optimization_guide/proto/features/common_quality_data.pb.h"
 #include "components/optimization_guide/proto/model_execution.pb.h"
+#include "components/optimization_guide/proto/models.pb.h"
 
 #define OPTIMIZATION_GUIDE_LOG(log_source, optimization_guide_logger, message) \
   do {                                                                         \
@@ -37,10 +39,6 @@ struct ResourceRequest;
 }  // namespace network
 
 namespace optimization_guide {
-
-namespace proto {
-enum ChromePlatform : int;
-}  // namespace proto
 
 enum class OptimizationGuideDecision;
 
@@ -117,6 +115,11 @@ void PopulateApiKeyRequestHeader(network::ResourceRequest* resource_request,
 void PopulateServerTimeoutRequestHeader(
     network::ResourceRequest* resource_request,
     base::TimeDelta timeout);
+
+// Returns whether model validator service should be started to validate various
+// model executions such as, TFLite, server-side AI, on-device AI models. Used
+// for integration testing purposes.
+bool ShouldStartModelValidator();
 
 }  // namespace optimization_guide
 

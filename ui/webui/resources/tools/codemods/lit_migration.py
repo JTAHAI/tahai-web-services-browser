@@ -9,8 +9,7 @@ import sys
 
 _HERE_PATH = os.path.dirname(__file__)
 _SRC_PATH = os.path.normpath(
-  os.path.join(_HERE_PATH, '..', '..', '..', '..', '..')
-)
+    os.path.join(_HERE_PATH, '..', '..', '..', '..', '..'))
 
 sys.path.append(os.path.join(_SRC_PATH, 'third_party', 'node'))
 import node
@@ -46,8 +45,7 @@ def main(argv):
   print(f'Migrating {args.file}...')
 
   # Update TS file.
-  out = node.RunNode(
-    [
+  out = node.RunNode([
       os.path.join(_HERE_PATH, 'node_modules/jscodeshift/bin/jscodeshift.js'),
       '--transform=' + os.path.join(_HERE_PATH, 'lit_migration.js'),
       '--extensions=ts',
@@ -55,28 +53,22 @@ def main(argv):
       '--no-babel',
       '--fail-on-error',
       args.file,
-    ]
-  )
+  ])
 
   # Update HTML/CSS file.
   if args.output_html:
-    out = node.RunNode(
-      [
+    out = node.RunNode([
         os.path.join(_HERE_PATH, 'lit_migration_templates.mjs'),
         '--outputHtml',
         '--file=' + args.file,
-      ]
-    )
+    ])
   else:
-    out = node.RunNode(
-      [
+    out = node.RunNode([
         os.path.join(_HERE_PATH, 'lit_migration_templates.mjs'),
         '--file=' + args.file,
-      ]
-    )
+    ])
 
   print('DONE')
-
 
 if __name__ == '__main__':
   main(sys.argv[1:])

@@ -1,2 +1,3 @@
-rules:
-- "**": [text-box]
+features:
+- name: text-box
+  files: "**"

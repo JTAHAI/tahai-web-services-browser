@@ -311,8 +311,7 @@ GURL Extension::GetResourceURL(const GURL& extension_url,
 }
 
 bool Extension::ResourceMatches(const URLPatternSet& pattern_set,
-                                std::string_view resource,
-                                bool case_sensitive) const {
+                                std::string_view resource) const {
   // First, resolve `resource` relative to the extension's base URL.
   GURL resolved = extension_url_.Resolve(resource);
 
@@ -332,7 +331,7 @@ bool Extension::ResourceMatches(const URLPatternSet& pattern_set,
   // Re-resolve the URL using the unescaped relative path so URLPattern matches
   // against the canonical resource path served from disk.
   return pattern_set.MatchesURL(
-      extension_url_.Resolve(relative_path.AsUTF8Unsafe()), case_sensitive);
+      extension_url_.Resolve(relative_path.AsUTF8Unsafe()));
 }
 
 ExtensionResource Extension::GetResource(std::string_view relative_path) const {

@@ -41,10 +41,9 @@ import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.Criteria;
 import org.chromium.base.test.util.CriteriaHelper;
 import org.chromium.base.test.util.DisableIf;
-import org.chromium.base.test.util.Features.DisableFeatures;
+import org.chromium.base.test.util.Features.EnableFeatures;
 import org.chromium.base.test.util.HistogramWatcher;
 import org.chromium.base.test.util.Restriction;
-import org.chromium.chrome.browser.ChromeTabbedActivity;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.browser.media.MediaCapturePickerDelegate;
@@ -81,9 +80,8 @@ import java.util.concurrent.TimeoutException;
     "enable-experimental-web-platform-features",
     "enable-features=UserMediaScreenCapturing,AndroidMediaPicker",
 })
-// TODO(b/555414915): Update Android tests with WebUI NTP enabled on AL.
-@DisableFeatures(ChromeFeatureList.USE_WEB_UI_NTP_ANDROID)
 @Batch(Batch.PER_CLASS)
+@EnableFeatures({ChromeFeatureList.ANDROID_NEW_MEDIA_PICKER})
 public class TabMediaIndicatorTest {
     @Rule
     public FreshCtaTransitTestRule mActivityTestRule =
@@ -139,7 +137,6 @@ public class TabMediaIndicatorTest {
 
     @Before
     public void setUp() throws Exception {
-        ChromeTabbedActivity.interceptMoveTaskToBackForTesting();
         mPage = mActivityTestRule.startOnBlankPage();
         mTabModel = mActivityTestRule.getActivity().getTabModelSelector().getModel(false);
         mTabRemover = mTabModel.getTabRemover();
@@ -502,15 +499,13 @@ public class TabMediaIndicatorTest {
         watcher.assertExpected();
 
         if (isPiPEnabled()) {
-            // Remove the mic recording so we can drop down to NONE and avoid flakiness with PiP.
-            DOMUtils.clickNodeWithJavaScript(mTab.getWebContents(), "stop-mic");
-            waitForMediaState(mTab, MediaState.NONE);
-
             // Expect PICTURE_IN_PICTURE
             watcher =
                     HistogramWatcher.newSingleRecordWatcher(
                             "Tab.Android.MediaState", MediaState.PICTURE_IN_PICTURE);
             enterPictureInPicture();
+            // Remove the mic recording so we can drop down to PiP priority.
+            DOMUtils.clickNodeWithJavaScript(mTab.getWebContents(), "stop-mic");
             waitForMediaState(mTab, MediaState.PICTURE_IN_PICTURE);
             watcher.assertExpected();
         }

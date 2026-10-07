@@ -4,18 +4,11 @@
 
 package org.chromium.chrome.browser.glic;
 
-import android.app.Activity;
-import android.text.TextUtils;
-
 import androidx.annotation.IntDef;
 
-import org.chromium.base.supplier.OneshotSupplier;
 import org.chromium.build.annotations.NullMarked;
-import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.profiles.Profile;
-import org.chromium.chrome.browser.profiles.ProfileProvider;
 import org.chromium.chrome.browser.tab.Tab;
-import org.chromium.chrome.browser.tabmodel.TabModelSelector;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -33,7 +26,6 @@ public interface GlicKeyedService {
         GlicInvocationSource.TOP_CHROME_BUTTON,
         GlicInvocationSource.NUDGE,
         GlicInvocationSource.THREE_DOTS_MENU,
-        GlicInvocationSource.WEB_CONTENTS_CONTEXT_MENU,
         GlicInvocationSource.TOOLBAR_BUTTON,
         GlicInvocationSource.MAX_VALUE,
     })
@@ -43,7 +35,6 @@ public interface GlicKeyedService {
         int TOP_CHROME_BUTTON = 3;
         int NUDGE = 6;
         int THREE_DOTS_MENU = 7;
-        int WEB_CONTENTS_CONTEXT_MENU = 23;
         int TOOLBAR_BUTTON = 31;
         int MAX_VALUE = 34;
     }
@@ -64,9 +55,6 @@ public interface GlicKeyedService {
             Profile profile,
             @GlicInvocationSource int invocationSource);
 
-    // TODO(b/543136256): Consider consolidating these invoke variants into a single method that
-    // takes an InvokeOptions param, so the public API scales as more options are added. The JNI
-    // layer can keep multiple functions to avoid struct-conversion overhead.
     /**
      * Invokes the Glic service with auto-submit prompt.
      *
@@ -76,87 +64,6 @@ public interface GlicKeyedService {
      * @return true if the service was successfully invoked.
      */
     boolean invokeWithAutoSubmit(Tab tab, String text, @GlicInvocationSource int invocationSource);
-
-    /**
-     * Invokes the Glic service with a prompt prepopulated in the input box.
-     *
-     * @param tab The {@link Tab} to target.
-     * @param text The text prompt to populate.
-     * @param invocationSource How the UI was triggered.
-     */
-    void invokeWithPrompt(Tab tab, String text, @GlicInvocationSource int invocationSource);
-
-    /**
-     * Invokes the Glic service, opening the panel attached to the given tab without
-     * auto-submitting.
-     *
-     * @param tab The {@link Tab} to target.
-     * @param invocationSource How the UI was triggered.
-     */
-    void invoke(Tab tab, @GlicInvocationSource int invocationSource);
-
-    /**
-     * Invokes the Glic service with a specific conversation ID.
-     *
-     * @param tab The {@link Tab} to target, or null if no specific tab.
-     * @param glicConversationId The conversation ID to reconnect to.
-     * @param invocationSource How the UI was triggered.
-     */
-    void invokeWithConversation(
-            @Nullable Tab tab,
-            String glicConversationId,
-            @GlicInvocationSource int invocationSource);
-
-    /**
-     * Invokes Glic with the given conversation ID if present, switching away from incognito model
-     * if needed, and guarding against activity and tab destruction during asynchronous profile
-     * resolution.
-     *
-     * @param activity The host {@link Activity}.
-     * @param selector The {@link TabModelSelector} to act on.
-     * @param profileProviderSupplier Supplier for {@link ProfileProvider}.
-     * @param tab The target {@link Tab}, or null to target the active tab.
-     * @param glicConversationId The conversation ID to route to Glic.
-     */
-    static void maybeInvokeGlic(
-            @Nullable Activity activity,
-            @Nullable TabModelSelector selector,
-            OneshotSupplier<ProfileProvider> profileProviderSupplier,
-            @Nullable Tab tab,
-            @Nullable String glicConversationId) {
-        if (TextUtils.isEmpty(glicConversationId)) {
-            return;
-        }
-        Tab targetTab = tab != null ? tab : (selector != null ? selector.getCurrentTab() : null);
-        if (targetTab != null && targetTab.isIncognito() && selector != null) {
-            selector.selectModel(/* incognito= */ false);
-            targetTab = selector.getCurrentTab();
-        }
-        if (targetTab == null || targetTab.isIncognito()) {
-            return;
-        }
-        // TODO(b/546096305): Add and use an InvocationSource for Notifications before launch to
-        // ensure accurate metrics.
-        final Tab finalTargetTab = targetTab;
-        profileProviderSupplier.runSyncOrOnAvailable(
-                profileProvider -> {
-                    if (activity == null
-                            || activity.isFinishing()
-                            || activity.isDestroyed()
-                            || finalTargetTab.isDestroyed()) {
-                        return;
-                    }
-                    GlicKeyedService service =
-                            GlicKeyedServiceFactory.getForProfile(
-                                    profileProvider.getOriginalProfile());
-                    if (service != null) {
-                        service.invokeWithConversation(
-                                finalTargetTab,
-                                glicConversationId,
-                                GlicInvocationSource.TOOLBAR_BUTTON);
-                    }
-                });
-    }
 
     /** Observer for global show/hide events. */
     interface GlobalShowHideObserver {

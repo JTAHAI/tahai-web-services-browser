@@ -5,7 +5,6 @@
 #include "chrome/browser/glic/browser_ui/tab_underline_controller.h"
 
 #include "base/debug/crash_logging.h"
-#include "build/build_config.h"
 #include "chrome/browser/glic/public/context/glic_sharing_manager.h"
 #include "chrome/browser/glic/public/glic_keyed_service.h"
 #include "chrome/browser/glic/public/glic_keyed_service_factory.h"
@@ -14,10 +13,6 @@
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
 #include "components/contextual_tasks/public/features.h"
 #include "components/tabs/public/tab_interface.h"
-
-#if !BUILDFLAG(IS_ANDROID)
-#include "chrome/browser/dictation/dictation_keyed_service.h"
-#endif
 
 namespace glic {
 
@@ -61,7 +56,6 @@ void TabUnderlineController::Initialize(UiDelegate* ui_delegate) {
   }
 
   MaybeObserveContextualTasks();
-  MaybeObserveDictation();
 
   if (glic_service_) {
     // Fetch the latest context access indicator status from service. We can't
@@ -187,18 +181,6 @@ void TabUnderlineController::OnActiveTaskContextProviderDestroyed() {
   contextual_task_observation_.Reset();
 }
 
-void TabUnderlineController::OnDictationTabChanged(
-    tabs::TabInterface* active_dictation_tab) {
-  tabs::TabInterface* this_tab = GetTabInterface();
-  if (!this_tab) {
-    return;
-  }
-
-  UpdateUnderlineView(active_dictation_tab == this_tab
-                          ? UpdateUnderlineReason::kDictation_TabActive
-                          : UpdateUnderlineReason::kDictation_TabInactive);
-}
-
 void TabUnderlineController::PanelStateChanged(
     const glic::mojom::PanelState& panel_state) {
   UpdateUnderlineView(
@@ -255,9 +237,9 @@ void TabUnderlineController::UpdateUnderlineView(UpdateUnderlineReason reason) {
       // Active follow tab underline should be newly shown, pinned tabs should
       // re-animate or be newly shown if not already visible.
       if (IsUnderlineTabSharedThroughActiveFollow()) {
-        ShowAndAnimateUnderline(UnderlineSource::kGlic);
+        ShowAndAnimateUnderline(/*triggered_by_glic=*/true);
       }
-      ShowOrAnimatePinnedUnderline();
+      ShowOrAnimatePinnedUnderline(/*triggered_by_glic=*/true);
       break;
     }
     case UpdateUnderlineReason::kContextAccessIndicatorOff: {
@@ -266,7 +248,7 @@ void TabUnderlineController::UpdateUnderlineView(UpdateUnderlineReason reason) {
       if (IsUnderlineTabPinned()) {
         break;
       }
-      HideUnderline(UnderlineSource::kGlic);
+      HideUnderline(/*triggered_by_glic=*/true);
       break;
     }
     case UpdateUnderlineReason::kFocusedTabChanged_NoFocusChange: {
@@ -282,7 +264,7 @@ void TabUnderlineController::UpdateUnderlineView(UpdateUnderlineReason reason) {
       // follow. Pinned tabs should not react as the set of shared tabs has
       // not changed.
       if (IsUnderlineTabSharedThroughActiveFollow()) {
-        ShowAndAnimateUnderline(UnderlineSource::kGlic);
+        ShowAndAnimateUnderline(/*triggered_by_glic=*/true);
       }
       break;
     }
@@ -293,7 +275,7 @@ void TabUnderlineController::UpdateUnderlineView(UpdateUnderlineReason reason) {
       if (IsUnderlineTabPinned() && context_access_indicator_enabled_) {
         AnimateUnderline();
       } else if (!IsUnderlineTabPinned()) {
-        HideUnderline(UnderlineSource::kGlic);
+        HideUnderline(/*triggered_by_glic=*/true);
       }
       break;
     }
@@ -301,18 +283,18 @@ void TabUnderlineController::UpdateUnderlineView(UpdateUnderlineReason reason) {
       // Active follow tab underline should be newly shown, pinned tabs should
       // re-animate or be newly shown if not already visible.
       if (IsUnderlineTabSharedThroughActiveFollow()) {
-        ShowAndAnimateUnderline(UnderlineSource::kGlic);
+        ShowAndAnimateUnderline(/*triggered_by_glic=*/true);
       }
-      ShowOrAnimatePinnedUnderline();
+      ShowOrAnimatePinnedUnderline(/*triggered_by_glic=*/true);
       break;
     case UpdateUnderlineReason::kFocusedTabChanged_ChromeLostFocus:
       // Underline should be hidden, with exception to pinned tabs.
       if (!IsUnderlineTabPinned()) {
-        HideUnderline(UnderlineSource::kGlic);
+        HideUnderline(/*triggered_by_glic=*/true);
       }
       break;
     case UpdateUnderlineReason::kPinnedTabsChanged_TabInPinnedSet:
-      ShowAndAnimateUnderline(UnderlineSource::kGlic);
+      ShowAndAnimateUnderline(/*triggered_by_glic=*/true);
       break;
     case UpdateUnderlineReason::kPinnedTabsChanged_TabNotInPinnedSet:
       // Re-animate to reflect the change in the set of pinned tabs.
@@ -321,20 +303,20 @@ void TabUnderlineController::UpdateUnderlineView(UpdateUnderlineReason reason) {
         return;
       }
       // This tab may have just been removed from the pinned set.
-      HideUnderline(UnderlineSource::kGlic);
+      HideUnderline(/*triggered_by_glic=*/true);
       break;
     case UpdateUnderlineReason::kPanelStateChanged_PanelShowing:
       // Visibility of underlines of pinned tabs should follow visibility of
       // the glic panel.
       if (IsUnderlineTabPinned()) {
-        ShowAndAnimateUnderline(UnderlineSource::kGlic);
+        ShowAndAnimateUnderline(/*triggered_by_glic=*/true);
       }
       break;
     case UpdateUnderlineReason::kPanelStateChanged_PanelHidden:
       // Visibility of underlines of pinned tabs should follow visibility of
       // the glic panel.
       if (IsUnderlineTabPinned()) {
-        HideUnderline(UnderlineSource::kGlic);
+        HideUnderline(/*triggered_by_glic=*/true);
       }
       break;
     case UpdateUnderlineReason::kUserInputSubmitted:
@@ -343,38 +325,34 @@ void TabUnderlineController::UpdateUnderlineView(UpdateUnderlineReason reason) {
       }
       break;
     case UpdateUnderlineReason::kContextualTask_TabInContext:
-      ShowAndAnimateUnderline(UnderlineSource::kContextualTasks);
+      ShowAndAnimateUnderline(/*triggered_by_glic=*/false);
       break;
     case UpdateUnderlineReason::kContextualTask_TabNotInContext:
-      HideUnderline(UnderlineSource::kContextualTasks);
-      break;
-    case UpdateUnderlineReason::kDictation_TabActive:
-      ShowAndAnimateUnderline(UnderlineSource::kDictation);
-      break;
-    case UpdateUnderlineReason::kDictation_TabInactive:
-      HideUnderline(UnderlineSource::kDictation);
+      HideUnderline(/*triggered_by_glic=*/false);
       break;
   }
 }
 
-void TabUnderlineController::ShowAndAnimateUnderline(UnderlineSource source) {
-  AddSource(source);
+void TabUnderlineController::ShowAndAnimateUnderline(bool triggered_by_glic) {
+  AddSource(triggered_by_glic ? UnderlineSource::kGlic
+                              : UnderlineSource::kContextualTasks);
   ui_delegate_->StopShowing();
   ui_delegate_->Show();
 }
 
-void TabUnderlineController::HideUnderline(UnderlineSource source) {
-  RemoveSource(source);
+void TabUnderlineController::HideUnderline(bool triggered_by_glic) {
+  RemoveSource(triggered_by_glic ? UnderlineSource::kGlic
+                                 : UnderlineSource::kContextualTasks);
   if (active_sources_ != UnderlineSource::kNone) {
     return;
   }
 
   // TODO(crbug.com/467739947): Consider reenabling hide animation for
   // contextual tasks.
-  if (source == UnderlineSource::kGlic) {
-    ui_delegate_->StartRampingDown();
-  } else {
+  if (!triggered_by_glic) {
     ui_delegate_->StopShowing();
+  } else {
+    ui_delegate_->StartRampingDown();
   }
 }
 
@@ -394,7 +372,8 @@ void TabUnderlineController::AnimateUnderline() {
   ui_delegate_->ResetAnimationCycle();
 }
 
-void TabUnderlineController::ShowOrAnimatePinnedUnderline() {
+void TabUnderlineController::ShowOrAnimatePinnedUnderline(
+    bool triggered_by_glic) {
   if (!IsUnderlineTabPinned()) {
     return;
   }
@@ -405,7 +384,7 @@ void TabUnderlineController::ShowOrAnimatePinnedUnderline() {
   if (ui_delegate_->IsShowing()) {
     AnimateUnderline();
   } else {
-    ShowAndAnimateUnderline(UnderlineSource::kGlic);
+    ShowAndAnimateUnderline(triggered_by_glic);
   }
 }
 
@@ -439,10 +418,6 @@ std::string TabUnderlineController::UpdateReasonToString(
       return "TabInContext";
     case UpdateUnderlineReason::kContextualTask_TabNotInContext:
       return "TabNotInContext";
-    case UpdateUnderlineReason::kDictation_TabActive:
-      return "DictationTabActive";
-    case UpdateUnderlineReason::kDictation_TabInactive:
-      return "DictationTabInactive";
     case UpdateUnderlineReason::kPanelStateChanged_PanelShowing:
       return "PanelShowing";
     case UpdateUnderlineReason::kPanelStateChanged_PanelHidden:
@@ -497,22 +472,6 @@ void TabUnderlineController::MaybeObserveContextualTasks() {
       contextual_task_observation_.Observe(active_task_context_provider);
     }
   }
-}
-
-void TabUnderlineController::MaybeObserveDictation() {
-#if !BUILDFLAG(IS_ANDROID)
-  tabs::TabInterface* tab = GetTabInterface();
-  if (!tab || dictation_tab_changed_subscription_) {
-    return;
-  }
-  if (auto* dictation_service =
-          dictation::DictationKeyedService::Get(tab->GetProfile())) {
-    dictation_tab_changed_subscription_ =
-        dictation_service->AddDictationTabChangedCallback(
-            base::BindRepeating(&TabUnderlineController::OnDictationTabChanged,
-                                base::Unretained(this)));
-  }
-#endif
 }
 
 }  // namespace glic

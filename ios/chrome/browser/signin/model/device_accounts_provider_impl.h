@@ -47,12 +47,7 @@ class DeviceAccountsProviderImpl
 
  private:
   raw_ptr<ChromeAccountManagerService> account_manager_service_ = nullptr;
-  // TODO(crbug.com/484371187): Investigate if reentrancy can be removed.
-  base::ObserverList<
-      DeviceAccountsProvider::Observer,
-      true,
-      base::ObserverListReentrancyPolicy::kAllowReentrancyUntriaged>
-      observer_list_;
+  base::ObserverList<DeviceAccountsProvider::Observer, true> observer_list_;
   base::ScopedObservation<ChromeAccountManagerService,
                           DeviceAccountsProviderImpl>
       chrome_account_manager_observation_{this};

@@ -5,25 +5,19 @@
 #ifndef JNI_ZERO_COMPILER_SPECIFIC_H_
 #define JNI_ZERO_COMPILER_SPECIFIC_H_
 
-#ifndef JNI_ZERO_UNSAFE_BUFFERS
+#ifndef JNI_ZERO_UNSAFE_TODO
 #if defined(__clang__)
 // Disabling `clang-format` allows each `_Pragma` to be on its own line, as
 // recommended by https://gcc.gnu.org/onlinedocs/cpp/Pragmas.html.
 // clang-format off
-#define JNI_ZERO_UNSAFE_BUFFERS(...)         \
+#define JNI_ZERO_UNSAFE_TODO(...)            \
   _Pragma("clang unsafe_buffer_usage begin") \
   __VA_ARGS__                                \
   _Pragma("clang unsafe_buffer_usage end")
 // clang-format on
 #else
-#define JNI_ZERO_UNSAFE_BUFFERS(...) __VA_ARGS__
+#define JNI_ZERO_UNSAFE_TODO(...) __VA_ARGS__
 #endif
-#endif
-
-#if __has_cpp_attribute(clang::trivial_abi)
-#define JNI_ZERO_TRIVIAL_ABI [[clang::trivial_abi]]
-#else
-#define JNI_ZERO_TRIVIAL_ABI
 #endif
 
 #endif  // JNI_ZERO_COMPILER_SPECIFIC_H_

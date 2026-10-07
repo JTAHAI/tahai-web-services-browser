@@ -194,7 +194,7 @@ public class WebServer implements AutoCloseable {
         public static HTTPRequest parse(InputStream stream) throws InvalidRequest, IOException {
             boolean firstLine = true;
             HTTPRequest req = new HTTPRequest();
-            ArrayList<HTTPHeader> headers = new ArrayList<HTTPHeader>();
+            ArrayList<HTTPHeader> mHeaders = new ArrayList<HTTPHeader>();
             ByteArrayOutputStream line = new ByteArrayOutputStream();
             for (int b = stream.read(); b != -1; b = stream.read()) {
                 if (b == '\r') {
@@ -218,7 +218,7 @@ public class WebServer implements AutoCloseable {
                             }
                             HTTPHeader header = HTTPHeader.parseLine(lineString);
                             if (header != null) {
-                                headers.add(header);
+                                mHeaders.add(header);
                             }
                         }
                     } else if (next == -1) {
@@ -235,7 +235,7 @@ public class WebServer implements AutoCloseable {
                 if (line.size() == 0) return null;
                 throw new InvalidRequest();
             }
-            req.mHeaders = headers.toArray(new HTTPHeader[0]);
+            req.mHeaders = mHeaders.toArray(new HTTPHeader[0]);
             int contentLength = -1;
             if (req.mMethod.equals("GET") || req.mMethod.equals("HEAD")) {
                 contentLength = 0;
@@ -256,13 +256,13 @@ public class WebServer implements AutoCloseable {
                 }
                 req.mBody = content;
             } else if (hasChunkedTransferEncoding(req)) {
-                ByteArrayOutputStream body = new ByteArrayOutputStream();
+                ByteArrayOutputStream mBody = new ByteArrayOutputStream();
                 byte[] buffer = new byte[1000];
                 int bytesRead;
                 while ((bytesRead = stream.read(buffer, 0, buffer.length)) != -1) {
-                    body.write(buffer, 0, bytesRead);
+                    mBody.write(buffer, 0, bytesRead);
                 }
-                req.mBody = body.toByteArray();
+                req.mBody = mBody.toByteArray();
             }
             return req;
         }
@@ -506,13 +506,13 @@ public class WebServer implements AutoCloseable {
 
         public ServerThread(int port, boolean ssl) throws Exception {
             super("ServerThread");
-            boolean isSsl = ssl;
+            boolean mIsSsl = ssl;
             // If tests are run back-to-back, it may take time for the port to become available.
             // Retry a few times with a sleep to wait for the port.
             int retry = 3;
             while (true) {
                 try {
-                    if (isSsl) {
+                    if (mIsSsl) {
                         mSslContext = SSLContext.getInstance("TLS");
                         mSslContext.init(getKeyManagers(), null, null);
                         mSocket = mSslContext.getServerSocketFactory().createServerSocket(port);

@@ -260,12 +260,8 @@ class TestAutofillManagerWaiter : public AutofillManager::Observer {
       const FormData& form,
       const FieldGlobalId& field_id) override;
 
-  void OnBeforeLoadedServerPredictions(
-      AutofillManager& manager,
-      base::span<const FormGlobalId> forms) override;
-  void OnAfterLoadedServerPredictions(
-      AutofillManager& manager,
-      base::span<const FormGlobalId> forms) override;
+  void OnBeforeLoadedServerPredictions(AutofillManager& manager) override;
+  void OnAfterLoadedServerPredictions(AutofillManager& manager) override;
 
   DenseSet<Event> relevant_events_;
   std::unique_ptr<State> state_ = std::make_unique<State>();
@@ -612,15 +608,11 @@ class TestAutofillManagerSingleEventWaiter::Impl
                             const FormData& form) override {
     MaybeQuit(&Observer::OnAfterFormSubmitted, manager, form);
   }
-  void OnBeforeLoadedServerPredictions(
-      AutofillManager& manager,
-      base::span<const FormGlobalId> forms) override {
-    MaybeQuit(&Observer::OnBeforeLoadedServerPredictions, manager, forms);
+  void OnBeforeLoadedServerPredictions(AutofillManager& manager) override {
+    MaybeQuit(&Observer::OnBeforeLoadedServerPredictions, manager);
   }
-  void OnAfterLoadedServerPredictions(
-      AutofillManager& manager,
-      base::span<const FormGlobalId> forms) override {
-    MaybeQuit(&Observer::OnAfterLoadedServerPredictions, manager, forms);
+  void OnAfterLoadedServerPredictions(AutofillManager& manager) override {
+    MaybeQuit(&Observer::OnAfterLoadedServerPredictions, manager);
   }
 
   // Quits the `run_loop_` if `event` matches `event_`.

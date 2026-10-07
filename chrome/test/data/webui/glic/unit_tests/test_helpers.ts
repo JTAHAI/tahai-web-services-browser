@@ -2,9 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import type {BrowserProxy, PageHandlerInterface, WebviewDelegate} from 'chrome://glic/glic.js';
-import {PageCallbackRouter, PreloadPageCallbackRouter} from 'chrome://glic/glic.js';
-import type {GuestPageType} from 'chrome://glic/glic.js';
+import type {ApiHostEmbedder, BrowserProxy, PageHandlerInterface, PageType, WebviewDelegate} from 'chrome://glic/glic.js';
 import {loadTimeData} from 'chrome://resources/js/load_time_data.js';
 import {assertEquals} from 'chrome://webui-test/chai_assert.js';
 
@@ -15,25 +13,20 @@ import {assertEquals} from 'chrome://webui-test/chai_assert.js';
 export function configureLoadTimeData(overrides: Record<string, any> = {}) {
   loadTimeData.resetForTesting(Object.assign(
       {
+        glicAllowedOrigins: '',
+        glicApiAllowedOrigins: '',
         glicGuestURL: 'https://cat.fun/',
         devMode: false,
         chromeVersion: '123.0.0.0',
         chromeChannel: 'stable',
         glicHeaderRequestTypes: '',
         zoomLabel: 'Zoom: $1',
-        loggingEnabled: false,
-        maxInFlightRequests: 10,
-        sendResponsesForAllRequests: false,
-        glicGuestAPISource: '',
-        enableStructuredYieldMetadata: false,
-        glicPopupWindowsEnabled: false,
       },
       overrides));
 }
 
 export class FakePageHandler implements Partial<PageHandlerInterface> {
-  createWebClient(_receiver: any) {}
-  webviewCommitted(_url: any) {}
+  webviewCommitted(_url: string) {}
   onZoomLevelChange(_zoomFactor: number) {}
   prepareForClient() {
     return Promise.resolve({result: 0});
@@ -41,16 +34,23 @@ export class FakePageHandler implements Partial<PageHandlerInterface> {
 }
 
 export class FakeBrowserProxy implements BrowserProxy {
-  pageHandler = new FakePageHandler() as unknown as PageHandlerInterface;
-  pageCallbackRouter = new PageCallbackRouter();
-  preloadPageCallbackRouter = new PreloadPageCallbackRouter();
+  pageHandler = new FakePageHandler() as PageHandlerInterface;
 }
 
 export class FakeWebviewDelegate implements WebviewDelegate {
   webviewError(_reason: string) {}
   webviewUnresponsive() {}
-  webviewPageCommit(_pageType?: GuestPageType, _isApiAllowed?: boolean) {}
+  webviewPageCommit(_pageType: PageType) {}
   webviewDeniedByAdmin() {}
+}
+
+export class FakeApiHostEmbedder implements ApiHostEmbedder {
+  enableDragResize(_enabled: boolean) {}
+  webClientReady() {}
+  webClientWarmed() {}
+  getZoom(): Promise<number> {
+    return Promise.resolve(1.0);
+  }
 }
 
 export function assertDeepEquals(a: unknown, b: unknown): void {

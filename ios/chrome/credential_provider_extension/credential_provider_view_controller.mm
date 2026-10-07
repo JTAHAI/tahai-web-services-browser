@@ -152,8 +152,9 @@ enum class PasskeyCreationEligibility {
 
   UINavigationBar* navigationBar = [self createNavigationBar];
   [self.view addSubview:navigationBar];
-  AddSameConstraintsToSides(navigationBar, self.view.safeAreaLayoutGuide,
-                            LayoutSides::kTop | LayoutSides::kHorizontal);
+  AddSameConstraintsToSides(
+      navigationBar, self.view.safeAreaLayoutGuide,
+      LayoutSides::kTrailing | LayoutSides::kTop | LayoutSides::kLeading);
 }
 
 - (void)viewWillAppear:(BOOL)animated {
@@ -1155,7 +1156,7 @@ enum class PasskeyCreationEligibility {
       _userVerificationStatus == PasskeyUserVerificationStatus::kCompleted;
 
   if (passkeyRequestDetails.userVerificationRequired) {
-    CHECK(didCompleteUserVerification);
+    CHECK(didCompleteUserVerification, base::NotFatalUntil::M144);
   }
 
   ASPasskeyRegistrationCredential* passkeyRegistrationCredential =
@@ -1204,7 +1205,7 @@ enum class PasskeyCreationEligibility {
       _userVerificationStatus == PasskeyUserVerificationStatus::kCompleted;
 
   if (passkeyRequestDetails.userVerificationRequired) {
-    CHECK(didCompleteUserVerification);
+    CHECK(didCompleteUserVerification, base::NotFatalUntil::M144);
   }
 
   ASPasskeyAssertionCredential* passkeyCredential = [passkeyRequestDetails

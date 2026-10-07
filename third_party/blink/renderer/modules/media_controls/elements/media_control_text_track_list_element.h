@@ -32,9 +32,6 @@ class MediaControlTextTrackListElement final
   // the "Off" item when the parameter is null.
   Element* CreateTextTrackListItem(TextTrack*);
 
-  // Creates the action row that opens the OS caption style settings.
-  Element* CreateCaptionSettingsItem();
-
   // Creates the header element of the text track list.
   Element* CreateTextTrackHeaderItem();
 };

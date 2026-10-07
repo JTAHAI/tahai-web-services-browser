@@ -48,7 +48,7 @@ void TestPasswordStore::SetAffiliatedAndGroupedRealms(
 #endif
 
 void TestPasswordStore::ReturnErrorOnRequest(
-    std::optional<PasswordStoreBackendError> password_store_backend_error) {
+    PasswordStoreBackendError password_store_backend_error) {
   fake_backend()->ReturnErrorOnRequest(password_store_backend_error);
 }
 

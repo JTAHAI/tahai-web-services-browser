@@ -10,30 +10,6 @@ import {CrWebApi, gCrWeb} from '//ios/web/public/js_messaging/resources/gcrweb.j
 // Cache JSON.stringify to protect against website overrides.
 const JSONStringify = JSON.stringify;
 
-// Direct references to `Element`/`HTMLElement` members, used to read shadow
-// roots and query descendants without going through instance properties that a
-// hostile page could clobber (e.g. a form control named `querySelectorAll` or
-// `shadowRoot`).
-const shadowRootGetter =
-    Object.getOwnPropertyDescriptor(Element.prototype, 'shadowRoot')?.get;
-const querySelectorAllMethod = Element.prototype.querySelectorAll;
-
-// Returns the equivalent of `element.shadowRoot` but reads directly from the
-// `Element` prototype to prevent clobbering. Only open shadow roots are
-// reachable from script; closed shadow roots return null.
-function safeShadowRoot(element: Element): ShadowRoot|null {
-  return (shadowRootGetter ? shadowRootGetter.call(element) :
-                             element.shadowRoot) as ShadowRoot |
-      null;
-}
-
-// Returns all descendants of `element` matching `selector`, calling the
-// `Element` prototype method directly to prevent clobbering.
-function safeQuerySelectorAllAsArray(
-    element: Element, selector: string): Element[] {
-  return Array.from(querySelectorAllMethod.call(element, selector));
-}
-
 // Model that contains the link data for anchor tags that are extracted.
 interface LinkData {
   href: string;
@@ -85,51 +61,6 @@ function shouldDetachPageContext(): boolean {
  */
 function isPageContextIPCOptimizationEnabled() {
   return (window as any).gCrWebPlaceholderPageContextIPCOptimization ?? false;
-}
-
-// Keep this implementation in sync with `getInnerTextIncludingShadowDom()` in
-// page_context_wrapper.mm.
-// Collects the innerText of a node, additionally piercing open Shadow DOM
-// roots whose text is not reflected in Element.innerText. Nested shadow roots
-// are handled through the recursion. Closed shadow roots are inaccessible from
-// script and are skipped. Shadow roots are accessed through clobbering-safe
-// helpers so a hostile page cannot break extraction.
-function getInnerTextIncludingShadowDom(node: Element): string {
-  const texts: string[] = [];
-  const nodeText = (node as HTMLElement).innerText;
-  if (nodeText) {
-    texts.push(nodeText);
-  }
-  // The node itself and its light-DOM descendants may be shadow hosts.
-  // querySelectorAll does not cross shadow boundaries, so shadow hosts nested
-  // inside another shadow tree are reached via the recursion.
-  const hosts: Element[] = safeQuerySelectorAllAsArray(node, '*');
-  if (safeShadowRoot(node)) {
-    hosts.unshift(node);
-  }
-  for (const host of hosts) {
-    const shadowRoot = safeShadowRoot(host);
-    if (!shadowRoot) {
-      continue;
-    }
-    // Iterate all child nodes (not just elements) so text authored directly
-    // under the shadow root (e.g. `root.textContent = 'hi'`) is not dropped.
-    for (const shadowChild of shadowRoot.childNodes) {
-      let shadowText = '';
-      if (shadowChild.nodeType === Node.ELEMENT_NODE) {
-        shadowText = getInnerTextIncludingShadowDom(shadowChild as Element);
-      } else if (shadowChild.nodeType === Node.TEXT_NODE) {
-        shadowText = (shadowChild.textContent ?? '').trim();
-      }
-      if (shadowText) {
-        texts.push(shadowText);
-      }
-    }
-  }
-  // `innerText` above collects all light-DOM text at once. Shadow-DOM chunks
-  // are therefore appended after it rather than inserted at their visual
-  // positions.
-  return texts.join('\n');
 }
 
 // Recursively constructs the innerText tree for the passed node and its
@@ -188,9 +119,9 @@ const constructInnerTextTree =
     });
 
     const result: SameOriginFrameData = {
-      currentNodeInnerText: getInnerTextIncludingShadowDom(node),
+      currentNodeInnerText: node.innerText,
       children: childNodeInnerTexts.filter((item) => item !== null) as
-          RemoteFrameData[],
+        RemoteFrameData[],
       sourceUrl: frameURL,
       title: frameTitle,
     };
@@ -222,9 +153,7 @@ function extractPageContext(
     nonce: string, keepCrossOriginFrameData: boolean,
     useRichExtraction: boolean, actionableMode: boolean,
     extractPaidContent: boolean, attemptPaidContentJsonFixing: boolean,
-    includeSensitivePaymentsForRedaction: boolean,
-    extractAutofillOtpRedactions: boolean,
-    extractPasswordScreenshotRedactions: boolean): ExtractionResult {
+    includeSensitivePaymentsForRedaction: boolean): ExtractionResult {
   // If the PageContext should be detached, early return.
   if (shouldDetachPageContext()) {
     return { shouldDetachPageContext: true } as DetachData;
@@ -245,8 +174,7 @@ function extractPageContext(
     const maxDepth = MAX_APC_RESPONSE_DEPTH - MAX_APC_NODE_DEPTH;
     const apc = extractAnnotatedPageContent(
         document, nonce, 0, maxDepth, actionableMode, extractPaidContent,
-        attemptPaidContentJsonFixing, includeSensitivePaymentsForRedaction,
-        extractAutofillOtpRedactions, extractPasswordScreenshotRedactions);
+        attemptPaidContentJsonFixing, includeSensitivePaymentsForRedaction);
     return isPageContextIPCOptimizationEnabled() ? JSONStringify(apc) : apc;
   }
 

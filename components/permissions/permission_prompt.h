@@ -30,7 +30,6 @@ class Event;
 namespace permissions {
 enum class PermissionPromptDisposition;
 
-class EmbeddedPermissionPromptFlowModel;
 class PermissionRequest;
 
 // This class is the platform-independent interface through which the permission
@@ -61,8 +60,8 @@ class PermissionPrompt {
 
     // These pointers should not be stored as the actual request objects may be
     // deleted upon navigation and so on.
-    virtual const std::vector<std::unique_ptr<PermissionRequest>>& Requests()
-        const = 0;
+    virtual const std::vector<std::unique_ptr<PermissionRequest>>&
+    Requests() = 0;
 
     // Get the single origin for the current set of requests.
     virtual GURL GetRequestingOrigin() const = 0;
@@ -85,7 +84,8 @@ class PermissionPrompt {
     virtual std::optional<GeolocationPromptType> GetGeolocationPromptType()
         const = 0;
 
-    // Called to explicitly finalize the current requests.
+    // Called to explicitly finalize the request, if
+    // |ShouldFinalizeRequestAfterDecided| returns false.
     virtual void FinalizeCurrentRequests() = 0;
 
     virtual void OpenHelpCenterLink(const ui::Event& event) = 0;
@@ -147,13 +147,6 @@ class PermissionPrompt {
     virtual bool RecreateView() = 0;
 
     virtual const PermissionPrompt* GetCurrentPrompt() const = 0;
-
-    virtual EmbeddedPermissionPromptFlowModel* GetEmbeddedPromptFlowModel()
-        const;
-
-    virtual void CalculateCurrentVariantForEmbeddedPrompt();
-
-    virtual void AdvanceOrFinalizeEmbeddedPromptFlow();
   };
 
   typedef base::RepeatingCallback<
@@ -186,6 +179,11 @@ class PermissionPrompt {
 
   // Get the prompt view bounds in screen coordinates.
   virtual std::optional<gfx::Rect> GetViewBoundsInScreen() const = 0;
+
+  // Get whether the permission request is allowed to be finalized as soon a
+  // decision is transmitted. If this returns `false` the delegate should wait
+  // for an explicit |Delegate::FinalizeCurrentRequests()| call to be made.
+  virtual bool ShouldFinalizeRequestAfterDecided() const = 0;
 
   // Return what variant of the secondary UI is shown for Page Embedded
   // Permission Element.

@@ -3669,6 +3669,10 @@ _FUNCTION_INFO = {
     'unit_test': False,
     'pepper_interface': 'VertexArrayObject',
   },
+  'ShallowFinishCHROMIUM': {
+    'type': 'NoCommand',
+    'extension': 'CHROMIUM_ordering_barrier',
+  },
   'OrderingBarrierCHROMIUM': {
     'type': 'NoCommand',
     'extension': 'CHROMIUM_ordering_barrier',

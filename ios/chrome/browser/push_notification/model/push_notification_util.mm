@@ -98,7 +98,8 @@ UNAuthorizationOptions AuthorizationOptions() {
 
 @implementation PushNotificationUtil
 
-+ (void)registerDeviceWithAPNS {
++ (void)registerDeviceWithAPNSWithProvisionalNotificationsAvailable:
+    (BOOL)provisionalNotificationsAvailable {
   [PushNotificationUtil
       getPermissionSettings:^(UNNotificationSettings* settings) {
         // Logs the users iOS settings' push notification permission status over
@@ -106,7 +107,7 @@ UNAuthorizationOptions AuthorizationOptions() {
         [PushNotificationUtil
             logPermissionSettingsMetrics:settings.authorizationStatus];
         if (settings.authorizationStatus == UNAuthorizationStatusAuthorized ||
-            settings.authorizationStatus == UNAuthorizationStatusProvisional) {
+            provisionalNotificationsAvailable) {
           [[UIApplication sharedApplication] registerForRemoteNotifications];
         }
       }];
@@ -359,7 +360,8 @@ UNAuthorizationOptions AuthorizationOptions() {
                            granted:(BOOL)granted
                              error:(NSError*)error {
   if (granted) {
-    [PushNotificationUtil registerDeviceWithAPNS];
+    [PushNotificationUtil
+        registerDeviceWithAPNSWithProvisionalNotificationsAvailable:NO];
     base::UmaHistogramEnumeration(kEnabledPermissionsHistogram,
                                   PermissionPromptAction::ACCEPTED);
   } else if (!error) {
@@ -383,7 +385,8 @@ UNAuthorizationOptions AuthorizationOptions() {
                                       granted:(BOOL)granted
                                         error:(NSError*)error {
   if (granted) {
-    [PushNotificationUtil registerDeviceWithAPNS];
+    [PushNotificationUtil
+        registerDeviceWithAPNSWithProvisionalNotificationsAvailable:NO];
     base::UmaHistogramEnumeration(kProvisionalEnabledPermissionsHistogram,
                                   ProvisionalPermissionAction::ENABLED);
   } else if (!granted || error) {

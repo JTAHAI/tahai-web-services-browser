@@ -220,18 +220,12 @@ class VideoCaptureControllerTest
         format.frame_size, base::TimeDelta());
     const int rotation = 0;
     const int frame_feedback_id = 0;
-    // SAFETY: VideoFrame allocates a single contiguous buffer across all planes
-    // starting at data(0). AllocationSize is used instead of data_span(0) to
-    // encompass the full contiguous buffer across all planes (e.g., Y, U, and
-    // V) rather than just plane 0.
-    auto data_span = UNSAFE_BUFFERS(
-        base::span(stub_frame->data(0),
-                   media::VideoFrame::AllocationSize(
-                       stub_frame->format(), stub_frame->coded_size())));
     device_client_->OnIncomingCapturedData(
-        data_span, format, color_space, rotation, false /* flip_y */,
-        base::TimeTicks(), base::TimeDelta(),
-        /*capture_begin_timestamp=*/std::nullopt,
+        stub_frame->data(0),
+        media::VideoFrame::AllocationSize(stub_frame->format(),
+                                          stub_frame->coded_size()),
+        format, color_space, rotation, false /* flip_y */, base::TimeTicks(),
+        base::TimeDelta(), /*capture_begin_timestamp=*/std::nullopt,
         /*metadata=*/std::nullopt, frame_feedback_id);
   }
 
@@ -359,6 +353,8 @@ TEST_P(VideoCaptureControllerTest, NormalCaptureMultipleClients) {
   const media::VideoPixelFormat format = GetParam();
   client_a_->expected_pixel_format_ = format;
   client_b_->expected_pixel_format_ = format;
+  // OnIncomingCapturedBuffer keeps the color space unset. If needed use
+  // OnIncomingCapturedBufferExt.
   client_a_->expected_color_space_ = gfx::ColorSpace();
   client_b_->expected_color_space_ = gfx::ColorSpace();
 
@@ -440,12 +436,10 @@ TEST_P(VideoCaptureControllerTest, NormalCaptureMultipleClients) {
   kExpectedFeedback.frame_id = arbitrary_frame_feedback_id;
   EXPECT_CALL(*mock_launched_device_, OnUtilizationReport(kExpectedFeedback));
 
-  device_client_->OnIncomingCapturedBufferExt(
-      std::move(buffer), device_format, gfx::ColorSpace(),
-      arbitrary_reference_time_, arbitrary_timestamp_,
-      /*capture_begin_timestamp=*/std::nullopt,
-      gfx::Rect(device_format.frame_size),
-      /*additional_metadata=*/std::nullopt);
+  device_client_->OnIncomingCapturedBuffer(
+      std::move(buffer), device_format, arbitrary_reference_time_,
+      arbitrary_timestamp_, /*capture_begin_timestamp=*/std::nullopt,
+      /*metadata=*/std::nullopt);
 
   base::RunLoop().RunUntilIdle();
   Mock::VerifyAndClearExpectations(client_a_.get());
@@ -480,12 +474,10 @@ TEST_P(VideoCaptureControllerTest, NormalCaptureMultipleClients) {
   expected_feedback_2.frame_id = arbitrary_frame_feedback_id_2;
   EXPECT_CALL(*mock_launched_device_, OnUtilizationReport(expected_feedback_2));
 
-  device_client_->OnIncomingCapturedBufferExt(
-      std::move(buffer2), device_format, gfx::ColorSpace(),
-      arbitrary_reference_time_, arbitrary_timestamp_,
-      /*capture_begin_timestamp=*/std::nullopt,
-      gfx::Rect(device_format.frame_size),
-      /*additional_metadata=*/std::nullopt);
+  device_client_->OnIncomingCapturedBuffer(
+      std::move(buffer2), device_format, arbitrary_reference_time_,
+      arbitrary_timestamp_, /*capture_begin_timestamp=*/std::nullopt,
+      /*metadata=*/std::nullopt);
 
   // The frame should be delivered to the clients in any order.
   EXPECT_CALL(*client_a_, DoBufferReady(ControllerIDAndSize(
@@ -520,12 +512,10 @@ TEST_P(VideoCaptureControllerTest, NormalCaptureMultipleClients) {
         buffer3.handle_provider->GetHandleForInProcessAccess();
     UNSAFE_TODO(memset(buffer3_access->data().data(), buffer_no++,
                        buffer3_access->mapped_size()));
-    device_client_->OnIncomingCapturedBufferExt(
-        std::move(buffer3), device_format, gfx::ColorSpace(),
-        arbitrary_reference_time_, arbitrary_timestamp_,
-        /*capture_begin_timestamp=*/std::nullopt,
-        gfx::Rect(device_format.frame_size),
-        /*additional_metadata=*/std::nullopt);
+    device_client_->OnIncomingCapturedBuffer(
+        std::move(buffer3), device_format, arbitrary_reference_time_,
+        arbitrary_timestamp_, /*capture_begin_timestamp=*/std::nullopt,
+        /*metadata=*/std::nullopt);
   }
   // ReserveOutputBuffer ought to fail now, because the pool is depleted.
   media::VideoCaptureDevice::Client::Buffer buffer_fail;
@@ -579,12 +569,10 @@ TEST_P(VideoCaptureControllerTest, NormalCaptureMultipleClients) {
   auto buffer3_access = buffer3.handle_provider->GetHandleForInProcessAccess();
   UNSAFE_TODO(memset(buffer3_access->data().data(), buffer_no++,
                      buffer3_access->mapped_size()));
-  device_client_->OnIncomingCapturedBufferExt(
-      std::move(buffer3), device_format, gfx::ColorSpace(),
-      arbitrary_reference_time_, arbitrary_timestamp_,
-      /*capture_begin_timestamp=*/std::nullopt,
-      gfx::Rect(device_format.frame_size),
-      /*additional_metadata=*/std::nullopt);
+  device_client_->OnIncomingCapturedBuffer(
+      std::move(buffer3), device_format, arbitrary_reference_time_,
+      arbitrary_timestamp_, /*capture_begin_timestamp=*/std::nullopt,
+      /*metadata=*/std::nullopt);
 
   media::VideoCaptureDevice::Client::Buffer buffer4;
   const auto result_code_4 = device_client_->ReserveOutputBuffer(
@@ -602,12 +590,10 @@ TEST_P(VideoCaptureControllerTest, NormalCaptureMultipleClients) {
   auto buffer4_access = buffer4.handle_provider->GetHandleForInProcessAccess();
   UNSAFE_TODO(memset(buffer4_access->data().data(), buffer_no++,
                      buffer4_access->mapped_size()));
-  device_client_->OnIncomingCapturedBufferExt(
-      std::move(buffer4), device_format, gfx::ColorSpace(),
-      arbitrary_reference_time_, arbitrary_timestamp_,
-      /*capture_begin_timestamp=*/std::nullopt,
-      gfx::Rect(device_format.frame_size),
-      /*additional_metadata=*/std::nullopt);
+  device_client_->OnIncomingCapturedBuffer(
+      std::move(buffer4), device_format, arbitrary_reference_time_,
+      arbitrary_timestamp_, /*capture_begin_timestamp=*/std::nullopt,
+      /*metadata=*/std::nullopt);
   // B2 is the only client left, and is the only one that should
   // get the buffer.
   EXPECT_CALL(*client_b_, DoBufferReady(ControllerIDAndSize(
@@ -674,12 +660,10 @@ TEST_F(VideoCaptureControllerTest, ErrorBeforeDeviceCreation) {
       /*retire_old_buffer_id=*/nullptr);
   ASSERT_EQ(media::VideoCaptureDevice::Client::ReserveResult::kSucceeded,
             reserve_result);
-  device_client_->OnIncomingCapturedBufferExt(
-      std::move(buffer), device_format, gfx::ColorSpace(),
-      arbitrary_reference_time_, arbitrary_timestamp_,
-      /*capture_begin_timestamp=*/std::nullopt,
-      gfx::Rect(device_format.frame_size),
-      /*additional_metadata=*/std::nullopt);
+  device_client_->OnIncomingCapturedBuffer(
+      std::move(buffer), device_format, arbitrary_reference_time_,
+      arbitrary_timestamp_, /*capture_begin_timestamp=*/std::nullopt,
+      /*metadata=*/std::nullopt);
 
   base::RunLoop().RunUntilIdle();
 }
@@ -720,12 +704,10 @@ TEST_F(VideoCaptureControllerTest, ErrorAfterDeviceCreation) {
   device_client_->OnError(
       media::VideoCaptureError::kIntentionalErrorRaisedByUnitTest, FROM_HERE,
       "Test Error");
-  device_client_->OnIncomingCapturedBufferExt(
-      std::move(buffer), device_format, gfx::ColorSpace(),
-      arbitrary_reference_time_, arbitrary_timestamp_,
-      /*capture_begin_timestamp=*/std::nullopt,
-      gfx::Rect(device_format.frame_size),
-      /*additional_metadata=*/std::nullopt);
+  device_client_->OnIncomingCapturedBuffer(
+      std::move(buffer), device_format, arbitrary_reference_time_,
+      arbitrary_timestamp_, /*capture_begin_timestamp=*/std::nullopt,
+      /*metadata=*/std::nullopt);
 
   EXPECT_CALL(
       *client_a_,
@@ -755,6 +737,8 @@ TEST_F(VideoCaptureControllerTest, FrameFeedbackIsReportedForSequenceOfFrames) {
   const int kTestFrameSequenceLength = 10;
   media::VideoCaptureFormat arbitrary_format(
       gfx::Size(320, 240), arbitrary_frame_rate_, media::PIXEL_FORMAT_I420);
+  // OnIncomingCapturedBuffer keeps the color space unset. If needed use
+  // OnIncomingCapturedBufferExt.
   client_a_->expected_color_space_ = gfx::ColorSpace();
 
   // Register |client_a_| at |controller_|.
@@ -794,12 +778,10 @@ TEST_F(VideoCaptureControllerTest, FrameFeedbackIsReportedForSequenceOfFrames) {
         /*retire_old_buffer_id=*/nullptr);
     ASSERT_EQ(media::VideoCaptureDevice::Client::ReserveResult::kSucceeded,
               result_code);
-    device_client_->OnIncomingCapturedBufferExt(
-        std::move(buffer), arbitrary_format, gfx::ColorSpace(),
-        arbitrary_reference_time_, arbitrary_timestamp_,
-        /*capture_begin_timestamp=*/std::nullopt,
-        gfx::Rect(arbitrary_format.frame_size),
-        /*additional_metadata=*/std::nullopt);
+    device_client_->OnIncomingCapturedBuffer(
+        std::move(buffer), arbitrary_format, arbitrary_reference_time_,
+        arbitrary_timestamp_, /*capture_begin_timestamp=*/std::nullopt,
+        /*metadata=*/std::nullopt);
 
     base::RunLoop().RunUntilIdle();
     Mock::VerifyAndClearExpectations(client_a_.get());

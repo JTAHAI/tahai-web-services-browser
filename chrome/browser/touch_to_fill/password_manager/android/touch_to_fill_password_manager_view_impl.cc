@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "base/android/jni_android.h"
+#include "base/android/jni_array.h"
 #include "base/android/jni_string.h"
 #include "base/time/time.h"
 #include "chrome/browser/profiles/profile.h"
@@ -61,14 +62,21 @@ UiCredential ConvertJavaCredential(JNIEnv* env,
 PasskeyCredential ConvertJavaWebauthnCredential(
     JNIEnv* env,
     const JavaRef<jobject>& credential) {
+  std::vector<uint8_t> credential_id;
+  base::android::JavaByteArrayToByteVector(
+      env, Java_WebauthnCredential_getCredentialId(env, credential),
+      &credential_id);
+
+  std::vector<uint8_t> user_id;
+  base::android::JavaByteArrayToByteVector(
+      env, Java_WebauthnCredential_getUserId(env, credential), &user_id);
+
   return PasskeyCredential(
       PasskeyCredential::Source::kAndroidPhone,
       PasskeyCredential::RpId(ConvertJavaStringToUTF8(
           Java_WebauthnCredential_getRpId(env, credential))),
-      PasskeyCredential::CredentialId(
-          Java_WebauthnCredential_getCredentialId(env, credential)),
-      PasskeyCredential::UserId(
-          Java_WebauthnCredential_getUserId(env, credential)),
+      PasskeyCredential::CredentialId(std::move(credential_id)),
+      PasskeyCredential::UserId(std::move(user_id)),
       PasskeyCredential::Username(ConvertJavaStringToUTF8(
           Java_WebauthnCredential_getUsername(env, credential))));
 }

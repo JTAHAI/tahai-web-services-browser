@@ -48,7 +48,6 @@ public class ChannelsUpdaterTest {
 
     @Before
     public void setUp() {
-        ChannelsInitializer.resetForTesting();
         Context context = RuntimeEnvironment.getApplication();
         mNotificationManagerProxy = BaseNotificationManagerProxyFactory.create();
 

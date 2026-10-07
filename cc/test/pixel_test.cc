@@ -305,18 +305,16 @@ void PixelTest::SetUpSkiaRenderer(gfx::SurfaceOrigin output_surface_origin) {
 }
 
 void PixelTest::TearDown() {
-  // Tear down the client side resource provider.
+  // Tear down the client side context provider, etc.
   child_resource_provider_->ShutdownAndReleaseAllResources();
   child_resource_provider_.reset();
+  child_context_provider_.reset();
 
   // Tear down the skia renderer.
   software_renderer_ = nullptr;
   renderer_.reset();
   resource_provider_.reset();
   output_surface_.reset();
-
-  // Tear down the client side context provider.
-  child_context_provider_.reset();
 }
 
 void PixelTest::SetUpSoftwareRenderer() {

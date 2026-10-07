@@ -14,9 +14,10 @@ import android.app.Activity;
 import android.view.LayoutInflater;
 import android.view.View;
 
+import androidx.test.ext.junit.rules.ActivityScenarioRule;
+
 import com.google.common.collect.ImmutableSet;
 
-import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -27,8 +28,6 @@ import org.mockito.junit.MockitoRule;
 import org.robolectric.ParameterizedRobolectricTestRunner;
 import org.robolectric.ParameterizedRobolectricTestRunner.Parameter;
 import org.robolectric.ParameterizedRobolectricTestRunner.Parameters;
-import org.robolectric.Robolectric;
-import org.robolectric.android.controller.ActivityController;
 
 import org.chromium.base.DeviceInfo;
 import org.chromium.base.supplier.ObservableSuppliers;
@@ -63,6 +62,10 @@ public class HubToolbarCoordinatorUnitTest {
 
     @Rule public MockitoRule mMockitoRule = MockitoJUnit.rule();
 
+    @Rule
+    public ActivityScenarioRule<TestActivity> mActivityScenarioRule =
+            new ActivityScenarioRule<>(TestActivity.class);
+
     @Rule public BaseRobolectricTestRule mBaseRule = new BaseRobolectricTestRule();
 
     private final SettableNonNullObservableSupplier<Boolean> mIsAnimatingSupplier =
@@ -70,7 +73,6 @@ public class HubToolbarCoordinatorUnitTest {
 
     private final SettableMonotonicObservableSupplier<Pane> mFocusedPaneSupplier =
             ObservableSuppliers.createMonotonic();
-    private ActivityController<TestActivity> mActivityController;
     private HubToolbarCoordinator mCoordinator;
     private HubToolbarView mHubToolbarView;
     private MenuButton mMenuButton;
@@ -93,13 +95,7 @@ public class HubToolbarCoordinatorUnitTest {
         when(mPaneManager.getFocusedPaneSupplier()).thenReturn(mFocusedPaneSupplier);
         when(mPaneManager.getPaneOrderController()).thenReturn(mPaneOrderController);
         when(mPaneOrderController.getPaneOrder()).thenReturn(ImmutableSet.of());
-        mActivityController = Robolectric.buildActivity(TestActivity.class).setup();
-        onActivity(mActivityController.get());
-    }
-
-    @After
-    public void tearDown() {
-        mActivityController.close();
+        mActivityScenarioRule.getScenario().onActivity(this::onActivity);
     }
 
     private void onActivity(Activity activity) {

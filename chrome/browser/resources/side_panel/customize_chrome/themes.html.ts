@@ -27,9 +27,7 @@ export function getHtml(this: ThemesElement) {
           data-index="${index}" @click="${this.onThemeClick_}"
           title="${item.attribution1}"
           aria-checked="${this.isThemeSelected_(item.imageUrl)}"
-          ?hidden="${!this.shouldShowTheme_(item.imageVerified)}"
-          @focus="${this.onThemeFocus_}"
-          @blur="${this.onThemeBlur_}">
+          ?hidden="${!this.shouldShowTheme_(item.imageVerified)}">
         <customize-chrome-check-mark-wrapper
             ?checked="${this.isThemeSelected_(item.imageUrl)}">
           <div class="image-container">
@@ -43,10 +41,7 @@ export function getHtml(this: ThemesElement) {
         </customize-chrome-check-mark-wrapper>
       </div>
     `)}
-  </cr-grid>
-  <cr-tooltip id="themeTooltip" position="bottom"
-    fit-to-visible-bounds manual-mode>
-  </cr-tooltip>
+  <cr-grid>
 </div>
 <!--_html_template_end_-->`;
 }

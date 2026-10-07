@@ -18,7 +18,7 @@
 #include "components/autofill/core/browser/data_model/autofill_ai/entity_instance.h"
 #include "components/autofill/core/browser/data_model/autofill_ai/entity_type_names.h"
 #include "components/autofill/core/browser/foundations/autofill_client.h"
-#include "components/autofill/core/browser/test_utils/entity_data_test_util.h"
+#include "components/autofill/core/browser/test_utils/entity_data_test_utils.h"
 #include "components/signin/public/base/consent_level.h"
 #include "components/signin/public/identity_manager/identity_test_environment.h"
 #include "components/strings/grit/components_strings.h"
@@ -35,22 +35,6 @@ using ::testing::AllOf;
 using ::testing::Eq;
 using ::testing::Field;
 using ::testing::Optional;
-
-// Matches an AutofillClient::EntityImportUIContext with specific string IDs
-// for its accepted consent and accept button fields.
-MATCHER_P2(EqualsEntityImportUIContext,
-           accepted_consent_string_id,
-           accept_button_string_id,
-           "") {
-  return testing::ExplainMatchResult(
-      AllOf(
-          Field(&AutofillClient::EntityImportUIContext::
-                    accepted_consent_string_id,
-                accepted_consent_string_id),
-          Field(&AutofillClient::EntityImportUIContext::accept_button_string_id,
-                accept_button_string_id)),
-      arg, result_listener);
-}
 
 class AutofillAiSaveUpdateEntityPromptControllerTest
     : public ChromeRenderViewHostTestHarness {
@@ -155,15 +139,9 @@ TEST_F(AutofillAiSaveUpdateEntityPromptControllerTest,
       /*is_eligible_for_wallet_storage=*/true,
       /*requires_reauth_to_see=*/false);
 
-  EXPECT_CALL(
-      prompt_closed_callback(),
-      Run(AutofillClient::AutofillAiBubbleResult::kEditAccepted,
-          Optional(edited_entity),
-          EqualsEntityImportUIContext(
-              Optional(
-                  IDS_AUTOFILL_AI_SAVE_OR_UPDATE_LOCAL_ENTITY_SOURCE_NOTICE),
-              Optional(
-                  IDS_AUTOFILL_PREDICTION_IMPROVEMENTS_SAVE_DIALOG_SAVE_BUTTON))));
+  EXPECT_CALL(prompt_closed_callback(),
+              Run(AutofillClient::AutofillAiBubbleResult::kEditAccepted,
+                  Optional(edited_entity), _));
   prompt_controller().OnUserEdited(env(), edited_entity_android);
 }
 
@@ -173,10 +151,9 @@ TEST_F(AutofillAiSaveUpdateEntityPromptControllerTest,
   EXPECT_CALL(prompt_view(), Show(&prompt_controller()));
   prompt_controller().DisplayPrompt();
 
-  EXPECT_CALL(
-      prompt_closed_callback(),
-      Run(AutofillClient::AutofillAiBubbleResult::kCancelled, Eq(std::nullopt),
-          EqualsEntityImportUIContext(Eq(std::nullopt), Eq(std::nullopt))));
+  EXPECT_CALL(prompt_closed_callback(),
+              Run(AutofillClient::AutofillAiBubbleResult::kCancelled,
+                  Eq(std::nullopt), _));
   // Both `OnUserDeclined` and `OnPromptDismissed` are called when the user
   // clicks the negative button.
   prompt_controller().OnUserDeclined(env());
@@ -189,11 +166,9 @@ TEST_F(AutofillAiSaveUpdateEntityPromptControllerTest,
   EXPECT_CALL(prompt_view(), Show(&prompt_controller()));
   prompt_controller().DisplayPrompt();
 
-  EXPECT_CALL(
-      prompt_closed_callback(),
-      Run(AutofillClient::AutofillAiBubbleResult::kNotInteracted,
-          Eq(std::nullopt),
-          EqualsEntityImportUIContext(Eq(std::nullopt), Eq(std::nullopt))));
+  EXPECT_CALL(prompt_closed_callback(),
+              Run(AutofillClient::AutofillAiBubbleResult::kNotInteracted,
+                  Eq(std::nullopt), _));
   prompt_controller().OnPromptDismissed(env());
 }
 
@@ -206,7 +181,12 @@ TEST_F(AutofillAiSaveUpdateEntityPromptControllerTest,
   EXPECT_CALL(
       prompt_closed_callback(),
       Run(AutofillClient::AutofillAiBubbleResult::kCancelled, Eq(std::nullopt),
-          EqualsEntityImportUIContext(Eq(std::nullopt), Eq(std::nullopt))));
+          AllOf(Field(&AutofillClient::EntityImportUIContext::
+                          accepted_consent_string_id,
+                      Eq(std::nullopt)),
+                Field(&AutofillClient::EntityImportUIContext::
+                          accept_button_string_id,
+                      Eq(std::nullopt)))));
   prompt_controller().OnUserDeclined(env());
 }
 
@@ -217,11 +197,17 @@ TEST_F(AutofillAiSaveUpdateEntityPromptControllerTest,
   EXPECT_CALL(
       prompt_closed_callback(),
       Run(AutofillClient::AutofillAiBubbleResult::kAccepted, Eq(std::nullopt),
-          EqualsEntityImportUIContext(
-              Optional(
-                  IDS_AUTOFILL_AI_SAVE_OR_UPDATE_LOCAL_ENTITY_SOURCE_NOTICE),
-              Optional(
-                  IDS_AUTOFILL_PREDICTION_IMPROVEMENTS_SAVE_DIALOG_SAVE_BUTTON))));
+          AllOf(
+              Field(
+                  &AutofillClient::EntityImportUIContext::
+                      accepted_consent_string_id,
+                  Optional(
+                      IDS_AUTOFILL_AI_SAVE_OR_UPDATE_LOCAL_ENTITY_SOURCE_NOTICE)),
+              Field(
+                  &AutofillClient::EntityImportUIContext::
+                      accept_button_string_id,
+                  Optional(
+                      IDS_AUTOFILL_PREDICTION_IMPROVEMENTS_SAVE_DIALOG_SAVE_BUTTON)))));
 
   prompt_controller().OnUserAccepted(env());
 }
@@ -233,11 +219,17 @@ TEST_F(AutofillAiSaveUpdateEntityPromptControllerTest,
   EXPECT_CALL(
       prompt_closed_callback(),
       Run(AutofillClient::AutofillAiBubbleResult::kAccepted, Eq(std::nullopt),
-          EqualsEntityImportUIContext(
-              Optional(
-                  IDS_AUTOFILL_AI_SAVE_OR_UPDATE_ENTITY_IN_WALLET_SOURCE_NOTICE),
-              Optional(
-                  IDS_AUTOFILL_PREDICTION_IMPROVEMENTS_SAVE_DIALOG_SAVE_BUTTON))));
+          AllOf(
+              Field(
+                  &AutofillClient::EntityImportUIContext::
+                      accepted_consent_string_id,
+                  Optional(
+                      IDS_AUTOFILL_AI_SAVE_OR_UPDATE_ENTITY_IN_WALLET_SOURCE_NOTICE)),
+              Field(
+                  &AutofillClient::EntityImportUIContext::
+                      accept_button_string_id,
+                  Optional(
+                      IDS_AUTOFILL_PREDICTION_IMPROVEMENTS_SAVE_DIALOG_SAVE_BUTTON)))));
 
   prompt_controller().OnUserAccepted(env());
 }

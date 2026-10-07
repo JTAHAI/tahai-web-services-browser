@@ -42,7 +42,7 @@ cr-icon[icon='cr:check-circle'] {
   fill: var(--cr-checked-color);
 }
 
-cr-icon[icon='cr:error-filled'] {
+cr-icon[icon='cr:error'] {
   fill: var(--settings-error-color);
 }
 

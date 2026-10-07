@@ -137,11 +137,10 @@ class CORE_EXPORT LayoutImage : public LayoutReplaced {
     return true;
   }
 
-  void WillBeDestroyed(const ComputedStyle*) override;
+  void WillBeDestroyed() override;
 
   void StyleDidChange(StyleDifference,
                       const ComputedStyle* old_style,
-                      const ComputedStyle& new_style,
                       const StyleChangeContext&) override;
 
   void InsertedIntoTree() override;

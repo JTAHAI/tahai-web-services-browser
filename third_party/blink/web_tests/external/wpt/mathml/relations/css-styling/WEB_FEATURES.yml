@@ -1,2 +1,4 @@
-rules:
-- clip.html: [clip]
+features:
+- name: clip
+  files:
+  - clip.html

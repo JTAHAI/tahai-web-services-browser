@@ -43,8 +43,6 @@ class FrameAudibleVoter : public PriorityVoter, public FrameNodeObserver {
   VoterId voter_id() const { return voting_channel_.voter_id(); }
 
  private:
-  void SetVoteForFrame(const FrameNode* frame_node);
-
   VotingChannel voting_channel_;
 };
 

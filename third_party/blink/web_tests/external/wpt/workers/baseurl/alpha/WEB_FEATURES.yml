@@ -1,3 +1,8 @@
-rules:
-- importScripts-in-sharedworker.html: [shared-workers]
-- "*": [dedicated-workers]
+features:
+- name: shared-workers
+  files:
+  - importScripts-in-sharedworker.html
+- name: dedicated-workers
+  files:
+  - "*"
+  - "!importScripts-in-sharedworker.html"

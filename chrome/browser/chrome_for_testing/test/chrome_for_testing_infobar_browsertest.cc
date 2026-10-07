@@ -5,9 +5,7 @@
 #include <memory>
 #include <utility>
 
-#include "base/test/scoped_feature_list.h"
 #include "chrome/browser/infobars/confirm_infobar_creator.h"
-#include "chrome/browser/infobars/infobar_features.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_tabstrip.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
@@ -31,24 +29,14 @@ namespace {
 // TODO (crbug.com/469533286): fix ChromeForTestingInfoBarTest for win-cft
 // and remove it from the exception from
 // //testing/buildbot/filters/win.win-rel-cft.browser_tests.filter
-class ChromeForTestingInfoBarTestBase : public InProcessBrowserTest {
+class ChromeForTestingInfoBarTest : public InProcessBrowserTest {
  public:
-  explicit ChromeForTestingInfoBarTestBase(bool enable_migration = false) {
-    if (enable_migration) {
-      feature_list_.InitAndEnableFeatureWithParameters(
-          infobars::kCentralizedInfoBarFramework,
-          {{"MigratedChromeForTesting", "true"}});
-    } else {
-      feature_list_.InitAndDisableFeature(
-          infobars::kCentralizedInfoBarFramework);
-    }
-  }
-  ~ChromeForTestingInfoBarTestBase() override = default;
+  ChromeForTestingInfoBarTest() = default;
+  ~ChromeForTestingInfoBarTest() override = default;
 
-  ChromeForTestingInfoBarTestBase(const ChromeForTestingInfoBarTestBase&) =
+  ChromeForTestingInfoBarTest(const ChromeForTestingInfoBarTest&) = delete;
+  ChromeForTestingInfoBarTest& operator=(const ChromeForTestingInfoBarTest&) =
       delete;
-  ChromeForTestingInfoBarTestBase& operator=(
-      const ChromeForTestingInfoBarTestBase&) = delete;
 
  protected:
   content::WebContents* GetActiveWebContents() {
@@ -63,59 +51,42 @@ class ChromeForTestingInfoBarTestBase : public InProcessBrowserTest {
     return ContentInfoBarManager::FromWebContents(
         browser()->tab_strip_model()->GetWebContentsAt(tab_index));
   }
-
- private:
-  base::test::ScopedFeatureList feature_list_;
-};
-
-class ChromeForTestingInfoBarTest : public ChromeForTestingInfoBarTestBase {
- public:
-  ChromeForTestingInfoBarTest() = default;
-  ~ChromeForTestingInfoBarTest() override = default;
-
-  void VerifyInfoBarAppears() {
-    ContentInfoBarManager* infobar_manager = GetInfoBarManagerFromTabIndex(0);
-
-    // Verify that the info bar is shown.
-    ASSERT_EQ(1u, infobar_manager->infobars().size());
-
-    auto* test_infobar = infobar_manager->infobars()[0]->delegate();
-
-    // Assert that it is the Chrome for Testing info bar.
-    ASSERT_EQ(ConfirmInfoBarDelegate::InfoBarIdentifier::
-                  CHROME_FOR_TESTING_INFOBAR_DELEGATE,
-              test_infobar->GetIdentifier());
-
-    EXPECT_FALSE(test_infobar->IsCloseable());
-    EXPECT_FALSE(test_infobar->ShouldAnimate());
-  }
-
-  void VerifyInfoBarAppearsInEveryTab() {
-    // Open a second tab in the same window.
-    chrome::AddTabAt(browser(), GURL("about:blank"), -1, true);
-
-    const unsigned number_of_tabs = browser()->tab_strip_model()->count();
-    EXPECT_EQ(2u, number_of_tabs);
-
-    // Verify that the info bar is shown in every tab.
-    for (unsigned i = 0; i < number_of_tabs; ++i) {
-      ContentInfoBarManager* infobar_manager = GetInfoBarManagerFromTabIndex(i);
-      ASSERT_EQ(1u, infobar_manager->infobars().size());
-
-      auto* test_infobar = infobar_manager->infobars()[0]->delegate();
-      ASSERT_EQ(ConfirmInfoBarDelegate::InfoBarIdentifier::
-                    CHROME_FOR_TESTING_INFOBAR_DELEGATE,
-                test_infobar->GetIdentifier());
-    }
-  }
 };
 
 IN_PROC_BROWSER_TEST_F(ChromeForTestingInfoBarTest, InfoBarAppears) {
-  VerifyInfoBarAppears();
+  ContentInfoBarManager* infobar_manager = GetInfoBarManagerFromTabIndex(0);
+
+  // Verify that the info bar is shown.
+  ASSERT_EQ(1u, infobar_manager->infobars().size());
+
+  auto* test_infobar = infobar_manager->infobars()[0]->delegate();
+
+  // Assert that it is the Chrome for Testing info bar.
+  ASSERT_EQ(ConfirmInfoBarDelegate::InfoBarIdentifier::
+                CHROME_FOR_TESTING_INFOBAR_DELEGATE,
+            test_infobar->GetIdentifier());
+
+  EXPECT_FALSE(test_infobar->IsCloseable());
+  EXPECT_FALSE(test_infobar->ShouldAnimate());
 }
 
 IN_PROC_BROWSER_TEST_F(ChromeForTestingInfoBarTest, InfoBarAppearsInEveryTab) {
-  VerifyInfoBarAppearsInEveryTab();
+  // Open a second tab in the same window.
+  chrome::AddTabAt(browser(), GURL("about:blank"), -1, true);
+
+  const unsigned number_of_tabs = browser()->tab_strip_model()->count();
+  EXPECT_EQ(2u, number_of_tabs);
+
+  // Verify that the info bar is shown in every tab.
+  for (unsigned i = 0; i < number_of_tabs; ++i) {
+    ContentInfoBarManager* infobar_manager = GetInfoBarManagerFromTabIndex(i);
+    ASSERT_EQ(1u, infobar_manager->infobars().size());
+
+    auto* test_infobar = infobar_manager->infobars()[0]->delegate();
+    ASSERT_EQ(ConfirmInfoBarDelegate::InfoBarIdentifier::
+                  CHROME_FOR_TESTING_INFOBAR_DELEGATE,
+              test_infobar->GetIdentifier());
+  }
 }
 
 // Subclass for tests that require infobars to be disabled.
@@ -212,82 +183,6 @@ IN_PROC_BROWSER_TEST_F(ChromeForTestingInfoBarDisabledTest,
                               /*replace_existing=*/true);
 
   EXPECT_THAT(infobar_manager->infobars(), testing::IsEmpty());
-}
-
-// Migrated tests.
-class ChromeForTestingInfoBarMigratedTest
-    : public ChromeForTestingInfoBarTestBase {
- public:
-  ChromeForTestingInfoBarMigratedTest()
-      : ChromeForTestingInfoBarTestBase(/*enable_migration=*/true) {}
-  ~ChromeForTestingInfoBarMigratedTest() override = default;
-};
-
-IN_PROC_BROWSER_TEST_F(ChromeForTestingInfoBarMigratedTest, InfoBarAppears) {
-  ContentInfoBarManager* infobar_manager = GetInfoBarManagerFromTabIndex(0);
-
-  // Verify that the info bar is shown.
-  ASSERT_EQ(1u, infobar_manager->infobars().size());
-
-  auto* test_infobar = infobar_manager->infobars()[0]->delegate();
-
-  // Assert that it is the Chrome for Testing info bar.
-  ASSERT_EQ(ConfirmInfoBarDelegate::InfoBarIdentifier::
-                CHROME_FOR_TESTING_INFOBAR_DELEGATE,
-            test_infobar->GetIdentifier());
-
-  EXPECT_FALSE(test_infobar->IsCloseable());
-  EXPECT_FALSE(test_infobar->ShouldAnimate());
-}
-
-IN_PROC_BROWSER_TEST_F(ChromeForTestingInfoBarMigratedTest,
-                       InfoBarAppearsInActiveTabOnly) {
-  // Initially only 1 tab.
-  ASSERT_EQ(1u, GetInfoBarManagerFromTabIndex(0)->infobars().size());
-
-  // Open a second tab in foreground.
-  chrome::AddTabAt(browser(), GURL("about:blank"), -1, true);
-
-  const unsigned number_of_tabs = browser()->tab_strip_model()->count();
-  EXPECT_EQ(2u, number_of_tabs);
-
-  // Tab 0 (now inactive) should NOT have the infobar.
-  EXPECT_EQ(0u, GetInfoBarManagerFromTabIndex(0)->infobars().size());
-
-  // Tab 1 (now active) should have the infobar.
-  ContentInfoBarManager* active_manager = GetInfoBarManagerFromTabIndex(1);
-  ASSERT_EQ(1u, active_manager->infobars().size());
-  auto* test_infobar = active_manager->infobars()[0]->delegate();
-  ASSERT_EQ(ConfirmInfoBarDelegate::InfoBarIdentifier::
-                CHROME_FOR_TESTING_INFOBAR_DELEGATE,
-            test_infobar->GetIdentifier());
-}
-
-class ChromeForTestingInfoBarMigratedDisabledTest
-    : public ChromeForTestingInfoBarMigratedTest {
- public:
-  ChromeForTestingInfoBarMigratedDisabledTest() = default;
-  ~ChromeForTestingInfoBarMigratedDisabledTest() override = default;
-
- protected:
-  void SetUpCommandLine(base::CommandLine* command_line) override {
-    command_line->AppendSwitch(switches::kDisableInfoBars);
-  }
-};
-
-IN_PROC_BROWSER_TEST_F(ChromeForTestingInfoBarMigratedDisabledTest,
-                       NoInfoBarAppearsInitially) {
-  ASSERT_EQ(0u, GetInfoBarManagerFromTabIndex(0)->infobars().size());
-}
-
-IN_PROC_BROWSER_TEST_F(ChromeForTestingInfoBarMigratedDisabledTest,
-                       NoInfoBarAppearsInNewTabs) {
-  ASSERT_EQ(0u, GetInfoBarManagerFromTabIndex(0)->infobars().size());
-
-  // Open a second tab in the same window.
-  chrome::AddTabAt(browser(), GURL("about:blank"), -1, true);
-
-  ASSERT_EQ(0u, GetInfoBarManagerFromTabIndex(1)->infobars().size());
 }
 
 }  // namespace

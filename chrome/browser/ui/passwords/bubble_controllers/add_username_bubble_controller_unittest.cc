@@ -6,7 +6,6 @@
 
 #include "base/test/metrics/histogram_tester.h"
 #include "chrome/browser/ui/passwords/passwords_model_delegate_mock.h"
-#include "components/password_manager/core/browser/password_string.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
@@ -29,8 +28,7 @@ class AddUsernameBubbleControllerTest : public ::testing::Test {
         std::make_unique<testing::NiceMock<PasswordsModelDelegateMock>>();
 
     pending_password_.username_value = kUsername;
-    pending_password_.password_value =
-        password_manager::PasswordString(kPassword);
+    pending_password_.password_value = kPassword;
   }
 
   ~AddUsernameBubbleControllerTest() override = default;

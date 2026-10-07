@@ -33,9 +33,6 @@ source_set("impl") {
     ":window_sizer",
     "//chrome/browser:browser_process",
     "//chrome/browser/profiles:profile",
-    "//chrome/browser/ui:browser_init_state",
-    "//chrome/browser/ui:browser_window_state",
-    "//chrome/browser/ui/browser_window",
     "//chrome/browser/ui/web_applications",
     "//chrome/common:non_code_constants",
     "//components/prefs",
@@ -53,7 +50,6 @@ source_set("impl") {
     if (is_chromeos) {
       sources += [ "window_sizer_chromeos.cc" ]
       deps += [
-        "//chrome/browser/ui/window_feature_controller",
         "//chrome/common:constants",
         "//ui/aura",
       ]
@@ -71,10 +67,12 @@ source_set("unit_tests") {
 
   public_deps = [
     "//chrome/browser/ui/window_sizer",
+    "//chrome/test:test_support",
     "//ui/gfx/geometry",
   ]
   deps = [
     "//base",
+    "//chrome/browser/ui",
     "//chrome/common:non_code_constants",
     "//testing/gtest",
     "//ui/base/mojom:ui_base_types",
@@ -90,12 +88,9 @@ source_set("unit_tests") {
     deps += [
       "//ash",
       "//ash/public/cpp",
-      "//chrome/browser/ui:browser_init_state",
-      "//chrome/browser/ui:test_support",
-      "//chrome/browser/ui/browser_window",
+      "//chrome/browser/ui/window_sizer",
       "//chrome/test:test_support_unit",
       "//content/test:test_support",
-      "//testing/gmock",
       "//ui/aura:test_support",
       "//ui/display:display_manager_test_api",
       "//ui/display/manager",

@@ -8,58 +8,31 @@
 #include <optional>
 #include <vector>
 
-#include "base/base64.h"
-#include "base/command_line.h"
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
 #include "base/logging.h"
-#include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/task/thread_pool.h"
+#include "chrome/browser/ui/actions/chrome_action_id.h"
 #include "chrome/browser/ui/ai_overlay_dialog/ai_overlay_dialog_controller.h"
+#include "chrome/browser/ui/browser_actions.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/ui_features.h"
-#include "chrome/browser/ui/webui/ai_overlay_dialog/ai_overlay_dialog_untrusted_ui.h"
-#include "chrome/browser/ui/webui/ai_overlay_dialog/page_context_monitor.h"
-#include "chrome/common/chrome_switches.h"
-#include "components/optimization_guide/content/browser/page_content_image_extractor.h"
-#include "components/optimization_guide/content/browser/page_content_proto_util.h"
-#include "components/tabs/public/tab_interface.h"
-#include "components/vector_icons/vector_icons.h"
-#include "components/viz/common/frame_sinks/copy_output_result.h"
-#include "content/public/browser/render_widget_host_view.h"
-#include "content/public/browser/web_contents.h"
-#include "ui/display/screen.h"
-#include "ui/gfx/codec/jpeg_codec.h"
-
-#if !BUILDFLAG(IS_ANDROID)
-#include "chrome/browser/ui/actions/chrome_action_id.h"
-#include "chrome/browser/ui/browser_actions.h"
-#include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "components/vector_icons/vector_icons.h"
 #include "ui/actions/actions.h"
 #include "ui/base/models/image_model.h"
 #include "ui/base/ui_base_features.h"
 #include "ui/color/color_provider.h"
+#include "ui/events/event.h"
 #include "ui/gfx/canvas.h"
 #include "ui/gfx/image/canvas_image_source.h"
 #include "ui/gfx/paint_vector_icon.h"
 #include "ui/gfx/vector_icon_types.h"
 #include "ui/menus/simple_menu_model.h"
-#endif
+#include "url/url_util.h"
 
 namespace {
 
-content::WebContents* GetActiveWebContentsFromBrowser(
-    BrowserWindowInterface* browser) {
-#if !BUILDFLAG(IS_ANDROID)
-  return browser->GetTabStripModel()->GetActiveWebContents();
-#else
-  return nullptr;
-#endif
-}
-
-#if !BUILDFLAG(IS_ANDROID)
 class AnimatedIconSource : public gfx::CanvasImageSource {
  public:
   static constexpr int kIconSize = ui::SimpleMenuModel::kDefaultIconSize;  // 16
@@ -103,30 +76,6 @@ class AnimatedIconSource : public gfx::CanvasImageSource {
   float energy_;
   SkColor color_;
 };
-#endif
-
-void SaveDebugFileAsync(base::FilePath dir_path,
-                        base::FilePath file_path,
-                        std::string content,
-                        bool is_image) {
-  std::string data_to_write = std::move(content);
-  const std::string base64_prefix = "data:image/jpeg;base64,";
-  if (base::StartsWith(data_to_write, base64_prefix)) {
-    std::string decoded;
-    if (base::Base64Decode(data_to_write.substr(base64_prefix.size()),
-                           &decoded)) {
-      data_to_write = std::move(decoded);
-    }
-  } else if (is_image) {
-    std::string decoded;
-    if (base::Base64Decode(data_to_write, &decoded)) {
-      data_to_write = std::move(decoded);
-    }
-  }
-
-  base::CreateDirectory(dir_path);
-  base::WriteFile(file_path, data_to_write);
-}
 
 }  // namespace
 
@@ -135,12 +84,10 @@ namespace ttc {
 AiOverlayDialogPageHandler::AiOverlayDialogPageHandler(
     mojo::PendingReceiver<ai_overlay_dialog::mojom::PageHandler> receiver,
     mojo::PendingRemote<ai_overlay_dialog::mojom::Page> remote,
-    BrowserWindowInterface* browser,
-    AiOverlayDialogUntrustedUI* untrusted_ui)
+    BrowserWindowInterface* browser)
     : receiver_(this, std::move(receiver)),
       page_(std::move(remote)),
-      browser_(browser),
-      untrusted_ui_(untrusted_ui) {
+      browser_(browser) {
   if (auto* controller = AiOverlayDialogController::From(browser_)) {
     controller->AddObserver(this);
     page_->SetInputCaptionsVisible(controller->input_captions_visible());
@@ -185,11 +132,9 @@ void AiOverlayDialogPageHandler::GetMockAudioData(
 }
 
 void AiOverlayDialogPageHandler::UpdateAudioEnergy(float energy) {
-#if !BUILDFLAG(IS_ANDROID)
   if (!overlay_action_item_) {
     overlay_action_item_ = actions::ActionManager::Get().FindAction(
-        kActionShowAiOverlayDialog,
-        BrowserActions::From(browser_)->root_action_item());
+        kActionShowAiOverlayDialog, browser_->GetActions()->root_action_item());
   }
 
   if (overlay_action_item_) {
@@ -213,15 +158,6 @@ void AiOverlayDialogPageHandler::UpdateAudioEnergy(float energy) {
             base_icon, energy),
         gfx::Size(AnimatedIconSource::kCanvasSize,
                   AnimatedIconSource::kCanvasSize)));
-  }
-#endif
-}
-
-void AiOverlayDialogPageHandler::Close() {
-  if (auto* controller = AiOverlayDialogController::From(browser_)) {
-    // HideOverlay() turns off listening and closes the overlay WebUI dialog interface.
-    // TODO(crbug.com/540858790): Rename HideOverlay() to CloseOverlay() for clarity.
-    controller->HideOverlay();
   }
 }
 
@@ -265,207 +201,6 @@ void AiOverlayDialogPageHandler::OnOutputCaptionsVisibleChanged(bool visible) {
 
 void AiOverlayDialogPageHandler::OnUsePersonaChanged(bool use_persona) {
   page_->SetUsePersona(use_persona);
-}
-
-void AiOverlayDialogPageHandler::GetCursorPosition(
-    GetCursorPositionCallback callback) {
-  display::Screen* screen = display::Screen::Get();
-  if (!screen) {
-    std::move(callback).Run(std::nullopt);
-    return;
-  }
-  gfx::Point cursor_screen = screen->GetCursorScreenPoint();
-
-  content::WebContents* web_contents =
-      GetActiveWebContentsFromBrowser(browser_);
-
-  if (!web_contents) {
-    std::move(callback).Run(std::nullopt);
-    return;
-  }
-
-  gfx::Rect tab_bounds = web_contents->GetContainerBounds();
-  if (!tab_bounds.Contains(cursor_screen)) {
-    std::move(callback).Run(std::nullopt);
-    return;
-  }
-
-  gfx::Point cursor_local = cursor_screen - tab_bounds.OffsetFromOrigin();
-  std::move(callback).Run(cursor_local);
-}
-
-void AiOverlayDialogPageHandler::CaptureRawViewportRegion(
-    int32_t x,
-    int32_t y,
-    int32_t width,
-    int32_t height,
-    CaptureRawViewportRegionCallback callback) {
-  content::WebContents* web_contents =
-      GetActiveWebContentsFromBrowser(browser_);
-
-  if (!web_contents) {
-    std::move(callback).Run(nullptr);
-    return;
-  }
-
-  content::RenderWidgetHostView* view = web_contents->GetRenderWidgetHostView();
-  if (!view) {
-    std::move(callback).Run(nullptr);
-    return;
-  }
-
-  gfx::Rect crop_rect_logical =
-      gfx::IntersectRects(gfx::Rect(web_contents->GetContainerBounds().size()),
-                          gfx::Rect(x, y, width, height));
-
-  float scale = view->GetDeviceScaleFactor();
-
-  view->CopyFromSurface(
-      crop_rect_logical, gfx::Size(), base::TimeDelta(),
-      base::BindOnce(
-          [](float scale, CaptureRawViewportRegionCallback cb,
-             const content::CopyFromSurfaceResult& result) {
-            if (!result.has_value() || result->bitmap.drawsNothing()) {
-              std::move(cb).Run(nullptr);
-              return;
-            }
-
-            const SkBitmap& bitmap = result->bitmap;
-            std::optional<std::vector<uint8_t>> jpeg_bytes =
-                gfx::JPEGCodec::Encode(bitmap.pixmap(), 85);
-            if (!jpeg_bytes.has_value()) {
-              std::move(cb).Run(nullptr);
-              return;
-            }
-
-            std::string b64_data = base::Base64Encode(*jpeg_bytes);
-            auto res = ai_overlay_dialog::mojom::RawViewportRegionResult::New();
-            res->jpeg_data_b64 = b64_data;
-            res->width = bitmap.width();
-            res->height = bitmap.height();
-            res->scale_factor = scale;
-            std::move(cb).Run(std::move(res));
-          },
-          scale, std::move(callback)));
-}
-
-// TODO(crbug.com/542590634): Determine product and architecture requirements
-// for long-term storage and persistence of remembered notes across restarts.
-void AiOverlayDialogPageHandler::SetRememberedNote(
-    ai_overlay_dialog::mojom::RememberedNotePtr note,
-    SetRememberedNoteCallback callback) {
-  if (!note || note->key.empty()) {
-    std::move(callback).Run(false);
-    return;
-  }
-  auto* controller = AiOverlayDialogController::From(browser_);
-  if (!controller) {
-    std::move(callback).Run(false);
-    return;
-  }
-  controller->SetRememberedNote(note->key, note->value);
-  std::move(callback).Run(true);
-}
-
-void AiOverlayDialogPageHandler::GetRememberedNotes(
-    GetRememberedNotesCallback callback) {
-  auto* controller = AiOverlayDialogController::From(browser_);
-  if (!controller) {
-    std::move(callback).Run({});
-    return;
-  }
-
-  std::vector<ai_overlay_dialog::mojom::RememberedNotePtr> result;
-  result.reserve(controller->remembered_notes().size());
-  for (const auto& [key, value] : controller->remembered_notes()) {
-    auto note = ai_overlay_dialog::mojom::RememberedNote::New();
-    note->key = key;
-    note->value = value;
-    result.push_back(std::move(note));
-  }
-  std::move(callback).Run(std::move(result));
-}
-
-void AiOverlayDialogPageHandler::SaveDebugFile(
-    ai_overlay_dialog::mojom::DebugFileType type,
-    const std::string& content) {
-  const base::CommandLine* command_line =
-      base::CommandLine::ForCurrentProcess();
-  if (!command_line->HasSwitch(switches::kEnableTtcDebugLogs)) {
-    return;
-  }
-
-  base::FilePath filename;
-  bool is_image = false;
-  switch (type) {
-    case ai_overlay_dialog::mojom::DebugFileType::kPrimingTurnMarkdown:
-      filename = base::FilePath(FILE_PATH_LITERAL("priming_turn.md"));
-      break;
-    case ai_overlay_dialog::mojom::DebugFileType::kImage:
-      filename = base::FilePath(FILE_PATH_LITERAL("image.jpg"));
-      is_image = true;
-      break;
-  }
-
-  base::FilePath dir_path(FILE_PATH_LITERAL("/tmp/ttc"));
-  base::FilePath file_path = dir_path.Append(filename);
-
-  base::ThreadPool::PostTask(
-      FROM_HERE, {base::MayBlock(), base::TaskPriority::BEST_EFFORT},
-      base::BindOnce(&SaveDebugFileAsync, dir_path, file_path, content,
-                     is_image));
-}
-
-void AiOverlayDialogPageHandler::GetImageBytes(
-    const blink::DOMNodeIdType& dom_node_id,
-    GetImageBytesCallback callback) {
-  content::WebContents* contents = GetActiveWebContentsFromBrowser(browser_);
-  if (!contents || !contents->GetPrimaryMainFrame()) {
-    std::move(callback).Run(nullptr);
-    return;
-  }
-
-  std::optional<std::string> document_identifier =
-      optimization_guide::DocumentIdentifierUserData::GetDocumentIdentifier(
-          contents->GetPrimaryMainFrame()->GetGlobalFrameToken());
-  if (!document_identifier.has_value()) {
-    std::move(callback).Run(nullptr);
-    return;
-  }
-
-  PageContextMonitor* page_context_monitor =
-      untrusted_ui_ ? untrusted_ui_->page_context_monitor() : nullptr;
-  if (!page_context_monitor) {
-    std::move(callback).Run(nullptr);
-    return;
-  }
-
-  std::optional<int32_t> resolved_id =
-      page_context_monitor->ResolveImageDomNodeId(*document_identifier,
-                                                  dom_node_id.value());
-  if (!resolved_id.has_value()) {
-    std::move(callback).Run(nullptr);
-    return;
-  }
-
-  optimization_guide::GetImageBytes(
-      contents, *document_identifier, *resolved_id,
-      base::BindOnce(
-          [](GetImageBytesCallback cb,
-             blink::mojom::AIPageContentImageBytesResultPtr result) {
-            if (!result || result->image_bytes.size() == 0 ||
-                !result->image_info ||
-                !result->image_info->mime_type.has_value() ||
-                result->image_info->mime_type->empty()) {
-              std::move(cb).Run(nullptr);
-              return;
-            }
-            auto out_result = ai_overlay_dialog::mojom::ImageBytesResult::New();
-            out_result->image_bytes = std::move(result->image_bytes);
-            out_result->mime_type = *result->image_info->mime_type;
-            std::move(cb).Run(std::move(out_result));
-          },
-          std::move(callback)));
 }
 
 }  // namespace ttc

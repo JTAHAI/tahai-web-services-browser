@@ -25,7 +25,6 @@
 #include "base/mac/mac_util.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/notreached.h"
-#include "base/numerics/ranges.h"
 #include "base/strings/string_util.h"
 #include "base/strings/sys_string_conversions.h"
 #include "base/strings/utf_string_conversions.h"
@@ -63,8 +62,6 @@
 #include "skia/ext/skia_utils_mac.h"
 #include "third_party/blink/public/common/input/web_input_event.h"
 #include "third_party/blink/public/mojom/input/input_handler.mojom.h"
-#include "ui/accessibility/platform/ax_platform_node.h"
-#include "ui/accessibility/platform/ax_platform_node_delegate.h"
 #import "ui/accessibility/platform/browser_accessibility_cocoa.h"
 #import "ui/accessibility/platform/browser_accessibility_mac.h"
 #include "ui/accessibility/platform/browser_accessibility_manager_mac.h"
@@ -126,7 +123,7 @@ BASE_FEATURE(kUseHadSavedFrameAtStart, base::FEATURE_ENABLED_BY_DEFAULT);
 BASE_FEATURE_PARAM(bool,
                    kSendAllSavedFramesToDelegatedFrameHost,
                    &kUseHadSavedFrameAtStart,
-                   true);
+                   false);
 
 // Extract any events in `visible_time_request` that should go to the
 // DelegatedFrameHost and sends them to `delegated_frame_host`. Modifies
@@ -465,15 +462,6 @@ void RenderWidgetHostViewMac::SetParentUiLayer(ui::Layer* parent_ui_layer) {
 
 void RenderWidgetHostViewMac::SetParentAccessibilityElement(
     id parent_accessibility_element) {
-  parent_ax_tree_id_ = ui::AXTreeIDUnknown();
-  if (parent_accessibility_element) {
-    ui::AXPlatformNode* parent = ui::AXPlatformNode::FromNativeViewAccessible(
-        gfx::NativeViewAccessible(parent_accessibility_element));
-    if (parent && !parent->IsDestroyed() && parent->GetDelegate()) {
-      parent_ax_tree_id_ = parent->GetDelegate()->GetTreeData().tree_id;
-    }
-  }
-
   [GetInProcessNSView()
       setAccessibilityParentElement:parent_accessibility_element];
 }
@@ -1536,12 +1524,6 @@ bool RenderWidgetHostViewMac::HasSavedCompositorFrame() const {
          browser_compositor_->GetDelegatedFrameHost()->HasSavedFrame();
 }
 
-void RenderWidgetHostViewMac::SetEvictOnHide(bool evict_on_hide) {
-  if (browser_compositor_) {
-    browser_compositor_->SetEvictOnHide(evict_on_hide);
-  }
-}
-
 void RenderWidgetHostViewMac::TransformPointToRootSurface(gfx::PointF* point) {
   browser_compositor_->TransformPointToRootSurface(point);
 }
@@ -1765,10 +1747,6 @@ bool RenderWidgetHostViewMac::HasFallbackSurface() const {
   return browser_compositor_->GetDelegatedFrameHost()->HasFallbackSurface();
 }
 
-void RenderWidgetHostViewMac::OptOutFrameEviction() {
-  browser_compositor_->GetDelegatedFrameHost()->OptOutFrameEviction();
-}
-
 bool RenderWidgetHostViewMac::TransformPointToCoordSpaceForView(
     const gfx::PointF& point,
     RenderWidgetHostViewInput* target_view,
@@ -1884,10 +1862,6 @@ RenderWidgetHostViewMac::AccessibilityGetNativeViewAccessibleForWindow() {
         (id<NSAccessibility>)remote_window_accessible_);
   }
   return gfx::NativeViewAccessible([GetInProcessNSView() window]);
-}
-
-ui::AXTreeID RenderWidgetHostViewMac::AccessibilityGetParentAXTreeID() {
-  return parent_ax_tree_id_;
 }
 
 void RenderWidgetHostViewMac::SetTextInputActive(bool active) {

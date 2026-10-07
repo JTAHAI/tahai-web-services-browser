@@ -86,10 +86,8 @@ class VIZ_SERVICE_EXPORT RootCompositorFrameSinkImpl
   void SetDisplayVSyncParameters(base::TimeTicks timebase,
                                  base::TimeDelta interval) override;
   void ForceImmediateDrawAndSwapIfPossible() override;
-#if BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_MAC)
-  void UpdateRefreshRate(float refresh_rate) override;
-#endif
 #if BUILDFLAG(IS_ANDROID)
+  void UpdateRefreshRate(float refresh_rate) override;
   void SetAdaptiveRefreshRateInfo(
       mojom::AdaptiveRefreshRateInfoPtr info) override;
   void PreserveChildSurfaceControls() override;

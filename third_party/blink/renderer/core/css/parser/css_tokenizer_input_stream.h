@@ -86,25 +86,20 @@ class CSSTokenizerInputStream {
 
   template <bool characterPredicate(UChar)>
   unsigned SkipWhilePredicate(unsigned offset) {
-    // Very hot (whitespace and digits); a plain pointer loop generates much
-    // better code than iterating a span here.
-    const unsigned length = rest_.length();
     if (string_.Is8Bit()) {
-      const LChar* chars = rest_.Span8().data();
-      // SAFETY: `offset` < `length` is checked before every access.
-      UNSAFE_BUFFERS({
-        while (offset < length && characterPredicate(chars[offset])) {
-          ++offset;
+      for (const LChar ch : rest_.Span8().subspan(offset)) {
+        if (!characterPredicate(ch)) {
+          break;
         }
-      });
+        ++offset;
+      }
     } else {
-      const UChar* chars = rest_.Span16().data();
-      // SAFETY: `offset` < `length` is checked before every access.
-      UNSAFE_BUFFERS({
-        while (offset < length && characterPredicate(chars[offset])) {
-          ++offset;
+      for (const UChar ch : rest_.Span16().subspan(offset)) {
+        if (!characterPredicate(ch)) {
+          break;
         }
-      });
+        ++offset;
+      }
     }
     return offset;
   }

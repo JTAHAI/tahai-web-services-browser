@@ -9,13 +9,11 @@
 #include <optional>
 #include <vector>
 
-#include "base/types/expected.h"
 #include "build/build_config.h"
 #include "components/viz/common/quads/compositor_frame_metadata.h"
 #include "components/viz/common/quads/offset_tag.h"
 #include "components/viz/common/surfaces/region_capture_bounds.h"
 #include "components/viz/common/surfaces/tracked_element_rects.h"
-#include "mojo/public/cpp/bindings/deserialization_error.h"
 #include "services/viz/public/cpp/compositing/begin_frame_args_mojom_traits.h"
 #include "services/viz/public/cpp/compositing/compositor_frame_transition_directive_mojom_traits.h"
 #include "services/viz/public/cpp/compositing/frame_deadline_mojom_traits.h"
@@ -30,26 +28,6 @@
 #include "ui/gfx/mojom/overlay_transform_mojom_traits.h"
 
 namespace mojo {
-
-template <>
-struct StructTraits<viz::mojom::SurfaceIdAndDeadlineDataView,
-                    viz::SurfaceIdAndDeadline> {
-  static const viz::SurfaceId& surface_id(
-      const viz::SurfaceIdAndDeadline& input) {
-    return input.surface_id;
-  }
-
-  static std::optional<uint32_t> deadline_in_frames(
-      const viz::SurfaceIdAndDeadline& input) {
-    return input.deadline_in_frames;
-  }
-
-  static bool Read(viz::mojom::SurfaceIdAndDeadlineDataView data,
-                   viz::SurfaceIdAndDeadline* out) {
-    out->deadline_in_frames = data.deadline_in_frames();
-    return data.ReadSurfaceId(&out->surface_id);
-  }
-};
 
 template <>
 struct StructTraits<viz::mojom::CompositorFrameMetadataDataView,
@@ -123,7 +101,7 @@ struct StructTraits<viz::mojom::CompositorFrameMetadataDataView,
     return metadata.referenced_surfaces;
   }
 
-  static const std::vector<viz::SurfaceIdAndDeadline>& activation_dependencies(
+  static const std::vector<viz::SurfaceId>& activation_dependencies(
       const viz::CompositorFrameMetadata& metadata) {
     return metadata.activation_dependencies;
   }
@@ -156,11 +134,6 @@ struct StructTraits<viz::mojom::CompositorFrameMetadataDataView,
   static std::optional<float> top_controls_visible_height(
       const viz::CompositorFrameMetadata& metadata) {
     return metadata.top_controls_visible_height;
-  }
-
-  static std::optional<uint32_t> view_transition_deadline_in_frames(
-      const viz::CompositorFrameMetadata& metadata) {
-    return metadata.view_transition_deadline_in_frames;
   }
 
   static gfx::OverlayTransform display_transform_hint(
@@ -223,9 +196,8 @@ struct StructTraits<viz::mojom::CompositorFrameMetadataDataView,
     return metadata.tracked_element_rects;
   }
 
-  static base::expected<void, DeserializationError> Read(
-      viz::mojom::CompositorFrameMetadataDataView data,
-      viz::CompositorFrameMetadata* out);
+  static bool Read(viz::mojom::CompositorFrameMetadataDataView data,
+                   viz::CompositorFrameMetadata* out);
 };
 
 }  // namespace mojo

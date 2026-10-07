@@ -15,6 +15,7 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.View.OnClickListener;
 import android.view.ViewGroup;
+import android.view.ViewTreeObserver;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputMethodManager;
@@ -258,7 +259,7 @@ public class CardUnmaskPrompt
 
         // Hitting the "submit" button on the software keyboard should submit the form if valid.
         mCardUnmaskInput.setOnEditorActionListener(
-                (_, actionId, _) -> {
+                (v14, actionId, event) -> {
                     if (actionId == EditorInfo.IME_ACTION_DONE) {
                         assumeNonNull(mDialogModel);
                         if (!mDialogModel.get(ModalDialogProperties.POSITIVE_BUTTON_DISABLED)) {
@@ -273,17 +274,17 @@ public class CardUnmaskPrompt
 
         // Create the listeners to be notified when the user focuses out the input fields.
         mCardUnmaskInput.setOnFocusChangeListener(
-                (_, _) -> {
+                (v13, hasFocus) -> {
                     mDidFocusOnCvc = true;
                     validate();
                 });
         mMonthInput.setOnFocusChangeListener(
-                (_, _) -> {
+                (v12, hasFocus) -> {
                     mDidFocusOnMonth = true;
                     validate();
                 });
         mYearInput.setOnFocusChangeListener(
-                (_, _) -> {
+                (v1, hasFocus) -> {
                     mDidFocusOnYear = true;
                     validate();
                 });
@@ -292,9 +293,12 @@ public class CardUnmaskPrompt
         mMainView
                 .getViewTreeObserver()
                 .addOnWindowFocusChangeListener(
-                        hasFocus -> {
-                            if (hasFocus) {
-                                setInitialFocus();
+                        new ViewTreeObserver.OnWindowFocusChangeListener() {
+                            @Override
+                            public void onWindowFocusChanged(boolean hasFocus) {
+                                if (hasFocus) {
+                                    setInitialFocus();
+                                }
                             }
                         });
     }

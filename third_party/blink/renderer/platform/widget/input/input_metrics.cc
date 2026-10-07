@@ -4,8 +4,6 @@
 
 #include "third_party/blink/renderer/platform/widget/input/input_metrics.h"
 
-#include <array>
-
 #include "base/feature_list.h"
 #include "base/metrics/histogram_macros.h"
 #include "cc/base/features.h"
@@ -16,101 +14,50 @@ namespace blink {
 
 namespace {
 
-// LINT.IfChange(MainThreadScrollingReason)
-
-base::HistogramBase::Sample32 ToBucket(
-    const cc::MainThreadRepaintReason reason) {
-  switch (reason) {
-    case cc::MainThreadRepaintReason::kHasBackgroundAttachmentFixedObjects:
-      return 2;
-    case cc::MainThreadRepaintReason::kNotOpaqueForTextAndLCDText:
-      return 5;
-    case cc::MainThreadRepaintReason::kPreferNonCompositedScrolling:
-      return 15;
-    case cc::MainThreadRepaintReason::kBackgroundNeedsRepaintOnScroll:
-      return 16;
-  }
-}
-
-base::HistogramBase::Sample32 ToBucket(
-    const cc::MainThreadHitTestReason reason) {
-  switch (reason) {
-    case cc::MainThreadHitTestReason::kScrollbarScrolling:
-      return 7;
-    case cc::MainThreadHitTestReason::kMainThreadScrollHitTestRegion:
-      return 8;
-    case cc::MainThreadHitTestReason::kFailedHitTest:
-      return 9;
-  }
-}
-
-base::HistogramBase::Sample32 ToBucket(
-    const cc::MainThreadScrollingOtherReason reason) {
-  switch (reason) {
-    case cc::MainThreadScrollingOtherReason::kPopupNoThreadedInput:
-      return 4;
-    case cc::MainThreadScrollingOtherReason::kWheelEventHandlerRegion:
-      return 13;
-    case cc::MainThreadScrollingOtherReason::kTouchEventHandlerRegion:
-      return 14;
-  }
-}
-
-constexpr base::HistogramBase::Sample32 kExclusiveMax = 17;
-
-// LINT.ThenChange(//tools/metrics/histograms/enums.xml:MainThreadScrollingReason)
+constexpr uint32_t kMax =
+    cc::MainThreadScrollingReason::kMainThreadScrollingReasonLast;
 
 static void RecordOneScrollReasonMetric(WebGestureDevice device,
-                                        base::HistogramBase::Sample32 bucket) {
-  CHECK_LT(bucket, kExclusiveMax);
+                                        uint32_t reason_index) {
   if (device == WebGestureDevice::kTouchscreen) {
     UMA_HISTOGRAM_EXACT_LINEAR("Renderer4.MainThreadGestureScrollReason2",
-                               bucket, kExclusiveMax);
+                               reason_index, kMax + 1);
   } else {
-    UMA_HISTOGRAM_EXACT_LINEAR("Renderer4.MainThreadWheelScrollReason2", bucket,
-                               kExclusiveMax);
+    UMA_HISTOGRAM_EXACT_LINEAR("Renderer4.MainThreadWheelScrollReason2",
+                               reason_index, kMax + 1);
   }
 }
 
 }  // anonymous namespace
 
-void RecordScrollReasonsMetric(
-    WebGestureDevice device,
-    cc::MainThreadRepaintReasons repaint_reasons,
-    cc::MainThreadHitTestReasons hit_test_reasons,
-    cc::MainThreadScrollingOtherReasons other_reasons) {
-  if (repaint_reasons.empty() && hit_test_reasons.empty() &&
-      other_reasons.empty()) {
+void RecordScrollReasonsMetric(WebGestureDevice device, uint32_t reasons) {
+  if (reasons == cc::MainThreadScrollingReason::kNotScrollingOnMain) {
     // Record the histogram for non-main-thread scrolls.
-    RecordOneScrollReasonMetric(device, kNotScrollingOnMainBucket);
+    RecordOneScrollReasonMetric(
+        device, cc::MainThreadScrollingReason::kNotScrollingOnMain);
     return;
   }
 
   // Record the histogram for main-thread scrolls for any reason.
-  RecordOneScrollReasonMetric(device, kScrollingOnMainForAnyReasonBucket);
+  RecordOneScrollReasonMetric(
+      device, cc::MainThreadScrollingReason::kScrollingOnMainForAnyReason);
 
-  for (auto reason : repaint_reasons) {
-    RecordOneScrollReasonMetric(device, ToBucket(reason));
-  }
-  for (auto reason : hit_test_reasons) {
-    RecordOneScrollReasonMetric(device, ToBucket(reason));
-  }
-  for (auto reason : other_reasons) {
-    RecordOneScrollReasonMetric(device, ToBucket(reason));
-  }
-}
+  // The enum in cc::MainThreadScrollingReason simultaneously defines actual
+  // bitmask values and indices into the bitmask, but kNotScrollingMain and
+  // kScrollingOnMainForAnyReason are recorded in the histograms, so these
+  // bits should never be used.
+  DCHECK(
+      !(reasons & (1 << cc::MainThreadScrollingReason::kNotScrollingOnMain)));
+  DCHECK(!(reasons &
+           (1 << cc::MainThreadScrollingReason::kScrollingOnMainForAnyReason)));
 
-base::HistogramBase::Sample32 ToHistogramBucketForTesting(
-    cc::MainThreadRepaintReason reason) {
-  return ToBucket(reason);
-}
-base::HistogramBase::Sample32 ToHistogramBucketForTesting(
-    cc::MainThreadHitTestReason reason) {
-  return ToBucket(reason);
-}
-base::HistogramBase::Sample32 ToHistogramBucketForTesting(
-    cc::MainThreadScrollingOtherReason reason) {
-  return ToBucket(reason);
+  // Record histograms for individual main-thread scrolling reasons.
+  for (uint32_t i =
+           cc::MainThreadScrollingReason::kScrollingOnMainForAnyReason + 1;
+       i <= kMax; ++i) {
+    if (reasons & (1 << i))
+      RecordOneScrollReasonMetric(device, i);
+  }
 }
 
 }  // namespace blink

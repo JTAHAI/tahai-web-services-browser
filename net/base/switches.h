@@ -10,8 +10,6 @@
 namespace net::switches {
 
 inline constexpr char kLogNetLog[] = "log-net-log";
-inline constexpr char kUnsafelyTreatInsecureOriginAsSecure[] =
-    "unsafely-treat-insecure-origin-as-secure";
 
 }  // namespace net::switches
 

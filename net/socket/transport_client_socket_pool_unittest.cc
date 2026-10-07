@@ -127,8 +127,7 @@ class TransportClientSocketPoolTestBase : public WithTaskEnvironment,
     } else {
       disabled_features.emplace_back(features::kHappyEyeballsV2);
     }
-    AddScopedFeatureList().InitWithFeatures(enabled_features,
-                                            disabled_features);
+    scoped_feature_list_.InitWithFeatures(enabled_features, disabled_features);
     std::unique_ptr<MockCertVerifier> cert_verifier =
         std::make_unique<MockCertVerifier>();
     cert_verifier->set_default_result(OK);
@@ -197,6 +196,8 @@ class TransportClientSocketPoolTestBase : public WithTaskEnvironment,
     return test_base_.requests();
   }
   size_t completion_count() const { return test_base_.completion_count(); }
+
+  base::test::ScopedFeatureList scoped_feature_list_;
 
   // |group_id_| and |params_| correspond to the same group.
   const ClientSocketPool::GroupId group_id_;
@@ -1962,7 +1963,8 @@ TEST_P(TransportClientSocketPoolTest, NetworkAnonymizationKey) {
       NetworkAnonymizationKey::CreateSameSite(kSite);
   const char kHost[] = "bar.test";
 
-  AddScopedFeatureList().InitAndEnableFeature(
+  base::test::ScopedFeatureList scoped_feature_list;
+  scoped_feature_list.InitAndEnableFeature(
       features::kPartitionConnectionsByNetworkIsolationKey);
 
   session_deps_.host_resolver->set_ondemand_mode(true);
@@ -1995,7 +1997,8 @@ TEST_P(TransportClientSocketPoolTest, NetworkAnonymizationKeySsl) {
       NetworkAnonymizationKey::CreateSameSite(kSite);
   const char kHost[] = "bar.test";
 
-  AddScopedFeatureList().InitAndEnableFeature(
+  base::test::ScopedFeatureList scoped_feature_list;
+  scoped_feature_list.InitAndEnableFeature(
       features::kPartitionConnectionsByNetworkIsolationKey);
 
   session_deps_.host_resolver->set_ondemand_mode(true);
@@ -2038,7 +2041,8 @@ TEST_P(TransportClientSocketPoolTest, NetworkAnonymizationKeyHttpProxy) {
   const ProxyChain kProxyChain = ProxyUriToProxyChain(
       "http://proxy.test", /*default_scheme=*/ProxyServer::SCHEME_HTTP);
 
-  AddScopedFeatureList().InitAndEnableFeature(
+  base::test::ScopedFeatureList scoped_feature_list;
+  scoped_feature_list.InitAndEnableFeature(
       features::kPartitionConnectionsByNetworkIsolationKey);
 
   session_deps_.host_resolver->set_ondemand_mode(true);
@@ -2105,7 +2109,8 @@ TEST_P(TransportClientSocketPoolTest, NetworkAnonymizationKeyHttpsProxy) {
   const ProxyChain kProxyChain = ProxyUriToProxyChain(
       "https://proxy.test", /*default_scheme=*/ProxyServer::SCHEME_HTTP);
 
-  AddScopedFeatureList().InitAndEnableFeature(
+  base::test::ScopedFeatureList scoped_feature_list;
+  scoped_feature_list.InitAndEnableFeature(
       features::kPartitionConnectionsByNetworkIsolationKey);
 
   session_deps_.host_resolver->set_ondemand_mode(true);
@@ -2173,7 +2178,8 @@ TEST_P(TransportClientSocketPoolTest, NetworkAnonymizationKeySocks4Proxy) {
   const ProxyChain kProxyChain = ProxyUriToProxyChain(
       "socks4://proxy.test", /*default_scheme=*/ProxyServer::SCHEME_HTTP);
 
-  AddScopedFeatureList().InitAndEnableFeature(
+  base::test::ScopedFeatureList scoped_feature_list;
+  scoped_feature_list.InitAndEnableFeature(
       features::kPartitionConnectionsByNetworkIsolationKey);
 
   session_deps_.host_resolver->set_ondemand_mode(true);
@@ -2263,7 +2269,8 @@ TEST_P(TransportClientSocketPoolTest, NetworkAnonymizationKeySocks5Proxy) {
   const ProxyChain kProxyChain = ProxyUriToProxyChain(
       "socks5://proxy.test", /*default_scheme=*/ProxyServer::SCHEME_HTTP);
 
-  AddScopedFeatureList().InitAndEnableFeature(
+  base::test::ScopedFeatureList scoped_feature_list;
+  scoped_feature_list.InitAndEnableFeature(
       features::kPartitionConnectionsByNetworkIsolationKey);
 
   session_deps_.host_resolver->set_ondemand_mode(true);
@@ -2408,7 +2415,8 @@ TEST_P(TransportClientSocketPoolTest,
 
 TEST_P(TransportClientSocketPoolTest,
        ErrorCodePropagationForPreconnect_Enabled) {
-  AddScopedFeatureList().InitAndEnableFeature(
+  base::test::ScopedFeatureList feature_list;
+  feature_list.InitAndEnableFeature(
       features::kEnableErrorCodePropagationForPreconnect);
 
   client_socket_factory_.set_default_client_socket_type(
@@ -2426,7 +2434,8 @@ TEST_P(TransportClientSocketPoolTest,
 
 TEST_P(TransportClientSocketPoolTest,
        ErrorCodePropagationForPreconnect_Enabled_MultipleFail) {
-  AddScopedFeatureList().InitAndEnableFeature(
+  base::test::ScopedFeatureList feature_list;
+  feature_list.InitAndEnableFeature(
       features::kEnableErrorCodePropagationForPreconnect);
 
   client_socket_factory_.set_default_client_socket_type(
@@ -2444,7 +2453,8 @@ TEST_P(TransportClientSocketPoolTest,
 
 TEST_P(TransportClientSocketPoolTest,
        ErrorCodePropagationForPreconnect_Enabled_MultipleSuccess) {
-  AddScopedFeatureList().InitAndEnableFeature(
+  base::test::ScopedFeatureList feature_list;
+  feature_list.InitAndEnableFeature(
       features::kEnableErrorCodePropagationForPreconnect);
 
   client_socket_factory_.set_default_client_socket_type(
@@ -2465,7 +2475,8 @@ TEST_P(TransportClientSocketPoolTest,
 TEST_P(
     TransportClientSocketPoolTest,
     ErrorCodePropagationForPreconnect_Enabled_PreconnectSocketUsedByActualRequest) {
-  AddScopedFeatureList().InitAndEnableFeature(
+  base::test::ScopedFeatureList feature_list;
+  feature_list.InitAndEnableFeature(
       features::kEnableErrorCodePropagationForPreconnect);
 
   client_socket_factory_.set_default_client_socket_type(
@@ -2495,7 +2506,8 @@ TEST_P(
 
 TEST_P(TransportClientSocketPoolTest,
        ErrorCodePropagationForPreconnect_Enabled_MixedResult) {
-  AddScopedFeatureList().InitAndEnableFeature(
+  base::test::ScopedFeatureList feature_list;
+  feature_list.InitAndEnableFeature(
       features::kEnableErrorCodePropagationForPreconnect);
 
   MockTransportClientSocketFactory::Rule rules[] = {

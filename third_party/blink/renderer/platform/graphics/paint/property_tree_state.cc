@@ -8,7 +8,6 @@
 
 #include "cc/trees/sticky_position_constraint.h"
 #include "third_party/blink/renderer/platform/runtime_enabled_features.h"
-#include "third_party/blink/renderer/platform/wtf/text/format.h"
 #include "third_party/blink/renderer/platform/wtf/text/strcat.h"
 
 namespace blink {
@@ -196,7 +195,7 @@ std::optional<PropertyTreeState::UpcastResult> PropertyTreeState::CanUpcastWith(
 }
 
 String PropertyTreeStateOrAlias::ToString() const {
-  return Format("t:{} c:{} e:{}", transform_, clip_, effect_);
+  return String::Format("t:%p c:%p e:%p", transform_, clip_, effect_);
 }
 
 #if DCHECK_IS_ON()

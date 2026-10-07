@@ -15,7 +15,6 @@ import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.components.omnibox.InputTypeConfigProto.InputTypeConfig;
 import org.chromium.components.omnibox.ModelConfigProto.ModelConfig;
-import org.chromium.components.omnibox.OmniboxFeatures;
 import org.chromium.components.omnibox.SectionConfigProto.SectionConfig;
 import org.chromium.components.omnibox.ToolConfigProto.ToolConfig;
 import org.chromium.components.omnibox.ToolModeProto.ToolMode;
@@ -38,31 +37,26 @@ public class InputState {
     private static final String TAG = "InputState";
 
     public final String hintText;
+
     public final List<Integer> allowedInputTypes;
     public final List<Integer> disabledInputTypes;
     public final int maxTotalInputs;
     public final Map<Integer, Integer> maxInputsByType;
+    public final List<InputTypeConfig> inputTypeConfigs;
+
     public final int activeTool;
     public final List<Integer> allowedTools;
     public final List<Integer> disabledTools;
     public final boolean imageGenUploadActive;
+    public final List<ToolConfig> toolConfigs;
+    public final SectionConfig toolsSectionConfig;
+
     public final int activeModel;
     public final int defaultModel;
     public final List<Integer> allowedModels;
     public final List<Integer> disabledModels;
-
-    // Raw buffers and parsed lazy fields must be kept mutually exclusive.
-    private byte @Nullable [][] mRawInputTypeConfigs;
-    private byte @Nullable [][] mRawToolConfigs;
-    private byte @Nullable [] mRawToolsSectionConfig;
-    private byte @Nullable [][] mRawModelConfigs;
-    private byte @Nullable [] mRawModelSectionConfig;
-
-    private @Nullable List<InputTypeConfig> mLazyInputTypeConfigs;
-    private @Nullable List<ToolConfig> mLazyToolConfigs;
-    private @Nullable SectionConfig mLazyToolsSectionConfig;
-    private @Nullable List<ModelConfig> mLazyModelConfigs;
-    private @Nullable SectionConfig mLazyModelSectionConfig;
+    public final List<ModelConfig> modelConfigs;
+    public final SectionConfig modelSectionConfig;
 
     // Use the inner Builder class to construct instances of InputState.
     @CalledByNative
@@ -91,69 +85,21 @@ public class InputState {
         this.disabledInputTypes = toList(disabledInputTypes);
         this.maxTotalInputs = maxTotalInputs;
         this.maxInputsByType = Collections.unmodifiableMap(maxInputsByType);
-        this.mRawInputTypeConfigs = inputTypeConfigs;
+        this.inputTypeConfigs = parseInputTypeConfigs(inputTypeConfigs);
 
         this.activeTool = activeTool;
         this.allowedTools = toList(allowedTools);
         this.disabledTools = toList(disabledTools);
         this.imageGenUploadActive = imageGenUploadActive;
-        this.mRawToolConfigs = toolConfigs;
-        this.mRawToolsSectionConfig = toolsSectionConfig;
+        this.toolConfigs = parseToolConfigs(toolConfigs);
+        this.toolsSectionConfig = parseSectionConfig(toolsSectionConfig);
 
         this.activeModel = activeModel;
         this.defaultModel = defaultModel;
         this.allowedModels = toList(allowedModels);
         this.disabledModels = toList(disabledModels);
-        this.mRawModelConfigs = modelConfigs;
-        this.mRawModelSectionConfig = modelSectionConfig;
-
-        if (!OmniboxFeatures.sModelPickerOptimizations.getValue()) {
-            getInputTypeConfigs();
-            getToolConfigs();
-            getToolsSectionConfig();
-            getModelConfigs();
-            getModelSectionConfig();
-        }
-    }
-
-    public List<InputTypeConfig> getInputTypeConfigs() {
-        if (mLazyInputTypeConfigs == null) {
-            mLazyInputTypeConfigs = parseInputTypeConfigs(mRawInputTypeConfigs);
-            mRawInputTypeConfigs = null;
-        }
-        return mLazyInputTypeConfigs;
-    }
-
-    public List<ToolConfig> getToolConfigs() {
-        if (mLazyToolConfigs == null) {
-            mLazyToolConfigs = parseToolConfigs(mRawToolConfigs);
-            mRawToolConfigs = null;
-        }
-        return mLazyToolConfigs;
-    }
-
-    public SectionConfig getToolsSectionConfig() {
-        if (mLazyToolsSectionConfig == null) {
-            mLazyToolsSectionConfig = parseSectionConfig(mRawToolsSectionConfig);
-            mRawToolsSectionConfig = null;
-        }
-        return mLazyToolsSectionConfig;
-    }
-
-    public List<ModelConfig> getModelConfigs() {
-        if (mLazyModelConfigs == null) {
-            mLazyModelConfigs = parseModelConfigs(mRawModelConfigs);
-            mRawModelConfigs = null;
-        }
-        return mLazyModelConfigs;
-    }
-
-    public SectionConfig getModelSectionConfig() {
-        if (mLazyModelSectionConfig == null) {
-            mLazyModelSectionConfig = parseSectionConfig(mRawModelSectionConfig);
-            mRawModelSectionConfig = null;
-        }
-        return mLazyModelSectionConfig;
+        this.modelConfigs = parseModelConfigs(modelConfigs);
+        this.modelSectionConfig = parseSectionConfig(modelSectionConfig);
     }
 
     @Override
@@ -166,19 +112,19 @@ public class InputState {
                 && Objects.equals(allowedInputTypes, that.allowedInputTypes)
                 && Objects.equals(disabledInputTypes, that.disabledInputTypes)
                 && Objects.equals(maxInputsByType, that.maxInputsByType)
-                && Objects.equals(getInputTypeConfigs(), that.getInputTypeConfigs())
+                && Objects.equals(inputTypeConfigs, that.inputTypeConfigs)
                 && activeTool == that.activeTool
                 && Objects.equals(allowedTools, that.allowedTools)
                 && Objects.equals(disabledTools, that.disabledTools)
                 && imageGenUploadActive == that.imageGenUploadActive
-                && Objects.equals(getToolConfigs(), that.getToolConfigs())
-                && Objects.equals(getToolsSectionConfig(), that.getToolsSectionConfig())
+                && Objects.equals(toolConfigs, that.toolConfigs)
+                && Objects.equals(toolsSectionConfig, that.toolsSectionConfig)
                 && activeModel == that.activeModel
                 && defaultModel == that.defaultModel
                 && Objects.equals(allowedModels, that.allowedModels)
                 && Objects.equals(disabledModels, that.disabledModels)
-                && Objects.equals(getModelConfigs(), that.getModelConfigs())
-                && Objects.equals(getModelSectionConfig(), that.getModelSectionConfig());
+                && Objects.equals(modelConfigs, that.modelConfigs)
+                && Objects.equals(modelSectionConfig, that.modelSectionConfig);
     }
 
     @Override
@@ -189,19 +135,19 @@ public class InputState {
                 allowedInputTypes,
                 disabledInputTypes,
                 maxInputsByType,
-                getInputTypeConfigs(),
+                inputTypeConfigs,
                 activeTool,
                 allowedTools,
                 disabledTools,
                 imageGenUploadActive,
-                getToolConfigs(),
-                getToolsSectionConfig(),
+                toolConfigs,
+                toolsSectionConfig,
                 activeModel,
                 defaultModel,
                 allowedModels,
                 disabledModels,
-                getModelConfigs(),
-                getModelSectionConfig());
+                modelConfigs,
+                modelSectionConfig);
     }
 
     /**
@@ -261,7 +207,6 @@ public class InputState {
         if (configs == null) return Collections.emptyList();
         List<InputTypeConfig> result = new ArrayList<>(configs.length);
         for (byte[] config : configs) {
-            if (config == null) continue;
             try {
                 result.add(InputTypeConfig.parseFrom(config));
             } catch (InvalidProtocolBufferException e) {
@@ -275,7 +220,6 @@ public class InputState {
         if (configs == null) return Collections.emptyList();
         List<ToolConfig> result = new ArrayList<>(configs.length);
         for (byte[] config : configs) {
-            if (config == null) continue;
             try {
                 result.add(ToolConfig.parseFrom(config));
             } catch (InvalidProtocolBufferException e) {
@@ -289,7 +233,6 @@ public class InputState {
         if (configs == null) return Collections.emptyList();
         List<ModelConfig> result = new ArrayList<>(configs.length);
         for (byte[] config : configs) {
-            if (config == null) continue;
             try {
                 result.add(ModelConfig.parseFrom(config));
             } catch (InvalidProtocolBufferException e) {

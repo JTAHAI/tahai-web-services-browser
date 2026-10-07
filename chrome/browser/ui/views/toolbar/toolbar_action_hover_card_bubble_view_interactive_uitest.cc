@@ -383,7 +383,7 @@ IN_PROC_BROWSER_TEST_F(ToolbarActionHoverCardBubbleViewUITest,
       extensions::ExtensionActionManager::Get(profile())->GetExtensionAction(
           *extension);
   content::WebContents* web_contents =
-      browser()->GetTabStripModel()->GetActiveWebContents();
+      browser()->tab_strip_model()->GetActiveWebContents();
   ASSERT_TRUE(action);
   int tab_id = sessions::SessionTabHelper::IdForTab(web_contents).id();
   action->SetTitle(tab_id, "Action title");

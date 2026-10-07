@@ -26,11 +26,11 @@ abstract class ElidedLogcatProvider {
     protected abstract void getRawLogcat(RawLogcatCallback rawLogcatCallback);
 
     protected interface RawLogcatCallback {
-        void onLogsDone(BufferedReader logsFileReader);
+        public void onLogsDone(BufferedReader logsFileReader);
     }
 
     public interface LogcatCallback {
-        void onLogsDone(String logs);
+        public void onLogsDone(String logs);
     }
 
     public void getElidedLogcat(LogcatCallback callback) {

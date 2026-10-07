@@ -17,9 +17,8 @@ namespace extensions {
 namespace csp_validator {
 
 // Checks whether the given `policy` is legal for use in the extension system.
-// This ensures that the policy doesn't contain any characters that will cause
-// HTTP header injection or parser differentials with the runtime CSP parser
-// (e.g. control characters, commas, and non-printable ASCII).
+// This check just ensures that the policy doesn't contain any characters that
+// will cause problems when we transmit the policy in an HTTP header.
 bool ContentSecurityPolicyIsLegal(const std::string& policy);
 
 // This specifies options for configuring which CSP directives are permitted in

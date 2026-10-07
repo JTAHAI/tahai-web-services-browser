@@ -90,7 +90,6 @@ class StyleCaretColor;
 class StylePath;
 class StyleResolverState;
 class StyleSVGResource;
-class TextDecorationInset;
 class TextSizeAdjust;
 class TranslateTransformOperation;
 class UnzoomedLength;
@@ -338,8 +337,6 @@ class StyleBuilderConverter {
   static TextDecorationThickness ConvertTextDecorationThickness(
       StyleResolverState&,
       const CSSValue&);
-  static TextDecorationInset ConvertTextDecorationInset(StyleResolverState&,
-                                                        const CSSValue&);
   static TextEmphasisPosition ConvertTextTextEmphasisPosition(
       StyleResolverState&,
       const CSSValue&);
@@ -416,8 +413,8 @@ class StyleBuilderConverter {
   static ScrollbarGutter ConvertScrollbarGutter(StyleResolverState& state,
                                                 const CSSValue& value);
 
-  static Vector<AtomicString> ConvertContainerName(StyleResolverState&,
-                                                   const CSSValue&);
+  static ScopedCSSNameList* ConvertContainerName(StyleResolverState&,
+                                                 const CSSValue&);
 
   static StyleIntrinsicLength ConvertIntrinsicDimension(
       const StyleResolverState&,

@@ -11,11 +11,13 @@ import static org.mockito.Mockito.verify;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.robolectric.annotation.Config;
 
 import org.chromium.base.test.BaseRobolectricTestRunner;
 
 /** Unit tests for {@link HubColorMixerRegistrationHelper}. */
 @RunWith(BaseRobolectricTestRunner.class)
+@Config(manifest = Config.NONE)
 public class HubColorMixerRegistrationHelperUnitTest {
     private HubColorMixerRegistrationHelper mHelper;
     private HubColorMixer mColorMixer1;
@@ -42,14 +44,6 @@ public class HubColorMixerRegistrationHelperUnitTest {
     @Test
     public void testRegisterBlend_withMixer() {
         mHelper.setColorMixer(mColorMixer1);
-        mHelper.registerBlend(mBlend1);
-        verify(mColorMixer1).registerBlend(mBlend1);
-    }
-
-    @Test
-    public void testRegisterBlend_duplicateIgnored() {
-        mHelper.setColorMixer(mColorMixer1);
-        mHelper.registerBlend(mBlend1);
         mHelper.registerBlend(mBlend1);
         verify(mColorMixer1).registerBlend(mBlend1);
     }

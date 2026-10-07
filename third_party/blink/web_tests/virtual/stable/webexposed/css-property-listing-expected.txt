@@ -223,7 +223,6 @@ All changes to this list should go through Blink's feature review process: http:
     font-variation-settings
     font-weight
     forced-color-adjust
-    frame-sizing
     grid-auto-columns
     grid-auto-flow
     grid-auto-rows
@@ -366,7 +365,6 @@ All changes to this list should go through Blink's feature review process: http:
     rx
     ry
     scale
-    scroll-axis-lock
     scroll-behavior
     scroll-initial-target
     scroll-margin-block-end

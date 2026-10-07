@@ -135,7 +135,10 @@ import java.util.concurrent.TimeoutException;
  */
 @RunWith(ParameterizedRunner.class)
 @ParameterAnnotations.UseRunnerDelegate(ChromeJUnit4RunnerDelegate.class)
-@Features.EnableFeatures({SigninFeatures.SMART_EMAIL_LINE_BREAKING})
+@Features.EnableFeatures({
+    SigninFeatures.SMART_EMAIL_LINE_BREAKING,
+    ChromeFeatureList.XPLAT_SYNCED_SETUP
+})
 @DoNotBatch(reason = "This test interacts with startup, native initialization, and first run.")
 @CommandLineFlags.Add({ChromeSwitches.NO_FIRST_RUN})
 public class FirstRunIntegrationTest {
@@ -468,6 +471,7 @@ public class FirstRunIntegrationTest {
     @MediumTest
     // Sign-in is not supported on automotive devices.
     @Restriction({DeviceRestriction.RESTRICTION_TYPE_NON_AUTO})
+    @DisabledTest(message = "crbug.com/431982831")
     public void testFirstRunPages_NoCctPolicy_OnBackPressed() throws Exception {
         mSigninTestRule.addAccount(TestAccounts.AADC_ADULT_ACCOUNT);
         initializePreferences(FirstRunPagesTestCase.createWithShowAllPromos());
@@ -496,6 +500,7 @@ public class FirstRunIntegrationTest {
     @MediumTest
     // Sign-in is not supported on automotive devices.
     @Restriction({DeviceRestriction.RESTRICTION_TYPE_NON_AUTO})
+    @DisabledTest(message = "crbug.com/431982831")
     public void testFirstRunPages_WithCctPolicy_OnBackPressed() throws Exception {
         mSigninTestRule.addAccount(TestAccounts.AADC_ADULT_ACCOUNT);
         initializePreferences(FirstRunPagesTestCase.createWithShowAllPromos().withCctTosDisabled());
@@ -586,6 +591,7 @@ public class FirstRunIntegrationTest {
     @MediumTest
     // Sign-in is not supported on automotive devices.
     @Restriction({DeviceRestriction.RESTRICTION_TYPE_NON_AUTO})
+    @DisabledTest(message = "Flaky, see crbug.com/431982831")
     public void testFirstRunPages_ProgressHistogramRecordedOnlyOnce() throws Exception {
         mSigninTestRule.addAccount(TestAccounts.AADC_ADULT_ACCOUNT);
         HistogramWatcher histograms =

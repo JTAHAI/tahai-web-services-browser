@@ -338,7 +338,7 @@ CollaborationGroupInfoBarDelegate::GetAvatarPrimitive() {
 }
 
 UIImage* CollaborationGroupInfoBarDelegate::GetSymbolImage() {
-  Symbol symbol;
+  NSString* symbolName;
   switch (instant_message_.collaboration_event) {
     case CollaborationEvent::TAB_UPDATED:
     case CollaborationEvent::TAB_REMOVED:
@@ -350,14 +350,15 @@ UIImage* CollaborationGroupInfoBarDelegate::GetSymbolImage() {
     case CollaborationEvent::TAB_GROUP_COLOR_UPDATED:
     case CollaborationEvent::COLLABORATION_ADDED:
     case CollaborationEvent::COLLABORATION_MEMBER_REMOVED:
-      symbol = SymbolMultiIdentity;
+      symbolName = kMultiIdentitySymbol;
       break;
     case CollaborationEvent::TAB_GROUP_REMOVED:
     case CollaborationEvent::COLLABORATION_REMOVED:
-      symbol = SymbolTabGroups;
+      symbolName = kTabGroupsSymbol;
       break;
   }
-  return SymbolTemplateWithPointSize(symbol, kInfobarSymbolPointSize);
+  return DefaultSymbolTemplateWithPointSize(symbolName,
+                                            kInfobarSymbolPointSize);
 }
 
 void CollaborationGroupInfoBarDelegate::ReopenTab() {

@@ -32,7 +32,6 @@ class OpenTabHelper {
     std::optional<bool> pinned;
     std::optional<int> index;
     std::optional<int> bookmark_id;
-    std::optional<int> split_with_tab_id;
   };
 
 #if !BUILDFLAG(IS_ANDROID)

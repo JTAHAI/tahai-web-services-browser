@@ -4,6 +4,8 @@
 
 package org.chromium.components.page_info;
 
+import static org.chromium.build.NullUtil.assumeNonNull;
+
 import android.text.Spannable;
 import android.text.SpannableString;
 import android.text.SpannableStringBuilder;
@@ -80,10 +82,8 @@ public class PageInfoConnectionController
     @Override
     public void onSubpageRemoved() {
         mContainer = null;
-        if (mInfoView != null) {
-            mInfoView.onDismiss();
-            mInfoView = null;
-        }
+        assumeNonNull(mInfoView);
+        mInfoView.onDismiss();
     }
 
     private static @ColorRes int getSecurityIconColor(@ConnectionSecurityLevel int securityLevel) {

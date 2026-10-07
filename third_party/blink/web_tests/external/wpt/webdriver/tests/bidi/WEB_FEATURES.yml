@@ -1,2 +1,3 @@
-rules:
-- "**": [webdriver-bidi]
+features:
+- name: webdriver-bidi
+  files: "**"

@@ -136,22 +136,17 @@ public class BottomControlsStacker implements BrowserControlsStateProvider.Obser
                 LayerType.TEST_BOTTOM_LAYER
             };
 
-    private final SparseArray<BottomControlsLayer> mLayers = new SparseArray<>(STACK_ORDER.length);
+    private final SparseArray<BottomControlsLayer> mLayers = new SparseArray<>();
     // Recorded the yOffset for all current layers. This only record the yOffset for visible layers.
-    private final SparseIntArray mLayerYOffsets = new SparseIntArray(STACK_ORDER.length);
-    // This stores the temporary offsets during `repositionLayers` and should not be read directly.
-    // Allocated as a field to reduce object allocation during repositioning.
-    private final SparseIntArray mYOffsetOfLayers = new SparseIntArray(STACK_ORDER.length);
-    private final SparseBooleanArray mLayerVisibilities =
-            new SparseBooleanArray(STACK_ORDER.length);
+    private final SparseIntArray mLayerYOffsets = new SparseIntArray();
+    private final SparseBooleanArray mLayerVisibilities = new SparseBooleanArray();
 
     // The heights of each layer at their fully shown positions.
-    private final SparseIntArray mLayerRestingOffsets = new SparseIntArray(STACK_ORDER.length);
+    private final SparseIntArray mLayerRestingOffsets = new SparseIntArray();
 
     // Whether layer is contributing to the minHeight. This is calculated during height calculation,
     // and won't update when the layers are being repositioned during scroll.
-    private final SparseBooleanArray mLayerHasMinHeight =
-            new SparseBooleanArray(STACK_ORDER.length);
+    private final SparseBooleanArray mLayerHasMinHeight = new SparseBooleanArray();
     private boolean mHasMoreThanOneNonScrollableLayer;
 
     private final BrowserControlsSizer mBrowserControlsSizer;
@@ -468,7 +463,7 @@ public class BottomControlsStacker implements BrowserControlsStateProvider.Obser
             boolean animated,
             boolean offsetsAppliedByBrowser) {
         // STEP 0: Initialize the offset for each layer.
-        mYOffsetOfLayers.clear();
+        SparseIntArray yOffsetOfLayers = new SparseIntArray(STACK_ORDER.length);
         int height = 0;
         int totalMinHeight = 0;
         int layerBottomOffset = bottomOffset;
@@ -556,7 +551,7 @@ public class BottomControlsStacker implements BrowserControlsStateProvider.Obser
                         totalMinHeight);
             }
 
-            mYOffsetOfLayers.put(type, layerYOffset);
+            yOffsetOfLayers.put(type, layerYOffset);
         }
 
         // STEP 2: If animated, compare and fix the yOffset with the previous mLayerOffsets if
@@ -592,7 +587,7 @@ public class BottomControlsStacker implements BrowserControlsStateProvider.Obser
 
                 // Read the yOffset calculated in step #1. If the layer is hiding, use a default
                 // value.
-                layerYOffset = mYOffsetOfLayers.get(type, layerYOffset + layer.getHeight());
+                layerYOffset = yOffsetOfLayers.get(type, layerYOffset + layer.getHeight());
 
                 // When the height adjustment is animated, we need to read the previous position
                 // offsets decide which layers can be moved.
@@ -607,7 +602,7 @@ public class BottomControlsStacker implements BrowserControlsStateProvider.Obser
                     layerYOffset = Math.min(layerYOffset, previousYOffset);
                 }
 
-                mYOffsetOfLayers.put(type, layerYOffset);
+                yOffsetOfLayers.put(type, layerYOffset);
             }
         }
 
@@ -619,7 +614,7 @@ public class BottomControlsStacker implements BrowserControlsStateProvider.Obser
 
             // Record the current yOffset in case the offset will be used for future animated
             // height adjustment.
-            int yOffset = mYOffsetOfLayers.get(layerType, layer.getHeight());
+            int yOffset = yOffsetOfLayers.get(layerType, layer.getHeight());
             if (!mLayerVisibilities.get(layerType)
                     && layer.getLayerVisibility() != LayerVisibility.HIDING) {
                 mLayerYOffsets.delete(layerType);

@@ -112,8 +112,6 @@ bool ShouldUseInfiniteCullRect(
   }
 
   if (object.IsInCanvasSubtree()) {
-    // TODO(crbug.com/532229486): Support cull rects under canvas.
-    subtree_should_use_infinite_cull_rect = true;
     return true;
   }
 
@@ -145,9 +143,8 @@ bool ShouldUseInfiniteCullRect(
     }
 
     const TransformPaintPropertyNode* transform_nodes[] = {
-        properties->Transform(), properties->Offset(),
-        properties->Scale(),     properties->Rotate(),
-        properties->Translate(), properties->ElementCanvasTransform()};
+        properties->Transform(), properties->Offset(), properties->Scale(),
+        properties->Rotate(), properties->Translate()};
     for (const auto* transform : transform_nodes) {
       if (!transform)
         continue;
@@ -293,9 +290,6 @@ void CullRectUpdater::UpdateRecursively(const Context& parent_context,
 
   const auto& object = layer.GetLayoutObject();
   if (object.IsFragmentLessBox()) {
-    return;
-  }
-  if (!object.FirstFragment().HasLocalBorderBoxProperties()) {
     return;
   }
 

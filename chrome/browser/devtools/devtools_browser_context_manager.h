@@ -29,7 +29,7 @@ class DevToolsBrowserContextManager : public BrowserCollectionObserver,
       const DevToolsBrowserContextManager&) = delete;
 
   Profile* GetProfileById(const std::string& browser_context_id);
-  std::vector<base::WeakPtr<content::BrowserContext>> GetBrowserContexts();
+  std::vector<content::BrowserContext*> GetBrowserContexts();
   content::BrowserContext* GetDefaultBrowserContext();
   content::BrowserContext* CreateBrowserContext();
   void DisposeBrowserContext(

@@ -38,6 +38,7 @@ import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
 import org.robolectric.annotation.Config;
 
+import org.chromium.base.FeatureOverrides;
 import org.chromium.base.supplier.ObservableSuppliers;
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.base.test.util.Features.DisableFeatures;
@@ -99,6 +100,7 @@ public class HomeModulesMediatorUnitTest {
         registerModule(1, ModuleType.PRICE_CHANGE);
         registerModule(2, ModuleType.SAFETY_HUB);
 
+        FeatureOverrides.newBuilder().disable(ChromeFeatureList.HOME_MODULE_PREF_REFACTOR).apply();
         mHomeModulesConfigManager = new HomeModulesConfigManager();
         HomeModulesConfigManager.setInstanceForTesting(mHomeModulesConfigManager);
         mMediator =
@@ -909,7 +911,8 @@ public class HomeModulesMediatorUnitTest {
 
     @Test
     @SmallTest
-    public void testGetFilteredEnabledModuleSet_allCardsDisabled() {
+    public void testGetFilteredEnabledModuleSet_withRefactorEnabled() {
+        FeatureOverrides.newBuilder().enable(ChromeFeatureList.HOME_MODULE_PREF_REFACTOR).apply();
         ChromeSharedPreferences.getInstance()
                 .writeBoolean(ChromePreferenceKeys.HOME_MODULE_CARDS_ENABLED, false);
 

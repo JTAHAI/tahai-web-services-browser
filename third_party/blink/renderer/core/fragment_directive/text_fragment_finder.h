@@ -6,7 +6,6 @@
 #define THIRD_PARTY_BLINK_RENDERER_CORE_FRAGMENT_DIRECTIVE_TEXT_FRAGMENT_FINDER_H_
 
 #include "base/gtest_prod_util.h"
-#include "base/memory/raw_ref.h"
 #include "third_party/blink/renderer/core/core_export.h"
 #include "third_party/blink/renderer/core/editing/ephemeral_range.h"
 #include "third_party/blink/renderer/core/editing/finder/find_buffer_runner.h"
@@ -122,7 +121,7 @@ class CORE_EXPORT TextFragmentFinder
   // Runs the match steps in a loop, advancing one step per iteration.
   void DriveStateMachine();
 
-  const raw_ref<Client, UnprotectedInRelease | DanglingUntriaged> client_;
+  Client& client_;
   const TextFragmentSelector selector_;
   Member<Range> range_;
 

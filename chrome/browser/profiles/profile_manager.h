@@ -16,6 +16,7 @@
 #include <vector>
 
 #include "base/callback_list.h"
+#include "base/feature_list.h"
 #include "base/files/file_path.h"
 #include "base/gtest_prod_util.h"
 #include "base/memory/raw_ptr.h"
@@ -52,6 +53,8 @@ class ProfileAttributesStorage;
 enum class ProfileKeepAliveOrigin;
 class ProfileManagerObserver;
 class ScopedProfileKeepAlive;
+
+BASE_DECLARE_FEATURE(kProfileManagerDeferAsyncLoading);
 
 // Manages the lifecycle of Profile objects.
 //

@@ -15,7 +15,6 @@
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_element_identifiers.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/immersive/immersive_mode_controller.h"
 #include "chrome/browser/ui/tabs/features.h"
 #include "chrome/browser/ui/tabs/vertical_tab_strip_state_controller.h"
@@ -28,7 +27,6 @@
 #include "chrome/grit/generated_resources.h"
 #include "components/strings/grit/components_strings.h"
 #include "components/user_education/common/new_badge/new_badge_controller.h"
-#include "components/vector_icons/vector_icons.h"
 #include "ui/base/accelerators/accelerator.h"
 #include "ui/base/models/menu_model.h"
 #include "ui/menus/simple_menu_model.h"
@@ -86,7 +84,7 @@ DEFINE_CLASS_ELEMENT_IDENTIFIER_VALUE(
 
 SystemMenuModelBuilder::SystemMenuModelBuilder(
     ui::AcceleratorProvider* provider,
-    BrowserWindowInterface* browser)
+    Browser* browser)
     : menu_delegate_(provider, browser) {}
 
 SystemMenuModelBuilder::~SystemMenuModelBuilder() = default;
@@ -107,17 +105,13 @@ void SystemMenuModelBuilder::Init() {
 void SystemMenuModelBuilder::BuildMenu(ui::SimpleMenuModel* model) {
   // We add the menu items in reverse order so that insertion_index never needs
   // to change.
-  if (browser()->GetType() == BrowserWindowInterface::Type::TYPE_NORMAL) {
+  if (browser()->is_type_normal()) {
     BuildSystemMenuForBrowserWindow(model);
   } else {
     BuildSystemMenuForAppOrPopupWindow(model);
   }
 }
 
-// Capitalization Policy (go/chrome-capitalization):
-// Native right-click context menus on macOS use Title Case (`_MAC` string
-// variants) to follow Apple Human Interface Guidelines (HIG), while other
-// platforms use sentence case.
 void SystemMenuModelBuilder::BuildSystemMenuForBrowserWindow(
     ui::SimpleMenuModel* model) {
 #if BUILDFLAG(IS_WIN)
@@ -147,27 +141,23 @@ void SystemMenuModelBuilder::BuildSystemMenuForBrowserWindow(
   AddItemWithIconMaybe(model, IDC_RESTORE_WINDOW, IDS_RESTORE_WINDOW_MENU,
                        views::kChromeRestoreIcon);
   model->AddSeparator(ui::NORMAL_SEPARATOR);
-#endif  // BUILDFLAG(IS_LINUX)
-
-#if BUILDFLAG(IS_MAC)
-  model->AddItemWithStringId(IDC_NEW_TAB, IDS_NEW_TAB_MAC);
-#else
-  model->AddItemWithStringId(IDC_NEW_TAB, IDS_NEW_TAB);
 #endif
+  model->AddItemWithStringId(IDC_NEW_TAB, IDS_NEW_TAB);
   model->SetElementIdentifierAt(model->GetIndexOfCommandId(IDC_NEW_TAB).value(),
                                 kSystemMenuNewTabElementId);
-#if BUILDFLAG(IS_MAC)
-  model->AddItemWithStringId(IDC_RESTORE_TAB, IDS_REOPEN_CLOSED_TABS_MAC);
-#else
   model->AddItemWithStringId(IDC_RESTORE_TAB, IDS_RESTORE_TAB);
-#endif
   model->SetElementIdentifierAt(
       model->GetIndexOfCommandId(IDC_RESTORE_TAB).value(),
       kSystemMenuRestoreTabElementId);
 
+  if (features::IsTabGroupMenuMoreEntryPointsEnabled()) {
+    model->AddItemWithStringId(IDC_GROUP_UNGROUPED_TABS,
+                               IDS_GROUP_UNGROUPED_TABS);
+  }
+
 #if BUILDFLAG(IS_MAC)
-  model->AddItemWithStringId(IDC_BOOKMARK_ALL_TABS, IDS_BOOKMARK_ALL_TABS_MAC);
-  model->AddItemWithStringId(IDC_NAME_WINDOW, IDS_NAME_WINDOW_MAC);
+  model->AddItemWithStringId(IDC_BOOKMARK_ALL_TABS, IDS_BOOKMARK_ALL_TABS);
+  model->AddItemWithStringId(IDC_NAME_WINDOW, IDS_NAME_WINDOW);
 #else
   AddItemWithIconMaybe(model, IDC_BOOKMARK_ALL_TABS, IDS_BOOKMARK_ALL_TABS,
                        kBookmarkAllTabsChromeRefreshOldIcon);
@@ -192,22 +182,9 @@ void SystemMenuModelBuilder::BuildSystemMenuForBrowserWindow(
           tabs::VerticalTabStripStateController::From(browser())) {
     model->AddSeparator(ui::NORMAL_SEPARATOR);
 
-    const int switch_to_horizontal_id =
-#if BUILDFLAG(IS_MAC)
-        IDS_SWITCH_TO_HORIZONTAL_TAB_MAC;
-#else
-        IDS_SWITCH_TO_HORIZONTAL_TAB;
-#endif
-
-    const int switch_to_vertical_id =
-#if BUILDFLAG(IS_MAC)
-        IDS_SWITCH_TO_VERTICAL_TAB_MAC;
-#else
-        IDS_SWITCH_TO_VERTICAL_TAB;
-#endif
     if (controller->ShouldDisplayVerticalTabs()) {
       model->AddItemWithStringId(IDC_TOGGLE_VERTICAL_TABS,
-                                 switch_to_horizontal_id);
+                                 IDS_SWITCH_TO_HORIZONTAL_TAB);
 
       model->AddItemWithStringId(IDC_TOGGLE_VERTICAL_TABS_COLLAPSE,
                                  controller->IsCollapsed()
@@ -217,19 +194,21 @@ void SystemMenuModelBuilder::BuildSystemMenuForBrowserWindow(
           model->GetIndexOfCommandId(IDC_TOGGLE_VERTICAL_TABS_COLLAPSE).value(),
           kToggleVerticalTabsCollapseElementId);
     } else {
-      if (base::FeatureList::IsEnabled(tabs::kTabStripUnification)) {
-        model->AddItemWithStringId(IDC_TAB_SCROLL_BUTTONS_TOGGLE_PIN,
-                                   IDS_TAB_SCROLL_PIN_BUTTONS_SYSTEM_MENU);
-      }
-
       model->AddItemWithStringId(IDC_TOGGLE_VERTICAL_TABS,
-                                 switch_to_vertical_id);
+                                 IDS_SWITCH_TO_VERTICAL_TAB);
+      const bool use_preview_badge =
+          base::FeatureList::IsEnabled(tabs::kVerticalTabsPreviewBadge);
+      const ui::NewBadgeType badge_type = use_preview_badge
+                                              ? ui::NewBadgeType::kPreview
+                                              : ui::NewBadgeType::kNew;
       const user_education::DisplayNewBadge show_badge =
-          UserEducationService::MaybeShowNewBadge(browser()->GetProfile(),
-                                                  tabs::kVerticalTabsNewBadge);
+          UserEducationService::MaybeShowNewBadge(
+              browser()->GetProfile(), use_preview_badge
+                                           ? tabs::kVerticalTabsPreviewBadge
+                                           : tabs::kVerticalTabsNewBadge);
       model->SetIsNewFeatureAt(
           model->GetIndexOfCommandId(IDC_TOGGLE_VERTICAL_TABS).value(),
-          show_badge, ui::NewBadgeType::kNew);
+          show_badge, badge_type);
     }
     model->SetElementIdentifierAt(
         model->GetIndexOfCommandId(IDC_TOGGLE_VERTICAL_TABS).value(),
@@ -256,14 +235,7 @@ void SystemMenuModelBuilder::BuildSystemMenuForBrowserWindow(
 
   if (chrome::CanOpenTaskManager()) {
     model->AddSeparator(ui::NORMAL_SEPARATOR);
-    const int task_manager_string_id =
-#if BUILDFLAG(IS_MAC)
-        IDS_TASK_MANAGER_MAC;
-#else
-        IDS_TASK_MANAGER;
-#endif
-    model->AddItemWithStringId(IDC_TASK_MANAGER_CONTEXT_MENU,
-                               task_manager_string_id);
+    model->AddItemWithStringId(IDC_TASK_MANAGER_CONTEXT_MENU, IDS_TASK_MANAGER);
   }
 #if BUILDFLAG(IS_LINUX)
   model->AddSeparator(ui::NORMAL_SEPARATOR);
@@ -312,9 +284,7 @@ void SystemMenuModelBuilder::BuildSystemMenuForAppOrPopupWindow(
 #endif
     if (!is_captive_portal_signin) {
       model->AddSeparator(ui::NORMAL_SEPARATOR);
-      if (browser()->GetType() == BrowserWindowInterface::Type::TYPE_APP ||
-          browser()->GetType() ==
-              BrowserWindowInterface::Type::TYPE_APP_POPUP) {
+      if (browser()->is_type_app() || browser()->is_type_app_popup()) {
         model->AddItemWithStringId(IDC_NEW_TAB, IDS_APP_MENU_NEW_WEB_PAGE);
       } else {
         model->AddItemWithStringId(IDC_SHOW_AS_TAB, IDS_SHOW_AS_TAB);
@@ -337,8 +307,7 @@ void SystemMenuModelBuilder::BuildSystemMenuForAppOrPopupWindow(
   }
 
   bool should_show_task_manager =
-      (browser()->GetType() == BrowserWindowInterface::Type::TYPE_APP ||
-       browser()->GetType() == BrowserWindowInterface::Type::TYPE_APP_POPUP) &&
+      (browser()->is_type_app() || browser()->is_type_app_popup()) &&
       chrome::CanOpenTaskManager();
 #if BUILDFLAG(IS_CHROMEOS)
   // Hide TaskManager option for the app if it is locked for OnTask. Only
@@ -350,13 +319,7 @@ void SystemMenuModelBuilder::BuildSystemMenuForAppOrPopupWindow(
 #endif
   if (should_show_task_manager) {
     model->AddSeparator(ui::NORMAL_SEPARATOR);
-    const int task_manager_string_id =
-#if BUILDFLAG(IS_MAC)
-        IDS_TASK_MANAGER_MAC;
-#else
-        IDS_TASK_MANAGER;
-#endif
-    model->AddItemWithStringId(IDC_TASK_MANAGER, task_manager_string_id);
+    model->AddItemWithStringId(IDC_TASK_MANAGER, IDS_TASK_MANAGER);
   }
 #if BUILDFLAG(IS_LINUX)
   model->AddSeparator(ui::NORMAL_SEPARATOR);

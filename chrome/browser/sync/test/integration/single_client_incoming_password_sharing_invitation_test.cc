@@ -23,7 +23,6 @@
 #include "components/password_manager/core/browser/features/password_manager_features_util.h"
 #include "components/password_manager/core/browser/password_form.h"
 #include "components/password_manager/core/browser/password_manager_metrics_util.h"
-#include "components/password_manager/core/browser/password_string.h"
 #include "components/signin/public/base/signin_switches.h"
 #include "components/sync/base/data_type.h"
 #include "components/sync/base/user_selectable_type.h"
@@ -40,7 +39,6 @@
 
 using password_manager::PasswordForm;
 using password_manager::PasswordStoreInterface;
-using password_manager::PasswordString;
 using password_manager::metrics_util::
     ProcessIncomingPasswordSharingInvitationResult;
 using password_sharing_helper::CreateDefaultIncomingInvitation;
@@ -59,7 +57,6 @@ using testing::Contains;
 using testing::Field;
 using testing::IsEmpty;
 using testing::Pointee;
-using testing::Property;
 using testing::SizeIs;
 using testing::UnorderedElementsAre;
 
@@ -69,7 +66,7 @@ constexpr char kPasswordValue[] = "password";
 constexpr char kUsernameValue[] = "username";
 
 MATCHER_P(HasPasswordValue, password_value, "") {
-  return base::UTF16ToUTF8(arg.password_value.value()) == password_value;
+  return base::UTF16ToUTF8(arg.password_value) == password_value;
 }
 
 MATCHER_P(HasUsernameElement, username_element, "") {
@@ -243,7 +240,7 @@ IN_PROC_BROWSER_TEST_P(SingleClientIncomingPasswordSharingInvitationTest,
             invitation_group_data.username_value());
   EXPECT_EQ(base::UTF16ToUTF8(password_form.password_element),
             invitation_group_element_data.password_element());
-  EXPECT_EQ(base::UTF16ToUTF8(password_form.password_value.value()),
+  EXPECT_EQ(base::UTF16ToUTF8(password_form.password_value),
             invitation_group_data.password_value());
   EXPECT_EQ(base::UTF16ToUTF8(password_form.display_name),
             invitation_group_element_data.display_name());
@@ -340,14 +337,12 @@ IN_PROC_BROWSER_TEST_P(SingleClientIncomingPasswordSharingInvitationTest,
 
   // Wait the invitation to be processed and the password stored.
   ASSERT_TRUE(password_forms_added_checker.Wait());
-  EXPECT_THAT(
-      GetAllLogins(GetPasswordStoreInterface()),
-      Contains(Pointee(
-          AllOf(Field(&PasswordForm::password_value,
-                      Property(&PasswordString::value,
-                               base::UTF8ToUTF16(std::string(kPasswordValue)))),
-                Field(&PasswordForm::type,
-                      PasswordForm::Type::kReceivedViaSharing)))));
+  EXPECT_THAT(GetAllLogins(GetPasswordStoreInterface()),
+              Contains(Pointee(
+                  AllOf(Field(&PasswordForm::password_value,
+                              base::UTF8ToUTF16(std::string(kPasswordValue))),
+                        Field(&PasswordForm::type,
+                              PasswordForm::Type::kReceivedViaSharing)))));
 
   // Check that all the invitations are deleted from the server.
   EXPECT_TRUE(ServerPasswordInvitationChecker(/*expected_count=*/0).Wait());
@@ -402,8 +397,7 @@ IN_PROC_BROWSER_TEST_P(
       GetAllLogins(GetPasswordStoreInterface()),
       Contains(Pointee(AllOf(
           Field(&PasswordForm::password_value,
-                Property(&PasswordString::value,
-                         base::UTF8ToUTF16(std::string(kLocalPasswordValue)))),
+                base::UTF8ToUTF16(std::string(kLocalPasswordValue))),
           Field(&PasswordForm::type, PasswordForm::Type::kFormSubmission)))));
 
   // Double check that the invitation has not been processed and stored locally

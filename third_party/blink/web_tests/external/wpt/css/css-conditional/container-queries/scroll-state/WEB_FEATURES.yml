@@ -1,2 +1,3 @@
-rules:
-- "**": [container-scroll-state-queries]
+features:
+- name: container-scroll-state-queries
+  files: "**"

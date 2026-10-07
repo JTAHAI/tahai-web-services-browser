@@ -77,7 +77,6 @@ public class StripLayoutGroupTitle extends StripLayoutView {
     private static final int MARGIN_BOTTOM_DP = 9;
     private static final int MARGIN_START_DP = 13;
     private static final int MARGIN_END_DP = 9;
-    static final float COLLAPSED_MARGIN_ADJUSTMENT_DP = MARGIN_START_DP - MARGIN_END_DP;
     private static final int TEXT_PADDING_DP = 8;
 
     // The padding between the start of the indicator and the avatar when the group is shared. If no
@@ -391,7 +390,7 @@ public class StripLayoutGroupTitle extends StripLayoutView {
      * This method measures and lays out the avatar view, registers the avatar resource and triggers
      * an update to the group title bitmap
      *
-     * @param avatarView The Android view of the avatar.
+     * @params avatarView The Android view of the avatar.
      * @param registerAvatarResource A callback to register the avatar resource once it is captured.
      * @param updateGroupTitleBitmap A {@link Runnable} to update the group title bitmap after the
      *     avatar is captured.

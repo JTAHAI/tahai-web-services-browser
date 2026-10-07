@@ -4,4 +4,7 @@ jinsukkim@chromium.org
 mdjones@chromium.org
 twellington@chromium.org
 peilinwang@google.com
-clhager@google.com
+
+per-file BottomControlsStacker*=clhager@google.com
+per-file BottomControlsLayer.java=clhager@google.com
+

@@ -109,8 +109,6 @@
     "page-inline-end",
     // command for overscroll
     "toggle-overscroll",
-    "show-overscroll",
-    "hide-overscroll",
 
     // colorspace attribute on <input type=color>
     // https://html.spec.whatwg.org/multipage/input.html#dom-input-colorspace
@@ -125,6 +123,7 @@
 
     // overscrollcontainer attribute
     "auto",
+    "overlay",
 
     // overscrollarea attribute
     "auto",

@@ -4,9 +4,6 @@
 
 package org.chromium.chrome.browser.settings;
 
-import android.content.Context;
-
-import org.chromium.base.ApplicationStatus;
 import org.chromium.base.ContextUtils;
 import org.chromium.base.DeviceInfo;
 import org.chromium.build.annotations.NullMarked;
@@ -20,23 +17,11 @@ public class SettingsInTab {
     public static boolean isEnabled() {
         if (!ChromeFeatureList.sSettingsInTab.isEnabled()) return false;
 
-        // SettingsInTab requires SettingsMultiColumn, which is disabled by some tests.
-        if (!ChromeFeatureList.sSettingsMultiColumn.isEnabled()) return false;
-
         // Settings in a tab is supported on desktop and tablet form factors.
         // DeviceInfo.isDesktop() is checked in addition to isNonMultiDisplayContextOnTablet()
         // because desktop windows can be resized to narrow widths (< 600dp).
-        if (DeviceInfo.isDesktop()) {
-            return true;
-        }
-
-        // Use an Activity context when available because theme changes reset application-level
-        // resource configurations, causing getApplicationContext() to lose its tablet screen width
-        // qualifiers (-sw600dp).
-        Context context = ApplicationStatus.getLastTrackedFocusedActivity();
-        if (context == null) {
-            context = ContextUtils.getApplicationContext();
-        }
-        return DeviceFormFactor.isNonMultiDisplayContextOnTablet(context);
+        return DeviceInfo.isDesktop()
+                || DeviceFormFactor.isNonMultiDisplayContextOnTablet(
+                        ContextUtils.getApplicationContext());
     }
 }

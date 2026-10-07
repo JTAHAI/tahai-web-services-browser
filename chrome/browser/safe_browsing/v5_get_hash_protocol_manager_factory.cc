@@ -58,7 +58,8 @@ V5GetHashProtocolManagerFactory::BuildServiceInstanceForBrowserContext(
   Profile* profile = Profile::FromBrowserContext(context);
   // TODO(crbug.com/362791941): handle v4 references
   return std::make_unique<V5GetHashProtocolManager>(
-      g_browser_process->shared_url_loader_factory(), GetV4ProtocolConfig(),
+      g_browser_process->safe_browsing_service()->GetURLLoaderFactory(profile),
+      GetV4ProtocolConfig(),
       V5SearchHashesCacheFactory::GetForProfile(profile));
 }
 

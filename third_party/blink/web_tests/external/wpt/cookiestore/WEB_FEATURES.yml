@@ -1,2 +1,3 @@
-rules:
-- "**": [cookie-store]
+features:
+- name: cookie-store
+  files: "**"

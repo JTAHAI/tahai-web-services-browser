@@ -53,9 +53,9 @@ public class ContextualSearchSettingsFragment extends ChromeBaseSettingsFragment
 
     private void initSwitches() {
         ChromeSwitchPreference contextualSearchSwitch =
-                findPreference(PREF_CONTEXTUAL_SEARCH_SWITCH);
+                (ChromeSwitchPreference) findPreference(PREF_CONTEXTUAL_SEARCH_SWITCH);
         ChromeSwitchPreference seeBetterResultsSwitch =
-                findPreference(PREF_WAS_FULLY_ENABLED_SWITCH);
+                (ChromeSwitchPreference) findPreference(PREF_WAS_FULLY_ENABLED_SWITCH);
 
         Profile profile = getProfile();
         boolean isContextualSearchEnabled =

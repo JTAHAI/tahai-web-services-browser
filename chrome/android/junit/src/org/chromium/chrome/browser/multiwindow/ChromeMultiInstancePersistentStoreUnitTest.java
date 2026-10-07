@@ -15,6 +15,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.robolectric.annotation.Config;
 import org.robolectric.shadows.ShadowSystemClock;
 
 import org.chromium.base.test.BaseRobolectricTestRunner;
@@ -24,7 +25,6 @@ import org.chromium.chrome.browser.incognito.IncognitoUtils;
 import org.chromium.chrome.browser.tabmodel.SupportedProfileType;
 
 import java.time.Duration;
-import java.util.List;
 import java.util.Set;
 
 /**
@@ -32,6 +32,7 @@ import java.util.Set;
  * for instance-specific fields.
  */
 @RunWith(BaseRobolectricTestRunner.class)
+@Config(manifest = Config.NONE)
 @EnableFeatures({
     ChromeFeatureList.MULTI_INSTANCE_SHARED_PREFS_MIGRATION,
     ChromeFeatureList.SESSION_RESTORE_AFTER_CRASH
@@ -488,35 +489,5 @@ public class ChromeMultiInstancePersistentStoreUnitTest {
 
         ChromeMultiInstancePersistentStore.writeIsCrashRecoveryPending(false);
         assertFalse(ChromeMultiInstancePersistentStore.readIsCrashRecoveryPending());
-    }
-
-    @Test
-    public void testRestoreOnStartupPrefValue() {
-        // Verify default value.
-        assertEquals(
-                TabbedStartupWindowPolicyDelegate.PREF_UNSET,
-                ChromeMultiInstancePersistentStore.readRestoreOnStartupPrefValue());
-
-        // Verify writing and reading.
-        ChromeMultiInstancePersistentStore.writeRestoreOnStartupPrefValue(
-                SessionStartupPref.NEW_TAB);
-        assertEquals(
-                SessionStartupPref.NEW_TAB,
-                ChromeMultiInstancePersistentStore.readRestoreOnStartupPrefValue());
-    }
-
-    @Test
-    public void testRestoreOnStartupUrls() {
-        // Verify default value is empty list when unset.
-        assertTrue(ChromeMultiInstancePersistentStore.readRestoreOnStartupUrls().isEmpty());
-
-        // Verify writing and reading non-empty list.
-        List<String> urls = List.of("https://www.google.com", "https://www.example.com");
-        ChromeMultiInstancePersistentStore.writeRestoreOnStartupUrls(urls);
-        assertEquals(urls, ChromeMultiInstancePersistentStore.readRestoreOnStartupUrls());
-
-        // Verify writing an empty list clears the field and returns empty list.
-        ChromeMultiInstancePersistentStore.writeRestoreOnStartupUrls(List.of());
-        assertTrue(ChromeMultiInstancePersistentStore.readRestoreOnStartupUrls().isEmpty());
     }
 }

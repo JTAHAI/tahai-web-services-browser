@@ -28,6 +28,7 @@ public class IncognitoNewTabPageView extends FrameLayout {
     private boolean mFirstShow = true;
     private FadingShadowView mFadingShadowBottom;
     private NewTabPageScrollView mScrollView;
+    private IncognitoDescriptionView mDescriptionView;
 
     private int mSnapshotWidth;
     private int mSnapshotHeight;
@@ -66,9 +67,14 @@ public class IncognitoNewTabPageView extends FrameLayout {
         mFadingShadowBottom = findViewById(R.id.shadow_bottom);
         mFadingShadowBottom.init(bgColor, FadingShadow.POSITION_BOTTOM);
         mScrollView.setOnScrollChangeListener(
-                (_, _, _, _, _) ->
+                new OnScrollChangeListener() {
+                    @Override
+                    public void onScrollChange(
+                            View v, int scrollX, int scrollY, int oldScrollX, int oldScrollY) {
                         mFadingShadowBottom.setVisibility(
-                                mScrollView.canScrollVertically(1) ? View.VISIBLE : View.GONE));
+                                mScrollView.canScrollVertically(1) ? View.VISIBLE : View.GONE);
+                    }
+                });
     }
 
     /**
@@ -85,15 +91,21 @@ public class IncognitoNewTabPageView extends FrameLayout {
     private void inflateConditionalLayouts() {
         ViewStub viewStub = findViewById(R.id.incognito_description_layout_stub);
         viewStub.setLayoutResource(R.layout.incognito_description_layout);
-        IncognitoDescriptionView descriptionView = (IncognitoDescriptionView) viewStub.inflate();
-        descriptionView.setLearnMoreOnclickListener(_ -> mManager.loadIncognitoLearnMore());
+        mDescriptionView = (IncognitoDescriptionView) viewStub.inflate();
+        mDescriptionView.setLearnMoreOnclickListener(
+                new OnClickListener() {
+                    @Override
+                    public void onClick(View view) {
+                        mManager.loadIncognitoLearnMore();
+                    }
+                });
 
         // Inflate the tracking protection card.
         ViewStub cardStub = findViewById(R.id.cookie_card_stub);
         if (cardStub == null) return;
         cardStub.setLayoutResource(R.layout.incognito_tracking_protection_card);
         cardStub.inflate();
-        descriptionView.formatTrackingProtectionText(getContext(), this);
+        mDescriptionView.formatTrackingProtectionText(getContext(), this);
     }
 
     @Override

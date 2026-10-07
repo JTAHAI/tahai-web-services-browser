@@ -47,8 +47,6 @@ suite('NoLogsModuleTest', function() {
     assertTrue(rowsKeys.includes('Channel'));
     assertTrue(rowsKeys.includes('Version'));
     assertTrue(rowsKeys.includes('Platform'));
-    assertTrue(
-        rowsKeys.includes('Administrative area (Session Consistency)'));
   });
 
   test('table should show an empty log if there are no logs', function() {

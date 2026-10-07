@@ -46,7 +46,6 @@
 #include "content/public/browser/web_contents.h"
 #include "content/public/common/content_features.h"
 #include "mojo/public/cpp/bindings/message.h"
-#include "net/base/schemeful_site.h"
 #include "services/metrics/public/cpp/ukm_source_id.h"
 #include "services/network/public/cpp/is_potentially_trustworthy.h"
 #include "third_party/blink/public/common/features.h"
@@ -81,8 +80,7 @@ SecurePaymentConfirmationRequestValidationError
 ValidateSecurePaymentConfirmationRequest(
     const std::vector<mojom::PaymentMethodDataPtr>& method_data,
     const mojom::PaymentOptionsPtr& options,
-    const url::Origin& initiator_origin,
-    const std::string& application_locale) {
+    const url::Origin& initiator_origin) {
   CHECK_GT(method_data.size(), 0u);
 
   if (!base::FeatureList::IsEnabled(::features::kSecurePaymentConfirmation)) {
@@ -120,12 +118,8 @@ ValidateSecurePaymentConfirmationRequest(
         kSPCMethodMustNotBeNull;
   }
 
-  RecordSpcLocaleOutcome(method_data_entry->secure_payment_confirmation,
-                         application_locale);
-
   return IsValidSecurePaymentConfirmationRequest(
-      method_data_entry->secure_payment_confirmation, initiator_origin,
-      application_locale);
+      method_data_entry->secure_payment_confirmation, initiator_origin);
 }
 
 // Helper to map JourneyLogger::AbortReason to aborted PaymentRequestOutcomes.
@@ -162,11 +156,6 @@ PaymentRequestOutcome MapAbortReasonToOutcome(
       return PaymentRequestOutcome::kAbortedOther;
   }
 }
-
-constexpr char kTimeToCheckoutInitToCompleteSuccessfullyHistogramName[] =
-    "PaymentRequest.TimeToCheckout.InitToCompleteSuccessfully";
-constexpr char kTimeToCheckoutShowToCompleteSuccessfullyHistogramName[] =
-    "PaymentRequest.TimeToCheckout.ShowToCompleteSuccessfully";
 
 }  // namespace
 
@@ -227,15 +216,7 @@ void PaymentRequest::Init(
 
   journey_logger_.RecordCheckoutStep(
       JourneyLogger::CheckoutFunnelStep::kInitiated);
-  content::RenderFrameHost* rfh = delegate_->GetRenderFrameHost();
-  if (rfh && rfh->GetParent() && rfh->GetMainFrame() &&
-      !net::SchemefulSite::IsSameSite(
-          rfh->GetLastCommittedOrigin(),
-          rfh->GetMainFrame()->GetLastCommittedOrigin())) {
-    journey_logger_.SetInitiatedInCrossSiteIframe();
-  }
   is_initialized_ = true;
-  init_time_ = base::TimeTicks::Now();
   client_.Bind(std::move(client));
 
   const GURL last_committed_url = delegate_->GetLastCommittedURL();
@@ -296,9 +277,8 @@ void PaymentRequest::Init(
                datum->supported_method == methods::kSecurePaymentConfirmation;
       })) {
     SecurePaymentConfirmationRequestValidationError validation_result =
-        ValidateSecurePaymentConfirmationRequest(
-            method_data, options, frame_security_origin_,
-            delegate_->GetApplicationLocale());
+        ValidateSecurePaymentConfirmationRequest(method_data, options,
+                                                 frame_security_origin_);
     if (validation_result !=
         SecurePaymentConfirmationRequestValidationError::kOk) {
       std::string error_message =
@@ -306,17 +286,14 @@ void PaymentRequest::Init(
               validation_result);
       log_.Error(error_message);
 
-      /// We return an error because the renderer cannot check for:
-      // - WebAuthn extensions: the renderer doesn't know whether the page
-      // origin can claim the relying party ID.
-      // - Locale matches: the renderer doesn't know the browser's UI locale.
+      // The renderer cannot check whether WebAuthn extensions are allowed or
+      // not, as it doesn't know whether the page origin can claim the
+      // relying party ID. For that case we return an error.
       //
       // All other failures indicate an invalid request. In that case we
       // report it as a bad message and mojo will kill the renderer.
       if (validation_result == SecurePaymentConfirmationRequestValidationError::
-                                   kWebAuthnExtensionsNotSupported ||
-          validation_result == SecurePaymentConfirmationRequestValidationError::
-                                   kLocaleDoesNotMatch) {
+                                   kWebAuthnExtensionsNotSupported) {
         client_->OnError(mojom::PaymentErrorReason::NOT_SUPPORTED,
                          error_message);
       } else {
@@ -355,9 +332,6 @@ void PaymentRequest::Init(
       delegate_->GetApplicationLocale(), delegate_->GetPersonalDataManager(),
       delegate_->GetContentWeakPtr(), journey_logger_.GetWeakPtr(),
       /*csp_checker=*/weak_ptr_factory_.GetWeakPtr());
-  if (observer_for_testing_) {
-    observer_for_testing_->OnPaymentRequestStateInitDone(state_.get());
-  }
 
   journey_logger_.SetRequestedInformation(
       spec_->request_shipping(), spec_->request_payer_email(),
@@ -443,7 +417,6 @@ void PaymentRequest::Show(bool wait_for_updated_details,
   journey_logger_.RecordCheckoutStep(
       JourneyLogger::CheckoutFunnelStep::kShowCalled);
   is_show_called_ = true;
-  show_time_ = base::TimeTicks::Now();
 
   // A tab can display only one PaymentRequest UI at a time.
   if (display_manager_)
@@ -726,16 +699,6 @@ void PaymentRequest::Complete(mojom::PaymentComplete result) {
     has_recorded_completion_ = true;
     base::UmaHistogramEnumeration("PaymentRequest.Outcome",
                                   PaymentRequestOutcome::kSuccess);
-    if (!init_time_.is_null()) {
-      base::UmaHistogramLongTimes(
-          kTimeToCheckoutInitToCompleteSuccessfullyHistogramName,
-          base::TimeTicks::Now() - init_time_);
-    }
-    if (!show_time_.is_null()) {
-      base::UmaHistogramLongTimes(
-          kTimeToCheckoutShowToCompleteSuccessfullyHistogramName,
-          base::TimeTicks::Now() - show_time_);
-    }
     DCHECK(spec_->details().total);
 
     delegate_->GetPrefService()->SetBoolean(kPaymentsFirstTransactionCompleted,
@@ -754,7 +717,6 @@ void PaymentRequest::CanMakePayment() {
   }
 
   // It's valid to call canMakePayment() without calling show() first.
-  journey_logger_.SetCanMakePaymentCalled();
 
   if (observer_for_testing_)
     observer_for_testing_->OnCanMakePaymentCalled();
@@ -791,7 +753,6 @@ void PaymentRequest::HasEnrolledInstrument() {
   }
 
   // It's valid to call hasEnrolledInstrument() without calling show() first.
-  journey_logger_.SetHasEnrolledInstrumentCalled();
 
   if (observer_for_testing_)
     observer_for_testing_->OnHasEnrolledInstrumentCalled();
@@ -1255,7 +1216,6 @@ void PaymentRequest::OnPaymentHandlerOpenWindowCalled() {
   // invoked payment app is shown to the user.
   journey_logger_.SetPaymentAppUkmSourceId(
       state_->selected_app()->UkmSourceId());
-  journey_logger_.SetPaymentAppWindowOpened();
 }
 
 void PaymentRequest::RecordFirstAbortReason(

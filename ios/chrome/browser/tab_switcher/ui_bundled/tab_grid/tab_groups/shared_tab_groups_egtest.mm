@@ -61,7 +61,6 @@ using chrome_test_util::DeleteSharedGroupButton;
 using chrome_test_util::FakeJoinFlowView;
 using chrome_test_util::FakeManageFlowView;
 using chrome_test_util::FakeShareFlowView;
-using chrome_test_util::GREYAssertErrorNil;
 using chrome_test_util::KeepSharedConfirmationButton;
 using chrome_test_util::LeaveSharedGroupButton;
 using chrome_test_util::LeaveSharedGroupConfirmationButton;
@@ -251,7 +250,8 @@ std::unique_ptr<net::test_server::HttpResponse> HandleAttackerPage(
 
   // Make sure that the MessagingBackendService is fully initialized.
   NSError* error = [ChromeEarlGrey waitForMessagingBackendServiceInitialized];
-  GREYAssertErrorNil(error, @"Failed to initialize MessagingBackendService");
+  GREYAssertNil(error, @"Failed to initialize MessagingBackendService: %@",
+                error);
 }
 
 - (void)tearDownHelper {
@@ -436,6 +436,11 @@ std::unique_ptr<net::test_server::HttpResponse> HandleAttackerPage(
 // Checks opening the Share flow from the Tab Grid and actually sharing. Then
 // checks opening the Manage flow. Using context menus.
 - (void)testShareGroupAndManageGroupUsingContextMenus {
+  // TODO(crbug.com/514660819): Remove once the issue is resolved.
+  if (![ChromeEarlGrey isIPadIdiom]) {
+    EARL_GREY_TEST_DISABLED(@"Disabled on iPhone.");
+  }
+
   // Open the tab grid.
   [ChromeEarlGreyUI openTabGrid];
 
@@ -443,12 +448,26 @@ std::unique_ptr<net::test_server::HttpResponse> HandleAttackerPage(
   CreateTabGroupAtIndex(0, kGroup1Name);
 
   // Share the first group.
-  ShareGroupAtIndex(0);
+  LongPressTabGroupCellAtIndex(0);
+  [[EarlGrey selectElementWithMatcher:ShareGroupButton()]
+      performAction:grey_tap()];
+
+  // Verify that this opened the fake Share flow.
+  [[EarlGrey selectElementWithMatcher:FakeShareFlowView()]
+      assertWithMatcher:grey_sufficientlyVisible()];
+
+  // Actually share the group.
+  [[EarlGrey selectElementWithMatcher:NavigationBarSaveButton()]
+      performAction:grey_tap()];
+
+  // Verify that it closes the Share flow.
+  [ChromeEarlGrey waitForUIElementToDisappearWithMatcher:FakeShareFlowView()];
 
   // Verify that the group is shared by checking that the context menu offers to
   // Manage rather than Share the group.
   LongPressTabGroupCellAtIndex(0);
-  [ChromeEarlGrey waitForUIElementToAppearWithMatcher:ManageGroupButton()];
+  [[EarlGrey selectElementWithMatcher:ManageGroupButton()]
+      assertWithMatcher:grey_sufficientlyVisible()];
   [[EarlGrey selectElementWithMatcher:ShareGroupButton()]
       assertWithMatcher:grey_notVisible()];
 
@@ -457,15 +476,16 @@ std::unique_ptr<net::test_server::HttpResponse> HandleAttackerPage(
       performAction:grey_tap()];
 
   // Verify that it opened the Manage flow.
-  [ChromeEarlGrey waitForUIElementToAppearWithMatcher:FakeManageFlowView()];
+  [[EarlGrey selectElementWithMatcher:FakeManageFlowView()]
+      assertWithMatcher:grey_sufficientlyVisible()];
 
   // Close the Manage flow.
   [[EarlGrey selectElementWithMatcher:NavigationBarCancelButton()]
       performAction:grey_tap()];
 
   // Verify that it closed the Manage flow.
-  [ChromeEarlGrey waitForUIElementToDisappearWithMatcher:FakeManageFlowView()];
-  [ChromeEarlGrey waitForUIElementToAppearWithMatcher:TabGridDoneButton()];
+  [[EarlGrey selectElementWithMatcher:FakeManageFlowView()]
+      assertWithMatcher:grey_notVisible()];
 }
 
 // Checks that the user with JoinOnly can trigger the Join flow.
@@ -1697,7 +1717,8 @@ std::unique_ptr<net::test_server::HttpResponse> HandleAttackerPage(
 
   // Make sure that the MessagingBackendService is fully initialized.
   NSError* error = [ChromeEarlGrey waitForMessagingBackendServiceInitialized];
-  GREYAssertErrorNil(error, @"Failed to initialize MessagingBackendService");
+  GREYAssertNil(error, @"Failed to initialize MessagingBackendService: %@",
+                error);
 }
 
 - (void)tearDownHelper {

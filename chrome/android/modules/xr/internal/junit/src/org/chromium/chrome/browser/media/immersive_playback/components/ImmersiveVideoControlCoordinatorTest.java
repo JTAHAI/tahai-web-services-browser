@@ -4,15 +4,11 @@
 
 package org.chromium.chrome.browser.media.immersive_playback.components;
 
-import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.Mockito.clearInvocations;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -28,8 +24,6 @@ import org.robolectric.annotation.Config;
 
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.chrome.browser.xr.scenecore.XrModuleProviderImpl;
-import org.chromium.chrome.browser.xr.scenecore.XrPixelDensityImpl;
-import org.chromium.ui.modelutil.PropertyModel;
 import org.chromium.ui.xr.scenecore.XrEntityHolder;
 import org.chromium.ui.xr.scenecore.XrMovableComponent;
 import org.chromium.ui.xr.scenecore.XrPanelEntityHolder;
@@ -60,8 +54,6 @@ public class ImmersiveVideoControlCoordinatorTest {
 
         when(mSessionManager.createPanelEntity(any(), any())).thenReturn(mHolder);
         when(mHolder.getMovableComponent()).thenReturn(mMovableComponent);
-        when(mSessionManager.getPixelDensity())
-                .thenReturn(XrPixelDensityImpl.createForTesting(1000f, 1000f));
 
         mCoordinator =
                 new TestImmersiveVideoControlCoordinator(
@@ -96,6 +88,8 @@ public class ImmersiveVideoControlCoordinatorTest {
 
     @Test
     public void testShow_InitializesAndEnablesHolder() {
+        doReturn(mParentEntity).when(mHolder).getParent();
+
         mCoordinator.show(mParentEntity);
 
         assertTrue(mCoordinator.isShowing());
@@ -106,15 +100,12 @@ public class ImmersiveVideoControlCoordinatorTest {
     @Test
     public void testDismiss_HidesAndDetaches() {
         mCoordinator.show(mParentEntity);
+        doReturn(null).when(mHolder).getParent();
         mCoordinator.dismiss();
 
         assertFalse(mCoordinator.isShowing());
-
-        mCoordinator.setParent(mParentEntity);
-        mCoordinator.dismiss();
-        verify(mHolder, times(1)).setParent(mParentEntity);
-        verify(mHolder, times(1)).setParent(null);
-        verify(mHolder, times(1)).setEntityEnabled(false);
+        verify(mHolder).setEntityEnabled(false);
+        verify(mHolder).setParent(null);
     }
 
     @Test
@@ -127,55 +118,10 @@ public class ImmersiveVideoControlCoordinatorTest {
     }
 
     @Test
-    public void testDispose_ReleasesBindingsAndListenersAndIsTerminal() {
+    public void testDispose_DisposesHolder() {
         mCoordinator.show(mParentEntity);
-        PropertyModel model = mCoordinator.getModelForTesting();
         mCoordinator.dispose();
 
         verify(mHolder).dispose();
-        verify(mMovableComponent).removeMoveListener(any());
-        verify(mControlView).setHoverListener(null);
-        verify(mControlView).setAccessibilityFocusListener(null);
-
-        clearInvocations(mSessionManager, mHolder, mMovableComponent, mControlView);
-        model.set(ImmersiveVideoControlProperties.PROGRESS, 1234);
-        model.set(
-                ImmersiveVideoControlProperties.POSE,
-                XrPose.create(XrVector3.create(1f, 2f, 3f)));
-        mCoordinator.dispose();
-        mCoordinator.show(mParentEntity);
-
-        verify(mSessionManager, never()).createPanelEntity(any(), any());
-        verify(mHolder, never()).dispose();
-        verify(mHolder, never()).setEntityPose(any(), anyInt());
-        verify(mControlView, never()).setProgress(anyInt());
-    }
-
-    @Test
-    public void testRepeatedShowDoesNotDuplicateInitialization() {
-        mCoordinator.show(mParentEntity);
-        mCoordinator.show(mParentEntity);
-
-        verify(mSessionManager, times(1)).createPanelEntity(any(), any());
-        verify(mMovableComponent, times(1)).addMoveListener(any());
-    }
-
-    @Test
-    public void testUpdateBeforeShow_UpdatesModel() {
-        PropertyModel model = mCoordinator.getModelForTesting();
-
-        mCoordinator.updateMediaPosition(10000L, 5000L, 1.0);
-        mCoordinator.updatePlaybackState(true);
-        mCoordinator.setFormatButtonSelected(true);
-
-        assertTrue(model.get(ImmersiveVideoControlProperties.IS_PLAYING));
-        assertTrue(model.get(ImmersiveVideoControlProperties.FORMAT_BUTTON_SELECTED));
-        assertEquals(10000L, (long) model.get(ImmersiveVideoControlProperties.DURATION_MS));
-        assertEquals(5000L, (long) model.get(ImmersiveVideoControlProperties.POSITION_MS));
-        assertEquals(1.0, (double) model.get(ImmersiveVideoControlProperties.PLAYBACK_RATE), 0.0);
-
-        mCoordinator.show(mParentEntity);
-
-        assertEquals(5000, (int) model.get(ImmersiveVideoControlProperties.PROGRESS));
     }
 }

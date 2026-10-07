@@ -95,6 +95,7 @@
 #include "third_party/blink/renderer/platform/bindings/runtime_call_stats.h"
 #include "third_party/blink/renderer/platform/heap/garbage_collected.h"
 #include "third_party/blink/renderer/platform/loader/fetch/url_loader/url_loader_client.h"
+#include "third_party/blink/renderer/platform/runtime_enabled_features.h"
 #include "third_party/blink/renderer/platform/weborigin/kurl.h"
 #include "third_party/blink/renderer/platform/wtf/functional.h"
 #include "third_party/blink/renderer/platform/wtf/std_lib_extras.h"
@@ -269,11 +270,13 @@ Element* HighestAncestorToWrapMarkup(
       // Retain MathML structure by including ancestor <math> elements.
       // This ensures that when copying MathML content, the semantic context
       // is preserved even for partial selections within math expressions.
-      if (auto* highest_math_element =
-              To<MathMLElement>(HighestEnclosingNodeOfType(
-                  first_node_position, IsMathmlMathElement,
-                  kCanCrossEditingBoundary))) {
-        special_common_ancestor = highest_math_element;
+      if (RuntimeEnabledFeatures::MathMLSerializationOnCopyEnabled()) {
+        if (auto* highest_math_element =
+                To<MathMLElement>(HighestEnclosingNodeOfType(
+                    first_node_position, IsMathmlMathElement,
+                    kCanCrossEditingBoundary))) {
+          special_common_ancestor = highest_math_element;
+        }
       }
     }
   }
@@ -468,8 +471,8 @@ static void TrimFragment(DocumentFragment* fragment,
 DocumentFragment* CreateFragmentFromMarkupWithContext(
     Document& document,
     const String& markup,
-    wtf_size_t fragment_start,
-    wtf_size_t fragment_end,
+    unsigned fragment_start,
+    unsigned fragment_end,
     const String& base_url,
     ParserContentPolicy parser_content_policy) {
   // FIXME: Need to handle the case where the markup already contains these
@@ -809,10 +812,8 @@ static Document* CreateStagingDocumentForMarkupSanitization(
       MakeGarbageCollected<LocalFrameView>(*frame, gfx::Size(800, 600));
   frame->SetView(frame_view);
   // TODO(https://crbug.com/1355751) Initialize `storage_key`.
-  frame->Init(/*opener=*/nullptr, DocumentToken(),
-              /*initiator_state_token=*/base::UnguessableToken::Create(),
-              /*policy_container=*/nullptr, StorageKey(),
-              /*document_ukm_source_id=*/ukm::kInvalidSourceId,
+  frame->Init(/*opener=*/nullptr, DocumentToken(), /*policy_container=*/nullptr,
+              StorageKey(), /*document_ukm_source_id=*/ukm::kInvalidSourceId,
               /*creator_base_url=*/NullUrl());
 
   Document* document = frame->GetDocument();
@@ -855,15 +856,15 @@ static bool StripSvgUseNonLocalHrefs(Node& node) {
 
 namespace {
 
-constexpr wtf_size_t kMaxSanitizationIterations = 16;
+constexpr unsigned kMaxSanitizationIterations = 16;
 
 }  // namespace
 
 String CreateStrictlyProcessedMarkupWithContext(
     Document& document,
     const String& raw_markup,
-    wtf_size_t fragment_start,
-    wtf_size_t fragment_end,
+    unsigned fragment_start,
+    unsigned fragment_end,
     const String& base_url,
     ChildrenOnly children_only,
     ResolveUrls should_resolve_urls,
@@ -878,7 +879,7 @@ String CreateStrictlyProcessedMarkupWithContext(
   // stable, or if we have exceeded the maximum allowed number of iterations.
   String last_markup;
   String markup = raw_markup;
-  for (wtf_size_t iteration = 0;
+  for (unsigned iteration = 0;
        iteration < kMaxSanitizationIterations && last_markup != markup;
        ++iteration) {
     last_markup = markup;
@@ -936,8 +937,8 @@ String CreateStrictlyProcessedMarkupWithContext(
 DocumentFragment* CreateStrictlyProcessedFragmentFromMarkupWithContext(
     Document& document,
     const String& raw_markup,
-    wtf_size_t fragment_start,
-    wtf_size_t fragment_end,
+    unsigned fragment_start,
+    unsigned fragment_end,
     const String& base_url) {
   String sanitized_markup = CreateStrictlyProcessedMarkupWithContext(
       document, raw_markup, fragment_start, fragment_end, NullUrl());

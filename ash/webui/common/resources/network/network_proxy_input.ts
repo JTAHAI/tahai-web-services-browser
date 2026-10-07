@@ -65,9 +65,9 @@ export class NetworkProxyInputElement extends NetworkProxyInputElementBase {
     };
   }
 
-  declare editable: boolean;
-  declare label: string;
-  declare value: ManagedProxyLocation;
+  editable: boolean;
+  label: string;
+  value: ManagedProxyLocation;
 
   override focus(): void {
     const crInput = this.shadowRoot!.querySelector('cr-input');

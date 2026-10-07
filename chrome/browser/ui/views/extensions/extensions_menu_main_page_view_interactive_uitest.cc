@@ -2,8 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "chrome/browser/ui/views/extensions/extensions_menu_main_page_view.h"
-
 #include "base/test/metrics/histogram_tester.h"
 #include "chrome/browser/extensions/browsertest_util.h"
 #include "chrome/browser/extensions/chrome_test_extension_loader.h"
@@ -17,8 +15,6 @@
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_element_identifiers.h"
 #include "chrome/browser/ui/browser_tabstrip.h"
-#include "chrome/browser/ui/browser_ui_controller/browser_ui_controller.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/extensions/reload_page_dialog_controller.h"
 #include "chrome/browser/ui/interaction/browser_elements.h"
 #include "chrome/browser/ui/toolbar/toolbar_action_view_model.h"
@@ -26,11 +22,11 @@
 #include "chrome/browser/ui/views/extensions/extensions_menu_coordinator.h"
 #include "chrome/browser/ui/views/extensions/extensions_menu_delegate_desktop.h"
 #include "chrome/browser/ui/views/extensions/extensions_menu_entry_view.h"
+#include "chrome/browser/ui/views/extensions/extensions_menu_main_page_view.h"
 #include "chrome/browser/ui/views/extensions/extensions_request_access_button.h"
 #include "chrome/browser/ui/views/extensions/extensions_toolbar_button.h"
 #include "chrome/browser/ui/views/extensions/extensions_toolbar_desktop.h"
 #include "chrome/browser/ui/views/extensions/extensions_toolbar_interactive_uitest.h"
-#include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/toolbar/toolbar_view.h"
 #include "chrome/grit/generated_resources.h"
 #include "chrome/test/base/interactive_test_utils.h"
@@ -299,7 +295,7 @@ IN_PROC_BROWSER_TEST_F(ExtensionsMenuMainPageViewInteractiveUITest,
   // Navigate to a.com and add a site access request for the extension.
   GURL urlA = embedded_test_server()->GetURL("a.com", "/title1.html");
   NavigateTo(urlA);
-  auto* web_contents = browser()->GetTabStripModel()->GetActiveWebContents();
+  auto* web_contents = browser()->tab_strip_model()->GetActiveWebContents();
   AddHostAccessRequest(*extension, web_contents);
 
   ShowUi("");
@@ -394,7 +390,7 @@ IN_PROC_BROWSER_TEST_F(ExtensionsMenuMainPageViewInteractiveUITest,
                             ui::PAGE_TRANSITION_TYPED));
   ASSERT_TRUE(
       AddTabAtIndex(1, GURL("chrome://extensions"), ui::PAGE_TRANSITION_TYPED));
-  browser()->GetTabStripModel()->ActivateTabAt(1);
+  browser()->tab_strip_model()->ActivateTabAt(1);
 
   ShowUi("");
 
@@ -402,9 +398,9 @@ IN_PROC_BROWSER_TEST_F(ExtensionsMenuMainPageViewInteractiveUITest,
             u"Extensions are not allowed on chrome://extensions");
 
   // Update the title of the unfocused tab.
-  BrowserUiController::From(browser())->set_update_ui_immediately_for_testing();
+  browser()->set_update_ui_immediately_for_testing();
   content::WebContents* unfocused_tab =
-      browser()->GetTabStripModel()->GetWebContentsAt(0);
+      browser()->tab_strip_model()->GetWebContentsAt(0);
   std::u16string updated_title = u"Updated Title";
   content::TitleWatcher title_watcher(unfocused_tab, updated_title);
   ASSERT_TRUE(
@@ -417,7 +413,7 @@ IN_PROC_BROWSER_TEST_F(ExtensionsMenuMainPageViewInteractiveUITest,
 
   // Verify extensions menu content wasn't affected by checking the site
   // displayed on the menu's subtitle.
-  ASSERT_EQ(browser()->GetTabStripModel()->active_index(), 1);
+  ASSERT_EQ(browser()->tab_strip_model()->active_index(), 1);
   EXPECT_EQ(main_page()->GetSiteSettingLabelForTesting(),
             u"Extensions are not allowed on chrome://extensions");
 }
@@ -450,15 +446,15 @@ IN_PROC_BROWSER_TEST_F(ExtensionsMenuMainPageViewInteractiveUITest,
 
   // Retrieve tab's information.
   content::WebContents* tab1_web_contents =
-      browser()->GetTabStripModel()->GetWebContentsAt(tab1_index);
+      browser()->tab_strip_model()->GetWebContentsAt(tab1_index);
   content::WebContents* tab2_web_contents =
-      browser()->GetTabStripModel()->GetWebContentsAt(tab2_index);
+      browser()->tab_strip_model()->GetWebContentsAt(tab2_index);
   int tab1_id = extensions::ExtensionTabUtil::GetTabId(tab1_web_contents);
   int tab2_id = extensions::ExtensionTabUtil::GetTabId(tab2_web_contents);
 
   // Activate the first tab and open the menu. Verify there are no site access
   // requests on the menu.
-  browser()->GetTabStripModel()->ActivateTabAt(tab1_index);
+  browser()->tab_strip_model()->ActivateTabAt(tab1_index);
   ShowUi("");
   const views::View* requests_section = main_page()->requests_section();
   EXPECT_FALSE(requests_section->GetVisible());
@@ -532,13 +528,11 @@ class ExtensionsMenuMainPageViewInteractiveTest
   }
 
   ExtensionsToolbarDesktop* extensions_container() {
-    return BrowserView::GetBrowserViewForBrowser(browser())
-        ->toolbar()
-        ->extensions_container();
+    return browser()->GetBrowserView().toolbar()->extensions_container();
   }
 
   content::WebContents* active_web_contents() {
-    return browser()->GetTabStripModel()->GetActiveWebContents();
+    return browser()->tab_strip_model()->GetActiveWebContents();
   }
 
   extensions::ExtensionActionRunner* active_action_runner() {
@@ -571,16 +565,6 @@ class ExtensionsMenuMainPageViewInteractiveTest
     constexpr char kExtensionContextMenuButton[] =
         "extension_context_menu_button";
     return Steps(
-        Do([&]() {
-          if (auto* widget = extensions_container()
-                                 ->GetExtensionsMenuCoordinatorForTesting()
-                                 ->GetExtensionsMenuWidget()) {
-            if (auto* bubble =
-                    widget->widget_delegate()->AsBubbleDialogDelegate()) {
-              bubble->set_close_on_deactivate(false);
-            }
-          }
-        }),
         // Open the extension's context menu from its menu entry.
         NameDescendantViewByType<HoverButton>(menu_entry_element_id,
                                               kExtensionContextMenuButton, 1u),
@@ -672,20 +656,22 @@ class ExtensionsMenuMainPageViewInteractiveTest
 
   // Verifies whether the 'reload' section is hidden on the menu.
   auto CheckReloadSectionHidden() {
-    return CheckView(kExtensionsMenuMainPageElementId,
-                     [](ExtensionsMenuMainPageView* page) {
-                       return !page->reload_section()->GetVisible();
-                     })
-        .SetDescription("CheckReloadSectionHidden()");
+    return CheckView(
+        kExtensionsMenuMainPageElementId,
+        [](ExtensionsMenuMainPageView* page) {
+          return !page->reload_section()->GetVisible();
+        },
+        "Reload section is hidden");
   }
 
   // Verifies whether the 'requests' section is hidden on the menu.
   auto CheckRequestsSectionHidden() {
-    return CheckView(kExtensionsMenuMainPageElementId,
-                     [](ExtensionsMenuMainPageView* page) {
-                       return !page->requests_section()->GetVisible();
-                     })
-        .SetDescription("CheckRequestsSectionHidden()");
+    return CheckView(
+        kExtensionsMenuMainPageElementId,
+        [](ExtensionsMenuMainPageView* page) {
+          return !page->requests_section()->GetVisible();
+        },
+        "Requests section is hidden");
   }
 
   // Verifies whether `extension` has `expected_site_interaction` on the current
@@ -766,8 +752,9 @@ IN_PROC_BROWSER_TEST_F(ExtensionsMenuMainPageViewInteractiveTest,
 
 // Tests clicking on the 'context menu' button opens the extension's context
 // menu.
+// TODO(crbug.com/400536589): Re-enable this flaky test.
 IN_PROC_BROWSER_TEST_F(ExtensionsMenuMainPageViewInteractiveTest,
-                       ContextMenuButtonOpensContextMenu) {
+                       DISABLED_ContextMenuButtonOpensContextMenu) {
   DEFINE_LOCAL_ELEMENT_IDENTIFIER_VALUE(kTab);
   const extensions::Extension* extension =
       LoadExtension(test_data_dir_.AppendASCII("simple_with_icon"));
@@ -794,7 +781,9 @@ IN_PROC_BROWSER_TEST_F(ExtensionsMenuMainPageViewInteractiveTest,
             return GetMenuEntryViewFor(extension->id())
                 ->IsContextMenuRunningForTesting();
           },
-          true));
+          true)
+
+  );
 }
 
 // Tests triggering the extension's action closes the extensions menu, even when
@@ -1083,14 +1072,17 @@ IN_PROC_BROWSER_TEST_F(ExtensionsMenuMainPageViewInteractiveTest,
           extension->id(),
           extensions::ExtensionContextMenuModel::ContextMenuSource::kMenuItem,
           extensions::ExtensionContextMenuModel::TOGGLE_VISIBILITY,
-          IDS_EXTENSIONS_CONTEXT_MENU_PIN_TO_TOOLBAR));
+          IDS_EXTENSIONS_CONTEXT_MENU_PIN_TO_TOOLBAR),
+
+      // TODO(crbug.com/378724154): Test crashes if popup is left opened at the
+      // end of the test. For now, close the popup so don't lose test coverage.
+      Do([&]() { extensions_container()->HideActivePopup(); }));
 }
 
 IN_PROC_BROWSER_TEST_F(ExtensionsMenuMainPageViewInteractiveTest,
                        PinningDisabledInIncognito) {
   DEFINE_LOCAL_ELEMENT_IDENTIFIER_VALUE(kTab);
-  BrowserWindowInterface* const incognito_browser =
-      CreateIncognitoBrowser(profile());
+  Browser* const incognito_browser = CreateIncognitoBrowser(profile());
   ui_test_utils::BrowserActivationWaiter(incognito_browser).WaitForActivation();
 
   const extensions::Extension* extension =
@@ -1105,9 +1097,8 @@ IN_PROC_BROWSER_TEST_F(ExtensionsMenuMainPageViewInteractiveTest,
                 [&]() {
                   auto* context_menu =
                       static_cast<extensions::ExtensionContextMenuModel*>(
-                          BrowserView::GetBrowserViewForBrowser(
-                              incognito_browser)
-                              ->toolbar()
+                          incognito_browser->GetBrowserView()
+                              .toolbar()
                               ->extensions_container()
                               ->GetToolbarViewModel()
                               ->GetActionForId(extension->id())

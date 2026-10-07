@@ -70,10 +70,16 @@ static base::ProcessId g_host_pid = 0;
 
 void HandleSignal(int signum) {
   if (g_host_pid) {
-    // If the host is running, all signals are forwarded to it and ignored.
+    // All other signals are forwarded to host then ignored except SIGTERM.
+    // launchd sends SIGTERM when service is being stopped so both the host and
+    // the host service need to terminate.
     HOST_LOG << "Forwarding signal " << signum << " to host process "
              << g_host_pid;
     kill(g_host_pid, signum);
+    if (signum == SIGTERM) {
+      HOST_LOG << "Host service is terminating upon reception of SIGTERM";
+      exit(kSigtermExitCode);
+    }
   } else {
     HOST_LOG << "Signal " << signum
              << " will not be forwarded since host is not running.";

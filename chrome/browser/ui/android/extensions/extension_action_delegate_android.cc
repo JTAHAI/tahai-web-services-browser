@@ -10,7 +10,6 @@
 #include "chrome/browser/extensions/extension_view_host.h"
 #include "chrome/browser/extensions/extension_view_host_factory.h"
 #include "chrome/browser/ui/extensions/extension_action_view_model.h"
-#include "chrome/browser/ui/extensions/extension_popup_types.h"
 
 using extensions::ActionInfo;
 
@@ -67,8 +66,7 @@ void ExtensionActionDelegateAndroid::TriggerPopup(
     PopupShowAction show_action,
     bool by_user,
     ShowPopupCallback callback) {
-  toolbar_android_->TriggerPopup(action_id_, std::move(host), show_action,
-                                 std::move(callback));
+  toolbar_android_->TriggerPopup(action_id_, std::move(host));
 }
 
 void ExtensionActionDelegateAndroid::ShowContextMenuAsFallback() {

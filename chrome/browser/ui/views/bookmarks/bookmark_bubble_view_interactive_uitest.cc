@@ -152,7 +152,7 @@ IN_PROC_BROWSER_TEST_F(BookmarkBubbleViewIPHInteractiveTest,
   const bookmarks::BookmarkNode* node = model->AddURL(
       commerce::GetShoppingCollectionBookmarkFolder(model, true), 0,
       u"bookmark",
-      browser()->GetTabStripModel()->GetActiveWebContents()->GetURL());
+      browser()->tab_strip_model()->GetActiveWebContents()->GetURL());
 
   commerce::AddProductInfoToExistingBookmark(model, node, u"Product", 12345L);
 
@@ -182,7 +182,7 @@ IN_PROC_BROWSER_TEST_F(BookmarkBubbleViewIPHInteractiveTest,
   const bookmarks::BookmarkNode* node = model->AddURL(
       commerce::GetShoppingCollectionBookmarkFolder(model, true), 0,
       u"bookmark",
-      browser()->GetTabStripModel()->GetActiveWebContents()->GetURL());
+      browser()->tab_strip_model()->GetActiveWebContents()->GetURL());
 
   commerce::AddProductInfoToExistingBookmark(model, node, u"Product", 12345L);
 

@@ -20,8 +20,8 @@
 #include "chrome/browser/supervised_user/supervised_user_test_util.h"
 #include "chrome/browser/supervised_user/supervised_user_verification_controller_client.h"
 #include "chrome/browser/supervised_user/supervised_user_verification_page.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/mixin_based_in_process_browser_test.h"
@@ -72,7 +72,7 @@ class SupervisedUserPendingStateNavigationTest
  public:
  protected:
   content::WebContents* contents() {
-    return browser()->GetTabStripModel()->GetActiveWebContents();
+    return browser()->tab_strip_model()->GetActiveWebContents();
   }
 
   signin::IdentityManager* identity_manager() {
@@ -194,7 +194,7 @@ class SupervisedUserPendingStateNavigationTest
         .ExtractString();
   }
 
-  int GetTabCount() { return browser()->GetTabStripModel()->count(); }
+  int GetTabCount() { return browser()->tab_strip_model()->count(); }
 };
 
 // Tests the blocked site main frame re-authentication interstitial.
@@ -246,16 +246,16 @@ IN_PROC_BROWSER_TEST_F(SupervisedUserPendingStateNavigationTest,
 
     // Wait for the navigation to finish in the sign-in tabs.
     if (browser()
-            ->GetTabStripModel()
+            ->tab_strip_model()
             ->GetWebContentsAt(i)
             ->GetLastCommittedURL()
             .is_empty()) {
       content::TestNavigationObserver observer(
-          browser()->GetTabStripModel()->GetWebContentsAt(i));
+          browser()->tab_strip_model()->GetWebContentsAt(i));
       observer.WaitForNavigationFinished();
     }
     ASSERT_FALSE(browser()
-                     ->GetTabStripModel()
+                     ->tab_strip_model()
                      ->GetWebContentsAt(i)
                      ->GetLastCommittedURL()
                      .is_empty());
@@ -264,7 +264,7 @@ IN_PROC_BROWSER_TEST_F(SupervisedUserPendingStateNavigationTest,
   // Use one tab to navigate elsewhere.
   // We use a manually allow-listed url to avoid creating more
   // interstitials that would complicate the metrics checks.
-  browser()->GetTabStripModel()->ActivateTabAt(3);
+  browser()->tab_strip_model()->ActivateTabAt(3);
   const GURL allowlisted_url = GURL("https://example.com/");
   SetManualHost(allowlisted_url, /*allowlist=*/true);
   // The `spawned_tab_url` is used to navigate away from the sign-in

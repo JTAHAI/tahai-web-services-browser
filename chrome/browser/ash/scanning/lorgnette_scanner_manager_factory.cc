@@ -4,7 +4,6 @@
 
 #include "chrome/browser/ash/scanning/lorgnette_scanner_manager_factory.h"
 
-#include "base/check_deref.h"
 #include "base/no_destructor.h"
 #include "chrome/browser/ash/profiles/profile_helper.h"
 #include "chrome/browser/ash/scanning/lorgnette_scanner_manager.h"
@@ -45,13 +44,8 @@ std::unique_ptr<KeyedService>
 LorgnetteScannerManagerFactory::BuildServiceInstanceForBrowserContext(
     content::BrowserContext* context) const {
   auto* profile = Profile::FromBrowserContext(context);
-  // Some browser tests create profiles without corresponding users and set
-  // kIgnoreUserProfileMappingForTests. ProfileHelper honors that test-only
-  // fallback; for regular profiles it delegates to BrowserContextHelper.
-  const user_manager::User& user =
-      CHECK_DEREF(ProfileHelper::Get()->GetUserByProfile(profile));
   return LorgnetteScannerManager::Create(ZeroconfScannerDetector::Create(),
-                                         user);
+                                         profile);
 }
 
 bool LorgnetteScannerManagerFactory::ServiceIsCreatedWithBrowserContext()

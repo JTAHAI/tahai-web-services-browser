@@ -12,7 +12,6 @@ import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.ArgumentMatchers.refEq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
@@ -34,6 +33,7 @@ import static org.chromium.ui.listmenu.ListMenuItemProperties.ENABLED;
 import static org.chromium.ui.listmenu.ListMenuItemProperties.START_ICON_DRAWABLE;
 import static org.chromium.ui.listmenu.ListMenuItemProperties.START_ICON_WIDTH;
 import static org.chromium.ui.listmenu.ListMenuItemProperties.TITLE;
+import static org.chromium.ui.listmenu.ListMenuItemProperties.TITLE_ID;
 import static org.chromium.ui.listmenu.ListMenuSubmenuItemProperties.SUBMENU_PROVIDER;
 import static org.chromium.ui.listmenu.ListSectionDividerProperties.COLOR_ID;
 
@@ -42,7 +42,6 @@ import android.app.Activity;
 import android.graphics.Rect;
 import android.graphics.drawable.GradientDrawable;
 import android.os.SystemClock;
-import android.text.Spannable;
 import android.view.MotionEvent;
 import android.view.View;
 import android.widget.ListView;
@@ -55,6 +54,8 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Captor;
 import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.Mockito;
@@ -62,7 +63,6 @@ import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
 import org.robolectric.annotation.Config;
 
-import org.chromium.base.DeviceInfo;
 import org.chromium.base.Token;
 import org.chromium.base.UnownedUserDataHost;
 import org.chromium.base.supplier.ObservableSuppliers;
@@ -116,7 +116,6 @@ import org.chromium.chrome.browser.tabwindow.TabWindowManager;
 import org.chromium.chrome.browser.tasks.tab_management.TabGroupListBottomSheetCoordinator;
 import org.chromium.chrome.browser.tasks.tab_management.TabOverflowMenuCoordinator.OnItemClickedCallback;
 import org.chromium.chrome.browser.ui.messages.snackbar.SnackbarManager;
-import org.chromium.chrome.browser.ui.vertical_tabs.VerticalTabUtils;
 import org.chromium.chrome.test.util.browser.tabmodel.MockTabModel;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetControllerProvider;
@@ -186,6 +185,7 @@ import java.util.function.BiConsumer;
 @RunWith(BaseRobolectricTestRunner.class)
 @EnableFeatures({
     ChromeFeatureList.DATA_SHARING,
+    ChromeFeatureList.ANDROID_CONTEXT_MENU_NEW_ACTIONS,
     ChromeFeatureList.ANDROID_CONTEXT_MENU_DISABLED_MENU_ITEMS
 })
 @DisableFeatures({TabGroupsFeatureMap.UPDATE_TAB_GROUP_COLORS})
@@ -301,6 +301,7 @@ public class TabContextMenuCoordinatorUnitTest {
     @Mock private Tab mChromeNativeSchemeTabWithWebContents;
     @Mock private Tab mChromeNativeSchemeTabWithoutWebContents;
     @Mock private BiConsumer<AnchorInfo, Boolean> mReorderFunction;
+    @Captor private ArgumentCaptor<LoadUrlParams> mLoadUrlParamsCaptor;
 
     private Activity mActivity;
     private SettableNonNullObservableSupplier<Integer> mTotalTabCountSupplier;
@@ -350,7 +351,6 @@ public class TabContextMenuCoordinatorUnitTest {
         when(mTabWindowManager.getTabModelSelectorById(INSTANCE_ID_1))
                 .thenReturn(mTabModelSelector);
         when(mTabModelSelector.getModel(false)).thenReturn(mTabModel);
-        when(mTabModelSelector.getModel(true)).thenReturn(mTabModel);
         when(mTabModel.getTabUngrouper()).thenReturn(mTabUngrouper);
         when(mTabModel.getAllTabGroupIds()).thenReturn(Set.of(TAB_GROUP_ID));
         when(mTabModel.getTabCountForGroup(TAB_GROUP_ID)).thenReturn(1);
@@ -400,9 +400,6 @@ public class TabContextMenuCoordinatorUnitTest {
     @After
     public void tearDown() {
         ChromeSharedPreferences.getInstance().removeKey(ChromePreferenceKeys.VERTICAL_TABS_ENABLED);
-        ChromeSharedPreferences.getInstance()
-                .removeKey(ChromePreferenceKeys.VERTICAL_TABS_LAYOUT_TOGGLE_VIEW_COUNT);
-        DeviceInfo.resetIsDesktopForTesting();
     }
 
     private void setupWithIncognito(boolean incognito) {
@@ -497,7 +494,7 @@ public class TabContextMenuCoordinatorUnitTest {
         mTabContextMenuCoordinator.configureMenuItemsForTesting(
                 modelList, new AnchorInfo(TAB_ID, Collections.singletonList(TAB_ID)));
 
-        assertEquals("Number of items in the list menu is incorrect", 15, modelList.size());
+        assertEquals("Number of items in the list menu is incorrect", 14, modelList.size());
 
         // List item 1
         assertEquals(
@@ -536,61 +533,56 @@ public class TabContextMenuCoordinatorUnitTest {
                 modelList.get(3).model.get(COLOR_ID));
 
         // List item 5
-        assertEquals(R.string.share, modelList.get(4).model.get(ListMenuItemProperties.TITLE_ID));
         assertEquals(
-                R.id.share_tab, modelList.get(4).model.get(ListMenuItemProperties.MENU_ITEM_ID));
+                mActivity.getResources().getString(R.string.duplicate_tab_menu_item),
+                modelList.get(4).model.get(TITLE));
+        assertEquals(
+                R.id.duplicate_tab_menu_id,
+                modelList.get(4).model.get(ListMenuItemProperties.MENU_ITEM_ID));
 
         // List item 6
         assertEquals(
-                mActivity.getResources().getString(R.string.duplicate_tab_menu_item),
+                mActivity.getResources().getQuantityString(R.plurals.pin_tabs_menu_item, 1),
                 modelList.get(5).model.get(TITLE));
         assertEquals(
-                R.id.duplicate_tab_menu_id,
+                R.id.pin_tab_menu_id,
                 modelList.get(5).model.get(ListMenuItemProperties.MENU_ITEM_ID));
 
         // List item 7
         assertEquals(
-                mActivity.getResources().getQuantityString(R.plurals.pin_tabs_menu_item, 1),
-                modelList.get(6).model.get(TITLE));
-        assertEquals(
-                R.id.pin_tab_menu_id,
+                R.id.mute_site_menu_id,
                 modelList.get(6).model.get(ListMenuItemProperties.MENU_ITEM_ID));
 
         // List item 8
-        assertEquals(
-                R.id.mute_site_menu_id,
-                modelList.get(7).model.get(ListMenuItemProperties.MENU_ITEM_ID));
+        assertEquals(DIVIDER, modelList.get(7).type);
 
         // List item 9
-        assertEquals(DIVIDER, modelList.get(8).type);
+        assertEquals(
+                R.id.add_tab_to_reading_list_menu_id,
+                modelList.get(8).model.get(ListMenuItemProperties.MENU_ITEM_ID));
 
         // List item 10
         assertEquals(
-                R.id.add_tab_to_reading_list_menu_id,
+                R.id.send_to_your_device_menu_id,
                 modelList.get(9).model.get(ListMenuItemProperties.MENU_ITEM_ID));
 
         // List item 11
-        assertEquals(
-                R.id.send_to_your_device_menu_id,
-                modelList.get(10).model.get(ListMenuItemProperties.MENU_ITEM_ID));
+        assertEquals(DIVIDER, modelList.get(10).type);
 
         // List item 12
-        assertEquals(DIVIDER, modelList.get(11).type);
+        assertEquals(R.string.close, modelList.get(11).model.get(ListMenuItemProperties.TITLE_ID));
+        assertEquals(
+                R.id.close_tab, modelList.get(11).model.get(ListMenuItemProperties.MENU_ITEM_ID));
 
         // List item 13
-        assertEquals(R.string.close, modelList.get(12).model.get(ListMenuItemProperties.TITLE_ID));
         assertEquals(
-                R.id.close_tab, modelList.get(12).model.get(ListMenuItemProperties.MENU_ITEM_ID));
+                R.id.close_other_tabs_menu_id,
+                modelList.get(12).model.get(ListMenuItemProperties.MENU_ITEM_ID));
 
         // List item 14
         assertEquals(
-                R.id.close_other_tabs_menu_id,
-                modelList.get(13).model.get(ListMenuItemProperties.MENU_ITEM_ID));
-
-        // List item 15
-        assertEquals(
                 R.id.close_tabs_to_the_right_menu_id,
-                modelList.get(14).model.get(ListMenuItemProperties.MENU_ITEM_ID));
+                modelList.get(13).model.get(ListMenuItemProperties.MENU_ITEM_ID));
     }
 
     @Test
@@ -723,7 +715,7 @@ public class TabContextMenuCoordinatorUnitTest {
                         TAB_OUTSIDE_OF_GROUP_ID,
                         Collections.singletonList(TAB_OUTSIDE_OF_GROUP_ID)));
 
-        assertEquals("Number of items in the list menu is incorrect", 15, modelList.size());
+        assertEquals("Number of items in the list menu is incorrect", 14, modelList.size());
 
         // List item 1
         assertEquals(
@@ -742,61 +734,56 @@ public class TabContextMenuCoordinatorUnitTest {
         assertEquals(DIVIDER, modelList.get(3).type);
 
         // List item 5
-        assertEquals(R.string.share, modelList.get(4).model.get(ListMenuItemProperties.TITLE_ID));
         assertEquals(
-                R.id.share_tab, modelList.get(4).model.get(ListMenuItemProperties.MENU_ITEM_ID));
+                mActivity.getResources().getString(R.string.duplicate_tab_menu_item),
+                modelList.get(4).model.get(TITLE));
+        assertEquals(
+                R.id.duplicate_tab_menu_id,
+                modelList.get(4).model.get(ListMenuItemProperties.MENU_ITEM_ID));
 
         // List item 6
         assertEquals(
-                mActivity.getResources().getString(R.string.duplicate_tab_menu_item),
+                mActivity.getResources().getQuantityString(R.plurals.pin_tabs_menu_item, 1),
                 modelList.get(5).model.get(TITLE));
         assertEquals(
-                R.id.duplicate_tab_menu_id,
+                R.id.pin_tab_menu_id,
                 modelList.get(5).model.get(ListMenuItemProperties.MENU_ITEM_ID));
 
         // List item 7
         assertEquals(
-                mActivity.getResources().getQuantityString(R.plurals.pin_tabs_menu_item, 1),
-                modelList.get(6).model.get(TITLE));
-        assertEquals(
-                R.id.pin_tab_menu_id,
+                R.id.mute_site_menu_id,
                 modelList.get(6).model.get(ListMenuItemProperties.MENU_ITEM_ID));
 
         // List item 8
-        assertEquals(
-                R.id.mute_site_menu_id,
-                modelList.get(7).model.get(ListMenuItemProperties.MENU_ITEM_ID));
+        assertEquals(DIVIDER, modelList.get(7).type);
 
         // List item 9
-        assertEquals(DIVIDER, modelList.get(8).type);
+        assertEquals(
+                R.id.add_tab_to_reading_list_menu_id,
+                modelList.get(8).model.get(ListMenuItemProperties.MENU_ITEM_ID));
 
         // List item 10
         assertEquals(
-                R.id.add_tab_to_reading_list_menu_id,
+                R.id.send_to_your_device_menu_id,
                 modelList.get(9).model.get(ListMenuItemProperties.MENU_ITEM_ID));
 
         // List item 11
-        assertEquals(
-                R.id.send_to_your_device_menu_id,
-                modelList.get(10).model.get(ListMenuItemProperties.MENU_ITEM_ID));
+        assertEquals(DIVIDER, modelList.get(10).type);
 
         // List item 12
-        assertEquals(DIVIDER, modelList.get(11).type);
+        assertEquals(R.string.close, modelList.get(11).model.get(ListMenuItemProperties.TITLE_ID));
+        assertEquals(
+                R.id.close_tab, modelList.get(11).model.get(ListMenuItemProperties.MENU_ITEM_ID));
 
         // List item 13
-        assertEquals(R.string.close, modelList.get(12).model.get(ListMenuItemProperties.TITLE_ID));
         assertEquals(
-                R.id.close_tab, modelList.get(12).model.get(ListMenuItemProperties.MENU_ITEM_ID));
+                R.id.close_other_tabs_menu_id,
+                modelList.get(12).model.get(ListMenuItemProperties.MENU_ITEM_ID));
 
         // List item 14
         assertEquals(
-                R.id.close_other_tabs_menu_id,
-                modelList.get(13).model.get(ListMenuItemProperties.MENU_ITEM_ID));
-
-        // List item 15
-        assertEquals(
                 R.id.close_tabs_to_the_right_menu_id,
-                modelList.get(14).model.get(ListMenuItemProperties.MENU_ITEM_ID));
+                modelList.get(13).model.get(ListMenuItemProperties.MENU_ITEM_ID));
     }
 
     @Test
@@ -913,7 +900,7 @@ public class TabContextMenuCoordinatorUnitTest {
                         TAB_OUTSIDE_OF_GROUP_ID,
                         Collections.singletonList(TAB_OUTSIDE_OF_GROUP_ID)));
 
-        assertEquals("Number of items in the list menu is incorrect", 12, modelList.size());
+        assertEquals("Number of items in the list menu is incorrect", 11, modelList.size());
 
         // List item 1
         assertEquals(
@@ -954,9 +941,12 @@ public class TabContextMenuCoordinatorUnitTest {
                 modelList.get(3).model.get(COLOR_ID));
 
         // List item 5
-        assertEquals(R.string.share, modelList.get(4).model.get(ListMenuItemProperties.TITLE_ID));
         assertEquals(
-                R.id.share_tab, modelList.get(4).model.get(ListMenuItemProperties.MENU_ITEM_ID));
+                mActivity.getResources().getString(R.string.duplicate_tab_menu_item),
+                modelList.get(4).model.get(TITLE));
+        assertEquals(
+                R.id.duplicate_tab_menu_id,
+                modelList.get(4).model.get(ListMenuItemProperties.MENU_ITEM_ID));
         assertEquals(
                 "Expected text appearance ID to be set to"
                     + " R.style.TextAppearance_DensityAdaptive_TextLarge_Primary_Baseline_Light in"
@@ -966,54 +956,40 @@ public class TabContextMenuCoordinatorUnitTest {
 
         // List item 6
         assertEquals(
-                mActivity.getResources().getString(R.string.duplicate_tab_menu_item),
+                mActivity.getResources().getQuantityString(R.plurals.pin_tabs_menu_item, 1),
                 modelList.get(5).model.get(TITLE));
         assertEquals(
-                R.id.duplicate_tab_menu_id,
+                R.id.pin_tab_menu_id,
                 modelList.get(5).model.get(ListMenuItemProperties.MENU_ITEM_ID));
-        assertEquals(
-                "Expected text appearance ID to be set to"
-                    + " R.style.TextAppearance_DensityAdaptive_TextLarge_Primary_Baseline_Light in"
-                    + " incognito",
-                R.style.TextAppearance_DensityAdaptive_TextLarge_Primary_Baseline_Light,
-                modelList.get(5).model.get(ListMenuItemProperties.TEXT_APPEARANCE_ID));
 
         // List item 7
         assertEquals(
-                mActivity.getResources().getQuantityString(R.plurals.pin_tabs_menu_item, 1),
-                modelList.get(6).model.get(TITLE));
-        assertEquals(
-                R.id.pin_tab_menu_id,
+                R.id.mute_site_menu_id,
                 modelList.get(6).model.get(ListMenuItemProperties.MENU_ITEM_ID));
 
         // List item 8
-        assertEquals(
-                R.id.mute_site_menu_id,
-                modelList.get(7).model.get(ListMenuItemProperties.MENU_ITEM_ID));
+        assertEquals(DIVIDER, modelList.get(7).type);
 
         // List item 9
-        assertEquals(DIVIDER, modelList.get(8).type);
-
-        // List item 10
-        assertEquals(R.string.close, modelList.get(9).model.get(ListMenuItemProperties.TITLE_ID));
+        assertEquals(R.string.close, modelList.get(8).model.get(ListMenuItemProperties.TITLE_ID));
         assertEquals(
-                R.id.close_tab, modelList.get(9).model.get(ListMenuItemProperties.MENU_ITEM_ID));
+                R.id.close_tab, modelList.get(8).model.get(ListMenuItemProperties.MENU_ITEM_ID));
         assertEquals(
                 "Expected text appearance ID to be set to"
                     + " R.style.TextAppearance_DensityAdaptive_TextLarge_Primary_Baseline_Light in"
                     + " incognito",
                 R.style.TextAppearance_DensityAdaptive_TextLarge_Primary_Baseline_Light,
-                modelList.get(9).model.get(ListMenuItemProperties.TEXT_APPEARANCE_ID));
+                modelList.get(8).model.get(ListMenuItemProperties.TEXT_APPEARANCE_ID));
+
+        // List item 10
+        assertEquals(
+                R.id.close_other_tabs_menu_id,
+                modelList.get(9).model.get(ListMenuItemProperties.MENU_ITEM_ID));
 
         // List item 11
         assertEquals(
-                R.id.close_other_tabs_menu_id,
-                modelList.get(10).model.get(ListMenuItemProperties.MENU_ITEM_ID));
-
-        // List item 12
-        assertEquals(
                 R.id.close_tabs_to_the_right_menu_id,
-                modelList.get(11).model.get(ListMenuItemProperties.MENU_ITEM_ID));
+                modelList.get(10).model.get(ListMenuItemProperties.MENU_ITEM_ID));
     }
 
     @Test
@@ -1264,7 +1240,7 @@ public class TabContextMenuCoordinatorUnitTest {
                 modelList, new AnchorInfo(TAB_ID, Collections.singletonList(TAB_ID)));
 
         ListItem addToGroupItem =
-                findItemByTitle(modelList, mActivity.getString(R.string.menu_move_tab_to_group));
+                findItemByPluralsId(modelList, R.plurals.add_tab_to_group_menu_item);
         assertNotNull("Add to group item should be present", addToGroupItem);
         addToGroupItem.model.get(CLICK_LISTENER).onClick(mView);
 
@@ -1330,42 +1306,6 @@ public class TabContextMenuCoordinatorUnitTest {
                 listView.getSelectedItemPosition());
 
         mTabContextMenuCoordinator.destroyMenuForTesting();
-    }
-
-    @Test
-    @Feature("Tab Strip Context Menu")
-    public void testNewTabToTheRight_notInGroup() {
-        when(mTabModel.indexOf(mTabOutsideOfGroup)).thenReturn(1);
-        mOnItemClickedCallback.onClick(
-                R.id.new_tab_to_the_right_menu_id,
-                new AnchorInfo(
-                        TAB_OUTSIDE_OF_GROUP_ID,
-                        Collections.singletonList(TAB_OUTSIDE_OF_GROUP_ID)),
-                COLLABORATION_ID,
-                /* listViewTouchTracker= */ null);
-        verify(mTabCreator)
-                .createNewTab(
-                        any(LoadUrlParams.class),
-                        eq(TabLaunchType.FROM_CHROME_UI),
-                        eq(mTabOutsideOfGroup),
-                        eq(2));
-    }
-
-    @Test
-    @Feature("Tab Strip Context Menu")
-    public void testNewTabToTheRight_inGroup() {
-        when(mTabModel.indexOf(mTab1)).thenReturn(0);
-        mOnItemClickedCallback.onClick(
-                R.id.new_tab_to_the_right_menu_id,
-                new AnchorInfo(TAB_ID, Collections.singletonList(TAB_ID)),
-                COLLABORATION_ID,
-                /* listViewTouchTracker= */ null);
-        verify(mTabCreator)
-                .createNewTab(
-                        any(LoadUrlParams.class),
-                        eq(TabLaunchType.FROM_TAB_GROUP_UI),
-                        eq(mTab1),
-                        eq(1));
     }
 
     @Test
@@ -1897,8 +1837,7 @@ public class TabContextMenuCoordinatorUnitTest {
         assertNotNull("Move left item should be present", moveLeftItem);
         moveLeftItem.model.get(CLICK_LISTENER).onClick(mView);
 
-        verify(mReorderFunction, times(1))
-                .accept(refEq(new AnchorInfo(TAB_ID, List.of(TAB_ID))), eq(true));
+        verify(mReorderFunction, times(1)).accept(new AnchorInfo(TAB_ID, List.of(TAB_ID)), true);
     }
 
     @Test
@@ -1936,8 +1875,7 @@ public class TabContextMenuCoordinatorUnitTest {
         assertNotNull("Move right item should be present", moveRightItem);
         moveRightItem.model.get(CLICK_LISTENER).onClick(mView);
 
-        verify(mReorderFunction, times(1))
-                .accept(refEq(new AnchorInfo(TAB_ID, List.of(TAB_ID))), eq(false));
+        verify(mReorderFunction, times(1)).accept(new AnchorInfo(TAB_ID, List.of(TAB_ID)), false);
     }
 
     @Test
@@ -1975,8 +1913,7 @@ public class TabContextMenuCoordinatorUnitTest {
         ListItem moveRightItem = findItemByTitle(modelList, moveRightTitle);
         assertNotNull("Move right item should be present", moveRightItem);
         moveRightItem.model.get(CLICK_LISTENER).onClick(mView);
-        verify(mReorderFunction, times(1))
-                .accept(refEq(new AnchorInfo(TAB_ID, List.of(TAB_ID))), eq(false));
+        verify(mReorderFunction, times(1)).accept(new AnchorInfo(TAB_ID, List.of(TAB_ID)), false);
     }
 
     @Test
@@ -2018,8 +1955,7 @@ public class TabContextMenuCoordinatorUnitTest {
         assertNotNull("Move left item should be present", moveLeftItem);
         moveLeftItem.model.get(CLICK_LISTENER).onClick(mView);
 
-        verify(mReorderFunction, times(1))
-                .accept(refEq(new AnchorInfo(TAB_ID, List.of(TAB_ID))), eq(true));
+        verify(mReorderFunction, times(1)).accept(new AnchorInfo(TAB_ID, List.of(TAB_ID)), true);
     }
 
     @Test
@@ -2104,8 +2040,7 @@ public class TabContextMenuCoordinatorUnitTest {
         assertNotNull("Move left item should be present", moveLeftItem);
         moveLeftItem.model.get(CLICK_LISTENER).onClick(mView);
 
-        verify(mReorderFunction, times(1))
-                .accept(refEq(new AnchorInfo(TAB_ID, List.of(TAB_ID))), eq(true));
+        verify(mReorderFunction, times(1)).accept(new AnchorInfo(TAB_ID, List.of(TAB_ID)), true);
     }
 
     @Test
@@ -2127,7 +2062,7 @@ public class TabContextMenuCoordinatorUnitTest {
         moveLeftItem.model.get(CLICK_LISTENER).onClick(mView);
 
         verify(mReorderFunction, times(1))
-                .accept(refEq(new AnchorInfo(TAB_ID, List.of(TAB_ID, TAB_ID_2))), eq(true));
+                .accept(new AnchorInfo(TAB_ID, List.of(TAB_ID, TAB_ID_2)), true);
     }
 
     @Test
@@ -2149,138 +2084,7 @@ public class TabContextMenuCoordinatorUnitTest {
         moveRightItem.model.get(CLICK_LISTENER).onClick(mView);
 
         verify(mReorderFunction, times(1))
-                .accept(refEq(new AnchorInfo(TAB_ID, List.of(TAB_ID, TAB_ID_2))), eq(false));
-    }
-
-    @Test
-    @Feature("Tab Strip Context Menu")
-    @EnableFeatures(ChromeFeatureList.ANDROID_VERTICAL_TABS)
-    @Config(qualifiers = "sw600dp")
-    public void testVerticalTabs_moveTabUpDown_singleTab() {
-        mTabContextMenuCoordinator.setIsGesturesEnabledForTesting(true);
-        prepareVerticalTabsCoordinatorWithTabs();
-        // Put mTab2 in the middle so that it's capable of moving up and down.
-        when(mTabModel.indexOf(mTab2)).thenReturn(1);
-        when(mTabModel.getCount()).thenReturn(3);
-
-        ModelList modelList = new ModelList();
-        AnchorInfo anchorInfo = new AnchorInfo(TAB_ID_2, List.of(TAB_ID_2));
-        mTabContextMenuCoordinator.configureMenuItemsForTesting(modelList, anchorInfo);
-
-        // Move single tab up.
-        verifyReorderOption(
-                modelList,
-                mActivity.getResources().getQuantityString(R.plurals.move_tabs_up, 1),
-                anchorInfo,
-                /* expectedToStart= */ true);
-
-        // Move single tab down.
-        verifyReorderOption(
-                modelList,
-                mActivity.getResources().getQuantityString(R.plurals.move_tabs_down, 1),
-                anchorInfo,
-                /* expectedToStart= */ false);
-    }
-
-    @Test
-    @Feature("Tab Strip Context Menu")
-    @EnableFeatures(ChromeFeatureList.ANDROID_VERTICAL_TABS)
-    @Config(qualifiers = "sw600dp")
-    public void testVerticalTabs_moveTabsUpDown_multipleTabs() {
-        mTabContextMenuCoordinator.setIsGesturesEnabledForTesting(true);
-        prepareVerticalTabsCoordinatorWithTabs();
-        when(mTabModel.indexOf(mTab1)).thenReturn(1);
-        when(mTabModel.indexOf(mTab2)).thenReturn(2);
-        when(mTabModel.getCount()).thenReturn(4);
-
-        ModelList modelList = new ModelList();
-        AnchorInfo anchorInfo = new AnchorInfo(TAB_ID, List.of(TAB_ID, TAB_ID_2));
-        mTabContextMenuCoordinator.configureMenuItemsForTesting(modelList, anchorInfo);
-
-        // Move 2 tabs up.
-        verifyReorderOption(
-                modelList,
-                mActivity.getResources().getQuantityString(R.plurals.move_tabs_up, 2),
-                anchorInfo,
-                /* expectedToStart= */ true);
-
-        // Move 2 tabs down.
-        verifyReorderOption(
-                modelList,
-                mActivity.getResources().getQuantityString(R.plurals.move_tabs_down, 2),
-                anchorInfo,
-                /* expectedToStart= */ false);
-    }
-
-    @Test
-    @Feature("Tab Strip Context Menu")
-    @EnableFeatures(ChromeFeatureList.ANDROID_VERTICAL_TABS)
-    @Config(qualifiers = "sw600dp")
-    public void testVerticalTabs_moveTabUpDown_RTL() {
-        LocalizationUtils.setRtlForTesting(true);
-        mTabContextMenuCoordinator.setIsGesturesEnabledForTesting(true);
-        prepareVerticalTabsCoordinatorWithTabs();
-        when(mTabModel.indexOf(mTab2)).thenReturn(1);
-        when(mTabModel.getCount()).thenReturn(3);
-
-        ModelList modelList = new ModelList();
-        AnchorInfo anchorInfo = new AnchorInfo(TAB_ID_2, List.of(TAB_ID_2));
-        mTabContextMenuCoordinator.configureMenuItemsForTesting(modelList, anchorInfo);
-
-        // In VT with RTL, "Move tab up" should still move toward the start (true) without
-        // inversion.
-        verifyReorderOption(
-                modelList,
-                mActivity.getResources().getQuantityString(R.plurals.move_tabs_up, 1),
-                anchorInfo,
-                /* expectedToStart= */ true);
-
-        // "Move tab down" should still move towards the end.
-        verifyReorderOption(
-                modelList,
-                mActivity.getResources().getQuantityString(R.plurals.move_tabs_down, 1),
-                anchorInfo,
-                /* expectedToStart= */ false);
-    }
-
-    @Test
-    @Feature("Tab Strip Context Menu")
-    @EnableFeatures(ChromeFeatureList.ANDROID_VERTICAL_TABS)
-    @Config(qualifiers = "sw600dp")
-    public void testVerticalTabs_boundaries_firstAndLastTab() {
-        mTabContextMenuCoordinator.setIsGesturesEnabledForTesting(true);
-        prepareVerticalTabsCoordinatorWithTabs();
-        when(mTabModel.indexOf(mTab1)).thenReturn(0);
-        when(mTabModel.getCount()).thenReturn(3);
-
-        // First tab (index 0): can move down, but not up.
-        ModelList firstTabModelList = new ModelList();
-        mTabContextMenuCoordinator.configureMenuItemsForTesting(
-                firstTabModelList, new AnchorInfo(TAB_ID, List.of(TAB_ID)));
-        String moveUpTitle = mActivity.getResources().getQuantityString(R.plurals.move_tabs_up, 1);
-        String moveDownTitle =
-                mActivity.getResources().getQuantityString(R.plurals.move_tabs_down, 1);
-
-        assertNull(
-                "First tab should not have 'Move tab up'",
-                findItemByTitle(firstTabModelList, moveUpTitle));
-        assertNotNull(
-                "First tab should have 'Move tab down'",
-                findItemByTitle(firstTabModelList, moveDownTitle));
-
-        // Last tab: can move up, but not down.
-        when(mTabModel.indexOf(mTabOutsideOfGroup)).thenReturn(2);
-        ModelList lastTabModelList = new ModelList();
-        mTabContextMenuCoordinator.configureMenuItemsForTesting(
-                lastTabModelList,
-                new AnchorInfo(TAB_OUTSIDE_OF_GROUP_ID, List.of(TAB_OUTSIDE_OF_GROUP_ID)));
-
-        assertNotNull(
-                "Last tab should have 'Move tab up'",
-                findItemByTitle(lastTabModelList, moveUpTitle));
-        assertNull(
-                "Last tab should not have 'Move tab down'",
-                findItemByTitle(lastTabModelList, moveDownTitle));
+                .accept(new AnchorInfo(TAB_ID, List.of(TAB_ID, TAB_ID_2)), false);
     }
 
     @Test
@@ -2399,6 +2203,7 @@ public class TabContextMenuCoordinatorUnitTest {
 
     @Test
     @Feature("Tab Strip Context Menu")
+    @DisableFeatures(ChromeFeatureList.ANDROID_CONTEXT_MENU_NEW_ACTIONS)
     public void testShareUrl() {
         mOnItemClickedCallback.onClick(
                 R.id.share_tab,
@@ -2411,24 +2216,13 @@ public class TabContextMenuCoordinatorUnitTest {
     @Test
     @Feature("Tab Strip Context Menu")
     @SuppressWarnings("DirectInvocationOnMock")
+    @DisableFeatures(ChromeFeatureList.ANDROID_CONTEXT_MENU_NEW_ACTIONS)
     public void testShareTab_hiddenForNonShareableUrl() {
         MultiWindowUtils.setInstanceCountForTesting(1);
         var modelList = new ModelList();
         mTabContextMenuCoordinator.configureMenuItemsForTesting(
                 modelList,
                 new AnchorInfo(NON_URL_TAB_ID, Collections.singletonList(NON_URL_TAB_ID)));
-
-        assertNull(findItemByMenuId(modelList, R.id.share_tab));
-    }
-
-    @Test
-    @Feature("Tab Strip Context Menu")
-    @DisableFeatures({ChromeFeatureList.ANDROID_CONTEXT_MENU_DISABLED_MENU_ITEMS})
-    public void testShareTab_hiddenWhenFeatureDisabled() {
-        MultiWindowUtils.setInstanceCountForTesting(1);
-        var modelList = new ModelList();
-        mTabContextMenuCoordinator.configureMenuItemsForTesting(
-                modelList, new AnchorInfo(TAB_ID, Collections.singletonList(TAB_ID)));
 
         assertNull(findItemByMenuId(modelList, R.id.share_tab));
     }
@@ -2552,7 +2346,7 @@ public class TabContextMenuCoordinatorUnitTest {
                 modelList, new AnchorInfo(TAB_ID, Collections.singletonList(TAB_ID)));
 
         assertNull(
-                "Send to your device menu item should not be present when displayReason is null",
+                "Send to Your Device menu item should not be present when displayReason is null",
                 findItemByMenuId(modelList, R.id.send_to_your_device_menu_id));
     }
 
@@ -2802,6 +2596,59 @@ public class TabContextMenuCoordinatorUnitTest {
                         MotionEvent.ACTION_UP));
 
         testCloseTab(listViewTouchTracker, /* shouldAllowUndo= */ false);
+    }
+
+    @Test
+    @DisableFeatures(ChromeFeatureList.ANDROID_CONTEXT_MENU_NEW_ACTIONS)
+    public void testCloseAllTabs() {
+        var modelList = new ModelList();
+        mTabContextMenuCoordinator.configureMenuItemsForTesting(
+                modelList, new AnchorInfo(TAB_ID, Collections.singletonList(TAB_ID)));
+
+        ListItem closeAllTabsItem = findItemByMenuId(modelList, R.id.close_all_tabs_menu_id);
+        assertNotNull(closeAllTabsItem);
+        assertEquals(R.string.menu_close_all_tabs, closeAllTabsItem.model.get(TITLE_ID));
+
+        mOnItemClickedCallback.onClick(
+                R.id.close_all_tabs_menu_id,
+                new AnchorInfo(TAB_ID, Collections.singletonList(TAB_ID)),
+                COLLABORATION_ID,
+                /* listViewTouchTracker= */ null);
+        verify(mTabRemover)
+                .closeTabs(
+                        TabClosureParams.closeAllTabs()
+                                .hideTabGroups(true)
+                                .tabClosingSource(TabClosingSource.TABLET_TAB_STRIP)
+                                .build(),
+                        /* allowDialog= */ true);
+    }
+
+    @Test
+    @DisableFeatures(ChromeFeatureList.ANDROID_CONTEXT_MENU_NEW_ACTIONS)
+    public void testCloseAllIncognitoTabs() {
+        setupWithIncognito(/* incognito= */ true);
+        initializeCoordinatorForTesting(TabStripLayoutType.HORIZONTAL);
+        var modelList = new ModelList();
+        mTabContextMenuCoordinator.configureMenuItemsForTesting(
+                modelList, new AnchorInfo(TAB_ID, Collections.singletonList(TAB_ID)));
+
+        ListItem closeAllTabsItem =
+                findItemByMenuId(modelList, R.id.close_all_incognito_tabs_menu_id);
+        assertNotNull(closeAllTabsItem);
+        assertEquals(R.string.menu_close_all_incognito_tabs, closeAllTabsItem.model.get(TITLE_ID));
+
+        mOnItemClickedCallback.onClick(
+                R.id.close_all_incognito_tabs_menu_id,
+                new AnchorInfo(TAB_ID, Collections.singletonList(TAB_ID)),
+                COLLABORATION_ID,
+                /* listViewTouchTracker= */ null);
+        verify(mTabRemover)
+                .closeTabs(
+                        TabClosureParams.closeAllTabs()
+                                .hideTabGroups(true)
+                                .tabClosingSource(TabClosingSource.TABLET_TAB_STRIP)
+                                .build(),
+                        /* allowDialog= */ true);
     }
 
     @Test
@@ -3071,121 +2918,9 @@ public class TabContextMenuCoordinatorUnitTest {
         verifyVerticalTabsDirectionalLabels(modelList);
     }
 
-    @Test
-    @Feature("Tab Strip Context Menu")
-    @EnableFeatures(ChromeFeatureList.ANDROID_VERTICAL_TABS)
-    @Config(qualifiers = "sw600dp")
-    public void testListMenuItems_verticalTabs_showsNewBadge() {
-        VerticalTabUtils.setVerticalTabsEnabled(false);
-        ChromeSharedPreferences.getInstance()
-                .writeInt(ChromePreferenceKeys.VERTICAL_TABS_LAYOUT_TOGGLE_VIEW_COUNT, 0);
-
-        initializeCoordinatorForTesting(TabStripLayoutType.HORIZONTAL);
-
-        var modelList = new ModelList();
-        mTabContextMenuCoordinator.configureMenuItemsForTesting(
-                modelList, new AnchorInfo(TAB_ID, Collections.singletonList(TAB_ID)));
-
-        ListItem verticalTabsItem = findItemByMenuId(modelList, R.id.toggle_tab_layout_menu_id);
-        assertNotNull("Toggle layout menu item should be present", verticalTabsItem);
-
-        CharSequence title = verticalTabsItem.model.get(TITLE);
-        assertNotNull("The menu item title should not be null.", title);
-        assertTrue(title.toString().contains(mActivity.getString(R.string.show_tabs_vertically)));
-
-        // Verify the "New" badge spans are actually attached to the title.
-        assertTrue("Title should contain the New badge spans", title instanceof Spannable);
-        Spannable spannableTitle = (Spannable) title;
-        Object[] spans = spannableTitle.getSpans(0, spannableTitle.length(), Object.class);
-        assertTrue("Spannable title should carry badge style spans", spans.length > 0);
-
-        // Verify view count incremented from 0 to 1 upon configuring items.
-        assertEquals(1, VerticalTabUtils.getNewBadgeViewCount());
-    }
-
-    @Test
-    @Feature("Tab Strip Context Menu")
-    @EnableFeatures(ChromeFeatureList.ANDROID_VERTICAL_TABS)
-    @Config(qualifiers = "sw600dp")
-    public void testListMenuItems_verticalTabs_clickDismissesNewBadge() {
-        VerticalTabUtils.setVerticalTabsEnabled(false);
-        ChromeSharedPreferences.getInstance()
-                .writeInt(ChromePreferenceKeys.VERTICAL_TABS_LAYOUT_TOGGLE_VIEW_COUNT, 0);
-
-        initializeCoordinatorForTesting(TabStripLayoutType.HORIZONTAL);
-
-        // Select the toggle layout menu option.
-        mOnItemClickedCallback.onClick(
-                R.id.toggle_tab_layout_menu_id,
-                new AnchorInfo(TAB_ID, Collections.singletonList(TAB_ID)),
-                /* collaborationId= */ null,
-                /* listViewTouchTracker= */ null);
-
-        // Simulate enabling vertical tabs as a result of selecting the option.
-        VerticalTabUtils.setVerticalTabsEnabled(true);
-
-        // Verify view count was set to max count (3), permanently dismissing the badge.
-        assertEquals(
-                VerticalTabUtils.NEW_BADGE_MAX_VIEW_COUNT, VerticalTabUtils.getNewBadgeViewCount());
-    }
-
-    @Test
-    @Feature("Tab Strip Context Menu")
-    @EnableFeatures(ChromeFeatureList.ANDROID_VERTICAL_TABS)
-    @Config(qualifiers = "sw600dp")
-    public void testListMenuItems_verticalTabs_desktopDevice_suppressesNewBadge() {
-        VerticalTabUtils.setVerticalTabsEnabled(false);
-        ChromeSharedPreferences.getInstance()
-                .writeInt(ChromePreferenceKeys.VERTICAL_TABS_LAYOUT_TOGGLE_VIEW_COUNT, 0);
-
-        // Mock device form factor as Desktop.
-        DeviceInfo.setIsDesktopForTesting(true);
-
-        initializeCoordinatorForTesting(TabStripLayoutType.HORIZONTAL);
-
-        var modelList = new ModelList();
-        mTabContextMenuCoordinator.configureMenuItemsForTesting(
-                modelList, new AnchorInfo(TAB_ID, Collections.singletonList(TAB_ID)));
-
-        ListItem verticalTabsItem = findItemByMenuId(modelList, R.id.toggle_tab_layout_menu_id);
-        assertNotNull("Toggle layout menu item should be present", verticalTabsItem);
-
-        CharSequence title = verticalTabsItem.model.get(TITLE);
-        assertNotNull("The menu item title should not be null.", title);
-        assertTrue(title.toString().contains(mActivity.getString(R.string.show_tabs_vertically)));
-
-        // Verify the title is a plain string without the badge span attached.
-        assertFalse("Title should not carry badge spans on desktop", title instanceof Spannable);
-
-        // View count should remain 0 because Desktop suppresses the badge.
-        assertEquals(0, VerticalTabUtils.getNewBadgeViewCount());
-    }
-
     // --------------------------------------------------------------//
     // ----------------------  UTILITY METHODS ----------------------//
     // --------------------------------------------------------------//
-
-    /**
-     * Verifies that a reorder list item with the given string exists in {@code modelList}, clicks
-     * it, and asserts that {@code mReorderFunction} is called with the expected direction.
-     *
-     * @param modelList The menu model list containing the items.
-     * @param expectedTitle The expected string title of the reorder item.
-     * @param expectedAnchorInfo The anchor info expected to be passed to the reorder callback.
-     * @param expectedToStart Whether the click is expected to move the item toward the start (true
-     *     for up, false for down).
-     */
-    private void verifyReorderOption(
-            ModelList modelList,
-            String expectedTitle,
-            AnchorInfo expectedAnchorInfo,
-            boolean expectedToStart) {
-        ListItem item = findItemByTitle(modelList, expectedTitle);
-        assertNotNull("Expected reorder item '" + expectedTitle + "' to be present", item);
-        item.model.get(CLICK_LISTENER).onClick(mView);
-        verify(mReorderFunction, times(1)).accept(refEq(expectedAnchorInfo), eq(expectedToStart));
-        Mockito.clearInvocations((Object) mReorderFunction);
-    }
 
     private void verifyVerticalTabsDirectionalLabels(ModelList modelList) {
         ListItem newTabBelowItem = findItemByMenuId(modelList, R.id.new_tab_to_the_right_menu_id);
@@ -3208,7 +2943,8 @@ public class TabContextMenuCoordinatorUnitTest {
     }
 
     private void prepareVerticalTabsCoordinatorWithTabs() {
-        VerticalTabUtils.setVerticalTabsEnabled(true);
+        ChromeSharedPreferences.getInstance()
+                .writeBoolean(ChromePreferenceKeys.VERTICAL_TABS_ENABLED, true);
 
         initializeCoordinatorForTesting(TabStripLayoutType.VERTICAL);
         mTabModel.addTab(
@@ -3242,7 +2978,6 @@ public class TabContextMenuCoordinatorUnitTest {
                         Activity.class,
                         Mockito.withSettings()
                                 .extraInterfaces(MenuOrKeyboardActionController.class));
-        when(mockMenuActivity.getResources()).thenReturn(mActivity.getResources());
 
         // Pass the mock activity controller here.
         mOnItemClickedCallback =
@@ -3279,11 +3014,7 @@ public class TabContextMenuCoordinatorUnitTest {
         // Find the item dynamically by its ID instead of a hardcoded index.
         ListItem verticalTabsItem = findItemByMenuId(modelList, R.id.toggle_tab_layout_menu_id);
         assertNotNull("Toggle layout menu item should be present", verticalTabsItem);
-
-        CharSequence actualTitle = verticalTabsItem.model.get(TITLE);
-        assertNotNull(actualTitle);
-        assertTrue(actualTitle.toString().contains(mActivity.getString(expectedTitleRes)));
-
+        assertEquals(expectedTitleRes, verticalTabsItem.model.get(TITLE_ID));
         int toggleIndex = modelList.indexOf(verticalTabsItem);
         assertEquals(ListItemType.DIVIDER, modelList.get(toggleIndex + 1).type);
 

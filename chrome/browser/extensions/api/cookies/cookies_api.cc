@@ -28,7 +28,6 @@
 #include "extensions/browser/event_router.h"
 #include "extensions/browser/extension_api_frame_id_map.h"
 #include "extensions/browser/extensions_browser_client.h"
-#include "extensions/common/constants.h"
 #include "extensions/common/error_utils.h"
 #include "extensions/common/extension.h"
 #include "extensions/common/permissions/permissions_data.h"
@@ -75,16 +74,9 @@ constexpr char kNoHostPermissionsError[] =
 bool CheckHostPermissions(const Extension* extension,
                           const GURL& url,
                           std::string* error) {
-  // Cookie operations are profile-scoped and not tied to a specific tab
-  // context so we pass kUnknownTabId to check page access without considering
-  // tab-specific grants.
-  if (extension->permissions_data()->GetPageAccess(
-          url, extension_misc::kUnknownTabId, /*error=*/nullptr) !=
-      PermissionsData::PageAccess::kAllowed) {
-    if (error) {
-      *error =
-          ErrorUtils::FormatErrorMessage(kNoHostPermissionsError, url.spec());
-    }
+  if (!extension->permissions_data()->HasHostPermission(url)) {
+    *error =
+        ErrorUtils::FormatErrorMessage(kNoHostPermissionsError, url.spec());
     return false;
   }
   return true;

@@ -148,10 +148,9 @@ void ClearProfileWithManagedAccounts(Profile* profile) {
 #endif
 
 std::string GetAccountPictureUrl(const AccountInfo& account_info) {
-  std::optional<gfx::Image> avatar_image = account_info.GetAvatarImage();
-  return avatar_image.has_value()
-             ? webui::GetBitmapDataUrl(avatar_image->AsBitmap())
-             : std::string(profiles::GetPlaceholderAvatarIconUrl());
+  return account_info.account_image.IsEmpty()
+             ? std::string(profiles::GetPlaceholderAvatarIconUrl())
+             : webui::GetBitmapDataUrl(account_info.account_image.AsBitmap());
 }
 
 }  // namespace signin

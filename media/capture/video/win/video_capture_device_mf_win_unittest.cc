@@ -69,7 +69,8 @@ constexpr GUID GUID_MEDIA_TYPE_INDEX = {
 class MockClient : public VideoCaptureDevice::Client {
  public:
   void OnCaptureConfigurationChanged() override {}
-  void OnIncomingCapturedData(base::span<const uint8_t> data,
+  void OnIncomingCapturedData(const uint8_t* data,
+                              int length,
                               const VideoCaptureFormat& frame_format,
                               const gfx::ColorSpace& color_space,
                               int clockwise_rotation,
@@ -108,6 +109,14 @@ class MockClient : public VideoCaptureDevice::Client {
                              int*,
                              int*));
 
+  void OnIncomingCapturedBuffer(
+      Buffer buffer,
+      const VideoCaptureFormat& format,
+      base::TimeTicks reference_,
+      base::TimeDelta timestamp,
+      std::optional<base::TimeTicks> capture_begin_time,
+      const std::optional<VideoFrameMetadata>& metadata) override {}
+
   MOCK_METHOD8(OnIncomingCapturedBufferExt,
                void(Buffer,
                     const VideoCaptureFormat&,
@@ -128,7 +137,6 @@ class MockClient : public VideoCaptureDevice::Client {
   double GetBufferPoolUtilization() const override { return 0.0; }
 
   MOCK_METHOD0(OnStarted, void());
-  MOCK_METHOD0(InvalidateBuffers, void());
 };
 
 class MockImageCaptureClient

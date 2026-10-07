@@ -21,7 +21,6 @@
 #import "base/sequence_checker.h"
 #import "components/metrics/file_metrics_provider.h"
 #import "components/metrics/metrics_log_uploader.h"
-#import "components/metrics/metrics_reporting_choice_service.h"
 #import "components/metrics/metrics_service_client.h"
 #import "components/metrics/persistent_synthetic_trial_observer.h"
 #import "components/omnibox/browser/omnibox_event_global_tracker.h"
@@ -66,15 +65,13 @@ class PumaService;
 
 // IOSChromeMetricsServiceClient provides an implementation of
 // MetricsServiceClient that depends on //ios/chrome/.
-class IOSChromeMetricsServiceClient
-    : public metrics::MetricsServiceClient,
-      public metrics::MetricsReportingChoiceService,
-      public ukm::HistoryDeleteObserver,
-      public ukm::UkmConsentStateObserver,
-      public ProfileManagerObserverIOS,
-      public BrowserListObserver,
-      public WebStateListObserver,
-      public web::WebStateObserver {
+class IOSChromeMetricsServiceClient : public metrics::MetricsServiceClient,
+                                      public ukm::HistoryDeleteObserver,
+                                      public ukm::UkmConsentStateObserver,
+                                      public ProfileManagerObserverIOS,
+                                      public BrowserListObserver,
+                                      public WebStateListObserver,
+                                      public web::WebStateObserver {
  public:
   IOSChromeMetricsServiceClient(const IOSChromeMetricsServiceClient&) = delete;
   IOSChromeMetricsServiceClient& operator=(
@@ -165,15 +162,7 @@ class IOSChromeMetricsServiceClient
   static metrics::FileMetricsProvider::FilterAction FilterBrowserMetricsFiles(
       const base::FilePath& path);
 
- protected:
-  // metrics::MetricsReportingChoiceService:
-  void OnAdvancedReportingEnabledForAllProfilesChanged(
-      bool enabled,
-      bool reset_client_state) override;
-
  private:
-  friend class IOSChromeMetricsServiceClientTest;
-
   explicit IOSChromeMetricsServiceClient(
       metrics::MetricsStateManager* state_manager,
       variations::SyntheticTrialRegistry* synthetic_trial_registry);

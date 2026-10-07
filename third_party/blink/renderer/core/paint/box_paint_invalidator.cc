@@ -4,9 +4,8 @@
 
 #include "third_party/blink/renderer/core/paint/box_paint_invalidator.h"
 
-#include <ranges>
-
 #include "base/memory/values_equivalent.h"
+#include "base/types/zip.h"
 #include "third_party/blink/renderer/core/frame/settings.h"
 #include "third_party/blink/renderer/core/layout/gap/gap_geometry.h"
 #include "third_party/blink/renderer/core/layout/ink_overflow.h"
@@ -17,6 +16,7 @@
 #include "third_party/blink/renderer/core/paint/paint_invalidator.h"
 #include "third_party/blink/renderer/core/paint/paint_layer.h"
 #include "third_party/blink/renderer/core/paint/paint_layer_scrollable_area.h"
+#include "third_party/blink/renderer/platform/runtime_enabled_features.h"
 
 namespace blink {
 
@@ -465,6 +465,9 @@ bool BoxPaintInvalidator::NeedsToSavePreviousOverflowData() {
 }
 
 bool BoxPaintInvalidator::NeedsToSavePreviousGapGeometries() {
+  if (!RuntimeEnabledFeatures::CSSGapDecorationEnabled()) {
+    return false;
+  }
   if (!box_.StyleRef().IsGapDecorationsContainer() ||
       !box_.StyleRef().HasGapRule()) {
     return false;
@@ -478,6 +481,9 @@ bool BoxPaintInvalidator::NeedsToSavePreviousGapGeometries() {
 }
 
 bool BoxPaintInvalidator::ShouldInvalidateGapDecorations() const {
+  if (!RuntimeEnabledFeatures::CSSGapDecorationEnabled()) {
+    return false;
+  }
   if (!box_.StyleRef().IsGapDecorationsContainer() ||
       !box_.StyleRef().HasGapRule()) {
     return false;
@@ -500,7 +506,7 @@ bool BoxPaintInvalidator::ShouldInvalidateGapDecorations() const {
   }
   auto fragments = box_.PhysicalFragments();
   for (const auto [previous_geometry, fragment] :
-       std::views::zip(*previous, fragments)) {
+       base::zip(*previous, fragments)) {
     if (!base::ValuesEquivalent(previous_geometry.Get(),
                                 fragment.GetGapGeometry())) {
       return true;

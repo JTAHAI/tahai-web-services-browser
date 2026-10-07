@@ -9,19 +9,26 @@ import type {CrIconButtonElement} from '//resources/cr_elements/cr_icon_button/c
 import {ToolbarEvent} from 'chrome-untrusted://read-anything-side-panel.top-chrome/read_anything.js';
 import type {ReadAnythingToolbarElement} from 'chrome-untrusted://read-anything-side-panel.top-chrome/read_anything.js';
 import {assertEquals, assertFalse, assertGT, assertTrue} from 'chrome-untrusted://webui-test/chai_assert.js';
-import {eventToPromise, microtasksFinished} from 'chrome-untrusted://webui-test/test_util.js';
+import {microtasksFinished} from 'chrome-untrusted://webui-test/test_util.js';
 
-import {setupTestEnvironment} from './common.js';
-import type {TestVisualBrowserProxy} from './test_visual_browser_proxy.js';
+import {stubAnimationFrame} from './common.js';
+import {FakeReadingMode} from './fake_reading_mode.js';
 
 suite('FontSize', () => {
   let toolbar: ReadAnythingToolbarElement;
   let menuButton: CrIconButtonElement|null;
-  let visualBrowserProxy: TestVisualBrowserProxy;
+  let fontSizeEmitted: boolean;
+
 
   setup(async () => {
-    const result = setupTestEnvironment();
-    visualBrowserProxy = result.visualBrowserProxy;
+    // Clearing the DOM should always be done first.
+    document.body.innerHTML = window.trustedTypes!.emptyHTML;
+    const readingMode = new FakeReadingMode();
+    chrome.readingMode = readingMode as unknown as typeof chrome.readingMode;
+
+    fontSizeEmitted = false;
+    document.addEventListener(
+        ToolbarEvent.FONT_SIZE, () => fontSizeEmitted = true);
 
     toolbar = document.createElement('read-anything-toolbar');
     document.body.appendChild(toolbar);
@@ -49,38 +56,41 @@ suite('FontSize', () => {
     return getAnnouncementBlock(blockId).querySelectorAll('p').length;
   }
 
-  function clickIncrease(): void {
+  test('is dropdown menu', async () => {
+    stubAnimationFrame();
+
+    menuButton!.click();
+    await microtasksFinished();
+
+    assertTrue(toolbar.$.fontSizeMenu.get().open);
+  });
+
+  test('increase clicked increases container font size', () => {
+    const startingFontSize = chrome.readingMode.fontSize;
+
     toolbar.$.fontSizeMenu.get()
         .querySelector<CrIconButtonElement>('#font-size-increase')!.click();
-  }
 
-  function clickDecrease(): void {
-    toolbar.$.fontSizeMenu.get()
-        .querySelector<CrIconButtonElement>('#font-size-decrease')!.click();
-  }
-
-  test('increase clicked fires events', async () => {
-    const whenFired = eventToPromise(ToolbarEvent.FONT_SIZE, toolbar);
-
-    clickIncrease();
-
-    await whenFired;
-    assertTrue(await visualBrowserProxy.whenCalled('onFontSizeChanged'));
+    assertGT(chrome.readingMode.fontSize, startingFontSize);
+    assertTrue(fontSizeEmitted);
   });
 
   test('increase clicked changes aria-live region', () => {
-    clickIncrease();
+    toolbar.$.fontSizeMenu.get()
+        .querySelector<CrIconButtonElement>('#font-size-increase')!.click();
     assertEquals(
         'Font size increased', getAnnouncementBlockText('#size-announce'));
   });
 
-  test('decrease clicked first events', async () => {
-    const whenFired = eventToPromise(ToolbarEvent.FONT_SIZE, toolbar);
 
-    clickDecrease();
+  test('decrease clicked decreases container font size', () => {
+    const startingFontSize = chrome.readingMode.fontSize;
 
-    await whenFired;
-    assertFalse(await visualBrowserProxy.whenCalled('onFontSizeChanged'));
+    toolbar.$.fontSizeMenu.get()
+        .querySelector<CrIconButtonElement>('#font-size-decrease')!.click();
+
+    assertGT(startingFontSize, chrome.readingMode.fontSize);
+    assertTrue(fontSizeEmitted);
   });
 
   test('aria-live region is not visible', () => {
@@ -90,7 +100,8 @@ suite('FontSize', () => {
     assertGT(2, width);
     assertGT(2, height);
 
-    clickDecrease();
+    toolbar.$.fontSizeMenu.get()
+        .querySelector<CrIconButtonElement>('#font-size-decrease')!.click();
 
     announceBlock = getAnnouncementBlock('#size-announce');
     assertEquals(1, announceBlock.querySelectorAll('p').length);
@@ -101,31 +112,39 @@ suite('FontSize', () => {
   });
 
   test('font size clicked keeps adding to aria-live region', () => {
-    clickIncrease();
+    toolbar.$.fontSizeMenu.get()
+        .querySelector<CrIconButtonElement>('#font-size-increase')!.click();
     assertEquals(1, getAnnouncementBlockNumParagraphs('#size-announce'));
 
-    clickDecrease();
+    toolbar.$.fontSizeMenu.get()
+        .querySelector<CrIconButtonElement>('#font-size-decrease')!.click();
     assertEquals(2, getAnnouncementBlockNumParagraphs('#size-announce'));
 
-    clickDecrease();
+    toolbar.$.fontSizeMenu.get()
+        .querySelector<CrIconButtonElement>('#font-size-decrease')!.click();
     assertEquals(3, getAnnouncementBlockNumParagraphs('#size-announce'));
 
-    clickDecrease();
+    toolbar.$.fontSizeMenu.get()
+        .querySelector<CrIconButtonElement>('#font-size-decrease')!.click();
     assertEquals(4, getAnnouncementBlockNumParagraphs('#size-announce'));
 
-    clickDecrease();
+    toolbar.$.fontSizeMenu.get()
+        .querySelector<CrIconButtonElement>('#font-size-decrease')!.click();
     assertEquals(5, getAnnouncementBlockNumParagraphs('#size-announce'));
 
-    clickDecrease();
+    toolbar.$.fontSizeMenu.get()
+        .querySelector<CrIconButtonElement>('#font-size-decrease')!.click();
     // After 6 calls to increase size, the div will be cleared.
     assertEquals(0, getAnnouncementBlockNumParagraphs('#size-announce'));
 
-    clickDecrease();
+    toolbar.$.fontSizeMenu.get()
+        .querySelector<CrIconButtonElement>('#font-size-decrease')!.click();
     assertEquals(1, getAnnouncementBlockNumParagraphs('#size-announce'));
   });
 
   test(' decrease clicked changes aria-live region', () => {
-    clickDecrease();
+    toolbar.$.fontSizeMenu.get()
+        .querySelector<CrIconButtonElement>('#font-size-decrease')!.click();
     assertEquals(
         toolbar.$.toolbarContainer.querySelector('#size-announce')
             ?.querySelector('p')
@@ -133,24 +152,27 @@ suite('FontSize', () => {
         'Font size decreased');
   });
 
-  test('reset clicked returns font size to starting size', async () => {
-    clickIncrease();
-    assertTrue(await visualBrowserProxy.whenCalled('onFontSizeChanged'));
-    visualBrowserProxy.reset();
-    clickIncrease();
-    assertTrue(await visualBrowserProxy.whenCalled('onFontSizeChanged'));
+  test('reset clicked returns font size to starting size', () => {
+    const startingFontSize = chrome.readingMode.fontSize;
 
-    const whenFired = eventToPromise(ToolbarEvent.FONT_SIZE, toolbar);
     toolbar.$.fontSizeMenu.get()
-        .querySelector<CrButtonElement>('#font-size-reset')!.click();
-    await whenFired;
+        .querySelector<CrIconButtonElement>('#font-size-increase')!.click();
+    toolbar.$.fontSizeMenu.get()
+        .querySelector<CrIconButtonElement>('#font-size-increase')!.click();
+    assertGT(chrome.readingMode.fontSize, startingFontSize);
 
-    assertEquals(1, visualBrowserProxy.getCallCount('onFontSizeReset'));
+    toolbar.$.fontSizeMenu.get()
+        .querySelector<CrIconButtonElement>('#font-size-reset')!.click();
+    assertEquals(startingFontSize, chrome.readingMode.fontSize);
+    assertTrue(fontSizeEmitted);
   });
 
   test(
       'reset button disabled state updates based on default font size',
       async () => {
+        // Ensure the mock starts at the production default font size (2.0)
+        chrome.readingMode.fontSize = 2.0;
+
         // Force a re-render of the toolbar element
         toolbar.requestUpdate();
         await microtasksFinished();
@@ -159,30 +181,45 @@ suite('FontSize', () => {
         menuButton!.click();
         await microtasksFinished();
 
+        // Locate the font reset button inside the toolbar shadow root menu
         const resetButton =
             toolbar.$.fontSizeMenu.get().querySelector<CrButtonElement>(
                 '#font-size-reset')!;
         assertTrue(!!resetButton, 'Reset button should be present in DOM');
 
         // Assertion: Reset button must be disabled initially because font
-        // size is at its default value
+        // size is at its default value (2.0)
         assertTrue(
             resetButton.disabled,
             'Reset button should be disabled at default font size');
 
-        clickIncrease();
-        await visualBrowserProxy.whenCalled('onFontSizeChanged');
-        visualBrowserProxy.fontSize++;
+        // Interaction: Increase the font size to 3.0
+        const increaseButton =
+            toolbar.$.fontSizeMenu.get().querySelector<CrIconButtonElement>(
+                '#font-size-increase')!;
+        increaseButton.click();
         await microtasksFinished();
+
+        // Assertion: Font size increased; the reset button should now be
+        // enabled
+        assertEquals(chrome.readingMode.fontSize, 3.0);
         assertFalse(
             resetButton.disabled,
             'Reset button should be enabled when font size changes');
 
+        // Override mock's reset action to restore 2.0 (mimicking production
+        // C++ model reset logic)
+        chrome.readingMode.onFontSizeReset = () => {
+          chrome.readingMode.fontSize = 2.0;
+        };
+
         // Interaction: Click the reset button to revert to default font size
         resetButton.click();
-        await visualBrowserProxy.whenCalled('onFontSizeReset');
-        visualBrowserProxy.fontSize = visualBrowserProxy.defaultFontSize;
         await microtasksFinished();
+
+        // Assertion: Font size returned to 2.0; the reset button must be
+        // disabled again
+        assertEquals(chrome.readingMode.fontSize, 2.0);
         assertTrue(
             resetButton.disabled,
             'Reset button should become disabled after resetting font size');

@@ -22,9 +22,9 @@ constexpr char kReportOnlyHeaderName[] =
 
 std::pair<mojom::DocumentIsolationPolicyValue, std::optional<std::string>>
 Parse(std::string_view header_value) {
-  auto item = net::structured_headers::ParseItem(header_value);
-  const std::string* token = item ? item->item.GetIfToken() : nullptr;
-  if (!token) {
+  using Item = net::structured_headers::Item;
+  const auto item = net::structured_headers::ParseItem(header_value);
+  if (!item || item->item.Type() != net::structured_headers::Item::kTokenType) {
     return {
         mojom::DocumentIsolationPolicyValue::kNone,
         std::nullopt,
@@ -32,20 +32,20 @@ Parse(std::string_view header_value) {
   }
 
   std::optional<std::string> endpoint;
-  for (auto& [key, value] : item->params) {
-    if (std::string* str = value.GetIfString(); key == "report-to" && str) {
-      endpoint = std::move(*str);
+  for (const auto& it : item->params) {
+    if (it.first == "report-to" && it.second.Type() == Item::kStringType) {
+      endpoint = it.second.GetString();
     }
   }
 
-  if (*token == "isolate-and-require-corp") {
+  if (item->item.GetString() == "isolate-and-require-corp") {
     return {
         mojom::DocumentIsolationPolicyValue::kIsolateAndRequireCorp,
         std::move(endpoint),
     };
   }
 
-  if (*token == "isolate-and-credentialless") {
+  if (item->item.GetString() == "isolate-and-credentialless") {
     return {
         mojom::DocumentIsolationPolicyValue::kIsolateAndCredentialless,
         std::move(endpoint),

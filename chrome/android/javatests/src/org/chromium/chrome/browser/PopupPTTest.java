@@ -46,6 +46,9 @@ public class PopupPTTest {
     public AutoResetCtaTransitTestRule mCtaTestRule =
             ChromeTransitTestRules.fastAutoResetCtaActivityRule();
 
+    private static final String METADATA_FOR_ABUSIVE_ENFORCEMENT =
+            "{\"matches\":[{\"threat_type\":\"13\",\"sf_absv\":\"\"}]}";
+
     private WebPageStation mEntryPage;
 
     @BeforeClass

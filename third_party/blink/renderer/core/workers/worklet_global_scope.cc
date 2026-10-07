@@ -322,7 +322,7 @@ void WorkletGlobalScope::FetchAndInvokeScript(
   // Step 3 to 5 are implemented in
   // WorkletModuleTreeClient::NotifyModuleTreeLoadFinished.
   auto* client = MakeGarbageCollected<WorkletModuleTreeClient>(
-      ScriptController()->GetScriptState(), module_url_record,
+      ScriptController()->GetScriptState(),
       std::move(outside_settings_task_runner), pending_tasks);
 
   auto request_context_type = mojom::blink::RequestContextType::SCRIPT;

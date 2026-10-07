@@ -597,8 +597,7 @@ TEST_F(TabLifecycleUnitSourceTest, DiscardWebContents) {
       CreateTestWebContents();
   content::WebContents* raw_new_web_contents = new_web_contents.get();
   std::unique_ptr<content::WebContents> original_web_contents_deleter =
-      tab_strip_model_->DiscardWebContents(original_web_contents,
-                                           std::move(new_web_contents));
+      tab_strip_model_->DiscardWebContentsAt(1, std::move(new_web_contents));
   EXPECT_EQ(original_web_contents, original_web_contents_deleter.get());
   EXPECT_FALSE(source_->GetTabLifecycleUnitExternal(original_web_contents));
   EXPECT_EQ(tab_lifecycle_unit_external,
@@ -680,7 +679,7 @@ TEST_F(TabLifecycleUnitSourceTest, UpdateMemorySavingsOnMultipleDiscards) {
           tab_strip_model_->GetWebContentsAt(1));
   EXPECT_NE(pre_discard_resource_usage, nullptr);
   EXPECT_EQ(pre_discard_resource_usage->memory_footprint_estimate(),
-            base::KiB(100));
+            base::KiBU(100));
 
   // Navigate the tab so that it is no longer discarded.
   EXPECT_CALL(tab_observer_, MockOnLifecycleUnitStateChanged(
@@ -705,7 +704,7 @@ TEST_F(TabLifecycleUnitSourceTest, UpdateMemorySavingsOnMultipleDiscards) {
       tab_strip_model_->GetWebContentsAt(1));
   EXPECT_NE(pre_discard_resource_usage, nullptr);
   EXPECT_EQ(pre_discard_resource_usage->memory_footprint_estimate(),
-            base::KiB(500));
+            base::KiBU(500));
   ::testing::Mock::VerifyAndClear(&tab_observer_);
 
   // Expect notifications when tabs are closed.
@@ -782,9 +781,6 @@ TEST_F(TabLifecycleUnitSourceTest, Freeze) {
   LifecycleUnit* second_lifecycle_unit = nullptr;
   CreateTwoTabs(/*focus_tab_strip=*/true, &first_lifecycle_unit,
                 &second_lifecycle_unit);
-  content::WebContents* second_web_contents =
-      second_lifecycle_unit->AsTabLifecycleUnitExternal()->GetWebContents();
-  EXPECT_FALSE(ResourceCoordinatorTabHelper::IsFrozen(second_web_contents));
 
   // Pretend that the tab is frozen. The observer should be notified and the
   // `LifecyleState` should become `FROZEN`.
@@ -792,10 +788,10 @@ TEST_F(TabLifecycleUnitSourceTest, Freeze) {
                                  _, ::mojom::LifecycleUnitState::ACTIVE,
                                  ::mojom::LifecycleUnitState::FROZEN, _));
   TabLifecycleUnitSource::OnLifecycleStateChanged(
-      second_web_contents, performance_manager::mojom::LifecycleState::kFrozen);
+      second_lifecycle_unit->AsTabLifecycleUnitExternal()->GetWebContents(),
+      performance_manager::mojom::LifecycleState::kFrozen);
   EXPECT_EQ(second_lifecycle_unit->GetState(),
             ::mojom::LifecycleUnitState::FROZEN);
-  EXPECT_TRUE(ResourceCoordinatorTabHelper::IsFrozen(second_web_contents));
 }
 
 }  // namespace resource_coordinator

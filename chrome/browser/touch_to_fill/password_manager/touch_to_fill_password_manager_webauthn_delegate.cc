@@ -82,13 +82,16 @@ void TouchToFillPasswordManagerWebAuthnDelegate::OnCredManDismissed(
   std::move(action_completed).Run();
 }
 
-GURL TouchToFillPasswordManagerWebAuthnDelegate::GetFrameUrl() const {
-  return credential_receiver_ ? credential_receiver_->GetFrameUrl() : GURL();
+GURL TouchToFillPasswordManagerWebAuthnDelegate::GetFrameUrl() {
+  return credential_receiver_->web_contents()->GetLastCommittedURL();
 }
 
-url::Origin TouchToFillPasswordManagerWebAuthnDelegate::GetFrameOrigin() const {
-  return credential_receiver_ ? credential_receiver_->GetFrameOrigin()
-                              : url::Origin();
+url::Origin TouchToFillPasswordManagerWebAuthnDelegate::GetFrameOrigin() {
+  return credential_receiver_->web_contents()
+             ? credential_receiver_->web_contents()
+                   ->GetPrimaryMainFrame()
+                   ->GetLastCommittedOrigin()
+             : url::Origin();
 }
 
 bool TouchToFillPasswordManagerWebAuthnDelegate::ShouldShowTouchToFill() {

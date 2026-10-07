@@ -34,8 +34,9 @@ namespace compiler {
 namespace cpp {
 
 ExtensionGenerator::ExtensionGenerator(const FieldDescriptor* descriptor,
-                                       const Options& options)
-    : descriptor_(descriptor), options_(options) {
+                                       const Options& options,
+                                       MessageSCCAnalyzer* scc_analyzer)
+    : descriptor_(descriptor), options_(options), scc_analyzer_(scc_analyzer) {
   // Construct type_traits_.
   if (descriptor_->is_repeated()) {
     type_traits_ = "Repeated";
@@ -100,102 +101,118 @@ bool ExtensionGenerator::IsScoped() const {
   return descriptor_->extension_scope() != nullptr;
 }
 
-void ExtensionGenerator::GenerateFeatureDefaults(io::Printer* p) const {
-  auto var = p->WithVars(variables_);
-  auto annotate = p->WithAnnotations({{"name", descriptor_}});
-  if (descriptor_->message_type() == nullptr) return;
-  absl::string_view extendee = descriptor_->containing_type()->full_name();
-  if (extendee != "google.protobuf.FeatureSet") return;
-
-  absl::StatusOr<FeatureSetDefaults> defaults =
-      FeatureResolver::CompileDefaults(descriptor_->containing_type(),
-                                       {descriptor_}, ProtocMinimumEdition(),
-                                       MaximumKnownEdition());
-  if (!defaults.ok()) {
-    return;
-  }
-  p->Emit({{"defaults", absl::Base64Escape(defaults->SerializeAsString())},
-           {"extension_type", ClassName(descriptor_->message_type(), true)},
-           {"function_name", "GetFeatureSetDefaultsData"}},
-          R"cc(
-            namespace internal {
-            template <>
-            inline ::absl::string_view $function_name$<$extension_type$>() {
-              static constexpr char kDefaults[] = "$defaults$";
-              return kDefaults;
-            }
-            }  // namespace internal
-          )cc");
+namespace {
+bool ShouldGenerateFeatureSetDefaultData(absl::string_view extension) {
+  return extension == "pb.java" || extension == "pb.java_mutable" ||
+         extension == "pb.test" || extension == "pb.proto1";
 }
+}  // namespace
 
 void ExtensionGenerator::GenerateDeclaration(io::Printer* p) const {
   auto var = p->WithVars(variables_);
-  auto annotate = p->WithAnnotations(
-      {{"name", descriptor_}, {"constant_name", descriptor_}});
+  auto annotate = p->WithAnnotations({{"name", descriptor_}});
   p->Emit(
-      {
-          {"constant_qualifier",
-           // If this is a class member, it needs to be declared
-           //   `static constexpr`.
-           // Otherwise, it will be
-           //   `inline constexpr`.
-           IsScoped() ? "static" : ""},
-          {"id_qualifier",
-           // If this is a class member, it needs to be declared "static".
-           // Otherwise, it needs to be "extern".  In the latter case, it
-           // also needs the DLL export/import specifier.
-           IsScoped() ? "static"
-           : options_.dllexport_decl.empty()
-               ? "extern"
-               : absl::StrCat(options_.dllexport_decl, " extern")},
-      },
+      {{"constant_qualifier",
+        // If this is a class member, it needs to be declared
+        //   `static constexpr`.
+        // Otherwise, it will be
+        //   `inline constexpr`.
+        IsScoped() ? "static" : ""},
+       {"id_qualifier",
+        // If this is a class member, it needs to be declared "static".
+        // Otherwise, it needs to be "extern".  In the latter case, it
+        // also needs the DLL export/import specifier.
+        IsScoped() ? "static"
+        : options_.dllexport_decl.empty()
+            ? "extern"
+            : absl::StrCat(options_.dllexport_decl, " extern")},
+       {"feature_set_defaults",
+        [&] {
+          if (!ShouldGenerateFeatureSetDefaultData(descriptor_->full_name())) {
+            return;
+          }
+          if (descriptor_->message_type() == nullptr) return;
+          absl::string_view extendee =
+              descriptor_->containing_type()->full_name();
+          if (extendee != "google.protobuf.FeatureSet") return;
+
+          std::vector<const FieldDescriptor*> extensions = {descriptor_};
+          absl::StatusOr<FeatureSetDefaults> defaults =
+              FeatureResolver::CompileDefaults(
+                  descriptor_->containing_type(), extensions,
+                  ProtocMinimumEdition(), MaximumKnownEdition());
+          ABSL_CHECK_OK(defaults);
+          p->Emit(
+              {{"defaults", absl::Base64Escape(defaults->SerializeAsString())},
+               {"extension_type", ClassName(descriptor_->message_type(), true)},
+               {"function_name", "GetFeatureSetDefaultsData"}},
+              R"cc(
+                namespace internal {
+                template <>
+                inline ::absl::string_view $function_name$<$extension_type$>() {
+                  static constexpr char kDefaults[] = "$defaults$";
+                  return kDefaults;
+                }
+                }  // namespace internal
+              )cc");
+        }}},
       R"cc(
         inline $constant_qualifier $constexpr int $constant_name$ = $number$;
         $id_qualifier$ $pbi$::ExtensionIdentifier<
-            $extendee$, $pbi$::$type_traits$, $field_type$, $packed$>($name$);
+            $extendee$, $pbi$::$type_traits$, $field_type$, $packed$>
+            $name$;
+        $feature_set_defaults$;
       )cc");
 }
 
 void ExtensionGenerator::GenerateDefinition(io::Printer* p) {
   auto vars = p->WithVars(variables_);
-  if (descriptor_->cpp_type() == FieldDescriptor::CPPTYPE_STRING) {
-    // We need to declare a global string which will contain the default
-    // value. We cannot declare it at class scope because that would require
-    // exposing it in the header which would be annoying for other reasons. So
-    // we replace :: with _ in the name and declare it as a global.
-    p->Emit({{"default_str",
-              absl::StrReplaceAll(variables_["scoped_name"], {{"::", "_"}}) +
-                  "_default"},
-             {"default_val", DefaultValue(options_, descriptor_)}},
-            // If this is a class member, it needs to be declared in its class
-            // scope.
-            R"cc(
-              const std::string $default_str$($default_val$);
-              PROTOBUF_CONSTINIT$ dllexport_decl$
-                  PROTOBUF_ATTRIBUTE_INIT_PRIORITY2 ::_pbi::ExtensionIdentifier<
-                      $extendee$, ::_pbi::$type_traits$, $field_type$, $packed$>
-                      $scoped_name$($constant_name$, $default_str$);
-            )cc");
-  } else if (descriptor_->message_type()) {
-    // We have to initialize the default instance for extensions at
-    // registration time.
-    p->Emit({{"globals_name", QualifiedMsgGlobalsInstanceName(
-                                  descriptor_->message_type(), options_)}},
-            R"cc(
-              PROTOBUF_CONSTINIT$ dllexport_decl$
-                  PROTOBUF_ATTRIBUTE_INIT_PRIORITY2 ::_pbi::ExtensionIdentifier<
-                      $extendee$, ::_pbi::$type_traits$, $field_type$, $packed$>
-                      $scoped_name$($constant_name$, &$globals_name$);
-            )cc");
-  } else {
-    p->Emit({{"default_val", DefaultValue(options_, descriptor_)}},
-            R"cc(
-              PROTOBUF_CONSTINIT$ dllexport_decl$
-                  PROTOBUF_ATTRIBUTE_INIT_PRIORITY2 ::_pbi::ExtensionIdentifier<
-                      $extendee$, ::_pbi::$type_traits$, $field_type$, $packed$>
-                      $scoped_name$($constant_name$, $default_val$);
-            )cc");
-  }
+  auto generate_default_string = [&] {
+    if (descriptor_->cpp_type() == FieldDescriptor::CPPTYPE_STRING) {
+      // We need to declare a global string which will contain the default
+      // value. We cannot declare it at class scope because that would require
+      // exposing it in the header which would be annoying for other reasons. So
+      // we replace :: with _ in the name and declare it as a global.
+      return absl::StrReplaceAll(variables_["scoped_name"], {{"::", "_"}}) +
+             "_default";
+    } else if (descriptor_->message_type()) {
+      // We have to initialize the default instance for extensions at
+      // registration time.
+      return absl::StrCat("&", QualifiedDefaultInstanceName(
+                                   descriptor_->message_type(), options_));
+    } else {
+      return DefaultValue(options_, descriptor_);
+    }
+  };
+
+  auto local_var = p->WithVars({
+      {"default_str", generate_default_string()},
+      {"default_val", DefaultValue(options_, descriptor_)},
+      {"message_type", descriptor_->message_type() != nullptr
+                           ? FieldMessageTypeName(descriptor_, options_)
+                           : ""},
+  });
+  p->Emit(
+      {
+          {"declare_default_str",
+           [&] {
+             if (descriptor_->cpp_type() != FieldDescriptor::CPPTYPE_STRING)
+               return;
+
+             // If this is a class member, it needs to be declared in its class
+             // scope.
+             p->Emit(R"cc(
+               const std::string $default_str$($default_val$);
+             )cc");
+           }},
+      },
+      R"cc(
+        $declare_default_str$;
+        PROTOBUF_CONSTINIT$ dllexport_decl$
+            PROTOBUF_ATTRIBUTE_INIT_PRIORITY2 ::_pbi::ExtensionIdentifier<
+                $extendee$, ::_pbi::$type_traits$, $field_type$, $packed$>
+                $scoped_name$($constant_name$, $default_str$);
+      )cc");
 }
 
 bool ExtensionGenerator::WillGenerateRegistration(InitPriority priority) {
@@ -228,9 +245,6 @@ void ExtensionGenerator::GenerateRegistration(io::Printer* p,
        DescriptorTableName(descriptor_->containing_type()->file(), options_)},
       {"extendee_index", find_index(descriptor_->containing_type())},
       {"preregister", priority == kInitPriority101},
-      {"is_utf8", descriptor_->requires_utf8_validation()
-                      ? "/*is_utf8=*/true"
-                      : "/*is_utf8=*/false"},
   }});
   switch (descriptor_->cpp_type()) {
     case FieldDescriptor::CPPTYPE_ENUM:
@@ -261,13 +275,19 @@ void ExtensionGenerator::GenerateRegistration(io::Printer* p,
           // Only verify msgs.
           descriptor_->cpp_type() == FieldDescriptor::CPPTYPE_MESSAGE &&
           // Options say to verify.
-          ShouldVerify(descriptor_->message_type(), options_) &&
-          ShouldVerify(descriptor_->containing_type(), options_);
+          ShouldVerify(descriptor_->message_type(), options_, scc_analyzer_) &&
+          ShouldVerify(descriptor_->containing_type(), options_, scc_analyzer_);
+      const bool should_verify_v2 =
+          should_verify &&
+          ShouldVerifyV2(descriptor_->message_type(), options_, scc_analyzer_);
       const auto message_type = FieldMessageTypeName(descriptor_, options_);
       auto v = p->WithVars(
           {{"verify", should_verify
                           ? absl::StrCat("&", message_type, "::InternalVerify")
                           : "nullptr"},
+           {"verify_v2", should_verify_v2 ? absl::StrCat("&", message_type,
+                                                         "::InternalVerifyV2")
+                                          : "nullptr"},
            {"message_type", message_type},
            {"lazy", "kUndefined"}});
       if (using_implicit_weak_descriptors) {
@@ -291,6 +311,7 @@ void ExtensionGenerator::GenerateRegistration(io::Printer* p,
                        : (void)0),
                 )cc");
       } else if (priority == kInitPriority102) {
+        ABSL_DCHECK(!should_verify_v2);
         p->Emit({{"verify_funcs", [&] { EmitVerifyFuncArgs(p, options_); }}},
                 R"cc(
                   ::_pbi::ExtensionSet::RegisterMessageExtension(
@@ -318,7 +339,7 @@ void ExtensionGenerator::GenerateRegistration(io::Printer* p,
             R"cc(
               ::_pbi::ExtensionSet::RegisterExtension(
                   &$extendee$::default_instance(), $number$, $field_type$,
-                  $repeated$, $packed$, $is_utf8$),
+                  $repeated$, $packed$),
             )cc");
       }
 

@@ -60,8 +60,7 @@ class CORE_EXPORT DOMViewTransition : public ScriptWrappable,
 
   // Called from ViewTransition when the transition is skipped/aborted for any
   // reason.
-  void DidSkipTransition(ViewTransition::PromiseResponse,
-                         ViewTransitionSkipReason reason);
+  void DidSkipTransition(ViewTransition::PromiseResponse);
 
   // Called just after the associated ViewTransition advances into the
   // kAnimating state but before any animation frames have been produced.
@@ -80,10 +79,8 @@ class CORE_EXPORT DOMViewTransition : public ScriptWrappable,
   class WaitUntilPromiseSettledCallback;
 
   void AtMicrotask(ViewTransition::PromiseResponse response,
-                   ViewTransitionSkipReason reason,
                    PromiseProperty* resolver);
   void HandlePromise(ViewTransition::PromiseResponse response,
-                     ViewTransitionSkipReason reason,
                      PromiseProperty* property);
 
   friend class DOMChangeFinishedCallback;

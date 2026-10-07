@@ -43,22 +43,20 @@ String ValidateDescription(const ContentDescription& description,
   if (description.url().empty())
     return "Invalid launch URL provided";
 
-  ExecutionContext* execution_context = registration->GetExecutionContext();
-  if (!execution_context) {
-    return "Context is detached";
-  }
-
   for (const auto& icon : description.icons()) {
     if (icon->src().empty())
       return "Invalid icon URL provided";
-    KURL icon_url = execution_context->CompleteURL(icon->src());
+    KURL icon_url =
+        registration->GetExecutionContext()->CompleteURL(icon->src());
     if (!icon_url.ProtocolIsInHttpFamily()) {
       return "Invalid icon URL protocol";
     }
   }
 
-  KURL launch_url = execution_context->CompleteURL(description.url());
-  auto* security_origin = execution_context->GetSecurityOrigin();
+  KURL launch_url =
+      registration->GetExecutionContext()->CompleteURL(description.url());
+  auto* security_origin =
+      registration->GetExecutionContext()->GetSecurityOrigin();
   if (!security_origin->CanRequest(launch_url))
     return "Service Worker cannot request provided launch URL";
 
@@ -71,8 +69,10 @@ String ValidateDescription(const ContentDescription& description,
 
 }  // namespace
 
-ContentIndex::ContentIndex(ServiceWorkerRegistration* registration)
+ContentIndex::ContentIndex(ServiceWorkerRegistration* registration,
+                           scoped_refptr<base::SequencedTaskRunner> task_runner)
     : registration_(registration),
+      task_runner_(std::move(task_runner)),
       content_index_service_(registration->GetExecutionContext()) {
   DCHECK(registration_);
 }
@@ -104,22 +104,13 @@ ScriptPromise<IDLUndefined> ContentIndex::add(
     return EmptyPromise();
   }
 
-  auto* service = GetService();
-  if (!service) {
-    exception_state.ThrowDOMException(
-        DOMExceptionCode::kInvalidStateError,
-        "The service worker registration is not associated with an execution "
-        "context.");
-    return EmptyPromise();
-  }
-
   auto* resolver = MakeGarbageCollected<ScriptPromiseResolver<IDLUndefined>>(
       script_state, exception_state.GetContext());
   auto promise = resolver->Promise();
 
   auto mojo_description = mojom::blink::ContentDescription::From(description);
   auto category = mojo_description->category;
-  service->GetIconSizes(
+  GetService()->GetIconSizes(
       category,
       BindOnce(&ContentIndex::DidGetIconSizes, WrapPersistent(this),
                std::move(mojo_description), WrapPersistent(resolver)));
@@ -216,20 +207,11 @@ ScriptPromise<IDLUndefined> ContentIndex::deleteDescription(
     return EmptyPromise();
   }
 
-  auto* service = GetService();
-  if (!service) {
-    exception_state.ThrowDOMException(
-        DOMExceptionCode::kInvalidStateError,
-        "The service worker registration is not associated with an execution "
-        "context.");
-    return EmptyPromise();
-  }
-
   auto* resolver = MakeGarbageCollected<ScriptPromiseResolver<IDLUndefined>>(
       script_state, exception_state.GetContext());
   auto promise = resolver->Promise();
 
-  service->Delete(
+  GetService()->Delete(
       registration_->RegistrationId(), id,
       BindOnce(&ContentIndex::DidDeleteDescription, WrapPersistent(resolver)));
 
@@ -274,21 +256,12 @@ ScriptPromise<IDLSequence<ContentDescription>> ContentIndex::getDescriptions(
     return ScriptPromise<IDLSequence<ContentDescription>>();
   }
 
-  auto* service = GetService();
-  if (!service) {
-    exception_state.ThrowDOMException(
-        DOMExceptionCode::kInvalidStateError,
-        "The service worker registration is not associated with an execution "
-        "context.");
-    return ScriptPromise<IDLSequence<ContentDescription>>();
-  }
-
   auto* resolver = MakeGarbageCollected<
       ScriptPromiseResolver<IDLSequence<ContentDescription>>>(
       script_state, exception_state.GetContext());
   auto promise = resolver->Promise();
 
-  service->GetDescriptions(
+  GetService()->GetDescriptions(
       registration_->RegistrationId(),
       BindOnce(&ContentIndex::DidGetDescriptions, WrapPersistent(resolver)));
 
@@ -331,12 +304,10 @@ void ContentIndex::Trace(Visitor* visitor) const {
 
 mojom::blink::ContentIndexService* ContentIndex::GetService() {
   if (!content_index_service_.is_bound()) {
-    ExecutionContext* execution_context = registration_->GetExecutionContext();
-    if (execution_context) {
-      execution_context->GetBrowserInterfaceBroker().GetInterface(
-          content_index_service_.BindNewPipeAndPassReceiver(
-              execution_context->GetTaskRunner(TaskType::kMiscPlatformAPI)));
-    }
+    registration_->GetExecutionContext()
+        ->GetBrowserInterfaceBroker()
+        .GetInterface(
+            content_index_service_.BindNewPipeAndPassReceiver(task_runner_));
   }
   return content_index_service_.get();
 }

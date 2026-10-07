@@ -158,7 +158,7 @@ BruschettaInstallerView::BruschettaInstallerView(Profile* profile,
                                                  PrefService& local_state,
                                                  guest_os::GuestId guest_id)
     : profile_(profile), observation_(this), guest_id_(guest_id) {
-  // Layout constants for the installer dialog.
+  // Layout constants from the spec used for the plugin vm installer.
   constexpr auto kDialogInsets = gfx::Insets::TLBR(60, 64, 0, 64);
   const int kPrimaryMessageHeight =
       ash::GetLineHeight(ash::CONTEXT_HEADLINE).value();

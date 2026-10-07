@@ -144,7 +144,7 @@ export class CrIconButtonElement extends CrIconbuttonElementBase {
     this.classList.toggle(className);
   }
 
-  protected disabledChanged_(newValue: boolean, oldValue?: boolean) {
+  private disabledChanged_(newValue: boolean, oldValue?: boolean) {
     if (!newValue && oldValue === undefined) {
       return;
     }
@@ -166,17 +166,17 @@ export class CrIconButtonElement extends CrIconbuttonElementBase {
     this.setAttribute('tabindex', value.toString());
   }
 
-  protected onBlur_() {
+  private onBlur_() {
     this.spaceKeyDown_ = false;
   }
 
-  protected onClick_(e: Event) {
+  private onClick_(e: Event) {
     if (this.disabled) {
       e.stopImmediatePropagation();
     }
   }
 
-  protected onIronIconChanged_() {
+  private onIronIconChanged_() {
     this.shadowRoot!.querySelectorAll('iron-icon').forEach(el => el.remove());
     if (!this.ironIcon) {
       return;
@@ -194,7 +194,7 @@ export class CrIconButtonElement extends CrIconbuttonElementBase {
     });
   }
 
-  protected onKeyDown_(e: KeyboardEvent) {
+  private onKeyDown_(e: KeyboardEvent) {
     if (e.key !== ' ' && e.key !== 'Enter') {
       return;
     }
@@ -212,7 +212,7 @@ export class CrIconButtonElement extends CrIconbuttonElementBase {
     }
   }
 
-  protected onKeyUp_(e: KeyboardEvent) {
+  private onKeyUp_(e: KeyboardEvent) {
     if (e.key === ' ' || e.key === 'Enter') {
       e.preventDefault();
       e.stopPropagation();
@@ -224,7 +224,7 @@ export class CrIconButtonElement extends CrIconbuttonElementBase {
     }
   }
 
-  protected onPointerDown_() {
+  private onPointerDown_() {
     this.ensureRipple();
   }
 }

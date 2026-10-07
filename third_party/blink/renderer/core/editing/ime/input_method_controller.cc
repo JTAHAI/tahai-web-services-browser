@@ -352,7 +352,11 @@ enum class InputMethodController::TypingContinuation { kContinue, kEnd };
 
 InputMethodController::InputMethodController(LocalDOMWindow& window,
                                              LocalFrame& frame)
-    : ExecutionContextLifecycleObserver(&window), frame_(frame) {}
+    : ExecutionContextLifecycleObserver(&window),
+      frame_(frame),
+      has_composition_(false),
+      last_vk_visibility_request_(
+          ui::mojom::VirtualKeyboardVisibilityRequest::NONE) {}
 
 InputMethodController::~InputMethodController() = default;
 
@@ -516,8 +520,8 @@ void InputMethodController::Clear() {
 }
 
 void InputMethodController::ClearImeTextSpansByType(ImeTextSpan::Type type,
-                                                    wtf_size_t text_start,
-                                                    wtf_size_t text_end) {
+                                                    unsigned text_start,
+                                                    unsigned text_end) {
   Element* target = GetDocument().FocusedElement();
   if (!target)
     return;
@@ -810,7 +814,7 @@ static int ComputeAbsoluteCaretPosition(int text_start,
 void InputMethodController::AddImeTextSpans(
     const Vector<ImeTextSpan>& ime_text_spans,
     ContainerNode* base_element,
-    wtf_size_t offset_in_plain_chars) {
+    unsigned offset_in_plain_chars) {
   for (const auto& ime_text_span : ime_text_spans) {
     wtf_size_t ime_text_span_start =
         offset_in_plain_chars + ime_text_span.StartOffset();
@@ -1126,8 +1130,8 @@ void InputMethodController::SetComposition(
   const Position focus = selection.Focus();
   Node* focus_node = focus.AnchorNode();
 
-  wtf_size_t focus_offset = focus.ComputeOffsetInContainerNode();
-  wtf_size_t anchor_offset = anchor.ComputeOffsetInContainerNode();
+  unsigned focus_offset = focus.ComputeOffsetInContainerNode();
+  unsigned anchor_offset = anchor.ComputeOffsetInContainerNode();
 
   has_composition_ = true;
   if (!composition_range_)
@@ -1204,8 +1208,8 @@ PlainTextRange InputMethodController::CreateSelectionRangeForSetComposition(
 
 void InputMethodController::SetCompositionFromExistingText(
     const Vector<ImeTextSpan>& ime_text_spans,
-    wtf_size_t composition_start,
-    wtf_size_t composition_end) {
+    unsigned composition_start,
+    unsigned composition_end) {
   Element* target = GetDocument().FocusedElement();
   if (!target)
     return;
@@ -1255,8 +1259,8 @@ void InputMethodController::SetCompositionFromExistingText(
 
 void InputMethodController::AddImeTextSpansToExistingText(
     const Vector<ImeTextSpan>& ime_text_spans,
-    wtf_size_t text_start,
-    wtf_size_t text_end) {
+    unsigned text_start,
+    unsigned text_end) {
   Element* target = GetDocument().FocusedElement();
   if (!target)
     return;
@@ -1570,9 +1574,9 @@ void InputMethodController::DeleteSurroundingText(int before, int after) {
     const PlainTextRange current_selection_offsets(GetSelectionOffsets());
     if (!current_selection_offsets.IsNull() &&
         (current_selection_offsets.Start() !=
-             static_cast<wtf_size_t>(selection_start) ||
+             static_cast<unsigned>(selection_start) ||
          current_selection_offsets.End() !=
-             static_cast<wtf_size_t>(selection_start))) {
+             static_cast<unsigned>(selection_start))) {
       overridden_selection.emplace(current_selection_offsets);
     }
   }
@@ -1604,9 +1608,9 @@ void InputMethodController::DeleteSurroundingText(int before, int after) {
     if (!current_selection_offsets.IsNull() &&
         !overridden_selection.has_value() &&
         (current_selection_offsets.Start() !=
-             static_cast<wtf_size_t>(selection_end) ||
+             static_cast<unsigned>(selection_end) ||
          current_selection_offsets.End() !=
-             static_cast<wtf_size_t>(selection_end))) {
+             static_cast<unsigned>(selection_end))) {
       overridden_selection.emplace(current_selection_offsets);
     }
   }

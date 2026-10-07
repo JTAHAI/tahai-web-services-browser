@@ -124,22 +124,33 @@ export class NetworkListElement extends NetworkListElementBase {
   }
 
 
-  declare activationUnavailable: boolean;
-  declare customItems: NetworkList.NetworkListItemType[];
-  declare deviceState: OncMojo.DeviceStateProperties|undefined;
-  declare disabled: boolean;
-  declare globalPolicy: GlobalPolicy|undefined;
-  declare isBuiltInVpnManagementBlocked: boolean;
-  declare networks: OncMojo.NetworkStateProperties[];
-  declare selectedItem: NetworkList.NetworkListItemType;
-  declare showButtons: boolean;
-  declare showTechnologyBadge: boolean;
+  activationUnavailable: boolean;
+  customItems: NetworkList.NetworkListItemType[];
+  deviceState: OncMojo.DeviceStateProperties|undefined;
+  disabled: boolean;
+  globalPolicy: GlobalPolicy|undefined;
+  isBuiltInVpnManagementBlocked: boolean;
+  networks: OncMojo.NetworkStateProperties[];
+  selectedItem: NetworkList.NetworkListItemType;
+  showButtons: boolean;
+  showTechnologyBadge: boolean;
 
-  private focusRequested_ = false;
-  declare private lastFocused_: Object;
-  declare private listBlurred_: boolean;
-  declare private listItems_: NetworkList.NetworkListItemType[];
-  private resizeObserver_: ResizeObserver|null = null;
+  private focusRequested_: boolean;
+  private lastFocused_: Object;
+  private listBlurred_: boolean;
+  private listItems_: NetworkList.NetworkListItemType[];
+  private resizeObserver_: ResizeObserver|null;
+
+  constructor() {
+    super();
+
+    /**
+     * used to observer size changes to this element
+     */
+    this.resizeObserver_ = null;
+
+    this.focusRequested_ = false;
+  }
 
   override connectedCallback() {
     super.connectedCallback();

@@ -4,10 +4,7 @@
 
 #include "chrome/browser/vr/test/xr_browser_test.h"
 
-#include <array>
 #include <cstring>
-#include <string_view>
-#include <utility>
 
 #include "base/base_paths.h"
 #include "base/command_line.h"
@@ -50,23 +47,6 @@
 #endif
 namespace vr {
 
-namespace {
-
-#if BUILDFLAG(IS_WIN)
-constexpr std::array<std::string_view, 4> kRequiredTestSwitches = {
-    "enable-gpu", "enable-pixel-output-in-tests",
-    "run-through-xr-wrapper-script", "enable-unsafe-swiftshader"};
-
-constexpr std::array<std::pair<std::string_view, std::string_view>, 1>
-    kRequiredTestSwitchesWithValues = {{{"test-launcher-jobs", "1"}}};
-#else
-constexpr std::array<std::string_view, 0> kRequiredTestSwitches = {};
-constexpr std::array<std::pair<std::string_view, std::string_view>, 0>
-    kRequiredTestSwitchesWithValues = {};
-#endif
-
-}  // namespace
-
 constexpr base::TimeDelta XrBrowserTestBase::kPollCheckIntervalShort;
 constexpr base::TimeDelta XrBrowserTestBase::kPollCheckIntervalLong;
 constexpr base::TimeDelta XrBrowserTestBase::kPollTimeoutShort;
@@ -76,6 +56,18 @@ constexpr char XrBrowserTestBase::kOpenXrConfigPathEnvVar[];
 constexpr char XrBrowserTestBase::kOpenXrConfigPathVal[];
 constexpr char XrBrowserTestBase::kTestFileDir[];
 constexpr char XrBrowserTestBase::kSwitchIgnoreRuntimeRequirements[];
+const std::vector<std::string> XrBrowserTestBase::kRequiredTestSwitches{
+#if BUILDFLAG(IS_WIN)
+    "enable-gpu", "enable-pixel-output-in-tests",
+    "run-through-xr-wrapper-script", "enable-unsafe-swiftshader"
+#endif
+};
+const std::vector<std::pair<std::string, std::string>>
+    XrBrowserTestBase::kRequiredTestSwitchesWithValues{
+#if BUILDFLAG(IS_WIN)
+        std::pair<std::string, std::string>("test-launcher-jobs", "1")
+#endif
+    };
 
 XrBrowserTestBase::XrBrowserTestBase() : env_(base::Environment::Create()) {
   enable_features_.push_back(features::kLogJsConsoleMessages);

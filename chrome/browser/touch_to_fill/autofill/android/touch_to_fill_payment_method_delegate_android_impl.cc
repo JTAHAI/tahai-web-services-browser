@@ -453,14 +453,6 @@ void TouchToFillPaymentMethodDelegateAndroidImpl::BnplSuggestionSelected(
           GetWeakPtr()));
 }
 
-void TouchToFillPaymentMethodDelegateAndroidImpl::
-    OnUserDecisionToUseSavedCards() {
-  payments::BnplManager* bnpl_manager = manager_->GetPaymentsBnplManager();
-  if (bnpl_manager) {
-    bnpl_manager->OnUserDecisionToUseSavedCards();
-  }
-}
-
 void TouchToFillPaymentMethodDelegateAndroidImpl::IbanSuggestionSelected(
     std::variant<Iban::Guid, Iban::InstrumentId> backend_id) {
   HideTouchToFill();

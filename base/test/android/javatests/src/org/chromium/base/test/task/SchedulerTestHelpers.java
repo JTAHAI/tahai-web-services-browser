@@ -100,6 +100,7 @@ public class SchedulerTestHelpers {
             }
         }
     }
+    ;
 
     /** Waits until the looper's MessageQueue becomes idle. */
     public static void preNativeRunUntilIdle(HandlerThread handlerThread) {

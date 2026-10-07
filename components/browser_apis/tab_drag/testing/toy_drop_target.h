@@ -36,8 +36,7 @@ class ToyDropTarget : public mojom::DropTarget {
   // mojom::DropTarget:
 
   void OnDragEntered(const std::vector<tabs_api::NodeId>& source_tab_ids,
-                     const gfx::Point& local_point,
-                     float mouse_to_tab_x_ratio) override;
+                     const gfx::Point& local_point) override;
   void OnDrag(const gfx::Point& local_point) override;
   void OnDragLeave() override;
   void OnDrop(const std::vector<tabs_api::NodeId>& source_tab_ids,

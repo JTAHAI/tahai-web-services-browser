@@ -277,19 +277,16 @@ public class TabGroupListMediator {
             mPersistentVersioningMessageMediator.queueMessageIfNeeded();
         }
 
-        GroupWindowChecker sortUtil =
-                new GroupWindowChecker(mContext, mTabGroupSyncService, mTabModel);
-        List<GroupWindowInfo> sortedTabGroups =
+        GroupWindowChecker sortUtil = new GroupWindowChecker(mTabGroupSyncService, mTabModel);
+        List<SavedTabGroup> sortedTabGroups =
                 sortUtil.getSortedGroupList(
                         this::shouldShowGroupByState,
-                        (GroupWindowInfo a, GroupWindowInfo b) ->
-                                Long.compare(b.lastModifiedTimeMs, a.lastModifiedTimeMs));
-        for (GroupWindowInfo groupInfo : sortedTabGroups) {
-            if (groupInfo.syncId == null) continue;
-            SavedTabGroup savedTabGroup =
-                    assumeNonNull(mTabGroupSyncService).getGroup(groupInfo.syncId);
-            if (savedTabGroup == null) continue;
-
+                        (a, b) -> {
+                            return Long.compare(
+                                    TabUiUtils.getGroupLastUpdatedTimestamp(b),
+                                    TabUiUtils.getGroupLastUpdatedTimestamp(a));
+                        });
+        for (SavedTabGroup savedTabGroup : sortedTabGroups) {
             TabGroupRowMediator rowMediator =
                     new TabGroupRowMediator(
                             mContext,

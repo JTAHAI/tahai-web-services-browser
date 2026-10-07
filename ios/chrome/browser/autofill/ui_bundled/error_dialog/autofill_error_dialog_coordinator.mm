@@ -14,7 +14,6 @@
 #import "ios/chrome/browser/autofill/ui_bundled/error_dialog/autofill_error_dialog_mediator_delegate.h"
 #import "ios/chrome/browser/shared/model/browser/browser.h"
 #import "ios/chrome/browser/shared/public/commands/autofill_commands.h"
-#import "ios/chrome/browser/shared/public/commands/command_dispatcher.h"
 
 namespace {
 // Delay for retrying to present error dialog when its presenting view
@@ -210,9 +209,7 @@ inline constexpr base::TimeDelta kErrorDialogPresentationRetryDelay =
   // notified when the AutofillErrorDialogMediator is being destroyed if it
   // observes it, or via its own lifecycle management.The existing code used
   // this command to dismiss.
-  id<AutofillCommands> autofillHandler = HandlerForProtocol(
-      self.browser->GetCommandDispatcher(), AutofillCommands);
-  [autofillHandler dismissAutofillErrorDialog];
+  [_autofillCommandsHandler dismissAutofillErrorDialog];
 }
 
 @end

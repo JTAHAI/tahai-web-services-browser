@@ -7,22 +7,17 @@
 
 #include "third_party/blink/renderer/bindings/core/v8/v8_css_box_type.h"
 #include "third_party/blink/renderer/core/core_export.h"
+#include "third_party/blink/renderer/core/layout/geometry/physical_rect.h"
 #include "third_party/blink/renderer/platform/heap/collection_support/heap_vector.h"
 #include "third_party/blink/renderer/platform/heap/member.h"
 
 namespace blink {
 
-class BoxQuadOptions;
-class CSSPseudoElement;
-class ConvertCoordinateOptions;
 class DOMPoint;
-class DOMPointInit;
 class DOMQuad;
-class DOMQuadInit;
 class DOMRectReadOnly;
-class ExceptionState;
+class LayoutBox;
 class LayoutObject;
-class Node;
 class V8UnionCSSPseudoElementOrDocumentOrElementOrText;
 
 // Static utility functions for GeometryUtils mixin implementation.
@@ -36,37 +31,10 @@ namespace geometry_utils {
 CORE_EXPORT LayoutObject* GetLayoutObjectFromGeometryNode(
     const V8UnionCSSPseudoElementOrDocumentOrElementOrText* node);
 
-// Entry point helpers for GeometryUtils mixin methods that validate origins and
-// update layout before delegating to the core coordinate conversion functions.
-CORE_EXPORT HeapVector<Member<DOMQuad>> GetBoxQuads(
-    Node* source_node,
-    const CSSPseudoElement* source_pseudo,
-    const BoxQuadOptions* options,
-    ExceptionState& exception_state);
-
-CORE_EXPORT DOMQuad* ConvertQuadFromNode(
-    const DOMQuadInit* quad,
-    Node* source_node,
-    const CSSPseudoElement* source_pseudo,
-    const V8UnionCSSPseudoElementOrDocumentOrElementOrText* from,
-    const ConvertCoordinateOptions* options,
-    ExceptionState& exception_state);
-
-CORE_EXPORT DOMQuad* ConvertRectFromNode(
-    DOMRectReadOnly* rect,
-    Node* source_node,
-    const CSSPseudoElement* source_pseudo,
-    const V8UnionCSSPseudoElementOrDocumentOrElementOrText* from,
-    const ConvertCoordinateOptions* options,
-    ExceptionState& exception_state);
-
-CORE_EXPORT DOMPoint* ConvertPointFromNode(
-    const DOMPointInit* point,
-    Node* source_node,
-    const CSSPseudoElement* source_pseudo,
-    const V8UnionCSSPseudoElementOrDocumentOrElementOrText* from,
-    const ConvertCoordinateOptions* options,
-    ExceptionState& exception_state);
+// Gets the box rect for a LayoutBox based on the CSSBoxType.
+// |box_type| should be one of: kMargin, kBorder, kPadding, kContent.
+CORE_EXPORT PhysicalRect GetBoxRect(LayoutBox* layout_box,
+                                    V8CSSBoxType::Enum box_type);
 
 // Computes box quads for a layout object.
 // |layout_object| - the layout object to get quads for
@@ -85,9 +53,7 @@ CORE_EXPORT HeapVector<Member<DOMQuad>> GetBoxQuads(LayoutObject* layout_object,
 // Returns the converted DOMQuad, or nullptr on error.
 CORE_EXPORT DOMQuad* ConvertQuadFromNode(DOMQuad* quad,
                                          LayoutObject* source_layout,
-                                         LayoutObject* target_layout,
-                                         V8CSSBoxType::Enum from_box,
-                                         V8CSSBoxType::Enum to_box);
+                                         LayoutObject* target_layout);
 
 // Converts a rect from source node coordinates to target layout object
 // coordinates.
@@ -97,9 +63,7 @@ CORE_EXPORT DOMQuad* ConvertQuadFromNode(DOMQuad* quad,
 // Returns the converted DOMQuad, or nullptr on error.
 CORE_EXPORT DOMQuad* ConvertRectFromNode(DOMRectReadOnly* rect,
                                          LayoutObject* source_layout,
-                                         LayoutObject* target_layout,
-                                         V8CSSBoxType::Enum from_box,
-                                         V8CSSBoxType::Enum to_box);
+                                         LayoutObject* target_layout);
 
 // Converts a point from source node coordinates to target layout object
 // coordinates.
@@ -109,9 +73,7 @@ CORE_EXPORT DOMQuad* ConvertRectFromNode(DOMRectReadOnly* rect,
 // Returns the converted DOMPoint, or nullptr on error.
 CORE_EXPORT DOMPoint* ConvertPointFromNode(DOMPoint* point,
                                            LayoutObject* source_layout,
-                                           LayoutObject* target_layout,
-                                           V8CSSBoxType::Enum from_box,
-                                           V8CSSBoxType::Enum to_box);
+                                           LayoutObject* target_layout);
 
 }  // namespace geometry_utils
 

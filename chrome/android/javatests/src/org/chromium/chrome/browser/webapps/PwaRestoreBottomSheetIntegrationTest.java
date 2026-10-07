@@ -70,6 +70,7 @@ public class PwaRestoreBottomSheetIntegrationTest {
         {"https://example.com/app2/", "App 2", ICON_URL2},
         {"https://example.com/app3/", "App 3", ICON_URL1}
     };
+    private static final String TAG = "PwaRestoreIntegrTest";
 
     private SharedPreferencesManager mPreferences;
     private EmbeddedTestServer mTestServer;

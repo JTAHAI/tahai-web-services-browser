@@ -37,7 +37,6 @@ import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
 
 import org.chromium.base.ThreadUtils;
-import org.chromium.base.supplier.SupplierUtils;
 import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.CallbackHelper;
 import org.chromium.base.test.util.CommandLineFlags;
@@ -309,7 +308,7 @@ public class PageInfoAboutThisSiteTest {
                                     null,
                                     PageInfoController.OpenedFromSource.TOOLBAR,
                                     null,
-                                    SupplierUtils.ofNull(),
+                                    () -> null,
                                     null)
                             .show(tab, ChromePageInfoHighlight.noHighlight());
                 });

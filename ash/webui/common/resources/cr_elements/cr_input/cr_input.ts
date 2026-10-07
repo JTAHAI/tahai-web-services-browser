@@ -231,14 +231,14 @@ export class CrInputElement extends PolymerElement {
     assert(!this.hasAttribute('tabindex'));
   }
 
-  protected onInputTabindexChanged_() {
+  private onInputTabindexChanged_() {
     // CrInput only supports 0 or -1 values for the input's tabindex to allow
     // having the input in tab order or not. Values greater than 0 will not work
     // as the shadow root encapsulates tabindices.
     assert(this.inputTabindex === 0 || this.inputTabindex === -1);
   }
 
-  protected onTypeChanged_() {
+  private onTypeChanged_() {
     // Check that the 'type' is one of the supported types.
     assert(SUPPORTED_INPUT_TYPES.has(this.type));
   }
@@ -250,19 +250,19 @@ export class CrInputElement extends PolymerElement {
   /**
    * Returns the aria label to be used with the input element.
    */
-  protected getAriaLabel_(
-      ariaLabel: string, label: string, placeholder: string): string {
+  private getAriaLabel_(ariaLabel: string, label: string, placeholder: string):
+      string {
     return ariaLabel || label || placeholder;
   }
 
   /**
    * Returns 'true' or 'false' as a string for the aria-invalid attribute.
    */
-  protected getAriaInvalid_(invalid: boolean): string {
+  private getAriaInvalid_(invalid: boolean): string {
     return invalid ? 'true' : 'false';
   }
 
-  protected onInvalidOrErrorMessageChanged_() {
+  private onInvalidOrErrorMessageChanged_() {
     this.displayErrorMessage_ = this.invalid ? this.errorMessage : '';
 
     // On VoiceOver role="alert" is not consistently announced when its content
@@ -286,7 +286,7 @@ export class CrInputElement extends PolymerElement {
    * because if this.placeholder is set to a truthy value then removed, it
    * would show "null" as placeholder.
    */
-  protected placeholderChanged_() {
+  private placeholderChanged_() {
     if (this.placeholder || this.placeholder === '') {
       this.inputElement.setAttribute('placeholder', this.placeholder);
     } else {
@@ -312,7 +312,7 @@ export class CrInputElement extends PolymerElement {
     return true;
   }
 
-  protected onValueChanged_(newValue: string, oldValue: string) {
+  private onValueChanged_(newValue: string, oldValue: string) {
     if (!newValue && !oldValue) {
       return;
     }
@@ -326,16 +326,16 @@ export class CrInputElement extends PolymerElement {
    * This function helps propagate it to host since change events don't
    * propagate across Shadow DOM boundary by default.
    */
-  protected onInputChange_(e: Event) {
+  private onInputChange_(e: Event) {
     this.dispatchEvent(new CustomEvent(
         'change', {bubbles: true, composed: true, detail: {sourceEvent: e}}));
   }
 
-  protected onInputFocus_() {
+  private onInputFocus_() {
     this.focused_ = true;
   }
 
-  protected onInputBlur_() {
+  private onInputBlur_() {
     this.focused_ = false;
   }
 

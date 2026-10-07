@@ -6,7 +6,7 @@
 
 #include "base/test/scoped_feature_list.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/hats/hats_service_factory.h"
 #include "chrome/browser/ui/hats/mock_hats_service.h"
 #include "chrome/browser/ui/hats/survey_config.h"
@@ -24,7 +24,8 @@ class ManagePasswordsUiUtilsBrowserTest : public InProcessBrowserTest {
   ManagePasswordsUiUtilsBrowserTest() {
     feature_list_.InitWithFeatures(
         /*enabled_features=*/
-        {autofill::features::kManagePasswordsPerceptionSurvey},
+        {autofill::features::kManagePasswordsPerceptionSurvey,
+         autofill::features::kYourSavedInfoSettingsPage},
         /*disabled_features=*/{});
   }
 

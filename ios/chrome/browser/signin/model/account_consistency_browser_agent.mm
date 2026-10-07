@@ -51,11 +51,13 @@ AccountConsistencyBrowserAgent::AccountConsistencyBrowserAgent(
 }
 
 AccountConsistencyBrowserAgent::~AccountConsistencyBrowserAgent() {
-  StopSigninCoordinator();
+  StopSigninCoordinator(SigninCoordinatorResultInterrupted, nil);
   StopObserving();
 }
 
-void AccountConsistencyBrowserAgent::StopSigninCoordinator() {
+void AccountConsistencyBrowserAgent::StopSigninCoordinator(
+    SigninCoordinatorResult result,
+    id<SystemIdentity> identity) {
   [add_account_coordinator_ stop];
   add_account_coordinator_ = nil;
 }

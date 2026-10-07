@@ -26,6 +26,7 @@ import androidx.browser.trusted.TrustedWebActivityCallback;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.robolectric.annotation.Config;
 
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.payments.mojom.BillingResponseCode;
@@ -41,6 +42,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 /** Tests for {@link DigitalGoodsConverterTest}. */
 @RunWith(BaseRobolectricTestRunner.class)
+@Config(manifest = Config.NONE)
 public class DigitalGoodsConverterTest {
     // TODO(peconn): Add tests for error cases as well.
 

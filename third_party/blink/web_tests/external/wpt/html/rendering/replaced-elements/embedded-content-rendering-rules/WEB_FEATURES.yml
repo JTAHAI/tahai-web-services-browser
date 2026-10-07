@@ -1,2 +1,4 @@
-rules:
-- audio-*: [audio]
+features:
+- name: audio
+  files:
+  - audio-*

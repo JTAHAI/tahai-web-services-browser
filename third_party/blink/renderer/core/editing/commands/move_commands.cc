@@ -60,12 +60,13 @@ int MoveCommands::VerticalScrollDistance(LocalFrame& frame) {
   if (!layout_object || !layout_object->IsBox())
     return 0;
   auto& layout_box = To<LayoutBox>(*layout_object);
-  const ComputedStyle& style = layout_box.StyleRef();
-  if (!(style.OverflowY() == EOverflow::kScroll ||
-        style.OverflowY() == EOverflow::kAuto || IsEditable(*focused_element) ||
-        frame.IsCaretBrowsingEnabled())) {
+  const ComputedStyle* const style = layout_box.Style();
+  if (!style)
     return 0;
-  }
+  if (!(style->OverflowY() == EOverflow::kScroll ||
+        style->OverflowY() == EOverflow::kAuto ||
+        IsEditable(*focused_element) || frame.IsCaretBrowsingEnabled()))
+    return 0;
   const ScrollableArea& scrollable_area = *frame.View()->LayoutViewport();
   const int height =
       std::min<int>(layout_box.PhysicalPaddingBoxRect().Height().ToInt(),

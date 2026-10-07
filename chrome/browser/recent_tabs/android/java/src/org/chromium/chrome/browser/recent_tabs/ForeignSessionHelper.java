@@ -10,8 +10,10 @@ import org.jni_zero.CalledByNative;
 import org.jni_zero.JniType;
 import org.jni_zero.NativeMethods;
 
+import org.chromium.base.CollectionUtil;
 import org.chromium.base.metrics.RecordUserAction;
 import org.chromium.build.annotations.NullMarked;
+import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.TabLaunchType;
@@ -120,8 +122,8 @@ public class ForeignSessionHelper {
     @CalledByNative
     private static ForeignSession pushSession(
             List<ForeignSession> sessions,
-            @JniType("std::string") String tag,
-            @JniType("std::string") String name,
+            String tag,
+            String name,
             long modifiedTime,
             @FormFactor int formFactor) {
         ForeignSession session = new ForeignSession(tag, name, modifiedTime, formFactor);
@@ -140,8 +142,8 @@ public class ForeignSessionHelper {
     @CalledByNative
     private static void pushTab(
             ForeignSessionWindow window,
-            @JniType("GURL") GURL url,
-            @JniType("std::u16string") String title,
+            GURL url,
+            String title,
             long timestamp,
             long lastActiveTime,
             int sessionId) {
@@ -289,28 +291,29 @@ public class ForeignSessionHelper {
             List<ForeignSessionTab> sessionTabs,
             ForeignSession session,
             TabCreatorManager tabCreatorManager) {
-        if (sessionTabs.isEmpty()) {
-            return 0;
-        }
-        int[] tabIds = new int[sessionTabs.size()];
+        List<Integer> tabIds = new ArrayList<>();
         Tab newForegroundTab =
                 tabCreatorManager
-                        .getTabCreator(/* incognito= */ false)
+                        .getTabCreator(false)
                         .createNewTab(
                                 new LoadUrlParams(ContentUrlConstants.ABOUT_BLANK_URL),
                                 TabLaunchType.FROM_RESTORE_TABS_UI,
-                                /* parent= */ null);
-        if (newForegroundTab == null) return 0;
+                                null);
 
-        for (int i = 0; i < sessionTabs.size(); i++) {
-            ForeignSessionTab tab = sessionTabs.get(i);
-            tabIds[i] = tab.id;
+        for (ForeignSessionTab tab : sessionTabs) {
+            tabIds.add(tab.id);
             RecordUserAction.record("MobileCrossDeviceTabJourney");
+        }
+        if (tabIds.size() == 0) {
+            return 0;
         }
 
         return ForeignSessionHelperJni.get()
                 .openForeignSessionTabsAsBackgroundTabs(
-                        mNativeForeignSessionHelper, newForegroundTab, tabIds, session.tag);
+                        mNativeForeignSessionHelper,
+                        newForegroundTab,
+                        CollectionUtil.integerCollectionToIntArray(tabIds),
+                        session.tag);
     }
 
     @NativeMethods
@@ -334,20 +337,19 @@ public class ForeignSessionHelper {
 
         boolean openForeignSessionTab(
                 long nativeForeignSessionHelper,
-                @JniType("TabAndroid*") Tab tab,
-                @JniType("std::string") String sessionTag,
+                Tab tab,
+                String sessionTag,
                 int tabId,
                 int disposition);
 
-        void deleteForeignSession(
-                long nativeForeignSessionHelper, @JniType("std::string") String sessionTag);
+        void deleteForeignSession(long nativeForeignSessionHelper, String sessionTag);
 
         void setInvalidationsForSessionsEnabled(long nativeForeignSessionHelper, boolean enabled);
 
         int openForeignSessionTabsAsBackgroundTabs(
                 long nativeForeignSessionHelper,
-                @JniType("TabAndroid*") Tab tab,
-                @JniType("std::vector<int32_t>") int[] tabIds,
-                @JniType("std::string") String sessionTag);
+                @Nullable Tab tab,
+                int[] tabIds,
+                String sessionTag);
     }
 }

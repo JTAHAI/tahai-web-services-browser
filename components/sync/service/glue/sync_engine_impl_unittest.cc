@@ -87,10 +87,6 @@ class MockSyncEngineHost : public SyncEngineHost {
   MOCK_METHOD(void, OnBackedOffTypesChanged, (), (override));
   MOCK_METHOD(void, OnInvalidationStatusChanged, (), (override));
   MOCK_METHOD(void, OnNewInvalidatedDataTypes, (), (override));
-  MOCK_METHOD(void,
-              FetchAccessToken,
-              (base::OnceCallback<void(signin::AccessTokenInfo)>),
-              (override));
 };
 
 class FakeSyncManagerFactory : public SyncManagerFactory {

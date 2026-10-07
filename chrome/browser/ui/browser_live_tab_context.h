@@ -21,7 +21,6 @@
 #include "components/tab_groups/tab_group_visual_data.h"
 #include "ui/base/mojom/window_show_state.mojom-forward.h"
 #include "ui/base/ui_base_types.h"
-#include "ui/base/unowned_user_data/scoped_unowned_user_data.h"
 
 class Profile;
 class TabStripModel;
@@ -46,8 +45,6 @@ class BaseWindow;
 // Browser in order to fulfil its duties.
 class BrowserLiveTabContext : public sessions::LiveTabContext {
  public:
-  DECLARE_USER_DATA(BrowserLiveTabContext);
-
   BrowserLiveTabContext(BrowserWindowInterface* browser,
                         TabStripModel* tab_strip_model,
                         Profile* profile,
@@ -55,9 +52,6 @@ class BrowserLiveTabContext : public sessions::LiveTabContext {
                         BrowserWindowInterface::Type type,
                         const std::string& app_name,
                         SessionID session_id);
-
-  // Returns the context for `browser`, or null if it does not have one.
-  static BrowserLiveTabContext* From(BrowserWindowInterface* browser);
 
   BrowserLiveTabContext(const BrowserLiveTabContext&) = delete;
   BrowserLiveTabContext& operator=(const BrowserLiveTabContext&) = delete;
@@ -93,9 +87,6 @@ class BrowserLiveTabContext : public sessions::LiveTabContext {
   void SetVisualDataForGroup(
       const tab_groups::TabGroupId& group,
       const tab_groups::TabGroupVisualData& visual_data) override;
-  const std::optional<tab_groups::TabGroupId> GetInitialFocusedTabGroup()
-      const override;
-  void SetFocusedTabGroup(const tab_groups::TabGroupId& group) override;
   const gfx::Rect GetRestoredBounds() const override;
   ui::mojom::WindowShowState GetRestoredState() const override;
   std::string GetWorkspace() const override;
@@ -145,8 +136,6 @@ class BrowserLiveTabContext : public sessions::LiveTabContext {
       Profile* profile);
 
  private:
-  ui::ScopedUnownedUserData<BrowserLiveTabContext> scoped_unowned_user_data_;
-
   const raw_ref<BrowserWindowInterface> browser_;
   const raw_ref<TabStripModel> tab_strip_model_;
   const raw_ref<Profile> profile_;

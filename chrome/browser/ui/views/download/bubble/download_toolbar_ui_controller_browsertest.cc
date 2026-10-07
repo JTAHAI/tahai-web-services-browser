@@ -25,16 +25,14 @@
 #include "chrome/browser/web_applications/test/os_integration_test_override_impl.h"
 #include "chrome/browser/web_applications/test/web_app_install_test_utils.h"
 #include "chrome/common/webui_url_constants.h"
-#include "chrome/test/base/chrome_test_path_utils.h"
+#include "chrome/test/base/chrome_test_utils.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/ui_test_utils.h"
 #include "components/safe_browsing/core/common/safe_browsing_prefs.h"
 #include "content/public/test/browser_test.h"
 #include "content/public/test/browser_test_utils.h"
-#include "content/public/test/scoped_accessibility_mode_override.h"
 #include "content/public/test/test_utils.h"
 #include "testing/gtest/include/gtest/gtest.h"
-#include "ui/accessibility/ax_mode.h"
 #include "ui/events/base_event_utils.h"
 #include "ui/views/layout/animating_layout_manager_test_util.h"
 
@@ -44,7 +42,7 @@ class DownloadToolbarUIControllerBrowserTest : public DownloadTestBase {
  public:
   DownloadToolbarUIControllerBrowserTest() = default;
 
-  DownloadToolbarUIController* controller(BrowserWindowInterface* browser) {
+  DownloadToolbarUIController* controller(Browser* browser) {
     return DownloadToolbarUIController::From(browser);
   }
 
@@ -67,7 +65,7 @@ class DownloadToolbarUIControllerBrowserTest : public DownloadTestBase {
     DownloadTestBase::TearDownOnMainThread();
   }
 
-  views::View* toolbar_container(BrowserWindowInterface* browser) {
+  views::View* toolbar_container(Browser* browser) {
     CHECK(!features::IsWebUIPinnedToolbarActionsEnabled())
         << "Test needs modification to support WebUIPinnedToolbarActions";
     return static_cast<PinnedToolbarActionsContainer*>(
@@ -76,7 +74,7 @@ class DownloadToolbarUIControllerBrowserTest : public DownloadTestBase {
             ->GetPinnedToolbarActions());
   }
 
-  ToolbarButton* toolbar_button(BrowserWindowInterface* browser) {
+  ToolbarButton* toolbar_button(Browser* browser) {
     return BrowserView::GetBrowserViewForBrowser(browser)
         ->toolbar_button_provider()
         ->GetDownloadButton();
@@ -177,8 +175,7 @@ IN_PROC_BROWSER_TEST_F(DownloadToolbarUIControllerBrowserTest,
   EXPECT_NE(toolbar_button(browser()), nullptr);
   EXPECT_TRUE(toolbar_button(browser())->GetVisible());
   // Create another browser and set it as active so the button becomes dormant.
-  BrowserWindowInterface* extra_browser =
-      CreateBrowser(browser()->GetProfile());
+  Browser* extra_browser = CreateBrowser(browser()->GetProfile());
   ui_test_utils::DeprecatedFakeActivateBrowser(extra_browser);
   views::test::WaitForAnimatingLayoutManager(toolbar_container(browser()));
   EXPECT_NE(toolbar_button(extra_browser), nullptr);
@@ -196,12 +193,12 @@ IN_PROC_BROWSER_TEST_F(DownloadToolbarUIControllerBrowserTest,
   EXPECT_TRUE(toolbar_button(browser())->GetVisible());
   {
     content::LoadStopObserver observer(
-        browser()->GetTabStripModel()->GetActiveWebContents());
+        browser()->tab_strip_model()->GetActiveWebContents());
     ClickButton(toolbar_button(browser()));
     observer.Wait();
   }
   EXPECT_EQ(GURL(chrome::kChromeUIDownloadsURL),
-            browser()->GetTabStripModel()->GetActiveWebContents()->GetURL());
+            browser()->tab_strip_model()->GetActiveWebContents()->GetURL());
 }
 
 IN_PROC_BROWSER_TEST_F(DownloadToolbarUIControllerBrowserTest,
@@ -231,7 +228,7 @@ IN_PROC_BROWSER_TEST_F(DownloadToolbarUIControllerBrowserTest,
       browser()->GetProfile(), std::move(web_app_info),
       /*overwrite_existing_manifest_fields=*/false,
       webapps::WebappInstallSource::OMNIBOX_INSTALL_ICON);
-  BrowserWindowInterface* app_browser =
+  Browser* app_browser =
       web_app::LaunchWebAppBrowserAndWait(browser()->GetProfile(), app_id);
   ui_test_utils::DownloadURL(
       app_browser, chrome_test_utils::GetTestUrl(
@@ -244,7 +241,7 @@ IN_PROC_BROWSER_TEST_F(DownloadToolbarUIControllerBrowserTest,
   CloseBrowserSynchronously(app_browser);
 
   // Reopen web app and verify download button appears.
-  BrowserWindowInterface* app_browser2 =
+  Browser* app_browser2 =
       web_app::LaunchWebAppBrowserAndWait(browser()->GetProfile(), app_id);
   views::test::WaitForAnimatingLayoutManager(toolbar_container(app_browser2));
   EXPECT_NE(toolbar_button(app_browser2), nullptr);
@@ -275,25 +272,6 @@ IN_PROC_BROWSER_TEST_F(DownloadToolbarUIControllerBrowserTest,
   EXPECT_TRUE(base::test::RunUntil([&]() {
     return controller(browser())->bubble_contents_for_testing() == nullptr;
   }));
-}
-
-IN_PROC_BROWSER_TEST_F(DownloadToolbarUIControllerBrowserTest,
-                       AutoCloseDelayDefaultAndAccessibility) {
-  // Verify the default auto-close delay.
-  EXPECT_EQ(controller(browser())->GetAutoCloseDelayForTesting(),
-            base::Seconds(5));
-
-  {
-    // Verify the auto-close delay when accessibility mode is enabled.
-    content::ScopedAccessibilityModeOverride ax_mode_override(
-        ui::AXMode::kScreenReader);
-    EXPECT_TRUE(controller(browser())->GetAutoCloseDelayForTesting().is_max());
-  }
-
-  // Verify that the auto-close delay returns to the default value after
-  // accessibility mode is disabled.
-  EXPECT_EQ(controller(browser())->GetAutoCloseDelayForTesting(),
-            base::Seconds(5));
 }
 
 IN_PROC_BROWSER_TEST_F(DownloadToolbarUIControllerBrowserTest,
@@ -375,8 +353,7 @@ IN_PROC_BROWSER_TEST_F(DownloadToolbarUIControllerBrowserTest,
   EXPECT_TRUE(toolbar_button(browser())->GetVisible());
   EXPECT_FALSE(controller(browser())->IsProgressRingInDormantStateForTesting());
   // Create another browser and set it as active so the button becomes dormant.
-  BrowserWindowInterface* extra_browser =
-      CreateBrowser(browser()->GetProfile());
+  Browser* extra_browser = CreateBrowser(browser()->GetProfile());
   ui_test_utils::DeprecatedFakeActivateBrowser(extra_browser);
   views::test::WaitForAnimatingLayoutManager(toolbar_container(extra_browser));
 

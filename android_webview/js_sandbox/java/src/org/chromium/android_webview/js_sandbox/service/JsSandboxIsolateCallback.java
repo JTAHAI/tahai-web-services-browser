@@ -8,7 +8,6 @@ import android.os.RemoteException;
 
 import org.jni_zero.CalledByNative;
 import org.jni_zero.JNINamespace;
-import org.jni_zero.JniType;
 
 import org.chromium.android_webview.js_sandbox.common.IJsSandboxIsolateCallback;
 import org.chromium.base.Log;
@@ -32,7 +31,7 @@ public class JsSandboxIsolateCallback {
      * @param result The string result of the evaluation or resolved evaluation promise.
      */
     @CalledByNative
-    public void onResult(@JniType("std::string") String result) {
+    public void onResult(String result) {
         try {
             mCallback.reportResult(result);
         } catch (RemoteException e) {
@@ -43,13 +42,13 @@ public class JsSandboxIsolateCallback {
     /**
      * Called in the event of an error.
      *
-     * @param errorType See {@link
-     *     org.chromium.android_webview.js_sandbox.common.IJsSandboxIsolateCallback} for error
-     *     types.
-     * @param error String description of the error.
+     * @param errorType See
+     *                  {@link
+     * org.chromium.android_webview.js_sandbox.common.IJsSandboxIsolateCallback} for error types.
+     * @param error     String description of the error.
      */
     @CalledByNative
-    public void onError(int errorType, @JniType("std::string") String error) {
+    public void onError(int errorType, String error) {
         try {
             mCallback.reportError(errorType, error);
         } catch (RemoteException e) {

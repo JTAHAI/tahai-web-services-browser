@@ -658,10 +658,6 @@ interface DeveloperPrivate {
   static Promise<undefined> updateExtensionConfiguration(
       ExtensionConfigurationUpdate update);
 
-  // Opens the review page for a specific extension.
-  // |extensionId|: The id of the extension to review.
-  static Promise<undefined> openReviewPage(DOMString extensionId);
-
   // Loads a user-selected unpacked item.
   // |options|: Additional configuration parameters.
   // |PromiseValue|: error

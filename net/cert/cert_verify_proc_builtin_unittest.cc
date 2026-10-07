@@ -23,7 +23,6 @@
 #include "base/test/metrics/histogram_tester.h"
 #include "base/test/scoped_feature_list.h"
 #include "base/test/task_environment.h"
-#include "base/test/values_test_util.h"
 #include "base/threading/thread_restrictions.h"
 #include "base/time/time.h"
 #include "components/network_time/time_tracker/time_tracker.h"
@@ -249,14 +248,6 @@ class MockSystemTrustStore : public SystemTrustStore {
     return mock_crs_version_;
   }
 
-  void SetMockSignerSetTimestamp(std::optional<base::Time> timestamp) {
-    mock_signer_set_timestamp_ = timestamp;
-  }
-
-  std::optional<base::Time> signer_set_timestamp() const override {
-    return mock_signer_set_timestamp_;
-  }
-
   void SetMockMtcMetadataUpdateTime(std::optional<base::Time> update_time) {
     mock_mtc_metadata_update_time_ = update_time;
   }
@@ -318,8 +309,8 @@ class MockSystemTrustStore : public SystemTrustStore {
       const bssl::ParsedCertificate& target_cert,
       base::Time current_time,
       const bssl::MTCAnchor* mtc_anchor,
-      base::span<const std::vector<uint8_t>> valid_additional_cosigners,
-      const NetLogWithSource& net_log) const override {
+      base::span<const std::vector<uint8_t>> valid_additional_cosigners)
+      const override {
     got_valid_additional_cosigners_ =
         base::ToVector(valid_additional_cosigners);
     return mock_is_mtc_cosigner_policy_satisfied_;
@@ -359,7 +350,6 @@ class MockSystemTrustStore : public SystemTrustStore {
   bool mock_is_known_mtc_anchor_ = false;
 #if BUILDFLAG(CHROME_ROOT_STORE_SUPPORTED)
   int64_t mock_crs_version_ = 0;
-  std::optional<base::Time> mock_signer_set_timestamp_;
   std::optional<base::Time> mock_mtc_metadata_update_time_;
   std::optional<TrustStoreChrome::MtcAnchorExtraData>
       mock_mtc_anchor_extra_data_;
@@ -424,7 +414,6 @@ class MockCTPolicyEnforcer : public CTPolicyEnforcer {
   MOCK_CONST_METHOD1(GetLogDisqualificationTime,
                      std::optional<base::Time>(std::string_view log_id));
   MOCK_CONST_METHOD0(IsCtEnabled, bool());
-  MOCK_CONST_METHOD1(IsLogDataTimely, bool(base::Time current_time));
 
  protected:
   ~MockCTPolicyEnforcer() override = default;
@@ -605,10 +594,6 @@ class CertVerifyProcBuiltinTest : public ::testing::Test {
     mock_system_trust_store_->SetMockCRSVersion(crs_version);
   }
 
-  void SetMockSignerSetTimestamp(std::optional<base::Time> timestamp) {
-    mock_system_trust_store_->SetMockSignerSetTimestamp(timestamp);
-  }
-
   void SetMockMtcMetadataUpdateTime(std::optional<base::Time> update_time) {
     mock_system_trust_store_->SetMockMtcMetadataUpdateTime(update_time);
   }
@@ -733,10 +718,9 @@ TEST_F(CertVerifyProcBuiltinTest, SimpleSuccess) {
   histograms.ExpectTotalCount("Net.Certificate.TrustAnchor2.Verify", 0u);
 }
 
-TEST_F(CertVerifyProcBuiltinTest, SimpleSignaturelessMtcSuccess) {
-  constexpr uint8_t kMtcCaId[] = {0x09, 0x08, 0x07};
-  constexpr uint16_t kLogNumber = 1;
-  net::MtcLogBuilder mtc_log(kMtcCaId, kLogNumber);
+TEST_F(CertVerifyProcBuiltinTest, SimpleSignaturelessDavidben08MtcSuccess) {
+  constexpr uint8_t kMtcLogId[] = {0x09, 0x08, 0x07};
+  net::MtcLogBuilder mtc_log(kMtcLogId);
   // TODO(crbug.com/469624806): improve interface for creating MTC cert
   // builders.
   std::unique_ptr<net::CertBuilder> mtc_leaf1 =
@@ -746,15 +730,9 @@ TEST_F(CertVerifyProcBuiltinTest, SimpleSignaturelessMtcSuccess) {
 
   InitializeVerifyProc(CreateParams(/*additional_trust_anchors=*/{}));
 
-  // The CA key isn't actually used by this test, but one is needed to
-  // initialize the MTCAnchor object.
-  auto ca_key = crypto::keypair::PrivateKey::GenerateEcP256();
-
   bssl::TrustStoreInMemory trust_store;
   auto mtc_anchor = std::make_shared<const bssl::MTCAnchor>(
-      kMtcCaId, bssl::SignatureAlgorithm::kEcdsaSha256,
-      x509_util::CreateCryptoBuffer(ca_key.ToSubjectPublicKeyInfo()),
-      mtc_log.GetPerLogLandmarkSubtreeHashes());
+      kMtcLogId, mtc_log.GetLandmarkSubtreeHashes());
   ASSERT_TRUE(trust_store.AddMTCTrustAnchor(mtc_anchor));
   AddTrustStore(&trust_store);
 
@@ -803,7 +781,44 @@ TEST_F(CertVerifyProcBuiltinTest, SimpleSignaturelessMtcSuccess) {
   }
 }
 
-TEST_F(CertVerifyProcBuiltinTest, MtcNonTrivialProof) {
+TEST_F(CertVerifyProcBuiltinTest, SignaturelessDavidben08MtcNonTrivialProof) {
+  constexpr uint8_t kMtcLogId[] = {0x09, 0x08, 0x07};
+  net::MtcLogBuilder mtc_log(kMtcLogId);
+  // TODO(crbug.com/469624806): improve interface for creating MTC cert
+  // builders.
+  std::unique_ptr<net::CertBuilder> mtc_leaf1 =
+      std::move(net::CertBuilder::CreateSimpleChain(1u)[0]);
+
+  mtc_log.AddUnusedEntries(27);
+  uint64_t leaf_index = mtc_log.AddEntry(*mtc_leaf1);
+  mtc_log.AddUnusedEntries(13);
+  mtc_log.AdvanceLandmark();
+
+  InitializeVerifyProc(CreateParams(/*additional_trust_anchors=*/{}));
+
+  bssl::TrustStoreInMemory trust_store;
+  auto mtc_anchor = std::make_shared<const bssl::MTCAnchor>(
+      kMtcLogId, mtc_log.GetLandmarkSubtreeHashes());
+  ASSERT_TRUE(trust_store.AddMTCTrustAnchor(mtc_anchor));
+  AddTrustStore(&trust_store);
+
+  {
+    scoped_refptr<X509Certificate> cert1 = X509Certificate::CreateFromBytes(
+        *mtc_log.CreateSignaturelessCertificate(leaf_index));
+    ASSERT_TRUE(cert1);
+
+    CertVerifyResult verify_result;
+    NetLogSource verify_net_log_source;
+    TestCompletionCallback callback;
+    Verify(cert1.get(), "www.example.com", /*flags=*/0, &verify_result,
+           &verify_net_log_source, callback.callback());
+
+    int error = callback.WaitForResult();
+    EXPECT_THAT(error, IsOk());
+  }
+}
+
+TEST_F(CertVerifyProcBuiltinTest, SignaturelessPlants04MtcNonTrivialProof) {
   constexpr uint8_t kMtcCaId[] = {0x09, 0x08, 0x07};
   constexpr uint16_t kLogNumber = 1;
   net::MtcLogBuilder mtc_log(kMtcCaId, kLogNumber);
@@ -824,10 +839,12 @@ TEST_F(CertVerifyProcBuiltinTest, MtcNonTrivialProof) {
   auto ca_key = crypto::keypair::PrivateKey::GenerateEcP256();
 
   bssl::TrustStoreInMemory trust_store;
+  std::map<uint16_t, std::vector<bssl::TrustedSubtree>> subtree_hashes;
+  subtree_hashes[kLogNumber] = mtc_log.GetLandmarkSubtreeHashes();
   auto mtc_anchor = std::make_shared<const bssl::MTCAnchor>(
       kMtcCaId, bssl::SignatureAlgorithm::kEcdsaSha256,
       x509_util::CreateCryptoBuffer(ca_key.ToSubjectPublicKeyInfo()),
-      mtc_log.GetPerLogLandmarkSubtreeHashes());
+      subtree_hashes);
   ASSERT_TRUE(trust_store.AddMTCTrustAnchor(mtc_anchor));
   AddTrustStore(&trust_store);
 
@@ -878,7 +895,8 @@ TEST_F(CertVerifyProcBuiltinTest, StandaloneMtcVerification) {
   auto mtc_anchor = std::make_shared<const bssl::MTCAnchor>(
       ca_cosigner.id, ca_cosigner.signature_algorithm,
       x509_util::CreateCryptoBuffer(ca_cosigner.key.ToSubjectPublicKeyInfo()),
-      std::vector<bssl::LogTrustedSubtrees>());
+      std::map<uint16_t, std::vector<bssl::TrustedSubtree>>());
+  ASSERT_EQ(mtc_anchor->spec_version(), bssl::MTCAnchor::kPlants04);
   ASSERT_TRUE(trust_store.AddMTCTrustAnchor(mtc_anchor));
   AddTrustStore(&trust_store);
 
@@ -908,7 +926,8 @@ TEST_F(CertVerifyProcBuiltinTest, StandaloneMtcVerification) {
   mtc_anchor = std::make_shared<const bssl::MTCAnchor>(
       ca_cosigner.id, ca_cosigner.signature_algorithm,
       x509_util::CreateCryptoBuffer(different_key.ToSubjectPublicKeyInfo()),
-      std::vector<bssl::LogTrustedSubtrees>());
+      std::map<uint16_t, std::vector<bssl::TrustedSubtree>>());
+  ASSERT_EQ(mtc_anchor->spec_version(), bssl::MTCAnchor::kPlants04);
   ASSERT_TRUE(trust_store.AddMTCTrustAnchor(mtc_anchor));
   {
     CertVerifyResult verify_result;
@@ -961,7 +980,8 @@ TEST_F(CertVerifyProcBuiltinTest, StandaloneMtcCosignerPolicy) {
   auto mtc_anchor = std::make_shared<const bssl::MTCAnchor>(
       ca_cosigner.id, ca_cosigner.signature_algorithm,
       x509_util::CreateCryptoBuffer(ca_cosigner.key.ToSubjectPublicKeyInfo()),
-      std::vector<bssl::LogTrustedSubtrees>());
+      std::map<uint16_t, std::vector<bssl::TrustedSubtree>>());
+  ASSERT_EQ(mtc_anchor->spec_version(), bssl::MTCAnchor::kPlants04);
   ASSERT_TRUE(trust_store.AddMTCTrustAnchor(mtc_anchor));
   AddTrustStore(&trust_store);
 
@@ -1001,7 +1021,6 @@ TEST_F(CertVerifyProcBuiltinTest, StandaloneMtcCosignerPolicy) {
     // MTC with only CA signature should validate successfully when mirror
     // policy is not enforced.
     CertVerifyResult verify_result;
-    RecordingNetLogObserver net_log_observer(NetLogCaptureMode::kDefault);
     NetLogSource verify_net_log_source;
     TestCompletionCallback callback;
     Verify(leaf_with_ca_only.get(), "www.example.com", /*flags=*/0,
@@ -1017,17 +1036,6 @@ TEST_F(CertVerifyProcBuiltinTest, StandaloneMtcCosignerPolicy) {
         mtc_anchor->AsCert()->cert_buffer(),
         verify_result.verified_cert->cert_buffers()[1].get()));
     EXPECT_FALSE(verify_result.is_issued_by_known_root);
-
-    // In the case of locally trusted MTC anchors, the netlog is recorded
-    // directly from PathBuilderDelegateImpl without calling the trust store
-    // IsMtcCosignerPolicySatisfied.
-    auto events = net_log_observer.GetEntriesWithType(
-        NetLogEventType::CERT_MTC_COSIGNER_POLICY_CHECKED);
-    ASSERT_EQ(1u, events.size());
-    EXPECT_THAT(events[0].params, base::test::IsJson(R"({
-      "is_valid": true,
-      "reason": "locally trusted anchor",
-    })"));
   }
 
   {
@@ -1035,7 +1043,6 @@ TEST_F(CertVerifyProcBuiltinTest, StandaloneMtcCosignerPolicy) {
     // successfully when mirror policy is not enforced. The mirror signature is
     // not required, but being present does not affect the result.
     CertVerifyResult verify_result;
-    RecordingNetLogObserver net_log_observer(NetLogCaptureMode::kDefault);
     NetLogSource verify_net_log_source;
     TestCompletionCallback callback;
     Verify(leaf_with_ca_and_mirror.get(), "www.example.com", /*flags=*/0,
@@ -1051,23 +1058,11 @@ TEST_F(CertVerifyProcBuiltinTest, StandaloneMtcCosignerPolicy) {
         mtc_anchor->AsCert()->cert_buffer(),
         verify_result.verified_cert->cert_buffers()[1].get()));
     EXPECT_FALSE(verify_result.is_issued_by_known_root);
-
-    // In the case of locally trusted MTC anchors, the netlog is recorded
-    // directly from PathBuilderDelegateImpl without calling the trust store
-    // IsMtcCosignerPolicySatisfied.
-    auto events = net_log_observer.GetEntriesWithType(
-        NetLogEventType::CERT_MTC_COSIGNER_POLICY_CHECKED);
-    ASSERT_EQ(1u, events.size());
-    EXPECT_THAT(events[0].params, base::test::IsJson(R"({
-      "is_valid": true,
-      "reason": "locally trusted anchor",
-    })"));
   }
 
   {
     // MTC with no CA signature should fail regardless.
     CertVerifyResult verify_result;
-    RecordingNetLogObserver net_log_observer(NetLogCaptureMode::kDefault);
     NetLogSource verify_net_log_source;
     TestCompletionCallback callback;
     Verify(leaf_with_mirror_only.get(), "www.example.com", /*flags=*/0,
@@ -1075,10 +1070,6 @@ TEST_F(CertVerifyProcBuiltinTest, StandaloneMtcCosignerPolicy) {
 
     int error = callback.WaitForResult();
     EXPECT_THAT(error, IsError(ERR_CERT_AUTHORITY_INVALID));
-    EXPECT_EQ(0u, net_log_observer
-                      .GetEntriesWithType(
-                          NetLogEventType::CERT_MTC_COSIGNER_POLICY_CHECKED)
-                      .size());
   }
 
   // Second round of tests, with KnownMtcAnchor=true.
@@ -1093,7 +1084,6 @@ TEST_F(CertVerifyProcBuiltinTest, StandaloneMtcCosignerPolicy) {
     SetMockIsMtcCosignerPolicySatisfied(false);
 
     CertVerifyResult verify_result;
-    RecordingNetLogObserver net_log_observer(NetLogCaptureMode::kDefault);
     NetLogSource verify_net_log_source;
     TestCompletionCallback callback;
     Verify(leaf_with_ca_only.get(), "www.example.com", /*flags=*/0,
@@ -1103,13 +1093,6 @@ TEST_F(CertVerifyProcBuiltinTest, StandaloneMtcCosignerPolicy) {
     EXPECT_THAT(error, IsError(ERR_CERT_AUTHORITY_INVALID));
     EXPECT_EQ(std::vector<std::vector<uint8_t>>{},
               TakeLastValidAdditionalCosigners());
-    // Since the trust store IsMtcCosignerPolicySatisfied is mocked and this is
-    // a known anchor, the CERT_MTC_COSIGNER_POLICY_CHECKED netlog is not
-    // recorded. (Those cases are tested in trust_store_chrome_unittest.cc.)
-    EXPECT_EQ(0u, net_log_observer
-                      .GetEntriesWithType(
-                          NetLogEventType::CERT_MTC_COSIGNER_POLICY_CHECKED)
-                      .size());
   }
   {
     // MTC validation should succeed when mirror policy is enforced and
@@ -1143,289 +1126,6 @@ TEST_F(CertVerifyProcBuiltinTest, StandaloneMtcCosignerPolicy) {
     // IsCosignatureVerificationResultAcceptable should not have been called,
     // since verification of the CA signature failed.
     EXPECT_EQ(std::nullopt, TakeLastValidAdditionalCosigners());
-  }
-}
-
-TEST_F(CertVerifyProcBuiltinTest, MtcLogNumberLimits) {
-  struct TestCase {
-    uint16_t log_number;
-    int min_log_number;
-    int expected_result_for_local_root;
-    int expected_result_for_known_root;
-    bool load_landmark_data = true;
-  } testcases[] = {
-      // A log number of zero is not allowed. This should always fail (it's
-      // enforced by the boringssl side of MTC verification.)
-      // MTCAnchor doesn't allow loading of trusted landmarks with log number 0
-      // (we assume the trusted infrastructure supplying the landmark data will
-      // never supply such data so it fails at load time rather than
-      // verification time), so for this test case we don't try to import
-      // the landmark data.
-      {.log_number = 0,
-       .min_log_number = 0,
-       .expected_result_for_local_root = ERR_CERT_AUTHORITY_INVALID,
-       .expected_result_for_known_root = ERR_CERT_AUTHORITY_INVALID,
-       .load_landmark_data = false},
-      {.log_number = 0,
-       .min_log_number = 1,
-       .expected_result_for_local_root = ERR_CERT_AUTHORITY_INVALID,
-       .expected_result_for_known_root = ERR_CERT_AUTHORITY_INVALID,
-       .load_landmark_data = false},
-
-      // min_log_number doesn't explicitly require known root since it comes
-      // from the MtcAnchorExtraData (in practice that data will only be
-      // populated for known roots though.)
-      {.log_number = 1,
-       .min_log_number = 0,
-       .expected_result_for_local_root = OK,
-       .expected_result_for_known_root = OK},
-      {.log_number = 1,
-       .min_log_number = 1,
-       .expected_result_for_local_root = OK,
-       .expected_result_for_known_root = OK},
-      {.log_number = 1,
-       .min_log_number = 2,
-       .expected_result_for_local_root = ERR_CERT_REVOKED,
-       .expected_result_for_known_root = ERR_CERT_REVOKED},
-      {.log_number = 5,
-       .min_log_number = 2,
-       .expected_result_for_local_root = OK,
-       .expected_result_for_known_root = OK},
-      {.log_number = 5,
-       .min_log_number = 5,
-       .expected_result_for_local_root = OK,
-       .expected_result_for_known_root = OK},
-      {.log_number = 5,
-       .min_log_number = 6,
-       .expected_result_for_local_root = ERR_CERT_REVOKED,
-       .expected_result_for_known_root = ERR_CERT_REVOKED},
-
-      // The max log number of 5 is a hard-coded requirement from CQRP, so it
-      // is only enforced when known root is true.
-      {.log_number = 6,
-       .min_log_number = 0,
-       .expected_result_for_local_root = OK,
-       .expected_result_for_known_root = ERR_CERT_REVOKED},
-      {.log_number = 6,
-       .min_log_number = 5,
-       .expected_result_for_local_root = OK,
-       .expected_result_for_known_root = ERR_CERT_REVOKED},
-      {.log_number = 6,
-       .min_log_number = 6,
-       .expected_result_for_local_root = OK,
-       .expected_result_for_known_root = ERR_CERT_REVOKED},
-      {.log_number = 6,
-       .min_log_number = 7,
-       .expected_result_for_local_root = ERR_CERT_REVOKED,
-       .expected_result_for_known_root = ERR_CERT_REVOKED},
-  };
-
-  for (const auto& test : testcases) {
-    SCOPED_TRACE(test.log_number);
-    SCOPED_TRACE(test.min_log_number);
-    constexpr uint8_t kMtcCaId[] = {0x09, 0x08, 0x07};
-    net::MtcLogBuilder mtc_log(kMtcCaId, test.log_number);
-    std::unique_ptr<net::CertBuilder> mtc_leaf1 =
-        std::move(net::CertBuilder::CreateSimpleChain(1u)[0]);
-    uint64_t leaf_index = mtc_log.AddEntry(*mtc_leaf1);
-    mtc_log.AdvanceLandmark();
-
-    InitializeVerifyProc(CreateParams(/*additional_trust_anchors=*/{}));
-
-    MtcLogBuilder::Cosigner ca_cosigner = {
-        base::ToVector(kMtcCaId),
-        crypto::keypair::PrivateKey::GenerateMldsa44(),
-        bssl::SignatureAlgorithm::kMldsa44};
-
-    bssl::TrustStoreInMemory trust_store;
-    auto mtc_anchor = std::make_shared<const bssl::MTCAnchor>(
-        ca_cosigner.id, ca_cosigner.signature_algorithm,
-        x509_util::CreateCryptoBuffer(ca_cosigner.key.ToSubjectPublicKeyInfo()),
-        test.load_landmark_data ? mtc_log.GetPerLogLandmarkSubtreeHashes()
-                                : std::vector<bssl::LogTrustedSubtrees>());
-    ASSERT_TRUE(trust_store.AddMTCTrustAnchor(mtc_anchor));
-    AddTrustStore(&trust_store);
-
-    Signer signer_config = Signer::CreateForTesting(
-        chrome_root_store::SIGNER_TYPE_ISSUER, kMtcCaId);
-    signer_config.min_log_number = test.min_log_number;
-    TrustStoreChrome::MtcAnchorExtraData mtc_anchor_extra_data(
-        std::move(signer_config));
-    SetMockMTCAnchorData(mtc_anchor_extra_data);
-    SetMockIsMtcCosignerPolicySatisfied(true);
-
-    // Results should be the same for both landmark relative and standalone
-    // certs.
-    //
-    // Landmark relative MTCs:
-    scoped_refptr<X509Certificate> landmark_relative_cert =
-        X509Certificate::CreateFromBytes(
-            *mtc_log.CreateSignaturelessCertificate(leaf_index));
-    ASSERT_TRUE(landmark_relative_cert);
-    {
-      SetMockIsKnownMtcAnchor(false);
-      CertVerifyResult verify_result;
-      NetLogSource verify_net_log_source;
-      TestCompletionCallback callback;
-      Verify(landmark_relative_cert.get(), "www.example.com", /*flags=*/0,
-             &verify_result, &verify_net_log_source, callback.callback());
-
-      int error = callback.WaitForResult();
-      EXPECT_THAT(error, IsError(test.expected_result_for_local_root));
-    }
-    {
-      SetMockIsKnownMtcAnchor(true);
-      CertVerifyResult verify_result;
-      NetLogSource verify_net_log_source;
-      TestCompletionCallback callback;
-      Verify(landmark_relative_cert.get(), "www.example.com", /*flags=*/0,
-             &verify_result, &verify_net_log_source, callback.callback());
-
-      int error = callback.WaitForResult();
-      EXPECT_THAT(error, IsError(test.expected_result_for_known_root));
-    }
-
-    // Standalone MTCs:
-    scoped_refptr<X509Certificate> standalone_cert =
-        X509Certificate::CreateFromBytes(
-            *mtc_log.CreateStandaloneCertificate(leaf_index, {&ca_cosigner}));
-    ASSERT_TRUE(standalone_cert);
-    {
-      SetMockIsKnownMtcAnchor(false);
-      CertVerifyResult verify_result;
-      NetLogSource verify_net_log_source;
-      TestCompletionCallback callback;
-      Verify(standalone_cert.get(), "www.example.com", /*flags=*/0,
-             &verify_result, &verify_net_log_source, callback.callback());
-
-      int error = callback.WaitForResult();
-      EXPECT_THAT(error, IsError(test.expected_result_for_local_root));
-    }
-    {
-      SetMockIsKnownMtcAnchor(true);
-      CertVerifyResult verify_result;
-      NetLogSource verify_net_log_source;
-      TestCompletionCallback callback;
-      Verify(standalone_cert.get(), "www.example.com", /*flags=*/0,
-             &verify_result, &verify_net_log_source, callback.callback());
-
-      int error = callback.WaitForResult();
-      EXPECT_THAT(error, IsError(test.expected_result_for_known_root));
-    }
-  }
-}
-
-TEST_F(CertVerifyProcBuiltinTest, MtcMaxCertLifetime) {
-  struct TestCase {
-    std::optional<base::TimeDelta> max_cert_lifetime;
-    base::TimeDelta cert_lifetime;
-    int expected_result;
-  } testcases[] = {
-      {.max_cert_lifetime = std::nullopt,
-       .cert_lifetime = base::Days(10),
-       .expected_result = OK},
-      {.max_cert_lifetime = std::nullopt,
-       .cert_lifetime = base::Days(100),
-       .expected_result = OK},
-
-      {.max_cert_lifetime = base::Days(10),
-       .cert_lifetime = base::Days(10) - base::Seconds(1),
-       .expected_result = OK},
-      {.max_cert_lifetime = base::Days(10),
-       .cert_lifetime = base::Days(10),
-       .expected_result = OK},
-      {.max_cert_lifetime = base::Days(10),
-       .cert_lifetime = base::Days(10) + base::Seconds(1),
-       .expected_result = ERR_CERT_VALIDITY_TOO_LONG},
-      {.max_cert_lifetime = base::Days(10),
-       .cert_lifetime = base::Days(100),
-       .expected_result = ERR_CERT_VALIDITY_TOO_LONG},
-
-      {.max_cert_lifetime = base::Days(47),
-       .cert_lifetime = base::Days(47) - base::Seconds(1),
-       .expected_result = OK},
-      {.max_cert_lifetime = base::Days(47),
-       .cert_lifetime = base::Days(47),
-       .expected_result = OK},
-      {.max_cert_lifetime = base::Days(47),
-       .cert_lifetime = base::Days(47) + base::Seconds(1),
-       .expected_result = ERR_CERT_VALIDITY_TOO_LONG},
-      {.max_cert_lifetime = base::Days(47),
-       .cert_lifetime = base::Days(100),
-       .expected_result = ERR_CERT_VALIDITY_TOO_LONG},
-  };
-
-  base::Time start = base::Time::Now();
-  constexpr int16_t kLogNumber = 1;
-
-  for (const auto& test : testcases) {
-    SCOPED_TRACE(base::ToString(test.max_cert_lifetime));
-    SCOPED_TRACE(test.cert_lifetime);
-    constexpr uint8_t kMtcCaId[] = {0x09, 0x08, 0x07};
-    net::MtcLogBuilder mtc_log(kMtcCaId, kLogNumber);
-    std::unique_ptr<net::CertBuilder> mtc_leaf1 =
-        std::move(net::CertBuilder::CreateSimpleChain(1u)[0]);
-    mtc_leaf1->SetValidity(start, start + test.cert_lifetime);
-    uint64_t leaf_index = mtc_log.AddEntry(*mtc_leaf1);
-    mtc_log.AdvanceLandmark();
-
-    InitializeVerifyProc(CreateParams(/*additional_trust_anchors=*/{}));
-
-    MtcLogBuilder::Cosigner ca_cosigner = {
-        base::ToVector(kMtcCaId),
-        crypto::keypair::PrivateKey::GenerateMldsa44(),
-        bssl::SignatureAlgorithm::kMldsa44};
-
-    bssl::TrustStoreInMemory trust_store;
-    auto mtc_anchor = std::make_shared<const bssl::MTCAnchor>(
-        ca_cosigner.id, ca_cosigner.signature_algorithm,
-        x509_util::CreateCryptoBuffer(ca_cosigner.key.ToSubjectPublicKeyInfo()),
-        mtc_log.GetPerLogLandmarkSubtreeHashes());
-    ASSERT_TRUE(trust_store.AddMTCTrustAnchor(mtc_anchor));
-    AddTrustStore(&trust_store);
-
-    Signer signer_config = Signer::CreateForTesting(
-        chrome_root_store::SIGNER_TYPE_ISSUER, kMtcCaId);
-    signer_config.max_cert_lifetime = test.max_cert_lifetime;
-    TrustStoreChrome::MtcAnchorExtraData mtc_anchor_extra_data(
-        std::move(signer_config));
-    SetMockMTCAnchorData(mtc_anchor_extra_data);
-    SetMockIsMtcCosignerPolicySatisfied(true);
-
-    // Results should be the same for both landmark relative and standalone
-    // certs.
-    //
-    // Landmark relative MTCs:
-    scoped_refptr<X509Certificate> landmark_relative_cert =
-        X509Certificate::CreateFromBytes(
-            *mtc_log.CreateSignaturelessCertificate(leaf_index));
-    ASSERT_TRUE(landmark_relative_cert);
-    {
-      CertVerifyResult verify_result;
-      NetLogSource verify_net_log_source;
-      TestCompletionCallback callback;
-      Verify(landmark_relative_cert.get(), "www.example.com", /*flags=*/0,
-             &verify_result, &verify_net_log_source, callback.callback());
-
-      int error = callback.WaitForResult();
-      EXPECT_THAT(error, IsError(test.expected_result));
-    }
-
-    // Standalone MTCs:
-    scoped_refptr<X509Certificate> standalone_cert =
-        X509Certificate::CreateFromBytes(
-            *mtc_log.CreateStandaloneCertificate(leaf_index, {&ca_cosigner}));
-    ASSERT_TRUE(standalone_cert);
-    {
-      CertVerifyResult verify_result;
-      NetLogSource verify_net_log_source;
-      TestCompletionCallback callback;
-      Verify(standalone_cert.get(), "www.example.com", /*flags=*/0,
-             &verify_result, &verify_net_log_source, callback.callback());
-
-      int error = callback.WaitForResult();
-      EXPECT_THAT(error, IsError(test.expected_result));
-    }
   }
 }
 
@@ -1476,9 +1176,8 @@ TEST_F(CertVerifyProcBuiltinTest, CrsAnchorUsageHistogram) {
 }
 
 TEST_F(CertVerifyProcBuiltinTest, MtcCrsAnchorUsageHistogram) {
-  constexpr uint8_t kMtcCaId[] = {0x09, 0x08, 0x07};
-  constexpr uint16_t kLogNumber = 1;
-  net::MtcLogBuilder mtc_log(kMtcCaId, kLogNumber);
+  constexpr uint8_t kMtcLogId[] = {0x09, 0x08, 0x07};
+  net::MtcLogBuilder mtc_log(kMtcLogId);
   // TODO(crbug.com/469624806): improve interface for creating MTC cert
   // builders.
   std::unique_ptr<net::CertBuilder> mtc_leaf1 =
@@ -1488,15 +1187,9 @@ TEST_F(CertVerifyProcBuiltinTest, MtcCrsAnchorUsageHistogram) {
 
   InitializeVerifyProc(CreateParams(/*additional_trust_anchors=*/{}));
 
-  // The CA key isn't actually used by this test, but one is needed to
-  // initialize the MTCAnchor object.
-  auto ca_key = crypto::keypair::PrivateKey::GenerateEcP256();
-
   bssl::TrustStoreInMemory trust_store;
   auto mtc_anchor = std::make_shared<const bssl::MTCAnchor>(
-      kMtcCaId, bssl::SignatureAlgorithm::kEcdsaSha256,
-      x509_util::CreateCryptoBuffer(ca_key.ToSubjectPublicKeyInfo()),
-      mtc_log.GetPerLogLandmarkSubtreeHashes());
+      kMtcLogId, mtc_log.GetLandmarkSubtreeHashes());
   ASSERT_TRUE(trust_store.AddMTCTrustAnchor(mtc_anchor));
   AddTrustStore(&trust_store);
 
@@ -1545,160 +1238,100 @@ TEST_F(CertVerifyProcBuiltinTest, MtcCrsAnchorUsageHistogram) {
   }
 }
 
-TEST_F(CertVerifyProcBuiltinTest, MtcRevocation) {
-  constexpr uint8_t kMtcCaId[] = {0x09, 0x08, 0x07};
-  constexpr uint64_t kLogNumber = 1;
-
-  MtcLogBuilder::Cosigner ca_cosigner = {
-      base::ToVector(kMtcCaId), crypto::keypair::PrivateKey::GenerateEcP256(),
-      bssl::SignatureAlgorithm::kEcdsaSha256};
-  net::MtcLogBuilder mtc_log(kMtcCaId, kLogNumber);
+TEST_F(CertVerifyProcBuiltinTest, SignaturelessMtcRevocation) {
+  constexpr uint8_t kMtcLogId[] = {0x09, 0x08, 0x07};
+  net::MtcLogBuilder mtc_log(kMtcLogId);
   // TODO(crbug.com/469624806): improve interface for creating MTC cert
   // builders.
   std::unique_ptr<net::CertBuilder> mtc_leaf1 =
       std::move(net::CertBuilder::CreateSimpleChain(1u)[0]);
   struct TestCertData {
     uint64_t mtc_log_index;
-    uint64_t mtc_serial;
-    bool expect_is_revoked = false;
-    scoped_refptr<X509Certificate> landmark_relative_cert;
-    scoped_refptr<X509Certificate> standalone_cert;
+    bool expect_is_revoked;
+    scoped_refptr<X509Certificate> cert;
   };
   std::array<TestCertData, 6> test_cert_data;
   for (TestCertData& data : test_cert_data) {
     data.mtc_log_index = mtc_log.AddEntry(*mtc_leaf1);
-    data.mtc_serial = (kLogNumber << 48) + data.mtc_log_index;
   }
+  ASSERT_EQ(test_cert_data.front().mtc_log_index, 1u);
+  ASSERT_EQ(test_cert_data.back().mtc_log_index, 6u);
 
   mtc_log.AdvanceLandmark();
 
   for (TestCertData& data : test_cert_data) {
-    data.landmark_relative_cert = X509Certificate::CreateFromBuffer(
+    data.cert = X509Certificate::CreateFromBuffer(
         mtc_log.CreateSignaturelessCertificateBuffer(data.mtc_log_index), {});
-    data.standalone_cert = X509Certificate::CreateFromBuffer(
-        mtc_log.CreateStandaloneCertificateBuffer(data.mtc_log_index,
-                                                  {&ca_cosigner}),
-        {});
   }
 
-  SetMockIsMtcCosignerPolicySatisfied(true);
   InitializeVerifyProc(CreateParams(/*additional_trust_anchors=*/{}));
 
   bssl::TrustStoreInMemory trust_store;
   auto mtc_anchor = std::make_shared<const bssl::MTCAnchor>(
-      ca_cosigner.id, ca_cosigner.signature_algorithm,
-      x509_util::CreateCryptoBuffer(ca_cosigner.key.ToSubjectPublicKeyInfo()),
-      mtc_log.GetPerLogLandmarkSubtreeHashes());
+      kMtcLogId, mtc_log.GetLandmarkSubtreeHashes());
   ASSERT_TRUE(trust_store.AddMTCTrustAnchor(mtc_anchor));
   AddTrustStore(&trust_store);
 
   // Test with GetMTCAnchorData returning a non-null MtcAnchorExtraData, but
-  // with revoked_serials empty. Nothing should be revoked.
-  TrustStoreChrome::MtcAnchorExtraData mtc_anchor_extra_data(
-      Signer::CreateForTesting(chrome_root_store::SIGNER_TYPE_ISSUER,
-                               kMtcCaId));
+  // with revoked_indices empty. Nothing should be revoked.
+  TrustStoreChrome::MtcAnchorExtraData mtc_anchor_extra_data;
   SetMockMTCAnchorData(mtc_anchor_extra_data);
   for (const TestCertData& data : test_cert_data) {
     SCOPED_TRACE(data.mtc_log_index);
 
-    {
-      CertVerifyResult verify_result;
-      NetLogSource verify_net_log_source;
-      TestCompletionCallback callback;
-      Verify(data.landmark_relative_cert, "www.example.com", /*flags=*/0,
-             &verify_result, &verify_net_log_source, callback.callback());
+    CertVerifyResult verify_result;
+    NetLogSource verify_net_log_source;
+    TestCompletionCallback callback;
+    Verify(data.cert, "www.example.com", /*flags=*/0, &verify_result,
+           &verify_net_log_source, callback.callback());
 
-      int error = callback.WaitForResult();
-      EXPECT_THAT(error, IsOk());
-    }
-    {
-      CertVerifyResult verify_result;
-      NetLogSource verify_net_log_source;
-      TestCompletionCallback callback;
-      Verify(data.standalone_cert, "www.example.com", /*flags=*/0,
-             &verify_result, &verify_net_log_source, callback.callback());
-
-      int error = callback.WaitForResult();
-      EXPECT_THAT(error, IsOk());
-    }
+    int error = callback.WaitForResult();
+    EXPECT_THAT(error, IsOk());
   }
 
   // Set revoked_indicies to mark some certs as revoked.
-  mtc_anchor_extra_data.revoked_serials = base::flat_map<uint64_t, uint64_t>({
-      {test_cert_data[3].mtc_serial, test_cert_data[1].mtc_serial},
-      {test_cert_data[5].mtc_serial, test_cert_data[4].mtc_serial},
-  });
-  test_cert_data[1].expect_is_revoked = true;
-  test_cert_data[2].expect_is_revoked = true;
-  test_cert_data[4].expect_is_revoked = true;
+  mtc_anchor_extra_data.revoked_indices =
+      base::flat_map<uint64_t, uint64_t>({{3, 1}, {5, 4}});
   SetMockMTCAnchorData(mtc_anchor_extra_data);
   for (const TestCertData& data : test_cert_data) {
     SCOPED_TRACE(data.mtc_log_index);
 
-    {
-      CertVerifyResult verify_result;
-      NetLogSource verify_net_log_source;
-      TestCompletionCallback callback;
-      Verify(data.landmark_relative_cert, "www.example.com", /*flags=*/0,
-             &verify_result, &verify_net_log_source, callback.callback());
+    CertVerifyResult verify_result;
+    NetLogSource verify_net_log_source;
+    TestCompletionCallback callback;
+    Verify(data.cert, "www.example.com", /*flags=*/0, &verify_result,
+           &verify_net_log_source, callback.callback());
 
-      int error = callback.WaitForResult();
-      if (data.expect_is_revoked) {
-        EXPECT_THAT(error, IsError(ERR_CERT_REVOKED));
-      } else {
-        EXPECT_THAT(error, IsOk());
-      }
-    }
-    {
-      CertVerifyResult verify_result;
-      NetLogSource verify_net_log_source;
-      TestCompletionCallback callback;
-      Verify(data.standalone_cert, "www.example.com", /*flags=*/0,
-             &verify_result, &verify_net_log_source, callback.callback());
-
-      int error = callback.WaitForResult();
-      if (data.expect_is_revoked) {
-        EXPECT_THAT(error, IsError(ERR_CERT_REVOKED));
-      } else {
-        EXPECT_THAT(error, IsOk());
-      }
+    int error = callback.WaitForResult();
+    if (data.mtc_log_index == 1 || data.mtc_log_index == 2 ||
+        data.mtc_log_index == 4) {
+      EXPECT_THAT(error, IsError(ERR_CERT_REVOKED));
+    } else {
+      EXPECT_THAT(error, IsOk());
     }
   }
 
   // Set revoked_indicies to have a single range that includes all certs.
-  mtc_anchor_extra_data.revoked_serials =
-      base::flat_map<uint64_t, uint64_t>({{(kLogNumber + 1) << 48, 0}});
+  mtc_anchor_extra_data.revoked_indices =
+      base::flat_map<uint64_t, uint64_t>({{1000, 0}});
   SetMockMTCAnchorData(mtc_anchor_extra_data);
   for (const TestCertData& data : test_cert_data) {
     SCOPED_TRACE(data.mtc_log_index);
 
-    {
-      CertVerifyResult verify_result;
-      NetLogSource verify_net_log_source;
-      TestCompletionCallback callback;
-      Verify(data.landmark_relative_cert, "www.example.com", /*flags=*/0,
-             &verify_result, &verify_net_log_source, callback.callback());
+    CertVerifyResult verify_result;
+    NetLogSource verify_net_log_source;
+    TestCompletionCallback callback;
+    Verify(data.cert, "www.example.com", /*flags=*/0, &verify_result,
+           &verify_net_log_source, callback.callback());
 
-      int error = callback.WaitForResult();
-      EXPECT_THAT(error, IsError(ERR_CERT_REVOKED));
-    }
-    {
-      CertVerifyResult verify_result;
-      NetLogSource verify_net_log_source;
-      TestCompletionCallback callback;
-      Verify(data.standalone_cert, "www.example.com", /*flags=*/0,
-             &verify_result, &verify_net_log_source, callback.callback());
-
-      int error = callback.WaitForResult();
-      EXPECT_THAT(error, IsError(ERR_CERT_REVOKED));
-    }
+    int error = callback.WaitForResult();
+    EXPECT_THAT(error, IsError(ERR_CERT_REVOKED));
   }
 }
 
 TEST_F(CertVerifyProcBuiltinTest, SignaturelessMtcChromeRootStoreConstraints) {
-  constexpr uint8_t kMtcCaId[] = {0x09, 0x08, 0x07};
-  constexpr uint16_t kLogNumber = 1;
-  net::MtcLogBuilder mtc_log(kMtcCaId, kLogNumber);
+  constexpr uint8_t kMtcLogId[] = {0x09, 0x08, 0x07};
+  net::MtcLogBuilder mtc_log(kMtcLogId);
   // TODO(crbug.com/469624806): improve interface for creating MTC cert
   // builders.
   std::unique_ptr<net::CertBuilder> mtc_leaf1 =
@@ -1708,15 +1341,9 @@ TEST_F(CertVerifyProcBuiltinTest, SignaturelessMtcChromeRootStoreConstraints) {
 
   InitializeVerifyProc(CreateParams(/*additional_trust_anchors=*/{}));
 
-  // The CA key isn't actually used by this test, but one is needed to
-  // initialize the MTCAnchor object.
-  auto ca_key = crypto::keypair::PrivateKey::GenerateEcP256();
-
   bssl::TrustStoreInMemory trust_store;
   auto mtc_anchor = std::make_shared<const bssl::MTCAnchor>(
-      kMtcCaId, bssl::SignatureAlgorithm::kEcdsaSha256,
-      x509_util::CreateCryptoBuffer(ca_key.ToSubjectPublicKeyInfo()),
-      mtc_log.GetPerLogLandmarkSubtreeHashes());
+      kMtcLogId, mtc_log.GetLandmarkSubtreeHashes());
   ASSERT_TRUE(trust_store.AddMTCTrustAnchor(mtc_anchor));
   AddTrustStore(&trust_store);
 
@@ -1773,9 +1400,8 @@ TEST_F(CertVerifyProcBuiltinTest,
        SignaturelessMtcChromeRootStoreConstraintsTimeConstraints) {
   const base::Time leaf_time = base::Time::Now() - base::Seconds(1);
 
-  constexpr uint8_t kMtcCaId[] = {0x09, 0x08, 0x07};
-  constexpr uint16_t kLogNumber = 1;
-  net::MtcLogBuilder mtc_log(kMtcCaId, kLogNumber);
+  constexpr uint8_t kMtcLogId[] = {0x09, 0x08, 0x07};
+  net::MtcLogBuilder mtc_log(kMtcLogId);
   // TODO(crbug.com/469624806): improve interface for creating MTC cert
   // builders.
   std::unique_ptr<net::CertBuilder> mtc_leaf1 =
@@ -1836,15 +1462,9 @@ TEST_F(CertVerifyProcBuiltinTest,
   for (const bool ct_enabled : {false, true}) {
     InitializeVerifyProc(CreateParams(/*additional_trust_anchors=*/{}));
 
-    // The CA key isn't actually used by this test, but one is needed to
-    // initialize the MTCAnchor object.
-    auto ca_key = crypto::keypair::PrivateKey::GenerateEcP256();
-
     bssl::TrustStoreInMemory trust_store;
     auto mtc_anchor = std::make_shared<const bssl::MTCAnchor>(
-        kMtcCaId, bssl::SignatureAlgorithm::kEcdsaSha256,
-        x509_util::CreateCryptoBuffer(ca_key.ToSubjectPublicKeyInfo()),
-        mtc_log.GetPerLogLandmarkSubtreeHashes());
+        kMtcLogId, mtc_log.GetLandmarkSubtreeHashes());
     ASSERT_TRUE(trust_store.AddMTCTrustAnchor(mtc_anchor));
     trust_store.AddTrustAnchor(parsed_classic_root_cert);
     AddTrustStore(&trust_store);
@@ -1911,9 +1531,8 @@ TEST_F(CertVerifyProcBuiltinTest,
 
 TEST_F(CertVerifyProcBuiltinTest,
        SignaturelessMtcChromeRootStoreConstraintsSctConstraints) {
-  constexpr uint8_t kMtcCaId[] = {0x09, 0x08, 0x07};
-  constexpr uint16_t kLogNumber = 1;
-  net::MtcLogBuilder mtc_log(kMtcCaId, kLogNumber);
+  constexpr uint8_t kMtcLogId[] = {0x09, 0x08, 0x07};
+  net::MtcLogBuilder mtc_log(kMtcLogId);
   // TODO(crbug.com/469624806): improve interface for creating MTC cert
   // builders.
   std::unique_ptr<net::CertBuilder> mtc_leaf1 =
@@ -1923,15 +1542,9 @@ TEST_F(CertVerifyProcBuiltinTest,
 
   InitializeVerifyProc(CreateParams(/*additional_trust_anchors=*/{}));
 
-  // The CA key isn't actually used by this test, but one is needed to
-  // initialize the MTCAnchor object.
-  auto ca_key = crypto::keypair::PrivateKey::GenerateEcP256();
-
   bssl::TrustStoreInMemory trust_store;
   auto mtc_anchor = std::make_shared<const bssl::MTCAnchor>(
-      kMtcCaId, bssl::SignatureAlgorithm::kEcdsaSha256,
-      x509_util::CreateCryptoBuffer(ca_key.ToSubjectPublicKeyInfo()),
-      mtc_log.GetPerLogLandmarkSubtreeHashes());
+      kMtcLogId, mtc_log.GetLandmarkSubtreeHashes());
   ASSERT_TRUE(trust_store.AddMTCTrustAnchor(mtc_anchor));
   AddTrustStore(&trust_store);
 
@@ -1942,8 +1555,6 @@ TEST_F(CertVerifyProcBuiltinTest,
   ASSERT_TRUE(chain);
 
   EXPECT_CALL(*mock_ct_policy_enforcer(), IsCtEnabled())
-      .WillRepeatedly(testing::Return(true));
-  EXPECT_CALL(*mock_ct_policy_enforcer(), IsLogDataTimely(_))
       .WillRepeatedly(testing::Return(true));
 
   // With no constraints, verification succeeds
@@ -1978,29 +1589,21 @@ TEST_F(CertVerifyProcBuiltinTest,
 
 TEST_F(CertVerifyProcBuiltinTest,
        SignaturelessMtcChromeRootStoreConstraintsIndexConstraints) {
-  constexpr uint8_t kMtcCaId[] = {0x09, 0x08, 0x07};
-  constexpr uint16_t kLogNumber = 1;
-  net::MtcLogBuilder mtc_log(kMtcCaId, kLogNumber);
+  constexpr uint8_t kMtcLogId[] = {0x09, 0x08, 0x07};
+  net::MtcLogBuilder mtc_log(kMtcLogId);
   // TODO(crbug.com/469624806): improve interface for creating MTC cert
   // builders.
   std::unique_ptr<net::CertBuilder> mtc_leaf1 =
       std::move(net::CertBuilder::CreateSimpleChain(1u)[0]);
   mtc_log.AddUnusedEntries(20);
   uint64_t leaf_index = mtc_log.AddEntry(*mtc_leaf1);
-  uint64_t leaf_serial = (static_cast<uint64_t>(kLogNumber) << 48) + leaf_index;
   mtc_log.AdvanceLandmark();
 
   InitializeVerifyProc(CreateParams(/*additional_trust_anchors=*/{}));
 
-  // The CA key isn't actually used by this test, but one is needed to
-  // initialize the MTCAnchor object.
-  auto ca_key = crypto::keypair::PrivateKey::GenerateEcP256();
-
   bssl::TrustStoreInMemory trust_store;
   auto mtc_anchor = std::make_shared<const bssl::MTCAnchor>(
-      kMtcCaId, bssl::SignatureAlgorithm::kEcdsaSha256,
-      x509_util::CreateCryptoBuffer(ca_key.ToSubjectPublicKeyInfo()),
-      mtc_log.GetPerLogLandmarkSubtreeHashes());
+      kMtcLogId, mtc_log.GetLandmarkSubtreeHashes());
   ASSERT_TRUE(trust_store.AddMTCTrustAnchor(mtc_anchor));
   AddTrustStore(&trust_store);
 
@@ -2016,21 +1619,21 @@ TEST_F(CertVerifyProcBuiltinTest,
   };
   const TestCase tests[] = {
       // index_not_after cases:
-      {{.index_not_after = leaf_serial + 1}, true},
-      {{.index_not_after = leaf_serial}, true},
-      {{.index_not_after = leaf_serial - 1}, false},
-      {{.index_not_after = leaf_serial - 2}, false},
+      {{.index_not_after = leaf_index + 1}, true},
+      {{.index_not_after = leaf_index}, true},
+      {{.index_not_after = leaf_index - 1}, false},
+      {{.index_not_after = leaf_index - 2}, false},
       // index_after cases:
-      {{.index_after = leaf_serial + 1}, false},
-      {{.index_after = leaf_serial}, false},
-      {{.index_after = leaf_serial - 1}, true},
-      {{.index_after = leaf_serial - 2}, true},
+      {{.index_after = leaf_index + 1}, false},
+      {{.index_after = leaf_index}, false},
+      {{.index_after = leaf_index - 1}, true},
+      {{.index_after = leaf_index - 2}, true},
       // Both index_not_after and index_after cases:
-      {{.index_not_after = leaf_serial + 1, .index_after = leaf_serial - 2},
+      {{.index_not_after = leaf_index + 1, .index_after = leaf_index - 2},
        true},
-      {{.index_not_after = leaf_serial, .index_after = leaf_serial - 1}, true},
-      {{.index_not_after = leaf_serial + 1, .index_after = leaf_serial}, false},
-      {{.index_not_after = leaf_serial - 1, .index_after = leaf_serial - 2},
+      {{.index_not_after = leaf_index, .index_after = leaf_index - 1}, true},
+      {{.index_not_after = leaf_index + 1, .index_after = leaf_index}, false},
+      {{.index_not_after = leaf_index - 1, .index_after = leaf_index - 2},
        false},
 
       // Invalid combinations of index_not_after and index_after. These are
@@ -2040,22 +1643,22 @@ TEST_F(CertVerifyProcBuiltinTest,
       // as expected.
       //
       // index_not_after == index_after:
-      {{.index_not_after = leaf_serial + 1, .index_after = leaf_serial + 1},
+      {{.index_not_after = leaf_index + 1, .index_after = leaf_index + 1},
        false},
-      {{.index_not_after = leaf_serial, .index_after = leaf_serial}, false},
-      {{.index_not_after = leaf_serial - 1, .index_after = leaf_serial - 1},
+      {{.index_not_after = leaf_index, .index_after = leaf_index}, false},
+      {{.index_not_after = leaf_index - 1, .index_after = leaf_index - 1},
        false},
-      {{.index_not_after = leaf_serial - 2, .index_after = leaf_serial - 2},
+      {{.index_not_after = leaf_index - 2, .index_after = leaf_index - 2},
        false},
       // index_not_after < index_after:
-      {{.index_not_after = leaf_serial, .index_after = leaf_serial + 1}, false},
-      {{.index_not_after = leaf_serial - 1, .index_after = leaf_serial}, false},
-      {{.index_not_after = leaf_serial - 2, .index_after = leaf_serial - 1},
+      {{.index_not_after = leaf_index, .index_after = leaf_index + 1}, false},
+      {{.index_not_after = leaf_index - 1, .index_after = leaf_index}, false},
+      {{.index_not_after = leaf_index - 2, .index_after = leaf_index - 1},
        false},
   };
 
   for (const auto& test : tests) {
-    SCOPED_TRACE("leaf_serial = " + base::NumberToString(leaf_serial));
+    SCOPED_TRACE("leaf_index = " + base::NumberToString(leaf_index));
     SCOPED_TRACE("index_not_after = " +
                  (test.constraint.index_not_after
                       ? base::NumberToString(*test.constraint.index_not_after)
@@ -3003,50 +2606,37 @@ TEST_F(CertVerifyProcBuiltinTest, ChromeRootStoreVersionNetLog) {
 
   for (const bool has_crs_ver : {false, true}) {
     SCOPED_TRACE(has_crs_ver);
-    for (const bool has_signerset_timestamp : {false, true}) {
-      SCOPED_TRACE(has_signerset_timestamp);
-      for (const bool has_mtc_metadata_time : {false, true}) {
-        SCOPED_TRACE(has_mtc_metadata_time);
+    for (const bool has_mtc_metadata_time : {false, true}) {
+      SCOPED_TRACE(has_mtc_metadata_time);
 
-        const int64_t expected_crs_ver = has_crs_ver ? 42 : 0;
+      const int64_t expected_crs_ver = has_crs_ver ? 42 : 0;
 
-        SetMockCRSVersion(expected_crs_ver);
-        SetMockSignerSetTimestamp(
-            has_signerset_timestamp
-                ? std::make_optional(
-                      base::Time::FromMillisecondsSinceUnixEpoch(1234000))
-                : std::nullopt);
-        SetMockMtcMetadataUpdateTime(
-            has_mtc_metadata_time
-                ? std::make_optional(
-                      base::Time::FromMillisecondsSinceUnixEpoch(987000))
-                : std::nullopt);
+      SetMockCRSVersion(expected_crs_ver);
+      SetMockMtcMetadataUpdateTime(
+          has_mtc_metadata_time
+              ? std::make_optional(
+                    base::Time::FromMillisecondsSinceUnixEpoch(987000))
+              : std::nullopt);
 
-        RecordingNetLogObserver net_log_observer(NetLogCaptureMode::kDefault);
-        CertVerifyResult verify_result;
-        NetLogSource verify_net_log_source;
-        TestCompletionCallback verify_callback;
-        Verify(chain.get(), "www.example.com",
-               /*flags=*/0, &verify_result, &verify_net_log_source,
-               verify_callback.callback());
-        EXPECT_THAT(verify_callback.WaitForResult(), IsOk());
-        auto events = net_log_observer.GetEntriesWithType(
-            NetLogEventType::CERT_VERIFY_PROC_CHROME_ROOT_STORE_VERSION);
-        if (!has_crs_ver && !has_signerset_timestamp &&
-            !has_mtc_metadata_time) {
-          ASSERT_EQ(0U, events.size());
-        } else {
-          ASSERT_EQ(1U, events.size());
-          ASSERT_TRUE(events[0].HasParams());
-          EXPECT_EQ(expected_crs_ver,
-                    events[0].params.FindInt("version_major"));
-          EXPECT_EQ(
-              has_signerset_timestamp ? std::make_optional(1234) : std::nullopt,
-              events[0].params.FindInt("signer_set_timestamp"));
-          EXPECT_EQ(
-              has_mtc_metadata_time ? std::make_optional(987) : std::nullopt,
-              events[0].params.FindInt("mtc_metadata_update_time"));
-        }
+      RecordingNetLogObserver net_log_observer(NetLogCaptureMode::kDefault);
+      CertVerifyResult verify_result;
+      NetLogSource verify_net_log_source;
+      TestCompletionCallback verify_callback;
+      Verify(chain.get(), "www.example.com",
+             /*flags=*/0, &verify_result, &verify_net_log_source,
+             verify_callback.callback());
+      EXPECT_THAT(verify_callback.WaitForResult(), IsOk());
+      auto events = net_log_observer.GetEntriesWithType(
+          NetLogEventType::CERT_VERIFY_PROC_CHROME_ROOT_STORE_VERSION);
+      if (!has_crs_ver && !has_mtc_metadata_time) {
+        ASSERT_EQ(0U, events.size());
+      } else {
+        ASSERT_EQ(1U, events.size());
+        ASSERT_TRUE(events[0].HasParams());
+        EXPECT_EQ(expected_crs_ver, events[0].params.FindInt("version_major"));
+        EXPECT_EQ(
+            has_mtc_metadata_time ? std::make_optional(987) : std::nullopt,
+            events[0].params.FindInt("mtc_metadata_update_time"));
       }
     }
   }
@@ -3067,54 +2657,6 @@ TEST_F(CertVerifyProcBuiltinTest,
   ScopedTestRoot scoped_root(root->GetX509Certificate());
 
   EXPECT_CALL(*mock_ct_policy_enforcer(), IsCtEnabled())
-      .WillRepeatedly(testing::Return(false));
-  EXPECT_CALL(*mock_ct_verifier(), Verify(_, _, _, _, _, _)).Times(2);
-
-  scoped_refptr<X509Certificate> chain = leaf->GetX509Certificate();
-  ASSERT_TRUE(chain.get());
-
-  SetMockChromeRootConstraints(
-      {{.sct_not_after = base::Time::Now() - base::Days(365)}});
-
-  {
-    CertVerifyResult verify_result;
-    NetLogSource verify_net_log_source;
-    TestCompletionCallback callback;
-    Verify(chain.get(), "www.example.com", /*ocsp_response=*/std::string(),
-           /*sct_list=*/std::string(), /*flags=*/0, &verify_result,
-           &verify_net_log_source, callback.callback());
-
-    int error = callback.WaitForResult();
-    EXPECT_THAT(error, IsOk());
-    ASSERT_EQ(verify_result.scts.size(), 0u);
-  }
-
-  SetMockChromeRootConstraints(
-      {{.sct_all_after = base::Time::Now() + base::Days(365)}});
-
-  {
-    CertVerifyResult verify_result;
-    NetLogSource verify_net_log_source;
-    TestCompletionCallback callback;
-    Verify(chain.get(), "www.example.com", /*ocsp_response=*/std::string(),
-           /*sct_list=*/std::string(), /*flags=*/0, &verify_result,
-           &verify_net_log_source, callback.callback());
-
-    int error = callback.WaitForResult();
-    EXPECT_THAT(error, IsOk());
-    ASSERT_EQ(verify_result.scts.size(), 0u);
-  }
-}
-
-// Test SCT constraints fail-open if CT is enabled but the log list is stale.
-TEST_F(CertVerifyProcBuiltinTest,
-       ChromeRootStoreConstraintSctConstraintsWithCtListStale) {
-  auto [leaf, root] = CertBuilder::CreateSimpleChain2();
-  ScopedTestRoot scoped_root(root->GetX509Certificate());
-
-  EXPECT_CALL(*mock_ct_policy_enforcer(), IsCtEnabled())
-      .WillRepeatedly(testing::Return(true));
-  EXPECT_CALL(*mock_ct_policy_enforcer(), IsLogDataTimely(_))
       .WillRepeatedly(testing::Return(false));
   EXPECT_CALL(*mock_ct_verifier(), Verify(_, _, _, _, _, _)).Times(2);
 
@@ -3181,8 +2723,6 @@ TEST_F(CertVerifyProcBuiltinTest, ChromeRootStoreConstraintSctNotAfter) {
 
   EXPECT_CALL(*mock_ct_policy_enforcer(), IsCtEnabled())
       .WillRepeatedly(testing::Return(true));
-  EXPECT_CALL(*mock_ct_policy_enforcer(), IsLogDataTimely(_))
-      .WillRepeatedly(testing::Return(true));
   EXPECT_CALL(*mock_ct_policy_enforcer(), GetLogDisqualificationTime(kLog1))
       .WillRepeatedly(testing::Return(std::nullopt));
   EXPECT_CALL(*mock_ct_policy_enforcer(), GetLogDisqualificationTime(kLog2))
@@ -3248,8 +2788,6 @@ TEST_F(CertVerifyProcBuiltinTest,
 
   EXPECT_CALL(*mock_ct_policy_enforcer(), IsCtEnabled())
       .WillRepeatedly(testing::Return(true));
-  EXPECT_CALL(*mock_ct_policy_enforcer(), IsLogDataTimely(_))
-      .WillRepeatedly(testing::Return(true));
   EXPECT_CALL(*mock_ct_verifier(), Verify(_, _, kSctList, _, _, _))
       .WillOnce(testing::SetArgPointee<4>(sct_and_status_list));
 
@@ -3300,8 +2838,6 @@ TEST_F(
   SetMockChromeRootConstraints({{.sct_not_after = t1}});
 
   EXPECT_CALL(*mock_ct_policy_enforcer(), IsCtEnabled())
-      .WillRepeatedly(testing::Return(true));
-  EXPECT_CALL(*mock_ct_policy_enforcer(), IsLogDataTimely(_))
       .WillRepeatedly(testing::Return(true));
   EXPECT_CALL(*mock_ct_policy_enforcer(), GetLogDisqualificationTime(kLog1))
       .WillRepeatedly(testing::Return(t2));
@@ -3355,8 +2891,6 @@ TEST_F(
 
   EXPECT_CALL(*mock_ct_policy_enforcer(), IsCtEnabled())
       .WillRepeatedly(testing::Return(true));
-  EXPECT_CALL(*mock_ct_policy_enforcer(), IsLogDataTimely(_))
-      .WillRepeatedly(testing::Return(true));
   EXPECT_CALL(*mock_ct_policy_enforcer(), GetLogDisqualificationTime(kLog1))
       .WillRepeatedly(testing::Return(t1));
   EXPECT_CALL(*mock_ct_policy_enforcer(), GetLogDisqualificationTime(kLog2))
@@ -3403,8 +2937,6 @@ TEST_F(CertVerifyProcBuiltinTest,
 
   EXPECT_CALL(*mock_ct_policy_enforcer(), IsCtEnabled())
       .WillRepeatedly(testing::Return(true));
-  EXPECT_CALL(*mock_ct_policy_enforcer(), IsLogDataTimely(_))
-      .WillRepeatedly(testing::Return(true));
   EXPECT_CALL(*mock_ct_policy_enforcer(), GetLogDisqualificationTime(kLog1))
       .WillRepeatedly(testing::Return(future_t));
 
@@ -3450,8 +2982,6 @@ TEST_F(CertVerifyProcBuiltinTest, ChromeRootStoreConstraintSctAllAfter) {
   SetMockChromeRootConstraints({{.sct_all_after = t0}});
 
   EXPECT_CALL(*mock_ct_policy_enforcer(), IsCtEnabled())
-      .WillRepeatedly(testing::Return(true));
-  EXPECT_CALL(*mock_ct_policy_enforcer(), IsLogDataTimely(_))
       .WillRepeatedly(testing::Return(true));
   EXPECT_CALL(*mock_ct_policy_enforcer(), GetLogDisqualificationTime(kLog1))
       .WillRepeatedly(testing::Return(std::nullopt));

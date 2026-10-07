@@ -68,15 +68,10 @@ class ExtensionActionListMediator implements Destroyable {
         public static final class PopupPending extends ActionState {
             private final String mActionId;
             private final ExtensionActionPopupContents mContents;
-            private final boolean mInspectWithDevTools;
 
-            public PopupPending(
-                    String actionId,
-                    ExtensionActionPopupContents contents,
-                    boolean inspectWithDevTools) {
+            public PopupPending(String actionId, ExtensionActionPopupContents contents) {
                 mActionId = actionId;
                 mContents = contents;
-                mInspectWithDevTools = inspectWithDevTools;
             }
 
             public String getActionId() {
@@ -85,10 +80,6 @@ class ExtensionActionListMediator implements Destroyable {
 
             public ExtensionActionPopupContents getContents() {
                 return mContents;
-            }
-
-            public boolean isInspectWithDevTools() {
-                return mInspectWithDevTools;
             }
         }
 
@@ -682,15 +673,14 @@ class ExtensionActionListMediator implements Destroyable {
         }
     }
 
-    private void requestShowPopup(
-            String actionId,
-            ExtensionActionPopupContents popupContents,
-            boolean inspectWithDevTools) {
+    private void requestShowPopup(String actionId, long nativeHostPtr) {
         closeHoverCard();
         closePopup();
         closeContextMenu();
 
-        mActionState = new ActionState.PopupPending(actionId, popupContents, inspectWithDevTools);
+        mActionState =
+                new ActionState.PopupPending(
+                        actionId, ExtensionActionPopupContents.create(nativeHostPtr));
 
         requestActionVisibility(actionId, () -> showPopupOnAnchor());
     }
@@ -703,7 +693,6 @@ class ExtensionActionListMediator implements Destroyable {
         ActionState.PopupPending state = (ActionState.PopupPending) mActionState;
         String actionId = state.getActionId();
         ExtensionActionPopupContents contents = state.getContents();
-        boolean inspectWithDevTools = state.isInspectWithDevTools();
 
         ListMenuButton buttonView =
                 (ListMenuButton) mRecyclerViewDelegate.getButtonViewForId(actionId);
@@ -736,8 +725,7 @@ class ExtensionActionListMediator implements Destroyable {
                         contents,
                         mContextMenuPopulatorFactory,
                         mSelectionDropdownMenuDelegate,
-                        mTabModelSelector,
-                        inspectWithDevTools);
+                        mTabModelSelector);
         popup.loadInitialPage();
         popup.addOnDismissListener(this::closePopup);
         mActionState = new ActionState.PopupActive(popup, actionId);
@@ -901,11 +889,8 @@ class ExtensionActionListMediator implements Destroyable {
 
     private class ToolbarDelegate implements ExtensionsToolbarBridge.ActionListDelegate {
         @Override
-        public void triggerPopup(
-                String actionId,
-                ExtensionActionPopupContents popupContents,
-                boolean inspectWithDevTools) {
-            requestShowPopup(actionId, popupContents, inspectWithDevTools);
+        public void triggerPopup(String actionId, long nativeHostPtr) {
+            requestShowPopup(actionId, nativeHostPtr);
         }
 
         @Override

@@ -88,10 +88,12 @@ class TeeEngine::PullAlgorithm final : public StreamAlgorithm {
     void ChunkSteps(ScriptState* script_state,
                     v8::Local<v8::Value> chunk,
                     ExceptionState&) const override {
+      scoped_refptr<scheduler::EventLoop> event_loop =
+          ExecutionContext::From(script_state)->GetAgent()->event_loop();
       v8::Global<v8::Value> value(script_state->GetIsolate(), chunk);
-      script_state->EnqueueMicrotask(BindOnce(&TeeReadRequest::ChunkStepsBody,
-                                              WrapPersistent(this),
-                                              std::move(value)));
+      event_loop->EnqueueMicrotask(
+          BindOnce(&TeeReadRequest::ChunkStepsBody, WrapPersistent(this),
+                   WrapPersistent(script_state), std::move(value)));
     }
 
     void CloseSteps(ScriptState* script_state) const override {
@@ -130,8 +132,11 @@ class TeeEngine::PullAlgorithm final : public StreamAlgorithm {
     }
 
    private:
-    void ChunkStepsBody(v8::Global<v8::Value> value,
-                        ScriptState* script_state) const {
+    void ChunkStepsBody(ScriptState* script_state,
+                        v8::Global<v8::Value> value) const {
+      // This is called in a microtask, the ScriptState needs to be put back
+      // in scope.
+      ScriptState::Scope scope(script_state);
       v8::Isolate* isolate = script_state->GetIsolate();
       v8::TryCatch try_catch(isolate);
       // 1. Set readAgain to false.

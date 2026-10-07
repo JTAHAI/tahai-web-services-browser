@@ -7,7 +7,6 @@ package org.chromium.content.browser;
 import static org.chromium.build.NullUtil.assumeNonNull;
 import static org.chromium.cc.mojom.RootScrollOffsetUpdateFrequency.NONE;
 
-import android.util.LongSparseArray;
 import android.view.HapticFeedbackConstants;
 import android.view.View;
 
@@ -43,6 +42,7 @@ import org.chromium.ui.base.ViewAndroidDelegate;
 import java.lang.ref.WeakReference;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Implementation of the interface {@link GestureListenerManager}. Manages
@@ -68,8 +68,8 @@ public class GestureListenerManagerImpl
     // of tabs. The UserDataHost owns the GestureListenerManagerImpl objects. This is used since
     // UserData#destroy() is not always called when the WebContents are destroyed, leading to memory
     // leaks.
-    private static final LongSparseArray<WeakReference<GestureListenerManagerImpl>>
-            sNativeHelperMap = new LongSparseArray<>();
+    private static final Map<Long, WeakReference<GestureListenerManagerImpl>> sNativeHelperMap =
+            new HashMap<>();
 
     private final WebContentsImpl mWebContents;
     private final ObserverList<GestureStateListener> mListeners;
@@ -149,8 +149,7 @@ public class GestureListenerManagerImpl
         mViewDelegate.removeVerticalScrollDirectionChangeListener(this);
 
         WeakReference<GestureListenerManagerImpl> oldValue =
-                sNativeHelperMap.get(mNativeGestureListenerManager);
-        sNativeHelperMap.remove(mNativeGestureListenerManager);
+                sNativeHelperMap.remove(mNativeGestureListenerManager);
         assert oldValue != null;
         assert oldValue.get() == this;
         mNativeGestureListenerManager = 0;

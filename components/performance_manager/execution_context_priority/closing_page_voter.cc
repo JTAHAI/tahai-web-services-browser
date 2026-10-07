@@ -7,10 +7,21 @@
 #include <utility>
 
 #include "base/not_fatal_until.h"
-#include "components/performance_manager/public/execution_context/execution_context.h"
+#include "components/performance_manager/public/execution_context/execution_context_registry.h"
 #include "components/performance_manager/public/graph/graph.h"
 
 namespace performance_manager::execution_context_priority {
+
+namespace {
+
+const execution_context::ExecutionContext* GetExecutionContext(
+    const FrameNode* frame_node) {
+  return execution_context::ExecutionContextRegistry::GetFromGraph(
+             frame_node->GetGraph())
+      ->GetExecutionContextForFrameNode(frame_node);
+}
+
+}  // namespace
 
 // static
 const char ClosingPageVoter::kPageIsClosingReason[] = "Page is closing.";
@@ -32,13 +43,8 @@ void ClosingPageVoter::SetPageIsClosing(const PageNode* page_node,
     CHECK_EQ(num_removed, 1U, base::NotFatalUntil::M145);
   }
 
-  const std::optional<Vote> vote =
-      is_closing
-          ? std::make_optional<Vote>(base::Process::Priority::kUserBlocking,
-                                     kPageIsClosingReason)
-          : std::nullopt;
   for (const FrameNode* main_frame_node : page_node->GetMainFrameNodes()) {
-    SetVoteForSubtree(main_frame_node, vote);
+    AdjustVotesForSubtree(main_frame_node, is_closing);
   }
 }
 
@@ -70,25 +76,31 @@ void ClosingPageVoter::OnBeforeFrameNodeAdded(
     const ProcessNode* pending_process_node,
     const FrameNode* pending_parent_or_outer_document_or_embedder) {
   if (closing_pages_.contains(pending_page_node)) {
-    voting_channel_.SetVote(
-        frame_node,
-        Vote(base::Process::Priority::kUserBlocking, kPageIsClosingReason));
+    // A frame is added to a closing page. Adjust the vote.
+    AdjustVotesForSubtree(frame_node, /*is_closing=*/true);
   }
 }
 
 void ClosingPageVoter::OnBeforeFrameNodeRemoved(const FrameNode* frame_node) {
+  // Invalidate vote on frame removal.
   if (closing_pages_.contains(frame_node->GetPageNode())) {
-    voting_channel_.SetVote(frame_node, std::nullopt);
+    AdjustVotesForSubtree(frame_node, /*is_closing=*/false);
   }
 }
 
-void ClosingPageVoter::SetVoteForSubtree(const FrameNode* frame_node,
-                                         const std::optional<Vote>& vote) {
-  voting_channel_.SetVote(frame_node, vote);
+void ClosingPageVoter::AdjustVotesForSubtree(const FrameNode* frame_node,
+                                             bool is_closing) {
+  if (is_closing) {
+    voting_channel_.SubmitVote(
+        GetExecutionContext(frame_node),
+        Vote(base::Process::Priority::kUserBlocking, kPageIsClosingReason));
+  } else {
+    voting_channel_.InvalidateVote(GetExecutionContext(frame_node));
+  }
 
   // Recurse through subtree.
   for (const FrameNode* child_frame_node : frame_node->GetChildFrameNodes()) {
-    SetVoteForSubtree(child_frame_node, vote);
+    AdjustVotesForSubtree(child_frame_node, is_closing);
   }
 }
 

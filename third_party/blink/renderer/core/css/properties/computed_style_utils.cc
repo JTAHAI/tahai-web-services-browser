@@ -5,7 +5,6 @@
 
 #include "base/memory/values_equivalent.h"
 #include "third_party/blink/renderer/core/css/basic_shape_functions.h"
-#include "third_party/blink/renderer/core/css/counter_style.h"
 #include "third_party/blink/renderer/core/css/css_alternate_value.h"
 #include "third_party/blink/renderer/core/css/css_border_image.h"
 #include "third_party/blink/renderer/core/css/css_border_image_slice_value.h"
@@ -38,7 +37,6 @@
 #include "third_party/blink/renderer/core/css/css_shadow_value.h"
 #include "third_party/blink/renderer/core/css/css_string_value.h"
 #include "third_party/blink/renderer/core/css/css_superellipse_value.h"
-#include "third_party/blink/renderer/core/css/css_symbols_value.h"
 #include "third_party/blink/renderer/core/css/css_timing_function_value.h"
 #include "third_party/blink/renderer/core/css/css_uri_value.h"
 #include "third_party/blink/renderer/core/css/css_value.h"
@@ -60,7 +58,6 @@
 #include "third_party/blink/renderer/core/css/properties/longhands.h"
 #include "third_party/blink/renderer/core/css/properties/shorthands.h"
 #include "third_party/blink/renderer/core/css/style_color.h"
-#include "third_party/blink/renderer/core/css/style_rule_counter_style.h"
 #include "third_party/blink/renderer/core/dom/document.h"
 #include "third_party/blink/renderer/core/frame/web_feature.h"
 #include "third_party/blink/renderer/core/layout/grid/layout_grid.h"
@@ -919,7 +916,7 @@ CSSValue* ComputedStyleUtils::ValueForItemPositionWithOverflowAlignment(
     DCHECK(data.GetPosition() == ItemPosition::kLeft ||
            data.GetPosition() == ItemPosition::kRight ||
            data.GetPosition() == ItemPosition::kCenter)
-        << "Unexpected position: " << static_cast<unsigned>(data.GetPosition());
+        << "Unexpected position: " << (unsigned)data.GetPosition();
     DCHECK_EQ(data.Overflow(), OverflowAlignment::kDefault);
     return MakeGarbageCollected<CSSValuePair>(
         CSSIdentifierValue::Create(CSSValueID::kLegacy),
@@ -1473,7 +1470,8 @@ CSSValue* ComputedStyleUtils::ValueForFontFeatureSettings(
     return CSSIdentifierValue::Create(CSSValueID::kNormal);
   }
   CSSValueList* list = CSSValueList::CreateCommaSeparated();
-  for (const FontFeature& feature : *feature_settings) {
+  for (wtf_size_t i = 0; i < feature_settings->size(); ++i) {
+    const FontFeature& feature = feature_settings->at(i);
     auto* feature_value = MakeGarbageCollected<cssvalue::CSSFontFeatureValue>(
         feature.TagString(),
         CSSNumericLiteralValue::Create(feature.Value(),
@@ -1491,7 +1489,8 @@ CSSValue* ComputedStyleUtils::ValueForFontVariationSettings(
     return CSSIdentifierValue::Create(CSSValueID::kNormal);
   }
   CSSValueList* list = CSSValueList::CreateCommaSeparated();
-  for (const FontVariationAxis& variation_axis : *variation_settings) {
+  for (wtf_size_t i = 0; i < variation_settings->size(); ++i) {
+    const FontVariationAxis& variation_axis = variation_settings->at(i);
     cssvalue::CSSFontVariationValue* variation_value =
         MakeGarbageCollected<cssvalue::CSSFontVariationValue>(
             variation_axis.TagString(),
@@ -2553,7 +2552,7 @@ CSSValue* CreateAnimationValueList(const Vector<T, C>& values,
                                    Args&&... args) {
   CSSValueList* list = CSSValueList::CreateCommaSeparated();
   for (const T& value : values) {
-    list->Append(*item_func(value, args...));
+    list->Append(*item_func(value, std::forward<Args>(args)...));
   }
   return list;
 }
@@ -3449,9 +3448,9 @@ CSSValue* ComputedStyleUtils::ValueForTransitionProperty(
     const CSSTransitionData* transition_data) {
   CSSValueList* list = CSSValueList::CreateCommaSeparated();
   if (transition_data) {
-    for (const CSSTransitionData::TransitionProperty& property :
-         transition_data->PropertyList()) {
-      list->Append(*CreateTransitionPropertyValue(property));
+    for (wtf_size_t i = 0; i < transition_data->PropertyList().size(); ++i) {
+      list->Append(
+          *CreateTransitionPropertyValue(transition_data->PropertyList()[i]));
     }
   } else {
     list->Append(*CSSIdentifierValue::Create(CSSValueID::kAll));
@@ -3493,13 +3492,8 @@ CSSValue* CounterValueFromCounterData(const ContentData& content_data) {
   auto* identifier =
       MakeGarbageCollected<CSSCustomIdentValue>(counter.Identifier());
   auto* separator = MakeGarbageCollected<CSSStringValue>(counter.Separator());
-  // A symbols() function supplies its counter style inline; otherwise the
-  // value names a <counter-style>.
-  const CounterStyle* symbols_style = counter.GetSymbolsCounterStyle();
-  const CSSValue* list_style =
-      symbols_style
-          ? ComputedStyleUtils::ValueForSymbolsFunction(*symbols_style)
-          : MakeGarbageCollected<CSSCustomIdentValue>(counter.ListStyle());
+  auto* list_style =
+      MakeGarbageCollected<CSSCustomIdentValue>(counter.ListStyle());
   return MakeGarbageCollected<cssvalue::CSSCounterContentValue>(
       identifier, list_style, separator);
 }
@@ -3585,16 +3579,6 @@ CSSValue* ComputedStyleUtils::ValueForCounterDirectives(
         entry.is_reversed));
   }
   return result;
-}
-
-const CSSValue* ComputedStyleUtils::ValueForSymbolsFunction(
-    const CounterStyle& counter_style) {
-  const StyleRuleCounterStyle& rule = counter_style.GetStyleRule();
-  const CSSValue* system = rule.GetSystem();
-  CSSValueID system_id = system ? To<CSSIdentifierValue>(system)->GetValueID()
-                                : CSSValueID::kSymbolic;
-  return MakeGarbageCollected<cssvalue::CSSSymbolsValue>(
-      system_id, To<CSSValueList>(rule.GetSymbols()));
 }
 
 CSSValue* ComputedStyleUtils::ValueForShape(const ComputedStyle& style,
@@ -3816,6 +3800,16 @@ const CSSValue* ValueForGapDecorationPropertyDataList(
     const GapDataList<T>& gap_color_list,
     const ComputedStyle& style,
     CSSValuePhase value_phase) {
+  // The CSS Gap Decorations API [1] can take more than one value. When
+  // that feature is enabled, create a space separated list to hold the
+  // values. Otherwise, return a single value, as is supported in
+  // the legacy `column-rule-*` property.
+  // [1]: https://chromestatus.com/feature/5157805733183488
+  if (!RuntimeEnabledFeatures::CSSGapDecorationEnabled()) {
+    return GetGapDecorationPropertyValue(gap_color_list.GetLegacyValue(), style,
+                                         value_phase);
+  }
+
   CSSValueList* list = CSSValueList::CreateCommaSeparated();
 
   for (const auto& gap_data : gap_color_list.GetGapDataList()) {
@@ -4249,6 +4243,23 @@ CSSValueList* ComputedStyleUtils::ValueForGapDecorationRuleShorthand(
     bool allow_visited_style,
     CSSValuePhase value_phase,
     CSSGapDecorationPropertyDirection direction) {
+  // If the CSSGapDecorations feature is not enabled, fallback to legacy
+  // behavior of handling the shorthand since values are stored as single
+  // values and not lists.
+  if (!RuntimeEnabledFeatures::CSSGapDecorationEnabled()) {
+    const CSSValue* width_value =
+        shorthand.properties()[0]->CSSValueFromComputedStyle(
+            style, layout_object, allow_visited_style, value_phase);
+    const CSSValue* style_value =
+        shorthand.properties()[1]->CSSValueFromComputedStyle(
+            style, layout_object, allow_visited_style, value_phase);
+    const CSSValue* color_value =
+        shorthand.properties()[2]->CSSValueFromComputedStyle(
+            style, layout_object, allow_visited_style, value_phase);
+
+    return GetValueListForGapRule(*width_value, *style_value, *color_value);
+  }
+
   CHECK_EQ(shorthand.length(), 3u);
   CHECK(shorthand.properties()[0]->IDEquals(
       CSSGapDecorationUtils::GetLonghandProperty(

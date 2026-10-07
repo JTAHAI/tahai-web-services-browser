@@ -20,6 +20,7 @@ source_set("content_settings") {
 
   public_deps = [
     "//base",
+    "//chrome/browser/permissions",
     "//chrome/browser/profiles:profile",
     "//chrome/browser/safe_browsing:advanced_protection",
     "//chrome/browser/ui/tabs:tabs_public",
@@ -312,10 +313,12 @@ source_set("unit_tests") {
     ":content_settings_factory",
     "//base/test:test_support",
     "//build:chromeos_buildflags",
+    "//chrome/browser",
     "//chrome/browser/browsing_data",
     "//chrome/browser/permissions",
     "//chrome/browser/prefs",
     "//chrome/browser/profiles:profile",
+    "//chrome/browser/ui",
     "//chrome/browser/ui:recently_audible_helper",
     "//chrome/browser/ui/tabs:tab_enums",
     "//chrome/browser/ui/tabs:utils",

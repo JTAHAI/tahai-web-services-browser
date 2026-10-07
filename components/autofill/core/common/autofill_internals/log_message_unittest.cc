@@ -4,8 +4,6 @@
 
 #include "components/autofill/core/common/autofill_internals/log_message.h"
 
-#include <optional>
-
 #include "base/json/json_writer.h"
 #include "components/autofill/core/common/logging/log_buffer.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -15,12 +13,12 @@ namespace autofill {
 TEST(LogMessage, Serialization) {
   LogBuffer buffer;
   buffer << LogMessage::kParsedForms;
-  std::optional<std::string> json = base::WriteJson(*buffer.RetrieveResult());
-  ASSERT_TRUE(json.has_value());
+  std::string json;
+  EXPECT_TRUE(base::JSONWriter::Write(*buffer.RetrieveResult(), &json));
   EXPECT_EQ(R"({"attributes":{"class":"log-message","message":"ParsedForms"},)"
             R"("children":[{"type":"text","value":"Parsed forms:"}],)"
             R"("type":"element","value":"div"})",
-            json.value());
+            json);
 }
 
 }  // namespace autofill

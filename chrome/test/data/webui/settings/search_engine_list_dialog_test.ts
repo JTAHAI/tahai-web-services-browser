@@ -5,10 +5,11 @@
 // clang-format off
 import 'chrome://settings/settings.js';
 
+import {flush} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 import type {SearchEngine, SettingsSearchEngineListDialogElement} from 'chrome://settings/settings.js';
 import {loadTimeData, SearchEnginesBrowserProxyImpl, ChoiceMadeLocation} from 'chrome://settings/settings.js';
-import {assertEquals, assertFalse, assertTrue} from 'chrome://webui-test/chai_assert.js';
-import {microtasksFinished} from 'chrome://webui-test/test_util.js';
+import {assertEquals, assertTrue} from 'chrome://webui-test/chai_assert.js';
+import {flushTasks} from 'chrome://webui-test/polymer_test_util.js';
 
 import {createSampleSearchEngine, TestSearchEnginesBrowserProxy} from './test_search_engines_browser_proxy.js';
 // clang-format on
@@ -39,15 +40,16 @@ suite('SearchEngineListDialog', function() {
     document.body.appendChild(dialog);
     dialog.searchEngines = generateActiveSiteShortcuts();
 
-    return microtasksFinished();
+    return flushTasks();
   });
 
   test('Search engine list dialog shows engines', function() {
-    const radioButtons = dialog.shadowRoot.querySelectorAll('cr-radio-button');
+    const radioButtons = dialog.shadowRoot!.querySelectorAll('cr-radio-button');
     assertEquals(3, radioButtons.length);
 
     // The engine marked as default is selected.
-    const radioGroupElement = dialog.shadowRoot.querySelector('cr-radio-group');
+    const radioGroupElement =
+        dialog.shadowRoot!.querySelector('cr-radio-group');
     assertTrue(!!radioGroupElement);
     assertEquals('2', radioGroupElement.selected);
   });
@@ -56,18 +58,19 @@ suite('SearchEngineListDialog', function() {
     browserProxy.resetResolver('setDefaultSearchEngine');
 
     // Initially, the engine marked as default is selected.
-    const radioGroupElement = dialog.shadowRoot.querySelector('cr-radio-group');
+    const radioGroupElement =
+        dialog.shadowRoot!.querySelector('cr-radio-group');
     assertTrue(!!radioGroupElement);
     assertEquals('2', radioGroupElement.selected);
 
     // Simulate a user initiated change of the default search engine.
-    const radioButtons = dialog.shadowRoot.querySelectorAll('cr-radio-button');
+    const radioButtons = dialog.shadowRoot!.querySelectorAll('cr-radio-button');
     assertEquals(3, radioButtons.length);
     radioButtons[1]!.click();
-    await microtasksFinished();
+    await flush();
 
     const setAsDefaultButton =
-        dialog.shadowRoot.querySelector<HTMLButtonElement>(
+        dialog.shadowRoot!.querySelector<HTMLButtonElement>(
             '#setAsDefaultButton');
     assertTrue(!!setAsDefaultButton);
     setAsDefaultButton.click();
@@ -80,9 +83,10 @@ suite('SearchEngineListDialog', function() {
     assertEquals('1', radioGroupElement.selected);
   });
 
-  test('Search engine list dialog reacts to changes', async function() {
+  test('Search engine list dialog reacts to changes', function() {
     // Initially, the engine marked as default is selected.
-    const radioGroupElement = dialog.shadowRoot.querySelector('cr-radio-group');
+    const radioGroupElement =
+        dialog.shadowRoot!.querySelector('cr-radio-group');
     assertTrue(!!radioGroupElement);
     assertEquals('2', radioGroupElement.selected);
 
@@ -94,44 +98,9 @@ suite('SearchEngineListDialog', function() {
     activeSiteShortcuts[2]!.default = false;
 
     dialog.searchEngines = activeSiteShortcuts;
-    await microtasksFinished();
+    flush();
 
     // The change in the other tab is reflected in the dialog.
     assertEquals('0', radioGroupElement.selected);
   });
-
-  test(
-      'Search engine list dialog shows policy icon for recommended engines',
-      async function() {
-        const activeSiteShortcuts = generateActiveSiteShortcuts();
-        assertEquals(3, activeSiteShortcuts.length);
-        activeSiteShortcuts[1]!.isRecommendedFromPolicy = true;
-
-        dialog.searchEngines = activeSiteShortcuts;
-        await microtasksFinished();
-
-        const radioButtons =
-            dialog.shadowRoot.querySelectorAll('cr-radio-button');
-        assertEquals(3, radioButtons.length);
-
-        // Engine 0 is not recommended from policy, so no policy indicator is
-        // shown.
-        assertFalse(!!radioButtons[0]!.querySelector('cr-policy-indicator'));
-
-        // Engine 1 is recommended from policy, so a policy indicator is shown.
-        const policyIndicator =
-            radioButtons[1]!.querySelector('cr-policy-indicator');
-        assertTrue(!!policyIndicator);
-        assertEquals('recommended', policyIndicator.indicatorType);
-        assertEquals('left', policyIndicator.tooltipPosition);
-
-        document.documentElement.dir = 'rtl';
-        dialog.requestUpdate();
-        await microtasksFinished();
-        assertEquals('right', policyIndicator.tooltipPosition);
-        document.documentElement.dir = 'ltr';
-
-        // Engine 2 is not recommended from policy.
-        assertFalse(!!radioButtons[2]!.querySelector('cr-policy-indicator'));
-      });
 });

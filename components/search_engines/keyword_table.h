@@ -13,7 +13,6 @@
 #include <vector>
 
 #include "base/compiler_specific.h"
-#include "base/containers/enum_set.h"
 #include "components/country_codes/country_codes.h"
 #include "components/search_engines/template_url_id.h"
 #include "components/webdata/common/web_database_table.h"
@@ -99,17 +98,6 @@ class Statement;
 //                                   `switches::kPrepopulatedEnginesMigration`.
 class KeywordTable : public WebDatabaseTable {
  public:
-  enum class PrepopulatedEngineMigration {
-    kMigration = 0,
-    kShadowVariants = 1,
-    kMinValue = kMigration,
-    kMaxValue = kShadowVariants,
-  };
-  using PrepopulatedEngineMigrationSet =
-      base::EnumSet<PrepopulatedEngineMigration,
-                    PrepopulatedEngineMigration::kMinValue,
-                    PrepopulatedEngineMigration::kMaxValue>;
-
   enum OperationType {
     ADD,
     REMOVE,
@@ -160,11 +148,10 @@ class KeywordTable : public WebDatabaseTable {
   bool SetBuiltinKeywordCountry(country_codes::CountryId country_id);
   country_codes::CountryId GetBuiltinKeywordCountry();
 
-  // The migration state of the database, indicating which prepopulated engine
-  // migrations have been applied.
-  bool SetPrepopulatedEnginesMigrationState(
-      PrepopulatedEngineMigrationSet migration_state);
-  PrepopulatedEngineMigrationSet GetPrepopulatedEnginesMigrationState();
+  // Whether the data is a post-migration version, see
+  // `switches::kPrepopulatedEnginesMigration`.
+  bool SetPrepopulatedEnginesMigrationEnabled(bool is_migration_enabled);
+  bool IsPrepopulatedEnginesMigrationEnabled();
 
   // Version of built-in starter pack keywords (@bookmarks, @settings, etc.).
   bool SetStarterPackKeywordVersion(int version);

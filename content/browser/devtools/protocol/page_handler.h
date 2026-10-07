@@ -32,7 +32,6 @@
 #include "content/public/common/javascript_dialog_type.h"
 #include "third_party/blink/public/mojom/manifest/manifest.mojom-forward.h"
 #include "url/gurl.h"
-#include "url/origin.h"
 
 class SkBitmap;
 
@@ -48,7 +47,6 @@ namespace content {
 
 class BackForwardCacheCanStoreDocumentResult;
 class DevToolsAgentHostImpl;
-class DevToolsIOContext;
 class FrameTreeNode;
 class NavigationRequest;
 class RenderFrameHostImpl;
@@ -58,7 +56,6 @@ namespace protocol {
 
 class BrowserHandler;
 class EmulationHandler;
-class MediaRecorder;
 
 class PageHandler : public DevToolsDomainHandler,
                     public Page::Backend,
@@ -66,7 +63,6 @@ class PageHandler : public DevToolsDomainHandler,
                     public download::DownloadItem::Observer {
  public:
   PageHandler(
-      DevToolsIOContext* io_context,
       EmulationHandler* emulation_handler,
       BrowserHandler* browser_handler,
       bool allow_unsafe_operations,
@@ -165,17 +161,7 @@ class PageHandler : public DevToolsDomainHandler,
                            std::optional<int> quality,
                            std::optional<int> max_width,
                            std::optional<int> max_height,
-                           std::optional<int> every_nth_frame,
-                           std::optional<int> max_frames_in_flight,
-                           std::optional<bool> send_last_frame) override;
-  Response StartScreenRecording(std::optional<bool> audio,
-                                std::optional<int> max_width,
-                                std::optional<int> max_height,
-                                std::optional<int> frame_rate,
-                                std::string* out_stream) override;
-  void StopScreenRecording(
-      std::unique_ptr<StopScreenRecordingCallback> callback) override;
-  void OnMediaRecorderFlushed();
+                           std::optional<int> every_nth_frame) override;
   Response StopScreencast() override;
   Response ScreencastFrameAck(int session_id) override;
 
@@ -238,11 +224,10 @@ class PageHandler : public DevToolsDomainHandler,
       std::optional<bool> optimize_for_speed,
       std::unique_ptr<CaptureScreenshotCallback> callback,
       const gfx::Size& full_page_size);
-  bool EnoughScreencastFramesInFlight();
+  bool ShouldCaptureNextScreencastFrame();
   void NotifyScreencastVisibility(bool visible);
   void OnFrameFromVideoConsumer(scoped_refptr<media::VideoFrame> frame);
-  void MaybeSendLastScreencastFrame();
-  void SendScreencastFrame(
+  void ScreencastFrameCaptured(
       std::unique_ptr<Page::ScreencastFrameMetadata> metadata,
       const SkBitmap& bitmap);
   void ScreencastFrameEncoded(
@@ -275,28 +260,22 @@ class PageHandler : public DevToolsDomainHandler,
   bool bypass_csp_ = false;
 
   BitmapEncoder screencast_encoder_;
-  int screencast_max_width_ = -1;
-  int screencast_max_height_ = -1;
-  int capture_every_nth_frame_ = 1;
-  int max_frames_in_flight_ = 1;
-  bool send_last_frame_ = false;
-  int session_id_ = 0;
-  int frame_counter_ = 0;
-  int frames_in_flight_ = 0;
-  std::unique_ptr<Page::ScreencastFrameMetadata> last_frame_metadata_;
-  SkBitmap last_frame_;
+  int screencast_max_width_;
+  int screencast_max_height_;
+  int capture_every_nth_frame_;
+  int session_id_;
+  int frame_counter_;
+  int frames_in_flight_;
 
   // |video_consumer_| consumes video frames from FrameSinkVideoCapturerImpl,
   // and provides PageHandler with these frames via OnFrameFromVideoConsumer.
   // This is only used if Viz is enabled and if OS is not Android.
   std::unique_ptr<DevToolsVideoConsumer> video_consumer_;
-  std::unique_ptr<MediaRecorder> media_recorder_;
 
   // The last surface size used to determine if frames with new sizes need
   // to be requested. This changes due to window resizing.
   gfx::Size last_surface_size_;
 
-  raw_ptr<DevToolsIOContext> io_context_;
   raw_ptr<RenderFrameHostImpl> host_;
   raw_ptr<EmulationHandler> emulation_handler_;
   raw_ptr<BrowserHandler> browser_handler_;
@@ -316,7 +295,6 @@ class PageHandler : public DevToolsDomainHandler,
   base::RepeatingCallback<void(std::string)> prepare_for_reload_callback_;
   bool have_pending_reload_ = false;
   std::string pending_script_to_evaluate_on_load_;
-  url::Origin initiating_origin_;
 
   Response AddScriptToEvaluateOnNewDocumentInternal(
       const std::string& source,

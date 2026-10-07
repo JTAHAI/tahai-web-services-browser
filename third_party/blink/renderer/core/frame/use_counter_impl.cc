@@ -202,6 +202,7 @@ bool UseCounterImpl::IsCounted(const UseCounterFeature& feature) const {
 }
 
 void UseCounterImpl::InheritXsltUseCountersFrom(const UseCounterImpl& other) {
+  DCHECK(XSLTProcessor::IsXSLTEnabled(nullptr));
   static constexpr WebFeature kFeaturesToInherit[] = {
       WebFeature::kXmlCAPAlert,
       WebFeature::kXmlCAPAlertWithXSLT,

@@ -12,7 +12,6 @@ import androidx.annotation.Nullable;
 
 import org.chromium.android_webview.AwBrowserContext;
 import org.chromium.android_webview.AwBrowserContextStore;
-import org.chromium.android_webview.StartupCallSite;
 import org.chromium.android_webview.common.AwFeatures;
 import org.chromium.android_webview.common.AwSwitches;
 import org.chromium.android_webview.common.Lifetime;
@@ -43,7 +42,7 @@ public final class ProfileStore {
         int ASYNC_WEBVIEW_STARTUP = 1;
         int ANDROIDX_API_CALL = 2;
         int COUNT = 3;
-    }
+    };
 
     private final Map<String, Profile> mProfiles = new HashMap<>();
 
@@ -91,7 +90,8 @@ public final class ProfileStore {
 
     @Nullable
     public Profile getProfile(@NonNull String name) {
-        mAwInit.triggerAndWaitForChromiumStarted(StartupCallSite.PROFILE_STORE_GET_PROFILE);
+        mAwInit.triggerAndWaitForChromiumStarted(
+                WebViewChromiumAwInit.CallSite.PROFILE_STORE_GET_PROFILE);
 
         try (TraceEvent event = TraceEvent.scoped("WebView.ProfileStore.ApiCall.GET_PROFILE")) {
             ThreadUtils.checkUiThread();
@@ -113,7 +113,7 @@ public final class ProfileStore {
     @NonNull
     public List<String> getAllProfileNames() {
         mAwInit.triggerAndWaitForChromiumStarted(
-                StartupCallSite.PROFILE_STORE_GET_ALL_PROFILE_NAMES);
+                WebViewChromiumAwInit.CallSite.PROFILE_STORE_GET_ALL_PROFILE_NAMES);
 
         try (TraceEvent event =
                 TraceEvent.scoped("WebView.ProfileStore.ApiCall.GET_ALL_PROFILE_NAMES")) {
@@ -123,7 +123,8 @@ public final class ProfileStore {
     }
 
     public boolean deleteProfile(@NonNull String name) {
-        mAwInit.triggerAndWaitForChromiumStarted(StartupCallSite.PROFILE_STORE_DELETE_PROFILE);
+        mAwInit.triggerAndWaitForChromiumStarted(
+                WebViewChromiumAwInit.CallSite.PROFILE_STORE_DELETE_PROFILE);
 
         try (TraceEvent event = TraceEvent.scoped("WebView.ProfileStore.ApiCall.DELETE_PROFILE")) {
             ThreadUtils.checkUiThread();
@@ -138,10 +139,10 @@ public final class ProfileStore {
     }
 
     public static boolean requiresStartup() {
-        return !(CommandLine.getInstance()
+        return !CommandLine.getInstance()
                         .hasSwitch(AwSwitches.WEBVIEW_PROFILE_STORE_NOT_TRIGGER_STARTUP)
-                || WebViewCachedFlags.get()
+                && !WebViewCachedFlags.get()
                         .isCachedFeatureEnabled(
-                                AwFeatures.WEBVIEW_PROFILE_STORE_NOT_TRIGGER_STARTUP));
+                                AwFeatures.WEBVIEW_PROFILE_STORE_NOT_TRIGGER_STARTUP);
     }
 }

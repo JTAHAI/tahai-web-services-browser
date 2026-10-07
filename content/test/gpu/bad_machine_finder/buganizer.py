@@ -25,11 +25,9 @@ class BugNotAccessibleException(BuganizerException):
   """Indicates that the specified bug could not be accessed."""
 
 
-def UpdateBug(
-  bug_id: int,
-  mixin_grouped_bad_machines: detection.MixinGroupedBadMachines,
-  grace_period: int,
-) -> None:
+def UpdateBug(bug_id: int,
+              mixin_grouped_bad_machines: detection.MixinGroupedBadMachines,
+              grace_period: int) -> None:
   """Updates the given |bug_id| with bad machine results.
 
   Will automatically omit bad machines that have previously been reported in the
@@ -45,16 +43,15 @@ def UpdateBug(
   client = _GetBuganizerClient()
 
   bad_machine_names = mixin_grouped_bad_machines.GetAllBadMachineNames()
-  recently_reported_bots = _GetRecentlyReportedBots(
-    bug_id, client, bad_machine_names, grace_period
-  )
+  recently_reported_bots = _GetRecentlyReportedBots(bug_id, client,
+                                                    bad_machine_names,
+                                                    grace_period)
 
   markdown_components = [
-    _AUTOMATED_COMMENT_START,
+      _AUTOMATED_COMMENT_START,
   ]
   mixin_report_markdown = mixin_grouped_bad_machines.GenerateMarkdown(
-    bots_to_skip=recently_reported_bots
-  )
+      bots_to_skip=recently_reported_bots)
   if mixin_report_markdown:
     markdown_components.append(mixin_report_markdown)
   else:
@@ -64,12 +61,9 @@ def UpdateBug(
   client.NewComment(bug_id, markdown_comment, use_markdown=True)
 
 
-def _GetRecentlyReportedBots(
-  bug_id: int,
-  client: buganizer.BuganizerClient,
-  bad_machine_names: Iterable[str],
-  grace_period: int,
-) -> Set[str]:
+def _GetRecentlyReportedBots(bug_id: int, client: buganizer.BuganizerClient,
+                             bad_machine_names: Iterable[str],
+                             grace_period: int) -> Set[str]:
   """Retrieves the subset of |bad_machine_names| which were reported recently.
 
   Args:
@@ -91,9 +85,8 @@ def _GetRecentlyReportedBots(
   # raised.
   if isinstance(comment_list, dict):
     raise BugNotAccessibleException(
-      f'Failed to get comments from {bug_id}: '
-      f'{comment_list.get("error", "error not provided")}'
-    )
+        f'Failed to get comments from {bug_id}: '
+        f'{comment_list.get("error", "error not provided")}')
 
   recent_comment_bodies = []
   for c in comment_list:
@@ -102,9 +95,8 @@ def _GetRecentlyReportedBots(
     if comment_iso_timestamp.endswith(('z', 'Z')):
       comment_iso_timestamp = comment_iso_timestamp[:-1]
     comment_date = datetime.datetime.fromisoformat(comment_iso_timestamp)
-    n_days_ago = datetime.datetime.now(
-      comment_date.tzinfo
-    ) - datetime.timedelta(days=grace_period)
+    n_days_ago = (datetime.datetime.now(comment_date.tzinfo) -
+                  datetime.timedelta(days=grace_period))
     if comment_date < n_days_ago:
       continue
     if _AUTOMATED_COMMENT_START not in c['comment']:
@@ -126,5 +118,4 @@ def _GetBuganizerClient() -> buganizer.BuganizerClient:
     return buganizer.BuganizerClient()
   except Exception as e:  # pylint: disable=broad-except
     raise ClientNotAvailableException(
-      'Failed to create Buganizer client'
-    ) from e
+        'Failed to create Buganizer client') from e

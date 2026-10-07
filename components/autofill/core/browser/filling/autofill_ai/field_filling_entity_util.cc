@@ -31,14 +31,14 @@
 #include "components/autofill/core/browser/data_model/autofill_ai/entity_type.h"
 #include "components/autofill/core/browser/data_model/autofill_ai/entity_type_names.h"
 #include "components/autofill/core/browser/data_quality/addresses/address_normalizer.h"
-#include "components/autofill/core/browser/field_type_util.h"
+#include "components/autofill/core/browser/field_type_utils.h"
 #include "components/autofill/core/browser/field_types.h"
 #include "components/autofill/core/browser/filling/autofill_ai/select_date_matching.h"
 #include "components/autofill/core/browser/filling/field_filling_util.h"
 #include "components/autofill/core/browser/form_processing/autofill_ai/determine_attribute_types.h"
 #include "components/autofill/core/browser/form_structure.h"
 #include "components/autofill/core/browser/foundations/autofill_client.h"
-#include "components/autofill/core/browser/permissions/autofill_ai/autofill_ai_permission_util.h"
+#include "components/autofill/core/browser/permissions/autofill_ai/autofill_ai_permission_utils.h"
 #include "components/autofill/core/browser/proto/server.pb.h"
 #include "components/autofill/core/common/autofill_features.h"
 #include "components/autofill/core/common/dense_set.h"
@@ -378,12 +378,6 @@ bool WillRequireServerFetch(const EntityInstance& entity,
       base::FeatureList::IsEnabled(features::kAutofillAiWalletPrivatePasses);
 
   return is_ambient_enabled || is_wallet_enabled;
-}
-
-url::Origin GetTargetFieldOrigin(const url::Origin& origin,
-                                 const AutofillClient& client) {
-  return origin.opaque() ? client.GetLastCommittedPrimaryMainFrameOrigin()
-                         : origin;
 }
 
 std::u16string GetAuthenticationMessage(const url::Origin& origin) {

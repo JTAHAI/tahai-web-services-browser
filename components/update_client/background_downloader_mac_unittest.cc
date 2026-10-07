@@ -7,7 +7,6 @@
 #include <cstring>
 #include <memory>
 #include <string>
-#include <utility>
 
 #include "base/barrier_closure.h"
 #include "base/check.h"
@@ -201,9 +200,8 @@ TEST_F(BackgroundDownloaderTest, DISABLED_SimpleDownload) {
                         EXPECT_EQ(result.error, 0);
                         ExpectSmallDownloadContents(result.response);
                         ExpectDownloadMetrics(
-                            metrics,
-                            std::to_underlying(CrxDownloaderError::NONE), 0,
-                            std::strlen(kSmallDownloadData),
+                            metrics, static_cast<int>(CrxDownloaderError::NONE),
+                            0, std::strlen(kSmallDownloadData),
                             std::strlen(kSmallDownloadData), true);
                       })
                       .Then(run_loop.QuitClosure()));
@@ -232,9 +230,8 @@ TEST_F(BackgroundDownloaderTest, DISABLED_DownloadDiscoveredInCache) {
                         EXPECT_EQ(result.error, 0);
                         ExpectSmallDownloadContents(result.response);
                         ExpectDownloadMetrics(
-                            metrics,
-                            std::to_underlying(CrxDownloaderError::NONE), 0,
-                            std::strlen(kSmallDownloadData),
+                            metrics, static_cast<int>(CrxDownloaderError::NONE),
+                            0, std::strlen(kSmallDownloadData),
                             std::strlen(kSmallDownloadData), false);
                       })
                       .Then(run_loop.QuitClosure()));
@@ -300,9 +297,8 @@ TEST_F(BackgroundDownloaderTest, DISABLED_ServerHangup) {
                         EXPECT_EQ(result.error, 0);
                         ExpectLargeDownloadContents(result.response);
                         ExpectDownloadMetrics(
-                            metrics,
-                            std::to_underlying(CrxDownloaderError::NONE), 0,
-                            data.size(), data.size(), true);
+                            metrics, static_cast<int>(CrxDownloaderError::NONE),
+                            0, data.size(), data.size(), true);
                       })
                       .Then(run_loop.QuitClosure()));
   run_loop.Run();
@@ -324,11 +320,11 @@ TEST_F(BackgroundDownloaderTest, DISABLED_DuplicateDownload) {
                     EXPECT_FALSE(is_handled);
                     EXPECT_EQ(
                         result.error,
-                        std::to_underlying(
+                        static_cast<int>(
                             CrxDownloaderError::MAC_BG_DUPLICATE_DOWNLOAD));
                     ExpectDownloadMetrics(
                         metrics,
-                        std::to_underlying(
+                        static_cast<int>(
                             CrxDownloaderError::MAC_BG_DUPLICATE_DOWNLOAD),
                         0, -1, -1, false);
                   })
@@ -427,11 +423,11 @@ TEST_F(BackgroundDownloaderTest, DISABLED_MaxDownloads) {
                   EXPECT_FALSE(is_handled);
                   EXPECT_EQ(
                       result.error,
-                      std::to_underlying(
+                      static_cast<int>(
                           CrxDownloaderError::MAC_BG_SESSION_TOO_MANY_TASKS));
                   ExpectDownloadMetrics(
                       metrics,
-                      std::to_underlying(
+                      static_cast<int>(
                           CrxDownloaderError::MAC_BG_SESSION_TOO_MANY_TASKS),
                       0, -1, -1, false);
                 })

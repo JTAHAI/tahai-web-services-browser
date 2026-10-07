@@ -5,38 +5,36 @@
 #ifndef CHROME_BROWSER_SEARCH_INTEGRITY_SEARCH_INTEGRITY_ALLOWLIST_H_
 #define CHROME_BROWSER_SEARCH_INTEGRITY_SEARCH_INTEGRITY_ALLOWLIST_H_
 
-#include <string>
-
+#include "base/files/file_path.h"
 #include "base/memory/singleton.h"
-#include "third_party/abseil-cpp/absl/container/flat_hash_set.h"
+#include "url/gurl.h"
+
+namespace optimization_guide {
+class BloomFilter;
+}
 
 namespace search_integrity {
 
-// This class manages the allowlist URLs using an in-memory set for efficient
-// lookups. It is responsible for parsing search engine definitions JSON,
-// normalizing the URLs, and providing a way to check if a given URL is part of
-// the allowlist.
+// This class manages the allowlist URLs using a bloom filter for efficient
+// lookups. It is responsible for parsing the prepopulated_engines.json,
+//  normalizing the URLs, and providing a way to
+// check if a given URL is part of the allowlist.
 class SearchEngineAllowlist {
  public:
   // Returns the singleton instance of the allowlist.
   static SearchEngineAllowlist* GetInstance();
 
-  // Parses the JSON data containing search engine definitions and builds an
-  // allowlist of normalized URLs. This is separated from Initialize() so that
-  // JSON parsing can be performed asynchronously on a background thread (e.g.
-  // ThreadPool) to avoid blocking the UI thread during startup.
-  static absl::flat_hash_set<std::string> BuildAllowlist(
-      const std::string& historical_json_data);
+  // Loads the bloom filter data from disk or generates it from the JSON data.
+  static std::string LoadBloomFilterData(
+      const std::string& json_data,
+      const base::FilePath& bloom_filter_path);
 
-  // Initializes the allowlist singleton with the pre-built set of URLs. This
-  // method must be called on the UI thread.
-  void Initialize(absl::flat_hash_set<std::string> allowed_urls);
-
-  // Resets the allowlist state for testing.
-  void ResetForTesting();
+  // Initializes the allowlist with the provided bloom filter data.
+  // This method must be called on the thread where IsAllowed will be used
+  void Initialize(const std::string& bloom_filter_data);
 
   // Checks if a given URL is present in the allowlist. This method normalizes
-  // the URL before checking it against the allowlist.
+  // the URL before checking it against the bloom filter.
   bool IsAllowed(const std::string& url) const;
 
  private:
@@ -45,11 +43,12 @@ class SearchEngineAllowlist {
   SearchEngineAllowlist();
   ~SearchEngineAllowlist();
 
-  // Normalizes a URL by replacing specific placeholders.
+  // Normalizes a URL by replacing specific placeholders and stripping
+  // sensitive query parameters.
   std::string NormalizeUrl(const std::string& url) const;
 
-  // The set storing normalized official search engine URLs.
-  absl::flat_hash_set<std::string> allowed_urls_;
+  // The Bloom filter for storing normalized official search engine URLs.
+  std::unique_ptr<optimization_guide::BloomFilter> allowed_urls_bloom_filter_;
 };
 
 }  // namespace search_integrity

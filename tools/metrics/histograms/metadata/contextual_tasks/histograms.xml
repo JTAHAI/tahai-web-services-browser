@@ -87,7 +87,7 @@ chromium-metrics-reviews@google.com.
 
 <histogram
     name="ContextualTasks.Composebox.UserAction.AddedActiveTabAfterDeletingAutoSuggestion"
-    enum="Boolean" expires_after="2027-02-07">
+    enum="Boolean" expires_after="2026-11-29">
   <owner>sophiechang@chromium.org</owner>
   <owner>chrome-contextual-tasks-eng@google.com</owner>
   <summary>
@@ -107,7 +107,7 @@ chromium-metrics-reviews@google.com.
 </histogram>
 
 <histogram name="ContextualTasks.Context.CandidateTabHasEmbeddings"
-    enum="Boolean" expires_after="2027-02-07">
+    enum="Boolean" expires_after="2026-11-01">
   <owner>sophiechang@chromium.org</owner>
   <owner>abhayprakash@google.com</owner>
   <summary>
@@ -140,7 +140,7 @@ chromium-metrics-reviews@google.com.
 </histogram>
 
 <histogram name="ContextualTasks.Context.DurationSinceLastActive"
-    units="seconds" expires_after="2027-01-24">
+    units="seconds" expires_after="2026-11-22">
   <owner>sophiechang@chromium.org</owner>
   <owner>abhayprakash@google.com</owner>
   <summary>
@@ -150,7 +150,7 @@ chromium-metrics-reviews@google.com.
 </histogram>
 
 <histogram name="ContextualTasks.Context.EmbeddingSimilarityScore"
-    units="count" expires_after="2027-01-24">
+    units="count" expires_after="2026-11-22">
   <owner>sophiechang@chromium.org</owner>
   <owner>abhayprakash@google.com</owner>
   <summary>
@@ -161,7 +161,7 @@ chromium-metrics-reviews@google.com.
 </histogram>
 
 <histogram name="ContextualTasks.Context.ExplicitTabsCount" units="count"
-    expires_after="2027-01-24">
+    expires_after="2026-11-22">
   <owner>sophiechang@chromium.org</owner>
   <owner>abhayprakash@google.com</owner>
   <summary>
@@ -173,7 +173,7 @@ chromium-metrics-reviews@google.com.
 </histogram>
 
 <histogram name="ContextualTasks.Context.MatchingWordsCount" units="count"
-    expires_after="2027-01-24">
+    expires_after="2026-11-22">
   <owner>sophiechang@chromium.org</owner>
   <owner>abhayprakash@google.com</owner>
   <summary>
@@ -206,7 +206,7 @@ chromium-metrics-reviews@google.com.
 
 <histogram
     name="ContextualTasks.Context.SiteExclusions.ActiveTab.ExclusionsChecked"
-    units="count" expires_after="2027-03-17">
+    units="count" expires_after="2026-09-17">
   <owner>orinj@chromium.org</owner>
   <owner>chrome-contextual-tasks-eng@google.com</owner>
   <summary>
@@ -217,7 +217,7 @@ chromium-metrics-reviews@google.com.
 </histogram>
 
 <histogram name="ContextualTasks.Context.SiteExclusions.ActiveTab.Filtered"
-    enum="Boolean" expires_after="2027-03-17">
+    enum="Boolean" expires_after="2026-09-17">
   <owner>orinj@chromium.org</owner>
   <owner>chrome-contextual-tasks-eng@google.com</owner>
   <summary>
@@ -228,7 +228,7 @@ chromium-metrics-reviews@google.com.
 
 <histogram
     name="ContextualTasks.Context.SiteExclusions.AllTabs.CheckingDuration"
-    units="ms" expires_after="2027-03-17">
+    units="ms" expires_after="2026-09-17">
   <owner>orinj@chromium.org</owner>
   <owner>chrome-contextual-tasks-eng@google.com</owner>
   <summary>
@@ -238,7 +238,7 @@ chromium-metrics-reviews@google.com.
 </histogram>
 
 <histogram name="ContextualTasks.Context.SiteExclusions.AllTabs.TabsChecked"
-    units="count" expires_after="2027-03-17">
+    units="count" expires_after="2026-09-17">
   <owner>orinj@chromium.org</owner>
   <owner>chrome-contextual-tasks-eng@google.com</owner>
   <summary>
@@ -248,7 +248,7 @@ chromium-metrics-reviews@google.com.
 </histogram>
 
 <histogram name="ContextualTasks.Context.SiteExclusions.AllTabs.TabsFiltered"
-    units="count" expires_after="2027-03-17">
+    units="count" expires_after="2026-09-17">
   <owner>orinj@chromium.org</owner>
   <owner>chrome-contextual-tasks-eng@google.com</owner>
   <summary>
@@ -296,7 +296,7 @@ chromium-metrics-reviews@google.com.
 </histogram>
 
 <histogram name="ContextualTasks.Context.TabScore" units="count"
-    expires_after="2027-01-24">
+    expires_after="2026-11-22">
   <owner>sophiechang@chromium.org</owner>
   <owner>abhayprakash@google.com</owner>
   <summary>
@@ -584,7 +584,7 @@ chromium-metrics-reviews@google.com.
 </histogram>
 
 <histogram name="ContextualTasks.TabChange.UserAction{ActionType}"
-    enum="Boolean" expires_after="2027-02-07">
+    enum="Boolean" expires_after="2026-11-29">
   <owner>sophiechang@chromium.org</owner>
   <owner>chrome-contextual-tasks-eng@google.com</owner>
   <summary>
@@ -630,7 +630,7 @@ chromium-metrics-reviews@google.com.
 </histogram>
 
 <histogram name="ContextualTasks.WebUI.OAuthError"
-    units="GoogleServiceAuthError" expires_after="2027-01-24">
+    units="GoogleServiceAuthError" expires_after="2026-11-22">
   <owner>mercerd@chromium.org</owner>
   <owner>chrome-contextual-tasks-eng@google.com</owner>
   <summary>
@@ -672,7 +672,7 @@ chromium-metrics-reviews@google.com.
 </histogram>
 
 <histogram name="ContextualTasks.{EntrypointType}.UserAction{ActionType}"
-    enum="Boolean" expires_after="2027-02-07">
+    enum="Boolean" expires_after="2026-11-29">
   <owner>sophiechang@chromium.org</owner>
   <owner>chrome-contextual-tasks-eng@google.com</owner>
   <summary>

@@ -29,11 +29,9 @@
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
-#include "chrome/browser/ui/browser_window/public/create_browser_window.h"
 #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "chrome/browser/ui/navigator/browser_navigator.h"
 #include "chrome/browser/ui/signin/signin_view_controller.h"
-#include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/web_applications/test/web_app_browsertest_util.h"
 #include "chrome/browser/ui/webui/ntp/new_tab_ui.h"
 #include "chrome/browser/web_applications/test/os_integration_test_override_impl.h"
@@ -89,8 +87,7 @@ class MockSearchEngineChoiceDialogService
                 profile),
             *TemplateURLServiceFactory::GetForProfile(profile)) {
     ON_CALL(*this, RegisterDialog)
-        .WillByDefault([this](BrowserWindowInterface& browser,
-                              base::OnceClosure callback) {
+        .WillByDefault([this](Browser& browser, base::OnceClosure callback) {
           number_of_browsers_with_dialogs_open_++;
           return SearchEngineChoiceDialogService::RegisterDialog(
               browser, std::move(callback));
@@ -125,10 +122,7 @@ class MockSearchEngineChoiceDialogService
     return number_of_browsers_with_dialogs_open_;
   }
 
-  MOCK_METHOD(bool,
-              RegisterDialog,
-              (BrowserWindowInterface&, base::OnceClosure),
-              (override));
+  MOCK_METHOD(bool, RegisterDialog, (Browser&, base::OnceClosure), (override));
   MOCK_METHOD(void, NotifyChoiceMade, (int, bool, EntryPoint), (override));
 
  private:
@@ -198,7 +192,7 @@ class SearchEngineChoiceDialogBrowserTest : public InProcessBrowserTest {
   }
 
   // TODO(crbug.com/40277150): Make this function handle multiple browsers.
-  void QuitAndRestoreBrowser(BrowserWindowInterface* browser) {
+  void QuitAndRestoreBrowser(Browser* browser) {
     Profile* profile = browser->GetProfile();
     // Enable SessionRestore to last used pages.
     SessionStartupPref startup_pref(SessionStartupPref::LAST);
@@ -282,14 +276,14 @@ class SearchEngineChoiceDialogBrowserTest : public InProcessBrowserTest {
 
   // Unlike `CreateGuestBrowser()` which opens a blank tab, this opens a guest
   // profile and shows the Guest NTP.
-  BrowserWindowInterface* CreateGuestBrowserAndLoadNTP() {
-    base::test::TestFuture<BrowserWindowInterface*> browser_future;
+  Browser* CreateGuestBrowserAndLoadNTP() {
+    base::test::TestFuture<Browser*> browser_future;
     profiles::SwitchToGuestProfile(browser_future.GetCallback());
-    BrowserWindowInterface* guest_browser = browser_future.Get();
+    Browser* guest_browser = browser_future.Get();
     CHECK(guest_browser);
     EXPECT_TRUE(guest_browser->GetProfile()->IsGuestSession());
     content::WebContents* ntp_contents =
-        guest_browser->GetTabStripModel()->GetActiveWebContents();
+        guest_browser->tab_strip_model()->GetActiveWebContents();
     content::WaitForLoadStop(ntp_contents);
     CHECK(NewTabUI::IsNewTab(ntp_contents->GetURL()));
     return guest_browser;
@@ -316,7 +310,7 @@ IN_PROC_BROWSER_TEST_F(SearchEngineChoiceDialogBrowserTest,
         ui_test_utils::BROWSER_TEST_WAIT_FOR_LOAD_STOP);
   }
 
-  EXPECT_EQ(browser()->GetTabStripModel()->count(), 3);
+  EXPECT_EQ(browser()->tab_strip_model()->count(), 3);
   auto* service = static_cast<MockSearchEngineChoiceDialogService*>(
       SearchEngineChoiceDialogServiceFactory::GetForProfile(
           browser()->GetProfile()));
@@ -329,7 +323,7 @@ IN_PROC_BROWSER_TEST_F(SearchEngineChoiceDialogBrowserTest,
 
   QuitAndRestoreBrowser(browser());
   ASSERT_TRUE(browser());
-  EXPECT_EQ(browser()->GetTabStripModel()->count(), 3);
+  EXPECT_EQ(browser()->tab_strip_model()->count(), 3);
 }
 
 IN_PROC_BROWSER_TEST_F(SearchEngineChoiceDialogBrowserTest, BackgroundTab) {
@@ -338,7 +332,7 @@ IN_PROC_BROWSER_TEST_F(SearchEngineChoiceDialogBrowserTest, BackgroundTab) {
       browser(), GURL(chrome::kChromeUISettingsURL),
       WindowOpenDisposition::CURRENT_TAB,
       ui_test_utils::BROWSER_TEST_WAIT_FOR_LOAD_STOP));
-  EXPECT_EQ(browser()->GetTabStripModel()->count(), 1);
+  EXPECT_EQ(browser()->tab_strip_model()->count(), 1);
 
   auto* service = static_cast<MockSearchEngineChoiceDialogService*>(
       SearchEngineChoiceDialogServiceFactory::GetForProfile(
@@ -351,24 +345,24 @@ IN_PROC_BROWSER_TEST_F(SearchEngineChoiceDialogBrowserTest, BackgroundTab) {
       browser(), chrome::ChromeUINewTabPageURLAsGURL(),
       WindowOpenDisposition::NEW_BACKGROUND_TAB,
       ui_test_utils::BROWSER_TEST_WAIT_FOR_LOAD_STOP));
-  ASSERT_EQ(browser()->GetTabStripModel()->count(), 2);
+  ASSERT_EQ(browser()->tab_strip_model()->count(), 2);
   EXPECT_FALSE(service->IsShowingDialog(*browser()));
 
   // Switch to the eligible tab after it's loaded, the dialog opens.
-  browser()->GetTabStripModel()->ActivateTabAt(1);
+  browser()->tab_strip_model()->ActivateTabAt(1);
   ASSERT_EQ(
-      browser()->GetTabStripModel()->GetActiveWebContents()->GetVisibleURL(),
+      browser()->tab_strip_model()->GetActiveWebContents()->GetVisibleURL(),
       chrome::ChromeUINewTabPageURLAsGURL());
   EXPECT_TRUE(service->IsShowingDialog(*browser()));
 }
 
 IN_PROC_BROWSER_TEST_F(SearchEngineChoiceDialogBrowserTest,
                        RestoreSessionWithMultipleBrowsers) {
-  EXPECT_EQ(browser()->GetTabStripModel()->count(), 1);
+  EXPECT_EQ(browser()->tab_strip_model()->count(), 1);
   Profile* profile = browser()->GetProfile();
 
   // Open another browser with the same profile.
-  BrowserWindowInterface* new_browser = CreateBrowser(profile);
+  Browser* new_browser = CreateBrowser(profile);
   EXPECT_EQ(GlobalBrowserCollection::GetInstance()->GetSize(), 2u);
   auto* service = static_cast<MockSearchEngineChoiceDialogService*>(
       SearchEngineChoiceDialogServiceFactory::GetForProfile(profile));
@@ -388,32 +382,10 @@ IN_PROC_BROWSER_TEST_F(SearchEngineChoiceDialogBrowserTest,
   EXPECT_EQ(GlobalBrowserCollection::GetInstance()->GetSize(), 2u);
 }
 
-IN_PROC_BROWSER_TEST_F(
-    SearchEngineChoiceDialogBrowserTest,
-    ComputeProfileManagementFlowConditions_AlreadyBeingShown) {
-  Profile* profile = browser()->GetProfile();
-  SearchEngineChoiceDialogService* service =
-      SearchEngineChoiceDialogServiceFactory::GetForProfile(profile);
-  ASSERT_TRUE(service);
-
-  EXPECT_EQ(
-      regional_capabilities::SearchEngineChoiceScreenConditions::kEligible,
-      service->ComputeProfileManagementFlowConditions());
-
-  // Register a dialog for `browser()`.
-  EXPECT_TRUE(service->RegisterDialog(*browser(), base::DoNothing()));
-
-  // With an open dialog registered, ComputeProfileManagementFlowConditions
-  // should return kAlreadyBeingShown instead of crashing.
-  EXPECT_EQ(regional_capabilities::SearchEngineChoiceScreenConditions::
-                kAlreadyBeingShown,
-            service->ComputeProfileManagementFlowConditions());
-}
-
 IN_PROC_BROWSER_TEST_F(SearchEngineChoiceDialogBrowserTest,
                        BrowserIsRemovedFromListAfterClose) {
   Profile* profile = browser()->GetProfile();
-  BrowserWindowInterface* new_browser = CreateBrowser(profile);
+  Browser* new_browser = CreateBrowser(profile);
   auto* service = static_cast<MockSearchEngineChoiceDialogService*>(
       SearchEngineChoiceDialogServiceFactory::GetForProfile(profile));
 
@@ -439,9 +411,8 @@ IN_PROC_BROWSER_TEST_F(SearchEngineChoiceDialogBrowserTest,
                        DialogsOnBrowsersWithSameProfileCloseAfterMakingChoice) {
   // Create 2 browsers with the same profile.
   Profile* first_profile = browser()->GetProfile();
-  BrowserWindowInterface* first_browser_with_first_profile = browser();
-  BrowserWindowInterface* second_browser_with_first_profile =
-      CreateBrowser(first_profile);
+  Browser* first_browser_with_first_profile = browser();
+  Browser* second_browser_with_first_profile = CreateBrowser(first_profile);
   auto* first_profile_service =
       static_cast<MockSearchEngineChoiceDialogService*>(
           SearchEngineChoiceDialogServiceFactory::GetForProfile(first_profile));
@@ -476,7 +447,7 @@ IN_PROC_BROWSER_TEST_F(SearchEngineChoiceDialogBrowserTest,
                        DialogGetsDisplayedForAllProfiles) {
   // Start a first profile that will later show the dialog.
   Profile* first_profile = browser()->GetProfile();
-  BrowserWindowInterface* browser_with_first_profile = browser();
+  Browser* browser_with_first_profile = browser();
   auto* first_profile_service =
       static_cast<MockSearchEngineChoiceDialogService*>(
           SearchEngineChoiceDialogServiceFactory::GetForProfile(first_profile));
@@ -509,8 +480,7 @@ IN_PROC_BROWSER_TEST_F(SearchEngineChoiceDialogBrowserTest,
                    SearchEngineChoiceScreenConditions::kEligible));
 
   // Open a browser with the second profile, it should open a dialog too.
-  BrowserWindowInterface* browser_with_second_profile =
-      CreateBrowser(second_profile);
+  Browser* browser_with_second_profile = CreateBrowser(second_profile);
   EXPECT_TRUE(
       second_profile_service->IsShowingDialog(*browser_with_second_profile));
 
@@ -658,8 +628,7 @@ IN_PROC_BROWSER_TEST_F(SearchEngineChoiceDialogBrowserTest,
   const webapps::AppId app_id = InstallPWA(profile, start_url);
 
   // PWA browsers should not show the dialog.
-  BrowserWindowInterface* app_browser =
-      web_app::LaunchWebAppBrowserAndWait(profile, app_id);
+  Browser* app_browser = web_app::LaunchWebAppBrowserAndWait(profile, app_id);
   EXPECT_FALSE(service->IsShowingDialog(*app_browser));
 
   // The same URL in the regular browser shows the dialog.
@@ -676,12 +645,10 @@ IN_PROC_BROWSER_TEST_F(SearchEngineChoiceDialogBrowserTest,
       static_cast<MockSearchEngineChoiceDialogService*>(
           SearchEngineChoiceDialogServiceFactory::GetForProfile(profile));
 
-  BrowserWindowInterface* app_browser =
-      CreateBrowserWindow(BrowserWindowCreateParams::CreateForApp(
-          "Test", /*trusted_source=*/false, gfx::Rect(), profile,
-          /*user_gesture=*/true));
+  Browser* app_browser = Browser::Create(Browser::CreateParams::CreateForApp(
+      "Test", false /* trusted_source */, gfx::Rect(), profile, true));
   chrome::AddTabAt(app_browser, GURL(), -1, true);
-  EXPECT_EQ(app_browser->GetType(), BrowserWindowInterface::Type::TYPE_APP);
+  EXPECT_TRUE(app_browser->is_type_app());
 
   GURL url = GURL("https://www.google.com/");
   content::TestNavigationObserver observer(url);
@@ -696,9 +663,8 @@ IN_PROC_BROWSER_TEST_F(SearchEngineChoiceDialogBrowserTest,
   observer.Wait();
 
   // Navigate() should have opened a new `TYPE_APP_POPUP` window.
-  BrowserWindowInterface* app_popup_browser = params.browser;
-  EXPECT_EQ(app_popup_browser->GetType(),
-            BrowserWindowInterface::Type::TYPE_APP_POPUP);
+  Browser* app_popup_browser = params.browser->GetBrowserForMigrationOnly();
+  EXPECT_TRUE(app_popup_browser->is_type_app_popup());
 
   ASSERT_TRUE(ui_test_utils::NavigateToURLWithDisposition(
       browser(), chrome::ChromeUINewTabPageURLAsGURL(),
@@ -754,7 +720,7 @@ IN_PROC_BROWSER_TEST_F(SearchEngineChoiceDialogBrowserTest,
   // Initial browser
   EXPECT_EQ(GlobalBrowserCollection::GetInstance()->GetSize(), 1u);
 
-  BrowserWindowInterface* first_guest_session = CreateGuestBrowserAndLoadNTP();
+  Browser* first_guest_session = CreateGuestBrowserAndLoadNTP();
   EXPECT_EQ(GlobalBrowserCollection::GetInstance()->GetSize(), 2u);
 
   auto* first_service = static_cast<MockSearchEngineChoiceDialogService*>(
@@ -772,7 +738,7 @@ IN_PROC_BROWSER_TEST_F(SearchEngineChoiceDialogBrowserTest,
   CloseBrowserSynchronously(first_guest_session);
   EXPECT_EQ(GlobalBrowserCollection::GetInstance()->GetSize(), 1u);
 
-  BrowserWindowInterface* second_guest_session = CreateGuestBrowserAndLoadNTP();
+  Browser* second_guest_session = CreateGuestBrowserAndLoadNTP();
   auto* second_service = static_cast<MockSearchEngineChoiceDialogService*>(
       SearchEngineChoiceDialogServiceFactory::GetForProfile(
           second_guest_session->GetProfile()));
@@ -794,7 +760,7 @@ IN_PROC_BROWSER_TEST_F(SearchEngineChoiceDialogBrowserTest,
   // Initial browser
   EXPECT_EQ(GlobalBrowserCollection::GetInstance()->GetSize(), 1u);
 
-  BrowserWindowInterface* first_guest_session = CreateGuestBrowserAndLoadNTP();
+  Browser* first_guest_session = CreateGuestBrowserAndLoadNTP();
   EXPECT_EQ(GlobalBrowserCollection::GetInstance()->GetSize(), 2u);
 
   auto* first_service = static_cast<MockSearchEngineChoiceDialogService*>(
@@ -818,7 +784,7 @@ IN_PROC_BROWSER_TEST_F(SearchEngineChoiceDialogBrowserTest,
   CloseBrowserSynchronously(first_guest_session);
   EXPECT_EQ(GlobalBrowserCollection::GetInstance()->GetSize(), 1u);
 
-  BrowserWindowInterface* second_guest_session = CreateGuestBrowserAndLoadNTP();
+  Browser* second_guest_session = CreateGuestBrowserAndLoadNTP();
   auto* second_service = static_cast<MockSearchEngineChoiceDialogService*>(
       SearchEngineChoiceDialogServiceFactory::GetForProfile(
           second_guest_session->GetProfile()));
@@ -842,7 +808,7 @@ IN_PROC_BROWSER_TEST_F(SearchEngineChoiceDialogBrowserTest,
   // Initial browser
   EXPECT_EQ(GlobalBrowserCollection::GetInstance()->GetSize(), 1u);
 
-  BrowserWindowInterface* guest_session = CreateGuestBrowserAndLoadNTP();
+  Browser* guest_session = CreateGuestBrowserAndLoadNTP();
   EXPECT_EQ(GlobalBrowserCollection::GetInstance()->GetSize(), 2u);
   auto* first_service = static_cast<MockSearchEngineChoiceDialogService*>(
       SearchEngineChoiceDialogServiceFactory::GetForProfile(
@@ -872,7 +838,7 @@ IN_PROC_BROWSER_TEST_F(SearchEngineChoiceDialogBrowserTest,
 
 IN_PROC_BROWSER_TEST_F(SearchEngineChoiceDialogBrowserTest,
                        SearchEngineChoiceIsShownOnEachGuestSession) {
-  BrowserWindowInterface* guest_session = CreateGuestBrowserAndLoadNTP();
+  Browser* guest_session = CreateGuestBrowserAndLoadNTP();
   EXPECT_FALSE(guest_session->GetProfile()->GetPrefs()->HasPrefPath(
       prefs::kDefaultSearchProviderChoiceScreenCompletionTimestamp));
   EXPECT_FALSE(guest_session->GetProfile()->GetPrefs()->HasPrefPath(
@@ -904,7 +870,7 @@ IN_PROC_BROWSER_TEST_F(SearchEngineChoiceDialogBrowserTest,
   // Initial browser
   EXPECT_EQ(GlobalBrowserCollection::GetInstance()->GetSize(), 1u);
 
-  BrowserWindowInterface* guest_session = CreateGuestBrowserAndLoadNTP();
+  Browser* guest_session = CreateGuestBrowserAndLoadNTP();
   EXPECT_EQ(GlobalBrowserCollection::GetInstance()->GetSize(), 2u);
   auto* first_service = static_cast<MockSearchEngineChoiceDialogService*>(
       SearchEngineChoiceDialogServiceFactory::GetForProfile(
@@ -933,7 +899,7 @@ IN_PROC_BROWSER_TEST_F(SearchEngineChoiceDialogBrowserTest,
 // it.
 IN_PROC_BROWSER_TEST_F(SearchEngineChoiceDialogBrowserTest,
                        SearchEngineIsSavedBetweenGuestSessionsIfNeeded) {
-  BrowserWindowInterface* guest_session = CreateGuestBrowserAndLoadNTP();
+  Browser* guest_session = CreateGuestBrowserAndLoadNTP();
   auto* second_service = static_cast<MockSearchEngineChoiceDialogService*>(
       SearchEngineChoiceDialogServiceFactory::GetForProfile(
           guest_session->GetProfile()));

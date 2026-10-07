@@ -6,7 +6,6 @@ package org.chromium.chrome.browser.actor.ui;
 
 import android.text.TextUtils;
 
-import org.chromium.base.ContextUtils;
 import org.chromium.base.Log;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.chrome.browser.actor.ActorTask;
@@ -31,7 +30,6 @@ public class ActorControlCoordinator implements PeekViewManager, ActorControlSta
     private final ActorControlStateTracker mStateTracker;
 
     private PeekViewUiState mPeekViewUiState = PeekViewUiState.DEFAULT;
-    private boolean mHasAutoExpanded;
 
     /**
      * Constructs a new {@link ActorControlCoordinator}.
@@ -82,44 +80,27 @@ public class ActorControlCoordinator implements PeekViewManager, ActorControlSta
                 case ActorTaskState.CREATED:
                 case ActorTaskState.CANCELLED:
                     setPeekViewContent(activeTaskTitle, PeekViewUiState.DEFAULT);
-                    mHasAutoExpanded = false;
                     break;
                 case ActorTaskState.ACTING:
                 case ActorTaskState.REFLECTING:
                     setPeekViewContent(activeTaskTitle, PeekViewUiState.ACTING);
-                    mHasAutoExpanded = false;
                     break;
                 case ActorTaskState.PAUSED_BY_USER:
                     setPeekViewContent(activeTaskTitle, PeekViewUiState.PAUSED);
-                    mHasAutoExpanded = false;
                     break;
                 case ActorTaskState.PAUSED_BY_ACTOR:
                 case ActorTaskState.WAITING_ON_USER:
                 case ActorTaskState.FINISHED:
                 case ActorTaskState.FAILED:
                     setPeekViewContent(activeTaskTitle, PeekViewUiState.WAITING);
-                    if (!mHasAutoExpanded
-                            && !mTabBottomSheetManager.isSheetShowing()
-                            && mStateTracker.isCurrentTabActuatedTab()) {
-                        mTabBottomSheetManager.setSheetExpanded(true);
-                        mHasAutoExpanded = true;
-                    }
                     break;
                 default:
                     assert false : "Unhandled ActorTaskState " + taskState;
                     clearPeekViewContent();
-                    mHasAutoExpanded = false;
                     break;
             }
         } else {
-            String title = conversationTitle;
-            if (mStateTracker.hasGlicInstance() && TextUtils.isEmpty(title)) {
-                title =
-                        ContextUtils.getApplicationContext()
-                                .getString(R.string.peek_state_new_chat);
-            }
-            setPeekViewContent(title, PeekViewUiState.DEFAULT);
-            mHasAutoExpanded = false;
+            setPeekViewContent(conversationTitle, PeekViewUiState.DEFAULT);
         }
     }
 
@@ -185,9 +166,6 @@ public class ActorControlCoordinator implements PeekViewManager, ActorControlSta
         assert mTabBottomSheetManager.isSheetInitialized();
         GlicMetrics.recordClosePeekView();
         mTabBottomSheetManager.tryToCloseBottomSheet(/* animate= */ true);
-        if (PeekViewUiState.WAITING.equals(mPeekViewUiState)) {
-            mStateTracker.clearWaitingState();
-        }
     }
 
     /** Called when the peek view is clicked. */

@@ -4,8 +4,6 @@
 
 #include "components/autofill/core/browser/crowdsourcing/determine_possible_field_types.h"
 
-#include <ranges>
-
 #include "base/containers/to_vector.h"
 #include "base/feature_list.h"
 #include "base/strings/strcat.h"
@@ -13,6 +11,7 @@
 #include "base/strings/stringprintf.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/test/task_environment.h"
+#include "base/types/zip.h"
 #include "components/autofill/core/browser/autofill_field.h"
 #include "components/autofill/core/browser/autofill_field_test_api.h"
 #include "components/autofill/core/browser/data_model/addresses/autofill_i18n_api.h"
@@ -21,14 +20,14 @@
 #include "components/autofill/core/browser/field_types.h"
 #include "components/autofill/core/browser/form_parsing/determine_regex_types.h"
 #include "components/autofill/core/browser/foundations/test_autofill_client.h"
-#include "components/autofill/core/browser/geo/alternative_state_name_map_test_util.h"
+#include "components/autofill/core/browser/geo/alternative_state_name_map_test_utils.h"
 #include "components/autofill/core/browser/proto/server.pb.h"
-#include "components/autofill/core/browser/test_utils/autofill_form_test_util.h"
-#include "components/autofill/core/browser/test_utils/autofill_test_util.h"
-#include "components/autofill/core/browser/test_utils/entity_data_test_util.h"
-#include "components/autofill/core/browser/test_utils/valuables_data_test_util.h"
+#include "components/autofill/core/browser/test_utils/autofill_form_test_utils.h"
+#include "components/autofill/core/browser/test_utils/autofill_test_utils.h"
+#include "components/autofill/core/browser/test_utils/entity_data_test_utils.h"
+#include "components/autofill/core/browser/test_utils/valuables_data_test_utils.h"
 #include "components/autofill/core/common/autofill_features.h"
-#include "components/autofill/core/common/autofill_test_util.h"
+#include "components/autofill/core/common/autofill_test_utils.h"
 #include "components/autofill/core/common/form_data_test_api.h"
 #include "components/autofill/core/common/form_field_data.h"
 #include "testing/gmock/include/gmock/gmock.h"
@@ -697,39 +696,6 @@ TEST_F(DeterminePossibleFieldTypesForUploadTest,
   EXPECT_THAT(possible_types[0].types, UnorderedElementsAre(EMAIL_ADDRESS));
 }
 
-// Tests that a phone number whose suffix matches a masked credit card's last
-// four digits does not vote for CREDIT_CARD_NUMBER.
-TEST_F(DeterminePossibleFieldTypesForUploadTest,
-       CrowdsourceMaskedCreditCard_PhoneNumberDoesNotVoteCreditCard) {
-  constexpr std::string_view kPhoneNumber = "+1 (555) 555-1881";
-
-  std::unique_ptr<FormStructure> form_structure =
-      ConstructFormStructureFromFormData(test::GetFormData(
-          {.fields = {{.role = PHONE_HOME_WHOLE_NUMBER,
-                       .value = base::UTF8ToUTF16(kPhoneNumber)}}}));
-
-  CreditCard masked_card(CreditCard::RecordType::kMaskedServerCard,
-                         "server_id");
-  test::SetCreditCardInfo(&masked_card, "John Doe", "1881", "04", "2099", "1");
-
-  AutofillProfile profile(i18n_model_definition::kLegacyHierarchyCountryCode);
-  test::SetProfileInfo(
-      &profile,
-      test::SetProfileInfoOptionsBuilder().with_phone(kPhoneNumber).Build());
-
-  std::vector<PossibleTypes> possible_types =
-      DeterminePossibleFieldTypesForUpload(
-          {profile}, {masked_card}, std::vector<EntityInstance>(),
-          std::vector<LoyaltyCard>(),
-          /*fields_that_match_state=*/{},
-          /*last_unlocked_credit_card_cvc=*/u"", std::vector<OneTimeToken>(),
-          "en-US", form_structure->fields());
-
-  ASSERT_EQ(form_structure->field_count(), possible_types.size());
-  EXPECT_THAT(possible_types[0].types,
-              UnorderedElementsAre(PHONE_HOME_WHOLE_NUMBER));
-}
-
 // Tests if the OTP field is detected.
 TEST_F(DeterminePossibleFieldTypesForUploadTest, CrowdsourceOtpField) {
   constexpr char kOtp[] = "123456";
@@ -1172,7 +1138,7 @@ class FindDatesAndSetFormatStringsTest : public testing::Test {
 
     std::vector<DatesAndFormats> dafs;
     dafs.resize(fields.size());
-    for (auto [pt, daf] : std::views::zip(possible_types, dafs)) {
+    for (auto [pt, daf] : base::zip(possible_types, dafs)) {
       daf.formats = pt.formats;
       for (const auto& p : dates) {
         if (&pt == p.second) {

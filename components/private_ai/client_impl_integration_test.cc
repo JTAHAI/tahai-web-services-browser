@@ -31,7 +31,6 @@
 #include "components/private_ai/testing/fake_private_ai_oak_session_driver.h"
 #include "components/private_ai/testing/fake_secure_channel.h"
 #include "components/private_ai/testing/fake_token_manager.h"
-#include "components/version_info/channel.h"
 #include "services/network/test/test_network_context.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -52,7 +51,7 @@ class ClientImplIntegrationTest : public testing::Test {
 
     auto factory = std::make_unique<ConnectionFactoryImpl>(
         url, &test_network_context_, &logger_, &oak_session_driver_,
-        &network_driver_, version_info::Channel::UNKNOWN);
+        &network_driver_);
     factory_ptr_ = factory.get();
     factory->EnableTokenAttestation(&token_manager_);
     factory->SetSecureChannelFactoryForTesting(base::BindLambdaForTesting(

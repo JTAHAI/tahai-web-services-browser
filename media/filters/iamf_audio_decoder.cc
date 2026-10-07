@@ -22,6 +22,7 @@
 #include "media/base/channel_layout.h"
 #include "media/base/decoder_buffer.h"
 #include "media/base/limits.h"
+#include "media/base/media_switches.h"
 #include "media/base/sample_format.h"
 #include "media/base/timestamp_constants.h"
 #include "third_party/iamf_tools/src/iamf/include/iamf_tools/iamf_decoder_factory.h"
@@ -455,9 +456,13 @@ ChannelLayoutConfig IamfAudioDecoder::ConvertIamfLayout(
     case OutputLayout::kItu2051_SoundSystemI_0_7_0:
       return ChannelLayoutConfig::FromLayout<CHANNEL_LAYOUT_7_1>();
     case OutputLayout::kItu2051_SoundSystemD_4_5_0:
-      return ChannelLayoutConfig::FromLayout<CHANNEL_LAYOUT_5_1_4>();
+      return base::FeatureList::IsEnabled(kEnableHighChannelLayouts)
+                 ? ChannelLayoutConfig::FromLayout<CHANNEL_LAYOUT_5_1_4>()
+                 : ChannelLayoutConfig(CHANNEL_LAYOUT_DISCRETE, 10);
     case OutputLayout::kItu2051_SoundSystemJ_4_7_0:
-      return ChannelLayoutConfig::FromLayout<CHANNEL_LAYOUT_7_1_4>();
+      return base::FeatureList::IsEnabled(kEnableHighChannelLayouts)
+                 ? ChannelLayoutConfig::FromLayout<CHANNEL_LAYOUT_7_1_4>()
+                 : ChannelLayoutConfig(CHANNEL_LAYOUT_DISCRETE, 12);
     default:
       if (media_log) {
         MEDIA_LOG(WARNING, media_log)

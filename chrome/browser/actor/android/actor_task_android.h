@@ -5,11 +5,7 @@
 #ifndef CHROME_BROWSER_ACTOR_ANDROID_ACTOR_TASK_ANDROID_H_
 #define CHROME_BROWSER_ACTOR_ANDROID_ACTOR_TASK_ANDROID_H_
 
-#include <stdint.h>
-
-#include <string>
-#include <vector>
-
+#include "base/android/jni_android.h"
 #include "base/android/scoped_java_ref.h"
 #include "base/memory/raw_ptr.h"
 #include "base/supports_user_data.h"
@@ -29,15 +25,14 @@ class ActorTaskAndroid : public base::SupportsUserData::Data {
 
   base::android::ScopedJavaLocalRef<jobject> GetJavaObject();
 
-  std::string GetCurrentActionName();
-  int32_t GetState();
-  bool IsCompleted();
-  bool IsUnderActorControl();
-  void Pause();
-  void Resume();
-  std::vector<int32_t> GetTabs();
-  std::vector<int32_t> GetLastActedTabs();
-  int32_t GetLastActuatedTabId();
+  base::android::ScopedJavaLocalRef<jstring> GetCurrentActionName(JNIEnv* env);
+  int32_t GetState(JNIEnv* env);
+  bool IsCompleted(JNIEnv* env);
+  bool IsUnderActorControl(JNIEnv* env);
+  void Pause(JNIEnv* env);
+  void Resume(JNIEnv* env);
+  base::android::ScopedJavaLocalRef<jintArray> GetTabs(JNIEnv* env);
+  base::android::ScopedJavaLocalRef<jintArray> GetLastActedTabs(JNIEnv* env);
 
  private:
   base::android::ScopedJavaGlobalRef<jobject> java_obj_;

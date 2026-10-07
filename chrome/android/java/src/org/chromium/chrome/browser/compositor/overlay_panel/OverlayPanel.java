@@ -551,9 +551,12 @@ public class OverlayPanel extends OverlayPanelAnimation
             // a few frames, otherwise its completion won't be visually noticeable.
             new Handler()
                     .postDelayed(
-                            () -> {
-                                setProgressBarVisible(false);
-                                requestUpdate();
+                            new Runnable() {
+                                @Override
+                                public void run() {
+                                    setProgressBarVisible(false);
+                                    requestUpdate();
+                                }
                             },
                             HIDE_PROGRESS_BAR_DELAY_MS);
         }

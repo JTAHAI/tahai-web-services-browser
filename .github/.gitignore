@@ -1,7 +1,2 @@
-# Local Copilot configuration.
-/copilot-instructions.md
+# Local Copilot CLI LSP configuration
 /lsp.json
-
-# Local Copilot instructions. Shared files must be explicitly allowed.
-/instructions/*
-!/instructions/chromium.instructions.md

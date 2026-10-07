@@ -13,13 +13,13 @@
 #include "base/test/scoped_feature_list.h"
 #include "base/test/task_environment.h"
 #include "components/autofill/core/browser/data_model/autofill_ai/entity_instance.h"
-#include "components/autofill/core/browser/test_utils/entity_data_test_util.h"
+#include "components/autofill/core/browser/test_utils/entity_data_test_utils.h"
 #include "components/autofill/core/browser/webdata/autofill_ai/entity_sync_util.h"
 #include "components/autofill/core/browser/webdata/autofill_ai/entity_table.h"
 #include "components/autofill/core/browser/webdata/autofill_ai/entity_table_test_api.h"
 #include "components/autofill/core/browser/webdata/autofill_change.h"
 #include "components/autofill/core/browser/webdata/mock_autofill_webdata_backend.h"
-#include "components/autofill/core/browser/webdata/valuables/valuables_sync_test_util.h"
+#include "components/autofill/core/browser/webdata/valuables/valuables_sync_test_utils.h"
 #include "components/autofill/core/browser/webdata/valuables/valuables_sync_util.h"
 #include "components/autofill/core/common/autofill_features.h"
 #include "components/os_crypt/async/browser/test_utils.h"
@@ -291,6 +291,25 @@ TEST_F(ValuableMetadataSyncBridgeTest,
 
   EXPECT_THAT(GetEntityMetadataEntries(),
               UnorderedElementsAre(vehicle1.metadata(), vehicle2.metadata()));
+}
+
+// Test that MergeFullSyncData() ignores the local data without a `PassType`.
+TEST_F(ValuableMetadataSyncBridgeTest,
+       MergeFullSyncData_IgnoresLocalDataWithoutPassType) {
+  // Orders are not supported by the bridge.
+  entity_table().AddOrUpdateEntityInstance(
+      MaskEntityInstance(test::GetOrderEntityInstance(
+          {.record_type = EntityInstance::RecordType::kServerWallet})));
+
+  EXPECT_CALL(mock_processor(), Put).Times(0);
+  EXPECT_CALL(backend(), CommitChanges());
+  EXPECT_CALL(backend(), NotifyOnAutofillChangedBySync(
+                             syncer::AUTOFILL_VALUABLE_METADATA));
+
+  EXPECT_FALSE(bridge()
+                   .MergeFullSyncData(bridge().CreateMetadataChangeList(),
+                                      syncer::EntityChangeList())
+                   .has_value());
 }
 
 // Test that MergeFullSyncData() correctly merges remote data for loyalty card
@@ -695,6 +714,18 @@ TEST_F(ValuableMetadataSyncBridgeTest,
                                    national_id.metadata().guid.value()));
 }
 
+// Tests that GetAllData() ignores metadata entries without a `PassType`.
+TEST_F(ValuableMetadataSyncBridgeTest,
+       GetAllData_IgnoresMetadataWithoutPassType) {
+  // Orders are not supported by the bridge.
+  entity_table().AddOrUpdateEntityInstance(test::GetOrderEntityInstance(
+      {.record_type = EntityInstance::RecordType::kServerWallet}));
+
+  std::unique_ptr<syncer::DataBatch> batch = bridge().GetAllDataForDebugging();
+  ASSERT_TRUE(batch);
+  EXPECT_FALSE(batch->HasNext());
+}
+
 // Tests that GetDataForCommit() returns the specified `EntityMetadata` entries.
 TEST_F(ValuableMetadataSyncBridgeTest, GetDataForCommit_EntityMetadata) {
   const EntityInstance vehicle1 = CreateServerVehicleEntityInstance(
@@ -849,6 +880,29 @@ TEST_F(ValuableMetadataSyncBridgeTest,
   bridge().ServerEntityInstanceMetadataChanged(
       EntityInstanceMetadataChange(EntityInstanceMetadataChange::UPDATE,
                                    vehicle.guid(), vehicle.metadata()));
+}
+
+// Tests that `ServerEntityInstanceMetadataChanged()` ignores metadata entries
+// without a `PassType`.
+TEST_F(
+    ValuableMetadataSyncBridgeTest,
+    ServerEntityInstanceMetadataChanged_AddUpdate_IgnoresMetadataWithoutPassType) {
+  ON_CALL(mock_processor(), IsTrackingMetadata).WillByDefault(Return(true));
+  // Order are not supported by the bridge.
+  const EntityInstance order_number =
+      MaskEntityInstance(test::GetOrderEntityInstance(
+          {.record_type = EntityInstance::RecordType::kServerWallet}));
+  entity_table().AddOrUpdateEntityInstance(order_number);
+
+  EXPECT_CALL(mock_processor(), Put).Times(0);
+  bridge().ServerEntityInstanceMetadataChanged(EntityInstanceMetadataChange(
+      EntityInstanceMetadataChange::ADD, order_number.guid(),
+      order_number.metadata()));
+
+  EXPECT_CALL(mock_processor(), Put).Times(0);
+  bridge().ServerEntityInstanceMetadataChanged(EntityInstanceMetadataChange(
+      EntityInstanceMetadataChange::UPDATE, order_number.guid(),
+      order_number.metadata()));
 }
 
 // Tests that `ServerEntityInstanceMetadataChanged()` includes unknown fields

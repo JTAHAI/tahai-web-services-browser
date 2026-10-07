@@ -3,8 +3,6 @@
 // found in the LICENSE file.
 
 #include "third_party/blink/renderer/core/layout/layout_shift_region.h"
-
-#include "third_party/blink/renderer/platform/wtf/allocator/allocator.h"
 #include "third_party/blink/renderer/platform/wtf/hash_map.h"
 
 namespace blink {
@@ -105,8 +103,6 @@ inline unsigned BasicIntervals::SegmentLength(Segment segment) const {
 // An array-backed, weight-balanced binary tree whose leaves represent the basic
 // intervals.  Non-leaf nodes represent the union of their children's intervals.
 class SegmentTree {
-  STACK_ALLOCATED();
-
  public:
   SegmentTree(const BasicIntervals&);
 
@@ -241,8 +237,6 @@ void SegmentTree::Visit(unsigned node_index,
 
 // Runs the sweep line algorithm to compute the area of a set of rects.
 class Sweeper {
-  STACK_ALLOCATED();
-
  public:
   explicit Sweeper(const Vector<gfx::Rect>&);
 

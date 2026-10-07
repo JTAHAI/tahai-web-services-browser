@@ -31,6 +31,7 @@
 // Must come after all headers that specialize FromJniType() / ToJniType().
 #include "chrome/browser/ui/android/omnibox/jni_headers/OmniboxPrerender_jni.h"
 
+using base::android::JavaRef;
 using predictors::AutocompleteActionPredictor;
 using predictors::AutocompleteActionPredictorFactory;
 
@@ -47,7 +48,8 @@ static int64_t JNI_OmniboxPrerender_Init(
   return reinterpret_cast<intptr_t>(omnibox);
 }
 
-void OmniboxPrerender::Clear(Profile* profile) {
+void OmniboxPrerender::Clear(JNIEnv* env,
+                             Profile* profile) {
   DCHECK(profile);
   if (!profile)
     return;
@@ -56,20 +58,27 @@ void OmniboxPrerender::Clear(Profile* profile) {
   action_predictor->UpdateDatabaseFromTransitionalMatches(GURL());
 }
 
-void OmniboxPrerender::InitializeForProfile(Profile* profile) {
+void OmniboxPrerender::InitializeForProfile(JNIEnv* env,
+                                            Profile* profile) {
   // Initialize the AutocompleteActionPredictor for this profile.
   // It needs to register for notifications as part of its initialization.
   AutocompleteActionPredictorFactory::GetForProfile(profile);
 }
 
-void OmniboxPrerender::PrerenderMaybe(const std::u16string& url_string,
-                                      const std::u16string& current_url_string,
+void OmniboxPrerender::PrerenderMaybe(JNIEnv* env,
+                                      const JavaRef<jstring>& j_url,
+                                      const JavaRef<jstring>& j_current_url,
                                       int64_t jsource_match,
                                       Profile* profile,
-                                      TabAndroid* tab) {
+                                      const JavaRef<jobject>& j_tab) {
   AutocompleteResult* autocomplete_result =
       reinterpret_cast<AutocompleteResult*>(jsource_match);
-  content::WebContents* web_contents = tab ? tab->web_contents() : nullptr;
+  std::u16string url_string =
+      base::android::ConvertJavaStringToUTF16(env, j_url);
+  std::u16string current_url_string =
+      base::android::ConvertJavaStringToUTF16(env, j_current_url);
+  content::WebContents* web_contents =
+      TabAndroid::GetNativeTab(env, j_tab)->web_contents();
   // TODO(apiccion) Use a delegate for communicating with web_contents.
   // This can happen in OmniboxTests since the results are generated
   // in Java only.

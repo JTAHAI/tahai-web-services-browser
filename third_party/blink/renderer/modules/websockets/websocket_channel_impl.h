@@ -47,7 +47,6 @@
 #include "mojo/public/cpp/bindings/pending_receiver.h"
 #include "mojo/public/cpp/bindings/pending_remote.h"
 #include "mojo/public/cpp/system/simple_watcher.h"
-#include "services/network/public/mojom/ip_address_space.mojom-blink-forward.h"
 #include "services/network/public/mojom/websocket.mojom-blink.h"
 #include "third_party/blink/public/mojom/websockets/websocket_connector.mojom-blink-forward.h"
 #include "third_party/blink/renderer/core/fileapi/blob.h"
@@ -114,10 +113,7 @@ class MODULES_EXPORT WebSocketChannelImpl final
   ~WebSocketChannelImpl() override;
 
   // WebSocketChannel functions.
-  bool Connect(
-      const KURL&,
-      const String& protocol,
-      network::mojom::blink::IPAddressSpace target_address_space) override;
+  bool Connect(const KURL&, const String& protocol) override;
   void Send(const std::string& message,
             std::unique_ptr<SendCompletionWatcher>) override;
   void Send(const DOMArrayBuffer&,

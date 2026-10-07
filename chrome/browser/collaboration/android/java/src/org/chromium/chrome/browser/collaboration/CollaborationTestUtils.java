@@ -169,7 +169,9 @@ public class CollaborationTestUtils {
                     // Post delayed task in order to make sure that `NotifyTabGroupAdded` is
                     // called first.
                     ThreadUtils.postOnUiThreadDelayed(
-                            () -> makeTabGroupShared(syncGroupId, collaborationId),
+                            () -> {
+                                makeTabGroupShared(syncGroupId, collaborationId);
+                            },
                             DELAY_MS_FOR_TAB_GROUP_ADDED);
                 });
     }
@@ -177,7 +179,9 @@ public class CollaborationTestUtils {
     /** Returns the {@link TabGroupSyncService} for the current profile. */
     public TabGroupSyncService getTabGroupSyncService() {
         return ThreadUtils.runOnUiThreadBlocking(
-                () -> TabGroupSyncServiceFactory.getForProfile(mProfile));
+                () -> {
+                    return TabGroupSyncServiceFactory.getForProfile(mProfile);
+                });
     }
 
     /** Signs in and sets selected types for tab groups. */
@@ -191,12 +195,10 @@ public class CollaborationTestUtils {
     /** Returns the local tab group id. */
     public LocalTabGroupId getLocalTabGroupId(ChromeTabbedActivity cta) {
         return ThreadUtils.runOnUiThreadBlocking(
-                () ->
-                        new LocalTabGroupId(
-                                cta.getTabModelSelector()
-                                        .getModel(false)
-                                        .getTabAt(0)
-                                        .getTabGroupId()));
+                () -> {
+                    return new LocalTabGroupId(
+                            cta.getTabModelSelector().getModel(false).getTabAt(0).getTabGroupId());
+                });
     }
 
     /** Creates a tab group and opens the tab grid dialog. */

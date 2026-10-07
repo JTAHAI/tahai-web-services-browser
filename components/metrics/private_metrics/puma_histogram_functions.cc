@@ -13,11 +13,10 @@ namespace metrics::private_metrics {
 
 void PumaHistogramBoolean(PumaType puma_type,
                           std::string_view name,
-                          bool sample,
-                          std::optional<uint64_t> profile_id) {
+                          bool sample) {
   if (base::FeatureList::IsEnabled(metrics::private_metrics::kLomFeature)) {
     metrics::private_metrics::LomRecorder::Get()->RecordBoolean(
-        puma_type, name, sample, profile_id);
+        puma_type, name, sample, /*profile_name=*/std::nullopt);
     return;
   }
   base::HistogramBase* histogram = base::BooleanHistogram::FactoryGet(
@@ -28,11 +27,10 @@ void PumaHistogramBoolean(PumaType puma_type,
 void PumaHistogramExactLinear(PumaType puma_type,
                               std::string_view name,
                               int sample,
-                              int exclusive_max,
-                              std::optional<uint64_t> profile_id) {
+                              int exclusive_max) {
   if (base::FeatureList::IsEnabled(metrics::private_metrics::kLomFeature)) {
     metrics::private_metrics::LomRecorder::Get()->RecordExactLinear(
-        puma_type, name, sample, exclusive_max, profile_id);
+        puma_type, name, sample, exclusive_max, /*profile_name=*/std::nullopt);
     return;
   }
   base::HistogramBase* histogram = base::LinearHistogram::FactoryGet(

@@ -371,8 +371,8 @@
       actionWithTitle:
           l10n_util::GetNSString(
               IDS_IOS_HOME_CUSTOMIZATION_CONTEXT_MENU_DELETE_RECENT_BACKGROUND_TITLE)
-                image:SymbolWithPointSize(
-                          SymbolTrash,
+                image:DefaultSymbolWithPointSize(
+                          kTrashSymbol,
                           [[UIFont
                               preferredFontForTextStyle:UIFontTextStyleBody]
                               pointSize])

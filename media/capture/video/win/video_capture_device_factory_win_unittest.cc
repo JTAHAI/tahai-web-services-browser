@@ -1249,7 +1249,6 @@ class FakeVideoCaptureDeviceFactoryWin : public VideoCaptureDeviceFactoryWin {
   MFSourceOutcome CreateDeviceSourceMediaFoundation(
       Microsoft::WRL::ComPtr<IMFAttributes> attributes,
       const bool banned_for_d3d11,
-      scoped_refptr<DXGIDeviceManager> dxgi_device_manager,
       IMFMediaSource** source) override {
     UINT32 length;
     if (FAILED(attributes->GetStringLength(
@@ -1264,7 +1263,7 @@ class FakeVideoCaptureDeviceFactoryWin : public VideoCaptureDeviceFactoryWin {
       return MFSourceOutcome::kFailed;
     }
     const bool has_dxgi_device_manager =
-        static_cast<bool>(dxgi_device_manager) && !banned_for_d3d11;
+        static_cast<bool>(GetDxgiDeviceManager()) && !banned_for_d3d11;
     if (use_d3d11_with_media_foundation_for_testing() !=
         has_dxgi_device_manager) {
       return MFSourceOutcome::kFailed;
@@ -1326,11 +1325,10 @@ class FakeVideoCaptureDeviceFactoryWin : public VideoCaptureDeviceFactoryWin {
   VideoCaptureFormats GetSupportedFormatsMediaFoundation(
       Microsoft::WRL::ComPtr<IMFMediaSource> source,
       const bool banned_for_d3d11,
-      const std::string& display_name,
-      scoped_refptr<DXGIDeviceManager> dxgi_device_manager) override {
+      const std::string& display_name) override {
     if (disable_get_supported_formats_mf_mocking_) {
       return VideoCaptureDeviceFactoryWin::GetSupportedFormatsMediaFoundation(
-          source, banned_for_d3d11, display_name, dxgi_device_manager);
+          source, banned_for_d3d11, display_name);
     }
     VideoCaptureFormats supported_formats;
     if (display_name == base::SysWideToUTF8(kMFDeviceName6)) {

@@ -10,7 +10,7 @@
 //     secondary-interface.test-mojom
 //
 
-private let mojoPrefix = "golden."
+private static let mojoPrefix = "golden."
 
 ///
 /// Interfaces
@@ -25,7 +25,6 @@ extension ILType {
             "sendDelegateTwo",
             "getDelegateOne",
             "getObserverTwo",
-            "syncGetObserverTwo",
         ])
     fileprivate static let jsGoldenPrimaryRemoteWrapper: ILType = .object(
         ofGroup: "golden.PrimaryRemoteWrapper",
@@ -109,19 +108,16 @@ extension ObjectGroup {
             "sendObserver": [
                 .plain(.boolean),
                 .plain(.jsGoldenObserverOneRemote),
-            ] => .jsPromise(resolvingTo: .jsGoldenPrimary_SendObserver_ResponseParams),
+            ] => .jsPromise,
             "sendDelegateTwo": [
                 .plain(.jsGoldenDelegateTwoPendingReceiver),
                 .plain(.integer),
             ] => .undefined,
             "getDelegateOne": [
-            ] => .jsPromise(resolvingTo: .jsGoldenPrimary_GetDelegateOne_ResponseParams),
+            ] => .jsPromise,
             "getObserverTwo": [
                 .plain(.float),
-            ] => .jsPromise(resolvingTo: .jsGoldenPrimary_GetObserverTwo_ResponseParams),
-            "syncGetObserverTwo": [
-                .plain(.float),
-            ] => .jsGoldenPrimary_SyncGetObserverTwo_ResponseParams,
+            ] => .jsPromise,
         ]
     )
 
@@ -229,7 +225,6 @@ extension ObjectGroup {
                 .plain(
                     .function(
                         [
-                            .either(.integer, .undefined),
                             .plain(.jsGoldenDelegateOneRemote),
                         ] => .undefined))
             ] => .integer,
@@ -255,7 +250,7 @@ extension ObjectGroup {
 
     fileprivate static let goldenObserverOnePendingReceiver = ObjectGroup(
         name: "golden.ObserverOnePendingReceiver",
-        instanceType: .jsGoldenObserverOnePendingReceiver,
+        instanceType: .jsGoldenObserverOneRemotePendingReceiver,
         properties: [:],
         methods: [:]
     )
@@ -300,86 +295,8 @@ extension ObjectGroup {
 
     fileprivate static let goldenObserverTwoPendingReceiver = ObjectGroup(
         name: "golden.ObserverTwoPendingReceiver",
-        instanceType: .jsGoldenObserverTwoPendingReceiver,
+        instanceType: .jsGoldenObserverTwoRemotePendingReceiver,
         properties: [:],
-        methods: [:]
-    )
-}
-
-///
-/// Structs
-///
-extension ILType {
-    fileprivate static let jsGoldenObserverOne_SendDelegateTwo_ResponseParams: ILType = .object(
-        ofGroup: "golden.ObserverOne_SendDelegateTwo_ResponseParams",
-        withProperties: [
-            "result",
-        ])
-    fileprivate static let jsGoldenPrimary_SendObserver_ResponseParams: ILType = .object(
-        ofGroup: "golden.Primary_SendObserver_ResponseParams",
-        withProperties: [
-            "result",
-        ])
-    fileprivate static let jsGoldenPrimary_GetDelegateOne_ResponseParams: ILType = .object(
-        ofGroup: "golden.Primary_GetDelegateOne_ResponseParams",
-        withProperties: [
-            "delegate",
-        ])
-    fileprivate static let jsGoldenPrimary_GetObserverTwo_ResponseParams: ILType = .object(
-        ofGroup: "golden.Primary_GetObserverTwo_ResponseParams",
-        withProperties: [
-            "observer",
-            "flag",
-        ])
-    fileprivate static let jsGoldenPrimary_SyncGetObserverTwo_ResponseParams: ILType = .object(
-        ofGroup: "golden.Primary_SyncGetObserverTwo_ResponseParams",
-        withProperties: [
-            "observer",
-            "flag",
-        ])
-}
-
-extension ObjectGroup {
-    fileprivate static let goldenObserverOneSendDelegateTwoResponseParams = ObjectGroup(
-        name: "golden.ObserverOne_SendDelegateTwo_ResponseParams",
-        instanceType: .jsGoldenObserverOne_SendDelegateTwo_ResponseParams,
-        properties: [
-            "result": .boolean,
-        ],
-        methods: [:]
-    )
-    fileprivate static let goldenPrimarySendObserverResponseParams = ObjectGroup(
-        name: "golden.Primary_SendObserver_ResponseParams",
-        instanceType: .jsGoldenPrimary_SendObserver_ResponseParams,
-        properties: [
-            "result": .string,
-        ],
-        methods: [:]
-    )
-    fileprivate static let goldenPrimaryGetDelegateOneResponseParams = ObjectGroup(
-        name: "golden.Primary_GetDelegateOne_ResponseParams",
-        instanceType: .jsGoldenPrimary_GetDelegateOne_ResponseParams,
-        properties: [
-            "delegate": .jsGoldenDelegateOneRemote,
-        ],
-        methods: [:]
-    )
-    fileprivate static let goldenPrimaryGetObserverTwoResponseParams = ObjectGroup(
-        name: "golden.Primary_GetObserverTwo_ResponseParams",
-        instanceType: .jsGoldenPrimary_GetObserverTwo_ResponseParams,
-        properties: [
-            "observer": .jsGoldenObserverTwoPendingReceiver,
-            "flag": .boolean,
-        ],
-        methods: [:]
-    )
-    fileprivate static let goldenPrimarySyncGetObserverTwoResponseParams = ObjectGroup(
-        name: "golden.Primary_SyncGetObserverTwo_ResponseParams",
-        instanceType: .jsGoldenPrimary_SyncGetObserverTwo_ResponseParams,
-        properties: [
-            "observer": .jsGoldenObserverTwoPendingReceiver,
-            "flag": .boolean,
-        ],
         methods: [:]
     )
 }
@@ -434,13 +351,13 @@ private let MojoPropertyRetrievalGenerator = CodeGenerator(
     b.getProperty(propertyName, of: obj)
 }
 
-/// Generates a call to add a callback to the goldenObserverOneCallbackRouter.
+/// Generates a call to add a callback to the ObserverOneCallbackRouter.
 ///
 /// The callback has one parameter, specified with `.parameters(n: 1)`. `build(n: 5)`
 /// then tells Fuzzilli to populate the callback body with five random expressions.
-private let MojoGoldenObserverOneRouterListenerGenerator = CodeGenerator(
-    "MojoGoldenObserverOneRouterListenerGenerator",
-    inputs: .required(.jsGoldenObserverOneCallbackRouter)
+private let MojoObserverOneRouterListenerGenerator = CodeGenerator(
+    "MojoObserverOneRouterListenerGenerator",
+    inputs: .required(.jsObserverOneCallbackRouter)
 ) { b, router in
     guard
         let eventName = ILType.jsGoldenObserverOneCallbackRouter.properties
@@ -523,9 +440,7 @@ let mojoPrimaryProfile = Profile(
     ] + commonMojoCodeGenerators,
     additionalProgramTemplates: WeightedList([]),
     disabledCodeGenerators: mojoDisabledGenerators,
-    disabledMutators: [
-        "ExplorationMutator", "ProbingMutator", "PropertyAccessorMutator"
-    ],
+    disabledMutators: v8Profile.disabledMutators,
     additionalBuiltins: mojoBuiltins.merging(commonMojoBuiltins) { (existing, _) in existing },
     additionalObjectGroups: [
         .goldenPrimaryRemote,
@@ -548,15 +463,9 @@ let mojoPrimaryProfile = Profile(
         .goldenObserverTwoRemote,
         .goldenObserverTwoRemoteWrapper,
         .goldenObserverTwoPendingReceiver,
-        .goldenObserverOneSendDelegateTwoResponseParams,
-        .goldenPrimarySendObserverResponseParams,
-        .goldenPrimaryGetDelegateOneResponseParams,
-        .goldenPrimaryGetObserverTwoResponseParams,
-        .goldenPrimarySyncGetObserverTwoResponseParams,
     ] + commonMojoObjectGroups,
     additionalEnumerations: [
     ] + commonMojoEnumerations,
-    additionalOptionsBags: [
-    ] + commonMojoOptionsBags,
+    additionalOptionsBags: [] + commonMojoOptionsBags,
     optionalPostProcessor: nil
 )

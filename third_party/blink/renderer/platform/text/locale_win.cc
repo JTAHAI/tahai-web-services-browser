@@ -125,11 +125,8 @@ LCID LCIDFromLocaleInternal(LCID user_default_lcid,
   if (DeprecatedEqualIgnoringCase(locale_language_code,
                                   user_default_language_code))
     return user_default_lcid;
-  // `locale` is null when the embedder reports an empty default locale; treat
-  // it like any other name that does not resolve.
-  if (locale.empty() || locale.length() >= LOCALE_NAME_MAX_LENGTH) {
+  if (locale.length() >= LOCALE_NAME_MAX_LENGTH)
     return 0;
-  }
   std::array<UChar, LOCALE_NAME_MAX_LENGTH> buffer;
   auto buffer_slice = base::span(buffer).first(locale.length());
   if (locale.Is8Bit())

@@ -377,9 +377,9 @@ void MimeUtil::AddSupportedMediaFormats() {
   mkv_audio_codecs.emplace(DTSE);
 #endif  // BUILDFLAG(ENABLE_PLATFORM_DTS_AUDIO)
 
-#if BUILDFLAG(ENABLE_PLATFORM_IAMF_AUDIO) || BUILDFLAG(ENABLE_IAMF_TOOLS)
+#if BUILDFLAG(ENABLE_IAMF_AUDIO)
   mp4_audio_codecs.emplace(IAMF);
-#endif  // BUILDFLAG(ENABLE_PLATFORM_IAMF_AUDIO) || ...
+#endif  // BUILDFLAG(ENABLE_IAMF_AUDIO)
 
   CodecSet mp4_codecs(mp4_audio_codecs);
   mp4_codecs.insert(mp4_video_codecs.begin(), mp4_video_codecs.end());
@@ -662,10 +662,8 @@ bool MimeUtil::IsCodecSupportedOnAndroid(Codec codec,
 #endif
 
     case AC4:
-      return false;
-
     case IAMF:
-      return !is_encrypted && IsIamfAudioDecodingSupported();
+      return false;
   }
 
   return false;
@@ -888,7 +886,7 @@ bool MimeUtil::ParseCodecHelper(std::string_view mime_type_lower_case,
   }
 #endif
 
-#if BUILDFLAG(ENABLE_PLATFORM_IAMF_AUDIO) || BUILDFLAG(ENABLE_IAMF_TOOLS)
+#if BUILDFLAG(ENABLE_IAMF_AUDIO)
   if (ParseIamfCodecId(codec_id.data(), nullptr, nullptr)) {
     // TODO(crbug.com/438106645): We'll need to handle IAMF profiles correctly
     // here. Especially if they end up containing xHE-AAC audio.

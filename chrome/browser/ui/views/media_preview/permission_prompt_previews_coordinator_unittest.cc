@@ -9,11 +9,9 @@
 #include "base/system/system_monitor.h"
 #include "base/test/gtest_util.h"
 #include "base/test/metrics/histogram_tester.h"
-#include "chrome/test/base/testing_profile.h"
-#include "chrome/test/views/chrome_views_test_base.h"
+#include "chrome/browser/ui/views/frame/test_with_browser_view.h"
 #include "components/media_effects/test/fake_audio_service.h"
 #include "components/media_effects/test/fake_video_capture_service.h"
-#include "content/public/test/test_renderer_host.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
 namespace {
@@ -35,21 +33,23 @@ std::string ViewTypeToDurationHistogramName(
 
 }  // namespace
 
-class PermissionPromptPreviewsCoordinatorTest : public ChromeViewsTestBase {
+class PermissionPromptPreviewsCoordinatorTest : public TestWithBrowserView {
  protected:
-  PermissionPromptPreviewsCoordinatorTest() = default;
+  PermissionPromptPreviewsCoordinatorTest()
+      : TestWithBrowserView(
+            base::test::TaskEnvironment::TimeSource::MOCK_TIME) {}
 
   void InitializeCoordinator(
       std::vector<std::string> requested_audio_capture_device_ids,
       std::vector<std::string> requested_video_capture_device_ids) {
-    coordinator_.emplace(&profile_, &parent_view_, /*index=*/0,
+    coordinator_.emplace(browser()->GetProfile(), &parent_view_, /*index=*/0,
                          requested_audio_capture_device_ids,
                          requested_video_capture_device_ids);
   }
 
   void TearDown() override {
     coordinator_.reset();
-    ChromeViewsTestBase::TearDown();
+    TestWithBrowserView::TearDown();
   }
 
   void ExpectDurationHistogramUpdate(int expected_bucket_min_value,
@@ -64,8 +64,6 @@ class PermissionPromptPreviewsCoordinatorTest : public ChromeViewsTestBase {
     task_environment()->AdvanceClock(delta);
   }
 
-  content::RenderViewHostTestEnabler rvh_test_enabler_;
-  TestingProfile profile_;
   base::SystemMonitor system_monitor_;
   media_effects::ScopedFakeAudioService audio_service_;
   media_effects::ScopedFakeVideoCaptureService video_service_;

@@ -20,29 +20,18 @@ import androidx.recyclerview.widget.RecyclerView;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.bookmarks.R;
-import org.chromium.chrome.browser.bookmarks.bar.BookmarkBarContextMenuMetrics.BookmarkBarContextMenuGesture;
 import org.chromium.ui.util.MotionEventUtils;
 
 /** View for the bookmark bar which provides users with bookmark access from top chrome. */
 @NullMarked
 class BookmarkBar extends LinearLayout {
 
-    /**
-     * Interface for receiving context menu trigger events on empty space within the bookmark bar.
-     */
-    public interface EmptySpaceContextMenuCallback {
-        /**
-         * Called when a context menu is triggered on empty space.
-         *
-         * @param x The raw x coordinate of the touch/click location.
-         * @param y The raw y coordinate of the touch/click location.
-         * @param gesture The gesture type that triggered the context menu.
-         */
-        void onContextMenuTriggered(float x, float y, @BookmarkBarContextMenuGesture int gesture);
+    public interface RightClickCallback {
+        void onRightClick(float x, float y);
     }
 
     private FrameLayout mOverflowButton;
-    private @Nullable EmptySpaceContextMenuCallback mEmptySpaceContextMenuCallback;
+    private @Nullable RightClickCallback mRightClickCallback;
     private final GestureDetector mGestureDetector;
     private float mLastTouchX;
     private float mLastTouchY;
@@ -66,11 +55,8 @@ class BookmarkBar extends LinearLayout {
                             @Override
                             public void onLongPress(MotionEvent e) {
                                 if (isTouchOnEmptySpace(e)) {
-                                    if (mEmptySpaceContextMenuCallback != null) {
-                                        mEmptySpaceContextMenuCallback.onContextMenuTriggered(
-                                                e.getX(),
-                                                e.getY(),
-                                                BookmarkBarContextMenuGesture.LONG_PRESS);
+                                    if (mRightClickCallback != null) {
+                                        mRightClickCallback.onRightClick(e.getX(), e.getY());
                                     }
                                 }
                             }
@@ -113,11 +99,8 @@ class BookmarkBar extends LinearLayout {
             if ((event.getSource() & InputDevice.SOURCE_CLASS_POINTER) != 0) {
                 if (action == MotionEvent.ACTION_BUTTON_RELEASE
                         && event.getActionButton() == MotionEvent.BUTTON_SECONDARY) {
-                    if (isTouchOnEmptySpace(event) && mEmptySpaceContextMenuCallback != null) {
-                        mEmptySpaceContextMenuCallback.onContextMenuTriggered(
-                                mLastTouchX,
-                                mLastTouchY,
-                                BookmarkBarContextMenuGesture.RIGHT_CLICK);
+                    if (isTouchOnEmptySpace(event) && mRightClickCallback != null) {
+                        mRightClickCallback.onRightClick(mLastTouchX, mLastTouchY);
                         return true;
                     }
                 }
@@ -181,8 +164,8 @@ class BookmarkBar extends LinearLayout {
      *
      * @param callback the callback to notify.
      */
-    public void setEmptySpaceContextMenuCallback(@Nullable EmptySpaceContextMenuCallback callback) {
-        mEmptySpaceContextMenuCallback = callback;
+    public void setRightClickCallback(@Nullable RightClickCallback callback) {
+        mRightClickCallback = callback;
     }
 
     /**

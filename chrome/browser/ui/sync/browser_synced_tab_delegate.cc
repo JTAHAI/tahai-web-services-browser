@@ -6,21 +6,11 @@
 
 #include "chrome/browser/sync/sessions/sync_sessions_router_tab_helper.h"
 #include "components/sessions/content/session_tab_helper.h"
-#include "components/tabs/public/tab_interface.h"
-
-DEFINE_USER_DATA(BrowserSyncedTabDelegate);
 
 BrowserSyncedTabDelegate::BrowserSyncedTabDelegate(
-    tabs::TabInterface& tab,
     content::WebContents* web_contents)
-    : scoped_unowned_user_data_(tab.GetUnownedUserDataHost(), *this) {
+    : content::WebContentsUserData<BrowserSyncedTabDelegate>(*web_contents) {
   SetWebContents(web_contents);
-}
-
-// static
-BrowserSyncedTabDelegate* BrowserSyncedTabDelegate::From(
-    tabs::TabInterface* tab) {
-  return Get(tab->GetUnownedUserDataHost());
 }
 
 BrowserSyncedTabDelegate::~BrowserSyncedTabDelegate() = default;
@@ -46,3 +36,5 @@ BrowserSyncedTabDelegate::ReadPlaceholderTabSnapshotIfItShouldSync(
       << "ReadPlaceholderTabSnapshotIfItShouldSync is not supported on "
          "desktop platforms.";
 }
+
+WEB_CONTENTS_USER_DATA_KEY_IMPL(BrowserSyncedTabDelegate);

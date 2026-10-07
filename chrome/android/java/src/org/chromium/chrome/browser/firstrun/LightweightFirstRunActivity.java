@@ -97,13 +97,14 @@ public class LightweightFirstRunActivity extends FirstRunActivityBase
 
         ChromeClickableSpan clickableGoogleTermsSpan =
                 new ChromeClickableSpan(
-                        this, _ -> showInfoPage(R.string.google_terms_of_service_url));
+                        this, (view) -> showInfoPage(R.string.google_terms_of_service_url));
         ChromeClickableSpan clickableChromeAdditionalTermsSpan =
                 new ChromeClickableSpan(
-                        this, _ -> showInfoPage(R.string.chrome_additional_terms_of_service_url));
+                        this,
+                        (view) -> showInfoPage(R.string.chrome_additional_terms_of_service_url));
         ChromeClickableSpan clickableGooglePrivacySpan =
                 new ChromeClickableSpan(
-                        this, _ -> showInfoPage(R.string.google_privacy_policy_url));
+                        this, (view) -> showInfoPage(R.string.google_privacy_policy_url));
         String associatedAppName =
                 IntentUtils.safeGetStringExtra(getIntent(), EXTRA_ASSOCIATED_APP_NAME);
         if (associatedAppName == null) {
@@ -136,9 +137,10 @@ public class LightweightFirstRunActivity extends FirstRunActivityBase
 
         mLightweightFreButtons = findViewById(R.id.lightweight_fre_buttons);
         mOkButton = findViewById(R.id.button_primary);
-        mOkButton.setOnClickListener(_ -> acceptTermsOfService());
+        mOkButton.setOnClickListener(view -> acceptTermsOfService());
 
-        findViewById(R.id.button_secondary).setOnClickListener(_ -> abortFirstRunExperience());
+        ((Button) findViewById(R.id.button_secondary))
+                .setOnClickListener(view -> abortFirstRunExperience());
 
         mLoadingView = findViewById(R.id.loading_view);
         mLoadingViewContainer = findViewById(R.id.loading_view_container);

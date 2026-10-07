@@ -15,9 +15,9 @@ import static org.chromium.chrome.browser.hub.HubColorMixer.COLOR_MIXER;
 import android.app.Activity;
 import android.view.LayoutInflater;
 
+import androidx.test.ext.junit.rules.ActivityScenarioRule;
 import androidx.test.filters.SmallTest;
 
-import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -25,8 +25,6 @@ import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
-import org.robolectric.Robolectric;
-import org.robolectric.android.controller.ActivityController;
 
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.chrome.R;
@@ -39,16 +37,21 @@ import org.chromium.ui.modelutil.PropertyModelChangeProcessor;
 public class HubBottomToolbarViewUnitTest {
     @Rule public final MockitoRule mMockitoRule = MockitoJUnit.rule();
 
+    @Rule
+    public ActivityScenarioRule<TestActivity> mActivityScenarioRule =
+            new ActivityScenarioRule<>(TestActivity.class);
+
     @Mock private HubColorMixer mHubColorMixer;
 
-    private ActivityController<TestActivity> mActivityController;
     private HubBottomToolbarView mBottomToolbarView;
     private PropertyModel mPropertyModel;
 
     @Before
     public void setUp() {
-        mActivityController = Robolectric.buildActivity(TestActivity.class).setup();
-        Activity activity = mActivityController.get();
+        mActivityScenarioRule.getScenario().onActivity(this::onActivity);
+    }
+
+    private void onActivity(Activity activity) {
         mBottomToolbarView =
                 (HubBottomToolbarView)
                         LayoutInflater.from(activity)
@@ -64,11 +67,6 @@ public class HubBottomToolbarViewUnitTest {
                 mPropertyModel, mBottomToolbarView, HubBottomToolbarViewBinder::bind);
 
         activity.setContentView(mBottomToolbarView);
-    }
-
-    @After
-    public void tearDown() {
-        mActivityController.close();
     }
 
     @Test

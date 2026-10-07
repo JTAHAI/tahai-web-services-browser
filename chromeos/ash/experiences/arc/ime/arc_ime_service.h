@@ -84,7 +84,6 @@ class ArcImeService : public KeyedService,
   void OnWindowRemovingFromRootWindow(aura::Window* window,
                                       aura::Window* new_root) override;
   void OnWindowRemoved(aura::Window* removed_window) override;
-  void OnWindowHierarchyChanging(const HierarchyChangeParams& params) override;
 
   // Overridden from aura::client::FocusChangeObserver:
   void OnWindowFocused(aura::Window* gained_focus,

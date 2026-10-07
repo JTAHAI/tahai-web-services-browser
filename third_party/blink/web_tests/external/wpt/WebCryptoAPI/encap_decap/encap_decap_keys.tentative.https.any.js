@@ -61,11 +61,11 @@ function define_key_tests() {
             'encapsulateKey should return an object'
           );
           assert_true(
-            Object.hasOwn(encapsulatedKey, 'sharedKey'),
+            encapsulatedKey.hasOwnProperty('sharedKey'),
             'Result should have sharedKey property'
           );
           assert_true(
-            Object.hasOwn(encapsulatedKey, 'ciphertext'),
+            encapsulatedKey.hasOwnProperty('ciphertext'),
             'Result should have ciphertext property'
           );
           assert_true(

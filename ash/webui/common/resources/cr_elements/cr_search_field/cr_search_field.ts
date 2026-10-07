@@ -59,7 +59,7 @@ export class CrSearchFieldElement extends CrSearchFieldElementBase {
     return this.$.searchInput;
   }
 
-  protected onTapClear_() {
+  private onTapClear_() {
     this.setValue('');
     setTimeout(() => {
       this.$.searchInput.focus();

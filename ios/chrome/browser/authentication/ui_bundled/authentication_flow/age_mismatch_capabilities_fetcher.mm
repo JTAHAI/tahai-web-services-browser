@@ -96,15 +96,14 @@ using signin::Tribool;
 }
 
 - (void)extendedAccountInfoDidUpdate:(const AccountInfo&)accountInfo {
-  auto it = _completionCallbacks.find(accountInfo.GetAccountId());
+  auto it = _completionCallbacks.find(accountInfo.account_id);
   if (it == _completionCallbacks.end()) {
     return;
   }
   signin::Tribool capability =
       accountInfo.GetAccountCapabilities().can_sign_in_to_chrome();
   if (capability != Tribool::kUnknown) {
-    [self onCapabilityReceived:capability
-                  forAccountId:accountInfo.GetAccountId()];
+    [self onCapabilityReceived:capability forAccountId:accountInfo.account_id];
   }
 }
 

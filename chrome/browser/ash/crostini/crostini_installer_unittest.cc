@@ -16,6 +16,7 @@
 #include "chrome/browser/ash/crostini/crostini_installer_ui_delegate.h"
 #include "chrome/browser/ash/crostini/crostini_test_helper.h"
 #include "chrome/browser/ash/crostini/crostini_types.mojom.h"
+#include "chrome/browser/notifications/system_notification_helper.h"
 #include "chrome/test/base/browser_process_platform_part_test_api_chromeos.h"
 #include "chrome/test/base/testing_browser_process.h"
 #include "chrome/test/base/testing_profile.h"
@@ -133,6 +134,9 @@ class CrostiniInstallerTest : public testing::Test {
     ash::disks::DiskMountManager::InitializeForTesting(
         disk_mount_manager_mock_);
 
+    TestingBrowserProcess::GetGlobal()->SetSystemNotificationHelper(
+        std::make_unique<SystemNotificationHelper>());
+
     TestingBrowserProcess::GetGlobal()
         ->platform_part()
         ->InitializeSchedulerConfigurationManager();
@@ -169,6 +173,7 @@ class CrostiniInstallerTest : public testing::Test {
     TestingBrowserProcess::GetGlobal()
         ->platform_part()
         ->ShutdownSchedulerConfigurationManager();
+    TestingBrowserProcess::GetGlobal()->SetSystemNotificationHelper(nullptr);
     disk_mount_manager_mock_ = nullptr;
     ash::disks::MockDiskMountManager::Shutdown();
     browser_part_.ShutdownComponentManager();

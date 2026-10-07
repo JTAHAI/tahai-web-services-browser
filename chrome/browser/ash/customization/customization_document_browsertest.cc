@@ -7,6 +7,7 @@
 #include <stddef.h>
 
 #include "base/command_line.h"
+#include "base/compiler_specific.h"
 #include "base/functional/bind.h"
 #include "base/strings/string_split.h"
 #include "base/strings/string_util.h"
@@ -83,12 +84,12 @@ const struct {
 std::string GetExpectedLanguage(const std::string& required) {
   std::string expected = required;
 
-  for (const auto& alias : locale_aliases) {
-    if (required != alias.locale_alias) {
+  for (size_t i = 0; i < std::size(locale_aliases); ++i) {
+    if (required != UNSAFE_TODO(locale_aliases[i]).locale_alias) {
       continue;
     }
 
-    expected = alias.locale_name;
+    expected = UNSAFE_TODO(locale_aliases[i]).locale_name;
     break;
   }
 

@@ -42,7 +42,6 @@
   [[EarlGrey selectElementWithMatcher:
                  grey_allOf(chrome_test_util::ButtonWithAccessibilityLabelId(
                                 IDS_IOS_PHONE_NUMBER_ADD),
-                            grey_userInteractionEnabled(),
                             grey_not(grey_accessibilityTrait(
                                 UIAccessibilityTraitNotEnabled)),
                             nil)] performAction:grey_tap()];

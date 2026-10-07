@@ -15,7 +15,6 @@
 #include "chrome/browser/password_manager/password_change/change_password_form_filling_submission_helper.h"
 #include "components/autofill/core/common/form_data.h"
 #include "components/autofill/core/common/unique_ids.h"
-#include "components/password_manager/core/browser/password_string.h"
 
 namespace content {
 class WebContents;
@@ -81,9 +80,9 @@ class ChangePasswordFormFiller {
   std::unique_ptr<password_manager::PasswordFormManager> form_manager_;
 
   std::u16string username_;
-  password_manager::PasswordString login_password_;
-  password_manager::PasswordString stored_password_;
-  password_manager::PasswordString generated_password_;
+  std::u16string login_password_;
+  std::u16string stored_password_;
+  std::u16string generated_password_;
 
   // FieldGlobalIds for the forms which `this` tried to fill.
   // Used to avoid attempting to fill the same form over and over again.

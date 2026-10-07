@@ -23,6 +23,7 @@
 #include "ui/base/mojom/ui_base_types.mojom-shared.h"
 #include "ui/base/ui_base_types.h"
 #include "ui/gfx/geometry/insets.h"
+#include "ui/views/controls/button/md_text_button.h"
 #include "ui/views/metadata/view_factory.h"
 #include "ui/views/view.h"
 #include "ui/views/views_export.h"
@@ -31,6 +32,7 @@
 
 class AppInfoDialogViewsTest;
 class AuthenticatorRequestDialogView;
+class AutoSigninFirstRunDialogView;
 class BatchUploadDialogView;
 class BluetoothDeviceCredentialsView;
 class BluetoothDevicePairConfirmView;
@@ -174,7 +176,6 @@ class DialogClientViewTestDelegate;
 class DialogObserver;
 class InitialFocusTestDialog;
 class MakeCloseSynchronousTest;
-class MdTextButton;
 class TestDialog;
 class TestDialogDelegateView;
 FORWARD_DECLARE_TEST(DesktopScreenPositionClientTest, PositionDialog);
@@ -712,6 +713,7 @@ class VIEWS_EXPORT DialogDelegateView : public DialogDelegate, public View {
   // See comments atop class.
   friend class ::AppInfoDialogViewsTest;
   friend class ::AuthenticatorRequestDialogView;
+  friend class ::AutoSigninFirstRunDialogView;
   friend class ::BatchUploadDialogView;
   friend class ::BluetoothDeviceCredentialsView;
   friend class ::BluetoothDevicePairConfirmView;

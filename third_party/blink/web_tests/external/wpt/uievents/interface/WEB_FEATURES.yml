@@ -1,4 +1,8 @@
-rules:
-- keyboard-accesskey-click-event.html: [accesskey]
-- click-event-manual.htm: [mouse-events]
-- dblclick-event-manual.htm: [mouse-events]
+features:
+- name: accesskey
+  files:
+  - keyboard-accesskey-click-event.html
+- name: mouse-events
+  files:
+  - click-event-manual.htm
+  - dblclick-event-manual.htm

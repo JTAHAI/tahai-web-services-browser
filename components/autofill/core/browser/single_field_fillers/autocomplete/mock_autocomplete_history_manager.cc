@@ -8,14 +8,7 @@
 
 namespace autofill {
 
-MockAutocompleteHistoryManager::MockAutocompleteHistoryManager()
-    : AutocompleteHistoryManager(/*profile_database=*/nullptr,
-                                 /*pref_service=*/nullptr) {}
-
-MockAutocompleteHistoryManager::MockAutocompleteHistoryManager(
-    scoped_refptr<AutofillWebDataService> profile_database,
-    PrefService* pref_service)
-    : AutocompleteHistoryManager(profile_database, pref_service) {}
+MockAutocompleteHistoryManager::MockAutocompleteHistoryManager() = default;
 
 MockAutocompleteHistoryManager::~MockAutocompleteHistoryManager() = default;
 

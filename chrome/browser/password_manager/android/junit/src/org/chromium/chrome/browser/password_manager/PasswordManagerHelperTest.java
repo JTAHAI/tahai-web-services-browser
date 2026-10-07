@@ -46,6 +46,7 @@ import org.chromium.base.Callback;
 import org.chromium.base.ContextUtils;
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.base.test.RobolectricUtil;
+import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.HistogramWatcher;
 import org.chromium.chrome.browser.loading_modal.LoadingModalDialogCoordinator;
 import org.chromium.chrome.browser.password_manager.CredentialManagerLauncher.CredentialManagerBackendException;
@@ -77,7 +78,10 @@ import java.util.Set;
  * <p>Tests related to password checkup can be found in {@link PasswordManagerHelper}
  */
 @RunWith(BaseRobolectricTestRunner.class)
-@Config(shadows = {ShadowSystemClock.class})
+@Config(
+        manifest = Config.NONE,
+        shadows = {ShadowSystemClock.class})
+@Batch(Batch.PER_CLASS)
 public class PasswordManagerHelperTest {
     private static final String TEST_EMAIL_ADDRESS = "test@email.com";
     private static final String TEST_NO_EMAIL_ADDRESS = null;

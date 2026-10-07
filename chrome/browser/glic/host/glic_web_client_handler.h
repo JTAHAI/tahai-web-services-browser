@@ -7,10 +7,8 @@
 
 #include <memory>
 
-#include "base/functional/callback_forward.h"
 #include "chrome/browser/glic/host/glic.mojom.h"
 #include "chrome/browser/glic/host/glic_web_client_access.h"
-#include "chrome/browser/glic/host/glic_webui.mojom.h"
 #include "mojo/public/cpp/bindings/pending_receiver.h"
 
 namespace content {
@@ -20,15 +18,10 @@ class BrowserContext;
 namespace glic {
 class Host;
 
-using WebClientStateChangedCallback =
-    base::RepeatingCallback<void(mojom::WebClientState state)>;
-
 std::unique_ptr<GlicWebClientAccess> MakeGlicWebClient(
     Host* host,
     content::BrowserContext* browser_context,
-    mojo::PendingReceiver<glic::mojom::WebClientHandler> receiver,
-    base::OnceClosure disconnect_callback,
-    WebClientStateChangedCallback state_changed_callback);
+    mojo::PendingReceiver<glic::mojom::WebClientHandler> receiver);
 
 }  // namespace glic
 

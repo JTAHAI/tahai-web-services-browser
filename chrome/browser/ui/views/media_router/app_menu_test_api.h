@@ -7,14 +7,13 @@
 
 #include <memory>
 
-class BrowserWindowInterface;
+class Browser;
 
 namespace test {
 
 class AppMenuTestApi {
  public:
-  static std::unique_ptr<AppMenuTestApi> Create(
-      BrowserWindowInterface* browser);
+  static std::unique_ptr<AppMenuTestApi> Create(Browser* browser);
 
   AppMenuTestApi() = default;
   virtual ~AppMenuTestApi() = default;

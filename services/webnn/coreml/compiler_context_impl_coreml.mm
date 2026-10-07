@@ -61,13 +61,13 @@ const mojom::CreateContextOptions& CompilerContextImplCoreml::options() const {
 
 void CompilerContextImplCoreml::BuildGraph(
     mojom::GraphInfoPtr graph_info,
-    WebNNGraphImpl::ComputeResourceInfo /*compute_resource_info*/,
+    WebNNGraphImpl::ComputeResourceInfo compute_resource_info,
     base::flat_map<OperandId, std::unique_ptr<WebNNConstantOperand>>
         constant_operands,
     BuildGraphCallback callback) {
-  auto did_compile_callback = base::BindPostTaskToCurrentDefault(
-      base::BindOnce(&CompilerContextImplCoreml::DidCompile,
-                     weak_ptr_factory_.GetWeakPtr(), std::move(callback)));
+  auto did_compile_callback = base::BindPostTaskToCurrentDefault(base::BindOnce(
+      &CompilerContextImplCoreml::DidCompile, weak_ptr_factory_.GetWeakPtr(),
+      std::move(compute_resource_info), std::move(callback)));
 
   base::ThreadPool::PostTask(
       FROM_HERE,
@@ -160,67 +160,20 @@ void CompilerContextImplCoreml::CompileOnBackgroundThread(
                   return;
                 }
 
-                base::FilePath raw_compiled_model_path =
-                    compiled_model_url
-                        ? base::apple::NSURLToFilePath(compiled_model_url)
-                        : base::FilePath();
-                if (raw_compiled_model_path.empty()) {
+                base::ScopedTempDir compiled_model_dir;
+                if (!compiled_model_url ||
+                    !compiled_model_dir.Set(
+                        base::apple::NSURLToFilePath(compiled_model_url))) {
                   std::move(compile_callback)
                       .Run(base::unexpected(mojom::Error::New(
                           mojom::Error::Code::kUnknownError,
                           "Failed to get compiled model path.")));
-                  return;
-                }
-
-                base::FilePath temp_dir;
-                if (!base::GetTempDir(&temp_dir)) {
+                } else {
                   std::move(compile_callback)
-                      .Run(base::unexpected(mojom::Error::New(
-                          mojom::Error::Code::kUnknownError,
-                          "Failed to get temporary directory.")));
-                  return;
+                      .Run(std::make_unique<CompilationResult>(
+                          std::move(compiled_model_dir), std::move(inputs_map),
+                          std::move(outputs_map)));
                 }
-
-                base::FilePath compiler_protected_dir =
-                    temp_dir.AppendASCII("webnn_compiler_protected");
-                if (!base::CreateDirectory(compiler_protected_dir)) {
-                  std::move(compile_callback)
-                      .Run(base::unexpected(mojom::Error::New(
-                          mojom::Error::Code::kUnknownError,
-                          "Failed to create compiler protected directory.")));
-                  return;
-                }
-
-                base::ScopedTempDir compiled_model_dir;
-                if (!compiled_model_dir.CreateUniqueTempDirUnderPath(
-                        compiler_protected_dir)) {
-                  std::move(compile_callback)
-                      .Run(base::unexpected(mojom::Error::New(
-                          mojom::Error::Code::kUnknownError,
-                          "Failed to create unique directory under compiler "
-                          "protected path.")));
-                  return;
-                }
-
-                base::FilePath dest_compiled_model_path =
-                    compiled_model_dir.GetPath().AppendASCII("model.mlmodelc");
-                if (!base::Move(raw_compiled_model_path,
-                                dest_compiled_model_path)) {
-                  LOG(ERROR) << "[WebNN] Failed to move compiled model from "
-                             << raw_compiled_model_path << " to "
-                             << dest_compiled_model_path;
-                  std::move(compile_callback)
-                      .Run(base::unexpected(mojom::Error::New(
-                          mojom::Error::Code::kUnknownError,
-                          "Failed to move compiled model to protected "
-                          "directory.")));
-                  return;
-                }
-
-                std::move(compile_callback)
-                    .Run(std::make_unique<CompilationResult>(
-                        std::move(compiled_model_dir), std::move(inputs_map),
-                        std::move(outputs_map)));
               },
               base::ElapsedTimer(), std::move(model_file_dir),
               std::move(input_name_to_coreml_name),
@@ -228,6 +181,7 @@ void CompilerContextImplCoreml::CompileOnBackgroundThread(
 }
 
 void CompilerContextImplCoreml::DidCompile(
+    WebNNGraphImpl::ComputeResourceInfo compute_resource_info,
     BuildGraphCallback callback,
     base::expected<std::unique_ptr<CompilationResult>, mojom::ErrorPtr>
         result) {
@@ -238,10 +192,27 @@ void CompilerContextImplCoreml::DidCompile(
 
   std::unique_ptr<CompilationResult> compilation = std::move(result.value());
 
-  auto compiled_graph = mojom::CompiledGraph::New(
-      compilation->compiled_model_dir.GetPath(),
-      std::move(compilation->input_name_to_coreml_name),
-      std::move(compilation->output_name_to_coreml_name));
+  base::flat_map<std::string, mojom::CompiledOperandDescriptorPtr> inputs;
+  for (auto& [name, descriptor] :
+       compute_resource_info.input_names_to_descriptors) {
+    inputs.emplace(name,
+                   mojom::CompiledOperandDescriptor::New(
+                       std::move(compilation->input_name_to_coreml_name[name]),
+                       std::move(descriptor)));
+  }
+
+  base::flat_map<std::string, mojom::CompiledOperandDescriptorPtr> outputs;
+  for (auto& [name, descriptor] :
+       compute_resource_info.output_names_to_descriptors) {
+    outputs.emplace(
+        name, mojom::CompiledOperandDescriptor::New(
+                  std::move(compilation->output_name_to_coreml_name[name]),
+                  std::move(descriptor)));
+  }
+
+  auto compiled_graph =
+      mojom::CompiledGraph::New(compilation->compiled_model_dir.GetPath(),
+                                std::move(inputs), std::move(outputs));
 
   model_loader_->LoadCompiledGraph(
       std::move(compiled_graph),

@@ -384,7 +384,8 @@ void MediaDevicesDispatcherHost::SetPreferredSinkId(
 
   AudioOutputAuthorizationHandler* handler = authorization_handler.get();
   handler->RequestDeviceAuthorization(
-      base::UnguessableToken(), hashed_sink_id,
+      render_frame_host_id_.frame_routing_id, base::UnguessableToken(),
+      hashed_sink_id,
       base::BindOnce(&MediaDevicesDispatcherHost::AuthorizationCompleted,
                      weak_factory_.GetWeakPtr(),
                      std::move(authorization_handler), std::move(callback)));
@@ -433,9 +434,10 @@ void MediaDevicesDispatcherHost::AuthorizationCompleted(
 std::unique_ptr<AudioOutputAuthorizationHandler>
 MediaDevicesDispatcherHost::CreateAuthorizationHandler() {
   CHECK_CURRENTLY_ON(BrowserThread::IO);
+  // TODO(crbug.com/379869738) Remove GetUnsafeValue.
   return std::make_unique<AudioOutputAuthorizationHandler>(
       media_stream_manager_->audio_system(), media_stream_manager_,
-      render_frame_host_id_);
+      render_frame_host_id_.child_id.GetUnsafeValue());
 }
 
 void MediaDevicesDispatcherHost::FinalizeGetVideoInputCapabilities(

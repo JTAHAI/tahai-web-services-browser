@@ -9,9 +9,6 @@
 #include <vector>
 
 #include "chrome/browser/webauthn/shared_types.h"
-#include "url/origin.h"
-
-class GURL;
 
 namespace content {
 class WebContents;
@@ -40,12 +37,6 @@ class TouchToFillCredentialReceiver {
 
   // Return the WebContents associated with the current WebAuthn request.
   virtual content::WebContents* web_contents() = 0;
-
-  // Return the frame URL associated with the current WebAuthn request.
-  virtual GURL GetFrameUrl() const = 0;
-
-  // Return the frame origin associated with the current WebAuthn request.
-  virtual url::Origin GetFrameOrigin() const = 0;
 
  protected:
   ~TouchToFillCredentialReceiver() = default;

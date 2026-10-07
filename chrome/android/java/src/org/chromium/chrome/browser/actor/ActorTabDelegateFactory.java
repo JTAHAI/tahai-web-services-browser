@@ -10,7 +10,6 @@ import org.chromium.chrome.browser.pdf.PdfInfo;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.TabDelegateFactory;
 import org.chromium.chrome.browser.tab.TabWebContentsDelegateAndroid;
-import org.chromium.chrome.browser.tabmodel.TabModelType;
 import org.chromium.chrome.browser.ui.native_page.NativePage;
 import org.chromium.chrome.browser.util.PictureInPictureWindowOptions;
 import org.chromium.chrome.browser.util.WindowFeatures;
@@ -50,31 +49,6 @@ class ActorTabDelegateFactory implements TabDelegateFactory {
         return null;
     }
 
-    @Override
-    public @TabModelType int getTabModelType() {
-        return TabModelType.STANDARD;
-    }
-
-    @Override
-    public boolean isCustomTab() {
-        return false;
-    }
-
-    @Override
-    public boolean isTabInPwa() {
-        return false;
-    }
-
-    @Override
-    public boolean isTabInBrowser() {
-        return false;
-    }
-
-    @Override
-    public boolean isTabInPopup() {
-        return false;
-    }
-
     private static class ActorTabWebContentsDelegate extends TabWebContentsDelegateAndroid {
         @Override
         public boolean shouldResumeRequestsForCreatedWindow() {
@@ -83,7 +57,7 @@ class ActorTabDelegateFactory implements TabDelegateFactory {
 
         @Override
         public boolean addNewContents(
-                @Nullable WebContents sourceWebContents,
+                WebContents sourceWebContents,
                 WebContents webContents,
                 GURL targetUrl,
                 int disposition,

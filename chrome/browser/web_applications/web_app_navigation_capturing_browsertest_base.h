@@ -9,7 +9,7 @@
 #include "chrome/browser/ui/web_applications/web_app_browsertest_base.h"
 #include "components/webapps/common/web_app_id.h"
 
-class BrowserWindowInterface;
+class Browser;
 class GURL;
 namespace content {
 class WebContents;
@@ -27,10 +27,9 @@ class WebAppNavigationCapturingBrowserTestBase : public WebAppBrowserTestBase {
       const WebAppNavigationCapturingBrowserTestBase&) = delete;
   ~WebAppNavigationCapturingBrowserTestBase() override = 0;
 
-  BrowserWindowInterface* CallWindowOpenExpectNewBrowser(
-      content::WebContents* contents,
-      const GURL& url,
-      bool with_opener);
+  Browser* CallWindowOpenExpectNewBrowser(content::WebContents* contents,
+                                          const GURL& url,
+                                          bool with_opener);
   content::WebContents* CallWindowOpenExpectNewTab(
       content::WebContents* contents,
       const GURL& url,

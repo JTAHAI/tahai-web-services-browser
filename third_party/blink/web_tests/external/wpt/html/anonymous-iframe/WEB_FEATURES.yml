@@ -1,2 +1,3 @@
-rules:
-- "**": [iframe-credentialless]
+features:
+- name: iframe-credentialless
+  files: "**"

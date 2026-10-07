@@ -111,12 +111,13 @@ NSInteger const CWVDownloadErrorAborted = -101;
       [self notifyFinishWithErrorCode:errorCode];
       break;
     }
+    case web::DownloadTask::State::kNotStarted:
     case web::DownloadTask::State::kCancelled: {
-      [self notifyFinishWithErrorCode:net::ERR_ABORTED];
+      // Nothing to be done in these states.
+      // Note that state kCancelled is immediately followed by state kComplete
+      // with error code net::ERR_ABORTED, which is handled above.
       break;
     }
-    case web::DownloadTask::State::kNotStarted:
-      break;
   }
 }
 

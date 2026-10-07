@@ -26,7 +26,7 @@ import org.chromium.ui.util.ColorUtils;
 public class TabUiThemeUtil {
     public static final float FOLIO_FOOT_LENGTH_DP = 16.f;
     private static final float MAX_TAB_STRIP_TAB_WIDTH_DP = 265.f;
-    private static final float DIVIDER_FOLIO_LIGHT_OPACITY = 0.2f;
+    private static final float DIVIDER_FOLIO_LIGHT_OPACITY = 0.3f;
 
     /**
      * Returns the tab strip background color based on the windowing mode and activity focus state.
@@ -213,6 +213,11 @@ public class TabUiThemeUtil {
         }
 
         if (!ColorUtils.inNightMode(context)) {
+            // This color will not be used at full opacity. We can't set this using the alpha
+            // component of the {@code @ColorInt}, since it is ignored when loading resources
+            // with a specified tint in the CC layer (instead retaining the alpha of the original
+            // image). Instead, this is reflected by setting the opacity of the divider itself.
+            // See https://crbug.com/40871850.
             return ColorUtils.setAlphaComponentWithFloat(
                     SemanticColorUtils.getDefaultIconColorAccent1(context),
                     DIVIDER_FOLIO_LIGHT_OPACITY);
@@ -221,37 +226,37 @@ public class TabUiThemeUtil {
         return SemanticColorUtils.getDividerColor(context);
     }
 
-    /** Returns the {@link DrawableRes. for the keyboard focus ring for tabs} */
+    /** {@return The {@link DrawableRes} for the keyboard focus ring for tabs} */
     public static @DrawableRes int getTabKeyboardFocusDrawableRes() {
         return R.drawable.tabstrip_keyfocus_8dp;
     }
 
-    /** Returns the {@link DrawableRes. for the keyboard focus ring for selected tab w/ outline} */
+    /** {@return The {@link DrawableRes} for the keyboard focus ring for selected tab w/ outline} */
     public static @DrawableRes int getSelectedTabInTabGroupKeyboardFocusDrawableRes() {
         return R.drawable.tabstrip_keyfocus_10dp;
     }
 
-    /** Returns the {@link DrawableRes. for the tab group indicator keyboard focus ring} */
+    /** {@return The {@link DrawableRes} for the tab group indicator keyboard focus ring} */
     public static @DrawableRes int getTabGroupIndicatorKeyboardFocusDrawableRes() {
         return R.drawable.tabstrip_keyfocus_11dp;
     }
 
-    /** Returns the {@link DrawableRes. for the close button keyboard focus ring} */
+    /** {@return The {@link DrawableRes} for the close button keyboard focus ring} */
     public static @DrawableRes int getCircularButtonKeyboardFocusDrawableRes() {
         return R.drawable.circular_button_keyfocus;
     }
 
-    /** Returns the {@link DrawableRes. for the Glic button keyboard focus ring} */
+    /** {@return The {@link DrawableRes} for the Glic button keyboard focus ring} */
     public static @DrawableRes int getGlicButtonKeyboardFocusDrawableRes(boolean isSplit) {
         return isSplit ? R.drawable.glic_split_button_keyfocus : R.drawable.glic_button_keyfocus;
     }
 
-    /** Returns the keyboard focus ring's offset in px. */
+    /** {@return The keyboard focus ring's offset in px} */
     public static int getFocusRingOffset(Context context) {
         return context.getResources().getDimensionPixelSize(R.dimen.tabstrip_keyfocus_offset);
     }
 
-    /** Returns the width of the keyboard focus ring stroke and tab group color line in px. */
+    /** {@return The width of the keyboard focus ring stroke and tab group color line in px} */
     public static int getLineWidth(Context context) {
         return context.getResources().getDimensionPixelSize(R.dimen.tabstrip_strokewidth);
     }

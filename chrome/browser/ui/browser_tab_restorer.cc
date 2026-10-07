@@ -110,7 +110,7 @@ void RestoreTab(BrowserWindowInterface* browser) {
 
   if (service->IsLoaded()) {
     sessions::LiveTabContext* const live_tab_context =
-        BrowserLiveTabContext::From(browser);
+        browser->GetFeatures().live_tab_context();
     CHECK(live_tab_context);
     service->RestoreMostRecentEntry(live_tab_context);
     return;

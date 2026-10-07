@@ -18,14 +18,12 @@
 #include "base/task/sequenced_task_runner.h"
 #include "base/time/time.h"
 #include "build/build_config.h"
-#include "components/device_signals/core/common/signals_features.h"
 #include "components/enterprise/browser/controller/browser_dm_token_storage.h"
 #include "components/enterprise/browser/reporting/chrome_profile_request_generator.h"
 #include "components/enterprise/browser/reporting/common_pref_names.h"
 #include "components/enterprise/browser/reporting/real_time_report_controller.h"
 #include "components/enterprise/browser/reporting/report_generation_config.h"
 #include "components/enterprise/browser/reporting/report_generator.h"
-#include "components/enterprise/browser/reporting/report_util.h"
 #include "components/enterprise/browser/reporting/reporting_delegate_factory.h"
 #include "components/enterprise/browser/reporting/reporting_features.h"
 #include "components/policy/core/common/cloud/cloud_policy_client.h"
@@ -148,11 +146,7 @@ ReportScheduler::ReportScheduler(CreateParams params)
   }
 }
 
-ReportScheduler::~ReportScheduler() {
-  if (report_uploader_) {
-    report_uploader_->RemoveListener(this);
-  }
-}
+ReportScheduler::~ReportScheduler() = default;
 
 bool ReportScheduler::IsReportingEnabled() const {
   PrefService* prefs = delegate_->GetPrefService();
@@ -272,19 +266,12 @@ void ReportScheduler::Stop() {
   if (report_generator_) {
     delegate_->StopWatchingUpdates();
   }
-  if (report_uploader_) {
-    report_uploader_->RemoveListener(this);
-  }
   report_uploader_.reset();
   if (pref_change_registrar_.IsObserved(kCloudReportingUploadFrequency)) {
     pref_change_registrar_.Remove(kCloudReportingUploadFrequency);
   }
   active_report_generation_config_ =
       ReportGenerationConfig(ReportTrigger::kTriggerNone);
-  pending_triggers_ = 0;
-  if (on_manual_report_uploaded_) {
-    std::move(on_manual_report_uploaded_).Run();
-  }
 }
 
 void ReportScheduler::RestartReportTimer() {
@@ -385,9 +372,8 @@ bool ReportScheduler::IsTriggerEnabled(ReportTrigger trigger) const {
 
 void ReportScheduler::GenerateAndUploadReport(ReportTrigger trigger) {
   if (!IsTriggerEnabled(trigger)) {
-    VLOG_POLICY(1, REPORTING)
-        << "Discarding report trigger: " << ReportTriggerToString(trigger)
-        << " (reporting is disabled)";
+    VLOG(1) << "Discarding report trigger: " << ReportTriggerToString(trigger)
+            << " (reporting is disabled)";
     return;
   }
 
@@ -420,11 +406,6 @@ void ReportScheduler::GenerateAndUploadReport(ReportTrigger trigger) {
                               false);
   }
 
-  StartReportGeneration(trigger, /*is_retrying=*/false);
-}
-
-void ReportScheduler::StartReportGeneration(ReportTrigger trigger,
-                                            bool is_retrying) {
   report_generation_start_time_ = base::TimeTicks::Now();
 
   ReportType report_type = TriggerToReportType(trigger);
@@ -432,7 +413,6 @@ void ReportScheduler::StartReportGeneration(ReportTrigger trigger,
 
   // Set active config trigger so we know we are generating.
   active_report_generation_config_.report_trigger = trigger;
-  active_report_generation_config_.is_retrying = is_retrying;
 
   if (NeedChallenge(trigger, signals_mode)) {
     cloud_policy_client_->GenerateChromeProfileChallenge(
@@ -494,10 +474,9 @@ void ReportScheduler::ContinueGenerateAndUploadReport(
       cert_selectors = pref->GetValue()->GetList().Clone();
     }
   }
-  bool is_retrying = active_report_generation_config_.is_retrying;
   active_report_generation_config_ = ReportGenerationConfig(
       trigger, report_type, signals_mode, delegate_->UseCookiesInUploads(),
-      challenge, std::move(cert_selectors), is_retrying);
+      challenge, std::move(cert_selectors));
 
   VLOG_POLICY(1, REPORTING)
       << "Starting report generation with the following configuration: "
@@ -518,27 +497,10 @@ void ReportScheduler::ContinueGenerateAndUploadReport(
   }
 }
 
-void ReportScheduler::OnReportWillRetry(const ReportGenerationConfig& config) {
-  CHECK_EQ(config, active_report_generation_config_);
-  if (!IsTriggerEnabled(config.report_trigger)) {
-    VLOG_POLICY(1, REPORTING) << "Discarding report retry: "
-                              << ReportTriggerToString(config.report_trigger)
-                              << " (reporting is disabled)";
-    OnReportUploaded(ReportUploader::kTransientError);
-    return;
-  }
-
-  StartReportGeneration(config.report_trigger, /*is_retrying=*/true);
-}
-
 void ReportScheduler::OnReportGenerated(
     base::expected<ReportRequestQueue, ReportGenerationError> result) {
-  // If we were stopped while generating the report, abort.
-  if (active_report_generation_config_.report_trigger ==
-      ReportTrigger::kTriggerNone) {
-    return;
-  }
-
+  DCHECK_NE(active_report_generation_config_.report_trigger,
+            ReportTrigger::kTriggerNone);
   if (!result.has_value()) {
     RecordReportGenerationErrorMetric(result.error());
     SYSLOG(ERROR) << base::StringPrintf(
@@ -559,7 +521,7 @@ void ReportScheduler::OnReportGenerated(
     RunPendingTriggers();
     return;
   }
-  VLOG_POLICY(1, REPORTING) << "Uploading enterprise report.";
+  VLOG(1) << "Uploading enterprise report.";
   if (!report_uploader_ && report_uploaders_for_test_.size() > 0) {
     report_uploader_ = std::move(report_uploaders_for_test_.front());
     report_uploaders_for_test_.erase(report_uploaders_for_test_.begin());
@@ -568,19 +530,11 @@ void ReportScheduler::OnReportGenerated(
         std::make_unique<ReportUploader>(cloud_policy_client_, kMaximumRetry);
   }
 
+  RecordUploadTrigger();
   if (active_report_generation_config_.security_signals_mode !=
       SecuritySignalsMode::kNoSignals) {
-    CHECK(!report_uploader_->HasListener(this));
-    report_uploader_->SetListener(this);
-  }
-
-  if (!active_report_generation_config_.is_retrying) {
-    RecordUploadTrigger();
-    if (active_report_generation_config_.security_signals_mode !=
-        SecuritySignalsMode::kNoSignals) {
-      delegate_->GetPrefService()->SetTime(kLastSignalsUploadAttemptTimestamp,
-                                           base::Time::Now());
-    }
+    delegate_->GetPrefService()->SetTime(kLastSignalsUploadAttemptTimestamp,
+                                         base::Time::Now());
   }
 
   report_uploader_->SetRequestAndUpload(
@@ -590,16 +544,9 @@ void ReportScheduler::OnReportGenerated(
 }
 
 void ReportScheduler::OnReportUploaded(ReportUploader::ReportStatus status) {
-  // If we were stopped while uploading the report, abort.
-  if (active_report_generation_config_.report_trigger ==
-      ReportTrigger::kTriggerNone) {
-    return;
-  }
-  VLOG_POLICY(1, REPORTING)
-      << "The enterprise report upload result " << status << ".";
-  if (report_uploader_) {
-    report_uploader_->RemoveListener(this);
-  }
+  DCHECK_NE(active_report_generation_config_.report_trigger,
+            ReportTrigger::kTriggerNone);
+  VLOG(1) << "The enterprise report upload result " << status << ".";
   switch (status) {
     case ReportUploader::kSuccess:
       // Schedule the next report for success. Reset uploader to reset failure
@@ -626,13 +573,22 @@ void ReportScheduler::OnReportUploaded(ReportUploader::ReportStatus status) {
             kLastSignalsUploadSucceededConfig,
             active_report_generation_config_.ToString());
       }
-
-      UpdateLastUploadTimestampAndStartNextReport();
-      break;
+      [[fallthrough]];
     case ReportUploader::kTransientError:
       // Stop retrying and schedule the next report to avoid stale report.
       // Failure count is not reset so retry delay remains.
-      UpdateLastUploadTimestampAndStartNextReport();
+      if (active_report_generation_config_.report_trigger ==
+              ReportTrigger::kTriggerTimer ||
+          active_report_generation_config_.report_trigger ==
+              ReportTrigger::kTriggerManual ||
+          active_report_generation_config_.report_trigger ==
+              ReportTrigger::kTriggerProfileOpened) {
+        const base::Time now = base::Time::Now();
+        delegate_->GetPrefService()->SetTime(kLastUploadTimestamp, now);
+        if (IsReportingEnabled()) {
+          Start(now);
+        }
+      }
       break;
     case ReportUploader::kPersistentError:
       Stop();
@@ -777,21 +733,6 @@ void ReportScheduler::RecordUploadTrigger() {
     base::UmaHistogramEnumeration(
         "Enterprise.SecurityReport.User.Mode",
         active_report_generation_config_.security_signals_mode);
-  }
-}
-
-void ReportScheduler::UpdateLastUploadTimestampAndStartNextReport() {
-  if (active_report_generation_config_.report_trigger ==
-          ReportTrigger::kTriggerTimer ||
-      active_report_generation_config_.report_trigger ==
-          ReportTrigger::kTriggerManual ||
-      active_report_generation_config_.report_trigger ==
-          ReportTrigger::kTriggerProfileOpened) {
-    const base::Time now = base::Time::Now();
-    delegate_->GetPrefService()->SetTime(kLastUploadTimestamp, now);
-    if (IsReportingEnabled()) {
-      Start(now);
-    }
   }
 }
 

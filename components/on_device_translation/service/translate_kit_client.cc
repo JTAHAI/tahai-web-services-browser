@@ -12,7 +12,6 @@
 
 #include "base/check.h"
 #include "base/compiler_specific.h"
-#include "base/files/file.h"
 #include "base/files/memory_mapped_file.h"
 #include "base/logging.h"
 #include "base/metrics/histogram_functions.h"
@@ -31,11 +30,6 @@ namespace on_device_translation {
 namespace {
 
 using mojom::CreateTranslatorResult;
-
-constexpr std::string_view kModelFileOpenErrorMetricName =
-    "Translate.OnDeviceTranslation.ModelFileOpenError";
-constexpr std::string_view kModelFileMmapSuccessMetricName =
-    "Translate.OnDeviceTranslation.ModelFileMmapSuccess";
 
 // Logs UMA after an attempt to load the TranslateKit binary.
 void LogLoadTranslateKitResult(LoadTranslateKitResult result,
@@ -431,17 +425,11 @@ std::uintptr_t TranslateKitClient::OpenForReadOnlyMemoryMapImpl(
   CHECK(file_operation_proxy_);
   file_operation_proxy_->Open(package_index, relative_path, &file);
   if (!file.IsValid()) {
-    base::UmaHistogramExactLinear(kModelFileOpenErrorMetricName,
-                                  -file.error_details(),
-                                  -base::File::FILE_ERROR_MAX);
     return 0;
   }
-  auto mapped_file = std::make_unique<base::MemoryMappedFile>();
-  const bool mmap_success = mapped_file->Initialize(std::move(file));
-  base::UmaHistogramBoolean(kModelFileMmapSuccessMetricName, mmap_success);
-  if (!mmap_success) {
-    return 0;
-  }
+  std::unique_ptr<base::MemoryMappedFile> mapped_file =
+      std::make_unique<base::MemoryMappedFile>();
+  CHECK(mapped_file->Initialize(std::move(file)));
   return reinterpret_cast<std::uintptr_t>(mapped_file.release());
 }
 

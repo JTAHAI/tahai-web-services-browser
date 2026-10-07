@@ -52,10 +52,6 @@ class CONTENT_EXPORT BrowserUIThreadScheduler {
 
   base::sequence_manager::TaskQueue* GetDefaultTaskQueue() const;
 
-  bool IsPrioritizeResizeEnabled() const;
-
-  void PostFeatureListInit();
-
  private:
   friend class BrowserTaskExecutor;
 

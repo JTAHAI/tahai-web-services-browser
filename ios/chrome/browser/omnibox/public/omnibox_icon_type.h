@@ -7,8 +7,6 @@
 
 #import <Foundation/Foundation.h>
 
-#import "ios/chrome/browser/shared/ui/symbols/symbols.h"
-
 // All available icons for security states.
 enum class LocationBarSecurityIconType {
   // Don't display an icon.
@@ -24,7 +22,8 @@ enum class LocationBarSecurityIconType {
   LOCATION_BAR_SECURITY_ICON_TYPE_COUNT,
 };
 
-// Returns the symbol corresponding to the given `iconType`.
-Symbol GetLocationBarSecuritySymbol(LocationBarSecurityIconType iconType);
+// Returns the symbol name corresponding to the given iconType.
+NSString* GetLocationBarSecuritySymbolName(
+    LocationBarSecurityIconType iconType);
 
 #endif  // IOS_CHROME_BROWSER_OMNIBOX_PUBLIC_OMNIBOX_ICON_TYPE_H_

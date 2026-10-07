@@ -13,7 +13,6 @@ import android.util.Size;
 
 import androidx.annotation.VisibleForTesting;
 
-import org.chromium.base.CallbackUtils;
 import org.chromium.base.ObserverList;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.chrome.browser.share.long_screenshots.bitmap_generation.LongScreenshotsEntry.EntryStatus;
@@ -24,9 +23,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Entry manager responsible for managing all the of the {@link LongScreenshotEntry}. This should be
- * used to generate and retrieve the needed bitmaps. Currently we generate the screenshot in one
- * pass; to obtain it call {@link generateFullpageEntry}.
+ * Entry manager responsible for managing all the of the {@LongScreenshotEntry}. This should be used
+ * to generate and retrieve the needed bitmaps. Currently we generate the screenshot in one pass; to
+ * obtain it call {@link generateFullpageEntry}.
  */
 @NullMarked
 public class EntryManager {
@@ -109,8 +108,7 @@ public class EntryManager {
      * @return The new entry that generates the bitmap.
      */
     public LongScreenshotsEntry generateEntry(Rect bounds) {
-        LongScreenshotsEntry entry =
-                new LongScreenshotsEntry(mGenerator, bounds, CallbackUtils.emptyCallback());
+        LongScreenshotsEntry entry = new LongScreenshotsEntry(mGenerator, bounds, (bytes) -> {});
         processEntry(entry, true, false);
         return entry;
     }

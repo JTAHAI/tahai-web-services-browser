@@ -10,8 +10,7 @@
 #import "base/path_service.h"
 #import "base/strings/sys_string_conversions.h"
 #import "components/autofill/core/browser/data_model/payments/credit_card.h"
-#import "components/autofill/core/browser/test_utils/autofill_test_util.h"
-#import "ios/web/common/uikit_ui_util.h"
+#import "components/autofill/core/browser/test_utils/autofill_test_utils.h"
 #import "ios/web_view/internal/autofill/cwv_credit_card_internal.h"
 #import "testing/gtest/include/gtest/gtest.h"
 #import "testing/gtest_mac.h"
@@ -63,9 +62,7 @@ TEST_F(CWVCreditCardTest, Initialization) {
   // ui::ResourceBundle will return a placeholder image at @1x scale if the
   // underlying resource id is not found. Since no @1x devices are supported
   // anymore, check to make sure the UIImage scale matches that of the UIScreen.
-  CGFloat scale = GetAnyKeyWindow().traitCollection.displayScale;
-  ASSERT_GT(scale, 1);
-  EXPECT_TRUE(cwv_credit_card.networkIcon.scale == scale);
+  EXPECT_TRUE(cwv_credit_card.networkIcon.scale == UIScreen.mainScreen.scale);
 }
 
 // Tests CWVCreditCard properly wraps the internal card.

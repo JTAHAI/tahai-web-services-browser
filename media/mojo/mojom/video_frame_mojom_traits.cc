@@ -443,11 +443,9 @@ bool StructTraits<media::mojom::VideoFrameDataView,
       // validation.
       const auto video_pixel_format =
           media::SharedImageFormatToVideoPixelFormat(shared_image->format());
-      if (!shared_image->is_software() &&
-          shared_image->GetGpuMemoryBufferType() == gfx::NATIVE_PIXMAP &&
-          video_pixel_format) {
+      if (video_pixel_format) {
         auto gmb_handle = shared_image->CloneGpuMemoryBufferHandle();
-        if (!gmb_handle.is_null()) {
+        if (!gmb_handle.is_null() && gmb_handle.type == gfx::NATIVE_PIXMAP) {
           if (!media::VerifyGpuMemoryBufferHandle(*video_pixel_format,
                                                   coded_size, gmb_handle)) {
             DLOG(ERROR)
@@ -475,10 +473,7 @@ bool StructTraits<media::mojom::VideoFrameDataView,
           timestamp);
     }
   } else if (data.is_opaque_data()) {
-    if (!metadata.tracking_token.has_value()) {
-      DLOG(ERROR) << "Tracking token is unexpectedly missing";
-      return false;
-    }
+    DCHECK(metadata.tracking_token.has_value());
     frame = media::VideoFrame::WrapTrackingToken(
         format, *metadata.tracking_token, coded_size, visible_rect,
         natural_size, timestamp);

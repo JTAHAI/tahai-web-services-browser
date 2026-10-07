@@ -52,7 +52,6 @@ class TestOmniboxClient final : public testing::NiceMock<OmniboxClient> {
   gfx::Image GetSizedIcon(const gfx::Image& icon) const override;
   std::u16string GetFormattedFullURL() const override;
   std::u16string GetURLForDisplay() const override;
-  bool IsContextualTasksPage() const override;
   GURL GetNavigationEntryURL() const override;
   const GURL& GetURL() const override;
   void SetURL(const GURL& url);
@@ -105,11 +104,6 @@ class TestOmniboxClient final : public testing::NiceMock<OmniboxClient> {
               (),
               (const, override));
   MOCK_METHOD(GURL, GetContextualTasksInnerFrameURL, (), (const, override));
-  MOCK_METHOD(bool,
-              ShowConfirmationDialogIfDefaultSearchExtensionControlled,
-              (const GURL&,
-               base::OnceCallback<void(ExtensionControlledDialogResult)>),
-              (override));
 
   base::WeakPtr<OmniboxClient> AsWeakPtr() override;
 

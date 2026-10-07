@@ -5,9 +5,9 @@
 # license that can be found in the LICENSE file or at
 # https://developers.google.com/open-source/licenses/bsd
 
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
-load("@rules_cc//cc:defs.bzl", "cc_library")
-load("//upb/bazel:copts.bzl", "UPB_DEFAULT_COPTS", "UPB_DEFAULT_FEATURES")
+load("//upb/bazel:build_defs.bzl", "UPB_DEFAULT_COPTS")
 
 package(default_applicable_licenses = ["//:license"])
 
@@ -26,7 +26,6 @@ cc_library(
         "unicode.h",
     ],
     copts = UPB_DEFAULT_COPTS,
-    features = UPB_DEFAULT_FEATURES,
     visibility = ["//visibility:public"],
     deps = ["//upb/port"],
 )
@@ -73,5 +72,5 @@ filegroup(
             "**/*test.cc",
         ],
     ),
-    visibility = ["//upb:__pkg__"],
+    visibility = ["//pkg:__pkg__"],
 )

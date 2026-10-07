@@ -29,9 +29,8 @@ class ClientSocketHandle;
 // used in the implementation of WebSocketStream::CreateAndConnectStream() and
 // is not intended to be used by itself.
 //
-// Holds the information needed to construct a WebSocketHandshakeStreamBase
-// subclass (such as WebSocketBasicHandshakeStream,
-// WebSocketHttp2HandshakeStream, or WebSocketHttp3HandshakeStream).
+// Holds the information needed to construct a
+// WebSocketBasicHandshakeStreamBase.
 class NET_EXPORT_PRIVATE WebSocketHandshakeStreamCreateHelper
     : public WebSocketHandshakeStreamBase::CreateHelper {
  public:

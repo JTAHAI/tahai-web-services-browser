@@ -44,27 +44,27 @@ class SigninUIError {
   // type and error message.
   static SigninUIError Ok();
   static SigninUIError UsernameNotAllowedByPatternFromPrefs(
-      std::string_view email);
-  static SigninUIError WrongReauthAccount(std::string_view email,
-                                          std::string_view current_email);
+      const std::string& email);
+  static SigninUIError WrongReauthAccount(const std::string& email,
+                                          const std::string& current_email);
   static SigninUIError AccountAlreadyUsedByAnotherProfile(
-      std::string_view email,
+      const std::string& email,
       const base::FilePath& another_profile_path);
   static SigninUIError ProfileWasUsedByAnotherAccount(
-      std::string_view email,
-      std::string_view last_email);
+      const std::string& email,
+      const std::string& last_email);
   static SigninUIError FromGoogleServiceAuthError(
-      std::string_view email,
+      const std::string& email,
       const GoogleServiceAuthError& error);
 #if BUILDFLAG(IS_WIN)
   static SigninUIError FromCredentialProviderUiExitCode(
-      std::string_view email,
+      const std::string& email,
       credential_provider::UiExitCodes exit_code);
 #endif
-  static SigninUIError NoProfile(std::string_view email);
-  static SigninUIError SigninDisallowed(std::string_view email);
-  static SigninUIError SigninCookiesDisallowed(std::string_view email);
-  static SigninUIError NoIdentityManager(std::string_view email);
+  static SigninUIError NoProfile(const std::string& email);
+  static SigninUIError SigninDisallowed(const std::string& email);
+  static SigninUIError SigninCookiesDisallowed(const std::string& email);
+  static SigninUIError NoIdentityManager(const std::string& email);
 
   SigninUIError(const SigninUIError& other);
   SigninUIError& operator=(const SigninUIError& other);
@@ -90,7 +90,7 @@ class SigninUIError {
 
  private:
   SigninUIError(Type type,
-                std::string_view email,
+                const std::string& email,
                 const std::u16string& error_message);
 
   Type type_;

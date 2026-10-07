@@ -51,7 +51,6 @@ class QuicSessionAttemptManager::Job : public QuicSessionAttempt::Delegate {
     if (!requests_.empty()) {
       NotifyRequests(ERR_ABORTED, /*session=*/nullptr, NetErrorDetails());
     }
-    CancelAttempts();
   }
 
   Job(const Job&) = delete;
@@ -135,9 +134,6 @@ class QuicSessionAttemptManager::Job : public QuicSessionAttempt::Delegate {
     NetErrorDetails error_details;
     if (rv == OK) {
       QuicChromiumClientSession* session = raw_attempt->session();
-      // Remove the successful attempt before cancelling the others. Its result
-      // may be an already-active pooled session and must not be closed by
-      // CancelAttempts().
       attempts_.erase(it);
       NotifyRequestsAndComplete(rv, session, std::move(error_details));
       return;
@@ -173,7 +169,7 @@ class QuicSessionAttemptManager::Job : public QuicSessionAttempt::Delegate {
                       QuicChromiumClientSession* session,
                       NetErrorDetails error_details) {
     // Cancel other attempts.
-    CancelAttempts();
+    attempts_.clear();
 
     while (!requests_.empty()) {
       raw_ptr<QuicSessionAttemptRequest> request =
@@ -182,13 +178,6 @@ class QuicSessionAttemptManager::Job : public QuicSessionAttempt::Delegate {
       request.ExtractAsDangling()->Complete(rv, session, error_details);
     }
     CHECK(requests_.empty());
-  }
-
-  void CancelAttempts() {
-    for (const auto& attempt : attempts_) {
-      attempt->Cancel();
-    }
-    attempts_.clear();
   }
 
   void NotifyRequestsAndComplete(int rv,

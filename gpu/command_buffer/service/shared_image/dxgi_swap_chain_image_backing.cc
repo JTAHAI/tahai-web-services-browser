@@ -24,7 +24,6 @@
 #include "gpu/command_buffer/service/shared_image/shared_image_format_service_utils.h"
 #include "gpu/command_buffer/service/shared_image/shared_image_manager.h"
 #include "gpu/command_buffer/service/shared_image/skia_gl_image_representation.h"
-#include "gpu/config/gpu_util.h"
 #include "third_party/skia/include/core/SkAlphaType.h"
 #include "third_party/skia/include/gpu/ganesh/GrTypes.h"
 #include "ui/gfx/color_space.h"
@@ -49,8 +48,7 @@ std::unique_ptr<DXGISwapChainImageBacking> DXGISwapChainImageBacking::Create(
     Microsoft::WRL::ComPtr<ID3D11Device> d3d11_device,
     const Mailbox& mailbox,
     const SharedImageInfo& si_info,
-    DXGI_FORMAT internal_format,
-    GrContextType gr_context_type) {
+    DXGI_FORMAT internal_format) {
   if (!d3d11_device) {
     return nullptr;
   }
@@ -71,8 +69,7 @@ std::unique_ptr<DXGISwapChainImageBacking> DXGISwapChainImageBacking::Create(
   desc.Format = internal_format;
   desc.Stereo = FALSE;
   desc.SampleDesc.Count = 1;
-  desc.BufferCount =
-      gpu::DirectCompositionRootSurfaceBufferCount(gr_context_type);
+  desc.BufferCount = gl::DirectCompositionRootSurfaceBufferCount();
   desc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT |
                      /* Needed to bind to GL texture */ DXGI_USAGE_SHADER_INPUT;
   desc.Scaling = DXGI_SCALING_STRETCH;

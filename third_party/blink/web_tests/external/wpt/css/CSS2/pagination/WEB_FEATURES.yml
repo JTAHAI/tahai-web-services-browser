@@ -1,3 +1,5 @@
-rules:
-- orphans-*: [widows-orphans]
-- widows-*: [widows-orphans]
+features:
+- name: widows-orphans
+  files:
+  - 'orphans-*'
+  - 'widows-*'

@@ -157,32 +157,29 @@ public interface SideUiCoordinator extends SideUiStateProvider {
      */
     final class SideUiSpecs {
         public static final class SideUiSize {
-            public final @Px int mWidth;
-            public final @HeightType int mHeightType;
+            public final @Px int width;
+            public final @HeightType int heightType;
 
             public SideUiSize(@Px int width, @HeightType int heightType) {
-                assert width > 0 || (width == 0 && heightType == HeightType.NOT_APPLICABLE)
-                        : "inconsistent width and heightType";
-
-                mWidth = width;
-                mHeightType = heightType;
+                this.width = width;
+                this.heightType = heightType;
             }
 
             @Override
             public boolean equals(@Nullable Object obj) {
                 if (!(obj instanceof SideUiSize that)) return false;
-                return this.mWidth == that.mWidth && this.mHeightType == that.mHeightType;
+                return this.width == that.width && this.heightType == that.heightType;
             }
 
             @Override
             public int hashCode() {
-                return Objects.hash(mWidth, mHeightType);
+                return Objects.hash(width, heightType);
             }
 
             @Override
             public String toString() {
                 return String.format(
-                        Locale.ENGLISH, "[width: %d, heightType: %d]", mWidth, mHeightType);
+                        Locale.ENGLISH, "[width: %d, heightType: %d]", width, heightType);
             }
         }
 
@@ -218,12 +215,12 @@ public interface SideUiCoordinator extends SideUiStateProvider {
 
         public int getWidth(@AnchorSide int side) {
             SideUiSize spec = mSideUiSpecs.get(side);
-            return spec != null ? spec.mWidth : 0;
+            return spec != null ? spec.width : 0;
         }
 
         public @HeightType int getHeightType(@AnchorSide int side) {
             SideUiSize spec = mSideUiSpecs.get(side);
-            return spec != null ? spec.mHeightType : HeightType.NOT_APPLICABLE;
+            return spec != null ? spec.heightType : HeightType.NOT_APPLICABLE;
         }
 
         /**
@@ -295,7 +292,7 @@ public interface SideUiCoordinator extends SideUiStateProvider {
      * Registers a {@link SideUiContainer} to be maintained by this coordinator.
      *
      * @param sideUiContainer The {@link SideUiContainer} to register.
-     * @throws IllegalArgumentException if the given sideUiContainer has conflicts with the existing
+     * @throw IllegalArgumentException if the given sideUiContainer has conflicts with the existing
      *     ones, such as duplicated {@link SideUiId} or {@link AnchorSide}.
      */
     void registerSideUiContainer(SideUiContainer sideUiContainer);

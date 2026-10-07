@@ -77,7 +77,7 @@ class WebView2ProgressWnd : public gfx::WindowImpl, public AppInstallProgress {
   LRESULT OnDestroy(UINT msg, WPARAM wparam, LPARAM lparam);
 
   // WebView2 asynchronous completion callback.
-  void OnWebViewCreated(HRESULT result);
+  void OnWebViewCreated(bool success);
 
   // javascript event handler.
   void OnWebMessageReceived(const std::wstring& message);

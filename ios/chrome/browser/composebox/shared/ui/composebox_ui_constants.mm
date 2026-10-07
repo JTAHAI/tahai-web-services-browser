@@ -5,7 +5,6 @@
 #import "ios/chrome/browser/composebox/shared/ui/composebox_ui_constants.h"
 
 const CGFloat kOmniboxMinHeight = 44.0;
-const CGFloat kOmniboxCobrowseMinHeight = 56.0;
 const CGFloat kOmniboxIPadMinHeight = 56.0;
 
 const CGFloat kInputPlateMargin = 10.0f;

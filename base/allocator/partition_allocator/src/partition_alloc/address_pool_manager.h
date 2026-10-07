@@ -209,7 +209,7 @@ class PA_COMPONENT_EXPORT(PARTITION_ALLOC)
 
 #endif  // PA_BUILDFLAG(HAS_64_BIT_POINTERS)
 
-  constinit static AddressPoolManager singleton_;
+  PA_CONSTINIT static AddressPoolManager singleton_;
 };
 
 }  // namespace partition_alloc::internal

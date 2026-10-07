@@ -9,7 +9,6 @@
 #import "base/check.h"
 #import "ios/chrome/browser/shared/ui/symbols/symbols.h"
 #import "ios/chrome/common/ui/colors/semantic_color_names.h"
-#import "ios/chrome/common/ui/util/constraints_ui_util.h"
 #import "ios/chrome/grit/ios_strings.h"
 #import "ui/base/l10n/l10n_util.h"
 
@@ -38,7 +37,12 @@
   _webView.translatesAutoresizingMaskIntoConstraints = NO;
   [self.view addSubview:_webView];
 
-  AddSameConstraints(_webView, self.view);
+  [NSLayoutConstraint activateConstraints:@[
+    [_webView.topAnchor constraintEqualToAnchor:self.view.topAnchor],
+    [_webView.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor],
+    [_webView.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor],
+    [_webView.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor],
+  ]];
 }
 
 #pragma mark - Button events

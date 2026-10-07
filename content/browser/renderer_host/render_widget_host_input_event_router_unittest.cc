@@ -981,61 +981,6 @@ TEST_F(RenderWidgetHostInputEventRouterTest,
   }
 }
 
-// Losing the root while touchscreen scrolling bubbles to it must not leave
-// pinch state behind when the same router receives a replacement root.
-TEST_F(RenderWidgetHostInputEventRouterTest,
-       RestartTouchscreenBubblingAfterRootUnregisters) {
-  const blink::WebGestureEvent scroll_begin =
-      blink::SyntheticWebGestureEventBuilder::BuildScrollBegin(
-          0.f, 10.f, blink::WebGestureDevice::kTouchscreen);
-  ChildViewState child = MakeChildView(view_root_.get());
-
-  ASSERT_TRUE(rwhier()->BubbleScrollEvent(view_root_.get(), child.view.get(),
-                                          scroll_begin));
-  ASSERT_EQ(view_root_.get(), bubbling_gesture_scroll_target());
-
-  const viz::FrameSinkId root_frame_sink_id = view_root_->GetFrameSinkId();
-  rwhier()->RemoveFrameSinkIdOwner(root_frame_sink_id);
-  EXPECT_EQ(nullptr, bubbling_gesture_scroll_target());
-  EXPECT_EQ(nullptr, bubbling_gesture_scroll_origin());
-  EXPECT_EQ(blink::WebInputEvent::Type::kGestureScrollBegin,
-            view_root_->last_gesture_seen());
-
-  rwhier()->AddFrameSinkIdOwner(root_frame_sink_id, view_root_.get());
-  view_root_->Reset();
-
-  EXPECT_TRUE(rwhier()->BubbleScrollEvent(view_root_.get(), child.view.get(),
-                                          scroll_begin));
-  EXPECT_EQ(child.view.get(), bubbling_gesture_scroll_origin());
-  EXPECT_EQ(view_root_.get(), bubbling_gesture_scroll_target());
-  EXPECT_EQ(blink::WebInputEvent::Type::kGestureScrollBegin,
-            view_root_->last_gesture_seen());
-}
-
-// Losing its parent must not make an intermediate bubbling target look like
-// the root when it is unregistered.
-TEST_F(RenderWidgetHostInputEventRouterTest,
-       UnregisterDetachedIntermediateScrollBubblingTarget) {
-  const blink::WebGestureEvent scroll_begin =
-      blink::SyntheticWebGestureEventBuilder::BuildScrollBegin(
-          0.f, 10.f, blink::WebGestureDevice::kTouchscreen);
-  ChildViewState outer = MakeChildView(view_root_.get());
-  ChildViewState inner = MakeChildView(outer.view.get());
-
-  ASSERT_TRUE(rwhier()->BubbleScrollEvent(outer.view.get(), inner.view.get(),
-                                          scroll_begin));
-  ASSERT_EQ(outer.view.get(), bubbling_gesture_scroll_target());
-
-  outer.frame_connector.reset();
-  ASSERT_EQ(nullptr, outer.view->GetParentViewInput());
-
-  rwhier()->RemoveFrameSinkIdOwner(outer.view->GetFrameSinkId());
-  EXPECT_EQ(nullptr, bubbling_gesture_scroll_target());
-  EXPECT_EQ(nullptr, bubbling_gesture_scroll_origin());
-  EXPECT_EQ(blink::WebInputEvent::Type::kGestureScrollBegin,
-            outer.view->last_gesture_seen());
-}
-
 // Test that when a child view that is irrelevant to any ongoing scroll
 // bubbling detaches, scroll bubbling is not canceled.
 TEST_F(RenderWidgetHostInputEventRouterTest,
@@ -1563,69 +1508,6 @@ TEST_F(RenderWidgetHostInputEventRouterTest,
     DCHECK_EQ(rwhier()->GetLastMouseMoveTargetForTest(), child1.view.get());
     DCHECK_EQ(rwhier()->GetLastMouseMoveRootViewForTest(), view_root_.get());
   }
-}
-
-// Removing an ancestor of the remembered mouse target promotes the remembered
-// target to the closest surviving view above the removed subtree.
-TEST_F(RenderWidgetHostInputEventRouterTest,
-       PromotesMouseTargetPastUnregisteredAncestor) {
-  ChildViewState parent = MakeChildView(view_root_.get());
-  ChildViewState ancestor = MakeChildView(parent.view.get());
-  ChildViewState target = MakeChildView(ancestor.view.get());
-
-  blink::WebMouseEvent mouse_move(
-      blink::WebInputEvent::Type::kMouseMove,
-      blink::WebInputEvent::kNoModifiers,
-      blink::WebInputEvent::GetStaticTimeStampForTests());
-  view_root_->SetHittestResult(target.view.get(), false);
-  rwhier()->RouteMouseEvent(view_root_.get(), &mouse_move, ui::LatencyInfo());
-  ASSERT_EQ(target.view.get(), rwhier()->GetLastMouseMoveTargetForTest());
-
-  rwhier()->RemoveFrameSinkIdOwner(ancestor.view->GetFrameSinkId());
-  EXPECT_EQ(parent.view.get(), rwhier()->GetLastMouseMoveTargetForTest());
-  EXPECT_EQ(view_root_.get(), rwhier()->GetLastMouseMoveRootViewForTest());
-
-  rwhier()->RemoveFrameSinkIdOwner(target.view->GetFrameSinkId());
-  EXPECT_EQ(parent.view.get(), rwhier()->GetLastMouseMoveTargetForTest());
-  EXPECT_EQ(view_root_.get(), rwhier()->GetLastMouseMoveRootViewForTest());
-
-  rwhier()->RemoveFrameSinkIdOwner(parent.view->GetFrameSinkId());
-  EXPECT_EQ(view_root_.get(), rwhier()->GetLastMouseMoveTargetForTest());
-  EXPECT_EQ(view_root_.get(), rwhier()->GetLastMouseMoveRootViewForTest());
-
-  rwhier()->RemoveFrameSinkIdOwner(view_root_->GetFrameSinkId());
-  EXPECT_EQ(nullptr, rwhier()->GetLastMouseMoveTargetForTest());
-  EXPECT_EQ(nullptr, rwhier()->GetLastMouseMoveRootViewForTest());
-}
-
-// A physical parent may already be unregistered even though it remains in the
-// view tree. It must not become the remembered target.
-TEST_F(RenderWidgetHostInputEventRouterTest,
-       DoesNotPromoteMouseTargetToUnregisteredParent) {
-  ChildViewState parent = MakeChildView(view_root_.get());
-  ChildViewState ancestor = MakeChildView(parent.view.get());
-  ChildViewState target = MakeChildView(ancestor.view.get());
-
-  blink::WebMouseEvent mouse_move(
-      blink::WebInputEvent::Type::kMouseMove,
-      blink::WebInputEvent::kNoModifiers,
-      blink::WebInputEvent::GetStaticTimeStampForTests());
-  view_root_->SetHittestResult(target.view.get(), false);
-  rwhier()->RouteMouseEvent(view_root_.get(), &mouse_move, ui::LatencyInfo());
-  ASSERT_EQ(target.view.get(), rwhier()->GetLastMouseMoveTargetForTest());
-
-  rwhier()->RemoveFrameSinkIdOwner(parent.view->GetFrameSinkId());
-  ASSERT_EQ(view_root_.get(), rwhier()->GetLastMouseMoveTargetForTest());
-
-  // Simulate a stale hit test recaching the descendant after its ancestor has
-  // unregistered.
-  rwhier()->RouteMouseEvent(view_root_.get(), &mouse_move, ui::LatencyInfo());
-  ASSERT_EQ(target.view.get(), rwhier()->GetLastMouseMoveTargetForTest());
-
-  rwhier()->RemoveFrameSinkIdOwner(ancestor.view->GetFrameSinkId());
-
-  EXPECT_EQ(nullptr, rwhier()->GetLastMouseMoveTargetForTest());
-  EXPECT_EQ(nullptr, rwhier()->GetLastMouseMoveRootViewForTest());
 }
 
 // Calling ShowContextMenuAtPoint without other events will happen when desktop

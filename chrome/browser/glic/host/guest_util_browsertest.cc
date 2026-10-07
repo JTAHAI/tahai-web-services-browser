@@ -13,8 +13,7 @@
 #include "chrome/browser/glic/test_support/glic_test_environment.h"
 #include "chrome/browser/profiles/profile_manager.h"
 #include "chrome/browser/signin/identity_manager_factory.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
-#include "chrome/browser/ui/browser_window/public/create_browser_window.h"
+#include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/ui_features.h"
 #include "chrome/common/chrome_switches.h"
 #include "chrome/common/webui_url_constants.h"
@@ -40,7 +39,6 @@
 #include "extensions/browser/app_window/app_window_registry.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/skia/include/core/SkColor.h"
-#include "ui/base/base_window.h"
 #include "ui/base/window_open_disposition.h"
 
 namespace glic {
@@ -69,8 +67,7 @@ class TestWebUIController : public content::WebUIController {
         base::BindRepeating(
             [](const std::string& path,
                content::WebUIDataSource::GotDataCallback callback) {
-              std::move(callback).Run(
-                  base::MakeRefCounted<base::RefCountedString>(R"(
+              std::move(callback).Run(new base::RefCountedString(R"(
                   <!DOCTYPE html>
                   <html>
                     <body><webview src="about:blank"></webview></body>
@@ -96,12 +93,12 @@ Profile& GetProfile() {
 }
 
 void OpenWebUiWithGuestView(const GURL& host_url) {
-  BrowserWindowCreateParams params(BrowserWindowInterface::Type::TYPE_NORMAL,
-                                   /*profile=*/&GetProfile(),
-                                   /*from_user_gesture=*/true);
+  Browser::CreateParams params =
+      Browser::CreateParams(Browser::Type::TYPE_NORMAL,
+                            /*profile=*/&GetProfile(),
+                            /*user_gesture=*/true);
 
-  BrowserWindowInterface& new_browser =
-      CHECK_DEREF(CreateBrowserWindow(std::move(params)));
+  auto& new_browser = CHECK_DEREF(Browser::Create(params));
   new_browser.GetWindow()->Show();
 
   ui_test_utils::NavigateToURLWithDisposition(

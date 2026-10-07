@@ -163,10 +163,6 @@ class SystemTrustStoreChromeWithUnOwnedSystemStore : public SystemTrustStore {
     return trust_store_chrome_->version();
   }
 
-  std::optional<base::Time> signer_set_timestamp() const override {
-    return trust_store_chrome_->signer_set_timestamp();
-  }
-
   std::optional<base::Time> mtc_metadata_update_time() const override {
     return trust_store_chrome_->mtc_metadata_update_time();
   }
@@ -177,24 +173,24 @@ class SystemTrustStoreChromeWithUnOwnedSystemStore : public SystemTrustStore {
   }
 
   const TrustStoreChrome::MtcAnchorExtraData* GetMTCAnchorData(
-      base::span<const uint8_t> ca_id) const override {
-    return trust_store_chrome_->GetMTCAnchorData(ca_id);
+      base::span<const uint8_t> log_id) const override {
+    return trust_store_chrome_->GetMTCAnchorData(log_id);
   }
 
   std::optional<bssl::VerifyCertificateChainDelegate::MTCCosigner>
   GetMtcMirrorKey(base::span<const uint8_t> cosigner_id) const override {
-    return trust_store_chrome_->GetMtcMirrorKey(cosigner_id);
+    // TODO(crbug.com/452983502): Hook this up to TrustStoreChrome.
+    return std::nullopt;
   }
 
   bool IsMtcCosignerPolicySatisfied(
       const bssl::ParsedCertificate& target_cert,
       base::Time current_time,
       const bssl::MTCAnchor* mtc_anchor,
-      base::span<const std::vector<uint8_t>> valid_additional_cosigners,
-      const NetLogWithSource& net_log) const override {
-    return trust_store_chrome_->IsMtcCosignerPolicySatisfied(
-        target_cert, current_time, mtc_anchor, valid_additional_cosigners,
-        net_log);
+      base::span<const std::vector<uint8_t>> valid_additional_cosigners)
+      const override {
+    // TODO(crbug.com/452983502): Hook this up to TrustStoreChrome.
+    return false;
   }
 
   std::optional<int32_t> GetCrsRootIdForCert(

@@ -83,7 +83,7 @@ IN_PROC_BROWSER_TEST_F(PerformanceManagerBrowserTest, OpenerTrackingWorks) {
   // Make sure everything is connected as expected in the graph.
   auto page = PerformanceManager::GetPrimaryPageNodeForWebContents(contents);
   EXPECT_TRUE(page);
-  auto* frame = page->GetPrimaryMainFrameNode();
+  auto* frame = page->GetMainFrameNode();
   EXPECT_EQ(1u, frame->GetOpenedPageNodes().size());
   auto* embedded_page = *(frame->GetOpenedPageNodes().begin());
   EXPECT_EQ(frame, embedded_page->GetOpenerFrameNode());
@@ -125,7 +125,7 @@ IN_PROC_BROWSER_TEST_F(PerformanceManagerBrowserTest, UsesWebRTC) {
   waiter.WaitForWebRTCUsageChange();
 
   EXPECT_TRUE(page->UsesWebRTC());
-  EXPECT_TRUE(page->GetPrimaryMainFrameNode()->UsesWebRTC());
+  EXPECT_TRUE(page->GetMainFrameNode()->UsesWebRTC());
 
   graph->RemovePageNodeObserver(&waiter);
 }
@@ -178,7 +178,7 @@ IN_PROC_BROWSER_TEST_F(PerformanceManagerBrowserTest,
   waiter.WaitForFreezingOriginTrialOptOut();
 
   EXPECT_TRUE(page->HasFreezingOriginTrialOptOut());
-  EXPECT_TRUE(page->GetPrimaryMainFrameNode()->HasFreezingOriginTrialOptOut());
+  EXPECT_TRUE(page->GetMainFrameNode()->HasFreezingOriginTrialOptOut());
 
   graph->RemovePageNodeObserver(&waiter);
 }
@@ -214,8 +214,7 @@ IN_PROC_BROWSER_TEST_F(PerformanceManagerBrowserTest, OriginAboutBlankFrame) {
   // the sandboxed frame has an opaque origin derived from it, as assumed by
   // Resource Attribution.
   std::vector<std::optional<url::Origin>> child_frame_origins;
-  for (const FrameNode* node :
-       page->GetPrimaryMainFrameNode()->GetChildFrameNodes()) {
+  for (const FrameNode* node : page->GetMainFrameNode()->GetChildFrameNodes()) {
     child_frame_origins.push_back(node->GetOrigin());
   }
   EXPECT_THAT(child_frame_origins,
@@ -223,8 +222,6 @@ IN_PROC_BROWSER_TEST_F(PerformanceManagerBrowserTest, OriginAboutBlankFrame) {
                   main_frame_origin, IsOpaqueDerivedFrom(main_frame_origin)));
 }
 
-// TODO(crbug.com/540481427): Add more tests that exercise GetMainFrameNodes()
-// and GetPrimaryMainFrameNode() in the presence of fenced frames.
 class PerformanceManagerFencedFrameBrowserTest
     : public PerformanceManagerBrowserTest {
  public:
@@ -299,7 +296,7 @@ IN_PROC_BROWSER_TEST_F(PerformanceManagerBrowserTest,
       PerformanceManager::GetPrimaryPageNodeForWebContents(parent_contents)
           .get());
 
-  auto* frame_node = page_node->GetPrimaryMainFrameNode();
+  auto* frame_node = page_node->GetMainFrameNode();
   ASSERT_TRUE(frame_node);
 
   auto* frame_node_impl = FrameNodeImpl::FromNode(frame_node);

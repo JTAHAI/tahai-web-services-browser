@@ -152,9 +152,9 @@ public class CardboardOverlayDelegate
         mActivity.getWindow().getDecorView().setSystemUiVisibility(flags | VR_SYSTEM_UI_FLAGS);
 
         assumeNonNull(mCardboardView);
-        FrameLayout surfaceViewHolder =
+        FrameLayout surface_view_holder =
                 (FrameLayout) mCardboardView.findViewById(R.id.surface_view_holder);
-        surfaceViewHolder.addView(surfaceView);
+        surface_view_holder.addView(surfaceView);
     }
 
     @Override

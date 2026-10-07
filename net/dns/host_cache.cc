@@ -757,35 +757,26 @@ HostCache::~HostCache() {
   RecordEraseAll(EraseReason::kEraseDestruct, tick_clock_->NowTicks());
 }
 
-const std::pair<const HostCache::Key, HostCache::Entry>* HostCache::Lookup(
-    const Key& key,
-    base::TimeTicks now,
-    bool ignore_secure,
-    bool record_metrics) {
+const std::pair<const HostCache::Key, HostCache::Entry>*
+HostCache::Lookup(const Key& key, base::TimeTicks now, bool ignore_secure) {
   DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
   if (caching_is_disabled())
     return nullptr;
 
   auto* result = LookupInternalIgnoringFields(key, now, ignore_secure);
   if (!result) {
-    if (record_metrics) {
-      RecordLookup(LookupOutcome::kLookupMissAbsent, now, key, nullptr);
-    }
+    RecordLookup(LookupOutcome::kLookupMissAbsent, now, key, nullptr);
     return nullptr;
   }
 
   auto* entry = &result->second;
   if (entry->IsStale(now, network_changes_)) {
-    if (record_metrics) {
-      RecordLookup(LookupOutcome::kLookupMissStale, now, result->first, entry);
-    }
+    RecordLookup(LookupOutcome::kLookupMissStale, now, result->first, entry);
     return nullptr;
   }
 
   entry->CountHit(/* hit_is_stale= */ false);
-  if (record_metrics) {
-    RecordLookup(LookupOutcome::kLookupHitValid, now, result->first, entry);
-  }
+  RecordLookup(LookupOutcome::kLookupHitValid, now, result->first, entry);
   return result;
 }
 
@@ -793,28 +784,23 @@ const std::pair<const HostCache::Key, HostCache::Entry>* HostCache::LookupStale(
     const Key& key,
     base::TimeTicks now,
     HostCache::EntryStaleness* stale_out,
-    bool ignore_secure,
-    bool record_metrics) {
+    bool ignore_secure) {
   DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
   if (caching_is_disabled())
     return nullptr;
 
   auto* result = LookupInternalIgnoringFields(key, now, ignore_secure);
   if (!result) {
-    if (record_metrics) {
-      RecordLookup(LookupOutcome::kLookupMissAbsent, now, key, nullptr);
-    }
+    RecordLookup(LookupOutcome::kLookupMissAbsent, now, key, nullptr);
     return nullptr;
   }
 
   auto* entry = &result->second;
   bool is_stale = entry->IsStale(now, network_changes_);
   entry->CountHit(/* hit_is_stale= */ is_stale);
-  if (record_metrics) {
-    RecordLookup(is_stale ? LookupOutcome::kLookupHitStale
-                          : LookupOutcome::kLookupHitValid,
-                 now, result->first, entry);
-  }
+  RecordLookup(is_stale ? LookupOutcome::kLookupHitStale
+                        : LookupOutcome::kLookupHitValid,
+               now, result->first, entry);
 
   if (stale_out)
     entry->GetStaleness(now, network_changes_, stale_out);

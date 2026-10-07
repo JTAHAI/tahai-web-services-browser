@@ -65,28 +65,27 @@ export enum PrintPreviewLaunchSourceBucket {
 /* A context for recording a value in a specific UMA histogram. */
 export class MetricsContext {
   private histogram_: string;
-  private boundary_: number;
+  private maxBucket_: number;
   private nativeLayer_: NativeLayer = NativeLayerImpl.getInstance();
 
   /**
    * @param histogram The name of the histogram to be recorded in.
-   * @param boundary The exclusive maximum value (boundary) for the histogram.
+   * @param maxBucket The max value for the last histogram bucket.
    */
-  constructor(histogram: string, boundary: number) {
+  constructor(histogram: string, maxBucket: number) {
     this.histogram_ = histogram;
-    this.boundary_ = boundary;
+    this.maxBucket_ = maxBucket;
   }
 
   /**
-   * Record a histogram value in UMA. If specified value is larger than or
-   * equal to the boundary, record the value in the largest bucket (boundary - 1).
+   * Record a histogram value in UMA. If specified value is larger than the
+   * max bucket value, record the value in the largest bucket
    * @param bucket Value to record.
    */
   record(bucket: number) {
     this.nativeLayer_.recordInHistogram(
-        this.histogram_,
-        (bucket >= this.boundary_) ? this.boundary_ - 1 : bucket,
-        this.boundary_);
+        this.histogram_, (bucket > this.maxBucket_) ? this.maxBucket_ : bucket,
+        this.maxBucket_);
   }
 
   /**

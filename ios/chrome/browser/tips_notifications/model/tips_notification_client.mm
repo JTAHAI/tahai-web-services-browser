@@ -140,7 +140,9 @@ void TipsNotificationClient::HandleNotificationInteraction(
   // current auth status is "authorized", interacting with a notification (which
   // must have been sent provisionally) will be treated as a positive signal to
   // opt in the user to this type of notification.
-  if (!permitted_) {
+  if ((IsProvisionalNotificationAlertEnabled() ||
+       IsIOSReactivationNotificationsEnabled()) &&
+      !permitted_) {
     [PushNotificationUtil
         getPermissionSettings:base::CallbackToBlock(base::BindOnce(
                                   &TipsNotificationClient::OptInIfAuthorized,

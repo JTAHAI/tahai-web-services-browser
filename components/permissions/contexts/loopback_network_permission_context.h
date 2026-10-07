@@ -24,6 +24,8 @@ class LoopbackNetworkPermissionContext
       delete;
   LoopbackNetworkPermissionContext& operator=(
       const LoopbackNetworkPermissionContext&) = delete;
+
+  bool IsRestrictedToSecureOrigins() const override;
 };
 
 }  // namespace permissions

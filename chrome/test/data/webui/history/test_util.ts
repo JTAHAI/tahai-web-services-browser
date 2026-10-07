@@ -63,7 +63,6 @@ export function createHistoryEntry(
     title: urlStr,
     url: urlStr,
     isActorVisit: false,
-    criticalActions: [],
   };
 }
 

@@ -17,7 +17,6 @@
 #include "components/content_settings/core/common/content_settings_utils.h"
 #include "components/content_settings/core/common/features.h"
 #include "components/omnibox/browser/autocomplete_match.h"
-#include "components/omnibox/browser/geolocation_header_service_test_api.h"
 #include "components/omnibox/common/omnibox_features.h"
 #include "components/permissions/test/test_permissions_client.h"
 #include "components/search_engines/search_engines_test_environment.h"
@@ -276,8 +275,7 @@ TEST_F(GeolocationHeaderServiceTest, ApproximatePermission) {
                  /*is_precise=*/false);
 
   std::unique_ptr<GeolocationHeaderService> service = CreateService();
-  GeolocationHeaderServiceTestApi(service.get())
-      .SetLocationAge(base::Minutes(1));
+  service->SetLocationAgeForTesting(base::Minutes(1));
   GURL url(kGoogleUrl);
   SetDefaultSearchProviderUrl(url.spec());
 
@@ -329,8 +327,7 @@ TEST_F(GeolocationHeaderServiceTest, Serialization) {
                  /*is_precise=*/true);
 
   std::unique_ptr<GeolocationHeaderService> service = CreateService();
-  GeolocationHeaderServiceTestApi(service.get())
-      .SetLocationAge(base::Minutes(1));
+  service->SetLocationAgeForTesting(base::Minutes(1));
   GURL url(kGoogleUrl);
   SetupGoogleDseWithPermissions();
 
@@ -731,10 +728,8 @@ TEST_F(GeolocationHeaderServiceInlineLocationTest, PrimeLocationCacheOnly) {
 
   // Wait for the call to complete (connection reset). If a non-cached location
   // was used, it would stay bound waiting for an update.
-  EXPECT_TRUE(base::test::RunUntil([&]() {
-    return !GeolocationHeaderServiceTestApi(service.get())
-                .is_geolocation_bound();
-  }));
+  EXPECT_TRUE(base::test::RunUntil(
+      [&]() { return !service->is_geolocation_bound_for_testing(); }));
 
   EXPECT_EQ(geolocation_overrider_.GetQueryCachedPositionCount(), 1u);
   EXPECT_EQ(geolocation_overrider_.GetQueryNextPositionCount(), 0u);
@@ -759,18 +754,15 @@ TEST_F(GeolocationHeaderServiceInlineLocationTest, PrimeLocationStandard) {
   service->PrimeLocation();
 
   // Verify it is waiting for update (connection remains bound)
-  EXPECT_TRUE(
-      GeolocationHeaderServiceTestApi(service.get()).is_geolocation_bound());
+  EXPECT_TRUE(service->is_geolocation_bound_for_testing());
 
   // Now simulate a fresh update.
   UpdateLocation(kTestLat, kTestLong, kTestAccuracy, base::Time::Now(),
                  /*is_precise=*/true);
 
   // Wait for the call to complete (connection reset)
-  EXPECT_TRUE(base::test::RunUntil([&]() {
-    return !GeolocationHeaderServiceTestApi(service.get())
-                .is_geolocation_bound();
-  }));
+  EXPECT_TRUE(base::test::RunUntil(
+      [&]() { return !service->is_geolocation_bound_for_testing(); }));
 
   EXPECT_EQ(geolocation_overrider_.GetQueryCachedPositionCount(), 0u);
   EXPECT_EQ(geolocation_overrider_.GetQueryNextPositionCount(), 1u);
@@ -801,8 +793,7 @@ TEST_F(GeolocationHeaderServiceTest, PrimeLocationFlagDisabled) {
   EXPECT_EQ(geolocation_overrider_.GetQueryCachedPositionCount(), 0u);
   EXPECT_EQ(geolocation_overrider_.GetQueryNextPositionCount(), 0u);
   EXPECT_FALSE(service->HasCachedLocation());
-  EXPECT_FALSE(
-      GeolocationHeaderServiceTestApi(service.get()).is_geolocation_bound());
+  EXPECT_FALSE(service->is_geolocation_bound_for_testing());
 
   // Now grant permission to the DSE and verify that PrimeLocation proceeds.
   SetupGoogleDseWithPermissions();
@@ -810,18 +801,15 @@ TEST_F(GeolocationHeaderServiceTest, PrimeLocationFlagDisabled) {
   service->PrimeLocation();
 
   // Verify it is waiting for update (connection remains bound)
-  EXPECT_TRUE(
-      GeolocationHeaderServiceTestApi(service.get()).is_geolocation_bound());
+  EXPECT_TRUE(service->is_geolocation_bound_for_testing());
 
   // Now simulate a fresh update.
   UpdateLocation(kTestLat, kTestLong, kTestAccuracy, base::Time::Now(),
                  /*is_precise=*/true);
 
   // Wait for the call to complete (connection reset)
-  EXPECT_TRUE(base::test::RunUntil([&]() {
-    return !GeolocationHeaderServiceTestApi(service.get())
-                .is_geolocation_bound();
-  }));
+  EXPECT_TRUE(base::test::RunUntil(
+      [&]() { return !service->is_geolocation_bound_for_testing(); }));
 
   EXPECT_EQ(geolocation_overrider_.GetQueryNextPositionCount(), 1u);
   EXPECT_TRUE(
@@ -849,8 +837,7 @@ TEST_F(GeolocationHeaderServiceTest, SearchEngineOptInOmitted) {
   EXPECT_FALSE(service->HasCachedLocation());
   EXPECT_FALSE(service->GetLocationHeader(url, /*for_automatic_sending=*/true)
                    .has_value());
-  EXPECT_FALSE(
-      GeolocationHeaderServiceTestApi(service.get()).is_geolocation_bound());
+  EXPECT_FALSE(service->is_geolocation_bound_for_testing());
 }
 
 // Verifies that if send_x_geo_header is explicitly set to false, it is
@@ -875,8 +862,7 @@ TEST_F(GeolocationHeaderServiceTest, SearchEngineOptInExplicitFalse) {
   EXPECT_FALSE(service->HasCachedLocation());
   EXPECT_FALSE(service->GetLocationHeader(url, /*for_automatic_sending=*/true)
                    .has_value());
-  EXPECT_FALSE(
-      GeolocationHeaderServiceTestApi(service.get()).is_geolocation_bound());
+  EXPECT_FALSE(service->is_geolocation_bound_for_testing());
 }
 
 // Verifies that if send_x_geo_header is explicitly set to true, it is opted-in.
@@ -968,8 +954,7 @@ TEST_F(GeolocationHeaderServiceTest, GoogleFallbackOptIn) {
 
   service->PrimeLocation();
   EXPECT_FALSE(service->HasCachedLocation());
-  EXPECT_FALSE(
-      GeolocationHeaderServiceTestApi(service.get()).is_geolocation_bound());
+  EXPECT_FALSE(service->is_geolocation_bound_for_testing());
 
   // Google fallback URL (e.g. /webhp)
   GURL fallback_url("https://www.google.com/webhp?#q=dinosaurs");
@@ -1290,8 +1275,6 @@ TEST_F(GeolocationHeaderServiceInlineLocationTest, PrimeLocationTelemetryIlls) {
   // torn down.
   // RunUntilIdle is never good, use a different approach, wait for some
   // specific event.
-  ASSERT_TRUE(base::test::RunUntil([&]() {
-    return !GeolocationHeaderServiceTestApi(service.get())
-                .is_geolocation_bound();
-  }));
+  ASSERT_TRUE(base::test::RunUntil(
+      [&]() { return !service->is_geolocation_bound_for_testing(); }));
 }

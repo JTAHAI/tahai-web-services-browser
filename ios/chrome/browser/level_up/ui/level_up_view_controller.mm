@@ -167,8 +167,8 @@ const CGFloat kTasksCellHeight = 350.0;
   _menuButton = [UIButton buttonWithType:UIButtonTypeSystem];
   _menuButton.backgroundColor = UIColor.clearColor;
   _menuButton.tintColor = [UIColor colorNamed:kTextPrimaryColor];
-  [_menuButton setImage:SymbolTemplateWithPointSize(SymbolEllipsis,
-                                                    kSymbolAccessoryPointSize)
+  [_menuButton setImage:DefaultSymbolTemplateWithPointSize(
+                            kEllipsisSymbol, kSymbolAccessoryPointSize)
                forState:UIControlStateNormal];
   _menuButton.showsMenuAsPrimaryAction = YES;
   [self updateMenuButtonMenu];
@@ -178,8 +178,8 @@ const CGFloat kTasksCellHeight = 350.0;
   UIButton* dismissButton = [UIButton buttonWithType:UIButtonTypeSystem];
   dismissButton.backgroundColor = UIColor.clearColor;
   dismissButton.tintColor = [UIColor colorNamed:kTextPrimaryColor];
-  [dismissButton setImage:SymbolTemplateWithPointSize(SymbolXMark,
-                                                      kSymbolAccessoryPointSize)
+  [dismissButton setImage:DefaultSymbolTemplateWithPointSize(
+                              kXMarkSymbol, kSymbolAccessoryPointSize)
                  forState:UIControlStateNormal];
   [dismissButton addTarget:self
                     action:@selector(dismiss)
@@ -194,9 +194,10 @@ const CGFloat kTasksCellHeight = 350.0;
       _progressUpdatesEnabled
           ? l10n_util::GetNSString(IDS_IOS_LEVEL_UP_TURN_OFF_PROGRESS_UPDATES)
           : l10n_util::GetNSString(IDS_IOS_LEVEL_UP_TURN_ON_PROGRESS_UPDATES);
-  Symbol symbol = _progressUpdatesEnabled ? SymbolBellSlash : SymbolBell;
+  NSString* symbolName =
+      _progressUpdatesEnabled ? kBellSlashSymbol : kBellSymbol;
   UIImage* image =
-      SymbolTemplateWithPointSize(symbol, kSymbolAccessoryPointSize);
+      DefaultSymbolTemplateWithPointSize(symbolName, kSymbolAccessoryPointSize);
 
   __weak __typeof(self) weakSelf = self;
   UIAction* toggleAction = [UIAction actionWithTitle:title
@@ -206,28 +207,7 @@ const CGFloat kTasksCellHeight = 350.0;
                                                [weakSelf toggleProgressUpdates];
                                              }];
 
-  NSString* turnOffTitle =
-      l10n_util::GetNSString(IDS_IOS_LEVEL_UP_TURN_OFF_LEVEL_UP);
-  UIImage* turnOffImage = SymbolTemplateWithPointSize(
-      SymbolArrowshapeUpSlash, kSymbolAccessoryPointSize);
-  UIAction* turnOffAction = [UIAction actionWithTitle:turnOffTitle
-                                                image:turnOffImage
-                                           identifier:nil
-                                              handler:^(UIAction* action) {
-                                                // TODO(crbug.com/544808224):
-                                                // Use full new design with
-                                                // secondary confirmation sheet.
-                                                [weakSelf turnOffLevelUp];
-                                              }];
-  turnOffAction.attributes = UIMenuElementAttributesDestructive;
-
-  _menuButton.menu = [UIMenu menuWithTitle:@""
-                                  children:@[ toggleAction, turnOffAction ]];
-}
-
-// Calls the delegate to turn off Level Up.
-- (void)turnOffLevelUp {
-  [self.delegate didTapTurnOffLevelUp:self];
+  _menuButton.menu = [UIMenu menuWithTitle:@"" children:@[ toggleAction ]];
 }
 
 // Calls the delegate to toggle the progress updates.

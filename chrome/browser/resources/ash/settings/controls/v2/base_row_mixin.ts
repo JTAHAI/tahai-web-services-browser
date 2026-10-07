@@ -69,8 +69,8 @@ export const BaseRowMixin = dedupingMixin(
           };
         }
 
-        declare ariaDescription: string;
-        declare ariaLabel: string;
+        override ariaDescription: string;
+        override ariaLabel: string;
         label?: string;
         sublabel?: string;
         icon?: string;

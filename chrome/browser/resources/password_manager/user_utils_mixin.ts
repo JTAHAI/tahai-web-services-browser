@@ -4,7 +4,6 @@
 
 import {WebUiListenerMixin} from 'chrome://resources/cr_elements/web_ui_listener_mixin.js';
 import {assert} from 'chrome://resources/js/assert.js';
-import {loadTimeData} from 'chrome://resources/js/load_time_data.js';
 import type {PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 import {dedupingMixin} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
@@ -42,7 +41,7 @@ export const UserUtilMixin = dedupingMixin(
 
             actionableError: {
               type: Number,
-              value: null,
+              value: PasswordManagerActionableError.kNoError,
             },
 
             /* Email of the primary account. */
@@ -73,7 +72,7 @@ export const UserUtilMixin = dedupingMixin(
 
         declare isAccountStoreUser: boolean;
         declare isSyncingPasswords: boolean;
-        declare actionableError: PasswordManagerActionableError|null;
+        declare actionableError: PasswordManagerActionableError;
         declare accountEmail: string;
         declare avatarImage: string;
         declare private syncInfo_: SyncInfo|null;
@@ -103,9 +102,7 @@ export const UserUtilMixin = dedupingMixin(
               this.setIsAccountStorageActiveListener_);
           PasswordManagerImpl.getInstance()
               .getPasswordManagerActionableError()
-              .then(error => {
-                this.actionableError = error;
-              });
+              .then(error => this.actionableError = error);
           SyncBrowserProxyImpl.getInstance().getSyncInfo().then(
               syncInfoChanged);
           SyncBrowserProxyImpl.getInstance().getAccountInfo().then(
@@ -138,26 +135,12 @@ export const UserUtilMixin = dedupingMixin(
           this.setPasswordManagerActionableErrorListener_ = null;
         }
 
-        isTrustedVaultKeyNeeded(): boolean {
-          return loadTimeData.getBoolean('enableTrustedVaultUnlock') &&
-              this.actionableError ===
-              PasswordManagerActionableError.kTrustedVaultKeyNeeded;
+        enableAccountStorage() {
+          PasswordManagerImpl.getInstance().setAccountStorageEnabled(true);
         }
 
-        /**
-         * Executes `action` if the trusted vault is unlocked. If the vault is
-         * locked, dispatches an event to display the unlock/recovery dialog.
-         */
-        executeIfTrustedVaultUnlocked(action: () => void) {
-          if (this.isTrustedVaultKeyNeeded()) {
-            this.dispatchEvent(
-                new CustomEvent('show-trusted-vault-error-dialog', {
-                  bubbles: true,
-                  composed: true,
-                }));
-            return;
-          }
-          action();
+        disableAccountStorage() {
+          PasswordManagerImpl.getInstance().setAccountStorageEnabled(false);
         }
 
         private computeIsSyncingPasswords_(): boolean {
@@ -180,9 +163,9 @@ export const UserUtilMixin = dedupingMixin(
 export interface UserUtilMixinInterface {
   isAccountStoreUser: boolean;
   isSyncingPasswords: boolean;
-  actionableError: PasswordManagerActionableError|null;
+  actionableError: PasswordManagerActionableError;
   accountEmail: string;
   avatarImage: string;
-  isTrustedVaultKeyNeeded(): boolean;
-  executeIfTrustedVaultUnlocked(action: () => void): void;
+  enableAccountStorage(): void;
+  disableAccountStorage(): void;
 }

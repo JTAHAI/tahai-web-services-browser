@@ -38,8 +38,6 @@ IOSOverflowMenuDestination HistogramDestinationFromDestination(
       return IOSOverflowMenuDestination::kCobalt;
     case overflow_menu::Destination::LevelUp:
       return IOSOverflowMenuDestination::kLevelUp;
-    case overflow_menu::Destination::DefaultBrowser:
-      return IOSOverflowMenuDestination::kDefaultBrowser;
   }
 }
 
@@ -98,8 +96,6 @@ IOSOverflowMenuAction HistogramActionFromActionType(
       return IOSOverflowMenuAction::kIdentity;
     case overflow_menu::ActionType::CustomizeHomePage:
       return IOSOverflowMenuAction::kCustomizeHomePage;
-    case overflow_menu::ActionType::DefaultBrowser:
-      return IOSOverflowMenuAction::kDefaultBrowser;
   }
 }
 

@@ -13,7 +13,6 @@
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/ui_test_utils.h"
-#include "components/tabs/public/tab_interface.h"
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/render_process_host.h"
 #include "content/public/browser/web_contents.h"
@@ -69,7 +68,7 @@ IN_PROC_BROWSER_TEST_F(
   // Terminate the first tab (at index 0).
   const int target_tab_index = 0;
   content::WebContents* web_contents_to_kill =
-      browser()->GetTabStripModel()->GetWebContentsAt(target_tab_index);
+      browser()->tab_strip_model()->GetWebContentsAt(target_tab_index);
   ASSERT_TRUE(web_contents_to_kill);
 
   // Open a new tab to make the first one hidden.
@@ -91,7 +90,7 @@ IN_PROC_BROWSER_TEST_F(
   // index and check its state.
   EXPECT_TRUE(base::test::RunUntil([&]() {
     content::WebContents* current_web_contents =
-        browser()->GetTabStripModel()->GetWebContentsAt(target_tab_index);
+        browser()->tab_strip_model()->GetWebContentsAt(target_tab_index);
     // It's possible for the WebContents to be briefly null during the swap.
     return current_web_contents && current_web_contents->WasDiscarded();
   }));
@@ -104,9 +103,8 @@ IN_PROC_BROWSER_TEST_F(
 // in SadTabHelper::PrimaryMainFrameRenderProcessGone assumed that
 // TabLifecycleUnitExternal::FromWebContents always returned non-null, but
 // no-state prefetch WebContents are never added to a TabStripModel.
-// TODO(crbug.com/541361270): Re-enable this test
 IN_PROC_BROWSER_TEST_F(SadTabHelperBrowserTest,
-                       DISABLED_NoStatePrefetchEvictedForMemory_DoesNotCrash) {
+                       NoStatePrefetchEvictedForMemory_DoesNotCrash) {
   content::ScopedAllowRendererCrashes scoped_allow_renderer_crashes;
 
   // Navigate the main tab to a real page so we have an active browser context.
@@ -147,9 +145,9 @@ IN_PROC_BROWSER_TEST_F(SadTabHelperBrowserTest,
   content::WebContents* prefetch_web_contents =
       prefetch_handle->contents()->no_state_prefetch_contents();
 
-  // Verify this WebContents is not a tab (so it has no SadTabHelper, which
-  // is owned by TabFeatures) and is hidden.
-  ASSERT_FALSE(tabs::TabInterface::MaybeGetFromContents(prefetch_web_contents));
+  // Verify this WebContents has a SadTabHelper but is hidden and has no
+  // TabLifecycleUnitExternal (not in a TabStripModel).
+  ASSERT_TRUE(SadTabHelper::FromWebContents(prefetch_web_contents));
   ASSERT_EQ(prefetch_web_contents->GetVisibility(),
             content::Visibility::HIDDEN);
 

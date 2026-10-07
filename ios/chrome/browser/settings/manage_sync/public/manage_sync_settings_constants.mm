@@ -7,9 +7,6 @@
 NSString* const kDataFromChromeSyncAccessibilityIdentifier =
     @"DataFromChromeSyncAccessibilityIdentifier";
 
-NSString* const kConnectedAppsAccessibilityIdentifier =
-    @"ConnectedAppsAccessibilityIdentifier";
-
 NSString* const kManageSyncTableViewAccessibilityIdentifier =
     @"ManageSyncTableViewAccessibilityIdentifier";
 

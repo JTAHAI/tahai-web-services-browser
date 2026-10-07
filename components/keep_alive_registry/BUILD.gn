@@ -15,10 +15,7 @@ source_set("keep_alive_registry") {
     "scoped_keep_alive.h",
   ]
 
-  deps = [
-    "//base",
-    "//components/crash/core/common:crash_key",
-  ]
+  deps = [ "//base" ]
 }
 
 source_set("unit_tests") {
@@ -27,8 +24,6 @@ source_set("unit_tests") {
   deps = [
     ":keep_alive_registry",
     "//base",
-    "//components/crash/core/common:crash_key",
-    "//testing/gmock",
     "//testing/gtest",
   ]
 }

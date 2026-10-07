@@ -4,7 +4,6 @@
 
 #import "ios/chrome/browser/signin/model/avatar/resized_avatar_cache.h"
 
-#import "base/metrics/histogram_functions.h"
 #import "ios/chrome/browser/shared/model/application_context/application_context.h"
 #import "ios/chrome/browser/signin/model/signin_util.h"
 #import "ios/chrome/browser/signin/model/system_identity.h"
@@ -12,9 +11,6 @@
 #import "ios/chrome/browser/signin/model/system_identity_manager_observer_bridge.h"
 #import "ios/chrome/common/ui/util/image_util.h"
 #import "ios/public/provider/chrome/browser/signin/signin_resources_api.h"
-
-const char kGetAvatarResultHistogram[] =
-    "Signin.IOSResizedAvatarCache.GetAvatarResult";
 
 @interface ResizedAvatarCache () <SystemIdentityManagerObserving>
 
@@ -69,19 +65,7 @@ const char kGetAvatarResultHistogram[] =
       GetApplicationContext()->GetSystemIdentityManager();
   avatar = system_identity_manager->GetCachedAvatarForIdentity(identity);
   if (!avatar) {
-    base::UmaHistogramEnumeration(
-        kGetAvatarResultHistogram,
-        IOSResizedAvatarCacheGetAvatarResult::kMissing);
     // No cached image, trigger a fetch, which will notify all observers.
-    system_identity_manager->FetchAvatarForIdentity(identity);
-    return self.defaultResizedAvatar;
-  }
-  if (avatar.size.width < 1 || avatar.size.height < 1) {
-    base::UmaHistogramEnumeration(
-        kGetAvatarResultHistogram,
-        IOSResizedAvatarCacheGetAvatarResult::kInvalidDimensions);
-    // Image is invalid, trigger a fetch, which will notify all observers once
-    // available.
     system_identity_manager->FetchAvatarForIdentity(identity);
     return self.defaultResizedAvatar;
   }
@@ -90,15 +74,6 @@ const char kGetAvatarResultHistogram[] =
   if (!CGSizeEqualToSize(avatar.size, _expectedSize)) {
     avatar = ResizeImage(avatar, _expectedSize, ProjectionMode::kAspectFit);
   }
-  if (!avatar) {
-    base::UmaHistogramEnumeration(
-        kGetAvatarResultHistogram,
-        IOSResizedAvatarCacheGetAvatarResult::kResizeFailed);
-    return self.defaultResizedAvatar;
-  }
-
-  base::UmaHistogramEnumeration(kGetAvatarResultHistogram,
-                                IOSResizedAvatarCacheGetAvatarResult::kSuccess);
   [_avatarForGaiaID setObject:avatar forKey:gaiaIDString];
   [_knownGaiaIDs addObject:gaiaIDString];
   return avatar;

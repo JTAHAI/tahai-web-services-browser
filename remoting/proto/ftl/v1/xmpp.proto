@@ -153,12 +153,6 @@ enum AuthenticationMethod {
   AUTHENTICATION_METHOD_CLOUD_SESSION_AUTHZ_SPAKE2_CURVE25519 = 4;
 }
 
-// Information about paired clients.
-message PairingInfo {
-  // Client ID for pairing.
-  optional string client_id = 1;
-}
-
 // The authentication payload used in session-initiate, session-accept, and
 // session-info messages.
 message Authentication {
@@ -179,12 +173,6 @@ message Authentication {
 
   // SessionAuthz session token.
   optional bytes session_authz_session_token = 6;
-
-  // Raw certificate bytes.
-  optional bytes certificate = 7;
-
-  // Pairing information.
-  optional PairingInfo pairing_info = 8;
 }
 
 // Jingle action "session-initiate": Sent by client to start a session.

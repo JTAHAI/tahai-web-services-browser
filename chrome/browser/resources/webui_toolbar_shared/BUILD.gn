@@ -12,7 +12,6 @@ build_webui("build") {
   grd_resource_path_prefix = "shared"
 
   ts_files = [
-    "animation_tracker.ts",
     "icon_from_table.ts",
     "icon_from_table.html.ts",
     "icon_table.ts",
@@ -81,7 +80,6 @@ build_webui("build") {
   ]
 
   css_files = [
-    "help_bubble_anchor.css",
     "icon_from_table.css",
     "permission_chip.css",
     "permission_dashboard.css",

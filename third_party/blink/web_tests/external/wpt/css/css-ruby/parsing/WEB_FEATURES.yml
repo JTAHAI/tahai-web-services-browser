@@ -1,3 +1,7 @@
-rules:
-- ruby-align-*: [ruby-align]
-- ruby-position-*: [ruby-position]
+features:
+- name: ruby-align
+  files:
+  - ruby-align-*
+- name: ruby-position
+  files:
+  - ruby-position-*

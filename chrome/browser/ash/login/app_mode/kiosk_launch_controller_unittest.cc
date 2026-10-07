@@ -549,25 +549,25 @@ TEST_F(KioskLaunchControllerTest, AppWindowCreatedShouldInvokeOnDoneCallback) {
   {
     auto* launcher_ptr = &launcher();
     WillResetController();
-    launcher_ptr->observers().NotifyAppWindowCreated("app-id");
+    launcher_ptr->observers().NotifyAppWindowCreated("app-name");
   }
 
   ASSERT_TRUE(app_launched_future().IsReady());
   ASSERT_TRUE(launch_done_future().IsReady());
 
-  const auto [app_id, profile, launched_app_id] = app_launched_future().Take();
+  const auto [app_id, profile, app_name] = app_launched_future().Take();
   auto error_maybe = launch_done_future().Take();
   EXPECT_EQ(app_id, kiosk_app_id());
   EXPECT_EQ(error_maybe, KioskAppLaunchError::Error::kNone);
   EXPECT_NE(profile, nullptr);
-  EXPECT_EQ(launched_app_id, "app-id");
+  EXPECT_EQ(app_name, "app-name");
 }
 
 TEST_F(KioskLaunchControllerTest, SplashScreenTimerShouldInvokeOnDoneCallback) {
   RunUntilAppPrepared();
   ASSERT_FALSE(app_launched_future().IsReady());
   launcher().observers().NotifyAppLaunched();
-  launcher().observers().NotifyAppWindowCreated("app-id");
+  launcher().observers().NotifyAppWindowCreated("app-name");
 
   // App launched but launch is not done yet. The splash screen remains up until
   // the timer is fired.
@@ -579,12 +579,12 @@ TEST_F(KioskLaunchControllerTest, SplashScreenTimerShouldInvokeOnDoneCallback) {
 
   ASSERT_TRUE(launch_done_future().IsReady());
 
-  const auto [app_id, profile, launched_app_id] = app_launched_future().Take();
+  const auto [app_id, profile, app_name] = app_launched_future().Take();
   auto error_maybe = launch_done_future().Take();
   EXPECT_EQ(app_id, kiosk_app_id());
   EXPECT_EQ(error_maybe, KioskAppLaunchError::Error::kNone);
   EXPECT_NE(profile, nullptr);
-  EXPECT_EQ(launched_app_id, "app-id");
+  EXPECT_EQ(app_name, "app-name");
 }
 
 TEST_F(KioskLaunchControllerTest, ShouldInvokeOnDoneCallbackOnError) {

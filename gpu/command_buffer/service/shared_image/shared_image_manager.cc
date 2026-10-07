@@ -153,13 +153,7 @@ SharedImageManager::Register(std::unique_ptr<SharedImageBacking> backing,
     return nullptr;
   }
 
-  // Log UMA only for standalone backings created outside SI Factory.
-  // CompoundImageBacking logs UMA for its own constituent elements when
-  // created.
-  if (backing->GetType() != SharedImageBackingType::kCompound) {
-    UMA_HISTOGRAM_ENUMERATION("GPU.SharedImage.BackingType",
-                              backing->GetType());
-  }
+  UMA_HISTOGRAM_ENUMERATION("GPU.SharedImage.BackingType", backing->GetType());
   UMA_HISTOGRAM_ENUMERATION("GPU.SharedImage.SharedImageFormat",
                             viz::GetSharedImageFormatUMA(backing->format()));
 

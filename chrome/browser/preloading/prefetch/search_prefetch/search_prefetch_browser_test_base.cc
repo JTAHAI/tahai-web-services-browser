@@ -4,8 +4,7 @@
 
 #include "chrome/browser/preloading/prefetch/search_prefetch/search_prefetch_browser_test_base.h"
 
-#include <ranges>
-
+#include "base/containers/adapters.h"
 #include "base/run_loop.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
@@ -20,8 +19,7 @@
 #include "chrome/browser/preloading/search_preload/search_preload_features.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/search_engines/template_url_service_factory.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
-#include "chrome/browser/ui/tabs/tab_strip_model.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/test/base/search_test_utils.h"
 #include "components/search_engines/template_url_service.h"
 #include "content/public/browser/browser_task_traits.h"
@@ -185,7 +183,7 @@ GURL SearchPrefetchBaseBrowserTest::GetRealPrefetchUrlForTesting(
 }
 
 content::WebContents* SearchPrefetchBaseBrowserTest::GetWebContents() const {
-  return browser()->GetTabStripModel()->GetActiveWebContents();
+  return browser()->tab_strip_model()->GetActiveWebContents();
 }
 
 std::string SearchPrefetchBaseBrowserTest::GetDocumentInnerHTML() const {
@@ -385,8 +383,7 @@ SearchPrefetchBaseBrowserTest::HandleSearchSuggestRequest(
         }
     )";
 
-  for (const auto& suggestion_rule :
-       std::views::reverse(search_suggestion_rules_)) {
+  for (const auto& suggestion_rule : base::Reversed(search_suggestion_rules_)) {
     // Origin query matches a predefined rule.
     if (request.GetURL().spec().find(suggestion_rule.origin_query) ==
         std::string::npos)

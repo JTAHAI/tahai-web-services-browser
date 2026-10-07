@@ -289,8 +289,7 @@ class SafeBrowsingServiceImpl : public SafeBrowsingServiceInterface,
   friend class SafeBrowsingUIManagerTest;
   friend class TestSafeBrowsingService;
   friend class TestSafeBrowsingServiceFactory;
-  friend class SBSafeBrowsingServiceTestBase;
-  friend class SBSafeBrowsingServiceTest;
+  friend class V4SafeBrowsingServiceTest;
   friend class SendNotificationsAcceptedTest;
 
   FRIEND_TEST_ALL_PREFIXES(
@@ -321,9 +320,9 @@ class SafeBrowsingServiceImpl : public SafeBrowsingServiceInterface,
   FRIEND_TEST_ALL_PREFIXES(
       SafeBrowsingServiceTest,
       BundlePrefChanged_MaybeShowEnhancedBundleSettingChangeNotificationCalledForEachProfile);
-  FRIEND_TEST_ALL_PREFIXES(SBSafeBrowsingServiceTest,
+  FRIEND_TEST_ALL_PREFIXES(V4SafeBrowsingServiceTest,
                            NotificationsAcceptedReportSentWithCorrectOrigins);
-  FRIEND_TEST_ALL_PREFIXES(SBSafeBrowsingServiceTest,
+  FRIEND_TEST_ALL_PREFIXES(V4SafeBrowsingServiceTest,
                            NotificationsAcceptedReportSentWithReferrerChain);
 
   void SetDatabaseManagerForTest(SafeBrowsingDatabaseManager* database_manager);

@@ -6,9 +6,11 @@
 
 #include <utility>
 
-#include "base/check_deref.h"
 #include "base/functional/bind.h"
 #include "base/logging.h"
+#include "chrome/browser/ash/app_list/arc/arc_app_utils.h"
+#include "chrome/browser/ash/arc/arc_support_host.h"
+#include "chrome/browser/signin/identity_manager_factory.h"
 #include "components/signin/public/identity_manager/access_token_fetcher.h"
 #include "content/public/common/url_constants.h"
 #include "services/network/public/cpp/shared_url_loader_factory.h"
@@ -25,10 +27,10 @@ constexpr base::TimeDelta kRefreshTokenTimeout = base::Seconds(10);
 
 }  // namespace
 
-ArcAuthContext::ArcAuthContext(signin::IdentityManager* identity_manager,
+ArcAuthContext::ArcAuthContext(Profile* profile,
                                const CoreAccountId& account_id)
-    : identity_manager_(CHECK_DEREF(identity_manager)),
-      account_id_(account_id) {
+    : account_id_(account_id),
+      identity_manager_(IdentityManagerFactory::GetForProfile(profile)) {
   DCHECK(identity_manager_->HasAccountWithRefreshToken(account_id));
 }
 

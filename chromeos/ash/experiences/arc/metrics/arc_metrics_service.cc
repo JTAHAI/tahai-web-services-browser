@@ -29,7 +29,6 @@
 #include "chromeos/ash/experiences/arc/arc_prefs.h"
 #include "chromeos/ash/experiences/arc/arc_util.h"
 #include "chromeos/ash/experiences/arc/metrics/arc_metrics_anr.h"
-#include "chromeos/ash/experiences/arc/metrics/arc_metrics_constants.h"
 #include "chromeos/ash/experiences/arc/metrics/arc_wm_metrics.h"
 #include "chromeos/ash/experiences/arc/metrics/psi_memory_parser.h"
 #include "chromeos/ash/experiences/arc/metrics/stability_metrics_manager.h"
@@ -245,7 +244,10 @@ ArcMetricsService::ArcMetricsService(content::BrowserContext* context,
   StabilityMetricsManager::Get()->SetArcNativeBridgeType(
       NativeBridgeType::UNKNOWN);
 
-  psi_parser_ = std::make_unique<arc::PSIMemoryParser>(kVmMemoryPsiPeriod);
+  if (base::FeatureList::IsEnabled(kVmMemoryPSIReports)) {
+    psi_parser_ =
+        std::make_unique<arc::PSIMemoryParser>(kVmMemoryPSIReportsPeriod.Get());
+  }
 
   arc_wm_metrics_ = std::make_unique<ArcWmMetrics>();
 }

@@ -25,12 +25,6 @@ class MockRemoteModelExecutor : public RemoteModelExecutor {
                const ModelExecutionOptions& options,
                OptimizationGuideModelExecutionResultCallback callback),
               (override));
-  MOCK_METHOD(std::unique_ptr<RemoteModelExecutionSession>,
-              StartStreamingSession,
-              (ModelBasedCapabilityKey feature,
-               const StreamingModelExecutionOptions& options,
-               OptimizationGuideModelExecutionStreamingCallback callback),
-              (override));
 };
 
 }  // namespace optimization_guide

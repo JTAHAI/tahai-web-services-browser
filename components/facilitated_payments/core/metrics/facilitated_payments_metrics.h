@@ -134,17 +134,14 @@ enum class EwalletFlowExitedReason {
 };
 // LINT.ThenChange(/tools/metrics/histograms/metadata/facilitated_payments/enums.xml:FacilitatedPayments.EwalletFlowExitedReason)
 
-// Reasons for why the eWallet new account linking onboarding flow was
+// Reasons for why the eWallet New Account Linking (NAL) onboarding flow was
 // exited early. These values are persisted to logs. Entries should not be
 // renumbered and numeric values should never be reused.
 // LINT.IfChange(EwalletNewAccountLinkingFlowExitedReason)
 enum class EwalletNewAccountLinkingFlowExitedReason {
   // The user has no supported eWallet creation options available.
   kNoSupportedCreationOption = 0,
-  // Multiple supported eWallet creation options were found (currently
-  // unsupported).
-  kMultipleSupportedCreationOptions = 1,
-  kMaxValue = kMultipleSupportedCreationOptions
+  kMaxValue = kNoSupportedCreationOption
 };
 // LINT.ThenChange(/tools/metrics/histograms/metadata/facilitated_payments/enums.xml:FacilitatedPayments.EwalletNewAccountLinkingFlowExitedReason)
 
@@ -205,9 +202,7 @@ enum class PixFlowExitedReason {
   // Pix code was copied in a same-origin iframe but the merchant is not
   // allowlisted.
   kSameOriginMerchantNotAllowlisted = 22,
-  // Pix code was copied in an error document frame.
-  kFrameIsErrorDocument = 23,
-  kMaxValue = kFrameIsErrorDocument
+  kMaxValue = kSameOriginMerchantNotAllowlisted
 };
 // LINT.ThenChange(/tools/metrics/histograms/metadata/facilitated_payments/enums.xml:FacilitatedPayments.PixFlowExitedReason)
 
@@ -314,11 +309,11 @@ void LogPaymentLinkDetected(ukm::SourceId ukm_source_id,
                             PaymentLinkValidator::Scheme scheme);
 
 // Log when a valid payment link is detected and the user is eligible for the
-// eWallet new account linking onboarding flow (meaning they have no
+// eWallet New Account Linking (NAL) onboarding flow (meaning they have no
 // linked eWallet accounts but have unlinked creation options available).
 void LogPaymentLinkDetectedAndEligibleForAccountLinking();
 
-// Log when the eWallet new account linking onboarding flow was exited early.
+// Log when the eWallet NAL onboarding flow was exited early.
 void LogEwalletNewAccountLinkingFlowExitedReason(
     EwalletNewAccountLinkingFlowExitedReason reason,
     PaymentLinkValidator::Scheme scheme);

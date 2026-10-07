@@ -29,8 +29,7 @@ namespace gpu {
 
 std::unique_ptr<VulkanImplementation> CreateVulkanImplementation(
     bool use_swiftshader,
-    bool allow_protected_memory,
-    bool force_native) {
+    bool allow_protected_memory) {
 #if BUILDFLAG(IS_OZONE)
   return ui::OzonePlatform::GetInstance()
       ->GetSurfaceFactoryOzone()
@@ -50,7 +49,7 @@ std::unique_ptr<VulkanImplementation> CreateVulkanImplementation(
       << "Protected memory is not supported on this platform.";
 
 #if BUILDFLAG(IS_ANDROID)
-  return std::make_unique<VulkanImplementationAndroid>(force_native);
+  return std::make_unique<VulkanImplementationAndroid>();
 #elif BUILDFLAG(IS_WIN)
   return std::make_unique<VulkanImplementationWin32>(use_swiftshader);
 #elif BUILDFLAG(IS_APPLE)

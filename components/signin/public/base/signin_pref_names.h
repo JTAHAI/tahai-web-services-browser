@@ -22,17 +22,9 @@ extern const char kAccountPreviewPreference[];
 COMPONENT_EXPORT(SIGNIN_SWITCHES)
 extern const char kAccountPreviewDataLastUpdatePref[];
 COMPONENT_EXPORT(SIGNIN_SWITCHES)
-extern const char kAccountPreviewDataLast429TimePref[];
-COMPONENT_EXPORT(SIGNIN_SWITCHES)
 extern const char kAccountPreviewNonPeriodicFetchCountPref[];
 COMPONENT_EXPORT(SIGNIN_SWITCHES)
 extern const char kAccountPreviewDataLastFetchAccounts[];
-COMPONENT_EXPORT(SIGNIN_SWITCHES)
-extern const char kAccountPreviewSelectionHeuristicScoresLastRecordedPref[];
-#if BUILDFLAG(IS_ANDROID)
-COMPONENT_EXPORT(SIGNIN_SWITCHES)
-extern const char kAccountPreviewExternalAppAccount[];
-#endif
 COMPONENT_EXPORT(SIGNIN_SWITCHES)
 extern const char kGaiaCookieHash[];
 COMPONENT_EXPORT(SIGNIN_SWITCHES)
@@ -87,6 +79,8 @@ COMPONENT_EXPORT(SIGNIN_SWITCHES)
 extern const char kGaiaCookieLastListAccountsBinaryData[];
 COMPONENT_EXPORT(SIGNIN_SWITCHES)
 extern const char kSigninAllowedOnNextStartup[];
+COMPONENT_EXPORT(SIGNIN_SWITCHES)
+extern const char kSigninInterceptionIDPCookiesUrl[];
 COMPONENT_EXPORT(SIGNIN_SWITCHES)
 extern const char kAddressSignInPromoShownCountPerProfileForLimitsExperiment[];
 COMPONENT_EXPORT(SIGNIN_SWITCHES)

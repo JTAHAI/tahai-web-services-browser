@@ -1,3 +1,8 @@
-rules:
-- use-base-url.html: [base]
-- "*": [dedicated-workers]
+features:
+- name: base
+  files:
+  - use-base-url.html
+- name: dedicated-workers
+  files:
+  - "*"
+  - "!use-base-url.html"

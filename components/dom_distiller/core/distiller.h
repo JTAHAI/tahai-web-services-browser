@@ -18,11 +18,9 @@
 #include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
 #include "components/dom_distiller/core/article_distillation_update.h"
-#include "components/dom_distiller/core/distiller_options.h"
 #include "components/dom_distiller/core/distiller_page.h"
 #include "components/dom_distiller/core/distiller_url_fetcher.h"
 #include "components/dom_distiller/core/proto/distilled_article.pb.h"
-#include "components/dom_distiller/core/readability_options.h"
 #include "third_party/abseil-cpp/absl/container/flat_hash_map.h"
 #include "third_party/abseil-cpp/absl/container/flat_hash_set.h"
 #include "url/gurl.h"
@@ -64,20 +62,21 @@ class DistillerFactoryImpl : public DistillerFactory {
  public:
   DistillerFactoryImpl(
       std::unique_ptr<DistillerURLFetcherFactory> distiller_url_fetcher_factory,
-      const DistillerOptions& options);
+      const dom_distiller::proto::DomDistillerOptions& dom_distiller_options);
   ~DistillerFactoryImpl() override;
   std::unique_ptr<Distiller> CreateDistiller() override;
 
  private:
   std::unique_ptr<DistillerURLFetcherFactory> distiller_url_fetcher_factory_;
-  DistillerOptions options_;
+  dom_distiller::proto::DomDistillerOptions dom_distiller_options_;
 };
 
 // Distills a article from a page and associated pages.
 class DistillerImpl : public Distiller {
  public:
-  DistillerImpl(const DistillerURLFetcherFactory& distiller_url_fetcher_factory,
-                const DistillerOptions& options);
+  DistillerImpl(
+      const DistillerURLFetcherFactory& distiller_url_fetcher_factory,
+      const dom_distiller::proto::DomDistillerOptions& dom_distiller_options);
   ~DistillerImpl() override;
 
   void DistillPage(const GURL& url,
@@ -162,7 +161,7 @@ class DistillerImpl : public Distiller {
       distiller_url_fetcher_factory_;
   std::unique_ptr<DistillerPage> distiller_page_;
 
-  DistillerOptions options_;
+  dom_distiller::proto::DomDistillerOptions dom_distiller_options_;
   DistillationFinishedCallback finished_cb_;
   DistillationUpdateCallback update_cb_;
 

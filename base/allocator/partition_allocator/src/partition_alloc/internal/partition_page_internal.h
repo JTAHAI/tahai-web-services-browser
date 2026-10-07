@@ -10,7 +10,6 @@
 
 #include "partition_alloc/address_pool_manager.h"
 #include "partition_alloc/address_pool_manager_types.h"
-#include "partition_alloc/buildflags.h"
 #include "partition_alloc/internal/partition_superpage_extent_entry_internal.h"
 #include "partition_alloc/partition_address_space.h"
 #include "partition_alloc/partition_alloc-inl.h"

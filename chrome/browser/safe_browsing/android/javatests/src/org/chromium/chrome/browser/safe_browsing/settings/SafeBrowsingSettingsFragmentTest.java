@@ -31,7 +31,6 @@ import org.chromium.base.test.util.DoNotBatch;
 import org.chromium.base.test.util.Feature;
 import org.chromium.base.test.util.Features.DisableFeatures;
 import org.chromium.base.test.util.Features.EnableFeatures;
-import org.chromium.base.test.util.Restriction;
 import org.chromium.build.BuildConfig;
 import org.chromium.chrome.browser.feedback.HelpAndFeedbackLauncher;
 import org.chromium.chrome.browser.feedback.HelpAndFeedbackLauncherFactory;
@@ -40,14 +39,13 @@ import org.chromium.chrome.browser.init.ChromeBrowserInitializer;
 import org.chromium.chrome.browser.profiles.ProfileManager;
 import org.chromium.chrome.browser.safe_browsing.SafeBrowsingBridge;
 import org.chromium.chrome.browser.safe_browsing.SafeBrowsingState;
+import org.chromium.chrome.browser.settings.SettingsActivityTestRule;
 import org.chromium.chrome.browser.settings.SettingsNavigationFactory;
-import org.chromium.chrome.browser.settings.SettingsTestRule;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.components.browser_ui.settings.SettingsNavigation;
 import org.chromium.components.browser_ui.widget.RadioButtonWithDescription;
 import org.chromium.components.browser_ui.widget.RadioButtonWithDescriptionAndAuxButton;
 import org.chromium.components.policy.test.annotations.Policies;
-import org.chromium.ui.base.DeviceFormFactor;
 
 /** Tests for {@link SafeBrowsingSettingsFragment}. */
 @RunWith(ChromeJUnit4ClassRunner.class)
@@ -63,8 +61,8 @@ public class SafeBrowsingSettingsFragmentTest {
     @Rule public final MockitoRule mMockitoRule = MockitoJUnit.rule();
 
     @Rule
-    public SettingsTestRule<SafeBrowsingSettingsFragment> mTestRule =
-            new SettingsTestRule<>(SafeBrowsingSettingsFragment.class);
+    public SettingsActivityTestRule<SafeBrowsingSettingsFragment> mTestRule =
+            new SettingsActivityTestRule<>(SafeBrowsingSettingsFragment.class);
 
     @Mock private SettingsNavigation mSettingsNavigation;
 
@@ -315,7 +313,7 @@ public class SafeBrowsingSettingsFragmentTest {
                     getEnhancedProtectionButton().getAuxButtonForTests().performClick();
                     Mockito.verify(mSettingsNavigation)
                             .startSettings(
-                                    mSafeBrowsingSettingsFragment.getActivity(),
+                                    mSafeBrowsingSettingsFragment.getContext(),
                                     EnhancedProtectionSettingsFragment.class,
                                     null,
                                     true);
@@ -333,7 +331,7 @@ public class SafeBrowsingSettingsFragmentTest {
                     getStandardProtectionButton().getAuxButtonForTests().performClick();
                     Mockito.verify(mSettingsNavigation)
                             .startSettings(
-                                    mSafeBrowsingSettingsFragment.getActivity(),
+                                    mSafeBrowsingSettingsFragment.getContext(),
                                     StandardProtectionSettingsFragment.class,
                                     null,
                                     true);
@@ -428,7 +426,6 @@ public class SafeBrowsingSettingsFragmentTest {
     @Test
     @SmallTest
     @Feature({"SafeBrowsing"})
-    @Restriction(DeviceFormFactor.PHONE) // Tablets and desktops don't have a help button or menu.
     public void testHelpButtonClicked() {
         startSettings();
         HelpAndFeedbackLauncherFactory.setInstanceForTesting(mHelpAndFeedbackLauncher);

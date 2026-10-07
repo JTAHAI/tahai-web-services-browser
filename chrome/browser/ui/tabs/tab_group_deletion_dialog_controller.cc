@@ -347,20 +347,11 @@ DeletionDialogController::DialogState::DialogState(
 
 DeletionDialogController::DialogState::~DialogState() = default;
 
-DEFINE_USER_DATA(DeletionDialogController);
-
-// static
-DeletionDialogController* DeletionDialogController::From(
-    BrowserWindowInterface* browser) {
-  return Get(browser->GetUnownedUserDataHost());
-}
-
 DeletionDialogController::DeletionDialogController(
     BrowserWindowInterface* browser,
     Profile* profile,
     TabStripModel* tab_strip_model)
-    : scoped_unowned_user_data_(browser->GetUnownedUserDataHost(), *this),
-      profile_(CHECK_DEREF(profile)),
+    : profile_(CHECK_DEREF(profile)),
       tab_strip_model_(CHECK_DEREF(tab_strip_model)) {
   show_dialog_model_fn_ =
       base::BindRepeating(&DeletionDialogController::CreateDialogFromBrowser,
@@ -373,8 +364,7 @@ DeletionDialogController::DeletionDialogController(
     Profile* profile,
     TabStripModel* tab_strip_model,
     ShowDialogModelCallback show_dialog_model_fn)
-    : scoped_unowned_user_data_(browser->GetUnownedUserDataHost(), *this),
-      profile_(CHECK_DEREF(profile)),
+    : profile_(CHECK_DEREF(profile)),
       show_dialog_model_fn_(show_dialog_model_fn),
       tab_strip_model_(CHECK_DEREF(tab_strip_model)) {}
 

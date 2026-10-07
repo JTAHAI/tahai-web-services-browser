@@ -16,13 +16,14 @@
 #include "chrome/browser/optimization_guide/browser_test_util.h"
 #include "chrome/browser/optimization_guide/optimization_guide_keyed_service_factory.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/ui_test_utils.h"
 #include "components/optimization_guide/core/model_execution/remote_model_executor.h"
 #include "components/optimization_guide/core/optimization_guide_features.h"
-#include "components/optimization_guide/core/optimization_guide_permissions_util.h"
 #include "components/optimization_guide/core/optimization_guide_proto_util.h"
+#include "components/optimization_guide/core/optimization_guide_switches.h"
 #include "components/optimization_guide/proto/contextual_cueing_metadata.pb.h"
 #include "components/optimization_guide/proto/features/zero_state_suggestions.pb.h"
 #include "components/page_content_annotations/core/page_content_annotations_features.h"
@@ -95,8 +96,8 @@ class ZeroStateSuggestionsBrowserTest
 
   void DisableOptimizationPermissionCheck() {
     base::CommandLine::ForCurrentProcess()->AppendSwitch(
-        optimization_guide::
-            kDisableCheckingUserPermissionsForTestingSwitch);
+        optimization_guide::switches::
+            kDisableCheckingUserPermissionsForTesting);
   }
 
   GURL url() { return url_; }
@@ -733,8 +734,8 @@ class ZeroStateSuggestionsBFCacheConfusionBrowserTest
     browser()->GetProfile()->GetPrefs()->SetBoolean(
         glic::prefs::kGlicTabContextEnabled, true);
     base::CommandLine::ForCurrentProcess()->AppendSwitch(
-        optimization_guide::
-            kDisableCheckingUserPermissionsForTestingSwitch);
+        optimization_guide::switches::
+            kDisableCheckingUserPermissionsForTesting);
   }
 
   void SetUpHintsNoResult(const GURL& url) {

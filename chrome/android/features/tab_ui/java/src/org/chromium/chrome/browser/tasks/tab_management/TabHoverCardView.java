@@ -7,8 +7,6 @@ package org.chromium.chrome.browser.tasks.tab_management;
 import static org.chromium.build.NullUtil.assumeNonNull;
 
 import android.content.Context;
-import android.content.res.ColorStateList;
-import android.content.res.Resources;
 import android.graphics.drawable.BitmapDrawable;
 import android.text.format.Formatter;
 import android.util.AttributeSet;
@@ -17,28 +15,20 @@ import android.view.ViewGroup;
 import android.widget.FrameLayout;
 import android.widget.TextView;
 
-import androidx.annotation.ColorInt;
-import androidx.annotation.DrawableRes;
-import androidx.annotation.Px;
-import androidx.annotation.StringRes;
 import androidx.core.view.ViewCompat;
 
 import org.chromium.base.Callback;
-import org.chromium.base.MathUtils;
+import org.chromium.base.SysUtils;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.tab.Tab;
-import org.chromium.chrome.browser.tab.TabObserver;
 import org.chromium.chrome.browser.tab.TabUtils;
 import org.chromium.chrome.browser.tab_ui.TabContentManager;
 import org.chromium.chrome.browser.tab_ui.TabThumbnailView;
 import org.chromium.chrome.browser.tabmodel.TabModel;
 import org.chromium.chrome.browser.tabmodel.TabModelSelector;
-import org.chromium.components.browser_ui.styles.SemanticColorUtils;
-import org.chromium.components.browser_ui.widget.text.TextViewWithCompoundDrawables;
 import org.chromium.components.embedder_support.util.UrlUtilities;
-import org.chromium.components.tabs.TabAlert;
 
 import java.util.function.Supplier;
 
@@ -46,70 +36,16 @@ import java.util.function.Supplier;
 public class TabHoverCardView extends FrameLayout {
     // The max width of the tab hover card in terms of the enclosing window width percent.
     public static final float HOVER_CARD_MAX_WIDTH_PERCENT = 0.9f;
-    public static final int MAX_HOVER_CARD_DELAY_MS = 800;
-    public static final int MIN_HOVER_CARD_DELAY_MS = 300;
     static final int INVALID_TAB_ID = -1;
-
-    /**
-     * Delay is calculated as a logarithmic scale and bounded by a minimum width based on the width
-     * of a pinned tab (or collapsed rail) and a maximum of standard width.
-     *
-     * <pre>
-     *  delay (ms)
-     *           |
-     * max delay-|                                    *
-     *           |                          *
-     *           |                    *
-     *           |                *
-     *           |            *
-     *           |         *
-     *           |       *
-     *           |     *
-     *           |    *
-     * min delay-|****
-     *           |___________________________________________ width
-     *               |                                |
-     *           min width                        max width
-     * </pre>
-     *
-     * @param widthDp The width of the hovered item or rail in dp.
-     * @param minWidthDp The minimum width bound in dp.
-     * @param maxWidthDp The maximum width bound in dp.
-     * @return Calculated delay in milliseconds.
-     */
-    public static int getHoverCardDelay(float widthDp, float minWidthDp, float maxWidthDp) {
-        widthDp = MathUtils.clamp(widthDp, minWidthDp, maxWidthDp);
-        double logarithmicFraction =
-                Math.log(widthDp - minWidthDp + 1.f) / Math.log(maxWidthDp - minWidthDp + 1.f);
-        int scalingFactor = MAX_HOVER_CARD_DELAY_MS - MIN_HOVER_CARD_DELAY_MS;
-        return (int) (logarithmicFraction * scalingFactor) + MIN_HOVER_CARD_DELAY_MS;
-    }
-
-    /**
-     * Get the width of the hover card in px, bounded by {@link #HOVER_CARD_MAX_WIDTH_PERCENT} of
-     * the window width.
-     *
-     * @param context The context used to load resources.
-     * @return The bounded hover card width in px.
-     */
-    public static @Px int getHoverCardWidthPx(Context context) {
-        float maxWidth = context.getResources().getDimension(R.dimen.tab_hover_card_width);
-        float windowWidthPx = context.getResources().getDisplayMetrics().widthPixels;
-        return Math.round(Math.min(maxWidth, HOVER_CARD_MAX_WIDTH_PERCENT * windowWidthPx));
-    }
 
     private ViewGroup mContentView;
     private TextView mTitleView;
     private TextView mUrlView;
-    private TextViewWithCompoundDrawables mAlertStatusView;
     private TextView mMemoryUsageView;
     private TabThumbnailView mThumbnailView;
     private @Nullable TabModelSelector mTabModelSelector;
     private @Nullable Callback<TabModel> mCurrentTabModelObserver;
     private @Nullable TabContentManager mTabContentManager;
-    private @Nullable Tab mHoveredTab;
-    private @Nullable TabObserver mHoveredTabObserver;
-    private @Nullable Runnable mOnCardHeightChangedCallback;
 
     private int mLastHoveredTabId = INVALID_TAB_ID;
     private boolean mIsShowing;
@@ -124,27 +60,13 @@ public class TabHoverCardView extends FrameLayout {
         mContentView = findViewById(R.id.content_view);
         mTitleView = mContentView.findViewById(R.id.title);
         mUrlView = mContentView.findViewById(R.id.url);
-        mAlertStatusView = mContentView.findViewById(R.id.alert_status);
         mMemoryUsageView = mContentView.findViewById(R.id.memory_usage);
         mThumbnailView = mContentView.findViewById(R.id.thumbnail);
-    }
-
-    @Override
-    protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
-        int exactWidthSpec =
-                MeasureSpec.makeMeasureSpec(getHoverCardWidthPx(getContext()), MeasureSpec.EXACTLY);
-        super.onMeasure(exactWidthSpec, heightMeasureSpec);
+        maybeUpdateBackgroundOnLowEndDevice();
     }
 
     /**
-     * Set a callback invoked when the card height dynamically changes (e.g. memory usage update).
-     */
-    public void setOnCardHeightChangedCallback(@Nullable Runnable callback) {
-        mOnCardHeightChangedCallback = callback;
-    }
-
-    /**
-     * Bind tab data and show the tab hover card at explicit coordinates.
+     * Show the tab hover card at explicit coordinates.
      *
      * @param hoveredTab The {@link Tab} instance of the hovered tab.
      * @param x The x-coordinate in px.
@@ -152,43 +74,21 @@ public class TabHoverCardView extends FrameLayout {
      */
     public void show(@Nullable Tab hoveredTab, float x, float y) {
         if (hoveredTab == null) return;
-        bindTab(hoveredTab);
-        show(x, y);
-    }
-
-    /**
-     * Show the tab hover card at explicit coordinates.
-     *
-     * @param x The x-coordinate in px.
-     * @param y The y-coordinate in px.
-     */
-    public void show(float x, float y) {
-        mIsShowing = true;
-        setX(x);
-        setY(y);
-        setVisibility(VISIBLE);
-    }
-
-    /**
-     * Bind the hovered tab data to the view components (title, url, alert status, thumbnail
-     * placeholder).
-     *
-     * @param hoveredTab The {@link Tab} instance of the hovered tab.
-     */
-    public void bindTab(Tab hoveredTab) {
-        if (mHoveredTab != hoveredTab) {
-            unsubscribeFromTab();
-            mHoveredTab = hoveredTab;
-            mHoveredTab.addObserver(getTabObserver());
-        }
         mLastHoveredTabId = hoveredTab.getId();
+        mIsShowing = true;
 
         mTitleView.setText(hoveredTab.getTitle());
-        updateUrlView(hoveredTab);
-        updateAlertStatusView(hoveredTab.getAlertState());
+        String url = hoveredTab.getUrl().getHost();
+        // If the URL is a Chrome scheme, display the GURL spec instead of the host. For e.g., use
+        // chrome://newtab instead of just newtab on the hover card.
+        if (UrlUtilities.isInternalScheme(hoveredTab.getUrl())) {
+            url = hoveredTab.getUrl().getSpec();
+            // GURL#getSpec() returns a string with a trailing "/", remove this.
+            url = url.replaceFirst("/$", "");
+        }
+        mUrlView.setText(url);
 
         mMemoryUsageView.setVisibility(GONE);
-        updateAlertStatusBottomMargin();
         hoveredTab.getMemoryUsageBytes(
                 bytes -> {
                     if (hoveredTab.getId() != mLastHoveredTabId || !mIsShowing) return;
@@ -199,24 +99,24 @@ public class TabHoverCardView extends FrameLayout {
                                         .getString(
                                                 R.string.tab_hover_card_memory_usage, memoryText));
                         mMemoryUsageView.setVisibility(VISIBLE);
-                        updateAlertStatusBottomMargin();
-                        if (mOnCardHeightChangedCallback != null) {
-                            mOnCardHeightChangedCallback.run();
-                        }
                     }
                 });
 
-        int width = getHoverCardWidthPx(getContext());
+        setX(x);
+        setY(y);
+
+        float width = getLayoutParams().width;
+        assert width > 0 : "Hover card width must be an explicit value.";
         updateThumbnail(hoveredTab, width);
+
+        setVisibility(VISIBLE);
     }
 
     /** Hide the tab hover card. */
     public void hide() {
-        unsubscribeFromTab();
         mIsShowing = false;
         setVisibility(GONE);
         mThumbnailView.setImageDrawable(null);
-        mThumbnailView.setVisibility(GONE);
         mLastHoveredTabId = INVALID_TAB_ID;
     }
 
@@ -225,7 +125,7 @@ public class TabHoverCardView extends FrameLayout {
      * Callback<TabModel>} to tab model supplier to update the view when a tab model is selected.
      *
      * @param tabModelSelector The {@link TabModelSelector} to observe.
-     * @param tabContentManagerSupplier Supplier of the manager providing tab thumbnail snapshots.
+     * @param tabContentManagerSupplier Supplier of the {@link TabContentManager} instance.
      */
     public void initialize(
             TabModelSelector tabModelSelector,
@@ -233,7 +133,9 @@ public class TabHoverCardView extends FrameLayout {
         mTabModelSelector = tabModelSelector;
         mTabContentManager = tabContentManagerSupplier.get();
         mCurrentTabModelObserver =
-                (TabModel tabModel) -> updateHoverCardColors(tabModel.isIncognitoBranded());
+                (tabModel) -> {
+                    updateHoverCardColors(tabModel.isIncognitoBranded());
+                };
         mTabModelSelector
                 .getCurrentTabModelSupplier()
                 .addSyncObserverAndPostIfNonNull(mCurrentTabModelObserver);
@@ -251,26 +153,15 @@ public class TabHoverCardView extends FrameLayout {
                 TabUiThemeProvider.getTabHoverCardTextColorPrimary(getContext(), incognito));
         mUrlView.setTextColor(
                 TabUiThemeProvider.getTabHoverCardTextColorSecondary(getContext(), incognito));
-        mAlertStatusView.setTextColor(
-                TabUiThemeProvider.getTabHoverCardTextColorSecondary(getContext(), incognito));
         mMemoryUsageView.setTextColor(
                 TabUiThemeProvider.getTabHoverCardTextColorSecondary(getContext(), incognito));
 
         ViewCompat.setBackgroundTintList(
-                mContentView,
+                this,
                 TabUiThemeProvider.getTabHoverCardBackgroundTintList(getContext(), incognito));
     }
 
-    @Override
-    public @Nullable ColorStateList getBackgroundTintList() {
-        return mContentView != null
-                ? ViewCompat.getBackgroundTintList(mContentView)
-                : super.getBackgroundTintList();
-    }
-
     public void destroy() {
-        unsubscribeFromTab();
-        mOnCardHeightChangedCallback = null;
         if (mTabModelSelector != null) {
             assumeNonNull(mCurrentTabModelObserver);
             mTabModelSelector.getCurrentTabModelSupplier().removeObserver(mCurrentTabModelObserver);
@@ -278,88 +169,10 @@ public class TabHoverCardView extends FrameLayout {
         }
     }
 
-    private void unsubscribeFromTab() {
-        if (mHoveredTab != null) {
-            if (mHoveredTabObserver != null) {
-                mHoveredTab.removeObserver(mHoveredTabObserver);
-            }
-            mHoveredTab = null;
-        }
-    }
-
-    private TabObserver getTabObserver() {
-        if (mHoveredTabObserver == null) {
-            mHoveredTabObserver =
-                    new TabObserver() {
-                        @Override
-                        public void onAlertStateChanged(Tab tab, @TabAlert int alertState) {
-                            if (tab.getId() == mLastHoveredTabId && mIsShowing) {
-                                updateAlertStatusView(alertState);
-                            }
-                        }
-
-                        @Override
-                        public void onTitleUpdated(Tab tab) {
-                            if (tab.getId() == mLastHoveredTabId && mIsShowing) {
-                                mTitleView.setText(tab.getTitle());
-                            }
-                        }
-
-                        @Override
-                        public void onUrlUpdated(Tab tab) {
-                            if (tab.getId() == mLastHoveredTabId && mIsShowing) {
-                                updateUrlView(tab);
-                            }
-                        }
-                    };
-        }
-        return mHoveredTabObserver;
-    }
-
-    private void updateUrlView(Tab hoveredTab) {
-        String url = hoveredTab.getUrl().getHost();
-        // If the URL is a Chrome scheme, display the GURL spec instead of the host. For e.g., use
-        // chrome://newtab instead of just newtab on the hover card.
-        if (UrlUtilities.isInternalScheme(hoveredTab.getUrl())) {
-            url = UrlUtilities.stripTrailingSlash(hoveredTab.getUrl().getSpec());
-        }
-        mUrlView.setText(url);
-    }
-
-    private void updateAlertStatusView(@TabAlert int alertState) {
-        @DrawableRes int iconRes = TabUtils.getTabAlertDrawable(alertState);
-        @StringRes int stringRes = TabUtils.getTabAlertDescriptionRes(alertState);
-
-        boolean showAlert = iconRes != Resources.ID_NULL && stringRes != Resources.ID_NULL;
-        boolean visibilityChanged = (mAlertStatusView.getVisibility() == VISIBLE) != showAlert;
-        if (showAlert) {
-            @ColorInt int defaultTint = SemanticColorUtils.getDefaultIconColorAccent1(getContext());
-            @ColorInt
-            int tint = TabUtils.getTabAlertTintColor(getContext(), alertState, defaultTint);
-            mAlertStatusView.setCompoundDrawablesRelativeWithIntrinsicBounds(iconRes, 0, 0, 0);
-            mAlertStatusView.setDrawableTintColor(ColorStateList.valueOf(tint));
-            mAlertStatusView.setText(stringRes);
-        }
-
-        mAlertStatusView.setVisibility(showAlert ? VISIBLE : GONE);
-        updateAlertStatusBottomMargin();
-        if (visibilityChanged && mIsShowing && mOnCardHeightChangedCallback != null) {
-            mOnCardHeightChangedCallback.run();
-        }
-    }
-
-    private void updateAlertStatusBottomMargin() {
-        int bottomMarginDimen =
-                (mAlertStatusView.getVisibility() == VISIBLE
-                                && mMemoryUsageView.getVisibility() == VISIBLE)
-                        ? R.dimen.tab_hover_card_footer_row_spacing
-                        : R.dimen.tab_hover_card_text_content_margin;
-        int bottomMarginPx = getContext().getResources().getDimensionPixelSize(bottomMarginDimen);
-        MarginLayoutParams layoutParams = (MarginLayoutParams) mAlertStatusView.getLayoutParams();
-        if (layoutParams != null && layoutParams.bottomMargin != bottomMarginPx) {
-            layoutParams.bottomMargin = bottomMarginPx;
-            mAlertStatusView.setLayoutParams(layoutParams);
-        }
+    void maybeUpdateBackgroundOnLowEndDevice() {
+        if (!SysUtils.isLowEndDevice()) return;
+        mContentView.setBackgroundResource(R.drawable.popup_bg_8dp);
+        setBackground(null);
     }
 
     private void updateThumbnail(Tab hoveredTab, float hoverCardWidthPx) {
@@ -380,13 +193,6 @@ public class TabHoverCardView extends FrameLayout {
             mThumbnailView.setLayoutParams(thumbnailLayoutParams);
         }
 
-        // Display placeholder and make thumbnail visible synchronously so that initial hover card
-        // measurement accounts for the thumbnail's height prior to positioning calculations.
-        //  Always use the unselected tab version of the thumbnail placeholder.
-        mThumbnailView.updateThumbnailPlaceholder(
-                hoveredTab.isIncognito(), /* isSelected= */ false, /* colorId= */ null);
-        mThumbnailView.setVisibility(VISIBLE);
-
         var thumbnailSize = new Size(Math.round(hoverCardWidthPx), Math.round(thumbnailHeightPx));
         assumeNonNull(mTabContentManager);
         mTabContentManager.getTabThumbnailWithCallback(
@@ -400,7 +206,14 @@ public class TabHoverCardView extends FrameLayout {
                     if (thumbnail != null) {
                         TabUtils.setDrawableAndUpdateImageMatrix(
                                 mThumbnailView, new BitmapDrawable(thumbnail), thumbnailSize);
+                    } else {
+                        // Always use the unselected tab version of the thumbnail placeholder.
+                        mThumbnailView.updateThumbnailPlaceholder(
+                                hoveredTab.isIncognito(),
+                                /* isSelected= */ false,
+                                /* colorId= */ null);
                     }
+                    mThumbnailView.setVisibility(VISIBLE);
                 });
     }
 

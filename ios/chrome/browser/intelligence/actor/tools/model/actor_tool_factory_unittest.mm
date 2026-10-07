@@ -8,7 +8,6 @@
 #import "base/test/scoped_feature_list.h"
 #import "base/test/task_environment.h"
 #import "base/types/expected.h"
-#import "components/autofill/core/common/autofill_features.h"
 #import "components/optimization_guide/proto/features/actions_data.pb.h"
 #import "ios/chrome/browser/intelligence/actor/tools/model/actor_tool.h"
 #import "ios/chrome/browser/intelligence/actor/tools/model/actor_tool_request.h"
@@ -29,12 +28,7 @@ namespace actor {
 // Test fixture for ActorToolFactory.
 class ActorToolFactoryTest : public PlatformTest {
  protected:
-  ActorToolFactoryTest() {
-    feature_list_.InitWithFeatures(
-        /*enabled_features=*/{kActorTools,
-                              autofill::features::kGlicActorAutofill},
-        /*disabled_features=*/{});
-  }
+  ActorToolFactoryTest() { feature_list_.InitAndEnableFeature(kActorTools); }
 
   void SetUp() override {
     PlatformTest::SetUp();
@@ -72,9 +66,7 @@ TEST_F(ActorToolFactoryTest, GetSupportedCapabilities) {
                   optimization_guide::proto::Action::kSelect,
                   optimization_guide::proto::Action::kAttemptLogin,
                   optimization_guide::proto::Action::kAttemptFormFilling,
-                  optimization_guide::proto::Action::kCloseTab,
-                  optimization_guide::proto::Action::kCreateTab,
-                  optimization_guide::proto::Action::kActivateTab));
+                  optimization_guide::proto::Action::kCloseTab));
 }
 
 // Tests that GetSupportedCapabilities filters out tools that are disabled via
@@ -223,9 +215,6 @@ class ActorToolFactoryTabIdRequiredTest
       case optimization_guide::proto::Action::kCloseTab:
         action.mutable_close_tab()->set_tab_id(tab_id);
         break;
-      case optimization_guide::proto::Action::kActivateTab:
-        action.mutable_activate_tab()->set_tab_id(tab_id);
-        break;
       default:
         NOTREACHED();
     }
@@ -332,10 +321,6 @@ INSTANTIATE_TEST_SUITE_P(
         TabIdRequiredTestParam{"CloseTab",
                                [](optimization_guide::proto::Action& a) {
                                  a.mutable_close_tab();
-                               }},
-        TabIdRequiredTestParam{"ActivateTab",
-                               [](optimization_guide::proto::Action& a) {
-                                 a.mutable_activate_tab();
                                }}),
     [](const ::testing::TestParamInfo<TabIdRequiredTestParam>& info) {
       return info.param.name;

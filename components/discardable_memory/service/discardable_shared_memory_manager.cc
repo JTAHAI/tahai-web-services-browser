@@ -442,7 +442,7 @@ void DiscardableSharedMemoryManager::SetMaxBytes(size_t bytes) {
   base::AutoLock lock(lock_);
 
   max_bytes_ = bytes;
-  effective_max_bytes_ = memory_limit().Scale(max_bytes_);
+  effective_max_bytes_ = base::ScaleByMemoryLimit(max_bytes_, memory_limit());
   ReduceMemoryUsageUntilWithinMaxBytes();
 }
 
@@ -680,11 +680,12 @@ void DiscardableSharedMemoryManager::OnUpdateMemoryLimit() {
 }
 
 void DiscardableSharedMemoryManager::HandleUpdateMemoryLimitOnSequence(
-    base::MemoryLimit limit) {
+    int limit) {
   DCHECK(memory_pressure_task_runner_->RunsTasksInCurrentSequence());
 
   base::AutoLock lock(lock_);
-  effective_max_bytes_ = std::max(bytes_allocated_, limit.Scale(max_bytes_));
+  effective_max_bytes_ =
+      std::max(bytes_allocated_, base::ScaleByMemoryLimit(max_bytes_, limit));
 }
 
 void DiscardableSharedMemoryManager::OnReleaseMemory() {
@@ -695,12 +696,11 @@ void DiscardableSharedMemoryManager::OnReleaseMemory() {
           base::Unretained(this), memory_limit()));
 }
 
-void DiscardableSharedMemoryManager::HandleReleaseMemoryOnSequence(
-    base::MemoryLimit limit) {
+void DiscardableSharedMemoryManager::HandleReleaseMemoryOnSequence(int limit) {
   DCHECK(memory_pressure_task_runner_->RunsTasksInCurrentSequence());
 
   base::AutoLock lock(lock_);
-  effective_max_bytes_ = limit.Scale(max_bytes_);
+  effective_max_bytes_ = base::ScaleByMemoryLimit(max_bytes_, limit);
   ReduceMemoryUsageUntilWithinMaxBytes();
 }
 

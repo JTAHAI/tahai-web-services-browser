@@ -7,8 +7,6 @@
 #include <string>
 #include <vector>
 
-#include "base/test/scoped_feature_list.h"
-#include "components/payments/core/features.h"
 #include "components/payments/core/native_error_strings.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/blink/public/mojom/payments/payment_request.mojom.h"
@@ -36,112 +34,95 @@ mojom::SecurePaymentConfirmationRequestPtr CreateValidRequest() {
   return spc_request;
 }
 
-class SecurePaymentConfirmationValidationTest : public ::testing::Test {
- public:
-  SecurePaymentConfirmationValidationTest() {
-    feature_list_.InitAndDisableFeature(features::kSPCLocaleValidation);
-  }
-
- private:
-  base::test::ScopedFeatureList feature_list_;
-};
-
-TEST_F(SecurePaymentConfirmationValidationTest, IsValidRequest) {
+TEST(SecurePaymentConfirmationValidationTest, IsValidRequest) {
   auto request = CreateValidRequest();
-  EXPECT_EQ(
-      payments::IsValidSecurePaymentConfirmationRequest(
-          request, url::Origin::Create(GURL("https://rp.example")), "en-US"),
-      SecurePaymentConfirmationRequestValidationError::kOk);
+  EXPECT_EQ(payments::IsValidSecurePaymentConfirmationRequest(
+                request, url::Origin::Create(GURL("https://rp.example"))),
+            SecurePaymentConfirmationRequestValidationError::kOk);
 }
 
-TEST_F(SecurePaymentConfirmationValidationTest, EmptyCredentialIds) {
+TEST(SecurePaymentConfirmationValidationTest, EmptyCredentialIds) {
   auto request = CreateValidRequest();
   request->credential_ids.clear();
   EXPECT_EQ(
       payments::IsValidSecurePaymentConfirmationRequest(
-          request, url::Origin::Create(GURL("https://rp.example")), "en-US"),
+          request, url::Origin::Create(GURL("https://rp.example"))),
       SecurePaymentConfirmationRequestValidationError::kCredentialIdsRequired);
 }
 
-TEST_F(SecurePaymentConfirmationValidationTest, EmptyCredentialId) {
+TEST(SecurePaymentConfirmationValidationTest, EmptyCredentialId) {
   auto request = CreateValidRequest();
   request->credential_ids.emplace_back();
   EXPECT_EQ(
       payments::IsValidSecurePaymentConfirmationRequest(
-          request, url::Origin::Create(GURL("https://rp.example")), "en-US"),
+          request, url::Origin::Create(GURL("https://rp.example"))),
       SecurePaymentConfirmationRequestValidationError::kCredentialIdsRequired);
 }
 
-TEST_F(SecurePaymentConfirmationValidationTest, EmptyChallenge) {
+TEST(SecurePaymentConfirmationValidationTest, EmptyChallenge) {
   auto request = CreateValidRequest();
   request->challenge.clear();
   EXPECT_EQ(
       payments::IsValidSecurePaymentConfirmationRequest(
-          request, url::Origin::Create(GURL("https://rp.example")), "en-US"),
+          request, url::Origin::Create(GURL("https://rp.example"))),
       SecurePaymentConfirmationRequestValidationError::kChallengeRequired);
 }
 
-TEST_F(SecurePaymentConfirmationValidationTest, EmptyDisplayName) {
+TEST(SecurePaymentConfirmationValidationTest, EmptyDisplayName) {
   auto request = CreateValidRequest();
   request->instrument->display_name.clear();
-  EXPECT_EQ(
-      payments::IsValidSecurePaymentConfirmationRequest(
-          request, url::Origin::Create(GURL("https://rp.example")), "en-US"),
-      SecurePaymentConfirmationRequestValidationError::
-          kInstrumentDisplayNameRequired);
+  EXPECT_EQ(payments::IsValidSecurePaymentConfirmationRequest(
+                request, url::Origin::Create(GURL("https://rp.example"))),
+            SecurePaymentConfirmationRequestValidationError::
+                kInstrumentDisplayNameRequired);
 }
 
-TEST_F(SecurePaymentConfirmationValidationTest, EmptyInstrumentIcon) {
+TEST(SecurePaymentConfirmationValidationTest, EmptyInstrumentIcon) {
   auto request = CreateValidRequest();
   request->instrument->icon = GURL();
-  EXPECT_EQ(
-      payments::IsValidSecurePaymentConfirmationRequest(
-          request, url::Origin::Create(GURL("https://rp.example")), "en-US"),
-      SecurePaymentConfirmationRequestValidationError::
-          kValidInstrumentIconRequired);
+  EXPECT_EQ(payments::IsValidSecurePaymentConfirmationRequest(
+                request, url::Origin::Create(GURL("https://rp.example"))),
+            SecurePaymentConfirmationRequestValidationError::
+                kValidInstrumentIconRequired);
 }
 
-TEST_F(SecurePaymentConfirmationValidationTest, InvalidInstrumentIcon) {
+TEST(SecurePaymentConfirmationValidationTest, InvalidInstrumentIcon) {
   auto request = CreateValidRequest();
   request->instrument->icon = GURL("not-a-url");
-  EXPECT_EQ(
-      payments::IsValidSecurePaymentConfirmationRequest(
-          request, url::Origin::Create(GURL("https://rp.example")), "en-US"),
-      SecurePaymentConfirmationRequestValidationError::
-          kValidInstrumentIconRequired);
+  EXPECT_EQ(payments::IsValidSecurePaymentConfirmationRequest(
+                request, url::Origin::Create(GURL("https://rp.example"))),
+            SecurePaymentConfirmationRequestValidationError::
+                kValidInstrumentIconRequired);
 }
 
-TEST_F(SecurePaymentConfirmationValidationTest, NonUtf8InstrumentDetails) {
+TEST(SecurePaymentConfirmationValidationTest, NonUtf8InstrumentDetails) {
   auto request = CreateValidRequest();
   request->instrument->details = {'\xEF', '\xB7', '\xAF'};
-  EXPECT_EQ(
-      payments::IsValidSecurePaymentConfirmationRequest(
-          request, url::Origin::Create(GURL("https://rp.example")), "en-US"),
-      SecurePaymentConfirmationRequestValidationError::
-          kNonUtf8InstrumentDetailsString);
+  EXPECT_EQ(payments::IsValidSecurePaymentConfirmationRequest(
+                request, url::Origin::Create(GURL("https://rp.example"))),
+            SecurePaymentConfirmationRequestValidationError::
+                kNonUtf8InstrumentDetailsString);
 }
 
-TEST_F(SecurePaymentConfirmationValidationTest, EmptyInstrumentDetails) {
+TEST(SecurePaymentConfirmationValidationTest, EmptyInstrumentDetails) {
   auto request = CreateValidRequest();
   request->instrument->details = "";
-  EXPECT_EQ(
-      payments::IsValidSecurePaymentConfirmationRequest(
-          request, url::Origin::Create(GURL("https://rp.example")), "en-US"),
-      SecurePaymentConfirmationRequestValidationError::
-          kEmptyInstrumentDetailsString);
+  EXPECT_EQ(payments::IsValidSecurePaymentConfirmationRequest(
+                request, url::Origin::Create(GURL("https://rp.example"))),
+            SecurePaymentConfirmationRequestValidationError::
+                kEmptyInstrumentDetailsString);
 }
 
-TEST_F(SecurePaymentConfirmationValidationTest, TooLongInstrumentDetails) {
+TEST(SecurePaymentConfirmationValidationTest, TooLongInstrumentDetails) {
   auto request = CreateValidRequest();
   request->instrument->details = std::string(4097, '.');
-  EXPECT_EQ(
-      payments::IsValidSecurePaymentConfirmationRequest(
-          request, url::Origin::Create(GURL("https://rp.example")), "en-US"),
-      SecurePaymentConfirmationRequestValidationError::
-          kTooLongInstrumentDetailsString);
+  EXPECT_EQ(payments::IsValidSecurePaymentConfirmationRequest(
+                request, url::Origin::Create(GURL("https://rp.example"))),
+            SecurePaymentConfirmationRequestValidationError::
+                kTooLongInstrumentDetailsString);
 }
 
-TEST_F(SecurePaymentConfirmationValidationTest, InvalidRpId) {
+TEST(SecurePaymentConfirmationValidationTest, InvalidRpId) {
   std::string invalid_cases[] = {
       "",
       "domains cannot have spaces.example",
@@ -154,130 +135,120 @@ TEST_F(SecurePaymentConfirmationValidationTest, InvalidRpId) {
   for (const std::string& rp_id : invalid_cases) {
     auto request = CreateValidRequest();
     request->rp_id = rp_id;
-    EXPECT_EQ(
-        payments::IsValidSecurePaymentConfirmationRequest(
-            request, url::Origin::Create(GURL("https://rp.example")), "en-US"),
-        SecurePaymentConfirmationRequestValidationError::kRpIdRequired)
+    EXPECT_EQ(payments::IsValidSecurePaymentConfirmationRequest(
+                  request, url::Origin::Create(GURL("https://rp.example"))),
+              SecurePaymentConfirmationRequestValidationError::kRpIdRequired)
         << "rp_id: " << rp_id;
   }
 }
 
-TEST_F(SecurePaymentConfirmationValidationTest,
-       MissingPayeeNameAndPayeeOrigin) {
+TEST(SecurePaymentConfirmationValidationTest, MissingPayeeNameAndPayeeOrigin) {
   auto request = CreateValidRequest();
   request->payee_name.reset();
   request->payee_origin.reset();
-  EXPECT_EQ(
-      payments::IsValidSecurePaymentConfirmationRequest(
-          request, url::Origin::Create(GURL("https://rp.example")), "en-US"),
-      SecurePaymentConfirmationRequestValidationError::
-          kPayeeOriginOrPayeeNameRequired);
+  EXPECT_EQ(payments::IsValidSecurePaymentConfirmationRequest(
+                request, url::Origin::Create(GURL("https://rp.example"))),
+            SecurePaymentConfirmationRequestValidationError::
+                kPayeeOriginOrPayeeNameRequired);
 }
 
-TEST_F(SecurePaymentConfirmationValidationTest, EmptyPayeeName) {
+TEST(SecurePaymentConfirmationValidationTest, EmptyPayeeName) {
   auto request = CreateValidRequest();
   request->payee_name = "";
-  EXPECT_EQ(
-      payments::IsValidSecurePaymentConfirmationRequest(
-          request, url::Origin::Create(GURL("https://rp.example")), "en-US"),
-      SecurePaymentConfirmationRequestValidationError::
-          kPayeeOriginOrPayeeNameRequired);
+  EXPECT_EQ(payments::IsValidSecurePaymentConfirmationRequest(
+                request, url::Origin::Create(GURL("https://rp.example"))),
+            SecurePaymentConfirmationRequestValidationError::
+                kPayeeOriginOrPayeeNameRequired);
 }
 
-TEST_F(SecurePaymentConfirmationValidationTest, NonHttpsPayeeOrigin) {
+TEST(SecurePaymentConfirmationValidationTest, NonHttpsPayeeOrigin) {
   auto request = CreateValidRequest();
   request->payee_origin = url::Origin::Create(GURL("http://site.example"));
   EXPECT_EQ(
       payments::IsValidSecurePaymentConfirmationRequest(
-          request, url::Origin::Create(GURL("https://rp.example")), "en-US"),
+          request, url::Origin::Create(GURL("https://rp.example"))),
       SecurePaymentConfirmationRequestValidationError::kPayeeOriginMustBeHttps);
 }
 
-TEST_F(SecurePaymentConfirmationValidationTest, NullPaymentEntityLogo) {
+TEST(SecurePaymentConfirmationValidationTest, NullPaymentEntityLogo) {
   auto request = CreateValidRequest();
   request->payment_entities_logos.push_back(nullptr);
-  EXPECT_EQ(
-      payments::IsValidSecurePaymentConfirmationRequest(
-          request, url::Origin::Create(GURL("https://rp.example")), "en-US"),
-      SecurePaymentConfirmationRequestValidationError::
-          kNonNullPaymentEntityLogoRequired);
+  EXPECT_EQ(payments::IsValidSecurePaymentConfirmationRequest(
+                request, url::Origin::Create(GURL("https://rp.example"))),
+            SecurePaymentConfirmationRequestValidationError::
+                kNonNullPaymentEntityLogoRequired);
 }
 
-TEST_F(SecurePaymentConfirmationValidationTest, EmptyPaymentEntityLogoUrl) {
+TEST(SecurePaymentConfirmationValidationTest, EmptyPaymentEntityLogoUrl) {
   auto request = CreateValidRequest();
   request->payment_entities_logos.push_back(
       mojom::PaymentEntityLogo::New(GURL(), "Label"));
   EXPECT_EQ(
       payments::IsValidSecurePaymentConfirmationRequest(
-          request, url::Origin::Create(GURL("https://rp.example")), "en-US"),
+          request, url::Origin::Create(GURL("https://rp.example"))),
       SecurePaymentConfirmationRequestValidationError::kValidLogoUrlRequired);
 }
 
-TEST_F(SecurePaymentConfirmationValidationTest, InvalidPaymentEntityLogoUrl) {
+TEST(SecurePaymentConfirmationValidationTest, InvalidPaymentEntityLogoUrl) {
   auto request = CreateValidRequest();
   request->payment_entities_logos.push_back(
       mojom::PaymentEntityLogo::New(GURL("thisisnotaurl"), "Label"));
   EXPECT_EQ(
       payments::IsValidSecurePaymentConfirmationRequest(
-          request, url::Origin::Create(GURL("https://rp.example")), "en-US"),
+          request, url::Origin::Create(GURL("https://rp.example"))),
       SecurePaymentConfirmationRequestValidationError::kValidLogoUrlRequired);
 }
 
-TEST_F(SecurePaymentConfirmationValidationTest,
-       DisallowedSchemePaymentEntityLogoUrl) {
+TEST(SecurePaymentConfirmationValidationTest,
+     DisallowedSchemePaymentEntityLogoUrl) {
   auto request = CreateValidRequest();
   request->payment_entities_logos.push_back(mojom::PaymentEntityLogo::New(
       GURL("blob://blob.foo.com/logo.png"), "Label"));
-  EXPECT_EQ(
-      payments::IsValidSecurePaymentConfirmationRequest(
-          request, url::Origin::Create(GURL("https://rp.example")), "en-US"),
-      SecurePaymentConfirmationRequestValidationError::
-          kValidLogoUrlSchemeRequired);
+  EXPECT_EQ(payments::IsValidSecurePaymentConfirmationRequest(
+                request, url::Origin::Create(GURL("https://rp.example"))),
+            SecurePaymentConfirmationRequestValidationError::
+                kValidLogoUrlSchemeRequired);
 }
 
-TEST_F(SecurePaymentConfirmationValidationTest, EmptyPaymentEntityLogoLabel) {
+TEST(SecurePaymentConfirmationValidationTest, EmptyPaymentEntityLogoLabel) {
   auto request = CreateValidRequest();
   request->payment_entities_logos.push_back(mojom::PaymentEntityLogo::New(
       GURL("https://entity.example/icon.png"), ""));
   EXPECT_EQ(
       payments::IsValidSecurePaymentConfirmationRequest(
-          request, url::Origin::Create(GURL("https://rp.example")), "en-US"),
+          request, url::Origin::Create(GURL("https://rp.example"))),
       SecurePaymentConfirmationRequestValidationError::kLogoLabelRequired);
 }
 
-TEST_F(SecurePaymentConfirmationValidationTest,
-       WebAuthnExtensionsAllowedForFirstParty) {
+TEST(SecurePaymentConfirmationValidationTest,
+     WebAuthnExtensionsAllowedForFirstParty) {
   auto request = CreateValidRequest();
   request->extensions =
       blink::mojom::AuthenticationExtensionsClientInputs::New();
   request->extensions->get_cred_blob = true;
-  EXPECT_EQ(
-      payments::IsValidSecurePaymentConfirmationRequest(
-          request, url::Origin::Create(GURL("https://rp.example")), "en-US"),
-      SecurePaymentConfirmationRequestValidationError::kOk);
+  EXPECT_EQ(payments::IsValidSecurePaymentConfirmationRequest(
+                request, url::Origin::Create(GURL("https://rp.example"))),
+            SecurePaymentConfirmationRequestValidationError::kOk);
 }
 
-TEST_F(SecurePaymentConfirmationValidationTest,
-       EmptyWebAuthnExtensionsAllowed) {
+TEST(SecurePaymentConfirmationValidationTest, EmptyWebAuthnExtensionsAllowed) {
   auto request = CreateValidRequest();
   request->extensions =
       blink::mojom::AuthenticationExtensionsClientInputs::New();
 
   // An empty WebAuthn extensions dictionary is allowed for both first and third
   // party requests.
+  EXPECT_EQ(payments::IsValidSecurePaymentConfirmationRequest(
+                request, url::Origin::Create(GURL("https://rp.example"))),
+            SecurePaymentConfirmationRequestValidationError::kOk);
   EXPECT_EQ(
       payments::IsValidSecurePaymentConfirmationRequest(
-          request, url::Origin::Create(GURL("https://rp.example")), "en-US"),
-      SecurePaymentConfirmationRequestValidationError::kOk);
-  EXPECT_EQ(
-      payments::IsValidSecurePaymentConfirmationRequest(
-          request, url::Origin::Create(GURL("https://third-party.example")),
-          "en-US"),
+          request, url::Origin::Create(GURL("https://third-party.example"))),
       SecurePaymentConfirmationRequestValidationError::kOk);
 }
 
-TEST_F(SecurePaymentConfirmationValidationTest,
-       WebAuthnExtensionsDisallowedForThirdParties) {
+TEST(SecurePaymentConfirmationValidationTest,
+     WebAuthnExtensionsDisallowedForThirdParties) {
   // It is not feasible to test every WebAuthn extension field (as more may be
   // added in the future), so we test one representative field (get_cred_blob).
   auto request = CreateValidRequest();
@@ -287,152 +258,10 @@ TEST_F(SecurePaymentConfirmationValidationTest,
 
   EXPECT_EQ(
       payments::IsValidSecurePaymentConfirmationRequest(
-          request, url::Origin::Create(GURL("https://third-party.example")),
-          "en-US"),
+          request, url::Origin::Create(GURL("https://third-party.example"))),
       SecurePaymentConfirmationRequestValidationError::
           kWebAuthnExtensionsNotSupported);
 }
 
-class SecurePaymentConfirmationValidationLocaleFeatureEnabledTest
-    : public SecurePaymentConfirmationValidationTest {
- public:
-  SecurePaymentConfirmationValidationLocaleFeatureEnabledTest() {
-    feature_list_.InitAndEnableFeature(features::kSPCLocaleValidation);
-  }
-
- private:
-  base::test::ScopedFeatureList feature_list_;
-};
-
-TEST_F(SecurePaymentConfirmationValidationLocaleFeatureEnabledTest,
-       LocaleMatchExact) {
-  auto request = CreateValidRequest();
-  request->locales.push_back("en-US");
-  EXPECT_EQ(
-      payments::IsValidSecurePaymentConfirmationRequest(
-          request, url::Origin::Create(GURL("https://rp.example")), "en-US"),
-      SecurePaymentConfirmationRequestValidationError::kOk);
-}
-
-TEST_F(SecurePaymentConfirmationValidationLocaleFeatureEnabledTest,
-       LocaleMatchLanguageOnly) {
-  auto request = CreateValidRequest();
-  request->locales.push_back("en");
-  EXPECT_EQ(
-      payments::IsValidSecurePaymentConfirmationRequest(
-          request, url::Origin::Create(GURL("https://rp.example")), "en-CA"),
-      SecurePaymentConfirmationRequestValidationError::kOk);
-
-  request->locales.clear();
-  request->locales.push_back("en-CA");
-  EXPECT_EQ(payments::IsValidSecurePaymentConfirmationRequest(
-                request, url::Origin::Create(GURL("https://rp.example")), "en"),
-            SecurePaymentConfirmationRequestValidationError::kOk);
-}
-
-TEST_F(SecurePaymentConfirmationValidationLocaleFeatureEnabledTest,
-       LocaleMismatchLanguage) {
-  auto request = CreateValidRequest();
-  request->locales.push_back("fr");
-  EXPECT_EQ(
-      payments::IsValidSecurePaymentConfirmationRequest(
-          request, url::Origin::Create(GURL("https://rp.example")), "en"),
-      SecurePaymentConfirmationRequestValidationError::kLocaleDoesNotMatch);
-}
-
-TEST_F(SecurePaymentConfirmationValidationLocaleFeatureEnabledTest,
-       LocaleMismatchRegion) {
-  auto request = CreateValidRequest();
-  request->locales.push_back("en-CA");
-  EXPECT_EQ(
-      payments::IsValidSecurePaymentConfirmationRequest(
-          request, url::Origin::Create(GURL("https://rp.example")), "en-US"),
-      SecurePaymentConfirmationRequestValidationError::kLocaleDoesNotMatch);
-}
-
-TEST_F(SecurePaymentConfirmationValidationLocaleFeatureEnabledTest,
-       LocaleMatchOneOfMultiple) {
-  auto request = CreateValidRequest();
-  request->locales.push_back("fr");
-  request->locales.push_back("es");
-  request->locales.push_back("en-US");
-  EXPECT_EQ(
-      payments::IsValidSecurePaymentConfirmationRequest(
-          request, url::Origin::Create(GURL("https://rp.example")), "en-US"),
-      SecurePaymentConfirmationRequestValidationError::kOk);
-}
-
-TEST_F(SecurePaymentConfirmationValidationLocaleFeatureEnabledTest,
-       LocaleMalformed) {
-  auto request = CreateValidRequest();
-  request->locales.push_back("en--US");
-  request->locales.push_back("enUS");
-  request->locales.push_back("en US");
-  EXPECT_EQ(
-      payments::IsValidSecurePaymentConfirmationRequest(
-          request, url::Origin::Create(GURL("https://rp.example")), "en-US"),
-      SecurePaymentConfirmationRequestValidationError::kLocaleDoesNotMatch);
-}
-
-TEST_F(SecurePaymentConfirmationValidationLocaleFeatureEnabledTest,
-       LocaleEmptyList) {
-  auto request = CreateValidRequest();
-  request->locales.clear();
-  EXPECT_EQ(
-      payments::IsValidSecurePaymentConfirmationRequest(
-          request, url::Origin::Create(GURL("https://rp.example")), "en-US"),
-      SecurePaymentConfirmationRequestValidationError::kOk);
-}
-
-TEST_F(SecurePaymentConfirmationValidationLocaleFeatureEnabledTest,
-       LocaleCaseInsensitiveMatch) {
-  auto request = CreateValidRequest();
-  request->locales.push_back("en-us");
-  EXPECT_EQ(
-      payments::IsValidSecurePaymentConfirmationRequest(
-          request, url::Origin::Create(GURL("https://rp.example")), "en-US"),
-      SecurePaymentConfirmationRequestValidationError::kOk);
-}
-
-TEST_F(SecurePaymentConfirmationValidationLocaleFeatureEnabledTest,
-       LocaleUnderscoreSeparatorMatch) {
-  auto request = CreateValidRequest();
-  request->locales.push_back("en_US");
-  EXPECT_EQ(
-      payments::IsValidSecurePaymentConfirmationRequest(
-          request, url::Origin::Create(GURL("https://rp.example")), "en-US"),
-      SecurePaymentConfirmationRequestValidationError::kOk);
-}
-
-TEST_F(SecurePaymentConfirmationValidationLocaleFeatureEnabledTest,
-       LocaleMalformedApplicationLocale) {
-  auto request = CreateValidRequest();
-  request->locales.push_back("en-US");
-  EXPECT_EQ(
-      payments::IsValidSecurePaymentConfirmationRequest(
-          request, url::Origin::Create(GURL("https://rp.example")), "---"),
-      SecurePaymentConfirmationRequestValidationError::kLocaleDoesNotMatch);
-}
-
-TEST_F(SecurePaymentConfirmationValidationLocaleFeatureEnabledTest,
-       LocalePartiallyMalformedList) {
-  auto request = CreateValidRequest();
-  request->locales.push_back("invalid_tag");
-  request->locales.push_back("en-US");
-  EXPECT_EQ(
-      payments::IsValidSecurePaymentConfirmationRequest(
-          request, url::Origin::Create(GURL("https://rp.example")), "en-US"),
-      SecurePaymentConfirmationRequestValidationError::kOk);
-}
-
-TEST_F(SecurePaymentConfirmationValidationTest, LocaleFeatureFlagDisabled) {
-  auto request = CreateValidRequest();
-  request->locales.push_back("fr-CA");
-  // Even if it wouldn't match, the feature is disabled so it returns kOk.
-  EXPECT_EQ(
-      payments::IsValidSecurePaymentConfirmationRequest(
-          request, url::Origin::Create(GURL("https://rp.example")), "en-US"),
-      SecurePaymentConfirmationRequestValidationError::kOk);
-}
 }  // namespace
 }  // namespace payments

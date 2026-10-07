@@ -5,7 +5,6 @@
 #ifndef CHROME_BROWSER_UI_WEBUI_VERSION_VERSION_UI_H_
 #define CHROME_BROWSER_UI_WEBUI_VERSION_VERSION_UI_H_
 
-#include "base/memory/scoped_refptr.h"
 #include "build/build_config.h"
 #include "chrome/common/url_constants.h"
 #include "chrome/common/webui_url_constants.h"
@@ -44,7 +43,7 @@ class VersionUI : public content::WebUIController {
   // The keys are from version_ui_constants.
   static void AddVersionDetailStrings(content::WebUIDataSource* html_source);
 
-  static scoped_refptr<base::RefCountedMemory> GetFaviconResourceBytes(
+  static base::RefCountedMemory* GetFaviconResourceBytes(
       ui::ResourceScaleFactor scale_factor);
 
 #if !BUILDFLAG(IS_ANDROID)

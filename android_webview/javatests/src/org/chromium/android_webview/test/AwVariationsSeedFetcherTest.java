@@ -128,6 +128,7 @@ public class AwVariationsSeedFetcherTest {
     // parameters.
     private class TestVariationsSeedFetcher extends VariationsSeedFetcher {
         private static final String SAVED_VARIATIONS_SEED_SERIAL_NUMBER = "savedSerialNumber";
+        private Date mDownloadDate;
 
         public int fetchResult;
 
@@ -686,11 +687,7 @@ public class AwVariationsSeedFetcherTest {
             seedInfo.seedData = seed.toByteArray();
 
             out = new FileOutputStream(VariationsUtils.getSeedFile());
-            VariationsUtils.writeSeed(
-                    out,
-                    seedInfo,
-                    /* lowEntropySource= */ -1,
-                    /* limitedEntropyRandomizationSource= */ null);
+            VariationsUtils.writeSeed(out, seedInfo, -1);
 
             fetcher.onStartJob(null);
             fetcher.helper.waitForCallback(

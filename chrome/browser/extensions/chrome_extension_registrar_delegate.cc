@@ -594,11 +594,9 @@ void ChromeExtensionRegistrarDelegate::CheckPermissionsIncrease(
 
 void ChromeExtensionRegistrarDelegate::UpdateActiveExtensionsInCrashReporter() {
   std::set<std::string> extension_ids;
-  std::set<std::string> component_extension_names;
   for (const auto& extension : registry_->enabled_extensions()) {
-    if (extension->location() == mojom::ManifestLocation::kComponent) {
-      component_extension_names.insert(extension->name());
-    } else if (!extension->is_theme()) {
+    if (!extension->is_theme() &&
+        extension->location() != ManifestLocation::kComponent) {
       extension_ids.insert(extension->id());
     }
   }
@@ -607,7 +605,6 @@ void ChromeExtensionRegistrarDelegate::UpdateActiveExtensionsInCrashReporter() {
   // crash_keys::SetActiveExtensions is per-process. See
   // http://crbug.com/41096321.
   crash_keys::SetActiveExtensions(extension_ids);
-  crash_keys::SetActiveComponentExtensions(component_extension_names);
 }
 
 // static

@@ -247,31 +247,18 @@ class CONTENT_EXPORT PrefetchService : public PrefetchContainerObserver {
  private:
   struct CheckEligibilityParams;
 
-  // A marker enum to ensure that `CheckEligibilityParams::Finish()` is called
-  // with `[[nodiscard]]` for each eligibility check process.
-  enum class CheckEligibilityResult {
-    kFinishCalled,
-    kEligibilityNotYetGot,
-  };
-
-  [[nodiscard]] CheckEligibilityResult
-  InjectedEligibilityCheckCompletedForTesting(
+  void InjectedEligibilityCheckCompletedForTesting(
       CheckEligibilityParams params,
       PreloadingEligibility eligibility);
-
-  [[nodiscard]] CheckEligibilityResult CheckInitialEligibilityOfPrefetch(
-      CheckEligibilityParams params);
 
   // Checks whether the given |prefetch_container| is eligible for prefetch.
   // Once the eligibility is determined then |OnGotEligibility()| will be
   // called.
-  [[nodiscard]] CheckEligibilityResult CheckEligibilityOfPrefetch(
-      CheckEligibilityParams params);
+  void CheckEligibilityOfPrefetch(CheckEligibilityParams params);
 
-  [[nodiscard]] CheckEligibilityResult CheckHasServiceWorker(
-      CheckEligibilityParams params);
+  void CheckHasServiceWorker(CheckEligibilityParams params);
 
-  [[nodiscard]] CheckEligibilityResult OnGotServiceWorkerResult(
+  void OnGotServiceWorkerResult(
       CheckEligibilityParams params,
       base::Time check_has_service_worker_start_time,
       ServiceWorkerCapability service_worker_capability);
@@ -279,7 +266,7 @@ class CONTENT_EXPORT PrefetchService : public PrefetchContainerObserver {
   // Called after getting the existing cookies associated with
   // |prefetch_container|. If there are any cookies, then the prefetch is not
   // eligible.
-  [[nodiscard]] CheckEligibilityResult OnGotCookiesForEligibilityCheck(
+  void OnGotCookiesForEligibilityCheck(
       CheckEligibilityParams params,
       const net::CookieAccessResultList& cookie_list,
       const net::CookieAccessResultList& excluded_cookies);
@@ -287,15 +274,12 @@ class CONTENT_EXPORT PrefetchService : public PrefetchContainerObserver {
   // Starts the check for whether or not there is a proxy configured for the URL
   // of |prefetch_container|. If there is an existing proxy, then the prefetch
   // is not eligible.
-  [[nodiscard]] CheckEligibilityResult StartProxyLookupCheck(
-      CheckEligibilityParams params);
+  void StartProxyLookupCheck(CheckEligibilityParams params);
 
   // Called after looking up the proxy configuration for the URL of
   // |prefetch_container|. If there is an existing proxy, then the prefetch is
   // not eligible.
-  [[nodiscard]] CheckEligibilityResult OnGotProxyLookupResult(
-      CheckEligibilityParams params,
-      bool has_proxy);
+  void OnGotProxyLookupResult(CheckEligibilityParams params, bool has_proxy);
 
   // Called when the eligibility is determined for each fetch of prefetch, i.e.
   // initial fetch and redirects.

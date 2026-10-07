@@ -211,16 +211,10 @@ UIView* GetFirstResponderSubview(UIView* view) {
 }
 
 - (void)setObscuredInsets:(UIEdgeInsets)obscuredInsets {
-  [self setObscuredInsets:obscuredInsets initialVelocity:0.0];
-}
-
-- (void)setObscuredInsets:(UIEdgeInsets)obscuredInsets
-          initialVelocity:(CGFloat)initialVelocity {
   if (_ignoreObscuredInsets) {
     return;
   }
-  [_contentView setObscuredInsets:obscuredInsets
-                  initialVelocity:initialVelocity];
+  [_contentView setObscuredInsets:obscuredInsets];
 }
 
 - (void)setMinimumViewportInset:(UIEdgeInsets)minInset

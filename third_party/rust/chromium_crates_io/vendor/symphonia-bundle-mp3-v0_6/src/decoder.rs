@@ -138,11 +138,7 @@ impl MpaDecoder {
 impl AudioDecoder for MpaDecoder {
     fn codec_info(&self) -> &CodecInfo {
         // Return the codec that's in-use.
-        &Self::supported_codecs()
-            .iter()
-            .find(|desc| desc.id == self.params.codec)
-            .expect("codec registered in supported_codecs")
-            .info
+        &Self::supported_codecs().iter().find(|desc| desc.id == self.params.codec).unwrap().info
     }
 
     fn codec_params(&self) -> &AudioCodecParameters {

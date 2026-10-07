@@ -7,22 +7,18 @@
 #include <vector>
 
 #include "ash/constants/ash_features.h"
-#include "base/check_deref.h"
 #include "base/feature_list.h"
 #include "chrome/browser/ash/input_method/editor_config_factory.h"
 #include "chrome/browser/ash/input_method/editor_context.h"
+#include "chrome/browser/ash/input_method/editor_helpers.h"
 #include "chrome/browser/ash/input_method/input_methods_by_language.h"
 #include "chromeos/ash/services/orca/public/mojom/orca_service.mojom.h"
-#include "components/application_locale_storage/application_locale_storage.h"
 #include "content/public/browser/service_process_host.h"
 
 namespace ash::input_method {
 
-EditorServiceConnector::EditorServiceConnector(
-    const ApplicationLocaleStorage* application_locale_storage,
-    EditorContext* context)
-    : application_locale_storage_(CHECK_DEREF(application_locale_storage)),
-      context_(context) {
+EditorServiceConnector::EditorServiceConnector(EditorContext* context)
+    : context_(context) {
   content::ServiceProcessHost::Launch(
       remote_orca_service_connector_.BindNewPipeAndPassReceiver(),
       content::ServiceProcessHost::Options()
@@ -46,8 +42,7 @@ void EditorServiceConnector::BindEditor(
       std::move(system_actuator), std::move(text_query_provider),
       std::move(editor_client_connector), std::move(editor_event_sink),
       BuildConfigFor(
-          InputMethodToLanguageCategory(context_->active_engine_id()),
-          application_locale_storage_->Get()));
+          InputMethodToLanguageCategory(context_->active_engine_id())));
 }
 
 bool EditorServiceConnector::IsBound() {

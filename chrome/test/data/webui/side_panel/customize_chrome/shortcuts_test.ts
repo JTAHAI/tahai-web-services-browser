@@ -95,7 +95,7 @@ suite('ShortcutsTest', () => {
     const personalShortcutsContainer =
         customizeShortcutsElement.shadowRoot.querySelector<HTMLElement>(
             '#personalShortcutsContainer');
-    if (!disabledShortcuts.includes(TileType.kEnterpriseShortcuts)) {
+    if (customizeShortcutsElement['showEnterprisePersonalMixedSidepanel_']()) {
       assertTrue(!!enterpriseShortcutsMixedContainer);
       assertTrue(!!personalShortcutsContainer);
       const enterpriseButtonLabel =

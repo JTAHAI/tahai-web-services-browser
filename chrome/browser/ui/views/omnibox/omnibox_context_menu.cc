@@ -73,12 +73,11 @@ OmniboxContextMenu::OmniboxContextMenu(views::Widget* parent_widget,
     // underlying child items (tabs) to ensure the menu tree is fully populated.
     if (item && menu_model->GetTypeAt(i) == ui::MenuModel::TYPE_SUBMENU) {
       ui::MenuModel* submodel = menu_model->GetSubmenuModelAt(i);
-      if (submodel) {
-        for (size_t j = 0; j < submodel->GetItemCount(); ++j) {
-          // Use default vertical margins for submenu items.
-          views::MenuModelAdapter::AppendMenuItemFromModel(
-              submodel, j, item, submodel->GetCommandIdAt(j));
-        }
+      CHECK(submodel);
+      for (size_t j = 0; j < submodel->GetItemCount(); ++j) {
+        // Use default vertical margins for submenu items.
+        views::MenuModelAdapter::AppendMenuItemFromModel(
+            submodel, j, item, submodel->GetCommandIdAt(j));
       }
     }
   }
@@ -126,9 +125,8 @@ void OmniboxContextMenu::WillShowMenu(views::MenuItemView* menu) {
   }
 
   // For both tabs and regular context menu:
-  if ((menu == menu_ ||
-       menu->GetCommand() == IDC_OMNIBOX_CONTEXT_SHARED_TABS_SUBMENU) &&
-      menu->HasSubmenu()) {
+  if (menu == menu_ ||
+      menu->GetCommand() == IDC_OMNIBOX_CONTEXT_SHARED_TABS_SUBMENU) {
     auto* scroll_container = menu->GetSubmenu()->GetScrollViewContainer();
     if (scroll_container) {
       if (menu->GetCommand() == IDC_OMNIBOX_CONTEXT_SHARED_TABS_SUBMENU) {
@@ -213,12 +211,6 @@ void OmniboxContextMenu::RunMenuAt(const gfx::Point& point,
       base::DoNothing());
 }
 
-void OmniboxContextMenu::Cancel() {
-  if (menu_runner_) {
-    menu_runner_->Cancel();
-  }
-}
-
 void OmniboxContextMenu::ExecuteCommand(int command_id, int event_flags) {
   controller_->ExecuteCommand(command_id, event_flags);
 }
@@ -228,17 +220,13 @@ const gfx::FontList* OmniboxContextMenu::GetLabelFontList(
     int command_id) const {
   ui::MenuModel* model = controller_->menu_model();
   size_t index = 0;
-  if (!ui::MenuModel::GetModelAndIndexForCommandId(command_id, &model,
-                                                   &index)) {
-    return nullptr;
-  }
+  ui::MenuModel::GetModelAndIndexForCommandId(command_id, &model, &index);
   return model->GetLabelFontListAt(index);
 }
 
 std::optional<SkColor> OmniboxContextMenu::GetLabelColor(int command_id) const {
   // Use STYLE_PRIMARY for title item. This aligns with 3-dot menu title style.
-  return (command_id == ui::MenuModel::kTitleId && menu_ &&
-          menu_->HasSubmenu() && menu_->GetSubmenu()->GetColorProvider())
+  return command_id == ui::MenuModel::kTitleId
              ? std::make_optional(
                    menu_->GetSubmenu()->GetColorProvider()->GetColor(
                        views::TypographyProvider::Get().GetColorId(
@@ -270,9 +258,7 @@ void OmniboxContextMenu::OnIconChanged(int command_id) {
     model = controller_->shared_tabs_menu_model();
     index = model->GetIndexOfCommandId(command_id);
   }
-  if (!index.has_value()) {
-    return;
-  }
+  DCHECK(index.has_value());
   // Use `command_id` to find the item since the array indices have duplicates
   // due to container-relative indexing and do not map directly across submenus.
   views::MenuItemView* menu_item = menu_->GetMenuItemByID(command_id);

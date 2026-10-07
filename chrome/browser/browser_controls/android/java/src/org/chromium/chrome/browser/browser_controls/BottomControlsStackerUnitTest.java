@@ -45,7 +45,9 @@ import org.chromium.ui.display.DisplayAndroid;
 
 /** Unit tests for the BrowserStateBrowserControlsVisibilityDelegate. */
 @RunWith(BaseRobolectricTestRunner.class)
-@Config(shadows = {ShadowLooper.class})
+@Config(
+        manifest = Config.NONE,
+        shadows = {ShadowLooper.class})
 public class BottomControlsStackerUnitTest {
     @Rule public MockitoRule mMockitoRule = MockitoJUnit.rule();
     private static final @LayerType int ZERO_HEIGHT_TOP_LAYER = LayerType.PROGRESS_BAR;

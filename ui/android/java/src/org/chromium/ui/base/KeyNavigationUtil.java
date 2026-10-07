@@ -68,26 +68,26 @@ public class KeyNavigationUtil {
                                 && event.getKeyCode() == KeyEvent.KEYCODE_NUMPAD_4));
     }
 
-    /** Returns whether {@code event} represents an arrow key press in the "forward" direction. */
+    /** Returns whether {@param event} represents an arrow key press in the "forward" direction. */
     public static boolean isGoForward(KeyEvent event) {
         return (isGoRight(event) && !LocalizationUtils.isLayoutRtl())
                 || (isGoLeft(event) && LocalizationUtils.isLayoutRtl());
     }
 
-    /** Returns whether {@code event} represents an arrow key press in the "backward" direction. */
+    /** Returns whether {@param event} represents an arrow key press in the "backward" direction. */
     public static boolean isGoBackward(KeyEvent event) {
         return (isGoLeft(event) && !LocalizationUtils.isLayoutRtl())
                 || (isGoRight(event) && LocalizationUtils.isLayoutRtl());
     }
 
-    /** Returns whether {@code event} is tab navigation forward. */
+    /** Returns whether {@param event} is tab navigation forward. */
     public static boolean isTabForward(KeyEvent event) {
         return isActionDown(event)
                 && event.getKeyCode() == KeyEvent.KEYCODE_TAB
                 && event.hasNoModifiers();
     }
 
-    /** Returns whether {@code event} is tab navigation backward. */
+    /** Returns whether {@param event} is tab navigation backward. */
     public static boolean isTabBackward(KeyEvent event) {
         return isActionDown(event)
                 && event.getKeyCode() == KeyEvent.KEYCODE_TAB
@@ -97,7 +97,7 @@ public class KeyNavigationUtil {
                 event.hasModifiers(KeyEvent.META_SHIFT_ON);
     }
 
-    /** Returns whether {@code event} is tab navigation (tab or shift+tab, no other modifiers). */
+    /** Returns whether {@param event} is tab navigation (tab or shift+tab, no other modifiers). */
     public static boolean isTabNavigation(KeyEvent event) {
         return isTabForward(event) || isTabBackward(event);
     }

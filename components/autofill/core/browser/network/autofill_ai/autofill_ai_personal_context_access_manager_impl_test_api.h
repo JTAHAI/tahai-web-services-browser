@@ -33,12 +33,6 @@ class AutofillAiPersonalContextAccessManagerImplTestApi {
     return manager_->spii_presence_signal_cache_.contains(type);
   }
 
-  std::optional<EntityInstance> ConvertProtoToEntityInstance(
-      const personal_context::proto::Entity& entity,
-      bool mask_spii = true) {
-    return manager_->ConvertProtoToEntityInstance(entity, mask_spii);
-  }
-
  private:
   raw_ref<AutofillAiPersonalContextAccessManagerImpl> manager_;
 };

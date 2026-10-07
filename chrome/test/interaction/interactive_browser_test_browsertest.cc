@@ -18,9 +18,7 @@
 #include "base/timer/timer.h"
 #include "build/build_config.h"
 #include "chrome/browser/ui/browser_element_identifiers.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/interaction/browser_elements.h"
-#include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/test/base/test_switches.h"
 #include "components/constrained_window/constrained_window_views.h"
 #include "content/public/test/browser_test.h"
@@ -554,12 +552,11 @@ IN_PROC_BROWSER_TEST_F(InteractiveBrowserTestBrowsertest,
   DEFINE_LOCAL_ELEMENT_IDENTIFIER_VALUE(kIncognito2Id);
   const char kIncognitoNtbName[] = "Incognito NTB";
 
-  auto verify_is_at_tab_index = [](BrowserWindowInterface* where,
-                                   ui::ElementIdentifier id,
+  auto verify_is_at_tab_index = [](Browser* where, ui::ElementIdentifier id,
                                    int expected_index) {
     return CheckElement(
         id, base::BindLambdaForTesting([where](ui::TrackedElement* el) {
-          return where->GetTabStripModel()->GetIndexOfWebContents(
+          return where->tab_strip_model()->GetIndexOfWebContents(
               AsInstrumentedWebContents(el)->web_contents());
         }),
         expected_index);
@@ -568,7 +565,7 @@ IN_PROC_BROWSER_TEST_F(InteractiveBrowserTestBrowsertest,
   const GURL url1 = embedded_test_server()->GetURL(kDocumentWithNamedElement);
   const GURL url2 = embedded_test_server()->GetURL(kDocumentWithLinks);
 
-  BrowserWindowInterface* incognito_browser = CreateIncognitoBrowser();
+  Browser* incognito_browser = CreateIncognitoBrowser();
 
   RunTestSequence(
       // Instrument an existing tab.
@@ -1215,8 +1212,7 @@ class InteractiveBrowserTestDialog : public views::DialogDelegateView {
     return gfx::Size(200, 200);
   }
 
-  static views::Widget* Show(BrowserWindowInterface* parent,
-                             ui::mojom::ModalType modal_type) {
+  static views::Widget* Show(Browser* parent, ui::mojom::ModalType modal_type) {
     auto dialog = std::make_unique<InteractiveBrowserTestDialog>();
     dialog->SetModalType(modal_type);
     views::Widget* widget = nullptr;
@@ -1228,7 +1224,7 @@ class InteractiveBrowserTestDialog : public views::DialogDelegateView {
       case ui::mojom::ModalType::kChild:
         widget = constrained_window::CreateWebModalDialogViews(
             dialog.release(),
-            parent->GetTabStripModel()->GetActiveWebContents());
+            parent->tab_strip_model()->GetActiveWebContents());
         break;
       case ui::mojom::ModalType::kSystem:
       case ui::mojom::ModalType::kNone:

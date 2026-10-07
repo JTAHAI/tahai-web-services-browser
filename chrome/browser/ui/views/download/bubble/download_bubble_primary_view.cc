@@ -8,7 +8,7 @@
 
 #include "base/time/time.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/color/chrome_color_id.h"
 #include "chrome/browser/ui/layout_constants.h"
 #include "chrome/browser/ui/views/chrome_layout_provider.h"
@@ -33,7 +33,7 @@ namespace {
 // 7.5 rows * 60 px per row = 450;
 constexpr int kMaxHeightForRowList = 450;
 
-bool IsOtrInfoRowEnabled(BrowserWindowInterface* browser) {
+bool IsOtrInfoRowEnabled(Browser* browser) {
   if (!browser || !browser->GetProfile()) {
     return false;
   }
@@ -51,16 +51,13 @@ DownloadBubblePrimaryView::DownloadBubblePrimaryView()
 DownloadBubblePrimaryView::~DownloadBubblePrimaryView() = default;
 
 void DownloadBubblePrimaryView::BuildAndAddScrollView(
-    BrowserWindowInterface* browser,
+    base::WeakPtr<Browser> browser,
     base::WeakPtr<DownloadBubbleUIController> bubble_controller,
     base::WeakPtr<DownloadBubbleNavigationHandler> navigation_handler,
     const DownloadBubbleRowListViewInfo& info,
     int fixed_width) {
-  base::WeakPtr<BrowserWindowInterface> row_view_browser =
-      browser ? browser->GetWeakPtr() : nullptr;
   auto row_list_view = std::make_unique<DownloadBubbleRowListView>(
-      row_view_browser, bubble_controller, navigation_handler, fixed_width,
-      info);
+      browser, bubble_controller, navigation_handler, fixed_width, info);
   row_list_view_ = row_list_view.get();
   scroll_view_ = AddChildView(std::make_unique<views::ScrollView>());
   scroll_view_->SetContents(std::move(row_list_view));
@@ -69,8 +66,7 @@ void DownloadBubblePrimaryView::BuildAndAddScrollView(
       views::ScrollView::ScrollBarMode::kDisabled);
 }
 
-void DownloadBubblePrimaryView::MaybeAddOtrInfoRow(
-    BrowserWindowInterface* browser) {
+void DownloadBubblePrimaryView::MaybeAddOtrInfoRow(Browser* browser) {
   if (!IsOtrInfoRowEnabled(browser)) {
     return;
   }

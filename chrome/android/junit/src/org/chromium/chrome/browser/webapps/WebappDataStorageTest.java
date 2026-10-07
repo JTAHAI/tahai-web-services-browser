@@ -18,6 +18,7 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.robolectric.annotation.Config;
 
 import org.chromium.base.ContextUtils;
 import org.chromium.base.FakeTimeTestRule;
@@ -38,6 +39,7 @@ import java.util.concurrent.TimeUnit;
  * expected.
  */
 @RunWith(BaseRobolectricTestRunner.class)
+@Config(manifest = Config.NONE)
 public class WebappDataStorageTest {
     @Rule public FakeTimeTestRule mClockRule = new FakeTimeTestRule();
 

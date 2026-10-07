@@ -8,7 +8,6 @@
 #include <utility>
 
 #include "base/memory/ptr_util.h"
-#include "base/memory/raw_ref.h"
 #include "third_party/blink/renderer/core/animation/css_length_interpolation_type.h"
 #include "third_party/blink/renderer/core/animation/image_slice_property_functions.h"
 #include "third_party/blink/renderer/core/animation/side_index.h"
@@ -25,10 +24,10 @@ namespace {
 
 struct SliceTypes {
   explicit SliceTypes(const ImageSlice& slice) {
-    is_number[kSideTop] = slice.slices->Top().IsFixed();
-    is_number[kSideRight] = slice.slices->Right().IsFixed();
-    is_number[kSideBottom] = slice.slices->Bottom().IsFixed();
-    is_number[kSideLeft] = slice.slices->Left().IsFixed();
+    is_number[kSideTop] = slice.slices.Top().IsFixed();
+    is_number[kSideRight] = slice.slices.Right().IsFixed();
+    is_number[kSideBottom] = slice.slices.Bottom().IsFixed();
+    is_number[kSideLeft] = slice.slices.Left().IsFixed();
     fill = slice.fill;
   }
   explicit SliceTypes(const cssvalue::CSSBorderImageSliceValue& slice) {
@@ -130,21 +129,20 @@ class InheritedSliceTypesChecker
                const InterpolationValue& underlying) const final {
     return inherited_types_ ==
            SliceTypes(ImageSlicePropertyFunctions::GetImageSlice(
-               *property_, *state.ParentStyle()));
+               property_, *state.ParentStyle()));
   }
 
-  const raw_ref<const CSSProperty, UnprotectedInRelease | DanglingUntriaged>
-      property_;
+  const CSSProperty& property_;
   const SliceTypes inherited_types_;
 };
 
 InterpolationValue ConvertImageSlice(const ImageSlice& slice, double zoom) {
   auto* list = MakeGarbageCollected<InterpolableList>(kSideIndexCount);
   std::array<const Length*, kSideIndexCount> sides{};
-  sides[kSideTop] = &slice.slices->Top();
-  sides[kSideRight] = &slice.slices->Right();
-  sides[kSideBottom] = &slice.slices->Bottom();
-  sides[kSideLeft] = &slice.slices->Left();
+  sides[kSideTop] = &slice.slices.Top();
+  sides[kSideRight] = &slice.slices.Right();
+  sides[kSideBottom] = &slice.slices.Bottom();
+  sides[kSideLeft] = &slice.slices.Left();
 
   for (wtf_size_t i = 0; i < kSideIndexCount; i++) {
     const Length& side = *sides[i];

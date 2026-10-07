@@ -5,12 +5,15 @@
 #ifndef CHROME_BROWSER_ANDROID_METRICS_UMA_SESSION_STATS_H_
 #define CHROME_BROWSER_ANDROID_METRICS_UMA_SESSION_STATS_H_
 
+#include <jni.h>
 #include <stdint.h>
 
 #include <memory>
 #include <string>
 #include <vector>
 
+#include "base/android/jni_array.h"
+#include "base/android/scoped_java_ref.h"
 #include "base/no_destructor.h"
 #include "base/time/time.h"
 #include "components/variations/synthetic_trials.h"
@@ -18,8 +21,8 @@
 // The native part of java UmaSessionStats class. This is a singleton.
 class UmaSessionStats {
  public:
-  void UmaResumeSession();
-  void UmaEndSession();
+  void UmaResumeSession(JNIEnv* env);
+  void UmaEndSession(JNIEnv* env);
 
   // Called before an UMA log is completed to record associated metrics.
   void ProvideCurrentSessionData();
@@ -51,6 +54,12 @@ class UmaSessionStats {
   friend class base::NoDestructor<UmaSessionStats>;
   UmaSessionStats() = default;
   ~UmaSessionStats() = default;
+
+  // Registers an external experiment with the synthetic trial registry. Private
+  // as its access control is restricted to the JNI interface.
+  static void RegisterExternalExperiments(
+      const std::vector<int>& experiment_ids,
+      variations::SyntheticTrialAnnotationMode override_mode);
 
   class SessionTimeTracker {
    public:

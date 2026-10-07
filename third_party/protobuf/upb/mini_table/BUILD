@@ -6,22 +6,16 @@
 # https://developers.google.com/open-source/licenses/bsd
 
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
-load("@rules_cc//cc:defs.bzl", "cc_library")
 load("//bazel:proto_library.bzl", "proto_library")
 load(
-    "//upb/bazel:copts.bzl",
-    "UPB_DEFAULT_COPTS",
-    "UPB_DEFAULT_CPPOPTS",
-    "UPB_DEFAULT_FEATURES",
-)
-load(
-    "//upb/bazel:upb_minitable_proto_library.bzl",
+    "//bazel:upb_minitable_proto_library.bzl",
     "upb_minitable_proto_library",
 )
 load(
-    "//upb/cmake:build_defs.bzl",
-    "staleness_test",
+    "//upb/bazel:build_defs.bzl",
+    "UPB_DEFAULT_COPTS",
 )
 
 package(default_applicable_licenses = ["//:license"])
@@ -30,7 +24,6 @@ cc_library(
     name = "mini_table",
     srcs = [
         "extension_registry.c",
-        "generated_registry.c",
         "message.c",
     ],
     hdrs = [
@@ -39,40 +32,13 @@ cc_library(
         "extension_registry.h",
         "field.h",
         "file.h",
-        "generated_registry.h",
         "message.h",
         "sub.h",
     ],
     copts = UPB_DEFAULT_COPTS,
-    features = UPB_DEFAULT_FEATURES,
     visibility = ["//visibility:public"],
     deps = [
         ":internal",
-        "//upb/base",
-        "//upb/hash",
-        "//upb/mem",
-        "//upb/port",
-    ],
-)
-
-cc_library(
-    name = "debug_string",
-    srcs = [
-        "debug_string.c",
-    ],
-    hdrs = [
-        "debug_string.h",
-    ],
-    copts = UPB_DEFAULT_COPTS,
-    features = UPB_DEFAULT_FEATURES,
-    visibility = [
-        "//rust/upb:__pkg__",
-        "//upb:__pkg__",
-        "//upb:friends",
-    ],
-    deps = [
-        ":internal",
-        ":mini_table",
         "//upb/base",
         "//upb/hash",
         "//upb/mem",
@@ -90,16 +56,15 @@ cc_library(
         "internal/extension.h",
         "internal/field.h",
         "internal/file.h",
-        "internal/generated_registry.h",
         "internal/message.h",
         "internal/size_log2.h",
         "internal/sub.h",
     ],
     copts = UPB_DEFAULT_COPTS,
-    features = UPB_DEFAULT_FEATURES,
     visibility = ["//visibility:public"],
     deps = [
         "//upb/base",
+        "//upb/hash",
         "//upb/mem",
         "//upb/message:types",
         "//upb/port",
@@ -115,7 +80,6 @@ cc_library(
         "compat.h",
     ],
     copts = UPB_DEFAULT_COPTS,
-    features = UPB_DEFAULT_FEATURES,
     visibility = ["//visibility:public"],
     deps = [
         ":mini_table",
@@ -139,43 +103,6 @@ cc_test(
     ],
 )
 
-cc_test(
-    name = "generated_registry_test",
-    srcs = ["generated_registry_test.cc"],
-    deps = [
-        ":mini_table",
-        "//src/google/protobuf:descriptor_upb_minitable_proto",
-        "//upb/test:custom_options_upb_minitable_proto",
-        "//upb/test:editions_test_upb_minitable_proto",
-        "//upb/test:test_multiple_files_upb_minitable_proto",
-        "@abseil-cpp//absl/synchronization",
-        "@googletest//:gtest",
-        "@googletest//:gtest_main",
-    ],
-)
-
-cc_test(
-    name = "generated_registry_empty_test",
-    srcs = ["generated_registry_empty_test.cc"],
-    linkstatic = 1,
-    deps = [
-        ":generated_registry_empty_test_upb_minitable_proto",
-        ":mini_table",
-        "@googletest//:gtest",
-        "@googletest//:gtest_main",
-    ],
-)
-
-proto_library(
-    name = "generated_registry_empty_test_proto",
-    srcs = ["generated_registry_empty_test.proto"],
-)
-
-upb_minitable_proto_library(
-    name = "generated_registry_empty_test_upb_minitable_proto",
-    deps = [":generated_registry_empty_test_proto"],
-)
-
 proto_library(
     name = "message_benchmark_proto",
     testonly = 1,
@@ -192,8 +119,6 @@ cc_binary(
     name = "message_benchmark",
     testonly = 1,
     srcs = ["message_benchmark.cc"],
-    copts = UPB_DEFAULT_CPPOPTS,
-    features = UPB_DEFAULT_FEATURES,
     deps = [
         ":compat",
         ":message_benchmark_upb_minitable_proto",
@@ -204,39 +129,6 @@ cc_binary(
         "@googletest//:gtest",
         "@googletest//:gtest_main",
     ],
-)
-
-proto_library(
-    name = "debug_string_test_proto",
-    srcs = ["debug_string_test.proto"],
-)
-
-upb_minitable_proto_library(
-    name = "debug_string_test_upb_minitable_proto",
-    deps = [":debug_string_test_proto"],
-)
-
-cc_binary(
-    name = "debug_string_test_generate",
-    srcs = ["debug_string_test_generate.cc"],
-    deps = [
-        ":debug_string",
-        ":debug_string_test_upb_minitable_proto",
-    ],
-)
-
-genrule(
-    name = "debug_string_test_txt",
-    outs = ["generated/debug_string_test.txt"],
-    cmd = "$(location :debug_string_test_generate) > $@",
-    tools = [":debug_string_test_generate"],
-)
-
-staleness_test(
-    name = "debug_string_staleness_test",
-    outs = ["debug_string_test.txt"],
-    generated_pattern = "generated/%s",
-    target_files = ["debug_string_test.txt"],
 )
 
 filegroup(
@@ -258,16 +150,6 @@ filegroup(
     srcs = glob(
         [
             "**/*test.cc",
-        ],
-    ),
-    visibility = ["//upb:__pkg__"],
-)
-
-filegroup(
-    name = "test_protos",
-    srcs = glob(
-        [
-            "**/*test.proto",
         ],
     ),
     visibility = ["//upb:__pkg__"],

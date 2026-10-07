@@ -37,8 +37,7 @@ class CORE_EXPORT FindBuffer {
 
  public:
   explicit FindBuffer(const EphemeralRangeInFlatTree& range,
-                      RubySupport ruby_support = RubySupport::kDisabled,
-                      FindOptions find_options = FindOptions());
+                      RubySupport ruby_support = RubySupport::kDisabled);
 
   static EphemeralRangeInFlatTree FindMatchInRange(
       const EphemeralRangeInFlatTree& range,
@@ -71,8 +70,8 @@ class CORE_EXPORT FindBuffer {
 
   // Gets a flat tree range corresponding to text in the [start_index,
   // end_index) of |buffer|.
-  EphemeralRangeInFlatTree RangeFromBufferIndex(wtf_size_t start_index,
-                                                wtf_size_t end_index) const;
+  EphemeralRangeInFlatTree RangeFromBufferIndex(unsigned start_index,
+                                                unsigned end_index) const;
 
   // Returns a position at which the next FindBuffer should start.
   //
@@ -122,8 +121,8 @@ class CORE_EXPORT FindBuffer {
     DISALLOW_NEW();
     void Trace(Visitor*) const;
     const Member<const OffsetMapping> offset_mapping;
-    const wtf_size_t offset_in_buffer;
-    const wtf_size_t offset_in_mapping;
+    const unsigned offset_in_buffer;
+    const unsigned offset_in_mapping;
   };
 
   Vector<String> BuffersForTesting() const;
@@ -138,13 +137,14 @@ class CORE_EXPORT FindBuffer {
                                      RubySupport ruby_support);
 
   // Replaces nodes that should be ignored with appropriate char constants.
-  void ReplaceNodeWithCharConstants(const Node& node);
+  static void ReplaceNodeWithCharConstants(const Node& node,
+                                           Vector<UChar>& buffer);
 
-  const BufferNodeMapping* MappingForIndex(wtf_size_t index) const;
+  const BufferNodeMapping* MappingForIndex(unsigned index) const;
 
-  PositionInFlatTree PositionAtStartOfCharacterAtIndex(wtf_size_t index) const;
+  PositionInFlatTree PositionAtStartOfCharacterAtIndex(unsigned index) const;
 
-  PositionInFlatTree PositionAtEndOfCharacterAtIndex(wtf_size_t index) const;
+  PositionInFlatTree PositionAtEndOfCharacterAtIndex(unsigned index) const;
 
   Vector<UChar> SerializeLevelInGraph(
       const HeapVector<Member<CorpusChunk>>& chunk_list,
@@ -154,13 +154,11 @@ class CORE_EXPORT FindBuffer {
   // Adds text in |text_node| that are located within |range| to |buffer|.
   void AddTextToBuffer(const Text& text_node,
                        const EphemeralRangeInFlatTree& range,
-                       bool ignore_leading_space,
                        Vector<UChar>& buffer,
                        HeapVector<BufferNodeMapping>* mappings);
 
   const Node* node_after_block_ = nullptr;
   Vector<UChar> buffer_;
-  FindOptions buffer_options_;
   // buffer_list_ is usually empty. It contains items only if an element
   // with display:ruby-text exists.
   Vector<Vector<UChar>> buffer_list_;

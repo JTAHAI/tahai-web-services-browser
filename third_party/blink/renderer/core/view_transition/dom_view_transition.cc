@@ -24,18 +24,11 @@ namespace blink {
 
 namespace {
 
-const char kAbortedMessage[] = "Transition was skipped. ";
+const char kAbortedMessage[] = "Transition was skipped";
 const char kInvalidStateMessage[] =
-    "Transition was aborted because of invalid state. ";
+    "Transition was aborted because of invalid state";
 const char kTimeoutMessage[] =
-    "Transition was aborted because of timeout in DOM update. ";
-
-String FormatExceptionMessage(const char* prefix,
-                              ViewTransitionSkipReason reason) {
-  const char* reason_str = SkipReasonToString(reason);
-  CHECK(reason_str);
-  return String(String(prefix) + reason_str).StripWhiteSpace();
-}
+    "Transition was aborted because of timeout in DOM update";
 
 }  // namespace
 
@@ -110,9 +103,7 @@ void DOMViewTransition::ContextDestroyed() {
 }
 
 void DOMViewTransition::skipTransition() {
-  view_transition_->SkipTransition(
-      ViewTransition::PromiseResponse::kRejectAbort,
-      ViewTransitionSkipReason::kUserSkipped);
+  view_transition_->SkipTransition();
 }
 
 ScriptPromise<IDLUndefined> DOMViewTransition::finished(
@@ -156,15 +147,15 @@ void DOMViewTransition::waitUntil(ScriptState* script_state,
 }
 
 void DOMViewTransition::DidSkipTransition(
-    ViewTransition::PromiseResponse response,
-    ViewTransitionSkipReason reason) {
+    ViewTransition::PromiseResponse response) {
   CHECK_NE(response, ViewTransition::PromiseResponse::kResolve);
 
   if (!execution_context_) {
     return;
   }
 
-  if (view_transition_ && view_transition_->NavigationSnapshotComplete()) {
+  if (RuntimeEnabledFeatures::TransitionNavigationQuietSkipEnabled() &&
+      view_transition_ && view_transition_->NavigationSnapshotComplete()) {
     // Suppress reporting of unhandled rejections on the old document
     // for a cross document navigation.  The transition on the old document is
     // skipped when the document is hidden.
@@ -177,7 +168,7 @@ void DOMViewTransition::DidSkipTransition(
 
   // If the ready promise has not yet been resolved, reject it.
   if (ready_promise_property_->GetState() == PromiseProperty::State::kPending) {
-    AtMicrotask(response, reason, ready_promise_property_);
+    AtMicrotask(response, ready_promise_property_);
   }
 
   // If we haven't run the dom change callback yet, schedule a task to do so.
@@ -202,7 +193,6 @@ void DOMViewTransition::DidSkipTransition(
     // But if the callback was successful, we need to resolve the finished
     // promise while skipping the transition.
     AtMicrotask(ViewTransition::PromiseResponse::kResolve,
-                ViewTransitionSkipReason::kExpected,
                 finished_promise_property_);
   }
 }
@@ -259,12 +249,12 @@ void DOMViewTransition::NotifyDOMCallbackRejected(ScriptValue value) {
 
 void DOMViewTransition::DidStartAnimating() {
   AtMicrotask(ViewTransition::PromiseResponse::kResolve,
-              ViewTransitionSkipReason::kExpected, ready_promise_property_);
+              ready_promise_property_);
 }
 
 void DOMViewTransition::DidFinishAnimating() {
   AtMicrotask(ViewTransition::PromiseResponse::kResolve,
-              ViewTransitionSkipReason::kExpected, finished_promise_property_);
+              finished_promise_property_);
 }
 
 // Invoked when ViewTransitionCallback finishes running.
@@ -336,10 +326,8 @@ void DOMViewTransition::InvokeDOMChangeCallback() {
                            : ToScriptStateForMainWorld(execution_context_);
   if (!script_state || !script_state->ContextIsValid()) {
     HandlePromise(ViewTransition::PromiseResponse::kRejectAbort,
-                  ViewTransitionSkipReason::kContextDestroyed,
                   dom_updated_promise_property_);
     HandlePromise(ViewTransition::PromiseResponse::kRejectAbort,
-                  ViewTransitionSkipReason::kContextDestroyed,
                   finished_promise_property_);
     view_transition_->NotifyInvokeDOMChangeCallback();
     return;
@@ -389,18 +377,16 @@ void DOMViewTransition::Trace(Visitor* visitor) const {
 }
 
 void DOMViewTransition::AtMicrotask(ViewTransition::PromiseResponse response,
-                                    ViewTransitionSkipReason reason,
                                     PromiseProperty* property) {
   if (!execution_context_) {
     return;
   }
   execution_context_->GetAgent()->event_loop()->EnqueueMicrotask(
       BindOnce(&DOMViewTransition::HandlePromise, WrapPersistent(this),
-               response, reason, WrapPersistent(property)));
+               response, WrapPersistent(property)));
 }
 
 void DOMViewTransition::HandlePromise(ViewTransition::PromiseResponse response,
-                                      ViewTransitionSkipReason reason,
                                       PromiseProperty* property) {
   if (!execution_context_) {
     return;
@@ -449,9 +435,8 @@ void DOMViewTransition::HandlePromise(ViewTransition::PromiseResponse response,
       ScriptState::Scope scope(main_world_script_state);
       auto value = ScriptValue::From(
           main_world_script_state,
-          MakeGarbageCollected<DOMException>(
-              DOMExceptionCode::kAbortError,
-              FormatExceptionMessage(kAbortedMessage, reason)));
+          MakeGarbageCollected<DOMException>(DOMExceptionCode::kAbortError,
+                                             kAbortedMessage));
       property->Reject(value);
       break;
     }
@@ -460,8 +445,7 @@ void DOMViewTransition::HandlePromise(ViewTransition::PromiseResponse response,
       auto value = ScriptValue::From(
           main_world_script_state,
           MakeGarbageCollected<DOMException>(
-              DOMExceptionCode::kInvalidStateError,
-              FormatExceptionMessage(kInvalidStateMessage, reason)));
+              DOMExceptionCode::kInvalidStateError, kInvalidStateMessage));
       property->Reject(value);
       break;
     }
@@ -469,9 +453,8 @@ void DOMViewTransition::HandlePromise(ViewTransition::PromiseResponse response,
       ScriptState::Scope scope(main_world_script_state);
       auto value = ScriptValue::From(
           main_world_script_state,
-          MakeGarbageCollected<DOMException>(
-              DOMExceptionCode::kTimeoutError,
-              FormatExceptionMessage(kTimeoutMessage, reason)));
+          MakeGarbageCollected<DOMException>(DOMExceptionCode::kTimeoutError,
+                                             kTimeoutMessage));
       property->Reject(value);
       break;
     }

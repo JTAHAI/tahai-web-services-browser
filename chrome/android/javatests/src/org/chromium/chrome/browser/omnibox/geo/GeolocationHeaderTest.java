@@ -69,6 +69,7 @@ public class GeolocationHeaderTest {
     private EmbeddedTestServer mTestServer;
     private String mSearchUrl;
 
+    private static final String GOOGLE_BASE_URL_SWITCH = "google-base-url=https://www.google.com";
     private static final double LOCATION_LAT = 20.3;
     private static final double LOCATION_LONG = 155.8;
     private static final float LOCATION_ACCURACY = 20f;
@@ -122,7 +123,7 @@ public class GeolocationHeaderTest {
         long now = setMockLocationNow();
 
         // X-Geo should be sent for Google search results page URLs using proto encoding.
-        assertNonNullHeader(mSearchUrl, now, /* isPrecise= */ true);
+        assertNonNullHeader(mSearchUrl, false, now, /* isPrecise= */ true);
     }
 
     @Test
@@ -164,7 +165,7 @@ public class GeolocationHeaderTest {
     }
 
     private void checkHeaderPriming(boolean shouldPrimeHeader) {
-        openBlankPage();
+        openBlankPage(/* isIncognito= */ false);
 
         var omniboxTestUtils = new OmniboxTestUtils(mCurrentWebPageStation.getActivity());
         omniboxTestUtils.requestFocus();
@@ -218,8 +219,12 @@ public class GeolocationHeaderTest {
         GeolocationTracker.setLocationForTesting(location, null);
     }
 
-    private void assertNonNullHeader(final String url, final long locationTime, boolean isPrecise) {
-        openBlankPage();
+    private void assertNonNullHeader(
+            final String url,
+            final boolean isIncognito,
+            final long locationTime,
+            boolean isPrecise) {
+        openBlankPage(isIncognito);
         ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     var profile = mCurrentWebPageStation.getTab().getProfile();
@@ -344,7 +349,7 @@ public class GeolocationHeaderTest {
                 });
     }
 
-    private void openBlankPage() {
+    private void openBlankPage(boolean isIncognito) {
         mCurrentWebPageStation = mCurrentWebPageStation.loadWebPageProgrammatically("about:blank");
     }
 }

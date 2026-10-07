@@ -14,7 +14,6 @@
 #include "base/containers/to_vector.h"
 #include "base/functional/bind.h"
 #include "base/functional/callback_helpers.h"
-#include "base/metrics/histogram_functions.h"
 #include "base/no_destructor.h"
 #include "base/strings/string_split.h"
 #include "base/strings/string_util.h"
@@ -22,7 +21,6 @@
 #include "base/synchronization/waitable_event.h"
 #include "base/task/task_traits.h"
 #include "base/task/thread_pool.h"
-#include "base/timer/elapsed_timer.h"
 #include "base/values.h"
 #include "build/build_config.h"
 #include "chrome/browser/profiles/profile.h"
@@ -224,12 +222,15 @@ SpellcheckService::SpellcheckService(content::BrowserContext* context)
 
   // 2. Initialize Hunspell dictionaries.
   if (run_hunspell_init) {
-    // Do initialization directly instead of as a posted task. Hunspell
-    // dictionary file loading already runs asynchronously on a background
-    // task runner, but the dictionary objects and metrics must be registered
-    // synchronously so that renderers created during startup know spellcheck
-    // is enabled and do not disable spelling services.
-    InitializeDictionaries(base::DoNothing());
+    if (defer_spellcheck) {
+      content::GetUIThreadTaskRunner({base::TaskPriority::BEST_EFFORT})
+          ->PostTask(FROM_HERE,
+                     base::BindOnce(&SpellcheckService::InitializeDictionaries,
+                                    weak_ptr_factory_.GetWeakPtr(),
+                                    base::DoNothing()));
+    } else {
+      InitializeDictionaries(base::DoNothing());
+    }
   }
 }
 
@@ -496,7 +497,6 @@ void SpellcheckService::StartRecordingMetrics(bool spellcheck_enabled) {
 }
 
 void SpellcheckService::InitForRenderer(content::RenderProcessHost* host) {
-  base::ScopedUmaHistogramTimer timer("SpellCheck.Browser.InitForRendererTime");
   // Skip initialization of the spellcheck service for top chrome and NTP web UI
   // pages when Initial WebUI feature is enabled for optimizing browser startup.
   if (host->IsForTopChromeWebUI() &&
@@ -942,14 +942,8 @@ void SpellcheckService::InitForAllRenderers() {
   for (auto it = content::RenderProcessHost::AllHostsIterator(); !it.IsAtEnd();
        it.Advance()) {
     content::RenderProcessHost* process = it.GetCurrentValue();
-    // Do not test GetProcess().Handle() here: a renderer that has been
-    // initialized but whose process is still launching has no handle yet, and
-    // skipping it drops the notification for good. Its mojo channel already
-    // exists, so messages queue up and are delivered once the process is up.
-    // This matches OnCustomDictionaryChanged() below.
-    if (process && process->IsInitializedAndNotDead()) {
+    if (process && process->GetProcess().Handle())
       InitForRenderer(process);
-    }
   }
 }
 

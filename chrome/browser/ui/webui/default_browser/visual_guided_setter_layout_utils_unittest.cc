@@ -100,20 +100,10 @@ TEST_F(VisualGuidedSetterLayoutUtilsTest, ComputeArrowStartAndEndPoints) {
   EXPECT_EQ(start.x(), 300);
   EXPECT_EQ(start.y(), 300);
 
-  const int padding_px = display::win::GetScreenWin()
-                             ->DIPToScreenSize(fake_hwnd(), gfx::Size(0, 164))
-                             .height();
-  gfx::Rect target(200, 300, 200, 400);
-  gfx::Point end = ComputeArrowEndPoint(fake_hwnd(), target);
+  gfx::Rect target(200, 300, 200, 200);
+  gfx::Point end = ComputeArrowEndPoint(target);
   EXPECT_EQ(end.x(), 400);
-  EXPECT_EQ(end.y(), 300 + padding_px);
-}
-
-TEST_F(VisualGuidedSetterLayoutUtilsTest, ArrowEndPointStaysInsideTheWindow) {
-  gfx::Rect short_target(200, 300, 200, 40);
-  gfx::Point end = ComputeArrowEndPoint(fake_hwnd(), short_target);
-  EXPECT_LE(end.y(), short_target.bottom());
-  EXPECT_GE(end.y(), short_target.y());
+  EXPECT_EQ(end.y(), 400);
 }
 
 TEST_F(VisualGuidedSetterLayoutUtilsTest, IsDpiCompatibleForDocking) {

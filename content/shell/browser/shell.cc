@@ -321,7 +321,6 @@ WebContents* Shell::AddNewContents(
     DocumentPictureInPictureWindowController* controller =
         PictureInPictureWindowController::
             GetOrCreateDocumentPictureInPictureController(source);
-    controller->Close(/*should_pause_video=*/false);
     controller->SetChildWebContents(new_contents.get());
     controller->Show();
   }

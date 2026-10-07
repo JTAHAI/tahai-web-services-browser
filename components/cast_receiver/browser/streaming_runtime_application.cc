@@ -73,11 +73,19 @@ void StreamingRuntimeApplication::Launch(StatusCallback callback) {
   message_port_service->ConnectToPortAsync(kCastTransportBindingName,
                                            std::move(client_port));
 
-  // If extended input is supported, wrap server_port in StreamingReceiverChannel
-  // to intercept Exo bootstrap and input messages on cast_transport.
-  if (config().is_extended_input_supported) {
-    LOG(INFO) << "Extended input is supported, setting up input channels.";
+  // Initialize the streaming receiver.
+  receiver_session_client_ = std::make_unique<StreamingReceiverSessionClient>(
+      task_runner(), application_client().network_context_getter(),
+      std::move(server_port), embedder_application().GetWebContents(), this,
+      embedder_application().GetStreamingConfigManager(),
+      /* supports_audio= */ GetAppId() !=
+          cast_streaming::GetIosAppStreamingAudioVideoAppId(),
+      /* supports_video= */ true);
+  receiver_session_client_->LaunchStreamingReceiverAsync();
 
+  // If extended input is supported, also start bootstrap in parallel.
+  if (config().is_extended_input_supported) {
+    // Get display info.
     content::WebContents* web_contents =
         embedder_application().GetWebContents();
     CHECK(web_contents);
@@ -95,23 +103,12 @@ void StreamingRuntimeApplication::Launch(StatusCallback callback) {
     display_info.set_dpi(160);
     display_info.set_resizable(false);
 
-    auto exo_channel = std::make_unique<StreamingReceiverChannel>(
-        std::move(server_port), std::move(display_info),
+    // Start bootstrap and initialize channel.
+    streaming_receiver_channel_ = std::make_unique<StreamingReceiverChannel>(
+        message_port_service, std::move(display_info),
         base::BindOnce(&StreamingRuntimeApplication::OnBootstrapComplete,
                        weak_factory_.GetWeakPtr()));
-    streaming_receiver_channel_ = exo_channel->GetWeakPtr();
-    server_port = std::move(exo_channel);
   }
-
-  // Initialize the streaming receiver.
-  receiver_session_client_ = std::make_unique<StreamingReceiverSessionClient>(
-      task_runner(), application_client().network_context_getter(),
-      std::move(server_port), embedder_application().GetWebContents(), this,
-      embedder_application().GetStreamingConfigManager(),
-      /* supports_audio= */ GetAppId() !=
-          cast_streaming::GetIosAppStreamingAudioVideoAppId(),
-      /* supports_video= */ true);
-  receiver_session_client_->LaunchStreamingReceiverAsync();
 
   // Application is initialized now - we can load the URL.
   NavigateToPage(GURL(base::StringPrintf(
@@ -131,10 +128,10 @@ void StreamingRuntimeApplication::StopApplication(
                   << " stop.";
   }
 
+  receiver_session_client_.reset();
   streaming_input_observer_.reset();
   streaming_input_capabilities_observer_.reset();
-  streaming_receiver_channel_ = nullptr;
-  receiver_session_client_.reset();
+  streaming_receiver_channel_.reset();
   RuntimeApplicationBase::StopApplication(stop_reason, net_error_code);
 }
 

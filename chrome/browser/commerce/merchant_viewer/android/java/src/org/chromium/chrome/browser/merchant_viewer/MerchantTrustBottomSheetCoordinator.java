@@ -27,6 +27,7 @@ import org.chromium.components.browser_ui.bottomsheet.BottomSheetController;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController.SheetState;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController.StateChangeReason;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetObserver;
+import org.chromium.components.browser_ui.bottomsheet.EmptyBottomSheetObserver;
 import org.chromium.components.thinwebview.ThinWebView;
 import org.chromium.components.thinwebview.ThinWebViewConstraints;
 import org.chromium.components.thinwebview.ThinWebViewFactory;
@@ -60,7 +61,7 @@ public class MerchantTrustBottomSheetCoordinator implements View.OnLayoutChangeL
      *
      * @param context current {@link Context} intsance.
      * @param windowAndroid app's Adnroid window.
-     * @param bottomSheetController {@link BottomSheetController} instance.
+     * @param bottomSheetController {@BottomSheetController} instance.
      * @param tabSupplier provider to obtain {@link Tab}.
      * @param layoutView decor view.
      * @param intentRequestTracker The {@link IntentRequestTracker} of the current activity.
@@ -126,7 +127,7 @@ public class MerchantTrustBottomSheetCoordinator implements View.OnLayoutChangeL
                         this::closeSheet);
 
         mBottomSheetObserver =
-                new BottomSheetObserver() {
+                new EmptyBottomSheetObserver() {
                     private int mCloseReason;
 
                     @Override

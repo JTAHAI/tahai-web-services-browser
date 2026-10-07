@@ -1,6 +1,9 @@
 {
   "entries": [
     {
+      "path": "agents/skills/chromium-docs"
+    },
+    {
       "path": "agents/shared/skills/git-cl-helper"
     },
     {

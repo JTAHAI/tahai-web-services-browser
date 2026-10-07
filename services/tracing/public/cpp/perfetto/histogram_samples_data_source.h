@@ -23,7 +23,8 @@ struct HistogramSamplesTraits : public perfetto::DefaultDataSourceTraits {
   using TlsStateType = HistogramSamplesTlsState;
 };
 
-// A data source that records UMA histogram samples.
+// A data source that record UMA histogram samples. This data source needs
+// "track_event" data source to be enabled for track descriptors to be emitted.
 class COMPONENT_EXPORT(TRACING_CPP) HistogramSamplesDataSource
     : public perfetto::DataSource<HistogramSamplesDataSource,
                                   HistogramSamplesTraits> {

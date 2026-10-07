@@ -7,9 +7,10 @@
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/devtools/devtools_window.h"
 #include "chrome/browser/devtools/devtools_window_testing.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
+#include "chrome/common/chrome_switches.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/ui_test_utils.h"
 #include "components/prefs/pref_service.h"
@@ -21,10 +22,6 @@
 #include "content/public/test/browser_test_utils.h"
 #include "content/public/test/test_navigation_observer.h"
 #include "ui/base/l10n/l10n_util.h"
-
-#if BUILDFLAG(IS_CHROMEOS)
-#include "ash/constants/ash_switches.h"
-#endif
 
 class InterstitialUITest : public InProcessBrowserTest {
  public:
@@ -39,7 +36,7 @@ class InterstitialUITest : public InProcessBrowserTest {
     // are always available, so guarantee that assumption holds. Tests that
     // check if devtools can be disabled should use a test fixture without the
     // kForceDevToolsAvailable switch set.
-    command_line->AppendSwitch(ash::switches::kForceDevToolsAvailable);
+    command_line->AppendSwitch(switches::kForceDevToolsAvailable);
 #endif
   }
 
@@ -62,9 +59,8 @@ class InterstitialUITest : public InProcessBrowserTest {
                         const std::u16string& body_text,
                         bool expand_details) {
     ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), url));
-    EXPECT_EQ(
-        base::ASCIIToUTF16(page_title),
-        browser()->GetTabStripModel()->GetActiveWebContents()->GetTitle());
+    EXPECT_EQ(base::ASCIIToUTF16(page_title),
+              browser()->tab_strip_model()->GetActiveWebContents()->GetTitle());
 
     // Should also be able to open and close devtools.
     DevToolsWindow* window =
@@ -77,7 +73,7 @@ class InterstitialUITest : public InProcessBrowserTest {
     }
 
     content::WebContents* contents =
-        browser()->GetTabStripModel()->GetActiveWebContents();
+        browser()->tab_strip_model()->GetActiveWebContents();
 
     if (expand_details) {
       EXPECT_EQ(true,
@@ -280,7 +276,7 @@ IN_PROC_BROWSER_TEST_F(
 // chrome://interstitials.
 IN_PROC_BROWSER_TEST_F(InterstitialUITest, InterstitialBackButton) {
   content::WebContents* web_contents =
-      browser()->GetTabStripModel()->GetActiveWebContents();
+      browser()->tab_strip_model()->GetActiveWebContents();
   ASSERT_TRUE(
       ui_test_utils::NavigateToURL(browser(), GURL("chrome://interstitials")));
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(),
@@ -300,7 +296,7 @@ IN_PROC_BROWSER_TEST_F(InterstitialUITest, InterstitialViewSource) {
   int found;
   std::u16string expected_title = u"<title>Interstitials</title>";
   found = ui_test_utils::FindInPage(
-      browser()->GetTabStripModel()->GetActiveWebContents(), expected_title,
+      browser()->tab_strip_model()->GetActiveWebContents(), expected_title,
       true, /* Forward */
       true, /* case_sensitive */
       nullptr, nullptr);
@@ -325,7 +321,7 @@ IN_PROC_BROWSER_TEST_F(InterstitialUITest,
   int found;
   std::u16string expected_title = u"<title>Privacy error</title";
   found = ui_test_utils::FindInPage(
-      browser()->GetTabStripModel()->GetActiveWebContents(), expected_title,
+      browser()->tab_strip_model()->GetActiveWebContents(), expected_title,
       true, /* Forward */
       true, /* case_sensitive */
       nullptr, nullptr);
@@ -336,14 +332,14 @@ IN_PROC_BROWSER_TEST_F(InterstitialUITest,
 // the tab might result in a freed web contents pointer and cause a crash.
 // See https://crbug.com/41253835 for details.
 IN_PROC_BROWSER_TEST_F(InterstitialUITest, UseCorrectWebContents) {
-  int current_tab = browser()->GetTabStripModel()->active_index();
+  int current_tab = browser()->tab_strip_model()->active_index();
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(),
                                            GURL("chrome://interstitials/ssl")));
   // Duplicate the tab and close it.
   chrome::DuplicateTab(browser());
-  EXPECT_NE(current_tab, browser()->GetTabStripModel()->active_index());
+  EXPECT_NE(current_tab, browser()->tab_strip_model()->active_index());
   chrome::CloseTab(browser());
-  EXPECT_EQ(current_tab, browser()->GetTabStripModel()->active_index());
+  EXPECT_EQ(current_tab, browser()->tab_strip_model()->active_index());
 
   // Reloading the page shouldn't cause a crash.
   chrome::Reload(browser(), WindowOpenDisposition::CURRENT_TAB);

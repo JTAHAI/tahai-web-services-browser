@@ -8,14 +8,11 @@
 #include <tuple>
 #include <utility>
 
-#include "base/i18n/rtl.h"
-#include "base/i18n/test/scoped_rtl_for_testing.h"
 #include "base/strings/strcat.h"
 #include "chrome/browser/ui/autofill/autofill_ai/mock_autofill_ai_import_data_controller.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/test/test_browser_ui.h"
 #include "chrome/test/base/in_process_browser_test.h"
-#include "components/tabs/public/tab_interface.h"
 #include "content/public/test/browser_test.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "ui/base/ui_base_switches.h"
@@ -39,15 +36,10 @@ class AutofillAiLocalSaveNotificationViewBrowsertest
   // BrowserTestBase:
   void SetUpOnMainThread() override {
     UiBrowserTest::SetUpOnMainThread();
-    scoped_rtl_.emplace(IsBrowserLanguageRTL(this->GetParam()));
+    base::i18n::SetRTLForTesting(IsBrowserLanguageRTL(this->GetParam()));
   }
 
   void DismissUi() override { bubble_ = nullptr; }
-
-  void TearDownOnMainThread() override {
-    scoped_rtl_.reset();
-    UiBrowserTest::TearDownOnMainThread();
-  }
 
   static bool IsDarkModeOn(const TestParameterType& param) {
     return std::get<0>(param);
@@ -72,7 +64,8 @@ class AutofillAiLocalSaveNotificationViewBrowsertest
   void ShowUi(const std::string& name) override {
     auto bubble = std::make_unique<AutofillAiLocalSaveNotificationView>(
         views::BubbleAnchor(),
-        browser()->GetActiveTabInterface()->GetContents(), &mock_controller());
+        browser()->tab_strip_model()->GetActiveWebContents(),
+        &mock_controller());
     bubble->set_has_parent(false);
     bubble_ = bubble.get();
     views::BubbleDialogDelegateView::CreateBubble(std::move(bubble))->Show();
@@ -96,7 +89,6 @@ class AutofillAiLocalSaveNotificationViewBrowsertest
  private:
   NiceMock<MockAutofillAiImportDataController> mock_controller_;
   raw_ptr<AutofillAiLocalSaveNotificationView> bubble_ = nullptr;
-  std::optional<base::i18n::ScopedRTLForTesting> scoped_rtl_;
 };
 
 IN_PROC_BROWSER_TEST_P(AutofillAiLocalSaveNotificationViewBrowsertest,

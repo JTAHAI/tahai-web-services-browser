@@ -8,7 +8,6 @@
 #include <cstddef>
 #include <utility>
 
-#include "partition_alloc/buildflags.h"
 #include "partition_alloc/page_allocator_constants.h"
 #include "partition_alloc/partition_address_space.h"
 #include "partition_alloc/partition_alloc_base/notreached.h"

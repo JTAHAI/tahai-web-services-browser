@@ -21,8 +21,7 @@ ${this.destination !== null ? html`
       ${this.destination.extensionName}
     </span>
     <span class="extension-icon" role="button" tabindex="0"
-        title="${this.getExtensionPrinterTooltip_()}">
-    </span>
+        title="${this.getExtensionPrinterTooltip_()}"></span>
   </span>
 ` : ''}
 <!--_html_template_end_-->`;

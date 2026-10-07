@@ -126,17 +126,16 @@ void SelectPopup::ShowMenu(
   popup_client_.set_disconnect_handler(
       base::BindOnce(&SelectPopup::HideMenu, base::Unretained(this)));
 
-  // |bounds| is in DIPs.
+  // |bounds| is in physical pixels.
   gfx::RectF bounds_dip = gfx::RectF(bounds);
+  bounds_dip.Scale(1 / web_contents_->GetNativeView()->GetDipScale());
   view->SetAnchorRect(popup_view, bounds_dip);
 
-  float dip_scale = web_contents_->GetNativeView()->GetDipScale();
-  int item_height = std::round(bounds.height() * dip_scale);
-  double font_size_px = item_font_size * dip_scale;
+  int item_height = bounds.height();
   Java_SelectPopup_show(env, j_obj, popup_view,
                         reinterpret_cast<int64_t>(popup_client_.get()),
                         items_array, enabled_array, multiple, selected_array,
-                        right_aligned, item_height, font_size_px);
+                        right_aligned, item_height, item_font_size);
 }
 
 void SelectPopup::HideMenu() {

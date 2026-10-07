@@ -201,6 +201,7 @@ impl CodeGen {
             if !path.exists() {
                 return Err(format!("expected generated file {} does not exist", path.display()));
             }
+            println!("cargo:rerun-if-changed={}", path.display());
         }
 
         Ok(())

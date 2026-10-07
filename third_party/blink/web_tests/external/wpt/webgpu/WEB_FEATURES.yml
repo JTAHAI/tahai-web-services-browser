@@ -1,2 +1,3 @@
-rules:
-- "**": [webgpu]
+features:
+- name: webgpu
+  files: "**"

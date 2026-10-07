@@ -29,7 +29,6 @@ import android.view.View;
 import android.view.ViewGroup;
 
 import androidx.test.espresso.Espresso;
-import androidx.test.espresso.NoMatchingViewException;
 import androidx.test.filters.SmallTest;
 
 import org.junit.After;
@@ -213,7 +212,10 @@ public class ManualFillingIntegrationTest {
                                         R.string.password_accessory_sheet_toggle)));
         mHelper.waitForKeyboardToDisappear();
         whenDisplayed(withChild(withId(R.id.keyboard_accessory_sheet_frame)))
-                .check((View view, NoMatchingViewException _) -> accessorySheetView.set(view));
+                .check(
+                        (view, e) -> {
+                            accessorySheetView.set(view);
+                        });
 
         mHelper.focusPasswordField();
         mHelper.waitForKeyboardAccessoryToBeShown();
@@ -340,7 +342,9 @@ public class ManualFillingIntegrationTest {
 
         // Simulate backgrounding the main activity.
         ThreadUtils.runOnUiThreadBlocking(
-                () -> mActivityTestRule.getActivity().onPauseWithNative());
+                () -> {
+                    mActivityTestRule.getActivity().onPauseWithNative();
+                });
 
         // This should completely dismiss any input method.
         mHelper.waitForKeyboardToDisappear();
@@ -349,7 +353,9 @@ public class ManualFillingIntegrationTest {
 
         // Simulate foregrounding the main activity.
         ThreadUtils.runOnUiThreadBlocking(
-                () -> mActivityTestRule.getActivity().onResumeWithNative());
+                () -> {
+                    mActivityTestRule.getActivity().onResumeWithNative();
+                });
 
         // Clicking the field should bring the accessory back up.
         mHelper.focusPasswordField();

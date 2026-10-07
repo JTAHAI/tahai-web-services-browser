@@ -127,7 +127,6 @@ class TestHelper {
       const gfx::ExtensionSet& extensions,
       bool use_default_textures);
 
-  // TODO(crbug.com/40284755): Spanify the pointer/count pairs below.
   static void SetupShaderExpectations(::gl::MockGLInterface* gl,
                                       const FeatureInfo* feature_info,
                                       AttribInfo* attribs,

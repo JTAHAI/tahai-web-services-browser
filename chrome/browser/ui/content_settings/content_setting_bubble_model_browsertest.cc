@@ -15,6 +15,7 @@
 #include "chrome/browser/content_settings/chrome_content_settings_utils.h"
 #include "chrome/browser/content_settings/host_content_settings_map_factory.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_content_setting_bubble_model_delegate.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
@@ -31,12 +32,7 @@
 #include "components/content_settings/core/test/content_settings_mock_provider.h"
 #include "components/content_settings/core/test/content_settings_test_utils.h"
 #include "components/network_session_configurator/common/network_switches.h"
-#include "components/permissions/permission_request_manager.h"
 #include "components/permissions/permission_util.h"
-#include "components/permissions/prediction_service/permission_ui_selector.h"
-#include "components/permissions/request_type.h"
-#include "components/permissions/test/mock_permission_request.h"
-#include "components/permissions/test/mock_permission_ui_selector.h"
 #include "components/strings/grit/components_strings.h"
 #include "components/url_formatter/elide_url.h"
 #include "content/public/common/content_switches.h"
@@ -78,8 +74,8 @@ class ContentSettingBubbleModelMediaStreamTest : public InProcessBrowserTest {
         ->OnMediaStreamPermissionSet(web_contents->GetLastCommittedURL(),
                                      state);
     return std::make_unique<ContentSettingMediaStreamBubbleModel>(
-        BrowserContentSettingBubbleModelDelegate::From(browser()),
-        web_contents->GetPrimaryPage());
+        browser()->GetFeatures().content_setting_bubble_model_delegate(),
+        web_contents);
   }
 
   content::WebContents* GetActiveTab() {
@@ -162,7 +158,7 @@ IN_PROC_BROWSER_TEST_F(ContentSettingBubbleModelMediaStreamTest,
 IN_PROC_BROWSER_TEST_F(ContentSettingBubbleModelMediaStreamTest,
                        BubbleContentForNonBlockedMic) {
   content::WebContents* web_contents =
-      browser()->GetTabStripModel()->GetActiveWebContents();
+      browser()->tab_strip_model()->GetActiveWebContents();
   ASSERT_TRUE(web_contents);
 
   content::RenderFrameHost* main_rfh =
@@ -188,8 +184,8 @@ IN_PROC_BROWSER_TEST_F(ContentSettingBubbleModelMediaStreamTest,
           {PageSpecificContentSettings::kMicrophoneAccessed});
   std::unique_ptr<ContentSettingBubbleModel> mic_bubble =
       std::make_unique<ContentSettingMediaStreamBubbleModel>(
-          BrowserContentSettingBubbleModelDelegate::From(browser()),
-          web_contents->GetPrimaryPage());
+          browser()->GetFeatures().content_setting_bubble_model_delegate(),
+          web_contents);
 
   EXPECT_TRUE(mic_bubble->bubble_content().is_user_modifiable);
 }
@@ -347,11 +343,8 @@ IN_PROC_BROWSER_TEST_F(ContentSettingBubbleModelPopupTest, PopupsActionsCount) {
   // Creates the ContentSettingPopupBubbleModel in order to emulate clicks.
   std::unique_ptr<ContentSettingBubbleModel> model(
       ContentSettingBubbleModel::CreateContentSettingBubbleModel(
-          BrowserContentSettingBubbleModelDelegate::From(browser()),
-          browser()
-              ->GetTabStripModel()
-              ->GetActiveWebContents()
-              ->GetPrimaryPage(),
+          browser()->GetFeatures().content_setting_bubble_model_delegate(),
+          browser()->tab_strip_model()->GetActiveWebContents(),
           ContentSettingsType::POPUPS));
   std::unique_ptr<FakeOwner> owner =
       FakeOwner::Create(*model, kDisallowButtonIndex);
@@ -381,171 +374,4 @@ IN_PROC_BROWSER_TEST_F(ContentSettingBubbleModelPopupTest, PopupsActionsCount) {
       content_settings::POPUPS_ACTION_SELECTED_ALWAYS_ALLOW_POPUPS_FROM, 1);
 
   histograms.ExpectTotalCount("ContentSettings.Popups", 5);
-}
-
-class ContentSettingBubbleModelQuietRequestTest : public InProcessBrowserTest {
- protected:
-  using QuietUiReason = permissions::PermissionUiSelector::QuietUiReason;
-  using Decision = permissions::PermissionUiSelector::Decision;
-  using MockRequestState =
-      permissions::MockPermissionRequest::MockPermissionRequestState;
-
-  void SetUpInProcessBrowserTestFixture() override {
-    https_server_ = std::make_unique<net::EmbeddedTestServer>(
-        net::EmbeddedTestServer::TYPE_HTTPS);
-    https_server_->ServeFilesFromSourceDirectory(GetChromeTestDataDir());
-    ASSERT_TRUE(https_server_->Start());
-  }
-
-  content::WebContents* OpenTab() {
-    GURL url(
-        https_server_->GetURL("/content_setting_bubble/mixed_script.html"));
-    EXPECT_TRUE(ui_test_utils::NavigateToURL(browser(), url));
-    return browser()->tab_strip_model()->GetActiveWebContents();
-  }
-
-  permissions::PermissionRequestManager* GetManager(
-      content::WebContents* web_contents) {
-    return permissions::PermissionRequestManager::FromWebContents(web_contents);
-  }
-
-  void AddQuietRequest(content::WebContents* web_contents,
-                       permissions::RequestType request_type,
-                       QuietUiReason reason,
-                       MockRequestState* state) {
-    auto* manager = GetManager(web_contents);
-    manager->set_permission_ui_selector_for_testing(
-        std::make_unique<MockPermissionUiSelector>(
-            Decision::UseQuietUi(reason, std::nullopt)));
-    manager->AddRequest(web_contents->GetPrimaryMainFrame(),
-                        std::make_unique<permissions::MockPermissionRequest>(
-                            web_contents->GetLastCommittedURL(), request_type,
-                            permissions::PermissionRequestGestureType::GESTURE,
-                            state ? state->GetWeakPtr() : nullptr));
-    base::RunLoop().RunUntilIdle();
-  }
-
-  std::unique_ptr<ContentSettingBubbleModel> CreateBubble(
-      content::WebContents* web_contents) {
-    return std::make_unique<ContentSettingQuietRequestBubbleModel>(
-        BrowserContentSettingBubbleModelDelegate::From(browser()),
-        web_contents->GetPrimaryPage());
-  }
-
-  std::unique_ptr<net::EmbeddedTestServer> https_server_;
-};
-
-// The bubble model is created for a specific request and its button labels are
-// computed from that request's quiet-UI reason. If the request is preempted by
-// another one while the bubble is still open, the buttons must not act on the
-// new request.
-IN_PROC_BROWSER_TEST_F(ContentSettingBubbleModelQuietRequestTest,
-                       DoneButtonIgnoresPreemptedRequest) {
-  content::WebContents* web_contents = OpenTab();
-
-  MockRequestState r1_state;
-  AddQuietRequest(web_contents, permissions::RequestType::kNotifications,
-                  QuietUiReason::kTriggeredDueToAbusiveRequests, &r1_state);
-  ASSERT_EQ(GetManager(web_contents)->ReasonForUsingQuietUi(),
-            QuietUiReason::kTriggeredDueToAbusiveRequests);
-
-  auto bubble = CreateBubble(web_contents);
-  EXPECT_EQ(
-      bubble->bubble_content().done_button_text,
-      l10n_util::GetStringUTF16(
-          IDS_NOTIFICATIONS_QUIET_PERMISSION_BUBBLE_CONTINUE_BLOCKING_BUTTON));
-
-  MockRequestState r2_state;
-  AddQuietRequest(web_contents, permissions::RequestType::kGeolocation,
-                  QuietUiReason::kEnabledInPrefs, &r2_state);
-  ASSERT_EQ(GetManager(web_contents)->Requests()[0]->request_type(),
-            permissions::RequestType::kGeolocation);
-
-  bubble->OnDoneButtonClicked();
-  EXPECT_FALSE(r2_state.granted);
-  EXPECT_FALSE(r2_state.finished);
-}
-
-IN_PROC_BROWSER_TEST_F(ContentSettingBubbleModelQuietRequestTest,
-                       CancelButtonIgnoresPreemptedRequest) {
-  content::WebContents* web_contents = OpenTab();
-
-  AddQuietRequest(web_contents, permissions::RequestType::kGeolocation,
-                  QuietUiReason::kEnabledInPrefs, nullptr);
-  auto bubble = CreateBubble(web_contents);
-
-  MockRequestState r2_state;
-  AddQuietRequest(web_contents, permissions::RequestType::kNotifications,
-                  QuietUiReason::kTriggeredDueToAbusiveRequests, &r2_state);
-  ASSERT_EQ(GetManager(web_contents)->Requests()[0]->request_type(),
-            permissions::RequestType::kNotifications);
-
-  bubble->OnCancelButtonClicked();
-  EXPECT_FALSE(r2_state.granted);
-  EXPECT_FALSE(r2_state.finished);
-}
-
-IN_PROC_BROWSER_TEST_F(ContentSettingBubbleModelQuietRequestTest,
-                       DoneButtonActsOnOriginalRequest) {
-  content::WebContents* web_contents = OpenTab();
-
-  MockRequestState r1_state;
-  AddQuietRequest(web_contents, permissions::RequestType::kNotifications,
-                  QuietUiReason::kTriggeredDueToAbusiveRequests, &r1_state);
-
-  auto bubble = CreateBubble(web_contents);
-  bubble->OnDoneButtonClicked();
-  EXPECT_FALSE(r1_state.granted);
-  EXPECT_TRUE(r1_state.finished);
-}
-
-IN_PROC_BROWSER_TEST_F(ContentSettingBubbleModelQuietRequestTest,
-                       CancelButtonActsOnOriginalRequest) {
-  content::WebContents* web_contents = OpenTab();
-
-  MockRequestState r1_state;
-  AddQuietRequest(web_contents, permissions::RequestType::kNotifications,
-                  QuietUiReason::kTriggeredDueToAbusiveRequests, &r1_state);
-
-  auto bubble = CreateBubble(web_contents);
-  bubble->OnCancelButtonClicked();
-  EXPECT_TRUE(r1_state.granted);
-  EXPECT_TRUE(r1_state.finished);
-}
-
-IN_PROC_BROWSER_TEST_F(ContentSettingBubbleModelQuietRequestTest,
-                       PreemptionClosesOpenBubble) {
-  content::WebContents* web_contents = OpenTab();
-
-  MockRequestState r1_state;
-  AddQuietRequest(web_contents, permissions::RequestType::kNotifications,
-                  QuietUiReason::kTriggeredDueToAbusiveRequests, &r1_state);
-
-  auto bubble = CreateBubble(web_contents);
-  auto owner = FakeOwner::Create(*bubble, 0);
-  EXPECT_FALSE(owner->was_closed());
-
-  MockRequestState r2_state;
-  AddQuietRequest(web_contents, permissions::RequestType::kGeolocation,
-                  QuietUiReason::kEnabledInPrefs, &r2_state);
-
-  EXPECT_TRUE(owner->was_closed());
-}
-
-IN_PROC_BROWSER_TEST_F(ContentSettingBubbleModelQuietRequestTest,
-                       FinalizationClosesOpenBubble) {
-  content::WebContents* web_contents = OpenTab();
-
-  MockRequestState r1_state;
-  AddQuietRequest(web_contents, permissions::RequestType::kNotifications,
-                  QuietUiReason::kTriggeredDueToAbusiveRequests, &r1_state);
-
-  auto bubble = CreateBubble(web_contents);
-  auto owner = FakeOwner::Create(*bubble, 0);
-  EXPECT_FALSE(owner->was_closed());
-
-  GetManager(web_contents)->Accept(/*prompt_options=*/std::monostate());
-  base::RunLoop().RunUntilIdle();
-
-  EXPECT_TRUE(owner->was_closed());
 }

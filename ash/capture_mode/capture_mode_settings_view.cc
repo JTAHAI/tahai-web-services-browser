@@ -260,7 +260,7 @@ CaptureModeSettingsView::CaptureModeSettingsView(
       this, kCornerRadius,
       views::HighlightBorder::Type::kHighlightBorderOnShadow);
 
-  shadow_->SetRoundedCorners(gfx::RoundedCornersF(kCornerRadius));
+  shadow_->SetRoundedCornerRadius(kCornerRadius);
 }
 
 CaptureModeSettingsView::~CaptureModeSettingsView() {

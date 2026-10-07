@@ -10,14 +10,12 @@
 #import "base/metrics/user_metrics_action.h"
 #import "base/not_fatal_until.h"
 #import "components/autofill/core/browser/data_manager/autofill_ai/entity_data_manager.h"
-#import "components/autofill/core/browser/metrics/autofill_settings_metrics.h"
 #import "components/password_manager/core/browser/manage_passwords_referrer.h"
 #import "components/signin/public/identity_manager/identity_manager.h"
 #import "components/sync/service/sync_service.h"
 #import "ios/chrome/browser/authentication/ui_bundled/signin/signin_coordinator.h"
 #import "ios/chrome/browser/authentication/ui_bundled/signin/signin_utils.h"
 #import "ios/chrome/browser/authentication/ui_bundled/signin_promo_view_mediator.h"
-#import "ios/chrome/browser/autofill/model/autofill_ai_util.h"
 #import "ios/chrome/browser/autofill/model/ios_autofill_entity_data_manager_factory.h"
 #import "ios/chrome/browser/settings/autofill/autofill_and_passwords/coordinator/autofill_and_passwords_mediator.h"
 #import "ios/chrome/browser/settings/autofill/autofill_and_passwords/coordinator/autofill_and_passwords_signin_promo_mediator.h"
@@ -26,9 +24,7 @@
 #import "ios/chrome/browser/settings/autofill/autofill_and_passwords/coordinator/shopping_coordinator.h"
 #import "ios/chrome/browser/settings/autofill/autofill_and_passwords/coordinator/travel_info_coordinator.h"
 #import "ios/chrome/browser/settings/autofill/autofill_and_passwords/ui/autofill_and_passwords_table_view_controller.h"
-#import "ios/chrome/browser/settings/autofill/payments/coordinator/autofill_credit_card_coordinator.h"
-#import "ios/chrome/browser/settings/autofill/payments/coordinator/autofill_credit_card_coordinator_delegate.h"
-#import "ios/chrome/browser/settings/autofill/suggestions_from_gemini/coordinator/suggestions_from_gemini_coordinator.h"
+#import "ios/chrome/browser/settings/ui_bundled/autofill/autofill_credit_card_table_view_controller.h"
 #import "ios/chrome/browser/settings/ui_bundled/autofill/autofill_profile_table_view_controller.h"
 #import "ios/chrome/browser/settings/ui_bundled/password/passwords_coordinator.h"
 #import "ios/chrome/browser/shared/model/browser/browser.h"
@@ -64,14 +60,12 @@ enum class YourSavedInfoDataCategory {
 
 @interface AutofillAndPasswordsCoordinator () <
     AutofillAndPasswordsTableViewControllerDelegate,
-    AutofillCreditCardCoordinatorDelegate,
     AutofillSettingsCoordinatorDelegate,
     IdentityDocsCoordinatorDelegate,
     PasswordsCoordinatorDelegate,
     SigninPromoViewMediatorDelegate,
     TravelInfoCoordinatorDelegate,
-    ShoppingCoordinatorDelegate,
-    SuggestionsFromGeminiCoordinatorDelegate>
+    ShoppingCoordinatorDelegate>
 
 @end
 
@@ -83,28 +77,20 @@ enum class YourSavedInfoDataCategory {
   TravelInfoCoordinator* _travelInfoCoordinator;
   ShoppingCoordinator* _shoppingCoordinator;
   AutofillSettingsCoordinator* _autofillSettingsCoordinator;
-  AutofillCreditCardCoordinator* _autofillCreditCardCoordinator;
-  SuggestionsFromGeminiCoordinator* _suggestionsFromGeminiCoordinator;
 
   AutofillAndPasswordsSigninPromoMediator* _signinPromoMediator;
   SigninCoordinator* _signinCoordinator;
-
-  autofill::autofill_metrics::AutofillSettingsReferrer _referrer;
 }
 
 @synthesize baseNavigationController = _baseNavigationController;
 
 - (instancetype)initWithBaseNavigationController:
                     (UINavigationController*)navigationController
-                                         browser:(Browser*)browser
-                                        referrer:(autofill::autofill_metrics::
-                                                      AutofillSettingsReferrer)
-                                                     referrer {
+                                         browser:(Browser*)browser {
   self = [super initWithBaseViewController:navigationController
                                    browser:browser];
   if (self) {
     _baseNavigationController = navigationController;
-    _referrer = referrer;
   }
   return self;
 }
@@ -113,19 +99,14 @@ enum class YourSavedInfoDataCategory {
   _viewController = [[AutofillAndPasswordsTableViewController alloc]
       initWithStyle:ChromeTableViewStyle()];
   _viewController.delegate = self;
-  _viewController.shouldShowLevelUpPaymentMethodsWalkthroughIPH =
-      self.shouldShowLevelUpPaymentMethodsWalkthroughIPH;
 
   ProfileIOS* profile = self.browser->GetProfile();
   autofill::EntityDataManager* entityDataManager =
       IOSAutofillEntityDataManagerFactory::GetForProfile(profile);
 
-  BOOL shouldShowSuggestionsFromGemini =
-      autofill::ShouldShowPersonalContextAutofillSetting(profile);
   _mediator = [[AutofillAndPasswordsMediator alloc]
-              initWithUserPrefService:profile->GetPrefs()
-                    entityDataManager:entityDataManager
-      shouldShowSuggestionsFromGemini:shouldShowSuggestionsFromGemini];
+      initWithUserPrefService:profile->GetPrefs()
+            entityDataManager:entityDataManager];
   _mediator.consumer = _viewController;
 
   ProfileIOS* originalProfile = profile->GetOriginalProfile();
@@ -150,8 +131,6 @@ enum class YourSavedInfoDataCategory {
   [self.baseNavigationController pushViewController:_viewController
                                            animated:YES];
   base::RecordAction(base::UserMetricsAction("AutofillYourSavedInfoViewed"));
-  base::UmaHistogramEnumeration(
-      "Autofill.YourSavedInfoSettingsPage.VisitReferrer", _referrer);
 }
 
 - (void)stop {
@@ -176,14 +155,6 @@ enum class YourSavedInfoDataCategory {
   _autofillSettingsCoordinator.delegate = nil;
   [_autofillSettingsCoordinator stop];
   _autofillSettingsCoordinator = nil;
-
-  _autofillCreditCardCoordinator.delegate = nil;
-  [_autofillCreditCardCoordinator stop];
-  _autofillCreditCardCoordinator = nil;
-
-  _suggestionsFromGeminiCoordinator.delegate = nil;
-  [_suggestionsFromGeminiCoordinator stop];
-  _suggestionsFromGeminiCoordinator = nil;
 
   [_mediator disconnect];
   _mediator = nil;
@@ -250,12 +221,22 @@ enum class YourSavedInfoDataCategory {
   base::UmaHistogramEnumeration(
       "Autofill.YourSavedInfoSettingsPage.CategoryLinkClick",
       YourSavedInfoDataCategory::kPayments);
+  AutofillCreditCardTableViewController* creditCardController =
+      [[AutofillCreditCardTableViewController alloc]
+          initWithBrowser:self.browser];
 
-  _autofillCreditCardCoordinator = [[AutofillCreditCardCoordinator alloc]
-      initWithBaseNavigationController:self.baseNavigationController
-                               browser:self.browser];
-  _autofillCreditCardCoordinator.delegate = self;
-  [_autofillCreditCardCoordinator start];
+  CommandDispatcher* dispatcher = self.browser->GetCommandDispatcher();
+  creditCardController.sceneHandler =
+      HandlerForProtocol(dispatcher, SceneCommands);
+  creditCardController.browserHandler =
+      HandlerForProtocol(dispatcher, BrowserCommands);
+  creditCardController.settingsHandler =
+      HandlerForProtocol(dispatcher, SettingsCommands);
+  creditCardController.snackbarHandler =
+      HandlerForProtocol(dispatcher, SnackbarCommands);
+
+  [self.baseNavigationController pushViewController:creditCardController
+                                           animated:YES];
 }
 
 - (void)autofillAndPasswordsTableViewControllerDidSelectAutofillProfile:
@@ -332,23 +313,6 @@ enum class YourSavedInfoDataCategory {
   [_shoppingCoordinator start];
 }
 
-- (void)autofillAndPasswordsTableViewControllerDidSelectSuggestionsFromGemini:
-    (AutofillAndPasswordsTableViewController*)controller {
-  CHECK_EQ(_viewController, controller);
-  if (_suggestionsFromGeminiCoordinator) {
-    return;
-  }
-
-  base::RecordAction(base::UserMetricsAction(
-      "PersonalContext.Settings.EntryPoint.AutofillAndPasswordsSettings"));
-
-  _suggestionsFromGeminiCoordinator = [[SuggestionsFromGeminiCoordinator alloc]
-      initWithBaseNavigationController:self.baseNavigationController
-                               browser:self.browser];
-  _suggestionsFromGeminiCoordinator.delegate = self;
-  [_suggestionsFromGeminiCoordinator start];
-}
-
 - (void)autofillAndPasswordsTableViewControllerDidSelectAutofillSettings:
     (AutofillAndPasswordsTableViewController*)controller {
   if (_autofillSettingsCoordinator) {
@@ -406,16 +370,6 @@ enum class YourSavedInfoDataCategory {
   _travelInfoCoordinator = nil;
 }
 
-#pragma mark - AutofillCreditCardCoordinatorDelegate
-
-- (void)autofillCreditCardCoordinatorDidRemove:
-    (AutofillCreditCardCoordinator*)coordinator {
-  CHECK_EQ(_autofillCreditCardCoordinator, coordinator);
-  _autofillCreditCardCoordinator.delegate = nil;
-  [_autofillCreditCardCoordinator stop];
-  _autofillCreditCardCoordinator = nil;
-}
-
 #pragma mark - ShoppingCoordinatorDelegate
 
 - (void)shoppingCoordinatorDidRemove:(ShoppingCoordinator*)coordinator {
@@ -423,16 +377,6 @@ enum class YourSavedInfoDataCategory {
   _shoppingCoordinator.delegate = nil;
   [_shoppingCoordinator stop];
   _shoppingCoordinator = nil;
-}
-
-#pragma mark - SuggestionsFromGeminiCoordinatorDelegate
-
-- (void)suggestionsFromGeminiCoordinatorDidRemove:
-    (SuggestionsFromGeminiCoordinator*)coordinator {
-  CHECK_EQ(_suggestionsFromGeminiCoordinator, coordinator);
-  _suggestionsFromGeminiCoordinator.delegate = nil;
-  [_suggestionsFromGeminiCoordinator stop];
-  _suggestionsFromGeminiCoordinator = nil;
 }
 
 #pragma mark - SigninPromoViewMediatorDelegate

@@ -5,11 +5,11 @@
 [package]
 name = "writeable"
 description = "A more efficient alternative to fmt::Display"
-version = "0.6.4"
+version = "0.6.3"
 keywords = ["formatting", "write", "string", "no-std"]
 
 authors.workspace = true
-edition = "2021"
+edition.workspace = true
 include.workspace = true
 license.workspace = true
 repository.workspace = true

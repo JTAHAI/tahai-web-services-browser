@@ -53,7 +53,7 @@ export class SettingsAxAnnotationsSectionElement extends
   private browserProxy_: AxAnnotationsBrowserProxy =
       AxAnnotationsBrowserProxyImpl.getInstance();
 
-  private showMainNodeAnnotationsToggle_: boolean = false;
+  private showMainNodeAnnotationsToggle_: boolean;
   declare private screenAIProgress_: number;
   declare private screenAIStatus_: ScreenAiInstallStatus;
 

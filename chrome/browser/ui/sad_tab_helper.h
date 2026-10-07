@@ -8,13 +8,9 @@
 #include <memory>
 
 #include "content/public/browser/web_contents_observer.h"
-#include "ui/base/unowned_user_data/scoped_unowned_user_data.h"
+#include "content/public/browser/web_contents_user_data.h"
 
 class SadTab;
-
-namespace tabs {
-class TabInterface;
-}
 
 // Per-tab class to manage sad tab views. The sad tab view appears when the main
 // frame of a WebContents has crashed. The behaviour depends on whether
@@ -32,15 +28,9 @@ class TabInterface;
 // WebContents displaying. If the new frame commits, it becomes visible. If the
 // commit is aborted, we reinstate the sad tab.
 //
-class SadTabHelper : public content::WebContentsObserver {
+class SadTabHelper : public content::WebContentsObserver,
+                     public content::WebContentsUserData<SadTabHelper> {
  public:
-  DECLARE_USER_DATA(SadTabHelper);
-
-  // `web_contents` is passed explicitly because during a discard the helper
-  // is recreated for the incoming WebContents before `tab` swaps its
-  // contents.
-  SadTabHelper(tabs::TabInterface& tab, content::WebContents* web_contents);
-
   SadTabHelper(const SadTabHelper&) = delete;
   SadTabHelper& operator=(const SadTabHelper&) = delete;
 
@@ -53,9 +43,11 @@ class SadTabHelper : public content::WebContentsObserver {
   // dragged to a new browser window.
   void ReinstallInWebView();
 
-  static SadTabHelper* From(tabs::TabInterface* tab);
-
  private:
+  friend class content::WebContentsUserData<SadTabHelper>;
+
+  explicit SadTabHelper(content::WebContents* web_contents);
+
   void InstallSadTab(base::TerminationStatus status);
 
   // Overridden from content::WebContentsObserver:
@@ -68,7 +60,7 @@ class SadTabHelper : public content::WebContentsObserver {
 
   std::unique_ptr<SadTab> sad_tab_;
 
-  ui::ScopedUnownedUserData<SadTabHelper> scoped_unowned_user_data_;
+  WEB_CONTENTS_USER_DATA_KEY_DECL();
 };
 
 #endif  // CHROME_BROWSER_UI_SAD_TAB_HELPER_H_

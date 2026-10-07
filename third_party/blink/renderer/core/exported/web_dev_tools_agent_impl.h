@@ -89,6 +89,7 @@ class CORE_EXPORT WebDevToolsAgentImpl final
 
   // Instrumentation from web/ layer.
   void DidCommitLoadForLocalFrame(LocalFrame*);
+  bool ScreencastEnabled();
   String NavigationInitiatorInfo(LocalFrame*);
   String EvaluateInOverlayForTesting(const String& script);
   void DidShowNewWindow();
@@ -124,6 +125,7 @@ class CORE_EXPORT WebDevToolsAgentImpl final
   Member<DevToolsAgent> agent_;
   HeapHashMap<Member<DevToolsSession>, Member<InspectorNetworkAgent>>
       network_agents_;
+  HeapHashMap<Member<DevToolsSession>, Member<InspectorPageAgent>> page_agents_;
   HeapHashMap<Member<DevToolsSession>, Member<InspectorOverlayAgent>>
       overlay_agents_;
   Member<WebLocalFrameImpl> web_local_frame_impl_;

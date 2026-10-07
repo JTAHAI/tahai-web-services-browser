@@ -16,6 +16,7 @@
 #include "components/optimization_guide/core/model_execution/model_execution_util.h"
 #include "components/optimization_guide/core/model_execution/on_device_features.h"
 #include "components/optimization_guide/core/model_execution/on_device_model_adaptation_loader.h"
+#include "components/optimization_guide/core/model_execution/on_device_model_component.h"
 #include "components/optimization_guide/core/model_execution/on_device_model_download_progress_manager.h"
 #include "components/optimization_guide/core/model_execution/on_device_model_feature_adapter.h"
 #include "components/optimization_guide/core/optimization_guide_features.h"
@@ -270,9 +271,8 @@ class ModelBrokerAndroid::SolutionFactory final
 
  private:
   // UsageTracker::Observer
-  void OnPriorityIncrease(
-      const std::string& use_case_name,
-      std::optional<UsageTracker::Priority> previous_priority) override;
+  void OnDeviceEligibleUseCaseUsed(const std::string& use_case_name,
+                                   bool is_first_usage) override;
 
   // Asks AICore to download the base model.
   void MaybeStartDownload(mojom::OnDeviceFeature feature);
@@ -337,7 +337,8 @@ ModelBrokerAndroid::SolutionFactory::SolutionFactory(ModelBrokerAndroid& parent)
   parent_->usage_tracker_.AddObserver(this);
   // Start model downloads for recently used features
   for (auto feature : OnDeviceFeatureSet::All()) {
-    if (parent_->usage_tracker_.GetPriority(ToUseCaseName(feature))) {
+    if (parent_->usage_tracker_.WasUseCaseRecentlyUsed(
+            ToUseCaseName(feature))) {
       MaybeStartDownload(feature);
     }
   }
@@ -346,10 +347,10 @@ ModelBrokerAndroid::SolutionFactory::~SolutionFactory() {
   parent_->usage_tracker_.RemoveObserver(this);
 }
 
-void ModelBrokerAndroid::SolutionFactory::OnPriorityIncrease(
+void ModelBrokerAndroid::SolutionFactory::OnDeviceEligibleUseCaseUsed(
     const std::string& use_case_name,
-    std::optional<UsageTracker::Priority> previous_priority) {
-  if (previous_priority.has_value()) {
+    bool is_first_usage) {
+  if (!is_first_usage) {
     return;
   }
   auto feature = GetFeatureForUseCase(use_case_name);
@@ -402,8 +403,9 @@ void ModelBrokerAndroid::SolutionFactory::OnAICoreModelUpdated(
     parent_->model_already_downloaded_ = true;
     parent_->has_active_download_progress_ = false;
     // Performance hint is not supported on Android.
-    OnDeviceBaseModelSpec spec{.model_name = result->name,
-                               .model_version = result->version};
+    OnDeviceBaseModelSpec spec{
+        result->name, result->version,
+        proto::ON_DEVICE_MODEL_PERFORMANCE_HINT_UNSPECIFIED};
     base_model_specs_.insert_or_assign(aicore_feature, spec);
     // Register the model download for all features that share the same
     // AICore feature, since multiple mojom::OnDeviceFeature values may map to
@@ -413,8 +415,7 @@ void ModelBrokerAndroid::SolutionFactory::OnAICoreModelUpdated(
       if (GetAICoreFeatureFor(f) == aicore_feature) {
         loader_map_.MaybeRegisterModelDownload(
             f, spec,
-            parent_->usage_tracker_.GetPriority(ToUseCaseName(f))
-                .has_value());
+            parent_->usage_tracker_.WasUseCaseRecentlyUsed(ToUseCaseName(f)));
       }
     }
   } else {
@@ -622,10 +623,7 @@ void ModelBrokerAndroid::GetStateInfo(
 
 void ModelBrokerAndroid::SetUseCaseRequested(const std::string& use_case,
                                              bool requested) {
-  usage_tracker_.SetPriority(
-      use_case,
-      requested ? std::make_optional(UsageTracker::Priority::kUserBlocking)
-                : std::nullopt);
+  usage_tracker_.SetUseCaseRequested(use_case, requested);
 }
 
 void ModelBrokerAndroid::UninstallModels() {
@@ -724,12 +722,6 @@ void ModelBrokerAndroid::OnDownloadProgressUpdated(int64_t downloaded_bytes,
 
 void ModelBrokerAndroid::AddObserver(
     mojo::PendingRemote<mojom::ModelBrokerDebugObserver>) {
-  // Not yet implemented on Android.
-}
-
-void ModelBrokerAndroid::AddAssetDownloadObserver(
-    const std::string& asset_name,
-    mojo::PendingRemote<on_device_model::mojom::DownloadObserver> observer) {
   // Not yet implemented on Android.
 }
 

@@ -138,12 +138,10 @@ void GlicZeroStateSuggestionsManager::
           : nullptr;
 
   if (contextual_cueing_service_ && active_web_contents) {
-    if (client_remote_.is_bound()) {
-      client_remote_->NotifyZeroStateSuggestionsChanged(
-          MakePendingSuggestionsPtr(host().invocation_source()),
-          mojom::ZeroStateSuggestionsOptions::New(is_first_run,
-                                                  supported_tools));
-    }
+    // Notify host that suggestions are pending.
+    host().NotifyZeroStateSuggestion(
+        MakePendingSuggestionsPtr(host().invocation_source()),
+        mojom::ZeroStateSuggestionsOptions(is_first_run, supported_tools));
 
     if (caching_zero_state_manager_) {
       caching_zero_state_manager_
@@ -243,20 +241,12 @@ void GlicZeroStateSuggestionsManager::
     }
 
     if (suggestions_pending) {
-      if (client_remote_.is_bound()) {
-        client_remote_->NotifyZeroStateSuggestionsChanged(
-            MakePendingSuggestionsPtr(host().invocation_source()),
-            mojom::ZeroStateSuggestionsOptions::New(is_first_run,
-                                                    supported_tools));
-      }
+      // Notify host that suggestions are pending.
+      host().NotifyZeroStateSuggestion(
+          MakePendingSuggestionsPtr(host().invocation_source()),
+          mojom::ZeroStateSuggestionsOptions(is_first_run, supported_tools));
     }
   }
-}
-
-void GlicZeroStateSuggestionsManager::Bind(
-    mojo::PendingReceiver<mojom::ZeroStateSuggestionsHandler> receiver) {
-  receiver_.reset();
-  receiver_.Bind(std::move(receiver));
 }
 
 void GlicZeroStateSuggestionsManager::
@@ -282,14 +272,14 @@ void GlicZeroStateSuggestionsManager::
       is_first_run, supported_tools, sharing_manager_->GetPinnedTabs());
 }
 
-void GlicZeroStateSuggestionsManager::GetZeroStateSuggestionsAndSubscribe(
-    mojo::PendingRemote<mojom::ZeroStateSuggestionsClient> client,
-    mojom::ZeroStateSuggestionsOptionsPtr options,
-    GetZeroStateSuggestionsAndSubscribeCallback callback) {
-  client_remote_.reset();
-  if (client.is_valid()) {
-    client_remote_.Bind(std::move(client));
-    // Subscribe to changes in sharing.
+void GlicZeroStateSuggestionsManager::ObserveZeroStateSuggestions(
+    bool is_notifying,
+    bool is_first_run,
+    const std::vector<std::string>& supported_tools,
+    glic::mojom::WebClientHandler::GetZeroStateSuggestionsAndSubscribeCallback
+        callback) {
+  // Subscribe to changes in sharing.
+  if (is_notifying) {
     // Skip ZSS generation for unconsented users.
     if (!GlicEnabling::HasConsentedForProfile(host().profile())) {
       std::move(callback).Run(
@@ -304,17 +294,17 @@ void GlicZeroStateSuggestionsManager::GetZeroStateSuggestionsAndSubscribe(
         sharing_manager_->AddFocusedTabDataChangedCallback(base::BindRepeating(
             &GlicZeroStateSuggestionsManager::
                 NotifyZeroStateSuggestionsOnFocusedTabDataChanged,
-            GetWeakPtr(), options->is_first_run, options->supported_tools));
+            GetWeakPtr(), is_first_run, supported_tools));
     current_zero_state_suggestions_pinned_tab_change_subscription_ =
         sharing_manager_->AddPinnedTabsChangedCallback(base::BindRepeating(
             &GlicZeroStateSuggestionsManager::
                 NotifyZeroStateSuggestionsOnPinnedTabChanged,
-            GetWeakPtr(), options->is_first_run, options->supported_tools));
+            GetWeakPtr(), is_first_run, supported_tools));
     current_zero_state_suggestions_pinned_tab_data_change_subscription_ =
         sharing_manager_->AddPinnedTabDataChangedCallback(base::BindRepeating(
             &GlicZeroStateSuggestionsManager::
                 NotifyZeroStateSuggestionsOnPinnedTabDataChanged,
-            GetWeakPtr(), options->is_first_run, options->supported_tools));
+            GetWeakPtr(), is_first_run, supported_tools));
 
     if (!contextual_cueing_service_) {
       // Do nothing
@@ -330,8 +320,7 @@ void GlicZeroStateSuggestionsManager::GetZeroStateSuggestionsAndSubscribe(
       } else if (caching_zero_state_manager_) {
         caching_zero_state_manager_
             ->GetContextualGlicZeroStateSuggestionsForPinnedTabs(
-                pinned_contents, options->is_first_run,
-                options->supported_tools,
+                pinned_contents, is_first_run, supported_tools,
                 /* focused_tab=*/nullptr,
                 base::BindOnce(&GlicZeroStateSuggestionsManager::
                                    OnZeroStateSuggestionsFetched,
@@ -340,8 +329,7 @@ void GlicZeroStateSuggestionsManager::GetZeroStateSuggestionsAndSubscribe(
       } else {
         contextual_cueing_service_
             ->GetContextualGlicZeroStateSuggestionsForPinnedTabs(
-                pinned_contents, options->is_first_run,
-                options->supported_tools,
+                pinned_contents, is_first_run, supported_tools,
                 /* focused_tab=*/nullptr,
                 mojo::WrapCallbackWithDefaultInvokeIfNotRun(
                     base::BindOnce(&GlicZeroStateSuggestionsManager::
@@ -359,8 +347,7 @@ void GlicZeroStateSuggestionsManager::GetZeroStateSuggestionsAndSubscribe(
         if (caching_zero_state_manager_) {
           caching_zero_state_manager_
               ->GetContextualGlicZeroStateSuggestionsForFocusedTab(
-                  active_web_contents, options->is_first_run,
-                  options->supported_tools,
+                  active_web_contents, is_first_run, supported_tools,
                   base::BindOnce(&GlicZeroStateSuggestionsManager::
                                      OnZeroStateSuggestionsFetched,
                                  GetWeakPtr(), std::move(callback)));
@@ -368,8 +355,7 @@ void GlicZeroStateSuggestionsManager::GetZeroStateSuggestionsAndSubscribe(
         } else {
           contextual_cueing_service_
               ->GetContextualGlicZeroStateSuggestionsForFocusedTab(
-                  active_web_contents, options->is_first_run,
-                  options->supported_tools,
+                  active_web_contents, is_first_run, supported_tools,
                   mojo::WrapCallbackWithDefaultInvokeIfNotRun(
                       base::BindOnce(&GlicZeroStateSuggestionsManager::
                                          OnZeroStateSuggestionsFetched,
@@ -380,6 +366,7 @@ void GlicZeroStateSuggestionsManager::GetZeroStateSuggestionsAndSubscribe(
       }
     }
   } else {
+    // If is_notifying is false we need to reset the subscriptions.
     Reset();
   }
 
@@ -387,7 +374,8 @@ void GlicZeroStateSuggestionsManager::GetZeroStateSuggestionsAndSubscribe(
 }
 
 void GlicZeroStateSuggestionsManager::OnZeroStateSuggestionsFetched(
-    GetZeroStateSuggestionsAndSubscribeCallback callback,
+    mojom::WebClientHandler::GetZeroStateSuggestionsAndSubscribeCallback
+        callback,
     std::vector<std::string> returned_suggestions) {
   auto suggestions = mojom::ZeroStateSuggestionsV2::New();
   std::vector<mojom::SuggestionContentPtr> output_suggestions;
@@ -400,31 +388,36 @@ void GlicZeroStateSuggestionsManager::OnZeroStateSuggestionsFetched(
 
   std::move(callback).Run(std::move(suggestions));
 }
+
 void GlicZeroStateSuggestionsManager::OnZeroStateSuggestionsNotify(
     bool is_first_run,
     const std::vector<std::string>& supported_tools,
     std::vector<std::string> returned_suggestions) {
-  if (client_remote_.is_bound()) {
-    auto suggestions_v2 = mojom::ZeroStateSuggestionsV2::New();
-    std::vector<mojom::SuggestionContentPtr> output_suggestions;
-    for (const std::string& suggestion_string : returned_suggestions) {
-      output_suggestions.push_back(
-          mojom::SuggestionContent::New(suggestion_string));
-    }
-    suggestions_v2->suggestions = std::move(output_suggestions);
-    suggestions_v2->is_pending = false;
-    client_remote_->NotifyZeroStateSuggestionsChanged(
-        std::move(suggestions_v2),
-        mojom::ZeroStateSuggestionsOptions::New(is_first_run, supported_tools));
+  auto suggestions_v2 = mojom::ZeroStateSuggestionsV2::New();
+  std::vector<mojom::SuggestionContentPtr> output_suggestions;
+  for (const std::string& suggestion_string : returned_suggestions) {
+    output_suggestions.push_back(
+        mojom::SuggestionContent::New(suggestion_string));
   }
+  suggestions_v2->suggestions = std::move(output_suggestions);
+  suggestions_v2->is_pending = false;
+  host().NotifyZeroStateSuggestion(
+      std::move(suggestions_v2),
+      mojom::ZeroStateSuggestionsOptions(is_first_run, supported_tools));
 }
 
 void GlicZeroStateSuggestionsManager::Reset() {
   current_zero_state_suggestions_focus_change_subscription_ = {};
   current_zero_state_suggestions_pinned_tab_change_subscription_ = {};
   current_zero_state_suggestions_pinned_tab_data_change_subscription_ = {};
-  client_remote_.reset();
 }
+
+bool GlicZeroStateSuggestionsManager::WasAutoOpenedForPdf() {
+  return GlicEnabling::IsAutoOpenForPdfEnabled(host().profile()) &&
+         host().invocation_source() ==
+             mojom::InvocationSource::kAutoOpenedForPdf;
+}
+
 base::WeakPtr<GlicZeroStateSuggestionsManager>
 GlicZeroStateSuggestionsManager::GetWeakPtr() {
   return weak_ptr_factory_.GetWeakPtr();

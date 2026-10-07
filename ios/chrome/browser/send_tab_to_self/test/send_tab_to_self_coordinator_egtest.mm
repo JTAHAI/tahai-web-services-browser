@@ -58,13 +58,6 @@ void DismissSnackbar() {
       performAction:grey_tap()];
 }
 
-// Opens the Tab Grid and waits until a tab grid cell is sufficiently visible.
-void OpenTabGridAndWaitTillVisible() {
-  [ChromeEarlGreyUI openTabGrid];
-  [ChromeEarlGrey waitForSufficientlyVisibleElementWithMatcher:
-                      chrome_test_util::TabGridCellAtIndex(0)];
-}
-
 }  // namespace
 
 @interface SendTabToSelfCoordinatorTestCase : ChromeTestCase
@@ -121,11 +114,11 @@ void OpenTabGridAndWaitTillVisible() {
 - (void)testShowPromoIfSignedOutAndHasDeviceAccount {
   [ChromeEarlGrey addFakeSyncServerDeviceInfo:kTargetDeviceName
                          lastUpdatedTimestamp:base::Time::Now()];
+  [SigninEarlGrey addFakeIdentity:[FakeSystemIdentity fakeIdentity1]];
   [ChromeEarlGrey
       loadURL:self.testServer->GetURL(
                   "/send_tab_to_self/send_tab_to_self_active_page.html")];
   [ChromeEarlGrey waitForWebStateContainingElement:TargetElement()];
-  [SigninEarlGrey addFakeIdentity:[FakeSystemIdentity fakeIdentity1]];
 
   [ChromeEarlGreyUI shareCurrentPage];
 
@@ -158,11 +151,11 @@ void OpenTabGridAndWaitTillVisible() {
 - (void)testTapManageDevicesOpensMyAccountDevicesPage {
   [ChromeEarlGrey addFakeSyncServerDeviceInfo:kTargetDeviceName
                          lastUpdatedTimestamp:base::Time::Now()];
+  [SigninEarlGrey signinWithFakeIdentity:[FakeSystemIdentity fakeIdentity1]];
   [ChromeEarlGrey
       loadURL:self.testServer->GetURL(
                   "/send_tab_to_self/send_tab_to_self_active_page.html")];
   [ChromeEarlGrey waitForWebStateContainingElement:TargetElement()];
-  [SigninEarlGrey signinWithFakeIdentity:[FakeSystemIdentity fakeIdentity1]];
 
   [ChromeEarlGreyUI shareCurrentPage];
   NSString* sendTabToSelf = l10n_util::GetNSString(IDS_SEND_TAB_TO_SELF);
@@ -188,11 +181,11 @@ void OpenTabGridAndWaitTillVisible() {
 }
 
 - (void)testShowMessageIfSignedInAndNoTargetDevice {
+  [SigninEarlGrey signinWithFakeIdentity:[FakeSystemIdentity fakeIdentity1]];
   [ChromeEarlGrey
       loadURL:self.testServer->GetURL(
                   "/send_tab_to_self/send_tab_to_self_active_page.html")];
   [ChromeEarlGrey waitForWebStateContainingElement:TargetElement()];
-  [SigninEarlGrey signinWithFakeIdentity:[FakeSystemIdentity fakeIdentity1]];
 
   [ChromeEarlGreyUI shareCurrentPage];
   NSString* sendTabToSelf = l10n_util::GetNSString(IDS_SEND_TAB_TO_SELF);
@@ -227,11 +220,11 @@ void OpenTabGridAndWaitTillVisible() {
   // considered expired and won't be displayed.
   [ChromeEarlGrey addFakeSyncServerDeviceInfo:kTargetDeviceName
                          lastUpdatedTimestamp:base::Time::Now()];
+  [SigninEarlGrey signinWithFakeIdentity:[FakeSystemIdentity fakeIdentity1]];
   [ChromeEarlGrey
       loadURL:self.testServer->GetURL(
                   "/send_tab_to_self/send_tab_to_self_active_page.html")];
   [ChromeEarlGrey waitForWebStateContainingElement:TargetElement()];
-  [SigninEarlGrey signinWithFakeIdentity:[FakeSystemIdentity fakeIdentity1]];
 
   [ChromeEarlGreyUI shareCurrentPage];
   NSString* sendTabToSelf = l10n_util::GetNSString(IDS_SEND_TAB_TO_SELF);
@@ -254,11 +247,11 @@ void OpenTabGridAndWaitTillVisible() {
 
   [ChromeEarlGrey addFakeSyncServerDeviceInfo:kTargetDeviceName
                          lastUpdatedTimestamp:base::Time::Now()];
+  [SigninEarlGrey signinWithFakeIdentity:[FakeSystemIdentity fakeIdentity1]];
   [ChromeEarlGrey
       loadURL:self.testServer->GetURL(
                   "/send_tab_to_self/send_tab_to_self_active_page.html")];
   [ChromeEarlGrey waitForWebStateContainingElement:TargetElement()];
-  [SigninEarlGrey signinWithFakeIdentity:[FakeSystemIdentity fakeIdentity1]];
 
   [ChromeEarlGreyUI shareCurrentPage];
   NSString* sendTabToSelf = l10n_util::GetNSString(IDS_SEND_TAB_TO_SELF);
@@ -306,12 +299,12 @@ void OpenTabGridAndWaitTillVisible() {
 - (void)testSendTabToSelfAndVerifySuccessSnackbar {
   [ChromeEarlGrey addFakeSyncServerDeviceInfo:kTargetDeviceName
                          lastUpdatedTimestamp:base::Time::Now()];
+  FakeSystemIdentity* fakeIdentity = [FakeSystemIdentity fakeIdentity1];
+  [SigninEarlGrey signinWithFakeIdentity:fakeIdentity];
   [ChromeEarlGrey
       loadURL:self.testServer->GetURL(
                   "/send_tab_to_self/send_tab_to_self_active_page.html")];
   [ChromeEarlGrey waitForWebStateContainingElement:TargetElement()];
-  FakeSystemIdentity* fakeIdentity = [FakeSystemIdentity fakeIdentity1];
-  [SigninEarlGrey signinWithFakeIdentity:fakeIdentity];
 
   [ChromeEarlGreyUI shareCurrentPage];
   NSString* sendTabToSelf = l10n_util::GetNSString(IDS_SEND_TAB_TO_SELF);
@@ -345,11 +338,11 @@ void OpenTabGridAndWaitTillVisible() {
 - (void)testSendTabToSelfAndVerifyErrorSnackbar {
   [ChromeEarlGrey addFakeSyncServerDeviceInfo:kTargetDeviceName
                          lastUpdatedTimestamp:base::Time::Now()];
+  [SigninEarlGrey signinWithFakeIdentity:[FakeSystemIdentity fakeIdentity1]];
   [ChromeEarlGrey
       loadURL:self.testServer->GetURL(
                   "/send_tab_to_self/send_tab_to_self_active_page.html")];
   [ChromeEarlGrey waitForWebStateContainingElement:TargetElement()];
-  [SigninEarlGrey signinWithFakeIdentity:[FakeSystemIdentity fakeIdentity1]];
 
   [ChromeEarlGreyUI shareCurrentPage];
   NSString* sendTabToSelf = l10n_util::GetNSString(IDS_SEND_TAB_TO_SELF);
@@ -436,50 +429,6 @@ void OpenTabGridAndWaitTillVisible() {
   GREYAssertTrue(noHighlight, @"Text fragment should not be highlighted.");
 
   // Clean up the opened tab.
-  [ChromeEarlGrey closeCurrentTab];
-}
-
-// Tests that when a Send Tab To Self entry is opened in a background tab,
-// scroll position restoration is deferred until the user switches to that tab
-// in the foreground.
-- (void)testRestoreScrollPositionInBackgroundTab {
-  NSString* urlString = base::SysUTF8ToNSString(
-      self.testServer
-          ->GetURL("/send_tab_to_self/send_tab_to_self_scroll_restoration.html")
-          .spec());
-  NSString* textFragment = @"This%20is%20a%20long,without%20any%20ambiguity.";
-
-  [SigninEarlGrey signinWithFakeIdentity:[FakeSystemIdentity fakeIdentity1]];
-  [ChromeEarlGrey addFakeSyncServerDeviceInfo:kTargetDeviceName
-                         lastUpdatedTimestamp:base::Time::Now()];
-
-  NSString* guid =
-      [ChromeEarlGrey addFakeSendTabToSelfEntryWithURL:urlString
-                                                 title:@"Scroll Page"
-                                          textFragment:textFragment];
-
-  [ChromeEarlGrey triggerSyncCycleForType:syncer::SEND_TAB_TO_SELF];
-  [ChromeEarlGrey waitForSendTabToSelfEntryWithGUID:guid];
-
-  // Open the new tab in the background.
-  [ChromeEarlGrey openSendTabToSelfNewBackgroundTabWithURL:urlString
-                                              textFragment:textFragment
-                                                 entryGUID:guid];
-
-  // Wait for the background tab to finish loading before switching to it.
-  [ChromeEarlGrey waitForAllWebStatesToFinishLoading];
-
-  // Switch to the newly opened background tab.
-  [ChromeEarlGrey selectTabAtIndex:1];
-  [ChromeEarlGrey
-      waitForWebStateVisibleURL:GURL(base::SysNSStringToUTF8(urlString))];
-  [ChromeEarlGrey waitForWebStateContainingElement:TargetElement()];
-
-  // Verify that after switching to the tab in the foreground, the page has
-  // scrolled down to the fragment.
-  NSString* checkScrollJS = @"window.scrollY > 0;";
-  [ChromeEarlGrey waitForJavaScriptCondition:checkScrollJS];
-
   [ChromeEarlGrey closeCurrentTab];
 }
 
@@ -658,11 +607,11 @@ void OpenTabGridAndWaitTillVisible() {
 - (void)testLongPressTabSwitcherTabToShowSendToYourDevice {
   [ChromeEarlGrey addFakeSyncServerDeviceInfo:kTargetDeviceName
                          lastUpdatedTimestamp:base::Time::Now()];
+  [SigninEarlGrey signinWithFakeIdentity:[FakeSystemIdentity fakeIdentity1]];
   [ChromeEarlGrey
       loadURL:self.testServer->GetURL(
                   "/send_tab_to_self/send_tab_to_self_active_page.html")];
   [ChromeEarlGrey waitForWebStateContainingElement:TargetElement()];
-  [SigninEarlGrey signinWithFakeIdentity:[FakeSystemIdentity fakeIdentity1]];
 
   // Open tab switcher.
   [ChromeEarlGrey showTabSwitcher];
@@ -695,65 +644,16 @@ void OpenTabGridAndWaitTillVisible() {
                       grey_accessibilityID(kSendTabToSelfModalCancelButtonId)];
 }
 
-// Tests that when the "Send to your device" bottom sheet is opened from the tab
-// switcher context menu, simulating an external URL open dismisses the bottom
-// sheet and opens the requested URL.
-- (void)
-    testDismissSendToYourDeviceBottomSheetWhenOpenedFromTabSwitcherOnExternalURL {
-  [ChromeEarlGrey addFakeSyncServerDeviceInfo:kTargetDeviceName
-                         lastUpdatedTimestamp:base::Time::Now()];
-  [ChromeEarlGrey
-      loadURL:self.testServer->GetURL(
-                  "/send_tab_to_self/send_tab_to_self_active_page.html")];
-  [ChromeEarlGrey waitForWebStateContainingElement:TargetElement()];
-  [SigninEarlGrey signinWithFakeIdentity:[FakeSystemIdentity fakeIdentity1]];
-
-  // Open tab switcher.
-  [ChromeEarlGrey showTabSwitcher];
-
-  // Long press the active tab cell (index 0).
-  [[EarlGrey selectElementWithMatcher:chrome_test_util::TabGridCellAtIndex(0)]
-      performAction:grey_longPress()];
-
-  // Verify the "Send to your device" menu item shows up.
-  id<GREYMatcher> sendToDevicesMenuItem =
-      chrome_test_util::ContextMenuItemWithAccessibilityLabelId(
-          IDS_SEND_TAB_TO_SELF);
-  [[EarlGrey selectElementWithMatcher:sendToDevicesMenuItem]
-      assertWithMatcher:grey_sufficientlyVisible()];
-
-  // Tap the context menu item.
-  [[EarlGrey selectElementWithMatcher:sendToDevicesMenuItem]
-      performAction:grey_tap()];
-
-  // Verify that the device picker shows up.
-  [ChromeEarlGrey
-      waitForSufficientlyVisibleElementWithMatcher:grey_accessibilityLabel(
-                                                       kTargetDeviceName)];
-
-  // Simulate opening an external URL, which requires dismissing all modal
-  // dialogs on the tab switcher.
-  [ChromeEarlGrey simulateExternalAppURLOpeningAndWaitUntilOpenedWithGURL:
-                      self.testServer->GetURL("/send_tab_to_self/"
-                                              "send_tab_to_self_active_page."
-                                              "html")];
-
-  // Verify that the device picker modal was dismissed.
-  [ChromeEarlGrey
-      waitForUIElementToDisappearWithMatcher:grey_accessibilityLabel(
-                                                 kTargetDeviceName)];
-}
-
 // Tests that long-pressing a tab cell in the tab switcher shows "Send to Your
 // Devices" and tapping it displays the sign-in promo if the user is signed out.
 - (void)testLongPressTabSwitcherTabToShowSigninPromo {
   [ChromeEarlGrey addFakeSyncServerDeviceInfo:kTargetDeviceName
                          lastUpdatedTimestamp:base::Time::Now()];
+  [SigninEarlGrey addFakeIdentity:[FakeSystemIdentity fakeIdentity1]];
   [ChromeEarlGrey
       loadURL:self.testServer->GetURL(
                   "/send_tab_to_self/send_tab_to_self_active_page.html")];
   [ChromeEarlGrey waitForWebStateContainingElement:TargetElement()];
-  [SigninEarlGrey addFakeIdentity:[FakeSystemIdentity fakeIdentity1]];
 
   // Open tab switcher.
   [ChromeEarlGrey showTabSwitcher];
@@ -804,10 +704,6 @@ void OpenTabGridAndWaitTillVisible() {
 - (void)testLongPressOmniboxToShowSendToYourDevice {
   [ChromeEarlGrey addFakeSyncServerDeviceInfo:kTargetDeviceName
                          lastUpdatedTimestamp:base::Time::Now()];
-  [ChromeEarlGrey
-      loadURL:self.testServer->GetURL(
-                  "/send_tab_to_self/send_tab_to_self_active_page.html")];
-  [ChromeEarlGrey waitForWebStateContainingElement:TargetElement()];
   // Disable EarlGrey's synchronization during sign-in because the concurrent
   // sync/sign-in initialization triggers micro-animations and layouts on the
   // Location Bar steady view, which makes EarlGrey's synchronization hang
@@ -817,6 +713,10 @@ void OpenTabGridAndWaitTillVisible() {
     ScopedSynchronizationDisabler disabler;
     [SigninEarlGrey signinWithFakeIdentity:[FakeSystemIdentity fakeIdentity1]];
   }
+  [ChromeEarlGrey
+      loadURL:self.testServer->GetURL(
+                  "/send_tab_to_self/send_tab_to_self_active_page.html")];
+  [ChromeEarlGrey waitForWebStateContainingElement:TargetElement()];
 
   // Long press the DefocusedLocationView.
   [[EarlGrey selectElementWithMatcher:chrome_test_util::DefocusedLocationView()]
@@ -877,12 +777,12 @@ void OpenTabGridAndWaitTillVisible() {
 // while active in the foreground automatically opens it as a background tab
 // and presents a snackbar banner.
 - (void)testSendTabToSelfAutoOpenWhenReceivedInForeground {
+  [SigninEarlGrey signinWithFakeIdentity:[FakeSystemIdentity fakeIdentity1]];
   [ChromeEarlGrey addFakeSyncServerDeviceInfo:kTargetDeviceName
                          lastUpdatedTimestamp:base::Time::Now()];
 
   // Load a starting page so there is an active, visible WebState.
   [ChromeEarlGrey loadURL:GURL("about:blank")];
-  [SigninEarlGrey signinWithFakeIdentity:[FakeSystemIdentity fakeIdentity1]];
 
   NSUInteger initialTabCount = [ChromeEarlGrey mainTabCount];
 
@@ -899,8 +799,8 @@ void OpenTabGridAndWaitTillVisible() {
 
   // Verify that the InfoBar message banner is displayed with correct title and
   // subtitle.
-  NSString* title = l10n_util::GetPluralNSStringF(
-      IDS_SEND_TAB_TO_SELF_INFOBAR_AUTO_OPEN_TITLE, 1);
+  NSString* title =
+      l10n_util::GetNSString(IDS_SEND_TAB_TO_SELF_INFOBAR_AUTO_OPEN_TITLE);
   NSString* subtitle = l10n_util::GetNSStringF(
       IDS_SEND_TAB_TO_SELF_INFOBAR_AUTO_OPEN_SUBTITLE, u"remote_device");
   NSString* combinedLabel =
@@ -963,8 +863,8 @@ void OpenTabGridAndWaitTillVisible() {
 
   // Verify that the InfoBar message banner is displayed with correct title and
   // subtitle.
-  NSString* title = l10n_util::GetPluralNSStringF(
-      IDS_SEND_TAB_TO_SELF_INFOBAR_AUTO_OPEN_TITLE, 1);
+  NSString* title =
+      l10n_util::GetNSString(IDS_SEND_TAB_TO_SELF_INFOBAR_AUTO_OPEN_TITLE);
   NSString* subtitle = l10n_util::GetNSStringF(
       IDS_SEND_TAB_TO_SELF_INFOBAR_AUTO_OPEN_SUBTITLE, u"remote_device");
   NSString* combinedLabel =
@@ -977,8 +877,7 @@ void OpenTabGridAndWaitTillVisible() {
 
   // Open the Tab Grid to verify the activity label on the auto-opened
   // background tab.
-  OpenTabGridAndWaitTillVisible();
-
+  [ChromeEarlGreyUI openTabGrid];
   NSString* labelText = l10n_util::GetNSStringF(
       IDS_SEND_TAB_TO_SELF_INFOBAR_AUTO_OPEN_SUBTITLE, u"remote_device");
   [[EarlGrey
@@ -991,12 +890,12 @@ void OpenTabGridAndWaitTillVisible() {
 // displays the "From remote_device" activity label, and that the label
 // disappears once the tab is viewed.
 - (void)testTabCardLabelDisplayedInTabGrid {
+  [SigninEarlGrey signinWithFakeIdentity:[FakeSystemIdentity fakeIdentity1]];
   [ChromeEarlGrey addFakeSyncServerDeviceInfo:kTargetDeviceName
                          lastUpdatedTimestamp:base::Time::Now()];
 
   // Load a starting page so there is an active, visible WebState.
   [ChromeEarlGrey loadURL:GURL("about:blank")];
-  [SigninEarlGrey signinWithFakeIdentity:[FakeSystemIdentity fakeIdentity1]];
 
   NSUInteger initialTabCount = [ChromeEarlGrey mainTabCount];
 
@@ -1011,8 +910,9 @@ void OpenTabGridAndWaitTillVisible() {
   [ChromeEarlGrey waitForMainTabCount:initialTabCount + 1];
 
   // Enter the Tab Grid.
-  OpenTabGridAndWaitTillVisible();
+  [ChromeEarlGreyUI openTabGrid];
 
+  // Verify that the activity label "From remote_device" is visible.
   NSString* labelText = l10n_util::GetNSStringF(
       IDS_SEND_TAB_TO_SELF_INFOBAR_AUTO_OPEN_SUBTITLE, u"remote_device");
   [[EarlGrey
@@ -1025,8 +925,9 @@ void OpenTabGridAndWaitTillVisible() {
       performAction:grey_tap()];
 
   // Enter the Tab Grid again.
-  OpenTabGridAndWaitTillVisible();
+  [ChromeEarlGreyUI openTabGrid];
 
+  // Verify that the label is now gone.
   [[EarlGrey
       selectElementWithMatcher:grey_allOf(grey_accessibilityLabel(labelText),
                                           grey_sufficientlyVisible(), nil)]
@@ -1036,12 +937,12 @@ void OpenTabGridAndWaitTillVisible() {
 // Tests that the tab card activity label is correctly persisted and restored
 // across app relaunch, and is dismissed once the tab is viewed.
 - (void)testTabCardLabelPersistsAcrossRelaunch {
+  [SigninEarlGrey signinWithFakeIdentity:[FakeSystemIdentity fakeIdentity1]];
   [ChromeEarlGrey addFakeSyncServerDeviceInfo:kTargetDeviceName
                          lastUpdatedTimestamp:base::Time::Now()];
 
   // Load a starting page.
   [ChromeEarlGrey loadURL:GURL("about:blank")];
-  [SigninEarlGrey signinWithFakeIdentity:[FakeSystemIdentity fakeIdentity1]];
 
   NSUInteger initialTabCount = [ChromeEarlGrey mainTabCount];
 
@@ -1056,8 +957,9 @@ void OpenTabGridAndWaitTillVisible() {
   [ChromeEarlGrey waitForMainTabCount:initialTabCount + 1];
 
   // Enter the Tab Grid.
-  OpenTabGridAndWaitTillVisible();
+  [ChromeEarlGreyUI openTabGrid];
 
+  // Verify that the activity label "From remote_device" is visible.
   NSString* labelText = l10n_util::GetNSStringF(
       IDS_SEND_TAB_TO_SELF_INFOBAR_AUTO_OPEN_SUBTITLE, u"remote_device");
   [[EarlGrey
@@ -1076,7 +978,7 @@ void OpenTabGridAndWaitTillVisible() {
   [[AppLaunchManager sharedManager] ensureAppLaunchedWithConfiguration:config];
 
   // Enter the Tab Grid.
-  OpenTabGridAndWaitTillVisible();
+  [ChromeEarlGreyUI openTabGrid];
 
   // Verify that the label is still visible after restart.
   [[EarlGrey
@@ -1089,7 +991,7 @@ void OpenTabGridAndWaitTillVisible() {
       performAction:grey_tap()];
 
   // Enter the Tab Grid again.
-  OpenTabGridAndWaitTillVisible();
+  [ChromeEarlGreyUI openTabGrid];
 
   // Verify that the label is now gone.
   ConditionBlock condition = ^{
@@ -1111,12 +1013,12 @@ void OpenTabGridAndWaitTillVisible() {
 // logs the activation metrics (both the entry point and the time from opened to
 // activated).
 - (void)testTabCardActivationLogsMetrics {
+  [SigninEarlGrey signinWithFakeIdentity:[FakeSystemIdentity fakeIdentity1]];
   [ChromeEarlGrey addFakeSyncServerDeviceInfo:kTargetDeviceName
                          lastUpdatedTimestamp:base::Time::Now()];
 
   // Load a starting page so there is an active, visible WebState.
   [ChromeEarlGrey loadURL:GURL("about:blank")];
-  [SigninEarlGrey signinWithFakeIdentity:[FakeSystemIdentity fakeIdentity1]];
 
   NSUInteger initialTabCount = [ChromeEarlGrey mainTabCount];
 
@@ -1153,7 +1055,7 @@ void OpenTabGridAndWaitTillVisible() {
 
   // Enter the Tab Grid (this triggers lazy recreation of the card label and
   // re-attaches the tracker).
-  OpenTabGridAndWaitTillVisible();
+  [ChromeEarlGreyUI openTabGrid];
 
   // Verify that the activation metrics histograms have NOT been logged yet.
   GREYAssertNil(
@@ -1170,12 +1072,10 @@ void OpenTabGridAndWaitTillVisible() {
   // Tap the restored background tab (index 1) to view/activate it.
   [[EarlGrey selectElementWithMatcher:chrome_test_util::TabGridCellAtIndex(1)]
       performAction:grey_tap()];
-  [ChromeEarlGrey
-      waitForWebStateVisibleURL:GURL(base::SysNSStringToUTF8(kExampleURL))];
 
   // Verify that the activation metrics histograms were logged successfully.
   // 1. Sharing.SendTabToSelf.ActivatedEntryPoint should have 1 sample in bucket
-  // ShareActivatedEntryPoint::kTabStrip.
+  // 4 (kTabStrip).
   GREYAssertNil(
       [MetricsAppInterface
           expectUniqueSampleWithCount:1
@@ -1200,6 +1100,7 @@ void OpenTabGridAndWaitTillVisible() {
 // adjacent to the active tab, displays its activity badge in the switcher, and
 // does not display an infobar banner upon returning to the foreground.
 - (void)testSendTabToSelfAutoOpenWhenReceivedInTabGrid {
+  [SigninEarlGrey signinWithFakeIdentity:[FakeSystemIdentity fakeIdentity1]];
   [ChromeEarlGrey addFakeSyncServerDeviceInfo:kTargetDeviceName
                          lastUpdatedTimestamp:base::Time::Now()];
 
@@ -1212,7 +1113,6 @@ void OpenTabGridAndWaitTillVisible() {
 
   // Open tab 1.
   [ChromeEarlGrey loadURL:tab1URL];
-  [SigninEarlGrey signinWithFakeIdentity:[FakeSystemIdentity fakeIdentity1]];
 
   // Open tab 2 from the tab grid so it does not inherit the first tab as its
   // opener, then load its URL.
@@ -1255,8 +1155,8 @@ void OpenTabGridAndWaitTillVisible() {
 
   // Verify that no InfoBar message banner is displayed since the user already
   // saw the tab arrive in the Tab Grid.
-  NSString* title = l10n_util::GetPluralNSStringF(
-      IDS_SEND_TAB_TO_SELF_INFOBAR_AUTO_OPEN_TITLE, 1);
+  NSString* title =
+      l10n_util::GetNSString(IDS_SEND_TAB_TO_SELF_INFOBAR_AUTO_OPEN_TITLE);
   NSString* subtitle = l10n_util::GetNSStringF(
       IDS_SEND_TAB_TO_SELF_INFOBAR_AUTO_OPEN_SUBTITLE, u"remote_device");
   NSString* combinedLabel =

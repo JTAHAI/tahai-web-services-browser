@@ -5,8 +5,6 @@
 
 #include "chrome/installer/util/duplicate_tree_detector.h"
 
-#include <windows.h>
-
 #include "base/files/file_enumerator.h"
 #include "base/files/file_util.h"
 #include "base/logging.h"
@@ -23,10 +21,8 @@ bool IsIdenticalFileHierarchy(const base::FilePath& src_path,
 
   base::File::Info dest_info;
   if (!base::GetFileInfo(dest_path, &dest_info)) {
-    const auto error = ::GetLastError();
-    PLOG_IF(ERROR,
-            error != ERROR_FILE_NOT_FOUND && error != ERROR_PATH_NOT_FOUND)
-        << "Failed to get file info for destination path: " << dest_path;
+    PLOG(ERROR) << "Failed to get file info for destination path: "
+                << dest_path;
     return false;
   }
 

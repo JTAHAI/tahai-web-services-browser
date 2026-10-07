@@ -40,8 +40,7 @@ class NotificationHandler {
     NOTIFICATIONS_MUTED = 9,
     TAILORED_SECURITY = 10,
     DEFAULT_BROWSER_CHANGED = 11,
-    EXTENSION_REQUEST = 12,
-    MAX = EXTENSION_REQUEST,
+    MAX = DEFAULT_BROWSER_CHANGED,
   };
 
   virtual ~NotificationHandler();

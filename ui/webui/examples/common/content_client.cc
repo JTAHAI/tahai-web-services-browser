@@ -6,7 +6,6 @@
 
 #include <string_view>
 
-#include "base/memory/ref_counted_memory.h"
 #include "ui/base/resource/resource_bundle.h"
 
 namespace webui_examples {
@@ -21,8 +20,7 @@ std::string_view ContentClient::GetDataResource(
       resource_id, scale_factor);
 }
 
-scoped_refptr<base::RefCountedMemory> ContentClient::GetDataResourceBytes(
-    int resource_id) {
+base::RefCountedMemory* ContentClient::GetDataResourceBytes(int resource_id) {
   return ui::ResourceBundle::GetSharedInstance().LoadDataResourceBytes(
       resource_id);
 }

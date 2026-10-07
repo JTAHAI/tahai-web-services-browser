@@ -70,16 +70,8 @@ class SearchboxInteractiveTestMixin : public T {
             T::PollElement(
                 kGoogleSearchNavigated, tab_id,
                 [expected_params](const ui::TrackedElement* el) {
-                  if (!el) {
-                    return false;
-                  }
-                  const auto* const tracked_wc =
-                      el->AsA<TrackedElementWebContents>();
-                  if (!tracked_wc || !tracked_wc->owner() ||
-                      !tracked_wc->owner()->web_contents()) {
-                    return false;
-                  }
-                  const GURL url = tracked_wc->owner()
+                  const GURL url = el->AsA<TrackedElementWebContents>()
+                                       ->owner()
                                        ->web_contents()
                                        ->GetLastCommittedURL();
                   if (!google_util::IsGoogleSearchUrl(url)) {
@@ -170,24 +162,6 @@ class SearchboxInteractiveTestMixin : public T {
                            "'voice-search-final-result', "
                            "{detail: '%s', bubbles: true, composed: true}))",
                            result.c_str()))));
-  }
-
-  // Waits for AIM contextual entrypoint state to be eligible and ready.
-  auto WaitForOmniboxAimStateReady(
-      const ui::ElementIdentifier& omnibox_context_entrypoint_contents_id,
-      const WebContentsInteractionTestUtil::DeepQuery& where) {
-    DEFINE_LOCAL_CUSTOM_ELEMENT_EVENT_TYPE(kAimStateReady);
-    WebContentsInteractionTestUtil::StateChange state_ready;
-    state_ready.event = kAimStateReady;
-    state_ready.where = where;
-    state_ready.test_function =
-        "(el) => { const ep = "
-        "el?.shadowRoot?.querySelector('omnibox-popup-contextual-entrypoint'); "
-        "return ep && ep.isAimPopupEligible && ep.inputState && "
-        "ep.inputState.allowedTools.length > 0; }";
-    state_ready.continue_across_navigation = true;
-    return T::Steps(T::InAnyContext(T::WaitForStateChange(
-        omnibox_context_entrypoint_contents_id, state_ready)));
   }
 
   void SetUpOnMainThread() override {

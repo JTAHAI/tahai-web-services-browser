@@ -630,7 +630,12 @@ void TestSuite::Initialize() {
   // Child processes generally do not need ICU.
   if (!command_line->HasSwitch("test-child-process")) {
     test::InitializeICUForTesting();
-    icu_locale_.emplace(i18n::GetKnownLanguageTag("en-US"));
+
+    // A number of tests only work if the locale is en_US. This can be an issue
+    // on all platforms. To fix this we force the default locale to en_US. This
+    // does not affect tests that explicitly overrides the locale for testing.
+    // TODO(jshin): Should we set the locale via an OS X locale API here?
+    i18n::SetICUDefaultLocale("en_US");
   }
 
 #if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
@@ -688,7 +693,6 @@ void TestSuite::Shutdown() {
   }
 #endif
   debug::StopProfiling();
-  icu_locale_.reset();
 }
 
 void TestSuite::PreInitialize() {

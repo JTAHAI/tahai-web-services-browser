@@ -6,6 +6,7 @@
 
 #include <array>
 #include <cstdint>
+#include <iterator>
 #include <memory>
 #include <optional>
 #include <string>
@@ -134,7 +135,8 @@ class AIEmbeddingsComponentInstallerPolicy
   }
 
   void GetHash(std::vector<uint8_t>* hash) const override {
-    hash->assign_range(kAIEmbeddingsPublicKeySHA256);
+    hash->assign(kAIEmbeddingsPublicKeySHA256.begin(),
+                 kAIEmbeddingsPublicKeySHA256.end());
   }
 
   std::string GetName() const override { return kAIEmbeddingsManifestName; }

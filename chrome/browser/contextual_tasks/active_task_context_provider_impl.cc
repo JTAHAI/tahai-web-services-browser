@@ -213,7 +213,7 @@ void ActiveTaskContextProviderImpl::PrimaryPageChanged(content::Page& page) {
 
     auto* helper =
         ContextualSearchWebContentsHelper::FromWebContents(web_contents());
-    if (helper && helper->task_id() && helper->session_handle()) {
+    if (helper && helper->task_id()) {
       SessionID tab_id = sessions::SessionTabHelper::IdForTab(web_contents());
       contextual_tasks_service_->DisassociateTabFromTask(*helper->task_id(),
                                                          tab_id);

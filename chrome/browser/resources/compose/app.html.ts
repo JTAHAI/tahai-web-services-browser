@@ -15,10 +15,7 @@ export function getHtml(this: ComposeAppElement) {
     ?hidden="${!this.showFirstRunDialog_}">
   <div id="firstRunHeading">
     <div id="firstRunIconContainer">
-      <cr-icon
-          icon="${this.webuiRoundedIconsEnabled_
-              ? 'compose:pen-spark'
-              : 'compose:compose-old'}"></cr-icon>
+      <cr-icon icon="compose:compose"></cr-icon>
     </div>
     <h1>$i18n{firstRunTitle}</h1>
     <cr-icon-button id="firstRunCloseButton" class="close-button"
@@ -154,9 +151,7 @@ export function getHtml(this: ComposeAppElement) {
                       @click="${this.onUndoClick_}">
                     <div aria-hidden="true"> $i18n{undoButtonText} </div>
                     <cr-icon aria-hidden="true" slot="suffix-icon"
-                      icon="${this.webuiRoundedIconsEnabled_
-                          ? 'compose:undo'
-                          : 'compose:undo-old'}">
+                      icon="compose:undo">
                     </cr-icon>
                   </cr-button>
                 </div>
@@ -166,9 +161,7 @@ export function getHtml(this: ComposeAppElement) {
                       @click="${this.onRedoClick_}">
                     <div aria-hidden="true"> $i18n{redoButtonText} </div>
                     <cr-icon aria-hidden="true" slot="suffix-icon"
-                      icon="${this.webuiRoundedIconsEnabled_
-                          ? 'compose:redo'
-                          : 'compose:redo-old'}">
+                      icon="compose:redo">
                     </cr-icon>
                   </cr-button>
                 </div>
@@ -191,10 +184,7 @@ export function getHtml(this: ComposeAppElement) {
       <cr-button id="submitButton" class="action-button"
           @click="${this.onSubmitClick_}"
           ?disabled="${!this.isSubmitEnabled_}">
-        <cr-icon slot="prefix-icon"
-            icon="${this.webuiRoundedIconsEnabled_
-                ? 'compose:pen-spark'
-                : 'compose:compose-old'}"></cr-icon>
+        <cr-icon slot="prefix-icon" icon="compose:compose"></cr-icon>
         $i18n{submitButton}
       </cr-button>
     </div>
@@ -238,10 +228,7 @@ export function getHtml(this: ComposeAppElement) {
       <cr-button id="errorGoBackButton" class="action-button"
           @click="${this.onErrorGoBackButtonClick_}"
           ?hidden="${!this.isBackFromErrorAvailable_()}">
-        <cr-icon aria-hidden="true" slot="prefix-icon"
-            icon="${this.webuiRoundedIconsEnabled_
-                ? 'compose:undo'
-                : 'compose:undo-old'}">
+        <cr-icon aria-hidden="true" slot="prefix-icon" icon="compose:undo">
         </cr-icon>
         <div aria-hidden="true">
           $i18nRaw{errorFilteredGoBackButton}

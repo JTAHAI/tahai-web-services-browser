@@ -55,7 +55,7 @@ namespace partition_alloc::internal {
     PA_BUILDFLAG(ENABLE_PARTITION_LOCK_REENTRANCY_CHECK)
 struct PA_THREAD_ISOLATED_ALIGN ThreadIsolationSettings {
   bool enabled = false;
-  constinit static ThreadIsolationSettings settings;
+  PA_CONSTINIT static ThreadIsolationSettings settings;
 };
 #endif  // PA_BUILDFLAG(DCHECKS_ARE_ON) ||
         // PA_BUILDFLAG(ENABLE_PARTITION_LOCK_REENTRANCY_CHECK)

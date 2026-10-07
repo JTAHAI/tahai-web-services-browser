@@ -59,8 +59,6 @@ base::ReadOnlySharedMemoryRegion COMPONENT_EXPORT(TRACING_CPP)
 base::UnsafeSharedMemoryRegion COMPONENT_EXPORT(TRACING_CPP)
     CreateTracingOutputSharedMemory();
 
-void COMPONENT_EXPORT(TRACING_CPP) EnableEarlyTrackRegistration();
-
 }  // namespace tracing
 
 #endif  // SERVICES_TRACING_PUBLIC_CPP_TRACE_STARTUP_H_

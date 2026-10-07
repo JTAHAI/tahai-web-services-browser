@@ -32,6 +32,7 @@
 #include "third_party/blink/renderer/core/xml/xpath_predicate.h"
 #include "third_party/blink/renderer/core/xml/xpath_step.h"
 #include "third_party/blink/renderer/core/xml/xpath_value.h"
+#include "third_party/blink/renderer/platform/runtime_enabled_features.h"
 
 namespace blink {
 namespace xpath {
@@ -101,7 +102,9 @@ Value LocationPath::Evaluate(EvaluationContext& evaluation_context) const {
   // logical treatment of where you would expect the "root" to be.
   Node* context = evaluation_context.node;
   if (absolute_ && context->getNodeType() != Node::kDocumentNode) {
-    if (context->isConnected() && !context->IsInShadowTree()) {
+    if (context->isConnected() &&
+        (!RuntimeEnabledFeatures::XPathShadowDOMSupportEnabled() ||
+         !context->IsInShadowTree())) {
       context = context->ownerDocument();
     } else {
       context = &NodeTraversal::HighestAncestorOrSelf(*context);

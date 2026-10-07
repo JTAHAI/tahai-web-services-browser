@@ -143,17 +143,21 @@ public class AddExceptionPreference extends Preference
         }
 
         DialogInterface.OnClickListener onClickListener =
-                (dialog, button) -> {
-                    if (button == AlertDialog.BUTTON_POSITIVE) {
-                        int categoryType = mCategory.getType();
-                        boolean isChecked = checkBox.isChecked();
-                        String pattern = input.getText().toString().trim();
-                        pattern = updatePatternIfNeeded(pattern, categoryType, isChecked);
-                        String primary = getPrimaryPattern(pattern, categoryType, isChecked);
-                        String secondary = getSecondaryPattern(pattern, categoryType, isChecked);
-                        mSiteAddedCallback.onAddSite(primary, secondary);
-                    } else {
-                        dialog.dismiss();
+                new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int button) {
+                        if (button == AlertDialog.BUTTON_POSITIVE) {
+                            int categoryType = mCategory.getType();
+                            boolean isChecked = checkBox.isChecked();
+                            String pattern = input.getText().toString().trim();
+                            pattern = updatePatternIfNeeded(pattern, categoryType, isChecked);
+                            String primary = getPrimaryPattern(pattern, categoryType, isChecked);
+                            String secondary =
+                                    getSecondaryPattern(pattern, categoryType, isChecked);
+                            mSiteAddedCallback.onAddSite(primary, secondary);
+                        } else {
+                            dialog.dismiss();
+                        }
                     }
                 };
 
@@ -169,7 +173,12 @@ public class AddExceptionPreference extends Preference
                         .create();
         alertDialog.getDelegate().setHandleNativeActionModesEnabled(false);
         alertDialog.setOnShowListener(
-                dialog -> KeyboardVisibilityDelegate.getInstance().showKeyboard(input));
+                new DialogInterface.OnShowListener() {
+                    @Override
+                    public void onShow(DialogInterface dialog) {
+                        KeyboardVisibilityDelegate.getInstance().showKeyboard(input);
+                    }
+                });
         alertDialog.show();
         final Button okButton = alertDialog.getButton(AlertDialog.BUTTON_POSITIVE);
         okButton.setEnabled(false);

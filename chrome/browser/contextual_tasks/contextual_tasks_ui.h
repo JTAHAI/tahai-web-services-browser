@@ -10,7 +10,6 @@
 #include "base/functional/callback.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/raw_ref.h"
-#include "base/memory/scoped_refptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/observer_list.h"
 #include "base/scoped_observation.h"
@@ -25,7 +24,6 @@
 #include "chrome/browser/contextual_tasks/contextual_tasks_internals.mojom.h"
 #include "chrome/browser/contextual_tasks/contextual_tasks_page_handler.h"
 #include "chrome/browser/contextual_tasks/contextual_tasks_panel_controller.h"
-#include "chrome/browser/contextual_tasks/contextual_tasks_ui_base.h"
 #include "chrome/browser/contextual_tasks/contextual_tasks_ui_interface.h"
 #include "chrome/browser/contextual_tasks/task_info_delegate.h"
 #include "chrome/common/webui_url_constants.h"
@@ -45,6 +43,7 @@
 #include "mojo/public/cpp/bindings/receiver.h"
 #include "mojo/public/cpp/bindings/remote.h"
 #include "net/base/backoff_entry.h"
+#include "third_party/lens_server_proto/aim_communication.pb.h"
 #include "ui/base/interaction/element_identifier.h"
 #include "ui/base/resource/resource_scale_factor.h"
 #include "ui/webui/mojo_web_ui_controller.h"
@@ -73,10 +72,6 @@ class ContextualTasksUiService;
 
 }  // namespace contextual_tasks
 
-namespace lens {
-class ClientToAimMessage;
-}  // namespace lens
-
 namespace tabs {
 class TabInterface;
 }  // namespace tabs
@@ -87,8 +82,8 @@ class ContextualTasksPageHandler;
 class Profile;
 
 class ContextualTasksUI
-    : public contextual_tasks::ContextualTasksUIBase,
-      public contextual_tasks::ContextualTasksUIInterface,
+    : public contextual_tasks::ContextualTasksUIInterface,
+      public ui::MojoWebUIController,
 #if !BUILDFLAG(ENABLE_EXTENSIONS_CORE)
       public guest_view::SlimWebViewPageHandlerFactory,
 #endif
@@ -100,8 +95,6 @@ class ContextualTasksUI
       public signin::IdentityManager::Observer,
       public contextual_tasks::ContextualTasksService::Observer {
  public:
-  using contextual_tasks::ContextualTasksUIBase::BindInterface;
-  using contextual_tasks::ContextualTasksUIBase::CreatePageHandler;
   DECLARE_CLASS_ELEMENT_IDENTIFIER_VALUE(kSmartTabSharingMenuItemElementId);
 
   friend class ContextualTasksUIBrowserTest;
@@ -139,8 +132,6 @@ class ContextualTasksUI
 
   static content::WebUIDataSource* RegisterWebUIDataSource(Profile* profile);
   static base::DictValue GetContextualTasksLoadTimeData(Profile* profile);
-  static bool ShouldClearAllInputsOnSubmit(
-      std::optional<lens::LensOverlayInvocationSource> invocation_source);
 
 #if !BUILDFLAG(ENABLE_EXTENSIONS_CORE)
   using SlimWebViewPageHandlerFactory::BindInterface;
@@ -197,7 +188,6 @@ class ContextualTasksUI
   void CloseSidePanel() override;
   void OnSidePanelStateChanged() override;
   void OnActiveTabContextStatusChanged() override;
-  void SyncAutoSuggestedTabContext() override;
   void OnLensOverlayStateChanged(
       bool is_showing,
       std::optional<lens::LensOverlayInvocationSource> invocation_source)
@@ -256,10 +246,6 @@ class ContextualTasksUI
   // ignores the order of query parameters.
   static bool AreUrlsEqual(const GURL& a, const GURL& b);
 
-  // Returns whether this side panel instance was opened via the Omnibox
-  // Co-Browse action with visual selection enabled.
-  bool IsCoBrowseOmniboxAction() const;
-
   // Returns whether OnActiveTabContextStatusChanged should proceed with trying
   // to add the current tab as an auto-chip.
   bool CanUpdateSuggestedTabContext(tabs::TabInterface* tab,
@@ -291,7 +277,7 @@ class ContextualTasksUI
 
   static constexpr std::string_view GetWebUIName() { return "ContextualTasks"; }
 
-  static scoped_refptr<base::RefCountedMemory> GetFaviconResourceBytes(
+  static base::RefCountedMemory* GetFaviconResourceBytes(
       ui::ResourceScaleFactor scale_factor);
 
   // signin::IdentityManager::Observer:

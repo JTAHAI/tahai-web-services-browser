@@ -10,6 +10,7 @@
 #import "base/memory/weak_ptr.h"
 #import "components/autofill/ios/form_util/form_activity_params.h"
 
+class PrefService;
 @protocol AutofillCommands;
 
 namespace web {
@@ -18,9 +19,10 @@ class WebState;
 
 @interface AmbientAutofillNoticeMediator : NSObject
 
-- (instancetype)initWithWebState:(base::WeakPtr<web::WebState>)webState
-                          params:(const autofill::FormActivityParams&)params
-                 autofillHandler:(id<AutofillCommands>)autofillHandler
+- (instancetype)initWithPrefService:(PrefService*)prefService
+                           webState:(base::WeakPtr<web::WebState>)webState
+                             params:(const autofill::FormActivityParams&)params
+                    autofillHandler:(id<AutofillCommands>)autofillHandler
     NS_DESIGNATED_INITIALIZER;
 
 - (instancetype)init NS_UNAVAILABLE;

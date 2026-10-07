@@ -61,8 +61,6 @@ source_set("unit_tests") {
     ":data",
     "//base",
     "//base/test:test_support",
-    "//components/send_tab_to_self",
-    "//components/send_tab_to_self:test_support",
     "//ios/chrome/browser/download/model",
     "//ios/chrome/browser/shared/model/profile/test",
     "//ios/chrome/browser/snapshots/model",

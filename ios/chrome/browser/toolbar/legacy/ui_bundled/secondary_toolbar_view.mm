@@ -18,7 +18,7 @@
 #import "ios/chrome/browser/toolbar/legacy/ui_bundled/toolbar_progress_bar.h"
 #import "ios/chrome/common/ui/colors/semantic_color_names.h"
 #import "ios/chrome/common/ui/util/constraints_ui_util.h"
-#import "ios/chrome/common/ui/util/ui_util.h"
+#import "ui/gfx/ios/uikit_util.h"
 
 namespace {
 const CGFloat kToolsMenuOffset = -7;
@@ -240,8 +240,9 @@ UIView* SecondaryToolbarLocationBarContainerView(
     [_progressBar.heightAnchor constraintEqualToConstant:kProgressBarHeight]
         .active = YES;
     [contentView addSubview:_progressBar];
-    AddSameConstraintsToSides(self, _progressBar,
-                              LayoutSides::kTop | LayoutSides::kHorizontal);
+    AddSameConstraintsToSides(
+        self, _progressBar,
+        LayoutSides::kTop | LayoutSides::kLeading | LayoutSides::kTrailing);
 
     // LocationBarView constraints.
     if (self.locationBarView) {
@@ -271,10 +272,11 @@ UIView* SecondaryToolbarLocationBarContainerView(
     self.bottomSeparator.alpha = 0.0;
     [contentView addSubview:self.bottomSeparator];
     AddSameConstraintsToSides(self, self.bottomSeparator,
-                              LayoutSides::kHorizontal);
+                              LayoutSides::kLeading | LayoutSides::kTrailing);
 
     AddSameConstraintsToSidesWithInsets(
-        locationBarContainer, safeArea, LayoutSides::kHorizontal,
+        locationBarContainer, safeArea,
+        LayoutSides::kLeading | LayoutSides::kTrailing,
         NSDirectionalEdgeInsetsMake(0, kExpandedLocationBarHorizontalMargin, 0,
                                     kExpandedLocationBarHorizontalMargin));
 
@@ -285,7 +287,7 @@ UIView* SecondaryToolbarLocationBarContainerView(
           constraintGreaterThanOrEqualToAnchor:self.topAnchor
                                       constant:kBottomButtonsTopMargin],
       [self.bottomSeparator.heightAnchor
-          constraintEqualToConstant:AlignValueToUpperPixel(
+          constraintEqualToConstant:ui::AlignValueToUpperPixel(
                                         kToolbarSeparatorHeight)],
       [self.bottomSeparator.bottomAnchor
           constraintEqualToAnchor:locationBarContainer.bottomAnchor],
@@ -313,7 +315,7 @@ UIView* SecondaryToolbarLocationBarContainerView(
     [self.separator.leadingAnchor constraintEqualToAnchor:self.leadingAnchor],
     [self.separator.trailingAnchor constraintEqualToAnchor:self.trailingAnchor],
     [self.separator.heightAnchor
-        constraintEqualToConstant:AlignValueToUpperPixel(
+        constraintEqualToConstant:ui::AlignValueToUpperPixel(
                                       kToolbarSeparatorHeight)],
   ]];
   [NSLayoutConstraint activateConstraints:@[

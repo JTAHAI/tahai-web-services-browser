@@ -10,7 +10,6 @@ source_set("import") {
     "import_processing_result.h",
     "imported_passkey_checker.cc",
     "imported_passkey_checker.h",
-    "passkey_import_candidate.h",
     "passkey_importer.cc",
     "passkey_importer.h",
   ]
@@ -18,7 +17,6 @@ source_set("import") {
     "//base",
     "//components/sync/protocol",
     "//components/webauthn/core/browser:passkey_model",
-    "//crypto",
   ]
 }
 
@@ -38,7 +36,6 @@ source_set("unit_tests") {
       "//components/sync/protocol",
       "//components/webauthn/core/browser:passkey_model",
       "//components/webauthn/core/browser:test_support",
-      "//crypto",
       "//testing/gtest",
     ]
   }

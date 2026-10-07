@@ -21,7 +21,6 @@
 #include "components/sync/service/sync_service_observer.h"
 #include "components/user_manager/user.h"
 
-class AccountCapabilities;
 class Profile;
 
 namespace ash {
@@ -84,10 +83,6 @@ class SyncConsentScreen : public BaseScreen,
   // Launches the sync consent settings dialog if the user requested to review
   // them after completing OOBE.
   static void MaybeLaunchSyncConsentSettings(Profile* profile);
-
-  // Returns whether the account capabilities required by SyncConsentScreen are
-  // loaded (i.e. known).
-  static bool AreCapabilitiesLoaded(const AccountCapabilities& capabilities);
 
   SyncConsentScreen(base::WeakPtr<SyncConsentScreenView> view,
                     const ScreenExitCallback& exit_callback);

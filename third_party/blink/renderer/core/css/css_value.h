@@ -56,11 +56,7 @@ class CORE_EXPORT CSSValue : public GarbageCollected<CSSValue> {
   bool IsScopedKeywordValue() const {
     return class_type_ == kScopedKeywordClass;
   }
-  bool IsValuePair() const {
-    return class_type_ >= kValuePairClass &&
-           class_type_ <= kParamValuePairClass;
-  }
-  bool IsBaseValuePair() const { return class_type_ == kValuePairClass; }
+  bool IsValuePair() const { return class_type_ == kValuePairClass; }
   bool IsValueList() const { return class_type_ >= kValueListClass; }
 
   bool IsBaseValueList() const { return class_type_ == kValueListClass; }
@@ -174,7 +170,6 @@ class CORE_EXPORT CSSValue : public GarbageCollected<CSSValue> {
   bool IsShadowValue() const { return class_type_ == kShadowClass; }
   bool IsStringValue() const { return class_type_ == kStringClass; }
   bool IsSuperellipseValue() const { return class_type_ == kSuperellipseClass; }
-  bool IsSymbolsValue() const { return class_type_ == kSymbolsClass; }
   bool IsURIValue() const { return class_type_ == kURIClass; }
   bool IsURLPatternValue() const { return class_type_ == kURLPatternClass; }
   bool IsLinearTimingFunctionValue() const {
@@ -303,14 +298,9 @@ class CORE_EXPORT CSSValue : public GarbageCollected<CSSValue> {
     kStringClass,
     kURIClass,
     kURLPatternClass,
-
-    // Value pair classes. These must remain contiguous (and
-    // kParamValuePairClass must stay at the end of the run), as
-    // IsValuePair() tests them with a range check.
     kValuePairClass,
     kLightDarkValuePairClass,
     kParamValuePairClass,
-
     kScrollClass,
     kViewClass,
     kRatioClass,
@@ -392,8 +382,6 @@ class CORE_EXPORT CSSValue : public GarbageCollected<CSSValue> {
 
     kSuperellipseClass,
 
-    kSymbolsClass,
-
     kTriggerAttachmentClass,
 
     kRepeatClass,
@@ -436,7 +424,7 @@ class CORE_EXPORT CSSValue : public GarbageCollected<CSSValue> {
   uint8_t value_list_separator_ = kSpaceSeparator;
 
   // CSSMathFunctionValue:
-  uint8_t allows_negative_percentage_reference_ : 1;
+  uint8_t allows_negative_percentage_reference_ : 1;  // NOLINT
 
   // Any CSS value that defines/references a global name should be tree-scoped.
   // However, to allow sharing StyleSheetContents, we don't directly populate
@@ -444,7 +432,7 @@ class CORE_EXPORT CSSValue : public GarbageCollected<CSSValue> {
   // element's style.
   // The flag is true if the value contains such references but hasn't been
   // populated with a tree scope.
-  uint8_t needs_tree_scope_population_ : 1;
+  uint8_t needs_tree_scope_population_ : 1;  // NOLINT
 
   // Whether this value originally came from a quirksmode-specific declaration.
   // Used for use counting of such situations (to see if we can try to remove

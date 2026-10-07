@@ -8,10 +8,8 @@ import androidx.annotation.VisibleForTesting;
 
 import org.chromium.base.shared_preferences.KnownPreferenceKeyRegistries;
 import org.chromium.base.shared_preferences.PreferenceKeyRegistry;
-import org.chromium.build.BuildConfig;
 import org.chromium.build.annotations.CheckDiscard;
 import org.chromium.build.annotations.NullMarked;
-import org.chromium.build.annotations.Nullable;
 import org.chromium.components.cached_flags.CachedFlagsSharedPreferences;
 
 import java.util.Set;
@@ -20,17 +18,13 @@ import java.util.Set;
 @NullMarked
 public class AllPreferenceKeyRegistries {
     @VisibleForTesting
-    static final @Nullable Set<PreferenceKeyRegistry> KNOWN_REGISTRIES =
-            BuildConfig.ENABLE_ASSERTS
-                    ? Set.of(
-                            ChromeSharedPreferences.REGISTRY,
-                            CachedFlagsSharedPreferences.REGISTRY,
-                            MultiInstanceSharedPreferences.REGISTRY)
-                    : null;
+    static final Set<PreferenceKeyRegistry> KNOWN_REGISTRIES =
+            Set.of(
+                    ChromeSharedPreferences.REGISTRY,
+                    CachedFlagsSharedPreferences.REGISTRY,
+                    MultiInstanceSharedPreferences.REGISTRY);
 
     public static void initializeKnownRegistries() {
-        if (KNOWN_REGISTRIES != null) {
-            KnownPreferenceKeyRegistries.initializeKnownRegistries(KNOWN_REGISTRIES);
-        }
+        KnownPreferenceKeyRegistries.initializeKnownRegistries(KNOWN_REGISTRIES);
     }
 }

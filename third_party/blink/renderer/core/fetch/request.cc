@@ -46,9 +46,6 @@
 #include "third_party/blink/renderer/core/frame/web_feature.h"
 #include "third_party/blink/renderer/core/html/forms/form_data.h"
 #include "third_party/blink/renderer/core/loader/threadable_loader.h"
-#include "third_party/blink/renderer/core/streams/readable_stream.h"
-#include "third_party/blink/renderer/core/typed_arrays/dom_array_buffer.h"
-#include "third_party/blink/renderer/core/typed_arrays/dom_array_buffer_view.h"
 #include "third_party/blink/renderer/core/url/url_search_params.h"
 #include "third_party/blink/renderer/platform/bindings/exception_state.h"
 #include "third_party/blink/renderer/platform/blob/blob_data.h"
@@ -132,6 +129,8 @@ V8RequestDestination::Enum DestinationToV8Enum(
       return V8RequestDestination::Enum::kServiceworker;
     case network::mojom::RequestDestination::kWebBundle:
       return V8RequestDestination::Enum::kWebbundle;
+    case network::mojom::RequestDestination::kSharedStorageWorklet:
+      return V8RequestDestination::Enum::kSharedstorageworklet;
     // Requests with these destinations must be fetched from the browser
     // process.
     case network::mojom::RequestDestination::kWebIdentity:
@@ -172,6 +171,7 @@ FetchRequestData* CreateCopyOfFetchRequestDataForFetch(
   request->SetFetchPriorityHint(original->FetchPriorityHint());
   request->SetPriority(original->Priority());
   request->SetKeepalive(original->Keepalive());
+  request->SetSharedStorageWritable(original->SharedStorageWritable());
   request->SetIsHistoryNavigation(original->IsHistoryNavigation());
   request->SetIsReloadNavigation(original->IsReloadNavigation());
   if (original->URLLoaderFactory()) {
@@ -209,8 +209,9 @@ static bool AreAnyMembersPresent(const RequestInit* init) {
          init->hasTargetAddressSpace() || init->hasCredentials() ||
          init->hasCache() || init->hasRedirect() || init->hasIntegrity() ||
          init->hasKeepalive() || init->hasAdAuctionHeaders() ||
-         init->hasPriority() || init->hasSignal() || init->hasDuplex() ||
-         init->hasPrivateToken() || init->hasRetryOptions();
+         init->hasSharedStorageWritable() || init->hasPriority() ||
+         init->hasSignal() || init->hasDuplex() || init->hasPrivateToken() ||
+         init->hasRetryOptions();
 }
 
 static BodyStreamBuffer* ExtractBody(ScriptState* script_state,
@@ -701,6 +702,28 @@ Request* Request::CreateRequestWithRequestOrString(
     }
   }
 
+  if (init->hasSharedStorageWritable()) {
+    if (!execution_context->IsSecureContext()) {
+      exception_state.ThrowTypeError(
+          "sharedStorageWritable: sharedStorage operations are only available"
+          " in secure contexts.");
+      return nullptr;
+    }
+    if (SecurityOrigin::Create(request->Url())->IsOpaque()) {
+      exception_state.ThrowTypeError(
+          "sharedStorageWritable: sharedStorage operations are not available"
+          " for opaque origins.");
+      return nullptr;
+    }
+    request->SetSharedStorageWritable(init->sharedStorageWritable());
+    if (init->sharedStorageWritable()) {
+      UseCounter::Count(
+          execution_context,
+          mojom::blink::WebFeature::kSharedStorageAPI_Fetch_Attribute);
+      Deprecation::CountDeprecation(
+          execution_context, mojom::blink::WebFeature::kSharedStorageAPIAll);
+    }
+  }
 
   // "If |init|'s method member is present, let |method| be it and run these
   // substeps:"
@@ -1290,7 +1313,7 @@ mojom::blink::FetchAPIRequestPtr Request::CreateFetchAPIRequest() const {
 }
 
 String Request::MimeType() const {
-  return request_->HeaderList()->ExtractMIMEType();
+  return request_->MimeType();
 }
 
 String Request::ContentType() const {

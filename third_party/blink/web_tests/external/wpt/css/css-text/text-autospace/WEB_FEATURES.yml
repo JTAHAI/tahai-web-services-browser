@@ -1,2 +1,3 @@
-rules:
-- "**": [text-autospace]
+features:
+- name: text-autospace
+  files: "**"

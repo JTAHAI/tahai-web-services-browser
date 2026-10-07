@@ -142,6 +142,7 @@ class CORE_EXPORT LayoutTheme : public RefCounted<LayoutTheme> {
   }
   void PlatformColorsDidChange();
   virtual void ColorSchemeDidChange();
+  void ColorProvidersDidChange();
 
   void SetCaretBlinkInterval(base::TimeDelta);
   virtual base::TimeDelta CaretBlinkInterval() const;

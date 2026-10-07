@@ -62,7 +62,7 @@ bool TestThemeProvider::ShouldUseNativeFrame() const {
 bool TestThemeProvider::HasCustomImage(int id) const {
   return false;
 }
-scoped_refptr<base::RefCountedMemory> TestThemeProvider::GetRawData(
+base::RefCountedMemory* TestThemeProvider::GetRawData(
     int id,
     ui::ResourceScaleFactor scale_factor) const {
   return nullptr;

@@ -17,6 +17,7 @@
 #import "components/autofill/ios/browser/autofill_driver_ios.h"
 #import "components/autofill/ios/browser/autofill_util.h"
 #import "components/autofill/ios/common/autofill_optimization_features.h"
+#import "components/autofill/ios/common/features.h"
 #import "components/autofill/ios/common/field_data_manager_factory_ios.h"
 #import "components/autofill/ios/common/javascript_feature_util.h"
 #import "components/autofill/ios/form_util/autofill_form_features_java_script_feature.h"
@@ -51,7 +52,11 @@ AutofillJavaScriptFeature::AutofillJavaScriptFeature()
               FeatureScript::ReinjectionBehavior::kInjectOncePerWindow,
               base::BindRepeating(
                   []() -> FeatureScript::PlaceholderReplacements {
+                    bool use_undo =
+                        base::FeatureList::IsEnabled(kAutofillUndoIos);
                     return @{
+                      @"window.gCrWebPlaceholderAutofillUndo" :
+                              use_undo ? @"true" : @"false",
                       @"window."
                       @"gCrWebPlaceholderAutofillOptimizationFormSearch" :
                               base::FeatureList::IsEnabled(
@@ -107,17 +112,25 @@ void AutofillJavaScriptFeature::FillForm(
       CreateStringCallback(std::move(callback)), kJavaScriptExecutionTimeout);
 }
 
+void AutofillJavaScriptFeature::ClearAutofilledFieldsForForm(
+    web::WebFrame* frame,
+    FormRendererId form_renderer_id,
+    FieldRendererId field_renderer_id,
+    base::OnceCallback<void(NSString*)> callback) {
+  DCHECK(!callback.is_null());
+
+  CallJavaScriptFunction(
+      frame, "autofill.clearAutofilledFields",
+      base::ListValue()
+          .Append(static_cast<int>(form_renderer_id.value()))
+          .Append(static_cast<int>(field_renderer_id.value())),
+      CreateStringCallback(std::move(callback)), kJavaScriptExecutionTimeout);
+}
+
 void AutofillJavaScriptFeature::FillPredictionData(web::WebFrame* frame,
                                                    base::DictValue data) {
   CallJavaScriptFunction(frame, "autofill.fillPredictionData",
                          base::ListValue().Append(std::move(data)));
-}
-
-void AutofillJavaScriptFeature::ScrollFieldIntoView(web::WebFrame* frame,
-                                                    FieldRendererId field) {
-  CallJavaScriptFunction(
-      frame, "autofill.scrollFieldIntoView",
-      base::ListValue().Append(static_cast<int>(field.value())));
 }
 
 std::optional<std::string>

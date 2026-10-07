@@ -26,20 +26,7 @@ const base::FeatureParam<int> kGlicMaxReloadCount{
 
 namespace {
 constexpr base::TimeDelta kDelayTooLong = base::Days(7);
-
-GlicWebContentsWarmingPool::ContainerCreationReason ToContainerCreationReason(
-    GlicWarmingTrigger trigger) {
-  switch (trigger) {
-    case GlicWarmingTrigger::kStartup:
-      return GlicWebContentsWarmingPool::ContainerCreationReason::
-          kInitialColdWarming;
-    case GlicWarmingTrigger::kNudge:
-      return GlicWebContentsWarmingPool::ContainerCreationReason::kNudge;
-    case GlicWarmingTrigger::kIph:
-      return GlicWebContentsWarmingPool::ContainerCreationReason::kIph;
-  }
 }
-}  // namespace
 
 class GlicWebContentsWarmingPool::Metrics {
  public:
@@ -138,7 +125,6 @@ class GlicWebContentsWarmingPool::Metrics {
 
 GlicWebContentsWarmingPool::GlicWebContentsWarmingPool(Profile* profile)
     : profile_(profile), metrics_(std::make_unique<Metrics>()) {
-  profile_observation_.Observe(profile_);
   if (base::FeatureList::IsEnabled(features::kGlicWebContentsWarming)) {
     expiry_delay_ = features::kGlicWebContentsWarmingPoolExpiryDelay.Get();
     warming_delay_ = features::kGlicWebContentsWarmingDelay.Get();
@@ -165,25 +151,17 @@ GlicWebContentsWarmingPool::TakeContainer() {
   return result;
 }
 
-bool GlicWebContentsWarmingPool::MaybeStartWarming(GlicWarmingTrigger trigger) {
-  if (profile_->ShutdownStarted()) {
-    return false;
-  }
+bool GlicWebContentsWarmingPool::MaybeStartInitialWarming() {
   is_active_ = true;
   if (memory_pressure_level_ >= base::MEMORY_PRESSURE_LEVEL_CRITICAL) {
     return false;
   }
-  EnsurePreload(ToContainerCreationReason(trigger));
+  EnsurePreload(ContainerCreationReason::kInitialColdWarming);
   return true;
 }
 
 void GlicWebContentsWarmingPool::Shutdown() {
-  profile_observation_.Reset();
   Clear(ClearReason::kShutdown);
-}
-
-void GlicWebContentsWarmingPool::OnProfileWillBeDestroyed(Profile* profile) {
-  Shutdown();
 }
 
 std::unique_ptr<WebUIContentsContainer>
@@ -235,9 +213,6 @@ void GlicWebContentsWarmingPool::OnContainerExpired() {
 }
 
 void GlicWebContentsWarmingPool::EnsurePreload(ContainerCreationReason reason) {
-  if (profile_->ShutdownStarted()) {
-    return;
-  }
   CHECK(IsWarmingAllowedByMemoryPressure() ||
         reason == ContainerCreationReason::kUserTriggeredColdStart);
   delay_timer_.Stop();
@@ -284,9 +259,6 @@ bool GlicWebContentsWarmingPool::IsWarmingAllowedByMemoryPressure() const {
 
 void GlicWebContentsWarmingPool::EnsurePreloadDelayed(
     ContainerCreationReason reason) {
-  if (profile_->ShutdownStarted()) {
-    return;
-  }
   CHECK(!warmed_container_);
   if (!IsWarmingAllowedByMemoryPressure()) {
     return;

@@ -13,7 +13,6 @@ import android.util.AttributeSet;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewParent;
-import android.widget.PopupWindow;
 
 import androidx.annotation.VisibleForTesting;
 
@@ -73,7 +72,6 @@ public class ListMenuHost
     private final boolean mMenuHorizontalOverlapAnchor;
 
     private int mMenuMaxWidth;
-    private int mMenuMaxHeight;
 
     // Nullable for lazy initialization.
     private @MonotonicNonNull HierarchicalMenuController<AnchoredPopupWindow>
@@ -82,7 +80,6 @@ public class ListMenuHost
     private @Nullable ListMenuDelegate mDelegate;
     private final ObserverList<PopupMenuShownListener> mPopupListeners = new ObserverList<>();
     private boolean mTryToFitLargestItem;
-    private boolean mKeepSoftInputVisible;
     private final boolean mPositionedAtStart;
     private final boolean mPositionedAtEnd;
 
@@ -116,7 +113,6 @@ public class ListMenuHost
                 a.getDimensionPixelSize(
                         R.styleable.ListMenuButton_menuMaxWidth,
                         mView.getResources().getDimensionPixelSize(R.dimen.list_menu_width));
-        mMenuMaxHeight = a.getDimensionPixelSize(R.styleable.ListMenuButton_menuMaxHeight, 0);
         mMenuHorizontalOverlapAnchor =
                 a.getBoolean(R.styleable.ListMenuButton_menuHorizontalOverlapAnchor, true);
         mMenuVerticalOverlapAnchor =
@@ -214,29 +210,6 @@ public class ListMenuHost
         mMenuMaxWidth = maxWidth;
     }
 
-    /**
-     * Set the max height of the popup menu.
-     *
-     * @param maxHeight The max height of the popup.
-     */
-    public void setMenuMaxHeight(int maxHeight) {
-        mMenuMaxHeight = maxHeight;
-    }
-
-    /**
-     * Sets whether the popup should keep any soft keyboard shown by the anchor's window visible.
-     *
-     * <p>Defaults to {@code false}. Set to {@code true} for menus anchored to a focused text field
-     * (e.g. the omnibox): the popup stays focusable (so it remains reachable by accessibility and
-     * key navigation) but does not take input-method focus, so showing it does not dismiss the soft
-     * keyboard. This avoids the keyboard flickering while the menu is up. See crbug.com/544573787.
-     *
-     * @param keepSoftInputVisible Whether to keep the soft keyboard visible when the menu shows.
-     */
-    public void setKeepSoftInputVisible(boolean keepSoftInputVisible) {
-        mKeepSoftInputVisible = keepSoftInputVisible;
-    }
-
     /** Init the popup window with provided attributes, called before {@link #showMenu()} */
     private void initPopupWindow() {
         if (mDelegate == null) throw new IllegalStateException("Delegate was not set.");
@@ -262,7 +235,6 @@ public class ListMenuHost
                         .setVerticalOverlapAnchor(mMenuVerticalOverlapAnchor)
                         .setHorizontalOverlapAnchor(mMenuHorizontalOverlapAnchor)
                         .setMaxWidth(mMenuMaxWidth)
-                        .setMaxHeight(mMenuMaxHeight)
                         .setFocusable(true)
                         .setAnimateFromAnchor(true)
                         .addOnDismissListener(
@@ -285,13 +257,6 @@ public class ListMenuHost
         }
 
         AnchoredPopupWindow popupMenu = builder.build();
-        if (mKeepSoftInputVisible) {
-            // Keep the popup focusable (for accessibility and key navigation) but do not let it
-            // take
-            // input-method focus, so the soft keyboard shown by the anchor stays visible instead of
-            // flickering. See crbug.com/544573787.
-            popupMenu.setInputMethodMode(PopupWindow.INPUT_METHOD_NOT_NEEDED);
-        }
         getHierarchicalMenuControllerInternal()
                 .setupFlyoutController(
                         /* flyoutHandler= */ this,
@@ -354,7 +319,6 @@ public class ListMenuHost
                         .setVerticalOverlapAnchor(true)
                         .setHorizontalOverlapAnchor(false)
                         .setMaxWidth(mMenuMaxWidth)
-                        .setMaxHeight(mMenuMaxHeight)
                         .setFocusable(true)
                         .setTouchModal(false)
                         .setAnimateFromAnchor(false)
@@ -374,7 +338,6 @@ public class ListMenuHost
 
     @Override
     public void setWindowFocus(AnchoredPopupWindow popupWindow, boolean hasFocus) {
-        popupWindow.setFocusable(hasFocus);
         ViewGroup contentView = (ViewGroup) popupWindow.getContentView();
         if (contentView == null) return;
 

@@ -11,7 +11,6 @@
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/test/test_browser_dialog.h"
 #include "content/public/test/browser_test.h"
-#include "ui/base/base_window.h"
 #include "ui/gfx/native_ui_types.h"
 
 class AskGoogleForSuggestionsDialogTest : public DialogBrowserTest {
@@ -28,7 +27,7 @@ class AskGoogleForSuggestionsDialogTest : public DialogBrowserTest {
     std::unique_ptr<SpellingBubbleModel> model =
         std::make_unique<SpellingBubbleModel>(
             browser()->GetProfile(),
-            browser()->GetTabStripModel()->GetActiveWebContents());
+            browser()->tab_strip_model()->GetActiveWebContents());
 
     // The toolkit-views version of the dialog does not utilize the anchor_view
     // and origin parameters passed to this function. Pass dummy values.

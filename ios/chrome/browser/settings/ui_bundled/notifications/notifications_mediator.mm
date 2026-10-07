@@ -144,10 +144,10 @@
 - (TableViewSwitchItem*)tipsNotificationsItem {
   if (!_tipsNotificationsItem) {
 #if BUILDFLAG(IOS_USE_BRANDED_ASSETS)
-    UIImage* image =
-        MakeSymbolMulticolor(SettingsRootSymbol(SymbolMulticolorChromeball));
+    UIImage* image = MakeSymbolMulticolor(
+        CustomSettingsRootSymbol(kMulticolorChromeballSymbol));
 #else
-    UIImage* image = SettingsRootSymbol(SymbolChromeProduct);
+    UIImage* image = CustomSettingsRootSymbol(kChromeProductSymbol);
 #endif  // BUILDFLAG(IOS_USE_BRANDED_ASSETS)
     _tipsNotificationsItem = [self
              switchItemWithType:NotificationsItemIdentifier::ItemIdentifierTips

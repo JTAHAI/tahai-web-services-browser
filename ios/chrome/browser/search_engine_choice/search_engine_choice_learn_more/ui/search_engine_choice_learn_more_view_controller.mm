@@ -97,31 +97,30 @@ UITextView* FirstParagraph() {
   return firstParagraphTextView;
 }
 
-// Returns the second and third paragraph text view.
-UITextView* SecondAndThirdParagraph(int string_id) {
-  UITextView* secondAndThirdParagraphTextView = CreateUITextViewWithTextKit1();
-  secondAndThirdParagraphTextView.scrollEnabled = NO;
-  secondAndThirdParagraphTextView.editable = NO;
-  secondAndThirdParagraphTextView.backgroundColor = UIColor.clearColor;
-  secondAndThirdParagraphTextView.font =
+// Returns the second paragraph text view.
+UITextView* SecondParagraph() {
+  UITextView* secondParagraphTextView = CreateUITextViewWithTextKit1();
+  secondParagraphTextView.scrollEnabled = NO;
+  secondParagraphTextView.editable = NO;
+  secondParagraphTextView.backgroundColor = UIColor.clearColor;
+  secondParagraphTextView.font =
       [UIFont preferredFontForTextStyle:UIFontTextStyleFootnote];
-  secondAndThirdParagraphTextView.adjustsFontForContentSizeCategory = YES;
-  secondAndThirdParagraphTextView.translatesAutoresizingMaskIntoConstraints =
-      NO;
-  secondAndThirdParagraphTextView.textContainerInset =
-      UIEdgeInsetsMake(0, 0, 0, 0);
-  secondAndThirdParagraphTextView.showsVerticalScrollIndicator = NO;
-  secondAndThirdParagraphTextView.showsHorizontalScrollIndicator = NO;
+  secondParagraphTextView.adjustsFontForContentSizeCategory = YES;
+  secondParagraphTextView.translatesAutoresizingMaskIntoConstraints = NO;
+  secondParagraphTextView.textContainerInset = UIEdgeInsetsMake(0, 0, 0, 0);
+  secondParagraphTextView.showsVerticalScrollIndicator = NO;
+  secondParagraphTextView.showsHorizontalScrollIndicator = NO;
 
   NSString* paragraph2 = [l10n_util::GetNSString(
       IDS_SEARCH_ENGINE_CHOICE_INFO_DIALOG_BODY_SECOND_PARAGRAPH)
       stringByAppendingString:kEmptyLine];
-  NSString* paragraphs2and3 =
-      [paragraph2 stringByAppendingString:l10n_util::GetNSString(string_id)];
+  NSString* paragraphs2and3 = [paragraph2
+      stringByAppendingString:
+          l10n_util::GetNSString(
+              IDS_SEARCH_ENGINE_CHOICE_INFO_DIALOG_BODY_THIRD_PARAGRAPH)];
 
-  secondAndThirdParagraphTextView.attributedText =
-      PutBoldPartInText(paragraphs2and3);
-  return secondAndThirdParagraphTextView;
+  secondParagraphTextView.attributedText = PutBoldPartInText(paragraphs2and3);
+  return secondParagraphTextView;
 }
 
 }  // namespace
@@ -130,8 +129,6 @@ UITextView* SecondAndThirdParagraph(int string_id) {
 @end
 
 @implementation SearchEngineChoiceLearnMoreViewController
-
-@synthesize thirdParagraphStringID = _thirdParagraphStringID;
 
 #pragma mark - UIViewController
 
@@ -187,11 +184,10 @@ UITextView* SecondAndThirdParagraph(int string_id) {
   imageView.translatesAutoresizingMaskIntoConstraints = NO;
   [imageViewContainer addSubview:imageView];
 
-  // Second and third paragraph.
-  UITextView* secondAndThirdParagraphTextView =
-      SecondAndThirdParagraph(self.thirdParagraphStringID);
-  secondAndThirdParagraphTextView.delegate = self;
-  [scrollContentView addSubview:secondAndThirdParagraphTextView];
+  // Second paragraph.
+  UITextView* secondParagraphTextView = SecondParagraph();
+  secondParagraphTextView.delegate = self;
+  [scrollContentView addSubview:secondParagraphTextView];
 
   // Create a layout guide to constrain the width of the content, while still
   // allowing the scroll view to take the full screen width.
@@ -250,14 +246,14 @@ UITextView* SecondAndThirdParagraph(int string_id) {
         constraintEqualToAnchor:imageViewContainer.centerXAnchor],
 
     // second paragraph.
-    [secondAndThirdParagraphTextView.topAnchor
+    [secondParagraphTextView.topAnchor
         constraintEqualToAnchor:imageViewContainer.bottomAnchor
                        constant:kTableViewVerticalSpacing],
-    [secondAndThirdParagraphTextView.leadingAnchor
+    [secondParagraphTextView.leadingAnchor
         constraintEqualToAnchor:scrollContentView.leadingAnchor],
-    [secondAndThirdParagraphTextView.trailingAnchor
+    [secondParagraphTextView.trailingAnchor
         constraintEqualToAnchor:scrollContentView.trailingAnchor],
-    [secondAndThirdParagraphTextView.bottomAnchor
+    [secondParagraphTextView.bottomAnchor
         constraintEqualToAnchor:scrollContentView.bottomAnchor],
 
   ]];

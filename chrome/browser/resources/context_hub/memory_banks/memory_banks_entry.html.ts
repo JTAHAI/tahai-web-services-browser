@@ -14,7 +14,7 @@ export function getHtml(this: MemoryBanksElement, entry: MemoryBankEntry) {
   return html`
     <a class="card ${this.isSelected(entry.id) ? 'selected' : ''}"
         href="${entry.url}" target="_blank">
-      <cr-checkbox class="card-checkbox no-label"
+      <cr-checkbox class="card-checkbox"
           data-id="${entry.id}"
           ?checked="${this.isSelected(entry.id)}"
           @change="${this.onCheckboxChange}"
@@ -28,7 +28,7 @@ export function getHtml(this: MemoryBanksElement, entry: MemoryBankEntry) {
       ` :
                                                 html`
         <div class="card-body tab-type">
-          <cr-icon icon="cr:draft-filled"></cr-icon>
+          <cr-icon icon="cr:insert-drive-file"></cr-icon>
         </div>
       `}
       <div class="card-footer">
@@ -36,8 +36,7 @@ export function getHtml(this: MemoryBanksElement, entry: MemoryBankEntry) {
             style="background-image: ${getFaviconForPageURL(entry.url, true)}">
         </div>
         <div class="meta-text">
-          <span class="card-title" title="${entry.tabTitle}">${
-      entry.tabTitle}</span>
+          <span class="card-title">${entry.tabTitle}</span>
           <span class="card-date">
             ${
       this.convertMojoTimeToDate(entry.timestamp)
@@ -48,10 +47,6 @@ export function getHtml(this: MemoryBanksElement, entry: MemoryBankEntry) {
           })}
           </span>
         </div>
-        <cr-icon-button class="card-more-btn" iron-icon="cr:more-vert"
-            title="More actions"
-            @click="${(e: MouseEvent) => this.onMoreActionsClick_(entry, e)}">
-        </cr-icon-button>
       </div>
     </a>
   `;

@@ -20,6 +20,7 @@
 
 #include <set>
 
+#include "base/feature_list.h"
 #include "base/files/file_path.h"
 #include "base/files/scoped_file.h"
 #include "base/strings/escape.h"
@@ -30,6 +31,7 @@
 #include "build/build_config.h"
 #include "net/base/address_map_linux.h"
 #include "net/base/address_tracker_linux.h"
+#include "net/base/features.h"
 #include "net/base/ip_endpoint.h"
 #include "net/base/net_errors.h"
 #include "net/base/net_platform_api_util.h"
@@ -252,7 +254,9 @@ bool GetNetworkList(NetworkInterfaceList* networks, int policy) {
 #if BUILDFLAG(IS_LINUX)
   // If NetworkChangeNotifier already maintains a map owner in this process, use
   // it.
-  map_owner = NetworkChangeNotifier::GetAddressMapOwner();
+  if (base::FeatureList::IsEnabled(features::kAddressTrackerLinuxIsProxied)) {
+    map_owner = NetworkChangeNotifier::GetAddressMapOwner();
+  }
 #endif  // BUILDFLAG(IS_LINUX)
   if (!map_owner) {
     // If there is no existing map_owner, create an AddressTrackerLinux and
@@ -261,7 +265,6 @@ bool GetNetworkList(NetworkInterfaceList* networks, int policy) {
     temp_tracker->Init();
     map_owner = &temp_tracker.value();
   }
-  CHECK(map_owner);
 
   return internal::GetNetworkListImpl(
       networks, policy, map_owner->GetOnlineLinks(), map_owner->GetAddressMap(),

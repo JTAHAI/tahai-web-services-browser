@@ -64,7 +64,6 @@ class ChromeExtensionCookies
   void CreateRestrictedCookieManager(
       const url::Origin& origin,
       const net::IsolationInfo& isolation_info,
-      bool prefer_bound_cookie_context,
       mojo::PendingReceiver<network::mojom::RestrictedCookieManager> receiver);
 
   // Deletes all cookies matching the host of `origin` and
@@ -94,7 +93,6 @@ class ChromeExtensionCookies
     void CreateRestrictedCookieManager(
         const url::Origin& origin,
         const net::IsolationInfo& isolation_info,
-        bool prefer_bound_cookie_context,
         mojo::PendingReceiver<network::mojom::RestrictedCookieManager>
             receiver);
 

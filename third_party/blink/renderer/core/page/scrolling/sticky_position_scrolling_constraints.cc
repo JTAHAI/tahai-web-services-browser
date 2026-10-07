@@ -20,7 +20,8 @@ BoxEdge RectToBoxEdge(PhysicalAxis axis, const PhysicalRect& rect) {
 
 const LayoutBoxModelObject* FindNearestStickyLayerShiftingStickyBox(
     const StickyPositionScrollingConstraints::PerAxisData& data) {
-  return data.container->FindFirstStickyContainer(data.sticky_container);
+  return data.location_container->FindFirstStickyContainer(
+      data.sticky_container);
 }
 
 const LayoutBoxModelObject* FindNearestStickyLayerShiftingContainingBlock(
@@ -39,7 +40,7 @@ StickyPositionScrollingConstraints::PerAxisData::PerAxisData(
     const PhysicalRect& containing_block,
     const PhysicalRect& sticky_box,
     const PhysicalRect& constraining,
-    const LayoutObject* container,
+    const LayoutObject* location_container,
     const LayoutBox* sticky_container,
     const PaintLayer* containing_scroll_container_layer,
     bool is_fixed_to_view,
@@ -57,7 +58,7 @@ StickyPositionScrollingConstraints::PerAxisData::PerAxisData(
       scroll_container_relative_sticky_box_range(
           RectToBoxEdge(axis, sticky_box)),
       constraining_range(RectToBoxEdge(axis, constraining)),
-      container(container),
+      location_container(location_container),
       sticky_container(sticky_container),
       containing_scroll_container_layer(containing_scroll_container_layer),
       is_fixed_to_view(is_fixed_to_view) {}
@@ -188,7 +189,7 @@ PhysicalOffset StickyPositionScrollingConstraints::StickyOffset() const {
 
 void StickyPositionScrollingConstraints::PerAxisData::Trace(
     Visitor* visitor) const {
-  visitor->Trace(container);
+  visitor->Trace(location_container);
   visitor->Trace(sticky_container);
   visitor->Trace(containing_scroll_container_layer);
 }

@@ -10,7 +10,6 @@
 #import "ios/chrome/common/ui/util/chrome_button.h"
 
 extern const CGFloat kButtonVerticalInsets;
-extern const CGFloat kButtonHorizontalInsetsSmall;
 extern const CGFloat kPrimaryButtonCornerRadius;
 
 // Sets the title of `button` through `button.configuration`.

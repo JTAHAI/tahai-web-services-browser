@@ -7,15 +7,10 @@
 namespace browser_actuator {
 
 MockTransportHandlerFactory::MockTransportHandlerFactory(
-    const std::vector<PayloadType>& supported_types,
-    FactoryId factory_id)
-    : supported_types_(supported_types), factory_id_(factory_id) {}
+    const std::vector<PayloadType>& supported_types)
+    : supported_types_(supported_types) {}
 
 MockTransportHandlerFactory::~MockTransportHandlerFactory() = default;
-
-FactoryId MockTransportHandlerFactory::GetFactoryId() const {
-  return factory_id_;
-}
 
 std::vector<PayloadType> MockTransportHandlerFactory::GetSupportedPayloadTypes()
     const {

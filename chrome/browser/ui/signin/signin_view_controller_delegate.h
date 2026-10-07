@@ -15,6 +15,7 @@
 #include "chrome/browser/ui/webui/signin/signin_utils.h"
 #include "components/signin/public/base/signin_buildflags.h"
 
+class Browser;
 class BrowserWindowInterface;
 enum class SyncConfirmationStyle;
 
@@ -46,7 +47,7 @@ class SigninViewControllerDelegate {
   // displays the sync confirmation dialog. The returned object should delete
   // itself when the window it's managing is closed.
   static SigninViewControllerDelegate* CreateSyncConfirmationDelegate(
-      BrowserWindowInterface* browser,
+      Browser* browser,
       SyncConfirmationStyle style,
       bool is_sync_promo);
 
@@ -55,7 +56,7 @@ class SigninViewControllerDelegate {
   // displays the modal history sync opt in dialog. The returned object should
   // delete itself when the window it's managing is closed.
   static SigninViewControllerDelegate* CreateSyncHistoryOptInDelegate(
-      BrowserWindowInterface* browser,
+      Browser* browser,
       bool should_close_modal_dialog,
       HistorySyncOptinLaunchContext launch_context,
       HistorySyncOptinHelper::FlowCompletedCallback callback);
@@ -65,7 +66,7 @@ class SigninViewControllerDelegate {
   // displays the modal sign in error dialog. The returned object should delete
   // itself when the window it's managing is closed.
   static SigninViewControllerDelegate* CreateSigninErrorDelegate(
-      BrowserWindowInterface* browser);
+      Browser* browser);
 
 #if BUILDFLAG(ENABLE_DICE_SUPPORT)
   // Returns a platform-specific SigninViewControllerDelegate instance that
@@ -78,7 +79,7 @@ class SigninViewControllerDelegate {
   // If |show_supervised_user_iph| is true, shows to supervised users the
   // Supervised User Profile IPH at the end of the profile customization.
   static SigninViewControllerDelegate* CreateProfileCustomizationDelegate(
-      BrowserWindowInterface* browser,
+      Browser* browser,
       bool is_local_profile_creation,
       bool show_profile_switch_iph = false,
       bool show_supervised_user_iph = false);
@@ -87,7 +88,7 @@ class SigninViewControllerDelegate {
   // displays the signout confirmation dialog. The returned object should delete
   // itself when the window it's managing is closed.
   static SigninViewControllerDelegate* CreateSignoutConfirmationDelegate(
-      BrowserWindowInterface* browser,
+      Browser* browser,
       ChromeSignoutConfirmationPromptVariant variant,
       size_t unsynced_data_count,
       SignoutConfirmationCallback callback);

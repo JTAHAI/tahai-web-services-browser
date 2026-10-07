@@ -34,7 +34,8 @@ class CrosSpeechRecognitionRecognizerImpl;
 // browser then regular chrome.
 class CrosSpeechRecognitionService
     : public ChromeSpeechRecognitionService,
-      public media::mojom::AudioSourceSpeechRecognitionContext {
+      public media::mojom::AudioSourceSpeechRecognitionContext,
+      public media::mojom::SpeechRecognitionContext {
  public:
   using CreateCrosSpeechRecognitionRecognizerCb = base::RepeatingCallback<
       std::unique_ptr<CrosSpeechRecognitionRecognizerImpl>(
@@ -48,7 +49,7 @@ class CrosSpeechRecognitionService
 
   explicit CrosSpeechRecognitionService(content::BrowserContext* context);
   CrosSpeechRecognitionService(const CrosSpeechRecognitionService&) = delete;
-  CrosSpeechRecognitionService& operator=(const CrosSpeechRecognitionService&) =
+  CrosSpeechRecognitionService& operator=(const SpeechRecognitionService&) =
       delete;
   ~CrosSpeechRecognitionService() override;
 
@@ -111,6 +112,8 @@ class CrosSpeechRecognitionService
 
   mojo::ReceiverSet<media::mojom::AudioSourceSpeechRecognitionContext>
       audio_source_speech_recognition_contexts_;
+  mojo::ReceiverSet<media::mojom::SpeechRecognitionContext>
+      speech_recognition_contexts_;
   CreateCrosSpeechRecognitionRecognizerCb
       cros_speech_recognition_recognizer_cb_;
   base::WeakPtrFactory<CrosSpeechRecognitionService> weak_factory_{this};

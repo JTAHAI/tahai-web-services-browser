@@ -72,16 +72,6 @@ class VirtualFocusRow extends FocusRow {
 /**
  * Any element that is being used as an iron-list row item can extend this
  * behavior, which encapsulates focus controls of mouse and keyboards.
- *
- * Automatically assigns and reflects a unique HTML `id` attribute
- * (e.g. "frb0", "frb1") derived from `focusRowIndex`. Setting a unique
- * DOM `id` on each row item is necessary for:
- *   1. Accessibility: Screen readers and ARIA list/grid focus structures rely
- *      on unique element IDs for active focus tracking.
- *   2. Virtualized List State: Allows FocusRow and container controls to
- *      identify and restore focus to specific rows across virtualized DOM
- *      recycles during scrolling.
- *
  * To use this behavior:
  *    - The parent element should pass a "last-focused" attribute double-bound
  *      to the row items, to track the last-focused element across rows, and
@@ -130,19 +120,19 @@ export const FocusRowMixin = dedupingMixin(
           };
         }
 
-        declare private row_: VirtualFocusRow;
-        declare private mouseFocused_: boolean;
+        private row_: VirtualFocusRow;
+        private mouseFocused_: boolean;
 
         // Will be updated when |index| is set, unless specified elsewhere.
-        declare id: string;
+        override id: string;
 
         // For notifying when the row is in focus.
-        declare isFocused: boolean;
+        isFocused: boolean;
 
         // Should be bound to the index of the item from the iron-list.
-        declare focusRowIndex: number;
+        focusRowIndex: number;
 
-        declare lastFocused: HTMLElement;
+        lastFocused: HTMLElement;
 
         /**
          * This is different from tabIndex, since the template only does a
@@ -150,8 +140,8 @@ export const FocusRowMixin = dedupingMixin(
          * use of this fact. For example, when a control within a row is
          * focused, it will have tabIndex = -1 and ironListTabIndex = 0.
          */
-        declare ironListTabIndex: number;
-        declare listBlurred: boolean;
+        ironListTabIndex: number;
+        listBlurred: boolean;
 
         private firstControl_: HTMLElement|null = null;
         private controlObservers_: MutationObserver[] = [];

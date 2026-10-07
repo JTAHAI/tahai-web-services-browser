@@ -234,7 +234,7 @@ std::unique_ptr<AXValueSource> CreateValueSource(NameSource& name_source) {
 std::unique_ptr<AXValue> CreateRoleNameValue(ax::mojom::blink::Role role) {
   bool is_internal = false;
   const String& role_name = AXObject::RoleName(role, &is_internal);
-  const char* const value_type =
+  const auto& value_type =
       is_internal ? AXValueTypeEnum::InternalRole : AXValueTypeEnum::Role;
   return CreateValue(role_name, value_type);
 }

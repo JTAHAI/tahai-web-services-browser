@@ -97,6 +97,9 @@ ActivationList ParseActivationList(std::string activation_lists_string) {
                  kActivationListSocialEngineeringAdsInterstitial)) {
     return ActivationList::SOCIAL_ENG_ADS_INTERSTITIAL;
   } else if (activation_lists.CaseInsensitiveContains(
+                 kActivationListSubresourceFilter)) {
+    return ActivationList::SUBRESOURCE_FILTER;
+  } else if (activation_lists.CaseInsensitiveContains(
                  kActivationListBetterAds)) {
     return ActivationList::BETTER_ADS;
   }
@@ -266,6 +269,7 @@ const char kActivationListsParameterName[] = "activation_lists";
 const char kActivationListSocialEngineeringAdsInterstitial[] =
     "social_engineering_ads_interstitial";
 const char kActivationListPhishingInterstitial[] = "phishing_interstitial";
+const char kActivationListSubresourceFilter[] = "subresource_filter";
 const char kActivationListBetterAds[] = "better_ads";
 
 const char kActivationPriorityParameterName[] = "activation_priority";

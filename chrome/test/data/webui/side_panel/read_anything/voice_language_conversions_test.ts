@@ -3,21 +3,13 @@
 // found in the LICENSE file.
 import 'chrome-untrusted://read-anything-side-panel.top-chrome/read_anything.js';
 
-import {convertLangOrLocaleForVoicePackManager, convertLangOrLocaleToExactVoicePackLocale, convertLangToAnAvailableLangIfPresent, createInitialListOfEnabledLanguages, getNotification, getNotificationFor, mojoVoicePackStatusToVoicePackStatusEnum, NotificationType, VoiceClientSideStatusCode, VoicePackServerStatusErrorCode, VoicePackServerStatusSuccessCode} from 'chrome-untrusted://read-anything-side-panel.top-chrome/read_anything.js';
-import {assertDeepEquals, assertEquals, assertFalse, assertTrue} from 'chrome-untrusted://webui-test/chai_assert.js';
+import {convertLangOrLocaleForVoicePackManager, convertLangOrLocaleToExactVoicePackLocale, convertLangToAnAvailableLangIfPresent, createInitialListOfEnabledLanguages, getNotification, mojoVoicePackStatusToVoicePackStatusEnum, NotificationType, VoiceClientSideStatusCode, VoicePackServerStatusErrorCode, VoicePackServerStatusSuccessCode} from 'chrome-untrusted://read-anything-side-panel.top-chrome/read_anything.js';
+import {assertDeepEquals, assertEquals} from 'chrome-untrusted://webui-test/chai_assert.js';
 
-import {createSpeechSynthesisVoice, setupTestEnvironment} from './common.js';
-import type {TestAudioBrowserProxy} from './test_audio_browser_proxy.js';
+import {createSpeechSynthesisVoice} from './common.js';
 
 
 suite('voice and language conversions', () => {
-  let audioBrowserProxy: TestAudioBrowserProxy;
-
-  setup(() => {
-    const result = setupTestEnvironment();
-    audioBrowserProxy = result.audioBrowserProxy;
-  });
-
   test('mojoVoicePackStatusToVoicePackStatusEnum', () => {
     // Success codes
     assertEquals(
@@ -129,8 +121,6 @@ suite('voice and language conversions', () => {
   });
 
   test('convertLangToAnAvailableLangIfPresent', () => {
-    const defaultLanguage = 'en';
-    audioBrowserProxy.defaultLanguageForSpeech = defaultLanguage;
     // Returns direct matches
     assertEquals(
         'en-us',
@@ -157,7 +147,7 @@ suite('voice and language conversions', () => {
 
     // Uses browser language fallback.
     assertEquals(
-        defaultLanguage,
+        chrome.readingMode.defaultLanguageForSpeech,
         convertLangToAnAvailableLangIfPresent('es', ['en-US', 'en', 'fr']));
 
     // No match
@@ -299,33 +289,5 @@ suite('voice and language conversions', () => {
         getNotification(
             voicePackLang, VoiceClientSideStatusCode.INSTALL_ERROR_ALLOCATION,
             availableVoices, true));
-  });
-
-  test('getNotificationFor maps NotificationType to Notification', () => {
-    assertFalse(getNotificationFor('en-us', {}).isError);
-
-    assertEquals(
-        'readingModeLanguageMenuDownloading',
-        getNotificationFor('en-us', {
-          'en-us': NotificationType.DOWNLOADING,
-        }).text);
-
-    assertEquals(
-        'readingModeLanguageMenuNoInternet',
-        getNotificationFor('en-us', {
-          'en-us': NotificationType.NO_INTERNET,
-        }).text);
-    assertTrue(getNotificationFor('en-us', {
-                 'en-us': NotificationType.NO_INTERNET,
-               }).isError);
-
-    assertEquals('allocationError', getNotificationFor('en-us', {
-                                      'en-us': NotificationType.NO_SPACE,
-                                    }).text);
-
-    assertEquals(
-        'allocationErrorHighQuality', getNotificationFor('en-us', {
-                                        'en-us': NotificationType.NO_SPACE_HQ,
-                                      }).text);
   });
 });

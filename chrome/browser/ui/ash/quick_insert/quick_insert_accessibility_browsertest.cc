@@ -937,8 +937,6 @@ IN_PROC_BROWSER_TEST_F(QuickInsertAccessibilityBrowserTest,
   sm()->Replay();
 }
 
-// TODO(crbug.com/549506895): Fix consistent test failure on chromeos.
-#if !BUILDFLAG(IS_CHROMEOS)
 IN_PROC_BROWSER_TEST_F(QuickInsertAccessibilityBrowserTest,
                        InsertingAnnouncesInsertionBeforeTextfieldRefocus) {
   ash::QuickInsertController controller;
@@ -962,6 +960,7 @@ IN_PROC_BROWSER_TEST_F(QuickInsertAccessibilityBrowserTest,
   });
 
   sm()->ExpectSpeechPattern("Quick Insert");
+  sm()->ExpectSpeechPattern(", window");
   sm()->ExpectSpeechPattern("Quick Insert");
   sm()->ExpectSpeechPattern("Status");
   sm()->ExpectSpeechPattern("Inserting selected result");
@@ -970,6 +969,5 @@ IN_PROC_BROWSER_TEST_F(QuickInsertAccessibilityBrowserTest,
   sm()->ExpectSpeechPattern("Edit text");
   sm()->Replay();
 }
-#endif  // !BUILDFLAG(IS_CHROMEOS)
 
 }  // namespace

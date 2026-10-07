@@ -33,7 +33,8 @@ class CAPTURE_EXPORT V4L2CaptureDelegateGpuHelper {
   // `VideoCaptureDeviceClient::OnIncomingCapturedBufferExt()`.
   // The |rotation| value should be 0, 90, 180, or 270.
   int OnIncomingCapturedData(VideoCaptureDevice::Client* client,
-                             base::span<const uint8_t> sample,
+                             const uint8_t* sample,
+                             size_t sample_size,
                              const VideoCaptureFormat& format,
                              const gfx::ColorSpace& data_color_space,
                              int rotation,

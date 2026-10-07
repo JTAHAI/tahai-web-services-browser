@@ -27,8 +27,6 @@ import org.chromium.chrome.browser.tasks.tab_management.PriceMessageService.Pric
 import org.chromium.chrome.browser.tasks.tab_management.TabProperties.UiType;
 import org.chromium.chrome.browser.tasks.tab_management.TabSwitcherMessageManager.MessageType;
 
-import java.util.List;
-
 /** Controller for the price welcome message in the grid tab switcher. */
 @NullMarked
 public class PriceWelcomeMessageController {
@@ -53,19 +51,6 @@ public class PriceWelcomeMessageController {
                     assert mPriceMessageService != null;
                     if (mPriceMessageService.getBindingTabId() == tab.getId()) {
                         removePriceWelcomeMessage();
-                    }
-                }
-
-                @Override
-                public void willCloseTabs(
-                        List<Tab> tabs, boolean isAllTabs, boolean allowUndo) {
-                    TabModel tabModel = mCurrentTabModelSupplier.get();
-                    assumeNonNull(tabModel);
-                    assert mPriceMessageService != null;
-                    for (Tab tab : tabs) {
-                        if (mPriceMessageService.getBindingTabId() == tab.getId()) {
-                            removePriceWelcomeMessage();
-                        }
                     }
                 }
 

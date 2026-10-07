@@ -21,19 +21,15 @@ namespace content {
 
 class IdentityProviderData;
 
-// The disclosure fields requested by the relying party.
-// Note: The order of entries in this enum defines the display order in the UI.
-// Do not reorder entries without updating relevant UI tests.
-//
 // A Java counterpart will be generated for this enum.
 // GENERATED_JAVA_ENUM_PACKAGE: org.chromium.content.webid
 // GENERATED_JAVA_CLASS_NAME_OVERRIDE: IdentityRequestDialogDisclosureField
 enum class IdentityRequestDialogDisclosureField : int32_t {
   kName,
   kEmail,
-  kUsername,
-  kPhoneNumber,
   kPicture,
+  kPhoneNumber,
+  kUsername
 };
 
 // Represents a federated user account which is used when displaying the FedCM

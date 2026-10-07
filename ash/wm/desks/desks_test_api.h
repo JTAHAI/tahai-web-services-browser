@@ -30,7 +30,6 @@ namespace ash {
 class Desk;
 class DeskMiniView;
 class ScrollArrowButton;
-class DesksWindowOcclusionCalculator;
 
 // Helper class used by tests to access desks' internal elements. Including
 // elements of multiple different objects of desks. E.g, OverviewDeskBarView,
@@ -54,9 +53,6 @@ class DesksTestApi {
   static ui::LayerTreeOwner* GetMirroredContentsLayerTreeForRootAndDesk(
       aura::Window* root,
       Desk* desk);
-  static DesksWindowOcclusionCalculator* GetWindowOcclusionCalculator(
-      DeskBarViewBase::Type type,
-      aura::Window* root);
   static views::Label* GetDeskShortcutLabel(DeskMiniView* mini_view);
   static bool IsDeskShortcutViewVisible(DeskMiniView* mini_view);
   static bool DesksControllerHasDesk(Desk* desk);

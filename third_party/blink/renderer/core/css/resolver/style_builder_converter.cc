@@ -101,7 +101,6 @@
 #include "third_party/blink/renderer/core/style/style_timeline_scope.h"
 #include "third_party/blink/renderer/core/style/style_view_transition_group.h"
 #include "third_party/blink/renderer/core/style/superellipse.h"
-#include "third_party/blink/renderer/core/style/text_decoration_inset.h"
 #include "third_party/blink/renderer/core/style/text_overflow_data.h"
 #include "third_party/blink/renderer/platform/fonts/font_palette.h"
 #include "third_party/blink/renderer/platform/fonts/opentype/open_type_math_support.h"
@@ -1003,6 +1002,7 @@ FontSizeAdjust StyleBuilderConverterBase::ConvertFontSizeAdjust(
         primitive_value.ComputeNumber(state.CssToLengthConversionData()));
   }
 
+  DCHECK(value.IsValuePair());
   const auto& pair = To<CSSValuePair>(value);
   auto metric =
       To<CSSIdentifierValue>(pair.First()).ConvertTo<FontSizeAdjust::Metric>();
@@ -2289,7 +2289,7 @@ ScopedCSSName* StyleBuilderConverter::ConvertCustomIdent(
   state.SetHasTreeScopedReference();
   return MakeGarbageCollected<ScopedCSSName>(
       ConvertCustomIdentUnscoped(state, value),
-      To<CSSCustomIdentValue>(value).GetPopulatedTreeScope());
+      To<CSSCustomIdentValue>(value).GetTreeScope());
 }
 
 AtomicString StyleBuilderConverter::ConvertNoneOrCustomIdentUnscoped(
@@ -2371,7 +2371,7 @@ StyleNameScope StyleBuilderConverter::ConvertNameScope(
     CHECK_EQ(scoped_keyword_value->GetValueID(), CSSValueID::kAll);
     state.SetHasTreeScopedReference();
     return StyleNameScope(StyleNameScope::Type::kAll,
-                          scoped_keyword_value->GetPopulatedTreeScope(),
+                          scoped_keyword_value->GetTreeScope(),
                           /* names */ nullptr);
   }
   if (const auto* identifier_value = DynamicTo<CSSIdentifierValue>(value)) {
@@ -2483,7 +2483,7 @@ LengthPoint StyleBuilderConverter::ConvertPosition(
 LengthPoint StyleBuilderConverter::ConvertPositionOrAuto(
     StyleResolverState& state,
     const CSSValue& value) {
-  if (value.IsBaseValuePair()) {
+  if (value.IsValuePair()) {
     return ConvertPosition(state, value);
   }
   DCHECK(To<CSSIdentifierValue>(value).GetValueID() == CSSValueID::kAuto);
@@ -2493,7 +2493,7 @@ LengthPoint StyleBuilderConverter::ConvertPositionOrAuto(
 LengthPoint StyleBuilderConverter::ConvertOffsetPosition(
     StyleResolverState& state,
     const CSSValue& value) {
-  if (value.IsBaseValuePair()) {
+  if (value.IsValuePair()) {
     return ConvertPosition(state, value);
   }
   if (To<CSSIdentifierValue>(value).GetValueID() == CSSValueID::kAuto) {
@@ -2614,13 +2614,17 @@ template <typename T>
 GapDataList<T> ConvertGapDecorationDataList(const StyleResolverState& state,
                                             const CSSValue& value,
                                             bool for_visited_link = false) {
-  // Single CSSValue inputs remain possible for compatibility and when the fast
-  // parse path is taken (see CSSParserFastPaths::MaybeParseValue). In these
-  // cases, construct a GapDataList with a single value.
+  // The `value` will not be a list in two scenarios:
+  // 1. When using the legacy 'column-rule-*' properties.
+  // 2. When the fast parse path is taken (see
+  // CSSParserFastPaths::MaybeParseValue). In these cases, construct a
+  // GapDataList with a single Value.
   if (!IsA<CSSValueList>(value)) {
     return GapDataList<T>(
         ConvertGapDecorationPropertyValue<T>(state, value, for_visited_link));
   }
+  CHECK(RuntimeEnabledFeatures::CSSGapDecorationEnabled());
+
   // The CSS Gap Decorations API accepts a space separated list of values.
   // These values can be an auto repeater, an integer repeater, or a single
   // value.
@@ -3171,19 +3175,6 @@ TextDecorationThickness StyleBuilderConverter::ConvertTextDecorationThickness(
   }
 
   return TextDecorationThickness(ConvertLengthOrAuto(state, value));
-}
-
-TextDecorationInset StyleBuilderConverter::ConvertTextDecorationInset(
-    StyleResolverState& state,
-    const CSSValue& value) {
-  if (const auto* identifier_value = DynamicTo<CSSIdentifierValue>(value)) {
-    DCHECK_EQ(identifier_value->GetValueID(), CSSValueID::kAuto);
-    return TextDecorationInset(Length::Auto(), Length::Auto());
-  }
-
-  const auto& pair = To<CSSValuePair>(value);
-  return TextDecorationInset(ConvertLength(state, pair.First()),
-                             ConvertLength(state, pair.Second()));
 }
 
 TextEmphasisPosition StyleBuilderConverter::ConvertTextTextEmphasisPosition(
@@ -3819,14 +3810,20 @@ ScrollbarGutter StyleBuilderConverter::ConvertScrollbarGutter(
   return flags;
 }
 
-Vector<AtomicString> StyleBuilderConverter::ConvertContainerName(
+ScopedCSSNameList* StyleBuilderConverter::ConvertContainerName(
     StyleResolverState& state,
     const CSSValue& value) {
-  if (const auto* identifier_value = DynamicTo<CSSIdentifierValue>(value)) {
-    DCHECK_EQ(identifier_value->GetValueID(), CSSValueID::kNone);
-    return Vector<AtomicString>();
+  DCHECK(value.IsScopedValue());
+  if (IsA<CSSIdentifierValue>(value)) {
+    DCHECK_EQ(To<CSSIdentifierValue>(value).GetValueID(), CSSValueID::kNone);
+    return nullptr;
   }
-  return ConvertNoneOrCustomIdentListUnscoped(state, value);
+  DCHECK(value.IsBaseValueList());
+  HeapVector<Member<const ScopedCSSName>> names;
+  for (const Member<const CSSValue>& item : To<CSSValueList>(value)) {
+    names.push_back(ConvertNoneOrCustomIdent(state, *item));
+  }
+  return MakeGarbageCollected<ScopedCSSNameList>(std::move(names));
 }
 
 StyleIntrinsicLength StyleBuilderConverter::ConvertIntrinsicDimension(

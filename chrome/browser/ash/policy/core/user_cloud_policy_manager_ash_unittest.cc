@@ -15,6 +15,7 @@
 #include "base/memory/raw_ptr.h"
 #include "base/memory/ref_counted.h"
 #include "base/memory/scoped_refptr.h"
+#include "base/run_loop.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/task/sequenced_task_runner.h"
@@ -163,10 +164,7 @@ class UserCloudPolicyManagerAshTest : public testing::Test {
         TestingBrowserProcess::GetGlobal()->shared_url_loader_factory(),
         TestingBrowserProcess::GetGlobal()
             ->platform_part()
-            ->browser_policy_connector_ash(),
-        TestingBrowserProcess::GetGlobal()
-            ->platform_part()
-            ->component_manager_ash());
+            ->browser_policy_connector_ash());
 
     // The initialization path that blocks on the initial policy fetch requires
     // a signin Profile to use its URLRequestContext.
@@ -189,6 +187,9 @@ class UserCloudPolicyManagerAshTest : public testing::Test {
     // attach it to the main Profile.
     signin_profile_ = TestingProfile::Builder().BuildIncognito(profile_);
     ASSERT_EQ(signin_profile_, ash::ProfileHelper::GetSigninProfile());
+
+    device_management_service_.ScheduleInitialization(0);
+    base::RunLoop().RunUntilIdle();
 
     // Set up a policy map for testing.
     GetExpectedDefaultPolicy(&policy_map_);

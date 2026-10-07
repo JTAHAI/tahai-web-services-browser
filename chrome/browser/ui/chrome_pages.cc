@@ -33,7 +33,6 @@
 #include "chrome/browser/ui/browser_element_identifiers.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
-#include "chrome/browser/ui/browser_window/public/create_browser_window.h"
 #include "chrome/browser/ui/browser_window/public/profile_browser_collection.h"
 #include "chrome/browser/ui/navigator/browser_navigator.h"
 #include "chrome/browser/ui/navigator/browser_navigator_params.h"
@@ -236,19 +235,15 @@ std::string GenerateContentSettingsExceptionsSubPage(ContentSettingsType type) {
           {ContentSettingsType::WEB_PRINTING, "webPrinting"},
           {ContentSettingsType::AUTO_PICTURE_IN_PICTURE,
            "autoPictureInPicture"},
-          {ContentSettingsType::INLINE_CUE_MENU, "ai/inlineCueMenu"},
+          {ContentSettingsType::INLINE_CUE_MENU, "inlineCueMenu"},
       });
 
   const std::string_view* override =
       base::FindOrNull(kSettingsPathOverrides, type);
-  if (override) {
-    if (override->find('/') != std::string_view::npos) {
-      return std::string(*override);
-    }
-    return base::StrCat({kContentSettingsSubPage, "/", *override});
-  }
-  return base::StrCat({kContentSettingsSubPage, "/",
-                       site_settings::ContentSettingsTypeToGroupName(type)});
+  return base::StrCat(
+      {kContentSettingsSubPage, "/",
+       override ? *override
+                : site_settings::ContentSettingsTypeToGroupName(type)});
 }
 
 bool SiteGURLIsValid(const GURL& url) {
@@ -315,7 +310,7 @@ BrowserWindowInterface* GetOrCreateBrowserForProfile(Profile* profile) {
   BrowserWindowInterface* browser =
       ProfileBrowserCollection::GetForProfile(profile)->FindTabbedBrowser();
   if (!browser) {
-    return CreateBrowserWindow(BrowserWindowCreateParams(profile, true));
+    return Browser::Create(Browser::CreateParams(profile, true));
   }
   return browser;
 }
@@ -500,7 +495,8 @@ void ShowSettingsSubPageInTabbedBrowser(BrowserWindowInterface* browser,
 void ShowPageWithPromoForProfile(Profile* profile,
                                  ShowPromoInPage::Params promo_params) {
   BrowserWindowInterface* browser = GetOrCreateBrowserForProfile(profile);
-  ShowPromoInPage::Start(browser, std::move(promo_params));
+  ShowPromoInPage::Start(browser->GetBrowserForMigrationOnly(),
+                         std::move(promo_params));
 }
 
 void ShowContentSettingsExceptions(BrowserWindowInterface* browser,
@@ -608,7 +604,8 @@ void ShowSafeBrowsingEnhancedProtectionWithIph(
   base::UmaHistogramEnumeration("SafeBrowsing.EsbPromotionFlow.IphShown",
                                 referral_method);
   safe_browsing::LogShowEnhancedProtectionAction();
-  ShowPromoInPage::Start(browser, std::move(params));
+  ShowPromoInPage::Start(browser->GetBrowserForMigrationOnly(),
+                         std::move(params));
 #endif
 }
 

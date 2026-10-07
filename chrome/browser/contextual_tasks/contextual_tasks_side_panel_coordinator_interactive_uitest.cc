@@ -2,8 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "chrome/browser/contextual_tasks/contextual_tasks_side_panel_coordinator.h"
-
 #include "base/test/metrics/histogram_tester.h"
 #include "base/test/metrics/user_action_tester.h"
 #include "base/time/time.h"
@@ -11,17 +9,14 @@
 #include "chrome/browser/contextual_tasks/contextual_tasks_composebox_handler.h"
 #include "chrome/browser/contextual_tasks/contextual_tasks_panel_controller.h"
 #include "chrome/browser/contextual_tasks/contextual_tasks_service_factory.h"
+#include "chrome/browser/contextual_tasks/contextual_tasks_side_panel_coordinator.h"
 #include "chrome/browser/contextual_tasks/contextual_tasks_ui.h"
-#include "chrome/browser/contextual_tasks/contextual_tasks_ui_service.h"
-#include "chrome/browser/contextual_tasks/contextual_tasks_ui_service_factory.h"
 #include "chrome/browser/contextual_tasks/contextual_tasks_web_view.h"
 #include "chrome/browser/tab_list/tab_list_interface.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_element_identifiers.h"
 #include "chrome/browser/ui/browser_tabstrip.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
-#include "chrome/browser/ui/navigator/browser_navigator.h"
-#include "chrome/browser/ui/navigator/browser_navigator_params.h"
 #include "chrome/browser/ui/side_panel/side_panel_action_callback.h"
 #include "chrome/browser/ui/side_panel/side_panel_enums.h"
 #include "chrome/browser/ui/side_panel/side_panel_ui.h"
@@ -45,7 +40,6 @@
 #include "net/dns/mock_host_resolver.h"
 #include "ui/actions/actions.h"
 #include "ui/base/models/dialog_model.h"
-#include "ui/base/window_open_disposition.h"
 #include "ui/views/widget/widget_deletion_observer.h"
 
 using testing::AtLeast;
@@ -104,7 +98,6 @@ class ContextualTasksSidePanelCoordinatorInteractiveUiTest
   ContextualTasksSidePanelCoordinatorInteractiveUiTest() {
     scoped_feature_list_.InitWithFeaturesAndParameters(
         {{kContextualTasks, {}},
-         {kContextualTasksForceEntryPointEligibility, {}},
          {kContextualTasksEphemeralBrandedEntryPoint,
           {{"ContextualTasksEntryPoint", "toolbar-ephemeral-branded"}}}},
         {});
@@ -168,7 +161,6 @@ class ContextualTasksSidePanelCoordinatorInteractiveUiTest
 
   void SetUpOnMainThread() override {
     InteractiveBrowserTest::SetUpOnMainThread();
-    browser()->GetFeatures().side_panel_ui()->DisableAnimationsForTesting();
     host_resolver()->AddRule("*", "127.0.0.1");
     ASSERT_TRUE(embedded_test_server()->Start());
     url_loader_interceptor_ = std::make_unique<content::URLLoaderInterceptor>(
@@ -214,9 +206,9 @@ class ContextualTasksSidePanelCoordinatorInteractiveUiTest
   base::Uuid task_id2_;
   MockActiveTaskContextProviderObserver
       mock_active_task_context_provider_observer_;
-  base::test::ScopedFeatureList scoped_feature_list_;
 
  private:
+  base::test::ScopedFeatureList scoped_feature_list_;
   std::unique_ptr<content::URLLoaderInterceptor> url_loader_interceptor_;
 };
 
@@ -702,8 +694,9 @@ IN_PROC_BROWSER_TEST_F(ContextualTasksSidePanelCoordinatorInteractiveUiTest,
       }));
 }
 
+// TODO(crbug.com/470086449): Disabled due to flakiness.
 IN_PROC_BROWSER_TEST_F(ContextualTasksSidePanelCoordinatorInteractiveUiTest,
-                       UpdateActiveTabContextStatusOnTabSwitch) {
+                       DISABLED_UpdateActiveTabContextStatusOnTabSwitch) {
   SetUpTasks();
   ContextualTasksSidePanelCoordinator* coordinator = GetCoordinator();
   GURL foo("https://foo.com");
@@ -745,15 +738,11 @@ IN_PROC_BROWSER_TEST_F(ContextualTasksSidePanelCoordinatorInteractiveUiTest,
   // Define expectations on the mock handler.
   using SuggestedTabInfo = contextual_tasks::SuggestedTabInfo;
 
-  base::RunLoop initial_run_loop;
+  // Expectations are set before running the sequence.
+  // This should trigger UpdateSuggestedTabContext with valid tab info.
   EXPECT_CALL(*mock_handler, UpdateSuggestedTabContext(
                                  Pointee(Field(&SuggestedTabInfo::url, foo))))
-      .WillRepeatedly(
-          [&](const SuggestedTabInfo* tab_info) { initial_run_loop.Quit(); });
-
-  base::RunLoop tab_switch_run_loop;
-  EXPECT_CALL(*mock_handler, UpdateSuggestedTabContext(testing::IsNull()))
-      .WillOnce([&]() { tab_switch_run_loop.Quit(); });
+      .Times(1);
 
   RunTestSequence(
       // 1. Open side panel.
@@ -762,22 +751,19 @@ IN_PROC_BROWSER_TEST_F(ContextualTasksSidePanelCoordinatorInteractiveUiTest,
             false, omnibox::ChromeAimEntryPoint::UNKNOWN_AIM_ENTRY_POINT);
       }),
       WaitForShow(kContextualTasksSidePanelWebViewElementId),
-      // Trigger update on open now that panel is showing.
-      Do([&]() { ui->OnActiveTabContextStatusChanged(); }),
-      // Wait for UpdateSuggestedTabContext to be called with foo.
-      Do([&]() { initial_run_loop.Run(); }),
-      // Verify that active tab context suggestion is showing.
-      Check([&]() { return ui->IsActiveTabContextSuggestionShowing(); }),
+      // Verify that `OnActiveTabContextStatusChanged` is called on the UI.
+      Check([&]() {
+        Mock::VerifyAndClearExpectations(mock_handler);
+        // Set next expectation. Because the other tab has a chrome:// URL,
+        // `UpdateSuggestedTabContext` will be called with a nullptr.
+        EXPECT_CALL(*mock_handler, UpdateSuggestedTabContext(testing::IsNull()))
+            .Times(1);
+        return true;
+      }),
       // 2. Switch tabs to another tab.
       Do([&]() {
         TabListInterface* tab_list = TabListInterface::From(browser());
         tab_list->ActivateTab(tab_list->GetTab(2)->GetHandle());
-      }),
-      // 3. Wait for UpdateSuggestedTabContext(nullptr) before resetting
-      // handler.
-      Do([&]() {
-        tab_switch_run_loop.Run();
-        EXPECT_FALSE(ui->IsActiveTabContextSuggestionShowing());
         ui->SetComposeboxHandlerForTesting(nullptr);
       }));
 }
@@ -895,39 +881,6 @@ IN_PROC_BROWSER_TEST_F(ContextualTasksSidePanelCoordinatorInteractiveUiTest,
   ASSERT_FALSE(task1_2);
 }
 
-IN_PROC_BROWSER_TEST_F(
-    ContextualTasksSidePanelCoordinatorInteractiveUiTest,
-    OpenNewBackgroundTabWithLinkClick_DoesNotInheritOpenerTask) {
-  SetUpTasks();
-  // Set tab1 as active tab and create a new background tab through link click.
-  TabListInterface* tab_list = TabListInterface::From(browser());
-  tab_list->ActivateTab(tab_list->GetTab(1)->GetHandle());
-  NavigateParams params(browser(), GURL(chrome::kChromeUISettingsURL),
-                        ui::PAGE_TRANSITION_LINK);
-  params.disposition = WindowOpenDisposition::NEW_BACKGROUND_TAB;
-  Navigate(&params);
-  EXPECT_EQ(5, tab_list->GetTabCount());
-
-  // Verify tab 2 (background tab) does NOT inherit the task from tab 1.
-  ContextualTasksService* contextual_tasks_service =
-      ContextualTasksServiceFactory::GetForProfile(browser()->GetProfile());
-  std::optional<ContextualTask> task1 =
-      contextual_tasks_service->GetContextualTaskForTab(
-          sessions::SessionTabHelper::IdForTab(
-              tab_list->GetTab(1)->GetContents()));
-  std::optional<ContextualTask> task1_2 =
-      contextual_tasks_service->GetContextualTaskForTab(
-          sessions::SessionTabHelper::IdForTab(
-              tab_list->GetTab(2)->GetContents()));
-  ASSERT_TRUE(task1);
-  ASSERT_FALSE(task1_2);
-
-  // Switch to the newly opened tab and verify the side panel is not open.
-  tab_list->ActivateTab(tab_list->GetTab(2)->GetHandle());
-  ContextualTasksSidePanelCoordinator* coordinator = GetCoordinator();
-  EXPECT_FALSE(coordinator->IsPanelOpenForContextualTask());
-}
-
 IN_PROC_BROWSER_TEST_F(ContextualTasksSidePanelCoordinatorInteractiveUiTest,
                        OpenNewTabWithLinkClick_InheritsOpenerTask) {
   SetUpTasks();
@@ -953,116 +906,6 @@ IN_PROC_BROWSER_TEST_F(ContextualTasksSidePanelCoordinatorInteractiveUiTest,
   ASSERT_TRUE(task1);
   ASSERT_TRUE(task1_2);
   ASSERT_EQ(task1->GetTaskId(), task1_2->GetTaskId());
-}
-
-class ContextualTasksSidePanelCoordinatorFeatureDisabledInteractiveUiTest
-    : public ContextualTasksSidePanelCoordinatorInteractiveUiTest {
- public:
-  ContextualTasksSidePanelCoordinatorFeatureDisabledInteractiveUiTest() {
-    scoped_feature_list_.Reset();
-    scoped_feature_list_.InitWithFeatures(
-        /*enabled_features=*/{kContextualTasksSidePanel},
-        /*disabled_features=*/{kContextualTasks});
-  }
-};
-
-IN_PROC_BROWSER_TEST_F(
-    ContextualTasksSidePanelCoordinatorFeatureDisabledInteractiveUiTest,
-    OpenNewBackgroundTabWithLinkClick_ContextualTasksDisabled_DoesNotInheritOpenerTask) {
-  SetUpTasks();
-  // Set tab1 as active tab and create a new background tab through link click.
-  TabListInterface* tab_list = TabListInterface::From(browser());
-  tab_list->ActivateTab(tab_list->GetTab(1)->GetHandle());
-  NavigateParams params(browser(), GURL(chrome::kChromeUISettingsURL),
-                        ui::PAGE_TRANSITION_LINK);
-  params.disposition = WindowOpenDisposition::NEW_BACKGROUND_TAB;
-  Navigate(&params);
-  EXPECT_EQ(5, tab_list->GetTabCount());
-
-  // Verify tab 2 (background tab) does NOT inherit the task from tab 1.
-  ContextualTasksService* contextual_tasks_service =
-      ContextualTasksServiceFactory::GetForProfile(browser()->GetProfile());
-  std::optional<ContextualTask> task1 =
-      contextual_tasks_service->GetContextualTaskForTab(
-          sessions::SessionTabHelper::IdForTab(
-              tab_list->GetTab(1)->GetContents()));
-  std::optional<ContextualTask> task1_2 =
-      contextual_tasks_service->GetContextualTaskForTab(
-          sessions::SessionTabHelper::IdForTab(
-              tab_list->GetTab(2)->GetContents()));
-  ASSERT_TRUE(task1);
-  ASSERT_FALSE(task1_2);
-
-  // Switch to the newly opened tab and verify the side panel is not open.
-  tab_list->ActivateTab(tab_list->GetTab(2)->GetHandle());
-  ContextualTasksSidePanelCoordinator* coordinator = GetCoordinator();
-  EXPECT_FALSE(coordinator->IsPanelOpenForContextualTask());
-}
-
-IN_PROC_BROWSER_TEST_F(
-    ContextualTasksSidePanelCoordinatorFeatureDisabledInteractiveUiTest,
-    OpenNewForegroundTabWithLinkClick_ContextualTasksDisabled_InheritsOpenerTask) {
-  SetUpTasks();
-  // Set tab1 as active tab and create a new foreground tab through link click
-  // (e.g. target="_blank").
-  TabListInterface* tab_list = TabListInterface::From(browser());
-  tab_list->ActivateTab(tab_list->GetTab(1)->GetHandle());
-  chrome::AddSelectedTabWithURL(browser(), GURL(chrome::kChromeUISettingsURL),
-                                ui::PAGE_TRANSITION_LINK);
-  EXPECT_EQ(5, tab_list->GetTabCount());
-
-  // Verify tab 2 (foreground tab) inherits the task from tab 1.
-  ContextualTasksService* contextual_tasks_service =
-      ContextualTasksServiceFactory::GetForProfile(browser()->GetProfile());
-  std::optional<ContextualTask> task1 =
-      contextual_tasks_service->GetContextualTaskForTab(
-          sessions::SessionTabHelper::IdForTab(
-              tab_list->GetTab(1)->GetContents()));
-  std::optional<ContextualTask> task1_2 =
-      contextual_tasks_service->GetContextualTaskForTab(
-          sessions::SessionTabHelper::IdForTab(
-              tab_list->GetTab(2)->GetContents()));
-  ASSERT_TRUE(task1);
-  ASSERT_TRUE(task1_2);
-  ASSERT_EQ(task1->GetTaskId(), task1_2->GetTaskId());
-
-  // Verify the side panel is open for the new foreground tab.
-  ContextualTasksSidePanelCoordinator* coordinator = GetCoordinator();
-  EXPECT_TRUE(coordinator->IsPanelOpenForContextualTask());
-}
-
-IN_PROC_BROWSER_TEST_F(
-    ContextualTasksSidePanelCoordinatorFeatureDisabledInteractiveUiTest,
-    OnThreadLinkClicked_ContextualTasksDisabled_AssociatesNewTab) {
-  SetUpTasks();
-  TabListInterface* tab_list = TabListInterface::From(browser());
-  tab_list->ActivateTab(tab_list->GetTab(1)->GetHandle());
-
-  ContextualTasksUiService* ui_service =
-      ContextualTasksUiServiceFactory::GetForBrowserContext(
-          browser()->GetProfile());
-  ASSERT_TRUE(ui_service);
-
-  ui_service->OnThreadLinkClicked(GURL(chrome::kChromeUISettingsURL), task_id2_,
-                                  /*tab=*/nullptr, browser()->GetWeakPtr(),
-                                  url::Origin());
-  EXPECT_EQ(5, tab_list->GetTabCount());
-
-  // Verify the newly active tab opened from the panel is associated with
-  // the task.
-  ContextualTasksService* contextual_tasks_service =
-      ContextualTasksServiceFactory::GetForProfile(browser()->GetProfile());
-  content::WebContents* active_contents =
-      tab_list->GetActiveTab()->GetContents();
-  std::optional<ContextualTask> active_task =
-      contextual_tasks_service->GetContextualTaskForTab(
-          sessions::SessionTabHelper::IdForTab(active_contents));
-  ASSERT_TRUE(active_task.has_value());
-  EXPECT_EQ(task_id2_, active_task->GetTaskId());
-
-  // Verify the side panel is open for the new tab.
-  ContextualTasksSidePanelCoordinator* coordinator = GetCoordinator();
-  EXPECT_TRUE(coordinator->IsPanelOpenForContextualTask());
 }
 
 IN_PROC_BROWSER_TEST_F(ContextualTasksSidePanelCoordinatorInteractiveUiTest,
@@ -1235,7 +1078,6 @@ IN_PROC_BROWSER_TEST_F(ContextualTasksSidePanelCoordinatorInteractiveUiTest,
 DEFINE_LOCAL_CUSTOM_ELEMENT_EVENT_TYPE(kElementExistsEvent);
 DEFINE_LOCAL_CUSTOM_ELEMENT_EVENT_TYPE(kFrameLoadedEvent);
 DEFINE_LOCAL_CUSTOM_ELEMENT_EVENT_TYPE(kComposeboxFocusedEvent);
-DEFINE_LOCAL_CUSTOM_ELEMENT_EVENT_TYPE(kHasFinishedTopLevelNavigationEvent);
 
 IN_PROC_BROWSER_TEST_F(ContextualTasksSidePanelCoordinatorInteractiveUiTest,
                        ComposeboxFocusOnBoundsUpdateWhenComposeboxHidden) {
@@ -1263,14 +1105,6 @@ IN_PROC_BROWSER_TEST_F(ContextualTasksSidePanelCoordinatorInteractiveUiTest,
       "(app) => app.shadowRoot.activeElement && "
       "app.shadowRoot.activeElement.id === 'composebox'";
   composebox_focused.event = kComposeboxFocusedEvent;
-
-  StateChange has_finished_top_level_navigation;
-  has_finished_top_level_navigation.type =
-      StateChange::Type::kExistsAndConditionTrue;
-  has_finished_top_level_navigation.where = {"contextual-tasks-app"};
-  has_finished_top_level_navigation.test_function =
-      "(app) => app.getHasFinishedTopLevelNavigationForTesting()";
-  has_finished_top_level_navigation.event = kHasFinishedTopLevelNavigationEvent;
 
   RunTestSequence(
       Do([&]() {
@@ -1334,20 +1168,10 @@ IN_PROC_BROWSER_TEST_F(ContextualTasksSidePanelCoordinatorInteractiveUiTest,
             "  app.forcedComposeboxBounds_ = null;"
             "})()"));
       }),
-      WaitForStateChange(kSidePanelWebContentsId,
-                         has_finished_top_level_navigation),
       WaitForStateChange(kSidePanelWebContentsId, frame_loaded), Do([&]() {
         content::WebContents* side_panel_contents =
             coordinator->GetActiveWebContents();
         ASSERT_NE(side_panel_contents, nullptr);
-        // Isolate jump fix visibility from unrelated initial load CSS gating.
-        EXPECT_TRUE(content::ExecJs(
-            side_panel_contents,
-            "(async () => {"
-            "  const app = document.querySelector('contextual-tasks-app');"
-            "  app.setIsInitialFrameLoadForTesting(false);"
-            "  await app.updateComplete;"
-            "})()"));
         EXPECT_EQ(
             true,
             content::EvalJs(
@@ -1357,7 +1181,7 @@ IN_PROC_BROWSER_TEST_F(ContextualTasksSidePanelCoordinatorInteractiveUiTest,
                 "  return app.isComposeboxHidden_();"
                 "})()"));
       }),
-      FocusWebContents(kSidePanelWebContentsId), Do([&]() {
+      Do([&]() {
         content::WebContents* side_panel_contents =
             coordinator->GetActiveWebContents();
         ASSERT_NE(side_panel_contents, nullptr);

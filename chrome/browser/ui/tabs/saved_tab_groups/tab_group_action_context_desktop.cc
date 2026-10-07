@@ -4,13 +4,13 @@
 
 #include "chrome/browser/ui/tabs/saved_tab_groups/tab_group_action_context_desktop.h"
 
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser.h"
 #include "components/saved_tab_groups/public/types.h"
 
 namespace tab_groups {
 
 TabGroupActionContextDesktop::TabGroupActionContextDesktop(
-    BrowserWindowInterface* browser,
+    Browser* browser,
     OpeningSource opening_source)
     : browser(browser), opening_source(opening_source) {}
 }  // namespace tab_groups

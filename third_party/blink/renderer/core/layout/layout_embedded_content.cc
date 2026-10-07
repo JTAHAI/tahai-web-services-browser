@@ -55,12 +55,12 @@ LayoutEmbeddedContent::LayoutEmbeddedContent(HTMLFrameOwnerElement* element)
   SetInline(false);
 }
 
-void LayoutEmbeddedContent::WillBeDestroyed(const ComputedStyle* style) {
+void LayoutEmbeddedContent::WillBeDestroyed() {
   NOT_DESTROYED();
   if (auto* frame_owner = GetFrameOwnerElement())
     frame_owner->SetEmbeddedContentView(nullptr);
 
-  LayoutReplaced::WillBeDestroyed(style);
+  LayoutReplaced::WillBeDestroyed();
 
   ClearNode();
 }
@@ -143,12 +143,6 @@ gfx::PointF LayoutEmbeddedContent::EmbeddedContentFromBorderBox(
     const gfx::PointF& point) const {
   NOT_DESTROYED();
   return EmbeddedContentTransform().Inverse().MapPoint(point);
-}
-
-gfx::Rect LayoutEmbeddedContent::EmbeddedContentFromBorderBox(
-    const gfx::Rect& rect) const {
-  NOT_DESTROYED();
-  return EmbeddedContentTransform().Inverse().MapRect(rect);
 }
 
 PhysicalOffset LayoutEmbeddedContent::BorderBoxFromEmbeddedContent(
@@ -315,11 +309,10 @@ bool LayoutEmbeddedContent::NodeAtPoint(
 void LayoutEmbeddedContent::StyleDidChange(
     StyleDifference diff,
     const ComputedStyle* old_style,
-    const ComputedStyle& new_style,
     const StyleChangeContext& style_change_context) {
   NOT_DESTROYED();
-  LayoutReplaced::StyleDidChange(diff, old_style, new_style,
-                                 style_change_context);
+  LayoutReplaced::StyleDidChange(diff, old_style, style_change_context);
+  const ComputedStyle& new_style = StyleRef();
 
   if (Frame* frame = GetFrameOwnerElement()->ContentFrame())
     frame->UpdateInertIfPossible();
@@ -408,16 +401,20 @@ PhysicalRect LayoutEmbeddedContent::ReplacedContentRectFrom(
 
 void LayoutEmbeddedContent::UpdateOnEmbeddedContentViewChange() {
   NOT_DESTROYED();
+  if (!Style())
+    return;
 
   if (EmbeddedContentView* embedded_content_view = GetEmbeddedContentView()) {
     if (!NeedsLayout()) {
       UpdateGeometry(*embedded_content_view);
     }
-    PropagateZoomFactor(StyleRef().EffectiveZoom());
-    if (StyleRef().Visibility() != EVisibility::kVisible) {
-      embedded_content_view->Hide();
-    } else {
-      embedded_content_view->Show();
+    if (Style()) {
+      PropagateZoomFactor(StyleRef().EffectiveZoom());
+      if (StyleRef().Visibility() != EVisibility::kVisible) {
+        embedded_content_view->Hide();
+      } else {
+        embedded_content_view->Show();
+      }
     }
   }
 
@@ -433,13 +430,6 @@ void LayoutEmbeddedContent::UpdateOnEmbeddedContentViewChange() {
 void LayoutEmbeddedContent::UpdateGeometry(
     EmbeddedContentView& embedded_content_view) {
   NOT_DESTROYED();
-  if (RuntimeEnabledFeatures::AvoidEmbeddedContentViewLocationEnabled()) {
-    embedded_content_view.SetNeedsFrameRectPropagation();
-    embedded_content_view.SetFrameRect(
-        gfx::Rect(ToCeiledSize(ReplacedContentRect().size)));
-    return;
-  }
-
   // TODO(wangxianzhu): We reset subpixel accumulation at some boundaries, so
   // the following code is incorrect when some ancestors are such boundaries.
   // What about multicol? Need a LayoutBox function to query sub-pixel
@@ -448,7 +438,7 @@ void LayoutEmbeddedContent::UpdateGeometry(
   TransformState transform_state(TransformState::kApplyTransformDirection,
                                  gfx::PointF(),
                                  gfx::QuadF(gfx::RectF(replaced_rect)));
-  MapLocalToAncestor(nullptr, transform_state, {});
+  MapLocalToAncestor(nullptr, transform_state, 0);
   transform_state.Flatten();
   PhysicalOffset absolute_location =
       PhysicalOffset::FromPointFRound(transform_state.LastPlanarPoint());

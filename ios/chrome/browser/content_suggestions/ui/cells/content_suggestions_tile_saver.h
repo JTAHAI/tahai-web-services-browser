@@ -27,8 +27,7 @@ void SaveMostVisitedToDisk(
     ChromeAccountManagerService* account_manager_service);
 
 // Reads the current saved most visited sites from disk.
-NSDictionary* ReadSavedMostVisited(
-    ChromeAccountManagerService* account_manager_service);
+NSDictionary* ReadSavedMostVisited();
 
 // Fetches the updated favicon for a single site and saves it in
 // `favicons_directory`.

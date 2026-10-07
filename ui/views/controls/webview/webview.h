@@ -271,8 +271,6 @@ class WEBVIEW_EXPORT WebView : public View,
   void RenderFrameDeleted(content::RenderFrameHost* render_frame_host) override;
   void RenderFrameHostChanged(content::RenderFrameHost* old_host,
                               content::RenderFrameHost* new_host) override;
-  void PrimaryPageWillBeDeactivated(content::Page& page) override;
-  void PrimaryPageChanged(content::Page& page) override;
   void DidToggleFullscreenModeForTab(bool entered_fullscreen,
                                      bool will_cause_resize) override;
   void OnWebContentsFocused(
@@ -302,7 +300,7 @@ class WEBVIEW_EXPORT WebView : public View,
   void AttachWebContentsNativeView();
   void DetachWebContentsNativeView();
   void UpdateCrashedOverlayView();
-  void SetNativeViewHostAccessibleParent(View* parent);
+  void UpdateNativeViewHostAccessibleParent();
   void NotifyAccessibilityWebContentsChanged();
   void UpdateAccessibilityDisconnectState(bool disconnect);
   void HandleWidgetAXManagerEnablement();

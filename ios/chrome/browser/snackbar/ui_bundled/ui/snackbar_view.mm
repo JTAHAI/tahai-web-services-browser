@@ -19,6 +19,11 @@
 
 namespace {
 
+// The amount of time after a snackbar is presented, during which it will
+// retain a11y focus so that VoiceOver is not interrupted by a modal dismissal
+// transition.
+const double kRetainA11yFocusSeconds = 2.0;
+
 // Animation constants.
 const NSTimeInterval kSnackbarAnimationDuration = 0.8;
 
@@ -26,7 +31,6 @@ const NSTimeInterval kSnackbarAnimationDuration = 0.8;
 const CGFloat kSnackbarCornerRadius = 16.0;
 const CGFloat kHorizontalPadding = 16.0;
 const CGFloat kVerticalPadding = 16.0;
-const CGFloat kKeyboardOffset = 10.0;
 const CGFloat kInterItemSpacing = 16.0;
 const CGFloat kAccessoryViewSize = 32.0;
 const CGFloat kSnackbarMarginLegacy = 8.0;
@@ -91,6 +95,10 @@ const CGFloat kTextSpacing = 2.0;
 #pragma mark - Public
 
 - (void)presentAnimated:(BOOL)animated completion:(void (^)(void))completion {
+  if (UIAccessibilityIsVoiceOverRunning()) {
+    [self retainAccessibilityFocus];
+  }
+
   if (animated && !UIAccessibilityIsReduceMotionEnabled()) {
     self.alpha = 0;
     self.transform = CGAffineTransformMakeTranslation(
@@ -102,10 +110,16 @@ const CGFloat kTextSpacing = 2.0;
           self.transform = CGAffineTransformIdentity;
         }
         completion:^(BOOL finished) {
-          [self handlePresentationCompletedWithCompletion:completion];
+          [self scheduleDismissal];
+          if (completion) {
+            completion();
+          }
         }];
   } else {
-    [self handlePresentationCompletedWithCompletion:completion];
+    [self scheduleDismissal];
+    if (completion) {
+      completion();
+    }
   }
 }
 
@@ -416,29 +430,15 @@ const CGFloat kTextSpacing = 2.0;
   UILayoutGuide* safeAreaLayoutGuide = self.safeAreaLayoutGuide;
   const CGFloat margin =
       IsChromeNextIaEnabled() ? kSnackbarMarginNext : kSnackbarMarginLegacy;
-
-  // A composite layout guide that adjusts for the keyboard: adds padding when
-  // shown, and aligns with the safe area when the keyboard is dismissed.
-  UILayoutGuide* keyboardSafeAreaGuide = [[UILayoutGuide alloc] init];
-  [self addLayoutGuide:keyboardSafeAreaGuide];
-
-  AddSameConstraintsToSides(keyboardSafeAreaGuide, self,
-                            LayoutSides::kHorizontal | LayoutSides::kBottom);
-
-  self.keyboardLayoutGuide.usesBottomSafeArea = NO;
-
-  NSLayoutConstraint* toSafeArea = [keyboardSafeAreaGuide.topAnchor
-      constraintLessThanOrEqualToAnchor:safeAreaLayoutGuide.bottomAnchor];
-  NSLayoutConstraint* toKeyboard = [keyboardSafeAreaGuide.topAnchor
-      constraintEqualToAnchor:self.keyboardLayoutGuide.topAnchor
-                     constant:-kKeyboardOffset];
-  toKeyboard.priority = toSafeArea.priority - 1;
-  [NSLayoutConstraint activateConstraints:@[ toKeyboard, toSafeArea ]];
-
   _bottomConstraint = [_contentView.bottomAnchor
-      constraintLessThanOrEqualToAnchor:keyboardSafeAreaGuide.topAnchor
+      constraintLessThanOrEqualToAnchor:self.bottomAnchor
                                constant:-(self.bottomOffset + margin)];
   _bottomConstraint.active = YES;
+
+  [_contentView.bottomAnchor
+      constraintLessThanOrEqualToAnchor:safeAreaLayoutGuide.bottomAnchor
+                               constant:-margin]
+      .active = YES;
 
   // On iPhone portrait, pin to the edges of the safe area.
   _compactWidthConstraints = @[
@@ -542,42 +542,34 @@ const CGFloat kTextSpacing = 2.0;
   [self.delegate snackbarViewDidRequestDismissal:self];
 }
 
-// Handles post-presentation tasks such as accessibility announcement and
-// auto-dismissal.
-- (void)handlePresentationCompletedWithCompletion:(void (^)(void))completion {
-  if (UIAccessibilityIsVoiceOverRunning()) {
-    [self postAccessibilityAnnouncement];
-  }
-  [self scheduleDismissal];
-  if (completion) {
-    completion();
-  }
-}
-
-// Posts a high-priority accessibility announcement for the snackbar message.
-- (void)postAccessibilityAnnouncement {
-  if (!_titleLabel || !self.window) {
-    return;
-  }
-  NSString* announcement = _message.title;
-  if (_message.action) {
-    NSString* actionTitle =
-        _message.action.accessibilityLabel ?: _message.action.title;
-    if (actionTitle.length) {
-      announcement =
-          [NSString stringWithFormat:@"%@. %@", _message.title, actionTitle];
+// If another view becomes focused, the focus is forced back to the title view.
+- (void)retainAccessibilityFocus {
+  __weak UIView* weakView = _titleLabel;
+  auto retainFocus = ^(NSNotification* notification) {
+    id focusedElement = notification.userInfo[UIAccessibilityFocusedElementKey];
+    if (weakView && focusedElement != weakView) {
+      UIAccessibilityPostNotification(UIAccessibilityLayoutChangedNotification,
+                                      weakView);
     }
-  }
-  // Use high priority to prevent the announcement from being interrupted by
-  // subsequent UI transitions or focus changes.
-  NSAttributedString* queuedAnnouncement = [[NSAttributedString alloc]
-      initWithString:announcement
-          attributes:@{
-            UIAccessibilitySpeechAttributeAnnouncementPriority :
-                UIAccessibilityPriorityHigh
-          }];
-  UIAccessibilityPostNotification(UIAccessibilityAnnouncementNotification,
-                                  queuedAnnouncement);
+  };
+
+  // Observe accessibility focus changes.
+  id observer = [[NSNotificationCenter defaultCenter]
+      addObserverForName:UIAccessibilityElementFocusedNotification
+                  object:nil
+                   queue:nil
+              usingBlock:retainFocus];
+
+  // Post an initial notification to focus the snackbar.
+  UIAccessibilityPostNotification(UIAccessibilityLayoutChangedNotification,
+                                  _titleLabel);
+
+  // Stop observing after `kRetainA11yFocusSeconds`.
+  dispatch_time_t time =
+      dispatch_time(DISPATCH_TIME_NOW, kRetainA11yFocusSeconds * NSEC_PER_SEC);
+  dispatch_after(time, dispatch_get_main_queue(), ^{
+    [[NSNotificationCenter defaultCenter] removeObserver:observer];
+  });
 }
 
 // Schedules the automatic dismissal of the snackbar.

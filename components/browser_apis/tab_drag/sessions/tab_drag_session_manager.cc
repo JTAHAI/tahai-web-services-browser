@@ -26,8 +26,11 @@ TabDragSessionManager::TabDragSessionManager(
 TabDragSessionManager::~TabDragSessionManager() = default;
 
 base::expected<std::monostate, mojo_base::mojom::ErrorPtr>
-TabDragSessionManager::StartDrag(TabDragSessionParams params) {
-  if (params.source_tab_ids.empty()) {
+TabDragSessionManager::StartDrag(
+    TabDragWindowAdapter* source_window,
+    const std::vector<tabs_api::NodeId>& source_tab_ids,
+    const gfx::Point& start_point) {
+  if (source_tab_ids.empty()) {
     return base::unexpected(mojo_base::mojom::Error::New(
         mojo_base::mojom::Code::kInvalidArgument, "source tabs are empty"));
   }
@@ -38,18 +41,22 @@ TabDragSessionManager::StartDrag(TabDragSessionParams params) {
         "drag session is already active"));
   }
 
-  active_session_ = std::make_unique<TabDragSession>(
-      std::move(params),
-      base::BindOnce(&TabDragSessionManager::OnSessionEnded,
-                     weak_factory_.GetWeakPtr()),
-      injector_.get());
+  TabDragSessionParams params;
+  params.source_window_id = source_window->GetWindowId();
+  params.source_tab_ids = source_tab_ids;
+  params.start_point = start_point;
+  params.end_callback = base::BindOnce(&TabDragSessionManager::OnSessionEnded,
+                                       weak_factory_.GetWeakPtr());
 
-  auto start_result = active_session_->Start();
+  auto session =
+      std::make_unique<TabDragSession>(std::move(params), injector_.get());
+
+  auto start_result = session->Start();
   if (!start_result.has_value()) {
-    active_session_.reset();
     return base::unexpected(std::move(start_result.error()));
   }
 
+  active_session_ = std::move(session);
   return std::monostate();
 }
 

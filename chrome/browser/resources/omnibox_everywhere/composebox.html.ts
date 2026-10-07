@@ -21,7 +21,7 @@ export function getHtml(this: OmniboxEverywhereComposeboxElement) {
           .requiresVoice="${this.shouldShowVoiceSearchAnimation()}"
           .transcript="${this.transcript}"
           .receivedSpeech="${this.receivedSpeech}"
-          .energyEffectAnimationEnabled="${this.energyEffectAnimationEnabled}"
+          .energyEffectAnimationEnabled="${false}"
           .isZeroState="${false}"
           exportparts="composebox-background">
       </search-animated-glow>
@@ -34,6 +34,9 @@ export function getHtml(this: OmniboxEverywhereComposeboxElement) {
       @drop="${this.dragAndDropHandler.handleDrop}"
       @paste="${this.onPaste}">
       <div id="inputContainer" part="input-container">
+        <!-- Note: Copied from omnibox_composebox.html.ts. Cancel button title
+             and cancel click handler may be needed if added to mixin in the
+             future. -->
         <cr-composebox-input id="composeboxInput"
             exportparts="text-container, icon-container, mirror, input,
                          smart-compose, cancel, action-icon, cancel-icon"
@@ -42,16 +45,13 @@ export function getHtml(this: OmniboxEverywhereComposeboxElement) {
             .showDropdown="${this.showDropdown}"
             .inputPlaceholder="${this.inputPlaceholder}"
             .input="${this.input}"
-            .smartComposeEnabled="${this.smartComposeEnabled}"
             .smartComposeInlineHint="${this.smartComposeInlineHint}"
             .submitEnabled="${this.submitEnabled}"
             .entrypointName="${this.entrypointName}"
-            .cancelButtonTitle="${this.computeCancelButtonTitle()}"
             @input-input="${this.onInputInput}"
-            @input-focusin="${this.onInputFocusin}"
-            @cancel-click="${this.onCancelClick}"
-            @clear-smart-compose="${this.onClearSmartCompose}">
+            @input-focusin="${this.onInputFocusin}">
         </cr-composebox-input>
+        <omnibox-everywhere-profile-icon id="profileIcon"></omnibox-everywhere-profile-icon>
         <div id="context" part="context-entrypoint">
           <!-- Note: Copied from omnibox_composebox.html.ts. May need to re-add
                shouldDisableFileInputs_ when added to mixin. -->
@@ -127,12 +127,11 @@ export function getHtml(this: OmniboxEverywhereComposeboxElement) {
                         .tabSuggestions="${this.tabSuggestions}"
                         .recentTabId="${this.recentTabId}"
                         .hasImageFiles="${this.hasImageFiles()}"
-                        .selectedTabIds="${this.addedTabsIds}"
+                        .disabledTabIds="${this.addedTabsIds}"
                         .aimThreadRestoredTabs="${this.aimThreadRestoredTabs}"
-                        .fileNum="${this.attachedContext.size}"
+                        .fileNum="${this.files.size}"
                         .sharedTabs="${this.getSharedTabs()}"
                         ?upload-button-disabled="${this.uploadButtonDisabled}"
-                        unbounded-menu-enabled
                         ?show-context-menu-description="${
                             this.showContextMenuDescription}">
                     </cr-composebox-contextual-entrypoint-and-menu>
@@ -156,8 +155,7 @@ export function getHtml(this: OmniboxEverywhereComposeboxElement) {
                   </button>
                 </div>
                 ` : ''}
-                <div class="searchbox-icon-button-container lens ${
-                    this.isScreenshotMenuOpen ? 'menu-open' : ''}">
+                <div class="searchbox-icon-button-container lens">
                   <button id="lensSearchButton" class="searchbox-icon-button"
                       @click="${this.onLensSearchClick_}"
                       title="${this.i18n('lensSearchButtonLabel')}">
@@ -179,6 +177,7 @@ export function getHtml(this: OmniboxEverywhereComposeboxElement) {
             </div>
           </cr-composebox-file-inputs>
         </div>
+      </div>
     </div>
 <!--_html_template_end_-->`;
   // clang-format on

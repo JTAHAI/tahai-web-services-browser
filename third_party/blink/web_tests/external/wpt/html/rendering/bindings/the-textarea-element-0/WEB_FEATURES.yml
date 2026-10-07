@@ -1,2 +1,3 @@
-rules:
-- "**": [textarea]
+features:
+- name: textarea
+  files: "**"

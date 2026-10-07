@@ -59,7 +59,6 @@ import org.chromium.base.Callback;
 import org.chromium.base.DeviceInfo;
 import org.chromium.base.ThreadUtils;
 import org.chromium.base.supplier.OneshotSupplierImpl;
-import org.chromium.base.supplier.SupplierUtils;
 import org.chromium.base.test.BaseActivityTestRule;
 import org.chromium.base.test.transit.RootSpec;
 import org.chromium.base.test.transit.ViewElement;
@@ -67,11 +66,11 @@ import org.chromium.base.test.util.ApplicationTestUtils;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.CriteriaHelper;
 import org.chromium.base.test.util.DisableIf;
+import org.chromium.base.test.util.DisabledTest;
 import org.chromium.base.test.util.DoNotBatch;
 import org.chromium.base.test.util.Features.DisableFeatures;
 import org.chromium.base.test.util.Features.EnableFeatures;
 import org.chromium.base.test.util.HistogramWatcher;
-import org.chromium.base.test.util.Restriction;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.ChromeTabbedActivity;
@@ -110,7 +109,6 @@ import org.chromium.components.sync.SyncService;
 import org.chromium.components.sync.UserSelectableType;
 import org.chromium.components.user_prefs.UserPrefs;
 import org.chromium.google_apis.gaia.CoreAccountId;
-import org.chromium.ui.base.DeviceFormFactor;
 import org.chromium.ui.base.WindowAndroid.IntentCallback;
 import org.chromium.ui.test.util.ViewUtils;
 
@@ -119,12 +117,11 @@ import java.util.concurrent.atomic.AtomicInteger;
 /** Integration tests for the sign-in and history sync opt-in flow. */
 @RunWith(ChromeJUnit4ClassRunner.class)
 @DoNotBatch(reason = "This test relies on native initialization")
-// TODO(crbug.com/428281174): Test content is blocked by system UI on B+.
+// TODO(crbug.com/428056054): Test content is blocked by system UI on B+.
 @DisableIf.Build(
         sdk_is_greater_than = Build.VERSION_CODES.VANILLA_ICE_CREAM,
-        message = "crbug.com/428281174")
+        message = "crbug.com/428056054")
 @CommandLineFlags.Add(ChromeSwitches.DISABLE_STARTUP_PROMOS)
-@Restriction(DeviceFormFactor.PHONE)
 public class BottomSheetSigninAndHistorySyncIntegrationTest {
     @Rule public final MockitoRule mMockitoRule = MockitoJUnit.rule();
 
@@ -408,7 +405,7 @@ public class BottomSheetSigninAndHistorySyncIntegrationTest {
     @DisableFeatures(SigninFeatures.ENABLE_SEAMLESS_SIGNIN)
     public void
             testWithExistingAccount_signIn_historySyncDeclinedOften_forceHistoryOptInScreen_legacy() {
-        mSigninTestRule.addAccount(TestAccounts.AADC_ADULT_ACCOUNT);
+        mSigninTestRule.addAccount(TestAccounts.ACCOUNT1);
         when(mHistorySyncHelperMock.isDeclinedOften()).thenReturn(true);
 
         launchActivity(
@@ -416,7 +413,7 @@ public class BottomSheetSigninAndHistorySyncIntegrationTest {
                 WithAccountSigninMode.DEFAULT_ACCOUNT_BOTTOM_SHEET,
                 HistorySyncConfig.OptInMode.OPTIONAL);
 
-        verifyCollapsedBottomSheetAndSignin(TestAccounts.AADC_ADULT_ACCOUNT);
+        verifyCollapsedBottomSheetAndSignin(TestAccounts.ACCOUNT1);
         acceptHistorySyncAndVerifyFlowCompletion(/* hasSignedIn= */ true);
     }
 
@@ -1311,8 +1308,8 @@ public class BottomSheetSigninAndHistorySyncIntegrationTest {
                                             DeviceLockActivityLauncherImpl.get(),
                                             incognitoProfileSupplier,
                                             this::getBottomSheetController,
-                                            baseActivity.getModalDialogManagerSupplier(),
-                                            SupplierUtils.of(baseActivity.getSnackbarManager()),
+                                            baseActivity.getModalDialogManagerSupplier().get(),
+                                            baseActivity.getSnackbarManager(),
                                             mSigninAccessPoint);
                     Assert.assertThrows(
                             IllegalStateException.class,
@@ -1324,9 +1321,10 @@ public class BottomSheetSigninAndHistorySyncIntegrationTest {
 
     @Test
     @MediumTest
+    @DisabledTest(message = "https://crbug.com/512114495")
     @EnableFeatures(SigninFeatures.ENABLE_SEAMLESS_SIGNIN)
     public void testStartSigninFlow_afterAnotherSigninFlow_didShowSigninStepIsReset() {
-        mSigninTestRule.addAccount(TestAccounts.AADC_ADULT_ACCOUNT);
+        mSigninTestRule.addAccount(TestAccounts.ACCOUNT1);
         mBaseActivityTestRule.startOnBlankPage();
         createSigninCoordinator();
 
@@ -1554,8 +1552,8 @@ public class BottomSheetSigninAndHistorySyncIntegrationTest {
                                             DeviceLockActivityLauncherImpl.get(),
                                             profileSupplier,
                                             this::getBottomSheetController,
-                                            baseActivity.getModalDialogManagerSupplier(),
-                                            SupplierUtils.of(baseActivity.getSnackbarManager()),
+                                            baseActivity.getModalDialogManagerSupplier().get(),
+                                            baseActivity.getSnackbarManager(),
                                             mSigninAccessPoint);
                 });
     }

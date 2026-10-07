@@ -8,8 +8,8 @@
 #include "chrome/browser/content_settings/host_content_settings_map_factory.h"
 #include "chrome/browser/media/webrtc/webrtc_browsertest_base.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_element_identifiers.h"
-#include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/tabs/tab.h"
 #include "components/content_settings/core/browser/host_content_settings_map.h"
@@ -41,8 +41,8 @@ class AlertIndicatorButtonBrowserTest
     // Assign the alert_indicator_button_.
     TabStripRegionView* tab_strip_view =
         BrowserView::GetBrowserViewForBrowser(browser())->tab_strip_view();
-    views::View* tab = tab_strip_view->GetTabAnchorView(
-        browser()->GetTabStripModel()->GetActiveTab()->GetHandle());
+    views::View* tab = tab_strip_view->GetTabAnchorViewAt(
+        browser()->tab_strip_model()->active_index());
     alert_indicator_button_ = views::AsViewClass<AlertIndicatorButton>(
         tab->GetViewByElementId(kTabAlertIndicatorButtonElementId));
   }

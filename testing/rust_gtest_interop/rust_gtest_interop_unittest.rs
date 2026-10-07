@@ -5,12 +5,12 @@
 use rust_gtest_interop::prelude::*;
 use std::path::PathBuf;
 
-#[gtest(RustGTestInteropTest, InTopModule)]
+#[gtest(Test, InTopModule)]
 fn test() {
     expect_true!(true);
 }
 
-#[gtest(RustGTestInteropTest, WithCustomMessage)]
+#[gtest(Test, WithCustomMessage)]
 fn test() {
     expect_true!(true, "foo");
     expect_true!(true, "foo {}", 1);
@@ -21,7 +21,7 @@ fn test() {
 mod module1 {
     use super::*;
 
-    #[gtest(RustGTestInteropTest, InChildModule)]
+    #[gtest(Test, InChildModule)]
     fn test() {
         expect_true!(true);
     }
@@ -29,7 +29,7 @@ mod module1 {
     mod module2 {
         use super::*;
 
-        #[gtest(RustGTestInteropTest, InGrandChildModule)]
+        #[gtest(Test, InGrandChildModule)]
         fn test() {
             expect_true!(true);
         }
@@ -38,7 +38,7 @@ mod module1 {
 
 #[allow(dead_code)]
 fn bar() {
-    #[gtest(RustGTestInteropTest, InFunctionBody)]
+    #[gtest(Test, InFunctionBody)]
     fn test() {
         expect_true!(true);
     }
@@ -49,23 +49,23 @@ mod module3 {
 
     #[allow(dead_code)]
     fn bar() {
-        #[gtest(RustGTestInteropTest, InFunctionBodyInChildModule)]
+        #[gtest(Test, InFunctionBodyInChildModule)]
         fn test() {
             expect_true!(true);
         }
     }
 }
 
-#[gtest(RustGTestInteropTestExactSuite, ExactTest)]
+#[gtest(ExactSuite, ExactTest)]
 fn test() {}
 
-#[gtest(RustGTestInteropTest, WithResultType)]
+#[gtest(Test, WithResultType)]
 fn test() -> std::io::Result<()> {
     expect_true!(true);
     Ok(())
 }
 
-#[gtest(RustGTestInteropTest, WithBoxResultType)]
+#[gtest(Test, WithBoxResultType)]
 fn test() -> std::result::Result<(), Box<dyn std::error::Error>> {
     expect_true!(true);
     Ok(())
@@ -73,7 +73,7 @@ fn test() -> std::result::Result<(), Box<dyn std::error::Error>> {
 
 // This test intentionally fails due to returning Err, and displays the message
 // "uhoh."
-#[gtest(RustGTestInteropTest, DISABLED_WithError)]
+#[gtest(Test, DISABLED_WithError)]
 fn test() -> std::result::Result<(), Box<dyn std::error::Error>> {
     expect_true!(true);
     Err("uhoh".into())
@@ -95,7 +95,7 @@ fn test() -> std::result::Result<(), Box<dyn std::error::Error>> {
 //     unsafe { COUNTER += 1 };
 // }
 
-#[gtest(RustGTestInteropTest, Paths)]
+#[gtest(Test, Paths)]
 fn test() {
     let expected_result =
         ["foo", "bar.rs"].iter().collect::<PathBuf>().to_string_lossy().to_string();

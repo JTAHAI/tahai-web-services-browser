@@ -33,6 +33,7 @@
 namespace actor {
 
 using ::blink::WebInputEvent;
+using ::blink::WebLocalFrame;
 using ::blink::WebMouseEvent;
 using ::blink::WebWidget;
 
@@ -52,9 +53,6 @@ ClickDispatcher::ClickDispatcher(
     // No button for move
     mouse_move.button = WebMouseEvent::Button::kNoButton;
     mouse_move.SetPositionInWidget(target.widget_point);
-    mouse_move.SetPositionInScreen(
-        target.widget_point +
-        gfx::Vector2dF(widget->ViewRect().OffsetFromOrigin()));
 
     // Mouse move is considered optional, so we don't check this result.
     base::WeakPtr<ClickDispatcher> weak_this = weak_ptr_factory_.GetWeakPtr();
@@ -104,12 +102,11 @@ void ClickDispatcher::DoMouseDown(WebMouseEvent::Button button,
   mouse_down.button = button;
   mouse_down.click_count = count;
   mouse_down.SetPositionInWidget(target.widget_point);
-
-  gfx::PointF screen_point =
-      target.widget_point +
-      gfx::Vector2dF(widget->ViewRect().OffsetFromOrigin());
-  mouse_down.SetPositionInScreen(screen_point);
-  mouse_down.UpdateEventModifiersToMatchButton();
+  // TODO(crbug.com/402082828): Find a way to set screen position.
+  //   const gfx::Rect offset =
+  //     render_frame_host_->GetRenderWidgetHost()->GetView()->GetViewBounds();
+  //   mouse_event_.SetPositionInScreen(point.x() + offset.x(),
+  //                                    point.y() + offset.y());
 
   base::WeakPtr<ClickDispatcher> weak_this = weak_ptr_factory_.GetWeakPtr();
   blink::WebInputEventResult result = widget->HandleInputEvent(
@@ -127,7 +124,6 @@ void ClickDispatcher::DoMouseDown(WebMouseEvent::Button button,
 
   mouse_up_event_ = mouse_down;
   mouse_up_event_->SetType(WebInputEvent::Type::kMouseUp);
-  mouse_up_event_->UpdateEventModifiersToMatchButton();
 
   const base::TimeDelta delay = features::kGlicActorClickDelay.Get();
 

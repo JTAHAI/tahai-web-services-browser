@@ -17,14 +17,14 @@ namespace ui {
 class Event;
 }
 
-class BrowserWindowInterface;
+class Browser;
 
 // A self-destructing dialog to confirm the debugging connection.
 class DevToolsConnectionDialog {
  public:
   using AcceptCallback = content::DevToolsManagerDelegate::AcceptCallback;
 
-  static DevToolsConnectionDialog* Show(BrowserWindowInterface* browser,
+  static DevToolsConnectionDialog* Show(Browser* browser,
                                         AcceptCallback callback);
 
   base::WeakPtr<views::Widget> GetDialogWidgetForTesting() {
@@ -32,8 +32,7 @@ class DevToolsConnectionDialog {
   }
 
  private:
-  explicit DevToolsConnectionDialog(BrowserWindowInterface* browser,
-                                    AcceptCallback callback);
+  explicit DevToolsConnectionDialog(Browser* browser, AcceptCallback callback);
   ~DevToolsConnectionDialog();
 
   void OnAccept();
@@ -45,7 +44,7 @@ class DevToolsConnectionDialog {
 
   base::WeakPtr<views::Widget> dialog_widget_;
 
-  raw_ptr<BrowserWindowInterface> browser_;
+  raw_ptr<Browser> browser_;
   AcceptCallback callback_;
   bool handled_ = false;
 };

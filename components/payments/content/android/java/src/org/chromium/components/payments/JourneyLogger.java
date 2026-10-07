@@ -85,21 +85,6 @@ public class JourneyLogger {
         JourneyLoggerJni.get().setPayClicked(mJourneyLoggerAndroid);
     }
 
-    /** Records that PaymentRequest.canMakePayment() was called. */
-    public void setCanMakePaymentCalled() {
-        JourneyLoggerJni.get().setCanMakePaymentCalled(mJourneyLoggerAndroid);
-    }
-
-    /** Records that PaymentRequest.hasEnrolledInstrument() was called. */
-    public void setHasEnrolledInstrumentCalled() {
-        JourneyLoggerJni.get().setHasEnrolledInstrumentCalled(mJourneyLoggerAndroid);
-    }
-
-    /** Records that the PaymentRequest was initiated in a cross-site iframe. */
-    public void setInitiatedInCrossSiteIframe() {
-        JourneyLoggerJni.get().setInitiatedInCrossSiteIframe(mJourneyLoggerAndroid);
-    }
-
     /**
      * Records the method that has been selected and invoked.
      *
@@ -224,12 +209,6 @@ public class JourneyLogger {
         void setShown(long nativeJourneyLoggerAndroid);
 
         void setPayClicked(long nativeJourneyLoggerAndroid);
-
-        void setCanMakePaymentCalled(long nativeJourneyLoggerAndroid);
-
-        void setHasEnrolledInstrumentCalled(long nativeJourneyLoggerAndroid);
-
-        void setInitiatedInCrossSiteIframe(long nativeJourneyLoggerAndroid);
 
         void setSelectedMethod(long nativeJourneyLoggerAndroid, int paymentMethodCategory);
 

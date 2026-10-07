@@ -4,6 +4,7 @@
 
 #include "content/renderer/memory_coordinator/last_resort_gc_policy.h"
 
+#include <optional>
 #include <string>
 #include <string_view>
 
@@ -38,12 +39,13 @@ LastResortGCPolicy::LastResortGCPolicy(MemoryCoordinatorPolicyManager& manager)
     : PredicateMemoryCoordinatorPolicy(
           manager,
           base::BindRepeating([](uint32_t consumer_id,
-                                 std::string_view consumer_name,
-                                 base::MemoryConsumerTraits traits,
+                                 std::optional<base::MemoryConsumerTraits>
+                                     traits,
                                  ProcessType process_type,
                                  ChildProcessId child_process_id) {
-            return traits.release_gc_references ==
-                   base::MemoryConsumerTraits::ReleaseGCReferences::kYes;
+            return traits.has_value() &&
+                   traits->release_gc_references ==
+                       base::MemoryConsumerTraits::ReleaseGCReferences::kYes;
           })),
       policy_registration_(manager, *this) {
   CHECK(!g_instance);
@@ -72,7 +74,7 @@ void LastResortGCPolicy::OnV8HeapLastResortGC() {
 }
 
 void LastResortGCPolicy::OnRestoreLimitTimerFired() {
-  SetLimit(base::MemoryLimit::Default().percent(),
+  SetLimit(base::MemoryConsumer::kDefaultMemoryLimit,
            /*release_memory=*/false);
 }
 

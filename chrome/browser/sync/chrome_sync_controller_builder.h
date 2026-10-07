@@ -38,10 +38,6 @@ namespace webapk {
 class WebApkSyncService;
 }  // namespace webapk
 
-#if BUILDFLAG(IS_ANDROID)
-class NtpAndroidCustomBackgroundService;
-#endif  // BUILDFLAG(IS_ANDROID)
-
 #if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
 class ExtensionSyncService;
 #endif
@@ -133,8 +129,6 @@ class ChromeSyncControllerBuilder {
 #endif  // BUILDFLAG(ENABLE_SPELLCHECK)
 
 #if BUILDFLAG(IS_ANDROID)
-  void SetNtpAndroidCustomBackgroundService(
-      NtpAndroidCustomBackgroundService* ntp_android_custom_background_service);
   void SetWebApkSyncService(webapk::WebApkSyncService* web_apk_sync_service);
 #endif  // BUILDFLAG(IS_ANDROID)
 
@@ -215,8 +209,6 @@ class ChromeSyncControllerBuilder {
 #endif  // BUILDFLAG(ENABLE_SPELLCHECK)
 
 #if BUILDFLAG(IS_ANDROID)
-  SafeOptional<raw_ptr<NtpAndroidCustomBackgroundService>>
-      ntp_android_custom_background_service_;
   SafeOptional<raw_ptr<webapk::WebApkSyncService>> web_apk_sync_service_;
 #endif  // BUILDFLAG(IS_ANDROID)
 

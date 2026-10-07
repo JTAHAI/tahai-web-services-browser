@@ -22,7 +22,6 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-import org.chromium.base.CallbackUtils;
 import org.chromium.base.ThreadUtils;
 import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.base.test.util.ApplicationTestUtils;
@@ -94,7 +93,7 @@ public class CustomTabsFeatureUsageTest {
                         ApplicationProvider.getApplicationContext(),
                         mTestPage,
                         false,
-                        CallbackUtils.emptyCallback());
+                        builder -> {});
         CustomTabsConnection connection = CustomTabsTestUtils.warmUpAndWait();
         CustomTabsSessionToken token = CustomTabsSessionToken.getSessionTokenFromIntent(intent);
         connection.newSession(token);

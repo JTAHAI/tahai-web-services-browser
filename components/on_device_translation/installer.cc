@@ -24,11 +24,7 @@ OnDeviceTranslationInstaller::OnDeviceTranslationInstaller() {
   g_instance = this;
 }
 
-OnDeviceTranslationInstaller::~OnDeviceTranslationInstaller() {
-  if (g_instance == this) {
-    g_instance = nullptr;
-  }
-}
+OnDeviceTranslationInstaller::~OnDeviceTranslationInstaller() = default;
 
 // static
 OnDeviceTranslationInstaller* OnDeviceTranslationInstaller::GetInstance() {

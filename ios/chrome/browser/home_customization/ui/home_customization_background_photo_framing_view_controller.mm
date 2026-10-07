@@ -342,7 +342,7 @@ const CGFloat kGradientSpacingAboveInstructions = 150;
   [self.view addSubview:_pinchInstructionsView];
 
   // Pinch icon.
-  UIImage* pinchIcon = SymbolWithPointSize(SymbolCrop, kPinchIconSize);
+  UIImage* pinchIcon = DefaultSymbolWithPointSize(kCropSymbol, kPinchIconSize);
   UIImageView* pinchIconView = [[UIImageView alloc] initWithImage:pinchIcon];
   pinchIconView.tintColor = UIColor.whiteColor;
   pinchIconView.contentMode = UIViewContentModeScaleAspectFit;
@@ -399,8 +399,9 @@ const CGFloat kGradientSpacingAboveInstructions = 150;
   gradientView.translatesAutoresizingMaskIntoConstraints = NO;
 
   [self.view insertSubview:gradientView aboveSubview:_scrollView];
-  AddSameConstraintsToSides(gradientView, self.view,
-                            LayoutSides::kBottom | LayoutSides::kHorizontal);
+  AddSameConstraintsToSides(
+      gradientView, self.view,
+      LayoutSides::kLeading | LayoutSides::kTrailing | LayoutSides::kBottom);
   [_pinchInstructionsView.topAnchor
       constraintEqualToAnchor:gradientView.topAnchor
                      constant:kGradientSpacingAboveInstructions]

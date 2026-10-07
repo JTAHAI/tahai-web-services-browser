@@ -4,7 +4,6 @@
 
 #include "components/viz/common/transition_utils.h"
 
-#include <cmath>
 #include <memory>
 #include <sstream>
 #include <string>
@@ -17,7 +16,6 @@
 #include "components/viz/common/quads/shared_element_draw_quad.h"
 #include "components/viz/common/quads/solid_color_draw_quad.h"
 #include "third_party/skia/include/core/SkColor.h"
-#include "ui/gfx/geometry/transform.h"
 
 namespace viz {
 
@@ -274,17 +272,6 @@ TransitionUtils::CopyPassWithQuadFiltering(
   }
 
   return copy_pass;
-}
-
-// static
-gfx::Vector2dF TransitionUtils::ComputePixelAlignmentOffset(
-    const gfx::Transform& transform) {
-  if (!transform.IsScaleOrTranslation()) {
-    return gfx::Vector2dF();
-  }
-  auto subpixel = [](float f) -> float { return f - std::floor(f); };
-  gfx::Vector2dF translation = transform.To2dTranslation();
-  return gfx::Vector2dF(subpixel(translation.x()), subpixel(translation.y()));
 }
 
 }  // namespace viz

@@ -35,6 +35,7 @@
 #include "chrome/browser/search_engine_choice/search_engine_choice_dialog_service_factory.h"
 #include "chrome/browser/signin/identity_manager_factory.h"
 #include "chrome/browser/signin/signin_hats_util.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/hats/survey_config.h"
 #include "chrome/browser/ui/singleton_tabs.h"
@@ -54,7 +55,6 @@
 #include "chrome/browser/ui/views/profiles/profile_picker_flow_controller.h"
 #include "chrome/browser/ui/views/profiles/profile_picker_post_sign_in_adapter.h"
 #include "chrome/browser/ui/views/profiles/profile_picker_toolbar.h"
-#include "chrome/browser/ui/views/profiles/profile_picker_utils.h"
 #include "chrome/browser/ui/views/profiles/profile_picker_web_contents_host.h"
 #include "chrome/browser/ui/webui/feature_showcase/feature_showcase_ui.h"
 #include "chrome/browser/ui/webui/intro/intro_ui.h"
@@ -124,7 +124,6 @@ bool IsPostIdentityStep(ProfileManagementFlowController::Step step) {
     case ProfileManagementFlowController::Step::kIntro:
     case ProfileManagementFlowController::Step::kReauth:
     case ProfileManagementFlowController::Step::kDeviceSignalsDisclaimer:
-    case ProfileManagementFlowController::Step::kWelcome:
       return false;
     case ProfileManagementFlowController::Step::kDefaultBrowser:
     case ProfileManagementFlowController::Step::kSearchEngineChoice:
@@ -831,45 +830,6 @@ class FeatureShowcaseStepController : public ProfileManagementStepController {
   base::WeakPtrFactory<FeatureShowcaseStepController> weak_ptr_factory_{this};
 };
 
-class WelcomeStepController : public ProfileManagementStepController {
- public:
-  WelcomeStepController(ProfilePickerWebContentsHost* host,
-                        base::OnceClosure step_completed_callback)
-      : ProfileManagementStepController(host),
-        step_completed_callback_(std::move(step_completed_callback)) {}
-
-  ~WelcomeStepController() override = default;
-
-  void Show(StepSwitchFinishedCallback step_shown_callback,
-            bool reset_state) override {
-    CHECK(reset_state);
-    host()->ShowScreenInPickerContents(
-        GURL(chrome::kChromeUIIntroURL)
-            .Resolve(chrome::kChromeUIIntroWelcomeSubPage),
-        base::BindOnce(&WelcomeStepController::OnLoadFinished,
-                       weak_ptr_factory_.GetWeakPtr(),
-                       std::move(step_shown_callback)));
-  }
-
- private:
-  void OnLoadFinished(StepSwitchFinishedCallback step_shown_callback) {
-    CHECK(!step_shown_callback->is_null());
-    std::move(step_shown_callback.value()).Run(/*success=*/true);
-
-    auto* intro_ui = host()
-                         ->GetPickerContents()
-                         ->GetWebUI()
-                         ->GetController()
-                         ->GetAs<IntroUI>();
-    CHECK(intro_ui);
-    intro_ui->SetWelcomeCallback(std::move(step_completed_callback_));
-  }
-
-  base::OnceClosure step_completed_callback_;
-
-  base::WeakPtrFactory<WelcomeStepController> weak_ptr_factory_{this};
-};
-
 std::unique_ptr<ProfileManagementStepController> CreateIntroStep(
     ProfilePickerWebContentsHost* host,
     base::RepeatingCallback<void(IntroChoice)> choice_callback,
@@ -945,7 +905,7 @@ FirstRunFlowController::~FirstRunFlowController() {
   } else {
     // TODO(crbug.com/40276516): Revisit the enum value name for kQuitAtEnd.
     std::move(first_run_exited_callback_)
-        .Run(ProfilePicker::FirstRunExitStatus::kQuitAtEnd, finish_reason_);
+        .Run(ProfilePicker::FirstRunExitStatus::kQuitAtEnd);
   }
 }
 
@@ -1015,6 +975,12 @@ ProfilePickerToolbar::Builder FirstRunFlowController::CreateToolbarBuilder() {
   return builder;
 }
 
+void FirstRunFlowController::PlaySignInCelebrationSound() {
+  if (sounds_manager_ && AreEffectsEnabled()) {
+    sounds_manager_->Play(kWelcomeBackSoundKey);
+  }
+}
+
 void FirstRunFlowController::StartBrowsing() {
   CHECK_EQ(current_step(), Step::kFeatureShowcase);
   base::UmaHistogramEnumeration(
@@ -1024,9 +990,25 @@ void FirstRunFlowController::StartBrowsing() {
 }
 
 void FirstRunFlowController::Init() {
-  if (switches::IsFirstRunDesktopRevampEnabled(
-          IsProfileInSearchEngineChoiceRegion(profile_))) {
-    if (base::FeatureList::IsEnabled(switches::kFirstRunDesktopRevampSound)) {
+  const bool is_revamp_enabled = switches::IsFirstRunDesktopRevampEnabled(
+      IsProfileInSearchEngineChoiceRegion(profile_));
+  const bool is_sound_enabled =
+      base::FeatureList::IsEnabled(switches::kFirstRunDesktopRevampSound);
+  RegisterStep(
+      Step::kIntro,
+      CreateIntroStep(
+          host(),
+          base::BindRepeating(&FirstRunFlowController::HandleIntroSigninChoice,
+                              weak_ptr_factory_.GetWeakPtr()),
+          /*enable_animations=*/true,
+          base::BindRepeating(&FirstRunFlowController::AreEffectsEnabled,
+                              base::Unretained(this)),
+          /*effects_button_shown_by_default=*/is_revamp_enabled &&
+              is_sound_enabled));
+  SwitchToStep(Step::kIntro, /*reset_state=*/true);
+
+  if (is_revamp_enabled) {
+    if (is_sound_enabled) {
       sounds_manager_ = GetSoundsManagerFactory().Run(
           content::GetAudioServiceStreamFactoryBinder());
     }
@@ -1048,22 +1030,16 @@ void FirstRunFlowController::Init() {
           media::AudioCodec::kFLAC, /*loop=*/false);
       sounds_manager_->Initialize(kAllSetSoundKey, IDR_INTRO_SOUND_ALL_SET_FLAC,
                                   media::AudioCodec::kFLAC, /*loop=*/false);
+      if (AreEffectsEnabled()) {
+        sounds_manager_->Play(kLogoSoundKey);
+        sounds_manager_->Play(kAmbientSoundKey);
+      }
     }
   }
 
-  if (switches::IsPreFirstRunDesktopRefreshEnabled()) {
-    RegisterStep(
-        Step::kWelcome,
-        std::make_unique<WelcomeStepController>(
-            host(), base::BindOnce(&FirstRunFlowController::OnWelcomeCompleted,
-                                   weak_ptr_factory_.GetWeakPtr())));
-    SwitchToStep(Step::kWelcome, /*reset_state=*/true);
-  } else {
-    RegisterAndSwitchToIntroStep(
-        /*effects_button_shown_by_default=*/sounds_manager_ != nullptr);
-  }
-
-  PlaySound(kAmbientSoundKey);
+  signin_metrics::LogSignInOffered(
+      kAccessPoint, signin_metrics::PromoAction::
+                        PROMO_ACTION_NEW_ACCOUNT_NO_EXISTING_ACCOUNT);
 }
 
 void FirstRunFlowController::CancelSigninFlow() {
@@ -1089,7 +1065,7 @@ void FirstRunFlowController::PickProfile(
 bool FirstRunFlowController::PreFinishWithBrowser() {
   DCHECK(first_run_exited_callback_);
   std::move(first_run_exited_callback_)
-      .Run(ProfilePicker::FirstRunExitStatus::kCompleted, finish_reason_);
+      .Run(ProfilePicker::FirstRunExitStatus::kCompleted);
 
   MaybeTriggerHatsSurvey();
 
@@ -1099,20 +1075,6 @@ bool FirstRunFlowController::PreFinishWithBrowser() {
 bool FirstRunFlowController::is_feature_showcase_eligible() const {
   return feature_showcase_step_controller_ &&
          feature_showcase_step_controller_->is_eligible();
-}
-
-void FirstRunFlowController::OnWelcomeCompleted() {
-  signin::IdentityManager& identity_manager =
-      CHECK_DEREF(IdentityManagerFactory::GetForProfile(profile_));
-  if (const std::optional<ProfilePicker::FirstRunFinishReason> skip_reason =
-          ComputeFirstRunSkipReason(*profile_, identity_manager);
-      skip_reason.has_value()) {
-    finish_reason_ = *skip_reason;
-    FinishFlowAndRunInBrowser(profile_, PostHostClearedCallback());
-    return;
-  }
-  RegisterAndSwitchToIntroStep(
-      /*effects_button_shown_by_default=*/sounds_manager_ != nullptr);
 }
 
 void FirstRunFlowController::HandleIntroSigninChoice(IntroChoice choice) {
@@ -1144,10 +1106,10 @@ FirstRunFlowController::CreatePostSignInAdapter(
                      // Unretained ok: the callback is passed to a step that
                      // the `this` will own and outlive.
                      base::Unretained(this), base::Unretained(profile_)),
-      base::BindOnce(&FirstRunFlowController::PlaySound,
+      base::BindOnce(&FirstRunFlowController::PlaySignInCelebrationSound,
                      // Unretained ok: the callback is passed to a step
                      // that the `this` will own and outlive.
-                     base::Unretained(this), kWelcomeBackSoundKey));
+                     base::Unretained(this)));
 }
 
 void FirstRunFlowController::RunFinishFlowCallback() {
@@ -1157,12 +1119,6 @@ void FirstRunFlowController::RunFinishFlowCallback() {
 }
 
 std::string FirstRunFlowController::GetHatsSurveyTrigger() const {
-  if (switches::IsPreFirstRunDesktopRefreshEnabled()) {
-    return is_feature_showcase_eligible()
-               ? kHatsSurveyTriggerPreFirstRunDesktopRefreshCompleted
-               : kHatsSurveyTriggerPreFirstRunDesktopRefreshNoFeatureShowcaseCompleted;
-  }
-
   const bool is_in_search_engine_choice_region =
       IsProfileInSearchEngineChoiceRegion(profile_);
 
@@ -1199,6 +1155,18 @@ void FirstRunFlowController::UpdateAmbientSound(
 void FirstRunFlowController::ToggleFeatureShowcaseAmbientSound(bool active) {
   UpdateAmbientSound(active ? kFeatureShowcaseAmbientSoundKey
                             : kAmbientSoundKey);
+}
+
+void FirstRunFlowController::PlayFeatureShowcaseProgressSound() {
+  if (sounds_manager_ && AreEffectsEnabled()) {
+    sounds_manager_->Play(kFeatureShowcaseProgressSoundKey);
+  }
+}
+
+void FirstRunFlowController::PlayAllSetSound() {
+  if (sounds_manager_ && AreEffectsEnabled()) {
+    sounds_manager_->Play(kAllSetSoundKey);
+  }
 }
 
 void FirstRunFlowController::ToggleMediaEffects(bool active) {
@@ -1314,11 +1282,11 @@ FirstRunFlowController::RegisterPostIdentitySteps(
     auto feature_showcase_step =
         std::make_unique<FeatureShowcaseStepController>(
             host(), profile_, std::move(feature_showcase_step_completed),
-            base::BindRepeating(&FirstRunFlowController::PlaySound,
-                                // `Unretained` is ok because `this` owns the
-                                // step and will outlive it.
-                                base::Unretained(this),
-                                kFeatureShowcaseProgressSoundKey),
+            base::BindRepeating(
+                &FirstRunFlowController::PlayFeatureShowcaseProgressSound,
+                // `Unretained` is ok because `this` owns the step and
+                // will outlive it.
+                base::Unretained(this)),
             base::BindRepeating(
                 &FirstRunFlowController::ToggleFeatureShowcaseAmbientSound,
                 // `Unretained` is ok because `this` owns the step and
@@ -1346,10 +1314,10 @@ FirstRunFlowController::RegisterPostIdentitySteps(
                                 // step that `this` will own and outlive.
                                 base::Unretained(this)),
             std::move(finish_or_continue_step_completed),
-            base::BindOnce(&FirstRunFlowController::PlaySound,
+            base::BindOnce(&FirstRunFlowController::PlayAllSetSound,
                            // Unretained ok: the callback is passed to a
                            // step that `this` will own and outlive.
-                           base::Unretained(this), kAllSetSoundKey),
+                           base::Unretained(this)),
             /*effects_button_shown_by_default=*/
             base::FeatureList::IsEnabled(
                 switches::kFirstRunDesktopRevampSound)));
@@ -1367,13 +1335,6 @@ FirstRunFlowController::RegisterPostIdentitySteps(
   return post_identity_steps;
 }
 
-void FirstRunFlowController::PlaySound(
-    audio::SoundsManager::SoundKey sound_key) {
-  if (sounds_manager_ && AreEffectsEnabled()) {
-    sounds_manager_->Play(sound_key);
-  }
-}
-
 // static
 base::AutoReset<FirstRunFlowController::SoundsManagerFactory>
 FirstRunFlowController::SetSoundsManagerFactoryForTesting(  // IN-TEST
@@ -1381,23 +1342,4 @@ FirstRunFlowController::SetSoundsManagerFactoryForTesting(  // IN-TEST
   CHECK_IS_TEST();
   return base::AutoReset<SoundsManagerFactory>(&GetSoundsManagerFactory(),
                                                std::move(factory));
-}
-
-void FirstRunFlowController::RegisterAndSwitchToIntroStep(
-    bool effects_button_shown_by_default) {
-  RegisterStep(
-      Step::kIntro,
-      CreateIntroStep(
-          host(),
-          base::BindRepeating(&FirstRunFlowController::HandleIntroSigninChoice,
-                              weak_ptr_factory_.GetWeakPtr()),
-          /*enable_animations=*/true,
-          base::BindRepeating(&FirstRunFlowController::AreEffectsEnabled,
-                              base::Unretained(this)),
-          effects_button_shown_by_default));
-  SwitchToStep(Step::kIntro, /*reset_state=*/true);
-  signin_metrics::LogSignInOffered(
-      kAccessPoint, signin_metrics::PromoAction::
-                        PROMO_ACTION_NEW_ACCOUNT_NO_EXISTING_ACCOUNT);
-  PlaySound(kLogoSoundKey);
 }

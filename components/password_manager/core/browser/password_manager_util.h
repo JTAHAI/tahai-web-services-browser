@@ -88,8 +88,7 @@ bool IsSavingBlockedByTrustedVaultError(
 // TODO(crbug.com/464228247): Merge with IsSavingBlockedByTrustedVaultError when
 // other platforms handle more errors.
 bool IsSavingBlockedByRecoverableError(
-    const password_manager::PasswordManagerClient* client,
-    const password_manager::PasswordFormManagerForUI* form_manager);
+    const password_manager::PasswordManagerClient* client);
 
 // Excluding protocol from a signon_realm means to remove from the signon_realm
 // what is before the web origin (with the protocol excluded as well). For

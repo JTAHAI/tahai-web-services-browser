@@ -25,6 +25,7 @@ import org.mockito.junit.MockitoRule;
 import org.robolectric.annotation.Config;
 
 import org.chromium.base.test.BaseRobolectricTestRunner;
+import org.chromium.base.test.util.Batch;
 import org.chromium.chrome.browser.browsing_data.TimePeriod;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.signin.services.IdentityServicesProvider;
@@ -37,6 +38,7 @@ import java.util.List;
 /** Robolectric tests for {@link QuickDeleteMediator}. */
 @RunWith(BaseRobolectricTestRunner.class)
 @Config(manifest = Config.NONE)
+@Batch(Batch.UNIT_TESTS)
 public class QuickDeleteMediatorTest {
     @Rule public MockitoRule mMockitoRule = MockitoJUnit.rule();
 

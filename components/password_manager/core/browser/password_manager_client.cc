@@ -231,14 +231,12 @@ bool PasswordManagerClient::IsActorTaskActive() {
 }
 
 void PasswordManagerClient::OnPasswordFilled(PasswordManagerDriver* driver,
-                                             const GURL& url) {}
+                                             const GURL& url,
+                                             PasswordFillTrigger trigger_type) {
+}
 
 bool PasswordManagerClient::IsChromeSigninPage() const {
   return false;
-}
-
-ActionableError PasswordManagerClient::GetActionableError() const {
-  return ActionableError::kNoError;
 }
 
 }  // namespace password_manager

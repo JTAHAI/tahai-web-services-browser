@@ -20,7 +20,7 @@ namespace base::i18n {
 class IcuBridge;
 struct DateTimeFormatterOptions;
 
-class LanguageTag;
+class BASE_I18N_EXPORT LanguageTag;
 
 // DateTimeFormatter provides a set of helper functions for formatting dates and
 // times using ICU. It handles locale-specific formatting and provides
@@ -62,16 +62,13 @@ class BASE_I18N_EXPORT IcuBridge::DateTimeFormatter {
   // Formats date and time according to the provided options.
   // The formatting is locale-aware and uses the default locale set for the
   // process.
-  std::u16string Format(base::Time time,
+  std::u16string Format(const base::Time& time,
                         const DateTimeFormatterOptions& options) const;
 
   // Formats date and time according to the provided options and locale.
-  std::u16string Format(base::Time time,
+  std::u16string Format(const base::Time& time,
                         const LanguageTag& locale,
                         const DateTimeFormatterOptions& options) const;
-
-  // Returns the hour clock type for the default locale.
-  base::HourClockType GetHourClockType() const;
 
   explicit DateTimeFormatter(base::PassKey<IcuBridge>) {}
 };

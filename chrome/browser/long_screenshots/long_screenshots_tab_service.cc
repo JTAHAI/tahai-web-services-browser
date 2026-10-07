@@ -112,13 +112,13 @@ void LongScreenshotsTabService::CaptureTab(
     paint_preview::mojom::ClipCoordOverride clip_x_coord_override,
     paint_preview::mojom::ClipCoordOverride clip_y_coord_override) {
   base::UmaHistogramPercentage("Sharing.LongScreenshots.MemoryLimitOnCapture",
-                               memory_limit().percent());
+                               memory_limit());
 
-  base::MemoryLimit memory_threshold =
+  int memory_threshold =
       base::FeatureList::IsEnabled(
           chrome::android::kLongScreenshotsLenientMemoryCheck)
-          ? base::MemoryLimit::CriticalPressureThreshold()
-          : base::MemoryLimit::ModeratePressureThreshold();
+          ? base::kCriticalMemoryPressureThreshold
+          : base::kModerateMemoryPressureThreshold;
 
   // If the system is under memory pressure don't try to capture.
   bool skip_memory_check = base::FeatureList::IsEnabled(

@@ -8,8 +8,6 @@
 #import "ios/chrome/browser/authentication/ui_bundled/cells/signin_promo_view.h"
 #import "ios/chrome/browser/authentication/ui_bundled/cells/signin_promo_view_configurator.h"
 #import "ios/chrome/browser/authentication/ui_bundled/cells/signin_promo_view_constants.h"
-#import "ios/chrome/common/ui/util/constraints_ui_util.h"
-
 namespace {
 // The inner insets of the View content.
 const CGFloat kMargin = 16;
@@ -56,8 +54,20 @@ const CGFloat kMargin = 16;
     [self.contentView addSubview:self.signinPromoView];
 
     // Set and activate constraints.
-    AddSameConstraintsWithInset(self.signinPromoView, self.contentView,
-                                kMargin);
+    [NSLayoutConstraint activateConstraints:@[
+      [self.signinPromoView.leadingAnchor
+          constraintEqualToAnchor:self.contentView.leadingAnchor
+                         constant:kMargin],
+      [self.signinPromoView.trailingAnchor
+          constraintEqualToAnchor:self.contentView.trailingAnchor
+                         constant:-kMargin],
+      [self.signinPromoView.topAnchor
+          constraintEqualToAnchor:self.contentView.topAnchor
+                         constant:kMargin],
+      [self.signinPromoView.bottomAnchor
+          constraintEqualToAnchor:self.contentView.bottomAnchor
+                         constant:-kMargin],
+    ]];
   }
   return self;
 }

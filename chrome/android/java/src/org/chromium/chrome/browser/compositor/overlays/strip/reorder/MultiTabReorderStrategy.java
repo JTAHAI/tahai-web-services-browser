@@ -5,6 +5,7 @@
 package org.chromium.chrome.browser.compositor.overlays.strip.reorder;
 
 import static org.chromium.build.NullUtil.assumeNonNull;
+import static org.chromium.chrome.browser.compositor.overlays.strip.StripLayoutUtils.getEffectiveTabWidth;
 
 import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
@@ -13,10 +14,9 @@ import android.view.View;
 
 import org.chromium.base.MathUtils;
 import org.chromium.base.Token;
-import org.chromium.base.TriState;
-import org.chromium.base.TriStateUtils;
 import org.chromium.base.metrics.RecordUserAction;
 import org.chromium.base.supplier.SettableNullableObservableSupplier;
+import org.chromium.build.annotations.EnsuresNonNull;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.compositor.overlays.strip.AnimationHost;
@@ -55,8 +55,8 @@ public class MultiTabReorderStrategy extends ReorderStrategyBase {
     @Nullable private StripLayoutTab mPrimaryInteractingStripTab;
     private final Supplier<Boolean> mInReorderModeSupplier;
     private final Supplier<Float> mPinnedTabsBoundarySupplier;
-    private @TriState int mHasMixedPinState;
-    private @TriState int mIsPrimaryPinned;
+    @Nullable private Boolean mHasMixedPinState;
+    @Nullable private Boolean mIsPrimaryPinned;
     private float mLastScrollOffset;
 
     /**
@@ -153,7 +153,7 @@ public class MultiTabReorderStrategy extends ReorderStrategyBase {
 
         StripLayoutTab tabToReorder;
         List<StripLayoutTab> tabsToReorder;
-        if (mHasMixedPinState == TriState.TRUE) {
+        if (Boolean.TRUE.equals(mHasMixedPinState)) {
             boolean isPinnedReordering = isPinnedReordering(deltaX);
             tabsToReorder = isPinnedReordering ? mPinnedTabs : mUnpinnedTabs;
             tabToReorder = tabsToReorder.get(0);
@@ -204,7 +204,7 @@ public class MultiTabReorderStrategy extends ReorderStrategyBase {
                                 : mScrollDelegate.getReorderStartMargin();
                 offset = isRtl ? Math.min(limit, offset) : Math.max(-limit, offset);
                 for (StripLayoutTab tab : mInteractingTabs) {
-                    if (mHasMixedPinState == TriState.TRUE
+                    if (Boolean.TRUE.equals(mHasMixedPinState)
                             && tab.getIsPinned() != firstTabInBlock.getIsPinned()) {
                         setOffsetXForNonReorderedPartition(firstTabInBlock.getIsPinned());
                         break;
@@ -220,7 +220,7 @@ public class MultiTabReorderStrategy extends ReorderStrategyBase {
                                 : Math.min(lastTabInBlock.getTrailingMargin(), offset);
                 for (int i = mInteractingTabs.size() - 1; i >= 0; i--) {
                     StripLayoutTab tab = mInteractingTabs.get(i);
-                    if (mHasMixedPinState == TriState.TRUE
+                    if (Boolean.TRUE.equals(mHasMixedPinState)
                             && tab.getIsPinned() != lastTabInBlock.getIsPinned()) {
                         setOffsetXForNonReorderedPartition(lastTabInBlock.getIsPinned());
                         break;
@@ -387,6 +387,7 @@ public class MultiTabReorderStrategy extends ReorderStrategyBase {
                 onAnimationEnd);
     }
 
+    @EnsuresNonNull({"mHasMixedPinState", "mIsPrimaryPinned"})
     private void setupReorderState(StripLayoutTab[] stripTabs, List<Tab> selectedTabs) {
         // Ensure state is clean before starting a new reorder.
         assert mInteractingTabs.isEmpty();
@@ -403,10 +404,8 @@ public class MultiTabReorderStrategy extends ReorderStrategyBase {
                 mUnpinnedTabs.add(stripTab);
             }
         }
-        mIsPrimaryPinned =
-                TriStateUtils.from(
-                        Objects.requireNonNull(mPrimaryInteractingStripTab).getIsPinned());
-        mHasMixedPinState = TriStateUtils.from(mPinnedTabs.size() > 0 && mUnpinnedTabs.size() > 0);
+        mIsPrimaryPinned = Objects.requireNonNull(mPrimaryInteractingStripTab).getIsPinned();
+        mHasMixedPinState = mPinnedTabs.size() > 0 && mUnpinnedTabs.size() > 0;
     }
 
     private void clearReorderState() {
@@ -414,8 +413,8 @@ public class MultiTabReorderStrategy extends ReorderStrategyBase {
         mInteractingTabIds.clear();
         mPinnedTabs.clear();
         mUnpinnedTabs.clear();
-        mIsPrimaryPinned = TriState.NOT_SET;
-        mHasMixedPinState = TriState.NOT_SET;
+        mIsPrimaryPinned = null;
+        mHasMixedPinState = null;
         mPrimaryInteractingStripTab = null;
         mLastScrollOffset = 0f;
     }
@@ -440,7 +439,7 @@ public class MultiTabReorderStrategy extends ReorderStrategyBase {
                     primaryTab,
                     /* indexInGroup= */ primaryTabIndexInGroup,
                     /* notify= */ TabGroupMergeNotificationType.DONT_NOTIFY);
-            if (mHasMixedPinState == TriState.TRUE) {
+            if (Boolean.TRUE.equals(mHasMixedPinState)) {
                 for (StripLayoutTab tab : mPinnedTabs) {
                     mModel.moveTab(tab.getTabId(), mModel.findFirstNonPinnedTabIndex() - 1);
                 }
@@ -449,7 +448,7 @@ public class MultiTabReorderStrategy extends ReorderStrategyBase {
             ungroupInteractingBlock();
             int primaryTabModelIndex = mModel.indexOf(primaryTab);
             int primaryTabIndexInSelection = selectedTabs.indexOf(primaryTab);
-            if (mIsPrimaryPinned == TriState.TRUE) {
+            if (Boolean.TRUE.equals(mIsPrimaryPinned)) {
                 primaryTabIndexInSelection = mPinnedTabs.indexOf(mPrimaryInteractingStripTab);
             } else {
                 primaryTabIndexInSelection = mUnpinnedTabs.indexOf(mPrimaryInteractingStripTab);
@@ -459,7 +458,7 @@ public class MultiTabReorderStrategy extends ReorderStrategyBase {
             int firstUnpinnedIndex = mModel.findFirstNonPinnedTabIndex();
             for (int i = 0; i <= selectedTabs.size() - 1; i++) {
                 Tab tab = selectedTabs.get(i);
-                if (tab.getIsPinned() == (mIsPrimaryPinned == TriState.TRUE)) {
+                if (tab.getIsPinned() == Boolean.TRUE.equals(mIsPrimaryPinned)) {
                     // Gather as normal if has the same pin state.
                     int currentTabModelIndex = mModel.indexOf(tab);
                     if (currentTabModelIndex > targetGatherIndex) {
@@ -480,7 +479,7 @@ public class MultiTabReorderStrategy extends ReorderStrategyBase {
                 }
             }
         }
-        setOffsetXForNonReorderedPartition(mIsPrimaryPinned == TriState.TRUE);
+        setOffsetXForNonReorderedPartition(Boolean.TRUE.equals(mIsPrimaryPinned));
     }
 
     /**
@@ -494,7 +493,7 @@ public class MultiTabReorderStrategy extends ReorderStrategyBase {
      *     it); {@code false} to anchor on the unpinned block (position pinned around it).
      */
     private void setOffsetXForNonReorderedPartition(boolean anchorOnPinned) {
-        if (mHasMixedPinState != TriState.TRUE) return;
+        if (!Boolean.TRUE.equals(mHasMixedPinState)) return;
 
         boolean rtl = LocalizationUtils.isLayoutRtl();
         StripLayoutTab anchorTab;

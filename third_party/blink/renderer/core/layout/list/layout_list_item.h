@@ -52,10 +52,9 @@ class CORE_EXPORT LayoutListItem final : public LayoutBlockFlow {
   void WillBeRemovedFromTree() override;
   void StyleDidChange(StyleDifference,
                       const ComputedStyle* old_style,
-                      const ComputedStyle& new_style,
                       const StyleChangeContext&) override;
   void SubtreeDidChange() final;
-  void WillBeDestroyed(const ComputedStyle*) override;
+  void WillBeDestroyed() override;
 
   ListItemOrdinal ordinal_;
 };

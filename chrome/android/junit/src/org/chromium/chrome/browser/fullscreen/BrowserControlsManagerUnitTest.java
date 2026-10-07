@@ -9,7 +9,6 @@ import static androidx.test.espresso.matcher.ViewMatchers.assertThat;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
@@ -17,7 +16,6 @@ import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doReturn;
@@ -977,36 +975,6 @@ public class BrowserControlsManagerUnitTest {
         assertNull(mBrowserControlsManager.getControlsAnimatorForTesting());
     }
 
-    @Test
-    public void testOffsetTagsChanged_HiddenConstraints_UpdatesOffsetsEvenWhenOnScreen() {
-        remakeWithoutSpy();
-        notifyAddTab(mTab);
-        mActivityTabProvider.setForTesting(mTab);
-        mBrowserControlsManager.addObserver(mBrowserControlsStateProviderObserver);
-
-        // Put controls on-screen at TOP position (not scrolled offscreen).
-        mBrowserControlsManager.setControlsPosition(
-                ControlsPosition.TOP, 0, TOOLBAR_HEIGHT, 0, 0, 0, 0);
-        ShadowLooper.idleMainLooper();
-
-        // When constraints transition to HIDDEN, shouldUpdateOffsets must be true so the
-        // compositor layer does not stay drawn at y = 0.
-        mBrowserControlsManager
-                .getTabControlsObserverForTesting()
-                .onOffsetTagsInfoChanged(
-                        mTab,
-                        new BrowserControlsOffsetTagsInfo(),
-                        new BrowserControlsOffsetTagsInfo(),
-                        BrowserControlsState.HIDDEN);
-
-        verify(mBrowserControlsStateProviderObserver)
-                .onOffsetTagsInfoChanged(
-                        any(BrowserControlsOffsetTagsInfo.class),
-                        any(BrowserControlsOffsetTagsInfo.class),
-                        eq(BrowserControlsState.HIDDEN),
-                        eq(true));
-    }
-
     private void verifyUpdateOffsetTagDefinitions(
             OffsetTagConstraints top, OffsetTagConstraints content, OffsetTagConstraints bottom) {
         BrowserControlsOffsetTagConstraints expectedConstraints =
@@ -1015,61 +983,5 @@ public class BrowserControlsManagerUnitTest {
                 new BrowserControlsOffsetTagDefinitions(
                         new BrowserControlsOffsetTags(null, null, null), expectedConstraints);
         mWebContentsInOrder.verify(mWebContents).updateOffsetTagDefinitions(expectedDefinitions);
-    }
-
-    @Test
-    @EnableFeatures(ChromeFeatureList.BROWSER_CONTROLS_HIDING_TOKEN)
-    @SuppressWarnings("DirectInvocationOnMock")
-    public void testSetTab_skipsTransientControlsWhenHidingTokensActive() {
-        remakeWithoutSpy();
-        Tab newTab = Mockito.mock(Tab.class);
-        when(newTab.isUserInteractable()).thenReturn(true);
-        when(newTab.getUserDataHost()).thenReturn(mUserDataHost);
-        when(newTab.getContentView()).thenReturn(mContentView);
-
-        mBrowserControlsManager.hideAndroidControlsAndClearOldToken(
-                org.chromium.ui.util.TokenHolder.INVALID_TOKEN);
-        assertTrue(mBrowserControlsManager.hasHidingTokens());
-
-        // Switching tabs while hiding tokens are active should keep controls hidden.
-        mActivityTabProvider.setForTesting(newTab);
-        assertEquals(View.INVISIBLE, mContainerView.getVisibility());
-    }
-
-    @Test
-    @EnableFeatures(ChromeFeatureList.BROWSER_CONTROLS_HIDING_TOKEN)
-    @SuppressWarnings("DirectInvocationOnMock")
-    public void testOnActivityStateStarted_skipsTransientControlsWhenHidingTokensActive() {
-        remakeWithoutSpy();
-        mBrowserControlsManager.hideAndroidControlsAndClearOldToken(
-                org.chromium.ui.util.TokenHolder.INVALID_TOKEN);
-        assertTrue(mBrowserControlsManager.hasHidingTokens());
-
-        ApplicationStatus.onStateChangeForTesting(mActivity, ActivityState.STARTED);
-        ShadowLooper.idleMainLooper();
-
-        assertEquals(View.INVISIBLE, mContainerView.getVisibility());
-    }
-
-    @Test
-    @EnableFeatures(ChromeFeatureList.BROWSER_CONTROLS_HIDING_TOKEN)
-    @SuppressWarnings("DirectInvocationOnMock")
-    public void testScheduleVisibilityUpdate_immediateHideWithHidingToken() {
-        remakeWithoutSpy();
-        assertEquals(View.VISIBLE, mContainerView.getVisibility());
-
-        // Acquiring a hiding token should immediately set the container view to INVISIBLE
-        // without waiting for main looper idle.
-        mBrowserControlsManager.hideAndroidControlsAndClearOldToken(TokenHolder.INVALID_TOKEN);
-        assertTrue(mBrowserControlsManager.hasHidingTokens());
-        assertEquals(View.INVISIBLE, mContainerView.getVisibility());
-    }
-
-    @Test
-    @SuppressWarnings("DirectInvocationOnMock")
-    public void testReleaseAndroidControlsHidingToken_invalidTokenNoOp() {
-        remakeWithoutSpy();
-        mBrowserControlsManager.releaseAndroidControlsHidingToken(TokenHolder.INVALID_TOKEN);
-        assertFalse(mBrowserControlsManager.hasHidingTokens());
     }
 }

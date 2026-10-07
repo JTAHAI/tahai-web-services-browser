@@ -66,8 +66,21 @@ base::expected<IwaOrigin, std::string> IwaOrigin::Create(const GURL& url) {
       });
 }
 
-std::string IwaOrigin::GetPartitionDomain() const {
-  return ::web_app::GetPartitionDomain(origin());
+content::StoragePartitionConfig IwaOrigin::storage_partition_config(
+    content::BrowserContext* browser_context,
+    std::optional<StoragePartitionConfigOptions> options) const {
+  std::string partition_domain = GetPartitionDomain(origin());
+  if (options) {
+    CHECK(!options->partition_name.empty() || options->in_memory);
+    return content::StoragePartitionConfig::Create(
+        browser_context, partition_domain, options->partition_name,
+        options->in_memory);
+  }
+
+  return content::StoragePartitionConfig::Create(browser_context,
+                                                 partition_domain,
+                                                 /*partition_name=*/"",
+                                                 /*in_memory=*/false);
 }
 
 }  // namespace web_app

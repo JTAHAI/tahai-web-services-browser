@@ -785,11 +785,9 @@ void DownloadFileImpl::OnDownloadCompleted() {
   }
 
   std::unique_ptr<crypto::SecureHash> hash_state =
-      obfuscator_ ? obfuscator_->GetUnobfuscatedHash()
-                  : file_.Finish(potential_file_length_);
+      obfuscator_ ? obfuscator_->GetUnobfuscatedHash() : file_.Finish();
 #else
-  std::unique_ptr<crypto::SecureHash> hash_state =
-      file_.Finish(potential_file_length_);
+  std::unique_ptr<crypto::SecureHash> hash_state = file_.Finish();
 #endif
 
   update_timer_.reset();
@@ -939,8 +937,7 @@ void DownloadFileImpl::SendErrorUpdateIfFinished(
   weak_factory_.InvalidateWeakPtrs();
 
   // TODO(b/367257039): Maintain obfuscated file hash for interrupted downloads.
-  std::unique_ptr<crypto::SecureHash> hash_state =
-      file_.Finish(potential_file_length_);
+  std::unique_ptr<crypto::SecureHash> hash_state = file_.Finish();
   main_task_runner_->PostTask(
       FROM_HERE,
       base::BindOnce(&DownloadDestinationObserver::DestinationError, observer_,

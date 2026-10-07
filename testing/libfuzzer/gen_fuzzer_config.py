@@ -26,9 +26,8 @@ def AddSectionOptions(config, section_name, options):
 
   config.add_section(section_name)
   for option_and_value in options:
-    assert len(option_and_value) == 2, (
-      '%s is not an option, value pair' % option_and_value
-    )
+    assert len(option_and_value) == 2, ('%s is not an option, value pair' %
+                                        option_and_value)
 
     config.set(section_name, *option_and_value)
 
@@ -46,14 +45,8 @@ def main():
   args = parser.parse_args()
 
   # Script shouldn't be invoked without any arguments, but just in case.
-  if not (
-    args.dict
-    or args.libfuzzer_options
-    or args.asan_options
-    or args.msan_options
-    or args.ubsan_options
-    or args.grammar_options
-  ):
+  if not (args.dict or args.libfuzzer_options or args.asan_options
+          or args.msan_options or args.ubsan_options or args.grammar_options):
     return
 
   config = ConfigParser()
@@ -61,8 +54,7 @@ def main():
   if args.dict:
     libfuzzer_options.append(('dict', os.path.basename(args.dict)))
   libfuzzer_options.extend(
-    option.split('=') for option in args.libfuzzer_options
-  )
+      option.split('=') for option in args.libfuzzer_options)
 
   AddSectionOptions(config, 'libfuzzer', libfuzzer_options)
 
@@ -70,32 +62,26 @@ def main():
   if args.dict:
     centipede_options.append(('dictionary', os.path.basename(args.dict)))
   centipede_options.extend(
-    option.split('=') for option in args.centipede_options
-  )
+      option.split('=') for option in args.centipede_options)
   AddSectionOptions(config, 'centipede', centipede_options)
 
-  AddSectionOptions(
-    config, 'asan', [option.split('=') for option in args.asan_options]
-  )
+  AddSectionOptions(config, 'asan',
+                    [option.split('=') for option in args.asan_options])
 
-  AddSectionOptions(
-    config, 'msan', [option.split('=') for option in args.msan_options]
-  )
+  AddSectionOptions(config, 'msan',
+                    [option.split('=') for option in args.msan_options])
 
-  AddSectionOptions(
-    config, 'ubsan', [option.split('=') for option in args.ubsan_options]
-  )
+  AddSectionOptions(config, 'ubsan',
+                    [option.split('=') for option in args.ubsan_options])
 
-  AddSectionOptions(
-    config, 'grammar', [option.split('=') for option in args.grammar_options]
-  )
+  AddSectionOptions(config, 'grammar',
+                    [option.split('=') for option in args.grammar_options])
 
   # Generate .options file.
   config_path = args.config
   with open(config_path, 'w') as options_file:
     options_file.write(
-      '# This is an automatically generated config for ClusterFuzz.\n'
-    )
+        '# This is an automatically generated config for ClusterFuzz.\n')
     config.write(options_file)
 
 

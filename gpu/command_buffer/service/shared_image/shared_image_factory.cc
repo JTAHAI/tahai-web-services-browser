@@ -176,7 +176,6 @@ SharedImageFactory::SharedImageFactory(
       texture_target_for_io_surfaces_(GL_TEXTURE_2D),
 #endif
       workarounds_(workarounds) {
-
   factory_ref_ = base::MakeRefCounted<SharedImageFactoryRef>(this);
   copy_manager_ = base::MakeRefCounted<SharedImageCopyManager>();
   copy_manager_->AddStrategy(std::make_unique<SharedMemoryCopyStrategy>());
@@ -197,14 +196,6 @@ SharedImageFactory::SharedImageFactory(
   CHECK(context_state_);
   scoped_refptr<gles2::FeatureInfo> feature_info =
       context_state_->feature_info();
-
-#if BUILDFLAG(ENABLE_VULKAN)
-  // TODO(crbug.com/500918256): Move VulkanContextProvider creation earlier
-  // so `enable_webgpu_on_vk_via_gl_interop` is only true if it exists.
-  gpu_preferences_.enable_webgpu_on_vk_via_gl_interop =
-      gpu_preferences_.enable_webgpu_on_vk_via_gl_interop &&
-      context_state_->vk_context_provider();
-#endif
 
   if (!feature_info) {
     // For some unit tests like SharedImageFactoryTest, |shared_context_state_|
@@ -438,12 +429,8 @@ bool SharedImageFactory::IsNativeBufferSupported(
              format == viz::SinglePlaneFormat::kRGBA_F16 ||
              format == viz::SinglePlaneFormat::kBGRA_1010102 ||
              format == viz::MultiPlaneFormat::kNV12 ||
-             format == viz::MultiPlaneFormat::kNV16 ||
-             format == viz::MultiPlaneFormat::kNV24 ||
              format == viz::MultiPlaneFormat::kNV12A ||
-             format == viz::MultiPlaneFormat::kP010 ||
-             format == viz::MultiPlaneFormat::kP210 ||
-             format == viz::MultiPlaneFormat::kP410;
+             format == viz::MultiPlaneFormat::kP010;
     case gfx::BufferUsage::SCANOUT_VDA_WRITE:
     case gfx::BufferUsage::PROTECTED_SCANOUT:
     case gfx::BufferUsage::PROTECTED_SCANOUT_VDA_WRITE:
@@ -857,6 +844,8 @@ gpu::SharedImageCapabilities SharedImageFactory::MakeCapabilities() {
       gl::GetANGLEImplementation() == gl::ANGLEImplementation::kMetal;
   const bool is_skia_graphite =
       gr_context_type_ == GrContextType::kGraphiteDawn;
+  shared_image_caps.supports_luminance_shared_images =
+      !is_angle_metal && !is_skia_graphite;
   shared_image_caps.supports_r16_shared_images =
       is_angle_metal || is_skia_graphite;
   shared_image_caps.disable_webgpu_shared_images =

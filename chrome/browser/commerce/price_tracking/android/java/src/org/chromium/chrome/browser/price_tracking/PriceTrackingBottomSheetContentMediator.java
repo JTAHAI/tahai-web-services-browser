@@ -171,7 +171,7 @@ public class PriceTrackingBottomSheetContentMediator {
         RecordHistogram.recordEnumeratedHistogram(
                 "Commerce.PriceInsights.PriceTracking." + histogramActionName,
                 mPriceBucket,
-                PriceBucket.MAX_VALUE + 1);
+                PriceBucket.MAX_VALUE);
     }
 
     private void showToastMessage(boolean shouldBeTracked, boolean success) {

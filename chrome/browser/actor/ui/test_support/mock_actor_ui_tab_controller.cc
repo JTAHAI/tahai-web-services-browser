@@ -4,24 +4,13 @@
 
 #include "chrome/browser/actor/ui/test_support/mock_actor_ui_tab_controller.h"
 
-#include <utility>
-
-#include "base/functional/callback_helpers.h"
-
 namespace actor::ui {
 
-MockActorUiTabController::MockActorUiTabController(tabs::TabInterface& tab)
-    : ActorUiTabControllerInterface(tab) {
+MockActorUiTabController::MockActorUiTabController(
+    tabs::MockTabInterface& mock_tab)
+    : ActorUiTabControllerInterface(mock_tab) {
   ON_CALL(*this, GetWeakPtr())
       .WillByDefault(testing::Return(weak_factory_.GetWeakPtr()));
-  ON_CALL(*this, OnUiTabStateChange)
-      .WillByDefault([](const UiTabState&, UiResultCallback callback) {
-        if (callback) {
-          std::move(callback).Run(true);
-        }
-      });
-  ON_CALL(*this, GetCurrentUiTabState())
-      .WillByDefault(testing::Return(UiTabState{}));
 }
 
 MockActorUiTabController::~MockActorUiTabController() = default;

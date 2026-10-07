@@ -23,7 +23,10 @@
 // Must come after all headers that specialize FromJniType() / ToJniType().
 #include "chrome/browser/quick_delete/jni_headers/QuickDeleteBridge_jni.h"
 
-using jni_zero::AttachCurrentThread;
+using base::android::AttachCurrentThread;
+using base::android::ConvertUTF16ToJavaString;
+using base::android::JavaRef;
+using base::android::ScopedJavaGlobalRef;
 
 namespace {
 
@@ -50,7 +53,8 @@ QuickDeleteDomainResult GetLastVisitedDomainAndUniqueDomainCountFromResult(
 }
 }  // namespace
 
-QuickDeleteBridge::QuickDeleteBridge(const base::android::JavaRef<jobject>& obj,
+QuickDeleteBridge::QuickDeleteBridge(JNIEnv* env,
+                                     const base::android::JavaRef<jobject>& obj,
                                      Profile* profile)
     : jobject_(obj) {
   profile_ = profile;
@@ -72,11 +76,12 @@ QuickDeleteBridge::QuickDeleteBridge(const base::android::JavaRef<jobject>& obj,
 
 QuickDeleteBridge::~QuickDeleteBridge() = default;
 
-void QuickDeleteBridge::Destroy() {
+void QuickDeleteBridge::Destroy(JNIEnv* env) {
   delete this;
 }
 
-void QuickDeleteBridge::RestartCounterForTimePeriod(const int32_t time_period) {
+void QuickDeleteBridge::RestartCounterForTimePeriod(JNIEnv* env,
+                                                    const int32_t time_period) {
   browsing_data::TimePeriod period =
       static_cast<browsing_data::TimePeriod>(time_period);
   base::Time begin_time = CalculateBeginDeleteTime(period);
@@ -97,14 +102,16 @@ void QuickDeleteBridge::OnHistoryCounterResult(
               result.get()));
 
   Java_QuickDeleteBridge_onLastVisitedDomainAndUniqueDomainCountReady(
-      env, jobject_, quickDeleteResult.last_visited_domain,
+      env, jobject_,
+      ConvertUTF16ToJavaString(env, quickDeleteResult.last_visited_domain),
       quickDeleteResult.domain_count);
 }
 
 static int64_t JNI_QuickDeleteBridge_Init(
+    JNIEnv* env,
     const base::android::JavaRef<jobject>& obj,
     Profile* profile) {
-  QuickDeleteBridge* bridge = new QuickDeleteBridge(obj, profile);
+  QuickDeleteBridge* bridge = new QuickDeleteBridge(env, obj, profile);
   return reinterpret_cast<intptr_t>(bridge);
 }
 

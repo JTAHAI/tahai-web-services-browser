@@ -4,8 +4,6 @@
 
 #include "chrome/browser/ui/collected_cookies_infobar_delegate.h"
 
-#include <memory>
-
 #include "base/check_op.h"
 #include "build/build_config.h"
 #include "chrome/browser/infobars/confirm_infobar_creator.h"

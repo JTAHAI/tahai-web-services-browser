@@ -42,9 +42,7 @@ ActionTypeButton::ActionTypeButton(PressedCallback callback,
     : ash::OptionButtonBase(kButtonWidth,
                             std::move(callback),
                             label,
-                            gfx::Insets::VH(10, 12),
-                            kImageLabelSpacingDP,
-                            ash::OptionButtonBase::ClickBehavior::kSetToOn),
+                            gfx::Insets::VH(10, 12)),
       icon_(icon) {
   SetTooltipText(label);
   SetPreferredSize(gfx::Size(kButtonWidth, kActionTypeButtonHeight));

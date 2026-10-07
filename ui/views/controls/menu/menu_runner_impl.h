@@ -70,7 +70,6 @@ class VIEWS_EXPORT MenuRunnerImpl : public MenuRunnerImplInterface,
 
  private:
   friend class ::views::test::MenuRunnerDestructionTest;
-  friend std::default_delete<MenuRunnerImpl>;
 
   ~MenuRunnerImpl() override;
 
@@ -93,8 +92,6 @@ class VIEWS_EXPORT MenuRunnerImpl : public MenuRunnerImplInterface,
   bool running_ = false;
 
   // Set if |running_| and Release() has been invoked.
-  // TODO(crbug.com/516996291): Investigate if this can be removed or simplified
-  // since the nested loop has already been removed.
   bool delete_after_run_ = false;
 
   // Are we running for a drop?

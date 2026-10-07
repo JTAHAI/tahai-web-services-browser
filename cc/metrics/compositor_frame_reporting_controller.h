@@ -12,20 +12,16 @@
 
 #include "base/containers/circular_deque.h"
 #include "base/memory/raw_ptr.h"
-#include "base/memory/weak_ptr.h"
 #include "base/time/default_tick_clock.h"
 #include "base/time/time.h"
 #include "cc/cc_export.h"
 #include "cc/metrics/compositor_frame_reporter.h"
 #include "cc/metrics/event_metrics.h"
 #include "cc/metrics/frame_sequence_metrics.h"
-#include "cc/metrics/frame_sequence_tracker_collection.h"
 #include "cc/metrics/frame_sorter.h"
 #include "cc/metrics/predictor_jank_tracker.h"
 #include "cc/metrics/scroll_jank_dropped_frame_tracker.h"
-#include "cc/metrics/scroll_jank_os_reporter.h"
 #include "cc/metrics/scroll_jank_v4_processor.h"
-#include "cc/metrics/scroll_timing_info.h"
 
 namespace viz {
 class FrameTimingDetails;
@@ -55,7 +51,6 @@ class CC_EXPORT CompositorFrameReportingController {
   };
 
   CompositorFrameReportingController(bool should_report_histograms,
-                                     bool should_report_scroll_timing,
                                      int layer_tree_host_id,
                                      bool is_trees_in_viz_client);
   virtual ~CompositorFrameReportingController();
@@ -108,21 +103,21 @@ class CC_EXPORT CompositorFrameReportingController {
     global_trackers_.frame_sorter = frame_sorter;
   }
 
-  void SetScrollJankOsReporter(base::WeakPtr<ScrollJankOsReporter> os_reporter);
-
   void SetFrameSequenceTrackerCollection(
       FrameSequenceTrackerCollection* frame_sequence_trackers) {
     if (global_trackers_.frame_sorter) {
       global_trackers_.frame_sorter->AddObserver(frame_sequence_trackers);
     }
-    frame_sequence_trackers_ = frame_sequence_trackers;
+    global_trackers_.frame_sequence_trackers = frame_sequence_trackers;
   }
 
   void ClearFrameSequenceTrackerCollection() {
-    if (global_trackers_.frame_sorter && frame_sequence_trackers_) {
-      global_trackers_.frame_sorter->RemoveObserver(frame_sequence_trackers_);
+    if (global_trackers_.frame_sorter &&
+        global_trackers_.frame_sequence_trackers) {
+      global_trackers_.frame_sorter->RemoveObserver(
+          global_trackers_.frame_sequence_trackers);
     }
-    frame_sequence_trackers_ = nullptr;
+    global_trackers_.frame_sequence_trackers = nullptr;
   }
 
   void set_event_latency_tracker(EventLatencyTracker* event_latency_tracker) {
@@ -152,9 +147,6 @@ class CC_EXPORT CompositorFrameReportingController {
     ~SubmittedCompositorFrame();
   };
   base::TimeTicks Now() const;
-
-  virtual void OnScrollTimingInfosCompleted(
-      std::vector<ScrollTimingInfo> scroll_timing_infos);
 
   bool next_activate_has_invalidation() const {
     return next_activate_has_invalidation_;
@@ -201,12 +193,7 @@ class CC_EXPORT CompositorFrameReportingController {
   void SetPartialUpdateDeciderWhenWaitingOnMain(
       std::unique_ptr<CompositorFrameReporter>& reporter);
 
-  // Flushes Scroll Timing after compositor idle if no unresolved frame can
-  // extend the active segment, then drains completed records.
-  void MaybeFlushAndDrainScrollTiming();
-
   const bool should_report_histograms_;
-  const bool should_report_scroll_timing_;
   const int layer_tree_host_id_;
   bool is_trees_in_viz_client_;
 
@@ -218,7 +205,6 @@ class CC_EXPORT CompositorFrameReportingController {
   // have reporters), since destroying the reporters can flush frames to
   // `global_trackers_`.
   GlobalMetricsTrackers global_trackers_;
-  raw_ptr<FrameSequenceTrackerCollection> frame_sequence_trackers_ = nullptr;
 
   std::unique_ptr<PredictorJankTracker> predictor_jank_tracker_;
   std::unique_ptr<ScrollJankDroppedFrameTracker>
@@ -264,7 +250,6 @@ class CC_EXPORT CompositorFrameReportingController {
   // being invisible
   bool visible_ = true;
   bool waiting_for_did_present_after_visible_ = false;
-  bool pending_scroll_timing_flush_ = false;
 
   // Indicates whether or not we expect the next frame to contain an animation
   // which requires impl invalidation.

@@ -323,6 +323,8 @@ CGFloat GPayIconTopAnchorOffset() {
 
   self.headerSeparator = CreateGraySeparatorForContainer(self.contentView);
 
+  UILabel* expirationDateSeparatorLabel;
+
   // Card instruction textview is always created, but is only visible for
   // virtual and CardInfoRetrieval enrolled cards and hidden for rest.
   self.cardInstructionTextView = [self createCardInstructionTextView];
@@ -368,13 +370,13 @@ CGFloat GPayIconTopAnchorOffset() {
                               action:@selector(onAutofillFormButtonTapped)
                     forControlEvents:UIControlEventTouchUpInside];
 
-  [self horizontallyArrangeViews];
+  [self horizontallyArrangeViews:expirationDateSeparatorLabel];
 
   SetUpCellAccessibilityElements(self, accessibilityElements);
 }
 
 // Horizontally positions the UIViews.
-- (void)horizontallyArrangeViews {
+- (void)horizontallyArrangeViews:(UILabel*)expirationDateSeparatorLabel {
   NSMutableArray<NSLayoutConstraint*>* staticConstraints =
       [[NSMutableArray alloc] init];
   AppendHorizontalConstraintsForViews(staticConstraints, @[ self.headerView ],
@@ -579,12 +581,9 @@ CGFloat GPayIconTopAnchorOffset() {
       base::UserMetricsAction([self createMetricsAction:@"SelectCardNumber"]));
 
   if (self.card.canFillDirectly) {
-    [self.contentInjector
-        userDidPickContent:number
-             passwordField:NO
-             requiresHTTPS:YES
-           jumpToNextField:YES
-                actionType:autofill::mojom::FieldActionType::kReplaceAll];
+    [self.contentInjector userDidPickContent:number
+                               passwordField:NO
+                               requiresHTTPS:YES];
   } else {
     [self.navigationDelegate
         requestFullCreditCard:self.card
@@ -595,12 +594,9 @@ CGFloat GPayIconTopAnchorOffset() {
 - (void)userDidTapCardholderName:(UIButton*)sender {
   base::RecordAction(base::UserMetricsAction(
       [self createMetricsAction:@"SelectCardholderName"]));
-  [self.contentInjector
-      userDidPickContent:sender.titleLabel.text
-           passwordField:NO
-           requiresHTTPS:NO
-         jumpToNextField:YES
-              actionType:autofill::mojom::FieldActionType::kReplaceAll];
+  [self.contentInjector userDidPickContent:sender.titleLabel.text
+                             passwordField:NO
+                             requiresHTTPS:NO];
 }
 
 - (void)userDidTapExpirationMonth:(UIButton*)sender {
@@ -611,12 +607,9 @@ CGFloat GPayIconTopAnchorOffset() {
         requestFullCreditCard:self.card
                     fieldType:manual_fill::PaymentFieldType::kExpirationMonth];
   } else {
-    [self.contentInjector
-        userDidPickContent:sender.titleLabel.text
-             passwordField:NO
-             requiresHTTPS:NO
-           jumpToNextField:YES
-                actionType:autofill::mojom::FieldActionType::kReplaceAll];
+    [self.contentInjector userDidPickContent:sender.titleLabel.text
+                               passwordField:NO
+                               requiresHTTPS:NO];
   }
 }
 
@@ -628,12 +621,9 @@ CGFloat GPayIconTopAnchorOffset() {
         requestFullCreditCard:self.card
                     fieldType:manual_fill::PaymentFieldType::kExpirationYear];
   } else {
-    [self.contentInjector
-        userDidPickContent:sender.titleLabel.text
-             passwordField:NO
-             requiresHTTPS:NO
-           jumpToNextField:YES
-                actionType:autofill::mojom::FieldActionType::kReplaceAll];
+    [self.contentInjector userDidPickContent:sender.titleLabel.text
+                               passwordField:NO
+                               requiresHTTPS:NO];
   }
 }
 
@@ -648,12 +638,9 @@ CGFloat GPayIconTopAnchorOffset() {
                                               requiresHTTPS:YES]) {
       return;
     }
-    [self.contentInjector
-        userDidPickContent:self.card.CVC
-             passwordField:NO
-             requiresHTTPS:YES
-           jumpToNextField:YES
-                actionType:autofill::mojom::FieldActionType::kReplaceAll];
+    [self.contentInjector userDidPickContent:self.card.CVC
+                               passwordField:NO
+                               requiresHTTPS:YES];
   } else {
     [self.navigationDelegate
         requestFullCreditCard:self.card

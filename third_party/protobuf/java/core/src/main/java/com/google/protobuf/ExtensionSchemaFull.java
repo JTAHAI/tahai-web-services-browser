@@ -494,8 +494,7 @@ final class ExtensionSchemaFull extends ExtensionSchema<FieldDescriptor> {
     } else {
       extensions.setField(
           extensionInfo.descriptor,
-          new InternalLazyField(
-              extensionInfo.defaultInstance, extensionRegistry, reader.readBytes()));
+          new LazyField(extensionInfo.defaultInstance, extensionRegistry, reader.readBytes()));
     }
   }
 
@@ -520,7 +519,7 @@ final class ExtensionSchemaFull extends ExtensionSchema<FieldDescriptor> {
     } else {
       extensions.setField(
           extensionInfo.descriptor,
-          new InternalLazyField(extensionInfo.defaultInstance, extensionRegistry, data));
+          new LazyField(extensionInfo.defaultInstance, extensionRegistry, data));
     }
   }
 }

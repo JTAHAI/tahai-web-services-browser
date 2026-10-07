@@ -39,4 +39,4 @@ private:
 
 }
 
-#endif  // CYCLE_SUPER_H_
+#endif

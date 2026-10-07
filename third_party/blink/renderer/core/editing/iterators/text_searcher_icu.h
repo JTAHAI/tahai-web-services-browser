@@ -8,7 +8,6 @@
 #include <optional>
 
 #include "base/containers/span.h"
-#include "base/memory/raw_ptr.h"
 #include "third_party/blink/renderer/core/core_export.h"
 #include "third_party/blink/renderer/core/editing/finder/find_options.h"
 #include "third_party/blink/renderer/platform/wtf/allocator/allocator.h"
@@ -55,8 +54,7 @@ class CORE_EXPORT TextSearcherIcu {
   bool IsCorrectKanaMatch(base::span<const UChar> text,
                           const MatchResultIcu&) const;
 
-  raw_ptr<UStringSearch, UnprotectedInRelease | DanglingUntriaged> searcher_ =
-      nullptr;
+  UStringSearch* searcher_ = nullptr;
   wtf_size_t text_length_ = 0;
   Vector<UChar> normalized_search_text_;
   FindOptions options_;

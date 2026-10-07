@@ -37,15 +37,6 @@ const CGFloat kHeaderInnerPadding = 10;
 // The logo point size.
 const CGFloat kSymbolsPointSize = 24.0;
 
-// Shadow opacity for the glass effect container.
-const CGFloat kGlassShadowOpacity = 0.07;
-
-// Shadow radius for the glass effect container.
-const CGFloat kGlassShadowRadius = 3;
-
-// Vertical shadow offset for the glass effect container.
-const CGFloat kGlassShadowOffsetY = 1;
-
 // Creates a button configuration for a header button.
 UIButtonConfiguration* CreateHeaderButtonConfiguration(UIImage* image) {
   UIButtonConfiguration* config;
@@ -69,14 +60,6 @@ UIButtonConfiguration* CreateHeaderButtonConfiguration(UIImage* image) {
   return config;
 }
 
-// Applies the shadow for the header elements.
-void ApplyHeaderElementShadow(UIView* targetView) {
-  targetView.layer.shadowColor = [UIColor blackColor].CGColor;
-  targetView.layer.shadowOpacity = kGlassShadowOpacity;
-  targetView.layer.shadowOffset = CGSizeMake(0, kGlassShadowOffsetY);
-  targetView.layer.shadowRadius = kGlassShadowRadius;
-}
-
 }  // namespace
 
 @implementation AssistantAIMHeaderView {
@@ -97,12 +80,6 @@ void ApplyHeaderElementShadow(UIView* targetView) {
 
   // The back button for history.
   UIButton* _backButton;
-
-  // The context menu button.
-  UIButton* _contextMenuButton;
-
-  // The history button.
-  UIButton* _historyButton;
 }
 
 - (instancetype)init {
@@ -110,9 +87,9 @@ void ApplyHeaderElementShadow(UIView* targetView) {
   if (self) {
     [self setUpLogoView];
     [self setUpCloseButton];
-    [self setUpHeaderActionsView];
     [self setUpTitleLabel];
     [self setUpBackButton];
+    [self setUpHeaderActionsView];
   }
 
   return self;
@@ -134,10 +111,8 @@ void ApplyHeaderElementShadow(UIView* targetView) {
       _headerActionsView.hidden = NO;
       _backButton.hidden = YES;
       _startNewThreadButton.hidden = YES;
-      _historyButton.hidden = NO;
-      _contextMenuButton.hidden =
-          !experimental_flags::IsOmniboxDebuggingEnabled();
       _titleLabel.text = @"";
+
       self.backgroundColor = [UIColor clearColor];
       break;
     case AssistantAIMState::kThread:
@@ -145,19 +120,14 @@ void ApplyHeaderElementShadow(UIView* targetView) {
       _headerActionsView.hidden = NO;
       _backButton.hidden = YES;
       _startNewThreadButton.hidden = NO;
-      _historyButton.hidden = NO;
-      _contextMenuButton.hidden =
-          !experimental_flags::IsOmniboxDebuggingEnabled();
       _titleLabel.text = @"";
+
       self.backgroundColor = [UIColor clearColor];
       break;
     case AssistantAIMState::kHistory:
       _logoView.hidden = YES;
-      _headerActionsView.hidden = NO;
-      _startNewThreadButton.hidden = NO;
+      _headerActionsView.hidden = YES;
       _backButton.hidden = NO;
-      _historyButton.hidden = YES;
-      _contextMenuButton.hidden = NO;
       _titleLabel.text = l10n_util::GetNSString(IDS_IOS_AIM_HISTORY);
       self.backgroundColor = [UIColor colorNamed:kSecondaryBackgroundColor];
       break;
@@ -181,8 +151,8 @@ void ApplyHeaderElementShadow(UIView* targetView) {
     [_titleLabel.leadingAnchor constraintEqualToAnchor:_logoView.trailingAnchor
                                               constant:kTitleLeadingPadding],
     [_titleLabel.trailingAnchor
-        constraintLessThanOrEqualToAnchor:_headerActionsView.leadingAnchor
-                                 constant:-kTitleLeadingTrailingPadding],
+        constraintEqualToAnchor:_closeButton.leadingAnchor
+                       constant:-kTitleLeadingTrailingPadding],
   ]];
 }
 
@@ -203,8 +173,6 @@ void ApplyHeaderElementShadow(UIView* targetView) {
   _closeButton.accessibilityIdentifier =
       kAssistantAIMCloseButtonAccessibilityIdentifier;
 
-  // Shadow for button.
-  ApplyHeaderElementShadow(_closeButton);
   [self addSubview:_closeButton];
 
   [NSLayoutConstraint activateConstraints:@[
@@ -231,7 +199,6 @@ void ApplyHeaderElementShadow(UIView* targetView) {
   _backButton.translatesAutoresizingMaskIntoConstraints = NO;
   _backButton.hidden = YES;
 
-  ApplyHeaderElementShadow(_backButton);
   [self addSubview:_backButton];
 
   [NSLayoutConstraint activateConstraints:@[
@@ -256,94 +223,61 @@ void ApplyHeaderElementShadow(UIView* targetView) {
   AddSizeConstraints(_logoView, CGSizeMake(kLogoSize, kLogoSize));
 }
 
-- (UIButton*)createHeaderActionButtonWithImage:(UIImage*)image {
+// Creates the new thread button in header.
+- (UIButton*)createStartThreadButton {
   UIButtonConfiguration* config =
       [UIButtonConfiguration plainButtonConfiguration];
-  config.image = image;
+  config.image = SymbolTemplateWithPointSize(SymbolSquareAndPencil,
+                                             kHeaderActionSymbolPointSize);
   config.baseForegroundColor = [UIColor colorNamed:kTextPrimaryColor];
 
   UIButton* button = [UIButton buttonWithConfiguration:config
                                          primaryAction:nil];
-  button.translatesAutoresizingMaskIntoConstraints = NO;
-  AddSizeConstraints(button, CGSizeMake(kButtonSize, kButtonSize));
-  return button;
-}
-
-// Creates the new thread button in header.
-- (UIButton*)createStartThreadButton {
-  UIButton* button = [self
-      createHeaderActionButtonWithImage:SymbolTemplateWithPointSize(
-                                            SymbolSquareAndPencil,
-                                            kHeaderActionSymbolPointSize)];
   [button addTarget:self
                 action:@selector(didTapStartNewThread)
       forControlEvents:UIControlEventTouchUpInside];
-  button.hidden = NO;
-  _startNewThreadButton = button;
-  return button;
-}
+  button.translatesAutoresizingMaskIntoConstraints = NO;
 
-// Creates the history button in header.
-- (UIButton*)createHistoryButton {
-  UIButton* button = [self
-      createHeaderActionButtonWithImage:SymbolTemplateWithPointSize(
-                                            SymbolLineThreeSpark,
-                                            kHeaderActionSymbolPointSize)];
-  // TODO(crbug.com/493128413): Add accessibility identifier for history button.
-  button.hidden = NO;
-  [button addTarget:self
-                action:@selector(didTapHistoryButton)
-      forControlEvents:UIControlEventTouchUpInside];
-  _historyButton = button;
+  [NSLayoutConstraint activateConstraints:@[
+    [button.heightAnchor constraintEqualToConstant:kButtonSize],
+  ]];
+
+  _startNewThreadButton = button;
   return button;
 }
 
 // Creates the context menu button in header.
 - (UIButton*)createContextMenuButton {
-  UIButton* button = [self
-      createHeaderActionButtonWithImage:SymbolTemplateWithPointSize(
-                                            SymbolMenu,
-                                            kHeaderActionSymbolPointSize)];
-  button.hidden = !experimental_flags::IsOmniboxDebuggingEnabled();
+  UIButtonConfiguration* config =
+      [UIButtonConfiguration plainButtonConfiguration];
+  config.image = SymbolTemplateWithPointSize(SymbolLineThreeSpark,
+                                             kHeaderActionSymbolPointSize);
+  config.baseForegroundColor = [UIColor colorNamed:kTextPrimaryColor];
+
+  // TODO(crbug.com/493128413): Implement missing actions.
+  UIButton* button = [UIButton buttonWithConfiguration:config
+                                         primaryAction:nil];
+  button.translatesAutoresizingMaskIntoConstraints = NO;
   button.accessibilityIdentifier =
       kAssistantAIMContextMenuButtonAccessibilityIdentifier;
 
-  _contextMenuButton = button;
-
   NSMutableArray* actions = [[NSMutableArray alloc] init];
+
   __weak __typeof(self) weakSelf = self;
-
-#if BUILDFLAG(IOS_USE_BRANDED_ASSETS)
-  UIImage* myActivityIcon = MakeSymbolMonochrome(
-      SymbolWithPointSize(SymbolGoogleIcon, kHeaderActionSymbolPointSize));
-#else
-  UIImage* myActivityIcon =
-      SymbolWithPointSize(SymbolInfoCircle, kHeaderActionSymbolPointSize);
-#endif
-
-  UIAction* myActivityAction = [UIAction
-      actionWithTitle:l10n_util::GetNSString(IDS_IOS_MY_ACTIVITY_TITLE)
-                image:myActivityIcon
-           identifier:nil
-              handler:^(UIAction* action) {
-                [weakSelf didTapMyActivityButton];
-              }];
-  [actions addObject:myActivityAction];
-
-  UIAction* helpAction = [UIAction
-      actionWithTitle:l10n_util::GetNSString(IDS_IOS_TOOLS_MENU_HELP_MOBILE)
-                image:SymbolWithPointSize(SymbolHelp,
+  UIAction* historyAction = [UIAction
+      actionWithTitle:l10n_util::GetNSString(IDS_IOS_AIM_HISTORY)
+                image:SymbolWithPointSize(SymbolLineThreeSpark,
                                           kHeaderActionSymbolPointSize)
            identifier:nil
               handler:^(UIAction* action) {
-                [weakSelf didTapHelpButton];
+                [weakSelf didTapHistoryButton];
               }];
-  [actions addObject:helpAction];
+  [actions addObject:historyAction];
 
   if (experimental_flags::IsOmniboxDebuggingEnabled()) {
     UIAction* showLogsAction = [UIAction
         actionWithTitle:@"AIM SRP Logs"
-                  image:SymbolWithPointSize(SymbolBinocularsCircle, 16)
+                  image:DefaultSymbolWithPointSize(@"binoculars.circle", 16)
              identifier:nil
                 handler:^(UIAction* action) {
                   [weakSelf didTapShowLogsButton];
@@ -361,6 +295,7 @@ void ApplyHeaderElementShadow(UIView* targetView) {
   }
 
   button.menu = [UIMenu menuWithTitle:@"" children:actions];
+
   button.showsMenuAsPrimaryAction = YES;
 
   [NSLayoutConstraint activateConstraints:@[
@@ -373,8 +308,7 @@ void ApplyHeaderElementShadow(UIView* targetView) {
 // Builds the stack view of the header actions.
 - (UIStackView*)createHeaderActionsStackView {
   UIStackView* stackView = [[UIStackView alloc] initWithArrangedSubviews:@[
-    [self createStartThreadButton], [self createHistoryButton],
-    [self createContextMenuButton]
+    [self createStartThreadButton], [self createContextMenuButton]
   ]];
 
   stackView.translatesAutoresizingMaskIntoConstraints = NO;
@@ -391,7 +325,6 @@ void ApplyHeaderElementShadow(UIView* targetView) {
 - (void)setUpHeaderActionsView {
   UIStackView* stackView = [self createHeaderActionsStackView];
 
-  _headerActionsView = [[UIView alloc] init];
   if (@available(iOS 26, *)) {
     UIGlassEffect* glassEffect =
         [UIGlassEffect effectWithStyle:UIGlassEffectStyleRegular];
@@ -401,21 +334,16 @@ void ApplyHeaderElementShadow(UIView* targetView) {
         [[UIVisualEffectView alloc] initWithEffect:glassEffect];
 
     [glassContainer.contentView addSubview:stackView];
-    glassContainer.contentView.layer.cornerRadius = kButtonSize / 2;
-    glassContainer.translatesAutoresizingMaskIntoConstraints = NO;
-    glassContainer.layer.cornerRadius = kButtonSize / 2;
-    glassContainer.clipsToBounds = YES;
-    [_headerActionsView addSubview:glassContainer];
-    AddSameConstraints(glassContainer, _headerActionsView);
+    _headerActionsView = glassContainer;
   } else {
     // TODO(crbug.com/493128413): Implement iOS 18 specs once defined.
+    _headerActionsView = [[UIView alloc] init];
     [_headerActionsView addSubview:stackView];
   }
 
-  _headerActionsView.layer.cornerRadius = kButtonSize / 2;
   _headerActionsView.translatesAutoresizingMaskIntoConstraints = NO;
-
-  ApplyHeaderElementShadow(_headerActionsView);
+  _headerActionsView.layer.cornerRadius = kButtonSize / 2;
+  _headerActionsView.clipsToBounds = YES;
 
   [self addSubview:_headerActionsView];
 
@@ -448,14 +376,6 @@ void ApplyHeaderElementShadow(UIView* targetView) {
 
 - (void)didTapHistoryButton {
   [self.delegate assistantAIMHeaderViewDidTapHistory:self];
-}
-
-- (void)didTapMyActivityButton {
-  [self.delegate assistantAIMHeaderViewDidTapMyActivity:self];
-}
-
-- (void)didTapHelpButton {
-  [self.delegate assistantAIMHeaderViewDidTapHelp:self];
 }
 
 - (void)didTapShowLogsButton {

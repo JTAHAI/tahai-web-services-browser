@@ -11,10 +11,9 @@ from mojom_parser_test_case import MojomParserTestCase
 
 class FakeArgs:
   """Fakes args to _Generate - intention is to do just enough to run checks"""
-
   def __init__(self, tester, files=None):
-    """`tester` is MojomParserTestCase for paths.
-    `files` will have tester path added."""
+    """ `tester` is MojomParserTestCase for paths.
+        `files` will have tester path added."""
     self.checks_string = 'features'
     self.depth = tester.GetPath('')
     self.filelist = None
@@ -52,8 +51,7 @@ class MojoBindingsCheckTest(MojomParserTestCase):
 
   def testNullableOk(self):
     self.assertValid(
-      "a.mojom",
-      """
+        "a.mojom", """
           module a;
           // Scaffolding.
           feature kFeature {
@@ -94,8 +92,7 @@ class MojoBindingsCheckTest(MojomParserTestCase):
             Bar(array<pending_remote<Guarded>?> remote)
               => (map<string, pending_receiver<Guarded>?> a);
           };
-    """,
-    )
+    """)
 
   def testMethodParamsMustBeNullable(self):
     prelude = """
@@ -109,75 +106,47 @@ class MojoBindingsCheckTest(MojomParserTestCase):
       interface Guarded { };
     """
     self.assertThrows(
-      'a.mojom',
-      prelude
-      + """
+        'a.mojom', prelude + """
           interface Trial {
             Method(pending_remote<Guarded> a) => ();
           };
-                     """,
-      'interface Guarded has a RuntimeFeature',
-    )
+                     """, 'interface Guarded has a RuntimeFeature')
     self.assertThrows(
-      'a.mojom',
-      prelude
-      + """
+        'a.mojom', prelude + """
           interface Trial {
             Method(bool foo) => (pending_receiver<Guarded> a);
           };
-                     """,
-      'interface Guarded has a RuntimeFeature',
-    )
+                     """, 'interface Guarded has a RuntimeFeature')
     self.assertThrows(
-      'a.mojom',
-      prelude
-      + """
+        'a.mojom', prelude + """
           interface Trial {
             Method(pending_receiver<Guarded> a) => ();
           };
-                     """,
-      'interface Guarded has a RuntimeFeature',
-    )
+                     """, 'interface Guarded has a RuntimeFeature')
     self.assertThrows(
-      'a.mojom',
-      prelude
-      + """
+        'a.mojom', prelude + """
           interface Trial {
             Method(pending_associated_remote<Guarded> a) => ();
           };
-                     """,
-      'interface Guarded has a RuntimeFeature',
-    )
+                     """, 'interface Guarded has a RuntimeFeature')
     self.assertThrows(
-      'a.mojom',
-      prelude
-      + """
+        'a.mojom', prelude + """
           interface Trial {
             Method(pending_associated_receiver<Guarded> a) => ();
           };
-                     """,
-      'interface Guarded has a RuntimeFeature',
-    )
+                     """, 'interface Guarded has a RuntimeFeature')
     self.assertThrows(
-      'a.mojom',
-      prelude
-      + """
+        'a.mojom', prelude + """
           interface Trial {
             Method(array<pending_associated_receiver<Guarded>> a) => ();
           };
-                     """,
-      'interface Guarded has a RuntimeFeature',
-    )
+                     """, 'interface Guarded has a RuntimeFeature')
     self.assertThrows(
-      'a.mojom',
-      prelude
-      + """
+        'a.mojom', prelude + """
           interface Trial {
             Method(map<string, pending_associated_receiver<Guarded>> a) => ();
           };
-                     """,
-      'interface Guarded has a RuntimeFeature',
-    )
+                     """, 'interface Guarded has a RuntimeFeature')
 
   def testStructUnionMembersMustBeNullable(self):
     prelude = """
@@ -191,22 +160,14 @@ class MojoBindingsCheckTest(MojomParserTestCase):
       interface Guarded { };
     """
     self.assertThrows(
-      'a.mojom',
-      prelude
-      + """
+        'a.mojom', prelude + """
           struct Trial {
             pending_remote<Guarded> a;
           };
-                     """,
-      'interface Guarded has a RuntimeFeature',
-    )
+                     """, 'interface Guarded has a RuntimeFeature')
     self.assertThrows(
-      'a.mojom',
-      prelude
-      + """
+        'a.mojom', prelude + """
           union Trial {
             pending_remote<Guarded> a;
           };
-                     """,
-      'interface Guarded has a RuntimeFeature',
-    )
+                     """, 'interface Guarded has a RuntimeFeature')

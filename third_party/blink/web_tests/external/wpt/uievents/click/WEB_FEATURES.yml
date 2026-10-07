@@ -1,2 +1,3 @@
-rules:
-- "**": [mouse-events]
+features:
+- name: mouse-events
+  files: "**"

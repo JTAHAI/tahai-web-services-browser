@@ -102,7 +102,7 @@ class TabStripInteractiveTestMixin : public T {
         T::PollState(kTabActiveChangeObserver,
                      base::BindRepeating(
                          &TabStripModel::active_index,
-                         base::Unretained(T::browser()->GetTabStripModel()))),
+                         base::Unretained(T::browser()->tab_strip_model()))),
         T::WaitForState(kTabActiveChangeObserver, index),
         T::StopObservingState(kTabActiveChangeObserver));
   }

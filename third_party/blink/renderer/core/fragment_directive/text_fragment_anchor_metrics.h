@@ -5,7 +5,6 @@
 #ifndef THIRD_PARTY_BLINK_RENDERER_CORE_FRAGMENT_DIRECTIVE_TEXT_FRAGMENT_ANCHOR_METRICS_H_
 #define THIRD_PARTY_BLINK_RENDERER_CORE_FRAGMENT_DIRECTIVE_TEXT_FRAGMENT_ANCHOR_METRICS_H_
 
-#include "base/memory/raw_ptr.h"
 #include "base/time/tick_clock.h"
 #include "base/time/time.h"
 #include "third_party/blink/renderer/core/core_export.h"
@@ -80,8 +79,7 @@ class CORE_EXPORT TextFragmentAnchorMetrics final
   TextFragmentLinkOpenSource open_source_ =
       TextFragmentLinkOpenSource::kUnknown;
 
-  raw_ptr<const base::TickClock, UnprotectedInRelease | DanglingUntriaged>
-      tick_clock_;
+  const base::TickClock* tick_clock_;
 };
 
 }  // namespace blink

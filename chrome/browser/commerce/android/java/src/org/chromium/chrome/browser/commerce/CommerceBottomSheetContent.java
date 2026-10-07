@@ -123,11 +123,6 @@ public class CommerceBottomSheetContent implements BottomSheetContent {
         return true;
     }
 
-    @Override
-    public boolean showHandlebar() {
-        return true;
-    }
-
     /** Set whether to disable the bottom sheet content half height. */
     public void setIsHalfHeightDisabled(boolean isHalfHeightDisabled) {
         mIsHalfHeightDisabled = isHalfHeightDisabled;

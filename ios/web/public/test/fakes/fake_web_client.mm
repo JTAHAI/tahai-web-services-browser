@@ -6,7 +6,6 @@
 
 #import <UIKit/UIKit.h>
 
-#import "base/memory/ref_counted_memory.h"
 #import "base/strings/sys_string_conversions.h"
 #import "ios/web/common/features.h"
 #import "ios/web/common/uikit_ui_util.h"
@@ -39,7 +38,7 @@ std::string FakeWebClient::GetUserAgent(UserAgentType type) const {
   return "Chromium/66.0.3333.0 CFNetwork/893.14 Darwin/16.7.0 Mobile";
 }
 
-scoped_refptr<base::RefCountedMemory> FakeWebClient::GetDataResourceBytes(
+base::RefCountedMemory* FakeWebClient::GetDataResourceBytes(
     int resource_id) const {
   if (!ui::ResourceBundle::HasSharedInstance()) {
     return nullptr;

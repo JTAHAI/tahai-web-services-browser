@@ -6,7 +6,6 @@
 
 #include <algorithm>
 #include <memory>
-#include <ranges>
 #include <string>
 #include <type_traits>
 #include <utility>
@@ -14,6 +13,7 @@
 
 #include "base/base64.h"
 #include "base/check_op.h"
+#include "base/containers/adapters.h"
 #include "base/containers/flat_map.h"
 #include "base/containers/flat_set.h"
 #include "base/functional/bind.h"
@@ -478,7 +478,7 @@ void AuthorizationZoneImpl::AttemptTokenExchange(
     IppEndpointTokenFetcher* endpoint) {
   AuthorizationServerSession* auth_session = nullptr;
   // Try to match a session starting from the newest one.
-  for (auto& session : std::views::reverse(sessions_)) {
+  for (auto& session : base::Reversed(sessions_)) {
     if (session->ContainsAll(endpoint->scope())) {
       auth_session = session.get();
       break;

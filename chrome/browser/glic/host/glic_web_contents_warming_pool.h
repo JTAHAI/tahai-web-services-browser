@@ -12,11 +12,8 @@
 #include "base/memory/memory_pressure_listener.h"
 #include "base/memory/post_delayed_memory_reduction_task.h"
 #include "base/memory/raw_ptr.h"
-#include "base/scoped_observation.h"
 #include "base/time/time.h"
 #include "base/timer/timer.h"
-#include "chrome/browser/glic/glic_warming_checks.h"
-#include "chrome/browser/profiles/profile_observer.h"
 
 class Profile;
 namespace content {
@@ -32,7 +29,7 @@ class WebUIContentsContainer;
 // A pool for pre-warming Glic WebContents.
 // This is used to reduce the perceived latency when opening the Glic UI by
 // creating a WebContents in the background before it's actually needed.
-class GlicWebContentsWarmingPool : public ProfileObserver {
+class GlicWebContentsWarmingPool {
  public:
   // LINT.IfChange(GlicContainerCreationReason)
   enum class ContainerCreationReason {
@@ -42,23 +39,21 @@ class GlicWebContentsWarmingPool : public ProfileObserver {
     kRefill = 2,  // Created to refill the pool after TakeContainer()
     kReloadAfterExpiry =
         3,  // Created to reload the pool after the previous container expired
-    kNudge = 4,  // Preloaded when a contextual nudge is shown.
-    kIph = 5,    // Preloaded when Gemini IPH is shown.
-    kMaxValue = kIph,
+    kMaxValue = kReloadAfterExpiry,
   };
   // LINT.ThenChange(//tools/metrics/histograms/metadata/glic/enums.xml:GlicContainerCreationReason)
 
   explicit GlicWebContentsWarmingPool(Profile* profile);
-  ~GlicWebContentsWarmingPool() override;
+  virtual ~GlicWebContentsWarmingPool();
 
   // Retrieves a warmed WebUIContentsContainer from the pool. If no warmed
   // container is available, one will be created and then returned. A new
   // container is then preloaded in the background to replace the taken one.
   std::unique_ptr<WebUIContentsContainer> TakeContainer();
   // Checks resource constraints (e.g., memory pressure) and initiates
-  // pre-warming if allowed. Returns true if pre-warming proceeded, or false
-  // otherwise.
-  bool MaybeStartWarming(GlicWarmingTrigger trigger);
+  // initial cold-start pre-warming if allowed. Returns true if pre-warming
+  // proceeded, or false otherwise.
+  bool MaybeStartInitialWarming();
 
   // Shuts down the warming pool, destroying any warmed container instance and
   // stopping all timers.
@@ -142,11 +137,7 @@ class GlicWebContentsWarmingPool : public ProfileObserver {
   // memory pressure state.
   bool IsWarmingAllowedByMemoryPressure() const;
 
-  // ProfileObserver:
-  void OnProfileWillBeDestroyed(Profile* profile) override;
-
   raw_ptr<Profile> profile_;
-  base::ScopedObservation<Profile, ProfileObserver> profile_observation_{this};
   std::unique_ptr<WebUIContentsContainer> warmed_container_;
 
   // Timer for delayed warming.

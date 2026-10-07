@@ -48,7 +48,6 @@ bool GlicPinnedTabUsage::IsExplicitlyPinnedByUser() const {
     case GlicPinTrigger::kActuation:
     case GlicPinTrigger::kWebClientUnknown:
     case GlicPinTrigger::kTabGroupIntegration:
-    case GlicPinTrigger::kTabPicker:
       return true;
   }
 }

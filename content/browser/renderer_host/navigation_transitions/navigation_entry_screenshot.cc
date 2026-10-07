@@ -391,7 +391,8 @@ size_t NavigationEntryScreenshot::SetCache(
     return GetBitmap().SizeInBytes();
   }
 
-  return GetUncompressedSize();
+  return SkColorTypeBytesPerPixel(kN32_SkColorType) *
+         dimensions_without_compression_.Area64();
 }
 
 void NavigationEntryScreenshot::OnScenarioMatchChanged(
@@ -423,11 +424,6 @@ NavigationEntryScreenshot::CreateTextureLayer() {
   CHECK(shared_image_provider_);
   CHECK(!cache_, base::NotFatalUntil::M152);
   return shared_image_provider_->CreateTextureLayer();
-}
-
-size_t NavigationEntryScreenshot::GetUncompressedSize() const {
-  return SkColorTypeBytesPerPixel(kN32_SkColorType) *
-         dimensions_without_compression_.Area64();
 }
 
 SkBitmap NavigationEntryScreenshot::GetBitmapForTesting() const {

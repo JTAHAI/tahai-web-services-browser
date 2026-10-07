@@ -120,7 +120,7 @@ TEST_F(LayoutResultCachingTest, HitDifferentBFCOffset) {
   LayoutOpportunityVector opportunities =
       result->GetExclusionSpace().AllLayoutOpportunities(
           /* offset */ {LayoutUnit(), LayoutUnit()},
-          /* available_inline_size */ LayoutUnit(100), TextDirection::kLtr);
+          /* available_inline_size */ LayoutUnit(100));
 
   EXPECT_EQ(opportunities.size(), 3u);
 

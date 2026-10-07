@@ -44,8 +44,7 @@ void ViewTreeHostRootView::SchedulePaintInRect(const gfx::Rect& damage_rect) {
 std::unique_ptr<viz::CompositorFrame>
 ViewTreeHostRootView::CreateCompositorFrame(
     const viz::BeginFrameAck& begin_frame_ack,
-    viz::ClientResourceProvider& client_resource_provider,
-    cc::ResourcePool& resource_pool,
+    UiResourceManager& resource_manager,
     bool auto_update,
     const gfx::Size& last_submitted_frame_size,
     float last_submitted_frame_dsf) {
@@ -54,7 +53,7 @@ ViewTreeHostRootView::CreateCompositorFrame(
 
   auto frame = frame_factory_->CreateCompositorFrame(
       begin_frame_ack, GetContentRect(), GetTotalDamage(),
-      is_overlay_candidate_, client_resource_provider, resource_pool);
+      is_overlay_candidate_, resource_manager);
 
   ResetDamage();
 

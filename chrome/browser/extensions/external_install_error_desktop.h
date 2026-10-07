@@ -17,7 +17,7 @@
 #include "extensions/browser/webstore_data_fetcher_delegate.h"
 #include "extensions/common/extension_id.h"
 
-class BrowserWindowInterface;
+class Browser;
 class ExtensionInstallPromptShowParams;
 class GlobalError;
 class GlobalErrorService;
@@ -62,7 +62,7 @@ class ExternalInstallErrorDesktop : public ExternalInstallError,
 
   // Show the associated dialog. This should only be called once the dialog is
   // ready.
-  void ShowDialog(BrowserWindowInterface* browser);
+  void ShowDialog(Browser* browser);
 
  private:
   // WebstoreDataFetcherDelegate implementation.

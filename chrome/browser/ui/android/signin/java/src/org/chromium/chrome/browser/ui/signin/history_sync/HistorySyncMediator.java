@@ -101,7 +101,7 @@ class HistorySyncMediator implements ProfileDataCache.Observer, SigninManager.Si
     @Override
     public void onSignedOut() {
         RecordHistogram.recordEnumeratedHistogram(
-                "Signin.HistorySyncOptIn.Aborted", mAccessPoint, SigninAccessPoint.MAX_VALUE + 1);
+                "Signin.HistorySyncOptIn.Aborted", mAccessPoint, SigninAccessPoint.MAX_VALUE);
         mDelegate.dismissHistorySync(/* didSignOut= */ true, /* isHistorySyncAccepted= */ false);
     }
 

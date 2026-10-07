@@ -137,7 +137,9 @@ class ASH_EXPORT RootWindowController {
     touch_hud_projection_ = hud;
   }
 
-  RootWindowLayoutManager* GetRootWindowLayoutManager();
+  RootWindowLayoutManager* root_window_layout_manager() {
+    return root_window_layout_manager_;
+  }
 
   bool is_shutting_down() const { return is_shutting_down_; }
 
@@ -280,7 +282,8 @@ class ASH_EXPORT RootWindowController {
   // Initializes the RootWindowController based on |root_window_type|.
   void Init(RootWindowType root_window_type);
 
-  void InitLayoutManagers();
+  void InitLayoutManagers(
+      std::unique_ptr<RootWindowLayoutManager> root_window_layout_manager);
 
   AccessibilityPanelLayoutManager* GetAccessibilityPanelLayoutManager() const;
 
@@ -308,6 +311,12 @@ class ASH_EXPORT RootWindowController {
   void OnFirstWallpaperWidgetSet();
 
   std::unique_ptr<AshWindowTreeHost> ash_host_;
+  // |ash_host_| as a WindowTreeHost.
+  raw_ptr<aura::WindowTreeHost, DanglingUntriaged> window_tree_host_;
+
+  // LayoutManagers are owned by the window they are installed on.
+  raw_ptr<RootWindowLayoutManager, DanglingUntriaged>
+      root_window_layout_manager_ = nullptr;
 
   std::unique_ptr<WallpaperWidgetController> wallpaper_widget_controller_;
 

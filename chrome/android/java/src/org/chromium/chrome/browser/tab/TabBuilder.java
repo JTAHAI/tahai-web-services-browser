@@ -46,6 +46,7 @@ public class TabBuilder {
     private @Nullable TabState mTabState;
     private @Nullable Callback<Tab> mPreInitializeAction;
     private boolean mIsPinned;
+    private boolean mIsArchived;
     private boolean mIsContentViewDeferred;
 
     public TabBuilder(Profile profile) {
@@ -70,6 +71,17 @@ public class TabBuilder {
      */
     public TabBuilder setParent(@Nullable Tab parent) {
         mParent = parent;
+        return this;
+    }
+
+    /**
+     * Sets the archived state of the tab.
+     *
+     * @param isArchived Whether the tab is archived.
+     * @return {@link TabBuilder} creating the Tab.
+     */
+    public TabBuilder setArchived(boolean isArchived) {
+        mIsArchived = isArchived;
         return this;
     }
 
@@ -195,7 +207,7 @@ public class TabBuilder {
             if (mFromFrozenState) assert mLaunchType == TabLaunchType.FROM_RESTORE;
         }
 
-        TabImpl tab = new TabImpl(mId, mProfile, mLaunchType);
+        TabImpl tab = new TabImpl(mId, mProfile, mLaunchType, mIsArchived);
         Tab parent = null;
         if (mParent != null) {
             parent = mParent;
@@ -212,7 +224,7 @@ public class TabBuilder {
 
         if (mPreInitializeAction != null) mPreInitializeAction.onResult(tab);
 
-        tab.setContentViewDeferred(mIsContentViewDeferred);
+        tab.setContentViewDeferred(mIsContentViewDeferred && !mIsArchived);
 
         // Initializes Tab. Its user data objects are also initialized through the event
         // |onInitialized| of TabObserver they register.

@@ -1071,19 +1071,6 @@ std::optional<std::vector<LiveTab*>> TabRestoreServiceHelper::RestoreEntryById(
         }
       }
 
-      if (std::optional<tab_groups::TabGroupId> focused_group =
-              context->GetInitialFocusedTabGroup()) {
-        auto it = window.tab_groups.find(*focused_group);
-        if (it != window.tab_groups.end() &&
-            it->second->saved_group_id.has_value()) {
-          focused_group =
-              context->GetGroupIdForSavedGroup(*it->second->saved_group_id);
-        }
-        if (focused_group.has_value()) {
-          context->SetFocusedTabGroup(*focused_group);
-        }
-      }
-
       context->ShowBrowserWindow();
 
       if (disposition == WindowOpenDisposition::CURRENT_TAB &&
@@ -1192,8 +1179,6 @@ std::optional<std::vector<LiveTab*>> TabRestoreServiceHelper::RestoreEntryById(
               TimeNow() - split.timestamp);
         }
 
-        // Restoring or activating another pane can synchronously close a
-        // previously restored tab. Keep weak references until reconstruction.
         std::vector<base::WeakPtr<LiveTab>> restored_split_weak_tabs;
         for (size_t i = 0; i < split.tabs.size(); ++i) {
           LiveTab* restored_tab = nullptr;
@@ -1203,7 +1188,7 @@ std::optional<std::vector<LiveTab*>> TabRestoreServiceHelper::RestoreEntryById(
           } else {
             restored_tab =
                 context->AddRestoredTab(*split.tabs[i], context->GetTabCount(),
-                                       false, false, entry.type);
+                                        false, false, entry.type);
           }
 
           if (restored_tab) {

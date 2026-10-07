@@ -4,9 +4,8 @@
 
 import 'chrome://os-settings/os_settings.js';
 
-import type {CrToolbarSearchFieldElement, IronDropdownElement, IronListElement, OsSearchResultRowElement, OsSettingsSearchBoxElement, ToolbarElement} from 'chrome://os-settings/os_settings.js';
+import type {CrToolbarSearchFieldElement, IronDropdownElement, IronListElement, OsSettingsSearchBoxElement, ToolbarElement} from 'chrome://os-settings/os_settings.js';
 import {OpenWindowProxyImpl, OsSettingsSearchBoxBrowserProxyImpl, personalizationSearchMojom, Router, routes, routesMojom, searchMojom, searchResultIconMojom, setPersonalizationSearchHandlerForTesting, setSettingsSearchHandlerForTesting, settingMojom, setUserActionRecorderForTesting} from 'chrome://os-settings/os_settings.js';
-import type {IronIconElement} from 'chrome://resources/polymer/v3_0/iron-icon/iron-icon.js';
 import {flush} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 import {assertDeepEquals, assertEquals, assertFalse, assertNotEquals, assertNull, assertTrue} from 'chrome://webui-test/chai_assert.js';
 import {eventToPromise} from 'chrome://webui-test/test_util.js';
@@ -38,34 +37,6 @@ suite('<os-settings-search-box>', () => {
     const input = field.$.searchInput;
     return input.selectionStart === 0 &&
         input.selectionEnd === input.value.length;
-  }
-
-  function getSelectedOsSearchResultRow(box: OsSettingsSearchBoxElement):
-      OsSearchResultRowElement {
-    const row = box.shadowRoot!.querySelector<OsSearchResultRowElement>(
-        'os-search-result-row[selected]');
-    assertTrue(!!row);
-    return row;
-  }
-
-  function getResultTextInnerHTML(box: OsSettingsSearchBoxElement): string {
-    return getSelectedOsSearchResultRow(box)
-        .shadowRoot!.querySelector('#resultText')!.innerHTML;
-  }
-
-  function getSearchResultContainer(row: OsSearchResultRowElement):
-      HTMLElement {
-    const container =
-        row.shadowRoot!.querySelector<HTMLElement>('#searchResultContainer');
-    assertTrue(!!container);
-    return container;
-  }
-
-  function getActionTypeIcon(row: OsSearchResultRowElement): string {
-    const icon =
-        row.shadowRoot!.querySelector<IronIconElement>('#actionTypeIcon');
-    assertTrue(!!icon);
-    return icon.icon!;
   }
 
   async function simulateSearch(term: string): Promise<void> {
@@ -234,8 +205,8 @@ suite('<os-settings-search-box>', () => {
       await waitForListUpdate();
       assertTrue(dropDown.opened);
       assertEquals(
-          searchBox.get('selectedItem_').text,
-          getSelectedOsSearchResultRow(searchBox).searchResult.text);
+          searchBox.get('selectedItem_').resultText,
+          searchBox['getSelectedOsSearchResultRow_']().searchResult.resultText);
     });
 
     test('User action search event', async () => {
@@ -423,16 +394,16 @@ suite('<os-settings-search-box>', () => {
           await simulateSearch('fake query 1');
           await waitForListUpdate();
 
-          const selectedOsRow = getSelectedOsSearchResultRow(searchBox);
+          const selectedOsRow = searchBox['getSelectedOsSearchResultRow_']();
           assertTrue(!!selectedOsRow);
-          assertEquals('cr:open-in-new', getActionTypeIcon(selectedOsRow));
+          assertEquals('cr:open-in-new', selectedOsRow.getActionTypeIcon_());
 
           // Keypress with Enter key on any row specifically causes navigation
           // to selected row's route. This can't happen unless the row is
           // focused.
           const enterEvent = new KeyboardEvent(
               'keypress', {cancelable: true, key: 'Enter', keyCode: 13});
-          getSearchResultContainer(selectedOsRow).dispatchEvent(enterEvent);
+          selectedOsRow.$.searchResultContainer.dispatchEvent(enterEvent);
 
           assertEquals(
               'chrome://personalization/test',
@@ -448,13 +419,13 @@ suite('<os-settings-search-box>', () => {
           await simulateSearch('fake query 1');
           await waitForListUpdate();
 
-          const selectedOsRow = getSelectedOsSearchResultRow(searchBox);
+          const selectedOsRow = searchBox['getSelectedOsSearchResultRow_']();
           assertTrue(!!selectedOsRow);
-          assertEquals('cr:open-in-new', getActionTypeIcon(selectedOsRow));
+          assertEquals('cr:open-in-new', selectedOsRow.getActionTypeIcon_());
 
           // Clicking on the searchResultContainer of the row opens a new
           // window.
-          getSearchResultContainer(selectedOsRow).click();
+          selectedOsRow.$.searchResultContainer.click();
 
           assertEquals(
               'chrome://personalization/test',
@@ -468,14 +439,14 @@ suite('<os-settings-search-box>', () => {
       await simulateSearch('fake query 1');
       await waitForListUpdate();
 
-      const selectedOsRow = getSelectedOsSearchResultRow(searchBox);
+      const selectedOsRow = searchBox['getSelectedOsSearchResultRow_']();
       assertTrue(!!selectedOsRow);
 
       // Keypress with Enter key on any row specifically causes navigation to
       // selected row's route. This can't happen unless the row is focused.
       const enterEvent = new KeyboardEvent(
           'keypress', {cancelable: true, key: 'Enter', keyCode: 13});
-      getSearchResultContainer(selectedOsRow).dispatchEvent(enterEvent);
+      selectedOsRow.$.searchResultContainer.dispatchEvent(enterEvent);
       assertFalse(dropDown.opened);
       const router = Router.getInstance();
       assertEquals('fake query 1', router.getQueryParameters().get('search'));
@@ -490,11 +461,11 @@ suite('<os-settings-search-box>', () => {
       await simulateSearch('fake query 2');
       await waitForListUpdate();
 
-      const searchResultRow = getSelectedOsSearchResultRow(searchBox);
+      const searchResultRow = searchBox['getSelectedOsSearchResultRow_']();
 
       // Clicking on the searchResultContainer of the row correctly changes the
       // route and dropdown to close.
-      getSearchResultContainer(searchResultRow).click();
+      searchResultRow.$.searchResultContainer.click();
 
       assertFalse(dropDown.opened);
       const router = Router.getInstance();
@@ -511,9 +482,8 @@ suite('<os-settings-search-box>', () => {
       await waitForListUpdate();
 
       // Clicking a selected item does not deselect it.
-      const searchResultRow = getSelectedOsSearchResultRow(searchBox);
-      const container = getSearchResultContainer(searchResultRow);
-      container.click();
+      const searchResultRow = searchBox['getSelectedOsSearchResultRow_']();
+      searchResultRow.$.searchResultContainer.click();
       assertEquals(resultList.selectedItem, resultList.items![0]);
       assertFalse(dropDown.opened);
 
@@ -522,7 +492,7 @@ suite('<os-settings-search-box>', () => {
       assertTrue(dropDown.opened);
 
       // Clicking again does not deslect the row.
-      container.click();
+      searchResultRow.$.searchResultContainer.click();
       assertEquals(resultList.selectedItem, resultList.items![0]);
     });
 
@@ -533,7 +503,9 @@ suite('<os-settings-search-box>', () => {
           /*wasGeneratedFromTextMatch=*/ false)]);
       await simulateSearch('Search');
       await waitForListUpdate();
-      assertEquals('Search and Assistant', getResultTextInnerHTML(searchBox));
+      assertEquals(
+          'Search and Assistant',
+          searchBox['getSelectedOsSearchResultRow_']().$.resultText.innerHTML);
     });
 
     test('Tokenize and match result text to query text', async () => {
@@ -544,7 +516,7 @@ suite('<os-settings-search-box>', () => {
       await waitForListUpdate();
       assertEquals(
           '<b>Search</b> and <b>Assistant</b>',
-          getResultTextInnerHTML(searchBox));
+          searchBox['getSelectedOsSearchResultRow_']().$.resultText.innerHTML);
     });
 
     test('Bold result text to matching query', async () => {
@@ -555,7 +527,7 @@ suite('<os-settings-search-box>', () => {
       await waitForListUpdate();
       assertEquals(
           'Se<b>a</b>rch <b>a</b>nd <b>A</b>ssist<b>a</b>nt',
-          getResultTextInnerHTML(searchBox));
+          searchBox['getSelectedOsSearchResultRow_']().$.resultText.innerHTML);
     });
 
     test('Bold result including ignored characters', async () => {
@@ -564,43 +536,54 @@ suite('<os-settings-search-box>', () => {
           [fakeSettingsResult('Turn on Wi-Fi')]);
       await simulateSearch('wif');
       await waitForListUpdate();
-      assertEquals('Turn on <b>Wi-F</b>i', getResultTextInnerHTML(searchBox));
+      assertEquals(
+          'Turn on <b>Wi-F</b>i',
+          searchBox['getSelectedOsSearchResultRow_']().$.resultText.innerHTML);
       await simulateSearch('wi f');
-      assertEquals('Turn on <b>Wi-F</b>i', getResultTextInnerHTML(searchBox));
+      assertEquals(
+          'Turn on <b>Wi-F</b>i',
+          searchBox['getSelectedOsSearchResultRow_']().$.resultText.innerHTML);
       await simulateSearch('wi-f');
-      assertEquals('Turn on <b>Wi-F</b>i', getResultTextInnerHTML(searchBox));
+      assertEquals(
+          'Turn on <b>Wi-F</b>i',
+          searchBox['getSelectedOsSearchResultRow_']().$.resultText.innerHTML);
 
       settingsSearchHandler.setFakeResults(
           [fakeSettingsResult('Touchpad tap-to-click')]);
       await simulateSearch('tap to cli');
       assertEquals(
-          'Touchpad <b>tap-to-cli</b>ck', getResultTextInnerHTML(searchBox));
+          'Touchpad <b>tap-to-cli</b>ck',
+          searchBox['getSelectedOsSearchResultRow_']().$.resultText.innerHTML);
 
       await simulateSearch('taptocli');
       assertEquals(
-          'Touchpad <b>tap-to-cli</b>ck', getResultTextInnerHTML(searchBox));
+          'Touchpad <b>tap-to-cli</b>ck',
+          searchBox['getSelectedOsSearchResultRow_']().$.resultText.innerHTML);
       await simulateSearch('tap-to-cli');
       assertEquals(
-          'Touchpad <b>tap-to-cli</b>ck', getResultTextInnerHTML(searchBox));
+          'Touchpad <b>tap-to-cli</b>ck',
+          searchBox['getSelectedOsSearchResultRow_']().$.resultText.innerHTML);
 
       settingsSearchHandler.setFakeResults(
           [fakeSettingsResult('Touchpad tap-to-click')]);
       await simulateSearch('tap top cli');
       assertEquals(
-          'Touchpad <b>tap-to-cli</b>ck', getResultTextInnerHTML(searchBox));
+          'Touchpad <b>tap-to-cli</b>ck',
+          searchBox['getSelectedOsSearchResultRow_']().$.resultText.innerHTML);
 
       settingsSearchHandler.setFakeResults(
           [fakeSettingsResult('wxyz Tap-To-Click')]);
       await simulateSearch('tap toxy cli');
       assertEquals(
-          'w<b>xy</b>z <b>Tap-To</b>-Click', getResultTextInnerHTML(searchBox));
+          'w<b>xy</b>z <b>Tap-To</b>-Click',
+          searchBox['getSelectedOsSearchResultRow_']().$.resultText.innerHTML);
 
       settingsSearchHandler.setFakeResults(
           [fakeSettingsResult('Tap-to-click Tips Title')]);
       await simulateSearch('tap ti');
       assertEquals(
           '<b>Tap</b>-to-click <b>Ti</b>ps <b>Ti</b>tle',
-          getResultTextInnerHTML(searchBox));
+          searchBox['getSelectedOsSearchResultRow_']().$.resultText.innerHTML);
     });
 
     test('Test query longer than result blocks', async () => {
@@ -610,7 +593,8 @@ suite('<os-settings-search-box>', () => {
       await simulateSearch('onwifi');
       await waitForListUpdate();
       assertEquals(
-          'Turn <b>on</b> <b>Wi-Fi</b>', getResultTextInnerHTML(searchBox));
+          'Turn <b>on</b> <b>Wi-Fi</b>',
+          searchBox['getSelectedOsSearchResultRow_']().$.resultText.innerHTML);
     });
 
     test('Test bolding of accented characters', async () => {
@@ -621,7 +605,7 @@ suite('<os-settings-search-box>', () => {
       await waitForListUpdate();
       assertEquals(
           'Cr<b>è</b>me Br<b>û</b>l<b>é</b>e',
-          getResultTextInnerHTML(searchBox));
+          searchBox['getSelectedOsSearchResultRow_']().$.resultText.innerHTML);
     });
 
     test(
@@ -634,7 +618,8 @@ suite('<os-settings-search-box>', () => {
           await waitForListUpdate();
           assertEquals(
               '<b>キ</b><b>ー</b>ボ<b>ー</b>ド<b>設</b>定---',
-              getResultTextInnerHTML(searchBox));
+              searchBox['getSelectedOsSearchResultRow_']()
+                  .$.resultText.innerHTML);
         });
 
     test('Test blankspace types in result maintained', async () => {
@@ -646,7 +631,7 @@ suite('<os-settings-search-box>', () => {
       await waitForListUpdate();
       assertEquals(
           'Turn&nbsp;on  &nbsp;<b>Wi-F</b>i ',
-          getResultTextInnerHTML(searchBox));
+          searchBox['getSelectedOsSearchResultRow_']().$.resultText.innerHTML);
     });
 
     test('Test longest common substring for mispellings', async () => {
@@ -654,21 +639,28 @@ suite('<os-settings-search-box>', () => {
       settingsSearchHandler.setFakeResults([fakeSettingsResult('Linux')]);
       await simulateSearch('Linuux');
       await waitForListUpdate();
-      assertEquals('<b>Linu</b>x', getResultTextInnerHTML(searchBox));
+      assertEquals(
+          '<b>Linu</b>x',
+          searchBox['getSelectedOsSearchResultRow_']().$.resultText.innerHTML);
 
       settingsSearchHandler.setFakeResults([fakeSettingsResult('Linux')]);
       await simulateSearch('Llinuc');
-      assertEquals('<b>Linu</b>x', getResultTextInnerHTML(searchBox));
+      assertEquals(
+          '<b>Linu</b>x',
+          searchBox['getSelectedOsSearchResultRow_']().$.resultText.innerHTML);
 
       settingsSearchHandler.setFakeResults([fakeSettingsResult('Display')]);
       await simulateSearch('Dispplay');
-      assertEquals('<b>Disp</b>lay', getResultTextInnerHTML(searchBox));
+      assertEquals(
+          '<b>Disp</b>lay',
+          searchBox['getSelectedOsSearchResultRow_']().$.resultText.innerHTML);
 
       settingsSearchHandler.setFakeResults(
           [fakeSettingsResult('ABCDEF GHIJK LMNO')]);
       await simulateSearch('MCDEMMM LM EF CDEABCDEFADBCDABDCEF');
       assertEquals(
-          '<b>ABCDEF</b> GHIJK <b>LM</b>NO', getResultTextInnerHTML(searchBox));
+          '<b>ABCDEF</b> GHIJK <b>LM</b>NO',
+          searchBox['getSelectedOsSearchResultRow_']().$.resultText.innerHTML);
     });
 
     test('Focus search input behavior on attached', () => {

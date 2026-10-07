@@ -1,18 +1,16 @@
 include_rules = [
   "+base",
-  "+chromeos/ash/components/channel",
   "+chromeos/ash/components/demo_mode",
-  "+chromeos/ash/components/signin",
+  "+chromeos/ash/components/channel",
   "+components/feature_engagement/public",
   "+components/prefs",
-  "+components/session_manager/core",
-  "+components/signin/public/identity_manager",
   "+components/user_manager",
+  "+components/signin/public/identity_manager",
   "+components/version_info",
-  "+third_party/re2",
   "+ui/base",
-  "+ui/chromeos/styles/cros_tokens_color_mappings.h",
   "+ui/gfx",
+  "+ui/chromeos/styles/cros_tokens_color_mappings.h",
+  "+third_party/re2",
 
   # TODO(crbug.com/402346171): Components should not have dependencies to //ash.
   # Resolve it.

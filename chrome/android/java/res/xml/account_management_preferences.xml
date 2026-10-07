@@ -18,7 +18,7 @@ found in the LICENSE file.
       android:key="identity_error_card"
       app:isPreferenceVisible="false"/>
 
-  <org.chromium.components.browser_ui.settings.ChromeBasePreferenceCategory
+  <PreferenceCategory
       android:key="accounts_category"
       android:title="@string/account_management_title"/>
 
@@ -26,7 +26,7 @@ found in the LICENSE file.
       android:key="sign_out_divider"
       android:layout="@layout/horizontal_divider"/>
 
-  <org.chromium.components.browser_ui.settings.ChromeBasePreference
+  <Preference
       android:key="sign_out"
       android:title="@string/account_management_sign_out"/>
 </PreferenceScreen>

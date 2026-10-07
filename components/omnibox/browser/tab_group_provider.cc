@@ -26,7 +26,6 @@
 #include "components/omnibox/browser/keyword_provider.h"
 #include "components/omnibox/browser/match_compare.h"
 #include "components/omnibox/browser/omnibox_field_trial.h"
-#include "components/omnibox/browser/page_classification_functions.h"
 #include "components/omnibox/browser/scoring_functor.h"
 #include "components/omnibox/browser/tab_matcher.h"
 #include "components/query_parser/query_parser.h"
@@ -128,7 +127,8 @@ TabGroupProvider::~TabGroupProvider() = default;
 void TabGroupProvider::Start(const AutocompleteInput& input,
                              bool minimal_changes) {
   Stop(AutocompleteStopReason::kClobbered);
-  if (!omnibox::IsAndroidHubOrTabSearch(input.current_page_classification()) ||
+  if (input.current_page_classification() !=
+          ::metrics::OmniboxEventProto::ANDROID_HUB ||
       client_->IsOffTheRecord()) {
     return;
   }

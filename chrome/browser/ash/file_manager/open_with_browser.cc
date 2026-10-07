@@ -10,6 +10,7 @@
 #include "ash/constants/web_app_id_constants.h"
 #include "ash/public/cpp/new_window_delegate.h"
 #include "base/command_line.h"
+#include "base/compiler_specific.h"
 #include "base/functional/bind.h"
 #include "base/logging.h"
 #include "base/path_service.h"
@@ -64,9 +65,9 @@ constexpr const base::FilePath::CharType* kFileExtensionsViewableInBrowser[] = {
 
 // Returns true if |file_path| is viewable in the browser (ex. HTML file).
 bool IsViewableInBrowser(const base::FilePath& file_path) {
-  for (const base::FilePath::CharType* extension :
-       kFileExtensionsViewableInBrowser) {
-    if (file_path.MatchesExtension(extension)) {
+  for (size_t i = 0; i < std::size(kFileExtensionsViewableInBrowser); i++) {
+    if (file_path.MatchesExtension(
+            UNSAFE_TODO(kFileExtensionsViewableInBrowser[i]))) {
       return true;
     }
   }

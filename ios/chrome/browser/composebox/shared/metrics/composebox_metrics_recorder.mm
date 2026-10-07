@@ -4,8 +4,6 @@
 
 #import "ios/chrome/browser/composebox/shared/metrics/composebox_metrics_recorder.h"
 
-#import "components/omnibox/browser/searchbox_utils.h"
-
 #import <set>
 
 #import "base/metrics/histogram_functions.h"
@@ -163,22 +161,6 @@ std::string GetStringForEntrypoint(ComposeboxEntrypoint entrypoint) {
   }
 }
 
-std::string GetStringForPickerAttachmentType(
-    MobileFuseboxPickerAttachmentType type) {
-  switch (type) {
-    case MobileFuseboxPickerAttachmentType::kDrive:
-      return "Drive";
-    case MobileFuseboxPickerAttachmentType::kGallery:
-      return "Gallery";
-    case MobileFuseboxPickerAttachmentType::kCamera:
-      return "Camera";
-    case MobileFuseboxPickerAttachmentType::kFile:
-      return "File";
-    case MobileFuseboxPickerAttachmentType::kTabs:
-      return "Tabs";
-  }
-}
-
 }  // namespace
 
 @implementation ComposeboxMetricsRecorder {
@@ -309,17 +291,15 @@ std::string GetStringForPickerAttachmentType(
                                   withAttachments:(BOOL)hasAttachments
                                       requestType:
                                           (AutocompleteRequestType)requestType {
-  searchbox::FocusResultedInNavigationType type;
+  FocusResultedInNavigationType type;
   if (navigation) {
     type = hasAttachments
-               ? searchbox::FocusResultedInNavigationType::kNavigationWithAttachments
-               : searchbox::FocusResultedInNavigationType::kNavigationNoAttachments;
+               ? FocusResultedInNavigationType::kNavigationWithAttachments
+               : FocusResultedInNavigationType::kNavigationNoAttachments;
   } else {
     type = hasAttachments
-               ? searchbox::FocusResultedInNavigationType::
-                     kNoNavigationWithAttachments
-               : searchbox::FocusResultedInNavigationType::
-                     kNoNavigationNoAttachments;
+               ? FocusResultedInNavigationType::kNoNavigationWithAttachments
+               : FocusResultedInNavigationType::kNoNavigationNoAttachments;
   }
   base::UmaHistogramEnumeration("Omnibox.FocusResultedInNavigation", type);
 
@@ -414,19 +394,6 @@ std::string GetStringForPickerAttachmentType(
   if (_contextualSearchMetricsRecorder) {
     _contextualSearchMetricsRecorder->RecordModelSelected(
         ModelModeFromComposeboxModelOption(model));
-  }
-}
-
-- (void)recordPickerOutcome:(MobileFuseboxPickerOutcome)outcome
-          forAttachmentType:(MobileFuseboxPickerAttachmentType)attachmentType {
-  // Record unsliced total.
-  base::UmaHistogramEnumeration("Omnibox.MobileFusebox.PickerOutcome", outcome);
-
-  // Record sliced by attachment type.
-  std::string attachment_str = GetStringForPickerAttachmentType(attachmentType);
-  if (!attachment_str.empty()) {
-    base::UmaHistogramEnumeration(
-        "Omnibox.MobileFusebox.PickerOutcome." + attachment_str, outcome);
   }
 }
 

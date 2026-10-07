@@ -13,14 +13,13 @@ import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 import android.content.Context;
 import android.content.res.Resources;
-import android.graphics.drawable.Drawable;
 import android.os.Looper;
 import android.view.ContextThemeWrapper;
 import android.view.View.OnClickListener;
@@ -65,7 +64,6 @@ import org.chromium.chrome.browser.omnibox.fusebox.FuseboxCoordinator.FuseboxSta
 import org.chromium.chrome.browser.omnibox.status.StatusCoordinator.PageInfoAction;
 import org.chromium.chrome.browser.omnibox.status.StatusProperties.StatusIconResource;
 import org.chromium.chrome.browser.omnibox.status.StatusView.IconTransitionType;
-import org.chromium.chrome.browser.omnibox.styles.OmniboxResourceProvider;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.ui.theme.BrandedColorScheme;
@@ -76,10 +74,8 @@ import org.chromium.components.content_settings.CookieControlsBridgeJni;
 import org.chromium.components.favicon.LargeIconBridge;
 import org.chromium.components.favicon.LargeIconBridgeJni;
 import org.chromium.components.feature_engagement.Tracker;
-import org.chromium.components.metrics.OmniboxEventProtosIntDef.PageClassification;
+import org.chromium.components.metrics.OmniboxEventProtos.OmniboxEventProto.PageClassification;
 import org.chromium.components.omnibox.AutocompleteInput;
-import org.chromium.components.omnibox.AutocompleteInput.AutocompleteState;
-import org.chromium.components.omnibox.AutocompleteInput.DisplayState;
 import org.chromium.components.omnibox.AutocompleteInput.SiteSearchData;
 import org.chromium.components.omnibox.AutocompleteRequestType;
 import org.chromium.components.omnibox.OmniboxCapabilities;
@@ -93,7 +89,6 @@ import org.chromium.components.user_prefs.UserPrefsJni;
 import org.chromium.content_public.browser.NavigationController;
 import org.chromium.content_public.browser.NavigationEntry;
 import org.chromium.content_public.browser.WebContents;
-import org.chromium.ui.base.ViewUtils;
 import org.chromium.ui.base.WindowAndroid;
 import org.chromium.ui.modelutil.PropertyModel;
 import org.chromium.url.GURL;
@@ -101,12 +96,13 @@ import org.chromium.url.JUnitTestGURLs;
 
 /** Unit tests for {@link StatusMediator}. */
 @RunWith(BaseRobolectricTestRunner.class)
+@Config(manifest = Config.NONE)
 public final class StatusMediatorUnitTest {
     private static final String TAG = "StatusMediatorUnitTest";
     private static final int CURRENT_TAB_ID = 5;
     private static final int NEW_TAB_ID = 1;
 
-    @Rule public final MockitoRule mMockitoRule = MockitoJUnit.rule();
+    @Rule public MockitoRule mMockitoRule = MockitoJUnit.rule();
 
     @Mock private NewTabPageDelegate mNewTabPageDelegate;
     @Mock private LocationBarDataProvider mLocationBarDataProvider;
@@ -123,7 +119,7 @@ public final class StatusMediatorUnitTest {
     @Mock private WebContents mWebContents;
     @Mock private NavigationController mNavigationController;
     @Mock private NavigationEntry mNavigationEntry;
-    @Mock private UserPrefsJni mMockUserPrefsJni;
+    @Mock UserPrefsJni mMockUserPrefsJni;
     @Mock private PrefService mPrefs;
     @Mock private Tracker mTracker;
     @Mock private OnClickListener mOnClickListener;
@@ -132,10 +128,6 @@ public final class StatusMediatorUnitTest {
     @Mock private Runnable mOnStatusViewHiddenForPageInfoRemoval;
     @Mock private ComposeboxQueryControllerBridge.Natives mComposeboxBridgeJni;
     @Mock private LargeIconBridge.Natives mLargeIconBridgeNatives;
-    @Mock private Drawable mMockFaviconDrawable;
-    @Mock private TemplateUrl mTemplateUrl;
-    @Mock private TemplateUrl mWikiTemplate;
-    @Mock private TemplateUrl mGeminiTemplate;
 
     @Captor private ArgumentCaptor<PermissionDialogController.Observer> mPermissionObserverCaptor;
 
@@ -143,7 +135,6 @@ public final class StatusMediatorUnitTest {
     private ArgumentCaptor<org.chromium.base.Callback<StatusIconResource>> mFaviconCallbackCaptor;
 
     private Context mContext;
-    private OmniboxResourceProvider mResourceProvider;
     private PropertyModel mModel;
     private StatusMediator mMediator;
     private WindowAndroid mWindowAndroid;
@@ -158,10 +149,6 @@ public final class StatusMediatorUnitTest {
             ObservableSuppliers.createNullable();
     private final SettableNonNullObservableSupplier<Integer> mRequestTypeSupplier =
             ObservableSuppliers.createNonNull(AutocompleteRequestType.SEARCH);
-    private final SettableNonNullObservableSupplier<Integer> mDisplayStateSupplier =
-            ObservableSuppliers.createNonNull(DisplayState.WEBSITE);
-    private final SettableNonNullObservableSupplier<Integer> mAutocompleteStateSupplier =
-            ObservableSuppliers.createNonNull(AutocompleteState.ENABLED);
 
     @Before
     public void setUp() {
@@ -178,40 +165,15 @@ public final class StatusMediatorUnitTest {
         doReturn(mNewTabPageDelegate).when(mLocationBarDataProvider).getNewTabPageDelegate();
         doReturn(mAutocompleteInput).when(mFuseboxSessionState).getAutocompleteInput();
         doReturn(mPreviewMatchUrlSupplier).when(mAutocompleteInput).getPreviewMatchUrlSupplier();
-        doAnswer(invocation -> mPreviewMatchUrlSupplier.get())
-                .when(mAutocompleteInput)
-                .getPreviewMatchUrl();
         doReturn(mRequestTypeSupplier).when(mAutocompleteInput).getRequestTypeSupplier();
-        doReturn(mDisplayStateSupplier).when(mAutocompleteInput).getDisplayStateSupplier();
-        doAnswer(invocation -> mDisplayStateSupplier.get())
-                .when(mAutocompleteInput)
-                .getDisplayState();
-        doReturn(mAutocompleteStateSupplier)
-                .when(mAutocompleteInput)
-                .getAutocompleteStateSupplier();
-        doAnswer(invocation -> mAutocompleteStateSupplier.get())
-                .when(mAutocompleteInput)
-                .getAutocompleteState();
-        doAnswer(
-                        invocation ->
-                                mAutocompleteStateSupplier.get() == AutocompleteState.STANDBY
-                                        || mAutocompleteStateSupplier.get()
-                                                == AutocompleteState.STANDBY_NO_FOCUS)
-                .when(mAutocompleteInput)
-                .isStandby();
-        doReturn(mTab).when(mLocationBarDataProvider).getTab();
-        doReturn(mWebContents).when(mTab).getWebContents();
-        doReturn(mNavigationController).when(mWebContents).getNavigationController();
 
         mContext =
                 new ContextThemeWrapper(
                         ContextUtils.getApplicationContext(), R.style.Theme_BrowserUI_DayNight);
-        mResourceProvider = new OmniboxResourceProvider(mContext, BrandedColorScheme.APP_DEFAULT);
         mWindowAndroid = new WindowAndroid(mContext, /* occlusionTrackingAllowed= */ false);
         mModel = new PropertyModel(StatusProperties.ALL_KEYS);
         mMediator =
                 new StatusMediator(
-                        mResourceProvider,
                         mModel,
                         mContext,
                         mLocationBarDataProvider,
@@ -233,14 +195,6 @@ public final class StatusMediatorUnitTest {
     @After
     public void tearDown() {
         mWindowAndroid.destroy();
-    }
-
-    private int getModelIconID() {
-        return mModel.get(StatusProperties.STATUS_ICON_RESOURCE).getIconRes();
-    }
-
-    private void assertModelIconResId(int resId) {
-        assertEquals(resId, mModel.get(StatusProperties.STATUS_ICON_RESOURCE).getIconRes());
     }
 
     @Test
@@ -272,6 +226,20 @@ public final class StatusMediatorUnitTest {
         assertEquals(
                 R.drawable.ic_logo_googleg_20dp,
                 mModel.get(StatusProperties.STATUS_ICON_RESOURCE).getIconRes());
+    }
+
+    @Test
+    @SmallTest
+    public void searchEngineLogo_contextualTasksFusebox_evenWhenNtp() {
+        doReturn(PageClassification.CO_BROWSING_COMPOSEBOX_VALUE)
+                .when(mLocationBarDataProvider)
+                .getPageClassification(/* prefetch= */ false);
+        doReturn(true).when(mNewTabPageDelegate).isCurrentlyVisible();
+
+        mMediator.beginInput(mFuseboxSessionState);
+
+        // It should NOT show the status view at all (to avoid the gap).
+        assertFalse(mModel.get(StatusProperties.SHOW_STATUS_VIEW));
     }
 
     @Test
@@ -323,83 +291,6 @@ public final class StatusMediatorUnitTest {
         assertNotEquals(
                 R.drawable.ic_globe_24dp,
                 mModel.get(StatusProperties.STATUS_ICON_RESOURCE).getIconRes());
-    }
-
-    @Test
-    @SmallTest
-    @EnableFeatures(OmniboxFeatureList.EXACT_MATCH_FAVICONS)
-    public void beginInput_newSessionNullUrl_clearsFavicon() {
-        // Start with globe showing.
-        mPreviewMatchUrlSupplier.set(JUnitTestGURLs.BLUE_1);
-        mMediator.beginInput(mFuseboxSessionState);
-        assertEquals(R.drawable.ic_globe_24dp, getModelIconID());
-
-        // End the session.
-        mMediator.endInput();
-        assertFalse(mPreviewMatchUrlSupplier.hasObservers());
-
-        // Start a new session with a null preview url.
-        mPreviewMatchUrlSupplier.set(null);
-        mMediator.beginInput(mFuseboxSessionState);
-
-        // The globe should be cleared since the url is null.
-        assertEquals(R.drawable.ic_logo_googleg_20dp, getModelIconID());
-    }
-
-    @Test
-    @SmallTest
-    @EnableFeatures(OmniboxFeatureList.EXACT_MATCH_FAVICONS)
-    public void previewUrlChanged_displayStateSuggestions_showFavicon() {
-        setDisplayState(DisplayState.SUGGESTIONS);
-
-        mPreviewMatchUrlSupplier.set(JUnitTestGURLs.BLUE_1);
-        mMediator.onFaviconFetched(JUnitTestGURLs.BLUE_1, mMockFaviconDrawable);
-
-        assertEquals(
-                mMockFaviconDrawable,
-                mModel.get(StatusProperties.STATUS_ICON_RESOURCE).getDrawable(mContext));
-    }
-
-    @Test
-    @SmallTest
-    @EnableFeatures(OmniboxFeatureList.EXACT_MATCH_FAVICONS)
-    public void previewUrlChanged_displayStateDrafting_showFavicon() {
-        setDisplayState(DisplayState.DRAFTING);
-
-        mPreviewMatchUrlSupplier.set(JUnitTestGURLs.BLUE_1);
-        mMediator.onFaviconFetched(JUnitTestGURLs.BLUE_1, mMockFaviconDrawable);
-
-        assertEquals(
-                mMockFaviconDrawable,
-                mModel.get(StatusProperties.STATUS_ICON_RESOURCE).getDrawable(mContext));
-    }
-
-    @Test
-    @SmallTest
-    @EnableFeatures(OmniboxFeatureList.EXACT_MATCH_FAVICONS)
-    public void previewUrlChanged_displayStateDraftingNoFocus_showFavicon() {
-        setDisplayState(DisplayState.DRAFTING_NO_FOCUS);
-
-        mPreviewMatchUrlSupplier.set(JUnitTestGURLs.BLUE_1);
-        mMediator.onFaviconFetched(JUnitTestGURLs.BLUE_1, mMockFaviconDrawable);
-
-        assertEquals(
-                mMockFaviconDrawable,
-                mModel.get(StatusProperties.STATUS_ICON_RESOURCE).getDrawable(mContext));
-    }
-
-    @Test
-    @SmallTest
-    @EnableFeatures(OmniboxFeatureList.EXACT_MATCH_FAVICONS)
-    public void previewUrlChanged_displayStateWebsite_noFavicon() {
-        setDisplayState(DisplayState.WEBSITE);
-
-        mPreviewMatchUrlSupplier.set(JUnitTestGURLs.BLUE_1);
-        mMediator.onFaviconFetched(JUnitTestGURLs.BLUE_1, mMockFaviconDrawable);
-
-        assertNotEquals(
-                mMockFaviconDrawable,
-                mModel.get(StatusProperties.STATUS_ICON_RESOURCE).getDrawable(mContext));
     }
 
     @Test
@@ -462,20 +353,16 @@ public final class StatusMediatorUnitTest {
                 "Incorrect color for paint preview status text",
                 MaterialColors.getColor(mContext, R.attr.colorPrimary, TAG),
                 mModel.get(StatusProperties.VERBOSE_STATUS_TEXT_COLOR));
-        mResourceProvider.setBrandedColorScheme(BrandedColorScheme.LIGHT_BRANDED_THEME);
         mMediator.setBrandedColorScheme(BrandedColorScheme.LIGHT_BRANDED_THEME);
         assertEquals(
                 "Incorrect color for paint preview status text",
                 mContext.getColor(R.color.locationbar_status_preview_color_dark),
                 mModel.get(StatusProperties.VERBOSE_STATUS_TEXT_COLOR));
 
-        mModel.set(StatusProperties.STATUS_CLICK_LISTENER, ViewUtils.emptyClickListener());
-        mMediator.setBackground();
         assertNotNull(mModel.get(StatusProperties.STATUS_VIEW_BACKGROUND));
 
         // When only offline is enabled, it should be shown.
         mMediator.updateVerboseStatus(ConnectionSecurityLevel.SECURE, true, false);
-        mResourceProvider.setBrandedColorScheme(BrandedColorScheme.DARK_BRANDED_THEME);
         mMediator.setBrandedColorScheme(BrandedColorScheme.DARK_BRANDED_THEME);
         assertEquals(
                 "Incorrect text for offline page status text",
@@ -485,7 +372,6 @@ public final class StatusMediatorUnitTest {
                 "Incorrect color for offline page status text",
                 mContext.getColor(R.color.locationbar_status_offline_color_light),
                 mModel.get(StatusProperties.VERBOSE_STATUS_TEXT_COLOR));
-        mResourceProvider.setBrandedColorScheme(BrandedColorScheme.LIGHT_BRANDED_THEME);
         mMediator.setBrandedColorScheme(BrandedColorScheme.LIGHT_BRANDED_THEME);
         assertEquals(
                 "Incorrect color for offline page status text",
@@ -497,7 +383,7 @@ public final class StatusMediatorUnitTest {
     @SmallTest
     public void testStatusIconAccessibility_hubSearch() {
         // Test default behaviour first.
-        doReturn(PageClassification.NTP)
+        doReturn(PageClassification.NTP_VALUE)
                 .when(mLocationBarDataProvider)
                 .getPageClassification(/* prefetch= */ false);
         mMediator.updateLocationBarIcon(IconTransitionType.CROSSFADE);
@@ -505,34 +391,7 @@ public final class StatusMediatorUnitTest {
                 R.string.accessibility_toolbar_view_site_info,
                 mModel.get(StatusProperties.STATUS_ACCESSIBILITY_DOUBLE_TAP_DESCRIPTION_RES));
 
-        doReturn(PageClassification.ANDROID_HUB)
-                .when(mLocationBarDataProvider)
-                .getPageClassification(/* prefetch= */ false);
-        mMediator.updateLocationBarIcon(IconTransitionType.CROSSFADE);
-
-        assertEquals(
-                R.string.hub_search_status_view_back_button_icon_description,
-                mModel.get(StatusProperties.STATUS_ICON_DESCRIPTION_RES));
-        assertEquals(Resources.ID_NULL, mModel.get(StatusProperties.STATUS_VIEW_TOOLTIP_TEXT));
-        assertNull(mModel.get(StatusProperties.STATUS_VIEW_BACKGROUND));
-        assertEquals(
-                R.string.accessibility_toolbar_exit_hub_search,
-                mModel.get(StatusProperties.STATUS_ACCESSIBILITY_DOUBLE_TAP_DESCRIPTION_RES));
-    }
-
-    @Test
-    @SmallTest
-    public void testStatusIconAccessibility_tabSearchOverlay() {
-        // Test default behaviour first.
-        doReturn(PageClassification.NTP)
-                .when(mLocationBarDataProvider)
-                .getPageClassification(/* prefetch= */ false);
-        mMediator.updateLocationBarIcon(IconTransitionType.CROSSFADE);
-        assertEquals(
-                R.string.accessibility_toolbar_view_site_info,
-                mModel.get(StatusProperties.STATUS_ACCESSIBILITY_DOUBLE_TAP_DESCRIPTION_RES));
-
-        doReturn(PageClassification.ANDROID_TAB_SEARCH_OVERLAY)
+        doReturn(PageClassification.ANDROID_HUB_VALUE)
                 .when(mLocationBarDataProvider)
                 .getPageClassification(/* prefetch= */ false);
         mMediator.updateLocationBarIcon(IconTransitionType.CROSSFADE);
@@ -551,22 +410,7 @@ public final class StatusMediatorUnitTest {
     @SmallTest
     @EnableFeatures(OmniboxFeatureList.EXACT_MATCH_FAVICONS)
     public void testStatusIcon_hubSearchWithExactMatchFaviconEnabled() {
-        doReturn(PageClassification.ANDROID_HUB)
-                .when(mLocationBarDataProvider)
-                .getPageClassification(/* prefetch= */ false);
-        mPreviewMatchUrlSupplier.set(JUnitTestGURLs.BLUE_1);
-        mMediator.updateLocationBarIcon(IconTransitionType.CROSSFADE);
-
-        assertEquals(
-                R.drawable.ic_arrow_back_24dp,
-                mModel.get(StatusProperties.STATUS_ICON_RESOURCE).getIconRes());
-    }
-
-    @Test
-    @SmallTest
-    @EnableFeatures(OmniboxFeatureList.EXACT_MATCH_FAVICONS)
-    public void testStatusIcon_tabSearchOverlayWithExactMatchFaviconEnabled() {
-        doReturn(PageClassification.ANDROID_TAB_SEARCH_OVERLAY)
+        doReturn(PageClassification.ANDROID_HUB_VALUE)
                 .when(mLocationBarDataProvider)
                 .getPageClassification(/* prefetch= */ false);
         mPreviewMatchUrlSupplier.set(JUnitTestGURLs.BLUE_1);
@@ -580,25 +424,7 @@ public final class StatusMediatorUnitTest {
     @Test
     @SmallTest
     public void testStatusIconOverride_hubSearch() {
-        doReturn(PageClassification.ANDROID_HUB)
-                .when(mLocationBarDataProvider)
-                .getPageClassification(/* prefetch= */ false);
-        mMediator.setDefaultStatusIconOverrideResId(R.drawable.ic_suggestion_magnifier);
-
-        assertEquals(
-                R.drawable.ic_suggestion_magnifier,
-                mModel.get(StatusProperties.STATUS_ICON_RESOURCE).getIconRes());
-        assertEquals(0, mModel.get(StatusProperties.STATUS_ICON_DESCRIPTION_RES));
-        assertNull(mModel.get(StatusProperties.STATUS_CLICK_LISTENER));
-        assertEquals(
-                Resources.ID_NULL,
-                mModel.get(StatusProperties.STATUS_ACCESSIBILITY_DOUBLE_TAP_DESCRIPTION_RES));
-    }
-
-    @Test
-    @SmallTest
-    public void testStatusIconOverride_tabSearchOverlay() {
-        doReturn(PageClassification.ANDROID_TAB_SEARCH_OVERLAY)
+        doReturn(PageClassification.ANDROID_HUB_VALUE)
                 .when(mLocationBarDataProvider)
                 .getPageClassification(/* prefetch= */ false);
         mMediator.setDefaultStatusIconOverrideResId(R.drawable.ic_suggestion_magnifier);
@@ -616,18 +442,7 @@ public final class StatusMediatorUnitTest {
     @Test
     @SmallTest
     public void testWideIconTrue_hubSearch() {
-        doReturn(PageClassification.ANDROID_HUB)
-                .when(mLocationBarDataProvider)
-                .getPageClassification(/* prefetch= */ false);
-
-        mMediator.beginInput(mFuseboxSessionState);
-        assertTrue(mModel.get(StatusProperties.USE_WIDE_STATUS_ICON));
-    }
-
-    @Test
-    @SmallTest
-    public void testWideIconTrue_tabSearchOverlay() {
-        doReturn(PageClassification.ANDROID_TAB_SEARCH_OVERLAY)
+        doReturn(PageClassification.ANDROID_HUB_VALUE)
                 .when(mLocationBarDataProvider)
                 .getPageClassification(/* prefetch= */ false);
 
@@ -639,17 +454,12 @@ public final class StatusMediatorUnitTest {
     @SmallTest
     @DisableFeatures(ChromeFeatureList.ANDROID_PAGE_INFO_AS_APP_MENU_ITEM)
     public void testSetTooltipText() {
-        doReturn(PageClassification.NTP)
+        doReturn(PageClassification.NTP_VALUE)
                 .when(mLocationBarDataProvider)
                 .getPageClassification(/* prefetch= */ false);
 
-        mMediator.setStatusClickListener(null);
         mMediator.setTooltipText(Resources.ID_NULL);
-        // If there is no registered click listener, the tooltip text should be null.
-        assertEquals(Resources.ID_NULL, mModel.get(StatusProperties.STATUS_VIEW_TOOLTIP_TEXT));
-
-        mMediator.setStatusClickListener(ViewUtils.emptyClickListener());
-        mMediator.setTooltipText(Resources.ID_NULL);
+        // Assert that the below accessibility string is always set when #setTooltipText is called.
         assertEquals(
                 R.string.accessibility_menu_info,
                 mModel.get(StatusProperties.STATUS_VIEW_TOOLTIP_TEXT));
@@ -659,7 +469,7 @@ public final class StatusMediatorUnitTest {
     @SmallTest
     @EnableFeatures({ChromeFeatureList.ANDROID_PAGE_INFO_AS_APP_MENU_ITEM})
     public void testSetTooltipText_whenPageInfoMovedToAppMenu() {
-        doReturn(PageClassification.NTP)
+        doReturn(PageClassification.NTP_VALUE)
                 .when(mLocationBarDataProvider)
                 .getPageClassification(/* prefetch= */ false);
 
@@ -671,17 +481,12 @@ public final class StatusMediatorUnitTest {
     @SmallTest
     @DisableFeatures(ChromeFeatureList.ANDROID_PAGE_INFO_AS_APP_MENU_ITEM)
     public void testSetBackground() {
-        doReturn(PageClassification.NTP)
+        doReturn(PageClassification.NTP_VALUE)
                 .when(mLocationBarDataProvider)
                 .getPageClassification(/* prefetch= */ false);
 
-        // When no click listener is set, background is null.
         mMediator.setBackground();
-        assertNull(mModel.get(StatusProperties.STATUS_VIEW_BACKGROUND));
-
-        // When a click listener is set, background is set.
-        mModel.set(StatusProperties.STATUS_CLICK_LISTENER, ViewUtils.emptyClickListener());
-        mMediator.setBackground();
+        // Assert that the non verbose drawable is always set when #setBackground is called.
         assertNotNull(mModel.get(StatusProperties.STATUS_VIEW_BACKGROUND));
     }
 
@@ -689,7 +494,7 @@ public final class StatusMediatorUnitTest {
     @SmallTest
     @EnableFeatures({ChromeFeatureList.ANDROID_PAGE_INFO_AS_APP_MENU_ITEM})
     public void testSetBackground_whenPageInfoMovedToAppMenu() {
-        doReturn(PageClassification.NTP)
+        doReturn(PageClassification.NTP_VALUE)
                 .when(mLocationBarDataProvider)
                 .getPageClassification(/* prefetch= */ false);
         mMediator.updateVerboseStatus(ConnectionSecurityLevel.WARNING, false, false);
@@ -803,57 +608,16 @@ public final class StatusMediatorUnitTest {
 
         mMediator.setShowStatusIconForSecureOrigins(false);
         assertFalse(mModel.get(StatusProperties.SHOW_STATUS_VIEW));
-        assertNull(mModel.get(StatusProperties.STATUS_ICON_RESOURCE));
 
         mMediator.updateSecurityIcon(R.drawable.ic_logo_googleg_20dp, 0, 0);
         mMediator.updateVerboseStatus(ConnectionSecurityLevel.WARNING, false, false);
         assertTrue(mModel.get(StatusProperties.SHOW_STATUS_VIEW));
-        assertNotNull(mModel.get(StatusProperties.STATUS_ICON_RESOURCE));
-        assertEquals(
-                R.drawable.ic_logo_googleg_20dp,
-                mModel.get(StatusProperties.STATUS_ICON_RESOURCE).getIconRes());
 
         mMediator.updateVerboseStatus(ConnectionSecurityLevel.SECURE, false, false);
         assertFalse(mModel.get(StatusProperties.SHOW_STATUS_VIEW));
-        assertNull(mModel.get(StatusProperties.STATUS_ICON_RESOURCE));
 
         mMediator.setShowStatusIconForSecureOrigins(true);
         assertTrue(mModel.get(StatusProperties.SHOW_STATUS_VIEW));
-        assertNotNull(mModel.get(StatusProperties.STATUS_ICON_RESOURCE));
-        assertEquals(
-                R.drawable.ic_logo_googleg_20dp,
-                mModel.get(StatusProperties.STATUS_ICON_RESOURCE).getIconRes());
-    }
-
-    @Test
-    @SmallTest
-    @DisableFeatures({ChromeFeatureList.ANDROID_PAGE_INFO_AS_APP_MENU_ITEM})
-    public void testShowStatusIconForSecureOrigins_restoresIconResourceAfterNavigation() {
-        mMediator.updateSecurityIcon(R.drawable.ic_logo_googleg_20dp, 0, 0);
-        mMediator.updateVerboseStatus(ConnectionSecurityLevel.SECURE, false, false);
-        assertTrue(mModel.get(StatusProperties.SHOW_STATUS_VIEW));
-        assertNotNull(mModel.get(StatusProperties.STATUS_ICON_RESOURCE));
-        assertEquals(
-                R.drawable.ic_logo_googleg_20dp,
-                mModel.get(StatusProperties.STATUS_ICON_RESOURCE).getIconRes());
-
-        // Simulate Mini Origin Bar hiding status icon for secure origins.
-        mMediator.setShowStatusIconForSecureOrigins(false);
-        assertFalse(mModel.get(StatusProperties.SHOW_STATUS_VIEW));
-        assertNull(mModel.get(StatusProperties.STATUS_ICON_RESOURCE));
-
-        // Simulate a navigation or URL update occurring while secure origin icon is hidden.
-        mMediator.updateLocationBarIcon(IconTransitionType.CROSSFADE);
-        assertFalse(mModel.get(StatusProperties.SHOW_STATUS_VIEW));
-        assertNull(mModel.get(StatusProperties.STATUS_ICON_RESOURCE));
-
-        // Simulate Mini Origin Bar closing and restoring status icon for secure origins.
-        mMediator.setShowStatusIconForSecureOrigins(true);
-        assertTrue(mModel.get(StatusProperties.SHOW_STATUS_VIEW));
-        assertNotNull(mModel.get(StatusProperties.STATUS_ICON_RESOURCE));
-        assertEquals(
-                R.drawable.ic_logo_googleg_20dp,
-                mModel.get(StatusProperties.STATUS_ICON_RESOURCE).getIconRes());
     }
 
     @Test
@@ -965,20 +729,7 @@ public final class StatusMediatorUnitTest {
     @Test
     @SmallTest
     public void testStatusClickListener_withBackButtonPressListener() {
-        doReturn(PageClassification.ANDROID_HUB)
-                .when(mLocationBarDataProvider)
-                .getPageClassification(/* prefetch= */ false);
-        mMediator.setOnStatusIconNavigateBackButtonPress(mOnClickListener);
-        mMediator.updateLocationBarIcon(IconTransitionType.CROSSFADE);
-
-        mModel.get(StatusProperties.STATUS_CLICK_LISTENER).onClick(/* view= */ null);
-        verify(mOnClickListener).onClick(any());
-    }
-
-    @Test
-    @SmallTest
-    public void testStatusClickListener_withBackButtonPressListener_tabSearchOverlay() {
-        doReturn(PageClassification.ANDROID_TAB_SEARCH_OVERLAY)
+        doReturn(PageClassification.ANDROID_HUB_VALUE)
                 .when(mLocationBarDataProvider)
                 .getPageClassification(/* prefetch= */ false);
         mMediator.setOnStatusIconNavigateBackButtonPress(mOnClickListener);
@@ -1073,45 +824,6 @@ public final class StatusMediatorUnitTest {
 
         assertNotEquals(
                 R.drawable.ic_add_round_20dp_with_inset,
-                mModel.get(StatusProperties.STATUS_ICON_RESOURCE).getIconRes());
-    }
-
-    @Test
-    public void testStandby_focusedOnWebPage_showsSecurityIcon() {
-        doReturn(false).when(mNewTabPageDelegate).isCurrentlyVisible();
-        mAutocompleteStateSupplier.set(AutocompleteState.STANDBY);
-        mMediator.updateSecurityIcon(R.drawable.ic_settings_tune_24dp, 0, 0);
-        mMediator.beginInput(mFuseboxSessionState);
-
-        assertFalse(mMediator.shouldDisplaySearchEngineIcon());
-
-        mMediator.updateLocationBarIcon(IconTransitionType.CROSSFADE);
-
-        assertNotNull(mModel.get(StatusProperties.STATUS_ICON_RESOURCE));
-        assertEquals(
-                R.drawable.ic_settings_tune_24dp,
-                mModel.get(StatusProperties.STATUS_ICON_RESOURCE).getIconRes());
-    }
-
-    @Test
-    public void autocompleteStateChanged_updatesStatusIcon() {
-        doReturn(false).when(mNewTabPageDelegate).isCurrentlyVisible();
-        mMediator.updateSecurityIcon(R.drawable.ic_settings_tune_24dp, 0, 0);
-        mMediator.beginInput(mFuseboxSessionState);
-        assertTrue(mMediator.shouldDisplaySearchEngineIcon());
-
-        mAutocompleteStateSupplier.set(AutocompleteState.STANDBY);
-        assertFalse(mMediator.shouldDisplaySearchEngineIcon());
-        assertNotNull(mModel.get(StatusProperties.STATUS_ICON_RESOURCE));
-        assertEquals(
-                R.drawable.ic_settings_tune_24dp,
-                mModel.get(StatusProperties.STATUS_ICON_RESOURCE).getIconRes());
-
-        mAutocompleteStateSupplier.set(AutocompleteState.ENABLED);
-        assertTrue(mMediator.shouldDisplaySearchEngineIcon());
-        assertNotNull(mModel.get(StatusProperties.STATUS_ICON_RESOURCE));
-        assertNotEquals(
-                R.drawable.ic_settings_tune_24dp,
                 mModel.get(StatusProperties.STATUS_ICON_RESOURCE).getIconRes());
     }
 
@@ -1370,14 +1082,15 @@ public final class StatusMediatorUnitTest {
 
         Shadows.shadowOf(Looper.getMainLooper()).idle();
 
-        doReturn(mTemplateUrl).when(mTemplateUrlService).getTemplateUrlForKeyword("gemini");
+        TemplateUrl geminiTemplate = mock(TemplateUrl.class);
+        doReturn(geminiTemplate).when(mTemplateUrlService).getTemplateUrlForKeyword("gemini");
         SiteSearchData geminiData = new SiteSearchData("gemini", "Gemini");
         siteSearchDataSupplier.set(geminiData);
 
         Shadows.shadowOf(Looper.getMainLooper()).idle();
 
         verify(mSearchEngineService)
-                .retrieveFavicon(eq(mTemplateUrl), mFaviconCallbackCaptor.capture());
+                .retrieveFavicon(eq(geminiTemplate), mFaviconCallbackCaptor.capture());
 
         StatusIconResource geminiIcon = new StatusIconResource("gemini_icon", null, 0);
         mFaviconCallbackCaptor.getValue().onResult(geminiIcon);
@@ -1397,17 +1110,19 @@ public final class StatusMediatorUnitTest {
         Shadows.shadowOf(Looper.getMainLooper()).idle();
 
         // 1. User triggers @wiki first
-        doReturn(mWikiTemplate).when(mTemplateUrlService).getTemplateUrlForKeyword("wiki");
+        TemplateUrl wikiTemplate = mock(TemplateUrl.class);
+        doReturn(wikiTemplate).when(mTemplateUrlService).getTemplateUrlForKeyword("wiki");
 
         SiteSearchData wikiData = new SiteSearchData("wiki", "Wikipedia");
         siteSearchDataSupplier.set(wikiData);
         Shadows.shadowOf(Looper.getMainLooper()).idle();
 
         verify(mSearchEngineService)
-                .retrieveFavicon(eq(mWikiTemplate), mFaviconCallbackCaptor.capture());
+                .retrieveFavicon(eq(wikiTemplate), mFaviconCallbackCaptor.capture());
 
         // 2. User changes suggestion from @wiki to @gemini
-        doReturn(mGeminiTemplate).when(mTemplateUrlService).getTemplateUrlForKeyword("gemini");
+        TemplateUrl geminiTemplate = mock(TemplateUrl.class);
+        doReturn(geminiTemplate).when(mTemplateUrlService).getTemplateUrlForKeyword("gemini");
 
         SiteSearchData geminiData = new SiteSearchData("gemini", "Gemini");
         siteSearchDataSupplier.set(geminiData);
@@ -1450,114 +1165,6 @@ public final class StatusMediatorUnitTest {
         if (icon != null) {
             assertNotEquals(R.drawable.ic_logo_googleg_20dp, icon.getIconRes());
         }
-    }
-
-    @Test
-    @SmallTest
-    public void testHover_enabledWhenClickListenerSet() {
-        doReturn(PageClassification.ANDROID_HUB)
-                .when(mLocationBarDataProvider)
-                .getPageClassification(/* prefetch= */ false);
-        mMediator.setOnStatusIconNavigateBackButtonPress(mOnClickListener);
-        mMediator.updateLocationBarIcon(IconTransitionType.CROSSFADE);
-
-        assertNotNull(mModel.get(StatusProperties.STATUS_CLICK_LISTENER));
-        assertTrue(mModel.get(StatusProperties.STATUS_VIEW_HOVER_ENABLED));
-    }
-
-    @Test
-    @SmallTest
-    public void testHover_disabledWhenClickListenerNull() {
-        mMediator.beginInput(mFuseboxSessionState);
-
-        assertNull(mModel.get(StatusProperties.STATUS_CLICK_LISTENER));
-        assertFalse(mModel.get(StatusProperties.STATUS_VIEW_HOVER_ENABLED));
-    }
-
-    @Test
-    @SmallTest
-    public void statusIcon_blankWhenPendingHttpNavigation() {
-        mMediator.updateSecurityIcon(R.drawable.ic_settings_tune_24dp, 0, 0);
-
-        assertModelIconResId(R.drawable.ic_settings_tune_24dp);
-
-        doReturn(mNavigationEntry).when(mNavigationController).getPendingEntry();
-        doReturn(JUnitTestGURLs.BLUE_1).when(mNavigationEntry).getUrl();
-        mMediator.updateSecurityIcon(R.drawable.ic_info_24dp, 0, 0);
-
-        assertNull(mModel.get(StatusProperties.STATUS_ICON_RESOURCE));
-
-        doReturn(null).when(mNavigationController).getPendingEntry();
-        mMediator.updateSecurityIcon(R.drawable.ic_info_24dp, 0, 0);
-
-        assertModelIconResId(R.drawable.ic_info_24dp);
-    }
-
-    @Test
-    @SmallTest
-    @DisableFeatures(OmniboxFeatureList.SUPPRESS_STATUS_ICON_DURING_HTTP_NAVIGATION)
-    public void statusIcon_notBlankWhenPendingHttpNavigation_killSwitch() {
-        mMediator.updateSecurityIcon(R.drawable.ic_settings_tune_24dp, 0, 0);
-
-        assertModelIconResId(R.drawable.ic_settings_tune_24dp);
-
-        doReturn(mNavigationEntry).when(mNavigationController).getPendingEntry();
-        doReturn(JUnitTestGURLs.BLUE_1).when(mNavigationEntry).getUrl();
-        mMediator.updateSecurityIcon(R.drawable.ic_info_24dp, 0, 0);
-
-        assertModelIconResId(R.drawable.ic_info_24dp);
-    }
-
-    @Test
-    @SmallTest
-    public void statusIcon_infoIconWhenPendingNonHttpNavigation() {
-        mMediator.updateSecurityIcon(R.drawable.ic_settings_tune_24dp, 0, 0);
-
-        assertModelIconResId(R.drawable.ic_settings_tune_24dp);
-
-        doReturn(mNavigationEntry).when(mNavigationController).getPendingEntry();
-        doReturn(JUnitTestGURLs.CHROME_ABOUT).when(mNavigationEntry).getUrl();
-        mMediator.updateSecurityIcon(R.drawable.ic_info_24dp, 0, 0);
-
-        assertModelIconResId(R.drawable.ic_info_24dp);
-
-        doReturn(null).when(mNavigationController).getPendingEntry();
-        mMediator.updateSecurityIcon(R.drawable.ic_info_24dp, 0, 0);
-
-        assertModelIconResId(R.drawable.ic_info_24dp);
-    }
-
-    @Test
-    @SmallTest
-    public void statusIcon_searchEngineIconShownWhenPendingNavigationToNtp() {
-        doReturn(true).when(mNewTabPageDelegate).isCurrentlyVisible();
-        doReturn(JUnitTestGURLs.NTP_URL).when(mNavigationEntry).getUrl();
-        doReturn(mNavigationEntry).when(mNavigationController).getPendingEntry();
-        mMediator.updateLocationBarIcon(IconTransitionType.CROSSFADE);
-        assertEquals(
-                R.drawable.ic_logo_googleg_20dp,
-                mModel.get(StatusProperties.STATUS_ICON_RESOURCE).getIconRes());
-    }
-
-    @Test
-    public void displayStateChanged_updatesStatusIcon() {
-        mAutocompleteStateSupplier.set(AutocompleteState.STANDBY);
-        mMediator.updateSecurityIcon(R.drawable.ic_settings_tune_24dp, 0, 0);
-        mMediator.beginInput(mFuseboxSessionState);
-        assertEquals(
-                R.drawable.ic_settings_tune_24dp,
-                mModel.get(StatusProperties.STATUS_ICON_RESOURCE).getIconRes());
-
-        mDisplayStateSupplier.set(DisplayState.SUGGESTIONS);
-        assertNotNull(mModel.get(StatusProperties.STATUS_ICON_RESOURCE));
-        assertEquals(
-                R.drawable.ic_settings_tune_24dp,
-                mModel.get(StatusProperties.STATUS_ICON_RESOURCE).getIconRes());
-    }
-
-    private void setDisplayState(@DisplayState int state) {
-        mDisplayStateSupplier.set(state);
-        mMediator.beginInput(mFuseboxSessionState);
     }
 
     private String getIconIdentifierForTesting() {

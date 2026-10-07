@@ -217,10 +217,6 @@ build_recipe(
 )
 
 build_recipe(
-    name = "recipe:chromium/crowbar",
-)
-
-build_recipe(
     name = "recipe:chromium/eval_prompts",
     bootstrappable = True,
 )
@@ -357,4 +353,9 @@ build_recipe(
 
 infra_recipe = _recipe_for_package(
     "infra/recipe_bundles/chromium.googlesource.com/infra/infra",
+)
+
+infra_recipe(
+    name = "recipe:infra/crowbar",
+    recipe = "crowbar",
 )

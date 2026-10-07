@@ -11,8 +11,6 @@
 #include "base/test/metrics/histogram_tester.h"
 #include "chrome/browser/signin/identity_manager_factory.h"
 #include "chrome/browser/signin/identity_test_environment_profile_adaptor.h"
-#include "chrome/browser/supervised_user/child_accounts/child_account_service_factory.h"
-#include "chrome/browser/supervised_user/supervised_user_service_factory.h"
 #include "chrome/browser/supervised_user/supervised_user_test_util.h"
 #include "chrome/test/base/testing_browser_process.h"
 #include "chrome/test/base/testing_profile.h"
@@ -25,7 +23,6 @@
 #include "components/supervised_user/core/common/features.h"
 #include "components/supervised_user/core/common/pref_names.h"
 #include "components/supervised_user/core/common/supervised_user_constants.h"
-#include "components/supervised_user/test_support/features.h"
 #include "content/public/test/browser_task_environment.h"
 #include "extensions/buildflags/buildflags.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -76,11 +73,6 @@ class FamilyLinkUserMetricsProviderTest : public testing::Test {
         /*is_new_profile=*/std::nullopt,
         /*policy_service=*/std::nullopt, /*shared_url_loader_factory=*/nullptr);
 
-    // Services are lazily created, so we need to access them to force their
-    // creation and initialization.
-    CHECK(SupervisedUserServiceFactory::GetForProfile(profile));
-    CHECK(ChildAccountServiceFactory::GetForProfile(profile));
-
     AccountInfo account = signin::MakePrimaryAccountAvailable(
         IdentityManagerFactory::GetForProfile(profile), test_email,
         signin::ConsentLevel::kSignin);
@@ -91,10 +83,6 @@ class FamilyLinkUserMetricsProviderTest : public testing::Test {
         is_subject_to_parental_controls);
     mutator.set_is_opted_in_to_parental_supervision(
         is_opted_in_to_parental_supervision);
-    account = AccountInfo::Builder(account)
-                  .SetIsChildAccount(
-                      signin::TriboolFromBool(is_subject_to_parental_controls))
-                  .Build();
     signin::UpdateAccountInfoForAccount(
         IdentityManagerFactory::GetForProfile(profile), account);
 
@@ -526,6 +514,16 @@ struct ContentFiltersTestCase {
 class FamilyLinkUserMetricsProviderWithContentFiltersAndroidTest
     : public FamilyLinkUserMetricsProviderTest {
  protected:
+  virtual void SetUpFeatureList() {
+    scoped_feature_list_.InitAndEnableFeature(
+        kSupervisedUserEmitLogRecordSeparately);
+  }
+
+  void SetUp() override {
+    FamilyLinkUserMetricsProviderTest::SetUp();
+    SetUpFeatureList();
+  }
+
   // Enables or disables the browser content filters for all profiles.
   void SetBrowserContentFilters(bool enabled) {
     TestingBrowserProcess::GetGlobal()
@@ -539,6 +537,8 @@ class FamilyLinkUserMetricsProviderWithContentFiltersAndroidTest
         ->android_parental_controls()
         .SetSearchContentFiltersEnabledForTesting(enabled);
   }
+
+  base::test::ScopedFeatureList scoped_feature_list_;
 };
 
 TEST_F(FamilyLinkUserMetricsProviderWithContentFiltersAndroidTest,
@@ -575,6 +575,12 @@ class
     : public FamilyLinkUserMetricsProviderWithContentFiltersAndroidTest,
       public testing::WithParamInterface<ContentFiltersTestCase> {
  protected:
+  void SetUpFeatureList() override {
+    scoped_feature_list_.InitWithFeatureStates(
+        {{kSupervisedUserUseUrlFilteringService, true},
+         {kSupervisedUserEmitLogRecordSeparately, false}});
+  }
+
   void CreateProfiles(std::size_t count) {
     CHECK_GE(email_addresses_.size(), count) << "Not enough email addresses";
     CHECK_GE(profile_names_.size(), count) << "Not enough profile names";
@@ -585,8 +591,8 @@ class
 
       // Services are lazily created, so we need to access them to force their
       // creation.
-      CHECK(SupervisedUserServiceFactory::GetForProfile(unsupervised_profile));
-      CHECK(ChildAccountServiceFactory::GetForProfile(unsupervised_profile));
+      CHECK(SupervisedUserServiceFactory::GetInstance()->GetForProfile(
+          unsupervised_profile));
     }
   }
 
@@ -634,10 +640,6 @@ TEST_P(
       SupervisedUserLogRecord::Segment::kSupervisionEnabledLocally,
       /*expected_count=*/1);
   histogram_tester.ExpectBucketCount(
-      kFamilyLinkUserLogSegmentHistogramName,
-      SupervisedUserLogRecord::Segment::kUnsupervised,
-      /*expected_count=*/1);
-  histogram_tester.ExpectBucketCount(
       kFamilyLinkUserLogSegmentWebFilterHistogramName,
       WebFilterType::kAllowAllSites,
       /*expected_count=*/1);
@@ -655,10 +657,6 @@ TEST_P(
   histogram_tester.ExpectBucketCount(
       kFamilyLinkUserLogSegmentHistogramName,
       SupervisedUserLogRecord::Segment::kSupervisionEnabledLocally,
-      /*expected_count=*/1);
-  histogram_tester.ExpectBucketCount(
-      kFamilyLinkUserLogSegmentHistogramName,
-      SupervisedUserLogRecord::Segment::kUnsupervised,
       /*expected_count=*/1);
   histogram_tester.ExpectUniqueSample(
       kFamilyLinkUserLogSegmentWebFilterHistogramName,
@@ -679,10 +677,6 @@ TEST_P(
   histogram_tester.ExpectBucketCount(
       kFamilyLinkUserLogSegmentHistogramName,
       SupervisedUserLogRecord::Segment::kSupervisionEnabledLocally,
-      /*expected_count=*/1);
-  histogram_tester.ExpectBucketCount(
-      kFamilyLinkUserLogSegmentHistogramName,
-      SupervisedUserLogRecord::Segment::kUnsupervised,
       /*expected_count=*/1);
   histogram_tester.ExpectUniqueSample(
       kFamilyLinkUserLogSegmentWebFilterHistogramName,

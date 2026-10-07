@@ -11,7 +11,6 @@
 #include <vector>
 
 #include "base/callback_list.h"
-#include "base/component_export.h"
 #include "base/containers/flat_map.h"
 #include "base/containers/flat_set.h"
 #include "base/containers/span.h"
@@ -44,8 +43,7 @@ namespace web_app {
 
 // This class is a singleton responsible for processing the IWA Key Distribution
 // Component data.
-class COMPONENT_EXPORT(ISOLATED_WEB_APPS) IwaKeyDistributionInfoProvider
-    : public IwaRuntimeDataProvider {
+class IwaKeyDistributionInfoProvider : public IwaRuntimeDataProvider {
  public:
   using KeyRotations =
       base::flat_map<std::string, IwaRuntimeDataProvider::KeyRotationInfo>;
@@ -212,7 +210,6 @@ class COMPONENT_EXPORT(ISOLATED_WEB_APPS) IwaKeyDistributionInfoProvider
 };
 
 #if BUILDFLAG(IS_CHROMEOS)
-COMPONENT_EXPORT(ISOLATED_WEB_APPS)
 BASE_DECLARE_FEATURE(kIsolatedWebAppBypassManagedAllowlist);
 #endif  // BUILDFLAG(IS_CHROMEOS)
 

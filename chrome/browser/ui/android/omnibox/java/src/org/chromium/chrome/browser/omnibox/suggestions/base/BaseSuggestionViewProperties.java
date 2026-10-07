@@ -103,7 +103,7 @@ public @interface BaseSuggestionViewProperties {
         }
     }
 
-    /** {@link BaseSuggestionView#setActionChipLeadInSpacing(int)} */
+    /** {@see BaseSuggestionView#setActionChipLeadInSpacing(int)} */
     WritableIntPropertyKey ACTION_CHIP_LEAD_IN_SPACING = new WritableIntPropertyKey();
 
     /** OmniboxDrawableState to show as a suggestion icon. */
@@ -134,7 +134,7 @@ public @interface BaseSuggestionViewProperties {
     WritableObjectPropertyKey<Callback</* uptimeMillis */ Long>> ON_TOUCH_DOWN_EVENT =
             new WritableObjectPropertyKey<>();
 
-    /** {@link BaseSuggestionView#setShowDecorationIcon(boolean} */
+    /** {@see BaseSuggestionView#setShowDecorationIcon(boolean} */
     WritableBooleanPropertyKey SHOW_DECORATION = new WritableBooleanPropertyKey();
 
     /**
@@ -143,7 +143,7 @@ public @interface BaseSuggestionViewProperties {
      */
     WritableIntPropertyKey TOP_PADDING = new WritableIntPropertyKey();
 
-    /** {@link BaseSuggestionView#setUseLargeDecorationIcon(boolean)} */
+    /** {@see BaseSuggestionView#setUseLargeDecorationIcon(boolean)} */
     WritableBooleanPropertyKey USE_LARGE_DECORATION = new WritableBooleanPropertyKey();
 
     PropertyKey[] ALL_UNIQUE_KEYS =

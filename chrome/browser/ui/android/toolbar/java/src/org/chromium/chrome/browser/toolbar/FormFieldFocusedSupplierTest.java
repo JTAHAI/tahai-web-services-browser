@@ -19,6 +19,7 @@ import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
+import org.robolectric.annotation.Config;
 
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.content.browser.input.ImeAdapterImpl;
@@ -26,6 +27,7 @@ import org.chromium.content.browser.webcontents.WebContentsImpl;
 
 /** Unit tests for {@link FormFieldFocusedSupplier}. */
 @RunWith(BaseRobolectricTestRunner.class)
+@Config(manifest = Config.NONE)
 public class FormFieldFocusedSupplierTest {
     @Rule public MockitoRule mMockitoJUnit = MockitoJUnit.rule();
     @Mock private WebContentsImpl mWebContents;

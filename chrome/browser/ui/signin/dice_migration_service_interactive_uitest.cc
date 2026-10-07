@@ -90,8 +90,8 @@ class DiceMigrationServiceForcedMigrationInteractiveUiTest
   auto FireToastCloseTimer() {
     return Do([=, this]() {
       browser()
-          ->GetFeatures()
-          .toast_controller()
+          ->browser_window_features()
+          ->toast_controller()
           ->GetToastCloseTimerForTesting()
           ->FireNow();
     });

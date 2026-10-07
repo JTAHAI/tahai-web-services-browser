@@ -13,7 +13,6 @@
 #include "ash/wm/window_properties.h"
 #include "ash/wm/wm_constants.h"
 #include "base/memory/raw_ptr.h"
-#include "cc/paint/display_item_list.h"
 #include "chromeos/ui/frame/frame_utils.h"
 #include "ui/aura/client/aura_constants.h"
 #include "ui/aura/client/screen_position_client.h"

@@ -14,7 +14,6 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/search/search.h"
 #include "chrome/browser/search_engines/template_url_service_factory.h"
-#include "chrome/browser/ssl/chrome_security_state_util.h"
 #include "chrome/browser/ui/login/login_tab_helper.h"
 #include "chrome/common/pref_names.h"
 #include "chrome/common/url_constants.h"
@@ -30,6 +29,7 @@
 #include "components/safe_browsing/core/common/features.h"
 #include "components/search/ntp_features.h"
 #include "components/security_interstitials/content/security_interstitial_tab_helper.h"
+#include "components/security_state/content/security_state_tab_helper.h"
 #include "components/security_state/core/security_state.h"
 #include "content/public/browser/navigation_controller.h"
 #include "content/public/browser/navigation_entry.h"
@@ -150,7 +150,8 @@ security_state::SecurityLevel ChromeLocationBarModelDelegate::GetSecurityLevel()
   if (!web_contents) {
     return security_state::NONE;
   }
-  return chrome_security_state::GetSecurityLevel(web_contents);
+  auto* helper = SecurityStateTabHelper::FromWebContents(web_contents);
+  return helper->GetSecurityLevel();
 }
 
 net::CertStatus ChromeLocationBarModelDelegate::GetCertStatus() const {
@@ -160,8 +161,8 @@ net::CertStatus ChromeLocationBarModelDelegate::GetCertStatus() const {
   if (!web_contents) {
     return 0;
   }
-  return chrome_security_state::GetVisibleSecurityState(web_contents)
-      ->cert_status;
+  auto* helper = SecurityStateTabHelper::FromWebContents(web_contents);
+  return helper->GetVisibleSecurityState()->cert_status;
 }
 
 std::unique_ptr<security_state::VisibleSecurityState>
@@ -172,7 +173,8 @@ ChromeLocationBarModelDelegate::GetVisibleSecurityState() const {
   if (!web_contents) {
     return std::make_unique<security_state::VisibleSecurityState>();
   }
-  return chrome_security_state::GetVisibleSecurityState(web_contents);
+  auto* helper = SecurityStateTabHelper::FromWebContents(web_contents);
+  return helper->GetVisibleSecurityState();
 }
 
 scoped_refptr<net::X509Certificate>

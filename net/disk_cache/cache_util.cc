@@ -4,11 +4,8 @@
 
 #include "net/disk_cache/cache_util.h"
 
-#include <algorithm>
 #include <limits>
-#include <optional>
 
-#include "base/byte_size.h"
 #include "base/files/file_enumerator.h"
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
@@ -31,7 +28,7 @@
 
 namespace {
 
-constexpr int kMaxOldFolders = 100;
+const int kMaxOldFolders = 100;
 
 // Returns a fully qualified name from path and name, using a given name prefix
 // and index number. For instance, if the arguments are "/foo", "bar" and 5, it
@@ -40,14 +37,14 @@ base::FilePath GetPrefixedName(const base::FilePath& path,
                                const base::SafeBaseName& basename,
                                int index) {
   const std::string index_str = base::StringPrintf("_%03d", index);
-  const base::FilePath::StringType filename =
-      base::StrCat({FILE_PATH_LITERAL("old_"), basename.path().value(),
+  const base::FilePath::StringType filename = base::StrCat({
+    FILE_PATH_LITERAL("old_"), basename.path().value(),
 #if BUILDFLAG(IS_WIN)
-                    base::ASCIIToWide(index_str)
+        base::ASCIIToWide(index_str)
 #else
-                    index_str
+        index_str
 #endif
-      });
+  });
   return path.Append(filename);
 }
 
@@ -56,9 +53,8 @@ base::FilePath GetTempCacheName(const base::FilePath& dirname,
   // We'll attempt to have up to kMaxOldFolders folders for deletion.
   for (int i = 0; i < kMaxOldFolders; i++) {
     base::FilePath to_delete = GetPrefixedName(dirname, basename, i);
-    if (!base::PathExists(to_delete)) {
+    if (!base::PathExists(to_delete))
       return to_delete;
-    }
   }
   return base::FilePath();
 }
@@ -109,30 +105,26 @@ bool CleanupDirectoryInternal(const base::FilePath& path) {
   return result;
 }
 
-base::ByteSize PreferredCacheSizeInternal(base::ByteSize available) {
+int64_t PreferredCacheSizeInternal(int64_t available) {
   using disk_cache::kDefaultCacheSize;
   // Return 80% of the available space if there is not enough space to use
   // kDefaultCacheSize.
-  if (available < kDefaultCacheSize * 10 / 8) {
+  if (available < kDefaultCacheSize * 10 / 8)
     return available * 8 / 10;
-  }
 
   // Return kDefaultCacheSize if it uses 10% to 80% of the available space.
-  if (available < kDefaultCacheSize * 10) {
+  if (available < kDefaultCacheSize * 10)
     return kDefaultCacheSize;
-  }
 
   // Return 10% of the available space if the target size
   // (2.5 * kDefaultCacheSize) is more than 10%.
-  if (available < kDefaultCacheSize * 25) {
+  if (available < static_cast<int64_t>(kDefaultCacheSize) * 25)
     return available / 10;
-  }
 
   // Return the target size (2.5 * kDefaultCacheSize) if it uses 10% to 1%
   // of the available space.
-  if (available < kDefaultCacheSize * 250) {
+  if (available < static_cast<int64_t>(kDefaultCacheSize) * 250)
     return kDefaultCacheSize * 5 / 2;
-  }
 
   // Return 1% of the available space.
   return available / 100;
@@ -142,7 +134,7 @@ base::ByteSize PreferredCacheSizeInternal(base::ByteSize available) {
 
 namespace disk_cache {
 
-const base::ByteSize kDefaultCacheSize = base::MiB(80);
+const int kDefaultCacheSize = 80 * 1024 * 1024;
 
 BASE_FEATURE(kChangeGeneratedCodeCacheSizeExperiment,
              "ChangeGeneratedCodeCacheSize",
@@ -150,15 +142,14 @@ BASE_FEATURE(kChangeGeneratedCodeCacheSizeExperiment,
 
 void DeleteCache(const base::FilePath& path, bool remove_folder) {
   if (remove_folder) {
-    if (!base::DeletePathRecursively(path)) {
+    if (!base::DeletePathRecursively(path))
       LOG(WARNING) << "Unable to delete cache folder.";
-    }
     return;
   }
 
   base::FileEnumerator iter(
       path,
-      /*recursive=*/false,
+      /* recursive */ false,
       base::FileEnumerator::FILES | base::FileEnumerator::DIRECTORIES);
   for (base::FilePath file = iter.Next(); !file.value().empty();
        file = iter.Next()) {
@@ -188,8 +179,7 @@ bool CleanupDirectorySync(const base::FilePath& path) {
 
 // Returns the preferred maximum number of bytes for the cache given the
 // number of available bytes.
-base::ByteSize PreferredCacheSize(std::optional<base::ByteSize> available,
-                                  net::CacheType type) {
+int PreferredCacheSize(int64_t available, net::CacheType type) {
   // Percent of cache size to use, relative to the default size. "100" means to
   // use 100% of the default size.
   int percent_relative_size = 100;
@@ -207,14 +197,17 @@ base::ByteSize PreferredCacheSize(std::optional<base::ByteSize> available,
       type == net::GENERATED_BYTE_CODE_CACHE) {
     percent_relative_size = base::GetFieldTrialParamByFeatureAsInt(
         disk_cache::kChangeGeneratedCodeCacheSizeExperiment,
-        "percent_relative_size", /*default_value=*/400);
+        "percent_relative_size", 400 /* default value */);
   }
 
-  // Clamp scaling, as a safety check, to avoid overflow.
-  percent_relative_size = std::clamp(percent_relative_size, 100, 400);
+  // Cap scaling, as a safety check, to avoid overflow.
+  if (percent_relative_size > 400)
+    percent_relative_size = 400;
+  else if (percent_relative_size < 100)
+    percent_relative_size = 100;
 
   base::ClampedNumeric<int64_t> scaled_default_disk_cache_size =
-      (base::ClampedNumeric<int64_t>(disk_cache::kDefaultCacheSize.InBytes()) *
+      (base::ClampedNumeric<int64_t>(disk_cache::kDefaultCacheSize) *
        percent_relative_size) /
       100;
 
@@ -223,29 +216,27 @@ base::ByteSize PreferredCacheSize(std::optional<base::ByteSize> available,
 
   // If available disk space is known, use it to compute a better value for
   // preferred_cache_size.
-  if (available) {
-    preferred_cache_size =
-        PreferredCacheSizeInternal(available.value()).InBytes();
+  if (available >= 0) {
+    preferred_cache_size = PreferredCacheSizeInternal(available);
 
     // If the preferred cache size is less than 20% of the available space,
     // scale for the field trial, capping the scaled value at 20% of the
     // available space.
-    if (preferred_cache_size < (available.value() / 5).InBytes()) {
-      const base::ClampedNumeric<int64_t> clamped_available(
-          available->InBytes());
+    if (preferred_cache_size < available / 5) {
+      const base::ClampedNumeric<int64_t> clamped_available(available);
       preferred_cache_size =
           std::min((preferred_cache_size * percent_relative_size) / 100,
                    clamped_available / 5);
     }
   }
 
-  // Limit cache size to somewhat less than INT32_MAX to avoid potential
+  // Limit cache size to somewhat less than kint32max to avoid potential
   // integer overflows in cache backend implementations.
   //
   // Note: the 4x limit is of course far below that; historically it came
   // from the blockfile backend with the following explanation:
   // "Let's not use more than the default size while we tune-up the performance
-  // of bigger caches."
+  // of bigger caches. "
   base::ClampedNumeric<int64_t> size_limit = scaled_default_disk_cache_size * 4;
   // Native code entries can be large, so we would like a larger cache.
   // Make the size limit 50% larger in that case.
@@ -257,18 +248,13 @@ base::ByteSize PreferredCacheSize(std::optional<base::ByteSize> available,
   }
 
   DCHECK_LT(size_limit, std::numeric_limits<int32_t>::max());
-  return base::ByteSize(
-      static_cast<uint32_t>(std::min(preferred_cache_size, size_limit)));
+  return static_cast<int32_t>(std::min(preferred_cache_size, size_limit));
 }
 
-base::ByteSize PreferredCacheSizeForPath(const base::FilePath& path,
-                                         net::CacheType type) {
-  std::optional<base::SysInfo::DiskSpaceInfo> disk_space =
-      base::SysInfo::AmountOfDiskSpace(path);
-
-  return PreferredCacheSize(
-      disk_space ? std::make_optional(disk_space->available) : std::nullopt,
-      type);
+int64_t PreferredCacheSizeForPath(const base::FilePath& path,
+                                  net::CacheType type) {
+  int64_t available = base::SysInfo::AmountOfFreeDiskSpace(path).value_or(-1);
+  return PreferredCacheSize(available, type);
 }
 
 }  // namespace disk_cache

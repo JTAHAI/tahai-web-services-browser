@@ -138,9 +138,6 @@ inline constexpr char kImportantSitesDialogHistory[] = "important_sites_dialog";
 // This is the profile creation time.
 inline constexpr char kProfileCreationTime[] = "profile.creation_time";
 
-// Preference which stores randomly generated profile ID for LOM.
-inline constexpr char kLomProfileId[] = "private_metrics.lom.profile_id";
-
 #if BUILDFLAG(IS_WIN)
 // This is a timestamp of the last time this profile was reset by a third party
 // tool. On Windows, a third party tool may set a registry value that will be
@@ -747,11 +744,6 @@ inline constexpr char kPinExtensionsMenuButton[] =
 // extension + named command pair.
 inline constexpr char kExtensionCommands[] = "extensions.commands";
 
-// Boolean pref indicating whether native UI extension review prompts are
-// allowed by enterprise policy.
-inline constexpr char kExtensionReviewPromptsAllowed[] =
-    "extensions.review_prompts_allowed";
-
 // Whether Chrome should use its internal PDF viewer or not.
 inline constexpr char kPluginsAlwaysOpenPdfExternally[] =
     "plugins.always_open_pdf_externally";
@@ -1106,6 +1098,15 @@ inline constexpr char kGCMProductCategoryForSubtypes[] =
 // Whether a user is allowed to use Easy Unlock.
 inline constexpr char kEasyUnlockAllowed[] = "easy_unlock.allowed";
 
+#if BUILDFLAG(ENABLE_EXTENSIONS)
+// Used to indicate whether or not the toolbar redesign bubble has been shown
+// and acknowledged, and the last time the bubble was shown.
+inline constexpr char kToolbarIconSurfacingBubbleAcknowledged[] =
+    "toolbar_icon_surfacing_bubble_acknowledged";
+inline constexpr char kToolbarIconSurfacingBubbleLastShowTime[] =
+    "toolbar_icon_surfacing_bubble_show_time";
+#endif
+
 // Define the IP handling policy override that WebRTC should follow. When not
 // set, it defaults to "default".
 inline constexpr char kWebRTCIPHandlingPolicy[] = "webrtc.ip_handling_policy";
@@ -1239,10 +1240,12 @@ inline constexpr char kProjectsPanelPinnedToTabstrip[] =
 inline constexpr char kEverythingMenuPinnedToTabstrip[] =
     "everything_menu.pinned_to_tabstrip";
 
-// Boolean determining whether the tab scroll buttons are pinned to the tab
-// strip.
-inline constexpr char kTabScrollButtonsPinnedToTabstrip[] =
-    "tab_scroll_buttons.pinned_to_tabstrip";
+// Boolean indicating whether the one-time migration for
+// kEverythingMenuPinnedToTabstrip has been completed. This sets the pinned
+// state for the button to true for users who have used vertical tab strip
+// before the migration happened.
+inline constexpr char kEverythingMenuPinnedToTabstripMigrationComplete[] =
+    "everything_menu.pinned_to_tabstrip_migration_complete";
 
 // Boolean determining whether vertical tabs are enabled.
 inline constexpr char kVerticalTabsEnabled[] = "vertical_tabs.enabled";
@@ -1558,13 +1561,6 @@ inline constexpr char kRestartLastSessionOnShutdown[] =
 inline constexpr char kRestartInBackgroundOnShutdown[] =
     "restart.in.background.on.shutdown";
 
-#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX)
-// Timestamp of when the scheduled restart nudge dialog was last shown
-// to the user, used for nudge cooldown calculations.
-inline constexpr char kScheduledRestartLastNudgeTime[] =
-    "restart.scheduled_restart_last_nudge_time";
-#endif  // BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX)
-
 #if !BUILDFLAG(IS_ANDROID)
 #if !BUILDFLAG(IS_CHROMEOS)
 // Boolean that specifies whether or not to show security warnings for some
@@ -1721,6 +1717,8 @@ inline constexpr char kNtpOutlookCalendarRetryAfterTime[] =
 // Whether NTP Outlook Calendar module is visible.
 inline constexpr char kNtpOutlookModuleVisible[] =
     "NewTabPage.OutlookModuleVisible";
+// List of promos that the user has dismissed while on the NTP.
+inline constexpr char kNtpPromoBlocklist[] = "ntp.promo_blocklist";
 // Whether the promo is visible.
 inline constexpr char kNtpPromoVisible[] = "ntp.promo_visible";
 // Whether NTP Sharepoint module is visible.
@@ -2076,11 +2074,6 @@ inline constexpr char kIsolatedWebAppInstallForceList[] =
 // Isolated Web Apps is permitted.
 inline constexpr char kIsolatedWebAppUserInstallationEnabled[] =
     "profile.isolated_web_app.install.user_install_enabled";
-
-// Dictionary pref storing policy metadata for Kiosk Isolated Web Apps (IWAs) in
-// bundle cache.
-inline constexpr char kKioskIwaCachePolicyState[] =
-    "kiosk.isolated_web_app_cache_policy_state";
 
 // An integer pref that remembers how many force install initializations are
 // pending. If more than `kIsolatedWebAppForceInstallMaxRetryTreshold`
@@ -2488,11 +2481,6 @@ inline constexpr char kAppShortcutsVersion[] = "apps.shortcuts_version";
 // from an Intel mac to an ARM mac), then this will cause all shortcuts to be
 // re-created.
 inline constexpr char kAppShortcutsArch[] = "apps.shortcuts_arch";
-
-// A string indicating the OS version under which app shortcuts have been
-// created. If this changes (e.g., due to updating macOS version), then all
-// app shortcuts will be re-created.
-inline constexpr char kAppShortcutsOsVersion[] = "apps.shortcuts_os_version";
 
 // This references a default content setting value which we expose through the
 // preferences extensions API and also used for migration of the old
@@ -3277,11 +3265,6 @@ inline constexpr char kNonMilestoneUpdateToastVersion[] =
 // history entry that is donated to AppSearch.
 inline constexpr char kAuxiliarySearchLastDonatedHistoryEntryVisitTime[] =
     "auxiliary_search.last_donated_history_entry_visit_time";
-
-// Boolean pref indicating whether sharing browsing data with on-device
-// intelligence features is enabled.
-inline constexpr char kAuxiliarySearchBrowsingDataDonationEnabled[] =
-    "auxiliary_search.browsing_data_donation_enabled";
 
 // Boolean pref indicating whether the app rating prompt has been shown.
 inline constexpr char kAppRatingPromptShown[] = "app_rating_prompt_shown";

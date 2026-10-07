@@ -12,6 +12,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import org.chromium.base.test.BaseRobolectricTestRunner;
+import org.chromium.base.test.util.Batch;
 import org.chromium.components.signin.base.CoreAccountInfo;
 import org.chromium.content_public.browser.RenderFrameHost;
 
@@ -19,6 +20,7 @@ import java.util.Collections;
 
 /** Tests for the facilitated payment API client. */
 @RunWith(BaseRobolectricTestRunner.class)
+@Batch(Batch.UNIT_TESTS)
 @SmallTest
 public class FacilitatedPaymentsApiClientUnitTest {
     private static final byte[] TEST_CLIENT_TOKEN = new byte[] {'C', 'l', 'i', 'e', 'n', 't'};

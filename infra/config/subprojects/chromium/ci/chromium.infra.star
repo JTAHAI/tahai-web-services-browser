@@ -80,13 +80,12 @@ packager_builder(
 packager_builder(
     name = "3pp-mac-amd64-packager",
     executable = "recipe:chromium_3pp",
-    # Every 6 hours starting at 5am UTC.
-    schedule = "0 5/6 * * * *",
+    # TODO(crbug.com/40204454): Trigger builds routinely once works fine.
+    schedule = "triggered",
     triggered_by = [],
     builderless = True,
     cores = None,
-    # TODO(crbug.com/543006750): Revert to MAC_DEFAULT after arm migration.
-    os = os.MAC_15,
+    os = os.MAC_DEFAULT,
     console_view_entry = consoles.console_view_entry(
         category = "packager|3pp|mac",
         short_name = "amd64",
@@ -104,8 +103,8 @@ packager_builder(
     name = "3pp-mac-arm64-packager",
     description_html = "chromium 3pp packager on Mac ARM64 platform.",
     executable = "recipe:chromium_3pp",
-    # Every 6 hours starting at 5am UTC.
-    schedule = "0 5/6 * * * *",
+    # TODO(crbug.com/40864598): Trigger builds routinely once works fine.
+    schedule = "triggered",
     triggered_by = [],
     builderless = True,
     cores = None,
@@ -176,9 +175,6 @@ packager_builder(
         category = "packager|android",
         short_name = "avd",
     ),
-    # Allow build triggers to override this prop. Overriding any other prop
-    # will lead to a buildbucket rejection.
-    allowed_property_overrides = ["$build/avd_packager"],
     properties = {
         "$build/avd_packager": {
             "avd_configs": [
@@ -219,20 +215,31 @@ packager_builder(
     properties = {
         "packages": [
             {
-                "sdk_package_name": "build-tools/37.0.0",
-                "cipd_yaml": "third_party/android_sdk/cipd/build-tools/37.0.0/linux.yaml",
+                "sdk_package_name": "build-tools;34.0.0",
+                "cipd_yaml": "third_party/android_sdk/cipd/build-tools/34.0.0.yaml",
             },
             {
-                "sdk_package_name": "build-tools/37.0.0",
-                "cipd_yaml": "third_party/android_sdk/cipd/build-tools/37.0.0/mac.yaml",
-                "target_os": "mac",
+                "sdk_package_name": "build-tools;35.0.0",
+                "cipd_yaml": "third_party/android_sdk/cipd/build-tools/35.0.0.yaml",
             },
             {
-                "sdk_package_name": "cmdline-tools/latest",
+                "sdk_package_name": "build-tools;36.0.0",
+                "cipd_yaml": "third_party/android_sdk/cipd/build-tools/36.0.0.yaml",
+            },
+            {
+                "sdk_package_name": "build-tools;36.1.0",
+                "cipd_yaml": "third_party/android_sdk/cipd/build-tools/36.1.0.yaml",
+            },
+            {
+                "sdk_package_name": "build-tools;37.0.0",
+                "cipd_yaml": "third_party/android_sdk/cipd/build-tools/37.0.0.yaml",
+            },
+            {
+                "sdk_package_name": "cmdline-tools;latest",
                 "cipd_yaml": "third_party/android_sdk/cipd/cmdline-tools/linux.yaml",
             },
             {
-                "sdk_package_name": "cmdline-tools/latest",
+                "sdk_package_name": "cmdline-tools;latest",
                 "cipd_yaml": "third_party/android_sdk/cipd/cmdline-tools/mac.yaml",
                 "target_os": "mac",
             },
@@ -257,101 +264,124 @@ packager_builder(
                 "target_arch": "arm64",
             },
             {
-                "sdk_package_name": "platforms/android-37.0",
+                "sdk_package_name": "platforms;android-34",
+                "cipd_yaml": "third_party/android_sdk/cipd/platforms/android-34.yaml",
+            },
+            {
+                "sdk_package_name": "platforms;android-35",
+                "cipd_yaml": "third_party/android_sdk/cipd/platforms/android-35.yaml",
+            },
+            {
+                "sdk_package_name": "platforms;android-36",
+                "cipd_yaml": "third_party/android_sdk/cipd/platforms/android-36.yaml",
+            },
+            {
+                "sdk_package_name": "platforms;android-36.1",
+                "cipd_yaml": "third_party/android_sdk/cipd/platforms/android-36.1.yaml",
+            },
+            {
+                "sdk_package_name": "platforms;android-37.0",
                 "cipd_yaml": "third_party/android_sdk/cipd/platforms/android-37.0.yaml",
             },
             {
                 "sdk_package_name": "platform-tools",
-                "cipd_yaml": "third_party/android_sdk/cipd/platform-tools/linux.yaml",
+                "cipd_yaml": "third_party/android_sdk/cipd/platform-tools.yaml",
             },
             {
-                "sdk_package_name": "platform-tools",
-                "cipd_yaml": "third_party/android_sdk/cipd/platform-tools/mac.yaml",
-                "target_os": "mac",
+                "sdk_package_name": "system-images;android-19;google_apis;x86",
+                "cipd_yaml": "third_party/android_sdk/cipd/system_images/android-19/google_apis/x86.yaml",
             },
             {
-                "sdk_package_name": "system-images/android-24/google_apis/x86",
+                "sdk_package_name": "system-images;android-22;google_apis;x86",
+                "cipd_yaml": "third_party/android_sdk/cipd/system_images/android-22/google_apis/x86.yaml",
+            },
+            {
+                "sdk_package_name": "system-images;android-23;google_apis;x86",
+                "cipd_yaml": "third_party/android_sdk/cipd/system_images/android-23/google_apis/x86.yaml",
+            },
+            {
+                "sdk_package_name": "system-images;android-24;google_apis;x86",
                 "cipd_yaml": "third_party/android_sdk/cipd/system_images/android-24/google_apis/x86.yaml",
             },
             {
-                "sdk_package_name": "system-images/android-25/google_apis/x86",
+                "sdk_package_name": "system-images;android-25;google_apis;x86",
                 "cipd_yaml": "third_party/android_sdk/cipd/system_images/android-25/google_apis/x86.yaml",
             },
             {
-                "sdk_package_name": "system-images/android-26/google_apis/x86",
+                "sdk_package_name": "system-images;android-26;google_apis;x86",
                 "cipd_yaml": "third_party/android_sdk/cipd/system_images/android-26/google_apis/x86.yaml",
             },
             {
-                "sdk_package_name": "system-images/android-27/google_apis/x86",
+                "sdk_package_name": "system-images;android-27;google_apis;x86",
                 "cipd_yaml": "third_party/android_sdk/cipd/system_images/android-27/google_apis/x86.yaml",
             },
             {
-                "sdk_package_name": "system-images/android-28/google_apis/x86",
+                "sdk_package_name": "system-images;android-28;google_apis;x86",
                 "cipd_yaml": "third_party/android_sdk/cipd/system_images/android-28/google_apis/x86.yaml",
             },
             {
-                "sdk_package_name": "system-images/android-29/google_apis/x86",
+                "sdk_package_name": "system-images;android-29;google_apis;x86",
                 "cipd_yaml": "third_party/android_sdk/cipd/system_images/android-29/google_apis/x86.yaml",
             },
             {
-                "sdk_package_name": "system-images/android-30/google_apis/x86",
+                "sdk_package_name": "system-images;android-30;google_apis;x86",
                 "cipd_yaml": "third_party/android_sdk/cipd/system_images/android-30/google_apis/x86.yaml",
             },
             # use x86_64 since sdkmanager don't ship x86 for android-31 and above.
             {
-                "sdk_package_name": "system-images/android-31/google_apis/arm64-v8a",
+                "sdk_package_name": "system-images;android-31;google_apis;arm64-v8a",
                 "cipd_yaml": "third_party/android_sdk/cipd/system_images/android-31/google_apis/arm64.yaml",
             },
             {
-                "sdk_package_name": "system-images/android-31/google_apis/x86_64",
+                "sdk_package_name": "system-images;android-31;google_apis;x86_64",
                 "cipd_yaml": "third_party/android_sdk/cipd/system_images/android-31/google_apis/x86_64.yaml",
             },
             {
-                "sdk_package_name": "system-images/android-32/google_apis/x86_64",
+                "sdk_package_name": "system-images;android-32;google_apis;x86_64",
                 "cipd_yaml": "third_party/android_sdk/cipd/system_images/android-32/google_apis/x86_64.yaml",
             },
             {
-                "sdk_package_name": "system-images/android-33/google_apis/x86_64",
+                "sdk_package_name": "system-images;android-33;google_apis;x86_64",
                 "cipd_yaml": "third_party/android_sdk/cipd/system_images/android-33/google_apis/x86_64.yaml",
             },
             {
-                "sdk_package_name": "system-images/android-34/google_apis/x86_64",
+                "sdk_package_name": "system-images;android-34;google_apis;x86_64",
                 "cipd_yaml": "third_party/android_sdk/cipd/system_images/android-34/google_apis/x86_64.yaml",
             },
             {
-                "sdk_package_name": "system-images/android-34-ext9/android-automotive/x86_64",
+                "sdk_package_name": "system-images;android-34-ext9;android-automotive;x86_64",
                 "cipd_yaml": "third_party/android_sdk/cipd/system_images/android-34/android-automotive/x86_64.yaml",
             },
             {
-                "sdk_package_name": "system-images/android-35/google_apis/x86_64",
+                "sdk_package_name": "system-images;android-35;google_apis;x86_64",
                 "cipd_yaml": "third_party/android_sdk/cipd/system_images/android-35/google_apis/x86_64.yaml",
             },
             {
-                "sdk_package_name": "system-images/android-35/google_apis_tablet/x86_64",
+                "sdk_package_name": "system-images;android-35;google_apis_tablet;x86_64",
                 "cipd_yaml": "third_party/android_sdk/cipd/system_images/android-35/google_apis_tablet/x86_64.yaml",
             },
             {
-                "sdk_package_name": "system-images/android-36/google_apis/arm64-v8a",
+                "sdk_package_name": "system-images;android-36;google_apis;arm64-v8a",
                 "cipd_yaml": "third_party/android_sdk/cipd/system_images/android-36/google_apis/arm64-v8a.yaml",
             },
             {
-                "sdk_package_name": "system-images/android-36/google_apis/x86_64",
-                "cipd_yaml": "third_party/android_sdk/cipd/system_images/android-36/google_apis/x86_64.yaml",
-            },
-            {
-                "sdk_package_name": "system-images/android-36.1/google_apis/arm64-v8a",
+                "sdk_package_name": "system-images;android-36.1;google_apis;arm64-v8a",
                 "cipd_yaml": "third_party/android_sdk/cipd/system_images/android-36.1/google_apis/arm64-v8a.yaml",
             },
             {
-                "sdk_package_name": "system-images/android-36.1/google_apis/x86_64",
-                "cipd_yaml": "third_party/android_sdk/cipd/system_images/android-36.1/google_apis/x86_64.yaml",
-            },
-            {
-                "sdk_package_name": "system-images/android-37.0/google_apis_ps16k/arm64-v8a",
+                "sdk_package_name": "system-images;android-37.0;google_apis_ps16k;arm64-v8a",
                 "cipd_yaml": "third_party/android_sdk/cipd/system_images/android-37.0/google_apis_ps16k/arm64-v8a.yaml",
             },
             {
-                "sdk_package_name": "system-images/android-37.0/google_apis_ps16k/x86_64",
+                "sdk_package_name": "system-images;android-36;google_apis;x86_64",
+                "cipd_yaml": "third_party/android_sdk/cipd/system_images/android-36/google_apis/x86_64.yaml",
+            },
+            {
+                "sdk_package_name": "system-images;android-36.1;google_apis;x86_64",
+                "cipd_yaml": "third_party/android_sdk/cipd/system_images/android-36.1/google_apis/x86_64.yaml",
+            },
+            {
+                "sdk_package_name": "system-images;android-37.0;google_apis_ps16k;x86_64",
                 "cipd_yaml": "third_party/android_sdk/cipd/system_images/android-37.0/google_apis_ps16k/x86_64.yaml",
             },
         ],
@@ -449,7 +479,10 @@ luci.bucket(
             groups = "all",
         ),
         acl.entry(
-            roles = [acl.SCHEDULER_OWNER],
+            roles = [
+                acl.BUILDBUCKET_TRIGGERER,
+                acl.SCHEDULER_TRIGGERER,
+            ],
             groups = ["mdb/chrome-troopers", "mdb/chops-security-oncallers"],
         ),
     ],
@@ -460,7 +493,7 @@ ci.builder(
     # TODO(b/464370790): Move this to CI bucket when recipe development is complete.
     bucket = "ssci",
     description_html = "Triggers Crowbar workflows on chromium/src.",
-    executable = "recipe:chromium/crowbar",
+    executable = "recipe:infra/crowbar",
     # TODO(b/464370790): Make this a routine job (regular update) and CI
     # triggered job (after submitting a CL modifying Crowbar spec) in the prod
     # pool when recipe development is complete.
@@ -475,6 +508,13 @@ ci.builder(
         short_name = "ssci",
     ),
     contact_team_email = "chops-security-core@google.com",
+    properties = {
+        "repos": [
+            {
+                "repo": "https://chromium.googlesource.com/chromium/src",
+            },
+        ],
+    },
     service_account = "chromium-roller@chops-crowbar.iam.gserviceaccount.com",
     shadow_pool = None,
     shadow_service_account = None,

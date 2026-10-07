@@ -27,24 +27,18 @@ template <typename T>
 class BackgroundTaskImpl : public BackgroundTask {
  public:
   using ReturnType = T;
-  using PreReplyCallback =
-      base::OnceCallback<void(const ReturnType& result, size_t retry_count)>;
 
   // `task` is a callback that runs on the background thread and returns a
   // value.
   // `reply` is invoked on the posting thread with the return result of
-  // `task`.
-  // `pre_reply` is an optional callback invoked just before `reply` with the
-  // return result of `task` and the number of retries.
+  // `task` and the number or retries it took to compute this result.
   BackgroundTaskImpl(base::RepeatingCallback<ReturnType()> task,
-                     base::OnceCallback<void(ReturnType)> reply,
-                     PreReplyCallback pre_reply,
+                     base::OnceCallback<void(ReturnType, size_t)> reply,
                      BackgroundTaskPriority priority,
                      BackgroundTaskType type,
                      size_t max_retries)
       : task_(std::move(task)),
         reply_(std::move(reply)),
-        pre_reply_(std::move(pre_reply)),
         priority_(priority),
         type_(type),
         max_retries_(max_retries) {
@@ -69,10 +63,7 @@ class BackgroundTaskImpl : public BackgroundTask {
 
   void ReplyWithResult() override {
     CHECK(result_.has_value());
-    if (pre_reply_) {
-      std::move(pre_reply_).Run(*result_, retries_);
-    }
-    std::move(reply_).Run(std::move(result_).value());
+    std::move(reply_).Run(std::move(result_).value(), retries_);
   }
 
   void ResetStateBeforeRetry() override {
@@ -133,8 +124,7 @@ class BackgroundTaskImpl : public BackgroundTask {
   }
 
   base::RepeatingCallback<ReturnType()> task_;
-  base::OnceCallback<void(ReturnType)> reply_;
-  PreReplyCallback pre_reply_;
+  base::OnceCallback<void(ReturnType, size_t)> reply_;
 
   size_t retries_ = 0;
   std::optional<ReturnType> result_;

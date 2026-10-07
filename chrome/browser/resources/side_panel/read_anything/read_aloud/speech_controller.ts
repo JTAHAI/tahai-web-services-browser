@@ -4,19 +4,13 @@
 
 import {loadTimeData} from '//resources/js/load_time_data.js';
 
-import type {VisualBrowserProxy} from '../app/visual_browser_proxy.js';
-import {VisualBrowserProxyImpl} from '../app/visual_browser_proxy.js';
 import {NodeStore} from '../content/node_store.js';
 import type {ContentPosition} from '../content/read_anything_types.js';
 import {ContentPositionSource} from '../content/read_anything_types.js';
 import {getWordCount, playFromSelectionTimeout} from '../shared/common.js';
-import type {MetricsBrowserProxy} from '../shared/metrics_browser_proxy.js';
-import {MetricsBrowserProxyImpl} from '../shared/metrics_browser_proxy.js';
 import {ReadAnythingLogger, SpeechControls} from '../shared/read_anything_logger.js';
 import {getNextValidNodeFromPosition} from '../shared/tree_traversal.js';
 
-import type {AudioBrowserProxy} from './audio_browser_proxy.js';
-import {AudioBrowserProxyImpl} from './audio_browser_proxy.js';
 import {ReadAloudHighlighter} from './highlighter.js';
 import {getReadAloudModel} from './read_aloud_model_browser_proxy.js';
 import type {ReadAloudModelBrowserProxy} from './read_aloud_model_browser_proxy.js';
@@ -55,12 +49,6 @@ export interface SpeechListener {
 }
 
 export class SpeechController {
-  private audioBrowserProxy_: AudioBrowserProxy =
-      AudioBrowserProxyImpl.getInstance();
-  private metricsBrowserProxy_: MetricsBrowserProxy =
-      MetricsBrowserProxyImpl.getInstance();
-  private visualBrowserProxy_: VisualBrowserProxy =
-      VisualBrowserProxyImpl.getInstance();
   private model_: SpeechModel = new SpeechModel();
   private speech_: SpeechBrowserProxy = SpeechBrowserProxyImpl.getInstance();
   private logger_: ReadAnythingLogger = ReadAnythingLogger.getInstance();
@@ -79,16 +67,10 @@ export class SpeechController {
     // Send over the initial state.
     this.clearReadAloudState();
     this.isSpeechActiveChanged_(this.isSpeechActive());
-    this.audioBrowserProxy_.onLockScreen.addListener(
-        this.onLockScreen.bind(this));
-    this.audioBrowserProxy_.readingModeWillClose.addListener(
-        this.onReadingModeWillClose.bind(this));
-    this.audioBrowserProxy_.onTabMuteStateChange.addListener(
-        this.onTabMuteStateChange.bind(this));
   }
 
   resetForNewContent() {
-    if (!this.audioBrowserProxy_.isPhraseHighlightingEnabled()) {
+    if (!chrome.readingMode.isPhraseHighlightingEnabled) {
       // Reset the read aloud model because there's new content.
       this.readAloudModel_.resetModel?.();
     }
@@ -198,7 +180,7 @@ export class SpeechController {
   }
 
   onLineFocusChange(position: CaretPosition|null) {
-    if (!this.visualBrowserProxy_.isLineFocusEnabled()) {
+    if (!chrome.readingMode.isLineFocusEnabled) {
       return;
     }
 
@@ -278,7 +260,7 @@ export class SpeechController {
   onHighlightGranularityChange(newGranularity: number) {
     // Rehighlight the new granularity.
     if (this.hasSpeechBeenTriggered() &&
-        newGranularity !== this.audioBrowserProxy_.getNoHighlighting()) {
+        newGranularity !== chrome.readingMode.noHighlighting) {
       this.highlightCurrentGranularity_(
           this.readAloudModel_.getCurrentTextSegments());
     }
@@ -287,7 +269,7 @@ export class SpeechController {
   onPlayPauseKeyPress(context: HTMLElement|null) {
     if (this.isSpeechActive()) {
       this.logger_.logSpeechStopSource(
-          this.audioBrowserProxy_.getKeyboardShortcutStopSource());
+          chrome.readingMode.keyboardShortcutStopSource);
     }
     this.onPlayPauseToggle(context);
   }
@@ -404,13 +386,13 @@ export class SpeechController {
     // okay to introduce for the non-TS segmentation flag case, the original
     // order is maintained when the flag is disabled to reduce the risk of
     // introducing unexpected bugs to the V8 segmentation method.
-    if (this.audioBrowserProxy_.isPhraseHighlightingEnabled()) {
+    if (chrome.readingMode.isPhraseHighlightingEnabled) {
       if (this.playFromContentPosition_()) {
         return;
       }
     }
 
-    if (!this.audioBrowserProxy_.isPhraseHighlightingEnabled()) {
+    if (!chrome.readingMode.isPhraseHighlightingEnabled) {
       // TODO: crbug.com/440400392- The speech tree should also be initialized
       // before the play button is pressed.
       this.initializeSpeechTree(context);
@@ -418,7 +400,7 @@ export class SpeechController {
       this.initializeSpeechTree();
     }
 
-    if (!this.audioBrowserProxy_.isPhraseHighlightingEnabled()) {
+    if (!chrome.readingMode.isPhraseHighlightingEnabled) {
       if (this.playFromContentPosition_()) {
         return;
       }
@@ -544,7 +526,7 @@ export class SpeechController {
         return skippedPosition;
 
       } else {
-        if (this.visualBrowserProxy_.isLineFocusEnabled()) {
+        if (chrome.readingMode.isLineFocusEnabled) {
           // When line focus is enabled, highlight and position the current
           // granularity before notifying word boundaries and playing audio so
           // line focus is properly aligned to the text before speech starts.
@@ -558,7 +540,7 @@ export class SpeechController {
         }
       }
     } else {
-      if (this.visualBrowserProxy_.isLineFocusEnabled()) {
+      if (chrome.readingMode.isLineFocusEnabled) {
         // When line focus is enabled, highlight and position the current
         // granularity before notifying word boundaries and playing audio so
         // line focus is properly aligned to the text before speech starts.
@@ -656,7 +638,7 @@ export class SpeechController {
     if (this.wordBoundaries_.notSupported()) {
       const wordCount = getWordCount(text);
       this.model_.setWordsHeard(this.model_.getWordsHeard() + wordCount);
-      this.metricsBrowserProxy_.updateWordsHeard(this.model_.getWordsHeard());
+      chrome.readingMode.updateWordsHeard(this.model_.getWordsHeard());
     }
   }
 
@@ -697,7 +679,7 @@ export class SpeechController {
       // invalid-argument can be triggered when the rate, pitch, or volume
       // is not supported by the synthesizer. Since we're only setting the
       // speech rate, update the speech rate to the WebSpeech default of 1.
-      this.audioBrowserProxy_.onSpeechRateChange(1);
+      chrome.readingMode.onSpeechRateChange(1);
       this.onSpeechSettingsChange();
       return;
     }
@@ -706,8 +688,7 @@ export class SpeechController {
     // button state, and highlighting in order to give visual feedback that
     // something went wrong.
     // TODO: crbug.com/40927698 - Consider showing an error message.
-    this.logger_.logSpeechStopSource(
-        this.audioBrowserProxy_.getEngineErrorStopSource());
+    this.logger_.logSpeechStopSource(chrome.readingMode.engineErrorStopSource);
     this.stopSpeech_(PauseActionSource.DEFAULT);
 
     // No appropriate voice is available for the language designated in
@@ -789,8 +770,7 @@ export class SpeechController {
           this.model_.incrementWordsHeard();
           // TODO(crbug.com/c/372890165): Consider using words heard to better
           // estimate words seen.
-          this.metricsBrowserProxy_.updateWordsHeard(
-              this.model_.getWordsHeard());
+          chrome.readingMode.updateWordsHeard(this.model_.getWordsHeard());
         }
 
         this.wordBoundaries_.updateBoundary(event.charIndex, event.charLength);
@@ -912,7 +892,7 @@ export class SpeechController {
       // ensure speech state, including the play / pause button, is
       // updated.
       this.logger_.logSpeechStopSource(
-          this.audioBrowserProxy_.getEngineInterruptStopSource());
+          chrome.readingMode.engineInterruptStopSource);
       this.stopSpeech_(PauseActionSource.ENGINE_INTERRUPT);
     }
   }
@@ -923,7 +903,7 @@ export class SpeechController {
 
     this.model_.setPauseSource(PauseActionSource.SPEECH_FINISHED);
     this.logger_.logSpeechStopSource(
-        this.audioBrowserProxy_.getContentFinishedStopSource());
+        chrome.readingMode.contentFinishedStopSource);
     this.logSpeechPlaySession_();
   }
 
@@ -1034,7 +1014,7 @@ export class SpeechController {
       // regardless of the line focus flag OR reading mode should implement
       // a better searching algorithm for finding the node in the DOM instead
       // of looking through every element one-by-one.
-      if (this.visualBrowserProxy_.isLineFocusEnabled()) {
+      if (chrome.readingMode.isLineFocusEnabled) {
         this.readAloudModel_.moveSpeechForward();
       } else {
         this.highlightCurrentGranularity_(
@@ -1074,7 +1054,7 @@ export class SpeechController {
     // match if the selection node contains the read aloud node (i.e. the read
     // aloud node is a child of the selection node) - otherwise there
     // won't be a match on the first run of playFromSelection()
-    if (this.audioBrowserProxy_.isPhraseHighlightingEnabled()) {
+    if (chrome.readingMode.isPhraseHighlightingEnabled) {
       return segments.find(
           segment => segment.node.equals(node) &&
               (segment.start + segment.length > offset));
@@ -1165,12 +1145,12 @@ export class SpeechController {
 
   private isSpeechActiveChanged_(isSpeechActive: boolean) {
     this.listeners_.forEach(l => l.onIsSpeechActiveChange());
-    this.audioBrowserProxy_.onIsSpeechActiveChanged(isSpeechActive);
+    chrome.readingMode.onIsSpeechActiveChanged(isSpeechActive);
   }
 
   private isAudioCurrentlyPlayingChanged_(isAudioCurrentlyPlaying: boolean) {
     this.listeners_.forEach(l => l.onIsAudioCurrentlyPlayingChange());
-    this.audioBrowserProxy_.onIsAudioCurrentlyPlayingChanged(
+    chrome.readingMode.onIsAudioCurrentlyPlayingChanged(
         isAudioCurrentlyPlaying);
   }
 
@@ -1180,7 +1160,7 @@ export class SpeechController {
     }
 
     message.volume = this.model_.getVolume();
-    message.lang = this.audioBrowserProxy_.getBaseLanguageForSpeech();
+    message.lang = chrome.readingMode.baseLanguageForSpeech;
     message.rate = getCurrentSpeechRate();
     this.model_.setActiveUtterance(message);
 
@@ -1198,7 +1178,7 @@ export class SpeechController {
         this.logger_.logSpeechError('timeout-engine-stalled');
         // This triggers a non-fatal C++ DUMP_WILL_BE_CHECK in
         // ReadAnythingAppController.
-        this.audioBrowserProxy_.onSpeechEngineFirstStall();
+        chrome.readingMode.onSpeechEngineFirstStall();
       }
     }, ENGINE_TIMEOUT_THRESHOLD_MS);
 
@@ -1212,7 +1192,7 @@ export class SpeechController {
         this.logger_.logSpeechError('timeout-stalled-after-recovery');
         // This triggers a non-fatal C++ DUMP_WILL_BE_CHECK in
         // ReadAnythingAppController.
-        this.audioBrowserProxy_.onSpeechEngineStalled();
+        chrome.readingMode.onSpeechEngineStalled();
         this.voiceLanguageController_.onVoicesChanged();
       }
     }, ENGINE_RECOVERY_TIMEOUT_THRESHOLD_MS);

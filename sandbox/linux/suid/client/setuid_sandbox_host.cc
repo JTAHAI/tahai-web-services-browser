@@ -18,7 +18,6 @@
 
 #include "base/command_line.h"
 #include "base/compiler_specific.h"
-#include "base/containers/span.h"
 #include "base/environment.h"
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
@@ -83,14 +82,9 @@ std::string* CreateSavedVariableName(base::cstring_view env_var) {
 // different names here so that the SUID sandbox can resolve them for the
 // renderer.
 void SaveSUIDUnsafeEnvironmentVariables(base::Environment* env) {
-  // Note: kSUIDUnsafeEnvironmentVariables is NULL-terminated.
-  for (const char* const env_var_str :
-       base::span(kSUIDUnsafeEnvironmentVariables)
-           .first<std::size(kSUIDUnsafeEnvironmentVariables) - 1>()) {
-    // SAFETY: Elements of `kSUIDUnsafeEnvironmentVariables` are static string
-    // literals and are guaranteed to be NUL-terminated.
-    const base::cstring_view env_var =
-        UNSAFE_BUFFERS(base::cstring_view(env_var_str));
+  for (unsigned i = 0; UNSAFE_TODO(kSUIDUnsafeEnvironmentVariables[i]); ++i) {
+    const base::cstring_view UNSAFE_TODO(
+        env_var(kSUIDUnsafeEnvironmentVariables[i]));
     // Get the saved environment variable corresponding to envvar.
     std::unique_ptr<std::string> saved_env_var(
         CreateSavedVariableName(env_var));

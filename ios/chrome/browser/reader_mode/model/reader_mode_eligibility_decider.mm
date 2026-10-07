@@ -50,13 +50,15 @@ ReaderModeEligibilityDecider::ReaderModeEligibilityDecider(
     web::WebState* web_state,
     ReaderModeMetricsHelper* metrics_helper)
     : web_state_(web_state), metrics_helper_(metrics_helper) {
-  OptimizationGuideService* optimization_guide_service =
-      OptimizationGuideServiceFactory::GetForProfile(
-          ProfileIOS::FromBrowserState(web_state->GetBrowserState()));
-  if (optimization_guide_service) {
-    optimization_guide_service->RegisterOptimizationTypes(
-        {optimization_guide::proto::READER_MODE_ELIGIBLE});
-    optimization_guide_decider_ = optimization_guide_service;
+  if (IsReaderModeOptimizationGuideEligibilityAvailable()) {
+    OptimizationGuideService* optimization_guide_service =
+        OptimizationGuideServiceFactory::GetForProfile(
+            ProfileIOS::FromBrowserState(web_state->GetBrowserState()));
+    if (optimization_guide_service) {
+      optimization_guide_service->RegisterOptimizationTypes(
+          {optimization_guide::proto::READER_MODE_ELIGIBLE});
+      optimization_guide_decider_ = optimization_guide_service;
+    }
   }
 }
 
@@ -65,7 +67,8 @@ ReaderModeEligibilityDecider::~ReaderModeEligibilityDecider() = default;
 void ReaderModeEligibilityDecider::HandleReaderModeHeuristicResult(
     ReaderModeHeuristicResult result) {
   if (result == ReaderModeHeuristicResult::kReaderModeEligible &&
-      optimization_guide_decider_ && eligibility_heuristic_url_.has_value()) {
+      optimization_guide_decider_ && eligibility_heuristic_url_.has_value() &&
+      IsReaderModeOptimizationGuideEligibilityAvailable()) {
     // Do additional checks.
     optimization_guide_decider_->CanApplyOptimization(
         eligibility_heuristic_url_.value(),
@@ -79,6 +82,9 @@ void ReaderModeEligibilityDecider::HandleReaderModeHeuristicResult(
 }
 
 void ReaderModeEligibilityDecider::StartDecision(const GURL& url) {
+  if (!IsReaderModeAvailable()) {
+    return;
+  }
   // Guarantee that there is only one trigger heuristic running at a time.
   ResetDecision(url);
 
@@ -153,6 +159,9 @@ void ReaderModeEligibilityDecider::SetLastCommittedUrl(const GURL& url) {
 }
 
 void ReaderModeEligibilityDecider::TriggerReaderModeHeuristic(const GURL& url) {
+  if (!IsReaderModeAvailable()) {
+    return;
+  }
   if (!CurrentPageIsEligibleForReaderMode()) {
     // If the current page does not support running the heuristic, then the
     // eligibility of the current page is already known.
@@ -174,11 +183,16 @@ void ReaderModeEligibilityDecider::TriggerReaderModeHeuristic(const GURL& url) {
 
   metrics_helper_->RecordReaderHeuristicTriggered();
   eligibility_heuristic_url_ = url;
-  main_frame->ExecuteJavaScript(
-      base::UTF8ToUTF16(dom_distiller::GetReadabilityTriggeringScript()),
-      base::BindOnce(
-          &ReaderModeEligibilityDecider::HandleReadabilityHeuristicResult,
-          weak_ptr_factory_.GetWeakPtr()));
+  if (base::FeatureList::IsEnabled(kEnableReadabilityHeuristic)) {
+    main_frame->ExecuteJavaScript(
+        base::UTF8ToUTF16(dom_distiller::GetReadabilityTriggeringScript()),
+        base::BindOnce(
+            &ReaderModeEligibilityDecider::HandleReadabilityHeuristicResult,
+            weak_ptr_factory_.GetWeakPtr()));
+  } else {
+    ReaderModeJavaScriptFeature::GetInstance()->TriggerReaderModeHeuristic(
+        main_frame);
+  }
 }
 
 void ReaderModeEligibilityDecider::HandleReadabilityHeuristicResult(

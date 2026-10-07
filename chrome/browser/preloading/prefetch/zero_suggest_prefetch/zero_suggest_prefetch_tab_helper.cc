@@ -18,7 +18,9 @@
 
 ZeroSuggestPrefetchTabHelper::ZeroSuggestPrefetchTabHelper(
     content::WebContents* web_contents)
-    : content::WebContentsObserver(web_contents) {}
+    : content::WebContentsObserver(web_contents),
+      content::WebContentsUserData<ZeroSuggestPrefetchTabHelper>(
+          *web_contents) {}
 
 ZeroSuggestPrefetchTabHelper::~ZeroSuggestPrefetchTabHelper() = default;
 
@@ -68,3 +70,5 @@ void ZeroSuggestPrefetchTabHelper::StartPrefetch() {
 
   omnibox_controller->StartZeroSuggestPrefetch();
 }
+
+WEB_CONTENTS_USER_DATA_KEY_IMPL(ZeroSuggestPrefetchTabHelper);

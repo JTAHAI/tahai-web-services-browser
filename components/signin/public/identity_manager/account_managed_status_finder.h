@@ -28,12 +28,12 @@ class AccountManagedStatusFinder : public signin::IdentityManager::Observer {
   // domain, i.e. definitely not a consumer domain. Domains such as gmail.com
   // and hotmail.com (and many others) are known to not be managed, even without
   // the more sophisticated checks implemented by this class.
-  static bool MayBeEnterpriseDomain(std::string_view email_domain);
+  static bool MayBeEnterpriseDomain(const std::string& email_domain);
 
   // Returns whether the given email address *may* belong to an enterprise
   // domain; equivalent to extracting the domain and then checking
   // `MayBeEnterpriseDomain()`.
-  static bool MayBeEnterpriseUserBasedOnEmail(std::string_view email);
+  static bool MayBeEnterpriseUserBasedOnEmail(const std::string& email);
 
   // Allows to register a domain that is recognized as non-enterprise for tests.
   // Note that `domain` needs to live until this method is invoked with nullptr.

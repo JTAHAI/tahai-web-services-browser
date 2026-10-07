@@ -16,10 +16,9 @@
 #include "components/affiliations/core/browser/affiliation_utils.h"
 #include "components/autofill/core/browser/autofill_server_prediction.h"
 #include "components/autofill/core/browser/autofill_type.h"
-#include "components/autofill/core/browser/test_utils/autofill_test_util.h"
+#include "components/autofill/core/browser/test_utils/autofill_test_utils.h"
 #include "components/password_manager/core/browser/hash_password_manager.h"
 #include "components/password_manager/core/browser/password_form.h"
-#include "components/password_manager/core/browser/password_string.h"
 
 namespace password_manager {
 std::unique_ptr<PasswordForm> PasswordFormFromData(
@@ -52,7 +51,7 @@ std::unique_ptr<PasswordForm> PasswordFormFromData(
     form->username_value = form_data.username_value;
   }
   if (form_data.password_value) {
-    form->password_value = PasswordString(form_data.password_value);
+    form->password_value = form_data.password_value;
   }
   return form;
 }
@@ -100,7 +99,7 @@ PasswordForm CreateEntry(const std::string& username,
                          PasswordForm::MatchType match_type) {
   PasswordForm form;
   form.username_value = base::ASCIIToUTF16(username);
-  form.password_value = PasswordString(base::ASCIIToUTF16(password));
+  form.password_value = base::ASCIIToUTF16(password);
   form.url = origin_url;
   form.signon_realm = origin_url.GetWithEmptyPath().spec();
   form.match_type = match_type;

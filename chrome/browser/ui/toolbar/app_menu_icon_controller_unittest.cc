@@ -14,6 +14,7 @@
 #include "chrome/browser/ui/global_error/global_error_service_factory.h"
 #include "chrome/browser/ui/ui_features.h"
 #include "chrome/browser/upgrade_detector/upgrade_detector.h"
+#include "chrome/test/base/browser_with_test_window_test.h"
 #include "chrome/test/base/testing_profile.h"
 #include "content/public/test/browser_task_environment.h"
 #include "testing/gmock/include/gmock/gmock.h"
@@ -76,10 +77,10 @@ class FakeMenuGlobalError : public GlobalError {
   bool HasMenuItem() override { return true; }
   int MenuItemCommandID() override { return 1; }
   std::u16string MenuItemLabel() override { return u"fake"; }
-  void ExecuteMenuItem(BrowserWindowInterface* /*browser*/) override {}
+  void ExecuteMenuItem(Browser* /*browser*/) override {}
   bool HasShownBubbleView() override { return false; }
   bool HasBubbleView() override { return false; }
-  void ShowBubbleView(BrowserWindowInterface* /*browser*/) override {}
+  void ShowBubbleView(Browser* browser) override {}
   GlobalErrorBubbleViewBase* GetBubbleView() override { return nullptr; }
 
  private:

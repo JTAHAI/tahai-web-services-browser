@@ -52,6 +52,8 @@ optimization_guide::proto::FormControlType ToFormControlTypeProto(
   switch (form_control_type) {
     case FormControlType::kContentEditable:
       return optimization_guide::proto::FORM_CONTROL_TYPE_CONTENT_EDITABLE;
+    case FormControlType::kInputCheckbox:
+      return optimization_guide::proto::FORM_CONTROL_TYPE_INPUT_CHECKBOX;
     case FormControlType::kInputEmail:
       return optimization_guide::proto::FORM_CONTROL_TYPE_INPUT_EMAIL;
     case FormControlType::kInputDate:
@@ -62,6 +64,8 @@ optimization_guide::proto::FormControlType ToFormControlTypeProto(
       return optimization_guide::proto::FORM_CONTROL_TYPE_INPUT_NUMBER;
     case FormControlType::kInputPassword:
       return optimization_guide::proto::FORM_CONTROL_TYPE_INPUT_PASSWORD;
+    case FormControlType::kInputRadio:
+      return optimization_guide::proto::FORM_CONTROL_TYPE_INPUT_RADIO;
     case FormControlType::kInputSearch:
       return optimization_guide::proto::FORM_CONTROL_TYPE_INPUT_SEARCH;
     case FormControlType::kInputTelephone:
@@ -74,6 +78,8 @@ optimization_guide::proto::FormControlType ToFormControlTypeProto(
       return optimization_guide::proto::FORM_CONTROL_TYPE_SELECT_ONE;
     case FormControlType::kTextArea:
       return optimization_guide::proto::FORM_CONTROL_TYPE_TEXT_AREA;
+    case FormControlType::kInputHiddenEmailVerification:
+      return optimization_guide::proto::FORM_CONTROL_TYPE_INPUT_HIDDEN;
   }
   NOTREACHED();
 }

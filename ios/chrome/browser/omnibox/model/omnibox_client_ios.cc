@@ -141,10 +141,6 @@ bool OmniboxClientIOS::ShouldSkipZeroSuggestRequest() const {
   return false;
 }
 
-bool OmniboxClientIOS::ShouldSuppressVerbatimSuggestion() const {
-  return false;
-}
-
 GURL OmniboxClientIOS::GetContextualTasksInnerFrameURL() const {
   return GURL();
 }

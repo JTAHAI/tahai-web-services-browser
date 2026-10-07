@@ -17,13 +17,11 @@ import org.chromium.base.supplier.NonNullObservableSupplier;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.bookmarks.R;
-import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.lifecycle.ActivityLifecycleDispatcher;
 import org.chromium.chrome.browser.lifecycle.ConfigurationChangedObserver;
 import org.chromium.chrome.browser.preferences.Pref;
 import org.chromium.chrome.browser.preferences.PrefServiceUtil;
 import org.chromium.chrome.browser.profiles.Profile;
-import org.chromium.components.bookmarks.BookmarkBarVisibilityState;
 import org.chromium.components.prefs.PrefChangeRegistrar;
 import org.chromium.components.prefs.PrefChangeRegistrar.PrefObserver;
 
@@ -48,15 +46,6 @@ public class BookmarkBarVisibilityProvider {
          * @param visibility The new (now current) visibility of the Bookmark Bar.
          */
         default void onVisibilityChanged(boolean visibility) {}
-
-        /**
-         * Called when the visibility state of the Bookmark Bar changes. Note: Only relevant when
-         * the tri-state feature flag is enabled.
-         *
-         * @param visibilityState The new (now current) visibility state of the Bookmark Bar.
-         */
-        default void onVisibilityChanged_TriState(
-                @BookmarkBarVisibilityState int visibilityState) {}
 
         /**
          * Called when the max width of a bookmark in the Bookmark Bar changes based on the
@@ -110,14 +99,11 @@ public class BookmarkBarVisibilityProvider {
 
         // On tablets we use local device prefs.
         if (!DeviceInfo.isDesktop()) {
-            // Depending on feature flag we use one of two different device preferences.
-            String devicePrefKey =
-                    ChromeFeatureList.isEnabled(ChromeFeatureList.BOOKMARKS_BAR_NTP)
-                            ? BookmarkBarConstants.BOOKMARK_BAR_BOOKMARK_BAR_VISIBILITY_STATE
-                            : BookmarkBarConstants.BOOKMARK_BAR_SHOW_BOOKMARK_BAR;
             mDevicePrefsListener =
                     (sharedPreferences, key) -> {
-                        if (key != null && key.equals(devicePrefKey)) {
+                        if (key != null
+                                && key.equals(
+                                        BookmarkBarConstants.BOOKMARK_BAR_SHOW_BOOKMARK_BAR)) {
                             processPrefChange();
                         }
                     };
@@ -156,25 +142,11 @@ public class BookmarkBarVisibilityProvider {
     }
 
     private void notifyVisibilityChange() {
-        // When the tri-state feature flag is not enabled, we use the v1 simple boolean.
-        if (!ChromeFeatureList.isEnabled(ChromeFeatureList.BOOKMARKS_BAR_NTP)) {
-            boolean visibility =
-                    BookmarkBarUtils.isBookmarkBarVisible(
-                            mActivity,
-                            mProfileSupplier.get(),
-                            mXrSpaceModeObservableSupplier.get());
-            for (BookmarkBarVisibilityObserver observer : mObservers) {
-                observer.onVisibilityChanged(visibility);
-            }
-            return;
-        }
-
-        @BookmarkBarVisibilityState
-        int visibilityState =
-                BookmarkBarUtils.getBookmarkBarVisibilityState(
+        boolean visibility =
+                BookmarkBarUtils.isBookmarkBarVisible(
                         mActivity, mProfileSupplier.get(), mXrSpaceModeObservableSupplier.get());
         for (BookmarkBarVisibilityObserver observer : mObservers) {
-            observer.onVisibilityChanged_TriState(visibilityState);
+            observer.onVisibilityChanged(visibility);
         }
     }
 
@@ -202,14 +174,8 @@ public class BookmarkBarVisibilityProvider {
         // registrar and create a new one.
         destroyPrefChangeRegistrar();
 
-        // Depending on feature flag we use one of two different UserPrefs.
-        String profilePrefKey =
-                ChromeFeatureList.isEnabled(ChromeFeatureList.BOOKMARKS_BAR_NTP)
-                        ? Pref.BOOKMARK_BAR_VISIBILITY_STATE
-                        : Pref.SHOW_BOOKMARK_BAR;
-
         mPrefChangeRegistrar = PrefServiceUtil.createFor(profile);
-        mPrefChangeRegistrar.addObserver(profilePrefKey, this::processPrefChange);
+        mPrefChangeRegistrar.addObserver(Pref.SHOW_BOOKMARK_BAR, this::processPrefChange);
 
         // Profile changes can also result in visibility changes (e.g. different setting prefs).
         notifyVisibilityChange();
@@ -222,13 +188,7 @@ public class BookmarkBarVisibilityProvider {
 
     private void destroyPrefChangeRegistrar() {
         if (mPrefChangeRegistrar != null) {
-            // Depending on feature flag we use one of two different UserPrefs.
-            String profilePrefKey =
-                    ChromeFeatureList.isEnabled(ChromeFeatureList.BOOKMARKS_BAR_NTP)
-                            ? Pref.BOOKMARK_BAR_VISIBILITY_STATE
-                            : Pref.SHOW_BOOKMARK_BAR;
-
-            mPrefChangeRegistrar.removeObserver(profilePrefKey);
+            mPrefChangeRegistrar.removeObserver(Pref.SHOW_BOOKMARK_BAR);
             mPrefChangeRegistrar.destroy();
             mPrefChangeRegistrar = null;
         }
@@ -243,6 +203,11 @@ public class BookmarkBarVisibilityProvider {
     }
 
     @Nullable PrefObserver getPrefObserverForTesting() {
-        return this::processPrefChange;
+        return new PrefObserver() {
+            @Override
+            public void onPreferenceChange() {
+                processPrefChange();
+            }
+        };
     }
 }

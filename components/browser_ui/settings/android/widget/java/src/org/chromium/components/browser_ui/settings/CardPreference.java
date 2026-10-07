@@ -13,7 +13,6 @@ import android.text.style.ClickableSpan;
 import android.util.AttributeSet;
 import android.view.Gravity;
 import android.view.View.OnClickListener;
-import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
@@ -22,6 +21,7 @@ import androidx.preference.PreferenceViewHolder;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.components.browser_ui.widget.containment.ContainmentUiUtils;
+import org.chromium.ui.widget.ChromeImageView;
 import org.chromium.ui.widget.TextViewWithClickableSpans;
 
 /**
@@ -36,8 +36,8 @@ public class CardPreference extends TextMessagePreference {
     private @Nullable OnClickListener mOnCloseClickListener;
 
     private @Nullable TextViewWithClickableSpans mDescriptionView;
-    private @Nullable ImageView mIcon;
-    private @Nullable ImageView mCloseIcon;
+    private @Nullable ChromeImageView mIcon;
+    private @Nullable ChromeImageView mCloseIcon;
     private boolean mShouldCenterIcon;
     private final int mBackgroundStyle;
     private final int mBackgroundColor;
@@ -58,8 +58,8 @@ public class CardPreference extends TextMessagePreference {
     public void onBindViewHolder(PreferenceViewHolder holder) {
         super.onBindViewHolder(holder);
         mDescriptionView = (TextViewWithClickableSpans) holder.findViewById(R.id.summary);
-        mIcon = (ImageView) holder.findViewById(R.id.icon);
-        mCloseIcon = (ImageView) holder.findViewById(R.id.close_icon);
+        mIcon = (ChromeImageView) holder.findViewById(R.id.icon);
+        mCloseIcon = (ChromeImageView) holder.findViewById(R.id.close_icon);
 
         mDescriptionView.setText(mSummary);
         ClickableSpan[] spans = mDescriptionView.getClickableSpans();

@@ -69,7 +69,7 @@ DEFINE_OWNED_UI_CLASS_PROPERTY_KEY(
     kCustomPinnedActionToolbarButtonFactoryKey)
 
 PinnedActionToolbarButton::PinnedActionToolbarButton(
-    BrowserWindowInterface* browser,
+    Browser* browser,
     actions::ActionId action_id,
     base::WeakPtr<PinnedToolbarActionsContainer> container)
     : ToolbarButton(
@@ -331,7 +331,8 @@ void PinnedActionToolbarButtonActionViewInterface::ActionItemChangedImpl(
   ButtonActionViewInterface::ActionItemChangedImpl(action_item);
 
   if (action_view_->IsIconVisible() &&
-      actions::IsActionClass<actions::StatefulImageActionItem>(action_item)) {
+      actions::IsActionItemClass<actions::StatefulImageActionItem>(
+          action_item)) {
     auto* stateful_action_item =
         static_cast<actions::StatefulImageActionItem*>(action_item);
     if (stateful_action_item->GetStatefulImage().IsVectorIcon()) {
@@ -398,7 +399,8 @@ void PinnedActionToolbarButtonActionViewInterface::OnViewChangedImpl(
   // Update the button's icon. If the action item is a stateful image action
   // item, use the stateful image. Otherwise, use the action item's image.
   ui::ImageModel image_model;
-  if (actions::IsActionClass<actions::StatefulImageActionItem>(action_item)) {
+  if (actions::IsActionItemClass<actions::StatefulImageActionItem>(
+          action_item)) {
     image_model = static_cast<actions::StatefulImageActionItem*>(action_item)
                       ->GetStatefulImage();
   } else {

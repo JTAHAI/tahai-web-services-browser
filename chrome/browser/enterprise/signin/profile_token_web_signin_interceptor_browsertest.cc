@@ -54,7 +54,7 @@ class MockDelegate : public ProfileTokenWebSigninInterceptor::Delegate {
               (override));
   MOCK_METHOD(void,
               ShowFirstRunExperienceInNewProfile,
-              (BrowserWindowInterface*,
+              (Browser*,
                const CoreAccountId&,
                WebSigninInterceptor::SigninInterceptionType),
               (override));

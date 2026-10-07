@@ -26,7 +26,6 @@ export function getHtml(this: HistoryListElement) {
         role="grid" aria-rowcount="${this.historyData_.length}"
         ?hidden="${!this.hasResults_()}"
         .scrollTarget="${this.scrollTarget}" .scrollOffset="${this.scrollOffset}"
-        @restore-list-focus="${this.onRestoreListFocus_}"
         .template='${(item: HistoryEntry, index: number, tabindex: number) =>
             html`
               <history-item tabindex="${tabindex}"
@@ -79,12 +78,6 @@ export function getHtml(this: HistoryListElement) {
               @click="${this.onMoreFromSiteClick_}">
             $i18n{moreFromSite}
           </button>
-          <button id="menuReviewGeminiActivityButton" class="dropdown-item"
-              ?hidden="${!this.canShowReviewGeminiActivity_()}"
-              @click="${this.onReviewGeminiActivityClick_}">
-            $i18n{reviewGeminiActivity}
-          </button>
-          <div class="hr" ?hidden="${!this.canShowReviewGeminiActivity_()}"></div>
           <button id="menuRemoveButton" class="dropdown-item"
               ?hidden="${!this.canDeleteHistory_}"
               ?disabled="${this.pendingDelete}"

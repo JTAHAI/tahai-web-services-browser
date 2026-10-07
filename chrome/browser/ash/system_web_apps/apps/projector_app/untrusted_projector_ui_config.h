@@ -5,17 +5,14 @@
 #ifndef CHROME_BROWSER_ASH_SYSTEM_WEB_APPS_APPS_PROJECTOR_APP_UNTRUSTED_PROJECTOR_UI_CONFIG_H_
 #define CHROME_BROWSER_ASH_SYSTEM_WEB_APPS_APPS_PROJECTOR_APP_UNTRUSTED_PROJECTOR_UI_CONFIG_H_
 
-#include <memory>
-
 #include "ash/webui/projector_app/untrusted_projector_ui.h"
-#include "ash/webui/system_apps/public/system_web_app_ui_config.h"
-
-class GURL;
+#include "content/public/browser/webui_config.h"
 
 namespace content {
+class BrowserContext;
 class WebUIDataSource;
-class WebUI;
 class WebUIController;
+class WebUI;
 }  // namespace content
 
 // Implementation of the chromeos::UntrustedProjectorUIDelegate to expose some
@@ -34,8 +31,7 @@ class ChromeUntrustedProjectorUIDelegate
 };
 
 // A webui config for the chrome-untrusted:// part of Projector.
-class UntrustedProjectorUIConfig
-    : public ash::SystemWebAppUntrustedUIConfig<ash::UntrustedProjectorUI> {
+class UntrustedProjectorUIConfig : public content::WebUIConfig {
  public:
   UntrustedProjectorUIConfig();
   UntrustedProjectorUIConfig(const UntrustedProjectorUIConfig& other) = delete;
@@ -43,7 +39,9 @@ class UntrustedProjectorUIConfig
       delete;
   ~UntrustedProjectorUIConfig() override;
 
-  // ash::SystemWebAppUntrustedUIConfig:
+  // content::WebUIConfig:
+  bool IsWebUIEnabled(content::BrowserContext* browser_context) override;
+
   std::unique_ptr<content::WebUIController> CreateWebUIController(
       content::WebUI* web_ui,
       const GURL& url) override;

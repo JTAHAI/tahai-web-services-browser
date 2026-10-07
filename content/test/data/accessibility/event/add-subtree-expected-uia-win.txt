@@ -1,3 +1,2 @@
-LayoutInvalidated on role=document
 StructureChanged/ChildAdded on role=listitem, name=item3
 StructureChanged/ChildrenReordered on role=list, name=ul

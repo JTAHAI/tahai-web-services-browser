@@ -53,9 +53,7 @@ class DownloadDriverImpl : public DownloadDriver,
       const net::NetworkTrafficAnnotationTag& traffic_annotation) override;
   void Remove(const std::string& guid, bool remove_file) override;
   void Pause(const std::string& guid) override;
-  void ResumeWithFactory(
-      const std::string& guid,
-      scoped_refptr<network::SharedURLLoaderFactory> factory) override;
+  void Resume(const std::string& guid) override;
   std::optional<DriverEntry> Find(const std::string& guid) override;
   std::set<std::string> GetActiveDownloads() override;
   size_t EstimateMemoryUsage() const override;
@@ -80,8 +78,6 @@ class DownloadDriverImpl : public DownloadDriver,
 
   void OnUploadProgress(const std::string& guid, uint64_t bytes_uploaded);
 
-  void NotifyDriverReady();
-
   void OnHardRecoverComplete(bool success);
 
   // Remove the download, used to be posted to the task queue.
@@ -98,7 +94,7 @@ class DownloadDriverImpl : public DownloadDriver,
   raw_ptr<SimpleDownloadManagerCoordinator> download_manager_coordinator_;
 
   // Whether this object is ready to handle download requests.
-  bool is_ready_ = false;
+  bool is_ready_;
 
   SEQUENCE_CHECKER(sequence_checker_);
 

@@ -10,7 +10,6 @@
 #include "chrome/browser/ash/arc/instance_throttle/arc_instance_throttle.h"
 #include "chrome/browser/ash/arc/session/arc_session_manager.h"
 #include "chrome/browser/ash/arc/test/test_arc_session_manager.h"
-#include "chrome/test/base/testing_browser_process.h"
 #include "chrome/test/base/testing_profile.h"
 #include "chromeos/ash/components/dbus/concierge/concierge_client.h"
 #include "chromeos/ash/components/dbus/dlcservice/dlcservice_client.h"
@@ -21,6 +20,7 @@
 #include "chromeos/ash/experiences/arc/session/arc_service_manager.h"
 #include "chromeos/ash/experiences/arc/test/fake_arc_session.h"
 #include "chromeos/dbus/power/power_manager_client.h"
+#include "components/sync_preferences/testing_pref_service_syncable.h"
 #include "content/public/test/browser_task_environment.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "ui/display/test/test_screen.h"
@@ -49,8 +49,9 @@ class ArcCpuThrottleObserverTest : public testing::Test {
         arc_dlc_installer_.get());
     testing_profile_ = std::make_unique<TestingProfile>();
 
-    StabilityMetricsManager::Initialize(
-        TestingBrowserProcess::GetGlobal()->local_state());
+    StabilityMetricsManager::Initialize(&local_state_);
+    prefs::RegisterLocalStatePrefs(local_state_.registry());
+    prefs::RegisterProfilePrefs(local_state_.registry());
 
     arc_metrics_service_ = ArcMetricsService::GetForBrowserContextForTesting(
         testing_profile_.get());
@@ -64,15 +65,12 @@ class ArcCpuThrottleObserverTest : public testing::Test {
   }
 
   void TearDown() override {
-    test_instance_throttle_ = nullptr;
-    arc_metrics_service_ = nullptr;
     arc::StabilityMetricsManager::Shutdown();
     testing_profile_.reset();
     session_manager_.reset();
     arc_dlc_installer_.reset();
     service_manager_.reset();
     ash::DlcserviceClient::Shutdown();
-    ash::ConciergeClient::Shutdown();
     chromeos::PowerManagerClient::Shutdown();
   }
 
@@ -85,13 +83,14 @@ class ArcCpuThrottleObserverTest : public testing::Test {
   content::BrowserTaskEnvironment task_environment_;
   display::test::TestScreen test_screen_{/*create_display=*/true,
                                          /*register_screen=*/true};
+  TestingPrefServiceSimple local_state_;
+  raw_ptr<ArcMetricsService, DanglingUntriaged> arc_metrics_service_ = nullptr;
+  ArcCpuThrottleObserver cpu_throttle_observer_;
   std::unique_ptr<ArcServiceManager> service_manager_;
   std::unique_ptr<ArcDlcInstaller> arc_dlc_installer_;
   std::unique_ptr<ArcSessionManager> session_manager_;
   std::unique_ptr<TestingProfile> testing_profile_;
-  raw_ptr<ArcMetricsService> arc_metrics_service_ = nullptr;
-  ArcCpuThrottleObserver cpu_throttle_observer_;
-  raw_ptr<ArcInstanceThrottle> test_instance_throttle_ = nullptr;
+  raw_ptr<ArcInstanceThrottle, DanglingUntriaged> test_instance_throttle_;
 };
 
 TEST_F(ArcCpuThrottleObserverTest, TestConstructDestruct) {}

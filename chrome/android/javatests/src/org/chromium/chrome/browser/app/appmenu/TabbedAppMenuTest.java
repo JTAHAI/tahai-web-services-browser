@@ -26,7 +26,6 @@ import org.junit.runner.RunWith;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
 
-import org.chromium.base.CallbackUtils;
 import org.chromium.base.ThreadUtils;
 import org.chromium.base.task.PostTask;
 import org.chromium.base.task.TaskTraits;
@@ -34,7 +33,6 @@ import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.Criteria;
 import org.chromium.base.test.util.CriteriaHelper;
-import org.chromium.base.test.util.DisableIf;
 import org.chromium.base.test.util.DisabledTest;
 import org.chromium.base.test.util.Feature;
 import org.chromium.base.test.util.Features.DisableFeatures;
@@ -115,7 +113,7 @@ public class TabbedAppMenuTest {
         mActivityTestRule.startOnUrl(TEST_URL);
 
         AppMenuTestSupport.overrideOnOptionItemSelectedListener(
-                mActivityTestRule.getAppMenuCoordinator(), CallbackUtils.emptyCallback());
+                mActivityTestRule.getAppMenuCoordinator(), _ -> {});
         mAppMenuHandler = mActivityTestRule.getAppMenuCoordinator().getAppMenuHandler();
 
         showAppMenuAndAssertMenuShown();
@@ -158,7 +156,6 @@ public class TabbedAppMenuTest {
     @Test
     @SmallTest
     @Feature({"Browser", "Main"})
-    @DisableIf.Device(DeviceFormFactor.TABLET_OR_DESKTOP) // see crbug.com/432304126
     public void testKeyboardMenuEnterOnOpen() {
         hitEnterAndAssertAppMenuDismissed();
     }

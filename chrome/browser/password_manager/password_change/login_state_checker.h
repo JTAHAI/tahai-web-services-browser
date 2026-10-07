@@ -7,20 +7,16 @@
 
 #include "base/functional/callback_forward.h"
 #include "base/memory/weak_ptr.h"
-#include "base/time/time.h"
-#include "base/timer/timer.h"
 #include "base/types/strong_alias.h"
 #include "chrome/browser/optimization_guide/optimization_guide_keyed_service.h"
+#include "chrome/browser/password_manager/password_change/model_quality_logs_uploader.h"
 #include "components/optimization_guide/content/browser/page_content_proto_provider.h"
 #include "components/optimization_guide/core/model_execution/remote_model_executor.h"
 #include "content/public/browser/web_contents_observer.h"
 
 class AnnotatedPageContentCapturer;
+class ModelQualityLogsUploader;
 class OptimizationGuideKeyedService;
-
-namespace optimization_guide::proto {
-class PasswordChangeSubmissionLoggingData;
-}  // namespace optimization_guide::proto
 
 namespace content {
 class NavigationHandle;
@@ -31,54 +27,10 @@ namespace password_manager {
 class PasswordManagerClient;
 }  // namespace password_manager
 
-struct LoginCheckResult {
-  // These values are persisted to logs. Entries should not be renumbered and
-  // numeric values should never be reused.
-  //
-  // LINT.IfChange(LoginCheckResult)
-  enum class Status {
-    kLoggedIn = 0,
-    kLoggedOut = 1,
-    kError = 2,
-    kMaxValue = kError,
-  };
-  // LINT.ThenChange(//tools/metrics/histograms/metadata/password/enums.xml:LoginCheckResult)
-
-  // These values are persisted to logs. Entries should not be renumbered and
-  // numeric values should never be reused.
-  //
-  // LINT.IfChange(LoginCheckError)
-  enum class LoginCheckError {
-    kLoginFailed = 0,
-    kForgotPasswordPage = 1,
-    kServerError = 2,
-    kFailedToParseResponse = 3,
-    kTimeout = 4,
-    kUnknown = 5,
-    kMaxValue = kUnknown,
-  };
-  // LINT.ThenChange(//tools/metrics/histograms/metadata/password/enums.xml:LoginCheckError)
-
-  LoginCheckResult();
-  LoginCheckResult(
-      Status status,
-      int state_checks_count,
-      base::TimeDelta duration,
-      std::unique_ptr<
-          optimization_guide::proto::PasswordChangeSubmissionLoggingData>
-          logging_data,
-      std::optional<LoginCheckError> error = std::nullopt);
-  ~LoginCheckResult();
-  LoginCheckResult(LoginCheckResult&&);
-  LoginCheckResult& operator=(LoginCheckResult&&);
-
-  Status status = Status::kError;
-  int state_checks_count = 0;
-  base::TimeDelta duration;
-  std::unique_ptr<
-      optimization_guide::proto::PasswordChangeSubmissionLoggingData>
-      logging_data;
-  std::optional<LoginCheckError> error;
+enum class LoginCheckResult {
+  kLoggedIn = 0,
+  kLoggedOut = 1,
+  kError = 2,
 };
 
 // Helper class which checks if the user is fully signed in on the main tab
@@ -89,11 +41,11 @@ class LoginStateChecker : public content::WebContentsObserver {
  public:
   // Maximum amount of login state checks.
   static constexpr int kMaxLoginChecks = 5;
-  static constexpr base::TimeDelta kLoginCheckTimeout = base::Minutes(5);
   using LoginStateResultCallback =
       base::RepeatingCallback<void(LoginCheckResult)>;
 
   LoginStateChecker(content::WebContents* web_contents,
+                    ModelQualityLogsUploader* logs_uploader,
                     password_manager::PasswordManagerClient* client,
                     optimization_guide::ModelExecutionServiceType service_type,
                     LoginStateResultCallback callback);
@@ -106,31 +58,21 @@ class LoginStateChecker : public content::WebContentsObserver {
 
 #if defined(UNIT_TEST)
   AnnotatedPageContentCapturer* capturer() { return capturer_.get(); }
-  void RespondWithLoginStatus(
-      LoginCheckResult::Status result,
-      std::unique_ptr<
-          optimization_guide::proto::PasswordChangeSubmissionLoggingData>
-          logging_data = nullptr) {
-    if (result == LoginCheckResult::Status::kLoggedIn) {
-      timer_.Stop();
-    }
-    result_check_callback_.Run(LoginCheckResult(
-        result, state_checks_count_, base::Time::Now() - creation_time_,
-        std::move(logging_data)));
+  void RespondWithLoginStatus(LoginCheckResult result) {
+    result_check_callback_.Run(result);
   }
 #endif
 
  private:
-  // Starts the timeout timer for login checks if Private Inference is enabled.
-  void StartTimeoutTimer();
-
   // To be called when the login checks should be terminated due
   // to max retries or an unexpected state.
-  void TerminateLoginChecks(
-      LoginCheckResult::LoginCheckError error,
+  void TerminateLoginChecks();
+
+  // Sets the quality log state based on the last check performed.
+  void SetLoginCheckQuality(
       std::unique_ptr<
           optimization_guide::proto::PasswordChangeSubmissionLoggingData>
-          logging_data = nullptr);
+          logging_data);
 
   OptimizationGuideKeyedService* GetOptimizationService();
 
@@ -159,6 +101,7 @@ class LoginStateChecker : public content::WebContentsObserver {
   const base::Time creation_time_;
   bool is_request_in_flight_ = false;
   std::optional<optimization_guide::AIPageContentResult> cached_page_content_;
+  raw_ptr<ModelQualityLogsUploader> logs_uploader_ = nullptr;
   const optimization_guide::ModelExecutionServiceType service_type_;
 
   raw_ptr<password_manager::PasswordManagerClient> client_ = nullptr;
@@ -167,8 +110,6 @@ class LoginStateChecker : public content::WebContentsObserver {
 
   // The number of login state checks performed.
   int state_checks_count_ = 0;
-
-  base::OneShotTimer timer_;
 
   base::WeakPtrFactory<LoginStateChecker> weak_ptr_factory_{this};
 };

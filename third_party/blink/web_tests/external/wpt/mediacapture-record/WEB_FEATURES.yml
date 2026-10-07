@@ -1,2 +1,3 @@
-rules:
-- "**": [mediastream-recording]
+features:
+- name: mediastream-recording
+  files: "**"

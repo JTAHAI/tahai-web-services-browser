@@ -54,8 +54,7 @@ TEST(EnterpriseConnectorsProtoTest, TriggeredRuleActionEnum) {
   // the addition of FORCE_SAVE_TO_CLOUD and KEEP_IN_MANAGED_CHROME, which are
   // not supported by Local Content Analysis Connectors, and therefore not added
   // to `SdkRule::Action`.
-  // TODO(b/325455508): Add JUSTIFICATION_REQUIRED to the SDK.
-  EXPECT_EQ(ChromiumRule::Action_ARRAYSIZE, 7);
+  EXPECT_EQ(ChromiumRule::Action_ARRAYSIZE, 6);
   EXPECT_EQ(SdkRule::Action_ARRAYSIZE, 4);
 
   EXPECT_EQ((int)ChromiumRule::ACTION_UNSPECIFIED,

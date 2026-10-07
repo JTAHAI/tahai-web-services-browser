@@ -2,10 +2,10 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import type {I18nMixinLitInterface} from 'chrome://resources/cr_elements/i18n_mixin_lit.js';
-import {I18nMixinLit} from 'chrome://resources/cr_elements/i18n_mixin_lit.js';
-import type {CrLitElement} from 'chrome://resources/lit/v3_0/lit.rollup.js';
-import {dedupingMixin} from 'chrome://resources/lit/v3_0/lit.rollup.js';
+import type {I18nMixinInterface} from 'chrome://resources/cr_elements/i18n_mixin.js';
+import {I18nMixin} from 'chrome://resources/cr_elements/i18n_mixin.js';
+import type {PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+import {dedupingMixin} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
 import type {PerformanceBrowserProxy} from '../performance_browser_proxy.js';
 import {PerformanceBrowserProxyImpl} from '../performance_browser_proxy.js';
@@ -20,26 +20,27 @@ export const TAB_DISCARD_EXCEPTIONS_MANAGED_PREF =
 type Constructor<T> = new (...args: any[]) => T;
 
 export const ExceptionValidationMixin = dedupingMixin(
-    <T extends Constructor<CrLitElement>>(superClass: T): T&
-    Constructor<ExceptionValidationMixinInterface&I18nMixinLitInterface> => {
-      const superClassBase = I18nMixinLit(superClass);
+    <T extends Constructor<PolymerElement>>(superClass: T): T&
+    Constructor<ExceptionValidationMixinInterface&
+                I18nMixinInterface> => {
+      const superClassBase = I18nMixin(superClass);
       class ExceptionValidationMixin extends superClassBase implements
           ExceptionValidationMixinInterface {
         static get properties() {
           return {
-            errorMessage: {type: String},
-            inputInvalid: {type: Boolean},
-            rule: {type: String},
-            submitDisabled: {type: Boolean, notify: true},
+            errorMessage: {type: String, value: ''},
+            inputInvalid: {type: Boolean, value: false},
+            rule: String,
+            submitDisabled: {type: Boolean, value: true, notify: true},
           };
         }
 
         private browserProxy_: PerformanceBrowserProxy =
             PerformanceBrowserProxyImpl.getInstance();
-        accessor errorMessage: string = '';
-        accessor inputInvalid: boolean = false;
-        accessor rule: string = '';
-        accessor submitDisabled: boolean = true;
+        declare errorMessage: string;
+        declare inputInvalid: boolean;
+        declare rule: string;
+        declare submitDisabled: boolean;
 
         validate() {
           const rule = this.rule.trim();

@@ -26,7 +26,6 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/common/chrome_constants.h"
 #include "chrome/common/chrome_switches.h"
-#include "content/public/browser/browser_thread.h"
 #include "extensions/buildflags/buildflags.h"
 #include "extensions/common/dom_action_types.h"
 #include "extensions/common/extension.h"
@@ -351,15 +350,19 @@ void FullStreamUIPolicy::DoDeleteDatabase() {
 
   // Not wrapped in a transaction because the deletion should happen even if
   // the vacuuming fails.
-  if (sql::Statement statement(db->GetCachedStatement(
-          SQL_FROM_HERE, "DELETE FROM activitylog_full"));
-      !statement.Run()) {
+  sql::Statement statement(
+      db->GetCachedStatement(SQL_FROM_HERE, "DELETE FROM activitylog_full"));
+  if (!statement.Run()) {
     LOG(ERROR) << "Deleting the database failed: "
                << statement.GetSQLStatement();
     return;
   }
-  if (!db->Vacuum()) {
-    LOG(ERROR) << "Vacuuming the database failed.";
+  statement.Clear();
+  statement.Assign(db->GetCachedStatement(sql::StatementID(SQL_FROM_HERE),
+                                          "VACUUM"));
+  if (!statement.Run()) {
+    LOG(ERROR) << "Vacuuming the database failed: "
+               << statement.GetSQLStatement();
   }
 }
 

@@ -9,8 +9,8 @@ import 'chrome://chrome-signin/gaia_action_buttons/gaia_action_buttons.js';
 import 'chrome://resources/polymer/v3_0/paper-spinner/paper-spinner-lite.js';
 
 import type {AuthParams} from 'chrome://chrome-signin/gaia_auth_host/authenticator.js';
+import {assert} from 'chrome://resources/ash/common/assert.js';
 import {WebUiListenerMixin} from 'chrome://resources/ash/common/cr_elements/web_ui_listener_mixin.js';
-import {assert} from 'chrome://resources/js/assert.js';
 import {PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
 import {EduCoexistenceBrowserProxyImpl} from './edu_coexistence_browser_proxy.js';
@@ -64,7 +64,7 @@ export class EduCoexistenceUi extends EduCoexistenceUiBase {
   declare loading: boolean;
   declare showGaiaButtons: boolean;
   declare showGaiaNextButton: boolean;
-  private webview_: chrome.webviewTag.WebView|null = null;
+  private webview: chrome.webviewTag.WebView;
   declare private controller: EduCoexistenceController;
 
   override ready() {
@@ -72,18 +72,17 @@ export class EduCoexistenceUi extends EduCoexistenceUiBase {
     this.addWebUiListener(
         'load-authenticator',
         (data: AuthParams) => this.loadAuthenticator(data));
-    this.webview_ = this.$.signinFrame;
+    this.webview = this.$.signinFrame;
 
-    this.webview_.addEventListener('loadabort', () => {
+    this.webview.addEventListener('loadabort', () => {
       this.loading = false;
       this.showError();
     });
 
     EduCoexistenceBrowserProxyImpl.getInstance().initializeEduArgs().then(
         (data: EduCoexistenceParams) => {
-          assert(this.webview_);
           this.controller =
-              new EduCoexistenceController(this, this.webview_, data);
+              new EduCoexistenceController(this, assert(this.webview), data);
           EduCoexistenceBrowserProxyImpl.getInstance().initializeLogin();
         },
         () => {
@@ -94,7 +93,7 @@ export class EduCoexistenceUi extends EduCoexistenceUiBase {
   }
 
   setWebviewForTest(webview: chrome.webviewTag.WebView) {
-    this.webview_ = webview;
+    this.webview = webview;
   }
 
   private showError() {
@@ -108,8 +107,7 @@ export class EduCoexistenceUi extends EduCoexistenceUiBase {
     // Set up the controller.
     this.controller.loadAuthenticator(data);
 
-    assert(this.webview_);
-    this.webview_.addEventListener('contentload', () => {
+    this.webview.addEventListener('contentload', () => {
       this.loading = false;
       this.configureUiForGaiaFlow();
     });
@@ -126,16 +124,14 @@ export class EduCoexistenceUi extends EduCoexistenceUiBase {
     }
     backButton.disabled = true;
 
-    assert(this.webview_);
-    this.webview_.back(() => {
+    this.webview.back(() => {
       // Wait a full second after the callback fires before processing another
       // click on the back button.  This delay is needed because the callback
       // fires before the content finishes navigating to the previous page.
       setTimeout(() => {
         backButton.disabled = false;
       }, 1000 /* 1 second */);
-      assert(this.webview_);
-      this.webview_.focus();
+      this.webview.focus();
     });
   }
 
@@ -143,8 +139,7 @@ export class EduCoexistenceUi extends EduCoexistenceUiBase {
    * Configures the UI for showing/hiding the GAIA login flow.
    */
   private configureUiForGaiaFlow() {
-    assert(this.webview_);
-    const currentUrl = new URL(this.webview_.src);
+    const currentUrl = new URL(this.webview.src);
     const template =
         this.shadowRoot!.querySelector('edu-coexistence-template')!;
     // const contentContainer = template!.getContentContainer();

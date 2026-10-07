@@ -20,6 +20,7 @@
 #include "chrome/browser/ash/accessibility/automation_test_utils.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/speech/speech_recognition_constants.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/test/base/interactive_test_utils.h"
 #include "chrome/test/base/ui_test_utils.h"
 #include "components/prefs/pref_service.h"

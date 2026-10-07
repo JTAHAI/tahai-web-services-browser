@@ -720,15 +720,10 @@ public class TabWindowManagerImpl implements TabWindowManager {
             TabModelSelector selector = entry.getKey();
             if (!selector.isTabStateInitialized()) continue;
 
-            for (TabModel tabModel : selector.getModels()) {
-                if (tabModel.isIncognito()
-                        && !ChromeFeatureList.sCrossWindowTabGroupOperations.isEnabled()) {
-                    continue;
-                }
-                if (TabGroupSyncUtils.isInCurrentWindow(
-                        tabModel, new LocalTabGroupId(tabGroupId))) {
-                    return entry.getValue();
-                }
+            TabModel tabModel = selector.getModel(/* incognito= */ false);
+
+            if (TabGroupSyncUtils.isInCurrentWindow(tabModel, new LocalTabGroupId(tabGroupId))) {
+                return entry.getValue();
             }
         }
 

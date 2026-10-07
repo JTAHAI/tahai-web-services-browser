@@ -27,22 +27,23 @@ FirstPartySetsHandlerDatabaseHelper::~FirstPartySetsHandlerDatabaseHelper() =
 base::flat_set<net::SchemefulSite>
 FirstPartySetsHandlerDatabaseHelper::ComputeSetsDiff(
     const net::GlobalFirstPartySets& old_sets,
-    const net::GlobalFirstPartySets& current_sets) {
+    const net::FirstPartySetsContextConfig& old_config,
+    const net::GlobalFirstPartySets& current_sets,
+    const net::FirstPartySetsContextConfig& current_config) {
   // TODO(crbug.com/40186153): For now we don't clear site data if FPSs
   // is disabled. This may change with future feature ruquest.
-  if (old_sets.empty() || current_sets.empty()) {
+  if ((old_sets.empty() && old_config.empty()) ||
+      (current_sets.empty() && current_config.empty())) {
     return {};
   }
 
   std::vector<net::SchemefulSite> result;
 
   old_sets.ForEachEffectiveSetEntry(
-      net::FirstPartySetsContextConfig(),
-      [&](const net::SchemefulSite& old_member,
-          const net::FirstPartySetEntry& old_entry) {
+      old_config, [&](const net::SchemefulSite& old_member,
+                      const net::FirstPartySetEntry& old_entry) {
         std::optional<net::FirstPartySetEntry> current_entry =
-            current_sets.FindEntry(old_member,
-                                   net::FirstPartySetsContextConfig());
+            current_sets.FindEntry(old_member, current_config);
         // Look for the removed sites and the ones whose primary has changed.
         if (!current_entry.has_value() ||
             current_entry.value().primary() != old_entry.primary()) {
@@ -58,19 +59,22 @@ std::optional<
     std::pair<std::vector<net::SchemefulSite>, net::FirstPartySetsCacheFilter>>
 FirstPartySetsHandlerDatabaseHelper::UpdateAndGetSitesToClearForContext(
     const std::string& browser_context_id,
-    const net::GlobalFirstPartySets& current_sets) {
+    const net::GlobalFirstPartySets& current_sets,
+    const net::FirstPartySetsContextConfig& current_config) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   CHECK(!browser_context_id.empty());
-  std::optional<net::GlobalFirstPartySets> old_sets =
-      db_->GetGlobalSets(browser_context_id);
-  if (!old_sets.has_value()) {
+  std::optional<
+      std::pair<net::GlobalFirstPartySets, net::FirstPartySetsContextConfig>>
+      old_sets_with_config = db_->GetGlobalSetsAndConfig(browser_context_id);
+  if (!old_sets_with_config.has_value()) {
     DVLOG(1) << "Failed to get the old sites for browser_context_id="
              << browser_context_id;
     return std::nullopt;
   }
 
   base::flat_set<net::SchemefulSite> diff =
-      ComputeSetsDiff(old_sets.value(), current_sets);
+      ComputeSetsDiff(old_sets_with_config->first, old_sets_with_config->second,
+                      current_sets, current_config);
 
   if (!db_->InsertSitesToClear(browser_context_id, diff)) {
     DVLOG(1) << "Failed to update the sites to clear for browser_context_id="
@@ -99,20 +103,21 @@ void FirstPartySetsHandlerDatabaseHelper::UpdateClearStatusForContext(
 
 void FirstPartySetsHandlerDatabaseHelper::PersistSets(
     const std::string& browser_context_id,
-    const net::GlobalFirstPartySets& sets) {
+    const net::GlobalFirstPartySets& sets,
+    const net::FirstPartySetsContextConfig& config) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   CHECK(!browser_context_id.empty());
-  if (!db_->PersistSets(browser_context_id, sets)) {
+  if (!db_->PersistSets(browser_context_id, sets, config))
     DVLOG(1) << "Failed to write sets into the database.";
-  }
 }
 
-std::optional<net::GlobalFirstPartySets>
-FirstPartySetsHandlerDatabaseHelper::GetGlobalSetsForTesting(
+std::optional<
+    std::pair<net::GlobalFirstPartySets, net::FirstPartySetsContextConfig>>
+FirstPartySetsHandlerDatabaseHelper::GetGlobalSetsAndConfigForTesting(
     const std::string& browser_context_id) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   CHECK(!browser_context_id.empty());
-  return db_->GetGlobalSets(browser_context_id);
+  return db_->GetGlobalSetsAndConfig(browser_context_id);
 }
 
 // Wraps FirstPartySetsDatabase::HasEntryInBrowserContextsClearedForTesting.

@@ -45,13 +45,11 @@
 #include "chrome/browser/ui/bookmarks/bookmark_drag_drop.h"
 #include "chrome/browser/ui/bookmarks/bookmark_ui_operations_helper.h"
 #include "chrome/browser/ui/bookmarks/bookmark_utils_desktop.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/navigator/browser_navigator.h"
-#include "chrome/browser/ui/navigator/browser_navigator_params.h"
 #include "chrome/browser/ui/select_file_policy/chrome_select_file_policy.h"
 #include "chrome/browser/ui/tabs/split_tab_metrics.h"
-#include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/window_sizer/window_sizer.h"
 #include "chrome/browser/undo/bookmark_undo_service_factory.h"
 #include "chrome/common/chrome_paths.h"
@@ -577,7 +575,7 @@ BookmarkManagerPrivateIsActiveTabInSplitFunction::RunOnReady() {
     return RespondNow(Error(ExtensionTabUtil::kNoCurrentWindowError));
   }
 
-  BrowserWindowInterface* browser = window_controller->GetBrowser();
+  Browser* browser = window_controller->GetBrowser();
   if (!browser) {
     return RespondNow(Error(kInvalidBrowserError));
   }
@@ -838,7 +836,8 @@ BookmarkManagerPrivateOpenInNewTabFunction::RunOnReady() {
     BrowserWindowInterface* browser =
         browser_window_util::GetBrowserForTabContents(*new_contents);
     if (browser) {
-      TabStripModel* tab_strip = browser->GetTabStripModel();
+      TabStripModel* tab_strip =
+          browser->GetBrowserForMigrationOnly()->tab_strip_model();
       const int new_tab_index = tab_strip->GetIndexOfWebContents(new_contents);
       // Handle the situation where the bookmark is opened in a different window
       // (happens when opening certain internal pages in incognito mode)
@@ -960,7 +959,7 @@ BookmarkManagerPrivateOpenInNewTabGroupFunction::RunOnReady() {
     return RespondNow(Error(ExtensionTabUtil::kNoCurrentWindowError));
   }
 
-  BrowserWindowInterface* browser = window_controller->GetBrowser();
+  Browser* browser = window_controller->GetBrowser();
   if (!browser) {
     return RespondNow(Error(kInvalidBrowserError));
   }

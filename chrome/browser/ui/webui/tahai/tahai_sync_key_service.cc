@@ -448,8 +448,7 @@ void TahaiSyncKeyService::OnEncryptorReady(
         .Run(TahaiSyncKeyResult::kPersistenceFailed, std::nullopt);
     return;
   }
-  const auto* committed =
-      prefs_->GetRawUserPrefValue(prefs::kTahaiSyncKeyring);
+  const auto* committed = prefs_->GetRawUserPrefValue(prefs::kTahaiSyncKeyring);
   if (!persisted || !still_authorized ||
       prefs_->IsManagedPreference(prefs::kTahaiSyncKeyring) || !committed ||
       !committed->is_dict() || committed->GetDict() != persisted_snapshot) {

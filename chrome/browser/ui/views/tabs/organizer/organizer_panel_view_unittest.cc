@@ -10,17 +10,14 @@
 #include "base/memory/raw_ptr.h"
 #include "base/test/mock_callback.h"
 #include "base/test/scoped_feature_list.h"
-#include "base/values.h"
 #include "build/build_config.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/actions/chrome_action_id.h"
 #include "chrome/browser/ui/browser_window/test/mock_browser_window_interface.h"
 #include "chrome/browser/ui/tabs/organizer/organizer_panel_state_controller.h"
-#include "chrome/browser/ui/views/tabs/organizer/organizer_panel_utils.h"
 #include "chrome/test/base/testing_profile.h"
 #include "chrome/test/views/chrome_views_test_base.h"
 #include "components/keyed_service/content/browser_context_dependency_manager.h"
-#include "content/public/test/test_renderer_host.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "ui/actions/actions.h"
@@ -29,7 +26,6 @@
 #include "ui/gfx/animation/animation.h"
 #include "ui/gfx/animation/slide_animation.h"
 #include "ui/views/controls/button/label_button.h"
-#include "ui/views/test/views_test_utils.h"
 #include "ui/views/view_utils.h"
 
 class OrganizerPanelViewTest : public ChromeViewsTestBase {
@@ -94,7 +90,6 @@ class OrganizerPanelViewTest : public ChromeViewsTestBase {
 
  private:
   testing::NiceMock<MockBrowserWindowInterface> mock_browser_window_interface_;
-  content::RenderViewHostTestEnabler rvh_test_enabler_;
   std::unique_ptr<TestingProfile> profile_;
   ui::UnownedUserDataHost unowned_user_data_host_;
   std::unique_ptr<actions::ActionItem> root_action_item_;
@@ -235,71 +230,4 @@ TEST_F(OrganizerPanelViewTest, CloseButtonFadeWhenExpandingOnMac) {
   organizer_panel_view()->AnimationProgressed(&animation);
   EXPECT_FLOAT_EQ(1.0f, organizer_button->layer()->opacity());
 #endif
-}
-
-TEST_F(OrganizerPanelViewTest, WebViewExtendsToEdges) {
-  CreateView();
-  organizer_panel_view()->SetBounds(0, 0, 300, 600);
-  organizer_panel_view()->SetTargetWidth(300);
-  views::test::RunScheduledLayout(organizer_panel_view());
-
-  auto* web_view = organizer_panel_view()->web_view_for_testing();
-  ASSERT_TRUE(web_view);
-  auto* container = organizer_panel_view()->content_container_for_testing();
-  ASSERT_TRUE(container);
-
-  // WebView should extend to the left (x = 0), right (width = container width),
-  // and bottom (y + height = container height).
-  EXPECT_EQ(web_view->bounds().x(), 0);
-  EXPECT_EQ(web_view->bounds().width(), container->bounds().width());
-  EXPECT_EQ(web_view->bounds().bottom(), container->bounds().height());
-}
-
-TEST_F(OrganizerPanelViewTest, NoWebViewWhenExtensionSidePanelFlagEnabled) {
-  base::test::ScopedFeatureList feature_list;
-  feature_list.InitAndEnableFeature(
-      organizer_panel::kShowExtensionsSidePanelUiInOrganizerPanel);
-
-  CreateView();
-  EXPECT_EQ(organizer_panel_view()->web_view_for_testing(), nullptr);
-#if BUILDFLAG(ENABLE_EXTENSIONS)
-  EXPECT_TRUE(
-      organizer_panel_view()->has_extension_observer_helper_for_testing());
-#endif
-}
-
-TEST_F(OrganizerPanelViewTest, DefaultWebViewCreatedWhenFlagDisabled) {
-  base::test::ScopedFeatureList feature_list;
-  feature_list.InitAndDisableFeature(
-      organizer_panel::kShowExtensionsSidePanelUiInOrganizerPanel);
-
-  CreateView();
-  EXPECT_NE(organizer_panel_view()->web_view_for_testing(), nullptr);
-#if BUILDFLAG(ENABLE_EXTENSIONS)
-  EXPECT_FALSE(
-      organizer_panel_view()->has_extension_observer_helper_for_testing());
-#endif
-}
-
-TEST_F(OrganizerPanelViewTest, ExtensionStateControllerToggleLifecycle) {
-  base::test::ScopedFeatureList feature_list;
-  feature_list.InitAndEnableFeature(
-      organizer_panel::kShowExtensionsSidePanelUiInOrganizerPanel);
-
-  CreateView();
-  OrganizerPanelView::disable_animations_for_testing();
-
-  EXPECT_FALSE(organizer_panel_view()->GetVisible());
-  EXPECT_EQ(organizer_panel_view()->web_view_for_testing(), nullptr);
-
-  // Toggle open
-  state_controller()->SetOrganizerVisible(true);
-  organizer_panel_view()->OnOrganizerPanelStateChanged(state_controller());
-  EXPECT_TRUE(organizer_panel_view()->GetVisible());
-
-  // Toggle close
-  state_controller()->SetOrganizerVisible(false);
-  organizer_panel_view()->OnOrganizerPanelStateChanged(state_controller());
-  EXPECT_FALSE(organizer_panel_view()->GetVisible());
-  EXPECT_EQ(organizer_panel_view()->web_view_for_testing(), nullptr);
 }

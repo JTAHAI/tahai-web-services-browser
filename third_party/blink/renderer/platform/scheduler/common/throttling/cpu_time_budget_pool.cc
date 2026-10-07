@@ -18,13 +18,11 @@ using base::sequence_manager::TaskQueue;
 CPUTimeBudgetPool::CPUTimeBudgetPool(
     const char* name,
     TraceableVariableController* tracing_controller,
-    base::TimeTicks now,
-    perfetto::StaticString counter_track_name,
-    perfetto::Track parent_track)
+    base::TimeTicks now)
     : BudgetPool(name),
       current_budget_level_(
           base::TimeDelta(),
-          MakeCounterTrack(counter_track_name, this, parent_track),
+          MakeCounterTrack("RendererScheduler.BackgroundBudgetMs", this),
           tracing_controller,
           [](const base::TimeDelta& delta) { return delta.InMillisecondsF(); }),
       last_checkpoint_(now),

@@ -32,7 +32,8 @@ const CGFloat kSymbolAddBackgroundPointSize = 18;
 
 - (void)setupContentView:(UIView*)contentView {
   UIImage* plusIcon = SymbolWithPalette(
-      SymbolWithPointSize(SymbolPlusCircleFill, kSymbolAddBackgroundPointSize),
+      CustomSymbolWithPointSize(kPlusCircleFillSymbol,
+                                kSymbolAddBackgroundPointSize),
       @[
         // The color of the 'plus'.
         [UIColor whiteColor],

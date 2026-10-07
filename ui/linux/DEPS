@@ -1,6 +1,4 @@
 include_rules = [
-  "+components/dbus",
-  "+dbus",
   "+printing",
   "+third_party/skia",
   "+ui/base",

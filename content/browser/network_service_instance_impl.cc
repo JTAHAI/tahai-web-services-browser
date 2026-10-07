@@ -138,12 +138,7 @@ bool g_network_service_is_responding = false;
 // When enabled, sets the in-process network service thread to
 // base::ThreadType::kPresentation during startup.
 BASE_FEATURE(kNetworkServiceIncreasedPriorityDuringStartup,
-#if BUILDFLAG(IS_ANDROID)
-             base::FEATURE_ENABLED_BY_DEFAULT
-#else   // BUILDFLAG(IS_ANDROID)
-             base::FEATURE_DISABLED_BY_DEFAULT
-#endif  // BUILDFLAG(IS_ANDROID)
-);
+             base::FEATURE_DISABLED_BY_DEFAULT);
 
 // When enabled, sets the in-process network service thread to
 // base::ThreadType::kPresentation when the scenario indicates that the user is
@@ -390,7 +385,9 @@ network::mojom::NetworkServiceParamsPtr CreateNetworkServiceParams() {
       GetContentClient()->browser()->IsFirstPartySetsEnabled();
 
 #if BUILDFLAG(IS_LINUX)
-  if (IsOutOfProcessNetworkService()) {
+  if (base::FeatureList::IsEnabled(
+          net::features::kAddressTrackerLinuxIsProxied) &&
+      IsOutOfProcessNetworkService()) {
     auto [address_map, online_links] =
         net::NetworkChangeNotifier::GetAddressMapOwner()
             ->GetAddressTrackerLinux()

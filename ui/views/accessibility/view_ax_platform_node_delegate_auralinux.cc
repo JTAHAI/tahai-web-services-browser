@@ -241,9 +241,6 @@ gfx::NativeViewAccessible ViewAXPlatformNodeDelegateAuraLinux::GetParent()
   Widget* parent_widget =
       GetWidgetOfParentWindowIncludingTransient(view()->GetWidget());
   if (parent_widget) {
-    if (IsInHiddenWidget()) {
-      return gfx::NativeViewAccessible();
-    }
     return parent_widget->GetRootView()->GetNativeViewAccessible();
   }
 

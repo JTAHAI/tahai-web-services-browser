@@ -4,8 +4,7 @@
       "win",
       "linux",
       "mac",
-      "chromeos",
-      "android"
+      "chromeos"
     ],
     "simple_policy_pref_mapping_test": {
       "pref_name": "devtools.availability_allowlist",

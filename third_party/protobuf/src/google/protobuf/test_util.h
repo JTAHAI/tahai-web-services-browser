@@ -1139,7 +1139,8 @@ inline void TestUtil::ReflectionTester::RemoveLastRepeatedsViaReflection(
 
   std::vector<const FieldDescriptor*> output;
   reflection->ListFields(*message, &output);
-  for (const FieldDescriptor* field : output) {
+  for (int i = 0; i < output.size(); ++i) {
+    const FieldDescriptor* field = output[i];
     if (!field->is_repeated()) continue;
 
     reflection->RemoveLast(message, field);
@@ -1152,7 +1153,8 @@ inline void TestUtil::ReflectionTester::ReleaseLastRepeatedsViaReflection(
 
   std::vector<const FieldDescriptor*> output;
   reflection->ListFields(*message, &output);
-  for (const FieldDescriptor* field : output) {
+  for (int i = 0; i < output.size(); ++i) {
+    const FieldDescriptor* field = output[i];
     if (!field->is_repeated()) continue;
     if (field->cpp_type() != FieldDescriptor::CPPTYPE_MESSAGE) continue;
 
@@ -1171,7 +1173,8 @@ inline void TestUtil::ReflectionTester::SwapRepeatedsViaReflection(
 
   std::vector<const FieldDescriptor*> output;
   reflection->ListFields(*message, &output);
-  for (const FieldDescriptor* field : output) {
+  for (int i = 0; i < output.size(); ++i) {
+    const FieldDescriptor* field = output[i];
     if (!field->is_repeated()) continue;
 
     reflection->SwapElements(message, field, 0, 1);
@@ -1185,7 +1188,8 @@ inline void TestUtil::ReflectionTester::
   std::vector<const FieldDescriptor*> fields;
   reflection->ListFields(*message, &fields);
 
-  for (const FieldDescriptor* field : fields) {
+  for (int i = 0; i < fields.size(); ++i) {
+    const FieldDescriptor* field = fields[i];
     if (field->is_required() || field->is_repeated() ||
         field->cpp_type() != FieldDescriptor::CPPTYPE_MESSAGE)
       continue;
@@ -1204,7 +1208,8 @@ inline void TestUtil::ReflectionTester::
   std::vector<const FieldDescriptor*> fields;
   from_reflection->ListFields(*from_message, &fields);
 
-  for (const FieldDescriptor* field : fields) {
+  for (int i = 0; i < fields.size(); ++i) {
+    const FieldDescriptor* field = fields[i];
     if (field->is_required() || field->is_repeated() ||
         field->cpp_type() != FieldDescriptor::CPPTYPE_MESSAGE)
       continue;
@@ -1225,8 +1230,8 @@ inline void TestUtil::ReflectionTester::ExpectMessagesReleasedViaReflection(
       "optional_foreign_message",
       "optional_import_message",
   };
-  for (const char* field : fields) {
-    Message* released = reflection->ReleaseMessage(message, F(field));
+  for (int i = 0; i < ABSL_ARRAYSIZE(fields); i++) {
+    Message* released = reflection->ReleaseMessage(message, F(fields[i]));
     switch (expected_release_state) {
       case IS_NULL:
         EXPECT_TRUE(released == nullptr);
@@ -1238,7 +1243,7 @@ inline void TestUtil::ReflectionTester::ExpectMessagesReleasedViaReflection(
         break;
     }
     delete released;
-    EXPECT_FALSE(reflection->HasField(*message, F(field)));
+    EXPECT_FALSE(reflection->HasField(*message, F(fields[i])));
   }
 }
 
@@ -1251,19 +1256,19 @@ inline void ExpectAllFieldsAndExtensionsInOrder(const std::string& serialized) {
   std::string expected;
   unittest::TestFieldOrderings message;
   message.set_my_int(1);  // Field 1.
-  ABSL_CHECK(message.AppendToString(&expected));
+  message.AppendToString(&expected);
   message.Clear();
   message.SetExtension(unittest::my_extension_int, 23);  // Field 5.
-  ABSL_CHECK(message.AppendToString(&expected));
+  message.AppendToString(&expected);
   message.Clear();
   message.set_my_string("foo");  // Field 11.
-  ABSL_CHECK(message.AppendToString(&expected));
+  message.AppendToString(&expected);
   message.Clear();
   message.SetExtension(unittest::my_extension_string, "bar");  // Field 50.
-  ABSL_CHECK(message.AppendToString(&expected));
+  message.AppendToString(&expected);
   message.Clear();
   message.set_my_float(1.0);  // Field 101.
-  ABSL_CHECK(message.AppendToString(&expected));
+  message.AppendToString(&expected);
   message.Clear();
 
   // We don't EXPECT_EQ() since we don't want to print raw bytes to stdout.

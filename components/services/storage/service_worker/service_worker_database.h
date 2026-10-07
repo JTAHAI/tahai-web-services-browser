@@ -430,12 +430,6 @@ class ServiceWorkerDatabase {
   FRIEND_TEST_ALL_PREFIXES(ServiceWorkerDatabaseTest,
                            DatabaseVersion_CorruptedSchemaVersion);
   FRIEND_TEST_ALL_PREFIXES(ServiceWorkerDatabaseTest, GetNextAvailableIds);
-  FRIEND_TEST_ALL_PREFIXES(
-      ServiceWorkerDatabaseTest,
-      GetNextAvailableIds_MissingMetadataWithRegistrations);
-  FRIEND_TEST_ALL_PREFIXES(
-      ServiceWorkerDatabaseTest,
-      GetNextAvailableIds_MissingMetadataWithRegistrations_FeatureDisabled);
   FRIEND_TEST_ALL_PREFIXES(ServiceWorkerDatabaseTest,
                            Registration_UninitializedDatabase);
   FRIEND_TEST_ALL_PREFIXES(ServiceWorkerDatabaseTest,

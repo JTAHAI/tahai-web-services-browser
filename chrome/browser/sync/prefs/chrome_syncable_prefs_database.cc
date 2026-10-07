@@ -282,7 +282,7 @@ enum {
   kBrowserColorVariant = 100220,
   kGrayscaleThemeEnabled = 100221,
   kUserColor = 100222,
-  // kBlockAll3pcToggleEnabled = 100223, (deprecated)
+  kBlockAll3pcToggleEnabled = 100223,
   // kTrackingProtectionLevel = 100224, (deprecated)
   kUserSpeakOnMuteDetectionEnabled = 100225,
   kShouldShowSpeakOnMuteOptInNudge = 100226,
@@ -333,11 +333,9 @@ enum {
   kAccessibilityFaceGazeGesturesToMacros = 100270,
   kAccessibilityFaceGazeGesturesToConfidence = 100271,
   kShelfGeminiAppPinRolls = 100272,
-  // kProfileContentSettingsExceptionsTrackingProtection = 100273, (deprecated)
-  // kProfileContentSettingsPartitionedExceptionsTrackingProtection = 100274,
-  // (deprecated)
-  // kProfileDefaultContentSettingValuesTrackingProtection = 100275,
-  // (deprecated)
+  kProfileContentSettingsExceptionsTrackingProtection = 100273,
+  kProfileContentSettingsPartitionedExceptionsTrackingProtection = 100274,
+  kProfileDefaultContentSettingValuesTrackingProtection = 100275,
   kShowForwardButton = 100276,
   kAccessibilityMagnifierFollowsSts = 100277,
   kAccessibilityReadAnythingLanguagesEnabled = 100278,
@@ -1693,6 +1691,11 @@ constexpr auto kChromeSyncablePrefsAllowlist = base::MakeFixedFlatMap<
       syncer::PREFERENCES,
       sync_preferences::PrefSensitivity::kSensitiveRequiresHistory,
       sync_preferences::MergeBehavior::kMergeableDict}},
+    {"profile.content_settings.exceptions.tracking_protection",
+     {syncable_prefs_ids::kProfileContentSettingsExceptionsTrackingProtection,
+      syncer::PREFERENCES,
+      sync_preferences::PrefSensitivity::kSensitiveRequiresHistory,
+      sync_preferences::MergeBehavior::kMergeableDict}},
     {"profile.content_settings.exceptions.window_placement",
      {syncable_prefs_ids::kProfileContentSettingsExceptionsWindowPlacement,
       syncer::PREFERENCES,
@@ -1754,6 +1757,12 @@ constexpr auto kChromeSyncablePrefsAllowlist = base::MakeFixedFlatMap<
       syncer::PREFERENCES,
       sync_preferences::PrefSensitivity::kSensitiveRequiresHistory,
       sync_preferences::MergeBehavior::kMergeableDict}},
+    {"profile.content_settings.partitioned_exceptions.tracking_protection",
+     {syncable_prefs_ids::
+          kProfileContentSettingsPartitionedExceptionsTrackingProtection,
+      syncer::PREFERENCES,
+      sync_preferences::PrefSensitivity::kSensitiveRequiresHistory,
+      sync_preferences::MergeBehavior::kMergeableDict}},
     {"profile.content_settings.partitioned_exceptions.window_placement",
      {syncable_prefs_ids::
           kProfileContentSettingsPartitionedExceptionsWindowPlacement,
@@ -1802,6 +1811,10 @@ constexpr auto kChromeSyncablePrefsAllowlist = base::MakeFixedFlatMap<
      {syncable_prefs_ids::kProfileDefaultContentSettingValuesPopups,
       syncer::PREFERENCES, sync_preferences::PrefSensitivity::kNone,
       sync_preferences::MergeBehavior::kNone}},
+    {"profile.default_content_setting_values.tracking_protection",
+     {syncable_prefs_ids::kProfileDefaultContentSettingValuesTrackingProtection,
+      syncer::PREFERENCES, sync_preferences::PrefSensitivity::kNone,
+      sync_preferences::MergeBehavior::kMergeableDict}},
     {"profile.default_content_setting_values.window_placement",
      {syncable_prefs_ids::kProfileDefaultContentSettingValuesWindowPlacement,
       syncer::PREFERENCES, sync_preferences::PrefSensitivity::kNone,
@@ -1823,6 +1836,10 @@ constexpr auto kChromeSyncablePrefsAllowlist = base::MakeFixedFlatMap<
       sync_preferences::MergeBehavior::kNone}},
     {promos_prefs::kDesktopToiOSPasswordPromoOptOut,
      {syncable_prefs_ids::kDesktopToiOSPasswordPromoOptOut, syncer::PREFERENCES,
+      sync_preferences::PrefSensitivity::kNone,
+      sync_preferences::MergeBehavior::kNone}},
+    {prefs::kBlockAll3pcToggleEnabled,
+     {syncable_prefs_ids::kBlockAll3pcToggleEnabled, syncer::PREFERENCES,
       sync_preferences::PrefSensitivity::kNone,
       sync_preferences::MergeBehavior::kNone}},
     {prefs::kHttpsFirstModeIncognito,
@@ -1923,13 +1940,14 @@ constexpr auto kChromeSyncablePrefsAllowlist = base::MakeFixedFlatMap<
 
 }  // namespace
 
-const sync_preferences::SyncablePrefMetadata*
+std::optional<sync_preferences::SyncablePrefMetadata>
 ChromeSyncablePrefsDatabase::GetSyncablePrefMetadata(
     std::string_view pref_name) const {
   const auto it = kChromeSyncablePrefsAllowlist.find(pref_name);
   if (it != kChromeSyncablePrefsAllowlist.end()) {
-    DCHECK(!common_syncable_prefs_database_.GetSyncablePrefMetadata(pref_name));
-    return &it->second;
+    DCHECK(!common_syncable_prefs_database_.GetSyncablePrefMetadata(pref_name)
+                .has_value());
+    return it->second;
   }
   // Check in `common_syncable_prefs_database_`.
   return common_syncable_prefs_database_.GetSyncablePrefMetadata(pref_name);

@@ -4,10 +4,9 @@
 
 #include "ui/gfx/mac/display_icc_profiles.h"
 
-#include "base/apple/foundation_util.h"
 #include "base/no_destructor.h"
 #include "base/notreached.h"
-#include "skia/ext/color_profile.h"
+#include "ui/gfx/icc_profile.h"
 
 namespace gfx {
 
@@ -75,16 +74,15 @@ void DisplayICCProfiles::UpdateIfNeeded() {
         CGColorSpaceCopyICCData(cg_color_space.get()));
     if (!icc_data)
       continue;
-    auto icc_profile =
-        skia::ColorProfile::Make(base::apple::CFDataToSpan(icc_data.get()));
+    ICCProfile icc_profile = ICCProfile::FromData(
+        CFDataGetBytePtr(icc_data.get()), CFDataGetLength(icc_data.get()));
+    ColorSpace color_space = icc_profile.GetColorSpace();
     // If the ICC profile isn't accurately parametrically approximated, then
     // don't store its data (we will assign the best parametric fit to
     // IOSurfaces, and rely on the system compositor to do conversion to the
     // display profile).
-    if (!icc_profile || !icc_profile->IsSkColorSpaceExact())
-      continue;
-    ColorSpace color_space(icc_profile->GetSkColorSpace().get());
-    map_[color_space] = icc_data;
+    if (color_space.IsValid() && icc_profile.IsColorSpaceAccurate())
+      map_[color_space] = icc_data;
   }
 }
 

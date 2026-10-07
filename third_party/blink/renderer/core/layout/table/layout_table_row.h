@@ -46,7 +46,6 @@ class CORE_EXPORT LayoutTableRow : public LayoutBlock {
 
   void StyleDidChange(StyleDifference diff,
                       const ComputedStyle* old_style,
-                      const ComputedStyle& new_style,
                       const StyleChangeContext&) override;
 
   LayoutBox* CreateAnonymousBoxWithSameTypeAs(

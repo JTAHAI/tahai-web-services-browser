@@ -6,7 +6,6 @@ module viz.mojom;
 
 import "services/viz/public/mojom/compositing/frame_sink_id.mojom";
 import "ui/gfx/geometry/mojom/geometry.mojom";
-import "ui/gfx/mojom/rrect_f.mojom";
 import "ui/gfx/mojom/transform.mojom";
 
 // Corresponds to viz::AggregatedHitTestRegion.
@@ -17,7 +16,7 @@ struct AggregatedHitTestRegion {
 
   uint32 async_hit_test_reasons;
 
-  gfx.mojom.RRectF rect;
+  gfx.mojom.Rect rect;
 
   uint32 child_count;
 

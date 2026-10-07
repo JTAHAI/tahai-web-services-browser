@@ -6,7 +6,6 @@
 to clientAuth. Neither the root nor the intermediate have an EKU."""
 
 import sys
-
 sys.path += ['../..']
 
 import gencerts

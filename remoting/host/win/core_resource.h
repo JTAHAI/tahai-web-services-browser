@@ -32,8 +32,6 @@
 #define IDS_OPEN_DEFAULT_APPS_SETTINGS_BUTTON 122
 #define IDS_CANCEL 123
 #define IDS_URL_FORWARDER_INCORRECTLY_CONFIGURED 124
-#define IDS_MOVE_TO_TOP_BUTTON 125
-#define IDS_MOVE_TO_BOTTOM_BUTTON 126
 
 #define IDC_DISCONNECT                  1001
 #define IDC_DISCONNECT_SHARINGWITH      1002
@@ -41,7 +39,6 @@
 #define IDC_CONTINUE_MESSAGE            1004
 #define IDC_CONTINUE_DEFAULT            1005
 #define IDC_CONTINUE_CANCEL             1007
-#define IDC_TOGGLE_ALIGNMENT 1008
 
 // Next default values for new objects
 //

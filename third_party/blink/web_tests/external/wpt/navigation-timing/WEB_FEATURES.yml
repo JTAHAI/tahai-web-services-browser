@@ -1,2 +1,3 @@
-rules:
-- "**": [navigation-timing]
+features:
+- name: navigation-timing
+  files: "**"

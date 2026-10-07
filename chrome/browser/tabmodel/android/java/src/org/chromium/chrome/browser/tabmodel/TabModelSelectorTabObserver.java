@@ -8,15 +8,15 @@ import org.chromium.base.ThreadUtils;
 import org.chromium.base.task.PostTask;
 import org.chromium.base.task.TaskTraits;
 import org.chromium.build.annotations.NullMarked;
+import org.chromium.chrome.browser.tab.EmptyTabObserver;
 import org.chromium.chrome.browser.tab.Tab;
-import org.chromium.chrome.browser.tab.TabObserver;
 
 import java.util.ArrayList;
 import java.util.List;
 
 /** Observer of tab changes for all tabs owned by a {@link TabModelSelector}. */
 @NullMarked
-public class TabModelSelectorTabObserver implements TabObserver {
+public class TabModelSelectorTabObserver extends EmptyTabObserver {
     private final TabModelSelectorTabRegistrationObserver mTabRegistrationObserver;
     private boolean mShouldDeferTabRegisterNotifications;
     private final List<Tab> mDeferredTabs = new ArrayList<>();
@@ -43,7 +43,7 @@ public class TabModelSelectorTabObserver implements TabObserver {
         // constructor of the inherited classes are completed and the relevant local
         // variables are ready.
         // TODO(jinsukkim): Consider making this class final, and introducing an inner
-        //     class that implements TabObserver + provides onTab[Un]Registered instead.
+        //     class that extends EmptyTabObserver + provides onTab[Un]Registered instead.
         ThreadUtils.getUiThreadHandler()
                 .postAtFrontOfQueue(
                         () -> {

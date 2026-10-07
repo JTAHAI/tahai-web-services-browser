@@ -5,7 +5,6 @@
 #include "chrome/browser/ui/pdf/infobar/pdf_infobar_controller.h"
 
 #include <optional>
-#include <utility>
 
 #include "base/feature_list.h"
 #include "base/functional/callback.h"
@@ -32,14 +31,12 @@
 #include "chrome/grit/generated_resources.h"
 #include "components/infobars/content/content_infobar_manager.h"
 #include "components/infobars/core/infobar.h"
-#include "components/omnibox/browser/vector_icons.h"
 #include "components/prefs/pref_service.h"
 #include "components/tabs/public/tab_interface.h"
 #include "components/vector_icons/vector_icons.h"
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/web_contents.h"
 #include "ui/base/l10n/l10n_util.h"
-#include "ui/base/ui_base_features.h"
 
 #if BUILDFLAG(IS_WIN)
 #include "chrome/install_static/install_util.h"
@@ -161,9 +158,7 @@ PdfInfoBarController* PdfInfoBarController::From(
 void PdfInfoBarController::RegisterInfoBarSpec() {
   auto* browser_infobar_manager =
       infobars::BrowserInfoBarManager::From(g_browser_process);
-  if (!browser_infobar_manager ||
-      browser_infobar_manager->IsRegistered(
-          infobars::InfoBarDelegate::PDF_INFOBAR_DELEGATE)) {
+  if (!browser_infobar_manager) {
     return;
   }
 
@@ -172,33 +167,45 @@ void PdfInfoBarController::RegisterInfoBarSpec() {
           infobars::InfoBarDelegate::PDF_INFOBAR_DELEGATE)
           .SetMessageText(l10n_util::GetStringUTF16(IDS_PDF_INFOBAR_TEXT))
           .SetIcon(vector_icons::kProductRefreshIcon)
-          .SetDarkModeIcon(features::IsRoundedIconsEnabled()
-                               ? omnibox::kChromeProductIcon
-                               : omnibox::kProductChromeRefreshOldIcon)
           .SetScope(infobars::InfoBarScope::kTab)
-          .AddOkButton(l10n_util::GetStringUTF16(
-                           IDS_DEFAULT_BROWSER_INFOBAR_OK_BUTTON_LABEL),
-                       base::BindRepeating(
-                           &PdfInfoBarController::SetAsDefaultPdfHandler))
-          .SetResultCallback(base::BindRepeating(
-              [](content::WebContents*, infobars::InfoBarResult result) {
-                switch (result) {
-                  case infobars::InfoBarResult::kAccepted:
-                    PdfInfoBarController::RecordUserInteractionHistogram(
-                        PdfInfoBarUserInteraction::kAccepted);
-                    break;
-                  case infobars::InfoBarResult::kDismissed:
-                    PdfInfoBarController::RecordUserInteractionHistogram(
-                        PdfInfoBarUserInteraction::kDismissed);
-                    break;
-                  case infobars::InfoBarResult::kIgnored:
-                    PdfInfoBarController::RecordUserInteractionHistogram(
-                        PdfInfoBarUserInteraction::kIgnored);
-                    break;
-                  case infobars::InfoBarResult::kCancelled:
-                  case infobars::InfoBarResult::kLinkClicked:
-                    // The PDF infobar has no cancel button and no links.
-                    break;
+          .AddOkButton(
+              l10n_util::GetStringUTF16(
+                  IDS_DEFAULT_BROWSER_INFOBAR_OK_BUTTON_LABEL),
+              base::BindRepeating([](content::WebContents* web_contents) {
+                if (!web_contents) {
+                  return;
+                }
+                PdfInfoBarController::RecordUserInteractionHistogram(
+                    PdfInfoBarUserInteraction::kAccepted);
+
+                tabs::TabInterface* tab =
+                    tabs::TabInterface::GetFromContents(web_contents);
+                if (tab && tab->GetBrowserWindowInterface()) {
+                  auto* controller = PdfInfoBarController::From(
+                      tab->GetBrowserWindowInterface());
+                  if (controller) {
+                    controller->set_action_taken(true);
+                  }
+                }
+
+                PdfInfoBarController::SetAsDefaultPdfHandler(web_contents);
+              }))
+          .SetDismissAction(
+              base::BindRepeating([](content::WebContents* web_contents) {
+                if (!web_contents) {
+                  return;
+                }
+                PdfInfoBarController::RecordUserInteractionHistogram(
+                    PdfInfoBarUserInteraction::kDismissed);
+
+                tabs::TabInterface* tab =
+                    tabs::TabInterface::GetFromContents(web_contents);
+                if (tab && tab->GetBrowserWindowInterface()) {
+                  auto* controller = PdfInfoBarController::From(
+                      tab->GetBrowserWindowInterface());
+                  if (controller) {
+                    controller->set_action_taken(true);
+                  }
                 }
               }))
           .Build();
@@ -252,12 +259,24 @@ void PdfInfoBarController::OnBrowserClosed(BrowserWindowInterface* browser) {
 
 void PdfInfoBarController::OnInfoBarRemoved(infobars::InfoBar* infobar,
                                             bool animate) {
-  // Only the legacy path observes the InfoBarManager.
-  if (infobar_ != infobar) {
+  if (infobar->delegate()->GetIdentifier() !=
+      infobars::InfoBarDelegate::PDF_INFOBAR_DELEGATE) {
     return;
   }
 
-  infobar_ = nullptr;
+  if (infobars::IsInfoBarMigrated(
+          infobars::InfoBarDelegate::PDF_INFOBAR_DELEGATE)) {
+    if (!action_taken_) {
+      PdfInfoBarController::RecordUserInteractionHistogram(
+          PdfInfoBarUserInteraction::kIgnored);
+    }
+  } else {
+    if (infobar_ != infobar) {
+      return;
+    }
+    infobar_ = nullptr;
+  }
+
   infobar_scoped_observation_.Reset();
 }
 
@@ -324,17 +343,24 @@ void PdfInfoBarController::MaybeShowInfoBarCallback(
 
   if (infobars::IsInfoBarMigrated(
           infobars::InfoBarDelegate::PDF_INFOBAR_DELEGATE)) {
+    // Record the shown metric only for the centralized InfoBarSpec path (since
+    // the legacy InfoBarDelegate path records it in `PdfInfoBarDelegate::Create`).
+    base::UmaHistogramBoolean("PDF.InfoBar.Shown", true);
+
+    static bool spec_registered = false;
+    if (!spec_registered) {
+      RegisterInfoBarSpec();
+      spec_registered = true;
+    }
+    action_taken_ = false;
+    if (infobar_manager) {
+      infobar_scoped_observation_.Observe(infobar_manager);
+    }
     auto* browser_infobar_manager =
         infobars::BrowserInfoBarManager::From(g_browser_process);
     if (browser_infobar_manager) {
-      RegisterInfoBarSpec();
-      auto* tab = tabs::TabInterface::MaybeGetFromContents(web_contents);
-      if (tab && browser_infobar_manager->Show(
-                     tab, infobars::InfoBarDelegate::PDF_INFOBAR_DELEGATE)) {
-        // Record the shown metric only for the centralized InfoBarSpec path
-        // (the legacy path records it in `PdfInfoBarDelegate::Create`).
-        base::UmaHistogramBoolean("PDF.InfoBar.Shown", true);
-      }
+      browser_infobar_manager->Show(
+          web_contents, infobars::InfoBarDelegate::PDF_INFOBAR_DELEGATE);
     }
   } else {
     if (infobar_manager) {

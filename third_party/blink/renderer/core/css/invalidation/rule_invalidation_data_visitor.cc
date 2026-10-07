@@ -57,7 +57,7 @@ bool SupportsInvalidation(CSSSelector::PseudoType type) {
     case CSSSelector::kPseudoState:
     case CSSSelector::kPseudoLink:
     case CSSSelector::kPseudoVisited:
-    case CSSSelector::kPseudoNavigationSource:
+    case CSSSelector::kPseudoNavSource:
     case CSSSelector::kPseudoAny:
     case CSSSelector::kPseudoWebkitAnyLink:
     case CSSSelector::kPseudoAnyLink:
@@ -194,6 +194,7 @@ bool SupportsInvalidation(CSSSelector::PseudoType type) {
     case CSSSelector::kPseudoInterestTarget:
     case CSSSelector::kPseudoHasSlotted:
     case CSSSelector::kPseudoLinkTo:
+    case CSSSelector::kPseudoActiveNavigation:
     case CSSSelector::kPseudoPlaying:
     case CSSSelector::kPseudoPaused:
     case CSSSelector::kPseudoSeeking:
@@ -203,7 +204,6 @@ bool SupportsInvalidation(CSSSelector::PseudoType type) {
     case CSSSelector::kPseudoVolumeLocked:
     case CSSSelector::kPseudoToolFormActive:
     case CSSSelector::kPseudoToolSubmitActive:
-    case CSSSelector::kPseudoSkeleton:
       return true;
     case CSSSelector::kPseudoUnknown:
     case CSSSelector::kPseudoLeftPage:

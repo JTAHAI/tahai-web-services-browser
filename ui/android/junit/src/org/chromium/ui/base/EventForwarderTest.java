@@ -40,6 +40,7 @@ import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
 import org.robolectric.annotation.Config;
+import org.robolectric.shadows.ShadowLooper;
 
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.base.test.util.Features.EnableFeatures;
@@ -50,6 +51,7 @@ import java.io.IOException;
 
 /** Tests logic in the {@link EventForwarder} class. */
 @RunWith(BaseRobolectricTestRunner.class)
+@Config(manifest = Config.NONE)
 public class EventForwarderTest {
     @Rule public final MockitoRule mMockitoRule = MockitoJUnit.rule();
 
@@ -120,7 +122,7 @@ public class EventForwarderTest {
                 new EventForwarder(NATIVE_EVENT_FORWARDER_ID, true, true, false);
         MotionEvent hoverEvent =
                 MotionEventTestUtils.getTrackpadEvent(MotionEvent.ACTION_HOVER_MOVE, 0);
-        eventForwarder.onHoverEvent(hoverEvent);
+        Assert.assertTrue(eventForwarder.onHoverEvent(hoverEvent));
         verifyNativeMouseEventSent(NATIVE_EVENT_FORWARDER_ID, hoverEvent, eventForwarder, 1);
         eventForwarder.destroy();
     }
@@ -381,94 +383,6 @@ public class EventForwarderTest {
         testCapturedPointerTrackpadMultiTouchClickEvent(3, MotionEvent.BUTTON_TERTIARY);
     }
 
-    @Test
-    public void testCapturedPointerMouseReleasePreservesActionButton() {
-        EventForwarder eventForwarder =
-                new EventForwarder(NATIVE_EVENT_FORWARDER_ID, true, true, false);
-        MotionEvent.PointerProperties properties = new MotionEvent.PointerProperties();
-        properties.id = 0;
-        properties.toolType = MotionEvent.TOOL_TYPE_MOUSE;
-        MotionEvent.PointerCoords coords = new MotionEvent.PointerCoords();
-        MotionEvent event =
-                spy(
-                        MotionEvent.obtain(
-                                /* downTime= */ 0,
-                                /* eventTime= */ 0,
-                                MotionEvent.ACTION_BUTTON_RELEASE,
-                                /* pointerCount= */ 1,
-                                new MotionEvent.PointerProperties[] {properties},
-                                new MotionEvent.PointerCoords[] {coords},
-                                /* metaState= */ 0,
-                                /* buttonState= */ MotionEvent.BUTTON_SECONDARY,
-                                /* xPrecision= */ 1f,
-                                /* yPrecision= */ 1f,
-                                /* deviceId= */ 1,
-                                /* edgeFlags= */ 0,
-                                InputDevice.SOURCE_MOUSE_RELATIVE,
-                                /* flags= */ 0));
-        doReturn(MotionEvent.BUTTON_SECONDARY).when(event).getActionButton();
-        long eventTimeNanos = MotionEventUtils.getEventTimeNanos(event);
-
-        eventForwarder.onCapturedPointerEvent(event, Surface.ROTATION_0);
-
-        ArgumentCaptor<MotionEvent> captor = ArgumentCaptor.forClass(MotionEvent.class);
-        verify(mNativeMock)
-                .onMouseEvent(
-                        eq(NATIVE_EVENT_FORWARDER_ID),
-                        captor.capture(),
-                        eq(eventTimeNanos),
-                        eq(MotionEvent.ACTION_BUTTON_RELEASE),
-                        eq(MotionEvent.BUTTON_SECONDARY),
-                        eq(MotionEvent.TOOL_TYPE_MOUSE));
-        Assert.assertEquals(0, captor.getValue().getButtonState());
-        eventForwarder.destroy();
-    }
-
-    @Test
-    public void testCapturedPointerRelativeTrackpadReleaseUsesButtonStateFallback() {
-        EventForwarder eventForwarder =
-                new EventForwarder(NATIVE_EVENT_FORWARDER_ID, true, true, false);
-        MotionEvent.PointerProperties properties = new MotionEvent.PointerProperties();
-        properties.id = 0;
-        properties.toolType = MotionEvent.TOOL_TYPE_FINGER;
-        MotionEvent.PointerCoords coords = new MotionEvent.PointerCoords();
-        MotionEvent event =
-                spy(
-                        MotionEvent.obtain(
-                                /* downTime= */ 0,
-                                /* eventTime= */ 0,
-                                MotionEvent.ACTION_BUTTON_RELEASE,
-                                /* pointerCount= */ 1,
-                                new MotionEvent.PointerProperties[] {properties},
-                                new MotionEvent.PointerCoords[] {coords},
-                                /* metaState= */ 0,
-                                /* buttonState= */ MotionEvent.BUTTON_SECONDARY,
-                                /* xPrecision= */ 1f,
-                                /* yPrecision= */ 1f,
-                                /* deviceId= */ 1,
-                                /* edgeFlags= */ 0,
-                                InputDevice.SOURCE_MOUSE_RELATIVE,
-                                /* flags= */ 0));
-        // Captured trackpads may report BUTTON_PRIMARY as actionButton even for a two-finger
-        // secondary click. The buttonState fallback must remain authoritative for this path.
-        doReturn(MotionEvent.BUTTON_PRIMARY).when(event).getActionButton();
-        long eventTimeNanos = MotionEventUtils.getEventTimeNanos(event);
-
-        eventForwarder.onCapturedPointerEvent(event, Surface.ROTATION_0);
-
-        ArgumentCaptor<MotionEvent> captor = ArgumentCaptor.forClass(MotionEvent.class);
-        verify(mNativeMock)
-                .onMouseEvent(
-                        eq(NATIVE_EVENT_FORWARDER_ID),
-                        captor.capture(),
-                        eq(eventTimeNanos),
-                        eq(MotionEvent.ACTION_BUTTON_RELEASE),
-                        eq(0),
-                        eq(MotionEvent.TOOL_TYPE_FINGER));
-        Assert.assertEquals(MotionEvent.BUTTON_SECONDARY, captor.getValue().getButtonState());
-        eventForwarder.destroy();
-    }
-
     private void testCapturedPointerTrackpadMultiTouchClickEvent(int pointersCnt, int buttonState) {
         EventForwarder eventForwarder =
                 new EventForwarder(NATIVE_EVENT_FORWARDER_ID, true, true, false);
@@ -554,8 +468,8 @@ public class EventForwarderTest {
                         downTime,
                         eventTime,
                         MotionEvent.ACTION_MOVE,
-                        /* x= */ 1 * PointerLockEventHelper.MOUSE_MOVEMENT_SCALE_FACTOR,
-                        /* y= */ -1 * PointerLockEventHelper.MOUSE_MOVEMENT_SCALE_FACTOR,
+                        /* x= */ 1,
+                        /* y= */ -1,
                         /* metaState= */ 0);
         expectedEvent1.setSource(InputDevice.SOURCE_MOUSE);
 
@@ -566,12 +480,8 @@ public class EventForwarderTest {
                         downTime,
                         eventTime,
                         MotionEvent.ACTION_MOVE,
-                        /* x= */ moveEvent.getX()
-                                * 2
-                                * PointerLockEventHelper.MOUSE_MOVEMENT_SCALE_FACTOR,
-                        /* y= */ moveEvent.getY()
-                                * 2
-                                * PointerLockEventHelper.MOUSE_MOVEMENT_SCALE_FACTOR,
+                        /* x= */ moveEvent.getX() * 2,
+                        /* y= */ moveEvent.getY() * 2,
                         /* metaState= */ 0);
         expectedEvent2.setSource(InputDevice.SOURCE_MOUSE);
 
@@ -812,6 +722,227 @@ public class EventForwarderTest {
                         isNull(),
                         isNull());
         histograms.assertExpected();
+        eventForwarder.destroy();
+    }
+
+    @Test
+    public void testHoverExitDelay() {
+        EventForwarder eventForwarder =
+                new EventForwarder(NATIVE_EVENT_FORWARDER_ID, true, true, false);
+
+        // 1. Enter hover
+        MotionEvent enterEvent =
+                MotionEventTestUtils.getTrackpadEvent(MotionEvent.ACTION_HOVER_ENTER, 0);
+        eventForwarder.onHoverEvent(enterEvent);
+        // Hover enter should be sent immediately if it's the first one.
+        verifyNativeMouseEventSent(NATIVE_EVENT_FORWARDER_ID, enterEvent, eventForwarder, 1);
+
+        // 2. Exit hover
+        MotionEvent exitEvent =
+                MotionEventTestUtils.getTrackpadEvent(MotionEvent.ACTION_HOVER_EXIT, 0);
+        eventForwarder.onHoverEvent(exitEvent);
+        // Hover exit should NOT be sent immediately.
+        verify(mNativeMock, never())
+                .onMouseEvent(
+                        eq(NATIVE_EVENT_FORWARDER_ID),
+                        eq(exitEvent),
+                        anyLong(),
+                        eq(MotionEvent.ACTION_HOVER_EXIT),
+                        anyInt(),
+                        anyInt());
+
+        // 3. Wait for delay (50ms)
+        ShadowLooper.idleMainLooper(50, java.util.concurrent.TimeUnit.MILLISECONDS);
+
+        // Now it should be sent.
+        verify(mNativeMock, times(1))
+                .onMouseEvent(
+                        eq(NATIVE_EVENT_FORWARDER_ID),
+                        any(MotionEvent.class),
+                        anyLong(),
+                        eq(MotionEvent.ACTION_HOVER_EXIT),
+                        anyInt(),
+                        anyInt());
+
+        eventForwarder.destroy();
+    }
+
+    @Test
+    public void testHoverExitFlushedByTouchDown() {
+        EventForwarder eventForwarder =
+                new EventForwarder(NATIVE_EVENT_FORWARDER_ID, true, true, false);
+
+        // 1. Enter hover
+        MotionEvent enterEvent =
+                MotionEventTestUtils.getTrackpadEvent(MotionEvent.ACTION_HOVER_ENTER, 0);
+        eventForwarder.onHoverEvent(enterEvent);
+        verifyNativeMouseEventSent(NATIVE_EVENT_FORWARDER_ID, enterEvent, eventForwarder, 1);
+
+        // 2. Exit hover
+        MotionEvent exitEvent =
+                MotionEventTestUtils.getTrackpadEvent(MotionEvent.ACTION_HOVER_EXIT, 0);
+        eventForwarder.onHoverEvent(exitEvent);
+
+        // 3. Touch down (before delay)
+        MotionEvent downEvent =
+                MotionEvent.obtain(
+                        0,
+                        0,
+                        MotionEvent.ACTION_DOWN,
+                        1,
+                        MotionEventTestUtils.getToolTypeFingerProperties(1),
+                        MotionEventTestUtils.getPointerCoords(1),
+                        0,
+                        0,
+                        0,
+                        0,
+                        0,
+                        0,
+                        InputDevice.SOURCE_TOUCHSCREEN,
+                        0);
+        eventForwarder.onTouchEvent(downEvent);
+
+        // Exit SHOULD be sent immediately when touch down occurs.
+        verify(mNativeMock, times(1))
+                .onMouseEvent(
+                        eq(NATIVE_EVENT_FORWARDER_ID),
+                        any(MotionEvent.class),
+                        anyLong(),
+                        eq(MotionEvent.ACTION_HOVER_EXIT),
+                        anyInt(),
+                        anyInt());
+
+        eventForwarder.destroy();
+    }
+
+    @Test
+    public void testHoverExitCancelledByButtonPress() {
+        EventForwarder eventForwarder =
+                new EventForwarder(NATIVE_EVENT_FORWARDER_ID, true, true, false);
+
+        // 1. Enter hover
+        MotionEvent enterEvent =
+                MotionEventTestUtils.getTrackpadEvent(MotionEvent.ACTION_HOVER_ENTER, 0);
+        eventForwarder.onHoverEvent(enterEvent);
+        verifyNativeMouseEventSent(NATIVE_EVENT_FORWARDER_ID, enterEvent, eventForwarder, 1);
+
+        // 2. Exit hover
+        MotionEvent exitEvent =
+                MotionEventTestUtils.getTrackpadEvent(MotionEvent.ACTION_HOVER_EXIT, 0);
+        eventForwarder.onHoverEvent(exitEvent);
+
+        // 3. Button press (before delay)
+        MotionEvent buttonPressEvent = MotionEventTestUtils.getTrackpadLeftClickEvent();
+        eventForwarder.onMouseEvent(buttonPressEvent);
+
+        // 4. Wait for delay (50ms)
+        ShadowLooper.idleMainLooper(50, java.util.concurrent.TimeUnit.MILLISECONDS);
+
+        // Exit should NEVER be sent.
+        verify(mNativeMock, never())
+                .onMouseEvent(
+                        anyLong(),
+                        any(MotionEvent.class),
+                        anyLong(),
+                        eq(MotionEvent.ACTION_HOVER_EXIT),
+                        anyInt(),
+                        anyInt());
+
+        eventForwarder.destroy();
+    }
+
+    @Test
+    public void testHoverExitCancelledByHoverEnter() {
+        EventForwarder eventForwarder =
+                new EventForwarder(NATIVE_EVENT_FORWARDER_ID, true, true, false);
+
+        // 1. Enter hover
+        MotionEvent enterEvent =
+                MotionEventTestUtils.getTrackpadEvent(MotionEvent.ACTION_HOVER_ENTER, 0);
+        eventForwarder.onHoverEvent(enterEvent);
+
+        // 2. Exit hover
+        MotionEvent exitEvent =
+                MotionEventTestUtils.getTrackpadEvent(MotionEvent.ACTION_HOVER_EXIT, 0);
+        eventForwarder.onHoverEvent(exitEvent);
+
+        // 3. Enter hover again (before delay)
+        MotionEvent enterEvent2 =
+                MotionEventTestUtils.getTrackpadEvent(MotionEvent.ACTION_HOVER_ENTER, 0);
+        eventForwarder.onHoverEvent(enterEvent2);
+
+        // 4. Wait for delay (50ms)
+        ShadowLooper.idleMainLooper(50, java.util.concurrent.TimeUnit.MILLISECONDS);
+
+        // Exit should NEVER be sent.
+        verify(mNativeMock, never())
+                .onMouseEvent(
+                        anyLong(),
+                        any(MotionEvent.class),
+                        anyLong(),
+                        eq(MotionEvent.ACTION_HOVER_EXIT),
+                        anyInt(),
+                        anyInt());
+
+        // And the second enter should NOT be sent either.
+        verify(mNativeMock, times(1))
+                .onMouseEvent(
+                        eq(NATIVE_EVENT_FORWARDER_ID),
+                        any(MotionEvent.class),
+                        anyLong(),
+                        eq(MotionEvent.ACTION_HOVER_ENTER),
+                        anyInt(),
+                        anyInt());
+
+        eventForwarder.destroy();
+    }
+
+    @Test
+    @Config(sdk = Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
+    public void testHoverExitCancelledByTrackpadScroll() {
+        EventForwarder eventForwarder =
+                new EventForwarder(NATIVE_EVENT_FORWARDER_ID, true, true, false);
+
+        // 1. Enter hover
+        MotionEvent enterEvent =
+                MotionEventTestUtils.getTrackpadEvent(MotionEvent.ACTION_HOVER_ENTER, 0);
+        Assert.assertTrue(eventForwarder.onHoverEvent(enterEvent));
+
+        // 2. Exit hover
+        MotionEvent exitEvent =
+                MotionEventTestUtils.getTrackpadEvent(MotionEvent.ACTION_HOVER_EXIT, 0);
+        Assert.assertTrue(eventForwarder.onHoverEvent(exitEvent));
+
+        // 3. Trackpad scroll down (before delay)
+        MotionEvent scrollDownEvent =
+                spy(
+                        MotionEvent.obtain(
+                                0,
+                                0,
+                                MotionEvent.ACTION_DOWN,
+                                /* x= */ 10,
+                                /* y= */ 20,
+                                /* metaState= */ 0));
+        scrollDownEvent.setSource(InputDevice.SOURCE_MOUSE);
+        doReturn(MotionEvent.CLASSIFICATION_TWO_FINGER_SWIPE)
+                .when(scrollDownEvent)
+                .getClassification();
+
+        eventForwarder.onTouchEvent(scrollDownEvent);
+
+        // 4. Wait for delay (50ms)
+        ShadowLooper.idleMainLooper(50, java.util.concurrent.TimeUnit.MILLISECONDS);
+
+        // Exit should NEVER be sent.
+        verify(mNativeMock, never())
+                .onMouseEvent(
+                        anyLong(),
+                        any(MotionEvent.class),
+                        anyLong(),
+                        eq(MotionEvent.ACTION_HOVER_EXIT),
+                        anyInt(),
+                        anyInt());
+
         eventForwarder.destroy();
     }
 }

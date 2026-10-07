@@ -19,9 +19,11 @@ class ExecutionContext;
 // of the requisite casts.
 class ScriptStateImpl final : public ScriptState {
  public:
-  ScriptStateImpl(v8::Local<v8::Context>, DOMWrapperWorld*, ExecutionContext&);
-  ScriptStateImpl(const ScriptStateImpl&) = delete;
-  ScriptStateImpl& operator=(const ScriptStateImpl&) = delete;
+  static void Init();
+
+  ScriptStateImpl(v8::Local<v8::Context>, DOMWrapperWorld*, ExecutionContext*);
+  ScriptStateImpl(const ScriptState&) = delete;
+  ScriptStateImpl& operator=(const ScriptState&) = delete;
   ~ScriptStateImpl() override = default;
   void Trace(Visitor*) const override;
 
@@ -30,6 +32,10 @@ class ScriptStateImpl final : public ScriptState {
   }
 
  private:
+  static ScriptState* Create(v8::Local<v8::Context>,
+                             DOMWrapperWorld*,
+                             ExecutionContext*);
+
   WeakMember<ExecutionContext> execution_context_;
 };
 

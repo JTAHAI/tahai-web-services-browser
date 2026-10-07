@@ -10,6 +10,7 @@
 #include "chrome/browser/actor/tools/tools_test_util.h"
 #include "chrome/browser/page_content_annotations/multi_source_page_context_fetcher.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/common/actor.mojom.h"
 #include "chrome/test/base/ui_test_utils.h"
@@ -40,13 +41,13 @@ IN_PROC_BROWSER_TEST_F(ActorTabManagementToolBrowserTest,
                        TabManagementTool_CreateForegroundTab) {
   // Navigate the starting tab so it can be differentiated from the new tab.
   const GURL start_tab_url =
-      embedded_https_test_server().GetURL("example.com", "/actor/blank.html");
+      embedded_test_server()->GetURL("/actor/blank.html");
   ASSERT_TRUE(content::NavigateToURL(web_contents(), start_tab_url));
 
   const int initial_tab_count = browser()->tab_strip_model()->count();
 
   std::unique_ptr<ToolRequest> action =
-      MakeCreateTabRequest(browser()->GetSessionID(), /*foreground=*/true);
+      MakeCreateTabRequest(browser()->session_id(), /*foreground=*/true);
   ActResultFuture result;
   actor_task().Act(ToRequestList(action), result.GetCallback());
   ExpectOkResult(result);
@@ -60,13 +61,13 @@ IN_PROC_BROWSER_TEST_F(ActorTabManagementToolBrowserTest,
                        TabManagementTool_CreateBackgroundTab) {
   // Navigate the starting tab so it can be differentiated from the new tab.
   const GURL start_tab_url =
-      embedded_https_test_server().GetURL("example.com", "/actor/blank.html");
+      embedded_test_server()->GetURL("/actor/blank.html");
   ASSERT_TRUE(content::NavigateToURL(web_contents(), start_tab_url));
 
   const int initial_tab_count = browser()->tab_strip_model()->count();
 
   std::unique_ptr<ToolRequest> action =
-      MakeCreateTabRequest(browser()->GetSessionID(), /*foreground=*/false);
+      MakeCreateTabRequest(browser()->session_id(), /*foreground=*/false);
   ActResultFuture result;
   actor_task().Act(ToRequestList(action), result.GetCallback());
   ExpectOkResult(result);
@@ -85,7 +86,7 @@ IN_PROC_BROWSER_TEST_F(ActorTabManagementToolBrowserTest,
   // Create a new tab, ensure it's added to the set of acted on tabs.
   {
     std::unique_ptr<ToolRequest> action =
-        MakeCreateTabRequest(browser()->GetSessionID(), /*foreground=*/false);
+        MakeCreateTabRequest(browser()->session_id(), /*foreground=*/false);
     ActResultFuture result;
     actor_task().Act(ToRequestList(action), result.GetCallback());
     ExpectOkResult(result);
@@ -100,7 +101,7 @@ IN_PROC_BROWSER_TEST_F(ActorTabManagementToolBrowserTest,
   // Create a second tab, ensure it too is added to the set of acted on tabs.
   {
     std::unique_ptr<ToolRequest> action =
-        MakeCreateTabRequest(browser()->GetSessionID(), /*foreground=*/true);
+        MakeCreateTabRequest(browser()->session_id(), /*foreground=*/true);
     ActResultFuture result;
     actor_task().Act(ToRequestList(action), result.GetCallback());
     ExpectOkResult(result);
@@ -119,11 +120,11 @@ IN_PROC_BROWSER_TEST_F(
     ActorTabManagementToolBrowserTest,
     TabManagementTool_CreateForegroundTabAndEnsureScreenshotIsTaken) {
   const GURL start_tab_url =
-      embedded_https_test_server().GetURL("example.com", "/actor/blank.html");
+      embedded_test_server()->GetURL("/actor/blank.html");
   ASSERT_TRUE(content::NavigateToURL(web_contents(), start_tab_url));
 
   std::unique_ptr<ToolRequest> action =
-      MakeCreateTabRequest(browser()->GetSessionID(), /*foreground=*/true);
+      MakeCreateTabRequest(browser()->session_id(), /*foreground=*/true);
   ActResultFuture act_result;
   actor_task().Act(ToRequestList(action), act_result.GetCallback());
   ExpectOkResult(act_result);
@@ -145,7 +146,7 @@ IN_PROC_BROWSER_TEST_F(
 IN_PROC_BROWSER_TEST_F(ActorTabManagementToolBrowserTest, ActivateTab) {
   // Navigate the first tab.
   const GURL start_tab_url =
-      embedded_https_test_server().GetURL("example.com", "/actor/blank.html");
+      embedded_test_server()->GetURL("/actor/blank.html");
   ASSERT_TRUE(content::NavigateToURL(web_contents(), start_tab_url));
 
   // Create a second tab in the foreground.
@@ -171,7 +172,7 @@ IN_PROC_BROWSER_TEST_F(ActorTabManagementToolBrowserTest, ActivateTab) {
 IN_PROC_BROWSER_TEST_F(ActorTabManagementToolBrowserTest, CloseTab) {
   // Navigate the first tab.
   const GURL start_tab_url =
-      embedded_https_test_server().GetURL("example.com", "/actor/blank.html");
+      embedded_test_server()->GetURL("/actor/blank.html");
   ASSERT_TRUE(content::NavigateToURL(web_contents(), start_tab_url));
 
   // Create a second tab in the foreground.
@@ -200,7 +201,7 @@ IN_PROC_BROWSER_TEST_F(ActorTabManagementToolBrowserTest,
   // Create a new tab, ensure it's added to the set of acted on tabs.
   {
     std::unique_ptr<ToolRequest> action =
-        MakeCreateTabRequest(browser()->GetSessionID(), /*foreground=*/false);
+        MakeCreateTabRequest(browser()->session_id(), /*foreground=*/false);
     ActResultFuture result;
     actor_task().Act(ToRequestList(action), result.GetCallback());
     ExpectOkResult(result);
@@ -215,7 +216,7 @@ IN_PROC_BROWSER_TEST_F(ActorTabManagementToolBrowserTest,
   // Create a second tab, ensure it too is added to the set of acted on tabs.
   {
     std::unique_ptr<ToolRequest> action =
-        MakeCreateTabRequest(browser()->GetSessionID(), /*foreground=*/true);
+        MakeCreateTabRequest(browser()->session_id(), /*foreground=*/true);
     ActResultFuture result;
     actor_task().Act(ToRequestList(action), result.GetCallback());
     ExpectOkResult(result);

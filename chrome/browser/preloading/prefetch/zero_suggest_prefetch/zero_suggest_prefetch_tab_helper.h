@@ -8,13 +8,14 @@
 #include "chrome/browser/ui/tabs/tab_strip_model_observer.h"
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/web_contents_observer.h"
+#include "content/public/browser/web_contents_user_data.h"
 
 // Prefetches zero-prefix suggestions on opening or switching to a New Tab Page.
-// It is owned by the tab's TabFeatures.
-class ZeroSuggestPrefetchTabHelper : public content::WebContentsObserver,
-                                     public TabStripModelObserver {
+class ZeroSuggestPrefetchTabHelper
+    : public content::WebContentsObserver,
+      public content::WebContentsUserData<ZeroSuggestPrefetchTabHelper>,
+      public TabStripModelObserver {
  public:
-  explicit ZeroSuggestPrefetchTabHelper(content::WebContents* web_contents);
   ~ZeroSuggestPrefetchTabHelper() override;
 
   ZeroSuggestPrefetchTabHelper(const ZeroSuggestPrefetchTabHelper&) = delete;
@@ -32,10 +33,15 @@ class ZeroSuggestPrefetchTabHelper : public content::WebContentsObserver,
       const TabStripSelectionChange& selection) override;
 
  private:
+  explicit ZeroSuggestPrefetchTabHelper(content::WebContents* web_contents);
+
   // Starts an autocomplete prefetch request so that zero-prefix providers can
   // optionally start a prefetch request to warm up the their underlying
   // service(s) and/or optionally cache their otherwise async response.
   void StartPrefetch();
+
+  friend class content::WebContentsUserData<ZeroSuggestPrefetchTabHelper>;
+  WEB_CONTENTS_USER_DATA_KEY_DECL();
 };
 
 #endif  // CHROME_BROWSER_PRELOADING_PREFETCH_ZERO_SUGGEST_PREFETCH_ZERO_SUGGEST_PREFETCH_TAB_HELPER_H_

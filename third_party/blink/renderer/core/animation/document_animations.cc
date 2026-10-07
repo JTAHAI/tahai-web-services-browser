@@ -396,7 +396,7 @@ void DocumentAnimations::Trace(Visitor* visitor) const {
   visitor->Trace(document_);
   visitor->Trace(timelines_);
   visitor->Trace(triggers_);
-  visitor->Trace(css_animations_needing_trigger_attachment_);
+  visitor->Trace(triggered_animations_);
   visitor->Trace(global_deferred_timelines_);
 }
 
@@ -501,10 +501,8 @@ void DocumentAnimations::UpdateAnimationTriggerAttachments() {
     return;
   }
 
-  HeapHashSet<WeakMember<CSSAnimation>>
-      css_animations_needing_trigger_attachment;
-  css_animations_needing_trigger_attachment.swap(
-      css_animations_needing_trigger_attachment_);
+  HeapHashSet<WeakMember<CSSAnimation>> triggered_animations;
+  triggered_animations.swap(triggered_animations_);
 
   TriggerScopedNameMap* global_trigger_map =
       MakeGarbageCollected<TriggerScopedNameMap>();
@@ -517,12 +515,12 @@ void DocumentAnimations::UpdateAnimationTriggerAttachments() {
     }
   }
 
-  for (CSSAnimation* animation : css_animations_needing_trigger_attachment) {
+  for (CSSAnimation* animation : triggered_animations) {
     const Member<const StyleTriggerAttachmentVector>&
         animation_trigger_attachments = animation->GetTriggerAttachments();
     TriggerAttachmentMap relevant_attachments;
     if (animation_trigger_attachments) {
-      AddCSSAnimationNeedingTriggerAttachment(animation);
+      AddTriggeredAnimation(animation);
       FindRelevantTriggerAttachments(*animation, *global_trigger_map,
                                      relevant_attachments);
     }
@@ -532,9 +530,8 @@ void DocumentAnimations::UpdateAnimationTriggerAttachments() {
   }
 }
 
-void DocumentAnimations::AddCSSAnimationNeedingTriggerAttachment(
-    CSSAnimation* animation) {
-  css_animations_needing_trigger_attachment_.insert(animation);
+void DocumentAnimations::AddTriggeredAnimation(CSSAnimation* animation) {
+  triggered_animations_.insert(animation);
 }
 
 void DocumentAnimations::RetargetAnimationsForPseudoElement(

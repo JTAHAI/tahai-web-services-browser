@@ -151,7 +151,7 @@ void HistogramsMessageHandler::HandleFetchDiff(const base::ListValue& args) {
 }
 
 void HistogramsMessageHandler::RegisterMessages() {
-  CHECK_CURRENTLY_ON(BrowserThread::UI, base::NotFatalUntil::M159);
+  DCHECK_CURRENTLY_ON(BrowserThread::UI);
 
   // We can use base::Unretained() here, as both the callback and this class are
   // owned by HistogramsInternalsUI.

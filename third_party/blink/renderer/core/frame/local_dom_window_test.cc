@@ -37,7 +37,6 @@
 #include "third_party/blink/public/common/features.h"
 #include "third_party/blink/public/common/loader/referrer_utils.h"
 #include "third_party/blink/public/mojom/devtools/console_message.mojom-blink-forward.h"
-#include "third_party/blink/public/web/web_window_features.h"
 #include "third_party/blink/renderer/bindings/core/v8/isolated_world_csp.h"
 #include "third_party/blink/renderer/bindings/core/v8/v8_binding_for_core.h"
 #include "third_party/blink/renderer/core/execution_context/agent.h"
@@ -71,7 +70,6 @@ class LocalDOMWindowTest : public PageTestBase {
         blink::WebPolicyContainerPolicies(),
         mock_policy_container_host.BindNewEndpointAndPassDedicatedRemote());
     params->policy_container->policies.sandbox_flags = sandbox_flags;
-    params->initiator_state_token = base::UnguessableToken::Create();
     if ((params->policy_container->policies.sandbox_flags &
          network::mojom::blink::WebSandboxFlags::kOrigin) !=
         network::mojom::blink::WebSandboxFlags::kNone) {
@@ -362,17 +360,6 @@ TEST_F(LocalDOMWindowTest, CanExecuteScriptsDuringDetach) {
       GetFrame().DomWindow()->CanExecuteScripts(kAboutToExecuteScript));
 }
 
-TEST_F(LocalDOMWindowTest, AlwaysOnTop) {
-  LocalDOMWindow* window = GetFrame().DomWindow();
-  EXPECT_FALSE(window->alwaysOnTop());
-
-  GetFrame().GetPage()->SetAlwaysOnTop(true);
-  EXPECT_TRUE(window->alwaysOnTop());
-
-  GetFrame().GetPage()->SetAlwaysOnTop(false);
-  EXPECT_FALSE(window->alwaysOnTop());
-}
-
 TEST_F(LocalDOMWindowTest, OutgoingReferrerUrlCaching) {
   // 1. With feature enabled
   {
@@ -446,7 +433,6 @@ TEST_F(LocalDOMWindowWithSubframeTest, OutgoingReferrerUrlSrcdoc) {
   params->policy_container = std::make_unique<blink::WebPolicyContainer>(
       blink::WebPolicyContainerPolicies(),
       mock_policy_container_host.BindNewEndpointAndPassDedicatedRemote());
-  params->initiator_state_token = base::UnguessableToken::Create();
   child.Loader().CommitNavigation(std::move(params), /*extra_data=*/nullptr);
   test::RunPendingTasks();
 

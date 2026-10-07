@@ -59,6 +59,10 @@ class SessionOptions final : public base::RefCountedThreadSafe<SessionOptions> {
     return first_selected_device_;
   }
 
+  std::optional<uint32_t> batched_matmul_k_dimension_limit() const {
+    return batched_matmul_k_dimension_limit_;
+  }
+
  private:
   friend class base::RefCountedThreadSafe<SessionOptions>;
 
@@ -68,6 +72,8 @@ class SessionOptions final : public base::RefCountedThreadSafe<SessionOptions> {
   scoped_refptr<Environment> env_;
   // It's safe to keep `first_selected_device_` as `env_` owns all EP devices.
   raw_ptr<const OrtEpDevice> first_selected_device_;
+
+  std::optional<uint32_t> batched_matmul_k_dimension_limit_;
 
   // EP selection policy delegate selects EPs based on the context options.
   // Nullptr if the target EP device is specified directly.

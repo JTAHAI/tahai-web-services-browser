@@ -40,6 +40,7 @@
 #include "content/browser/renderer_host/render_frame_host_impl.h"
 #include "content/browser/web_contents/web_contents_impl.h"
 #include "content/common/frame.mojom.h"
+#include "content/public/browser/client_hints_controller_delegate.h"
 #include "content/public/browser/preloading.h"
 #include "content/public/browser/preloading_data.h"
 #include "content/public/browser/render_frame_host.h"
@@ -47,6 +48,7 @@
 #include "content/public/browser/web_contents.h"
 #include "content/public/browser/web_contents_delegate.h"
 #include "net/base/load_flags.h"
+#include "services/network/public/cpp/network_quality_tracker.h"
 #include "services/network/public/cpp/simple_url_loader.h"
 #include "third_party/abseil-cpp/absl/cleanup/cleanup.h"
 #include "third_party/blink/public/common/features.h"
@@ -109,7 +111,7 @@ bool DeviceHasEnoughMemoryForPrerender() {
       kDefaultMemoryThresholdMb);
 
   return base::SysInfo::AmountOfTotalPhysicalMemory() >
-         base::MiB(base::saturated_cast<uint64_t>(memory_threshold_mb));
+         base::MiBU(base::saturated_cast<uint64_t>(memory_threshold_mb));
 }
 
 // Create a resource request for `back_url` that only checks whether the
@@ -316,6 +318,8 @@ PreloadingEligibility ToEligibility(PrerenderFinalStatus status) {
     case PrerenderFinalStatus::kWindowClosed:
     case PrerenderFinalStatus::kOtherPrerenderedPageActivated:
       NOTREACHED();
+    case PrerenderFinalStatus::kSlowNetwork:
+      return PreloadingEligibility::kSlowNetwork;
     case PrerenderFinalStatus::kPrerenderFailedDuringPrefetch:
     case PrerenderFinalStatus::kBrowsingDataRemoved:
       NOTREACHED();
@@ -485,6 +489,21 @@ void PrerenderHostBuilder::RejectAsFailure(
   Drop();
 }
 
+bool IsSlowNetwork(WebContents* web_contents) {
+  static const base::TimeDelta kSlowNetworkThreshold =
+      features::kSuppressesPrerenderingOnSlowNetworkThreshold.Get();
+  return web_contents && web_contents->GetBrowserContext() &&
+         web_contents->GetBrowserContext()
+             ->GetClientHintsControllerDelegate() &&
+         web_contents->GetBrowserContext()
+             ->GetClientHintsControllerDelegate()
+             ->GetNetworkQualityTracker() &&
+         web_contents->GetBrowserContext()
+                 ->GetClientHintsControllerDelegate()
+                 ->GetNetworkQualityTracker()
+                 ->GetHttpRTT() > kSlowNetworkThreshold;
+}
+
 const base::FeatureParam<bool> kPrerenderScaleImmediate{
     &base::kStatefulMemoryPressure, "PrerenderScaleImmediate", true};
 
@@ -641,10 +660,20 @@ PrerenderHostId PrerenderHostRegistry::CreateAndStartHost(
     }
 
     // Don't prerender under critical memory pressure.
-    if (GetCurrentMemoryLimit() <=
-        base::MemoryLimit::CriticalPressureThreshold()) {
+    if (GetCurrentMemoryLimit() <= base::kCriticalMemoryPressureThreshold) {
       builder.RejectAsNotEligible(
           attributes, PrerenderFinalStatus::kMemoryPressureOnTrigger);
+      return PrerenderHostId();
+    }
+
+    // Disable prerendering on slow network.
+    static const bool kSuppressesPrerenderingOnSlowNetworkIsEnabled =
+        base::FeatureList::IsEnabled(
+            features::kSuppressesPrerenderingOnSlowNetwork);
+    if (kSuppressesPrerenderingOnSlowNetworkIsEnabled &&
+        IsSlowNetwork(web_contents())) {
+      builder.RejectAsNotEligible(attributes,
+                                  PrerenderFinalStatus::kSlowNetwork);
       return PrerenderHostId();
     }
 
@@ -2010,7 +2039,7 @@ bool PrerenderHostRegistry::IsAllowedToStartPrerenderingForTrigger(
 void PrerenderHostRegistry::OnUpdateMemoryLimit() {}
 
 void PrerenderHostRegistry::OnReleaseMemory() {
-  if (memory_limit() <= base::MemoryLimit::CriticalPressureThreshold()) {
+  if (memory_limit() <= base::kCriticalMemoryPressureThreshold) {
     CancelAllHosts(PrerenderFinalStatus::kMemoryPressureAfterTriggered);
     return;
   }
@@ -2082,12 +2111,14 @@ int PrerenderHostRegistry::GetScaledLimit(
       should_scale = kPrerenderScaleEmbedder.Get();
       break;
   }
-  return should_scale ? GetCurrentMemoryLimit().Scale(max_limit) : max_limit;
+  return should_scale
+             ? base::ScaleByMemoryLimit(max_limit, GetCurrentMemoryLimit())
+             : max_limit;
 }
 
-base::MemoryLimit PrerenderHostRegistry::GetCurrentMemoryLimit() const {
+int PrerenderHostRegistry::GetCurrentMemoryLimit() const {
   if (!base::FeatureList::IsEnabled(base::kStatefulMemoryPressure)) {
-    return base::MemoryLimit::Default();
+    return base::MemoryConsumer::kDefaultMemoryLimit;
   }
 
   return memory_limit();

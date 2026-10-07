@@ -510,22 +510,20 @@ pub fn check_number_bounds(num: &NumberSchema) -> Result<(), String> {
     let (minimum, exclusive_minimum) = num.get_minimum();
     let (maximum, exclusive_maximum) = num.get_maximum();
     if let (Some(min), Some(max)) = (minimum, maximum) {
-        let minimum_repr = if exclusive_minimum {
-            "exclusiveMinimum"
-        } else {
-            "minimum"
-        };
-        let maximum_repr = if exclusive_maximum {
-            "exclusiveMaximum"
-        } else {
-            "maximum"
-        };
         if min > max {
-            return Err(format!(
-                "{minimum_repr} ({min}) is greater than {maximum_repr} ({max})"
-            ));
+            return Err(format!("minimum ({min}) is greater than maximum ({max})"));
         }
         if min == max && (exclusive_minimum || exclusive_maximum) {
+            let minimum_repr = if exclusive_minimum {
+                "exclusiveMinimum"
+            } else {
+                "minimum"
+            };
+            let maximum_repr = if exclusive_maximum {
+                "exclusiveMaximum"
+            } else {
+                "maximum"
+            };
             return Err(format!(
                 "{minimum_repr} ({min}) is equal to {maximum_repr} ({max})"
             ));

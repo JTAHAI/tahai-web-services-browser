@@ -221,9 +221,8 @@ DecodeStatus H265VaapiVideoDecoderDelegate::SubmitFrameMetadata(
   FillVAPicture(&pic_param.CurrPic, std::move(pic));
 
   // Init reference pictures' array.
-  for (VAPictureHEVC& reference_frame : pic_param.ReferenceFrames) {
-    InitVAPicture(&reference_frame);
-  }
+  for (size_t i = 0; i < std::size(pic_param.ReferenceFrames); ++i)
+    InitVAPicture(UNSAFE_TODO(&pic_param.ReferenceFrames[i]));
 
   // And fill it with picture info from DPB.
   FillVARefFramesFromRefList(ref_pic_list, pic_param.ReferenceFrames);

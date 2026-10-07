@@ -57,6 +57,7 @@ public class DocumentPictureInPictureHeaderMediator
     private @MonotonicNonNull AppHeaderState mCurrentHeaderState;
     private final DesktopWindowStateManager mDesktopWindowStateManager;
     private final ThemeColorProvider mThemeColorProvider;
+    private final Context mContext;
     private final DocumentPictureInPictureHeaderDelegate mDelegate;
     private final Rect mBackToTabRect = new Rect();
     private final Rect mSecurityIconRect = new Rect();
@@ -80,6 +81,7 @@ public class DocumentPictureInPictureHeaderMediator
             WebContents webContents) {
         mModel = model;
         mThemeColorProvider = themeColorProvider;
+        mContext = context;
         mDelegate = delegate;
         mOpenerWebContents = openerWebContents;
         mWebContents = webContents;
@@ -98,23 +100,24 @@ public class DocumentPictureInPictureHeaderMediator
                         ? R.dimen.document_picture_in_picture_header_min_unoccluded_width_desktop
                         : R.dimen.document_picture_in_picture_header_min_unoccluded_width;
 
-        mMinHeaderHeight = context.getResources().getDimensionPixelSize(minHeaderHeightRes);
-        mComponentSize = context.getResources().getDimensionPixelSize(componentSizeRes);
+        mMinHeaderHeight = mContext.getResources().getDimensionPixelSize(minHeaderHeightRes);
+        mComponentSize = mContext.getResources().getDimensionPixelSize(componentSizeRes);
         mMinUnoccludedWidthPx =
-                context.getResources().getDimensionPixelSize(minUnoccludedWidthPxRes);
+                mContext.getResources().getDimensionPixelSize(minUnoccludedWidthPxRes);
 
         mModel.set(DocumentPictureInPictureHeaderProperties.COMPONENT_SIZE, mComponentSize);
         mModel.set(DocumentPictureInPictureHeaderProperties.IS_BACK_TO_TAB_SHOWN, isBackToTabShown);
 
         mModel.set(
                 DocumentPictureInPictureHeaderProperties.ON_BACK_TO_TAB_CLICK_LISTENER,
-                _ -> onBackToTab());
+                v -> onBackToTab());
         mModel.set(
                 DocumentPictureInPictureHeaderProperties.ON_SECURITY_ICON_CLICK_LISTENER,
-                _ -> onSecurityIconClicked());
+                v -> onSecurityIconClicked());
         mModel.set(
                 DocumentPictureInPictureHeaderProperties.ON_LAYOUT_CHANGE_LISTENER,
-                (v, _, _, _, _, _, _, _, _) -> updateNonDraggableAreas(v));
+                (v, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom) ->
+                        updateNonDraggableAreas(v));
 
         mDesktopWindowStateManager = desktopWindowStateManager;
         mDesktopWindowStateManager.addObserver(this);
@@ -186,7 +189,7 @@ public class DocumentPictureInPictureHeaderMediator
 
     @Override
     public void onThemeColorChanged(@ColorInt int color, boolean shouldAnimate) {
-        mDesktopWindowStateManager.onBackgroundColorChanged(color);
+        mDesktopWindowStateManager.updateForegroundColor(color);
         mModel.set(DocumentPictureInPictureHeaderProperties.BACKGROUND_COLOR, color);
     }
 
@@ -200,7 +203,7 @@ public class DocumentPictureInPictureHeaderMediator
                 DocumentPictureInPictureHeaderProperties.BRANDED_COLOR_SCHEME, brandedColorScheme);
     }
 
-    @VisibleForTesting
+    @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
     public void onBackToTab() {
         mDelegate.onBackToTab();
     }

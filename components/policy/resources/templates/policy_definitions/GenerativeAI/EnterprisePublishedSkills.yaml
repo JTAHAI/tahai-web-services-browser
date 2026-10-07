@@ -34,6 +34,8 @@ example_value:
 features:
   dynamic_refresh: true
   per_profile: true
+  can_be_mandatory: false
+  can_be_recommended: true
   cloud_only: true
 
 owners:

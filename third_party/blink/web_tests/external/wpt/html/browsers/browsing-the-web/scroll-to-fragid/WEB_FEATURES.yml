@@ -1,2 +1,4 @@
-rules:
-- target-pseudo-after-reinsertion.html: [target]
+features:
+- name: target
+  files:
+  - target-pseudo-after-reinsertion.html

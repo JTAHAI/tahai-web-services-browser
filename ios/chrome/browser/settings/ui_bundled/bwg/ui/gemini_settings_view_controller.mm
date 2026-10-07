@@ -286,9 +286,6 @@ NSString* const kPageContentSharingAction = @"PageContentSharingAction";
     case GeminiSettingsContextExtensions:
       RecordGeminiSettingsItemShown(IOSGeminiSettingsItem::kExtensions);
       break;
-    case GeminiSettingsContextUsageLimits:
-      RecordGeminiSettingsItemShown(IOSGeminiSettingsItem::kUsageLimits);
-      break;
     default:
       RecordGeminiSettingsItemShown(IOSGeminiSettingsItem::kUnknown);
       break;
@@ -308,10 +305,6 @@ NSString* const kPageContentSharingAction = @"PageContentSharingAction";
     case GeminiSettingsContextExtensions:
       RecordGeminiSettingsItemUsed(IOSGeminiSettingsItem::kExtensions);
       RecordGeminiSettingsExtensions();
-      break;
-    case GeminiSettingsContextUsageLimits:
-      RecordGeminiSettingsItemUsed(IOSGeminiSettingsItem::kUsageLimits);
-      RecordGeminiSettingsUsageLimits();
       break;
     default:
       RecordGeminiSettingsItemUsed(IOSGeminiSettingsItem::kUnknown);
@@ -459,14 +452,6 @@ NSString* const kPageContentSharingAction = @"PageContentSharingAction";
         UIViewController* viewController =
             dynamicSettingsItem.action.viewController;
         if (viewController) {
-          // Dynamic view controllers expose a delegate property for dismissal.
-          if ([viewController
-                  respondsToSelector:
-                      @selector(setGeminiSettingsDismissalDelegate:)]) {
-            [viewController
-                performSelector:@selector(setGeminiSettingsDismissalDelegate:)
-                     withObject:self.geminiSettingsDismissalDelegate];
-          }
           [self.navigationController pushViewController:viewController
                                                animated:YES];
         }

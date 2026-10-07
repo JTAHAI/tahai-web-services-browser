@@ -149,7 +149,6 @@ void FocusModeSoundscapeDelegate::GetPlaylists(PlaylistsCallback callback) {
 void FocusModeSoundscapeDelegate::HandleConfiguration(
     PlaylistsCallback callback,
     std::optional<SoundscapeConfiguration> configuration) {
-  playlist_tracker_.reset();
   if (!configuration) {
     std::move(callback).Run({});
     return;

@@ -1,3 +1,7 @@
-rules:
-- box-decoration-break-*: [box-decoration-break]
-- break-*: [column-breaks]
+features:
+- name: box-decoration-break
+  files:
+  - box-decoration-break-*
+- name: column-breaks
+  files:
+  - break-*

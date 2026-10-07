@@ -161,11 +161,14 @@ public class CollaborationServiceFactoryTest {
         mActivityTestRule.startOnBlankPage();
 
         ThreadUtils.runOnUiThreadBlocking(
-                () -> {
-                    CollaborationService collaborationService =
-                            CollaborationServiceFactory.getForProfile(
-                                    ProfileManager.getLastUsedRegularProfile());
-                    Assert.assertFalse(collaborationService.isEmptyService());
+                new Runnable() {
+                    @Override
+                    public void run() {
+                        CollaborationService collaborationService =
+                                CollaborationServiceFactory.getForProfile(
+                                        ProfileManager.getLastUsedRegularProfile());
+                        Assert.assertFalse(collaborationService.isEmptyService());
+                    }
                 });
     }
 
@@ -177,11 +180,14 @@ public class CollaborationServiceFactoryTest {
         mActivityTestRule.startOnBlankPage();
 
         ThreadUtils.runOnUiThreadBlocking(
-                () -> {
-                    CollaborationService collaborationService =
-                            CollaborationServiceFactory.getForProfile(
-                                    ProfileManager.getLastUsedRegularProfile());
-                    Assert.assertTrue(collaborationService.isEmptyService());
+                new Runnable() {
+                    @Override
+                    public void run() {
+                        CollaborationService collaborationService =
+                                CollaborationServiceFactory.getForProfile(
+                                        ProfileManager.getLastUsedRegularProfile());
+                        Assert.assertTrue(collaborationService.isEmptyService());
+                    }
                 });
     }
 }

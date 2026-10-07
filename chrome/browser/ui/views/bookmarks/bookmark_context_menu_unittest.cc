@@ -29,6 +29,7 @@
 #include "chrome/browser/ui/bookmarks/bookmark_utils_desktop.h"
 #include "chrome/browser/ui/bookmarks/test_bookmark_navigation_wrapper.h"
 #include "chrome/common/webui_url_constants.h"
+#include "chrome/test/base/browser_with_test_window_test.h"
 #include "chrome/test/base/testing_profile.h"
 #include "components/bookmarks/browser/bookmark_model.h"
 #include "components/bookmarks/browser/bookmark_node.h"
@@ -40,6 +41,7 @@
 #include "components/search/ntp_features.h"
 #include "components/signin/public/base/signin_switches.h"
 #include "components/sync_preferences/testing_pref_service_syncable.h"
+#include "content/public/browser/page_navigator.h"
 #include "content/public/test/browser_task_environment.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "ui/base/clipboard/clipboard.h"
@@ -51,8 +53,17 @@
 #include "ui/views/test/scoped_views_test_helper.h"
 #include "ui/views/widget/widget.h"
 
+#if BUILDFLAG(IS_WIN)
+#include "chrome/browser/ui/views/bookmarks/bookmark_bar_view.h"
+#endif
+
+using base::ASCIIToUTF16;
 using bookmarks::BookmarkModel;
 using bookmarks::BookmarkNode;
+using content::BrowserThread;
+using content::OpenURLParams;
+using content::PageNavigator;
+using content::WebContents;
 
 namespace {
 

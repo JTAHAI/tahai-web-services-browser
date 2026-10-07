@@ -8,9 +8,6 @@
 #ifndef PYUPB_MAP_H__
 #define PYUPB_MAP_H__
 
-// clang-format off
-#include "Python.h"
-// clang-format on
 #include <stdbool.h>
 
 #include "python/protobuf.h"

@@ -54,6 +54,7 @@ import org.chromium.chrome.browser.page_info.ChromePageInfoControllerDelegate;
 import org.chromium.chrome.browser.page_info.ChromePageInfoHighlight;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.profiles.ProfileProvider;
+import org.chromium.chrome.browser.tab.EmptyTabObserver;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.TabObserver;
 import org.chromium.chrome.browser.tab.TabUtils;
@@ -99,7 +100,7 @@ public class DocumentPictureInPictureActivity extends AsyncInitializationActivit
             "org.chromium.chrome.browser.media.DocumentPictureInPicture.IsFromActivityRecreation";
     private WebContents mWebContents;
     private WebContents mParentWebContents;
-    private @MonotonicNonNull Tab mInitiatorTab;
+    private Tab mInitiatorTab;
     private @MonotonicNonNull ThinWebView mThinWebView;
     private @MonotonicNonNull TabObserver mInitiatorTabObserver;
     private @MonotonicNonNull PictureInPictureWindowOptions mWindowOptions;
@@ -158,17 +159,16 @@ public class DocumentPictureInPictureActivity extends AsyncInitializationActivit
                 sParentWebContentsForTesting != null
                         ? sParentWebContentsForTesting
                         : mWebContents.getDocumentPictureInPictureOpener();
-        Tab initiatorTab = TabUtils.fromWebContents(parentWebContents);
+        mInitiatorTab = TabUtils.fromWebContents(parentWebContents);
         if (parentWebContents == null
-                || initiatorTab == null
+                || mInitiatorTab == null
                 // During activity recreation, the initiator tab activity may not be available
                 // because of the tab reparenting process.
-                || (TabUtils.getActivity(initiatorTab) == null && !mIsFromActivityRecreation)) {
+                || (TabUtils.getActivity(mInitiatorTab) == null && !mIsFromActivityRecreation)) {
             Log.e(TAG, "Parent web contents or initiator tab is null, finishing.");
             finish();
             return;
         }
-        mInitiatorTab = initiatorTab;
         mParentWebContents = parentWebContents;
 
         if (!verifyOpenerOrigin(intent, parentWebContents)) {
@@ -229,7 +229,7 @@ public class DocumentPictureInPictureActivity extends AsyncInitializationActivit
         assert isContentsInitialized();
 
         mInitiatorTabObserver =
-                new TabObserver() {
+                new EmptyTabObserver() {
                     @Override
                     public void onClosingStateChanged(Tab tab, boolean closing) {
                         if (closing) {
@@ -572,12 +572,12 @@ public class DocumentPictureInPictureActivity extends AsyncInitializationActivit
 
                     @Override
                     public Profile getOriginalProfile() {
-                        return assumeNonNull(mInitiatorTab).getProfile().getOriginalProfile();
+                        return mInitiatorTab.getProfile().getOriginalProfile();
                     }
 
                     @Override
                     public @Nullable Profile getOffTheRecordProfile(boolean createIfNeeded) {
-                        if (!assumeNonNull(mInitiatorTab).getProfile().isOffTheRecord()) {
+                        if (!mInitiatorTab.getProfile().isOffTheRecord()) {
                             assert !createIfNeeded;
                             return null;
                         }
@@ -616,7 +616,7 @@ public class DocumentPictureInPictureActivity extends AsyncInitializationActivit
      * <p>This requires that the parent WebContents is still valid, we are not recreating the
      * activity, and the API level is 30 or higher (required for {@code getCurrentWindowMetrics()}).
      */
-    @VisibleForTesting
+    @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
     void saveBoundsToCache() {
         if (mParentWebContents != null
                 && !mParentWebContents.isDestroyed()

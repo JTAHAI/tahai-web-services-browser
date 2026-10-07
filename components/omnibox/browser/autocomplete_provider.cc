@@ -7,8 +7,6 @@
 #include <algorithm>
 #include <string>
 
-#include "base/i18n/icubridge/date_time_formatter.h"
-#include "base/i18n/icubridge/icu_bridge.h"
 #include "base/i18n/time_formatting.h"
 #include "base/notreached.h"
 #include "base/strings/string_util.h"
@@ -118,10 +116,7 @@ const std::u16string AutocompleteProvider::LocalizedLastModifiedString(
     }
 
     // Same year but not the same day: use abbreviated month/day ("Jan 1").
-    using base::i18n::IcuBridge;
-    using base::i18n::datetime_options::MD;
-    return IcuBridge::GetInstance().date_time_formatter().Format(modified_time,
-                                                                 MD::Medium());
+    return base::LocalizedTimeFormatWithPattern(modified_time, "MMMd");
   }
 
   // No shorthand; display full MM/DD/YYYY.

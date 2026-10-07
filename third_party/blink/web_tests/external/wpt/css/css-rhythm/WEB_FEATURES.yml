@@ -1,2 +1,3 @@
-rules:
-- "**": [rhythmic-sizing]
+features:
+- name: rhythmic-sizing
+  files: "**"

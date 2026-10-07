@@ -27,4 +27,4 @@
 
 git grep --ignore-case -l -E '\b((black|white)list|master|slave)\b' | \
   xargs -n1 dirname | \
-  LC_ALL=C sort -u
+  sort -u

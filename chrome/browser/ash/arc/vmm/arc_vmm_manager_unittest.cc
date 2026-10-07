@@ -21,6 +21,7 @@
 #include "chromeos/ash/experiences/arc/arc_features.h"
 #include "chromeos/ash/experiences/arc/arc_util.h"
 #include "chromeos/ash/experiences/arc/session/arc_service_manager.h"
+#include "components/prefs/testing_pref_service.h"
 #include "content/public/test/browser_task_environment.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
@@ -143,8 +144,6 @@ class ArcVmmManagerTest : public testing::Test {
   }
 
   void TearDown() override {
-    manager_ = nullptr;
-    testing_profile_ = nullptr;
     profile_manager_.reset();
     arc_service_manager_.reset();
     TestConciergeClient::Shutdown();
@@ -217,14 +216,17 @@ class ArcVmmManagerTest : public testing::Test {
       base::test::TaskEnvironment::TimeSource::MOCK_TIME};
 
  private:
+  int trim_type_reclaim_counter_;
+  int trim_type_drop_pages_counter_;
+
   base::test::ScopedFeatureList scoped_features_;
-  int trim_type_reclaim_counter_ = 0;
-  int trim_type_drop_pages_counter_ = 0;
+  TestingPrefServiceSimple local_state_;
+
+  std::unique_ptr<TestingProfileManager> profile_manager_;
+  raw_ptr<TestingProfile, DanglingUntriaged> testing_profile_ = nullptr;
+  raw_ptr<ArcVmmManager, DanglingUntriaged> manager_ = nullptr;
 
   std::unique_ptr<ArcServiceManager> arc_service_manager_;
-  std::unique_ptr<TestingProfileManager> profile_manager_;
-  raw_ptr<TestingProfile> testing_profile_ = nullptr;
-  raw_ptr<ArcVmmManager> manager_ = nullptr;
 };
 
 TEST_F(ArcVmmManagerTest, DBusFailedNoCrash) {

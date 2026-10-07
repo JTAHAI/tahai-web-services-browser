@@ -19,6 +19,4 @@ BASE_FEATURE(kImmersiveFullscreenSpaceSwitchMitigation,
 BASE_FEATURE(kImmersiveFullscreenOverlayWindowDebug,
              base::FEATURE_DISABLED_BY_DEFAULT);
 
-BASE_FEATURE(kSuppressAppKitFrameAdjustmentsDuringMoveLoop,
-             base::FEATURE_ENABLED_BY_DEFAULT);
 }  // namespace remote_cocoa::features

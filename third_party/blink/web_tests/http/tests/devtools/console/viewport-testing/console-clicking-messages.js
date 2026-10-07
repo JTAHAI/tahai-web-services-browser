@@ -52,8 +52,7 @@ import * as Console from 'devtools/panels/console/console.js';
     async function testClickOnObject(next) {
       await clearAndLog(`console.log({x: 1})`);
       TestRunner.addResult(`Click on object`);
-      clickAndFocus(
-          objectElement(consoleView.visibleViewMessages[0].element()));
+      clickAndFocus(consoleView.visibleViewMessages[0].element().querySelector('.console-object'));
 
 
       dumpFocus();
@@ -64,8 +63,7 @@ import * as Console from 'devtools/panels/console/console.js';
     async function testClickOnTraceWithObject(next) {
       await clearAndLog(`console.warn('warn', {x: 1})`);
       TestRunner.addResult(`Click on object`);
-      clickAndFocus(
-          objectElement(consoleView.visibleViewMessages[0].element()));
+      clickAndFocus(consoleView.visibleViewMessages[0].element().querySelector('.console-object'));
       dumpFocus();
 
       resetFocusAndSelection();
@@ -80,8 +78,7 @@ import * as Console from 'devtools/panels/console/console.js';
     async function testClickOnGroupWithObject(next) {
       await clearAndLog(`console.group('group', {x: 1})`);
       TestRunner.addResult(`Click on object`);
-      clickAndFocus(
-          objectElement(consoleView.visibleViewMessages[0].element()));
+      clickAndFocus(consoleView.visibleViewMessages[0].element().querySelector('.console-object'));
       dumpFocus();
 
       resetFocusAndSelection();
@@ -93,12 +90,6 @@ import * as Console from 'devtools/panels/console/console.js';
       next();
     },
   ]);
-
-  function objectElement(messageElement) {
-    return messageElement.querySelector('devtools-tree')
-               ?.shadowRoot?.querySelector('.console-object') ||
-        messageElement.querySelector('.console-object');
-  }
 
   function clickAndFocus(element) {
     element.focus();
@@ -116,8 +107,6 @@ import * as Console from 'devtools/panels/console/console.js';
     await TestRunner.evaluateInPagePromise(expression);
     await ConsoleTestRunner.waitForConsoleMessagesPromise(1);
     await ConsoleTestRunner.waitForPendingViewportUpdates();
-    consoleView.visibleViewMessages[0]?.element();
-    await new Promise(requestAnimationFrame);
   }
 
   function dumpFocus() {

@@ -71,10 +71,12 @@ std::unique_ptr<PrivateKeyFactory> CreatePrivateKeyFactory() {
 #endif  // BUILDFLAG(IS_WIN)
 
 #if BUILDFLAG(IS_ANDROID)
-  auto android_key_factory = AndroidPrivateKeyFactory::TryCreate();
-  if (android_key_factory) {
-    sub_factories.insert_or_assign(PrivateKeySource::kAndroidKey,
-                                   std::move(android_key_factory));
+  if (features::IsClientCertificateProvisioningOnAndroidEnabled()) {
+    auto android_key_factory = AndroidPrivateKeyFactory::TryCreate();
+    if (android_key_factory) {
+      sub_factories.insert_or_assign(PrivateKeySource::kAndroidKey,
+                                     std::move(android_key_factory));
+    }
   }
 #endif  // BUILDFLAG(IS_ANDROID)
 

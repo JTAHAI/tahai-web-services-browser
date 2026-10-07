@@ -48,8 +48,6 @@ ScopedJavaLocalRef<jobject> AutocompleteMatch::GetOrCreateJavaObject(
 
   std::vector<int32_t> contents_class_offsets;
   std::vector<int32_t> contents_class_styles;
-  contents_class_offsets.reserve(contents_class.size());
-  contents_class_styles.reserve(contents_class.size());
   for (auto contents_class_item : contents_class) {
     contents_class_offsets.push_back(contents_class_item.offset);
     contents_class_styles.push_back(contents_class_item.style);
@@ -57,8 +55,6 @@ ScopedJavaLocalRef<jobject> AutocompleteMatch::GetOrCreateJavaObject(
 
   std::vector<int32_t> description_class_offsets;
   std::vector<int32_t> description_class_styles;
-  description_class_offsets.reserve(description_class.size());
-  description_class_styles.reserve(description_class.size());
   for (auto description_class_item : description_class) {
     description_class_offsets.push_back(description_class_item.offset);
     description_class_styles.push_back(description_class_item.style);
@@ -118,9 +114,9 @@ ScopedJavaLocalRef<jobject> AutocompleteMatch::GetOrCreateJavaObject(
           IsSearchType(type), static_cast<int>(GetOmniboxSuggestionKind()),
           icon_type, transition, contents, contents_class_offsets,
           contents_class_styles, description, description_class_offsets,
-          description_class_styles, j_answer_template, fill_into_edit,
-          destination_url, image_url, image_dominant_color, SupportsDeletion(),
-          starter_pack_id, post_content_type, j_post_data,
+          description_class_styles, j_answer_template, answer_type,
+          fill_into_edit, destination_url, image_url, image_dominant_color,
+          SupportsDeletion(), starter_pack_id, post_content_type, j_post_data,
           suggestion_group_id.value_or(omnibox::GROUP_INVALID),
           swap_contents_and_description, j_clipboard_image_data,
           has_tab_match.value_or(false), android_tab_id, actions_list,
@@ -225,6 +221,7 @@ void AutocompleteMatch::UpdateJavaAnswer() {
       Java_AutocompleteMatch_setAnswerTemplate(
           env, *java_match_, answer_template ? j_answer_template : nullptr);
     }
+    Java_AutocompleteMatch_setAnswerType(env, *java_match_, answer_type);
   }
 }
 
@@ -232,8 +229,6 @@ void AutocompleteMatch::UpdateJavaDescription() {
   if (java_match_) {
     std::vector<int32_t> description_class_offsets;
     std::vector<int32_t> description_class_styles;
-    description_class_offsets.reserve(description_class.size());
-    description_class_styles.reserve(description_class.size());
     for (auto description_class_item : description_class) {
       description_class_offsets.push_back(description_class_item.offset);
       description_class_styles.push_back(description_class_item.style);

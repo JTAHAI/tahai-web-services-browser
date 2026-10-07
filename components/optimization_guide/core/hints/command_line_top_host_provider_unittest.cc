@@ -4,11 +4,8 @@
 
 #include "components/optimization_guide/core/hints/command_line_top_host_provider.h"
 
-#include <memory>
-#include <string>
-#include <vector>
-
 #include "base/command_line.h"
+#include "components/optimization_guide/core/optimization_guide_switches.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
 namespace optimization_guide {
@@ -19,14 +16,14 @@ TEST(CommandLineTopHostProviderTest, DoesNotCreateIfFlagNotEnabled) {
 
 TEST(CommandLineTopHostProviderTest, DoesNotCreateIfSwitchEnabledButNoHosts) {
   base::CommandLine::ForCurrentProcess()->AppendSwitch(
-      kFetchHintsOverrideSwitch);
+      switches::kFetchHintsOverride);
 
   ASSERT_FALSE(CommandLineTopHostProvider::CreateIfEnabled());
 }
 
 TEST(CommandLineTopHostProviderTest, CreateIfFlagEnabledAndHasHosts) {
   base::CommandLine::ForCurrentProcess()->AppendSwitchASCII(
-      kFetchHintsOverrideSwitch, "whatever.com");
+      switches::kFetchHintsOverride, "whatever.com");
 
   std::unique_ptr<CommandLineTopHostProvider> top_host_provider =
       CommandLineTopHostProvider::CreateIfEnabled();
@@ -36,20 +33,20 @@ TEST(CommandLineTopHostProviderTest, CreateIfFlagEnabledAndHasHosts) {
 TEST(CommandLineTopHostProviderTest,
      GetTopHostsMaxLessThanProvidedSizeReturnsEverything) {
   base::CommandLine::ForCurrentProcess()->AppendSwitchASCII(
-      kFetchHintsOverrideSwitch, "whatever.com");
+      switches::kFetchHintsOverride, "whatever.com");
 
   std::unique_ptr<CommandLineTopHostProvider> top_host_provider =
       CommandLineTopHostProvider::CreateIfEnabled();
   ASSERT_TRUE(top_host_provider);
   std::vector<std::string> top_hosts = top_host_provider->GetTopHosts();
-  EXPECT_EQ(1u, top_hosts.size());
+  EXPECT_EQ(1ul, top_hosts.size());
   EXPECT_EQ("whatever.com", top_hosts[0]);
 }
 
 TEST(CommandLineTopHostProviderTest,
      GetTopHostsMaxGreaterThanTotalVectorSizeReturnsFirstN) {
   base::CommandLine::ForCurrentProcess()->AppendSwitchASCII(
-      kFetchHintsOverrideSwitch, "whatever.com, whatever-2.com, ,");
+      switches::kFetchHintsOverride, "whatever.com,awesome.com");
 
   std::unique_ptr<CommandLineTopHostProvider> top_host_provider =
       CommandLineTopHostProvider::CreateIfEnabled();
@@ -57,7 +54,7 @@ TEST(CommandLineTopHostProviderTest,
   std::vector<std::string> top_hosts = top_host_provider->GetTopHosts();
   EXPECT_EQ(2u, top_hosts.size());
   EXPECT_EQ("whatever.com", top_hosts[0]);
-  EXPECT_EQ("whatever-2.com", top_hosts[1]);
+  EXPECT_EQ("awesome.com", top_hosts[1]);
 }
 
 }  // namespace optimization_guide

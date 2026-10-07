@@ -5,8 +5,6 @@
 #ifndef COMPONENTS_ONE_TIME_TOKENS_CORE_BROWSER_ONE_TIME_TOKEN_RETRIEVAL_ERROR_H_
 #define COMPONENTS_ONE_TIME_TOKENS_CORE_BROWSER_ONE_TIME_TOKEN_RETRIEVAL_ERROR_H_
 
-#include <iosfwd>
-
 namespace one_time_tokens {
 
 // These values are persisted to logs. Entries should not be renumbered and
@@ -38,11 +36,8 @@ enum class OneTimeTokenRetrievalError {
   kGmailOtpBackendOneTimeTokenExpired = 21,
   kGmailOtpBackendOtpAttributeNotFound = 22,
   kGmailOtpBackendServerError = 23,
-  kSubscriptionExpired = 24,
-  kMaxValue = kSubscriptionExpired,
+  kMaxValue = kGmailOtpBackendServerError,
 };
-
-std::ostream& operator<<(std::ostream& os, OneTimeTokenRetrievalError error);
 
 }  // namespace one_time_tokens
 

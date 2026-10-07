@@ -9,6 +9,8 @@
 #include <memory>
 #include <vector>
 
+class TabGroupModel;
+
 namespace ash {
 class BrowserDelegate;
 }  // namespace ash
@@ -22,6 +24,12 @@ namespace chrome_desks_util {
 // Name for app not available toast.
 inline constexpr char kAppNotAvailableTemplateToastName[] =
     "AppNotAvailableTemplateToast";
+
+// Given a TabGroupModel that contains at least a single TabGroup this method
+// returns a vector that contains tab_groups::TabGroupInfo representations of
+// the TabGroups contained within the model.
+std::vector<tab_groups::TabGroupInfo> ConvertTabGroupsToTabGroupInfos(
+    const TabGroupModel* group_model);
 
 // Given a vector of TabGroupInfo this function attaches tab groups to the given
 // browser instance.

@@ -32,6 +32,13 @@ GUID GetD3D11DecoderGUID(const VideoCodecProfile& profile,
     case H264PROFILE_MAIN:
     case H264PROFILE_EXTENDED:
     case H264PROFILE_HIGH:
+    case H264PROFILE_HIGH10PROFILE:
+    case H264PROFILE_HIGH422PROFILE:
+    case H264PROFILE_HIGH444PREDICTIVEPROFILE:
+    case H264PROFILE_SCALABLEBASELINE:
+    case H264PROFILE_SCALABLEHIGH:
+    case H264PROFILE_STEREOHIGH:
+    case H264PROFILE_MULTIVIEWHIGH:
       return D3D11_DECODER_PROFILE_H264_VLD_NOFGT;
     case VP9PROFILE_PROFILE0:
       return D3D11_DECODER_PROFILE_VP9_VLD_PROFILE0;
@@ -68,10 +75,12 @@ D3D11DecoderConfigurator::D3D11DecoderConfigurator(
     DXGI_FORMAT decoder_output_dxgifmt,
     GUID decoder_guid,
     gfx::Size coded_size,
+    bool is_encrypted,
     bool supports_swap_chain)
     : dxgi_format_(decoder_output_dxgifmt),
       decoder_guid_(decoder_guid),
-      supports_swap_chain_(supports_swap_chain) {
+      supports_swap_chain_(supports_swap_chain),
+      is_encrypted_(is_encrypted) {
   SetUpDecoderDescriptor(coded_size);
   SetUpTextureDescriptor();
 }
@@ -96,7 +105,7 @@ std::unique_ptr<D3D11DecoderConfigurator> D3D11DecoderConfigurator::Create(
       GetOutputDXGIFormat(bit_depth, chroma_sampling);
   if (decoder_dxgi_format == DXGI_FORMAT_UNKNOWN) {
     MEDIA_LOG(WARNING, media_log)
-        << "D3DVideoDecoder does not support bit depth "
+        << "D3D11VideoDecoder does not support bit depth "
         << base::strict_cast<int>(bit_depth)
         << " with chroma subsampling format "
         << VideoChromaSamplingToString(chroma_sampling);
@@ -128,28 +137,28 @@ std::unique_ptr<D3D11DecoderConfigurator> D3D11DecoderConfigurator::Create(
   if (decoder_guid == GUID()) {
     if (config.profile() == HEVCPROFILE_REXT) {
       MEDIA_LOG(INFO, media_log)
-          << "D3DVideoDecoder does not support HEVC range extension "
+          << "D3D11VideoDecoder does not support HEVC range extension "
           << config.codec() << " with chroma subsampling format "
           << VideoChromaSamplingToString(chroma_sampling) << " and bit depth "
           << base::strict_cast<int>(bit_depth);
     } else {
       MEDIA_LOG(INFO, media_log)
-          << "D3DVideoDecoder does not support codec " << config.codec();
+          << "D3D11VideoDecoder does not support codec " << config.codec();
     }
     return nullptr;
   }
 
   MEDIA_LOG(INFO, media_log)
-      << "D3DVideoDecoder is using " << GetProfileName(config.profile())
+      << "D3D11VideoDecoder is using " << GetProfileName(config.profile())
       << " / " << VideoChromaSamplingToString(chroma_sampling);
 
   return std::make_unique<D3D11DecoderConfigurator>(
       decoder_dxgi_format, decoder_guid, config.coded_size(),
-      supports_nv12_decode_swap_chain);
+      config.is_encrypted(), supports_nv12_decode_swap_chain);
 }
 
 bool D3D11DecoderConfigurator::SupportsDevice(
-    ComD3D11VideoDevice1 video_device) {
+    ComD3D11VideoDevice video_device) {
   for (UINT i = video_device->GetVideoDecoderProfileCount(); i--;) {
     GUID profile = {};
     if (SUCCEEDED(video_device->GetVideoDecoderProfile(i, &profile))) {
@@ -171,8 +180,10 @@ D3D11DecoderConfigurator::CreateOutputTexture(ComD3D11Device device,
 
   if (use_shared_handle) {
     // Update the decoder output texture usage to support shared handle
-    // if required. SwapChain should be disabled.
+    // if required. SwapChain should be disabled and the frame shouldn't
+    // be encrypted.
     DCHECK(!supports_swap_chain_);
+    DCHECK(!is_encrypted_);
     output_texture_desc_.MiscFlags =
         D3D11_RESOURCE_MISC_SHARED_NTHANDLE | D3D11_RESOURCE_MISC_SHARED;
   } else if (supports_swap_chain_) {
@@ -188,6 +199,9 @@ D3D11DecoderConfigurator::CreateOutputTexture(ComD3D11Device device,
     // Create non-shareable texture for d3d11 video decoder.
     output_texture_desc_.MiscFlags = D3D11_RESOURCE_MISC_SHARED;
   }
+
+  if (is_encrypted_)
+    output_texture_desc_.MiscFlags |= D3D11_RESOURCE_MISC_HW_PROTECTED;
 
   ComD3D11Texture2D texture;
   HRESULT hr =

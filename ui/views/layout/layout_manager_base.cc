@@ -11,7 +11,6 @@
 #include "base/dcheck_is_on.h"
 #include "base/memory/raw_ptr.h"
 #include "base/trace_event/trace_event.h"
-#include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/views/view.h"
 #include "ui/views/view_class_properties.h"
 
@@ -550,8 +549,5 @@ void ManualLayoutUtil::EndTemporaryExclusion(View* child_view) {
   CHECK(layout_manager_->child_infos_.contains(child_view));
   layout_manager_->PropagateChildViewIncludedInLayout(child_view, true);
 }
-
-BEGIN_METADATA(LayoutManagerBase)
-END_METADATA
 
 }  // namespace views

@@ -6,7 +6,7 @@
 
 #import "build/branding_buildflags.h"
 #import "components/strings/grit/components_strings.h"
-#import "ios/chrome/browser/autofill/model/message/autofill_legal_message_line.h"
+#import "ios/chrome/browser/autofill/model/message/save_card_message_with_links.h"
 #import "ios/chrome/browser/autofill/ui_bundled/bottom_sheet/bottom_sheet_constants.h"
 #import "ios/chrome/browser/autofill/ui_bundled/util/autofill_credit_card_util.h"
 #import "ios/chrome/browser/net/model/crurl.h"
@@ -54,12 +54,13 @@ CGFloat const kChromeLogoHeight = 22;
                                                  UITextViewDelegate>
 @end
 
+// TODO(crbug.com/391366699): Implement SaveCardBottomSheetViewController.
 @implementation SaveCardBottomSheetViewController {
   NSString* _cardNameAndLastFourDigits;
   NSString* _cardExpiryDate;
   UIImage* _cardIcon;
   NSString* _cardAccessibilityLabel;
-  NSArray<AutofillLegalMessageLine*>* _legalMessages;
+  NSArray<SaveCardMessageWithLinks*>* _legalMessages;
   // Image to be displayed above the title of the bottomsheet.
   UIImage* _aboveTitleImage;
   // Accessibility label for the _aboveTitleImage.
@@ -119,7 +120,7 @@ CGFloat const kChromeLogoHeight = 22;
   [self reloadConfiguration];
 }
 
-- (void)setLegalMessages:(NSArray<AutofillLegalMessageLine*>*)legalMessages {
+- (void)setLegalMessages:(NSArray<SaveCardMessageWithLinks*>*)legalMessages {
   _legalMessages = legalMessages;
 }
 
@@ -191,7 +192,7 @@ CGFloat const kChromeLogoHeight = 22;
 
   [underTitleView addArrangedSubview:[self createTableView]];
 
-  for (AutofillLegalMessageLine* message in _legalMessages) {
+  for (SaveCardMessageWithLinks* message in _legalMessages) {
     UITextView* legalMessageTextView =
         [AutofillCreditCardUtil createTextViewForLegalMessage:message];
     legalMessageTextView.delegate = self;

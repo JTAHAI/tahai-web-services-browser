@@ -26,7 +26,7 @@
 #include "chrome/browser/profiles/profile_key.h"
 #include "chrome/browser/profiles/profile_manager.h"
 #include "chrome/browser/profiles/profile_test_util.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/common/chrome_paths.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/ui_test_utils.h"
@@ -38,8 +38,8 @@
 #include "components/optimization_guide/core/hints/optimization_guide_store.h"
 #include "components/optimization_guide/core/hints/store_update_data.h"
 #include "components/optimization_guide/core/optimization_guide_features.h"
-#include "components/optimization_guide/core/optimization_guide_permissions_util.h"
 #include "components/optimization_guide/core/optimization_guide_prefs.h"
+#include "components/optimization_guide/core/optimization_guide_switches.h"
 #include "components/optimization_guide/proto/models.pb.h"
 #include "components/prefs/pref_service.h"
 #include "components/variations/hashing.h"
@@ -181,9 +181,9 @@ class PredictionManagerBrowserTestBase : public InProcessBrowserTest {
   }
 
   void SetUpCommandLine(base::CommandLine* cmd) override {
-    cmd->AppendSwitch(kGoogleApiKeyConfigurationCheckOverrideSwitch);
+    cmd->AppendSwitch(switches::kGoogleApiKeyConfigurationCheckOverride);
     cmd->AppendSwitchASCII(
-        features::kOptimizationGuideServiceGetModelsURLSwitch,
+        switches::kOptimizationGuideServiceGetModelsURL,
         models_server_
             ->GetURL(
                 features::GetOptimizationGuideServiceGetModelsURL().GetHost(),
@@ -489,8 +489,7 @@ IN_PROC_BROWSER_TEST_F(PredictionManagerModelDownloadingBrowserTest,
     base::HistogramTester otr_histogram_tester;
     std::unique_ptr<base::RunLoop> run_loop = std::make_unique<base::RunLoop>();
     SetUpValidModelInfoReceival(model_file_observer(), run_loop.get());
-    BrowserWindowInterface* otr_browser =
-        CreateIncognitoBrowser(browser()->GetProfile());
+    Browser* otr_browser = CreateIncognitoBrowser(browser()->GetProfile());
     RegisterModelFileObserverWithKeyedService(otr_browser->GetProfile());
 
     run_loop->Run();
@@ -869,7 +868,7 @@ class PredictionManagerModelPackageOverrideTest : public InProcessBrowserTest {
     base::PathService::Get(chrome::DIR_TEST_DATA, &src_dir);
 
     cmd_line->AppendSwitchASCII(
-        kModelOverrideSwitch,
+        switches::kModelOverride,
         base::StrCat({
             "OPTIMIZATION_TARGET_PAINFUL_PAGE_LOAD",
             ModelOverrideSeparator(),

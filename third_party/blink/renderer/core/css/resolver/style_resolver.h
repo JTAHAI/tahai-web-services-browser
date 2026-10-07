@@ -206,7 +206,9 @@ class CORE_EXPORT StyleResolver final : public GarbageCollected<StyleResolver> {
       Element*,
       PseudoId);
 
-  static Element* FindContainerForElement(Element*, const ContainerSelector&);
+  static Element* FindContainerForElement(Element*,
+                                          const ContainerSelector&,
+                                          const TreeScope* selector_tree_scope);
 
   Font* ComputeFont(Element&, const ComputedStyle&, const CSSPropertyValueSet&);
 
@@ -226,11 +228,6 @@ class CORE_EXPORT StyleResolver final : public GarbageCollected<StyleResolver> {
   // Return a computed value for the passed-in property:value pair in the
   // context of the current ComputedStyle of the 'element'.
   // Returns nullptr for custom property values that are IACVT.
-  static const CSSValue* ComputeValue(Element*,
-                                      const CSSPropertyName&,
-                                      const CSSValue&,
-                                      CSSToLengthConversionData::Flags&,
-                                      bool& has_random);
   static const CSSValue* ComputeValue(Element*,
                                       const CSSPropertyName&,
                                       const CSSValue&,
@@ -412,7 +409,6 @@ class CORE_EXPORT StyleResolver final : public GarbageCollected<StyleResolver> {
 
   MatchedPropertiesCache matched_properties_cache_;
 
-  static void SetZoomedInitialLineWidths(float zoom, ComputedStyleBuilder&);
   const ComputedStyle* CreateInitialStyle() const;
 
   // This member is on a hot-path for creating ComputedStyle objects.

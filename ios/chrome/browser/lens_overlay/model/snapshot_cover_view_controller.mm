@@ -4,8 +4,6 @@
 
 #import "ios/chrome/browser/lens_overlay/model/snapshot_cover_view_controller.h"
 
-#import "ios/chrome/common/ui/util/constraints_ui_util.h"
-
 @implementation SnapshotCoverViewController {
   // The image to be shown as cover.
   UIImage* _image;
@@ -45,7 +43,12 @@
   imageView.image = _image;
   imageView.translatesAutoresizingMaskIntoConstraints = NO;
   [self.view addSubview:imageView];
-  AddSameConstraints(self.view, imageView);
+  [NSLayoutConstraint activateConstraints:@[
+    [self.view.leadingAnchor constraintEqualToAnchor:imageView.leadingAnchor],
+    [self.view.trailingAnchor constraintEqualToAnchor:imageView.trailingAnchor],
+    [self.view.topAnchor constraintEqualToAnchor:imageView.topAnchor],
+    [self.view.bottomAnchor constraintEqualToAnchor:imageView.bottomAnchor]
+  ]];
 }
 
 @end

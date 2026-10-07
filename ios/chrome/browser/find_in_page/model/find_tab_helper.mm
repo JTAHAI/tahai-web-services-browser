@@ -7,10 +7,8 @@
 #import "base/check.h"
 #import "ios/chrome/browser/find_in_page/model/find_in_page_controller.h"
 #import "ios/chrome/browser/find_in_page/model/find_in_page_model.h"
-#import "ios/chrome/browser/fullscreen/public/scoped_force_fullscreen.h"
 #import "ios/chrome/browser/fullscreen/ui_bundled/fullscreen_controller.h"
 #import "ios/chrome/browser/shared/public/commands/fullscreen_commands.h"
-#import "ios/chrome/browser/shared/public/features/features.h"
 #import "ios/web/public/navigation/navigation_context.h"
 
 FindTabHelper::FindTabHelper(web::WebState* web_state) {
@@ -27,9 +25,6 @@ FindTabHelper::~FindTabHelper() {
 void FindTabHelper::DismissFindNavigator() {
   // Same as `StopFinding()` except the UI is not marked as inactive so it can
   // be set back up if needed later.
-  if (IsFullscreenRefactoringEnabled()) {
-    scoped_force_fullscreen_.reset();
-  }
   [controller_ disableFindInPage];
 }
 
@@ -51,7 +46,8 @@ void FindTabHelper::SetFullscreenHandler(
     // find session.
     StopFinding();
   }
-  fullscreen_handler_ = fullscreen_handler;
+  CHECK(controller_);
+  controller_.fullscreenHandler = fullscreen_handler;
 }
 
 void FindTabHelper::SetResponseDelegate(
@@ -101,14 +97,6 @@ bool FindTabHelper::IsFindUIActive() const {
 
 void FindTabHelper::SetFindUIActive(bool active) {
   controller_.findInPageModel.enabled = active;
-  if (IsFullscreenRefactoringEnabled()) {
-    if (active) {
-      scoped_force_fullscreen_ = std::make_unique<ScopedForceFullscreen>(
-          fullscreen_handler_, ForceFullscreenFeature::kFindInPage);
-    } else {
-      scoped_force_fullscreen_.reset();
-    }
-  }
 }
 
 void FindTabHelper::PersistSearchTerm() {
@@ -121,8 +109,6 @@ void FindTabHelper::RestoreSearchTerm() {
 
 void FindTabHelper::WebStateDestroyed(web::WebState* web_state) {
   observation_.Reset();
-  scoped_force_fullscreen_.reset();
-  fullscreen_handler_ = nil;
 
   [controller_ detachFromWebState];
   controller_ = nil;

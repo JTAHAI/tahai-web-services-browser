@@ -138,6 +138,7 @@ enum class PaintBenchmarkMode;
 
 typedef uint64_t DOMTimeStamp;
 using LayerTreeFlags = unsigned;
+using MainThreadScrollingReasons = uint32_t;
 
 struct LifecycleData {
   LifecycleData() {}
@@ -236,8 +237,8 @@ class CORE_EXPORT LocalFrameView final
   void UpdateStyleAndLayout();
 
   // Marks this frame, and ancestor frames, as needing one intersection
-  // observation. This overrides throttling for one frame through
-  // kPrePaintClean. The order of these enums is important - they must proceed
+  // observervation. This overrides throttling for one frame, up to
+  // kLayoutClean. The order of these enums is important - they must proceed
   // from "least required to most required".
   enum IntersectionObservationState {
     // The next painting frame does not need an intersection observation.
@@ -309,6 +310,7 @@ class CORE_EXPORT LocalFrameView final
   void ClearNaturalDimensions() override;
 
   void Dispose() override;
+  void PropagateFrameRects() override;
   void ZoomFactorChanged(float zoom_factor) override;
   void InvalidateAllCustomScrollbarsOnActiveChanged();
 
@@ -908,8 +910,6 @@ class CORE_EXPORT LocalFrameView final
   void FrameRectsChanged(const gfx::Rect&) override;
   void SelfVisibleChanged() override;
   void ParentVisibleChanged() override;
-  void PropagateFrameRectsInternal() override;
-  void PropagateFrameRectsRecursively(bool force = false);
   void NotifyFrameRectsChangedIfNeeded();
 
   // Updates viewport intersection state when LocalFrame's scroll positions,
@@ -1318,6 +1318,8 @@ class CORE_EXPORT LocalFrameView final
   Member<PaintControllerPersistentData> paint_controller_persistent_data_;
   Member<PaintArtifactCompositor> paint_artifact_compositor_;
 
+  MainThreadScrollingReasons main_thread_scrolling_reasons_;
+
   scoped_refptr<LocalFrameUkmAggregator> ukm_aggregator_;
   unsigned forced_layout_stack_depth_;
   std::optional<LocalFrameUkmAggregator::ScopedForcedLayoutTimer>
@@ -1365,7 +1367,8 @@ class CORE_EXPORT LocalFrameView final
   // A set of objects needing a transform property tree update. These updates
   // are deferred until the end prepaint and updating them directly, if
   // possible, avoids needing to walk the tree to update them. See:
-  // ../paint/README.md#Property-tree-update-optimization
+  // https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/paint/README.md#Transform-update-optimization
+  // for more on the fast path
   // TODO(yotha): unify these into one HeapHashMap.
   Member<GCedHeapHashSet<Member<LayoutObject>>> pending_transform_updates_;
   Member<GCedHeapHashSet<Member<LayoutObject>>> pending_opacity_updates_;

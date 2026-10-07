@@ -14,10 +14,9 @@ load(
     "lua_proto_library",
 )
 load(
-    "//upb/bazel:copts.bzl",
+    "//upb/bazel:build_defs.bzl",
     "UPB_DEFAULT_COPTS",
     "UPB_DEFAULT_CPPOPTS",
-    "UPB_DEFAULT_FEATURES",
 )
 
 licenses(["notice"])
@@ -33,7 +32,6 @@ cc_library(
         "upb.h",
     ],
     copts = UPB_DEFAULT_COPTS + ["-Wno-tautological-constant-out-of-range-compare"],
-    features = UPB_DEFAULT_FEATURES,
     visibility = ["//visibility:public"],
     deps = [
         "//upb/json",
@@ -49,7 +47,6 @@ cc_binary(
     name = "protoc-gen-lua",
     srcs = ["upbc.cc"],
     copts = UPB_DEFAULT_CPPOPTS,
-    features = UPB_DEFAULT_FEATURES,
     visibility = ["//visibility:public"],
     deps = [
         "//src/google/protobuf",
@@ -77,7 +74,6 @@ cc_test(
         "//:descriptor_proto",
         "//conformance:conformance_proto",
     ],
-    features = UPB_DEFAULT_FEATURES,
     linkstatic = 1,
     deps = [
         ":lupb",

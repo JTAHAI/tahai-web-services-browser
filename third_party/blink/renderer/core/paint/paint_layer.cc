@@ -291,26 +291,13 @@ const PaintLayer* PaintLayer::ContainingScrollContainerLayer(
 }
 
 void PaintLayer::UpdateTransform() {
-  if (!GetLayoutObject().HasTransform()) {
-    transform_.reset();
-    return;
-  }
-
-  if (!transform_) {
-    transform_ = std::make_unique<gfx::Transform>();
-  } else {
-    transform_->MakeIdentity();
-  }
-  const auto& box_model = To<LayoutBoxModelObject>(GetLayoutObject());
-  if (const auto* element = DynamicTo<Element>(box_model.GetNode())) {
-    if (const auto* canvas_transform = element->GetUsedCanvasTransform()) {
-      transform_->PreConcat(*canvas_transform);
-    }
-  }
-  if (const auto* box = DynamicTo<LayoutBox>(&box_model)) {
+  if (gfx::Transform* transform = Transform()) {
+    const LayoutBox* box = GetLayoutBox();
+    DCHECK(box);
+    transform->MakeIdentity();
     const PhysicalRect reference_box = ComputeReferenceBox(*box);
     box->StyleRef().ApplyTransform(
-        *transform_, box, reference_box,
+        *transform, box, reference_box,
         ComputedStyle::kIncludeTransformOperations,
         ComputedStyle::kIncludeTransformOrigin,
         ComputedStyle::kIncludeMotionPath,
@@ -332,6 +319,13 @@ void PaintLayer::UpdateTransformAfterStyleChange(
     return;
   }
   bool had_3d_transform = Has3DTransform();
+
+  if (has_transform != had_transform) {
+    if (has_transform)
+      transform_ = std::make_unique<gfx::Transform>();
+    else
+      transform_.reset();
+  }
 
   UpdateTransform();
 
@@ -1004,7 +998,8 @@ void PaintLayer::CollectFragments(
 
     ClipRectsContext clip_rects_context(
         root_layer, root_fragment_data,
-        kExcludeOverlayScrollbarSizeForHitTesting, respect_overflow_clip);
+        kExcludeOverlayScrollbarSizeForHitTesting, respect_overflow_clip,
+        PhysicalOffset());
 
     Clipper().CalculateRects(clip_rects_context, *fragment_data,
                              fragment.layer_offset, fragment.background_rect,
@@ -1248,7 +1243,7 @@ static bool IsHitCandidateForDepthOrder(
           child_z_offset = pt3.z();
         }
       }
-      if (child_z_offset < *z_offset) {
+      if (child_z_offset < 0) {
         return false;
       }
     } else {
@@ -1390,9 +1385,8 @@ PaintLayer* PaintLayer::HitTestLayer(
     if (const auto* properties =
             layout_object.FirstFragment().PaintProperties()) {
       if (properties->HasCSSTransformPropertyNode() ||
-          properties->Perspective() || properties->ElementCanvasTransform()) {
+          properties->Perspective())
         use_transform = true;
-      }
     }
   }
 
@@ -1934,26 +1928,13 @@ PaintLayer* PaintLayer::HitTestChildren(
     if (!To<HTMLCanvasElement>(GetLayoutObject().GetNode())->layoutSubtree()) {
       return nullptr;
     }
-    if (children_to_visit != kNormalFlowChildren) {
-      return nullptr;
-    }
   }
 
   const LayoutObject* stop_node = result.GetHitTestRequest().GetStopNode();
-  const PaintLayer* stop_layer = result.GetHitTestRequest().GetStopLayer();
+  PaintLayer* stop_layer = stop_node ? stop_node->PaintingLayer() : nullptr;
 
   PaintLayer* result_layer = nullptr;
-  PaintLayerPaintOrderIteratorBase* iterator = nullptr;
-  std::optional<PaintLayerPaintOrderReverseIterator> normal_iter;
-  std::optional<CanvasDrawnElementPaintOrderReverseIterator> canvas_iter;
-  if (auto* canvas =
-          DynamicTo<HTMLCanvasElement>(GetLayoutObject().GetNode())) {
-    canvas_iter.emplace(*canvas);
-    iterator = &canvas_iter.value();
-  } else {
-    normal_iter.emplace(this, children_to_visit);
-    iterator = &normal_iter.value();
-  }
+  PaintLayerPaintOrderReverseIterator iterator(this, children_to_visit);
 
   // Returns true if the caller should break the loop.
   auto hit_test_child =
@@ -1995,11 +1976,7 @@ PaintLayer* PaintLayer::HitTestChildren(
     }
 
     if (IsHitCandidateForDepthOrder(
-            hit_layer, depth_sort_descendants, z_offset,
-            RuntimeEnabledFeatures::
-                    HitTestContainerTransformStateForPreserve3dEnabled()
-                ? container_transform_state
-                : local_transform_state,
+            hit_layer, depth_sort_descendants, z_offset, local_transform_state,
             result.GetHitTestRequest().IsHitTestVisualOverflow())) {
       result_layer = hit_layer;
       if (!result.GetHitTestRequest().ListBased())
@@ -2011,7 +1988,7 @@ PaintLayer* PaintLayer::HitTestChildren(
     return false;
   };
 
-  while (PaintLayer* child_layer = iterator->Next()) {
+  while (PaintLayer* child_layer = iterator.Next()) {
     if (stacking_node_) {
       if (const auto* layers_painting_overlay_overflow_controls_after =
               stacking_node_->LayersPaintingOverlayOverflowControlsAfter(
@@ -2239,8 +2216,7 @@ void PaintLayer::ExpandRectForSelfPaintingDescendants(
     }
 
     PhysicalOffset delta = child_layer->GetLayoutObject().LocalToAncestorPoint(
-        PhysicalOffset(), &GetLayoutObject(),
-        {MapCoordinatesMode::kIgnoreTransforms});
+        PhysicalOffset(), &GetLayoutObject(), kIgnoreTransforms);
     added_rect.Move(delta);
 
     result.Unite(added_rect);

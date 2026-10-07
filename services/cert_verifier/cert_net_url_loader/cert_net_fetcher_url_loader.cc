@@ -762,7 +762,7 @@ void CertNetFetcherURLLoader::SetURLLoaderFactoryAndReconnector(
     base::RepeatingCallback<
         void(mojo::PendingReceiver<network::mojom::URLLoaderFactory>)>
         bind_new_url_loader_factory_cb) {
-  CHECK(!impl_);
+  DCHECK(!impl_);
   impl_ = std::make_unique<AsyncCertNetFetcherURLLoader>(
       std::move(factory), std::move(bind_new_url_loader_factory_cb));
 }

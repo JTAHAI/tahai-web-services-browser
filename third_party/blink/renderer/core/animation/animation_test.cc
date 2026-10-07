@@ -91,17 +91,12 @@
 #include "third_party/blink/renderer/platform/heap/thread_state.h"
 #include "third_party/blink/renderer/platform/scheduler/public/event_loop.h"
 #include "third_party/blink/renderer/platform/testing/paint_test_configurations.h"
-#include "third_party/blink/renderer/platform/testing/runtime_enabled_features_test_helpers.h"
 #include "third_party/blink/renderer/platform/testing/unit_test_helpers.h"
 #include "third_party/blink/renderer/platform/testing/url_test_helpers.h"
 #include "third_party/blink/renderer/platform/weborigin/kurl.h"
-#include "third_party/blink/renderer/platform/wtf/text/format.h"
 
 namespace blink {
 namespace {
-
-constexpr char kRelativeUnitHistogram[] =
-    "Blink.Animation.RangeOffsetHasRelativeOrElementDependentLength";
 
 void ExpectRelativeErrorWithinEpsilon(double expected, double observed) {
   EXPECT_NEAR(1.0, observed / expected, std::numeric_limits<double>::epsilon());
@@ -222,13 +217,6 @@ class AnimationAnimationTestNoCompositing : public PaintTestConfigurations,
     timing.fill_mode = fill_mode;
     return MakeGarbageCollected<KeyframeEffect>(nullptr, MakeEmptyEffectModel(),
                                                 timing);
-  }
-
-  void SetAnimationTarget() {
-    SetBodyInnerHTML("<div id=target></div>");
-    UpdateAllLifecyclePhasesForTest();
-    To<KeyframeEffect>(animation->effect())
-        ->setTarget(GetElementById("target"));
   }
 
   void SimulateFrame(double time_ms) {
@@ -378,54 +366,6 @@ TEST_P(AnimationAnimationTestNoCompositing, InitialState) {
   EXPECT_FALSE(animation->pending());
   EXPECT_EQ(1, animation->playbackRate());
   EXPECT_TIME(0, GetStartTimeMs(animation));
-}
-
-TEST_P(AnimationAnimationTestNoCompositing,
-       RangeStartAcceptsRelativeUnitsAndRecordsPotentialRejection) {
-  ScopedAnimationRangeRejectRelativeLengthsForTest scoped_feature(false);
-  base::HistogramTester histogram_tester;
-  DummyExceptionStateForTesting exception_state;
-  SetAnimationTarget();
-
-  animation->setRangeStart(
-      MakeGarbageCollected<Animation::RangeBoundary>(String("2em")),
-      exception_state);
-
-  EXPECT_TRUE(animation->GetRangeStartInternal().has_value());
-  EXPECT_FALSE(exception_state.HadException());
-  histogram_tester.ExpectUniqueSample(kRelativeUnitHistogram, true, 1);
-}
-
-TEST_P(AnimationAnimationTestNoCompositing,
-       RangeStartRejectsRelativeUnitsAndRecordsPotentialRejection) {
-  ScopedAnimationRangeRejectRelativeLengthsForTest scoped_feature(true);
-  base::HistogramTester histogram_tester;
-  DummyExceptionStateForTesting exception_state;
-  SetAnimationTarget();
-
-  animation->setRangeStart(
-      MakeGarbageCollected<Animation::RangeBoundary>(String("2em")),
-      exception_state);
-
-  EXPECT_FALSE(animation->GetRangeStartInternal().has_value());
-  EXPECT_TRUE(exception_state.HadException());
-  histogram_tester.ExpectUniqueSample(kRelativeUnitHistogram, true, 1);
-}
-
-TEST_P(AnimationAnimationTestNoCompositing,
-       RangeStartAcceptsAbsoluteUnitsAndRecordsNoPotentialRejection) {
-  ScopedAnimationRangeRejectRelativeLengthsForTest scoped_feature(true);
-  base::HistogramTester histogram_tester;
-  DummyExceptionStateForTesting exception_state;
-  SetAnimationTarget();
-
-  animation->setRangeStart(
-      MakeGarbageCollected<Animation::RangeBoundary>(String("2px")),
-      exception_state);
-
-  EXPECT_TRUE(animation->GetRangeStartInternal().has_value());
-  EXPECT_FALSE(exception_state.HadException());
-  histogram_tester.ExpectUniqueSample(kRelativeUnitHistogram, false, 1);
 }
 
 TEST_P(AnimationAnimationTestNoCompositing, CurrentTimeDoesNotSetOutdated) {
@@ -2913,9 +2853,9 @@ class ScriptedTimelineTriggerTest : public PageTestBase {
     test::RunPendingTasks();
   }
 
-  void Initialize(const StringView& activate = "play-forwards",
-                  const StringView& deactivate = "play-backwards",
-                  const StringView& post_setup_code = "") {
+  void Initialize(std::string activate = "play-forwards",
+                  std::string deactivate = "play-backwards",
+                  std::string post_setup_code = "") {
     const char html[] = R"HTML(
       <style>
       div {
@@ -2930,34 +2870,34 @@ class ScriptedTimelineTriggerTest : public PageTestBase {
 
     UpdateAllLifecyclePhasesForTest();
 
-    String make_animation_js = Format(
+    String make_animation_js = String::Format(
         R"JS(
-      function setupTriggeredAnimation() {{
+      function setupTriggeredAnimation() {
         const animation = new Animation(
           new KeyframeEffect(
             document.getElementById('target'),
             [
-              {{ left: "0px" }},
-              {{ left: "100px" }},
+              { left: "0px" },
+              { left: "100px" },
             ],
-            {{ duration: 300, fill: "none" }}
+            { duration: 300, fill: "none" }
           ));
 
-        let trigger = new TimelineTrigger([{{
-          timeline: new ViewTimeline({{
+        let trigger = new TimelineTrigger([{
+          timeline: new ViewTimeline({
             subject: document.getElementById('subject'), axis: "y"
-          }}),
+          }),
           activationRangeStart: "contain",
-          activationRangeEnd: "contain"}}]);
+          activationRangeEnd: "contain"}]);
                                        /* activate */ /* deactivate */
-        trigger.addAnimation(animation,    "{}",           "{}"       );
+        trigger.addAnimation(animation,    "%s",           "%s"       );
 
         // Run post-setup JS.
-        {}
-      }}
+        %s
+      }
       setupTriggeredAnimation();
     )JS",
-        activate, deactivate, post_setup_code);
+        activate.c_str(), deactivate.c_str(), post_setup_code.c_str());
 
     ExecuteScript(make_animation_js);
 
@@ -3174,14 +3114,14 @@ TEST_F(ScriptedTimelineTriggerTest, RemoveAnimationTarget) {
 
 TEST_F(ScriptedTimelineTriggerTest, ForbidScriptDuringActivation) {
   // Define 'then' getter. This runs synchronously.
-  StringView remove_animation_code(
+  std::string remove_animation_code =
       R"JS(Object.defineProperty(Animation.prototype, 'then', {
         get() {
           trigger.removeAnimation(animation);
           return undefined;
         }
       });
-      )JS");
+      )JS";
 
   Initialize(/* activate= */ "reset", /* deactivate= */ "none",
              /* post_sectup_code*/ remove_animation_code);

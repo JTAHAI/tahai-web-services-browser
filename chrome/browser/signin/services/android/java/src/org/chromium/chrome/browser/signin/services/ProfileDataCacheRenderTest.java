@@ -50,6 +50,7 @@ import org.chromium.components.signin.SigninFeatures;
 import org.chromium.components.signin.test.util.TestAccounts;
 import org.chromium.google_apis.gaia.CoreAccountId;
 import org.chromium.ui.test.util.BlankUiTestActivity;
+import org.chromium.ui.widget.ChromeImageView;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -95,7 +96,6 @@ public class ProfileDataCacheRenderTest {
     @Rule
     public final ChromeRenderTestRule mRenderTestRule =
             ChromeRenderTestRule.Builder.withPublicCorpus()
-                    .setRevision(1)
                     .setBugComponent(ChromeRenderTestRule.Component.SERVICES_SIGN_IN)
                     .build();
 
@@ -124,7 +124,7 @@ public class ProfileDataCacheRenderTest {
         ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mContentView = new FrameLayout(sActivity);
-                    mImageView = new ImageView(sActivity);
+                    mImageView = new ChromeImageView(sActivity);
                     mContentView.addView(
                             mImageView, LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT);
                     sActivity.setContentView(mContentView);

@@ -66,8 +66,13 @@ static_assert(offsetof(Channel::Message::LegacyHeader, message_type) ==
 const size_t kReadBufferSize = 4096;
 const size_t kMaxUnusedReadBufferCapacity = 4096;
 
-// Limit on the number of handles that may be received per Mojo message.
-const size_t kMaxAttachedHandles = 256;
+#if BUILDFLAG(IS_FUCHSIA)
+// Fuchsia: The zx_channel_write() API supports up to 64 handles.
+const size_t kMaxAttachedHandles = 64;
+#else
+// Linux: The platform imposes a limit of 253 handles per sendmsg().
+const size_t kMaxAttachedHandles = 253;
+#endif  // BUILDFLAG(IS_FUCHSIA)
 
 static_assert(alignof(std::max_align_t) >= kChannelMessageAlignment, "");
 Channel::AlignedBuffer MakeAlignedBuffer(size_t size) {
@@ -396,8 +401,13 @@ Channel::MessagePtr Channel::Message::CreateMessage(size_t payload_size,
 Channel::MessagePtr Channel::Message::CreateMessage(size_t capacity,
                                                     size_t payload_size,
                                                     size_t max_handles) {
+#if defined(MOJO_CORE_LEGACY_PROTOCOL)
+  return CreateMessage(capacity, payload_size, max_handles,
+                       Message::MessageType::NORMAL_LEGACY);
+#else
   return CreateMessage(capacity, payload_size, max_handles,
                        Message::MessageType::NORMAL);
+#endif
 }
 
 // static
@@ -1098,9 +1108,10 @@ bool Channel::OnReadComplete(size_t bytes_read, size_t* next_read_size_hint) {
       if (!DispatchDelayedMessages()) {
         return false;
       }
-    } else if (result == DispatchResult::kNotEnoughData ||
-               result == DispatchResult::kMissingHandles) {
+    } else if (result == DispatchResult::kNotEnoughData) {
       return true;
+    } else if (result == DispatchResult::kMissingHandles) {
+      break;
     } else if (result == DispatchResult::kError) {
       return false;
     }

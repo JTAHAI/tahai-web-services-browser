@@ -11,8 +11,8 @@
 #include "components/autofill/core/browser/integrators/at_memory/memory_data_type.h"
 #include "components/autofill/core/browser/integrators/at_memory/memory_search_result.h"
 #include "components/autofill/core/browser/metrics/autofill_metrics.h"
-#include "components/autofill/core/browser/metrics/autofill_metrics_util.h"
-#include "components/autofill/core/browser/test_utils/autofill_test_util.h"
+#include "components/autofill/core/browser/metrics/autofill_metrics_utils.h"
+#include "components/autofill/core/browser/test_utils/autofill_test_utils.h"
 #include "components/autofill/core/common/aliases.h"
 #include "components/autofill/core/common/signatures.h"
 #include "components/optimization_guide/core/model_execution/model_execution_prefs.h"
@@ -27,17 +27,9 @@ namespace autofill {
 
 namespace {
 
-using ::testing::ElementsAre;
-using ::testing::Property;
 using ::testing::Values;
 
 constexpr ukm::SourceId kTestSourceId = static_cast<ukm::SourceId>(123);
-
-testing::Matcher<const optimization_guide::proto::AtMemorySuggestion&>
-HasAction(optimization_guide::proto::AtMemorySuggestionAction action) {
-  return Property(&optimization_guide::proto::AtMemorySuggestion::action,
-                  action);
-}
 
 class AtMemoryMetricsRecorderTest : public testing::Test {
  public:
@@ -69,7 +61,7 @@ class AtMemoryMetricsRecorderTest : public testing::Test {
       uploader_service_;
 };
 
-// Tests that `OnPopupShown` correctly logs the "SearchBarDisplayed" metric when
+// Tests that `OnPopupShown` correctly logs the "PopupDisplayed" metric when
 // triggered by typing the invocation sequence.
 TEST_F(AtMemoryMetricsRecorderTest, OnPopupShown_TypedTrigger) {
   AtMemoryMetricsRecorder metrics(nullptr, &test_ukm_recorder_, kTestSourceId,
@@ -83,7 +75,7 @@ TEST_F(AtMemoryMetricsRecorderTest, OnPopupShown_TypedTrigger) {
       AutofillMetrics::AtMemoryTriggerSource::kTypedTrigger, 1);
 }
 
-// Tests that `OnPopupShown` correctly logs the "SearchBarDisplayed" metric when
+// Tests that `OnPopupShown` correctly logs the "PopupDisplayed" metric when
 // triggered via the context menu.
 TEST_F(AtMemoryMetricsRecorderTest, OnPopupShown_ContextMenu) {
   AtMemoryMetricsRecorder metrics(nullptr, &test_ukm_recorder_, kTestSourceId,
@@ -95,20 +87,6 @@ TEST_F(AtMemoryMetricsRecorderTest, OnPopupShown_ContextMenu) {
   histogram_tester_.ExpectUniqueSample(
       "Autofill.AtMemory.SearchBarDisplayed",
       AutofillMetrics::AtMemoryTriggerSource::kContextMenu, 1);
-}
-
-// Tests that `OnPopupShown` correctly logs the "SearchBarDisplayed" metric when
-// triggered via double Ctrl.
-TEST_F(AtMemoryMetricsRecorderTest, OnPopupShown_DoubleCtrl) {
-  AtMemoryMetricsRecorder metrics(nullptr, &test_ukm_recorder_, kTestSourceId,
-                                  GURL(), std::u16string(), FieldGlobalId(),
-                                  FormSignature(0), FieldSignature(0));
-  metrics.OnPopupShown(AutofillSuggestionTriggerSource::kAtMemoryDoubleCtrl,
-                       std::nullopt);
-
-  histogram_tester_.ExpectUniqueSample(
-      "Autofill.AtMemory.SearchBarDisplayed",
-      AutofillMetrics::AtMemoryTriggerSource::kDoubleCtrl, 1);
 }
 
 // Tests that `OnPopupShown` is idempotent and only logs a metric for the
@@ -665,10 +643,9 @@ TEST_F(AtMemoryMetricsRecorderTest, LogEntryUploaded_SuggestionAccepted_Root) {
   const optimization_guide::proto::AtMemoryQuality& quality =
       uploaded_logs[0]->at_memory().quality();
 
-  EXPECT_THAT(
-      quality.suggestions(),
-      ElementsAre(HasAction(
-          optimization_guide::proto::AT_MEMORY_SUGGESTION_ACTION_ACCEPTED)));
+  ASSERT_EQ(quality.suggestions_size(), 1);
+  EXPECT_EQ(quality.suggestions(0).action(),
+            optimization_guide::proto::AT_MEMORY_SUGGESTION_ACTION_ACCEPTED);
 }
 
 // Tests that the ModelQualityLogEntry is correctly filled with the action
@@ -704,12 +681,11 @@ TEST_F(AtMemoryMetricsRecorderTest, LogEntryUploaded_SuggestionAccepted_Sub) {
   const optimization_guide::proto::AtMemoryQuality& quality =
       uploaded_logs[0]->at_memory().quality();
 
+  ASSERT_EQ(quality.suggestions_size(), 1);
   // The action should be set to the flyout menu attribute accepted action.
-  EXPECT_THAT(
-      quality.suggestions(),
-      ElementsAre(HasAction(
-          optimization_guide::proto::
-              AT_MEMORY_SUGGESTION_ACTION_FLYOUT_MENU_ATTRIBUTE_ACCEPTED)));
+  EXPECT_EQ(quality.suggestions(0).action(),
+            optimization_guide::proto::
+                AT_MEMORY_SUGGESTION_ACTION_FLYOUT_MENU_ATTRIBUTE_ACCEPTED);
 }
 
 // Tests that the ModelQualityLogEntry is correctly filled with the action
@@ -742,11 +718,11 @@ TEST_F(AtMemoryMetricsRecorderTest, LogEntryUploaded_PopupShown) {
   const optimization_guide::proto::AtMemoryQuality& quality =
       uploaded_logs[0]->at_memory().quality();
 
+  ASSERT_EQ(quality.suggestions_size(), 1);
   // The action should be set to the flyout menu attribute accepted action.
-  EXPECT_THAT(quality.suggestions(),
-              ElementsAre(HasAction(
-                  optimization_guide::proto::
-                      AT_MEMORY_SUGGESTION_ACTION_FLYOUT_MENU_OPENED)));
+  EXPECT_EQ(quality.suggestions(0).action(),
+            optimization_guide::proto::
+                AT_MEMORY_SUGGESTION_ACTION_FLYOUT_MENU_OPENED);
 }
 
 // Tests that `OnSuggestionAccepted` correctly logs the accepted suggestion
@@ -1047,98 +1023,6 @@ INSTANTIATE_TEST_SUITE_P(
                                    MemorySearchStatus::kPartialResponseSuccess,
                                    /*entries=*/{}),
                                .expected_status = std::nullopt}));
-
-// Tests that closing the popup without typing any query emits
-// kDismissedBeforeQuery.
-TEST_F(AtMemoryMetricsRecorderTest, UiSessionOutcome_DismissedBeforeQuery) {
-  {
-    AtMemoryMetricsRecorder metrics(nullptr, &test_ukm_recorder_, kTestSourceId,
-                                    GURL(), std::u16string(), FieldGlobalId(),
-                                    FormSignature(0), FieldSignature(0));
-    metrics.OnPopupShown(
-        AutofillSuggestionTriggerSource::kAtMemoryTriggerString, std::nullopt);
-  }
-
-  histogram_tester_.ExpectUniqueSample(
-      "Autofill.AtMemory.UiSessionOutcome",
-      AtMemoryUiSessionOutcome::kDismissedBeforeQuery, 1);
-}
-
-// Tests that closing the popup after submitting a query but before receiving
-// results emits kDismissedBeforeResults.
-TEST_F(AtMemoryMetricsRecorderTest, UiSessionOutcome_DismissedBeforeResults) {
-  {
-    AtMemoryMetricsRecorder metrics(nullptr, &test_ukm_recorder_, kTestSourceId,
-                                    GURL(), std::u16string(), FieldGlobalId(),
-                                    FormSignature(0), FieldSignature(0));
-    metrics.OnPopupShown(
-        AutofillSuggestionTriggerSource::kAtMemoryTriggerString, std::nullopt);
-    metrics.OnQuerySubmitted(u"query");
-    // Destructor called before SendResponse(metrics).
-  }
-
-  histogram_tester_.ExpectUniqueSample(
-      "Autofill.AtMemory.UiSessionOutcome",
-      AtMemoryUiSessionOutcome::kDismissedBeforeResults, 1);
-}
-
-// Tests that closing the popup after receiving search results without
-// accepting a suggestion emits kDismissedResultsBeforeAcceptance.
-TEST_F(AtMemoryMetricsRecorderTest,
-       UiSessionOutcome_DismissedResultsBeforeAcceptance) {
-  {
-    AtMemoryMetricsRecorder metrics(nullptr, &test_ukm_recorder_, kTestSourceId,
-                                    GURL(), std::u16string(), FieldGlobalId(),
-                                    FormSignature(0), FieldSignature(0));
-    metrics.OnPopupShown(
-        AutofillSuggestionTriggerSource::kAtMemoryTriggerString, std::nullopt);
-    metrics.OnQuerySubmitted(u"query");
-    SendResponse(metrics);
-  }
-
-  histogram_tester_.ExpectUniqueSample(
-      "Autofill.AtMemory.UiSessionOutcome",
-      AtMemoryUiSessionOutcome::kDismissedResultsBeforeAcceptance, 1);
-}
-
-// Tests that accepting a suggestion without filling emits
-// kSuggestionAcceptedNotFilled.
-TEST_F(AtMemoryMetricsRecorderTest,
-       UiSessionOutcome_SuggestionAcceptedNotFilled) {
-  {
-    AtMemoryMetricsRecorder metrics(nullptr, &test_ukm_recorder_, kTestSourceId,
-                                    GURL(), std::u16string(), FieldGlobalId(),
-                                    FormSignature(0), FieldSignature(0));
-    metrics.OnPopupShown(
-        AutofillSuggestionTriggerSource::kAtMemoryTriggerString, std::nullopt);
-    metrics.OnQuerySubmitted(u"query");
-    SendResponse(metrics);
-    metrics.OnSuggestionAccepted(MemoryDataType::kAddressFull);
-  }
-
-  histogram_tester_.ExpectUniqueSample(
-      "Autofill.AtMemory.UiSessionOutcome",
-      AtMemoryUiSessionOutcome::kSuggestionAcceptedNotFilled, 1);
-}
-
-// Tests that accepting and filling a suggestion emits kSuggestionFilled.
-TEST_F(AtMemoryMetricsRecorderTest, UiSessionOutcome_SuggestionFilled) {
-  {
-    AtMemoryMetricsRecorder metrics(nullptr, &test_ukm_recorder_, kTestSourceId,
-                                    GURL(), std::u16string(), FieldGlobalId(),
-                                    FormSignature(0), FieldSignature(0));
-    metrics.OnPopupShown(
-        AutofillSuggestionTriggerSource::kAtMemoryTriggerString, std::nullopt);
-    metrics.OnQuerySubmitted(u"query");
-    SendResponse(metrics);
-    metrics.OnSuggestionAccepted(MemoryDataType::kAddressFull);
-    metrics.MarkFilled();
-  }
-
-  histogram_tester_.ExpectUniqueSample(
-      "Autofill.AtMemory.UiSessionOutcome",
-      AtMemoryUiSessionOutcome::kSuggestionFilled, 1);
-}
 
 }  // namespace
 

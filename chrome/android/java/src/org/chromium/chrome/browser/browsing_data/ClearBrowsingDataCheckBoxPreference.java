@@ -122,7 +122,7 @@ public class ClearBrowsingDataCheckBoxPreference extends ChromeBaseCheckBoxPrefe
                                 "</link>",
                                 new ChromeClickableSpan(
                                         getContext(),
-                                        _ -> {
+                                        (widget) -> {
                                             if (mLinkClickDelegate != null) {
                                                 mLinkClickDelegate.run();
                                             }

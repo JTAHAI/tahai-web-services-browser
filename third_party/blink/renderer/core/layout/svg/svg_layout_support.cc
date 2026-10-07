@@ -58,10 +58,6 @@ AffineTransform DeprecatedCalculateTransformToLayer(
     layout_object = layout_object->Parent();
   }
 
-  if (RuntimeEnabledFeatures::SvgIgnoreOuterTransformsEnabled()) {
-    return transform;
-  }
-
   // Continue walking up the layer tree, accumulating CSS transforms.
   PaintLayer* layer = layout_object ? layout_object->EnclosingLayer() : nullptr;
   while (layer) {
@@ -153,7 +149,7 @@ bool SVGLayoutSupport::MapToVisualRectInAncestorSpace(
 
   gfx::RectF adjusted_rect;
   if (filter_skipped &&
-      !visual_rect_flags.Has(VisualRectFlag::kIgnoreFilters)) {
+      !(visual_rect_flags & VisualRectFlags::kIgnoreFilters)) {
     adjusted_rect = MapToSVGRootIncludingFilter(object, local_visual_rect);
   } else {
     adjusted_rect = root_border_box_transform.MapRect(local_visual_rect);
@@ -171,7 +167,7 @@ bool SVGLayoutSupport::MapToVisualRectInAncestorSpace(
   // Apply initial viewport clip.
   if (svg_root.ClipsToContentBox()) {
     PhysicalRect clip_rect(svg_root.OverflowClipRect());
-    if (visual_rect_flags.Has(VisualRectFlag::kEdgeInclusive)) {
+    if (visual_rect_flags & kEdgeInclusive) {
       if (!result_rect.InclusiveIntersect(clip_rect))
         return false;
     } else {
@@ -214,8 +210,7 @@ void SVGLayoutSupport::MapAncestorToLocal(const LayoutObject& object,
   // computing the transform to the SVG root is always what we want to do here.
   DCHECK_NE(ancestor, &object);
   DCHECK(object.IsSVGContainer() || object.IsSVGShape() ||
-         object.IsSVGImage() || object.IsSVGText() ||
-         object.IsSVGForeignObject());
+         object.IsSVGImage() || object.IsSVGForeignObject());
   AffineTransform local_to_svg_root;
   const LayoutSVGRoot& svg_root =
       ComputeTransformToSVGRoot(object, local_to_svg_root, nullptr);

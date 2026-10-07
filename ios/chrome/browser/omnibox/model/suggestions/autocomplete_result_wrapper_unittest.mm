@@ -91,8 +91,7 @@ TEST_F(AutocompleteResultWrapperTest,
   wrapper_.hasThumbnail = NO;
 
   NSArray<id<AutocompleteSuggestionGroup>>* wrappedGroups =
-      [wrapper_ wrapAutocompleteResultInGroups:result
-                    suppressVerbatimFromResult:NO];
+      [wrapper_ wrapAutocompleteResultInGroups:result];
 
   // Expect 1 wrapped group.
   EXPECT_EQ(wrappedGroups.count, 1u);
@@ -152,8 +151,7 @@ TEST_F(AutocompleteResultWrapperTest, testChangeSearchEngine) {
                 template_url_service->search_terms_data()));
 
   NSArray<id<AutocompleteSuggestionGroup>>* wrappedGroups =
-      [wrapper_ wrapAutocompleteResultInGroups:result
-                    suppressVerbatimFromResult:NO];
+      [wrapper_ wrapAutocompleteResultInGroups:result];
 
   EXPECT_EQ(wrappedGroups.count, 1u);
   EXPECT_EQ(wrappedGroups[0].suggestions.count, 2u);
@@ -186,8 +184,7 @@ TEST_F(AutocompleteResultWrapperTest, testChangeSearchEngine) {
   template_url_service->SetUserSelectedDefaultSearchProvider(
       non_google_provider);
 
-  wrappedGroups = [wrapper_ wrapAutocompleteResultInGroups:result
-                                suppressVerbatimFromResult:NO];
+  wrappedGroups = [wrapper_ wrapAutocompleteResultInGroups:result];
 
   firstSuggestion = wrappedGroups[0].suggestions[0];
   secondSuggestion = wrappedGroups[0].suggestions[1];
@@ -214,8 +211,7 @@ TEST_F(AutocompleteResultWrapperTest, testWrapPedalMatch) {
   result.AppendMatches({match});
 
   NSArray<id<AutocompleteSuggestionGroup>>* wrappedGroups =
-      [wrapper_ wrapAutocompleteResultInGroups:result
-                    suppressVerbatimFromResult:NO];
+      [wrapper_ wrapAutocompleteResultInGroups:result];
 
   // The result should be wrapped into 2 groups where the first one is for
   // pedal.

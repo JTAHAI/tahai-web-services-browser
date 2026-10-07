@@ -108,11 +108,13 @@ const CGFloat kCellTrailingPadding = 31;
 // preference options views.
 - (UIStackView*)addressBarPreferenceOptionsContent {
   _topAddressBar = [[AddressBarOptionView alloc]
-      initWithSymbol:SymbolTopOmniboxOption
-           labelText:l10n_util::GetNSString(IDS_IOS_TOP_ADDRESS_BAR_OPTION)];
+      initWithSymbolName:kTopOmniboxOptionSymbol
+               labelText:l10n_util::GetNSString(
+                             IDS_IOS_TOP_ADDRESS_BAR_OPTION)];
   _bottomAddressBar = [[AddressBarOptionView alloc]
-      initWithSymbol:SymbolBottomOmniboxOption
-           labelText:l10n_util::GetNSString(IDS_IOS_BOTTOM_ADDRESS_BAR_OPTION)];
+      initWithSymbolName:kBottomOmniboxOptionSymbol
+               labelText:l10n_util::GetNSString(
+                             IDS_IOS_BOTTOM_ADDRESS_BAR_OPTION)];
 
   [_topAddressBar setSelected:!_bottomAddressBarOptionSelected];
   [_bottomAddressBar setSelected:_bottomAddressBarOptionSelected];

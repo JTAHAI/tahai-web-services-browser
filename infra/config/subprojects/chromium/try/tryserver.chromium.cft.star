@@ -30,10 +30,6 @@ consoles.list_view(
     name = "tryserver.chromium.cft",
 )
 
-_LOCATION_FILTER = [
-    ".*chrome_for_testing.*",
-]
-
 try_.builder(
     name = "linux-rel-cft",
     mirrors = [
@@ -52,9 +48,6 @@ try_.builder(
         ],
     ),
     os = os.LINUX_DEFAULT,
-    cq_settings = try_.cq_settings(
-        location_filters = _LOCATION_FILTER,
-    ),
     siso_remote_linking = True,
 )
 
@@ -77,9 +70,6 @@ try_.builder(
     cores = None,
     os = os.MAC_DEFAULT,
     cpu = cpu.ARM64,
-    cq_settings = try_.cq_settings(
-        location_filters = _LOCATION_FILTER,
-    ),
 )
 
 try_.builder(
@@ -102,8 +92,5 @@ try_.builder(
         ],
     ),
     os = os.WINDOWS_DEFAULT,
-    cq_settings = try_.cq_settings(
-        location_filters = _LOCATION_FILTER,
-    ),
     siso_remote_linking = True,
 )

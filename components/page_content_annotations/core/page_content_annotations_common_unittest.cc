@@ -36,7 +36,7 @@ TEST(PageContentAnnotationsCommonTest,
   // With noise probability at 0, `GenerateRapporNoisedScore` is purely a
   // bucketing function with deterministic output.
   scoped_feature_list.InitAndEnableFeatureWithParameters(
-      features::kPageContentAnnotationsValidation,
+      features::kPageContentAnnotations,
       {{"num_bits_for_rappor_metrics", "4"},
        {"noise_prob_for_rappor_metrics", "0.0"}});
 

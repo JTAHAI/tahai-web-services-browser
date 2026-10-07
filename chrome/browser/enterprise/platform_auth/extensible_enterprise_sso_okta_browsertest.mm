@@ -30,7 +30,6 @@
 #include "chrome/browser/enterprise/platform_auth/platform_auth_policy_observer.h"
 #include "chrome/browser/enterprise/platform_auth/platform_auth_proxying_url_loader_factory.h"
 #include "chrome/browser/enterprise/platform_auth/scoped_cf_prefs_observer_override.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/common/pref_names.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/ui_test_utils.h"
@@ -186,7 +185,7 @@ class ExtensibleEnterpriseSsoOktaBrowserTest : public InProcessBrowserTest {
 
   void CheckSSORequest(bool expect_response,
                        std::string_view hostname = kDomain1,
-                       BrowserWindowInterface* target_browser = nullptr) {
+                       Browser* target_browser = nullptr) {
     if (!target_browser) {
       target_browser = browser();
     }
@@ -195,7 +194,7 @@ class ExtensibleEnterpriseSsoOktaBrowserTest : public InProcessBrowserTest {
     ASSERT_TRUE(ui_test_utils::NavigateToURL(target_browser, test_url));
 
     const auto result = content::EvalJs(
-        target_browser->GetTabStripModel()->GetActiveWebContents(),
+        target_browser->tab_strip_model()->GetActiveWebContents(),
         content::JsReplace(
             R"(
             fetch($1, {
@@ -286,8 +285,7 @@ IN_PROC_BROWSER_TEST_F(ExtensibleEnterpriseSsoOktaBrowserTest, Successful) {
 IN_PROC_BROWSER_TEST_F(ExtensibleEnterpriseSsoOktaBrowserTest,
                        DoesNotProxyInIncognito) {
   // Create an Incognito browser window linked to the main profile.
-  BrowserWindowInterface* incognito_browser =
-      CreateIncognitoBrowser(browser()->GetProfile());
+  Browser* incognito_browser = CreateIncognitoBrowser(browser()->GetProfile());
   ASSERT_TRUE(incognito_browser);
 
   // The SSO proxying should not occur in an Incognito window.
@@ -297,7 +295,7 @@ IN_PROC_BROWSER_TEST_F(ExtensibleEnterpriseSsoOktaBrowserTest,
 IN_PROC_BROWSER_TEST_F(ExtensibleEnterpriseSsoOktaBrowserTest,
                        DoesNotProxyInGuestMode) {
   // Create a Guest browser window.
-  BrowserWindowInterface* guest_browser = CreateGuestBrowser();
+  Browser* guest_browser = CreateGuestBrowser();
   ASSERT_TRUE(guest_browser);
 
   // The SSO proxying should not occur in a Guest window.

@@ -17,7 +17,7 @@
 #include "chrome/test/views/chrome_views_test_base.h"
 #include "components/autofill/content/browser/test_autofill_client_injector.h"
 #include "components/autofill/content/browser/test_content_autofill_client.h"
-#include "components/autofill/core/browser/strike_databases/evp/email_verification_strike_database.h"
+#include "components/autofill/core/browser/strike_databases/email_verification_strike_database.h"
 #include "components/autofill/core/browser/strike_databases/payments/test_strike_database.h"
 #include "components/autofill/core/common/autofill_prefs.h"
 #include "components/prefs/pref_service.h"
@@ -33,8 +33,8 @@ namespace autofill {
 namespace {
 
 using ::base::test::TestFuture;
-using EmailVerificationPermissionUiStatus =
-    AutofillClient::EmailVerificationPermissionUiStatus;
+using EmailVerificationResult =
+    AutofillClient::EmailVerificationPermissionUiResult;
 
 class MockEmailVerificationPopupView : public EmailVerificationPopupView {
  public:
@@ -128,7 +128,7 @@ TEST_F(EmailVerificationPopupViewTest, Show) {
 
   SetupMockViewFactory(controller.get(), mock_view);
 
-  TestFuture<EmailVerificationPermissionUiStatus> confirmed_future;
+  TestFuture<EmailVerificationResult> confirmed_future;
 
   controller->Show(gfx::RectF(0, 0, 10, 10),
                    net::SchemefulSite(GURL("https://issuer.com")),
@@ -140,12 +140,11 @@ TEST_F(EmailVerificationPopupViewTest, Show) {
   // Verify that controller callback is invoked on hiding / closing.
   controller->Hide(SuggestionHidingReason::kTabGone);
   EXPECT_TRUE(confirmed_future.IsReady());
-  EXPECT_EQ(confirmed_future.Get(),
-            EmailVerificationPermissionUiStatus::kTabGone);
+  EXPECT_EQ(confirmed_future.Get(), EmailVerificationResult::kIgnored);
 
   histogram_tester.ExpectUniqueSample(
       "Blink.Evp.PermissionUi.Status",
-      EmailVerificationPermissionUiStatus::kTabGone, 1);
+      EmailVerificationPopupController::EvpPermissionUiStatus::kTabGone, 1);
 }
 
 TEST_F(EmailVerificationPopupViewTest, AllowedLogged) {
@@ -157,7 +156,7 @@ TEST_F(EmailVerificationPopupViewTest, AllowedLogged) {
 
   SetupMockViewFactory(controller.get(), mock_view);
 
-  TestFuture<EmailVerificationPermissionUiStatus> confirmed_future;
+  TestFuture<EmailVerificationResult> confirmed_future;
 
   controller->Show(gfx::RectF(0, 0, 10, 10),
                    net::SchemefulSite(GURL("https://issuer.com")),
@@ -170,12 +169,11 @@ TEST_F(EmailVerificationPopupViewTest, AllowedLogged) {
   std::move(mock_view->decision_callback()).Run(true);
 
   EXPECT_TRUE(confirmed_future.IsReady());
-  EXPECT_EQ(confirmed_future.Get(),
-            EmailVerificationPermissionUiStatus::kAllowed);
+  EXPECT_EQ(confirmed_future.Get(), EmailVerificationResult::kAccepted);
 
   histogram_tester.ExpectUniqueSample(
       "Blink.Evp.PermissionUi.Status",
-      EmailVerificationPermissionUiStatus::kAllowed, 1);
+      EmailVerificationPopupController::EvpPermissionUiStatus::kAllowed, 1);
 }
 
 TEST_F(EmailVerificationPopupViewTest, DeclinedLogged) {
@@ -187,7 +185,7 @@ TEST_F(EmailVerificationPopupViewTest, DeclinedLogged) {
 
   SetupMockViewFactory(controller.get(), mock_view);
 
-  TestFuture<EmailVerificationPermissionUiStatus> confirmed_future;
+  TestFuture<EmailVerificationResult> confirmed_future;
 
   controller->Show(gfx::RectF(0, 0, 10, 10),
                    net::SchemefulSite(GURL("https://issuer.com")),
@@ -200,12 +198,11 @@ TEST_F(EmailVerificationPopupViewTest, DeclinedLogged) {
   std::move(mock_view->decision_callback()).Run(false);
 
   EXPECT_TRUE(confirmed_future.IsReady());
-  EXPECT_EQ(confirmed_future.Get(),
-            EmailVerificationPermissionUiStatus::kDeclined);
+  EXPECT_EQ(confirmed_future.Get(), EmailVerificationResult::kDeclined);
 
   histogram_tester.ExpectUniqueSample(
       "Blink.Evp.PermissionUi.Status",
-      EmailVerificationPermissionUiStatus::kDeclined, 1);
+      EmailVerificationPopupController::EvpPermissionUiStatus::kDeclined, 1);
 }
 
 TEST_F(EmailVerificationPopupViewTest, ClickOutsideLogged) {
@@ -217,7 +214,7 @@ TEST_F(EmailVerificationPopupViewTest, ClickOutsideLogged) {
 
   SetupMockViewFactory(controller.get(), mock_view);
 
-  TestFuture<EmailVerificationPermissionUiStatus> confirmed_future;
+  TestFuture<EmailVerificationResult> confirmed_future;
 
   controller->Show(gfx::RectF(0, 0, 10, 10),
                    net::SchemefulSite(GURL("https://issuer.com")),
@@ -231,12 +228,11 @@ TEST_F(EmailVerificationPopupViewTest, ClickOutsideLogged) {
   controller->DidGetUserInteraction(event);
 
   EXPECT_TRUE(confirmed_future.IsReady());
-  EXPECT_EQ(confirmed_future.Get(),
-            EmailVerificationPermissionUiStatus::kUserAborted);
+  EXPECT_EQ(confirmed_future.Get(), EmailVerificationResult::kIgnored);
 
   histogram_tester.ExpectUniqueSample(
       "Blink.Evp.PermissionUi.Status",
-      EmailVerificationPermissionUiStatus::kUserAborted, 1);
+      EmailVerificationPopupController::EvpPermissionUiStatus::kUserAborted, 1);
 }
 
 TEST_F(EmailVerificationPopupViewTest, FocusChangedLogged) {
@@ -248,7 +244,7 @@ TEST_F(EmailVerificationPopupViewTest, FocusChangedLogged) {
 
   SetupMockViewFactory(controller.get(), mock_view);
 
-  TestFuture<EmailVerificationPermissionUiStatus> confirmed_future;
+  TestFuture<EmailVerificationResult> confirmed_future;
 
   controller->Show(gfx::RectF(0, 0, 10, 10),
                    net::SchemefulSite(GURL("https://issuer.com")),
@@ -261,12 +257,11 @@ TEST_F(EmailVerificationPopupViewTest, FocusChangedLogged) {
   controller->Hide(SuggestionHidingReason::kFocusChanged);
 
   EXPECT_TRUE(confirmed_future.IsReady());
-  EXPECT_EQ(confirmed_future.Get(),
-            EmailVerificationPermissionUiStatus::kUserAborted);
+  EXPECT_EQ(confirmed_future.Get(), EmailVerificationResult::kIgnored);
 
   histogram_tester.ExpectUniqueSample(
       "Blink.Evp.PermissionUi.Status",
-      EmailVerificationPermissionUiStatus::kUserAborted, 1);
+      EmailVerificationPopupController::EvpPermissionUiStatus::kUserAborted, 1);
 }
 
 TEST_F(EmailVerificationPopupViewTest, AcceptUpdatesPrefs) {
@@ -289,7 +284,7 @@ TEST_F(EmailVerificationPopupViewTest, AcceptUpdatesPrefs) {
       },
       base::Unretained(&mock_view), base::Unretained(&saved_callback)));
 
-  TestFuture<EmailVerificationPermissionUiStatus> confirmed_future;
+  TestFuture<EmailVerificationResult> confirmed_future;
   std::u16string email = u"user@example.com";
   net::SchemefulSite issuer_site(GURL("https://issuer.com"));
 
@@ -297,10 +292,9 @@ TEST_F(EmailVerificationPopupViewTest, AcceptUpdatesPrefs) {
       gfx::RectF(0, 0, 10, 10), issuer_site, email,
       base::BindOnce(
           [](PrefService* prefs,
-             base::OnceCallback<void(EmailVerificationPermissionUiStatus)> cb,
-             EmailVerificationPermissionUiStatus status) {
-            bool accepted =
-                (status == EmailVerificationPermissionUiStatus::kAllowed);
+             base::OnceCallback<void(EmailVerificationResult)> cb,
+             EmailVerificationResult result) {
+            bool accepted = (result == EmailVerificationResult::kAccepted);
             if (accepted) {
               base::DictValue state =
                   prefs->GetDict(prefs::kAutofillEmailVerificationState)
@@ -313,7 +307,7 @@ TEST_F(EmailVerificationPopupViewTest, AcceptUpdatesPrefs) {
               prefs->SetDict(prefs::kAutofillEmailVerificationState,
                              std::move(state));
             }
-            std::move(cb).Run(status);
+            std::move(cb).Run(result);
           },
           profile_.GetPrefs(), confirmed_future.GetCallback()));
 
@@ -323,8 +317,7 @@ TEST_F(EmailVerificationPopupViewTest, AcceptUpdatesPrefs) {
   std::move(saved_callback).Run(true);  // Simulate accept
 
   EXPECT_TRUE(confirmed_future.IsReady());
-  EXPECT_EQ(confirmed_future.Get(),
-            EmailVerificationPermissionUiStatus::kAllowed);
+  EXPECT_EQ(confirmed_future.Get(), EmailVerificationResult::kAccepted);
 
   PrefService* prefs = profile_.GetPrefs();
   const auto& state = prefs->GetDict(prefs::kAutofillEmailVerificationState);
@@ -342,9 +335,9 @@ TEST_F(EmailVerificationPopupViewTest, IncrementsDeclineCount) {
       test_autofill_client_injector_[web_contents()];
   auto callback = base::BindOnce(
       [](base::OnceClosure quit_closure, TestContentAutofillClient* client,
-         std::string email, EmailVerificationPermissionUiStatus status) {
-        EXPECT_EQ(status, EmailVerificationPermissionUiStatus::kDeclined);
-        if (status == EmailVerificationPermissionUiStatus::kDeclined) {
+         std::string email, EmailVerificationResult result) {
+        EXPECT_EQ(result, EmailVerificationResult::kDeclined);
+        if (result == EmailVerificationResult::kDeclined) {
           EmailVerificationStrikeDatabase strike_db(
               client->GetStrikeDatabase());
           strike_db.AddStrike(EmailVerificationStrikeDatabase::GetId(email));
@@ -401,9 +394,9 @@ TEST_F(EmailVerificationPopupViewTest, ShowsPopupIfDeclinedLessThanThreeTimes) {
   base::RunLoop run_loop;
   auto callback = base::BindOnce(
       [](base::OnceClosure quit_closure, TestContentAutofillClient* client,
-         std::string email, EmailVerificationPermissionUiStatus status) {
-        EXPECT_EQ(status, EmailVerificationPermissionUiStatus::kDeclined);
-        if (status == EmailVerificationPermissionUiStatus::kDeclined) {
+         std::string email, EmailVerificationResult result) {
+        EXPECT_EQ(result, EmailVerificationResult::kDeclined);
+        if (result == EmailVerificationResult::kDeclined) {
           EmailVerificationStrikeDatabase strike_db(
               client->GetStrikeDatabase());
           strike_db.AddStrike(EmailVerificationStrikeDatabase::GetId(email));
@@ -455,8 +448,8 @@ TEST_F(EmailVerificationPopupViewTest, DismissalDoesNotIncrementDeclineCount) {
       test_autofill_client_injector_[web_contents()];
   auto callback = base::BindOnce(
       [](base::OnceClosure quit_closure, TestContentAutofillClient* client,
-         std::string email, EmailVerificationPermissionUiStatus status) {
-        EXPECT_EQ(status, EmailVerificationPermissionUiStatus::kTabGone);
+         std::string email, EmailVerificationResult result) {
+        EXPECT_EQ(result, EmailVerificationResult::kIgnored);
         std::move(quit_closure).Run();
       },
       run_loop.QuitClosure(), client, "test@example.com");

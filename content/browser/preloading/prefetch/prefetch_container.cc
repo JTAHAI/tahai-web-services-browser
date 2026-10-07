@@ -105,8 +105,6 @@ PrefetchStatus PrefetchStatusFromIneligibleReason(
       return PrefetchStatus::kPrefetchIneligibleRedirectToServiceWorker;
     case PreloadingEligibility::kBlockedByConnectionAllowlist:
       return PrefetchStatus::kPrefetchIneligibleBlockedByConnectionAllowlist;
-    case PreloadingEligibility::kCrossOrigin:
-      return PrefetchStatus::kPrefetchIneligibleCrossOrigin;
     case PreloadingEligibility::kEligible:
     default:
       // Other ineligible cases are not used in `PrefetchService`.
@@ -146,7 +144,6 @@ std::optional<PreloadingTriggeringOutcome> TriggeringOutcomeFromStatus(
     case PrefetchStatus::kPrefetchIneligibleUserHasCookies:
     case PrefetchStatus::kPrefetchIneligibleRetryAfter:
     case PrefetchStatus::kPrefetchIneligibleBlockedByConnectionAllowlist:
-    case PrefetchStatus::kPrefetchIneligibleCrossOrigin:
     case PrefetchStatus::kPrefetchNotUsedCookiesChanged:
     case PrefetchStatus::kPrefetchNotUsedProbeFailed:
     case PrefetchStatus::
@@ -199,7 +196,6 @@ bool StatusUpdateIsPossibleAfterFailure(PrefetchStatus status) {
     case PrefetchStatus::kPrefetchIneligibleUserHasCookies:
     case PrefetchStatus::kPrefetchIneligibleRetryAfter:
     case PrefetchStatus::kPrefetchIneligibleBlockedByConnectionAllowlist:
-    case PrefetchStatus::kPrefetchIneligibleCrossOrigin:
     case PrefetchStatus::kPrefetchNotUsedCookiesChanged:
     case PrefetchStatus::kPrefetchNotUsedProbeFailed:
     case PrefetchStatus::
@@ -467,6 +463,9 @@ NOINLINE void ValidateResourceRequestForPrePrefetch(
                         resource_request_for_validation.request_body);
   DUMP_WILL_BE_CHECK_EQ(resource_request_for_pre_prefetch.keepalive,
                         resource_request_for_validation.keepalive);
+  DUMP_WILL_BE_CHECK_EQ(
+      resource_request_for_pre_prefetch.shared_storage_writable_eligible,
+      resource_request_for_validation.shared_storage_writable_eligible);
   DUMP_WILL_BE_CHECK_EQ(resource_request_for_pre_prefetch.has_user_gesture,
                         resource_request_for_validation.has_user_gesture);
   DUMP_WILL_BE_CHECK_EQ(resource_request_for_pre_prefetch.enable_load_timing,
@@ -622,8 +621,6 @@ PrefetchContainer::~PrefetchContainer() {
   // https://chromium-review.googlesource.com/c/chromium/src/+/5657659/comments/0cfb14c0_3050963e
   //
   // TODO(crbug.com/356314759): Do it.
-
-  OnStale();
   NotifyObservers(&PrefetchContainerObserver::OnWillBeDestroyed);
 
   CancelStreamingURLLoaderIfNotServing();
@@ -839,7 +836,6 @@ void PrefetchContainer::SetTriggeringOutcomeAndFailureReasonFromStatus(
       case PrefetchStatus::
           kPrefetchIneligibleSameSiteCrossOriginPrefetchRequiredProxy:
       case PrefetchStatus::kPrefetchIneligibleBlockedByConnectionAllowlist:
-      case PrefetchStatus::kPrefetchIneligibleCrossOrigin:
         NOTIMPLEMENTED();
     }
   }
@@ -961,14 +957,6 @@ PrefetchContainer::CreatePrePrefetchURLLoaderFactory() {
           std::move(pre_prefetch_loader_),
           std::move(pre_prefetch_loader_client_receiver_), GetWeakPtr()));
 
-  if (features::kPrefetchOffTheMainThreadCheckWillCreateURLLoaderFactory
-          .Get()) {
-    // `WillCreateURLLoaderFactory` is already consulted in the PrePrefetch's
-    // URLLoaderFactory (i.e. inside `pre_prefetch_loader_`), so we don't go
-    // through `CreatePrefetchURLLoaderFactory()` here.
-    return pre_prefetch_url_loader_factory;
-  }
-
   // Currently `feature::kPrefetchOffTheMainThread` doesn't support the
   // request w/ isolated context.
   return CreatePrefetchURLLoaderFactory(
@@ -1072,10 +1060,6 @@ void PrefetchContainer::SetLoadState(LoadState new_load_state) {
            << new_load_state;
 
   load_state_ = new_load_state;
-
-  if (IsPrefetchStale()) {
-    OnStale();
-  }
 }
 
 PrefetchContainer::LoadState PrefetchContainer::GetLoadState() const {
@@ -1951,49 +1935,16 @@ void PrefetchContainer::NotifyPrefetchRequestWillBeSent(
   }
 }
 
-void PrefetchContainer::NotifyPrefetchRedirectResponseReceived(
-    const network::mojom::URLResponseHead& redirect_head) {
-  // Ensured by the caller `PrefetchService::OnPrefetchRedirect()`.
-  CHECK(!IsDecoy());
-
-  // Populate `time_first_url_request_started` on the first response hop.
-  //
-  // When a redirect occurs, `net::URLRequest::PrepareToRestart()` in
-  // `net/url_request/url_request.cc` resets `load_timing_info_.request_start`
-  // for the subsequent redirect hop. Thus, the final non-redirect response's
-  // `load_timing.request_start` only reflects the start time of the latest
-  // redirect hop. To capture the timestamp when the initial URLRequest was
-  // started in //net (before any redirects), we record
-  // `load_timing.request_start` from the first response hop received.
-  if (!prefetch_container_metrics_.time_first_url_request_started.has_value()) {
-    prefetch_container_metrics_.time_first_url_request_started =
-        redirect_head.load_timing.request_start;
-  }
-}
-
 void PrefetchContainer::NotifyPrefetchResponseReceived(
     const network::mojom::URLResponseHead& head) {
   // Ensured by the caller
   // `PrefetchContainer::OnPrefetchResponseStartedInternal()`.
   CHECK(!IsDecoy());
 
-  // Populate `time_first_url_request_started` on the first response hop if
-  // there were no redirects.
-  if (!prefetch_container_metrics_.time_first_url_request_started.has_value()) {
-    prefetch_container_metrics_.time_first_url_request_started =
-        head.load_timing.request_start;
-  }
-
   prefetch_container_metrics_.time_url_request_started =
       head.load_timing.request_start;
-
-  // `connect_timing.domain_lookup_start` is null if the request reused an
-  // existing connection (e.g. socket reuse, Multiplexing of HTTP/2,3),
-  // or was served from the HTTP cache.
-  if (!head.load_timing.connect_timing.domain_lookup_start.is_null()) {
-    prefetch_container_metrics_.time_domain_lookup_started =
-        head.load_timing.connect_timing.domain_lookup_start;
-  }
+  prefetch_container_metrics_.time_domain_lookup_started =
+      head.load_timing.connect_timing.domain_lookup_start;
 
   if (head.load_timing_internal_info.has_value()) {
     prefetch_container_metrics_.create_stream_delay =
@@ -2130,27 +2081,6 @@ void PrefetchContainer::RecordPrefetchDurationHistogram() {
       prefetch_container_metrics_.time_prefetch_started.value() -
           prefetch_container_metrics_.time_initial_eligibility_got.value());
 
-  if (!prefetch_container_metrics_.time_first_url_request_started.has_value()) {
-    return;
-  }
-
-  base::UmaHistogramTimes(
-      base::StrCat({
-          "Prefetch.PrefetchContainer.AddedToFirstURLRequestStarted.",
-          GetMetricsSuffix(),
-      }),
-      prefetch_container_metrics_.time_first_url_request_started.value() -
-          prefetch_container_metrics_.time_added_to_prefetch_service.value());
-
-  base::UmaHistogramTimes(
-      base::StrCat({
-          "Prefetch.PrefetchContainer."
-          "PrefetchStartedToFirstURLRequestStarted.",
-          GetMetricsSuffix(),
-      }),
-      prefetch_container_metrics_.time_first_url_request_started.value() -
-          prefetch_container_metrics_.time_prefetch_started.value());
-
   if (!prefetch_container_metrics_.time_url_request_started.has_value()) {
     return;
   }
@@ -2171,24 +2101,21 @@ void PrefetchContainer::RecordPrefetchDurationHistogram() {
       prefetch_container_metrics_.time_url_request_started.value() -
           prefetch_container_metrics_.time_prefetch_started.value());
 
-  // `time_domain_lookup_started` has no value if DNS resolution was not
-  // performed for this request (e.g. socket reuse or HTTP cache hit).
-  if (prefetch_container_metrics_.time_domain_lookup_started.has_value()) {
-    base::UmaHistogramTimes(
-        base::StrCat({
-            "Prefetch.PrefetchContainer.AddedToDomainLookupStarted2.",
-            GetMetricsSuffix(),
-        }),
-        prefetch_container_metrics_.time_domain_lookup_started.value() -
-            prefetch_container_metrics_.time_added_to_prefetch_service.value());
-    base::UmaHistogramTimes(
-        base::StrCat({
-            "Prefetch.PrefetchContainer.PrefetchStartedToDomainLookupStarted2.",
-            GetMetricsSuffix(),
-        }),
-        prefetch_container_metrics_.time_domain_lookup_started.value() -
-            prefetch_container_metrics_.time_prefetch_started.value());
-  }
+  CHECK(prefetch_container_metrics_.time_domain_lookup_started.has_value());
+  base::UmaHistogramTimes(
+      base::StrCat({
+          "Prefetch.PrefetchContainer.AddedToDomainLookupStarted.",
+          GetMetricsSuffix(),
+      }),
+      prefetch_container_metrics_.time_domain_lookup_started.value() -
+          prefetch_container_metrics_.time_added_to_prefetch_service.value());
+  base::UmaHistogramTimes(
+      base::StrCat({
+          "Prefetch.PrefetchContainer.PrefetchStartedToDomainLookupStarted.",
+          GetMetricsSuffix(),
+      }),
+      prefetch_container_metrics_.time_domain_lookup_started.value() -
+          prefetch_container_metrics_.time_prefetch_started.value());
 
   if (prefetch_container_metrics_.create_stream_delay.has_value()) {
     base::UmaHistogramTimes(base::StrCat({
@@ -2317,23 +2244,6 @@ void PrefetchContainer::RecordPrefetchContainerServedCountHistogram() {
       base::StrCat(
           {"Prefetch.PrefetchContainer.ServedCount.", GetMetricsSuffix()}),
       served_count_);
-}
-
-// Called when `this` is stale.
-// TODO(crbug.com/551306029): Currently, expiration of
-// `PrefetchCacheableDuration()` does not trigger `OnStale`
-// reactively. Support staleness notifications upon cache expiration.
-// For WebView Prefetch, this is no-op, because `PrefetchCacheableDuration()` is
-// longer than TTL so `PrefetchContainer` is destroyed before that.
-void PrefetchContainer::OnStale() {
-  if (!base::FeatureList::IsEnabled(features::kPrefetchOffTheMainThread)) {
-    return;
-  }
-  if (is_stale_notified_) {
-    return;
-  }
-  is_stale_notified_ = true;
-  NotifyObservers(&PrefetchContainerObserver::OnPrefetchStale);
 }
 
 }  // namespace content

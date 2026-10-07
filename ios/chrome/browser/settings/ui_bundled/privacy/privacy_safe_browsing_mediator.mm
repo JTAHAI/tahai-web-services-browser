@@ -255,7 +255,7 @@ typedef NS_ENUM(NSInteger, ItemType) {
                           weight:UIImageSymbolWeightSemibold
                            scale:UIImageSymbolScaleMedium];
   infoButtonItem.iconImage =
-      SymbolWithConfiguration(SymbolCheckmark, configuration);
+      DefaultSymbolWithConfiguration(kCheckmarkSymbol, configuration);
   infoButtonItem.iconTintColor = [self iconTintColorForItemType:type];
   infoButtonItem.accessibilityIdentifier = accessibilityIdentifier;
   infoButtonItem.target = self;
@@ -283,7 +283,7 @@ typedef NS_ENUM(NSInteger, ItemType) {
                           weight:UIImageSymbolWeightSemibold
                            scale:UIImageSymbolScaleMedium];
   detailIconItem.iconImage =
-      SymbolWithConfiguration(SymbolCheckmark, configuration);
+      DefaultSymbolWithConfiguration(kCheckmarkSymbol, configuration);
   detailIconItem.iconTintColor = [self iconTintColorForItemType:type];
   detailIconItem.accessibilityIdentifier = accessibilityIdentifier;
   detailIconItem.accessibilityTraits = UIAccessibilityTraitButton;

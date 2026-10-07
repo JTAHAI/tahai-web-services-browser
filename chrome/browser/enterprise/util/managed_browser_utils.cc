@@ -251,9 +251,9 @@ bool IsBrowserManaged(Profile* profile) {
   return policy::ManagementServiceFactory::GetForProfile(profile)->IsManaged();
 }
 
-std::string GetDomainFromEmail(std::string_view email) {
+std::string GetDomainFromEmail(const std::string& email) {
   size_t email_separator_pos = email.find('@');
-  bool is_email = email_separator_pos != std::string_view::npos &&
+  bool is_email = email_separator_pos != std::string::npos &&
                   email_separator_pos < email.length() - 1;
 
   if (!is_email)

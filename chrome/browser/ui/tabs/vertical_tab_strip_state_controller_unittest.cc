@@ -51,7 +51,10 @@ class VerticalTabStripStateControllerTest : public testing::Test {
 
   void SetUp() override {
     testing::Test::SetUp();
-    feature_list_.InitAndEnableFeature(tabs::kVerticalTabsExpandOnHover);
+    feature_list_.InitWithFeatures(
+        /* enabled_features */ {tabs::kVerticalTabsLaunch,
+                                tabs::kVerticalTabsExpandOnHover},
+        /* disabled_features */ {});
     tabs::RegisterProfilePrefs(pref_service_.registry());
     SessionID test_session_id = SessionID::FromSerializedValue(kSessionIDValue);
 
@@ -124,6 +127,16 @@ TEST_F(VerticalTabStripStateControllerTest, VerticalTabsEnabled) {
   EXPECT_FALSE(pref_service()->GetBoolean(prefs::kVerticalTabsEnabled));
 }
 
+TEST_F(VerticalTabStripStateControllerTest, FeatureDisabled) {
+  base::test::ScopedFeatureList local_feature_list;
+  local_feature_list.InitAndDisableFeature(tabs::kVerticalTabsLaunch);
+
+  controller()->SetVerticalTabsEnabled(true);
+  EXPECT_TRUE(pref_service()->GetBoolean(prefs::kVerticalTabsEnabled));
+  // Even if pref is true, ShouldDisplayVerticalTabs should be false if feature
+  // is disabled.
+  EXPECT_FALSE(controller()->ShouldDisplayVerticalTabs());
+}
 
 TEST_F(VerticalTabStripStateControllerTest, VerticalTabsEnabledFirstTime) {
   base::UserActionTester user_action_tester;
@@ -149,6 +162,37 @@ TEST_F(VerticalTabStripStateControllerTest, VerticalTabsEnabledFirstTime) {
   EXPECT_TRUE(pref_service()->GetBoolean(prefs::kVerticalTabsEnabledFirstTime));
   EXPECT_EQ(1,
             user_action_tester.GetActionCount("VerticalTabs_EnabledFirstTime"));
+}
+
+TEST_F(VerticalTabStripStateControllerTest,
+       MigrateEverythingMenuPinnedToTabstripPref) {
+  base::test::ScopedFeatureList local_feature_list;
+  local_feature_list.InitAndEnableFeature(
+      tabs::kMigrateEverythingMenuPinnedToTabstrip);
+
+  // Case 1: Has enabled vertical tabs before and pref is at its default.
+  pref_service()->SetBoolean(prefs::kVerticalTabsEnabledFirstTime, true);
+  ASSERT_FALSE(
+      pref_service()->HasPrefPath(prefs::kEverythingMenuPinnedToTabstrip));
+
+  tabs::MigrateEverythingMenuPinnedToTabstripPref(pref_service());
+  EXPECT_TRUE(
+      pref_service()->GetBoolean(prefs::kEverythingMenuPinnedToTabstrip));
+  EXPECT_TRUE(pref_service()->GetBoolean(
+      prefs::kEverythingMenuPinnedToTabstripMigrationComplete));
+
+  // Case 2: Respects explicit user customization.
+  pref_service()->SetBoolean(
+      prefs::kEverythingMenuPinnedToTabstripMigrationComplete, false);
+  pref_service()->SetBoolean(prefs::kEverythingMenuPinnedToTabstrip, false);
+  ASSERT_TRUE(
+      pref_service()->HasPrefPath(prefs::kEverythingMenuPinnedToTabstrip));
+
+  tabs::MigrateEverythingMenuPinnedToTabstripPref(pref_service());
+  EXPECT_FALSE(
+      pref_service()->GetBoolean(prefs::kEverythingMenuPinnedToTabstrip));
+  EXPECT_TRUE(pref_service()->GetBoolean(
+      prefs::kEverythingMenuPinnedToTabstripMigrationComplete));
 }
 
 TEST_F(VerticalTabStripStateControllerTest, Collapsed) {
@@ -190,34 +234,6 @@ TEST_F(VerticalTabStripStateControllerTest, UncollapsedWidth) {
   // Setting to same value should not trigger a notification.
   controller()->SetUncollapsedWidth(kUncollapsedWidth1);
   EXPECT_EQ(1, call_count);
-}
-
-TEST_F(VerticalTabStripStateControllerTest, Resizing) {
-  int call_count = 0;
-  bool is_resizing = false;
-  auto subscription =
-      controller()->RegisterOnResizingChanged(base::BindRepeating(
-          [](int* call_count, bool* is_resizing, bool resizing) {
-            (*call_count)++;
-            *is_resizing = resizing;
-          },
-          &call_count, &is_resizing));
-
-  EXPECT_FALSE(controller()->is_resizing());
-
-  controller()->SetIsResizing(true);
-  EXPECT_TRUE(controller()->is_resizing());
-  EXPECT_TRUE(is_resizing);
-  EXPECT_EQ(1, call_count);
-
-  // Setting the same value should not trigger notifications.
-  controller()->SetIsResizing(true);
-  EXPECT_EQ(1, call_count);
-
-  controller()->SetIsResizing(false);
-  EXPECT_FALSE(controller()->is_resizing());
-  EXPECT_FALSE(is_resizing);
-  EXPECT_EQ(2, call_count);
 }
 
 TEST_F(VerticalTabStripStateControllerTest, ExpandOnHover) {
@@ -370,69 +386,6 @@ TEST_F(VerticalTabStripStateControllerTest,
 
   // Verify that the state has NOT changed (locked, still vertical).
   EXPECT_TRUE(controller()->ShouldDisplayVerticalTabs());
-}
-
-TEST_F(VerticalTabStripStateControllerTest,
-       ImmersiveModeLockShowsToastRepeatedlyWhenDisabling) {
-  // Start with vertical tabs enabled.
-  controller()->SetVerticalTabsEnabled(true);
-  ASSERT_TRUE(controller()->ShouldDisplayVerticalTabs());
-
-  MockToastController mock_toast_controller(&mock_browser_window_interface_);
-
-  // Take a lock to simulate immersive fullscreen.
-  std::unique_ptr<VerticalTabStripStateController::ScopedEnableStateLock> lock =
-      controller()->GetEnableStateLock();
-
-  // Expect that disabling vertical tabs will show the toast twice when called
-  // twice via SetVerticalTabsEnabled.
-  EXPECT_CALL(mock_toast_controller,
-              MaybeShowToastMock(ToastId::kTabStripSwitchDelayedHorizontal))
-      .Times(2)
-      .WillRepeatedly(testing::Return(true));
-
-  // Disable vertical tabs via controller first time.
-  controller()->SetVerticalTabsEnabled(false);
-
-  // Verify that the state has NOT changed (locked, still vertical).
-  EXPECT_TRUE(controller()->ShouldDisplayVerticalTabs());
-
-  // Disable vertical tabs via controller second time.
-  controller()->SetVerticalTabsEnabled(false);
-
-  // Verify that the state has still NOT changed.
-  EXPECT_TRUE(controller()->ShouldDisplayVerticalTabs());
-}
-
-TEST_F(VerticalTabStripStateControllerTest,
-       ImmersiveModeLockShowsToastRepeatedlyWhenEnabling) {
-  // Start with vertical tabs disabled.
-  ASSERT_FALSE(controller()->ShouldDisplayVerticalTabs());
-
-  MockToastController mock_toast_controller(&mock_browser_window_interface_);
-
-  // Take a lock to simulate immersive fullscreen.
-  std::unique_ptr<VerticalTabStripStateController::ScopedEnableStateLock> lock =
-      controller()->GetEnableStateLock();
-
-  // Expect that enabling vertical tabs will show the toast twice when called
-  // twice via SetVerticalTabsEnabled.
-  EXPECT_CALL(mock_toast_controller,
-              MaybeShowToastMock(ToastId::kTabStripSwitchDelayedVertical))
-      .Times(2)
-      .WillRepeatedly(testing::Return(true));
-
-  // Enable vertical tabs via controller first time.
-  controller()->SetVerticalTabsEnabled(true);
-
-  // Verify that the state has NOT changed (locked, still horizontal).
-  EXPECT_FALSE(controller()->ShouldDisplayVerticalTabs());
-
-  // Enable vertical tabs via controller second time.
-  controller()->SetVerticalTabsEnabled(true);
-
-  // Verify that the state has still NOT changed.
-  EXPECT_FALSE(controller()->ShouldDisplayVerticalTabs());
 }
 
 }  // namespace tabs

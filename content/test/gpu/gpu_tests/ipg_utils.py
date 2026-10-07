@@ -36,7 +36,6 @@ MetricType = dict[str, list[str] | list[float]]
 @dataclasses.dataclass
 class _LogFileColumn:
   """Represents the parsed data from a column in an IPG log file."""
-
   # The index of this column within the file.
   index: int
   # The name of the column.
@@ -59,13 +58,11 @@ def LocateIPG() -> str:
   raise Exception('Only supported on Windows/Mac')
 
 
-def GenerateIPGLogFilename(
-  log_prefix: str = 'PowerLog',
-  log_dir: str | None = None,
-  current_run: int = 1,
-  total_runs: int = 1,
-  timestamp: bool = False,
-) -> str:
+def GenerateIPGLogFilename(log_prefix: str = 'PowerLog',
+                           log_dir: str | None = None,
+                           current_run: int = 1,
+                           total_runs: int = 1,
+                           timestamp: bool = False) -> str:
   # If all args take default value, it is the IPG's default log path.
   log_dir = log_dir or os.getcwd()
   log_dir = os.path.abspath(log_dir)
@@ -77,25 +74,21 @@ def GenerateIPGLogFilename(
   return os.path.join(log_dir, log_prefix + '.csv')
 
 
-def RunIPG(
-  duration_in_s: int = 60,
-  resolution_in_ms: int = 100,
-  logfile: str | None = None,
-) -> None:
+def RunIPG(duration_in_s: int = 60,
+           resolution_in_ms: int = 100,
+           logfile: str | None = None) -> None:
   intel_power_gadget_path = LocateIPG()
-  command = (
-    f'"{intel_power_gadget_path}" -duration {duration_in_s} '
-    f'-resolution {resolution_in_ms}'
-  )
+  command = (f'"{intel_power_gadget_path}" -duration {duration_in_s} '
+             f'-resolution {resolution_in_ms}')
   if not logfile:
     # It is not necessary but allows to print out the log path for debugging.
     logfile = GenerateIPGLogFilename()
   command = f'{command} -file {logfile}'
   logging.debug('Running: %s', command)
   try:
-    output = subprocess.check_output(
-      command, shell=True, stderr=subprocess.STDOUT
-    )
+    output = subprocess.check_output(command,
+                                     shell=True,
+                                     stderr=subprocess.STDOUT)
   except subprocess.CalledProcessError as e:
     logging.error('Running Intel Power Gadget failed. Output: %s', e.output)
     raise
@@ -103,9 +96,8 @@ def RunIPG(
   logging.debug(output)
 
 
-def AnalyzeIPGLogFile(
-  logfile: str | None = None, skip_in_sec: int = 0
-) -> ResultType:
+def AnalyzeIPGLogFile(logfile: str | None = None,
+                      skip_in_sec: int = 0) -> ResultType:
   if not logfile:
     logfile = GenerateIPGLogFilename()
   if not os.path.isfile(logfile):
@@ -127,9 +119,7 @@ def AnalyzeIPGLogFile(
         if token.startswith('Elapsed Time'):
           col_time = ii
         elif token.endswith('(Watt)'):
-          columns.append(
-            _LogFileColumn(index=ii, label=token[: -len('(Watt)')])
-          )
+          columns.append(_LogFileColumn(index=ii, label=token[:-len('(Watt)')]))
       assert col_time
       assert total_columns > 0
       assert len(columns) > 0
@@ -150,11 +140,10 @@ def AnalyzeIPGLogFile(
 
 
 def ProcessResultsFromMultipleIPGRuns(
-  logfiles: list[str],
-  skip_in_seconds: int = 0,
-  outliers: int = 0,
-  output_json: str | None = None,
-) -> SummaryType:
+    logfiles: list[str],
+    skip_in_seconds: int = 0,
+    outliers: int = 0,
+    output_json: str | None = None) -> SummaryType:
 
   def _ScrapeDataFromIPGLogFiles() -> tuple[dict[str, ResultType], MetricType]:
     """Scrapes data from IPG log files.
@@ -173,7 +162,7 @@ def ProcessResultsFromMultipleIPGRuns(
       (core, _) = os.path.splitext(filename)
       prefix = 'PowerLog_'
       if core.startswith(prefix):
-        core = core[len(prefix) :]
+        core = core[len(prefix):]
       per_core_results[core] = results
 
       for key, value in results.items():
@@ -199,15 +188,15 @@ def ProcessResultsFromMultipleIPGRuns(
       if outliers > 0:
         assert outliers * 2 < n
         data.sort()
-        data = data[outliers : (n - outliers)]
+        data = data[outliers:(n - outliers)]
         n = len(data)
       logging.debug('%s: valid samples = %d', key, n)
       mean = sum(data) / float(n)
-      ss = sum((x - mean) ** 2 for x in data)
-      stdev = (ss / float(n)) ** 0.5
+      ss = sum((x - mean)**2 for x in data)
+      stdev = (ss / float(n))**0.5
       summary[key] = {
-        'mean': mean,
-        'stdev': stdev,
+          'mean': mean,
+          'stdev': stdev,
       }
     return summary
 

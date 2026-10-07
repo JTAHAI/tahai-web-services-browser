@@ -4,7 +4,6 @@
 
 #include "chrome/browser/component_updater/crl_set_component_installer.h"
 
-#include <cstdint>
 #include <memory>
 #include <string>
 #include <vector>
@@ -139,7 +138,8 @@ base::FilePath CRLSetPolicy::GetRelativeInstallDir() const {
 }
 
 void CRLSetPolicy::GetHash(std::vector<uint8_t>* hash) const {
-  hash->assign_range(kCrlSetPublicKeySHA256);
+  hash->assign(std::begin(kCrlSetPublicKeySHA256),
+               std::end(kCrlSetPublicKeySHA256));
 }
 
 std::string CRLSetPolicy::GetName() const {

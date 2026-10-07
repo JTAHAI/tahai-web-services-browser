@@ -6,7 +6,6 @@
 
 #include <stddef.h>
 
-#include <memory>
 #include <set>
 #include <string>
 #include <utility>
@@ -169,7 +168,7 @@ bool SessionService::IsRelevantWindowType(
          (window_type == sessions::SessionWindow::TYPE_POPUP);
 }
 
-bool SessionService::ShouldRestore(BrowserWindowInterface* browser) {
+bool SessionService::ShouldRestore(Browser* browser) {
 #if BUILDFLAG(IS_CHROMEOS)
   // Do not restore browser window in the kiosk session.
   if (chromeos::IsKioskSession()) {
@@ -206,7 +205,7 @@ bool SessionService::ShouldRestore(BrowserWindowInterface* browser) {
   }
 
   // App windows should not be restored.
-  auto window_type = WindowTypeForBrowserType(browser->GetType());
+  auto window_type = WindowTypeForBrowserType(browser->type());
   if (window_type == sessions::SessionWindow::TYPE_APP ||
       window_type == sessions::SessionWindow::TYPE_APP_POPUP) {
     return false;
@@ -214,7 +213,7 @@ bool SessionService::ShouldRestore(BrowserWindowInterface* browser) {
 
   // If the browser does not have a `restore_id`, then we restore the session.
   return BrowserInitState::From(browser)->create_params().restore_id ==
-         BrowserWindowCreateParams::kDefaultRestoreId;
+         Browser::kDefaultRestoreId;
 #else
   if (!has_open_trackable_browsers_ &&
       !StartupBrowserCreator::InSynchronousProfileLaunch() &&
@@ -405,30 +404,29 @@ void SessionService::TabClosed(SessionID window_id, SessionID tab_id) {
   }
 }
 
-void SessionService::WindowOpened(BrowserWindowInterface* browser) {
+void SessionService::WindowOpened(Browser* browser) {
   if (!ShouldTrackBrowser(browser)) {
     return;
   }
 
   RestoreIfNecessary(StartupTabs(), browser, /* restore_apps */ false);
-  SetWindowType(browser->GetSessionID(), browser->GetType());
-  SetWindowAppName(browser->GetSessionID(),
-                   BrowserInitState::From(browser)->create_params().app_name);
-  SetWindowUserTitle(browser->GetSessionID(),
+  SetWindowType(browser->session_id(), browser->type());
+  SetWindowAppName(browser->session_id(), browser->app_name());
+  SetWindowUserTitle(browser->session_id(),
                      WindowMetadataController::From(browser)->user_title());
 
   // Save a browser workspace after window is created in `Browser()`.
   // Bento desks restore feature in ash requires this line to restore correctly
   // after creating a new browser window in a particular desk.
-  SetWindowWorkspace(browser->GetSessionID(),
+  SetWindowWorkspace(browser->session_id(),
                      BrowserWindow::FromBrowser(browser)->GetWorkspace());
   SetWindowVisibleOnAllWorkspaces(
-      browser->GetSessionID(),
+      browser->session_id(),
       BrowserWindow::FromBrowser(browser)->IsVisibleOnAllWorkspaces());
 #if BUILDFLAG(IS_WIN) && BUILDFLAG(TAHAI_BRANDING)
   if (auto* mode = tahai::WindowModeController::GetForBrowser(browser)) {
     if (auto json = mode->SerializePresentation()) {
-      AddWindowExtraData(browser->GetSessionID(),
+      AddWindowExtraData(browser->session_id(),
                          tahai::kWindowPresentationSessionKey, *json);
     }
   }
@@ -503,8 +501,7 @@ void SessionService::WindowClosed(SessionID window_id) {
   }
 }
 
-void SessionService::SetWindowType(SessionID window_id,
-                                   BrowserWindowInterface::Type type) {
+void SessionService::SetWindowType(SessionID window_id, Browser::Type type) {
   sessions::SessionWindow::WindowType window_type =
       WindowTypeForBrowserType(type);
   if (!ShouldRestoreWindowOfType(window_type)) {
@@ -562,9 +559,8 @@ void SessionService::SetTabUserAgentOverride(
       tab_id, user_agent_override));
 }
 
-BrowserWindowInterface::Type
-SessionService::GetDesiredBrowserTypeForWebContents() {
-  return BrowserWindowInterface::Type::TYPE_NORMAL;
+Browser::Type SessionService::GetDesiredBrowserTypeForWebContents() {
+  return Browser::Type::TYPE_NORMAL;
 }
 
 void SessionService::DidScheduleCommand() {
@@ -589,7 +585,7 @@ bool SessionService::ShouldRestoreWindowOfType(
 }
 
 bool SessionService::RestoreIfNecessary(const StartupTabs& startup_tabs,
-                                        BrowserWindowInterface* browser,
+                                        Browser* browser,
                                         bool restore_apps) {
   if (ShouldRestore(browser)) {
     // We're going from no tabbed browsers to a tabbed browser (and not in
@@ -721,7 +717,7 @@ bool SessionService::IsOnlyOneTabLeft() const {
       [this, &is_only_one_tab_left,
        &window_count](BrowserWindowInterface* browser) {
         const SessionID window_id = browser->GetSessionID();
-        if (ShouldTrackBrowser(browser) &&
+        if (ShouldTrackBrowser(browser->GetBrowserForMigrationOnly()) &&
             !window_closing_ids_.contains(window_id)) {
           if (++window_count > 1) {
             is_only_one_tab_left = false;
@@ -750,7 +746,7 @@ bool SessionService::HasOpenTrackableBrowsers(SessionID window_id) const {
         const SessionID browser_id = browser->GetSessionID();
         if (browser_id != window_id &&
             !window_closing_ids_.contains(browser_id)) {
-          if (ShouldTrackBrowser(browser)) {
+          if (ShouldTrackBrowser(browser->GetBrowserForMigrationOnly())) {
             has_open_trackable = true;
           }
         }

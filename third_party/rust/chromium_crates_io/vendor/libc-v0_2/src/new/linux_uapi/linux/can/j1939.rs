@@ -57,6 +57,4 @@ s! {
     }
 }
 
-/// Constants may change across releases. See the [usage guidelines](crate#usage-guidelines)
-/// for details.
 pub const J1939_FILTER_MAX: c_int = 512;

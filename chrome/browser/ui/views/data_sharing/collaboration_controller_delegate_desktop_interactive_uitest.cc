@@ -2,11 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "chrome/browser/ui/views/data_sharing/collaboration_controller_delegate_desktop.h"
-
 #include "base/test/metrics/histogram_tester.h"
 #include "base/test/mock_callback.h"
-#include "chrome/browser/signin/account_preview_data_service_factory.h"
 #include "chrome/browser/signin/chrome_signin_client_test_util.h"
 #include "chrome/browser/signin/dice_tab_helper.h"
 #include "chrome/browser/signin/identity_manager_factory.h"
@@ -16,9 +13,8 @@
 #include "chrome/browser/tab_group_sync/tab_group_sync_service_factory.h"
 #include "chrome/browser/ui/browser_element_identifiers.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/signin/promos/signin_promo_tab_helper.h"
-#include "chrome/browser/ui/tabs/tab_strip_model.h"
+#include "chrome/browser/ui/views/data_sharing/collaboration_controller_delegate_desktop.h"
 #include "chrome/browser/ui/views/data_sharing/data_sharing_bubble_controller.h"
 #include "chrome/browser/ui/views/data_sharing/data_sharing_utils.h"
 #include "chrome/test/base/in_process_browser_test.h"
@@ -52,7 +48,7 @@ class TestCollaborationControllerDelegateDesktop
     : public CollaborationControllerDelegateDesktop {
  public:
   explicit TestCollaborationControllerDelegateDesktop(
-      BrowserWindowInterface* browser,
+      Browser* browser,
       std::optional<data_sharing::FlowType> flow = std::nullopt)
       : CollaborationControllerDelegateDesktop(browser, flow) {}
   MOCK_METHOD(collaboration::ServiceStatus, GetServiceStatus, (), (override));
@@ -89,8 +85,8 @@ class CollaborationControllerDelegateDesktopInteractiveUITest
     // open the browser and the added one).
     EXPECT_TRUE(
         AddTabAtIndex(0, GURL(url::kAboutBlankURL), ui::PAGE_TRANSITION_TYPED));
-    EXPECT_EQ(2, browser()->GetTabStripModel()->count());
-    return browser()->GetTabStripModel()->AddToNewGroup({0, 1});
+    EXPECT_EQ(2, browser()->tab_strip_model()->count());
+    return browser()->tab_strip_model()->AddToNewGroup({0, 1});
   }
 
  private:
@@ -345,7 +341,7 @@ IN_PROC_BROWSER_TEST_F(CollaborationControllerDelegateDesktopInteractiveUITest,
 
 IN_PROC_BROWSER_TEST_F(CollaborationControllerDelegateDesktopInteractiveUITest,
                        OnBrowserClose) {
-  BrowserWindowInterface* browser2 = CreateBrowser(browser()->GetProfile());
+  Browser* browser2 = CreateBrowser(browser()->GetProfile());
   TestCollaborationControllerDelegateDesktop delegate(browser2);
   base::MockCallback<base::OnceCallback<void()>> exit_callback;
   base::MockCallback<
@@ -362,7 +358,7 @@ IN_PROC_BROWSER_TEST_F(CollaborationControllerDelegateDesktopInteractiveUITest,
 
 IN_PROC_BROWSER_TEST_F(CollaborationControllerDelegateDesktopInteractiveUITest,
                        OnBrowserCloseWithOpenDialog) {
-  BrowserWindowInterface* browser2 = CreateBrowser(browser()->GetProfile());
+  Browser* browser2 = CreateBrowser(browser()->GetProfile());
 
   // Show a prompt dialog.
   collaboration::ServiceStatus status;
@@ -405,10 +401,10 @@ IN_PROC_BROWSER_TEST_F(CollaborationControllerDelegateDesktopInteractiveUITest,
   nav_observer.StartWatchingNewWebContents();
   views::test::AcceptDialog(delegate.error_dialog_widget_for_testing());
   nav_observer.Wait();
-  EXPECT_EQ(2, browser()->GetTabStripModel()->count());
+  EXPECT_EQ(2, browser()->tab_strip_model()->count());
   EXPECT_EQ(
       GURL("chrome://settings/help"),
-      browser()->GetTabStripModel()->GetActiveWebContents()->GetVisibleURL());
+      browser()->tab_strip_model()->GetActiveWebContents()->GetVisibleURL());
 }
 
 #if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX)
@@ -506,10 +502,8 @@ class
     // Set up an account picture in case it is shown in the dialog.
     signin::SimulateAccountImageFetch(
         identity_manager(),
-        signin_ui_util::GetSingleAccountForPromos(
-            identity_manager(), AccountPreviewDataServiceFactory::GetForProfile(
-                                    browser()->GetProfile()))
-            .GetAccountId(),
+        signin_ui_util::GetSingleAccountForPromos(identity_manager())
+            .account_id,
         "https://avatar.com/avatar.png", gfx::test::CreateImage(/*size=*/32));
 
     // Show prompt dialog and accept it.
@@ -552,7 +546,7 @@ IN_PROC_BROWSER_TEST_F(
   ShowAndAcceptDialog(collaboration::SigninStatus::kNotSignedIn);
 
   EXPECT_TRUE(SigninPromoTabHelper::GetForWebContents(
-                  *browser()->GetTabStripModel()->GetActiveWebContents())
+                  *browser()->tab_strip_model()->GetActiveWebContents())
                   ->IsInitializedForTesting());
 
   EXPECT_FALSE(sync_service()->GetUserSettings()->GetSelectedTypes().Has(
@@ -612,7 +606,7 @@ IN_PROC_BROWSER_TEST_F(
 
   EXPECT_TRUE(IsSignedIn());
   EXPECT_FALSE(SigninPromoTabHelper::GetForWebContents(
-                   *browser()->GetTabStripModel()->GetActiveWebContents())
+                   *browser()->tab_strip_model()->GetActiveWebContents())
                    ->IsInitializedForTesting());
 
   EXPECT_TRUE(sync_service()->GetUserSettings()->GetSelectedTypes().Has(
@@ -673,7 +667,7 @@ IN_PROC_BROWSER_TEST_F(
 
   // A reauth tab is expected to be shown.
   content::WebContents* reauth_tab =
-      browser()->GetTabStripModel()->GetActiveWebContents();
+      browser()->tab_strip_model()->GetActiveWebContents();
   ASSERT_TRUE(reauth_tab);
   DiceTabHelper* dice_tab_helper = DiceTabHelper::FromWebContents(reauth_tab);
   ASSERT_TRUE(dice_tab_helper);
@@ -729,7 +723,7 @@ IN_PROC_BROWSER_TEST_F(
 
   EXPECT_TRUE(IsSignedIn());
   EXPECT_FALSE(SigninPromoTabHelper::GetForWebContents(
-                   *browser()->GetTabStripModel()->GetActiveWebContents())
+                   *browser()->tab_strip_model()->GetActiveWebContents())
                    ->IsInitializedForTesting());
 
   EXPECT_TRUE(sync_service()->GetUserSettings()->GetSelectedTypes().Has(
@@ -765,12 +759,12 @@ IN_PROC_BROWSER_TEST_F(
   // Verify the settings page was opened.
   EXPECT_EQ(
       GURL("chrome://settings/googleServices"),
-      browser()->GetTabStripModel()->GetActiveWebContents()->GetVisibleURL());
+      browser()->tab_strip_model()->GetActiveWebContents()->GetVisibleURL());
 
   // History sync was not enabled.
   EXPECT_FALSE(IsSignedIn());
   EXPECT_FALSE(SigninPromoTabHelper::GetForWebContents(
-                   *browser()->GetTabStripModel()->GetActiveWebContents())
+                   *browser()->tab_strip_model()->GetActiveWebContents())
                    ->IsInitializedForTesting());
 
   EXPECT_FALSE(sync_service()->GetUserSettings()->GetSelectedTypes().Has(

@@ -4,22 +4,18 @@
 
 import 'chrome-untrusted://read-anything-side-panel.top-chrome/read_anything.js';
 
-import type {ReadAnythingLogger} from 'chrome-untrusted://read-anything-side-panel.top-chrome/read_anything.js';
-import {LinkStatus, ReadAloudSettingsChange, ReadAnythingSettingsAction, ReadAnythingSettingsChange, ReadAnythingVoiceType, SpeechControls, TimeFrom} from 'chrome-untrusted://read-anything-side-panel.top-chrome/read_anything.js';
+import {LinkStatus, MetricsBrowserProxyImpl, ReadAloudSettingsChange, ReadAnythingLogger, ReadAnythingSettingsAction, ReadAnythingSettingsChange, ReadAnythingVoiceType, SpeechControls, TimeFrom} from 'chrome-untrusted://read-anything-side-panel.top-chrome/read_anything.js';
 import {assertEquals, assertGT, assertLE, assertNotEquals, assertTrue} from 'chrome-untrusted://webui-test/chai_assert.js';
 
-import {createSpeechSynthesisVoice, setupTestEnvironment} from './common.js';
-import type {TestAudioBrowserProxy} from './test_audio_browser_proxy.js';
-import type {TestMetricsBrowserProxy} from './test_metrics_browser_proxy.js';
-import type {TestVisualBrowserProxy} from './test_visual_browser_proxy.js';
+import {createSpeechSynthesisVoice} from './common.js';
+import {FakeReadingMode} from './fake_reading_mode.js';
+import {TestMetricsBrowserProxy} from './test_metrics_browser_proxy.js';
 
 suite('Logger', () => {
   const defaultSpeechStartTime = 0;
 
   let logger: ReadAnythingLogger;
   let metrics: TestMetricsBrowserProxy;
-  let visualBrowserProxy: TestVisualBrowserProxy;
-  let audioBrowserProxy: TestAudioBrowserProxy;
 
   async function assertTimeMetricIsCalled(
       from: TimeFrom, expectedMetric: string) {
@@ -29,11 +25,12 @@ suite('Logger', () => {
   }
 
   setup(() => {
-    const result = setupTestEnvironment();
-    metrics = result.metrics;
-    visualBrowserProxy = result.visualBrowserProxy;
-    audioBrowserProxy = result.audioBrowserProxy;
-    logger = result.logger;
+    const readingMode = new FakeReadingMode();
+    chrome.readingMode = readingMode as unknown as typeof chrome.readingMode;
+    metrics = new TestMetricsBrowserProxy();
+    MetricsBrowserProxyImpl.setInstance(metrics);
+
+    logger = new ReadAnythingLogger();
   });
 
   test('speech controls', async () => {
@@ -182,26 +179,26 @@ suite('Logger', () => {
   });
 
   test('line focus session with flag enabled', () => {
-    visualBrowserProxy.lineFocusEnabled = true;
+    chrome.readingMode.isLineFocusEnabled = true;
     logger.logLineFocusSession();
     assertEquals(1, metrics.getCallCount('recordLineFocusSession'));
   });
 
   test('line focus session with flag disabled', () => {
-    visualBrowserProxy.lineFocusEnabled = false;
+    chrome.readingMode.isLineFocusEnabled = false;
     logger.logLineFocusSession();
     assertEquals(0, metrics.getCallCount('recordLineFocusSession'));
   });
 
   test('line focus toggled with flag enabled', () => {
-    visualBrowserProxy.lineFocusEnabled = true;
+    chrome.readingMode.isLineFocusEnabled = true;
     logger.logLineFocusToggled(true);
     logger.logLineFocusToggled(false);
     assertEquals(2, metrics.getCallCount('recordLineFocusToggled'));
   });
 
   test('line focus toggled with flag disabled', () => {
-    visualBrowserProxy.lineFocusEnabled = false;
+    chrome.readingMode.isLineFocusEnabled = false;
     logger.logLineFocusToggled(true);
     logger.logLineFocusToggled(false);
     assertEquals(0, metrics.getCallCount('recordLineFocusToggled'));
@@ -309,11 +306,12 @@ suite('Logger', () => {
   test(
       'logSpeechPlaySession records time with page type and view mode',
       async () => {
+        chrome.readingMode.isImmersiveEnabled = true;
         const startTime = Date.now();
 
-        visualBrowserProxy.pdf = false;
-        visualBrowserProxy.activePresentationState =
-            visualBrowserProxy.inImmersiveOverlayPresentationState;
+        chrome.readingMode.isPdf = false;
+        chrome.readingMode.activePresentationState =
+            chrome.readingMode.inImmersiveOverlayPresentationState;
         logger.logSpeechPlaySession(startTime, null);
         let args = await metrics.whenCalled('recordSpeechPlaybackLength');
         assertEquals(
@@ -321,8 +319,8 @@ suite('Logger', () => {
             args[0]);
 
         metrics.reset();
-        visualBrowserProxy.activePresentationState =
-            visualBrowserProxy.inSidePanelPresentationState;
+        chrome.readingMode.activePresentationState =
+            chrome.readingMode.inSidePanelPresentationState;
         logger.logSpeechPlaySession(startTime, null);
         args = await metrics.whenCalled('recordSpeechPlaybackLength');
         assertEquals(
@@ -330,7 +328,7 @@ suite('Logger', () => {
             args[0]);
 
         metrics.reset();
-        visualBrowserProxy.pdf = true;
+        chrome.readingMode.isPdf = true;
         logger.logSpeechPlaySession(startTime, null);
         args = await metrics.whenCalled('recordSpeechPlaybackLength');
         assertEquals(
@@ -338,8 +336,8 @@ suite('Logger', () => {
             args[0]);
 
         metrics.reset();
-        visualBrowserProxy.activePresentationState =
-            visualBrowserProxy.inImmersiveOverlayPresentationState;
+        chrome.readingMode.activePresentationState =
+            chrome.readingMode.inImmersiveOverlayPresentationState;
         logger.logSpeechPlaySession(startTime, null);
         args = await metrics.whenCalled('recordSpeechPlaybackLength');
         assertEquals(
@@ -349,8 +347,8 @@ suite('Logger', () => {
 
   test('logSpeechPlaySession does not record with invalid page type', () => {
     const startTime = Date.now();
-    visualBrowserProxy.pdf = false;
-    visualBrowserProxy.activePresentationState = 10000;
+    chrome.readingMode.isPdf = false;
+    chrome.readingMode.activePresentationState = 10000;
 
     logger.logSpeechPlaySession(startTime, null);
 
@@ -580,7 +578,7 @@ suite('Logger', () => {
     });
 
     test('logs pdf structure for pdfs', () => {
-      visualBrowserProxy.pdf = true;
+      chrome.readingMode.isPdf = true;
       for (let i = 0; i < 5; i++) {
         container.appendChild(document.createElement('h1'));
         container.appendChild(document.createElement('h2'));
@@ -647,7 +645,7 @@ suite('Logger', () => {
     container.appendChild(h1);
 
     // Test baseLanguageForSpeech is checked
-    audioBrowserProxy.baseLanguageForSpeech = 'en-US';
+    chrome.readingMode.baseLanguageForSpeech = 'en-US';
     logger.logDistilledPageStructure(container);
 
     const booleanMetrics1 = metrics.getArgs('recordBoolean');
@@ -664,7 +662,8 @@ suite('Logger', () => {
     h2.textContent = 'The Bottom Line';
     container.appendChild(h2);
 
-    visualBrowserProxy.keyPointsSection = true;
+    // Mock chrome.readingMode.maybeHasKeyPointsSection to return true
+    chrome.readingMode.maybeHasKeyPointsSection = () => true;
 
     logger.logDistilledPageStructure(container);
 

@@ -75,8 +75,7 @@ TEST_F(PrefetchNetworkContextTest, CreateIsolatedURLLoaderFactory) {
                   testing::Eq(std::nullopt),
                   ukm::SourceIdObj::FromInt64(main_rfh()->GetPageUkmSourceId()),
                   testing::_, testing::NotNull(), testing::NotNull(),
-                  testing::IsNull(), testing::IsNull(), testing::IsNull(),
-                  /*is_for_network_service=*/true));
+                  testing::IsNull(), testing::IsNull(), testing::IsNull()));
 
   // Unused fields are marked as `{}`.
   auto prefetch_request = PrefetchRequest::CreateRendererInitiated(
@@ -114,8 +113,7 @@ TEST_F(PrefetchNetworkContextTest,
                   testing::Eq(std::nullopt),
                   ukm::SourceIdObj::FromInt64(main_rfh()->GetPageUkmSourceId()),
                   testing::_, testing::NotNull(), testing::NotNull(),
-                  testing::IsNull(), testing::IsNull(), testing::IsNull(),
-                  /*is_for_network_service=*/true));
+                  testing::IsNull(), testing::IsNull(), testing::IsNull()));
 
   // Unused fields are marked as `{}`.
   auto prefetch_request = PrefetchRequest::CreateRendererInitiated(
@@ -151,8 +149,7 @@ TEST_F(PrefetchNetworkContextTest,
           IsSameOriginWith(kReferringUrl), IsEmptyIsolationInfo(),
           testing::Eq(std::nullopt), testing::Eq(ukm::kInvalidSourceIdObj),
           testing::_, testing::NotNull(), testing::NotNull(), testing::IsNull(),
-          testing::IsNull(), testing::IsNull(),
-          /*is_for_network_service=*/true));
+          testing::IsNull(), testing::IsNull()));
 
   // Unused fields are marked as `{}`.
   auto prefetch_request =

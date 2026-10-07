@@ -24,6 +24,7 @@ include_rules = [
   "+chrome/browser/net",
   "+chrome/browser/notifications",
   "+chrome/browser/profiles",
+  "+chrome/browser/signin",
   "+chrome/browser/ui/browser.h",
   "+chrome/common/chrome_constants.h",
   "+chrome/common/chrome_paths.h",
@@ -34,11 +35,9 @@ include_rules = [
 specific_include_rules = {
   "drive_integration_service_factory\\.cc": [
     "+chrome/browser/browser_process.h",
-    "+chrome/browser/signin/identity_manager_factory.h",
   ],
 
   "drive_integration_service_browser_test_base\\.cc": [
     "+chrome/browser/browser_process.h",
-    "+chrome/browser/signin/identity_manager_factory.h",
   ],
 }

@@ -1,2 +1,3 @@
-rules:
-- "**": [overflow-anchor]
+features:
+- name: overflow-anchor
+  files: "**"

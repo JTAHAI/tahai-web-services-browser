@@ -145,6 +145,9 @@ BrowserRootViewBrowserTest.*
 -SingleClientPasswordsSyncTest.*
 -SingleClientPasswordsSyncTestWithVerifier.*
 -SingleClientPasswordsWithAccountStorageSyncTest.*
+-SingleClientPlusAddressManagedAccountTest.*
+-SingleClientPlusAddressSettingSyncTest.*
+-SingleClientPlusAddressSyncTest.*
 -SingleClientPollingSyncTest.*
 -SingleClientPollingSyncTestNoIpProt.*
 -SingleClientPreferencesWithAccountStorageMergeSyncTest.*

@@ -126,8 +126,9 @@ void DataProtectionNavigationController::
 #if BUILDFLAG(ENTERPRISE_SCREENSHOT_PROTECTION)
   if (clear_screenshot_protection_on_page_load_) {
     screenshot_allowed_ = true;
-    clear_screenshot_protection_on_page_load_ = false;
     screenshot_allowed_updated_callbacks_.Notify(screenshot_allowed_);
+
+    clear_screenshot_protection_on_page_load_ = false;
   }
 #endif
 }
@@ -182,12 +183,14 @@ void DataProtectionNavigationController::
   }
 
 #if BUILDFLAG(ENTERPRISE_SCREENSHOT_PROTECTION)
-  clear_screenshot_protection_on_page_load_ =
-      settings.allow_screenshots && !is_same_document;
-
-  if (!clear_screenshot_protection_on_page_load_) {
+  if (!settings.allow_screenshots) {
     screenshot_allowed_ = settings.allow_screenshots;
     screenshot_allowed_updated_callbacks_.Notify(screenshot_allowed_);
+
+  } else {
+    // Screenshot protection should be cleared.  Delay that until the page
+    // finishes loading.
+    clear_screenshot_protection_on_page_load_ = true;
   }
 #endif  // BUILDFLAG(ENTERPRISE_SCREENSHOT_PROTECTION)
 

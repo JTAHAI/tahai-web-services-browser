@@ -32,7 +32,10 @@ import java.util.function.Function;
 /* package */ class AsyncNotificationManagerProxyImpl implements BaseNotificationManagerProxy {
     private static final String TAG = "AsyncNotifManager";
 
-    private final NotificationManagerCompat mNotificationManager;
+    // This object is initialized and used on a background thread, and it should always be non
+    // null when used.
+    @SuppressWarnings("NullAway.Init")
+    private NotificationManagerCompat mNotificationManager;
 
     private static @Nullable AsyncNotificationManagerProxyImpl sInstance;
 
@@ -44,7 +47,12 @@ import java.util.function.Function;
     }
 
     private AsyncNotificationManagerProxyImpl() {
-        mNotificationManager = NotificationManagerCompat.from(ContextUtils.getApplicationContext());
+        runAsync(
+                "AsyncNotificationManagerProxyImpl()",
+                () -> {
+                    mNotificationManager =
+                            NotificationManagerCompat.from(ContextUtils.getApplicationContext());
+                });
     }
 
     @Override
@@ -70,23 +78,16 @@ import java.util.function.Function;
 
     @Override
     public void createNotificationChannel(NotificationChannel channel) {
-        try (TraceEvent te =
-                TraceEvent.scoped("AsyncNotificationManagerProxyImpl.createNotificationChannel")) {
-            mNotificationManager.createNotificationChannel(channel);
-        } catch (Exception e) {
-            Log.e(TAG, "Unable to create notification channel.", e);
-        }
+        runAsync(
+                "AsyncNotificationManagerProxyImpl.createNotificationChannel",
+                () -> mNotificationManager.createNotificationChannel(channel));
     }
 
     @Override
     public void createNotificationChannelGroup(NotificationChannelGroup channelGroup) {
-        try (TraceEvent te =
-                TraceEvent.scoped(
-                        "AsyncNotificationManagerProxyImpl.createNotificationChannelGroup")) {
-            mNotificationManager.createNotificationChannelGroup(channelGroup);
-        } catch (Exception e) {
-            Log.e(TAG, "Unable to create notification channel group.", e);
-        }
+        runAsync(
+                "AsyncNotificationManagerProxyImpl.createNotificationChannelGroup",
+                () -> mNotificationManager.createNotificationChannelGroup(channelGroup));
     }
 
     @Override

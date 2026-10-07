@@ -12,8 +12,6 @@
 #include "components/viz/service/hit_test/hit_test_aggregator_delegate.h"
 #include "components/viz/service/surfaces/latest_local_surface_id_lookup_delegate.h"
 #include "ui/gfx/geometry/rect_conversions.h"
-#include "ui/gfx/geometry/rect_f.h"
-#include "ui/gfx/geometry/rrect_f.h"
 
 namespace viz {
 namespace {
@@ -132,8 +130,8 @@ void HitTestAggregator::AppendRoot(const SurfaceId& surface_id) {
   int32_t child_count = region_index - 1;
   SetRegionAt(0, surface_id.frame_sink_id(), hit_test_region_list->flags,
               hit_test_region_list->async_hit_test_reasons,
-              gfx::RRectF(hit_test_region_list->bounds),
-              hit_test_region_list->transform, child_count);
+              hit_test_region_list->bounds, hit_test_region_list->transform,
+              child_count);
 }
 
 base::expected<size_t, HitTestAggregator::AggregationError>
@@ -241,7 +239,7 @@ void HitTestAggregator::SetRegionAt(size_t index,
                                     const FrameSinkId& frame_sink_id,
                                     uint32_t flags,
                                     uint32_t async_hit_test_reasons,
-                                    const gfx::RRectF& rect,
+                                    const gfx::Rect& rect,
                                     const gfx::Transform& transform,
                                     int32_t child_count) {
   hit_test_data_[index] =

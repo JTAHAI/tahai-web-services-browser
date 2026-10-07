@@ -226,23 +226,23 @@ class CONTENT_EXPORT BrowsingInstance final
   void DecrementActiveContentsCount();
 
   SiteInstanceImpl* default_site_instance() {
-    CHECK(!ShouldUseDefaultSiteInstanceGroup(), base::NotFatalUntil::M159);
+    DCHECK(!ShouldUseDefaultSiteInstanceGroup());
     return default_site_instance_;
   }
   SiteInstanceGroup* default_site_instance_group() {
-    CHECK(ShouldUseDefaultSiteInstanceGroup(), base::NotFatalUntil::M159);
+    DCHECK(ShouldUseDefaultSiteInstanceGroup());
     return default_site_instance_group_.get();
   }
   bool has_default_site_instance() const {
-    CHECK(!ShouldUseDefaultSiteInstanceGroup(), base::NotFatalUntil::M159);
+    DCHECK(!ShouldUseDefaultSiteInstanceGroup());
     return default_site_instance_ != nullptr;
   }
   bool has_default_site_instance_group() const {
-    CHECK(ShouldUseDefaultSiteInstanceGroup(), base::NotFatalUntil::M159);
+    DCHECK(ShouldUseDefaultSiteInstanceGroup());
     return default_site_instance_group_ != nullptr;
   }
   void set_default_site_instance_group(base::WeakPtr<SiteInstanceGroup> group) {
-    CHECK(ShouldUseDefaultSiteInstanceGroup(), base::NotFatalUntil::M159);
+    DCHECK(ShouldUseDefaultSiteInstanceGroup());
     default_site_instance_group_ = group;
   }
 

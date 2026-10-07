@@ -391,7 +391,7 @@ void TouchEventConverterEvdev::Initialize(const EventDeviceInfo& info) {
 
   false_touch_finder_ = FalseTouchFinder::Create(GetTouchscreenSize());
 
-  if (kHeatmapPalmDetection) {
+  if (base::FeatureList::IsEnabled(kEnableHeatmapPalmDetection)) {
     auto hidraw_model_id = GetHidrawModelId(info);
     if (hidraw_model_id != HeatmapPalmDetector::ModelId::kNotSupported) {
       support_heatmap_palm_detection_ = true;

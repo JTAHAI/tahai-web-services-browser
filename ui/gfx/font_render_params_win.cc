@@ -129,7 +129,8 @@ class CachedFontRenderParams {
     if (message == WM_SETTINGCHANGE) {
       // TODO(khushalsagar): This should trigger an update to the
       // renderer and gpu processes, where the params are cached.
-      if (wparam == SPI_GETCLIENTAREAANIMATION) {
+      if (wparam == SPI_GETCLIENTAREAANIMATION &&
+          base::features::IsReducePPMsEnabled()) {
         Animation::UpdatePrefersReducedMotion();
       }
       params_.reset();

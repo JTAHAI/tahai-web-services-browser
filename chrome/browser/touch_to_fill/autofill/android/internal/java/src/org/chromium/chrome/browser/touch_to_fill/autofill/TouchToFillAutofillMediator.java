@@ -7,13 +7,17 @@ package org.chromium.chrome.browser.touch_to_fill.autofill;
 import static org.chromium.build.NullUtil.assumeNonNull;
 import static org.chromium.chrome.browser.touch_to_fill.autofill.TouchToFillAutofillProperties.VISIBLE;
 
+import androidx.annotation.IntDef;
+
 import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.touch_to_fill.autofill.TouchToFillAutofillComponent.Delegate;
 import org.chromium.chrome.browser.touch_to_fill.common.BottomSheetFocusHelper;
-import org.chromium.components.autofill.PopupNoticeInteractions;
 import org.chromium.ui.modelutil.PropertyModel;
+
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
 
 /**
  * Contains the business logic for the TouchToFillAutofill MVC component. It is responsible for
@@ -23,6 +27,26 @@ import org.chromium.ui.modelutil.PropertyModel;
 class TouchToFillAutofillMediator {
     static final String NOTICE_INTERACTIONS_HISTOGRAM =
             "PersonalContext.AmbientAutofill.NoticeInteractions";
+
+    // Interactions with the Ambient Autofill notice.
+    // LINT.IfChange(NoticeInteraction)
+    @IntDef({
+        NoticeInteraction.SHOWN,
+        NoticeInteraction.ACKNOWLEDGED,
+        NoticeInteraction.DISMISSED,
+        NoticeInteraction.MANAGE_SETTINGS_BUTTON_CLICKED,
+        NoticeInteraction.COUNT
+    })
+    @Retention(RetentionPolicy.SOURCE)
+    @interface NoticeInteraction {
+        int SHOWN = 0;
+        int ACKNOWLEDGED = 1;
+        int DISMISSED = 2;
+        int MANAGE_SETTINGS_BUTTON_CLICKED = 3;
+        int COUNT = 4;
+    }
+
+    // LINT.ThenChange(//tools/metrics/histograms/metadata/personal_context/enums.xml:PersonalContextAmbientAutofillNoticeInteractions)
 
     private @Nullable Delegate mDelegate;
     private @Nullable PropertyModel mModel;
@@ -40,7 +64,7 @@ class TouchToFillAutofillMediator {
         mWasDismissed = false;
         assumeNonNull(mBottomSheetFocusHelper).registerForOneTimeUse();
         assumeNonNull(mModel).set(VISIBLE, true);
-        recordNoticeInteraction(PopupNoticeInteractions.SHOWN);
+        recordNoticeInteraction(NoticeInteraction.SHOWN);
     }
 
     void hide() {
@@ -57,13 +81,13 @@ class TouchToFillAutofillMediator {
     void onNoticeAcknowledged() {
         if (!dismiss()) return;
         assumeNonNull(mDelegate).onNoticeAcknowledged();
-        recordNoticeInteraction(PopupNoticeInteractions.ACKNOWLEDGED);
+        recordNoticeInteraction(NoticeInteraction.ACKNOWLEDGED);
     }
 
     void onSettingsLinkClicked() {
         if (!dismiss()) return;
         assumeNonNull(mDelegate).onSettingsLinkClicked();
-        recordNoticeInteraction(PopupNoticeInteractions.LINK_BUTTON_CLICKED);
+        recordNoticeInteraction(NoticeInteraction.MANAGE_SETTINGS_BUTTON_CLICKED);
     }
 
     void onDismissed() {
@@ -71,7 +95,7 @@ class TouchToFillAutofillMediator {
         if (mDelegate != null) {
             mDelegate.onDismissed();
         }
-        recordNoticeInteraction(PopupNoticeInteractions.DISMISSED);
+        recordNoticeInteraction(NoticeInteraction.DISMISSED);
     }
 
     void destroy() {
@@ -80,8 +104,8 @@ class TouchToFillAutofillMediator {
         mBottomSheetFocusHelper = null;
     }
 
-    private void recordNoticeInteraction(@PopupNoticeInteractions int interaction) {
+    private void recordNoticeInteraction(@NoticeInteraction int interaction) {
         RecordHistogram.recordEnumeratedHistogram(
-                NOTICE_INTERACTIONS_HISTOGRAM, interaction, PopupNoticeInteractions.MAX_VALUE + 1);
+                NOTICE_INTERACTIONS_HISTOGRAM, interaction, NoticeInteraction.COUNT);
     }
 }

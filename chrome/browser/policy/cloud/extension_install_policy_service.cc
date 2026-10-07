@@ -36,7 +36,6 @@
 #include "extensions/browser/extension_registry.h"
 #include "extensions/browser/managed_installation_mode.h"
 #include "extensions/browser/pref_names.h"
-#include "extensions/buildflags/buildflags.h"
 #include "extensions/common/extension_urls.h"
 #include "extensions/strings/grit/extensions_strings.h"
 #include "services/network/public/cpp/shared_url_loader_factory.h"
@@ -120,16 +119,8 @@ std::optional<bool> GetEarlyAllowedResult(
     Profile* profile,
     const ExtensionIdAndVersion& extension_id_and_version,
     const char* histogram_name) {
-  // Allow if extension install cloud policy checks are disabled.
-  bool policy_checks_enabled = profile->GetPrefs()->GetBoolean(
-      extensions::pref_names::kExtensionInstallCloudPolicyChecksEnabled);
-#if !BUILDFLAG(IS_CHROMEOS)
-  policy_checks_enabled =
-      policy_checks_enabled ||
-      g_browser_process->local_state()->GetBoolean(
-          extensions::pref_names::kExtensionInstallCloudPolicyChecksEnabled);
-#endif
-  if (!policy_checks_enabled) {
+  if (!profile->GetPrefs()->GetBoolean(
+          extensions::pref_names::kExtensionInstallCloudPolicyChecksEnabled)) {
     base::UmaHistogramEnumeration(
         histogram_name,
         IsExtensionAllowedResult::kExtensionInstallCloudPolicyChecksDisabled);
@@ -283,14 +274,12 @@ ExtensionInstallPolicyServiceImpl::ExtensionInstallPolicyServiceImpl(
       base::BindRepeating(
           &ExtensionInstallPolicyServiceImpl::OnPolicyChecksEnabledChanged,
           base::Unretained(this)));
-#if !BUILDFLAG(IS_CHROMEOS)
   local_state_change_registrar_.Init(g_browser_process->local_state());
   local_state_change_registrar_.Add(
       extensions::pref_names::kExtensionInstallCloudPolicyChecksEnabled,
       base::BindRepeating(
           &ExtensionInstallPolicyServiceImpl::OnPolicyChecksEnabledChanged,
           base::Unretained(this)));
-#endif
   OnPolicyChecksEnabledChanged();
 
   for (const auto& info : GetPolicyManagerInfos()) {
@@ -332,13 +321,9 @@ void ExtensionInstallPolicyServiceImpl::CanInstallExtension(
     return;
   }
 
-  // Identify connected managers with enabled extension install policy checks.
-  std::vector<PolicyManagerInfo> active_managers;
-  for (const auto& info : GetConnectedPolicyManagerInfos()) {
-    if (IsPolicyChecksEnabled(info)) {
-      active_managers.push_back(info);
-    }
-  }
+  // Identify managers with an active extension install core.
+  const std::vector<PolicyManagerInfo> active_managers =
+      GetConnectedPolicyManagerInfos();
 
   size_t callback_count = active_managers.size();
   if (callback_count == 0) {
@@ -500,9 +485,6 @@ void ExtensionInstallPolicyServiceImpl::OnCloudPolicyManagerReady(
 void ExtensionInstallPolicyServiceImpl::Shutdown() {
   initialization_waiters_.clear();
   pref_change_registrar_.Reset();
-#if !BUILDFLAG(IS_CHROMEOS)
-  local_state_change_registrar_.Reset();
-#endif
   if (auto* policy_service =
           profile_->GetProfilePolicyConnector()->policy_service()) {
     policy_service->RemoveObserver(POLICY_DOMAIN_EXTENSION_INSTALL, this);
@@ -549,23 +531,6 @@ ExtensionInstallPolicyServiceImpl::GetConnectedPolicyManagerInfos() const {
     }
   }
   return managers;
-}
-
-bool ExtensionInstallPolicyServiceImpl::IsPolicyChecksEnabled(
-    const PolicyManagerInfo& info) const {
-  if (info.policy_type ==
-      dm_protocol::kChromeExtensionInstallUserCloudPolicyType) {
-    return profile_->GetPrefs()->GetBoolean(
-        extensions::pref_names::kExtensionInstallCloudPolicyChecksEnabled);
-  }
-#if !BUILDFLAG(IS_CHROMEOS)
-  if (info.policy_type ==
-      dm_protocol::kChromeExtensionInstallMachineLevelCloudPolicyType) {
-    return g_browser_process->local_state()->GetBoolean(
-        extensions::pref_names::kExtensionInstallCloudPolicyChecksEnabled);
-  }
-#endif
-  return false;
 }
 
 std::string ExtensionInstallPolicyServiceImpl::GetDebugPolicyProviderName()
@@ -677,12 +642,21 @@ ExtensionInstallPolicyServiceImpl::GetExtensions() {
 
 void ExtensionInstallPolicyServiceImpl::OnPolicyChecksEnabledChanged() {
   // TODO(b/449178423): RemovePolicyTypeToFetch() in OnCoreDisconnecting()?
+
+  bool user_enabled = profile_->GetPrefs()->GetBoolean(
+      extensions::pref_names::kExtensionInstallCloudPolicyChecksEnabled);
+  bool machine_enabled = g_browser_process->local_state()->GetBoolean(
+      extensions::pref_names::kExtensionInstallCloudPolicyChecksEnabled);
+
   for (const auto& info : GetConnectedPolicyManagerInfos()) {
     if (auto* core = info.manager->extension_install_core()) {
       if (!core->client()) {
         continue;
       }
-      if (IsPolicyChecksEnabled(info)) {
+      bool is_user_policy =
+          info.policy_type ==
+          dm_protocol::kChromeExtensionInstallUserCloudPolicyType;
+      if (is_user_policy ? user_enabled : machine_enabled) {
         bool already_has_policy_type = core->client()->HasPolicyTypeToFetch(
             info.policy_type, std::string());
         core->client()->AddPolicyTypeToFetch({info.policy_type, this});

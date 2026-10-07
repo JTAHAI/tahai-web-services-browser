@@ -19,6 +19,10 @@ StyleRecalcContext StyleRecalcContext::FromInclusiveAncestors(
   for (Element* element = &start_element; element;
        element = FlatTreeTraversal::ParentElement(*element)) {
     if (const ComputedStyle* style = element->GetComputedStyle()) {
+      if (element == &start_element) {
+        result.parent_is_overscroll_container =
+            style->IsInternalOverscrollArea();
+      }
       if (result.size_container == nullptr &&
           style->IsContainerForSizeContainerQueries() &&
           (element != start_element ||
@@ -103,6 +107,7 @@ StyleRecalcContext StyleRecalcContext::FromParentContext(
   }
 
   if (const ComputedStyle* style = element.GetComputedStyle()) {
+    result.parent_is_overscroll_container = style->IsInternalOverscrollArea();
     result.has_scroller_ancestor_with_scroll_marker_group_property |=
         (style->IsScrollContainer() || element.IsDocumentElement()) &&
         !style->ScrollMarkerGroupNone();
@@ -112,6 +117,8 @@ StyleRecalcContext StyleRecalcContext::FromParentContext(
     if (style->IsContainerForAnchoredContainerQueries()) {
       result.has_anchored_container = true;
     }
+  } else {
+    result.parent_is_overscroll_container = false;
   }
 
   if (!result.has_animating_ancestor && element.GetElementAnimations()) {

@@ -5,6 +5,8 @@
 #include "chrome/browser/ui/webui/app_settings/web_app_settings_ui.h"
 
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/ui/browser.h"
+#include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window/public/profile_browser_collection.h"
 #include "chrome/browser/ui/webui/theme_source.h"
@@ -22,7 +24,6 @@
 #include "content/public/browser/web_ui.h"
 #include "content/public/browser/web_ui_controller.h"
 #include "content/public/browser/web_ui_data_source.h"
-#include "ui/base/base_window.h"
 #include "ui/gfx/native_ui_types.h"
 #include "ui/webui/webui_util.h"
 

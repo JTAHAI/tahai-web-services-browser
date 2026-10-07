@@ -21,7 +21,7 @@ import org.chromium.base.test.BaseRobolectricTestRunner;
 
 /** Unit tests for {@link AndroidSdkLevelSkipCheck} */
 @RunWith(BaseRobolectricTestRunner.class)
-@Config(sdk = BaseRobolectricTestRunner.MIN_SDK)
+@Config(manifest = Config.NONE, sdk = BaseRobolectricTestRunner.MIN_SDK)
 @SuppressWarnings("UnusedMethod")
 public class AndroidSdkLevelSkipCheckTest {
     public static class UnannotatedBaseClass {

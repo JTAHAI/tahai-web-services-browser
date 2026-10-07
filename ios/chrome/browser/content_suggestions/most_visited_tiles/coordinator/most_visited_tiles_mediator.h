@@ -35,6 +35,7 @@ class ChromeAccountManagerService;
 @protocol ContentSuggestionsConsumer;
 @protocol ContentSuggestionsDelegate;
 enum class ContentSuggestionsModuleType;
+@class ContentSuggestionsMetricsRecorder;
 @protocol HelpCommands;
 class LargeIconCache;
 @class LayoutGuideCenter;
@@ -54,6 +55,10 @@ class UrlLoadingBrowserAgent;
 // The config object for the latest Most Visited Tiles.
 @property(nonatomic, strong, readonly)
     MostVisitedTilesConfig* mostVisitedConfig;
+
+// Recorder for content suggestions metrics.
+@property(nonatomic, weak)
+    ContentSuggestionsMetricsRecorder* contentSuggestionsMetricsRecorder;
 
 // Action factory for mediator.
 @property(nonatomic, strong) BrowserActionFactory* actionFactory;

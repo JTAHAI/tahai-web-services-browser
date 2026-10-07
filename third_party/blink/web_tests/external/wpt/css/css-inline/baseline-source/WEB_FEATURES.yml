@@ -1,2 +1,3 @@
-rules:
-- "**": [baseline-source]
+features:
+- name: baseline-source
+  files: "**"

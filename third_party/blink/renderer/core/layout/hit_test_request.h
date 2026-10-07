@@ -31,20 +31,10 @@
 #include "third_party/blink/renderer/platform/heap/member.h"
 #include "third_party/blink/renderer/platform/wtf/allocator/allocator.h"
 
-namespace cc {
-class Region;
-}
-
-namespace gfx {
-class QuadF;
-}
-
 namespace blink {
 
 class LayoutObject;
 class Node;
-class PaintLayer;
-struct PhysicalRect;
 
 // List-based hit test testing can continue even after a hit has been found.
 // This is used to support fuzzy matching with rect-based hit tests as well as
@@ -79,11 +69,8 @@ class HitTestRequest {
   };
 
   typedef unsigned HitTestRequestType;
-  using HitNodeCb = base::RepeatingCallback<ListBasedHitTestBehavior(
-      const Node& node,
-      const PhysicalRect* physical_rect,
-      const gfx::QuadF* quad,
-      const cc::Region* region)>;
+  using HitNodeCb =
+      base::RepeatingCallback<ListBasedHitTestBehavior(const Node& node)>;
 
   HitTestRequest(HitTestRequestType request_type,
                  const LayoutObject* stop_node = nullptr,
@@ -129,14 +116,10 @@ class HitTestRequest {
 
   HitTestRequestType GetType() const { return request_type_; }
   const LayoutObject* GetStopNode() const { return stop_node_.Get(); }
-  const PaintLayer* GetStopLayer() const;
 
-  ListBasedHitTestBehavior RunHitNodeCb(const Node& node,
-                                        const PhysicalRect* physical_rect,
-                                        const gfx::QuadF* quad,
-                                        const cc::Region* region) const {
+  ListBasedHitTestBehavior RunHitNodeCb(const Node& node) const {
     DCHECK(hit_node_cb_);
-    return hit_node_cb_->Run(node, physical_rect, quad, region);
+    return hit_node_cb_->Run(node);
   }
 
   // The Cacheability bits don't affect hit testing computation.
@@ -157,8 +140,6 @@ class HitTestRequest {
   HitTestRequestType request_type_;
   // If non-null, do not hit test the children of this object.
   Member<const LayoutObject> stop_node_;
-  // This is stop_node_->PaintingLayer(), cached to optimize performance.
-  mutable Member<PaintLayer> stop_layer_;
   // Callback used to exit early, if needed, during penetrating list based hit
   // testing.
   std::optional<HitNodeCb> hit_node_cb_;

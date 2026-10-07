@@ -7,6 +7,7 @@
 #include "base/files/file_util.h"
 #include "base/functional/callback.h"
 #include "base/functional/callback_helpers.h"
+#include "base/i18n/time_formatting.h"
 #include "base/logging.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
@@ -352,8 +353,7 @@ base::FilePath WebRtcLocalEventLogManager::GetFilePath(
   base::Time::Exploded exploded;
   now.LocalExplode(&exploded);
   const std::string timestamp =
-      base::StringPrintf("%04d%02d%02d_%02d%02d", exploded.year, exploded.month,
-                         exploded.day_of_month, exploded.hour, exploded.minute);
+      base::UnlocalizedTimeFormatWithPattern(now, "yyyyMMdd_HHmm");
   return base_path.InsertBeforeExtension(FILE_PATH_LITERAL("_"))
       .AddExtension(log_file_writer_factory_.Extension())
       .InsertBeforeExtensionASCII(base::StringPrintf(

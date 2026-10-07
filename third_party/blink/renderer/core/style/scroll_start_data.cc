@@ -3,16 +3,14 @@
 // found in the LICENSE file.
 
 #include "third_party/blink/renderer/core/style/scroll_start_data.h"
-
-#include "third_party/blink/renderer/platform/wtf/text/format.h"
 #include "third_party/blink/renderer/platform/wtf/text/wtf_string.h"
 
 namespace blink {
 
 #if DCHECK_IS_ON()
 String ScrollStartData::ToString() const {
-  return Format("{{type: {}, length:{}}}", static_cast<int>(value_type),
-                value.ToString());
+  return String::Format("{type: %i, length:%s}", static_cast<int>(value_type),
+                        value.ToString().Ascii().c_str());
 }
 #endif
 

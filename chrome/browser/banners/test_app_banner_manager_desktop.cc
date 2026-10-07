@@ -14,7 +14,6 @@
 #include "base/task/single_thread_task_runner.h"
 #include "base/test/gmock_callback_support.h"
 #include "chrome/browser/webapps/webapps_client_desktop.h"
-#include "components/tabs/public/tab_interface.h"
 #include "components/webapps/browser/banners/app_banner_manager.h"
 #include "components/webapps/browser/installable/installable_data.h"
 #include "components/webapps/browser/web_app_url_config.h"
@@ -26,13 +25,12 @@
 namespace webapps {
 
 TestAppBannerManagerDesktop::TestAppBannerManagerDesktop(
-    tabs::TabInterface& tab,
     content::WebContents* web_contents)
-    : AppBannerManagerDesktop(tab, web_contents),
+    : AppBannerManagerDesktop(web_contents),
       content::WebContentsObserver(web_contents) {
-  // The UnownedUserDataHost CHECKs that this is the only instance registered
-  // on the tab, so observers of AppBannerManager cannot be left observing the
-  // wrong one.
+  // Ensure no real instance exists. This must be the only instance to avoid
+  // observers of AppBannerManager left observing the wrong one.
+  DCHECK_EQ(AppBannerManagerDesktop::FromWebContents(web_contents), nullptr);
   app_banner_manager()->AddObserver(this);
 }
 
@@ -41,9 +39,8 @@ TestAppBannerManagerDesktop::~TestAppBannerManagerDesktop() {
 }
 
 static std::unique_ptr<AppBannerManagerDesktop> CreateTestAppBannerManager(
-    tabs::TabInterface& tab,
     content::WebContents* web_contents) {
-  return std::make_unique<TestAppBannerManagerDesktop>(tab, web_contents);
+  return std::make_unique<TestAppBannerManagerDesktop>(web_contents);
 }
 
 void TestAppBannerManagerDesktop::SetUp() {
@@ -59,8 +56,7 @@ TestAppBannerManagerDesktop* TestAppBannerManagerDesktop::FromWebContents(
   DCHECK_EQ(
       AppBannerManagerDesktop::override_app_banner_manager_desktop_for_testing_,
       CreateTestAppBannerManager);
-  auto* manager = AppBannerManagerDesktop::From(
-      tabs::TabInterface::GetFromContents(web_contents));
+  auto* manager = AppBannerManagerDesktop::FromWebContents(web_contents);
   DCHECK(manager);
   DCHECK(manager->AsTestAppBannerManagerDesktopForTesting());
   return manager->AsTestAppBannerManagerDesktopForTesting();
@@ -111,9 +107,8 @@ void TestAppBannerManagerDesktop::ResetCurrentPageData() {
   debug_log_.Append("ResetCurrentPageData");
   AppBannerManagerDesktop::ResetCurrentPageData();
   installable_check_in_progress_ = true;
-  if (tear_down_quit_closure_) {
+  if (tear_down_quit_closure_)
     std::move(tear_down_quit_closure_).Run();
-  }
 }
 
 TestAppBannerManagerDesktop*
@@ -170,7 +165,7 @@ void TestAppBannerManagerDesktop::OnBannerShown() {
   }
 }
 
-void TestAppBannerManagerDesktop::OnComplete(InstallableStatusCode code) {
+void TestAppBannerManagerDesktop::OnComplete() {
   RunInstallableQuitClosureIfNeeded();
   if (on_complete_) {
     base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(

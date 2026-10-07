@@ -66,10 +66,10 @@ public abstract class TabStripReorderingHelper<T> extends TabOverflowMenuCoordin
         mReorderFunction = reorderFunction;
     }
 
-    /** Return whether the item with id {@code id} can be reordered towards the start. */
+    /** Return whether the item with id {@param id} can be reordered towards the start. */
     protected abstract boolean canItemMoveTowardStart(T id);
 
-    /** Return whether the item with id {@code id} can be reordered towards the end. */
+    /** Return whether the item with id {@param id} can be reordered towards the end. */
     protected abstract boolean canItemMoveTowardEnd(T id);
 
     /** Returns whether an a11y gesture service is on. (Can be overridden for testing.) */
@@ -86,7 +86,7 @@ public abstract class TabStripReorderingHelper<T> extends TabOverflowMenuCoordin
     }
 
     /**
-     * Returns list items for moving the item with id {@code id} to the left or to the right.
+     * Returns list items for moving the item with id {@param id} to the left or to the right.
      *
      * <p>We only return list items when an a11y service that performs gestures is on.
      *
@@ -97,17 +97,12 @@ public abstract class TabStripReorderingHelper<T> extends TabOverflowMenuCoordin
      *     truly left, not "start", so it is still left in RTL.
      * @param moveRightString The string for moving an item of this type to the right.
      * @param isIncognito Whether this tab strip item is in an incognito model.
-     * @param isVertical Whether the layout is vertical (where RTL flipping is skipped).
-     * @return A list of menu list items for reordering the item with id {@code id}.
+     * @return A list of menu list items for reordering the item with id {@param id}.
      */
     protected List<ListItem> createReorderItems(
-            T id,
-            String moveLeftString,
-            String moveRightString,
-            boolean isIncognito,
-            boolean isVertical) {
+            T id, String moveLeftString, String moveRightString, boolean isIncognito) {
         if (!isGesturesEnabled()) return List.of();
-        boolean isRtl = LocalizationUtils.isLayoutRtl() && !isVertical;
+        boolean isRtl = LocalizationUtils.isLayoutRtl();
         ListItem moveTowardsStartItem =
                 new ListItemBuilder()
                         .withTitle(isRtl ? moveRightString : moveLeftString)

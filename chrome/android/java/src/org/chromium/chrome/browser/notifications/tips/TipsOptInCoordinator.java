@@ -33,6 +33,7 @@ import org.chromium.components.browser_ui.bottomsheet.BottomSheetContent;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController.StateChangeReason;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetObserver;
+import org.chromium.components.browser_ui.bottomsheet.EmptyBottomSheetObserver;
 import org.chromium.components.browser_ui.notifications.BaseNotificationManagerProxyFactory;
 import org.chromium.components.browser_ui.notifications.channels.ChannelsInitializer;
 import org.chromium.ui.widget.ButtonCompat;
@@ -123,10 +124,10 @@ public class TipsOptInCoordinator {
         mSheetContent = new TipsOptInSheetContent(mContentView, bottomSheetController);
 
         ButtonCompat positiveButtonView = mContentView.findViewById(R.id.opt_in_positive_button);
-        positiveButtonView.setOnClickListener(_ -> onOptInAccepted());
+        positiveButtonView.setOnClickListener((view) -> onOptInAccepted());
 
         ButtonCompat negativeButtonView = mContentView.findViewById(R.id.opt_in_negative_button);
-        negativeButtonView.setOnClickListener(_ -> onOptInDeclined());
+        negativeButtonView.setOnClickListener((view) -> onOptInDeclined());
 
         // Fire an event for the original setup.
         mComponentCallbacks.onConfigurationChanged(mContext.getResources().getConfiguration());
@@ -185,7 +186,7 @@ public class TipsOptInCoordinator {
         mSharedPreferences.writeBoolean(
                 ChromePreferenceKeys.TIPS_NOTIFICATIONS_OPT_IN_PROMO_ACCEPTED, true);
         TipsUtils.isTipsChannelCreated(
-                channelExists -> {
+                (channelExists) -> {
                     if (!channelExists) {
                         // For first time opt-in, initialize the notification channel as enabled.
                         new ChannelsInitializer(
@@ -200,7 +201,7 @@ public class TipsOptInCoordinator {
                     // This handles first-time users with app-level disabled and testing
                     // configuration flow where app-level/channel notifications aren't enabled.
                     TipsUtils.areTipsNotificationsEnabled(
-                            enabled -> {
+                            (enabled) -> {
                                 if (!enabled) {
                                     TipsUtils.launchTipsNotificationsSettings(mContext);
                                 }
@@ -242,14 +243,16 @@ public class TipsOptInCoordinator {
             mController = controller;
             mScrollView = mContentView.findViewById(R.id.opt_in_scrollview);
             mBottomSheetOpenedObserver =
-                    new BottomSheetObserver() {
+                    new EmptyBottomSheetObserver() {
                         @Override
                         public void onSheetOpened(@StateChangeReason int reason) {
+                            super.onSheetOpened(reason);
                             mBackPressStateChangedSupplier.set(true);
                         }
 
                         @Override
                         public void onSheetClosed(@StateChangeReason int reason) {
+                            super.onSheetClosed(reason);
                             mBackPressStateChangedSupplier.set(false);
                             mBottomSheetController.removeObserver(mBottomSheetOpenedObserver);
 

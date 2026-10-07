@@ -14,7 +14,7 @@
 #include "ui/base/metadata/metadata_header_macros.h"
 #include "ui/views/focus/focus_manager.h"
 
-class BrowserWindowInterface;
+class Browser;
 class DownloadBubbleUIController;
 class DownloadBubbleNavigationHandler;
 
@@ -26,7 +26,7 @@ class DownloadBubblePartialView : public DownloadBubblePrimaryView,
 
  public:
   DownloadBubblePartialView(
-      BrowserWindowInterface* browser,
+      base::WeakPtr<Browser> browser,
       base::WeakPtr<DownloadBubbleUIController> bubble_controller,
       base::WeakPtr<DownloadBubbleNavigationHandler> navigation_handler,
       const DownloadBubbleRowListViewInfo& info,

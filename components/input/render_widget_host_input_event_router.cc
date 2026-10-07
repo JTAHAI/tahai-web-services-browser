@@ -247,12 +247,6 @@ void TouchEventAckQueue::UpdateQueueAfterTargetDestroyed(
 RenderWidgetHostInputEventRouter::TouchscreenPinchState::TouchscreenPinchState()
     : state_(PinchState::NONE) {}
 
-bool RenderWidgetHostInputEventRouter::TouchscreenPinchState::IsBubblingToRoot()
-    const {
-  return state_ == PinchState::EXISTING_BUBBLING_TO_ROOT ||
-         state_ == PinchState::PINCH_WHILE_BUBBLING_TO_ROOT;
-}
-
 bool RenderWidgetHostInputEventRouter::TouchscreenPinchState::IsInPinch()
     const {
   switch (state_) {
@@ -422,28 +416,32 @@ void RenderWidgetHostInputEventRouter::OnRenderWidgetHostViewInputDestroyed(
     touchpad_gesture_target_ = nullptr;
 
   if (view == bubbling_gesture_scroll_target_) {
-    CancelScrollBubbling(/*bubbling_view_is_being_destroyed=*/true);
+    bubbling_gesture_scroll_target_ = nullptr;
+    bubbling_gesture_scroll_origin_ = nullptr;
   } else if (view == bubbling_gesture_scroll_origin_) {
     bubbling_gesture_scroll_origin_ = nullptr;
   }
 
-  // The remembered target depends on its ancestor chain. If a non-root view in
-  // that path stops being observed, promote its registered parent to be the
-  // new target. Clear the path if the root or no registered parent remains.
   if (view == last_mouse_move_root_view_) {
     last_mouse_move_target_ = nullptr;
     last_mouse_move_root_view_ = nullptr;
-  } else if (view == last_mouse_move_target_ ||
-             (last_mouse_move_target_ &&
-              RenderWidgetHostViewInput::IsAncestorView(
-                  last_mouse_move_target_, view, last_mouse_move_root_view_))) {
-    auto* parent = view->GetParentViewInput();
-    if (IsViewInMap(parent)) {
-      last_mouse_move_target_ = parent;
+  }
+
+  if (view == last_mouse_move_target_) {
+    // When a child iframe is destroyed, consider its parent to be to be the
+    // most recent target, if possible. In some cases the parent might already
+    // have been destroyed, in which case the last target is cleared.
+    if (view != last_mouse_move_root_view_) {
+      last_mouse_move_target_ = last_mouse_move_target_->GetParentViewInput();
     } else {
       last_mouse_move_target_ = nullptr;
-      last_mouse_move_root_view_ = nullptr;
     }
+
+    // If both target and root are the view being destroyed, or the parent
+    // has already been destroyed, then also clear the root view pointer
+    // along with the target pointer.
+    if (!last_mouse_move_target_)
+      last_mouse_move_root_view_ = nullptr;
   }
 
   if (view == last_fling_start_target_)
@@ -1417,25 +1415,17 @@ void RenderWidgetHostInputEventRouter::WillDetachChildView(
   }
 }
 
-void RenderWidgetHostInputEventRouter::CancelScrollBubbling(
-    bool bubbling_view_is_being_destroyed) {
+void RenderWidgetHostInputEventRouter::CancelScrollBubbling() {
   DCHECK(bubbling_gesture_scroll_target_);
-  if (!bubbling_view_is_being_destroyed) {
-    SendGestureScrollEnd(bubbling_gesture_scroll_target_,
-                         bubbling_gesture_scroll_source_device_);
-  }
+  SendGestureScrollEnd(bubbling_gesture_scroll_target_,
+                       bubbling_gesture_scroll_source_device_);
 
   const bool touchscreen_bubble_to_root =
       bubbling_gesture_scroll_source_device_ ==
           blink::WebGestureDevice::kTouchscreen &&
-      touchscreen_pinch_state_.IsBubblingToRoot();
-  if (touchscreen_bubble_to_root) {
-    if (bubbling_view_is_being_destroyed &&
-        touchscreen_pinch_state_.IsInPinch()) {
-      touchscreen_pinch_state_.DidStopPinch();
-    }
+      !bubbling_gesture_scroll_target_->GetParentViewInput();
+  if (touchscreen_bubble_to_root)
     touchscreen_pinch_state_.DidStopBubblingToRoot();
-  }
 
   // TODO(mcnee): We should also inform |bubbling_gesture_scroll_origin_| that
   // we are no longer bubbling its events, otherwise it could continue to send

@@ -82,6 +82,7 @@ import org.chromium.chrome.tab_ui.R;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController.SheetState;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetObserver;
+import org.chromium.components.browser_ui.bottomsheet.EmptyBottomSheetObserver;
 import org.chromium.components.browser_ui.desktop_windowing.AppHeaderState;
 import org.chromium.components.browser_ui.desktop_windowing.DesktopWindowStateManager;
 import org.chromium.components.browser_ui.desktop_windowing.DesktopWindowStateManager.AppHeaderObserver;
@@ -240,6 +241,7 @@ public class TabGridDialogMediator
     private final Runnable mShowColorPickerPopupRunnable;
     private final Profile mOriginalProfile;
     private final @Nullable TabGroupSyncService mTabGroupSyncService;
+    private final @Nullable DataSharingService mDataSharingService;
     private final CollaborationService mCollaborationService;
     private final @Nullable TransitiveSharedGroupObserver mTransitiveSharedGroupObserver;
     private final @Nullable MessagingBackendService mMessagingBackendService;
@@ -250,6 +252,7 @@ public class TabGridDialogMediator
     private final @Nullable DesktopWindowStateManager mDesktopWindowStateManager;
     private final BottomSheetObserver mBottomSheetObserver;
 
+    private @Nullable TabGroupListBottomSheetCoordinator mTabGroupListBottomSheetCoordinator;
     private @Nullable Token mCurrentTabGroupId;
     private TabGridDialogMenuCoordinator mTabGridDialogMenuCoordinator;
     private LazyOneshotSupplier<TabListEditorController> mTabListEditorControllerSupplier;
@@ -302,11 +305,10 @@ public class TabGridDialogMediator
         mCollaborationService = CollaborationServiceFactory.getForProfile(mOriginalProfile);
         if (mTabGroupSyncService != null
                 && mCollaborationService.getServiceStatus().isAllowedToJoin()) {
-            @Nullable DataSharingService dataSharingService =
-                    DataSharingServiceFactory.getForProfile(mOriginalProfile);
+            mDataSharingService = DataSharingServiceFactory.getForProfile(mOriginalProfile);
             mTransitiveSharedGroupObserver =
                     new TransitiveSharedGroupObserver(
-                            mTabGroupSyncService, dataSharingService, mCollaborationService);
+                            mTabGroupSyncService, mDataSharingService, mCollaborationService);
             // This should be the first supplier set as the other suppliers depend on its value.
             mTransitiveSharedGroupObserver
                     .getCollaborationIdSupplier()
@@ -333,6 +335,7 @@ public class TabGridDialogMediator
                     };
             mMessagingBackendService.addPersistentMessageObserver(mPersistentMessageObserver);
         } else {
+            mDataSharingService = null;
             mTransitiveSharedGroupObserver = null;
             mMessagingBackendService = null;
             mPersistentMessageObserver = null;
@@ -479,27 +482,29 @@ public class TabGridDialogMediator
                         if (mSnackbarManager == null) return;
                         PostTask.postTask(
                                 TaskTraits.UI_DEFAULT,
-                                () ->
-                                        mSnackbarManager.dismissSnackbars(
-                                                TabGridDialogMediator.this, tabs));
+                                () -> {
+                                    mSnackbarManager.dismissSnackbars(
+                                            TabGridDialogMediator.this, tabs);
+                                });
                     }
 
                     private void dismissSingleTabSnackbar(int tabId) {
                         if (mSnackbarManager == null) return;
                         PostTask.postTask(
                                 TaskTraits.UI_DEFAULT,
-                                () ->
-                                        mSnackbarManager.dismissSnackbars(
-                                                TabGridDialogMediator.this, tabId));
+                                () -> {
+                                    mSnackbarManager.dismissSnackbars(
+                                            TabGridDialogMediator.this, tabId);
+                                });
                     }
 
                     private void dismissAllSnackbars() {
                         if (mSnackbarManager == null) return;
                         PostTask.postTask(
                                 TaskTraits.UI_DEFAULT,
-                                () ->
-                                        mSnackbarManager.dismissSnackbars(
-                                                TabGridDialogMediator.this));
+                                () -> {
+                                    mSnackbarManager.dismissSnackbars(TabGridDialogMediator.this);
+                                });
                     }
                 };
 
@@ -548,7 +553,7 @@ public class TabGridDialogMediator
 
         TabModel tabModel = mCurrentTabModelSupplier.get();
         assumeNonNull(tabModel);
-        if (modalDialogManager != null) {
+        if (profile != null && modalDialogManager != null) {
             TabGroupCreationDialogManager tabGroupCreationDialogManager =
                     new TabGroupCreationDialogManager(activity, modalDialogManager, null);
             TabGroupCreationCallback tabGroupCreationCallback =
@@ -557,7 +562,7 @@ public class TabGridDialogMediator
             // Dismiss the dialog if open. The dialog should be open when the bottom sheet is
             // visible.
             TabMovedCallback tabMovedCallback = () -> hideDialog(true);
-            @Nullable TabGroupListBottomSheetCoordinator tabGroupListBottomSheetCoordinator =
+            mTabGroupListBottomSheetCoordinator =
                     new TabGroupListBottomSheetCoordinator(
                             activity,
                             profile,
@@ -565,9 +570,8 @@ public class TabGridDialogMediator
                             tabMovedCallback,
                             tabModel,
                             bottomSheetController,
-                            /* supportsShowNewGroup= */ true,
-                            /* destroyOnHide= */ false,
-                            /* windowAndroid= */ null);
+                            true,
+                            false);
 
             CollaborationService collaborationService =
                     CollaborationServiceFactory.getForProfile(profile);
@@ -586,7 +590,7 @@ public class TabGridDialogMediator
                             tabBookmarkerSupplier,
                             profile,
                             tabModel,
-                            tabGroupListBottomSheetCoordinator,
+                            mTabGroupListBottomSheetCoordinator,
                             tabGroupCreationDialogManager,
                             shareDelegateSupplier,
                             mTabGroupSyncService,
@@ -595,7 +599,7 @@ public class TabGridDialogMediator
         }
 
         mBottomSheetObserver =
-                new BottomSheetObserver() {
+                new EmptyBottomSheetObserver() {
                     @Override
                     public void onSheetOpened(@SheetState int reason) {
                         mModel.set(TabGridDialogProperties.SUPPRESS_ACCESSIBILITY, true);
@@ -975,7 +979,7 @@ public class TabGridDialogMediator
         mModel.set(TabGridDialogProperties.TITLE_TEXT_WATCHER, textWatcher);
 
         View.OnFocusChangeListener onFocusChangeListener =
-                (View _, boolean hasFocus) -> {
+                (v, hasFocus) -> {
                     mIsUpdatingTitle = hasFocus;
                     mModel.set(TabGridDialogProperties.IS_KEYBOARD_VISIBLE, hasFocus);
                     mModel.set(TabGridDialogProperties.IS_TITLE_TEXT_FOCUSED, hasFocus);
@@ -985,14 +989,14 @@ public class TabGridDialogMediator
     }
 
     private View.OnClickListener getCollapseButtonClickListener() {
-        return _ -> {
+        return view -> {
             hideDialog(true);
             RecordUserAction.record("TabGridDialog.Exit");
         };
     }
 
     private View.OnClickListener getAddButtonClickListener() {
-        return _ -> {
+        return view -> {
             // Get the current Tab first since hideDialog causes mCurrentTabGroupId to be null;
             List<Tab> tabsInGroup = getTabsInGroup(mCurrentTabGroupId);
             hideDialog(false);

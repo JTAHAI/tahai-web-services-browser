@@ -21,7 +21,6 @@
 
 class GURL;
 class Profile;
-class PrefService;
 
 namespace apps {
 enum class LaunchContainer;
@@ -186,8 +185,6 @@ bool IsValidScopeForLinkCapturing(const GURL& scope);
 // Returns whether |app_id| will soon refer to a system web app given |sources|.
 bool WillBeSystemWebApp(const webapps::AppId& app_id,
                         WebAppManagementTypes sources);
-
-void ClearWebAppProfilePrefs(PrefService* profile_prefs);
 
 }  // namespace web_app
 

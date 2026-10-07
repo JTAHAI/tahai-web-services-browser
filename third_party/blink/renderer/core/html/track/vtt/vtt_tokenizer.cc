@@ -37,33 +37,22 @@
 
 namespace blink {
 
-// Use U+FFFF (a Unicode noncharacter) as the end-of-input sentinel appended
-// by the constructor. kEndOfFileMarker ('\0') cannot serve this role because
-// U+0000 may legitimately appear in cue text set via the DOM API, and the
-// WebVTT cue text tokenizer data state treats it as "Anything else" - i.e.,
-// it is appended verbatim to the token (no special handling).
-static const UChar kVTTEndOfFileMarker = 0xFFFF;
-
 #define WEBVTT_BEGIN_STATE(state_name) \
   case state_name:                     \
   state_name:
-// Advance past the current character and update the current character (cc)
-// to the next one, then jump to state_name.  The sentinel ensures the
-// SegmentedString is never empty when this macro is invoked.
-#define WEBVTT_ADVANCE_TO(state_name)         \
-  do {                                        \
-    state = state_name;                       \
-    DCHECK(!input_.IsEmpty());                \
-    cc = input_.AdvanceAndUpdateLineNumber(); \
-    goto state_name;                          \
+#define WEBVTT_ADVANCE_TO(state_name)               \
+  do {                                              \
+    state = state_name;                             \
+    DCHECK(!input_.IsEmpty());                      \
+    input_stream_preprocessor_.Advance(input_, cc); \
+    goto state_name;                                \
   } while (false)
-// Re-examine the current character (without advancing) in state_name.
-#define WEBVTT_SWITCH_TO(state_name) \
-  do {                               \
-    state = state_name;              \
-    DCHECK(!input_.IsEmpty());       \
-    cc = input_.CurrentChar();       \
-    goto state_name;                 \
+#define WEBVTT_SWITCH_TO(state_name)             \
+  do {                                           \
+    state = state_name;                          \
+    DCHECK(!input_.IsEmpty());                   \
+    input_stream_preprocessor_.Peek(input_, cc); \
+    goto state_name;                             \
   } while (false)
 
 static void AddNewClass(StringBuilder& classes,
@@ -104,29 +93,21 @@ static void ProcessEntity(SegmentedString& source,
   }
 }
 
-VTTTokenizer::VTTTokenizer(const String& input) : input_(input) {
-  // Append a sentinel and close the input "stream".  Use kVTTEndOfFileMarker
-  // (U+FFFF) rather than kEndOfFileMarker ('\0') so that a U+0000 character
-  // in the cue text (legal when the cue is set via the DOM API) is not
-  // confused with the sentinel.  The append below requires an open stream;
-  // CHECK rather than DCHECK so a violation fails loudly in release builds
-  // instead of silently tokenizing without a sentinel.  This runs once per
-  // cue text parse, so the cost is negligible.
-  CHECK(!input_.IsClosed());
-  input_.Append(
-      SegmentedString(String(base::span_from_ref(kVTTEndOfFileMarker))));
+VTTTokenizer::VTTTokenizer(const String& input)
+    : input_(input), input_stream_preprocessor_(this) {
+  // Append a EOF marker and close the input "stream".
+  DCHECK(!input_.IsClosed());
+  input_.Append(SegmentedString(String(base::span_from_ref(kEndOfFileMarker))));
   input_.Close();
 }
 
 bool VTTTokenizer::NextToken(VTTToken& token) {
-  if (input_.IsEmpty()) {
+  UChar cc;
+  if (input_.IsEmpty() || !input_stream_preprocessor_.Peek(input_, cc))
     return false;
-  }
 
-  UChar cc = input_.CurrentChar();
-  if (cc == kVTTEndOfFileMarker) {
-    // Consume the sentinel so that the next call sees IsEmpty() == true.
-    input_.AdvanceAndUpdateLineNumber();
+  if (cc == kEndOfFileMarker) {
+    input_stream_preprocessor_.Advance(input_, cc);
     return false;
   }
 
@@ -159,7 +140,7 @@ bool VTTTokenizer::NextToken(VTTToken& token) {
           // '<' again, but take the other branch in this if instead.)
           return EmitToken(token, VTTToken::StringToken(result.ToString()));
         }
-      } else if (cc == kVTTEndOfFileMarker) {
+      } else if (cc == kEndOfFileMarker) {
         return AdvanceAndEmitToken(input_, token,
                                    VTTToken::StringToken(result.ToString()));
       } else {
@@ -187,7 +168,7 @@ bool VTTTokenizer::NextToken(VTTToken& token) {
       } else if (IsAsciiDigit(cc)) {
         result.Append(cc);
         WEBVTT_ADVANCE_TO(kTimestampTagState);
-      } else if (cc == '>' || cc == kVTTEndOfFileMarker) {
+      } else if (cc == '>' || cc == kEndOfFileMarker) {
         DCHECK(result.empty());
         return AdvanceAndEmitToken(input_, token,
                                    VTTToken::StartTag(result.ToString()));
@@ -203,7 +184,7 @@ bool VTTTokenizer::NextToken(VTTToken& token) {
         WEBVTT_ADVANCE_TO(kStartTagAnnotationState);
       } else if (cc == '.') {
         WEBVTT_ADVANCE_TO(kStartTagClassState);
-      } else if (cc == '>' || cc == kVTTEndOfFileMarker) {
+      } else if (cc == '>' || cc == kEndOfFileMarker) {
         return AdvanceAndEmitToken(input_, token,
                                    VTTToken::StartTag(result.ToString()));
       } else {
@@ -222,7 +203,7 @@ bool VTTTokenizer::NextToken(VTTToken& token) {
         AddNewClass(classes, buffer);
         buffer.Clear();
         WEBVTT_ADVANCE_TO(kStartTagClassState);
-      } else if (cc == '>' || cc == kVTTEndOfFileMarker) {
+      } else if (cc == '>' || cc == kEndOfFileMarker) {
         AddNewClass(classes, buffer);
         buffer.Clear();
         return AdvanceAndEmitToken(
@@ -239,7 +220,7 @@ bool VTTTokenizer::NextToken(VTTToken& token) {
       if (cc == '&') {
         WEBVTT_ADVANCE_TO(kHTMLCharacterReferenceInAnnotationState);
       }
-      if (cc == '>' || cc == kVTTEndOfFileMarker) {
+      if (cc == '>' || cc == kEndOfFileMarker) {
         return AdvanceAndEmitToken(
             input_, token,
             VTTToken::StartTag(result.ToString(), classes.ToAtomicString(),
@@ -257,20 +238,18 @@ bool VTTTokenizer::NextToken(VTTToken& token) {
     END_STATE()
 
     WEBVTT_BEGIN_STATE(kEndTagState) {
-      if (cc == '>' || cc == kVTTEndOfFileMarker) {
+      if (cc == '>' || cc == kEndOfFileMarker)
         return AdvanceAndEmitToken(input_, token,
                                    VTTToken::EndTag(result.ToString()));
-      }
       result.Append(cc);
       WEBVTT_ADVANCE_TO(kEndTagState);
     }
     END_STATE()
 
     WEBVTT_BEGIN_STATE(kTimestampTagState) {
-      if (cc == '>' || cc == kVTTEndOfFileMarker) {
+      if (cc == '>' || cc == kEndOfFileMarker)
         return AdvanceAndEmitToken(input_, token,
                                    VTTToken::TimestampTag(result.ToString()));
-      }
       result.Append(cc);
       WEBVTT_ADVANCE_TO(kTimestampTagState);
     }

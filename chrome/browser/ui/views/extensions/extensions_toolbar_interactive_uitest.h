@@ -45,7 +45,7 @@ class ExtensionsToolbarUITest : public DialogBrowserTest {
 
   Profile* profile();
 
-  BrowserWindowInterface* incognito_browser() { return incognito_browser_; }
+  Browser* incognito_browser() { return incognito_browser_; }
 
   const std::vector<scoped_refptr<const extensions::Extension>>& extensions() {
     return extensions_;
@@ -86,7 +86,7 @@ class ExtensionsToolbarUITest : public DialogBrowserTest {
   ExtensionsToolbarDesktop* GetExtensionsToolbarDesktop() const;
   // Returns the extensions toolbar container for the given `browser`.
   ExtensionsToolbarDesktop* GetExtensionsToolbarDesktopForBrowser(
-      BrowserWindowInterface* browser) const;
+      Browser* browser) const;
 
   // Gets the ToolbarActionView instances inside
   // GetExtensionsToolbarDesktop().
@@ -94,7 +94,7 @@ class ExtensionsToolbarUITest : public DialogBrowserTest {
   // Returns the ToolbarActionView instances within the extensions toolbar for
   // the given `browser`.
   std::vector<ToolbarActionView*> GetToolbarActionViewsForBrowser(
-      BrowserWindowInterface* browser) const;
+      Browser* browser) const;
 
   // Gets only the visible ToolbarActionView instances from
   // GetToolbarActionViews().
@@ -125,8 +125,7 @@ class ExtensionsToolbarUITest : public DialogBrowserTest {
   void WaitForAnimation();
 
  private:
-  raw_ptr<BrowserWindowInterface, AcrossTasksDanglingUntriaged>
-      incognito_browser_ = nullptr;
+  raw_ptr<Browser, AcrossTasksDanglingUntriaged> incognito_browser_ = nullptr;
   std::vector<scoped_refptr<const extensions::Extension>> extensions_;
 
   // TODO(https://crbug.com/40804030): Remove this when updated to use MV3.

@@ -39,3 +39,9 @@
 
 # https://crbug.com/538266717
 -org.chromium.chrome.browser.popups.PopupMultiwindowPTTest*
+
+# https://crbug.com/538252516
+-org.chromium.chrome.browser.ui.browser_window.ChromeAndroidTaskClankIntegrationTest*
+
+# https://crbug.com/538252517
+-org.chromium.chrome.browser.ui.extensions.windowing.ExtensionWindowControllerBridgeClankIntegrationTest*

@@ -10,25 +10,19 @@
 
 namespace ui::test {
 
-TestElementBase::TestElementBase(ElementIdentifier id,
-                                 ElementContext context,
-                                 std::string_view secondary_id)
-    : TrackedElement(id, context), secondary_id_(secondary_id) {}
+TestElementBase::TestElementBase(ElementIdentifier id, ElementContext context)
+    : TrackedElement(id, context) {}
 
 TestElementBase::~TestElementBase() {
   Hide();
 }
 
-TestElement::TestElement(ElementIdentifier id,
-                         ElementContext context,
-                         std::string_view secondary_id)
-    : TestElementBase(id, context, secondary_id) {}
+TestElement::TestElement(ElementIdentifier id, ElementContext context)
+    : TestElementBase(id, context) {}
 
-TestElementOtherFramework::TestElementOtherFramework(
-    ElementIdentifier id,
-    ElementContext context,
-    std::string_view secondary_id)
-    : TestElementBase(id, context, secondary_id) {}
+TestElementOtherFramework::TestElementOtherFramework(ElementIdentifier id,
+                                                     ElementContext context)
+    : TestElementBase(id, context) {}
 
 void TestElementBase::Show() {
   if (visible_)
@@ -72,11 +66,6 @@ void TestElementBase::SetNativeView(gfx::NativeView native_view) {
 
 gfx::NativeView TestElementBase::GetNativeView() const {
   return native_view_;
-}
-
-std::string TestElementBase::GetSecondaryIdentifier() const {
-  return secondary_id_.empty() ? TrackedElement::GetSecondaryIdentifier()
-                               : secondary_id_;
 }
 
 DEFINE_SAFE_CAST_TARGET(TestElement)

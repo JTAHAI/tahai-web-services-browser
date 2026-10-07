@@ -80,40 +80,35 @@ export const SettingsViewMixin = dedupingMixin(
         }
 
         private onViewEnterStart_() {
-          const currentRoute = Router.getInstance().getCurrentRoute();
-          const previousRoute =
-              this.previousRoute_ || Router.getInstance().getPreviousRoute();
-          const isNavigatingBack =
-              Router.getInstance().lastRouteChangeWasPopstate() ||
-              (!!previousRoute && previousRoute.depth > currentRoute.depth);
-
           // Call focusBackButton() on the selected subpage, only if:
           //  1) Not a direct navigation (such that the search box stays
           //     focused), and
           //  2) Not a "back" navigation, in which case the anchor element
           //     should be focused (further below in this function).
-          if (previousRoute && !isNavigatingBack) {
+          if (this.previousRoute_ &&
+              !Router.getInstance().lastRouteChangeWasPopstate()) {
             this.focusBackButton();
             return;
           }
 
           // Don't attempt to focus any anchor element, unless last navigation
-          // was a 'pop' / backwards navigation.
-          if (!isNavigatingBack) {
+          // was a 'pop' (backwards) navigation.
+          if (!Router.getInstance().lastRouteChangeWasPopstate()) {
             return;
           }
 
-          if (!this.focusConfig_ || !previousRoute) {
+          if (!this.focusConfig_ || !this.previousRoute_) {
             return;
           }
 
-          const fromToKey = `${previousRoute.path}_${currentRoute.path}`;
+          const currentRoute = Router.getInstance().getCurrentRoute();
+          const fromToKey = `${this.previousRoute_.path}_${currentRoute.path}`;
 
           // Look for a key that captures both previous and current route first.
           // If not found, then look for a key that only captures the previous
           // route.
           let pathConfig = this.focusConfig_.get(fromToKey) ||
-              this.focusConfig_.get(previousRoute.path);
+              this.focusConfig_.get(this.previousRoute_.path);
           if (pathConfig) {
             let handler;
             if (typeof pathConfig === 'function') {

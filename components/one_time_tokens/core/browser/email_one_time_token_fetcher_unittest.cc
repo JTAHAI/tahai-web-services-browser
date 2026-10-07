@@ -14,13 +14,11 @@
 #include "base/test/scoped_command_line.h"
 #include "base/test/task_environment.h"
 #include "base/test/test_future.h"
+#include "components/one_time_tokens/core/common/one_time_token_switches.h"
 #include "components/one_time_tokens/core/browser/fetch_email_one_time_token_error_details.pb.h"
 #include "components/one_time_tokens/core/browser/fetch_email_one_time_token_request.pb.h"
 #include "components/one_time_tokens/core/browser/fetch_email_one_time_token_response.pb.h"
-#include "components/one_time_tokens/core/browser/one_time_token_log_sink.h"
 #include "components/one_time_tokens/core/browser/one_time_token_retrieval_error.h"
-#include "components/one_time_tokens/core/browser/one_time_token_service_constants.h"
-#include "components/one_time_tokens/core/common/one_time_token_switches.h"
 #include "components/signin/public/identity_manager/identity_test_environment.h"
 #include "google_apis/gaia/google_service_auth_error.h"
 #include "net/base/url_util.h"
@@ -70,8 +68,7 @@ class EmailOneTimeTokenFetcherTest : public testing::Test {
   std::unique_ptr<EmailOneTimeTokenFetcher> CreateFetcher() {
     return std::make_unique<EmailOneTimeTokenFetcher>(
         test_url_loader_factory_->GetSafeWeakWrapper(),
-        *identity_test_env_->identity_manager(), kEncryptedMessageReference,
-        base::TimeTicks::Now(), &log_sink_);
+        *identity_test_env_->identity_manager(), kEncryptedMessageReference);
   }
 
   void WaitForAccessTokenRequestAndRespondWithSuccess() {
@@ -118,7 +115,6 @@ class EmailOneTimeTokenFetcherTest : public testing::Test {
   base::HistogramTester histogram_tester_;
   std::unique_ptr<network::TestURLLoaderFactory> test_url_loader_factory_;
   std::unique_ptr<signin::IdentityTestEnvironment> identity_test_env_;
-  OneTimeTokenLogSink log_sink_;
 };
 
 // Tests the happy path of the email one time token fetcher.
@@ -166,32 +162,6 @@ TEST_F(EmailOneTimeTokenFetcherTest, Success) {
   histogram_tester_.ExpectUniqueTimeSample(
       "Autofill.OneTimeTokens.Backend.Gmail.AuthLatency",
       base::Milliseconds(123), 1);
-}
-
-TEST_F(EmailOneTimeTokenFetcherTest,
-       SuccessPreservesNotificationReceivedTime) {
-  base::TimeTicks notification_time =
-      base::TimeTicks::Now() - base::Seconds(42);
-  auto fetcher = std::make_unique<EmailOneTimeTokenFetcher>(
-      test_url_loader_factory_->GetSafeWeakWrapper(),
-      *identity_test_env_->identity_manager(), kEncryptedMessageReference,
-      notification_time, &log_sink_);
-  base::test::TestFuture<
-      base::expected<OneTimeToken, OneTimeTokenRetrievalError>>
-      future;
-
-  fetcher->Start(future.GetCallback());
-  WaitForAccessTokenRequestAndRespondWithSuccess();
-
-  const network::ResourceRequest* pending_request =
-      &test_url_loader_factory_->GetPendingRequest(0)->request;
-  test_url_loader_factory_->AddResponse(pending_request->url.spec(),
-                                        CreateValidResponseString());
-
-  const base::expected<OneTimeToken, OneTimeTokenRetrievalError>& result =
-      future.Get();
-  ASSERT_TRUE(result.has_value());
-  EXPECT_EQ(result->on_device_arrival_time(), notification_time);
 }
 
 // Tests that an error is returned when user authentication fails.
@@ -525,10 +495,10 @@ TEST_F(EmailOneTimeTokenFetcherTest, NoResponseCodeWithValidBody) {
 // Tests that the fetcher uses a custom endpoint URL when set via the command
 // line switch.
 TEST_F(EmailOneTimeTokenFetcherTest, FetchEmailOneTimeToken_CustomEndpointUrl) {
-  constexpr char kCustomBaseUrl[] = "https://example.com";
+  constexpr char kCustomUrl[] = "https://example.com/custom_endpoint";
   base::test::ScopedCommandLine scoped_command_line;
   scoped_command_line.GetProcessCommandLine()->AppendSwitchASCII(
-      one_time_tokens::switches::kOneTimeTokenServiceBaseUrl, kCustomBaseUrl);
+      one_time_tokens::switches::kOneTimeTokenFetchEmailEndpointUrl, kCustomUrl);
 
   std::unique_ptr<EmailOneTimeTokenFetcher> fetcher = CreateFetcher();
   base::test::TestFuture<
@@ -539,18 +509,18 @@ TEST_F(EmailOneTimeTokenFetcherTest, FetchEmailOneTimeToken_CustomEndpointUrl) {
   WaitForAccessTokenRequestAndRespondWithSuccess();
 
   // Helper to construct expected custom URL.
-  auto get_expected_custom_url = []() {
+  auto get_expected_custom_url = [](const std::string& custom_endpoint) {
     std::string encoded_reference;
     base::Base64UrlEncode(kEncryptedMessageReference,
                           base::Base64UrlEncodePolicy::INCLUDE_PADDING,
                           &encoded_reference);
-    GURL url = GetOneTimeTokenServiceUrl("v1/onetimetokens:fetchEmail");
-    url = net::AppendQueryParameter(url, "encryptedMessageReference",
-                                    encoded_reference);
+    GURL url = net::AppendQueryParameter(
+        GURL(custom_endpoint), "encryptedMessageReference", encoded_reference);
     return net::AppendQueryParameter(url, "alt", "proto").spec();
   };
 
-  EXPECT_TRUE(test_url_loader_factory_->IsPending(get_expected_custom_url()));
+  EXPECT_TRUE(test_url_loader_factory_->IsPending(
+      get_expected_custom_url(kCustomUrl)));
 }
 
 }  // namespace one_time_tokens

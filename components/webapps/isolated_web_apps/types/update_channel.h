@@ -8,12 +8,11 @@
 #include <string>
 #include <variant>
 
-#include "base/component_export.h"
 #include "base/types/expected.h"
 
 namespace web_app {
 
-class COMPONENT_EXPORT(ISOLATED_WEB_APPS) UpdateChannel {
+class UpdateChannel {
  public:
   // Returns an instance of the "default" update channel.
   static const UpdateChannel& default_channel();
@@ -35,18 +34,13 @@ class COMPONENT_EXPORT(ISOLATED_WEB_APPS) UpdateChannel {
   const std::string& ToString() const { return name_; }
 
   // For gtest
-  friend COMPONENT_EXPORT(ISOLATED_WEB_APPS) void PrintTo(
-      const UpdateChannel& channel,
-      std::ostream* ostr);
+  friend void PrintTo(const UpdateChannel& channel, std::ostream* ostr);
 
  private:
   explicit UpdateChannel(std::string channel_name);
 
   std::string name_;
 };
-
-COMPONENT_EXPORT(ISOLATED_WEB_APPS)
-void PrintTo(const UpdateChannel& channel, std::ostream* ostr);
 
 }  // namespace web_app
 

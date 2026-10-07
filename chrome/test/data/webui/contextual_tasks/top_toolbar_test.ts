@@ -8,7 +8,6 @@ import 'chrome://contextual-tasks/sources_menu.js';
 import {BrowserProxyImpl} from 'chrome://contextual-tasks/contextual_tasks_browser_proxy.js';
 import type {ContextualTasksFaviconGroupElement} from 'chrome://contextual-tasks/favicon_group.js';
 import type {TopToolbarElement} from 'chrome://contextual-tasks/top_toolbar.js';
-import type {UnboundedDialog} from 'chrome://contextual-tasks/utils.js';
 import type {CrIconElement} from 'chrome://resources/cr_elements/cr_icon/cr_icon.js';
 import type {CrIconButtonElement} from 'chrome://resources/cr_elements/cr_icon_button/cr_icon_button.js';
 import {loadTimeData} from 'chrome://resources/js/load_time_data.js';
@@ -403,7 +402,7 @@ suite('TopToolbarTest', () => {
       loadTimeData.overrideValues({
         enablePinButton: true,
         isAiPage: true,
-        isAimEligible: true,
+        isCobrowseEligible: true,
         pinTooltip: 'Pin side panel',
         unpinTooltip: 'Unpin side panel',
       });
@@ -430,9 +429,8 @@ suite('TopToolbarTest', () => {
       assertFalse(!!pinButton);
     });
 
-
-    test('hides pin button when not on AI page', async () => {
-      topToolbar.isAiPage = false;
+    test('hides pin button when not cobrowse eligible', async () => {
+      topToolbar.isCobrowseEligible = false;
       await microtasksFinished();
 
       const moreButton =
@@ -448,8 +446,8 @@ suite('TopToolbarTest', () => {
       assertFalse(!!pinButton);
     });
 
-    test('hides pin button when pin button is not enabled', async () => {
-      topToolbar.isPinButtonEnabled = false;
+    test('hides pin button when not on AI page', async () => {
+      topToolbar.isAiPage = false;
       await microtasksFinished();
 
       const moreButton =
@@ -566,12 +564,6 @@ suite('TopToolbarTest', () => {
       assertFalse(moreButton.hidden);
     });
 
-    test('close button does not have rounded-corner attribute', () => {
-      const closeButton = topToolbar.$.closeButton;
-      assertTrue(!!closeButton);
-      assertFalse(closeButton.hasAttribute('rounded-corner'));
-    });
-
     (isPhone ? test.skip : test)(
         'handles open in new tab click in menu', async () => {
           topToolbar.enableOpenInNewTabButton = true;
@@ -652,6 +644,21 @@ suite('TopToolbarTest', () => {
         async () => {
           topToolbar.isAiPage = false;
           topToolbar.onboardingTooltipShowing = true;
+          await microtasksFinished();
+          proxy.handler.reset();
+
+          topToolbar.isAiPage = true;
+          await microtasksFinished();
+
+          assertEquals(
+              0, proxy.handler.getCallCount('maybeTriggerPinningPromo'));
+        });
+
+    test(
+        'does not call maybeTriggerPinningPromo when lens search tooltip is showing',
+        async () => {
+          topToolbar.isAiPage = false;
+          topToolbar.lensSearchTooltipShowing = true;
           await microtasksFinished();
           proxy.handler.reset();
 
@@ -874,7 +881,7 @@ suite('TopToolbarTest', () => {
     const menu = topToolbar.$.overflowMenu.get();
     let showUnboundedCalled = false;
     let hideUnboundedCalled = false;
-    const dialogEl = menu.$.menu.getDialog() as UnboundedDialog;
+    const dialogEl = menu.$.menu.getDialog() as any;
     dialogEl.showUnboundedElement = () => {
       showUnboundedCalled = true;
       return Promise.resolve();

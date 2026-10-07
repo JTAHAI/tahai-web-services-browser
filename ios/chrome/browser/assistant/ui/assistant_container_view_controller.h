@@ -13,11 +13,10 @@
 #import "ios/chrome/browser/assistant/ui/assistant_container_presentation_context.h"
 #import "ios/chrome/browser/shared/ui/util/layout_guide_names.h"
 
-enum class AssistantContainerDetent : NSInteger;
 @protocol AssistantContainerDelegate;
-@class BrowserLayoutState;
+enum class AssistantContainerDetent : NSInteger;
 @class LayoutGuideCenter;
-@class SceneLayoutState;
+@class LayoutState;
 
 // View Controller for the Assistant Container.
 @interface AssistantContainerViewController
@@ -43,11 +42,8 @@ enum class AssistantContainerDetent : NSInteger;
 // The delegate for the container events.
 @property(nonatomic, weak) id<AssistantContainerDelegate> delegate;
 
-// The browser layout state.
-@property(nonatomic, weak) BrowserLayoutState* browserLayoutState;
-
-// The scene layout state.
-@property(nonatomic, weak) SceneLayoutState* sceneLayoutState;
+// The layout state.
+@property(nonatomic, weak) LayoutState* layoutState;
 
 // Accessibility property. Whether to only announce the arrival of the assistant
 // instead of moving VoiceOver focus to it.
@@ -59,10 +55,6 @@ enum class AssistantContainerDetent : NSInteger;
 // Returns the height of a given detent, or kInvalidDetentHeight if the detent
 // is invalid or height is not yet calculated.
 - (NSInteger)heightForDetent:(AssistantContainerDetent)detent;
-
-// Animates the container to a specific detent using default duration and curve.
-// If the detent is not found, acts as a no-op.
-- (void)animateToDetent:(AssistantContainerDetent)detent;
 
 // Animates the container to a specific detent.
 // If the detent is not found, acts as a no-op.

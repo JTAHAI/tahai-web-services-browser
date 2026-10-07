@@ -26,13 +26,11 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
-#include "chrome/browser/ui/browser_init_state.h"
 #include "chrome/browser/ui/browser_tabstrip.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/browser_window/public/browser_collection.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
-#include "chrome/browser/ui/browser_window/public/create_browser_window.h"
 #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "chrome/browser/ui/browser_window/public/profile_browser_collection.h"
 #include "chrome/browser/ui/extensions/extension_enable_flow.h"
@@ -262,15 +260,15 @@ WebContents* OpenApplicationTab(Profile* profile,
     browser->GetWindow()->Activate();
   } else {
     // No browser for this profile, need to open a new one.
-    if (GetBrowserWindowCreationStatusForProfile(*profile) !=
-        BrowserWindowInterface::CreationStatus::kOk) {
+    if (Browser::GetCreationStatusForProfile(profile) !=
+        Browser::CreationStatus::kOk) {
       return contents;
     }
 
     // TODO(erg): AppLaunchParams should pass user_gesture from the extension
     // system to here.
-    browser = CreateBrowserWindow(BrowserWindowCreateParams(
-        BrowserWindowInterface::TYPE_NORMAL, profile, true));
+    browser = Browser::Create(
+        Browser::CreateParams(Browser::TYPE_NORMAL, profile, true));
     browser->GetWindow()->Show();
     // There's no current tab in this browser window, so add a new one.
     disposition = WindowOpenDisposition::NEW_FOREGROUND_TAB;
@@ -468,7 +466,7 @@ BrowserWindowInterface* FindBrowserForApp(Profile* profile,
   ForEachCurrentBrowserWindowInterfaceOrderedByActivation(
       [&](BrowserWindowInterface* browser) {
         std::string browser_app_id = web_app::GetAppIdFromApplicationName(
-            BrowserInitState::From(browser)->create_params().app_name);
+            browser->GetBrowserForMigrationOnly()->app_name());
         if (profile == browser->GetProfile() &&
             browser->GetType() == BrowserWindowInterface::TYPE_APP &&
             app_id == browser_app_id) {
@@ -486,10 +484,9 @@ WebContents* OpenApplication(Profile* profile, apps::AppLaunchParams&& params) {
   return OpenEnabledApplication(profile, params);
 }
 
-BrowserWindowInterface* CreateApplicationWindow(
-    Profile* profile,
-    const apps::AppLaunchParams& params,
-    const GURL& url) {
+Browser* CreateApplicationWindow(Profile* profile,
+                                 const apps::AppLaunchParams& params,
+                                 const GURL& url) {
   const Extension* const extension = GetExtension(profile, params);
 
   std::string app_name;
@@ -512,24 +509,24 @@ BrowserWindowInterface* CreateApplicationWindow(
 
   // TODO(erg): AppLaunchParams should pass through the user_gesture from the
   // extension system here.
-  BrowserWindowCreateParams browser_params(
+  Browser::CreateParams browser_params(
       params.disposition == WindowOpenDisposition::NEW_POPUP
-          ? BrowserWindowCreateParams::CreateForAppPopup(
-                app_name,
-                /*trusted_source=*/true, initial_bounds, profile,
-                /*user_gesture=*/true)
-          : BrowserWindowCreateParams::CreateForApp(app_name,
-                                                    /*trusted_source=*/true,
-                                                    initial_bounds, profile,
-                                                    /*user_gesture=*/true));
+          ? Browser::CreateParams::CreateForAppPopup(app_name,
+                                                     /*trusted_source=*/true,
+                                                     initial_bounds, profile,
+                                                     /*user_gesture=*/true)
+          : Browser::CreateParams::CreateForApp(app_name,
+                                                /*trusted_source=*/true,
+                                                initial_bounds, profile,
+                                                /*user_gesture=*/true));
 
   browser_params.initial_show_state =
       DetermineWindowShowState(profile, params.container, extension);
 
-  return CreateBrowserWindow(std::move(browser_params));
+  return Browser::Create(browser_params);
 }
 
-WebContents* NavigateApplicationWindow(BrowserWindowInterface* browser,
+WebContents* NavigateApplicationWindow(Browser* browser,
                                        const apps::AppLaunchParams& params,
                                        const GURL& url,
                                        WindowOpenDisposition disposition) {
@@ -566,13 +563,12 @@ WebContents* NavigateApplicationWindow(BrowserWindowInterface* browser,
 WebContents* OpenApplicationWindow(Profile* profile,
                                    const apps::AppLaunchParams& params,
                                    const GURL& url) {
-  if (GetBrowserWindowCreationStatusForProfile(*profile) !=
+  if (Browser::GetCreationStatusForProfile(profile) !=
       Browser::CreationStatus::kOk) {
     return nullptr;
   }
 
-  BrowserWindowInterface* browser =
-      CreateApplicationWindow(profile, params, url);
+  Browser* browser = CreateApplicationWindow(profile, params, url);
   WebContents* web_contents = NavigateApplicationWindow(
       browser, params, url, WindowOpenDisposition::NEW_FOREGROUND_TAB);
 

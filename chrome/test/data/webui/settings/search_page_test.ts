@@ -3,28 +3,21 @@
 // found in the LICENSE file.
 
 // clang-format off
-import type {CrCheckboxElement} from 'chrome://resources/cr_elements/cr_checkbox/cr_checkbox.js';
-import type {CategorizedTemplateUrls, SearchEnginesInfo, SettingsSearchPageElement} from 'chrome://settings/settings.js';
-import {SearchEnginesBrowserProxyImpl, SearchEnginesInteractions, Router, routes, resetRouterForTesting, loadTimeData, PrefService, PrefsBrowserProxy} from 'chrome://settings/settings.js';
-import {assertDeepEquals, assertEquals, assertFalse, assertNotReached, assertTrue} from 'chrome://webui-test/chai_assert.js';
+import 'chrome://settings/settings.js';
+
 import {webUIListenerCallback} from 'chrome://resources/js/cr.js';
-import {microtasksFinished} from 'chrome://webui-test/test_util.js';
+import {flush} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+import type {CategorizedTemplateUrls, SearchEnginesInfo, SettingsSearchPageElement} from 'chrome://settings/settings.js';
+import type {CrCheckboxElement} from 'chrome://settings/lazy_load.js';
+import {resetRouterForTesting, SearchEnginesBrowserProxyImpl, Router, routes, loadTimeData, SearchEnginesInteractions} from 'chrome://settings/settings.js';
+import {assertEquals, assertFalse, assertNotReached, assertTrue} from 'chrome://webui-test/chai_assert.js';
+import {flushTasks} from 'chrome://webui-test/polymer_test_util.js';
 import type {MetricsTracker} from 'chrome://webui-test/metrics_test_support.js';
 import {fakeMetricsPrivate} from 'chrome://webui-test/metrics_test_support.js';
 
-import {TestPrefsBrowserProxy} from './test_prefs_browser_proxy.js';
 import {createSampleSearchEngine, TestSearchEnginesBrowserProxy} from './test_search_engines_browser_proxy.js';
-// clang-format on
 
-function getInitialPrefs(): chrome.settingsPrivate.PrefObject[] {
-  return [
-    {
-      key: 'default_search_provider_data.template_url_data',
-      type: chrome.settingsPrivate.PrefType.DICTIONARY,
-      value: {},
-    },
-  ];
-}
+// clang-format on
 
 function generateSearchEngineInfo(): SearchEnginesInfo {
   const searchEngines0 =
@@ -40,30 +33,15 @@ function generateSearchEngineInfo(): SearchEnginesInfo {
   };
 }
 
-const sampleEngines = {
-  defaultPrepopulated: createSampleSearchEngine(
-      {canBeDefault: true, isPrepopulated: true, default: true, id: 0}),
-  prepopulated: createSampleSearchEngine(
-      {canBeDefault: true, id: 1, isPrepopulated: true}),
-  // A standard user-added custom site search shortcut (e.g., github.com or
-  // wikipedia.org keyword). This is excluded from the default search engine
-  // choice dialog so custom keywords do not clutter the default engine options.
-  custom: createSampleSearchEngine({canBeDefault: true, id: 2}),
-  managed:
-      createSampleSearchEngine({canBeDefault: true, id: 3, isManaged: true}),
-  recommended: createSampleSearchEngine(
-      {canBeDefault: true, id: 4, isRecommendedFromPolicy: true}),
-};
-
 function generateCategorizedTemplateUrls(): CategorizedTemplateUrls {
+  const searchEngines0 = createSampleSearchEngine(
+      {canBeDefault: true, isPrepopulated: true, default: true, id: 0});
+  const searchEngines1 = createSampleSearchEngine(
+      {canBeDefault: true, id: 1, isPrepopulated: true});
+  const searchEngines2 = createSampleSearchEngine({canBeDefault: true, id: 2});
+
   return {
-    activeSiteShortcuts: [
-      sampleEngines.defaultPrepopulated,
-      sampleEngines.prepopulated,
-      sampleEngines.custom,
-      sampleEngines.managed,
-      sampleEngines.recommended,
-    ],
+    activeSiteShortcuts: [searchEngines0, searchEngines1, searchEngines2],
     inactiveSiteShortcuts: [],
     activeFeatureShortcuts: [],
     inactiveFeatureShortcuts: [],
@@ -73,19 +51,11 @@ function generateCategorizedTemplateUrls(): CategorizedTemplateUrls {
 suite('SearchPageTests', function() {
   let page: SettingsSearchPageElement;
   let browserProxy: TestSearchEnginesBrowserProxy;
-  let prefsBrowserProxy: TestPrefsBrowserProxy;
-  let prefService: PrefService;
   let metrics: MetricsTracker;
 
-  setup(async function() {
+  setup(function() {
     loadTimeData.overrideValues({searchSettingsUpdate: false});
     resetRouterForTesting();
-
-    prefsBrowserProxy = new TestPrefsBrowserProxy(getInitialPrefs());
-    PrefsBrowserProxy.setInstance(prefsBrowserProxy);
-    PrefService.resetInstanceForTesting();
-    prefService = PrefService.getInstance();
-    await prefService.whenInitialized();
 
     metrics = fakeMetricsPrivate();
     browserProxy = new TestSearchEnginesBrowserProxy();
@@ -94,8 +64,13 @@ suite('SearchPageTests', function() {
 
     document.body.innerHTML = window.trustedTypes!.emptyHTML;
     page = document.createElement('settings-search-page');
+    page.prefs = {
+      default_search_provider_data: {
+        template_url_data: {},
+      },
+    };
     document.body.appendChild(page);
-    await microtasksFinished();
+    return flushTasks();
   });
 
   teardown(function() {
@@ -106,37 +81,36 @@ suite('SearchPageTests', function() {
   // startup.
   test('Initialization', async function() {
     await browserProxy.whenCalled('getSearchEnginesList');
-    await microtasksFinished();
+    flush();
 
     // Open the search engine list dialog.
     const openSearchEngineListButton =
-        page.shadowRoot.querySelector<HTMLButtonElement>('#openDialogButton')!;
+        page.shadowRoot!.querySelector<HTMLButtonElement>('#openDialogButton')!;
     openSearchEngineListButton.click();
     assertEquals(metrics.count('ChooseDefaultSearchEngine'), 1);
 
-    await microtasksFinished();
+    await flushTasks();
 
     const searchEngineListDialog =
-        page.shadowRoot.querySelector('settings-search-engine-list-dialog');
+        page.shadowRoot!.querySelector('settings-search-engine-list-dialog');
     assertTrue(!!searchEngineListDialog);
 
     const radioGroupElement =
-        searchEngineListDialog.shadowRoot.querySelector('cr-radio-group')!;
+        searchEngineListDialog.shadowRoot!.querySelector('cr-radio-group')!;
     assertEquals('0', radioGroupElement.selected);
 
     const saveGuestChoiceCheckbox =
-        searchEngineListDialog.shadowRoot.querySelector(
-            '#saveGuestChoiceCheckbox');
+        searchEngineListDialog.shadowRoot!.querySelector(
+            '#saveGuestChoiceCheckbox')!;
     assertFalse(!!saveGuestChoiceCheckbox);
 
     // Simulate a user initiated change of the default search engine.
     const radioButtons =
-        searchEngineListDialog.shadowRoot.querySelectorAll('cr-radio-button');
+        searchEngineListDialog.shadowRoot!.querySelectorAll('cr-radio-button');
     const setAsDefaultButton =
-        searchEngineListDialog.shadowRoot.querySelector<HTMLButtonElement>(
+        searchEngineListDialog.shadowRoot!.querySelector<HTMLButtonElement>(
             '#setAsDefaultButton')!;
     radioButtons[1]!.click();
-    await microtasksFinished();
     setAsDefaultButton.click();
 
     const [, , saveGuestChoice] =
@@ -153,7 +127,7 @@ suite('SearchPageTests', function() {
 
     browserProxy.resetResolver('setDefaultSearchEngine');
     webUIListenerCallback('search-engines-changed', searchEnginesInfo);
-    await microtasksFinished();
+    flush();
     assertEquals('2', radioGroupElement.selected);
 
     browserProxy.whenCalled('setDefaultSearchEngine').then(function() {
@@ -167,85 +141,81 @@ suite('SearchPageTests', function() {
     await browserProxy.whenCalled('getSearchEnginesList');
 
     const openSearchEngineListButton =
-        page.shadowRoot.querySelector<HTMLButtonElement>('#openDialogButton')!;
+        page.shadowRoot!.querySelector<HTMLButtonElement>('#openDialogButton')!;
     assertFalse(openSearchEngineListButton.disabled);
     assertFalse(
-        !!page.shadowRoot.querySelector('extension-controlled-indicator'));
+        !!page.shadowRoot!.querySelector('extension-controlled-indicator'));
 
-    prefsBrowserProxy.fakeApi.sendPrefChanges([{
-      key: 'default_search_provider_data.template_url_data',
-      type: chrome.settingsPrivate.PrefType.DICTIONARY,
-      value: {},
+    page.set('prefs.default_search_provider_data.template_url_data', {
       controlledBy: chrome.settingsPrivate.ControlledBy.EXTENSION,
       controlledByName: 'fake extension name',
       enforcement: chrome.settingsPrivate.Enforcement.ENFORCED,
       extensionId: 'fake extension id',
       extensionCanBeDisabled: true,
-    }]);
-    await microtasksFinished();
+      value: {},
+    });
+    flush();
 
     assertTrue(openSearchEngineListButton['disabled']);
     assertTrue(
-        !!page.shadowRoot.querySelector('extension-controlled-indicator'));
-    assertFalse(!!page.shadowRoot.querySelector('cr-policy-pref-indicator'));
+        !!page.shadowRoot!.querySelector('extension-controlled-indicator'));
+    assertFalse(!!page.shadowRoot!.querySelector('cr-policy-pref-indicator'));
 
     // The extension controlled message is not shown.
     assertFalse(
-        !!page.shadowRoot.querySelector('extension-controlled-message'));
+        !!page.shadowRoot!.querySelector('extension-controlled-message'));
   });
 
   test('ControlledByPolicy', async function() {
     await browserProxy.whenCalled('getSearchEnginesList');
     const openSearchEngineListButton =
-        page.shadowRoot.querySelector<HTMLButtonElement>('#openDialogButton')!;
+        page.shadowRoot!.querySelector<HTMLButtonElement>('#openDialogButton')!;
     assertFalse(openSearchEngineListButton.disabled);
     assertFalse(
-        !!page.shadowRoot.querySelector('extension-controlled-indicator'));
+        !!page.shadowRoot!.querySelector('extension-controlled-indicator'));
 
-    prefsBrowserProxy.fakeApi.sendPrefChanges([{
-      key: 'default_search_provider_data.template_url_data',
-      type: chrome.settingsPrivate.PrefType.DICTIONARY,
-      value: {},
+    page.set('prefs.default_search_provider_data.template_url_data', {
       controlledBy: chrome.settingsPrivate.ControlledBy.USER_POLICY,
       enforcement: chrome.settingsPrivate.Enforcement.ENFORCED,
-    }]);
-    await microtasksFinished();
+      value: {},
+    });
+    flush();
 
     assertTrue(openSearchEngineListButton.disabled);
     assertFalse(
-        !!page.shadowRoot.querySelector('extension-controlled-indicator'));
-    assertTrue(!!page.shadowRoot.querySelector('cr-policy-pref-indicator'));
+        !!page.shadowRoot!.querySelector('extension-controlled-indicator'));
+    assertTrue(!!page.shadowRoot!.querySelector('cr-policy-pref-indicator'));
   });
 
   test('ShowGuestSaveCheckbox', async function() {
     browserProxy.setSaveGuestChoice(true);
     await browserProxy.whenCalled('getSearchEnginesList');
-    await microtasksFinished();
+    flush();
 
     // Open the search engine list dialog.
     const openSearchEngineListButton =
-        page.shadowRoot.querySelector<HTMLButtonElement>('#openDialogButton')!;
+        page.shadowRoot!.querySelector<HTMLButtonElement>('#openDialogButton')!;
     openSearchEngineListButton.click();
     assertEquals(metrics.count('ChooseDefaultSearchEngine'), 1);
 
-    await microtasksFinished();
+    await flushTasks();
 
     const searchEngineListDialog =
-        page.shadowRoot.querySelector('settings-search-engine-list-dialog');
+        page.shadowRoot!.querySelector('settings-search-engine-list-dialog');
     assertTrue(!!searchEngineListDialog);
 
     const saveGuestChoiceCheckbox =
-        searchEngineListDialog.shadowRoot.querySelector<CrCheckboxElement>(
+        searchEngineListDialog.shadowRoot!.querySelector<CrCheckboxElement>(
             '#saveGuestChoiceCheckbox')!;
     assertTrue(!!saveGuestChoiceCheckbox);
     assertTrue(saveGuestChoiceCheckbox.checked);
 
     saveGuestChoiceCheckbox.click();
-    await microtasksFinished();
+    await flushTasks();
     assertFalse(saveGuestChoiceCheckbox.checked);
 
     const setAsDefaultButton =
-        searchEngineListDialog.shadowRoot.querySelector<HTMLButtonElement>(
+        searchEngineListDialog.shadowRoot!.querySelector<HTMLButtonElement>(
             '#setAsDefaultButton')!;
     setAsDefaultButton.click();
 
@@ -255,9 +225,9 @@ suite('SearchPageTests', function() {
   });
 
   test('Link row navigates to search engines subpage', async function() {
-    await microtasksFinished();
+    await flushTasks();
     const trigger =
-        page.shadowRoot.querySelector<HTMLElement>('#enginesSubpageTrigger');
+        page.shadowRoot!.querySelector<HTMLElement>('#enginesSubpageTrigger');
     assertTrue(!!trigger);
 
     trigger.click();
@@ -271,19 +241,11 @@ suite('SearchPageTests', function() {
 suite('SearchPageWithSearchSettingsUpdateEnabledTests', function() {
   let page: SettingsSearchPageElement;
   let browserProxy: TestSearchEnginesBrowserProxy;
-  let prefsBrowserProxy: TestPrefsBrowserProxy;
-  let prefService: PrefService;
   let metrics: MetricsTracker;
 
   setup(async function() {
     loadTimeData.overrideValues({searchSettingsUpdate: true});
     resetRouterForTesting();
-
-    prefsBrowserProxy = new TestPrefsBrowserProxy(getInitialPrefs());
-    PrefsBrowserProxy.setInstance(prefsBrowserProxy);
-    PrefService.resetInstanceForTesting();
-    prefService = PrefService.getInstance();
-    await prefService.whenInitialized();
 
     metrics = fakeMetricsPrivate();
     browserProxy = new TestSearchEnginesBrowserProxy();
@@ -292,15 +254,20 @@ suite('SearchPageWithSearchSettingsUpdateEnabledTests', function() {
 
     document.body.innerHTML = window.trustedTypes!.emptyHTML;
     page = document.createElement('settings-search-page');
+    page.prefs = {
+      default_search_provider_data: {
+        template_url_data: {},
+      },
+    };
     document.body.appendChild(page);
 
     await browserProxy.whenCalled('getCategorizedTemplateUrls');
-    await microtasksFinished();
+    return flushTasks();
   });
 
   test('Link row to search engines subpage is not visible', function() {
     const trigger =
-        page.shadowRoot.querySelector<HTMLElement>('#enginesSubpageTrigger');
+        page.shadowRoot!.querySelector<HTMLElement>('#enginesSubpageTrigger');
     assertFalse(!!trigger);
   });
 
@@ -309,67 +276,52 @@ suite('SearchPageWithSearchSettingsUpdateEnabledTests', function() {
       async function() {
         // Open the search engine list dialog.
         const openSearchEngineListButton =
-            page.shadowRoot.querySelector<HTMLButtonElement>(
+            page.shadowRoot!.querySelector<HTMLButtonElement>(
                 '#openDialogButton');
         assertTrue(!!openSearchEngineListButton);
         openSearchEngineListButton.click();
         assertEquals(1, metrics.count('ChooseDefaultSearchEngine'));
-        await microtasksFinished();
+        await flushTasks();
 
-        const searchEngineListDialog =
-            page.shadowRoot.querySelector('settings-search-engine-list-dialog');
+        const searchEngineListDialog = page.shadowRoot!.querySelector(
+            'settings-search-engine-list-dialog');
         assertTrue(!!searchEngineListDialog);
 
-        const activeSiteShortcuts =
-            generateCategorizedTemplateUrls().activeSiteShortcuts;
-        assertDeepEquals(
-            [
-              sampleEngines.defaultPrepopulated,
-              sampleEngines.prepopulated,
-              sampleEngines.custom,
-              sampleEngines.managed,
-              sampleEngines.recommended,
-            ],
-            activeSiteShortcuts);
-
-        // Verify that the dialog received only the eligible default search
-        // engine archetypes in the expected rank order, without duplicates,
-        // and that custom user-added site search shortcuts
-        // (sampleEngines.custom) are excluded so custom keywords do not clutter
-        // the default search provider selection pop-up.
-        assertDeepEquals(
-            [
-              sampleEngines.defaultPrepopulated,
-              sampleEngines.prepopulated,
-              sampleEngines.managed,
-              sampleEngines.recommended,
-            ],
-            searchEngineListDialog.searchEngines);
+        // The dialog received the expected engines.
+        const categorizedTemplateUrls = generateCategorizedTemplateUrls();
+        assertEquals(2, searchEngineListDialog.searchEngines.length);
+        assertEquals(
+            categorizedTemplateUrls.activeSiteShortcuts[0]!.id,
+            searchEngineListDialog.searchEngines[0]!.id);
+        assertEquals(
+            categorizedTemplateUrls.activeSiteShortcuts[1]!.id,
+            searchEngineListDialog.searchEngines[1]!.id);
       });
 
-  test('ControlledByExtension', async function() {
+  test('ControlledByExtension', function() {
     const openSearchEngineListButton =
-        page.shadowRoot.querySelector<HTMLButtonElement>('#openDialogButton')!;
+        page.shadowRoot!.querySelector<HTMLButtonElement>('#openDialogButton')!;
     assertFalse(openSearchEngineListButton.disabled);
     assertFalse(
-        !!page.shadowRoot.querySelector('extension-controlled-message'));
+        !!page.shadowRoot!.querySelector('extension-controlled-message'));
 
-    prefsBrowserProxy.fakeApi.sendPrefChanges([{
-      key: 'default_search_provider_data.template_url_data',
+    page.set('prefs.default_search_provider_data.template_url_data', {
       controlledBy: chrome.settingsPrivate.ControlledBy.EXTENSION,
       controlledByName: 'fake extension name',
       enforcement: chrome.settingsPrivate.Enforcement.ENFORCED,
       extensionId: 'fake extension id',
       extensionCanBeDisabled: true,
-    }]);
-    await microtasksFinished();
+      value: {},
+    });
+    flush();
 
     assertTrue(openSearchEngineListButton['disabled']);
-    assertTrue(!!page.shadowRoot.querySelector('extension-controlled-message'));
-    assertFalse(!!page.shadowRoot.querySelector('cr-policy-pref-indicator'));
+    assertTrue(
+        !!page.shadowRoot!.querySelector('extension-controlled-message'));
+    assertFalse(!!page.shadowRoot!.querySelector('cr-policy-pref-indicator'));
 
     // The extension controlled indicator is not shown.
     assertFalse(
-        !!page.shadowRoot.querySelector('extension-controlled-indicator'));
+        !!page.shadowRoot!.querySelector('extension-controlled-indicator'));
   });
 });

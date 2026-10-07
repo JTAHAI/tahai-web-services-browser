@@ -8,40 +8,25 @@
 #import <limits>
 
 #import "base/apple/foundation_util.h"
+#import "ui/gfx/ios/uikit_util.h"
 
-CGFloat AlignValueToLowerPixel(CGFloat value) {
+CGFloat AlignValueToPixel(CGFloat value) {
   static CGFloat scale = [[UIScreen mainScreen] scale];
   return floor(value * scale) / scale;
 }
 
-CGFloat AlignValueToUpperPixel(CGFloat value) {
-  static CGFloat scale = [[UIScreen mainScreen] scale];
-  return std::ceil(value * scale) / scale;
-}
-
-CGPoint AlignPointToLowerPixel(CGPoint point) {
-  return CGPointMake(AlignValueToLowerPixel(point.x),
-                     AlignValueToLowerPixel(point.y));
-}
-
-CGPoint AlignPointToUpperPixel(CGPoint point) {
-  return CGPointMake(AlignValueToUpperPixel(point.x),
-                     AlignValueToUpperPixel(point.y));
-}
-
-CGSize AlignSizeToUpperPixel(CGSize size) {
-  return CGSizeMake(AlignValueToUpperPixel(size.width),
-                    AlignValueToUpperPixel(size.height));
+CGPoint AlignPointToPixel(CGPoint point) {
+  return CGPointMake(AlignValueToPixel(point.x), AlignValueToPixel(point.y));
 }
 
 CGRect AlignRectToPixel(CGRect rect) {
-  rect.origin = AlignPointToLowerPixel(rect.origin);
+  rect.origin = AlignPointToPixel(rect.origin);
   return rect;
 }
 
 CGRect AlignRectOriginAndSizeToPixels(CGRect rect) {
-  rect.origin = AlignPointToLowerPixel(rect.origin);
-  rect.size = AlignSizeToUpperPixel(rect.size);
+  rect.origin = AlignPointToPixel(rect.origin);
+  rect.size = ui::AlignSizeToUpperPixel(rect.size);
   return rect;
 }
 
@@ -51,10 +36,8 @@ CGRect CGRectMakeAlignedAndCenteredAt(CGFloat x, CGFloat y, CGFloat width) {
 }
 
 CGRect CGRectMakeCenteredRectInFrame(CGSize frameSize, CGSize rectSize) {
-  CGFloat rectX =
-      AlignValueToLowerPixel((frameSize.width - rectSize.width) / 2);
-  CGFloat rectY =
-      AlignValueToLowerPixel((frameSize.height - rectSize.height) / 2);
+  CGFloat rectX = AlignValueToPixel((frameSize.width - rectSize.width) / 2);
+  CGFloat rectY = AlignValueToPixel((frameSize.height - rectSize.height) / 2);
   return CGRectMake(rectX, rectY, rectSize.width, rectSize.height);
 }
 

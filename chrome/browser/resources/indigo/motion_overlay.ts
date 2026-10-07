@@ -57,7 +57,6 @@ export class IndigoMotionOverlayElement extends CrLitElement {
   accessor animationState: 'entry'|'exit'|'none' = 'none';
   protected accessor showLoadingCircles_: boolean = false;
   private loadingTimeout_: number|null = null;
-  private entryTimeout_: number|null = null;
 
   override updated(changedProperties: PropertyValues<this>) {
     super.updated(changedProperties);
@@ -75,10 +74,6 @@ export class IndigoMotionOverlayElement extends CrLitElement {
 
   private startTransitionAnimation_() {
     this.calculateDimensions_();
-    this.entryTimeout_ = window.setTimeout(() => {
-      this.fire('entry-complete');
-    }, SWIPE_DURATION_MS);
-
     this.loadingTimeout_ = window.setTimeout(() => {
       this.showLoadingCircles_ = true;
     }, LOADING_CIRCLES_START_DELAY_MS);
@@ -89,12 +84,6 @@ export class IndigoMotionOverlayElement extends CrLitElement {
   }
 
   private startExitAnimation_() {
-    if (this.entryTimeout_) {
-      window.clearTimeout(this.entryTimeout_);
-      this.entryTimeout_ = null;
-      this.fire('entry-complete');
-    }
-
     if (this.loadingTimeout_) {
       window.clearTimeout(this.loadingTimeout_);
     }

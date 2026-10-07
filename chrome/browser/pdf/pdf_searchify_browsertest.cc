@@ -112,9 +112,8 @@ class PDFSearchifyTest
   // Searchify may be slow, so if the test expects text, `repeat_until_has_text`
   // should be set to true to repeat getting page text until it's not empty.
   std::u16string GetPageText(int32_t page_index, bool repeat_until_has_text) {
-    content::WebContents* contents = GetActiveWebContents();
-    CHECK(contents);
-    auto* helper = pdf::PDFDocumentHelper::MaybeGetForWebContents(*contents);
+    auto* helper =
+        pdf::PDFDocumentHelper::MaybeGetForWebContents(GetActiveWebContents());
     if (!helper) {
       ADD_FAILURE() << "PDFDocumentHelper not found.";
       return u"";

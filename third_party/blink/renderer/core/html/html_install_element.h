@@ -14,12 +14,15 @@ namespace blink {
 
 class Attribute;
 class Document;
+class KURL;
 class String;
 
 // Represents the <install> HTML element, which provides a mechanism to
 // install web applications. It has two optional attributes:
-// - manifest: URL of the web app manifest to install.
-// - manifestid: ID of the web app manifest.
+// - installurl: URL of the web app to install. If not provided, the current
+//   document URL is used.
+// - manifestid: ID of the web app manifest. Only valid if installurl is also
+//   provided.
 // By default the element renders as an Install button, but may also show as
 // a Launch button.
 class CORE_EXPORT HTMLInstallElement : public HTMLCapabilityElementBase {
@@ -43,6 +46,7 @@ class CORE_EXPORT HTMLInstallElement : public HTMLCapabilityElementBase {
   // HTMLElement:
   bool IsHTMLInstallElement() const final { return true; }
 
+  const String& InstallUrl() const;
   const String& ManifestId() const;
   const String& Manifest() const;
 
@@ -53,14 +57,8 @@ class CORE_EXPORT HTMLInstallElement : public HTMLCapabilityElementBase {
   bool show_as_launch() const { return show_as_launch_; }
 
  private:
-  FRIEND_TEST_ALL_PREFIXES(HTMLInstallElementTestBase,
-                           InstalledStateHiddenInCanvasSubtree);
-  FRIEND_TEST_ALL_PREFIXES(HTMLInstallElementTestBase,
-                           InstalledStateClearedWhenMovedIntoCanvasSubtree);
-
   // HTMLElement:
   bool IsURLAttribute(const Attribute&) const override;
-  void DidChangeIsInCanvasSubtree() override;
 
   // HTMLCapabilityElementBase:
   void UpdateAppearance() override;
@@ -77,7 +75,10 @@ class CORE_EXPORT HTMLInstallElement : public HTMLCapabilityElementBase {
   void OnConnectionError();
 
   void OnActivated();
+  mojom::blink::InstallOptionsPtr GetCheckedInstallOptions();
   mojom::blink::ManifestInstallOptionsPtr GetCheckedManifestInstallOptions();
+  void OnInstallResult(mojom::blink::WebInstallServiceResult,
+                       const KURL& manifest_id);
   void OnManifestInstallResult(mojom::blink::WebInstallServiceResult);
 
   // Enqueues a bubbling `installresult` event carrying `result` for

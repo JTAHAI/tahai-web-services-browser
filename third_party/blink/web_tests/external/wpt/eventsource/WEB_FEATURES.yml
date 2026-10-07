@@ -1,2 +1,3 @@
-rules:
-- "**": [server-sent-events]
+features:
+- name: server-sent-events
+  files: "**"

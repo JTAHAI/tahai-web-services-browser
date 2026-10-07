@@ -1,2 +1,4 @@
-rules:
-- "**": [smil-svg-animations]
+features:
+- name: smil-svg-animations
+  files: "**"
+

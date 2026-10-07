@@ -107,7 +107,9 @@ public class AddressAccessoryIntegrationTest {
         mHelper.startAtTestPage(/* isRtl= */ false);
 
         CriteriaHelper.pollUiThread(
-                () -> mHelper.getOrCreateAddressAccessorySheet() != null,
+                () -> {
+                    return mHelper.getOrCreateAddressAccessorySheet() != null;
+                },
                 "Address sheet should be bound to accessory sheet.");
     }
 
@@ -154,6 +156,8 @@ public class AddressAccessoryIntegrationTest {
         whenDisplayed(withText("Marcus McSpartangregor")).perform(click());
 
         CriteriaHelper.pollInstrumentationThread(
-                () -> mHelper.getFieldText("NAME_FIRST").equals("Marcus McSpartangregor"));
+                () -> {
+                    return mHelper.getFieldText("NAME_FIRST").equals("Marcus McSpartangregor");
+                });
     }
 }

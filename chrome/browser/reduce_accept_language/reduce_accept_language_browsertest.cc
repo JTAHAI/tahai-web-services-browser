@@ -3169,14 +3169,7 @@ INSTANTIATE_TEST_SUITE_P(FeatureFlag,
                          ReduceAcceptLanguageCountBrowserTest,
                          testing::Values(true, false));
 
-// TODO(crbug.com/542347163): Re-enable test.
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
-#define MAYBE_RegularRequest DISABLED_RegularRequest
-#else
-#define MAYBE_RegularRequest RegularRequest
-#endif
-IN_PROC_BROWSER_TEST_P(ReduceAcceptLanguageCountBrowserTest,
-                       MAYBE_RegularRequest) {
+IN_PROC_BROWSER_TEST_P(ReduceAcceptLanguageCountBrowserTest, RegularRequest) {
   base::HistogramTester histograms;
 
   SetTestOptions({.content_language_in_parent = "en",
@@ -3208,13 +3201,7 @@ IN_PROC_BROWSER_TEST_P(ReduceAcceptLanguageCountBrowserTest,
                                kLargeLanguagesCount, 5);
 }
 
-// TODO(crbug.com/542347163): Re-enable test.
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
-#define MAYBE_Iframe DISABLED_Iframe
-#else
-#define MAYBE_Iframe Iframe
-#endif
-IN_PROC_BROWSER_TEST_P(ReduceAcceptLanguageCountBrowserTest, MAYBE_Iframe) {
+IN_PROC_BROWSER_TEST_P(ReduceAcceptLanguageCountBrowserTest, Iframe) {
   base::HistogramTester histograms;
 
   SetTestOptions({.content_language_in_parent = "es",

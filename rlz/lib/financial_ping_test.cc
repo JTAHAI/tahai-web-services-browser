@@ -38,6 +38,7 @@
 #endif
 
 #if BUILDFLAG(IS_CHROMEOS)
+#include "base/i18n/time_formatting.h"
 #include "chromeos/ash/components/system/factory_ping_embargo_check.h"
 #include "rlz/chromeos/lib/rlz_value_store_chromeos.h"
 #endif
@@ -52,10 +53,7 @@ void RemoveMachineIdFromUrl(std::string* url) {
 }
 
 std::string ConvertTimeToRlzEmbargoDate(const base::Time& time) {
-  base::Time::Exploded exploded;
-  time.UTCExplode(&exploded);
-  return base::StringPrintf("%04d-%02d-%02d", exploded.year, exploded.month,
-                            exploded.day_of_month);
+  return base::UnlocalizedTimeFormatWithPattern(time, "yyyy-MM-dd");
 }
 #endif
 

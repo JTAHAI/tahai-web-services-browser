@@ -77,9 +77,9 @@ export class PrintPreviewProvisionalDestinationResolverElement extends
     };
   }
 
-  declare destinationStore: DestinationStore;
-  declare private destination_: Destination|null;
-  declare private state_: ResolverState;
+  destinationStore: DestinationStore;
+  private destination_: Destination|null;
+  private state_: ResolverState;
   private promiseResolver_: PromiseResolver<Destination>|null = null;
 
   override ready() {

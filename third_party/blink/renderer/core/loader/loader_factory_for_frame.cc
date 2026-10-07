@@ -4,8 +4,7 @@
 
 #include "third_party/blink/renderer/core/loader/loader_factory_for_frame.h"
 
-#include <ranges>
-
+#include "base/containers/adapters.h"
 #include "base/functional/bind.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/numerics/safe_conversions.h"
@@ -102,7 +101,7 @@ Vector<std::unique_ptr<URLLoaderThrottle>> CreateThrottlesImpl(
   }
   CHECK(network_request);
 
-  return ToVector(std::views::as_rvalue(
+  return ToVector(base::RangeAsRvalues(
       throttle_provider->CreateThrottles(local_frame_token, *network_request)));
 }
 

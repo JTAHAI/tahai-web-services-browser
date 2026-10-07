@@ -183,10 +183,10 @@ void PressInfoButtonForCell(NSString* cellId) {
 - (void)testPrivacySafeBrowsingSwipeDown {
   OpenPrivacySafeBrowsingSettings();
 
-  // Wait for Privacy Safe Browsing TableView to be presented.
-  [ChromeEarlGrey
-      waitForUIElementToAppearWithMatcher:grey_accessibilityID(
-                                              kPrivacySafeBrowsingTableViewId)];
+  // Check that Privacy Safe Browsing TableView is presented.
+  [[EarlGrey selectElementWithMatcher:grey_accessibilityID(
+                                          kPrivacySafeBrowsingTableViewId)]
+      assertWithMatcher:grey_notNil()];
 
   // Swipe TableView down.
   [[EarlGrey selectElementWithMatcher:grey_accessibilityID(
@@ -194,8 +194,9 @@ void PressInfoButtonForCell(NSString* cellId) {
       performAction:grey_swipeFastInDirection(kGREYDirectionDown)];
 
   // Check that Settings has been dismissed.
-  [ChromeEarlGrey waitForUIElementToDisappearWithMatcher:
-                      grey_accessibilityID(kPrivacySafeBrowsingTableViewId)];
+  [[EarlGrey selectElementWithMatcher:grey_accessibilityID(
+                                          kPrivacySafeBrowsingTableViewId)]
+      assertWithMatcher:grey_nil()];
 }
 
 // Tests UI and preference value updates between multiple windows.

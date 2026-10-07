@@ -455,7 +455,8 @@ void InsertTextCommand::DoApply(EditingState* editing_state) {
   }
 
   SelectionInDomTree::Builder builder;
-  if (text_ == " " && !IsRichlyEditablePosition(start_position)) {
+  if (RuntimeEnabledFeatures::CaretWithTextAffinityUpstreamEnabled() &&
+      text_ == " " && !IsRichlyEditablePosition(start_position)) {
     builder.SetAffinity(TextAffinity::kUpstreamIfPossible);
   } else {
     builder.SetAffinity(selection_affinity);

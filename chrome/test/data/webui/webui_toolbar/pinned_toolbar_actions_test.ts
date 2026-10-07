@@ -4,7 +4,7 @@
 
 import 'chrome://webui-toolbar.top-chrome/app.js';
 
-import {assertEquals, assertFalse, assertTrue} from 'chrome://webui-test/chai_assert.js';
+import {assertEquals, assertTrue} from 'chrome://webui-test/chai_assert.js';
 import {microtasksFinished} from 'chrome://webui-test/test_util.js';
 import {BrowserProxyImpl, TrackedElementManager} from 'chrome://webui-toolbar.top-chrome/app.js';
 import type {PinnedToolbarActionsElement} from 'chrome://webui-toolbar.top-chrome/app.js';
@@ -12,10 +12,10 @@ import {PinnedToolbarAction} from 'chrome://webui-toolbar.top-chrome/shared/tool
 
 suite('PinnedToolbarActions', function() {
   let container: PinnedToolbarActionsElement;
-  let moveCalls: Array<{itemId: number, index: number}> = [];
-  let moveByCalls: Array<{itemId: number, delta: number}> = [];
+  let moveCalls: Array<[number, number]> = [];
+  let moveByCalls: Array<[number, number]> = [];
 
-  let originalBroadcastChannel: typeof BroadcastChannel;
+  let originalBroadcastChannel: any;
   let channels: any[] = [];
 
   suiteSetup(() => {
@@ -56,11 +56,11 @@ suite('PinnedToolbarActions', function() {
     moveByCalls = [];
 
     const mockHandler = {
-      movePinnedToolbarAction: (itemId: number, index: number) => {
-        moveCalls.push({itemId, index});
+      movePinnedToolbarAction: (actionId: number, index: number) => {
+        moveCalls.push([actionId, index]);
       },
-      movePinnedToolbarActionBy: (itemId: number, delta: number) => {
-        moveByCalls.push({itemId, delta});
+      movePinnedToolbarActionBy: (actionId: number, delta: number) => {
+        moveByCalls.push([actionId, delta]);
       },
     };
     BrowserProxyImpl.setInstance({toolbarUIHandler: mockHandler} as any);
@@ -110,52 +110,6 @@ suite('PinnedToolbarActions', function() {
     await microtasksFinished();
   });
 
-  test('Sets poppedOut property on elements after divider', async () => {
-    container.states = [
-      {
-        action: 1,
-        highlighted: false,
-        enabled: true,
-        activated: false,
-        tooltip: 'Action 1',
-        accessibilityText: '',
-        elementId: 'action-1',
-        icon: {handleId: 1n},
-      },
-      {
-        action: PinnedToolbarAction.kDivider,
-        highlighted: false,
-        enabled: true,
-        activated: false,
-        tooltip: '',
-        accessibilityText: '',
-        elementId: '',
-        icon: {handleId: 0n},
-      },
-      {
-        action: 3,
-        highlighted: false,
-        enabled: true,
-        activated: false,
-        tooltip: 'Action 3',
-        accessibilityText: '',
-        elementId: 'action-3',
-        icon: {handleId: 3n},
-      },
-    ];
-    await microtasksFinished();
-
-    const actionElements =
-        container.shadowRoot.querySelectorAll('pinned-toolbar-action');
-    assertEquals(2, actionElements.length);
-
-    const action1 = actionElements[0]!;
-    const action3 = actionElements[1]!;
-
-    assertFalse(action1.poppedOut);
-    assertTrue(action3.poppedOut);
-  });
-
   test('Keyboard reorder retains focus', async () => {
     const actionElements =
         container.shadowRoot.querySelectorAll('pinned-toolbar-action');
@@ -178,8 +132,8 @@ suite('PinnedToolbarActions', function() {
     }));
 
     assertEquals(1, moveByCalls.length);
-    assertEquals(1, moveByCalls[0]!.itemId);
-    assertEquals(1, moveByCalls[0]!.delta);
+    assertEquals(1, moveByCalls[0]![0]);  // Action 1
+    assertEquals(1, moveByCalls[0]![1]);  // Delta 1
 
     // Simulate model update resulting from the move
     // We move Action 1 to index 1 (after Action 2)
@@ -221,7 +175,6 @@ suite('PinnedToolbarActions', function() {
     // DOM)
     const newActionElements =
         container.shadowRoot.querySelectorAll('pinned-toolbar-action');
-    assertEquals(2, newActionElements.length);
     const newSecondAction = newActionElements[1]!;
     assertEquals(
         1, newSecondAction.state.action);  // Verify it is indeed Action 1
@@ -233,13 +186,12 @@ suite('PinnedToolbarActions', function() {
   test('Cross-window dragover identifies action from broadcast', () => {
     const actionElements =
         container.shadowRoot.querySelectorAll('pinned-toolbar-action');
-    assertEquals(2, actionElements.length);
     const secondAction = actionElements[1]!;  // Action 2
 
     // Simulate broadcast from another window
     const helperChannel = new BroadcastChannel('pinned-action-drag');
     helperChannel.postMessage(
-        {type: 'drag-start', itemId: '1'});  // Action 1 is dragged
+        {type: 'drag-start', actionId: 1});  // Action 1 is dragged
 
     // Simulate dragenter on the container first to initialize placeholder
     const dragEnterEvent = new DragEvent('dragenter', {
@@ -287,7 +239,6 @@ suite('PinnedToolbarActions', function() {
   test('Local drag start broadcasts', () => {
     const actionElements =
         container.shadowRoot.querySelectorAll('pinned-toolbar-action');
-    assertEquals(2, actionElements.length);
     const firstAction = actionElements[0]!;
 
     let receivedMessage: any = null;
@@ -297,25 +248,24 @@ suite('PinnedToolbarActions', function() {
     };
 
     // Trigger dragstart on first action
-    firstAction.dispatchEvent(new CustomEvent('toolbar-action-drag-start', {
-      detail: {itemId: '1'},
+    firstAction.dispatchEvent(new CustomEvent('pinned-action-drag-start', {
+      detail: {action: 1},
       bubbles: true,
       composed: true,
     }));
 
     assertEquals('drag-start', receivedMessage?.type);
-    assertEquals('1', receivedMessage?.itemId);
+    assertEquals(1, receivedMessage?.actionId);
   });
 
   test('Local drag end broadcasts', () => {
     const actionElements =
         container.shadowRoot.querySelectorAll('pinned-toolbar-action');
-    assertEquals(2, actionElements.length);
     const firstAction = actionElements[0]!;
 
     // Start drag first
-    firstAction.dispatchEvent(new CustomEvent('toolbar-action-drag-start', {
-      detail: {itemId: '1'},
+    firstAction.dispatchEvent(new CustomEvent('pinned-action-drag-start', {
+      detail: {action: 1},
       bubbles: true,
       composed: true,
     }));
@@ -327,7 +277,7 @@ suite('PinnedToolbarActions', function() {
     };
 
     // Trigger dragend
-    container.dispatchEvent(new CustomEvent('toolbar-action-drag-end', {
+    container.dispatchEvent(new CustomEvent('pinned-action-drag-end', {
       bubbles: true,
       composed: true,
     }));
@@ -338,11 +288,10 @@ suite('PinnedToolbarActions', function() {
   test('Cross-window dragover on itself marks as placeholder', () => {
     const actionElements =
         container.shadowRoot.querySelectorAll('pinned-toolbar-action');
-    assertEquals(2, actionElements.length);
     const firstAction = actionElements[0]!;
 
     const helperChannel = new BroadcastChannel('pinned-action-drag');
-    helperChannel.postMessage({type: 'drag-start', itemId: '1'});
+    helperChannel.postMessage({type: 'drag-start', actionId: 1});
 
     // Simulate dragenter on the container first to initialize placeholder
     const dragEnterEvent = new DragEvent('dragenter', {
@@ -405,7 +354,7 @@ suite('PinnedToolbarActions', function() {
 
         // 2. Simulate broadcast arriving now
         const helperChannel = new BroadcastChannel('pinned-action-drag');
-        helperChannel.postMessage({type: 'drag-start', itemId: '1'});
+        helperChannel.postMessage({type: 'drag-start', actionId: 1});
 
         // Verify that the placeholder is now set for Action 1
         keyedStates = container.keyedStates;
@@ -416,12 +365,11 @@ suite('PinnedToolbarActions', function() {
   test('Mousemove during local drag triggers fallback drag-end cleanup', () => {
     const actionElements =
         container.shadowRoot.querySelectorAll('pinned-toolbar-action');
-    assertEquals(2, actionElements.length);
     const firstAction = actionElements[0]!;
 
     // 1. Start a local drag
-    firstAction.dispatchEvent(new CustomEvent('toolbar-action-drag-start', {
-      detail: {itemId: '1'},
+    firstAction.dispatchEvent(new CustomEvent('pinned-action-drag-start', {
+      detail: {action: 1},
       bubbles: true,
       composed: true,
     }));
@@ -429,7 +377,7 @@ suite('PinnedToolbarActions', function() {
     // Verify it is marked as dragging/placeholder locally
     let keyedStates = container.keyedStates;
     assertTrue(!!keyedStates[0]!.dragPlaceholder);
-    assertEquals('1', (container as any).draggedItemId_);
+    assertEquals(1, (container as any).draggedActionId_);
 
     // Set up broadcast listener to verify it broadcasts drag-end
     let receivedMessage: any = null;
@@ -442,7 +390,7 @@ suite('PinnedToolbarActions', function() {
     window.dispatchEvent(new MouseEvent('mousemove'));
 
     // Verify cleanup occurred
-    assertEquals(null, (container as any).draggedItemId_);
+    assertEquals(null, (container as any).draggedActionId_);
     keyedStates = container.keyedStates;
     assertTrue(!keyedStates[0]!.dragPlaceholder);
 
@@ -450,44 +398,14 @@ suite('PinnedToolbarActions', function() {
     assertEquals('drag-end', receivedMessage?.type);
   });
 
-  test(
-      'Mousemove with buttons pressed does not trigger fallback cleanup',
-      () => {
-        const actionElements =
-            container.shadowRoot.querySelectorAll('pinned-toolbar-action');
-        assertEquals(2, actionElements.length);
-        const firstAction = actionElements[0]!;
-
-        // 1. Start a local drag
-        firstAction.dispatchEvent(new CustomEvent('toolbar-action-drag-start', {
-          detail: {itemId: '1'},
-          bubbles: true,
-          composed: true,
-        }));
-
-        // Verify it is marked as dragging/placeholder locally
-        let keyedStates = container.keyedStates;
-        assertTrue(keyedStates[0]!.dragPlaceholder === true);
-        assertEquals('1', (container as any).draggedItemId_);
-
-        // 2. Dispatch a window-level mousemove event with buttons pressed
-        window.dispatchEvent(new MouseEvent('mousemove', {buttons: 1}));
-
-        // Verify cleanup did NOT occur
-        assertEquals('1', (container as any).draggedItemId_);
-        keyedStates = container.keyedStates;
-        assertTrue(keyedStates[0]!.dragPlaceholder === true);
-      });
-
   test('Drop on child button triggers Mojo movePinnedToolbarAction', () => {
     const actionElements =
         container.shadowRoot.querySelectorAll('pinned-toolbar-action');
-    assertEquals(2, actionElements.length);
     const secondAction = actionElements[1]!;  // Action 2
 
     // 1. Simulate cross-window drag enter of Action 1
     const helperChannel = new BroadcastChannel('pinned-action-drag');
-    helperChannel.postMessage({type: 'drag-start', itemId: '1'});
+    helperChannel.postMessage({type: 'drag-start', actionId: 1});
 
     const dragEnterEvent = new DragEvent('dragenter', {
       bubbles: true,
@@ -528,7 +446,7 @@ suite('PinnedToolbarActions', function() {
         types: ['application/x-webui-pinned-action'],
         getData: (type: string) => {
           if (type === 'application/x-webui-pinned-action') {
-            return JSON.stringify({itemId: '1'});
+            return JSON.stringify({actionId: 1});
           }
           return '';
         },
@@ -544,10 +462,12 @@ suite('PinnedToolbarActions', function() {
     // Verify Mojo call was made to move Action 1 to the placeholder position
     // (index 1)
     assertEquals(1, moveCalls.length);
-    assertEquals(1, moveCalls[0]!.itemId);
-    assertEquals(1, moveCalls[0]!.index);
+    assertEquals(1, moveCalls[0]![0]);  // actionId of Action 1
+    assertEquals(
+        1,
+        moveCalls[0]![1]);  // targetIndex (Action 1 placeholder is at index 1)
 
-    // Verify layout remains in the new order after drop
+    // Verify layout did NOT revert/flicker back to original C++ order yet
     // (Action 2 remains at index 0, Action 1 at index 1 with placeholder
     // cleared)
     const postDropKeyedStates = container.keyedStates;
@@ -559,12 +479,11 @@ suite('PinnedToolbarActions', function() {
   test('Drop on container (empty space) commits reordering', () => {
     const actionElements =
         container.shadowRoot.querySelectorAll('pinned-toolbar-action');
-    assertEquals(2, actionElements.length);
     const secondAction = actionElements[1]!;  // Action 2
 
     // 1. Simulate cross-window drag enter and reorder
     const helperChannel = new BroadcastChannel('pinned-action-drag');
-    helperChannel.postMessage({type: 'drag-start', itemId: '1'});
+    helperChannel.postMessage({type: 'drag-start', actionId: 1});
 
     const dragEnterEvent = new DragEvent('dragenter', {
       bubbles: true,
@@ -606,7 +525,7 @@ suite('PinnedToolbarActions', function() {
         types: ['application/x-webui-pinned-action'],
         getData: (type: string) => {
           if (type === 'application/x-webui-pinned-action') {
-            return JSON.stringify({itemId: '1'});
+            return JSON.stringify({actionId: 1});
           }
           return '';
         },
@@ -617,25 +536,28 @@ suite('PinnedToolbarActions', function() {
     // Verify Mojo call was made to move Action 1 to the placeholder position
     // (index 1)
     assertEquals(1, moveCalls.length);
-    assertEquals(1, moveCalls[0]!.itemId);
-    assertEquals(1, moveCalls[0]!.index);
+    assertEquals(1, moveCalls[0]![0]);  // actionId of Action 1
+    assertEquals(
+        1,
+        moveCalls[0]![1]);  // targetIndex (Action 1 placeholder is at index 1)
 
     // 3. Simulate broadcast drag-end (successful drop) from the other window
     helperChannel.postMessage({type: 'drag-end', aborted: false});
 
-    // Verify layout remains in the new order after drop
+    // Verify layout did NOT revert/flicker back to original C++ order yet
     // (Action 2 remains at index 0, Action 1 at index 1 with placeholder
     // cleared)
     keyedStates = container.keyedStates;
     assertEquals('2', keyedStates[0]!.key);
     assertEquals('1', keyedStates[1]!.key);
     assertTrue(!keyedStates[1]!.dragPlaceholder);
+    assertEquals(0, (container as any).dragEnterCount_);
   });
 
   test('Cross-window drag abort clears placeholder in target window', () => {
     // 1. Simulate cross-window drag enter of Action 1
     const helperChannel = new BroadcastChannel('pinned-action-drag');
-    helperChannel.postMessage({type: 'drag-start', itemId: '1'});
+    helperChannel.postMessage({type: 'drag-start', actionId: 1});
 
     const dragEnterEvent = new DragEvent('dragenter', {
       bubbles: true,
@@ -650,13 +572,15 @@ suite('PinnedToolbarActions', function() {
     // Verify Action 1 is placeholder
     let keyedStates = container.keyedStates;
     assertTrue(!!keyedStates[0]!.dragPlaceholder);
+    assertEquals(1, (container as any).dragEnterCount_);
 
     // 2. Simulate broadcast drag-end (aborted)
     helperChannel.postMessage({type: 'drag-end'});
 
-    // Verify placeholder is cleared
+    // Verify placeholder is cleared even though dragEnterCount_ is still 1
     keyedStates = container.keyedStates;
     assertTrue(!keyedStates[0]!.dragPlaceholder);
+    assertEquals(1, (container as any).dragEnterCount_);  // still inside
   });
 
   test(
@@ -714,7 +638,7 @@ suite('PinnedToolbarActions', function() {
             types: ['application/x-webui-pinned-action'],
             getData: (type: string) => {
               if (type === 'application/x-webui-pinned-action') {
-                return JSON.stringify({itemId: '999'});  // Mismatched!
+                return JSON.stringify({actionId: 999});  // Mismatched!
               }
               return '';
             },
@@ -727,8 +651,8 @@ suite('PinnedToolbarActions', function() {
 
         // 4. Simulate dragend (browser will report aborted since we didn't call
         // preventDefault)
-        firstAction.dispatchEvent(new CustomEvent('toolbar-action-drag-end', {
-          detail: {itemId: '1', dropEffect: 'none'},  // none = aborted
+        firstAction.dispatchEvent(new CustomEvent('pinned-action-drag-end', {
+          detail: {action: 1, dropEffect: 'none'},  // none = aborted
           bubbles: true,
           composed: true,
         }));
@@ -741,7 +665,7 @@ suite('PinnedToolbarActions', function() {
       });
 
   test(
-      'State updates during drag do not abort if dragged item not removed',
+      'State updates during drag cancel the drag and apply immediately',
       async () => {
         const actionElements =
             container.shadowRoot.querySelectorAll('pinned-toolbar-action');
@@ -774,11 +698,12 @@ suite('PinnedToolbarActions', function() {
         // Verify Action 1 is marked as placeholder and dragged ID is set
         let keyedStates = container.keyedStates;
         assertTrue(!!keyedStates[0]!.dragPlaceholder);
-        assertEquals('1', (container as any).draggedItemId_);
+        assertEquals(1, (container as any).draggedActionId_);
 
         // Verify drag-start was broadcast
         assertEquals(1, receivedMessages.length);
         assertEquals('drag-start', receivedMessages[0].type);
+        assertEquals(1, receivedMessages[0].actionId);
 
         // 2. Simulate a backend state update during drag (removing Action 2)
         container.states = [
@@ -787,75 +712,18 @@ suite('PinnedToolbarActions', function() {
         ];
         await microtasksFinished();
 
-        // Verify drag is NOT aborted
-        assertEquals('1', (container as any).draggedItemId_);
+        // Verify drag was aborted immediately and layout updated
+        assertEquals(null, (container as any).draggedActionId_);
         keyedStates = container.keyedStates;
         assertEquals(2, keyedStates.length);  // Action 1, Divider
         assertEquals('1', keyedStates[0]!.key);
-        assertTrue(keyedStates[0]!.dragPlaceholder === true);
+        assertTrue(!keyedStates[0]!.dragPlaceholder);
 
-        // Verify NO abort message was broadcasted yet
-        assertEquals(1, receivedMessages.length);
-
-        // 3. Simulate dragend (aborted)
-        firstAction.dispatchEvent(new CustomEvent('toolbar-action-drag-end', {
-          detail: {itemId: '1', dropEffect: 'none'},
-          bubbles: true,
-          composed: true,
-        }));
-        await microtasksFinished();
-
-        // Verify layout is updated after drag ends
-        assertEquals(null, (container as any).draggedItemId_);
-        keyedStates = container.keyedStates;
-        assertEquals(2, keyedStates.length);  // Action 1, Divider
-        assertFalse(keyedStates[0]!.dragPlaceholder === true);
-
-        // Verify abort message was broadcasted now
+        // Verify abort message was broadcasted
         assertEquals(2, receivedMessages.length);
         assertEquals('drag-end', receivedMessages[1].type);
         assertTrue(receivedMessages[1].aborted);
 
         listenerChannel.close();
       });
-
-  test('State updates that remove dragged item abort the drag', async () => {
-    const actionElements =
-        container.shadowRoot.querySelectorAll('pinned-toolbar-action');
-    const firstAction = actionElements[0]!;
-
-    // 1. Simulate local drag start of Action 1
-    const firstActionButton =
-        firstAction.shadowRoot.querySelector('cr-icon-button')!;
-    const dragStartEvent = new DragEvent('dragstart', {
-      bubbles: true,
-      cancelable: true,
-      composed: true,
-    });
-    Object.defineProperty(dragStartEvent, 'dataTransfer', {
-      value: {
-        setData: () => {},
-        effectAllowed: 'none',
-      },
-    });
-    firstActionButton.dispatchEvent(dragStartEvent);
-
-    assertEquals('1', (container as any).draggedItemId_);
-
-    // 2. Simulate removing Action 1 (dragged item)
-    container.states = [
-      container.states[1]!,
-      container.states[2]!,
-    ];
-    await microtasksFinished();
-
-    // Verify drag is aborted immediately and element is set to display: 'none'
-    assertEquals(null, (container as any).draggedItemId_);
-    assertEquals('none', firstAction.style.display);
-
-    // Verify layout is updated immediately (Action 1 removed)
-    const keyedStates = container.keyedStates;
-    assertEquals(2, keyedStates.length);  // Action 2, Divider
-    assertEquals('2', keyedStates[0]!.key);
-  });
 });

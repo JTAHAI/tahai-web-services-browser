@@ -78,14 +78,6 @@ public class HubActionButtonHelper {
                                         HubColors.getToolbarActionButtonBackgroundColor(
                                                 context, colorScheme),
                                 color -> updateActionButtonColorInternal(button, context, color)));
-
-                helper.registerBlend(
-                        new SingleHubViewColorBlend(
-                                PANE_COLOR_BLEND_ANIMATION_DURATION_MS,
-                                colorScheme ->
-                                        HubColors.getToolbarActionButtonFocusColor(
-                                                context, colorScheme),
-                                color -> updateActionButtonFocusColorInternal(button, color)));
             } else {
                 helper.registerBlend(
                         new SingleHubViewColorBlend(
@@ -114,12 +106,6 @@ public class HubActionButtonHelper {
             Button button, Context context, @ColorInt int color) {
         ColorStateList actionButtonBgColor = HubColors.getActionButtonBgColor(context, color);
         button.setBackgroundTintList(actionButtonBgColor);
-    }
-
-    /** Updates action button focus stroke color. */
-    private static void updateActionButtonFocusColorInternal(Button button, @ColorInt int color) {
-        ColorStateList colorStateList = HubColors.generateFocusStrokeColorStateList(color);
-        button.setForegroundTintList(colorStateList);
     }
 
     /** Creates touch delegate for the action button. */

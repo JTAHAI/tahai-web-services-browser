@@ -78,8 +78,6 @@ IOSChromeScopedTestingVariationsService::
             TestingApplicationContext::GetGlobal()->GetVariationsService());
   TestingApplicationContext::GetGlobal()->SetVariationsService(nullptr);
   variations_service_.reset();
-  metrics_state_manager_.reset();
-  enabled_state_provider_.reset();
 }
 
 VariationsService* IOSChromeScopedTestingVariationsService::Get() {

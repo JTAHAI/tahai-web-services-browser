@@ -69,25 +69,16 @@ if (enable_rust) {
     visibility = [ ":*" ]
   }
 
-  source_set("cpp_unittests") {
-    testonly = true
-    sources = [ "rust_gtest_interop_unittest.cc" ]
-    deps = [ "//testing/gtest" ]
-  }
-
-  rust_static_library("rust_unittests") {
-    testonly = true
-    is_gtest_unittests = true
-    crate_root = "rust_gtest_interop_unittest.rs"
-    sources = [ crate_root ]
-    deps = [ "//testing/rust_gtest_interop" ]
-  }
-
-  group("unittests") {
-    testonly = true
+  test("rust_gtest_interop_unittests") {
+    sources = [
+      "rust_gtest_interop_unittest.rs",
+      "rust_gtest_interop_unittest_main.cc",
+    ]
     deps = [
-      ":cpp_unittests",
-      ":rust_unittests",
+      "//base",
+      "//base/test:test_support",
+      "//build:blink_buildflags",
+      "//testing/gtest",
     ]
   }
 }

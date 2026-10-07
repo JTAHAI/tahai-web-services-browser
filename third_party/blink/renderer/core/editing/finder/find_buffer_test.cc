@@ -31,14 +31,14 @@ class FindBufferTest : public EditingTestBase {
                                     LastPositionInDocument());
   }
 
-  PositionInFlatTree PositionFromParentId(const char* id, wtf_size_t offset) {
+  PositionInFlatTree PositionFromParentId(const char* id, unsigned offset) {
     return PositionInFlatTree(GetElementById(id)->firstChild(), offset);
   }
 
   EphemeralRangeInFlatTree CreateRange(const Node& start_node,
-                                       wtf_size_t start_offset,
+                                       int start_offset,
                                        const Node& end_node,
-                                       wtf_size_t end_offset) {
+                                       int end_offset) {
     return EphemeralRangeInFlatTree(
         PositionInFlatTree(start_node, start_offset),
         PositionInFlatTree(end_node, end_offset));
@@ -49,8 +49,8 @@ class FindBufferTest : public EditingTestBase {
         SelectionInFlatTree::Builder().SetAsForwardSelection(range).Build());
   }
 
-  static wtf_size_t CaseInsensitiveMatchCount(FindBuffer& buffer,
-                                              const String& query) {
+  static unsigned CaseInsensitiveMatchCount(FindBuffer& buffer,
+                                            const String& query) {
     return buffer.FindMatches(query, kCaseInsensitive).CountForTesting();
   }
 
@@ -1172,90 +1172,6 @@ TEST_F(FindBufferTest, IsInSameUninterruptedBlockNoCrash) {
   EXPECT_EQ(1u, CaseInsensitiveMatchCount(buffer, u"ABC"));
   // The test confirms GetInlineFormattingContext() doesn't crash.
   // The match count result isn't important.
-}
-
-TEST_F(FindBufferTest, MatchAcrossIgnoredNode) {
-  SetBodyContent("<div id='container'>hello<img>world</div>");
-  FindOptions options = FindOptions().SetMatchAcrossIgnoredNodes(true);
-  FindBuffer buffer(WholeDocumentRange(), RubySupport::kDisabled, options);
-  EXPECT_EQ("helloworld", buffer.BuffersForTesting()[0].Utf8());
-  FindResults results = buffer.FindMatches("helloworld", options);
-  ASSERT_EQ(1u, results.CountForTesting());
-  MatchResultIcu match = *results.begin();
-  EXPECT_EQ(
-      EphemeralRangeInFlatTree(
-          PositionFromParentId("container", 0),
-          PositionInFlatTree(*GetElementById("container")->lastChild(), 5)),
-      buffer.RangeFromBufferIndex(match.start, match.start + match.length));
-}
-
-TEST_F(FindBufferTest, BreakNotOmittedByMatchAcrossIgnoredNodes) {
-  SetBodyContent("<div>hello<br>world</div>");
-  FindOptions options = FindOptions().SetMatchAcrossIgnoredNodes(true);
-  FindBuffer buffer(WholeDocumentRange(), RubySupport::kDisabled, options);
-  EXPECT_EQ(0u, buffer.FindMatches("helloworld", options).CountForTesting());
-  EXPECT_EQ(1u, buffer.FindMatches("hello\nworld", options).CountForTesting());
-}
-
-TEST_F(FindBufferTest, CollapseSpaceAcrossVisibilityHidden) {
-  SetBodyContent(
-      "<div id='container'>foo <span id='hidden' "
-      "style='visibility:hidden'>x</span> bar</div>");
-  FindBuffer buffer(WholeDocumentRange());
-  EXPECT_EQ("foo bar", buffer.BuffersForTesting()[0].Utf8());
-  FindResults results = buffer.FindMatches("foo bar", kCaseInsensitive);
-  ASSERT_EQ(1u, results.CountForTesting());
-  MatchResultIcu match = *results.begin();
-  EXPECT_EQ(0u, match.start);
-  EXPECT_EQ(7u, match.length);
-  EXPECT_EQ(
-      EphemeralRangeInFlatTree(
-          PositionFromParentId("container", 0),
-          PositionInFlatTree(*GetElementById("container")->lastChild(), 4)),
-      buffer.RangeFromBufferIndex(match.start, match.start + match.length));
-}
-
-TEST_F(FindBufferTest, PreservePreSpaceAcrossComment) {
-  SetBodyContent(
-      "<span style='white-space:pre'>foo </span><!--c--><span> bar</span>");
-  FindBuffer buffer(WholeDocumentRange());
-  EXPECT_EQ("foo  bar", buffer.BuffersForTesting()[0].Utf8());
-}
-
-TEST_F(FindBufferTest, SpaceDroppedAtBlockStart) {
-  SetBodyContent("<p> bar</p>");
-  FindBuffer buffer(WholeDocumentRange());
-  EXPECT_EQ("bar", buffer.BuffersForTesting()[0].Utf8());
-}
-
-TEST_F(FindBufferTest, CollapseMultipleSpacesAcrossVisibilityHidden) {
-  SetBodyContent(
-      "<div>foo  <span style='visibility:hidden'>baz</span>   \t\n  bar</div>");
-  FindBuffer buffer(WholeDocumentRange());
-  EXPECT_EQ("foo bar", buffer.BuffersForTesting()[0].Utf8());
-}
-
-TEST_F(FindBufferTest, CollapseSpaceAcrossConsecutiveHiddenNodes) {
-  SetBodyContent(
-      "<div>foo\t <span style='visibility:hidden'>hidden1</span> "
-      "<span style='visibility:hidden'>hidden2</span>\n"
-      "<span style='visibility:hidden'>hidden3</span> bar</div>");
-  FindBuffer buffer(WholeDocumentRange());
-  EXPECT_EQ("foo bar", buffer.BuffersForTesting()[0].Utf8());
-}
-
-TEST_F(FindBufferTest, CollapseSpaceAcrossNestedSkippedNodes) {
-  FindOptions options = FindOptions().SetMatchAcrossIgnoredNodes(true);
-  SetBodyContent(
-      "<div>foo <span style='visibility:hidden'>a<img>b</span> bar</div>");
-  FindBuffer buffer(WholeDocumentRange(), RubySupport::kDisabled, options);
-  EXPECT_EQ("foo bar", buffer.BuffersForTesting()[0].Utf8());
-}
-
-TEST_F(FindBufferTest, PreSpaceAtBlockStart) {
-  SetBodyContent("<p style='white-space:pre'> bar</p>");
-  FindBuffer buffer(WholeDocumentRange());
-  EXPECT_EQ(" bar", buffer.BuffersForTesting()[0].Utf8());
 }
 
 }  // namespace blink

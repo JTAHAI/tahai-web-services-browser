@@ -12,8 +12,6 @@
 #import "components/search_engines/default_search_manager.h"
 #import "components/search_engines/template_url_service.h"
 #import "ios/chrome/browser/history/model/history_service_factory.h"
-#import "ios/chrome/browser/metrics/model/ios_profile_metrics_service_factory.h"
-#import "ios/chrome/browser/regional_capabilities/model/regional_capabilities_service_factory.h"
 #import "ios/chrome/browser/search_engines/model/search_engine_choice_service_factory.h"
 #import "ios/chrome/browser/search_engines/model/template_url_prepopulate_data_resolver_factory.h"
 #import "ios/chrome/browser/search_engines/model/template_url_service_client_impl.h"
@@ -46,9 +44,6 @@ std::unique_ptr<KeyedService> BuildTemplateURLService(ProfileIOS* profile) {
           ios::SearchEngineChoiceServiceFactory::GetForProfile(profile)),
       CHECK_DEREF(ios::TemplateURLPrepopulateDataResolverFactory::GetForProfile(
           profile)),
-      CHECK_DEREF(
-          ios::RegionalCapabilitiesServiceFactory::GetForProfile(profile)),
-      CHECK_DEREF(IOSProfileMetricsServiceFactory::GetForProfile(profile)),
       std::make_unique<ios::UIThreadSearchTermsData>(),
       ios::WebDataServiceFactory::GetKeywordWebDataForProfile(
           profile, ServiceAccessType::EXPLICIT_ACCESS),
@@ -87,8 +82,6 @@ TemplateURLServiceFactory::TemplateURLServiceFactory()
   DependsOn(ios::WebDataServiceFactory::GetInstance());
   DependsOn(ios::SearchEngineChoiceServiceFactory::GetInstance());
   DependsOn(ios::TemplateURLPrepopulateDataResolverFactory::GetInstance());
-  DependsOn(ios::RegionalCapabilitiesServiceFactory::GetInstance());
-  DependsOn(IOSProfileMetricsServiceFactory::GetInstance());
 }
 
 TemplateURLServiceFactory::~TemplateURLServiceFactory() {}

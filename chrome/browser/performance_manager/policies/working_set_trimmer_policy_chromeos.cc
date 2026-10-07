@@ -136,7 +136,7 @@ WorkingSetTrimmerPolicyChromeOS::~WorkingSetTrimmerPolicyChromeOS() = default;
 // have been backgrounded for some period of time and have not been trimmed for
 // at least the backoff period.
 void WorkingSetTrimmerPolicyChromeOS::OnReleaseMemory() {
-  if (memory_limit() >= base::MemoryLimit::NoPressureThreshold()) {
+  if (memory_limit() >= base::kNoMemoryPressureThreshold) {
     return;
   }
 
@@ -181,7 +181,7 @@ void WorkingSetTrimmerPolicyChromeOS::OnReleaseMemory() {
     if (!last_arcvm_trim_ || (base::TimeTicks::Now() - *last_arcvm_trim_ >
                               params_.arcvm_trim_backoff_time)) {
       const bool is_critical =
-          memory_limit() <= base::MemoryLimit::CriticalPressureThreshold();
+          memory_limit() <= base::kCriticalMemoryPressureThreshold;
       TrimArcVmProcesses(is_critical);
     }
   }
@@ -207,7 +207,7 @@ void WorkingSetTrimmerPolicyChromeOS::TrimNodesOnGraph() {
         // now.
 
         // Check that we have a main frame.
-        const FrameNode* frame_node = page_node->GetPrimaryMainFrameNode();
+        const FrameNode* frame_node = page_node->GetMainFrameNode();
         if (!frame_node) {
           continue;
         }

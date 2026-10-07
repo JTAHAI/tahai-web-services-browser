@@ -37,6 +37,7 @@ import org.chromium.components.omnibox.OmniboxFeatureList;
 
 /** Unit tests for {@link LocationBarFocusScrimHandler}. */
 @RunWith(BaseRobolectricTestRunner.class)
+@Config(manifest = Config.NONE)
 public class LocationBarFocusScrimHandlerUnitTest {
     private static final int BOTTOM_CHIN_HEIGHT = 37;
 

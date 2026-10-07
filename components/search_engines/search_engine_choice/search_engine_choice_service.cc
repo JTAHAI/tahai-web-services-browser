@@ -261,7 +261,6 @@ regional_capabilities::FunnelStage ToFunnelStage(
       return regional_capabilities::FunnelStage::kNotInRegionalScope;
 
     case SearchEngineChoiceScreenConditions::kAlreadyCompleted:
-    case SearchEngineChoiceScreenConditions::kAlreadyCompletedImported:
       return regional_capabilities::FunnelStage::kAlreadyCompleted;
 
     // TODO(crbug.com/438717568): Do these 2 need to have a dedicated bucket?
@@ -599,9 +598,6 @@ SearchEngineChoiceService::GetStaticChoiceScreenConditions(
   if (status == ChoiceStatus::kValid) {
     return SearchEngineChoiceScreenConditions::kAlreadyCompleted;
   }
-  if (status == ChoiceStatus::kValidAndImported) {
-    return SearchEngineChoiceScreenConditions::kAlreadyCompletedImported;
-  }
 
   if (status == ChoiceStatus::kManaged) {
     return SearchEngineChoiceScreenConditions::kManaged;
@@ -674,8 +670,6 @@ SearchEngineChoiceService::GetDynamicChoiceScreenConditions(
   switch (EvaluateSearchProviderChoice(template_url_service)) {
     case ChoiceStatus::kValid:
       return SearchEngineChoiceScreenConditions::kAlreadyCompleted;
-    case ChoiceStatus::kValidAndImported:
-      return SearchEngineChoiceScreenConditions::kAlreadyCompletedImported;
     case ChoiceStatus::kDefaultSearchDisabled:
     case ChoiceStatus::kCurrentIsSetByPolicy:
       // It is possible that between the static checks at service creation
@@ -736,7 +730,8 @@ void SearchEngineChoiceService::RecordProfileLoadEligibility(
                                              *profile_metrics_service_);
   }
 
-  CHECK(!recorded_profile_load_choice_screen_eligibility_.has_value());
+  CHECK(!recorded_profile_load_choice_screen_eligibility_.has_value(),
+        base::NotFatalUntil::M149);
   recorded_profile_load_choice_screen_eligibility_ = condition;
 }
 
@@ -811,7 +806,8 @@ std::unique_ptr<search_engines::ChoiceScreenData>
 SearchEngineChoiceService::GetChoiceScreenData(
     const SearchTermsData& search_terms_data,
     const TemplateURL* default_search_provider) {
-  CHECK(regional_capabilities_service_->IsInSearchEngineChoiceScreenRegion());
+  CHECK(regional_capabilities_service_->IsInSearchEngineChoiceScreenRegion(),
+        base::NotFatalUntil::M149);
   // We call `GetPrepopulatedEngines` instead of
   // `GetSearchProvidersUsingLoadedEngines` because the latter will return the
   // list of search engines that might have been modified by the user (by
@@ -891,7 +887,7 @@ void SearchEngineChoiceService::RecordChoiceMade(
     // There is an existing record AND we should keep it. In this case, being
     // called from a choice screen is not expected.
     CHECK_NE(choice_location, ChoiceMadeLocation::kChoiceScreen,
-             base::NotFatalUntil::M156);
+             base::NotFatalUntil::M153);
     return;
   }
 
@@ -954,7 +950,7 @@ void SearchEngineChoiceService::MaybeRecordChoiceScreenDisplayState(
         // cache. If programs are compatible, we should NOT have reached this
         // state. Re-entry for the same program is a bug. See
         // crbug.com/390272573.
-        NOTREACHED(base::NotFatalUntil::M156);
+        NOTREACHED(base::NotFatalUntil::M153);
       }
 
       // If we are recording a new display state because we changed programs,
@@ -1132,12 +1128,6 @@ SearchEngineChoiceService::EvaluateSearchProviderChoice(
     if (renewal_reasons.empty()) {
       // The choice is not outdated and is also not made on an incompatible
       // program, so it's still valid.
-      if (IsChoiceImported(
-              *completion_metadata, CHECK_DEREF(client_.get()),
-              profile_prefs_.get(),
-              /* include_previous_just_in_time_detection= */ true)) {
-        return ChoiceStatus::kValidAndImported;
-      }
       return ChoiceStatus::kValid;
     }
   }

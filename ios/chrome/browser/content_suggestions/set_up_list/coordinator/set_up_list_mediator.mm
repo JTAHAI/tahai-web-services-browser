@@ -262,10 +262,11 @@ bool DefaultBrowserPromoCompleted() {
     // Record "ItemDisplayed" histogram for each item.
     for (SetUpListConfig* config in _setUpListConfigs) {
       for (SetUpListItemViewData* item in config.setUpListItems) {
-        [ContentSuggestionsMetricsRecorder recordSetUpListItemShown:item.type];
+        [self.contentSuggestionsMetricsRecorder
+            recordSetUpListItemShown:item.type];
       }
     }
-    [ContentSuggestionsMetricsRecorder recordSetUpListShown];
+    [self.contentSuggestionsMetricsRecorder recordSetUpListShown];
   }
   return _setUpListConfigs;
 }

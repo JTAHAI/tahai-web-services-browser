@@ -33,6 +33,7 @@ import org.chromium.components.browser_ui.bottomsheet.BottomSheetContent;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetListViewBase;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetObserver;
+import org.chromium.components.browser_ui.bottomsheet.EmptyBottomSheetObserver;
 import org.chromium.components.browser_ui.bottomsheet.ItemDividerBase;
 
 import java.util.Set;
@@ -51,7 +52,7 @@ class TouchToFillPaymentMethodView extends BottomSheetListViewBase {
     private @StringRes int mSheetClosedDescriptionId;
     private @ScreenId int mCurrentScreenId;
     private final BottomSheetObserver mBottomSheetFullStateObserver =
-            new BottomSheetObserver() {
+            new EmptyBottomSheetObserver() {
                 @Override
                 public void onSheetStateChanged(
                         @BottomSheetController.SheetState int newState,

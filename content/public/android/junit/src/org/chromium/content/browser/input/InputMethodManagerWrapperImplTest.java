@@ -26,7 +26,6 @@ import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
-import org.robolectric.annotation.Config;
 
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.base.test.RobolectricUtil;
@@ -35,6 +34,7 @@ import org.chromium.base.test.util.Features.EnableFeatures;
 import org.chromium.content_public.browser.InputMethodManagerWrapper;
 import org.chromium.content_public.common.ContentFeatures;
 import org.chromium.ui.base.WindowAndroid;
+import org.robolectric.annotation.Config;
 
 import java.lang.ref.WeakReference;
 
@@ -42,6 +42,7 @@ import java.lang.ref.WeakReference;
 @RunWith(BaseRobolectricTestRunner.class)
 public class InputMethodManagerWrapperImplTest {
     @Rule public MockitoRule mMockitoRule = MockitoJUnit.rule();
+    private static final boolean DEBUG = false;
 
     private class TestInputMethodManagerWrapperImpl extends InputMethodManagerWrapperImpl {
         public TestInputMethodManagerWrapperImpl(

@@ -516,10 +516,6 @@ class ASH_EXPORT WindowState : public aura::WindowObserver {
     static State* GetStateImpl(WindowState* window_state) {
       return window_state->current_state_.get();
     }
-    static WindowStateDelegate* GetWindowStateDelegate(
-        WindowState* window_state) {
-      return window_state->delegate();
-    }
   };
 
  private:

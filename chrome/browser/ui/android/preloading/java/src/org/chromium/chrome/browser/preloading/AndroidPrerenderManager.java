@@ -10,6 +10,7 @@ import org.jni_zero.NativeMethods;
 import org.chromium.base.ThreadUtils;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
+import org.chromium.chrome.browser.tab.EmptyTabObserver;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.TabObserver;
 import org.chromium.chrome.browser.url_constants.UrlConstantResolver;
@@ -28,7 +29,7 @@ public class AndroidPrerenderManager {
     private static @Nullable AndroidPrerenderManager sAndroidPrerenderManager;
 
     private final TabObserver mTabObserver =
-            new TabObserver() {
+            new EmptyTabObserver() {
 
                 @Override
                 public void onContentChanged(Tab tab) {

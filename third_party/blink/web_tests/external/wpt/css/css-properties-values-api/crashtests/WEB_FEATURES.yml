@@ -1,2 +1,4 @@
-rules:
-- consume-color-contrast-crash.html: [color-contrast]
+features:
+- name: color-contrast
+  files:
+  - consume-color-contrast-crash.html

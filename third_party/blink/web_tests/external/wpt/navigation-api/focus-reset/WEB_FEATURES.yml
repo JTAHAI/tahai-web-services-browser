@@ -1,2 +1,4 @@
-rules:
-- autofocus.html: [autofocus]
+features:
+- name: autofocus
+  files:
+  - autofocus.html

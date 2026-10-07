@@ -21,7 +21,7 @@ StartNextPendingRequestTask::StartNextPendingRequestTask(
     : DatabaseTask(host),
       registration_id_(registration_id),
       callback_(std::move(callback)) {
-  CHECK(!registration_id_.is_null(), base::NotFatalUntil::M158);
+  DCHECK(!registration_id_.is_null());
 }
 
 StartNextPendingRequestTask::~StartNextPendingRequestTask() = default;

@@ -7,73 +7,115 @@
  * list of search engines.
  */
 import 'chrome://resources/cr_elements/cr_expand_button/cr_expand_button.js';
+import 'chrome://resources/cr_elements/cr_shared_vars.css.js';
 import 'chrome://resources/cr_elements/cr_collapse/cr_collapse.js';
+import '../settings_shared.css.js';
+import '../settings_vars.css.js';
 import './search_engine_entry.js';
 
-import type {PropertyValues} from 'chrome://resources/lit/v3_0/lit.rollup.js';
-import {CrLitElement} from 'chrome://resources/lit/v3_0/lit.rollup.js';
+import {PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
 import type {SearchEngine} from './search_engines_browser_proxy.js';
-import {getCss} from './search_engines_list.css.js';
-import {getHtml} from './search_engines_list.html.js';
+import {getTemplate} from './search_engines_list.html.js';
 
-export class SettingsSearchEnginesListElement extends CrLitElement {
+export class SettingsSearchEnginesListElement extends PolymerElement {
   static get is() {
     return 'settings-search-engines-list';
   }
 
-  static override get styles() {
-    return getCss();
+  static get template() {
+    return getTemplate();
   }
 
-  override render() {
-    return getHtml.bind(this)();
-  }
-
-  static override get properties() {
+  static get properties() {
     return {
-      engines: {type: Array},
-      showShortcut: {type: Boolean},
-      showQueryUrl: {type: Boolean},
-      collapseList: {type: Boolean},
-      visibleEnginesSize: {type: Number},
-      visibleEngines_: {type: Array},
-      collapsedEngines_: {type: Array},
-      expandListText: {type: String},
-      fixedHeight: {type: Boolean, reflect: true},
-      enginesListExpanded_: {type: Boolean},
+      engines: Array,
+
+      showShortcut: {
+        type: Boolean,
+        value: false,
+        reflectToAttribute: true,
+      },
+
+      showQueryUrl: {
+        type: Boolean,
+        value: false,
+        reflectToAttribute: true,
+      },
+
+      collapseList: {
+        type: Boolean,
+        value: false,
+        reflectToAttribute: true,
+      },
+
+      /**
+       * The number of engines visible when the list is collapsed.
+       */
+      visibleEnginesSize: {
+        type: Number,
+        value: 5,
+      },
+
+      /**
+       * An array of the first 'visibleEnginesSize' engines in the `engines`
+       * array.  These engines are visible even when 'collapsedEngines' is
+       * collapsed.
+       */
+      visibleEngines:
+          {type: Array, computed: 'computeVisibleEngines_(engines)'},
+
+      /**
+       * An array of all remaining engines not in the `visibleEngines` array.
+       * These engines' visibility can be toggled by expanding or collapsing the
+       * engines list.
+       */
+      collapsedEngines:
+          {type: Array, computed: 'computeCollapsedEngines_(engines)'},
+
+      lastFocused_: Object,
+
+      listBlurred_: Boolean,
+
+      expandListText: {
+        type: String,
+        reflectToAttribute: true,
+      },
+
+      fixedHeight: {
+        type: Boolean,
+        value: false,
+        reflectToAttribute: true,
+      },
     };
   }
 
-  accessor engines: SearchEngine[] = [];
-  accessor showShortcut: boolean = false;
-  accessor showQueryUrl: boolean = false;
-  accessor collapseList: boolean = false;
-  accessor visibleEnginesSize: number = 5;
-  accessor expandListText: string = '';
-  accessor fixedHeight: boolean = false;
-  protected accessor enginesListExpanded_: boolean = false;
-  protected accessor visibleEngines_: SearchEngine[] = [];
-  protected accessor collapsedEngines_: SearchEngine[] = [];
+  declare engines: SearchEngine[];
+  declare visibleEngines: SearchEngine[];
+  declare collapsedEngines: SearchEngine[];
+  declare visibleEnginesSize: number;
+  declare fixedHeight: boolean;
+  declare showShortcut: boolean;
+  declare showQueryUrl: boolean;
+  declare collapseList: boolean;
+  declare expandListText: string;
+  declare private lastFocused_: HTMLElement;
+  declare private listBlurred_: boolean;
 
-  override willUpdate(changedProperties: PropertyValues<this>) {
-    super.willUpdate(changedProperties);
-
-    if (changedProperties.has('engines') ||
-        changedProperties.has('visibleEnginesSize')) {
-      this.visibleEngines_ = this.engines.slice(0, this.visibleEnginesSize);
-      this.collapsedEngines_ = this.engines.slice(this.visibleEnginesSize);
+  private computeVisibleEngines_(engines: SearchEngine[]) {
+    if (!engines || !engines.length) {
+      return;
     }
+
+    return engines.slice(0, this.visibleEnginesSize);
   }
 
-  protected onEnginesListExpandedChanged_(e: CustomEvent<{value: boolean}>) {
-    this.enginesListExpanded_ = e.detail.value;
-  }
-}
+  private computeCollapsedEngines_(engines: SearchEngine[]) {
+    if (!engines || !engines.length) {
+      return;
+    }
 
-declare global {
-  interface HTMLElementTagNameMap {
-    'settings-search-engines-list': SettingsSearchEnginesListElement;
+    return engines.slice(this.visibleEnginesSize);
   }
 }
 

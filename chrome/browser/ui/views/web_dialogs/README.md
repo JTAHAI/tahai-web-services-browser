@@ -30,14 +30,6 @@ A declarative configuration struct used to customize the behavior of the dialog.
 *   **`wait_for_explicit_show`**: (Default: `true`) Keeps the dialog visually hidden until the JavaScript explicitly requests to be shown (via `ShowUI()`). This prevents jarring flashes of white or unstyled content while the DOM is initially rendering.
 *   **`corner_radius`**: An optional override (`std::optional<int>`) for clipping the WebUI content to match the rounded corners of the dialog frame. If not set, it intelligently defaults to `views::DialogDelegate::GetCornerRadius()`.
 *   **`show_close_button`**: (Default: `false`) Whether to show the native OS close button ('X') in the dialog frame.
-*   **`has_window_size_controls`**: (Default: `false`) Minimize/maximize/user-resize on the frame. Leave off for modal dialogs; user resize contends with auto-resizing.
-
-## Teardown ordering
-
-The delegate deletes itself with `DeleteSoon()` when its widget is destroyed, and the hosted `WebContents` dies with the delegate. So the WebContents, and your WebUI controller, outlive the widget by at least one task. During shutdown that task can run after the Browser and everything it owns are gone. Two obligations follow:
-
-*   If your WebUI controller holds a pointer back to a browser-scoped object (a delegate, a controller), sever it before the object dies clear it when the dialog closes *and* in the owner's destructor, so every teardown path is covered. `DataSharingBubbleController` is the worked example.
-*   Never bind browser-scoped objects into `add_new_contents_callback` with `base::Unretained()`. Prefer a stateless callback that derives what it needs from the `source` WebContents at call time, `Navigate()` with `NEW_WINDOW` needs only `initiating_profile`, which `source->GetBrowserContext()` provides.
 
 ## Understanding Widget Ownership
 

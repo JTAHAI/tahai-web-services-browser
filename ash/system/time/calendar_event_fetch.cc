@@ -6,6 +6,7 @@
 
 #include "ash/calendar/calendar_client.h"
 #include "ash/calendar/calendar_controller.h"
+#include "ash/glanceables/post_login_glanceables_metrics_recorder.h"
 #include "ash/shell.h"
 #include "ash/system/time/calendar_metrics.h"
 #include "ash/system/time/calendar_utils.h"
@@ -34,6 +35,9 @@ CalendarEventFetch::CalendarEventFetch(
       timeout_(tick_clock),
       calendar_id_(google_apis::calendar::kPrimaryCalendarId) {
   SendFetchRequest();
+  Shell::Get()
+      ->post_login_glanceables_metrics_reporter()
+      ->RecordCalendarFetch();
 }
 
 CalendarEventFetch::CalendarEventFetch(
@@ -52,6 +56,9 @@ CalendarEventFetch::CalendarEventFetch(
       calendar_id_(calendar_id),
       calendar_color_id_(calendar_color_id) {
   SendFetchRequestByCalendarId();
+  Shell::Get()
+      ->post_login_glanceables_metrics_reporter()
+      ->RecordCalendarFetch();
 }
 
 CalendarEventFetch::~CalendarEventFetch() = default;

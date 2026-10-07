@@ -8,14 +8,16 @@
 #include "base/types/pass_key.h"
 #include "third_party/blink/public/web/modules/autofill/web_form_element_observer.h"
 #include "third_party/blink/renderer/core/core_export.h"
-#include "third_party/blink/renderer/platform/heap/persistent.h"
+#include "third_party/blink/renderer/platform/heap/member.h"
+#include "third_party/blink/renderer/platform/heap/self_keep_alive.h"
 
 namespace blink {
 
 class HTMLElement;
 
 class CORE_EXPORT WebFormElementObserverImpl final
-    : public WebFormElementObserver {
+    : public GarbageCollected<WebFormElementObserverImpl>,
+      public WebFormElementObserver {
  public:
   WebFormElementObserverImpl(base::PassKey<WebFormElementObserver>,
                              HTMLElement&,
@@ -25,10 +27,18 @@ class CORE_EXPORT WebFormElementObserverImpl final
       delete;
   ~WebFormElementObserverImpl() override;
 
+  // WebFormElementObserver implementation.
+  void Disconnect() override;
+
+  void Trace(Visitor*) const;
+
  private:
   class ObserverCallback;
 
-  Persistent<ObserverCallback> mutation_callback_;
+  Member<ObserverCallback> mutation_callback_;
+
+  // WebFormElementObserverImpl must remain alive until Disconnect() is called.
+  SelfKeepAlive<WebFormElementObserverImpl> self_keep_alive_{this};
 };
 
 }  // namespace blink

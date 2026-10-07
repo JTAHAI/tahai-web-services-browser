@@ -87,13 +87,7 @@ TEST_F(ActorLoginPermissionServiceImplTest,
 
   std::string expected_json = base::StringPrintf(
       R"({
-              "filters": [
-                {
-                  "agent": {
-                    "type": "AGENT_TYPE_GEMINI_IN_CHROME"
-                  }
-                }
-              ],
+              "filters": [],
               "minReadTimestamp": "%s"
             })",
       google_apis::util::FormatTimeAsString(base::Time::Now()).c_str());
@@ -130,9 +124,6 @@ TEST_F(ActorLoginPermissionServiceImplTest,
       R"({
               "filters": [
                 {
-                  "agent": {
-                    "type": "AGENT_TYPE_GEMINI_IN_CHROME"
-                  },
                   "federatedCredentialPermissionFilter": {
                     "matchAffiliatedRequesterOrigins": true,
                     "rpEmbedderOrigin": "https://embedder.com"
@@ -168,9 +159,6 @@ TEST_F(ActorLoginPermissionServiceImplTest,
       R"({
               "filters": [
                 {
-                  "agent": {
-                    "type": "AGENT_TYPE_GEMINI_IN_CHROME"
-                  },
                   "federatedCredentialPermissionFilter": {
                     "matchAffiliatedRequesterOrigins": true,
                     "rpEmbedderOrigin": "https://embedder1.com",
@@ -178,9 +166,6 @@ TEST_F(ActorLoginPermissionServiceImplTest,
                   }
                 },
                 {
-                  "agent": {
-                    "type": "AGENT_TYPE_GEMINI_IN_CHROME"
-                  },
                   "federatedCredentialPermissionFilter": {
                     "matchAffiliatedRequesterOrigins": true,
                     "rpEmbedderOrigin": "https://embedder2.com",
@@ -346,9 +331,6 @@ TEST_F(ActorLoginPermissionServiceImplTest,
   EXPECT_EQ(base::test::ParseJson(R"({
               "filter": [
                 {
-                  "agent": {
-                    "type": "AGENT_TYPE_GEMINI_IN_CHROME"
-                  },
                   "federatedCredentialPermissionFilter": {
                     "matchAffiliatedRequesterOrigins": true,
                     "rpEmbedderOrigin": "https://embedder.com",

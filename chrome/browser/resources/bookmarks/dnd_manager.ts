@@ -16,16 +16,10 @@ import {Debouncer} from './debouncer.js';
 import type {BookmarksFolderNodeElement} from './folder_node.js';
 import {Store} from './store.js';
 import type {BookmarkElement, BookmarkNode, DragData, DropDestination, NodeMap, ObjectMap, TimerProxy} from './types.js';
-import {canEditNode, canReorderChildren, getDisplayedList, getLegacyId, hasChildFolders, isRootOrChildOfRoot, isShowingSearch} from './util.js';
-
-interface DragNode {
-  id: string;
-  parentId?: string;
-  url?: string;
-}
+import {canEditNode, canReorderChildren, getDisplayedList, hasChildFolders, isRootOrChildOfRoot, isShowingSearch, normalizeNode} from './util.js';
 
 interface NormalizedDragData {
-  elements: DragNode[];
+  elements: BookmarkNode[];
   sameProfile: boolean;
 }
 
@@ -90,11 +84,7 @@ export class DragInfo {
   setNativeDragData(newDragData: DragData) {
     this.dragData = {
       sameProfile: newDragData.sameProfile,
-      elements: (newDragData.elements || []).map(x => ({
-                                                   id: x.id,
-                                                   parentId: x.parentId,
-                                                   url: x.url,
-                                                 })),
+      elements: newDragData.elements!.map((x) => normalizeNode(x)),
     };
   }
 
@@ -383,10 +373,8 @@ export class DndManager {
 
     this.dragStarted_ = true;
 
-    const legacyDraggedNodes =
-        draggedNodes.map(id => getLegacyId(state.nodes[id]));
     BookmarkManagerApiProxyImpl.getInstance().startDrag(
-        legacyDraggedNodes, dragNodeIndex, this.lastPointerWasTouch_,
+        draggedNodes, dragNodeIndex, this.lastPointerWasTouch_,
         (e as DragEvent).clientX, (e as DragEvent).clientY);
   }
 
@@ -411,11 +399,8 @@ export class DndManager {
         trackUpdatedItems();
       }
 
-      const state = Store.getInstance().data;
-      const legacyParentId = getLegacyId(state.nodes[dropInfo.parentId]);
-
       BookmarkManagerApiProxyImpl.getInstance()
-          .drop(legacyParentId, index)
+          .drop(dropInfo.parentId, index)
           .then(shouldHighlight ? highlightUpdatedItems : undefined);
     }
     this.clearDragData_();

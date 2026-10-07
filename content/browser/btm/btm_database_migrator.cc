@@ -82,7 +82,7 @@ bool MigrateBtmSchemaToLatestVersion(sql::Database& db,
 
 bool BtmDatabaseMigrator::MigrateSchemaVersionFrom1To2() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  CHECK(db_->HasActiveTransactions(), base::NotFatalUntil::M158);
+  DCHECK(db_->HasActiveTransactions());
   // First make a new table that allows for null values in the timestamps
   // columns.
   static constexpr char kNewTableSql[] =  // clang-format off
@@ -97,7 +97,7 @@ bool BtmDatabaseMigrator::MigrateSchemaVersionFrom1To2() {
           "first_stateless_bounce_time INTEGER,"
           "last_stateless_bounce_time INTEGER)";
   // clang-format on
-  CHECK(db_->IsSQLValid(kNewTableSql), base::NotFatalUntil::M158);
+  DCHECK(db_->IsSQLValid(kNewTableSql));
   if (!db_->Execute(kNewTableSql)) {
     return false;
   }
@@ -105,7 +105,7 @@ bool BtmDatabaseMigrator::MigrateSchemaVersionFrom1To2() {
   static constexpr char kCopyEverythingSql[] =
       "INSERT INTO new_bounces "
       "SELECT * FROM bounces";
-  CHECK(db_->IsSQLValid(kCopyEverythingSql), base::NotFatalUntil::M158);
+  DCHECK(db_->IsSQLValid(kCopyEverythingSql));
   if (!db_->Execute(kCopyEverythingSql)) {
     return false;
   }
@@ -143,8 +143,7 @@ bool BtmDatabaseMigrator::MigrateSchemaVersionFrom1To2() {
           "ELSE MIN(first_stateful_bounce_time,first_stateless_bounce_time) "
         "END";
   // clang-format on
-  CHECK(db_->IsSQLValid(kReplaceFirstStatelessBounceSql),
-        base::NotFatalUntil::M158);
+  DCHECK(db_->IsSQLValid(kReplaceFirstStatelessBounceSql));
   if (!db_->Execute(kReplaceFirstStatelessBounceSql)) {
     return false;
   }
@@ -163,8 +162,7 @@ bool BtmDatabaseMigrator::MigrateSchemaVersionFrom1To2() {
             "ELSE MAX(last_stateful_bounce_time,last_stateless_bounce_time) "
           "END";
   // clang-format on
-  CHECK(db_->IsSQLValid(kReplaceLastStatelessBounceSql),
-        base::NotFatalUntil::M158);
+  DCHECK(db_->IsSQLValid(kReplaceLastStatelessBounceSql));
   if (!db_->Execute(kReplaceLastStatelessBounceSql)) {
     return false;
   }
@@ -172,8 +170,7 @@ bool BtmDatabaseMigrator::MigrateSchemaVersionFrom1To2() {
   static constexpr char kRenameFirstStatelessBounceTimeSql[] =
       "ALTER TABLE new_bounces RENAME COLUMN first_stateless_bounce_time TO "
       "first_bounce_time";
-  CHECK(db_->IsSQLValid(kRenameFirstStatelessBounceTimeSql),
-        base::NotFatalUntil::M158);
+  DCHECK(db_->IsSQLValid(kRenameFirstStatelessBounceTimeSql));
   if (!db_->Execute(kRenameFirstStatelessBounceTimeSql)) {
     return false;
   }
@@ -205,7 +202,7 @@ bool BtmDatabaseMigrator::MigrateSchemaVersionFrom1To2() {
 
 bool BtmDatabaseMigrator::MigrateSchemaVersionFrom2To3() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  CHECK(db_->HasActiveTransactions(), base::NotFatalUntil::M158);
+  DCHECK(db_->HasActiveTransactions());
 
   return db_->Execute(
              "ALTER TABLE bounces ADD COLUMN first_web_authn_assertion_time "
@@ -220,7 +217,7 @@ bool BtmDatabaseMigrator::MigrateSchemaVersionFrom2To3() {
 
 bool BtmDatabaseMigrator::MigrateSchemaVersionFrom3To4() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  CHECK(db_->HasActiveTransactions(), base::NotFatalUntil::M158);
+  DCHECK(db_->HasActiveTransactions());
 
   static constexpr char kCreatePopupsTableSql[] =  // clang-format off
     "CREATE TABLE popups("
@@ -231,7 +228,7 @@ bool BtmDatabaseMigrator::MigrateSchemaVersionFrom3To4() {
       "PRIMARY KEY (`opener_site`,`popup_site`)"
     ")";
   // clang-format on
-  CHECK(db_->IsSQLValid(kCreatePopupsTableSql), base::NotFatalUntil::M158);
+  DCHECK(db_->IsSQLValid(kCreatePopupsTableSql));
 
   return db_->Execute(kCreatePopupsTableSql) &&
          meta_table_->SetVersionNumber(4) &&
@@ -241,7 +238,7 @@ bool BtmDatabaseMigrator::MigrateSchemaVersionFrom3To4() {
 
 bool BtmDatabaseMigrator::MigrateSchemaVersionFrom4To5() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  CHECK(db_->HasActiveTransactions(), base::NotFatalUntil::M158);
+  DCHECK(db_->HasActiveTransactions());
 
   return db_->Execute(
              "ALTER TABLE popups ADD COLUMN is_current_interaction "
@@ -253,7 +250,7 @@ bool BtmDatabaseMigrator::MigrateSchemaVersionFrom4To5() {
 
 bool BtmDatabaseMigrator::MigrateSchemaVersionFrom5To6() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  CHECK(db_->HasActiveTransactions(), base::NotFatalUntil::M158);
+  DCHECK(db_->HasActiveTransactions());
 
   static constexpr char kCreateConfigTableSql[] =  // clang-format off
     "CREATE TABLE config("
@@ -262,7 +259,7 @@ bool BtmDatabaseMigrator::MigrateSchemaVersionFrom5To6() {
       "PRIMARY KEY (`key`)"
     ")";
   // clang-format on
-  CHECK(db_->IsSQLValid(kCreateConfigTableSql), base::NotFatalUntil::M158);
+  DCHECK(db_->IsSQLValid(kCreateConfigTableSql));
 
   if (!db_->Execute(kCreateConfigTableSql)) {
     return false;
@@ -272,7 +269,7 @@ bool BtmDatabaseMigrator::MigrateSchemaVersionFrom5To6() {
       meta_table_->GetValue(BtmDatabase::kPrepopulatedKey, &result)) {
     static constexpr char kInsertValueSql[] =
         "INSERT OR REPLACE INTO config(key,int_value) VALUES(?,?)";
-    CHECK(db_->IsSQLValid(kInsertValueSql), base::NotFatalUntil::M158);
+    DCHECK(db_->IsSQLValid(kInsertValueSql));
     sql::Statement statement(db_->GetUniqueStatement(kInsertValueSql));
     statement.BindString(0, BtmDatabase::kPrepopulatedKey);
     statement.BindInt64(1, result);
@@ -311,7 +308,7 @@ bool BtmDatabaseMigrator::MigrateSchemaVersionFrom6To7() {
 
 bool BtmDatabaseMigrator::MigrateSchemaVersionFrom7To8() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  CHECK(db_->HasActiveTransactions(), base::NotFatalUntil::M158);
+  DCHECK(db_->HasActiveTransactions());
 
   return db_->Execute(
              "ALTER TABLE popups ADD COLUMN is_authentication_interaction "
@@ -323,13 +320,12 @@ bool BtmDatabaseMigrator::MigrateSchemaVersionFrom7To8() {
 
 bool BtmDatabaseMigrator::MigrateSchemaVersionFrom8To9() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  CHECK(db_->HasActiveTransactions(), base::NotFatalUntil::M158);
+  DCHECK(db_->HasActiveTransactions());
 
   static constexpr char kRenameFirstUserInteractionTimeSql[] =
       "ALTER TABLE bounces RENAME COLUMN first_user_interaction_time TO "
       "first_user_activation_time";
-  CHECK(db_->IsSQLValid(kRenameFirstUserInteractionTimeSql),
-        base::NotFatalUntil::M158);
+  DCHECK(db_->IsSQLValid(kRenameFirstUserInteractionTimeSql));
   if (!db_->Execute(kRenameFirstUserInteractionTimeSql)) {
     return false;
   }
@@ -337,8 +333,7 @@ bool BtmDatabaseMigrator::MigrateSchemaVersionFrom8To9() {
   static constexpr char kRenameLastUserInteractionTimeSql[] =
       "ALTER TABLE bounces RENAME COLUMN last_user_interaction_time TO "
       "last_user_activation_time";
-  CHECK(db_->IsSQLValid(kRenameLastUserInteractionTimeSql),
-        base::NotFatalUntil::M158);
+  DCHECK(db_->IsSQLValid(kRenameLastUserInteractionTimeSql));
   if (!db_->Execute(kRenameLastUserInteractionTimeSql)) {
     return false;
   }
@@ -350,36 +345,32 @@ bool BtmDatabaseMigrator::MigrateSchemaVersionFrom8To9() {
 
 bool BtmDatabaseMigrator::MigrateSchemaVersionFrom9To10() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  CHECK(db_->HasActiveTransactions(), base::NotFatalUntil::M158);
+  DCHECK(db_->HasActiveTransactions());
 
   static constexpr char kDropFirstSiteStorageTimeColumnSql[] =
       "ALTER TABLE bounces DROP COLUMN first_site_storage_time";
-  CHECK(db_->IsSQLValid(kDropFirstSiteStorageTimeColumnSql),
-        base::NotFatalUntil::M158);
+  DCHECK(db_->IsSQLValid(kDropFirstSiteStorageTimeColumnSql));
   if (!db_->Execute(kDropFirstSiteStorageTimeColumnSql)) {
     return false;
   }
 
   static constexpr char kDropLastSiteStorageTimeColumnSql[] =
       "ALTER TABLE bounces DROP COLUMN last_site_storage_time";
-  CHECK(db_->IsSQLValid(kDropLastSiteStorageTimeColumnSql),
-        base::NotFatalUntil::M158);
+  DCHECK(db_->IsSQLValid(kDropLastSiteStorageTimeColumnSql));
   if (!db_->Execute(kDropLastSiteStorageTimeColumnSql)) {
     return false;
   }
 
   static constexpr char kDropFirstStatefulBounceTimeColumnSql[] =
       "ALTER TABLE bounces DROP COLUMN first_stateful_bounce_time";
-  CHECK(db_->IsSQLValid(kDropFirstStatefulBounceTimeColumnSql),
-        base::NotFatalUntil::M158);
+  DCHECK(db_->IsSQLValid(kDropFirstStatefulBounceTimeColumnSql));
   if (!db_->Execute(kDropFirstStatefulBounceTimeColumnSql)) {
     return false;
   }
 
   static constexpr char kDropLastStatefulBounceTimeColumnSql[] =
       "ALTER TABLE bounces DROP COLUMN last_stateful_bounce_time";
-  CHECK(db_->IsSQLValid(kDropLastStatefulBounceTimeColumnSql),
-        base::NotFatalUntil::M158);
+  DCHECK(db_->IsSQLValid(kDropLastStatefulBounceTimeColumnSql));
   if (!db_->Execute(kDropLastStatefulBounceTimeColumnSql)) {
     return false;
   }
@@ -391,7 +382,7 @@ bool BtmDatabaseMigrator::MigrateSchemaVersionFrom9To10() {
 
 bool BtmDatabaseMigrator::MigrateSchemaVersionFrom10To11() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  CHECK(db_->HasActiveTransactions(), base::NotFatalUntil::M158);
+  DCHECK(db_->HasActiveTransactions());
 
   static constexpr char kDeleteEmptyRowsSql[] =  //clang-format off
       "DELETE FROM bounces "
@@ -402,7 +393,7 @@ bool BtmDatabaseMigrator::MigrateSchemaVersionFrom10To11() {
       "AND (first_web_authn_assertion_time IS NULL "
       "OR last_web_authn_assertion_time IS NULL)";
   //clang-format on
-  CHECK(db_->IsSQLValid(kDeleteEmptyRowsSql), base::NotFatalUntil::M158);
+  DCHECK(db_->IsSQLValid(kDeleteEmptyRowsSql));
   if (!db_->Execute(kDeleteEmptyRowsSql)) {
     return false;
   }

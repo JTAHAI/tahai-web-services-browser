@@ -38,11 +38,6 @@ fn main() {
         }
         command.arg("--version");
 
-        // Allow wrapper scripts or alternate compilers to tell that this is
-        // `rustversion` running --version, so that they can stick to rustc's
-        // version format. https://github.com/dtolnay/rustversion/issues/67
-        command.env("RUSTVERSION", "1");
-
         let output = match command.output() {
             Ok(output) => output,
             Err(e) => {

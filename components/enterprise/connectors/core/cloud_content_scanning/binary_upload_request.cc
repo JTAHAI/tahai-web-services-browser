@@ -400,7 +400,7 @@ GURL BinaryUploadRequest::GetUrlWithParams() const {
       connector = "OnFileTransfer";
       break;
     case enterprise_connectors::DATA_COPIED:
-      connector = "OnDataCopied";
+      connector = "OnTextCopied";
       break;
     case enterprise_connectors::NETWORK_REQUEST:
       connector = "OnNetworkRequest";

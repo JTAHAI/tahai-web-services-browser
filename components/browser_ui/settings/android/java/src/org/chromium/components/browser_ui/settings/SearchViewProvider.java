@@ -4,8 +4,6 @@
 
 package org.chromium.components.browser_ui.settings;
 
-import androidx.appcompat.widget.SearchView;
-
 import org.chromium.build.annotations.NullMarked;
 
 /**
@@ -22,7 +20,4 @@ public interface SearchViewProvider {
 
     /** Sets the {@link Observer}. */
     void setSearchViewObserver(Observer observer);
-
-    /** Initializes a {@link SearchView} for the fragment. */
-    void initSearchView(SearchView searchView);
 }

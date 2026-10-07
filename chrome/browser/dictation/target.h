@@ -7,7 +7,6 @@
 
 #include <optional>
 #include <string>
-#include <string_view>
 #include <vector>
 
 #include "base/functional/callback.h"
@@ -78,7 +77,6 @@ class Target {
       const std::u16string& text,
       base::OnceClosure on_complete);
   virtual void PasteIntoNode(const std::u16string& text);
-  virtual std::optional<std::u16string_view> GetTextPrecedingSelection();
 
  private:
   // The stream may produce multiple updates while the last composition we sent
@@ -114,17 +112,12 @@ class Target {
   // Called when the currently executing operations completes.
   void OnOperationComplete(base::OnceClosure on_commit_complete);
 
-  // Formats transcription text for insertion into the target element.
-  std::u16string FormatTextForInsertion(const std::u16string& text);
-
   content::RenderWidgetHost* GetRenderWidgetHost() const;
 
   TargetDetails target_details_;
   std::u16string last_sent_composition_;
   bool has_lost_focus_during_composition_ = false;
   bool paste_fallback_required_ = false;
-
-  std::optional<std::u16string> preceding_text_;
 
   bool is_waiting_on_operation_completion_ = false;
   std::optional<QueuedOperation> queued_operation_;

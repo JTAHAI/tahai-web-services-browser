@@ -19,7 +19,7 @@ def SetTagUtilsImplementation(impl: Type['BaseTagUtils']) -> None:
   TagUtils = impl()
 
 
-class BaseTagUtils:
+class BaseTagUtils():
   # Overridden by subclasses.
   # pylint: disable=no-self-use
   def RemoveIgnoredTags(self, tags: Iterable[str]) -> ct.TagTupleType:
@@ -36,7 +36,6 @@ class BaseTagUtils:
       removed.
     """
     return tuple(tags)
-
   # pylint: enable=no-self-use
 
 

@@ -43,7 +43,6 @@
 #include "ui/gl/buildflags.h"
 #include "ui/gl/gl_bindings.h"
 #include "ui/gl/progress_reporter.h"
-#include "ui/gl/scoped_gl_framebuffer.h"
 
 #if BUILDFLAG(SKIA_USE_DAWN)
 #include "gpu/command_buffer/service/dawn_context_provider.h"
@@ -215,9 +214,10 @@ TEST_F(IOSurfaceImageBackingFactoryTest, GL_SkiaGL) {
         SharedImageRepresentation::AllowUnclearedAccess::kYes);
 
     // Create an FBO.
+    GLuint fbo = 0;
     gl::GLApi* api = gl::g_current_gl_context;
-    gl::ScopedGLFramebuffer fbo = gl::CreateScopedGLFramebuffer(api);
-    api->glBindFramebufferEXTFn(GL_FRAMEBUFFER, fbo.get());
+    api->glGenFramebuffersEXTFn(1, &fbo);
+    api->glBindFramebufferEXTFn(GL_FRAMEBUFFER, fbo);
 
     // Attach the texture to FBO.
     api->glFramebufferTexture2DEXTFn(
@@ -581,9 +581,10 @@ TEST_P(IOSurfaceImageBackingFactoryDawnTest, GL_Dawn_Skia_UnclearTexture) {
     EXPECT_TRUE(gl_scoped_access);
 
     // Create an FBO.
+    GLuint fbo = 0;
     gl::GLApi* api = gl::g_current_gl_context;
-    gl::ScopedGLFramebuffer fbo = gl::CreateScopedGLFramebuffer(api);
-    api->glBindFramebufferEXTFn(GL_FRAMEBUFFER, fbo.get());
+    api->glGenFramebuffersEXTFn(1, &fbo);
+    api->glBindFramebufferEXTFn(GL_FRAMEBUFFER, fbo);
 
     // Attach the texture to FBO.
     api->glFramebufferTexture2DEXTFn(

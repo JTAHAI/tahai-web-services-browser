@@ -27,7 +27,8 @@ class SecurityKeyDataChannelHandler final
 
   SecurityKeyDataChannelHandler(
       std::unique_ptr<protocol::MessagePipe> pipe,
-      base::WeakPtr<SecurityKeyAuthHandler> auth_handler);
+      base::WeakPtr<SecurityKeyAuthHandler> auth_handler,
+      base::OnceClosure takeover_callback);
 
   SecurityKeyDataChannelHandler(const SecurityKeyDataChannelHandler&) = delete;
   SecurityKeyDataChannelHandler& operator=(
@@ -54,6 +55,8 @@ class SecurityKeyDataChannelHandler final
   SEQUENCE_CHECKER(sequence_checker_);
 
   base::WeakPtr<SecurityKeyAuthHandler> auth_handler_;
+
+  base::OnceClosure takeover_callback_;
 
   base::WeakPtrFactory<SecurityKeyDataChannelHandler> weak_factory_{this};
 };

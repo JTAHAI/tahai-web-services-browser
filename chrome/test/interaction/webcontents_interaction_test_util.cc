@@ -38,7 +38,6 @@
 #include "chrome/browser/ui/interaction/browser_elements.h"
 #include "chrome/browser/ui/navigator/browser_navigator.h"
 #include "chrome/browser/ui/navigator/browser_navigator_params.h"
-#include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/tabs/tab_strip_model_observer.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/frame/contents_web_view.h"
@@ -60,8 +59,6 @@
 #include "ui/views/interaction/element_tracker_views.h"
 #include "ui/views/view_class_properties.h"
 #include "ui/views/view_observer.h"
-#include "ui/webui/tracked_element/tracked_element_handler.h"
-#include "ui/webui/tracked_element/tracked_element_web_ui.h"
 
 namespace content {
 class RenderFrameHost;
@@ -86,13 +83,12 @@ content::WebContents* GetWebContents(BrowserWindowInterface* browser,
 // Will evaluate and return `on_not_found` if 'err?.selector' is valid.
 // Will evaluate and return `on_found` if 'el' is valid.
 std::string GetExistsQuery(const char* on_not_found, const char* on_found) {
-  return base::StringPrintf(
-      R"((el, err) => {
+  return base::StringPrintf(R"((el, err) => {
         if (err?.selector) return %s;
         if (err) throw err;
         return %s;
       })",
-      on_not_found, on_found);
+                            on_not_found, on_found);
 }
 
 // Does `StateChange` validation, including inferring the actual type for
@@ -259,39 +255,30 @@ content::EvalJsResult EvalJsLocal(
   ExecuteScript(host, runner_script);
 
   std::string json;
-  while (dom_message_queue.WaitForMessage(&json)) {
-    auto parsed_json = base::JSONReader::ReadAndReturnValueWithError(
-        json, base::JSON_ALLOW_TRAILING_COMMAS);
-    if (!parsed_json.has_value()) {
-      return content::EvalJsResult(
-          base::Value(), "JSON parse error: " + parsed_json.error().message);
-    }
-
-    if (!parsed_json->is_list() || parsed_json->GetList().size() != 2U ||
-        !parsed_json->GetList()[0].is_string() ||
-        !parsed_json->GetList()[1].is_list() ||
-        parsed_json->GetList()[1].GetList().size() != 2U ||
-        !parsed_json->GetList()[1].GetList()[1].is_string()) {
-      std::ostringstream error_message;
-      error_message << "Received unexpected result: " << *parsed_json;
-      return content::EvalJsResult(base::Value(), error_message.str());
-    }
-
-    if (parsed_json->GetList()[0].GetString() != token) {
-      LOG(WARNING) << "EvalJsLocal received an unexpected message from a "
-                      "previous JS execution. "
-                   << "Expected token: " << token
-                   << ", got: " << parsed_json->GetList()[0].GetString()
-                   << ". Ignoring.";
-      continue;
-    }
-
-    auto& result = parsed_json->GetList()[1].GetList();
-    return content::EvalJsResult(std::move(result[0]), result[1].GetString());
+  if (!dom_message_queue.WaitForMessage(&json)) {
+    return content::EvalJsResult(base::Value(),
+                                 "Cannot communicate with DOMMessageQueue.");
   }
 
-  return content::EvalJsResult(base::Value(),
-                               "Cannot communicate with DOMMessageQueue.");
+  auto parsed_json = base::JSONReader::ReadAndReturnValueWithError(
+      json, base::JSON_ALLOW_TRAILING_COMMAS);
+  if (!parsed_json.has_value()) {
+    return content::EvalJsResult(
+        base::Value(), "JSON parse error: " + parsed_json.error().message);
+  }
+
+  if (!parsed_json->is_list() || parsed_json->GetList().size() != 2U ||
+      !parsed_json->GetList()[1].is_list() ||
+      parsed_json->GetList()[1].GetList().size() != 2U ||
+      !parsed_json->GetList()[1].GetList()[1].is_string() ||
+      parsed_json->GetList()[0].GetString() != token) {
+    std::ostringstream error_message;
+    error_message << "Received unexpected result: " << *parsed_json;
+    return content::EvalJsResult(base::Value(), error_message.str());
+  }
+  auto& result = parsed_json->GetList()[1].GetList();
+
+  return content::EvalJsResult(std::move(result[0]), result[1].GetString());
 }
 
 // As EvalJsLocal but does not wait for a response; errors will appear in the
@@ -415,44 +402,6 @@ std::string CreateDeepQuery(
          return func(el, err);
        })",
       selectors.c_str(), function.c_str());
-}
-
-std::string CreateElementQuery(ui::TrackedElementWebUI* element,
-                               const std::string& function) {
-  DCHECK(!function.empty());
-  return base::StringPrintf(
-      R"(function() {
-         function fetchElement(primary, secondary) {
-           const manager = window._trackedElementManager;
-           if (!manager) {
-             throw new Error('No TrackedElementManager instance.');
-           }
-           const trackedElement = manager.getElementWithId({
-             nativeIdentifier: primary,
-             secondaryIdentifier: secondary
-           });
-           if (!trackedElement || !trackedElement.element) {
-             throw new Error(
-               'Cannot find element (' + primary + ', ' + secondary + ')');
-           }
-           return trackedElement.element;
-         }
-
-         let el, err;
-         try {
-           el = fetchElement('%s', '%s');
-         } catch (error) {
-           err = error;
-         }
-
-         const func = (%s);
-         if (err && func.length <= 1) {
-           throw err;
-         }
-         return func(el, err);
-       })",
-      element->identifier().GetName(), element->GetSecondaryIdentifier(),
-      function);
 }
 
 }  // namespace
@@ -750,7 +699,7 @@ std::unique_ptr<WebContentsInteractionTestUtil>
 WebContentsInteractionTestUtil::ForNextTabInAnyBrowser(
     ui::ElementIdentifier page_identifier) {
   return std::make_unique<TabWebContentsInteractionTestUtil>(
-      static_cast<BrowserWindowInterface*>(nullptr), page_identifier);
+      static_cast<Browser*>(nullptr), page_identifier);
 }
 
 // static
@@ -810,12 +759,22 @@ base::Value WebContentsInteractionTestUtil::Evaluate(
     const std::string& function,
     std::string* error_message) {
   CHECK(is_page_loaded());
-  return Evaluate(web_contents(), function, error_message);
+  auto result = EvalJsLocal(web_contents(), function);
+  if (!result.is_ok()) {
+    if (error_message) {
+      *error_message = result.ExtractError();
+      return base::Value();
+    } else {
+      NOTREACHED() << "Uncaught JS exception: " << result;
+    }
+  }
+
+  return std::move(result).TakeValue();
 }
 
 void WebContentsInteractionTestUtil::Execute(const std::string& function) {
   CHECK(is_page_loaded());
-  Execute(web_contents(), function);
+  ExecuteJsLocal(web_contents(), function);
 }
 
 void WebContentsInteractionTestUtil::SendEventOnStateChange(
@@ -850,27 +809,10 @@ base::Value WebContentsInteractionTestUtil::EvaluateAt(
   return Evaluate(full_query, error_message);
 }
 
-// static
-base::Value WebContentsInteractionTestUtil::EvaluateAt(
-    ui::TrackedElementWebUI* element,
-    const std::string& function,
-    std::string* error_message) {
-  const std::string full_query = CreateElementQuery(element, function);
-  return Evaluate(element->handler()->web_contents(), full_query,
-                  error_message);
-}
-
 void WebContentsInteractionTestUtil::ExecuteAt(const DeepQuery& where,
                                                const std::string& function) {
   const std::string full_query = CreateDeepQuery(where, function);
   Execute(full_query);
-}
-
-// static
-void WebContentsInteractionTestUtil::ExecuteAt(ui::TrackedElementWebUI* element,
-                                               const std::string& function) {
-  const std::string full_query = CreateElementQuery(element, function);
-  Execute(element->handler()->web_contents(), full_query);
 }
 
 bool WebContentsInteractionTestUtil::Exists(const std::string& selector) {
@@ -1051,34 +993,6 @@ void WebContentsInteractionTestUtil::OnPollEvent(
     ui::ElementTracker::GetFrameworkDelegate()->NotifyCustomEvent(
         current_element_.get(), event);
   }
-}
-
-// static
-base::Value WebContentsInteractionTestUtil::Evaluate(
-    content::WebContents* contents,
-    const std::string& function,
-    std::string* error_message) {
-  CHECK(contents);
-  CHECK(contents->IsDocumentOnLoadCompletedInPrimaryMainFrame());
-  auto result = EvalJsLocal(contents, function);
-  if (!result.is_ok()) {
-    if (error_message) {
-      *error_message = result.ExtractError();
-      return base::Value();
-    } else {
-      NOTREACHED() << "Uncaught JS exception: " << result;
-    }
-  }
-
-  return std::move(result).TakeValue();
-}
-
-// static
-void WebContentsInteractionTestUtil::Execute(content::WebContents* contents,
-                                             const std::string& function) {
-  CHECK(contents);
-  CHECK(contents->IsDocumentOnLoadCompletedInPrimaryMainFrame());
-  ExecuteJsLocal(contents, function);
 }
 
 class TabWebContentsInteractionTestUtil::NewTabWatcher

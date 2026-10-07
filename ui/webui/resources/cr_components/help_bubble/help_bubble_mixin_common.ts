@@ -12,7 +12,7 @@
 import {assert} from '//resources/js/assert.js';
 import {EventTracker} from '//resources/js/event_tracker.js';
 import {TrackedElementManager} from '//resources/js/tracked_element/tracked_element_manager.js';
-import type {TrackedElement} from '//resources/js/tracked_element/tracked_element_manager.js';
+import type {RectF} from '//resources/mojo/ui/gfx/geometry/mojom/geometry.mojom-webui.js';
 import type {TrackedElementIdentifier} from '//resources/mojo/ui/webui/resources/js/tracked_element/tracked_element.mojom-webui.js';
 
 import {HELP_BUBBLE_DISMISSED_EVENT, HELP_BUBBLE_TIMED_OUT_EVENT} from './help_bubble.js';
@@ -122,7 +122,8 @@ export class HelpBubbleMixinCommon {
 
     TrackedElementManager.getInstance().startTracking(
         anchor, controller.getNativeId(), options,
-        this.onAnchorVisibilityChanged_.bind(this));
+        (visible: boolean, bounds: RectF) =>
+            this.onAnchorVisibilityChanged_(anchor, visible, bounds));
   }
 
   private unobserveControllerAnchor_(controller: HelpBubbleController) {
@@ -246,24 +247,21 @@ export class HelpBubbleMixinCommon {
   /**
    * This event is emitted by the TrackedElementManager
    */
-  private onAnchorVisibilityChanged_(update: TrackedElement) {
-    const id = TrackedElementManager.getElementId(update.element);
-    assert(id, 'Got visibility event for element without an identifier.');
-    const ctrl = this.helpBubbleControllerById_.get(id.nativeIdentifier);
-    if (!ctrl || ctrl.getAnchor() !== update.element) {
-      // If we've signed up for broader notifications than usual, we might get
-      // one that doesn't apply to our specific anchor. Ignore it.
-      return;
-    }
-    if (!update.visible) {
-      const hidden = this.hideHelpBubble(id.nativeIdentifier);
+  private onAnchorVisibilityChanged_(
+      target: HTMLElement, isVisible: boolean, bounds: RectF) {
+    const nativeIdentifier = target.dataset['nativeId']!;
+    const secondaryIdentifier = target.dataset['secondaryId']!;
+    const ctrl = this.helpBubbleControllerById_.get(nativeIdentifier);
+    if (!isVisible) {
+      const hidden = this.hideHelpBubble(nativeIdentifier);
       if (hidden) {
         this.helpBubbleProxy_.handler.helpBubbleClosed(
-            id, HelpBubbleClosedReason.kPageChanged);
+            {nativeIdentifier, secondaryIdentifier},
+            HelpBubbleClosedReason.kPageChanged);
       }
     }
     if (ctrl) {
-      ctrl.updateAnchorVisibility(update.visible, update.bounds);
+      ctrl.updateAnchorVisibility(isVisible, bounds);
     }
   }
 

@@ -1,5 +1,8 @@
-rules:
-- variable-declaration-56.html: [unset-value, custom-properties]
-- variable-declaration-57.html: [unset-value, custom-properties]
-- variable-declaration-58.html: [unset-value, custom-properties]
-- "**": [custom-properties]
+features:
+- name: custom-properties
+  files: "**"
+- name: unset-value
+  files:
+  - variable-declaration-56.html
+  - variable-declaration-57.html
+  - variable-declaration-58.html

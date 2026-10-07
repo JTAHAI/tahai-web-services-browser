@@ -26,12 +26,10 @@ OptionButtonBase::OptionButtonBase(int button_width,
                                    PressedCallback callback,
                                    const std::u16string& label,
                                    const gfx::Insets& insets,
-                                   int image_label_spacing,
-                                   ClickBehavior click_behavior)
+                                   int image_label_spacing)
     : views::LabelButton(std::move(callback), label),
       min_width_(button_width),
-      image_label_spacing_(image_label_spacing),
-      click_behavior_(click_behavior) {
+      image_label_spacing_(image_label_spacing) {
   SetBorder(views::CreateEmptyBorder(insets));
   StyleUtil::SetUpInkDropForButton(this, gfx::Insets(),
                                    /*highlight_on_hover=*/false,
@@ -61,8 +59,8 @@ void OptionButtonBase::SetSelected(bool selected) {
                                              : ax::mojom::CheckedState::kFalse);
   UpdateImage();
 
-  if (button_selected_callback_) {
-    button_selected_callback_.Run(this);
+  if (delegate_) {
+    delegate_->OnButtonSelected(this);
   }
   SetAndUpdateAccessibleDefaultActionVerb();
   OnSelectedChanged();
@@ -128,15 +126,8 @@ void OptionButtonBase::OnThemeChanged() {
 }
 
 void OptionButtonBase::NotifyClick(const ui::Event& event) {
-  switch (click_behavior_) {
-    case ClickBehavior::kNone:
-      break;
-    case ClickBehavior::kSetToOn:
-      SetSelected(true);
-      break;
-    case ClickBehavior::kToggle:
-      SetSelected(!selected_);
-      break;
+  if (delegate_) {
+    delegate_->OnButtonClicked(this);
   }
   views::LabelButton::NotifyClick(event);
 }

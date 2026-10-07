@@ -62,7 +62,7 @@ class PermissionServiceContext::PermissionSubscription {
   PermissionSubscription& operator=(const PermissionSubscription&) = delete;
 
   ~PermissionSubscription() {
-    CHECK(id_, base::NotFatalUntil::M159);
+    DCHECK(id_);
     BrowserContext* browser_context = context_->GetBrowserContext();
     if (browser_context) {
       PermissionControllerImpl::FromBrowserContext(browser_context)
@@ -71,7 +71,7 @@ class PermissionServiceContext::PermissionSubscription {
   }
 
   void OnConnectionError() {
-    CHECK(id_, base::NotFatalUntil::M159);
+    DCHECK(id_);
     context_->ObserverHadConnectionError(id_);
   }
 
@@ -80,7 +80,7 @@ class PermissionServiceContext::PermissionSubscription {
   }
 
   void NotifyPermissionResultChangedIfNeeded() {
-    CHECK(status_at_bf_cache_entry_, base::NotFatalUntil::M159);
+    DCHECK(status_at_bf_cache_entry_);
     if (!status_at_bf_cache_entry_->Equals(*last_known_status_)) {
       observer_->OnPermissionStatusChange(last_known_status_.Clone());
     }
@@ -165,7 +165,7 @@ PermissionServiceContext::~PermissionServiceContext() {
 
 void PermissionServiceContext::CreateService(
     mojo::PendingReceiver<blink::mojom::PermissionService> receiver) {
-  CHECK(render_frame_host_, base::NotFatalUntil::M159);
+  DCHECK(render_frame_host_);
   services_.Add(
       std::make_unique<PermissionServiceImpl>(
           this, url::Origin::Create(PermissionUtil::GetLastCommittedOriginAsURL(
@@ -219,7 +219,7 @@ void PermissionServiceContext::CreateSubscription(
 void PermissionServiceContext::ObserverHadConnectionError(
     PermissionController::SubscriptionId subscription_id) {
   size_t erased = subscriptions_.erase(subscription_id);
-  CHECK_EQ(1u, erased, base::NotFatalUntil::M159);
+  DCHECK_EQ(1u, erased);
 }
 
 BrowserContext* PermissionServiceContext::GetBrowserContext() const {
@@ -245,7 +245,7 @@ std::optional<GURL> PermissionServiceContext::GetEmbeddingOrigin() const {
 
 void PermissionServiceContext::RenderProcessHostDestroyed(
     RenderProcessHost* host) {
-  CHECK(host == render_frame_host_->GetProcess(), base::NotFatalUntil::M159);
+  DCHECK(host == render_frame_host_->GetProcess());
   subscriptions_.clear();
   // RenderProcessHostImpl will always outlive 'this', but it gets cleaned up
   // earlier so we need to listen to this event so we can do our clean up as

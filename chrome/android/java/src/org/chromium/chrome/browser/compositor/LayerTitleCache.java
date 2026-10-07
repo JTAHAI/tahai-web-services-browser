@@ -39,7 +39,6 @@ import org.chromium.ui.resources.ResourceManager;
 import org.chromium.ui.resources.dynamics.BitmapDynamicResource;
 import org.chromium.ui.resources.dynamics.DynamicResourceLoader;
 import org.chromium.ui.resources.dynamics.ViewResourceAdapter;
-import org.chromium.url.GURL;
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -343,14 +342,7 @@ public class LayerTitleCache {
     }
 
     private void fetchFaviconForTab(final Tab tab) {
-        final GURL originalUrl = tab.getUrl();
-        fetchFaviconWithCallback(
-                tab,
-                (favicon, iconUrl) -> {
-                    if (originalUrl.equals(tab.getUrl())) {
-                        updateFaviconFromHistory(tab, favicon);
-                    }
-                });
+        fetchFaviconWithCallback(tab, (favicon, iconUrl) -> updateFaviconFromHistory(tab, favicon));
     }
 
     /**

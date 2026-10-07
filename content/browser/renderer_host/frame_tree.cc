@@ -193,14 +193,6 @@ FrameTree::NodeRange::NodeRange(
 FrameTree::NodeRange::NodeRange(const NodeRange&) = default;
 FrameTree::NodeRange::~NodeRange() = default;
 
-std::optional<int64_t> FrameTree::Delegate::GetPrivilegedContentsFeatureId() {
-  return std::nullopt;
-}
-
-bool FrameTree::Delegate::DoesWebContentsDisallowServiceWorkerControl() {
-  return false;
-}
-
 FrameTree::FrameTree(
     BrowserContext* browser_context,
     Delegate* delegate,
@@ -396,7 +388,6 @@ FrameTreeNode* FrameTree::AddFrame(
     const blink::LocalFrameToken& frame_token,
     const base::UnguessableToken& devtools_frame_token,
     const blink::DocumentToken& document_token,
-    const base::UnguessableToken& initiator_state_token,
     const blink::FramePolicy& frame_policy,
     const blink::mojom::FrameOwnerProperties& frame_owner_properties,
     bool was_discarded,
@@ -443,8 +434,8 @@ FrameTreeNode* FrameTree::AddFrame(
   // Add the new node to the FrameTree, creating the RenderFrameHost.
   FrameTreeNode* added_node = parent->AddChild(
       std::move(new_node), new_routing_id, std::move(frame_remote), frame_token,
-      document_token, devtools_frame_token, initiator_state_token, frame_policy,
-      frame_name, frame_unique_name, std::move(sandbox_origin_token));
+      document_token, devtools_frame_token, frame_policy, frame_name,
+      frame_unique_name, std::move(sandbox_origin_token));
 
   added_node->SetFencedFramePropertiesIfNeeded();
 

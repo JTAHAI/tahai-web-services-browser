@@ -60,7 +60,6 @@ std::string RsTypePath(Context& ctx, const EnumDescriptor& descriptor);
 std::string RsViewType(Context& ctx, const FieldDescriptor& field,
                        absl::string_view lifetime);
 
-std::string MessageRsName(const Descriptor& desc);
 std::string EnumRsName(const EnumDescriptor& desc);
 std::string EnumValueRsName(const EnumValueDescriptor& value);
 
@@ -148,9 +147,6 @@ class MultiCasePrefixStripper final {
 // More efficient overload if a stripper is already constructed.
 std::string EnumValueRsName(const MultiCasePrefixStripper& stripper,
                             absl::string_view value_name);
-
-// Returns the name of the generated DescriptorInfo object for the given file.
-std::string DescriptorInfoName(const FileDescriptor& file);
 
 // Describes the names and conversions for a supported map key type.
 struct MapKeyType {

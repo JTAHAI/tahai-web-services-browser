@@ -17,8 +17,6 @@
 
 namespace web {
 
-class MojoFacade;
-
 class WebUIIOSImpl : public web::WebUIIOS {
  public:
   explicit WebUIIOSImpl(WebState* web_state);
@@ -55,9 +53,6 @@ class WebUIIOSImpl : public web::WebUIIOS {
   using MessageCallbackMap =
       std::map<std::string, MessageCallback, std::less<>>;
   MessageCallbackMap message_callbacks_;
-
-  // `MojoFacade` object for a WebState presenting a WebUI page.
-  std::unique_ptr<MojoFacade> mojo_facade_;
 
   // Non-owning pointer to the WebState this WebUIIOS is associated with.
   raw_ptr<WebState> web_state_;

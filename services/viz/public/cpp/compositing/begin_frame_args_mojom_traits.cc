@@ -6,6 +6,7 @@
 
 #include "base/notreached.h"
 #include "mojo/public/cpp/base/time_mojom_traits.h"
+#include "services/viz/public/cpp/crash_keys.h"
 
 namespace mojo {
 
@@ -42,20 +43,17 @@ EnumTraits<viz::mojom::BeginFrameArgsType,
 }
 
 // static
-base::expected<void, DeserializationError>
-StructTraits<viz::mojom::BeginFrameIdDataView, viz::BeginFrameId>::Read(
+bool StructTraits<viz::mojom::BeginFrameIdDataView, viz::BeginFrameId>::Read(
     viz::mojom::BeginFrameIdDataView data,
     viz::BeginFrameId* out) {
   out->source_id = data.source_id();
   out->sequence_number = data.sequence_number();
-  return base::ok();
+  return true;
 }
 
 // static
-base::expected<void, DeserializationError>
-StructTraits<viz::mojom::BeginFrameArgsDataView, viz::BeginFrameArgs>::Read(
-    viz::mojom::BeginFrameArgsDataView data,
-    viz::BeginFrameArgs* out) {
+bool StructTraits<viz::mojom::BeginFrameArgsDataView, viz::BeginFrameArgs>::
+    Read(viz::mojom::BeginFrameArgsDataView data, viz::BeginFrameArgs* out) {
   std::optional<base::TimeDelta> unthrottled_interval;
   if (!data.ReadFrameTime(&out->frame_time) ||
       !data.ReadDeadline(&out->deadline) ||
@@ -63,9 +61,8 @@ StructTraits<viz::mojom::BeginFrameArgsDataView, viz::BeginFrameArgs>::Read(
       !data.ReadType(&out->type) ||
       !data.ReadDispatchTime(&out->dispatch_time) ||
       !data.ReadClientArrivalTime(&out->client_arrival_time) ||
-      !data.ReadUnthrottledInterval(&unthrottled_interval) ||
-      !data.ReadDeadlineDerivedInterval(&out->deadline_derived_interval)) {
-    return base::unexpected(DeserializationError());
+      !data.ReadUnthrottledInterval(&unthrottled_interval)) {
+    return false;
   }
 
   // If omitted, default to the regular interval.
@@ -75,39 +72,39 @@ StructTraits<viz::mojom::BeginFrameArgsDataView, viz::BeginFrameArgs>::Read(
   out->trace_id = data.trace_id();
   out->on_critical_path = data.on_critical_path();
   out->animate_only = data.animate_only();
-  return base::ok();
+  return true;
 }
 
 // static
-base::expected<void, DeserializationError>
-StructTraits<viz::mojom::BeginFrameAckDataView, viz::BeginFrameAck>::Read(
+bool StructTraits<viz::mojom::BeginFrameAckDataView, viz::BeginFrameAck>::Read(
     viz::mojom::BeginFrameAckDataView data,
     viz::BeginFrameAck* out) {
   if (data.sequence_number() < viz::BeginFrameArgs::kStartingFrameNumber) {
-    return base::unexpected(DeserializationError());
+    viz::SetDeserializationCrashKeyString(
+        "Invalid begin frame ack sequence number");
+    return false;
   }
   out->frame_id.source_id = data.source_id();
   out->frame_id.sequence_number = data.sequence_number();
   out->trace_id = data.trace_id();
   out->has_damage = data.has_damage();
-  return base::ok();
+  return true;
 }
 
 #if BUILDFLAG(IS_MAC)
 // static
-base::expected<void, DeserializationError> StructTraits<
-    viz::mojom::CADisplayLinkParamsDataView,
-    viz::CADisplayLinkParams>::Read(viz::mojom::CADisplayLinkParamsDataView
-                                        data,
-                                    viz::CADisplayLinkParams* out) {
+bool StructTraits<viz::mojom::CADisplayLinkParamsDataView,
+                  viz::CADisplayLinkParams>::
+    Read(viz::mojom::CADisplayLinkParamsDataView data,
+         viz::CADisplayLinkParams* out) {
   if (!data.ReadTimestamp(&out->timestamp) ||
       !data.ReadTargetTimestamp(&out->target_timestamp) ||
       !data.ReadInterval(&out->interval) ||
       !data.ReadIpcBeginTimestamp(&out->ipc_begin_timestamp)) {
-    return base::unexpected(DeserializationError());
+    return false;
   }
   out->display_id = data.display_id();
-  return base::ok();
+  return true;
 }
 #endif
 

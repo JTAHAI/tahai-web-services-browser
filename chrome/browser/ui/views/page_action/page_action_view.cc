@@ -14,7 +14,6 @@
 #include "base/metrics/histogram_functions.h"
 #include "base/task/sequenced_task_runner.h"
 #include "chrome/browser/ui/actions/chrome_action_id.h"
-#include "chrome/browser/ui/color/chrome_color_id.h"
 #include "chrome/browser/ui/layout_constants.h"
 #include "chrome/browser/ui/page_action/page_action_controller.h"
 #include "chrome/browser/ui/page_action/page_action_model.h"
@@ -23,7 +22,6 @@
 #include "chrome/browser/ui/side_panel/side_panel_enums.h"
 #include "chrome/browser/ui/ui_features.h"
 #include "chrome/browser/ui/views/location_bar/icon_label_bubble_view.h"
-#include "chrome/browser/ui/views/location_bar/location_bar_util.h"
 #include "chrome/browser/ui/views/page_action/page_action_view_params.h"
 #include "chrome/browser/ui/views/page_action/page_action_view_util.h"
 #include "chrome/grit/generated_resources.h"
@@ -31,14 +29,12 @@
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/base/models/image_model.h"
-#include "ui/events/base_event_utils.h"
 #include "ui/events/event.h"
 #include "ui/gfx/animation/slide_animation.h"
 #include "ui/gfx/font_list.h"
 #include "ui/gfx/geometry/insets.h"
 #include "ui/views/accessibility/view_accessibility.h"
 #include "ui/views/animation/ink_drop.h"
-#include "ui/views/background.h"
 #include "ui/views/controls/button/single_animated_image_container.h"
 #include "ui/views/view_class_properties.h"
 #include "ui/views/widget/widget_delegate.h"
@@ -125,11 +121,6 @@ PageActionView::AddAnchoredMessageVisibilityChangedCallback(
       std::move(callback));
 }
 
-base::CallbackListSubscription PageActionView::AddVisibilityChangedCallback(
-    VisibilityChangedCallback callback) {
-  return visibility_changed_callbacks_.Add(std::move(callback));
-}
-
 void PageActionView::SetIsChipShowingChangedCallback(
     IsChipShowingChangedCallback callback) {
   is_chip_showing_changed_callback_ = std::move(callback);
@@ -186,14 +177,8 @@ void PageActionView::OnNewActiveController(PageActionController* controller) {
 void PageActionView::OnPageActionModelChanged(
     const PageActionModelInterface& model) {
   const bool visible = model.GetVisible();
-  const bool declared_changed = (declared_visible_ != visible);
-  declared_visible_ = visible;
   SetEnabled(visible);
   SetVisible(visible);
-
-  if (declared_changed) {
-    visibility_changed_callbacks_.Notify(this);
-  }
 
   if (visible) {
     SetLabel(model.GetText(), model.GetAccessibleName());
@@ -212,9 +197,9 @@ void PageActionView::OnPageActionModelChanged(
 
   if (visible && model.ShouldShowAnchoredMessage()) {
     CreateAndShowAnchoredMessage(model);
-  } else if (anchored_message_ && anchored_message_widget_ &&
-             !anchored_message_widget_->IsClosed()) {
-    anchored_message_widget_->Close();
+  } else if (anchored_message_ && anchored_message_widget_) {
+    anchored_message_ = nullptr;
+    anchored_message_widget_ = nullptr;
   }
 
   UpdateTooltipText();
@@ -297,10 +282,6 @@ std::u16string PageActionView::GetAccessibleName() const {
 
 void PageActionView::SetVisible(bool visible) {
   IconLabelBubbleView::SetVisible(visible);
-}
-
-bool PageActionView::GetDeclaredVisible() const {
-  return declared_visible_;
 }
 
 IconLabelBubbleView* PageActionView::GetIconLabelBubbleViewNotMigrated() {
@@ -582,8 +563,6 @@ void PageActionView::CreateAndShowAnchoredMessage(
     anchored_message_widget_->MakeCloseSynchronous(
         base::BindOnce(&PageActionView::OnAnchoredMessageWidgetClose,
                        weak_factory_.GetWeakPtr()));
-    UpdateBackground();
-    UpdateIconImage();
 
     // Don't steal focus when shown
     anchored_message_widget_->ShowInactive();
@@ -597,8 +576,9 @@ void PageActionView::CreateAndShowAnchoredMessage(
 void PageActionView::OnAnchoredMessageWidgetClose(
     views::Widget::ClosedReason closed_reason) {
   // If `anchored_message_` is already null, it means we are in the middle of
-  // destroying the view (e.g. from ~PageActionView). In this case, early return
-  // to avoid re-entrancy crashes.
+  // programmatically destroying the widget (e.g. from
+  // OnPageActionModelChanged). In this case, early return to avoid re-entrancy
+  // crashes.
   if (!anchored_message_) {
     return;
   }
@@ -608,8 +588,6 @@ void PageActionView::OnAnchoredMessageWidgetClose(
       FROM_HERE, base::BindOnce(&PageActionView::CloseWidgetDeferred,
                                 weak_factory_.GetWeakPtr(),
                                 anchored_message_widget_->GetWeakPtr()));
-  UpdateBackground();
-  UpdateIconImage();
   UpdateTooltipText();
   anchored_message_visibility_changed_callbacks_.Notify(this);
 
@@ -716,42 +694,6 @@ SkColor PageActionView::GetBackgroundColor() const {
         *observation_.GetSource()->GetOverrideBackgroundColorId());
   }
   return IconLabelBubbleView::GetBackgroundColor();
-}
-
-bool PageActionView::PaintedOnSolidBackground() const {
-  return IconLabelBubbleView::PaintedOnSolidBackground() ||
-         IsAnchoredMessageVisible();
-}
-
-gfx::RoundedCornersF PageActionView::GetCornerRadii() const {
-  if (features::IsPageActionsElevatedToolbarEnabled()) {
-    const float current_height =
-        height() > 0 ? static_cast<float>(height())
-                     : static_cast<float>(GetPreferredSize().height());
-    return gfx::RoundedCornersF(current_height / 2.0f);
-  }
-  return IconLabelBubbleView::GetCornerRadii();
-}
-
-void PageActionView::UpdateBackground() {
-  if (features::IsPageActionsElevatedToolbarEnabled()) {
-    if (!GetWidget()) {
-      return;
-    }
-
-    const bool painted_on_solid_background = PaintedOnSolidBackground();
-    SetBackground(painted_on_solid_background
-                      ? views::CreatePillBackground(GetBackgroundColor())
-                      : nullptr);
-    ConfigureInkDropForRefresh2023(this,
-                                   painted_on_solid_background
-                                       ? kColorOmniboxIconHover
-                                       : kColorOmniboxActionIconHover,
-                                   kColorOmniboxIconPressed);
-    UpdateLabelColors();
-    return;
-  }
-  IconLabelBubbleView::UpdateBackground();
 }
 
 BEGIN_METADATA(PageActionView)

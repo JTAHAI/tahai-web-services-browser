@@ -7,8 +7,6 @@ package org.chromium.chrome.browser.omnibox.fusebox;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.chrome.browser.ui.theme.BrandedColorScheme;
 import org.chromium.ui.modelutil.PropertyKey;
-import org.chromium.ui.modelutil.PropertyModel.WritableBooleanPropertyKey;
-import org.chromium.ui.modelutil.PropertyModel.WritableIntDefPropertyKey;
 import org.chromium.ui.modelutil.PropertyModel.WritableObjectPropertyKey;
 
 /** The properties associated with a single fusebox attachment item. */
@@ -19,18 +17,12 @@ class FuseboxAttachmentProperties {
             new WritableObjectPropertyKey<>();
 
     /** The variant of {@link BrandedColorScheme} to apply to the UI elements. */
-    public static final WritableIntDefPropertyKey<BrandedColorScheme> COLOR_SCHEME =
-            new WritableIntDefPropertyKey<>(BrandedColorScheme.APP_DEFAULT);
+    public static final WritableObjectPropertyKey<@BrandedColorScheme Integer> COLOR_SCHEME =
+            new WritableObjectPropertyKey<>();
 
     /** The handler for a remove button click. */
     public static final WritableObjectPropertyKey<Runnable> ON_REMOVE =
             new WritableObjectPropertyKey<>();
 
-    /** Whether the remove button should be selected. */
-    public static WritableBooleanPropertyKey REMOVE_BUTTON_SELECTED =
-            new WritableBooleanPropertyKey();
-
-    public static final PropertyKey[] ALL_KEYS = {
-        ATTACHMENT, COLOR_SCHEME, ON_REMOVE, REMOVE_BUTTON_SELECTED
-    };
+    public static final PropertyKey[] ALL_KEYS = {ATTACHMENT, COLOR_SCHEME, ON_REMOVE};
 }

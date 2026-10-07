@@ -4,16 +4,15 @@
 
 #include "components/server_certificate_database/server_certificate_database.h"
 
-#include <ranges>
-
 #include "base/containers/span.h"
 #include "base/containers/to_vector.h"
 #include "base/files/file_path.h"
 #include "base/sequence_checker.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
+#include "base/types/zip.h"
 #include "build/build_config.h"
-#include "crypto/hash.h"
+#include "crypto/sha2.h"
 #include "net/cert/x509_util.h"
 #include "sql/init_status.h"
 #include "sql/meta_table.h"
@@ -88,6 +87,9 @@ sql::InitStatus ServerCertificateDatabase::InitInternal(
                        /*compatible_version=*/kCurrentDatabaseVersion)) {
     return sql::InitStatus::INIT_FAILURE;
   }
+  if (meta_table.GetCompatibleVersionNumber() > kCurrentDatabaseVersion) {
+    return sql::INIT_TOO_NEW;
+  }
 
   if (!CreateTable(db_)) {
     return sql::INIT_FAILURE;
@@ -127,7 +129,7 @@ bool ServerCertificateDatabase::InsertOrUpdateCerts(
   }
 
   for (auto&& [cert_info, proto_bytes] :
-       std::views::zip(cert_infos, proto_bytes_vec)) {
+       base::zip(cert_infos, proto_bytes_vec)) {
     sql::Statement insert_statement(db_.GetCachedStatement(
         SQL_FROM_HERE,
         "INSERT OR REPLACE INTO certificates(sha256hash_hex, der_cert, "
@@ -208,7 +210,7 @@ bool ServerCertificateDatabase::DeleteCertificate(
 ServerCertificateDatabase::CertInformation::CertInformation(
     base::span<const uint8_t> cert) {
   der_cert = base::ToVector(cert);
-  sha256hash_hex = base::HexEncodeLower(crypto::hash::Sha256(cert));
+  sha256hash_hex = base::HexEncodeLower(crypto::SHA256Hash(cert));
 }
 ServerCertificateDatabase::CertInformation::CertInformation() = default;
 ServerCertificateDatabase::CertInformation::~CertInformation() = default;

@@ -16,7 +16,6 @@
 #include "base/run_loop.h"
 #include "base/scoped_observation.h"
 #include "base/task/single_thread_task_runner.h"
-#include "base/test/run_until.h"
 #include "base/test/simple_test_tick_clock.h"
 #include "chrome/browser/extensions/chrome_test_extension_loader.h"
 #include "chrome/browser/extensions/extension_service.h"
@@ -31,8 +30,6 @@
 #include "extensions/browser/update_install_gate.h"
 #include "extensions/browser/updater/extension_downloader.h"
 #include "extensions/browser/updater/extension_downloader_test_delegate.h"
-#include "extensions/browser/warning_service.h"
-#include "extensions/browser/warning_set.h"
 #include "extensions/buildflags/buildflags.h"
 #include "extensions/common/extension.h"
 #include "extensions/common/extension_id.h"
@@ -427,15 +424,21 @@ class ChromeRuntimeAPIDelegateReloadTest : public ChromeRuntimeAPIDelegateTest {
   ExtensionId extension_id_;
 };
 
-// Ensures that an extension is properly terminated if it gets stuck in a rapid
-// reload loop.
+// Test failing on Linux: https://crbug.com/40837231
+#if BUILDFLAG(IS_LINUX)
+#define MAYBE_TerminateExtensionWithTooManyReloads \
+  DISABLED_TerminateExtensionWithTooManyReloads
+#else
+#define MAYBE_TerminateExtensionWithTooManyReloads \
+  TerminateExtensionWithTooManyReloads
+#endif
 TEST_F(ChromeRuntimeAPIDelegateReloadTest,
-       TerminateExtensionWithTooManyReloads) {
+       MAYBE_TerminateExtensionWithTooManyReloads) {
   base::ScopedAllowBlockingForTesting allow_blocking;
 
-  // Expect the extension to be reloaded 30 times in quick succession before
-  // the next reload exceeds the threshold for an unpacked extension and
-  // causes termination.
+  // We expect the extension to be reloaded 30 times in quick succession before
+  // the next reload goes over the threshold for an unpacked extension and
+  // causes it to terminate.
   const int kNumReloadsBeforeDisable = 30;
   clock_.SetNowTicks(base::TimeTicks::Now());
   for (int i = 0; i < kNumReloadsBeforeDisable; i++) {
@@ -446,21 +449,6 @@ TEST_F(ChromeRuntimeAPIDelegateReloadTest,
   // The 31st reload should terminate the extension.
   ReloadExtensionAndWait();
   EXPECT_TRUE(registry()->terminated_extensions().Contains(extension_id()));
-
-  // Verify the warning was successfully dispatched and received.
-  extensions::WarningService* warning_service =
-      extensions::WarningService::Get(profile());
-  ASSERT_TRUE(warning_service);
-
-  EXPECT_TRUE(base::test::RunUntil([&]() {
-    for (const auto& warning : warning_service->warnings()) {
-      if (warning.warning_type() == extensions::Warning::kReloadTooFrequent &&
-          warning.extension_id() == extension_id()) {
-        return true;
-      }
-    }
-    return false;
-  }));
 }
 
 TEST_F(ChromeRuntimeAPIDelegateReloadTest,

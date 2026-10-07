@@ -36,4 +36,4 @@ private:
 
 }
 
-#endif  // BASE_CLASS_MUST_DEFINE_VIRTUAL_TRACE_H_
+#endif

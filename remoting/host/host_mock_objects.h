@@ -418,6 +418,7 @@ class MockPeerSession : public PeerSession {
               (EventHandler * event_handler,
                std::string_view client_jid,
                const DesktopEnvironmentOptions& desktop_environment_options,
+               const std::vector<HostExtension*>& extensions,
                const SessionPolicies& session_policies,
                const SessionOptions& session_options),
               (override));
@@ -432,7 +433,7 @@ class MockPeerSession : public PeerSession {
       OnSessionServicesClientConnected,
       (mojo::PendingReceiver<mojom::ChromotingSessionServices> receiver),
       (override));
-  MOCK_METHOD(protocol::Transport*, transport, (), (override));
+  MOCK_METHOD(protocol::Transport*, transport, (), (const, override));
 };
 
 class MockPeerSessionFactory : public PeerSessionFactory {
@@ -445,10 +446,6 @@ class MockPeerSessionFactory : public PeerSessionFactory {
   ~MockPeerSessionFactory() override;
 
   MOCK_METHOD(std::unique_ptr<PeerSession>, Create, (), (override));
-  MOCK_METHOD(void,
-              set_request_pairing_callback,
-              (const RequestPairingCallback&),
-              (override));
 };
 
 }  // namespace remoting

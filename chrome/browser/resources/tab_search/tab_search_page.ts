@@ -50,17 +50,14 @@ export const SEARCH_QUERY_MAX_LENGTH: number = 400;
 
 const TabSearchSearchFieldBase = CrSearchFieldMixinLit(CrLitElement);
 
-// LINT.IfChange(TabSearchTabSwitchAction)
 /**
  * These values are persisted to logs and should not be renumbered or reused.
- * See tools/metrics/histograms/metadata/tab/enums.xml.
+ * See tools/metrics/histograms/enums.xml.
  */
 export enum TabSwitchAction {
   WITHOUT_SEARCH = 0,
   WITH_SEARCH = 1,
-  COUNT = WITH_SEARCH + 1,
 }
-// LINT.ThenChange(//tools/metrics/histograms/metadata/tab/enums.xml:TabSearchTabSwitchAction)
 
 // LINT.IfChange(TabSearchUserAction)
 /**
@@ -383,7 +380,7 @@ export class TabSearchPageElement extends TabSearchSearchFieldBase {
     }
 
     // Check if we need to group any tabs into a new SplitViewData locally.
-    if (tab.splitId) {
+    if (loadTimeData.getBoolean('splitViewTabRestoreEnabled') && tab.splitId) {
       const matchingIndices: number[] = [];
       for (let i = 0; i < this.openTabs_.length; ++i) {
         const item = this.openTabs_[i]!;
@@ -522,7 +519,7 @@ export class TabSearchPageElement extends TabSearchSearchFieldBase {
           'Tabs.TabSearch.WebUI.TabSwitchAction',
           withSearch ? TabSwitchAction.WITH_SEARCH :
                        TabSwitchAction.WITHOUT_SEARCH,
-          TabSwitchAction.COUNT);
+          Object.keys(TabSwitchAction).length);
     }
 
     switch (action) {
@@ -676,7 +673,8 @@ export class TabSearchPageElement extends TabSearchSearchFieldBase {
       const nonSplitTabs: Tab[] = [];
 
       for (const tab of window.tabs) {
-        if (tab.splitId) {
+        if (loadTimeData.getBoolean('splitViewTabRestoreEnabled') &&
+            tab.splitId) {
           const splitIdStr = tokenToString(tab.splitId);
           if (!splitTabsMap.has(splitIdStr)) {
             splitTabsMap.set(splitIdStr, []);
@@ -709,15 +707,20 @@ export class TabSearchPageElement extends TabSearchSearchFieldBase {
     }
     this.openTabs_ = openTabsList;
 
-    const recentlyClosedSplitViews =
+    const splitViewTabRestoreEnabled =
+        loadTimeData.getBoolean('splitViewTabRestoreEnabled');
+
+    const recentlyClosedSplitViews = splitViewTabRestoreEnabled ?
         (profileData.recentlyClosedSplitViews || []).map(splitView => {
           const splitViewData = new SplitViewData({splitView});
           this.updateSplitViewTabGroup_(splitViewData, this.tabGroupsMap_);
           return splitViewData;
-        });
+        }) :
+        [];
 
-    const recentlyClosedTabsFiltered =
-        profileData.recentlyClosedTabs.filter(tab => !tab.splitId);
+    const recentlyClosedTabsFiltered = splitViewTabRestoreEnabled ?
+        profileData.recentlyClosedTabs.filter(tab => !tab.splitId) :
+        profileData.recentlyClosedTabs;
 
     this.recentlyClosedTabs_ = [
       ...recentlyClosedTabsFiltered.map(
@@ -1091,6 +1094,9 @@ export class TabSearchPageElement extends TabSearchSearchFieldBase {
         Math.round(Date.now() - updateStartTime));
   }
 
+  getSearchTextForTesting(): string {
+    return this.searchText_;
+  }
 
   protected onSelectedChange_(
       e: CustomEvent<

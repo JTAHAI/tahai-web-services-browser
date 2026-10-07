@@ -23,9 +23,8 @@ import org.chromium.base.ResettersForTesting;
 import org.chromium.base.supplier.MonotonicObservableSupplier;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
+import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.magic_stack.ModuleRegistry.OnViewCreatedCallback;
-import org.chromium.chrome.browser.ntp.NewTabPageUtils;
-import org.chromium.chrome.browser.ntp.NewTabPageUtils.PaddingStyle;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.components.browser_ui.styles.SemanticColorUtils;
@@ -97,7 +96,10 @@ public class HomeModulesCoordinator implements ModuleDelegate, OnViewCreatedCall
 
                     @Override
                     public void allCardsConfigChanged(boolean isEnabled) {
-                        mRecyclerView.setVisibility(isEnabled ? View.VISIBLE : View.GONE);
+                        if (ChromeFeatureList.isEnabled(
+                                ChromeFeatureList.HOME_MODULE_PREF_REFACTOR)) {
+                            mRecyclerView.setVisibility(isEnabled ? View.VISIBLE : View.GONE);
+                        }
                     }
                 };
         mHomeModulesConfigManager.addListener(mHomeModulesStateListener);
@@ -167,16 +169,6 @@ public class HomeModulesCoordinator implements ModuleDelegate, OnViewCreatedCall
                         : CirclePagerIndicatorDecoration.getItemPerScreen(
                                 mUiConfig.getCurrentDisplayStyle());
         mRecyclerView.initialize(isTablet, startMargin, mItemPerScreen);
-
-        if (NewTabPageUtils.getPaddingStyleForAurora() != PaddingStyle.DEFAULT) {
-            ViewGroup.MarginLayoutParams marginLayoutParams =
-                    (ViewGroup.MarginLayoutParams) mRecyclerView.getLayoutParams();
-            if (marginLayoutParams != null) {
-                marginLayoutParams.topMargin =
-                        NewTabPageUtils.getNtpSectionPaddingPx(activity.getResources());
-                mRecyclerView.setLayoutParams(marginLayoutParams);
-            }
-        }
 
         mPageIndicatorDecoration =
                 new CirclePagerIndicatorDecoration(

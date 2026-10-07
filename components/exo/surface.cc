@@ -27,7 +27,6 @@
 #include "base/trace_event/trace_event.h"
 #include "base/trace_event/traced_value.h"
 #include "build/build_config.h"
-#include "cc/base/math_util.h"
 #include "components/exo/buffer.h"
 #include "components/exo/frame_sink_resource_manager.h"
 #include "components/exo/layer_tree_frame_sink_holder.h"
@@ -56,7 +55,7 @@
 #include "ui/base/cursor/cursor.h"
 #include "ui/base/cursor/mojom/cursor_type.mojom-shared.h"
 #include "ui/base/hit_test.h"
-#include "ui/compositor/layer_solid_color.h"
+#include "ui/compositor/layer.h"
 #include "ui/display/display.h"
 #include "ui/display/screen.h"
 #include "ui/events/event.h"
@@ -364,7 +363,6 @@ Surface::Surface()
 }
 
 Surface::~Surface() {
-  is_destroying_ = true;
   // Tell WindowDelegate that surface is in destruction phrase, and no need to
   // call back to the surface.
   static_cast<CustomWindowDelegate*>(window_->delegate())->reset_surface();
@@ -1764,7 +1762,7 @@ void Surface::AppendContentsToFrame(const gfx::PointF& parent_to_root_px,
 
       if (state_.buffer.has_value() && state_.buffer->buffer() &&
           ShouldDisableOverlay(state_.buffer->buffer()->GetFormat())) {
-        texture_quad->overlay_priority_hint = viz::OverlayPriority::kNone;
+        texture_quad->overlay_priority_hint = viz::OverlayPriority::kLow;
       }
 
 #if BUILDFLAG(USE_ARC_PROTECTED_MEDIA)
@@ -1883,10 +1881,6 @@ void Surface::OnWindowOcclusionChanged(
   // `OcclusionState::VISIBLE` anyway once buffer is attached.
   if (old_occlusion_state == aura::Window::OcclusionState::UNKNOWN &&
       new_occlusion_state == aura::Window::OcclusionState::HIDDEN) {
-    return;
-  }
-
-  if (is_destroying_) {
     return;
   }
 

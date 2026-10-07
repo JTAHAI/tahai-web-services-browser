@@ -486,9 +486,9 @@ TEST_P(DiceResponseHandlerParamTest, Signin_PrimaryConnected) {
   for (const auto& id : account_ids) {
     AccountInfo extended_account_info =
         identity_manager()->FindExtendedAccountInfoByAccountId(id);
-    EXPECT_TRUE(extended_account_info.IsUnderAdvancedProtection());
+    EXPECT_TRUE(extended_account_info.is_under_advanced_protection);
     // Check that the AccessPoint was propagated from the delegate.
-    EXPECT_EQ(extended_account_info.GetLastAuthenticationAccessPoint(),
+    EXPECT_EQ(extended_account_info.access_point,
               signin_metrics::AccessPoint::kSettings);
   }
   EXPECT_EQ(
@@ -1275,7 +1275,7 @@ TEST_F(DiceResponseHandlerTest, CheckSigninAfterOutageInDice) {
   // Check that the AccountInfo::is_under_advanced_protection is set.
   EXPECT_TRUE(identity_manager()
                   ->FindExtendedAccountInfoByAccountId(account_id_2)
-                  .IsUnderAdvancedProtection());
+                  .is_under_advanced_protection);
   task_environment_.FastForwardBy(
       base::Hours(kLockAccountReconcilorTimeoutHours + 1));
   // Check that the reconcilor was unblocked.
@@ -1294,7 +1294,7 @@ TEST_P(DiceResponseHandlerParamTest, Reauth) {
   AccountInfo initiator_account_info =
       identity_test_env_.MakePrimaryAccountAvailable(
           initiator_account->account_info.email, signin::ConsentLevel::kSignin);
-  CoreAccountId initiator_account_id = initiator_account_info.GetAccountId();
+  CoreAccountId initiator_account_id = initiator_account_info.account_id;
 
   identity_test_env_.UpdatePersistentErrorOfRefreshTokenForAccount(
       initiator_account_id,
@@ -1695,7 +1695,7 @@ TEST_F(DiceResponseHandlerTest, SigninRepeatedWithSameAccount) {
   EXPECT_TRUE(identity_manager()->HasAccountWithRefreshToken(account_id));
   EXPECT_TRUE(identity_manager()
                   ->FindExtendedAccountInfoByAccountId(account_id)
-                  .IsUnderAdvancedProtection());
+                  .is_under_advanced_protection);
 
   EXPECT_EQ(
       0u, dice_response_handler_->GetPendingDiceTokenFetchersCountForTesting());
@@ -1754,76 +1754,7 @@ TEST_F(DiceResponseHandlerTest, SigninRepeatedWithDuplicateAccountInHeader) {
   EXPECT_TRUE(identity_manager()->HasAccountWithRefreshToken(account_id));
   EXPECT_TRUE(identity_manager()
                   ->FindExtendedAccountInfoByAccountId(account_id)
-                  .IsUnderAdvancedProtection());
-
-  EXPECT_EQ(
-      0u, dice_response_handler_->GetPendingDiceTokenFetchersCountForTesting());
-}
-
-// Checks that cancelling an in-flight token fetcher while registration token
-// generation is pending does not cause a dangling pointer crash when the
-// asynchronous token generation finishes.
-// Regression test for https://crbug.com/548923019.
-TEST_F(DiceResponseHandlerTest,
-       SigninRepeatedWhileBindingKeyGenerationInFlight) {
-  EnableTokenBindingRegistration();
-  DiceResponseParams dice_params_1 = MakeDiceParams(DiceAction::SIGNIN);
-  const std::string code_1 =
-      dice_params_1.signin_info()->GetInitiator()->authorization_code;
-
-  // Start first request. Token fetch is blocked on registration token
-  // generation.
-  dice_response_handler_->ProcessDiceHeader(
-      std::move(dice_params_1),
-      std::make_unique<TestProcessDiceHeaderDelegate>(this));
-  EXPECT_EQ(
-      1u, dice_response_handler_->GetPendingDiceTokenFetchersCountForTesting());
-  ASSERT_THAT(signin_client_.GetAndClearConsumer(), testing::IsNull());
-
-  // Start a second request for the same account while token generation for the
-  // first is still in flight.
-  DiceResponseParams dice_params_2;
-  DiceResponseParams::SigninInfo* signin_info_2 =
-      &dice_params_2.data.emplace<DiceResponseParams::SigninInfo>();
-  signin_info_2->AddAccount({GetDiceResponseParamsAccountInfo(kEmail),
-                             "authorization_code_2", false,
-                             kEligibleForTokenBinding, false});
-  const std::string code_2 = "authorization_code_2";
-
-  dice_response_handler_->ProcessDiceHeader(
-      std::move(dice_params_2),
-      std::make_unique<TestProcessDiceHeaderDelegate>(this));
-
-  // The first fetcher is cancelled and only the second one is pending.
-  EXPECT_EQ(
-      1u, dice_response_handler_->GetPendingDiceTokenFetchersCountForTesting());
-  ASSERT_THAT(signin_client_.GetAndClearConsumer(), testing::IsNull());
-
-  // Simulate completion of registration token generation for the first
-  // request. The first fetcher was already destroyed, so the callback should be
-  // safely dropped by WeakPtr without crashing.
-  const std::vector<uint8_t> kWrappedKey = {1, 2, 3};
-  SimulateRegistrationTokenHelperResult(
-      code_1, signin::BindingKeyRegistrationTokenResult(
-                  unexportable_keys::UnexportableSigningKeyId(), kWrappedKey,
-                  "test_registration_token_1"));
-
-  // Token fetch for the second request is still waiting for its own token
-  // generation.
-  ASSERT_THAT(signin_client_.GetAndClearConsumer(), testing::IsNull());
-
-  // Complete token generation for the second request.
-  SimulateRegistrationTokenHelperResult(
-      code_2, signin::BindingKeyRegistrationTokenResult(
-                  unexportable_keys::UnexportableSigningKeyId(), kWrappedKey,
-                  "test_registration_token_2"));
-  GaiaAuthConsumer* consumer_2 = signin_client_.GetAndClearConsumer();
-  ASSERT_THAT(consumer_2, testing::NotNull());
-
-  // Complete token fetch for the second request.
-  consumer_2->OnClientOAuthSuccess(GaiaAuthConsumer::ClientOAuthResult(
-      "refresh_token_2", "access_token_2", /*expires_in_secs=*/10,
-      /*is_under_advanced_protection=*/true, /*is_bound_to_key=*/true));
+                  .is_under_advanced_protection);
 
   EXPECT_EQ(
       0u, dice_response_handler_->GetPendingDiceTokenFetchersCountForTesting());
@@ -1942,7 +1873,7 @@ TEST_F(DiceResponseHandlerTest, SigninWithTwoAccounts) {
   EXPECT_TRUE(identity_manager()->HasAccountWithRefreshToken(account_id_1));
   EXPECT_TRUE(identity_manager()
                   ->FindExtendedAccountInfoByAccountId(account_id_1)
-                  .IsUnderAdvancedProtection());
+                  .is_under_advanced_protection);
   // Simulate GaiaAuthFetcher success for the second request.
   consumer_2->OnClientOAuthSuccess(GaiaAuthConsumer::ClientOAuthResult(
       "refresh_token", "access_token", /*expires_in_secs=*/10,
@@ -1951,7 +1882,7 @@ TEST_F(DiceResponseHandlerTest, SigninWithTwoAccounts) {
   EXPECT_TRUE(identity_manager()->HasAccountWithRefreshToken(account_id_2));
   EXPECT_FALSE(identity_manager()
                    ->FindExtendedAccountInfoByAccountId(account_id_2)
-                   .IsUnderAdvancedProtection());
+                   .is_under_advanced_protection);
   // Check that the reconcilor was blocked and unblocked exactly once.
   EXPECT_EQ(1, reconcilor_blocked_count_);
   EXPECT_EQ(1, reconcilor_unblocked_count_);
@@ -2141,9 +2072,8 @@ TEST_F(DiceResponseHandlerTest, SignoutSigninPrimaryAccount) {
       identity_manager()->HasPrimaryAccount(signin::ConsentLevel::kSignin));
 
   // Receive signout response including primary and secondary account.
-  RunSignoutTest(std::move(dice_params),
-                 {secondary_not_signed_out.GetAccountId()},
-                 primary_account.GetAccountId(),
+  RunSignoutTest(std::move(dice_params), {secondary_not_signed_out.account_id},
+                 primary_account.account_id,
                  /*invalid_primary_account=*/true);
 }
 
@@ -2160,14 +2090,13 @@ TEST_F(DiceResponseHandlerTest, SignoutSecondaryAccount) {
   AccountInfo secondary_account_info =
       identity_test_env_.MakeAccountAvailable(secondary_account_email);
   EXPECT_TRUE(identity_manager()->HasAccountWithRefreshToken(
-      secondary_account_info.GetAccountId()));
+      secondary_account_info.account_id));
   EXPECT_TRUE(identity_manager()->HasAccountWithRefreshToken(
-      primary_account_info.GetAccountId()));
+      primary_account_info.account_id));
   EXPECT_TRUE(
       identity_manager()->HasPrimaryAccount(signin::ConsentLevel::kSignin));
   // Receive signout response for the secondary account.
-  RunSignoutTest(std::move(dice_params), {},
-                 primary_account_info.GetAccountId(),
+  RunSignoutTest(std::move(dice_params), {}, primary_account_info.account_id,
                  /*invalid_primary_account=*/false);
 }
 
@@ -2180,15 +2109,14 @@ TEST_F(DiceResponseHandlerTest, SignoutWebOnly) {
       identity_test_env_.MakeAccountAvailable(dice_account_info.email);
   AccountInfo secondary_account_info =
       identity_test_env_.MakeAccountAvailable("other@gmail.com");
+  EXPECT_TRUE(
+      identity_manager()->HasAccountWithRefreshToken(account_info.account_id));
   EXPECT_TRUE(identity_manager()->HasAccountWithRefreshToken(
-      account_info.GetAccountId()));
-  EXPECT_TRUE(identity_manager()->HasAccountWithRefreshToken(
-      secondary_account_info.GetAccountId()));
+      secondary_account_info.account_id));
   EXPECT_FALSE(
       identity_manager()->HasPrimaryAccount(signin::ConsentLevel::kSignin));
   // Receive signout response.
-  RunSignoutTest(std::move(dice_params),
-                 {secondary_account_info.GetAccountId()},
+  RunSignoutTest(std::move(dice_params), {secondary_account_info.account_id},
                  /*primary_account=*/CoreAccountId(),
                  /*invalid_primary_account=*/false);
 }
@@ -2201,11 +2129,11 @@ TEST_F(DiceResponseHandlerTest, SigninSignoutSameAccount) {
   // User is signed in to Chrome.
   AccountInfo account_info = identity_test_env_.MakePrimaryAccountAvailable(
       dice_account_info.email, signin::ConsentLevel::kSignin);
-  EXPECT_TRUE(identity_manager()->HasAccountWithRefreshToken(
-      account_info.GetAccountId()));
+  EXPECT_TRUE(
+      identity_manager()->HasAccountWithRefreshToken(account_info.account_id));
   EXPECT_FALSE(
       identity_manager()->HasAccountWithRefreshTokenInPersistentErrorState(
-          account_info.GetAccountId()));
+          account_info.account_id));
   // Start Dice signin (reauth).
   DiceResponseParams dice_params_2 = MakeDiceParams(DiceAction::SIGNIN);
   dice_response_handler_->ProcessDiceHeader(
@@ -2216,7 +2144,7 @@ TEST_F(DiceResponseHandlerTest, SigninSignoutSameAccount) {
   EXPECT_EQ(
       1u, dice_response_handler_->GetPendingDiceTokenFetchersCountForTesting());
   // Signout while signin is in flight.
-  RunSignoutTest(std::move(dice_params), {}, account_info.GetAccountId(),
+  RunSignoutTest(std::move(dice_params), {}, account_info.account_id,
                  /*invalid_primary_account=*/true);
   // Check that the token fetcher has been canceled and the token is invalid.
   EXPECT_EQ(
@@ -2300,13 +2228,13 @@ TEST_F(DiceResponseHandlerTest, SignoutPrimaryAccountWithSignoutRestrictions) {
   AccountInfo secondary_account_info =
       identity_test_env_.MakeAccountAvailable(kSecondaryEmail);
   EXPECT_TRUE(identity_manager()->HasAccountWithRefreshToken(
-      primary_account.GetAccountId()));
+      primary_account.account_id));
   EXPECT_TRUE(identity_manager()->HasAccountWithRefreshToken(
-      secondary_account_info.GetAccountId()));
+      secondary_account_info.account_id));
   EXPECT_TRUE(
       identity_manager()->HasPrimaryAccount(signin::ConsentLevel::kSignin));
   // Receive signout response.
-  RunSignoutTest(std::move(dice_params), {}, primary_account.GetAccountId(),
+  RunSignoutTest(std::move(dice_params), {}, primary_account.account_id,
                  /*invalid_primary_account=*/true);
 
   // Check that the reconcilor was not blocked.

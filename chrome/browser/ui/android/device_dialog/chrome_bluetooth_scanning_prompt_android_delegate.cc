@@ -6,7 +6,7 @@
 
 #include "base/android/jni_android.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/ssl/chrome_security_state_util.h"
+#include "components/security_state/content/security_state_tab_helper.h"
 
 // Must come after all headers that specialize FromJniType() / ToJniType().
 #include "chrome/android/chrome_jni_headers/ChromeBluetoothScanningPromptAndroidDelegate_jni.h"
@@ -30,7 +30,10 @@ ChromeBluetoothScanningPromptAndroidDelegate::GetJavaObject() {
 security_state::SecurityLevel
 ChromeBluetoothScanningPromptAndroidDelegate::GetSecurityLevel(
     content::WebContents* web_contents) {
-  return chrome_security_state::GetSecurityLevel(web_contents);
+  SecurityStateTabHelper* helper =
+      SecurityStateTabHelper::FromWebContents(web_contents);
+  DCHECK(helper);
+  return helper->GetSecurityLevel();
 }
 
 DEFINE_JNI(ChromeBluetoothScanningPromptAndroidDelegate)

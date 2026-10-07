@@ -5,6 +5,8 @@
 #ifndef ASH_QUICK_PAIR_SCANNING_FAST_PAIR_FAST_PAIR_NOT_DISCOVERABLE_SCANNER_H_
 #define ASH_QUICK_PAIR_SCANNING_FAST_PAIR_FAST_PAIR_NOT_DISCOVERABLE_SCANNER_H_
 
+#include <string>
+
 #include "ash/quick_pair/scanning/fast_pair/fast_pair_scanner.h"
 #include "base/functional/callback_forward.h"
 #include "base/memory/scoped_refptr.h"

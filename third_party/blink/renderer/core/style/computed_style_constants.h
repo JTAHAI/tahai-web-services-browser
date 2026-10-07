@@ -98,7 +98,6 @@ enum PseudoId : uint8_t {
   kPseudoIdViewTransitionOld,
   kPseudoIdViewTransitionNew,
 
-  kPseudoIdSkeleton,
   kPseudoIdOverscrollAreaParent,
 
   // Internal IDs follow:
@@ -122,6 +121,7 @@ enum PseudoId : uint8_t {
   kPseudoIdPickerSelect,
   kPseudoIdSelectListbox,
   kPseudoIdPermissionIcon,
+  kPseudoIdSkeleton,
 
   // Special values follow:
   kAfterLastInternalPseudoId,
@@ -404,8 +404,11 @@ typedef unsigned MarginTrimMask;
 enum EMarginTrim {
   kMarginTrimNone = 0x0,
   kMarginTrimBlockStart = 0x1,
-  kMarginTrimBlockEnd = 0x2,
+  kMarginTrimInlineStart = 0x2,
+  kMarginTrimBlockEnd = 0x4,
+  kMarginTrimInlineEnd = 0x8,
   kMarginTrimBlock = kMarginTrimBlockStart | kMarginTrimBlockEnd,
+  kMarginTrimInline = kMarginTrimInlineStart | kMarginTrimInlineEnd,
 };
 inline EMarginTrim operator|(EMarginTrim a, EMarginTrim b) {
   return EMarginTrim(int(a) | int(b));

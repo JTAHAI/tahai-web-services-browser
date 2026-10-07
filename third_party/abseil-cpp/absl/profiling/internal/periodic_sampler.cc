@@ -15,9 +15,7 @@
 #include "absl/profiling/internal/periodic_sampler.h"
 
 #include <atomic>
-#include <cstdint>
 
-#include "absl/base/optimization.h"
 #include "absl/profiling/internal/exponential_biased.h"
 
 namespace absl {

@@ -28,7 +28,9 @@ class WebAppIconNameAndOriginView : public views::View {
   METADATA_HEADER(WebAppIconNameAndOriginView, views::View)
  public:
   using StartUrl = base::StrongAlias<class StartUrlTag, GURL>;
-  using AppInfo = std::variant<StartUrl, base::Version>;
+  using ParentAppTitle =
+      base::StrongAlias<class ParentAppTitleTag, std::u16string>;
+  using AppInfo = std::variant<StartUrl, base::Version, ParentAppTitle>;
 
   static std::unique_ptr<WebAppIconNameAndOriginView> Create(
       const gfx::ImageSkia& image_skia,

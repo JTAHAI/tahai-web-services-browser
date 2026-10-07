@@ -51,6 +51,10 @@ std::vector<web::JavaScriptFeature::FeatureScript> GetFeatureScripts() {
                       features::kAutofillTrackFormMutationsOptimizationIos)
               ? @"true"
               : @"false",
+          @"window.gCrWebPlaceholderAutofillTrackPasswordFieldsIos" :
+                  base::FeatureList::IsEnabled(kAutofillTrackPasswordFieldsIos)
+              ? @"true"
+              : @"false",
         };
       });
 

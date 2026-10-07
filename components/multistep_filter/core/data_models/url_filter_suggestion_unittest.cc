@@ -23,16 +23,19 @@ constexpr int64_t kTriggeringNavigationId = 123;
 
 TEST(FilterAttributeUiLabelTest, ToString) {
   FilterAttributeUiLabel label(
-      FilterSuggestionCandidateAttribute("key", u"label", u"value"));
+      FilterSuggestionCandidateAttribute("key", u"label"),
+      FilterAttribute("key", "value"));
   EXPECT_EQ(label.ToString(),
             "FilterAttributeUiLabel(key=key, label=label, value=value)");
 }
 
 TEST(FilterAttributeUiLabelTest, Equality) {
   FilterAttributeUiLabel label1(
-      FilterSuggestionCandidateAttribute("key", u"label", u"value"));
+      FilterSuggestionCandidateAttribute("key", u"label"),
+      FilterAttribute("key", "value"));
   FilterAttributeUiLabel label2(
-      FilterSuggestionCandidateAttribute("key", u"label", u"value"));
+      FilterSuggestionCandidateAttribute("key", u"label"),
+      FilterAttribute("key", "value"));
   EXPECT_EQ(label1, label2);
 
   label2.attribute_value = u"other";
@@ -49,7 +52,8 @@ TEST(UrlFilterSuggestionTest, CopyAndMove) {
       .source_host = u"sub.domain",
       .extraction_timestamp = base::Time::Now(),
       .attribute_ui_labels = {FilterAttributeUiLabel(
-          FilterSuggestionCandidateAttribute("key1", u"label1", u"val1"))},
+          FilterSuggestionCandidateAttribute("key1", u"label1"),
+          FilterAttribute("key1", "val1"))},
       .triggering_navigation_id = kTriggeringNavigationId,
       .triggering_host = "sub.example.com",
       .task_type = "task1"});
@@ -67,7 +71,8 @@ TEST(UrlFilterSuggestionTest, Equality) {
       .source_host = u"sub.domain",
       .extraction_timestamp = base::Time::Now(),
       .attribute_ui_labels = {FilterAttributeUiLabel(
-          FilterSuggestionCandidateAttribute("key1", u"label1", u"val1"))},
+          FilterSuggestionCandidateAttribute("key1", u"label1"),
+          FilterAttribute("key1", "val1"))},
       .triggering_navigation_id = kTriggeringNavigationId,
       .triggering_host = "sub.example.com",
       .task_type = "task1"});
@@ -120,7 +125,8 @@ TEST(UrlFilterSuggestionTest, ToString) {
       .source_host = u"sub.domain",
       .extraction_timestamp = timestamp,
       .attribute_ui_labels = {FilterAttributeUiLabel(
-          FilterSuggestionCandidateAttribute("key1", u"label1", u"val1"))},
+          FilterSuggestionCandidateAttribute("key1", u"label1"),
+          FilterAttribute("key1", "val1"))},
       .triggering_navigation_id = kTriggeringNavigationId,
       .triggering_host = "sub.example.com",
       .task_type = "task1"});
@@ -147,9 +153,11 @@ TEST(UrlFilterSuggestionTest, ToStringMultipleAttributes) {
       .extraction_timestamp = timestamp,
       .attribute_ui_labels =
           {FilterAttributeUiLabel(
-               FilterSuggestionCandidateAttribute("key1", u"label1", u"val1")),
+               FilterSuggestionCandidateAttribute("key1", u"label1"),
+               FilterAttribute("key1", "val1")),
            FilterAttributeUiLabel(
-               FilterSuggestionCandidateAttribute("key2", u"label2", u"val2"))},
+               FilterSuggestionCandidateAttribute("key2", u"label2"),
+               FilterAttribute("key2", "val2"))},
       .triggering_navigation_id = kTriggeringNavigationId,
       .triggering_host = "sub.example.com",
       .task_type = "task1",

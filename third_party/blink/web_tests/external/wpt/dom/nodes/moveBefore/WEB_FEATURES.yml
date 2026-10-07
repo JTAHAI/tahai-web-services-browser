@@ -1,3 +1,6 @@
-rules:
-- slotchange-events.html: [slot, move-before]
-- "**": [move-before]
+features:
+- name: move-before
+  files: "**"
+- name: slot
+  files:
+  - slotchange-events.html

@@ -51,7 +51,6 @@ class DownloadClient : public download::Client {
                                       bool force_delete) override;
   void GetUploadData(const std::string& guid,
                      download::GetUploadDataCallback callback) override;
-  bool RequiresCustomRequestParameters() const override;
 
   raw_ptr<content::BrowserContext> browser_context_;
 };

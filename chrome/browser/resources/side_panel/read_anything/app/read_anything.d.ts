@@ -55,6 +55,7 @@ declare namespace chrome {
     let fontSize: number;
     let linksEnabled: boolean;
     let imagesEnabled: boolean;
+    let imagesFeatureEnabled: boolean;
     // The numerical enum value of these styles, not the actual value used to
     // style the app.
     let lineSpacing: number;
@@ -111,6 +112,9 @@ declare namespace chrome {
     let lineFocusStaticLine: number;
     let lineFocusCursorLine: number;
 
+    // Whether the Immersive Read Anything feature flag is enabled.
+    let isImmersiveEnabled: boolean;
+
     // Whether the Improved Read Aloud feature flag is enabled.
     let isImprovedReadAloudEnabled: boolean;
 
@@ -119,10 +123,6 @@ declare namespace chrome {
 
     // Whether the Read Anything Translate Entry Point feature flag is enabled.
     let isReadAnythingTranslateEntryPointEnabled: boolean;
-
-    // Whether the Read Anything Read Aloud Experimental Playback UI flag is
-    // enabled.
-    let isReadAnythingReadAloudExperimentalPlaybackUiEnabled: boolean;
 
     // Whether Read Anything is pinned to the toolbar.
     let isReadAnythingPinned: boolean;
@@ -157,6 +157,9 @@ declare namespace chrome {
     // The fallback language, corresponding to the browser language, that
     // should only be used when baseLanguageForSpeech is unavailable.
     let defaultLanguageForSpeech: string;
+
+    // If the current platform is ChromeOS Ash.
+    let isChromeOsAsh: boolean;
 
     // If distillations have been queued up.
     let requiresDistillation: boolean;
@@ -216,6 +219,10 @@ declare namespace chrome {
     // in this node, only returns children which are partially or entirely
     // contained within the selection.
     function getChildren(nodeId: number): number[];
+
+    // Returns content of "data-font-css" html attribute. This is needed for
+    // rendering content from annotated canvas in Google Docs.
+    function getDataFontCss(nodeId: number): string;
 
     // Returns the HTML tag of the AXNode for the provided AXNodeID.
     function getHtmlTag(nodeId: number): string;
@@ -374,6 +381,39 @@ declare namespace chrome {
 
     // Called when the number of words heard by a read aloud user changes.
     function updateWordsHeard(wordsHeard: number): void;
+
+    // Set the content. Used by tests only.
+    // SnapshotLite is a data structure which resembles an AXTreeUpdate. E.g.:
+    //   const axTree = {
+    //     rootId: 1,
+    //     nodes: [
+    //       {
+    //         id: 1,
+    //         role: 'rootWebArea',
+    //         childIds: [2],
+    //       },
+    //       {
+    //         id: 2,
+    //         role: 'staticText',
+    //         name: 'Some text.',
+    //       },
+    //     ],
+    //   };
+    function setContentForTesting(
+        snapshotLite: Object, contentNodeIds: number[]): void;
+    // Sets the same structure as setContentForTesting but forces
+    // the processing of the AX Tree Anchors.
+    function setAnchorsForTesting(
+        snapshotLite: Object, contentNodeIds: number[]): void;
+
+    // Set the theme. Used by tests only.
+    function setThemeForTesting(
+        fontName: string, fontSize: number, linksEnabled: boolean,
+        foregroundColor: number, backgroundColor: number, lineSpacing: number,
+        letterSpacing: number): void;
+
+    // Sets the page language. Used by tests only.
+    function setLanguageForTesting(code: string): void;
 
     // Called when the side panel has finished loading and it's safe to call
     // SidePanelWebUIView::ShowUI
@@ -580,9 +620,9 @@ declare namespace chrome {
 
     // Called when the main frame undergoes a same document navigation (such as
     // a fragment navigation).
-    function onMainFrameSameDocumentNavigation(url: string): void;
+    let onMainFrameSameDocumentNavigation: (url: string) => void;
 
     // Called to inform the web ui to play read aloud on open.
-    function setPlayOnOpen(playOnOpen: boolean): void;
+    let setPlayOnOpen: (playOnOpen: boolean) => void;
   }
 }

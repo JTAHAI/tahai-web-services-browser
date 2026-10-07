@@ -6,7 +6,6 @@
 
 #include "third_party/blink/renderer/core/css/container_query.h"
 #include "third_party/blink/renderer/core/css/container_query_evaluator.h"
-#include "third_party/blink/renderer/core/css/container_query_set.h"
 #include "third_party/blink/renderer/core/css/resolver/match_result.h"
 #include "third_party/blink/renderer/core/css/style_recalc_context.h"
 #include "third_party/blink/renderer/core/dom/document.h"
@@ -15,15 +14,15 @@
 
 namespace blink {
 
-ContainerQueryList::ContainerQueryList(
-    ExecutionContext* context,
-    const ContainerQuerySet* container_query_set,
-    Element* element)
+ContainerQueryList::ContainerQueryList(ExecutionContext* context,
+                                       ContainerQuery* container_query,
+                                       Element* element)
     : ActiveScriptWrappable<ContainerQueryList>({}),
       ExecutionContextLifecycleObserver(context),
-      container_query_set_(container_query_set),
+      container_query_(container_query),
       element_(element) {
   CHECK(element);
+  CHECK(container_query);
 }
 
 ContainerQueryList::~ContainerQueryList() = default;
@@ -36,36 +35,29 @@ bool ContainerQueryList::matches() {
   return matches_;
 }
 
-String ContainerQueryList::query() const {
-  if (!container_query_set_) {
-    return String();
-  }
-  return container_query_set_->ToString();
+Element* ContainerQueryList::ResolveContainer() {
+  Element* starting_element = FlatTreeTraversal::ParentElement(*element_);
+  return ContainerQueryEvaluator::FindContainer(
+      starting_element, container_query_->Selector(), nullptr);
 }
 
 void ContainerQueryList::UpdateMatches() {
-  matches_ = false;
-
-  if (!container_query_set_) {
+  if (container_query_->Selector().HasUnknownFeature()) {
+    matches_ = false;
     return;
   }
 
-  Element* starting_element = FlatTreeTraversal::ParentElement(*element_);
+  container_ = ResolveContainer();
+  if (!container_) {
+    matches_ = false;
+    return;
+  }
+
+  StyleRecalcContext context = StyleRecalcContext::FromAncestors(*container_);
   ContainerSelectorCache cache;
   MatchResult result;
-  for (const ContainerQuery* container_query :
-       container_query_set_->Queries()) {
-    if (container_query->Selector().HasUnknownFeature()) {
-      continue;
-    }
-
-    if (ContainerQueryEvaluator::EvalAndAdd(starting_element,
-                                            StyleRecalcContext(),
-                                            *container_query, cache, result)) {
-      matches_ = true;
-      break;
-    }
-  }
+  matches_ = ContainerQueryEvaluator::EvalAndAdd(
+      container_, context, *container_query_, cache, result);
 }
 
 bool ContainerQueryList::HasPendingActivity() const {
@@ -77,8 +69,9 @@ void ContainerQueryList::ContextDestroyed() {
 }
 
 void ContainerQueryList::Trace(Visitor* visitor) const {
-  visitor->Trace(container_query_set_);
+  visitor->Trace(container_query_);
   visitor->Trace(element_);
+  visitor->Trace(container_);
   EventTarget::Trace(visitor);
   ExecutionContextLifecycleObserver::Trace(visitor);
 }

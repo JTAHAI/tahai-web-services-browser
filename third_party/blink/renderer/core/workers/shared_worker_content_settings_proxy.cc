@@ -7,80 +7,63 @@
 #include <memory>
 #include <utility>
 
-#include "base/task/single_thread_task_runner.h"
+#include "base/metrics/histogram_macros.h"
 #include "third_party/blink/public/mojom/worker/worker_content_settings_proxy.mojom-blink.h"
-#include "third_party/blink/renderer/platform/wtf/functional.h"
+#include "third_party/blink/renderer/platform/wtf/thread_specific.h"
 
 namespace blink {
 
 SharedWorkerContentSettingsProxy::SharedWorkerContentSettingsProxy(
     mojo::PendingRemote<mojom::blink::WorkerContentSettingsProxy> host_info)
-    : host_info_(std::move(host_info)) {
-  DETACH_FROM_THREAD(worker_thread_checker_);
-}
-
-SharedWorkerContentSettingsProxy::~SharedWorkerContentSettingsProxy() {
-  DCHECK_CALLED_ON_VALID_THREAD(worker_thread_checker_);
-}
-
-void SharedWorkerContentSettingsProxy::AllowStorageAccess(
-    StorageType storage_type,
-    base::OnceCallback<void(bool)> callback) {
-  DCHECK_CALLED_ON_VALID_THREAD(worker_thread_checker_);
-  switch (storage_type) {
-    case StorageType::kIndexedDB:
-      GetService()->AllowIndexedDB(std::move(callback));
-      return;
-    case StorageType::kCacheStorage:
-      GetService()->AllowCacheStorage(std::move(callback));
-      return;
-    case StorageType::kWebLocks:
-      GetService()->AllowWebLocks(std::move(callback));
-      return;
-    case StorageType::kFileSystem:
-      GetService()->AllowFileSystem(std::move(callback));
-      return;
-    default:
-      // TODO(crbug.com/40103756): Revisit this default in the future.
-      base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
-          FROM_HERE, blink::BindOnce(std::move(callback), true));
-      return;
-  }
-}
+    : host_info_(std::move(host_info)) {}
+SharedWorkerContentSettingsProxy::~SharedWorkerContentSettingsProxy() = default;
 
 bool SharedWorkerContentSettingsProxy::AllowStorageAccessSync(
     StorageType storage_type) {
-  DCHECK_CALLED_ON_VALID_THREAD(worker_thread_checker_);
   bool result = false;
   switch (storage_type) {
-    case StorageType::kIndexedDB:
+    case StorageType::kIndexedDB: {
+      SCOPED_UMA_HISTOGRAM_TIMER("ServiceWorker.AllowIndexedDBTime");
       GetService()->AllowIndexedDB(&result);
       break;
-    case StorageType::kCacheStorage:
+    }
+    case StorageType::kCacheStorage: {
+      SCOPED_UMA_HISTOGRAM_TIMER("ServiceWorker.AllowCacheStorageTime");
       GetService()->AllowCacheStorage(&result);
       break;
-    case StorageType::kWebLocks:
+    }
+    case StorageType::kWebLocks: {
+      SCOPED_UMA_HISTOGRAM_TIMER("ServiceWorker.AllowWebLocksTime");
       GetService()->AllowWebLocks(&result);
       break;
-    case StorageType::kFileSystem:
-      GetService()->AllowFileSystem(&result);
+    }
+    case StorageType::kFileSystem: {
+      SCOPED_UMA_HISTOGRAM_TIMER("ServiceWorker.RequestFileSystemAccessTime");
+      GetService()->RequestFileSystemAccessSync(&result);
       break;
-    default:
-      // TODO(crbug.com/40103756): Revisit this default in the future.
+    }
+    default: {
+      // TODO(shuagga@microsoft.com): Revisit this default in the future.
       return true;
+    }
   }
 
   return result;
 }
 
+// Use ThreadSpecific to ensure that |content_settings_instance_host| is
+// destructed on worker thread.
+// Each worker has a dedicated thread so this is safe.
 mojo::Remote<mojom::blink::WorkerContentSettingsProxy>&
 SharedWorkerContentSettingsProxy::GetService() {
-  DCHECK_CALLED_ON_VALID_THREAD(worker_thread_checker_);
-  if (!host_remote_.is_bound()) {
+  DEFINE_THREAD_SAFE_STATIC_LOCAL(
+      ThreadSpecific<mojo::Remote<mojom::blink::WorkerContentSettingsProxy>>,
+      content_settings_instance_host, ());
+  if (!content_settings_instance_host.IsSet()) {
     DCHECK(host_info_.is_valid());
-    host_remote_.Bind(std::move(host_info_));
+    content_settings_instance_host->Bind(std::move(host_info_));
   }
-  return host_remote_;
+  return *content_settings_instance_host;
 }
 
 }  // namespace blink

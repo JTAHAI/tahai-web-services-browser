@@ -246,7 +246,8 @@ void FakeFunctor::ReleaseOnRT(base::OnceClosure callback) {
   {
     RenderThreadManager::InsideHardwareReleaseReset release_reset(
         render_thread_manager_.get());
-    render_thread_manager_->DestroyHardwareRendererOnRT();
+    render_thread_manager_->DestroyHardwareRendererOnRT(
+        false /* abandon_context */);
   }
   render_thread_manager_.reset();
   std::move(callback).Run();
@@ -267,7 +268,8 @@ void FakeFunctor::ReleaseOnUIWithInvoke() {
 void FakeFunctor::Invoke(WindowHooks* hooks) {
   DCHECK(render_thread_manager_);
   hooks->WillProcessOnRT();
-  render_thread_manager_->DestroyHardwareRendererOnRT();
+  bool abandon_context = true;  // For test coverage.
+  render_thread_manager_->DestroyHardwareRendererOnRT(abandon_context);
   hooks->DidProcessOnRT();
 }
 

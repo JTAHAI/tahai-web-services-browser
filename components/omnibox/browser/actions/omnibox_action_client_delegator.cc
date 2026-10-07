@@ -34,10 +34,8 @@ bool OmniboxActionClientDelegator::OpenJourneys(const std::string& query) {
   return delegate_->OpenJourneys(query);
 }
 
-void OmniboxActionClientDelegator::OpenLensOverlay(
-    bool show,
-    lens::LensOverlayInvocationSource invocation_source) {
-  delegate_->OpenLensOverlay(show, invocation_source);
+void OmniboxActionClientDelegator::OpenLensOverlay(bool show) {
+  delegate_->OpenLensOverlay(show);
 }
 
 bool OmniboxActionClientDelegator::ShouldOpenCoBrowsePanel() const {

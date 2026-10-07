@@ -15,14 +15,16 @@ import androidx.annotation.Nullable;
 import androidx.annotation.UiThread;
 import androidx.annotation.WorkerThread;
 
+import com.android.webview.chromium.WebViewChromiumAwInit.CallSite;
+
 import org.chromium.android_webview.AwBrowserContext;
 import org.chromium.android_webview.AwBrowserContextStore;
 import org.chromium.android_webview.AwHttpCacheManager;
 import org.chromium.android_webview.AwOriginMatchedHeader;
-import org.chromium.android_webview.StartupCallSite;
 import org.chromium.android_webview.common.AwFeatureMap;
 import org.chromium.android_webview.common.AwFeatures;
 import org.chromium.android_webview.common.Lifetime;
+import org.chromium.android_webview.common.WebViewCachedFlags;
 import org.chromium.base.Log;
 import org.chromium.base.ThreadUtils;
 import org.chromium.base.TraceEvent;
@@ -104,7 +106,10 @@ public class Profile {
             ServiceWorkerController serviceWorkerController;
 
             WebViewChromiumFactoryProvider factory = WebViewChromiumFactoryProvider.getSingleton();
-            if (browserContext.isDefaultAwBrowserContext()) {
+            if (browserContext.isDefaultAwBrowserContext()
+                    && !WebViewCachedFlags.get()
+                            .isCachedFeatureEnabled(
+                                    AwFeatures.WEBVIEW_BYPASS_PROVISIONAL_COOKIE_MANAGER)) {
                 cookieManager = CookieManager.getInstance();
             } else {
                 cookieManager = new CookieManagerAdapter(browserContext.getCookieManager());
@@ -127,7 +132,7 @@ public class Profile {
     }
 
     @NonNull
-    private State getInitializedState(@StartupCallSite int callSite) {
+    private State getInitializedState(@CallSite int callSite) {
         if (mState != null) {
             return mState;
         }
@@ -159,7 +164,7 @@ public class Profile {
     }
 
     public AwBrowserContext getBrowserContext() {
-        return getInitializedState(StartupCallSite.PROFILE_GET_BROWSER_CONTEXT).browserContext;
+        return getInitializedState(CallSite.PROFILE_GET_BROWSER_CONTEXT).browserContext;
     }
 
     @NonNull
@@ -168,7 +173,7 @@ public class Profile {
     }
 
     public void preconnect(String url) {
-        getInitializedState(StartupCallSite.PROFILE_PRECONNECT)
+        getInitializedState(CallSite.PROFILE_PRECONNECT)
                 .browserContext
                 .getPreconnector()
                 .preconnect(new GURL(url));
@@ -209,7 +214,7 @@ public class Profile {
 
     @NonNull
     public CookieManager getCookieManager() {
-        State state = getInitializedState(StartupCallSite.PROFILE_GET_COOKIE_MANAGER);
+        State state = getInitializedState(CallSite.PROFILE_GET_COOKIE_MANAGER);
 
         try (TraceEvent event =
                 TraceEvent.scoped("WebView.Profile.ApiCall.GET_COOKIE_MANAGER", mTraceArgs)) {
@@ -219,18 +224,18 @@ public class Profile {
 
     @NonNull
     public WebStorage getWebStorage() {
-        return getInitializedState(StartupCallSite.PROFILE_GET_WEB_STORAGE).webStorage;
+        return getInitializedState(CallSite.PROFILE_GET_WEB_STORAGE).webStorage;
     }
 
     @NonNull
     public GeolocationPermissions getGeolocationPermissions() {
-        return getInitializedState(StartupCallSite.PROFILE_GET_GEOLOCATION_PERMISSIONS)
+        return getInitializedState(CallSite.PROFILE_GET_GEOLOCATION_PERMISSIONS)
                 .geolocationPermissions;
     }
 
     @NonNull
     public ServiceWorkerController getServiceWorkerController() {
-        return getInitializedState(StartupCallSite.PROFILE_GET_SERVICE_WORKER_CONTROLLER)
+        return getInitializedState(CallSite.PROFILE_GET_SERVICE_WORKER_CONTROLLER)
                 .serviceWorkerController;
     }
 
@@ -241,7 +246,7 @@ public class Profile {
             Executor callbackExecutor,
             PrefetchOperationCallback resultCallback) {
         AwBrowserContext browserContext =
-                getInitializedState(StartupCallSite.PROFILE_PREFETCH_URL).browserContext;
+                getInitializedState(CallSite.PROFILE_PREFETCH_URL).browserContext;
 
         try (TraceEvent event = TraceEvent.scoped("WebView.Profile.ApiCall.Prefetch.PRE_START")) {
             validatePrefetchArgs(url, resultCallback);
@@ -264,7 +269,7 @@ public class Profile {
             PrefetchOperationCallback resultCallback,
             Consumer<Integer> prefetchKeyListener) {
         AwBrowserContext browserContext =
-                getInitializedState(StartupCallSite.PROFILE_PREFETCH_URL_ASYNC).browserContext;
+                getInitializedState(CallSite.PROFILE_PREFETCH_URL_ASYNC).browserContext;
 
         try (TraceEvent event =
                 TraceEvent.scoped("WebView.Profile.ApiCall.Prefetch.PRE_START_ASYNC")) {
@@ -283,7 +288,7 @@ public class Profile {
 
     @UiThread
     public void cancelPrefetch(int prefetchKey) {
-        getInitializedState(StartupCallSite.PROFILE_CANCEL_PREFETCH)
+        getInitializedState(CallSite.PROFILE_CANCEL_PREFETCH)
                 .browserContext
                 .getPrefetchManager()
                 .cancelPrefetch(prefetchKey);
@@ -298,7 +303,7 @@ public class Profile {
         if (maxPrerenders == null) {
             clearMaxPrerenders();
         } else if (maxPrerenders >= 0) {
-            getInitializedState(StartupCallSite.PROFILE_SET_MAX_PRERENDERS)
+            getInitializedState(CallSite.PROFILE_SET_MAX_PRERENDERS)
                     .browserContext
                     .setMaxPrerenders(maxPrerenders);
         } else {
@@ -309,7 +314,7 @@ public class Profile {
     /** Restores the default maxPrerenders */
     @UiThread
     public void clearMaxPrerenders() {
-        getInitializedState(StartupCallSite.PROFILE_CLEAR_MAX_PRERENDERS)
+        getInitializedState(CallSite.PROFILE_CLEAR_MAX_PRERENDERS)
                 .browserContext
                 .clearMaxPrerenders();
     }
@@ -319,7 +324,7 @@ public class Profile {
      */
     @UiThread
     public int getMaxPrerenders() {
-        return getInitializedState(StartupCallSite.PROFILE_GET_MAX_PRERENDERS)
+        return getInitializedState(CallSite.PROFILE_GET_MAX_PRERENDERS)
                 .browserContext
                 .getAllowedPrerenderingCount();
     }
@@ -332,7 +337,7 @@ public class Profile {
         if (maxPrerenders < 0) {
             throw new IllegalArgumentException("Maximum prerenders can not be negative.");
         }
-        getInitializedState(StartupCallSite.PROFILE_SET_MAX_PRERENDERS)
+        getInitializedState(CallSite.PROFILE_SET_MAX_PRERENDERS)
                 .browserContext
                 .setMaxPrerenders(maxPrerenders);
     }
@@ -345,7 +350,7 @@ public class Profile {
         if (maxPrefetches < 0) {
             throw new IllegalArgumentException("Maximum prefetches can not be negative.");
         }
-        getInitializedState(StartupCallSite.PROFILE_SET_MAX_PREFETCHES)
+        getInitializedState(CallSite.PROFILE_SET_MAX_PREFETCHES)
                 .browserContext
                 .getPrefetchManager()
                 .setMaxPrefetches(maxPrefetches);
@@ -360,7 +365,7 @@ public class Profile {
         if (maxPrefetches == null) {
             clearMaxPrefetches();
         } else if (maxPrefetches >= 0) {
-            getInitializedState(StartupCallSite.PROFILE_SET_MAX_PREFETCHES)
+            getInitializedState(CallSite.PROFILE_SET_MAX_PREFETCHES)
                     .browserContext
                     .getPrefetchManager()
                     .setMaxPrefetches(maxPrefetches);
@@ -378,7 +383,7 @@ public class Profile {
         if (prefetchTtlSeconds == null) {
             clearPrefetchTtl();
         } else if (prefetchTtlSeconds >= 0) {
-            getInitializedState(StartupCallSite.PROFILE_SET_PREFETCH_TTL_SECONDS)
+            getInitializedState(CallSite.PROFILE_SET_PREFETCH_TTL_SECONDS)
                     .browserContext
                     .getPrefetchManager()
                     .setPrefetchTtlSeconds(prefetchTtlSeconds);
@@ -393,8 +398,7 @@ public class Profile {
     @UiThread
     public void setPrefetchTtlSeconds(int prefetchTtlSeconds) {
         AwBrowserContext browserContext =
-                getInitializedState(StartupCallSite.PROFILE_SET_PREFETCH_TTL_SECONDS)
-                        .browserContext;
+                getInitializedState(CallSite.PROFILE_SET_PREFETCH_TTL_SECONDS).browserContext;
 
         if (prefetchTtlSeconds < 0) {
             throw new IllegalArgumentException("Prefetch TTL seconds can not be negative.");
@@ -405,7 +409,7 @@ public class Profile {
     /** Restores the maximum number of prefetches to its default value. */
     @UiThread
     public void clearMaxPrefetches() {
-        getInitializedState(StartupCallSite.PROFILE_CLEAR_MAX_PREFETCHES)
+        getInitializedState(CallSite.PROFILE_CLEAR_MAX_PREFETCHES)
                 .browserContext
                 .getPrefetchManager()
                 .clearMaxPrefetches();
@@ -414,7 +418,7 @@ public class Profile {
     /** Sets the TTL seconds for prefetch to its default value. */
     @UiThread
     public void clearPrefetchTtl() {
-        getInitializedState(StartupCallSite.PROFILE_CLEAR_PREFETCH_TTL)
+        getInitializedState(CallSite.PROFILE_CLEAR_PREFETCH_TTL)
                 .browserContext
                 .getPrefetchManager()
                 .clearPrefetchTtl();
@@ -425,7 +429,7 @@ public class Profile {
      */
     @UiThread
     public int getMaxPrefetches() {
-        return getInitializedState(StartupCallSite.PROFILE_GET_MAX_PREFETCHES)
+        return getInitializedState(CallSite.PROFILE_GET_MAX_PREFETCHES)
                 .browserContext
                 .getPrefetchManager()
                 .getMaxPrefetches();
@@ -436,7 +440,7 @@ public class Profile {
      */
     @UiThread
     public int getPrefetchTtlSeconds() {
-        return getInitializedState(StartupCallSite.PROFILE_GET_PREFETCH_TTL_SECONDS)
+        return getInitializedState(CallSite.PROFILE_GET_PREFETCH_TTL_SECONDS)
                 .browserContext
                 .getPrefetchManager()
                 .getPrefetchTtlSeconds();
@@ -445,8 +449,7 @@ public class Profile {
     @UiThread
     public void setSpeculativeLoadingConfig(SpeculativeLoadingConfig speculativeLoadingConfig) {
         AwBrowserContext browserContext =
-                getInitializedState(StartupCallSite.PROFILE_SET_SPECULATIVE_LOADING_CONFIG)
-                        .browserContext;
+                getInitializedState(CallSite.PROFILE_SET_SPECULATIVE_LOADING_CONFIG).browserContext;
 
         browserContext
                 .getPrefetchManager()
@@ -471,8 +474,7 @@ public class Profile {
     @UiThread
     public void warmUpRendererProcess() {
         AwBrowserContext browserContext =
-                getInitializedState(StartupCallSite.PROFILE_WARM_UP_RENDERER_PROCESS)
-                        .browserContext;
+                getInitializedState(CallSite.PROFILE_WARM_UP_RENDERER_PROCESS).browserContext;
 
         try (TraceEvent event =
                 TraceEvent.scoped("WebView.Profile.ApiCall.WARM_UP_RENDERER_PROCESS")) {
@@ -483,7 +485,7 @@ public class Profile {
     @UiThread
     public void setOriginMatchedHeader(
             String headerName, String headerValue, Set<String> originRules) {
-        getInitializedState(StartupCallSite.PROFILE_SET_ORIGIN_MATCHED_HEADER)
+        getInitializedState(CallSite.PROFILE_SET_ORIGIN_MATCHED_HEADER)
                 .browserContext
                 .setOriginMatchedHeader(headerName, headerValue, originRules);
     }
@@ -491,14 +493,14 @@ public class Profile {
     @UiThread
     public void addOriginMatchedHeader(
             String headerName, String headerValue, Set<String> originRules) {
-        getInitializedState(StartupCallSite.PROFILE_ADD_ORIGIN_MATCHED_HEADER)
+        getInitializedState(CallSite.PROFILE_ADD_ORIGIN_MATCHED_HEADER)
                 .browserContext
                 .addOriginMatchedHeader(headerName, headerValue, originRules);
     }
 
     @UiThread
     public boolean hasOriginMatchedHeader(String headerName) {
-        return getInitializedState(StartupCallSite.PROFILE_HAS_ORIGIN_MATCHED_HEADER)
+        return getInitializedState(CallSite.PROFILE_HAS_ORIGIN_MATCHED_HEADER)
                 .browserContext
                 .hasOriginMatchedHeader(headerName);
     }
@@ -506,21 +508,21 @@ public class Profile {
     @UiThread
     public List<AwOriginMatchedHeader> findOriginMatchedHeaders(
             @Nullable String headerName, @Nullable String headerValue) {
-        return getInitializedState(StartupCallSite.PROFILE_FIND_ORIGIN_MATCHED_HEADERS)
+        return getInitializedState(CallSite.PROFILE_FIND_ORIGIN_MATCHED_HEADERS)
                 .browserContext
                 .findOriginMatchedHeaders(headerName, headerValue);
     }
 
     @UiThread
     public void clearOriginMatchedHeader(String headerName, @Nullable String headerValue) {
-        getInitializedState(StartupCallSite.PROFILE_CLEAR_ORIGIN_MATCHED_HEADER)
+        getInitializedState(CallSite.PROFILE_CLEAR_ORIGIN_MATCHED_HEADER)
                 .browserContext
                 .clearOriginMatchedHeader(headerName, headerValue);
     }
 
     @UiThread
     public void clearAllOriginMatchedHeaders() {
-        getInitializedState(StartupCallSite.PROFILE_CLEAR_ALL_ORIGIN_MATCHED_HEADERS)
+        getInitializedState(CallSite.PROFILE_CLEAR_ALL_ORIGIN_MATCHED_HEADERS)
                 .browserContext
                 .clearAllOriginMatchedHeaders();
     }
@@ -531,7 +533,7 @@ public class Profile {
                 .addTask(
                         () -> {
                             AwBrowserContext browserContext =
-                                    getInitializedState(StartupCallSite.PROFILE_ADD_QUIC_HINTS)
+                                    getInitializedState(CallSite.PROFILE_ADD_QUIC_HINTS)
                                             .browserContext;
 
                             if (AwFeatureMap.isEnabled(AwFeatures.WEBVIEW_ADD_QUIC_HINTS)) {
@@ -547,21 +549,21 @@ public class Profile {
      */
     @UiThread
     public AwHttpCacheManager getHttpCacheManager() {
-        return getInitializedState(StartupCallSite.PROFILE_GET_HTTP_CACHE_MANAGER)
+        return getInitializedState(CallSite.PROFILE_GET_HTTP_CACHE_MANAGER)
                 .browserContext
                 .getHttpCacheManager();
     }
 
     @UiThread
     public void setCrossOriginIsolatedAllowList(@NonNull Set<String> originPatterns) {
-        getInitializedState(StartupCallSite.PROFILE_SET_CROSS_ORIGIN_ISOLATED_ALLOW_LIST)
+        getInitializedState(CallSite.PROFILE_SET_CROSS_ORIGIN_ISOLATED_ALLOW_LIST)
                 .browserContext
                 .setCrossOriginIsolatedAllowList(originPatterns);
     }
 
     @UiThread
     public @NonNull Set<String> getCrossOriginIsolatedAllowList() {
-        return getInitializedState(StartupCallSite.PROFILE_GET_CROSS_ORIGIN_ISOLATED_ALLOW_LIST)
+        return getInitializedState(CallSite.PROFILE_GET_CROSS_ORIGIN_ISOLATED_ALLOW_LIST)
                 .browserContext
                 .getCrossOriginIsolatedAllowList();
     }

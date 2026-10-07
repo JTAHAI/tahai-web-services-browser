@@ -105,23 +105,16 @@ CookieStoreManager::CookieStoreManager(ServiceWorkerRegistration& registration)
       registration_(&registration),
       backend_(registration.GetExecutionContext()),
       default_cookie_url_(DefaultCookieURL(&registration)) {
-  if (auto* execution_context = registration.GetExecutionContext()) {
-    execution_context->GetBrowserInterfaceBroker().GetInterface(
-        backend_.BindNewPipeAndPassReceiver(
-            execution_context->GetTaskRunner(TaskType::kDOMManipulation)));
-  }
+  auto* execution_context = registration.GetExecutionContext();
+  execution_context->GetBrowserInterfaceBroker().GetInterface(
+      backend_.BindNewPipeAndPassReceiver(
+          execution_context->GetTaskRunner(TaskType::kDOMManipulation)));
 }
 
 ScriptPromise<IDLUndefined> CookieStoreManager::subscribe(
     ScriptState* script_state,
     const HeapVector<Member<CookieStoreGetOptions>>& subscriptions,
     ExceptionState& exception_state) {
-  if (!backend_.is_bound()) {
-    exception_state.ThrowDOMException(DOMExceptionCode::kInvalidStateError,
-                                      "CookieStore backend went away");
-    return EmptyPromise();
-  }
-
   Vector<mojom::blink::CookieChangeSubscriptionPtr> backend_subscriptions;
   backend_subscriptions.ReserveInitialCapacity(subscriptions.size());
   for (const CookieStoreGetOptions* subscription : subscriptions) {
@@ -148,12 +141,6 @@ ScriptPromise<IDLUndefined> CookieStoreManager::unsubscribe(
     ScriptState* script_state,
     const HeapVector<Member<CookieStoreGetOptions>>& subscriptions,
     ExceptionState& exception_state) {
-  if (!backend_.is_bound()) {
-    exception_state.ThrowDOMException(DOMExceptionCode::kInvalidStateError,
-                                      "CookieStore backend went away");
-    return EmptyPromise();
-  }
-
   Vector<mojom::blink::CookieChangeSubscriptionPtr> backend_subscriptions;
   backend_subscriptions.ReserveInitialCapacity(subscriptions.size());
   for (const CookieStoreGetOptions* subscription : subscriptions) {

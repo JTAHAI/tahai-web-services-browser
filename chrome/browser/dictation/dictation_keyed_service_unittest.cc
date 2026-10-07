@@ -4,7 +4,6 @@
 
 #include "chrome/browser/dictation/dictation_keyed_service.h"
 
-#include "base/test/bind.h"
 #include "base/test/metrics/histogram_tester.h"
 #include "base/test/run_until.h"
 #include "base/test/scoped_feature_list.h"
@@ -20,14 +19,10 @@
 
 namespace dictation {
 
-class DictationKeyedServiceTest : public testing::Test,
-                                  public testing::WithParamInterface<bool> {
+class DictationKeyedServiceTest : public testing::Test {
  public:
   DictationKeyedServiceTest()
-      : scoped_feature_list_(CreateEnablingFeatureList(GetParam())),
-        tab_weak_factory_(&tab_) {
-    ON_CALL(tab_, GetWeakPtr())
-        .WillByDefault(testing::Return(tab_weak_factory_.GetWeakPtr()));
+      : scoped_feature_list_(CreateEnablingFeatureList()) {
     profile_.GetPrefs()->SetBoolean(prefs::kPrefDictationOnboardingCompleted,
                                     true);
     service_ = std::make_unique<MockDictationKeyedService>(&profile_);
@@ -39,26 +34,23 @@ class DictationKeyedServiceTest : public testing::Test,
   TestingProfile profile_;
   base::test::ScopedFeatureList scoped_feature_list_;
   tabs::MockTabInterface tab_;
-  base::WeakPtrFactory<tabs::TabInterface> tab_weak_factory_;
   std::unique_ptr<MockDictationKeyedService> service_;
 };
 
-INSTANTIATE_TEST_SUITE_P(All, DictationKeyedServiceTest, testing::Bool());
-
 // Ending a non-existent session should not crash.
-TEST_P(DictationKeyedServiceTest, EndSessionDoesNotCrash) {
+TEST_F(DictationKeyedServiceTest, EndSessionDoesNotCrash) {
   ASSERT_EQ(service_->session_controller(), nullptr);
   service_->EndSession();
 }
 
-TEST_P(DictationKeyedServiceTest, StartSessionWithNullTarget) {
+TEST_F(DictationKeyedServiceTest, StartSessionWithNullTarget) {
   ASSERT_EQ(service_->session_controller(), nullptr);
   service_->StartSessionForTesting(tab_, EmptyTarget(),
                                    DictationSessionEntryPoint::kContextMenu);
   EXPECT_NE(service_->session_controller(), nullptr);
 }
 
-TEST_P(DictationKeyedServiceTest, EndSessionRemovesController) {
+TEST_F(DictationKeyedServiceTest, EndSessionRemovesController) {
   service_->StartSessionForTesting(tab_, EmptyTarget(),
                                    DictationSessionEntryPoint::kContextMenu);
   ASSERT_NE(service_->session_controller(), nullptr);
@@ -66,7 +58,7 @@ TEST_P(DictationKeyedServiceTest, EndSessionRemovesController) {
   EXPECT_EQ(service_->session_controller(), nullptr);
 }
 
-TEST_P(DictationKeyedServiceTest,
+TEST_F(DictationKeyedServiceTest,
        RecordsMetricsOnInitializationAndStartSession) {
   base::HistogramTester histogram_tester;
 
@@ -84,12 +76,7 @@ TEST_P(DictationKeyedServiceTest,
       DictationStreamStartTrigger::kSessionStart, 1);
 }
 
-TEST_P(DictationKeyedServiceTest, RecordsMetricsForStartButton) {
-  if (GetParam()) {
-    GTEST_SKIP()
-        << "Multiple streams per session are not possible in this config.";
-  }
-
+TEST_F(DictationKeyedServiceTest, RecordsMetricsForStartButton) {
   base::HistogramTester histogram_tester;
 
   auto service = std::make_unique<MockDictationKeyedService>(&profile_);
@@ -121,7 +108,7 @@ TEST_P(DictationKeyedServiceTest, RecordsMetricsForStartButton) {
   histogram_tester.ExpectTotalCount(kStreamStartTriggerHistogramName, 2);
 }
 
-TEST_P(DictationKeyedServiceTest, UpdateAudioLevelPropagatesToController) {
+TEST_F(DictationKeyedServiceTest, UpdateAudioLevelPropagatesToController) {
   service_->StartSessionForTesting(tab_, EmptyTargetId(),
                                    DictationSessionEntryPoint::kContextMenu);
   auto* controller = service_->session_controller();
@@ -134,13 +121,13 @@ TEST_P(DictationKeyedServiceTest, UpdateAudioLevelPropagatesToController) {
   service_->UpdateAudioLevel(0.5f);
 }
 
-TEST_P(DictationKeyedServiceTest, HotkeyIgnoredIfNoActiveBrowser) {
+TEST_F(DictationKeyedServiceTest, HotkeyIgnoredIfNoActiveBrowser) {
   ASSERT_EQ(service_->session_controller(), nullptr);
   service_->ToggleHotkeyHandler();
   EXPECT_EQ(service_->session_controller(), nullptr);
 }
 
-TEST_P(DictationKeyedServiceTest, HotkeyManagerLifecycle) {
+TEST_F(DictationKeyedServiceTest, HotkeyManagerLifecycle) {
   EXPECT_NE(service_->local_hotkey_manager_for_testing(), nullptr);
 
   profile_.GetPrefs()->SetInteger(prefs::kVoiceTypingSettings, 2);
@@ -148,25 +135,6 @@ TEST_P(DictationKeyedServiceTest, HotkeyManagerLifecycle) {
 
   profile_.GetPrefs()->SetInteger(prefs::kVoiceTypingSettings, 0);
   EXPECT_NE(service_->local_hotkey_manager_for_testing(), nullptr);
-}
-
-TEST_P(DictationKeyedServiceTest, TabChangedCallbackNotified) {
-  int callback_count = 0;
-  base::CallbackListSubscription subscription =
-      service_->AddDictationTabChangedCallback(base::BindLambdaForTesting(
-          [&callback_count](tabs::TabInterface* tab) { callback_count++; }));
-
-  EXPECT_EQ(callback_count, 1);
-  EXPECT_EQ(service_->GetActiveDictationTab(), nullptr);
-
-  service_->StartSessionForTesting(tab_, EmptyTarget(),
-                                   DictationSessionEntryPoint::kContextMenu);
-  EXPECT_EQ(callback_count, 2);
-  EXPECT_EQ(service_->GetActiveDictationTab(), &tab_);
-
-  service_->EndSession();
-  EXPECT_EQ(callback_count, 3);
-  EXPECT_EQ(service_->GetActiveDictationTab(), nullptr);
 }
 
 }  // namespace dictation

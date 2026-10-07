@@ -56,8 +56,7 @@ int main() {
   FcFini();
 
   // Check existence of intended fontconfig cache file.
-  auto cache = fontconfig_caches + "/" + kCacheKey +
-               "-le64.cache-" FC_CACHE_VERSION;
+  auto cache = fontconfig_caches + "/" + kCacheKey + "-le64.cache-11";
   bool cache_exists = access(cache.c_str(), F_OK) == 0;
   return !cache_exists;
 }

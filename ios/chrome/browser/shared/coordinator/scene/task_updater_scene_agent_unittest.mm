@@ -19,6 +19,7 @@
 #import "ios/chrome/browser/authentication/ui_bundled/signin/signin_in_progress.h"
 #import "ios/chrome/browser/policy/model/policy_util.h"
 #import "ios/chrome/browser/shared/coordinator/scene/scene_state.h"
+#import "ios/chrome/browser/shared/coordinator/scene/scene_state_options.h"
 #import "ios/chrome/browser/shared/coordinator/scene/state/scene_ui_blocker_state.h"
 #import "ios/chrome/browser/shared/coordinator/scene/test/fake_scene_state.h"
 #import "ios/chrome/browser/shared/model/application_context/application_context.h"
@@ -71,7 +72,7 @@ class TaskUpdaterSceneAgentTest : public PlatformTest {
     TestProfileIOS::Builder builder;
     builder.AddTestingFactory(
         AuthenticationServiceFactory::GetInstance(),
-        AuthenticationServiceFactory::GetFactoryWithDelegateForTesting(
+        AuthenticationServiceFactory::GetFactoryWithDelegate(
             std::make_unique<FakeAuthenticationServiceDelegate>()));
     builder.AddTestingFactory(SyncServiceFactory::GetInstance(),
                               base::BindRepeating(&CreateTestSyncService));
@@ -88,8 +89,8 @@ class TaskUpdaterSceneAgentTest : public PlatformTest {
     profile_state_.profile = profile_.get();
 
     scene_state_ = [[FakeSceneState alloc] initWithProfile:profile_.get()];
-    scene_state_.profileState = profile_state_;
-    scene_state_.sceneSessionID = "scene-1";
+    [scene_state_ connectWithOptions:{.profile_state = profile_state_,
+                                      .identifier = "scene-1"}];
 
     agent_ = [[TaskUpdaterSceneAgent alloc] init];
     [scene_state_ addAgent:agent_];
@@ -159,8 +160,8 @@ TEST_F(TaskUpdaterSceneAgentTest, TestUIBlocker) {
   // Set a UI blocker before becoming active.
   FakeSceneState* blocker_target =
       [[FakeSceneState alloc] initWithProfile:profile_.get()];
-  scene_state_.profileState = profile_state_;
-  scene_state_.sceneSessionID = "scene-2";
+  [scene_state_ connectWithOptions:{.profile_state = profile_state_,
+                                    .identifier = "scene-2"}];
   [profile_state_ incrementBlockingUICounterForTarget:blocker_target];
 
   scene_state_.activationLevel = SceneActivationLevelForegroundActive;

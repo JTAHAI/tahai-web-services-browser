@@ -50,7 +50,7 @@ class ThreadSafeArenaStatsHandlePeer {
 
 std::vector<size_t> GetBytesAllocated(ThreadSafeArenazSampler* s) {
   std::vector<size_t> res;
-  EXPECT_EQ(s->Iterate([&](const ThreadSafeArenaStats& info) {
+  s->Iterate([&](const ThreadSafeArenaStats& info) {
     for (const auto& block_stats : info.block_histogram) {
       size_t bytes_allocated =
           block_stats.bytes_allocated.load(std::memory_order_acquire);
@@ -58,8 +58,7 @@ std::vector<size_t> GetBytesAllocated(ThreadSafeArenazSampler* s) {
         res.push_back(bytes_allocated);
       }
     }
-  }),
-            0);
+  });
   return res;
 }
 
@@ -269,7 +268,7 @@ TEST(ThreadSafeArenazSamplerTest, Handle) {
                                                  std::memory_order_relaxed);
 
   bool found = false;
-  EXPECT_EQ(sampler.Iterate([&](const ThreadSafeArenaStats& h) {
+  sampler.Iterate([&](const ThreadSafeArenaStats& h) {
     if (&h == info) {
       EXPECT_EQ(
           h.block_histogram[0].bytes_allocated.load(std::memory_order_relaxed),
@@ -277,13 +276,12 @@ TEST(ThreadSafeArenazSamplerTest, Handle) {
       EXPECT_EQ(h.weight, kTestStride);
       found = true;
     }
-  }),
-            0);
+  });
   EXPECT_TRUE(found);
 
   h = ThreadSafeArenaStatsHandle();
   found = false;
-  EXPECT_EQ(sampler.Iterate([&](const ThreadSafeArenaStats& h) {
+  sampler.Iterate([&](const ThreadSafeArenaStats& h) {
     if (&h == info) {
       // this will only happen if some other thread has resurrected the info
       // the old handle was using.
@@ -292,8 +290,7 @@ TEST(ThreadSafeArenazSamplerTest, Handle) {
         found = true;
       }
     }
-  }),
-            0);
+  });
   EXPECT_FALSE(found);
 }
 
@@ -427,7 +424,7 @@ TEST(ThreadSafeArenazSamplerTest, InitialBlockReportsZeroUsedAndWasted) {
     char block[kSize];
     google::protobuf::Arena arena(/*initial_block=*/block, /*initial_block_size=*/kSize);
     benchmark::DoNotOptimize(&arena);
-    EXPECT_EQ(sampler.Iterate([&](const ThreadSafeArenaStats& h) {
+    sampler.Iterate([&](const ThreadSafeArenaStats& h) {
       const auto& histbin =
           h.block_histogram[ThreadSafeArenaStats::FindBin(kSize)];
       if (histbin.bytes_allocated.load(std::memory_order_relaxed) == kSize) {
@@ -435,8 +432,7 @@ TEST(ThreadSafeArenazSamplerTest, InitialBlockReportsZeroUsedAndWasted) {
         EXPECT_EQ(histbin.bytes_used, 0);
         EXPECT_EQ(histbin.bytes_wasted, 0);
       }
-    }),
-              0);
+    });
   }
   EXPECT_GT(count_found_allocation, 0);
   SetThreadSafeArenazSampleParameter(oldparam);
@@ -495,8 +491,7 @@ TEST(ThreadSafeArenazSamplerTest, MultiThread) {
     if (barrier->Block()) {
       delete barrier;
     }
-    EXPECT_EQ(sampler.Iterate([&](const ThreadSafeArenaStats& h) { ++count; }),
-              0);
+    sampler.Iterate([&](const ThreadSafeArenaStats& h) { ++count; });
     for (int i = 0; i < kNumThreads; i++) {
       threads[i]->Join();
     }
@@ -540,8 +535,7 @@ TEST(ThreadSafeArenazSamplerTest, SampleFirstArena) {
 
   auto count_samples = [&]() {
     int count = 0;
-    EXPECT_EQ(sampler.Iterate([&](const ThreadSafeArenaStats& h) { ++count; }),
-              0);
+    sampler.Iterate([&](const ThreadSafeArenaStats& h) { ++count; });
     return count;
   };
 
@@ -604,9 +598,9 @@ TEST(ThreadSafeArenazSamplerTest, UsedAndWasted) {
   // Do enough small allocations to completely fill 3 first blocks.
   // Test that they are fully used and none wasted.
   for (int i = 0; i < 1000; ++i) {
-    (void)Arena::Create<char>(&arena);
+    Arena::Create<char>(&arena);
   }
-  EXPECT_EQ(sampler.Iterate([&](const ThreadSafeArenaStats& h) {
+  sampler.Iterate([&](const ThreadSafeArenaStats& h) {
     for (size_t i = 0; i < 3; ++i) {
       constexpr auto kSize =
           google::protobuf::internal::AllocationPolicy::kDefaultStartBlockSize;
@@ -617,8 +611,7 @@ TEST(ThreadSafeArenazSamplerTest, UsedAndWasted) {
                 (kSize << i) - google::protobuf::internal::SerialArena::kBlockHeaderSize);
       EXPECT_EQ(histbin.bytes_wasted, 0);
     }
-  }),
-            0);
+  });
   SetThreadSafeArenazSampleParameter(oldparam);
 }
 #endif  // defined(PROTOBUF_ARENAZ_SAMPLE)

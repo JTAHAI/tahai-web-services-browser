@@ -162,9 +162,11 @@ HTMLTextAreaElement::HTMLTextAreaElement(Document& document)
 
 void HTMLTextAreaElement::DidAddUserAgentShadowRoot(ShadowRoot& root) {
   auto* inner_editor = CreateInnerEditorElement();
-  // We need a placeholder break for an empty value in order to provide one
-  // line-height and a baseline even if this element is not editable.
-  inner_editor->AppendChild(CreatePlaceholderBreakElement());
+  if (RuntimeEnabledFeatures::TextAreaEmptyPlaceholderBreakEnabled()) {
+    // We need a placeholder break for an empty value in order to provide one
+    // line-height and a baseline even if this element is not editable.
+    inner_editor->AppendChild(CreatePlaceholderBreakElement());
+  }
   root.AppendChild(inner_editor);
 }
 

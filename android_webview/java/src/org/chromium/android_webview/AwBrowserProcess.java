@@ -10,6 +10,7 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
+import android.content.SharedPreferences;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.os.Build;
@@ -19,7 +20,6 @@ import android.os.StrictMode;
 import android.os.SystemClock;
 import android.os.storage.StorageManager;
 
-import androidx.annotation.GuardedBy;
 import androidx.annotation.IntDef;
 
 import com.google.protobuf.InvalidProtocolBufferException;
@@ -29,7 +29,6 @@ import org.jni_zero.JNINamespace;
 import org.jni_zero.JniType;
 import org.jni_zero.NativeMethods;
 
-import org.chromium.android_webview.accessibility.AwAccessibilityStateVisibilityManager;
 import org.chromium.android_webview.common.AwFeatureMap;
 import org.chromium.android_webview.common.AwFeatures;
 import org.chromium.android_webview.common.AwSwitches;
@@ -52,8 +51,6 @@ import org.chromium.android_webview.proto.MetricsBridgeRecords.HistogramRecord;
 import org.chromium.android_webview.safe_browsing.AwSafeBrowsingConfigHelper;
 import org.chromium.android_webview.supervised_user.AwSupervisedUserSafeModeAction;
 import org.chromium.android_webview.supervised_user.AwSupervisedUserUrlClassifier;
-import org.chromium.android_webview.variations.FastVariationsSeedSafeModeAction;
-import org.chromium.android_webview.variations.VariationsSeedLoader;
 import org.chromium.base.BaseSwitches;
 import org.chromium.base.CommandLine;
 import org.chromium.base.ContextUtils;
@@ -79,7 +76,6 @@ import org.chromium.content_public.browser.BrowserStartupController.StartupCallb
 import org.chromium.content_public.browser.ChildProcessCreationParams;
 import org.chromium.content_public.browser.ChildProcessLauncherHelper;
 import org.chromium.net.NetworkChangeNotifier;
-import org.chromium.ui.accessibility.AccessibilityState;
 import org.chromium.ui.display.DisplayAndroidManager;
 
 import java.io.File;
@@ -111,41 +107,6 @@ public final class AwBrowserProcess {
     private static @ApkType int sApkType;
     private static @Nullable String sProcessDataDirSuffix;
     private static boolean sDataDirBasePathOverridden;
-
-    private static final Object sSeedLoaderLock = new Object();
-
-    @GuardedBy("sSeedLoaderLock")
-    private static @Nullable VariationsSeedLoader sSeedLoader;
-
-    // See comments in VariationsSeedLoader.java on when it's safe to call this.
-    public static void startVariationsInit() {
-        if (FastVariationsSeedSafeModeAction.hasRun()) {
-            return;
-        }
-        synchronized (sSeedLoaderLock) {
-            if (sSeedLoader == null) {
-                sSeedLoader = new VariationsSeedLoader();
-                sSeedLoader.startVariationsInit();
-            }
-        }
-    }
-
-    public static void finishVariationsInit() {
-        if (FastVariationsSeedSafeModeAction.hasRun()) {
-            return;
-        }
-        try (DualTraceEvent e =
-                DualTraceEvent.scoped("AwBrowserProcess.finishVariationsInit")) {
-            synchronized (sSeedLoaderLock) {
-                if (sSeedLoader == null) {
-                    Log.e(TAG, "finishVariationsInit() called before startVariationsInit()");
-                    startVariationsInit();
-                }
-                sSeedLoader.finishVariationsInit();
-                sSeedLoader = null; // Allow this to be GC'd after its background thread finishes.
-            }
-        }
-    }
 
     /**
      * Loads the native library, and performs basic static construction of objects needed to run
@@ -208,7 +169,7 @@ public final class AwBrowserProcess {
      * Configures child process launcher. This is required only if child services are used in
      * WebView.
      */
-    public static void configureChildProcessLauncher(boolean forceNativeSandboxedServices) {
+    public static void configureChildProcessLauncher(boolean isNativeWebViewZygoteEnabled) {
         final boolean isExternalService = true;
         final boolean bindToCaller = true;
         final boolean ignoreVisibilityForImportance = true;
@@ -219,7 +180,7 @@ public final class AwBrowserProcess {
                 LibraryProcessType.PROCESS_WEBVIEW_CHILD,
                 bindToCaller,
                 ignoreVisibilityForImportance,
-                forceNativeSandboxedServices);
+                isNativeWebViewZygoteEnabled);
 
         ChildProcessLauncherHelper.initialize();
     }
@@ -370,7 +331,6 @@ public final class AwBrowserProcess {
     public static void startForTesting() {
         runPreBrowserProcessStart();
         finishBrowserProcessStart();
-        startObservingOsAccessibilitySettingChanges();
         onStartupComplete();
     }
 
@@ -784,23 +744,16 @@ public final class AwBrowserProcess {
                     == PackageManager.PERMISSION_GRANTED) {
                 NetworkChangeNotifier.init();
                 NetworkChangeNotifier.setAutoDetectConnectivityState(
-                        new AwNetworkChangeNotifierRegistrationPolicy());
+                        new AwNetworkChangeNotifierRegistrationPolicy(),
+                        /* forceUpdateNetworkState= */ false);
             }
-        }
-    }
-
-    /** Starts observing Android OS accessibility setting changes. */
-    public static void startObservingOsAccessibilitySettingChanges() {
-        if (AwFeatureMap.isEnabled(AwFeatures.WEBVIEW_OBSERVE_ACCESSIBILITY_STATE)) {
-            AccessibilityState.registerObservers();
-            AccessibilityState.initializeOnStartup(new AwAccessibilityStateVisibilityManager());
         }
     }
 
     /**
      * Post tasks that need to run in the background thread after the browser process has started.
      */
-    public static void postBackgroundTasks() {
+    public static void postBackgroundTasks(boolean isSafeModeEnabled, SharedPreferences prefs) {
         if (CommandLine.getInstance().hasSwitch(AwSwitches.WEBVIEW_VERBOSE_LOGGING)) {
             // Log extra information, for debugging purposes.
             PostTask.postTask(
@@ -813,13 +766,18 @@ public final class AwBrowserProcess {
                         // Field trials can be activated at any time. We'll continue logging them as
                         // they're activated.
                         FieldTrialList.logActiveTrials();
+                        // SafeMode was already determined earlier during the startup sequence, this
+                        // just fetches the cached boolean state. If SafeMode was enabled, we
+                        // already
+                        // logged detailed information about the SafeMode config.
+                        Log.i(TAG, "SafeMode enabled: " + isSafeModeEnabled);
                     });
         }
 
         PostTask.postTask(
                 TaskTraits.BEST_EFFORT,
                 () -> {
-                    WebViewCachedFlags.get().onStartupCompleted();
+                    WebViewCachedFlags.get().onStartupCompleted(prefs);
                 });
 
         if (AwFeatureMap.isEnabled(AwFeatures.WEBVIEW_PREFETCH_NATIVE_LIBRARY)

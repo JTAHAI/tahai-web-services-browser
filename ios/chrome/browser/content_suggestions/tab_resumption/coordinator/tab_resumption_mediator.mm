@@ -405,7 +405,7 @@ class TabResumptionMediatorProxy {
 
 - (void)openTabResumptionItem:(TabResumptionConfig*)config {
   DCHECK_CALLED_ON_VALID_SEQUENCE(_sequenceChecker);
-  [ContentSuggestionsMetricsRecorder
+  [self.contentSuggestionsMetricsRecorder
       recordTabResumptionTabOpened:config.shopCardData];
   tab_resumption_prefs::SetTabResumptionLastOpenedTabURL(config.tabURL,
                                                          _profilePrefs);
@@ -507,7 +507,7 @@ class TabResumptionMediatorProxy {
       [self.NTPActionsDelegate recentTabTileDisplayedAtIndex:index];
       break;
   }
-  [ContentSuggestionsMetricsRecorder
+  [self.contentSuggestionsMetricsRecorder
       recordTabResumptionImpressionWithCustomization:
           static_cast<TabResumptionConfig*>(magicStackModule).shopCardData
                                              atIndex:index];

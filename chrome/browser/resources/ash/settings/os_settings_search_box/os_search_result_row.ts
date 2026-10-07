@@ -576,7 +576,7 @@ export class OsSearchResultRowElement extends OsSearchResultRowElementBase {
     const settingsSearchResult = this.searchResult;
     chrome.metricsPrivate.recordEnumerationValue(
         'ChromeOS.Settings.SearchResultTypeSelected', settingsSearchResult.type,
-        SearchResultType.MAX_VALUE + 1);
+        SearchResultType.MAX_VALUE);
 
     interface MetricArg {
       metricName: string;
@@ -782,8 +782,8 @@ export class OsSearchResultRowElement extends OsSearchResultRowElementBase {
         return 'os-settings:personalization-menu';
       case SearchResultIcon.kPhone:
         return 'os-settings:connected-devices-android-phone';
-      case SearchResultIcon.kDeprecatedPluginVm:
-        return 'os-settings:apps-grid';
+      case SearchResultIcon.kPluginVm:
+        return 'os-settings:plugin-vm';
       case SearchResultIcon.kPointingStick:
         return 'os-settings:device-pointing-stick';
       case SearchResultIcon.kPower:

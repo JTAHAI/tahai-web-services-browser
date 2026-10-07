@@ -36,6 +36,7 @@ namespace {
 constexpr char kContextMemoryServiceHost[] =
     "contextmemoryservice.pa.googleapis.com";
 
+
 class PersonalContextServiceImplBrowserTest : public InProcessBrowserTest {
  public:
   PersonalContextServiceImplBrowserTest() = default;
@@ -219,9 +220,8 @@ IN_PROC_BROWSER_TEST_F(PersonalContextServiceImplBrowserTest,
                                         signin::ConsentLevel::kSignin)
           .account_id;
   identity_test_env()->UpdatePersistentErrorOfRefreshTokenForAccount(
-      account_id,
-      GoogleServiceAuthError::FromInvalidGaiaCredentialsReason(
-          GoogleServiceAuthError::InvalidGaiaCredentialsReason::UNKNOWN));
+      account_id, GoogleServiceAuthError(
+                      GoogleServiceAuthError::State::INVALID_GAIA_CREDENTIALS));
 
   base::test::TestFuture<FetchContextResult> future;
   proto::FetchPiiEntitiesRequest dummy_request;
@@ -232,8 +232,8 @@ IN_PROC_BROWSER_TEST_F(PersonalContextServiceImplBrowserTest,
       future.GetCallback());
 
   identity_test_env()->WaitForAccessTokenRequestIfNecessaryAndRespondWithError(
-      GoogleServiceAuthError::FromInvalidGaiaCredentialsReason(
-          GoogleServiceAuthError::InvalidGaiaCredentialsReason::UNKNOWN));
+      GoogleServiceAuthError(
+          GoogleServiceAuthError::State::INVALID_GAIA_CREDENTIALS));
 
   FetchContextResult result = future.Take();
   ASSERT_FALSE(result.response.has_value());

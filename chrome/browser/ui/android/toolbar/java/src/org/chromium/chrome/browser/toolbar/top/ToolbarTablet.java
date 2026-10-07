@@ -120,7 +120,6 @@ public class ToolbarTablet extends ToolbarLayout {
     private @Nullable View mGlicDivider;
     private boolean mShouldShowGlicButton;
     private boolean mHasSpaceToShowGlicButton = true;
-    private boolean mIsGlicUiVisible;
     private View.@Nullable OnClickListener mGlicClickListener;
     private View.@Nullable OnLongClickListener mGlicLongClickListener;
 
@@ -293,9 +292,6 @@ public class ToolbarTablet extends ToolbarLayout {
         ImageViewCompat.setImageTintList(mHomeButton, activityFocusTint);
         if (mOptionalButton != null && mOptionalButtonUsesTint) {
             ImageViewCompat.setImageTintList(mOptionalButton, activityFocusTint);
-        }
-        if (mGlicActionChip != null) {
-            ImageViewCompat.setImageTintList(mGlicActionChip, activityFocusTint);
         }
     }
 
@@ -521,11 +517,6 @@ public class ToolbarTablet extends ToolbarLayout {
         return mLocationBar;
     }
 
-    @Override
-    public View getContainerView() {
-        return mToolbarTabletLayout;
-    }
-
     public LocationBarCoordinator getLocationBarCoordinatorForTesting() {
         return mLocationBar;
     }
@@ -690,24 +681,6 @@ public class ToolbarTablet extends ToolbarLayout {
     }
 
     /**
-     * Updates the Glic button tooltip and content description based on the Glic panel open/closed
-     * state.
-     */
-    public void setGlicPanelIsOpen(boolean isOpen) {
-        mIsGlicUiVisible = isOpen;
-        if (mGlicActionChip == null) return;
-        String tooltip =
-                getContext()
-                        .getString(
-                                isOpen
-                                        ? R.string.glic_tab_strip_button_tooltip_close
-                                        : R.string.glic_tab_strip_button_tooltip);
-
-        mGlicActionChip.setContentDescription(tooltip);
-        super.setTooltipText(mGlicActionChip, tooltip);
-    }
-
-    /**
      * Ensure {@link ToolbarWidthConsumer} for Glic button pinned on the tab strip (moved to the
      * toolbar when the tab strip becomes hidden) is installed.
      */
@@ -780,7 +753,8 @@ public class ToolbarTablet extends ToolbarLayout {
                 mGlicActionChip = (ImageButton) glicActionChipStub.inflate();
                 mGlicActionChip.setOnClickListener(mGlicClickListener);
                 mGlicActionChip.setImageResource(R.drawable.ic_spark_24dp);
-                setGlicPanelIsOpen(mIsGlicUiVisible);
+                mGlicActionChip.setContentDescription(
+                        getContext().getString(R.string.glic_tab_strip_button_tooltip));
                 ImageViewCompat.setImageTintList(mGlicActionChip, getButtonTintList());
             }
             ImageButton actionChip = assumeNonNull(mGlicActionChip);

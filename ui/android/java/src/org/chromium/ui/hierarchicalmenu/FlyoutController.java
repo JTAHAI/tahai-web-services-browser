@@ -6,7 +6,6 @@ package org.chromium.ui.hierarchicalmenu;
 
 import android.graphics.Rect;
 import android.os.Handler;
-import android.text.TextUtils;
 import android.view.View;
 import android.widget.ListView;
 
@@ -179,7 +178,7 @@ public class FlyoutController<T> implements Destroyable {
             List<ListItem> highlightPath,
             Runnable dismissRunnable) {
         mMenuController.updateHighlights(highlightPath);
-        cancelFlyoutDelay();
+        cancelFlyoutDelay(view);
         onFlyoutAfterDelay(item, view, levelOfHoveredItem, highlightPath, dismissRunnable);
     }
 
@@ -188,21 +187,21 @@ public class FlyoutController<T> implements Destroyable {
      * e.g. when keyboard is used to navigate flyout menus.
      *
      * @param clearFromIndex The minimum level of flyout popup to remove.
+     * @param view The View associated with the hovered ListItem.
      * @param highlightPath The complete list of items from the root of the menu to the currently
      *     hovered {@code item}, inclusive.
      */
-    public void exitFlyoutWithoutDelay(int clearFromIndex, List<ListItem> highlightPath) {
+    public void exitFlyoutWithoutDelay(
+            int clearFromIndex, View view, List<ListItem> highlightPath) {
         // We do not dismiss the main, non-flyout popup here.
         if (clearFromIndex == 0) {
             return;
         }
 
-        cancelFlyoutDelay();
+        cancelFlyoutDelay(view);
 
         // We need to remove hover from the popup currently in focus.
-        mMenuController.updateHighlights(
-                highlightPath.subList(
-                        0, Math.max(0, Math.min(highlightPath.size(), clearFromIndex - 1))));
+        mMenuController.updateHighlights(highlightPath.subList(0, clearFromIndex - 1));
 
         removeFlyoutWindows(clearFromIndex);
     }
@@ -247,7 +246,10 @@ public class FlyoutController<T> implements Destroyable {
             int levelOfHoveredItem,
             List<ListItem> highlightPath,
             Runnable dismissRunnable) {
-        cancelFlyoutDelay();
+        if (mPendingFlyoutParentView != null) {
+            // Since we received a new `HOVER` event, we cancel the previous timer.
+            cancelFlyoutDelay(mPendingFlyoutParentView);
+        }
 
         // We wait for a set period of time before we go on with the UI changes to ensure user
         // intent.
@@ -265,7 +267,7 @@ public class FlyoutController<T> implements Destroyable {
     }
 
     private void onFlyoutAfterDelay(
-            ListItem hoveredItem,
+            ListItem item,
             View view,
             int levelOfHoveredItem,
             List<ListItem> highlightPath,
@@ -280,7 +282,7 @@ public class FlyoutController<T> implements Destroyable {
         if (levelOfHoveredItem < mPopups.size() - 1) {
             // We want to keep the direct child open if the hover is still on the same child.
             FlyoutPopupEntry<T> currentFlyoutPopupEntry = mPopups.get(levelOfHoveredItem + 1);
-            keepChildWindow = hoveredItem == currentFlyoutPopupEntry.parentItem;
+            keepChildWindow = item == currentFlyoutPopupEntry.parentItem;
 
             int clearFromIndex = keepChildWindow ? levelOfHoveredItem + 2 : levelOfHoveredItem + 1;
             if (clearFromIndex < mPopups.size()) {
@@ -294,61 +296,31 @@ public class FlyoutController<T> implements Destroyable {
 
         WritableObjectPropertyKey<Supplier<List<ListItem>>> providerKey =
                 mKeyProvider.getSubmenuProviderKey();
-        if (!hoveredItem.model.containsKey(providerKey)
-                || hoveredItem.model.get(providerKey) == null) {
+        if (!item.model.containsKey(providerKey) || item.model.get(providerKey) == null) {
             return;
         }
 
-        List<ListItem> items =
-                mMenuController.getLoadedSubmenuItems(
-                        /* headerModelList= */ null,
-                        new ModelList(),
-                        hoveredItem,
-                        dismissRunnable,
-                        levelOfHoveredItem,
-                        highlightPath);
-
         T popup =
                 mFlyoutHandler.createAndShowFlyoutPopup(
-                        items,
+                        mMenuController.getLoadedSubmenuItems(
+                                /* headerModelList= */ null,
+                                new ModelList(),
+                                item,
+                                dismissRunnable,
+                                levelOfHoveredItem,
+                                highlightPath),
                         view,
                         () -> {
                             removeFlyoutWindows(levelOfHoveredItem + 1);
                         },
                         new ThresholdScrollListener(levelOfHoveredItem + 1));
-        mPopups.add(new FlyoutPopupEntry<>(hoveredItem, popup));
+        mPopups.add(new FlyoutPopupEntry<T>(item, popup));
 
         assert mPopups.size() > 1;
+        mFlyoutHandler.setWindowFocus(mPopups.get(mPopups.size() - 2).popupWindow, false);
+        mFlyoutHandler.setWindowFocus(popup, true);
 
-        // We have to give special treatment to cases when all items in the new window are disabled.
-        boolean newWindowFocusable = false;
-        for (ListItem item : items) {
-            if (item.model.get(mKeyProvider.getEnabledKey())) {
-                newWindowFocusable = true;
-                break;
-            }
-        }
-
-        if (newWindowFocusable) {
-            mFlyoutHandler.setWindowFocus(mPopups.get(mPopups.size() - 2).popupWindow, false);
-            mFlyoutHandler.setWindowFocus(popup, true);
-        } else {
-            // If all items in the new window are disabled, we don't move
-            // keyboard focus to the new window, and instead keep it in the
-            // parent window.
-            mFlyoutHandler.setWindowFocus(popup, false);
-            if (!items.isEmpty()) {
-                CharSequence title =
-                        HierarchicalMenuController.getItemTitle(
-                                items.get(0), mKeyProvider, view.getContext());
-                if (!TextUtils.isEmpty(title)) {
-                    view.announceForAccessibility(title);
-                }
-            }
-        }
-
-        hoveredItem.model.set(
-                mKeyProvider.getIsExpandedKey(), levelOfHoveredItem < mPopups.size() - 1);
+        item.model.set(mKeyProvider.getIsExpandedKey(), levelOfHoveredItem < mPopups.size() - 1);
     }
 
     /**
@@ -398,14 +370,7 @@ public class FlyoutController<T> implements Destroyable {
      */
     public void cancelFlyoutDelay(View view) {
         if (mFlyoutAfterDelayRunnable != null && mPendingFlyoutParentView == view) {
-            cancelFlyoutDelay();
-        }
-    }
-
-    /** Cancels the timer that was supposed to remove or add flyout popups. */
-    public void cancelFlyoutDelay() {
-        if (mPendingFlyoutParentView != null && mFlyoutAfterDelayRunnable != null) {
-            Handler handler = mPendingFlyoutParentView.getHandler();
+            Handler handler = view.getHandler();
             if (handler != null) {
                 handler.removeCallbacks(mFlyoutAfterDelayRunnable);
             }
@@ -416,7 +381,6 @@ public class FlyoutController<T> implements Destroyable {
 
     @Override
     public void destroy() {
-        cancelFlyoutDelay();
         for (int i = mPopups.size() - 1; i >= 0; i--) {
             mFlyoutHandler.dismissPopup(mPopups.get(i).popupWindow);
         }

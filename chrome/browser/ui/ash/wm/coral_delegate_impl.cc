@@ -6,7 +6,6 @@
 
 #include "ash/constants/generative_ai_country_restrictions.h"
 #include "base/check_deref.h"
-#include "base/i18n/legacy_language_tag_helpers.h"
 #include "base/memory/raw_ref.h"
 #include "base/task/single_thread_task_runner.h"
 #include "chrome/browser/ash/app_restore/full_restore_app_launch_handler.h"
@@ -15,25 +14,19 @@
 #include "chrome/browser/ash/browser_delegate/browser_controller.h"
 #include "chrome/browser/ash/browser_delegate/browser_delegate.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/signin/identity_manager_factory.h"
 #include "chrome/browser/ui/ash/desks/desks_templates_app_launch_handler.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
-#include "chrome/browser/ui/browser_window/public/create_browser_window.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/webui/ash/scanner_feedback_dialog/scanner_feedback_dialog.h"
 #include "chromeos/ash/components/browser_context_helper/browser_context_helper.h"
-#include "chromeos/ash/components/signin/identity_manager_provider.h"
 #include "chromeos/ash/services/coral/public/mojom/coral_service.mojom.h"
 #include "chromeos/ui/wm/desks/desks_helper.h"
 #include "components/app_constants/constants.h"
 #include "components/app_restore/restore_data.h"
 #include "components/application_locale_storage/application_locale_storage.h"
-#include "components/session_manager/core/session.h"
-#include "components/session_manager/core/session_manager.h"
-#include "components/tabs/public/tab_interface.h"
-#include "components/user_manager/user.h"
 #include "components/user_manager/user_manager.h"
 #include "components/variations/service/variations_service.h"
-#include "content/public/browser/web_contents.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/display/display.h"
 #include "ui/display/screen.h"
@@ -90,7 +83,7 @@ std::unique_ptr<app_restore::RestoreData> CoralGroupToRestoreData(
             ->mutable_app_id_to_launch_list()[app_constants::kChromeAppId];
     // All tabs go into the same window.
     auto& app_restore_data =
-        launch_list[/*window_id=*/BrowserWindowCreateParams::kDefaultRestoreId];
+        launch_list[/*window_id=*/Browser::kDefaultRestoreId];
     app_restore_data = std::make_unique<app_restore::AppRestoreData>();
     app_restore_data->browser_extra_info.urls = std::move(tab_urls);
   }
@@ -145,18 +138,16 @@ Profile* GetActiveUserProfile() {
 }
 
 // Creates a browser on the active desk.
-ash::BrowserDelegate* CreateBrowser() {
+Browser* CreateBrowser() {
   Profile* active_profile = GetActiveUserProfile();
   if (!active_profile) {
     return nullptr;
   }
 
-  BrowserWindowCreateParams params(BrowserWindowInterface::TYPE_NORMAL,
-                                   active_profile,
-                                   /*user_gesture=*/false);
+  Browser::CreateParams params(Browser::Type::TYPE_NORMAL, active_profile,
+                               /*user_gesture=*/false);
   params.should_trigger_session_restore = false;
-  return ash::BrowserController::GetInstance()->GetDelegate(
-      CreateBrowserWindow(std::move(params)));
+  return Browser::Create(std::move(params));
 }
 
 // Finds the first tab with given url on the desk with the given `index` and
@@ -176,12 +167,12 @@ ash::BrowserDelegate* FindTabOnDeskAtIndex(const GURL& url,
           return ash::BrowserController::kContinueIteration;
         }
 
-        if (browser.IsOffTheRecord()) {
+        if (browser.GetBrowser().GetProfile()->IsIncognitoProfile()) {
           return ash::BrowserController::kContinueIteration;
         }
 
         int idx = 0;
-        for (tabs::TabInterface* tab : browser.GetTabIterator()) {
+        for (tabs::TabInterface* tab : *browser.GetBrowser().GetTabStripModel()) {
           if (tab->GetContents()->GetVisibleURL() == url) {
             out_tab_index = idx;
             found_browser = &browser;
@@ -250,7 +241,8 @@ void CoralDelegateImpl::MoveTabsInGroupToNewDesk(
     if (source_browser) {
       // Create a browser on the new desk if there is none.
       if (!target_browser) {
-        target_browser = CreateBrowser();
+        target_browser =
+            ash::BrowserController::GetInstance()->GetDelegate(CreateBrowser());
         if (!target_browser) {
           break;
         }
@@ -265,7 +257,7 @@ void CoralDelegateImpl::MoveTabsInGroupToNewDesk(
 }
 
 int CoralDelegateImpl::GetChromeDefaultRestoreId() {
-  return BrowserWindowCreateParams::kDefaultRestoreId;
+  return Browser::kDefaultRestoreId;
 }
 
 void CoralDelegateImpl::OpenFeedbackDialog(
@@ -284,14 +276,12 @@ void CoralDelegateImpl::CheckGenAIAgeAvailability(
     return;
   }
   // Check age restriction using account capabilities.
-  const session_manager::Session* active_session =
-      session_manager::SessionManager::Get()->GetActiveSession();
-  if (!active_session) {
+  Profile* profile = GetActiveUserProfile();
+  if (!profile) {
     std::move(callback).Run(false);
     return;
   }
-  auto* identity_manager =
-      ash::IdentityManagerProvider::Get().Find(active_session->account_id());
+  auto* identity_manager = IdentityManagerFactory::GetForProfile(profile);
   if (identity_manager == nullptr) {
     std::move(callback).Run(false);
     return;
@@ -332,8 +322,8 @@ bool CoralDelegateImpl::GetGenAILocationAvailability() {
 }
 
 std::string CoralDelegateImpl::GetSystemLanguage() {
-  return base::i18n::GetLanguageSubtagUsingLanguageTag(
-      application_locale_storage_->Get());
+  return std::string(
+      l10n_util::GetLanguage(application_locale_storage_->Get()));
 }
 
 void CoralDelegateImpl::OnIdentityManagerShutdown(

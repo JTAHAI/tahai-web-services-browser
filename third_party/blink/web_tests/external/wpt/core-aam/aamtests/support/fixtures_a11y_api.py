@@ -45,14 +45,11 @@ def axapi(session, default_timeout):
 
 
 @pytest.fixture
-def uia(session, default_timeout):
+def uia(session):
     if platform != "win32":
         pytest.skip("NOT_APPLICABLE")
 
-    from .uia_wrapper import UiaWrapper
-
-    pid, product_name = pid_from(session.capabilities)
-    return UiaWrapper(pid, product_name, default_timeout)
+    # TODO: Make UiaWrapper and return it
 
 
 @pytest.fixture

@@ -56,14 +56,14 @@ std::vector<GURL> CollectTabURLsFromWindows(
     const MruWindowTracker::WindowList& windows) {
   std::vector<GURL> tab_urls;
   for (aura::Window* window : windows) {
-    BrowserWindowInterface* browser =
+    Browser* browser =
         BrowserView::GetBrowserViewForNativeWindow(window)->browser();
 
     if (!browser) {
       continue;
     }
 
-    TabStripModel* tab_strip_model = browser->GetTabStripModel();
+    TabStripModel* tab_strip_model = browser->tab_strip_model();
     for (int idx = 0; idx < tab_strip_model->count(); idx++) {
       tab_urls.push_back(
           tab_strip_model->GetWebContentsAt(idx)->GetVisibleURL());

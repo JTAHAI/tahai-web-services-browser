@@ -2,8 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "chrome/browser/glic/browser_ui/glic_tab_indicator_helper.h"
-
 #include <optional>
 
 #include "base/callback_list.h"
@@ -11,6 +9,7 @@
 #include "base/functional/bind.h"
 #include "base/test/scoped_feature_list.h"
 #include "build/build_config.h"
+#include "chrome/browser/glic/browser_ui/glic_tab_indicator_helper.h"
 #include "chrome/browser/glic/host/glic_features.mojom-features.h"
 #include "chrome/browser/glic/test_support/interactive_glic_test.h"
 #include "chrome/browser/ui/browser_commands.h"
@@ -46,9 +45,8 @@ bool kTestDisabledForVirtualMachineMac =
     (base::mac::MacOSMajorVersion() == 15) && base::mac::IsVirtualMachine();
 #endif  // BUILDFLAG(IS_MAC)
 
-tabs::TabAlertController* GetTabAlertControllerForTab(
-    BrowserWindowInterface* browser,
-    int tab_index) {
+tabs::TabAlertController* GetTabAlertControllerForTab(Browser* browser,
+                                                      int tab_index) {
   return tabs::TabAlertController::From(
       browser->tab_strip_model()->GetTabAtIndex(tab_index));
 }
@@ -56,7 +54,7 @@ tabs::TabAlertController* GetTabAlertControllerForTab(
 class TabAlertStateObserver
     : public ui::test::StateObserver<std::optional<tabs::TabAlert>> {
  public:
-  TabAlertStateObserver(BrowserWindowInterface* browser, int tab_index) {
+  TabAlertStateObserver(Browser* browser, int tab_index) {
     alert_to_show_changed_subscription_ =
         GetTabAlertControllerForTab(browser, tab_index)
             ->AddAlertToShowChangedCallback(base::BindRepeating(
@@ -299,7 +297,7 @@ IN_PROC_BROWSER_TEST_P(GlicTabIndicatorHelperMultiInstanceUiTest,
   }
 #endif
 
-  BrowserWindowInterface* const browser1 = browser();
+  Browser* const browser1 = browser();
   TrackOnlyGlicInstance();
   RunTestSequence(
       LoadStartingPage(), AddInstrumentedTab(kSecondTabId, GetTestUrl()),
@@ -307,8 +305,7 @@ IN_PROC_BROWSER_TEST_P(GlicTabIndicatorHelperMultiInstanceUiTest,
       ClickMockGlicContextAccessButtonIfLiveMode(),
       WaitForState(kTab1AlertState, ExpectedAlertState()),
       Do([this, browser1]() {
-        BrowserWindowInterface* const browser2 =
-            CreateBrowser(browser1->GetProfile());
+        Browser* const browser2 = CreateBrowser(browser1->GetProfile());
         RunTestSequence(
             ObserveState(kTab1AlertState, browser1, 0),
             ObserveState(kTab2AlertState, browser1, 1),

@@ -52,6 +52,7 @@
 #include "media/base/media_switches.h"
 #include "media/capture/capture_switches.h"
 #include "media/media_buildflags.h"
+#include "mojo/core/embedder/features.h"
 #include "sandbox/policy/switches.h"
 #include "third_party/blink/public/common/switches.h"
 #include "third_party/cros_system_api/switches/chrome_switches.h"
@@ -148,7 +149,6 @@ void DeriveCommandLine(const GURL& start_url,
       ::switches::kV,
       ::switches::kVModule,
       ::switches::kVideoCaptureUseGpuMemoryBuffer,
-      ::switches::kVideoCaptureUseVirtualDevicesOnly,
       ::switches::kWebAuthRemoteDesktopSupport,
       ::switches::kEnableWebGLDeveloperExtensions,
       ::switches::kEnableWebGLDraftExtensions,
@@ -252,12 +252,14 @@ void DeriveFeatures(base::CommandLine* out_command_line) {
       &features::kAutoNightLight,
       &chromeos::features::kFeatureManagementRoundedWindows,
       &ash::features::kSeamlessRefreshRateSwitching,
+      &::features::kPluginVm,
       &display::features::kCtmColorManagement,
       &display::features::kDrmColorSpaceDefaultIsRec709,
       &display::features::kOledScaleFactorEnabled,
 #if BUILDFLAG(ENABLE_PLATFORM_HEVC)
       &media::kPlatformHEVCDecoderSupport,
 #endif
+      &mojo::core::kMojoIpcz,
   };
   std::vector<std::string> enabled_features;
   std::vector<std::string> disabled_features;

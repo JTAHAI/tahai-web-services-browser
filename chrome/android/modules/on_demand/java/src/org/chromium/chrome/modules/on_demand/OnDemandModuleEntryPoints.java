@@ -29,7 +29,4 @@ public interface OnDemandModuleEntryPoints {
 
     /** Creates the Bricks coordinator. */
     BricksCoordinatorInterface createBricksCoordinator(Context context);
-
-    /** Creates the Bricks coordinator for specified URL. */
-    BricksCoordinatorInterface createBricksCoordinator(Context context, String url);
 }

@@ -103,8 +103,10 @@ void CreateDesktopShortcutDelegate::PrimaryPageChanged(content::Page& page) {
 }
 
 void CreateDesktopShortcutDelegate::OnOcclusionStateChanged(bool occluded) {
+  // If a picture-in-picture window is occluding the dialog, force it to close
+  // to prevent spoofing.
   if (occluded) {
-    PictureInPictureWindowManager::ExitPictureInPictureSoon();
+    PictureInPictureWindowManager::GetInstance()->ExitPictureInPicture();
   }
 }
 

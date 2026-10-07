@@ -5,11 +5,11 @@
 #include "chrome/browser/ash/login/saml/in_session_password_change_manager.h"
 
 #include <memory>
+#include <optional>
 #include <string>
 
 #include "ash/constants/ash_features.h"
 #include "ash/constants/ash_login_pref_names.h"
-#include "ash/public/cpp/notification_utils.h"
 #include "base/memory/raw_ptr.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/test/scoped_feature_list.h"
@@ -17,6 +17,7 @@
 #include "base/time/time.h"
 #include "chrome/browser/ash/login/users/fake_chrome_user_manager.h"
 #include "chrome/browser/browser_process.h"
+#include "chrome/browser/notifications/notification_display_service_tester.h"
 #include "chrome/browser/profiles/profile_manager.h"
 #include "chrome/test/base/testing_browser_process.h"
 #include "chrome/test/base/testing_profile.h"
@@ -27,12 +28,9 @@
 #include "chromeos/ash/components/login/auth/public/saml_password_attributes.h"
 #include "components/prefs/pref_service.h"
 #include "components/user_manager/scoped_user_manager.h"
-#include "components/user_manager/user.h"
 #include "components/user_manager/user_names.h"
 #include "content/public/test/browser_task_environment.h"
 #include "testing/gtest/include/gtest/gtest.h"
-#include "ui/message_center/message_center.h"
-#include "ui/message_center/public/cpp/notification.h"
 
 namespace ash {
 namespace {
@@ -62,7 +60,6 @@ class InSessionPasswordChangeManagerTestBase : public testing::Test {
   }
 
   void SetUp() override {
-    message_center::MessageCenter::Initialize();
     ASSERT_TRUE(profile_manager_.SetUp());
     profile_ = profile_manager_.CreateTestingProfile("test");
     profile_->GetPrefs()->SetBoolean(prefs::kSamlInSessionPasswordChangeEnabled,
@@ -75,6 +72,8 @@ class InSessionPasswordChangeManagerTestBase : public testing::Test {
     fake_user_manager_->LoginUser(user_manager::StubAccountId());
     ASSERT_TRUE(fake_user_manager_->GetPrimaryUser());
 
+    display_service_tester_ =
+        std::make_unique<NotificationDisplayServiceTester>(profile_);
     manager_ = std::make_unique<InSessionPasswordChangeManager>(
         TestingBrowserProcess::GetGlobal()->local_state(), profile_);
 
@@ -87,7 +86,6 @@ class InSessionPasswordChangeManagerTestBase : public testing::Test {
 
   void TearDown() override {
     InSessionPasswordChangeManager::ResetForTesting();
-    message_center::MessageCenter::Shutdown();
   }
 
  protected:
@@ -105,11 +103,9 @@ class InSessionPasswordChangeManagerTestBase : public testing::Test {
                                                           input);
   }
 
-  const Notification* Notification() {
-    return message_center::MessageCenter::Get()->FindNotificationById(
-        CreateUserScopedNotificationId(
-            "saml.password-expiry-notification",
-            fake_user_manager_->GetPrimaryUser()->username_hash()));
+  std::optional<Notification> Notification() {
+    return NotificationDisplayServiceTester::Get()->GetNotification(
+        "saml.password-expiry-notification");
   }
 
   void SetExpirationTime(base::Time expiration_time) {
@@ -118,9 +114,9 @@ class InSessionPasswordChangeManagerTestBase : public testing::Test {
   }
 
   void ExpectNotificationAndDismiss() {
-    EXPECT_TRUE(Notification());
+    EXPECT_TRUE(Notification().has_value());
     manager_->DismissExpiryNotification();
-    EXPECT_FALSE(Notification());
+    EXPECT_FALSE(Notification().has_value());
   }
 
   void MaybeShowExpiryNotificationAndWait() {
@@ -140,6 +136,7 @@ class InSessionPasswordChangeManagerTestBase : public testing::Test {
   TestingProfileManager profile_manager_{TestingBrowserProcess::GetGlobal()};
   raw_ptr<TestingProfile> profile_;
 
+  std::unique_ptr<NotificationDisplayServiceTester> display_service_tester_;
   std::unique_ptr<InSessionPasswordChangeManager> manager_;
 };
 
@@ -168,17 +165,17 @@ TEST_P(InSessionPasswordChangeManagerTest, MaybeShow_PolicyDisabled) {
                                    false);
   MaybeShowExpiryNotificationAndWait();
 
-  EXPECT_FALSE(Notification());
+  EXPECT_FALSE(Notification().has_value());
 }
 
 TEST_P(InSessionPasswordChangeManagerTest, MaybeShow_WillNotExpire) {
   SamlPasswordAttributes::DeleteFromPrefs(profile_->GetPrefs());
   MaybeShowExpiryNotificationAndWait();
 
-  EXPECT_FALSE(Notification());
+  EXPECT_FALSE(Notification().has_value());
   // No notification shown now and nothing shown in the next 3 years.
   test_environment_.FastForwardBy(kThreeYears);
-  EXPECT_FALSE(Notification());
+  EXPECT_FALSE(Notification().has_value());
 }
 
 TEST_P(InSessionPasswordChangeManagerTest, MaybeShow_AlreadyExpired) {
@@ -186,7 +183,7 @@ TEST_P(InSessionPasswordChangeManagerTest, MaybeShow_AlreadyExpired) {
   MaybeShowExpiryNotificationAndWait();
 
   // Notification is shown immediately since password has expired.
-  ASSERT_TRUE(Notification());
+  EXPECT_TRUE(Notification().has_value());
   EXPECT_EQ(utf16("Password change overdue"), Notification()->title());
 }
 
@@ -195,7 +192,7 @@ TEST_P(InSessionPasswordChangeManagerTest, MaybeShow_WillSoonExpire) {
   MaybeShowExpiryNotificationAndWait();
 
   // Notification is shown immediately since password will soon expire.
-  ASSERT_TRUE(Notification());
+  EXPECT_TRUE(Notification().has_value());
   EXPECT_EQ(utf16("Password expires in 7 days"), Notification()->title());
 }
 
@@ -204,11 +201,11 @@ TEST_P(InSessionPasswordChangeManagerTest, MaybeShow_WillEventuallyExpire) {
   MaybeShowExpiryNotificationAndWait();
 
   // Notification is not shown when expiration is still over a year away.
-  EXPECT_FALSE(Notification());
+  EXPECT_FALSE(Notification().has_value());
 
   // But, it will be shown once we are in the advance warning window:
   test_environment_.FastForwardBy(kOneYear + kOneHour);
-  ASSERT_TRUE(Notification());
+  EXPECT_TRUE(Notification().has_value());
   EXPECT_EQ(utf16("Password expires in 14 days"), Notification()->title());
 }
 
@@ -217,12 +214,12 @@ TEST_P(InSessionPasswordChangeManagerTest, MaybeShow_DeleteExpirationTime) {
   MaybeShowExpiryNotificationAndWait();
 
   // Notification is not shown immediately.
-  EXPECT_FALSE(Notification());
+  EXPECT_FALSE(Notification().has_value());
 
   // Since expiration time is now removed, it is not shown later either.
   SamlPasswordAttributes::DeleteFromPrefs(profile_->GetPrefs());
   test_environment_.FastForwardBy(kThreeYears);
-  EXPECT_FALSE(Notification());
+  EXPECT_FALSE(Notification().has_value());
 }
 
 TEST_P(InSessionPasswordChangeManagerTest, MaybeShow_PasswordChanged) {
@@ -230,7 +227,7 @@ TEST_P(InSessionPasswordChangeManagerTest, MaybeShow_PasswordChanged) {
   MaybeShowExpiryNotificationAndWait();
 
   // Notification is shown immediately since password will soon expire.
-  ASSERT_TRUE(Notification());
+  EXPECT_TRUE(Notification().has_value());
   EXPECT_EQ(utf16("Password expires in 7 days"), Notification()->title());
 
   // Password is changed and notification is dismissed.
@@ -239,7 +236,7 @@ TEST_P(InSessionPasswordChangeManagerTest, MaybeShow_PasswordChanged) {
 
   // From now on, notification will not be reshown.
   test_environment_.FastForwardBy(kThreeYears);
-  EXPECT_FALSE(Notification());
+  EXPECT_FALSE(Notification().has_value());
 }
 
 TEST_P(InSessionPasswordChangeManagerTest, MaybeShow_Idempotent) {
@@ -269,31 +266,31 @@ TEST_P(InSessionPasswordChangeManagerTest, TimePasses_NoUserActionTaken) {
   MaybeShowExpiryNotificationAndWait();
 
   // Notification is not shown immediately.
-  EXPECT_FALSE(Notification());
+  EXPECT_FALSE(Notification().has_value());
 
   // After one year, we are still not quite inside the advance warning window.
   test_environment_.FastForwardBy(kOneYear - (kOneDay / 2));
-  EXPECT_FALSE(Notification());
+  EXPECT_FALSE(Notification().has_value());
 
   // But the next day, the notification is shown.
   test_environment_.FastForwardBy(kOneDay);
-  ASSERT_TRUE(Notification());
+  EXPECT_TRUE(Notification().has_value());
   EXPECT_EQ(utf16("Password expires in 14 days"), Notification()->title());
   EXPECT_EQ(utf16("Choose a new one now"), Notification()->message());
 
   // As time passes, the notification updates each day.
   test_environment_.FastForwardBy(kAdvanceWarningTime / 2);
-  ASSERT_TRUE(Notification());
+  EXPECT_TRUE(Notification().has_value());
   EXPECT_EQ(utf16("Password expires in 7 days"), Notification()->title());
   EXPECT_EQ(utf16("Choose a new one now"), Notification()->message());
 
   test_environment_.FastForwardBy(kAdvanceWarningTime / 2);
-  ASSERT_TRUE(Notification());
+  EXPECT_TRUE(Notification().has_value());
   EXPECT_EQ(utf16("Password change overdue"), Notification()->title());
   EXPECT_EQ(utf16("Choose a new one now"), Notification()->message());
 
   test_environment_.FastForwardBy(kOneYear);
-  ASSERT_TRUE(Notification());
+  EXPECT_TRUE(Notification().has_value());
   EXPECT_EQ(utf16("Password change overdue"), Notification()->title());
   EXPECT_EQ(utf16("Choose a new one now"), Notification()->message());
 }
@@ -303,7 +300,7 @@ TEST_P(InSessionPasswordChangeManagerTest, TimePasses_NotificationDismissed) {
   MaybeShowExpiryNotificationAndWait();
 
   // Notification is not shown immediately.
-  EXPECT_FALSE(Notification());
+  EXPECT_FALSE(Notification().has_value());
 
   // Notification appears once we are inside the advance warning window.
   test_environment_.FastForwardBy(kOneYear);
@@ -326,13 +323,13 @@ TEST_P(InSessionPasswordChangeManagerTest, ReshowOnUnlock) {
   MaybeShowExpiryNotificationAndWait();
 
   // Notification is shown immediately.
-  ASSERT_TRUE(Notification());
+  EXPECT_TRUE(Notification().has_value());
   base::Time first_shown_at = Notification()->timestamp();
 
   // This notification is still present an hour later - but it is the same
   // notification as before. So it is no longer shown prominently on screen.
   test_environment_.FastForwardBy(kOneHour);
-  ASSERT_TRUE(Notification());
+  EXPECT_TRUE(Notification().has_value());
   EXPECT_EQ(first_shown_at, Notification()->timestamp());
 
   // But when the screen is unlocked, the old notification is replaced with a
@@ -343,7 +340,7 @@ TEST_P(InSessionPasswordChangeManagerTest, ReshowOnUnlock) {
   // We need to run until idle to ensure this check completes and the
   // notification is reshown.
   test_environment_.RunUntilIdle();
-  ASSERT_TRUE(Notification());
+  EXPECT_TRUE(Notification().has_value());
   EXPECT_NE(first_shown_at, Notification()->timestamp());
 }
 
@@ -352,22 +349,22 @@ TEST_P(InSessionPasswordChangeManagerTest, DontReshowWhenDismissed) {
   MaybeShowExpiryNotificationAndWait();
 
   // Notification is shown immediately.
-  EXPECT_TRUE(Notification());
+  EXPECT_TRUE(Notification().has_value());
 
   // If dismissed, the notification won't reappear within the next hour, since
   // we don't want to nag the user continuously.
   manager_->DismissExpiryNotification();
   manager_->OnExpiryNotificationDismissedByUser();
   test_environment_.FastForwardBy(kOneHour);
-  EXPECT_FALSE(Notification());
+  EXPECT_FALSE(Notification().has_value());
 
   // Nor will it reappear if the user unlocks the screen.
   manager_->OnScreenUnlocked();
-  EXPECT_FALSE(Notification());
+  EXPECT_FALSE(Notification().has_value());
 
   // But it will eventually reappear the next day.
   test_environment_.FastForwardBy(kOneDay);
-  EXPECT_TRUE(Notification());
+  EXPECT_TRUE(Notification().has_value());
 }
 
 class InSessionPasswordChangeManagerLocalFactorCheckTest
@@ -397,7 +394,7 @@ TEST_F(InSessionPasswordChangeManagerLocalFactorCheckTest,
   MaybeShowExpiryNotificationAndWait();
 
   // Notification is NOT shown because there is no online password.
-  EXPECT_FALSE(Notification());
+  EXPECT_FALSE(Notification().has_value());
 }
 
 TEST_F(InSessionPasswordChangeManagerLocalFactorCheckTest,
@@ -420,7 +417,7 @@ TEST_F(InSessionPasswordChangeManagerLocalFactorCheckTest,
 
   // Notification is NOT shown because it's a local password, not an online
   // password.
-  EXPECT_FALSE(Notification());
+  EXPECT_FALSE(Notification().has_value());
 }
 INSTANTIATE_TEST_SUITE_P(All,
                          InSessionPasswordChangeManagerTest,

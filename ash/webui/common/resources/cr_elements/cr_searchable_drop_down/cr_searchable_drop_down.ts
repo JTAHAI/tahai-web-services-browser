@@ -27,7 +27,6 @@ import '//resources/polymer/v3_0/iron-dropdown/iron-dropdown.js';
 import '//resources/polymer/v3_0/iron-icon/iron-icon.js';
 import '//resources/polymer/v3_0/paper-spinner/paper-spinner-lite.js';
 
-import {assert} from '//resources/js/assert.js';
 import type {IronDropdownElement} from '//resources/polymer/v3_0/iron-dropdown/iron-dropdown.js';
 import type {DomRepeatEvent} from '//resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 import {PolymerElement} from '//resources/polymer/v3_0/polymer/polymer_bundled.min.js';
@@ -159,7 +158,7 @@ export class CrSearchableDropDownElement extends PolymerElement {
   declare private opened_: boolean;
   private openDropdownTimeoutId_: number = 0;
   private resizeObserver_: ResizeObserver|null = null;
-  private pointerDownListener_: ((e: Event) => void)|null = null;
+  private pointerDownListener_: (e: Event) => void;
 
   override connectedCallback() {
     super.connectedCallback();
@@ -180,10 +179,8 @@ export class CrSearchableDropDownElement extends PolymerElement {
   override disconnectedCallback() {
     super.disconnectedCallback();
 
-    assert(this.pointerDownListener_);
     document.removeEventListener('pointerdown', this.pointerDownListener_);
-    assert(this.resizeObserver_);
-    this.resizeObserver_.unobserve(this.$.search);
+    this.resizeObserver_!.unobserve(this.$.search);
   }
 
   /**
@@ -240,21 +237,21 @@ export class CrSearchableDropDownElement extends PolymerElement {
     this.openDropdownTimeoutId_ = setTimeout(this.openDropdown_.bind(this));
   }
 
-  protected onItemsChanged_() {
+  private onItemsChanged_() {
     // Refit the iron-dropdown so that it can expand as neccessary to
     // accommodate new items. Refitting is done on a new task because the change
     // notification might not yet have propagated to the iron-dropdown.
     this.enqueueDropdownRefit_();
   }
 
-  protected onFocus_() {
+  private onFocus_() {
     if (this.readonly) {
       return;
     }
     this.openDropdown_();
   }
 
-  protected onMouseMove_(event: Event) {
+  private onMouseMove_(event: Event) {
     const item = event.composedPath().find(elm => {
       const element = elm as HTMLElement;
       return element.classList && element.classList.contains('list-item');
@@ -306,7 +303,7 @@ export class CrSearchableDropDownElement extends PolymerElement {
     }
   }
 
-  protected onKeyDown_(event: KeyboardEvent) {
+  private onKeyDown_(event: KeyboardEvent) {
     const dropdown = this.$.dropdown;
     if (!dropdown.opened) {
       if (this.readonly) {
@@ -398,7 +395,7 @@ export class CrSearchableDropDownElement extends PolymerElement {
     items[nextIndex].scrollIntoViewIfNeeded();
   }
 
-  protected onInput_() {
+  private onInput_() {
     this.searchTerm_ = this.$.search.value;
 
     if (this.updateValueOnInput) {
@@ -424,7 +421,7 @@ export class CrSearchableDropDownElement extends PolymerElement {
     this.updateInvalid_();
   }
 
-  protected onSelect_(event: DomRepeatEvent<string>) {
+  private onSelect_(event: DomRepeatEvent<string>) {
     this.closeDropdown_();
 
     this.value = event.model.item;
@@ -437,7 +434,7 @@ export class CrSearchableDropDownElement extends PolymerElement {
     }
   }
 
-  protected filterItems_(searchTerm: string): ((s: string) => boolean)|null {
+  private filterItems_(searchTerm: string): ((s: string) => boolean)|null {
     if (!searchTerm) {
       return null;
     }
@@ -446,13 +443,13 @@ export class CrSearchableDropDownElement extends PolymerElement {
     };
   }
 
-  protected shouldShowErrorMessage_(
+  private shouldShowErrorMessage_(
       errorMessage: string, errorMessageAllowed: boolean): boolean {
     return !!this.getErrorMessage_(errorMessage, errorMessageAllowed);
   }
 
-  protected getErrorMessage_(
-      errorMessage: string, errorMessageAllowed: boolean): string {
+  private getErrorMessage_(errorMessage: string, errorMessageAllowed: boolean):
+      string {
     if (!errorMessageAllowed) {
       return '';
     }
@@ -466,7 +463,7 @@ export class CrSearchableDropDownElement extends PolymerElement {
    * updateValueOnInput is false. When updateValueOnInput is true, it is ok to
    * leave the user's text in the dropdown search bar when focus is changed.
    */
-  protected onBlur_() {
+  private onBlur_() {
     if (!this.updateValueOnInput) {
       this.$.search.value = this.value;
     }

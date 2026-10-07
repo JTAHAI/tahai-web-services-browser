@@ -88,7 +88,6 @@ class HttpServerProperties;
 class NetLog;
 class NetworkAnonymizationKey;
 struct NetworkTrafficAnnotationTag;
-class NetworkQualityEstimator;
 class ProxyDelegate;
 class QuicChromiumConnectionHelper;
 class QuicCryptoClientStreamFactory;
@@ -240,8 +239,6 @@ class NET_EXPORT_PRIVATE QuicSessionRequest {
   // returns the amount of time waiting job should be delayed.
   base::TimeDelta GetTimeDelayForWaitingJob() const;
 
-  base::WeakPtr<QuicSessionRequest> GetWeakPtr();
-
   // If host resolution is underway, changes the priority of the host resolver
   // request.
   void SetPriority(RequestPriority priority);
@@ -303,8 +300,6 @@ class NET_EXPORT_PRIVATE QuicSessionRequest {
   CompletionOnceCallback host_resolution_callback_;
 
   CompletionOnceCallback create_session_callback_;
-
-  base::WeakPtrFactory<QuicSessionRequest> weak_factory_{this};
 };
 
 // Manages a pool of QuicChromiumClientSessions.
@@ -326,7 +321,6 @@ class NET_EXPORT_PRIVATE QuicSessionPool
       SCTAuditingDelegate* sct_auditing_delegate,
       SocketPerformanceWatcherFactory* socket_performance_watcher_factory,
       QuicCryptoClientStreamFactory* quic_crypto_client_stream_factory,
-      NetworkQualityEstimator* network_quality_estimator,
       QuicContext* context);
 
   QuicSessionPool(const QuicSessionPool&) = delete;
@@ -355,14 +349,12 @@ class NET_EXPORT_PRIVATE QuicSessionPool
       const url::SchemeHostPort& destination) const;
 
   // Returns a session when an existing session can be used for `destination`
-  // that is resolved with `service_endpoint`. When `log_negative_result` is
-  // false, a miss is not recorded in metrics.
+  // that is resolved with `service_endpoint`.
   QuicChromiumClientSession* HasMatchingIpSessionForServiceEndpoint(
       const QuicSessionAliasKey& session_alias_key,
       const ServiceEndpoint& service_endpoint,
       const std::set<std::string>& dns_aliases,
-      bool use_dns_aliases,
-      bool log_negative_result);
+      bool use_dns_aliases);
 
   // Requests a QuicChromiumClientSession to |host_port_pair|, a handle for
   // which will be owned by |request|.
@@ -406,8 +398,7 @@ class NET_EXPORT_PRIVATE QuicSessionPool
       bool use_dns_aliases,
       std::set<std::string> dns_aliases,
       MultiplexedSessionCreationInitiator session_creation_initiator,
-      std::optional<ConnectionManagementConfig> connection_management_config,
-      bool is_stale = false);
+      std::optional<ConnectionManagementConfig> connection_management_config);
 
   // Called by a session when it is going away and no more streams should be
   // created on it.
@@ -569,9 +560,7 @@ class NET_EXPORT_PRIVATE QuicSessionPool
 
  private:
   class Job;
-  class AsyncDnsJob;
   class DirectJob;
-  class EndpointConnector;
   class ProxyJob;
   class QuicCryptoClientConfigOwner;
   class CryptoClientConfigHandle;
@@ -606,8 +595,7 @@ class NET_EXPORT_PRIVATE QuicSessionPool
       const QuicSessionAliasKey& key,
       const std::vector<IPEndPoint>& ip_endpoints,
       const std::set<std::string>& aliases,
-      bool use_dns_aliases,
-      bool log_negative_result = true);
+      bool use_dns_aliases);
   // Returns true if IP matching can be waived when trying to send requests to
   // |destination| on |session|.
   bool CanWaiveIpMatching(const url::SchemeHostPort& destination,
@@ -615,13 +603,8 @@ class NET_EXPORT_PRIVATE QuicSessionPool
   void OnJobComplete(Job* job,
                      std::optional<base::TimeTicks> proxy_connect_start_time,
                      int rv);
-  // Returns whether the exact session is currently active under any key.
-  bool IsSessionActive(const QuicChromiumClientSession* session) const;
   bool HasActiveSession(const QuicSessionKey& session_key) const;
   bool HasActiveJob(const QuicSessionKey& session_key) const;
-
-  QuicConnectionReuseDetails DetermineQuicConnectionReuseDetails(
-      const QuicSessionKey& session_key) const;
 
   // Methods to notify the ConnectionChangeObserver about connection changing
   // events. `NotifyOnNetworkEvent` will notify all of the notifiers on network
@@ -657,10 +640,8 @@ class NET_EXPORT_PRIVATE QuicSessionPool
       const NetLogWithSource& net_log,
       raw_ptr<QuicChromiumClientSession>* session,
       handles::NetworkHandle* network,
-      MultiplexedSessionCreationInitiator session_creation_initiator,
-      QuicConnectionReuseDetails quic_connection_reuse_details,
-      std::optional<ConnectionManagementConfig> connection_management_config =
-          std::nullopt);
+      MultiplexedSessionCreationInitiator preconnet_origin,
+      std::optional<ConnectionManagementConfig> connection_management_config);
   // Note: QUIC session create methods that complete asynchronously, we can't
   // pass raw pointers as parameters because we can't guarantee that these raw
   // pointers outlive `this` since we use nested callbacks in these methods. See
@@ -681,9 +662,7 @@ class NET_EXPORT_PRIVATE QuicSessionPool
       const NetLogWithSource& net_log,
       handles::NetworkHandle network,
       MultiplexedSessionCreationInitiator session_creation_initiator,
-      QuicConnectionReuseDetails quic_connection_reuse_details,
-      std::optional<ConnectionManagementConfig> connection_management_config =
-          std::nullopt);
+      std::optional<ConnectionManagementConfig> connection_management_config);
   // TODO(crbug.com/518753285): Proxied connections do not currently support
   // connection migration. This means that this is never called with
   // `network` != handles::kInvalidNetworkHandle. Drop the `network` parameter
@@ -700,9 +679,7 @@ class NET_EXPORT_PRIVATE QuicSessionPool
       std::unique_ptr<QuicChromiumClientStream::Handle> proxy_stream,
       std::string user_agent,
       const NetLogWithSource& net_log,
-      handles::NetworkHandle network,
-      MultiplexedSessionCreationInitiator session_creation_initiator,
-      QuicConnectionReuseDetails quic_connection_reuse_details);
+      handles::NetworkHandle network);
   void FinishCreateSession(
       CreateSessionCallback callback,
       QuicSessionAliasKey key,
@@ -719,7 +696,6 @@ class NET_EXPORT_PRIVATE QuicSessionPool
       handles::NetworkHandle network,
       std::unique_ptr<DatagramClientSocket> socket,
       MultiplexedSessionCreationInitiator session_creation_initiator,
-      QuicConnectionReuseDetails quic_connection_reuse_details,
       std::optional<ConnectionManagementConfig> connection_management_config,
       int rv);
   // TODO(crbug.com/518753285): Stop accepting a `network` parameter. Instead,
@@ -740,7 +716,6 @@ class NET_EXPORT_PRIVATE QuicSessionPool
       handles::NetworkHandle network,
       std::unique_ptr<DatagramClientSocket> socket,
       MultiplexedSessionCreationInitiator session_creation_initiator,
-      QuicConnectionReuseDetails quic_connection_reuse_details,
       std::optional<ConnectionManagementConfig> connection_management_config);
 
   // Called when the Job for the given key has created and confirmed a session.
@@ -770,15 +745,6 @@ class NET_EXPORT_PRIVATE QuicSessionPool
   // is no |http_server_properties_| or if |http_server_properties_| doesn't
   // have ServerNetworkStats for the given |server_id|.
   const base::TimeDelta* GetServerNetworkStatsSmoothedRtt(
-      const quic::QuicServerId& server_id,
-      const NetworkAnonymizationKey& network_anonymization_key,
-      const ProxyChain& proxy_chain) const;
-
-  // Returns the smoothed RTT for the given |server_id|,
-  // |network_anonymization_key|, and |proxy_chain| from ServerNetworkStats, or
-  // from NetworkQualityEstimator if not available. Returns nullopt if neither
-  // are available.
-  std::optional<base::TimeDelta> GetSmoothedRtt(
       const quic::QuicServerId& server_id,
       const NetworkAnonymizationKey& network_anonymization_key,
       const ProxyChain& proxy_chain) const;
@@ -868,7 +834,6 @@ class NET_EXPORT_PRIVATE QuicSessionPool
   const raw_ptr<HostResolver> host_resolver_;
   const raw_ptr<ClientSocketFactory> client_socket_factory_;
   const raw_ptr<HttpServerProperties> http_server_properties_;
-  const raw_ptr<NetworkQualityEstimator> network_quality_estimator_;
   const raw_ptr<CertVerifier> cert_verifier_;
   const raw_ptr<TransportSecurityState> transport_security_state_;
   const raw_ptr<ProxyDelegate> proxy_delegate_;

@@ -51,23 +51,12 @@ HistoryTool::~HistoryTool() = default;
 
 void HistoryTool::Validate(ToolCallback callback) {
   // Get the navigation entry that would be navigated to.
-  int offset = GetTargetOffset();
+  int offset = direction_ == HistoryToolRequest::Direction::kBack ? -1 : 1;
   content::NavigationEntry* entry =
       web_contents()->GetController().GetEntryAtOffset(offset);
 
-  // When reloading (offset == 0), if the current entry is an initial blank
-  // entry, reload cannot succeed.
-  if (offset == 0 && entry && entry->IsInitialEntry()) {
-    PostResponseTask(
-        std::move(callback),
-        MakeResult(mojom::ActionResultCode::kHistoryNoNavigationsCreated,
-                   /*requires_page_stabilization=*/false,
-                   "No committed navigation entry to reload."));
-    return;
-  }
-
-  // If there is no entry, the navigation will fail at the time of use, so we
-  // can pass validation for now.
+  // If there is no entry, the navigation will fail at the time of use, so
+  // we can pass validation for now.
   if (!entry) {
     PostResponseTask(std::move(callback), MakeOkResult());
     return;
@@ -94,7 +83,7 @@ mojom::ActionResultPtr HistoryTool::TimeOfUseValidation(
   } else {
     // Ensure the entry being navigated to is the same as when it was
     // validated.
-    int offset = GetTargetOffset();
+    int offset = direction_ == HistoryToolRequest::Direction::kBack ? -1 : 1;
     content::NavigationEntry* entry =
         web_contents()->GetController().GetEntryAtOffset(offset);
     if (!entry || entry->GetUniqueID() != validated_entry_id_) {
@@ -126,27 +115,11 @@ void HistoryTool::Invoke(ToolCallback callback) {
 
   if (direction_ == HistoryToolRequest::Direction::kBack) {
     pending_navigations_ = web_contents()->GetController().GoBack();
-  } else if (direction_ == HistoryToolRequest::Direction::kForward) {
-    pending_navigations_ = web_contents()->GetController().GoForward();
   } else {
-    content::ReloadType reload_type =
-        direction_ == HistoryToolRequest::Direction::kReloadBypassingCache
-            ? content::ReloadType::BYPASSING_CACHE
-            : content::ReloadType::NORMAL;
-    // TODO(crbug.com/549189716): Reload() returns void and does not return
-    // NavigationHandles. The reload may not initiate a navigation synchronously
-    // (e.g. if a repost confirmation dialog is shown or if deferred by
-    // beforeunload handlers). For now, return success immediately after
-    // calling Reload(). A follow-up in content/ should provide an API to
-    // observe reload completion uniformly with back/forward history traversals.
-    web_contents()->GetController().Reload(reload_type,
-                                           /*check_for_repost=*/true);
-    PostResponseTask(std::move(invoke_callback_), MakeOkResult());
-    return;
+    CHECK_EQ(direction_, HistoryToolRequest::Direction::kForward);
+    pending_navigations_ = web_contents()->GetController().GoForward();
   }
 
-  // For GoBack/GoForward, pending_navigations_ holds synchronously returned
-  // handles. If no navigations were created, return failure immediately.
   if (pending_navigations_.empty()) {
     PostResponseTask(
         std::move(invoke_callback_),
@@ -164,16 +137,8 @@ std::string HistoryTool::DebugString() const {
 }
 
 std::string HistoryTool::JournalEvent() const {
-  switch (direction_) {
-    case HistoryToolRequest::Direction::kBack:
-      return "Back";
-    case HistoryToolRequest::Direction::kForward:
-      return "Forward";
-    case HistoryToolRequest::Direction::kReload:
-      return "Reload";
-    case HistoryToolRequest::Direction::kReloadBypassingCache:
-      return "ReloadBypassingCache";
-  }
+  return direction_ == HistoryToolRequest::Direction::kBack ? "Back"
+                                                            : "Forward";
 }
 
 std::unique_ptr<ObservationDelayController> HistoryTool::GetObservationDelayer(
@@ -193,18 +158,7 @@ tabs::TabHandle HistoryTool::GetTargetTab() const {
 }
 
 void HistoryTool::DidStartNavigation(NavigationHandle* navigation_handle) {
-  if (!IsInvokeInProgress()) {
-    return;
-  }
-
-  // Reload navigations complete immediately on Invoke() and are not tracked
-  // here (see crbug.com/549189716).
-  if (direction_ == HistoryToolRequest::Direction::kReload ||
-      direction_ == HistoryToolRequest::Direction::kReloadBypassingCache) {
-    return;
-  }
-
-  if (!navigation_handle->IsHistory()) {
+  if (!IsInvokeInProgress() || !navigation_handle->IsHistory()) {
     return;
   }
 
@@ -308,18 +262,6 @@ void HistoryTool::PurgePendingNavigations() {
 
 bool HistoryTool::IsInvokeInProgress() const {
   return !invoke_callback_.is_null();
-}
-
-int HistoryTool::GetTargetOffset() const {
-  switch (direction_) {
-    case HistoryToolRequest::Direction::kBack:
-      return -1;
-    case HistoryToolRequest::Direction::kForward:
-      return 1;
-    case HistoryToolRequest::Direction::kReload:
-    case HistoryToolRequest::Direction::kReloadBypassingCache:
-      return 0;
-  }
 }
 
 }  // namespace actor

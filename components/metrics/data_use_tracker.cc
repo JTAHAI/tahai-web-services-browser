@@ -7,10 +7,7 @@
 #include <memory>
 #include <string>
 
-#include "base/i18n/icubridge/date_time_formatter.h"
-#include "base/i18n/icubridge/icu_bridge.h"
 #include "base/i18n/time_formatting.h"
-#include "base/strings/utf_string_conversions.h"
 #include "base/values.h"
 #include "build/build_config.h"
 #include "components/metrics/metrics_pref_names.h"
@@ -159,14 +156,8 @@ base::Time DataUseTracker::GetCurrentMeasurementDate() const {
 
 std::string DataUseTracker::GetCurrentMeasurementDateAsString() const {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  using base::i18n::GetKnownLanguageTag;
-  using base::i18n::IcuBridge;
-  using base::i18n::datetime_options::YMD;
-
-  return base::UTF16ToUTF8(
-      IcuBridge::GetInstance().date_time_formatter().Format(
-          GetCurrentMeasurementDate(), GetKnownLanguageTag("en-US"),
-          YMD::Short()));
+  return base::UnlocalizedTimeFormatWithPattern(GetCurrentMeasurementDate(),
+                                                "yyyy-MM-dd");
 }
 
 }  // namespace metrics

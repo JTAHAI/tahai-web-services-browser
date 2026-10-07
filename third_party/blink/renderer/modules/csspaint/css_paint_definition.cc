@@ -155,7 +155,8 @@ void CSSPaintDefinition::ApplyAnimatedPropertyOverrides(
   auto& style_map_data = style_map->StyleMapData();
   for (const auto& [key, value] : animated_property_values) {
     DCHECK(value.has_value());
-    String property_name = String::FromUtf8(key.custom_property_name.value());
+    String property_name =
+        String::FromUtf8(key.custom_property_name.value().c_str());
     auto it = style_map_data.find(property_name);
     CHECK_NE(it, style_map_data.end());
     DCHECK(it->value);

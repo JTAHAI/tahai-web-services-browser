@@ -1,2 +1,3 @@
-rules:
-- "**": [webxr-layers]
+features:
+  - name: webxr-layers
+    files: '**'

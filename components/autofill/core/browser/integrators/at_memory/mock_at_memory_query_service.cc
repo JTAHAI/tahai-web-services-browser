@@ -13,11 +13,7 @@ namespace autofill {
 MockAtMemoryQueryService::MockAtMemoryQueryService()
     : AtMemoryQueryService(/*data_provider=*/nullptr,
                            /*personal_context_service=*/nullptr,
-                           /*locale=*/"",
-                           /*personal_context_eligibility_service=*/nullptr,
-                           /*subscription_eligibility_service=*/nullptr,
-                           /*pref_service=*/nullptr,
-                           /*log_router=*/nullptr) {}
+                           /*locale=*/"") {}
 
 MockAtMemoryQueryService::~MockAtMemoryQueryService() = default;
 

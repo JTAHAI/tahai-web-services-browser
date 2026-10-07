@@ -24,24 +24,16 @@ import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.Criteria;
 import org.chromium.base.test.util.CriteriaHelper;
 import org.chromium.base.test.util.Feature;
-import org.chromium.base.test.util.Features.DisableFeatures;
 import org.chromium.base.test.util.Features.EnableFeatures;
 import org.chromium.base.test.util.RequiresRestart;
-import org.chromium.chrome.browser.app.tabmodel.HeadlessTabDelegateFactory;
-import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
-import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.tabmodel.TabClosureParams;
-import org.chromium.chrome.browser.tabmodel.TabModelType;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.chrome.test.transit.AutoResetCtaTransitTestRule;
 import org.chromium.chrome.test.transit.ChromeTransitTestRules;
 import org.chromium.chrome.test.transit.page.WebPageStation;
 import org.chromium.components.autofill.TestViewStructure;
-import org.chromium.components.embedder_support.util.UrlConstants;
 import org.chromium.content_public.browser.LoadUrlParams;
-import org.chromium.content_public.browser.Visibility;
-import org.chromium.content_public.browser.WebContentsAccessibility;
 import org.chromium.ui.base.WindowAndroid;
 
 /** Tests for the {@link TabImpl} class. */
@@ -89,163 +81,29 @@ public class TabImplTest {
                 });
     }
 
-    /**
-     * Creates a frozen tab at {@code index = 1} while keeping {@code foregroundTab} active at
-     * {@code index = 0}.
-     *
-     * <p>Unlike {@link #createFrozenTab()}, which closes all tabs so the new tab becomes {@code
-     * active_index = 0}, keeping the tab at {@code index = 1} (`i != active_index`) is required so
-     * that {@code TabModelObserverJniBridge::RestoreCompleted()} includes it in the background
-     * {@code PageNode} list passed to {@code
-     * BackgroundTabLoadingPolicy::ScheduleLoadForRestoredTabs()}.
-     */
-    private TabImpl createFrozenBackgroundTab() {
-        String url = mActivityTestRule.getTestServer().getURL(TEST_PATH);
-        WebPageStation testPage = mInitialPage.openFakeLinkToWebPage(url);
-        Tab foregroundTab = testPage.loadedTabElement.value();
-
-        return ThreadUtils.runOnUiThreadBlocking(
-                () -> {
-                    TabState state = TabStateExtractor.from(foregroundTab);
-                    return (TabImpl)
-                            mActivityTestRule
-                                    .getActivity()
-                                    .getCurrentTabCreator()
-                                    .createFrozenTab(
-                                            state, foregroundTab.getId() + 100, /* index= */ 1);
-                });
-    }
-
     @Test
     @SmallTest
     @Feature({"Tab"})
-    @EnableFeatures({
-        ChromeFeatureList.LOAD_ALL_TABS_AT_STARTUP,
-        "DesktopAndroidBackgroundTabLoading",
-        ChromeFeatureList.SUPPRESS_ACCESSIBILITY_ON_DEFERRED_CONTENT_VIEW
-    })
+    @EnableFeatures({"LoadAllTabsAtStartup"})
     @RequiresRestart(
             "Optimization feature tests require absolute custom flag evaluations and container"
                     + " resets.")
     public void testDeferredContentViewInflation() {
-        TabImpl tab = createFrozenBackgroundTab();
+        TabImpl tab = createFrozenTab();
 
         assertNotNull("WebContents should be initialized early", tab.getWebContents());
         assertNotNull("ContentView should return lightweight proxy stub", tab.getContentView());
-        assertTrue(
-                "ContentView should initially be deferred", tab.isContentViewDeferredForTesting());
 
-        // Emulate kDesktopAndroidBackgroundTabLoading reloading the background tab at startup.
-        // Unlike TabImpl.loadIfNeeded() (which calls inflateDeferredContentViewIfNeeded() on the
-        // Java side), broadcastSessionRestoreComplete() triggers C++
-        // BackgroundTabLoadingPolicy -> PageLoader::LoadPageNode() ->
-        // NavigationController::LoadIfNecessary(). This spawns a renderer for the background tab
-        // while leaving DeferredContentViewStub in place.
-        ThreadUtils.runOnUiThreadBlocking(
-                () -> {
-                    assertTrue(tab.getWebContents().getNavigationController().needsReload());
-                    mActivityTestRule
-                            .getActivity()
-                            .getCurrentTabModel()
-                            .broadcastSessionRestoreComplete();
-                });
-        CriteriaHelper.pollUiThread(
-                () -> !tab.getWebContents().getNavigationController().needsReload());
-
-        assertTrue(
-                "Background tab reloaded via kDesktopAndroidBackgroundTabLoading should keep"
-                        + " DeferredContentViewStub until shown",
-                tab.isContentViewDeferredForTesting());
-
-        // During layout (e.g. CompositorViewHolder.updateWebContentsSize()), Android's framework
-        // calls View.createAccessibilityNodeInfo() -> populateAccessibilityNodeInfoInternal() ->
-        // getAccessibilityNodeProvider(). With SuppressAccessibilityOnDeferredContentView enabled,
-        // DeferredContentViewStub returns null so native WebContentsAccessibility is not
-        // initialized (avoiding enabling ui::kAXModeBasic across the browser process).
-        ThreadUtils.runOnUiThreadBlocking(
-                () -> {
-                    WebContentsAccessibility wcax =
-                            WebContentsAccessibility.fromWebContents(tab.getWebContents());
-                    assertNotNull(wcax);
-                    tab.getContentView().createAccessibilityNodeInfo();
-                    assertFalse(
-                            "Inspecting accessibility node info on DeferredContentViewStub must"
-                                    + " not initialize native WebContentsAccessibility",
-                            wcax.isNativeInitialized());
-                });
-
-        // Triggering show() inflates the real ContentView and attaches it to the hierarchy,
-        // allowing normal accessibility node provider initialization when queried.
+        // Triggering show() unrolls the deferred view layer attachment safely.
         ThreadUtils.runOnUiThreadBlocking(() -> tab.show(TabSelectionType.FROM_USER));
 
         assertNotNull("ContentView should be inflated after show()", tab.getContentView());
         assertFalse(
                 "ContentView should inflate to regular base instance",
-                tab.isContentViewDeferredForTesting());
-        ThreadUtils.runOnUiThreadBlocking(
-                () -> {
-                    tab.getContentView().createAccessibilityNodeInfo();
-                    WebContentsAccessibility wcax =
-                            WebContentsAccessibility.fromWebContents(tab.getWebContents());
-                    assertTrue(
-                            "Inflated ContentView should initialize native"
-                                    + " WebContentsAccessibility",
-                            wcax.isNativeInitialized());
-                });
-    }
-
-    @Test
-    @SmallTest
-    @Feature({"Tab"})
-    @EnableFeatures({
-        ChromeFeatureList.LOAD_ALL_TABS_AT_STARTUP,
-        "DesktopAndroidBackgroundTabLoading"
-    })
-    @DisableFeatures({ChromeFeatureList.SUPPRESS_ACCESSIBILITY_ON_DEFERRED_CONTENT_VIEW})
-    @RequiresRestart(
-            "Optimization feature tests require absolute custom flag evaluations and container"
-                    + " resets.")
-    public void testDeferredContentViewInflation_suppressAccessibilityDisabled() {
-        TabImpl tab = createFrozenBackgroundTab();
-
-        assertNotNull("WebContents should be initialized early", tab.getWebContents());
-        assertNotNull("ContentView should return lightweight proxy stub", tab.getContentView());
-        assertTrue(
-                "ContentView should initially be deferred", tab.isContentViewDeferredForTesting());
-
-        // Reload the background tab via kDesktopAndroidBackgroundTabLoading so its WebContents has
-        // a live renderer while still wrapped in DeferredContentViewStub.
-        ThreadUtils.runOnUiThreadBlocking(
-                () -> {
-                    assertTrue(tab.getWebContents().getNavigationController().needsReload());
-                    mActivityTestRule
-                            .getActivity()
-                            .getCurrentTabModel()
-                            .broadcastSessionRestoreComplete();
-                });
-        CriteriaHelper.pollUiThread(
-                () -> !tab.getWebContents().getNavigationController().needsReload());
-
-        assertTrue(
-                "Background tab reloaded via kDesktopAndroidBackgroundTabLoading should keep"
-                        + " DeferredContentViewStub until shown",
-                tab.isContentViewDeferredForTesting());
-
-        // Without SuppressAccessibilityOnDeferredContentView, DeferredContentViewStub inherits
-        // ContentView.getAccessibilityNodeProvider(), so createAccessibilityNodeInfo() initializes
-        // native WebContentsAccessibility on the unattached background tab.
-        ThreadUtils.runOnUiThreadBlocking(
-                () -> {
-                    WebContentsAccessibility wcax =
-                            WebContentsAccessibility.fromWebContents(tab.getWebContents());
-                    assertNotNull(wcax);
-                    tab.getContentView().createAccessibilityNodeInfo();
-                    assertTrue(
-                            "When SuppressAccessibilityOnDeferredContentView is disabled,"
-                                    + " inspecting DeferredContentViewStub initializes native"
-                                    + " WebContentsAccessibility",
-                            wcax.isNativeInitialized());
-                });
+                tab.getContentView()
+                        .getClass()
+                        .getSimpleName()
+                        .contains("DeferredContentViewStub"));
     }
 
     @Test
@@ -260,8 +118,6 @@ public class TabImplTest {
 
         assertNotNull("WebContents should be initialized early", tab.getWebContents());
         assertNotNull("ContentView should return lightweight proxy stub", tab.getContentView());
-        assertTrue(
-                "ContentView should initially be deferred", tab.isContentViewDeferredForTesting());
 
         // Triggering loadIfNeeded() invokes restoration paths that inflate the deferred UI.
         ThreadUtils.runOnUiThreadBlocking(() -> tab.loadIfNeeded(/* forceBackingSize= */ false));
@@ -269,7 +125,10 @@ public class TabImplTest {
         assertNotNull("ContentView should be inflated after loadIfNeeded()", tab.getContentView());
         assertFalse(
                 "ContentView should inflate to regular base instance",
-                tab.isContentViewDeferredForTesting());
+                tab.getContentView()
+                        .getClass()
+                        .getSimpleName()
+                        .contains("DeferredContentViewStub"));
     }
 
     @Test
@@ -473,195 +332,5 @@ public class TabImplTest {
         assertEquals(originalWindow, tab.getWindowAndroid());
 
         ThreadUtils.runOnUiThreadBlocking(() -> testWindow.destroy());
-    }
-    @Test
-    @SmallTest
-    @Feature({"Tab"})
-    public void testOffscreenRenderingUpdatesVisibility() {
-        TabImpl tab = (TabImpl) mActivityTestRule.getActivityTab();
-
-        ThreadUtils.runOnUiThreadBlocking(
-                () -> {
-                    tab.hide(TabHidingType.ACTIVITY_HIDDEN);
-                });
-        assertEquals(Visibility.HIDDEN, tab.getWebContents().getVisibility());
-
-        ThreadUtils.runOnUiThreadBlocking(
-                () -> {
-                    tab.startOffscreenRendering();
-                });
-        assertEquals(Visibility.VISIBLE, tab.getWebContents().getVisibility());
-
-        ThreadUtils.runOnUiThreadBlocking(
-                () -> {
-                    tab.stopOffscreenRendering();
-                });
-        assertEquals(Visibility.HIDDEN, tab.getWebContents().getVisibility());
-    }
-
-    @Test
-    @SmallTest
-    @Feature({"Tab"})
-    public void testLoadIfNeeded_unattachedWebTabSucceeds() {
-        ThreadUtils.runOnUiThreadBlocking(
-                () -> {
-                    Profile profile =
-                            mActivityTestRule
-                                    .getActivity()
-                                    .getProfileProviderSupplier()
-                                    .get()
-                                    .getOriginalProfile();
-                    TabDelegateFactory delegateFactory =
-                            ((TabImpl) mActivityTestRule.getActivityTab()).getDelegateFactory();
-                    TabState state = TabStateExtractor.from(mActivityTestRule.getActivityTab());
-                    TabImpl tab =
-                            (TabImpl)
-                                    new TabBuilder(profile)
-                                            .setTabState(state)
-                                            .setLaunchType(TabLaunchType.FROM_RESTORE)
-                                            .setDelegateFactory(delegateFactory)
-                                            .build();
-                    assertNull(tab.getWindowAndroid());
-                    assertTrue(tab.isFrozen());
-                    assertTrue(tab.loadIfNeeded(/* forceBackingSize= */ false));
-                    assertNotNull(tab.getWebContents());
-                    assertFalse(tab.isFrozen());
-                    tab.destroy();
-                });
-    }
-
-    @Test
-    @SmallTest
-    @Feature({"Tab"})
-    public void testLoadIfNeeded_unattachedNativePageFails() {
-        ThreadUtils.runOnUiThreadBlocking(
-                () -> {
-                    Profile profile =
-                            mActivityTestRule
-                                    .getActivity()
-                                    .getProfileProviderSupplier()
-                                    .get()
-                                    .getOriginalProfile();
-                    TabDelegateFactory delegateFactory =
-                            ((TabImpl) mActivityTestRule.getActivityTab()).getDelegateFactory();
-                    TabImpl tab =
-                            (TabImpl)
-                                    new TabBuilder(profile)
-                                            .setLaunchType(TabLaunchType.FROM_CHROME_UI)
-                                            .setDelegateFactory(delegateFactory)
-                                            .build();
-                    tab.discardAndAppendPendingNavigation(
-                            new LoadUrlParams(UrlConstants.RECENT_TABS_URL), "Recent Tabs");
-                    assertNull(tab.getWindowAndroid());
-                    assertFalse(tab.loadIfNeeded(/* forceBackingSize= */ false));
-                    tab.destroy();
-                });
-    }
-
-    @Test
-    @SmallTest
-    @Feature({"Tab"})
-    public void testLoadIfNeeded_archivedOrDestroyedTabFails() {
-        ThreadUtils.runOnUiThreadBlocking(
-                () -> {
-                    Profile profile =
-                            mActivityTestRule
-                                    .getActivity()
-                                    .getProfileProviderSupplier()
-                                    .get()
-                                    .getOriginalProfile();
-                    WindowAndroid window = mActivityTestRule.getActivity().getWindowAndroid();
-                    TabDelegateFactory delegateFactory =
-                            ((TabImpl) mActivityTestRule.getActivityTab()).getDelegateFactory();
-                    TabImpl standaloneTab =
-                            (TabImpl)
-                                    new TabBuilder(profile)
-                                            .setWindow(window)
-                                            .setLaunchType(TabLaunchType.FROM_RESTORE)
-                                            .setDelegateFactory(delegateFactory)
-                                            .build();
-                    standaloneTab.destroy();
-                    assertTrue(standaloneTab.isDestroyed());
-                    assertFalse(standaloneTab.loadIfNeeded(/* forceBackingSize= */ false));
-
-                    TabImpl archivedTab =
-                            (TabImpl)
-                                    new TabBuilder(profile)
-                                            .setWindow(window)
-                                            .setLaunchType(TabLaunchType.FROM_RESTORE)
-                                            .setDelegateFactory(
-                                                    new HeadlessTabDelegateFactory(
-                                                            TabModelType.ARCHIVED))
-                                            .build();
-                    assertTrue(archivedTab.isArchivedForTesting());
-                    assertFalse(archivedTab.loadIfNeeded(/* forceBackingSize= */ false));
-                    archivedTab.destroy();
-                });
-    }
-
-    @Test
-    @SmallTest
-    @Feature({"Tab"})
-    public void testShow_forcesLoadIfAlreadyShownAndNeedsReload() {
-        final TabImpl tab = (TabImpl) mActivityTestRule.getActivityTab();
-
-        ThreadUtils.runOnUiThreadBlocking(
-                () -> {
-                    tab.show(TabSelectionType.FROM_USER);
-                    assertFalse(tab.isHidden());
-                    assertNotNull(tab.getWebContents());
-
-                    // Mark as needing reload.
-                    tab.setNeedsReload();
-                    assertTrue(tab.needsReload());
-
-                    // Calling show() when already not hidden should force loadIfNeeded().
-                    tab.show(TabSelectionType.FROM_USER);
-                    assertFalse(tab.isHidden());
-                    assertNotNull(tab.getWebContents());
-                });
-    }
-
-    @Test
-    @SmallTest
-    @Feature({"Tab"})
-    public void testShow_forcesLoadIfAlreadyShownAndFrozen() {
-        ThreadUtils.runOnUiThreadBlocking(
-                () -> {
-                    Profile profile =
-                            mActivityTestRule
-                                    .getActivity()
-                                    .getProfileProviderSupplier()
-                                    .get()
-                                    .getOriginalProfile();
-                    TabDelegateFactory delegateFactory =
-                            ((TabImpl) mActivityTestRule.getActivityTab()).getDelegateFactory();
-                    TabState state = TabStateExtractor.from(mActivityTestRule.getActivityTab());
-                    TabImpl tab =
-                            (TabImpl)
-                                    new TabBuilder(profile)
-                                            .setTabState(state)
-                                            .setLaunchType(TabLaunchType.FROM_RESTORE)
-                                            .setDelegateFactory(delegateFactory)
-                                            .build();
-                    tab.updateAttachment(
-                            mActivityTestRule.getActivity().getWindowAndroid(),
-                            tab.getDelegateFactory());
-                    assertTrue(tab.isFrozen());
-                    assertNull(tab.getWebContents());
-
-                    // First show() marks it unhidden and restores contents.
-                    tab.show(TabSelectionType.FROM_USER);
-                    assertFalse(tab.isHidden());
-                    assertNotNull(tab.getWebContents());
-                    assertFalse(tab.isFrozen());
-
-                    // Calling show() when already not hidden should remain unhidden and loaded.
-                    tab.show(TabSelectionType.FROM_USER);
-                    assertFalse(tab.isHidden());
-                    assertNotNull(tab.getWebContents());
-                    assertFalse(tab.isFrozen());
-                    tab.destroy();
-                });
     }
 }

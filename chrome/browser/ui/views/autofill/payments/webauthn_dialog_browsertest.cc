@@ -7,11 +7,10 @@
 #include "base/functional/callback_helpers.h"
 #include "base/run_loop.h"
 #include "chrome/browser/ui/autofill/payments/webauthn_dialog_controller_impl.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_window.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/test/test_browser_dialog.h"
 #include "chrome/browser/ui/views/autofill/payments/webauthn_dialog_view.h"
-#include "components/tabs/public/tab_interface.h"
 #include "content/public/test/browser_test.h"
 
 namespace autofill {
@@ -57,7 +56,8 @@ class WebauthnDialogBrowserTest : public DialogBrowserTest {
   }
 
   WebauthnDialogControllerImpl* controller() {
-    if (!browser() || !web_contents()) {
+    if (!browser() || !browser()->tab_strip_model() ||
+        !browser()->tab_strip_model()->GetActiveWebContents()) {
       return nullptr;
     }
 
@@ -66,9 +66,7 @@ class WebauthnDialogBrowserTest : public DialogBrowserTest {
   }
 
   content::WebContents* web_contents() {
-    return browser()->GetActiveTabInterface()
-               ? browser()->GetActiveTabInterface()->GetContents()
-               : nullptr;
+    return browser()->tab_strip_model()->GetActiveWebContents();
   }
 };
 

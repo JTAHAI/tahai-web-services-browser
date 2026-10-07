@@ -25,7 +25,6 @@ import android.os.Build;
 import android.os.IBinder;
 import android.os.Process;
 import android.os.SystemClock;
-import android.util.ArraySet;
 import android.util.TypedValue;
 import android.view.Display;
 import android.view.KeyEvent;
@@ -82,8 +81,8 @@ import org.chromium.ui.widget.Toast;
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
@@ -106,6 +105,8 @@ public class WindowAndroid
     private static final long PERIODIC_METRIC_DELAY_MS = TimeUnit.MINUTES.toMillis(5);
 
     private static int sOccludedCount;
+
+    private static ThreadUtils.@Nullable ThreadChecker sThreadChecker;
 
     private static long sTotalOccludedPixels;
     private static long sAccumulatedPixelMilliseconds;
@@ -192,8 +193,7 @@ public class WindowAndroid
     private @Nullable ComponentCallbacks mComponentCallbacks;
 
     // We track all animations over content and provide a drawing placeholder for them.
-    // ArraySet avoids heap entry overhead for tracking the small active animation set.
-    private final Set<Animator> mAnimationsOverContent = new ArraySet<>();
+    private final HashSet<Animator> mAnimationsOverContent = new HashSet<>();
     private @Nullable View mAnimationPlaceholderView;
 
     /** A mechanism for observing and updating the application window's bottom inset. */
@@ -378,6 +378,10 @@ public class WindowAndroid
             boolean activityTopResumedSupported,
             boolean occlusionTrackingAllowed) {
 
+        if (sThreadChecker == null) {
+            sThreadChecker = new ThreadUtils.ThreadChecker();
+        }
+
         // When the first occlusion tracked window is created, start periodic metrics collection.
         if (occlusionTrackingAllowed
                 && UiAndroidFeatureList.sAndroidWindowOcclusion.isEnabled()
@@ -534,7 +538,7 @@ public class WindowAndroid
      * @param isOcclusionTracked Whether occlusion is tracked for this window.
      */
     public void setIsOcclusionTracked(boolean isOcclusionTracked) {
-        ThreadUtils.assertOnUiThread();
+        assumeNonNull(sThreadChecker).assertOnValidThread();
         assert !shouldTrackOcclusionWithTrustedPresentationApi();
         mIsOcclusionTracked = isOcclusionTracked;
     }
@@ -553,7 +557,7 @@ public class WindowAndroid
      */
     public void setOccluded(
             boolean isOccluded, @Nullable Rect windowBounds, @Nullable Region visibleRegion) {
-        ThreadUtils.assertOnUiThread();
+        assumeNonNull(sThreadChecker).assertOnValidThread();
         // If the Trusted Presentation API is already tracking occlusion, it takes precedence.
         if (!mOcclusionTrackingAllowed || shouldTrackOcclusionWithTrustedPresentationApi()) {
             return;
@@ -1407,30 +1411,6 @@ public class WindowAndroid
      */
     public WeakReference<Context> getContext() {
         return mContextRef;
-    }
-
-    /**
-     * Returns the raw Context object. This is a helper for native code to directly access the
-     * unwrapped Context instead of dealing with the WeakReference returned by getContext().
-     *
-     * @return The Context associated with this WindowAndroid, or null if it's been garbage
-     *     collected.
-     */
-    @CalledByNative
-    private @Nullable Object getContextForNative() {
-        return mContextRef.get();
-    }
-
-    /**
-     * Returns the System.identityHashCode of the Context. This is used by native code as a unique
-     * identifier for the Context, particularly for caching mechanisms like ColorProvider.
-     *
-     * @return The identity hash code of the Context, or 0 if the Context is null.
-     */
-    @CalledByNative
-    private long getContextHashId() {
-        Context context = mContextRef.get();
-        return context != null ? System.identityHashCode(context) : 0;
     }
 
     /** Return the decor view, or null. */

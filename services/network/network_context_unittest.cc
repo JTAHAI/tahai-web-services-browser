@@ -66,6 +66,7 @@
 #include "components/prefs/testing_pref_service.h"
 #include "components/variations/net/variations_http_headers.h"
 #include "crypto/scoped_fake_unexportable_key_provider.h"
+#include "crypto/sha2.h"
 #include "mojo/public/cpp/bindings/self_owned_receiver.h"
 #include "mojo/public/cpp/system/data_pipe_utils.h"
 #include "mojo/public/cpp/system/functions.h"
@@ -171,7 +172,6 @@
 #include "services/network/net_log_exporter.h"
 #include "services/network/network_qualities_pref_delegate.h"
 #include "services/network/network_service.h"
-#include "services/network/network_service_network_delegate.h"
 #include "services/network/public/cpp/constants.h"
 #include "services/network/public/cpp/features.h"
 #include "services/network/public/cpp/network_service_buildflags.h"
@@ -772,7 +772,6 @@ class NetworkContextTest : public testing::Test {
   }
 
  protected:
-  base::test::ScopedFeatureList features_;
   base::test::TaskEnvironment task_environment_;
   std::unique_ptr<net::NetworkChangeNotifier> network_change_notifier_;
   std::unique_ptr<NetworkService> network_service_;
@@ -780,6 +779,9 @@ class NetworkContextTest : public testing::Test {
   // NetworkContext. Not strictly needed, but seems best to mimic real-world
   // usage.
   mojo::Remote<mojom::NetworkContext> network_context_remote_;
+
+ private:
+  base::test::ScopedFeatureList features_;
 };
 
 class NetworkContextTestWithMockTime : public NetworkContextTest {
@@ -965,9 +967,9 @@ TEST_F(NetworkContextTest, NetworkBoundNetworkContext) {
 #endif  // BUILDFLAG(IS_ANDROID)
 }
 
-// Confirms that URLLoaderFactories created with target_network set in
-// URLLoaderFactoryParams correctly target that network.
-TEST_F(NetworkContextTest, URLLoaderFactoryWithTargetNetwork) {
+// Confirms that URLLoaderFactories created out of network-bound NetworkContexts
+// correctly target that network.
+TEST_F(NetworkContextTest, NetworkBoundURLLoaderFactory) {
 #if BUILDFLAG(IS_ANDROID)
   if (base::android::android_info::sdk_int() <
       base::android::android_info::SDK_VERSION_MARSHMALLOW) {
@@ -975,29 +977,30 @@ TEST_F(NetworkContextTest, URLLoaderFactoryWithTargetNetwork) {
         << "bound_network is supported starting from Android Marshmallow";
   }
 
-  // Use a normal unbound NetworkContext.
-  mojom::NetworkContextParamsPtr context_params =
-      CreateNetworkContextParamsForTesting();
-  std::unique_ptr<NetworkContext> network_context =
-      CreateContextWithParams(std::move(context_params));
-
-  EXPECT_EQ(network_context->url_request_context()->bound_network(),
-            net::handles::kInvalidNetworkHandle);
-
+  // The actual network handle doesn't really matter, this test just wants to
+  // confirm that it is correctly passed down to the owned URLRequestContext.
   constexpr net::handles::NetworkHandle network = 2;
   auto scoped_mock_network_change_notifier =
       std::make_unique<net::test::ScopedMockNetworkChangeNotifier>();
   auto* mock_ncn =
       scoped_mock_network_change_notifier->mock_network_change_notifier();
   mock_ncn->ForceNetworkHandlesSupported();
-  const size_t start_num_url_loader_factories =
-      network_context->num_url_loader_factories_for_testing();
 
+  mojom::NetworkContextParamsPtr context_params =
+      CreateNetworkContextParamsForTesting();
+  context_params->bound_network = network;
+  std::unique_ptr<NetworkContext> network_context =
+      CreateContextWithParams(std::move(context_params));
+
+  auto start_num_url_loader_factories =
+      network_context->num_url_loader_factories_for_testing();
   mojo::Remote<mojom::URLLoaderFactory> loader_factory;
   mojom::URLLoaderFactoryParamsPtr params =
       mojom::URLLoaderFactoryParams::New();
+  // This needs to be different than mojom::kInvalidProcessId to stop Mojo
+  // from yelling.
   params->process_id = OriginatingProcessId::browser();
-  params->target_network = network;
+  params->disable_web_security = true;
   network_context->CreateURLLoaderFactory(
       loader_factory.BindNewPipeAndPassReceiver(), std::move(params));
   EXPECT_TRUE(loader_factory.is_bound());
@@ -1007,9 +1010,8 @@ TEST_F(NetworkContextTest, URLLoaderFactoryWithTargetNetwork) {
   EXPECT_EQ(network_context->num_url_loader_factories_for_testing() -
                 start_num_url_loader_factories,
             1u);
-  EXPECT_EQ(
-      network_context->CountURLLoaderFactoriesBoundToNetworkForTesting(network),
-      1u);
+  EXPECT_TRUE(network_context->AllURLLoaderFactoriesAreBoundToNetworkForTesting(
+      network));
 #else   // !BUILDFLAG(IS_ANDROID)
   GTEST_SKIP() << "bound_network is supported only on Android";
 #endif  // BUILDFLAG(IS_ANDROID)
@@ -1811,8 +1813,8 @@ TEST_F(NetworkContextTest, SetHttpCacheMaxSizeAfterBackendInit) {
   context_params->file_paths.reset();
   context_params->http_cache_enabled = true;
 
-  const base::ByteSize kInitialSize = base::MiB(20);
-  const base::ByteSize kNewSize = base::MiB(10);
+  const base::ByteSize kInitialSize = base::MiBU(20);
+  const base::ByteSize kNewSize = base::MiBU(10);
   context_params->http_cache_max_size =
       base::checked_cast<int32_t>(kInitialSize.InBytes());
 
@@ -1844,8 +1846,8 @@ TEST_F(NetworkContextTest, SetHttpCacheMaxSizeBeforeUnforcedBackendInit) {
   context_params->file_paths.reset();
   context_params->http_cache_enabled = true;
 
-  const base::ByteSize kInitialSize = base::MiB(20);
-  const base::ByteSize kNewSize = base::MiB(10);
+  const base::ByteSize kInitialSize = base::MiBU(20);
+  const base::ByteSize kNewSize = base::MiBU(10);
   context_params->http_cache_max_size =
       base::checked_cast<int32_t>(kInitialSize.InBytes());
 
@@ -1884,8 +1886,8 @@ TEST_F(NetworkContextTest, SetHttpCacheMaxSizeBeforeForcedBackendInit) {
   context_params->file_paths.reset();
   context_params->http_cache_enabled = true;
 
-  const base::ByteSize kInitialSize = base::MiB(20);
-  const base::ByteSize kNewSize = base::MiB(10);
+  const base::ByteSize kInitialSize = base::MiBU(20);
+  const base::ByteSize kNewSize = base::MiBU(10);
   context_params->http_cache_max_size =
       base::checked_cast<int32_t>(kInitialSize.InBytes());
 
@@ -1924,7 +1926,7 @@ TEST_F(NetworkContextTest, SetHttpCacheMaxSizeNoCache) {
                          ->GetCache());
 
   // Ensure this doesn't crash when the internal `GetCache()` returns nullptr.
-  network_context->SetHttpCacheMaxSize(base::MiB(10), true);
+  network_context->SetHttpCacheMaxSize(base::MiBU(10), true);
   task_environment_.RunUntilIdle();
 }
 #endif  // BUILDFLAG(IS_ANDROID)
@@ -2618,44 +2620,6 @@ TEST_F(NetworkContextTest, MultipleClearHttpCacheCalls) {
   }
   run_loop.Run();
   // If all the callbacks were invoked, we should terminate.
-}
-
-TEST_F(NetworkContextTest, DestroyWithPendingHttpCacheDataRemovers) {
-  // Force Simple Cache to avoid memory leaks reported on Fuchsia and Windows
-  // ASan bots. The legacy Blockfile backend intentionally drops in-flight tasks
-  // during non-test teardown via DropPendingIO(), which AddressSanitizer flags
-  // as leaks. Using Simple Cache tests NetworkContext teardown without legacy
-  // blockfile interference.
-  base::test::ScopedFeatureList scoped_feature_list;
-  scoped_feature_list.InitAndEnableFeatureWithParameters(
-      net::features::kDiskCacheBackendExperiment, {{"backend", "simple"}});
-
-  mojom::NetworkContextParamsPtr context_params =
-      CreateNetworkContextParamsForTesting();
-  context_params->file_paths = mojom::NetworkContextFilePaths::New();
-  context_params->http_cache_enabled = true;
-
-  base::ScopedTempDir temp_dir;
-  ASSERT_TRUE(temp_dir.CreateUniqueTempDir());
-  context_params->file_paths->http_cache_directory = temp_dir.GetPath();
-
-  std::unique_ptr<NetworkContext> network_context =
-      CreateContextWithParams(std::move(context_params));
-
-  bool callback_called = false;
-  network_context->ClearHttpCache(
-      base::Time(), base::Time(), nullptr /* filter */,
-      base::BindOnce([](bool* called) { *called = true; }, &callback_called));
-
-  // Destroy the NetworkContext while HttpCacheDataRemover operations are
-  // in-flight.
-  network_context.reset();
-
-  // Run pending tasks to ensure clean teardown without dangling pointers or
-  // races.
-  task_environment_.RunUntilIdle();
-
-  EXPECT_FALSE(callback_called);
 }
 
 TEST_F(NetworkContextTest, LogicalClearHttpCache) {
@@ -6449,7 +6413,7 @@ TEST_F(NetworkContextCreateHostResolverTest, WithConfigOverrides) {
 
   // Test that the DnsClient is getting the overridden configuration.
   EXPECT_TRUE(overrides.ApplyOverrides(base_configuration)
-                  .Equals(mock_dns_client_ptr->GetEffectiveConfig()));
+                  .Equals(*mock_dns_client_ptr->GetEffectiveConfig()));
 
   // Ensure we are using the private resolver by testing that we get results
   // from the overridden DnsClient.
@@ -6517,38 +6481,6 @@ TEST_F(NetworkContextActivateDohProbesTest, NotPrimaryContext) {
   network_context.reset();
 
   EXPECT_FALSE(state->IsDohProbeRunning());
-}
-
-TEST_F(NetworkContextTest,
-       ShouldForceIgnoreSiteForCookiesCalledForEveryRedirectHop) {
-  std::vector<std::vector<GURL>> url_chains;
-  std::unique_ptr<NetworkContext> network_context =
-      CreateContextWithParams(CreateNetworkContextParamsForTesting());
-  auto* network_delegate = static_cast<NetworkServiceNetworkDelegate*>(
-      network_context->url_request_context()->network_delegate());
-  network_delegate->SetShouldForceIgnoreSiteForCookiesCallbackForTesting(
-      base::BindLambdaForTesting([&url_chains](const net::URLRequest& request) {
-        url_chains.push_back(request.url_chain());
-      }));
-
-  net::EmbeddedTestServer test_server;
-  test_server.AddDefaultHandlers(base::FilePath());
-  ASSERT_TRUE(test_server.Start());
-  const GURL target_url = test_server.GetURL("/echo");
-  const GURL redirect_url =
-      test_server.GetURL("/server-redirect-307?" + target_url.spec());
-
-  net::TestDelegate delegate;
-  std::unique_ptr<net::URLRequest> request =
-      network_context->url_request_context()->CreateRequest(
-          redirect_url, net::DEFAULT_PRIORITY, &delegate,
-          TRAFFIC_ANNOTATION_FOR_TESTS, net::handles::kInvalidNetworkHandle);
-  request->Start();
-  delegate.RunUntilComplete();
-
-  EXPECT_THAT(delegate.request_status(), net::test::IsOk());
-  EXPECT_THAT(url_chains, Contains(ElementsAre(redirect_url)));
-  EXPECT_THAT(url_chains, Contains(ElementsAre(redirect_url, target_url)));
 }
 
 TEST_F(NetworkContextTest, PrivacyModeDisabledByDefault) {

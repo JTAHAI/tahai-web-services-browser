@@ -27,7 +27,6 @@ enum class CompositorElementIdNamespace {
   kScroll,
   kStickyTranslation,
   kAnchorPositionScrollTranslation,
-  kElementCanvasTransform,
   kPrimaryEffect,
   kPrimaryTransform,
   kEffectFilter,

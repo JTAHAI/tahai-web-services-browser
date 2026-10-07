@@ -14,6 +14,7 @@
 #import "ios/chrome/browser/intelligence/page_action_menu/utils/ai_hub_metrics.h"
 #import "ios/chrome/browser/shared/model/browser/test/test_browser.h"
 #import "ios/chrome/browser/shared/model/profile/test/test_profile_ios.h"
+#import "ios/chrome/browser/shared/public/commands/gemini_commands.h"
 #import "ios/chrome/browser/shared/public/commands/lens_overlay_commands.h"
 #import "ios/chrome/browser/shared/public/commands/page_action_menu_commands.h"
 #import "ios/chrome/browser/shared/public/commands/reader_mode_commands.h"
@@ -73,6 +74,7 @@ class PageActionMenuViewControllerTest : public PlatformTest {
     mock_mutator_ = OCMProtocolMock(@protocol(PageActionMenuMutator));
     mock_delegate_ =
         OCMProtocolMock(@protocol(PageActionMenuViewControllerDelegate));
+    mock_gemini_handler_ = OCMProtocolMock(@protocol(GeminiCommands));
     mock_page_action_menu_handler_ =
         OCMProtocolMock(@protocol(PageActionMenuCommands));
     mock_lens_overlay_handler_ =
@@ -85,6 +87,7 @@ class PageActionMenuViewControllerTest : public PlatformTest {
     view_controller_ = [[PageActionMenuViewController alloc] init];
     view_controller_.mutator = mock_mutator_;
     view_controller_.delegate = mock_delegate_;
+    view_controller_.geminiHandler = mock_gemini_handler_;
     view_controller_.pageActionMenuHandler = mock_page_action_menu_handler_;
     view_controller_.lensOverlayHandler = mock_lens_overlay_handler_;
     view_controller_.readerModeHandler = mock_reader_mode_handler_;
@@ -99,6 +102,7 @@ class PageActionMenuViewControllerTest : public PlatformTest {
     view_controller_ = nil;
     mock_mutator_ = nil;
     mock_delegate_ = nil;
+    mock_gemini_handler_ = nil;
     mock_page_action_menu_handler_ = nil;
     mock_lens_overlay_handler_ = nil;
     mock_reader_mode_handler_ = nil;
@@ -109,6 +113,7 @@ class PageActionMenuViewControllerTest : public PlatformTest {
   }
 
   void StubMutatorWithDefaults() {
+    OCMStub([mock_mutator_ isReaderModeAvailable]).andReturn(YES);
     OCMStub([mock_mutator_ shouldShowFeatureEntryPoints]).andReturn(YES);
 
     PageActionMenuContentEntryPoint* enabledEntryPoint =
@@ -125,6 +130,7 @@ class PageActionMenuViewControllerTest : public PlatformTest {
 
   id mock_mutator_;
   id mock_delegate_;
+  id mock_gemini_handler_;
   id mock_page_action_menu_handler_;
   id mock_lens_overlay_handler_;
   id mock_reader_mode_handler_;
@@ -136,6 +142,7 @@ TEST_F(PageActionMenuViewControllerTest, Initialization) {
   EXPECT_NE(view_controller_, nil);
   EXPECT_EQ(view_controller_.mutator, mock_mutator_);
   EXPECT_EQ(view_controller_.delegate, mock_delegate_);
+  EXPECT_EQ(view_controller_.geminiHandler, mock_gemini_handler_);
   EXPECT_EQ(view_controller_.pageActionMenuHandler,
             mock_page_action_menu_handler_);
   EXPECT_EQ(view_controller_.lensOverlayHandler, mock_lens_overlay_handler_);
@@ -335,8 +342,8 @@ TEST_F(PageActionMenuViewControllerTest, LensButtonTapped) {
   OCMVerifyAll(mock_lens_overlay_handler_);
 }
 
-// Tests that tapping the Gemini button notifies the delegate to handle Gemini
-// tap.
+// Tests that tapping the Gemini button dismisses the menu and calls the BWG
+// handler to start the Gemini flow.
 TEST_F(PageActionMenuViewControllerTest, GeminiButtonTapped) {
   PageActionMenuContentEntryPoint* entryPoint =
       [[PageActionMenuContentEntryPoint alloc] initWithEnabled:YES];
@@ -344,7 +351,17 @@ TEST_F(PageActionMenuViewControllerTest, GeminiButtonTapped) {
   OCMStub([mock_mutator_ shouldShowFeatureEntryPoints]).andReturn(YES);
   [view_controller_ loadViewIfNeeded];
 
-  OCMExpect([mock_delegate_ viewControllerDidTapGemini:view_controller_]);
+  OCMExpect([mock_page_action_menu_handler_
+                dismissPageActionMenuWithCompletion:[OCMArg any]])
+      .andDo(^(NSInvocation* invocation) {
+        void (^completion)(void);
+        [invocation getArgument:&completion atIndex:2];
+        if (completion) {
+          completion();
+        }
+      });
+  OCMExpect(
+      [mock_gemini_handler_ startGeminiFlowWithStartupState:[OCMArg any]]);
 
   UIButton* geminiButton = (UIButton*)FindViewByAccessibilityIdentifier(
       view_controller_.view, kAIHubAskGeminiButtonAccessibilityIdentifier);
@@ -352,7 +369,8 @@ TEST_F(PageActionMenuViewControllerTest, GeminiButtonTapped) {
 
   // `self` is needed by OCMVerifyAll macro in C++ tests.
   id self = nil;
-  OCMVerifyAll(mock_delegate_);
+  OCMVerifyAll(mock_page_action_menu_handler_);
+  OCMVerifyAll(mock_gemini_handler_);
 }
 
 // Tests that loading the view with ineligibility reasons logs impressions.

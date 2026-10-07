@@ -12,6 +12,12 @@ on:
         type: string
         required: false
         description: Dedicated interactive Windows identity/session for runtime tests
+      compile_jobs:
+        type: choice
+        required: true
+        default: '1'
+        options: ['1', '2', '3', '4']
+        description: Jobs selected from recorded native resource measurements (maximum 4)
 
 permissions:
   contents: read
@@ -22,7 +28,7 @@ concurrency:
 
 jobs:
   native-acceptance:
-    if: github.repository == 'JTAHAI/tahai-web-services-browser' && github.ref == 'refs/heads/codex/ga-2.0.33-chromium-152'
+    if: github.repository == 'JTAHAI/tahai-web-services-browser' && github.ref == 'refs/heads/codex/release-2.0.33-chromium-152.0.7977.158'
     environment: tahai-native-acceptance
     runs-on: [self-hosted, Windows, X64, tahai-native-isolated]
     timeout-minutes: 1440
@@ -37,6 +43,7 @@ jobs:
       TAHAI_SOURCE_POWERSHELL: ${{ vars.TAHAI_SOURCE_POWERSHELL }}
       TAHAI_BUILD_ONLY: ${{ inputs.build_only }}
       TAHAI_TEST_SESSION: ${{ inputs.isolated_test_session }}
+      TAHAI_COMPILE_JOBS: ${{ inputs.compile_jobs }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -71,7 +78,7 @@ jobs:
             '-BuildDirectory', $env:TAHAI_BUILD, '-DepotTools', $env:TAHAI_DEPOT_TOOLS,
             '-VisualStudioPath', $env:TAHAI_VISUAL_STUDIO, '-BootstrapPython', $env:TAHAI_BOOTSTRAP_PYTHON,
             '-CreatorPython', $env:TAHAI_SOURCE_PYTHON, '-SourceNode', $env:TAHAI_SOURCE_NODE,
-            '-SourcePowerShell', $env:TAHAI_SOURCE_POWERSHELL, '-Jobs', '1', '-MaxBuildAttempts', '1')
+            '-SourcePowerShell', $env:TAHAI_SOURCE_POWERSHELL, '-Jobs', $env:TAHAI_COMPILE_JOBS, '-MaxBuildAttempts', '1')
           if ($env:TAHAI_BUILD_ONLY -ceq 'true') { $arguments += '-BuildOnly' }
           else {
             if ([string]::IsNullOrWhiteSpace($env:TAHAI_TEST_SESSION)) { throw 'Name the dedicated interactive session first.' }

@@ -86,14 +86,13 @@ class LayoutQuote final : public LayoutInline {
   }
 
  private:
-  void WillBeDestroyed(const ComputedStyle*) override;
+  void WillBeDestroyed() override;
   bool IsQuote() const final {
     NOT_DESTROYED();
     return true;
   }
   void StyleDidChange(StyleDifference,
                       const ComputedStyle*,
-                      const ComputedStyle& new_style,
                       const StyleChangeContext&) override;
   void WillBeRemovedFromTree() override;
 

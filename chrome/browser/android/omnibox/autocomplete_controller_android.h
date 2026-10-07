@@ -6,8 +6,6 @@
 #define CHROME_BROWSER_ANDROID_OMNIBOX_AUTOCOMPLETE_CONTROLLER_ANDROID_H_
 
 #include <memory>
-#include <string>
-#include <vector>
 
 #include "base/android/jni_android.h"
 #include "base/memory/raw_ptr.h"
@@ -20,7 +18,6 @@
 #include "components/omnibox/browser/autocomplete_input.h"
 #include "content/public/browser/browser_context.h"
 #include "third_party/omnibox_proto/tool_mode.pb.h"
-#include "url/gurl.h"
 
 class AutocompleteResult;
 class ChromeAutocompleteProviderClient;
@@ -42,6 +39,7 @@ class AutocompleteControllerAndroid : public AutocompleteController::Observer,
 
   // Methods that forward to AutocompleteController:
   void Start(
+      JNIEnv* env,
       content::WebContents* web_contents,
       const std::u16string& text,
       int32_t cursor_pos,
@@ -54,6 +52,7 @@ class AutocompleteControllerAndroid : public AutocompleteController::Observer,
       bool allow_exact_keyword_match,
       bool want_asynchronous_matches);
   void StartPrefetch(
+      JNIEnv* env,
       content::WebContents* web_contents,
       const GURL& current_url,
       ::metrics::OmniboxEventProto::PageClassification page_classification);
@@ -61,17 +60,19 @@ class AutocompleteControllerAndroid : public AutocompleteController::Observer,
       JNIEnv* env,
       const std::u16string& text);
   void OnOmniboxFocused(
+      JNIEnv* env,
       content::WebContents* web_contents,
       const std::u16string& omnibox_text,
       const GURL& current_url,
       ::metrics::OmniboxEventProto::PageClassification page_classification,
       omnibox::ToolMode tool_mode,
       const std::u16string& current_title);
-  void Stop(AutocompleteStopReason reason);
-  void ResetSession();
-  void StartPrewarm(content::WebContents* web_contents);
+  void Stop(JNIEnv* env, AutocompleteStopReason reason);
+  void ResetSession(JNIEnv* env);
+  void StartPrewarm(JNIEnv* env, content::WebContents* web_contents);
 
   void OnSuggestionSelected(
+      JNIEnv* env,
       content::WebContents* web_contents,
       uintptr_t match_ptr,
       int suggestion_line,
@@ -81,14 +82,27 @@ class AutocompleteControllerAndroid : public AutocompleteController::Observer,
       int64_t elapsed_time_since_first_modified,
       int32_t completed_length,
       int64_t omnibox_action_ptr);
-  bool OnSuggestionTouchDown(content::WebContents* web_contents,
+  bool OnSuggestionTouchDown(JNIEnv* env,
+                             content::WebContents* web_contents,
                              uintptr_t match_ptr,
                              int match_index);
-  void DeleteMatch(uintptr_t match_ptr);
-  void DeleteMatchElement(uintptr_t match_ptr, int32_t element_index);
-  GURL UpdateMatchDestinationURLWithAdditionalSearchboxStats(
+  void DeleteMatch(JNIEnv* env, uintptr_t match_ptr);
+  void DeleteMatchElement(JNIEnv* env,
+                          uintptr_t match_ptr,
+                          int32_t element_index);
+  base::android::ScopedJavaLocalRef<jobject>
+  UpdateMatchDestinationURLWithAdditionalSearchboxStats(
+      JNIEnv* env,
       uintptr_t match_ptr,
       int64_t elapsed_time_since_input_change);
+  base::android::ScopedJavaLocalRef<jobject> GetAnswerActionDestinationURL(
+      JNIEnv* env,
+      uintptr_t match_ptr,
+      int64_t elapsed_time_since_input_change,
+      uintptr_t answer_action_ptr);
+  base::android::ScopedJavaLocalRef<jobject> GetMatchingTabForSuggestion(
+      JNIEnv* env,
+      uintptr_t match_ptr);
 
   // KeyedService:
   void Shutdown() override;
@@ -97,19 +111,23 @@ class AutocompleteControllerAndroid : public AutocompleteController::Observer,
 
   // Pass an instance of the ComposeboxQueryControllerBridge to improve Suggest.
   void SetComposeboxQueryControllerBridge(
+      JNIEnv* env,
       uintptr_t composebox_controller_bridge_ptr);
 
   // Pass detected voice matches down to VoiceSuggestionsProvider.
-  void SetVoiceMatches(const std::vector<std::u16string>& voice_matches,
+  void SetVoiceMatches(JNIEnv* env,
+                       const std::vector<std::u16string>& voice_matches,
                        const std::vector<float>& confidence_scores);
 
   // Pass the information about the suggestion dropdown height changes to the
   // Grouping framework.
   void OnSuggestionDropdownHeightChanged(
+      JNIEnv* env,
       int32_t dropdown_height_with_keyboard_active_px,
       int32_t suggestion_height_px);
 
-  void CreateNavigationObserver(uintptr_t navigation_handle_ptr,
+  void CreateNavigationObserver(JNIEnv* env,
+                                uintptr_t navigation_handle_ptr,
                                 uintptr_t match_ptr);
 
   // Extracts a valid keyword from the provided text and returns the
@@ -117,6 +135,7 @@ class AutocompleteControllerAndroid : public AutocompleteController::Observer,
   // first word) and checks if it matches a valid, active keyword.
   // Returns nullptr if no valid keyword is found.
   base::android::ScopedJavaLocalRef<jobject> GetTemplateUrlForText(
+      JNIEnv* env,
       const std::u16string& text);
 
   base::android::ScopedJavaLocalRef<jobject> GetJavaObject() const;

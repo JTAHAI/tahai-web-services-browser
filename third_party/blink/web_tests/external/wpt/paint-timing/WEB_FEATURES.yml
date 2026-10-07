@@ -1,2 +1,3 @@
-rules:
-- "**": [paint-timing]
+features:
+- name: paint-timing
+  files: "**"

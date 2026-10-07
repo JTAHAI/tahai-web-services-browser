@@ -4,11 +4,9 @@
 
 import './toolbar_chip_button.js';
 import '//resources/cr_elements/cr_icon/cr_icon.js';
-import './icons.js';
 import '//resources/cr_elements/icons.html.js';
 
 import {CrLitElement} from '//resources/lit/v3_0/lit.rollup.js';
-import type {PropertyValues} from '//resources/lit/v3_0/lit.rollup.js';
 import {AppMenuIconType, AppMenuSeverity, ContextMenuType, FocusRequestTarget} from '/shared/toolbar_ui_api_data_model.mojom-webui.js';
 import type {AppMenuControlState} from '/shared/toolbar_ui_api_data_model.mojom-webui.js';
 
@@ -16,7 +14,7 @@ import {getCss} from './app_menu_button.css.js';
 import {getHtml} from './app_menu_button.html.js';
 import {BrowserProxyImpl, INVALID_FOCUS_REQUEST_HANDLE} from './browser_proxy.js';
 import type {FocusRequestHandle} from './browser_proxy.js';
-import {BUTTON_LEFT, getClickSourceType, getContextMenuPosition, HelpBubbleAnchorMixin, setHasHelpBubble} from './toolbar_button.js';
+import {BUTTON_LEFT, getClickSourceType, getContextMenuPosition, HelpBubbleAnchorMixin} from './toolbar_button.js';
 import type {ToolbarChipButtonElement} from './toolbar_chip_button.js';
 
 const AppMenuButtonElementBase = HelpBubbleAnchorMixin(CrLitElement);
@@ -55,7 +53,7 @@ export class AppMenuButtonElement extends AppMenuButtonElementBase {
     accessibilityText: '',
     tooltip: '',
     isContextMenuVisible: false,
-    windowIsMaximizedOrFullscreen: false,
+    trailingMargin: 0,
   };
 
   private browserProxy_ = BrowserProxyImpl.getInstance();
@@ -65,30 +63,13 @@ export class AppMenuButtonElement extends AppMenuButtonElementBase {
   // Manage the lifecycle of the focus listener.
   override connectedCallback() {
     super.connectedCallback();
-    this.registerHelpBubble('kToolbarAppMenuButtonElementId', this.$.button, {
-      onHighlightChanged: (highlighted: boolean) => {
-        this.classList.toggle('anchor-highlight', highlighted);
-      },
-      onHelpBubbleShown: () => setHasHelpBubble(this, true),
-      onHelpBubbleHidden: () => setHasHelpBubble(this, false),
-    });
     this.focusRequestHandle_ = this.browserProxy_.addFocusRequestListener(
         this.onFocusRequest_.bind(this));
   }
 
   override disconnectedCallback() {
     super.disconnectedCallback();
-    this.unregisterHelpBubble('kToolbarAppMenuButtonElementId');
     this.browserProxy_.removeFocusRequestListener(this.focusRequestHandle_);
-  }
-
-  override updated(changedProperties: PropertyValues<this>) {
-    super.updated(changedProperties);
-    if (changedProperties.has('state')) {
-      this.toggleAttribute(
-          'window-is-maximized-or-fullscreen',
-          this.state.windowIsMaximizedOrFullscreen);
-    }
   }
 
   override focus() {
@@ -142,14 +123,7 @@ export class AppMenuButtonElement extends AppMenuButtonElementBase {
   }
 
   protected getHighlightClass_(): string {
-    const classes = [];
-    if (this.hasHelpBubble) {
-      classes.push('help-anchor-highlight');
-    }
-    if (this.state.severity !== AppMenuSeverity.kNone) {
-      classes.push('has-severity');
-    }
-    return classes.join(' ');
+    return this.state.severity !== AppMenuSeverity.kNone ? 'has-severity' : '';
   }
 }
 

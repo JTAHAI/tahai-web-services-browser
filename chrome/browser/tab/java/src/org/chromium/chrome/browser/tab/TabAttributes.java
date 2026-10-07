@@ -4,13 +4,12 @@
 
 package org.chromium.chrome.browser.tab;
 
-import android.util.ArrayMap;
-
 import org.chromium.base.UserData;
 import org.chromium.base.UserDataHost;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -21,7 +20,7 @@ import java.util.Map;
 public class TabAttributes implements UserData {
     private static final Class<TabAttributes> USER_DATA_KEY = TabAttributes.class;
 
-    private final Map<String, Object> mAttributes = new ArrayMap<>(TabAttributeKeys.NUM_ENTRIES);
+    private final Map<String, Object> mAttributes = new HashMap<>();
 
     // Null object used to differentiate the uninitialized attributes from those explicitly
     // set to |null|.

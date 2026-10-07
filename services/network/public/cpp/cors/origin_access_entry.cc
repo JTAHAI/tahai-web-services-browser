@@ -4,9 +4,6 @@
 
 #include "services/network/public/cpp/cors/origin_access_entry.h"
 
-#include <optional>
-#include <string_view>
-
 #include "base/strings/string_util.h"
 #include "net/base/registry_controlled_domains/registry_controlled_domain.h"
 #include "services/network/public/mojom/cors_origin_pattern.mojom.h"
@@ -19,18 +16,20 @@ namespace {
 
 bool IsPublicSuffixSubdomainOfHost(const std::string& subdomain,
                                    const std::string& host) {
-  std::optional<std::string_view> public_suffix =
-      net::registry_controlled_domains::PermissiveGetHostRegistry(
+  size_t public_suffix_length =
+      net::registry_controlled_domains::PermissiveGetHostRegistryLength(
           subdomain,
           net::registry_controlled_domains::INCLUDE_UNKNOWN_REGISTRIES,
           net::registry_controlled_domains::INCLUDE_PRIVATE_REGISTRIES);
-  return public_suffix.has_value() && !public_suffix->empty() &&
-         IsSubdomainOfHost(*public_suffix, host);
+  return public_suffix_length != std::string::npos &&
+         public_suffix_length != 0 &&
+         IsSubdomainOfHost(
+             subdomain.substr(subdomain.length() - public_suffix_length), host);
 }
 
 }  // namespace
 
-bool IsSubdomainOfHost(std::string_view subdomain, std::string_view host) {
+bool IsSubdomainOfHost(const std::string& subdomain, const std::string& host) {
   if (subdomain.length() <= host.length())
     return false;
 
@@ -65,14 +64,11 @@ OriginAccessEntry::OriginAccessEntry(
   // Call sites in Blink passes some things that aren't technically hosts like
   // "*.foo", so use the permissive variant.
   size_t public_suffix_length =
-      net::registry_controlled_domains::PermissiveGetHostRegistry(
+      net::registry_controlled_domains::PermissiveGetHostRegistryLength(
           host_, net::registry_controlled_domains::INCLUDE_UNKNOWN_REGISTRIES,
-          net::registry_controlled_domains::INCLUDE_PRIVATE_REGISTRIES)
-          .transform(&std::string_view::size)
-          .value_or(0);
-  if (public_suffix_length == 0) {
+          net::registry_controlled_domains::INCLUDE_PRIVATE_REGISTRIES);
+  if (public_suffix_length == 0 || public_suffix_length == std::string::npos)
     public_suffix_length = host_.length();
-  }
 
   if (host_.length() <= public_suffix_length + 1) {
     host_is_public_suffix_ = true;

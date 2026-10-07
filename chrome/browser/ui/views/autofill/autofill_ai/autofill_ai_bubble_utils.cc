@@ -27,7 +27,6 @@
 #include "ui/views/controls/label.h"
 #include "ui/views/layout/box_layout_view.h"
 #include "ui/views/metadata/view_factory.h"
-#include "ui/views/view_class_properties.h"
 
 namespace autofill {
 
@@ -241,14 +240,10 @@ ui::ImageModel CreateWalletIcon() {
 }
 
 std::unique_ptr<views::View> CreateWalletBubbleTitleView(std::u16string title) {
-  const bool is_branding_2026 =
-      base::FeatureList::IsEnabled(features::kAutofillAiWalletPassBranding2026);
   auto title_view =
       views::Builder<views::BoxLayoutView>()
           .SetOrientation(views::BoxLayout::Orientation::kHorizontal)
-          .SetCrossAxisAlignment(
-              is_branding_2026 ? views::BoxLayout::CrossAxisAlignment::kStart
-                               : views::BoxLayout::CrossAxisAlignment::kCenter)
+          .SetCrossAxisAlignment(views::BoxLayout::CrossAxisAlignment::kCenter)
           .Build();
 
   auto* label = title_view->AddChildView(
@@ -260,19 +255,8 @@ std::unique_ptr<views::View> CreateWalletBubbleTitleView(std::u16string title) {
           .SetHorizontalAlignment(gfx::HorizontalAlignment::ALIGN_LEFT)
           .Build());
 
-  auto* icon_view = title_view->AddChildView(
+  title_view->AddChildView(
       views::Builder<views::ImageView>().SetImage(CreateWalletIcon()).Build());
-
-  if (is_branding_2026) {
-    // Vertically center the icon against the first line of the title label.
-    const int top_margin =
-        (label->GetLineHeight() - icon_view->GetPreferredSize().height()) / 2;
-    if (top_margin > 0) {
-      icon_view->SetProperty(views::kMarginsKey,
-                             gfx::Insets::TLBR(top_margin, 0, 0, 0));
-    }
-  }
-
   title_view->SetFlexForView(label, 1);
   return title_view;
 }

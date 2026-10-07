@@ -7,12 +7,14 @@ import '//resources/cr_components/localized_link/localized_link.js';
 import '//resources/cr_elements/cr_radio_button/cr_radio_button.js';
 import '//resources/cr_elements/cr_radio_group/cr_radio_group.js';
 import '//resources/cr_elements/cr_toggle/cr_toggle.js';
+import '//resources/cr_elements/cr_shared_style.css.js';
+import '//resources/cr_elements/cr_shared_vars.css.js';
 import '//resources/cr_elements/policy/cr_policy_indicator.js';
+import '../settings_shared.css.js';
 
-import {WebUiListenerMixinLit} from '//resources/cr_elements/web_ui_listener_mixin_lit.js';
+import {WebUiListenerMixin} from '//resources/cr_elements/web_ui_listener_mixin.js';
 import {assert} from '//resources/js/assert.js';
-import {CrLitElement} from '//resources/lit/v3_0/lit.rollup.js';
-import type {PropertyValues} from '//resources/lit/v3_0/lit.rollup.js';
+import {PolymerElement} from '//resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 import type {SyncBrowserProxy, SyncPrefs, SyncStatus} from '/shared/settings/people_page/sync_browser_proxy.js';
 import {shouldShowSyncTogglesForStatusAction, SignedInState, StatusAction, SyncBrowserProxyImpl, syncPrefsIndividualDataTypes, UserSelectableType} from '/shared/settings/people_page/sync_browser_proxy.js';
 import type {CrToggleElement} from 'chrome://resources/cr_elements/cr_toggle/cr_toggle.js';
@@ -20,12 +22,11 @@ import type {CrToggleElement} from 'chrome://resources/cr_elements/cr_toggle/cr_
 import {routes} from '../route.js';
 import {Router} from '../router.js';
 
-import {getCss} from './sync_controls.css.js';
-import {getHtml} from './sync_controls.html.js';
+import {getTemplate} from './sync_controls.html.js';
 
 import {loadTimeData} from '../i18n_setup.js';
 import type {Route} from '../router.js';
-import {RouteObserverMixinLit} from '../router.js';
+import {RouteObserverMixin} from '../router.js';
 
 import {PluralStringProxyImpl} from 'chrome://resources/js/plural_string_proxy.js';
 import {sanitizeInnerHtml} from 'chrome://resources/js/parse_html_subset.js';
@@ -42,15 +43,13 @@ enum RadioButtonNames {
   CUSTOMIZE_SYNC = 'customize-sync',
 }
 
-type SyncPrefsBooleanKey = keyof Omit<SyncPrefs, 'explicitPassphraseTime'>;
-
 /**
  * @fileoverview
  * 'settings-sync-controls' contains all sync data type controls.
  */
 
 const SettingsSyncControlsElementBase =
-    RouteObserverMixinLit(WebUiListenerMixinLit(CrLitElement));
+    RouteObserverMixin(WebUiListenerMixin(PolymerElement));
 
 export class SettingsSyncControlsElement extends
     SettingsSyncControlsElementBase {
@@ -58,30 +57,40 @@ export class SettingsSyncControlsElement extends
     return 'settings-sync-controls';
   }
 
-  static override get styles() {
-    return getCss();
+  static get template() {
+    return getTemplate();
   }
 
-  override render() {
-    return getHtml.bind(this)();
-  }
-
-  static override get properties() {
+  static get properties() {
     return {
       hidden: {
         type: Boolean,
-        reflect: true,
+        value: false,
+        computed: 'syncControlsHidden_(' +
+            'syncStatus.signedIn, syncStatus.disabled, ' +
+            'syncStatus.hasError, isAccountSettingsPage_, ' +
+            'syncPrefs.localSyncEnabled)',
+        reflectToAttribute: true,
       },
 
       /**
        * The current sync preferences, supplied by SyncBrowserProxy.
        */
-      syncPrefs: {type: Object},
+      syncPrefs: Object,
 
       /**
        * The current sync status, supplied by the parent.
        */
-      syncStatus: {type: Object},
+      syncStatus: {
+        type: Object,
+        observer: 'syncStatusChanged_',
+      },
+
+      /** Expose UserSelectableType enum to HTML bindings. */
+      UserSelectableTypeEnum_: {
+        type: Object,
+        value: UserSelectableType,
+      },
 
       /**
        * Communicates to the user that the toggles are disabled because sync is
@@ -89,7 +98,10 @@ export class SettingsSyncControlsElement extends
        */
       showSyncDisabledInformation: {
         type: Boolean,
-        reflect: true,
+        value: false,
+        computed: 'computeShowSyncDisabledInformation_(syncStatus.disabled, ' +
+            'isAccountSettingsPage_)',
+        reflectToAttribute: true,
       },
 
       /**
@@ -97,30 +109,38 @@ export class SettingsSyncControlsElement extends
        * settings page. True when `replaceSyncPromosWithSignInPromos` is enabled
        * and the user navigates to the account page.
        */
-      isAccountSettingsPage_: {type: Boolean},
+      isAccountSettingsPage_: {
+        type: Boolean,
+        value: false,
+      },
 
-      showBatchUploadPromo_: {type: Boolean},
-
-      batchUploadPromoHTML_: {type: String},
+      batchUploadPromoHTML_: {
+        type: String,
+        value: window.trustedTypes!.emptyHTML as unknown as string,
+        observer: 'attachOpenBatchUploadLinkClick_',
+      },
     };
   }
 
-  override accessor hidden: boolean = false;
-  accessor syncPrefs: SyncPrefs|undefined;
-  accessor syncStatus: SyncStatus|null = null;
+  declare hidden: boolean;
+  declare syncPrefs?: SyncPrefs;
+  declare syncStatus: SyncStatus|null;
   private syncBrowserProxy_: SyncBrowserProxy =
       SyncBrowserProxyImpl.getInstance();
-  /**
-   * Caches the individually selected synced data types. This is used to
-   * be able to restore the selections after checking and unchecking Sync All.
-   */
-  private cachedSyncPrefs_: Partial<SyncPrefs>|null = null;
-  accessor showSyncDisabledInformation: boolean = false;
-  protected accessor isAccountSettingsPage_: boolean = false;
-  protected accessor showBatchUploadPromo_: boolean =
-      loadTimeData.getBoolean('replaceSyncPromosWithSignInPromos');
-  protected accessor batchUploadPromoHTML_: TrustedHTML =
-      window.trustedTypes!.emptyHTML;
+  private cachedSyncPrefs_: Record<string, unknown>|null;
+  declare showSyncDisabledInformation: boolean;
+  declare private isAccountSettingsPage_: boolean;
+  declare private batchUploadPromoHTML_: TrustedHTML;
+
+  constructor() {
+    super();
+
+    /**
+     * Caches the individually selected synced data types. This is used to
+     * be able to restore the selections after checking and unchecking Sync All.
+     */
+    this.cachedSyncPrefs_ = null;
+  }
 
   override connectedCallback() {
     super.connectedCallback();
@@ -128,11 +148,11 @@ export class SettingsSyncControlsElement extends
     this.addWebUiListener(
         'sync-prefs-changed', this.handleSyncPrefsChanged_.bind(this));
 
-    if (loadTimeData.valueExists('unoPhase2FollowUp')) {
-      this.showBatchUploadPromo_ = loadTimeData.getBoolean('unoPhase2FollowUp');
-    }
+    const showBatchUploadPromo = loadTimeData.valueExists('unoPhase2FollowUp') ?
+        loadTimeData.getBoolean('unoPhase2FollowUp') :
+        loadTimeData.getBoolean('replaceSyncPromosWithSignInPromos');
 
-    if (this.showBatchUploadPromo_) {
+    if (showBatchUploadPromo) {
       BatchUploadPromoProxyImpl.getInstance()
           .callbackRouter.onLocalDataCountChanged.addListener(
               (localDataCount: number) => {
@@ -150,45 +170,10 @@ export class SettingsSyncControlsElement extends
     if (currentRoute === routes.SYNC_ADVANCED) {
       this.syncBrowserProxy_.didNavigateToSyncPage();
     }
-    if (currentRoute === routes.ACCOUNT) {
-      // <if expr="is_chromeos">
-      if (!loadTimeData.getBoolean('replaceSyncPromosWithSignInPromos')) {
-        return;
-      }
-      // </if>
-
+    if (loadTimeData.getBoolean('replaceSyncPromosWithSignInPromos') &&
+        currentRoute === routes.ACCOUNT) {
       this.isAccountSettingsPage_ = true;
       this.syncBrowserProxy_.didNavigateToAccountSettingsPage();
-    }
-  }
-
-  override willUpdate(changedProperties: PropertyValues<this>) {
-    super.willUpdate(changedProperties);
-
-    const changedPrivateProperties =
-        changedProperties as Map<PropertyKey, unknown>;
-
-    if (changedProperties.has('syncStatus') ||
-        changedProperties.has('syncPrefs') ||
-        changedPrivateProperties.has('isAccountSettingsPage_')) {
-      this.hidden = this.syncControlsHidden_();
-      this.showSyncDisabledInformation =
-          this.computeShowSyncDisabledInformation_();
-    }
-
-    if (changedProperties.has('syncStatus')) {
-      this.syncStatusChanged_();
-    }
-  }
-
-  override updated(changedProperties: PropertyValues<this>) {
-    super.updated(changedProperties);
-
-    const changedPrivateProperties =
-        changedProperties as Map<PropertyKey, unknown>;
-
-    if (changedPrivateProperties.has('batchUploadPromoHTML_')) {
-      this.attachOpenBatchUploadLinkClick_();
     }
   }
 
@@ -201,7 +186,11 @@ export class SettingsSyncControlsElement extends
 
   private async batchUploadPromoLocalDataCountChanged_(localDataCount: number):
       Promise<void> {
-    if (!this.showBatchUploadPromo_) {
+    const showBatchUploadPromo = loadTimeData.valueExists('unoPhase2FollowUp') ?
+        loadTimeData.getBoolean('unoPhase2FollowUp') :
+        loadTimeData.getBoolean('replaceSyncPromosWithSignInPromos');
+
+    if (!showBatchUploadPromo) {
       return;
     }
 
@@ -220,8 +209,12 @@ export class SettingsSyncControlsElement extends
         sanitizeInnerHtml(batchUploadPromoString, {tags: ['a'], attrs: ['id']});
   }
 
-  protected shouldShowBatchUploadPromo_(): boolean {
-    if (!this.showBatchUploadPromo_) {
+  private shouldShowBatchUploadPromo_(): boolean {
+    const showBatchUploadPromo = loadTimeData.valueExists('unoPhase2FollowUp') ?
+        loadTimeData.getBoolean('unoPhase2FollowUp') :
+        loadTimeData.getBoolean('replaceSyncPromosWithSignInPromos');
+
+    if (!showBatchUploadPromo) {
       return false;
     }
 
@@ -260,30 +253,29 @@ export class SettingsSyncControlsElement extends
   /**
    * @return Computed binding returning the selected sync data radio button.
    */
-  protected selectedSyncDataRadio_(): string {
-    return this.syncPrefs?.syncAllDataTypes ? RadioButtonNames.SYNC_EVERYTHING :
+  private selectedSyncDataRadio_(): string {
+    return this.syncPrefs!.syncAllDataTypes ? RadioButtonNames.SYNC_EVERYTHING :
                                               RadioButtonNames.CUSTOMIZE_SYNC;
   }
 
   /**
    * Called when the sync data radio button selection changes.
    */
-  protected onSyncDataRadioSelectedChanged_(
-      event: CustomEvent<{value: string}>) {
+  private onSyncDataRadioSelectionChanged_(event:
+                                               CustomEvent<{value: string}>) {
     const syncAllDataTypes =
         event.detail.value === RadioButtonNames.SYNC_EVERYTHING;
-    const previous = !!this.syncPrefs?.syncAllDataTypes;
+    const previous = this.syncPrefs!.syncAllDataTypes;
     if (previous !== syncAllDataTypes) {
+      this.set('syncPrefs.syncAllDataTypes', syncAllDataTypes);
       this.handleSyncAllDataTypesChanged_(syncAllDataTypes);
     }
   }
 
   override currentRouteChanged(newRoute: Route, oldRoute?: Route) {
-    // <if expr="is_chromeos">
     if (!loadTimeData.getBoolean('replaceSyncPromosWithSignInPromos')) {
       return;
     }
-    // </if>
 
     this.isAccountSettingsPage_ = newRoute === routes.ACCOUNT;
 
@@ -292,23 +284,26 @@ export class SettingsSyncControlsElement extends
     }
   }
 
-  protected mergedHistoryTabsToggleDisabled_(): boolean {
-    return !this.syncStatus || this.syncStatus.disabled || !this.syncPrefs ||
-        (this.syncPrefs.tabsManaged && this.syncPrefs.typedUrlsManaged);
+  private mergedHistoryTabsToggleDisabled_(
+      syncStatus: SyncStatus, tabsManaged: boolean,
+      historyManaged: boolean): boolean {
+    return !syncStatus || syncStatus.disabled || !this.syncPrefs ||
+        (tabsManaged && historyManaged);
   }
 
-  protected mergedHistoryTabsTogglePolicyIndicatorShown_(): boolean {
-    return !!this.syncStatus && !this.syncStatus.disabled && !!this.syncPrefs &&
-        this.syncPrefs.tabsManaged && this.syncPrefs.typedUrlsManaged;
+  private mergedHistoryTabsTogglePolicyIndicatorShown_(
+      syncStatus: SyncStatus, tabsManaged: boolean,
+      historyManaged: boolean): boolean {
+    return !!syncStatus && !syncStatus.disabled && tabsManaged &&
+        historyManaged;
   }
 
-  protected mergedHistoryTabsToggleChecked_(): boolean {
-    return !!this.syncPrefs &&
-        (this.syncPrefs.typedUrlsSynced || this.syncPrefs.tabsSynced ||
-         this.syncPrefs.savedTabGroupsSynced);
+  private mergedHistoryTabsToggleChecked_(syncPrefs: SyncPrefs): boolean {
+    return syncPrefs.typedUrlsSynced || syncPrefs.tabsSynced ||
+        syncPrefs.savedTabGroupsSynced;
   }
 
-  protected onMergedHistoryTabsToggleChange_(event: Event) {
+  private onMergedHistoryTabsToggleChanged_(event: Event) {
     assert(this.isAccountSettingsPage_);
 
     const toggle = event.target as CrToggleElement;
@@ -322,43 +317,38 @@ export class SettingsSyncControlsElement extends
   }
 
   private handleSyncAllDataTypesChanged_(syncAllDataTypes: boolean) {
-    assert(this.syncPrefs);
-    const updatedSyncPrefs = {...this.syncPrefs};
-    updatedSyncPrefs.syncAllDataTypes = syncAllDataTypes;
     if (syncAllDataTypes) {
+      this.set('syncPrefs.syncAllDataTypes', true);
+
       // Cache the previously selected preference before checking every box.
       this.cachedSyncPrefs_ = {};
-      for (const dataType of syncPrefsIndividualDataTypes as
-           SyncPrefsBooleanKey[]) {
+      for (const dataType of syncPrefsIndividualDataTypes) {
         // These are all booleans, so this shallow copy is sufficient.
-        this.cachedSyncPrefs_[dataType] = this.syncPrefs[dataType];
-        updatedSyncPrefs[dataType] = true;
+        this.cachedSyncPrefs_[dataType] =
+            this.syncPrefs![dataType as keyof SyncPrefs];
+
+        this.set(['syncPrefs', dataType], true);
       }
     } else if (this.cachedSyncPrefs_) {
       // Restore the previously selected preference.
-      for (const dataType of syncPrefsIndividualDataTypes as
-           SyncPrefsBooleanKey[]) {
-        const cached = this.cachedSyncPrefs_[dataType];
-        if (cached !== undefined) {
-          updatedSyncPrefs[dataType] = cached;
-        }
+      for (const dataType of syncPrefsIndividualDataTypes) {
+        this.set(['syncPrefs', dataType], this.cachedSyncPrefs_[dataType]);
       }
     }
-    this.syncPrefs = updatedSyncPrefs;
     chrome.metricsPrivate.recordUserAction(
         syncAllDataTypes ? 'Sync_SyncEverything' : 'Sync_CustomizeSync');
-    this.onSingleSyncDataTypeChange_();
+    this.onSingleSyncDataTypeChanged_();
   }
 
   /**
    * Handler for when any sync data type checkbox is changed.
    */
-  protected onSingleSyncDataTypeChange_(event?: Event) {
+  private onSingleSyncDataTypeChanged_(_event?: Event) {
     if (this.isAccountSettingsPage_) {
-      assert(event);
+      assert(_event);
 
-      const toggle = event.target as CrToggleElement;
-      const type = Number(toggle.dataset['type']);
+      const toggle = _event?.target as CrToggleElement;
+      const type = Number(toggle.dataset['type']!);
       assert(!isNaN(type));
 
       this.syncBrowserProxy_.setSyncDatatype(type, toggle.checked);
@@ -366,19 +356,13 @@ export class SettingsSyncControlsElement extends
     }
 
     assert(this.syncPrefs);
-    if (event) {
-      const toggle = event.target as CrToggleElement;
-      const pref = toggle.dataset['pref'] as SyncPrefsBooleanKey | undefined;
-      if (pref) {
-        this.syncPrefs[pref] = toggle.checked;
-      }
-    }
     this.syncBrowserProxy_.setSyncDatatypes(this.syncPrefs);
   }
 
-  protected disableTypeCheckBox_(dataTypeManaged: boolean|undefined|null):
-      boolean {
-    if (!this.syncStatus) {
+  private disableTypeCheckBox_(
+      syncStatus: SyncStatus, syncAllDataTypes: boolean,
+      dataTypeManaged: boolean): boolean {
+    if (!syncStatus) {
       return true;
     }
 
@@ -386,39 +370,38 @@ export class SettingsSyncControlsElement extends
       return true;
     }
 
-    if (this.syncStatus.signedInState === SignedInState.SYNCING) {
-      return !!this.syncPrefs?.syncAllDataTypes;
+    if (syncStatus.signedInState === SignedInState.SYNCING) {
+      return syncAllDataTypes;
     }
 
     // Toggles should be disabled on the account settings page if sync is
     // disabled, or if the sync prefs are undefined, which is the case e.g.
     // right after startup.
-    return this.syncStatus.disabled || !this.syncPrefs;
+    return syncStatus.disabled || !this.syncPrefs;
   }
 
-  protected showPolicyIndicator_(dataTypeManaged: boolean|undefined|null):
-      boolean {
+  private showPolicyIndicator_(
+      syncStatus: SyncStatus, dataTypeManaged: boolean): boolean {
     // Do not show the indicator on the account settings page if sync is
     // disabled, as this would make the UI look too crowded and the toggles are
     // already deactivated. In the sync settings page, the toggles are hidden if
     // sync is disabled (see `syncControlsHidden_()`), so we do not need to
     // specify whether we show the indicator or not.
     if (this.isAccountSettingsPage_) {
-      return !!this.syncStatus && !this.syncStatus.disabled &&
-          !!dataTypeManaged;
+      return !!syncStatus && !syncStatus.disabled && dataTypeManaged;
     }
 
-    return !!dataTypeManaged;
+    return dataTypeManaged;
   }
 
-  private computeShowSyncDisabledInformation_(): boolean {
-    return this.isAccountSettingsPage_ && !!this.syncStatus?.disabled;
+  private computeShowSyncDisabledInformation_(syncDisabled: boolean): boolean {
+    return this.isAccountSettingsPage_ && syncDisabled;
   }
 
   // <if expr="is_chromeos">
-  protected hideCookieItem_(): boolean {
-    return !this.syncStatus?.syncCookiesSupported ||
-        (!!this.syncPrefs && !this.syncPrefs.cookiesRegistered);
+  private hideCookieItem_(
+      syncCookiesSupported: boolean, cookiesRegistered: boolean): boolean {
+    return !syncCookiesSupported || !cookiesRegistered;
   }
   // </if>
 
@@ -426,17 +409,15 @@ export class SettingsSyncControlsElement extends
     const router = Router.getInstance();
     if (router.getCurrentRoute() === routes.SYNC_ADVANCED &&
         this.syncControlsHidden_()) {
-      // <if expr="is_chromeos">
-      if (!loadTimeData.getBoolean('replaceSyncPromosWithSignInPromos')) {
-        router.navigateTo(routes.SYNC);
-        return;
-      }
-      // </if>
-
       // Try to navigate the user to the account page, where they can find the
       // toggles. If the page does not exist, they will be redirected to the
       // people settings page from there.
-      router.navigateTo(routes.ACCOUNT);
+      if (loadTimeData.getBoolean('replaceSyncPromosWithSignInPromos')) {
+        router.navigateTo(routes.ACCOUNT);
+        return;
+      }
+
+      router.navigateTo(routes.SYNC);
     }
   }
 

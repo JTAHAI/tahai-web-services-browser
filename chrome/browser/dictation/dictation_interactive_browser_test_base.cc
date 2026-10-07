@@ -22,11 +22,6 @@ namespace dictation {
 DictationInteractiveBrowserTestBase::DictationInteractiveBrowserTestBase() =
     default;
 
-DictationInteractiveBrowserTestBase::DictationInteractiveBrowserTestBase(
-    bool session_ends_on_stream_end)
-    : InteractiveBrowserTestMixin<DictationBrowserTestBase>(
-          session_ends_on_stream_end) {}
-
 DictationInteractiveBrowserTestBase::~DictationInteractiveBrowserTestBase() =
     default;
 
@@ -136,18 +131,6 @@ DictationInteractiveBrowserTestBase::ExtensionAPISetStreamState(
     ASSERT_NE(last_started_provider_, nullptr);
     ExtensionSendStreamStateUpdate(
         profile(), last_started_provider_->stream_id_for_testing(), state);
-  }));
-}
-
-DictationInteractiveBrowserTestBase::MultiStep
-DictationInteractiveBrowserTestBase::ExtensionAPISetStreamState(
-    ExtensionStreamState state,
-    std::optional<int> error_code) {
-  return Steps(Do([this, state, error_code] {
-    ASSERT_NE(last_started_provider_, nullptr);
-    ExtensionSendStreamStateUpdate(
-        profile(), last_started_provider_->stream_id_for_testing(), state,
-        error_code);
   }));
 }
 

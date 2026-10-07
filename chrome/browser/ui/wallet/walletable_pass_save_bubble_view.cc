@@ -42,10 +42,10 @@ std::unique_ptr<views::BoxLayoutView> GetAttributesContainer() {
 }  // namespace
 
 WalletablePassSaveBubbleView::WalletablePassSaveBubbleView(
-    views::BubbleAnchor anchor,
+    views::View* anchor_view,
     content::WebContents* web_contents,
     WalletablePassSaveBubbleController* controller)
-    : WalletablePassBubbleViewBase(anchor, web_contents, controller),
+    : WalletablePassBubbleViewBase(anchor_view, web_contents, controller),
       controller_(controller->GetWeakPtr()) {
   set_fixed_width(autofill::kAutofillAiBubbleWidth);
   SetLayoutManager(std::make_unique<views::FlexLayout>())

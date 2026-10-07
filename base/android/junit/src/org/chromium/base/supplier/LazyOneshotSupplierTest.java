@@ -75,7 +75,7 @@ public class LazyOneshotSupplierTest {
     @Test
     public void testFromSupplierNull() {
         LazyOneshotSupplier<Object> lazyOneshotSupplier =
-                LazyOneshotSupplier.fromSupplier(SupplierUtils.ofNull());
+                LazyOneshotSupplier.fromSupplier(() -> null);
         lazyOneshotSupplier.onAvailable(mOnAvailable);
         assertFalse(lazyOneshotSupplier.hasValue());
 

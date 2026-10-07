@@ -133,7 +133,7 @@ class RelatedSearchesStamp {
         String chosenPositionCode =
                 RELATED_SEARCHES_USER_INTERACTION
                         + RELATED_SEARCHES_SELECTED_POSITION
-                        + suggestionIndex;
+                        + Integer.toString(suggestionIndex);
         return replaceQueryParam(searchUri, STAMP_PARAMETER, currentStamp + chosenPositionCode);
     }
 
@@ -150,20 +150,21 @@ class RelatedSearchesStamp {
     }
 
     /**
-     * Builds the "stamp" that tracks the processing of Related Searches and describes what was done
-     * at each stage using a shorthand notation. The notation is described in go/rsearches-dd here:
-     * http://doc/1DryD8NAP5LQAo326LnxbqkIDCNfiCOB7ak3gAYaNWAM#bookmark=id.nx7ivu2upqw
-     *
+     * Builds the "stamp" that tracks the processing of Related Searches and describes what was
+     * done at each stage using a shorthand notation. The notation is described in go/rsearches-dd
+     * here: http://doc/1DryD8NAP5LQAo326LnxbqkIDCNfiCOB7ak3gAYaNWAM#bookmark=id.nx7ivu2upqw
      * <p>The first stage is built here: "1" for schema version one, "R" for the configuration
-     * Recipe which has a character describing how we'll formulate the search. Typically all of this
-     * comes from the Variations config at runtime. We programmatically append an "l" that indicates
-     * a language restriction (when present).
-     *
-     * @param isLanguageRestricted Whether there are any language restrictions needed by the server.
+     * Recipe which has a character describing how we'll formulate the search. Typically all of
+     * this comes from the Variations config at runtime. We programmatically append an "l" that
+     * indicates a language restriction (when present).
+     * @param isLanguageRestricted Whether there are any language restrictions needed by the
+     *        server.
      * @return A string that represents and encoded description of the current request processing.
      */
     private String buildRelatedSearchesStamp(boolean isLanguageRestricted) {
-        String ret = ContextualSearchFieldTrial.getRelatedSearchesExperimentConfigurationStamp();
+        String experimentConfigStamp =
+                ContextualSearchFieldTrial.getRelatedSearchesExperimentConfigurationStamp();
+        String ret = experimentConfigStamp;
         if (isLanguageRestricted) {
             ret += RELATED_SEARCHES_LANGUAGE_RESTRICTION;
         }

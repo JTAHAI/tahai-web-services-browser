@@ -1,2 +1,3 @@
-rules:
-- "**": [avif]
+features:
+- name: avif
+  files: "**"

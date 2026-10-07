@@ -112,7 +112,7 @@ void GridMediatorTestClass::SetUp() {
                             base::BindRepeating(&CreateMockSyncService));
   builder.AddTestingFactory(
       AuthenticationServiceFactory::GetInstance(),
-      AuthenticationServiceFactory::GetFactoryWithDelegateForTesting(
+      AuthenticationServiceFactory::GetFactoryWithDelegate(
           std::make_unique<FakeAuthenticationServiceDelegate>()));
   builder.AddTestingFactory(ios::HistoryServiceFactory::GetInstance(),
                             ios::HistoryServiceFactory::GetDefaultFactory());

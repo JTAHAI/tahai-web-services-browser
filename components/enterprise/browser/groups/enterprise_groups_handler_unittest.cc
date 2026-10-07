@@ -50,7 +50,8 @@ class EnterpriseGroupsHandlerTest : public testing::Test {
         std::move(store), std::unique_ptr<MockCloudPolicyStore>(),
         task_environment_.GetMainThreadTaskRunner());
     manager_->Init(&schema_registry_);
-    manager_->core()->Connect(std::make_unique<MockCloudPolicyClient>());
+    MockCloudPolicyClient* client = new MockCloudPolicyClient();
+    manager_->core()->Connect(std::unique_ptr<CloudPolicyClient>(client));
   }
 
   void TearDown() override { manager_->Shutdown(); }

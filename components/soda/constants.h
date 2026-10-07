@@ -20,8 +20,6 @@ namespace speech {
 
 extern const char kUsEnglishLocale[];
 extern const char kEnglishLocaleNoCountry[];
-inline constexpr char kSpeechRecognitionSmallExpertModelLanguage[] =
-    "speech_recognition_small_expert_model";
 
 // Metrics names for keeping track of SODA installation.
 extern const char kSodaPreemptiveDownloadStarted[];
@@ -358,7 +356,7 @@ const std::string GetRedownloadedAfterExpirationMetricForLanguage(
 // of the other languages match.
 std::string_view GetDefaultLiveCaptionLanguage(
     std::string_view application_locale,
-    const PrefService& profile_prefs);
+    PrefService* profile_prefs);
 
 // If `language_name` is Chinese variant, then return the master locale.
 // Otherwise, return `language_name`.

@@ -1,27 +1,6 @@
 // Copyright 2024 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-//
-// This class is used to construct and hold tab-scoped state associated with a
-// WebContents. When a WebContents is transformed into a tab, and instance of
-// this class is created. When the tab is destroyed, this instance is destroyed.
-//
-// This class exists for 3 reasons:
-//  (1) It provides explicit construction and destruction ordering.
-//  (2) It allows for dependency-injection at construction time of tab features.
-//  (3) It pairs with the UnownedUserData design pattern to ensure dependencies
-//      are precisely specified by BUILD.gn files. This prevents circular
-//      dependencies.
-//
-// If you want to make a new TabFeature, following these steps:
-//  (1) Make a regular C++ class. It should NOT inherit from SupportsUserData.
-//  (2) Forward declare the class, and add a std::unique_ptr member to this
-//      header file.
-//  (3) Construct the member in tab_features.cc.
-//  (4) If tab-consumers need to access the feature, expose it via TabInterface
-//      and UnownedUserData.
-//
-// For more details on UnownedUserData, see ui/base/unowned_user_data/README.md.
 
 #ifndef CHROME_BROWSER_UI_TABS_PUBLIC_TAB_FEATURES_H_
 #define CHROME_BROWSER_UI_TABS_PUBLIC_TAB_FEATURES_H_
@@ -35,46 +14,33 @@
 #include "ui/base/unowned_user_data/user_data_factory.h"
 
 class AskBeforeHttpDialogController;
-class BookmarkBarPreloadPipelineManager;
 class BookmarkPageActionController;
-class BrowserSyncedTabDelegate;
 class CollaborationMessagingPageActionController;
-class CommitLimitOOMRecoveryTracker;
-class ConnectionHelpTabHelper;
 class CookieControlsPageActionController;
 class FileSystemAccessPageActionController;
-class FocusTabAfterNavigationHelper;
-class FramebustBlockTabHelper;
-
-class FormInteractionTabHelper;
 class FromGWSNavigationAndKeepAliveRequestObserver;
-class HttpAuthCacheStatus;
-class IntentPickerTabHelper;
 class IntentPickerViewPageActionController;
-class JsOptimizationsPageActionController;
 class LensOverlayController;
 class LensOverlayHomeworkPageActionController;
 class LensSearchController;
-class ManagePasswordsPageActionController;
 class MemorySaverChipTabHelper;
-class NewTabPagePreloadPipelineManager;
 class PinnedTranslateActionListener;
 class Profile;
 class PwaInstallPageActionController;
-class QwacWebContentsObserver;
+class RecordReplayPageActionController;
+class JsOptimizationsPageActionController;
 class ReadAnythingController;
 class ReadAnythingSidePanelController;
-class RecordReplayPageActionController;
-class SadTabHelper;
-class SearchEngineChoiceTabHelper;
-class SearchPromotionNavigationObserver;
-class SecurityStateEventObserver;
+class RollBackModeBInfoBarController;
 class SidePanelRegistry;
 class TabResourceUsageTabHelper;
 class TabUIHelper;
-class ThumbnailTabHelper;
 class TranslatePageActionController;
-class ZeroSuggestPrefetchTabHelper;
+class QwacWebContentsObserver;
+class ManagePasswordsPageActionController;
+class BookmarkBarPreloadPipelineManager;
+class NewTabPagePreloadPipelineManager;
+class SearchPromotionNavigationObserver;
 
 namespace skills {
 class SkillsUiTabControllerInterface;
@@ -84,14 +50,16 @@ namespace back_to_opener {
 class BackToOpenerController;
 }  // namespace back_to_opener
 
+namespace accessibility_annotator {
+class ContentAnnotatorTabHelper;
+}  // namespace accessibility_annotator
+
 namespace autofill {
 class BubbleManager;
 class OmniboxAutofillBubbleController;
 class OmniboxAutofillPageActionController;
 class PaymentsChurnedUsersBubbleController;
 class PaymentsChurnedUsersPageActionController;
-class WalletReminderNoticeBubbleController;
-class WalletReminderNoticePageActionController;
 }  // namespace autofill
 
 namespace actor {
@@ -139,8 +107,6 @@ class ExtensionSidePanelManager;
 }  // namespace extensions
 
 namespace glic {
-class ContextualCueingHelper;
-class GlicCueTabState;
 class GlicInstanceHelper;
 class GlicTabIndicatorHelper;
 class GlicSidePanelCoordinator;
@@ -161,10 +127,6 @@ namespace permissions {
 class PermissionIndicatorsTabData;
 }  // namespace permissions
 
-namespace webapps {
-class AppBannerManagerDesktop;
-}  // namespace webapps
-
 #if !BUILDFLAG(IS_ANDROID)
 namespace skills {
 class SkillsUpdateObserver;
@@ -183,10 +145,6 @@ class SavedTabGroupOnCloseHelper;
 namespace page_actions {
 class PageActionController;
 }  // namespace page_actions
-
-namespace payments {
-class WebPaymentsObserver;
-}  // namespace payments
 
 namespace tab_groups {
 class CollaborationMessagingTabData;
@@ -258,12 +216,23 @@ class TabFeatures {
     return permission_indicators_tab_data_.get();
   }
 
+  customize_chrome::SidePanelController*
+  customize_chrome_side_panel_controller() {
+    return customize_chrome_side_panel_controller_.get();
+  }
+
   // Note: Temporary until there is a more uniform way to swap out features for
   // testing.
   customize_chrome::SidePanelController*
   SetCustomizeChromeSidePanelControllerForTesting(
       std::unique_ptr<customize_chrome::SidePanelController>
           customize_chrome_side_panel_controller);
+
+  // TODO(crbug.com/447418049): This will be removed in the future when
+  // ownership of this controller is migrated to ReadAnythingController.
+  ReadAnythingSidePanelController* read_anything_side_panel_controller() {
+    return read_anything_side_panel_controller_.get();
+  }
 
   commerce::CommerceUiTabHelper* commerce_ui_tab_helper() {
     return commerce_ui_tab_helper_.get();
@@ -422,6 +391,9 @@ class TabFeatures {
   // Responsible for managing the read anything (Reading mode) feature.
   std::unique_ptr<ReadAnythingController> read_anything_controller_;
 
+  std::unique_ptr<ReadAnythingSidePanelController>
+      read_anything_side_panel_controller_;
+
   // Responsible for commerce related features.
   std::unique_ptr<commerce::CommerceUiTabHelper> commerce_ui_tab_helper_;
   std::unique_ptr<commerce::InStockNotificationManager>
@@ -436,16 +408,9 @@ class TabFeatures {
   std::unique_ptr<extensions::ExtensionSidePanelManager>
       extension_side_panel_manager_;
 
-  // Security-state-driven side effects (known-interception disclosure,
-  // form-submission UKM).
-  std::unique_ptr<SecurityStateEventObserver> security_state_event_observer_;
-
   // Forwards tab-related events to sync.
   std::unique_ptr<sync_sessions::SyncSessionsRouterTabHelper>
       sync_sessions_router_;
-
-  // Provides this tab's session identity to sync.
-  std::unique_ptr<BrowserSyncedTabDelegate> browser_synced_tab_delegate_;
 
   // Responsible for keeping a tab within a tab group in sync with its remote
   // tab counterpart from sync.
@@ -479,12 +444,6 @@ class TabFeatures {
   // Responsible for managing the "File System Access" page action.
   std::unique_ptr<FileSystemAccessPageActionController>
       file_system_access_page_action_controller_;
-
-  // Manages web app banners. Null when web apps are not user-installable in
-  // this profile. Declared before the page-action controllers because
-  // PwaInstallPageAction observes the AppBannerManager, so the manager must
-  // outlive it.
-  std::unique_ptr<webapps::AppBannerManagerDesktop> app_banner_manager_;
 
   // Responsible for managing all page actions of a tab. Other controllers
   // interact with this to have their feature's page action shown.
@@ -550,38 +509,14 @@ class TabFeatures {
 
   std::unique_ptr<glic::GlicPageFeaturesManager> glic_page_features_manager_;
 
-  // Observes page loads to decide when to offer glic contextual cueing.
-  std::unique_ptr<glic::ContextualCueingHelper> contextual_cueing_helper_;
-
-  // Per-tab eligibility state for the glic contextual cue.
-  std::unique_ptr<glic::GlicCueTabState> glic_cue_tab_state_;
-
   std::unique_ptr<memory_saver::MemorySaverChipController>
       memory_saver_chip_controller_;
 
   std::unique_ptr<InactiveWindowMouseEventController>
       inactive_window_mouse_event_controller_;
 
-  // Focuses the tab contents after browser-initiated and NTP-leaving
-  // navigations.
-  std::unique_ptr<FocusTabAfterNavigationHelper>
-      focus_tab_after_navigation_helper_;
-
-  // Tracks blocked framebusts on the current page for the omnibox UI.
-  std::unique_ptr<FramebustBlockTabHelper> framebust_block_tab_helper_;
-
-  // Redirects cert-error loads of the help center to bundled help content.
-  std::unique_ptr<ConnectionHelpTabHelper> connection_help_tab_helper_;
-
-  // Indicates if the tab contains forms that have been interacted with.
-  std::unique_ptr<FormInteractionTabHelper> form_interaction_tab_helper_;
-
   std::unique_ptr<FromGWSNavigationAndKeepAliveRequestObserver>
       from_gws_navigation_and_keep_alive_request_observer_;
-
-  // Records use counters for cross-partition subresource loads that used
-  // server HTTP auth.
-  std::unique_ptr<HttpAuthCacheStatus> http_auth_cache_status_;
 
   std::unique_ptr<TabResourceUsageTabHelper> resource_usage_helper_;
 
@@ -627,15 +562,6 @@ class TabFeatures {
   std::unique_ptr<autofill::PaymentsChurnedUsersBubbleController>
       payments_churned_users_bubble_controller_;
 
-  // Responsible for managing the bubble that displays the Wallet reminder
-  // notice.
-  std::unique_ptr<autofill::WalletReminderNoticeBubbleController>
-      wallet_reminder_notice_bubble_controller_;
-
-  // Responsible for managing the "Wallet Reminder Notice" page action.
-  std::unique_ptr<autofill::WalletReminderNoticePageActionController>
-      wallet_reminder_notice_page_action_controller_;
-
   std::unique_ptr<AskBeforeHttpDialogController>
       ask_before_http_dialog_controller_;
 
@@ -648,13 +574,8 @@ class TabFeatures {
   std::unique_ptr<lens::TabContextualizationController>
       tab_contextualization_controller_;
 
-  // Manages the sad tab view shown when the tab's main frame has crashed.
-  // Null when the WebUI browser is enabled.
-  std::unique_ptr<SadTabHelper> sad_tab_helper_;
-
-  // Watches for an opportunity to show the search engine choice dialog.
-  // Only created when SearchEngineChoiceTabHelper::IsHelperNeeded().
-  std::unique_ptr<SearchEngineChoiceTabHelper> search_engine_choice_tab_helper_;
+  std::unique_ptr<RollBackModeBInfoBarController>
+      roll_back_mode_b_infobar_controller_;
 
   std::unique_ptr<BookmarkBarPreloadPipelineManager>
       bookmarkbar_preload_pipeline_manager_;
@@ -692,9 +613,10 @@ class TabFeatures {
 #if BUILDFLAG(IS_WIN)
   std::unique_ptr<SearchPromotionNavigationObserver>
       search_promotion_navigation_observer_;
-  std::unique_ptr<CommitLimitOOMRecoveryTracker>
-      commit_limit_oom_recovery_tracker_;
 #endif
+
+  std::unique_ptr<accessibility_annotator::ContentAnnotatorTabHelper>
+      content_annotator_tab_helper_;
 
 #if !BUILDFLAG(IS_ANDROID)
   std::unique_ptr<indigo::IndigoPageActionController>
@@ -706,20 +628,6 @@ class TabFeatures {
       filter_navigation_observer_;
 
   std::unique_ptr<TabAttachmentTracker> tab_attachment_tracker_;
-
-  // Prefetches zero-prefix suggestions on opening or switching to an NTP.
-  std::unique_ptr<ZeroSuggestPrefetchTabHelper>
-      zero_suggest_prefetch_tab_helper_;
-
-  // Controls the visibility of the intent picker page action.
-  std::unique_ptr<IntentPickerTabHelper> intent_picker_tab_helper_;
-
-  // Maintains the thumbnail shown in e.g. tab hover cards. Null when no
-  // feature that needs thumbnails is enabled.
-  std::unique_ptr<ThumbnailTabHelper> thumbnail_tab_helper_;
-
-  // Observes changes in web contents for web payments.
-  std::unique_ptr<payments::WebPaymentsObserver> web_payments_observer_;
 
   // Must be the last member.
   base::WeakPtrFactory<TabFeatures> weak_factory_{this};

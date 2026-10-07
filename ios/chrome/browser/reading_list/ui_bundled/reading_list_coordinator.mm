@@ -282,8 +282,8 @@
 }
 
 - (void)dealloc {
-  CHECK(!_authServiceObserverBridge);
-  CHECK(!self.mediator);
+  CHECK(!_authServiceObserverBridge, base::NotFatalUntil::M145);
+  CHECK(!self.mediator, base::NotFatalUntil::M145);
 }
 
 #pragma mark - ReadingListListViewControllerAudience
@@ -570,8 +570,11 @@
 #pragma mark - SigninPromoViewConsumer
 
 - (void)configureSigninPromoWithConfigurator:
-    (SigninPromoViewConfigurator*)configurator {
-  [self.tableViewController configureSigninPromoWithConfigurator:configurator];
+            (SigninPromoViewConfigurator*)configurator
+                             identityChanged:(BOOL)identityChanged {
+  [self.tableViewController
+      configureSigninPromoWithConfigurator:configurator
+                           identityChanged:identityChanged];
 }
 
 - (void)promoProgressStateDidChange {
@@ -613,7 +616,7 @@
 #pragma mark - Private
 
 - (void)dismissReadingList {
-  CHECK([self canDismiss]);
+  CHECK([self canDismiss], base::NotFatalUntil::M145);
   [self.tableViewController willBeDismissed];
   [_delegate closeReadingList];
 }

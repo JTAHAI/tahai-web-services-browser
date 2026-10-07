@@ -64,7 +64,6 @@ source_set("on_device_translation") {
   ]
   deps = [
     "//base",
-    "//base/i18n:language_tag",
     "//components/component_updater",
     "//components/language/core/browser",
     "//components/on_device_translation/public/mojom",

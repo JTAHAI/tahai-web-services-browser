@@ -16,6 +16,7 @@ class BrowserViewPopupLayoutImpl : public BrowserViewLayoutImpl {
  public:
   BrowserViewPopupLayoutImpl(
       std::unique_ptr<BrowserViewLayoutDelegate> delegate,
+      Browser* browser,
       BrowserViewLayoutViews views);
   ~BrowserViewPopupLayoutImpl() override;
 

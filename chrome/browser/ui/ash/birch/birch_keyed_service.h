@@ -17,10 +17,6 @@
 
 class Profile;
 
-namespace signin {
-class IdentityManager;
-}  // namespace signin
-
 namespace ash {
 
 class BirchCalendarProvider;
@@ -40,8 +36,7 @@ class BirchKeyedService : public KeyedService,
                           public ShellObserver,
                           public BirchClient {
  public:
-  BirchKeyedService(Profile* profile,
-                    signin::IdentityManager* identity_manager);
+  explicit BirchKeyedService(Profile* profile);
   BirchKeyedService(const BirchKeyedService&) = delete;
   BirchKeyedService& operator=(const BirchKeyedService&) = delete;
   ~BirchKeyedService() override;

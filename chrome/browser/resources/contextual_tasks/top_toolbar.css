@@ -16,7 +16,6 @@
   --mwb-secondary-text-font-size: 11px;
 
   background-color: var(--toolbar-background-color);
-  box-sizing: border-box;
   color: var(--toolbar-text-color);
   display: flex;
   flex-direction: column;
@@ -132,6 +131,14 @@
 cr-icon-button {
   --cr-icon-button-icon-size: 20px;
   --cr-icon-button-fill-color: var(--toolbar-button-icon-color);
+}
+
+#closeButton:not(:hover)[rounded-corner='true'] {
+  background-color: var(--cr-fallback-color-base-container);
+}
+
+#closeButton[rounded-corner='true'] {
+  border-radius: 6px;
 }
 
 cr-icon-button[hidden] {

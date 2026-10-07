@@ -17,7 +17,6 @@ import org.chromium.components.browser_ui.util.TextResolver;
 import org.chromium.ui.modelutil.PropertyKey;
 import org.chromium.ui.modelutil.PropertyModel;
 import org.chromium.ui.modelutil.PropertyModel.WritableBooleanPropertyKey;
-import org.chromium.ui.modelutil.PropertyModel.WritableIntDefPropertyKey;
 import org.chromium.ui.modelutil.PropertyModel.WritableIntPropertyKey;
 import org.chromium.ui.modelutil.PropertyModel.WritableObjectPropertyKey;
 
@@ -35,8 +34,7 @@ public class ActionProperties {
             new WritableObjectPropertyKey<>();
 
     /** This property should have a {@link ButtonState} value. */
-    public static final WritableIntDefPropertyKey<ButtonState> BUTTON_STATE =
-            new WritableIntDefPropertyKey<>(ButtonState.DEFAULT);
+    public static final WritableIntPropertyKey BUTTON_STATE = new WritableIntPropertyKey();
 
     /** Property to track if the action is currently selected/active. */
     public static final WritableBooleanPropertyKey IS_SELECTED = new WritableBooleanPropertyKey();

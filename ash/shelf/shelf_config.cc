@@ -215,6 +215,9 @@ void ShelfConfig::OnSessionStateChanged(session_manager::SessionState state) {
 void ShelfConfig::UpdateForTabletMode(bool in_tablet_mode) {
   in_tablet_mode_ = in_tablet_mode;
   UpdateConfig(is_app_list_visible_, /*tablet_mode_changed=*/true);
+  if (!in_tablet_mode_) {
+    has_shown_elevated_app_bar_ = std::nullopt;
+  }
 }
 
 void ShelfConfig::OnDisplayMetricsChanged(const display::Display& display,
@@ -508,7 +511,16 @@ int ShelfConfig::GetSystemShelfSizeInTabletMode() const {
                                    : kSystemShelfSizeTabletModeNormal;
 }
 
-int ShelfConfig::GetTabletModeShelfInsets() const {
+int ShelfConfig::GetTabletModeShelfInsetsAndRecordUMA() {
+  if (!has_shown_elevated_app_bar_.has_value() ||
+      has_shown_elevated_app_bar_.value() != elevate_tablet_mode_app_bar_) {
+    has_shown_elevated_app_bar_ = elevate_tablet_mode_app_bar_;
+    // This method can be called more than once during the app bar rendering.
+    // Records only once when `elevate_tablet_mode_app_bar_` changes.
+    base::UmaHistogramBoolean("Ash.Shelf.ShowStackedHotseat",
+                              elevate_tablet_mode_app_bar_);
+  }
+
   return elevate_tablet_mode_app_bar_ ? kElevatedSystemShelfSizeTabletMode
                                       : GetSystemShelfSizeInTabletMode();
 }
@@ -520,8 +532,8 @@ int ShelfConfig::GetMinimumInlineAppBarSize() const {
 
 void ShelfConfig::UpdateShowElevatedAppBar(
     const gfx::Size& inline_app_bar_size) {
-  elevate_tablet_mode_app_bar_ =
-      inline_app_bar_size.width() < GetMinimumInlineAppBarSize();
+    elevate_tablet_mode_app_bar_ =
+        inline_app_bar_size.width() < GetMinimumInlineAppBarSize();
 }
 
 void ShelfConfig::UpdateConfigForAccessibilityState() {

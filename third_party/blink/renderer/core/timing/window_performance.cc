@@ -475,8 +475,7 @@ void WindowPerformance::CreateNavigationTimingInstance(
   }
 
   navigation_timing_ = MakeGarbageCollected<PerformanceNavigationTiming>(
-      *DomWindow(), std::move(info), time_origin_,
-      NavigationId().web_exposed_id);
+      *DomWindow(), std::move(info), time_origin_, NavigationId());
 }
 
 void WindowPerformance::OnBodyLoadFinished(int64_t encoded_body_size,
@@ -587,24 +586,11 @@ void WindowPerformance::markConditional(ScriptState* script_state,
     return;
   }
 
+  ExecutionContext* execution_context = ExecutionContext::From(script_state);
+  DCHECK(execution_context);
   base::TimeTicks start_time = base::TimeTicks::Now();
   window->GetFrame()->GetWidgetForLocalRoot()->MarkConditional(mark_name,
                                                                start_time);
-}
-
-void WindowPerformance::measureConditional(ScriptState* script_state,
-                                           const AtomicString& measure_name,
-                                           const AtomicString& start_mark,
-                                           const AtomicString& end_mark) {
-  LocalDOMWindow* window = LocalDOMWindow::From(script_state);
-  if (!window || !window->GetFrame() ||
-      !window->GetFrame()->GetWidgetForLocalRoot()) {
-    return;
-  }
-
-  base::TimeTicks end_time = base::TimeTicks::Now();
-  window->GetFrame()->GetWidgetForLocalRoot()->MeasureConditional(
-      measure_name, start_mark, end_mark, end_time);
 }
 
 void WindowPerformance::ReportLongTask(base::TimeTicks start_time,
@@ -701,7 +687,7 @@ PerformanceEventTiming* WindowPerformance::EventTimingProcessingStart(
   // fires.
   PerformanceEventTiming* entry = PerformanceEventTiming::Create(
       event_type, reporting_info, event.cancelable(), DomWindow(),
-      NavigationId().web_exposed_id);
+      NavigationId());
   active_event_timing_entries_.push_back(entry);
   event_timing_entries_.push_back(entry);
   current_event_ = &event;
@@ -1082,8 +1068,9 @@ void WindowPerformance::TryFlushEventTimingQueue() {
 
       FlushEventTiming(interactive_detector, entry, primary_entry);
 
-      if (entry->GetInteractionIdInfo() !=
-          PerformanceTimelineEntryIdInfo::kNone) {
+      if (auto interaction_id = entry->GetInteractionIdInfo();
+          interaction_id &&
+          interaction_id->id != PerformanceTimelineEntryIdInfo::kNoId) {
         had_interaction_in_animation_frame = true;
         if (entry->GetEventTimingReportingInfo()->key_code.has_value()) {
           had_key_interaction = true;
@@ -1405,7 +1392,7 @@ void WindowPerformance::QueueLongAnimationFrameTiming(
   if (auto* window = DomWindow()) {
     AddLongAnimationFrameEntry(PerformanceLongAnimationFrameTiming::Create(
         info, time_origin_, cross_origin_isolated_capability_, window,
-        paint_timing_info, NavigationId().web_exposed_id));
+        paint_timing_info, NavigationId()));
   }
 }
 
@@ -1449,7 +1436,7 @@ void WindowPerformance::AddElementTiming(
   PerformanceElementTiming* entry = PerformanceElementTiming::Create(
       name, url, rect, paint_timing_info.presentation_time, coarsened_load_time,
       identifier, intrinsic_size.width(), intrinsic_size.height(), id, element,
-      DomWindow(), NavigationId().web_exposed_id);
+      DomWindow(), NavigationId());
   TRACE_EVENT2("loading", "PerformanceElementTiming", "data",
                entry->ToTracedValue(), "frame",
                GetFrameIdForTracing(DomWindow()->GetFrame()));
@@ -1476,10 +1463,9 @@ void WindowPerformance::AddContainerTiming(
   }
 
   PerformanceContainerTiming* entry = PerformanceContainerTiming::Create(
-      g_empty_atom, paint_timing_info.presentation_time, rect, size,
-      root_element, identifier, last_painted_element,
-      first_paint_timing_info.presentation_time, DomWindow(),
-      NavigationId().web_exposed_id);
+      AtomicString("container-paints"), paint_timing_info.presentation_time,
+      rect, size, root_element, identifier, last_painted_element,
+      first_paint_timing_info.presentation_time, DomWindow(), NavigationId());
   TRACE_EVENT2("loading", "PerformanceContainerTiming", "data",
                entry->ToTracedValue(), "frame",
                GetFrameIdForTracing(DomWindow()->GetFrame()));
@@ -1549,7 +1535,7 @@ void WindowPerformance::AddScrollTiming(base::TimeTicks start_time,
           /*delta_x=*/0, /*delta_y=*/0, scroll_source,
           /*frames_expected=*/0u, /*frames_produced=*/0u,
           /*checkerboard_time=*/0.0, exposable_target, DomWindow(),
-          NavigationId().web_exposed_id);
+          NavigationId());
 
   if (HasObserverFor(PerformanceEntry::kScroll)) {
     NotifyObserversOfEntry(*entry);
@@ -1597,7 +1583,7 @@ void WindowPerformance::AddVisibilityStateEntry(bool is_visible,
   VisibilityStateEntry* entry = MakeGarbageCollected<VisibilityStateEntry>(
       PageHiddenStateString(!is_visible),
       MonotonicTimeToDOMHighResTimeStamp(timestamp), DomWindow(),
-      NavigationId().web_exposed_id);
+      NavigationId());
 
   if (HasObserverFor(PerformanceEntry::kVisibilityState)) {
     NotifyObserversOfEntry(*entry);
@@ -1692,17 +1678,7 @@ SpeculationData* WindowPerformance::getSpeculations() {
   HeapVector<Member<SpeculationNavigationData>> navigations;
   if (DocumentSpeculationRules* spec_rules =
           DocumentSpeculationRules::FromIfExists(*document)) {
-    // With renderer-side heuristics, the renderer knows exactly which
-    // candidates were activated (immediate ones plus those enacted by the
-    // pointerdown/hover/viewport heuristics), so report that enacted set
-    // instead of every proposed candidate. Otherwise (browser-driven
-    // heuristics) the renderer can't tell which were enacted, so fall back to
-    // the proposed set.
-    const auto& candidates =
-        base::FeatureList::IsEnabled(
-            features::kSpeculationRulesRendererSideHeuristics)
-            ? spec_rules->activated_candidates()
-            : spec_rules->sent_candidates();
+    const auto& candidates = spec_rules->sent_candidates();
     for (const SpeculationCandidate* candidate : candidates) {
       std::optional<Vector<String>> tags;
       // When no tag is specified, the candidate has tags=[""]
@@ -1736,7 +1712,7 @@ void WindowPerformance::OnLargestContentfulPaintUpdated(
       /*start_time=*/paint_timing_info.presentation_time,
       /*render_time=*/paint_timing_info.presentation_time, paint_size,
       MonotonicTimeToDOMHighResTimeStamp(load_time), id, url, element,
-      DomWindow(), NavigationId().web_exposed_id);
+      DomWindow(), NavigationId());
   entry->SetPaintTimingInfo(paint_timing_info);
 
   if (HasObserverFor(PerformanceEntry::kLargestContentfulPaint)) {

@@ -35,8 +35,7 @@ class FakeWebClient : public web::WebClient {
 
   std::string GetUserAgent(UserAgentType type) const override;
 
-  scoped_refptr<base::RefCountedMemory> GetDataResourceBytes(
-      int id) const override;
+  base::RefCountedMemory* GetDataResourceBytes(int id) const override;
 
   std::vector<JavaScriptFeature*> GetJavaScriptFeatures(
       BrowserState* browser_state) const override;

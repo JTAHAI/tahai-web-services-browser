@@ -8,9 +8,7 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/sessions/tab_restore_service_factory.h"
 #include "chrome/browser/ui/browser_commands.h"
-#include "chrome/browser/ui/browser_init_state.h"
 #include "chrome/browser/ui/browser_window.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/web_applications/test/web_app_browsertest_util.h"
 #include "chrome/browser/web_applications/web_app_utils.h"
 #include "chrome/test/base/in_process_browser_test.h"
@@ -36,7 +34,7 @@ IN_PROC_BROWSER_TEST_F(TabRestoreServiceImplBrowserTest, RestoreApp) {
       TabRestoreServiceFactory::GetForProfile(profile);
   const char* app_name = "TestApp";
 
-  BrowserWindowInterface* app_browser = CreateBrowserForApp(app_name, profile);
+  Browser* app_browser = CreateBrowserForApp(app_name, profile);
   CloseBrowserSynchronously(app_browser);
 
   // One entry should be created.
@@ -59,7 +57,7 @@ IN_PROC_BROWSER_TEST_F(TabRestoreServiceImplBrowserTest,
       TabRestoreServiceFactory::GetForProfile(profile);
 
   test_system_web_app_installation_->WaitForAppInstall();
-  BrowserWindowInterface* app_browser = web_app::LaunchWebAppBrowser(
+  Browser* app_browser = web_app::LaunchWebAppBrowser(
       browser()->GetProfile(), test_system_web_app_installation_->GetAppId());
   GURL app_url = test_system_web_app_installation_->GetAppUrl();
   ASSERT_TRUE(ui_test_utils::NavigateToURL(app_browser, app_url));
@@ -79,7 +77,6 @@ IN_PROC_BROWSER_TEST_F(TabRestoreServiceImplBrowserTest,
       trs->entries().front().get();
   ASSERT_EQ(sessions::tab_restore::Type::WINDOW, window_entry->type);
   const Window* restored_window = static_cast<const Window*>(window_entry);
-  EXPECT_EQ(BrowserInitState::From(app_browser)->create_params().app_name,
-            restored_window->app_name);
+  EXPECT_EQ(app_browser->app_name(), restored_window->app_name);
   EXPECT_EQ(1U, restored_window->tabs.size());
 }

@@ -116,9 +116,11 @@ impl ToTokens for Ptr {
             mutable: _,
             inner,
             mutability,
+            constness,
         } = self;
         star.to_tokens(tokens);
         mutability.to_tokens(tokens);
+        constness.to_tokens(tokens);
         inner.to_tokens(tokens);
     }
 }

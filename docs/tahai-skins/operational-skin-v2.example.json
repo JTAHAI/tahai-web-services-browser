@@ -5,8 +5,8 @@
   "creator": "TAHAI Example Studio",
   "license": "CC-BY-4.0",
   "compatibility": {
-    "min_chromium_major": 154,
-    "max_chromium_major": 154
+    "min_chromium_major": 152,
+    "max_chromium_major": 152
   },
   "appearance": {
     "density": "comfortable",

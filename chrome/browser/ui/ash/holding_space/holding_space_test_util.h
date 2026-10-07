@@ -47,7 +47,6 @@ void RightClick(const views::View* view, int flags = ui::EF_NONE);
 // Selects the menu item with the specified command ID. Returns the selected
 // menu item if successful, `nullptr` otherwise.
 views::MenuItemView* SelectMenuItemWithCommandId(
-    const views::View* context_view,
     HoldingSpaceCommandId command_id);
 
 // Waits for a holding space item matching the provided `predicate` to be

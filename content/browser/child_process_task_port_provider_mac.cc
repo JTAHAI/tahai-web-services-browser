@@ -85,7 +85,7 @@ bool ChildProcessTaskPortProvider::ShouldRequestTaskPorts() const {
 void ChildProcessTaskPortProvider::OnTaskPortReceived(
     base::ProcessHandle process_handle,
     mojo::PlatformHandle task_port) {
-  CHECK(ShouldRequestTaskPorts(), base::NotFatalUntil::M159);
+  DCHECK(ShouldRequestTaskPorts());
   if (!task_port.is_mach_send()) {
     DLOG(ERROR) << "Invalid handle received as task port for pid "
                 << base::GetProcId(process_handle);
@@ -129,7 +129,7 @@ void ChildProcessTaskPortProvider::OnTaskPortReceived(
 }
 
 void ChildProcessTaskPortProvider::OnTaskPortDied() {
-  CHECK(ShouldRequestTaskPorts(), base::NotFatalUntil::M159);
+  DCHECK(ShouldRequestTaskPorts());
 
   mach_dead_name_notification_t notification{};
   kern_return_t kr =

@@ -67,7 +67,6 @@
 #include "net/traffic_annotation/network_traffic_annotation.h"
 #include "net/url_request/referrer_policy.h"
 #include "services/metrics/public/cpp/ukm_source_id.h"
-#include "services/network/public/cpp/shared_url_loader_factory.h"
 #include "third_party/perfetto/include/perfetto/tracing/track.h"
 
 #if BUILDFLAG(IS_ANDROID)
@@ -939,15 +938,6 @@ const std::vector<GURL>& DownloadItemImpl::GetUrlChain() const {
   return request_info_.url_chain;
 }
 
-bool DownloadItemImpl::IsUrlTruncated() const {
-  return url_truncated_;
-}
-
-void DownloadItemImpl::SetURLLoaderFactory(
-    scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory) {
-  url_loader_factory_ = std::move(url_loader_factory);
-}
-
 const GURL& DownloadItemImpl::GetOriginalUrl() const {
   // Be careful about taking the front() of possibly-empty vectors!
   // http://crbug.com/190096
@@ -1096,9 +1086,6 @@ DownloadFile* DownloadItemImpl::GetDownloadFile() {
 }
 
 DownloadItemRenameHandler* DownloadItemImpl::GetRenameHandler() {
-  if (!rename_handler_ && delegate_) {
-    rename_handler_ = delegate_->GetRenameHandlerForDownload(this);
-  }
   return rename_handler_.get();
 }
 
@@ -1778,6 +1765,8 @@ void DownloadItemImpl::Start(
               base::BindRepeating(&DownloadItemImpl::OnDownloadFileInitialized,
                                   weak_ptr_factory_.GetWeakPtr()),
               GetReceivedSlices());
+
+  rename_handler_ = delegate_->GetRenameHandlerForDownload(this);
 }
 
 void DownloadItemImpl::OnDownloadFileInitialized(DownloadInterruptReason result,
@@ -2053,10 +2042,10 @@ void DownloadItemImpl::OnRenameAndAnnotateDone(
   DownloadFile::RenameCompletionCallback rename_callback =
       base::BindOnce(&DownloadItemImpl::OnDownloadRenamedToFinalName,
                      weak_ptr_factory_.GetWeakPtr());
-  if (auto* rename_handler = GetRenameHandler()) {
+  if (rename_handler_) {
     renaming_ = true;
 
-    rename_handler->Start(
+    rename_handler_->Start(
         base::BindRepeating(&DownloadItemImpl::UpdateRenameProgress,
                             weak_ptr_factory_.GetWeakPtr()),
         std::move(rename_callback));
@@ -2092,10 +2081,11 @@ void DownloadItemImpl::OnDownloadRenamedToFinalName(
     return;
   }
 
+  DCHECK_EQ(GetTargetFilePath(), full_path);
+
   if (full_path != GetFullPath()) {
     // full_path is now the current and target file path.
     DCHECK(!full_path.empty());
-    destination_info_.target_path = full_path;
     SetFullPath(full_path);
   }
 
@@ -2440,7 +2430,7 @@ void DownloadItemImpl::TransitionTo(DownloadInternalState new_state) {
 
   if (IsDownloadDone(GetURL(), InternalToExternalState(new_state),
                      last_reason_)) {
-    url_truncated_ |= TruncateDataUrlAtTheEndIfNeeded(&request_info_.url_chain);
+    TruncateDataUrlAtTheEndIfNeeded(&request_info_.url_chain);
   }
   DCHECK(IsSavePackageDownload()
              ? IsValidSavePackageStateTransition(old_state, new_state)
@@ -2661,25 +2651,12 @@ void DownloadItemImpl::ResumeInterruptedDownload(
     offset = GetReceivedBytes();
   }
 
-  // The previous hash state covers GetReceivedBytes() bytes of the partial
-  // file. If the resume offset is smaller (i.e. there were non-contiguous
-  // received slices), it no longer matches the prefix up to |offset| and must
-  // be dropped so that BaseFile re-derives it from the partial file.
-  if (offset != GetReceivedBytes()) {
-    hash_state_.reset();
-    destination_info_.hash.clear();
-  }
-
   download_params->set_offset(offset);
   download_params->set_last_modified(GetLastModifiedTime());
   download_params->set_etag(GetETag());
   download_params->set_hash_of_partial_file(GetHash());
   download_params->set_hash_state(std::move(hash_state_));
   download_params->set_guid(guid_);
-
-  if (url_loader_factory_) {
-    download_params->set_url_loader_factory(url_loader_factory_->Clone());
-  }
   if (!HasStrongValidators() &&
       base::FeatureList::IsEnabled(
           features::kAllowDownloadResumptionWithoutStrongValidators)) {

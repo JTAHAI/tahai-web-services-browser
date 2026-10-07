@@ -39,8 +39,8 @@ import org.chromium.chrome.browser.lifecycle.ConfigurationChangedObserver;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.settings.SettingsNavigationFactory;
 import org.chromium.chrome.browser.tab.CurrentTabObserver;
+import org.chromium.chrome.browser.tab.EmptyTabObserver;
 import org.chromium.chrome.browser.tab.Tab;
-import org.chromium.chrome.browser.tab.TabObserver;
 import org.chromium.chrome.browser.toolbar.R;
 import org.chromium.chrome.browser.toolbar.adaptive.AdaptiveToolbarStatePredictor.UiState;
 import org.chromium.chrome.browser.toolbar.adaptive.settings.AdaptiveToolbarSettingsFragment;
@@ -316,7 +316,7 @@ public class AdaptiveToolbarButtonController
             RecordHistogram.recordEnumeratedHistogram(
                     "Android.AdaptiveToolbarButton.SessionVariant",
                     receivedButtonData.getButtonSpec().getButtonVariant(),
-                    AdaptiveToolbarButtonVariant.MAX_VALUE + 1);
+                    AdaptiveToolbarButtonVariant.MAX_VALUE);
         }
 
         mButtonData.setCanShow(
@@ -355,7 +355,7 @@ public class AdaptiveToolbarButtonController
             RecordHistogram.recordEnumeratedHistogram(
                     "Android.AdaptiveToolbarButton.Clicked",
                     buttonVariant,
-                    AdaptiveToolbarButtonVariant.MAX_VALUE + 1);
+                    AdaptiveToolbarButtonVariant.MAX_VALUE);
             receivedListener.onClick(view);
         };
     }
@@ -393,6 +393,7 @@ public class AdaptiveToolbarButtonController
             mGlicKeyedService.addAllowedChangedObserver(this);
         }
 
+        if (!AdaptiveToolbarFeatures.isCustomizationEnabled()) return;
         mAdaptiveToolbarStatePredictor.recomputeUiState(mUiStateCallback);
         AdaptiveToolbarStats.recordSelectedSegmentFromSegmentationPlatformAsync(
                 mContext, mAdaptiveToolbarStatePredictor);
@@ -433,6 +434,7 @@ public class AdaptiveToolbarButtonController
         assert mAdaptiveToolbarStatePredictor != null;
         if (ADAPTIVE_TOOLBAR_CUSTOMIZATION_SETTINGS.equals(key)
                 || ADAPTIVE_TOOLBAR_CUSTOMIZATION_ENABLED.equals(key)) {
+            assert AdaptiveToolbarFeatures.isCustomizationEnabled();
             mAdaptiveToolbarStatePredictor.recomputeUiState(mUiStateCallback);
         }
     }
@@ -453,7 +455,7 @@ public class AdaptiveToolbarButtonController
         RecordHistogram.recordEnumeratedHistogram(
                 "Android.AdaptiveToolbarButton.Variant.OnPageLoad",
                 actionToShow,
-                AdaptiveToolbarButtonVariant.MAX_VALUE + 1);
+                AdaptiveToolbarButtonVariant.MAX_VALUE);
         if (mOriginalButtonSpec != null && mOriginalButtonSpec.getButtonVariant() == actionToShow) {
             return;
         }
@@ -473,7 +475,7 @@ public class AdaptiveToolbarButtonController
         mPageLoadMetricsRecorder =
                 new CurrentTabObserver(
                         tabSupplier,
-                        new TabObserver() {
+                        new EmptyTabObserver() {
                             @Override
                             public void onDidStartNavigationInPrimaryMainFrame(
                                     Tab tab, NavigationHandle navigationHandle) {
@@ -488,7 +490,7 @@ public class AdaptiveToolbarButtonController
                                 RecordHistogram.recordEnumeratedHistogram(
                                         "Android.AdaptiveToolbarButton.Variant.OnStartNavigation",
                                         currentVariant,
-                                        AdaptiveToolbarButtonVariant.MAX_VALUE + 1);
+                                        AdaptiveToolbarButtonVariant.MAX_VALUE);
                             }
                         },
                         null);

@@ -25,9 +25,7 @@
 #include "base/memory/scoped_refptr.h"
 #include "base/sequence_checker.h"
 #include "base/strings/string_number_conversions.h"
-#include "base/strings/string_util.h"
 #include "base/strings/stringprintf.h"
-#include "base/task/bind_post_task.h"
 #include "base/task/sequenced_task_runner.h"
 #include "base/task/single_thread_task_runner.h"
 #include "base/time/time.h"
@@ -54,6 +52,9 @@
 #include "remoting/host/desktop_environment.h"
 #include "remoting/host/file_transfer/file_transfer_message_handler.h"
 #include "remoting/host/file_transfer/rtc_log_file_operations.h"
+#include "remoting/host/host_extension.h"
+#include "remoting/host/host_extension_session.h"
+#include "remoting/host/host_extension_session_manager.h"
 #include "remoting/host/input_injector.h"
 #include "remoting/host/keyboard_layout_monitor.h"
 #include "remoting/host/mojom/chromoting_host_services.mojom.h"
@@ -67,6 +68,8 @@
 #include "remoting/host/remote_open_url/url_forwarder_control_message_handler.h"
 #include "remoting/host/security_key/security_key_auth_handler.h"
 #include "remoting/host/security_key/security_key_data_channel_handler.h"
+#include "remoting/host/security_key/security_key_extension.h"
+#include "remoting/host/security_key/security_key_extension_session.h"
 #include "remoting/host/terminal_session_manager.h"
 #include "remoting/host/webauthn/remote_webauthn_constants.h"
 #include "remoting/host/webauthn/remote_webauthn_message_handler.h"
@@ -89,6 +92,7 @@
 #include "remoting/protocol/message_pipe.h"
 #include "remoting/protocol/network_settings.h"
 #include "remoting/protocol/observing_input_filter.h"
+#include "remoting/protocol/pairing_registry.h"
 #include "remoting/protocol/peer_connection_controls.h"
 #include "remoting/protocol/session.h"
 #include "remoting/protocol/transport.h"
@@ -137,15 +141,26 @@ namespace remoting {
 using protocol::ActionRequest;
 
 PeerSessionImpl::PeerSessionImpl(
+    std::unique_ptr<protocol::IceConfigFetcher> ice_config_fetcher,
+    scoped_refptr<base::SingleThreadTaskRunner> audio_task_runner,
+    DesktopEnvironmentFactory* desktop_environment_factory,
+    scoped_refptr<protocol::PairingRegistry> pairing_registry)
+    : PeerSessionImpl(std::make_unique<protocol::WebrtcConnectionToClient>(
+                          std::move(ice_config_fetcher),
+                          std::move(audio_task_runner)),
+                      desktop_environment_factory,
+                      std::move(pairing_registry)) {}
+
+PeerSessionImpl::PeerSessionImpl(
     std::unique_ptr<protocol::ConnectionToClient> connection,
     DesktopEnvironmentFactory* desktop_environment_factory,
-    RequestPairingOnceCallback request_pairing_cb)
+    scoped_refptr<protocol::PairingRegistry> pairing_registry)
     : desktop_environment_factory_(desktop_environment_factory),
       host_clipboard_filter_(clipboard_echo_filter_.host_filter()),
       client_clipboard_filter_(clipboard_echo_filter_.client_filter()),
       client_clipboard_factory_(&client_clipboard_filter_),
       input_pipeline_(&coordinate_converter_, this),
-      request_pairing_cb_(std::move(request_pairing_cb)),
+      pairing_registry_(std::move(pairing_registry)),
       connection_(std::move(connection)) {
   connection_->SetEventHandler(this);
 
@@ -160,6 +175,7 @@ void PeerSessionImpl::Start(
     PeerSession::EventHandler* event_handler,
     std::string_view client_jid,
     const DesktopEnvironmentOptions& desktop_environment_options,
+    const std::vector<HostExtension*>& extensions,
     const SessionPolicies& session_policies,
     const SessionOptions& session_options) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
@@ -169,7 +185,19 @@ void PeerSessionImpl::Start(
   event_handler_ = event_handler;
   client_jid_ = std::string(client_jid);
   desktop_environment_options_ = desktop_environment_options;
+  extensions_.assign(extensions.begin(), extensions.end());
   effective_policies_ = session_policies;
+
+  base::TimeDelta max_duration =
+      effective_policies_.maximum_session_duration.value_or(base::TimeDelta());
+  if (max_duration.is_positive()) {
+    max_duration_timer_.Start(
+        FROM_HERE, max_duration,
+        base::BindOnce(&PeerSessionImpl::DisconnectSession,
+                       base::Unretained(this), ErrorCode::MAX_SESSION_LENGTH,
+                       "Maximum session duration has been reached.",
+                       FROM_HERE));
+  }
 
   connection_->ApplySessionOptions(session_options);
   connection_->ApplyNetworkSettings(
@@ -177,11 +205,40 @@ void PeerSessionImpl::Start(
   connection_->Start();
 
   DesktopEnvironmentOptions options = desktop_environment_options_;
-
-  bool allow_gnubby = desktop_environment_options_.enable_security_key();
-  if (allow_gnubby) {
-    security_key_auth_handler_ = SecurityKeyAuthHandler::Create();
+  if (effective_policies_.curtain_required.has_value()) {
+    options.set_enable_curtaining(*effective_policies_.curtain_required);
   }
+  // `allow_webauthn_forwarding` should not override the existing value for
+  // `enable_remote_webauthn` if it was not enabled for this connection mode.
+  if (options.enable_remote_webauthn() &&
+      effective_policies_.allow_webauthn_forwarding.has_value()) {
+    options.set_enable_remote_webauthn(
+        *effective_policies_.allow_webauthn_forwarding);
+  }
+  if (options.enable_security_key() &&
+      effective_policies_.allow_gnubby_forwarding.has_value()) {
+    options.set_enable_security_key(
+        *effective_policies_.allow_gnubby_forwarding);
+  }
+
+  HostExtensionSessionManager::HostExtensions all_extensions = extensions_;
+  bool allow_gnubby =
+      desktop_environment_options_.enable_security_key() &&
+      effective_policies_.allow_gnubby_forwarding.value_or(true);
+  if (allow_gnubby) {
+    // TODO(b/517007701): Create SecurityKeyAuthHandler after authentication
+    // once we have completed the data channel migration.
+    security_key_auth_handler_ = SecurityKeyAuthHandler::Create();
+    if (security_key_auth_handler_) {
+      security_key_extension_ = std::make_unique<SecurityKeyExtension>(
+          security_key_auth_handler_->GetWeakPtr());
+      all_extensions.push_back(security_key_extension_.get());
+    }
+  }
+
+  // Create a manager for the configured extensions, if any.
+  extension_manager_ =
+      std::make_unique<HostExtensionSessionManager>(all_extensions);
 
   // Create the desktop environment.
   // Note: The handlers for various other events use the created desktop
@@ -267,7 +324,7 @@ void PeerSessionImpl::ControlVideo(
     const protocol::VideoControl& video_control) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
-  // Note that `video_stream_` may be null, depending upon whether
+  // Note that |video_stream_| may be null, depending upon whether
   // extensions choose to wrap or "steal" the video capturer or encoder.
   if (video_control.has_enable()) {
     VLOG(1) << "Received VideoControl (enable=" << video_control.enable()
@@ -360,6 +417,8 @@ void PeerSessionImpl::SetCapabilities(
   }
   capabilities_ =
       IntersectCapabilities(*client_capabilities_, host_capabilities_);
+  extension_manager_->OnNegotiatedCapabilities(connection_->client_stub(),
+                                               capabilities_);
 
   if (HasCapability(capabilities_, protocol::kMicrophoneRemotingCapability) &&
       !audio_injector_) {
@@ -379,18 +438,6 @@ void PeerSessionImpl::SetCapabilities(
         base::BindRepeating(
             &PeerSessionImpl::CreateRtcLogTransferMessageHandler,
             base::Unretained(this)));
-  }
-
-  if (effective_policies_.allow_terminal_mode.value_or(true) &&
-      HasCapability(capabilities_, protocol::kTerminalModeCapability)) {
-    terminal_session_manager_ = std::make_unique<TerminalSessionManager>();
-    terminal_session_manager_->Start(
-        base::BindRepeating(&PeerSessionImpl::SendTerminalOutput,
-                            weak_factory_.GetWeakPtr()),
-        base::BindRepeating(&PeerSessionImpl::OnTerminalExited,
-                            weak_factory_.GetWeakPtr()),
-        base::BindRepeating(&PeerSessionImpl::SendTerminalProcessInfo,
-                            weak_factory_.GetWeakPtr()));
   }
 
   if (HasCapability(capabilities_, protocol::kRemoteOpenUrlCapability)) {
@@ -493,48 +540,13 @@ void PeerSessionImpl::SetCapabilities(
 
 void PeerSessionImpl::RequestPairing(
     const protocol::PairingRequest& pairing_request) {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  if (!request_pairing_cb_ || !pairing_request.has_client_name() ||
-      pairing_request_pending_) {
-    return;
-  }
-
-  const std::string& client_name = pairing_request.client_name();
-  if (client_name.empty() || client_name.size() > kMaxClientNameLength ||
-      !base::IsStringUTF8(client_name)) {
-    LOG(ERROR) << "Invalid client name received in pairing request.";
-    return;
-  }
-
-  pairing_request_pending_ = true;
-  std::move(request_pairing_cb_)
-      .Run(client_name, base::BindPostTaskToCurrentDefault(
-                            base::BindOnce(&PeerSessionImpl::OnPairingResponse,
-                                           weak_factory_.GetWeakPtr())));
-}
-
-void PeerSessionImpl::OnPairingResponse(
-    std::optional<protocol::PairingResponse> pairing_response) {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  pairing_request_pending_ = false;
-  if (!pairing_response.has_value()) {
-    LOG(WARNING) << "Pairing request failed or was rejected by host process.";
-    return;
-  }
-  if (!pairing_response->has_client_id() ||
-      pairing_response->client_id().empty() ||
-      !pairing_response->has_shared_secret() ||
-      pairing_response->shared_secret().empty()) {
-    LOG(WARNING) << "Received invalid or empty pairing response.";
-    return;
-  }
-  if (!connection_) {
-    return;
-  }
-  if (channels_connected_) {
-    connection_->client_stub()->SetPairingResponse(*pairing_response);
-  } else {
-    pending_pairing_response_ = std::move(*pairing_response);
+  if (pairing_registry_.get() && pairing_request.has_client_name()) {
+    protocol::PairingRegistry::Pairing pairing =
+        pairing_registry_->CreatePairing(pairing_request.client_name());
+    protocol::PairingResponse pairing_response;
+    pairing_response.set_client_id(pairing.client_id());
+    pairing_response.set_shared_secret(pairing.shared_secret());
+    connection_->client_stub()->SetPairingResponse(pairing_response);
   }
 }
 
@@ -542,6 +554,9 @@ void PeerSessionImpl::DeliverClientMessage(
     const protocol::ExtensionMessage& message) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   if (message.has_type()) {
+    if (extension_manager_ && extension_manager_->OnExtensionMessage(message)) {
+      return;
+    }
     DLOG(INFO) << "Unexpected message received: " << message.type() << ": "
                << message.data();
   }
@@ -612,8 +627,11 @@ void PeerSessionImpl::SetVideoLayout(
 void PeerSessionImpl::ControlTerminal(
     const protocol::TerminalControl& terminal_control) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  if (!terminal_session_manager_) {
+  if (!HasCapability(capabilities_, protocol::kTerminalModeCapability)) {
     return;
+  }
+  if (!terminal_session_manager_) {
+    terminal_session_manager_ = std::make_unique<TerminalSessionManager>();
   }
 
   if (terminal_control.has_create_request()) {
@@ -621,7 +639,11 @@ void PeerSessionImpl::ControlTerminal(
     // identify the terminal session when sending output to the client. Bind the
     // callbacks to the weak factory to ensure that the callbacks are not
     // called after the client session is disconnected.
-    int32_t id = terminal_session_manager_->CreateTerminal();
+    int32_t id = terminal_session_manager_->CreateTerminal(
+        base::BindRepeating(&PeerSessionImpl::SendTerminalOutput,
+                            weak_factory_.GetWeakPtr()),
+        base::BindOnce(&PeerSessionImpl::OnTerminalExited,
+                       weak_factory_.GetWeakPtr()));
 
     protocol::TerminalControl response;
     auto* create_response = response.mutable_create_response();
@@ -663,18 +685,6 @@ void PeerSessionImpl::OnTerminalExited(int32_t terminal_id) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   protocol::TerminalControl response;
   response.mutable_close_terminal()->set_terminal_id(terminal_id);
-  connection_->client_stub()->DeliverTerminalControl(response);
-}
-
-void PeerSessionImpl::SendTerminalProcessInfo(int32_t terminal_id,
-                                              bool is_active,
-                                              std::string_view process_name) {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  protocol::TerminalControl response;
-  auto* process_info = response.mutable_process_info();
-  process_info->set_terminal_id(terminal_id);
-  process_info->set_is_active(is_active);
-  process_info->set_process_name(process_name);
   connection_->client_stub()->DeliverTerminalControl(response);
 }
 
@@ -769,11 +779,6 @@ void PeerSessionImpl::OnConnectionChannelsConnected() {
 
   DCHECK(!channels_connected_);
   channels_connected_ = true;
-
-  if (pending_pairing_response_) {
-    connection_->client_stub()->SetPairingResponse(*pending_pairing_response_);
-    pending_pairing_response_.reset();
-  }
 
   if (pending_audio_writer_) {
     connection_->SetAudioWriter(std::move(pending_audio_writer_));
@@ -876,8 +881,7 @@ void PeerSessionImpl::OnConnectionClosed(protocol::ErrorCode error,
 
   // Notify the ClientSession that this client is disconnected.
   if (event_handler_) {
-    event_handler_->OnSessionClosed(error, std::string(error_details),
-                                    error_location);
+    event_handler_->OnSessionClosed(error, error_details, error_location);
   }
 }
 
@@ -922,7 +926,7 @@ const std::string& PeerSessionImpl::client_jid() const {
   return client_jid_;
 }
 
-protocol::Transport* PeerSessionImpl::transport() {
+protocol::Transport* PeerSessionImpl::transport() const {
   return connection_ ? connection_->transport() : nullptr;
 }
 
@@ -930,6 +934,8 @@ void PeerSessionImpl::DisconnectSession(ErrorCode error,
                                         std::string_view error_details,
                                         const SourceLocation& error_location) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+
+  max_duration_timer_.Stop();
 
   if (connection_) {
     // Disconnect() notifies event_handler_->OnConnectionClosed(), which closes
@@ -1126,9 +1132,15 @@ void PeerSessionImpl::OnDesktopEnvironmentCreated(
     host_capabilities_.append(protocol::kSecurityKeyV2Capability);
   }
 
-  if (effective_policies_.allow_terminal_mode.value_or(true)) {
-    host_capabilities_.append(" ");
-    host_capabilities_.append(protocol::kTerminalModeCapability);
+  host_capabilities_.append(" ");
+  host_capabilities_.append(protocol::kTerminalModeCapability);
+
+  if (extension_manager_) {
+    std::string extension_capabilities = extension_manager_->GetCapabilities();
+    if (!extension_capabilities.empty()) {
+      host_capabilities_.append(" ");
+      host_capabilities_.append(extension_capabilities);
+    }
   }
 
   // Create the object that controls the screen resolution.
@@ -1360,7 +1372,9 @@ void PeerSessionImpl::OnSecurityKeyConnection(
     mojo::PendingReceiver<mojom::SecurityKeyForwarder> receiver) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
-  bool allow_gnubby = desktop_environment_options_.enable_security_key();
+  bool allow_gnubby =
+      desktop_environment_options_.enable_security_key() &&
+      effective_policies_.allow_gnubby_forwarding.value_or(true);
 
   if (!security_key_auth_handler_) {
     LOG(WARNING) << "Security key forwarding is not supported. Binding request "
@@ -1477,10 +1491,29 @@ void PeerSessionImpl::CreateSecurityKeyDataChannelHandler(
     return;
   }
 
+  // Create a callback to destroy the legacy signaling extension session.
+  // This will be invoked by the data channel handler once it has successfully
+  // connected and registered its own callback, avoiding a race condition
+  // where requests are dropped.
+  base::OnceClosure takeover_callback =
+      base::BindOnce(&PeerSessionImpl::DestroySecurityKeyExtensionSession,
+                     weak_factory_.GetWeakPtr());
+
   // Instantiate the data channel handler.
-  // It binds directly to the handler and registers its own callback.
+  // It binds directly to the handler and registers its own callback, cleanly
+  // taking over.
   new SecurityKeyDataChannelHandler(std::move(pipe),
-                                    security_key_auth_handler_->GetWeakPtr());
+                                    security_key_auth_handler_->GetWeakPtr(),
+                                    std::move(takeover_callback));
+}
+
+void PeerSessionImpl::DestroySecurityKeyExtensionSession() {
+  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  HOST_LOG << "Destroying legacy security key extension session (takeover).";
+  if (extension_manager_) {
+    extension_manager_->RemoveExtensionSession(
+        SecurityKeyExtension::kCapability);
+  }
 }
 
 void PeerSessionImpl::BoostFramerateOnInput(
@@ -1530,19 +1563,15 @@ void PeerSessionImpl::SetComposeEnabledOnVideoStreams(bool enabled) {
 PeerSessionImplFactory::PeerSessionImplFactory(
     DesktopEnvironmentFactory* desktop_environment_factory,
     GetIceConfigFetcherCallback get_ice_config_fetcher_cb,
-    RequestPairingCallback request_pairing_cb)
+    scoped_refptr<base::SingleThreadTaskRunner> audio_task_runner,
+    scoped_refptr<protocol::PairingRegistry> pairing_registry)
     : desktop_environment_factory_(desktop_environment_factory),
       get_ice_config_fetcher_cb_(std::move(get_ice_config_fetcher_cb)),
-      request_pairing_cb_(std::move(request_pairing_cb)) {}
+      audio_task_runner_(std::move(audio_task_runner)),
+      pairing_registry_(std::move(pairing_registry)) {}
 
 PeerSessionImplFactory::~PeerSessionImplFactory() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-}
-
-void PeerSessionImplFactory::set_request_pairing_callback(
-    const RequestPairingCallback& request_pairing_cb) {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  request_pairing_cb_ = request_pairing_cb;
 }
 
 std::unique_ptr<PeerSession> PeerSessionImplFactory::Create() {
@@ -1550,10 +1579,9 @@ std::unique_ptr<PeerSession> PeerSessionImplFactory::Create() {
   CHECK(get_ice_config_fetcher_cb_) << "Missing Ice Config Fetcher callback.";
   std::unique_ptr<protocol::IceConfigFetcher> ice_config_fetcher =
       get_ice_config_fetcher_cb_.Run();
-  auto connection = std::make_unique<protocol::WebrtcConnectionToClient>(
-      std::move(ice_config_fetcher));
   return std::make_unique<PeerSessionImpl>(
-      std::move(connection), desktop_environment_factory_, request_pairing_cb_);
+      std::move(ice_config_fetcher), audio_task_runner_,
+      desktop_environment_factory_, pairing_registry_);
 }
 
 }  // namespace remoting

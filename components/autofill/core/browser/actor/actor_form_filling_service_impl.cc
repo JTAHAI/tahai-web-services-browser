@@ -29,10 +29,10 @@
 #include "base/task/sequenced_task_runner.h"
 #include "base/time/time.h"
 #include "base/types/expected.h"
+#include "base/types/zip.h"
 #include "components/actor/core/aggregated_journal.h"
 #include "components/actor/core/journal_details_builder.h"
 #include "components/actor/core/shared_types.h"
-#include "components/autofill/core/browser/actor/actor_autofill_manager.h"
 #include "components/autofill/core/browser/actor/actor_filling_observer.h"
 #include "components/autofill/core/browser/actor/actor_key_metrics_recorder.h"
 #include "components/autofill/core/browser/data_manager/payments/payments_data_manager.h"
@@ -49,7 +49,7 @@
 #include "components/autofill/core/browser/suggestions/payments/credit_card_suggestion_generator.h"
 #include "components/autofill/core/browser/suggestions/suggestion.h"
 #include "components/autofill/core/browser/ui/autofill_external_delegate.h"
-#include "components/autofill/core/browser/ui/autofill_resource_util.h"
+#include "components/autofill/core/browser/ui/autofill_resource_utils.h"
 #include "components/autofill/core/common/autofill_features.h"
 #include "components/autofill/core/common/autofill_internals/logging_scope.h"
 #include "components/autofill/core/common/mojom/autofill_types.mojom-shared.h"
@@ -657,11 +657,10 @@ void ActorFormFillingServiceImpl::GetSuggestions(
     }
   }
 
-  if (ActorAutofillManager* manager =
-          autofill_manager.client().GetActorAutofillManager()) {
-    ActorKeyMetricsRecorder& recorder = manager->key_metrics_recorder();
+  if (ActorKeyMetricsRecorder* recorder =
+          autofill_manager.client().GetActorKeyMetricsRecorder()) {
     for (const auto& [form_id, products] : products_by_form) {
-      recorder.OnSuggestionsGenerated(form_id, products);
+      recorder->OnSuggestionsGenerated(form_id, products);
     }
   }
 
@@ -671,6 +670,7 @@ void ActorFormFillingServiceImpl::GetSuggestions(
 void ActorFormFillingServiceImpl::FillSuggestions(
     AutofillClient& client,
     base::span<const ActorFormFillingSelection> chosen_suggestions,
+    base::flat_map<FieldGlobalId, ::actor::PageTarget> trigger_field_map,
     base::OnceCallback<void(base::expected<std::string, ActorFormFillingError>)>
         callback) {
   const bool is_payments_fill = std::ranges::any_of(
@@ -685,6 +685,7 @@ void ActorFormFillingServiceImpl::FillSuggestions(
   auto chain = base::BindOnce(
       [](bool is_payments_fill, base::TimeTicks start_time,
          base::WeakPtr<ActorFormFillingServiceImpl> service,
+         base::flat_map<FieldGlobalId, ::actor::PageTarget> trigger_field_map,
          base::expected<base::flat_map<FieldGlobalId, std::string>,
                         ActorFormFillingError> result)
           -> base::expected<std::string, ActorFormFillingError> {
@@ -733,7 +734,8 @@ void ActorFormFillingServiceImpl::FillSuggestions(
                  .Get(),
              "\n", *serialized_value});
       },
-      is_payments_fill, base::TimeTicks::Now(), weak_ptr_factory_.GetWeakPtr());
+      is_payments_fill, base::TimeTicks::Now(), weak_ptr_factory_.GetWeakPtr(),
+      std::move(trigger_field_map));
 
   // filling_observer_->Activate() waits for all fill operations to conclude
   // and then calls the callback chain.
@@ -861,11 +863,10 @@ ActorFormFillingServiceImpl::FillOrPreviewFormImpl(
   for (FieldGlobalId trigger_field_id : fill_data->field_ids) {
     if (const FormStructure* const form_structure =
             autofill_manager.FindCachedFormById(trigger_field_id)) {
-      if (ActorAutofillManager* manager =
-              autofill_manager.client().GetActorAutofillManager()) {
-        ActorKeyMetricsRecorder& recorder = manager->key_metrics_recorder();
+      if (ActorKeyMetricsRecorder* recorder =
+              autofill_manager.client().GetActorKeyMetricsRecorder()) {
         if (action_persistence == mojom::ActionPersistence::kFill) {
-          recorder.RecordFormToFill(form_structure->global_id());
+          recorder->RecordFormToFill(form_structure->global_id());
         }
       }
       std::visit(absl::Overload{

@@ -8,7 +8,6 @@
 #include <string>
 
 #include "base/command_line.h"
-#include "base/functional/bind.h"
 #include "base/json/json_reader.h"
 #include "base/logging.h"
 #include "base/memory/ptr_util.h"
@@ -28,9 +27,9 @@ constexpr char kBlocklistKey[] = "blocklist";
 }  // namespace
 
 // static
-DevToolsNavigationGatingRuleManager&
+const DevToolsNavigationGatingRuleManager&
 DevToolsNavigationGatingRuleManager::Get() {
-  static base::NoDestructor<DevToolsNavigationGatingRuleManager> instance(
+  static const base::NoDestructor<DevToolsNavigationGatingRuleManager> instance(
       base::CommandLine::ForCurrentProcess()->GetSwitchValueASCII(
           switches::kDevToolsNavigationGatingRules));
   return *instance;
@@ -44,22 +43,7 @@ DevToolsNavigationGatingRuleManager::CreateForTesting(
 }
 
 DevToolsNavigationGatingRuleManager::DevToolsNavigationGatingRuleManager(
-    std::string_view rules_json)
-    : origin_gating_checker_(
-          *this,
-          origin_gating::OriginGatingConfiguration(
-              {
-                  {origin_gating::CustomPredicate(
-                       base::BindRepeating(
-                           &DevToolsNavigationGatingRuleManager::EvaluateRules,
-                           // Safe because `origin_gating_checker_` is owned by
-                           // `this`, so the callback is guaranteed to be
-                           // destroyed before `this` is.
-                           base::Unretained(this)),
-                       "DevToolsNavigationGatingRules"),
-                   origin_gating::GateableEventSet::All()},
-              },
-              /*use_site_keyed_cache=*/false)) {
+    std::string_view rules_json) {
   if (rules_json.empty()) {
     return;
   }
@@ -118,63 +102,21 @@ DevToolsNavigationGatingRuleManager::DevToolsNavigationGatingRuleManager(
 DevToolsNavigationGatingRuleManager::~DevToolsNavigationGatingRuleManager() =
     default;
 
-void DevToolsNavigationGatingRuleManager::IsNavigationAllowed(
-    const GURL& url,
-    base::OnceCallback<void(bool)> callback) {
-  origin_gating_checker_.ComputeGatingDecision(
-      /*context=*/nullptr, origin_gating::GateableEvent::kNavigationRequest,
-      /*source=*/GURL(), /*destination=*/url,
-      base::BindOnce([](std::unique_ptr<origin_gating::GatingDecisionContext>
-                            context,
-                        origin_gating::GatingDecision decision) {
-        return decision.is_allowed;
-      }).Then(std::move(callback)));
-}
-
 bool DevToolsNavigationGatingRuleManager::MayBlockNavigation() const {
   return !rules_.empty() || has_allowlist_;
 }
 
-void DevToolsNavigationGatingRuleManager::DoesOriginRequireUserConfirmation(
-    origin_gating::GatingDecisionContext* context,
-    origin_gating::GateableEvent event,
-    const GURL& source,
-    const GURL& destination,
-    DoesOriginRequireUserConfirmationCallback callback) const {
-  NOTREACHED();
-}
-
-void DevToolsNavigationGatingRuleManager::EvaluateEnterprisePolicy(
-    const GURL& destination,
-    EvaluateEnterprisePolicyCallback callback) const {
-  NOTREACHED();
-}
-
-void DevToolsNavigationGatingRuleManager::OnNoVerdict(
-    origin_gating::GatingDecisionContext* context,
-    origin_gating::GateableEvent event,
-    const GURL& source,
-    const GURL& destination,
-    bool requires_user_confirmation,
-    base::OnceCallback<void(NoVerdictResult)> callback) {
-  NOTREACHED();
-}
-
-origin_gating::Decision DevToolsNavigationGatingRuleManager::EvaluateRules(
-    origin_gating::GatingDecisionContext*,
-    const GURL& source,
-    const GURL& destination) const {
+bool DevToolsNavigationGatingRuleManager::IsNavigationAllowed(
+    const GURL& url) const {
   if (!MayBlockNavigation()) {
-    return origin_gating::Decision::kAllowed;
+    return true;
   }
 
   // GURL() is passed as primary_url to represent the wildcard source pattern.
-  const content_settings::RuleEntry* rule_entry =
-      rules_.Find(GURL(), destination);
+  const content_settings::RuleEntry* rule_entry = rules_.Find(GURL(), url);
 
   if (!rule_entry) {
-    return has_allowlist_ ? origin_gating::Decision::kBlocked
-                          : origin_gating::Decision::kAllowed;
+    return !has_allowlist_;
   }
 
   std::optional<ContentSetting> setting =
@@ -182,9 +124,9 @@ origin_gating::Decision DevToolsNavigationGatingRuleManager::EvaluateRules(
   CHECK(setting.has_value());
   switch (setting.value()) {
     case CONTENT_SETTING_ALLOW:
-      return origin_gating::Decision::kAllowed;
+      return true;
     case CONTENT_SETTING_BLOCK:
-      return origin_gating::Decision::kBlocked;
+      return false;
     case CONTENT_SETTING_DEFAULT:
     case CONTENT_SETTING_ASK:
     case CONTENT_SETTING_SESSION_ONLY:

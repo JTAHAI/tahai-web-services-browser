@@ -1,2 +1,3 @@
-rules:
-- "**": [image-maps]
+features:
+- name: image-maps
+  files: '**'

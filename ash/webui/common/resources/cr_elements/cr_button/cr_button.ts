@@ -138,7 +138,7 @@ export class CrButtonElement extends CrButtonElementBase {
     this.timeoutIds_.add(id);
   }
 
-  protected disabledChanged_(newValue: boolean, oldValue: boolean|undefined) {
+  private disabledChanged_(newValue: boolean, oldValue: boolean|undefined) {
     if (!newValue && oldValue === undefined) {
       return;
     }
@@ -160,7 +160,7 @@ export class CrButtonElement extends CrButtonElementBase {
     this.setAttribute('tabindex', value.toString());
   }
 
-  protected onBlur_() {
+  private onBlur_() {
     this.spaceKeyDown_ = false;
     // If a keyup event is never fired (e.g. after keydown the focus is moved to
     // another element), we need to clear the ripple here. 100ms delay was
@@ -168,21 +168,21 @@ export class CrButtonElement extends CrButtonElementBase {
     this.setTimeout_(() => this.getRipple().uiUpAction(), 100);
   }
 
-  protected onClick_(e: Event) {
+  private onClick_(e: Event) {
     if (this.disabled) {
       e.stopImmediatePropagation();
     }
   }
 
-  protected onPrefixIconSlotChanged_() {
+  private onPrefixIconSlotChanged_() {
     this.hasPrefixIcon_ = this.$.prefixIcon.assignedElements().length > 0;
   }
 
-  protected onSuffixIconSlotChanged_() {
+  private onSuffixIconSlotChanged_() {
     this.hasSuffixIcon_ = this.$.suffixIcon.assignedElements().length > 0;
   }
 
-  protected onKeyDown_(e: KeyboardEvent) {
+  private onKeyDown_(e: KeyboardEvent) {
     if (e.key !== ' ' && e.key !== 'Enter') {
       return;
     }
@@ -205,7 +205,7 @@ export class CrButtonElement extends CrButtonElementBase {
     }
   }
 
-  protected onKeyUp_(e: KeyboardEvent) {
+  private onKeyUp_(e: KeyboardEvent) {
     if (e.key !== ' ' && e.key !== 'Enter') {
       return;
     }
@@ -220,7 +220,7 @@ export class CrButtonElement extends CrButtonElementBase {
     }
   }
 
-  protected onPointerDown_() {
+  private onPointerDown_() {
     this.ensureRipple();
   }
 

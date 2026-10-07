@@ -78,8 +78,12 @@ mojom::InitializeToolResultPtr ToolExecutor::InitializeToolImpl(
       << "InitializeTool called from invalid phase.";
 
   WebLocalFrame* web_frame = frame_->GetWebFrame();
-  if (!web_frame || !web_frame->LocalRoot() ||
-      !web_frame->LocalRoot()->FrameWidget()) {
+
+  // Tool calls should only be routed to local root frames.
+  CHECK(!web_frame || web_frame->LocalRoot() == web_frame);
+
+  // Check LocalRoot in case the frame is a subframe.
+  if (!web_frame || !web_frame->FrameWidget()) {
     return mojom::InitializeToolResult::NewErrorResult(
         MakeResult(mojom::ActionResultCode::kFrameWentAway));
   }
@@ -156,16 +160,7 @@ mojom::InitializeToolResultPtr ToolExecutor::InitializeToolImpl(
       NOTREACHED();
   }
 
-  // EnsureTargetInView() may synchronously dispatch DOM events (`beforematch`)
-  // that can run page script that detaches the owning frame and destroys
-  // this executor.
-  base::WeakPtr<ToolExecutor> weak_this = weak_ptr_factory_.GetWeakPtr();
-  const bool performed_scroll = tool_->EnsureTargetInView();
-  if (!weak_this) {
-    return mojom::InitializeToolResult::NewErrorResult(
-        MakeResult(mojom::ActionResultCode::kFrameWentAway));
-  }
-  if (performed_scroll) {
+  if (tool_->EnsureTargetInView()) {
     performed_scroll_into_view_ = true;
   }
 
@@ -229,14 +224,8 @@ void ToolExecutor::InvokeTool(mojom::ToolInvocationPtr invocation,
   // helps when debugging unresponsive renderers.
   journal_->SendLogBuffer();
   actor::TaskId task_id = invocation->task_id;
-  // InitializeToolImpl() may synchronously dispatch DOM events which can
-  // destroy the owning frame and this executor.
-  base::WeakPtr<ToolExecutor> weak_this = weak_ptr_factory_.GetWeakPtr();
   mojom::InitializeToolResultPtr result =
       InitializeToolImpl(std::move(invocation));
-  if (!weak_this) {
-    return;
-  }
   if (result->is_error_result()) {
     // The tool failed to initialize because another tool is active. Abort this
     // invocation immediately without disturbing the running tool.

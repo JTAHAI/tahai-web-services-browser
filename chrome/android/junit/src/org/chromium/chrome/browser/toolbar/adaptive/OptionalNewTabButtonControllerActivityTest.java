@@ -25,9 +25,9 @@ import org.mockito.Mockito;
 import org.robolectric.RuntimeEnvironment;
 import org.robolectric.annotation.Config;
 
-import org.chromium.base.BaseSwitches;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.Features.DisableFeatures;
+import org.chromium.base.test.util.Features.EnableFeatures;
 import org.chromium.chrome.browser.ChromeRobolectricTestRunner;
 import org.chromium.chrome.browser.ChromeTabbedActivity;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
@@ -54,10 +54,13 @@ import java.util.NoSuchElementException;
  * ChromeTabbedActivity}.
  */
 @RunWith(ChromeRobolectricTestRunner.class)
+@EnableFeatures(
+        ChromeFeatureList.ADAPTIVE_BUTTON_IN_TOP_TOOLBAR_CUSTOMIZATION_V2
+                + ":min_version_adaptive/0")
 @DisableFeatures(ChromeFeatureList.ANDROID_BOTTOM_BAR)
 @CommandLineFlags.Add({
     ChromeSwitches.DISABLE_FIRST_RUN_EXPERIENCE,
-    BaseSwitches.DISABLE_NATIVE_INITIALIZATION
+    ChromeSwitches.DISABLE_NATIVE_INITIALIZATION
 })
 public class OptionalNewTabButtonControllerActivityTest {
 

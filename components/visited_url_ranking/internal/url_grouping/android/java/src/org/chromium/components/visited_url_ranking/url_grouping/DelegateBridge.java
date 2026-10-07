@@ -39,18 +39,18 @@ public class DelegateBridge {
             GroupSuggestions groupSuggestions, JniOnceCallback<UserResponseMetadata> callback) {
         // TODO(crbug.com/397221723): Only show suggestions to corresponding window.
         if (mJavaDelegates.isEmpty()) {
-            int suggestionId;
+            int suggestion_id;
             if (groupSuggestions == null
                     || groupSuggestions.groupSuggestions == null
                     || groupSuggestions.groupSuggestions.isEmpty()) {
-                suggestionId = 0;
+                suggestion_id = 0;
             } else {
-                suggestionId = groupSuggestions.groupSuggestions.get(0).suggestionId;
+                suggestion_id = groupSuggestions.groupSuggestions.get(0).suggestionId;
             }
             // TODO(crbug.com/397221723): Only return REJECTED when create_suggestions_promotion_ui
             // is disabled; currently having no Java delegates means that
             // create_suggestions_promotion_ui is disabled.
-            callback.onResult(new UserResponseMetadata(suggestionId, UserResponse.REJECTED));
+            callback.onResult(new UserResponseMetadata(suggestion_id, UserResponse.REJECTED));
             return;
         }
         for (GroupSuggestionsService.Delegate javaDelegate : mJavaDelegates) {

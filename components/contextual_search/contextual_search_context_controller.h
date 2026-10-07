@@ -16,11 +16,15 @@
 #include "components/contextual_search/contextual_search_types.h"
 #include "components/lens/lens_bitmap_processing.h"
 #include "components/lens/lens_overlay_invocation_source.h"
+#include "third_party/lens_server_proto/aim_communication.pb.h"
 #include "third_party/lens_server_proto/aim_query.pb.h"
 #include "third_party/lens_server_proto/lens_overlay_client_context.pb.h"
-#include "third_party/lens_server_proto/lens_overlay_image_crop.pb.h"
+#include "third_party/lens_server_proto/lens_overlay_cluster_info.pb.h"
 #include "third_party/lens_server_proto/lens_overlay_request_id.pb.h"
+#include "third_party/lens_server_proto/lens_overlay_selection_type.pb.h"
 #include "third_party/lens_server_proto/lens_overlay_server.pb.h"
+#include "third_party/lens_server_proto/lens_overlay_service_deps.pb.h"
+#include "third_party/lens_server_proto/lens_overlay_visual_search_interaction_data.pb.h"
 #include "third_party/omnibox_proto/chrome_aim_entry_point.pb.h"
 #include "third_party/omnibox_proto/model_mode.pb.h"
 #include "third_party/omnibox_proto/tool_mode.pb.h"
@@ -33,10 +37,8 @@ class UnguessableToken;
 class GURL;
 
 namespace lens {
-class ClientToAimMessage;
-struct ContextualInputData;
-enum LensOverlaySelectionType : int;
 enum class MimeType;
+struct ContextualInputData;
 namespace proto {
 class LensOverlaySuggestInputs;
 }  // namespace proto

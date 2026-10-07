@@ -193,15 +193,12 @@ BASE_FEATURE_PARAM(bool,
 BASE_FEATURE(kCorsNonWildcardRequestHeadersSupport,
              base::FEATURE_DISABLED_BY_DEFAULT);
 
-// When enabled, CORS preflight cache keys take the tainted origin flag into
-// account (using an opaque / null origin), preventing tainted preflight
-// results from satisfying untainted requests.
-BASE_FEATURE(kCorsPreflightCacheKeyTaintedOrigin,
-             base::FEATURE_ENABLED_BY_DEFAULT);
-
 // Do not send TLS client certificates in CORS preflight. Omit all client certs
 // and continue the handshake without sending one if requested.
 BASE_FEATURE(kOmitCorsClientCert, base::FEATURE_DISABLED_BY_DEFAULT);
+
+// Ignore CorsPreflightPolicy and always perform CORS checks.
+BASE_FEATURE(kIgnoreCorsPreflightPolicy, base::FEATURE_ENABLED_BY_DEFAULT);
 
 // Enforces that frame-type destinations require kNavigate mode.
 BASE_FEATURE(kRestrictFrameDestinationsToNavigate,
@@ -428,6 +425,81 @@ BASE_FEATURE(kUpdateRequestForCorsRedirect, base::FEATURE_ENABLED_BY_DEFAULT);
 // Kill switch for the Topics API.
 BASE_FEATURE(kBrowsingTopics, base::FEATURE_ENABLED_BY_DEFAULT);
 
+// Enable the shared storage API. Note that enabling this feature does not
+// automatically expose this API to the web, it only allows the element to be
+// enabled by the runtime enabled feature, for origin trials.
+// https://github.com/pythagoraskitty/shared-storage/blob/main/README.md
+BASE_FEATURE(kSharedStorageAPI, base::FEATURE_ENABLED_BY_DEFAULT);
+BASE_FEATURE_PARAM(size_t,
+                   kSharedStorageURLSelectionOperationInputURLSizeLimit,
+                   &kSharedStorageAPI,
+                   "url_selection_operation_input_url_size_limit",
+                   8);
+BASE_FEATURE_PARAM(int,
+                   kMaxSharedStoragePageSize,
+                   &kSharedStorageAPI,
+                   "MaxSharedStoragePageSize",
+                   4096);
+BASE_FEATURE_PARAM(int,
+                   kMaxSharedStorageCacheSize,
+                   &kSharedStorageAPI,
+                   "MaxSharedStorageCacheSize",
+                   1024);
+BASE_FEATURE_PARAM(int,
+                   kMaxSharedStorageInitTries,
+                   &kSharedStorageAPI,
+                   "MaxSharedStorageInitTries",
+                   2);
+BASE_FEATURE_PARAM(int,
+                   kMaxSharedStorageIteratorBatchSize,
+                   &kSharedStorageAPI,
+                   "MaxSharedStorageIteratorBatchSize",
+                   100);
+BASE_FEATURE_PARAM(int,
+                   kSharedStorageBitBudget,
+                   &kSharedStorageAPI,
+                   "SharedStorageBitBudget",
+                   12);
+BASE_FEATURE_PARAM(base::TimeDelta,
+                   kSharedStorageBudgetInterval,
+                   &kSharedStorageAPI,
+                   "SharedStorageBudgetInterval",
+                   base::Hours(24));
+BASE_FEATURE_PARAM(base::TimeDelta,
+                   kSharedStorageStalePurgeInitialInterval,
+                   &kSharedStorageAPI,
+                   "SharedStorageStalePurgeInitialInterval",
+                   base::Minutes(2));
+BASE_FEATURE_PARAM(base::TimeDelta,
+                   kSharedStorageStalePurgeRecurringInterval,
+                   &kSharedStorageAPI,
+                   "SharedStorageStalePurgeRecurringInterval",
+                   base::Hours(2));
+BASE_FEATURE_PARAM(base::TimeDelta,
+                   kSharedStorageStalenessThreshold,
+                   &kSharedStorageAPI,
+                   "SharedStorageStalenessThreshold",
+                   base::Days(30));
+BASE_FEATURE_PARAM(size_t,
+                   kSharedStorageMaxAllowedFencedFrameDepthForSelectURL,
+                   &kSharedStorageAPI,
+                   "SharedStorageMaxAllowedFencedFrameDepthForSelectURL",
+                   1);
+// NOTE: To preserve user privacy, the
+// `kSharedStorageExposeDebugMessageForSettingsStatus` feature param MUST remain
+// false by default.
+BASE_FEATURE_PARAM(bool,
+                   kSharedStorageExposeDebugMessageForSettingsStatus,
+                   &kSharedStorageAPI,
+                   "ExposeDebugMessageForSettingsStatus",
+                   false);
+
+// Enables transactional behavior for sharedStorage.batchUpdate(). This also
+// disallows the 'withLock' option for methods within batchUpdate().
+// https://wicg.github.io/shared-storage/#batch-update
+BASE_FEATURE(kSharedStorageTransactionalBatchUpdate,
+             base::FEATURE_ENABLED_BY_DEFAULT);
+
 
 BASE_FEATURE(kIncreaseCookieAccessCacheSize, base::FEATURE_ENABLED_BY_DEFAULT);
 
@@ -451,8 +523,6 @@ BASE_FEATURE(kCSPScriptSrcHashesInV1,
 
 BASE_FEATURE(kCacheSharingForPervasiveResources,
              base::FEATURE_ENABLED_BY_DEFAULT);
-
-BASE_FEATURE(kPervasiveSharedDictionaries, base::FEATURE_DISABLED_BY_DEFAULT);
 
 BASE_FEATURE(kSendSameSiteLaxForFedCM, base::FEATURE_DISABLED_BY_DEFAULT);
 
@@ -483,10 +553,8 @@ BASE_FEATURE_PARAM(bool,
                    "url_loader",
                    true);
 
-// TODO(crbug.com/549684526): Enable this universally across all platforms as
-// there is no reason to keep the disabled behavior.
 BASE_FEATURE(kUseUnexportableKeyServiceInBrowserProcess,
-#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC)
+#if BUILDFLAG(IS_WIN)
              base::FEATURE_ENABLED_BY_DEFAULT
 #else
              base::FEATURE_DISABLED_BY_DEFAULT
@@ -496,14 +564,10 @@ BASE_FEATURE(kUseUnexportableKeyServiceInBrowserProcess,
 BASE_FEATURE(kBypassRequestForbiddenHeadersCheck,
              base::FEATURE_ENABLED_BY_DEFAULT);
 
-// When enabled, the network service will prohibit invalid modifications to the
-// Origin header in CorsURLLoader::FollowRedirect.
-BASE_FEATURE(kBlockInvalidOriginHeaderModificationOnRedirect,
+// When enabled, the network service will prohibit modifications to the Origin
+// header in FollowRedirect.
+BASE_FEATURE(kBlockOriginHeaderModificationOnRedirect,
              base::FEATURE_ENABLED_BY_DEFAULT);
-
-// When enabled, the network service will prohibit invalid Origin headers in
-// CorsURLLoader::StartRequest.
-BASE_FEATURE(kBlockInvalidOriginHeader, base::FEATURE_ENABLED_BY_DEFAULT);
 
 BASE_FEATURE(kServiceWorkerSyntheticResponseHeaderCheck,
              base::FEATURE_DISABLED_BY_DEFAULT);
@@ -529,7 +593,7 @@ BASE_FEATURE_PARAM(int,
                    kDurableMessagesGlobalBufferSize,
                    &kDurableMessages,
                    /*name=*/"max_global_buffer_size",
-                   /*default_value=*/base::MiB(350).InBytes());
+                   /*default_value=*/base::MiBU(350).InBytes());
 
 BASE_FEATURE(kReportingApiEnableVariationsHeaders,
              base::FEATURE_ENABLED_BY_DEFAULT);
@@ -537,7 +601,7 @@ BASE_FEATURE(kReportingApiEnableVariationsHeaders,
 BASE_FEATURE(kNetworkContextDirectReceiver, base::FEATURE_DISABLED_BY_DEFAULT);
 
 bool ShouldBindNetworkContextDirectReceiver() {
-  return base::CurrentIOThread::IsSet() &&
+  return mojo::IsDirectReceiverSupported() && base::CurrentIOThread::IsSet() &&
          base::FeatureList::IsEnabled(features::kNetworkContextDirectReceiver);
 }
 
@@ -552,17 +616,17 @@ BASE_FEATURE_PARAM(base::TimeDelta,
                    "initial_doh_probe_timeout",
                    base::Seconds(5));
 
+BASE_FEATURE(kRestrictForbiddenSecurityHeaders,
+             base::FEATURE_ENABLED_BY_DEFAULT);
+BASE_FEATURE_PARAM(bool,
+                   kRestrictForbiddenSecurityHeadersDump,
+                   &kRestrictForbiddenSecurityHeaders,
+                   false);
+
 BASE_FEATURE(kDirectSocketsUdpSendRequireMulticastPermissionPolicy,
              base::FEATURE_ENABLED_BY_DEFAULT);
 
 BASE_FEATURE(kBrowserInitiatedFileUploadValidation,
              base::FEATURE_ENABLED_BY_DEFAULT);
-
-BASE_FEATURE(kSafeRevalidation, base::FEATURE_ENABLED_BY_DEFAULT);
-
-BASE_FEATURE(kBindURLLoaderFactoryToHighPriorityTaskRunner,
-             base::FEATURE_DISABLED_BY_DEFAULT);
-
-BASE_FEATURE(kEnforceIsolatedWorldOriginLock, base::FEATURE_ENABLED_BY_DEFAULT);
 
 }  // namespace network::features

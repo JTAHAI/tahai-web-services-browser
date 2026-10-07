@@ -135,13 +135,10 @@ class SecurePaymentConfirmationServiceTest
       public ::testing::Test {
  public:
   SecurePaymentConfirmationServiceTest() {
-    feature_list_.InitWithFeaturesAndParameters(
+    feature_list_.InitWithFeatures(
         /*enabled_features=*/
-        {{::features::kSecurePaymentConfirmation, {}},
-         {features::kSecurePaymentConfirmationCredentialDiscoveryMode,
-          {{"mode", features::CredentialDiscoveryModeToString(
-                        features::CredentialDiscoveryMode::kOsOnly)}}},
-         {features::kSecurePaymentConfirmationStoreCredentialsInOS, {}}},
+        {::features::kSecurePaymentConfirmation,
+         features::kSecurePaymentConfirmationUseCredentialStoreAPIs},
         /*disabled_features=*/{});
   }
 
@@ -344,7 +341,7 @@ class SecurePaymentConfirmationServiceFeatureDisabledTest
         /*enabled_features=*/{},
         /*disabled_features=*/{
             ::features::kSecurePaymentConfirmation,
-            features::kSecurePaymentConfirmationStoreCredentialsInOS});
+            features::kSecurePaymentConfirmationUseCredentialStoreAPIs});
   }
 
  private:

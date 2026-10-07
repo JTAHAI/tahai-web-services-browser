@@ -1,2 +1,3 @@
-rules:
-- "**": [screen-capture]
+features:
+- name: screen-capture
+  files: "**"

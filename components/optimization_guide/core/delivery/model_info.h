@@ -35,10 +35,17 @@ struct ModelInfo {
   std::optional<proto::Any> model_metadata;
 };
 
+// Loads the model and verifies if the model files exist and returns the
+// model. Otherwise nullptr is returned on any failures.
+// Must be called on a background thread that allows blocking file I/O.
+std::unique_ptr<proto::PredictionModel> LoadAndVerifyModelOffThread(
+    proto::OptimizationTarget optimization_target,
+    const base::FilePath& base_model_dir);
+
 // Loads the model, verifies if the model files exist, and returns the
 // ModelInfo. Otherwise std::nullopt is returned on any failures.
 // Must be called on a background thread that allows blocking file I/O.
-std::optional<ModelInfo> LoadAndVerifyModelOffThread(
+std::optional<ModelInfo> LoadAndVerifyModelInfoOffThread(
     proto::OptimizationTarget optimization_target,
     const base::FilePath& base_model_dir);
 

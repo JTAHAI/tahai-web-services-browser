@@ -10,7 +10,7 @@
 #include <memory>
 
 #include "base/android/scoped_java_ref.h"
-#include "base/memory/raw_ref.h"
+#include "base/memory/raw_ptr.h"
 #include "components/autofill/core/browser/suggestions/suggestion.h"
 
 class Profile;
@@ -21,15 +21,14 @@ class WindowAndroid;
 
 namespace autofill {
 
-class AtMemorySuggestionController;
+class AtMemoryBottomSheetDelegate;
 
-// Bridge class owned by `AtMemorySuggestionController` providing an entry point
-// to trigger the AtMemory bottom sheet on Android.
+// Bridge class owned by `ChromeAutofillClient` providing an entry point
+// to trigger the @memory bottom sheet on Android.
 class AtMemoryBottomSheetBridge {
  public:
   AtMemoryBottomSheetBridge(ui::WindowAndroid* window_android,
-                            Profile* profile,
-                            AtMemorySuggestionController* controller);
+                            Profile* profile);
 
   AtMemoryBottomSheetBridge(const AtMemoryBottomSheetBridge&) = delete;
   AtMemoryBottomSheetBridge& operator=(const AtMemoryBottomSheetBridge&) =
@@ -37,17 +36,14 @@ class AtMemoryBottomSheetBridge {
 
   virtual ~AtMemoryBottomSheetBridge();
 
- protected:
-  explicit AtMemoryBottomSheetBridge(AtMemorySuggestionController* controller);
-
- public:
   // Requests to show the bottom sheet.
-  virtual void RequestShowContent(base::span<const Suggestion> suggestions);
+  void RequestShowContent(std::unique_ptr<AtMemoryBottomSheetDelegate> delegate,
+                          base::span<const Suggestion> suggestions);
 
   // Requests to hide the bottom sheet.
   void Hide();
 
-  // -- JNI calls bridged to AtMemorySuggestionController --
+  // -- JNI calls bridged to AtMemoryBottomSheetDelegate --
   void OnDismissed(JNIEnv* env);
   void OnQuerySubmitted(JNIEnv* env, const std::u16string& query);
   void OnQueryTextChanged(JNIEnv* env, const std::u16string& query);
@@ -60,8 +56,10 @@ class AtMemoryBottomSheetBridge {
   bool IsSearching(JNIEnv* env);
 
  private:
+  void ResetDelegate();
+
   base::android::ScopedJavaGlobalRef<jobject> java_object_;
-  const raw_ref<AtMemorySuggestionController> controller_;
+  std::unique_ptr<AtMemoryBottomSheetDelegate> delegate_;
 };
 
 }  // namespace autofill

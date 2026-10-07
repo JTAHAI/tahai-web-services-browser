@@ -8,7 +8,6 @@
 #include <string>
 
 #include "components/password_manager/core/browser/password_form.h"
-#include "components/password_manager/core/browser/password_string.h"
 #include "components/password_manager/core/common/credential_manager_types.h"
 #include "url/gurl.h"
 #include "url/origin.h"
@@ -28,8 +27,7 @@ std::unique_ptr<PasswordForm> CreatePasswordFormFromCredentialInfo(
   form->display_name = info.name.value_or(std::u16string());
   form->federation_origin = info.federation;
   form->url = origin.GetURL();
-  form->password_value =
-      PasswordString(info.password.value_or(std::u16string()));
+  form->password_value = info.password.value_or(std::u16string());
   form->username_value = info.id.value_or(std::u16string());
   form->scheme = PasswordForm::Scheme::kHtml;
   form->type = PasswordForm::Type::kApi;
@@ -46,7 +44,7 @@ CredentialInfo PasswordFormToCredentialInfo(const PasswordForm& form) {
                             ? CredentialType::CREDENTIAL_TYPE_FEDERATED
                             : CredentialType::CREDENTIAL_TYPE_PASSWORD,
                         form.username_value, form.display_name, form.icon_url,
-                        form.password_value.value(), form.federation_origin);
+                        form.password_value, form.federation_origin);
 }
 
 }  // namespace password_manager

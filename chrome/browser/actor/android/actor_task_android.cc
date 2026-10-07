@@ -6,16 +6,16 @@
 
 #include <vector>
 
+#include "base/android/jni_array.h"
 #include "base/android/jni_string.h"
-#include "base/strings/string_util.h"
+#include "chrome/browser/actor/android/jni_headers/ActorTask_jni.h"
 #include "chrome/browser/android/tab_android.h"
 #include "chrome/browser/profiles/profile.h"
-#include "third_party/jni_zero/default_conversions.h"
 
-// Must come after headers that provide symbols used by @JniType.
-#include "chrome/browser/actor/android/jni_headers/ActorTask_jni.h"
-
+using base::android::ConvertUTF8ToJavaString;
+using base::android::JavaRef;
 using base::android::ScopedJavaLocalRef;
+using base::android::ToJavaIntArray;
 
 namespace actor {
 
@@ -41,18 +41,11 @@ ActorTaskAndroid* ActorTaskAndroid::GetForTask(ActorTask* task) {
 
 ActorTaskAndroid::ActorTaskAndroid(ActorTask* task) : task_(task) {
   JNIEnv* env = base::android::AttachCurrentThread();
-  std::optional<std::string> glic_conversation_id;
-  if (task_->source_info().type == actor::TaskSourceInfo::Client::kGlic &&
-      task_->source_info().id.has_value() &&
-      !task_->source_info().id->empty() &&
-      base::IsStringUTF8(*task_->source_info().id)) {
-    glic_conversation_id = task_->source_info().id;
-  }
-  java_obj_.Reset(
-      env, Java_ActorTask_Constructor(
-               env, reinterpret_cast<int64_t>(this),
-               task_->id().GetUnsafeValue(), task_->title(),
-               task_->GetProfile()->GetJavaObject(), glic_conversation_id));
+  java_obj_.Reset(env, Java_ActorTask_Constructor(
+                           env, reinterpret_cast<int64_t>(this),
+                           task_->id().GetUnsafeValue(),
+                           ConvertUTF8ToJavaString(env, task_->title()),
+                           task_->GetProfile()->GetJavaObject()));
 }
 
 ActorTaskAndroid::~ActorTaskAndroid() {
@@ -64,56 +57,51 @@ ScopedJavaLocalRef<jobject> ActorTaskAndroid::GetJavaObject() {
   return ScopedJavaLocalRef<jobject>(java_obj_);
 }
 
-std::string ActorTaskAndroid::GetCurrentActionName() {
-  return task_->step_progress();
+ScopedJavaLocalRef<jstring> ActorTaskAndroid::GetCurrentActionName(
+    JNIEnv* env) {
+  return ConvertUTF8ToJavaString(env, "");
 }
 
-int32_t ActorTaskAndroid::GetState() {
+int32_t ActorTaskAndroid::GetState(JNIEnv* env) {
   return static_cast<int>(task_->GetState());
 }
 
-bool ActorTaskAndroid::IsCompleted() {
+bool ActorTaskAndroid::IsCompleted(JNIEnv* env) {
   return task_->IsCompleted();
 }
 
-bool ActorTaskAndroid::IsUnderActorControl() {
+bool ActorTaskAndroid::IsUnderActorControl(JNIEnv* env) {
   return task_->IsUnderActorControl();
 }
 
-void ActorTaskAndroid::Pause() {
+void ActorTaskAndroid::Pause(JNIEnv* env) {
   task_->Pause(/*from_actor=*/false);
 }
 
-void ActorTaskAndroid::Resume() {
+void ActorTaskAndroid::Resume(JNIEnv* env) {
   task_->Resume();
 }
 
-std::vector<int32_t> ActorTaskAndroid::GetTabs() {
+ScopedJavaLocalRef<jintArray> ActorTaskAndroid::GetTabs(JNIEnv* env) {
   auto tab_handles = task_->GetTabs();
-  std::vector<int32_t> tab_ids;
+  std::vector<int> tab_ids;
   for (const auto& handle : tab_handles) {
     if (auto* tab_android = TabAndroid::FromTabHandle(handle)) {
       tab_ids.push_back(tab_android->GetAndroidId());
     }
   }
-  return tab_ids;
+  return ToJavaIntArray(env, tab_ids);
 }
 
-std::vector<int32_t> ActorTaskAndroid::GetLastActedTabs() {
+ScopedJavaLocalRef<jintArray> ActorTaskAndroid::GetLastActedTabs(JNIEnv* env) {
   auto tab_handles = task_->GetLastActedTabs();
-  std::vector<int32_t> tab_ids;
+  std::vector<int> tab_ids;
   for (const auto& handle : tab_handles) {
     if (auto* tab_android = TabAndroid::FromTabHandle(handle)) {
       tab_ids.push_back(tab_android->GetAndroidId());
     }
   }
-  return tab_ids;
-}
-
-int32_t ActorTaskAndroid::GetLastActuatedTabId() {
-  auto handle = task_->GetLastActuatedTabHandle();
-  auto* tab_android = TabAndroid::FromTabHandle(handle);
-  return tab_android ? tab_android->GetAndroidId() : TabAndroid::kInvalidTabId;
+  return ToJavaIntArray(env, tab_ids);
 }
 
 }  // namespace actor

@@ -46,7 +46,7 @@
 #include "components/autofill/core/browser/country_type.h"
 #include "components/autofill/core/browser/data_model/autofill_ai/entity_type.h"
 #include "components/autofill/core/browser/data_quality/autofill_data_util.h"
-#include "components/autofill/core/browser/field_type_util.h"
+#include "components/autofill/core/browser/field_type_utils.h"
 #include "components/autofill/core/browser/field_types.h"
 #include "components/autofill/core/browser/form_parsing/form_field_parser.h"
 #include "components/autofill/core/browser/form_processing/autofill_ai/determine_attribute_types.h"
@@ -662,17 +662,14 @@ std::ostream& operator<<(std::ostream& buffer, const FormStructure& form) {
     }
     std::string server_type = ServerTypesToString(*field);
     const char* is_override =
-        field->PredictionSource() == AutofillPredictionSource::kServerOverride
-            ? " (manual override)"
-            : "";
+        field->server_type_prediction_is_override() ? " (manual override)" : "";
     auto html_type_description =
         field->html_type() != HtmlFieldType::kUnspecified
             ? base::StrCat(
                   {", html: ", FieldTypeToStringView(field->html_type())})
             : "";
     if (field->html_type() == HtmlFieldType::kUnrecognized &&
-        field->PredictionSource() !=
-            AutofillPredictionSource::kServerOverride) {
+        !field->server_type_prediction_is_override()) {
       html_type_description += " (disabling autofill)";
     }
 
@@ -790,8 +787,7 @@ LogBuffer& operator<<(LogBuffer& buffer, const FormStructure& form) {
       }
     }
     std::string server_type = ServerTypesToString(*field);
-    if (field->PredictionSource() ==
-        AutofillPredictionSource::kServerOverride) {
+    if (field->server_type_prediction_is_override()) {
       server_type += " (manual override)";
     }
     auto html_type_description =
@@ -800,8 +796,7 @@ LogBuffer& operator<<(LogBuffer& buffer, const FormStructure& form) {
                   {", html: ", FieldTypeToStringView(field->html_type())})
             : "";
     if (field->html_type() == HtmlFieldType::kUnrecognized &&
-        field->PredictionSource() !=
-            AutofillPredictionSource::kServerOverride) {
+        !field->server_type_prediction_is_override()) {
       html_type_description += " (disabling autofill)";
     }
 

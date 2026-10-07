@@ -166,7 +166,6 @@ BocaManager::BocaManager(Profile* profile,
   }
   boca_session_manager_ = std::make_unique<boca::BocaSessionManager>(
       session_client_impl_.get(), user->GetProfilePrefs(), user->GetAccountId(),
-      IdentityManagerFactory::GetForProfile(profile),
       /*is_producer=*/!is_consumer, std::move(remoting_client_manager));
   if (!is_consumer && (ash::features::IsBocaScreenSharingStudentEnabled() ||
                        ash::features::IsBocaScreenSharingTeacherEnabled())) {
@@ -177,7 +176,7 @@ BocaManager::BocaManager(Profile* profile,
   }
   if (ash::features::IsBabelOrcaAvailable()) {
     std::string_view caption_language = speech::GetDefaultLiveCaptionLanguage(
-        application_locale, CHECK_DEREF(profile->GetPrefs()));
+        application_locale, profile->GetPrefs());
     if (!is_consumer && base::FeatureList::IsEnabled(
                             ash::features::kOnDeviceSpeechRecognition)) {
       soda_installer_ = std::make_unique<babelorca::SodaInstaller>(
@@ -196,11 +195,9 @@ BocaManager::BocaManager(Profile* profile,
   }
 
   boca_metrics_manager_ =
-      std::make_unique<boca::BocaMetricsManager>(boca_session_manager_.get(),
-                                                 /*is_producer=*/!is_consumer);
+      std::make_unique<boca::BocaMetricsManager>(/*is_producer=*/!is_consumer);
 
   spotlight_session_manager_ = std::make_unique<boca::SpotlightSessionManager>(
-      boca_session_manager_.get(),
       std::make_unique<boca::SpotlightCrdManagerImpl>(profile->GetPrefs()));
 
   gcm::GCMDriver* gcm_driver =

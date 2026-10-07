@@ -1,2 +1,4 @@
-rules:
-- figure-name-no-figcaption.tentative.html: [figure]
+features:
+- name: figure
+  files:
+  - figure-name-no-figcaption.tentative.html

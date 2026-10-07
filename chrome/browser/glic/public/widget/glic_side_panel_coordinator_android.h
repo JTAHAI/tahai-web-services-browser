@@ -46,8 +46,6 @@ class GlicSidePanelCoordinatorAndroid
   int GetPreferredWidth() override;
   bool IsGlicSidePanelActive() override;
   void SuppressBottomSheetForTesting(bool suppress);
-  std::optional<ShowOptions::InitialState>
-  GetInitialStateOverrideForTesting() const;
 
   // context_sharing::TabBottomSheetBridge::Observer:
   void OnClosed() override;
@@ -56,7 +54,6 @@ class GlicSidePanelCoordinatorAndroid
 
  private:
   void SetState(State state);
-  void SaveStateBeforeDeactivation();
   void OnTabDidActivate(tabs::TabInterface* tab);
   void OnTabWillDeactivate(tabs::TabInterface* tab);
   void OnTabWillDetach(tabs::TabInterface* tab,
@@ -67,11 +64,6 @@ class GlicSidePanelCoordinatorAndroid
   base::android::ScopedJavaLocalRef<jobject> CreateBottomSheetContentProvider();
 
   State state_ = State::kClosed;
-  // Stores the bottom sheet state when the tab is deactivating or detaching.
-  // Used as an override for the initial state when TabBottomSheetManager is
-  // re-initialized during activity recreation/restart.
-  std::optional<ShowOptions::InitialState>
-      initial_state_override_for_activity_recreation_;
   // Non-null if Glic requested to show while waiting for the Java bottom sheet
   // manager layout initialization.
   std::optional<ShowOptions> pending_show_options_;

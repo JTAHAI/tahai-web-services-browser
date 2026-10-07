@@ -11,6 +11,7 @@ import androidx.test.filters.SmallTest;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.robolectric.annotation.Config;
 
 import org.chromium.base.TimeUtils.CurrentThreadTimeMillisTimer;
 import org.chromium.base.TimeUtils.ElapsedRealtimeMillisTimer;
@@ -20,6 +21,7 @@ import org.chromium.base.test.BaseRobolectricTestRunner;
 
 /** Unit tests for {@link TimeUtils}. */
 @RunWith(BaseRobolectricTestRunner.class)
+@Config(manifest = Config.NONE)
 public class TimeUtilsTest {
     @Rule public FakeTimeTestRule mFakeTime = new FakeTimeTestRule();
 

@@ -31,7 +31,7 @@ class TestPermissionBubbleViewDelegate
   ~TestPermissionBubbleViewDelegate() override;
 
   const std::vector<std::unique_ptr<permissions::PermissionRequest>>& Requests()
-      const override;
+      override;
 
   GURL GetRequestingOrigin() const override;
 

@@ -1,2 +1,3 @@
-rules:
-- "**": [trusted-types]
+features:
+- name: trusted-types
+  files: "**"

@@ -12,7 +12,6 @@
 #import "components/optimization_guide/proto/features/actions_data.pb.h"
 #import "components/password_manager/core/browser/actor_login/actor_login_quality_logger.h"
 #import "components/password_manager/core/browser/actor_login/actor_login_service.h"
-#import "ios/chrome/browser/intelligence/actor/tools/model/actor_task_form_filling_handler.h"
 #import "ios/chrome/browser/intelligence/actor/tools/model/tool_delegate.h"
 #import "ios/chrome/browser/intelligence/actor/tools/public/actor_tool_types.h"
 #import "ios/chrome/browser/passwords/model/actor_login/ios_chrome_actor_login_delegate_client.h"
@@ -74,18 +73,11 @@ void AttemptLoginTool::Execute(ToolExecutionCallback callback) {
       IOSChromeActorLoginDelegateClient::FromWebState(web_state_.get());
   CHECK(client);
 
-  ActorTaskFormFillingHandler* form_filling_handler =
-      tool_delegate_->GetActorTaskFormFillingHandler();
-
   const url::Origin& current_origin =
       client->GetLastCommittedOriginForMainFrame();
-  std::optional<CredentialWithPermission>
+  std::optional<ToolDelegate::CredentialWithPermission>
       user_selected_credential_and_permission =
-          form_filling_handler->GetUserSelectedCredential(current_origin);
-
-  actor_login::ActorLoginService* login_service =
-      form_filling_handler->GetActorLoginService();
-  CHECK(login_service);
+          tool_delegate_->GetUserSelectedCredential(current_origin);
 
   if (user_selected_credential_and_permission.has_value()) {
     // The task has gained permission to log into the current or an affiliated
@@ -94,7 +86,7 @@ void AttemptLoginTool::Execute(ToolExecutionCallback callback) {
         user_selected_credential_and_permission->credential;
     const bool should_store_permission =
         user_selected_credential_and_permission->always_allow;
-    login_service->AttemptLogin(
+    tool_delegate_->GetActorLoginService()->AttemptLogin(
         client, credential, should_store_permission,
         quality_logger_->AsWeakPtr(), attempt_login_tool_start_time_,
         /*frame_filling_started_cb=*/{},
@@ -105,7 +97,7 @@ void AttemptLoginTool::Execute(ToolExecutionCallback callback) {
     return;
   }
 
-  login_service->GetCredentials(
+  tool_delegate_->GetActorLoginService()->GetCredentials(
       client,
       /*has_sign_in_with_google_button=*/false, quality_logger_->AsWeakPtr(),
       base::BindOnce(&AttemptLoginTool::OnGetCredentials,
@@ -139,28 +131,19 @@ void AttemptLoginTool::OnGetCredentials(
   // on the requested origin, directly select it.
   for (const actor_login::Credential& cred : creds) {
     if (cred.has_persistent_permission) {
-      OnCredentialSelected(CredentialWithPermission{
-          .credential = cred,
-          .always_allow = true,
-      });
+      OnCredentialSelected(cred, /*should_store_permission=*/true);
       return;
     }
   }
-  tool_delegate_->GetActorTaskFormFillingHandler()->PromptToSelectCredential(
+  tool_delegate_->PromptToSelectCredential(
       creds, base::BindOnce(&AttemptLoginTool::OnCredentialSelected,
                             weak_ptr_factory_.GetWeakPtr()));
 }
 
 void AttemptLoginTool::OnCredentialSelected(
-    base::expected<std::optional<CredentialWithPermission>, ToolExecutionResult>
-        result) {
-  if (!result.has_value()) {
-    std::move(execute_callback_).Run(result.error());
-    return;
-  }
-
-  const std::optional<CredentialWithPermission>& selection = result.value();
-  if (!selection.has_value()) {
+    std::optional<actor_login::Credential> selected_credential,
+    bool should_store_permission) {
+  if (!selected_credential.has_value()) {
     // We don't need to distinguish between no credentials being available and a
     // user declining the usage of a credential.
     std::move(execute_callback_)
@@ -182,17 +165,14 @@ void AttemptLoginTool::OnCredentialSelected(
       IOSChromeActorLoginDelegateClient::FromWebState(web_state_.get());
   CHECK(client);
 
-  const actor_login::Credential credential = selection->credential;
-  actor_login::ActorLoginService* login_service =
-      tool_delegate_->GetActorTaskFormFillingHandler()->GetActorLoginService();
-  CHECK(login_service);
-  login_service->AttemptLogin(
-      client, credential, selection->always_allow, quality_logger_->AsWeakPtr(),
+  const actor_login::Credential credential = selected_credential.value();
+  tool_delegate_->GetActorLoginService()->AttemptLogin(
+      client, credential, should_store_permission, quality_logger_->AsWeakPtr(),
       attempt_login_tool_start_time_,
       /*frame_filling_started_cb=*/{},
       base::BindOnce(&AttemptLoginTool::OnAttemptLogin,
                      weak_ptr_factory_.GetWeakPtr(), credential,
-                     selection->always_allow),
+                     should_store_permission),
       /*action_sequence_delegate=*/{});
 }
 
@@ -231,10 +211,7 @@ void AttemptLoginTool::WasShown(web::WebState* web_state) {
   tool_delegate_->UninterruptFromTool();
   const actor_login::Credential credential = selected_credential_.value();
   selected_credential_.reset();
-  OnCredentialSelected(CredentialWithPermission{
-      .credential = credential,
-      .always_allow = should_store_permission_,
-  });
+  OnCredentialSelected(credential, should_store_permission_);
 }
 
 void AttemptLoginTool::WebStateDestroyed(web::WebState* web_state) {

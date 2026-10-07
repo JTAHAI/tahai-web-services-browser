@@ -46,8 +46,10 @@ public class RuntimePermissionTest {
     public RuleChain mRuleChain =
             RuleChain.outerRule(mActivityTestRule).around(mPermissionTestRule);
 
-    private static final String GEOLOCATION_TEST = "/chrome/test/data/geolocation/geolocation.html";
+    private static final String GEOLOCATION_TEST =
+            "/chrome/test/data/geolocation/geolocation_on_load.html";
     private static final String MEDIA_TEST = "/content/test/data/media/getusermedia.html";
+    private static final String DOWNLOAD_TEST = "/chrome/test/data/android/download/get.html";
 
     private static final String DISMISS_TYPE_HISTOGRAM =
             "Permissions.Prompt.GeolocationApproximateOrPrecise.ModalDialog.Dismissed.Method";
@@ -82,7 +84,7 @@ public class RuntimePermissionTest {
                 /* promptDecision= */ PermissionTestRule.PromptDecision.ALLOW,
                 /* waitForMissingPermissionPrompt= */ false,
                 /* waitForUpdater= */ true,
-                "initiate_geolocation()",
+                /* javascriptToExecute= */ null,
                 /* missingPermissionPromptTextId= */ 0);
     }
 
@@ -182,7 +184,7 @@ public class RuntimePermissionTest {
                 /* promptDecision= */ PermissionTestRule.PromptDecision.ALLOW,
                 /* waitForMissingPermissionPrompt= */ true,
                 /* waitForUpdater= */ true,
-                "initiate_geolocation()",
+                /* javascriptToExecute= */ null,
                 R.string.message_missing_location_permission_text);
 
         histogramExpectation.assertExpected(
@@ -258,7 +260,7 @@ public class RuntimePermissionTest {
                 /* promptDecision= */ PermissionTestRule.PromptDecision.DENY,
                 /* waitForMissingPermissionPrompt= */ false,
                 /* waitForUpdater= */ true,
-                "initiate_geolocation()",
+                /* javascriptToExecute= */ null,
                 R.string.message_missing_location_permission_text);
     }
 
@@ -363,7 +365,7 @@ public class RuntimePermissionTest {
                 /* promptDecision= */ PermissionTestRule.PromptDecision.ALLOW,
                 /* waitForMissingPermissionPrompt= */ false,
                 /* waitForUpdater= */ true,
-                "initiate_geolocation()",
+                /* javascriptToExecute= */ null,
                 /* missingPermissionPromptTextId= */ 0);
     }
 
@@ -397,7 +399,7 @@ public class RuntimePermissionTest {
                 /* promptDecision= */ PermissionTestRule.PromptDecision.ALLOW,
                 /* waitForMissingPermissionPrompt= */ false,
                 /* waitForUpdater= */ true,
-                "initiate_geolocation()",
+                /* javascriptToExecute= */ null,
                 /* missingPermissionPromptTextId= */ 0);
     }
 
@@ -505,7 +507,7 @@ public class RuntimePermissionTest {
                 /* promptDecision= */ PermissionTestRule.PromptDecision.ALLOW,
                 /* waitForMissingPermissionPrompt= */ false,
                 /* waitForUpdater= */ true,
-                "initiate_geolocation()",
+                /* javascriptToExecute= */ null,
                 /* missingPermissionPromptTextId= */ 0);
         histogramWatcher.assertExpected();
     }

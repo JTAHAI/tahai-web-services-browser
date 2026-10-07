@@ -26,8 +26,6 @@ namespace blink {
 class WebString;
 class WebServiceWorkerProviderContext;
 
-struct RendererPreferences;
-
 // Worker global scope context for dedicated worker or shared worker.
 class BLINK_PLATFORM_EXPORT WebDedicatedOrSharedWorkerGlobalScopeContext
     : public WebWorkerFetchContext {
@@ -99,11 +97,6 @@ class BLINK_PLATFORM_EXPORT WebDedicatedOrSharedWorkerGlobalScopeContext
 
   using RewriteURLFunction = WebURL (*)(std::string_view, bool);
   static void InstallRewriteURLFunction(RewriteURLFunction rewrite_url);
-
- protected:
-  explicit WebDedicatedOrSharedWorkerGlobalScopeContext(
-      const RendererPreferences& renderer_preferences)
-      : WebWorkerFetchContext(renderer_preferences) {}
 };
 
 }  // namespace blink

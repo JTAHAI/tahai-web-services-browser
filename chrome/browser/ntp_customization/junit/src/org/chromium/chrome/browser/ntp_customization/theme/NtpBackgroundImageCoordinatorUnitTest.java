@@ -51,6 +51,7 @@ import org.chromium.ui.modelutil.PropertyModel;
 
 /** Unit tests for {@link NtpBackgroundImageCoordinator}. */
 @RunWith(BaseRobolectricTestRunner.class)
+@Config(manifest = Config.NONE)
 public class NtpBackgroundImageCoordinatorUnitTest {
     @Rule public MockitoRule mMockitoJUnit = MockitoJUnit.rule();
 

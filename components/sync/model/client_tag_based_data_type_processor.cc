@@ -473,7 +473,13 @@ void ClientTagBasedDataTypeProcessor::ReportErrorImpl(const ModelError& error,
     dump_stack_.Run();
   }
 
-  DisconnectSync();
+  if (IsConnected()) {
+    DisconnectSync();
+  } else {
+    // There could be in-flight connection requests that would eventually invoke
+    // ConnectSync(), unless cancelled here.
+    weak_ptr_factory_for_worker_.InvalidateWeakPtrs();
+  }
 
   model_error_ = error;
 
@@ -520,13 +526,10 @@ void ClientTagBasedDataTypeProcessor::ConnectSync(
 
 void ClientTagBasedDataTypeProcessor::DisconnectSync() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-
-  weak_ptr_factory_for_worker_.InvalidateWeakPtrs();
-  if (!IsConnected()) {
-    return;
-  }
+  CHECK(IsConnected());
 
   DVLOG(1) << "Disconnecting sync for " << DataTypeToDebugString(type_);
+  weak_ptr_factory_for_worker_.InvalidateWeakPtrs();
   worker_.reset();
 
   if (entity_tracker_) {
@@ -1376,7 +1379,9 @@ void ClientTagBasedDataTypeProcessor::ResetState(
       break;
   }
 
-  DisconnectSync();
+  if (IsConnected()) {
+    DisconnectSync();
+  }
 }
 
 void ClientTagBasedDataTypeProcessor::GetUnsyncedDataCount(

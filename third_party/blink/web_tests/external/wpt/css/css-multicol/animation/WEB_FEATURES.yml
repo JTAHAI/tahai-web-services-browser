@@ -1,2 +1,4 @@
-rules:
-- discrete-no-interpolation.html: [column-fill]
+features:
+- name: column-fill
+  files:
+  - discrete-no-interpolation.html

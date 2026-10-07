@@ -1172,7 +1172,7 @@ TEST_F(BlobMemoryControllerTest, StatelessMemoryPressure) {
   {
     base::RunLoop run_loop;
     registry_.NotifyUpdateMemoryLimitAsync(
-        base::MemoryLimit::ModeratePressureThreshold(), base::DoNothing());
+        base::kModerateMemoryPressureThreshold, base::DoNothing());
     registry_.NotifyReleaseMemoryAsync(run_loop.QuitClosure());
     run_loop.Run();
   }
@@ -1246,7 +1246,7 @@ TEST_F(BlobMemoryControllerTest, StatefulMemoryPressure) {
   {
     base::RunLoop run_loop;
     registry_.NotifyUpdateMemoryLimitAsync(
-        base::MemoryLimit::ModeratePressureThreshold(), run_loop.QuitClosure());
+        base::kModerateMemoryPressureThreshold, run_loop.QuitClosure());
     run_loop.Run();
   }
 
@@ -1279,8 +1279,7 @@ TEST_F(BlobMemoryControllerTest, StatefulMemoryPressure) {
   // Set limit back to 100% (none pressure).
   {
     base::RunLoop run_loop;
-    registry_.NotifyUpdateMemoryLimitAsync(
-        base::MemoryLimit::NoPressureThreshold(), base::DoNothing());
+    registry_.NotifyUpdateMemoryLimitAsync(100, base::DoNothing());
     registry_.NotifyReleaseMemoryAsync(run_loop.QuitClosure());
     run_loop.Run();
   }
@@ -1347,8 +1346,7 @@ TEST_F(BlobMemoryControllerTest, StatefulMemoryPressureCriticalBypass) {
   // Trigger stateful limit update to 10% (critical pressure threshold, < 50%).
   {
     base::RunLoop run_loop;
-    registry_.NotifyUpdateMemoryLimitAsync(base::MemoryLimit::FromPercent(10),
-                                           run_loop.QuitClosure());
+    registry_.NotifyUpdateMemoryLimitAsync(10, run_loop.QuitClosure());
     run_loop.Run();
   }
 

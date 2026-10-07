@@ -45,12 +45,12 @@
 #include "chrome/browser/ui/ash/test_util.h"
 #include "chrome/browser/ui/bookmarks/bookmark_bar.h"
 #include "chrome/browser/ui/bookmarks/bookmark_bar_controller.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
-#include "chrome/browser/ui/browser_window/public/create_browser_window.h"
 #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "chrome/browser/ui/browser_window/public/profile_browser_collection.h"
 #include "chrome/browser/ui/immersive/immersive_mode_controller.h"
@@ -59,6 +59,7 @@
 #include "chrome/browser/ui/page_action/page_action_icon_type.h"
 #include "chrome/browser/ui/passwords/passwords_client_ui_delegate.h"
 #include "chrome/browser/ui/settings_window_manager_chromeos.h"
+#include "chrome/browser/ui/tabs/features.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/tabs/vertical_tab_strip_state_controller.h"
 #include "chrome/browser/ui/ui_features.h"
@@ -74,6 +75,7 @@
 #include "chrome/browser/ui/views/location_bar/icon_label_bubble_view.h"
 #include "chrome/browser/ui/views/location_bar/zoom_bubble_coordinator.h"
 #include "chrome/browser/ui/views/location_bar/zoom_bubble_view.h"
+#include "chrome/browser/ui/views/page_action/page_action_icon_view.h"
 #include "chrome/browser/ui/views/page_action/page_action_view.h"
 #include "chrome/browser/ui/views/page_action/test_support/page_action_test_support.h"
 #include "chrome/browser/ui/views/page_info/page_info_bubble_view_base.h"
@@ -138,7 +140,6 @@
 #include "ui/base/hit_test.h"
 #include "ui/base/page_transition_types.h"
 #include "ui/base/pointer/touch_ui_controller.h"
-#include "ui/compositor/layer_solid_color.h"
 #include "ui/display/screen.h"
 #include "ui/events/base_event_utils.h"
 #include "ui/events/event.h"
@@ -157,6 +158,23 @@
 #include "ui/views/widget/widget.h"
 #include "ui/views/window/caption_button_layout_constants.h"
 #include "ui/views/window/frame_caption_button.h"
+
+namespace {
+
+bool WaitForFocus(bool expected, views::View* view) {
+  return base::test::RunUntil([&]() { return view->HasFocus() == expected; });
+}
+
+bool WaitForVisible(bool expected, views::View* view) {
+  return base::test::RunUntil([&]() { return view->GetVisible() == expected; });
+}
+
+bool WaitForPaintAsActive(bool expected, views::FrameCaptionButton* button) {
+  return base::test::RunUntil(
+      [&]() { return button->GetPaintAsActive() == expected; });
+}
+
+}  // namespace
 
 using BrowserFrameViewChromeOSTest =
     TopChromeMdParamTest<ChromeOSBrowserUITest>;
@@ -208,104 +226,16 @@ IN_PROC_BROWSER_TEST_P(BrowserFrameViewChromeOSTest, NonClientHitTest) {
     gfx::Rect old_bounds = frame_view->bounds();
     widget->Maximize();
     auto* window = widget->GetNativeWindow();
-    EXPECT_EQ(chromeos::WindowStateType::kMaximized,
-              window->GetProperty(chromeos::kWindowStateTypeKey));
-    EXPECT_NE(old_bounds, frame_view->bounds());
+    ASSERT_TRUE(base::test::RunUntil([&]() {
+      return window->GetProperty(chromeos::kWindowStateTypeKey) ==
+             chromeos::WindowStateType::kMaximized;
+    }));
+    // TODO(crbug.com/40276379): Remove waiting for bounds change when the bug
+    // is fixed.
+    ASSERT_TRUE(base::test::RunUntil(
+        [&]() { return frame_view->bounds() != old_bounds; }));
   }
   EXPECT_EQ(HTCLIENT, frame_view->NonClientHitTest(top_edge));
-}
-
-// Tests that caption buttons match tabstrip preferred height in restored,
-// maximized, and immersive fullscreen states.
-IN_PROC_BROWSER_TEST_P(BrowserFrameViewChromeOSTest,
-                       CaptionButtonHeightInRestoredMaximizedAndFullscreen) {
-  BrowserView* browser_view = BrowserView::GetBrowserViewForBrowser(browser());
-  views::Widget* widget = browser_view->GetWidget();
-  BrowserFrameViewChromeOS* frame_view = GetFrameViewChromeOS(browser_view);
-
-  const int tabstrip_height =
-      browser_view->GetFrameElementInfo().tabstrip_preferred_height;
-  ASSERT_GT(tabstrip_height, 0);
-
-  // In restored state, caption button container height is the max of the
-  // tabstrip height and the default restored button layout height.
-  widget->Restore();
-  views::test::RunScheduledLayout(widget);
-  const int expected_restored_height =
-      std::max(tabstrip_height,
-               views::GetCaptionButtonLayoutSize(
-                   views::CaptionButtonLayoutSize::kBrowserCaptionRestored)
-                   .height());
-  EXPECT_EQ(expected_restored_height,
-            frame_view->caption_button_container()->bounds().height());
-
-  // In restored state, buttons should be vertically centered within the
-  // restored container height.
-  const int expected_restored_center_y = expected_restored_height / 2;
-  for (views::View* button :
-       frame_view->caption_button_container()->children()) {
-    if (button->GetVisible()) {
-      EXPECT_NEAR(expected_restored_center_y,
-                  button->bounds().CenterPoint().y(), 1);
-    }
-  }
-
-  // In maximized state, caption button container height should stretch to match
-  // the tabstrip height (stretched to fill the header rather than 34px).
-  widget->Maximize();
-  views::test::RunScheduledLayout(widget);
-  EXPECT_EQ(tabstrip_height,
-            frame_view->caption_button_container()->bounds().height());
-
-  // In maximized state, buttons should be vertically centered within the
-  // tabstrip / header height.
-  const int expected_center_y = tabstrip_height / 2;
-  for (views::View* button :
-       frame_view->caption_button_container()->children()) {
-    if (button->GetVisible()) {
-      EXPECT_NEAR(expected_center_y, button->bounds().CenterPoint().y(), 1);
-    }
-  }
-
-  // In immersive fullscreen state, caption button container height should
-  // match the tabstrip height both before and during revealed state, and
-  // buttons should be centered.
-  auto* const immersive_mode_controller =
-      ImmersiveModeController::From(browser());
-  auto tester = std::make_unique<ImmersiveModeTester>(browser());
-  EnterImmersiveFullscreenMode(browser());
-  tester->WaitForRevealStarted();
-  tester->WaitForRevealEnded();
-  tester.reset();
-
-  // Before revealed state: immersive frame is not revealed.
-  EXPECT_FALSE(immersive_mode_controller->IsRevealed());
-  views::test::RunScheduledLayout(widget);
-  EXPECT_EQ(tabstrip_height,
-            frame_view->caption_button_container()->bounds().height());
-  for (views::View* button :
-       frame_view->caption_button_container()->children()) {
-    if (button->GetVisible()) {
-      EXPECT_NEAR(expected_center_y, button->bounds().CenterPoint().y(), 1);
-    }
-  }
-
-  // During revealed state: immersive frame is revealed.
-  std::unique_ptr<ImmersiveRevealedLock> revealed_lock =
-      immersive_mode_controller->GetRevealedLock(
-          ImmersiveModeController::ANIMATE_REVEAL_NO);
-  EXPECT_TRUE(immersive_mode_controller->IsRevealed());
-  views::test::RunScheduledLayout(widget);
-  EXPECT_EQ(tabstrip_height,
-            frame_view->caption_button_container()->bounds().height());
-  for (views::View* button :
-       frame_view->caption_button_container()->children()) {
-    if (button->GetVisible()) {
-      EXPECT_NEAR(expected_center_y, button->bounds().CenterPoint().y(), 1);
-    }
-  }
-  revealed_lock.reset();
-  ExitImmersiveFullscreenMode(browser());
 }
 
 // Regression test for crbug.com/40945061. Asserts that the content window
@@ -324,9 +254,14 @@ IN_PROC_BROWSER_TEST_P(BrowserFrameViewChromeOSTest,
   const gfx::Rect old_bounds = frame_view->bounds();
   widget->Maximize();
   auto* window = widget->GetNativeWindow();
-  EXPECT_EQ(chromeos::WindowStateType::kMaximized,
-            window->GetProperty(chromeos::kWindowStateTypeKey));
-  EXPECT_NE(old_bounds, frame_view->bounds());
+  ASSERT_TRUE(base::test::RunUntil([&]() {
+    return window->GetProperty(chromeos::kWindowStateTypeKey) ==
+           chromeos::WindowStateType::kMaximized;
+  }));
+  // TODO(crbug.com/40276379): Remove waiting for bounds change when the bug
+  // is fixed.
+  ASSERT_TRUE(base::test::RunUntil(
+      [&]() { return frame_view->bounds() != old_bounds; }));
 
   // Assert that input events at the edge of the browser are propagated to the
   // web contents window.
@@ -397,7 +332,7 @@ IN_PROC_BROWSER_TEST_P(BrowserFrameViewChromeOSTest,
 
 IN_PROC_BROWSER_TEST_P(BrowserFrameViewChromeOSTest,
                        IncognitoMarkedAsAssistantBlocked) {
-  BrowserWindowInterface* incognito_browser = CreateIncognitoBrowser();
+  Browser* incognito_browser = CreateIncognitoBrowser();
   EXPECT_TRUE(incognito_browser->GetWindow()->GetNativeWindow()->GetProperty(
       chromeos::kBlockedForAssistantSnapshotKey));
 }
@@ -481,7 +416,7 @@ class WebAppFrameViewChromeOSTest
 
   static SkColor GetThemeColor() { return SK_ColorBLUE; }
 
-  raw_ptr<BrowserWindowInterface, DanglingUntriaged> app_browser_ = nullptr;
+  raw_ptr<Browser, DanglingUntriaged> app_browser_ = nullptr;
   raw_ptr<BrowserView, DanglingUntriaged> browser_view_ = nullptr;
   raw_ptr<chromeos::DefaultFrameHeader, DanglingUntriaged> frame_header_ =
       nullptr;
@@ -557,7 +492,7 @@ class WebAppFrameViewChromeOSTest
             views::ElementTrackerViews::GetContextForView(browser_view_)));
   }
 
-  BrowserView* CreateWebAppPopup(BrowserWindowInterface* parent_browser) {
+  BrowserView* CreateWebAppPopup(Browser* parent_browser) {
     NavigateParams navigate_params(parent_browser, GetAppURL(),
                                    ui::PAGE_TRANSITION_LINK);
     navigate_params.disposition = WindowOpenDisposition::NEW_POPUP;
@@ -580,14 +515,25 @@ class WebAppFrameViewChromeOSTest
     return web_app_frame_toolbar_->paint_as_active_;
   }
 
-  IconLabelBubbleView* GetPageActionView(actions::ActionId action_id) {
-    auto* provider = browser_view_->toolbar_button_provider();
-    return page_actions::GetIconLabelBubbleViewForTesting(
-        provider->GetPageActionViewInterface(action_id), action_id);
+  IconLabelBubbleView* GetPageActionView(
+      std::variant<actions::ActionId, PageActionIconType> action_type) {
+    if (std::holds_alternative<actions::ActionId>(action_type)) {
+      auto action_id = std::get<actions::ActionId>(action_type);
+      auto* provider = browser_view_->toolbar_button_provider();
+      return page_actions::GetIconLabelBubbleViewForTesting(
+          provider->GetPageActionViewInterface(action_id), action_id);
+    } else {
+      PageActionIconType type = std::get<PageActionIconType>(action_type);
+      if (!IsPageActionMigrated(type)) {
+        return browser_view_->toolbar_button_provider()->GetPageActionIconView(
+            type);
+      }
+      return nullptr;
+    }
   }
 
   ContentSettingImageView* GrantGeolocationPermission() {
-    content::RenderFrameHost* frame = app_browser_->GetTabStripModel()
+    content::RenderFrameHost* frame = app_browser_->tab_strip_model()
                                           ->GetActiveWebContents()
                                           ->GetPrimaryMainFrame();
     content_settings::PageSpecificContentSettings* content_settings =
@@ -650,25 +596,25 @@ IN_PROC_BROWSER_TEST_P(WebAppFrameViewChromeOSTest, PageInfoBubblePosition) {
 
 IN_PROC_BROWSER_TEST_P(WebAppFrameViewChromeOSTest, FocusableViews) {
   SetUpWebApp();
-  EXPECT_TRUE(browser_view_->contents_web_view()->HasFocus());
+  ASSERT_TRUE(WaitForFocus(true, browser_view_->contents_web_view()));
   browser_view_->GetFocusManager()->AdvanceFocus(false);
-  EXPECT_TRUE(web_app_menu_button_->HasFocus());
+  ASSERT_TRUE(WaitForFocus(true, web_app_menu_button_));
   browser_view_->GetFocusManager()->AdvanceFocus(false);
-  EXPECT_TRUE(browser_view_->contents_web_view()->HasFocus());
+  ASSERT_TRUE(WaitForFocus(true, browser_view_->contents_web_view()));
 }
 
 IN_PROC_BROWSER_TEST_P(WebAppFrameViewChromeOSTest,
                        ButtonVisibilityInOverviewMode) {
   SetUpWebApp();
-  EXPECT_TRUE(web_app_frame_toolbar_->GetVisible());
+  ASSERT_TRUE(WaitForVisible(true, web_app_frame_toolbar_));
 
   EnterOverviewMode();
   views::test::RunScheduledLayout(browser_view_);
-  EXPECT_FALSE(web_app_frame_toolbar_->GetVisible());
+  ASSERT_TRUE(WaitForVisible(false, web_app_frame_toolbar_));
 
   ExitOverviewMode();
   views::test::RunScheduledLayout(browser_view_);
-  EXPECT_TRUE(web_app_frame_toolbar_->GetVisible());
+  ASSERT_TRUE(WaitForVisible(true, web_app_frame_toolbar_));
 }
 
 IN_PROC_BROWSER_TEST_P(WebAppFrameViewChromeOSTest, FrameThemeColorIsSet) {
@@ -701,7 +647,7 @@ IN_PROC_BROWSER_TEST_P(WebAppFrameViewChromeOSTest, IsToolbarButtonProvider) {
 IN_PROC_BROWSER_TEST_P(WebAppFrameViewChromeOSTest, ShowManagePasswordsIcon) {
   SetUpWebApp();
   content::WebContents* web_contents =
-      app_browser_->GetTabStripModel()->GetActiveWebContents();
+      app_browser_->tab_strip_model()->GetActiveWebContents();
   IconLabelBubbleView* manage_passwords_icon =
       GetPageActionView(kActionShowPasswordsBubbleOrPage);
 
@@ -718,16 +664,16 @@ IN_PROC_BROWSER_TEST_P(WebAppFrameViewChromeOSTest, ShowManagePasswordsIcon) {
       ->OnPasswordAutofilled(credentials,
                              url::Origin::Create(credentials[0].url), {});
   chrome::ManagePasswordsForPage(app_browser_);
-  EXPECT_TRUE(manage_passwords_icon->GetVisible());
+  ASSERT_TRUE(WaitForVisible(true, manage_passwords_icon));
 }
 
 IN_PROC_BROWSER_TEST_P(WebAppFrameViewChromeOSTest, ShowZoomIcon) {
   SetUpWebApp();
   content::WebContents* web_contents =
-      app_browser_->GetTabStripModel()->GetActiveWebContents();
+      app_browser_->tab_strip_model()->GetActiveWebContents();
   zoom::ZoomController* zoom_controller =
       zoom::ZoomController::FromWebContents(web_contents);
-  IconLabelBubbleView* zoom_icon = GetPageActionView(kActionShowZoomBubble);
+  IconLabelBubbleView* zoom_icon = GetPageActionView(kActionZoomNormal);
 
   ZoomBubbleCoordinator* zoom_bubble_coordinator =
       ZoomBubbleCoordinator::From(app_browser_);
@@ -737,7 +683,7 @@ IN_PROC_BROWSER_TEST_P(WebAppFrameViewChromeOSTest, ShowZoomIcon) {
   EXPECT_FALSE(zoom_bubble_coordinator->bubble());
 
   zoom_controller->SetZoomLevel(blink::ZoomFactorToZoomLevel(1.5));
-  EXPECT_TRUE(zoom_icon->GetVisible());
+  ASSERT_TRUE(WaitForVisible(true, zoom_icon));
   EXPECT_TRUE(zoom_bubble_coordinator->bubble());
 }
 
@@ -772,7 +718,7 @@ IN_PROC_BROWSER_TEST_P(WebAppFrameViewChromeOSTest, MAYBE_ShowTranslateIcon) {
                                      "en", "fr",
                                      translate::TranslateErrors::NONE, true);
 
-  EXPECT_TRUE(translate_icon->GetVisible());
+  ASSERT_TRUE(WaitForVisible(true, translate_icon));
 }
 
 // Tests that the focus toolbar command focuses the app menu button in web-app
@@ -780,11 +726,11 @@ IN_PROC_BROWSER_TEST_P(WebAppFrameViewChromeOSTest, MAYBE_ShowTranslateIcon) {
 IN_PROC_BROWSER_TEST_P(WebAppFrameViewChromeOSTest,
                        BrowserCommandFocusToolbarAppMenu) {
   SetUpWebApp();
-  EXPECT_TRUE(browser_view_->contents_web_view()->HasFocus());
+  ASSERT_TRUE(WaitForFocus(true, browser_view_->contents_web_view()));
 
   EXPECT_FALSE(web_app_menu_button_->HasFocus());
   chrome::ExecuteCommand(app_browser_, IDC_FOCUS_TOOLBAR);
-  EXPECT_TRUE(web_app_menu_button_->HasFocus());
+  ASSERT_TRUE(WaitForFocus(true, web_app_menu_button_));
 }
 
 // Tests that the focus toolbar command focuses content settings icons before
@@ -799,13 +745,13 @@ IN_PROC_BROWSER_TEST_P(WebAppFrameViewChromeOSTest,
   // visible and nonzero size).
   RunScheduledLayouts();
 
-  EXPECT_TRUE(browser_view_->contents_web_view()->HasFocus());
+  ASSERT_TRUE(WaitForFocus(true, browser_view_->contents_web_view()));
   EXPECT_FALSE(web_app_menu_button_->HasFocus());
   EXPECT_FALSE(geolocation_icon->HasFocus());
 
   chrome::ExecuteCommand(app_browser_, IDC_FOCUS_TOOLBAR);
 
-  EXPECT_TRUE(geolocation_icon->HasFocus());
+  ASSERT_TRUE(WaitForFocus(true, geolocation_icon));
   EXPECT_FALSE(web_app_menu_button_->HasFocus());
 }
 
@@ -822,10 +768,10 @@ IN_PROC_BROWSER_TEST_P(WebAppFrameViewChromeOSTest, BrowserCommandShowAppMenu) {
 IN_PROC_BROWSER_TEST_P(WebAppFrameViewChromeOSTest,
                        BrowserCommandFocusNextPane) {
   SetUpWebApp();
-  EXPECT_TRUE(browser_view_->contents_web_view()->HasFocus());
+  ASSERT_TRUE(WaitForFocus(true, browser_view_->contents_web_view()));
   EXPECT_FALSE(web_app_menu_button_->HasFocus());
   chrome::ExecuteCommand(app_browser_, IDC_FOCUS_NEXT_PANE);
-  EXPECT_TRUE(web_app_menu_button_->HasFocus());
+  ASSERT_TRUE(WaitForFocus(true, web_app_menu_button_));
 }
 
 // Tests the app icon is not shown but the title is shown.
@@ -839,7 +785,7 @@ IN_PROC_BROWSER_TEST_P(WebAppFrameViewChromeOSTest, IconNotShownButTitleShown) {
 // Tests that the custom tab bar is focusable from the keyboard.
 IN_PROC_BROWSER_TEST_P(WebAppFrameViewChromeOSTest, CustomTabBarIsFocusable) {
   SetUpWebApp();
-  EXPECT_TRUE(browser_view_->contents_web_view()->HasFocus());
+  ASSERT_TRUE(WaitForFocus(true, browser_view_->contents_web_view()));
 
   auto* browser_view = BrowserView::GetBrowserViewForBrowser(app_browser_);
 
@@ -850,11 +796,11 @@ IN_PROC_BROWSER_TEST_P(WebAppFrameViewChromeOSTest, CustomTabBarIsFocusable) {
   auto* custom_tab_bar = browser_view->toolbar()->custom_tab_bar();
 
   chrome::ExecuteCommand(app_browser_, IDC_FOCUS_NEXT_PANE);
-  EXPECT_TRUE(web_app_menu_button_->HasFocus());
+  ASSERT_TRUE(WaitForFocus(true, web_app_menu_button_));
 
   EXPECT_FALSE(custom_tab_bar->close_button_for_testing()->HasFocus());
   chrome::ExecuteCommand(app_browser_, IDC_FOCUS_NEXT_PANE);
-  EXPECT_TRUE(custom_tab_bar->close_button_for_testing()->HasFocus());
+  ASSERT_TRUE(WaitForFocus(true, custom_tab_bar->close_button_for_testing()));
 }
 
 // Tests that the focus previous pane command focuses the app menu for web-app
@@ -862,10 +808,10 @@ IN_PROC_BROWSER_TEST_P(WebAppFrameViewChromeOSTest, CustomTabBarIsFocusable) {
 IN_PROC_BROWSER_TEST_P(WebAppFrameViewChromeOSTest,
                        BrowserCommandFocusPreviousPane) {
   SetUpWebApp();
-  EXPECT_TRUE(browser_view_->contents_web_view()->HasFocus());
+  ASSERT_TRUE(WaitForFocus(true, browser_view_->contents_web_view()));
   EXPECT_FALSE(web_app_menu_button_->HasFocus());
   chrome::ExecuteCommand(app_browser_, IDC_FOCUS_PREVIOUS_PANE);
-  EXPECT_TRUE(web_app_menu_button_->HasFocus());
+  ASSERT_TRUE(WaitForFocus(true, web_app_menu_button_));
 }
 
 // Tests that a web app's content settings icons can be interacted with.
@@ -898,11 +844,11 @@ IN_PROC_BROWSER_TEST_P(WebAppFrameViewChromeOSTest,
   chromeos::FrameCaptionButtonContainerView::TestApi test(
       GetFrameViewChromeOS(browser_view_)->caption_button_container());
 
-  EXPECT_TRUE(test.size_button()->GetPaintAsActive());
+  EXPECT_TRUE(WaitForPaintAsActive(true, test.size_button()));
   EXPECT_TRUE(GetPaintingAsActive());
 
   DeactivateWidget(browser_view_->GetWidget());
-  EXPECT_FALSE(test.size_button()->GetPaintAsActive());
+  EXPECT_TRUE(WaitForPaintAsActive(false, test.size_button()));
   EXPECT_FALSE(GetPaintingAsActive());
 }
 
@@ -945,7 +891,7 @@ IN_PROC_BROWSER_TEST_P(BrowserFrameViewChromeOSTest,
   // make sure that test covers production scenario.
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), GURL("about:blank")));
   ASSERT_TRUE(content::WaitForLoadStop(
-      browser()->GetTabStripModel()->GetActiveWebContents()));
+      browser()->tab_strip_model()->GetActiveWebContents()));
 
   EnterImmersiveFullscreenMode(browser());
 
@@ -1234,7 +1180,7 @@ IN_PROC_BROWSER_TEST_P(BrowserFrameViewChromeOSTest,
 // Tests that we don't accidentally change the color of app frame title bars.
 // Update expectation if change is intentional.
 IN_PROC_BROWSER_TEST_P(BrowserFrameViewChromeOSTest, AppFrameColor) {
-  BrowserWindowInterface* app_browser =
+  Browser* app_browser =
       CreateBrowserForApp("test_browser_app", browser()->GetProfile());
 
   aura::Window* window = app_browser->GetWindow()->GetNativeWindow();
@@ -1301,7 +1247,7 @@ class PreventCloseBrowserFrameViewChromeOSTest : public PreventCloseTestBase {
     PreventCloseTestBase::TearDownOnMainThread();
   }
 
-  views::Button* GetWindowCloseButton(BrowserWindowInterface* browser) {
+  views::Button* GetWindowCloseButton(Browser* browser) {
     auto* const browser_view = BrowserView::GetBrowserViewForBrowser(browser);
     auto* const frame_view =
         ChromeOSBrowserUITest::GetFrameViewChromeOS(browser_view);
@@ -1319,7 +1265,7 @@ IN_PROC_BROWSER_TEST_F(PreventCloseBrowserFrameViewChromeOSTest,
                                    kPreventCloseEnabledForCalculator,
                                    kCalculatorForceInstalled);
 
-  BrowserWindowInterface* const browser =
+  Browser* const browser =
       LaunchPWA(ash::kCalculatorAppId, /*launch_in_window=*/true);
   ASSERT_TRUE(browser);
 
@@ -1350,7 +1296,7 @@ IN_PROC_BROWSER_TEST_F(PreventCloseBrowserFrameViewChromeOSTest,
                        CloseButtonIsEnabled) {
   InstallPWA(GURL(kCalculatorAppUrl), ash::kCalculatorAppId);
 
-  BrowserWindowInterface* const browser =
+  Browser* const browser =
       LaunchPWA(ash::kCalculatorAppId, /*launch_in_window=*/true);
   ASSERT_TRUE(browser);
 
@@ -1363,7 +1309,7 @@ IN_PROC_BROWSER_TEST_F(PreventCloseBrowserFrameViewChromeOSTest,
 
 IN_PROC_BROWSER_TEST_P(BrowserFrameViewChromeOSTest,
                        ImmersiveModeTopViewInset) {
-  BrowserWindowInterface* app_browser =
+  Browser* app_browser =
       CreateBrowserForApp("test_browser_app", browser()->GetProfile());
 
   auto* const immersive_mode_controller =
@@ -1481,7 +1427,7 @@ IN_PROC_BROWSER_TEST_P(FloatBrowserFrameViewChromeOSTest,
   const gfx::Rect omnibox_bounds = omnibox->GetBoundsInScreen();
   ASSERT_NO_FATAL_FAILURE(
       event_generator.GestureTapAt(omnibox_bounds.top_center()));
-  EXPECT_TRUE(omnibox->HasFocus());
+  ASSERT_TRUE(WaitForFocus(true, omnibox));
 
   // Swipe down from the top center opens the multitask menu.
   event_generator.SetTouchRadius(10, 5);
@@ -1489,7 +1435,7 @@ IN_PROC_BROWSER_TEST_P(FloatBrowserFrameViewChromeOSTest,
   event_generator.PressTouch(top_center);
   event_generator.MoveTouchBy(0, 100);
   event_generator.ReleaseTouch();
-  EXPECT_FALSE(omnibox->HasFocus());
+  ASSERT_TRUE(WaitForFocus(false, omnibox));
   auto* multitask_menu_event_handler =
       ash::TabletModeControllerTestApi()
           .tablet_mode_window_manager()
@@ -1499,7 +1445,7 @@ IN_PROC_BROWSER_TEST_P(FloatBrowserFrameViewChromeOSTest,
   // Tap on the omnibox outside the menu takes focus and closes the menu.
   ASSERT_NO_FATAL_FAILURE(
       event_generator.GestureTapAt(omnibox_bounds.left_center()));
-  EXPECT_TRUE(omnibox->HasFocus());
+  ASSERT_TRUE(WaitForFocus(true, omnibox));
   EXPECT_FALSE(multitask_menu_event_handler->multitask_menu());
 }
 
@@ -1509,7 +1455,7 @@ IN_PROC_BROWSER_TEST_P(FloatBrowserFrameViewChromeOSTest,
   BrowserFrameViewChromeOS* frame_view = GetFrameViewChromeOS(browser_view);
 
   EnterTabletMode();
-  EXPECT_FALSE(frame_view->caption_button_container()->GetVisible());
+  ASSERT_TRUE(WaitForVisible(false, frame_view->caption_button_container()));
 
   aura::Window* window = browser_view->GetWidget()->GetNativeWindow();
   auto* immersive_controller = chromeos::ImmersiveFullscreenController::Get(
@@ -1517,13 +1463,13 @@ IN_PROC_BROWSER_TEST_P(FloatBrowserFrameViewChromeOSTest,
 
   // Snap the window. No immersive mode from regular browsers.
   SnapWindow(window, ash::SnapPosition::kSecondary);
-  EXPECT_FALSE(frame_view->caption_button_container()->GetVisible());
+  ASSERT_TRUE(WaitForVisible(false, frame_view->caption_button_container()));
   EXPECT_FALSE(immersive_controller->IsEnabled());
 
   // Float the window; the title bar becomes visible.
   chromeos::FloatControllerBase::Get()->SetFloat(
       window, chromeos::FloatStartLocation::kBottomRight);
-  EXPECT_TRUE(frame_view->caption_button_container()->GetVisible());
+  ASSERT_TRUE(WaitForVisible(true, frame_view->caption_button_container()));
   EXPECT_FALSE(immersive_controller->IsEnabled());
 }
 
@@ -1531,7 +1477,7 @@ IN_PROC_BROWSER_TEST_P(FloatBrowserFrameViewChromeOSTest,
 // in tablet mode.
 IN_PROC_BROWSER_TEST_P(FloatBrowserFrameViewChromeOSTest,
                        BrowserAppHeaderVisibilityInTabletModeTest) {
-  BrowserWindowInterface* browser2 =
+  Browser* browser2 =
       CreateBrowserForApp("test_browser_app", browser()->GetProfile());
   BrowserView* browser_view2 = BrowserView::GetBrowserViewForBrowser(browser2);
   views::Widget* widget2 = browser_view2->GetWidget();
@@ -1586,7 +1532,8 @@ IN_PROC_BROWSER_TEST_P(FloatBrowserFrameViewChromeOSTest, ToggleMultitaskMenu) {
       browser_view->GetWidget()->GetNativeWindow()->GetRootWindow());
   event_generator.PressAndReleaseKeyAndModifierKeys(ui::VKEY_Z,
                                                     ui::EF_COMMAND_DOWN);
-  EXPECT_TRUE(size_button->IsMultitaskMenuShown());
+  ASSERT_TRUE(base::test::RunUntil(
+      [&]() { return size_button->IsMultitaskMenuShown(); }));
 
   // With platform bubble, key event is routed to the platform bubble at ozone
   // level, so dispatch it to the multitask_menu_widget directly.
@@ -1604,7 +1551,8 @@ IN_PROC_BROWSER_TEST_P(FloatBrowserFrameViewChromeOSTest, ToggleMultitaskMenu) {
                                                       ui::EF_COMMAND_DOWN);
   }
 
-  EXPECT_FALSE(size_button->IsMultitaskMenuShown());
+  ASSERT_TRUE(base::test::RunUntil(
+      [&]() { return !size_button->IsMultitaskMenuShown(); }));
 }
 
 IN_PROC_BROWSER_TEST_P(FloatBrowserFrameViewChromeOSTest,
@@ -1668,7 +1616,7 @@ IN_PROC_BROWSER_TEST_P(HomeLauncherBrowserFrameViewChromeOSTest,
 
 IN_PROC_BROWSER_TEST_P(HomeLauncherBrowserFrameViewChromeOSTest,
                        TabletModeAppCaptionButtonVisibility) {
-  BrowserWindowInterface* app_browser =
+  Browser* app_browser =
       CreateBrowserForApp("test_browser_app", browser()->GetProfile());
   BrowserView* browser_view =
       BrowserView::GetBrowserViewForBrowser(app_browser);
@@ -1787,7 +1735,9 @@ IN_PROC_BROWSER_TEST_P(LockedFullscreenBrowserFrameViewChromeOSTest,
 
 class BrowserFrameViewAshAvatarTest : public BrowserFrameViewChromeOSTest {
  public:
-  BrowserFrameViewAshAvatarTest() = default;
+  BrowserFrameViewAshAvatarTest() {
+    scoped_feature_list_.InitAndEnableFeature(tabs::kVerticalTabs);
+  }
 
   static constexpr inline auto kPrimaryAccountId =
       AccountId::Literal::FromUserEmailGaiaId("primary@test",
@@ -1828,6 +1778,7 @@ class BrowserFrameViewAshAvatarTest : public BrowserFrameViewChromeOSTest {
   }
 
  private:
+  base::test::ScopedFeatureList scoped_feature_list_;
 
   ash::DeviceStateMixin device_state_{
       &mixin_host_,
@@ -1972,7 +1923,7 @@ IN_PROC_BROWSER_TEST_P(BrowserFrameViewAshAvatarTest,
 
   const auto app_id = web_app::test::InstallDummyWebApp(
       primary_user_profile, "test_browser_app", GURL("https://test.org"));
-  BrowserWindowInterface* app_browser =
+  Browser* app_browser =
       web_app::LaunchWebAppBrowser(primary_user_profile, app_id);
   BrowserView* browser_view =
       BrowserView::GetBrowserViewForBrowser(app_browser);
@@ -2029,8 +1980,8 @@ IN_PROC_BROWSER_TEST_P(BrowserFrameViewAshAvatarTest,
 
   // We use a DevTools window here as a representative example of a non-tabbed
   // browser window that renders a native title in its frame.
-  BrowserWindowInterface* non_tabbed_browser = CreateBrowserWindow(
-      BrowserWindowCreateParams::CreateForDevTools(primary_user_profile));
+  Browser* non_tabbed_browser = Browser::Create(
+      Browser::CreateParams::CreateForDevTools(primary_user_profile));
   non_tabbed_browser->GetWindow()->Show();
 
   BrowserView* browser_view =
@@ -2215,8 +2166,9 @@ IN_PROC_BROWSER_TEST_P(BrowserFrameViewAshThemeChangeTest, ThemeChange) {
               WindowOpenDisposition::CURRENT_TAB,
               apps::LaunchSource::kFromTest));
   ASSERT_TRUE(web_contents);
-  BrowserWindowInterface* browser =
-      GlobalBrowserCollection::GetInstance()->FindBrowserWithTab(web_contents);
+  Browser* browser = GlobalBrowserCollection::GetInstance()
+                         ->FindBrowserWithTab(web_contents)
+                         ->GetBrowserForMigrationOnly();
   auto* contents_web_view =
       BrowserView::GetBrowserViewForBrowser(browser)->contents_web_view();
 

@@ -67,7 +67,7 @@ import org.chromium.content.browser.HostZoomMapImpl;
 import org.chromium.content.browser.HostZoomMapImplJni;
 import org.chromium.content_public.browser.BrowserContextHandle;
 import org.chromium.content_public.browser.ContentFeatureList;
-import org.chromium.ui.accessibility.AccessibilityStateTestHelper;
+import org.chromium.ui.accessibility.AccessibilityState;
 import org.chromium.ui.base.DeviceInput;
 import org.chromium.ui.widget.ChromeImageButton;
 
@@ -120,7 +120,7 @@ public class AccessibilitySettingsTest {
 
         // Enable screen reader to display all settings options.
         ThreadUtils.runOnUiThreadBlocking(
-                () -> AccessibilityStateTestHelper.setIsKnownScreenReaderEnabledForTesting(true));
+                () -> AccessibilityState.setIsKnownScreenReaderEnabledForTesting(true));
         when(mDelegate.shouldShowImageDescriptionsSetting()).thenReturn(true);
     }
 
@@ -129,7 +129,7 @@ public class AccessibilitySettingsTest {
         PrefChangeRegistrarJni.setInstanceForTesting(null);
         UserPrefs.setPrefServiceForTesting(null);
         ThreadUtils.runOnUiThreadBlocking(
-                () -> AccessibilityStateTestHelper.setIsKnownScreenReaderEnabledForTesting(false));
+                () -> AccessibilityState.setIsKnownScreenReaderEnabledForTesting(false));
         when(mDelegate.shouldShowImageDescriptionsSetting()).thenReturn(false);
     }
 
@@ -172,7 +172,6 @@ public class AccessibilitySettingsTest {
         Preference captionsPref =
                 mAccessibilitySettings.findPreference(AccessibilitySettings.PREF_CAPTIONS);
         Assert.assertNotNull(captionsPref);
-        Assert.assertFalse(captionsPref.isIconSpaceReserved());
         Assert.assertNotNull(captionsPref.getOnPreferenceClickListener());
 
         Instrumentation.ActivityMonitor monitor =
@@ -200,7 +199,6 @@ public class AccessibilitySettingsTest {
                 mAccessibilitySettings.findPreference(PREF_IMAGE_DESCRIPTIONS);
 
         Assert.assertNotNull(imageDescriptionsPref);
-        Assert.assertFalse(imageDescriptionsPref.isIconSpaceReserved());
         Assert.assertTrue(
                 "Image Descriptions option should be visible", imageDescriptionsPref.isVisible());
 
@@ -233,7 +231,6 @@ public class AccessibilitySettingsTest {
         Preference zoomInfoPref =
                 mAccessibilitySettings.findPreference(AccessibilitySettings.PREF_ZOOM_INFO);
         Assert.assertNotNull(zoomInfoPref);
-        Assert.assertFalse(zoomInfoPref.isIconSpaceReserved());
         Assert.assertNotNull(zoomInfoPref.getOnPreferenceClickListener());
 
         // First scroll to the "Saved zoom levels" preference, then click.

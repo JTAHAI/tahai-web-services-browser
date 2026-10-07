@@ -13,14 +13,13 @@
 #include <Python.h>
 #include <frameobject.h>
 
-#include <cstddef>
 #include <cstdint>
-#include <cstring>
 #include <string>
+#include <unordered_map>
 
 #include "google/protobuf/descriptor.pb.h"
-#include "absl/base/no_destructor.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/absl_check.h"
 #include "absl/strings/string_view.h"
 #include "google/protobuf/descriptor.h"
 #include "google/protobuf/dynamic_message.h"
@@ -31,7 +30,6 @@
 #include "google/protobuf/pyext/message.h"
 #include "google/protobuf/pyext/message_factory.h"
 #include "google/protobuf/pyext/scoped_pyobject_ptr.h"
-#include "google/protobuf/pyext/weak_value_map.h"
 
 #define PyString_AsStringAndSize(ob, charpp, sizep)              \
   (PyUnicode_Check(ob)                                           \
@@ -78,14 +76,11 @@ namespace python {
 // released.
 // This is enough to support the "is" operator on live objects.
 // All descriptors are stored here.
-static PyWeakValueMap* GetInternedDescriptorsCache() {
-  static absl::NoDestructor<PyWeakValueMap> cache;
-  return cache.get();
-}
+std::unordered_map<const void*, PyObject*>* interned_descriptors;
 
 PyObject* PyString_FromCppString(absl::string_view str) {
   return PyUnicode_FromStringAndSize(str.data(),
-                                     static_cast<Py_ssize_t>(str.size()));
+                                     static_cast<size_t>(str.size()));
 }
 
 // Check that the calling Python code is the global scope of a _pb2.py module.
@@ -222,8 +217,7 @@ bool Reparse(PyMessageFactory* message_factory, const Message& from,
              Message* to) {
   // Reparse message.
   std::string serialized;
-  // TODO: Remove this suppression.
-  (void)from.SerializeToString(&serialized);
+  from.SerializeToString(&serialized);
   io::CodedInputStream input(
       reinterpret_cast<const uint8_t*>(serialized.c_str()), serialized.size());
   input.SetExtensionRegistry(message_factory->pool->pool,
@@ -404,41 +398,48 @@ PyObject* NewInternedDescriptor(PyTypeObject* type,
     return nullptr;
   }
 
-  return GetInternedDescriptorsCache()->GetOrInsert(
-      descriptor, type, [&]() -> PyObject* {
-        // Create a new descriptor object
-        PyBaseDescriptor* py_descriptor =
-            PyObject_GC_New(PyBaseDescriptor, type);
-        if (py_descriptor == nullptr) {
-          return nullptr;
-        }
-        py_descriptor->descriptor = descriptor;
+  // See if the object is in the map of interned descriptors
+  std::unordered_map<const void*, PyObject*>::iterator it =
+      interned_descriptors->find(descriptor);
+  if (it != interned_descriptors->end()) {
+    ABSL_DCHECK(Py_TYPE(it->second) == type);
+    Py_INCREF(it->second);
+    return it->second;
+  }
+  // Create a new descriptor object
+  PyBaseDescriptor* py_descriptor = PyObject_GC_New(PyBaseDescriptor, type);
+  if (py_descriptor == nullptr) {
+    return nullptr;
+  }
+  py_descriptor->descriptor = descriptor;
 
-        // Ensures that the DescriptorPool stays alive.
-        PyDescriptorPool* pool =
-            GetDescriptorPool_FromPool(GetFileDescriptor(descriptor)->pool());
-        if (pool == nullptr) {
-          // Don't DECREF, the object is not fully initialized.
-          PyObject_Del(py_descriptor);
-          return nullptr;
-        }
-        Py_INCREF(pool);
-        py_descriptor->pool = pool;
+  // and cache it.
+  interned_descriptors->insert(
+      std::make_pair(descriptor, reinterpret_cast<PyObject*>(py_descriptor)));
 
-        PyObject_GC_Track(py_descriptor);
+  // Ensures that the DescriptorPool stays alive.
+  PyDescriptorPool* pool =
+      GetDescriptorPool_FromPool(GetFileDescriptor(descriptor)->pool());
+  if (pool == nullptr) {
+    // Don't DECREF, the object is not fully initialized.
+    PyObject_Del(py_descriptor);
+    return nullptr;
+  }
+  Py_INCREF(pool);
+  py_descriptor->pool = pool;
 
-        if (was_created) {
-          *was_created = true;
-        }
+  PyObject_GC_Track(py_descriptor);
 
-        return reinterpret_cast<PyObject*>(py_descriptor);
-      });
+  if (was_created) {
+    *was_created = true;
+  }
+  return reinterpret_cast<PyObject*>(py_descriptor);
 }
 
 static void Dealloc(PyObject* pself) {
   PyBaseDescriptor* self = reinterpret_cast<PyBaseDescriptor*>(pself);
-  PyObject_GC_UnTrack(pself);
-  GetInternedDescriptorsCache()->EraseIfEqual(self->descriptor, pself);
+  // Remove from interned dictionary
+  interned_descriptors->erase(self->descriptor);
   Py_CLEAR(self->pool);
   Py_TYPE(self)->tp_free(pself);
 }
@@ -823,6 +824,22 @@ static PyObject* GetCppType(PyBaseDescriptor* self, void* closure) {
   return PyLong_FromLong(_GetDescriptor(self)->cpp_type());
 }
 
+static void WarnDeprecatedLabel() {
+  static int deprecated_label_count = 100;
+  if (deprecated_label_count > 0) {
+    --deprecated_label_count;
+    PyErr_WarnEx(
+        PyExc_DeprecationWarning,
+        "label() is deprecated. Use is_required() or is_repeated() instead.",
+        3);
+  }
+}
+
+static PyObject* GetLabel(PyBaseDescriptor* self, void* closure) {
+  WarnDeprecatedLabel();
+  return PyLong_FromLong(_GetDescriptor(self)->label());
+}
+
 static PyObject* IsRequired(PyBaseDescriptor* self, void* closure) {
   return PyBool_FromLong(_GetDescriptor(self)->is_required());
 }
@@ -1038,6 +1055,7 @@ static PyGetSetDef Getters[] = {
     {"file", (getter)GetFile, nullptr, "File Descriptor"},
     {"type", (getter)GetType, nullptr, "C++ Type"},
     {"cpp_type", (getter)GetCppType, nullptr, "C++ Type"},
+    {"label", (getter)GetLabel, nullptr, "Label"},
     {"is_required", (getter)IsRequired, nullptr, "Is Required"},
     {"is_repeated", (getter)IsRepeated, nullptr, "Is Repeated"},
     {"number", (getter)GetNumber, nullptr, "Number"},
@@ -1450,8 +1468,7 @@ static PyObject* GetSerializedPb(PyFileDescriptor* self, void* closure) {
   FileDescriptorProto file_proto;
   _GetDescriptor(self)->CopyTo(&file_proto);
   std::string contents;
-  // TODO: Remove this suppression.
-  (void)file_proto.SerializePartialToString(&contents);
+  file_proto.SerializePartialToString(&contents);
   self->serialized_pb = PyBytes_FromStringAndSize(
       contents.c_str(), static_cast<size_t>(contents.size()));
   if (self->serialized_pb == nullptr) {
@@ -2109,6 +2126,9 @@ bool InitDescriptor() {
   if (PyType_Ready(&PyMethodDescriptor_Type) < 0) return false;
 
   if (!InitDescriptorMappingTypes()) return false;
+
+  // Initialize globals defined in this file.
+  interned_descriptors = new std::unordered_map<const void*, PyObject*>;
 
   return true;
 }

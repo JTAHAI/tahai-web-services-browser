@@ -37,6 +37,11 @@ export class NetworkConfigInputElement extends NetworkConfigInputElementBase {
     return {
       label: String,
 
+      hidden: {
+        type: Boolean,
+        reflectToAttribute: true,
+      },
+
       invalid: {
         type: Boolean,
         value: false,
@@ -51,10 +56,11 @@ export class NetworkConfigInputElement extends NetworkConfigInputElementBase {
     };
   }
 
-  declare label: string;
-  declare invalid: boolean;
-  declare readonly: boolean;
-  declare value: string;
+  label: string;
+  override hidden: boolean;
+  invalid: boolean;
+  readonly: boolean;
+  value: string;
 
   override focus() {
     const input = this.shadowRoot!.querySelector('cr-input');

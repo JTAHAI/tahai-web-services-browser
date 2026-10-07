@@ -412,8 +412,7 @@ class BLINK_PLATFORM_EXPORT Platform {
 
   // Returns the raw bytes of a data resource for the specified `resource_id`.
   // Can be called from any thread.
-  virtual scoped_refptr<base::RefCountedMemory> GetDataResourceBytes(
-      int resource_id) {
+  virtual base::RefCountedMemory* GetDataResourceBytes(int resource_id) {
     return nullptr;
   }
 
@@ -699,6 +698,10 @@ class BLINK_PLATFORM_EXPORT Platform {
   virtual void DidStartWorkerThread() {}
   virtual void WillStopWorkerThread() {}
   virtual void WorkerContextCreated(const v8::Local<v8::Context>& worker) {}
+  virtual bool AllowScriptExtensionForServiceWorker(
+      const WebSecurityOrigin& script_origin) {
+    return false;
+  }
   virtual ProtocolHandlerSecurityLevel GetProtocolHandlerSecurityLevel(
       const WebSecurityOrigin& origin) {
     return ProtocolHandlerSecurityLevel::kStrict;

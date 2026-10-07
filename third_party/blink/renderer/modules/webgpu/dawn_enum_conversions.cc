@@ -932,8 +932,6 @@ wgpu::VertexFormat AsDawnEnum(const V8GPUVertexFormat& webgpu_enum) {
       return wgpu::VertexFormat::Sint32x4;
     case V8GPUVertexFormat::Enum::kUnorm1010102:
       return wgpu::VertexFormat::Unorm10_10_10_2;
-    case V8GPUVertexFormat::Enum::kSnorm1010102:
-      return wgpu::VertexFormat::Snorm10_10_10_2;
     case V8GPUVertexFormat::Enum::kUnorm8X4Bgra:
       return wgpu::VertexFormat::Unorm8x4BGRA;
   }
@@ -1123,8 +1121,6 @@ const char* FromDawnEnum(wgpu::WGSLLanguageFeatureName dawn_enum) {
       return "subgroup_id";
     case wgpu::WGSLLanguageFeatureName::SubgroupUniformity:
       return "subgroup_uniformity";
-    case wgpu::WGSLLanguageFeatureName::TextureFormatsTier1:
-      return "texture_formats_tier1";
     case wgpu::WGSLLanguageFeatureName::TextureAndSamplerLet:
       return "texture_and_sampler_let";
     case wgpu::WGSLLanguageFeatureName::SwizzleAssignment:

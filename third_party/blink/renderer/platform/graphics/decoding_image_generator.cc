@@ -30,7 +30,6 @@
 #include <utility>
 
 #include "base/containers/heap_array.h"
-#include "skia/ext/skcolorspace_ext.h"
 #include "third_party/blink/public/platform/platform.h"
 #include "third_party/blink/renderer/platform/graphics/image_frame_generator.h"
 #include "third_party/blink/renderer/platform/graphics/skia/skia_utils.h"
@@ -194,8 +193,8 @@ bool DecodingImageGenerator::GetPixels(SkPixmap dst_pixmap,
   sk_sp<SkColorSpace> decode_color_space = GetSkImageInfo().refColorSpace();
   SkImageInfo decode_info = target_info.makeColorSpace(decode_color_space);
 
-  const bool needs_color_xform = !skia::ApproximatelyEqual(
-      decode_color_space.get(), target_info.colorSpace());
+  const bool needs_color_xform = !ApproximatelyEqualSkColorSpaces(
+      decode_color_space, target_info.refColorSpace());
   if (needs_color_xform && !decode_info.isOpaque()) {
     decode_info = decode_info.makeAlphaType(kUnpremul_SkAlphaType);
   } else {

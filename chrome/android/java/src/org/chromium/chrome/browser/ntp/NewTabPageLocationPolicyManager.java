@@ -65,7 +65,10 @@ public class NewTabPageLocationPolicyManager {
     static void setPrefChangeRegistrarForTesting(PrefChangeRegistrar prefChangeRegistrarForTest) {
         var oldValue = sPrefChangeRegistrarForTesting;
         sPrefChangeRegistrarForTesting = prefChangeRegistrarForTest;
-        ResettersForTesting.register(() -> sPrefChangeRegistrarForTesting = oldValue);
+        ResettersForTesting.register(
+                () -> {
+                    sPrefChangeRegistrarForTesting = oldValue;
+                });
     }
 
     void destroy() {

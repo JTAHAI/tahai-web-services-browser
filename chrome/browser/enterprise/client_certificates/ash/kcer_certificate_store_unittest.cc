@@ -83,8 +83,9 @@ class KcerCertificateStoreTest : public testing::Test {
 
   std::unique_ptr<KcerCertificateStore> MakeStore(
       base::WeakPtr<kcer::Kcer> kcer) {
-    return std::make_unique<KcerCertificateStore>(&pref_service_,
-                                                  std::move(kcer));
+    return std::make_unique<KcerCertificateStore>(
+        &pref_service_, std::move(kcer),
+        task_environment_.GetMainThreadTaskRunner());
   }
 
   // Generates a real EC key in NSS via the store under `identity_name` and
@@ -149,17 +150,16 @@ TEST_F(KcerCertificateStoreTest, CreatePrivateKey_Success) {
   StoreErrorOr<scoped_refptr<PrivateKey>> result = future.Take();
   ASSERT_TRUE(result.has_value());
   ASSERT_TRUE(result.value());
-  // GenerateEcKey(hardware_backed=true) succeeds on the software-only NSS
-  // test slot, but the store resolves the source from KeyInfo, not from that
-  // success - and a non-Chaps slot holds nothing hardware backed.
-  EXPECT_EQ(result.value()->GetSource(), PrivateKeySource::kChromeOsSwKey);
+  // The software-only NSS test slot lets GenerateEcKey(hardware_backed=true)
+  // succeed, so the store records the hardware-backed source.
+  EXPECT_EQ(result.value()->GetSource(), PrivateKeySource::kChromeOsHwKey);
   EXPECT_FALSE(result.value()->GetSubjectPublicKeyInfo().empty());
 
-  // Verify the SPKI and (software) key source were persisted to prefs.
+  // Verify the SPKI and (hardware) key source were persisted to prefs.
   const base::DictValue& identity = pref_service_.GetDict(kTestIdentityName);
   EXPECT_TRUE(identity.FindString(kSpkiKey));
   EXPECT_EQ(identity.FindInt(kKeySource).value_or(-1),
-            static_cast<int>(PrivateKeySource::kChromeOsSwKey));
+            static_cast<int>(PrivateKeySource::kChromeOsHwKey));
 }
 
 TEST_F(KcerCertificateStoreTest, CreatePrivateKey_ConflictingIdentity) {

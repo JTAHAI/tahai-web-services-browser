@@ -21,6 +21,7 @@
 #include "chrome/browser/supervised_user/family_link_settings_service_factory.h"
 #include "chrome/browser/supervised_user/supervised_user_service_factory.h"
 #include "chrome/browser/supervised_user/supervised_user_url_filtering_service_factory.h"
+#include "chrome/browser/sync/sync_service_factory.h"
 #include "chrome/test/base/android/android_browser_test.h"
 #include "components/keyed_service/core/keyed_service.h"
 #include "components/safe_search_api/url_checker_client.h"
@@ -43,14 +44,23 @@ namespace supervised_user {
 
 namespace {
 std::unique_ptr<KeyedService> BuildSupervisedUserService(
+    MockUrlCheckerClient& mock_url_checker_client,
     content::BrowserContext* context) {
   Profile* profile = Profile::FromBrowserContext(context);
+  FamilyLinkSettingsService& settings_service =
+      CHECK_DEREF(FamilyLinkSettingsServiceFactory::GetInstance()->GetForKey(
+          profile->GetProfileKey()));
 
   return std::make_unique<SupervisedUserService>(
       IdentityManagerFactory::GetForProfile(profile),
       profile->GetDefaultStoragePartition()
           ->GetURLLoaderFactoryForBrowserProcess(),
-      *profile->GetPrefs(),
+      *profile->GetPrefs(), settings_service,
+      SyncServiceFactory::GetForProfile(profile),
+      std::make_unique<FamilyLinkUrlFilter>(
+          settings_service, *profile->GetPrefs(),
+          std::make_unique<FakeURLFilterDelegate>(),
+          std::make_unique<UrlCheckerClientWrapper>(mock_url_checker_client)),
       std::make_unique<SupervisedUserServicePlatformDelegate>(*profile),
       g_browser_process->device_parental_controls());
 }
@@ -58,15 +68,9 @@ std::unique_ptr<KeyedService> BuildSupervisedUserService(
 std::unique_ptr<KeyedService> BuildSupervisedUserUrlFilteringService(
     MockUrlCheckerClient& mock_url_checker_client,
     content::BrowserContext* context) {
-  Profile* profile = Profile::FromBrowserContext(context);
-  FamilyLinkSettingsService& settings_service =
-      CHECK_DEREF(FamilyLinkSettingsServiceFactory::GetInstance()->GetForKey(
-          profile->GetProfileKey()));
   return std::make_unique<SupervisedUserUrlFilteringService>(
-      std::make_unique<FamilyLinkUrlFilter>(
-          settings_service, *profile->GetPrefs(),
-          std::make_unique<FakeURLFilterDelegate>(),
-          std::make_unique<UrlCheckerClientWrapper>(mock_url_checker_client)),
+      CHECK_DEREF(SupervisedUserServiceFactory::GetForProfile(
+          Profile::FromBrowserContext(context))),
       std::make_unique<DeviceParentalControlsUrlFilter>(
           g_browser_process->device_parental_controls(),
           std::make_unique<UrlCheckerClientWrapper>(mock_url_checker_client)));
@@ -100,7 +104,8 @@ void SupervisedUserBrowserTestBase::SetUpBrowserContextKeyedServices(
 #endif  // BUILDFLAG(IS_ANDROID)
 
   SupervisedUserServiceFactory::GetInstance()->SetTestingFactory(
-      context, base::BindRepeating(&BuildSupervisedUserService));
+      context, base::BindRepeating(&BuildSupervisedUserService,
+                                   std::ref(mock_url_checker_client_)));
 
   SupervisedUserUrlFilteringServiceFactory::GetInstance()->SetTestingFactory(
       context, base::BindRepeating(&BuildSupervisedUserUrlFilteringService,

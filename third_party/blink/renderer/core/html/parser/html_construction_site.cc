@@ -79,7 +79,6 @@
 #include "third_party/blink/renderer/core/sanitizer/sanitizer.h"
 #include "third_party/blink/renderer/core/script/ignore_destructive_write_count_incrementer.h"
 #include "third_party/blink/renderer/core/svg/svg_script_element.h"
-#include "third_party/blink/renderer/core/svg_names.h"
 #include "third_party/blink/renderer/platform/bindings/v8_per_isolate_data.h"
 #include "third_party/blink/renderer/platform/heap/garbage_collected.h"
 #include "third_party/blink/renderer/platform/instrumentation/use_counter.h"
@@ -228,7 +227,6 @@ static inline void Insert(HTMLConstructionSiteTask& task) {
       patch->Apply(task);
     } else {
       task.parent = template_element->InsertionTarget();
-      task.next_child = nullptr;
     }
     // If the Document was detached in the middle of parsing, The template
     // element won't be able to initialize its contents, so bail out.
@@ -288,29 +286,8 @@ static inline void ExecuteInsertTextTask(HTMLConstructionSiteTask& task) {
   Insert(task);
 }
 
-// See https://github.com/whatwg/html/pull/12709
-// Direct children of the Document or disconnected nodes cannot be removed.
-// This state can change during parser operations, e.g. by iframe pagehide
-// events. Returns true if the child was removed.
-static inline bool RemoveChildIfValidForRemoval(
-    HTMLConstructionSiteTask& task) {
-  auto* parent_doc = DynamicTo<Document>(task.parent.Get());
-  if ((parent_doc && parent_doc->documentElement()) ||
-      task.child->ContainsIncludingHostElements(*task.parent)) {
-    if (task.child->parentNode()) {
-      task.child->parentNode()->ParserRemoveChild(*task.child);
-    }
-    return true;
-  }
-  return false;
-}
-
 static inline void ExecuteReparentTask(HTMLConstructionSiteTask& task) {
   DCHECK_EQ(task.operation, HTMLConstructionSiteTask::kReparent);
-
-  if (RemoveChildIfValidForRemoval(task)) {
-    return;
-  }
 
   task.parent->ParserAppendChild(task.child);
 }
@@ -320,7 +297,18 @@ static inline void ExecuteInsertAlreadyParsedChildTask(
   DCHECK_EQ(task.operation,
             HTMLConstructionSiteTask::kInsertAlreadyParsedChild);
 
-  if (RemoveChildIfValidForRemoval(task)) {
+  // See https://github.com/whatwg/html/pull/12709
+  if (Document* parentDoc = DynamicTo<Document>(task.parent.Get())) {
+    if (parentDoc->documentElement()) {
+      if (task.child->parentNode()) {
+        task.child->parentNode()->ParserRemoveChild(*task.child);
+      }
+      return;
+    }
+  } else if (task.child->ContainsIncludingHostElements(*task.parent)) {
+    if (task.child->parentNode()) {
+      task.child->parentNode()->ParserRemoveChild(*task.child);
+    }
     return;
   }
 
@@ -335,29 +323,31 @@ static inline void ExecuteTakeAllChildrenTask(HTMLConstructionSiteTask& task) {
 
 void HTMLConstructionSite::ExecuteTask(HTMLConstructionSiteTask& task) {
   DCHECK(task_queue_.empty());
-  switch (task.operation) {
-    case HTMLConstructionSiteTask::kInsert:
-      ExecuteInsertTask(task);
-      break;
-    case HTMLConstructionSiteTask::kInsertText:
-      ExecuteInsertTextTask(task);
-      break;
-    case HTMLConstructionSiteTask::kRemove:
-      if (task.child->parentNode()) {
-        task.child->parentNode()->ParserRemoveChild(*task.child);
-      }
-      break;
-    // All the cases below this point are only used by the adoption agency.
-    case HTMLConstructionSiteTask::kInsertAlreadyParsedChild:
-      ExecuteInsertAlreadyParsedChildTask(task);
-      break;
-    case HTMLConstructionSiteTask::kReparent:
-      ExecuteReparentTask(task);
-      break;
-    case HTMLConstructionSiteTask::kTakeAllChildren:
-      ExecuteTakeAllChildrenTask(task);
-      break;
+  if (task.operation == HTMLConstructionSiteTask::kInsert) {
+    ExecuteInsertTask(task);
+    return;
   }
+
+  if (task.operation == HTMLConstructionSiteTask::kInsertText) {
+    ExecuteInsertTextTask(task);
+    return;
+  }
+
+  // All the cases below this point are only used by the adoption agency.
+
+  if (task.operation == HTMLConstructionSiteTask::kInsertAlreadyParsedChild) {
+    return ExecuteInsertAlreadyParsedChildTask(task);
+  }
+
+  if (task.operation == HTMLConstructionSiteTask::kReparent) {
+    return ExecuteReparentTask(task);
+  }
+
+  if (task.operation == HTMLConstructionSiteTask::kTakeAllChildren) {
+    return ExecuteTakeAllChildrenTask(task);
+  }
+
+  NOTREACHED();
 }
 
 // This is only needed for TextDocuments where we might have text nodes
@@ -472,70 +462,17 @@ void HTMLConstructionSite::QueueTask(HTMLConstructionSiteTask& task,
     FlushPendingText();
   }
 
-  if (task.operation == HTMLConstructionSiteTask::Operation::kInsert) {
-    CHECK(task.child);
-    CHECK(task.parent);
-    // For adding to the root, we need to post process. This only happens for
-    // parseHTML{Unsafe}.
-    if (!task.parent->IsDocumentNode()) {
-      if (auto* active_sanitizer = ActiveSanitizer(task.child.Get())) {
-        if (!active_sanitizer->Sanitize(task.child)) {
-          return;
-        }
-      }
+  if (sanitizer_ && task.child && task.parent &&
+      !task.parent->IsDocumentNode() &&
+      task.operation != HTMLConstructionSiteTask::Operation::kTakeAllChildren) {
+    CHECK(RuntimeEnabledFeatures::StreamingSanitizerEnabled());
+    if (!sanitizer_->Sanitize(task.child)) {
+      return;
     }
   }
 
   AdjustInsertionLocation(task);
   task_queue_.push_back(task);
-}
-
-Sanitizer::Action HTMLConstructionSite::CheckSanitizerAction(Node* node) const {
-  auto* active_sanitizer = ActiveSanitizer(node);
-  if (!active_sanitizer) {
-    return Sanitizer::Action::kKeep;
-  }
-  return active_sanitizer->CheckSanitizerAction(node);
-}
-
-Sanitizer::Action HTMLConstructionSite::SanitizeAndReturnAction(
-    Node* node) const {
-  auto* active_sanitizer = ActiveSanitizer(node);
-  if (!active_sanitizer) {
-    return Sanitizer::Action::kKeep;
-  }
-  return active_sanitizer->SanitizeAndReturnAction(node);
-}
-
-StreamingSanitizer* HTMLConstructionSite::ActiveSanitizer(
-    Node* node_being_inserted) const {
-  if (!RuntimeEnabledFeatures::StreamingSanitizerEnabled()) {
-    return nullptr;
-  }
-
-  auto* default_sanitizer = sanitizer_.Get();
-
-  if (!RuntimeEnabledFeatures::DeclarativeFragmentEnabled()) {
-    return default_sanitizer;
-  }
-
-  HTMLStackItem* top = open_elements_.TopStackItem();
-
-  // This is needed because sanitization might take place after the <template
-  // sanitize> element is already added to the stack.
-  if (top && node_being_inserted && top->GetNode() == node_being_inserted) {
-    top = top->NextItemInStack();
-  }
-
-  if (!top) {
-    return default_sanitizer;
-  }
-
-  if (StreamingSanitizer* patch_sanitizer = top->GetSanitizer()) {
-    return patch_sanitizer;
-  }
-
-  return default_sanitizer;
 }
 
 void HTMLConstructionSite::AttachLater(InsertionLocation location,
@@ -735,7 +672,8 @@ void HTMLConstructionSite::InsertHTMLBodyStartTagInBody(
   // DefaultForAfterHead). In that case, the parser only merges attributes onto
   // the existing body element rather than creating a new one, so we must
   // handle the customelementregistry attribute explicitly.
-  if (token->GetAttributeItem(html_names::kCustomelementregistryAttr)) {
+  if (RuntimeEnabledFeatures::ScopedCustomElementRegistryEnabled() &&
+      token->GetAttributeItem(html_names::kCustomelementregistryAttr)) {
     Element* body = open_elements_.BodyElement();
     body->SetCustomElementRegistry(CustomElementRegistryAssignment::Wait());
     if (document_) {
@@ -946,8 +884,8 @@ namespace {
 ProcessingInstruction* CreateProcessingInstructionFromToken(
     AtomicHTMLToken* token,
     Document& document) {
-  UseCounter::CountWebDXFeature(document,
-                                WebDXFeature::kHtmlProcessingInstructions);
+  UseCounter::CountWebDXFeature(
+      document, WebDXFeature::kDRAFT_HTMLProcessingInstructions);
   return MakeGarbageCollected<ProcessingInstruction>(
       document, token->ProcessingInstructionTarget(),
       token->ProcessingInstructionData());
@@ -972,7 +910,7 @@ void HTMLConstructionSite::AdjustInsertionLocation(
   if (IsEmpty()) {
     return;
   }
-  if (auto* active_sanitizer = ActiveSanitizer()) {
+  if (sanitizer_) {
     // Find the first inclusive ancestor of task.parent that is not replaced
     // with its children by the sanitizer.
     // Using Find here as it might not be the topmost item due to foster
@@ -981,8 +919,7 @@ void HTMLConstructionSite::AdjustInsertionLocation(
     // doing this at the same time as foster parenting.
     for (HTMLStackItem* parent_item =
              open_elements_.Find(DynamicTo<Element>(task.parent.Get()));
-         parent_item && active_sanitizer->CheckSanitizerAction(task.parent) ==
-                            Sanitizer::Action::kReplaceWithChildren;
+         parent_item && sanitizer_->ShouldReplaceWithChildren(task.parent);
          parent_item = parent_item->NextItemInStack()) {
       task.parent = parent_item->GetNode();
     }
@@ -1097,10 +1034,10 @@ void HTMLConstructionSite::InsertHTMLTemplateElement(
           ? template_element->FastGetAttribute(html_names::kForAttr)
           : g_null_atom;
 
-  auto* active_sanitizer = ActiveSanitizer();
-  if (active_sanitizer &&
+  if (sanitizer_ &&
       (!declarative_shadow_root_mode.IsNull() || !patch_target.IsNull())) {
-    bool ok = active_sanitizer->Sanitize(template_element);
+    CHECK(RuntimeEnabledFeatures::StreamingSanitizerEnabled());
+    bool ok = sanitizer_->Sanitize(template_element);
     if (!ok ||
         !template_element->FastHasAttribute(html_names::kShadowrootmodeAttr)) {
       declarative_shadow_root_mode = String();
@@ -1143,8 +1080,10 @@ void HTMLConstructionSite::InsertHTMLTemplateElement(
             : g_null_atom;
     AtomicString adopted_stylesheets = template_element->FastGetAttribute(
         html_names::kShadowrootadoptedstylesheetsAttr);
-    bool waiting_for_scoped_registry = template_element->FastHasAttribute(
-        html_names::kShadowrootcustomelementregistryAttr);
+    bool waiting_for_scoped_registry =
+        RuntimeEnabledFeatures::ScopedCustomElementRegistryEnabled() &&
+        template_element->FastHasAttribute(
+            html_names::kShadowrootcustomelementregistryAttr);
 
     bool success = host->AttachDeclarativeShadowRoot(
         *template_element, declarative_shadow_root_mode, focus_delegation,
@@ -1162,10 +1101,8 @@ void HTMLConstructionSite::InsertHTMLTemplateElement(
     }
   }
 
-  HTMLStackItem* stack_item = HTMLStackItem::Create(template_element, token);
-
   auto current_insertion_location = CurrentInsertionLocation();
-  open_elements_.Push(stack_item);
+  open_elements_.Push(HTMLStackItem::Create(template_element, token));
   if (!should_attach_template) {
     return;
   }
@@ -1175,18 +1112,7 @@ void HTMLConstructionSite::InsertHTMLTemplateElement(
     CHECK(RuntimeEnabledFeatures::DocumentPatchingEnabled());
     UseCounter::Count(OwnerDocumentForCurrentNode(), WebFeature::kHTMLPatching);
     template_element->SetPatch(patch);
-    if (RuntimeEnabledFeatures::DeclarativeFragmentEnabled()) {
-      const AtomicString& sanitize_val =
-          template_element->FastGetAttribute(html_names::kSanitizeAttr);
-      if (!sanitize_val.IsNull() &&
-          (sanitize_val.empty() ||
-           EqualIgnoringAsciiCase(sanitize_val, "sanitize"))) {
-        stack_item->SetSanitizer(StreamingSanitizer::SafeFor(sanitizer_.Get()));
-      }
-    }
-
-    if (!patch_target.empty() && !patch->is_buffered() &&
-        !patch->IsExternal()) {
+    if (!patch_target.empty() && !patch->is_buffered()) {
       return;
     }
 
@@ -1247,13 +1173,13 @@ void HTMLConstructionSite::InsertScriptElement(AtomicHTMLToken* token) {
       // elements since scripts can never see those flags or effects thereof.
       .SetCreatedByParser(should_be_parser_inserted,
                           should_be_parser_inserted ? document_ : nullptr)
-      .SetAlreadyStarted(ShouldMarkScriptAlreadyStarted());
+      .SetAlreadyStarted(is_parsing_fragment_ && flags.IsCreatedByParser() &&
+                         parser_content_policy_ !=
+                             kAllowScriptingContentAndMarkAsParserInserted);
   HTMLScriptElement* element = nullptr;
   const auto* is_attribute = token->GetAttributeItem(html_names::kIsAttr);
-  auto* active_sanitizer = ActiveSanitizer();
   bool sanitizer_allows_is_attribute =
-      !active_sanitizer ||
-      active_sanitizer->AllowIsAttribute(html_names::kScriptTag);
+      !sanitizer_ || sanitizer_->AllowIsAttribute(html_names::kScriptTag);
   if (is_attribute && sanitizer_allows_is_attribute) {
     element = To<HTMLScriptElement>(OwnerDocumentForCurrentNode().CreateElement(
         html_names::kScriptTag, flags, is_attribute->Value(),
@@ -1304,7 +1230,6 @@ void HTMLConstructionSite::InsertTextNode(const StringView& string,
       patch->Apply(dummy_task);
     } else {
       dummy_task.parent = template_element->InsertionTarget();
-      dummy_task.next_child = nullptr;
     }
     // If the Document was detached in the middle of parsing, the template
     // element won't be able to initialize its contents, so bail out.
@@ -1357,23 +1282,9 @@ void HTMLConstructionSite::TakeAllChildren(HTMLStackItem* new_parent,
   QueueTask(task, true);
 }
 
-void HTMLConstructionSite::RemoveNode(HTMLStackItem* child) {
-  HTMLConstructionSiteTask task(HTMLConstructionSiteTask::kRemove);
-  task.child = child->GetNode();
-  QueueTask(task, true);
-}
-
 CreateElementFlags HTMLConstructionSite::GetCreateElementFlags() const {
   return is_parsing_fragment_ ? CreateElementFlags::ByFragmentParser(document_)
                               : CreateElementFlags::ByParser(document_);
-}
-
-bool HTMLConstructionSite::ShouldMarkScriptAlreadyStarted() const {
-  return is_parsing_fragment_ &&
-         parser_content_policy_ !=
-             kAllowScriptingContentAndDoNotMarkAlreadyStarted &&
-         parser_content_policy_ !=
-             kAllowScriptingContentAndMarkAsParserInserted;
 }
 
 Document& HTMLConstructionSite::OwnerDocumentForCurrentNode() {
@@ -1381,23 +1292,15 @@ Document& HTMLConstructionSite::OwnerDocumentForCurrentNode() {
   // be re-targeted to the .content() document of the template. This function is
   // used in those places. The spec needs to be updated to reflect this
   // behavior, and when that happens, a link to the spec should be placed here.
-  ContainerNode* parent = CurrentNode();
-  while (auto* template_element = DynamicTo<HTMLTemplateElement>(parent)) {
-    if (auto* patch = template_element->GetPatch()) {
-      if (!patch->is_buffered()) {
-        parent = patch->parent();
-        continue;
-      }
-    }
+  if (auto* template_element = DynamicTo<HTMLTemplateElement>(*CurrentNode())) {
     // If the Document was detached in the middle of parsing, The template
     // element won't be able to initialize its contents. Fallback to the
-    // current node's document in that case.
+    // current node's document in that case..
     if (auto* insertion_target = template_element->InsertionTarget()) {
       return insertion_target->GetDocument();
     }
-    return template_element->GetDocument();
   }
-  return parent->GetDocument();
+  return CurrentNode()->GetDocument();
 }
 
 // "look up a custom element definition" for a token
@@ -1413,8 +1316,24 @@ CustomElementDefinition* HTMLConstructionSite::LookUpCustomElementDefinition(
     return nullptr;
   }
 
-  if (!registry) {
-    return nullptr;
+  if (RuntimeEnabledFeatures::ScopedCustomElementRegistryEnabled()) {
+    if (!registry) {
+      return nullptr;
+    }
+  } else {
+    // "1. (pre-scoped registry old spec) If document does not have a browsing
+    // context, return null."
+    LocalDOMWindow* window = document.domWindow();
+    if (!window) {
+      return nullptr;
+    }
+
+    // "3. (pre-scoped registry old spec) Let registry be document's browsing
+    // context's Window's CustomElementRegistry object."
+    registry = window->MaybeCustomElements();
+    if (!registry) {
+      return nullptr;
+    }
   }
 
   const AtomicString& local_name = tag_name.LocalName();
@@ -1444,67 +1363,59 @@ Element* HTMLConstructionSite::CreateElement(
   const Attribute* is_attribute = token->GetAttributeItem(html_names::kIsAttr);
   // If sanitizer_ is set and if santizer_ would not allow the "is" attribute,
   // then we will just pretend to not have seen it.
-  auto* active_sanitizer = ActiveSanitizer();
-  Document& creation_document = (active_sanitizer && document.IsActive() &&
-                                 !active_sanitizer->IsElementAllowed(tag_name))
-                                    ? document.EnsureTemplateDocument()
-                                    : document;
   bool sanitizer_allows_is_attribute =
-      !active_sanitizer || active_sanitizer->AllowIsAttribute(tag_name);
+      !sanitizer_ || sanitizer_->AllowIsAttribute(tag_name);
   const AtomicString& is = (is_attribute && sanitizer_allows_is_attribute)
                                ? is_attribute->Value()
                                : g_null_atom;
   // "6. Let registry be the result of looking up a custom element registry
   // given intended parent."
   CustomElementRegistry* registry = custom_element_registry_;
-  // Look up intended parent's custom element registry. Note that if the
-  // intended parent is a template element, which means it will create a
-  // document fragment, the custom element registry should be null.
-  if (open_elements_.StackDepth() > 1) {
-    if (auto* tmpl = DynamicTo<HTMLTemplateElement>(CurrentNode())) {
-      if (tmpl->GetPatch() && !tmpl->GetPatch()->is_buffered()) {
-        // Keep custom_element_registry_
-      } else if (tmpl->IsShadowRootModeTemplate()) {
-        // For declarative shadow root templates, the insertion target is the
-        // shadow root itself. Use the shadow root's registry so elements get
-        // the correct tree scope registry (null for scoped-waiting, global
-        // for non-scoped).
-        registry =
-            To<ShadowRoot>(tmpl->InsertionTarget())->customElementRegistry();
-      } else {
-        // Regular <template> element: content goes into a template content
-        // document which has no browsing context, so no registry can exist.
+  if (RuntimeEnabledFeatures::ScopedCustomElementRegistryEnabled()) {
+    // Look up intended parent's custom element registry. Note that if the
+    // intended parent is a template element, which means it will create a
+    // document fragment, the custom element registry should be null.
+    if (open_elements_.StackDepth() > 1) {
+      if (auto* tmpl = DynamicTo<HTMLTemplateElement>(CurrentNode())) {
+        if (tmpl->IsShadowRootModeTemplate()) {
+          // For declarative shadow root templates, the insertion target is the
+          // shadow root itself. Use the shadow root's registry so elements get
+          // the correct tree scope registry (null for scoped-waiting, global
+          // for non-scoped).
+          registry =
+              To<ShadowRoot>(tmpl->InsertionTarget())->customElementRegistry();
+        } else {
+          // Regular <template> element: content goes into a template content
+          // document which has no browsing context, so no registry can exist.
+          registry = nullptr;
+        }
+      } else if (document.IsTemplateDocument()) {
+        // Template content documents have no browsing context, so no registry
+        // can exist. This covers deeper descendants inside template content.
         registry = nullptr;
+      } else if (is_parsing_fragment_ ||
+                 document.ScopedCustomElementRegistryUsed() ||
+                 &document != document_) {
+        // Only perform the per-element registry lookup when it may differ from
+        // the cached custom_element_registry_: during fragment parsing, when
+        // scoped registries are in use, or when a script has moved the current
+        // node to a different document mid-parse (stale cached registry).
+        registry = CurrentElement()->customElementRegistry();
       }
-    } else if (document.IsTemplateDocument()) {
-      // Template content documents have no browsing context, so no registry
-      // can exist. This covers deeper descendants inside template content.
-      registry = nullptr;
-    } else if (is_parsing_fragment_ ||
-               document.ScopedCustomElementRegistryUsed() ||
-               &document != document_) {
-      // Only perform the per-element registry lookup when it may differ from
-      // the cached custom_element_registry_: during fragment parsing, when
-      // scoped registries are in use, or when a script has moved the current
-      // node to a different document mid-parse (stale cached registry).
-      registry = CurrentElement()->customElementRegistry();
     }
-  }
-  // If the token has the "customelementregistry" content attribute, override
-  // the registry to null. This allows declarative opt-out from the default
-  // registry during parsing.
-  if (registry &&
-      token->GetAttributeItem(html_names::kCustomelementregistryAttr)) {
-    document.SetScopedCustomElementRegistryUsed();
-    registry = nullptr;
+    // If the token has the "customelementregistry" content attribute, override
+    // the registry to null. This allows declarative opt-out from the default
+    // registry during parsing.
+    if (registry &&
+        token->GetAttributeItem(html_names::kCustomelementregistryAttr)) {
+      document.SetScopedCustomElementRegistryUsed();
+      registry = nullptr;
+    }
   }
   // 8. Let definition be the result of looking up a custom element definition
   // given registry, given namespace, local name and is.
-  CustomElementDefinition* definition = nullptr;
-  if (!active_sanitizer || active_sanitizer->IsElementAllowed(tag_name)) {
-    definition =
-        LookUpCustomElementDefinition(document, tag_name, is, registry);
-  }
+  auto* definition =
+      LookUpCustomElementDefinition(document, tag_name, is, registry);
   // "5. If definition is non-null and the parser was not originally created
   // for the HTML fragment parsing algorithm, then let will execute script
   // be true."
@@ -1541,7 +1452,7 @@ Element* HTMLConstructionSite::CreateElement(
     // only partially construct themselves when created by the parser, but since
     // this is a custom element, we need a fully-constructed element here.
     element = definition->CreateElement(
-        creation_document, tag_name,
+        document, tag_name,
         GetCreateElementFlags().SetCreatedByParser(false, nullptr));
 
     // "8. Append each attribute in the given token to element." We don't use
@@ -1557,20 +1468,11 @@ Element* HTMLConstructionSite::CreateElement(
   } else {
     if (definition) {
       DCHECK(GetCreateElementFlags().IsAsyncCustomElements());
-      element = definition->CreateElement(creation_document, tag_name,
+      element = definition->CreateElement(document, tag_name,
                                           GetCreateElementFlags());
     } else {
-      // SVG <script> in foreign content is created here, not in
-      // InsertScriptElement(). Mark fragment-parsed ones "already started" too,
-      // so an innerHTML-injected SVG script can't run when later cloned.
-      CreateElementFlags flags = GetCreateElementFlags();
-      if (RuntimeEnabledFeatures::SvgScriptFragmentAlreadyStartedEnabled() &&
-          tag_name == svg_names::kScriptTag &&
-          ShouldMarkScriptAlreadyStarted()) {
-        flags.SetAlreadyStarted(true);
-      }
       element = CustomElement::CreateUncustomizedOrUndefinedElement(
-          creation_document, tag_name, flags, is,
+          document, tag_name, GetCreateElementFlags(), is,
           CustomElementRegistryAssignment::ResolveNullableRegistry(
               registry,
               CustomElementRegistryAssignment::NullRegistryFallback::kWait));
@@ -1734,9 +1636,7 @@ void HTMLConstructionSite::FindFosterSite(HTMLConstructionSiteTask& task) {
   // 2.5
   if (ContainerNode* parent = last_table->GetElement()->parentNode()) {
     task.parent = parent;
-    if (!IsA<HTMLTemplateElement>(parent)) {
-      task.next_child = last_table->GetElement();
-    }
+    task.next_child = last_table->GetElement();
     return;
   }
 

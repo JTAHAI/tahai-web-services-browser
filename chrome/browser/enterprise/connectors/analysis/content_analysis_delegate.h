@@ -22,10 +22,9 @@
 #include "components/enterprise/connectors/core/common.h"
 #include "components/enterprise/connectors/core/content_analysis_data.h"
 #include "components/enterprise/connectors/core/content_analysis_delegate_base.h"
-#include "content/public/browser/global_routing_id.h"
 
 namespace content {
-class WebContents;
+class WebContent;
 struct ClipboardPasteData;
 }  // namespace content
 
@@ -86,10 +85,6 @@ class ContentAnalysisDelegate : public ContentAnalysisDelegateBase,
     // `content::ClipboardPasteData` object.
     void AddClipboardData(
         const content::ClipboardPasteData& clipboard_paste_data);
-
-    // ID of the frame initiating the action. If provided, frame URL chain
-    // collection starts from this frame instead of the currently focused frame.
-    std::optional<content::GlobalRenderFrameHostId> initiating_frame_id;
   };
 
   // Result of deep scanning.  Each Result contains the verdicts of deep scans
@@ -395,9 +390,6 @@ class ContentAnalysisDelegate : public ContentAnalysisDelegateBase,
   // Parent URL chain of the frame from which the action was triggered.
   google::protobuf::RepeatedPtrField<std::string> frame_url_chain_;
 
-  // Referrer chain of the frame from which the action was triggered.
-  google::protobuf::RepeatedPtrField<::safe_browsing::ReferrerChainEntry> referrer_chain_;
-
   // The title corresponding to the WebContents triggering the scan.
   std::string title_;
 
@@ -451,8 +443,6 @@ class ContentAnalysisDelegate : public ContentAnalysisDelegateBase,
   // for every file/text. This is read to ensure `this` isn't deleted too early.
   bool data_uploaded_ = false;
 
-  // This should only be used for showing dialogs/toasts, not for accessing
-  // state about the page.
   base::WeakPtr<content::WebContents> web_contents_;
 
   // Responsible for opening and scanning multiple files on parallel threads.

@@ -65,9 +65,7 @@ bool CaptionController::IsTranslateAllowedAndEnabled() {
 }
 
 std::string CaptionController::GetLiveTranslateTargetLanguageCode() {
-  return std::string(
-      caption_bubble_settings_->GetLiveTranslateTargetLanguageCode()
-          .tag_string());
+  return caption_bubble_settings_->GetLiveTranslateTargetLanguageCode();
 }
 
 bool CaptionController::DispatchTranscription(

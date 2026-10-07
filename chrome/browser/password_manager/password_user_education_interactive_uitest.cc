@@ -22,7 +22,9 @@ class PasswordUserEducationUiTest : public InteractiveFeaturePromoTest {
  public:
   PasswordUserEducationUiTest()
       : InteractiveFeaturePromoTest(UseDefaultTrackerAllowingPromos(
-            {feature_engagement::kIPHPasswordsSavePrimingPromoFeature})) {}
+            {feature_engagement::kIPHPasswordsSavePrimingPromoFeature})) {
+    scoped_feature_list_.InitAndEnableFeature(features::kPageActionsMigration);
+  }
 
   ~PasswordUserEducationUiTest() override = default;
 

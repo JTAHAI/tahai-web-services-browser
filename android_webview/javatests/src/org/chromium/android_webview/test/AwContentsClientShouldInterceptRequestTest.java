@@ -36,10 +36,7 @@ import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.CallbackHelper;
 import org.chromium.base.test.util.CommandLineFlags;
-import android.os.Build;
 import org.chromium.base.test.util.Feature;
-import org.chromium.base.test.util.MaxAndroidSdkLevel;
-import org.chromium.base.test.util.MinAndroidSdkLevel;
 import org.chromium.base.test.util.HistogramWatcher;
 import org.chromium.base.test.util.TestFileUtil;
 import org.chromium.components.embedder_support.util.WebResourceResponseInfo;
@@ -165,13 +162,12 @@ public class AwContentsClientShouldInterceptRequestTest extends AwParameterizedT
         Assert.assertEquals(1, mShouldInterceptRequestHelper.getUrls().size());
         Assert.assertEquals(aboutPageUrl, mShouldInterceptRequestHelper.getUrls().get(0));
 
-        mTestContainerView = mActivityTestRule.reparentAwContents(mTestContainerView);
-        mAwContents = mTestContainerView.getAwContents();
+        AwTestContainerView newView = mActivityTestRule.reparentAwContents(mTestContainerView);
 
         final String syncUrl =
                 addPageToTestServer(mWebServer, "/sync.html", "<html><body>hello</body></html>");
         callCount = mShouldInterceptRequestHelper.getCallCount();
-        mActivityTestRule.loadUrlAsync(mAwContents, syncUrl);
+        mActivityTestRule.loadUrlAsync(newView.getAwContents(), syncUrl);
         mShouldInterceptRequestHelper.waitForCallback(callCount);
         Assert.assertEquals(2, mShouldInterceptRequestHelper.getUrls().size());
         Assert.assertEquals(syncUrl, mShouldInterceptRequestHelper.getUrls().get(1));
@@ -1991,8 +1987,6 @@ public class AwContentsClientShouldInterceptRequestTest extends AwParameterizedT
 
     @Test
     @MediumTest
-    @MinAndroidSdkLevel(Build.VERSION_CODES.S)
-    @MaxAndroidSdkLevel(Build.VERSION_CODES.S_V2)
     @Feature({"AndroidWebView", "Network"})
     public void testInterceptRequestAllowsThreadBlocking() throws Throwable {
         // This test asserts that WebView is resilient against blocking operations on the thread

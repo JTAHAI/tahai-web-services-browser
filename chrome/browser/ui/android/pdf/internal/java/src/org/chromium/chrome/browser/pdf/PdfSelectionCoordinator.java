@@ -70,9 +70,7 @@ public class PdfSelectionCoordinator {
                             mActivity.getString(org.chromium.content.R.string.actionbar_web_search),
                             session -> {
                                 SelectionUtils.webSearch(
-                                        mActivity,
-                                        textSelection.getText().toString(),
-                                        /* setPackage= */ true);
+                                        mActivity, textSelection.getText().toString());
                                 PdfUtils.recordSelectionMenuItem(
                                         PdfUtils.PdfSelectionMenuItem.WEB_SEARCH);
                                 return null;

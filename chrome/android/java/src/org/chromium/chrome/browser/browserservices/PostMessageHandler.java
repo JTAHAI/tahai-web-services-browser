@@ -16,7 +16,6 @@ import androidx.browser.customtabs.PostMessageBackend;
 import org.chromium.base.ContextUtils;
 import org.chromium.base.Log;
 import org.chromium.base.TerminationStatus;
-import org.chromium.base.TriState;
 import org.chromium.base.task.PostTask;
 import org.chromium.base.task.TaskTraits;
 import org.chromium.build.annotations.NullMarked;
@@ -104,7 +103,7 @@ public class PostMessageHandler implements OriginVerificationListener {
      */
     public void reset(final @Nullable WebContents webContents) {
         if (webContents == null || webContents.isDestroyed()) {
-            closeChannelAndForgetWebContents();
+            disconnectChannel();
             return;
         }
         // Can't reset with the same web contents twice.
@@ -116,8 +115,9 @@ public class PostMessageHandler implements OriginVerificationListener {
             @Override
             public void didFinishNavigationInPrimaryMainFrame(NavigationHandle navigation) {
                 if (mNavigatedOnce && navigation.hasCommitted() && !navigation.isSameDocument()) {
+                    observe(null);
                     mPostMessageSourceUri = null;
-                    closeChannel();
+                    disconnectChannel();
                     return;
                 }
                 mNavigatedOnce = true;
@@ -126,7 +126,7 @@ public class PostMessageHandler implements OriginVerificationListener {
             @Override
             public void primaryMainFrameRenderProcessGone(
                     @TerminationStatus int terminationStatus) {
-                closeChannelAndForgetWebContents();
+                disconnectChannel();
             }
 
             @Override
@@ -156,36 +156,16 @@ public class PostMessageHandler implements OriginVerificationListener {
         mPostMessageBackend.onNotifyMessageChannelReady(null);
     }
 
-    /**
-     * Closes the message channel and notifies the client that it is gone, keeping the {@link
-     * WebContents}. The client can re-establish messaging for the new document by calling
-     * requestPostMessageChannel() again, which re-verifies the origin and re-enters {@link
-     * #initializeWithPostMessageUri}.
-     */
-    private void closeChannel() {
+    private void disconnectChannel() {
         if (mChannel == null) return;
         mChannel[0].close();
         mChannel = null;
+        mWebContents = null;
         mPostMessageBackend.onDisconnectChannel(ContextUtils.getApplicationContext());
     }
 
     /**
-     * Closes the message channel and additionally drops the {@link WebContents}, for the cases
-     * where it can no longer host a channel at all (destroyed, swapped out, or renderer gone). No
-     * channel can be re-established until {@link #reset} supplies a new {@link WebContents}.
-     */
-    private void closeChannelAndForgetWebContents() {
-        // The reference is only dropped when there was a live channel: keeping a stale
-        // WebContents otherwise is what makes reset() bail out early instead of attaching a
-        // second observer to the same WebContents.
-        if (mChannel == null) return;
-        closeChannel();
-        mWebContents = null;
-    }
-
-    /**
      * Sets the postMessage postMessageUri for this session to the given {@link Uri}.
-     *
      * @param postMessageUri The postMessageUri value to be set.
      */
     public void initializeWithPostMessageUri(Uri postMessageUri, @Nullable Uri targetOrigin) {
@@ -215,18 +195,22 @@ public class PostMessageHandler implements OriginVerificationListener {
         }
         PostTask.postTask(
                 TaskTraits.UI_DEFAULT,
-                () -> {
-                    // It is still possible that the page has navigated while this task is in
-                    // the queue. If that happens fail gracefully.
-                    if (mChannel == null || mChannel[0].isClosed()) return;
-                    mChannel[0].postMessage(new MessagePayload(message), null);
+                new Runnable() {
+                    @Override
+                    public void run() {
+                        // It is still possible that the page has navigated while this task is in
+                        // the queue.
+                        // If that happens fail gracefully.
+                        if (mChannel == null || mChannel[0].isClosed()) return;
+                        mChannel[0].postMessage(new MessagePayload(message), null);
+                    }
                 });
         return CustomTabsService.RESULT_SUCCESS;
     }
 
     @Override
     public void onOriginVerified(
-            String packageName, Origin origin, boolean result, @TriState int online) {
+            String packageName, Origin origin, boolean result, @Nullable Boolean online) {
         if (!result) return;
         initializeWithPostMessageUri(
                 OriginVerifier.getPostMessageUriFromVerifiedOrigin(packageName, origin),

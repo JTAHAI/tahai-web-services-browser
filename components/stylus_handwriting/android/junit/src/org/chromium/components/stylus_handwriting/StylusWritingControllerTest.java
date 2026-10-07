@@ -31,6 +31,7 @@ import org.mockito.junit.MockitoRule;
 
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.base.test.RobolectricUtil;
+import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.Feature;
 import org.chromium.content_public.browser.WebContents;
 import org.chromium.ui.base.ViewAndroidDelegate;
@@ -39,6 +40,7 @@ import org.chromium.ui.base.ViewAndroidDelegate;
  * Tests for StylusWritingController. Specifically how it handles whether to show a stylus hover
  * icon or not.
  */
+@Batch(Batch.PER_CLASS)
 @RunWith(BaseRobolectricTestRunner.class)
 @RequiresApi(api = Build.VERSION_CODES.TIRAMISU)
 public class StylusWritingControllerTest {

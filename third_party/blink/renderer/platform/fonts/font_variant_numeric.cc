@@ -67,11 +67,14 @@ String FontVariantNumeric::ToString(SlashedZero slashed) {
 }
 
 String FontVariantNumeric::ToString() const {
-  return StrCat({"numeric_figure=", ToString(NumericFigureValue()),
-                 ", numeric_spacing=", ToString(NumericSpacingValue()),
-                 ", numeric_fraction=", ToString(NumericFractionValue()),
-                 ", ordinal=", ToString(OrdinalValue()),
-                 ", slashed_zero=", ToString(SlashedZeroValue())});
+  return String::Format(
+      "numeric_figure=%s, numeric_spacing=%s, numeric_fraction=%s, ordinal=%s, "
+      "slashed_zero=%s",
+      ToString(NumericFigureValue()).Ascii().c_str(),
+      ToString(NumericSpacingValue()).Ascii().c_str(),
+      ToString(NumericFractionValue()).Ascii().c_str(),
+      ToString(OrdinalValue()).Ascii().c_str(),
+      ToString(SlashedZeroValue()).Ascii().c_str());
 }
 
 }  // namespace blink

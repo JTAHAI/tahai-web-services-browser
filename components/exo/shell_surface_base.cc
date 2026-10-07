@@ -854,12 +854,7 @@ void ShellSurfaceBase::UpdateTopInset() {
 }
 
 void ShellSurfaceBase::SetChildAxTreeId(ui::AXTreeID child_ax_tree_id) {
-  if (child_ax_tree_id != ui::AXTreeIDUnknown()) {
-    GetViewAccessibility().SetChildTreeID(child_ax_tree_id);
-  } else {
-    GetViewAccessibility().RemoveChildTreeID();
-  }
-
+  GetViewAccessibility().SetChildTreeID(child_ax_tree_id);
   this->NotifyAccessibilityEventDeprecated(ax::mojom::Event::kChildrenChanged,
                                            false);
 }
@@ -1235,7 +1230,7 @@ void ShellSurfaceBase::OnSetFrame(SurfaceFrameType frame_type) {
   // not specified, the widget's layer is set to 'NOT_DRAWN' and the frame can't
   // be drawn. `ClientControlledShellSurface` is not affected.
   if (frame_type_changed && widget_ &&
-      widget_->GetNativeWindow()->layer()->AsNotDrawn()) {
+      widget_->GetNativeWindow()->layer()->type() == ui::LAYER_NOT_DRAWN) {
     if (frame_type != SurfaceFrameType::NONE &&
         frame_type != SurfaceFrameType::SHADOW) {
       DLOG(FATAL)
@@ -2177,7 +2172,7 @@ void ShellSurfaceBase::UpdateShadow() {
     UpdateShadowRoundedCorners();
   }
 
-  if (window->layer()->AsNotDrawn()) {
+  if (window->layer()->type() == ui::LAYER_NOT_DRAWN) {
     DCHECK(!window->GetProperty(chromeos::kWindowManagerManagesOpacityKey));
 
     // Snapped window should not be opaque because it can be drag-resized, in

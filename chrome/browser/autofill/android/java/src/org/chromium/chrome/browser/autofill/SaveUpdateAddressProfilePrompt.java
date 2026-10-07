@@ -106,7 +106,10 @@ public class SaveUpdateAddressProfilePrompt {
                         /* saveToDisk= */ false);
         mDialogView
                 .findViewById(R.id.edit_button)
-                .setOnClickListener(_ -> mAddressEditor.showEditorDialog());
+                .setOnClickListener(
+                        v -> {
+                            mAddressEditor.showEditorDialog();
+                        });
     }
 
     /** Shows the dialog for saving an address. */

@@ -215,6 +215,7 @@ void StyleFetchedImage::ImageNotifyFinished(ImageResourceContent*) {
       // has been dispatched in the SVG document).
       svg_image->CheckLoaded();
       svg_image->UpdateUseCountersAfterLoad(*document_);
+      svg_image->MaybeRecordSvgImageProcessingTime(*document_);
     }
     image_->RecordDecodedImageType(document_->GetExecutionContext());
   }

@@ -135,6 +135,12 @@ class ProfilePickerInteractiveUiTest
     };
   }
 
+  auto HasPendingNav() {
+    return [this]() {
+      return web_contents()->GetController().GetPendingEntry() != nullptr;
+    };
+  }
+
   StateChange Exists(const DeepQuery& where) {
     DEFINE_LOCAL_CUSTOM_ELEMENT_EVENT_TYPE(kElementExistsEvent);
     StateChange state_change;
@@ -341,7 +347,7 @@ IN_PROC_BROWSER_TEST_F(ProfilePickerInteractiveUiTest,
       // Note: the button should be disabled after this, but there is no good
       // way to verify it in this sequence. It is verified by unit tests in
       // chrome/test/data/webui/signin/profile_picker_app_test.ts
-      WaitForButtonEnabled(kPickerWebContentsId, kSignInButton),
+      EnsurePresent(kPickerWebContentsId, kSignInButton),
       MoveMouseTo(kPickerWebContentsId, kSignInButton), ClickMouse(),
 
       // Wait for switch to the Gaia sign-in page to complete.
@@ -350,10 +356,12 @@ IN_PROC_BROWSER_TEST_F(ProfilePickerInteractiveUiTest,
                                    GetSigninChromeSyncDiceUrl()),
 
       // Send "Close window" keyboard shortcut and wait for view to close.
-      SendAccelerator(kProfilePickerViewId, GetAccelerator(IDC_CLOSE_WINDOW))
-          .SetMustRemainVisible(false));
+      SendAccelerator(kProfilePickerViewId, GetAccelerator(IDC_CLOSE_WINDOW)),
+      WaitForHide(kProfilePickerViewId, /*transition_only_on_event=*/true),
 
-  WaitForPickerClosed();
+      // Note: The widget/view is destroyed asynchronously, we need to flush the
+      // message loops to be able to reliably check the global state.
+      CheckResult(&ProfilePicker::IsOpen, testing::IsFalse()));
 }
 
 // Checks that both the signin web view and the main picker view are able to
@@ -377,7 +385,7 @@ IN_PROC_BROWSER_TEST_F(ProfilePickerInteractiveUiTest,
                                              .last_committed_entry_index = 0})),
 
       // Advance to the profile type choice screen.
-      WaitForButtonEnabled(kPickerWebContentsId, kAddProfileButton),
+      EnsurePresent(kPickerWebContentsId, kAddProfileButton),
       MoveMouseTo(kPickerWebContentsId, kAddProfileButton), ClickMouse(),
       WaitForStateChange(
           kPickerWebContentsId,
@@ -386,7 +394,7 @@ IN_PROC_BROWSER_TEST_F(ProfilePickerInteractiveUiTest,
                                              .last_committed_entry_index = 1})),
 
       // Advance to the sign-in page.
-      WaitForButtonEnabled(kPickerWebContentsId, kSignInButton),
+      WaitForStateChange(kPickerWebContentsId, Exists(kSignInButton)),
       MoveMouseTo(kPickerWebContentsId, kSignInButton), ClickMouse(),
       WaitForWebContentsNavigation(kPickerWebContentsId,
                                    GetSigninChromeSyncDiceUrl()),
@@ -401,19 +409,15 @@ IN_PROC_BROWSER_TEST_F(ProfilePickerInteractiveUiTest,
 
       // Navigate again back with the keyboard.
       SendAccelerator(kProfilePickerViewId, GetAccelerator(IDC_BACK)),
+      WithoutDelay(CheckResult(HasPendingNav(), IsTrue())),
       WaitForStateChange(kPickerWebContentsId,
                          UrlEntryMatches(GURL("chrome://profile-picker"))),
       CheckResult(GetNavState(), Eq(NavState{.entry_count = 2,
                                              .last_committed_entry_index = 0})),
 
       // Navigating back once again does nothing.
-      CheckResult(
-          [this] { return web_contents()->GetController().CanGoBack(); },
-          IsFalse()),
       SendAccelerator(kProfilePickerViewId, GetAccelerator(IDC_BACK)),
-      CheckResult(GetNavState(), Eq(NavState{.entry_count = 2,
-                                             .last_committed_entry_index = 0,
-                                             .has_pending_entry = false})));
+      WithoutDelay(CheckResult(HasPendingNav(), IsFalse())));
 }
 
 IN_PROC_BROWSER_TEST_F(ProfilePickerInteractiveUiTest,
@@ -435,7 +439,7 @@ IN_PROC_BROWSER_TEST_F(ProfilePickerInteractiveUiTest,
                                              .last_committed_entry_index = 0})),
 
       // Advance to the profile type choice screen.
-      WaitForButtonEnabled(kPickerWebContentsId, kAddProfileButton),
+      EnsurePresent(kPickerWebContentsId, kAddProfileButton),
       MoveMouseTo(kPickerWebContentsId, kAddProfileButton), ClickMouse(),
       WaitForStateChange(
           kPickerWebContentsId,
@@ -445,19 +449,15 @@ IN_PROC_BROWSER_TEST_F(ProfilePickerInteractiveUiTest,
 
       // Navigate back with the keyboard.
       SendAccelerator(kProfilePickerViewId, GetAccelerator(IDC_BACK)),
+      WithoutDelay(CheckResult(HasPendingNav(), IsTrue())),
       WaitForStateChange(kPickerWebContentsId,
                          UrlEntryMatches(GURL("chrome://profile-picker"))),
       CheckResult(GetNavState(), Eq(NavState{.entry_count = 2,
                                              .last_committed_entry_index = 0})),
 
       // Navigating back once again does nothing.
-      CheckResult(
-          [this] { return web_contents()->GetController().CanGoBack(); },
-          IsFalse()),
       SendAccelerator(kProfilePickerViewId, GetAccelerator(IDC_BACK)),
-      CheckResult(GetNavState(), Eq(NavState{.entry_count = 2,
-                                             .last_committed_entry_index = 0,
-                                             .has_pending_entry = false})));
+      WithoutDelay(CheckResult(HasPendingNav(), IsFalse())));
 }
 
 IN_PROC_BROWSER_TEST_F(ProfilePickerInteractiveUiTest,
@@ -486,19 +486,16 @@ IN_PROC_BROWSER_TEST_F(ProfilePickerInteractiveUiTest,
 
       // Navigate back with the keyboard.
       SendAccelerator(kPickerWebContentsId, GetAccelerator(IDC_BACK)),
+      WithoutDelay(CheckResult(HasPendingNav(), IsTrue(),
+                               /*check_description=*/"HasPendingNav")),
       WaitForStateChange(kPickerWebContentsId,
                          UrlEntryMatches(GURL("chrome://profile-picker"))),
       CheckResult(GetNavState(), Eq(NavState{.entry_count = 2,
                                              .last_committed_entry_index = 0})),
 
       // Navigating back once again does nothing.
-      CheckResult(
-          [this] { return web_contents()->GetController().CanGoBack(); },
-          IsFalse()),
       SendAccelerator(kProfilePickerViewId, GetAccelerator(IDC_BACK)),
-      CheckResult(GetNavState(), Eq(NavState{.entry_count = 2,
-                                             .last_committed_entry_index = 0,
-                                             .has_pending_entry = false})));
+      WithoutDelay(CheckResult(HasPendingNav(), IsFalse())));
 }
 
 IN_PROC_BROWSER_TEST_F(ProfilePickerInteractiveUiTest, ContinueWithoutAccount) {

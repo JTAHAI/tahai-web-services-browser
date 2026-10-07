@@ -13,8 +13,8 @@ import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.pdf.PdfPage;
 import org.chromium.chrome.browser.pdf.PdfUtils;
 import org.chromium.chrome.browser.profiles.Profile;
+import org.chromium.chrome.browser.tab.EmptyTabObserver;
 import org.chromium.chrome.browser.tab.Tab;
-import org.chromium.chrome.browser.tab.TabObserver;
 import org.chromium.chrome.browser.ui.native_page.NativePage;
 import org.chromium.content_public.browser.LoadUrlParams;
 import org.chromium.content_public.browser.WebContents;
@@ -76,12 +76,12 @@ public class DownloadController {
      */
     @CalledByNative
     private static void enqueueAndroidDownloadManagerRequest(
-            @JniType("GURL") GURL url,
+            GURL url,
             @JniType("std::string") String userAgent,
             @JniType("std::u16string") String fileName,
             @JniType("std::string") String mimeType,
             @JniType("std::string") String cookie,
-            @JniType("GURL") GURL referrer) {
+            GURL referrer) {
         DownloadInfo downloadInfo =
                 new DownloadInfo.Builder()
                         .setUrl(url)
@@ -124,7 +124,7 @@ public class DownloadController {
         param.setShouldReplaceCurrentEntry(downloadUrl.equals(tab.getUrl().getSpec()));
         tab.loadUrl(param);
         tab.addObserver(
-                new TabObserver() {
+                new EmptyTabObserver() {
                     @Override
                     public void onDestroyed(Tab tab) {
                         DownloadControllerJni.get()
@@ -135,9 +135,7 @@ public class DownloadController {
 
     @NativeMethods
     interface Natives {
-        void downloadUrl(
-                @JniType("std::string") String url,
-                @JniType("content::WebContents*") @Nullable WebContents webContents);
+        void downloadUrl(@JniType("std::string") String url, @Nullable WebContents webContents);
 
         void cancelDownload(
                 @JniType("Profile*") Profile profile,

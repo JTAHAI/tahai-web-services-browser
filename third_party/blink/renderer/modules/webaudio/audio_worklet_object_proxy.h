@@ -5,7 +5,6 @@
 #ifndef THIRD_PARTY_BLINK_RENDERER_MODULES_WEBAUDIO_AUDIO_WORKLET_OBJECT_PROXY_H_
 #define THIRD_PARTY_BLINK_RENDERER_MODULES_WEBAUDIO_AUDIO_WORKLET_OBJECT_PROXY_H_
 
-#include "third_party/blink/public/common/messaging/message_port_channel.h"
 #include "third_party/blink/renderer/core/workers/threaded_worklet_object_proxy.h"
 #include "third_party/blink/renderer/platform/heap/cross_thread_persistent.h"
 
@@ -18,7 +17,6 @@ class AudioWorkletObjectProxy final : public ThreadedWorkletObjectProxy {
  public:
   AudioWorkletObjectProxy(AudioWorkletMessagingProxy*,
                           ParentExecutionContextTaskRunners*,
-                          MessagePortChannel global_scope_port_channel,
                           float context_sample_rate,
                           uint64_t context_sample_frame_at_construction,
                           uint32_t context_render_quantum_size_at_construction);
@@ -37,7 +35,6 @@ class AudioWorkletObjectProxy final : public ThreadedWorkletObjectProxy {
 
   // These variables get set at construction time and won't be changed over the
   // course of the AWGS's lifetime.
-  const MessagePortChannel global_scope_port_channel_;
   const float context_sample_rate_at_construction_;
   const uint64_t context_sample_frame_at_construction_;
   const uint32_t context_render_quantum_size_at_construction_;

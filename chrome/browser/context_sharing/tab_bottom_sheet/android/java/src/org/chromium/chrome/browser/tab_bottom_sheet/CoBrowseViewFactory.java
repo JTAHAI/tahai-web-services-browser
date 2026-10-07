@@ -24,8 +24,12 @@ import org.chromium.chrome.browser.bookmarks.BookmarkManagerOpener;
 import org.chromium.chrome.browser.bookmarks.BookmarkModel;
 import org.chromium.chrome.browser.bookmarks.BookmarkUtils;
 import org.chromium.chrome.browser.context_sharing.R;
+import org.chromium.chrome.browser.contextual_tasks.fusebox.ContextualTasksFusebox;
+import org.chromium.chrome.browser.contextual_tasks.fusebox.ContextualTasksFusebox.ContextualTasksFuseboxConfig;
+import org.chromium.chrome.browser.contextual_tasks.fusebox.ContextualTasksFuseboxManager;
 import org.chromium.chrome.browser.ephemeraltab.EphemeralTabCoordinator;
 import org.chromium.chrome.browser.ephemeraltab.EphemeralTabCoordinatorSupplier;
+import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.lifecycle.ActivityLifecycleDispatcher;
 import org.chromium.chrome.browser.price_tracking.PriceDropNotificationManager;
 import org.chromium.chrome.browser.profiles.Profile;
@@ -48,8 +52,10 @@ import org.chromium.url.Origin;
 public class CoBrowseViewFactory {
 
     private final Activity mActivity;
+    private final ContextualTasksFuseboxConfig mFuseboxConfig;
     private final WindowAndroid mWindowAndroid;
     private final NonNullObservableSupplier<Profile> mProfileSupplier;
+    private final ActivityLifecycleDispatcher mLifecycleDispatcher;
     private final SnackbarManager mSnackbarManager;
     private final ContextMenuPopulatorFactory mContextMenuPopulatorFactory;
     private final SelectionDropdownMenuDelegate mSelectionDropdownMenuDelegate;
@@ -62,6 +68,7 @@ public class CoBrowseViewFactory {
      * Factory responsible for creating co-browse content.
      *
      * @param activity The current {@link Activity} instance.
+     * @param fuseboxConfig The configuration for the fusebox.
      * @param profileSupplier A supplier for the current {@link Profile}.
      * @param windowAndroid The {@link WindowAndroid} for managing window-level operations.
      * @param lifecycleDispatcher The {@link ActivityLifecycleDispatcher} for managing activity
@@ -78,6 +85,7 @@ public class CoBrowseViewFactory {
      */
     public CoBrowseViewFactory(
             Activity activity,
+            ContextualTasksFuseboxConfig fuseboxConfig,
             NonNullObservableSupplier<Profile> profileSupplier,
             WindowAndroid windowAndroid,
             ActivityLifecycleDispatcher lifecycleDispatcher,
@@ -89,8 +97,10 @@ public class CoBrowseViewFactory {
             PriceDropNotificationManager priceDropNotificationManager,
             BookmarkManagerOpener bookmarkManagerOpener) {
         mActivity = activity;
+        mFuseboxConfig = fuseboxConfig;
         mProfileSupplier = profileSupplier;
         mWindowAndroid = windowAndroid;
+        mLifecycleDispatcher = lifecycleDispatcher;
         mSnackbarManager = snackbarManager;
         mContextMenuPopulatorFactory = contextMenuPopulatorFactory;
         mSelectionDropdownMenuDelegate = selectionDropdownMenuDelegate;
@@ -130,6 +140,7 @@ public class CoBrowseViewFactory {
 
         TabBottomSheetWebUi webUi =
                 createWebUi(containerView, backgroundColor, clientType, containerType, webContents);
+        ContextualTasksFusebox fusebox = createFuseboxIfNeeded(clientType);
 
         webUi.setWebContents(webContents, requestFocus);
 
@@ -138,6 +149,7 @@ public class CoBrowseViewFactory {
                 clientType,
                 containerType,
                 webUi,
+                fusebox,
                 backgroundColor,
                 bottomSheetContentProvider,
                 () -> createPeekViewManagerIfNeeded(bottomSheetContentProvider));
@@ -215,7 +227,7 @@ public class CoBrowseViewFactory {
                 /* canPromoteToNewTab= */ true,
                 /* shouldHaveContextMenu= */ true,
                 initiatorOrigin,
-                /* requestDeniedCallback= */ CallbackUtils.emptyRunnable());
+                /* requestDeniedCallback= */ () -> {});
     }
 
     private void addToReadingList(GURL url, String title) {
@@ -240,11 +252,38 @@ public class CoBrowseViewFactory {
                 });
     }
 
+    private @Nullable ContextualTasksFusebox createFuseboxIfNeeded(
+            @TabBottomSheetClientType int clientType) {
+        if (clientType != TabBottomSheetClientType.CONTEXTUAL_TASKS
+                || !ChromeFeatureList.isEnabled(ChromeFeatureList.CONTEXTUAL_TASKS_JAVA_FUSEBOX)) {
+            return null;
+        }
+        // TaskState retrieval from Manager.
+        ContextualTasksFuseboxManager manager = ContextualTasksFuseboxManager.from(mWindowAndroid);
+        if (manager == null) {
+            return null;
+        }
+
+        // TODO(crbug.com/491504815): Get task ID from native and ensure the session is
+        // initialized for this task and WebContents.
+        return new ContextualTasksFusebox(
+                mActivity,
+                mFuseboxConfig.contentView,
+                mFuseboxConfig,
+                mProfileSupplier,
+                mWindowAndroid,
+                mLifecycleDispatcher,
+                /* loadUrlCallback= */ CallbackUtils.emptyCallback(),
+                mSnackbarManager,
+                manager.getFuseboxDataProvider());
+    }
+
     private @Nullable PeekViewManager createPeekViewManagerIfNeeded(
             @Nullable CoBrowseComponentProvider bottomSheetContentProvider) {
         TabBottomSheetManager manager = TabBottomSheetUtils.getManagerFromWindow(mWindowAndroid);
-        assert bottomSheetContentProvider != null;
-        assert manager != null;
+        if (bottomSheetContentProvider == null || manager == null) {
+            return null;
+        }
 
         return bottomSheetContentProvider.createPeekViewManager(
                 manager,

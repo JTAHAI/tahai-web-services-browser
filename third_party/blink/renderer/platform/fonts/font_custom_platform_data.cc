@@ -321,7 +321,7 @@ String FontCustomPlatformData::GetPostScriptNameOrFamilyNameForInspector()
     return FamilyNameForInspector();
   }
 
-  return String(base::as_byte_span(postscript_name));
+  return postscript_name.c_str();
 }
 
 FontCustomPlatformData* FontCustomPlatformData::Create(

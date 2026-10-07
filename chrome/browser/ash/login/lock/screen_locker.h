@@ -14,10 +14,9 @@
 #include "ash/public/cpp/login_types.h"
 #include "base/functional/callback_forward.h"
 #include "base/memory/raw_ptr.h"
-#include "base/memory/raw_ref.h"
 #include "base/memory/scoped_refptr.h"
-#include "base/memory/weak_auto_reset.h"
 #include "base/memory/weak_ptr.h"
+#include "base/task/sequenced_task_runner_helpers.h"
 #include "base/time/time.h"
 #include "base/timer/wall_clock_timer.h"
 #include "chrome/browser/ash/login/challenge_response_auth_keys_loader.h"
@@ -37,22 +36,11 @@
 #include "ui/base/accelerators/accelerator.h"
 #include "ui/base/ime/ash/input_method_manager.h"
 
-class ApplicationLocaleStorage;
 class PrefChangeRegistrar;
-class PrefService;
-
-namespace network {
-class SharedURLLoaderFactory;
-}  // namespace network
-
-namespace policy {
-class BrowserPolicyConnectorAsh;
-}  // namespace policy
 
 namespace ash {
 
 class Authenticator;
-class ScreenLockerController;
 class ViewsScreenLocker;
 
 // ScreenLocker displays the lock UI and takes care of authenticating the user
@@ -65,20 +53,13 @@ class ScreenLocker
  public:
   using AuthenticateCallback = base::OnceCallback<void(bool auth_success)>;
 
-  // `local_state`, `application_locale_storage`, and
-  // `browser_policy_connector_ash` must be non-null and must outlive `this`.
-  // `shared_url_loader_factory` must be non-null.
-  ScreenLocker(
-      PrefService* local_state,
-      const ApplicationLocaleStorage* application_locale_storage,
-      scoped_refptr<network::SharedURLLoaderFactory> shared_url_loader_factory,
-      policy::BrowserPolicyConnectorAsh* browser_policy_connector_ash,
-      const user_manager::UserList& users);
+  explicit ScreenLocker(const user_manager::UserList& users);
 
   ScreenLocker(const ScreenLocker&) = delete;
   ScreenLocker& operator=(const ScreenLocker&) = delete;
 
-  ~ScreenLocker() override;
+  // Returns the default instance if it has been created.
+  static ScreenLocker* default_screen_locker() { return screen_locker_; }
 
   // Returns true if the lock UI has been confirmed as displayed.
   bool locked() const { return locked_; }
@@ -106,25 +87,35 @@ class ScreenLocker
   // `users()`.
   user_manager::UserList GetUsersToShow() const;
 
+  // Allow a AuthStatusConsumer to listen for
+  // the same login events that ScreenLocker does.
+  void SetLoginStatusConsumer(AuthStatusConsumer* consumer);
+
+  // Initialize or uninitialize the ScreenLocker class. It observes
+  // SessionManager so that the screen locker accepts lock requests only after a
+  // user has logged in.
+  static void InitClass();
+  static void ShutDownClass();
+
+  // Handles a request from the session manager to show the lock screen.
+  static void HandleShowLockScreenRequest();
+
+  // Show the screen locker.
+  static void Show();
+
+  // Hide the screen locker.
+  static void Hide();
+
   // Returns true if authentication is enabled on the lock screen for the given
   // user.
   bool IsAuthTemporarilyDisabledForUser(const AccountId& account_id);
-
-  // Change the authenticators; should only be used by tests.
-  [[nodiscard]] base::WeakAutoReset<ScreenLocker, scoped_refptr<Authenticator>>
-  SetAuthenticatorsForTesting(scoped_refptr<Authenticator> authenticator);
-
-  // Allow an AuthStatusConsumer to listen for the same login events that
-  // ScreenLocker does.
-  [[nodiscard]] base::WeakAutoReset<ScreenLocker, raw_ptr<AuthStatusConsumer>>
-  SetLoginStatusConsumerForTesting(AuthStatusConsumer* consumer);
 
   static void SetClocksForTesting(const base::Clock* clock,
                                   const base::TickClock* tick_clock);
 
  private:
-  // For `Init` and `ResetToLockedState`.
-  friend class ScreenLockerController;
+  friend class base::DeleteHelper<ScreenLocker>;
+  friend class ScreenLockerTester;
 
   // Track the type of the authentication that the user used to unlock the lock
   // screen.
@@ -148,6 +139,8 @@ class ScreenLocker
     // Callback that should be executed the authentication result is available.
     base::OnceCallback<void(bool)> callback;
   };
+
+  ~ScreenLocker() override;
 
   // Initialize and show the screen locker.
   void Init();
@@ -178,8 +171,15 @@ class ScreenLocker
   // attempt.
   void ResetToLockedState();
 
+  // If the unlock animation was not aborted, changes session state to
+  // active and schedules `ScreenLocker` deletion.
+  static void OnUnlockAnimationFinished(bool aborted);
+
   // TODO(b/271261286): we should probably not call it anymore
   void RefreshPinAndFingerprintTimeout();
+
+  // Change the authenticators; should only be used by tests.
+  void SetAuthenticatorsForTesting(scoped_refptr<Authenticator> authenticator);
 
   void OnFingerprintAuthFailure(const user_manager::User& user);
 
@@ -187,6 +187,9 @@ class ScreenLocker
 
   // Called when the screen lock is ready.
   void ScreenLockReady();
+
+  // Called when screen locker is safe to delete.
+  static void ScheduleDeletion();
 
   // Returns true if `account_id` is found among logged in users.
   bool IsUserLoggedIn(const AccountId& account_id) const;
@@ -236,13 +239,6 @@ class ScreenLocker
   // lock/unlock events.
   session_manager::UnlockType TransformUnlockType();
 
-  const raw_ref<PrefService> local_state_;
-  const raw_ref<const ApplicationLocaleStorage> application_locale_storage_;
-  const scoped_refptr<network::SharedURLLoaderFactory>
-      shared_url_loader_factory_;
-  const raw_ref<policy::BrowserPolicyConnectorAsh>
-      browser_policy_connector_ash_;
-
   // Users that can unlock the device.
   user_manager::UserList users_;
 
@@ -264,6 +260,10 @@ class ScreenLocker
   // aborted. Otherwise, ScreenLocker object gets deleted when unlocked.
   bool unlock_started_ = false;
 
+  // Reference to the single instance of the screen locker object.
+  // This is used to make sure there is only one screen locker instance.
+  static ScreenLocker* screen_locker_;
+
   // The time when the screen locker object is created.
   base::Time start_time_ = base::Time::Now();
   // The time when the authentication is started.
@@ -271,9 +271,7 @@ class ScreenLocker
 
   // Delegate to forward all login status events to.
   // Tests can use this to receive login status events.
-  // TODO(crbug.com/543661933): Refactor ScreenLockerTester::UnlockWithPassword
-  // and remove this.
-  raw_ptr<AuthStatusConsumer> auth_status_consumer_for_testing_ = nullptr;
+  raw_ptr<AuthStatusConsumer> auth_status_consumer_ = nullptr;
 
   // Number of bad login attempts in a row.
   int incorrect_passwords_count_ = 0;

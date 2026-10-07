@@ -29,7 +29,6 @@
 #include "third_party/blink/renderer/platform/testing/runtime_enabled_features_test_helpers.h"
 #include "third_party/blink/renderer/platform/testing/task_environment.h"
 #include "third_party/blink/renderer/platform/testing/unit_test_helpers.h"
-#include "third_party/blink/renderer/platform/wtf/text/format.h"
 
 namespace blink {
 
@@ -76,7 +75,7 @@ class ScrollAnchorTest : public SimTest {
 
   void SetHeight(Element* element, int height) {
     element->setAttribute(html_names::kStyleAttr,
-                          AtomicString(Format("height: {}px", height)));
+                          AtomicString(String::Format("height: %dpx", height)));
     Update();
   }
 
@@ -113,9 +112,11 @@ class ScrollAnchorTest : public SimTest {
     DCHECK_EQ(true, scrollbar->GetTheme().AllowsHitTest());
     int thumb_center = scrollbar->GetTheme().ThumbPosition(*scrollbar) +
                        scrollbar->GetTheme().ThumbLength(*scrollbar) / 2;
-    scrollbar_drag_point_ = scrollbar->GetLayoutBox()->LocalToAbsolutePoint(
-        gfx::PointF(0, thumb_center) +
-        scrollbar->FrameRect().OffsetFromOrigin());
+    scrollbar_drag_point_ =
+        gfx::PointF(scrollbar->GetLayoutBox()
+                        ->GetScrollableArea()
+                        ->ConvertFromScrollbarToContainingEmbeddedContentView(
+                            *scrollbar, gfx::Point(0, thumb_center)));
     scrollbar->MouseDown(blink::WebMouseEvent(
         blink::WebInputEvent::Type::kMouseDown, *scrollbar_drag_point_,
         *scrollbar_drag_point_, blink::WebPointerProperties::Button::kLeft, 0,

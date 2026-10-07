@@ -11,19 +11,18 @@ import androidx.annotation.MainThread;
 
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
-import org.chromium.chrome.browser.signin.services.AccountPreviewDataService;
 import org.chromium.chrome.browser.signin.services.SigninManager;
 import org.chromium.chrome.browser.signin.services.SigninMetricsUtils;
-import org.chromium.chrome.browser.ui.signin.SigninUtils;
-import org.chromium.chrome.browser.ui.signin.account_picker.AccountPickerBottomSheetView.PresentationMode;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController;
+import org.chromium.components.browser_ui.bottomsheet.BottomSheetController.StateChangeReason;
+import org.chromium.components.browser_ui.bottomsheet.BottomSheetObserver;
+import org.chromium.components.browser_ui.bottomsheet.EmptyBottomSheetObserver;
 import org.chromium.components.browser_ui.device_lock.DeviceLockActivityLauncher;
 import org.chromium.components.signin.identitymanager.IdentityManager;
 import org.chromium.components.signin.metrics.AccountConsistencyPromoAction;
 import org.chromium.components.signin.metrics.SigninAccessPoint;
 import org.chromium.google_apis.gaia.CoreAccountId;
 import org.chromium.ui.base.WindowAndroid;
-import org.chromium.ui.modaldialog.ModalDialogManager;
 import org.chromium.ui.modelutil.PropertyModelChangeProcessor;
 
 /**
@@ -35,13 +34,26 @@ import org.chromium.ui.modelutil.PropertyModelChangeProcessor;
 public class SeamlessSigninCoordinator implements SigninBottomSheetUiCoordinator {
 
     private final Activity mActivity;
-    private final boolean mUseDialog;
+    private final BottomSheetController mBottomSheetController;
+    private final AccountPickerDelegate mAccountPickerDelegate;
     private final @SigninAccessPoint int mSigninAccessPoint;
+    private final AccountPickerDismissalLogger mDismissalLogger;
     private final AccountPickerBottomSheetMediator mAccountPickerBottomSheetMediator;
-    private final AccountPickerPresenter mPresenter;
 
     private @Nullable AccountPickerBottomSheetView mView;
     private boolean mIsDestroyed;
+
+    private final BottomSheetObserver mBottomSheetObserver =
+            new EmptyBottomSheetObserver() {
+                @Override
+                public void onSheetClosed(@StateChangeReason int reason) {
+                    mDismissalLogger.logBottomSheetDismissal(reason);
+                    if (reason != StateChangeReason.INTERACTION_COMPLETE) {
+                        mAccountPickerDelegate.onSignInCancel();
+                    }
+                    SeamlessSigninCoordinator.this.destroy();
+                }
+            };
 
     /**
      * Constructs the SeamlessSigninCoordinator.
@@ -50,8 +62,6 @@ public class SeamlessSigninCoordinator implements SigninBottomSheetUiCoordinator
      * @param activity The {@link Activity} that hosts the sign-in flow.
      * @param identityManager The IdentityManager for the current profile.
      * @param signinManager The sign-in manager to start the sign-in.
-     * @param accountPreviewDataService The service to retrieve account preview data.
-     * @param modalDialogManager The {@link ModalDialogManager} for the current activity.
      * @param bottomSheetController The {@link BottomSheetController} for the current activity.
      * @param accountPickerDelegate The delegate for account picker actions.
      * @param accountPickerBottomSheetStrings The strings for the account picker bottom sheet.
@@ -65,8 +75,6 @@ public class SeamlessSigninCoordinator implements SigninBottomSheetUiCoordinator
             Activity activity,
             IdentityManager identityManager,
             SigninManager signinManager,
-            @Nullable AccountPreviewDataService accountPreviewDataService,
-            ModalDialogManager modalDialogManager,
             BottomSheetController bottomSheetController,
             AccountPickerDelegate accountPickerDelegate,
             AccountPickerBottomSheetStrings accountPickerBottomSheetStrings,
@@ -74,30 +82,18 @@ public class SeamlessSigninCoordinator implements SigninBottomSheetUiCoordinator
             @SigninAccessPoint int signinAccessPoint,
             CoreAccountId selectedAccountId) {
         mActivity = activity;
+        mBottomSheetController = bottomSheetController;
+        mAccountPickerDelegate = accountPickerDelegate;
         mSigninAccessPoint = signinAccessPoint;
-        mUseDialog = SigninUtils.shouldShowAccountPickerDialog(activity);
-        AccountPickerDismissalLogger dismissalLogger =
+        mDismissalLogger =
                 new AccountPickerDismissalLogger(signinAccessPoint, /* isWebSignin= */ false);
-        mPresenter =
-                mUseDialog
-                        ? new ModalDialogAccountPickerPresenter(
-                                modalDialogManager,
-                                dismissalLogger,
-                                accountPickerDelegate,
-                                this::destroy)
-                        : new BottomSheetAccountPickerPresenter(
-                                bottomSheetController,
-                                dismissalLogger,
-                                accountPickerDelegate,
-                                this::destroy);
         mAccountPickerBottomSheetMediator =
                 AccountPickerBottomSheetMediator.createForSeamlessSignin(
                         windowAndroid,
                         identityManager,
                         signinManager,
-                        accountPreviewDataService,
                         accountPickerDelegate,
-                        this::requestDisplayUi,
+                        this::requestDisplayBottomSheet,
                         this::dismiss,
                         accountPickerBottomSheetStrings,
                         deviceLockActivityLauncher,
@@ -118,41 +114,37 @@ public class SeamlessSigninCoordinator implements SigninBottomSheetUiCoordinator
 
         mIsDestroyed = true;
         mAccountPickerBottomSheetMediator.destroy();
-        mPresenter.destroy();
+        mBottomSheetController.removeObserver(mBottomSheetObserver);
     }
 
     /**
-     * Displays the UI (dialog or bottom sheet) to present a seamless sign-in error or managed
-     * account confirmation.
+     * Displays the bottom sheet to present a seamless sign-in error or managed account
+     * confirmation.
      */
     @MainThread
-    void requestDisplayUi() {
+    void requestDisplayBottomSheet() {
         if (mView == null) {
-            // UI initialized lazily, in most cases no UI will be shown
-            mView =
-                    new AccountPickerBottomSheetView(
-                            mActivity,
-                            mAccountPickerBottomSheetMediator,
-                            mUseDialog
-                                    ? PresentationMode.MODAL_DIALOG
-                                    : PresentationMode.BOTTOM_SHEET);
+            // Bottom sheet initialized lazily, in most cases no bottom sheet will be shown
+            mView = new AccountPickerBottomSheetView(mActivity, mAccountPickerBottomSheetMediator);
             PropertyModelChangeProcessor.create(
                     mAccountPickerBottomSheetMediator.getModel(),
                     mView,
                     AccountPickerBottomSheetViewBinder::bind);
 
-            mPresenter.show(mView);
+            mBottomSheetController.addObserver(mBottomSheetObserver);
+            mBottomSheetController.requestShowContent(mView, true);
             SigninMetricsUtils.logAccountConsistencyPromoAction(
                     AccountConsistencyPromoAction.SHOWN, mSigninAccessPoint);
         }
     }
 
-    /** Implements {@link SigninBottomSheetUiCoordinator}. Dismiss the UI, if shown. */
+    /** Implements {@link SigninBottomSheetUiCoordinator}. Dismiss the bottom sheet, if shown. */
     @Override
     @MainThread
     public void dismiss() {
         if (mView != null) {
-            mPresenter.dismiss();
+            // The observer calls destroy() after the sheet is hidden.
+            mBottomSheetController.hideContent(mView, true, StateChangeReason.INTERACTION_COMPLETE);
         } else {
             destroy();
         }

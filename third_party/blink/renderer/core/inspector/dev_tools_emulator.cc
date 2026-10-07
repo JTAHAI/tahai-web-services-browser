@@ -8,7 +8,6 @@
 
 #include "third_party/blink/public/mojom/widget/device_emulation_params.mojom-blink.h"
 #include "third_party/blink/public/web/web_settings.h"
-#include "third_party/blink/renderer/core/dom/document.h"
 #include "third_party/blink/renderer/core/events/web_input_event_conversion.h"
 #include "third_party/blink/renderer/core/exported/web_view_impl.h"
 #include "third_party/blink/renderer/core/frame/local_frame_view.h"
@@ -162,16 +161,9 @@ void DevToolsEmulator::SetLCDTextPreference(LCDTextPreference preference) {
 }
 
 void DevToolsEmulator::SetViewportStyle(mojom::blink::ViewportStyle style) {
-  const ViewportEmulationMode previous_mode = GetViewportEmulationMode();
   embedder_viewport_style_ = style;
-  const ViewportEmulationMode mode = GetViewportEmulationMode();
-  if (mode != previous_mode) {
-    // A saved style can only switch between the two non-mobile profiles. This
-    // setter can run while ApplyWebPreferences() is still applying a batch,
-    // so do not force a synchronous lifecycle update here.
-    ApplyViewportEmulationMode(previous_mode);
-  } else {
-    ApplyViewportStyleForMode(mode);
+  if (!emulate_mobile_enabled()) {
+    web_view_->GetPage()->GetSettings().SetViewportStyle(style);
   }
 }
 
@@ -214,7 +206,9 @@ void DevToolsEmulator::SetDefaultPageScaleLimits(float min_scale,
                                                  float max_scale) {
   embedder_min_page_scale_ = min_scale;
   embedder_max_page_scale_ = max_scale;
-  ApplyPageScaleLimitsForMode(GetViewportEmulationMode());
+  if (!emulate_mobile_enabled()) {
+    web_view_->GetPage()->SetDefaultPageScaleLimits(min_scale, max_scale);
+  }
 }
 
 void DevToolsEmulator::SetShrinksViewportContentToFit(
@@ -313,13 +307,13 @@ gfx::Transform DevToolsEmulator::EnableDeviceEmulation(
     MemoryCache::Get()->EvictResources();
   }
 
-  const ViewportEmulationMode previous_mode = GetViewportEmulationMode();
   emulation_params_ = params;
   device_metrics_enabled_ = true;
-  const bool needs_lifecycle_update = ApplyViewportEmulationMode(previous_mode);
-  if (needs_lifecycle_update) {
-    UpdateLifecycleAfterEmulationProfileChange();
-  }
+
+  if (params.screen_type == mojom::blink::EmulatedScreenType::kMobile)
+    EnableMobileEmulation();
+  else
+    DisableMobileEmulation();
 
   SetForceAndroidOverlayScrollbar(params.force_android_overlay_scrollbar);
 
@@ -341,22 +335,12 @@ gfx::Transform DevToolsEmulator::EnableDeviceEmulation(
 
 void DevToolsEmulator::DisableDeviceEmulation() {
   CHECK(!is_shutdown_);
-  if (!device_metrics_enabled_) {
+  if (!device_metrics_enabled_)
     return;
-  }
 
-  const ViewportEmulationMode previous_mode = GetViewportEmulationMode();
   MemoryCache::Get()->EvictResources();
-  if (previous_mode == ViewportEmulationMode::kMobile) {
-    // Release process-wide mobile overrides while device metrics are still
-    // enabled so emulate_mobile_enabled() remains internally consistent.
-    DisableMobileEmulation();
-  }
   device_metrics_enabled_ = false;
-  const bool needs_lifecycle_update = ApplyViewportEmulationMode(previous_mode);
-  if (needs_lifecycle_update) {
-    UpdateLifecycleAfterEmulationProfileChange();
-  }
+  DisableMobileEmulation();
   SetForceAndroidOverlayScrollbar(false);
   web_view_->SetCompositorDeviceScaleFactorOverride(0.f);
 
@@ -372,94 +356,6 @@ void DevToolsEmulator::DisableDeviceEmulation() {
 
   gfx::Transform matrix = ResetViewport();
   DCHECK(matrix.IsIdentity());
-}
-
-DevToolsEmulator::ViewportEmulationMode
-DevToolsEmulator::GetViewportEmulationMode() const {
-  if (!device_metrics_enabled_) {
-    return ViewportEmulationMode::kEmbedder;
-  }
-  if (emulation_params_.screen_type ==
-      mojom::blink::EmulatedScreenType::kMobile) {
-    return ViewportEmulationMode::kMobile;
-  }
-  if (embedder_viewport_style_ == mojom::blink::ViewportStyle::kMobile &&
-      !emulation_params_.view_size.IsZero()) {
-    return ViewportEmulationMode::kDesktopViewport;
-  }
-  return ViewportEmulationMode::kEmbedder;
-}
-
-bool DevToolsEmulator::ApplyViewportStyleForMode(ViewportEmulationMode mode) {
-  mojom::blink::ViewportStyle viewport_style;
-  switch (mode) {
-    case ViewportEmulationMode::kEmbedder:
-      viewport_style = embedder_viewport_style_;
-      break;
-    case ViewportEmulationMode::kDesktopViewport:
-      viewport_style = mojom::blink::ViewportStyle::kDefault;
-      break;
-    case ViewportEmulationMode::kMobile:
-      viewport_style = mojom::blink::ViewportStyle::kMobile;
-      break;
-  }
-
-  const bool changed =
-      web_view_->GetPage()->GetSettings().GetViewportStyle() != viewport_style;
-  web_view_->GetPage()->GetSettings().SetViewportStyle(viewport_style);
-  return changed;
-}
-
-bool DevToolsEmulator::ApplyPageScaleLimitsForMode(ViewportEmulationMode mode) {
-  float min_page_scale;
-  float max_page_scale;
-  switch (mode) {
-    case ViewportEmulationMode::kEmbedder:
-      min_page_scale = embedder_min_page_scale_;
-      max_page_scale = embedder_max_page_scale_;
-      break;
-    case ViewportEmulationMode::kDesktopViewport:
-      min_page_scale = 1.0f;
-      max_page_scale = std::max(1.0f, embedder_max_page_scale_);
-      break;
-    case ViewportEmulationMode::kMobile:
-      min_page_scale = 0.25f;
-      max_page_scale = 5.0f;
-      break;
-  }
-
-  const bool changed =
-      web_view_->DefaultMinimumPageScaleFactor() != min_page_scale ||
-      web_view_->DefaultMaximumPageScaleFactor() != max_page_scale;
-  web_view_->GetPage()->SetDefaultPageScaleLimits(min_page_scale,
-                                                  max_page_scale);
-  return changed;
-}
-
-bool DevToolsEmulator::ApplyViewportEmulationMode(
-    ViewportEmulationMode previous_mode) {
-  const ViewportEmulationMode mode = GetViewportEmulationMode();
-  bool needs_lifecycle_update = false;
-  bool desktop_viewport_settings_changed = false;
-  if (mode == ViewportEmulationMode::kMobile) {
-    const bool entering_mobile = !emulate_mobile_enabled();
-    EnableMobileEmulation();
-    needs_lifecycle_update = entering_mobile;
-  } else {
-    DisableMobileEmulation();
-    const bool viewport_style_changed = ApplyViewportStyleForMode(mode);
-    const bool page_scale_limits_changed = ApplyPageScaleLimitsForMode(mode);
-    desktop_viewport_settings_changed =
-        mode == ViewportEmulationMode::kDesktopViewport &&
-        (viewport_style_changed || page_scale_limits_changed);
-  }
-
-  CHECK((mode == ViewportEmulationMode::kMobile) == emulate_mobile_enabled());
-  if (mode != ViewportEmulationMode::kMobile &&
-      (mode != previous_mode || desktop_viewport_settings_changed)) {
-    needs_lifecycle_update = true;
-  }
-  return needs_lifecycle_update;
 }
 
 void DevToolsEmulator::EnableMobileEmulation() {
@@ -486,8 +382,12 @@ void DevToolsEmulator::EnableMobileEmulation() {
   // emulated viewport style. If it's not active, either we're in an embedded
   // frame and we don't have visual viewport scrollbars or the scrollbars will
   // initialize as part of their regular lifecycle.
-  if (web_view_->GetPage()->GetVisualViewport().IsActiveViewport()) {
+  if (web_view_->GetPage()->GetVisualViewport().IsActiveViewport())
     web_view_->GetPage()->GetVisualViewport().InitializeScrollbars();
+
+  if (web_view_->MainFrameImpl()) {
+    web_view_->MainFrameImpl()->GetFrameView()->UpdateLifecycleToLayoutClean(
+        DocumentUpdateReason::kInspector);
   }
 }
 
@@ -507,21 +407,17 @@ void DevToolsEmulator::DisableMobileEmulation() {
       embedder_shrink_viewport_content_);
   web_view_->GetPage()->GetSettings().SetLCDTextPreference(
       embedder_lcd_text_preference_);
+  web_view_->GetPage()->GetSettings().SetViewportStyle(
+      embedder_viewport_style_);
   web_view_->GetPage()->GetSettings().SetMainFrameResizesAreOrientationChanges(
       embedder_main_frame_resizes_are_orientation_changes_);
   web_view_->SetZoomFactorOverride(0);
-  // ApplyViewportEmulationMode() restores or overrides the viewport style and
-  // page-scale limits after all settings from the mobile profile are removed.
-}
-
-void DevToolsEmulator::UpdateLifecycleAfterEmulationProfileChange() {
-  // MainFrameImpl() or its view can be null during cleanup or a remote/local
-  // frame swap.
-  if (WebLocalFrameImpl* main_frame = web_view_->MainFrameImpl()) {
-    if (LocalFrameView* frame_view = main_frame->GetFrameView()) {
-      frame_view->UpdateLifecycleToLayoutClean(
-          DocumentUpdateReason::kInspector);
-    }
+  web_view_->GetPage()->SetDefaultPageScaleLimits(embedder_min_page_scale_,
+                                                  embedder_max_page_scale_);
+  // MainFrameImpl() could be null during cleanup or remote <-> local swap.
+  if (web_view_->MainFrameImpl()) {
+    web_view_->MainFrameImpl()->GetFrameView()->UpdateLifecycleToLayoutClean(
+        DocumentUpdateReason::kInspector);
   }
 }
 

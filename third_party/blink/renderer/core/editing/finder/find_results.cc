@@ -67,8 +67,8 @@ MatchResultIcu FindResults::back() const {
   return *last_result;
 }
 
-wtf_size_t FindResults::CountForTesting() const {
-  wtf_size_t result = 0;
+unsigned FindResults::CountForTesting() const {
+  unsigned result = 0;
   for (Iterator it = begin(); it != end(); ++it) {
     ++result;
   }

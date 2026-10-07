@@ -49,7 +49,7 @@ struct WebSocketExtensionParams;
 class NET_EXPORT_PRIVATE WebSocketBasicHandshakeStream final
     : public WebSocketHandshakeStreamBase {
  public:
-  // `connect_delegate` and `request` must outlive this object.
+  // |connect_delegate| and |failure_message| must out-live this object.
   WebSocketBasicHandshakeStream(
       std::unique_ptr<StreamSocketHandle> connection,
       WebSocketStream::ConnectDelegate* connect_delegate,
@@ -168,7 +168,8 @@ class NET_EXPORT_PRIVATE WebSocketBasicHandshakeStream final
   // The extension(s) selected by the server.
   std::string extensions_;
 
-  // The extension parameters negotiated during the handshake.
+  // The extension parameters. The class is defined in the implementation file
+  // to avoid including extension-related header files here.
   std::unique_ptr<WebSocketExtensionParams> extension_params_;
 
   const raw_ptr<WebSocketStreamRequestAPI> stream_request_;

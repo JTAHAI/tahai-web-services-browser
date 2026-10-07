@@ -26,8 +26,8 @@
 #include "chrome/browser/actor/tools/load_and_extract_content_tool_request.h"
 #include "chrome/browser/actor/tools/tools_test_util.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_window.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/tabs/tab_enums.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/tabs/tab_strip_model_observer.h"
@@ -91,7 +91,10 @@ class ActorLoadAndExtractContentToolBrowserTest : public ActorToolsTest {
       ]
     })json",
         net::GetHostAndPort(embedded_test_server()->base_url()));
-    ParseSafetyListsForTesting(SafetyListManager::GetInstance(), json);
+    base::RunLoop run_loop;
+    SafetyListManager::GetInstance()->ParseSafetyLists(json,
+                                                       run_loop.QuitClosure());
+    run_loop.Run();
   }
 
  protected:
@@ -219,8 +222,8 @@ class ActorLoadAndExtractContentToolBrowserTest : public ActorToolsTest {
 // navigation in each of those tabs.
 class TabNavigationObserver : public TabStripModelObserver {
  public:
-  explicit TabNavigationObserver(BrowserWindowInterface* browser)
-      : tab_strip_model_(browser->GetTabStripModel()),
+  explicit TabNavigationObserver(Browser* browser)
+      : tab_strip_model_(browser->tab_strip_model()),
         initial_tab_count_(tab_strip_model_->count()) {
     tab_strip_model_->AddObserver(this);
   }
@@ -625,8 +628,7 @@ IN_PROC_BROWSER_TEST_F(ActorLoadAndExtractContentToolBrowserTest,
   std::vector<GURL> urls = {url};
 
   // Create a second browser window for the tool to operate in.
-  BrowserWindowInterface* second_browser =
-      CreateBrowser(browser()->GetProfile());
+  Browser* second_browser = CreateBrowser(browser()->GetProfile());
   ASSERT_TRUE(second_browser);
 
   // We need a way to ensure the tool uses the second browser, the tool
@@ -761,7 +763,7 @@ IN_PROC_BROWSER_TEST_F(ActorLoadAndExtractContentToolBrowserTest,
   actor_task().Act(ToRequestList(std::move(request)), result.GetCallback());
 
   ExpectErrorResult(result,
-                    mojom::ActionResultCode::kActionsBlockedForSiteRisk);
+                    mojom::ActionResultCode::kTriggeredNavigationBlocked);
 
   observer.VerifyTabCountRestored();
   EXPECT_EQ(observer.tabs_added_count(), 1);

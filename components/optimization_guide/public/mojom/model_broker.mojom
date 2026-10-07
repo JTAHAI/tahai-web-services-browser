@@ -20,6 +20,7 @@ enum OnDeviceFeature {
   kWritingAssistanceApi,
   kOnDeviceSpeechRecognition,
   kProofreaderApi,
+  kClassifier,
   kSpeechRecognitionSmallExpertModel,
 };
 

@@ -54,6 +54,10 @@ struct EnumTraits<media::mojom::EffectState, intermediate::EffectState> {
 template <>
 struct StructTraits<media::mojom::VideoFrameMetadataDataView,
                     media::VideoFrameMetadata> {
+  static bool allow_overlay(const media::VideoFrameMetadata& input) {
+    return input.allow_overlay;
+  }
+
   static bool copy_required(const media::VideoFrameMetadata& input) {
     return input.copy_required;
   }

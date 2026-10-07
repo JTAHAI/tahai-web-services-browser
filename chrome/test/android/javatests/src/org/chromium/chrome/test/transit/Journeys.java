@@ -396,7 +396,7 @@ public class Journeys {
                 currentPage = currentPage.openFakeLink(url, pageStationFactory.get());
             }
 
-            if (!captureThumbnails || previousTab.isIncognitoBranded() != isIncognito) {
+            if (!captureThumbnails) {
                 continue;
             }
 

@@ -519,12 +519,8 @@ class WebStateList {
   // Wrappers to the WebStates hosted by the WebStateList.
   std::vector<std::unique_ptr<WebStateWrapper>> web_state_wrappers_;
 
-  // TODO(crbug.com/484371187): Investigate if reentrancy can be removed.
-  base::ObserverList<
-      WebStateListObserver,
-      true,
-      base::ObserverListReentrancyPolicy::kAllowReentrancyUntriaged>
-      observers_;
+  // List of observers notified of changes to the model.
+  base::ObserverList<WebStateListObserver, true> observers_;
 
   // Index of the currently active WebState, kInvalidIndex if no such WebState.
   int active_index_ = kInvalidIndex;

@@ -10,7 +10,6 @@
 #include "third_party/blink/renderer/core/css/css_revert_rule_value.h"
 #include "third_party/blink/renderer/core/css/css_scroll_value.h"
 #include "third_party/blink/renderer/core/css/css_to_length_conversion_data.h"
-#include "third_party/blink/renderer/core/css/css_url_pattern_value.h"
 #include "third_party/blink/renderer/core/css/css_view_value.h"
 #include "third_party/blink/renderer/core/css/parser/css_parser_context.h"
 #include "third_party/blink/renderer/core/css/parser/css_parser_local_context.h"
@@ -507,9 +506,7 @@ TEST(CSSParsingUtilsTest, ConsumeUrlPattern) {
   {
     String text = "url-pattern(\"foo\")";
     CSSParserTokenStream stream(text);
-    CSSURLPatternValue* value = ConsumeUrlPattern(stream, *context);
-    ASSERT_TRUE(value);
-    EXPECT_EQ("url-pattern(\"foo\")", value->CssText());
+    EXPECT_TRUE(ConsumeUrlPattern(stream, *context));
     EXPECT_TRUE(stream.AtEnd());
   }
 
@@ -517,9 +514,7 @@ TEST(CSSParsingUtilsTest, ConsumeUrlPattern) {
   {
     String text = "url-pattern( \"foo\" )";
     CSSParserTokenStream stream(text);
-    CSSURLPatternValue* value = ConsumeUrlPattern(stream, *context);
-    ASSERT_TRUE(value);
-    EXPECT_EQ("url-pattern(\"foo\")", value->CssText());
+    EXPECT_TRUE(ConsumeUrlPattern(stream, *context));
     EXPECT_TRUE(stream.AtEnd());
   }
 
@@ -527,9 +522,7 @@ TEST(CSSParsingUtilsTest, ConsumeUrlPattern) {
   {
     String text = "url-pattern(\"foo\")   ";
     CSSParserTokenStream stream(text);
-    CSSURLPatternValue* value = ConsumeUrlPattern(stream, *context);
-    ASSERT_TRUE(value);
-    EXPECT_EQ("url-pattern(\"foo\")", value->CssText());
+    EXPECT_TRUE(ConsumeUrlPattern(stream, *context));
     EXPECT_TRUE(stream.AtEnd());
   }
 

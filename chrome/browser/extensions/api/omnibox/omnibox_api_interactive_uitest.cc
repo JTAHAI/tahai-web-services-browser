@@ -48,9 +48,9 @@
 #if BUILDFLAG(IS_ANDROID)
 #include "chrome/browser/android/omnibox/autocomplete_controller_android.h"
 #else
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_window.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/location_bar/location_bar.h"
 #include "chrome/browser/ui/view_ids.h"
 #include "chrome/test/base/interactive_test_utils.h"
@@ -65,8 +65,7 @@ using base::ASCIIToUTF16;
 using metrics::OmniboxEventProto;
 
 #if !BUILDFLAG(IS_ANDROID)
-void InputKeys(BrowserWindowInterface* browser,
-               const std::vector<ui::KeyboardCode>& keys) {
+void InputKeys(Browser* browser, const std::vector<ui::KeyboardCode>& keys) {
   for (auto key : keys) {
     // Note that sending key presses can be flaky at times.
     ASSERT_TRUE(ui_test_utils::SendKeyPressSync(browser, key, false, false,
@@ -74,7 +73,7 @@ void InputKeys(BrowserWindowInterface* browser,
   }
 }
 
-LocationBar* GetLocationBar(BrowserWindowInterface* browser) {
+LocationBar* GetLocationBar(Browser* browser) {
   return BrowserWindow::FromBrowser(browser)->GetLocationBar();
 }
 #endif  // !BUILDFLAG(IS_ANDROID)
@@ -173,7 +172,7 @@ class OmniboxApiTest : public ExtensionApiTest {
   }
 
   AutocompleteController* GetAutocompleteControllerForBrowser(
-      BrowserWindowInterface* browser) {
+      Browser* browser) {
     return GetLocationBar(browser)
         ->GetOmniboxController()
         ->autocomplete_controller();
@@ -428,7 +427,7 @@ IN_PROC_BROWSER_TEST_F(OmniboxApiTest, IncognitoSplitMode) {
   // Create an incognito browser, and wait for the extension to load. Our
   // LoadExtension() method ensures the on-the-record background page has spun
   // up, but we need to explicitly wait for the incognito version.
-  BrowserWindowInterface* incognito_browser = CreateIncognitoBrowser();
+  Browser* incognito_browser = CreateIncognitoBrowser();
   Profile* incognito_profile = incognito_browser->GetProfile();
   ResultCatcher catcher_incognito;
   catcher_incognito.RestrictToBrowserContext(incognito_profile);

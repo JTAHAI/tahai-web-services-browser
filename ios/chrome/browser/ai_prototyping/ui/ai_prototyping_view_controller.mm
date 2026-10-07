@@ -107,10 +107,6 @@
   }
 }
 
-- (void)updateWindowId:(NSString*)windowId {
-  [_actorViewController updateWindowId:windowId];
-}
-
 - (void)updateTabList:(NSArray<NSDictionary*>*)tabs {
   [_actorViewController updateTabList:tabs];
 }

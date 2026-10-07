@@ -7,6 +7,7 @@
 #include "base/test/test_future.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/sessions/tab_restore_service_factory.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
@@ -63,11 +64,9 @@ IN_PROC_BROWSER_TEST_F(WebAppUninstallBrowserTest,
   const webapps::AppId app_id = InstallPWA(app_url);
 
   {
-    BrowserWindowInterface* const app_browser =
-        LaunchWebAppBrowserAndWait(app_id);
-    ASSERT_EQ(app_browser->GetType(), BrowserWindowInterface::Type::TYPE_APP);
-    ASSERT_NE(app_browser->GetType(),
-              BrowserWindowInterface::Type::TYPE_NORMAL);
+    Browser* const app_browser = LaunchWebAppBrowserAndWait(app_id);
+    ASSERT_TRUE(app_browser->is_type_app());
+    ASSERT_FALSE(app_browser->is_type_normal());
     app_browser->GetWindow()->Close();
   }
 
@@ -95,8 +94,7 @@ IN_PROC_BROWSER_TEST_F(WebAppUninstallBrowserTest,
 
   const GURL app_url = GetSecureAppURL();
   const webapps::AppId app_id = InstallPWA(app_url);
-  BrowserWindowInterface* const app_browser =
-      LaunchWebAppBrowserAndWait(app_id);
+  Browser* const app_browser = LaunchWebAppBrowserAndWait(app_id);
 
   EXPECT_TRUE(IsBrowserOpen(app_browser));
 
@@ -112,8 +110,7 @@ IN_PROC_BROWSER_TEST_F(WebAppUninstallBrowserTest,
 
   const GURL app_url = GetSecureAppURL();
   const webapps::AppId app_id = InstallPWA(app_url);
-  BrowserWindowInterface* const app_browser =
-      LaunchWebAppBrowserAndWait(app_id);
+  Browser* const app_browser = LaunchWebAppBrowserAndWait(app_id);
 
   EXPECT_TRUE(IsBrowserOpen(app_browser));
 
@@ -218,13 +215,12 @@ IN_PROC_BROWSER_TEST_F(WebAppUninstallBrowserTest,
 
   const GURL app_url = GetSecureAppURL();
   const webapps::AppId app_id = InstallPWA(app_url);
-  BrowserWindowInterface* const app_browser =
-      LaunchWebAppBrowserAndWait(app_id);
+  Browser* const app_browser = LaunchWebAppBrowserAndWait(app_id);
 
   EXPECT_TRUE(IsBrowserOpen(app_browser));
 
   content::WebContents* const web_contents =
-      app_browser->GetTabStripModel()->GetActiveWebContents();
+      app_browser->tab_strip_model()->GetActiveWebContents();
 
   // Inject beforeunload handler.
   ASSERT_TRUE(
@@ -251,8 +247,7 @@ IN_PROC_BROWSER_TEST_F(WebAppUninstallBrowserTest,
 
   const GURL app_url = GetSecureAppURL();
   const webapps::AppId app_id = InstallPWA(app_url);
-  BrowserWindowInterface* const app_browser =
-      LaunchWebAppBrowserAndWait(app_id);
+  Browser* const app_browser = LaunchWebAppBrowserAndWait(app_id);
 
   EXPECT_TRUE(IsBrowserOpen(app_browser));
   auto* app_controller = web_app::AppBrowserController::From(app_browser);

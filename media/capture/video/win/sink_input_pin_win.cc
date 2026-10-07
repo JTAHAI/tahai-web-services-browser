@@ -12,7 +12,6 @@
 #include <stdint.h>
 
 #include "base/compiler_specific.h"
-#include "base/containers/span.h"
 #include "base/logging.h"
 #include "base/time/time.h"
 #include "base/win/win_util.h"
@@ -130,7 +129,7 @@ bool SinkInputPin::GetValidMediaType(int index, AM_MEDIA_TYPE* media_type) {
   VIDEOINFOHEADER* const pvi =
       reinterpret_cast<VIDEOINFOHEADER*>(media_type->pbFormat);
 
-  *pvi = {};
+  UNSAFE_TODO(ZeroMemory(pvi, sizeof(VIDEOINFOHEADER)));
   pvi->bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
   pvi->bmiHeader.biPlanes = 1;
   pvi->bmiHeader.biClrImportant = 0;
@@ -237,10 +236,8 @@ HRESULT SinkInputPin::Receive(IMediaSample* sample) {
     timestamp = base::Microseconds(start_time / 10);
   }
 
-  // SAFETY: DirectShow IMediaSample buffer has valid length bytes.
-  auto buffer_span =
-      UNSAFE_BUFFERS(base::span(buffer, static_cast<size_t>(length)));
-  observer_->FrameReceived(buffer_span, resulting_format_, timestamp, flip_y_);
+  observer_->FrameReceived(buffer, length, resulting_format_, timestamp,
+                           flip_y_);
   return S_OK;
 }
 

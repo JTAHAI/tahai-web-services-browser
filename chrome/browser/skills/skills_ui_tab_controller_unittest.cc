@@ -20,12 +20,10 @@
 #include "chrome/test/base/testing_browser_process.h"
 #include "chrome/test/base/testing_profile_manager.h"
 #include "chrome/test/views/chrome_views_test_base.h"
-#include "components/prefs/pref_service.h"
 #include "components/signin/public/identity_manager/identity_test_environment.h"
 #include "components/skills/features.h"
 #include "components/skills/public/skill.h"
 #include "components/skills/public/skills_metrics.h"
-#include "components/skills/public/skills_prefs.h"
 #include "components/tabs/public/mock_tab_interface.h"
 #include "content/public/test/test_renderer_host.h"
 #include "content/public/test/web_contents_tester.h"
@@ -54,8 +52,6 @@ class TestSkillsUiTabController : public SkillsUiTabController {
     return mock_glic_keyed_service_.get();
   }
 
-  Profile* GetProfile() override { return profile_; }
-
   void SetMockGlicKeyedService(
       std::unique_ptr<glic::MockGlicKeyedService> mock) {
     mock_glic_keyed_service_ = std::move(mock);
@@ -74,13 +70,7 @@ class TestSkillsUiTabController : public SkillsUiTabController {
 
 class SkillsUiTabControllerTest : public ChromeViewsTestBase {
  public:
-  explicit SkillsUiTabControllerTest(
-      const std::vector<base::test::FeatureRef>& enabled_features =
-          {features::kSkillsEnabled},
-      const std::vector<base::test::FeatureRef>& disabled_features = {
-          features::kSkillsWebViewV2Enabled}) {
-    feature_list_.InitWithFeatures(enabled_features, disabled_features);
-  }
+  SkillsUiTabControllerTest() = default;
 
   void SetUp() override {
     ChromeViewsTestBase::SetUp();
@@ -94,6 +84,7 @@ class SkillsUiTabControllerTest : public ChromeViewsTestBase {
     EXPECT_CALL(mock_tab_, GetBrowserWindowInterface())
         .WillRepeatedly(Return(&mock_browser_window_interface_));
 
+    glic::GlicEnabling::SetBypassEnablementChecksForTesting(true);
     TestingProfile* profile =
         profile_manager->CreateTestingProfile("test_profile");
     glic_test_env_.SetupProfile(profile);
@@ -118,13 +109,10 @@ class SkillsUiTabControllerTest : public ChromeViewsTestBase {
   }
 
  protected:
-  glic::GlicEnabling::ScopedBypassEnablementChecksForTesting
-      scoped_glic_bypass_;
   base::HistogramTester histogram_tester_;
   content::RenderViewHostTestEnabler render_view_host_test_enabler_;
   glic::GlicProfileManager glic_profile_manager_;
   glic::GlicUnitTestEnvironment glic_test_env_;
-  base::test::ScopedFeatureList feature_list_;
 
   ::ui::UnownedUserDataHost user_data_host_;
   tabs::MockTabInterface mock_tab_;
@@ -134,14 +122,12 @@ class SkillsUiTabControllerTest : public ChromeViewsTestBase {
   std::unique_ptr<TestSkillsUiTabController> controller_;
 };
 
-TEST_F(SkillsUiTabControllerTest,
-       InvokeSkill_CallsInvokeWithAutoSubmit_WhenAutoSubmitTrue) {
+TEST_F(SkillsUiTabControllerTest, InvokeSkill_CallsInvokeWithAutoSubmit) {
   controller_->test_skill_.id = kTestSkillId;
   controller_->test_skill_.prompt = "Test Prompt";
 
   auto* mock_glic_keyed_service =
       static_cast<glic::MockGlicKeyedService*>(controller_->GetGlicService());
-  EXPECT_CALL(*mock_glic_keyed_service, Invoke(testing::_)).Times(0);
   EXPECT_CALL(*mock_glic_keyed_service,
               InvokeWithAutoSubmit(testing::_, testing::_))
       .WillOnce([](glic::InvokeWithAutoSubmitPasskey,
@@ -153,45 +139,7 @@ TEST_F(SkillsUiTabControllerTest,
         return base::WeakPtr<glic::GlicInstance>();
       });
 
-  controller_->InvokeSkill(kTestSkillId, "", "", /*auto_submit=*/true);
-}
-
-TEST_F(SkillsUiTabControllerTest, InvokeSkill_CallsInvoke_WhenAutoSubmitFalse) {
-  controller_->test_skill_.id = kTestSkillId;
-  controller_->test_skill_.prompt = "Test Prompt";
-
-  auto* mock_glic_keyed_service =
-      static_cast<glic::MockGlicKeyedService*>(controller_->GetGlicService());
-  EXPECT_CALL(*mock_glic_keyed_service,
-              InvokeWithAutoSubmit(testing::_, testing::_))
-      .Times(0);
-  EXPECT_CALL(*mock_glic_keyed_service, Invoke(testing::_))
-      .WillOnce([](const glic::GlicInvokeOptions& options)
-                    -> base::WeakPtr<glic::GlicInstance> {
-        EXPECT_EQ(options.skill_id, kTestSkillId);
-        EXPECT_EQ(options.prompts.size(), 1u);
-        EXPECT_EQ(options.prompts[0], "Test Prompt");
-        return base::WeakPtr<glic::GlicInstance>();
-      });
-
-  controller_->InvokeSkill(kTestSkillId, "", "", /*auto_submit=*/false);
-}
-
-TEST_F(SkillsUiTabControllerTest, InvokeSkill_NoOpWhenDisabled) {
-  controller_->profile_->GetPrefs()->SetBoolean(
-      skills::prefs::kChromeSkillsEnabled, false);
-  controller_->test_skill_.id = kTestSkillId;
-  controller_->test_skill_.prompt = "Test Prompt";
-
-  auto* mock_glic_keyed_service =
-      static_cast<glic::MockGlicKeyedService*>(controller_->GetGlicService());
-  EXPECT_CALL(*mock_glic_keyed_service,
-              InvokeWithAutoSubmit(testing::_, testing::_))
-      .Times(0);
-  EXPECT_CALL(*mock_glic_keyed_service, Invoke(testing::_)).Times(0);
-
-  controller_->InvokeSkill(kTestSkillId, "", "", /*auto_submit=*/true);
-  EXPECT_TRUE(controller_->GetLastInvokedSkillIdForTesting().empty());
+  controller_->InvokeSkill(kTestSkillId);
 }
 
 TEST_F(SkillsUiTabControllerTest, InvokeSkill_LogsUserCreatedInvokeMetrics) {
@@ -206,7 +154,7 @@ TEST_F(SkillsUiTabControllerTest, InvokeSkill_LogsUserCreatedInvokeMetrics) {
               InvokeWithAutoSubmit(testing::_, testing::_))
       .Times(1);
 
-  controller_->InvokeSkill(kTestSkillId, "", "", /*auto_submit=*/true);
+  controller_->InvokeSkill(kTestSkillId);
 
   histogram_tester_.ExpectBucketCount("Skills.Invoke.Action",
                                       SkillsInvokeAction::kUserCreated, 1);
@@ -226,7 +174,7 @@ TEST_F(SkillsUiTabControllerTest, InvokeSkill_LogsFirstPartyInvokeMetrics) {
               InvokeWithAutoSubmit(testing::_, testing::_))
       .Times(1);
 
-  controller_->InvokeSkill(kTestSkillId, "", "", /*auto_submit=*/true);
+  controller_->InvokeSkill(kTestSkillId);
 
   histogram_tester_.ExpectBucketCount("Skills.Invoke.Action",
                                       SkillsInvokeAction::kFirstParty, 1);
@@ -236,83 +184,35 @@ TEST_F(SkillsUiTabControllerTest, InvokeSkill_LogsFirstPartyInvokeMetrics) {
                                        SkillsInvokeResult::kSuccess, 1);
 }
 
-// Verifies that invoking an enterprise or enterprise-derived skill logs
-// explicit enterprise invoke metrics (kEnterprise and kDerivedFromEnterprise).
-TEST_F(SkillsUiTabControllerTest, InvokeSkill_LogsEnterpriseInvokeMetrics) {
-  controller_->test_skill_.id = kTestSkillId;
-  controller_->test_skill_.source =
-      sync_pb::SkillSource::SKILL_SOURCE_ENTERPRISE;
-  controller_->test_skill_.prompt = "Test Prompt";
-
-  auto* mock_glic_keyed_service =
-      static_cast<glic::MockGlicKeyedService*>(controller_->GetGlicService());
-  EXPECT_CALL(*mock_glic_keyed_service,
-              InvokeWithAutoSubmit(testing::_, testing::_))
-      .Times(2);
-
-  controller_->InvokeSkill(kTestSkillId, "", "", /*auto_submit=*/true);
-
-  controller_->test_skill_.source =
-      sync_pb::SkillSource::SKILL_SOURCE_DERIVED_FROM_ENTERPRISE;
-  controller_->InvokeSkill(kTestSkillId, "", "", /*auto_submit=*/true);
-
-  histogram_tester_.ExpectBucketCount("Skills.Invoke.Action",
-                                      SkillsInvokeAction::kEnterprise, 1);
-  histogram_tester_.ExpectBucketCount(
-      "Skills.Invoke.Action", SkillsInvokeAction::kDerivedFromEnterprise, 1);
-  histogram_tester_.ExpectUniqueSample("Skills.Invoke.Result",
-                                       SkillsInvokeResult::kSuccess, 2);
-}
-
 TEST_F(SkillsUiTabControllerTest, InvokeSkill_SkillNotFound_LogsMetric) {
   auto* mock_glic_keyed_service =
       static_cast<glic::MockGlicKeyedService*>(controller_->GetGlicService());
   EXPECT_CALL(*mock_glic_keyed_service,
               InvokeWithAutoSubmit(testing::_, testing::_))
       .Times(0);
-  EXPECT_CALL(*mock_glic_keyed_service, Invoke(testing::_)).Times(0);
 
-  controller_->InvokeSkill("some_deleted_skill_id", "", "",
-                           /*auto_submit=*/true);
+  controller_->InvokeSkill("some_deleted_skill_id");
 
   histogram_tester_.ExpectUniqueSample(
       "Skills.Invoke.Result", skills::SkillsInvokeResult::kSkillNotFound, 1);
 }
 
-TEST_F(SkillsUiTabControllerTest, SendPrompt_CallsInvokeWithAutoSubmit) {
-  auto* mock_glic_keyed_service =
-      static_cast<glic::MockGlicKeyedService*>(controller_->GetGlicService());
-  EXPECT_CALL(*mock_glic_keyed_service,
-              InvokeWithAutoSubmit(testing::_, testing::_))
-      .WillOnce([](glic::InvokeWithAutoSubmitPasskey,
-                   const glic::GlicInvokeOptions& options)
-                    -> base::WeakPtr<glic::GlicInstance> {
-        EXPECT_EQ(options.prompts.size(), 1u);
-        EXPECT_EQ(options.prompts[0], "Test Prompt");
-        EXPECT_EQ(options.GetInvocationSource(),
-                  glic::mojom::InvocationSource::kSkills);
-        return base::WeakPtr<glic::GlicInstance>();
-      });
-
-  controller_->SendPrompt("Test Prompt");
-}
-
 class SkillsUiTabControllerV2Test : public SkillsUiTabControllerTest {
  public:
-  SkillsUiTabControllerV2Test()
-      : SkillsUiTabControllerTest(
-            {features::kSkillsEnabled, features::kSkillsWebViewV2Enabled},
-            {}) {}
+  SkillsUiTabControllerV2Test() {
+    feature_list_.InitAndEnableFeature(features::kSkillsWebViewV2Enabled);
+  }
+
+ private:
+  base::test::ScopedFeatureList feature_list_;
 };
 
-TEST_F(SkillsUiTabControllerV2Test,
-       InvokeSkill_SkipsPrompt_WhenAutoSubmitTrue) {
+TEST_F(SkillsUiTabControllerV2Test, InvokeSkill_SkipsPrompt) {
   controller_->test_skill_.id = kTestSkillId;
   controller_->test_skill_.prompt = "Test Prompt";
 
   auto* mock_glic_keyed_service =
       static_cast<glic::MockGlicKeyedService*>(controller_->GetGlicService());
-  EXPECT_CALL(*mock_glic_keyed_service, Invoke(testing::_)).Times(0);
   EXPECT_CALL(*mock_glic_keyed_service,
               InvokeWithAutoSubmit(testing::_, testing::_))
       .WillOnce([](glic::InvokeWithAutoSubmitPasskey,
@@ -323,46 +223,7 @@ TEST_F(SkillsUiTabControllerV2Test,
         return base::WeakPtr<glic::GlicInstance>();
       });
 
-  controller_->InvokeSkill(kTestSkillId, "", "", /*auto_submit=*/true);
-}
-
-TEST_F(SkillsUiTabControllerV2Test,
-       InvokeSkill_CallsInvoke_WhenAutoSubmitFalse) {
-  controller_->test_skill_.id = kTestSkillId;
-  controller_->test_skill_.prompt = "Test Prompt";
-
-  auto* mock_glic_keyed_service =
-      static_cast<glic::MockGlicKeyedService*>(controller_->GetGlicService());
-  EXPECT_CALL(*mock_glic_keyed_service,
-              InvokeWithAutoSubmit(testing::_, testing::_))
-      .Times(0);
-  EXPECT_CALL(*mock_glic_keyed_service, Invoke(testing::_))
-      .WillOnce([](const glic::GlicInvokeOptions& options)
-                    -> base::WeakPtr<glic::GlicInstance> {
-        EXPECT_EQ(options.skill_id, kTestSkillId);
-        EXPECT_TRUE(options.prompts.empty());
-        return base::WeakPtr<glic::GlicInstance>();
-      });
-
-  controller_->InvokeSkill(kTestSkillId, "", "", /*auto_submit=*/false);
-}
-
-TEST_F(SkillsUiTabControllerV2Test, SendPrompt_CallsInvokeWithAutoSubmit) {
-  auto* mock_glic_keyed_service =
-      static_cast<glic::MockGlicKeyedService*>(controller_->GetGlicService());
-  EXPECT_CALL(*mock_glic_keyed_service,
-              InvokeWithAutoSubmit(testing::_, testing::_))
-      .WillOnce([](glic::InvokeWithAutoSubmitPasskey,
-                   const glic::GlicInvokeOptions& options)
-                    -> base::WeakPtr<glic::GlicInstance> {
-        EXPECT_EQ(options.prompts.size(), 1u);
-        EXPECT_EQ(options.prompts[0], "Test Prompt");
-        EXPECT_EQ(options.GetInvocationSource(),
-                  glic::mojom::InvocationSource::kSkills);
-        return base::WeakPtr<glic::GlicInstance>();
-      });
-
-  controller_->SendPrompt("Test Prompt");
+  controller_->InvokeSkill(kTestSkillId);
 }
 
 }  // namespace skills

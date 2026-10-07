@@ -13,11 +13,13 @@ IMPL_LANGUAGECODE_TAG_NAME("en", ENGLISH)
 IMPL_LANGUAGECODE_TAG_NAME("pt-BR", PORTUGUESE_BRAZIL)
 IMPL_LANGUAGECODE_TAG_NAME("zh-Hans", CHINESE_SIMPLIFIED)
 
-The script uses a hardcoded list of locales defined within it.
+The script uses a hardcoded list of locales defined within it, and can
+optionally include pseudolocales if requested by the build configuration.
 
 Usage:
-  generate_canonical_locales_list.py <output_file>
+  generate_canonical_locales_list.py <output_file> <enable_pseudolocales>
     <output_file>: The path to the file to generate (usually in $root_gen_dir).
+    <enable_pseudolocales>: "true" or "false" whether to include pseudolocales.
 
 This script is run by the `canonical_language_codes_gen` action in
 `base/i18n/internal/BUILD.gn`. The generated file is included in
@@ -30,22 +32,21 @@ import sys
 
 
 def gen_locale(locale_tuple):  # type: (tuple) -> str
-    """Returns the generated code for a given locale in the list."""
-    code, name = locale_tuple
-    # We assume that all locale codes have only letters, numbers and hyphens.
-    assert code.replace('-', '').isalnum(), code
-    # clang-format enforces a four-space indent for initializer lists.
-    return '    IMPL_LANGUAGECODE_TAG_NAME("{code}", {name})'.format(
-        code=code, name=name
-    )
+  """Returns the generated code for a given locale in the list."""
+  code, name = locale_tuple
+  # We assume that all locale codes have only letters, numbers and hyphens.
+  assert code.replace('-', '').isalnum(), code
+  # clang-format enforces a four-space indent for initializer lists.
+  return '    IMPL_LANGUAGECODE_TAG_NAME("{code}", {name})'.format(code=code,
+                                                                   name=name)
 
 
 def gen_locales(locales):  # type: (list) -> str
-    """Returns the generated code for the locale list.
+  """Returns the generated code for the locale list.
 
     The list is guaranteed to be in sorted order without duplicates.
     """
-    return '\n'.join(gen_locale(locale) for locale in sorted(set(locales)))
+  return '\n'.join(gen_locale(locale) for locale in sorted(set(locales)))
 
 
 _ALL_LOCALES = [
@@ -54,7 +55,6 @@ _ALL_LOCALES = [
     ("am", "AMHARIC"),
     ("an", "ARAGONESE"),
     ("ar", "ARABIC"),
-    ("ar-XB", "RTL_PSEUDOLOCALE"),
     ("as", "ASSAMESE"),
     ("ast", "ASTURIAN"),
     ("ay", "AYMARA"),
@@ -96,7 +96,6 @@ _ALL_LOCALES = [
     ("en-ZA", "ENGLISH_SOUTH_AFRICA"),
     ("en-PH", "ENGLISH_PHILIPPINES"),
     ("en-LR", "ENGLISH_LIBERIA"),
-    ("en-XA", "LONG_STRINGS_PSEUDOLOCALE"),
     ("eo", "ESPERANTO"),
     ("es", "SPANISH"),
     ("es-419", "SPANISH_LATIN_AMERICAN"),
@@ -249,21 +248,29 @@ _ALL_LOCALES = [
     ("zu", "ZULU"),
 ]
 
+_PSEUDO_LOCALES = [
+    ("ar-XB", "RTL_PSEUDOLOCALE"),
+    ("en-XA", "LONG_STRINGS_PSEUDOLOCALE"),
+]
+
 
 def main():  # type: () -> None
-    import doctest
+  import doctest
+  doctest.testmod()
 
-    doctest.testmod()
+  if len(sys.argv) < 2:
+    print('{}: only ran tests'.format(sys.argv[0]))
+    return
 
-    if len(sys.argv) < 2:
-        print('{}: only ran tests'.format(sys.argv[0]))
-        return
-
-    all_locales = sorted(list(set(_ALL_LOCALES)))
-    output = gen_locales(all_locales)
-    with open(sys.argv[1], 'w') as f:
-        f.write(output)
+  is_pseudo_locales_enabled = sys.argv[2] == "true"
+  all_locales = sorted(
+      list(
+          set(_ALL_LOCALES +
+              (_PSEUDO_LOCALES if is_pseudo_locales_enabled else []))))
+  output = gen_locales(all_locales)
+  with open(sys.argv[1], 'w') as f:
+    f.write(output)
 
 
 if __name__ == '__main__':
-    main()
+  main()

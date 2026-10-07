@@ -41,7 +41,6 @@ class BookmarksMessageHandler : public content::WebUIMessageHandler,
   bool CanUploadBookmarkToAccountStorage(const std::string& id);
   void HandleGetCanUploadBookmarkToAccountStorage(const base::ListValue& args);
   void HandleSingleUploadClicked(const base::ListValue& args);
-  void HandleOpenBookmarks(const base::ListValue& args);
 
   void HandleGetBatchUploadPromoData(const base::ListValue& args);
   void HandleOnBatchUploadPromoClicked(const base::ListValue& args);

@@ -77,8 +77,9 @@ public class TopControlsLockCoordinator {
 
     /** Set the {@link SideUiStateProvider} instance. */
     public void setSideUiStateProvider(SideUiStateProvider sideUiStateProvider) {
-        // TODO(crbug.com/542055382): Remove the rest of SideUiState code. The corresponding logic
-        // was implemented using BrowserStateBrowserControlsVisibilityDelegate in Vertical Tabs.
+        mSideUiStateProvider = sideUiStateProvider;
+        mSideUiStateProvider.addObserver(mSideUiObserver);
+        updateLock();
     }
 
     /** Get the token holder used to block scrolling updates. */
@@ -127,7 +128,7 @@ public class TopControlsLockCoordinator {
         // Lock if SideUI shows adjacent to top controls.
         if (mSideUiStateProvider != null) {
             for (var entry : mSideUiStateProvider.getCurrentSideUiSpecs().entrySet()) {
-                if (entry.getValue().mHeightType == HeightType.TOOLBAR) {
+                if (entry.getValue().heightType == HeightType.TOOLBAR) {
                     return true;
                 }
             }

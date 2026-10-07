@@ -79,10 +79,6 @@ class BookmarkBarButtonProperties {
     public static final WritableObjectPropertyKey<Callback<Point>> POINT_CALLBACK =
             new WritableObjectPropertyKey<>();
 
-    /** The listener to notify of long click events. */
-    public static final WritableObjectPropertyKey<View.OnLongClickListener> LONG_CLICK_LISTENER =
-            new WritableObjectPropertyKey<>();
-
     public static final PropertyKey[] ALL_KEYS =
             new PropertyKey[] {
                 CLICK_CALLBACK,
@@ -95,7 +91,6 @@ class BookmarkBarButtonProperties {
                 TEXT_APPEARANCE_ID,
                 BOOKMARK_ITEM,
                 BACKGROUND_DRAWABLE_ID,
-                POINT_CALLBACK,
-                LONG_CLICK_LISTENER
+                POINT_CALLBACK
             };
 }

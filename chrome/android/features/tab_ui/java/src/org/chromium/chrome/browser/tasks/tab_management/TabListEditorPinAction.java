@@ -19,7 +19,6 @@ import org.chromium.components.browser_ui.util.motion.MotionEventInfo;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
-import java.util.ArrayList;
 import java.util.List;
 
 /** TabListEditor action for pinning and unpinning tabs. */
@@ -107,21 +106,12 @@ public class TabListEditorPinAction extends TabListEditorAction {
 
         boolean shouldPin = mState == State.PIN;
         TabModel tabModel = getTabModel();
-        List<Tab> sortedTabs = new ArrayList<>(tabs);
-        sortedTabs.sort((a, b) -> Integer.compare(tabModel.indexOf(a), tabModel.indexOf(b)));
-
-        if (shouldPin) {
-            for (Tab tab : sortedTabs) {
+        for (Tab tab : tabs) {
+            if (shouldPin) {
                 tabModel.pinTab(tab.getId(), /* showUngroupDialog= */ false);
                 TabUiMetricsHelper.recordSelectionEditorActionMetrics(
                         TabUiMetricsHelper.TabListEditorActionMetricGroups.PIN_TABS);
-            }
-        } else {
-            // Unpinning moves the tab to the beginning of unpinned tabs.
-            // Iterating in reverse order (from largest TabModel index to smallest) preserves the
-            // original relative order of unpinned tabs.
-            for (int i = sortedTabs.size() - 1; i >= 0; i--) {
-                Tab tab = sortedTabs.get(i);
+            } else {
                 tabModel.unpinTab(tab.getId());
                 TabUiMetricsHelper.recordSelectionEditorActionMetrics(
                         TabUiMetricsHelper.TabListEditorActionMetricGroups.UNPIN_TABS);

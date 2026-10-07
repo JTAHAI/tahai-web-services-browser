@@ -27,9 +27,9 @@ UIContentSizeCategory NormalizedCategory(UIContentSizeCategory category) {
 CGFloat Interpolate(UIContentSizeCategory category,
                     CGFloat default_height,
                     CGFloat non_dynamic_height) {
-  return AlignValueToLowerPixel((default_height - non_dynamic_height) *
-                                    ToolbarClampedFontSizeMultiplier(category) +
-                                non_dynamic_height);
+  return AlignValueToPixel((default_height - non_dynamic_height) *
+                               ToolbarClampedFontSizeMultiplier(category) +
+                           non_dynamic_height);
 }
 
 }  // namespace
@@ -60,11 +60,10 @@ CGFloat LocationBarVerticalMargins(UIContentSizeCategory category) {
       (kLocationBarVerticalMarginDynamicType +
        kAdaptiveLocationBarVerticalMargin);
   verticalMargin = verticalMargin + dynamicTypeVerticalAdjustment;
-  return AlignValueToLowerPixel(verticalMargin);
+  return AlignValueToPixel(verticalMargin);
 }
 
 CGFloat LocationBarHeight(UIContentSizeCategory category) {
   CGFloat verticalMargin = LocationBarVerticalMargins(category);
-  return AlignValueToLowerPixel(ToolbarExpandedHeight(category) -
-                                verticalMargin);
+  return AlignValueToPixel(ToolbarExpandedHeight(category) - verticalMargin);
 }

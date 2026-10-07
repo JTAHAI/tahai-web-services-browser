@@ -9,9 +9,6 @@
 #include <string>
 
 #include "base/containers/flat_map.h"
-#include "base/memory/raw_ptr.h"
-#include "base/synchronization/lock.h"
-#include "base/thread_annotations.h"
 #include "chromecast/common/activity_url_filter.h"
 #include "chromecast/common/mojom/activity_url_filter.mojom.h"
 #include "content/public/renderer/render_frame_observer.h"
@@ -36,7 +33,6 @@ class CastActivityUrlFilterManager {
   ~CastActivityUrlFilterManager();
 
   // Returns nullptr if no Activity URL filter exists for the render frame.
-  // May be called from any thread.
   ActivityUrlFilter* GetActivityUrlFilterForRenderFrameToken(
       const blink::LocalFrameToken& frame_token);
 
@@ -44,8 +40,6 @@ class CastActivityUrlFilterManager {
   void OnRenderFrameRemoved(const blink::LocalFrameToken& frame_token);
 
  private:
-  friend class CastActivityUrlFilterManagerTest;
-
   class UrlFilterReceiver
       : public content::RenderFrameObserver,
         public chromecast::mojom::ActivityUrlFilterConfiguration {
@@ -88,9 +82,8 @@ class CastActivityUrlFilterManager {
     base::WeakPtrFactory<UrlFilterReceiver> weak_factory_;
   };
 
-  base::Lock filters_lock_;
-  base::flat_map<blink::LocalFrameToken, raw_ptr<UrlFilterReceiver>>
-      activity_url_filters_ GUARDED_BY(filters_lock_);
+  base::flat_map<blink::LocalFrameToken, UrlFilterReceiver*>
+      activity_url_filters_;
 
   base::WeakPtr<CastActivityUrlFilterManager> weak_this_;
   base::WeakPtrFactory<CastActivityUrlFilterManager> weak_factory_;

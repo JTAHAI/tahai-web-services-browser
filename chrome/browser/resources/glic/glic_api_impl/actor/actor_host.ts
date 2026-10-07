@@ -142,14 +142,6 @@ export class ActorHostMessageHandler implements PostMessageHandler<ActorHost> {
     this.actorHandler.uninterruptActorTask(request.taskId);
   }
 
-  updateActorTaskStepProgress(request: {
-    taskId: number,
-    stepProgress: string,
-  }): void {
-    this.actorHandler.updateActorTaskStepProgress(
-        request.taskId, request.stepProgress);
-  }
-
   async createActorTab(request: {
     taskId: number,
     options: api.CreateActorTabOptions,
@@ -493,9 +485,6 @@ function taskOptionsToMojo(taskOptions?: TaskOptions): TaskOptionsMojo|null {
       duration: enumFromClient(taskOptions.duration),
       featureMode:
           enumFromClient(taskOptions.featureMode ?? FeatureMode.UNSPECIFIED),
-      actuationTabId: taskOptions.actuationTabId ?
-          idFromClient(taskOptions.actuationTabId) :
-          null,
     };
   }
   return null;

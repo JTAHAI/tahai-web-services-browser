@@ -17,7 +17,6 @@ import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.ui.widget.Toast;
 
 import java.util.HashMap;
-import java.util.List;
 import java.util.Objects;
 
 /** Manages the confirmation flow for closing pinned tabs to prevent accidental closure. */
@@ -53,35 +52,19 @@ public class PinnedTabClosureManager {
      * tabs always return true.
      *
      * @param selector The {@link TabModelSelector} managing the tab.
-     * @param focusedTab The tab the user is attempting to close.
-     * @param tabsToClose The list of tabs currently being closed.
+     * @param tab The tab the user is attempting to close.
+     * @param isBulkClose Whether is closing multiple tabs.
      * @return True if the tab should be closed immediately; false if the closure is intercepted for
      *     confirmation.
      */
-    public boolean shouldCloseTab(
-            TabModelSelector selector, Tab focusedTab, List<Tab> tabsToClose) {
-        // Fast-path: Unpinned tabs are closed immediately without confirmation.
-        if (!focusedTab.getIsPinned()) {
-            clearPendingState(selector);
-            return true;
-        }
-
-        int pinnedCount = 0;
-        for (Tab tabToClose : tabsToClose) {
-            if (tabToClose.getIsPinned()) {
-                pinnedCount++;
-            }
-        }
-        boolean allPinned = !tabsToClose.isEmpty() && pinnedCount == tabsToClose.size();
-        boolean shouldSkipConfirmation = !allPinned;
-
-        if (shouldSkipConfirmation) {
+    public boolean shouldCloseTab(TabModelSelector selector, Tab tab, boolean isBulkClose) {
+        if (!tab.getIsPinned() || isBulkClose) {
             clearPendingState(selector);
             return true;
         }
 
         int pendingTabId = mPendingPinnedTabs.getOrDefault(selector, Tab.INVALID_TAB_ID);
-        int tabId = focusedTab.getId();
+        int tabId = tab.getId();
 
         // Confirm the closure on the second attempt.
         if (pendingTabId == tabId) {
@@ -91,7 +74,7 @@ public class PinnedTabClosureManager {
 
         // Pending closure on the first attempt.
         mPendingPinnedTabs.put(selector, tabId);
-        showToast(focusedTab.getContext(), pinnedCount);
+        showToast(tab.getContext());
 
         // Clears the pending state after 4 seconds to match desktop behavior.
         PostTask.postDelayedTask(
@@ -116,15 +99,11 @@ public class PinnedTabClosureManager {
     }
 
     @VisibleForTesting
-    public void showToast(Context context, int count) {
+    public void showToast(Context context) {
         if (mCurrentToast != null) mCurrentToast.cancel();
         mCurrentToast =
                 Toast.makeText(
-                        context,
-                        context.getResources()
-                                .getQuantityString(
-                                        R.plurals.keyboard_shortcut_close_pinned_tab, count),
-                        Toast.LENGTH_LONG);
+                        context, R.string.keyboard_shortcut_close_pinned_tab, Toast.LENGTH_LONG);
         mCurrentToast.show();
     }
 

@@ -11,6 +11,7 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mockito;
+import org.robolectric.annotation.Config;
 
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.base.test.util.CallbackHelper;
@@ -25,6 +26,7 @@ import java.util.concurrent.TimeoutException;
  * TrustedWebActivityClient and back again. It uses a mock TrustedWebActivityClient.
  */
 @RunWith(BaseRobolectricTestRunner.class)
+@Config(manifest = Config.NONE)
 @SuppressWarnings("DoNotMock") // Mocking GURL
 public class DigitalGoodsUnitTest {
     private final DigitalGoodsImpl.Delegate mDelegate =

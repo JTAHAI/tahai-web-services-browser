@@ -4,28 +4,22 @@
 
 #include "gin/public/context_holder.h"
 
+#include <memory>
+
 #include "base/check.h"
 #include "gin/per_context_data.h"
-#include "v8/include/cppgc/allocation.h"
-#include "v8/include/v8-cppgc.h"
 
 namespace gin {
 
 ContextHolder::ContextHolder(v8::Isolate* isolate) : isolate_(isolate) {}
 
-ContextHolder::~ContextHolder() {
-  if (data_) {
-    data_->Detach();
-    data_ = nullptr;
-  }
-}
+ContextHolder::~ContextHolder() = default;
 
 void ContextHolder::SetContext(v8::Local<v8::Context> context) {
   DCHECK(context_.IsEmpty());
   context_.Reset(isolate_, context);
   context_.AnnotateStrongRetainer("gin::ContextHolder::context_");
-  data_ = cppgc::MakeGarbageCollected<PerContextData>(
-      isolate_->GetCppHeap()->GetAllocationHandle(), this, context);
+  data_ = std::make_unique<PerContextData>(this, context);
 }
 
 }  // namespace gin

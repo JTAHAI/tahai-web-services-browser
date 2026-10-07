@@ -8,7 +8,9 @@
 #include <ranges>
 #include <set>
 
+#include "base/containers/adapters.h"
 #include "base/containers/flat_set.h"
+#include "base/types/zip.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
@@ -70,7 +72,7 @@ TEST(ToVectorTest, MoveOnly) {
   v.push_back(std::make_unique<int>(2));
   v.push_back(std::make_unique<int>(3));
 
-  auto v2 = base::ToVector(std::views::as_rvalue(v));
+  auto v2 = base::ToVector(base::RangeAsRvalues(std::move(v)));
   EXPECT_THAT(v2, ElementsAre(Pointee(1), Pointee(2), Pointee(3)));
 
   // The old vector should be consumed. The standard guarantees that a
@@ -140,7 +142,7 @@ TEST(ToVectorTest, UnsizedRangeProjected) {
 TEST(ToVectorTest, ToVectorWithZipAndProjection) {
   const std::vector a = {1, 2, 3};
   const std::vector b = {3, 2, 1};
-  auto z = std::views::zip(a, b);
+  auto z = base::zip(a, b);
 
   EXPECT_THAT(base::ToVector(
                   z, [](std::pair<int, int> x) { return x.first + x.second; }),

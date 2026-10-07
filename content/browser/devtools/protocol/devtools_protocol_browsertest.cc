@@ -83,7 +83,6 @@
 #include "content/shell/browser/shell_content_browser_client.h"
 #include "content/shell/browser/shell_download_manager_delegate.h"
 #include "content/test/content_browser_test_utils_internal.h"
-#include "media/media_buildflags.h"
 #include "net/base/features.h"
 #include "net/dns/dns_test_util.h"
 #include "net/dns/mock_host_resolver.h"
@@ -1398,94 +1397,6 @@ IN_PROC_BROWSER_TEST_F(CaptureScreenshotTest,
                     true);
 }
 
-IN_PROC_BROWSER_TEST_F(CaptureScreenshotTest, ScreencastSendsLastRepaint) {
-  shell()->LoadURL(
-      GURL("data:text/html,<body style='background:%23ff0000'></body>"));
-  EXPECT_TRUE(WaitForLoadStop(shell()->web_contents()));
-  Attach();
-  SendCommandSync("Page.enable");
-
-  base::DictValue params;
-  params.Set("format", "png");
-  // Only allow a single frame in flight, so that the repaint below cannot be
-  // sent before the first frame is acknowledged.
-  params.Set("maxFramesInFlight", 1);
-  params.Set("sendLastFrame", true);
-  SendCommandSync("Page.startScreencast", std::move(params));
-  ASSERT_FALSE(error());
-
-  base::DictValue frame = WaitForNotification("Page.screencastFrame", true);
-  std::optional<int> session_id = frame.FindInt("sessionId");
-  const std::string* data = frame.FindString("data");
-  ASSERT_TRUE(session_id && data) << "Did not receive a screencast frame";
-  // Screencast frames go through video encoding, so the colors are not exact.
-  constexpr int kMaxColorDiff = 20;
-  SkBitmap bitmap = DecodePNG(*data);
-  EXPECT_TRUE(ColorsMatchWithinLimit(
-      SK_ColorRED, bitmap.getColor(bitmap.width() / 2, bitmap.height() / 2),
-      kMaxColorDiff));
-
-  // Repaint the page while the first frame is still in flight.
-  RenderFrameSubmissionObserver observer(shell()->web_contents());
-  ASSERT_TRUE(ExecJs(shell(), "document.body.style.background = '#00ff00'"));
-  observer.WaitForAnyFrameSubmission();
-  // Waiting for the renderer-side frame submission is not enough - make sure
-  // the browser compositor has drawn it, so that the capturer has picked it
-  // up and delivered it to the page handler.
-  ForceNewCompositorFrameFromBrowser(shell()->web_contents());
-  WaitForBrowserCompositorFramePresented(shell()->web_contents());
-
-  base::DictValue ack;
-  ack.Set("sessionId", *session_id);
-  SendCommandSync("Page.screencastFrameAck", std::move(ack));
-
-  // The repaint was captured while the first frame was in flight, and has to
-  // be delivered now that there is room for it again.
-  base::DictValue next = WaitForNotification("Page.screencastFrame", true);
-  const std::string* next_data = next.FindString("data");
-  ASSERT_TRUE(next_data) << "Did not receive the withheld screencast frame";
-  SkBitmap next_bitmap = DecodePNG(*next_data);
-  EXPECT_TRUE(ColorsMatchWithinLimit(
-      SK_ColorGREEN,
-      next_bitmap.getColor(next_bitmap.width() / 2, next_bitmap.height() / 2),
-      kMaxColorDiff));
-
-  SendCommandSync("Page.stopScreencast");
-}
-
-#if BUILDFLAG(ENABLE_LIBAOM)
-IN_PROC_BROWSER_TEST_F(CaptureScreenshotTest, StartStopScreenRecording) {
-  shell()->LoadURL(
-      GURL("data:text/html,<body style='background:#123456;'></body>"));
-  EXPECT_TRUE(WaitForLoadStop(shell()->web_contents()));
-  Attach();
-
-  const base::DictValue* start_result =
-      SendCommandSync("Page.startScreenRecording");
-  ASSERT_TRUE(start_result);
-  const std::string* stream_handle_ptr = start_result->FindString("stream");
-  ASSERT_TRUE(stream_handle_ptr);
-  std::string stream_handle = *stream_handle_ptr;
-  EXPECT_FALSE(stream_handle.empty());
-
-  EXPECT_TRUE(
-      content::ExecJs(shell()->web_contents(),
-                      "document.body.style.backgroundColor = '#654321';"));
-
-  const base::DictValue* stop_result =
-      SendCommandSync("Page.stopScreenRecording");
-  ASSERT_TRUE(stop_result);
-
-  base::DictValue read_params;
-  read_params.Set("handle", stream_handle);
-  const base::DictValue* read_response =
-      SendCommandSync("IO.read", std::move(read_params));
-  ASSERT_TRUE(read_response);
-  const std::string* data = read_response->FindString("data");
-  ASSERT_TRUE(data);
-}
-#endif  // BUILDFLAG(ENABLE_LIBAOM)
-
 IN_PROC_BROWSER_TEST_F(DevToolsProtocolTest,
                        NoCrashDeviceMetricsOverrideAutoResize) {
   NavigateToURLBlockUntilNavigationsComplete(
@@ -2646,7 +2557,7 @@ IN_PROC_BROWSER_TEST_F(DevToolsProtocolTest,
   Attach();
   SendCommandSync("Network.enable");
   SendCommandAsync("Security.enable");
-  SendCommandSync("Fetch.enable",
+  SendCommandSync("Network.setRequestInterception",
                   std::move(base::JSONReader::Read(
                                 "{\"patterns\": [{\"urlPattern\": \"*\"}]}",
                                 base::JSON_PARSE_CHROMIUM_EXTENSIONS)
@@ -2662,12 +2573,14 @@ IN_PROC_BROWSER_TEST_F(DevToolsProtocolTest,
   SendCommandSync("Network.clearBrowserCookies");
   TestNavigationObserver continue_observer(shell()->web_contents(), 1);
   shell()->LoadURL(test_url);
-  base::DictValue params = WaitForNotification("Fetch.requestPaused", false);
-  std::string requestId = *params.FindString("requestId");
+  base::DictValue params =
+      WaitForNotification("Network.requestIntercepted", false);
+  std::string interceptionId = *params.FindString("interceptionId");
   SendCommandAsync(
-      "Fetch.continueRequest",
-      std::move(base::JSONReader::Read("{\"requestId\": \"" + requestId + "\"}",
-                                       base::JSON_PARSE_CHROMIUM_EXTENSIONS)
+      "Network.continueInterceptedRequest",
+      std::move(base::JSONReader::Read(
+                    "{\"interceptionId\": \"" + interceptionId + "\"}",
+                    base::JSON_PARSE_CHROMIUM_EXTENSIONS)
                     ->GetDict()));
   continue_observer.Wait();
   EXPECT_EQ(test_url, shell()
@@ -3136,7 +3049,7 @@ IN_PROC_BROWSER_TEST_F(DevToolsProtocolTest, SetAndGetCookies) {
 }
 
 IN_PROC_BROWSER_TEST_F(DevToolsProtocolTest,
-                       ClearBrowserCookies) {
+                       ClearBrowserCookiesWithAllCookieAccess) {
   ASSERT_TRUE(embedded_test_server()->Start());
   GURL main_page_url = embedded_test_server()->GetURL("a.test", "/title1.html");
   NavigateToURLBlockUntilNavigationsComplete(shell(), main_page_url, 1);
@@ -3168,43 +3081,6 @@ IN_PROC_BROWSER_TEST_F(DevToolsProtocolTest,
   EXPECT_FALSE(error());
 
   cookies = SendCommandSync("Network.getAllCookies")->FindList("cookies");
-  ASSERT_TRUE(cookies);
-  EXPECT_TRUE(cookies->empty());
-}
-
-IN_PROC_BROWSER_TEST_F(DevToolsProtocolTest,
-                       StorageClearCookies) {
-  ASSERT_TRUE(embedded_test_server()->Start());
-  GURL main_page_url = embedded_test_server()->GetURL("a.test", "/title1.html");
-  NavigateToURLBlockUntilNavigationsComplete(shell(), main_page_url, 1);
-  Attach();
-
-  // Set cookies on two different hosts via the protocol.
-  base::DictValue set_cookies_params;
-  base::ListValue cookies_list;
-  base::DictValue cookie_a;
-  cookie_a.Set("name", "cookie_a");
-  cookie_a.Set("value", "value_a");
-  cookie_a.Set("url", embedded_test_server()->GetURL("a.test", "/").spec());
-  cookies_list.Append(std::move(cookie_a));
-  base::DictValue cookie_b;
-  cookie_b.Set("name", "cookie_b");
-  cookie_b.Set("value", "value_b");
-  cookie_b.Set("url", embedded_test_server()->GetURL("b.test", "/").spec());
-  cookies_list.Append(std::move(cookie_b));
-  set_cookies_params.Set("cookies", std::move(cookies_list));
-  SendCommandSync("Network.setCookies", std::move(set_cookies_params));
-  EXPECT_FALSE(error());
-
-  const base::ListValue* cookies =
-      SendCommandSync("Storage.getCookies")->FindList("cookies");
-  ASSERT_TRUE(cookies);
-  EXPECT_EQ(2u, cookies->size());
-
-  SendCommandSync("Storage.clearCookies");
-  EXPECT_FALSE(error());
-
-  cookies = SendCommandSync("Storage.getCookies")->FindList("cookies");
   ASSERT_TRUE(cookies);
   EXPECT_TRUE(cookies->empty());
 }
@@ -3257,9 +3133,19 @@ IN_PROC_BROWSER_TEST_F(DevToolsProtocolTest, CookiePermissions) {
   SendCommandSync("Network.deleteCookies", std::move(del_params));
   EXPECT_FALSE(error());
 
+  // Try to clear browser cookies.
+  SendCommandSync("Network.clearBrowserCookies");
+  EXPECT_FALSE(error());
+
+  // Verify a.test cookie is gone.
+  const base::ListValue* cookies =
+      SendCommandSync("Network.getAllCookies")->FindList("cookies");
+  ASSERT_TRUE(cookies);
+  EXPECT_EQ(0u, cookies->size());
+
   Detach();
 
-  // Verify b.test cookie is still there (deleteCookies respected permissions).
+  // Verify b.test cookie is still there.
   GURL url_b_echo =
       embedded_test_server()->GetURL("b.test", "/echoheader?Cookie");
   EXPECT_TRUE(NavigateToURL(shell(), url_b_echo));
@@ -3267,20 +3153,6 @@ IN_PROC_BROWSER_TEST_F(DevToolsProtocolTest, CookiePermissions) {
       EvalJs(shell()->web_contents(), "document.body.innerText")
           .ExtractString();
   EXPECT_THAT(content, testing::HasSubstr("foo=bar"));
-
-  // Clear browser cookies: partition-wide clearing clears all cookies
-  // regardless of not_attachable_hosts_.
-  Attach();
-  SendCommandSync("Network.clearBrowserCookies");
-  EXPECT_FALSE(error());
-  Detach();
-
-  // Verify b.test cookie is now deleted.
-  EXPECT_TRUE(NavigateToURL(shell(), url_b_echo));
-  content =
-      EvalJs(shell()->web_contents(), "document.body.innerText")
-          .ExtractString();
-  EXPECT_THAT(content, testing::Not(testing::HasSubstr("foo=bar")));
 }
 
 IN_PROC_BROWSER_TEST_F(DevToolsProtocolTest,
@@ -3405,15 +3277,6 @@ class DevToolsProtocolDeviceEmulationTest : public DevToolsProtocolTest {
     SendCommandSync("Emulation.setDeviceMetricsOverride", std::move(params));
   }
 
-  void EmulateDeviceScaleFactor(float device_scale_factor) {
-    base::DictValue params;
-    params.Set("width", 0);
-    params.Set("height", 0);
-    params.Set("deviceScaleFactor", device_scale_factor);
-    params.Set("mobile", false);
-    SendCommandSync("Emulation.setDeviceMetricsOverride", std::move(params));
-  }
-
   gfx::Size GetViewSize() {
     return shell()
         ->web_contents()
@@ -3422,47 +3285,7 @@ class DevToolsProtocolDeviceEmulationTest : public DevToolsProtocolTest {
         ->GetViewBounds()
         .size();
   }
-
-  gfx::Size GetLayoutViewportSize() {
-    return gfx::Size(
-        EvalJs(shell()->web_contents(), "window.innerWidth").ExtractInt(),
-        EvalJs(shell()->web_contents(), "window.innerHeight").ExtractInt());
-  }
 };
-
-#if BUILDFLAG(IS_ANDROID)
-IN_PROC_BROWSER_TEST_F(DevToolsProtocolDeviceEmulationTest,
-                       AndroidLayoutViewportUsesDeviceSize) {
-  NavigateToURLBlockUntilNavigationsComplete(
-      shell(), GURL("data:text/html,<!doctype html><body></body>"), 1);
-  Attach();
-
-  const gfx::Size original_size = GetLayoutViewportSize();
-  const gfx::Size first_size(250, 300);
-  const gfx::Size second_size(320, 480);
-
-  EmulateDeviceSize(first_size);
-  EXPECT_EQ(first_size, GetLayoutViewportSize());
-
-  EmulateDeviceScaleFactor(2.0f);
-  EXPECT_NEAR(2.0,
-              EvalJs(shell()->web_contents(), "window.devicePixelRatio")
-                  .ExtractDouble(),
-              0.000001);
-  // With no explicit width or height, changing only the DPR must restore the
-  // native Android layout viewport rather than retaining the previous size.
-  EXPECT_EQ(original_size.width(), GetLayoutViewportSize().width());
-
-  EmulateDeviceSize(second_size);
-  EXPECT_EQ(second_size, GetLayoutViewportSize());
-
-  SendCommandSync("Emulation.clearDeviceMetricsOverride");
-  // Android browser controls can change the available height while this test
-  // runs. The layout viewport width is stable and verifies that the native
-  // mobile viewport behavior was restored.
-  EXPECT_EQ(original_size.width(), GetLayoutViewportSize().width());
-}
-#endif  // BUILDFLAG(IS_ANDROID)
 
 // Setting frame size (through RWHV) is not supported on Android.
 #if BUILDFLAG(IS_ANDROID)
@@ -4118,85 +3941,6 @@ IN_PROC_BROWSER_TEST_F(DevToolsDownloadContentTest, DeniedDownload) {
   ASSERT_EQ(download::DownloadItem::CANCELLED, download->GetState());
 }
 
-// A stale DevTools session must not reset a newer session's download path when
-// it detaches from the same browser context.
-IN_PROC_BROWSER_TEST_F(DevToolsDownloadContentTest,
-                       OlderSessionDetachPreservesNewerAllowPath) {
-  base::ScopedAllowBlockingForTesting allow_blocking;
-  base::ScopedTempDir temp_dir;
-  ASSERT_TRUE(temp_dir.CreateUniqueTempDir());
-  const base::FilePath older_download_path =
-      temp_dir.GetPath().AppendASCII("older");
-  const base::FilePath newer_download_path =
-      temp_dir.GetPath().AppendASCII("newer");
-  SetupEnsureNoPendingDownloads();
-  NavigateToURLBlockUntilNavigationsComplete(shell(), GURL("about:blank"), 1);
-
-  TestDevToolsProtocolClient older_client;
-  older_client.AttachToBrowserTarget();
-  base::DictValue older_params;
-  older_params.Set("behavior", "allow");
-  older_params.Set("downloadPath", older_download_path.AsUTF8Unsafe());
-  EXPECT_TRUE(older_client.SendCommandSync("Browser.setDownloadBehavior",
-                                           std::move(older_params)));
-
-  TestDevToolsProtocolClient newer_client;
-  newer_client.AttachToBrowserTarget();
-  base::DictValue newer_params;
-  newer_params.Set("behavior", "allow");
-  newer_params.Set("downloadPath", newer_download_path.AsUTF8Unsafe());
-  EXPECT_TRUE(newer_client.SendCommandSync("Browser.setDownloadBehavior",
-                                           std::move(newer_params)));
-
-  older_client.DetachProtocolClient();
-
-  download::DownloadItem* download = StartDownloadAndReturnItem(
-      shell(), embedded_test_server()->GetURL("/download/download-test.lib"));
-  WaitForCompletion(download);
-  EXPECT_EQ(newer_download_path.AppendASCII("download-test.lib"),
-            download->GetTargetFilePath());
-  EXPECT_FALSE(
-      base::PathExists(older_download_path.AppendASCII("download-test.lib")));
-  EXPECT_TRUE(base::PathExists(download->GetTargetFilePath()));
-  EXPECT_TRUE(EnsureNoPendingDownloads());
-
-  newer_client.DetachProtocolClient();
-}
-
-// Detaching the current owner restores the default behavior instead of
-// reviving an older session's override.
-IN_PROC_BROWSER_TEST_F(DevToolsDownloadContentTest,
-                       CurrentSessionDetachRestoresDefaultBehavior) {
-  base::ScopedAllowBlockingForTesting allow_blocking;
-  SetupEnsureNoPendingDownloads();
-  NavigateToURLBlockUntilNavigationsComplete(shell(), GURL("about:blank"), 1);
-
-  TestDevToolsProtocolClient older_client;
-  older_client.AttachToBrowserTarget();
-  base::DictValue params;
-  params.Set("behavior", "deny");
-  EXPECT_TRUE(older_client.SendCommandSync("Browser.setDownloadBehavior",
-                                           params.Clone()));
-
-  TestDevToolsProtocolClient newer_client;
-  newer_client.AttachToBrowserTarget();
-  EXPECT_TRUE(newer_client.SendCommandSync("Browser.setDownloadBehavior",
-                                           std::move(params)));
-
-  newer_client.DetachProtocolClient();
-
-  download::DownloadItem* download = StartDownloadAndReturnItem(
-      shell(), embedded_test_server()->GetURL(
-                   content::SlowDownloadHttpResponse::kUnknownSizeUrl));
-  EXPECT_EQ(download::DownloadItem::IN_PROGRESS, download->GetState());
-  download->Cancel(true);
-  DownloadTestFlushObserver flush_observer(DownloadManagerForShell(shell()));
-  flush_observer.WaitForFlush();
-  EXPECT_TRUE(EnsureNoPendingDownloads());
-
-  older_client.DetachProtocolClient();
-}
-
 // Check that defaulting downloads works as expected.
 IN_PROC_BROWSER_TEST_F(DevToolsDownloadContentTest, DefaultDownload) {
   base::ScopedAllowBlockingForTesting allow_blocking;
@@ -4510,43 +4254,6 @@ class SystemTracingDevToolsProtocolTest : public DevToolsProtocolTest {
 IN_PROC_BROWSER_TEST_F(SystemTracingDevToolsProtocolTest,
                        StartSystemTracingFailsWhenSystemConsumerDisabled) {
   EXPECT_FALSE(StartSystemTrace());
-}
-
-IN_PROC_BROWSER_TEST_F(SystemTracingDevToolsProtocolTest,
-                       StartSystemTracingRequiresTrustedClient) {
-  SetIsTrusted(false);
-  EXPECT_FALSE(StartSystemTrace());
-  EXPECT_THAT(
-      error()->FindInt("code"),
-      testing::Optional(static_cast<int>(crdtp::DispatchCode::SERVER_ERROR)));
-  EXPECT_EQ(*error()->FindString("message"),
-            "System backend is not allowed for the current client");
-}
-
-IN_PROC_BROWSER_TEST_F(DevToolsProtocolTest,
-                       TracingAutoBackendNonChromeSourceRequiresTrustedClient) {
-  perfetto::TraceConfig perfetto_config;
-  perfetto_config.add_buffers()->set_size_kb(1024);
-  perfetto_config.add_data_sources()->mutable_config()->set_name(
-      "linux.ftrace");
-  std::string perfetto_config_encoded =
-      base::Base64Encode(perfetto_config.SerializeAsString());
-
-  base::DictValue params;
-  params.Set("perfettoConfig", perfetto_config_encoded);
-  params.Set("transferMode", "ReturnAsStream");
-  params.Set("tracingBackend", "auto");
-
-  SetIsTrusted(false);
-  NavigateToURLBlockUntilNavigationsComplete(shell(), GURL("about:blank"), 1);
-  Attach();
-
-  EXPECT_FALSE(SendCommandSync("Tracing.start", std::move(params)));
-  EXPECT_THAT(
-      error()->FindInt("code"),
-      testing::Optional(static_cast<int>(crdtp::DispatchCode::SERVER_ERROR)));
-  EXPECT_EQ(*error()->FindString("message"),
-            "System backend is not allowed for the current client");
 }
 
 #if BUILDFLAG(IS_POSIX)
@@ -5667,110 +5374,6 @@ IN_PROC_BROWSER_TEST_F(DevToolsProtocolTest,
   const std::string* error_message = error()->FindString("message");
   ASSERT_TRUE(error_message);
   EXPECT_EQ("Internal error", *error_message);
-}
-
-// Regression test for crbug.com/521620916: detaching the browser client when
-// hidden targets with crashed renderers are attached should not cause
-// reentrancy UAF when sessions are cleared.
-IN_PROC_BROWSER_TEST_F(DevToolsProtocolTest, DetachWithCrashedHiddenTargets) {
-  content::ScopedAllowRendererCrashes scoped_allow_renderer_crashes;
-  set_agent_host_can_close();
-  AttachToBrowserTarget();
-
-  base::DictValue create_page_params;
-  create_page_params.Set("url", "about:blank");
-  const base::DictValue* result =
-      SendCommandSync("Target.createTarget", std::move(create_page_params));
-  ASSERT_TRUE(result);
-  const std::string* page_target_id_ptr = result->FindString("targetId");
-  ASSERT_TRUE(page_target_id_ptr);
-  std::string page_target_id = *page_target_id_ptr;
-
-  scoped_refptr<DevToolsAgentHost> page_agent_host =
-      DevToolsAgentHost::GetForId(page_target_id);
-  ASSERT_TRUE(page_agent_host);
-  EXPECT_TRUE(WaitForLoadStop(page_agent_host->GetWebContents()));
-
-  base::DictValue attach_params;
-  attach_params.Set("targetId", page_target_id);
-  attach_params.Set("flatten", true);
-  result = SendCommandSync("Target.attachToTarget", std::move(attach_params));
-  ASSERT_TRUE(result);
-  const std::string* page_session_id_ptr = result->FindString("sessionId");
-  ASSERT_TRUE(page_session_id_ptr);
-  std::string page_session_id = *page_session_id_ptr;
-
-  // Use 12 targets to ensure sufficient depth and branching in libc++'s
-  // std::map Red-Black tree so that reentrant erase() calls during clearance
-  // reliably collide with post-order traversal regardless of key ordering.
-  constexpr size_t kHiddenTargetCount = 12;
-  std::vector<std::string> hidden_target_ids;
-  for (size_t i = 0; i < kHiddenTargetCount; ++i) {
-    base::DictValue params;
-    params.Set("url", "about:blank");
-    params.Set("hidden", true);
-    const base::DictValue* create_result = SendSessionCommand(
-        "Target.createTarget", std::move(params), page_session_id, true);
-    ASSERT_TRUE(create_result);
-    const std::string* target_id = create_result->FindString("targetId");
-    ASSERT_TRUE(target_id);
-    hidden_target_ids.push_back(*target_id);
-  }
-
-  for (const std::string& target_id : hidden_target_ids) {
-    scoped_refptr<DevToolsAgentHost> agent_host =
-        DevToolsAgentHost::GetForId(target_id);
-    ASSERT_TRUE(agent_host);
-    WebContents* web_contents = agent_host->GetWebContents();
-    ASSERT_TRUE(web_contents);
-    EXPECT_TRUE(WaitForLoadStop(web_contents));
-  }
-
-  for (const std::string& target_id : hidden_target_ids) {
-    base::DictValue params;
-    params.Set("targetId", target_id);
-    params.Set("flatten", true);
-    SendCommandSync("Target.attachToTarget", std::move(params));
-  }
-
-  // Terminate each hidden target's renderer so that closing the page on
-  // detach takes the synchronous path. The browser session is then detached
-  // during fixture tear down, which closes the hidden targets while the
-  // owning child session is being released.
-  std::set<RenderProcessHost*> rphs;
-  for (const std::string& target_id : hidden_target_ids) {
-    scoped_refptr<DevToolsAgentHost> agent_host =
-        DevToolsAgentHost::GetForId(target_id);
-    ASSERT_TRUE(agent_host);
-    WebContents* web_contents = agent_host->GetWebContents();
-    ASSERT_TRUE(web_contents);
-    RenderProcessHost* rph = web_contents->GetPrimaryMainFrame()->GetProcess();
-    if (rph) {
-      rphs.insert(rph);
-    }
-  }
-
-  for (RenderProcessHost* rph : rphs) {
-    if (rph && rph->IsInitializedAndNotDead()) {
-      RenderProcessHostWatcher watcher(
-          rph, RenderProcessHostWatcher::WATCH_FOR_PROCESS_EXIT);
-      rph->Shutdown(RESULT_CODE_KILLED);
-      watcher.Wait();
-    }
-  }
-
-  for (const std::string& target_id : hidden_target_ids) {
-    scoped_refptr<DevToolsAgentHost> agent_host =
-        DevToolsAgentHost::GetForId(target_id);
-    ASSERT_TRUE(agent_host);
-    WebContents* web_contents = agent_host->GetWebContents();
-    ASSERT_TRUE(web_contents);
-    ASSERT_FALSE(web_contents->GetPrimaryMainFrame()->IsRenderFrameLive());
-  }
-
-  // Detaching the browser client closes the page session and hidden targets
-  // synchronously; should not crash or trigger reentrancy UAF.
-  Detach();
 }
 
 }  // namespace content

@@ -45,8 +45,8 @@ export class PrintPreviewMediaTypeSettingsElement extends
     ];
   }
 
-  declare capability: MediaTypeCapability;
-  declare disabled: boolean;
+  capability: MediaTypeCapability;
+  disabled: boolean;
   private lastSelectedValue_: string = '';
 
   private onMediaTypeSettingChange_() : void {

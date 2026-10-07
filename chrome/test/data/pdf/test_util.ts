@@ -457,8 +457,6 @@ export function createWheelEvent(
     clientX: position.clientX,
     clientY: position.clientY,
     ctrlKey,
-    bubbles: true,
-    composed: true,
     // Necessary for preventDefault() to work.
     cancelable: true,
   });
@@ -837,7 +835,6 @@ export function getTestAnnotation(id: number): TextAnnotation {
       styles: {
         bold: false,
         italic: false,
-        strikethrough: false,
       },
     },
     textBoxRect: {

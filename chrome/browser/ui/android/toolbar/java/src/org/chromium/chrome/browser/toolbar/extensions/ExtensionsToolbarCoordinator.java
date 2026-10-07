@@ -59,8 +59,7 @@ public interface ExtensionsToolbarCoordinator extends ChromeAndroidTaskFeature, 
             @Nullable SelectionDropdownMenuDelegate selectionDropdownMenuDelegate,
             TabModelSelector tabModelSelector,
             ModalDialogManager modalDialogManager,
-            @Nullable Runnable onFeatureRemoved,
-            boolean isWebApp) {
+            @Nullable Runnable onFeatureRemoved) {
         // Check if the extension UI is enabled first.
         if (!ExtensionUi.isEnabled(profile)) {
             return null;
@@ -85,8 +84,7 @@ public interface ExtensionsToolbarCoordinator extends ChromeAndroidTaskFeature, 
                 selectionDropdownMenuDelegate,
                 tabModelSelector,
                 modalDialogManager,
-                onFeatureRemoved,
-                isWebApp);
+                onFeatureRemoved);
         return coordinator;
     }
 
@@ -111,8 +109,7 @@ public interface ExtensionsToolbarCoordinator extends ChromeAndroidTaskFeature, 
             @Nullable SelectionDropdownMenuDelegate selectionDropdownMenuDelegate,
             TabModelSelector tabModelSelector,
             ModalDialogManager modalDialogManager,
-            @Nullable Runnable onFeatureRemoved,
-            boolean isWebApp);
+            @Nullable Runnable onFeatureRemoved);
 
     /**
      * Dispatches the key event to trigger the corresponding extension action if any.

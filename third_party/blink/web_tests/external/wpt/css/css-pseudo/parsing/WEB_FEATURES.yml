@@ -1,2 +1,4 @@
-rules:
-- marker-*: [marker]
+features:
+- name: marker
+  files:
+  - marker-*

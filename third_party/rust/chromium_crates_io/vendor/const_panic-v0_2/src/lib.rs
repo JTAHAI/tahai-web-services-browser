@@ -161,8 +161,6 @@
 //!
 //! The panic message can only be up to [`MAX_PANIC_MSG_LEN`] long,
 //! after which it is truncated.
-//! The length can be configured by users,
-//! as described in [the docs for the constant][`MAX_PANIC_MSG_LEN`].
 //!
 //! # Cargo features
 //!
@@ -211,10 +209,6 @@
 #![deny(clippy::missing_safety_doc)]
 #![deny(clippy::shadow_unrelated)]
 #![deny(clippy::wildcard_imports)]
-// while this could be useful, this crate already tests for version compat in CI.
-// Adding a bunch of `#[clippy::msrv = ...]` everywhere would just be noise,
-// too bad there's no global way of setting clippy's msrv checker.
-#![allow(clippy::incompatible_msrv)]
 
 extern crate self as const_panic;
 
@@ -346,6 +340,6 @@ pub mod for_tests {
     pub use crate::concat_panic_::{format_panic_message, NotEnoughSpace};
 }
 
-#[cfg(doctest)]
+#[cfg(all(doctest))]
 #[doc = include_str!("../README.md")]
 pub struct ReadmeTest;

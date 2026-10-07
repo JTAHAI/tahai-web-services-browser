@@ -8,7 +8,6 @@
 
 #include "media/base/audio_processing.h"
 #include "media/base/audio_processor_controls.h"
-#include "media/media_buildflags.h"
 #include "media/mojo/mojom/audio_processing.mojom-shared.h"
 #include "mojo/public/cpp/bindings/struct_traits.h"
 
@@ -52,11 +51,6 @@ struct StructTraits<media::mojom::AudioProcessingSettingsDataView,
       const media::AudioProcessingSettings& s) {
     return s.use_loopback_aec_reference;
   }
-#if BUILDFLAG(CHROME_WIDE_ECHO_CANCELLATION)
-  static bool voice_isolation(const media::AudioProcessingSettings& s) {
-    return s.voice_isolation;
-  }
-#endif
   static bool Read(media::mojom::AudioProcessingSettingsDataView input,
                    media::AudioProcessingSettings* out_settings);
 };

@@ -69,7 +69,7 @@ void RoundTripAndVerifyLogMessages(
 
 // Tests that subresource_filter interacts well with the abusive enforcement in
 // chrome/browser/ui/blocked_content/safe_browsing_triggered_popup_blocker.
-class SubresourceFilterPopupBrowserTestBase
+class SubresourceFilterPopupBrowserTest
     : public SubresourceFilterListInsertingBrowserTest {
  public:
   void SetUpOnMainThread() override {
@@ -91,15 +91,7 @@ class SubresourceFilterPopupBrowserTestBase
         bas_level;
 
     database_helper()->AddFullHashToDbAndFullHashCache(
-        url, safe_browsing::GetUrlSubresourceFilterId(), metadata,
-        safe_browsing::V5::ThreatType::ABUSIVE_EXPERIENCE_VIOLATION,
-        /*is_warn_only=*/abusive_level == SubresourceFilterLevel::WARN,
-        browser()->GetProfile());
-    database_helper()->AddFullHashToDbAndFullHashCache(
-        url, safe_browsing::GetUrlSubresourceFilterId(), metadata,
-        safe_browsing::V5::ThreatType::BETTER_ADS_VIOLATION,
-        /*is_warn_only=*/bas_level == SubresourceFilterLevel::WARN,
-        browser()->GetProfile());
+        url, safe_browsing::GetUrlSubresourceFilterId(), metadata);
   }
 
   bool AreDisallowedRequestsBlocked() {
@@ -122,14 +114,7 @@ class SubresourceFilterPopupBrowserTestBase
   }
 };
 
-class SubresourceFilterPopupBrowserTest
-    : public SubresourceFilterPopupBrowserTestBase,
-      public ::testing::WithParamInterface<bool> {
- public:
-  std::optional<bool> UseV5() const override { return GetParam(); }
-};
-
-IN_PROC_BROWSER_TEST_P(SubresourceFilterPopupBrowserTest,
+IN_PROC_BROWSER_TEST_F(SubresourceFilterPopupBrowserTest,
                        NoConfiguration_AllowCreatingNewWindows) {
   ResetConfiguration(Configuration::MakePresetForLiveRunOnPhishingSites());
   base::HistogramTester tester;
@@ -156,34 +141,19 @@ IN_PROC_BROWSER_TEST_P(SubresourceFilterPopupBrowserTest,
 }
 
 class SubresourceFilterPopupBrowserTestWithParam
-    : public SubresourceFilterPopupBrowserTestBase,
+    : public SubresourceFilterPopupBrowserTest,
       public ::testing::WithParamInterface<
-          std::tuple<bool /* use_v5 */,
-                     bool /* enable_adblock_on_abusive_sites */>> {
+          bool /* enable_adblock_on_abusive_sites */> {
  public:
-  std::optional<bool> UseV5() const override { return std::get<0>(GetParam()); }
-
-  base::flat_set<base::test::FeatureRef> GetSubresourceFilterEnabledFeatures()
-      const override {
-    base::flat_set<base::test::FeatureRef> features =
-        SubresourceFilterPopupBrowserTestBase::
-            GetSubresourceFilterEnabledFeatures();
-    if (std::get<1>(GetParam())) {
-      features.insert(subresource_filter::kFilterAdsOnAbusiveSites);
-    }
-    return features;
+  SubresourceFilterPopupBrowserTestWithParam() {
+    const bool enable_adblock_on_abusive_sites = GetParam();
+    feature_list_.InitWithFeatureState(
+        subresource_filter::kFilterAdsOnAbusiveSites,
+        enable_adblock_on_abusive_sites);
   }
 
-  base::flat_set<base::test::FeatureRef> GetSubresourceFilterDisabledFeatures()
-      const override {
-    base::flat_set<base::test::FeatureRef> features =
-        SubresourceFilterPopupBrowserTestBase::
-            GetSubresourceFilterDisabledFeatures();
-    if (!std::get<1>(GetParam())) {
-      features.insert(subresource_filter::kFilterAdsOnAbusiveSites);
-    }
-    return features;
-  }
+ private:
+  base::test::ScopedFeatureList feature_list_;
 };
 
 IN_PROC_BROWSER_TEST_P(SubresourceFilterPopupBrowserTestWithParam,
@@ -211,7 +181,7 @@ IN_PROC_BROWSER_TEST_P(SubresourceFilterPopupBrowserTestWithParam,
   // Block again.
   EXPECT_EQ(false, content::EvalJs(web_contents, "openWindow()"));
 
-  const bool enable_adblock_on_abusive_sites = std::get<1>(GetParam());
+  const bool enable_adblock_on_abusive_sites = GetParam();
   EXPECT_EQ(enable_adblock_on_abusive_sites, AreDisallowedRequestsBlocked());
 
   // Navigate to |b_url|, which should successfully open the popup.
@@ -223,7 +193,7 @@ IN_PROC_BROWSER_TEST_P(SubresourceFilterPopupBrowserTestWithParam,
                    ->IsContentBlocked(ContentSettingsType::POPUPS));
 }
 
-IN_PROC_BROWSER_TEST_P(SubresourceFilterPopupBrowserTest,
+IN_PROC_BROWSER_TEST_F(SubresourceFilterPopupBrowserTest,
                        BlockCreatingNewWindows_LogsToConsole) {
   content::WebContentsConsoleObserver console_observer(web_contents());
   console_observer.SetPattern(blocked_content::kAbusiveEnforceMessage);
@@ -243,7 +213,7 @@ IN_PROC_BROWSER_TEST_P(SubresourceFilterPopupBrowserTest,
   EXPECT_TRUE(AreDisallowedRequestsBlocked());
 }
 
-IN_PROC_BROWSER_TEST_P(SubresourceFilterPopupBrowserTest,
+IN_PROC_BROWSER_TEST_F(SubresourceFilterPopupBrowserTest,
                        WarningDoNotBlockCreatingNewWindows_LogsToConsole) {
   const char kWindowOpenPath[] = "/subresource_filter/window_open.html";
   GURL a_url(embedded_test_server()->GetURL("a.com", kWindowOpenPath));
@@ -266,7 +236,7 @@ IN_PROC_BROWSER_TEST_P(SubresourceFilterPopupBrowserTest,
   EXPECT_FALSE(AreDisallowedRequestsBlocked());
 }
 
-IN_PROC_BROWSER_TEST_P(SubresourceFilterPopupBrowserTest,
+IN_PROC_BROWSER_TEST_F(SubresourceFilterPopupBrowserTest,
                        WarnAbusiveAndBetterAds_LogsToConsole) {
   const char kWindowOpenPath[] = "/subresource_filter/window_open.html";
   GURL a_url(embedded_test_server()->GetURL("a.com", kWindowOpenPath));
@@ -295,7 +265,7 @@ IN_PROC_BROWSER_TEST_P(SubresourceFilterPopupBrowserTest,
 }
 
 // Allowlisted sites should not have console logging.
-IN_PROC_BROWSER_TEST_P(SubresourceFilterPopupBrowserTest,
+IN_PROC_BROWSER_TEST_F(SubresourceFilterPopupBrowserTest,
                        AllowCreatingNewWindows_NoLogToConsole) {
   const char kWindowOpenPath[] = "/subresource_filter/window_open.html";
   GURL a_url(embedded_test_server()->GetURL("a.com", kWindowOpenPath));
@@ -349,7 +319,7 @@ IN_PROC_BROWSER_TEST_P(SubresourceFilterPopupBrowserTestWithParam,
   EXPECT_TRUE(content_settings::PageSpecificContentSettings::GetForFrame(
                   web_contents->GetPrimaryMainFrame())
                   ->IsContentBlocked(ContentSettingsType::POPUPS));
-  const bool enable_adblock_on_abusive_sites = std::get<1>(GetParam());
+  const bool enable_adblock_on_abusive_sites = GetParam();
   EXPECT_EQ(enable_adblock_on_abusive_sites, AreDisallowedRequestsBlocked());
 
   // Navigate to |b_url|, which should successfully open the popup.
@@ -384,7 +354,7 @@ IN_PROC_BROWSER_TEST_P(SubresourceFilterPopupBrowserTestWithParam,
   EXPECT_TRUE(content_settings::PageSpecificContentSettings::GetForFrame(
                   web_contents->GetPrimaryMainFrame())
                   ->IsContentBlocked(ContentSettingsType::POPUPS));
-  const bool enable_adblock_on_abusive_sites = std::get<1>(GetParam());
+  const bool enable_adblock_on_abusive_sites = GetParam();
   EXPECT_EQ(enable_adblock_on_abusive_sites, AreDisallowedRequestsBlocked());
 }
 
@@ -408,17 +378,12 @@ IN_PROC_BROWSER_TEST_P(SubresourceFilterPopupBrowserTestWithParam,
   EXPECT_FALSE(content_settings::PageSpecificContentSettings::GetForFrame(
                    web_contents->GetPrimaryMainFrame())
                    ->IsContentBlocked(ContentSettingsType::POPUPS));
-  const bool enable_adblock_on_abusive_sites = std::get<1>(GetParam());
+  const bool enable_adblock_on_abusive_sites = GetParam();
   EXPECT_EQ(enable_adblock_on_abusive_sites, AreDisallowedRequestsBlocked());
 }
 
 INSTANTIATE_TEST_SUITE_P(All,
-                         SubresourceFilterPopupBrowserTest,
-                         ::testing::Bool());
-
-INSTANTIATE_TEST_SUITE_P(All,
                          SubresourceFilterPopupBrowserTestWithParam,
-                         ::testing::Combine(::testing::Bool(),
-                                            ::testing::Bool()));
+                         ::testing::Values(false, true));
 
 }  // namespace subresource_filter

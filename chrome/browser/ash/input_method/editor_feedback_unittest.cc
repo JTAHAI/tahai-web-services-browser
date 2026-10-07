@@ -12,11 +12,13 @@
 #include "base/test/test_future.h"
 #include "base/time/time.h"
 #include "chrome/browser/feedback/feedback_uploader_factory_chrome.h"
+#include "chrome/browser/signin/identity_manager_factory.h"
 #include "chrome/common/channel_info.h"
 #include "chrome/test/base/testing_profile.h"
 #include "components/feedback/feedback_uploader.h"
 #include "components/feedback/proto/extension.pb.h"
 #include "components/keyed_service/core/keyed_service.h"
+#include "components/signin/public/identity_manager/identity_test_environment.h"
 #include "content/public/test/browser_task_environment.h"
 #include "content/public/test/test_browser_context.h"
 #include "services/network/public/cpp/weak_wrapper_shared_url_loader_factory.h"
@@ -79,6 +81,10 @@ std::unique_ptr<TestingProfile> CreateTestingProfile(
               base::BindRepeating(CreateMockUploader,
                                   std::move(on_report_sent_callback)))
           .Build();
+  signin::IdentityManager* identity_manager =
+      IdentityManagerFactory::GetForProfile(profile.get());
+  signin::MakePrimaryAccountAvailable(identity_manager, email,
+                                      signin::ConsentLevel::kSignin);
   return profile;
 }
 

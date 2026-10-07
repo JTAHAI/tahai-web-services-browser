@@ -23,7 +23,7 @@ Symbol GetBrandedGoogleShieldSymbol() {
 #if BUILDFLAG(IOS_USE_BRANDED_ASSETS)
   return SymbolGoogleShield;
 #else
-  return SymbolCustomShield;
+  return SymbolShield;
 #endif
 }
 
@@ -110,7 +110,7 @@ Symbol GetBrandedGoogleShieldSymbol() {
       return GetBrandedGoogleShieldSymbol();
     case safe_browsing::TailoredSecurityServiceMessageState::
         kConsentedAndFlowDisabled:
-      return SymbolCustomShield;
+      return SymbolShield;
   }
 }
 

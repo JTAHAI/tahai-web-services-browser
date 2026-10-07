@@ -21,6 +21,7 @@
 #include "content/common/renderer.mojom.h"
 #include "content/public/browser/render_process_host.h"
 #include "ipc/constants.mojom.h"
+#include "ipc/ipc_channel_factory.h"
 #include "ipc/ipc_channel_proxy.h"
 #include "third_party/blink/public/mojom/worker/worklet_global_scope_creation_params.mojom.h"
 
@@ -28,6 +29,7 @@ namespace content {
 
 namespace {
 
+using ::IPC::ChannelFactory;
 using ::IPC::ChannelProxy;
 using ::IPC::Listener;
 using ::mojo::AssociatedReceiver;
@@ -206,6 +208,11 @@ void AgentSchedulingGroupHost::RenderProcessHostDestroyed(
   SetState(LifecycleState::kRenderProcessHostDestroyed);
 }
 
+void AgentSchedulingGroupHost::OnBadMessageReceived() {
+  // If a bad message is received, it should be treated the same as a bad
+  // message on the renderer-wide channel (i.e., kill the renderer).
+  return process_->OnBadMessageReceived();
+}
 
 void AgentSchedulingGroupHost::OnAssociatedInterfaceRequest(
     const std::string& interface_name,
@@ -257,9 +264,7 @@ ChannelProxy* AgentSchedulingGroupHost::GetChannel() {
 
 void AgentSchedulingGroupHost::AddRoute(int32_t routing_id,
                                         Listener* listener) {
-  // TODO(crbug.com/557077751): CHECK-exclusion: Convert to a CHECK once we are
-  // confident it won't be triggered.
-  DCHECK_EQ(state_, LifecycleState::kBound);
+  CHECK_EQ(state_, LifecycleState::kBound, base::NotFatalUntil::M153);
   CHECK(!listener_map_.Lookup(routing_id), base::NotFatalUntil::M153);
   listener_map_.AddWithID(listener, routing_id);
   process_->AddRoute(routing_id, listener);
@@ -269,9 +274,7 @@ void AgentSchedulingGroupHost::RemoveRoute(int32_t routing_id) {
   TRACE_EVENT0("navigation", "AgentSchedulingGroupHost::RemoveRoute");
   base::ScopedUmaHistogramTimer histogram_timer(
       "Navigation.AgentSchedulingGroupHost.RemoveRoute");
-  // TODO(crbug.com/558680516): CHECK-exclusion: Convert to a CHECK once we are
-  // confident it won't be triggered.
-  DCHECK_EQ(state_, LifecycleState::kBound);
+  CHECK_EQ(state_, LifecycleState::kBound, base::NotFatalUntil::M153);
   listener_map_.Remove(routing_id);
   process_->RemoveRoute(routing_id);
 }
@@ -374,11 +377,16 @@ void AgentSchedulingGroupHost::SetUpIPC() {
     process_->GetRendererInterface()->CreateAgentSchedulingGroup(
         bootstrap.InitWithNewPipeAndPassReceiver());
 
-    channel_ = ChannelProxy::Create(
-        bootstrap.PassPipe(), IPC::Channel::MODE_SERVER, /*listener=*/this,
-        /*ipc_task_runner=*/io_task_runner,
-        /*listener_task_runner=*/
+    auto channel_factory = ChannelFactory::CreateServerFactory(
+        bootstrap.PassPipe(), /*ipc_task_runner=*/io_task_runner,
+        /*proxy_task_runner=*/
         base::SingleThreadTaskRunner::GetCurrentDefault());
+
+    channel_ =
+        ChannelProxy::Create(std::move(channel_factory), /*listener=*/this,
+                             /*ipc_task_runner=*/io_task_runner,
+                             /*listener_task_runner=*/
+                             base::SingleThreadTaskRunner::GetCurrentDefault());
 
     // TODO(crbug.com/40142495): Add necessary filters.
     // Most of the filters currently installed on the process-wide channel are:

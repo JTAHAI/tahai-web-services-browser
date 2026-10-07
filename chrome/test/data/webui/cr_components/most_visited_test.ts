@@ -163,8 +163,6 @@ function leaveUrlInput() {
 }
 
 interface SetUpTestOptions {
-  nonEditable: boolean;
-  hideTitle: boolean;
   singleRow: boolean;
   reflowOnOverflow: boolean;
   expandableTilesEnabled: boolean;
@@ -172,13 +170,10 @@ interface SetUpTestOptions {
   maxShortcutsInExpandedState: number;
   maxMostVisitedTilesInExpandedState: number;
   maxEnterpriseShortcuts: number;
-  maxTiles: number;
 }
 
 function setUpTest(providedOptions: Partial<SetUpTestOptions> = {}) {
   const defaultOptions = {
-    nonEditable: false,
-    hideTitle: false,
     singleRow: false,
     reflowOnOverflow: false,
     expandableTilesEnabled: false,
@@ -186,7 +181,6 @@ function setUpTest(providedOptions: Partial<SetUpTestOptions> = {}) {
     maxShortcutsInExpandedState: 10,
     maxMostVisitedTilesInExpandedState: 8,
     maxEnterpriseShortcuts: 10,
-    maxTiles: 0,
   };
   const options = {...defaultOptions, ...providedOptions};
   document.body.innerHTML = window.trustedTypes!.emptyHTML;
@@ -195,8 +189,6 @@ function setUpTest(providedOptions: Partial<SetUpTestOptions> = {}) {
   createWindowProxy();
 
   mostVisited = new MostVisitedElement();
-  mostVisited.nonEditable = options.nonEditable;
-  mostVisited.hideTitle = options.hideTitle;
   mostVisited.singleRow = options.singleRow;
   mostVisited.reflowOnOverflow = options.reflowOnOverflow;
   if (options.expandableTilesEnabled) {
@@ -213,9 +205,6 @@ function setUpTest(providedOptions: Partial<SetUpTestOptions> = {}) {
       options.maxMostVisitedTilesInExpandedState.toString());
   mostVisited.setAttribute(
       'max-enterprise-shortcuts', options.maxEnterpriseShortcuts.toString());
-  if (options.maxTiles > 0) {
-    mostVisited.setAttribute('max-tiles', options.maxTiles.toString());
-  }
   document.body.appendChild(mostVisited);
   assertEquals(1, handler.getCallCount('updateMostVisitedInfo'));
   return wide();
@@ -255,34 +244,6 @@ suite('General', () => {
         new KeyboardEvent('keyup', {key: ' '}));
     assertTrue(mostVisited.$.dialog.open);
   });
-
-  test(
-      'favicon scale factor when mostVisitedHighDpiFaviconsEnabled is false',
-      async () => {
-        document.body.innerHTML = window.trustedTypes!.emptyHTML;
-        loadTimeData.overrideValues({mostVisitedHighDpiFaviconsEnabled: false});
-        await setUpTest();
-        await addTiles(1);
-        const img = mostVisited.shadowRoot.querySelector<HTMLImageElement>(
-            '.tile-icon img')!;
-        const url = new URL(img.src);
-        assertEquals('1x', url.searchParams.get('scaleFactor'));
-      });
-
-  test(
-      'favicon scale factor when mostVisitedHighDpiFaviconsEnabled is true',
-      async () => {
-        document.body.innerHTML = window.trustedTypes!.emptyHTML;
-        loadTimeData.overrideValues({mostVisitedHighDpiFaviconsEnabled: true});
-        await setUpTest();
-        await addTiles(1);
-        const img = mostVisited.shadowRoot.querySelector<HTMLImageElement>(
-            '.tile-icon img')!;
-        const url = new URL(img.src);
-        assertEquals(
-            `${window.devicePixelRatio || 1}x`,
-            url.searchParams.get('scaleFactor'));
-      });
 });
 
 suite('ShowAddButton', () => {
@@ -2345,83 +2306,5 @@ suite('ShortcutsAutoRemovalToast', () => {
     const wait = handler.whenCalled('undoMostVisitedAutoRemoval');
     autoRemovalEvent!.detail.undo();
     await wait;
-  });
-});
-
-suite('NonEditable', () => {
-  setup(async () => {
-    await setUpTest({nonEditable: true});
-  });
-
-  test('add shortcut button is hidden for custom links', async () => {
-    await addTiles(1, /*customLinksEnabled=*/ true);
-    assertAddShortcutHidden();
-  });
-
-  test('action menu button is hidden for custom links', async () => {
-    await addTiles(1, /*customLinksEnabled=*/ true);
-    const actionMenuButtons = queryAll<HTMLElement>('#actionMenuButton');
-    assertEquals(1, actionMenuButtons.length);
-    assertTrue(actionMenuButtons[0]!.hidden);
-  });
-
-  test('remove button is hidden for top sites', async () => {
-    await addTiles(1, /*customLinksEnabled=*/ false);
-    const removeButtons = queryAll<HTMLElement>('#removeButton');
-    assertEquals(1, removeButtons.length);
-    assertTrue(removeButtons[0]!.hidden);
-  });
-
-  test('delete key does not delete tile', async () => {
-    await addTiles(1, /*customLinksEnabled=*/ true);
-    const tile = queryTiles()[0]!;
-    tile.dispatchEvent(new KeyboardEvent('keydown', {key: 'Delete'}));
-    assertEquals(0, handler.getCallCount('deleteMostVisitedTile'));
-  });
-
-  test('tiles are not draggable', async () => {
-    await addTiles(1, /*customLinksEnabled=*/ true);
-    const tile = queryTiles()[0]!;
-    assertEquals('false', tile.getAttribute('draggable'));
-  });
-
-  test('show more button is shown when expandable tiles enabled', async () => {
-    document.body.innerHTML = window.trustedTypes!.emptyHTML;
-    await setUpTest({
-      nonEditable: true,
-      expandableTilesEnabled: true,
-      maxTilesInCollapsedState: 2,
-    });
-    await addTiles(3, /*customLinksEnabled=*/ true);
-    const showMore = getShowMoreButton();
-    assertTrue(!!showMore);
-    assertFalse(showMore.hidden);
-    assertAddShortcutHidden();
-  });
-
-  test('tile titles are hidden when hideTitle is true', async () => {
-    document.body.innerHTML = window.trustedTypes!.emptyHTML;
-    await setUpTest({
-      nonEditable: true,
-      hideTitle: true,
-    });
-    await addTiles(1, /*customLinksEnabled=*/ true);
-    const titleElements = queryAll<HTMLElement>('.tile-title');
-    assertTrue(titleElements.length > 0);
-    titleElements.forEach(el => assertTrue(el.hidden));
-  });
-
-  test('maxTiles limits total tiles in single row', async () => {
-    document.body.innerHTML = window.trustedTypes!.emptyHTML;
-    await setUpTest({
-      nonEditable: true,
-      hideTitle: true,
-      singleRow: true,
-      maxTiles: 7,
-    });
-    await addTiles(10, /*customLinksEnabled=*/ false);
-    const tiles = queryTiles();
-    assertEquals(7, tiles.length);
-    tiles.forEach(el => assertFalse(el.hidden));
   });
 });

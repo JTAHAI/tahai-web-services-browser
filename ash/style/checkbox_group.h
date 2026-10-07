@@ -22,7 +22,8 @@ namespace ash {
 // buttons. If they're not provided, the default values will be applied. User
 // can select / unselect as many buttons in the group as they want. Click on the
 // unselected button will select it, vise versa.
-class ASH_EXPORT CheckboxGroup : public OptionButtonGroup {
+class ASH_EXPORT CheckboxGroup : public OptionButtonGroup,
+                                 public OptionButtonBase::Delegate {
   METADATA_HEADER(CheckboxGroup, OptionButtonGroup)
 
  public:
@@ -39,6 +40,10 @@ class ASH_EXPORT CheckboxGroup : public OptionButtonGroup {
   // OptionButtonGroup:
   Checkbox* AddButton(Checkbox::PressedCallback callback,
                       const std::u16string& label) override;
+
+  // OptionButtonBase::Delegate:
+  void OnButtonSelected(OptionButtonBase* button) override {}
+  void OnButtonClicked(OptionButtonBase* button) override;
 };
 
 }  // namespace ash

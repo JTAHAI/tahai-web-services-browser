@@ -10,7 +10,6 @@ import android.content.Context;
 import android.content.res.ColorStateList;
 import android.graphics.Bitmap;
 import android.graphics.drawable.Drawable;
-import android.graphics.drawable.RippleDrawable;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageButton;
@@ -33,16 +32,10 @@ import org.chromium.ui.util.ColorUtils;
 /** Binds the Fusebox Attachment Item properties to the view. */
 @NullMarked
 class FuseboxAttachmentViewBinder {
-    private final OmniboxResourceProvider mResourceProvider;
-
-    public FuseboxAttachmentViewBinder(OmniboxResourceProvider resourceProvider) {
-        mResourceProvider = resourceProvider;
-    }
-
     /**
      * @see PropertyModelChangeProcessor.ViewBinder#bind(Object, Object, Object)
      */
-    public void bind(PropertyModel model, View view, PropertyKey propertyKey) {
+    public static void bind(PropertyModel model, View view, PropertyKey propertyKey) {
         if (propertyKey == FuseboxAttachmentProperties.ATTACHMENT) {
             FuseboxAttachment attachment = model.get(FuseboxAttachmentProperties.ATTACHMENT);
             assert attachment != null : "FuseboxAttachment cannot be null";
@@ -57,13 +50,10 @@ class FuseboxAttachmentViewBinder {
             view.findViewById(R.id.attachment_remove_button)
                     .setOnClickListener(
                             v -> model.get(FuseboxAttachmentProperties.ON_REMOVE).run());
-        } else if (propertyKey == FuseboxAttachmentProperties.REMOVE_BUTTON_SELECTED) {
-            view.findViewById(R.id.attachment_remove_button)
-                    .setSelected(model.get(FuseboxAttachmentProperties.REMOVE_BUTTON_SELECTED));
         }
     }
 
-    private void updateViewForUploadState(
+    private static void updateViewForUploadState(
             PropertyModel model, FuseboxAttachment attachment, View view) {
         View progressView = view.findViewById(R.id.attachment_spinner);
         ImageView imageView = view.findViewById(R.id.attachment_thumbnail);
@@ -85,7 +75,7 @@ class FuseboxAttachmentViewBinder {
         view.setLayoutParams(layoutParams);
     }
 
-    @Nullable Drawable getThumbnailDrawable(
+    static @Nullable Drawable getThumbnailDrawable(
             PropertyModel model, FuseboxAttachment attachment, Context context) {
 
         @BrandedColorScheme
@@ -97,16 +87,17 @@ class FuseboxAttachmentViewBinder {
                     imageFallbackThumbnail(context, brandedColorScheme);
             case FuseboxAttachmentType.ATTACHMENT_FILE ->
                     fileThumbnail(context, brandedColorScheme);
-            case FuseboxAttachmentType.ATTACHMENT_PDF -> pdfThumbnail();
+            case FuseboxAttachmentType.ATTACHMENT_PDF -> pdfThumbnail(context);
             case FuseboxAttachmentType.ATTACHMENT_TAB ->
                     tabThumbnail(context, brandedColorScheme, attachment);
             default -> null;
         };
     }
 
-    private Drawable imageFallbackThumbnail(
+    private static Drawable imageFallbackThumbnail(
             Context context, @BrandedColorScheme int brandedColorScheme) {
-        Drawable fileIcon = mResourceProvider.getDrawable(R.drawable.ic_attach_image_24dp);
+        Drawable fileIcon =
+                OmniboxResourceProvider.getDrawable(context, R.drawable.ic_attach_image_24dp);
         fileIcon.setTint(OmniboxResourceProvider.getDefaultIconColor(context, brandedColorScheme));
         return fileIcon;
     }
@@ -118,14 +109,16 @@ class FuseboxAttachmentViewBinder {
         return null;
     }
 
-    private Drawable fileThumbnail(Context context, @BrandedColorScheme int brandedColorScheme) {
-        Drawable fileIcon = mResourceProvider.getDrawable(R.drawable.ic_attach_file_24dp);
+    private static Drawable fileThumbnail(
+            Context context, @BrandedColorScheme int brandedColorScheme) {
+        Drawable fileIcon =
+                OmniboxResourceProvider.getDrawable(context, R.drawable.ic_attach_file_24dp);
         fileIcon.setTint(OmniboxResourceProvider.getDefaultIconColor(context, brandedColorScheme));
         return fileIcon;
     }
 
-    private Drawable pdfThumbnail() {
-        return mResourceProvider.getDrawable(R.drawable.ic_attach_pdf_24dp);
+    private static Drawable pdfThumbnail(Context context) {
+        return OmniboxResourceProvider.getDrawable(context, R.drawable.ic_attach_pdf_24dp);
     }
 
     private static Drawable tabThumbnail(
@@ -183,13 +176,6 @@ class FuseboxAttachmentViewBinder {
         @ColorInt
         int colorSurface = OmniboxResourceProvider.getColorSurface(context, brandedColorScheme);
         @ColorInt int closeBgColor = ColorUtils.setAlphaComponentWithFloat(colorSurface, 0.64f);
-        Drawable closeBg = closeButton.getBackground();
-        closeBg.setTint(closeBgColor);
-        if (closeBg instanceof RippleDrawable ripple) {
-            ripple.setRadius(
-                    context.getResources()
-                            .getDimensionPixelSize(
-                                    R.dimen.fusebox_attachment_remove_highlight_inset));
-        }
+        closeButton.getBackground().setTint(closeBgColor);
     }
 }

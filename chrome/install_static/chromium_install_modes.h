@@ -48,8 +48,7 @@ enum InstallConstantIndex {
 
 inline constexpr auto kOldTracingServiceIids = std::to_array<IID>({
 #if BUILDFLAG(TAHAI_BRANDING)
-    // The pre-154 string invitation ABI must never use the new handle ABI.
-    // Replaced in 2026-09. Delete after 2028-09.
+    // Previous TAHAI string-channel tracing ABI. Retain for two years.
     {0x5df5fc8a,
      0x5921,
      0x5a3d,
@@ -103,8 +102,9 @@ inline constexpr auto kInstallModes = std::to_array<InstallConstants>({
                                   0x5A45,
                                   {0x9F, 0x64, 0x77, 0x18, 0xE9, 0x83, 0x38,
                                    0xAD}},
-        // UUIDv5 of the previous TAHAI IID and
-        // "ISystemTraceSession.AcceptInvitation(UINT32,DWORD*)/Chromium154".
+        // Chromium 152.0.7977.158 uses a handle-based invitation ABI.
+        // Match the reviewed TAHAI IID for this exact interface; CLSID is
+        // stable.
         .tracing_service_iid = {0xE91BA5EB,
                                 0x59CF,
                                 0x50E3,

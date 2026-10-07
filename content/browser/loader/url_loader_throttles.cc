@@ -28,7 +28,6 @@
 #include "net/base/load_flags.h"
 #include "net/http/http_request_headers.h"
 #include "net/http/http_util.h"
-#include "services/data_decoder/public/cpp/data_decoder.h"
 #include "services/network/public/cpp/client_hints.h"
 #include "services/network/public/cpp/features.h"
 #include "services/network/public/cpp/resource_request.h"
@@ -118,11 +117,9 @@ CreateContentBrowserURLLoaderThrottles(
     }
   }
 
-  if (auto throttle = MaybeCreateIdentityUrlLoaderThrottle(
-          base::BindRepeating(webid::SetIdpSigninStatus,
-                              browser_context->GetWeakPtr(),
-                              request.destination, frame_tree_node_id),
-          GetSetLoginHeaderDataDecoderParser())) {
+  if (auto throttle = MaybeCreateIdentityUrlLoaderThrottle(base::BindRepeating(
+          webid::SetIdpSigninStatus, browser_context->GetWeakPtr(),
+          request.destination, frame_tree_node_id))) {
     throttles.push_back(std::move(throttle));
   }
 

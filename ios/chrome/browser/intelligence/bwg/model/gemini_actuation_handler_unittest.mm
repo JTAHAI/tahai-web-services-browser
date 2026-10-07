@@ -8,9 +8,7 @@
 #import "base/task/single_thread_task_runner.h"
 #import "base/test/scoped_feature_list.h"
 #import "base/test/task_environment.h"
-#import "base/test/test_future.h"
 #import "components/actor/public/mojom/actor_types.mojom.h"
-#import "ios/chrome/browser/intelligence/actor/model/actor_browser_agent.h"
 #import "ios/chrome/browser/intelligence/actor/model/actor_service.h"
 #import "ios/chrome/browser/intelligence/actor/model/actor_service_factory.h"
 #import "ios/chrome/browser/intelligence/features/features.h"
@@ -39,7 +37,6 @@ class GeminiActuationHandlerTest : public PlatformTest {
     BrowserList* browser_list =
         BrowserListFactory::GetForProfile(profile_.get());
     browser_list->AddBrowser(browser_.get());
-    ActorBrowserAgent::CreateForBrowser(browser_.get());
 
     auto fake_web_state = std::make_unique<web::FakeWebState>(
         web::WebStateID::FromSerializedValue(123));
@@ -57,14 +54,6 @@ class GeminiActuationHandlerTest : public PlatformTest {
   }
 
  protected:
-  GeminiActuationHandler* CreateHandler() {
-    return [[GeminiActuationHandler alloc]
-        initWithActorService:actor_service_
-                webStateList:browser_->GetWebStateList()
-                   browserId:ActorBrowserAgent::FromBrowser(browser_.get())
-                                 ->browser_id()];
-  }
-
   base::test::TaskEnvironment task_environment_;
   base::test::ScopedFeatureList scoped_feature_list_;
   std::unique_ptr<TestProfileIOS> profile_;
@@ -76,13 +65,17 @@ class GeminiActuationHandlerTest : public PlatformTest {
 // Tests that a GeminiActuationHandler can be initialized.
 TEST_F(GeminiActuationHandlerTest, Initialization) {
   ASSERT_NE(nullptr, actor_service_);
-  GeminiActuationHandler* handler = CreateHandler();
+  GeminiActuationHandler* handler = [[GeminiActuationHandler alloc]
+      initWithActorService:actor_service_
+              webStateList:browser_->GetWebStateList()];
   EXPECT_NE(nil, handler);
 }
 
 // Tests that createTaskWithTitle returns a valid task ID.
 TEST_F(GeminiActuationHandlerTest, CreateTask) {
-  GeminiActuationHandler* handler = CreateHandler();
+  GeminiActuationHandler* handler = [[GeminiActuationHandler alloc]
+      initWithActorService:actor_service_
+              webStateList:browser_->GetWebStateList()];
   actor::ActorTaskId task_id = [handler createTaskWithTitle:@"Test Task"];
   EXPECT_FALSE(task_id.is_null());
 }
@@ -90,7 +83,9 @@ TEST_F(GeminiActuationHandlerTest, CreateTask) {
 // Tests that performActions returns a failure result when passed an invalid
 // serialized proto.
 TEST_F(GeminiActuationHandlerTest, PerformActions_InvalidProto) {
-  GeminiActuationHandler* handler = CreateHandler();
+  GeminiActuationHandler* handler = [[GeminiActuationHandler alloc]
+      initWithActorService:actor_service_
+              webStateList:browser_->GetWebStateList()];
   actor::ActorTaskId task_id = [handler createTaskWithTitle:@"Test Task"];
 
   NSData* invalid_data = [@"invalid" dataUsingEncoding:NSUTF8StringEncoding];
@@ -120,8 +115,11 @@ TEST_F(GeminiActuationHandlerTest, PerformActions_InvalidProto) {
 // Tests that performActions completes with success and extracts tab observation
 // when passed an empty list of protos.
 TEST_F(GeminiActuationHandlerTest, PerformActions_EmptyProtos) {
-  GeminiActuationHandler* handler = CreateHandler();
+  GeminiActuationHandler* handler = [[GeminiActuationHandler alloc]
+      initWithActorService:actor_service_
+              webStateList:browser_->GetWebStateList()];
   actor::ActorTaskId task_id = [handler createTaskWithTitle:@"Test Task"];
+
   base::RunLoop run_loop;
   base::RepeatingClosure quit_closure = run_loop.QuitClosure();
   __block BOOL callback_called = NO;
@@ -149,7 +147,9 @@ TEST_F(GeminiActuationHandlerTest, PerformActions_EmptyProtos) {
 
 // Tests that performActions can parse multiple valid protos.
 TEST_F(GeminiActuationHandlerTest, PerformActions_MultipleProtos) {
-  GeminiActuationHandler* handler = CreateHandler();
+  GeminiActuationHandler* handler = [[GeminiActuationHandler alloc]
+      initWithActorService:actor_service_
+              webStateList:browser_->GetWebStateList()];
   actor::ActorTaskId task_id = [handler createTaskWithTitle:@"Test Task"];
 
   optimization_guide::proto::Action action1;
@@ -186,7 +186,9 @@ TEST_F(GeminiActuationHandlerTest, PerformActions_MultipleProtos) {
 
 // Tests that pauseTaskWithID does not crash.
 TEST_F(GeminiActuationHandlerTest, PauseTask) {
-  GeminiActuationHandler* handler = CreateHandler();
+  GeminiActuationHandler* handler = [[GeminiActuationHandler alloc]
+      initWithActorService:actor_service_
+              webStateList:browser_->GetWebStateList()];
   actor::ActorTaskId task_id = [handler createTaskWithTitle:@"Test Task"];
 
   [handler pauseTaskWithID:task_id];
@@ -194,7 +196,9 @@ TEST_F(GeminiActuationHandlerTest, PauseTask) {
 
 // Tests that stopTaskWithID does not crash.
 TEST_F(GeminiActuationHandlerTest, StopTask) {
-  GeminiActuationHandler* handler = CreateHandler();
+  GeminiActuationHandler* handler = [[GeminiActuationHandler alloc]
+      initWithActorService:actor_service_
+              webStateList:browser_->GetWebStateList()];
   actor::ActorTaskId task_id = [handler createTaskWithTitle:@"Test Task"];
 
   [handler stopTaskWithID:task_id
@@ -204,7 +208,9 @@ TEST_F(GeminiActuationHandlerTest, StopTask) {
 // Tests that requestActionablePageContextForWebStateIDs returns
 // TAB_OBSERVATION_TAB_WENT_AWAY when tab is not found.
 TEST_F(GeminiActuationHandlerTest, RequestActionablePageContext_NotFound) {
-  GeminiActuationHandler* handler = CreateHandler();
+  GeminiActuationHandler* handler = [[GeminiActuationHandler alloc]
+      initWithActorService:actor_service_
+              webStateList:browser_->GetWebStateList()];
   actor::ActorTaskId task_id = [handler createTaskWithTitle:@"Test Task"];
 
   __block BOOL callback_called = NO;
@@ -228,11 +234,13 @@ TEST_F(GeminiActuationHandlerTest, RequestActionablePageContext_NotFound) {
   EXPECT_TRUE(callback_called);
 }
 
-// Tests that requestActionablePageContextForWebStateIDs returns errors for
-// all missing tabs.
+// Tests that requestActionablePageContextForWebStateIDs returns errors for all
+// missing tabs.
 TEST_F(GeminiActuationHandlerTest,
        RequestActionablePageContext_MultipleNotFound) {
-  GeminiActuationHandler* handler = CreateHandler();
+  GeminiActuationHandler* handler = [[GeminiActuationHandler alloc]
+      initWithActorService:actor_service_
+              webStateList:browser_->GetWebStateList()];
   actor::ActorTaskId task_id = [handler createTaskWithTitle:@"Test Task"];
 
   __block BOOL callback_called = NO;
@@ -257,7 +265,9 @@ TEST_F(GeminiActuationHandlerTest,
 // Tests that performActions correctly injects the active tab ID into an action
 // proto lacking tab_id.
 TEST_F(GeminiActuationHandlerTest, PerformActions_InjectsTabId) {
-  GeminiActuationHandler* handler = CreateHandler();
+  GeminiActuationHandler* handler = [[GeminiActuationHandler alloc]
+      initWithActorService:actor_service_
+              webStateList:browser_->GetWebStateList()];
 
   // Activate the fake web state (index 0).
   browser_->GetWebStateList()->ActivateWebStateAt(0);
@@ -277,37 +287,37 @@ TEST_F(GeminiActuationHandlerTest, PerformActions_InjectsTabId) {
   NSData* data = [NSData dataWithBytes:serialized.data()
                                 length:serialized.size()];
 
-  base::test::TestFuture<NSData*> future;
-  base::test::TestFuture<NSData*>* future_ptr = &future;
+  __block BOOL callback_called = NO;
   auto completionBlock = ^(NSData* serializedActionsResult) {
-    future_ptr->SetValue(serializedActionsResult);
+    callback_called = YES;
+    ASSERT_NE(nil, serializedActionsResult);
+    optimization_guide::proto::ActionsResult actions_result;
+    EXPECT_TRUE(actions_result.ParseFromArray(
+        [serializedActionsResult bytes], [serializedActionsResult length]));
+
+    // If the tab ID injection succeeded, the Actor Tool Factory will
+    // successfully resolve the tab (finding our active fake WebState with ID
+    // 123), and not failing with an invalid arguments error due to a missing
+    // tab ID.
+    std::string invalid_args_error =
+        actor::GetToolExecutionResultMessage(actor::ToolExecutionResult(
+            actor::mojom::ActionResultCode::kArgumentsInvalid));
+    EXPECT_NE(actions_result.error_message(), invalid_args_error);
   };
 
   [handler performActionsWithTaskID:task_id
                          taskUpdate:@"Update"
              serializedActionProtos:@[ data ]
                     completionBlock:completionBlock];
-
-  NSData* serializedActionsResult = future.Get();
-  ASSERT_NE(nil, serializedActionsResult);
-  optimization_guide::proto::ActionsResult actions_result;
-  EXPECT_TRUE(actions_result.ParseFromArray([serializedActionsResult bytes],
-                                            [serializedActionsResult length]));
-
-  // If the tab ID injection succeeded, the Actor Tool Factory will
-  // successfully resolve the tab (finding our active fake WebState with ID
-  // 123), and not failing with an invalid arguments error due to a missing
-  // tab ID.
-  std::string invalid_args_error =
-      actor::GetToolExecutionResultMessage(actor::ToolExecutionResult(
-          actor::mojom::ActionResultCode::kArgumentsInvalid));
-  EXPECT_NE(actions_result.error_message(), invalid_args_error);
+  EXPECT_TRUE(callback_called);
 }
 
 // Tests that performActions returns a failure result when passed an unmapped
 // task ID.
 TEST_F(GeminiActuationHandlerTest, PerformActions_UnmappedTaskId) {
-  GeminiActuationHandler* handler = CreateHandler();
+  GeminiActuationHandler* handler = [[GeminiActuationHandler alloc]
+      initWithActorService:actor_service_
+              webStateList:browser_->GetWebStateList()];
 
   // Generate an arbitrary task ID that is not mapped.
   actor::ActorTaskId unmapped_task_id = actor::ActorTaskId();
@@ -347,7 +357,9 @@ TEST_F(GeminiActuationHandlerTest, PerformActions_FailureCodePropagated) {
   // Mark the tab as unrealized so that NavigateTool execution fails.
   fake_web_state_->SetIsRealized(false);
 
-  GeminiActuationHandler* handler = CreateHandler();
+  GeminiActuationHandler* handler = [[GeminiActuationHandler alloc]
+      initWithActorService:actor_service_
+              webStateList:browser_->GetWebStateList()];
 
   actor::ActorTaskId task_id = [handler createTaskWithTitle:@"Test Task"];
 
@@ -387,49 +399,6 @@ TEST_F(GeminiActuationHandlerTest, PerformActions_FailureCodePropagated) {
 
   [handler stopTaskWithID:task_id
                    reason:actor::ActorTaskStoppedReason::kTaskComplete];
-}
-
-// Tests that performActions correctly injects the browser's window ID into a
-// CreateTab action.
-TEST_F(GeminiActuationHandlerTest, PerformActions_InjectsWindowId) {
-  GeminiActuationHandler* handler = CreateHandler();
-
-  actor::ActorTaskId task_id = [handler createTaskWithTitle:@"Test Task"];
-
-  // Create a CreateTab proto without a window_id.
-  optimization_guide::proto::Action action;
-  action.mutable_create_tab();
-
-  std::string serialized;
-  action.SerializeToString(&serialized);
-  NSData* data = [NSData dataWithBytes:serialized.data()
-                                length:serialized.size()];
-
-  base::test::TestFuture<NSData*> future;
-  base::test::TestFuture<NSData*>* future_ptr = &future;
-  auto completionBlock = ^(NSData* serializedActionsResult) {
-    future_ptr->SetValue(serializedActionsResult);
-  };
-
-  [handler performActionsWithTaskID:task_id
-                         taskUpdate:@"Update"
-             serializedActionProtos:@[ data ]
-                    completionBlock:completionBlock];
-
-  NSData* serializedActionsResult = future.Get();
-  ASSERT_NE(nil, serializedActionsResult);
-  optimization_guide::proto::ActionsResult actions_result;
-  EXPECT_TRUE(actions_result.ParseFromArray([serializedActionsResult bytes],
-                                            [serializedActionsResult length]));
-
-  // If window_id was injected, it should pass validation and attempt creation,
-  // failing with kNewTabCreationFailed because TabInsertionBrowserAgent is
-  // not present on our TestBrowser. If window_id is not injected, it will
-  // fail validation with kWindowWentAway.
-  std::string creation_failed_error =
-      actor::GetToolExecutionResultMessage(actor::ToolExecutionResult(
-          actor::mojom::ActionResultCode::kNewTabCreationFailed));
-  EXPECT_EQ(actions_result.error_message(), creation_failed_error);
 }
 
 }  // namespace

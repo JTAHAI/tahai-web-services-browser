@@ -6,14 +6,10 @@ package org.chromium.chrome.browser.omnibox.suggestions.base;
 
 import android.content.Context;
 import android.graphics.Typeface;
-import android.graphics.drawable.Drawable;
-import android.graphics.drawable.Drawable.ConstantState;
-import android.graphics.drawable.LayerDrawable;
 import android.text.Spannable;
 import android.text.TextUtils;
 import android.text.style.ForegroundColorSpan;
 import android.text.style.StyleSpan;
-import android.view.Gravity;
 
 import androidx.annotation.CallSuper;
 import androidx.annotation.ColorInt;
@@ -29,17 +25,20 @@ import org.chromium.chrome.browser.omnibox.OmniboxMetrics;
 import org.chromium.chrome.browser.omnibox.R;
 import org.chromium.chrome.browser.omnibox.styles.OmniboxDrawableState;
 import org.chromium.chrome.browser.omnibox.styles.OmniboxImageSupplier;
+import org.chromium.chrome.browser.omnibox.styles.OmniboxResourceProvider;
 import org.chromium.chrome.browser.omnibox.suggestions.AutocompleteUIContext;
 import org.chromium.chrome.browser.omnibox.suggestions.SuggestionHost;
 import org.chromium.chrome.browser.omnibox.suggestions.SuggestionProcessor;
 import org.chromium.chrome.browser.omnibox.suggestions.base.BaseSuggestionViewProperties.Action;
+import org.chromium.components.metrics.OmniboxEventProtos.OmniboxEventProto.PageClassification;
 import org.chromium.components.omnibox.AutocompleteInput;
 import org.chromium.components.omnibox.AutocompleteMatch;
 import org.chromium.components.omnibox.AutocompleteMatch.MatchClassification;
 import org.chromium.components.omnibox.OmniboxCapabilities;
 import org.chromium.components.omnibox.OmniboxFeatures;
-import org.chromium.components.omnibox.PageClassificationUtils;
 import org.chromium.components.omnibox.action.ActionPresentationMode;
+import org.chromium.ui.base.DeviceFormFactor;
+import org.chromium.ui.base.DeviceInput;
 import org.chromium.ui.modelutil.PropertyModel;
 import org.chromium.url.GURL;
 
@@ -57,7 +56,6 @@ public abstract class BaseSuggestionViewProcessor implements SuggestionProcessor
     private final int mDecorationImageSizePx;
     private final int mSuggestionSizePx;
     private final boolean mShouldShowRemoveButton;
-    private @Nullable ConstantState mRemoveButtonDrawableState;
 
     /**
      * @param uiContext Context object containing common UI dependencies.
@@ -68,15 +66,19 @@ public abstract class BaseSuggestionViewProcessor implements SuggestionProcessor
         mSuggestionHost = uiContext.host;
         mImageSupplier = uiContext.imageSupplier;
         mDesiredFaviconWidthPx =
-                uiContext.resourceProvider.getDimen(R.dimen.omnibox_suggestion_favicon_size);
+                mContext.getResources()
+                        .getDimensionPixelSize(R.dimen.omnibox_suggestion_favicon_size);
         mDecorationImageSizePx =
-                uiContext.resourceProvider.getDimen(
-                        R.dimen.omnibox_suggestion_decoration_image_size);
+                mContext.getResources()
+                        .getDimensionPixelSize(R.dimen.omnibox_suggestion_decoration_image_size);
         mSuggestionSizePx =
-                uiContext.resourceProvider.getDimen(R.dimen.omnibox_suggestion_content_height);
+                mContext.getResources()
+                        .getDimensionPixelSize(R.dimen.omnibox_suggestion_content_height);
         mActionChipsProcessor = new ActionChipsProcessor(uiContext.host, uiContext.actionDelegate);
 
-        mShouldShowRemoveButton = OmniboxCapabilities.hasPrecisionPointerExperience(mContext);
+        mShouldShowRemoveButton =
+                DeviceFormFactor.isNonMultiDisplayContextOnTablet(mContext)
+                        && DeviceInput.supportsPrecisionPointer();
     }
 
     /**
@@ -114,7 +116,7 @@ public abstract class BaseSuggestionViewProcessor implements SuggestionProcessor
                 match.isSearchSuggestion()
                         ? R.drawable.ic_suggestion_magnifier
                         : R.drawable.ic_globe_24dp;
-        return OmniboxDrawableState.forSmallIcon(mUiContext.resourceProvider, icon, true);
+        return OmniboxDrawableState.forSmallIcon(mContext, icon, true);
     }
 
     /**
@@ -152,19 +154,16 @@ public abstract class BaseSuggestionViewProcessor implements SuggestionProcessor
             AutocompleteInput input,
             AutocompleteMatch suggestion,
             int position) {
-        // Suppress remove and refine actions in Hub and Tab Search overlay contexts.
-        if (PageClassificationUtils.isHubOrTabSearch(input.getPageClassification())) {
-            return;
-        }
-
         if (mShouldShowRemoveButton) {
             if (suggestion.isDeletable()) {
                 setActionButtons(
                         model,
                         List.of(
                                 new Action(
-                                        getRemoveButtonIconState(),
-                                        mUiContext.resourceProvider.getString(
+                                        OmniboxDrawableState.forSmallIcon(
+                                                mContext, R.drawable.btn_close, true),
+                                        OmniboxResourceProvider.getString(
+                                                mContext,
                                                 R.string.accessibility_omnibox_remove_suggestion),
                                         null,
                                         /* showOnlyOnFocus= */ true,
@@ -180,8 +179,10 @@ public abstract class BaseSuggestionViewProcessor implements SuggestionProcessor
         if (!suggestion.isRefineable()) return;
 
         String iconString =
-                mUiContext.resourceProvider.getString(
-                        R.string.accessibility_omnibox_btn_refine, suggestion.getFillIntoEdit());
+                OmniboxResourceProvider.getString(
+                        mContext,
+                        R.string.accessibility_omnibox_btn_refine,
+                        suggestion.getFillIntoEdit());
         @DrawableRes int icon = R.drawable.btn_suggestion_refine_up;
 
         Runnable action =
@@ -197,37 +198,9 @@ public abstract class BaseSuggestionViewProcessor implements SuggestionProcessor
                 model,
                 List.of(
                         new Action(
-                                OmniboxDrawableState.forSmallIcon(
-                                        mUiContext.resourceProvider, icon, true),
+                                OmniboxDrawableState.forSmallIcon(mContext, icon, true),
                                 iconString,
                                 action)));
-    }
-
-    /**
-     * Returns the icon state for the remove suggestion button. Wraps the standard close button icon
-     * in a LayerDrawable to scale it as needed while keeping it centered within the button view.
-     */
-    private OmniboxDrawableState getRemoveButtonIconState() {
-        Drawable layerDrawable;
-        if (mRemoveButtonDrawableState == null) {
-            int sizePx =
-                    mUiContext.resourceProvider.getDimen(
-                            R.dimen.omnibox_suggestion_remove_button_icon_size);
-            Drawable baseIcon = mUiContext.resourceProvider.getDrawable(R.drawable.btn_close);
-            LayerDrawable drawable = new LayerDrawable(new Drawable[] {baseIcon});
-            drawable.setLayerGravity(0, Gravity.CENTER);
-            drawable.setLayerWidth(0, sizePx);
-            drawable.setLayerHeight(0, sizePx);
-            mRemoveButtonDrawableState = drawable.getConstantState();
-            layerDrawable = drawable;
-        } else {
-            layerDrawable = mRemoveButtonDrawableState.newDrawable();
-        }
-        return new OmniboxDrawableState(
-                layerDrawable,
-                /* useRoundedCorners= */ false,
-                /* isLarge= */ false,
-                /* allowTint= */ true);
     }
 
     /**
@@ -285,7 +258,7 @@ public abstract class BaseSuggestionViewProcessor implements SuggestionProcessor
         model.set(BaseSuggestionViewProperties.SHOW_DECORATION, true);
         model.set(
                 BaseSuggestionViewProperties.ACTION_CHIP_LEAD_IN_SPACING,
-                mUiContext.resourceProvider.getSuggestionDecorationIconSizeWidth());
+                OmniboxResourceProvider.getSuggestionDecorationIconSizeWidth(mContext));
         model.set(BaseSuggestionViewProperties.TOP_PADDING, 0);
 
         if (OmniboxFeatures.isTouchDownTriggerForPrefetchEnabled()
@@ -296,8 +269,8 @@ public abstract class BaseSuggestionViewProcessor implements SuggestionProcessor
                     (eventTime) -> onSuggestionTouchDownEvent(suggestion, position, eventTime));
         }
 
-        // Action chips should not be provided in the hub or tab search overlay.
-        if (!PageClassificationUtils.isHubOrTabSearch(input.getPageClassification())
+        // Action chips should not be provided in the hub.
+        if (input.getPageClassification() != PageClassification.ANDROID_HUB_VALUE
                 && allowOmniboxActions()) {
             mActionChipsProcessor.populateModel(suggestion, model, position);
         }
@@ -309,8 +282,8 @@ public abstract class BaseSuggestionViewProcessor implements SuggestionProcessor
             fetchImage(model, suggestion.getImageUrl());
         }
 
-        // Action button should not be provided in the hub or tab search overlay.
-        if (!PageClassificationUtils.isHubOrTabSearch(input.getPageClassification())) {
+        // Action button should not be provided in the hub.
+        if (input.getPageClassification() != PageClassification.ANDROID_HUB_VALUE) {
             addActionButtonIfAvailable(suggestion, model, position);
         }
     }
@@ -321,18 +294,14 @@ public abstract class BaseSuggestionViewProcessor implements SuggestionProcessor
             if (action.presentationMode != ActionPresentationMode.BUTTON) {
                 continue;
             }
-            boolean isIncognito = mUiContext.resourceProvider.isIncognito();
-            int iconRes =
-                    isIncognito && action.icon.incognitoButtonIconRes != 0
-                            ? action.icon.incognitoButtonIconRes
-                            : action.icon.buttonIconRes;
             setActionButtons(
                     model,
                     List.of(
                             new Action(
-                                    OmniboxDrawableState.forSmallIcon(
-                                            mUiContext.resourceProvider,
-                                            iconRes,
+                                    OmniboxDrawableState.forSmallIconWithIncognitoVariant(
+                                            mContext,
+                                            action.icon.buttonIconRes,
+                                            action.icon.incognitoButtonIconRes,
                                             action.icon.tintWithTextColor),
                                     action.accessibilityHint,
                                     null,

@@ -22,12 +22,10 @@ static_library("types") {
     "//base",
     "//chrome/common",
     "//ui/base",
-    "//ui/gfx/geometry",
+    "//ui/menus",
     "//url",
   ]
 
-  public_deps = [
-    "//chromeos/ash/components/system_web_apps:system_web_app_type",
-    "//components/tabs:enum",
-  ]
+  public_deps =
+      [ "//chromeos/ash/components/system_web_apps:system_web_app_type" ]
 }

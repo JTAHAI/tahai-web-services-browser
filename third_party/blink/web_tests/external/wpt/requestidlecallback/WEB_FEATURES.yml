@@ -1,2 +1,3 @@
-rules:
-- "**": [requestidlecallback]
+features:
+- name: requestidlecallback
+  files: "**"

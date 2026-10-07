@@ -8,7 +8,6 @@
 #include "base/strings/utf_string_conversions.h"
 #include "base/values.h"
 #include "chrome/browser/ui/browser.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/ui_test_utils.h"
 #include "content/public/browser/media_session_client.h"
@@ -26,7 +25,7 @@ class MediaSessionBrowserTest : public InProcessBrowserTest {
   MediaSessionBrowserTest() = default;
   ~MediaSessionBrowserTest() override = default;
 
-  void PlayVideoWithMetadata(BrowserWindowInterface* browser) {
+  void PlayVideoWithMetadata(Browser* browser) {
     ASSERT_TRUE(embedded_test_server()->Start());
 
     // Navigate to a test page with some media on it.
@@ -34,7 +33,7 @@ class MediaSessionBrowserTest : public InProcessBrowserTest {
         browser, embedded_test_server()->GetURL(
                      "/media/session/video-with-metadata.html")));
 
-    auto* web_contents = browser->GetTabStripModel()->GetActiveWebContents();
+    auto* web_contents = browser->tab_strip_model()->GetActiveWebContents();
 
     // Start playback.
     ASSERT_EQ(base::Value(), content::EvalJs(web_contents, "play()"));
@@ -72,11 +71,11 @@ class MediaSessionBrowserTest : public InProcessBrowserTest {
 
 IN_PROC_BROWSER_TEST_F(MediaSessionBrowserTest,
                        MediaSessionInfoDontHideMetadataByDefault) {
-  BrowserWindowInterface* test_browser = browser();
+  Browser* test_browser = browser();
 
   media_session::test::MockMediaSessionMojoObserver observer(
       *content::MediaSession::Get(
-          test_browser->GetTabStripModel()->GetActiveWebContents()));
+          test_browser->tab_strip_model()->GetActiveWebContents()));
 
   PlayVideoWithMetadata(test_browser);
 
@@ -85,11 +84,11 @@ IN_PROC_BROWSER_TEST_F(MediaSessionBrowserTest,
 
 IN_PROC_BROWSER_TEST_F(MediaSessionBrowserTest,
                        MediaSessionInfoHideMetadataIfInIncognito) {
-  BrowserWindowInterface* browser = CreateIncognitoBrowser();
+  Browser* browser = CreateIncognitoBrowser();
 
   media_session::test::MockMediaSessionMojoObserver observer(
       *content::MediaSession::Get(
-          browser->GetTabStripModel()->GetActiveWebContents()));
+          browser->tab_strip_model()->GetActiveWebContents()));
 
   PlayVideoWithMetadata(browser);
 
@@ -103,11 +102,11 @@ IN_PROC_BROWSER_TEST_F(MediaSessionBrowserTest,
 #if BUILDFLAG(IS_CHROMEOS)
 IN_PROC_BROWSER_TEST_F(MediaSessionBrowserTest,
                        MediaSessionInfoIsHiddenInCrOSIncognito) {
-  BrowserWindowInterface* browser = CreateIncognitoBrowser();
+  Browser* browser = CreateIncognitoBrowser();
 
   media_session::test::MockMediaSessionMojoObserver observer(
       *content::MediaSession::Get(
-          browser->GetTabStripModel()->GetActiveWebContents()));
+          browser->tab_strip_model()->GetActiveWebContents()));
 
   PlayVideoWithMetadata(browser);
 
@@ -116,11 +115,11 @@ IN_PROC_BROWSER_TEST_F(MediaSessionBrowserTest,
 #else  // !BUILDFLAG(IS_CHROMEOS)
 IN_PROC_BROWSER_TEST_F(MediaSessionBrowserTest,
                        MediaSessionInfoIsNotHiddenInNonCrOSIncognito) {
-  BrowserWindowInterface* browser = CreateIncognitoBrowser();
+  Browser* browser = CreateIncognitoBrowser();
 
   media_session::test::MockMediaSessionMojoObserver observer(
       *content::MediaSession::Get(
-          browser->GetTabStripModel()->GetActiveWebContents()));
+          browser->tab_strip_model()->GetActiveWebContents()));
 
   PlayVideoWithMetadata(browser);
 

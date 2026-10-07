@@ -4,10 +4,6 @@
 
 #include "chrome/browser/ui/views/bookmarks/bookmark_bubble_view.h"
 
-#include <vector>
-
-#include "base/callback_list.h"
-#include "base/check_deref.h"
 #include "base/feature_list.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
@@ -28,9 +24,10 @@
 #include "chrome/browser/ui/actions/chrome_action_id.h"
 #include "chrome/browser/ui/bookmarks/bookmark_editor.h"
 #include "chrome/browser/ui/bookmarks/recently_used_folders_combo_model.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_actions.h"
 #include "chrome/browser/ui/browser_element_identifiers.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/desktop_to_mobile_promos/ios_promo_controller.h"
 #include "chrome/browser/ui/desktop_to_mobile_promos/ios_promo_trigger_service.h"
 #include "chrome/browser/ui/desktop_to_mobile_promos/ios_promo_trigger_service_factory.h"
@@ -60,13 +57,11 @@
 #include "components/signin/public/base/signin_switches.h"
 #include "components/strings/grit/components_strings.h"
 #include "components/sync/service/local_data_description.h"
-#include "components/tabs/public/tab_interface.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/common/url_constants.h"
 #include "ui/base/interaction/element_identifier.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/models/dialog_model.h"
-#include "ui/base/models/dialog_model_host.h"
 #include "ui/base/models/image_model.h"
 #include "ui/base/ui_base_features.h"
 #include "ui/gfx/color_utils.h"
@@ -159,7 +154,7 @@ bool ShouldShowShoppingCollectionFootnote(Profile* profile,
 actions::ActionItem& GetBookmarkActionItem(BrowserWindowInterface* bwi) {
   CHECK(bwi);
   actions::ActionItem* action_item = actions::ActionManager::Get().FindAction(
-      kActionBookmarkThisTab, BrowserActions::From(bwi)->root_action_item());
+      kActionBookmarkThisTab, bwi->GetActions()->root_action_item());
   CHECK(action_item);
   return *action_item;
 }
@@ -186,11 +181,10 @@ void MaybeShowSignInPromo(bool already_bookmarked,
     return;
   }
 
-  auto bubble = std::make_unique<BookmarkSigninPromoBubbleView>(
-      bubble_anchor, web_contents, bookmark);
-  BookmarkSigninPromoBubbleView* const bubble_ptr = bubble.get();
-  views::BubbleDialogDelegateView::CreateBubble(std::move(bubble));
-  bubble_ptr->ShowForReason(LocationBarBubbleDelegateView::USER_GESTURE);
+  BookmarkSigninPromoBubbleView* bubble =
+      new BookmarkSigninPromoBubbleView(bubble_anchor, web_contents, bookmark);
+  views::BubbleDialogDelegateView::CreateBubble(bubble);
+  bubble->ShowForReason(LocationBarBubbleDelegateView::USER_GESTURE);
 }
 #endif
 
@@ -202,7 +196,7 @@ class BookmarkBubbleViewPromoHelper {
 
   static bool ShouldShowIOSPriceTrackingPromo(
       content::WebContents* web_contents,
-      BrowserWindowInterface* browser) {
+      Browser* browser) {
     auto* const interface =
         BrowserUserEducationInterface::MaybeGetForWebContentsInTab(
             web_contents);
@@ -219,7 +213,7 @@ class BookmarkBubbleViewPromoHelper {
   }
 
   static base::OnceCallback<void()> CreatePriceTrackingCallback(
-      BrowserWindowInterface* browser,
+      Browser* browser,
       Profile* profile,
       views::BubbleAnchor bubble_anchor,
       content::WebContents* web_contents,
@@ -286,18 +280,11 @@ class BookmarkBubbleViewPromoHelper {
 class BookmarkBubbleView::BookmarkBubbleDelegate
     : public ui::DialogModelDelegate {
  public:
-  BookmarkBubbleDelegate(BrowserWindowInterface* browser,
-                         tabs::TabInterface& tab,
-                         const GURL& url)
+  BookmarkBubbleDelegate(Browser* browser, const GURL& url)
       : browser_(browser),
         url_(url),
         action_item_(GetBookmarkActionItem(browser)) {
     action_item_->SetIsShowingBubble(true);
-
-    tab_subscriptions_.push_back(tab.RegisterWillDetach(base::BindRepeating(
-        &BookmarkBubbleDelegate::OnTabWillDetach, base::Unretained(this))));
-    tab_subscriptions_.push_back(tab.RegisterWillDeactivate(base::BindRepeating(
-        &BookmarkBubbleDelegate::OnTabWillDeactivate, base::Unretained(this))));
   }
 
   // Handles presses on the secondary (usually cancel) button and returns
@@ -401,11 +388,8 @@ class BookmarkBubbleView::BookmarkBubbleDelegate
                   ->GetComboboxByUniqueId(kBookmarkFolderFieldId)
                   ->selected_index());
 
-    if (auto* const user_education =
-            BrowserUserEducationInterface::From(browser_)) {
-      user_education->MaybeShowFeaturePromo(
-          feature_engagement::kIPHPowerBookmarksSidePanelFeature);
-    }
+    BrowserUserEducationInterface::From(browser_)->MaybeShowFeaturePromo(
+        feature_engagement::kIPHPowerBookmarksSidePanelFeature);
   }
 
   RecentlyUsedFoldersComboModel* GetFolderModel() {
@@ -417,30 +401,12 @@ class BookmarkBubbleView::BookmarkBubbleDelegate
   }
 
  private:
-  void OnTabWillDetach(tabs::TabInterface* tab,
-                       tabs::TabInterface::DetachReason reason) {
-    CloseBubble();
-  }
-
-  void OnTabWillDeactivate(tabs::TabInterface* tab) { CloseBubble(); }
-
-  void CloseBubble() {
-    ui::DialogModelHost* const host =
-        dialog_model() ? dialog_model()->host() : nullptr;
-    if (host) {
-      host->Close();
-    }
-  }
-
-  const raw_ptr<BrowserWindowInterface> browser_;
+  const raw_ptr<Browser> browser_;
   const GURL url_;
   base::OnceCallback<void()> close_callback_;
 
   bool should_apply_edits_ = true;
   const raw_ref<actions::ActionItem> action_item_;
-  // Keeps the bubble from outliving the tab it was opened for. Destroyed with
-  // `this`, which is why the callbacks may use Unretained.
-  std::vector<base::CallbackListSubscription> tab_subscriptions_;
 };
 
 // static
@@ -448,7 +414,7 @@ void BookmarkBubbleView::ShowBubble(
     views::BubbleAnchor bubble_anchor,
     content::WebContents* web_contents,
     page_actions::PageActionViewInterface* highlighted_button,
-    BrowserWindowInterface* browser,
+    Browser* browser,
     const GURL& url,
     bool already_bookmarked) {
   if (bookmark_bubble_) {
@@ -470,11 +436,8 @@ void BookmarkBubbleView::ShowBubble(
       BookmarkBubbleViewPromoHelper::CreatePriceTrackingCallback(
           browser, profile, bubble_anchor, web_contents, bookmark_node);
 
-  tabs::TabInterface& tab =
-      CHECK_DEREF(tabs::TabInterface::GetFromContents(web_contents));
-
   auto bubble_delegate_unique =
-      std::make_unique<BookmarkBubbleDelegate>(browser, tab, url);
+      std::make_unique<BookmarkBubbleDelegate>(browser, url);
   BookmarkBubbleDelegate* bubble_delegate = bubble_delegate_unique.get();
 
   auto dialog_model_builder =

@@ -94,23 +94,6 @@ bool Match(const AtomicString& name, const QualifiedName& q_name) {
   return q_name.LocalName() == name;
 }
 
-// https://html.spec.whatwg.org/multipage/syntax.html#void-elements
-bool IsVoidElement(const StringImpl* tag_impl) {
-  return Match(tag_impl, html_names::kAreaTag) ||
-         Match(tag_impl, html_names::kBaseTag) ||
-         Match(tag_impl, html_names::kBrTag) ||
-         Match(tag_impl, html_names::kColTag) ||
-         Match(tag_impl, html_names::kEmbedTag) ||
-         Match(tag_impl, html_names::kHrTag) ||
-         Match(tag_impl, html_names::kImgTag) ||
-         Match(tag_impl, html_names::kInputTag) ||
-         Match(tag_impl, html_names::kLinkTag) ||
-         Match(tag_impl, html_names::kMetaTag) ||
-         Match(tag_impl, html_names::kSourceTag) ||
-         Match(tag_impl, html_names::kTrackTag) ||
-         Match(tag_impl, html_names::kWbrTag);
-}
-
 String InitiatorFor(const StringImpl* tag_impl, bool link_is_modulepreload) {
   DCHECK(tag_impl);
   if (Match(tag_impl, html_names::kImgTag))
@@ -372,11 +355,15 @@ class TokenPreloadScanner::StartTagScanner {
               : (is_async_ ? RenderBlockingBehavior::kPotentiallyBlocking
                            : RenderBlockingBehavior::kNonBlocking);
     } else if (is_script || type == ResourceType::kCSSStyleSheet) {
-      // JS here is a blocking one, as others would've been caught by the
-      // previous condition.
+      // CSS here is render blocking unless it's disabled, as non blocking
+      // doesn't get preloaded. JS here is a blocking one, as others would've
+      // been caught by the previous condition.
       render_blocking_behavior =
-          treat_links_as_in_body ? RenderBlockingBehavior::kInBodyParserBlocking
-                                 : RenderBlockingBehavior::kBlocking;
+          type == ResourceType::kCSSStyleSheet && disabled_attr_set_
+              ? RenderBlockingBehavior::kNonBlocking
+          : treat_links_as_in_body
+              ? RenderBlockingBehavior::kInBodyParserBlocking
+              : RenderBlockingBehavior::kBlocking;
     }
     request->SetRenderBlockingBehavior(render_blocking_behavior);
 
@@ -407,6 +394,10 @@ class TokenPreloadScanner::StartTagScanner {
     if (scanner_type_ == ScannerType::kInsertion)
       request->SetFromInsertionScanner(true);
 
+    if (shared_storage_writable_opted_in_) {
+      DCHECK(is_img);
+      request->SetSharedStorageWritableOptedIn(true);
+    }
 
     if (browsing_topics_attr_set_) {
       DCHECK(is_img);
@@ -489,6 +480,8 @@ class TokenPreloadScanner::StartTagScanner {
     } else if (loading_attr_value_ == LoadingAttributeValue::kAuto &&
                Match(attribute_name, html_names::kLoadingAttr)) {
       loading_attr_value_ = GetLoadingAttributeValue(attribute_value);
+    } else if (Match(attribute_name, html_names::kSharedstoragewritableAttr)) {
+      shared_storage_writable_opted_in_ = true;
     } else if (Match(attribute_name, html_names::kBrowsingtopicsAttr)) {
       browsing_topics_attr_set_ = true;
     } else if (use_data_src_attr_match_for_image_ &&
@@ -725,10 +718,6 @@ class TokenPreloadScanner::StartTagScanner {
 
   bool ShouldPreloadLink(std::optional<ResourceType>& type) const {
     if (link_is_style_sheet_) {
-      // Disabled stylesheets are not loaded by the tree builder either.
-      if (disabled_attr_set_) {
-        return false;
-      }
       return type_attribute_value_.empty() ||
              MIMETypeRegistry::IsSupportedStyleSheetMIMEType(
                  ContentType(type_attribute_value_).GetType());
@@ -865,6 +854,7 @@ class TokenPreloadScanner::StartTagScanner {
   TokenPreloadScanner::ScannerType scanner_type_;
   // For explanation, see TokenPreloadScanner's declaration.
   const HashSet<String>* disabled_image_types_;
+  bool shared_storage_writable_opted_in_ = false;
   bool browsing_topics_attr_set_ = false;
   std::optional<float> resource_width_;
   std::optional<float> resource_height_;
@@ -1136,10 +1126,10 @@ void TokenPreloadScanner::Scan(const HTMLToken& token,
         in_picture_ = true;
         picture_data_ = PictureData();
         return;
-      } else if (!IsVoidElement(tag_impl)) {
-        // A non-void element may contain a subsequent <img>, which would then
-        // no longer be a direct <picture> child, so stop treating the current
-        // <picture> as the img's parent. Void elements cannot contain it.
+      } else if (!Match(tag_impl, html_names::kSourceTag) &&
+                 !Match(tag_impl, html_names::kImgTag)) {
+        // If found an "atypical" picture child, don't process it as a picture
+        // child.
         in_picture_ = false;
         picture_data_.picked = false;
       }

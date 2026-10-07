@@ -86,9 +86,8 @@ std::unique_ptr<ContentVerifierIOData::ExtensionData> CreateIOData(
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
   ContentVerifierDelegate::VerifierSourceType source_type =
       delegate->GetVerifierSourceType(*extension);
-  if (source_type == ContentVerifierDelegate::VerifierSourceType::NONE) {
+  if (source_type == ContentVerifierDelegate::VerifierSourceType::NONE)
     return nullptr;
-  }
 
   // The browser image paths from the extension might have '.' or '..'
   // components, so we strip those to make comparing to actual relative
@@ -222,9 +221,8 @@ class ContentVerifier::HashHelper {
     auto callback_key = std::make_tuple(extension_id, extension_version,
                                         GetExtensionRootToUse(extension_root));
     auto iter = callback_infos_.find(callback_key);
-    if (iter == callback_infos_.end()) {
+    if (iter == callback_infos_.end())
       return;
-    }
     iter->second.Cancel();
     callback_infos_.erase(iter);
   }
@@ -331,9 +329,8 @@ class ContentVerifier::HashHelper {
                           bool was_cancelled) {
     // If the request was cancelled, then we don't have a corresponding entry
     // for the request in |callback_infos_| anymore.
-    if (was_cancelled) {
+    if (was_cancelled)
       return;
-    }
 
     content::GetIOThreadTaskRunner({})->PostTask(
         FROM_HERE,
@@ -435,9 +432,8 @@ class ContentVerifier::HashHelper {
     CHECK(iter != callback_infos_.end());
     auto& callback_info = iter->second;
 
-    for (auto& callback : callback_info.callbacks) {
+    for (auto& callback : callback_info.callbacks)
       std::move(callback).Run(content_hash);
-    }
     callback_infos_.erase(iter);
 
     // OnFetchComplete will check content_hash->hash_mismatch_unix_paths():
@@ -698,19 +694,20 @@ bool ContentVerifier::ShouldComputeHashesOnInstall(const Extension& extension) {
 void ContentVerifier::VerifyFailed(
     const ExtensionId& extension_id,
     const std::vector<VerifiedFileType>& failed_file_types,
+    int manifest_version,
     ContentVerifyJob::FailureReason reason) {
   TRACE_EVENT("extensions.content_verifier.debug",
               "ContentVerifier::VerifyFailed", "extension_id", extension_id,
               "ContentVerifyJob::FailureReason", reason);
   if (!content::BrowserThread::CurrentlyOn(content::BrowserThread::UI)) {
     content::GetUIThreadTaskRunner({})->PostTask(
-        FROM_HERE, base::BindOnce(&ContentVerifier::VerifyFailed, this,
-                                  extension_id, failed_file_types, reason));
+        FROM_HERE,
+        base::BindOnce(&ContentVerifier::VerifyFailed, this, extension_id,
+                       failed_file_types, manifest_version, reason));
     return;
   }
-  if (shutdown_on_ui_) {
+  if (shutdown_on_ui_)
     return;
-  }
 
   VLOG(1) << "VerifyFailed " << extension_id << " reason:" << reason;
   DCHECK_NE(ContentVerifyJob::NONE, reason);
@@ -744,13 +741,25 @@ void ContentVerifier::VerifyFailed(
         break;
     }
 
-    base::UmaHistogramEnumeration(
-        base::StringPrintf(
-            "Extensions.ContentVerification.VerifyFailedOnFile.%s",
-            histogram_suffix),
-        reason, ContentVerifyJob::FAILURE_REASON_MAX);
-    base::UmaHistogramEnumeration(
-        "Extensions.ContentVerification.VerifyFailedOnFileType", file_type);
+    if (manifest_version == 2) {
+      base::UmaHistogramEnumeration(
+          base::StringPrintf(
+              "Extensions.ContentVerification.VerifyFailedOnFileMV2.%s",
+              histogram_suffix),
+          reason, ContentVerifyJob::FAILURE_REASON_MAX);
+      base::UmaHistogramEnumeration(
+          "Extensions.ContentVerification.VerifyFailedOnFileTypeMV2",
+          file_type);
+    } else if (manifest_version == 3) {
+      base::UmaHistogramEnumeration(
+          base::StringPrintf(
+              "Extensions.ContentVerification.VerifyFailedOnFileMV3.%s",
+              histogram_suffix),
+          reason, ContentVerifyJob::FAILURE_REASON_MAX);
+      base::UmaHistogramEnumeration(
+          "Extensions.ContentVerification.VerifyFailedOnFileTypeMV3",
+          file_type);
+    }
   }
 
   delegate_->VerifyFailed(extension_id, reason);
@@ -763,9 +772,8 @@ void ContentVerifier::OnExtensionLoaded(
               "ContentVerifier::OnExtensionLoaded", "extension_id",
               extension->id(), "extension_root", extension->path(),
               "extension_version", extension->version().GetString());
-  if (shutdown_on_ui_) {
+  if (shutdown_on_ui_)
     return;
-  }
 
   std::unique_ptr<ContentVerifierIOData::ExtensionData> io_data =
       CreateIOData(extension, delegate_.get());
@@ -784,9 +792,8 @@ void ContentVerifier::OnExtensionLoadedOnIO(
               "ContentVerifier::OnExtensionLoadedOnIO", "extension_id",
               extension_id, "extension_root", extension_root,
               "extension_version", extension_version.GetString());
-  if (shutdown_on_io_) {
+  if (shutdown_on_io_)
     return;
-  }
 
   // `data` may be null if no verification is needed for the extension. In that
   // case, we just mark the extension as ready.
@@ -810,9 +817,8 @@ void ContentVerifier::OnExtensionUnloaded(
               extension->id(), "extension_root", extension->path(),
               "extension_version", extension->version().GetString(),
               "UnloadedExtensionReason", reason);
-  if (shutdown_on_ui_) {
+  if (shutdown_on_ui_)
     return;
-  }
   content::GetIOThreadTaskRunner({})->PostTask(
       FROM_HERE,
       base::BindOnce(&ContentVerifier::OnExtensionUnloadedOnIO, this,
@@ -833,7 +839,7 @@ GURL ContentVerifier::GetSignatureFetchUrlForTest(
 void ContentVerifier::VerifyFailedForTest(
     const ExtensionId& extension_id,
     ContentVerifyJob::FailureReason reason) {
-  VerifyFailed(extension_id, {VerifiedFileType::kMiscFile}, reason);
+  VerifyFailed(extension_id, {VerifiedFileType::kMiscFile}, 3, reason);
 }
 
 void ContentVerifier::ClearCacheForTesting() {
@@ -848,9 +854,8 @@ void ContentVerifier::OnExtensionUnloadedOnIO(
   TRACE_EVENT("extensions.content_verifier.debug",
               "ContentVerifier::OnExtensionUnloadedOnIO", "extension_id",
               extension_id, "extension_version", extension_version.GetString());
-  if (shutdown_on_io_) {
+  if (shutdown_on_io_)
     return;
-  }
   io_data_.RemoveData(extension_id);
 
   // Remove all possible cache entries for this extension version.
@@ -861,9 +866,8 @@ void ContentVerifier::OnExtensionUnloadedOnIO(
                /*needs_force_missing_computed_hashes_creation=*/false));
 
   HashHelper* hash_helper = GetOrCreateHashHelper();
-  if (hash_helper) {
+  if (hash_helper)
     hash_helper->Cancel(extension_id, extension_version, extension_root);
-  }
 
   ready_extensions_.erase(extension_id);
   pending_jobs_.erase(extension_id);
@@ -904,8 +908,9 @@ void ContentVerifier::StartJob(const scoped_refptr<ContentVerifyJob>& job) {
   }
 
   std::vector<VerifiedFileType> file_types({verified_file_type});
-  auto callback = base::BindOnce(&ContentVerifier::VerifyFailed, this,
-                                 job->extension_id(), file_types);
+  auto callback =
+      base::BindOnce(&ContentVerifier::VerifyFailed, this, job->extension_id(),
+                     file_types, data->manifest_version);
   const base::Version& current_extension_version = data->version;
   if (current_extension_version != job->extension_version()) {
     // This verify job must've started after a newer version of the extension
@@ -960,13 +965,12 @@ void ContentVerifier::OnFetchComplete(
                                                       did_hash_mismatch);
   }
 
-  if (!did_hash_mismatch) {
+  if (!did_hash_mismatch)
     return;
-  }
 
   // Note: `data` must be non-null here, since we'd only populate
   // `file_hash_mismatches` if it's available.
-  VerifyFailed(extension_id, file_hash_mismatches,
+  VerifyFailed(extension_id, file_hash_mismatches, data->manifest_version,
                ContentVerifyJob::HASH_MISMATCH);
 }
 
@@ -1014,9 +1018,8 @@ void ContentVerifier::BindURLLoaderFactoryReceiverOnUIThread(
     mojo::PendingReceiver<network::mojom::URLLoaderFactory>
         url_loader_factory_receiver) {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
-  if (shutdown_on_ui_) {
+  if (shutdown_on_ui_)
     return;
-  }
 
   context_->GetDefaultStoragePartition()
       ->GetURLLoaderFactoryForBrowserProcess()

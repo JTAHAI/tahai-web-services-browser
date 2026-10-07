@@ -304,10 +304,6 @@ class AutofillWebDataService : public WebDataServiceBase {
   // by Chrome Sync code.
   void AddServerCreditCardForTesting(const CreditCard& credit_card);
 
-  // Copies data from the legacy `autofill` table to the new `autocomplete`
-  // table.
-  void MigrateDataFromLegacyTable(WebDataServiceRequestCallback consumer);
-
  protected:
   ~AutofillWebDataService() override;
 

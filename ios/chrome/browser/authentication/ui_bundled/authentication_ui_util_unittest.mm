@@ -115,7 +115,7 @@ TEST_F(AuthenticationUIUtil,
   // Test with the same account.
   EXPECT_TRUE(ForceLeavingPrimaryAccountConfirmationDialog(
       SignedInUserState::kManagedAccountClearsDataOnSignout, profile,
-      primary_account.GetGaiaId()));
+      primary_account.gaia));
 
   // Test with a different account.
   EXPECT_FALSE(ForceLeavingPrimaryAccountConfirmationDialog(

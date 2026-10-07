@@ -18,7 +18,6 @@
 #include "build/build_config.h"
 #include "chrome/browser/glic/common/local_hotkey_manager.h"
 #include "chrome/browser/glic/glic_metrics.h"
-#include "chrome/browser/glic/glic_warming_checks.h"
 #include "chrome/browser/glic/host/glic.mojom.h"
 #include "chrome/browser/glic/host/glic_web_client_access.h"
 #include "chrome/browser/glic/host/host.h"
@@ -59,8 +58,10 @@ class GlicShareImageHandler;
 class GlicTabDataObserver;
 class GlicTabFaviconObserver;
 class GlicInstanceCoordinator;
+
+#if !BUILDFLAG(IS_ANDROID)
 class GlicExperimentalOptInController;
-class GlicExperimentalTriggeringTransportHandlerFactory;
+#endif
 
 enum class GlicPrewarmingChecksResult;
 
@@ -101,15 +102,10 @@ class GlicKeyedService : public KeyedService, public base::SupportsUserData {
   // KeyedService
   void Shutdown() override;
 
-  // Show, summon or activate the panel. If `bwi` is non-null, attach the panel
-  // to its Browser.
-  virtual void ShowUI(BrowserWindowInterface* bwi,
-                      mojom::InvocationSource source);
-
   // Show, summon or activate the panel, or close it if it's already active and
   // prevent_close is false. If `bwi` is non-null, attach the panel to its
   // Browser.
-  // TODO(b:448888544): remove `prevent_close` in favor of ShowUI.
+  // TODO(b:448888544): remove `prevent_close` in favor of a Show method.
 
   virtual void ToggleUI(BrowserWindowInterface* bwi,
                         bool prevent_close,
@@ -142,9 +138,9 @@ class GlicKeyedService : public KeyedService, public base::SupportsUserData {
   GlicEnabling& enabling() { return *enabling_.get(); }
 
   GlicMetrics* metrics() { return metrics_.get(); }
-
+#if !BUILDFLAG(IS_ANDROID)
   virtual GlicExperimentalOptInController& opt_in_controller();
-
+#endif
   virtual GlicInstanceCoordinator& instance_coordinator() const;
 
   // Return a `GlicActiveInstanceSharingManager` which tracks the sharing state
@@ -212,8 +208,8 @@ class GlicKeyedService : public KeyedService, public base::SupportsUserData {
 
   void AddPreloadCallback(base::OnceCallback<void()> callback);
 
-  virtual void TryPreload(GlicWarmingTrigger trigger);
-  void TryPreloadAfterDelay(GlicWarmingTrigger trigger);
+  virtual void TryPreload();
+  void TryPreloadAfterDelay();
   void Reload(content::RenderFrameHost* render_frame_host);
   // Close the active embedder for an instance associated with this render frame
   // host.
@@ -258,10 +254,11 @@ class GlicKeyedService : public KeyedService, public base::SupportsUserData {
           GetZeroStateSuggestionsForFocusedTabCallback callback,
       std::vector<std::string> returned_suggestions);
 
+  bool MaybeInvoke(BrowserWindowInterface* bwi, mojom::InvocationSource source);
+
   void InitializeAfterConstruction();
 
-  void FinishPreload(GlicWarmingTrigger trigger,
-                     GlicPrewarmingChecksResult reason);
+  void FinishPreload(GlicPrewarmingChecksResult reason);
 
   void OnExperimentalTriggeringStateChanged();
 
@@ -283,7 +280,9 @@ class GlicKeyedService : public KeyedService, public base::SupportsUserData {
 
   std::unique_ptr<GlicEnabling> enabling_;
   std::unique_ptr<GlicMetrics> metrics_;
+#if !BUILDFLAG(IS_ANDROID)
   std::unique_ptr<GlicExperimentalOptInController> opt_in_controller_;
+#endif
   // Is a GlicInstanceCoordinatorImpl.
   std::unique_ptr<GlicInstanceCoordinator> instance_coordinator_;
   std::unique_ptr<GlicShareImageHandler> share_image_handler_;
@@ -294,8 +293,6 @@ class GlicKeyedService : public KeyedService, public base::SupportsUserData {
 
   std::unique_ptr<GlicTabDataObserver> tab_data_observer_;
   std::unique_ptr<GlicTabFaviconObserver> tab_favicon_observer_;
-  std::unique_ptr<GlicExperimentalTriggeringTransportHandlerFactory>
-      experimental_triggering_transport_handler_factory_;
 
   base::CallbackListSubscription experimental_triggering_state_subscription_;
 

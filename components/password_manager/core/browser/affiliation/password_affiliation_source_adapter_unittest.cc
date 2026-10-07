@@ -16,7 +16,6 @@
 #include "components/affiliations/core/browser/mock_affiliation_source.h"
 #include "components/password_manager/core/browser/password_form.h"
 #include "components/password_manager/core/browser/password_store/test_password_store.h"
-#include "components/password_manager/core/browser/password_string.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
@@ -63,7 +62,7 @@ PasswordForm GetTestCredential(std::string_view signon_realm) {
   form.scheme = PasswordForm::Scheme::kHtml;
   form.signon_realm = signon_realm;
   form.username_value = kTestUsername;
-  form.password_value = PasswordString(kTestPassword);
+  form.password_value = kTestPassword;
   return form;
 }
 

@@ -82,15 +82,6 @@ std::string OnDeviceInputToString(const mojom::Input& input,
           result += "<unsupported>";
         }
         break;
-      case Tag::kToolCall: {
-        const auto& call = piece->get_tool_call();
-        std::string arguments_json;
-        base::JSONWriter::Write(call->arguments, &arguments_json);
-        base::StrAppend(&result,
-                        {"<tool-call id=", call->call_id, " name=", call->name,
-                         " arguments=", arguments_json, ">"});
-        break;
-      }
       case Tag::kToolResponse: {
         const auto& response = piece->get_tool_response();
         base::StrAppend(&result, {"<tool-response id=", response->call_id,
@@ -348,9 +339,6 @@ void FakeOnDeviceSession::GenerateImpl(
   if (settings_->model_execute_result.empty()) {
     for (const auto& context : context_) {
       std::string text = CtxToString(*context, params_->capabilities);
-      if (text.empty()) {
-        continue;
-      }
       output_token_count += text.size();
       auto chunk = mojom::ResponseChunk::New();
       chunk->text = text;
@@ -381,13 +369,12 @@ void FakeOnDeviceSession::GenerateImpl(
     remote->OnToolCalls(std::move(tool_calls));
   }
 
-  auto summary = mojom::ResponseSummary::New();
-  constexpr int kEosTokenCount = 1;
-  summary->output_token_count = output_token_count + kEosTokenCount;
   if (options->max_output_tokens &&
-      summary->output_token_count > options->max_output_tokens) {
-    summary->output_token_count = options->max_output_tokens;
+      output_token_count > options->max_output_tokens) {
+    output_token_count = options->max_output_tokens;
   }
+  auto summary = mojom::ResponseSummary::New();
+  summary->output_token_count = output_token_count;
   remote->OnComplete(std::move(summary));
 }
 

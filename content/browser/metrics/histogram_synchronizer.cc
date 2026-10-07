@@ -56,18 +56,18 @@ class HistogramSynchronizer::RequestContext {
   ~RequestContext() {}
 
   void SetReceivedProcessGroupCount(bool done) {
-    CHECK_CURRENTLY_ON(BrowserThread::UI, base::NotFatalUntil::M159);
+    DCHECK_CURRENTLY_ON(BrowserThread::UI);
     received_process_group_count_ = done;
   }
 
   // Methods for book keeping of processes_pending_.
   void AddProcessesPending(int processes_pending) {
-    CHECK_CURRENTLY_ON(BrowserThread::UI, base::NotFatalUntil::M159);
+    DCHECK_CURRENTLY_ON(BrowserThread::UI);
     processes_pending_ += processes_pending;
   }
 
   void DecrementProcessesPending() {
-    CHECK_CURRENTLY_ON(BrowserThread::UI, base::NotFatalUntil::M159);
+    DCHECK_CURRENTLY_ON(BrowserThread::UI);
     --processes_pending_;
   }
 
@@ -76,7 +76,7 @@ class HistogramSynchronizer::RequestContext {
   // |processes_pending_| are zero, then delete the current object by calling
   // Unregister.
   void DeleteIfAllDone() {
-    CHECK_CURRENTLY_ON(BrowserThread::UI, base::NotFatalUntil::M159);
+    DCHECK_CURRENTLY_ON(BrowserThread::UI);
 
     if (processes_pending_ <= 0 && received_process_group_count_)
       RequestContext::Unregister(sequence_number_);
@@ -85,7 +85,7 @@ class HistogramSynchronizer::RequestContext {
   // Register |callback| in |outstanding_requests_| map for the given
   // |sequence_number|.
   static void Register(base::OnceClosure callback, int sequence_number) {
-    CHECK_CURRENTLY_ON(BrowserThread::UI, base::NotFatalUntil::M159);
+    DCHECK_CURRENTLY_ON(BrowserThread::UI);
 
     RequestContext* request =
         new RequestContext(std::move(callback), sequence_number);
@@ -95,7 +95,7 @@ class HistogramSynchronizer::RequestContext {
   // Find the |RequestContext| in |outstanding_requests_| map for the given
   // |sequence_number|.
   static RequestContext* GetRequestContext(int sequence_number) {
-    CHECK_CURRENTLY_ON(BrowserThread::UI, base::NotFatalUntil::M159);
+    DCHECK_CURRENTLY_ON(BrowserThread::UI);
 
     auto it = GetOutstandingRequests().find(sequence_number);
     if (it == GetOutstandingRequests().end()) {
@@ -103,8 +103,7 @@ class HistogramSynchronizer::RequestContext {
     }
 
     RequestContext* request = it->second;
-    CHECK_EQ(sequence_number, request->sequence_number_,
-             base::NotFatalUntil::M159);
+    DCHECK_EQ(sequence_number, request->sequence_number_);
     return request;
   }
 
@@ -112,7 +111,7 @@ class HistogramSynchronizer::RequestContext {
   // |outstanding_requests_| map. This method is called when all changes have
   // been acquired, or when the wait time expires (whichever is sooner).
   static void Unregister(int sequence_number) {
-    CHECK_CURRENTLY_ON(BrowserThread::UI, base::NotFatalUntil::M159);
+    DCHECK_CURRENTLY_ON(BrowserThread::UI);
 
     auto it = GetOutstandingRequests().find(sequence_number);
     if (it == GetOutstandingRequests().end()) {
@@ -120,8 +119,7 @@ class HistogramSynchronizer::RequestContext {
     }
 
     RequestContext* request = it->second;
-    CHECK_EQ(sequence_number, request->sequence_number_,
-             base::NotFatalUntil::M159);
+    DCHECK_EQ(sequence_number, request->sequence_number_);
     std::move(request->callback_).Run();
 
     delete request;
@@ -188,7 +186,7 @@ void HistogramSynchronizer::FetchHistograms() {
         FROM_HERE, base::BindOnce(&HistogramSynchronizer::FetchHistograms));
     return;
   }
-  CHECK_CURRENTLY_ON(BrowserThread::UI, base::NotFatalUntil::M159);
+  DCHECK_CURRENTLY_ON(BrowserThread::UI);
 
   HistogramSynchronizer* current_synchronizer =
       HistogramSynchronizer::GetInstance();
@@ -211,8 +209,8 @@ void HistogramSynchronizer::FetchHistogramsAsynchronously(
     scoped_refptr<base::TaskRunner> task_runner,
     base::OnceClosure callback,
     base::TimeDelta wait_time) {
-  CHECK(task_runner, base::NotFatalUntil::M159);
-  CHECK(callback, base::NotFatalUntil::M159);
+  DCHECK(task_runner);
+  DCHECK(callback);
 
   HistogramSynchronizer* current_synchronizer =
       HistogramSynchronizer::GetInstance();
@@ -226,7 +224,7 @@ void HistogramSynchronizer::FetchHistogramsAsynchronously(
 void HistogramSynchronizer::RegisterAndNotifyAllProcesses(
     ProcessHistogramRequester requester,
     base::TimeDelta wait_time) {
-  CHECK_CURRENTLY_ON(BrowserThread::UI, base::NotFatalUntil::M159);
+  DCHECK_CURRENTLY_ON(BrowserThread::UI);
 
   int sequence_number = GetNextAvailableSequenceNumber(requester);
 
@@ -250,7 +248,7 @@ void HistogramSynchronizer::RegisterAndNotifyAllProcesses(
 void HistogramSynchronizer::OnPendingProcesses(int sequence_number,
                                                int pending_processes,
                                                bool end) {
-  CHECK_CURRENTLY_ON(BrowserThread::UI, base::NotFatalUntil::M159);
+  DCHECK_CURRENTLY_ON(BrowserThread::UI);
 
   RequestContext* request = RequestContext::GetRequestContext(sequence_number);
   if (!request)
@@ -264,7 +262,7 @@ void HistogramSynchronizer::OnHistogramDataCollected(
     int sequence_number,
     bool is_webium_renderer,
     const std::vector<std::string>& pickled_histograms) {
-  CHECK_CURRENTLY_ON(BrowserThread::UI, base::NotFatalUntil::M159);
+  DCHECK_CURRENTLY_ON(BrowserThread::UI);
 
   base::HistogramBase::NameMapper mapper;
   if (is_webium_renderer && webium_metrics_name_mapper_) {
@@ -345,9 +343,8 @@ int HistogramSynchronizer::GetNextAvailableSequenceNumber(
     last_used_sequence_number_ =
         kHistogramSynchronizerReservedSequenceNumber + 1;
   }
-  CHECK_NE(last_used_sequence_number_,
-           kHistogramSynchronizerReservedSequenceNumber,
-           base::NotFatalUntil::M159);
+  DCHECK_NE(last_used_sequence_number_,
+            kHistogramSynchronizerReservedSequenceNumber);
   if (requester == ASYNC_HISTOGRAMS)
     async_sequence_number_ = last_used_sequence_number_;
   return last_used_sequence_number_;

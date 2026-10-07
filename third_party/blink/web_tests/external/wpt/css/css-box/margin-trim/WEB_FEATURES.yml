@@ -1,2 +1,3 @@
-rules:
-- "**": [margin-trim]
+features:
+- name: margin-trim
+  files: "**"

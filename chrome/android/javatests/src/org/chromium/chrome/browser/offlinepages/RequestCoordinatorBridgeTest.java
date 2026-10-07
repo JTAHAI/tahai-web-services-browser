@@ -25,6 +25,7 @@ import org.chromium.chrome.browser.profiles.ProfileManager;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.chrome.test.transit.AutoResetCtaTransitTestRule;
 import org.chromium.chrome.test.transit.ChromeTransitTestRules;
+import org.chromium.chrome.test.transit.page.WebPageStation;
 import org.chromium.components.offlinepages.background.UpdateRequestResult;
 import org.chromium.net.NetworkChangeNotifier;
 
@@ -48,6 +49,7 @@ public class RequestCoordinatorBridgeTest {
 
     private RequestCoordinatorBridge mRequestCoordinatorBridge;
     private Profile mProfile;
+    private WebPageStation mStartingPage;
 
     private void initializeBridgeForProfile() throws InterruptedException {
         final Semaphore semaphore = new Semaphore(0);
@@ -84,7 +86,7 @@ public class RequestCoordinatorBridgeTest {
         }
         removeRequestsFromQueue(requestsToRemove);
 
-        mActivityTestRule.startOnBlankPage();
+        mStartingPage = mActivityTestRule.startOnBlankPage();
     }
 
     @Test

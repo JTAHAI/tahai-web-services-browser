@@ -1,5 +1,4 @@
 include_rules = [
-    "+base/android/device_info.h",
     "+base/apple/bridging.h",
     "+base/apple/scoped_cftyperef.h",
     "+base/atomic_sequence_num.h",

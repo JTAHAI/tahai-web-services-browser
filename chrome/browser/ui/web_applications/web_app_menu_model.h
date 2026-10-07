@@ -17,8 +17,7 @@ class WebAppMenuModel : public AppMenuModel {
   static constexpr int kUninstallAppCommandId = 1;
   static constexpr int kExtensionsMenuCommandId = 2;
 
-  WebAppMenuModel(ui::AcceleratorProvider* provider,
-                  BrowserWindowInterface* browser);
+  WebAppMenuModel(ui::AcceleratorProvider* provider, Browser* browser);
   WebAppMenuModel(const WebAppMenuModel&) = delete;
   WebAppMenuModel& operator=(const WebAppMenuModel&) = delete;
   ~WebAppMenuModel() override;

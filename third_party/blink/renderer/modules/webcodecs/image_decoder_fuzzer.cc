@@ -4,7 +4,6 @@
 
 #include <string>
 
-#include "base/check.h"
 #include "base/run_loop.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "testing/libfuzzer/proto/lpm_interface.h"
@@ -20,7 +19,6 @@
 #include "third_party/blink/renderer/core/streams/test_underlying_source.h"
 #include "third_party/blink/renderer/core/testing/dummy_page_holder.h"
 #include "third_party/blink/renderer/modules/webcodecs/fuzzer_inputs.pb.h"
-#include "third_party/blink/renderer/modules/webcodecs/fuzzer_inputs_fuzzable.pb.h"
 #include "third_party/blink/renderer/modules/webcodecs/fuzzer_utils.h"
 #include "third_party/blink/renderer/modules/webcodecs/image_decoder_external.h"
 #include "third_party/blink/renderer/modules/webcodecs/image_track.h"
@@ -83,16 +81,7 @@ void RunFuzzingLoop(ImageDecoderExternal* image_decoder,
 }  // namespace
 
 DEFINE_BINARY_PROTO_FUZZER(
-    const fuzzable::wc_fuzzer::ImageDecoderApiInvocationSequence&
-        fuzzable_proto) {
-  std::string serialized;
-  CHECK(fuzzable_proto.SerializeToString(&serialized));
-  wc_fuzzer::ImageDecoderApiInvocationSequence proto;
-  // Recursion limits can cause parsing to fail.
-  if (!proto.ParseFromString(serialized)) {
-    return;
-  }
-
+    const wc_fuzzer::ImageDecoderApiInvocationSequence& proto) {
   if (proto.invocations().size() > kMaxFuzzerProtoLength) {
     return;
   }

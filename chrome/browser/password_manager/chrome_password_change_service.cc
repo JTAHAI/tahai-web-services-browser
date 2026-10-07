@@ -25,15 +25,12 @@
 #include "components/password_manager/core/browser/features/password_features.h"
 #include "components/password_manager/core/browser/password_feature_manager.h"
 #include "components/password_manager/core/browser/password_manager_settings_service.h"
-#include "components/password_manager/core/browser/password_store/stored_credential.h"
-#include "components/password_manager/core/browser/ui/credential_ui_entry.h"
 #include "components/password_manager/core/common/password_manager_pref_names.h"
 #include "components/prefs/pref_service.h"
 #include "content/public/browser/web_contents.h"
 #include "url/gurl.h"
 
 #if !BUILDFLAG(IS_ANDROID)
-#include "chrome/browser/password_manager/password_change/change_password_form_waiter.h"
 #include "chrome/browser/password_manager/password_change/features.h"
 #include "chrome/browser/password_manager/password_change/model_quality_logs_uploader.h"
 #include "chrome/browser/password_manager/password_change_delegate_impl.h"
@@ -72,22 +69,6 @@ CreateLoggerPair(autofill::LogRouter* log_router) {
   }
   return {std::move(log_manager), std::move(logger)};
 }
-
-#if !BUILDFLAG(IS_ANDROID)
-bool IsPasswordFieldVisible(const password_manager::PasswordForm& form) {
-  for (autofill::FieldRendererId renderer_id :
-       {form.password_element_renderer_id,
-        form.new_password_element_renderer_id}) {
-    if (!renderer_id) {
-      continue;
-    }
-    if (!FieldFocusable(renderer_id, form.form_data)) {
-      return false;
-    }
-  }
-  return true;
-}
-#endif
 
 }  // namespace
 
@@ -208,9 +189,7 @@ void ChromePasswordChangeService::OfferPasswordChangeUi(
     change_pwd_url = credentials.change_password_url;
   }
 
-  CHECK(change_pwd_url.is_valid() ||
-        base::FeatureList::IsEnabled(
-            password_change::features::kPasswordChangeWithGlic));
+  CHECK(change_pwd_url.is_valid());
 
   std::unique_ptr<PasswordChangeDelegate> delegate =
       std::make_unique<PasswordChangeDelegateImpl>(
@@ -224,20 +203,30 @@ void ChromePasswordChangeService::OfferPasswordChangeUi(
 }
 
 #if !BUILDFLAG(IS_ANDROID)
-base::WeakPtr<PasswordChangeFromCheckupDelegate>
-ChromePasswordChangeService::StartPasswordChangeFromCheckup(
-    password_manager::StoredCredential credential,
+void ChromePasswordChangeService::StartPasswordChangeFromCheckup(
+    const password_manager::CredentialUIEntry& credential,
     content::WebContents* web_contents,
     PasswordChangeFromCheckupDelegate::StateChangeCallback callback) {
   if (!web_contents) {
-    return nullptr;
+    return;
   }
 
-  auto delegate = std::make_unique<PasswordChangeFromCheckupDelegate>();
-  delegate->StartPasswordChangeFlow(
-      std::move(credential), web_contents->GetWeakPtr(), std::move(callback));
-  password_change_from_checkup_delegates_.push_back(std::move(delegate));
-  return password_change_from_checkup_delegates_.back()->GetWeakPtr();
+  if (!password_change_from_checkup_delegate_) {
+    password_change_from_checkup_delegate_ =
+        std::make_unique<PasswordChangeFromCheckupDelegate>(
+            ChromePasswordManagerClient::FromWebContents(web_contents));
+  }
+
+  password_change_from_checkup_delegate_->StartPasswordChangeFlow(
+      credential, web_contents->GetWeakPtr(), std::move(callback));
+}
+
+void ChromePasswordChangeService::StopPasswordChangeFromCheckup() {
+  if (password_change_from_checkup_delegate_) {
+    password_change_from_checkup_delegate_->Stop(
+        actor::ActorTask::StoppedReason::kStoppedByUser);
+    password_change_from_checkup_delegate_.reset();
+  }
 }
 #endif  // BUILDFLAG(IS_ANDROID)
 
@@ -271,10 +260,11 @@ void ChromePasswordChangeService::Shutdown() {
   }
   password_change_delegates_.clear();
 #if !BUILDFLAG(IS_ANDROID)
-  for (const auto& delegate : password_change_from_checkup_delegates_) {
-    delegate->Stop(actor::ActorTask::StoppedReason::kShutdown);
+  if (password_change_from_checkup_delegate_) {
+    password_change_from_checkup_delegate_->Stop(
+        actor::ActorTask::StoppedReason::kShutdown);
+    password_change_from_checkup_delegate_.reset();
   }
-  password_change_from_checkup_delegates_.clear();
 #endif
 }
 
@@ -337,18 +327,6 @@ PasswordChangeAvailability ChromePasswordChangeService::GetGeneralAvailability()
     return PasswordChangeAvailability::kDisabledByPolicy;
   }
 
-  // The preference is disabled by the user in settings (and feature is enabled)
-  if (!pref_service_->GetBoolean(
-          password_manager::prefs::kAutomatedPasswordChangeEnabled) &&
-      base::FeatureList::IsEnabled(
-          password_change::features::
-              kPasswordChangeWithPrivateInferenceLoginCheck)) {
-    if (logger) {
-      logger->LogMessage(Logger::STRING_PASSWORD_CHANGE_DISABLED_BY_USER);
-    }
-    return PasswordChangeAvailability::kDisabledByUser;
-  }
-
   if (!pref_service_->GetInteger(
           password_manager::prefs::kTotalPasswordsAvailableForAccount) &&
       !pref_service_->GetInteger(
@@ -401,9 +379,7 @@ PasswordChangeAvailability ChromePasswordChangeService::GetPerSiteAvailability(
                        has_change_url);
   }
 
-  if (!has_change_url &&
-      !base::FeatureList::IsEnabled(
-          password_change::features::kPasswordChangeWithGlic)) {
+  if (!has_change_url) {
     return PasswordChangeAvailability::kNotSupportedSite;
   }
 
@@ -413,13 +389,6 @@ PasswordChangeAvailability ChromePasswordChangeService::GetPerSiteAvailability(
                          true);
     }
     return PasswordChangeAvailability::kNonPasswordLogin;
-  }
-
-  if (base::FeatureList::IsEnabled(
-          password_change::features::
-              kCheckPasswordFieldFocusableBeforeOffering) &&
-      !IsPasswordFieldVisible(form)) {
-    return PasswordChangeAvailability::kInvisiblePasswordField;
   }
 
   return PasswordChangeAvailability::kAvailable;

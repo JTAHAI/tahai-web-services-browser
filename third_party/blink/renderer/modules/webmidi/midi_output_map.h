@@ -15,7 +15,7 @@ class MIDIOutputMap : public MIDIPortMap<MIDIOutputMap, MIDIOutput> {
   DEFINE_WRAPPERTYPEINFO();
 
  public:
-  explicit MIDIOutputMap(const HeapVector<Member<MIDIOutput>>&);
+  explicit MIDIOutputMap(HeapVector<Member<MIDIOutput>>&);
 };
 
 }  // namespace blink

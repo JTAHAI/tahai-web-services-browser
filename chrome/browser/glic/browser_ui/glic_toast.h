@@ -42,8 +42,6 @@ class GlicToast {
   GlicToast(const GlicToast&) = delete;
   GlicToast& operator=(const GlicToast&) = delete;
 
-  bool IsShowing() const { return message_ != nullptr; }
-
  private:
   void HandleMessageAccepted();
   void HandleMessageDismissed(messages::DismissReason reason);

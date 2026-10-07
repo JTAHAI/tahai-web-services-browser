@@ -6,27 +6,19 @@ import 'chrome://contextual-tasks/info_tooltip.js';
 import 'chrome://resources/cr_elements/icons.html.js';
 
 import type {ContextualTasksInfoTooltipElement} from 'chrome://contextual-tasks/info_tooltip.js';
-import {BrowserProxyImpl} from 'chrome://contextual-tasks/contextual_tasks_browser_proxy.js';
 import {loadTimeData} from 'chrome://resources/js/load_time_data.js';
-import {WindowOpenDisposition} from 'chrome://resources/mojo/ui/base/mojom/window_open_disposition.mojom-webui.js';
 import {assertEquals, assertFalse, assertTrue} from 'chrome://webui-test/chai_assert.js';
 import {microtasksFinished} from 'chrome://webui-test/test_util.js';
-
-import {TestContextualTasksBrowserProxy} from './test_contextual_tasks_browser_proxy.js';
 
 suite('InfoTooltipTest', () => {
   let tooltipElement: ContextualTasksInfoTooltipElement;
   let container: HTMLDivElement;
   let target: HTMLDivElement;
-  let testProxy: TestContextualTasksBrowserProxy;
 
   setup(async () => {
     loadTimeData.resetForTesting({
       tabFaviconChipsToCoinsEnabled: false,
     });
-
-    testProxy = new TestContextualTasksBrowserProxy('about:blank');
-    BrowserProxyImpl.setInstance(testProxy);
 
     document.body.innerHTML = window.trustedTypes!.emptyHTML;
 
@@ -92,35 +84,6 @@ suite('InfoTooltipTest', () => {
     const targetRect = target.getBoundingClientRect();
     const expectedRight = parentRect.right - targetRect.right;
     assertEquals(`${expectedRight}px`, crTooltip.style.right);
-
-    // Caret center offset calculation check: targetWidth / 2 - 8.
-    const expectedCaretOffset = Math.max(0, (targetRect.width / 2) - 8);
-    assertEquals(
-        `${expectedCaretOffset}px`,
-        crTooltip.style.getPropertyValue('--info-tooltip-caret-inline-end'));
-  });
-
-  test('updates position on target attribute change', async () => {
-    tooltipElement.target = target;
-    tooltipElement.container = container;
-    tooltipElement.horizontalAlign = 'right';
-    tooltipElement.show();
-    await microtasksFinished();
-
-    const crTooltip = tooltipElement.shadowRoot.querySelector('cr-tooltip')!;
-    const initialRight = crTooltip.style.right;
-
-    // Shift target position via style change.
-    target.style.left = '50px';
-    await new Promise(resolve => requestAnimationFrame(resolve));
-    await microtasksFinished();
-
-    // The right offset should update.
-    const parentRect = container.getBoundingClientRect();
-    const targetRect = target.getBoundingClientRect();
-    const expectedRight = parentRect.right - targetRect.right;
-    assertEquals(`${expectedRight}px`, crTooltip.style.right);
-    assertTrue(crTooltip.style.right !== initialRight);
   });
 
   test('renders text button and fires event on click', async () => {
@@ -178,25 +141,5 @@ suite('InfoTooltipTest', () => {
     await microtasksFinished();
 
     assertTrue(eventFired);
-  });
-
-  test('renders link and calls browser proxy on click', async () => {
-    tooltipElement.bodyText = 'Body content';
-    tooltipElement.linkUrl = 'https://example.com/';
-    tooltipElement.linkText = 'Learn More';
-    tooltipElement.target = target;
-    tooltipElement.show();
-    await microtasksFinished();
-
-    const link = tooltipElement.shadowRoot.querySelector('a')!;
-    assertEquals('Learn More', link.textContent.trim());
-    assertEquals('https://example.com/', link.getAttribute('href'));
-
-    link.click();
-    await microtasksFinished();
-
-    const [url, disposition] = await testProxy.handler.whenCalled('openUrl');
-    assertEquals('https://example.com/', url);
-    assertEquals(WindowOpenDisposition.NEW_FOREGROUND_TAB, disposition);
   });
 });

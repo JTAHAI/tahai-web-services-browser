@@ -60,7 +60,6 @@
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
-#include "chrome/browser/ui/browser_window/public/create_browser_window.h"
 #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "chrome/browser/ui/browser_window/public/profile_browser_collection.h"
 #include "chrome/browser/ui/navigator/browser_navigator.h"
@@ -76,8 +75,8 @@
 #include "chrome/common/pref_names.h"
 #include "chrome/common/url_constants.h"
 #include "chrome/renderer/chrome_content_renderer_client.h"
-#include "chrome/test/base/chrome_test_path_utils.h"
 #include "chrome/test/base/chrome_test_suite.h"
+#include "chrome/test/base/chrome_test_utils.h"
 #include "chrome/test/base/test_launcher_utils.h"
 #include "chrome/test/base/ui_test_utils.h"
 #include "components/captive_portal/core/buildflags.h"
@@ -456,7 +455,7 @@ void InProcessBrowserTest::SetUp() {
 
 #if BUILDFLAG(IS_CHROMEOS)
   // No need to redirect log for test.
-  command_line->AppendSwitch(ash::switches::kDisableLoggingRedirect);
+  command_line->AppendSwitch(switches::kDisableLoggingRedirect);
 
   // Disable IME extension loading to avoid many browser tests failures.
   ash::input_method::DisableExtensionLoading();
@@ -574,12 +573,11 @@ void InProcessBrowserTest::SetUpDefaultCommandLine(
   test_launcher_utils::PrepareBrowserCommandLineForBrowserTests(
       command_line, open_about_blank_on_browser_launch_);
 
-#if BUILDFLAG(IS_CHROMEOS)
   // TODO(pkotwicz): Investigate if we can remove this switch.
   if (exit_when_last_browser_closes_) {
-    command_line->AppendSwitch(ash::switches::kDisableZeroBrowsersOpenForTests);
+    command_line->AppendSwitch(switches::kDisableZeroBrowsersOpenForTests);
   }
-
+#if BUILDFLAG(IS_CHROMEOS)
   // Do not automaximize in browser tests.
   command_line->AppendSwitch(switches::kDisableAutoMaximizeForTests);
 #endif
@@ -631,7 +629,7 @@ void InProcessBrowserTest::CreatedBrowserMainParts(
 }
 
 void InProcessBrowserTest::SetBrowser(BrowserWindowInterface* browser) {
-  browser_ = browser;
+  browser_ = browser ? browser->GetBrowserForMigrationOnly() : nullptr;
 }
 
 void InProcessBrowserTest::RecordPropertyFromMap(
@@ -764,9 +762,8 @@ void InProcessBrowserTest::OpenDevToolsWindow(
   ASSERT_TRUE(content::DevToolsAgentHost::HasFor(web_contents));
 }
 
-BrowserWindowInterface* InProcessBrowserTest::OpenURLOffTheRecord(
-    Profile* profile,
-    const GURL& url) {
+Browser* InProcessBrowserTest::OpenURLOffTheRecord(Profile* profile,
+                                                   const GURL& url) {
   chrome::OpenURLOffTheRecord(profile, url);
   BrowserWindowInterface* browser_window_interface =
       ProfileBrowserCollection::GetForProfile(
@@ -775,56 +772,47 @@ BrowserWindowInterface* InProcessBrowserTest::OpenURLOffTheRecord(
   content::TestNavigationObserver observer(
       browser_window_interface->GetTabStripModel()->GetActiveWebContents());
   observer.Wait();
-  return browser_window_interface;
+  return browser_window_interface->GetBrowserForMigrationOnly();
 }
 
 // Creates a browser with a single tab (about:blank), waits for the tab to
 // finish loading and shows the browser.
-BrowserWindowInterface* InProcessBrowserTest::CreateBrowser(Profile* profile) {
-  BrowserWindowInterface* browser = CreateBrowserWindow(
-      BrowserWindowCreateParams(profile, /*from_user_gesture=*/true));
+Browser* InProcessBrowserTest::CreateBrowser(Profile* profile) {
+  Browser* browser = Browser::Create(Browser::CreateParams(profile, true));
   AddBlankTabAndShow(browser);
   return browser;
 }
 
-BrowserWindowInterface* InProcessBrowserTest::CreateIncognitoBrowser(
-    Profile* profile) {
+Browser* InProcessBrowserTest::CreateIncognitoBrowser(Profile* profile) {
   // Use active profile if default nullptr was passed.
   if (!profile) {
     profile = browser()->GetProfile();
   }
   // Create a new browser with using the incognito profile.
-  BrowserWindowInterface* incognito = CreateBrowserWindow(
-      BrowserWindowCreateParams(profile->GetPrimaryOTRProfile(
-                                    /*create_if_needed=*/true),
-                                /*from_user_gesture=*/true));
+  Browser* incognito = Browser::Create(Browser::CreateParams(
+      profile->GetPrimaryOTRProfile(/*create_if_needed=*/true), true));
   AddBlankTabAndShow(incognito);
   return incognito;
 }
 
-BrowserWindowInterface* InProcessBrowserTest::CreateBrowserForPopup(
-    Profile* profile) {
-  BrowserWindowInterface* browser = CreateBrowserWindow(
-      BrowserWindowCreateParams(BrowserWindowInterface::TYPE_POPUP, profile,
-                                /*from_user_gesture=*/true));
+Browser* InProcessBrowserTest::CreateBrowserForPopup(Profile* profile) {
+  Browser* browser = Browser::Create(
+      Browser::CreateParams(Browser::TYPE_POPUP, profile, true));
   AddBlankTabAndShow(browser);
   return browser;
 }
 
-BrowserWindowInterface* InProcessBrowserTest::CreateBrowserForApp(
-    const std::string& app_name,
-    Profile* profile) {
-  BrowserWindowInterface* browser =
-      CreateBrowserWindow(BrowserWindowCreateParams::CreateForApp(
-          app_name, /*trusted_source=*/false, gfx::Rect(), profile,
-          /*user_gesture=*/true));
+Browser* InProcessBrowserTest::CreateBrowserForApp(const std::string& app_name,
+                                                   Profile* profile) {
+  Browser* browser = Browser::Create(Browser::CreateParams::CreateForApp(
+      app_name, false /* trusted_source */, gfx::Rect(), profile, true));
   AddBlankTabAndShow(browser);
   return browser;
 }
 #endif  // !BUILDFLAG(IS_MAC)
 
 #if !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_CHROMEOS)
-BrowserWindowInterface* InProcessBrowserTest::CreateGuestBrowser() {
+Browser* InProcessBrowserTest::CreateGuestBrowser() {
   // Get Guest profile.
   ProfileManager* profile_manager = g_browser_process->profile_manager();
   base::FilePath guest_path = profile_manager->GetGuestProfilePath();
@@ -835,15 +823,14 @@ BrowserWindowInterface* InProcessBrowserTest::CreateGuestBrowser() {
       guest_profile.GetPrimaryOTRProfile(/*create_if_needed=*/true);
 
   // Create browser and add tab.
-  BrowserWindowInterface* browser = CreateBrowserWindow(
-      BrowserWindowCreateParams(guest_profile_otr,
-                                /*from_user_gesture=*/true));
+  Browser* browser =
+      Browser::Create(Browser::CreateParams(guest_profile_otr, true));
   AddBlankTabAndShow(browser);
   return browser;
 }
 #endif  // !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_CHROMEOS)
 
-void InProcessBrowserTest::AddBlankTabAndShow(BrowserWindowInterface* browser,
+void InProcessBrowserTest::AddBlankTabAndShow(Browser* browser,
                                               bool wait_for_activation) {
   content::WebContents* blank_tab = chrome::AddSelectedTabWithURL(
       browser, GURL(url::kAboutBlankURL), ui::PAGE_TRANSITION_AUTO_TOPLEVEL);
@@ -895,10 +882,9 @@ void InProcessBrowserTest::PreRunTestOnMainThread() {
 
   SetBrowser(GetLastActiveBrowserWindowInterfaceWithAnyProfile());
 
-  auto ensure_browser_visible = [](BrowserWindowInterface* browser) {
+  auto ensure_browser_visible = [](Browser* browser) {
 #if defined(TOOLKIT_VIEWS)
-    if (browser &&
-        browser->GetType() == BrowserWindowInterface::Type::TYPE_NORMAL) {
+    if (browser && browser->is_type_normal()) {
       if (auto* browser_view = BrowserView::GetBrowserViewForBrowser(browser)) {
         if (auto* widget = browser_view->GetWidget()) {
           if (!widget->IsVisible()) {
@@ -914,12 +900,15 @@ void InProcessBrowserTest::PreRunTestOnMainThread() {
   // "active" yet.
   if (!browser_ && GlobalBrowserCollection::GetInstance()->GetSize() > 0) {
     auto browsers = GetAllBrowserWindowInterfaces();
-    BrowserWindowInterface* normal_browser = nullptr;
+    BrowserWindowInterface* normal_window_interface = nullptr;
+    Browser* normal_browser = nullptr;
     for (auto* window_interface : browsers) {
-      if (window_interface->GetType() ==
-          BrowserWindowInterface::Type::TYPE_NORMAL) {
-        normal_browser = window_interface;
-        break;
+      if (Browser* browser = window_interface->GetBrowserForMigrationOnly()) {
+        if (browser->is_type_normal()) {
+          normal_window_interface = window_interface;
+          normal_browser = browser;
+          break;
+        }
       }
     }
 
@@ -932,8 +921,8 @@ void InProcessBrowserTest::PreRunTestOnMainThread() {
     // first normal one available, or the first available if none are normal,
     // so tests like WebUIMochaBrowserTest that rely on browser() don't crash.
     if (!browser_) {
-      if (normal_browser) {
-        SetBrowser(normal_browser);
+      if (normal_window_interface) {
+        SetBrowser(normal_window_interface);
       } else if (!browsers.empty()) {
         SetBrowser(browsers[0]);
       }
@@ -950,7 +939,7 @@ void InProcessBrowserTest::PreRunTestOnMainThread() {
   }
 
   if (browser_) {
-    ensure_browser_visible(browser_);
+    ensure_browser_visible(browser_->GetBrowserForMigrationOnly());
   }
 
 #if !BUILDFLAG(IS_ANDROID)

@@ -7,7 +7,7 @@
 
 #import <Cocoa/Cocoa.h>
 
-class BrowserWindowInterface;
+class Browser;
 class ProfileAttributesStorage;
 
 // This controller manages the title and submenu of the Profiles item in the
@@ -51,7 +51,7 @@ class ProfileAttributesStorage;
 
 - (NSMenuItem*)createItemWithTitle:(NSString*)title action:(SEL)sel;
 
-- (void)activeBrowserChangedTo:(BrowserWindowInterface*)browser;
+- (void)activeBrowserChangedTo:(Browser*)browser;
 
 @end
 

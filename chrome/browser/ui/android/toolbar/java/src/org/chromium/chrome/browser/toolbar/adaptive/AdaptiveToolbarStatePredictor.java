@@ -109,6 +109,19 @@ public class AdaptiveToolbarStatePredictor {
             return;
         }
 
+        // Early return if the feature isn't enabled.
+        if (!AdaptiveToolbarFeatures.isCustomizationEnabled()) {
+            ArrayList<Integer> buttonList = new ArrayList<>();
+            buttonList.add(AdaptiveToolbarButtonVariant.UNKNOWN);
+            callback.onResult(
+                    new UiState(
+                            false,
+                            buttonList,
+                            AdaptiveToolbarButtonVariant.UNKNOWN,
+                            AdaptiveToolbarButtonVariant.UNKNOWN));
+            return;
+        }
+
         int manualOverride = readManualOverrideFromPrefs();
         boolean toolbarToggle = readToolbarToggleStateFromPrefs();
         readFromSegmentationPlatform(
@@ -116,7 +129,7 @@ public class AdaptiveToolbarStatePredictor {
                     int defaultSegment = mBehavior.getSegmentationDefault(mProfile);
                     UiState uiState =
                             new UiState(
-                                    /* canShowUi= */ true,
+                                    AdaptiveToolbarFeatures.isCustomizationEnabled(),
                                     filterValidSegmentationResults(
                                             toolbarToggle,
                                             manualOverride,

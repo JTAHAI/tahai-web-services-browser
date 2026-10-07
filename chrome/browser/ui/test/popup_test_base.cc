@@ -7,13 +7,12 @@
 #include <string>
 
 #include "base/memory/raw_ptr.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
-#include "chrome/browser/ui/tabs/tab_strip_model.h"
+#include "chrome/browser/ui/browser.h"
+#include "chrome/browser/ui/browser_window.h"
 #include "chrome/test/base/ui_test_utils.h"
 #include "components/embedder_support/switches.h"
 #include "components/permissions/permission_request_manager.h"
 #include "content/public/test/browser_test_utils.h"
-#include "ui/base/base_window.h"
 #include "ui/display/display.h"
 #include "ui/display/screen.h"
 #include "ui/gfx/geometry/rect.h"
@@ -27,9 +26,7 @@ namespace {
 // A helper to wait for Browser window bounds changes beyond given thresholds.
 class BoundsChangeWaiter final : public views::WidgetObserver {
  public:
-  BoundsChangeWaiter(BrowserWindowInterface* browser,
-                     int move_by,
-                     int resize_by)
+  BoundsChangeWaiter(Browser* browser, int move_by, int resize_by)
       : widget_(views::Widget::GetWidgetForNativeWindow(
             browser->GetWindow()->GetNativeWindow())),
         move_by_(move_by),
@@ -78,25 +75,23 @@ void PopupTestBase::SetUpCommandLine(base::CommandLine* command_line) {
 }
 
 // static
-BrowserWindowInterface* PopupTestBase::OpenPopup(
-    BrowserWindowInterface* browser,
-    const std::string& script,
-    bool user_gesture) {
+Browser* PopupTestBase::OpenPopup(Browser* browser,
+                                  const std::string& script,
+                                  bool user_gesture) {
   return OpenPopup(browser->tab_strip_model()->GetActiveWebContents(), script,
                    user_gesture);
 }
 
 // static
-BrowserWindowInterface* PopupTestBase::OpenPopup(
-    const content::ToRenderFrameHost& adapter,
-    const std::string& script,
-    bool user_gesture) {
+Browser* PopupTestBase::OpenPopup(const content::ToRenderFrameHost& adapter,
+                                  const std::string& script,
+                                  bool user_gesture) {
   if (user_gesture) {
     content::ExecuteScriptAsync(adapter, script);
   } else {
     content::ExecuteScriptAsyncWithoutUserGesture(adapter, script);
   }
-  BrowserWindowInterface* popup = ui_test_utils::WaitForBrowserToOpen();
+  Browser* popup = ui_test_utils::WaitForBrowserToOpen();
   content::WebContents* popup_contents =
       popup->tab_strip_model()->GetActiveWebContents();
   // The popup's bounds are initialized after the synchronous window.open().
@@ -112,14 +107,14 @@ BrowserWindowInterface* PopupTestBase::OpenPopup(
 }
 
 // static
-void PopupTestBase::WaitForBoundsChange(BrowserWindowInterface* browser,
+void PopupTestBase::WaitForBoundsChange(Browser* browser,
                                         int move_by,
                                         int resize_by) {
   BoundsChangeWaiter(browser, move_by, resize_by).Wait();
 }
 
 // static
-void PopupTestBase::SetUpWindowManagement(BrowserWindowInterface* browser) {
+void PopupTestBase::SetUpWindowManagement(Browser* browser) {
   content::WebContents* web_contents =
       browser->tab_strip_model()->GetActiveWebContents();
   // Request and auto-accept the permission request.
@@ -144,14 +139,13 @@ void PopupTestBase::SetUpWindowManagement(BrowserWindowInterface* browser) {
 
 // static
 display::Display PopupTestBase::GetDisplayNearestBrowser(
-    const BrowserWindowInterface* browser) {
+    const Browser* browser) {
   return display::Screen::Get()->GetDisplayNearestWindow(
       browser->GetWindow()->GetNativeWindow());
 }
 
 // static
-void PopupTestBase::WaitForUserActivationExpiry(
-    BrowserWindowInterface* browser) {
+void PopupTestBase::WaitForUserActivationExpiry(Browser* browser) {
   const std::string await_activation_expiry_script = R"(
     (async () => {
       while (navigator.userActivation.isActive)

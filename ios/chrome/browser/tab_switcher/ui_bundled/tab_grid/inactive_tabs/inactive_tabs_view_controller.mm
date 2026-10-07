@@ -5,7 +5,7 @@
 #import "ios/chrome/browser/tab_switcher/ui_bundled/tab_grid/inactive_tabs/inactive_tabs_view_controller.h"
 
 #import "ios/chrome/browser/app_bar/ui/app_bar_constants.h"
-#import "ios/chrome/browser/shared/coordinator/scene/state/scene_layout_state.h"
+#import "ios/chrome/browser/shared/coordinator/scene/state/layout_state.h"
 #import "ios/chrome/browser/shared/public/features/features.h"
 #import "ios/chrome/browser/shared/ui/util/util_swift.h"
 #import "ios/chrome/browser/tab_switcher/ui_bundled/tab_grid/inactive_tabs/inactive_tabs_grid_view_controller.h"
@@ -15,7 +15,7 @@
 #import "ios/chrome/grit/ios_strings.h"
 #import "ui/base/l10n/l10n_util_mac.h"
 
-@interface InactiveTabsViewController () <SceneLayoutStateObserver,
+@interface InactiveTabsViewController () <LayoutStateObserver,
                                           UINavigationBarDelegate>
 
 // The embedded navigation bar.
@@ -37,7 +37,7 @@
   TabGridToolbarBackgroundView* _gradientBackgroundView;
 }
 
-- (void)setLayoutState:(SceneLayoutState*)layoutState {
+- (void)setLayoutState:(LayoutState*)layoutState {
   if (_layoutState == layoutState) {
     return;
   }
@@ -47,9 +47,9 @@
   [self updateBottomBarConstraints];
 }
 
-#pragma mark - SceneLayoutStateObserver
+#pragma mark - LayoutStateObserver
 
-- (void)layoutState:(SceneLayoutState*)layoutState
+- (void)layoutState:(LayoutState*)layoutState
     didChangeAppBarPosition:(AppBarPosition)appBarPosition {
   [self updateBottomBarConstraints];
 }
@@ -142,24 +142,11 @@
   [_bottomBar layoutIfNeeded];
   NSString* buttonTitle =
       l10n_util::GetNSString(IDS_IOS_INACTIVE_TABS_CLOSE_ALL_BUTTON);
-  UIButton* closeAllButton;
-  if (@available(iOS 26, *)) {
-    UIButtonConfiguration* buttonConfiguration =
-        [UIButtonConfiguration plainButtonConfiguration];
-    buttonConfiguration.baseForegroundColor =
-        [UIColor colorNamed:kTextPrimaryColor];
-    buttonConfiguration.title = buttonTitle;
-    closeAllButton = [UIButton buttonWithConfiguration:buttonConfiguration
-                                         primaryAction:nil];
-  } else {
-    closeAllButton = [UIButton systemButtonWithPrimaryAction:nil];
-    [closeAllButton setTitle:buttonTitle forState:UIControlStateNormal];
-  }
-  [closeAllButton addTarget:self
-                     action:@selector(didTapCloseAllInactive:)
-           forControlEvents:UIControlEventTouchUpInside];
-  _closeAllInactiveButton =
-      [[UIBarButtonItem alloc] initWithCustomView:closeAllButton];
+  _closeAllInactiveButton = [[UIBarButtonItem alloc]
+      initWithTitle:buttonTitle
+              style:UIBarButtonItemStylePlain
+             target:self
+             action:@selector(didTapCloseAllInactive)];
   _closeAllInactiveButton.accessibilityIdentifier =
       kInactiveTabGridCloseAllButtonIdentifier;
   UIBarButtonItem* flexibleSpace = [[UIBarButtonItem alloc]
@@ -216,9 +203,9 @@
 #pragma mark - Private
 
 // Called when the user tapped the Close All Inactive button.
-- (void)didTapCloseAllInactive:(UIButton*)sender {
+- (void)didTapCloseAllInactive {
   [self.delegate inactiveTabsViewController:self
-       didTapCloseAllInactiveFromSourceView:sender];
+        didTapCloseAllInactiveBarButtonItem:self.closeAllInactiveButton];
 }
 
 // Updates the bottom bar constraints based on the App Bar position.

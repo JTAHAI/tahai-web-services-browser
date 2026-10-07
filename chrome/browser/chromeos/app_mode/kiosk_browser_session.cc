@@ -16,12 +16,12 @@
 #include "base/location.h"
 #include "base/memory/raw_ptr.h"
 #include "base/task/single_thread_task_runner.h"
-#include "chrome/browser/ash/browser_delegate/browser_delegate.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/chromeos/app_mode/kiosk_browser_window_handler.h"
 #include "chrome/browser/chromeos/app_mode/kiosk_metrics_service.h"
 #include "chrome/browser/lifetime/application_lifetime.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/ui/browser.h"
 #include "chromeos/dbus/power/power_manager_client.h"
 #include "components/pref_registry/pref_registry_syncable.h"
 #include "components/prefs/pref_registry_simple.h"
@@ -231,13 +231,15 @@ void KioskBrowserSession::InitForChromeAppKiosk(const std::string& app_id) {
   metrics_service_->RecordKioskSessionStarted();
 }
 
-void KioskBrowserSession::InitForWebKiosk(const webapps::AppId& web_app_id) {
-  CreateBrowserWindowHandler(web_app_id);
+void KioskBrowserSession::InitForWebKiosk(
+    const std::optional<std::string>& web_app_name) {
+  CreateBrowserWindowHandler(web_app_name);
   metrics_service_->RecordKioskSessionWebStarted();
 }
 
-void KioskBrowserSession::InitForIwaKiosk(const webapps::AppId& app_id) {
-  CreateBrowserWindowHandler(app_id);
+void KioskBrowserSession::InitForIwaKiosk(
+    const std::optional<std::string>& app_name) {
+  CreateBrowserWindowHandler(app_name);
   metrics_service_->RecordKioskSessionIwaStarted();
 }
 
@@ -265,9 +267,9 @@ KioskBrowserSession::KioskBrowserSession(
 }
 
 void KioskBrowserSession::CreateBrowserWindowHandler(
-    const std::optional<webapps::AppId>& web_app_id) {
+    const std::optional<std::string>& web_app_name) {
   browser_window_handler_ = std::make_unique<KioskBrowserWindowHandler>(
-      profile(), web_app_id,
+      profile(), web_app_name,
       base::BindRepeating(&KioskBrowserSession::OnHandledNewBrowserWindow,
                           weak_ptr_factory_.GetWeakPtr()),
       base::BindOnce(&KioskBrowserSession::Shutdown,
@@ -320,11 +322,11 @@ void KioskBrowserSession::Shutdown() {
   std::move(attempt_user_exit_).Run();
 }
 
-ash::BrowserDelegate* KioskBrowserSession::GetSettingsBrowserForTesting() {
-  return browser_window_handler_
-             ? browser_window_handler_
-                   ->GetSettingsBrowserForTesting()  // IN-TEST
-             : nullptr;
+Browser* KioskBrowserSession::GetSettingsBrowserForTesting() {
+  if (browser_window_handler_) {
+    return browser_window_handler_->GetSettingsBrowserForTesting();  // IN-TEST
+  }
+  return nullptr;
 }
 
 }  // namespace chromeos

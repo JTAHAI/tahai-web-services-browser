@@ -43,7 +43,7 @@
 #include "net/dns/mock_host_resolver.h"
 
 #if BUILDFLAG(FULL_SAFE_BROWSING)
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/hats/mock_trust_safety_sentiment_service.h"
 #include "chrome/browser/ui/hats/trust_safety_sentiment_service_factory.h"
 #include "chrome/test/base/ui_test_utils.h"
@@ -243,8 +243,7 @@ FakeSafeBrowsingUIManager::~FakeSafeBrowsingUIManager() = default;
 // Overrides SafeBrowsingUIManager.
 void FakeSafeBrowsingUIManager::AttachThreatDetailsAndLaunchSurvey(
     content::BrowserContext* browser_context,
-    std::unique_ptr<ClientSafeBrowsingReportRequest> report,
-    bool is_tab_closed) {
+    std::unique_ptr<ClientSafeBrowsingReportRequest> report) {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
   ValidateReportForHats(report->SerializeAsString());
   OnAttachThreatDetailsAndLaunchSurvey();
@@ -349,7 +348,7 @@ void FakeSafeBrowsingUIManager::SetExpectInterstitialInteractions(
 content::WebContents*
 SafeBrowsingBlockingPagePlatformBrowserTest::web_contents() {
 #if BUILDFLAG(FULL_SAFE_BROWSING)
-  return browser()->GetTabStripModel()->GetActiveWebContents();
+  return browser()->tab_strip_model()->GetActiveWebContents();
 #else
   return chrome_test_utils::GetActiveWebContents(this);
 #endif

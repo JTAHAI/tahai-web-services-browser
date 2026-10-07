@@ -11,8 +11,7 @@ import org.chromium.build.annotations.NullMarked;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.TabNativeUtils;
 import org.chromium.chrome.browser.tabmodel.TabModel;
-import org.chromium.components.metrics.OmniboxEventProtosIntDef.PageClassification;
-import org.chromium.components.omnibox.PageClassificationUtils;
+import org.chromium.components.metrics.OmniboxEventProtos.OmniboxEventProto.PageClassification;
 
 import java.util.Arrays;
 
@@ -23,10 +22,9 @@ import java.util.Arrays;
 public class ChromeAutocompleteProviderClient {
     @CalledByNative
     // Returns all eligible tabs for the android tab matcher. For most {@link PageClassification}s
-    // this is all hidden tabs, but for PageClassification.ANDROID_HUB and
-    // PageClassification.ANDROID_TAB_SEARCH_OVERLAY, they include all tabs.
+    //  this is all hidden tabs, but for PageClassification.ANDROID_HUB it includes all tabs.
     private static @JniType("std::vector<int64_t>") long[] getAllEligibleTabs(
-            TabModel[] tabModels, @PageClassification int pageClassification, int activeTabId) {
+            TabModel[] tabModels, int pageClassification) {
         int totalTabs = 0;
         for (TabModel tabModel : tabModels) {
             if (tabModel == null) continue;
@@ -40,8 +38,7 @@ public class ChromeAutocompleteProviderClient {
             if (tabModel == null) continue;
 
             for (Tab tab : tabModel) {
-                if (tab.getId() != activeTabId
-                        || PageClassificationUtils.isHubOrTabSearch(pageClassification)) {
+                if (tab.isHidden() || pageClassification == PageClassification.ANDROID_HUB_VALUE) {
                     long nativePtr = TabNativeUtils.getNativePtr(tab);
                     if (nativePtr != 0) {
                         tempTabPtrArray[addedCount++] = nativePtr;

@@ -20,6 +20,7 @@
 #include "chrome/browser/apps/app_service/app_service_proxy_factory.h"
 #include "chrome/browser/apps/intent_helper/preferred_apps_test_util.h"
 #include "chrome/browser/apps/link_capturing/link_capturing_feature_test_support.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_tabstrip.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
@@ -142,33 +143,31 @@ class WebAppLinkCapturingBrowserTest
     return *provider;
   }
 
-  void AddTab(BrowserWindowInterface* browser, const GURL& url) {
+  void AddTab(Browser* browser, const GURL& url) {
     content::TestNavigationObserver observer(url);
     observer.StartWatchingNewWebContents();
     chrome::AddTabAt(browser, url, /*index=*/-1, /*foreground=*/true);
     observer.Wait();
   }
 
-  void NavigateCapturable(BrowserWindowInterface* browser, const GURL& url) {
+  void NavigateCapturable(Browser* browser, const GURL& url) {
     LinkTarget target = LinkTarget::BLANK;
-    ClickLinkAndWait(browser->GetTabStripModel()->GetActiveWebContents(), url,
+    ClickLinkAndWait(browser->tab_strip_model()->GetActiveWebContents(), url,
                      target, "");
   }
 
-  void NavigateSelf(BrowserWindowInterface* browser, const GURL& url) {
-    ClickLinkAndWait(browser->GetTabStripModel()->GetActiveWebContents(), url,
+  void NavigateSelf(Browser* browser, const GURL& url) {
+    ClickLinkAndWait(browser->tab_strip_model()->GetActiveWebContents(), url,
                      LinkTarget::SELF, "");
   }
 
-  void NavigateBlank(BrowserWindowInterface* browser, const GURL& url) {
-    ClickLinkAndWait(browser->GetTabStripModel()->GetActiveWebContents(), url,
+  void NavigateBlank(Browser* browser, const GURL& url) {
+    ClickLinkAndWait(browser->tab_strip_model()->GetActiveWebContents(), url,
                      LinkTarget::BLANK, "");
   }
 
-  BrowserWindowInterface* GetNewBrowserFromNavigation(
-      BrowserWindowInterface* browser,
-      const GURL& url) {
-    if (browser->GetTabStripModel()
+  Browser* GetNewBrowserFromNavigation(Browser* browser, const GURL& url) {
+    if (browser->tab_strip_model()
             ->GetActiveWebContents()
             ->GetVisibleURL()
             .IsAboutBlank()) {
@@ -227,7 +226,7 @@ class WebAppLinkCapturingBrowserTest
   }
 
   content::WebContents* prerender_web_contents() {
-    return browser()->GetTabStripModel()->GetActiveWebContents();
+    return browser()->tab_strip_model()->GetActiveWebContents();
   }
 
  protected:
@@ -260,8 +259,7 @@ IN_PROC_BROWSER_TEST_P(WebAppLinkCapturingBrowserTest,
   NavigateSelf(browser(), out_of_scope_);
 
   // In scope navigation should open app window.
-  BrowserWindowInterface* app_browser =
-      GetNewBrowserFromNavigation(browser(), in_scope_1);
+  Browser* app_browser = GetNewBrowserFromNavigation(browser(), in_scope_1);
   EXPECT_TRUE(AppBrowserController::IsForWebApp(app_browser, app_id));
   ExpectTabs(browser(), {out_of_scope_});
   ExpectTabs(app_browser, {in_scope_1});
@@ -291,8 +289,7 @@ IN_PROC_BROWSER_TEST_P(WebAppLinkCapturingBrowserTest,
   NavigateSelf(browser(), out_of_scope_);
 
   // In scope navigation should open app window.
-  BrowserWindowInterface* app_browser =
-      GetNewBrowserFromNavigation(browser(), in_scope_1);
+  Browser* app_browser = GetNewBrowserFromNavigation(browser(), in_scope_1);
   EXPECT_TRUE(AppBrowserController::IsForWebApp(app_browser, app_id));
   ExpectTabs(browser(), {out_of_scope_});
   ExpectTabs(app_browser, {in_scope_1});
@@ -322,8 +319,7 @@ IN_PROC_BROWSER_TEST_P(WebAppLinkCapturingBrowserTest,
   NavigateSelf(browser(), out_of_scope_);
 
   // In scope navigation should open app window.
-  BrowserWindowInterface* app_browser =
-      GetNewBrowserFromNavigation(browser(), in_scope_1);
+  Browser* app_browser = GetNewBrowserFromNavigation(browser(), in_scope_1);
   EXPECT_TRUE(AppBrowserController::IsForWebApp(app_browser, app_id));
   ExpectTabs(browser(), {out_of_scope_});
   ExpectTabs(app_browser, {in_scope_1});
@@ -335,7 +331,7 @@ IN_PROC_BROWSER_TEST_P(WebAppLinkCapturingBrowserTest,
   BrowserCreatedObserver browser_created_observer;
   NavigateBlank(browser(), in_scope_1);
   ExpectTabs(browser(), {out_of_scope_});
-  BrowserWindowInterface* other_app_browser = browser_created_observer.Wait();
+  Browser* other_app_browser = browser_created_observer.Wait();
   ExpectTabs(other_app_browser, {in_scope_1});
 }
 
@@ -396,7 +392,7 @@ IN_PROC_BROWSER_TEST_P(WebAppLinkCapturingBrowserTest,
   GURL url = embedded_test_server()->GetURL("/title1.html");
   NavigateSelf(browser(), url);
   content::WebContents* web_contents =
-      browser()->GetTabStripModel()->GetActiveWebContents();
+      browser()->tab_strip_model()->GetActiveWebContents();
   content::TestNavigationObserver observer(web_contents);
   ASSERT_TRUE(content::ExecJs(
       web_contents,
@@ -418,7 +414,7 @@ IN_PROC_BROWSER_TEST_P(WebAppLinkCapturingBrowserTest,
   // At this point the hit test data for targeting the event should be valid.
   content::SimulateMouseClickOrTapElementWithId(web_contents, "iframe");
 
-  BrowserWindowInterface* app_browser = browser_created_observer.Wait();
+  Browser* app_browser = browser_created_observer.Wait();
   EXPECT_NE(browser(), app_browser);
   EXPECT_TRUE(AppBrowserController::IsForWebApp(app_browser, app_id));
 }
@@ -444,7 +440,7 @@ IN_PROC_BROWSER_TEST_P(WebAppLinkCapturingBrowserTest,
     // If link capturing is on by default, then the nested app will also be
     // capturing links in its scope (and thus the nested url will launch a
     // nested app browser).
-    BrowserWindowInterface* app_browser = browser_created_observer.Wait();
+    Browser* app_browser = browser_created_observer.Wait();
     EXPECT_TRUE(AppBrowserController::IsForWebApp(app_browser, nested_app_id));
     EXPECT_NE(browser(), app_browser);
     ExpectTabs(app_browser, {GetNestedAppUrl()});
@@ -454,7 +450,7 @@ IN_PROC_BROWSER_TEST_P(WebAppLinkCapturingBrowserTest,
     // Under kV2DefaultOff, overlapping scopes support on ChromeOS has a
     // discrepancy where the parent app captures the link since only the parent
     // has link capturing enabled. See https://crbug.com/40279851.
-    BrowserWindowInterface* app_browser = browser_created_observer.Wait();
+    Browser* app_browser = browser_created_observer.Wait();
     EXPECT_NE(browser(), app_browser);
     EXPECT_TRUE(AppBrowserController::IsForWebApp(app_browser, parent_app_id));
     ExpectTabs(app_browser, {GetNestedAppUrl()});
@@ -492,8 +488,8 @@ IN_PROC_BROWSER_TEST_P(WebAppLinkCapturingBrowserTest,
               base::ok());
   }
 
-  BrowserWindowInterface* nested_browser;
-  BrowserWindowInterface* parent_browser;
+  Browser* nested_browser;
+  Browser* parent_browser;
   {
     BrowserCreatedObserver browser_created_observer;
     NavigateCapturable(browser(), GetNestedAppUrl());
@@ -575,9 +571,11 @@ IN_PROC_BROWSER_TEST_P(WebAppLinkCapturingBrowserTest,
           apps::test::DisableLinkCapturingByUser(profile(), parent_app_id),
           base::ok());
     }
-    BrowserWindowInterface* const popup_browser = OpenPopupAndWait(
-        GlobalBrowserCollection::GetInstance()->FindBrowserWithTab(parent_app),
-        GetParentAppUrl(), size);
+    BrowserWindowInterface* const popup_browser =
+        OpenPopupAndWait(GlobalBrowserCollection::GetInstance()
+                             ->FindBrowserWithTab(parent_app)
+                             ->GetBrowserForMigrationOnly(),
+                         GetParentAppUrl(), size);
 
     BrowserCreatedObserver browser_created_observer;
     ClickLinkAndWait(popup_browser->GetTabStripModel()->GetActiveWebContents(),
@@ -636,7 +634,7 @@ IN_PROC_BROWSER_TEST_P(WebAppLinkCapturingBrowserTest,
   ClickLinkAndWait(prerender_web_contents(), in_scope, LinkTarget::BLANK,
                    /*rel=*/"");
 
-  BrowserWindowInterface* app_browser = browser_created_observer.Wait();
+  Browser* app_browser = browser_created_observer.Wait();
   EXPECT_TRUE(AppBrowserController::IsForWebApp(app_browser, app_id));
   ExpectTabs(app_browser, {in_scope});
 }
@@ -686,7 +684,7 @@ IN_PROC_BROWSER_TEST_P(WebAppLinkCapturingBrowserTest,
 
   AddTab(browser(), about_blank_);
   content::WebContents* web_contents =
-      browser()->GetTabStripModel()->GetActiveWebContents();
+      browser()->tab_strip_model()->GetActiveWebContents();
 
   constexpr char kPopupNavigationJs[] = R"js(
     (() => {
@@ -710,13 +708,13 @@ IN_PROC_BROWSER_TEST_P(WebAppLinkCapturingBrowserTest,
 
   content::SimulateEndOfPaintHoldingOnPrimaryMainFrame(web_contents);
   content::SimulateMouseClickOrTapElementWithId(web_contents, "popup");
-  BrowserWindowInterface* popup_browser = browser_created_observer.Wait();
+  Browser* popup_browser = browser_created_observer.Wait();
   // We need to wait for the navigation to complete inside the popup browser, to
   // give link capturing a chance to trigger.
   navigation_observer->Wait();
 
   EXPECT_FALSE(AppBrowserController::IsForWebApp(popup_browser, app_id));
-  EXPECT_EQ(popup_browser->GetType(), BrowserWindowInterface::Type::TYPE_POPUP);
+  EXPECT_TRUE(popup_browser->is_type_popup());
   ExpectTabs(popup_browser, {in_scope});
 }
 
@@ -772,8 +770,7 @@ IN_PROC_BROWSER_TEST_P(WebAppTabStripLinkCapturingBrowserTest,
   NavigateSelf(browser(), out_of_scope_);
 
   // In scope navigation should open app window.
-  BrowserWindowInterface* app_browser =
-      GetNewBrowserFromNavigation(browser(), in_scope_1);
+  Browser* app_browser = GetNewBrowserFromNavigation(browser(), in_scope_1);
   EXPECT_TRUE(AppBrowserController::IsForWebApp(app_browser, app_id));
   ExpectTabs(browser(), {out_of_scope_});
   ExpectTabs(app_browser, {in_scope_1});
@@ -789,7 +786,7 @@ IN_PROC_BROWSER_TEST_P(WebAppTabStripLinkCapturingBrowserTest,
   ExpectTabs(app_browser, {in_scope_1, in_scope_2, scope});
 
   // Middle clicking links should not be captured.
-  auto* web_contents = browser()->GetTabStripModel()->GetActiveWebContents();
+  auto* web_contents = browser()->tab_strip_model()->GetActiveWebContents();
   content::SimulateEndOfPaintHoldingOnPrimaryMainFrame(web_contents);
   ClickLinkWithModifiersAndWaitForURL(
       web_contents, scope, scope, LinkTarget::SELF, "",

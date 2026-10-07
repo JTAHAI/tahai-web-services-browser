@@ -58,7 +58,7 @@ DocumentAssociatedData::DocumentAssociatedData(
   // main document.
   if (!document.GetParent()) {
     PageDelegate* page_delegate = document.frame_tree()->page_delegate();
-    CHECK(page_delegate, base::NotFatalUntil::M158);
+    DCHECK(page_delegate);
     owned_page_ = PageFactory::Create(document, *page_delegate);
   }
 }

@@ -77,7 +77,6 @@ source_set("impl") {
   if (!is_android) {
     deps += [
       "//chrome/browser/ui/browser_window",
-      "//chrome/browser/ui/read_anything",
       "//chrome/browser/ui/tabs:tab_strip",
       "//chrome/browser/ui/toasts",
       "//chrome/browser/ui/toasts/api:toasts",
@@ -121,6 +120,7 @@ if (!is_android) {
     defines = [ "HAS_OUT_OF_PROC_TEST_RUNNER" ]
 
     sources = [
+      "chrome_translate_client_browsertest.cc",
       "translate_frame_binder_browsertest.cc",
       "translate_manager_browsertest.cc",
       "translate_manager_render_view_host_browsertest.cc",
@@ -177,6 +177,7 @@ source_set("unit_tests") {
     ":translate",
     "//base",
     "//base/test:test_support",
+    "//chrome/browser",
     "//chrome/test:test_support",
     "//components/infobars/content",
     "//components/translate/content/browser",

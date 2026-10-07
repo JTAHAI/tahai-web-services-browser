@@ -10,7 +10,6 @@
 
 #import "base/functional/bind.h"
 #import "base/memory/raw_ptr.h"
-#import "base/memory/ref_counted_memory.h"
 #import "ios/web/common/user_agent.h"
 #import "ios/web/public/web_state.h"
 #import "ios/web/shell/shell_web_main_parts.h"
@@ -67,7 +66,7 @@ std::string_view ShellWebClient::GetDataResource(
       resource_id, scale_factor);
 }
 
-scoped_refptr<base::RefCountedMemory> ShellWebClient::GetDataResourceBytes(
+base::RefCountedMemory* ShellWebClient::GetDataResourceBytes(
     int resource_id) const {
   return ui::ResourceBundle::GetSharedInstance().LoadDataResourceBytes(
       resource_id);

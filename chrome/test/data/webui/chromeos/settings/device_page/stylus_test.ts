@@ -55,7 +55,7 @@ suite('<settings-stylus>', () => {
     assertTrue(!!div2);
     waitingDiv = div2;
     assertEquals(1, browserProxy.getCallCount('requestNoteTakingApps'));
-    assertTrue(!!browserProxy.onNoteTakingAppsUpdated);
+    assertTrue(!!browserProxy['onNoteTakingAppsUpdated_']);
   });
 
   teardown(() => {
@@ -159,7 +159,7 @@ suite('<settings-stylus>', () => {
 
     // Update select element to new value, verify browser proxy is called.
     appSelector.value = 'v1';
-    appSelector.dispatchEvent(new CustomEvent('change'));
+    stylusPage['onSelectedAppChanged_']();
     assertEquals(1, browserProxy.getCallCount('setPreferredNoteTakingApp'));
     assertEquals('v1', browserProxy.getPreferredNoteTakingAppId());
   });
@@ -171,7 +171,7 @@ suite('<settings-stylus>', () => {
     flush();
     assertEquals('', browserProxy.getPreferredNoteTakingAppId());
 
-    browserProxy.onNoteTakingAppsUpdated([], true);
+    browserProxy['onNoteTakingAppsUpdated_']([], true);
     flush();
     assertEquals('', browserProxy.getPreferredNoteTakingAppId());
 

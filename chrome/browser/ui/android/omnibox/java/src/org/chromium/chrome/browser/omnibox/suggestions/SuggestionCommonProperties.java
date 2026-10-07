@@ -7,12 +7,8 @@ package org.chromium.chrome.browser.omnibox.suggestions;
 import androidx.annotation.IntDef;
 
 import org.chromium.build.annotations.NullMarked;
-import org.chromium.chrome.browser.omnibox.fusebox.FuseboxCoordinator.FuseboxLayoutMode;
-import org.chromium.chrome.browser.omnibox.styles.OmniboxResourceProvider;
-import org.chromium.chrome.browser.ui.theme.BrandedColorScheme;
 import org.chromium.ui.modelutil.PropertyKey;
 import org.chromium.ui.modelutil.PropertyModel.WritableBooleanPropertyKey;
-import org.chromium.ui.modelutil.PropertyModel.WritableIntDefPropertyKey;
 import org.chromium.ui.modelutil.PropertyModel.WritableIntPropertyKey;
 import org.chromium.ui.modelutil.PropertyModel.WritableObjectPropertyKey;
 
@@ -61,41 +57,32 @@ public @interface SuggestionCommonProperties {
         int TOP_AND_BOTTOM = 2;
     }
 
-    /** The type of suggestion separator to draw between suggestions */
-    @IntDef({GroupSeparatorType.NONE, GroupSeparatorType.GAP, GroupSeparatorType.LINE})
-    @Retention(RetentionPolicy.SOURCE)
-    @interface GroupSeparatorType {
-        int NONE = 0;
-        int GAP = 1;
-        int LINE = 2;
-    }
-
     /** Whether non-zero horizontal margins should be applied to the suggestion view. */
     WritableBooleanPropertyKey APPLY_SIDE_SPACING = new WritableBooleanPropertyKey();
 
-    /** The positional mode of the suggestion in its group, used for corner rounding. */
-    WritableIntDefPropertyKey<PositionalMode> BG_POSITIONAL_MODE =
-            new WritableIntDefPropertyKey<>(PositionalMode.MIDDLE);
-
-    /** The sides of the suggestion background that are allowed to be rounded. */
-    WritableIntDefPropertyKey<RoundSides> BG_ROUND_SIDES =
-            new WritableIntDefPropertyKey<>(RoundSides.NONE);
-
     /** Whether dark colors should be applied to text, icons. */
-    WritableIntDefPropertyKey<BrandedColorScheme> COLOR_SCHEME =
-            new WritableIntDefPropertyKey<>(BrandedColorScheme.APP_DEFAULT);
-
-    /** The device type for calculating the tile margin in the suggestion view. */
-    WritableIntDefPropertyKey<FormFactor> DEVICE_FORM_FACTOR =
-            new WritableIntDefPropertyKey<>(FormFactor.UNKNOWN);
+    WritableIntPropertyKey COLOR_SCHEME = new WritableIntPropertyKey();
 
     /** The fusebox layout mode (TOOLBAR vs SUGGESTIONS_POPOVER). */
-    WritableIntDefPropertyKey<FuseboxLayoutMode> FUSEBOX_LAYOUT_MODE =
-            new WritableIntDefPropertyKey<>(FuseboxLayoutMode.TOOLBAR);
+    WritableIntPropertyKey FUSEBOX_LAYOUT_MODE = new WritableIntPropertyKey();
 
-    /** The type of group separator to show before this item. */
-    WritableIntDefPropertyKey<GroupSeparatorType> GROUP_SEPARATOR_TYPE =
-            new WritableIntDefPropertyKey<>(GroupSeparatorType.NONE);
+    /** The layout direction to be applied to the entire suggestion view. */
+    WritableIntPropertyKey LAYOUT_DIRECTION = new WritableIntPropertyKey();
+
+    /** The device type for calculating the tile margin in the suggestion view. */
+    WritableIntPropertyKey DEVICE_FORM_FACTOR = new WritableIntPropertyKey();
+
+    /** The positional mode of the suggestion in its group, used for corner rounding. */
+    WritableIntPropertyKey BG_POSITIONAL_MODE = new WritableIntPropertyKey();
+
+    /** The sides of the suggestion background that are allowed to be rounded. */
+    WritableIntPropertyKey BG_ROUND_SIDES = new WritableIntPropertyKey();
+
+    /** Whether a divider should be shown at the bottom of the suggestion. */
+    WritableBooleanPropertyKey SHOW_DIVIDER = new WritableBooleanPropertyKey();
+
+    /** Whether to show a gap from the previous suggestion group. */
+    WritableBooleanPropertyKey SHOW_GROUP_SEPARATOR = new WritableBooleanPropertyKey();
 
     /** The title text of the header above this item. */
     WritableObjectPropertyKey<String> HEADER_TITLE = new WritableObjectPropertyKey<>();
@@ -103,33 +90,22 @@ public @interface SuggestionCommonProperties {
     /** The 0-based index of this suggestion in the group. */
     WritableIntPropertyKey INDEX_IN_GROUP = new WritableIntPropertyKey();
 
-    /** The layout direction to be applied to the entire suggestion view. */
-    WritableIntPropertyKey LAYOUT_DIRECTION = new WritableIntPropertyKey();
-
-    /** The provider for omnibox resources. */
-    WritableObjectPropertyKey<OmniboxResourceProvider> RESOURCE_PROVIDER =
-            new WritableObjectPropertyKey<>();
-
-    /** Whether a divider should be shown at the bottom of the suggestion. */
-    WritableBooleanPropertyKey SHOW_DIVIDER = new WritableBooleanPropertyKey();
-
     /** The total number of visible suggestions in the group. */
     WritableIntPropertyKey TOTAL_IN_GROUP = new WritableIntPropertyKey();
 
     PropertyKey[] ALL_KEYS =
             new PropertyKey[] {
                 APPLY_SIDE_SPACING,
+                COLOR_SCHEME,
+                FUSEBOX_LAYOUT_MODE,
+                LAYOUT_DIRECTION,
+                DEVICE_FORM_FACTOR,
                 BG_POSITIONAL_MODE,
                 BG_ROUND_SIDES,
-                COLOR_SCHEME,
-                DEVICE_FORM_FACTOR,
-                FUSEBOX_LAYOUT_MODE,
-                GROUP_SEPARATOR_TYPE,
+                SHOW_DIVIDER,
+                SHOW_GROUP_SEPARATOR,
                 HEADER_TITLE,
                 INDEX_IN_GROUP,
-                LAYOUT_DIRECTION,
-                RESOURCE_PROVIDER,
-                SHOW_DIVIDER,
                 TOTAL_IN_GROUP
             };
 }

@@ -23,7 +23,6 @@
 #include "chrome/browser/ui/ash/test_util.h"
 #endif
 
-class BrowserWindowInterface;
 class Profile;
 
 namespace base {
@@ -81,17 +80,17 @@ class WebAppBrowserTestBase : public WebAppBrowserTestBaseParent {
   void UninstallWebApp(const webapps::AppId& app_id);
 
   // Launches the app as a window and returns the browser.
-  BrowserWindowInterface* LaunchWebAppBrowser(const webapps::AppId&);
+  Browser* LaunchWebAppBrowser(const webapps::AppId&);
 
   // Launches the app, waits for the app url to load.
-  BrowserWindowInterface* LaunchWebAppBrowserAndWait(const webapps::AppId&);
+  Browser* LaunchWebAppBrowserAndWait(const webapps::AppId&);
 
   // Launches the app, waits for it to load and finish the installability check.
-  BrowserWindowInterface* LaunchWebAppBrowserAndAwaitInstallabilityCheck(
+  Browser* LaunchWebAppBrowserAndAwaitInstallabilityCheck(
       const webapps::AppId&);
 
   // Launches the app as a tab and returns the browser.
-  BrowserWindowInterface* LaunchBrowserForWebAppInTab(const webapps::AppId&);
+  Browser* LaunchBrowserForWebAppInTab(const webapps::AppId&);
 
   // Simulates a page navigating itself to an URL and waits for the
   // navigation.
@@ -99,19 +98,17 @@ class WebAppBrowserTestBase : public WebAppBrowserTestBaseParent {
                                         const GURL& url);
 
   // Returns whether the installable check passed.
-  static bool NavigateAndAwaitInstallabilityCheck(
-      BrowserWindowInterface* browser,
-      const GURL& url);
+  static bool NavigateAndAwaitInstallabilityCheck(Browser* browser,
+                                                  const GURL& url);
 
-  BrowserWindowInterface* NavigateInNewWindowAndAwaitInstallabilityCheck(
-      const GURL&);
+  Browser* NavigateInNewWindowAndAwaitInstallabilityCheck(const GURL&);
 
   std::optional<webapps::AppId> FindAppWithUrlInScope(const GURL& url);
 
   // Opens |url| in a new popup window with the dimensions |popup_size|.
-  BrowserWindowInterface* OpenPopupAndWait(BrowserWindowInterface* browser,
-                                           const GURL& url,
-                                           const gfx::Size& popup_size);
+  Browser* OpenPopupAndWait(Browser* browser,
+                            const GURL& url,
+                            const gfx::Size& popup_size);
 
   OsIntegrationTestOverrideImpl& os_integration_override();
 

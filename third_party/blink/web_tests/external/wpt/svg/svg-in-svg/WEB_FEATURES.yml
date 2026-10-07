@@ -1,2 +1,4 @@
-rules:
-- svg-in-svg-circular-filter-reference-crash.html: [svg-filters]
+features:
+- name: svg-filters
+  files:
+  - svg-in-svg-circular-filter-reference-crash.html

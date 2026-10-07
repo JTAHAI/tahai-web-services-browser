@@ -596,18 +596,14 @@ class DownloadStreamReader : public mojo::DataPipeDrainer::Client {
 
   void OnDataComplete() override {
     DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-    // Defer resetting the drainer to avoid UAF in DataPipeDrainer::ReadData().
-    base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
-        FROM_HERE, base::DoNothingWithBoundArgs(std::move(drainer_)));
+    drainer_.reset();
     MaybeSignalComplete();
   }
 
  private:
   void ClosePipeAndSignalMojoError() {
     DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-    // Defer resetting the drainer to avoid UAF in DataPipeDrainer::ReadData().
-    base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
-        FROM_HERE, base::DoNothingWithBoundArgs(std::move(drainer_)));
+    drainer_.reset();
     file_.Close();
     if (completion_callback_) {
       base::SequencedTaskRunner::GetCurrentDefault()->PostTask(

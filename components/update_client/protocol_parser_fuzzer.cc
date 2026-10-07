@@ -8,9 +8,6 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include <memory>
-#include <string>
-
 #include "components/update_client/protocol_handler.h"
 
 namespace update_client {
@@ -19,8 +16,8 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
   std::unique_ptr<ProtocolParser> parser = factory.CreateParser();
 
   // Try parsing as a Response.
-  FuzzedDataProvider data_provider(data, size);
-  parser->Parse(data_provider.ConsumeRemainingBytesAsString());
+  const std::string response(reinterpret_cast<const char*>(data), size);
+  parser->Parse(response);
 
   return 0;
 }

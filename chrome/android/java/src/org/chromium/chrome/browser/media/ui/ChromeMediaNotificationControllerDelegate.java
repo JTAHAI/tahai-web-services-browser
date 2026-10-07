@@ -26,9 +26,7 @@ import org.chromium.chrome.browser.notifications.NotificationUmaTracker;
 import org.chromium.chrome.browser.notifications.NotificationWrapperBuilderFactory;
 import org.chromium.chrome.browser.notifications.channels.ChromeChannelDefinitions;
 import org.chromium.components.browser_ui.media.MediaNotificationController;
-import org.chromium.components.browser_ui.media.MediaNotificationInfo;
 import org.chromium.components.browser_ui.media.MediaNotificationManager;
-import org.chromium.components.browser_ui.media.MediaNotificationManager.MediaTypeId;
 import org.chromium.components.browser_ui.notifications.ForegroundServiceUtils;
 import org.chromium.components.browser_ui.notifications.NotificationMetadata;
 import org.chromium.components.browser_ui.notifications.NotificationWrapper;
@@ -38,7 +36,7 @@ import org.chromium.components.browser_ui.notifications.NotificationWrapperBuild
 @NullMarked
 class ChromeMediaNotificationControllerDelegate implements MediaNotificationController.Delegate {
     private final int mNotificationId;
-    @MediaTypeId private final int mMediaTypeId;
+    private final int mMediaTypeId;
 
     @VisibleForTesting
     static class NotificationOptions {
@@ -59,17 +57,17 @@ class ChromeMediaNotificationControllerDelegate implements MediaNotificationCont
         sMapMediaTypeIdToOptions = new SparseArray<>();
 
         sMapMediaTypeIdToOptions.put(
-                PlaybackListenerServiceImpl.MEDIA_TYPE_ID,
+                PlaybackListenerServiceImpl.NOTIFICATION_TYPE_ID,
                 new NotificationOptions(
                         ChromeMediaNotificationControllerServices.PlaybackListenerService.class,
                         NotificationConstants.GROUP_MEDIA_PLAYBACK));
         sMapMediaTypeIdToOptions.put(
-                PresentationListenerServiceImpl.MEDIA_TYPE_ID,
+                PresentationListenerServiceImpl.NOTIFICATION_TYPE_ID,
                 new NotificationOptions(
                         ChromeMediaNotificationControllerServices.PresentationListenerService.class,
                         NotificationConstants.GROUP_MEDIA_PRESENTATION));
         sMapMediaTypeIdToOptions.put(
-                CastListenerServiceImpl.MEDIA_TYPE_ID,
+                CastListenerServiceImpl.NOTIFICATION_TYPE_ID,
                 new NotificationOptions(
                         ChromeMediaNotificationControllerServices.CastListenerService.class,
                         NotificationConstants.GROUP_MEDIA_REMOTE));
@@ -82,10 +80,10 @@ class ChromeMediaNotificationControllerDelegate implements MediaNotificationCont
      */
     @VisibleForTesting
     abstract static class ListenerServiceImpl extends SplitCompatService.Impl {
-        @MediaTypeId private final int mMediaTypeId;
+        private final int mNotificationTypeId;
 
-        ListenerServiceImpl(@MediaTypeId int mediaTypeId) {
-            mMediaTypeId = mediaTypeId;
+        ListenerServiceImpl(int notificationTypeId) {
+            mNotificationTypeId = notificationTypeId;
         }
 
         @Override
@@ -98,14 +96,20 @@ class ChromeMediaNotificationControllerDelegate implements MediaNotificationCont
             super.onDestroy();
             // TODO(crbug.com/522397811): We currently assume each media type shows only one
             // notification.
-            MediaNotificationManager.onServiceDestroyed(mMediaTypeId);
+            MediaNotificationManager.onServiceDestroyed(mNotificationTypeId);
             // In single-notification mode, destroying the shared service means the notification
             // for this media type should be removed. In multiple-notification mode, service
             // lifetime
             // is decoupled from individual notifications.
             if (!MediaNotificationManager.isMultipleMediaNotificationsEnabled()) {
-                MediaNotificationManager.hideForAllTabs(mMediaTypeId);
+                MediaNotificationManager.hideForAllTabs(mNotificationTypeId);
             }
+        }
+
+        @Override
+        public void onTaskRemoved(Intent rootIntent) {
+            super.onTaskRemoved(rootIntent);
+            MediaNotificationManager.hideForAllTabs(mNotificationTypeId);
         }
 
         @Override
@@ -119,7 +123,8 @@ class ChromeMediaNotificationControllerDelegate implements MediaNotificationCont
                 // for all active notifications of this type.
                 MediaNotificationController.finishStartingForegroundServiceOnO(
                         getService(),
-                        createNotificationWrapperBuilder(mMediaTypeId).buildNotificationWrapper());
+                        createNotificationWrapperBuilder(mNotificationTypeId)
+                                .buildNotificationWrapper());
                 stopListenerService();
             }
             return Service.START_NOT_STICKY;
@@ -142,16 +147,14 @@ class ChromeMediaNotificationControllerDelegate implements MediaNotificationCont
         }
 
         private @Nullable MediaNotificationController getController(@Nullable Intent intent) {
-            if (intent != null
-                    && intent.hasExtra(MediaNotificationController.EXTRA_NOTIFICATION_ID)) {
-                int id =
+            int id = mNotificationTypeId;
+            if (intent != null) {
+                id =
                         intent.getIntExtra(
                                 MediaNotificationController.EXTRA_NOTIFICATION_ID,
-                                MediaNotificationInfo.INVALID_ID);
-                return MediaNotificationManager.getControllerByNotificationId(id);
+                                mNotificationTypeId);
             }
-            return MediaNotificationManager.getActiveOrFallbackControllerByMediaTypeId(
-                    mMediaTypeId);
+            return MediaNotificationManager.getController(id);
         }
     }
 
@@ -160,10 +163,10 @@ class ChromeMediaNotificationControllerDelegate implements MediaNotificationCont
      * to be public to be able to launch the service.
      */
     public static final class PlaybackListenerServiceImpl extends ListenerServiceImpl {
-        @MediaTypeId static final int MEDIA_TYPE_ID = R.id.media_playback_notification;
+        static final int NOTIFICATION_TYPE_ID = R.id.media_playback_notification;
 
         public PlaybackListenerServiceImpl() {
-            super(MEDIA_TYPE_ID);
+            super(NOTIFICATION_TYPE_ID);
         }
     }
 
@@ -172,10 +175,10 @@ class ChromeMediaNotificationControllerDelegate implements MediaNotificationCont
      * be able to launch the service.
      */
     public static final class PresentationListenerServiceImpl extends ListenerServiceImpl {
-        @MediaTypeId static final int MEDIA_TYPE_ID = R.id.presentation_notification;
+        static final int NOTIFICATION_TYPE_ID = R.id.presentation_notification;
 
         public PresentationListenerServiceImpl() {
-            super(MEDIA_TYPE_ID);
+            super(NOTIFICATION_TYPE_ID);
         }
     }
 
@@ -184,14 +187,14 @@ class ChromeMediaNotificationControllerDelegate implements MediaNotificationCont
      * be able to launch the service.
      */
     public static final class CastListenerServiceImpl extends ListenerServiceImpl {
-        @MediaTypeId static final int MEDIA_TYPE_ID = R.id.remote_playback_notification;
+        static final int NOTIFICATION_TYPE_ID = R.id.remote_playback_notification;
 
         public CastListenerServiceImpl() {
-            super(MEDIA_TYPE_ID);
+            super(NOTIFICATION_TYPE_ID);
         }
     }
 
-    ChromeMediaNotificationControllerDelegate(int uniqueId, @MediaTypeId int mediaTypeId) {
+    ChromeMediaNotificationControllerDelegate(int uniqueId, int mediaTypeId) {
         mNotificationId = uniqueId;
         mMediaTypeId = mediaTypeId;
     }
@@ -217,7 +220,7 @@ class ChromeMediaNotificationControllerDelegate implements MediaNotificationCont
     }
 
     @Override
-    public @MediaTypeId int getMediaTypeId() {
+    public int getMediaTypeId() {
         return mMediaTypeId;
     }
 

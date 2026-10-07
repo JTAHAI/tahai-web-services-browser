@@ -10,12 +10,12 @@
 #include "chrome/browser/favicon/favicon_service_factory.h"
 #include "chrome/browser/favicon/favicon_utils.h"
 #include "chrome/browser/tab_group_sync/tab_group_sync_service_factory.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser_command_controller.h"
+#include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/tabs/saved_tab_groups/saved_tab_group_utils.h"
 #include "chrome/browser/ui/tabs/saved_tab_groups/tab_group_action_context_desktop.h"
 #include "chrome/browser/ui/tabs/tab_group_model.h"
 #include "chrome/browser/ui/tabs/tab_group_theme.h"
-#include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/ui_features.h"
 #include "chrome/browser/ui/views/bookmarks/saved_tab_groups/saved_tab_group_tabs_menu_model.h"
 #include "chrome/grit/generated_resources.h"
@@ -33,6 +33,8 @@ static constexpr int kUIUpdateIconSize = 16;
 DEFINE_CLASS_ELEMENT_IDENTIFIER_VALUE(STGTabsMenuModel, kDeleteGroupMenuItem);
 DEFINE_CLASS_ELEMENT_IDENTIFIER_VALUE(STGTabsMenuModel, kLeaveGroupMenuItem);
 DEFINE_CLASS_ELEMENT_IDENTIFIER_VALUE(STGTabsMenuModel,
+                                      kConvertToBookmarkMenuItem);
+DEFINE_CLASS_ELEMENT_IDENTIFIER_VALUE(STGTabsMenuModel,
                                       kMoveGroupToNewWindowMenuItem);
 DEFINE_CLASS_ELEMENT_IDENTIFIER_VALUE(STGTabsMenuModel, kOpenGroup);
 DEFINE_CLASS_ELEMENT_IDENTIFIER_VALUE(STGTabsMenuModel,
@@ -40,12 +42,12 @@ DEFINE_CLASS_ELEMENT_IDENTIFIER_VALUE(STGTabsMenuModel,
 DEFINE_CLASS_ELEMENT_IDENTIFIER_VALUE(STGTabsMenuModel, kTabsTitleItem);
 DEFINE_CLASS_ELEMENT_IDENTIFIER_VALUE(STGTabsMenuModel, kTab);
 
-STGTabsMenuModel::STGTabsMenuModel(BrowserWindowInterface* browser,
+STGTabsMenuModel::STGTabsMenuModel(Browser* browser,
                                    TabGroupMenuContext context)
     : ui::SimpleMenuModel(this), browser_(browser), context_(context) {}
 
 STGTabsMenuModel::STGTabsMenuModel(ui::SimpleMenuModel::Delegate* delegate,
-                                   BrowserWindowInterface* browser,
+                                   Browser* browser,
                                    TabGroupMenuContext context)
     : ui::SimpleMenuModel(delegate), browser_(browser), context_(context) {}
 
@@ -150,6 +152,24 @@ void STGTabsMenuModel::Build(
                            sync_id_.value()});
   }
 
+  if (!saved_group.is_shared_tab_group() &&
+      features::IsBookmarkTabGroupConversionEnabled()) {
+    latest_command_id = get_next_command_id.Run();
+    AddItemWithStringIdAndIcon(
+        latest_command_id,
+        IDS_TAB_GROUP_HEADER_CXMENU_CONVERT_GROUP_TO_BOOKMARK_FOLDER,
+        ui::ImageModel::FromVectorIcon(
+            features::IsRoundedIconsEnabled()
+                ? kHotelClassIcon
+                : kBookmarkAllTabsChromeRefreshOldIcon,
+            ui::kColorMenuIcon, kUIUpdateIconSize));
+    SetElementIdentifierAt(GetIndexOfCommandId(latest_command_id).value(),
+                           kConvertToBookmarkMenuItem);
+    command_id_to_action_.emplace(
+        latest_command_id,
+        TabGroupMenuAction{TabGroupMenuAction::Type::CONVERT_TO_BOOKMARK,
+                           sync_id_.value()});
+  }
 
   // Add a separator and title.
   AddSeparator(ui::NORMAL_SEPARATOR);
@@ -193,12 +213,12 @@ void STGTabsMenuModel::Build(
   }
 
   if (saved_group.local_group_id().has_value()) {
-    const BrowserWindowInterface* const browser_with_local_group_id =
+    const Browser* const browser_with_local_group_id =
         SavedTabGroupUtils::GetBrowserWithTabGroupId(
             saved_group.local_group_id().value());
     if (browser_with_local_group_id) {
       const TabStripModel* const tab_strip_model =
-          browser_with_local_group_id->GetTabStripModel();
+          browser_with_local_group_id->tab_strip_model();
 
       // Show the menu item if there are tabs outside of the saved group.
       should_enable_move_menu_item_ =

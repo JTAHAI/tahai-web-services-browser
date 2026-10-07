@@ -342,8 +342,7 @@ void HttpServerPropertiesManager::ReadPrefs(
   // it exists.
   const base::ListValue* broken_alt_svc_list =
       http_server_properties_dict.FindList(kBrokenAlternativeServicesKey);
-  if (broken_alt_svc_list && base::FeatureList::IsEnabled(
-                                 features::kPersistBrokenAlternativeServices)) {
+  if (broken_alt_svc_list) {
     *broken_alternative_service_list =
         std::make_unique<BrokenAlternativeServiceList>();
     *recently_broken_alternative_services =
@@ -914,11 +913,6 @@ void HttpServerPropertiesManager::SaveBrokenAlternativeServicesToPrefs(
     const RecentlyBrokenAlternativeServices&
         recently_broken_alternative_services,
     base::DictValue& http_server_properties_dict) {
-  if (!base::FeatureList::IsEnabled(
-          features::kPersistBrokenAlternativeServices)) {
-    return;
-  }
-
   if (broken_alternative_service_list.empty() &&
       recently_broken_alternative_services.empty()) {
     return;

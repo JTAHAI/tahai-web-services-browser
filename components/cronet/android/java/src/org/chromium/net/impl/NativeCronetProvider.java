@@ -40,7 +40,8 @@ public class NativeCronetProvider extends CronetProvider {
         if (shouldUseHttpEngine()) {
             return mHttpEngineProvider.createBuilder();
         } else {
-            ICronetEngineBuilder impl = new NativeCronetEngineBuilderImpl(mContext);
+            ICronetEngineBuilder impl =
+                    new NativeCronetEngineBuilderWithLibraryLoaderImpl(mContext);
             return new ExperimentalCronetEngine.Builder(impl);
         }
     }

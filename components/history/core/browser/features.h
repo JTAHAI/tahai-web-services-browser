@@ -38,6 +38,8 @@ extern const base::FeatureParam<int> kRepeatableQueriesMinVisitCount;
 COMPONENT_EXPORT(HISTORY_FEATURES)
 BASE_DECLARE_FEATURE(kPopulateVisitedLinkDatabase);
 
+COMPONENT_EXPORT(HISTORY_FEATURES) BASE_DECLARE_FEATURE(kVisitedLinksOn404);
+
 // Most Visited Tiles scoring function changes.
 COMPONENT_EXPORT(HISTORY_FEATURES)
 BASE_DECLARE_FEATURE(kMostVisitedTilesNewScoring);
@@ -74,6 +76,7 @@ BASE_DECLARE_FEATURE(kBrowsingHistorySimilarVisitsGrouping);
 COMPONENT_EXPORT(HISTORY_FEATURES)
 BASE_DECLARE_FEATURE(kBrowsingHistoryActorIntegrationM3);
 #endif  // !BUILDFLAG(IS_IOS)
+
 
 COMPONENT_EXPORT(HISTORY_FEATURES)
 BASE_DECLARE_FEATURE(kWebHistoryUseNewApi);

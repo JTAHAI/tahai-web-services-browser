@@ -555,8 +555,8 @@ void LogSnackbarInteraction(SyncedSetUpState state,
 
   switch (_state) {
     case SyncedSetUpState::kPendingApplyAction: {
-      snackbarMessageText =
-          l10n_util::GetNSString(IDS_IOS_SYNCED_SET_UP_SNACKBAR_PROMO_MESSAGE);
+      snackbarMessageText = l10n_util::GetNSString(
+          IDS_IOS_SYNCED_SET_UP_SNACKBAR_PROMO_MESSAGE_NTP);
       snackbarButtonText =
           l10n_util::GetNSString(IDS_IOS_SYNCED_SET_UP_SNACKBAR_PROMO_ACTION);
       break;
@@ -564,14 +564,14 @@ void LogSnackbarInteraction(SyncedSetUpState state,
     case SyncedSetUpState::kPendingAutoApply:
     case SyncedSetUpState::kPendingUndoAction: {
       snackbarMessageText = l10n_util::GetNSString(
-          IDS_IOS_SYNCED_SET_UP_SNACKBAR_APPLIED_MESSAGE);
+          IDS_IOS_SYNCED_SET_UP_SNACKBAR_APPLIED_MESSAGE_NTP);
       snackbarButtonText =
           l10n_util::GetNSString(IDS_IOS_SYNCED_SET_UP_SNACKBAR_APPLIED_ACTION);
       break;
     }
     case SyncedSetUpState::kPendingRedoAction: {
       snackbarMessageText = l10n_util::GetNSString(
-          IDS_IOS_SYNCED_SET_UP_SNACKBAR_REMOVED_MESSAGE);
+          IDS_IOS_SYNCED_SET_UP_SNACKBAR_REMOVED_MESSAGE_NTP);
       snackbarButtonText =
           l10n_util::GetNSString(IDS_IOS_SYNCED_SET_UP_SNACKBAR_REMOVED_ACTION);
       break;

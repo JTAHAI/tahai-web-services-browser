@@ -12,10 +12,9 @@
 #include "base/test/scoped_feature_list.h"
 #include "base/test/with_feature_override.h"
 #include "base/threading/thread_restrictions.h"
-#include "build/build_config.h"
 #include "chrome/browser/extensions/extension_apitest.h"
 #include "chrome/browser/pdf/pdf_extension_test_util.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/common/chrome_paths.h"
 #include "chrome/test/base/ui_test_utils.h"
@@ -124,7 +123,7 @@ IN_PROC_BROWSER_TEST_P(MimeHandlerFallbackBrowserTest,
                        AbortAndFallbackSwapsToPdfViewerForTopLevelEmbedder) {
   ASSERT_NO_FATAL_FAILURE(LoadThirdPartyHandler());
   content::WebContents* web_contents =
-      browser()->GetTabStripModel()->GetActiveWebContents();
+      browser()->tab_strip_model()->GetActiveWebContents();
   const GURL pdf_url = embedded_test_server()->GetURL(kFallbackPdfPath);
 
   auto pdf_extension_observer = MakePdfExtensionObserver();
@@ -145,7 +144,7 @@ IN_PROC_BROWSER_TEST_P(MimeHandlerFallbackBrowserTest,
                        AbortAndFallbackSwapsToPdfViewerForFragmentedUrl) {
   ASSERT_NO_FATAL_FAILURE(LoadThirdPartyHandler());
   content::WebContents* web_contents =
-      browser()->GetTabStripModel()->GetActiveWebContents();
+      browser()->tab_strip_model()->GetActiveWebContents();
   const GURL pdf_url = embedded_test_server()->GetURL(
       base::StrCat({kFallbackPdfPath, "#page=2"}));
   ASSERT_TRUE(pdf_url.has_ref());
@@ -170,7 +169,7 @@ IN_PROC_BROWSER_TEST_P(MimeHandlerFallbackBrowserTest,
                        AbortAndFallbackLeavesMainFrameIntactForIframeEmbedder) {
   ASSERT_NO_FATAL_FAILURE(LoadThirdPartyHandler());
   content::WebContents* web_contents =
-      browser()->GetTabStripModel()->GetActiveWebContents();
+      browser()->tab_strip_model()->GetActiveWebContents();
   const GURL host_url = embedded_test_server()->GetURL(kIframeHostPath);
 
   auto pdf_extension_observer = MakePdfExtensionObserver();
@@ -208,7 +207,7 @@ IN_PROC_BROWSER_TEST_P(MimeHandlerFallbackBrowserTest,
   }
   ASSERT_NO_FATAL_FAILURE(LoadThirdPartyHandler());
   content::WebContents* web_contents =
-      browser()->GetTabStripModel()->GetActiveWebContents();
+      browser()->tab_strip_model()->GetActiveWebContents();
   const GURL host_url = embedded_test_server()->GetURL(kEmbedHostPath);
 
   auto pdf_extension_observer = MakePdfExtensionObserver();
@@ -238,7 +237,7 @@ IN_PROC_BROWSER_TEST_P(MimeHandlerFallbackBrowserTest,
                        AbortAndFallbackDistinguishesConcurrentIframesSameUrl) {
   ASSERT_NO_FATAL_FAILURE(LoadThirdPartyHandler());
   content::WebContents* web_contents =
-      browser()->GetTabStripModel()->GetActiveWebContents();
+      browser()->tab_strip_model()->GetActiveWebContents();
   const GURL host_url = embedded_test_server()->GetURL(kTwoIframesSameUrlPath);
 
   auto pdf_extension_observer = MakePdfExtensionObserver();
@@ -285,18 +284,10 @@ IN_PROC_BROWSER_TEST_P(MimeHandlerFallbackBrowserTest,
 
 // Calling abortAndFallbackToNativeHandler from the built-in PDF
 // extension must reject with an error and not navigate.
-// TODO(crbug.com/551592354): Flaky on Linux MSAN.
-#if BUILDFLAG(IS_LINUX) && defined(MEMORY_SANITIZER)
-#define MAYBE_BuiltInExtensionRejectsAbortAndFallback \
-  DISABLED_BuiltInExtensionRejectsAbortAndFallback
-#else
-#define MAYBE_BuiltInExtensionRejectsAbortAndFallback \
-  BuiltInExtensionRejectsAbortAndFallback
-#endif
 IN_PROC_BROWSER_TEST_P(MimeHandlerFallbackBrowserTest,
-                       MAYBE_BuiltInExtensionRejectsAbortAndFallback) {
+                       BuiltInExtensionRejectsAbortAndFallback) {
   content::WebContents* web_contents =
-      browser()->GetTabStripModel()->GetActiveWebContents();
+      browser()->tab_strip_model()->GetActiveWebContents();
   const GURL pdf_url = embedded_test_server()->GetURL(kFallbackPdfPath);
 
   // With no generic MIME handler loaded, the built-in PDF extension
@@ -387,7 +378,7 @@ IN_PROC_BROWSER_TEST_P(MimeHandlerFallbackRedirectBrowserTest,
 
   ASSERT_NO_FATAL_FAILURE(LoadThirdPartyHandler());
   content::WebContents* const web_contents =
-      browser()->GetTabStripModel()->GetActiveWebContents();
+      browser()->tab_strip_model()->GetActiveWebContents();
 
   const GURL start_url = embedded_test_server()->GetURL("a.com", "/spoof.pdf");
 

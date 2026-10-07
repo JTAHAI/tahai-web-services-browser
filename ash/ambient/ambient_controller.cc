@@ -445,10 +445,8 @@ void AmbientController::OnActiveUserPrefServiceChanged(
                             weak_ptr_factory_.GetWeakPtr()));
   }
 
-  // delay policy_handle reset.
-  auto policy_handle =
-      std::exchange(screensaver_images_policy_handler_,
-                    ScreensaverImagesPolicyHandler::Create(pref_service));
+  screensaver_images_policy_handler_ =
+      ScreensaverImagesPolicyHandler::Create(pref_service);
 
   pref_change_registrar_->Add(
       ambient::prefs::kAmbientModeManagedScreensaverEnabled,

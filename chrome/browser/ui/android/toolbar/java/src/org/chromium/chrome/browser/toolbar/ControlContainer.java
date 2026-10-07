@@ -43,10 +43,7 @@ public interface ControlContainer extends TabStripTransitionDelegate {
 
     int getToolbarBackgroundColor();
 
-    /**
-     * Gets the height of the toolbar contained by the control container, including any top margin
-     * applied to the toolbar container when Vertical Tabs is active.
-     */
+    /** Gets the height of the toolbar contained by the control container. */
     int getToolbarHeight();
 
     /** Gets the height of the toolbar hairline. */
@@ -128,9 +125,4 @@ public interface ControlContainer extends TabStripTransitionDelegate {
      * bitmap.
      */
     void doSynchronousLayout(boolean forceCaptureAfterLayout);
-
-    /** Returns whether bitmap capturing is disabled for the control container. */
-    default boolean isCapturingDisabled() {
-        return false;
-    }
 }

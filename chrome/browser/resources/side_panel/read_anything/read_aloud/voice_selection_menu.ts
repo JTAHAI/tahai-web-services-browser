@@ -24,8 +24,6 @@ import {openMenu, spinnerDebounceTimeout} from '../shared/common.js';
 import {ReadAloudSettingsChange} from '../shared/metrics_browser_proxy.js';
 import {ReadAnythingLogger} from '../shared/read_anything_logger.js';
 
-import type {AudioBrowserProxy} from './audio_browser_proxy.js';
-import {AudioBrowserProxyImpl} from './audio_browser_proxy.js';
 import type {LanguageMenuElement} from './language_menu.js';
 // clang-format off
 // <if expr="not is_chromeos">
@@ -125,8 +123,6 @@ export class VoiceSelectionMenuElement extends VoiceSelectionMenuElementBase
       10);
   private logger_: ReadAnythingLogger = ReadAnythingLogger.getInstance();
   private notificationManager_ = VoiceNotificationManager.getInstance();
-  private audioBrowserProxy_: AudioBrowserProxy =
-      AudioBrowserProxyImpl.getInstance();
 
   override willUpdate(changedProperties: PropertyValues<this>) {
     super.willUpdate(changedProperties);
@@ -478,7 +474,7 @@ export class VoiceSelectionMenuElement extends VoiceSelectionMenuElementBase
 
   private getDisplayNameForLocale(language: string): string {
     const voicePackLang = convertLangOrLocaleForVoicePackManager(language);
-    return voicePackLang ? this.audioBrowserProxy_.getDisplayNameForLocale(
+    return voicePackLang ? chrome.readingMode.getDisplayNameForLocale(
                                voicePackLang, voicePackLang) :
                            '';
   }

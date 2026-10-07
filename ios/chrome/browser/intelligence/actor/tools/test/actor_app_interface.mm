@@ -5,26 +5,20 @@
 #import "ios/chrome/browser/intelligence/actor/tools/test/actor_app_interface.h"
 
 #import "base/functional/bind.h"
+#import "base/functional/callback_helpers.h"
+#import "base/strings/stringprintf.h"
 #import "base/strings/sys_string_conversions.h"
 #import "base/test/ios/wait_util.h"
 #import "base/time/time.h"
-#import "components/autofill/core/browser/foundations/autofill_manager.h"
-#import "components/autofill/core/common/unique_ids.h"
-#import "components/autofill/ios/browser/autofill_driver_ios.h"
-#import "components/autofill/ios/browser/autofill_java_script_feature.h"
 #import "components/optimization_guide/proto/features/actions_data.pb.h"
-#import "ios/chrome/browser/intelligence/actor/model/actor_browser_agent.h"
 #import "ios/chrome/browser/intelligence/actor/model/actor_service.h"
 #import "ios/chrome/browser/intelligence/actor/model/actor_service_factory.h"
-#import "ios/chrome/browser/intelligence/actor/model/actor_tab_helper.h"
 #import "ios/chrome/browser/intelligence/actor/tools/model/actor_tool_request.h"
 #import "ios/chrome/browser/intelligence/actor/tools/model/page_stability_java_script_feature.h"
 #import "ios/chrome/browser/intelligence/actor/tools/public/actor_tool_types.h"
 #import "ios/chrome/browser/intelligence/proto_wrappers/page_context_wrapper.h"
 #import "ios/chrome/browser/intelligence/proto_wrappers/page_context_wrapper_config.h"
-#import "ios/chrome/browser/shared/model/browser/browser.h"
 #import "ios/chrome/browser/shared/model/profile/profile_ios.h"
-#import "ios/chrome/browser/shared/model/web_state_list/web_state_list.h"
 #import "ios/chrome/test/app/chrome_test_util.h"
 #import "ios/chrome/test/app/tab_test_util.h"
 #import "ios/web/public/js_messaging/web_frame.h"
@@ -33,34 +27,7 @@
 
 NSString* const kActorAppInterfaceErrorDomain = @"ActorAppInterfaceErrorDomain";
 
-namespace {
-
-constexpr base::TimeDelta kApcFetchingTimeout = base::Seconds(10);
-
-constexpr autofill::FormRendererId kSimulatedFormRendererId(12345);
-
-// Returns the active WebState's main frame AutofillDriverIOS, or nullptr if
-// unavailable.
-autofill::AutofillDriverIOS* GetMainFrameAutofillDriver() {
-  web::WebState* web_state = chrome_test_util::GetCurrentWebState();
-  if (!web_state) {
-    return nullptr;
-  }
-  web::WebFramesManager* frames_manager =
-      autofill::AutofillJavaScriptFeature::GetInstance()->GetWebFramesManager(
-          web_state);
-  if (!frames_manager) {
-    return nullptr;
-  }
-  web::WebFrame* main_frame = frames_manager->GetMainWebFrame();
-  if (!main_frame) {
-    return nullptr;
-  }
-  return autofill::AutofillDriverIOS::FromWebStateAndWebFrame(web_state,
-                                                              main_frame);
-}
-
-}  // namespace
+const base::TimeDelta kApcFetchingTimeout = base::Seconds(10);
 
 @implementation ActorAppInterface
 
@@ -269,57 +236,4 @@ autofill::AutofillDriverIOS* GetMainFrameAutofillDriver() {
       main_frame->AsWeakPtr(), std::move(callback));
 }
 
-+ (void)setActuating:(BOOL)actuating forWebStateAtIndex:(int)index {
-  Browser* browser = chrome_test_util::GetMainBrowser();
-  if (!browser || !browser->GetWebStateList()) {
-    return;
-  }
-  WebStateList* webStateList = browser->GetWebStateList();
-  if (index < 0 || index >= webStateList->count()) {
-    return;
-  }
-  web::WebState* webState = webStateList->GetWebStateAt(index);
-  if (!webState) {
-    return;
-  }
-  if (ActorTabHelper* tabHelper = ActorTabHelper::FromWebState(webState)) {
-    tabHelper->SetActuating(actuating);
-  }
-}
-
-+ (void)simulateInFlightAutofillPredictions {
-  autofill::AutofillDriverIOS* driver = GetMainFrameAutofillDriver();
-  if (!driver) {
-    return;
-  }
-  const autofill::FormGlobalId forms[] = {autofill::FormGlobalId(
-      driver->GetFrameToken(), kSimulatedFormRendererId)};
-  driver->GetAutofillManager().NotifyObservers(
-      &autofill::AutofillManager::Observer::OnBeforeLoadedServerPredictions,
-      forms);
-}
-
-+ (void)resolveInFlightAutofillPredictions {
-  autofill::AutofillDriverIOS* driver = GetMainFrameAutofillDriver();
-  if (!driver) {
-    return;
-  }
-  const autofill::FormGlobalId forms[] = {autofill::FormGlobalId(
-      driver->GetFrameToken(), kSimulatedFormRendererId)};
-  driver->GetAutofillManager().NotifyObservers(
-      &autofill::AutofillManager::Observer::OnAfterLoadedServerPredictions,
-      forms);
-}
-
-+ (int32_t)currentWindowID {
-  Browser* browser = chrome_test_util::GetCurrentBrowser();
-  if (!browser) {
-    return -1;
-  }
-  ActorBrowserAgent* agent = ActorBrowserAgent::FromBrowser(browser);
-  if (!agent) {
-    return -1;
-  }
-  return agent->browser_id().id();
-}
 @end

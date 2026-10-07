@@ -131,9 +131,19 @@ class GeolocationHeaderService : public KeyedService {
   // Returns true if the given URL is eligible for the X-Geo header.
   bool IsUrlEligibleForLocationHeader(const GURL& url) const;
 
- private:
-  friend class GeolocationHeaderServiceTestApi;
+  void SetLocationAgeForTesting(base::TimeDelta age) {
+    location_age_for_testing_ = age;
+  }
 
+  void SetLocationForTesting(device::mojom::GeopositionPtr position) {
+    last_position_ = std::move(position);
+  }
+
+  bool is_geolocation_bound_for_testing() const {
+    return geolocation_.is_bound();
+  }
+
+ private:
   // Returns true if both the site-level and OS-level geolocation permissions
   // are granted for the given URL.
   bool IsAllowedByPermission(const GURL& url) const;

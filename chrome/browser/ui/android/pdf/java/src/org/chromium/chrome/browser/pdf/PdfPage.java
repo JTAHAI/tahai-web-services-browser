@@ -11,27 +11,19 @@ import android.text.TextUtils;
 
 import androidx.annotation.VisibleForTesting;
 
-import org.chromium.base.task.PostTask;
-import org.chromium.base.task.TaskTraits;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.ui.native_page.BasicNativePage;
-import org.chromium.chrome.browser.ui.native_page.NativePage;
 import org.chromium.chrome.browser.ui.native_page.NativePageHost;
 import org.chromium.chrome.modules.on_demand.OnDemandModule;
 import org.chromium.components.embedder_support.util.UrlConstants;
-import org.chromium.content_public.browser.LoadUrlParams;
-import org.chromium.url.GURL;
-
-import java.io.File;
 
 /** Native page that displays pdf file. */
 @NullMarked
 public class PdfPage extends BasicNativePage {
     @VisibleForTesting public final PdfCoordinatorInterface mPdfCoordinator;
-    private final Tab mTab;
     private String mTitle;
     private String mUrl;
     private final boolean mIsIncognito;
@@ -42,11 +34,12 @@ public class PdfPage extends BasicNativePage {
      * Create a new instance of the pdf page.
      *
      * @param host A NativePageHost to load urls.
-     * @param tab The tab.
+     * @param profile The current Profile.
      * @param activity The current Activity.
      * @param url The pdf url, which could be a pdf link, content uri or file uri.
      * @param pdfInfo Information of the pdf.
      * @param defaultTitle Default title of the pdf page.
+     * @param tabId The id of the tab.
      * @param pdfFragmentViewTracker Tracks PdfViewerFragment's View to assign to the right PdfPage.
      */
     public PdfPage(
@@ -58,15 +51,14 @@ public class PdfPage extends BasicNativePage {
             String defaultTitle,
             PdfFragmentViewTracker pdfFragmentViewTracker) {
         super(host);
-        mTab = tab;
 
         Profile profile = tab.getProfile();
         mIsIncognito = profile.isOffTheRecord();
+        int tabId = tab.getId();
         if (mIsIncognito) {
             // Bind the PDF stream lifetime to the Tab instead of the transient PdfPage view.
             PdfTabHelper.from(tab).setPdfUrl(url);
         }
-
         mIsDownloadSafe = pdfInfo.isDownloadSafe;
         String decodedUrl = PdfUtils.decodePdfPageUrl(url);
         String filepath =
@@ -88,7 +80,7 @@ public class PdfPage extends BasicNativePage {
                                 url,
                                 filepath,
                                 mTitle,
-                                tab,
+                                tabId,
                                 pdfFragmentViewTracker);
         initWithView(mPdfCoordinator.getView());
         // PDF is downloading when the filepath is null.
@@ -112,35 +104,16 @@ public class PdfPage extends BasicNativePage {
         super.updateForUrl(url);
         if (!PdfUtils.isReuseFragmentEnabled()) return;
 
-        boolean sameUrl = TextUtils.equals(mUrl, url);
-        if (sameUrl && !mPdfCoordinator.hasChanges()) {
-            return;
-        }
-
-        boolean localPdf = PdfUtils.isDownloadedPdf(url);
+        mPdfCoordinator.resetLoadState();
         mUrl = url;
+        // Note that only local PDF loading is handled here. Non-local ones are taken care of
+        // by DownloadController#onDownloadCompleted.
+        if (!PdfUtils.isDownloadedPdf(url)) return;
 
-        Runnable doUpdate =
-                () -> {
-                    mPdfCoordinator.resetLoadState();
-
-                    // Note that only local PDF loading is handled here. Non-local ones are taken
-                    // care of by DownloadController#onDownloadCompleted.
-                    if (!localPdf) return;
-
-                    // Use the URL encoded in |mUrl| if available i.e.
-                    // chrome-native://pdf/link?url=...
-                    String pageUrl = PdfUtils.decodePdfPageUrl(url);
-                    String pdfUrl = pageUrl != null ? pageUrl : url;
-                    mPdfCoordinator.onDownloadComplete(
-                            pdfUrl, PdfUtils.getFileNameFromUrl(pdfUrl, ""));
-                };
-
-        if (sameUrl && mPdfCoordinator.hasChanges()) {
-            mPdfCoordinator.showReloadConfirmationDialog(doUpdate);
-        } else {
-            doUpdate.run();
-        }
+        // Use the URL encoded in |mUrl| if available i.e. chrome-native://pdf/link?url=...
+        String pageUrl = PdfUtils.decodePdfPageUrl(url);
+        String pdfUrl = pageUrl != null ? pageUrl : url;
+        mPdfCoordinator.onDownloadComplete(pdfUrl, PdfUtils.getFileNameFromUrl(pdfUrl, ""));
     }
 
     @Override
@@ -166,100 +139,15 @@ public class PdfPage extends BasicNativePage {
     @Override
     public void destroy() {
         super.destroy();
-        if (PdfUtils.isInlinePdfV2Enabled()) {
-            String filepath = mPdfCoordinator.getFilepath();
-            if (!isPdfPageStillInUse()) {
-                if (mIsIncognito) {
-                    PdfContentProvider.removeContentUri(filepath);
-                }
-                maybeDeleteTransientFile(filepath);
-            }
-        }
         // Stream cleanup is now managed by PdfTabHelper based on Tab lifecycle
         // to support window swapping (drag and drop) without timers.
         mPdfCoordinator.destroy();
     }
 
-    private boolean isPdfPageStillInUse() {
-        if (mTab.isDestroyed() || mTab.isClosing()) {
-            return false;
-        }
-        NativePage currentPage = mTab.getNativePage();
-        // When the Tab swaps to a new PdfPage instance for the same URL (e.g. on reload or
-        // non-reused navigation), currentPage != this evaluates to true. The underlying file
-        // is still in use by the new page and should not be cleaned up.
-        if (currentPage != null && currentPage != this) {
-            return currentPage.isPdf() && PdfUtils.isPdfUrlMatch(currentPage.getUrl(), mUrl);
-        }
-        // When the Tab is detached from an Activity (e.g. during drag and drop tab reparenting
-        // to a new window) or when the Tab is frozen in the background, the old
-        // PdfPage is destroyed to save memory. However, the underlying file is still in use by
-        // the Tab and should not be cleaned up as long as the Tab is still at the same PDF URL.
-        if (mTab.isDetachedFromActivity() || mTab.isHidden()) {
-            GURL tabUrl = mTab.getUrl();
-            return tabUrl != null && PdfUtils.isPdfUrlMatch(tabUrl.getSpec(), mUrl);
-        }
-        return false;
-    }
-
     @Override
     public void reload() {
         if (PdfUtils.isInlinePdfV2Enabled()) {
-            String redownloadUrl = PdfUtils.getPdfReDownloadUrl(mUrl);
-            // `redownloadUrl` can be null if the PDF is loaded from a local source (e.g., file://
-            // or content://) instead of a web URL. If so, we call the existing flow to reload the
-            // document by re-creating the fragment using the existing local file.
-            if (redownloadUrl != null) {
-                Runnable performRedownload =
-                        () -> {
-                            String filepath = mPdfCoordinator.getFilepath();
-                            if (mIsIncognito) {
-                                PdfContentProvider.removeContentUri(filepath);
-                            }
-                            maybeDeleteTransientFile(filepath);
-                            mPdfCoordinator.resetLoadState();
-                            LoadUrlParams params = new LoadUrlParams(redownloadUrl);
-                            params.setShouldReplaceCurrentEntry(true);
-                            mHost.loadUrl(params, mIsIncognito);
-                        };
-                if (mPdfCoordinator.hasChanges()) {
-                    mPdfCoordinator.showReloadConfirmationDialog(performRedownload);
-                } else {
-                    performRedownload.run();
-                }
-            } else {
-                mPdfCoordinator.reload();
-            }
-        }
-    }
-
-    private void maybeDeleteTransientFile(@Nullable String filepath) {
-        // Content URIs (e.g. incognito PDFs wrapped by PdfContentProvider) cannot be deleted
-        // directly as files; their lifecycle is managed separately (see destroy()).
-        // We don't check for "file://" because:
-        // 1. Transient files we download always use raw file paths.
-        // 2. Local files (which may use "file://" or "content://") have a null redownloadUrl
-        // and are skipped below.
-        if (filepath != null && !filepath.startsWith(UrlConstants.CONTENT_URL_PREFIX)) {
-            String redownloadUrl = PdfUtils.getPdfReDownloadUrl(mUrl);
-            // redownloadUrl is null if the PDF is from a local source (e.g., file:// or content://)
-            // instead of a web URL. We check this instead of mUrl because mUrl is the native page
-            // URL (chrome-native://pdf/...) and we must ensure the source is a redownloadable web
-            // URL (HTTP/HTTPS) before deleting the transient file.
-            if (redownloadUrl != null) {
-                PostTask.postTask(
-                        TaskTraits.BEST_EFFORT_MAY_BLOCK,
-                        () -> {
-                            try {
-                                File file = new File(filepath);
-                                if (file.exists()) {
-                                    file.delete();
-                                }
-                            } catch (SecurityException ignored) {
-                                // Ignore exceptions if the transient file cannot be deleted.
-                            }
-                        });
-            }
+            mPdfCoordinator.reload();
         }
     }
 
@@ -276,14 +164,6 @@ public class PdfPage extends BasicNativePage {
         //    loading. Creating a new NativePage/Fragment can avoid it as it displays
         //    a spinner while download is progress.
         return !isFrozen() && !isLoadingAfterActivityRestarted(curl, nurl, preferReuse);
-    }
-
-    public boolean changeZoomLevel(boolean decrease) {
-        return mPdfCoordinator.changeZoomLevel(decrease);
-    }
-
-    public boolean resetZoomLevel() {
-        return mPdfCoordinator.resetZoomLevel();
     }
 
     private static boolean isLoadingAfterActivityRestarted(
@@ -359,10 +239,5 @@ public class PdfPage extends BasicNativePage {
      */
     public @Nullable Uri getFileUri(boolean isWorkProfile, @Nullable String targetPackage) {
         return mPdfCoordinator.getFileUri(isWorkProfile, targetPackage);
-    }
-
-    @Override
-    public void download() {
-        mPdfCoordinator.download();
     }
 }

@@ -13,7 +13,6 @@
 #include "base/memory/weak_ptr.h"
 #include "content/browser/webid/network_request_manager.h"
 #include "content/common/content_export.h"
-#include "net/http/http_request_headers.h"
 #include "services/network/public/cpp/shared_url_loader_factory.h"
 #include "services/network/public/mojom/client_security_state.mojom-forward.h"
 #include "url/gurl.h"
@@ -76,8 +75,7 @@ class CONTENT_EXPORT EmailVerifierNetworkRequestManager
   virtual void FetchWellKnown(const GURL& provider, FetchWellKnownCallback);
 
   virtual void SendTokenRequest(const GURL& token_url,
-                                const std::string& post_data,
-                                const net::HttpRequestHeaders& extra_headers,
+                                const std::string& url_encoded_post_data,
                                 TokenRequestCallback callback);
 
   virtual void DownloadAndParseUncredentialedUrl(const GURL& url,

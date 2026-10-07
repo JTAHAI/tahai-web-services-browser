@@ -4,6 +4,8 @@
 
 package org.chromium.chrome.browser.keyboard_accessory.sheet_tabs;
 
+import static org.chromium.components.embedder_support.util.UrlUtilities.stripScheme;
+
 import android.content.Context;
 import android.graphics.drawable.Drawable;
 import android.text.method.PasswordTransformationMethod;
@@ -21,7 +23,6 @@ import org.chromium.chrome.browser.keyboard_accessory.sheet_tabs.AccessorySheetT
 import org.chromium.chrome.browser.keyboard_accessory.sheet_tabs.AccessorySheetTabViewBinder.ElementViewHolder;
 import org.chromium.chrome.browser.keyboard_accessory.utils.InsecureFillingDialogUtils;
 import org.chromium.components.browser_ui.widget.chips.ChipView;
-import org.chromium.components.embedder_support.util.UrlUtilities;
 import org.chromium.ui.modelutil.ListModel;
 
 /**
@@ -101,11 +102,8 @@ class PasswordAccessorySheetViewBinder {
                                         R.string
                                                 .recovery_password_accessory_sheet_content_description));
             } else {
-                // Strip the scheme and trailing slash (for aesthetic reasons).
-                view.getTitle()
-                        .setText(
-                                UrlUtilities.stripTrailingSlash(
-                                        UrlUtilities.stripScheme(info.getOrigin())));
+                // Strip the trailing slash (for aesthetic reasons):
+                view.getTitle().setText(stripScheme(info.getOrigin()).replaceFirst("/$", ""));
                 view.setContentDescription(
                         view.getResources()
                                 .getString(R.string.password_accessory_sheet_content_description));

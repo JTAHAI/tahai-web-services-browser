@@ -8,6 +8,7 @@
 #include <stdint.h>
 #include <sys/utsname.h>
 
+#include "base/compiler_specific.h"
 #include "base/environment.h"
 #include "base/files/file.h"
 #include "base/files/file_path.h"
@@ -106,8 +107,10 @@ class ChromeOSVersionInfo {
     *bugfix_version = bugfix_version_;
   }
 
-  Time lsb_release_time() const { return lsb_release_time_; }
-  void set_lsb_release_time(Time time) { lsb_release_time_ = time; }
+  const Time& lsb_release_time() const LIFETIME_BOUND {
+    return lsb_release_time_;
+  }
+  void set_lsb_release_time(const Time& time) { lsb_release_time_ = time; }
 
   bool is_running_on_chromeos() const { return is_running_on_chromeos_; }
 
@@ -128,7 +131,8 @@ class ChromeOSVersionInfo {
     }
     // Parse the version from the first matching recognized version key.
     std::string version;
-    for (const char* key : kLinuxStandardBaseVersionKeys) {
+    for (size_t i = 0; i < std::size(kLinuxStandardBaseVersionKeys); ++i) {
+      std::string key = UNSAFE_TODO(kLinuxStandardBaseVersionKeys[i]);
       if (GetLsbReleaseValue(key, &version) && !version.empty()) {
         break;
       }
@@ -147,8 +151,8 @@ class ChromeOSVersionInfo {
     // Check release name for Chrome OS.
     std::string release_name;
     if (GetLsbReleaseValue(kChromeOsReleaseNameKey, &release_name)) {
-      for (const char* name : kChromeOsReleaseNames) {
-        if (release_name == name) {
+      for (size_t i = 0; i < std::size(kChromeOsReleaseNames); ++i) {
+        if (release_name == UNSAFE_TODO(kChromeOsReleaseNames[i])) {
           is_running_on_chromeos_ = true;
           break;
         }
@@ -247,7 +251,7 @@ bool SysInfo::IsRunningOnChromeOS() {
 
 // static
 void SysInfo::SetChromeOSVersionInfoForTest(const std::string& lsb_release,
-                                            Time lsb_release_time) {
+                                            const Time& lsb_release_time) {
   DCHECK(!g_chromeos_version_info_for_test) << "Nesting is not allowed";
   g_chromeos_version_info_for_test =
       new ChromeOSVersionInfo(ChromeOSVersionInfo::FOR_TEST);

@@ -36,7 +36,7 @@ class BASE_I18N_EXPORT MessageArg {
   MessageArg(int i);
   MessageArg(int64_t i);
   MessageArg(double d);
-  MessageArg(Time t);
+  MessageArg(const Time& t);
 
   MessageArg(const MessageArg&) = delete;
   MessageArg& operator=(const MessageArg&) = delete;

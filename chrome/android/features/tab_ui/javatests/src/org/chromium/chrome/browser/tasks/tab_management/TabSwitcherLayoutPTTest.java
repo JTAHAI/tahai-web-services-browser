@@ -21,8 +21,6 @@ import static org.chromium.chrome.test.util.ChromeTabUtils.getIndexOnUiThread;
 
 import android.graphics.Bitmap;
 import android.graphics.drawable.BitmapDrawable;
-import android.graphics.drawable.Drawable;
-import android.os.Build;
 import android.view.View;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
@@ -49,7 +47,6 @@ import org.chromium.base.test.util.TestAnimations;
 import org.chromium.base.test.util.TestAnimations.EnableAnimations;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.ChromeTabbedActivity;
-import org.chromium.chrome.browser.composeplate.ComposeplateUtils;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.browser.tab.Tab;
@@ -76,7 +73,6 @@ import org.chromium.chrome.test.transit.page.WebPageStation;
 import org.chromium.chrome.test.transit.tabmodel.TabThumbnailsCapturedCarryOn;
 import org.chromium.chrome.test.util.ChromeRenderTestRule;
 import org.chromium.components.embedder_support.util.UrlConstants;
-import org.chromium.components.omnibox.OmniboxFeatures;
 import org.chromium.components.tab_groups.TabGroupColorId;
 import org.chromium.components.tab_groups.TabGroupsFeatureMap;
 import org.chromium.mojo.system.Pair;
@@ -133,8 +129,6 @@ public class TabSwitcherLayoutPTTest {
 
     @Before
     public void setUp() throws ExecutionException {
-        ComposeplateUtils.setIsEnabledForTesting(false);
-        OmniboxFeatures.sUseAskHintForNtp.setForTesting(false);
         // After setUp, Chrome is launched and has one NTP.
         mStartPage = mCtaTestRule.startOnBlankPage();
 
@@ -240,7 +234,6 @@ public class TabSwitcherLayoutPTTest {
     @Test
     @MediumTest
     @Feature({"RenderTest"})
-    @DisableIf.Device(DeviceFormFactor.DESKTOP) // crbug.com/545205792
     public void testRenderGrid_3NativeTabs() throws IOException {
         ChromeTabbedActivity cta = mCtaTestRule.getActivity();
         RegularNewTabPageStation pageStation =
@@ -257,7 +250,7 @@ public class TabSwitcherLayoutPTTest {
 
         tabSwitcherStation = pageStation.openRegularTabSwitcher();
 
-        mRenderTestRule.render(cta.findViewById(R.id.pane_frame), "3_native_tabs_v8");
+        mRenderTestRule.render(cta.findViewById(R.id.pane_frame), "3_native_tabs_v4");
 
         RegularNewTabPageStation previousPage =
                 tabSwitcherStation.leaveHubToPreviousTabViaBack(
@@ -268,6 +261,7 @@ public class TabSwitcherLayoutPTTest {
     @Test
     @MediumTest
     @Feature({"RenderTest"})
+    @DisableIf.Device(DeviceFormFactor.DESKTOP_FREEFORM) // crbug.com/511288349
     public void testRenderGrid_Incognito() throws IOException {
         ChromeTabbedActivity cta = mCtaTestRule.getActivity();
         // Prepare some incognito tabs and enter tab switcher.
@@ -302,7 +296,6 @@ public class TabSwitcherLayoutPTTest {
     @Test
     @MediumTest
     @Feature({"RenderTest"})
-    @DisableIf.Device(DeviceFormFactor.DESKTOP) // crbug.com/545205792
     public void testRenderGrid_PinnedTabs() throws IOException {
         WebPageStation firstPage = mCtaTestRule.startOnBlankPage();
 
@@ -320,7 +313,7 @@ public class TabSwitcherLayoutPTTest {
         editor.openAppMenuWithEditor().pinTabs();
 
         mRenderTestRule.render(
-                tabSwitcher.getActivity().findViewById(R.id.pane_frame), "regular_pinned_tabs_v4");
+                tabSwitcher.getActivity().findViewById(R.id.pane_frame), "regular_pinned_tabs");
 
         RegularNewTabPageStation previousPage =
                 tabSwitcher.leaveHubToPreviousTabViaBack(RegularNewTabPageStation.newBuilder());
@@ -330,10 +323,6 @@ public class TabSwitcherLayoutPTTest {
     @Test
     @MediumTest
     @Feature({"RenderTest"})
-    @DisableIf.Build(
-            sdk_equals = Build.VERSION_CODES.BAKLAVA,
-            message = "Flaky on android-16 bots, crbug.com/546050424")
-    @DisableIf.Device(DeviceFormFactor.DESKTOP) // crbug.com/545205792
     public void testRenderGrid_PinnedTabs_Scrolled() throws IOException {
         ChromeTabbedActivity cta = mCtaTestRule.getActivity();
         RegularNewTabPageStation pageStation =
@@ -385,7 +374,7 @@ public class TabSwitcherLayoutPTTest {
                 });
 
         mRenderTestRule.render(
-                cta.findViewById(R.id.hub_main_container), "regular_pinned_tabs_scrolled_v1");
+                cta.findViewById(R.id.hub_main_container), "regular_pinned_tabs_scrolled");
 
         RegularNewTabPageStation previousPage =
                 tabSwitcher.leaveHubToPreviousTabViaBack(RegularNewTabPageStation.newBuilder());
@@ -752,20 +741,14 @@ public class TabSwitcherLayoutPTTest {
 
         // TODO(crbug.com/324919909): Migrate this to a HubTabSwitcherCardFacility with a tab
         // thumbnail as a view element.
-        CriteriaHelper.pollUiThread(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     ImageView view =
                             (ImageView) mCtaTestRule.getActivity().findViewById(R.id.tab_thumbnail);
-                    if (view == null) return false;
-                    Drawable drawable = view.getDrawable();
-                    if (!(drawable instanceof BitmapDrawable bitmapDrawable)) return false;
-                    Bitmap bitmap = bitmapDrawable.getBitmap();
-                    if (bitmap == null) return false;
-                    mBitmap = new WeakReference<>(bitmap);
-                    return true;
-                },
-                "Tab thumbnail failed to load as a BitmapDrawable");
-        assertNotNull(mBitmap.get());
+                    mBitmap =
+                            new WeakReference<>(((BitmapDrawable) view.getDrawable()).getBitmap());
+                    assertNotNull(mBitmap.get());
+                });
 
         page = tabSwitcher.leaveHubToPreviousTabViaBack(destinationBuiderFactory.get());
 
@@ -826,6 +809,7 @@ public class TabSwitcherLayoutPTTest {
     @Test
     @MediumTest
     @Feature({"RenderTest"})
+    @DisableIf.Device(DeviceFormFactor.DESKTOP_FREEFORM) // crbug.com/511288349
     public void testRenderGrid_TabGroupColor_Incognito_2TabsInGroup() throws IOException {
         doTestRenderGrid_TabGroupColor_Parameterized(
                 /* isIncognito= */ true,
@@ -846,6 +830,7 @@ public class TabSwitcherLayoutPTTest {
     @Test
     @MediumTest
     @Feature({"RenderTest"})
+    @DisableIf.Device(DeviceFormFactor.DESKTOP_FREEFORM) // crbug.com/511288349
     public void testRenderGrid_TabGroupColor_Incognito_5TabsInGroup() throws IOException {
         doTestRenderGrid_TabGroupColor_Parameterized(
                 /* isIncognito= */ true,

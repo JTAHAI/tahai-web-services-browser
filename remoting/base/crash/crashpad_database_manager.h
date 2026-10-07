@@ -22,10 +22,8 @@ class CrashpadDatabaseManager {
  public:
   class Logger {
    public:
-    virtual ~Logger() = default;
-
-    virtual void Log(std::string_view message) const = 0;
-    virtual void LogError(std::string_view message) const = 0;
+    virtual void Log(const std::string message) const = 0;
+    virtual void LogError(const std::string message) const = 0;
   };
 
   explicit CrashpadDatabaseManager(Logger& logger);
@@ -35,10 +33,7 @@ class CrashpadDatabaseManager {
 
   ~CrashpadDatabaseManager();
 
-  // Initializes the database located at `database_path`. If `database_path` is
-  // empty, falls back to `GetCrashpadDatabasePath()`.
-  bool InitializeCrashpadDatabase(
-      const base::FilePath& database_path = base::FilePath());
+  bool InitializeCrashpadDatabase();
   bool EnableReportUploads();
 
   void LogCompletedCrashpadReports();

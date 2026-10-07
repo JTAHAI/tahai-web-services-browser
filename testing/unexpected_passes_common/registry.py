@@ -12,6 +12,7 @@ from typing import Any, FrozenSet
 
 
 class _Registry:
+
   def __init__(self):
     self._values_by_id = []
     self._id_by_values = {}

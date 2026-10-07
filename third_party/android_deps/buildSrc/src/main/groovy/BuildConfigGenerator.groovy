@@ -110,7 +110,6 @@ class BuildConfigGenerator extends DefaultTask {
     // to point to the aliased target instead.
     static final Map<String, String> ALIASED_LIBS = [
             // Use fully-qualified labels here since androidx might refer to them.
-            androidx_media3_media3_exoplayer: '//third_party/androidx:exoplayer_java',
             com_google_android_material_material: '//third_party/android_deps:material_design_java',
             com_google_android_play_feature_delivery: '//third_party/android_deps:playcore_java',
             com_google_guava_failureaccess: '//third_party/android_deps:guava_java',
@@ -126,11 +125,7 @@ class BuildConfigGenerator extends DefaultTask {
             com_google_android_play_feature_delivery: '!defined(playcore_target)',
             com_google_protobuf_protobuf_javalite: '!defined(android_proto_runtime)',
             com_google_guava_guava: '!defined(guava_android_target)',
-            // Logic for google_play_services_package is in getConditionalTargetCondition().
-    ]
-    static final Map<String, String> CONDITIONAL_LIB_PREFIXES = [
-            com_google_mlkit: '!defined(mlkit_target)',
-            androidx_media3: '!defined(media3_target)',
+            // Logic for google_play_services_package added below.
     ]
 
     static final String COPYRIGHT_HEADER = '''\
@@ -198,22 +193,6 @@ class BuildConfigGenerator extends DefaultTask {
         // Firebase has historically been treated as a part of play services, so it counts here for backwards
         // compatibility. Datatransport is new as of 2019 and is used by many play services libraries.
         return Pattern.matches('.*google.*(play_services|firebase|datatransport).*', dependencyId)
-    }
-
-    static String getConditionalTargetCondition(String dependencyId) {
-        if (isPlayServicesTarget(dependencyId)) {
-            return 'google_play_services_package == "//third_party/android_deps"'
-        }
-        String condition = CONDITIONAL_LIBS.get(dependencyId)
-        if (condition != null) {
-            return condition
-        }
-        for (Map.Entry<String, String> entry : CONDITIONAL_LIB_PREFIXES.entrySet()) {
-            if (dependencyId.startsWith(entry.getKey())) {
-                return entry.getValue()
-            }
-        }
-        return null
     }
 
     static String makeRootOwners() {
@@ -670,7 +649,11 @@ No modifications.
             }
         }
 
-        String condition = getConditionalTargetCondition(dependency.id)
+        String condition = CONDITIONAL_LIBS.get(dependency.id)
+        if (isPlayServicesTarget(dependency.id)) {
+            assert condition == null: dependency.id
+            condition = 'google_play_services_package == "//third_party/android_deps"'
+        }
 
         String artifactPathPrefix = dependency.artifactDirectoryPath
         if (dependency.isAutorolled) {
@@ -748,7 +731,7 @@ No modifications.
         if (aliasedLib) {
             // Cannot add only the specific target because doing so breaks nested template target.
             String visibilityLabel = aliasedLib.replaceAll(':.*', ':*')
-            if (getConditionalTargetCondition(dependency.id) != null) {
+            if (CONDITIONAL_LIBS.containsKey(dependency.id)) {
                 sb.append('  # Target is swapped out when internal code is enabled.\n')
             }
             sb.append("  # Please depend on $aliasedLib instead.\n")

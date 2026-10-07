@@ -19,9 +19,6 @@
 // Promo was shown.
 - (void)didShowGeminiPromo;
 
-// Returns the title string to display for the Lightweight first run promo step.
-- (NSString*)lightweightPromoTitle;
-
 @end
 
 // Mutator protocol for the Gemini Consent step to communicate with the
@@ -40,10 +37,7 @@
 // Did refuse Live onboarding.
 - (void)didRefuseLiveOnboarding;
 
-// Handles tap on a consent link action.
-- (void)didTapConsentLinkWithAction:(NSString*)actionString;
-
-// Handles opening a new tab given a URL.
+// Handles tap on learn about your choices.
 - (void)openNewTabWithURL:(const GURL&)URL;
 
 @end

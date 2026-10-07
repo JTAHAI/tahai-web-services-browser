@@ -42,12 +42,14 @@ function testCreateImageBitmapFromVideoFrameVP9Decoder() {
         }
       };
 
-      let decoder = new VideoDecoder(decoderInit);
+      const encodedVideoConfig = {
+        codec: "vp09.00.10.08",
+      };
 
-      let processVideoChunk = (chunk, metadata) => {
-        if (metadata && metadata.decoderConfig) {
-          decoder.configure(metadata.decoderConfig);
-        }
+      let decoder = new VideoDecoder(decoderInit);
+      decoder.configure(encodedVideoConfig);
+
+      let processVideoChunk = (chunk) => {
         decoder.decode(chunk);
         decoder.flush();
       };

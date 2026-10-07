@@ -32,7 +32,8 @@ bool g_hklm_override_allowed = true;
 constexpr char16_t kTimestampDelimiter[] = u"$";
 constexpr wchar_t kTempTestKeyPath[] = L"Software\\Chromium\\TempTestKeys";
 
-void DeleteStaleTestKeys(base::Time now, const std::wstring& test_key_root) {
+void DeleteStaleTestKeys(const base::Time& now,
+                         const std::wstring& test_key_root) {
   base::win::RegKey test_root_key;
   if (test_root_key.Open(HKEY_CURRENT_USER, test_key_root.c_str(),
                          KEY_ALL_ACCESS) != ERROR_SUCCESS) {
@@ -67,7 +68,7 @@ void DeleteStaleTestKeys(base::Time now, const std::wstring& test_key_root) {
 }
 
 std::wstring GenerateTempKeyPath(const std::wstring& test_key_root,
-                                 base::Time timestamp) {
+                                 const base::Time& timestamp) {
   return base::AsWString(base::StrCat(
       {base::AsStringPiece16(test_key_root), u"\\",
        base::NumberToString16(timestamp.ToInternalValue()), kTimestampDelimiter,
@@ -103,7 +104,7 @@ RegistryOverrideManager::RegistryOverrideManager()
 }
 
 RegistryOverrideManager::RegistryOverrideManager(
-    base::Time timestamp,
+    const base::Time& timestamp,
     const std::wstring& test_key_root)
     : timestamp_(timestamp), test_key_root_(test_key_root) {
   DeleteStaleTestKeys(timestamp_, test_key_root_);

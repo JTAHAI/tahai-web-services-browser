@@ -24,7 +24,6 @@ public class EditorDialogView extends EditorViewBase {
      * @param activity The activity on top of which the UI should be displayed.
      */
     public EditorDialogView(Activity activity) {
-        // Do not set the fragment manager because the address editor doesn't support date fields.
-        super(activity, /* fragmentManager= */ null);
+        super(activity);
     }
 }

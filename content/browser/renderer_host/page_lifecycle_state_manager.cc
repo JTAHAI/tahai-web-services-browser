@@ -112,14 +112,13 @@ void PageLifecycleStateManager::SetBackForwardCacheEntered(
 
 void PageLifecycleStateManager::SetIsInBackForwardCache(
     bool is_in_back_forward_cache,
-    blink::mojom::PageRestoreParamsPtr page_restore_params) {
+    blink::mojom::PageRestoreParamsPtr page_restore_params,
+    const base::optional_ref<const GURL> navigation_request_url) {
   if (IsInBackForwardCache() == is_in_back_forward_cache) {
     return;
   }
   // Prevent races by waiting for confirmation that the renderer will no longer
   // evict the page before allowing it to exit the back-forward cache
-  // TODO(crbug.com/558345723): CHECK-exclusion: Convert to a CHECK once we are
-  // confident it won't be triggered.
   DCHECK(is_in_back_forward_cache ||
          !last_acknowledged_state_->eviction_enabled);
   eviction_enabled_ = is_in_back_forward_cache;
@@ -134,15 +133,36 @@ void PageLifecycleStateManager::SetIsInBackForwardCache(
                        weak_ptr_factory_.GetWeakPtr()));
     pagehide_dispatch_ = blink::mojom::PagehideDispatch::kDispatchedPersisted;
   } else {
-    CHECK(page_restore_params, base::NotFatalUntil::M158);
+    DCHECK(page_restore_params);
     // When a page is restored from the back-forward cache, we should reset this
     // state so that it behaves correctly next time navigation occurs.
     pagehide_dispatch_ = blink::mojom::PagehideDispatch::kNotDispatched;
     SetBackForwardCacheEntered(BackForwardCacheEntered::kNo);
   }
 
-  SendUpdatesToRendererIfNeeded(std::move(page_restore_params),
-                                base::NullCallback());
+  NavigationControllerImpl& controller =
+      render_view_host_impl_->frame_tree()->controller();
+  if (navigation_request_url.has_value() &&
+      navigation_request_url->SchemeIsHTTPOrHTTPS() &&
+      url::Origin::Create(*navigation_request_url)
+          .IsSameOriginWith(controller.GetLastCommittedEntry()->GetURL()) &&
+      !GetContentClient()->browser()->ShouldDispatchPagehideDuringCommit(
+          render_view_host_impl_->frame_tree()
+              ->controller()
+              .GetBrowserContext(),
+          *navigation_request_url) &&
+      !features::kSkipPagehideInCommitForDSENavigationDelay.Get().is_zero()) {
+    base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+        FROM_HERE,
+        base::BindOnce(
+            &PageLifecycleStateManager::SendUpdatesToRendererIfNeeded,
+            weak_ptr_factory_.GetWeakPtr(), std::move(page_restore_params),
+            base::NullCallback()),
+        features::kSkipPagehideInCommitForDSENavigationDelay.Get());
+  } else {
+    SendUpdatesToRendererIfNeeded(std::move(page_restore_params),
+                                  base::NullCallback());
+  }
 }
 
 blink::mojom::PageLifecycleStatePtr
@@ -156,9 +176,8 @@ PageLifecycleStateManager::SetPagehideDispatchDuringNewPageCommit(
   // CalculatePageLifecycleState() below will be set to kHidden because it
   // depends on the value of |pagehide_dispatch_|.
   last_state_sent_to_renderer_ = CalculatePageLifecycleState();
-  CHECK_EQ(last_state_sent_to_renderer_->visibility,
-           blink::mojom::PageVisibilityState::kHidden,
-           base::NotFatalUntil::M158);
+  DCHECK_EQ(last_state_sent_to_renderer_->visibility,
+            blink::mojom::PageVisibilityState::kHidden);
 
   // We don't need to call SendUpdatesToRendererIfNeeded() because the update
   // will be sent through an OldPageInfo parameter in the CommitNavigation IPC.
@@ -167,18 +186,16 @@ PageLifecycleStateManager::SetPagehideDispatchDuringNewPageCommit(
 
 void PageLifecycleStateManager::DidSetPagehideDispatchDuringNewPageCommit(
     blink::mojom::PageLifecycleStatePtr acknowledged_state) {
-  CHECK_EQ(acknowledged_state->visibility,
-           blink::mojom::PageVisibilityState::kHidden,
-           base::NotFatalUntil::M158);
-  CHECK_NE(acknowledged_state->pagehide_dispatch,
-           blink::mojom::PagehideDispatch::kNotDispatched,
-           base::NotFatalUntil::M158);
+  DCHECK_EQ(acknowledged_state->visibility,
+            blink::mojom::PageVisibilityState::kHidden);
+  DCHECK_NE(acknowledged_state->pagehide_dispatch,
+            blink::mojom::PagehideDispatch::kNotDispatched);
   OnPageLifecycleStateChanged(std::move(acknowledged_state));
 }
 
 void PageLifecycleStateManager::SetIsLeavingBackForwardCache(
     base::OnceClosure done_cb) {
-  CHECK(IsInBackForwardCache(), base::NotFatalUntil::M158);
+  DCHECK(IsInBackForwardCache());
   eviction_enabled_ = false;
   SendUpdatesToRendererIfNeeded(nullptr, std::move(done_cb));
 }
@@ -186,8 +203,7 @@ void PageLifecycleStateManager::SetIsLeavingBackForwardCache(
 bool PageLifecycleStateManager::RendererExpectedToSendChannelAssociatedIpcs()
     const {
   // eviction_enabled_ => IsInBackForwardCache()
-  CHECK(!eviction_enabled_ || IsInBackForwardCache(),
-        base::NotFatalUntil::M158);
+  DCHECK(!eviction_enabled_ || IsInBackForwardCache());
   return !eviction_enabled_ || !last_acknowledged_state_->eviction_enabled;
 }
 
@@ -327,8 +343,6 @@ void PageLifecycleStateManager::OnSetPageLifecycleStateResponse(
 }
 
 void PageLifecycleStateManager::OnBackForwardCacheTimeout() {
-  // TODO(crbug.com/554374746): CHECK-exclusion: Convert to a CHECK once we are
-  // confident it won't be triggered.
   DCHECK(!last_acknowledged_state_->is_in_back_forward_cache);
   render_view_host_impl_->OnBackForwardCacheTimeout();
   back_forward_cache_timeout_monitor_.Stop();
@@ -336,7 +350,7 @@ void PageLifecycleStateManager::OnBackForwardCacheTimeout() {
 
 void PageLifecycleStateManager::SetDelegateForTesting(
     PageLifecycleStateManager::TestDelegate* test_delegate) {
-  CHECK(!test_delegate_ || !test_delegate, base::NotFatalUntil::M158);
+  DCHECK(!test_delegate_ || !test_delegate);
   test_delegate_ = test_delegate;
 }
 

@@ -18,6 +18,7 @@ import androidx.annotation.ColorInt;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.robolectric.annotation.Config;
 
 import org.chromium.base.Token;
 import org.chromium.base.test.BaseRobolectricTestRunner;
@@ -30,6 +31,7 @@ import java.util.Map.Entry;
 
 /** Tests for {@link TabGroupMetadata}. */
 @RunWith(BaseRobolectricTestRunner.class)
+@Config(manifest = Config.NONE)
 public class TabGroupMetadataUnitTest {
 
     private static final ArrayList<Entry<Integer, String>> TAB_IDS_TO_URLS =

@@ -39,7 +39,6 @@
 #include "chrome/browser/ash/login/users/fake_chrome_user_manager.h"
 #include "chrome/browser/ash/profiles/profile_helper.h"
 #include "chrome/browser/download/download_dir_util.h"
-#include "chrome/browser/signin/identity_manager_factory.h"
 #include "chrome/common/chrome_features.h"
 #include "chrome/test/base/testing_browser_process.h"
 #include "chrome/test/base/testing_profile.h"
@@ -341,7 +340,6 @@ class VolumeManagerTest : public testing::Test {
               std::make_unique<drive::DriveIntegrationService>(
                   TestingBrowserProcess::GetGlobal()->local_state(),
                   profile_,
-                  IdentityManagerFactory::GetForProfile(profile_.get()),
                   std::string(),
                   base::FilePath())),
           volume_manager_(std::make_unique<VolumeManager>(

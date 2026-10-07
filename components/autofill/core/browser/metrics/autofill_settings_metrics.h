@@ -94,13 +94,7 @@ void LogIsAutofillPaymentMethodsEnabledAtPageLoad(
     AutofillMetrics::PaymentsSigninState sync_state);
 
 // This should be called each time a new chrome profile is launched.
-// Evaluates all autofill preferences and logs whether autofill is enabled
-// overall.
-void LogIsAutofillEnabledAtStartup(const PrefService& prefs);
-
-// This should be called each time a new chrome profile is launched.
-// Logs the source that disabled Autofill AI data types on startup.
-void LogAutofillAiSettingsAtStartup(const PrefService& prefs);
+void LogIsAutofillEnabledAtStartup(bool enabled);
 
 // This should be called each time a new chrome profile is launched.
 void LogIsAutofillProfileEnabledAtStartup(bool enabled);
@@ -125,10 +119,6 @@ void LogAutofillPaymentMethodsDisabledReasonAtStartup(
 // page containing forms.
 void LogAutofillPaymentMethodsDisabledReasonAtPageLoad(
     const AutofillClient& client);
-
-// Logs the source that disabled Autofill AI types (identity docs, travel,
-// shopping), on page load for a page containing forms.
-void LogAutofillAiSettingsAtPageLoad(const AutofillClient& client);
 
 // Logs user action "Autofill_ProfileDisabled" if
 // `prefs::kAutofillProfileEnabled` is disabled and controlled by the user or an

@@ -14,8 +14,6 @@ class PrefService;
 
 namespace contextual_cueing {
 
-struct TargetStats;
-
 enum class ChromeSuggestionsSettingsValue {
   kEnabled = 0,
   kDisabled = 1,

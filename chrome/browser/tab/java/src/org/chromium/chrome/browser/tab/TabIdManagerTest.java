@@ -7,6 +7,7 @@ package org.chromium.chrome.browser.tab;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.robolectric.annotation.Config;
 
 import org.chromium.base.shared_preferences.SharedPreferencesManager;
 import org.chromium.base.test.BaseRobolectricTestRunner;
@@ -15,6 +16,7 @@ import org.chromium.chrome.browser.preferences.ChromeSharedPreferences;
 
 /** Tests for the TabIdManager. */
 @RunWith(BaseRobolectricTestRunner.class)
+@Config(manifest = Config.NONE)
 public class TabIdManagerTest {
     /** Tests that IDs are stored and generated properly. */
     @Test

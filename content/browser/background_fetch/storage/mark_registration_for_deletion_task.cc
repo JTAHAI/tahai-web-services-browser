@@ -53,7 +53,7 @@ void MarkRegistrationForDeletionTask::DidGetActiveUniqueId(
       return;
   }
 
-  CHECK_EQ(2u, data.size(), base::NotFatalUntil::M158);
+  DCHECK_EQ(2u, data.size());
 
   // If the |unique_id| does not match, then the registration identified by
   // |registration_id_.unique_id()| was already deactivated.

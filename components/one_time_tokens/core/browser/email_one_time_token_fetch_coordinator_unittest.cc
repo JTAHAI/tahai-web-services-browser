@@ -20,7 +20,6 @@ class MockDelegate : public EmailOneTimeTokenFetchCoordinator::Delegate {
               (const OneTimeTokenBackendNotification& notification,
                base::TimeTicks trigger_time),
               (override));
-  MOCK_METHOD(OneTimeTokenLogSink*, GetLogSink, (), (const, override));
 };
 
 class EmailOneTimeTokenFetchCoordinatorTest : public testing::Test {
@@ -269,23 +268,6 @@ TEST_F(EmailOneTimeTokenFetchCoordinatorTest, RecordsQueueLatency) {
       base::Milliseconds(500), 1);
   histogram_tester_.ExpectTotalCount(
       "Autofill.OneTimeTokens.Backend.Gmail.QueueLatency", 4);
-}
-
-TEST_F(EmailOneTimeTokenFetchCoordinatorTest, HasPendingRequests) {
-  EXPECT_FALSE(coordinator_.HasPendingRequests());
-
-  const OneTimeTokenBackendNotification notification(
-      EncryptedMessageReference("ref1"));
-
-  EXPECT_CALL(mock_delegate_,
-              OnCanSendNetworkRequest(OneTimeTokenNotificationMatches("ref1"),
-                                      testing::_));
-
-  coordinator_.SignalNetworkRequestNeeded(notification);
-  EXPECT_TRUE(coordinator_.HasPendingRequests());
-
-  coordinator_.InformOfNetworkRequestFinished(notification);
-  EXPECT_FALSE(coordinator_.HasPendingRequests());
 }
 
 }  // namespace

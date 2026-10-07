@@ -100,10 +100,12 @@ inline constexpr base::TimeDelta kActivationLifespan = base::Seconds(5);
 //   https://docs.google.com/document/d/1XL3vCedkqL65ueaGVD-kfB5RnnrnTaxLc7kmU91oerg
 class BLINK_COMMON_EXPORT UserActivationState {
  public:
-  UserActivationState() = default;
+  UserActivationState();
 
   // Marks the user activation state as active, which sets the sticky state to
   // true and updates the transient state timestamp to "now".
+  //
+  // The |notification_type| parameter is used for histograms only.
   //
   // TODO(mustaq): When removing |notification_type|, explicitly pass
   // |is_restricted| as a parameter here.
@@ -142,16 +144,30 @@ class BLINK_COMMON_EXPORT UserActivationState {
   // after receiving an extension message under certain conditions.
   bool LastActivationWasRestricted() const;
 
+  // Records UMA stats related to consumption.  Must be called:
+  // - before |ConsumeIfActive()| to record correct stats, and
+  // - only once during consumption propagation to suppress over-counting.
+  void RecordPreconsumptionUma() const;
+
  private:
   void ActivateTransientState();
   void DeactivateTransientState();
 
   bool IsActiveInternal() const;
 
+  mojom::UserActivationNotificationType EffectiveNotificationType() const;
+
   bool has_been_active_ = false;
   base::TimeTicks transient_state_expiry_time_;
 
   bool last_activation_was_restricted_ = false;
+
+  // Tracks the expiry of |kInteraction| notification for UMA data.
+  base::TimeTicks transient_state_expiry_time_for_interaction_;
+
+  // Tracks the type of notification for UMA data.
+  mojom::UserActivationNotificationType first_notification_type_;
+  mojom::UserActivationNotificationType last_notification_type_;
 };
 
 }  // namespace blink

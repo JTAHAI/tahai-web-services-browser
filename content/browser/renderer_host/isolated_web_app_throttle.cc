@@ -98,10 +98,6 @@ void RunNavigationInDefaultBrowser(NavigationHandle* handle) {
                                          params, base::DoNothing());
 }
 
-BASE_FEATURE(kBlockCrossIwaMainFrameNavigations,
-             "BlockCrossIwaMainFrameNavigations",
-             base::FEATURE_ENABLED_BY_DEFAULT);
-
 }  // namespace
 
 // static
@@ -197,18 +193,15 @@ IsolatedWebAppThrottle::MaybeThrottleNavigationTransition(
     return dest_needs_apps_isolation ? block_action : ThrottleAction::PROCEED;
   }
 
-  // For the destination origin we want to be a bit more permissive than usual
-  // and use the precursor tuple if the origin is opaque. This lets us allow
-  // navigations to data, error, or web bundle URLs that originate from the
-  // app. Other rules may block these navigations, but for the purpose of this
-  // throttle, these navigations are valid. Note that the previous, initiator,
-  // and parent origins below are intentionally compared as full origins, since
-  // an opaque-origin frame (e.g. a data: URL iframe created by the app) must
-  // not be treated as the app itself when initiating or hosting navigations
-  // into the app.
-  const url::Origin& app_origin = web_contents_isolation_info->origin();
+  // We want the following origin checks to be a bit more permissive than
+  // usual. In particular, if the isolation, previous, or destination origins
+  // are opaque, we want to use their precursor tuple for "origin" comparisons.
+  // This lets us allow navigations to/from data, error, or web bundle URLs
+  // that originate from the same precursor URLs. Other rules may block these
+  // navigations, but for the purpose of this throttle, these navigations are
+  // valid.
   const url::SchemeHostPort& web_contents_isolation_tuple =
-      app_origin.GetTupleOrPrecursorTupleIfOpaque();
+      web_contents_isolation_info->origin().GetTupleOrPrecursorTupleIfOpaque();
   const url::SchemeHostPort& dest_tuple =
       dest_origin_.GetTupleOrPrecursorTupleIfOpaque();
 
@@ -217,15 +210,6 @@ IsolatedWebAppThrottle::MaybeThrottleNavigationTransition(
 
   // Handle main frame navigations.
   if (navigation_handle()->IsInMainFrame()) {
-    // Block renderer-initiated main frame navigations into the app that were
-    // initiated by a non-app frame. This ensures that all main-frame
-    // navigations into the app come from the app itself or from the browser.
-    if (base::FeatureList::IsEnabled(kBlockCrossIwaMainFrameNavigations) &&
-        navigation_handle()->IsRendererInitiated() &&
-        navigation_handle()->GetInitiatorOrigin() != app_origin) {
-      return block_action;
-    }
-
     // If the main frame tries to leave the app's origin, cancel the
     // navigation and open the URL in the systems' default application.
     // Navigations to URLs with custom schemes (say, meow://) initiated by the
@@ -249,25 +233,30 @@ IsolatedWebAppThrottle::MaybeThrottleNavigationTransition(
     // Handle iframe navigations.
     CHECK(!navigation_handle()->IsInMainFrame());
 
-    // Iframes are allowed to leave the app's origin, but not to navigate
-    // into a different Isolated Web App.
+    // Iframes are allowed to leave the app's origin.
     if (dest_tuple != web_contents_isolation_tuple) {
-      return IsNavigatingToIsolatedApplication(navigation_handle())
-                 ? block_action
-                 : ThrottleAction::PROCEED;
+      return ThrottleAction::PROCEED;
     }
 
     // Block renderer-initiated iframe navigations into the app that were
     // initiated by a non-app frame. This ensures that all iframe navigations
     // into the app come from the app itself.
     if (navigation_handle()->IsRendererInitiated() && prev_origin_ &&
-        *prev_origin_ != app_origin) {
+        prev_origin_->GetTupleOrPrecursorTupleIfOpaque() !=
+            web_contents_isolation_tuple) {
       // Allow the navigation if it was initiated by the app, meaning it has a
       // trusted destination URL. This only applies to the initial request, as
       // redirect locations come from outside the app.
       if (navigation_handle()->GetRedirectChain().size() == 1 &&
-          navigation_handle()->GetInitiatorOrigin() == app_origin) {
-        return ThrottleAction::PROCEED;
+          navigation_handle()->GetInitiatorOrigin().has_value()) {
+        const url::SchemeHostPort& initiator_tuple =
+            navigation_handle()
+                ->GetInitiatorOrigin()
+                .value()
+                .GetTupleOrPrecursorTupleIfOpaque();
+        if (initiator_tuple == web_contents_isolation_tuple) {
+          return ThrottleAction::PROCEED;
+        }
       }
       return block_action;
     }
@@ -275,8 +264,12 @@ IsolatedWebAppThrottle::MaybeThrottleNavigationTransition(
     // Block iframe navigations to the app's origin if the parent frame
     // doesn't belong to the app. This prevents non-app frames from having
     // access to an app frame.
-    if (navigation_handle()->GetParentFrame()->GetLastCommittedOrigin() !=
-        app_origin) {
+    const url::SchemeHostPort& parent_tuple =
+        navigation_handle()
+            ->GetParentFrame()
+            ->GetLastCommittedOrigin()
+            .GetTupleOrPrecursorTupleIfOpaque();
+    if (parent_tuple != web_contents_isolation_tuple) {
       return block_action;
     }
 

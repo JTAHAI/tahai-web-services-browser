@@ -9,7 +9,6 @@
 #import "ios/chrome/browser/signin/model/fake_system_identity.h"
 #import "ios/chrome/browser/signin/model/fake_system_identity_manager.h"
 #import "ios/chrome/browser/signin/model/test_constants.h"
-#import "ios/chrome/common/ui/util/constraints_ui_util.h"
 #import "ios/public/provider/chrome/browser/signin/signin_error_api.h"
 #import "ui/base/device_form_factor.h"
 
@@ -77,8 +76,12 @@ BOOL gUsingUnknownCapabilities;
   stackView.translatesAutoresizingMaskIntoConstraints = false;
   [self.view addSubview:stackView];
   // Set up constraints.
-  AddSameConstraintsToSides(stackView, self.view,
-                            LayoutSides::kTop | LayoutSides::kLeading);
+  NSMutableArray* constraints = [[NSMutableArray alloc] init];
+  [constraints addObject:[stackView.topAnchor
+                             constraintEqualToAnchor:self.view.topAnchor]];
+  [constraints addObject:[stackView.leadingAnchor
+                             constraintEqualToAnchor:self.view.leadingAnchor]];
+  [NSLayoutConstraint activateConstraints:constraints];
 }
 
 #pragma mark - Private methods
@@ -173,8 +176,8 @@ BOOL gUsingUnknownCapabilities;
 - (void)startAuthActivityWithViewController:(UIViewController*)viewController
                                   userEmail:(NSString*)userEmail
                                  completion:(SigninCompletionBlock)completion {
-  CHECK(completion);
-  CHECK(viewController);
+  CHECK(completion, base::NotFatalUntil::M140);
+  CHECK(viewController, base::NotFatalUntil::M140);
   _lastStartAuthActivityUserEmail = userEmail;
   if (userEmail.length) {
     [FakeSystemIdentityInteractionManager

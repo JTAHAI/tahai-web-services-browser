@@ -18,14 +18,13 @@
   --text-input-top-spacing: 10px;
   --text-input-inline-end-spacing: 80px;
   --text-input-max-height: 190px;
-  --cr-composebox-entrypoint-icon-animation-delay: 250ms;
   --cr-composebox-font-size: var(--cr-composebox-custom-font-size, 16px);
   --input-bottom-spacing: 12px;
   --ntp-composebox-carousel-padding-block-end: 2px;
   --ntp-composebox-carousel-inner-margin-block-end: 2px;
   --ntp-composebox-tool-chip-padding-block-end: 0px;
   --text-input-inline-start-spacing: var(--cr-composebox-text-input-inline-start, 18px);
-  --expanded-border-radius: var(--cr-composebox-expanded-border-radius, 28px);
+  --expanded-border-radius: var(--cr-composebox-expanded-border-radius, 30px);
   border-radius: var(--expanded-border-radius);
   box-shadow: var(--cr-searchbox-shadow);
   font-size: var(--cr-composebox-font-size);
@@ -45,7 +44,7 @@
 }
 
 :host(:not([is-collapsible])[should-remain-folded_]) #composebox {
-  max-height: var(--cr-searchbox-height);
+  max-height: 56px;
 }
 
 #inputContainer {
@@ -74,26 +73,29 @@ cr-composebox-submit::part(submit) {
 
 #contextEntrypoint {
   color: var(--color-searchbox-results-foreground);
-  inset-inline-start: 0;
-  position: absolute;
-  top: 0;
+  padding-inline-start: var(--contextual-entrypoint-and-carousel-context-entrypoint-padding-inline-start, 8px);
+  padding-inline-end: var(--contextual-entrypoint-and-carousel-context-entrypoint-padding-inline-end, 8px);
 }
 
 #contextEntrypoint::part(context-menu-entrypoint-icon) {
+  inset-inline-start: var(--contextual-entrypoint-and-carousel-context-entrypoint-padding-inline-start, 8px);
+  position: absolute;
+  top: 10px;
   --cr-icon-button-icon-size: 24px;
   --cr-icon-button-margin-start: 2px;
   --cr-icon-button-size: 36px;
 }
 
-:host([glif-animation-state]:not([glif-animation-state='ineligible']))
+#inputContainer:has(.has-tabs)
     #contextEntrypoint::part(context-menu-entrypoint-icon) {
-  --cr-icon-button-margin-start: 0;
-}
-
-#inputContainer:has(.has-tabs) #contextEntrypoint {
   inset-inline-start: unset;
   position: relative;
   top: unset;
+}
+
+:host-context([energy-effect-enabled_]) #contextEntrypoint::part(context-menu-entrypoint-icon) {
+  inset-inline-start: calc(var(--contextual-entrypoint-and-carousel-context-entrypoint-padding-inline-start, 8px) + 1px);
+  top: 11px;
 }
 
 #voiceSearchButton {
@@ -193,6 +195,10 @@ cr-composebox-submit::part(submit) {
   --color-composebox-input-plate-outline: #CCCFD9;
 }
 
+:host([is-dark]):host-context([energy-effect-enabled_][energy-effect-variant_='pre-energy-effect-with-border']) {
+  --color-composebox-input-plate-outline: #4D5263;
+}
+
 :host-context([energy-effect-enabled_][energy-effect-variant_='energy-effect-fusebox']) {
   --box-shadow-energy-effect: 0 2px 6px 0 rgba(60, 64, 67, 0.16);
 }
@@ -201,11 +207,15 @@ cr-composebox-submit::part(submit) {
   --color-composebox-input-plate-outline: #DADCE0;
 }
 
+:host([is-dark]):host-context([energy-effect-enabled_]:not([energy-effect-variant_='pre-energy-effect-with-border'])) {
+  --color-composebox-input-plate-outline: #4E5059;
+}
+
 :host-context([energy-effect-enabled_]) search-animated-glow {
-  inset: 0;
+  inset: 1px;
   z-index: -1;
 }
 
 :host-context([energy-effect-enabled_]) search-animated-glow::part(composebox-background) {
-  inset: 0;
+  inset: 1px;
 }

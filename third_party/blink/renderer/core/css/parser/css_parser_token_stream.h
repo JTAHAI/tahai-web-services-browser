@@ -35,8 +35,6 @@
 // to blocks we have descended into.
 
 #include <memory>
-#include <new>
-#include <type_traits>
 
 #include "base/auto_reset.h"
 #include "base/check_op.h"
@@ -191,13 +189,7 @@ class CORE_EXPORT CSSParserTokenStream {
   // Forcibly read a lookahead token.
   inline void LookAhead() {
     DCHECK(!HasLookAhead());
-    // Construct the token directly in next_ (guaranteed copy elision),
-    // rather than assigning the returned temporary. The tokenizer writes
-    // the token with several narrow stores; reloading it right away as
-    // one wide copy for the assignment causes a store-forwarding stall
-    // on every single token, which is measurable on large stylesheets.
-    static_assert(std::is_trivially_destructible_v<CSSParserToken>);
-    new (&next_) CSSParserToken(tokenizer_.TokenizeSingle());
+    next_ = tokenizer_.TokenizeSingle();
 #if DCHECK_IS_ON()
     peeked_at_next_ = false;
 #endif

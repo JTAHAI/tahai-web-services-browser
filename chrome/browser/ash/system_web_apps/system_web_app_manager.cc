@@ -56,6 +56,7 @@
 #include "chrome/browser/ash/system_web_apps/apps/os_settings_web_app_info.h"
 #include "chrome/browser/ash/system_web_apps/apps/personalization_app/personalization_system_app_delegate.h"
 #include "chrome/browser/ash/system_web_apps/apps/print_management_web_app_info.h"
+#include "chrome/browser/ash/system_web_apps/apps/print_preview_cros_system_web_app_info.h"
 #include "chrome/browser/ash/system_web_apps/apps/projector_system_web_app_info.h"
 #include "chrome/browser/ash/system_web_apps/apps/recorder_app/recorder_system_web_app_info.h"
 #include "chrome/browser/ash/system_web_apps/apps/sanitize_system_web_app_info.h"
@@ -71,6 +72,7 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profiles_state.h"
 #include "chrome/browser/web_applications/external_install_options.h"
+#include "chrome/browser/web_applications/manifest_update_manager.h"
 #include "chrome/browser/web_applications/mojom/user_display_mode.mojom.h"
 #include "chrome/browser/web_applications/policy/web_app_policy_manager.h"
 #include "chrome/browser/web_applications/proto/web_app_install_state.pb.h"
@@ -133,6 +135,7 @@ SystemWebAppDelegateMap CreateSystemWebApps(Profile* profile) {
   info_vec.push_back(
       std::make_unique<vc_background_ui::VcBackgroundUISystemAppDelegate>(
           profile));
+  info_vec.push_back(std::make_unique<PrintPreviewCrosDelegate>(profile));
   info_vec.push_back(std::make_unique<RecorderSystemAppDelegate>(profile));
   info_vec.push_back(std::make_unique<BocaSystemAppDelegate>(profile));
   info_vec.push_back(std::make_unique<MallSystemAppDelegate>(profile));
@@ -329,17 +332,7 @@ void SystemWebAppManager::ScheduleStart() {
 
 void SystemWebAppManager::Start() {
   TRACE_EVENT0("ui", "SystemWebAppManager::Start");
-  // TODO(crbug.com/crbug.com/506131577): `WebAppProvider::on_registry_ready()`
-  // may fire in the case database reads fail, `WebAppProvider` is not
-  // initialized and `WebAppProvider::is_registry_ready()` reports false. Either
-  // `on_registry_ready()` should be renamed to indicate it is independent of
-  // init success or better error handling is implemented.
-  if (!provider_->is_registry_ready()) {
-    if (!on_apps_synchronized_->is_signaled()) {
-      on_apps_synchronized_->Signal();
-    }
-    return;
-  }
+  DCHECK(provider_->is_registry_ready());
 
   // `Start` can be called multiple times in tests.
   ui_manager_observation_.Reset();
@@ -491,9 +484,7 @@ std::vector<webapps::AppId> SystemWebAppManager::GetAppIds() const {
 }
 
 bool SystemWebAppManager::IsSystemWebApp(const webapps::AppId& app_id) const {
-  if (!provider_->is_registry_ready()) {
-    return false;
-  }
+  DCHECK(provider_->is_registry_ready());
   return web_app::IsSystemWebApp(provider_->registrar_unsafe(),
                                  system_app_delegates_, app_id);
 }
@@ -867,6 +858,8 @@ bool SystemWebAppManager::CheckAndIncrementRetryAttempts() {
 void SystemWebAppManager::ConnectProviderToSystemWebAppDelegateMap(
     const SystemWebAppDelegateMap* system_web_apps_delegate_map) const {
   // TODO(crbug.com/40243506): Consider DCHECKing that provider_ is ready.
+  provider_->manifest_update_manager().SetSystemWebAppDelegateMap(
+      system_web_apps_delegate_map);
   provider_->policy_manager().SetSystemWebAppDelegateMap(
       system_web_apps_delegate_map);
 }

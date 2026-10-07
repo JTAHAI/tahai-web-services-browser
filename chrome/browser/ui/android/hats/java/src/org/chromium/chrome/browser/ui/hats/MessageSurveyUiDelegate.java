@@ -14,6 +14,7 @@ import androidx.annotation.IntDef;
 import org.chromium.base.Callback;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
+import org.chromium.chrome.browser.tab.EmptyTabObserver;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.TabHidingType;
 import org.chromium.chrome.browser.tab.TabObserver;
@@ -287,7 +288,7 @@ public class MessageSurveyUiDelegate implements SurveyUiDelegate {
         // hidden. This prevents the prompt from being shown if the tab is opened after being
         // hidden for a duration in which the survey expired. See crbug.com/40790974 for details.
         mDismissMessageTabObserver =
-                new TabObserver() {
+                new EmptyTabObserver() {
                     @Override
                     public void onHidden(Tab tab, @TabHidingType int type) {
                         tab.removeObserver(this);
@@ -309,7 +310,7 @@ public class MessageSurveyUiDelegate implements SurveyUiDelegate {
         }
 
         mLoadingTabObserver =
-                new TabObserver() {
+                new EmptyTabObserver() {
                     @Override
                     public void onInteractabilityChanged(Tab tab, boolean isInteractable) {
                         assumeNonNull(mLoadingTab);

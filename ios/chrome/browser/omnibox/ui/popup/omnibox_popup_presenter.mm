@@ -16,6 +16,7 @@
 #import "ios/chrome/common/ui/util/constraints_ui_util.h"
 #import "ios/chrome/common/ui/util/ui_util.h"
 #import "ui/base/device_form_factor.h"
+#import "ui/gfx/ios/uikit_util.h"
 
 namespace {
 const CGFloat kVerticalOffset = 6;
@@ -121,9 +122,9 @@ const CGFloat kFadeAnimationVerticalOffset = 12;
 
       AddSameConstraints(viewController.view, _popupContainerView);
     } else {
-      AddSameConstraintsToSides(
-          viewController.view, _popupContainerView,
-          LayoutSides::kBottom | LayoutSides::kHorizontal);
+      AddSameConstraintsToSides(viewController.view, _popupContainerView,
+                                LayoutSides::kLeading | LayoutSides::kTrailing |
+                                    LayoutSides::kBottom);
       _popupTopConstraint = [viewController.view.topAnchor
           constraintEqualToAnchor:_popupContainerView.topAnchor];
       _popupTopConstraint.active = YES;

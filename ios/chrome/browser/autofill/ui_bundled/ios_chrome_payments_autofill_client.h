@@ -16,12 +16,10 @@
 #import "components/autofill/core/browser/payments/autofill_save_card_ui_info.h"
 #import "components/autofill/core/browser/payments/multiple_request_payments_network_interface.h"
 #import "components/autofill/core/browser/payments/payments_autofill_client.h"
-#import "components/autofill/core/browser/payments/wallet_reminder_notice_manager.h"
 #import "components/autofill/core/browser/ui/payments/autofill_progress_ui_type.h"
 #import "components/autofill/core/browser/ui/payments/card_expiration_date_fix_flow_controller_impl.h"
 #import "components/autofill/core/browser/ui/payments/card_name_fix_flow_controller_impl.h"
 #import "components/infobars/core/infobar_manager.h"
-#import "ios/chrome/browser/autofill/wallet_reminder_notice/ui/wallet_reminder_notice_ui_delegate_ios.h"
 
 class GURL;
 
@@ -220,8 +218,6 @@ class IOSChromePaymentsAutofillClient : public PaymentsAutofillClient {
   bool IsTabModalPopup() const override;
   BnplStrategy* GetBnplStrategy() override;
   BnplUiDelegate* GetBnplUiDelegate() override;
-  WalletReminderNoticeUiDelegate* GetWalletReminderNoticeUiDelegate() override;
-  WalletReminderNoticeManager* GetWalletReminderNoticeManager() override;
 
   // Begin IOSChromePaymentsAutofillClient-specific section.
 
@@ -291,19 +287,6 @@ class IOSChromePaymentsAutofillClient : public PaymentsAutofillClient {
   // platform.
   // Lazily initialized: access only through `GetBnplUiDelegate()`.
   std::unique_ptr<IosBnplUiDelegate> bnpl_ui_delegate_;
-
-  // The WalletReminderNoticeUiDelegate used to handle the UI in the Wallet
-  // Reminder Notice flow on iOS.
-  // Lazily initialized: access only through
-  // `GetWalletReminderNoticeUiDelegate()`.
-  std::optional<WalletReminderNoticeUiDelegateIOS>
-      wallet_reminder_notice_ui_delegate_;
-
-  // The WalletReminderNoticeManager used to orchestrate the Wallet Reminder
-  // Notice flow.
-  // Lazily initialized: access only through
-  // `GetWalletReminderNoticeManager()`.
-  std::optional<WalletReminderNoticeManager> wallet_reminder_notice_manager_;
 };
 
 }  // namespace payments

@@ -27,6 +27,8 @@ BubbleManager* BubbleManager::GetForWebContents(
 
 // static
 BubbleManager* BubbleManager::GetForTab(tabs::TabInterface* tab_interface) {
+  CHECK(base::FeatureList::IsEnabled(
+      features::kAutofillShowBubblesBasedOnPriorities));
   if (!tab_interface) {
     return nullptr;
   }

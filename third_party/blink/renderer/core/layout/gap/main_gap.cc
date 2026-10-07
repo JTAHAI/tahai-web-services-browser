@@ -38,13 +38,6 @@ wtf_size_t MainGap::GetCrossGapBeforeEnd() const {
   return range_of_cross_gaps_before_.End();
 }
 
-wtf_size_t MainGap::GetCrossGapBeforeCount() const {
-  const wtf_size_t start = GetCrossGapBeforeStart();
-  const wtf_size_t end = GetCrossGapBeforeEnd();
-  CHECK_LE(start, end);
-  return end - start + 1;
-}
-
 wtf_size_t MainGap::GetCrossGapAfterStart() const {
   CHECK(HasCrossGapsAfter());
   return range_of_cross_gaps_after_.Start();
@@ -53,13 +46,6 @@ wtf_size_t MainGap::GetCrossGapAfterStart() const {
 wtf_size_t MainGap::GetCrossGapAfterEnd() const {
   CHECK(HasCrossGapsAfter());
   return range_of_cross_gaps_after_.End();
-}
-
-wtf_size_t MainGap::GetCrossGapAfterCount() const {
-  const wtf_size_t start = GetCrossGapAfterStart();
-  const wtf_size_t end = GetCrossGapAfterEnd();
-  CHECK_LE(start, end);
-  return end - start + 1;
 }
 
 const GapSegmentStateRanges& MainGap::GetGapSegmentStateRanges() const {

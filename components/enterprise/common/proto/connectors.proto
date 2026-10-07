@@ -289,8 +289,7 @@ message ContentAnalysisResponse {
         WARN = 2;
         BLOCK = 3;
         FORCE_SAVE_TO_CLOUD = 4;
-        JUSTIFICATION_REQUIRED = 5;
-        KEEP_IN_MANAGED_CHROME = 6;
+        KEEP_IN_MANAGED_CHROME = 5;
       }
       optional Action action = 1;
       optional string rule_name = 2;

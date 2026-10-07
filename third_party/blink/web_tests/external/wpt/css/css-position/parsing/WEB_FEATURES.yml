@@ -1,3 +1,7 @@
-rules:
-- z-index-*: [z-index]
-- position-*: [position]
+features:
+- name: z-index
+  files:
+  - z-index-*
+- name: position
+  files:
+  - position-*

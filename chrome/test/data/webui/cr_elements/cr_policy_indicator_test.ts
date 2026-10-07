@@ -8,7 +8,6 @@ import 'chrome://resources/cr_elements/policy/cr_tooltip_icon.js';
 import './cr_policy_strings.js';
 
 import type {CrPolicyIndicatorElement} from 'chrome://resources/cr_elements/policy/cr_policy_indicator.js';
-import type {CrTooltipIconElement} from 'chrome://resources/cr_elements/policy/cr_tooltip_icon.js';
 import {CrPolicyIndicatorType} from 'chrome://resources/cr_elements/policy/cr_policy_types.js';
 import {assertEquals, assertFalse, assertTrue} from 'chrome://webui-test/chai_assert.js';
 import {isVisible, microtasksFinished} from 'chrome://webui-test/test_util.js';
@@ -67,7 +66,7 @@ suite('CrPolicyIndicator', function() {
     await microtasksFinished();
 
     assertTrue(getIconVisible());
-    assertEquals('cr20:family-link', getIconClass());
+    assertEquals('cr20:kite', getIconClass());
     assertEquals('parent', getIconTooltipText());
   });
 
@@ -76,7 +75,7 @@ suite('CrPolicyIndicator', function() {
     await microtasksFinished();
 
     assertTrue(getIconVisible());
-    assertEquals('cr20:family-link', getIconClass());
+    assertEquals('cr20:kite', getIconClass());
     assertEquals('Restricted for child', getIconTooltipText());
   });
 
@@ -95,7 +94,7 @@ suite('CrPolicyIndicator', function() {
     await microtasksFinished();
 
     assertTrue(getIconVisible());
-    assertEquals('cr:chrome-extension-filled', getIconClass());
+    assertEquals('cr:extension', getIconClass());
     assertEquals('extension: Extension name', getIconTooltipText());
   });
 
@@ -105,7 +104,7 @@ suite('CrPolicyIndicator', function() {
     await microtasksFinished();
 
     assertTrue(getIconVisible());
-    assertEquals('cr:chrome-extension-filled', getIconClass());
+    assertEquals('cr:extension', getIconClass());
     assertEquals('extension', getIconTooltipText());
   });
 
@@ -116,7 +115,7 @@ suite('CrPolicyIndicator', function() {
     await microtasksFinished();
 
     assertTrue(getIconVisible());
-    assertEquals('cr:group-filled', getIconClass());
+    assertEquals('cr:group', getIconClass());
     assertEquals('shared: user@example.com', getIconTooltipText());
   });
   // </if>
@@ -135,7 +134,7 @@ suite('CrPolicyIndicator', function() {
     indicator.indicatorSourceName = 'foo@example.com';
     await microtasksFinished();
 
-    assertEquals('cr:person-filled', icon.iconClass);
+    assertEquals('cr:person', icon.iconClass);
     assertEquals('owner: foo@example.com', icon.tooltipText);
     // </if>
 
@@ -143,26 +142,14 @@ suite('CrPolicyIndicator', function() {
     await microtasksFinished();
 
     assertFalse(icon.hidden);
-    assertEquals('cr20:family-link', icon.iconClass);
+    assertEquals('cr20:kite', icon.iconClass);
     assertEquals('parent', icon.tooltipText);
 
     indicator.indicatorType = CrPolicyIndicatorType.CHILD_RESTRICTION;
     await microtasksFinished();
 
     assertFalse(icon.hidden);
-    assertEquals('cr20:family-link', icon.iconClass);
+    assertEquals('cr20:kite', icon.iconClass);
     assertEquals('Restricted for child', icon.tooltipText);
-  });
-
-  test('tooltip position is passed to tooltip icon', async () => {
-    const icon = indicator.shadowRoot.querySelector<CrTooltipIconElement>(
-        'cr-tooltip-icon');
-    assertTrue(!!icon);
-    assertEquals('top', indicator.tooltipPosition);
-    assertEquals('top', icon.tooltipPosition);
-
-    indicator.tooltipPosition = 'left';
-    await microtasksFinished();
-    assertEquals('left', icon.tooltipPosition);
   });
 });

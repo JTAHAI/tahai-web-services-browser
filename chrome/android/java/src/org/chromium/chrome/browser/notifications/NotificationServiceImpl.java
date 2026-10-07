@@ -209,10 +209,17 @@ public class NotificationServiceImpl extends SplitCompatIntentService.Impl {
             return;
         }
 
-        PostTask.runOrPostTask(TaskTraits.UI_DEFAULT, () -> dispatchIntentOnUiThread(intent));
+        PostTask.runOrPostTask(
+                TaskTraits.UI_DEFAULT,
+                () -> {
+                    dispatchIntentOnUiThread(intent);
+                });
 
         PostTask.runOrPostTask(
-                TaskTraits.BEST_EFFORT, WebappsUtils::prepareIsRequestPinShortcutSupported);
+                TaskTraits.BEST_EFFORT,
+                () -> {
+                    WebappsUtils.prepareIsRequestPinShortcutSupported();
+                });
     }
 
     /**

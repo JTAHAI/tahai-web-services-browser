@@ -11,13 +11,14 @@
 #include "ash/public/cpp/notification_utils.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/no_destructor.h"
+#include "chrome/browser/notifications/notification_display_service.h"
+#include "chrome/browser/notifications/notification_display_service_factory.h"
+#include "chrome/browser/notifications/notification_handler.h"
 #include "chromeos/strings/grit/chromeos_strings.h"
-#include "components/user_manager/user.h"
 #include "components/vector_icons/vector_icons.h"
 #include "content/public/browser/browser_thread.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/ui_base_features.h"
-#include "ui/message_center/message_center.h"
 #include "ui/message_center/public/cpp/notification.h"
 #include "ui/message_center/public/cpp/notification_delegate.h"
 #include "ui/message_center/public/cpp/notification_types.h"
@@ -26,6 +27,7 @@
 namespace ash {
 namespace {
 
+using ::message_center::Notification;
 using ::message_center::NotificationDelegate;
 using ::message_center::NotificationType;
 using ::message_center::NotifierId;
@@ -40,6 +42,10 @@ const char kNotificationId[] = "saml.password-change-success-notification";
 const NotificationType kNotificationType =
     message_center::NOTIFICATION_TYPE_SIMPLE;
 
+// Generic type for notifications that are not from web pages etc.
+const NotificationHandler::Type kNotificationHandlerType =
+    NotificationHandler::Type::TRANSIENT;
+
 // The icon to use for this notification - looks like an office building.
 const gfx::VectorIcon& GetIcon() {
   return ::features::IsRoundedIconsEnabled() ? vector_icons::kDomainIcon
@@ -53,15 +59,13 @@ constexpr SystemNotificationWarningLevel kWarningLevel =
 }  // namespace
 
 // static
-void PasswordChangeSuccessNotification::Show(const user_manager::User& user) {
+void PasswordChangeSuccessNotification::Show(Profile* profile) {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
 
   // NotifierId for histogram reporting.
-  NotifierId notifier_id(NotifierType::SYSTEM_COMPONENT, kNotificationId,
-                         NotificationCatalogName::kPasswordChange);
-  notifier_id.profile_id = user.GetAccountId().GetUserEmail();
-  const std::string notification_id =
-      CreateUserScopedNotificationId(kNotificationId, user.username_hash());
+  static const base::NoDestructor<NotifierId> kNotifierId(
+      NotifierType::SYSTEM_COMPONENT, kNotificationId,
+      NotificationCatalogName::kPasswordChange);
 
   // Leaving this empty means the notification is attributed to the system -
   // ie "Chromium OS" or similar.
@@ -81,17 +85,17 @@ void PasswordChangeSuccessNotification::Show(const user_manager::User& user) {
   const scoped_refptr<NotificationDelegate> delegate =
       base::MakeRefCounted<NotificationDelegate>();
 
-  auto notification = CreateSystemNotificationPtr(
-      kNotificationType, notification_id, title, body, *kEmptyDisplaySource,
-      *kEmptyOriginUrl, notifier_id, rich_notification_data, delegate,
+  Notification notification = CreateSystemNotification(
+      kNotificationType, kNotificationId, title, body, *kEmptyDisplaySource,
+      *kEmptyOriginUrl, *kNotifierId, rich_notification_data, delegate,
       GetIcon(), kWarningLevel);
 
-  // Calling remove before add ensures that the notification pops up again
+  NotificationDisplayService* nds =
+      NotificationDisplayServiceFactory::GetForProfile(profile);
+  // Calling close before display ensures that the notification pops up again
   // even if it is already shown.
-  message_center::MessageCenter::Get()->RemoveNotification(notification_id,
-                                                           /*by_user=*/false);
-  message_center::MessageCenter::Get()->AddNotification(
-      std::move(notification));
+  nds->Close(kNotificationHandlerType, kNotificationId);
+  nds->Display(kNotificationHandlerType, notification, /*metadata=*/nullptr);
 }
 
 }  // namespace ash

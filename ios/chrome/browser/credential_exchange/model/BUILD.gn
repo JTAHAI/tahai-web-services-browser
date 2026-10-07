@@ -15,7 +15,6 @@ source_set("model") {
     ":credential_exchange_types",
     ":credential_export_manager_swift",
     ":credential_import_manager_swift",
-    ":features",
     ":metrics_util",
     "//base",
     "//components/password_manager/core/browser",
@@ -26,7 +25,6 @@ source_set("model") {
     "//components/webauthn/core/browser:passkey_model",
     "//components/webauthn/core/browser/import",
     "//components/webauthn/ios:passkey_types",
-    "//crypto",
     "//ios/chrome/app/strings",
     "//ios/chrome/browser/data_import/public",
     "//net",
@@ -86,7 +84,6 @@ source_set("unit_tests") {
     ":credential_exchange_types",
     ":credential_export_manager_swift",
     ":credential_import_manager_swift",
-    ":features",
     ":model",
     "//base/test:test_support",
     "//components/affiliations/core/browser:test_support",
@@ -97,9 +94,7 @@ source_set("unit_tests") {
     "//components/password_manager/core/browser/ui",
     "//components/webauthn/core/browser:passkey_model",
     "//components/webauthn/core/browser:test_support",
-    "//components/webauthn/core/browser/import",
     "//ios/chrome/browser/affiliations/model",
-    "//ios/chrome/browser/data_import/public",
     "//ios/chrome/browser/passwords/model:store_factory",
     "//ios/chrome/browser/shared/model/profile/test",
     "//ios/chrome/test/app:test_support",
@@ -108,12 +103,4 @@ source_set("unit_tests") {
     "//third_party/ocmock",
     "//url",
   ]
-}
-
-source_set("features") {
-  sources = [
-    "features.h",
-    "features.mm",
-  ]
-  public_deps = [ "//base" ]
 }

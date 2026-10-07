@@ -4,11 +4,8 @@
 
 #include "chrome/browser/component_updater/ssl_error_assistant_component_installer.h"
 
-#include <cstdint>
 #include <memory>
-#include <string>
 #include <utility>
-#include <vector>
 
 #include "base/files/file_util.h"
 #include "base/functional/bind.h"
@@ -121,7 +118,8 @@ SSLErrorAssistantComponentInstallerPolicy::GetRelativeInstallDir() const {
 
 void SSLErrorAssistantComponentInstallerPolicy::GetHash(
     std::vector<uint8_t>* hash) const {
-  hash->assign_range(kSslErrorAssistantPublicKeySHA256);
+  hash->assign(std::begin(kSslErrorAssistantPublicKeySHA256),
+               std::end(kSslErrorAssistantPublicKeySHA256));
 }
 
 std::string SSLErrorAssistantComponentInstallerPolicy::GetName() const {

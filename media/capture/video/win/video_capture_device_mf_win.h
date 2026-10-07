@@ -80,7 +80,6 @@ class CAPTURE_EXPORT VideoCaptureDeviceMFWin : public VideoCaptureDevice {
       const VideoCaptureParams& params,
       std::unique_ptr<VideoCaptureDevice::Client> client) override;
   void StopAndDeAllocate() override;
-  void InvalidateBuffers() override;
   void TakePhoto(TakePhotoCallback callback) override;
   void GetPhotoState(GetPhotoStateCallback callback) override;
   void SetPhotoOptions(mojom::PhotoSettingsPtr settings,

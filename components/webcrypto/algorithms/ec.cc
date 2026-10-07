@@ -11,7 +11,6 @@
 
 #include "base/compiler_specific.h"
 #include "base/containers/span.h"
-#include "base/containers/to_vector.h"
 #include "components/webcrypto/algorithms/asymmetric_key_util.h"
 #include "components/webcrypto/algorithms/util.h"
 #include "components/webcrypto/blink_key_handle.h"
@@ -581,14 +580,18 @@ Status EcAlgorithm::ExportKeyRaw(const blink::WebCryptoKey& key,
     return Status::ErrorUnexpected();
 
   // Serialize the public key as an uncompressed point in X9.62 form.
+  uint8_t* raw;
+  size_t raw_len;
   bssl::ScopedCBB cbb;
   if (!CBB_init(cbb.get(), 0) ||
       !EC_POINT_point2cbb(cbb.get(), EC_KEY_get0_group(ec),
                           EC_KEY_get0_public_key(ec),
-                          POINT_CONVERSION_UNCOMPRESSED, nullptr)) {
+                          POINT_CONVERSION_UNCOMPRESSED, nullptr) ||
+      !CBB_finish(cbb.get(), &raw, &raw_len)) {
     return Status::OperationError();
   }
-  *buffer = base::ToVector(crypto::CbbAsSpan(cbb.get()));
+  buffer->assign(raw, UNSAFE_TODO(raw + raw_len));
+  OPENSSL_free(raw);
 
   return Status::Success();
 }

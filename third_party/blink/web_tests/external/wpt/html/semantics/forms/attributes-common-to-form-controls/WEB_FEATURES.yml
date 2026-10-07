@@ -1,3 +1,8 @@
-rules:
-- dirname-*: [dirname]
-- "*": [form]
+features:
+- name: form
+  files:
+  - '*'
+  - '!dirname-*'
+- name: dirname
+  files:
+  - dirname-*

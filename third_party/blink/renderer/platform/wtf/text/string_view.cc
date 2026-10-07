@@ -13,7 +13,6 @@
 #include "third_party/blink/renderer/platform/wtf/text/character_names.h"
 #include "third_party/blink/renderer/platform/wtf/text/character_visitor.h"
 #include "third_party/blink/renderer/platform/wtf/text/code_point_iterator.h"
-#include "third_party/blink/renderer/platform/wtf/text/format.h"
 #include "third_party/blink/renderer/platform/wtf/text/string_builder.h"
 #include "third_party/blink/renderer/platform/wtf/text/string_impl.h"
 #include "third_party/blink/renderer/platform/wtf/text/string_internal.h"
@@ -323,7 +322,7 @@ String StringView::EncodeForDebugging() const {
             builder.Append(static_cast<char>(character));
           } else {
             // Print "\uXXXX" for control or non-ASCII characters.
-            FormatTo(builder, "\\u{:04X}", character);
+            builder.AppendFormat("\\u%04X", character);
           }
           break;
       }

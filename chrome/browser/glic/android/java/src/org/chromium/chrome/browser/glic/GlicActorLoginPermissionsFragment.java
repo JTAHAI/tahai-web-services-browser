@@ -120,9 +120,9 @@ public class GlicActorLoginPermissionsFragment extends ChromeBaseSettingsFragmen
         boolean isManaged =
                 prefService.isManagedPreference(GlicPrefNames.GLIC_ACTUATION_ON_WEB)
                         || prefService.isManagedPreference(
-                                GlicPrefNames.GLIC_ACTUATION_ON_WEB_ALLOWED_FOR_URLS)
+                                GlicPrefNames.GLIC_ACTUATION_ON_WEB_ALLOWED_FOR_UR_LS)
                         || prefService.isManagedPreference(
-                                GlicPrefNames.GLIC_ACTUATION_ON_WEB_BLOCKED_FOR_URLS);
+                                GlicPrefNames.GLIC_ACTUATION_ON_WEB_BLOCKED_FOR_UR_LS);
 
         if (isOffline) {
             mEmptyCard.setSummary(

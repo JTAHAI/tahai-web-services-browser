@@ -2,68 +2,14 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// cc_file_path:
-// chrome/browser/glic/actor/glic_actor_task_lifecycle_browsertest.cc
-
 import {ActorTaskInterruptReason, ActorTaskPauseReason, ActorTaskState, ActorTaskStopReason, CancelActionsResult} from '/glic/glic_api/glic_api.js';
 import type {GmailOtpConfirmationRequest, GmailOtpOptInRequest} from '/glic/glic_api/glic_api.js';
 
 import {ApiTestFixtureBase, assertDefined, assertEquals, assertRejects, assertTrue, checkDefined, longWaitTimeMs, observeSequence, testMain} from './browser_test_base.js';
 
-export type ConfirmationResponseMode = 'accept'|'decline'|'error';
-
-declare global {
-  interface Window {
-    setGmailOtpConfirmationResponseMode?:
-        (mode: ConfirmationResponseMode) => void;
-  }
-}
-
 class GlicActorTaskLifecycleFunctionalBrowserTest extends ApiTestFixtureBase {
-  private confirmationResponseMode: ConfirmationResponseMode = 'accept';
-  private confirmationSubscription?: {unsubscribe: () => void};
-
-  setGmailOtpConfirmationResponseMode(mode: ConfirmationResponseMode) {
-    this.confirmationResponseMode = mode;
-    if (mode === 'error') {
-      if (this.confirmationSubscription) {
-        this.confirmationSubscription.unsubscribe();
-        this.confirmationSubscription = undefined;
-      }
-      return;
-    }
-    if (!this.confirmationSubscription &&
-        this.host.selectGmailOtpConfirmationRequestHandler) {
-      const subscriber = this.host.selectGmailOtpConfirmationRequestHandler();
-      if (subscriber) {
-        this.confirmationSubscription =
-            subscriber.subscribe((request: GmailOtpConfirmationRequest) => {
-              switch (this.confirmationResponseMode) {
-                case 'accept':
-                  request.onDialogClosed({permissionGranted: true});
-                  break;
-                case 'decline':
-                  request.onDialogClosed({permissionGranted: false});
-                  break;
-                default:
-                  break;
-              }
-            });
-      }
-    }
-  }
-
   override async setUpTest() {
     await this.client.waitForFirstOpen();
-    if (this.confirmationSubscription) {
-      this.confirmationSubscription.unsubscribe();
-      this.confirmationSubscription = undefined;
-    }
-    this.confirmationResponseMode = 'accept';
-    window.setGmailOtpConfirmationResponseMode =
-        (mode: ConfirmationResponseMode) => {
-          this.setGmailOtpConfirmationResponseMode(mode);
-        };
   }
 
   async getFocusedTabId(): Promise<string> {
@@ -118,7 +64,7 @@ class GlicActorTaskLifecycleFunctionalBrowserTest extends ApiTestFixtureBase {
     await this.advanceToNextStep({taskId});
 
     // Performing an action on a paused task should fail.
-    const targetUrl = this.getHttpsUrl('/actor/blank.html?target');
+    const targetUrl = this.getUrl('/actor/blank.html?target');
     const navBuffer = await this.browser.makeNavigateAction(taskId, targetUrl);
     const performResult1 = await this.host.performActions(navBuffer);
     const resultCode1 = await this.browser.parseActionsResult(performResult1);
@@ -194,9 +140,9 @@ class GlicActorTaskLifecycleFunctionalBrowserTest extends ApiTestFixtureBase {
     const taskId = await this.host.createTask();
     assertTrue(taskId > 0);
 
+    await this.host.stopActorTask(taskId, ActorTaskStopReason.TASK_COMPLETE);
     await this.advanceToNextStep({taskId});
 
-    await this.host.stopActorTask(taskId, ActorTaskStopReason.TASK_COMPLETE);
     const focusedTabId = await this.getFocusedTabId();
 
     await this.host.pauseActorTask(
@@ -221,7 +167,7 @@ class GlicActorTaskLifecycleFunctionalBrowserTest extends ApiTestFixtureBase {
     // Use a long wait to ensure we can pause before it completes.
     const waitBuffer =
         await this.browser.makeWaitAction(taskId, longWaitTimeMs);
-    const targetUrl = this.getHttpsUrl('/actor/blank.html?target');
+    const targetUrl = this.getUrl('/actor/blank.html?target');
 
     const focusedTabId = await this.getFocusedTabId();
 
@@ -285,17 +231,14 @@ class GlicActorTaskLifecycleFunctionalBrowserTest extends ApiTestFixtureBase {
     assertDefined(this.host.performActions);
     assertDefined(this.host.interruptActorTask);
     assertDefined(this.host.uninterruptActorTask);
-    assertDefined(this.host.updateActorTaskStepProgress);
     assertDefined(this.host.stopActorTask);
 
     const taskId = await this.host.createTask();
     assertTrue(taskId > 0);
 
-    this.host.updateActorTaskStepProgress(taskId, 'Navigating');
-
     await this.advanceToNextStep({taskId});
 
-    const targetUrl = this.getHttpsUrl('/actor/blank.html?target');
+    const targetUrl = this.getUrl('/actor/blank.html?target');
     const navBuffer = await this.browser.makeNavigateAction(taskId, targetUrl);
     const navResult = await this.host.performActions(navBuffer);
     const resultCode = await this.browser.parseActionsResult(navResult);
@@ -350,7 +293,7 @@ class GlicActorTaskLifecycleFunctionalBrowserTest extends ApiTestFixtureBase {
     assertEquals('kActionsCancelled', resultCode1);
 
     // Ensure the task can still perform actions after being uninterrupted.
-    const targetUrl = this.getHttpsUrl('/actor/blank.html?target');
+    const targetUrl = this.getUrl('/actor/blank.html?target');
     const navBuffer = await this.browser.makeNavigateAction(taskId, targetUrl);
     const navResult = await this.host.performActions(navBuffer);
     const resultCode2 = await this.browser.parseActionsResult(navResult);
@@ -426,7 +369,7 @@ class GlicActorTaskLifecycleFunctionalBrowserTest extends ApiTestFixtureBase {
     // Let the test create a second tab.
     await this.advanceToNextStep();
 
-    const targetUrl = this.getHttpsUrl('/actor/blank.html?target');
+    const targetUrl = this.getUrl('/actor/blank.html?target');
     const navBuffer =
         await this.browser.makeNavigateAction(taskId, targetUrl, firstTabId);
     const navResult = await this.host.performActions(navBuffer);
@@ -490,25 +433,6 @@ class GlicActorTaskLifecycleFunctionalBrowserTest extends ApiTestFixtureBase {
     await this.advanceToNextStep();
   }
 
-  async testGmailOtpConfirmationAcceptFillsOtpSuccessfully() {
-    assertDefined(this.host.selectGmailOtpConfirmationRequestHandler);
-    await this.advanceToNextStep();
-  }
-
-  async testGmailOtpConfirmationDeclineAbortsFilling() {
-    assertDefined(this.host.selectGmailOtpConfirmationRequestHandler);
-    await this.advanceToNextStep();
-  }
-
-  async testGmailOtpConfirmationErrorHandling() {
-    await this.advanceToNextStep();
-  }
-
-  async testGmailOtpConfirmationAssertNoPreferenceMutations() {
-    assertDefined(this.host.selectGmailOtpConfirmationRequestHandler);
-    await this.advanceToNextStep();
-  }
-
   async testActuatingPriorityChange() {
     assertDefined(this.host.createTask);
     assertDefined(this.host.performActions);
@@ -519,7 +443,7 @@ class GlicActorTaskLifecycleFunctionalBrowserTest extends ApiTestFixtureBase {
 
     // Perform a navigate action first to associate the active tab with the
     // actor task. This ensures has_visible_tab is computed as true.
-    const targetUrl = this.getHttpsUrl('/actor/blank.html?target');
+    const targetUrl = this.getUrl('/actor/blank.html?target');
     const navBuffer = await this.browser.makeNavigateAction(taskId, targetUrl);
     const navResult = await this.host.performActions(navBuffer);
     const resultCode = await this.browser.parseActionsResult(navResult);

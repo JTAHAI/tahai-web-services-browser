@@ -4,25 +4,19 @@
 import 'chrome-untrusted://read-anything-side-panel.top-chrome/read_anything.js';
 
 import type {AppElement} from 'chrome-untrusted://read-anything-side-panel.top-chrome/read_anything.js';
-import {AudioBrowserProxyImpl, ContentBrowserProxyImpl, ContentController, ContentType, NodeStore, playFromSelectionTimeout, SelectionController, setInstance, SpeechBrowserProxyImpl, SpeechController, ToolbarEvent, VisualBrowserProxyImpl, VoiceLanguageController} from 'chrome-untrusted://read-anything-side-panel.top-chrome/read_anything.js';
+import {ContentController, NodeStore, playFromSelectionTimeout, SelectionController, setInstance, SpeechBrowserProxyImpl, SpeechController, ToolbarEvent, VoiceLanguageController} from 'chrome-untrusted://read-anything-side-panel.top-chrome/read_anything.js';
 import {assertEquals, assertFalse, assertTrue} from 'chrome-untrusted://webui-test/chai_assert.js';
 import {MockTimer} from 'chrome-untrusted://webui-test/mock_timer.js';
 import {microtasksFinished} from 'chrome-untrusted://webui-test/test_util.js';
 
-import {createAndSetVoices, emitEvent, mockMetrics, setupBasicSpeech} from './common.js';
-import {TestAudioBrowserProxy} from './test_audio_browser_proxy.js';
-import {TestContentBrowserProxy} from './test_content_browser_proxy.js';
+import {createAndSetVoices, emitEvent, mockMetrics, setupBasicSpeech, stubAnimationFrame} from './common.js';
 import {TestSpeechBrowserProxy} from './test_speech_browser_proxy.js';
-import {TestVisualBrowserProxy} from './test_visual_browser_proxy.js';
 
 suite('Speech', () => {
   let app: AppElement;
   let speech: TestSpeechBrowserProxy;
   let voiceLanguageController: VoiceLanguageController;
   let speechController: SpeechController;
-  let contentController: ContentController;
-  let audioProxy: TestAudioBrowserProxy;
-  let nodeStore: NodeStore;
 
   const paragraph1: string[] = [
     'Something has changed within me, something is not the same.',
@@ -37,26 +31,40 @@ suite('Speech', () => {
     'And you won\'t bring me down.',
   ];
 
-  function buildDOMTree() {
-    app.$.container.replaceChildren();
-
-    const p1 = document.createElement('p');
-    const node3 = document.createTextNode(paragraph1.join(' '));
-    nodeStore.setDomNode(p1, 2);
-    nodeStore.setDomNode(node3, 3);
-    p1.appendChild(node3);
-    app.$.container.appendChild(p1);
-
-    const p2 = document.createElement('p');
-    const node5 = document.createTextNode(paragraph2.join(' '));
-    nodeStore.setDomNode(p2, 4);
-    nodeStore.setDomNode(node5, 5);
-    p2.appendChild(node5);
-    app.$.container.appendChild(p2);
-
-    nodeStore.setDomNode(app.$.container, 1);
-    contentController.setState(ContentType.HAS_CONTENT);
-  }
+  const leafIds = [3, 5];
+  const axTree = {
+    rootId: 1,
+    nodes: [
+      {
+        id: 1,
+        role: 'rootWebArea',
+        htmlTag: '#document',
+        childIds: [2, 4],
+      },
+      {
+        id: 2,
+        role: 'paragraph',
+        htmlTag: 'p',
+        childIds: [3],
+      },
+      {
+        id: 3,
+        role: 'staticText',
+        name: paragraph1.join(' '),
+      },
+      {
+        id: 4,
+        role: 'paragraph',
+        htmlTag: 'p',
+        childIds: [5],
+      },
+      {
+        id: 5,
+        role: 'staticText',
+        name: paragraph2.join(' '),
+      },
+    ],
+  };
 
   function getSpokenText(): string {
     assertEquals(1, speech.getCallCount('speak'));
@@ -70,32 +78,37 @@ suite('Speech', () => {
     // of the elements to true to ensure they're considered visible and
     // included in the speech tree.
     HTMLElement.prototype.checkVisibility = () => true;
-
-    ContentBrowserProxyImpl.setInstance(new TestContentBrowserProxy());
-    audioProxy = new TestAudioBrowserProxy();
-    AudioBrowserProxyImpl.setInstance(audioProxy);
-    VisualBrowserProxyImpl.setInstance(new TestVisualBrowserProxy());
+    // Do not call the real `onConnected()`. As defined in
+    // ReadAnythingAppController, onConnected creates mojo pipes to connect to
+    // the rest of the Read Anything feature, which we are not testing here.
+    chrome.readingMode.onConnected = () => {};
+    stubAnimationFrame();
 
     // Ensure the ReadAloudModel is not shared between tests.
     setInstance(null);
-    nodeStore = new NodeStore();
-    NodeStore.setInstance(nodeStore);
     speech = new TestSpeechBrowserProxy();
     SpeechBrowserProxyImpl.setInstance(speech);
-
+    chrome.readingMode.shouldShowUi = () => true;
+    chrome.readingMode.showLoading = () => {};
+    chrome.readingMode.restoreSettingsFromPrefs = () => {};
+    chrome.readingMode.languageChanged = () => {};
+    chrome.readingMode.onTtsEngineInstalled = () => {};
+    // This test isn't testing engine stall behavior, so these
+    // methods should be mocked to reduce flakiness from test timing.
+    chrome.readingMode.onSpeechEngineFirstStall = () => {};
+    chrome.readingMode.onSpeechEngineStalled = () => {};
     mockMetrics();
     voiceLanguageController = new VoiceLanguageController();
     VoiceLanguageController.setInstance(voiceLanguageController);
     speechController = new SpeechController();
     SpeechController.setInstance(speechController);
-    contentController = new ContentController();
-    ContentController.setInstance(contentController);
+    ContentController.setInstance(new ContentController());
 
     app = document.createElement('read-anything-app');
     document.body.appendChild(app);
     await microtasksFinished();
     setupBasicSpeech(speech);
-    buildDOMTree();
+    chrome.readingMode.setContentForTesting(axTree, leafIds);
     await microtasksFinished();
     speech.reset();
   });
@@ -174,7 +187,7 @@ suite('Speech', () => {
 
   test('uses set language', () => {
     const expectedLang = 'fr';
-    audioProxy.baseLanguageForSpeech = expectedLang;
+    chrome.readingMode.setLanguageForTesting(expectedLang);
 
     emitEvent(app, ToolbarEvent.PLAY_PAUSE);
 
@@ -185,76 +198,35 @@ suite('Speech', () => {
   suite('with text selected', () => {
     let mockTimer: MockTimer;
 
-    const fragment1 = ' This is a sentence';
-    const fragment2 = ' that ends in the next node. ';
-    const fragment3 =
-        'And a following sentence in the same node to be selected.';
-
-    function buildSplitNodeDOM() {
-      app.$.container.replaceChildren();
-
-      const p = document.createElement('p');
-      nodeStore.setDomNode(p, 2);
-
-      const a = document.createElement('a');
-      nodeStore.setDomNode(a, 3);
-
-      const node4 = document.createTextNode(fragment1);
-      nodeStore.setDomNode(node4, 4);
-      a.appendChild(node4);
-      p.appendChild(a);
-
-      const node5 = document.createTextNode(fragment2 + fragment3);
-      nodeStore.setDomNode(node5, 5);
-      p.appendChild(node5);
-
-      app.$.container.appendChild(p);
-      nodeStore.setDomNode(app.$.container, 1);
-      contentController.setState(ContentType.HAS_CONTENT);
-    }
-
     function selectAndPlay(
-        anchorId: number, anchorOffset: number, focusId: number,
-        focusOffset: number, isBackward: boolean = false,
-        isSplitNode: boolean = false): void {
+        baseTree: Object, anchorId: number, anchorOffset: number,
+        focusId: number, focusOffset: number,
+        isBackward: boolean = false): void {
       select(
-          anchorId, anchorOffset, focusId, focusOffset, isBackward,
-          isSplitNode);
+          baseTree, anchorId, anchorOffset, focusId, focusOffset, isBackward);
       playFromSelection();
     }
 
     function select(
-        anchorId: number, anchorOffset: number, focusId: number,
-        focusOffset: number, isBackward: boolean = false,
-        isSplitNode: boolean = false): void {
+        baseTree: Object, anchorId: number, anchorOffset: number,
+        focusId: number, focusOffset: number,
+        isBackward: boolean = false): void {
       mockTimer.install();
-      if (isSplitNode) {
-        buildSplitNodeDOM();
-      } else {
-        buildDOMTree();
-      }
-      setInstance(null);
-      speechController.resetForNewContent();
-      speechController.initializeSpeechTree(app.$.container);
-
-      const anchorNode = nodeStore.getDomNode(anchorId);
-      const focusNode = nodeStore.getDomNode(focusId);
-      if (anchorNode && focusNode) {
-        const range = document.createRange();
-        if (isBackward) {
-          range.setStart(focusNode, focusOffset);
-          range.setEnd(anchorNode, anchorOffset);
-        } else {
-          range.setStart(anchorNode, anchorOffset);
-          range.setEnd(focusNode, focusOffset);
-        }
-        const selection = app.getSelection();
-        assertTrue(!!selection);
-        selection.removeAllRanges();
-        selection.addRange(range);
-      }
-
+      stubAnimationFrame();
+      const selectedTree = Object.assign(
+          {
+            selection: {
+              anchor_object_id: anchorId,
+              focus_object_id: focusId,
+              anchor_offset: anchorOffset,
+              focus_offset: focusOffset,
+              is_backward: isBackward,
+            },
+          },
+          baseTree);
+      chrome.readingMode.setContentForTesting(selectedTree, leafIds);
       const selectionController = SelectionController.getInstance();
+      selectionController.updateSelection(app.getSelection(), app.$.container);
       selectionController.onSelectionChange(app.getSelection());
       speechController.onSelectionChange(
           selectionController.getCurrentSelectionStart());
@@ -272,36 +244,36 @@ suite('Speech', () => {
     });
 
     test('first play starts from selected node', () => {
-      selectAndPlay(5, 0, 5, 7);
+      selectAndPlay(axTree, 5, 0, 5, 7);
       assertEquals(paragraph2[0], getSpokenText());
     });
 
     test('selection is cleared after play', () => {
-      selectAndPlay(5, 0, 5, 10);
+      selectAndPlay(axTree, 5, 0, 5, 10);
       const selection = app.getSelection();
       assertTrue(!!selection);
       assertEquals('None', selection.type);
     });
 
     test('in middle of node, play from beginning of node', async () => {
-      selectAndPlay(5, 10, 5, 20);
+      selectAndPlay(axTree, 5, 10, 5, 20);
       await microtasksFinished();
       assertEquals(paragraph2[0], getSpokenText());
     });
 
     test('when selection crosses nodes, play from earlier node', () => {
-      selectAndPlay(3, 10, 5, 10);
+      selectAndPlay(axTree, 3, 10, 5, 10);
       assertEquals(paragraph1[0], getSpokenText());
     });
 
     test('when selection is backward, play from earlier node', () => {
-      selectAndPlay(5, 10, 3, 10, /*isBackward=*/ true);
+      selectAndPlay(axTree, 5, 10, 3, 10, /*isBackward=*/ true);
       assertEquals(paragraph1[0], getSpokenText());
     });
 
     test('after speech started, cancels and plays from selection', () => {
-      select(5, 0, 5, 10);
-      const domNode = nodeStore.getDomNode(1);
+      select(axTree, 5, 0, 5, 10);
+      const domNode = NodeStore.getInstance().getDomNode(1);
       speechController.initializeSpeechTree(domNode);
       speechController.setHasSpeechBeenTriggered(true);
       speech.reset();
@@ -313,8 +285,8 @@ suite('Speech', () => {
     });
 
     test('after two selections, plays from most recent selection', () => {
-      select(5, 0, 5, 10);
-      let domNode = nodeStore.getDomNode(1);
+      select(axTree, 5, 0, 5, 10);
+      let domNode = NodeStore.getInstance().getDomNode(1);
       speechController.initializeSpeechTree(domNode);
       speechController.setHasSpeechBeenTriggered(true);
       speech.reset();
@@ -324,9 +296,8 @@ suite('Speech', () => {
       assertEquals(1, speech.getCallCount('cancel'));
       assertEquals(paragraph2[0], getSpokenText());
 
-      select(3, 10, 5, 10);
-      domNode = nodeStore.getDomNode(1);
-      speechController.clearReadAloudState();
+      select(axTree, 3, 10, 5, 10);
+      domNode = NodeStore.getInstance().getDomNode(1);
       speechController.initializeSpeechTree(domNode);
       speechController.setHasSpeechBeenTriggered(true);
       speech.reset();
@@ -338,9 +309,47 @@ suite('Speech', () => {
     });
 
     test('play from selection when node split across sentences', () => {
+      const fragment1 = ' This is a sentence';
+      const fragment2 = ' that ends in the next node. ';
+      const fragment3 =
+          'And a following sentence in the same node to be selected.';
+      const splitNodeTree = {
+        rootId: 1,
+        nodes: [
+          {
+            id: 1,
+            role: 'rootWebArea',
+            htmlTag: '#document',
+            childIds: [2],
+          },
+          {
+            id: 2,
+            role: 'paragraph',
+            htmlTag: 'p',
+            childIds: [3, 5],
+          },
+          {
+            id: 3,
+            role: 'link',
+            htmlTag: 'a',
+            url: 'http://www.google.com',
+            childIds: [4],
+          },
+          {
+            id: 4,
+            role: 'staticText',
+            name: fragment1,
+          },
+          {
+            id: 5,
+            role: 'staticText',
+            name: fragment2 + fragment3,
+          },
+        ],
+      };
       selectAndPlay(
-          5, fragment2.length + 1, 5, fragment2.length + fragment3.length,
-          /*isBackward=*/ false, /*isSplitNode=*/ true);
+          splitNodeTree, 5, fragment2.length + 1, 5,
+          fragment2.length + fragment3.length);
 
       // We shouldn't speak fragment2 even though it's in the same node
       // because the selection only covers fragment 3.
@@ -348,16 +357,15 @@ suite('Speech', () => {
     });
   });
 
-  test('next granularity plays from there', () => {
-    emitEvent(app, ToolbarEvent.PLAY_PAUSE);
-    speech.reset();
+  test('next granularity plays from there', async () => {
+    await microtasksFinished();
     emitEvent(app, ToolbarEvent.NEXT_GRANULARITY);
     assertEquals(paragraph1[1], getSpokenText());
   });
 
   test('previous granularity plays from there', () => {
+    chrome.readingMode.initAxPositionWithNode(2);
     emitEvent(app, ToolbarEvent.PLAY_PAUSE);
-    emitEvent(app, ToolbarEvent.NEXT_GRANULARITY);
     speech.reset();
 
     emitEvent(app, ToolbarEvent.PREVIOUS_GRANULARITY);

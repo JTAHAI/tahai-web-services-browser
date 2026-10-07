@@ -97,10 +97,10 @@ id<GREYMatcher> ImageViewWithImageNamed(NSString* imageName) {
   return [ChromeMatchersAppInterface imageViewWithImageNamed:imageName];
 }
 
-id<GREYMatcher> ImageViewWithSymbolAndPointSize(Symbol symbol,
-                                                CGFloat pointSize) {
-  return [ChromeMatchersAppInterface imageViewWithSymbol:symbol
-                                               pointSize:pointSize];
+id<GREYMatcher> ImageViewWithCustomSymbolNameAndPointSize(NSString* symbolName,
+                                                          CGFloat pointSize) {
+  return [ChromeMatchersAppInterface imageViewWithCustomSymbolNamed:symbolName
+                                                          pointSize:pointSize];
 }
 
 id<GREYMatcher> ImageViewWithImage(UIImage* image) {
@@ -364,10 +364,6 @@ id<GREYMatcher> NavigationBarCloseButton() {
 
 id<GREYMatcher> NavigationBarDoneButton() {
   return [ChromeMatchersAppInterface navigationBarDoneButton];
-}
-
-id<GREYMatcher> NavigationBarEditButton() {
-  return [ChromeMatchersAppInterface navigationBarEditButton];
 }
 
 id<GREYMatcher> BookmarksNavigationBarDoneButton() {

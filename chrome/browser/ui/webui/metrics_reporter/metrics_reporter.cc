@@ -7,9 +7,7 @@
 #include "base/logging.h"
 #include "base/metrics/histogram_functions.h"
 
-MetricsReporter::MetricsReporter() {
-  page_receiver_ = page_.BindNewPipeAndPassReceiver();
-}
+MetricsReporter::MetricsReporter() = default;
 
 MetricsReporter::~MetricsReporter() = default;
 
@@ -63,7 +61,7 @@ void MetricsReporter::MeasureInternal(const std::string& start_mark,
              std::string start_mark,
              std::optional<base::TimeDelta> start_time_since_epoch) {
             if (!start_time_since_epoch) {
-              LOG(WARNING) << "Mark \"" << start_mark << "\" does not exist.";
+              LOG(WARNING) << "Mark \"" << start_mark << "\" does not exists.";
               return;
             }
             base::TimeTicks start_time =
@@ -80,7 +78,6 @@ void MetricsReporter::HasMark(const std::string& name,
     return;
   }
 
-  DCHECK(page_.is_bound());
   page_->OnGetMark(name, base::BindOnce(
                              [](HasMarkCallback callback,
                                 std::optional<base::TimeDelta> time) {
@@ -106,12 +103,8 @@ void MetricsReporter::BindInterface(
 
 void MetricsReporter::OnPageRemoteCreated(
     mojo::PendingRemote<metrics_reporter::mojom::PageMetrics> page) {
-  if (page_receiver_.is_valid()) {
-    mojo::FusePipes(std::move(page_receiver_), std::move(page));
-  } else {
-    page_.reset();
-    page_.Bind(std::move(page));
-  }
+  page_.reset();
+  page_.Bind(std::move(page));
 }
 
 void MetricsReporter::OnGetMark(const std::string& name,

@@ -5,16 +5,28 @@
 #ifndef CHROME_BROWSER_UI_WEBUI_OMNIBOX_AIM_ELIGIBILITY_EXTENSION_AIM_ELIGIBILITY_EXTENSION_BRIDGE_H_
 #define CHROME_BROWSER_UI_WEBUI_OMNIBOX_AIM_ELIGIBILITY_EXTENSION_AIM_ELIGIBILITY_EXTENSION_BRIDGE_H_
 
-#include "chrome/browser/ui/webui/omnibox/aim_eligibility_extension/aim_eligibility_extension_service_worker_page_handler_factory.h"
+#include <memory>
+#include <vector>
+
+#include "base/functional/callback_helpers.h"
+#include "base/memory/raw_ref.h"
+#include "base/values.h"
+#include "chrome/browser/ui/webui/omnibox/aim_eligibility/aim_eligibility.mojom.h"
 #include "components/keyed_service/core/keyed_service.h"
+#include "mojo/public/cpp/bindings/pending_receiver.h"
+#include "mojo/public/cpp/bindings/pending_remote.h"
+#include "mojo/public/cpp/bindings/receiver_set.h"
 
 class Profile;
+class AimEligibilityPageHandler;
 
-// Profile-keyed service that manages the Aim Eligibility component extension's
-// integration with the browser. It owns Profile-scoped extension resources,
-// such as the Mojo service worker page handler factory, and initializes
-// extension configuration and Mojo binder providers.
-class AimEligibilityExtensionBridge : public KeyedService {
+// A KeyedService that hosts `AimEligibilityPageHandler` instances for the
+// AimEligibility component extension. It handles incoming document-scoped and
+// service-worker-scoped factory receiver binding requests routed dynamically
+// via the `ExtensionMojoBinderRegistry`.
+class AimEligibilityExtensionBridge
+    : public KeyedService,
+      public aim_eligibility::mojom::PageHandlerFactory {
  public:
   explicit AimEligibilityExtensionBridge(Profile* profile);
 
@@ -29,14 +41,30 @@ class AimEligibilityExtensionBridge : public KeyedService {
 
   static AimEligibilityExtensionBridge* Get(Profile* profile);
 
-  AimEligibilityExtensionServiceWorkerPageHandlerFactory&
-  service_worker_page_handler_factory() {
-    return service_worker_page_handler_factory_;
+  // Binds a `aim_eligibility::mojom::PageHandlerFactory` receiver to this
+  // bridge. Called when the extension document or service worker requests a
+  // connection via the `ExtensionMojoBinderRegistry`.
+  void BindFactoryReceiver(
+      mojo::PendingReceiver<aim_eligibility::mojom::PageHandlerFactory>
+          receiver);
+
+  // aim_eligibility::mojom::PageHandlerFactory:
+  void CreatePageHandler(
+      mojo::PendingRemote<aim_eligibility::mojom::Page> page,
+      mojo::PendingReceiver<aim_eligibility::mojom::PageHandler> handler)
+      override;
+
+  size_t page_handlers_size_for_testing() const {
+    return page_handlers_.size();
   }
 
  private:
-  AimEligibilityExtensionServiceWorkerPageHandlerFactory
-      service_worker_page_handler_factory_;
+  base::DictValue GetLoadTimeData();
+
+  const raw_ref<Profile> profile_;
+  base::ScopedClosureRunner load_time_data_subscription_;
+  mojo::ReceiverSet<aim_eligibility::mojom::PageHandlerFactory> receivers_;
+  std::vector<std::unique_ptr<AimEligibilityPageHandler>> page_handlers_;
 };
 
 #endif  // CHROME_BROWSER_UI_WEBUI_OMNIBOX_AIM_ELIGIBILITY_EXTENSION_AIM_ELIGIBILITY_EXTENSION_BRIDGE_H_

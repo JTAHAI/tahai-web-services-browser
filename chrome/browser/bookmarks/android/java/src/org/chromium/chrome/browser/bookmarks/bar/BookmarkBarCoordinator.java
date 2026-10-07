@@ -31,7 +31,6 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import org.chromium.base.Callback;
 import org.chromium.base.supplier.MonotonicObservableSupplier;
-import org.chromium.base.supplier.NonNullObservableSupplier;
 import org.chromium.base.supplier.NullableObservableSupplier;
 import org.chromium.base.supplier.OneshotSupplier;
 import org.chromium.build.annotations.NullMarked;
@@ -57,9 +56,9 @@ import org.chromium.chrome.browser.lifecycle.ActivityLifecycleDispatcher;
 import org.chromium.chrome.browser.lifecycle.TopResumedActivityChangedObserver;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.tab.CurrentTabObserver;
+import org.chromium.chrome.browser.tab.EmptyTabObserver;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.TabObscuringHandler;
-import org.chromium.chrome.browser.tab.TabObserver;
 import org.chromium.chrome.browser.theme.ThemeUtils;
 import org.chromium.chrome.browser.theme.TopUiThemeColorProvider;
 import org.chromium.chrome.browser.ui.messages.snackbar.SnackbarManager;
@@ -157,7 +156,6 @@ public class BookmarkBarCoordinator
      * @param tabObscuringHandler Handler for tab obscuring state.
      * @param modalDialogManagerSupplier Used to display modal dialogs.
      * @param snackbarManagerSupplier Used to display snackbar notifications.
-     * @param xrSpaceModeObservableSupplier Used to check if currently in XR full space mode.
      */
     public BookmarkBarCoordinator(
             Activity activity,
@@ -179,8 +177,7 @@ public class BookmarkBarCoordinator
             OneshotSupplier<SideUiStateProvider> sideUiStateProviderSupplier,
             TabObscuringHandler tabObscuringHandler,
             Supplier<ModalDialogManager> modalDialogManagerSupplier,
-            Supplier<@Nullable SnackbarManager> snackbarManagerSupplier,
-            NonNullObservableSupplier<Boolean> xrSpaceModeObservableSupplier) {
+            Supplier<@Nullable SnackbarManager> snackbarManagerSupplier) {
         mContext = activity;
         mRequestUpdate = requestUpdate;
         mTabObscuringHandler = tabObscuringHandler;
@@ -294,8 +291,7 @@ public class BookmarkBarCoordinator
                         modalDialogManagerSupplier,
                         mItemsContainer,
                         mView,
-                        popupCoordinator,
-                        xrSpaceModeObservableSupplier);
+                        popupCoordinator);
         PropertyModelChangeProcessor.create(model, mView, BookmarkBarViewBinder::bind);
 
         // All dimensions and offsets require the first layout pass to complete, so don't set here.
@@ -320,7 +316,7 @@ public class BookmarkBarCoordinator
         mCurrentTabObserver =
                 new CurrentTabObserver(
                         currentTabSupplier,
-                        new TabObserver() {
+                        new EmptyTabObserver() {
                             @Override
                             public void onContentChanged(Tab tab) {
                                 updateBackgroundColor(tab);

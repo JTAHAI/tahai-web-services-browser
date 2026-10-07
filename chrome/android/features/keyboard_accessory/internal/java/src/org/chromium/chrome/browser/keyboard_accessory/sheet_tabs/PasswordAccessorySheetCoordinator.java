@@ -97,7 +97,9 @@ public class PasswordAccessorySheetCoordinator extends AccessorySheetTabCoordina
                         model,
                         AccessorySheetDataPiece::getType,
                         AccessorySheetTabViewBinder.ElementViewHolder::bind),
-                (ViewGroup parent, int viewType) ->
-                        PasswordAccessorySheetViewBinder.create(parent, viewType, uiConfiguration));
+                (parent, viewType) -> {
+                    return PasswordAccessorySheetViewBinder.create(
+                            parent, viewType, uiConfiguration);
+                });
     }
 }

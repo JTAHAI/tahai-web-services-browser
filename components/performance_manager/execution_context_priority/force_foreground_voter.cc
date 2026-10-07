@@ -39,27 +39,39 @@ void ForceForegroundVoter::OnBeforeFrameNodeAdded(
     const PageNode* pending_page_node,
     const ProcessNode* pending_process_node,
     const FrameNode* pending_parent_or_outer_document_or_embedder) {
-  voting_channel_.SetVote(
-      frame_node,
-      Vote(base::Process::Priority::kUserBlocking, kForceForegroundReason));
+  AddVoteForExecutionContext(
+      execution_context::ExecutionContext::From(frame_node));
 }
 
 void ForceForegroundVoter::OnBeforeFrameNodeRemoved(
     const FrameNode* frame_node) {
-  voting_channel_.SetVote(frame_node, std::nullopt);
+  RemoveVoteForExecutionContext(
+      execution_context::ExecutionContext::From(frame_node));
 }
 
 void ForceForegroundVoter::OnBeforeWorkerNodeAdded(
     const WorkerNode* worker_node,
     const ProcessNode* pending_process_node) {
-  voting_channel_.SetVote(
-      worker_node,
-      Vote(base::Process::Priority::kUserBlocking, kForceForegroundReason));
+  AddVoteForExecutionContext(
+      execution_context::ExecutionContext::From(worker_node));
 }
 
 void ForceForegroundVoter::OnBeforeWorkerNodeRemoved(
     const WorkerNode* worker_node) {
-  voting_channel_.SetVote(worker_node, std::nullopt);
+  RemoveVoteForExecutionContext(
+      execution_context::ExecutionContext::From(worker_node));
+}
+
+void ForceForegroundVoter::AddVoteForExecutionContext(
+    const execution_context::ExecutionContext* execution_context) {
+  voting_channel_.SubmitVote(
+      execution_context,
+      Vote(base::Process::Priority::kUserBlocking, kForceForegroundReason));
+}
+
+void ForceForegroundVoter::RemoveVoteForExecutionContext(
+    const execution_context::ExecutionContext* execution_context) {
+  voting_channel_.InvalidateVote(execution_context);
 }
 
 }  // namespace performance_manager::execution_context_priority

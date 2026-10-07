@@ -15,8 +15,7 @@ Skill::Skill(const std::string& id,
              const std::string& description,
              const std::string& curated_by,
              const GURL& image_url,
-             const sync_pb::SkillSource& source,
-             const std::string& category)
+             const sync_pb::SkillSource& source)
     : id(id),
       name(name),
       icon(icon),
@@ -24,7 +23,6 @@ Skill::Skill(const std::string& id,
       description(description),
       curated_by(curated_by),
       image_url(image_url),
-      category(category),
       source(source) {}
 
 Skill::Skill(const Skill&) = default;
@@ -38,8 +36,7 @@ std::ostream& operator<<(std::ostream& os, const Skill& skill) {
   os << "{id: \"" << skill.id << "\", name: \"" << skill.name << "\", icon: \""
      << skill.icon << "\", prompt: \"" << skill.prompt << "\", description: \""
      << skill.description << "\", source_skill_id: \"" << skill.source_skill_id
-     << "\", source: " << static_cast<int>(skill.source) << ", category: \""
-     << skill.category << "\"}";
+     << "\", source: " << static_cast<int>(skill.source) << "}";
   return os;
 }
 

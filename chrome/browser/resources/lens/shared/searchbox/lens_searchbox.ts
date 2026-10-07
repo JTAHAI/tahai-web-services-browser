@@ -34,30 +34,14 @@ export interface LensSearchboxElement {
   };
 }
 
-import {SearchboxSelectionMixin} from '//resources/cr_components/searchbox/searchbox_selection_mixin.js';
-
-const LensSearchboxElementBase = SearchboxMixin(
-    SearchboxSelectionMixin(I18nMixinLit(WebUiListenerMixinLit(CrLitElement))));
+const LensSearchboxElementBase =
+    SearchboxMixin(I18nMixinLit(WebUiListenerMixinLit(CrLitElement)));
 
 export class LensSearchboxElement extends LensSearchboxElementBase implements
     SearchboxMixinInterface {
   static get is() {
     return 'cr-lens-searchbox';
   }
-
-  override get isAimButtonVisible(): boolean {
-    return false;
-  }
-
-  override get showContextEntrypoint(): boolean {
-    return false;
-  }
-
-  override get virtualFocusEnabled(): boolean {
-    return loadTimeData.valueExists('lensOverlayVirtualFocusNavigation') &&
-        loadTimeData.getBoolean('lensOverlayVirtualFocusNavigation');
-  }
-
 
   static override get styles() {
     return getCss();
@@ -140,7 +124,6 @@ export class LensSearchboxElement extends LensSearchboxElementBase implements
       this.showThumbnail = !!this.thumbnailUrl_;
     }
     if (changedPrivateProperties.has('result') ||
-        changedPrivateProperties.has('selection') ||
         changedPrivateProperties.has('selectedMatchIndex')) {
       this.selectedMatch = this.computeSelectedMatch_();
     }
@@ -284,7 +267,7 @@ export class LensSearchboxElement extends LensSearchboxElementBase implements
     if (!this.result || !this.result.matches) {
       return null;
     }
-    return this.result.matches[this.matchIndex] || null;
+    return this.result.matches[this.selectedMatchIndex] || null;
   }
 
   //============================================================================

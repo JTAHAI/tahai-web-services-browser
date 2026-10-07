@@ -54,7 +54,6 @@ import org.chromium.base.CallbackUtils;
 import org.chromium.base.ThreadUtils;
 import org.chromium.base.supplier.ObservableSuppliers;
 import org.chromium.base.supplier.OneshotSupplierImpl;
-import org.chromium.base.supplier.SupplierUtils;
 import org.chromium.base.test.params.ParameterAnnotations;
 import org.chromium.base.test.params.ParameterizedRunner;
 import org.chromium.base.test.util.CommandLineFlags;
@@ -111,8 +110,6 @@ import org.chromium.ui.test.util.ViewUtils;
 @ParameterAnnotations.UseRunnerDelegate(ChromeJUnit4RunnerDelegate.class)
 @CommandLineFlags.Add({ChromeSwitches.DISABLE_FIRST_RUN_EXPERIENCE})
 @Restriction(DeviceFormFactor.PHONE)
-// TODO(b/555414915): Update Android tests with WebUI NTP enabled on AL.
-@DisableFeatures(ChromeFeatureList.USE_WEB_UI_NTP_ANDROID)
 public class ToolbarPhoneTest {
     @Rule public final MockitoRule mMockitoRule = MockitoJUnit.rule();
 
@@ -318,10 +315,10 @@ public class ToolbarPhoneTest {
                                     mClearOmniboxFocus,
                                     mRequestRenderRunnable,
                                     true,
-                                    SupplierUtils.alwaysFalse(),
+                                    () -> false,
                                     mThemeColorProvider,
                                     mIncognitoStateProvider,
-                                    SupplierUtils.ofNull(),
+                                    () -> null,
                                     CallbackUtils.emptyRunnable(),
                                     R.id.menu_button_wrapper,
                                     null,

@@ -1,2 +1,3 @@
-rules:
-- "**": [webxr-gamepads]
+features:
+- name: webxr-gamepads
+  files: '**'

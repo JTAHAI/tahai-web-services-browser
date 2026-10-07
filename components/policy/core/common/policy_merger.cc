@@ -9,31 +9,30 @@
 #include <set>
 
 #include "base/compiler_specific.h"
+#include "build/android_buildflags.h"
 #include "build/build_config.h"
 #include "components/policy/core/common/features.h"
 #include "components/policy/core/common/policy_pref_names.h"
 #include "components/policy/policy_constants.h"
 #include "components/strings/grit/components_strings.h"
-#include "extensions/buildflags/buildflags.h"
 
 namespace policy {
 
 namespace {
 
-base::flat_set<std::string> GetAllowedDictionaryPolicies() {
-  return {
-#if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
-      key::kExtensionSettings,
-#endif  // BUILDFLAG(ENABLE_EXTENSIONS_CORE)
+#if !BUILDFLAG(IS_IOS) && !BUILDFLAG(IS_FUCHSIA) && (!BUILDFLAG(IS_ANDROID) || \
+    BUILDFLAG(IS_DESKTOP_ANDROID))
+constexpr const char* kDictionaryPoliciesToMerge[] = {
 #if BUILDFLAG(IS_CHROMEOS)
-      key::kDeviceLoginScreenPowerManagement,
-      key::kKeyPermissions,
-      key::kPowerManagementIdleSettings,
-      key::kScreenBrightnessPercent,
-      key::kScreenLockDelays,
-#endif  // BUILDFLAG(IS_CHROMEOS)
-  };
-}
+    key::kExtensionSettings,       key::kDeviceLoginScreenPowerManagement,
+    key::kKeyPermissions,          key::kPowerManagementIdleSettings,
+    key::kScreenBrightnessPercent, key::kScreenLockDelays,
+#else
+    key::kExtensionSettings,
+#endif  //  BUILDFLAG(IS_CHROMEOS)
+};
+#endif  // !BUILDFLAG(IS_IOS) && !BUILDFLAG(IS_FUCHSIA) &&
+        // (!BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_DESKTOP_ANDROID))
 
 }  // namespace
 
@@ -190,10 +189,16 @@ void PolicyListMerger::DoMerge(PolicyMap::Entry* policy) const {
 
 PolicyDictionaryMerger::PolicyDictionaryMerger(
     base::flat_set<std::string> policies_to_merge)
+#if BUILDFLAG(IS_IOS) || BUILDFLAG(IS_FUCHSIA) || \
+    (BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_DESKTOP_ANDROID))
+    : policies_to_merge_(std::move(policies_to_merge)){}
+#else
     : policies_to_merge_(std::move(policies_to_merge)),
-      allowed_policies_(GetAllowedDictionaryPolicies()) {}
-
-PolicyDictionaryMerger::~PolicyDictionaryMerger() = default;
+      allowed_policies_(std::begin(kDictionaryPoliciesToMerge),
+                        std::end(kDictionaryPoliciesToMerge)) {
+}
+#endif
+      PolicyDictionaryMerger::~PolicyDictionaryMerger() = default;
 
 void PolicyDictionaryMerger::Merge(PolicyMap* policies) const {
   DCHECK(policies);

@@ -232,8 +232,6 @@ class MEDIA_EXPORT VideoEncodeAccelerator {
     bool is_software_codec = false;
     std::vector<VideoPixelFormat> gpu_supported_pixel_formats;
     bool supports_gpu_shared_images = false;
-    std::optional<VideoChromaSampling> chroma_sampling;
-    std::optional<uint8_t> bit_depth;
   };
   using SupportedProfiles = std::vector<SupportedProfile>;
   using FlushCallback = base::OnceCallback<void(bool)>;
@@ -536,7 +534,6 @@ class MEDIA_EXPORT VideoEncodeAccelerator {
 
   static size_t EstimateBitstreamBufferSize(const Bitrate& bitrate,
                                             uint32_t framerate,
-                                            VideoPixelFormat input_format,
                                             const gfx::Size& coded_size);
 };
 

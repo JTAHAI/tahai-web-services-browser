@@ -30,9 +30,8 @@
 
 #include "third_party/blink/renderer/modules/mediasource/media_source_registry_impl.h"
 
-#include <utility>
-
 #include "third_party/blink/renderer/platform/weborigin/kurl.h"
+#include "third_party/blink/renderer/platform/wtf/functional.h"
 #include "third_party/blink/renderer/platform/wtf/wtf.h"
 
 namespace blink {
@@ -44,20 +43,22 @@ void MediaSourceRegistryImpl::Init() {
   DVLOG(1) << __func__ << " instance=" << &instance;
 }
 
-void MediaSourceRegistryImpl::RegisterUrl(
-    const KURL& url,
-    scoped_refptr<MediaSourceAttachment> attachment) {
+void MediaSourceRegistryImpl::RegisterURL(const KURL& url,
+                                          URLRegistrable* registrable) {
   DCHECK(IsMainThread());
-  DCHECK_EQ(&attachment->Registry(), this);
+  DCHECK_EQ(&registrable->Registry(), this);
 
   DCHECK(!url.IsEmpty());  // Caller of interface should already enforce this.
 
   DVLOG(1) << __func__ << " url=" << url << ", IsMainThread=" << IsMainThread();
 
+  scoped_refptr<MediaSourceAttachment> attachment =
+      base::AdoptRef(static_cast<MediaSourceAttachment*>(registrable));
+
   media_sources_.Set(url.GetString(), std::move(attachment));
 }
 
-void MediaSourceRegistryImpl::UnregisterUrl(const KURL& url) {
+void MediaSourceRegistryImpl::UnregisterURL(const KURL& url) {
   DCHECK(IsMainThread());
   DVLOG(1) << __func__ << " url=" << url << ", IsMainThread=" << IsMainThread();
   DCHECK(!url.IsEmpty());  // Caller of interface should already enforce this.

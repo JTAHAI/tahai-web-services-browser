@@ -6,12 +6,8 @@
 #define ASH_METRICS_DESKTOP_TASK_SWITCH_METRIC_RECORDER_H_
 
 #include "ash/ash_export.h"
-#include "base/memory/weak_ptr.h"
+#include "base/memory/raw_ptr.h"
 #include "ui/wm/public/activation_change_observer.h"
-
-namespace aura {
-class Window;
-}  // namespace aura
 
 namespace ash {
 
@@ -37,7 +33,7 @@ class ASH_EXPORT DesktopTaskSwitchMetricRecorder
 
  private:
   // Tracks the last active task window.
-  base::WeakPtr<aura::Window> last_active_task_window_;
+  raw_ptr<aura::Window, DanglingUntriaged> last_active_task_window_;
 };
 
 }  // namespace ash

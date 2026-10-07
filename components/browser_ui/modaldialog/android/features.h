@@ -9,7 +9,6 @@
 
 namespace browser_ui {
 
-BASE_DECLARE_FEATURE(kDialogsOnLargeFormFactors);
 BASE_DECLARE_FEATURE(kModalDialogLayoutWithSystemInsets);
 
 }  // namespace browser_ui

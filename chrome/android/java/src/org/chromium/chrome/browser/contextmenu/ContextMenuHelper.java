@@ -8,7 +8,6 @@ import static org.chromium.build.NullUtil.assertNonNull;
 import static org.chromium.build.NullUtil.assumeNonNull;
 
 import android.app.Activity;
-import android.util.LongSparseArray;
 import android.view.View;
 
 import org.jni_zero.CalledByNative;
@@ -34,7 +33,10 @@ import org.chromium.content_public.browser.WebContents;
 import org.chromium.ui.base.WindowAndroid;
 import org.chromium.ui.modelutil.MVCListAdapter.ModelList;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Supplier;
 
 /** A helper class that handles generating and dismissing context menus for {@link WebContents}. */
 @NullMarked
@@ -45,8 +47,7 @@ public class ContextMenuHelper {
     // Using ScopedJavaGlobalRef in the owning C++ object to keep the Java object alive consumes an
     // entry per instance in the finite global ref table. This scales poorly with a large number of
     // WebContents. As a workaround, use this map to keep track of the ContextMenuHelper instances.
-    private static final LongSparseArray<ContextMenuHelper> sContextMenuHelperMap =
-            new LongSparseArray<>();
+    private static final Map<Long, ContextMenuHelper> sContextMenuHelperMap = new HashMap<>();
 
     private final WebContents mWebContents;
     private long mNativeContextMenuHelper;
@@ -71,8 +72,8 @@ public class ContextMenuHelper {
     private ContextMenuHelper(long nativeContextMenuHelper, WebContents webContents) {
         mNativeContextMenuHelper = nativeContextMenuHelper;
         mWebContents = webContents;
-        assert sContextMenuHelperMap.get(nativeContextMenuHelper) == null;
-        sContextMenuHelperMap.put(nativeContextMenuHelper, this);
+        var storedValue = sContextMenuHelperMap.put(nativeContextMenuHelper, this);
+        assert storedValue == null;
     }
 
     @CalledByNative
@@ -87,8 +88,7 @@ public class ContextMenuHelper {
         if (mPopulatorFactory != null) mPopulatorFactory.onDestroy();
         destroyContextMenuParams(mCurrentContextMenuParams);
         mCurrentContextMenuParams = null;
-        var removedValue = sContextMenuHelperMap.get(mNativeContextMenuHelper);
-        sContextMenuHelperMap.remove(mNativeContextMenuHelper);
+        var removedValue = sContextMenuHelperMap.remove(mNativeContextMenuHelper);
         assert removedValue == this;
         mNativeContextMenuHelper = 0;
     }
@@ -219,9 +219,17 @@ public class ContextMenuHelper {
                 ChromeFeatureList.sCctContextualMenuItems.isEnabled()
                         && mCurrentPopulator.hasCustomItems();
 
+        Supplier<Integer> leftSideUiWidthSupplier =
+                mPopulatorFactory != null
+                        ? mPopulatorFactory.getLeftSideUiWidthSupplier()
+                        : () -> 0;
         final ContextMenuCoordinator menuCoordinator =
                 new ContextMenuCoordinator(
-                        activity, topContentOffsetPx, mCurrentNativeDelegate, isCustomItemPresent);
+                        activity,
+                        topContentOffsetPx,
+                        mCurrentNativeDelegate,
+                        isCustomItemPresent,
+                        leftSideUiWidthSupplier);
         mCurrentContextMenu = menuCoordinator;
         mChipDelegate = mCurrentPopulator.getChipDelegate();
 

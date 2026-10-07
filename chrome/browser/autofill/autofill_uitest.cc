@@ -22,7 +22,7 @@
 #include "components/autofill/core/browser/data_manager/personal_data_manager.h"
 #include "components/autofill/core/browser/data_manager/personal_data_manager_observer.h"
 #include "components/autofill/core/browser/foundations/browser_autofill_manager_test_api.h"
-#include "components/autofill/core/browser/test_utils/autofill_test_util.h"
+#include "components/autofill/core/browser/test_utils/autofill_test_utils.h"
 #include "content/public/browser/render_view_host.h"
 #include "content/public/browser/render_widget_host_view.h"
 #include "content/public/test/browser_test_utils.h"
@@ -266,6 +266,13 @@ testing::AssertionResult AutofillUiTest::SendKeyToPopupAndWait(
   testing::AssertionResult result = test_delegate()->Wait();
   widget->RemoveKeyPressEventCallback(key_press_event_sink_);
   return result;
+}
+
+void AutofillUiTest::DoNothingAndWait(base::TimeDelta timeout,
+                                      base::Location location) {
+  test_delegate()->SetExpectations({ObservedUiEvents::kNoEvent}, timeout,
+                                   location);
+  ASSERT_FALSE(test_delegate()->Wait());
 }
 
 void AutofillUiTest::DoNothingAndWaitAndIgnoreEvents(base::TimeDelta timeout) {

@@ -6,7 +6,6 @@
 #include "base/test/scoped_feature_list.h"
 #include "chrome/browser/content_settings/host_content_settings_map_factory.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.h"
 #include "chrome/browser/ui/views/permissions/exclusive_access_permission_prompt_view.h"
 #include "chrome/test/base/ui_test_utils.h"
 #include "chrome/test/interaction/interactive_browser_test.h"
@@ -124,9 +123,9 @@ class ExclusiveAccessPermissionPromptInteractiveTest
   MultiStep CheckPointerLockPrompt(bool displayed) {
     return Steps(CheckResult(
         [=, this]() {
-          return BrowserWebContentsDelegate::From(browser())
+          return static_cast<content::WebContentsDelegate*>(browser())
               ->IsWaitingForPointerLockPrompt(
-                  browser()->GetTabStripModel()->GetActiveWebContents());
+                  browser()->tab_strip_model()->GetActiveWebContents());
         },
         displayed));
   }
@@ -219,7 +218,7 @@ IN_PROC_BROWSER_TEST_P(ExclusiveAccessPermissionPromptInteractiveTest,
       HideTabModalUI(), ClickOnElement(TestContentSettings::kKeyboardLock),
       PressPromptButton(GetButtonViewId(CONTENT_SETTING_ALLOW)), Do([&]() {
         auto* manager = permissions::PermissionRequestManager::FromWebContents(
-            browser()->GetTabStripModel()->GetActiveWebContents());
+            browser()->tab_strip_model()->GetActiveWebContents());
         ASSERT_FALSE(manager->has_pending_requests());
       }));
 }

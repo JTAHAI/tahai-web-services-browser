@@ -33,9 +33,10 @@ class HttpResponseHeaders;
 class WebSocketEndpointLockManager;
 class WebSocketStream;
 
-// WebSocketHandshakeStreamBase is the base class of WebSocket handshake stream
-// classes. net/http code uses this interface to handle WebSocket handshake
-// streams when they need to be treated differently from HttpStream.
+// WebSocketHandshakeStreamBase is the base class of
+// WebSocketBasicHandshakeStream.  net/http code uses this interface to handle
+// WebSocketBasicHandshakeStream when it needs to be treated differently from
+// HttpStreamBase.
 class NET_EXPORT WebSocketHandshakeStreamBase : public HttpStream {
  public:
   // These entries must match histogram Net.WebSocket.HandshakeResult2.

@@ -16,7 +16,6 @@ import org.jni_zero.JniType;
 import org.jni_zero.NativeMethods;
 
 import org.chromium.base.ContextUtils;
-import org.chromium.build.annotations.Nullable;
 import org.chromium.build.annotations.UsedByReflection;
 
 import java.util.ArrayList;
@@ -57,9 +56,7 @@ public class AwPacProcessor {
     private void updateNetworkLinkAddress(Network network, LinkProperties linkProperties) {
         long networkHandle = NETWORK_UNSPECIFIED;
         ArrayList<String> addresses = new ArrayList<>();
-        if (network != null
-                && linkProperties != null
-                && !linkProperties.getLinkAddresses().isEmpty()) {
+        if (network != null && linkProperties != null) {
             networkHandle = network.getNetworkHandle();
             for (LinkAddress addr : linkProperties.getLinkAddresses()) {
                 addresses.add(addr.getAddress().getHostAddress());
@@ -149,9 +146,7 @@ public class AwPacProcessor {
 
         boolean setProxyScript(long nativeAwPacProcessor, @JniType("std::string") String script);
 
-        @JniType("std::optional<std::string>")
-        @Nullable String makeProxyRequest(
-                long nativeAwPacProcessor, @JniType("std::string") String url);
+        String makeProxyRequest(long nativeAwPacProcessor, String url);
 
         void destroyNative(long nativeAwPacProcessor);
 

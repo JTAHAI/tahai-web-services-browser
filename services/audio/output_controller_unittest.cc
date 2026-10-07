@@ -40,8 +40,6 @@
 
 using ::testing::_;
 using ::testing::AtLeast;
-using ::testing::Contains;
-using ::testing::HasSubstr;
 using ::testing::Mock;
 using ::testing::NiceMock;
 using ::testing::Return;
@@ -85,14 +83,7 @@ class MockOutputControllerEventHandler : public OutputController::EventHandler {
   MOCK_METHOD0(OnControllerPlaying, void());
   MOCK_METHOD0(OnControllerPaused, void());
   MOCK_METHOD0(OnControllerError, void());
-  void OnLog(std::string_view message) override {
-    log_messages_.emplace_back(message);
-  }
-
-  const std::vector<std::string>& log_messages() const { return log_messages_; }
-
- private:
-  std::vector<std::string> log_messages_;
+  void OnLog(std::string_view) override {}
 };
 
 class MockOutputControllerSyncReader : public OutputController::SyncReader {
@@ -1081,18 +1072,6 @@ TEST(OutputControllerMixingTest,
   EXPECT_CALL(mock_output_stream, Close()).Times(1);
   controller.Close();
   audio_manager.Shutdown();
-}
-
-TEST_F(OutputControllerTest, LogsStatsInDestructor) {
-  Create();
-  Play();
-  Pause();
-  Close();
-
-  EXPECT_THAT(mock_event_handler_.log_messages(),
-              Contains(HasSubstr("StopStream => (duration=")));
-  EXPECT_THAT(mock_event_handler_.log_messages(),
-              Contains(HasSubstr("StopStream => (glitches=")));
 }
 
 }  // namespace

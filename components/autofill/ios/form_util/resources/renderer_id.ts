@@ -7,13 +7,13 @@
  * forms and fields.
  */
 
-import {HAS_BEEN_PASSWORD_SYMBOL, ID_SYMBOL, UNIQUE_ID_ATTRIBUTE} from '//components/autofill/ios/form_util/resources/fill_constants.js';
+import {ID_SYMBOL, UNIQUE_ID_ATTRIBUTE} from '//components/autofill/ios/form_util/resources/fill_constants.js';
 import {gCrWeb} from '//ios/web/public/js_messaging/resources/gcrweb.js';
 
 // Extends the Element to add the ability to access its properties
 // via the [] notation.
 declare interface IndexableElement extends Element {
-  [key: symbol]: number|boolean;
+  [key: symbol]: number;
 }
 
 /**
@@ -41,17 +41,6 @@ if (typeof document[ID_SYMBOL] === 'undefined') {
 }
 
 /**
- * Returns true if the password fields tracking feature is enabled.
- */
-function isTrackPasswordFieldsEnabled(): boolean {
-  if (!gCrWeb.hasRegisteredApi('autofill_form_features')) {
-    return false;
-  }
-  return gCrWeb.getRegisteredApi('autofill_form_features')
-      .getFunction('isAutofillTrackPasswordFieldsEnabled')();
-}
-
-/**
  * @param element Form or form input element.
  */
 // TODO: (crbug.com/466396701) Add assert to functions called from the page
@@ -69,12 +58,6 @@ export function setUniqueIDIfNeeded(element: IndexableElement): void {
       const elementMap = getElementMap();
       if (elementMap) {
         elementMap.set(elementID, new WeakRef(element));
-
-        // Set a flag to indicate if this element is a password field.
-        if (element instanceof HTMLInputElement &&
-            element.type === 'password' && isTrackPasswordFieldsEnabled()) {
-          element[HAS_BEEN_PASSWORD_SYMBOL] = true;
-        }
       }
     }
   } catch (e) {

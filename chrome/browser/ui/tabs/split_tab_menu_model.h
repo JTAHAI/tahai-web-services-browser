@@ -15,10 +15,6 @@
 
 class TabStripModel;
 
-namespace content {
-class WebContents;
-}  // namespace content
-
 namespace ui {
 class ImageModel;
 }  // namespace ui
@@ -83,7 +79,7 @@ class SplitTabMenuModel : public ui::SimpleMenuModel,
   const gfx::VectorIcon& GetReversePositionIcon(
       split_tabs::SplitTabActiveLocation active_split_tab_location) const;
   split_tabs::SplitTabLayout GetSplitLayout() const;
-  void CloseWebContents(content::WebContents* contents);
+  void CloseTabAtIndex(int index);
   void SendFeedback();
 
   raw_ptr<TabStripModel> tab_strip_model_ = nullptr;

@@ -37,7 +37,6 @@ import org.chromium.base.supplier.ObservableSuppliers;
 import org.chromium.base.supplier.OneShotCallback;
 import org.chromium.base.supplier.OneshotSupplier;
 import org.chromium.base.supplier.SettableMonotonicObservableSupplier;
-import org.chromium.base.supplier.SupplierUtils;
 import org.chromium.build.annotations.Initializer;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
@@ -77,7 +76,7 @@ import org.chromium.chrome.browser.ui.searchactivityutils.SearchActivityExtras.I
 import org.chromium.chrome.browser.ui.searchactivityutils.SearchActivityExtras.ResolutionType;
 import org.chromium.chrome.browser.ui.searchactivityutils.SearchActivityExtras.SearchType;
 import org.chromium.components.browser_ui.modaldialog.AppModalPresenter;
-import org.chromium.components.metrics.OmniboxEventProtosIntDef.PageClassification;
+import org.chromium.components.metrics.OmniboxEventProtos.OmniboxEventProto.PageClassification;
 import org.chromium.ui.AsyncViewStub;
 import org.chromium.ui.base.ActivityKeyboardVisibilityDelegate;
 import org.chromium.ui.base.ActivityWindowAndroid;
@@ -249,8 +248,7 @@ public class SearchActivity extends AsyncInitializationActivity
     private UmaActivityObserver mUmaActivityObserver;
 
     public SearchActivity() {
-        mStartupMetricsTracker =
-                new StartupMetricsTracker(mTabModelSelectorSupplier, SupplierUtils.alwaysFalse());
+        mStartupMetricsTracker = new StartupMetricsTracker(mTabModelSelectorSupplier, () -> false);
         mSearchUiCoordinator = new SearchUiCoordinator(this, mSearchBoxDataProvider);
     }
 
@@ -374,7 +372,7 @@ public class SearchActivity extends AsyncInitializationActivity
         switch (mIntentOrigin) {
             case IntentOrigin.CUSTOM_TAB:
                 // Note: this may be refined by refinePageClassWithProfile().
-                mSearchBoxDataProvider.setPageClassification(PageClassification.OTHER_ON_CCT);
+                mSearchBoxDataProvider.setPageClassification(PageClassification.OTHER_ON_CCT_VALUE);
                 locationBarUiOverrides
                         .setLensEntrypointAllowed(false)
                         .setVoiceEntrypointAllowed(false);
@@ -385,7 +383,7 @@ public class SearchActivity extends AsyncInitializationActivity
                         .setLensEntrypointAllowed(true)
                         .setVoiceEntrypointAllowed(true);
                 mSearchBoxDataProvider.setPageClassification(
-                        PageClassification.ANDROID_SHORTCUTS_WIDGET);
+                        PageClassification.ANDROID_SHORTCUTS_WIDGET_VALUE);
                 break;
 
             case IntentOrigin.HUB:
@@ -394,7 +392,7 @@ public class SearchActivity extends AsyncInitializationActivity
                         .setLensEntrypointAllowed(false)
                         .setVoiceEntrypointAllowed(false)
                         .setEmbedderControlledHint(true);
-                mSearchBoxDataProvider.setPageClassification(PageClassification.ANDROID_HUB);
+                mSearchBoxDataProvider.setPageClassification(PageClassification.ANDROID_HUB_VALUE);
                 setHubSearchBoxVisualElements();
                 break;
 
@@ -415,7 +413,7 @@ public class SearchActivity extends AsyncInitializationActivity
                         .setLensEntrypointAllowed(false)
                         .setVoiceEntrypointAllowed(true);
                 mSearchBoxDataProvider.setPageClassification(
-                        PageClassification.ANDROID_SEARCH_WIDGET);
+                        PageClassification.ANDROID_SEARCH_WIDGET_VALUE);
                 break;
         }
 
@@ -428,21 +426,20 @@ public class SearchActivity extends AsyncInitializationActivity
     /** Translate current intent origin and extras to a PageClassification. */
     @VisibleForTesting
     /* package */ void refinePageClassWithProfile(Profile profile) {
-        @PageClassification
         int pageClass = mSearchBoxDataProvider.getPageClassification(/* prefetch= */ false);
 
         // Verify if the PageClassification can be refined.
         var url = SearchActivityUtils.getIntentUrl(getIntent());
-        if (pageClass != PageClassification.OTHER_ON_CCT || GURL.isEmptyOrInvalid(url)) {
+        if (pageClass != PageClassification.OTHER_ON_CCT_VALUE || GURL.isEmptyOrInvalid(url)) {
             return;
         }
 
         var templateSvc = TemplateUrlServiceFactory.getForProfile(profile);
         if (templateSvc != null && templateSvc.isSearchResultsPageFromDefaultSearchProvider(url)) {
             mSearchBoxDataProvider.setPageClassification(
-                    PageClassification.SEARCH_RESULT_PAGE_ON_CCT);
+                    PageClassification.SEARCH_RESULT_PAGE_ON_CCT_VALUE);
         } else {
-            mSearchBoxDataProvider.setPageClassification(PageClassification.OTHER_ON_CCT);
+            mSearchBoxDataProvider.setPageClassification(PageClassification.OTHER_ON_CCT_VALUE);
         }
     }
 
@@ -754,15 +751,14 @@ public class SearchActivity extends AsyncInitializationActivity
                 switch (origin) {
                     case IntentOrigin.SEARCH_WIDGET -> USED_ANY_FROM_SEARCH_WIDGET;
 
-                    case IntentOrigin.QUICK_ACTION_SEARCH_WIDGET ->
-                            switch (searchType) {
-                                case SearchType.TEXT -> USED_TEXT_FROM_SHORTCUTS_WIDGET;
-                                case SearchType.VOICE -> USED_VOICE_FROM_SHORTCUTS_WIDGET;
-                                case SearchType.LENS -> USED_LENS_FROM_SHORTCUTS_WIDGET;
-                                default -> null;
-                            };
+                    case IntentOrigin.QUICK_ACTION_SEARCH_WIDGET -> switch (searchType) {
+                        case SearchType.TEXT -> USED_TEXT_FROM_SHORTCUTS_WIDGET;
+                        case SearchType.VOICE -> USED_VOICE_FROM_SHORTCUTS_WIDGET;
+                        case SearchType.LENS -> USED_LENS_FROM_SHORTCUTS_WIDGET;
+                        default -> null;
+                    };
 
-                    // Tracked by Custom Tabs.
+                        // Tracked by Custom Tabs.
                     case IntentOrigin.CUSTOM_TAB -> null;
                     case IntentOrigin.HUB -> USED_TEXT_FROM_HUB_WIDGET;
                     default -> null;

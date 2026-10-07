@@ -11,7 +11,7 @@ import {AVAILABLE_GOOGLE_TTS_LOCALES, ReadAloudSettingsChange, VoiceClientSideSt
 import {assertEquals, assertFalse, assertTrue} from 'chrome-untrusted://webui-test/chai_assert.js';
 import {microtasksFinished} from 'chrome-untrusted://webui-test/test_util.js';
 
-import {createSpeechSynthesisVoice, setupTestEnvironment} from './common.js';
+import {createSpeechSynthesisVoice, mockMetrics} from './common.js';
 import type {TestMetricsBrowserProxy} from './test_metrics_browser_proxy.js';
 
 suite('LanguageMenu', () => {
@@ -60,8 +60,10 @@ suite('LanguageMenu', () => {
   }
 
   setup(() => {
-    const result = setupTestEnvironment();
-    metrics = result.metrics;
+    // Clearing the DOM should always be done first.
+    document.body.innerHTML = window.trustedTypes!.emptyHTML;
+    VoiceNotificationManager.getInstance().clear();
+    metrics = mockMetrics();
     languageMenu = document.createElement('language-menu');
     languageMenu.localesOfLangPackVoices = new Set(['it-it']);
   });
@@ -710,11 +712,11 @@ function assertLanguageLineWithToggleChecked(
   if (expectedChecked) {
     assertTrue(toggle.checked);
     assertTrue(toggle.hasAttribute('checked'));
-    assertEquals('true', toggle.getAttribute('aria-checked'));
+    assertEquals('true', toggle.getAttribute('aria-pressed'));
   } else {
     assertFalse(toggle.checked);
     assertEquals(null, toggle.getAttribute('checked'));
-    assertEquals('false', toggle.getAttribute('aria-checked'));
+    assertEquals('false', toggle.getAttribute('aria-pressed'));
   }
 }
 

@@ -852,9 +852,8 @@ void GpuHostImpl::Delegate::RequestWebNNCompilerContext(
     const webnn::EpDeviceInfo& target_device,
     mojo::PendingReceiver<webnn::mojom::WebNNCompilerContext>
         compiler_context_receiver,
-    mojo::PendingRemote<webnn::mojom::WebNNModelLoader> model_loader_remote,
-    RequestWebNNCompilerContextResultCallback callback) {
-  std::move(callback).Run(false);
+    mojo::PendingRemote<webnn::mojom::WebNNModelLoader> model_loader_remote) {
+  // Default: drop the endpoints (pipe disconnects).
 }
 
 void GpuHostImpl::RequestWebNNCompilerContext(
@@ -863,28 +862,12 @@ void GpuHostImpl::RequestWebNNCompilerContext(
     const webnn::EpDeviceInfo& target_device,
     mojo::PendingReceiver<webnn::mojom::WebNNCompilerContext>
         compiler_context_receiver,
-    mojo::PendingRemote<webnn::mojom::WebNNModelLoader> model_loader_remote,
-    RequestWebNNCompilerContextCallback callback) {
+    mojo::PendingRemote<webnn::mojom::WebNNModelLoader> model_loader_remote) {
   delegate_->RequestWebNNCompilerContext(
       std::move(context_options), context_properties, target_device,
-      std::move(compiler_context_receiver), std::move(model_loader_remote),
-      std::move(callback));
+      std::move(compiler_context_receiver), std::move(model_loader_remote));
 }
 #endif  // BUILDFLAG(IS_WIN)
-
-#if BUILDFLAG(IS_APPLE)
-void GpuHostImpl::Delegate::CopyWebNNCompiledModel(
-    const base::FilePath& compiler_model_path,
-    CopyWebNNCompiledModelCallback callback) {
-  std::move(callback).Run(std::nullopt);
-}
-
-void GpuHostImpl::CopyWebNNCompiledModel(
-    const base::FilePath& compiler_model_path,
-    CopyWebNNCompiledModelCallback callback) {
-  delegate_->CopyWebNNCompiledModel(compiler_model_path, std::move(callback));
-}
-#endif
 
 void GpuHostImpl::CreateWebNNWeightsFile(CreateWebNNWeightsFileCallback cb) {
   webnn::CreateWeightsFile(std::move(cb));

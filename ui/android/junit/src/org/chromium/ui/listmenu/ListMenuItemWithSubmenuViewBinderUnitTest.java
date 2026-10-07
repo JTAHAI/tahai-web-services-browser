@@ -26,6 +26,7 @@ import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
 import org.robolectric.RuntimeEnvironment;
+import org.robolectric.annotation.Config;
 
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.ui.R;
@@ -33,6 +34,7 @@ import org.chromium.ui.modelutil.PropertyModel;
 
 /** Tests for {@link ListMenuItemWithSubmenuViewBinder}. */
 @RunWith(BaseRobolectricTestRunner.class)
+@Config(manifest = Config.NONE)
 public class ListMenuItemWithSubmenuViewBinderUnitTest {
     @Rule public MockitoRule mMockitoRule = MockitoJUnit.rule();
 
@@ -41,7 +43,6 @@ public class ListMenuItemWithSubmenuViewBinderUnitTest {
     @Mock private ImageView mStartIcon;
     @Mock private ImageView mSubmenuArrow;
     @Mock private View.OnTouchListener mOnTouchListener;
-    @Mock private View.OnGenericMotionListener mOnGenericMotionListener;
 
     private Context mContext;
 
@@ -94,19 +95,5 @@ public class ListMenuItemWithSubmenuViewBinderUnitTest {
         ListMenuItemWithSubmenuViewBinder.bind(
                 propertyModel, mListItemView, ListMenuItemProperties.TOUCH_LISTENER);
         verify(mListItemView).setOnTouchListener(mOnTouchListener);
-    }
-
-    @Test
-    @SmallTest
-    public void testGenericMotionListener() {
-        PropertyModel propertyModel =
-                new PropertyModel.Builder(ListMenuSubmenuItemProperties.ALL_KEYS)
-                        .with(
-                                ListMenuItemProperties.GENERIC_MOTION_LISTENER,
-                                mOnGenericMotionListener)
-                        .build();
-        ListMenuItemWithSubmenuViewBinder.bind(
-                propertyModel, mListItemView, ListMenuItemProperties.GENERIC_MOTION_LISTENER);
-        verify(mListItemView).setOnGenericMotionListener(mOnGenericMotionListener);
     }
 }

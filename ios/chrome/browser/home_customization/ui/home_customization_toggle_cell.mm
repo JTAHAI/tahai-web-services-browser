@@ -97,8 +97,8 @@ const CGFloat kNavigationIconImageViewWidth = 16;
     // cell is configured.
     _iconContainer = [[UIView alloc] init];
     _iconImageView = [[UIImageView alloc]
-        initWithImage:SymbolWithPointSize(SymbolSliderHorizontal,
-                                          kToggleIconPointSize)];
+        initWithImage:DefaultSymbolWithPointSize(kSliderHorizontalSymbol,
+                                                 kToggleIconPointSize)];
     _iconImageView.tintColor = [UIColor colorNamed:kTextPrimaryColor];
     [_iconContainer addSubview:_iconImageView];
     _iconContainer.translatesAutoresizingMaskIntoConstraints = NO;
@@ -116,8 +116,8 @@ const CGFloat kNavigationIconImageViewWidth = 16;
     // horizontally.
     _navigationIconContainer = [[UIView alloc] init];
     _navigationImageView = [[UIImageView alloc]
-        initWithImage:SymbolWithPointSize(SymbolChevronForward,
-                                          kToggleIconPointSize)];
+        initWithImage:DefaultSymbolWithPointSize(kChevronForwardSymbol,
+                                                 kToggleIconPointSize)];
     _navigationImageView.tintColor = [UIColor colorNamed:kTextQuaternaryColor];
     [_navigationIconContainer addSubview:_navigationImageView];
     _navigationIconContainer.translatesAutoresizingMaskIntoConstraints = NO;
@@ -199,7 +199,6 @@ const CGFloat kNavigationIconImageViewWidth = 16;
   _subtitle.text = [HomeCustomizationHelper subtitleForToggleType:type];
   _iconImageView.image = [HomeCustomizationHelper iconForToggleType:type];
   _switch.on = enabled;
-  _switch.accessibilityLabel = _title.text;
 
   if ([HomeCustomizationHelper doesTypeHaveSubmenu:type]) {
     _tapRecognizer = [[UITapGestureRecognizer alloc]
@@ -227,7 +226,6 @@ const CGFloat kNavigationIconImageViewWidth = 16;
   _subtitle.text = nil;
   _iconImageView.image = nil;
   _switch.on = NO;
-  _switch.accessibilityLabel = nil;
   _navigationImageView.hidden = NO;
   [_navigableStackView removeGestureRecognizer:_tapRecognizer];
   _tapRecognizer = nil;

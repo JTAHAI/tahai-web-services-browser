@@ -11,8 +11,11 @@
 #include <vector>
 
 #include "base/containers/span.h"
-#include "base/types/pass_key.h"
-#include "crypto/keypair.h"
+#include "third_party/boringssl/src/include/openssl/base.h"
+
+namespace crypto {
+class OpenSSLErrStackTracer;
+}  // namespace crypto
 
 namespace trusted_vault {
 
@@ -35,8 +38,6 @@ std::optional<std::vector<uint8_t>> SecureBoxSymmetricDecrypt(
     base::span<const uint8_t> header,
     base::span<const uint8_t> encrypted_payload);
 
-class SecureBoxKeyPair;
-
 class SecureBoxPublicKey {
  public:
   // Creates public key given a X9.62 formatted NIST P-256 point as |key_bytes|
@@ -46,9 +47,12 @@ class SecureBoxPublicKey {
   static std::unique_ptr<SecureBoxPublicKey> CreateByImport(
       base::span<const uint8_t> key_bytes);
 
-  // The passed-in key must be an EC P-256 key.
-  SecureBoxPublicKey(crypto::keypair::PublicKey key,
-                     base::PassKey<SecureBoxKeyPair>);
+  // |key| must be a valid NIST P-256 key with filled public key. This method
+  // shouldn't be used outside internal SecureBox implementation.
+  static std::unique_ptr<SecureBoxPublicKey> CreateInternal(
+      bssl::UniquePtr<EC_KEY> key,
+      const crypto::OpenSSLErrStackTracer& err_tracer);
+
   SecureBoxPublicKey(const SecureBoxPublicKey& other) = delete;
   SecureBoxPublicKey& operator=(const SecureBoxPublicKey& other) = delete;
   ~SecureBoxPublicKey();
@@ -68,9 +72,11 @@ class SecureBoxPublicKey {
                                base::span<const uint8_t> payload) const;
 
  private:
-  explicit SecureBoxPublicKey(crypto::keypair::PublicKey key);
+  // |key| must be a valid NIST P-256 key with filled public key.
+  SecureBoxPublicKey(bssl::UniquePtr<EC_KEY> key,
+                     const crypto::OpenSSLErrStackTracer& err_tracer);
 
-  const crypto::keypair::PublicKey key_;
+  bssl::UniquePtr<EC_KEY> key_;
 };
 
 class SecureBoxPrivateKey {
@@ -82,9 +88,12 @@ class SecureBoxPrivateKey {
   static std::unique_ptr<SecureBoxPrivateKey> CreateByImport(
       base::span<const uint8_t> key_bytes);
 
-  // The passed in key must be an EC P-256 key.
-  SecureBoxPrivateKey(crypto::keypair::PrivateKey key,
-                      base::PassKey<SecureBoxKeyPair>);
+  // |key| must be a valid NIST P-256 key with filled private and public key.
+  // This method shouldn't be used outside internal SecureBox implementation.
+  static std::unique_ptr<SecureBoxPrivateKey> CreateInternal(
+      bssl::UniquePtr<EC_KEY> key,
+      const crypto::OpenSSLErrStackTracer& err_tracer);
+
   SecureBoxPrivateKey(const SecureBoxPrivateKey& other) = delete;
   SecureBoxPrivateKey& operator=(const SecureBoxPrivateKey& other) = delete;
   ~SecureBoxPrivateKey();
@@ -102,9 +111,11 @@ class SecureBoxPrivateKey {
       base::span<const uint8_t> encrypted_payload) const;
 
  private:
-  explicit SecureBoxPrivateKey(crypto::keypair::PrivateKey key);
+  // |key| must be a valid NIST P-256 key with filled private and public key.
+  explicit SecureBoxPrivateKey(bssl::UniquePtr<EC_KEY> key,
+                               const crypto::OpenSSLErrStackTracer& err_tracer);
 
-  const crypto::keypair::PrivateKey key_;
+  bssl::UniquePtr<EC_KEY> key_;
 };
 
 class SecureBoxKeyPair {
@@ -123,14 +134,16 @@ class SecureBoxKeyPair {
   SecureBoxKeyPair& operator=(const SecureBoxKeyPair& other) = delete;
   ~SecureBoxKeyPair();
 
-  const SecureBoxPrivateKey& private_key() const { return private_key_; }
-  const SecureBoxPublicKey& public_key() const { return public_key_; }
+  const SecureBoxPrivateKey& private_key() const { return *private_key_; }
+
+  const SecureBoxPublicKey& public_key() const { return *public_key_; }
 
  private:
-  explicit SecureBoxKeyPair(crypto::keypair::PrivateKey private_key);
+  SecureBoxKeyPair(bssl::UniquePtr<EC_KEY> private_ec_key,
+                   const crypto::OpenSSLErrStackTracer& err_tracer);
 
-  const SecureBoxPrivateKey private_key_;
-  const SecureBoxPublicKey public_key_;
+  std::unique_ptr<SecureBoxPrivateKey> private_key_;
+  std::unique_ptr<SecureBoxPublicKey> public_key_;
 };
 
 }  // namespace trusted_vault

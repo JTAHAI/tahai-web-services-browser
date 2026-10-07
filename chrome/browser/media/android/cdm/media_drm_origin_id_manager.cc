@@ -305,8 +305,8 @@ class MediaDrmProvisionHelper {
     // Try provisioning for L3 first.
     auto result = media::MediaDrmBridge::CreateWithoutSessionSupport(
         kWidevineKeySystem, origin_id_.ToString(),
-        media::MediaDrmBridge::SECURITY_LEVEL_SW_SECURE_CRYPTO,
-        "L3 provisioning", create_fetcher_cb_);
+        media::MediaDrmBridge::SECURITY_LEVEL_3, "L3 provisioning",
+        create_fetcher_cb_);
     if (!result.has_value()) {
       // Unable to create mediaDrm for L3, so try L1.
       DVLOG(1) << "Unable to create MediaDrmBridge for L3, CreateCdmStatus: "
@@ -336,7 +336,7 @@ class MediaDrmProvisionHelper {
     media_drm_bridge_.reset();
     auto result = media::MediaDrmBridge::CreateWithoutSessionSupport(
         kWidevineKeySystem, origin_id_.ToString(),
-        media::MediaDrmBridge::SECURITY_LEVEL_HW_SECURE_ALL, "L1 provisioning",
+        media::MediaDrmBridge::SECURITY_LEVEL_1, "L1 provisioning",
         create_fetcher_cb_);
     if (!result.has_value()) {
       // Unable to create MediaDrm for L1, so quit. Note that L3 provisioning
@@ -480,29 +480,33 @@ class MediaDrmOriginIdManager::NetworkObserver
       return;
     }
 
-    if (backoff_entry_->ShouldRejectRequest()) {
-      ReportProvisioningNetworkRetryUMA(
-          ProvisioningNetworkRetryResult::kIgnoredByBackoff);
+    if (base::FeatureList::IsEnabled(media::kMediaDrmPreprovisioningBackoff)) {
+      if (backoff_entry_->ShouldRejectRequest()) {
+        ReportProvisioningNetworkRetryUMA(
+            ProvisioningNetworkRetryResult::kIgnoredByBackoff);
 
-      // If we are currently connected but in backoff, schedule a retry.
-      if (!retry_timer_.IsRunning()) {
-        retry_timer_.Start(
-            FROM_HERE, backoff_entry_->GetTimeUntilRelease(),
-            base::BindOnce(
-                &MediaDrmOriginIdManager::NetworkObserver::OnRetryTimerExpired,
-                base::Unretained(this)));
+        // If we are currently connected but in backoff, schedule a retry.
+        if (!retry_timer_.IsRunning()) {
+          retry_timer_.Start(
+              FROM_HERE, backoff_entry_->GetTimeUntilRelease(),
+              base::BindOnce(&MediaDrmOriginIdManager::NetworkObserver::
+                                 OnRetryTimerExpired,
+                             base::Unretained(this)));
+        }
+        return;
       }
-      return;
+      ReportProvisioningNetworkRetryUMA(
+          ProvisioningNetworkRetryResult::kRetryAttempted);
     }
-    ReportProvisioningNetworkRetryUMA(
-        ProvisioningNetworkRetryResult::kRetryAttempted);
 
     ++number_of_attempts_;
     parent_->PreProvisionIfNecessary();
   }
 
   void InformOfRequest(bool succeeded) {
-    backoff_entry_->InformOfRequest(succeeded);
+    if (base::FeatureList::IsEnabled(media::kMediaDrmPreprovisioningBackoff)) {
+      backoff_entry_->InformOfRequest(succeeded);
+    }
   }
 
   void SetTickClockForTesting(const base::TickClock* clock) {

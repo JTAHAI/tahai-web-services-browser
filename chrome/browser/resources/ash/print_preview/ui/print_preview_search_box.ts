@@ -45,6 +45,8 @@ export class PrintPreviewSearchBoxElement extends
 
   static get properties() {
     return {
+      autofocus: Boolean,
+
       searchQuery: {
         type: Object,
         notify: true,
@@ -52,7 +54,8 @@ export class PrintPreviewSearchBoxElement extends
     };
   }
 
-  declare searchQuery: RegExp|null;
+  override autofocus: boolean;
+  searchQuery: RegExp|null;
   private lastQuery_: string = '';
 
   override ready() {

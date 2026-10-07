@@ -72,7 +72,9 @@ public class AwPrerenderTest extends AwParameterizedTest {
     private enum ActivationBy {
         LOAD_URL,
         JAVASCRIPT,
-    }
+    };
+
+    private static final String TAG = "AwPrerenderTest";
 
     @Rule public FakeTimeTestRule mFakeTimeTestRule = new FakeTimeTestRule();
 
@@ -481,7 +483,7 @@ public class AwPrerenderTest extends AwParameterizedTest {
                         }));
     }
 
-    private String encodeUrl(String url) {
+    private final String encodeUrl(String url) {
         try {
             return URLEncoder.encode(url, "UTF-8");
         } catch (UnsupportedEncodingException e) {

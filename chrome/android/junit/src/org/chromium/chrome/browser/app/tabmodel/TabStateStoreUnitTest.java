@@ -31,10 +31,7 @@ import org.chromium.base.Callback;
 import org.chromium.base.supplier.ObservableSuppliers;
 import org.chromium.base.supplier.SettableNullableObservableSupplier;
 import org.chromium.base.test.BaseRobolectricTestRunner;
-import org.chromium.base.test.util.Features.DisableFeatures;
-import org.chromium.base.test.util.Features.EnableFeatures;
 import org.chromium.chrome.browser.crypto.CipherFactory;
-import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.price_tracking.PriceTrackingFeatures;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.tab.MockTab;
@@ -55,9 +52,7 @@ import org.chromium.chrome.browser.tabmodel.PersistentStoreMigrationManager.Stor
 import org.chromium.chrome.browser.tabmodel.TabCreator;
 import org.chromium.chrome.browser.tabmodel.TabCreatorManager;
 import org.chromium.chrome.browser.tabmodel.TabModel;
-import org.chromium.chrome.browser.tabmodel.TabModelObserver;
 import org.chromium.chrome.browser.tabmodel.TabModelSelector;
-import org.chromium.chrome.browser.tabmodel.TabOrchestratorType;
 import org.chromium.chrome.browser.tabmodel.TabPersistencePolicy;
 import org.chromium.chrome.browser.tabmodel.TabPersistentStore.TabPersistentStoreObserver;
 
@@ -65,8 +60,6 @@ import java.util.List;
 
 /** Unit tests for {@link TabStateStore}. */
 @RunWith(BaseRobolectricTestRunner.class)
-// TODO(crbug.com/557401970): Re-enable glic background actuation feature flags
-@DisableFeatures(ChromeFeatureList.GLIC_BACKGROUND_ACTUATION)
 public class TabStateStoreUnitTest {
     @Rule public MockitoRule mMockitoRule = MockitoJUnit.rule();
 
@@ -130,7 +123,6 @@ public class TabStateStoreUnitTest {
 
         mTabStateStore =
                 new TabStateStore(
-                        TabOrchestratorType.TABBED,
                         mTabModelSelector,
                         WINDOW_TAG,
                         mTabCreatorManager,
@@ -181,7 +173,6 @@ public class TabStateStoreUnitTest {
     public void testOnNativeLibraryReady_Authoritative_Raze() {
         mTabStateStore =
                 new TabStateStore(
-                        TabOrchestratorType.TABBED,
                         mTabModelSelector,
                         WINDOW_TAG,
                         mTabCreatorManager,
@@ -208,7 +199,6 @@ public class TabStateStoreUnitTest {
     public void testOnNativeLibraryReady_Authoritative_NoRaze() {
         mTabStateStore =
                 new TabStateStore(
-                        TabOrchestratorType.TABBED,
                         mTabModelSelector,
                         WINDOW_TAG,
                         mTabCreatorManager,
@@ -235,7 +225,6 @@ public class TabStateStoreUnitTest {
     public void testOnNativeLibraryReady_NonAuthoritative_Raze() {
         mTabStateStore =
                 new TabStateStore(
-                        TabOrchestratorType.TABBED,
                         mTabModelSelector,
                         WINDOW_TAG,
                         mTabCreatorManager,
@@ -262,7 +251,6 @@ public class TabStateStoreUnitTest {
     public void testOnNativeLibraryReady_NonAuthoritative_NoRaze() {
         mTabStateStore =
                 new TabStateStore(
-                        TabOrchestratorType.TABBED,
                         mTabModelSelector,
                         WINDOW_TAG,
                         mTabCreatorManager,
@@ -306,7 +294,6 @@ public class TabStateStoreUnitTest {
 
         mTabStateStore =
                 new TabStateStore(
-                        TabOrchestratorType.TABBED,
                         mTabModelSelector,
                         WINDOW_TAG,
                         mTabCreatorManager,
@@ -384,7 +371,6 @@ public class TabStateStoreUnitTest {
     @Test
     public void testLoadAndRestore_Success() {
         mTabStateStore.onNativeLibraryReady();
-        Assert.assertFalse(mTabStateStore.hasLoadWarnings());
         when(mCipherFactory.getKeyForTabStateStorage()).thenReturn(new byte[1]);
 
         mTabStateStore.loadState(
@@ -397,8 +383,6 @@ public class TabStateStoreUnitTest {
 
         callbacks.get(0).onResult(mRegularData);
         callbacks.get(1).onResult(mIncognitoData);
-
-        Assert.assertFalse(mTabStateStore.hasLoadWarnings());
 
         verify(mObserver).onInitialized(0);
 
@@ -434,71 +418,7 @@ public class TabStateStoreUnitTest {
         callbacks.get(0).onResult(mRegularData);
         callbacks.get(1).onResult(mIncognitoData);
 
-        verify(mRegularData).destroy();
-        verify(mIncognitoData).destroy();
-    }
-
-    @Test
-    @DisableFeatures(ChromeFeatureList.TAB_CLOSURE_METHOD_REFACTOR)
-    public void testLoadAndRestore_WillCloseAllTabs_CancelsLoading() {
-        mTabStateStore.onNativeLibraryReady();
-        when(mCipherFactory.getKeyForTabStateStorage()).thenReturn(new byte[1]);
-        when(mTabCreatorManager.getTabCreator(anyBoolean())).thenReturn(mTabCreator);
-
-        TabState tabState = new TabState();
-        tabState.contentsState = mock(WebContentsState.class);
-        LoadedTabState loadedTabState = new LoadedTabState(0, tabState);
-        when(mRegularData.getLoadedTabStates()).thenReturn(new LoadedTabState[] {loadedTabState});
-
-        mTabStateStore.loadState(
-                /* ignoreIncognitoFiles= */ true, /* ignoreRegularFiles= */ false);
-
-        ArgumentCaptor<TabModelObserver> captor = ArgumentCaptor.forClass(TabModelObserver.class);
-        verify(mRegularTabModel).addObserver(captor.capture());
-        TabModelObserver observer = captor.getValue();
-
-        observer.willCloseAllTabs(false);
-
-        verify(mTabStateStorageService)
-                .loadAllData(eq(WINDOW_TAG), anyBoolean(), mCallbackCaptor.capture());
-
-        List<Callback<StorageLoadedData>> callbacks = mCallbackCaptor.getAllValues();
-
-        callbacks.get(0).onResult(mRegularData);
-
-        verify(mModelTrackingOrchestrator).onRestoreCancelled();
-    }
-
-    @Test
-    @EnableFeatures(ChromeFeatureList.TAB_CLOSURE_METHOD_REFACTOR)
-    public void testLoadAndRestore_WillCloseAllTabs_CancelsLoading_WillCloseTabs() {
-        mTabStateStore.onNativeLibraryReady();
-        when(mCipherFactory.getKeyForTabStateStorage()).thenReturn(new byte[1]);
-        when(mTabCreatorManager.getTabCreator(anyBoolean())).thenReturn(mTabCreator);
-
-        TabState tabState = new TabState();
-        tabState.contentsState = mock(WebContentsState.class);
-        LoadedTabState loadedTabState = new LoadedTabState(0, tabState);
-        when(mRegularData.getLoadedTabStates()).thenReturn(new LoadedTabState[] {loadedTabState});
-
-        mTabStateStore.loadState(
-                /* ignoreIncognitoFiles= */ true, /* ignoreRegularFiles= */ false);
-
-        ArgumentCaptor<TabModelObserver> captor = ArgumentCaptor.forClass(TabModelObserver.class);
-        verify(mRegularTabModel).addObserver(captor.capture());
-        TabModelObserver observer = captor.getValue();
-
-        Tab tab = createMockTabWithParentCollection(0, mProfile);
-        observer.willCloseTabs(List.of(tab), /* isAllTabs= */ true, /* allowUndo= */ false);
-
-        verify(mTabStateStorageService)
-                .loadAllData(eq(WINDOW_TAG), anyBoolean(), mCallbackCaptor.capture());
-
-        List<Callback<StorageLoadedData>> callbacks = mCallbackCaptor.getAllValues();
-
-        callbacks.get(0).onResult(mRegularData);
-
-        verify(mModelTrackingOrchestrator).onRestoreCancelled();
+        verify(mModelTrackingOrchestrator, times(2)).onRestoreCancelled();
     }
 
     @Test
@@ -525,8 +445,6 @@ public class TabStateStoreUnitTest {
 
         regularCallback.onResult(mRegularData);
 
-        Assert.assertTrue(mTabStateStore.hasLoadWarnings());
-
         verify(mTabStateStorageService, never())
                 .clearUnusedNodesForWindow(any(), anyBoolean(), any());
         verify(mTabCountTracker, never()).clearTabCount(anyBoolean());
@@ -538,7 +456,6 @@ public class TabStateStoreUnitTest {
     public void testLoadStateFailure_NonAuthoritative() {
         mTabStateStore =
                 new TabStateStore(
-                        TabOrchestratorType.TABBED,
                         mTabModelSelector,
                         WINDOW_TAG,
                         mTabCreatorManager,
@@ -574,11 +491,10 @@ public class TabStateStoreUnitTest {
 
         Assert.assertThrows(AssertionError.class, () -> regularCallback.onResult(mRegularData));
 
-        Assert.assertTrue(mTabStateStore.hasLoadWarnings());
-
         verify(mTabStateStorageService).clearUnusedNodesForWindow(WINDOW_TAG, false, null);
         verify(mTabCountTracker).clearTabCount(false);
         verify(mActiveTabCache).clearActiveTab(false);
+        verify(tabState.contentsState).destroy();
         verify(mRegularData).destroy();
     }
 
@@ -586,7 +502,6 @@ public class TabStateStoreUnitTest {
     public void testOnAuthoritativeStateLoaded() {
         mTabStateStore =
                 new TabStateStore(
-                        TabOrchestratorType.TABBED,
                         mTabModelSelector,
                         WINDOW_TAG,
                         mTabCreatorManager,
@@ -697,7 +612,6 @@ public class TabStateStoreUnitTest {
     public void testClearCurrentWindowOnRestore_NonAuthoritative() {
         mTabStateStore =
                 new TabStateStore(
-                        TabOrchestratorType.TABBED,
                         mTabModelSelector,
                         WINDOW_TAG,
                         mTabCreatorManager,
@@ -767,7 +681,6 @@ public class TabStateStoreUnitTest {
     public void testSaveCleanTabOnRegistration_NonAuthoritative() {
         mTabStateStore =
                 new TabStateStore(
-                        TabOrchestratorType.TABBED,
                         mTabModelSelector,
                         WINDOW_TAG,
                         mTabCreatorManager,
@@ -855,7 +768,6 @@ public class TabStateStoreUnitTest {
         // Create a new TabStateStore instance without a CipherFactory
         TabStateStore noCipherTabStateStore =
                 new TabStateStore(
-                        TabOrchestratorType.TABBED,
                         mTabModelSelector,
                         WINDOW_TAG,
                         mTabCreatorManager,
@@ -896,7 +808,6 @@ public class TabStateStoreUnitTest {
     public void testClearCurrentWindow_NonAuthoritative() {
         mTabStateStore =
                 new TabStateStore(
-                        TabOrchestratorType.TABBED,
                         mTabModelSelector,
                         WINDOW_TAG,
                         mTabCreatorManager,

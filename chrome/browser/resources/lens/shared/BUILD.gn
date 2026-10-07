@@ -10,10 +10,7 @@ build_webui("build") {
   grd_prefix = "lens_shared"
   grd_resource_path_prefix = "lens/shared"
 
-  static_files = [
-    "info.svg",
-    "info_old.svg",
-  ]
+  static_files = [ "info.svg" ]
 
   web_component_files = [ "searchbox_ghost_loader.ts" ]
 

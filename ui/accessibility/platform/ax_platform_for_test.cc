@@ -38,10 +38,6 @@ AXMode AXPlatformForTest::GetAccessibilityMode() {
   return mode_;
 }
 
-void AXPlatformForTest::OnInlineTextBoxesUsedInWebContent() {
-  ++inline_text_boxes_used_in_web_content_count_;
-}
-
 #if BUILDFLAG(IS_WIN)
 AXPlatform::ProductStrings AXPlatformForTest::GetProductStrings() {
   return {{}, {}, {}};

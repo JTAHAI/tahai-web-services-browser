@@ -242,10 +242,8 @@ class SearchEngineChoiceService : public KeyedService {
     // The current default search engine is not in the list of engines to be
     // offered on the choice screen, so it cannot be highlighted.
     kCurrentCannotBeHighlighted = 12,
-    // The choice was made on another device, but we decided to preserve it.
-    kValidAndImported = 13,
 
-    kMaxValue = kValidAndImported
+    kMaxValue = kCurrentCannotBeHighlighted
   };
   // LINT.ThenChange(/tools/metrics/histograms/metadata/search/enums.xml:SearchEngineChoiceStatus)
 

@@ -7,7 +7,6 @@
 
 #include <stddef.h>
 #include <stdint.h>
-
 #include <memory>
 
 #include "base/containers/span.h"
@@ -90,14 +89,6 @@ class SevenZipReader {
   // which case this function will return nullptr and notify the delegate.
   static std::unique_ptr<SevenZipReader> Create(base::File seven_zip_file,
                                                 Delegate& delegate);
-
-  // Create a `SevenZipReader` with the given in-memory buffer and delegate.
-  // `seven_zip_buffer` and `delegate` must outlive this object. Initialization
-  // of a `SevenZipReader` can fail, in which case this function will return
-  // nullptr and notify the delegate.
-  static std::unique_ptr<SevenZipReader> Create(
-      base::span<const uint8_t> seven_zip_buffer,
-      Delegate& delegate);
 
   ~SevenZipReader();
 

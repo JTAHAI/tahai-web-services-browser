@@ -120,7 +120,8 @@ DriverEntry DownloadDriverImpl::CreateDriverEntry(
 DownloadDriverImpl::DownloadDriverImpl(
     SimpleDownloadManagerCoordinator* download_manager_coordinator)
     : client_(nullptr),
-      download_manager_coordinator_(download_manager_coordinator) {
+      download_manager_coordinator_(download_manager_coordinator),
+      is_ready_(false) {
   DCHECK(download_manager_coordinator_);
   DETACH_FROM_SEQUENCE(sequence_checker_);
 }
@@ -144,21 +145,6 @@ void DownloadDriverImpl::Initialize(DownloadDriver::Client* client) {
   }
 
   download_manager_coordinator_->GetNotifier()->AddObserver(this);
-
-  if (base::FeatureList::IsEnabled(
-          download::features::kDeferredDownloadHistoryLoading)) {
-    download_manager_coordinator_->WaitForActiveDownloadsInitialization(
-        base::BindOnce(&DownloadDriverImpl::NotifyDriverReady,
-                       weak_ptr_factory_.GetWeakPtr()));
-  }
-}
-
-void DownloadDriverImpl::NotifyDriverReady() {
-  if (!client_ || is_ready_ || !download_manager_coordinator_) {
-    return;
-  }
-  is_ready_ = true;
-  client_->OnDriverReady(true);
 }
 
 void DownloadDriverImpl::HardRecover() {
@@ -169,10 +155,6 @@ void DownloadDriverImpl::HardRecover() {
 }
 
 bool DownloadDriverImpl::IsReady() const {
-  if (base::FeatureList::IsEnabled(
-          download::features::kDeferredDownloadHistoryLoading)) {
-    return client_ && download_manager_coordinator_ && is_ready_;
-  }
   return client_ && download_manager_coordinator_ &&
          download_manager_coordinator_->initialized();
 }
@@ -250,10 +232,6 @@ void DownloadDriverImpl::Start(
   if (request_params.initiator) {
     download_url_params->set_initiator(request_params.initiator.value());
   }
-  if (request_params.url_loader_factory) {
-    download_url_params->set_url_loader_factory(
-        request_params.url_loader_factory->Clone());
-  }
 
   download_manager_coordinator_->DownloadUrl(std::move(download_url_params));
 }
@@ -291,18 +269,12 @@ void DownloadDriverImpl::Pause(const std::string& guid) {
     item->Pause();
 }
 
-void DownloadDriverImpl::ResumeWithFactory(
-    const std::string& guid,
-    scoped_refptr<network::SharedURLLoaderFactory> factory) {
+void DownloadDriverImpl::Resume(const std::string& guid) {
   if (!download_manager_coordinator_)
     return;
   DownloadItem* item = download_manager_coordinator_->GetDownloadByGuid(guid);
-  if (item) {
-    if (factory) {
-      item->SetURLLoaderFactory(std::move(factory));
-    }
+  if (item)
     item->Resume(true);
-  }
 }
 
 std::optional<DriverEntry> DownloadDriverImpl::Find(const std::string& guid) {
@@ -399,17 +371,6 @@ void DownloadDriverImpl::OnDownloadCreated(
 
   // Listens to all downloads.
   DCHECK(client_);
-
-  if (base::FeatureList::IsEnabled(
-          download::features::kDeferredDownloadHistoryLoading)) {
-    // Ignore restored historical downloads loaded from disk after active
-    // download initialization.
-    if (item->GetState() != download::DownloadItem::IN_PROGRESS &&
-        !coordinator->has_all_history_downloads()) {
-      return;
-    }
-  }
-
   DriverEntry entry = CreateDriverEntry(item);
 
   // Only notifies the client about new downloads. Existing download data will
@@ -446,12 +407,6 @@ void DownloadDriverImpl::OnDownloadsInitialized(
   DCHECK_EQ(download_manager_coordinator_, coordinator);
   DCHECK(download_manager_coordinator_);
 
-  if (base::FeatureList::IsEnabled(
-          download::features::kDeferredDownloadHistoryLoading)) {
-    NotifyDriverReady();
-    return;
-  }
-
   if (!client_)
     return;
 
@@ -465,11 +420,7 @@ void DownloadDriverImpl::OnDownloadsInitialized(
 void DownloadDriverImpl::OnManagerGoingDown(
     SimpleDownloadManagerCoordinator* coordinator) {
   DCHECK_EQ(download_manager_coordinator_, coordinator);
-  if (!is_ready_ && client_) {
-    client_->OnDriverReady(false);
-  }
   download_manager_coordinator_ = nullptr;
-  weak_ptr_factory_.InvalidateWeakPtrs();
 }
 
 void DownloadDriverImpl::OnHardRecoverComplete(bool success) {

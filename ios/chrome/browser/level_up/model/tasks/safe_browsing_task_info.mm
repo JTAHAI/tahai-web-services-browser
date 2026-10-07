@@ -24,7 +24,10 @@ class SafeBrowsingTaskInfo : public TaskInfo {
   std::string GetTaskDescription() const override {
     return "Add an extra layer of protection against online threats";
   }
-  Symbol GetIconSymbol() const override { return SymbolShield; }
+  std::string GetIconSymbolName() const override {
+    return base::SysNSStringToUTF8(kShieldSymbol);
+  }
+  bool IsCustomSymbol() const override { return false; }
   LevelUpTaskCategory GetCategory() const override {
     return LevelUpTaskCategory::kSafety;
   }
@@ -36,12 +39,11 @@ class SafeBrowsingTaskInfo : public TaskInfo {
         IDS_IOS_LEVEL_UP_TASK_COMPLETED_SAFE_BROWSING);
   }
   TaskInfo::NavigationAction GetNavigationAction() const override {
-    return base::BindRepeating(
-        ^(CommandDispatcher* dispatcher, Browser* browser) {
-          id<BrowserCoordinatorCommands> handler =
-              HandlerForProtocol(dispatcher, BrowserCoordinatorCommands);
-          [handler showEnhancedSafeBrowsingPromo];
-        });
+    return base::BindRepeating(^(CommandDispatcher* dispatcher) {
+      id<BrowserCoordinatorCommands> handler =
+          HandlerForProtocol(dispatcher, BrowserCoordinatorCommands);
+      [handler showEnhancedSafeBrowsingPromo];
+    });
   }
 };
 

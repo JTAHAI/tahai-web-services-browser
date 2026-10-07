@@ -33,8 +33,9 @@
     return [super initWithScreens:screens];
   }
 
-  [screens addObject:@(kSyncedSetUp)];
-
+  if (IsSyncedSetUpEnabled()) {
+    [screens addObject:@(kSyncedSetUp)];
+  }
   if (IsBestOfAppGuidedTourEnabled()) {
     [screens addObject:@(kGuidedTour)];
   }

@@ -19,8 +19,6 @@
 #include "ui/gfx/image/image.h"
 #include "ui/gfx/skia_util.h"
 
-static_assert(BUILDFLAG(ENABLE_EXTENSIONS_CORE));
-
 namespace task_manager {
 
 class ExtensionTagsTest : public extensions::ExtensionBrowserTest {
@@ -130,3 +128,4 @@ IN_PROC_BROWSER_TEST_F(ExtensionTagsTest,
 }
 
 }  // namespace task_manager
+

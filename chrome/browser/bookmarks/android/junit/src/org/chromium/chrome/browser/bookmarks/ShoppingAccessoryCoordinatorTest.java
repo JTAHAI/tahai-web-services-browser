@@ -22,6 +22,7 @@ import org.mockito.junit.MockitoRule;
 import org.robolectric.annotation.Config;
 
 import org.chromium.base.test.BaseRobolectricTestRunner;
+import org.chromium.base.test.util.Batch;
 import org.chromium.chrome.browser.bookmarks.ShoppingAccessoryViewProperties.PriceInfo;
 import org.chromium.components.commerce.core.ShoppingService;
 import org.chromium.components.payments.ui.CurrencyFormatter;
@@ -32,6 +33,7 @@ import org.chromium.ui.base.TestActivity;
 import org.chromium.ui.modelutil.PropertyModel;
 
 /** Unit tests for {@link ShoppingAccessoryCoordinator}. */
+@Batch(Batch.UNIT_TESTS)
 @RunWith(BaseRobolectricTestRunner.class)
 @Config(manifest = Config.NONE)
 public class ShoppingAccessoryCoordinatorTest {

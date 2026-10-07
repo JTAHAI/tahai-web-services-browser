@@ -12,8 +12,6 @@
 #include "chrome/browser/ash/printing/enterprise/print_servers_provider.h"
 #include "chrome/browser/ash/printing/print_server.h"
 #include "chrome/browser/ash/printing/print_servers_manager.h"
-
-class PrefService;
 class Profile;
 
 namespace ash {
@@ -32,9 +30,7 @@ class PrintServersPolicyProvider : public PrintServersProvider::Observer {
   using OnPrintServersChanged = typename base::RepeatingCallback<
       void(bool, std::map<GURL, PrintServer>, ServerPrintersFetchingMode)>;
 
-  static std::unique_ptr<PrintServersPolicyProvider> Create(
-      PrefService& local_state,
-      Profile* profile);
+  static std::unique_ptr<PrintServersPolicyProvider> Create(Profile* profile);
 
   static std::unique_ptr<PrintServersPolicyProvider> CreateForTesting(
       base::WeakPtr<PrintServersProvider> user_policy_provider,

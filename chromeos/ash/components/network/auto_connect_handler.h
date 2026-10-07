@@ -124,16 +124,14 @@ class COMPONENT_EXPORT(CHROMEOS_NETWORK) AutoConnectHandler
   void DisableAutoconnectForNetwork(const std::string& service_path,
                                     const std::string& network_type);
 
-  // Adds a request to connect to the 'best' available network due to
-  // `auto_conenct_reason`.
-  // The actual connection is deferred to
-  // `ProcessPendingBestConnectionRequests`.
-  void AddBestConnectionRequest(AutoConnectReason auto_connect_reason);
+  // Requests and if possible connects to the 'best' available network, see
+  // CheckBestConnection().
+  void RequestBestConnection(AutoConnectReason auto_connect_reason);
 
   // If a request to connect to the best network is pending and all requirements
   // are fulfilled (like policy loaded, certificate patterns being resolved),
   // then this will call ConnectToBestWifiNetwork of |network_state_handler_|.
-  void ProcessPendingBestConnectionRequests();
+  void CheckBestConnection();
 
   // Calls Shill.Manager.ScanAndConnectToBestServices().
   void CallShillScanAndConnectToBestServices();

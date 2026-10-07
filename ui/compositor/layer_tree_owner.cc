@@ -14,7 +14,10 @@ namespace {
 // Deletes |layer| and all its descendants.
 void DeepDeleteLayers(Layer* layer) {
   std::vector<raw_ptr<Layer, VectorExperimental>> children = layer->children();
-  for (Layer* child : children) {
+  for (std::vector<raw_ptr<Layer, VectorExperimental>>::const_iterator it =
+           children.begin();
+       it != children.end(); ++it) {
+    Layer* child = *it;
     DeepDeleteLayers(child);
   }
   delete layer;

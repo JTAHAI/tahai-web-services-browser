@@ -12,6 +12,7 @@
 #include "chrome/test/base/in_process_browser_test.h"
 #include "url/url_constants.h"
 
+class Browser;
 class BrowserList;
 class BrowserWindowInterface;
 class TabStrip;
@@ -40,17 +41,16 @@ class TabDragControllerTest : public InProcessBrowserTest {
 
   // Adds `additional_tabs` new tabs to `browser` using the provided `url` or
   // blank. Stops animations and resets the ids of the tabs in `browser`.
-  void AddTabsAndResetBrowser(BrowserWindowInterface* browser,
+  void AddTabsAndResetBrowser(Browser* browser,
                               int additional_tabs,
                               const GURL& url = GURL(url::kAboutBlankURL));
 
   // Resizes browser1 and browser2 to be side by side.
-  void Resize(BrowserWindowInterface* browser1,
-              BrowserWindowInterface* browser2);
+  void Resize(Browser* browser1, Browser* browser2);
 
   // Creates a new Browser and resizes browser() and the new browser to be side
   // by side.
-  BrowserWindowInterface* CreateAnotherBrowserAndResize();
+  Browser* CreateAnotherBrowserAndResize();
 
   void SetWindowFinderForTabStrip(TabStrip* tab_strip,
                                   std::unique_ptr<WindowFinder> window_finder);
@@ -61,11 +61,6 @@ class TabDragControllerTest : public InProcessBrowserTest {
   void HandleGestureEvent(TabStrip* tab_strip, ui::GestureEvent* event);
 
   bool HasDragStarted(TabStrip* tab_strip) const;
-
-  // Returns true if `tab_strip`'s drag controller is in the state where it has
-  // detached into a new browser and is waiting for that browser's widget to
-  // become visible before entering the window-move loop.
-  bool IsWaitingForWindowToShow(TabStrip* tab_strip) const;
 
   void SetTabDragPointResolver(TabDragPointResolver& resolver);
 

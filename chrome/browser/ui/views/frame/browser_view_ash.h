@@ -11,13 +11,13 @@ namespace gfx {
 class RoundedCornersF;
 }  // namespace gfx
 
-class BrowserWindowInterface;
+class Browser;
 
 // BrowserViewAsh provides the ClientView for Chrome browser windows on Chrome
 // OS under classic ash.
 class BrowserViewAsh : public BrowserView {
  public:
-  explicit BrowserViewAsh(BrowserWindowInterface* browser);
+  explicit BrowserViewAsh(Browser* browser);
 
   BrowserViewAsh(const BrowserViewAsh&) = delete;
   BrowserViewAsh& operator=(const BrowserViewAsh&) = delete;

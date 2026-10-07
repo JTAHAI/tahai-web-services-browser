@@ -1,4 +1,10 @@
-rules:
-- hyphens-*: [hyphens]
-- hyphenate-character-*: [hyphenate-character]
-- hyphenate-limit-chars-*: [hyphenate-limit-chars]
+features:
+- name: hyphens
+  files:
+  - hyphens-*
+- name: hyphenate-character
+  files:
+  - hyphenate-character-*
+- name: hyphenate-limit-chars
+  files:
+  - hyphenate-limit-chars-*

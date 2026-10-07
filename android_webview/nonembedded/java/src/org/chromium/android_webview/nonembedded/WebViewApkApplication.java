@@ -130,17 +130,23 @@ public class WebViewApkApplication extends Application {
         assert ThreadUtils.runningOnUiThread()
                 : "WebViewApkApplication#ensureNativeInitialized should only be called on the"
                         + " UIThread";
-        if (LibraryLoader.getInstance().isInitialized()) {
+        try {
+            if (LibraryLoader.getInstance().isInitialized()) {
+                return true;
+            }
+            // Should not call LibraryLoader.initialize() since this will reset UmaRecorder
+            // delegate.
+            LibraryLoader.getInstance()
+                    .setLibraryProcessType(LibraryProcessType.PROCESS_WEBVIEW_NONEMBEDDED);
+            LibraryLoader.getInstance().ensureInitialized();
+            LibraryLoader.getInstance().switchCommandLineForWebView();
+            WebViewApkApplicationJni.get().initializeGlobalsAndResources();
             return true;
+        } catch (Throwable unused) {
+            // Happens for WebView Stub. Throws NoClassDefFoundError because of no
+            // NativeLibraries.java being generated.
+            return false;
         }
-        // Should not call LibraryLoader.initialize() since this will reset UmaRecorder
-        // delegate.
-        LibraryLoader.getInstance()
-                .setLibraryProcessType(LibraryProcessType.PROCESS_WEBVIEW_NONEMBEDDED);
-        LibraryLoader.getInstance().ensureInitialized();
-        LibraryLoader.getInstance().switchCommandLineForWebView();
-        WebViewApkApplicationJni.get().initializeGlobalsAndResources();
-        return true;
     }
 
     @NativeMethods

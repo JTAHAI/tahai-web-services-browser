@@ -20,7 +20,6 @@
 
 #include "base/compiler_specific.h"
 #include "base/component_export.h"
-#include "base/containers/span.h"
 #include "base/files/file.h"
 #include "base/files/memory_mapped_file.h"
 #include "base/memory/raw_ptr.h"
@@ -54,9 +53,8 @@ class COMPONENT_EXPORT(UI_DATA_PACK) DataPack : public ResourceHandle {
 // buffer directly.
 //
 // TODO(davidben): Ideally we would load these structures through memcpy, or
-// base::SpanReader or base/numerics/byte_conversions.h, rather than
-// type-punning pointers. This code currently depends on Chromium disabling
-// strict aliasing.
+// a little-endian variant of base/big_endian.h, rather than type-punning
+// pointers. This code currently depends on Chromium disabling strict aliasing.
 #pragma pack(push, 1)
   struct Entry {
     static int CompareById(const void* void_key, const void* void_entry);
@@ -202,7 +200,7 @@ class COMPONENT_EXPORT(UI_DATA_PACK) DataPack : public ResourceHandle {
   bool HasResource(uint16_t resource_id) const override;
   std::optional<std::string_view> GetStringView(
       uint16_t resource_id) const override;
-  scoped_refptr<base::RefCountedStaticMemory> GetStaticMemory(
+  base::RefCountedStaticMemory* GetStaticMemory(
       uint16_t resource_id) const override;
   TextEncodingType GetTextEncodingType() const override;
   ResourceScaleFactor GetResourceScaleFactor() const override;

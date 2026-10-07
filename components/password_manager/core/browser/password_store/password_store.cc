@@ -27,6 +27,7 @@
 #include "build/build_config.h"
 #include "components/affiliations/core/browser/affiliation_service.h"
 #include "components/autofill/core/common/form_data.h"
+#include "components/password_manager/core/browser/features/password_features.h"
 #include "components/password_manager/core/browser/password_form.h"
 #include "components/password_manager/core/browser/password_manager_metrics_util.h"
 #include "components/password_manager/core/browser/password_store/password_form_converters.h"
@@ -323,8 +324,8 @@ void PasswordStore::GetLogins(const PasswordFormDigest& form,
   }
 
   backend_->GetGroupedMatchingLoginsAsync(
-      form, base::BindOnce(&PasswordStore::ForwardLoginsResultOrError, this,
-                           consumer));
+      form, base::BindOnce(&ConsumerReplyConverter, consumer,
+                           base::RetainedRef(this)));
 }
 
 void PasswordStore::GetAutofillableLogins(
@@ -343,7 +344,7 @@ void PasswordStore::GetAutofillableLogins(
   }
 
   backend_->GetAutofillableLoginsAsync(base::BindOnce(
-      &PasswordStore::ForwardLoginsResultOrError, this, consumer));
+      &ConsumerReplyConverter, consumer, base::RetainedRef(this)));
   UmaHistogramMediumTimes("PasswordManager.GetAutofillableLogins.TimeSinceInit",
                           base::Time::Now() - construction_time_);
 }
@@ -362,8 +363,8 @@ void PasswordStore::GetAllLogins(
     return;
   }
 
-  backend_->GetAllLoginsAsync(base::BindOnce(
-      &PasswordStore::ForwardLoginsResultOrError, this, consumer));
+  backend_->GetAllLoginsAsync(base::BindOnce(&ConsumerReplyConverter, consumer,
+                                             base::RetainedRef(this)));
   UmaHistogramMediumTimes("PasswordManager.GetAllLogins.TimeSinceInit",
                           base::Time::Now() - construction_time_);
 }
@@ -385,8 +386,10 @@ void PasswordStore::GetAllLoginsWithAffiliationAndBrandingInformation(
     return;
   }
 
-  backend_->GetAllLoginsWithAffiliationAndBrandingAsync(base::BindOnce(
-      &PasswordStore::ForwardLoginsResultOrError, this, consumer));
+  auto consumer_reply = base::BindOnce(&ConsumerReplyConverter, consumer,
+                                       base::RetainedRef(this));
+  backend_->GetAllLoginsWithAffiliationAndBrandingAsync(
+      std::move(consumer_reply));
   UmaHistogramMediumTimes(
       "PasswordManager.GetAllLoginsWithAffiliationAndBrandingInformation."
       "TimeSinceInit",
@@ -505,7 +508,9 @@ void PasswordStore::NotifyLoginsChangedOnMainSequence(
     error = ActionableError::kNoError;
 #endif
   }
-  if (error.has_value()) {
+  if (error.has_value() &&
+      base::FeatureList::IsEnabled(
+          features::kPasswordStorePropagatesActionableErrors)) {
     NotifyObserversIfErrorStateChanged(error.value());
   }
 
@@ -559,7 +564,10 @@ void PasswordStore::NotifyLoginsRetainedOnMainSequence(
     error = BackendErrorToActionableError(backend_error.type);
   }
 
-  NotifyObserversIfErrorStateChanged(error);
+  if (base::FeatureList::IsEnabled(
+          features::kPasswordStorePropagatesActionableErrors)) {
+    NotifyObserversIfErrorStateChanged(error);
+  }
 
   // Clients don't expect errors yet, so just wait for the next notification.
   if (std::holds_alternative<PasswordStoreBackendError>(result)) {
@@ -595,19 +603,6 @@ void PasswordStore::NotifyObserversIfErrorStateChanged(ActionableError error) {
   for (auto& observer : observers_) {
     observer.OnErrorStateChanged(this, error);
   }
-}
-
-void PasswordStore::ForwardLoginsResultOrError(
-    base::WeakPtr<PasswordStoreConsumer> consumer,
-    BackendLoginsResultOrError result) {
-  DCHECK(main_task_runner_->RunsTasksInCurrentSequence());
-  if (std::holds_alternative<PasswordStoreBackendError>(result)) {
-    const PasswordStoreBackendError& backend_error =
-        std::get<PasswordStoreBackendError>(result);
-    NotifyObserversIfErrorStateChanged(
-        BackendErrorToActionableError(backend_error.type));
-  }
-  ConsumerReplyConverter(std::move(consumer), this, std::move(result));
 }
 
 void PasswordStore::UnblocklistInternal(base::OnceClosure completion,

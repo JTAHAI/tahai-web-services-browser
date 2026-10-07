@@ -13,6 +13,7 @@ import gn_utils
 import soong_ast
 import common
 
+
 from arguments import CommandLineUtility
 
 
@@ -147,7 +148,8 @@ class BaseActionSanitizer():
     # Whether this target generates header files
     def is_header_generated(self):
         return any(
-            os.path.splitext(it)[1] == '.h' for it in self.get_outputs())
+            os.path.splitext(it)[1] == '.h'
+            for it in self.target.common.outputs)
 
 
 class GenerateCanonicalLocalesListSanitizer(BaseActionSanitizer):
@@ -168,7 +170,6 @@ class GenerateKnownBcp47SubtagsSanitizer(BaseActionSanitizer):
 
     def is_header_generated(self):
         return True
-
 
 class WriteBuildDateHeaderSanitizer(BaseActionSanitizer):
 
@@ -358,16 +359,9 @@ class JavaJniGeneratorSanitizer(JniGeneratorSanitizer):
 
 class JniRegistrationGeneratorSanitizer(BaseActionSanitizer):
 
-    def __init__(self, target, arch, is_test_target, context, mode=None):
+    def __init__(self, target, arch, is_test_target, context):
         self.is_test_target = is_test_target
-        self.mode = mode
         super().__init__(target, arch, context)
-
-    def get_name(self):
-        name = super().get_name()
-        if self.mode == 'headers':
-            name += "_headers"
-        return name
 
     def get_srcs(self):
         all_srcs = super().get_srcs()
@@ -391,28 +385,14 @@ class JniRegistrationGeneratorSanitizer(BaseActionSanitizer):
             # without any other deps. This is not used in aosp.
             if out.endswith("_placeholder.srcjar"):
                 continue
-            if self._should_exclude_output(out):
-                continue
             # fix target.output directory to match #include statements.
             outputs.add(re.sub('^jni_headers/', '', out))
         return outputs
 
-    def _should_exclude_output(self, out):
-        if self.mode == 'headers':
-            return not out.endswith(".h")
-        if self.mode == 'source':
-            return not out.endswith(".cc")
-        return out.endswith(".srcjar")
-
     def _sanitize_args(self):
         self.args.update_flag_value('--depfile', self._sanitize_filepath)
         self.args.update_flag_value('--srcjar-path', self._sanitize_filepath)
-        self.args.update_flag_value('--header-path',
-                                    self._sanitize_filepath,
-                                    throw_if_absent=False)
-        self.args.update_flag_value('--impl-path',
-                                    self._sanitize_filepath,
-                                    throw_if_absent=False)
+        self.args.update_flag_value('--header-path', self._sanitize_filepath)
         self.args.update_flag_value('--placeholder-srcjar-path',
                                     self._sanitize_filepath, False)
         self.args.remove_flag('--depfile', False)
@@ -485,8 +465,10 @@ class JavaJniRegistrationGeneratorSanitizer(JniRegistrationGeneratorSanitizer):
         name = super().get_name() + "__java"
         return name
 
-    def _should_exclude_output(self, out):
-        return not out.endswith(".srcjar")
+    def get_outputs(self):
+        return [
+            out for out in super().get_outputs() if out.endswith(".srcjar")
+        ]
 
     def get_deps(self):
         return {}
@@ -632,13 +614,7 @@ class ProtocJavaSanitizer(BaseActionSanitizer):
         return tools
 
 
-def get_action_sanitizer(gn,
-                         target,
-                         gn_type,
-                         arch,
-                         is_test_target,
-                         context,
-                         mode=None):
+def get_action_sanitizer(gn, target, gn_type, arch, is_test_target, context):
     if target.script == "//build/write_buildflag_header.py" or target.script == "//base/allocator/partition_allocator/src/partition_alloc/write_buildflag_header.py":
         # PartitionAlloc has forked the same write_buildflag_header.py script from
         # Chromium to break its dependency on //build.
@@ -697,11 +673,8 @@ def get_action_sanitizer(gn,
                     target.common.sources.update(gn.jni_java_sources)
                 return JavaJniRegistrationGeneratorSanitizer(
                     target, arch, is_test_target, context)
-            return JniRegistrationGeneratorSanitizer(target,
-                                                     arch,
-                                                     is_test_target,
-                                                     context,
-                                                     mode=mode)
+            return JniRegistrationGeneratorSanitizer(target, arch,
+                                                     is_test_target, context)
         if gn_type == 'cc_genrule':
             return JniGeneratorSanitizer(target, arch, is_test_target, context)
         return JavaJniGeneratorSanitizer(target, arch, is_test_target, context)

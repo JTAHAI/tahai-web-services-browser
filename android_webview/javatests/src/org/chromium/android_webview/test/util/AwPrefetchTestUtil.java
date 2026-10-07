@@ -8,7 +8,7 @@ import org.jni_zero.JNINamespace;
 import org.jni_zero.JniType;
 import org.jni_zero.NativeMethods;
 
-/** Test utility for `AwPrefetchTestBase`. */
+/** Test utility for `AwPrefetchTest`. */
 @JNINamespace("android_webview")
 public class AwPrefetchTestUtil {
     public static void setLatestPrefetchInfoForTesting(String origin, boolean javascriptEnabled) {

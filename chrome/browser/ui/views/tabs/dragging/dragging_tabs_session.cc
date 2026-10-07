@@ -231,14 +231,6 @@ DraggingTabsSession::CalculateGroupForDraggedTabs(int to_index) {
     return std::nullopt;
   }
 
-  // When focus mode is active, dragging unpinned tabs within the tab strip
-  // must remain in the focused group.
-  const std::optional<tab_groups::TabGroupId> focused_group =
-      attached_model->GetFocusedGroup();
-  if (focused_group.has_value()) {
-    return focused_group;
-  }
-
   std::optional<tab_groups::TabGroupId> left_group =
       adjacent_indices.first.has_value()
           ? attached_model->GetTabGroupForTab(adjacent_indices.first.value())

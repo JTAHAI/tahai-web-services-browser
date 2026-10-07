@@ -31,6 +31,7 @@ import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
 import org.mockito.stubbing.Answer;
 import org.robolectric.Robolectric;
+import org.robolectric.annotation.Config;
 import org.robolectric.shadow.api.Shadow;
 import org.robolectric.shadows.ShadowLooper;
 
@@ -41,8 +42,9 @@ import org.chromium.content_public.browser.InputMethodManagerWrapper;
 
 import java.util.concurrent.Callable;
 
-/** Unit tests for {@link ThreadedInputConnectionFactory}. */
+/** Unit tests for {@ThreadedInputConnectionFactory}. */
 @RunWith(BaseRobolectricTestRunner.class)
+@Config(manifest = Config.NONE)
 public class ThreadedInputConnectionFactoryTest {
     @Rule public MockitoRule mMockitoRule = MockitoJUnit.rule();
 

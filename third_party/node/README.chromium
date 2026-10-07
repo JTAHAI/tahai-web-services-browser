@@ -113,7 +113,6 @@ URL: https://www.npmjs.com/package/@types/chai
 Version: 5.2.3
 Update Mechanism: Manual
 License: MIT
-License File: TYPES_LICENSE
 Security Critical: no
 Shipped: no
 
@@ -133,7 +132,6 @@ URL: https://www.npmjs.com/package/@types/d3
 Version: 7.4.0
 Update Mechanism: Manual
 License: MIT
-License File: TYPES_LICENSE
 Security Critical: no
 Shipped: no
 
@@ -154,7 +152,6 @@ URL: https://www.npmjs.com/package/@types/dom-mediacapture-record
 Version: 1.0.11
 Update Mechanism: Manual
 License: MIT
-License File: TYPES_LICENSE
 Security Critical: no
 Shipped: no
 
@@ -175,7 +172,6 @@ URL: https://www.npmjs.com/package/@types/w3c-image-capture
 Version: 1.0.10
 Update Mechanism: Manual
 License: MIT
-License File: TYPES_LICENSE
 Security Critical: no
 Shipped: no
 
@@ -196,7 +192,6 @@ URL: https://www.npmjs.com/package/@types/webrtc
 Version: 0.0.44
 Update Mechanism: Manual
 License: MIT
-License File: TYPES_LICENSE
 Security Critical: no
 Shipped: no
 
@@ -216,7 +211,6 @@ URL: https://www.npmjs.com/package/@types/google.analytics
 Version: 0.0.42
 Update Mechanism: Manual
 License: MIT
-License File: TYPES_LICENSE
 Security Critical: no
 Shipped: no
 
@@ -238,7 +232,6 @@ URL: https://www.npmjs.com/package/@types/offscreencanvas
 Version: 2019.6.4
 Update Mechanism: Manual
 License: MIT
-License File: TYPES_LICENSE
 Security Critical: no
 Shipped: no
 
@@ -247,6 +240,26 @@ This package contains type definitions for offscreencanvas-browser
 (https://html.spec.whatwg.org/multipage/canvas.html#the-offscreencanvas-interface).
 
 The types are only used when type checking in Chrome OS.
+
+Local Modifications:
+(none)
+
+-------------------- DEPENDENCY DIVIDER --------------------
+
+Name: ESLint JSDoc Plugin
+Short Name: eslint-plugin-jsdoc
+URL: https://www.npmjs.com/package/eslint-plugin-jsdoc
+Version: 50.2.2
+Update Mechanism: Manual
+License: BSD-3-Clause
+License File: node_modules/eslint-plugin-jsdoc/LICENSE
+Security Critical: no
+Shipped: no
+
+Description:
+JSDoc linting rules for ESLint.
+
+The ESLint checks are not shipped with Chrome and code are only linted with it.
 
 Local Modifications:
 (none)
@@ -342,7 +355,6 @@ URL: https://www.npmjs.com/package/@types/trusted-types
 Version: 2.0.7
 Update Mechanism: Manual
 License: MIT
-License File: TYPES_LICENSE
 Security Critical: no
 Shipped: no
 
@@ -363,7 +375,6 @@ URL: https://www.npmjs.com/package/@types/filesystem
 Version: 0.0.32
 Update Mechanism: Manual
 License: MIT
-License File: TYPES_LICENSE
 Security Critical: no
 Shipped: no
 
@@ -384,7 +395,6 @@ URL: https://www.npmjs.com/package/@types/filewriter
 Version: 0.0.29
 Update Mechanism: Manual
 License: MIT
-License File: TYPES_LICENSE
 Security Critical: no
 Shipped: no
 
@@ -406,7 +416,6 @@ URL: https://www.npmjs.com/package/@types/dom-webcodecs
 Version: 0.1.13
 Update Mechanism: Manual
 License: MIT
-License File: TYPES_LICENSE
 Security Critical: no
 Shipped: no
 
@@ -427,7 +436,6 @@ URL: https://www.npmjs.com/package/@types/dom-mediacapture-transform
 Version: 0.1.10
 Update Mechanism: Manual
 License: MIT
-License File: TYPES_LICENSE
 Security Critical: no
 Shipped: no
 
@@ -448,7 +456,6 @@ URL: https://www.npmjs.com/package/@types/emscripten
 Version: 1.39.6
 Update Mechanism: Manual
 License: MIT
-License File: TYPES_LICENSE
 Security Critical: no
 Shipped: no
 

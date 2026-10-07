@@ -51,7 +51,8 @@ struct PatternData {
 };
 
 LayoutSVGResourcePattern::LayoutSVGResourcePattern(SVGPatternElement* node)
-    : LayoutSVGResourcePaintServer(node) {}
+    : LayoutSVGResourcePaintServer(node),
+      should_collect_pattern_attributes_(true) {}
 
 void LayoutSVGResourcePattern::Trace(Visitor* visitor) const {
   visitor->Trace(attributes_);
@@ -67,19 +68,18 @@ void LayoutSVGResourcePattern::RemoveAllClientsFromCache() {
   MarkAllClientsForInvalidation(kPaintInvalidation);
 }
 
-void LayoutSVGResourcePattern::WillBeDestroyed(const ComputedStyle* style) {
+void LayoutSVGResourcePattern::WillBeDestroyed() {
   NOT_DESTROYED();
   To<SVGPatternElement>(*GetElement()).InvalidateDependentPatterns();
-  LayoutSVGResourcePaintServer::WillBeDestroyed(style);
+  LayoutSVGResourcePaintServer::WillBeDestroyed();
 }
 
 void LayoutSVGResourcePattern::StyleDidChange(
     StyleDifference diff,
     const ComputedStyle* old_style,
-    const ComputedStyle& new_style,
     const StyleChangeContext& style_change_context) {
   NOT_DESTROYED();
-  LayoutSVGResourcePaintServer::StyleDidChange(diff, old_style, new_style,
+  LayoutSVGResourcePaintServer::StyleDidChange(diff, old_style,
                                                style_change_context);
   if (old_style)
     return;

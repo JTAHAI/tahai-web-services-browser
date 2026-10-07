@@ -14,6 +14,7 @@
 #include "build/build_config.h"
 #include "chrome/browser/glic/host/glic.mojom-shared.h"
 #include "chrome/browser/glic/public/context/glic_sharing_manager.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/side_panel/side_panel_enums.h"
 #include "components/tabs/public/tab_interface.h"
 #include "third_party/abseil-cpp/absl/functional/overload.h"
@@ -76,15 +77,13 @@ struct FloatingShowOptions {
 };
 
 struct TabShowOptions {
-  TabShowOptions();
   explicit TabShowOptions(tabs::TabInterface& bound_tab);
-  explicit TabShowOptions(tabs::TabHandle bound_tab_handle);
   TabShowOptions(const TabShowOptions&);
   TabShowOptions(TabShowOptions&&);
   TabShowOptions& operator=(const TabShowOptions&);
   ~TabShowOptions();
 
-  tabs::TabHandle tab_handle = tabs::TabHandle::Null();
+  raw_ptr<tabs::TabInterface> tab;
 };
 
 using EmbedderOptions =
@@ -122,7 +121,6 @@ struct ShowOptions {
   mojom::InvocationSource invocation_source =
       mojom::InvocationSource::kUnsupported;
   mojom::FreOverride fre_override = mojom::FreOverride::kUnspecified;
-  bool propagate_to_group = true;
 
   // Container for options that are different between side panel and floaty.
   EmbedderOptions embedder_options;

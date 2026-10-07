@@ -164,10 +164,7 @@ class CompositorFrameReporterTest : public testing::Test {
         ui::EventType::kGestureScrollBegin, input_type,
         /*is_inertial=*/false, event_time, arrived_in_browser_main_timestamp,
         &test_tick_clock_,
-        /*scroll_begin_generated_timestamp=*/base::TimeTicks(),
         /*scroll_begin_arrival_timestamp=*/base::TimeTicks()));
-    scroll_begin_generated_timestamp_ =
-        metrics->AsScroll()->scroll_begin_generated_timestamp();
     scroll_begin_arrival_timestamp_ =
         metrics->AsScroll()->scroll_begin_arrival_timestamp();
     return metrics;
@@ -184,7 +181,7 @@ class CompositorFrameReporterTest : public testing::Test {
         ui::EventType::kGestureScrollUpdate, input_type, is_inertial,
         scroll_update_type, /*delta=*/10.0f, event_time,
         arrived_in_browser_main_timestamp, &test_tick_clock_, std::nullopt,
-        scroll_begin_generated_timestamp_, scroll_begin_arrival_timestamp_));
+        scroll_begin_arrival_timestamp_));
   }
 
   std::unique_ptr<EventMetrics> CreatePinchEventMetrics(
@@ -209,8 +206,8 @@ class CompositorFrameReporterTest : public testing::Test {
   }
 
   std::unique_ptr<CompositorFrameReporter> CreatePipelineReporter() {
-    GlobalMetricsTrackers trackers{nullptr, nullptr, nullptr, nullptr,
-                                   &frame_sorter_};
+    GlobalMetricsTrackers trackers{nullptr, nullptr, nullptr,
+                                   nullptr, nullptr, &frame_sorter_};
     auto reporter = std::make_unique<CompositorFrameReporter>(
         ActiveTrackers(), viz::BeginFrameArgs(),
         /*should_report_metrics=*/true,
@@ -228,8 +225,8 @@ class CompositorFrameReporterTest : public testing::Test {
           FrameInfo::SmoothThread::kSmoothNone,
       FrameInfo::SmoothEffectDrivingThread scrolling_thread =
           FrameInfo::SmoothEffectDrivingThread::kUnknown) {
-    GlobalMetricsTrackers trackers{nullptr, nullptr, nullptr, nullptr,
-                                   mock_sorter_ptr};
+    GlobalMetricsTrackers trackers{nullptr, nullptr, nullptr,
+                                   nullptr, nullptr, mock_sorter_ptr};
     auto reporter = std::make_unique<CompositorFrameReporter>(
         ActiveTrackers(), args,
         /*should_report_metrics=*/true, smooth_thread, scrolling_thread,
@@ -256,7 +253,6 @@ class CompositorFrameReporterTest : public testing::Test {
   FrameSorter frame_sorter_;
   std::unique_ptr<CompositorFrameReporter> pipeline_reporter_;
 
-  base::TimeTicks scroll_begin_generated_timestamp_;
   base::TimeTicks scroll_begin_arrival_timestamp_;
 
   // Number of breakdown stages of the current PipelineReporter

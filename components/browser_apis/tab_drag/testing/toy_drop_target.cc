@@ -16,8 +16,7 @@ ToyDropTarget::~ToyDropTarget() = default;
 
 void ToyDropTarget::OnDragEntered(
     const std::vector<tabs_api::NodeId>& source_tab_ids,
-    const gfx::Point& local_point,
-    float mouse_to_tab_x_ratio) {
+    const gfx::Point& local_point) {
   events_.push_back(
       {ReceivedEvent::Type::kEntered, source_tab_ids, local_point});
 }

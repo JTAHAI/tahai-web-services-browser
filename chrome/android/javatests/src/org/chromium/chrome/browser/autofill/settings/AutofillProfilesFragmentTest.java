@@ -29,14 +29,8 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
-import static org.mockito.Mockito.doNothing;
-import static org.mockito.Mockito.doReturn;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -87,17 +81,13 @@ import org.chromium.base.test.util.Feature;
 import org.chromium.base.test.util.Features.DisableFeatures;
 import org.chromium.base.test.util.Features.EnableFeatures;
 import org.chromium.base.test.util.HistogramWatcher;
-import org.chromium.base.test.util.Restriction;
 import org.chromium.base.test.util.UserActionTester;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.R;
-import org.chromium.chrome.browser.ChromeBaseAppCompatActivity;
 import org.chromium.chrome.browser.autofill.AndroidAutofillAvailabilityStatus;
 import org.chromium.chrome.browser.autofill.AutofillClientProviderUtils;
 import org.chromium.chrome.browser.autofill.AutofillTestHelper;
 import org.chromium.chrome.browser.autofill.GoogleWalletLauncher;
-import org.chromium.chrome.browser.autofill.PersonalDataManager;
-import org.chromium.chrome.browser.autofill.PersonalDataManagerFactory;
 import org.chromium.chrome.browser.autofill.autofill_ai.EntityDataManager;
 import org.chromium.chrome.browser.autofill.autofill_ai.EntityDataManager.EntityDataManagerObserver;
 import org.chromium.chrome.browser.autofill.autofill_ai.EntityDataManagerFactory;
@@ -109,9 +99,8 @@ import org.chromium.chrome.browser.feedback.HelpAndFeedbackLauncher;
 import org.chromium.chrome.browser.feedback.HelpAndFeedbackLauncherFactory;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
-import org.chromium.chrome.browser.preferences.Pref;
-import org.chromium.chrome.browser.profiles.ProfileManager;
-import org.chromium.chrome.browser.settings.SettingsTestRule;
+import org.chromium.chrome.browser.settings.SettingsActivity;
+import org.chromium.chrome.browser.settings.SettingsActivityTestRule;
 import org.chromium.chrome.browser.signin.services.IdentityServicesProvider;
 import org.chromium.chrome.browser.sync.SyncServiceFactory;
 import org.chromium.chrome.browser.ui.messages.snackbar.SnackbarManager;
@@ -125,15 +114,12 @@ import org.chromium.components.autofill.autofill_ai.EntityType;
 import org.chromium.components.autofill.autofill_ai.utils.TestUtils;
 import org.chromium.components.browser_ui.settings.CardWithButtonPreference;
 import org.chromium.components.browser_ui.settings.ChromeSwitchPreference;
-import org.chromium.components.browser_ui.settings.search.SettingsIndexData;
 import org.chromium.components.signin.base.AccountInfo;
 import org.chromium.components.signin.identitymanager.IdentityManager;
 import org.chromium.components.signin.test.util.TestAccounts;
 import org.chromium.components.sync.SyncService;
 import org.chromium.components.sync.UserSelectableType;
-import org.chromium.components.user_prefs.UserPrefs;
 import org.chromium.ui.KeyboardVisibilityDelegate;
-import org.chromium.ui.base.DeviceFormFactor;
 import org.chromium.ui.modaldialog.ModalDialogManager;
 import org.chromium.ui.modaldialog.ModalDialogProperties;
 import org.chromium.ui.modelutil.PropertyModel;
@@ -150,7 +136,6 @@ import java.util.concurrent.TimeoutException;
 /** Unit test suite for AutofillProfilesFragment. */
 @RunWith(ChromeJUnit4ClassRunner.class)
 @EnableFeatures({ChromeFeatureList.AUTOFILL_AI_SHOW_DIALOG_IN_SETTINGS_WHEN_UPSTREAMING_FAILS})
-@DisableFeatures({ChromeFeatureList.EMAIL_VERIFICATION_PROTOCOL})
 @CommandLineFlags.Add({ChromeSwitches.DISABLE_FIRST_RUN_EXPERIENCE})
 @Batch(Batch.PER_CLASS)
 public class AutofillProfilesFragmentTest {
@@ -222,8 +207,8 @@ public class AutofillProfilesFragmentTest {
     @Rule public final AutofillTestRule rule = new AutofillTestRule();
 
     @Rule
-    public final SettingsTestRule<AutofillProfilesFragment> mSettingsTestRule =
-            new SettingsTestRule<>(AutofillProfilesFragment.class);
+    public final SettingsActivityTestRule<AutofillProfilesFragment> mSettingsActivityTestRule =
+            new SettingsActivityTestRule<>(AutofillProfilesFragment.class);
 
     @Rule public MockitoRule mMockitoRule = MockitoJUnit.rule();
 
@@ -247,7 +232,7 @@ public class AutofillProfilesFragmentTest {
         ThreadUtils.runOnUiThreadBlocking(
                 () -> SyncServiceFactory.setInstanceForTesting(mSyncService));
         when(mSyncService.getSelectedTypes()).thenReturn(Collections.emptySet());
-        mSettingsTestRule.startSettingsActivity();
+        mSettingsActivityTestRule.startSettingsActivity();
         mHelper = new AutofillTestHelper();
         mHelper.setProfile(sLocalOrSyncProfile);
         mHelper.setProfile(
@@ -302,41 +287,9 @@ public class AutofillProfilesFragmentTest {
 
     @After
     public void tearDown() throws TimeoutException {
-        ThreadUtils.runOnUiThreadBlocking(
-                () -> {
-                    // Use ProfileManager instead of mSettingsTestRule.getFragment().getProfile()
-                    // because tests might have navigated to another fragment (e.g.
-                    // AutofillOptionsFragment), causing mSettingsTestRule.getFragment() to throw a
-                    // ClassCastException.
-                    assertTrue(ProfileManager.isInitialized());
-                    UserPrefs.get(ProfileManager.getLastUsedRegularProfile())
-                            .clearPref(Pref.AUTOFILL_EMAIL_VERIFICATION_ENABLED);
-                });
         mUserActionTester.tearDown();
         Intents.release();
         mHelper.clearAllDataForTesting();
-        IdentityServicesProvider.setIdentityManagerForTesting(null);
-        PersonalDataManagerFactory.setInstanceForTesting(null);
-    }
-
-    private PersonalDataManager setUpSpiedPersonalDataManager() {
-        PersonalDataManager realPdm =
-                ThreadUtils.runOnUiThreadBlocking(
-                        () ->
-                                PersonalDataManagerFactory.getForProfile(
-                                        mSettingsTestRule.getFragment().getProfile()));
-        PersonalDataManager spyPdm = spy(realPdm);
-        PersonalDataManagerFactory.setInstanceForTesting(spyPdm);
-        return spyPdm;
-    }
-
-    private void clickPreference(String key) {
-        ThreadUtils.runOnUiThreadBlocking(
-                () -> {
-                    Preference pref = mSettingsTestRule.getFragment().findPreference(key);
-                    assertNotNull("Preference not found: " + key, pref);
-                    pref.performClick();
-                });
     }
 
     @Test
@@ -344,7 +297,7 @@ public class AutofillProfilesFragmentTest {
     @Feature({"Preferences"})
     @DisableFeatures(ChromeFeatureList.AUTOFILL_AI_WITH_DATA_SCHEMA)
     public void testAddProfile() throws Exception {
-        AutofillProfilesFragment autofillProfileFragment = mSettingsTestRule.getFragment();
+        AutofillProfilesFragment autofillProfileFragment = mSettingsActivityTestRule.getFragment();
 
         // Check the preferences on the initial screen.
         checkPreferenceCount(6 /* One toggle + one add button + four profiles. */);
@@ -392,7 +345,7 @@ public class AutofillProfilesFragmentTest {
             AutofillProfile profile, @LayoutRes int expectedWidgetLayout, String expectedUrl)
             throws Exception {
         mHelper.setProfile(profile);
-        AutofillProfilesFragment fragment = mSettingsTestRule.getFragment();
+        AutofillProfilesFragment fragment = mSettingsActivityTestRule.getFragment();
 
         AutofillProfileEditorPreference profilePreference =
                 fragment.findPreference(profile.getInfo(FieldType.NAME_FULL));
@@ -450,7 +403,7 @@ public class AutofillProfilesFragmentTest {
     @Feature({"Preferences"})
     @DisableFeatures(ChromeFeatureList.AUTOFILL_AI_WITH_DATA_SCHEMA)
     public void testAddIncompletedProfile() throws Exception {
-        AutofillProfilesFragment autofillProfileFragment = mSettingsTestRule.getFragment();
+        AutofillProfilesFragment autofillProfileFragment = mSettingsActivityTestRule.getFragment();
 
         // Check the preferences on the initial screen.
         checkPreferenceCount(6 /* One toggle + one add button + four profiles. */);
@@ -476,7 +429,7 @@ public class AutofillProfilesFragmentTest {
     @Feature({"Preferences"})
     @DisableFeatures(ChromeFeatureList.AUTOFILL_AI_WITH_DATA_SCHEMA)
     public void testAddProfileWithInvalidPhone() throws Exception {
-        AutofillProfilesFragment autofillProfileFragment = mSettingsTestRule.getFragment();
+        AutofillProfilesFragment autofillProfileFragment = mSettingsActivityTestRule.getFragment();
 
         // Check the preferences on the initial screen.
         checkPreferenceCount(6 /* One toggle + one add button + four profiles. */);
@@ -505,7 +458,7 @@ public class AutofillProfilesFragmentTest {
     private void testDeleteProfile(
             String profileNameToDelete, int initialCount, String expectedConfirmationMessage)
             throws Exception {
-        AutofillProfilesFragment autofillProfileFragment = mSettingsTestRule.getFragment();
+        AutofillProfilesFragment autofillProfileFragment = mSettingsActivityTestRule.getFragment();
 
         // Check the preferences on the initial screen.
         checkPreferenceCount(initialCount);
@@ -579,7 +532,7 @@ public class AutofillProfilesFragmentTest {
     @Feature({"Preferences"})
     @DisableFeatures(ChromeFeatureList.AUTOFILL_AI_WITH_DATA_SCHEMA)
     public void testDeleteLocalProfile() throws Exception {
-        Context context = mSettingsTestRule.getFragment().getContext();
+        Context context = mSettingsActivityTestRule.getFragment().getContext();
         setUpMockSyncService(new HashSet<>());
         testDeleteProfile(
                 "Seb Doe",
@@ -592,7 +545,7 @@ public class AutofillProfilesFragmentTest {
     @Feature({"Preferences"})
     @DisableFeatures(ChromeFeatureList.AUTOFILL_AI_WITH_DATA_SCHEMA)
     public void testDeleteSyncableProfile() throws Exception {
-        Context context = mSettingsTestRule.getFragment().getContext();
+        Context context = mSettingsActivityTestRule.getFragment().getContext();
         setUpMockSyncService(Collections.singleton(UserSelectableType.AUTOFILL));
         testDeleteProfile(
                 "Seb Doe",
@@ -608,7 +561,7 @@ public class AutofillProfilesFragmentTest {
         // Setup specific to this test case.
         setUpMockPrimaryAccount(TestAccounts.ACCOUNT1);
         mHelper.setProfile(sAccountProfile);
-        Context context = mSettingsTestRule.getFragment().getContext();
+        Context context = mSettingsActivityTestRule.getFragment().getContext();
 
         // Prepare the expected confirmation message with the account email.
         String expectedMessage =
@@ -624,7 +577,7 @@ public class AutofillProfilesFragmentTest {
     @Feature({"Preferences"})
     @DisableFeatures(ChromeFeatureList.AUTOFILL_AI_WITH_DATA_SCHEMA)
     public void testEditProfile() throws Exception {
-        AutofillProfilesFragment autofillProfileFragment = mSettingsTestRule.getFragment();
+        AutofillProfilesFragment autofillProfileFragment = mSettingsActivityTestRule.getFragment();
 
         // Check the preferences on the initial screen.
         checkPreferenceCount(6 /* One toggle + one add button + four profiles. */);
@@ -688,7 +641,7 @@ public class AutofillProfilesFragmentTest {
                         .setLanguageCode("en-US")
                         .build());
 
-        AutofillProfilesFragment autofillProfileFragment = mSettingsTestRule.getFragment();
+        AutofillProfilesFragment autofillProfileFragment = mSettingsActivityTestRule.getFragment();
         Context context = autofillProfileFragment.getContext();
 
         // Check the preferences on the initial screen.
@@ -765,7 +718,7 @@ public class AutofillProfilesFragmentTest {
                         .setLanguageCode("en-US")
                         .build());
 
-        AutofillProfilesFragment autofillProfileFragment = mSettingsTestRule.getFragment();
+        AutofillProfilesFragment autofillProfileFragment = mSettingsActivityTestRule.getFragment();
 
         // Check the preferences on the initial screen.
         checkPreferenceCount(7 /* One toggle + one add button + 5 profiles. */);
@@ -807,7 +760,8 @@ public class AutofillProfilesFragmentTest {
 
         // Open the profile.
         ThreadUtils.runOnUiThreadBlocking(bobProfile::performClick);
-        rule.setEditorDialogAndWait(mSettingsTestRule.getFragment().getEditorDialogForTest());
+        rule.setEditorDialogAndWait(
+                mSettingsActivityTestRule.getFragment().getEditorDialogForTest());
         rule.clickInEditorAndWait(
                 R.id.editor_dialog_done_button, /* waitForPreferenceUpdate= */ true);
 
@@ -827,7 +781,8 @@ public class AutofillProfilesFragmentTest {
 
         // Open the profile.
         ThreadUtils.runOnUiThreadBlocking(billProfile::performClick);
-        rule.setEditorDialogAndWait(mSettingsTestRule.getFragment().getEditorDialogForTest());
+        rule.setEditorDialogAndWait(
+                mSettingsActivityTestRule.getFragment().getEditorDialogForTest());
         rule.clickInEditorAndWait(
                 R.id.editor_dialog_done_button, /* waitForPreferenceUpdate= */ true);
 
@@ -840,7 +795,7 @@ public class AutofillProfilesFragmentTest {
     @Feature({"Preferences"})
     @DisabledTest(message = "https://crbug.com/381982174")
     public void testKeyboardShownOnDpadCenter() throws TimeoutException {
-        AutofillProfilesFragment fragment = mSettingsTestRule.getFragment();
+        AutofillProfilesFragment fragment = mSettingsActivityTestRule.getFragment();
         AutofillProfileEditorPreference addProfile =
                 fragment.findPreference(AutofillProfilesFragment.PREF_NEW_PROFILE);
         assertNotNull(addProfile);
@@ -849,7 +804,7 @@ public class AutofillProfilesFragmentTest {
         ThreadUtils.runOnUiThreadBlocking(addProfile::performClick);
         rule.setEditorDialogAndWait(fragment.getEditorDialogForTest());
         // The keyboard is shown as soon as AutofillProfileEditorPreference comes into view.
-        waitForKeyboardStatus(true, mSettingsTestRule.getActivity());
+        waitForKeyboardStatus(true, mSettingsActivityTestRule.getActivity());
 
         final List<EditText> fields =
                 fragment.getEditorDialogForTest().getEditableTextFieldsForTest();
@@ -864,7 +819,7 @@ public class AutofillProfilesFragmentTest {
                     KeyboardVisibilityDelegate.getInstance().hideKeyboard(fields.get(0));
                 });
         // Check that the keyboard is hidden.
-        waitForKeyboardStatus(false, mSettingsTestRule.getActivity());
+        waitForKeyboardStatus(false, mSettingsActivityTestRule.getActivity());
 
         // Send a d-pad key event to one of the text fields
         try {
@@ -873,7 +828,7 @@ public class AutofillProfilesFragmentTest {
             ex.printStackTrace();
         }
         // Check that the keyboard was shown.
-        waitForKeyboardStatus(true, mSettingsTestRule.getActivity());
+        waitForKeyboardStatus(true, mSettingsActivityTestRule.getActivity());
 
         // Close the dialog.
         rule.clickInEditorAndWait(
@@ -956,7 +911,7 @@ public class AutofillProfilesFragmentTest {
                             AndroidAutofillAvailabilityStatus.AVAILABLE);
                 });
 
-        AutofillProfilesFragment autofillProfileFragment = mSettingsTestRule.getFragment();
+        AutofillProfilesFragment autofillProfileFragment = mSettingsActivityTestRule.getFragment();
 
         // Trigger address profile list rebuild.
         mHelper.setProfile(sAccountProfile);
@@ -989,7 +944,7 @@ public class AutofillProfilesFragmentTest {
                     AutofillClientProviderUtils.setAutofillAvailabilityToUseForTesting(
                             AndroidAutofillAvailabilityStatus.AVAILABLE);
                 });
-        AutofillProfilesFragment autofillProfileFragment = mSettingsTestRule.getFragment();
+        AutofillProfilesFragment autofillProfileFragment = mSettingsActivityTestRule.getFragment();
 
         // Trigger address profile list rebuild.
         mHelper.setProfile(sAccountProfile);
@@ -1007,7 +962,7 @@ public class AutofillProfilesFragmentTest {
                     AutofillClientProviderUtils.setAutofillAvailabilityToUseForTesting(
                             AndroidAutofillAvailabilityStatus.AVAILABLE);
                 });
-        AutofillProfilesFragment autofillProfileFragment = mSettingsTestRule.getFragment();
+        AutofillProfilesFragment autofillProfileFragment = mSettingsActivityTestRule.getFragment();
         Context context = autofillProfileFragment.getContext();
 
         // Trigger address profile list rebuild.
@@ -1034,7 +989,7 @@ public class AutofillProfilesFragmentTest {
 
         ThreadUtils.runOnUiThreadBlocking(
                 () -> {
-                    mSettingsTestRule.getActivity().onBackPressed();
+                    mSettingsActivityTestRule.getActivity().onBackPressed();
                 });
     }
 
@@ -1048,7 +1003,7 @@ public class AutofillProfilesFragmentTest {
                     AutofillClientProviderUtils.setAutofillAvailabilityToUseForTesting(
                             AndroidAutofillAvailabilityStatus.AVAILABLE);
                 });
-        AutofillProfilesFragment autofillProfileFragment = mSettingsTestRule.getFragment();
+        AutofillProfilesFragment autofillProfileFragment = mSettingsActivityTestRule.getFragment();
         Context context = autofillProfileFragment.getContext();
 
         // Trigger address profile list rebuild.
@@ -1075,7 +1030,7 @@ public class AutofillProfilesFragmentTest {
 
         ThreadUtils.runOnUiThreadBlocking(
                 () -> {
-                    mSettingsTestRule.getActivity().onBackPressed();
+                    mSettingsActivityTestRule.getActivity().onBackPressed();
                 });
     }
 
@@ -1091,7 +1046,7 @@ public class AutofillProfilesFragmentTest {
                 });
         when(mEntityDataManager.isWalletPublicPassStorageEnabled()).thenReturn(false);
 
-        AutofillProfilesFragment autofillProfileFragment = mSettingsTestRule.getFragment();
+        AutofillProfilesFragment autofillProfileFragment = mSettingsActivityTestRule.getFragment();
 
         // Trigger address profile list rebuild.
         ThreadUtils.runOnUiThreadBlocking(autofillProfileFragment::onPersonalDataChanged);
@@ -1114,7 +1069,7 @@ public class AutofillProfilesFragmentTest {
                 });
         when(mEntityDataManager.isWalletPublicPassStorageEnabled()).thenReturn(true);
 
-        AutofillProfilesFragment autofillProfileFragment = mSettingsTestRule.getFragment();
+        AutofillProfilesFragment autofillProfileFragment = mSettingsActivityTestRule.getFragment();
 
         // Trigger address profile list rebuild.
         ThreadUtils.runOnUiThreadBlocking(autofillProfileFragment::onPersonalDataChanged);
@@ -1136,7 +1091,7 @@ public class AutofillProfilesFragmentTest {
                 });
         when(mEntityDataManager.isWalletPublicPassStorageEnabled()).thenReturn(false);
 
-        AutofillProfilesFragment autofillProfileFragment = mSettingsTestRule.getFragment();
+        AutofillProfilesFragment autofillProfileFragment = mSettingsActivityTestRule.getFragment();
 
         // Trigger address profile list rebuild.
         ThreadUtils.runOnUiThreadBlocking(autofillProfileFragment::onPersonalDataChanged);
@@ -1161,7 +1116,7 @@ public class AutofillProfilesFragmentTest {
                 });
         when(mEntityDataManager.isWalletPublicPassStorageEnabled()).thenReturn(false);
 
-        AutofillProfilesFragment autofillProfileFragment = mSettingsTestRule.getFragment();
+        AutofillProfilesFragment autofillProfileFragment = mSettingsActivityTestRule.getFragment();
 
         // Trigger address profile list rebuild.
         ThreadUtils.runOnUiThreadBlocking(autofillProfileFragment::onPersonalDataChanged);
@@ -1186,11 +1141,11 @@ public class AutofillProfilesFragmentTest {
         when(mEntityDataManager.canListEntityInstancesInSettings()).thenReturn(false);
 
         ThreadUtils.runOnUiThreadBlocking(
-                () -> mSettingsTestRule.getFragment().onPersonalDataChanged());
+                () -> mSettingsActivityTestRule.getFragment().onPersonalDataChanged());
 
         CriteriaHelper.pollUiThread(
                 () -> {
-                    AutofillProfilesFragment fragment = mSettingsTestRule.getFragment();
+                    AutofillProfilesFragment fragment = mSettingsActivityTestRule.getFragment();
                     Preference category = fragment.findPreference("Vehicle");
                     Criteria.checkThat(
                             "Vehicle category should NOT exist", category, Matchers.nullValue());
@@ -1223,11 +1178,11 @@ public class AutofillProfilesFragmentTest {
 
         // Trigger a rebuild of the profile list to pick up the new mock entities.
         ThreadUtils.runOnUiThreadBlocking(
-                () -> mSettingsTestRule.getFragment().onPersonalDataChanged());
+                () -> mSettingsActivityTestRule.getFragment().onPersonalDataChanged());
 
         CriteriaHelper.pollUiThread(
                 () -> {
-                    AutofillProfilesFragment fragment = mSettingsTestRule.getFragment();
+                    AutofillProfilesFragment fragment = mSettingsActivityTestRule.getFragment();
                     Preference vehicleCategory = fragment.findPreference("Vehicle");
                     Criteria.checkThat(
                             "Vehicle entity category should exist",
@@ -1316,11 +1271,11 @@ public class AutofillProfilesFragmentTest {
         EntityDataManagerFactory.setInstanceForTesting(mEntityDataManager);
 
         ThreadUtils.runOnUiThreadBlocking(
-                () -> mSettingsTestRule.getFragment().onPersonalDataChanged());
+                () -> mSettingsActivityTestRule.getFragment().onPersonalDataChanged());
 
         CriteriaHelper.pollUiThread(
                 () -> {
-                    AutofillProfilesFragment fragment = mSettingsTestRule.getFragment();
+                    AutofillProfilesFragment fragment = mSettingsActivityTestRule.getFragment();
                     Preference category =
                             fragment.findPreference(disabledType.getTypeNameAsString());
                     Criteria.checkThat(
@@ -1351,11 +1306,11 @@ public class AutofillProfilesFragmentTest {
         EntityDataManagerFactory.setInstanceForTesting(mEntityDataManager);
 
         ThreadUtils.runOnUiThreadBlocking(
-                () -> mSettingsTestRule.getFragment().onPersonalDataChanged());
+                () -> mSettingsActivityTestRule.getFragment().onPersonalDataChanged());
 
         CriteriaHelper.pollUiThread(
                 () -> {
-                    AutofillProfilesFragment fragment = mSettingsTestRule.getFragment();
+                    AutofillProfilesFragment fragment = mSettingsActivityTestRule.getFragment();
                     Preference category =
                             fragment.findPreference(readOnlyType.getTypeNameAsString());
                     Criteria.checkThat(
@@ -1395,11 +1350,11 @@ public class AutofillProfilesFragmentTest {
         EntityDataManagerFactory.setInstanceForTesting(mEntityDataManager);
 
         ThreadUtils.runOnUiThreadBlocking(
-                () -> mSettingsTestRule.getFragment().onPersonalDataChanged());
+                () -> mSettingsActivityTestRule.getFragment().onPersonalDataChanged());
 
         CriteriaHelper.pollUiThread(
                 () -> {
-                    AutofillProfilesFragment fragment = mSettingsTestRule.getFragment();
+                    AutofillProfilesFragment fragment = mSettingsActivityTestRule.getFragment();
                     Preference category =
                             fragment.findPreference(disabledType.getTypeNameAsString());
                     Criteria.checkThat(
@@ -1431,13 +1386,15 @@ public class AutofillProfilesFragmentTest {
 
         // Trigger a rebuild of the profile list to pick up the new mock entities.
         ThreadUtils.runOnUiThreadBlocking(
-                () -> mSettingsTestRule.getFragment().onPersonalDataChanged());
+                () -> mSettingsActivityTestRule.getFragment().onPersonalDataChanged());
 
         Preference addVehicle =
                 ThreadUtils.runOnUiThreadBlocking(
                         () -> {
                             PreferenceCategory category =
-                                    mSettingsTestRule.getFragment().findPreference("Vehicle");
+                                    mSettingsActivityTestRule
+                                            .getFragment()
+                                            .findPreference("Vehicle");
                             return category.findPreference("Vehicle" + " Add");
                         });
         assertNotNull(addVehicle);
@@ -1485,13 +1442,15 @@ public class AutofillProfilesFragmentTest {
 
         // Trigger a rebuild of the profile list to pick up the new mock entities.
         ThreadUtils.runOnUiThreadBlocking(
-                () -> mSettingsTestRule.getFragment().onPersonalDataChanged());
+                () -> mSettingsActivityTestRule.getFragment().onPersonalDataChanged());
 
         Preference addVehicle =
                 ThreadUtils.runOnUiThreadBlocking(
                         () -> {
                             PreferenceCategory category =
-                                    mSettingsTestRule.getFragment().findPreference("Vehicle");
+                                    mSettingsActivityTestRule
+                                            .getFragment()
+                                            .findPreference("Vehicle");
                             return category.findPreference("Vehicle" + " Add");
                         });
         assertNotNull(addVehicle);
@@ -1515,7 +1474,7 @@ public class AutofillProfilesFragmentTest {
         ThreadUtils.runOnUiThreadBlocking(() -> localSaveFallbackCaptor.getValue().run());
 
         String snackbarMessage =
-                mSettingsTestRule
+                mSettingsActivityTestRule
                         .getActivity()
                         .getString(
                                 R.string
@@ -1547,13 +1506,15 @@ public class AutofillProfilesFragmentTest {
 
         // Trigger a rebuild of the profile list to pick up the new mock entities.
         ThreadUtils.runOnUiThreadBlocking(
-                () -> mSettingsTestRule.getFragment().onPersonalDataChanged());
+                () -> mSettingsActivityTestRule.getFragment().onPersonalDataChanged());
 
         Preference addVehicle =
                 ThreadUtils.runOnUiThreadBlocking(
                         () -> {
                             PreferenceCategory category =
-                                    mSettingsTestRule.getFragment().findPreference("Vehicle");
+                                    mSettingsActivityTestRule
+                                            .getFragment()
+                                            .findPreference("Vehicle");
                             return category.findPreference("Vehicle" + " Add");
                         });
         assertNotNull(addVehicle);
@@ -1577,7 +1538,7 @@ public class AutofillProfilesFragmentTest {
         ThreadUtils.runOnUiThreadBlocking(() -> localSaveFallbackCaptor.getValue().run());
 
         String snackbarMessage =
-                mSettingsTestRule
+                mSettingsActivityTestRule
                         .getActivity()
                         .getString(
                                 R.string
@@ -1587,14 +1548,10 @@ public class AutofillProfilesFragmentTest {
 
     /** Wait for the snackbar to show on the main activity post deletion. */
     private void waitForSnackbar(String expectedSnackbarMessage) {
-        ChromeBaseAppCompatActivity activity = mSettingsTestRule.getActivity();
+        SettingsActivity activity = mSettingsActivityTestRule.getActivity();
         CriteriaHelper.pollUiThread(
                 () -> {
-                    // Cast is needed because ChromeBaseAppCompatActivity does not implement
-                    // SnackbarManageable, though both the underlying SettingsActivity (for phone)
-                    // and SettingsInTabTestActivity (for tablets/laptops) do.
-                    SnackbarManager snackbarManager =
-                            ((SnackbarManager.SnackbarManageable) activity).getSnackbarManager();
+                    SnackbarManager snackbarManager = activity.getSnackbarManager();
                     Criteria.checkThat(snackbarManager.isShowing(), Matchers.is(true));
                     TextView snackbarMessage = activity.findViewById(R.id.snackbar_message);
                     Criteria.checkThat(snackbarMessage, Matchers.notNullValue());
@@ -1630,11 +1587,11 @@ public class AutofillProfilesFragmentTest {
 
         // Trigger a rebuild of the profile list to pick up the new mock entities.
         ThreadUtils.runOnUiThreadBlocking(
-                () -> mSettingsTestRule.getFragment().onPersonalDataChanged());
+                () -> mSettingsActivityTestRule.getFragment().onPersonalDataChanged());
 
         Preference vehicleEntity =
                 ThreadUtils.runOnUiThreadBlocking(
-                        () -> mSettingsTestRule.getFragment().findPreference("guid1"));
+                        () -> mSettingsActivityTestRule.getFragment().findPreference("guid1"));
         assertNotNull(vehicleEntity);
         ThreadUtils.runOnUiThreadBlocking(vehicleEntity::performClick);
 
@@ -1665,13 +1622,15 @@ public class AutofillProfilesFragmentTest {
 
         // Trigger a rebuild of the profile list to pick up the new mock entities.
         ThreadUtils.runOnUiThreadBlocking(
-                () -> mSettingsTestRule.getFragment().onPersonalDataChanged());
+                () -> mSettingsActivityTestRule.getFragment().onPersonalDataChanged());
 
         Preference addVehicle =
                 ThreadUtils.runOnUiThreadBlocking(
                         () -> {
                             PreferenceCategory category =
-                                    mSettingsTestRule.getFragment().findPreference("Vehicle");
+                                    mSettingsActivityTestRule
+                                            .getFragment()
+                                            .findPreference("Vehicle");
                             return category.findPreference("Vehicle" + " Add");
                         });
         assertNotNull(addVehicle);
@@ -1681,7 +1640,7 @@ public class AutofillProfilesFragmentTest {
 
         onView(withText("Add Vehicle")).check(matches(isDisplayed()));
 
-        Context context = mSettingsTestRule.getFragment().getContext();
+        Context context = mSettingsActivityTestRule.getFragment().getContext();
         String expectedNoticeText =
                 context.getString(R.string.autofill_ai_save_or_update_local_entity_source_notice);
         onView(withText(expectedNoticeText)).check(matches(isDisplayed()));
@@ -1712,13 +1671,15 @@ public class AutofillProfilesFragmentTest {
 
         // Trigger a rebuild of the profile list to pick up the new mock entities.
         ThreadUtils.runOnUiThreadBlocking(
-                () -> mSettingsTestRule.getFragment().onPersonalDataChanged());
+                () -> mSettingsActivityTestRule.getFragment().onPersonalDataChanged());
 
         Preference addVehicle =
                 ThreadUtils.runOnUiThreadBlocking(
                         () -> {
                             PreferenceCategory category =
-                                    mSettingsTestRule.getFragment().findPreference("Vehicle");
+                                    mSettingsActivityTestRule
+                                            .getFragment()
+                                            .findPreference("Vehicle");
                             return category.findPreference("Vehicle" + " Add");
                         });
         assertNotNull(addVehicle);
@@ -1728,7 +1689,7 @@ public class AutofillProfilesFragmentTest {
 
         onView(withText("Add Vehicle")).check(matches(isDisplayed()));
 
-        Context context = mSettingsTestRule.getFragment().getContext();
+        Context context = mSettingsActivityTestRule.getFragment().getContext();
         String walletTitle = context.getString(R.string.autofill_google_wallet_title);
         String expectedNoticeText =
                 context.getString(
@@ -1769,11 +1730,11 @@ public class AutofillProfilesFragmentTest {
 
         // Trigger a rebuild of the profile list to pick up the new mock entities.
         ThreadUtils.runOnUiThreadBlocking(
-                () -> mSettingsTestRule.getFragment().onPersonalDataChanged());
+                () -> mSettingsActivityTestRule.getFragment().onPersonalDataChanged());
 
         Preference vehicleEntity =
                 ThreadUtils.runOnUiThreadBlocking(
-                        () -> mSettingsTestRule.getFragment().findPreference("guid1"));
+                        () -> mSettingsActivityTestRule.getFragment().findPreference("guid1"));
         assertNotNull(vehicleEntity);
 
         // Mock the intent that should be fired.
@@ -1814,11 +1775,11 @@ public class AutofillProfilesFragmentTest {
 
         // Trigger a rebuild of the profile list to pick up the new mock entities.
         ThreadUtils.runOnUiThreadBlocking(
-                () -> mSettingsTestRule.getFragment().onPersonalDataChanged());
+                () -> mSettingsActivityTestRule.getFragment().onPersonalDataChanged());
 
         Preference vehicleEntity =
                 ThreadUtils.runOnUiThreadBlocking(
-                        () -> mSettingsTestRule.getFragment().findPreference("guid1"));
+                        () -> mSettingsActivityTestRule.getFragment().findPreference("guid1"));
         assertNotNull(vehicleEntity);
 
         // Mock the intent that should be fired.
@@ -1859,11 +1820,11 @@ public class AutofillProfilesFragmentTest {
 
         // Trigger a rebuild of the profile list to pick up the new mock entities.
         ThreadUtils.runOnUiThreadBlocking(
-                () -> mSettingsTestRule.getFragment().onPersonalDataChanged());
+                () -> mSettingsActivityTestRule.getFragment().onPersonalDataChanged());
 
         Preference passportEntity =
                 ThreadUtils.runOnUiThreadBlocking(
-                        () -> mSettingsTestRule.getFragment().findPreference("guid1"));
+                        () -> mSettingsActivityTestRule.getFragment().findPreference("guid1"));
         assertNotNull(passportEntity);
 
         // Mock the intent that should be fired.
@@ -1901,11 +1862,11 @@ public class AutofillProfilesFragmentTest {
 
         // Trigger a rebuild of the profile list to pick up the new mock entities.
         ThreadUtils.runOnUiThreadBlocking(
-                () -> mSettingsTestRule.getFragment().onPersonalDataChanged());
+                () -> mSettingsActivityTestRule.getFragment().onPersonalDataChanged());
 
         Preference passportEntity =
                 ThreadUtils.runOnUiThreadBlocking(
-                        () -> mSettingsTestRule.getFragment().findPreference("guid1"));
+                        () -> mSettingsActivityTestRule.getFragment().findPreference("guid1"));
         assertNotNull(passportEntity);
 
         // Mock the intent that should be fired.
@@ -1948,7 +1909,7 @@ public class AutofillProfilesFragmentTest {
         CriteriaHelper.pollUiThread(
                 () -> {
                     Preference vehicleEntity =
-                            mSettingsTestRule.getFragment().findPreference("guid1");
+                            mSettingsActivityTestRule.getFragment().findPreference("guid1");
                     Criteria.checkThat(
                             "Vehicle entity should exist", vehicleEntity, Matchers.notNullValue());
                 });
@@ -1964,7 +1925,7 @@ public class AutofillProfilesFragmentTest {
         CriteriaHelper.pollUiThread(
                 () -> {
                     Preference vehicleEntity =
-                            mSettingsTestRule.getFragment().findPreference("guid1");
+                            mSettingsActivityTestRule.getFragment().findPreference("guid1");
                     Criteria.checkThat(
                             "Vehicle entity should no longer exist",
                             vehicleEntity,
@@ -1976,11 +1937,11 @@ public class AutofillProfilesFragmentTest {
     @MediumTest
     @EnableFeatures(ChromeFeatureList.AUTOFILL_AI_WITH_DATA_SCHEMA)
     public void testAddressSectionTitle_featureEnabled_showsTitle() throws Exception {
-        AutofillProfilesFragment fragment = mSettingsTestRule.getFragment();
+        AutofillProfilesFragment fragment = mSettingsActivityTestRule.getFragment();
         Preference category = fragment.findPreference("autofill_section_title");
         assertNotNull(category);
         assertEquals(
-                mSettingsTestRule
+                mSettingsActivityTestRule
                         .getActivity()
                         .getString(R.string.autofill_addresses_section_title),
                 category.getTitle());
@@ -1990,7 +1951,7 @@ public class AutofillProfilesFragmentTest {
     @MediumTest
     @DisableFeatures(ChromeFeatureList.AUTOFILL_AI_WITH_DATA_SCHEMA)
     public void testAddressSectionTitle_featureDisabled_noTitle() throws Exception {
-        AutofillProfilesFragment fragment = mSettingsTestRule.getFragment();
+        AutofillProfilesFragment fragment = mSettingsActivityTestRule.getFragment();
         Preference category = fragment.findPreference("autofill_section_title");
         assertNull(category);
     }
@@ -1999,10 +1960,10 @@ public class AutofillProfilesFragmentTest {
     @MediumTest
     @DisableFeatures({ChromeFeatureList.YOUR_SAVED_INFO_SETTINGS_PAGE_ANDROID})
     public void testTitle_HoTDisabled_showsAddresses() throws Exception {
-        AutofillProfilesFragment fragment = mSettingsTestRule.getFragment();
+        AutofillProfilesFragment fragment = mSettingsActivityTestRule.getFragment();
         assertThat(fragment.getPageTitle().get())
                 .isEqualTo(
-                        mSettingsTestRule
+                        mSettingsActivityTestRule
                                 .getActivity()
                                 .getString(R.string.autofill_addresses_settings_title));
     }
@@ -2011,10 +1972,10 @@ public class AutofillProfilesFragmentTest {
     @MediumTest
     @EnableFeatures({ChromeFeatureList.YOUR_SAVED_INFO_SETTINGS_PAGE_ANDROID})
     public void testTitle_HoTEnabled_showsContactInfo() throws Exception {
-        AutofillProfilesFragment fragment = mSettingsTestRule.getFragment();
+        AutofillProfilesFragment fragment = mSettingsActivityTestRule.getFragment();
         assertThat(fragment.getPageTitle().get())
                 .isEqualTo(
-                        mSettingsTestRule
+                        mSettingsActivityTestRule
                                 .getActivity()
                                 .getString(R.string.autofill_contact_info_title));
     }
@@ -2045,11 +2006,11 @@ public class AutofillProfilesFragmentTest {
 
         // Trigger a rebuild of the profile list.
         ThreadUtils.runOnUiThreadBlocking(
-                () -> mSettingsTestRule.getFragment().onPersonalDataChanged());
+                () -> mSettingsActivityTestRule.getFragment().onPersonalDataChanged());
 
         Preference vehicleEntity =
                 ThreadUtils.runOnUiThreadBlocking(
-                        () -> mSettingsTestRule.getFragment().findPreference("guid1"));
+                        () -> mSettingsActivityTestRule.getFragment().findPreference("guid1"));
 
         // Click entity and capture reauth callback.
         ThreadUtils.runOnUiThreadBlocking(vehicleEntity::performClick);
@@ -2088,11 +2049,11 @@ public class AutofillProfilesFragmentTest {
 
         // Trigger a rebuild of the profile list.
         ThreadUtils.runOnUiThreadBlocking(
-                () -> mSettingsTestRule.getFragment().onPersonalDataChanged());
+                () -> mSettingsActivityTestRule.getFragment().onPersonalDataChanged());
 
         Preference vehicleEntity =
                 ThreadUtils.runOnUiThreadBlocking(
-                        () -> mSettingsTestRule.getFragment().findPreference("guid1"));
+                        () -> mSettingsActivityTestRule.getFragment().findPreference("guid1"));
 
         // Click entity and capture reauth callback.
         ThreadUtils.runOnUiThreadBlocking(vehicleEntity::performClick);
@@ -2129,11 +2090,11 @@ public class AutofillProfilesFragmentTest {
                 });
 
         ThreadUtils.runOnUiThreadBlocking(
-                () -> mSettingsTestRule.getFragment().onPersonalDataChanged());
+                () -> mSettingsActivityTestRule.getFragment().onPersonalDataChanged());
 
         CriteriaHelper.pollUiThread(
                 () -> {
-                    AutofillProfilesFragment fragment = mSettingsTestRule.getFragment();
+                    AutofillProfilesFragment fragment = mSettingsActivityTestRule.getFragment();
                     PreferenceCategory category = fragment.findPreference("Vehicle");
                     Criteria.checkThat(category, Matchers.notNullValue());
                     Preference addVehicle = category.findPreference("Vehicle" + " Add");
@@ -2146,55 +2107,39 @@ public class AutofillProfilesFragmentTest {
     @MediumTest
     @Feature({"Preferences"})
     public void testOnOpenGoogleWallet_OpensWallet() {
-        // Use allOf(hasAction, hasData) because SettingsInTabTestActivity is also launched
-        // with an ACTION_VIEW intent. Matching on hasAction alone would match multiple intents.
-        intending(
-                        allOf(
-                                hasAction(Intent.ACTION_VIEW),
-                                hasData(GoogleWalletLauncher.GOOGLE_WALLET_PASSES_URL)))
+        intending(hasAction(Intent.ACTION_VIEW))
                 .respondWith(new Instrumentation.ActivityResult(Activity.RESULT_OK, null));
 
         ThreadUtils.runOnUiThreadBlocking(
                 () -> {
-                    mSettingsTestRule.getFragment().onOpenGoogleWalletForTesting(false);
+                    mSettingsActivityTestRule.getFragment().onOpenGoogleWalletForTesting(false);
                 });
 
-        intended(
-                allOf(
-                        hasAction(Intent.ACTION_VIEW),
-                        hasData(GoogleWalletLauncher.GOOGLE_WALLET_PASSES_URL)));
+        intended(hasAction(Intent.ACTION_VIEW));
+        intended(hasData(GoogleWalletLauncher.GOOGLE_WALLET_PASSES_URL));
     }
 
     @Test
     @MediumTest
     @Feature({"Preferences"})
     public void testOnOpenGoogleWallet_OpensHelpCenterForPrivateEntity() {
-        // Use allOf(hasAction, hasData) because SettingsInTabTestActivity is also launched
-        // with an ACTION_VIEW intent. Matching on hasAction alone would match multiple intents.
-        intending(
-                        allOf(
-                                hasAction(Intent.ACTION_VIEW),
-                                hasData(
-                                        GoogleWalletLauncher
-                                                .GOOGLE_WALLET_PRIVATE_PASSES_HELP_CENTER)))
+        intending(hasAction(Intent.ACTION_VIEW))
                 .respondWith(new Instrumentation.ActivityResult(Activity.RESULT_OK, null));
 
         ThreadUtils.runOnUiThreadBlocking(
                 () -> {
-                    mSettingsTestRule.getFragment().onOpenGoogleWalletForTesting(true);
+                    mSettingsActivityTestRule.getFragment().onOpenGoogleWalletForTesting(true);
                 });
 
-        intended(
-                allOf(
-                        hasAction(Intent.ACTION_VIEW),
-                        hasData(GoogleWalletLauncher.GOOGLE_WALLET_PRIVATE_PASSES_HELP_CENTER)));
+        intended(hasAction(Intent.ACTION_VIEW));
+        intended(hasData(GoogleWalletLauncher.GOOGLE_WALLET_PRIVATE_PASSES_HELP_CENTER));
     }
 
     private void checkPreferenceCount(int expectedPreferenceCount) {
         int preferenceCount =
                 ThreadUtils.runOnUiThreadBlocking(
                         () ->
-                                mSettingsTestRule
+                                mSettingsActivityTestRule
                                         .getFragment()
                                         .getPreferenceScreen()
                                         .getPreferenceCount());
@@ -2204,10 +2149,11 @@ public class AutofillProfilesFragmentTest {
     @Nullable
     private AutofillProfileEditorPreference findPreference(String title) {
         return ThreadUtils.runOnUiThreadBlocking(
-                () -> mSettingsTestRule.getFragment().findPreference(title));
+                () -> mSettingsActivityTestRule.getFragment().findPreference(title));
     }
 
-    private void waitForKeyboardStatus(final boolean keyboardVisible, final Activity activity) {
+    private void waitForKeyboardStatus(
+            final boolean keyboardVisible, final SettingsActivity activity) {
         CriteriaHelper.pollUiThread(
                 () -> {
                     // TODO(crbug.com/521895796): Figure out if this should be android.R.id.content
@@ -2268,11 +2214,11 @@ public class AutofillProfilesFragmentTest {
         EntityDataManagerFactory.setInstanceForTesting(mEntityDataManager);
 
         ThreadUtils.runOnUiThreadBlocking(
-                () -> mSettingsTestRule.getFragment().onPersonalDataChanged());
+                () -> mSettingsActivityTestRule.getFragment().onPersonalDataChanged());
 
         CriteriaHelper.pollUiThread(
                 () -> {
-                    AutofillProfilesFragment fragment = mSettingsTestRule.getFragment();
+                    AutofillProfilesFragment fragment = mSettingsActivityTestRule.getFragment();
                     PreferenceCategory category = fragment.findPreference("Vehicle");
                     Criteria.checkThat(category, Matchers.notNullValue());
                     Preference addVehicle = category.findPreference("Vehicle" + " Add");
@@ -2298,11 +2244,11 @@ public class AutofillProfilesFragmentTest {
         EntityDataManagerFactory.setInstanceForTesting(mEntityDataManager);
 
         ThreadUtils.runOnUiThreadBlocking(
-                () -> mSettingsTestRule.getFragment().onPersonalDataChanged());
+                () -> mSettingsActivityTestRule.getFragment().onPersonalDataChanged());
 
         CriteriaHelper.pollUiThread(
                 () -> {
-                    AutofillProfilesFragment fragment = mSettingsTestRule.getFragment();
+                    AutofillProfilesFragment fragment = mSettingsActivityTestRule.getFragment();
                     PreferenceCategory category = fragment.findPreference("Vehicle");
                     Criteria.checkThat(category, Matchers.notNullValue());
                     Preference addVehicle = category.findPreference("Vehicle" + " Add");
@@ -2331,11 +2277,11 @@ public class AutofillProfilesFragmentTest {
         EntityDataManagerFactory.setInstanceForTesting(mEntityDataManager);
 
         ThreadUtils.runOnUiThreadBlocking(
-                () -> mSettingsTestRule.getFragment().onPersonalDataChanged());
+                () -> mSettingsActivityTestRule.getFragment().onPersonalDataChanged());
 
         CriteriaHelper.pollUiThread(
                 () -> {
-                    AutofillProfilesFragment fragment = mSettingsTestRule.getFragment();
+                    AutofillProfilesFragment fragment = mSettingsActivityTestRule.getFragment();
                     PreferenceCategory category = fragment.findPreference("Vehicle");
                     Criteria.checkThat(category, Matchers.notNullValue());
                     Preference addVehicle = category.findPreference("Vehicle" + " Add");
@@ -2364,11 +2310,11 @@ public class AutofillProfilesFragmentTest {
         EntityDataManagerFactory.setInstanceForTesting(mEntityDataManager);
 
         ThreadUtils.runOnUiThreadBlocking(
-                () -> mSettingsTestRule.getFragment().onPersonalDataChanged());
+                () -> mSettingsActivityTestRule.getFragment().onPersonalDataChanged());
 
         CriteriaHelper.pollUiThread(
                 () -> {
-                    AutofillProfilesFragment fragment = mSettingsTestRule.getFragment();
+                    AutofillProfilesFragment fragment = mSettingsActivityTestRule.getFragment();
                     PreferenceCategory category = fragment.findPreference("Vehicle");
                     Criteria.checkThat(category, Matchers.notNullValue());
                     Preference addVehicle = category.findPreference("Vehicle" + " Add");
@@ -2396,11 +2342,11 @@ public class AutofillProfilesFragmentTest {
         EntityDataManagerFactory.setInstanceForTesting(mEntityDataManager);
 
         ThreadUtils.runOnUiThreadBlocking(
-                () -> mSettingsTestRule.getFragment().onPersonalDataChanged());
+                () -> mSettingsActivityTestRule.getFragment().onPersonalDataChanged());
 
         CriteriaHelper.pollUiThread(
                 () -> {
-                    AutofillProfilesFragment fragment = mSettingsTestRule.getFragment();
+                    AutofillProfilesFragment fragment = mSettingsActivityTestRule.getFragment();
                     PreferenceCategory category = fragment.findPreference("Vehicle");
                     Criteria.checkThat(category, Matchers.notNullValue());
                     Preference addVehicle = category.findPreference("Vehicle" + " Add");
@@ -2425,13 +2371,13 @@ public class AutofillProfilesFragmentTest {
 
         // Trigger a rebuild of the profile list to pick up the mock entities.
         ThreadUtils.runOnUiThreadBlocking(
-                () -> mSettingsTestRule.getFragment().onPersonalDataChanged());
+                () -> mSettingsActivityTestRule.getFragment().onPersonalDataChanged());
 
         // Verify that the entity is NOT rendered.
         CriteriaHelper.pollUiThread(
                 () -> {
                     Preference vehicleEntity =
-                            mSettingsTestRule.getFragment().findPreference("guid1");
+                            mSettingsActivityTestRule.getFragment().findPreference("guid1");
                     Criteria.checkThat(
                             "Vehicle entity should NOT exist", vehicleEntity, Matchers.nullValue());
                 });
@@ -2440,7 +2386,7 @@ public class AutofillProfilesFragmentTest {
         ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     PreferenceCategory category =
-                            mSettingsTestRule.getFragment().findPreference("Vehicle");
+                            mSettingsActivityTestRule.getFragment().findPreference("Vehicle");
                     assertNull(category);
                 });
     }
@@ -2458,13 +2404,13 @@ public class AutofillProfilesFragmentTest {
         EntityDataManagerFactory.setInstanceForTesting(mEntityDataManager);
 
         ThreadUtils.runOnUiThreadBlocking(
-                () -> mSettingsTestRule.getFragment().onPersonalDataChanged());
+                () -> mSettingsActivityTestRule.getFragment().onPersonalDataChanged());
 
         // Verify that the card is NOT rendered.
         CriteriaHelper.pollUiThread(
                 () -> {
                     Preference card =
-                            mSettingsTestRule
+                            mSettingsActivityTestRule
                                     .getFragment()
                                     .findPreference(
                                             AutofillAiDelegate.DISABLED_WALLET_DATA_SHARING);
@@ -2477,557 +2423,14 @@ public class AutofillProfilesFragmentTest {
 
     @Test
     @SmallTest
-    @Restriction(DeviceFormFactor.PHONE) // Tablets and desktops don't have a help button or menu.
     public void testHelpMenuTriggersAutofillHelp() {
         onView(withId(R.id.menu_id_targeted_help)).perform(click());
 
         verify(mHelpAndFeedbackLauncher)
                 .show(
-                        mSettingsTestRule.getActivity(),
+                        mSettingsActivityTestRule.getActivity(),
                         ContextUtils.getApplicationContext()
                                 .getString(R.string.help_context_autofill),
                         /* url= */ null);
-    }
-
-    @Test
-    @EnableFeatures({ChromeFeatureList.EMAIL_VERIFICATION_PROTOCOL})
-    @MediumTest
-    public void testEmailVerificationToggle_InitialStateTrue() {
-        AutofillProfilesFragment fragment = mSettingsTestRule.getFragment();
-        ThreadUtils.runOnUiThreadBlocking(
-                () -> {
-                    UserPrefs.get(fragment.getProfile())
-                            .setBoolean(Pref.AUTOFILL_EMAIL_VERIFICATION_ENABLED, true);
-                    fragment.onPersonalDataChanged();
-                });
-        CriteriaHelper.pollUiThread(
-                () -> {
-                    ChromeSwitchPreference toggle =
-                            fragment.findPreference("autofill_email_verification_enabled");
-                    Criteria.checkThat(toggle, Matchers.notNullValue());
-                    Criteria.checkThat(toggle.isChecked(), Matchers.is(true));
-                });
-    }
-
-    @Test
-    @EnableFeatures({ChromeFeatureList.EMAIL_VERIFICATION_PROTOCOL})
-    @MediumTest
-    public void testEmailVerificationToggle_InitialStateFalse() {
-        AutofillProfilesFragment fragment = mSettingsTestRule.getFragment();
-        ThreadUtils.runOnUiThreadBlocking(
-                () -> {
-                    UserPrefs.get(fragment.getProfile())
-                            .setBoolean(Pref.AUTOFILL_EMAIL_VERIFICATION_ENABLED, false);
-                    fragment.onPersonalDataChanged();
-                });
-        CriteriaHelper.pollUiThread(
-                () -> {
-                    ChromeSwitchPreference toggle =
-                            fragment.findPreference("autofill_email_verification_enabled");
-                    Criteria.checkThat(toggle, Matchers.notNullValue());
-                    Criteria.checkThat(toggle.isChecked(), Matchers.is(false));
-                });
-    }
-
-    @Test
-    @EnableFeatures({ChromeFeatureList.EMAIL_VERIFICATION_PROTOCOL})
-    @MediumTest
-    public void testEmailVerificationToggle_ClickToDisable() {
-        AutofillProfilesFragment fragment = mSettingsTestRule.getFragment();
-        ThreadUtils.runOnUiThreadBlocking(
-                () -> {
-                    UserPrefs.get(fragment.getProfile())
-                            .setBoolean(Pref.AUTOFILL_EMAIL_VERIFICATION_ENABLED, true);
-                    fragment.onPersonalDataChanged();
-                });
-        CriteriaHelper.pollUiThread(
-                () -> {
-                    ChromeSwitchPreference toggle =
-                            fragment.findPreference("autofill_email_verification_enabled");
-                    Criteria.checkThat(toggle, Matchers.notNullValue());
-                    Criteria.checkThat(toggle.isChecked(), Matchers.is(true));
-                });
-
-        CriteriaHelper.pollUiThread(
-                () -> {
-                    ChromeSwitchPreference toggle =
-                            fragment.findPreference("autofill_email_verification_enabled");
-                    toggle.performClick();
-                });
-
-        CriteriaHelper.pollUiThread(
-                () -> {
-                    boolean enabled =
-                            UserPrefs.get(fragment.getProfile())
-                                    .getBoolean(Pref.AUTOFILL_EMAIL_VERIFICATION_ENABLED);
-                    Criteria.checkThat(enabled, Matchers.is(false));
-                });
-    }
-
-    @Test
-    @EnableFeatures({ChromeFeatureList.EMAIL_VERIFICATION_PROTOCOL})
-    @MediumTest
-    public void testEmailVerificationToggle_ClickToEnable() {
-        AutofillProfilesFragment fragment = mSettingsTestRule.getFragment();
-        ThreadUtils.runOnUiThreadBlocking(
-                () -> {
-                    UserPrefs.get(fragment.getProfile())
-                            .setBoolean(Pref.AUTOFILL_EMAIL_VERIFICATION_ENABLED, false);
-                    fragment.onPersonalDataChanged();
-                });
-        CriteriaHelper.pollUiThread(
-                () -> {
-                    ChromeSwitchPreference toggle =
-                            fragment.findPreference("autofill_email_verification_enabled");
-                    Criteria.checkThat(toggle, Matchers.notNullValue());
-                    Criteria.checkThat(toggle.isChecked(), Matchers.is(false));
-                });
-
-        CriteriaHelper.pollUiThread(
-                () -> {
-                    ChromeSwitchPreference toggle =
-                            fragment.findPreference("autofill_email_verification_enabled");
-                    toggle.performClick();
-                });
-
-        CriteriaHelper.pollUiThread(
-                () -> {
-                    boolean enabled =
-                            UserPrefs.get(fragment.getProfile())
-                                    .getBoolean(Pref.AUTOFILL_EMAIL_VERIFICATION_ENABLED);
-                    Criteria.checkThat(enabled, Matchers.is(true));
-                });
-    }
-
-    @Test
-    @EnableFeatures({ChromeFeatureList.EMAIL_VERIFICATION_PROTOCOL})
-    @MediumTest
-    public void testEmailVerificationToggle_Visibility() {
-        AutofillProfilesFragment fragment = mSettingsTestRule.getFragment();
-        CriteriaHelper.pollUiThread(
-                () -> {
-                    ChromeSwitchPreference toggle =
-                            fragment.findPreference("autofill_email_verification_enabled");
-                    Criteria.checkThat(toggle, Matchers.notNullValue());
-                    Criteria.checkThat(toggle.isVisible(), Matchers.is(true));
-                });
-    }
-
-    @Test
-    @EnableFeatures({ChromeFeatureList.EMAIL_VERIFICATION_PROTOCOL})
-    @MediumTest
-    public void testVerifiedEmailList_EmptyState() {
-        AutofillProfilesFragment fragment = mSettingsTestRule.getFragment();
-        PersonalDataManager pdm = setUpSpiedPersonalDataManager();
-        doReturn(List.of()).when(pdm).getEmailVerificationAddresses();
-
-        ThreadUtils.runOnUiThreadBlocking(() -> fragment.onPersonalDataChanged());
-
-        CriteriaHelper.pollUiThread(
-                () -> {
-                    PreferenceCategory category =
-                            fragment.findPreference(
-                                    AutofillProfilesFragment.PREF_EMAIL_VERIFICATION_LIST);
-                    Criteria.checkThat(category, Matchers.notNullValue());
-
-                    boolean isEmpty =
-                            category.getPreferenceCount() == 0
-                                    || (category.getPreferenceCount() == 1
-                                            && AutofillProfilesFragment
-                                                    .PREF_EMAIL_VERIFICATION_EMPTY
-                                                    .equals(category.getPreference(0).getKey()));
-                    Criteria.checkThat(isEmpty, Matchers.is(true));
-                });
-    }
-
-    @Test
-    @EnableFeatures({ChromeFeatureList.EMAIL_VERIFICATION_PROTOCOL})
-    @MediumTest
-    public void testVerifiedEmailList_SingleEmail() {
-        AutofillProfilesFragment fragment = mSettingsTestRule.getFragment();
-        PersonalDataManager pdm = setUpSpiedPersonalDataManager();
-        doReturn(List.of("test@example.com")).when(pdm).getEmailVerificationAddresses();
-        doReturn("example.com").when(pdm).getEmailVerificationIssuer("test@example.com");
-
-        ThreadUtils.runOnUiThreadBlocking(() -> fragment.onPersonalDataChanged());
-
-        CriteriaHelper.pollUiThread(
-                () -> {
-                    PreferenceCategory category =
-                            fragment.findPreference(
-                                    AutofillProfilesFragment.PREF_EMAIL_VERIFICATION_LIST);
-                    Criteria.checkThat(category, Matchers.notNullValue());
-                    Preference pref = category.findPreference("test@example.com");
-                    Criteria.checkThat(pref, Matchers.notNullValue());
-                    Criteria.checkThat(pref.getTitle().toString(), Matchers.is("test@example.com"));
-                    Criteria.checkThat(
-                            pref.getSummary().toString(), Matchers.containsString("example.com"));
-                });
-    }
-
-    @Test
-    @EnableFeatures({ChromeFeatureList.EMAIL_VERIFICATION_PROTOCOL})
-    @MediumTest
-    public void testVerifiedEmailList_MultipleEmails() {
-        AutofillProfilesFragment fragment = mSettingsTestRule.getFragment();
-        PersonalDataManager pdm = setUpSpiedPersonalDataManager();
-        doReturn(List.of("test@example.com", "other@gmail.com"))
-                .when(pdm)
-                .getEmailVerificationAddresses();
-        doReturn("example.com").when(pdm).getEmailVerificationIssuer("test@example.com");
-        doReturn("gmail.com").when(pdm).getEmailVerificationIssuer("other@gmail.com");
-
-        ThreadUtils.runOnUiThreadBlocking(() -> fragment.onPersonalDataChanged());
-
-        CriteriaHelper.pollUiThread(
-                () -> {
-                    PreferenceCategory category =
-                            fragment.findPreference(
-                                    AutofillProfilesFragment.PREF_EMAIL_VERIFICATION_LIST);
-                    Criteria.checkThat(category, Matchers.notNullValue());
-                    Preference pref1 = category.findPreference("test@example.com");
-                    Preference pref2 = category.findPreference("other@gmail.com");
-                    Criteria.checkThat(pref1, Matchers.notNullValue());
-                    Criteria.checkThat(pref2, Matchers.notNullValue());
-                    Criteria.checkThat(
-                            fragment.findPreference("autofill_email_verification_enabled"),
-                            Matchers.notNullValue());
-                    Criteria.checkThat(category.getPreferenceCount(), Matchers.is(2));
-                    Criteria.checkThat(
-                            category.getPreference(0).getKey(), Matchers.is("test@example.com"));
-                    Criteria.checkThat(
-                            category.getPreference(1).getKey(), Matchers.is("other@gmail.com"));
-                });
-    }
-
-    @Test
-    @EnableFeatures({ChromeFeatureList.EMAIL_VERIFICATION_PROTOCOL})
-    @MediumTest
-    public void testVerifiedEmailList_EmailTruncation() {
-        AutofillProfilesFragment fragment = mSettingsTestRule.getFragment();
-        PersonalDataManager pdm = setUpSpiedPersonalDataManager();
-        String longEmail = "a".repeat(90) + "@example.com";
-        doReturn(List.of(longEmail)).when(pdm).getEmailVerificationAddresses();
-        doReturn("example.com").when(pdm).getEmailVerificationIssuer(longEmail);
-
-        ThreadUtils.runOnUiThreadBlocking(() -> fragment.onPersonalDataChanged());
-
-        CriteriaHelper.pollUiThread(
-                () -> {
-                    PreferenceCategory category =
-                            fragment.findPreference(
-                                    AutofillProfilesFragment.PREF_EMAIL_VERIFICATION_LIST);
-                    Criteria.checkThat(category, Matchers.notNullValue());
-                    Preference pref = category.findPreference(longEmail);
-                    Criteria.checkThat(pref, Matchers.notNullValue());
-                });
-    }
-
-    @Test
-    @EnableFeatures({ChromeFeatureList.EMAIL_VERIFICATION_PROTOCOL})
-    @MediumTest
-    public void testVerifiedEmailList_IssuerVisibility() {
-        AutofillProfilesFragment fragment = mSettingsTestRule.getFragment();
-        PersonalDataManager pdm = setUpSpiedPersonalDataManager();
-        doReturn(List.of("test@example.com")).when(pdm).getEmailVerificationAddresses();
-        doReturn("example.com").when(pdm).getEmailVerificationIssuer("test@example.com");
-
-        ThreadUtils.runOnUiThreadBlocking(() -> fragment.onPersonalDataChanged());
-
-        CriteriaHelper.pollUiThread(
-                () -> {
-                    PreferenceCategory category =
-                            fragment.findPreference(
-                                    AutofillProfilesFragment.PREF_EMAIL_VERIFICATION_LIST);
-                    Criteria.checkThat(category, Matchers.notNullValue());
-                    Preference pref = category.findPreference("test@example.com");
-                    Criteria.checkThat(pref, Matchers.notNullValue());
-                    Criteria.checkThat(
-                            pref.getSummary().toString(), Matchers.containsString("example.com"));
-                });
-    }
-
-    @Test
-    @EnableFeatures({ChromeFeatureList.EMAIL_VERIFICATION_PROTOCOL})
-    @MediumTest
-    public void testRemoveEmail_ClickShowsDialog() {
-        AutofillProfilesFragment fragment = mSettingsTestRule.getFragment();
-        PersonalDataManager pdm = setUpSpiedPersonalDataManager();
-        doReturn(List.of("test@example.com")).when(pdm).getEmailVerificationAddresses();
-        doReturn("example.com").when(pdm).getEmailVerificationIssuer("test@example.com");
-
-        ThreadUtils.runOnUiThreadBlocking(() -> fragment.onPersonalDataChanged());
-
-        CriteriaHelper.pollUiThread(
-                () -> {
-                    Preference pref = fragment.findPreference("test@example.com");
-                    Criteria.checkThat(pref, Matchers.notNullValue());
-                });
-
-        clickPreference("test@example.com");
-
-        onView(withId(android.R.id.button2)).inRoot(isDialog()).check(matches(isDisplayed()));
-        onView(withId(android.R.id.button2)).inRoot(isDialog()).perform(click());
-    }
-
-    @Test
-    @EnableFeatures({ChromeFeatureList.EMAIL_VERIFICATION_PROTOCOL})
-    @MediumTest
-    public void testRemoveEmail_DialogCancelDoesNotRemove() {
-        AutofillProfilesFragment fragment = mSettingsTestRule.getFragment();
-        PersonalDataManager pdm = setUpSpiedPersonalDataManager();
-        doReturn(List.of("test@example.com")).when(pdm).getEmailVerificationAddresses();
-        doReturn("example.com").when(pdm).getEmailVerificationIssuer("test@example.com");
-
-        ThreadUtils.runOnUiThreadBlocking(() -> fragment.onPersonalDataChanged());
-
-        clickPreference("test@example.com");
-
-        onView(withId(android.R.id.button2)).inRoot(isDialog()).perform(click());
-
-        verify(pdm, never()).removeEmailVerificationAddress(any());
-    }
-
-    @Test
-    @EnableFeatures({ChromeFeatureList.EMAIL_VERIFICATION_PROTOCOL})
-    @MediumTest
-    public void testRemoveEmail_DialogConfirmRemovesEmail() {
-        AutofillProfilesFragment fragment = mSettingsTestRule.getFragment();
-        PersonalDataManager pdm = setUpSpiedPersonalDataManager();
-        doReturn(List.of("test@example.com")).when(pdm).getEmailVerificationAddresses();
-        doReturn("example.com").when(pdm).getEmailVerificationIssuer("test@example.com");
-        doNothing().when(pdm).removeEmailVerificationAddress(any());
-
-        ThreadUtils.runOnUiThreadBlocking(() -> fragment.onPersonalDataChanged());
-
-        clickPreference("test@example.com");
-
-        onView(withId(android.R.id.button1)).inRoot(isDialog()).perform(click());
-
-        verify(pdm).removeEmailVerificationAddress("test@example.com");
-    }
-
-    @Test
-    @EnableFeatures({ChromeFeatureList.EMAIL_VERIFICATION_PROTOCOL})
-    @MediumTest
-    public void testRemoveEmail_MultiEmailRemoval() {
-        AutofillProfilesFragment fragment = mSettingsTestRule.getFragment();
-        PersonalDataManager pdm = setUpSpiedPersonalDataManager();
-        doReturn(List.of("test@example.com", "other@gmail.com"))
-                .when(pdm)
-                .getEmailVerificationAddresses();
-        doReturn("example.com").when(pdm).getEmailVerificationIssuer("test@example.com");
-        doReturn("gmail.com").when(pdm).getEmailVerificationIssuer("other@gmail.com");
-        doNothing().when(pdm).removeEmailVerificationAddress(any());
-
-        ThreadUtils.runOnUiThreadBlocking(() -> fragment.onPersonalDataChanged());
-
-        clickPreference("test@example.com");
-
-        doReturn(List.of("other@gmail.com")).when(pdm).getEmailVerificationAddresses();
-        onView(withId(android.R.id.button1)).inRoot(isDialog()).perform(click());
-        ThreadUtils.runOnUiThreadBlocking(() -> fragment.onPersonalDataChanged());
-
-        verify(pdm).removeEmailVerificationAddress("test@example.com");
-        verify(pdm, never()).removeEmailVerificationAddress("other@gmail.com");
-
-        CriteriaHelper.pollUiThread(
-                () -> {
-                    PreferenceCategory category =
-                            fragment.findPreference(
-                                    AutofillProfilesFragment.PREF_EMAIL_VERIFICATION_LIST);
-                    Criteria.checkThat(
-                            category.findPreference("test@example.com"), Matchers.nullValue());
-                    Criteria.checkThat(
-                            category.findPreference("other@gmail.com"), Matchers.notNullValue());
-                });
-    }
-
-    @Test
-    @EnableFeatures({ChromeFeatureList.EMAIL_VERIFICATION_PROTOCOL})
-    @MediumTest
-    public void testRemoveEmail_ListTransitionToEmpty() {
-        AutofillProfilesFragment fragment = mSettingsTestRule.getFragment();
-        PersonalDataManager pdm = setUpSpiedPersonalDataManager();
-        doReturn(List.of("test@example.com")).when(pdm).getEmailVerificationAddresses();
-        doReturn("example.com").when(pdm).getEmailVerificationIssuer("test@example.com");
-        doNothing().when(pdm).removeEmailVerificationAddress(any());
-
-        ThreadUtils.runOnUiThreadBlocking(() -> fragment.onPersonalDataChanged());
-
-        clickPreference("test@example.com");
-
-        doReturn(List.of()).when(pdm).getEmailVerificationAddresses();
-        onView(withId(android.R.id.button1)).inRoot(isDialog()).perform(click());
-        ThreadUtils.runOnUiThreadBlocking(() -> fragment.onPersonalDataChanged());
-
-        CriteriaHelper.pollUiThread(
-                () -> {
-                    PreferenceCategory category =
-                            fragment.findPreference(
-                                    AutofillProfilesFragment.PREF_EMAIL_VERIFICATION_LIST);
-                    Criteria.checkThat(category, Matchers.notNullValue());
-                    boolean isEmpty =
-                            category.getPreferenceCount() == 0
-                                    || (category.getPreferenceCount() == 1
-                                            && AutofillProfilesFragment
-                                                    .PREF_EMAIL_VERIFICATION_EMPTY
-                                                    .equals(category.getPreference(0).getKey()));
-                    Criteria.checkThat(isEmpty, Matchers.is(true));
-                });
-    }
-
-    @Test
-    @EnableFeatures({ChromeFeatureList.EMAIL_VERIFICATION_PROTOCOL})
-    @MediumTest
-    public void testEmailVerification_InteractionToggleAndList() {
-        AutofillProfilesFragment fragment = mSettingsTestRule.getFragment();
-        PersonalDataManager pdm = setUpSpiedPersonalDataManager();
-        doReturn(List.of("test@example.com")).when(pdm).getEmailVerificationAddresses();
-
-        ThreadUtils.runOnUiThreadBlocking(
-                () -> {
-                    UserPrefs.get(fragment.getProfile())
-                            .setBoolean(Pref.AUTOFILL_EMAIL_VERIFICATION_ENABLED, false);
-                    fragment.onPersonalDataChanged();
-                });
-
-        CriteriaHelper.pollUiThread(
-                () -> {
-                    PreferenceCategory category =
-                            fragment.findPreference(
-                                    AutofillProfilesFragment.PREF_EMAIL_VERIFICATION_LIST);
-                    Criteria.checkThat(category, Matchers.nullValue());
-                });
-    }
-
-    @Test
-    @DisableFeatures({ChromeFeatureList.EMAIL_VERIFICATION_PROTOCOL})
-    @MediumTest
-    public void testEmailVerification_FeatureDisabled() {
-        AutofillProfilesFragment fragment = mSettingsTestRule.getFragment();
-        CriteriaHelper.pollUiThread(
-                () -> {
-                    ChromeSwitchPreference toggle =
-                            fragment.findPreference("autofill_email_verification_enabled");
-                    PreferenceCategory category =
-                            fragment.findPreference(
-                                    AutofillProfilesFragment.PREF_EMAIL_VERIFICATION_LIST);
-                    Criteria.checkThat(toggle, Matchers.nullValue());
-                    Criteria.checkThat(category, Matchers.nullValue());
-                });
-    }
-
-    @Test
-    @SmallTest
-    @EnableFeatures(ChromeFeatureList.EMAIL_VERIFICATION_PROTOCOL)
-    public void testSearchIndexWhenEmailVerificationEnabled() {
-        mSettingsTestRule.startSettingsActivity();
-        SettingsIndexData indexDataMock = mock(SettingsIndexData.class);
-
-        ThreadUtils.runOnUiThreadBlocking(
-                () -> {
-                    AutofillProfilesFragment.SEARCH_INDEX_DATA_PROVIDER.updateDynamicPreferences(
-                            mSettingsTestRule.getActivity(),
-                            indexDataMock,
-                            mSettingsTestRule.getFragment().getProfile());
-                });
-
-        verify(indexDataMock, atLeastOnce())
-                .addEntryForKey(
-                        eq(AutofillProfilesFragment.class.getName()),
-                        eq(AutofillProfilesFragment.PREF_EMAIL_VERIFICATION),
-                        anyInt());
-    }
-
-    @Test
-    @SmallTest
-    @DisableFeatures(ChromeFeatureList.EMAIL_VERIFICATION_PROTOCOL)
-    public void testSearchIndexWhenEmailVerificationDisabled() {
-        mSettingsTestRule.startSettingsActivity();
-        SettingsIndexData indexDataMock = mock(SettingsIndexData.class);
-
-        ThreadUtils.runOnUiThreadBlocking(
-                () -> {
-                    AutofillProfilesFragment.SEARCH_INDEX_DATA_PROVIDER.updateDynamicPreferences(
-                            mSettingsTestRule.getActivity(),
-                            indexDataMock,
-                            mSettingsTestRule.getFragment().getProfile());
-                });
-
-        verify(indexDataMock, never())
-                .addEntryForKey(
-                        eq(AutofillProfilesFragment.class.getName()),
-                        eq(AutofillProfilesFragment.PREF_EMAIL_VERIFICATION),
-                        anyInt());
-    }
-
-    @Test
-    @SmallTest
-    @Feature({"Autofill"})
-    public void testSaveAndFillAddressesToggle_whenUserEnabled() {
-        PersonalDataManager spyPdm = setUpSpiedPersonalDataManager();
-        doReturn(true).when(spyPdm).isAutofillProfileEnabled();
-        ThreadUtils.runOnUiThreadBlocking(
-                () -> {
-                    mSettingsTestRule.getFragment().rebuildProfileList();
-                });
-        ChromeSwitchPreference switchPref =
-                mSettingsTestRule
-                        .getFragment()
-                        .findPreference(AutofillProfilesFragment.SAVE_AND_FILL_ADDRESSES);
-        assertNotNull(switchPref);
-        assertTrue(switchPref.isChecked());
-        assertTrue(switchPref.isEnabled());
-    }
-
-    @Test
-    @SmallTest
-    @Feature({"Autofill"})
-    public void testSaveAndFillAddressesToggle_whenUserDisabled() {
-        PersonalDataManager spyPdm = setUpSpiedPersonalDataManager();
-        doReturn(false).when(spyPdm).isAutofillProfileEnabled();
-        ThreadUtils.runOnUiThreadBlocking(
-                () -> {
-                    mSettingsTestRule.getFragment().rebuildProfileList();
-                });
-        ChromeSwitchPreference switchPref =
-                mSettingsTestRule
-                        .getFragment()
-                        .findPreference(AutofillProfilesFragment.SAVE_AND_FILL_ADDRESSES);
-        assertNotNull(switchPref);
-        assertFalse(switchPref.isChecked());
-        assertTrue(switchPref.isEnabled());
-    }
-
-    @Test
-    @SmallTest
-    @Feature({"Autofill"})
-    public void testSaveAndFillAddressesToggle_whenManagedByPolicy() {
-        PersonalDataManager spyPdm = setUpSpiedPersonalDataManager();
-        doReturn(true).when(spyPdm).isAutofillProfileManaged();
-        doReturn(false).when(spyPdm).isAutofillProfileEnabled();
-        ThreadUtils.runOnUiThreadBlocking(
-                () -> {
-                    mSettingsTestRule.getFragment().rebuildProfileList();
-                });
-        AutofillProfilesFragment fragment = mSettingsTestRule.getFragment();
-        ChromeSwitchPreference switchPref =
-                fragment.findPreference(AutofillProfilesFragment.SAVE_AND_FILL_ADDRESSES);
-        assertNotNull(switchPref);
-        // When managed by organization policy, the toggle must be shown as turned OFF.
-        assertFalse(switchPref.isChecked());
-        assertFalse(switchPref.isEnabled());
-        assertNotNull(switchPref.getManagedPreferenceDelegate());
-        assertTrue(
-                switchPref
-                        .getManagedPreferenceDelegate()
-                        .isPreferenceControlledByPolicy(switchPref));
-        assertTrue(switchPref.getManagedPreferenceDelegate().isPreferenceClickDisabled(switchPref));
-
-        // Add address button should not be shown when the setting is managed / disabled.
-        AutofillProfileEditorPreference addProfile =
-                fragment.findPreference(AutofillProfilesFragment.PREF_NEW_PROFILE);
-        assertNull(addProfile);
     }
 }

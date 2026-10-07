@@ -10,10 +10,10 @@
 namespace one_time_tokens::switches {
 
 COMPONENT_EXPORT(ONE_TIME_TOKENS)
-extern const char kOneTimeTokenServiceBaseUrl[];
+extern const char kOneTimeTokenFetchEmailEndpointUrl[];
 
 COMPONENT_EXPORT(ONE_TIME_TOKENS)
-extern const char kDefaultOneTimeTokenServiceBaseUrl[];
+extern const char kDefaultOneTimeTokenFetchEmailEndpointUrl[];
 
 }  // namespace one_time_tokens::switches
 

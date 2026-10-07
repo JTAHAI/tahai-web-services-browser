@@ -24,11 +24,8 @@ def test_atspi(atspi, session, inline):
 #     # Spec:
 #     # Role: ROLE_SYSTEM_SEPARATOR
 
-def test_uia(uia, session, inline):
-    session.url = inline(TEST_HTML)
-
-    # Spec:
-    # Control Type: Separator
-
-    node = uia.find_node("test", session.url)
-    assert node.CurrentControlType == uia.ControlType.Separator
+# def test_uia(uia, session, inline):
+#     session.url = inline(TEST_HTML)
+#
+#     # Spec:
+#     # Control Type: Separator

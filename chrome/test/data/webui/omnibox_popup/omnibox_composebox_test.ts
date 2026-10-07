@@ -16,9 +16,8 @@ import {WindowProxy} from 'chrome://resources/cr_components/composebox/window_pr
 import {GlowAnimationState} from 'chrome://resources/cr_components/search/constants.js';
 import {createAutocompleteResultForTesting, createSearchMatchForTesting} from 'chrome://resources/cr_components/searchbox/searchbox_browser_proxy.js';
 import {loadTimeData} from 'chrome://resources/js/load_time_data.js';
-import {SuggestInventory} from 'chrome://resources/mojo/components/omnibox/browser/fusebox_action.mojom-webui.js';
 import type {PageCallbackRouter as SearchboxPageCallbackRouter, PageHandlerRemote as SearchboxPageHandlerRemote, SearchContext, SelectedFileInfo} from 'chrome://resources/mojo/components/omnibox/browser/searchbox.mojom-webui.js';
-import {TabAttachmentSource} from 'chrome://resources/mojo/components/omnibox/browser/searchbox.mojom-webui.js';
+import {SuggestInventory, TabAttachmentSource} from 'chrome://resources/mojo/components/omnibox/browser/searchbox.mojom-webui.js';
 import {assertEquals, assertFalse, assertNotEquals, assertTrue} from 'chrome://webui-test/chai_assert.js';
 import {TestMock} from 'chrome://webui-test/test_mock.js';
 import {microtasksFinished} from 'chrome://webui-test/test_util.js';
@@ -50,7 +49,7 @@ suite('OmniboxComposeboxTest', () => {
 
     loadTimeData.overrideValues({
       composeboxShowZps: true,
-      askGBlockAutoTabZeroStateSuggestions: false,
+      askGBlockZeroStateSuggestions: false,
     });
 
     testProxy = new TestSearchboxBrowserProxy();
@@ -209,7 +208,7 @@ suite('OmniboxComposeboxTest', () => {
   });
 
   test('Mojo callback router adds file context correctly', async () => {
-    assertEquals(0, omniboxComposebox.attachedContext.size);
+    assertEquals(0, omniboxComposebox.files.size);
     const testToken = '12345678901234567890123456789012';
     const testFileInfo = {
       fileName: 'test_file.png',
@@ -226,8 +225,8 @@ suite('OmniboxComposeboxTest', () => {
     await microtasksFinished();
 
     // Verify it reached the map.
-    assertEquals(1, omniboxComposebox.attachedContext.size);
-    const addedFile = omniboxComposebox.attachedContext.get(testToken);
+    assertEquals(1, omniboxComposebox.files.size);
+    const addedFile = omniboxComposebox.files.get(testToken);
     assertTrue(!!addedFile);
     assertEquals('test_file.png', addedFile.name);
   });
@@ -308,8 +307,8 @@ suite('OmniboxComposeboxTest', () => {
     await microtasksFinished();
 
     assertEquals('test unimodal', omniboxComposebox.input);
-    assertEquals(1, omniboxComposebox.attachedContext.size);
-    const addedFile = omniboxComposebox.attachedContext.get(mockToken);
+    assertEquals(1, omniboxComposebox.files.size);
+    const addedFile = omniboxComposebox.files.get(mockToken);
     assertTrue(!!addedFile);
     assertEquals('test.pdf', addedFile.name);
     assertEquals('application/pdf', addedFile.type);
@@ -346,8 +345,8 @@ suite('OmniboxComposeboxTest', () => {
     assertEquals(42, args[0]);
     assertFalse(args[1]);
     assertEquals(TabAttachmentSource.kContextMenu, args[2]);
-    assertEquals(1, omniboxComposebox.attachedContext.size);
-    const addedFile = omniboxComposebox.attachedContext.get(mockToken);
+    assertEquals(1, omniboxComposebox.files.size);
+    const addedFile = omniboxComposebox.files.get(mockToken);
     assertTrue(!!addedFile);
     assertEquals('Google Search', addedFile.name);
     assertEquals('tab', addedFile.type);
@@ -384,10 +383,9 @@ suite('OmniboxComposeboxTest', () => {
 
   test(
       'addSearchContext skips autocomplete query for tab when flag is enabled' +
-          ' and source is auto-added',
+          ' and source is suggested',
       async () => {
-        loadTimeData.overrideValues(
-            {askGBlockAutoTabZeroStateSuggestions: true});
+        loadTimeData.overrideValues({askGBlockZeroStateSuggestions: true});
 
         const initialCallCount =
             testProxy.handler.getCallCount('queryAutocomplete');
@@ -417,8 +415,7 @@ suite('OmniboxComposeboxTest', () => {
       'addSearchContext does NOT skip autocomplete query for tab when flag' +
           ' is disabled',
       async () => {
-        loadTimeData.overrideValues(
-            {askGBlockAutoTabZeroStateSuggestions: false});
+        loadTimeData.overrideValues({askGBlockZeroStateSuggestions: false});
 
         const initialCallCount =
             testProxy.handler.getCallCount('queryAutocomplete');
@@ -446,10 +443,9 @@ suite('OmniboxComposeboxTest', () => {
 
   test(
       'addSearchContext does NOT skip autocomplete query for tab when source' +
-          ' is NOT auto-added',
+          ' is NOT suggested',
       async () => {
-        loadTimeData.overrideValues(
-            {askGBlockAutoTabZeroStateSuggestions: true});
+        loadTimeData.overrideValues({askGBlockZeroStateSuggestions: true});
 
         const initialCallCount =
             testProxy.handler.getCallCount('queryAutocomplete');
@@ -484,10 +480,10 @@ suite('OmniboxComposeboxTest', () => {
         const mockToken = 'mock-file-token-2';
         const file = new ComposeboxFile(
             mockToken, 'test.png', 'image/png', InputType.kLensImage);
-        omniboxComposebox.attachedContext.set(mockToken, file);
+        omniboxComposebox.files.set(mockToken, file);
 
-        omniboxComposebox.attachedContext =
-            new Map(omniboxComposebox.attachedContext);  // Trigger Lit update
+        omniboxComposebox.files =
+            new Map(omniboxComposebox.files);  // Trigger Lit update
         await microtasksFinished();
 
         // Carousel should be visible.
@@ -497,9 +493,8 @@ suite('OmniboxComposeboxTest', () => {
         assertTrue(!!carousel);
 
         // Clear files.
-        omniboxComposebox.attachedContext.clear();
-        omniboxComposebox.attachedContext =
-            new Map(omniboxComposebox.attachedContext);
+        omniboxComposebox.files.clear();
+        omniboxComposebox.files = new Map(omniboxComposebox.files);
         await microtasksFinished();
 
         // Carousel should be hidden.
@@ -513,9 +508,8 @@ suite('OmniboxComposeboxTest', () => {
     const mockToken = 'mock-delete-file-token';
     const file = new ComposeboxFile(
         mockToken, 'delete_me.pdf', 'pdf', InputType.kLensFile);
-    omniboxComposebox.attachedContext.set(mockToken, file);
-    omniboxComposebox.attachedContext =
-        new Map(omniboxComposebox.attachedContext);
+    omniboxComposebox.files.set(mockToken, file);
+    omniboxComposebox.files = new Map(omniboxComposebox.files);
     await microtasksFinished();
     let queryAutocompleteCalled = false;
     let queryAutocompleteClearMatches = false;
@@ -528,7 +522,7 @@ suite('OmniboxComposeboxTest', () => {
     omniboxComposebox.deleteFile(mockToken, /*fromUserAction=*/ true);
     await microtasksFinished();
 
-    assertFalse(omniboxComposebox.attachedContext.has(mockToken));
+    assertFalse(omniboxComposebox.files.has(mockToken));
     const deleteArgs = testProxy.handler.getArgs('deleteContext')[0];
     assertEquals(mockToken, deleteArgs[0]);
     assertTrue(queryAutocompleteCalled);
@@ -539,16 +533,15 @@ suite('OmniboxComposeboxTest', () => {
     const mockToken = 'mock-delete-tab-token';
     const file = new ComposeboxFile(
         mockToken, 'tab.html', 'tab', InputType.kBrowserTab, {tabId: 100});
-    omniboxComposebox.attachedContext.set(mockToken, file);
+    omniboxComposebox.files.set(mockToken, file);
     omniboxComposebox.addedTabsIds.set(100, mockToken);
-    omniboxComposebox.attachedContext =
-        new Map(omniboxComposebox.attachedContext);
+    omniboxComposebox.files = new Map(omniboxComposebox.files);
     await microtasksFinished();
 
     omniboxComposebox.deleteFile(mockToken, /*fromUserAction=*/ true);
     await microtasksFinished();
 
-    assertFalse(omniboxComposebox.attachedContext.has(mockToken));
+    assertFalse(omniboxComposebox.files.has(mockToken));
     assertFalse(omniboxComposebox.addedTabsIds.has(100));
     const deleteArgs = testProxy.handler.getArgs('deleteContext')[0];
     assertEquals(mockToken, deleteArgs[0]);
@@ -605,7 +598,7 @@ suite('OmniboxComposeboxTest', () => {
     omniboxComposebox.addSearchContext(context);
     await microtasksFinished();
 
-    assertFalse(omniboxComposebox.attachedContext.has(mockToken));
+    assertFalse(omniboxComposebox.files.has(mockToken));
     // Verify errorMessage set (i18n lookup, will be blank in test if not
     // overridden but we verify the property is set to a string).
     assertTrue(omniboxComposebox.errorMessage.length > 0);
@@ -642,7 +635,7 @@ suite('OmniboxComposeboxTest', () => {
         omniboxComposebox.addSearchContext(context);
         await microtasksFinished();
 
-        assertFalse(omniboxComposebox.attachedContext.has(mockToken));
+        assertFalse(omniboxComposebox.files.has(mockToken));
         assertEquals(
             'Unsupported file type error', omniboxComposebox.errorMessage);
       });
@@ -651,9 +644,8 @@ suite('OmniboxComposeboxTest', () => {
     const mockToken = 'mock-delete-event-token';
     const file = new ComposeboxFile(
         mockToken, 'test.png', 'image/png', InputType.kLensImage);
-    omniboxComposebox.attachedContext.set(mockToken, file);
-    omniboxComposebox.attachedContext =
-        new Map(omniboxComposebox.attachedContext);
+    omniboxComposebox.files.set(mockToken, file);
+    omniboxComposebox.files = new Map(omniboxComposebox.files);
     await microtasksFinished();
     const carousel = omniboxComposebox.shadowRoot.querySelector(
         'cr-composebox-file-carousel');
@@ -691,8 +683,8 @@ suite('OmniboxComposeboxTest', () => {
     await omniboxComposebox.addTabContextHandleCallback(tabUpload);
     await microtasksFinished();
 
-    assertEquals(1, omniboxComposebox.attachedContext.size);
-    const addedFile = omniboxComposebox.attachedContext.get(testToken);
+    assertEquals(1, omniboxComposebox.files.size);
+    const addedFile = omniboxComposebox.files.get(testToken);
     assertTrue(!!addedFile);
     assertEquals('Tab 101', addedFile.name);
     assertEquals(101, addedFile.tabId);
@@ -720,7 +712,7 @@ suite('OmniboxComposeboxTest', () => {
     await omniboxComposebox.addTabContextHandleCallback(tabUpload);
     await microtasksFinished();
 
-    assertEquals(0, omniboxComposebox.attachedContext.size);
+    assertEquals(0, omniboxComposebox.files.size);
     assertEquals('File too large error', omniboxComposebox.errorMessage);
   });
 
@@ -826,9 +818,8 @@ suite('OmniboxComposeboxTest', () => {
             mockToken, 'test.png', 'image/png', InputType.kLensImage,
             {supportsUnimodal: false});
 
-        omniboxComposebox.attachedContext.set(mockToken, file);
-        omniboxComposebox.attachedContext =
-            new Map(omniboxComposebox.attachedContext);
+        omniboxComposebox.files.set(mockToken, file);
+        omniboxComposebox.files = new Map(omniboxComposebox.files);
         omniboxComposebox.input = '';
         await omniboxComposebox.updateComplete;
         await microtasksFinished();
@@ -982,9 +973,8 @@ suite('OmniboxComposeboxTest', () => {
 
   test('Cancel button closes composebox when there is no content', async () => {
     omniboxComposebox.input = '';
-    omniboxComposebox.attachedContext.clear();
-    omniboxComposebox.attachedContext =
-        new Map(omniboxComposebox.attachedContext);
+    omniboxComposebox.files.clear();
+    omniboxComposebox.files = new Map(omniboxComposebox.files);
     await microtasksFinished();
     omniboxComposebox.suggestInventory = SuggestInventory.kTravel;
     assertEquals(SuggestInventory.kTravel, omniboxComposebox.suggestInventory);
@@ -1028,9 +1018,8 @@ suite('OmniboxComposeboxTest', () => {
     const mockToken = 'mock-file-token';
     const file = new ComposeboxFile(
         mockToken, 'test.png', 'image/png', InputType.kLensImage);
-    omniboxComposebox.attachedContext.set(mockToken, file);
-    omniboxComposebox.attachedContext =
-        new Map(omniboxComposebox.attachedContext);
+    omniboxComposebox.files.set(mockToken, file);
+    omniboxComposebox.files = new Map(omniboxComposebox.files);
     await microtasksFinished();
     let closeEventFired = false;
     omniboxComposebox.addEventListener('close-composebox', () => {
@@ -1043,7 +1032,7 @@ suite('OmniboxComposeboxTest', () => {
     cancelIcon.click();
     await microtasksFinished();
 
-    assertEquals(0, omniboxComposebox.attachedContext.size);
+    assertEquals(0, omniboxComposebox.files.size);
     assertEquals(1, testProxy.handler.getCallCount('clearFiles'));
     assertFalse(closeEventFired);
   });
@@ -2162,17 +2151,6 @@ suite('OmniboxComposeboxTest', () => {
       voiceSearchButton.click();
       await microtasksFinished();
       await omniboxComposebox.updateComplete;
-
-      const animatedGlow =
-          omniboxComposebox.shadowRoot.querySelector('search-animated-glow');
-      if (animatedGlow) {
-        await animatedGlow.updateComplete;
-      }
-      const voiceSearch = omniboxComposebox.shadowRoot.querySelector(
-          'cr-composebox-voice-search');
-      if (voiceSearch) {
-        await voiceSearch.updateComplete;
-      }
     }
 
     async function submitVoiceSearch() {
@@ -2304,7 +2282,7 @@ suite('OmniboxComposeboxTest', () => {
       removeImgButton!.click();
       await microtasksFinished();
       await omniboxComposebox.updateComplete;
-      assertEquals(0, omniboxComposebox.attachedContext.size);
+      assertEquals(0, omniboxComposebox.files.size);
 
       // Remove toolchip:
       omniboxComposebox.inToolMode = false;
@@ -2358,13 +2336,13 @@ suite('OmniboxComposeboxTest', () => {
       removeImgButton!.click();
       await microtasksFinished();
       await omniboxComposebox.updateComplete;
-      assertEquals(0, omniboxComposebox.attachedContext.size);
+      assertEquals(0, omniboxComposebox.files.size);
 
       // Submit:
       await submitVoiceSearch();
 
       assertTrue(omniboxComposebox.inToolMode);
-      assertEquals(0, omniboxComposebox.attachedContext.size);
+      assertEquals(0, omniboxComposebox.files.size);
     });
 
     test('remove toolchip but submit image in voice search mode', async () => {
@@ -2417,7 +2395,7 @@ suite('OmniboxComposeboxTest', () => {
       await submitVoiceSearch();
 
       assertFalse(omniboxComposebox.inToolMode);
-      assertEquals(1, omniboxComposebox.attachedContext.size);
+      assertEquals(1, omniboxComposebox.files.size);
     });
 
     test(
@@ -2473,7 +2451,7 @@ suite('OmniboxComposeboxTest', () => {
           removeImgButton!.click();
           await microtasksFinished();
           await omniboxComposebox.updateComplete;
-          assertEquals(0, omniboxComposebox.attachedContext.size);
+          assertEquals(0, omniboxComposebox.files.size);
 
           // Remove tool chip from voice tool chips container:
           const toolChip =
@@ -2505,7 +2483,7 @@ suite('OmniboxComposeboxTest', () => {
           await omniboxComposebox.updateComplete;
 
           assertFalse(omniboxComposebox.inToolMode);
-          assertEquals(0, omniboxComposebox.attachedContext.size);
+          assertEquals(0, omniboxComposebox.files.size);
         });
 
     test(
@@ -2594,8 +2572,8 @@ suite('OmniboxComposeboxTest', () => {
       const mockToken = 'mock-file-token';
       const file = new ComposeboxFile(
           mockToken, 'test.png', 'image/png', InputType.kLensImage);
-      omniboxComposebox.attachedContext.set(mockToken, file);
-      omniboxComposebox.attachedContext = new Map(omniboxComposebox.attachedContext);
+      omniboxComposebox.files.set(mockToken, file);
+      omniboxComposebox.files = new Map(omniboxComposebox.files);
       await microtasksFinished();
       assertFalse(!!getChip());
     });
@@ -2765,115 +2743,6 @@ suite('OmniboxComposeboxTest', () => {
         },
         configurable: true,
       });
-    });
-  });
-
-  suite('AskGComposeboxPlaceholder', () => {
-    setup(async () => {
-      loadTimeData.overrideValues({
-        askGComposeboxPlaceholderEnabled: true,
-        askAboutTab: 'Ask about this page',
-        searchboxComposePlaceholder: 'Ask AI Mode',
-        composeDeepSearchPlaceholder: 'Ask Deep Search',
-      });
-      document.body.innerHTML = window.trustedTypes!.emptyHTML;
-      omniboxComposebox = document.createElement('cr-omnibox-composebox');
-      document.body.appendChild(omniboxComposebox);
-      await microtasksFinished();
-    });
-
-    const addTabWithSource = async (source: TabAttachmentSource) => {
-      const mockToken = 'mock-tab-token';
-      testProxy.handler.setPromiseResolveFor('addTabContext', mockToken);
-      const context = {
-        input: '',
-        attachments: [{
-          tabAttachment: {
-            tabId: 42,
-            title: 'Google Search',
-            url: 'https://google.com',
-            source,
-          },
-        }],
-        toolMode: 0,
-      };
-      omniboxComposebox.addSearchContext(context as unknown as SearchContext);
-      await microtasksFinished();
-      await testProxy.handler.whenCalled('addTabContext');
-      await microtasksFinished();
-      return mockToken;
-    };
-
-    const addAutoAddedTab = () =>
-        addTabWithSource(TabAttachmentSource.kAutoAdded);
-
-    test('placeholder is default when flag enabled but no tab attached', () => {
-      assertEquals('Ask AI Mode', omniboxComposebox.inputPlaceholder);
-    });
-
-    test('placeholder is default when tab is manually added', async () => {
-      await addTabWithSource(TabAttachmentSource.kContextMenu);
-      assertEquals('Ask AI Mode', omniboxComposebox.inputPlaceholder);
-    });
-
-    test('placeholder becomes "Ask about this page" when auto-added tab is present', async () => {
-      await addAutoAddedTab();
-      assertEquals('Ask about this page', omniboxComposebox.inputPlaceholder);
-    });
-
-    test('placeholder stays "Ask about this page" after inputState update with auto-added tab', async () => {
-      await addAutoAddedTab();
-
-      const inputState = createDefaultInputState();
-      inputState.hintText = 'Ask anything';
-      omniboxComposebox.inputState = inputState;
-      await microtasksFinished();
-
-      assertEquals('Ask about this page', omniboxComposebox.inputPlaceholder);
-    });
-
-    test('placeholder resets to default when auto-added tab is deleted', async () => {
-      const token = await addAutoAddedTab();
-      assertEquals('Ask about this page', omniboxComposebox.inputPlaceholder);
-
-      omniboxComposebox.deleteFile(token);
-      await microtasksFinished();
-
-      assertEquals('Ask AI Mode', omniboxComposebox.inputPlaceholder);
-    });
-
-    test('tool mode overrides the placeholder when active even with auto-added tab', async () => {
-      await addAutoAddedTab();
-
-      const inputState = createDefaultInputState();
-      inputState.activeTool = ToolMode.kDeepSearch;
-      inputState.toolConfigs = [{
-        tool: ToolMode.kDeepSearch,
-        hintText: 'Ask Deep Search',
-        menuLabel: 'Deep Search',
-        chipLabel: '',
-        disableActiveModelSelection: false,
-        aimUrlParams: [],
-        menuTooltip: '',
-      }];
-      omniboxComposebox.inputState = inputState;
-      await microtasksFinished();
-
-      assertEquals('Ask Deep Search', omniboxComposebox.inputPlaceholder);
-    });
-
-    test('uses default placeholder when flag is disabled even with auto-added tab', async () => {
-      loadTimeData.overrideValues({
-        askGComposeboxPlaceholderEnabled: false,
-      });
-      document.body.innerHTML = window.trustedTypes!.emptyHTML;
-      omniboxComposebox = document.createElement('cr-omnibox-composebox');
-      document.body.appendChild(omniboxComposebox);
-      await microtasksFinished();
-
-      await addAutoAddedTab();
-
-      assertEquals('Ask AI Mode', omniboxComposebox.inputPlaceholder);
     });
   });
 });

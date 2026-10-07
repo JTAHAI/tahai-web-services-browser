@@ -9,7 +9,6 @@
 #include <utility>
 #include <vector>
 
-#include "base/strings/utf_string_conversions.h"
 #include "base/time/time.h"
 #include "base/uuid.h"
 #include "components/multistep_filter/core/data_models/filter_annotation.h"
@@ -26,8 +25,8 @@ UrlFilterSuggestion CreateSuggestion(
     const std::vector<std::pair<std::string, std::string>>& attributes) {
   std::vector<FilterAttributeUiLabel> ui_labels;
   for (const auto& [key, val] : attributes) {
-    ui_labels.emplace_back(FilterSuggestionCandidateAttribute(
-        key, u"label", base::UTF8ToUTF16(val)));
+    ui_labels.emplace_back(FilterSuggestionCandidateAttribute(key, u"label"),
+                           FilterAttribute(key, val));
   }
   return UrlFilterSuggestion(UrlFilterSuggestion::Params{
       .navigation_url = GURL("https://example.com/filter"),

@@ -37,7 +37,10 @@ BackwardsCharacterIteratorAlgorithm<Strategy>::
     BackwardsCharacterIteratorAlgorithm(
         const EphemeralRangeTemplate<Strategy>& range,
         const TextIteratorBehavior& behavior)
-    : at_break_(true), text_iterator_(range, behavior) {
+    : offset_(0),
+      run_offset_(0),
+      at_break_(true),
+      text_iterator_(range, behavior) {
   while (!AtEnd() && !text_iterator_.length())
     text_iterator_.Advance();
 }
@@ -57,7 +60,7 @@ BackwardsCharacterIteratorAlgorithm<Strategy>::EndPosition() const {
 }
 
 template <typename Strategy>
-void BackwardsCharacterIteratorAlgorithm<Strategy>::Advance(wtf_size_t count) {
+void BackwardsCharacterIteratorAlgorithm<Strategy>::Advance(int count) {
   if (count <= 0) {
     DCHECK(!count);
     return;
@@ -65,7 +68,7 @@ void BackwardsCharacterIteratorAlgorithm<Strategy>::Advance(wtf_size_t count) {
 
   at_break_ = false;
 
-  wtf_size_t remaining = text_iterator_.length() - run_offset_;
+  int remaining = text_iterator_.length() - run_offset_;
   if (count < remaining) {
     run_offset_ += count;
     offset_ += count;
@@ -76,7 +79,7 @@ void BackwardsCharacterIteratorAlgorithm<Strategy>::Advance(wtf_size_t count) {
   offset_ += remaining;
 
   for (text_iterator_.Advance(); !AtEnd(); text_iterator_.Advance()) {
-    wtf_size_t run_length = text_iterator_.length();
+    int run_length = text_iterator_.length();
     if (!run_length) {
       at_break_ = true;
     } else {

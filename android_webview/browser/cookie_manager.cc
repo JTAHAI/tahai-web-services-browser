@@ -53,14 +53,19 @@
 #include "net/cookies/parsed_cookie.h"
 #include "net/url_request/url_request_context.h"
 #include "services/network/cookie_access_delegate_impl.h"
+#include "services/network/network_service.h"
 #include "services/network/public/mojom/cookie_manager.mojom.h"
-#include "third_party/jni_zero/default_conversions.h"
 #include "url/url_constants.h"
 
 // Must come after all headers that specialize FromJniType() / ToJniType().
 #include "android_webview/browser_jni_headers/AwCookieManager_jni.h"
 
 using base::WaitableEvent;
+using base::android::ConvertJavaStringToUTF16;
+using base::android::ConvertJavaStringToUTF8;
+using base::android::JavaRef;
+using base::android::ScopedJavaGlobalRef;
+using base::android::ScopedJavaLocalRef;
 using content::BrowserThread;
 using net::CookieList;
 
@@ -549,19 +554,21 @@ bool CookieManager::GetShouldAcceptCookies(JNIEnv* env) {
   return cookie_access_policy_.GetShouldAcceptCookies();
 }
 
-void CookieManager::SetCookie(const std::string& url,
+void CookieManager::SetCookie(JNIEnv* env,
+                              const JavaRef<jstring>& url,
                               const std::string& cookie_value,
                               base::OnceCallback<void(bool)> callback) {
-  GURL host(url);
+  GURL host(ConvertJavaStringToUTF16(env, url));
 
   ExecCookieTask(base::BindOnce(&CookieManager::SetCookieHelper,
                                 base::Unretained(this), host, cookie_value,
                                 std::move(callback)));
 }
 
-void CookieManager::SetCookieSync(const std::string& url,
+void CookieManager::SetCookieSync(JNIEnv* env,
+                                  const JavaRef<jstring>& url,
                                   const std::string& value) {
-  GURL host(url);
+  GURL host(ConvertJavaStringToUTF16(env, url));
   std::string cookie_value(value);
 
   ExecCookieTaskSync(base::BindOnce(&CookieManager::SetCookieHelper,
@@ -620,8 +627,8 @@ void CookieManager::SetCookieHelper(const GURL& host,
   }
 }
 
-std::string CookieManager::GetCookie(const std::string& url) {
-  GURL host(url);
+std::string CookieManager::GetCookie(JNIEnv* env, const JavaRef<jstring>& url) {
+  GURL host(ConvertJavaStringToUTF16(env, url));
 
   net::CookieList cookie_list;
   ExecCookieTaskSync(base::BindOnce(&CookieManager::GetCookieListAsyncHelper,
@@ -631,8 +638,10 @@ std::string CookieManager::GetCookie(const std::string& url) {
   return net::CanonicalCookie::BuildCookieLine(cookie_list);
 }
 
-std::vector<std::string> CookieManager::GetCookieInfo(const std::string& url) {
-  GURL host(url);
+ScopedJavaLocalRef<jobjectArray> CookieManager::GetCookieInfo(
+    JNIEnv* env,
+    const JavaRef<jstring>& url) {
+  GURL host(ConvertJavaStringToUTF16(env, url));
 
   net::CookieList cookie_list;
   ExecCookieTaskSync(base::BindOnce(&CookieManager::GetCookieListAsyncHelper,
@@ -643,7 +652,8 @@ std::vector<std::string> CookieManager::GetCookieInfo(const std::string& url) {
     cookie_attributes.push_back(
         net::CanonicalCookie::BuildCookieAttributesLine(cookie));
   }
-  return cookie_attributes;
+  return base::android::ToJavaArrayOfStrings(
+      env, base::span<const std::string>(cookie_attributes));
 }
 
 void CookieManager::GetCookieListAsyncHelper(const GURL& host,

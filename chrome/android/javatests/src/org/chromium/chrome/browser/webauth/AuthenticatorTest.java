@@ -28,8 +28,8 @@ import org.chromium.base.test.util.Feature;
 import org.chromium.base.test.util.Restriction;
 import org.chromium.blink.mojom.AuthenticatorStatus;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
+import org.chromium.chrome.browser.tab.EmptyTabObserver;
 import org.chromium.chrome.browser.tab.Tab;
-import org.chromium.chrome.browser.tab.TabObserver;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.chrome.test.transit.ChromeTransitTestRules;
 import org.chromium.chrome.test.transit.FreshCtaTransitTestRule;
@@ -52,7 +52,9 @@ import org.chromium.ui.test.util.DeviceRestriction;
 @CommandLineFlags.Add({
     ChromeSwitches.DISABLE_FIRST_RUN_EXPERIENCE,
     ContentSwitches.HOST_RESOLVER_RULES + "=MAP * 127.0.0.1",
-    "ignore-certificate-errors",
+    "enable-experimental-web-platform-features",
+    "enable-features=WebAuthentication",
+    "ignore-certificate-errors"
 })
 @Batch(Batch.PER_CLASS)
 @Restriction(DeviceRestriction.RESTRICTION_TYPE_NON_AUTO)
@@ -73,7 +75,7 @@ public class AuthenticatorTest {
     private AuthenticationContextProvider mCapturedProvider;
 
     /** Waits until the JavaScript code supplies a result. */
-    private class AuthenticatorUpdateWaiter implements TabObserver {
+    private class AuthenticatorUpdateWaiter extends EmptyTabObserver {
         private final CallbackHelper mCallbackHelper;
         private String mStatus;
 

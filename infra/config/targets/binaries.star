@@ -1494,14 +1494,6 @@ targets.binaries.generated_script(
 )
 
 targets.binaries.generated_script(
-    name = "ios_web_content_unittests",
-    label = "//ios/web/content:ios_web_content_unittests",
-    # All references have been moved to starlark
-    skip_usage_check = True,
-    module_scheme = "gtest",
-)
-
-targets.binaries.generated_script(
     name = "ios_web_inttests",
     label = "//ios/web:ios_web_inttests",
     # All references have been moved to starlark
@@ -1702,18 +1694,6 @@ targets.binaries.generated_script(
     module_scheme = "junit",
 )
 
-targets.binaries.console_test_launcher(
-    name = "mojo_legacy_unittests",
-    label = "//chromeos/ash/components/mojo_proxy/mojo_core:mojo_legacy_unittests",
-    module_scheme = "gtest",
-)
-
-targets.binaries.console_test_launcher(
-    name = "mojo_proxy_unittests",
-    label = "//chromeos/ash/components/mojo_proxy/service:mojo_proxy_unittests",
-    module_scheme = "gtest",
-)
-
 targets.binaries.script(
     name = "mojo_python_unittests",
     label = "//mojo/public/tools:mojo_python_unittests",
@@ -1830,6 +1810,12 @@ targets.binaries.generated_script(
 )
 
 targets.binaries.generated_script(
+    name = "opt_target_coverage_test",
+    label = "//components/optimization_guide/internal/testing:opt_target_coverage_test",
+    module_scheme = "flat",
+)
+
+targets.binaries.generated_script(
     name = "chrome_ai_wpt_tests",
     label = "//components/optimization_guide/internal/testing:chrome_ai_wpt_tests",
     results_handler = "layout tests",
@@ -1918,7 +1904,6 @@ targets.binaries.generated_script(
     name = "perfetto_diff_tests",
     label = "//base/tracing:perfetto_diff_tests",
     skip_usage_check = True,
-    module_scheme = "single",
 )
 
 targets.binaries.console_test_launcher(
@@ -2086,6 +2071,12 @@ targets.binaries.console_test_launcher(
     label = "//rlz:rlz_unittests",
     module_scheme = "gtest",
     skip_usage_check = True,
+)
+
+targets.binaries.console_test_launcher(
+    name = "rust_gtest_interop_unittests",
+    label = "//testing/rust_gtest_interop:rust_gtest_interop_unittests",
+    module_scheme = "gtest",
 )
 
 targets.binaries.console_test_launcher(
@@ -2333,6 +2324,14 @@ targets.binaries.generated_script(
     module_scheme = "pyunit",
 )
 
+targets.binaries.console_test_launcher(
+    name = "test_cpp_including_rust_unittests",
+    label = "//build/rust/tests/test_cpp_including_rust:test_cpp_including_rust_unittests",
+    # All references have been moved to starlark
+    skip_usage_check = True,
+    module_scheme = "gtest",
+)
+
 targets.binaries.generated_script(
     name = "test_env_py_unittests",
     label = "//testing:test_env_py_unittests",
@@ -2550,29 +2549,6 @@ targets.binaries.script(
     module_scheme = "single",
 )
 
-targets.binaries.script(
-    name = "views_perftests_fuchsia",
-    label = "//ui/views:views_perftests_fuchsia",
-    script = "//build/fuchsia/test/run_test.py",
-    # All references have been moved to starlark
-    skip_usage_check = True,
-    args = [
-        "perf_gtest",
-        "bin/run_views_perftests_fuchsia",
-        "--out-dir",
-        ".",
-        "--non-telemetry=true",
-        "--gtest-benchmark-name=views_perftests",
-    ],
-    merge = targets.merge(
-        script = "//tools/perf/process_perf_results.py",
-        args = [
-            "--smoke-test-mode",
-        ],
-    ),
-    module_scheme = "gtest",
-)
-
 targets.binaries.windowed_test_launcher(
     name = "views_unittests",
     label = "//ui/views:views_unittests",
@@ -2720,12 +2696,6 @@ targets.binaries.generated_script(
     label = "//third_party/chromium-bidi:webdriver_bidi_unittests",
     skip_usage_check = True,
     module_scheme = "mocha",
-)
-
-targets.binaries.generated_script(
-    name = "webdriver_bidi_e2e_tests",
-    label = "//third_party/chromium-bidi:webdriver_bidi_e2e_tests",
-    skip_usage_check = True,
 )
 
 targets.binaries.generated_script(

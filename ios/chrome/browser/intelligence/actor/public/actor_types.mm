@@ -4,8 +4,6 @@
 
 #import "ios/chrome/browser/intelligence/actor/public/actor_types.h"
 
-#import "ios/chrome/browser/intelligence/actor/tools/public/actor_tool_types.h"
-
 namespace actor {
 
 ActionResult::ActionResult(ToolExecutionResult result)

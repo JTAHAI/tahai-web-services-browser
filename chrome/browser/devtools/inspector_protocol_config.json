@@ -7,8 +7,7 @@
         "namespace": [ "protocol" ],
         "options": [
             {
-                "domain": "Ads",
-                "include": [ "getAdMetrics" ]
+                "domain": "Ads"
             },
             {
                 "domain": "Page",

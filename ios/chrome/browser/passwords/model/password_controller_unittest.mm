@@ -37,7 +37,6 @@
 #import "components/password_manager/core/browser/password_manager.h"
 #import "components/password_manager/core/browser/password_store/mock_password_store_interface.h"
 #import "components/password_manager/core/browser/password_store/password_store_consumer.h"
-#import "components/password_manager/core/browser/password_string.h"
 #import "components/password_manager/core/browser/stub_password_manager_client.h"
 #import "components/password_manager/core/common/password_manager_features.h"
 #import "components/password_manager/core/common/password_manager_pref_names.h"
@@ -101,7 +100,6 @@ using password_manager::PasswordForm;
 using password_manager::PasswordFormManager;
 using password_manager::PasswordFormManagerForUI;
 using password_manager::PasswordStoreConsumer;
-using password_manager::PasswordString;
 using password_manager::prefs::kPasswordLeakDetectionEnabled;
 using test_helpers::MakeSimpleFormData;
 using test_helpers::SetPasswordFormFillData;
@@ -190,7 +188,7 @@ PasswordForm CreatePasswordForm(const char* origin_url,
   form.url = GURL(origin_url);
   form.signon_realm = origin_url;
   form.username_value = ASCIIToUTF16(username_value);
-  form.password_value = PasswordString(ASCIIToUTF16(password_value));
+  form.password_value = ASCIIToUTF16(password_value);
   form.in_store = password_manager::PasswordForm::Store::kProfileStore;
   form.match_type = PasswordForm::MatchType::kExact;
   return form;
@@ -361,7 +359,7 @@ class PasswordControllerTest : public PlatformTest {
     WebFrame* frame =
         feature->GetWebFramesManager(web_state())->GetMainWebFrame();
     FormActivityParams params;
-    params.type = FormActivityParams::ActivityType::kFormChanged;
+    params.type = "form_changed";
     params.frame_id = frame->GetFrameId();
     [passwordController_.sharedPasswordController webState:web_state()
                                    didRegisterFormActivity:params
@@ -412,8 +410,8 @@ class PasswordControllerTest : public PlatformTest {
               formRendererID:formRendererID
              fieldIdentifier:SysUTF8ToNSString(field_identifier)
              fieldRendererID:fieldRendererID
-                   fieldType:FieldType::kText
-                        type:FormActivityParams::ActivityType::kInput
+                   fieldType:@"not_important"
+                        type:@"input"
                   typedValue:SysUTF8ToNSString(typed_value)
                      frameID:SysUTF8ToNSString(main_frame_id)
                 onlyPassword:NO];
@@ -613,8 +611,8 @@ void PasswordControllerTest::FillFormAndValidate(TestPasswordFormData test_data,
         formRendererID:FormRendererId(test_data.form_renderer_id)
        fieldIdentifier:SysUTF8ToNSString(test_data.username_element)
        fieldRendererID:FieldRendererId(test_data.username_renderer_id)
-             fieldType:FieldType::kText
-                  type:FormActivityParams::ActivityType::kFocus
+             fieldType:@"text"
+                  type:@"focus"
             typedValue:@""
                frameID:SysUTF8ToNSString(frame->GetFrameId())
           onlyPassword:NO];
@@ -703,7 +701,7 @@ PasswordForm MakeSimpleForm() {
   form.username_element = u"Username";
   form.password_element = u"Passwd";
   form.username_value = u"googleuser";
-  form.password_value = PasswordString(u"p4ssword");
+  form.password_value = u"p4ssword";
   form.signon_realm = "http://www.google.com/";
   form.form_data = MakeSimpleFormData();
   form.in_store = password_manager::PasswordForm::Store::kProfileStore;
@@ -1493,8 +1491,8 @@ TEST_F(PasswordControllerTest, CheckAsyncSuggestions) {
               formRendererID:form_id
              fieldIdentifier:@"username"
              fieldRendererID:field_id
-                   fieldType:FieldType::kText
-                        type:FormActivityParams::ActivityType::kFocus
+                   fieldType:@"text"
+                        type:@"focus"
                   typedValue:@""
                      frameID:SysUTF8ToNSString(GetMainWebFrameId())
                 onlyPassword:NO];
@@ -1538,8 +1536,8 @@ TEST_F(PasswordControllerTest, CheckNoAsyncSuggestionsOnNonUsernameField) {
         formRendererID:FormRendererId(1)
        fieldIdentifier:@"address"
        fieldRendererID:FieldRendererId(4)
-             fieldType:FieldType::kText
-                  type:FormActivityParams::ActivityType::kFocus
+             fieldType:@"text"
+                  type:@"focus"
             typedValue:@""
                frameID:SysUTF8ToNSString(GetMainWebFrameId())
           onlyPassword:NO];
@@ -1573,8 +1571,8 @@ TEST_F(PasswordControllerTest, CheckNoAsyncSuggestionsOnNoPasswordForms) {
         formRendererID:FormRendererId(1)
        fieldIdentifier:@"address"
        fieldRendererID:FieldRendererId(2)
-             fieldType:FieldType::kText
-                  type:FormActivityParams::ActivityType::kFocus
+             fieldType:@"text"
+                  type:@"focus"
             typedValue:@""
                frameID:SysUTF8ToNSString(GetMainWebFrameId())
           onlyPassword:NO];
@@ -2094,8 +2092,8 @@ TEST_F(PasswordControllerTest, PasswordGenerationFieldFocus) {
             formRendererID:FormRendererId(1)
            fieldIdentifier:@"pw"
            fieldRendererID:FieldRendererId(3)
-                 fieldType:FieldType::kObfuscated
-                      type:FormActivityParams::ActivityType::kFocus
+                 fieldType:@"password"
+                      type:@"focus"
                 typedValue:@""
                    frameID:SysUTF8ToNSString(GetMainWebFrameId())
               onlyPassword:NO];
@@ -2137,8 +2135,8 @@ TEST_F(PasswordControllerTest, PasswordGenerationFieldInput) {
             formRendererID:FormRendererId(1)
            fieldIdentifier:@"pw"
            fieldRendererID:FieldRendererId(3)
-                 fieldType:FieldType::kObfuscated
-                      type:FormActivityParams::ActivityType::kInput
+                 fieldType:@"password"
+                      type:@"input"
                 typedValue:@"generated_password_long"
                    frameID:SysUTF8ToNSString(GetMainWebFrameId())
               onlyPassword:NO];
@@ -2180,8 +2178,8 @@ TEST_F(PasswordControllerTest, PasswordGenerationFieldClear) {
             formRendererID:FormRendererId(1)
            fieldIdentifier:@"pw"
            fieldRendererID:FieldRendererId(3)
-                 fieldType:FieldType::kObfuscated
-                      type:FormActivityParams::ActivityType::kInput
+                 fieldType:@"password"
+                      type:@"input"
                 typedValue:@""
                    frameID:SysUTF8ToNSString(GetMainWebFrameId())
               onlyPassword:NO];

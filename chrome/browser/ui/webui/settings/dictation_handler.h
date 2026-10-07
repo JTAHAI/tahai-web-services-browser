@@ -25,7 +25,6 @@ class DictationHandler : public SettingsPageUIHandler {
   void OnJavascriptDisallowed() override {}
 
  private:
-  void HandleGetDictationShortcut(const base::ListValue& args);
   void HandleSetDictationShortcut(const base::ListValue& args);
 };
 

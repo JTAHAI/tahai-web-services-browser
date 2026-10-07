@@ -106,7 +106,7 @@ public class MultiInstanceMigrationTest {
                                     0, false, true, ObservableSuppliers.createNonNull(false));
                     TabPersistentStoreImpl store =
                             new TabPersistentStoreImpl(
-                                    TabOrchestratorType.TABBED,
+                                    TabPersistentStoreImpl.CLIENT_TAG_REGULAR,
                                     persistencePolicy,
                                     selector,
                                     null,

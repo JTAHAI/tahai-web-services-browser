@@ -6,7 +6,6 @@
 
 #import "base/strings/sys_string_conversions.h"
 #import "components/password_manager/core/browser/password_form.h"
-#import "components/password_manager/core/browser/password_store/password_form_converters.h"
 #import "components/password_manager/core/browser/sharing/password_sender_service.h"
 #import "components/password_manager/core/browser/sharing/recipients_fetcher.h"
 #import "components/password_manager/core/browser/sharing/recipients_fetcher_impl.h"
@@ -85,9 +84,8 @@ std::unique_ptr<RecipientsFetcher> CreateRecipientsFetcher(
 
 - (void)sendSelectedCredentialToSelectedRecipients {
   std::vector<password_manager::PasswordForm> passwords =
-      password_manager::ToPasswordForms(
-          _savedPasswordsPresenter->GetCorrespondingStoredCredentials(
-              self.selectedCredential));
+      _savedPasswordsPresenter->GetCorrespondingPasswordForms(
+          self.selectedCredential);
   for (RecipientInfoForIOSDisplay* recipient in self.selectedRecipients) {
     _passwordSenderService->SendPasswords(
         passwords, {.user_id = base::SysNSStringToUTF8(recipient.userID),

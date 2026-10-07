@@ -14,15 +14,6 @@
 
 #include "absl/base/internal/thread_identity.h"
 
-#include <atomic>
-#include <cassert>
-#include <memory>
-
-#include "absl/base/attributes.h"
-#include "absl/base/call_once.h"
-#include "absl/base/internal/raw_logging.h"
-#include "absl/base/internal/spinlock.h"
-
 #if !defined(_WIN32) || defined(__MINGW32__)
 #include <pthread.h>
 #ifndef __wasi__
@@ -31,6 +22,15 @@
 #include <signal.h>
 #endif
 #endif
+
+#include <atomic>
+#include <cassert>
+#include <memory>
+
+#include "absl/base/attributes.h"
+#include "absl/base/call_once.h"
+#include "absl/base/internal/raw_logging.h"
+#include "absl/base/internal/spinlock.h"
 
 namespace absl {
 ABSL_NAMESPACE_BEGIN

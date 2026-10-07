@@ -65,7 +65,6 @@ public class OmniboxLoadUrlParams {
         /**
          * @param inputStartTimestamp the timestamp of the event in the location bar that triggered
          *     this URL load.
-         * @return This builder instance.
          */
         public Builder setInputStartTimestamp(long inputStartTimestamp) {
             this.inputStartTimestamp = inputStartTimestamp;
@@ -76,7 +75,6 @@ public class OmniboxLoadUrlParams {
          * Set Whether the URL will be loaded in a new tab.
          *
          * @param openInNewTab Whether the URL will be loaded in a new tab.
-         * @return This builder instance.
          */
         public Builder setOpenInNewTab(boolean openInNewTab) {
             this.openInNewTab = openInNewTab;
@@ -86,8 +84,7 @@ public class OmniboxLoadUrlParams {
         /**
          * Set Whether the URL will be loaded in a new window.
          *
-         * @param openInNewWindow Whether the URL will be loaded in a new window.
-         * @return This builder instance.
+         * @param openInNewTab Whether the URL will be loaded in a new window.
          */
         public Builder setOpenInNewWindow(boolean openInNewWindow) {
             this.openInNewWindow = openInNewWindow;
@@ -98,7 +95,6 @@ public class OmniboxLoadUrlParams {
          * Set the post data of this load, and its type.
          *
          * @param postData Post data for this http post load.
-         * @return This builder instance.
          */
         public Builder setPostData(byte @Nullable [] postData) {
             this.postData = postData;
@@ -109,7 +105,6 @@ public class OmniboxLoadUrlParams {
          * Set the extra headers for this navigation.
          *
          * @param extraHeaders Extra headers to be included with the HTTP request.
-         * @return This builder instance.
          */
         public Builder setExtraHeaders(Map<String, String> extraHeaders) {
             this.extraHeaders = extraHeaders;
@@ -120,7 +115,6 @@ public class OmniboxLoadUrlParams {
          * Specify callback to be invoked once the URL is loaded.
          *
          * @param callback The callback to be invoked.
-         * @return This builder instance.
          */
         public Builder setAutocompleteLoadCallback(AutocompleteLoadCallback callback) {
             this.callback = callback;

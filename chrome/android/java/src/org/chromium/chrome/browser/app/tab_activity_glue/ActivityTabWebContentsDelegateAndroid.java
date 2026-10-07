@@ -26,6 +26,7 @@ import org.chromium.base.ApiCompatibilityUtils;
 import org.chromium.base.ApplicationStatus;
 import org.chromium.base.ContextUtils;
 import org.chromium.base.DeviceInfo;
+import org.chromium.base.JniOnceCallback;
 import org.chromium.base.Log;
 import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.base.metrics.RecordUserAction;
@@ -44,10 +45,11 @@ import org.chromium.chrome.browser.fullscreen.FullscreenManager;
 import org.chromium.chrome.browser.fullscreen.FullscreenOptions;
 import org.chromium.chrome.browser.init.ChromeActivityNativeDelegate;
 import org.chromium.chrome.browser.media.PictureInPicture;
-import org.chromium.chrome.browser.media.immersive_playback.ImmersivePlaybackMessageController;
+import org.chromium.chrome.browser.media.immersive_playback.ImmersivePlaybackSnackbarController;
 import org.chromium.chrome.browser.multiwindow.MultiWindowUtils;
 import org.chromium.chrome.browser.policy.PolicyAuditor;
 import org.chromium.chrome.browser.policy.PolicyAuditor.AuditEvent;
+import org.chromium.chrome.browser.tab.EmptyTabObserver;
 import org.chromium.chrome.browser.tab.InterceptNavigationDelegateTabHelper;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.TabLaunchType;
@@ -66,8 +68,7 @@ import org.chromium.chrome.browser.ui.messages.snackbar.SnackbarManager;
 import org.chromium.chrome.browser.util.PictureInPictureWindowOptions;
 import org.chromium.chrome.browser.util.WindowFeatures;
 import org.chromium.components.embedder_support.contextmenu.ContextMenuUtils;
-import org.chromium.components.embedder_support.delegate.WebContentsDelegateAndroid.ImmersivePlaybackConfirmationCallback;
-import org.chromium.components.messages.MessageDispatcherProvider;
+import org.chromium.components.embedder_support.delegate.WebContentsDelegateAndroid;
 import org.chromium.content_public.browser.ImmersivePlaybackConfirmationStatus;
 import org.chromium.content_public.browser.ImmersiveProjectionType;
 import org.chromium.content_public.browser.ImmersiveStereoMode;
@@ -109,7 +110,8 @@ public class ActivityTabWebContentsDelegateAndroid extends TabWebContentsDelegat
     private final Supplier<@Nullable ModalDialogManager> mModalDialogManagerSupplier;
     private final TabObserver mTabObserver;
     private final @Nullable ExclusiveAccessManager mExclusiveAccessManager;
-    private final @Nullable ImmersivePlaybackMessageController mImmersivePlaybackMessageController;
+    private final @Nullable ImmersivePlaybackSnackbarController
+            mImmersivePlaybackSnackbarController;
 
     public ActivityTabWebContentsDelegateAndroid(
             Tab tab,
@@ -135,17 +137,17 @@ public class ActivityTabWebContentsDelegateAndroid extends TabWebContentsDelegat
         mCompositorViewHolderSupplier = compositorViewHolderSupplier;
         mModalDialogManagerSupplier = modalDialogManagerSupplier;
         mExclusiveAccessManager = exclusiveAccessManager;
-        mImmersivePlaybackMessageController =
+        mImmersivePlaybackSnackbarController =
                 isImmersivePlaybackEnabled()
-                        ? new ImmersivePlaybackMessageController(
+                        ? new ImmersivePlaybackSnackbarController(
                                 activity,
-                                () -> MessageDispatcherProvider.from(tab.getWindowAndroid()),
+                                snackbarManagerSupplier,
                                 modalDialogManagerSupplier,
                                 tab,
                                 fullscreenManager)
                         : null;
         mTabObserver =
-                new TabObserver() {
+                new EmptyTabObserver() {
                     @Override
                     public void onActivityAttachmentChanged(
                             Tab tab, @Nullable WindowAndroid window) {
@@ -173,10 +175,7 @@ public class ActivityTabWebContentsDelegateAndroid extends TabWebContentsDelegat
     }
 
     @Override
-    public @DisplayMode.EnumType int getDisplayMode() {
-        if (isFullscreen()) {
-            return DisplayMode.FULLSCREEN;
-        }
+    public int getDisplayMode() {
         return DisplayMode.BROWSER;
     }
 
@@ -206,14 +205,6 @@ public class ActivityTabWebContentsDelegateAndroid extends TabWebContentsDelegat
                     ? mFullscreenManager.getPersistentFullscreenMode()
                     : false;
         }
-    }
-
-    /**
-     * Returns whether the application is confirmed to be in persistent/immersive fullscreen mode
-     * (excluding pending transitions).
-     */
-    protected boolean isFullscreen() {
-        return mFullscreenManager != null && mFullscreenManager.getPersistentFullscreenMode();
     }
 
     @Override
@@ -266,7 +257,7 @@ public class ActivityTabWebContentsDelegateAndroid extends TabWebContentsDelegat
 
     @Override
     protected boolean addNewContents(
-            @Nullable WebContents sourceWebContents,
+            WebContents sourceWebContents,
             WebContents webContents,
             GURL targetUrl,
             int disposition,
@@ -291,29 +282,13 @@ public class ActivityTabWebContentsDelegateAndroid extends TabWebContentsDelegat
                             mActivity, webContents, pictureInPictureWindowOptions);
         }
 
-        boolean isGrouped = mTab.getTabGroupId() != null;
-        @TabLaunchType int tabLaunchType;
-        if (disposition == WindowOpenDisposition.NEW_BACKGROUND_TAB) {
-            tabLaunchType =
-                    isGrouped
-                            ? TabLaunchType.FROM_LONGPRESS_BACKGROUND_IN_GROUP
-                            : TabLaunchType.FROM_LONGPRESS_BACKGROUND;
-        } else if (disposition == WindowOpenDisposition.NEW_FOREGROUND_TAB) {
-            tabLaunchType =
-                    isGrouped
-                            ? TabLaunchType.FROM_LONGPRESS_FOREGROUND_IN_GROUP
-                            : TabLaunchType.FROM_LONGPRESS_FOREGROUND;
-        } else {
-            tabLaunchType = TabLaunchType.FROM_LONGPRESS_FOREGROUND;
-        }
-
         final CompletableFuture<Boolean> addTabToModel = new CompletableFuture<Boolean>();
         final Tab tab =
                 tabCreator.createTabWithWebContents(
                         mTab,
                         /* shouldPin= */ false,
                         webContents,
-                        tabLaunchType,
+                        TabLaunchType.FROM_LONGPRESS_FOREGROUND,
                         targetUrl,
                         addTabToModel);
         if (tab == null) return false;
@@ -345,10 +320,6 @@ public class ActivityTabWebContentsDelegateAndroid extends TabWebContentsDelegat
             }
         }
 
-        if (sourceWebContents == null) {
-            return true;
-        }
-
         Tab sourceTab = fromWebContents(sourceWebContents);
         if (sourceTab == null) {
             return true;
@@ -371,7 +342,6 @@ public class ActivityTabWebContentsDelegateAndroid extends TabWebContentsDelegat
             // Set notify to false so snackbar to undo the grouping will not be shown.
             if (tabModel != null
                     && tabModel.isTabInTabGroup(sourceTab)
-                    && !Objects.equals(newTab.getTabGroupId(), sourceTab.getTabGroupId())
                     && tabModel.isTabModelRestored()) {
                 tabModel.mergeListOfTabsToGroup(
                         Arrays.asList(newTab),
@@ -479,16 +449,16 @@ public class ActivityTabWebContentsDelegateAndroid extends TabWebContentsDelegat
         if (reverse) {
             View menuButton = mActivity.findViewById(R.id.menu_button);
             if (menuButton != null && menuButton.isShown()) {
-                return menuButton.requestFocus(View.FOCUS_BACKWARD);
+                return menuButton.requestFocus();
             }
 
             View tabSwitcherButton = mActivity.findViewById(R.id.tab_switcher_button);
             if (tabSwitcherButton != null && tabSwitcherButton.isShown()) {
-                return tabSwitcherButton.requestFocus(View.FOCUS_BACKWARD);
+                return tabSwitcherButton.requestFocus();
             }
         } else {
             View urlBar = mActivity.findViewById(R.id.url_bar);
-            if (urlBar != null) return urlBar.requestFocus(View.FOCUS_FORWARD);
+            if (urlBar != null) return urlBar.requestFocus();
         }
         return false;
     }
@@ -650,13 +620,25 @@ public class ActivityTabWebContentsDelegateAndroid extends TabWebContentsDelegat
     public void requestImmersivePlaybackConfirmation(
             @ImmersiveStereoMode int stereoMode,
             @ImmersiveProjectionType int projectionType,
-            ImmersivePlaybackConfirmationCallback callback) {
-        if (!isImmersivePlaybackEnabled() || mImmersivePlaybackMessageController == null) {
+            JniOnceCallback<Integer> callback) {
+        if (!isImmersivePlaybackEnabled() || mImmersivePlaybackSnackbarController == null) {
             callback.onResult(ImmersivePlaybackConfirmationStatus.FAILED);
             return;
         }
 
-        mImmersivePlaybackMessageController.show(callback, stereoMode, projectionType);
+        mImmersivePlaybackSnackbarController.show(
+                (status, selectedStereoMode, selectedProjectionType) -> {
+                    // Pack the results into a single integer:
+                    // status (4 bits) | stereoMode (4 bits) | projectionType (4 bits).
+                    int packedResult =
+                            status | (selectedStereoMode << 4) | (selectedProjectionType << 8);
+                    callback.onResult(packedResult);
+                },
+                stereoMode,
+                projectionType,
+                // TODO(b/512831252): Instead of using a delay, we should properly handle
+                // interference with the ExclusiveAccess feature snackbars.
+                /* delayMs= */ 2000);
     }
 
     @Override
@@ -875,14 +857,14 @@ public class ActivityTabWebContentsDelegateAndroid extends TabWebContentsDelegat
         return TabModelUtils.getTabModelByTab(tab);
     }
 
-    protected @Nullable Tab fromWebContents(WebContents webContents) {
+    protected Tab fromWebContents(WebContents webContents) {
         return TabUtils.fromWebContents(webContents);
     }
 
     @Override
     public void destroy() {
-        if (mImmersivePlaybackMessageController != null) {
-            mImmersivePlaybackMessageController.dismiss();
+        if (mImmersivePlaybackSnackbarController != null) {
+            mImmersivePlaybackSnackbarController.dismiss();
         }
         mTab.removeObserver(mTabObserver);
     }

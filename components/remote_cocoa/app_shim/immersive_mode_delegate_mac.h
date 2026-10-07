@@ -9,7 +9,6 @@
 
 @protocol ImmersiveModeDelegate <NSWindowDelegate>
 @property(readonly) NSWindow* originalHostingWindow;
-@property(readonly) NSWindow* originalBrowserWindow;
 @end
 
 #endif  // COMPONENTS_REMOTE_COCOA_APP_SHIM_IMMERSIVE_MODE_DELEGATE_MAC_H_

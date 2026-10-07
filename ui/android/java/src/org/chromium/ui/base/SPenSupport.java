@@ -10,8 +10,8 @@ import android.os.Build;
 import android.view.MotionEvent;
 
 import org.chromium.base.ContextUtils;
-import org.chromium.base.TriState;
 import org.chromium.build.annotations.NullMarked;
+import org.chromium.build.annotations.Nullable;
 
 /** Support S-Pen event detection and conversion. */
 @NullMarked
@@ -21,19 +21,17 @@ public final class SPenSupport {
     private static final int SPEN_ACTION_UP = 212;
     private static final int SPEN_ACTION_MOVE = 213;
     private static final int SPEN_ACTION_CANCEL = 214;
-    private static @TriState int sIsSPenSupported;
+    private static @Nullable Boolean sIsSPenSupported;
 
     /**
-     * Initialize SPen support. This is done lazily at the first invocation of {@link
-     * #convertSPenEventAction(int)}.
+     * Initialize SPen support. This is done lazily at the first invocation of
+     * {@link #convertSPenEventAction(int)}.
      */
     private static boolean isSPenSupported() {
-        if (sIsSPenSupported != TriState.NOT_SET) {
-            return sIsSPenSupported == TriState.TRUE;
-        }
+        if (sIsSPenSupported != null) return sIsSPenSupported;
 
         if (!"SAMSUNG".equalsIgnoreCase(Build.MANUFACTURER)) {
-            sIsSPenSupported = TriState.FALSE;
+            sIsSPenSupported = false;
             return false;
         }
 
@@ -41,11 +39,11 @@ public final class SPenSupport {
         final FeatureInfo[] infos = context.getPackageManager().getSystemAvailableFeatures();
         for (FeatureInfo info : infos) {
             if ("com.sec.feature.spen_usp".equalsIgnoreCase(info.name)) {
-                sIsSPenSupported = TriState.TRUE;
+                sIsSPenSupported = true;
                 return true;
             }
         }
-        sIsSPenSupported = TriState.FALSE;
+        sIsSPenSupported = false;
         return false;
     }
 

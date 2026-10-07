@@ -4,29 +4,24 @@
 
 #include "chrome/browser/ui/webui/password_manager/sync_handler.h"
 
-#include <optional>
-
 #include "base/values.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/signin/identity_manager_factory.h"
 #include "chrome/browser/sync/sync_service_factory.h"
 #include "chrome/browser/sync/sync_ui_util.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
-#include "chrome/browser/ui/browser_window/public/profile_browser_collection.h"
-#include "chrome/browser/webauthn/passkey_unlock_manager.h"
 #include "components/password_manager/core/browser/features/password_manager_features_util.h"
-#include "components/signin/public/identity_manager/account_info.h"
 #include "components/sync/base/data_type.h"
 #include "components/sync/service/sync_service.h"
 #include "components/sync/service/sync_service_utils.h"
 #include "components/sync/service/sync_user_settings.h"
-#include "components/trusted_vault/trusted_vault_client.h"
 #include "third_party/skia/include/core/SkBitmap.h"
 #include "ui/base/webui/web_ui_util.h"
 
 #if BUILDFLAG(ENABLE_DICE_SUPPORT) || BUILDFLAG(IS_CHROMEOS)
 #include "chrome/browser/profiles/batch_upload/batch_upload_service.h"
 #include "chrome/browser/profiles/batch_upload/batch_upload_service_factory.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser_window/public/profile_browser_collection.h"
 #endif
 
 namespace password_manager {
@@ -76,10 +71,6 @@ void SyncHandler::RegisterMessages() {
   web_ui()->RegisterMessageCallback(
       "GetLocalPasswordCount",
       base::BindRepeating(&SyncHandler::HandleGetLocalPasswordCount,
-                          base::Unretained(this)));
-  web_ui()->RegisterMessageCallback(
-      "StartPasskeyUnlockFlow",
-      base::BindRepeating(&SyncHandler::HandleStartPasskeyUnlockFlow,
                           base::Unretained(this)));
 #if BUILDFLAG(ENABLE_DICE_SUPPORT) || BUILDFLAG(IS_CHROMEOS)
   web_ui()->RegisterMessageCallback(
@@ -166,15 +157,14 @@ void SyncHandler::HandleGetSyncInfo(const base::ListValue& args) {
 base::DictValue SyncHandler::GetAccountInfo() const {
   signin::IdentityManager* identity_manager(
       IdentityManagerFactory::GetInstance()->GetForProfile(profile_));
-  AccountInfo stored_account = identity_manager->FindExtendedAccountInfo(
+  auto stored_account = identity_manager->FindExtendedAccountInfo(
       identity_manager->GetPrimaryAccountInfo(signin::ConsentLevel::kSignin));
 
   base::DictValue dict;
-  dict.Set("email", stored_account.GetEmail());
-  const std::optional<gfx::Image> avatar_image =
-      stored_account.GetAvatarImage();
-  if (avatar_image.has_value()) {
-    dict.Set("avatarImage", webui::GetBitmapDataUrl(avatar_image->AsBitmap()));
+  dict.Set("email", stored_account.email);
+  const auto& avatar_image = stored_account.account_image;
+  if (!avatar_image.IsEmpty()) {
+    dict.Set("avatarImage", webui::GetBitmapDataUrl(avatar_image.AsBitmap()));
   }
   return dict;
 }
@@ -204,7 +194,8 @@ void SyncHandler::HandleOpenBatchUploadDialog(const base::ListValue& args) {
   CHECK(batch_upload);
   BrowserWindowInterface* browser =
       ProfileBrowserCollection::GetForProfile(profile_)->GetLastActiveBrowser();
-  batch_upload->OpenBatchUpload(browser, entry_point);
+  batch_upload->OpenBatchUpload(
+      browser ? browser->GetBrowserForMigrationOnly() : nullptr, entry_point);
 }
 #endif
 
@@ -280,17 +271,6 @@ syncer::SyncService* SyncHandler::GetSyncService() const {
   return SyncServiceFactory::IsSyncAllowed(profile_)
              ? SyncServiceFactory::GetForProfile(profile_)
              : nullptr;
-}
-
-void SyncHandler::HandleStartPasskeyUnlockFlow(
-    const base::ListValue& args) {
-  BrowserWindowInterface* browser =
-      ProfileBrowserCollection::GetForProfile(profile_)->GetLastActiveBrowser();
-  if (browser) {
-    webauthn::PasskeyUnlockManager::OpenTabWithPasskeyUnlockChallenge(
-        browser, trusted_vault::TrustedVaultUserActionTriggerForUMA::
-                     kGpmSettingsPasskeyPromoCard);
-  }
 }
 
 }  // namespace password_manager

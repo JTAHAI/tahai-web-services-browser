@@ -42,6 +42,7 @@ enum class D3D11StatusCode : StatusCodeType {
   kVideoProcessorBltFailed = 22,
   kCreateVideoProcessorOutputViewFailed = 23,
   kCreateVideoProcessorFailed = 24,
+  kQueryVideoContextFailed = 25,
   kAcceleratorFlushFailed = 26,
   kTryAgainNotSupported = 27,
   kCryptoConfigFailed = 28,

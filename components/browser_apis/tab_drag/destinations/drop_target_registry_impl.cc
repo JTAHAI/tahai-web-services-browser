@@ -21,16 +21,14 @@ class DropTargetRegistrationMojoImpl : public mojom::DropTargetRegistration {
       : registry_(registry), target_id_(target_id) {}
 
   ~DropTargetRegistrationMojoImpl() override {
-    if (registry_) {
-      registry_->UnregisterDropTarget(target_id_);
-    }
+    CHECK(registry_);
+    registry_->UnregisterDropTarget(target_id_);
   }
 
   // mojom::DropTargetRegistration:
   void OnBoundsChanged(const gfx::Rect& bounds) override {
-    if (registry_) {
-      registry_->UpdateTargetBounds(target_id_, bounds);
-    }
+    CHECK(registry_);
+    registry_->UpdateTargetBounds(target_id_, bounds);
   }
 
  private:

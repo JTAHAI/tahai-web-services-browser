@@ -35,7 +35,6 @@
 #include "ui/views/background.h"
 #include "ui/views/border.h"
 #include "ui/views/controls/button/label_button.h"
-#include "ui/views/controls/button/md_text_button.h"
 #include "ui/views/controls/image_view.h"
 #include "ui/views/controls/label.h"
 #include "ui/views/controls/throbber.h"
@@ -108,9 +107,7 @@ END_METADATA
 class HeadlessEnterpriseStartupDialogImpl : public EnterpriseStartupDialog {
  public:
   explicit HeadlessEnterpriseStartupDialogImpl(DialogResultCallback callback)
-      : callback_(std::move(callback)) {
-    CHECK(callback_);
-  }
+      : callback_(std::move(callback)) {}
 
   HeadlessEnterpriseStartupDialogImpl(
       const HeadlessEnterpriseStartupDialogImpl&) = delete;
@@ -147,9 +144,7 @@ class HeadlessEnterpriseStartupDialogImpl : public EnterpriseStartupDialog {
     }
   }
 
-  // It is important that `IsShowing()` returns false when it is called from
-  // within the callback.
-  bool IsShowing() override { return !callback_.is_null(); }
+  bool IsShowing() override { return true; }
 
  private:
   DialogResultCallback callback_;
@@ -160,7 +155,6 @@ class HeadlessEnterpriseStartupDialogImpl : public EnterpriseStartupDialog {
 EnterpriseStartupDialogView::EnterpriseStartupDialogView(
     EnterpriseStartupDialog::DialogResultCallback callback)
     : callback_(std::move(callback)) {
-  CHECK(callback_);
   views::BoxLayout* layout =
       SetLayoutManager(std::make_unique<views::BoxLayout>());
   layout->set_main_axis_alignment(views::BoxLayout::MainAxisAlignment::kCenter);
@@ -235,12 +229,6 @@ void EnterpriseStartupDialogView::AddWidgetObserver(
 void EnterpriseStartupDialogView::RemoveWidgetObserver(
     views::WidgetObserver* observer) {
   GetWidget()->RemoveObserver(observer);
-}
-
-bool EnterpriseStartupDialogView::IsShowing() {
-  // It is important that `IsShowing()` returns false when it is called from
-  // within the callback.
-  return !callback_.is_null();
 }
 
 void EnterpriseStartupDialogView::StartModalDialog() {
@@ -342,10 +330,7 @@ void EnterpriseStartupDialogImpl::DisplayErrorMessage(
 }
 
 bool EnterpriseStartupDialogImpl::IsShowing() {
-  // It is important that `IsShowing()` returns false when it is called from
-  // within the callback. Relying on the view being destroyed is not good
-  // enough, as widget destruction may be asynchronous on some platforms.
-  return dialog_view_ && dialog_view_->IsShowing();
+  return dialog_view_;
 }
 
 // views::WidgetObserver:

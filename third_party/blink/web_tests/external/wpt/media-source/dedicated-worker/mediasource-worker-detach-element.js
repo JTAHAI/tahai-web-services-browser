@@ -28,9 +28,8 @@ util.mediaSource.addEventListener("sourceopen", () => {
   sourceBuffer.onerror = (err) => {
     postMessage({ subject: messageSubject.ERROR, info: err });
   };
-  util.mediaLoadPromise.then(
-      mediaData => bufferInto(sourceBuffer, mediaData, 1000, 0),
-      err => {postMessage({subject: messageSubject.ERROR, info: err})});
+  util.mediaLoadPromise.then(mediaData => bufferInto(sourceBuffer, mediaData, 100, 0),
+                             err => { postMessage({ subject: messageSubject.ERROR, info: err }) } );
 }, { once : true });
 
 let handle = util.mediaSource.handle;
@@ -58,7 +57,7 @@ function bufferInto(sourceBuffer, mediaData, appendSize, position) {
   var nextPosition = position + appendSize;
   const pieceToAppend = mediaData.slice(position, nextPosition);
   position = nextPosition;
-  appendSize += 1000;
+  appendSize += 100;
 
   sourceBuffer.addEventListener("updateend", () => {
     if (!sentStartedBufferingMessage) {

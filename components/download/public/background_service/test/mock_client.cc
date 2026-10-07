@@ -17,8 +17,7 @@ MockClient::~MockClient() = default;
 void MockClient::GetUploadData(const std::string& guid,
                                GetUploadDataCallback callback) {
   base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
-      FROM_HERE,
-      base::BindOnce(std::move(callback), DownloadRequestParameters()));
+      FROM_HERE, base::BindOnce(std::move(callback), nullptr));
 }
 
 }  // namespace test

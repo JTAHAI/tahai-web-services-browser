@@ -460,8 +460,6 @@ class GetCacheKeysForRequestData {
       callback_wrapper_;
 };
 
-}  // namespace
-
 class CachedResponseFileReaderLoaderClient final
     : public GarbageCollected<CachedResponseFileReaderLoaderClient>,
       public FileReaderClient {
@@ -520,7 +518,7 @@ class CachedResponseFileReaderLoaderClient final
       : loader_(MakeGarbageCollected<FileReaderLoader>(this,
                                                        std::move(task_runner))),
         callback_wrapper_(callback_wrapper),
-        keep_alive_({}, this) {
+        keep_alive_(this) {
     loader_->Start(std::move(blob));
   }
 
@@ -538,6 +536,8 @@ class CachedResponseFileReaderLoaderClient final
   SegmentedBuffer data_;
   SelfKeepAlive<CachedResponseFileReaderLoaderClient> keep_alive_;
 };
+
+}  // namespace
 
 InspectorCacheStorageAgent::InspectorCacheStorageAgent(InspectedFrames* frames)
     : frames_(frames) {}

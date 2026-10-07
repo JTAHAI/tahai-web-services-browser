@@ -26,8 +26,7 @@ def _CheckRepoPackageVersionBump(input_api, output_api):
         return [
             output_api.PresubmitError(
                 f"Missing required executables for deterministic package build check: "
-                f"{', '.join(missing_deps)}. Please install them to proceed."
-            )
+                f"{', '.join(missing_deps)}. Please install them to proceed.")
         ]
 
     if not os.path.exists(input_api.PresubmitLocalPath()):
@@ -39,11 +38,8 @@ def _CheckRepoPackageVersionBump(input_api, output_api):
 
     repo_include_path = "chrome/installer/linux/debian/repo_package.include"
     repo_file = next(
-        (
-            f
-            for f in input_api.AffectedFiles(include_deletes=False)
-            if f.LocalPath().replace("\\", "/") == repo_include_path
-        ),
+        (f for f in input_api.AffectedFiles(include_deletes=False)
+         if f.LocalPath().replace("\\", "/") == repo_include_path),
         None,
     )
 
@@ -55,9 +51,8 @@ def _CheckRepoPackageVersionBump(input_api, output_api):
                 expected_hash = line.split("=")[1].strip()
                 break
     else:
-        abs_repo_include = os.path.join(
-            input_api.PresubmitLocalPath(), "debian", "repo_package.include"
-        )
+        abs_repo_include = os.path.join(input_api.PresubmitLocalPath(),
+                                        "debian", "repo_package.include")
         if os.path.exists(abs_repo_include):
             with open(abs_repo_include, "r") as f:
                 for line in f:
@@ -69,8 +64,7 @@ def _CheckRepoPackageVersionBump(input_api, output_api):
     if expected_hash is None:
         return [
             output_api.PresubmitError(
-                f"REPO_PACKAGE_HASH not found in {repo_include_path}."
-            )
+                f"REPO_PACKAGE_HASH not found in {repo_include_path}.")
         ]
 
     sys.path.insert(0, os.path.join(input_api.PresubmitLocalPath(), "common"))
@@ -82,13 +76,11 @@ def _CheckRepoPackageVersionBump(input_api, output_api):
     with tempfile.TemporaryDirectory() as tmpdir:
         try:
             actual_hash = installer.compute_repo_package_hash_for_presubmit(
-                input_api.PresubmitLocalPath(), tmpdir
-            )
+                input_api.PresubmitLocalPath(), tmpdir)
         except RuntimeError as e:
             return [
                 output_api.PresubmitError(
-                    f"Failed to build repo package for presubmit check:\n{e}"
-                )
+                    f"Failed to build repo package for presubmit check:\n{e}")
             ]
 
     if actual_hash == expected_hash:
@@ -100,8 +92,7 @@ def _CheckRepoPackageVersionBump(input_api, output_api):
             f"package hash ({actual_hash}) does not match REPO_PACKAGE_HASH "
             f"in {repo_include_path} ({expected_hash}).\n"
             "Please run chrome/installer/linux/common/update_key_include.py "
-            "--repo-only to automatically update debian/repo_package.include."
-        )
+            "--repo-only to automatically update debian/repo_package.include.")
     ]
 
 

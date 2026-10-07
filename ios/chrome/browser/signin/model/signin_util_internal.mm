@@ -152,7 +152,8 @@ signin::RestoreData LoadDeviceRestoreDataInternal(
     // experimental flags in Chrome settings. Therefore this should be available
     // only in canary and dev.
     auto current_channel = GetChannel();
-    CHECK(current_channel != version_info::Channel::STABLE);
+    CHECK(current_channel != version_info::Channel::STABLE,
+          base::NotFatalUntil::M140);
     DeleteFile(not_backed_up_sentinel_path);
   }
   bool does_backed_up_sentinel_file_exist =

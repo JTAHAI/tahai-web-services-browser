@@ -231,8 +231,7 @@ void LayerTreeHostImplTestBase::SetNeedsPrepareTilesOnImplThread() {
   did_request_prepare_tiles_ = true;
 }
 void LayerTreeHostImplTestBase::SetNeedsCommitOnImplThread(BeginMainFrameReason,
-                                                           bool urgent,
-                                                           bool unthrottled) {
+                                                           bool urgent) {
   did_request_commit_ = true;
 }
 void LayerTreeHostImplTestBase::SetVideoNeedsBeginFrames(
@@ -566,7 +565,7 @@ void LayerTreeHostImplTestBase::CreateAndTestNonScrollableLayers(
           .get(),
       ui::ScrollInputType::kWheel);
   ASSERT_EQ(ScrollThread::kScrollOnImplThread, status.thread);
-  ASSERT_EQ(MainThreadHitTestReasons{MainThreadHitTestReason::kFailedHitTest},
+  ASSERT_EQ(MainThreadScrollingReason::kFailedHitTest,
             status.main_thread_hit_test_reasons);
 
   // The point hits squash1 layer and also scrollbar layer.
@@ -576,7 +575,7 @@ void LayerTreeHostImplTestBase::CreateAndTestNonScrollableLayers(
           .get(),
       ui::ScrollInputType::kWheel);
   ASSERT_EQ(ScrollThread::kScrollOnImplThread, status.thread);
-  ASSERT_EQ(MainThreadHitTestReasons{MainThreadHitTestReason::kFailedHitTest},
+  ASSERT_EQ(MainThreadScrollingReason::kFailedHitTest,
             status.main_thread_hit_test_reasons);
 
   // The point hits squash2 layer and also scroll layer, because scroll layer
@@ -941,8 +940,8 @@ void LayerTreeHostImplTestBase::SetupMouseMoveAtTestScrollbarStates(
   LayerImpl* root_scroll = OuterViewportScrollLayer();
 
   if (main_thread_scrolling) {
-    GetScrollNode(root_scroll)->main_thread_repaint_reasons = {
-        MainThreadRepaintReason::kHasBackgroundAttachmentFixedObjects};
+    GetScrollNode(root_scroll)->main_thread_repaint_reasons =
+        MainThreadScrollingReason::kHasBackgroundAttachmentFixedObjects;
   }
 
   // scrollbar_1 on root scroll.

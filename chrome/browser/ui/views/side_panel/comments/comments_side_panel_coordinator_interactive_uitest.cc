@@ -2,19 +2,18 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "chrome/browser/ui/views/side_panel/comments/comments_side_panel_coordinator.h"
-
 #include "chrome/browser/data_sharing/data_sharing_service_factory.h"
 #include "chrome/browser/signin/identity_manager_factory.h"
 #include "chrome/browser/tab_group_sync/tab_group_sync_service_factory.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_actions.h"
 #include "chrome/browser/ui/browser_element_identifiers.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/side_panel/side_panel_registry.h"
 #include "chrome/browser/ui/tabs/public/tab_features.h"
 #include "chrome/browser/ui/tabs/tab_group_model.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
+#include "chrome/browser/ui/views/side_panel/comments/comments_side_panel_coordinator.h"
 #include "chrome/browser/ui/views/tabs/tab_strip.h"
 #include "chrome/browser/ui/views/test/tab_strip_interactive_test_mixin.h"
 #include "chrome/test/interaction/interactive_browser_test.h"
@@ -56,7 +55,7 @@ class CommentsSidePanelCoordinatorInteractiveUiTest
     EXPECT_TRUE(
         AddTabAtIndex(0, GURL(url::kAboutBlankURL), ui::PAGE_TRANSITION_TYPED));
     tab_groups::TabGroupId group_id =
-        browser()->GetTabStripModel()->AddToNewGroup({0});
+        browser()->tab_strip_model()->AddToNewGroup({0});
     tab_groups::TabGroupVisualData updates(std::u16string(title),
                                            tab_groups::TabGroupColorId::kGrey);
     tab_group_sync_service()->UpdateVisualData(group_id, &updates);
@@ -122,7 +121,7 @@ class CommentsSidePanelCoordinatorInteractiveUiTest
   actions::ActionItem* GetActionItemForCommentsSidePanel() {
     return actions::ActionManager::Get().FindAction(
         kActionSidePanelShowComments,
-        BrowserActions::From(browser())->root_action_item());
+        browser()->GetActions()->root_action_item());
   }
 
  private:
@@ -152,7 +151,7 @@ IN_PROC_BROWSER_TEST_F(CommentsSidePanelCoordinatorInteractiveUiTest,
   const int non_shared_tab_index = 1;
   const int ungrouped_tab_index = 2;
 
-  browser()->GetTabStripModel()->ActivateTabAt(ungrouped_tab_index);
+  browser()->tab_strip_model()->ActivateTabAt(ungrouped_tab_index);
 
   RunTestSequence(
       // Verify the comments action is visible when the active tab is shared.
@@ -186,7 +185,7 @@ IN_PROC_BROWSER_TEST_F(CommentsSidePanelCoordinatorInteractiveUiTest,
       AddTabAtIndex(0, GURL(url::kAboutBlankURL), ui::PAGE_TRANSITION_TYPED));
   const int ungrouped_tab_index = 0;
 
-  browser()->GetTabStripModel()->ActivateTabAt(ungrouped_tab_index);
+  browser()->tab_strip_model()->ActivateTabAt(ungrouped_tab_index);
 
   RunTestSequence(WaitForShow(kTabGroupHeaderElementId),
                   EnsureNotPresent(kSharedTabGroupCommentsActionElementId),
@@ -194,7 +193,7 @@ IN_PROC_BROWSER_TEST_F(CommentsSidePanelCoordinatorInteractiveUiTest,
                   DragMouseTo(kTabGroupHeaderElementId), Do([&]() {
                     // Verify the tab was added to the group.
                     TabGroupModel* tab_group_model =
-                        browser()->GetTabStripModel()->group_model();
+                        browser()->tab_strip_model()->group_model();
                     EXPECT_EQ(
                         tab_group_model->GetTabGroup(group_id)->tab_count(), 2);
                   }),
@@ -207,7 +206,7 @@ IN_PROC_BROWSER_TEST_F(CommentsSidePanelCoordinatorInteractiveUiTest,
   tab_groups::TabGroupId group_id = CreateNewTabGroup();
 
   const int non_shared_tab_index = 0;
-  browser()->GetTabStripModel()->ActivateTabAt(non_shared_tab_index);
+  browser()->tab_strip_model()->ActivateTabAt(non_shared_tab_index);
 
   RunTestSequence(
       WaitForShow(kTabGroupHeaderElementId),
@@ -261,7 +260,7 @@ IN_PROC_BROWSER_TEST_F(CommentsSidePanelCoordinatorInteractiveUiTest,
   const int non_shared_tab_index = 1;
   const int ungrouped_tab_index = 2;
 
-  browser()->GetTabStripModel()->ActivateTabAt(ungrouped_tab_index);
+  browser()->tab_strip_model()->ActivateTabAt(ungrouped_tab_index);
 
   RunTestSequence(
       // Verify the comments side panel can be opened when the active tab is
@@ -300,7 +299,7 @@ IN_PROC_BROWSER_TEST_F(CommentsSidePanelCoordinatorInteractiveUiTest,
   const int group1_tab_index = 1;
   const int ungrouped_tab_index = 2;
 
-  browser()->GetTabStripModel()->ActivateTabAt(ungrouped_tab_index);
+  browser()->tab_strip_model()->ActivateTabAt(ungrouped_tab_index);
 
   RunTestSequence(
       // Initially, the title should have no group name.

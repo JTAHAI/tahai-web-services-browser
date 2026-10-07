@@ -74,8 +74,8 @@ const CGFloat kVerticalMargin = 8;
     _textStackView.spacing = 0;
 
     _iconImageView = [[UIImageView alloc]
-        initWithImage:SymbolWithPointSize(SymbolExternalLink,
-                                          kToggleIconPointSize)];
+        initWithImage:DefaultSymbolWithPointSize(kExternalLinkSymbol,
+                                                 kToggleIconPointSize)];
 
     _contentStackView = [[UIStackView alloc]
         initWithArrangedSubviews:@[ _textStackView, _iconImageView ]];

@@ -60,7 +60,7 @@ class MODULES_EXPORT RealtimeAudioDestinationNode final
 
   // Returns its own handler object instead of a generic one from
   // AudioNode::Handler().
-  RealtimeAudioDestinationHandler& GetAudioDestinationHandler() const override;
+  RealtimeAudioDestinationHandler& GetOwnHandler() const;
 
   // See `RealtimeAudioDestinationHandler.SetSinkDescriptor` for details.
   void SetSinkDescriptor(const WebAudioSinkDescriptor&,

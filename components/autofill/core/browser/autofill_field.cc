@@ -34,7 +34,7 @@
 #include "base/types/pass_key.h"
 #include "components/autofill/core/browser/autofill_format_string.h"
 #include "components/autofill/core/browser/autofill_type.h"
-#include "components/autofill/core/browser/field_type_util.h"
+#include "components/autofill/core/browser/field_type_utils.h"
 #include "components/autofill/core/browser/field_types.h"
 #include "components/autofill/core/browser/heuristic_source.h"
 #include "components/autofill/core/browser/proto/api_v1.pb.h"
@@ -550,6 +550,11 @@ FieldType AutofillField::server_type() const {
                    .value_or(NO_SERVER_DATA);
 }
 
+bool AutofillField::server_type_prediction_is_override() const {
+  return server_predictions_.empty() ? false
+                                     : server_predictions_[0].override();
+}
+
 void AutofillField::set_heuristic_type(HeuristicSource s, FieldType type) {
   CHECK(ToSafeFieldType(type).has_value(), base::NotFatalUntil::M142);
   local_type_predictions_[static_cast<size_t>(s)] = type;
@@ -675,9 +680,8 @@ AutofillType AutofillField::MakeAutofillType(FieldType primary_field_type,
 
 AutofillField::PredictionResult AutofillField::GetOverallPredictionResult()
     const {
-  // Server overrides are granted precedence unconditionally.
-  if (!server_predictions_.empty() && server_predictions_[0].override() &&
-      server_type() != NO_SERVER_DATA) {
+  // Server Overrides are granted precedence unconditionally.
+  if (server_type_prediction_is_override() && server_type() != NO_SERVER_DATA) {
     return {MakeAutofillType(server_type()),
             AutofillPredictionSource::kServerOverride};
   }
@@ -811,17 +815,20 @@ bool AutofillField::ShouldSuppressSuggestionsAndFillingByDefault(
   // autocomplete attribute's value to unrecognized. This is done in order to
   // preserve the ability to swap an autofilled value for a different one.
   // See crbug.com/469057923 for details.
-  if (last_modifier() == FieldModifier::kAutofill) {
+  if (last_modifier() == FieldModifier::kAutofill &&
+      base::FeatureList::IsEnabled(
+          features::kShowSugesstionsOnAlreadyAutofilledUnrecognized)) {
     return false;
   }
 
-  // Suggestions/filling will not be suppressed if one of the following is true:
-  // 1. The autocomplete attribute is valid (can be seen in the HTML spec).
+  // The field will not be suppressed (i.e., it will be filled/suggested) if one
+  // of the following is true:
+  // 1. The autocomplete attribute is valid type (that can be seen in the HTML
+  //    spec).
   // 2. The field's type comes from a server override.
-  // 3. The field type has a credit-card-related classification.
+  // 3. The field type is credit-card-related.
   if (html_type_ != HtmlFieldType::kUnrecognized ||
-      PredictionSource() == AutofillPredictionSource::kServerOverride ||
-      Type().GetCreditCardType() != UNKNOWN_TYPE) {
+      server_type_prediction_is_override() || IsCreditCardPrediction()) {
     return false;
   }
 
@@ -861,6 +868,11 @@ void AutofillField::UpdateFieldData(const FormFieldData& field_data) {
 
   field_signature_ =
       CalculateFieldSignatureByNameAndType(name(), form_control_type());
+}
+
+bool AutofillField::IsCreditCardPrediction() const {
+  return GroupTypeOfFieldType(server_type()) == FieldTypeGroup::kCreditCard ||
+         GroupTypeOfFieldType(heuristic_type()) == FieldTypeGroup::kCreditCard;
 }
 
 void AutofillField::AppendLogEventIfNotRepeated(

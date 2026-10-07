@@ -109,9 +109,6 @@ glic::mojom::InvocationSource GlicInvokeOptions::GetInvocationSource() const {
             if (payload->is_universal_cart()) {
               return glic::mojom::InvocationSource::kUniversalCart;
             }
-            if (payload->is_skills_payload()) {
-              return glic::mojom::InvocationSource::kSkills;
-            }
             NOTREACHED();
           }},
       source_or_payload);

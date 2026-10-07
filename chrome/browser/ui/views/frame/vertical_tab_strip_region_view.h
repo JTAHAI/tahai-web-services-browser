@@ -34,7 +34,6 @@
 class BrowserView;
 class VerticalTabStripTopContainer;
 class VerticalTabStripBottomContainer;
-class VerticalTabStripFocusSwipeController;
 class ShadowFrameView;
 
 namespace tabs {
@@ -114,6 +113,9 @@ class VerticalTabStripRegionView final
   void OnMouseMoved(const ui::MouseEvent& event) override;
   void OnMouseExited(const ui::MouseEvent& event) override;
 
+  void OnTabGroupFocusChanged(
+      std::optional<tab_groups::TabGroupId> new_focused_group_id,
+      std::optional<tab_groups::TabGroupId> old_focused_group_id) override;
   std::unique_ptr<ExpandOnHoverLock> GetExpandOnHoverLock(
       ExpandOnHoverLockType lock_type) override;
 
@@ -147,10 +149,6 @@ class VerticalTabStripRegionView final
   views::ResizeArea* resize_area_for_testing() { return resize_area_; }
   tabs::VerticalTabStripState target_collapse_state_for_testing() {
     return target_collapse_state_;
-  }
-
-  VerticalTabStripFocusSwipeController* focus_swipe_controller_for_testing() {
-    return focus_swipe_controller_.get();
   }
 
  private:
@@ -212,7 +210,6 @@ class VerticalTabStripRegionView final
   bool IsAnimatingSize() const;
 
   bool IsFrameActive() const;
-  bool IsCollapseButtonHovered() const;
 
   // Returns the bounds within which tabs can be dragged in the vertical tab
   // strip.
@@ -274,7 +271,6 @@ class VerticalTabStripRegionView final
 
   base::OneShotTimer expand_on_hover_timer_;
   bool is_expanded_on_hover_ = false;
-  bool suppress_expand_on_hover_ = false;
   std::optional<base::TimeTicks> expand_on_hover_start_time_;
   base::RetainingOneShotTimer expand_on_hover_heuristic_timer_;
   std::optional<gfx::Point> point_at_expand_on_hover_timer_start_;
@@ -295,11 +291,6 @@ class VerticalTabStripRegionView final
 
   RegionViewFocusListener focus_listener_{this};
   ClickEventHandler click_handler_{this};
-  std::unique_ptr<VerticalTabStripFocusSwipeController> focus_swipe_controller_;
-
-  // Allows the swipe controller to inspect tab dragging state and rotate
-  // focused tab groups on the TabStripModel.
-  friend class VerticalTabStripFocusSwipeController;
 
   // The mouse exit event debounce timer.
   base::OneShotTimer mouse_exit_timer_;

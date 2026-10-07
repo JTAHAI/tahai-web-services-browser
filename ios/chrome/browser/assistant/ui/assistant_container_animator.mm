@@ -7,8 +7,8 @@
 #import "ios/chrome/browser/assistant/ui/assistant_container_animatable.h"
 #import "ios/chrome/browser/assistant/ui/assistant_container_layout_utils.h"
 #import "ios/chrome/browser/assistant/ui/assistant_container_presenter.h"
+#import "ios/chrome/browser/shared/coordinator/scene/state/layout_state.h"
 #import "ios/chrome/browser/shared/coordinator/scene/state/layout_transition_coordinating.h"
-#import "ios/chrome/browser/shared/coordinator/scene/state/scene_layout_state.h"
 
 namespace layout_state {
 class AssistantContainerAnimatorPassKeyFactory {
@@ -36,14 +36,14 @@ inline LayoutStateAssistantPassKey PassKey() {
 
 @implementation AssistantContainerAnimator {
   // The layout state used for animation.
-  __weak SceneLayoutState* _layoutState;
+  __weak LayoutState* _layoutState;
   // Animations to be run alongside the transition.
   NSMutableArray* _animations;
   // Completion blocks to be executed after the transition.
   NSMutableArray* _completions;
 }
 
-- (instancetype)initWithLayoutState:(SceneLayoutState*)layoutState {
+- (instancetype)initWithLayoutState:(LayoutState*)layoutState {
   self = [super init];
   if (self) {
     _layoutState = layoutState;
@@ -140,7 +140,7 @@ inline LayoutStateAssistantPassKey PassKey() {
 
   [baseViewController.view layoutIfNeeded];
 
-  SceneLayoutState* layoutState = _layoutState;
+  LayoutState* layoutState = _layoutState;
   if (layoutState.containedLayoutActive == presented) {
     if (completion) {
       completion();

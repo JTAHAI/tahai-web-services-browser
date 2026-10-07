@@ -39,6 +39,7 @@ ProtocolHandlerLaunchDialogView::ProtocolHandlerLaunchDialogView(
   SetButtonLabel(
       ui::mojom::DialogButton::kCancel,
       l10n_util::GetStringUTF16(IDS_WEB_APP_PERMISSION_NEGATIVE_BUTTON));
+  SetDefaultButton(static_cast<int>(ui::mojom::DialogButton::kCancel));
 }
 
 ProtocolHandlerLaunchDialogView::~ProtocolHandlerLaunchDialogView() = default;

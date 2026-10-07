@@ -24,7 +24,7 @@ bool IsAimCobrowseEligible(ProfileIOS* profile) {
     return false;
   }
 
-  if (!profile || profile->IsOffTheRecord()) {
+  if (!profile) {
     return false;
   }
 

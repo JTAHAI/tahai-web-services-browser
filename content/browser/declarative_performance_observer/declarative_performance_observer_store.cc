@@ -39,9 +39,6 @@ constexpr base::FilePath::CharType kDatabaseFilename[] =
 // Time-to-live (TTL) for early failure reports stored in the database.
 constexpr base::TimeDelta kReportsTimeToLive = base::Days(7);
 
-// Maximum number of early failure policies to store in the cache/database.
-constexpr size_t kMaxPolicies = 1000;
-
 // These values are persisted to logs. Entries should not be renumbered and
 // numeric values should never be reused.
 // LINT.IfChange(DeclarativePerformanceObserverStoreReportResult)
@@ -93,33 +90,23 @@ class DeclarativePerformanceObserverStore::Backend
 
   void LoadPoliciesOnDbSequence(
       scoped_refptr<base::SequencedTaskRunner> ui_task_runner,
-      base::OnceCallback<void(
-          std::vector<DeclarativePerformanceObserverStore::LoadedPolicy>)>
-          on_loaded_callback) {
+      base::OnceCallback<void(std::vector<url::Origin>)> on_loaded_callback) {
     DCHECK_CALLED_ON_VALID_SEQUENCE(db_sequence_checker_);
     if (!InitOnDbSequence()) {
-      ui_task_runner->PostTask(
-          FROM_HERE,
-          base::BindOnce(
-              std::move(on_loaded_callback),
-              std::vector<
-                  DeclarativePerformanceObserverStore::LoadedPolicy>()));
+      ui_task_runner->PostTask(FROM_HERE,
+                               base::BindOnce(std::move(on_loaded_callback),
+                                              std::vector<url::Origin>()));
       return;
     }
 
-    std::vector<DeclarativePerformanceObserverStore::LoadedPolicy> loaded;
+    std::vector<url::Origin> loaded;
     sql::Statement statement(
-        db_->GetUniqueStatement("SELECT origin, capture_early_failures, "
-                                "created_at FROM "
-                                "declarative_performance_observer_policies "
-                                "ORDER BY created_at ASC"));
+        db_->GetUniqueStatement("SELECT origin, capture_early_failures FROM "
+                                "declarative_performance_observer_policies"));
     while (statement.Step()) {
       if (statement.ColumnBool(1)) {
-        url::Origin origin =
-            url::Origin::Create(GURL(statement.ColumnString(0)));
-        base::Time created_at = base::Time::FromDeltaSinceWindowsEpoch(
-            base::Microseconds(statement.ColumnInt64(2)));
-        loaded.push_back({std::move(origin), created_at});
+        loaded.emplace_back(
+            url::Origin::Create(GURL(statement.ColumnString(0))));
       }
     }
 
@@ -138,10 +125,8 @@ class DeclarativePerformanceObserverStore::Backend
       sql::Statement statement(db_->GetCachedStatement(
           SQL_FROM_HERE,
           "INSERT OR REPLACE INTO declarative_performance_observer_policies "
-          "(origin, capture_early_failures, created_at) VALUES (?, 1, ?)"));
+          "(origin, capture_early_failures) VALUES (?, 1)"));
       statement.BindString(0, origin.Serialize());
-      statement.BindInt64(
-          1, base::Time::Now().ToDeltaSinceWindowsEpoch().InMicroseconds());
       statement.Run();
     } else {
       sql::Statement statement(db_->GetCachedStatement(
@@ -413,12 +398,8 @@ class DeclarativePerformanceObserverStore::Backend
     }
 
     sql::MetaTable meta_table;
-    static constexpr int kVersionNumber = 2;
-    static constexpr int kCompatibleVersionNumber = 2;
-
-    std::ignore = sql::MetaTable::RazeIfIncompatible(
-        db_.get(), kCompatibleVersionNumber, kVersionNumber);
-
+    static constexpr int kVersionNumber = 1;
+    static constexpr int kCompatibleVersionNumber = 1;
     if (!meta_table.Init(db_.get(), kVersionNumber, kCompatibleVersionNumber)) {
       return false;
     }
@@ -426,8 +407,7 @@ class DeclarativePerformanceObserverStore::Backend
     static constexpr char kCreatePoliciesTable[] =
         "CREATE TABLE IF NOT EXISTS declarative_performance_observer_policies ("
         "origin TEXT PRIMARY KEY NOT NULL, "
-        "capture_early_failures BOOLEAN NOT NULL, "
-        "created_at INTEGER NOT NULL)";
+        "capture_early_failures BOOLEAN NOT NULL)";
     if (!db_->Execute(kCreatePoliciesTable)) {
       return false;
     }
@@ -449,27 +429,15 @@ class DeclarativePerformanceObserverStore::Backend
       return false;
     }
 
-    // Clean up expired policies (TTL = 7 days).
-    static constexpr char kCleanExpiredPolicies[] =
-        "DELETE FROM declarative_performance_observer_policies WHERE "
-        "created_at < ?";
-    sql::Statement clean_policies_statement(
-        db_->GetUniqueStatement(kCleanExpiredPolicies));
-    int64_t threshold_us = (base::Time::Now() - kReportsTimeToLive)
-                               .ToDeltaSinceWindowsEpoch()
-                               .InMicroseconds();
-    clean_policies_statement.BindInt64(0, threshold_us);
-    clean_policies_statement.Run();
-
     // Clean up expired reports (TTL = 7 days).
     static constexpr char kCleanExpiredReports[] =
         "DELETE FROM declarative_performance_observer_reports WHERE "
         "created_at < ?";
     sql::Statement clean_statement(
         db_->GetUniqueStatement(kCleanExpiredReports));
-    threshold_us = (base::Time::Now() - kReportsTimeToLive)
-                       .ToDeltaSinceWindowsEpoch()
-                       .InMicroseconds();
+    int64_t threshold_us = (base::Time::Now() - kReportsTimeToLive)
+                               .ToDeltaSinceWindowsEpoch()
+                               .InMicroseconds();
     clean_statement.BindInt64(0, threshold_us);
     if (clean_statement.Run()) {
       int expired_rows = db_->GetLastChangeCount();
@@ -582,15 +550,12 @@ DeclarativePerformanceObserverStore::DeclarativePerformanceObserverStore(
           db_task_runner
               ? db_task_runner
               : base::ThreadPool::CreateSequencedTaskRunner(
-                    {base::MayBlock(), base::TaskPriority::USER_VISIBLE,
+                    {base::MayBlock(), base::TaskPriority::BEST_EFFORT,
                      base::TaskShutdownBehavior::BLOCK_SHUTDOWN})),
       backend_(base::MakeRefCounted<Backend>(
           db_task_runner_,
           is_in_memory ? base::FilePath()
-                       : profile_path.Append(kDatabaseFilename))),
-      cached_policies_(
-          base::HashingLRUCache<url::Origin, base::Time>::NO_AUTO_EVICT),
-      max_policies_(kMaxPolicies) {
+                       : profile_path.Append(kDatabaseFilename))) {
   db_task_runner_->PostTask(
       FROM_HERE,
       base::BindOnce(&Backend::LoadPoliciesOnDbSequence, backend_,
@@ -606,12 +571,12 @@ DeclarativePerformanceObserverStore::~DeclarativePerformanceObserverStore() =
 
 void DeclarativePerformanceObserverStore::OnPoliciesLoadedOnUISequence(
     base::OnceClosure on_loaded_callback,
-    std::vector<LoadedPolicy> loaded) {
+    std::vector<url::Origin> loaded) {
   if (!clear_all_pending_) {
     // 1. Filter out loaded origins using pending filters that ran during load:
-    std::erase_if(loaded, [this](const LoadedPolicy& entry) {
+    std::erase_if(loaded, [this](const url::Origin& origin) {
       for (const auto& filter : pending_filters_) {
-        if (filter.Run(entry.origin)) {
+        if (filter.Run(origin)) {
           return true;
         }
       }
@@ -619,33 +584,16 @@ void DeclarativePerformanceObserverStore::OnPoliciesLoadedOnUISequence(
     });
 
     // 2. Discard loaded origins that were modified during load:
-    std::erase_if(loaded, [this](const LoadedPolicy& entry) {
-      return modified_during_load_.contains(entry.origin);
+    std::erase_if(loaded, [this](const url::Origin& origin) {
+      return modified_during_load_.contains(origin);
     });
-
-    for (const auto& entry : loaded) {
-      cached_policies_.Put(entry.origin, entry.created_at);
-    }
-
-    // Prune if we exceeded the limit (e.g. if limit was decreased)
-    while (cached_policies_.size() > max_policies_) {
-      EvictOldestPolicy();
-    }
+    cached_policies_.insert(loaded.begin(), loaded.end());
   }
   loaded_ = true;
   modified_during_load_.clear();
   pending_filters_.clear();
   clear_all_pending_ = false;
   std::move(on_loaded_callback).Run();
-}
-
-void DeclarativePerformanceObserverStore::EvictOldestPolicy() {
-  auto oldest_it = cached_policies_.rbegin();
-  url::Origin evicted_origin = oldest_it->first;
-  cached_policies_.Erase(oldest_it);
-  db_task_runner_->PostTask(
-      FROM_HERE, base::BindOnce(&Backend::ClearDataForOriginOnDbSequence,
-                                backend_, evicted_origin));
 }
 
 void DeclarativePerformanceObserverStore::SetEarlyFailurePolicy(
@@ -661,18 +609,9 @@ void DeclarativePerformanceObserverStore::SetEarlyFailurePolicy(
     modified_during_load_.insert(origin);
   }
   if (enabled) {
-    // If the cache is full, evict the oldest policy/policies to make room
-    // for the new one. This implements a LRU/FIFO eviction strategy.
-    while (cached_policies_.size() >= max_policies_ &&
-           cached_policies_.Peek(origin) == cached_policies_.end()) {
-      EvictOldestPolicy();
-    }
-    cached_policies_.Put(origin, base::Time::Now());
+    cached_policies_.insert(origin);
   } else {
-    auto it = cached_policies_.Peek(origin);
-    if (it != cached_policies_.end()) {
-      cached_policies_.Erase(it);
-    }
+    cached_policies_.erase(origin);
   }
   db_task_runner_->PostTaskAndReply(
       FROM_HERE,
@@ -683,15 +622,7 @@ void DeclarativePerformanceObserverStore::SetEarlyFailurePolicy(
 
 bool DeclarativePerformanceObserverStore::HasEarlyFailurePolicy(
     const url::Origin& origin) {
-  auto it = cached_policies_.Get(origin);
-  if (it == cached_policies_.end()) {
-    return false;
-  }
-  if (base::Time::Now() - it->second > kReportsTimeToLive) {
-    cached_policies_.Erase(it);
-    return false;
-  }
-  return true;
+  return cached_policies_.contains(origin);
 }
 
 void DeclarativePerformanceObserverStore::StoreEarlyFailureReport(
@@ -721,10 +652,7 @@ void DeclarativePerformanceObserverStore::ClearDataForOrigin(
   if (!loaded_) {
     modified_during_load_.insert(origin);
   }
-  auto it = cached_policies_.Peek(origin);
-  if (it != cached_policies_.end()) {
-    cached_policies_.Erase(it);
-  }
+  cached_policies_.erase(origin);
   db_task_runner_->PostTaskAndReply(
       FROM_HERE,
       base::BindOnce(&Backend::ClearDataForOriginOnDbSequence, backend_,
@@ -739,16 +667,16 @@ void DeclarativePerformanceObserverStore::ClearDataWithFilter(
     pending_filters_.push_back(filter);
   }
 
-  for (auto it = cached_policies_.begin(); it != cached_policies_.end();) {
-    if (filter.Run(it->first)) {
+  // 1. Filter and remove from in-memory policy cache immediately:
+  base::EraseIf(cached_policies_, [&](const url::Origin& origin) {
+    if (filter.Run(origin)) {
       if (!loaded_) {
-        modified_during_load_.erase(it->first);
+        modified_during_load_.erase(origin);
       }
-      it = cached_policies_.Erase(it);
-    } else {
-      ++it;
+      return true;
     }
-  }
+    return false;
+  });
 
   // 2. Post to DB sequence to perform the actual database deletions:
   db_task_runner_->PostTaskAndReply(
@@ -763,7 +691,7 @@ void DeclarativePerformanceObserverStore::ClearAllData(
   if (!loaded_) {
     clear_all_pending_ = true;
   }
-  cached_policies_.Clear();
+  cached_policies_.clear();
   db_task_runner_->PostTaskAndReply(
       FROM_HERE, base::BindOnce(&Backend::ClearAllDataOnDbSequence, backend_),
       std::move(callback));
@@ -777,11 +705,6 @@ void DeclarativePerformanceObserverStore::SetQuotaLimitForTesting(  // IN-TEST
       base::BindOnce(&Backend::SetQuotaLimitForTestingOnDbSequence, backend_,
                      quota_limit_bytes),  // IN-TEST
       std::move(callback));
-}
-
-void DeclarativePerformanceObserverStore::SetMaxPoliciesForTesting(  // IN-TEST
-    size_t max_policies) {
-  max_policies_ = max_policies;
 }
 
 void DeclarativePerformanceObserverStore::Close(base::OnceClosure callback) {

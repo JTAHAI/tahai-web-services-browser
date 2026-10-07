@@ -5,8 +5,6 @@
 #ifndef UI_VIEWS_VIEW_CLASS_PROPERTIES_H_
 #define UI_VIEWS_VIEW_CLASS_PROPERTIES_H_
 
-#include <string>
-
 #include "ui/base/class_property.h"
 #include "ui/base/interaction/element_identifier.h"
 #include "ui/views/layout/flex_layout_types.h"
@@ -107,11 +105,6 @@ VIEWS_EXPORT extern const ui::ClassProperty<bool>* const
 VIEWS_EXPORT extern const ui::ClassProperty<ui::ElementIdentifier>* const
     kElementIdentifierKey;
 
-// Secondary identifier (optional) used to differentiate between elements with
-// the same `kElementIdentifierKey`.
-VIEWS_EXPORT extern const ui::ClassProperty<std::string*>* const
-    kElementSecondaryIdentifierKey;
-
 // A property to store a FocusManager* that should be used for a view that is
 // not (yet) attached to a widget. This makes View::GetFocusManager() work.
 VIEWS_EXPORT extern const ui::ClassProperty<FocusManager*>* const
@@ -143,7 +136,6 @@ DECLARE_EXPORTED_UI_CLASS_PROPERTY_TYPE(VIEWS_EXPORT, views::Widget*)
 // aura_constants.h declares this.
 DECLARE_EXPORTED_UI_CLASS_PROPERTY_TYPE(VIEWS_EXPORT, gfx::Rect*)
 DECLARE_EXPORTED_UI_CLASS_PROPERTY_TYPE(VIEWS_EXPORT, gfx::Size*)
-DECLARE_EXPORTED_UI_CLASS_PROPERTY_TYPE(VIEWS_EXPORT, std::string*)
 #endif
 
 #endif  // UI_VIEWS_VIEW_CLASS_PROPERTIES_H_

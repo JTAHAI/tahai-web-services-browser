@@ -47,8 +47,6 @@ class VIEWS_EXPORT SublevelManager : public WidgetObserver {
   void OnWidgetChildRemoved(Widget* owner, Widget* child) override;
 
  private:
-  friend class SublevelManagerTest;
-
   // Repositions `child_` among its siblings of the same z-order level
   // to ensure that its sublevel is respected.
   void OrderChildWidget(Widget* child);

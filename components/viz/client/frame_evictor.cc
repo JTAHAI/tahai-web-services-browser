@@ -7,7 +7,6 @@
 #include <algorithm>
 #include <utility>
 
-#include "base/check.h"
 #include "base/feature_list.h"
 #include "build/buildflag.h"
 #include "components/viz/common/features.h"
@@ -29,15 +28,11 @@ FrameEvictor::~FrameEvictor() {
 
 void FrameEvictor::OnNewSurfaceEmbedded() {
   has_surface_ = true;
-  if (!opted_out_from_frame_eviction_) {
-    FrameEvictionManager::GetInstance()->AddFrame(this, visible_);
-  }
+  FrameEvictionManager::GetInstance()->AddFrame(this, visible_);
 }
 
 void FrameEvictor::OnSurfaceDiscarded() {
-  if (!opted_out_from_frame_eviction_) {
-    FrameEvictionManager::GetInstance()->RemoveFrame(this);
-  }
+  FrameEvictionManager::GetInstance()->RemoveFrame(this);
   has_surface_ = false;
 }
 
@@ -46,25 +41,12 @@ void FrameEvictor::SetVisible(bool visible) {
     return;
   }
   visible_ = visible;
-  if (has_surface_ && !opted_out_from_frame_eviction_) {
+  if (has_surface_) {
     if (visible) {
       FrameEvictionManager::GetInstance()->LockFrame(this);
     } else {
       FrameEvictionManager::GetInstance()->UnlockFrame(this);
-      if (evict_on_hide_) {
-        EvictCurrentFrame();
-      }
     }
-  }
-}
-
-void FrameEvictor::OptOutFrameEviction() {
-  if (opted_out_from_frame_eviction_) {
-    return;
-  }
-  opted_out_from_frame_eviction_ = true;
-  if (has_surface_) {
-    FrameEvictionManager::GetInstance()->RemoveFrame(this);
   }
 }
 
@@ -90,7 +72,6 @@ std::vector<SurfaceId> FrameEvictor::CollectSurfaceIdsForEviction() const {
 }
 
 void FrameEvictor::EvictCurrentFrame() {
-  CHECK(!opted_out_from_frame_eviction_);
   client_->EvictDelegatedFrame(CollectSurfaceIdsForEviction());
 }
 

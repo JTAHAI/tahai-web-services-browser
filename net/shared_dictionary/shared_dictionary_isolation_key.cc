@@ -4,30 +4,10 @@
 
 #include "net/shared_dictionary/shared_dictionary_isolation_key.h"
 
-#include <string_view>
-
-#include "base/no_destructor.h"
 #include "net/base/isolation_info.h"
 #include "net/base/network_isolation_key.h"
-#include "url/gurl.h"
 
 namespace net {
-
-namespace {
-constexpr std::string_view kPervasiveDomain =
-    "shared-dictionary-pervasive.invalid";
-constexpr std::string_view kPervasiveUrl =
-    "https://shared-dictionary-pervasive.invalid";
-}  // namespace
-
-// static
-const SharedDictionaryIsolationKey&
-SharedDictionaryIsolationKey::GetPervasiveIsolationKey() {
-  static const base::NoDestructor<SharedDictionaryIsolationKey> key(
-      url::Origin::Create(GURL(kPervasiveUrl)),
-      SchemefulSite(GURL(kPervasiveUrl)));
-  return *key;
-}
 
 // static
 std::optional<SharedDictionaryIsolationKey>
@@ -36,8 +16,7 @@ SharedDictionaryIsolationKey::MaybeCreate(const IsolationInfo& isolation_info) {
       isolation_info.frame_origin()->opaque() ||
       !isolation_info.top_frame_origin() ||
       isolation_info.top_frame_origin()->opaque() ||
-      isolation_info.nonce().has_value() ||
-      isolation_info.frame_origin()->host() == kPervasiveDomain) {
+      isolation_info.nonce().has_value()) {
     return std::nullopt;
   }
   return SharedDictionaryIsolationKey(
@@ -53,8 +32,7 @@ SharedDictionaryIsolationKey::MaybeCreate(
   if (!frame_origin || frame_origin->opaque() ||
       !network_isolation_key.GetTopFrameSite() ||
       network_isolation_key.GetTopFrameSite()->opaque() ||
-      network_isolation_key.GetNonce().has_value() ||
-      frame_origin->host() == kPervasiveDomain) {
+      network_isolation_key.GetNonce().has_value()) {
     return std::nullopt;
   }
   return SharedDictionaryIsolationKey(*frame_origin,

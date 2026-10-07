@@ -12,30 +12,17 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/contextual_search/desktop_query_contextualizer_delegate.h"
 #include "chrome/browser/ui/contextual_search/tab_contextualization_controller.h"
+#include "chrome/browser/ui/lens/lens_overlay_query_controller.h"
 #include "chrome/browser/ui/lens/lens_search_controller.h"
 #include "components/contextual_search/contextual_search_session_handle.h"
 #include "components/lens/lens_overlay_invocation_source.h"
 
 namespace lens {
-class LensOverlayQueryController;
 
 using CreateSearchUrlRequestInfo = contextual_search::
     ContextualSearchContextController::CreateSearchUrlRequestInfo;
 using SearchUrlType =
     contextual_search::ContextualSearchContextController::SearchUrlType;
-
-// Returns true if the given invocation source originates from the Omnibox.
-bool IsOmniboxInvocationSource(
-    std::optional<lens::LensOverlayInvocationSource> invocation_source);
-
-// Returns true if the active tab should be forced to contextualize for the
-// given invocation source when no overlay token is present.
-// `session_handle` is the contextual search session the query will be issued
-// on, and may be null.
-bool ShouldFetchActiveTabForInvocationSource(
-    std::optional<lens::LensOverlayInvocationSource> invocation_source,
-    const contextual_search::ContextualSearchSessionHandle* session_handle =
-        nullptr);
 
 // A router for queries that Lens should perform.
 class LensQueryFlowRouter
@@ -47,7 +34,6 @@ class LensQueryFlowRouter
   enum class ContextUploadMode {
     kViewportOnly,
     kFullPage,
-    kSelectedRegionOnly,
   };
 
   explicit LensQueryFlowRouter(LensSearchController* lens_search_controller);

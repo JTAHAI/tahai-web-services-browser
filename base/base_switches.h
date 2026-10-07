@@ -11,6 +11,9 @@
 
 namespace switches {
 
+// Delays execution of TaskPriority::BEST_EFFORT tasks until shutdown.
+inline constexpr char kDisableBestEffortTasks[] = "disable-best-effort-tasks";
+
 // Disables the crash reporting.
 inline constexpr char kDisableBreakpad[] = "disable-breakpad";
 

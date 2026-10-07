@@ -381,16 +381,6 @@ void TestSyncService::TriggerRefresh(TriggerRefreshSource source,
 
 void TestSyncService::DataTypePreconditionChanged(DataType type) {}
 
-base::flat_set<std::string>
-TestSyncService::GetCurrentDeviceCacheGuidsForAllGaiaIds() const {
-  return current_device_cache_guids_for_all_gaia_ids_;
-}
-
-void TestSyncService::SetCurrentDeviceCacheGuidsForAllGaiaIds(
-    base::flat_set<std::string> guids) {
-  current_device_cache_guids_for_all_gaia_ids_ = std::move(guids);
-}
-
 void TestSyncService::AddObserver(SyncServiceObserver* observer) {
   observers_.AddObserver(observer);
 }

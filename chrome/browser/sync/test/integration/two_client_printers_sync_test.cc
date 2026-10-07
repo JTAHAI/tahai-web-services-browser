@@ -50,6 +50,7 @@ class TwoClientPrintersSyncTest : public SyncTest {
       return false;
     }
 
+    CHECK(!UseVerifier());
     printers_helper::WaitForPrinterStoreToLoad(GetProfile(0));
     printers_helper::WaitForPrinterStoreToLoad(GetProfile(1));
     return true;

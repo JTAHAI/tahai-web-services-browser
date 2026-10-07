@@ -1,2 +1,4 @@
-rules:
-- currentSrc.html: [source]
+features:
+- name: source
+  files:
+  - currentSrc.html

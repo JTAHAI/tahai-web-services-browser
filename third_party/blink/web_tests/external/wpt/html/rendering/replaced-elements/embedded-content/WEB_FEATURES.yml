@@ -1,4 +1,10 @@
-rules:
-- video-*: [video]
-- object-*: [object]
-- audio-controls-intrinsic-size.html: [audio]
+features:
+- name: video
+  files:
+  - "video-*"
+- name: object
+  files:
+  - "object-*"
+- name: audio
+  files:
+  - audio-controls-intrinsic-size.html

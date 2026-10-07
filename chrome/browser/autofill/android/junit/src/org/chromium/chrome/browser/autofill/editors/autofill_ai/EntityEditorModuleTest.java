@@ -61,6 +61,7 @@ import org.robolectric.annotation.Config;
 
 import org.chromium.base.Callback;
 import org.chromium.base.test.BaseRobolectricTestRunner;
+import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.Features.DisableFeatures;
 import org.chromium.base.test.util.Features.EnableFeatures;
 import org.chromium.base.test.util.HistogramWatcher;
@@ -107,10 +108,8 @@ import java.util.List;
 
 @RunWith(BaseRobolectricTestRunner.class)
 @Config(manifest = Config.NONE)
-@EnableFeatures({
-    ChromeFeatureList.AUTOFILL_AI_WITH_DATA_SCHEMA,
-    ChromeFeatureList.AUTOFILL_AI_USE_MATERIAL_DATE_PICKER_IN_ENTITY_EDITOR
-})
+@Batch(Batch.UNIT_TESTS)
+@EnableFeatures(ChromeFeatureList.AUTOFILL_AI_WITH_DATA_SCHEMA)
 public class EntityEditorModuleTest {
     private static final String USER_EMAIL = "example@gmail.com";
     private static final AttributeType PASSPORT_NAME_ATTRIBUTE_TYPE =
@@ -303,7 +302,7 @@ public class EntityEditorModuleTest {
 
     @Captor private ArgumentCaptor<EntityInstance> mEntityInstanceCaptor;
 
-    private TestActivity mActivity;
+    private Activity mActivity;
     private EntityEditorCoordinator mCoordinator;
     private View mContainerView;
 
@@ -573,7 +572,6 @@ public class EntityEditorModuleTest {
 
     @Test
     @SmallTest
-    @DisableFeatures(ChromeFeatureList.AUTOFILL_AI_USE_MATERIAL_DATE_PICKER_IN_ENTITY_EDITOR)
     public void testCommitChanges() {
         EntityInstance entity =
                 new EntityInstance.Builder(PASSPORT_TYPE)
@@ -626,7 +624,6 @@ public class EntityEditorModuleTest {
 
     @Test
     @SmallTest
-    @DisableFeatures(ChromeFeatureList.AUTOFILL_AI_USE_MATERIAL_DATE_PICKER_IN_ENTITY_EDITOR)
     public void testCommitChangesWithInvalidDate() {
         EntityInstance entity =
                 new EntityInstance.Builder(PASSPORT_TYPE)
@@ -653,7 +650,6 @@ public class EntityEditorModuleTest {
         ViewGroup content = mCoordinator.getEntityEditorViewForTest().getContentView();
         DateFieldView issueDate = (DateFieldView) content.getChildAt(3);
 
-        // TODO: crbug.com/487565242 - Refactor the test to use material date picker.
         setDropdownValue(
                 issueDate.getMonthPickerForTest(),
                 DateFieldView.getMonthName(mActivity, /* month= */ 6));
@@ -692,7 +688,6 @@ public class EntityEditorModuleTest {
 
     @Test
     @SmallTest
-    @DisableFeatures(ChromeFeatureList.AUTOFILL_AI_USE_MATERIAL_DATE_PICKER_IN_ENTITY_EDITOR)
     public void testCommitChangesWithWhitespaces() {
         EntityInstance entity =
                 new EntityInstance.Builder(PASSPORT_TYPE)
@@ -725,7 +720,6 @@ public class EntityEditorModuleTest {
         // Set partial date to make sure date error message is displayed as well.
         ViewGroup content = mCoordinator.getEntityEditorViewForTest().getContentView();
         DateFieldView issueDate = (DateFieldView) content.getChildAt(3);
-        // TODO: crbug.com/487565242 - Refactor the test to use material date picker.
         setDropdownValue(
                 issueDate.getMonthPickerForTest(),
                 DateFieldView.getMonthName(mActivity, /* month= */ 6));
@@ -767,7 +761,6 @@ public class EntityEditorModuleTest {
     /** Test that the entity editor works correctly if the date fields are required. */
     @Test
     @SmallTest
-    @DisableFeatures(ChromeFeatureList.AUTOFILL_AI_USE_MATERIAL_DATE_PICKER_IN_ENTITY_EDITOR)
     public void testCommitChangesWithDatesRequired() {
         EntityType passportType =
                 new EntityType(
@@ -914,7 +907,6 @@ public class EntityEditorModuleTest {
 
     @Test
     @SmallTest
-    @DisableFeatures(ChromeFeatureList.AUTOFILL_AI_USE_MATERIAL_DATE_PICKER_IN_ENTITY_EDITOR)
     public void testCommitChangesWithThreeRequiredFields() {
         when(mPersonalDataManager.getDefaultCountryCodeForNewAddress()).thenReturn("US");
         EntityType passportTypeWithThreeRequiredFields =
@@ -990,7 +982,6 @@ public class EntityEditorModuleTest {
 
     @Test
     @SmallTest
-    @DisableFeatures(ChromeFeatureList.AUTOFILL_AI_USE_MATERIAL_DATE_PICKER_IN_ENTITY_EDITOR)
     public void testCommitChangesWithNoRequiredFields() {
         when(mPersonalDataManager.getDefaultCountryCodeForNewAddress()).thenReturn("US");
         EntityType passportTypeWithNoRequiredFields =

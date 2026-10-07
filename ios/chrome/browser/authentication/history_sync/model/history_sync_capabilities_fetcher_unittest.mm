@@ -147,7 +147,7 @@ TEST_P(HistorySyncCapabilitiesFetcherTest,
 
   // Trigger onExtendedAccountInfoUpdated
   identity_test_env_.SimulateSuccessfulFetchOfAccountInfo(
-      account.GetAccountId(), account.GetEmail(), account.GetGaiaId(),
+      account.account_id, account.email, account.gaia,
       /*hosted_domain=*/"", "full_name", "given_name", "locale",
       /*picture_url=*/"");
 

@@ -69,7 +69,6 @@ class TestRenderFrameHost : public RenderFrameHostImpl,
       const blink::LocalFrameToken& frame_token,
       const blink::DocumentToken& document_token,
       base::UnguessableToken devtools_frame_token,
-      const base::UnguessableToken& initiator_state_token,
       LifecycleStateImpl lifecycle_state,
       scoped_refptr<BrowsingContextState> browsing_context_state);
 
@@ -111,8 +110,6 @@ class TestRenderFrameHost : public RenderFrameHostImpl,
   void SimulateBeforeUnloadCompleted(bool proceed) override;
   void SimulateUnloadACK() override;
   void SimulateUserActivation() override;
-  void SimulateFocusedElementChanged(bool is_editable_element,
-                                     bool is_richly_editable_element) override;
   const std::vector<std::string>& GetConsoleMessages() override;
   void ClearConsoleMessages() override;
   int GetHeavyAdIssueCount(HeavyAdIssueType type) override;

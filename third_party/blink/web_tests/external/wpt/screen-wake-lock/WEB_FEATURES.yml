@@ -1,2 +1,3 @@
-rules:
-- "**": [screen-wake-lock]
+features:
+- name: screen-wake-lock
+  files: "**"

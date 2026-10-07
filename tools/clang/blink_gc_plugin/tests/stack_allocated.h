@@ -56,4 +56,4 @@ class IgnoringStackAllocated {
 };
 }
 
-#endif  // STACK_ALLOCATED_H_
+#endif

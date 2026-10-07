@@ -132,6 +132,8 @@ function addPrivacyChildRoutes(r: Partial<SettingsRoutes>) {
     r.SITE_SETTINGS_LOOPBACK_NETWORK =
         r.SITE_SETTINGS.createChild('loopbackNetwork');
   }
+  r.SITE_SETTINGS_INLINE_CUE_MENU =
+      r.SITE_SETTINGS.createChild('inlineCueMenu');
 }
 
 /**
@@ -195,9 +197,6 @@ function createRoutes(): SettingsRoutes {
     if (loadTimeData.getBoolean('showAiSuggestionsControl')) {
       r.AI_SUGGESTIONS = r.AI.createChild('/ai/suggestions');
     }
-    if (loadTimeData.getBoolean('showInlineCueMenuControl')) {
-      r.INLINE_CUE_MENU = r.AI.createChild('/ai/inlineCueMenu');
-    }
     if (loadTimeData.getBoolean('showSkillsSettingPage')) {
       r.SKILLS = r.AI.createChild('/ai/skills');
     }
@@ -213,24 +212,39 @@ function createRoutes(): SettingsRoutes {
     r.FONTS = r.APPEARANCE.createChild('/fonts');
   }
 
-  if (visibility.yourSavedInfo !== false) {
-    r.AUTOFILL = r.BASIC.createSection(
-        '/autofill', 'yourSavedInfo',
-        loadTimeData.getString('autofillPageTitle'));
+  if (loadTimeData.getBoolean('enableYourSavedInfoSettingsPage')) {
+    if (visibility.yourSavedInfo !== false) {
+      r.YOUR_SAVED_INFO = r.BASIC.createSection(
+          '/autofill', 'yourSavedInfo',
+          loadTimeData.getString('autofillPageTitle'));
 
+      r.PAYMENTS = r.YOUR_SAVED_INFO.createChild('/payments');
+      r.YOUR_SAVED_INFO_CONTACT_INFO =
+          r.YOUR_SAVED_INFO.createChild('/contactInfo');
+      r.YOUR_SAVED_INFO_IDENTITY_DOCS =
+          r.YOUR_SAVED_INFO.createChild('/identityDocs');
+      r.YOUR_SAVED_INFO_TRAVEL = r.YOUR_SAVED_INFO.createChild('/travel');
+      if (loadTimeData.getBoolean('shoppingIntegrationEnabled')) {
+        r.YOUR_SAVED_INFO_SHOPPING = r.YOUR_SAVED_INFO.createChild('/shopping');
+      }
+      if (loadTimeData.getBoolean('showSuggestionsFromGeminiSettings')) {
+        r.SUGGESTIONS_FROM_GEMINI =
+            r.YOUR_SAVED_INFO.createChild('/enhancedAutofill');
+      }
+      // <if expr="is_win or is_macosx">
+      r.PASSKEYS = r.YOUR_SAVED_INFO.createChild('/passkeys');
+      // </if>
+    }
+  } else if (visibility.autofill !== false) {
+    r.AUTOFILL = r.BASIC.createSection(
+        '/autofill', 'autofill', loadTimeData.getString('autofillPageTitle'));
     r.PAYMENTS = r.AUTOFILL.createChild('/payments');
-    r.CONTACT_INFO =
-        r.AUTOFILL.createChild('/contactInfo');
-    r.IDENTITY_DOCS =
-        r.AUTOFILL.createChild('/identityDocs');
-    r.TRAVEL = r.AUTOFILL.createChild('/travel');
-    if (loadTimeData.getBoolean('shoppingIntegrationEnabled')) {
-      r.SHOPPING = r.AUTOFILL.createChild('/shopping');
+    r.ADDRESSES = r.AUTOFILL.createChild('/addresses');
+
+    if (loadTimeData.getBoolean('showAutofillAiControl')) {
+      r.AUTOFILL_AI = r.AUTOFILL.createChild('/enhancedAutofill');
     }
-    if (loadTimeData.getBoolean('showSuggestionsFromGeminiSettings')) {
-      r.SUGGESTIONS_FROM_GEMINI =
-          r.AUTOFILL.createChild('/enhancedAutofill');
-    }
+
     // <if expr="is_win or is_macosx">
     r.PASSKEYS = r.AUTOFILL.createChild('/passkeys');
     // </if>

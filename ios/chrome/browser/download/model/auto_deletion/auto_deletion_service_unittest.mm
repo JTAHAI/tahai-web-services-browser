@@ -78,10 +78,8 @@ class AutoDeletionServiceTest : public PlatformTest {
   AutoDeletionService* service() { return auto_deletion_service_.get(); }
   const base::FilePath& directory() const { return directory_; }
 
- protected:
-  base::test::TaskEnvironment task_environment_;
-
  private:
+  base::test::TaskEnvironment task_environment_;
   IOSChromeScopedTestingLocalState scoped_testing_local_state_;
   std::unique_ptr<AutoDeletionService> auto_deletion_service_;
   base::ScopedTempDir scoped_temp_directory_;
@@ -99,8 +97,12 @@ TEST_F(AutoDeletionServiceTest, ScheduleOneFileForDeletion) {
   service()->SetDownloadPath(directory());
 
   task->SetState(web::DownloadTask::State::kComplete);
-  // Wait until the ThreadPool finishes executing all its tasks.
-  task_environment_.RunUntilIdle();
+  // Wait for the AutoDeletionService to be notified of the change in the
+  // DownloadTask's state and schedule the file for deletion.
+  ASSERT_TRUE(base::test::ios::WaitUntilConditionOrTimeout(
+      base::test::ios::kSpinDelaySeconds, ^{
+        return GetNumberOfFilesScheduledForDeletion() == 1u;
+      }));
 
   // Check that the pref has one value.
   EXPECT_EQ(GetNumberOfFilesScheduledForDeletion(), 1u);
@@ -117,8 +119,12 @@ TEST_F(AutoDeletionServiceTest,
       auto_deletion::DeletionEnrollmentStatus::kEnrolled);
 
   task->SetState(web::DownloadTask::State::kComplete);
-  // Wait until the ThreadPool finishes executing all its tasks.
-  task_environment_.RunUntilIdle();
+  // Wait for the AutoDeletionService to be notified of the change in the
+  // DownloadTask's state and schedule the file for deletion.
+  ASSERT_TRUE(base::test::ios::WaitUntilConditionOrTimeout(
+      base::test::ios::kSpinDelaySeconds, ^{
+        return GetNumberOfFilesScheduledForDeletion() == 1u;
+      }));
 
   // Check that the pref has one value.
   EXPECT_EQ(GetNumberOfFilesScheduledForDeletion(), 1u);
@@ -136,15 +142,21 @@ TEST_F(AutoDeletionServiceTest, ScheduleMultipleFilesForDeletion) {
   }
 
   // Invoke the FileSchedule on all the `tasks`.
+  size_t index = 0;
   for (const auto& task : tasks) {
     service()->SetDownloadTask(task.get());
     service()->SetDownloadPath(directory());
     service()->SetEnrollmentStatus(
         auto_deletion::DeletionEnrollmentStatus::kEnrolled);
     task->SetState(web::DownloadTask::State::kComplete);
-    // Wait until the ThreadPool finishes executing all its tasks.
-    task_environment_.RunUntilIdle();
+    // Wait for the AutoDeletionService to be notified of the change in the
+    // DownloadTask's state and schedule the file for deletion.
+    ASSERT_TRUE(base::test::ios::WaitUntilConditionOrTimeout(
+        base::test::ios::kSpinDelaySeconds, ^{
+          return GetNumberOfFilesScheduledForDeletion() == index + 1;
+        }));
     service()->Reset();
+    index++;
   }
 
   // Check that the pref has multiple values.
@@ -211,8 +223,12 @@ TEST_F(AutoDeletionServiceTest, UntrackScheduledFileWhenServiceIsDisabled) {
   service()->SetEnrollmentStatus(
       auto_deletion::DeletionEnrollmentStatus::kEnrolled);
   task->SetState(web::DownloadTask::State::kComplete);
-  // Wait until the ThreadPool finishes executing all its tasks.
-  task_environment_.RunUntilIdle();
+  // Wait for the AutoDeletionService to be notified of the change in the
+  // DownloadTask's state and schedule the file for deletion.
+  ASSERT_TRUE(base::test::ios::WaitUntilConditionOrTimeout(
+      base::test::ios::kSpinDelaySeconds, ^{
+        return GetNumberOfFilesScheduledForDeletion() == 1u;
+      }));
 
   // This function is invoked when the Auto-deletion feature is disabled.
   service()->Clear();
@@ -234,8 +250,12 @@ TEST_F(AutoDeletionServiceTest,
       auto_deletion::DeletionEnrollmentStatus::kEnrolled);
   ASSERT_EQ(GetNumberOfFilesScheduledForDeletion(), 0u);
   task->SetState(web::DownloadTask::State::kComplete);
-  // Wait until the ThreadPool finishes executing all its tasks.
-  task_environment_.RunUntilIdle();
+  // Wait for the AutoDeletionService to be notified of the change in the
+  // DownloadTask's state and schedule the file for deletion.
+  ASSERT_TRUE(base::test::ios::WaitUntilConditionOrTimeout(
+      base::test::ios::kSpinDelaySeconds, ^{
+        return GetNumberOfFilesScheduledForDeletion() == 1u;
+      }));
 
   EXPECT_EQ(GetNumberOfFilesScheduledForDeletion(), 1u);
   service()->Reset();

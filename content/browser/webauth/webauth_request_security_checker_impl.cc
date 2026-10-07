@@ -33,7 +33,6 @@
 #include "services/network/public/cpp/resource_request.h"
 #include "services/network/public/cpp/shared_url_loader_factory.h"
 #include "services/network/public/cpp/simple_url_loader.h"
-#include "services/network/public/mojom/network_context.mojom.h"
 #include "services/network/public/mojom/permissions_policy/permissions_policy_feature.mojom.h"
 #include "services/network/public/mojom/url_response_head.mojom.h"
 #include "third_party/blink/public/mojom/webauthn/authenticator.mojom.h"
@@ -158,24 +157,8 @@ WebAuthRequestSecurityCheckerImpl::ValidateDomainAndRelyingPartyID(
     const url::Origin& caller_origin,
     const std::string& relying_party_id,
     RequestType request_type,
-    const std::optional<RemoteDesktopParams>& remote_desktop_client_override,
+    const std::optional<url::Origin>& remote_desktop_client_override_origin,
     base::OnceCallback<void(blink::mojom::AuthenticatorStatus)> callback) {
-  if (remote_desktop_client_override.has_value()) {
-    // SECURITY: the override origin comes from the renderer process and should
-    // not be trusted by default. We only allow its use when the `caller_origin`
-    // is explicitly allowlisted through device level enterprise policy.
-    if (!GetContentClient()
-             ->browser()
-             ->GetWebAuthenticationDelegate()
-             ->OriginMayUseRemoteDesktopClientOverride(
-                 render_frame_host_->GetBrowserContext(), caller_origin)) {
-      std::move(callback).Run(
-          blink::mojom::AuthenticatorStatus::
-              REMOTE_DESKTOP_CLIENT_OVERRIDE_NOT_AUTHORIZED);
-      return nullptr;
-    }
-  }
-
 #if !BUILDFLAG(IS_ANDROID)
   // Extensions are not supported on Android.
   if (GetContentClient()
@@ -206,21 +189,22 @@ WebAuthRequestSecurityCheckerImpl::ValidateDomainAndRelyingPartyID(
   }
 
   url::Origin relying_party_origin = caller_origin;
-  if (remote_desktop_client_override.has_value()) {
-    relying_party_origin = remote_desktop_client_override->origin;
-  }
-
-  // The remoteClientDataJSON extension delegates all RP ID and related-origin
-  // validation to the remote client, which alone has the related-origins and
-  // platform app-deployment context. Skip the local registrable-suffix check
-  // and the related-origin request entirely. This is scoped to
-  // remoteClientDataJSON; the legacy remoteDesktopClientOverride path falls
-  // through to the checks below unchanged.
-  // https://w3c.github.io/webauthn/#sctn-remote-clientdatajson-security
-  if (remote_desktop_client_override.has_value() &&
-      remote_desktop_client_override->skip_rp_id_validation) {
-    std::move(callback).Run(blink::mojom::AuthenticatorStatus::SUCCESS);
-    return nullptr;
+  if (remote_desktop_client_override_origin.has_value()) {
+    // SECURITY: `remote_desktop_client_override_origin` comes from the renderer
+    // process and should not be trusted by default. We only allow its use when
+    // the `caller_origin` is explicitly allowlisted through device level
+    // enterprise policy.
+    if (!GetContentClient()
+             ->browser()
+             ->GetWebAuthenticationDelegate()
+             ->OriginMayUseRemoteDesktopClientOverride(
+                 render_frame_host_->GetBrowserContext(), caller_origin)) {
+      std::move(callback).Run(
+          blink::mojom::AuthenticatorStatus::
+              REMOTE_DESKTOP_CLIENT_OVERRIDE_NOT_AUTHORIZED);
+      return nullptr;
+    }
+    relying_party_origin = remote_desktop_client_override_origin.value();
   }
 
   if (webauthn::OriginIsAllowedToClaimRelyingPartyId(relying_party_id,
@@ -238,20 +222,9 @@ WebAuthRequestSecurityCheckerImpl::ValidateDomainAndRelyingPartyID(
   std::optional<GURL> remote_validation_url =
       webauthn::GetRemoteValidationUrl(relying_party_id);
 
-  network::mojom::NetworkContext* network_context =
-      render_frame_host_->GetProcess()
-          ->GetStoragePartition()
-          ->GetNetworkContext();
-  net::NetworkAnonymizationKey network_anonymization_key =
-      render_frame_host_->GetIsolationInfoForSubresources()
-          .network_anonymization_key();
-  std::optional<base::UnguessableToken> reporting_source =
-      render_frame_host_->GetReportingSource();
-
   if (remote_validation_url.has_value() &&
       !ConnectionAllowlistAllowsUrlAndReportIfNeeded(
-          policy_container_host->policies(), *remote_validation_url,
-          network_context, network_anonymization_key, reporting_source)) {
+          policy_container_host->policies(), *remote_validation_url)) {
     std::move(callback).Run(
         blink::mojom::AuthenticatorStatus::NOT_ALLOWED_ERROR);
     return nullptr;
@@ -295,9 +268,10 @@ blink::mojom::AuthenticatorStatus
 WebAuthRequestSecurityCheckerImpl::ValidateAppIdExtension(
     std::string appid,
     url::Origin caller_origin,
-    const std::optional<RemoteDesktopParams>& remote_desktop_override,
+    const blink::mojom::RemoteDesktopClientOverridePtr&
+        remote_desktop_client_override,
     std::string* out_app_id) {
-  if (remote_desktop_override) {
+  if (remote_desktop_client_override) {
     if (!GetContentClient()
              ->browser()
              ->GetWebAuthenticationDelegate()
@@ -306,7 +280,7 @@ WebAuthRequestSecurityCheckerImpl::ValidateAppIdExtension(
       return blink::mojom::AuthenticatorStatus::
           REMOTE_DESKTOP_CLIENT_OVERRIDE_NOT_AUTHORIZED;
     }
-    caller_origin = remote_desktop_override->origin;
+    caller_origin = remote_desktop_client_override->origin;
   }
 
   // Step 1: "If the AppID is not an HTTPS URL, and matches the FacetID of the
@@ -329,18 +303,6 @@ WebAuthRequestSecurityCheckerImpl::ValidateAppIdExtension(
     //
     // [1]https://fidoalliance.org/specs/fido-v2.0-id-20180227/fido-appid-and-facets-v2.0-id-20180227.html#determining-the-facetid-of-a-calling-application
     appid = caller_origin.Serialize();
-  }
-
-  // For remoteClientDataJSON the remote client has already validated that the
-  // AppID is permissible for the remote relying party, mirroring the RP ID
-  // delegation performed by ValidateDomainAndRelyingPartyID(). Skip the local
-  // registrable-domain check and accept the supplied AppID verbatim. The
-  // per-origin authorization check above still applies.
-  // https://w3c.github.io/webauthn/#sctn-remote-client-data-json-extension
-  if (remote_desktop_override &&
-      remote_desktop_override->skip_rp_id_validation) {
-    *out_app_id = appid;
-    return blink::mojom::AuthenticatorStatus::SUCCESS;
   }
 
   // Step 3: "If the caller's FacetID is an https:// Origin sharing the same

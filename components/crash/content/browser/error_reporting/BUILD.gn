@@ -4,8 +4,6 @@
 
 component("error_reporting") {
   sources = [
-    "error_reporting_util.cc",
-    "error_reporting_util.h",
     "javascript_error_report.cc",
     "javascript_error_report.h",
     "js_error_report_processor.cc",
@@ -14,10 +12,7 @@ component("error_reporting") {
 
   defines = [ "IS_JS_ERROR_REPORTING_IMPL" ]
 
-  deps = [
-    "//base",
-    "//url",
-  ]
+  deps = [ "//base" ]
 }
 
 source_set("mock_crash_endpoint") {

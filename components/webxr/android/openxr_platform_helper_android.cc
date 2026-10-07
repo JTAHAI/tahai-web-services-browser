@@ -18,14 +18,7 @@ namespace webxr {
 
 namespace {
 static PFN_xrInitializeLoaderKHR g_initialize_loader_fn_ = nullptr;
-static bool g_xr_host_activity_disabled_for_testing = false;
 }  // anonymous namespace
-
-// static
-void OpenXrPlatformHelperAndroid::SetXrHostActivityDisabledForTesting(
-    bool disabled) {
-  g_xr_host_activity_disabled_for_testing = disabled;
-}
 
 OpenXrPlatformHelperAndroid::OpenXrPlatformHelperAndroid()
     : session_coordinator_(std::make_unique<XrSessionCoordinator>()) {}
@@ -51,10 +44,9 @@ void OpenXrPlatformHelperAndroid::GetPlatformCreateInfo(
   auto activity_ready_callback =
       base::BindOnce(&OpenXrPlatformHelperAndroid::OnXrActivityReady,
                      base::Unretained(this), std::move(result_callback));
-  bool needs_separate_activity = !g_xr_host_activity_disabled_for_testing;
   session_coordinator_->RequestXrSession(
       create_info.render_process_id, create_info.render_frame_id,
-      needs_separate_activity, std::move(activity_ready_callback),
+      create_info.needs_separate_activity, std::move(activity_ready_callback),
       std::move(shutdown_callback));
 }
 

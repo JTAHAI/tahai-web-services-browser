@@ -12,7 +12,6 @@
 #import "components/send_tab_to_self/send_tab_to_self_sync_service.h"
 #import "ios/chrome/browser/find_in_page/model/find_tab_helper.h"
 #import "ios/chrome/browser/reader_mode/model/reader_mode_tab_helper.h"
-#import "ios/chrome/browser/reader_mode/model/reader_mode_web_state_utils.h"
 #import "ios/chrome/browser/shared/model/profile/profile_ios.h"
 #import "ios/chrome/browser/shared/public/features/features.h"
 #import "ios/chrome/browser/shared/ui/util/url_with_title.h"
@@ -65,7 +64,9 @@ ShareToData* ShareToDataForWebState(web::WebState* web_state,
     user_agent = visible_item->GetUserAgentType();
   }
 
-  BOOL in_reader_mode = IsReaderModeActiveInWebState(web_state);
+  BOOL in_reader_mode = YES;
+  auto* reader_mode_tab_helper = ReaderModeTabHelper::FromWebState(web_state);
+  in_reader_mode = reader_mode_tab_helper && reader_mode_tab_helper->IsActive();
   FindTabHelper* find_tab_helper = FindTabHelper::FromWebState(web_state);
   BOOL is_page_searchable =
       !in_reader_mode &&
@@ -110,15 +111,10 @@ ShareToData* ShareToDataForWebState(web::WebState* web_state,
                                   linkMetadata:metadata];
 }
 
-ShareToData* ShareToDataForURL(
-    const GURL& url,
-    NSString* title,
-    NSString* additional_text,
-    LPLinkMetadata* link_metadata,
-    send_tab_to_self::SendTabToSelfSyncService* send_tab_to_self_service) {
-  const BOOL can_send_tab_to_self =
-      send_tab_to_self_service &&
-      send_tab_to_self_service->GetEntryPointDisplayReason(url).has_value();
+ShareToData* ShareToDataForURL(const GURL& url,
+                               NSString* title,
+                               NSString* additional_text,
+                               LPLinkMetadata* link_metadata) {
   return [[ShareToData alloc] initWithShareURL:url
                                     visibleURL:url
                                          title:title
@@ -126,17 +122,14 @@ ShareToData* ShareToDataForURL(
                                isOriginalTitle:YES
                                isPagePrintable:NO
                               isPageSearchable:NO
-                              canSendTabToSelf:can_send_tab_to_self
+                              canSendTabToSelf:NO
                                      userAgent:web::UserAgentType::NONE
                             thumbnailGenerator:nil
                                   linkMetadata:link_metadata];
 }
 
-ShareToData* ShareToDataForURLWithTitle(
-    URLWithTitle* url_with_title,
-    send_tab_to_self::SendTabToSelfSyncService* send_tab_to_self_service) {
-  return ShareToDataForURL(url_with_title.URL, url_with_title.title, nil, nil,
-                           send_tab_to_self_service);
+ShareToData* ShareToDataForURLWithTitle(URLWithTitle* url_with_title) {
+  return ShareToDataForURL(url_with_title.URL, url_with_title.title, nil, nil);
 }
 
 }  // namespace activity_services

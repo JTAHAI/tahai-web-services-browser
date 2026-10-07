@@ -42,10 +42,6 @@ class TabGroupViews {
   TabGroupUnderline* underline() const { return underline_; }
   TabGroupUnderline* drag_underline() const { return drag_underline_; }
 
-  bool IsFocusModeActive() const {
-    return tab_slot_controller_->GetFocusedGroup().has_value();
-  }
-
   // Updates bounds of all elements not explicitly positioned by the tab strip.
   // This currently includes both the underline and highlight.
   void UpdateBounds();

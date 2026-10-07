@@ -3,9 +3,5 @@
 # found in the LICENSE file.
 
 source_set("public") {
-  sources = [
-    "autofill_settings_navigator.h",
-    "autofill_settings_navigator.mm",
-  ]
-  deps = [ "//components/autofill/core/browser" ]
+  sources = [ "autofill_settings_navigator.h" ]
 }

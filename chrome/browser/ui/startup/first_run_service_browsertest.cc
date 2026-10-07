@@ -11,7 +11,6 @@
 #include "base/json/json_string_value_serializer.h"
 #include "base/memory/raw_ref.h"
 #include "base/run_loop.h"
-#include "base/strings/strcat.h"
 #include "base/strings/string_util.h"
 #include "base/test/metrics/histogram_tester.h"
 #include "base/test/scoped_feature_list.h"
@@ -21,7 +20,7 @@
 #include "chrome/browser/profiles/profile_test_util.h"
 #include "chrome/browser/signin/identity_test_environment_profile_adaptor.h"
 #include "chrome/browser/signin/signin_util.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/profiles/profile_picker.h"
 #include "chrome/browser/ui/profiles/profile_ui_test_utils.h"
 #include "chrome/browser/ui/startup/first_run_test_util.h"
@@ -148,12 +147,9 @@ IN_PROC_BROWSER_TEST_F(FirstRunServiceBrowserTest,
   EXPECT_EQ(expected_fre_finished, GetFirstRunFinishedPrefValue());
   EXPECT_NE(expected_fre_finished, fre_service()->ShouldOpenFirstRun());
 #if BUILDFLAG(ENABLE_DICE_SUPPORT)
-  // Sign-in benefits page is NOT the first page for the new flow.
-  if (!switches::IsPreFirstRunDesktopRefreshEnabled()) {
-    histogram_tester.ExpectUniqueSample(
-        "Signin.SignIn.Offered", signin_metrics::AccessPoint::kForYouFre, 1);
-    histogram_tester.ExpectTotalCount("Signin.SignIn.Started", 0);
-  }
+  histogram_tester.ExpectUniqueSample(
+      "Signin.SignIn.Offered", signin_metrics::AccessPoint::kForYouFre, 1);
+  histogram_tester.ExpectTotalCount("Signin.SignIn.Started", 0);
   histogram_tester.ExpectUniqueSample(
       "ProfilePicker.FirstRun.ExitStatus",
       ProfilePicker::FirstRunExitStatus::kQuitAtEnd, 1);
@@ -215,10 +211,8 @@ IN_PROC_BROWSER_TEST_F(FirstRunServiceBrowserTest, CloseProceeds) {
 #endif  // BUILDFLAG(ENABLE_DICE_SUPPORT)
 
 struct PolicyTestParam {
-  const bool is_pre_first_run_enabled = false;
-  const char* key = nullptr;
-  const char* value =
-      nullptr;  // As JSON string, base::Value is not copy-friendly.
+  const char* key;
+  const char* value;  // As JSON string, base::Value is not copy-friendly.
   const bool should_open_fre = false;
 };
 
@@ -230,60 +224,18 @@ const PolicyTestParam kPolicyTestParams[] = {
     {.key = policy::key::kBrowserSignin, .value = "2"},
 #endif  // BUILDFLAG(IS_LINUX)
     {.key = policy::key::kPromotionalTabsEnabled, .value = "false"},
-    {.is_pre_first_run_enabled = true,
-     .key = policy::key::kSyncDisabled,
-     .value = "true",
-     .should_open_fre = true},
-    {.is_pre_first_run_enabled = true,
-     .key = policy::key::kBrowserSignin,
-     .value = "0",
-     .should_open_fre = true},
-    {.is_pre_first_run_enabled = true,
-     .key = policy::key::kBrowserSignin,
-     .value = "1",
-     .should_open_fre = true},
-#if !BUILDFLAG(IS_LINUX)
-    {.is_pre_first_run_enabled = true,
-     .key = policy::key::kBrowserSignin,
-     .value = "2",
-     .should_open_fre = true},
-#endif  // BUILDFLAG(IS_LINUX)
-    {.is_pre_first_run_enabled = true,
-     .key = policy::key::kPromotionalTabsEnabled,
-     .value = "false",
-     .should_open_fre = true},
 };
 
 std::string PolicyParamToTestSuffix(
-    const testing::TestParamInfo<PolicyTestParam>& info) {
-  return base::StrCat({info.param.key, "_", info.param.value,
-                       info.param.is_pre_first_run_enabled
-                           ? "_PreFirstRunRefreshEnabled"
-                           : ""});
+    const ::testing::TestParamInfo<PolicyTestParam>& info) {
+  std::string force_signin_profile_picker_feature;
+  return std::string(info.param.key) + "_" + info.param.value;
 }
 
 class FirstRunServicePolicyBrowserTest
     : public FirstRunServiceBrowserTest,
       public testing::WithParamInterface<PolicyTestParam> {
  public:
-  FirstRunServicePolicyBrowserTest() {
-    const std::vector<base::test::FeatureRef> pre_fre_refresh_features = {
-        switches::kFirstRunDesktopRefresh,
-        switches::kFirstRunDesktopChoiceScreenRefresh,
-        switches::kFirstRunDesktopRevamp,
-        switches::kPreFirstRunDesktopRefresh,
-    };
-    if (GetParam().is_pre_first_run_enabled) {
-      scoped_feature_list_.InitWithFeatures(
-          /*enabled_features=*/pre_fre_refresh_features,
-          /*disabled_features=*/{});
-    } else {
-      scoped_feature_list_.InitWithFeatures(
-          /*enabled_features=*/{},
-          /*disabled_features=*/pre_fre_refresh_features);
-    }
-  }
-
   void SetUpInProcessBrowserTestFixture() override {
     FirstRunServiceBrowserTest::SetUpInProcessBrowserTestFixture();
     policy_provider_.SetDefaultReturns(

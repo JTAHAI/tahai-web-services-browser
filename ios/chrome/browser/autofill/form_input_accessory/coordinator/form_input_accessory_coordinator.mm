@@ -4,8 +4,6 @@
 
 #import "ios/chrome/browser/autofill/form_input_accessory/coordinator/form_input_accessory_coordinator.h"
 
-#import <ranges>
-#import <variant>
 #import <vector>
 
 #import "base/apple/foundation_util.h"
@@ -22,7 +20,6 @@
 #import "base/task/sequenced_task_runner.h"
 #import "base/time/time.h"
 #import "components/autofill/core/browser/data_manager/personal_data_manager.h"
-#import "components/autofill/core/browser/data_model/autofill_ai/entity_instance.h"
 #import "components/autofill/core/browser/payments/payments_service_url.h"
 #import "components/autofill/core/common/autofill_features.h"
 #import "components/autofill/ios/browser/form_suggestion.h"
@@ -81,7 +78,6 @@
 #import "ios/chrome/browser/shared/public/commands/scene_commands.h"
 #import "ios/chrome/browser/shared/public/commands/security_alert_commands.h"
 #import "ios/chrome/browser/shared/public/commands/settings_commands.h"
-#import "ios/chrome/browser/shared/public/features/features.h"
 #import "ios/chrome/browser/shared/ui/util/layout_guide_names.h"
 #import "ios/chrome/browser/shared/ui/util/uikit_ui_util.h"
 #import "ios/chrome/browser/shared/ui/util/util_swift.h"
@@ -90,7 +86,6 @@
 #import "ios/chrome/grit/ios_strings.h"
 #import "ios/web/public/web_state.h"
 #import "ui/base/l10n/l10n_util_mac.h"
-#import "url/gurl.h"
 
 namespace {
 // Delay between the time the view is shown, and the time the suggestion label
@@ -123,8 +118,7 @@ const base::Feature* FetchIPHFeatureFromEnum(
 
 // Returns the AutofillSettingsPage corresponding to the given suggestion.
 AutofillSettingsPage SuggestionToAutofillSettingsPage(
-    FormSuggestion* suggestion,
-    ProfileIOS* profile) {
+    FormSuggestion* suggestion) {
   switch (suggestion.type) {
     case autofill::SuggestionType::kPasswordEntry:
     case autofill::SuggestionType::kBackupPasswordEntry:
@@ -133,18 +127,8 @@ AutofillSettingsPage SuggestionToAutofillSettingsPage(
     case autofill::SuggestionType::kVirtualCreditCardEntry:
       return AutofillSettingsPage::kCreditCards;
     case autofill::SuggestionType::kAddressEntry:
+    case autofill::SuggestionType::kFillAutofillAi:
       return AutofillSettingsPage::kAddresses;
-    case autofill::SuggestionType::kFillAutofillAi: {
-      if (!IsYourSavedInfoSettingsPageIosEnabled()) {
-        // If "Your Saved Info" is not enabled, go to "Addresses and More"
-        return AutofillSettingsPage::kAddresses;
-      }
-      CHECK(profile);
-      base::optional_ref<const autofill::EntityInstance> entity =
-          autofill::GetEntityInstance(profile, suggestion.payload);
-      CHECK(entity.has_value());
-      return AutofillSettingsPageForEntityTypeName(entity->type().name());
-    }
     default:
       NOTREACHED();
   }
@@ -222,12 +206,9 @@ AutofillSettingsPage SuggestionToAutofillSettingsPage(
 }
 
 - (void)start {
-  CHECK(self.profile);
   [_brandingCoordinator start];
   _formInputAccessoryViewController = [[FormInputAccessoryViewController alloc]
       initWithFormInputAccessoryViewControllerDelegate:self];
-  _formInputAccessoryViewController.isContextMenuEnabled =
-      autofill::IsAmbientAutofillEnabled(self.profile);
   _formInputAccessoryViewController.brandingViewController =
       _brandingCoordinator.viewController;
 
@@ -235,6 +216,7 @@ AutofillSettingsPage SuggestionToAutofillSettingsPage(
       LayoutGuideCenterForBrowser(self.browser);
   _formInputAccessoryViewController.layoutGuideCenter = layoutGuideCenter;
 
+  DCHECK(self.profile);
   auto profilePasswordStore =
       IOSChromeProfilePasswordStoreFactory::GetForProfile(
           self.profile, ServiceAccessType::EXPLICIT_ACCESS);
@@ -245,8 +227,11 @@ AutofillSettingsPage SuggestionToAutofillSettingsPage(
       ReauthenticationServiceFactory::GetForProfile(self.profile)
           ->GetReauthModule();
 
+  // There is no personal data manager in OTR (incognito). Get the original
+  // one for manual fallback.
   autofill::PersonalDataManager* personalDataManager =
-      autofill::PersonalDataManagerFactory::GetForProfile(self.profile);
+      autofill::PersonalDataManagerFactory::GetForProfile(
+          self.profile->GetOriginalProfile());
 
   __weak id<SecurityAlertCommands> securityAlertHandler = HandlerForProtocol(
       self.browser->GetCommandDispatcher(), SecurityAlertCommands);
@@ -570,57 +555,12 @@ AutofillSettingsPage SuggestionToAutofillSettingsPage(
 
 - (void)openSettingsForSuggestion:(FormSuggestion*)suggestion {
   [self reset];
-  [self.navigator openSettingsForPage:SuggestionToAutofillSettingsPage(
-                                          suggestion, self.profile)];
+  [self.navigator
+      openSettingsForPage:SuggestionToAutofillSettingsPage(suggestion)];
 }
 
 - (void)openEditForSuggestion:(FormSuggestion*)suggestion {
   [_formInputAccessoryMediator openEditForSuggestion:suggestion];
-}
-
-- (void)openSourcesForSuggestion:(FormSuggestion*)suggestion {
-  // TODO(crbug.com/551864564): Implement opening sources for the suggestion.
-}
-
-- (void)suppressPersonalContextSuggestion:(FormSuggestion*)suggestion {
-  // TODO(crbug.com/551864564): Implement suppression/removal of the entity.
-}
-
-- (BOOL)hasSourcesForSuggestion:(FormSuggestion*)suggestion {
-  if (!base::FeatureList::IsEnabled(
-          autofill::features::kAutofillAmbientAutofillSourceAttribution)) {
-    return NO;
-  }
-
-  web::WebState* activeWebState = [self activeWebState];
-  if (!activeWebState) {
-    return NO;
-  }
-  base::optional_ref<const autofill::EntityInstance> entity =
-      autofill::GetEntityInstance(
-          ProfileIOS::FromBrowserState(activeWebState->GetBrowserState()),
-          suggestion.payload);
-  if (!entity.has_value()) {
-    return NO;
-  }
-
-  const auto* payload =
-      std::get_if<autofill::EntityInstance::PersonalContextRecordTypePayload>(
-          &entity->record_type_data());
-  if (!payload) {
-    return NO;
-  }
-  return std::ranges::any_of(payload->sources, [](const auto& source) {
-    return GURL(source.url).is_valid();
-  });
-}
-
-- (BOOL)canSuppressPersonalContextSuggestion:(FormSuggestion*)suggestion {
-  if (![self isPersonalContextSuggestion:suggestion]) {
-    return NO;
-  }
-  return base::FeatureList::IsEnabled(
-      autofill::features::kAutofillAmbientAutofillSuppressionUI);
 }
 
 - (BOOL)isPersonalContextSuggestion:(FormSuggestion*)suggestion {
@@ -793,8 +733,7 @@ AutofillSettingsPage SuggestionToAutofillSettingsPage(
   }
   _atMemoryCoordinator = [[AtMemoryCoordinator alloc]
       initWithBaseViewController:self.baseViewController
-                         browser:self.browser
-                 contentInjector:self.injectionHandler];
+                         browser:self.browser];
 
   [self.childCoordinators addObject:_atMemoryCoordinator];
 
@@ -809,21 +748,6 @@ AutofillSettingsPage SuggestionToAutofillSettingsPage(
   _atMemoryCoordinator = nil;
   [coordinator stop];
   [self.childCoordinators removeObject:coordinator];
-}
-
-- (void)openAutofillSettings {
-  __weak __typeof(self) weakSelf = self;
-  id<SettingsCommands> settingsHandler = HandlerForProtocol(
-      self.browser->GetCommandDispatcher(), SettingsCommands);
-  [settingsHandler showEnhancedAutofillSettingsWithCompletion:^{
-    [weakSelf onAutofillSettingsDismissed];
-  }];
-}
-
-- (void)openManageEnhancedAutofillDetails {
-  id<SettingsCommands> settingsHandler = HandlerForProtocol(
-      self.browser->GetCommandDispatcher(), SettingsCommands);
-  [settingsHandler showSuggestionsFromGeminiHelpImprove];
 }
 
 #pragma mark - SecurityAlertCommands
@@ -1067,8 +991,6 @@ AutofillSettingsPage SuggestionToAutofillSettingsPage(
 // Resets `formInputAccessoryViewController` and `formInputViewController` to
 // their initial state.
 - (void)resetInputViews {
-  _formInputAccessoryViewController.isContextMenuEnabled =
-      autofill::IsAmbientAutofillEnabled(self.profile);
   _formInputAccessoryMediator.suggestionsEnabled = YES;
   [_formInputAccessoryViewController reset];
 
@@ -1114,16 +1036,6 @@ AutofillSettingsPage SuggestionToAutofillSettingsPage(
 
   // Ensure the keyboard accessory knows we are now in manual filling mode.
   [self updateKeyboardAccessoryForManualFilling];
-}
-
-// Handles dismissal of the Autofill settings page opened from AtMemory notice.
-- (void)onAutofillSettingsDismissed {
-  if (!self.browser) {
-    return;
-  }
-  if (!autofill::IsEnhancedAutofillEnabled(self.browser->GetProfile())) {
-    [self dismissAtMemory];
-  }
 }
 
 @end

@@ -35,7 +35,6 @@
 #include "cc/trees/transform_node.h"
 #include "components/viz/common/view_transition_element_resource_id.h"
 #include "ui/gfx/geometry/point_f.h"
-#include "ui/gfx/geometry/rect.h"
 #include "ui/gfx/geometry/rect_f.h"
 #include "ui/gfx/geometry/transform.h"
 #include "ui/gfx/geometry/vector2d_f.h"
@@ -250,15 +249,6 @@ class CC_EXPORT TransformTree final : public PropertyTree<TransformNode> {
   }
   float device_scale_factor() const { return device_scale_factor_; }
 
-  // Embedder magnification of an OOPIF. Like page_scale_factor for the main
-  // frame, it scales raster and non-root effect surfaces but not geometry.
-  void set_external_page_scale_factor(float external_page_scale_factor) {
-    external_page_scale_factor_ = external_page_scale_factor;
-  }
-  float external_page_scale_factor() const {
-    return external_page_scale_factor_;
-  }
-
   void SetRootScaleAndTransform(float device_scale_factor,
                                 const gfx::Transform& device_transform);
   void set_device_transform_scale_factor(float device_transform_scale_factor) {
@@ -398,9 +388,6 @@ class CC_EXPORT TransformTree final : public PropertyTree<TransformNode> {
   float page_scale_factor_;
   float device_scale_factor_;
   float device_transform_scale_factor_;
-  // Used to size an OOPIF's non-root effect surfaces to match its magnified
-  // raster density; see external_page_scale_factor().
-  float external_page_scale_factor_;
   std::vector<int> nodes_affected_by_outer_viewport_bounds_delta_;
   std::vector<int> nodes_affected_by_safe_area_inset_bottom_;
   std::vector<TransformCachedNodeData> cached_data_;
@@ -551,29 +538,6 @@ class CC_EXPORT EffectTree final : public PropertyTree<EffectNode> {
   // 1) All clips preserve 2d axis.
   // 2) There are no mask layers.
   bool ClippedHitTestRegionIsRectangle(int effect_node_id) const;
-
-  struct RoundedCornersHitTestInfo {
-    struct CornerRadii {
-      gfx::Vector2dF upper_left;
-      gfx::Vector2dF upper_right;
-      gfx::Vector2dF lower_right;
-      gfx::Vector2dF lower_left;
-
-      friend bool operator==(const CornerRadii&, const CornerRadii&) = default;
-    };
-
-    bool requires_async_hit_test = false;
-    // Empty when no rounded corners apply or async hit testing is required.
-    std::optional<CornerRadii> corner_radii;
-  };
-
-  // Returns the corner radii that can be serialized for viz hit testing, or
-  // indicates that the mask configuration must stay on the async path. Returns
-  // empty radii without requiring async hit testing when none apply.
-  RoundedCornersHitTestInfo GetRoundedCornersForHitTest(
-      int effect_tree_index,
-      int transform_tree_index,
-      const gfx::RectF& hit_test_rect_in_transform_space) const;
 
   // This function checks if the associated layer can use its layer bounds to
   // correctly hit test. It returns true if the layer bounds cannot be trusted.
@@ -764,6 +728,9 @@ class CC_EXPORT ScrollTree final : public PropertyTree<ScrollNode> {
   bool CanRealizeScrollsOnActiveTree(const ScrollNode& node) const;
   bool CanRealizeScrollsOnPendingTree(const ScrollNode& node) const;
   bool ShouldRealizeScrollsOnMain(const ScrollNode& node) const;
+
+  // Reports reasons for blocking scroll updates on main-thread repaint.
+  uint32_t GetMainThreadRepaintReasons(const ScrollNode& node) const;
 
   using SyncedScrollOffsetMap =
       base::flat_map<ElementId, scoped_refptr<SyncedScrollOffset>>;

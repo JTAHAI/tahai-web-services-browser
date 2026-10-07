@@ -33,7 +33,7 @@ AutocompleteHistoryManagerFactory::GetInstance() {
 
 AutocompleteHistoryManagerFactory::AutocompleteHistoryManagerFactory()
     : ProfileKeyedServiceFactoryIOS("AutocompleteHistoryManager",
-                                    ProfileSelection::kRedirectedInIncognito) {
+                                    ProfileSelection::kOwnInstanceInIncognito) {
   DependsOn(ios::WebDataServiceFactory::GetInstance());
 }
 
@@ -42,11 +42,12 @@ AutocompleteHistoryManagerFactory::~AutocompleteHistoryManagerFactory() {}
 std::unique_ptr<KeyedService>
 AutocompleteHistoryManagerFactory::BuildServiceInstanceFor(
     ProfileIOS* profile) const {
+  auto service = std::make_unique<AutocompleteHistoryManager>();
   scoped_refptr<AutofillWebDataService> autofill_db =
       ios::WebDataServiceFactory::GetAutofillWebDataForProfile(
           profile, ServiceAccessType::EXPLICIT_ACCESS);
-  return std::make_unique<AutocompleteHistoryManager>(autofill_db,
-                                                      profile->GetPrefs());
+  service->Init(autofill_db, profile->GetPrefs(), profile->IsOffTheRecord());
+  return service;
 }
 
 }  // namespace autofill

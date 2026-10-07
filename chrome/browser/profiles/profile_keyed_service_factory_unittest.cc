@@ -7,7 +7,6 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profile_testing_helper.h"
 #include "chrome/browser/profiles/refcounted_profile_keyed_service_factory.h"
-#include "components/profile_metrics/browser_profile_type.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
 // This unittest file contains both tests for `ProfileKeyedServiceFactory` and
@@ -85,12 +84,6 @@ class ProfileKeyedServiceFactoryUnittest : public testing::Test {
   Profile* incognito_profile() {
     return profile_testing_helper_.incognito_profile();
   }
-  TestingProfile* isolated_mode_parent_profile() {
-    return profile_testing_helper_.isolated_mode_parent_profile();
-  }
-  Profile* isolated_mode_profile() {
-    return profile_testing_helper_.isolated_mode_profile();
-  }
 
   TestingProfile* guest_profile() {
     return profile_testing_helper_.guest_profile();
@@ -141,7 +134,6 @@ TEST_F(ProfileKeyedServiceFactoryUnittest, DefaultFactoryTest) {
   DefaultFactoryTest factory;
   TestProfileToUse(factory, regular_profile(), regular_profile());
   TestProfileToUse(factory, incognito_profile(), nullptr);
-  TestProfileToUse(factory, isolated_mode_profile(), nullptr);
 
   TestProfileToUse(factory, guest_profile(), nullptr);
   TestProfileToUse(factory, guest_profile_otr(), nullptr);
@@ -230,28 +222,6 @@ TEST_F(ProfileKeyedServiceFactoryUnittest,
   TestProfileToUse(factory, lockscreen_profile(), lockscreen_profile());
   TestProfileToUse(factory, lockscreen_profile_otr(), lockscreen_profile_otr());
 #endif  // BUILDFLAG(IS_CHROMEOS)
-}
-
-// Factory testing WithIsolatedMode behavior to diverge from Incognito.
-class IsolatedModeDivergingFactoryTest : public ProfileKeyedServiceFactoryTest {
- public:
-  IsolatedModeDivergingFactoryTest()
-      : ProfileKeyedServiceFactoryTest(
-            "IsolatedModeDivergingFactoryTest",
-            ProfileSelections::Builder()
-                .WithRegular(ProfileSelection::kOriginalOnly)
-                .WithIsolatedMode(ProfileSelection::kOwnInstance)
-                .Build()) {}
-};
-
-TEST_F(ProfileKeyedServiceFactoryUnittest, IsolatedModeDivergenceTest) {
-  IsolatedModeDivergingFactoryTest factory;
-
-  TestProfileToUse(factory, regular_profile(), regular_profile());
-  TestProfileToUse(factory, incognito_profile(), nullptr);
-  TestProfileToUse(factory, isolated_mode_parent_profile(),
-                   isolated_mode_parent_profile());
-  TestProfileToUse(factory, isolated_mode_profile(), isolated_mode_profile());
 }
 
 // Factory using default `ProfileKeyedServiceFactory` constructor

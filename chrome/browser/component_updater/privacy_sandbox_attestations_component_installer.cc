@@ -6,7 +6,6 @@
 
 #include <cstdint>
 #include <memory>
-#include <string>
 #include <utility>
 #include <vector>
 
@@ -128,7 +127,8 @@ PrivacySandboxAttestationsComponentInstallerPolicy::GetRelativeInstallDir()
 
 void PrivacySandboxAttestationsComponentInstallerPolicy::GetHash(
     std::vector<uint8_t>* hash) const {
-  hash->assign_range(kPrivacySandboxAttestationsPublicKeySHA256);
+  hash->assign(std::begin(kPrivacySandboxAttestationsPublicKeySHA256),
+               std::end(kPrivacySandboxAttestationsPublicKeySHA256));
 }
 
 std::string PrivacySandboxAttestationsComponentInstallerPolicy::GetName()

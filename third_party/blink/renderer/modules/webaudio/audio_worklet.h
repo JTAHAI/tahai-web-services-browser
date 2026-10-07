@@ -6,7 +6,6 @@
 #define THIRD_PARTY_BLINK_RENDERER_MODULES_WEBAUDIO_AUDIO_WORKLET_H_
 
 #include "base/gtest_prod_util.h"
-#include "third_party/blink/public/common/messaging/message_port_channel.h"
 #include "third_party/blink/renderer/core/workers/worklet.h"
 #include "third_party/blink/renderer/modules/modules_export.h"
 #include "third_party/blink/renderer/platform/heap/garbage_collected.h"
@@ -17,7 +16,7 @@ class AudioWorkletHandler;
 class AudioWorkletMessagingProxy;
 class BaseAudioContext;
 class CrossThreadAudioParamInfo;
-class MessagePort;
+class MessagePortChannel;
 class SerializedScriptValue;
 
 class MODULES_EXPORT AudioWorklet final : public Worklet {
@@ -34,8 +33,6 @@ class MODULES_EXPORT AudioWorklet final : public Worklet {
   void CreateProcessor(scoped_refptr<AudioWorkletHandler>,
                        MessagePortChannel,
                        scoped_refptr<SerializedScriptValue> node_options);
-  MessagePort* port() const;
-  MessagePortChannel GetGlobalScopePortChannel() const;
 
   // Invoked by AudioWorkletMessagingProxy. Notifies `context_` when
   // AudioWorkletGlobalScope finishes the first script evaluation and is ready
@@ -75,8 +72,6 @@ class MODULES_EXPORT AudioWorklet final : public Worklet {
   bool worklet_started_ = false;
 
   Member<BaseAudioContext> context_;
-  Member<MessagePort> port_;
-  MessagePortChannel global_scope_port_channel_;
 };
 
 }  // namespace blink

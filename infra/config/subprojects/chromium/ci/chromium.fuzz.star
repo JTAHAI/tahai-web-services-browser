@@ -155,13 +155,6 @@ def ci_builder(
     if platform_short_name:
         gn_configs.append(platform_short_name)
 
-    # android:debuggable="true" is needed when using ASan or HWASan.
-    # See https://developer.android.com/ndk/guides/wrap-script#packaging_wrapsh
-    if target_platform == builder_config.target_platform.ANDROID and (
-        "asan" in gn_configs or "hwasan" in gn_configs
-    ):
-        gn_configs.append("debuggable_apks")
-
     android_config = None
     if android_config_name:
         android_config = builder_config.android_config(
@@ -314,9 +307,6 @@ def fuzz_target_builder(
         branch_selector = None,
         max_concurrent_invocations = None,
         gn_extra_configs = [],
-        gn_extra_configs_for_ci = [],
-        gclient_apply_configs = [],
-        gclient_apply_configs_for_ci = [],
         use_component_build = True,
         chromium_extra_apply_configs = [],
         clusterfuzz_archive_name_prefix = None,
@@ -389,6 +379,7 @@ def fuzz_target_builder(
         chromium_extra_apply_configs = [
             "clobber",
         ] + chromium_extra_apply_configs,
+        gn_extra_configs = gn_configs,
         use_component_build = use_component_build,
         contact_team_email = contact_team_email,
         **kwargs
@@ -405,8 +396,6 @@ def fuzz_target_builder(
             builderless = builderless,
             console_category = fuzzing_engine,
             properties = properties,
-            gclient_apply_configs = gclient_apply_configs + gclient_apply_configs_for_ci,
-            gn_extra_configs = gn_configs + gn_extra_configs_for_ci,
             **kwargs
         )
 
@@ -453,8 +442,6 @@ def fuzz_target_builder(
             ] + swarming_mixins,
         ),
         console_category = fuzzing_engine + "-tests",
-        gclient_apply_configs = gclient_apply_configs,
-        gn_extra_configs = gn_configs,
         **kwargs
     )
 
@@ -511,7 +498,6 @@ browser_asan_builder(
     target_bits = 64,
     target_platform = builder_config.target_platform.LINUX,
     clusterfuzz_archive_path = "linux-release/asan-linux-release",
-    clusterfuzz_archive_schema_version = 1,
     contact_team_email = "chrome-sanitizer-builder-owners@google.com",
     gn_extra_configs = [
         "lsan",
@@ -581,6 +567,28 @@ browser_asan_builder(
     siso_remote_jobs = 250,
 )
 
+# TODO(516755846): Deprecate this builder once schema v1 archives generated
+# work as intended on ClusterFuzz.
+browser_asan_builder(
+    name = "ASAN Release Schema v1",
+    description_html = "This builder produces ASAN Chromium builds with archive schema v1",
+    gardener_rotations = args.ignore_default(None),
+    build_config = builder_config.build_config.RELEASE,
+    target_bits = 64,
+    target_platform = builder_config.target_platform.LINUX,
+    clusterfuzz_archive_path = "linux-release-schema-v1/asan-linux-release",
+    clusterfuzz_archive_schema_version = 1,
+    clusterfuzz_archive_subdir = "schema-v1",
+    contact_team_email = "chrome-sanitizer-builder-owners@google.com",
+    gn_extra_configs = [
+        "lsan",
+        "fuzzer",
+        "v8_heap",
+    ],
+    max_concurrent_invocations = 1,
+    siso_remote_jobs = 250,
+)
+
 ci.builder(
     name = "ASAN Release V8 Sandbox Testing",
     description_html = "This builder produces an ASan Chromium build in the V8 Sandbox Testing configuration.",
@@ -597,10 +605,7 @@ ci.builder(
             target_platform = builder_config.target_platform.LINUX,
         ),
         clusterfuzz_archive = builder_config.clusterfuzz_archive(
-            # TODO(https://crbug.com/527836546): Set `use_archive_path` to True
-            # then remove `archive_name_prefix` and `archive_subdir`.
             archive_name_prefix = "asan-v8-sandbox-testing",
-            archive_path = "linux-release-v8-sandbox-testing/asan-v8-sandbox-testing-linux-release",
             archive_subdir = "v8-sandbox-testing",
             gs_acl = "public-read",
             gs_bucket = "chromium-browser-asan",
@@ -785,13 +790,7 @@ libfuzzer_linux_asan_high_end_builder(
     build_config = builder_config.build_config.RELEASE,
     clusterfuzz_archive_path = "linux-release-asan/libfuzzer-high-end-linux-release",
     console_short_name = "linux high end",
-    gclient_apply_configs_for_ci = [
-        "checkout_mesa",
-    ],
     gn_extra_configs = ["mojo_fuzzer"],
-    gn_extra_configs_for_ci = [
-        "tint_mesa_fuzz",
-    ],
 )
 
 libfuzzer_linux_asan_high_end_builder(
@@ -799,13 +798,7 @@ libfuzzer_linux_asan_high_end_builder(
     build_config = builder_config.build_config.DEBUG,
     clusterfuzz_archive_path = "linux-debug-asan/libfuzzer-high-end-linux-debug",
     console_short_name = "linux high dbg",
-    gclient_apply_configs_for_ci = [
-        "checkout_mesa",
-    ],
     gn_extra_configs = ["sanitizer_coverage_skip_stdlib_and_absl"],
-    gn_extra_configs_for_ci = [
-        "tint_mesa_fuzz",
-    ],
     siso_remote_jobs = siso.remote_jobs.HIGH_JOBS_FOR_CI,
 )
 
@@ -853,7 +846,6 @@ def browser_msan_builder(**kwargs):
     return browser_builder(
         chromium_config_name = "chromium_clang",
         chromium_extra_apply_configs = ["clobber", "msan"],
-        gclient_apply_configs = ["checkout_instrumented_libraries"],
         build_config = builder_config.build_config.RELEASE,
         target_bits = 64,
         target_platform = builder_config.target_platform.LINUX,
@@ -892,7 +884,6 @@ def browser_asan_mac_builder(
         gn_extra_configs = [],
         max_concurrent_invocations = 2,
         **kwargs):
-    kwargs.setdefault("os", os.MAC_DEFAULT)
     return browser_asan_builder(
         max_concurrent_invocations = max_concurrent_invocations,
         build_config = builder_config.build_config.RELEASE,
@@ -902,6 +893,7 @@ def browser_asan_mac_builder(
             "fuzzer",
             "v8_heap",
         ] + gn_extra_configs,
+        os = os.MAC_DEFAULT,
         console_category = "mac asan",
         **kwargs
     )
@@ -923,8 +915,6 @@ browser_asan_mac_builder(
     name = "Mac ASAN Release Media",
     builderless = False,
     cores = 12,
-    # TODO(crbug.com/543006750): Revert to MAC_DEFAULT after arm migration.
-    os = os.MAC_15,
     clusterfuzz_archive_path = "mac-release-media/asan-mac-release",
     clusterfuzz_archive_subdir = "media",
     console_short_name = "med",
@@ -1118,17 +1108,10 @@ libfuzzer_linux_asan_builder(
     build_config = builder_config.build_config.RELEASE,
     target_bits = 64,
     clusterfuzz_archive_path = "linux-release-asan/libfuzzer-linux-release",
-    clusterfuzz_archive_schema_version = 1,
     console_short_name = "linux",
     execution_timeout = 5 * time.hour,
-    gclient_apply_configs_for_ci = [
-        "checkout_mesa",
-    ],
     gn_extra_configs = [
         "mojo_fuzzer",
-    ],
-    gn_extra_configs_for_ci = [
-        "tint_mesa_fuzz",
     ],
     # Schedule more concurrent builds only on trunk to reduce blamelist sizes.
     max_concurrent_invocations = 5 if settings.is_main else None,
@@ -1146,14 +1129,8 @@ libfuzzer_linux_asan_builder(
     clusterfuzz_archive_path = "linux-debug-asan/libfuzzer-linux-debug",
     console_short_name = "linux-dbg",
     execution_timeout = 5 * time.hour,
-    gclient_apply_configs_for_ci = [
-        "checkout_mesa",
-    ],
     gn_extra_configs = [
         "disable_seed_corpus",
-    ],
-    gn_extra_configs_for_ci = [
-        "tint_mesa_fuzz",
     ],
     max_concurrent_invocations = 5,
     siso_remote_jobs = siso.remote_jobs.HIGH_JOBS_FOR_CI,
@@ -1178,17 +1155,32 @@ libfuzzer_linux_asan_builder(
     clusterfuzz_archive_path = "linux-release-asan/libfuzzer-asan-brp-v2-linux-release",
     console_short_name = "linux-asan-brp-v2",
     execution_timeout = 4 * time.hour,
-    gclient_apply_configs_for_ci = [
-        "checkout_mesa",
-    ],
     gn_extra_configs = [
         "mojo_fuzzer",
         "enable_asan_backup_ref_ptr_v2",
     ],
-    gn_extra_configs_for_ci = [
-        "tint_mesa_fuzz",
-    ],
     max_concurrent_invocations = 4,
+    siso_remote_jobs = siso.remote_jobs.HIGH_JOBS_FOR_CI,
+)
+
+# TODO(496589592): Deprecate this builder once archives using schema v1 are
+# tested and confirmed to work as intended on ClusterFuzz.
+libfuzzer_linux_asan_builder(
+    name = "Libfuzzer Upload Linux ASan Schema v1",
+    description_html = "This builder uploads linux libfuzzer fuzzers with archive schema v1, for x64 using ASan",
+    free_space = builders.free_space.high,
+    gardener_rotations = args.ignore_default(None),
+    build_config = builder_config.build_config.RELEASE,
+    target_bits = 64,
+    clusterfuzz_archive_name_prefix = "libfuzzer-schema-v1",
+    clusterfuzz_archive_path = "linux-release-asan-schema-v1/libfuzzer-schema-v1-linux-release",
+    clusterfuzz_archive_schema_version = 1,
+    clusterfuzz_archive_subdir = "asan-schema-v1",
+    console_short_name = "linux-schema-v1",
+    execution_timeout = 4 * time.hour,
+    gn_extra_configs = [
+        "mojo_fuzzer",
+    ],
     siso_remote_jobs = siso.remote_jobs.HIGH_JOBS_FOR_CI,
 )
 
@@ -1201,7 +1193,6 @@ libfuzzer_linux_builder(
     clusterfuzz_archive_path = "linux-release-msan/libfuzzer-linux-release",
     clusterfuzz_archive_schema_version = 1,
     console_short_name = "linux-msan",
-    gclient_apply_configs = ["checkout_instrumented_libraries"],
     gn_extra_configs = [
         "msan",
         "disable_seed_corpus",
@@ -1222,15 +1213,9 @@ libfuzzer_linux_builder(
     clusterfuzz_archive_path = "linux-release-ubsan/libfuzzer-linux-release",
     console_short_name = "linux-ubsan",
     execution_timeout = 5 * time.hour,
-    gclient_apply_configs_for_ci = [
-        "checkout_mesa",
-    ],
     gn_extra_configs = [
         "ubsan_security_non_vptr",
         "disable_seed_corpus",
-    ],
-    gn_extra_configs_for_ci = [
-        "tint_mesa_fuzz",
     ],
     max_concurrent_invocations = 5,
     sanitizer = "ubsan",
@@ -1259,12 +1244,6 @@ libfuzzer_linux_v8_arm64_builder(
     build_config = builder_config.build_config.RELEASE,
     clusterfuzz_archive_path = "linux-release-asan-arm64-sim/libfuzzer-v8-arm64-linux-release",
     console_short_name = "arm64",
-    gclient_apply_configs_for_ci = [
-        "checkout_mesa",
-    ],
-    gn_extra_configs_for_ci = [
-        "tint_mesa_fuzz",
-    ],
 )
 
 libfuzzer_linux_v8_arm64_builder(
@@ -1273,12 +1252,6 @@ libfuzzer_linux_v8_arm64_builder(
     build_config = builder_config.build_config.DEBUG,
     clusterfuzz_archive_path = "linux-debug-asan-arm64-sim/libfuzzer-v8-arm64-linux-debug",
     console_short_name = "arm64-dbg",
-    gclient_apply_configs_for_ci = [
-        "checkout_mesa",
-    ],
-    gn_extra_configs_for_ci = [
-        "tint_mesa_fuzz",
-    ],
 )
 
 libfuzzer_linux_asan_builder(
@@ -1288,14 +1261,8 @@ libfuzzer_linux_asan_builder(
     target_bits = 32,
     clusterfuzz_archive_path = "linux32-release-asan/libfuzzer-linux32-release",
     console_short_name = "linux32",
-    gclient_apply_configs_for_ci = [
-        "checkout_mesa",
-    ],
     gn_extra_configs = [
         "disable_seed_corpus",
-    ],
-    gn_extra_configs_for_ci = [
-        "tint_mesa_fuzz",
     ],
     max_concurrent_invocations = 3,
     siso_remote_jobs = siso.remote_jobs.HIGH_JOBS_FOR_CI,
@@ -1323,12 +1290,6 @@ libfuzzer_linux32_v8_arm_builder(
     build_config = builder_config.build_config.RELEASE,
     clusterfuzz_archive_path = "linux32-release-asan-arm-sim/libfuzzer-v8-arm-linux32-release",
     console_short_name = "arm",
-    gclient_apply_configs_for_ci = [
-        "checkout_mesa",
-    ],
-    gn_extra_configs_for_ci = [
-        "tint_mesa_fuzz",
-    ],
     siso_remote_jobs = siso.remote_jobs.DEFAULT,
 )
 
@@ -1338,12 +1299,6 @@ libfuzzer_linux32_v8_arm_builder(
     build_config = builder_config.build_config.DEBUG,
     clusterfuzz_archive_path = "linux32-debug-asan-arm-sim/libfuzzer-v8-arm-linux32-debug",
     console_short_name = "arm-dbg",
-    gclient_apply_configs_for_ci = [
-        "checkout_mesa",
-    ],
-    gn_extra_configs_for_ci = [
-        "tint_mesa_fuzz",
-    ],
 )
 
 libfuzzer_linux_asan_builder(
@@ -1396,8 +1351,8 @@ libfuzzer_linux_builder(
 )
 
 def libfuzzer_mac_asan_builder(**kwargs):
-    kwargs.setdefault("os", os.MAC_DEFAULT)
     return libfuzzer_builder(
+        os = os.MAC_DEFAULT,
         build_config = builder_config.build_config.RELEASE,
         target_bits = 64,
         target_platform = builder_config.target_platform.MAC,
@@ -1416,8 +1371,6 @@ libfuzzer_mac_asan_builder(
     name = "Libfuzzer Upload Mac ASan",
     builderless = False,
     cores = 12,
-    # TODO(crbug.com/543006750): Revert to MAC_DEFAULT after arm migration.
-    os = os.MAC_15,
     clusterfuzz_archive_path = "mac-release-asan/libfuzzer-mac-release",
     console_short_name = "mac-asan",
     execution_timeout = 4 * time.hour,

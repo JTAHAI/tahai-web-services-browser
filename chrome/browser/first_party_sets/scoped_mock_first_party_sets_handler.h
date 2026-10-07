@@ -47,11 +47,17 @@ class ScopedMockFirstPartySetsHandler : public content::FirstPartySetsHandler {
   std::optional<net::FirstPartySetEntry> FindEntry(
       const net::SchemefulSite& site,
       const net::FirstPartySetsContextConfig& config) const override;
+  void GetContextConfigForPolicy(
+      base::optional_ref<const base::DictValue> policy,
+      base::OnceCallback<void(net::FirstPartySetsContextConfig)> callback)
+      override;
   void ClearSiteDataOnChangedSetsForContext(
       base::RepeatingCallback<content::BrowserContext*()>
           browser_context_getter,
       const std::string& browser_context_id,
-      base::OnceCallback<void(net::FirstPartySetsCacheFilter)> callback)
+      net::FirstPartySetsContextConfig context_config,
+      base::OnceCallback<void(net::FirstPartySetsContextConfig,
+                              net::FirstPartySetsCacheFilter)> callback)
       override;
   void ComputeFirstPartySetMetadata(
       const net::SchemefulSite& site,
@@ -64,6 +70,7 @@ class ScopedMockFirstPartySetsHandler : public content::FirstPartySetsHandler {
                              const net::FirstPartySetEntry&)> f) const override;
 
   // Helper functions for tests to set up context.
+  void SetContextConfig(net::FirstPartySetsContextConfig config);
 
   void SetCacheFilter(net::FirstPartySetsCacheFilter cache_filter);
 
@@ -76,7 +83,7 @@ class ScopedMockFirstPartySetsHandler : public content::FirstPartySetsHandler {
  private:
   raw_ptr<content::FirstPartySetsHandler> previous_;
   net::GlobalFirstPartySets global_sets_;
-
+  net::FirstPartySetsContextConfig config_;
   net::FirstPartySetsCacheFilter cache_filter_;
 
   bool invoke_callbacks_asynchronously_ = false;

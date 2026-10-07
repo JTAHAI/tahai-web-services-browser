@@ -318,9 +318,7 @@ class COMPONENT_EXPORT(INPUT) RenderWidgetHostInputEventRouter final
           blink::WebInputEvent::Modifiers::kNoModifiers,
       bool include_target_view = false);
 
-  // Cancels scroll bubbling without sending GestureScrollEnd to a target that
-  // is being destroyed.
-  void CancelScrollBubbling(bool bubbling_view_is_being_destroyed = false);
+  void CancelScrollBubbling();
 
   // Cancels scroll bubbling if it is unsafe to send a gesture event sequence
   // to |target| considering the views involved in an ongoing scroll.
@@ -479,7 +477,6 @@ class COMPONENT_EXPORT(INPUT) RenderWidgetHostInputEventRouter final
    public:
     TouchscreenPinchState();
 
-    bool IsBubblingToRoot() const;
     bool IsInPinch() const;
     bool NeedsWrappingScrollSequence() const;
 

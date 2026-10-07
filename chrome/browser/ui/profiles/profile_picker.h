@@ -52,24 +52,8 @@ class ProfilePicker {
     // enumerator value.
     kMaxValue = kAbandonedFlow
   };
-
-  // These values are persisted to logs. Entries should not be renumbered and
-  // numeric values should never be reused.
-  // LINT.IfChange(FirstRunFinishReason)
-  enum class FirstRunFinishReason {
-    kExperimentCounterfactual = 0,
-    kFinishedFlow = 1,
-    kProfileAlreadySetUp = 2,
-    kSkippedByPolicies = 3,
-    kForceSignin = 4,
-
-    kMaxValue = kForceSignin,
-  };
-  // LINT.ThenChange(/tools/metrics/histograms/metadata/profile/enums.xml:FirstRunFinishReason)
-
   using FirstRunExitedCallback =
-      base::OnceCallback<void(FirstRunExitStatus status,
-                              FirstRunFinishReason finish_reason)>;
+      base::OnceCallback<void(FirstRunExitStatus status)>;
 
   // Only work when passed as the argument 'on_select_profile_target_url' to
   // ProfilePicker::Show.
@@ -169,7 +153,7 @@ class ProfilePicker {
     // `profile_path` is the profile for which to open the FRE.
     // `first_run_exited_callback` is called when the first run experience is
     // exited, with a `FirstRunExitStatus` indicating how the user responded to
-    // it and a `FirstRunFinishReason` indicating how the FRE finished.
+    // it.
     static Params ForFirstRun(const base::FilePath& profile_path,
                               FirstRunExitedCallback first_run_exited_callback);
 
@@ -190,15 +174,13 @@ class ProfilePicker {
     static Params ForTesting(EntryPoint entry_point,
                              const base::FilePath& profile_path);
 
-    // Calls `first_run_exited_callback_`, forwarding `exit_status` and
-    // `finish_reason`. See `ForFirstRun()` for more details.
+    // Calls `first_run_exited_callback_`, forwarding `exit_status`.See
+    // `ForFirstRun()` for more details.
     //
     // If this method is not called by the time this `Param` is destroyed, an
     // intent to quit will be assumed and `first_run_exited_callback_` will be
     // called by the destructor with quit-related arguments.
-    void NotifyFirstRunExited(FirstRunExitStatus exit_status,
-                              FirstRunFinishReason finish_reason =
-                                  FirstRunFinishReason::kFinishedFlow);
+    void NotifyFirstRunExited(FirstRunExitStatus exit_status);
 
     // Calls `picked_profile_callback_`, forwarding the `profile`. See
     // `ForGlicManager()` for more details.

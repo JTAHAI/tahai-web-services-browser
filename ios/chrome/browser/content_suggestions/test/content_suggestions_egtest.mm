@@ -131,15 +131,6 @@ NSString* AccessibilityIdentifierForMostVisitedCellAtIndex(int index) {
           index];
 }
 
-// Returns the matcher for the "Add" button in the navigation bar.
-id<GREYMatcher> NavigationBarAddButton() {
-  return grey_allOf(
-      grey_ancestor(grey_kindOfClass([UINavigationBar class])),
-      ButtonWithAccessibilityLabel(l10n_util::GetNSString(IDS_ADD)),
-      grey_userInteractionEnabled(),
-      grey_not(grey_accessibilityTrait(UIAccessibilityTraitNotEnabled)), nil);
-}
-
 }  // namespace
 
 #pragma mark - TestCase
@@ -575,7 +566,10 @@ id<GREYMatcher> NavigationBarAddButton() {
   NSString* secondTitle = @"Second Site";
   NSString* secondUrl = @"chrome://second_url";
   NSString* invalidUrl = @"in://valid.url";
-  id<GREYMatcher> saveButton = NavigationBarAddButton();
+  id<GREYMatcher> saveButton = grey_allOf(
+      grey_ancestor(grey_kindOfClass([UINavigationBar class])),
+      ButtonWithAccessibilityLabel(l10n_util::GetNSString(IDS_ADD)),
+      grey_not(grey_accessibilityTrait(UIAccessibilityTraitNotEnabled)), nil);
   GREYAssertFalse([self addPinnedSiteWithTitle:secondTitle URL:firstUrl],
                   @"Add pinned site form should not be dismissed when URL is "
                   @"already pinned.");
@@ -692,7 +686,10 @@ id<GREYMatcher> NavigationBarAddButton() {
                                          @"https://example.com"),
                                      grey_kindOfClassName(@"UITextField"), nil)]
         performAction:grey_replaceText(URLs[i])];
-    id<GREYMatcher> saveButton = NavigationBarAddButton();
+    id<GREYMatcher> saveButton = grey_allOf(
+        grey_ancestor(grey_kindOfClass([UINavigationBar class])),
+        ButtonWithAccessibilityLabel(l10n_util::GetNSString(IDS_ADD)),
+        grey_not(grey_accessibilityTrait(UIAccessibilityTraitNotEnabled)), nil);
     [[EarlGrey selectElementWithMatcher:saveButton] performAction:grey_tap()];
     [[EarlGrey selectElementWithMatcher:chrome_test_util::SnackbarViewMatcher()]
         performAction:grey_tap()];
@@ -841,7 +838,10 @@ id<GREYMatcher> NavigationBarAddButton() {
           chrome_test_util::NavigationBarTitleWithAccessibilityLabelId(
               IDS_IOS_CONTENT_SUGGESTIONS_PIN_SITE_ADD_PINNED_SITE_TITLE)]
       assertWithMatcher:grey_sufficientlyVisible()];
-  id<GREYMatcher> saveButton = NavigationBarAddButton();
+  id<GREYMatcher> saveButton = grey_allOf(
+      grey_ancestor(grey_kindOfClass([UINavigationBar class])),
+      ButtonWithAccessibilityLabel(l10n_util::GetNSString(IDS_ADD)),
+      grey_not(grey_accessibilityTrait(UIAccessibilityTraitNotEnabled)), nil);
   // Fill the "Name" field.
   [[EarlGrey
       selectElementWithMatcher:

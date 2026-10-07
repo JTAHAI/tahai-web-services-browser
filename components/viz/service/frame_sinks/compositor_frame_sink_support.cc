@@ -38,7 +38,6 @@
 #include "components/viz/common/quads/compositor_frame_metadata.h"
 #include "components/viz/common/quads/compositor_render_pass.h"
 #include "components/viz/common/quads/trees_in_viz_timing.h"
-#include "components/viz/common/resources/resource_id.h"
 #include "components/viz/common/surfaces/surface_info.h"
 #include "components/viz/common/surfaces/video_capture_target.h"
 #include "components/viz/common/viz_utils.h"
@@ -68,14 +67,12 @@ bool HasElapsedCadenceInterval(
 }
 
 namespace viz {
-namespace {
 
-// If enabled, CompositorFrameSinkSupport cleans up unhandled/orphaned reserved
-// resource IDs when in-flight frame resources are returned after their owning
-// SurfaceAnimationManager (or other delegate) has already been destroyed (e.g.,
-// due to a premature kRelease directive during rapid view transitions).
-BASE_FEATURE(kCleanupOrphanedReservedResourceIds,
+// TODO (crbug.com/495852034): Remove once M150 hits Stable.
+BASE_FEATURE(kDisconnectOnInvalidHitTestRegionList,
              base::FEATURE_ENABLED_BY_DEFAULT);
+
+namespace {
 
 bool RecordShouldSendBeginFrame(const std::string& reason, bool should_send) {
   TRACE_EVENT2("viz", "SendBeginFrameDecision", "reason", reason, "should_send",
@@ -441,78 +438,30 @@ void CompositorFrameSinkSupport::OnSurfacePresented(
 
 void CompositorFrameSinkSupport::RefResources(
     const std::vector<TransferableResource>& resources) {
-  std::vector<TransferableResource> unhandled_resources =
-      surface_resource_holder_.RefResources(resources);
+  ForAllReservedResourceDelegates(
+      [&resources](ReservedResourceDelegate& delegate) {
+        delegate.RefResources(resources);
+      });
 
-  if (unhandled_resources.empty()) {
-    return;
-  }
-
-  // `SurfaceAnimationManager` removes anything it owns from
-  // `unhandled_resources`.
-  for (auto& [_, manager] : view_transition_token_to_animation_manager_) {
-    manager->RefResources(unhandled_resources);
-  }
-
-  // Any remaining reserved resource IDs in `unhandled_resources` were not
-  // claimed by any active `SurfaceAnimationManager` (e.g. because the manager
-  // was destroyed upon receiving a kRelease directive before all in-flight
-  // frames were drawn). If the cleanup feature is enabled, directly ref them on
-  // the `ReservedResourceIdTracker` so that when the display compositor returns
-  // them, the ref counts match.
-  if (base::FeatureList::IsEnabled(kCleanupOrphanedReservedResourceIds)) {
-    auto* id_tracker = frame_sink_manager_->reserved_resource_id_tracker();
-    for (const auto& resource : unhandled_resources) {
-      // SurfaceResourceHolder will only leave reserved range resources
-      // unhandled.
-      CHECK_GE(resource.id, kVizReservedRangeStartId);
-      if (id_tracker->IsTracked(resource.id)) {
-        id_tracker->RefId(resource.id, /*count=*/1);
-      }
-    }
-  }
+  surface_resource_holder_.RefResources(resources);
 }
 
 void CompositorFrameSinkSupport::UnrefResources(
     std::vector<ReturnedResourceViz> resources) {
-  // `SurfaceAnimationManager` allocates ResourceIds in a different range
+  // `ReservedResourceDelegate` allocates ResourceIds in a different range
   // than the client so it can process returned resources before
-  // `surface_resource_holder_`. This removes handled resources from
-  // `resources`.
-  for (auto& [_, manager] : view_transition_token_to_animation_manager_) {
-    manager->UnrefResources(resources);
-  }
+  // |surface_resource_holder_|.
+  ForAllReservedResourceDelegates(
+      [&resources](ReservedResourceDelegate& delegate) {
+        delegate.UnrefResources(resources);
+      });
 
-  std::vector<ReturnedResourceViz> unhandled_resources =
-      surface_resource_holder_.UnrefResources(std::move(resources));
-
-  // Any remaining reserved resource IDs in `unhandled_resources` were not
-  // claimed by any active `SurfaceAnimationManager` (e.g. because the delegate
-  // was destroyed upon receiving a kRelease directive before the in-flight
-  // frame resources were returned). If the cleanup feature is enabled, directly
-  // unref them on the `ReservedResourceIdTracker` to prevent leaking IDs.
-  if (base::FeatureList::IsEnabled(kCleanupOrphanedReservedResourceIds)) {
-    auto* id_tracker = frame_sink_manager_->reserved_resource_id_tracker();
-    for (const auto& resource : unhandled_resources) {
-      // SurfaceResourceHolder will only leave reserved range resources
-      // unhandled.
-      CHECK_GE(resource.id, kVizReservedRangeStartId);
-      if (id_tracker->IsTracked(resource.id)) {
-        id_tracker->UnrefId(resource.id, resource.count);
-      }
-    }
-  }
+  surface_resource_holder_.UnrefResources(std::move(resources));
 }
 
 void CompositorFrameSinkSupport::ReturnResources(
     std::vector<ReturnedResource> resources) {
   if (resources.empty()) {
-    return;
-  }
-
-  if (resource_return_delegate_) {
-    CHECK(base::FeatureList::IsEnabled(features::kTreesInViz));
-    resource_return_delegate_->ReceiveReturnsFromParent(std::move(resources));
     return;
   }
 
@@ -541,9 +490,10 @@ void CompositorFrameSinkSupport::DoReturnResources(
 
 void CompositorFrameSinkSupport::ReceiveFromChild(
     const std::vector<TransferableResource>& resources) {
-  for (auto& [_, manager] : view_transition_token_to_animation_manager_) {
-    manager->ReceiveFromChild(resources);
-  }
+  ForAllReservedResourceDelegates(
+      [&resources](ReservedResourceDelegate& delegate) {
+        delegate.ReceiveFromChild(resources);
+      });
 
   surface_resource_holder_.ReceiveFromChild(resources);
 }
@@ -822,7 +772,6 @@ SubmitResult CompositorFrameSinkSupport::MaybeSubmitCompositorFrame(
     }
     std::vector<ui::LatencyInfo>().swap(frame.metadata.latency_info);
   }
-
   for (ui::LatencyInfo& latency : frame.metadata.latency_info) {
     if (latency.latency_components().size() > 0) {
       latency.AddLatencyNumberWithTimestamp(
@@ -949,9 +898,13 @@ SubmitResult CompositorFrameSinkSupport::MaybeSubmitCompositorFrame(
     // If that happens, we will rely on the GC of the current surface to remove
     // the reference.
     if (has_copy_request_against_prev_surface) {
+      using ResultDestination = CopyOutputRequest::ResultDestination;
+      auto destination =
+          features::IsBackForwardTransitionsSameDocSharedImageEnabled()
+              ? ResultDestination::kSharedImage
+              : ResultDestination::kSystemMemory;
       auto copy_request = std::make_unique<CopyOutputRequest>(
-          CopyOutputRequest::ResultFormat::RGBA,
-          CopyOutputResult::Destination::kSharedImage,
+          CopyOutputRequest::ResultFormat::RGBA, destination,
           base::BindOnce(
               &RemoveSurfaceReferenceAndDispatchCopyOutputRequestCallback,
               frame_sink_manager_->GetWeakPtr(), surface_info.id(),
@@ -1032,7 +985,9 @@ SubmitResult CompositorFrameSinkSupport::MaybeSubmitCompositorFrame(
   if (!frame_sink_manager()->SubmitHitTestRegionList(
           last_created_surface_id_, frame_index,
           std::move(hit_test_region_list))) {
-    return SubmitResult::HIT_TEST_DATA_INVALID;
+    if (base::FeatureList::IsEnabled(kDisconnectOnInvalidHitTestRegionList)) {
+      return SubmitResult::HIT_TEST_DATA_INVALID;
+    }
   }
 
   Surface::QueueFrameResult result = current_surface->QueueFrame(
@@ -1810,6 +1765,11 @@ void CompositorFrameSinkSupport::ClearAllPendingCopyOutputRequests() {
   copy_output_requests_.clear();
 }
 
+void CompositorFrameSinkSupport::SetExternalReservedResourceDelegate(
+    ReservedResourceDelegate* delegate) {
+  external_reserved_resource_delegate_ = delegate;
+}
+
 void CompositorFrameSinkSupport::SetLayerContextWantsBeginFrames(
     bool wants_begin_frames) {
   layer_context_wants_begin_frames_ = wants_begin_frames;
@@ -1839,6 +1799,17 @@ void CompositorFrameSinkSupport::ScheduleSelfDestruction() {
   base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
       FROM_HERE, base::BindOnce(&CompositorFrameSinkSupport::DestroySelf,
                                 weak_factory_.GetWeakPtr()));
+}
+
+void CompositorFrameSinkSupport::ForAllReservedResourceDelegates(
+    base::FunctionRef<void(ReservedResourceDelegate&)> func) {
+  if (external_reserved_resource_delegate_) {
+    func(*external_reserved_resource_delegate_);
+  }
+
+  for (auto& it : view_transition_token_to_animation_manager_) {
+    func(*it.second);
+  }
 }
 
 CompositorFrameSinkSupport::PendingFrameDetails::PendingFrameDetails(

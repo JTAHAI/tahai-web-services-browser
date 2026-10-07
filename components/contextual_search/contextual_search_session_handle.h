@@ -22,6 +22,7 @@
 #include "components/sessions/core/session_id.h"
 #include "mojo/public/cpp/base/big_buffer.h"
 #include "third_party/lens_server_proto/lens_overlay_request_id.pb.h"
+#include "third_party/lens_server_proto/modality_chip_props.pb.h"
 
 class GURL;
 class PrefService;
@@ -31,10 +32,8 @@ struct ThreadTurn;
 }  // namespace contextual_tasks
 
 namespace lens {
-class ClientToAimMessage;
-struct ContextualInputData;
-class ModalityChipProps;
 enum class MimeType;
+struct ContextualInputData;
 namespace proto {
 class LensOverlaySuggestInputs;
 }  // namespace proto
@@ -134,7 +133,7 @@ class ContextualSearchSessionHandle {
 
   // Returns the ContextualSearchMetricsRecorder reference held by this handle
   // or nullptr if the session is not valid.
-  virtual ContextualSearchMetricsRecorder* GetMetricsRecorder() const;
+  ContextualSearchMetricsRecorder* GetMetricsRecorder() const;
 
   // Notifies the session handle that the session has started.
   virtual void NotifySessionStarted();

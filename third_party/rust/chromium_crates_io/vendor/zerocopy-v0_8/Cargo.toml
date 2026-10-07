@@ -13,7 +13,11 @@
 edition = "2021"
 rust-version = "1.56.0"
 name = "zerocopy"
-version = "0.8.56"
+version = "0.8.54"
+authors = [
+    "Joshua Liebow-Feeser <joshlf@google.com>",
+    "Jack Wrenn <jswrenn@amazon.com>",
+]
 build = "build.rs"
 exclude = [".*"]
 autolib = false
@@ -385,7 +389,7 @@ name = "zero_static_size"
 path = "benches/zero_static_size.rs"
 
 [dependencies.zerocopy-derive]
-version = "=0.8.56"
+version = "=0.8.54"
 optional = true
 
 [dev-dependencies.elain]
@@ -395,7 +399,7 @@ version = "0.3.0"
 version = "0.11"
 
 [dev-dependencies.rand]
-version = "0.8.7"
+version = "0.8.5"
 features = ["small_rng"]
 default-features = false
 
@@ -409,7 +413,7 @@ version = "1.0"
 version = "1.1"
 
 [dev-dependencies.zerocopy-derive]
-version = "=0.8.56"
+version = "=0.8.54"
 
 [target."cfg(any())".dependencies.zerocopy-derive]
-version = "=0.8.56"
+version = "=0.8.54"

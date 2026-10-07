@@ -10,6 +10,8 @@
 
 namespace cast_certificate {
 
+bssl::ParseCertificateOptions GetCertParsingOptions();
+
 class NetParsedCertificate final : public openscreen::cast::ParsedCertificate {
  public:
   explicit NetParsedCertificate(

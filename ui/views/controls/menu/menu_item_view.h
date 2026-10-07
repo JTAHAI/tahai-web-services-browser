@@ -5,7 +5,6 @@
 #ifndef UI_VIEWS_CONTROLS_MENU_MENU_ITEM_VIEW_H_
 #define UI_VIEWS_CONTROLS_MENU_MENU_ITEM_VIEW_H_
 
-#include <algorithm>
 #include <memory>
 #include <optional>
 #include <string>
@@ -123,20 +122,11 @@ class VIEWS_EXPORT MenuItemView : public View, public LayoutDelegate {
 
   // The data structure which is used to paint a background on the menu item.
   struct MenuItemBackground {
-    MenuItemBackground(ui::ColorId background_color_id,
-                       int top_radius,
-                       int bottom_radius)
-        : background_color_id(background_color_id),
-          top_radius(top_radius),
-          bottom_radius(bottom_radius) {}
     MenuItemBackground(ui::ColorId background_color_id, int corner_radius)
-        : MenuItemBackground(background_color_id,
-                             corner_radius,
-                             corner_radius) {}
-
+        : background_color_id(background_color_id),
+          corner_radius(corner_radius) {}
     ui::ColorId background_color_id;
-    int top_radius = 0;
-    int bottom_radius = 0;
+    int corner_radius = 0;
   };
 
   // Constructor for use with the top level menu item. This menu is never
@@ -189,25 +179,6 @@ class VIEWS_EXPORT MenuItemView : public View, public LayoutDelegate {
   void SetMenuItemBackground(
       std::optional<MenuItemBackground> menu_item_background) {
     menu_item_background_ = menu_item_background;
-  }
-
-  void SetContainerStyle(ui::ColorId background_color_id,
-                         int top_radius = 0,
-                         int bottom_radius = 0,
-                         int top_margin = 8,
-                         int bottom_margin = 8) {
-    SetMenuItemBackground(
-        MenuItemBackground(background_color_id, top_radius, bottom_radius));
-    set_top_margin(top_margin);
-    set_bottom_margin(bottom_margin);
-  }
-
-  void set_top_margin(int top_margin) { top_margin_ = top_margin; }
-  int GetTopMargin() const { return top_margin_.value_or(GetVerticalMargin()); }
-
-  void set_bottom_margin(int bottom_margin) { bottom_margin_ = bottom_margin; }
-  int GetBottomMargin() const {
-    return bottom_margin_.value_or(GetVerticalMargin());
   }
 
   std::optional<MenuItemBackground> GetMenuItemBackground() {
@@ -495,6 +466,10 @@ class VIEWS_EXPORT MenuItemView : public View, public LayoutDelegate {
   // Returns the preferred size (and padding) of any children.
   virtual gfx::Size GetChildPreferredSize() const;
 
+  // Returns the various margins.
+  int GetTopMargin() const;
+  int GetBottomMargin() const;
+
  private:
   friend class MenuController;
   friend class internal::MenuRunnerImpl;
@@ -672,7 +647,7 @@ class VIEWS_EXPORT MenuItemView : public View, public LayoutDelegate {
   bool canceled_ = false;
 
   // Our parent.
-  raw_ptr<MenuItemView> parent_menu_item_ = nullptr;
+  const raw_ptr<MenuItemView> parent_menu_item_ = nullptr;
 
   // Type of menu. NOTE: MenuItemView doesn't itself represent SEPARATOR,
   // that is handled by an entirely different view class.
@@ -792,8 +767,6 @@ class VIEWS_EXPORT MenuItemView : public View, public LayoutDelegate {
   std::optional<ui::ColorId> foreground_color_id_;
   std::optional<MenuItemBackground> menu_item_background_;
   std::optional<ui::ColorId> selected_color_id_;
-  std::optional<int> top_margin_;
-  std::optional<int> bottom_margin_;
 
   base::CallbackListSubscription visible_changed_callback_;
   base::CallbackListSubscription enabled_changed_callback_;

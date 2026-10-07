@@ -60,7 +60,6 @@ public class LocationBarFocusScrimHandler {
      * @param clickDelegate Click handler for the scrim.
      * @param scrimTarget View that the scrim should be anchored to.
      * @param tabStripHeightSupplier Supplier for the tab strip height.
-     * @param bottomControlsStacker Controller managing positioning of bottom controls.
      */
     public LocationBarFocusScrimHandler(
             ScrimManager scrimManager,
@@ -136,16 +135,12 @@ public class LocationBarFocusScrimHandler {
 
     /** Controls the visibility of scrim overlay. */
     public void setVisibility(boolean shouldShow) {
-        setVisibility(shouldShow, /* animate= */ true);
-    }
-
-    public void setVisibility(boolean shouldShow, boolean animate) {
         if (shouldShow == mScrimShown) return;
 
         if (shouldShow) {
             mScrimManager.showScrim(mScrimModel);
         } else {
-            mScrimManager.hideScrim(mScrimModel, animate);
+            mScrimManager.hideScrim(mScrimModel, /* animate= */ true);
         }
 
         mScrimShown = shouldShow;

@@ -13,6 +13,7 @@
 #include <vector>
 
 #include "base/android/jni_android.h"
+#include "base/android/jni_array.h"
 #include "base/android/jni_string.h"
 #include "base/check.h"
 #include "base/feature_list.h"
@@ -67,6 +68,7 @@
 #include "components/omnibox/browser/omnibox_log.h"
 #include "components/omnibox/browser/omnibox_popup_selection.h"
 #include "components/omnibox/browser/page_classification_functions.h"
+#include "components/omnibox/browser/suggestion_answer.h"
 #include "components/omnibox/browser/voice_suggest_provider.h"
 #include "components/omnibox/common/omnibox_features.h"
 #include "components/open_from_clipboard/clipboard_recent_content.h"
@@ -93,6 +95,10 @@
 #include "chrome/browser/ui/android/omnibox/jni_headers/AutocompleteController_jni.h"
 
 using base::android::AttachCurrentThread;
+using base::android::ConvertJavaStringToUTF16;
+using base::android::ConvertJavaStringToUTF8;
+using base::android::ConvertUTF16ToJavaString;
+using base::android::ConvertUTF8ToJavaString;
 using base::android::JavaRef;
 using base::android::ScopedJavaLocalRef;
 using metrics::OmniboxEventProto;
@@ -161,6 +167,7 @@ AutocompleteControllerAndroid::AutocompleteControllerAndroid(
 }
 
 void AutocompleteControllerAndroid::Start(
+    JNIEnv* env,
     content::WebContents* web_contents,
     const std::u16string& text,
     int32_t cursor_pos,
@@ -207,6 +214,7 @@ void AutocompleteControllerAndroid::Start(
 }
 
 void AutocompleteControllerAndroid::StartPrefetch(
+    JNIEnv* env,
     content::WebContents* web_contents,
     const GURL& current_url,
     ::metrics::OmniboxEventProto::PageClassification page_classification) {
@@ -229,8 +237,8 @@ ScopedJavaLocalRef<jobject> AutocompleteControllerAndroid::Classify(
   autocomplete_controller_->result().DestroyJavaObject();
 
   inside_synchronous_start_ = true;
-  Start(nullptr, text, -1, "", GURL(), ::metrics::OmniboxEventProto::OTHER,
-        omnibox::TOOL_MODE_UNSPECIFIED, true, false, false, false);
+  Start(env, nullptr, text, -1, "", GURL(), ::metrics::OmniboxEventProto::OTHER,
+        omnibox::TOOL_MODE_UNSPECIFIED, false, false, false, false);
   inside_synchronous_start_ = false;
   DCHECK(autocomplete_controller_->done());
   AutocompleteResult& result =
@@ -247,6 +255,7 @@ ScopedJavaLocalRef<jobject> AutocompleteControllerAndroid::Classify(
 }
 
 void AutocompleteControllerAndroid::OnOmniboxFocused(
+    JNIEnv* env,
     content::WebContents* web_contents,
     const std::u16string& omnibox_text_in,
     const GURL& current_url,
@@ -326,7 +335,8 @@ void AutocompleteControllerAndroid::OnOmniboxFocused(
   autocomplete_controller_->Start(input_);
 }
 
-void AutocompleteControllerAndroid::Stop(AutocompleteStopReason reason) {
+void AutocompleteControllerAndroid::Stop(JNIEnv* env,
+                                         AutocompleteStopReason reason) {
   autocomplete_controller_->Stop(reason);
 
   if (reason == AutocompleteStopReason::kClobbered) {
@@ -334,11 +344,12 @@ void AutocompleteControllerAndroid::Stop(AutocompleteStopReason reason) {
   }
 }
 
-void AutocompleteControllerAndroid::ResetSession() {
+void AutocompleteControllerAndroid::ResetSession(JNIEnv* env) {
   autocomplete_controller_->ResetSession();
 }
 
 void AutocompleteControllerAndroid::StartPrewarm(
+    JNIEnv* env,
     content::WebContents* web_contents) {
   if (web_contents) {
     auto* prerender_manager =
@@ -349,6 +360,7 @@ void AutocompleteControllerAndroid::StartPrewarm(
 }
 
 void AutocompleteControllerAndroid::OnSuggestionSelected(
+    JNIEnv* env,
     content::WebContents* web_contents,
     uintptr_t match_ptr,
     int suggestion_line,
@@ -378,6 +390,7 @@ void AutocompleteControllerAndroid::OnSuggestionSelected(
   }
 
   const auto& match = *reinterpret_cast<AutocompleteMatch*>(match_ptr);
+  omnibox::answer_data_parser::LogAnswerUsed(match.answer_type);
   TemplateURLService* template_url_service =
       TemplateURLServiceFactory::GetForProfile(profile_);
   if (template_url_service &&
@@ -460,6 +473,7 @@ void AutocompleteControllerAndroid::OnSuggestionSelected(
 }
 
 bool AutocompleteControllerAndroid::OnSuggestionTouchDown(
+    JNIEnv* env,
     content::WebContents* web_contents,
     uintptr_t match_ptr,
     int match_index) {
@@ -483,14 +497,16 @@ bool AutocompleteControllerAndroid::OnSuggestionTouchDown(
   return started;
 }
 
-void AutocompleteControllerAndroid::DeleteMatch(uintptr_t match_ptr) {
+void AutocompleteControllerAndroid::DeleteMatch(JNIEnv* env,
+                                                uintptr_t match_ptr) {
   const auto* match = reinterpret_cast<AutocompleteMatch*>(match_ptr);
   if (match->SupportsDeletion()) {
     autocomplete_controller_->DeleteMatch(*match);
   }
 }
 
-void AutocompleteControllerAndroid::DeleteMatchElement(uintptr_t match_ptr,
+void AutocompleteControllerAndroid::DeleteMatchElement(JNIEnv* env,
+                                                       uintptr_t match_ptr,
                                                        int32_t element_index) {
   const auto* match = reinterpret_cast<AutocompleteMatch*>(match_ptr);
   if (match->SupportsDeletion()) {
@@ -498,15 +514,16 @@ void AutocompleteControllerAndroid::DeleteMatchElement(uintptr_t match_ptr,
   }
 }
 
-GURL AutocompleteControllerAndroid::
+ScopedJavaLocalRef<jobject> AutocompleteControllerAndroid::
     UpdateMatchDestinationURLWithAdditionalSearchboxStats(
+        JNIEnv* env,
         uintptr_t match_ptr,
         int64_t elapsed_time_since_input_change) {
   auto* match = reinterpret_cast<AutocompleteMatch*>(match_ptr);
   autocomplete_controller_
       ->UpdateMatchDestinationURLWithAdditionalSearchboxStats(
           base::Milliseconds(elapsed_time_since_input_change), match);
-  return match->destination_url;
+  return url::GURLAndroid::FromNativeGURL(env, match->destination_url);
 }
 
 void AutocompleteControllerAndroid::Shutdown() {
@@ -522,6 +539,7 @@ void AutocompleteControllerAndroid::EnsureFactoryBuilt() {
 }
 
 void AutocompleteControllerAndroid::SetComposeboxQueryControllerBridge(
+    JNIEnv* env,
     uintptr_t composebox_controller_ptr) {
   if (!composebox_controller_ptr) {
     composebox_query_controller_bridge_.reset();
@@ -535,6 +553,7 @@ void AutocompleteControllerAndroid::SetComposeboxQueryControllerBridge(
 }
 
 void AutocompleteControllerAndroid::SetVoiceMatches(
+    JNIEnv* env,
     const std::vector<std::u16string>& voice_matches,
     const std::vector<float>& confidence_scores) {
   auto* const voice_suggest_provider =
@@ -553,6 +572,7 @@ void AutocompleteControllerAndroid::SetVoiceMatches(
 }
 
 void AutocompleteControllerAndroid::OnSuggestionDropdownHeightChanged(
+    JNIEnv* env,
     int32_t dropdown_height_with_keyboard_active_px,
     int32_t suggestion_height_px) {
   if (suggestion_height_px == 0) {
@@ -573,6 +593,7 @@ void AutocompleteControllerAndroid::OnSuggestionDropdownHeightChanged(
 }
 
 void AutocompleteControllerAndroid::CreateNavigationObserver(
+    JNIEnv* env,
     uintptr_t navigation_handle_ptr,
     uintptr_t match_ptr) {
   auto* navigation_handle =
@@ -601,6 +622,7 @@ void AutocompleteControllerAndroid::CreateNavigationObserver(
 
 base::android::ScopedJavaLocalRef<jobject>
 AutocompleteControllerAndroid::GetTemplateUrlForText(
+    JNIEnv* env,
     const std::u16string& text) {
   if (!autocomplete_controller_ ||
       !autocomplete_controller_->keyword_provider()) {
@@ -619,7 +641,7 @@ AutocompleteControllerAndroid::GetTemplateUrlForText(
     return nullptr;
   }
 
-  return CreateTemplateUrlAndroid(AttachCurrentThread(), template_url);
+  return CreateTemplateUrlAndroid(env, template_url);
 }
 
 ScopedJavaLocalRef<jobject> AutocompleteControllerAndroid::GetJavaObject()
@@ -720,6 +742,7 @@ AutocompleteControllerAndroid::Factory::BuildServiceInstanceForBrowserContext(
 }
 
 static ScopedJavaLocalRef<jobject> JNI_AutocompleteController_GetForProfile(
+    JNIEnv* env,
     Profile* profile) {
   AutocompleteControllerAndroid* native_bridge =
       AutocompleteControllerAndroid::Factory::GetForProfile(profile);

@@ -61,9 +61,11 @@ TabStateStorageService::TabStateStorageService(
     const base::FilePath& profile_path,
     bool support_off_the_record_data,
     std::unique_ptr<TabStoragePackager> packager,
+    TabCanonicalizer tab_canonicalizer,
     RestoreEntityTrackerFactory tracker_factory)
     : tab_backend_(profile_path, support_off_the_record_data),
       packager_(std::move(packager)),
+      tab_canonicalizer_(tab_canonicalizer),
       tracker_factory_(tracker_factory) {
   tab_backend_.Initialize();
 }
@@ -81,7 +83,8 @@ StorageId TabStateStorageService::GetStorageId(
 }
 
 StorageId TabStateStorageService::GetStorageId(const TabInterface* tab) {
-  return ::tabs::GetOrCreateStorageId(tab, tab_handle_to_storage_id_);
+  return ::tabs::GetOrCreateStorageId(tab_canonicalizer_.Run(tab),
+                                      tab_handle_to_storage_id_);
 }
 
 void TabStateStorageService::WaitForAllPendingOperations(
@@ -135,13 +138,8 @@ void TabStateStorageService::Save(const TabInterface* tab) {
   std::string window_tag = packager_->GetWindowTag(parent);
   bool is_off_the_record = packager_->IsOffTheRecord(parent);
 
-  Save(std::move(window_tag), is_off_the_record, tab);
-}
-
-void TabStateStorageService::Save(std::string window_tag,
-                                  bool is_off_the_record,
-                                  const TabInterface* tab) {
   StorageId storage_id = GetStorageId(tab);
+
   ApplyUpdate([&](TabStateStorageUpdaterBuilder& builder) {
     builder.SaveNode(storage_id, std::move(window_tag), is_off_the_record,
                      TabStorageType::kTab, tab->GetHandle());
@@ -315,6 +313,10 @@ std::vector<uint8_t> TabStateStorageService::GenerateKey(
   return key;
 }
 
+TabCanonicalizer TabStateStorageService::GetCanonicalizer() const {
+  return tab_canonicalizer_;
+}
+
 #if defined(NDEBUG)
 void TabStateStorageService::PrintAll() {
   tab_backend_.PrintAll();
@@ -323,14 +325,16 @@ void TabStateStorageService::PrintAll() {
 
 void TabStateStorageService::OnTabCreated(StorageId storage_id,
                                           const TabInterface* tab) {
-  if (tab == nullptr) {
+  const TabInterface* canonicalized_tab = tab_canonicalizer_.Run(tab);
+  if (canonicalized_tab == nullptr) {
     // TODO(https://crbug.com/448151790): Consider removing from the database.
     // Though if a complete post-initialization raze is coming, maybe it
     // doesn't matter.
     return;
   }
 
-  tab_handle_to_storage_id_[tab->GetHandle().raw_value()] = storage_id;
+  tab_handle_to_storage_id_[canonicalized_tab->GetHandle().raw_value()] =
+      storage_id;
 }
 
 void TabStateStorageService::OnCollectionCreated(

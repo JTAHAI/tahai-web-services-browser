@@ -295,7 +295,7 @@ void EditingList::Init() {
 
   shadow_ = ash::SystemShadow::CreateShadowOnNinePatchLayerForView(
       this, ash::SystemShadow::Type::kElevation12);
-  shadow_->SetRoundedCorners(gfx::RoundedCornersF(kMainContainerCornerRadius));
+  shadow_->SetRoundedCornerRadius(kMainContainerCornerRadius);
 }
 
 bool EditingList::HasControls() const {

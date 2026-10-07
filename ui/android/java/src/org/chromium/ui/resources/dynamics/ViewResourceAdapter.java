@@ -117,7 +117,7 @@ public class ViewResourceAdapter
         mScale = scale;
     }
 
-    /** {@link Resource#createNativeResource()}. */
+    /** {@see Resource#createNativeResource()}. */
     public long createNativeResource() {
         return ResourceFactory.createBitmapResource(null);
     }

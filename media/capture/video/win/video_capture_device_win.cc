@@ -16,7 +16,6 @@
 #include "base/check.h"
 #include "base/compiler_specific.h"
 #include "base/containers/heap_array.h"
-#include "base/containers/span.h"
 #include "base/dcheck_is_on.h"
 #include "base/feature_list.h"
 #include "base/logging.h"
@@ -532,19 +531,14 @@ void VideoCaptureDeviceWin::AllocateAndStart(
 
   base::UmaHistogramEnumeration(
       "Media.VideoCapture.Win.Device.InternalPixelFormat",
-      capture_format_.pixel_format,
-      static_cast<media::VideoPixelFormat>(
-          media::VideoPixelFormat::PIXEL_FORMAT_MAX + 1));
+      capture_format_.pixel_format, media::VideoPixelFormat::PIXEL_FORMAT_MAX);
   base::UmaHistogramEnumeration(
       "Media.VideoCapture.Win.Device.CapturePixelFormat",
-      capture_format_.pixel_format,
-      static_cast<media::VideoPixelFormat>(
-          media::VideoPixelFormat::PIXEL_FORMAT_MAX + 1));
+      capture_format_.pixel_format, media::VideoPixelFormat::PIXEL_FORMAT_MAX);
   base::UmaHistogramEnumeration(
       "Media.VideoCapture.Win.Device.RequestedPixelFormat",
       params.requested_format.pixel_format,
-      static_cast<media::VideoPixelFormat>(
-          media::VideoPixelFormat::PIXEL_FORMAT_MAX + 1));
+      media::VideoPixelFormat::PIXEL_FORMAT_MAX);
 
   {
     base::AutoLock lock(lock_);
@@ -880,7 +874,8 @@ bool VideoCaptureDeviceWin::GetCameraAndVideoControls(
 }
 
 // Implements SinkFilterObserver::SinkFilterObserver.
-void VideoCaptureDeviceWin::FrameReceived(base::span<const uint8_t> buffer,
+void VideoCaptureDeviceWin::FrameReceived(const uint8_t* buffer,
+                                          int length,
                                           const VideoCaptureFormat& format,
                                           base::TimeDelta timestamp,
                                           bool flip_y) {
@@ -912,16 +907,15 @@ void VideoCaptureDeviceWin::FrameReceived(base::span<const uint8_t> buffer,
   // DXVA_VideoTransferMatrix, DXVA_VideoTransferFunction and
   // DXVA_NominalRangeto build a gfx::ColorSpace. See http://crbug.com/959992.
   client_->OnIncomingCapturedData(
-      buffer, format, gfx::ColorSpace(), camera_rotation_.value(), flip_y,
-      base::TimeTicks::Now(), timestamp,
+      buffer, length, format, gfx::ColorSpace(), camera_rotation_.value(),
+      flip_y, base::TimeTicks::Now(), timestamp,
       /*capture_begin_timestamp=*/std::nullopt, /*metadata=*/std::nullopt);
 
   while (!take_photo_callbacks_.empty()) {
     TakePhotoCallback cb = std::move(take_photo_callbacks_.front());
     take_photo_callbacks_.pop();
 
-    mojom::BlobPtr blob =
-        RotateAndBlobify(buffer.data(), buffer.size(), format, 0);
+    mojom::BlobPtr blob = RotateAndBlobify(buffer, length, format, 0);
     if (blob) {
       std::move(cb).Run(std::move(blob));
     }
@@ -983,9 +977,4 @@ void VideoCaptureDeviceWin::SetErrorState(media::VideoCaptureError error,
   state_ = kError;
   client_->OnError(error, from_here, reason);
 }
-void VideoCaptureDeviceWin::InvalidateBuffers() {
-  base::AutoLock lock(lock_);
-  client_->InvalidateBuffers();
-}
-
 }  // namespace media

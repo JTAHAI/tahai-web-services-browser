@@ -156,6 +156,7 @@ DECLARE_STATE_IDENTIFIER_VALUE(GlicActorTaskState, kGlicActorTaskState);
 
 extern const ui::ElementIdentifier kGlicHandoffButtonElementId;
 
+const base::Feature& GetGlicActionAllowlistFeature();
 const char* GetDisableActorSafetyChecksSwitch();
 const base::Feature& GetGlicLiveModeFeature();
 const base::Feature& GetGlicMultiInstanceFeature();

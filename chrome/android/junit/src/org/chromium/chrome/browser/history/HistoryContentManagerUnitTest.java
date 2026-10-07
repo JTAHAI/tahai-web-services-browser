@@ -21,6 +21,7 @@ import org.mockito.junit.MockitoRule;
 import org.robolectric.ParameterizedRobolectricTestRunner;
 import org.robolectric.ParameterizedRobolectricTestRunner.Parameters;
 import org.robolectric.Robolectric;
+import org.robolectric.annotation.Config;
 
 import org.chromium.base.FeatureOverrides;
 import org.chromium.base.supplier.SupplierUtils;
@@ -59,6 +60,7 @@ import java.util.function.Supplier;
  * MAKE_IDENTITY_MANAGER_SOURCE_OF_ACCOUNTS launch.
  */
 @RunWith(ParameterizedRobolectricTestRunner.class)
+@Config(manifest = Config.NONE)
 @Features.EnableFeatures(SigninFeatures.ENABLE_SEAMLESS_SIGNIN)
 public class HistoryContentManagerUnitTest {
 

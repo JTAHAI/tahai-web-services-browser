@@ -26,7 +26,6 @@ import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
 
-import org.chromium.base.ServiceLoaderUtil;
 import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.BaseActivityTestRule;
 import org.chromium.base.test.util.CriteriaHelper;
@@ -63,7 +62,7 @@ public final class AuxiliarySearchDonorTest {
 
     @Before
     public void setUp() {
-        ServiceLoaderUtil.setInstanceForTesting(AuxiliarySearchHooks.class, mHooks);
+        AuxiliarySearchControllerFactory.getInstance().setHooksForTesting(mHooks);
 
         mActivityTestRule.launchActivity(null);
         mAuxiliarySearchDonor = AuxiliarySearchDonor.getInstance();
@@ -116,16 +115,16 @@ public final class AuxiliarySearchDonorTest {
         map.put(entryList.get(1), mBitmap[1]);
 
         ThreadUtils.runOnUiThreadBlocking(
-                () ->
-                        mAuxiliarySearchDonor.donateFavicons(
-                                entryList,
-                                map,
-                                (Boolean success) -> {
-                                    assertTrue(success);
-                                    mAuxiliarySearchDonor.searchDonationResultsForTesting(
-                                            (List<SearchResult> searchResults) ->
-                                                    verifyResults(entryList, searchResults));
-                                }));
+                () -> {
+                    mAuxiliarySearchDonor.donateFavicons(
+                            entryList,
+                            map,
+                            (success) -> {
+                                assertTrue(success);
+                                mAuxiliarySearchDonor.searchDonationResultsForTesting(
+                                        (searchResults) -> verifyResults(entryList, searchResults));
+                            });
+                });
     }
 
     private void verifyResults(

@@ -5,12 +5,11 @@
 
 """Certificate chain where the supposed root certificate is wrong:
 
-* The intermediate's "issuer" does not match the root's "subject"
-* The intermediate's signature was not generated using the root's key
+  * The intermediate's "issuer" does not match the root's "subject"
+  * The intermediate's signature was not generated using the root's key
 """
 
 import sys
-
 sys.path += ['../..']
 
 import gencerts

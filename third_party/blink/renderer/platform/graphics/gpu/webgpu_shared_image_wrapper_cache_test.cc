@@ -59,13 +59,15 @@ TEST_F(WebGpuSharedImageWrapperCacheTest, MRUSameSize) {
   std::unique_ptr<WebGpuSharedImageWrapperLease> wrapper_lease_0 =
       wrapper_cache_->LeaseWebGpuSharedImageWrapper(
           viz::SinglePlaneFormat::kRGBA_8888, size,
-          gfx::ColorSpace::CreateSRGB(), kPremul_SkAlphaType);
+          gfx::ColorSpace::CreateSRGB(), gfx::HDRMetadata(),
+          kPremul_SkAlphaType);
   returned_wrappers.push_back(wrapper_lease_0->shared_image_wrapper());
 
   std::unique_ptr<WebGpuSharedImageWrapperLease> wrapper_lease_1 =
       wrapper_cache_->LeaseWebGpuSharedImageWrapper(
           viz::SinglePlaneFormat::kRGBA_8888, size,
-          gfx::ColorSpace::CreateSRGB(), kPremul_SkAlphaType);
+          gfx::ColorSpace::CreateSRGB(), gfx::HDRMetadata(),
+          kPremul_SkAlphaType);
   returned_wrappers.push_back(wrapper_lease_1->shared_image_wrapper());
 
   // Now release the leases to recycle the wrappers.
@@ -75,7 +77,8 @@ TEST_F(WebGpuSharedImageWrapperCacheTest, MRUSameSize) {
   std::unique_ptr<WebGpuSharedImageWrapperLease> wrapper_lease_2 =
       wrapper_cache_->LeaseWebGpuSharedImageWrapper(
           viz::SinglePlaneFormat::kRGBA_8888, size,
-          gfx::ColorSpace::CreateSRGB(), kPremul_SkAlphaType);
+          gfx::ColorSpace::CreateSRGB(), gfx::HDRMetadata(),
+          kPremul_SkAlphaType);
   returned_wrappers.push_back(wrapper_lease_2->shared_image_wrapper());
 
   // LeaseWebGpuSharedImageWrapper should return the MRU wrapper, which
@@ -92,13 +95,15 @@ TEST_F(WebGpuSharedImageWrapperCacheTest, DifferentSize) {
   std::unique_ptr<WebGpuSharedImageWrapperLease> wrapper_lease_0 =
       wrapper_cache_->LeaseWebGpuSharedImageWrapper(
           viz::SinglePlaneFormat::kRGBA_8888, size1,
-          gfx::ColorSpace::CreateSRGB(), kPremul_SkAlphaType);
+          gfx::ColorSpace::CreateSRGB(), gfx::HDRMetadata(),
+          kPremul_SkAlphaType);
   returned_wrappers.push_back(wrapper_lease_0->shared_image_wrapper());
 
   std::unique_ptr<WebGpuSharedImageWrapperLease> wrapper_lease_1 =
       wrapper_cache_->LeaseWebGpuSharedImageWrapper(
           viz::SinglePlaneFormat::kRGBA_8888, size2,
-          gfx::ColorSpace::CreateSRGB(), kPremul_SkAlphaType);
+          gfx::ColorSpace::CreateSRGB(), gfx::HDRMetadata(),
+          kPremul_SkAlphaType);
   returned_wrappers.push_back(wrapper_lease_1->shared_image_wrapper());
 
   // Now release the leases to recycle the wrappers.
@@ -108,13 +113,15 @@ TEST_F(WebGpuSharedImageWrapperCacheTest, DifferentSize) {
   std::unique_ptr<WebGpuSharedImageWrapperLease> wrapper_lease_2 =
       wrapper_cache_->LeaseWebGpuSharedImageWrapper(
           viz::SinglePlaneFormat::kRGBA_8888, size1,
-          gfx::ColorSpace::CreateSRGB(), kPremul_SkAlphaType);
+          gfx::ColorSpace::CreateSRGB(), gfx::HDRMetadata(),
+          kPremul_SkAlphaType);
   returned_wrappers.push_back(wrapper_lease_2->shared_image_wrapper());
 
   std::unique_ptr<WebGpuSharedImageWrapperLease> wrapper_lease_3 =
       wrapper_cache_->LeaseWebGpuSharedImageWrapper(
           viz::SinglePlaneFormat::kRGBA_8888, size2,
-          gfx::ColorSpace::CreateSRGB(), kPremul_SkAlphaType);
+          gfx::ColorSpace::CreateSRGB(), gfx::HDRMetadata(),
+          kPremul_SkAlphaType);
   returned_wrappers.push_back(wrapper_lease_3->shared_image_wrapper());
 
   // LeaseWebGpuSharedImageWrapper should return the same shared image
@@ -132,7 +139,8 @@ TEST_F(WebGpuSharedImageWrapperCacheTest, CacheMissHit) {
   std::unique_ptr<WebGpuSharedImageWrapperLease> wrapper_lease_0 =
       wrapper_cache_->LeaseWebGpuSharedImageWrapper(
           viz::SinglePlaneFormat::kRGBA_8888, size1,
-          gfx::ColorSpace::CreateSRGB(), kPremul_SkAlphaType);
+          gfx::ColorSpace::CreateSRGB(), gfx::HDRMetadata(),
+          kPremul_SkAlphaType);
   returned_wrappers.push_back(wrapper_lease_0->shared_image_wrapper());
 
   // Now release the lease to recycle the wrapper.
@@ -142,7 +150,8 @@ TEST_F(WebGpuSharedImageWrapperCacheTest, CacheMissHit) {
   std::unique_ptr<WebGpuSharedImageWrapperLease> wrapper_lease_1 =
       wrapper_cache_->LeaseWebGpuSharedImageWrapper(
           viz::SinglePlaneFormat::kRGBA_8888, size2,
-          gfx::ColorSpace::CreateSRGB(), kPremul_SkAlphaType);
+          gfx::ColorSpace::CreateSRGB(), gfx::HDRMetadata(),
+          kPremul_SkAlphaType);
   returned_wrappers.push_back(wrapper_lease_1->shared_image_wrapper());
 
   // Cache miss. A new wrapper should be created.
@@ -152,7 +161,8 @@ TEST_F(WebGpuSharedImageWrapperCacheTest, CacheMissHit) {
   std::unique_ptr<WebGpuSharedImageWrapperLease> wrapper_lease_2 =
       wrapper_cache_->LeaseWebGpuSharedImageWrapper(
           viz::SinglePlaneFormat::kRGBA_8888, size1,
-          gfx::ColorSpace::CreateSRGBLinear(), kPremul_SkAlphaType);
+          gfx::ColorSpace::CreateSRGBLinear(), gfx::HDRMetadata(),
+          kPremul_SkAlphaType);
   returned_wrappers.push_back(wrapper_lease_2->shared_image_wrapper());
 
   // Cache miss. A new wrapper should be created.
@@ -162,7 +172,8 @@ TEST_F(WebGpuSharedImageWrapperCacheTest, CacheMissHit) {
   std::unique_ptr<WebGpuSharedImageWrapperLease> wrapper_lease_3 =
       wrapper_cache_->LeaseWebGpuSharedImageWrapper(
           viz::SinglePlaneFormat::kRGBA_F16, size1,
-          gfx::ColorSpace::CreateSRGB(), kPremul_SkAlphaType);
+          gfx::ColorSpace::CreateSRGB(), gfx::HDRMetadata(),
+          kPremul_SkAlphaType);
   returned_wrappers.push_back(wrapper_lease_3->shared_image_wrapper());
 
   // Cache miss. A new wrapper should be created.
@@ -172,7 +183,8 @@ TEST_F(WebGpuSharedImageWrapperCacheTest, CacheMissHit) {
   std::unique_ptr<WebGpuSharedImageWrapperLease> wrapper_lease_4 =
       wrapper_cache_->LeaseWebGpuSharedImageWrapper(
           viz::SinglePlaneFormat::kRGBA_8888, size1,
-          gfx::ColorSpace::CreateSRGB(), kOpaque_SkAlphaType);
+          gfx::ColorSpace::CreateSRGB(), gfx::HDRMetadata(),
+          kOpaque_SkAlphaType);
   returned_wrappers.push_back(wrapper_lease_4->shared_image_wrapper());
 
   // Cache miss. A new wrapper should be created.
@@ -182,7 +194,8 @@ TEST_F(WebGpuSharedImageWrapperCacheTest, CacheMissHit) {
   std::unique_ptr<WebGpuSharedImageWrapperLease> wrapper_lease_5 =
       wrapper_cache_->LeaseWebGpuSharedImageWrapper(
           viz::SinglePlaneFormat::kRGBA_8888, size1,
-          gfx::ColorSpace::CreateSRGB(), kPremul_SkAlphaType);
+          gfx::ColorSpace::CreateSRGB(), gfx::HDRMetadata(),
+          kPremul_SkAlphaType);
   returned_wrappers.push_back(wrapper_lease_5->shared_image_wrapper());
 
   // Should get the same wrapper.
@@ -198,13 +211,15 @@ TEST_F(WebGpuSharedImageWrapperCacheTest, StaleResourcesCleanUp) {
   std::unique_ptr<WebGpuSharedImageWrapperLease> wrapper_lease_0 =
       wrapper_cache_->LeaseWebGpuSharedImageWrapper(
           viz::SinglePlaneFormat::kRGBA_8888, resource_size,
-          gfx::ColorSpace::CreateSRGB(), kPremul_SkAlphaType);
+          gfx::ColorSpace::CreateSRGB(), gfx::HDRMetadata(),
+          kPremul_SkAlphaType);
   returned_wrappers.push_back(wrapper_lease_0->shared_image_wrapper());
 
   std::unique_ptr<WebGpuSharedImageWrapperLease> wrapper_lease_1 =
       wrapper_cache_->LeaseWebGpuSharedImageWrapper(
           viz::SinglePlaneFormat::kRGBA_8888, resource_size,
-          gfx::ColorSpace::CreateSRGB(), kPremul_SkAlphaType);
+          gfx::ColorSpace::CreateSRGB(), gfx::HDRMetadata(),
+          kPremul_SkAlphaType);
   returned_wrappers.push_back(wrapper_lease_1->shared_image_wrapper());
 
   // Now release the leases to recycle the wrappers.
@@ -233,7 +248,8 @@ TEST_F(WebGpuSharedImageWrapperCacheTest, ReuseBeforeCleanUp) {
   std::unique_ptr<WebGpuSharedImageWrapperLease> wrapper_lease_0 =
       wrapper_cache_->LeaseWebGpuSharedImageWrapper(
           viz::SinglePlaneFormat::kRGBA_8888, resource_size,
-          gfx::ColorSpace::CreateSRGB(), kPremul_SkAlphaType);
+          gfx::ColorSpace::CreateSRGB(), gfx::HDRMetadata(),
+          kPremul_SkAlphaType);
   returned_wrappers.push_back(wrapper_lease_0->shared_image_wrapper());
 
   // Release the lease to recycle the wrapper.
@@ -247,7 +263,8 @@ TEST_F(WebGpuSharedImageWrapperCacheTest, ReuseBeforeCleanUp) {
       std::unique_ptr<WebGpuSharedImageWrapperLease> wrapper_lease_1 =
           wrapper_cache_->LeaseWebGpuSharedImageWrapper(
               viz::SinglePlaneFormat::kRGBA_8888, resource_size,
-              gfx::ColorSpace::CreateSRGB(), kPremul_SkAlphaType);
+              gfx::ColorSpace::CreateSRGB(), gfx::HDRMetadata(),
+              kPremul_SkAlphaType);
       returned_wrappers.push_back(wrapper_lease_1->shared_image_wrapper());
 
       // Release the leases again to recycle the wrappers.

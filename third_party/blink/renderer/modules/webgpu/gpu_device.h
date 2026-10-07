@@ -217,8 +217,12 @@ class GPUDevice final : public EventTarget,
   // the restrictions when using blink's callbacks which implicitly wraps
   // sequence checking. Further explanation of the callbacks are included at the
   // implementation sites.
-  void OnUncapturedError(wgpu::ErrorType errorType, const String& message);
-  void OnLogging(wgpu::LoggingType loggingType, const String& message);
+  void OnUncapturedError(const wgpu::Device&,
+                         wgpu::ErrorType errorType,
+                         wgpu::StringView message);
+  void OnUncapturedErrorImpl(wgpu::ErrorType errorType, const String& message);
+  void OnLogging(wgpu::LoggingType loggingType, wgpu::StringView message);
+  void OnLoggingImpl(wgpu::LoggingType loggingType, const String& message);
 
   void OnDeviceLost(
       std::unique_ptr<

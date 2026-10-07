@@ -13,10 +13,7 @@ namespace payments {
 namespace {
 
 class ColocatedPaymentManifestsTest
-    : public PaymentRequestPlatformBrowserTestBase {
- protected:
-  ColocatedPaymentManifestsTest() { SetBypassUserInteractionForTesting(); }
-};
+    : public PaymentRequestPlatformBrowserTestBase {};
 
 // When "/pay" contains both the payment method manifest and the web app
 // manifest, then payment should still work.

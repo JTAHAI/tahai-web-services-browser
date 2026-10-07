@@ -19,7 +19,6 @@ import android.view.ViewStub;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
-import org.chromium.base.CallbackUtils;
 import org.chromium.base.lifetime.LifetimeAssert;
 import org.chromium.base.supplier.NullableObservableSupplier;
 import org.chromium.build.annotations.NullMarked;
@@ -108,7 +107,6 @@ public class ExtensionsToolbarCoordinatorImpl
     private int mLastDensityDpi;
     private int mLastIconWidthPx;
     private @Nullable Runnable mOnFeatureRemoved;
-    private boolean mIsWebApp;
 
     @Override
     public void initializeWithNative(
@@ -125,9 +123,7 @@ public class ExtensionsToolbarCoordinatorImpl
             @Nullable SelectionDropdownMenuDelegate selectionDropdownMenuDelegate,
             TabModelSelector tabModelSelector,
             ModalDialogManager modalDialogManager,
-            @Nullable Runnable onFeatureRemoved,
-            boolean isWebApp) {
-        mIsWebApp = isWebApp;
+            @Nullable Runnable onFeatureRemoved) {
         mBridge = new ExtensionActionsBridge(task, profile);
         mWindowAndroid = windowAndroid;
         mProfile = profile;
@@ -175,8 +171,7 @@ public class ExtensionsToolbarCoordinatorImpl
                         tabCreator,
                         mExtensionsToolbarBridge,
                         mMenuButtonPinningDelegate,
-                        modalDialogManager,
-                        mIsWebApp);
+                        modalDialogManager);
 
         mExtensionAccessControlButtonCoordinator =
                 new ExtensionAccessControlButtonCoordinator(
@@ -184,7 +179,7 @@ public class ExtensionsToolbarCoordinatorImpl
                         currentTabSupplier,
                         mExtensionsToolbarBridge,
                         (TextView) mContainer.findViewById(R.id.extensions_request_access_button),
-                        CallbackUtils.emptyCallback(),
+                        (v) -> {},
                         () ->
                                 mContainer.getResources().getConfiguration().screenWidthDp
                                         < COMPACT_WINDOW_THRESHOLD_DP);
@@ -199,7 +194,6 @@ public class ExtensionsToolbarCoordinatorImpl
         mLastIconWidthPx =
                 context.getResources()
                         .getDimensionPixelSize(R.dimen.extension_action_icon_canvas_width);
-        updateMenuIconVisibility();
     }
 
     @Override
@@ -321,6 +315,7 @@ public class ExtensionsToolbarCoordinatorImpl
         // Post to click after the layout pass.
         extensionsMenuButton.post(
                 () -> {
+                    mShowExtensionsMenuPending = false;
                     extensionsMenuButton.performClick();
                 });
     }
@@ -466,9 +461,6 @@ public class ExtensionsToolbarCoordinatorImpl
     }
 
     private boolean isMenuButtonPinned() {
-        if (mIsWebApp) {
-            return false;
-        }
         if (mProfile.shutdownStarted()) {
             // TODO(crbug.com/459079170): This is to prevent tests from breaking. {@code
             // ExtensionsToolbarCoordinatorImpl} should ideally be destroyed following {@code
@@ -499,8 +491,6 @@ public class ExtensionsToolbarCoordinatorImpl
         }
 
         void requestLayoutWithViewUtils() {
-            mShowExtensionsMenuPending = false;
-            updateMenuIconVisibility();
             // Trigger layout and wait for the toolbar to provide us with width allocation.
             ViewUtils.requestLayout(
                     mContainer, "ExtensionsToolbarCoordinatorImpl.requestLayoutWithViewUtils()");

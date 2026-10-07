@@ -11,7 +11,9 @@
 #include "device/fido/attestation_statement_formats.h"
 #include "device/fido/attested_credential_data.h"
 #include "device/fido/authenticator_data.h"
+#include "device/fido/fido_parsing_utils.h"
 #include "device/fido/large_blob.h"
+#include "device/fido/p256_public_key.h"
 #include "device/fido/public/fido_constants.h"
 #include "device/fido/public_key.h"
 
@@ -23,7 +25,7 @@ AuthenticatorMakeCredentialResponse::CreateFromU2fRegisterResponse(
     std::optional<FidoTransportProtocol> transport_used,
     base::span<const uint8_t, kRpIdHashLength> relying_party_id_hash,
     base::span<const uint8_t> u2f_data) {
-  auto public_key = PublicKey::FromU2fRegistrationResponse(
+  auto public_key = P256PublicKey::ExtractFromU2fRegistrationResponse(
       static_cast<int32_t>(CoseAlgorithmIdentifier::kEs256), u2f_data);
   if (!public_key)
     return std::nullopt;

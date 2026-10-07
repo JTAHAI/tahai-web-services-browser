@@ -12,10 +12,10 @@
                   acceptActionText:(NSString*)acceptActionText
                   cancelActionText:(NSString*)cancelActionText
                  learnMoreLinkText:(NSString*)learnMoreLinkText
-           googleLegalMessageLines:(NSArray<AutofillLegalMessageLine*>*)
+           googleLegalMessageLines:(NSArray<SaveCardMessageWithLinks*>*)
                                        paymentServerLegalMessageLines
            issuerLegalMessageLines:
-               (NSArray<AutofillLegalMessageLine*>*)issuerLegalMessageLines {
+               (NSArray<SaveCardMessageWithLinks*>*)issuerLegalMessageLines {
   self = [super init];
   if (self) {
     _creditCard = creditCard;

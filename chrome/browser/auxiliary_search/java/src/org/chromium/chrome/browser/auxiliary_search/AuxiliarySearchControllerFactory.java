@@ -10,9 +10,6 @@ import android.content.Context;
 
 import org.chromium.base.ResettersForTesting;
 import org.chromium.base.ServiceLoaderUtil;
-import org.chromium.base.TriState;
-import org.chromium.base.TriStateUtils;
-import org.chromium.build.annotations.AlwaysInline;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.auxiliary_search.AuxiliarySearchController.AuxiliarySearchHostType;
@@ -25,10 +22,14 @@ import org.chromium.chrome.browser.tabmodel.TabModelSelector;
 /** This is the Factory for the auxiliary search. */
 @NullMarked
 public class AuxiliarySearchControllerFactory {
+    private final @Nullable AuxiliarySearchHooks mHooks;
+
     private boolean mSupportMultiDataSource;
 
+    private @Nullable AuxiliarySearchHooks mHooksForTesting;
+
     /** It tracks whether the current device is a tablet. */
-    private @TriState int mIsTablet;
+    private @Nullable Boolean mIsTablet;
 
     private @Nullable AuxiliarySearchController mAuxiliarySearchMultiDataController;
 
@@ -44,18 +45,17 @@ public class AuxiliarySearchControllerFactory {
     }
 
     private AuxiliarySearchControllerFactory() {
+        mHooks = ServiceLoaderUtil.maybeCreate(AuxiliarySearchHooks.class);
         mSupportMultiDataSource = isMultiDataTypeEnabledOnDevice();
-    }
-
-    @AlwaysInline
-    private static @Nullable AuxiliarySearchHooks getHooks() {
-        return ServiceLoaderUtil.maybeCreate(AuxiliarySearchHooks.class);
     }
 
     /** Returns whether the hook is enabled on device. */
     public boolean isEnabled() {
-        AuxiliarySearchHooks hooks = getHooks();
-        return hooks != null && hooks.isEnabled();
+        if (mHooksForTesting != null) {
+            return mHooksForTesting.isEnabled();
+        }
+
+        return mHooks != null && mHooks.isEnabled();
     }
 
     /**
@@ -70,32 +70,25 @@ public class AuxiliarySearchControllerFactory {
                         .readBoolean(
                                 ChromePreferenceKeys.AUXILIARY_SEARCH_CONSUMER_SCHEMA_FOUND, false);
 
-        boolean isCompatible = consumerSchemaFound && isEnabled();
-        // The tab sharing UI should never be shown at the same time as the browsing data UI:
-        // - The current Magic Stack card is designed for both features individually and isn't
-        //   generic enough to support both features on at the same time.
-        // - Having two separate settings toggles for very similar features is confusing for users.
-        // - Donating separately is bad for efficiency.
-        // As of writing (August 2026) these two features are never enabled at the same time, but a
-        // future change to an external app may cause this assert to start failing. We expect this
-        // to either never happen, or only happen after the below todo is resolved.
-        // TODO(crbug.com/512359034): Remove this assert once we resolve how these features should
-        // interact with each other.
-        assert !(isCompatible
-                && AuxiliarySearchDonationServiceUtils.isBrowsingDataDonationEnabled());
-        return isCompatible;
+        return consumerSchemaFound && isEnabled();
     }
 
     /** Returns whether the multiple types of data sources is enabled on this device. */
     public boolean isMultiDataTypeEnabledOnDevice() {
-        AuxiliarySearchHooks hooks = getHooks();
-        return hooks != null && hooks.isMultiDataTypeEnabledOnDevice();
+        if (mHooksForTesting != null) {
+            return mHooksForTesting.isMultiDataTypeEnabledOnDevice();
+        }
+
+        return mHooks != null && mHooks.isMultiDataTypeEnabledOnDevice();
     }
 
     /** Returns whether the sharing Tabs with the system is enabled by default on the device. */
     public boolean isSettingDefaultEnabledByOs() {
-        AuxiliarySearchHooks hooks = getHooks();
-        return hooks != null && hooks.isSettingDefaultEnabledByOs();
+        if (mHooksForTesting != null) {
+            return mHooksForTesting.isSettingDefaultEnabledByOs();
+        }
+
+        return mHooks != null && mHooks.isSettingDefaultEnabledByOs();
     }
 
     /** Creates a {@link AuxiliarySearchController} instance if enabled. */
@@ -126,29 +119,41 @@ public class AuxiliarySearchControllerFactory {
             return;
         }
 
-        assumeNonNull(getHooks()).setSchemaTypeVisibilityForPackage(callback);
+        if (mHooksForTesting != null) {
+            mHooksForTesting.setSchemaTypeVisibilityForPackage(callback);
+        }
+
+        assumeNonNull(mHooks).setSchemaTypeVisibilityForPackage(callback);
     }
 
     /**
      * Sets whether the device is a tablet. Note: this must be called before checking isEnabled().
      */
     public void setIsTablet(boolean isTablet) {
-        mIsTablet = TriStateUtils.from(isTablet || mIsTablet == TriState.TRUE);
+        mIsTablet = isTablet || (mIsTablet != null && mIsTablet);
     }
 
     /** Gets whether the device is a tablet. */
     public boolean isTablet() {
-        assert mIsTablet != TriState.NOT_SET;
-        return mIsTablet == TriState.TRUE;
+        assert mIsTablet != null;
+        return mIsTablet;
     }
 
     public @Nullable String getSupportedPackageName() {
-        AuxiliarySearchHooks hooks = getHooks();
-        if (hooks != null) {
-            return hooks.getSupportedPackageName();
+        if (mHooksForTesting != null) {
+            return mHooksForTesting.getSupportedPackageName();
+        }
+
+        if (mHooks != null) {
+            return mHooks.getSupportedPackageName();
         }
 
         return null;
+    }
+
+    public void setHooksForTesting(AuxiliarySearchHooks instanceForTesting) {
+        mHooksForTesting = instanceForTesting;
+        ResettersForTesting.register(() -> mHooksForTesting = null);
     }
 
     public void setSupportMultiDataSourceForTesting(boolean supportMultiDataSource) {
@@ -158,6 +163,6 @@ public class AuxiliarySearchControllerFactory {
     }
 
     public void resetIsTabletForTesting() {
-        mIsTablet = TriState.NOT_SET;
+        mIsTablet = null;
     }
 }

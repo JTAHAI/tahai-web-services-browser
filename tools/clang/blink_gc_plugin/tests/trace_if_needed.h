@@ -25,4 +25,4 @@ class InstantiatedObject : public TemplatedObject<Member<HeapObject> > { };
 
 }
 
-#endif  // TRACE_IF_NEEDED_H_
+#endif

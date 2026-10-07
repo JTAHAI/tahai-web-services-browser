@@ -375,12 +375,15 @@ public class ContextualSearchPromoControl extends OverlayPanelInflater {
     private void handleClickSettingsLink() {
         new Handler()
                 .post(
-                        () -> {
-                            SettingsNavigation settingsNavigation =
-                                    SettingsNavigationFactory.createSettingsNavigation();
-                            settingsNavigation.startSettings(
-                                    assumeNonNull(getContext()),
-                                    ContextualSearchSettingsFragment.class);
+                        new Runnable() {
+                            @Override
+                            public void run() {
+                                SettingsNavigation settingsNavigation =
+                                        SettingsNavigationFactory.createSettingsNavigation();
+                                settingsNavigation.startSettings(
+                                        assumeNonNull(getContext()),
+                                        ContextualSearchSettingsFragment.class);
+                            }
                         });
     }
 

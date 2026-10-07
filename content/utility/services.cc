@@ -13,6 +13,7 @@
 #include "base/task/thread_type.h"
 #include "build/branding_buildflags.h"
 #include "build/build_config.h"
+#include "components/optimization_guide/core/optimization_guide_features.h"
 #include "components/services/storage/public/mojom/storage_service.mojom.h"
 #include "components/services/storage/storage_service_impl.h"
 #include "content/child/child_process.h"
@@ -411,7 +412,9 @@ void RegisterMainThreadServices(mojo::ServiceFactory& services) {
   services.Add(RunOOPVideoDecoderFactoryProcessService);
 #endif
 
-  services.Add(RunOnDeviceModel);
+  if (optimization_guide::features::CanLaunchOnDeviceModelService()) {
+    services.Add(RunOnDeviceModel);
+  }
 
 #if BUILDFLAG(IS_WIN) || (BUILDFLAG(GOOGLE_CHROME_BRANDING) && \
                           (BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_LINUX)))

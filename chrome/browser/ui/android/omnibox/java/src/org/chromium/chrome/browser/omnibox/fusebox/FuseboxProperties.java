@@ -17,9 +17,7 @@ import org.chromium.chrome.browser.omnibox.fusebox.FuseboxCoordinator.PopupState
 import org.chromium.chrome.browser.ui.theme.BrandedColorScheme;
 import org.chromium.components.omnibox.AutocompleteRequestType;
 import org.chromium.ui.modelutil.PropertyKey;
-import org.chromium.ui.modelutil.PropertyModel.ReadableBooleanPropertyKey;
 import org.chromium.ui.modelutil.PropertyModel.WritableBooleanPropertyKey;
-import org.chromium.ui.modelutil.PropertyModel.WritableIntDefPropertyKey;
 import org.chromium.ui.modelutil.PropertyModel.WritableObjectPropertyKey;
 import org.chromium.ui.modelutil.SimpleRecyclerViewAdapter;
 
@@ -104,6 +102,18 @@ class FuseboxProperties {
         }
     }
 
+    /** Action to perform when the user clicks the activation chip. */
+    public static final WritableObjectPropertyKey<Runnable> ACTIVATION_CHIP_CLICKED =
+            new WritableObjectPropertyKey<>();
+
+    /** Whether the activation chip should be selected. */
+    public static final WritableBooleanPropertyKey ACTIVATION_CHIP_SELECTED =
+            new WritableBooleanPropertyKey();
+
+    /** Whether the activation chip should be visible. */
+    public static final WritableBooleanPropertyKey ACTIVATION_CHIP_VISIBLE =
+            new WritableBooleanPropertyKey();
+
     /** The adapter for the attachments RecyclerView. */
     public static final WritableObjectPropertyKey<SimpleRecyclerViewAdapter> ADAPTER =
             new WritableObjectPropertyKey<>();
@@ -113,16 +123,16 @@ class FuseboxProperties {
             new WritableBooleanPropertyKey();
 
     /** The variant of {@link BrandedColorScheme} to apply to the UI elements. */
-    public static final WritableIntDefPropertyKey<BrandedColorScheme> COLOR_SCHEME =
-            new WritableIntDefPropertyKey<>(BrandedColorScheme.APP_DEFAULT);
+    public static final WritableObjectPropertyKey<@BrandedColorScheme Integer> COLOR_SCHEME =
+            new WritableObjectPropertyKey<>();
 
     /** The layout mode of fusebox views; see {@link FuseboxLayoutMode}. */
-    public static final WritableIntDefPropertyKey<FuseboxLayoutMode> FUSEBOX_LAYOUT_MODE =
-            new WritableIntDefPropertyKey<>(FuseboxLayoutMode.TOOLBAR);
+    public static final WritableObjectPropertyKey<@FuseboxLayoutMode Integer> FUSEBOX_LAYOUT_MODE =
+            new WritableObjectPropertyKey<>();
 
     /** The state of the UI of the fusebox should currently be in. */
-    public static final WritableIntDefPropertyKey<FuseboxState> FUSEBOX_STATE =
-            new WritableIntDefPropertyKey<>(FuseboxState.DISABLED);
+    public static final WritableObjectPropertyKey<@FuseboxState Integer> FUSEBOX_STATE =
+            new WritableObjectPropertyKey<>();
 
     /** Action to perform when the user clicks the Plus button. */
     public static final WritableObjectPropertyKey<Runnable> PLUS_BUTTON_CLICKED =
@@ -133,8 +143,8 @@ class FuseboxProperties {
             new WritableBooleanPropertyKey();
 
     /** The style of the background for the plus button. */
-    public static final WritableIntDefPropertyKey<BackgroundStyle> PLUS_BUTTON_BACKGROUND_STYLE =
-            new WritableIntDefPropertyKey<>(BackgroundStyle.INTERACT_ONLY_SMALL);
+    public static final WritableObjectPropertyKey<@BackgroundStyle Integer>
+            PLUS_BUTTON_BACKGROUND_STYLE = new WritableObjectPropertyKey<>();
 
     /** Action to perform when the user clicks the Camera button in the popup. */
     public static final WritableObjectPropertyKey<Runnable> POPUP_ATTACH_CAMERA_CLICKED =
@@ -206,10 +216,6 @@ class FuseboxProperties {
     public static final WritableBooleanPropertyKey POPUP_ATTACH_TAB_PICKER_VISIBLE =
             new WritableBooleanPropertyKey();
 
-    /** Whether the popup is shown as a bottom sheet. */
-    public static final ReadableBooleanPropertyKey POPUP_IS_BOTTOM_SHEET =
-            new ReadableBooleanPropertyKey();
-
     /** Holds button data objects for each model that is to be shown. */
     public static final WritableObjectPropertyKey<List<PopupButtonData>>
             POPUP_MODEL_BUTTON_DATA_LIST = new WritableObjectPropertyKey<>();
@@ -243,8 +249,8 @@ class FuseboxProperties {
             new WritableBooleanPropertyKey();
 
     /** The state of the popup. */
-    public static final WritableIntDefPropertyKey<PopupState> POPUP_STATE =
-            new WritableIntDefPropertyKey<>(PopupState.HIDDEN);
+    public static final WritableObjectPropertyKey<@PopupState Integer> POPUP_STATE =
+            new WritableObjectPropertyKey<>();
 
     /** Holds button data objects for each tool that is to be shown. */
     public static final WritableObjectPropertyKey<List<PopupButtonData>>
@@ -263,8 +269,8 @@ class FuseboxProperties {
             new WritableBooleanPropertyKey();
 
     /** Tracks the {@link AutocompleteRequestType}. */
-    public static final WritableIntDefPropertyKey<AutocompleteRequestType> REQUEST_TYPE =
-            new WritableIntDefPropertyKey<>(AutocompleteRequestType.SEARCH);
+    public static final WritableObjectPropertyKey<@AutocompleteRequestType Integer> REQUEST_TYPE =
+            new WritableObjectPropertyKey<>();
 
     /** Action to perform when the user clicks the request type button. */
     public static final WritableObjectPropertyKey<Runnable> REQUEST_TYPE_BUTTON_CLICKED =
@@ -280,6 +286,9 @@ class FuseboxProperties {
 
     public static final PropertyKey[] ALL_KEYS = {
         // go/keep-sorted start
+        ACTIVATION_CHIP_CLICKED,
+        ACTIVATION_CHIP_SELECTED,
+        ACTIVATION_CHIP_VISIBLE,
         ADAPTER,
         ATTACHMENTS_VISIBLE,
         COLOR_SCHEME,
@@ -304,7 +313,6 @@ class FuseboxProperties {
         POPUP_ATTACH_TAB_PICKER_CLICKED,
         POPUP_ATTACH_TAB_PICKER_ENABLED,
         POPUP_ATTACH_TAB_PICKER_VISIBLE,
-        POPUP_IS_BOTTOM_SHEET,
         POPUP_MODEL_BUTTON_DATA_LIST,
         POPUP_MODEL_DIVIDER_VISIBLE,
         POPUP_MODEL_HEADER_TEXT,

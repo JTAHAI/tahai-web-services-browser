@@ -22,8 +22,9 @@
 #include "content/renderer/render_frame_impl.h"
 #include "content/renderer/render_thread_impl.h"
 #include "content/renderer/renderer_navigation_metrics_manager.h"
-#include "ipc/ipc_channel_proxy.h"
+#include "ipc/ipc_channel_factory.h"
 #include "ipc/ipc_listener.h"
+#include "ipc/ipc_sync_channel.h"
 #include "third_party/abseil-cpp/absl/container/flat_hash_map.h"
 #include "third_party/blink/public/mojom/frame/frame.mojom.h"
 #include "third_party/blink/public/mojom/page/page.mojom.h"
@@ -36,8 +37,9 @@
 
 namespace content {
 
-using ::IPC::ChannelProxy;
+using ::IPC::ChannelFactory;
 using ::IPC::Listener;
+using ::IPC::SyncChannel;
 using ::mojo::AssociatedReceiver;
 using ::mojo::AssociatedRemote;
 using ::mojo::PendingAssociatedReceiver;
@@ -121,9 +123,10 @@ AgentSchedulingGroup::AgentSchedulingGroup(
   DCHECK(agent_group_scheduler_);
   DCHECK_NE(GetMBIMode(), features::MBIMode::kLegacy);
 
-  channel_ = std::make_unique<IPC::ChannelProxy>(
+  channel_ = SyncChannel::Create(
       /*listener=*/this, /*ipc_task_runner=*/render_thread_->GetIOTaskRunner(),
-      /*listener_task_runner=*/agent_group_scheduler_->DefaultTaskRunner());
+      /*listener_task_runner=*/agent_group_scheduler_->DefaultTaskRunner(),
+      render_thread_->GetShutdownEvent());
 
   channel_->SetUrgentMessageObserver(agent_group_scheduler_.get());
 
@@ -132,8 +135,12 @@ AgentSchedulingGroup::AgentSchedulingGroup(
   // 1. `UnfreezableMessageFilter` - in the process of being removed,
   // 2. `AutomationMessageFilter` - needs to be handled somehow.
 
-  channel_->Init(bootstrap.PassPipe(), IPC::Channel::MODE_CLIENT,
-                 /*create_pipe_now=*/true);
+  channel_->Init(
+      ChannelFactory::CreateClientFactory(
+          bootstrap.PassPipe(),
+          /*ipc_task_runner=*/render_thread_->GetIOTaskRunner(),
+          /*proxy_task_runner=*/agent_group_scheduler_->DefaultTaskRunner()),
+      /*create_pipe_now=*/true);
 }
 
 AgentSchedulingGroup::AgentSchedulingGroup(
@@ -152,6 +159,11 @@ AgentSchedulingGroup::AgentSchedulingGroup(
 
 AgentSchedulingGroup::~AgentSchedulingGroup() = default;
 
+void AgentSchedulingGroup::OnBadMessageReceived() {
+  // Not strictly required, since we don't currently do anything with bad
+  // messages in the renderer, but if we ever do then this will "just work".
+  return ToImpl(*render_thread_).OnBadMessageReceived();
+}
 
 void AgentSchedulingGroup::OnAssociatedInterfaceRequest(
     const std::string& interface_name,
@@ -345,7 +357,7 @@ blink::WebView* AgentSchedulingGroup::CreateWebView(
           std::move(local_params->widget_params),
           /*frame_owner_properties=*/nullptr,
           local_params->is_on_initial_empty_document,
-          local_params->document_token, local_params->initiator_state_token,
+          local_params->document_token,
           std::move(local_params->policy_container), is_for_nested_main_frame);
       break;
     }
@@ -376,8 +388,7 @@ void AgentSchedulingGroup::CreateFrame(mojom::CreateFrameParamsPtr params) {
       std::move(params->replication_state), std::move(params->widget_params),
       std::move(params->frame_owner_properties),
       params->is_on_initial_empty_document, params->document_token,
-      params->initiator_state_token, std::move(params->policy_container),
-      params->is_for_nested_main_frame);
+      std::move(params->policy_container), params->is_for_nested_main_frame);
 }
 
 void AgentSchedulingGroup::BindAssociatedInterfaces(

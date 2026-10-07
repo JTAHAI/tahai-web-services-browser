@@ -43,8 +43,6 @@ std::string ReasonIdToString(DisabledReasonId reason_id) {
       return "PostMessageByWebViewClient";
     case DisabledReasonId::kExtensionFrame:
       return "ExtensionFrame";
-    case DisabledReasonId::kPrivilegedWebContents:
-      return "PrivilegedWebContents";
   }
 }
 

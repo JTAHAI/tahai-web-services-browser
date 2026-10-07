@@ -16,13 +16,13 @@
 
 #include "base/check_op.h"
 #include "base/containers/flat_set.h"
-#include "base/containers/to_vector.h"
 #include "base/functional/bind.h"
 #include "base/functional/callback.h"
 #include "base/strings/strcat.h"
 #include "base/test/task_environment.h"
 #include "base/test/test_future.h"
 #include "device/fido/credential_management.h"
+#include "device/fido/fido_parsing_utils.h"
 #include "device/fido/large_blob.h"
 #include "device/fido/public/fido_constants.h"
 #include "device/fido/public/fido_transport_protocol.h"
@@ -97,8 +97,8 @@ TEST_F(CredentialManagementHandlerTest, TestDeleteCredentials) {
   virtual_device_factory_.mutable_state()->pin_retries = device::kMaxPinRetries;
 
   PublicKeyCredentialRpEntity rp(kRPID, kRPName);
-  PublicKeyCredentialUserEntity user(base::ToVector(kUserID), kUserName,
-                                     kUserDisplayName);
+  PublicKeyCredentialUserEntity user(fido_parsing_utils::Materialize(kUserID),
+                                     kUserName, kUserDisplayName);
 
   ASSERT_TRUE(virtual_device_factory_.mutable_state()->InjectResidentKey(
       kCredentialID, rp, user));
@@ -150,12 +150,13 @@ TEST_F(CredentialManagementHandlerTest, TestGarbageCollectLargeBlob_Startup) {
       virtual_device_factory_.mutable_state()->large_blob;
 
   PublicKeyCredentialRpEntity rp(kRPID, kRPName);
-  PublicKeyCredentialUserEntity user(base::ToVector(kUserID), kUserName,
-                                     kUserDisplayName);
+  PublicKeyCredentialUserEntity user(fido_parsing_utils::Materialize(kUserID),
+                                     kUserName, kUserDisplayName);
   ASSERT_TRUE(virtual_device_factory_.mutable_state()->InjectResidentKey(
       kCredentialID, rp, user));
 
-  std::vector<uint8_t> credential_id = base::ToVector(kCredentialID);
+  std::vector<uint8_t> credential_id =
+      fido_parsing_utils::Materialize(kCredentialID);
   LargeBlob blob(std::vector<uint8_t>{'b', 'l', 'o', 'b'}, 4);
   virtual_device_factory_.mutable_state()->InjectLargeBlob(
       &virtual_device_factory_.mutable_state()->registrations.at(credential_id),
@@ -193,12 +194,13 @@ TEST_F(CredentialManagementHandlerTest, TestGarbageCollectLargeBlob_Delete) {
   EXPECT_TRUE(ready_future_.Wait());
 
   PublicKeyCredentialRpEntity rp(kRPID, kRPName);
-  PublicKeyCredentialUserEntity user(base::ToVector(kUserID), kUserName,
-                                     kUserDisplayName);
+  PublicKeyCredentialUserEntity user(fido_parsing_utils::Materialize(kUserID),
+                                     kUserName, kUserDisplayName);
   ASSERT_TRUE(virtual_device_factory_.mutable_state()->InjectResidentKey(
       kCredentialID, rp, user));
 
-  std::vector<uint8_t> credential_id = base::ToVector(kCredentialID);
+  std::vector<uint8_t> credential_id =
+      fido_parsing_utils::Materialize(kCredentialID);
   LargeBlob blob(std::vector<uint8_t>{'b', 'l', 'o', 'b'}, 4);
   virtual_device_factory_.mutable_state()->InjectLargeBlob(
       &virtual_device_factory_.mutable_state()->registrations.at(credential_id),
@@ -238,11 +240,12 @@ TEST_F(CredentialManagementHandlerTest,
   EXPECT_TRUE(ready_future_.Wait());
 
   PublicKeyCredentialRpEntity rp(kRPID, kRPName);
-  PublicKeyCredentialUserEntity user(base::ToVector(kUserID), kUserName,
-                                     kUserDisplayName);
+  PublicKeyCredentialUserEntity user(fido_parsing_utils::Materialize(kUserID),
+                                     kUserName, kUserDisplayName);
   ASSERT_TRUE(virtual_device_factory_.mutable_state()->InjectResidentKey(
       kCredentialID, rp, user));
-  std::vector<uint8_t> credential_id = base::ToVector(kCredentialID);
+  std::vector<uint8_t> credential_id =
+      fido_parsing_utils::Materialize(kCredentialID);
   LargeBlob blob(std::vector<uint8_t>{'b', 'l', 'o', 'b'}, 4);
   virtual_device_factory_.mutable_state()->InjectLargeBlob(
       &virtual_device_factory_.mutable_state()->registrations.at(credential_id),
@@ -276,11 +279,12 @@ TEST_F(CredentialManagementHandlerTest, TestUpdateUserInformation) {
   virtual_device_factory_.SetSupportedProtocol(device::ProtocolVersion::kCtap2);
   virtual_device_factory_.mutable_state()->pin = kPIN;
   virtual_device_factory_.mutable_state()->pin_retries = device::kMaxPinRetries;
-  std::vector<uint8_t> credential_id = base::ToVector(kCredentialID);
+  std::vector<uint8_t> credential_id =
+      fido_parsing_utils::Materialize(kCredentialID);
 
   PublicKeyCredentialRpEntity rp(kRPID, kRPName);
-  PublicKeyCredentialUserEntity user(base::ToVector(kUserID), kUserName,
-                                     kUserDisplayName);
+  PublicKeyCredentialUserEntity user(fido_parsing_utils::Materialize(kUserID),
+                                     kUserName, kUserDisplayName);
 
   ASSERT_TRUE(virtual_device_factory_.mutable_state()->InjectResidentKey(
       kCredentialID, rp, user));
@@ -289,7 +293,8 @@ TEST_F(CredentialManagementHandlerTest, TestUpdateUserInformation) {
   EXPECT_TRUE(ready_future_.Wait());
 
   PublicKeyCredentialUserEntity updated_user(
-      base::ToVector(kUserID), "bobbyr@example.com", "Bobby R. Smith");
+      fido_parsing_utils::Materialize(kUserID), "bobbyr@example.com",
+      "Bobby R. Smith");
 
   handler->UpdateUserInformation(
       device::PublicKeyCredentialDescriptor(device::CredentialType::kPublicKey,
@@ -360,7 +365,8 @@ TEST_F(CredentialManagementHandlerTest,
       PublicKeyCredentialRpEntity(kRPID,
                                   base::StrCat({rp_name, kTruncatedUTF8})),
       PublicKeyCredentialUserEntity(
-          base::ToVector(kUserID), base::StrCat({user_name, kTruncatedUTF8}),
+          fido_parsing_utils::Materialize(kUserID),
+          base::StrCat({user_name, kTruncatedUTF8}),
           base::StrCat({display_name, kTruncatedUTF8}))));
 
   auto handler = MakeHandler();
@@ -376,9 +382,10 @@ TEST_F(CredentialManagementHandlerTest,
   ASSERT_EQ(opt_response->front().credentials.size(), 1u);
   EXPECT_EQ(opt_response->front().rp,
             PublicKeyCredentialRpEntity(kRPID, rp_name));
-  EXPECT_EQ(opt_response->front().credentials.front().user,
-            PublicKeyCredentialUserEntity(base::ToVector(kUserID), user_name,
-                                          display_name));
+  EXPECT_EQ(
+      opt_response->front().credentials.front().user,
+      PublicKeyCredentialUserEntity(fido_parsing_utils::Materialize(kUserID),
+                                    user_name, display_name));
 }
 
 TEST_F(CredentialManagementHandlerTest, EnumerateCredentialsMultipleRPs) {

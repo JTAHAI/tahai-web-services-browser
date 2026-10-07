@@ -29,6 +29,7 @@
 #include "chrome/browser/profiles/profile_metrics.h"
 #include "chrome/browser/profiles/profile_window.h"
 #include "chrome/browser/sessions/tab_restore_service_factory.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_live_tab_context.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
@@ -639,7 +640,7 @@ void DbusAppmenu::ExecuteCommand(int command_id, int event_flags) {
     sessions::TabRestoreService* service =
         TabRestoreServiceFactory::GetForProfile(profile_);
     if (item->session_id.is_valid() && service) {
-      service->RestoreEntryById(BrowserLiveTabContext::From(browser_),
+      service->RestoreEntryById(browser_->GetFeatures().live_tab_context(),
                                 item->session_id,
                                 WindowOpenDisposition::UNKNOWN);
     } else {

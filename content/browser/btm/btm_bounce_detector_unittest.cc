@@ -8,7 +8,6 @@
 #include <tuple>
 #include <utility>
 
-#include "base/containers/span.h"
 #include "base/functional/bind.h"
 #include "base/functional/callback_helpers.h"
 #include "base/strings/strcat.h"

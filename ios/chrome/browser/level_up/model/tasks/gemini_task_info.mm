@@ -2,13 +2,10 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#import "base/functional/bind.h"
 #import "base/functional/callback_helpers.h"
 #import "base/strings/sys_string_conversions.h"
 #import "ios/chrome/browser/level_up/model/task_info.h"
 #import "ios/chrome/browser/level_up/model/tasks/task_factories.h"
-#import "ios/chrome/browser/shared/public/commands/command_dispatcher.h"
-#import "ios/chrome/browser/shared/public/commands/help_commands.h"
 #import "ios/chrome/browser/shared/ui/buildflags.h"
 #import "ios/chrome/browser/shared/ui/symbols/symbols.h"
 #import "ios/chrome/grit/ios_strings.h"
@@ -25,14 +22,14 @@ class GeminiTaskInfo : public TaskInfo {
   std::string GetTaskDescription() const override {
     return "Get answers faster with Gemini in Chrome";
   }
-  Symbol GetIconSymbol() const override {
+  std::string GetIconSymbolName() const override {
 #if BUILDFLAG(IOS_USE_BRANDED_ASSETS)
-    return SymbolGeminiBrandedLogo;
+    return base::SysNSStringToUTF8(kGeminiBrandedLogoSymbol);
 #else
-    return SymbolGeminiNonBrandedLogo;
+    return base::SysNSStringToUTF8(kGeminiNonBrandedLogoSymbol);
 #endif
   }
-  bool IsMulticolorIcon() const override {
+  bool IsCustomSymbol() const override {
 #if BUILDFLAG(IOS_USE_BRANDED_ASSETS)
     return true;
 #else
@@ -42,18 +39,12 @@ class GeminiTaskInfo : public TaskInfo {
   LevelUpTaskCategory GetCategory() const override {
     return LevelUpTaskCategory::kProductivity;
   }
-  std::string GetTriggerUserAction() const override {
-    return "MobileGeminiPromptSent";
-  }
+  std::string GetTriggerUserAction() const override { return ""; }
   std::string GetCompletionSnackbarMessage() const override {
     return l10n_util::GetStringUTF8(IDS_IOS_LEVEL_UP_TASK_COMPLETED_GEMINI);
   }
   TaskInfo::NavigationAction GetNavigationAction() const override {
-    return base::BindRepeating(^(CommandDispatcher* dispatcher,
-                                 Browser* browser) {
-      id<HelpCommands> handler = HandlerForProtocol(dispatcher, HelpCommands);
-      [handler presentInProductHelpWithType:InProductHelpType::kPageActionMenu];
-    });
+    return base::DoNothing();
   }
 };
 

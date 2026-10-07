@@ -38,7 +38,7 @@
 #include "chrome/browser/signin/account_reconcilor_factory.h"
 #include "chrome/browser/signin/identity_manager_factory.h"
 #include "chrome/browser/sync/sync_service_factory.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/common/pref_names.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/ui_test_utils.h"
@@ -46,7 +46,6 @@
 #include "components/browsing_data/core/features.h"
 #include "components/content_settings/core/browser/host_content_settings_map.h"
 #include "components/content_settings/core/common/content_settings_utils.h"
-#include "components/download/public/common/download_features.h"
 #include "components/history/core/browser/features.h"
 #include "components/history/core/common/pref_names.h"
 #include "components/keyed_service/core/service_access_type.h"
@@ -389,25 +388,6 @@ class DiceBrowsingDataRemoverBrowserTest
 
 // Test BrowsingDataRemover for downloads.
 IN_PROC_BROWSER_TEST_F(BrowsingDataRemoverBrowserTest, Download) {
-  DownloadAnItem();
-  RemoveAndWait(content::BrowsingDataRemover::DATA_TYPE_DOWNLOADS);
-  VerifyDownloadCount(0u);
-}
-
-class BrowsingDataRemoverDeferredDownloadHistoryBrowserTest
-    : public BrowsingDataRemoverBrowserTest {
- public:
-  BrowsingDataRemoverDeferredDownloadHistoryBrowserTest() {
-    feature_list_.InitAndEnableFeature(
-        download::features::kDeferredDownloadHistoryLoading);
-  }
-
- private:
-  base::test::ScopedFeatureList feature_list_;
-};
-
-IN_PROC_BROWSER_TEST_F(BrowsingDataRemoverDeferredDownloadHistoryBrowserTest,
-                       Download) {
   DownloadAnItem();
   RemoveAndWait(content::BrowsingDataRemover::DATA_TYPE_DOWNLOADS);
   VerifyDownloadCount(0u);
@@ -946,11 +926,10 @@ const char kImplHistogramPrefix[] = "History.ClearBrowsingData.Duration.Task.";
 // Add data types here that support filtering and only delete data that matches
 // the BrowsingDataFilterBuilder.
 const std::vector<std::string> kSupportsOriginFilteringImpl{
-    "AuthCache",        "Downloads",           "EmbedderData",
-    "HttpCache",        "NetworkErrorLogging", "PrefetchCache",
-    "PreflightCache",   "PrerenderCache",      "ReportingCache",
-    "SharedDictionary", "StoragePartition",    "Synchronous",
-    "TrustTokens",
+    "AuthCache",           "EmbedderData",   "HttpCache",
+    "NetworkErrorLogging", "PrefetchCache",  "PreflightCache",
+    "PrerenderCache",      "ReportingCache", "SharedDictionary",
+    "StoragePartition",    "Synchronous",    "TrustTokens",
 };
 const std::vector<std::string> kSupportsOriginFilteringDelegate{
 #if BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_WIN)
@@ -1460,9 +1439,8 @@ IN_PROC_BROWSER_TEST_P(BrowsingDataHistoryRemoverBrowserTest,
 // disk.
 // TODO(crbug.com/522179929): Flaky on ASAN/LSAN/MSAN. Re-enable this test.
 // TODO(crbug.com/515997680): Flaky on Linux Debug. Re-enable this test.
-#if defined(ADDRESS_SANITIZER) || defined(LEAK_SANITIZER) ||                  \
-    defined(MEMORY_SANITIZER) || (BUILDFLAG(IS_LINUX) && !defined(NDEBUG)) || \
-    BUILDFLAG(IS_MAC)
+#if defined(ADDRESS_SANITIZER) || defined(LEAK_SANITIZER) || \
+    defined(MEMORY_SANITIZER) || (BUILDFLAG(IS_LINUX) && !defined(NDEBUG))
 #define MAYBE_StorageRemovedFromDisk DISABLED_StorageRemovedFromDisk
 #else
 #define MAYBE_StorageRemovedFromDisk StorageRemovedFromDisk

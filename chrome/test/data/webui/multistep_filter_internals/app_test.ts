@@ -15,38 +15,12 @@ const TEST_NAV_ID = 123456n;
 
 class TestPageHandler extends TestBrowserProxy implements PageHandlerInterface {
   constructor() {
-    super(['getBufferedLogs', 'getDebugInfo']);
+    super(['getBufferedLogs']);
   }
 
   getBufferedLogs() {
     this.methodCalled('getBufferedLogs');
     return Promise.resolve({logs: []});
-  }
-
-  getDebugInfo() {
-    this.methodCalled('getDebugInfo');
-    return Promise.resolve({
-      info: {
-        accountStatus: {
-          isSignedIn: true,
-          canUseModelExecutionFeatures: true,
-        },
-        consentStatus: {
-          isMsbbEnabled: true,
-          isHistorySyncEnabled: true,
-        },
-        settingsStatus: {
-          contextualCueingOptInState: 'Enabled',
-          chromeSuggestionsPolicyState: 'Enabled (0)',
-        },
-        isEligible: true,
-        featureFlags: [
-          {name: 'MultistepFilter', enabled: true},
-          {name: 'MultistepFilterSendFeedback', enabled: false},
-          {name: 'ContextualCueingV2', enabled: true},
-        ],
-      },
-    });
   }
 }
 
@@ -74,24 +48,6 @@ suite('AppTest', function() {
   test('Page loads and list exists', function() {
     const list = app.shadowRoot.querySelector('#log-list');
     assertTrue(!!list);
-  });
-
-  test('Debug info is rendered correctly', function() {
-    const debugInfo = app.shadowRoot.querySelector('#debug-info');
-    assertTrue(!!debugInfo);
-
-    const labelValues = debugInfo.querySelectorAll('.info-value');
-    assertEquals(10, labelValues.length);
-    assertEquals('Yes', labelValues[0]!.textContent?.trim());
-    assertEquals('Yes', labelValues[1]!.textContent?.trim());
-    assertEquals('Yes', labelValues[2]!.textContent?.trim());
-    assertEquals('Enabled', labelValues[3]!.textContent?.trim());
-    assertEquals('Enabled (0)', labelValues[4]!.textContent?.trim());
-    assertEquals('Yes', labelValues[5]!.textContent?.trim());
-    assertEquals('Yes', labelValues[6]!.textContent?.trim());
-    assertEquals('Enabled', labelValues[7]!.textContent?.trim());
-    assertEquals('Disabled', labelValues[8]!.textContent?.trim());
-    assertEquals('Enabled', labelValues[9]!.textContent?.trim());
   });
 
   test('List is populated with logs', async function() {
@@ -219,129 +175,5 @@ suite('AppTest', function() {
     const list = app.shadowRoot.querySelector('#log-list');
     assertTrue(!!list);
     assertEquals(0, list.querySelectorAll('.log-line').length);
-  });
-
-  test('Logs are prepended (newest at top)', async function() {
-    await fireLogEntryAdded({
-      timestamp: {internalValue: 1000n},
-      eventType: 'Event 1 (Old)',
-      navigationId: TEST_NAV_ID,
-      host: '',
-      details: '',
-    });
-    await fireLogEntryAdded({
-      timestamp: {internalValue: 2000n},
-      eventType: 'Event 2 (New)',
-      navigationId: TEST_NAV_ID,
-      host: '',
-      details: '',
-    });
-    await microtasksFinished();
-
-    const list = app.shadowRoot.querySelector('#log-list');
-    assertTrue(!!list);
-    const lines = list.querySelectorAll('.log-line');
-    assertEquals(2, lines.length);
-
-    assertEquals(
-        'Event 2 (New)',
-        lines[0]!.querySelector('.text-event')!.textContent?.trim());
-    assertEquals(
-        'Event 1 (Old)',
-        lines[1]!.querySelector('.text-event')!.textContent?.trim());
-  });
-});
-
-class TestPageHandlerWithLogs extends TestBrowserProxy implements
-    PageHandlerInterface {
-  constructor() {
-    super(['getBufferedLogs', 'getDebugInfo']);
-  }
-
-  getBufferedLogs() {
-    this.methodCalled('getBufferedLogs');
-    return Promise.resolve({
-      logs: [
-        {
-          timestamp: {internalValue: 2000n},
-          eventType: 'Buffered Middle',
-          host: '',
-          navigationId: 0n,
-          details: '',
-        },
-        {
-          timestamp: {internalValue: 1000n},
-          eventType: 'Buffered Oldest',
-          host: '',
-          navigationId: 0n,
-          details: '',
-        },
-        {
-          timestamp: {internalValue: 3000n},
-          eventType: 'Buffered Newest',
-          host: '',
-          navigationId: 0n,
-          details: '',
-        },
-      ],
-    });
-  }
-
-  getDebugInfo() {
-    this.methodCalled('getDebugInfo');
-    return Promise.resolve({
-      info: {
-        accountStatus: {
-          isSignedIn: true,
-          canUseModelExecutionFeatures: true,
-        },
-        consentStatus: {
-          isMsbbEnabled: true,
-          isHistorySyncEnabled: true,
-        },
-        settingsStatus: {
-          contextualCueingOptInState: 'Enabled',
-          chromeSuggestionsPolicyState: 'Enabled (0)',
-        },
-        isEligible: true,
-        featureFlags: [
-          {name: 'MultistepFilter', enabled: true},
-          {name: 'MultistepFilterSendFeedback', enabled: false},
-          {name: 'ContextualCueingV2', enabled: true},
-        ],
-      },
-    });
-  }
-}
-
-suite('AppTestWithBufferedLogs', function() {
-  let app: MultistepFilterInternalsAppElement;
-
-  setup(async function() {
-    document.body.innerHTML = window.trustedTypes!.emptyHTML;
-    const handler = new TestPageHandlerWithLogs();
-    const {instance} = browserProxyFactory.createForTest(handler);
-    browserProxyFactory.setInstance(instance);
-
-    app = document.createElement('multistep-filter-internals-app');
-    document.body.appendChild(app);
-    await microtasksFinished();
-  });
-
-  test('Buffered logs are sorted with newest at top', function() {
-    const list = app.shadowRoot.querySelector('#log-list');
-    assertTrue(!!list);
-    const lines = list.querySelectorAll('.log-line');
-    assertEquals(3, lines.length);
-
-    assertEquals(
-        'Buffered Newest',
-        lines[0]!.querySelector('.text-event')!.textContent?.trim());
-    assertEquals(
-        'Buffered Middle',
-        lines[1]!.querySelector('.text-event')!.textContent?.trim());
-    assertEquals(
-        'Buffered Oldest',
-        lines[2]!.querySelector('.text-event')!.textContent?.trim());
   });
 });

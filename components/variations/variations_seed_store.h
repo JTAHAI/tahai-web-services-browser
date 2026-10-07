@@ -69,10 +69,8 @@ class COMPONENT_EXPORT(VARIATIONS) VariationsSeedStore {
   // |initial_seed|, if not null, is stored in this seed store. It is used (A)
   // by Android Chrome and iOS to supply a first-run seed and (B) by Android
   // WebView to supply a seed on every run.
-  // |signature_verification_enabled_on_load| and
-  // |signature_verification_enabled_on_receive| can be used to disable
-  // signature checks on the seed when loading the seed from disk or receiving
-  // the seed from the server, respectively.
+  // |signature_verification_enabled| can be used in unit tests to disable
+  // signature checks on the seed.
   // |safe_seed_store| controls loading and storing safe seed data.
   // |channel| describes the release channel of the browser.
   // |seed_file_dir| is the file path to the seed file directory. If empty, the
@@ -84,8 +82,7 @@ class COMPONENT_EXPORT(VARIATIONS) VariationsSeedStore {
   // SharedPreferences are not accessed.
   VariationsSeedStore(PrefService* local_state,
                       std::unique_ptr<SeedResponse> initial_seed,
-                      bool signature_verification_enabled_on_load,
-                      bool signature_verification_enabled_on_receive,
+                      bool signature_verification_enabled,
                       std::unique_ptr<VariationsSafeSeedStore> safe_seed_store,
                       version_info::Channel channel,
                       const base::FilePath& seed_file_dir,
@@ -238,10 +235,6 @@ class COMPONENT_EXPORT(VARIATIONS) VariationsSeedStore {
 
   // Returns the latest country code that was received from the server.
   std::string GetLatestCountry();
-
-  // Returns the latest administrative area code that was received from the
-  // server.
-  std::string GetLatestGeoLevel1();
 
   // Returns the first country code returned by the variations server after the
   // client upgraded to the version returned by
@@ -495,12 +488,8 @@ class COMPONENT_EXPORT(VARIATIONS) VariationsSeedStore {
   // Setters and getters for safe seed state.
   std::unique_ptr<VariationsSafeSeedStore> safe_seed_store_;
 
-  // Whether to validate signatures on the seed when loading the seed from disk.
-  const bool signature_verification_enabled_on_load_;
-
-  // Whether to validate signatures on the seed when receiving the seed from the
-  // server. Always on except in unit tests.
-  const bool signature_verification_enabled_on_receive_;
+  // Whether to validate signatures on the seed. Always on except in unit tests.
+  const bool signature_verification_enabled_;
 
   // Whether this may read or write to Java "first run" SharedPreferences.
   const bool use_first_run_prefs_;

@@ -7,12 +7,7 @@ import("//chrome/android/features/android_library_factory_tmpl.gni")
 import("//third_party/jni_zero/jni_zero.gni")
 
 android_library_factory("factory_java") {
-  deps = [
-    ":settings_in_tab_java",
-    "//base:tasks_java",
-    "//chrome/browser/flags:java",
-    "//components/browser_ui/settings/android:java",
-  ]
+  deps = [ "//components/browser_ui/settings/android:java" ]
 
   sources = [ "android/java/src/org/chromium/chrome/browser/settings/SettingsNavigationFactory.java" ]
 }
@@ -46,10 +41,7 @@ generate_jni("jni_headers") {
 
 android_library("internal_java") {
   deps = [
-    ":settings_in_tab_java",
     "//base:resetters_java",
-    "//base:tasks_java",
-    "//chrome/browser/flags:java",
 
     # Exception: depends on :chrome_java for SettingsNavigationImpl.
     "//chrome/android:chrome_java",
@@ -59,18 +51,6 @@ android_library("internal_java") {
   sources = [ "android/java/src/org/chromium/chrome/browser/settings/SettingsNavigationFactory.java" ]
 }
 
-# Avoid circular dependencies for this small, widely-used helper class.
-android_library("settings_in_tab_java") {
-  sources = [
-    "android/java/src/org/chromium/chrome/browser/settings/SettingsInTab.java",
-  ]
-  deps = [
-    "//base:base_java",
-    "//chrome/browser/flags:java",
-    "//ui/android:ui_no_recycler_view_java",
-  ]
-}
-
 android_library("java") {
   sources = [
     "android/java/src/org/chromium/chrome/browser/settings/ActivityUtil.java",
@@ -78,7 +58,7 @@ android_library("java") {
     "android/java/src/org/chromium/chrome/browser/settings/ChromeManagedPreferenceDelegate.java",
     "android/java/src/org/chromium/chrome/browser/settings/FaviconLoader.java",
     "android/java/src/org/chromium/chrome/browser/settings/ProfileDependentSetting.java",
-    "android/java/src/org/chromium/chrome/browser/settings/SettingsActivityInterface.java",
+    "android/java/src/org/chromium/chrome/browser/settings/SettingsInTab.java",
     "android/java/src/org/chromium/chrome/browser/settings/SettingsPage.java",
   ]
   public_deps = [
@@ -86,8 +66,6 @@ android_library("java") {
     ":search_java",
   ]
   deps = [
-    ":java_resources",
-    ":settings_in_tab_java",
     "//base:base_java",
     "//chrome/android:chrome_app_java_resources",
     "//chrome/browser/feedback/android:factory_java",
@@ -119,39 +97,21 @@ android_library("java") {
 android_library("test_support_java") {
   testonly = true
 
-  sources = [
-    "android/java/src/org/chromium/chrome/browser/settings/SettingsActivityTestRule.java",
-    "android/java/src/org/chromium/chrome/browser/settings/SettingsInTabTestActivity.java",
-    "android/java/src/org/chromium/chrome/browser/settings/SettingsTestRule.java",
-  ]
+  sources = [ "android/java/src/org/chromium/chrome/browser/settings/SettingsActivityTestRule.java" ]
 
   deps = [
-    ":settings_in_tab_java",
-    "//base:base_java",
     "//base:base_java_test_support",
     "//chrome/android:chrome_java",
-    "//chrome/browser/android/lifecycle:java",
-    "//chrome/browser/profiles/android:java",
     "//chrome/browser/settings:java",
-    "//chrome/browser/tab:java",
-    "//chrome/browser/ui/messages/android:java",
-    "//chrome/test/android:chrome_java_test_support_common",
-    "//components/browser_ui/bottomsheet/android:factory_java",
-    "//components/browser_ui/bottomsheet/android:java",
-    "//components/browser_ui/bottomsheet/android:manager_java",
-    "//components/browser_ui/desktop_windowing/android:java",
-    "//components/browser_ui/modaldialog/android:java",
     "//components/browser_ui/settings/android:java",
-    "//components/browser_ui/widget/android:java",
-    "//third_party/androidx:androidx_activity_activity_java",
+    "//content/public/test/android:content_java_test_support",
     "//third_party/androidx:androidx_annotation_annotation_java",
     "//third_party/androidx:androidx_fragment_fragment_java",
-    "//third_party/androidx:androidx_lifecycle_lifecycle_common_java",
+    "//third_party/androidx:androidx_preference_preference_java",
     "//third_party/androidx:androidx_test_core_java",
     "//third_party/androidx:androidx_test_monitor_java",
+    "//third_party/hamcrest:hamcrest_java",
     "//third_party/junit",
-    "//ui/android:ui_java",
-    "//ui/android:ui_no_recycler_view_java",
   ]
 }
 
@@ -174,19 +134,7 @@ android_library("junit_test_support") {
   resources_package = "org.chromium.chrome.browser.settings"
 }
 
-android_resources("java_resources") {
-  sources = [ "android/java/res/values/style.xml" ]
-  deps = [
-    "//components/browser_ui/settings/android:java_resources",
-    "//components/browser_ui/styles/android:java_resources",
-    "//components/browser_ui/theme/android:java_resources",
-    "//components/browser_ui/widget/android:java_resources",
-    "//third_party/androidx:androidx_appcompat_appcompat_java",
-    "//third_party/androidx:androidx_preference_preference_java",
-  ]
-}
-
 android_resources("junit_test_resources") {
   testonly = true
-  sources = [ "android/java/res_test/xml/test_settings_fragment.xml" ]
+  sources = [ "android/java/res/xml/test_settings_fragment.xml" ]
 }

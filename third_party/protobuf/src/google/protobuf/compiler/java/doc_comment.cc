@@ -295,11 +295,6 @@ void WriteFieldAccessorDocComment(io::Printer* printer,
     case SETTER:
       printer->Print(" * @param value The $name$ to set.\n", "name",
                      field->camelcase_name());
-      if (field->enum_type() != nullptr && !field->enum_type()->is_closed()) {
-        printer->Print(
-            " * @throws IllegalArgumentException if UNRECOGNIZED is "
-            "provided.\n");
-      }
       break;
     case CLEARER:
       // Print nothing
@@ -322,11 +317,6 @@ void WriteFieldAccessorDocComment(io::Printer* printer,
       printer->Print(" * @param index The index to set the value at.\n");
       printer->Print(" * @param value The $name$ to set.\n", "name",
                      field->camelcase_name());
-      if (field->enum_type() != nullptr && !field->enum_type()->is_closed()) {
-        printer->Print(
-            " * @throws IllegalArgumentException if UNRECOGNIZED is "
-            "provided.\n");
-      }
       break;
     case LIST_ADDER:
       printer->Print(" * @param value The $name$ to add.\n", "name",
@@ -335,11 +325,6 @@ void WriteFieldAccessorDocComment(io::Printer* printer,
     case LIST_MULTI_ADDER:
       printer->Print(" * @param values The $name$ to add.\n", "name",
                      field->camelcase_name());
-      if (field->enum_type() != nullptr && !field->enum_type()->is_closed()) {
-        printer->Print(
-            " * @throws IllegalArgumentException if UNRECOGNIZED is "
-            "provided.\n");
-      }
       break;
   }
   if (builder) {
@@ -504,12 +489,10 @@ void WriteEnumValueDocComment(io::Printer* printer,
   printer->Print("/**\n");
   WriteDocCommentBody(printer, value, options, /* kdoc */ false);
 
-  if (!options.strip_nonfunctional_codegen) {
-    printer->Print(
-        " * <code>$def$</code>\n"
-        " */\n",
-        "def", EscapeJavadoc(FirstLineOf(value->DebugString())));
-  }
+  printer->Print(
+      " * <code>$def$</code>\n"
+      " */\n",
+      "def", EscapeJavadoc(FirstLineOf(value->DebugString())));
 }
 
 void WriteServiceDocComment(io::Printer* printer,

@@ -16,7 +16,9 @@
 #include "base/logging.h"
 #include "base/numerics/safe_conversions.h"
 #include "chrome/browser/android/tab_android.h"
+#include "chrome/browser/android/tab_android_conversions.h"
 #include "chrome/browser/android/tab_group_android.h"
+#include "chrome/browser/android/tab_interface_android.h"
 #include "chrome/browser/profiles/profile.h"
 #include "components/tab_groups/tab_group_color.h"
 #include "components/tab_groups/tab_group_id.h"
@@ -50,6 +52,13 @@ constexpr int kInvalidTabGroupColorId = -1;
 
 constexpr int kInvalidTabIndex = -1;
 
+// Converts the `tab_android` to a `unique_ptr<TabInterface>`. Under the hood we
+// use a wrapper class `TabInterfaceAndroid` which takes a weak ptr to
+// `TabAndroid` to avoid memory management issues.
+std::unique_ptr<TabInterface> ToTabInterface(TabAndroid* tab_android) {
+  return std::make_unique<TabInterfaceAndroid>(tab_android);
+}
+
 // When moving a tab from a lower index to a higher index a value of 1 less
 // should be used to account for the tab being removed from the list before it
 // is re-inserted.
@@ -82,8 +91,14 @@ int TabCollectionTabModelImpl::GetIndexOfTabRecursive(
     return kInvalidTabIndex;
   }
 
+  auto it = tab_map_.find(tab_android);
+  if (it == tab_map_.end()) {
+    return kInvalidTabIndex;
+  }
+
+  TabInterface* tab_interface = it->second;
   std::optional<size_t> index =
-      tab_strip_collection_->GetIndexOfTabRecursive(tab_android);
+      tab_strip_collection_->GetIndexOfTabRecursive(tab_interface);
   return index ? base::checked_cast<int>(*index) : kInvalidTabIndex;
 }
 
@@ -118,16 +133,21 @@ int TabCollectionTabModelImpl::AddTabRecursive(
   index = GetSafeIndex(/*is_tab_group=*/false, /*current_index=*/std::nullopt,
                        index, tab_group_id, is_pinned);
 
+  auto tab_interface_android = ToTabInterface(tab_android);
+  TabInterface* tab_interface_ptr = tab_interface_android.get();
+
   // When the tab is attaching a detached group we first add the tab to the
   // collection and then move the tab to the group.
   tab_strip_collection_->AddTabRecursive(
-      tabs::ScopedTab(tab_android), index,
+      std::move(tab_interface_android), index,
       is_attaching_group ? std::nullopt : tab_group_id, is_pinned);
 
   if (is_attaching_group) {
     tab_strip_collection_->MoveTabRecursive(index, index, *tab_group_id,
                                             is_pinned);
   }
+
+  tab_map_[tab_android] = tab_interface_ptr;
 
   return base::checked_cast<int>(index);
 }
@@ -137,6 +157,7 @@ void TabCollectionTabModelImpl::RemoveTabRecursive(JNIEnv* env,
   int index = GetIndexOfTabRecursive(tab);
   CHECK_NE(index, kInvalidTabIndex);
   tab_strip_collection_->RemoveTabAtIndexRecursive(index);
+  tab_map_.erase(tab);
 }
 
 void TabCollectionTabModelImpl::CreateTabGroup(
@@ -169,8 +190,7 @@ std::vector<TabAndroid*> TabCollectionTabModelImpl::GetTabsInGroup(
 
   tabs.reserve(group_collection->TabCountRecursive());
   for (TabInterface* group_tab : *group_collection) {
-    CHECK(group_tab);
-    tabs.push_back(TabAndroid::FromTabInterface(group_tab));
+    tabs.push_back(ToTabAndroidChecked(group_tab));
   }
   return tabs;
 }
@@ -224,7 +244,13 @@ int TabCollectionTabModelImpl::GetIndexOfTabInGroup(
     return kInvalidTabIndex;
   }
 
-  std::optional<size_t> index = group_collection->GetIndexOfTab(tab_android);
+  auto it = tab_map_.find(tab_android);
+  if (it == tab_map_.end()) {
+    return kInvalidTabIndex;
+  }
+
+  TabInterface* tab_interface = it->second;
+  std::optional<size_t> index = group_collection->GetIndexOfTab(tab_interface);
   return index ? base::checked_cast<int>(*index) : kInvalidTabIndex;
 }
 
@@ -348,7 +374,7 @@ std::vector<TabAndroid*> TabCollectionTabModelImpl::GetAllTabs(
   tabs.reserve(tab_strip_collection_->TabCountRecursive());
 
   for (TabInterface* tab_in_collection : *tab_strip_collection_) {
-    TabAndroid* tab = TabAndroid::FromTabInterface(tab_in_collection);
+    TabAndroid* tab = ToTabAndroidOrNull(tab_in_collection);
     if (!tab) {
       continue;
     }
@@ -381,8 +407,7 @@ std::vector<TabAndroid*> TabCollectionTabModelImpl::GetRepresentativeTabList(
     std::optional<TabGroupId> tab_group_id = tab->GetGroup();
     if (!tab_group_id) {
       current_group_id = std::nullopt;
-      CHECK(tab);
-      tabs.push_back(TabAndroid::FromTabInterface(tab));
+      tabs.push_back(ToTabAndroidChecked(tab));
     } else if (current_group_id != tab_group_id) {
       current_group_id = tab_group_id;
       TabGroupAndroid* group =

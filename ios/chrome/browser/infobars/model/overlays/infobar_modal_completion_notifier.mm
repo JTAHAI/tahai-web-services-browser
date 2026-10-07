@@ -6,7 +6,6 @@
 
 #import "base/check.h"
 #import "base/functional/bind.h"
-#import "ios/chrome/browser/infobars/model/infobar_ios.h"
 #import "ios/chrome/browser/infobars/model/overlays/infobar_overlay_util.h"
 #import "ios/chrome/browser/overlays/model/public/common/infobars/infobar_overlay_request_config.h"
 #import "ios/chrome/browser/overlays/model/public/overlay_callback_manager.h"
@@ -66,11 +65,9 @@ InfobarModalCompletionNotifier::ModalCompletionInstaller::
     ~ModalCompletionInstaller() = default;
 
 void InfobarModalCompletionNotifier::ModalCompletionInstaller::ModalCompleted(
-    base::WeakPtr<InfoBarIOS> infobar,
+    InfoBarIOS* infobar,
     OverlayResponse* response) {
-  if (infobar) {
-    notifier_->ModalRequestCompleted(infobar.get());
-  }
+  notifier_->ModalRequestCompleted(infobar);
 }
 
 const OverlayRequestSupport*
@@ -88,7 +85,7 @@ void InfobarModalCompletionNotifier::ModalCompletionInstaller::
 
   request->GetCallbackManager()->AddCompletionCallback(base::BindOnce(
       &InfobarModalCompletionNotifier::ModalCompletionInstaller::ModalCompleted,
-      weak_factory_.GetWeakPtr(), infobar->GetWeakPtr()));
+      weak_factory_.GetWeakPtr(), base::UnsafeDanglingUntriaged(infobar)));
 
   notifier_->ModalCompletionInstalled(infobar);
 }

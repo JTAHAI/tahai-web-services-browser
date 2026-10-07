@@ -8,6 +8,7 @@
 
 #include <map>
 
+#include "base/compiler_specific.h"
 #include "base/logging.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/ref_counted.h"
@@ -538,7 +539,8 @@ HRESULT TSFBridgeImpl::InitializeDocumentMapInternal() {
     empty_tsf_support_ = true;
   }
 
-  for (const TextInputType input_type : kTextInputTypes) {
+  for (size_t i = 0; i < std::size(kTextInputTypes); ++i) {
+    const TextInputType input_type = UNSAFE_TODO(kTextInputTypes[i]);
     Microsoft::WRL::ComPtr<ITfContext> context;
     Microsoft::WRL::ComPtr<ITfDocumentMgr> document_manager;
     DWORD source_cookie = TF_INVALID_COOKIE;

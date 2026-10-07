@@ -4,13 +4,13 @@
 package org.chromium.chrome.browser.app.tabmodel;
 
 import static org.chromium.build.NullUtil.assumeNonNull;
+import static org.chromium.chrome.browser.app.tabmodel.ShadowTabStoreValidator.HEADLESS_TAG;
 import static org.chromium.chrome.browser.app.tabmodel.TabPersistentStoreFactory.buildAuthoritativeStore;
 import static org.chromium.chrome.browser.app.tabmodel.TabPersistentStoreFactory.buildShadowStore;
 
 import org.chromium.base.ContextUtils;
 import org.chromium.base.lifetime.Destroyable;
 import org.chromium.base.supplier.ObservableSuppliers;
-import org.chromium.base.supplier.SupplierUtils;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.app.tabwindow.TabWindowManagerSingleton;
@@ -26,10 +26,10 @@ import org.chromium.chrome.browser.tabmodel.RecordingTabCreatorManager;
 import org.chromium.chrome.browser.tabmodel.TabCreatorManager;
 import org.chromium.chrome.browser.tabmodel.TabModelSelector;
 import org.chromium.chrome.browser.tabmodel.TabModelSelectorImpl;
-import org.chromium.chrome.browser.tabmodel.TabOrchestratorType;
 import org.chromium.chrome.browser.tabmodel.TabPersistencePolicy;
 import org.chromium.chrome.browser.tabmodel.TabPersistentStore;
 import org.chromium.chrome.browser.tabmodel.TabPersistentStore.TabPersistentStoreObserver;
+import org.chromium.chrome.browser.tabmodel.TabPersistentStoreImpl;
 import org.chromium.chrome.browser.tabmodel.TabbedModeTabPersistencePolicy;
 import org.chromium.chrome.browser.tabwindow.TabWindowManager;
 import org.chromium.chrome.browser.tabwindow.WindowId;
@@ -79,7 +79,7 @@ public class HeadlessTabModelOrchestrator implements Destroyable {
                 new PersistentStoreMigrationManagerImpl(windowTag);
         mTabPersistentStore =
                 buildAuthoritativeStore(
-                        TabOrchestratorType.HEADLESS,
+                        TabPersistentStoreImpl.CLIENT_TAG_HEADLESS,
                         migrationManager,
                         policy,
                         mTabModelSelector,
@@ -104,7 +104,7 @@ public class HeadlessTabModelOrchestrator implements Destroyable {
                         mTabPersistentStore,
                         windowTag,
                         sCipherInstance,
-                        TabOrchestratorType.HEADLESS,
+                        HEADLESS_TAG,
                         /* isNonOtrOnly= */ true,
                         /* isFromRecreating= */ false);
 
@@ -141,7 +141,7 @@ public class HeadlessTabModelOrchestrator implements Destroyable {
         TabGroupSyncService tabGroupSyncService = TabGroupSyncServiceFactory.getForProfile(profile);
         assumeNonNull(tabGroupSyncService);
         PrefService prefs = UserPrefs.get(profile);
-        Supplier<Boolean> isActive = SupplierUtils.alwaysFalse();
+        Supplier<Boolean> isActive = () -> false;
         mTabGroupSyncController =
                 new TabGroupSyncControllerImpl(
                         mTabModelSelector, tabGroupSyncService, prefs, isActive);

@@ -66,6 +66,7 @@ export class CrTabsElement extends PolymerElement {
   declare selected: number;
 
   private isRtl_: boolean = false;
+  private lastSelected_: number|null = null;
 
   override connectedCallback() {
     super.connectedCallback();
@@ -79,24 +80,24 @@ export class CrTabsElement extends PolymerElement {
     this.addEventListener('keydown', this.onKeyDown_.bind(this));
   }
 
-  protected getAriaSelected_(index: number): string {
+  private getAriaSelected_(index: number): string {
     return index === this.selected ? 'true' : 'false';
   }
 
-  protected getIconStyle_(index: number): string {
+  private getIconStyle_(index: number): string {
     const icon = this.tabIcons[index];
     return icon ? `-webkit-mask-image: url(${icon}); display: block;` : '';
   }
 
-  protected getTabindex_(index: number): string {
+  private getTabindex_(index: number): string {
     return index === this.selected ? '0' : '-1';
   }
 
-  protected getSelectedClass_(index: number): string {
+  private getSelectedClass_(index: number): string {
     return index === this.selected ? 'selected' : '';
   }
 
-  protected onSelectedChanged_(newSelected: number, oldSelected: number) {
+  private onSelectedChanged_(newSelected: number, oldSelected: number) {
     const tabs = this.shadowRoot!.querySelectorAll('.tab');
     if (tabs.length === 0 || oldSelected === undefined ||
         tabs.length <= newSelected || tabs.length <= oldSelected) {
@@ -128,7 +129,7 @@ export class CrTabsElement extends PolymerElement {
     this.updateIndicator_(newIndicator, newTabRect, leftmostEdge, fullWidth);
   }
 
-  protected onKeyDown_(e: KeyboardEvent) {
+  private onKeyDown_(e: KeyboardEvent) {
     const count = this.tabNames.length;
     let newSelection;
     if (e.key === 'Home') {
@@ -148,13 +149,13 @@ export class CrTabsElement extends PolymerElement {
     this.shadowRoot!.querySelector<HTMLElement>('.tab.selected')!.focus();
   }
 
-  protected onIndicatorTransitionEnd_(event: Event) {
+  private onIndicatorTransitionEnd_(event: Event) {
     const indicator = event.target as HTMLElement;
     indicator.classList.replace('expand', 'contract');
     indicator.style.transform = `translateX(0) scaleX(1)`;
   }
 
-  protected onTabClick_(e: DomRepeatEvent<string>) {
+  private onTabClick_(e: DomRepeatEvent<string>) {
     this.selected = e.model.index;
   }
 

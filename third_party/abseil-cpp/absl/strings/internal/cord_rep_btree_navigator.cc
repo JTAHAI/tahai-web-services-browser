@@ -15,8 +15,6 @@
 #include "absl/strings/internal/cord_rep_btree_navigator.h"
 
 #include <cassert>
-#include <cstddef>
-#include <cstdint>
 
 #include "absl/strings/internal/cord_data_edge.h"
 #include "absl/strings/internal/cord_internal.h"

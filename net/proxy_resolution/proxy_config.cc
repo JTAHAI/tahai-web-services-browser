@@ -314,12 +314,8 @@ ProxyConfig& ProxyConfig::operator=(ProxyConfig&& config) = default;
 ProxyConfig::~ProxyConfig() = default;
 
 bool ProxyConfig::Equals(const ProxyConfig& other) const {
-  return dynamic_routing_config_ == other.dynamic_routing_config_ &&
-         EqualsIgnoringDynamicRouting(other);
-}
-
-bool ProxyConfig::EqualsIgnoringDynamicRouting(const ProxyConfig& other) const {
   return proxy_override_rules_ == other.proxy_override_rules_ &&
+         dynamic_routing_config_ == other.dynamic_routing_config_ &&
          auto_detect_ == other.auto_detect_ && pac_url_ == other.pac_url_ &&
          pac_mandatory_ == other.pac_mandatory_ &&
          from_system_ == other.from_system_ &&
@@ -398,12 +394,8 @@ base::Value ProxyConfig::ToValue() const {
   }
 
   // Output dynamic routing config.
-  if (!dynamic_routing_config_.routing_rules.empty() ||
-      dynamic_routing_config_.is_update_in_progress) {
+  if (!dynamic_routing_config_.routing_rules.empty()) {
     base::DictValue config_dict;
-    if (dynamic_routing_config_.is_update_in_progress) {
-      config_dict.Set("is_update_in_progress", true);
-    }
     base::ListValue rules_list;
     for (const auto& rule : dynamic_routing_config_.routing_rules) {
       base::DictValue rule_dict;
@@ -437,13 +429,6 @@ bool ProxyConfig::DynamicRoutingRule::operator==(
     const DynamicRoutingRule& other) const {
   return destination_matchers == other.destination_matchers &&
          proxy_list.Equals(other.proxy_list);
-}
-
-base::DictValue ProxyConfig::DynamicRoutingRule::ToDict() const {
-  base::DictValue dict;
-  dict.Set("destination_matchers", destination_matchers.ToString());
-  dict.Set("proxy_list", proxy_list.ToValue());
-  return dict;
 }
 
 bool ProxyConfig::DynamicRoutingRule::MatchesDestination(

@@ -965,7 +965,8 @@ TEST(CSSMathExpressionNode, ValidRandomFunction) {
         kHTMLStandardMode, SecureContextMode::kInsecureContext);
     CSSParserLocalContext local_context(
         CSSPropertyName(CSSPropertyID::kHeight),
-        /*current_shorthand=*/CSSPropertyID::kInvalid);
+        /*current_shorthand=*/CSSPropertyID::kInvalid,
+        /*custom_function_name=*/g_null_atom);
     const CSSMathExpressionNode* res = CSSMathExpressionNode::ParseMathFunction(
         CSSValueID::kCalc, stream, *context, local_context,
         Flags({Flag::AllowPercent}), kCSSAnchorQueryTypesNone);

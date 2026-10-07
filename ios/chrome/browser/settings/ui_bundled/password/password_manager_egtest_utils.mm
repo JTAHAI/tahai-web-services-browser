@@ -107,7 +107,9 @@ id<GREYMatcher> PasswordDetailPassword() {
 }
 
 id<GREYMatcher> NavigationBarEditButton() {
-  return chrome_test_util::NavigationBarEditButton();
+  return grey_allOf(chrome_test_util::ButtonWithAccessibilityLabelId(
+                        IDS_IOS_NAVIGATION_BAR_EDIT_BUTTON),
+                    grey_userInteractionEnabled(), nil);
 }
 
 id<GREYMatcher> EditDoneButton() {

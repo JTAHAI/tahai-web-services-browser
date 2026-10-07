@@ -12,7 +12,6 @@
 #include <vector>
 
 #include "base/functional/callback.h"
-#include "ui/base/metadata/base_type_conversion.h"
 #include "ui/views/layout/layout_types.h"
 #include "ui/views/views_export.h"
 
@@ -334,7 +333,5 @@ void PrintTo(MinimumFlexSizeRule minimum_flex_size_rule, ::std::ostream* os);
 void PrintTo(MaximumFlexSizeRule maximum_flex_size_rule, ::std::ostream* os);
 
 }  // namespace views
-
-EXPORT_ENUM_CONVERTERS(views::FlexAllocationOrder, VIEWS_EXPORT)
 
 #endif  // UI_VIEWS_LAYOUT_FLEX_LAYOUT_TYPES_H_

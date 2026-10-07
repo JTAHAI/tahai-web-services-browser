@@ -6,23 +6,12 @@
 
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/global_features.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "components/browser_apis/tab_drag/adapters/tab_drag_window_adapter.h"
 #include "components/browser_apis/tab_drag/sessions/tab_drag_session_manager.h"
 #include "components/browser_apis/tab_drag/tab_drag_service_impl.h"
 
-DEFINE_USER_DATA(TabDragServiceFeature);
-
-// static
-TabDragServiceFeature* TabDragServiceFeature::From(
-    BrowserWindowInterface* browser_window) {
-  return Get(browser_window->GetUnownedUserDataHost());
-}
-
 TabDragServiceFeature::TabDragServiceFeature(
-    std::unique_ptr<tabs_api::TabDragWindowAdapter> window_adapter,
-    ui::UnownedUserDataHost& host)
-    : scoped_unowned_user_data_(host, *this) {
+    std::unique_ptr<tabs_api::TabDragWindowAdapter> window_adapter) {
   auto* manager = g_browser_process->GetFeatures()->tab_drag_session_manager();
   if (manager) {
     tab_drag_service_ = std::make_unique<tabs_api::TabDragServiceImpl>(

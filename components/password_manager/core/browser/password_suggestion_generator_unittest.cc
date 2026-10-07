@@ -19,7 +19,7 @@
 #include "components/autofill/core/browser/suggestions/suggestion.h"
 #include "components/autofill/core/browser/suggestions/suggestion_test_helpers.h"
 #include "components/autofill/core/browser/suggestions/suggestion_type.h"
-#include "components/autofill/core/common/autofill_test_util.h"
+#include "components/autofill/core/common/autofill_test_utils.h"
 #include "components/autofill/core/common/password_form_fill_data.h"
 #include "components/password_manager/core/browser/features/password_features.h"
 #include "components/password_manager/core/browser/mock_password_feature_manager.h"
@@ -28,7 +28,6 @@
 #include "components/password_manager/core/browser/password_manager_interface.h"
 #include "components/password_manager/core/browser/password_manager_test_utils.h"
 #include "components/password_manager/core/browser/password_manager_util.h"
-#include "components/password_manager/core/browser/password_string.h"
 #include "components/password_manager/core/browser/stub_password_manager_client.h"
 #include "components/password_manager/core/browser/stub_password_manager_driver.h"
 #include "components/password_manager/core/browser/undo_password_change_controller.h"
@@ -372,7 +371,7 @@ class PasswordSuggestionGeneratorTest : public testing::Test {
   CredentialUIEntry android_credential_ui_entry() const {
     PasswordForm form;
     form.username_value = u"username@example.com";
-    form.password_value = PasswordString(u"password");
+    form.password_value = u"password";
     const std::string url =
         "android://"
         "Jzj5T2E45Hb33D-lk-"
@@ -906,6 +905,28 @@ TEST_F(PasswordSuggestionGeneratorTest,
                           EqualsManagePasswordsSuggestion()));
 }
 
+TEST_F(PasswordSuggestionGeneratorTest,
+       ManualFallback_GroupedCredential_IsNotCrossDomainWhenFeatureDisabled) {
+  base::test::ScopedFeatureList feature_list;
+  feature_list.InitAndDisableFeature(
+      features::kShowConfirmationForGroupedCredentials);
+  std::vector<Suggestion> suggestions = GenerateSuggestedPasswordsSection(
+      {grouped_password_form()}, IsTriggeredOnPasswordForm(true));
+
+  EXPECT_THAT(suggestions,
+              ElementsAre(EqualsManualFallbackSuggestion(
+                              SuggestionType::kPasswordEntry, u"google.com",
+                              u"username@example.com", Suggestion::Icon::kGlobe,
+                              /*is_acceptable=*/true,
+                              Suggestion::FaviconDetails(
+                                  /*domain_url=*/GURL("https://google.com")),
+                              Suggestion::PasswordSuggestionDetails(
+                                  u"username@example.com", u"password",
+                                  "https://google.com/", u"google.com",
+                                  /*is_cross_domain=*/false)),
+                          EqualsSuggestion(SuggestionType::kSeparator),
+                          EqualsManagePasswordsSuggestion()));
+}
 
 TEST_F(PasswordSuggestionGeneratorTest,
        ManualFallback_AllPasswords_SuggestionContent) {
@@ -1142,6 +1163,8 @@ TEST_F(PasswordSuggestionGeneratorTest,
 // the manage passwords entry.
 TEST_F(PasswordSuggestionGeneratorTest,
        WebAuthnSuggestionPositionInManualFallback) {
+  base::test::ScopedFeatureList feature_list{
+      features::kWebAuthnUsePasskeyFromAnotherDeviceInManualFallback};
   const std::vector<PasskeyCredential> kEmptyPasskeyVector;
   ON_CALL(credentials_delegate(), GetPasskeys)
       .WillByDefault(Return(base::ok(&kEmptyPasskeyVector)));
@@ -1170,6 +1193,37 @@ TEST_F(PasswordSuggestionGeneratorTest,
                                IDS_PASSWORD_MANAGER_USE_PASSKEY_OTHER_DEVICE),
                            Suggestion::Icon::kDevice),
           EqualsManagePasswordsSuggestion()));
+}
+
+// Test that the webauthn sign in with another device suggestion is not added
+// if the corresponding feature is disabled.
+TEST_F(PasswordSuggestionGeneratorTest,
+       WebAuthnSuggestionPositionInManualFallback_FeatureDisabled) {
+  base::test::ScopedFeatureList feature_list;
+  feature_list.InitAndDisableFeature(
+      features::kWebAuthnUsePasskeyFromAnotherDeviceInManualFallback);
+  const std::vector<PasskeyCredential> kEmptyPasskeyVector;
+  ON_CALL(credentials_delegate(), GetPasskeys)
+      .WillByDefault(Return(base::ok(&kEmptyPasskeyVector)));
+  ON_CALL(credentials_delegate(), IsSecurityKeyOrHybridFlowAvailable)
+      .WillByDefault(Return(true));
+
+  std::vector<Suggestion> suggestions = GenerateSuggestedPasswordsSection(
+      {password_form()}, IsTriggeredOnPasswordForm(true));
+
+  EXPECT_THAT(suggestions,
+              ElementsAre(EqualsManualFallbackSuggestion(
+                              SuggestionType::kPasswordEntry, u"google.com",
+                              u"username@example.com", Suggestion::Icon::kGlobe,
+                              /*is_acceptable=*/true,
+                              Suggestion::FaviconDetails(
+                                  /*domain_url=*/GURL("https://google.com")),
+                              Suggestion::PasswordSuggestionDetails(
+                                  u"username@example.com", u"password",
+                                  "https://google.com/", u"google.com",
+                                  /*is_cross_domain=*/false)),
+                          EqualsSuggestion(SuggestionType::kSeparator),
+                          EqualsManagePasswordsSuggestion()));
 }
 
 TEST_F(PasswordSuggestionGeneratorTest,
@@ -1566,7 +1620,7 @@ TEST_F(PasswordSuggestionGeneratorTest,
   AccountInfo account = signin::MakePrimaryAccountAvailable(
       identity_test_env()->identity_manager(), "example@google.com",
       signin::ConsentLevel::kSignin);
-  identity_test_env()->SetInvalidRefreshTokenForAccount(account.GetAccountId());
+  identity_test_env()->SetInvalidRefreshTokenForAccount(account.account_id);
 
   std::vector<Suggestion> suggestions = generator().GetSuggestionsForDomain(
       undo_controller(),
@@ -1594,7 +1648,7 @@ TEST_F(PasswordSuggestionGeneratorTest,
   AccountInfo account = signin::MakePrimaryAccountAvailable(
       identity_test_env()->identity_manager(), "example@google.com",
       signin::ConsentLevel::kSignin);
-  identity_test_env()->SetInvalidRefreshTokenForAccount(account.GetAccountId());
+  identity_test_env()->SetInvalidRefreshTokenForAccount(account.account_id);
 
   std::vector<Suggestion> suggestions = generator().GetSuggestionsForDomain(
       undo_controller(), password_form_fill_data(), favicon(),
@@ -1627,7 +1681,7 @@ TEST_F(PasswordSuggestionGeneratorTest,
   AccountInfo account = signin::MakePrimaryAccountAvailable(
       identity_test_env()->identity_manager(), "example@google.com",
       signin::ConsentLevel::kSignin);
-  identity_test_env()->SetInvalidRefreshTokenForAccount(account.GetAccountId());
+  identity_test_env()->SetInvalidRefreshTokenForAccount(account.account_id);
 
   std::vector<Suggestion> suggestions = generator().GetSuggestionsForDomain(
       undo_controller(),
@@ -1649,7 +1703,7 @@ TEST_F(PasswordSuggestionGeneratorTest,
   AccountInfo account = signin::MakePrimaryAccountAvailable(
       identity_test_env()->identity_manager(), "example@google.com",
       signin::ConsentLevel::kSignin);
-  identity_test_env()->SetInvalidRefreshTokenForAccount(account.GetAccountId());
+  identity_test_env()->SetInvalidRefreshTokenForAccount(account.account_id);
 
   std::vector<Suggestion> suggestions = generator().GetSuggestionsForDomain(
       undo_controller(), password_form_fill_data(), favicon(),
@@ -1679,7 +1733,7 @@ TEST_F(PasswordSuggestionGeneratorTest,
   AccountInfo account = signin::MakePrimaryAccountAvailable(
       identity_test_env()->identity_manager(), "example@google.com",
       signin::ConsentLevel::kSignin);
-  identity_test_env()->SetInvalidRefreshTokenForAccount(account.GetAccountId());
+  identity_test_env()->SetInvalidRefreshTokenForAccount(account.account_id);
 
   std::vector<Suggestion> suggestions = generator().GetSuggestionsForDomain(
       undo_controller(),
@@ -1702,7 +1756,7 @@ TEST_F(PasswordSuggestionGeneratorTest,
   AccountInfo account = signin::MakePrimaryAccountAvailable(
       identity_test_env()->identity_manager(), "example@google.com",
       signin::ConsentLevel::kSignin);
-  identity_test_env()->SetInvalidRefreshTokenForAccount(account.GetAccountId());
+  identity_test_env()->SetInvalidRefreshTokenForAccount(account.account_id);
 
   std::vector<Suggestion> suggestions = generator().GetSuggestionsForDomain(
       undo_controller(), password_form_fill_data(), favicon(),

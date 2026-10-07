@@ -161,10 +161,7 @@ void CheckPolicyToCrosSettingsTranslation(
 DEFINE_PROTO_FUZZER(const fuzzable::policy::PolicyFuzzerProto& fuzzable_proto) {
   std::string serialized = fuzzable_proto.SerializeAsString();
   PolicyFuzzerProto proto;
-  // Recursion limits can cause parsing to fail.
-  if (!proto.ParseFromString(serialized)) {
-    return;
-  }
+  CHECK(proto.ParseFromString(serialized));
 
   static Environment env;
   PerInputEnvironment per_input_env;

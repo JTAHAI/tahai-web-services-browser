@@ -51,7 +51,6 @@ import org.chromium.components.payments.PaymentAppFactoryParams;
 import org.chromium.components.payments.PaymentFeatureList;
 import org.chromium.components.payments.PaymentManifestDownloader;
 import org.chromium.components.payments.PaymentManifestParser;
-import org.chromium.components.payments.PaymentManifestParser.PaymentMethodManifest;
 import org.chromium.components.payments.WebAppManifestSection;
 import org.chromium.components.payments.WebPaymentsWebDataService;
 import org.chromium.components.payments.intent.WebPaymentIntentHelper;
@@ -551,14 +550,17 @@ public class AndroidPaymentAppFinderUnitTest {
         PaymentManifestParser parser =
                 new PaymentManifestParser() {
                     @Override
-                    public PaymentMethodManifest parsePaymentMethodManifest(
-                            GURL paymentMethodManifestUrl, String content) {
-                        return new PaymentMethodManifest(
+                    public void parsePaymentMethodManifest(
+                            GURL paymentMethodManifestUrl,
+                            String content,
+                            ManifestParseCallback callback) {
+                        callback.onPaymentMethodManifestParseSuccess(
                                 new GURL[] {new GURL("https://bobpay.test/app.json")}, new GURL[0]);
                     }
 
                     @Override
-                    public WebAppManifestSection[] parseWebAppManifest(String content) {
+                    public void parseWebAppManifest(
+                            String content, ManifestParseCallback callback) {
                         WebAppManifestSection[] manifest = new WebAppManifestSection[1];
                         int minVersion = 10;
                         manifest[0] =
@@ -566,7 +568,7 @@ public class AndroidPaymentAppFinderUnitTest {
                                         "com.bobpay.app",
                                         minVersion,
                                         PaymentManifestVerifierTest.BOB_PAY_SIGNATURE_FINGERPRINTS);
-                        return manifest;
+                        callback.onWebAppManifestParseSuccess(manifest);
                     }
 
                     @Override

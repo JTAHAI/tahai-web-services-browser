@@ -49,7 +49,6 @@ import org.chromium.ui.modelutil.MVCListAdapter;
 import org.chromium.ui.modelutil.PropertyKey;
 import org.chromium.ui.modelutil.PropertyListModel;
 import org.chromium.ui.modelutil.PropertyModel;
-import org.chromium.ui.modelutil.PropertyObservable;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -96,9 +95,12 @@ class TabListEditorMediator
     private boolean mHasSnackbarOverride;
 
     private final View.OnClickListener mNavigationClickListener =
-            _ -> {
-                assumeNonNull(mNavigationProvider);
-                mNavigationProvider.goBack();
+            new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    assumeNonNull(mNavigationProvider);
+                    mNavigationProvider.goBack();
+                }
             };
 
     private final View.OnClickListener mDoneButtonClickHandler =
@@ -188,15 +190,6 @@ class TabListEditorMediator
                     }
 
                     @Override
-                    public void willCloseTabs(
-                            List<Tab> tabs, boolean isAllTabs, boolean allowUndo) {
-                        if (mTabActionState != TabProperties.TabActionState.CLOSABLE) {
-                            assumeNonNull(mNavigationProvider);
-                            mNavigationProvider.goBack();
-                        }
-                    }
-
-                    @Override
                     public void didSelectTab(Tab tab, @TabSelectionType int type, int lastId) {
                         if (mTabActionState == TabProperties.TabActionState.CLOSABLE
                                 && type == TabSelectionType.FROM_USER) {
@@ -207,11 +200,15 @@ class TabListEditorMediator
                 };
 
         mSelectionObserver =
-                (List<TabListEditorItemSelectionId> selectedItems) -> {
-                    // Synchronizes the visual properties of each tab model with the current
-                    // state of the selection delegate to update checkmarks.
-                    updateModelsFromSelection(selectedItems);
-                    updateItemPickerSelectionHandler();
+                new SelectionDelegate.SelectionObserver<>() {
+                    @Override
+                    public void onSelectionStateChange(
+                            List<TabListEditorItemSelectionId> selectedItems) {
+                        // Synchronizes the visual properties of each tab model with the current
+                        // state of the selection delegate to update checkmarks.
+                        updateModelsFromSelection(selectedItems);
+                        updateItemPickerSelectionHandler();
+                    }
                 };
         mSelectionDelegate.addObserver(mSelectionObserver);
 
@@ -219,7 +216,7 @@ class TabListEditorMediator
 
         mBackPressChangedSupplier.set(isEditorVisible());
         mModel.addObserver(
-                (PropertyObservable<PropertyKey> _, PropertyKey key) -> {
+                (source, key) -> {
                     if (key == TabListEditorProperties.IS_VISIBLE) {
                         mBackPressChangedSupplier.set(isEditorVisible());
                     }
@@ -282,7 +279,6 @@ class TabListEditorMediator
         mModel.set(TabListEditorProperties.TOOLBAR_BACKGROUND_COLOR, toolbarBackgroundColor);
         mModel.set(TabListEditorProperties.TOOLBAR_TEXT_TINT, toolbarTintColorList);
         mModel.set(TabListEditorProperties.TOOLBAR_BUTTON_TINT, toolbarTintColorList);
-        mModel.set(TabListEditorProperties.IS_INCOGNITO, isIncognito);
 
         if (mActionListModel == null) return;
 

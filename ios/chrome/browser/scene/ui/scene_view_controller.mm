@@ -26,8 +26,8 @@
 #import "ios/chrome/browser/scene/ui/scene_view.h"
 #import "ios/chrome/browser/scene/ui/scene_view_controller_delegate.h"
 #import "ios/chrome/browser/scene/ui/scene_view_delegate.h"
+#import "ios/chrome/browser/shared/coordinator/scene/state/layout_state.h"
 #import "ios/chrome/browser/shared/coordinator/scene/state/layout_state_passkey.h"
-#import "ios/chrome/browser/shared/coordinator/scene/state/scene_layout_state.h"
 #import "ios/chrome/browser/shared/public/commands/app_bar_commands.h"
 #import "ios/chrome/browser/shared/public/commands/gemini_commands.h"
 #import "ios/chrome/browser/shared/public/features/features.h"
@@ -62,14 +62,12 @@ inline LayoutStateScenePassKey PassKey() {
 }
 }  // namespace
 
-@interface SceneViewController () <SceneLayoutStateObserver, SceneViewDelegate>
+@interface SceneViewController () <LayoutStateObserver, SceneViewDelegate>
 @end
 
 @implementation SceneViewController {
   // The app bar.
   UIViewController* _appBar;
-  // The TabGrid.
-  UIViewController* _tabGridViewController;
   // The assistant container view controller.
   AssistantContainerViewController* _assistantContainerViewController;
 
@@ -228,37 +226,12 @@ inline LayoutStateScenePassKey PassKey() {
   [self updateAssistantTopConstraints:self.layoutState.containedLayoutActive];
 }
 
-#pragma mark - UIResponder
-
-- (BOOL)canBecomeFirstResponder {
-  return YES;
-}
-
-- (NSArray<UIKeyCommand*>*)keyCommands {
-  // The commands of both the AppBar and the TabGrid needs to be exposed. As
-  // they are sibling, manually bundle them together.
-  NSMutableArray<UIKeyCommand*>* commands = [NSMutableArray array];
-  if (_appBar.keyCommands) {
-    [commands addObjectsFromArray:_appBar.keyCommands];
-  }
-  if (_tabGridViewController.keyCommands) {
-    [commands addObjectsFromArray:_tabGridViewController.keyCommands];
-  }
-  [commands addObjectsFromArray:[super keyCommands]];
-  return commands;
-}
-
-- (id)targetForAction:(SEL)action withSender:(id)sender {
-  if ([_appBar canPerformAction:action withSender:sender]) {
-    return _appBar;
-  }
-  if ([_tabGridViewController canPerformAction:action withSender:sender]) {
-    return [_tabGridViewController targetForAction:action withSender:sender];
-  }
-  return [super targetForAction:action withSender:sender];
-}
-
 #pragma mark - Public
+
+- (UIView*)appContainer {
+  [self loadViewIfNeeded];
+  return _appContentView;
+}
 
 - (void)setAppBar:(UIViewController*)appBar {
   CHECK(!_appBar);
@@ -269,23 +242,6 @@ inline LayoutStateScenePassKey PassKey() {
   [self updateLayoutForViews];
 }
 
-- (void)setTabGrid:(UIViewController*)tabGridViewController {
-  CHECK(!_tabGridViewController);
-  [self loadViewIfNeeded];
-  _tabGridViewController = tabGridViewController;
-
-  UIView* tabGrid = tabGridViewController.view;
-  [self addChildViewController:tabGridViewController];
-  if (IsChromeNextIaEnabled() && !IsFullscreenRefactoringEnabled()) {
-    [self.view addSubview:tabGrid];
-    [tabGrid addSubview:_appContentView];
-    tabGrid.frame = self.view.bounds;
-  } else {
-    [_appContentView addSubview:tabGrid];
-    tabGrid.frame = _appContentView.bounds;
-  }
-  [tabGridViewController didMoveToParentViewController:self];
-}
 #pragma mark - SceneViewDelegate
 
 - (void)sceneViewDidMoveToWindow:(SceneView*)sceneView {
@@ -415,7 +371,7 @@ inline LayoutStateScenePassKey PassKey() {
 
 #pragma mark - Accessors
 
-- (void)setLayoutState:(SceneLayoutState*)layoutState {
+- (void)setLayoutState:(LayoutState*)layoutState {
   if (_layoutState == layoutState) {
     return;
   }
@@ -424,9 +380,9 @@ inline LayoutStateScenePassKey PassKey() {
   [_layoutState addObserver:self];
 }
 
-#pragma mark - SceneLayoutStateObserver
+#pragma mark - LayoutStateObserver
 
-- (void)layoutState:(SceneLayoutState*)layoutState
+- (void)layoutState:(LayoutState*)layoutState
     willChangeContainedLayout:(BOOL)containedLayoutActive
     withTransitionCoordinator:(id<LayoutTransitionCoordinating>)coordinator {
   __weak __typeof(self) weakSelf = self;
@@ -442,7 +398,7 @@ inline LayoutStateScenePassKey PassKey() {
   }
 }
 
-- (void)layoutState:(SceneLayoutState*)layoutState
+- (void)layoutState:(LayoutState*)layoutState
     didChangeContainedLayoutSupported:(BOOL)supported {
   if (supported && _assistantContainerViewController) {
     [layoutState setContainedLayoutActive:YES scenePassKey:PassKey()];
@@ -452,17 +408,17 @@ inline LayoutStateScenePassKey PassKey() {
   [self updateAssistantLayout];
 }
 
-- (void)layoutState:(SceneLayoutState*)layoutState
+- (void)layoutState:(LayoutState*)layoutState
     didChangeWindowedMode:(BOOL)windowedMode {
   [self updateAssistantTopConstraints:self.layoutState.containedLayoutActive];
 }
 
-- (void)layoutState:(SceneLayoutState*)layoutState
+- (void)layoutState:(LayoutState*)layoutState
     didChangeAppBarPosition:(AppBarPosition)appBarPosition {
   [self updateLayoutForViews];
 }
 
-- (void)layoutState:(SceneLayoutState*)layoutState
+- (void)layoutState:(LayoutState*)layoutState
     didChangeGeminiFloatyInvoked:(BOOL)geminiFloatyInvoked {
   [self updateLayoutForViews];
 }
@@ -621,9 +577,6 @@ inline LayoutStateScenePassKey PassKey() {
 // Updates the layout of the scene views depending on the active layout strategy
 // (Constraints vs. Frames).
 - (void)updateLayoutForViews {
-  if (!self.isViewLoaded || !self.view.window) {
-    return;
-  }
   AppBarPosition position = self.layoutState.appBarPosition;
   _appBar.view.hidden = (position == AppBarPosition::kNone);
   if (IsFullscreenRefactoringEnabled()) {
@@ -635,6 +588,8 @@ inline LayoutStateScenePassKey PassKey() {
 
 // Applies Auto Layout constraints to views.
 - (void)applyConstraintsForLayoutWithPosition:(AppBarPosition)position {
+  UIView* view = self.view;
+
   // Ensure default constraints are active to avoid leaving the view
   // unconstrained if `_appBar` is hidden or missing.
   if (position == AppBarPosition::kNone || !_appBar) {
@@ -642,7 +597,10 @@ inline LayoutStateScenePassKey PassKey() {
       [self setupDefaultConstraints];
       [NSLayoutConstraint activateConstraints:_baseAssistantConstraints];
     }
+    return;
   }
+
+  [view layoutIfNeeded];
 }
 
 // Applies manual frames to views by combining insets from App Bar and Side
@@ -686,9 +644,8 @@ inline LayoutStateScenePassKey PassKey() {
     case AppBarPosition::kBottom: {
       CGFloat minHeight =
           IsAppBarHiddenInFullscreen() ? 0 : kAppBarHeightFullscreen;
-      CGFloat portraitHeight = CurrentAppBarHeightPortrait(
-          self.layoutState.geminiFloatyInvoked,
-          self.layoutState.assistantContainerInvoked);
+      CGFloat portraitHeight =
+          CurrentAppBarHeightPortrait(self.layoutState.geminiFloatyInvoked);
       CGFloat appBarHeight =
           minHeight - _fullscreenProgress * (minHeight - portraitHeight);
       insets.bottom += appBarHeight;

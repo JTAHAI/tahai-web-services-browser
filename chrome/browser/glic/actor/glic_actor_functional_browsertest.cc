@@ -11,7 +11,6 @@
 #include "chrome/browser/actor/actor_proto_conversion.h"
 #include "components/actor/core/actor_features.h"
 #include "components/actor/public/mojom/actor_types.mojom.h"
-#include "net/dns/mock_host_resolver.h"
 
 namespace glic::actor {
 
@@ -77,15 +76,7 @@ GlicActorFunctionalBrowserTestBase::actor_keyed_service() {
 }
 
 void GlicActorFunctionalBrowserTestBase::SetUpOnMainThread() {
-  embedded_test_server()->ServeFilesFromSourceDirectory(
-      "components/test/data");
-  embedded_https_test_server().ServeFilesFromSourceDirectory(
-      "components/test/data");
   GlicFunctionalBrowserTestBase::SetUpOnMainThread();
-  host_resolver()->AddRule("*", "127.0.0.1");
-  if (!embedded_https_test_server().Started()) {
-    ASSERT_TRUE(embedded_https_test_server().Start());
-  }
   RunTestSequence(OpenGlic());
 }
 
@@ -93,11 +84,6 @@ base::CallbackListSubscription
 GlicActorFunctionalBrowserTestBase::CreateTaskCompletionSubscription(
     TaskId for_task_id,
     TestFuture<ActorTask::State>& future) {
-  ActorTask* existing_task = actor_keyed_service()->GetTask(for_task_id);
-  if (existing_task && ActorTask::IsCompletedState(existing_task->GetState())) {
-    future.SetValue(existing_task->GetState());
-    return base::CallbackListSubscription();
-  }
   return actor_keyed_service()->AddTaskStateChangedCallback(
       base::BindLambdaForTesting([&future, for_task_id](ActorTask& task) {
         if (task.id() == for_task_id &&
@@ -248,15 +234,6 @@ void GlicActorFunctionalBrowserTestBase::InterruptActorTask(
 void GlicActorFunctionalBrowserTestBase::UninterruptActorTask(TaskId task_id) {
   std::string script = "window.client.browser.uninterruptActorTask($1);";
   EXPECT_OK(EvalJsInGlic(content::JsReplace(script, task_id.value())));
-}
-
-void GlicActorFunctionalBrowserTestBase::UpdateActorTaskStepProgress(
-    TaskId task_id,
-    const std::string& step_progress) {
-  std::string script =
-      "window.client.browser.updateActorTaskStepProgress($1, $2);";
-  EXPECT_OK(
-      EvalJsInGlic(content::JsReplace(script, task_id.value(), step_progress)));
 }
 
 void GlicActorFunctionalBrowserTestBase::WaitForTaskState(

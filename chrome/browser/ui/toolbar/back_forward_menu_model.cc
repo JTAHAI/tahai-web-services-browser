@@ -18,8 +18,9 @@
 #include "chrome/browser/favicon/favicon_service_factory.h"
 #include "chrome/browser/favicon/favicon_utils.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/navigator/browser_navigator_params.h"
 #include "chrome/browser/ui/singleton_tabs.h"
 #include "chrome/browser/ui/tabs/back_to_opener/back_to_opener_controller.h"
@@ -57,11 +58,9 @@ const size_t BackForwardMenuModel::kMaxHistoryItems = 12;
 const size_t BackForwardMenuModel::kMaxChapterStops = 5;
 static const int kMaxBackForwardMenuWidth = 700;
 
-BackForwardMenuModel::BackForwardMenuModel(
-    BrowserWindowInterface* browser_window_interface,
-    ModelType model_type)
-    : browser_window_interface_(browser_window_interface),
-      model_type_(model_type) {}
+BackForwardMenuModel::BackForwardMenuModel(Browser* browser,
+                                           ModelType model_type)
+    : browser_(browser), model_type_(model_type) {}
 
 BackForwardMenuModel::~BackForwardMenuModel() = default;
 
@@ -242,10 +241,8 @@ void BackForwardMenuModel::ActivatedAt(size_t index, int event_flags) {
     case MenuSection::kShowFullHistory:
       base::RecordComputedAction(
           BuildActionName("ShowFullHistory", std::nullopt));
-      if (browser_window_interface_) {
-        ShowSingletonTabOverwritingNTP(browser_window_interface_,
-                                       GURL(chrome::kChromeUIHistoryURL));
-      }
+      ShowSingletonTabOverwritingNTP(browser_,
+                                     GURL(chrome::kChromeUIHistoryURL));
       return;
   }
 
@@ -261,10 +258,8 @@ void BackForwardMenuModel::ActivatedAt(size_t index, int event_flags) {
 
   WindowOpenDisposition disposition =
       ui::DispositionFromEventFlags(event_flags);
-  if (browser_window_interface_) {
-    chrome::NavigateToIndexWithDisposition(
-        browser_window_interface_, controller_index.value(), disposition);
-  }
+  chrome::NavigateToIndexWithDisposition(browser_, controller_index.value(),
+                                         disposition);
 }
 
 void BackForwardMenuModel::MenuWillShow() {
@@ -277,14 +272,9 @@ void BackForwardMenuModel::MenuWillShow() {
   content::WebContentsObserver::Observe(GetWebContents());
 
   // Close the IPH popup if the user opens the menu.
-  if (browser_window_interface_) {
-    if (auto* user_education =
-            BrowserUserEducationInterface::From(browser_window_interface_)) {
-      user_education->NotifyFeaturePromoFeatureUsed(
-          feature_engagement::kIPHBackNavigationMenuFeature,
-          FeaturePromoFeatureUsedAction::kClosePromoIfPresent);
-    }
-  }
+  BrowserUserEducationInterface::From(browser_)->NotifyFeaturePromoFeatureUsed(
+      feature_engagement::kIPHBackNavigationMenuFeature,
+      FeaturePromoFeatureUsedAction::kClosePromoIfPresent);
 }
 
 void BackForwardMenuModel::MenuWillClose() {
@@ -456,12 +446,8 @@ void BackForwardMenuModel::FetchFavicon(NavigationEntry* entry) {
   }
 
   requested_favicons_.insert(entry->GetUniqueID());
-  Profile* profile = GetProfile();
-  if (!profile) {
-    return;
-  }
   favicon::FaviconService* favicon_service =
-      FaviconServiceFactory::GetForProfile(profile,
+      FaviconServiceFactory::GetForProfile(browser_->GetProfile(),
                                            ServiceAccessType::EXPLICIT_ACCESS);
   if (!favicon_service) {
     return;
@@ -650,21 +636,9 @@ std::u16string BackForwardMenuModel::GetShowFullHistoryLabel() const {
 
 WebContents* BackForwardMenuModel::GetWebContents() const {
   // We use the test web contents if the unit test has specified it.
-  if (test_web_contents_) {
-    return test_web_contents_.get();
-  }
-  return browser_window_interface_
-             ? browser_window_interface_->GetTabStripModel()
-                   ->GetActiveWebContents()
-             : nullptr;
-}
-
-Profile* BackForwardMenuModel::GetProfile() const {
-  if (WebContents* contents = GetWebContents()) {
-    return Profile::FromBrowserContext(contents->GetBrowserContext());
-  }
-  return browser_window_interface_ ? browser_window_interface_->GetProfile()
-                                   : nullptr;
+  return test_web_contents_
+             ? test_web_contents_.get()
+             : browser_->tab_strip_model()->GetActiveWebContents();
 }
 
 std::optional<size_t> BackForwardMenuModel::MenuIndexToNavEntryIndex(
@@ -734,6 +708,5 @@ std::string BackForwardMenuModel::BuildActionName(
 }
 
 bool BackForwardMenuModel::ShouldShowFullHistoryBeVisible() const {
-  Profile* profile = GetProfile();
-  return profile && !profile->IsOffTheRecord();
+  return !browser_->GetProfile()->IsOffTheRecord();
 }

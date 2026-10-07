@@ -1,2 +1,3 @@
-rules:
-- "**": [image-set]
+features:
+- name: image-set
+  files: "**"

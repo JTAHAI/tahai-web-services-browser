@@ -712,8 +712,11 @@ void CountingPolicy::DoDeleteDatabase() {
     return;
   }
   statement.Clear();
-  if (!db->Vacuum()) {
-    LOG(ERROR) << "Vacuuming the database failed.";
+  statement.Assign(db->GetCachedStatement(sql::StatementID(SQL_FROM_HERE),
+                                          "VACUUM"));
+  if (!statement.Run()) {
+    LOG(ERROR) << "Vacuuming the database failed: "
+               << statement.GetSQLStatement();
   }
 }
 

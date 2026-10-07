@@ -153,16 +153,8 @@ IN_PROC_BROWSER_TEST_F(SafeBrowsingPolicyTest,
 // Test that when SSL error overriding is disallowed by policy and the origin
 // list is configured, the proceed link does not appear on SSL blocking pages if
 // the page is not on the origin list.
-// TODO(crbug.com/555854628): Flaky on Android.
-#if BUILDFLAG(IS_ANDROID)
-#define MAYBE_SSLErrorOverridingAllowedForOriginsWrongOrigin \
-  DISABLED_SSLErrorOverridingAllowedForOriginsWrongOrigin
-#else
-#define MAYBE_SSLErrorOverridingAllowedForOriginsWrongOrigin \
-  SSLErrorOverridingAllowedForOriginsWrongOrigin
-#endif
 IN_PROC_BROWSER_TEST_F(SafeBrowsingPolicyTest,
-                       MAYBE_SSLErrorOverridingAllowedForOriginsWrongOrigin) {
+                       SSLErrorOverridingAllowedForOriginsWrongOrigin) {
   net::EmbeddedTestServer https_server_expired(
       net::EmbeddedTestServer::TYPE_HTTPS);
   https_server_expired.SetSSLConfig(net::EmbeddedTestServer::CERT_EXPIRED);
@@ -316,16 +308,8 @@ IN_PROC_BROWSER_TEST_F(SafeBrowsingPolicyTest,
 // Test that when SSL error overriding is disallowed by policy and the origin
 // list is configured, the proceed link appears on SSL blocking pages if the
 // page is on the origin list.
-// TODO(crbug.com/555854628): Flaky on Android.
-#if BUILDFLAG(IS_ANDROID)
-#define MAYBE_SSLErrorOverridingAllowedForOrigins \
-  DISABLED_SSLErrorOverridingAllowedForOrigins
-#else
-#define MAYBE_SSLErrorOverridingAllowedForOrigins \
-  SSLErrorOverridingAllowedForOrigins
-#endif
 IN_PROC_BROWSER_TEST_F(SafeBrowsingPolicyTest,
-                       MAYBE_SSLErrorOverridingAllowedForOrigins) {
+                       SSLErrorOverridingAllowedForOrigins) {
   net::EmbeddedTestServer https_server_expired(
       net::EmbeddedTestServer::TYPE_HTTPS);
   https_server_expired.SetSSLConfig(net::EmbeddedTestServer::CERT_EXPIRED);

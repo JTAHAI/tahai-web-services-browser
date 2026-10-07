@@ -248,8 +248,7 @@ void WorkerThreadScheduler::CreateBudgetPools() {
   wake_up_budget_pool_ =
       std::make_unique<WakeUpBudgetPool>("worker_wake_up_pool");
   cpu_time_budget_pool_ = std::make_unique<CPUTimeBudgetPool>(
-      "worker_cpu_time_pool", &traceable_variable_controller_, now,
-      "Scheduler.WorkerBudgetMs");
+      "worker_cpu_time_pool", &traceable_variable_controller_, now);
 
   cpu_time_budget_pool_->SetMaxBudgetLevel(now, GetMaxBudgetLevel());
   cpu_time_budget_pool_->SetTimeBudgetRecoveryRate(now,

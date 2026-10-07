@@ -90,6 +90,7 @@ TEST_F(AutocompleteControllerAndroidTest, OnOmniboxFocused_NTP) {
 
   GURL url("chrome://newtab");
 
+  JNIEnv* env = base::android::AttachCurrentThread();
   auto page_classification = OEP::NTP;
 
   EXPECT_CALL(
@@ -100,7 +101,7 @@ TEST_F(AutocompleteControllerAndroidTest, OnOmniboxFocused_NTP) {
                   Property(&AutocompleteInput::focus_type,
                            Eq(OFT::INTERACTION_FOCUS)))));
 
-  controller()->OnOmniboxFocused(nullptr, u"", url, page_classification,
+  controller()->OnOmniboxFocused(env, nullptr, u"", url, page_classification,
                                  omnibox::TOOL_MODE_UNSPECIFIED, u"title");
 }
 
@@ -110,6 +111,7 @@ TEST_F(AutocompleteControllerAndroidTest, OnOmniboxFocused_OTHER) {
 
   GURL url("https://site.biz/");
 
+  JNIEnv* env = base::android::AttachCurrentThread();
   auto page_classification = OEP::OTHER;
 
   EXPECT_CALL(
@@ -120,12 +122,15 @@ TEST_F(AutocompleteControllerAndroidTest, OnOmniboxFocused_OTHER) {
                   Property(&AutocompleteInput::focus_type,
                            Eq(OFT::INTERACTION_FOCUS)))));
 
-  controller()->OnOmniboxFocused(nullptr, u"text", url, page_classification,
+  controller()->OnOmniboxFocused(env, nullptr, u"text", url,
+                                 page_classification,
                                  omnibox::TOOL_MODE_UNSPECIFIED, u"title");
 }
 
 TEST_F(AutocompleteControllerAndroidTest, GetTemplateUrlForText_NotFound) {
-  auto result = controller()->GetTemplateUrlForText(u"nonexistent_keyword");
+  JNIEnv* env = base::android::AttachCurrentThread();
+  auto result =
+      controller()->GetTemplateUrlForText(env, u"nonexistent_keyword");
   EXPECT_TRUE(result.is_null());
 }
 
@@ -133,6 +138,7 @@ TEST_F(AutocompleteControllerAndroidTest, Start_InKeywordMode) {
   using OEP = metrics::OmniboxEventProto;
 
   GURL url("https://site.biz/");
+  JNIEnv* env = base::android::AttachCurrentThread();
 
   EXPECT_CALL(
       *mock(),
@@ -140,8 +146,9 @@ TEST_F(AutocompleteControllerAndroidTest, Start_InKeywordMode) {
                   Property(&AutocompleteInput::current_url, Eq(url)),
                   Property(&AutocompleteInput::in_keyword_mode, Eq(true)))));
 
-  controller()->Start(nullptr, u"query", -1, "", url, OEP::OTHER,
-                      omnibox::TOOL_MODE_UNSPECIFIED, false, true, false, true);
+  controller()->Start(env, nullptr, u"query", -1, "", url, OEP::OTHER,
+                      omnibox::TOOL_MODE_UNSPECIFIED, false, true, false,
+                      true);
 }
 
 TEST_F(AutocompleteControllerAndroidTest,
@@ -150,8 +157,9 @@ TEST_F(AutocompleteControllerAndroidTest,
   AutocompleteMatch match;
   match.transition = ui::PAGE_TRANSITION_TYPED;
 
+  JNIEnv* env = base::android::AttachCurrentThread();
   controller()->CreateNavigationObserver(
-      reinterpret_cast<uintptr_t>(&navigation_handle),
+      env, reinterpret_cast<uintptr_t>(&navigation_handle),
       reinterpret_cast<uintptr_t>(&match));
 
   auto* user_data =
@@ -169,8 +177,9 @@ TEST_F(AutocompleteControllerAndroidTest,
   AutocompleteMatch match;
   match.transition = ui::PAGE_TRANSITION_GENERATED;
 
+  JNIEnv* env = base::android::AttachCurrentThread();
   controller()->CreateNavigationObserver(
-      reinterpret_cast<uintptr_t>(&navigation_handle),
+      env, reinterpret_cast<uintptr_t>(&navigation_handle),
       reinterpret_cast<uintptr_t>(&match));
 
   auto* user_data =

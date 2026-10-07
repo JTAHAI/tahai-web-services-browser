@@ -31,4 +31,4 @@ private:
 
 }
 
-#endif  // RAW_PTR_TO_GC_MANAGED_CLASS_ERROR_H_
+#endif

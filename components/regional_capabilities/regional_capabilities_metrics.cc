@@ -101,8 +101,6 @@ std::string ToString(SearchEngineChoiceScreenConditions condition) {
       return "EligibleForRestore";
     case SearchEngineChoiceScreenConditions::kUnavailableCurrentLocation:
       return "UnavailableCurrentLocation";
-    case SearchEngineChoiceScreenConditions::kAlreadyCompletedImported:
-      return "AlreadyCompletedImported";
   }
   NOTREACHED();
 }
@@ -136,7 +134,6 @@ bool IsEligible(SearchEngineChoiceScreenConditions condition) {
     case SearchEngineChoiceScreenConditions::
         kHasNonHighlightablePrepopulatedSearchEngine:
     case SearchEngineChoiceScreenConditions::kManaged:
-    case SearchEngineChoiceScreenConditions::kAlreadyCompletedImported:
       return false;
   }
   NOTREACHED();

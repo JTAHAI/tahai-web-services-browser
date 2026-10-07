@@ -1382,9 +1382,8 @@ void KcerFuzzer::RunGetKeyInfo() {
   ASSERT_TRUE(key_info_waiter.Get().has_value());
   const KeyInfo& key_info = key_info_waiter.Get().value();
 
-  // The fuzzer runs against an NSS softoken slot, which Chaps does not provide,
-  // so no key in it can be hardware backed.
-  EXPECT_EQ(key_info.is_hardware_backed, false);
+  // Software-backed keys are never generated in the current implementation.
+  EXPECT_EQ(key_info.is_hardware_backed, true);
   EXPECT_EQ(key_info.key_type, expected_key->key_type);
 
   if (expected_key->nickname_known) {
@@ -1533,10 +1532,6 @@ void KcerFuzzer::RunSetCertProvisioningProfileId() {
 
   EXPECT_TRUE(set_cert_prov_id_waiter.Get().has_value());
   expected_key->cert_provisioning_profile_id = cert_prov_id;
-  // Tests share the attribute id for `cert_provisioning_profile_id` and
-  // `browser_enterprise_client_cert_tag` custom attributes, so their values are
-  // unfortunately populated together.
-  expected_key->browser_enterprise_client_cert_tag = true;
 }
 
 void KcerFuzzer::RunSetBrowserEnterpriseClientCertTag() {
@@ -1561,10 +1556,6 @@ void KcerFuzzer::RunSetBrowserEnterpriseClientCertTag() {
 
   EXPECT_TRUE(set_tag_waiter.Get().has_value());
   expected_key->browser_enterprise_client_cert_tag = true;
-  // Tests share the attribute id for `cert_provisioning_profile_id` and
-  // `browser_enterprise_client_cert_tag` custom attributes, so their values are
-  // unfortunately populated together.
-  expected_key->cert_provisioning_profile_id = "\x01";
 }
 
 base::flat_set<Token> KcerFuzzer::SelectTokens() {

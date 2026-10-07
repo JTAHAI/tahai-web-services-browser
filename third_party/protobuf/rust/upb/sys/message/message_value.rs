@@ -43,7 +43,6 @@ impl upb_MessageValue {
 
 #[repr(C)]
 #[derive(Clone, Copy)]
-#[allow(unused)] // FFI type.
 pub union upb_MutableMessageValue {
     pub array: Option<RawArray>,
     pub map: Option<RawMap>,

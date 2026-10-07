@@ -25,8 +25,10 @@ namespace content {
 class WebContents;
 }
 
-class EmbeddedPermissionPrompt : public PermissionPromptDesktop,
-                                 public EmbeddedPermissionPromptViewDelegate {
+class EmbeddedPermissionPrompt
+    : public PermissionPromptDesktop,
+      public EmbeddedPermissionPromptViewDelegate,
+      public EmbeddedPermissionPromptContentScrimView::Delegate {
  public:
   EmbeddedPermissionPrompt(content::WebContents* web_contents,
                            permissions::PermissionPrompt::Delegate* delegate);
@@ -38,10 +40,13 @@ class EmbeddedPermissionPrompt : public PermissionPromptDesktop,
   // system permission or querying for current system permission settings.
   class SystemPermissionDelegate;
 
+  void CloseCurrentViewAndMaybeShowNext(bool first_prompt);
+
   // permissions::PermissionPrompt:
   TabSwitchingBehavior GetTabSwitchingBehavior() override;
   permissions::PermissionPromptDisposition GetPromptDisposition()
       const override;
+  bool ShouldFinalizeRequestAfterDecided() const override;
   std::vector<permissions::ElementAnchoredBubbleVariant> GetPromptVariants()
       const override;
   bool IsAskPrompt() const override;
@@ -59,8 +64,20 @@ class EmbeddedPermissionPrompt : public PermissionPromptDesktop,
   void SystemPermissionsNoLongerDenied() override;
   base::WeakPtr<permissions::PermissionPrompt::Delegate>
   GetPermissionPromptDelegate() const override;
+  const std::vector<base::SafeRef<permissions::PermissionRequest>>& Requests()
+      const override;
+
+  // EmbeddedPermissionPromptContentScrimView::Delegate:
+  void DismissScrim() override;
 
  private:
+  enum class Action {
+    kAllow,
+    kAllowThisTime,
+    kDeny,
+    kDismiss,
+  };
+
   void PromptForOsPermission();
 
   void OnRequestSystemPermissionResponse(
@@ -68,17 +85,31 @@ class EmbeddedPermissionPrompt : public PermissionPromptDesktop,
       const ContentSettingsType other_request_type);
 
   void CloseView();
+  void CloseViewAndScrim();
+
+  void FocusThenClose();
+
+  void FinalizePrompt();
+  void SendDelegateAction(Action action);
 
   permissions::EmbeddedPermissionPromptFlowModel::Variant prompt_variant()
       const {
     return prompt_model_->prompt_variant();
   }
 
+  std::unique_ptr<views::Widget> content_scrim_widget_;
   views::ViewTracker prompt_view_tracker_;
+  views::ViewTracker previously_focused_view_tracker_;
+  std::unique_ptr<tabs::ScopedTabModalUI> scoped_tab_modal_ui_;
+  std::optional<content::WebContents::ScopedIgnoreInputEvents>
+      scoped_ignore_input_events_;
 
   raw_ptr<permissions::PermissionPrompt::Delegate> delegate_;
 
-  raw_ptr<permissions::EmbeddedPermissionPromptFlowModel> prompt_model_;
+  std::set<ContentSettingsType> prompt_types_;
+  std::vector<base::SafeRef<permissions::PermissionRequest>> requests_;
+
+  std::unique_ptr<permissions::EmbeddedPermissionPromptFlowModel> prompt_model_;
   base::WeakPtrFactory<EmbeddedPermissionPrompt> weak_factory_{this};
 };
 

@@ -45,4 +45,5 @@ class TemplatedObject final : public GarbageCollected<TemplatedObject<T>> {
 
 } // namespace blink
 
-#endif  // TEMPLATED_CLASS_WITH_LOCAL_CLASS_REQUIRES_TRACE_H
+#endif // TEMPLATED_CLASS_WITH_LOCAL_CLASS_REQUIRES_TRACE_H
+

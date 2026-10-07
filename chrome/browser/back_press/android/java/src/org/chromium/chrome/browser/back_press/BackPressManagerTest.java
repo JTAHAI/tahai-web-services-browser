@@ -15,7 +15,6 @@ import org.junit.runner.RunWith;
 import org.chromium.base.ThreadUtils;
 import org.chromium.base.supplier.ObservableSuppliers;
 import org.chromium.base.supplier.SettableNonNullObservableSupplier;
-import org.chromium.base.supplier.SupplierUtils;
 import org.chromium.base.test.BaseJUnit4ClassRunner;
 import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.CallbackHelper;
@@ -88,7 +87,9 @@ public class BackPressManagerTest {
         BackPressManager manager = new BackPressManager();
         EmptyBackPressHandler h1 = ThreadUtils.runOnUiThreadBlocking(EmptyBackPressHandler::new);
         ThreadUtils.runOnUiThreadBlocking(
-                () -> manager.addHandler(h1, BackPressHandler.Type.FIND_TOOLBAR));
+                () -> {
+                    manager.addHandler(h1, BackPressHandler.Type.FIND_TOOLBAR);
+                });
 
         triggerBackPressWithoutAssertionError(manager);
 
@@ -107,7 +108,10 @@ public class BackPressManagerTest {
 
         histogramWatcher =
                 HistogramWatcher.newBuilder().expectNoRecords(BackPressManager.HISTOGRAM).build();
-        ThreadUtils.runOnUiThreadBlocking(() -> h1.getHandleBackPressChangedSupplier().set(false));
+        ThreadUtils.runOnUiThreadBlocking(
+                () -> {
+                    h1.getHandleBackPressChangedSupplier().set(false);
+                });
         triggerBackPressWithoutAssertionError(manager);
         histogramWatcher.assertExpected(
                 "Handler's histogram should be not recorded if it is not executed");
@@ -238,7 +242,7 @@ public class BackPressManagerTest {
     @SmallTest
     public void testRecordSwipeEdge() {
         BackPressManager manager = new BackPressManager();
-        manager.setIsGestureNavEnabledSupplier(SupplierUtils.alwaysTrue());
+        manager.setIsGestureNavEnabledSupplier(() -> true);
 
         EmptyBackPressHandler h1 = ThreadUtils.runOnUiThreadBlocking(EmptyBackPressHandler::new);
         EmptyBackPressHandler h2 = ThreadUtils.runOnUiThreadBlocking(EmptyBackPressHandler::new);
@@ -303,7 +307,7 @@ public class BackPressManagerTest {
     @SmallTest
     public void testRecordSwipeEdgeOfTabHistoryNavigation() {
         BackPressManager manager = new BackPressManager();
-        manager.setIsGestureNavEnabledSupplier(SupplierUtils.alwaysTrue());
+        manager.setIsGestureNavEnabledSupplier(() -> true);
 
         EmptyBackPressHandler h1 = ThreadUtils.runOnUiThreadBlocking(EmptyBackPressHandler::new);
 

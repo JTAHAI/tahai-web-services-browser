@@ -342,7 +342,7 @@ class InvalidateTest
                          // `client` leaves scope.
                        },
                        std::move(client_)));
-    render_thread_manager_->DestroyHardwareRendererOnRT();
+    render_thread_manager_->DestroyHardwareRendererOnRT(false);
     TaskQueueWebView::GetInstance()->ResetRenderThreadForTesting();
   }
 

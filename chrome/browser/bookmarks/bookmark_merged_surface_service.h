@@ -21,7 +21,7 @@
 #include "components/bookmarks/browser/bookmark_node_data.h"
 #include "components/keyed_service/core/keyed_service.h"
 
-class BrowserWindowInterface;
+class Browser;
 
 namespace base {
 class FilePath;
@@ -118,7 +118,7 @@ class BookmarkMergedSurfaceService
   void Move(const bookmarks::BookmarkNode* node,
             const BookmarkParentFolder& new_parent,
             size_t index,
-            BrowserWindowInterface* browser);
+            Browser* browser);
 
   // Copies nodes in `elements` to be new child nodes of `new_parent` starting
   // at `index`. If `BookmarkParentFolder` is a permanent bookmark folder,
@@ -153,7 +153,7 @@ class BookmarkMergedSurfaceService
       BookmarkMergedSurfaceOrderingStorage::Loader::LoadResult result);
 
   using ShowMoveStorageDialogCallback =
-      base::RepeatingCallback<void(BrowserWindowInterface* browser,
+      base::RepeatingCallback<void(Browser* browser,
                                    const bookmarks::BookmarkNode* node,
                                    const bookmarks::BookmarkNode* target_node,
                                    size_t index)>;

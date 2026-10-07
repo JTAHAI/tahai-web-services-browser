@@ -11,9 +11,7 @@
 #include "build/build_config.h"
 
 #if BUILDFLAG(IS_WIN)
-#include <stdint.h>
-
-#include <array>
+#include "base/win/windows_types.h"
 #elif BUILDFLAG(IS_POSIX)
 #include <sys/types.h>
 #endif
@@ -28,11 +26,9 @@ enum class Client;
 
 struct COMPONENT_EXPORT(SQLITE_VFS) FileSystemId {
 #if BUILDFLAG(IS_WIN)
-  uint64_t volume_serial_number;
-
-  // Either a 128-bit `FILE_ID_128` for ReFS or a 64-bit file index with zeros
-  // in the high-order bytes.
-  std::array<uint8_t, 16> file_id;
+  DWORD volume_serial_number;
+  DWORD file_index_high;
+  DWORD file_index_low;
 #elif BUILDFLAG(IS_POSIX)
   dev_t dev;
   ino_t ino;
@@ -41,9 +37,7 @@ struct COMPONENT_EXPORT(SQLITE_VFS) FileSystemId {
   friend bool operator==(const FileSystemId&, const FileSystemId&) = default;
 };
 
-// Returns a unique identifier for the physical file on disk. Returns
-// std::nullopt if the filesystem does not support unique file IDs or returns
-// degenerate IDs.
+// Returns a unique identifier for the physical file on disk.
 COMPONENT_EXPORT(SQLITE_VFS)
 std::optional<FileSystemId> GetFileSystemId(Client client,
                                             const base::File& file);

@@ -407,7 +407,7 @@ public class TabSwitcherPaneMediatorUnitTest {
 
     @Test
     public void testOnTabSelecting() {
-        mMediator.onTabSelecting(mUngroupedTab.getId());
+        mMediator.onTabSelecting(mUngroupedTab.getId(), /* fromActionButton= */ true);
         verify(mOnTabClickedCallback).onResult(UNGROUPED_TAB_ID);
     }
 

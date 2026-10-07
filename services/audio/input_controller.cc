@@ -193,10 +193,7 @@ class InputController::StatsReporter {
     weak_this_ = weak_ptr_factory_.GetWeakPtr();
   }
 
-  ~StatsReporter() {
-    LogStats("Dtor", base::TimeTicks::Now(),
-             /*post_to_task_runner=*/false);
-  }
+  ~StatsReporter() { LogStats("Dtor", base::TimeTicks::Now()); }
 
   StatsReporter(const StatsReporter&) = delete;
   StatsReporter& operator=(const StatsReporter&) = delete;
@@ -214,19 +211,12 @@ class InputController::StatsReporter {
     }
   }
 
-  void LogStats(const char* call_name,
-                base::TimeTicks now,
-                bool post_to_task_runner = true) {
+  void LogStats(const char* call_name, base::TimeTicks now) {
     const base::TimeDelta total_duration = now - start_time_;
     const double glitch_percentage =
         total_duration.is_zero()
             ? 0
             : glitch_info_.duration.InSecondsF() / total_duration.InSecondsF();
-    if (!post_to_task_runner) {
-      DCHECK(task_runner_->BelongsToCurrentThread());
-      DoLogStats(call_name, total_duration, glitch_info_, glitch_percentage);
-      return;
-    }
     task_runner_->PostTask(
         FROM_HERE,
         base::BindOnce(&StatsReporter::DoLogStats, weak_this_, call_name,
@@ -475,8 +465,6 @@ InputController::~InputController() {
   DCHECK(!audio_callback_);
   DCHECK(!stream_);
   DCHECK(!check_muted_state_timer_.IsRunning());
-  // StatsReporter logs through |this| during destruction.
-  stats_reporter_.reset();
 }
 
 // static

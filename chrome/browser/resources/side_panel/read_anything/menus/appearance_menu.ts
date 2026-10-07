@@ -11,8 +11,6 @@ import {loadTimeData} from '//resources/js/load_time_data.js';
 import {CrLitElement} from '//resources/lit/v3_0/lit.rollup.js';
 import type {PropertyValues} from '//resources/lit/v3_0/lit.rollup.js';
 
-import type {VisualBrowserProxy} from '../app/visual_browser_proxy.js';
-import {VisualBrowserProxyImpl} from '../app/visual_browser_proxy.js';
 import {DEFAULT_SETTINGS, ToolbarEvent} from '../content/read_anything_types.js';
 import type {SettingsPrefs, ShowAtConfigPrefs} from '../content/read_anything_types.js';
 import {ReadAnythingSettingsChange} from '../shared/metrics_browser_proxy.js';
@@ -54,79 +52,76 @@ export class AppearanceMenuElement extends AppearanceMenuElementBase implements
   accessor nonModal: boolean = false;
   accessor presentationState: number = 0;
 
-  private visualBrowserProxy_: VisualBrowserProxy =
-      VisualBrowserProxyImpl.getInstance();
-
   private colorOptions_: Array<MenuStateItem<number>> = [
     {
       title: loadTimeData.getString('defaultColorTitle'),
       icon: 'read-anything-20:default-theme-custom',
-      data: this.visualBrowserProxy_.getDefaultTheme(),
+      data: chrome.readingMode.defaultTheme,
     },
     {
       title: loadTimeData.getString('lightColorTitle'),
       icon: 'read-anything-20:light-theme-custom',
-      data: this.visualBrowserProxy_.getLightTheme(),
+      data: chrome.readingMode.lightTheme,
     },
     {
       title: loadTimeData.getString('darkColorTitle'),
       icon: 'read-anything-20:dark-theme-custom',
-      data: this.visualBrowserProxy_.getDarkTheme(),
+      data: chrome.readingMode.darkTheme,
     },
     {
       title: loadTimeData.getString('yellowColorTitle'),
       icon: 'read-anything-20:yellow-theme-custom',
-      data: this.visualBrowserProxy_.getYellowTheme(),
+      data: chrome.readingMode.yellowTheme,
     },
     {
       title: loadTimeData.getString('blueColorTitle'),
       icon: 'read-anything-20:blue-theme-custom',
-      data: this.visualBrowserProxy_.getBlueTheme(),
+      data: chrome.readingMode.blueTheme,
     },
     {
       title: loadTimeData.getString('highContrastColorTitle'),
       icon: 'read-anything-20:high-contrast-theme-custom',
-      data: this.visualBrowserProxy_.getHighContrastTheme(),
+      data: chrome.readingMode.highContrastTheme,
     },
     {
       title: loadTimeData.getString('lowContrastLightColorTitle'),
       icon: 'read-anything-20:low-contrast-light-theme-custom',
-      data: this.visualBrowserProxy_.getLowContrastLightTheme(),
+      data: chrome.readingMode.lowContrastLightTheme,
     },
     {
       title: loadTimeData.getString('lowContrastDarkColorTitle'),
       icon: 'read-anything-20:low-contrast-dark-theme-custom',
-      data: this.visualBrowserProxy_.getLowContrastDarkTheme(),
+      data: chrome.readingMode.lowContrastDarkTheme,
     },
   ];
 
   private viewOptions_: Array<MenuStateItem<number>> = [
     {
       title: loadTimeData.getString('sidePanelLabel'),
-      data: this.visualBrowserProxy_.getInSidePanelPresentationState(),
+      data: chrome.readingMode.inSidePanelPresentationState,
     },
     {
       title: loadTimeData.getString('fullPageLabel'),
-      data: this.visualBrowserProxy_.getInImmersiveOverlayPresentationState(),
+      data: chrome.readingMode.inImmersiveOverlayPresentationState,
     },
   ];
 
   protected accessor groups_: Array<MenuGroup<number>> = [
-     {
-      header: {
-        title: loadTimeData.getString('viewLabel'),
-        separator: false,
-      },
-      items: this.viewOptions_,
-      eventName: ToolbarEvent.PRESENTATION_CHANGE,
-    },
     {
       header: {
         title: loadTimeData.getString('themeTitle'),
-        separator: true,
+        separator: false,
       },
       items: this.colorOptions_,
       eventName: ToolbarEvent.THEME,
+    },
+    {
+      header: {
+        title: loadTimeData.getString('viewLabel'),
+        separator: true,
+      },
+      items: this.viewOptions_,
+      eventName: ToolbarEvent.PRESENTATION_CHANGE,
     },
   ];
   private logger_: ReadAnythingLogger = ReadAnythingLogger.getInstance();
@@ -156,7 +151,7 @@ export class AppearanceMenuElement extends AppearanceMenuElementBase implements
 
   protected onThemeChange_(e: CustomEvent<{data: number}>) {
     const newTheme = e.detail.data;
-    this.visualBrowserProxy_.onThemeChange(newTheme);
+    chrome.readingMode.onThemeChange(newTheme);
     this.logger_.logTextSettingsChange(ReadAnythingSettingsChange.THEME_CHANGE);
     this.settingsPrefs = {
       ...this.settingsPrefs,
@@ -167,7 +162,8 @@ export class AppearanceMenuElement extends AppearanceMenuElementBase implements
   protected onPresentationChange_(e: CustomEvent<{data: number}>) {
     const newPresentationState = e.detail.data;
     if (newPresentationState !== this.presentationState) {
-      this.visualBrowserProxy_.togglePresentation();
+      chrome.readingMode.togglePresentation();
+      this.presentationState = newPresentationState;
     }
   }
 

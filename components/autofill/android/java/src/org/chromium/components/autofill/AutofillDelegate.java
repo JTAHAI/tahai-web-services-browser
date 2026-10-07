@@ -14,22 +14,22 @@ public interface AutofillDelegate {
     void dismissed();
 
     /**
-     * Handles the acceptance of an Autofill suggestion from an AutofillPopup or
+     * Handles the selection of an Autofill suggestion from an AutofillPopup or
      * AutofillKeyboardAccessory.
      *
-     * @param listIndex The index of the accepted Autofill suggestion.
+     * @param listIndex The index of the selected Autofill suggestion.
      */
-    void suggestionAccepted(int listIndex);
+    void suggestionSelected(int listIndex);
 
     /**
-     * Handles the acceptance of an Autofill suggestion, with metadata about whether the suggestion
+     * Handles the selection of an Autofill suggestion, with metadata about whether the suggestion
      * triggers a loading state.
      *
-     * @param listIndex The index of the accepted Autofill suggestion.
+     * @param listIndex The index of the selected Autofill suggestion.
      * @param showLoadingOnAcceptance True if the suggestion shows a loading UI on acceptance.
      */
-    default void suggestionAccepted(int listIndex, boolean showLoadingOnAcceptance) {
-        suggestionAccepted(listIndex);
+    default void suggestionSelected(int listIndex, boolean showLoadingOnAcceptance) {
+        suggestionSelected(listIndex);
     }
 
     /**
@@ -51,12 +51,4 @@ public interface AutofillDelegate {
      * @param entityType The entity type for which to open settings.
      */
     default void openSettingsForEntityType(@EntityTypeName int entityType) {}
-
-    /**
-     * Handles the selection state change of an Autofill suggestion.
-     *
-     * @param listIndex The index of the Autofill suggestion.
-     * @param isSelected True if the suggestion is selected, false otherwise.
-     */
-    default void suggestionSelectionStateChanged(int listIndex, boolean isSelected) {}
 }

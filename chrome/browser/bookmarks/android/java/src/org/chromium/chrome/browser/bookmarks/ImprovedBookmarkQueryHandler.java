@@ -9,8 +9,6 @@ import static org.chromium.build.NullUtil.assumeNonNull;
 import android.content.res.Resources;
 import android.text.TextUtils;
 
-import androidx.annotation.DimenRes;
-
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.bookmarks.BookmarkUiPrefs.BookmarkRowSortOrder;
@@ -101,32 +99,12 @@ public class ImprovedBookmarkQueryHandler implements BookmarkQueryHandler {
     public List<BookmarkListEntry> buildBookmarkListForFolderSelect(BookmarkId parentId) {
         List<BookmarkListEntry> bookmarkListEntries =
                 mBasicBookmarkQueryHandler.buildBookmarkListForFolderSelect(parentId);
-        boolean isRoot = parentId.equals(mBookmarkModel.getRootFolderId());
-        if (BookmarkUtils.isDesktopBookmarksDialogEnabled() && isRoot) {
-            sortTopLevelFolders(bookmarkListEntries);
-        } else {
-            sortByStoredPref(bookmarkListEntries);
-        }
-        if (isRoot) {
+        sortByStoredPref(bookmarkListEntries);
+        if (parentId.equals(mBookmarkModel.getRootFolderId())) {
             sortByAccountStatus(bookmarkListEntries);
             maybeInsertLocalSectionHeader(bookmarkListEntries);
         }
         return bookmarkListEntries;
-    }
-
-    private void sortTopLevelFolders(List<BookmarkListEntry> bookmarkListEntries) {
-        Collections.sort(
-                bookmarkListEntries,
-                (BookmarkListEntry entry1, BookmarkListEntry entry2) -> {
-                    BookmarkItem item1 = entry1.getBookmarkItem();
-                    BookmarkItem item2 = entry2.getBookmarkItem();
-                    if (item1 == null || item2 == null) return 0;
-                    return Integer.compare(
-                            BookmarkUtils.getTopLevelFolderDisplayOrderIndex(
-                                    mBookmarkModel, item1.getId()),
-                            BookmarkUtils.getTopLevelFolderDisplayOrderIndex(
-                                    mBookmarkModel, item2.getId()));
-                });
     }
 
     private void sortByStoredPref(List<BookmarkListEntry> bookmarkListEntries) {
@@ -257,14 +235,10 @@ public class ImprovedBookmarkQueryHandler implements BookmarkQueryHandler {
             return;
         }
 
-        final @DimenRes int localTopPaddingRes =
-                BookmarkUtils.isDesktopBookmarksDialogEnabled()
-                        ? R.dimen.bookmark_account_section_header_padding_top
-                        : Resources.ID_NULL;
         entries.add(
                 firstLocalBookmarkIndex,
                 BookmarkListEntry.createSectionHeader(
-                        R.string.local_bookmarks_section_header, localTopPaddingRes));
+                        R.string.local_bookmarks_section_header, Resources.ID_NULL));
         entries.add(
                 firstAccountBookmarkIndex,
                 BookmarkListEntry.createSectionHeader(

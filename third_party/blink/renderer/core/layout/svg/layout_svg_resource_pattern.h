@@ -61,10 +61,9 @@ class LayoutSVGResourcePattern final : public LayoutSVGResourcePaintServer {
   }
 
  private:
-  void WillBeDestroyed(const ComputedStyle*) override;
+  void WillBeDestroyed() override;
   void StyleDidChange(StyleDifference,
                       const ComputedStyle* old_style,
-                      const ComputedStyle& new_style,
                       const StyleChangeContext&) override;
 
   bool FindCycleFromSelf() const override;
@@ -74,7 +73,7 @@ class LayoutSVGResourcePattern final : public LayoutSVGResourcePaintServer {
   PaintRecord AsPaintRecord(const AffineTransform&,
                             PaintFlags paint_flags) const;
 
-  mutable bool should_collect_pattern_attributes_ = true;
+  mutable bool should_collect_pattern_attributes_ : 1;
   mutable PatternAttributes attributes_;
 
   const PatternAttributes& EnsureAttributes() const;

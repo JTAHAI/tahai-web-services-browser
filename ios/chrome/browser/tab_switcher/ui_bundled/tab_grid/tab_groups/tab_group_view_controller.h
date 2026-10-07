@@ -11,7 +11,7 @@
 #import "ios/chrome/browser/tab_switcher/ui_bundled/tab_grid/tab_groups/tab_group_consumer.h"
 #import "ios/chrome/browser/tab_switcher/ui_bundled/tab_grid/tab_groups/tab_group_edition_delegate.h"
 
-@class SceneLayoutState;
+@class LayoutState;
 @class TabGroupGridViewController;
 class TabGroup;
 @protocol TabGroupsCommands;
@@ -30,7 +30,7 @@ class TabGroup;
 @property(nonatomic, weak) id<TabGroupPresentationCommands> presentationHandler;
 
 // The layout state.
-@property(nonatomic, weak) SceneLayoutState* layoutState;
+@property(nonatomic, weak) LayoutState* layoutState;
 
 // The embedded grid view controller.
 @property(nonatomic, readonly) TabGroupGridViewController* gridViewController;

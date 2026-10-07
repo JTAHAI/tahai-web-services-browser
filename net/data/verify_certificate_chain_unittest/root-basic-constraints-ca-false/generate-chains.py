@@ -7,7 +7,6 @@
 extension that indicates it is NOT a CA."""
 
 import sys
-
 sys.path += ['../..']
 
 import gencerts

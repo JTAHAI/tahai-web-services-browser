@@ -22,7 +22,6 @@ import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.layouts.LayoutManager;
 import org.chromium.chrome.browser.layouts.LayoutStateProvider.LayoutStateObserver;
 import org.chromium.chrome.browser.layouts.LayoutType;
-import org.chromium.chrome.browser.tab_ui.TabSwitcherUtils;
 import org.chromium.chrome.browser.toolbar.ToolbarManager;
 import org.chromium.chrome.browser.ui.ExclusiveAccessManager;
 import org.chromium.components.omnibox.AutocompleteInput;
@@ -280,7 +279,7 @@ public class ActivityRecreationController {
 
     private static void restoreTabSwitcherState(
             boolean isTabSwitcherShown, LayoutManager layoutManager) {
-        if (!isTabSwitcherShown || TabSwitcherUtils.isGridTabSwitcherDisabled()) return;
+        if (!isTabSwitcherShown) return;
         layoutManager.showLayout(LayoutType.HUB, false);
     }
 

@@ -50,13 +50,13 @@ class CharacterIteratorAlgorithm {
       const EphemeralRangeTemplate<Strategy>&,
       const TextIteratorBehavior& = TextIteratorBehavior());
 
-  void Advance(wtf_size_t num_characters);
+  void Advance(int num_characters);
 
   bool AtBreak() const { return at_break_; }
   bool AtEnd() const { return text_iterator_.AtEnd(); }
 
-  wtf_size_t length() const { return text_iterator_.length() - run_offset_; }
-  UChar CharacterAt(wtf_size_t index) const {
+  int length() const { return text_iterator_.length() - run_offset_; }
+  UChar CharacterAt(unsigned index) const {
     return text_iterator_.CharacterAt(run_offset_ + index);
   }
 
@@ -64,8 +64,8 @@ class CharacterIteratorAlgorithm {
 
   const Document& OwnerDocument() const;
   const Node& CurrentContainer() const;
-  wtf_size_t StartOffset() const;
-  wtf_size_t EndOffset() const;
+  int StartOffset() const;
+  int EndOffset() const;
 
   PositionTemplate<Strategy> GetPositionBefore() const;
   PositionTemplate<Strategy> GetPositionAfter() const;
@@ -83,16 +83,15 @@ class CharacterIteratorAlgorithm {
   // avoid using |EditingPositionOf()|.
   PositionTemplate<Strategy> EndPosition() const;
 
-  EphemeralRangeTemplate<Strategy> CalculateCharacterSubrange(
-      wtf_size_t offset,
-      wtf_size_t length);
+  EphemeralRangeTemplate<Strategy> CalculateCharacterSubrange(int offset,
+                                                              int length);
 
  private:
   void Initialize();
 
-  wtf_size_t offset_ = 0;
-  wtf_size_t run_offset_ = 0;
-  bool at_break_ = true;
+  int offset_;
+  int run_offset_;
+  bool at_break_;
 
   TextIteratorAlgorithm<Strategy> text_iterator_;
 };
@@ -106,10 +105,9 @@ extern template class CORE_EXTERN_TEMPLATE_EXPORT
 using CharacterIteratorInFlatTree =
     CharacterIteratorAlgorithm<EditingInFlatTreeStrategy>;
 
-CORE_EXPORT EphemeralRange
-CalculateCharacterSubrange(const EphemeralRange&,
-                           wtf_size_t character_offset,
-                           wtf_size_t character_count);
+CORE_EXPORT EphemeralRange CalculateCharacterSubrange(const EphemeralRange&,
+                                                      int character_offset,
+                                                      int character_count);
 
 }  // namespace blink
 

@@ -71,9 +71,6 @@ class View;
 // changed.
 class VIEWS_EXPORT FlexLayout : public LayoutManagerBase {
  public:
-  METADATA_HEADER(FlexLayout, LayoutManagerBase)
-
- public:
   FlexLayout();
 
   FlexLayout(const FlexLayout&) = delete;

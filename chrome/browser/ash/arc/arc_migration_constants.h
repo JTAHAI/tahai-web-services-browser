@@ -14,7 +14,7 @@ inline constexpr double kMigrationMinimumBatteryPercent = 10;
 
 // The minimum size of available space to start the migration.
 inline constexpr base::ByteSize kMigrationMinimumAvailableStorage =
-    base::MiB(50);
+    base::MiBU(50);
 
 }  // namespace arc
 

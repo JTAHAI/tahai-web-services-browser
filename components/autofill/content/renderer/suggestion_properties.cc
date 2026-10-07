@@ -28,17 +28,18 @@ bool ShouldAutofillOnEmptyValues(
     case AutofillSuggestionTriggerSource::kProactivePasswordRecovery:
     case AutofillSuggestionTriggerSource::kGlic:
     case AutofillSuggestionTriggerSource::kAtMemoryContextMenu:
-    case AutofillSuggestionTriggerSource::kAtMemoryDoubleCtrl:
     case AutofillSuggestionTriggerSource::kAtMemoryKeyboardShortcut:
     case AutofillSuggestionTriggerSource::kAtMemoryTriggerString:
       return true;
     case AutofillSuggestionTriggerSource::kTextFieldValueChanged:
     case AutofillSuggestionTriggerSource::kAtMemoryInactivityNudge:
       return false;
-    // `kPasswordManager` and `kiOS` are not used in the renderer code. As such,
-    // suggestion properties don't apply to them.
+    // `kPasswordManager`, `kiOS`, and `kPlusAddressUpdatedInBrowserProcess` are
+    // not used in the renderer code. As such, suggestion properties don't apply
+    // to them.
     case AutofillSuggestionTriggerSource::kPasswordManager:
     case AutofillSuggestionTriggerSource::kiOS:
+    case AutofillSuggestionTriggerSource::kPlusAddressUpdatedInBrowserProcess:
     case AutofillSuggestionTriggerSource::kUnspecified:
       break;
   }
@@ -53,7 +54,6 @@ bool ShouldAutofillOnLongValues(
     case AutofillSuggestionTriggerSource::kComposeDialogLostFocus:
     case AutofillSuggestionTriggerSource::kComposeDelayedProactiveNudge:
     case AutofillSuggestionTriggerSource::kAtMemoryContextMenu:
-    case AutofillSuggestionTriggerSource::kAtMemoryDoubleCtrl:
     case AutofillSuggestionTriggerSource::kAtMemoryKeyboardShortcut:
     case AutofillSuggestionTriggerSource::kAtMemoryTriggerString:
       return true;
@@ -64,6 +64,7 @@ bool ShouldAutofillOnLongValues(
     case AutofillSuggestionTriggerSource::kAtMemoryInactivityNudge:
     case AutofillSuggestionTriggerSource::kTextFieldDidReceiveKeyDown:
     case AutofillSuggestionTriggerSource::kPasswordManagerProcessedFocusedField:
+    case AutofillSuggestionTriggerSource::kPlusAddressUpdatedInBrowserProcess:
     case AutofillSuggestionTriggerSource::kProactivePasswordRecovery:
     case AutofillSuggestionTriggerSource::kGlic:
       return false;
@@ -91,15 +92,16 @@ bool RequiresCaretAtEnd(AutofillSuggestionTriggerSource trigger_source) {
     case AutofillSuggestionTriggerSource::kProactivePasswordRecovery:
     case AutofillSuggestionTriggerSource::kGlic:
     case AutofillSuggestionTriggerSource::kAtMemoryContextMenu:
-    case AutofillSuggestionTriggerSource::kAtMemoryDoubleCtrl:
     case AutofillSuggestionTriggerSource::kAtMemoryInactivityNudge:
     case AutofillSuggestionTriggerSource::kAtMemoryKeyboardShortcut:
     case AutofillSuggestionTriggerSource::kAtMemoryTriggerString:
       return false;
-    // `kPasswordManager` and `kiOS` are not used in the renderer code. As such,
-    // suggestion properties don't apply to them.
+    // `kPasswordManager`, `kiOS`, and `kPlusAddressUpdatedInBrowserProcess` are
+    // not used in the renderer code. As such, suggestion properties don't apply
+    // to them.
     case AutofillSuggestionTriggerSource::kPasswordManager:
     case AutofillSuggestionTriggerSource::kiOS:
+    case AutofillSuggestionTriggerSource::kPlusAddressUpdatedInBrowserProcess:
     case AutofillSuggestionTriggerSource::kUnspecified:
       break;
   }
@@ -125,7 +127,6 @@ bool ShouldShowFullSuggestionListForPasswordManager(
     case AutofillSuggestionTriggerSource::kComposeDialogLostFocus:
     case AutofillSuggestionTriggerSource::kComposeDelayedProactiveNudge:
     case AutofillSuggestionTriggerSource::kAtMemoryContextMenu:
-    case AutofillSuggestionTriggerSource::kAtMemoryDoubleCtrl:
     case AutofillSuggestionTriggerSource::kAtMemoryInactivityNudge:
     case AutofillSuggestionTriggerSource::kAtMemoryKeyboardShortcut:
     case AutofillSuggestionTriggerSource::kAtMemoryTriggerString:
@@ -133,15 +134,16 @@ bool ShouldShowFullSuggestionListForPasswordManager(
     case AutofillSuggestionTriggerSource::kProactivePasswordRecovery:
     case AutofillSuggestionTriggerSource::kGlic:
       return true;
-    // `kPasswordManager` and `kiOS` are not used in the renderer code. As such,
-    // suggestion properties don't apply to them. `kPasswordManager`
-    // specifically is used to identify password manager suggestions in the
-    // browser process. In the renderer, the logic triggering suggestions
-    // through Blink events is shared. Thus, the return values for
-    // `kFormControlElementClicked` etc. matter for the password manager in the
-    // renderer.
+    // `kPasswordManager`, `kiOS`, and `kPlusAddressUpdatedInBrowserProcess`
+    // are not used in the renderer code. As such, suggestion properties
+    // don't apply to them. `kPasswordManager` specifically is used to
+    // identify password manager suggestions in the browser process. In the
+    // renderer, the logic triggering suggestions through Blink events is
+    // shared. Thus, the return values for `kFormControlElementClicked` etc.
+    // matter for the password manager in the renderer.
     case AutofillSuggestionTriggerSource::kPasswordManager:
     case AutofillSuggestionTriggerSource::kiOS:
+    case AutofillSuggestionTriggerSource::kPlusAddressUpdatedInBrowserProcess:
     case AutofillSuggestionTriggerSource::kUnspecified:
       break;
   }

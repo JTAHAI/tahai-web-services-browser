@@ -8,6 +8,8 @@ Screen
  isInternal=false
  colorDepth=24
  devicePixelRatio=1
+ orientation.type=landscape-primary
+ orientation.angle=0
 Screen
  label='#2'
  800,0 600x800
@@ -17,3 +19,5 @@ Screen
  isInternal=false
  colorDepth=24
  devicePixelRatio=1
+ orientation.type=landscape-primary
+ orientation.angle=0

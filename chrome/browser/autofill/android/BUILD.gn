@@ -96,13 +96,6 @@ android_library("java") {
     "java/src/org/chromium/chrome/browser/autofill/settings/personal_context/AutofillPersonalContextNoticePreference.java",
     "java/src/org/chromium/chrome/browser/autofill/settings/personal_context/AutofillPersonalContextProperties.java",
     "java/src/org/chromium/chrome/browser/autofill/settings/personal_context/AutofillPersonalContextViewBinder.java",
-    "java/src/org/chromium/chrome/browser/autofill/wallet_reminder_notice/AutofillWalletReminderNoticeBottomSheetBridge.java",
-    "java/src/org/chromium/chrome/browser/autofill/wallet_reminder_notice/AutofillWalletReminderNoticeBottomSheetContent.java",
-    "java/src/org/chromium/chrome/browser/autofill/wallet_reminder_notice/AutofillWalletReminderNoticeBottomSheetCoordinator.java",
-    "java/src/org/chromium/chrome/browser/autofill/wallet_reminder_notice/AutofillWalletReminderNoticeBottomSheetMediator.java",
-    "java/src/org/chromium/chrome/browser/autofill/wallet_reminder_notice/AutofillWalletReminderNoticeBottomSheetProperties.java",
-    "java/src/org/chromium/chrome/browser/autofill/wallet_reminder_notice/AutofillWalletReminderNoticeBottomSheetView.java",
-    "java/src/org/chromium/chrome/browser/autofill/wallet_reminder_notice/AutofillWalletReminderNoticeBottomSheetViewBinder.java",
   ]
 
   resources_package = "org.chromium.chrome.browser.autofill"
@@ -135,7 +128,6 @@ android_library("java") {
     "//components/autofill/android:main_autofill_java",
     "//components/autofill/android:payments_interfaces_java",
     "//components/autofill/core/browser/data_model/payments:mojo_bindings_java",
-    "//components/browser_ui/bottomsheet/android:java",
     "//components/browser_ui/settings/android:java",
     "//components/browser_ui/styles/android:java",
     "//components/browser_ui/styles/android:java_resources",
@@ -209,7 +201,6 @@ generate_jni("jni_headers") {
     "java/src/org/chromium/chrome/browser/autofill/autofill_ai/AutofillAiSaveUpdateEntityPromptController.java",
     "java/src/org/chromium/chrome/browser/autofill/autofill_ai/EntityAttributeUpdateDetails.java",
     "java/src/org/chromium/chrome/browser/autofill/autofill_ai/EntityDataManager.java",
-    "java/src/org/chromium/chrome/browser/autofill/wallet_reminder_notice/AutofillWalletReminderNoticeBottomSheetBridge.java",
   ]
 }
 
@@ -220,11 +211,8 @@ android_resources("java_resources") {
     "//ui/android:ui_java_resources",
   ]
   sources = [
-    "java/res/drawable-night/autofill_wallet_reminder_notice_illustration.xml",
     "java/res/drawable/account_box.xml",
     "java/res/drawable/autofill_editor_notice_background.xml",
-    "java/res/drawable/autofill_wallet_reminder_notice_illustration.xml",
-    "java/res/drawable/calendar_month_24dp.xml",
     "java/res/drawable/finance.xml",
     "java/res/drawable/google_24dp.xml",
     "java/res/drawable/insight_spark.xml",
@@ -250,7 +238,6 @@ android_resources("java_resources") {
     "java/res/layout/autofill_save_address_profile_prompt.xml",
     "java/res/layout/autofill_update_address_profile_prompt.xml",
     "java/res/layout/autofill_vcn_enroll_bottom_sheet_content.xml",
-    "java/res/layout/autofill_wallet_reminder_notice_bottom_sheet.xml",
     "java/res/layout/radio_button_group_third_party_preference.xml",
     "java/res/menu/prefeditor_editor_menu.xml",
     "java/res/values/dimens.xml",
@@ -277,7 +264,6 @@ android_library("test_java") {
     "javatest/src/org/chromium/chrome/browser/autofill/editors/common/dropdown_field/DropdownFieldViewTest.java",
     "javatest/src/org/chromium/chrome/browser/autofill/settings/options/AutofillOptionsRenderTest.java",
     "javatest/src/org/chromium/chrome/browser/autofill/settings/personal_context/AutofillPersonalContextSettingsRenderTest.java",
-    "javatest/src/org/chromium/chrome/browser/autofill/wallet_reminder_notice/AutofillWalletReminderNoticeBottomSheetRenderTest.java",
   ]
 
   deps = [
@@ -298,8 +284,6 @@ android_library("test_java") {
     "//chrome/test/android:chrome_java_integration_test_support",
     "//components/autofill/android:autofill_features_java",
     "//components/autofill/android:main_autofill_java",
-    "//components/browser_ui/bottomsheet/android:java",
-    "//components/browser_ui/bottomsheet/android/test:java",
     "//components/signin/public/android:java",
     "//components/sync/android:sync_java",
     "//content/public/test/android:content_java_test_support",
@@ -334,11 +318,6 @@ robolectric_library("junit") {
     "junit/src/org/chromium/chrome/browser/autofill/editors/utils/TestUtils.java",
     "junit/src/org/chromium/chrome/browser/autofill/settings/options/AutofillOptionsTest.java",
     "junit/src/org/chromium/chrome/browser/autofill/settings/personal_context/AutofillPersonalContextTest.java",
-    "junit/src/org/chromium/chrome/browser/autofill/wallet_reminder_notice/AutofillWalletReminderNoticeBottomSheetBridgeTest.java",
-    "junit/src/org/chromium/chrome/browser/autofill/wallet_reminder_notice/AutofillWalletReminderNoticeBottomSheetContentTest.java",
-    "junit/src/org/chromium/chrome/browser/autofill/wallet_reminder_notice/AutofillWalletReminderNoticeBottomSheetMediatorTest.java",
-    "junit/src/org/chromium/chrome/browser/autofill/wallet_reminder_notice/AutofillWalletReminderNoticeBottomSheetModuleTest.java",
-    "junit/src/org/chromium/chrome/browser/autofill/wallet_reminder_notice/AutofillWalletReminderNoticeBottomSheetViewTest.java",
   ]
 
   deps = [
@@ -363,9 +342,7 @@ robolectric_library("junit") {
     "//components/autofill/android:autofill_ai_test_utils_java",
     "//components/autofill/android:autofill_features_java",
     "//components/autofill/android:main_autofill_java",
-    "//components/browser_ui/bottomsheet/android:factory_java",
     "//components/browser_ui/bottomsheet/android:java",
-    "//components/browser_ui/bottomsheet/android:manager_java",
     "//components/browser_ui/settings/android:java",
     "//components/browser_ui/styles/android:java",
     "//components/browser_ui/widget/android:java",
@@ -395,7 +372,6 @@ robolectric_library("junit") {
     "//third_party/junit",
     "//third_party/mockito:mockito_java",
     "//ui/accessibility:ax_base_java",
-    "//ui/accessibility:ui_accessibility_test_support_java",
     "//ui/android:ui_full_java",
     "//ui/android:ui_java_test_support",
   ]

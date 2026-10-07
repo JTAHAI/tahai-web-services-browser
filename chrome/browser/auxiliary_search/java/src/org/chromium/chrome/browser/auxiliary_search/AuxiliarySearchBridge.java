@@ -56,18 +56,20 @@ public class AuxiliarySearchBridge {
                 .getNonSensitiveTabs(
                         mNativeBridge,
                         tabs,
-                        (Callback<Object[]>)
-                                (Object[] tabs1) -> {
-                                    ArrayList<Tab> tabList = new ArrayList<>();
-                                    for (Object o : tabs1) {
-                                        assert (o instanceof Tab);
+                        new Callback<Object[]>() {
+                            @Override
+                            public void onResult(Object[] tabs) {
+                                ArrayList<Tab> tabList = new ArrayList<>();
+                                for (Object o : tabs) {
+                                    assert (o instanceof Tab);
 
-                                        tabList.add((Tab) o);
-                                    }
+                                    tabList.add((Tab) o);
+                                }
 
-                                    PostTask.runOrPostTask(
-                                            TaskTraits.UI_DEFAULT, callback.bind(tabList));
-                                });
+                                PostTask.runOrPostTask(
+                                        TaskTraits.UI_DEFAULT, callback.bind(tabList));
+                            }
+                        });
     }
 
     /**

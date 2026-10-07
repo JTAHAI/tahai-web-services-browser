@@ -267,7 +267,7 @@ class CAPTURE_EXPORT CameraHalDispatcherImpl final
   void OnCameraHalClientConnectionError(CameraClientObserver* client);
 
   void OnGetCameraModule(
-      base::UnguessableToken auth_token,
+      CameraClientObserver* client_observer,
       mojo::PendingRemote<cros::mojom::CameraModule> camera_module);
 
   // Cleans up everything about the observer

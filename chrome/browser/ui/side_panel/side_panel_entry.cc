@@ -19,15 +19,6 @@ DEFINE_OWNED_UI_CLASS_PROPERTY_KEY(std::u16string, kSidePanelTitleKey)
 DEFINE_UI_CLASS_PROPERTY_KEY(bool, kShouldShowTitleInSidePanelHeaderKey, true)
 #endif
 
-namespace {
-#if BUILDFLAG(IS_ANDROID)
-// Only supported type on Android.
-constexpr SidePanelType kDefaultSidePanelType = SidePanelType::kToolbar;
-#else
-constexpr SidePanelType kDefaultSidePanelType = SidePanelType::kContent;
-#endif
-}  // namespace
-
 SidePanelEntry::SidePanelEntry(
     Key key,
     CreateContentCallback create_content_callback,
@@ -35,13 +26,12 @@ SidePanelEntry::SidePanelEntry(
     base::RepeatingCallback<std::unique_ptr<ui::MenuModel>()>
         more_info_callback,
     base::RepeatingCallback<int()> default_content_width_callback)
-    : type_(kDefaultSidePanelType),
+    : type_(SidePanelType::kContent),
       key_(key),
       create_content_callback_(std::move(create_content_callback)),
       open_in_new_tab_url_callback_(std::move(open_in_new_tab_url_callback)),
       more_info_callback_(std::move(more_info_callback)),
-      default_content_width_callback_(
-          std::move(default_content_width_callback)) {
+      default_content_width_callback_(default_content_width_callback) {
   DCHECK(create_content_callback_);
 }
 
@@ -55,8 +45,7 @@ SidePanelEntry::SidePanelEntry(
       create_content_callback_(std::move(create_content_callback)),
       open_in_new_tab_url_callback_(base::NullCallback()),
       more_info_callback_(base::NullCallback()),
-      default_content_width_callback_(
-          std::move(default_content_width_callback)) {
+      default_content_width_callback_(default_content_width_callback) {
   DCHECK(create_content_callback_);
 }
 
@@ -64,10 +53,10 @@ SidePanelEntry::SidePanelEntry(
     Key key,
     CreateContentCallback create_content_callback,
     base::RepeatingCallback<int()> default_content_width_callback)
-    : SidePanelEntry(kDefaultSidePanelType,
+    : SidePanelEntry(SidePanelType::kContent,
                      key,
                      std::move(create_content_callback),
-                     std::move(default_content_width_callback)) {}
+                     default_content_width_callback) {}
 
 SidePanelEntry::~SidePanelEntry() = default;
 
@@ -113,10 +102,6 @@ void SidePanelEntry::OnEntryHidden() {
 }
 
 #if BUILDFLAG(IS_ANDROID)
-void SidePanelEntry::OnEntryShowDeferred() {
-  observers_.Notify(&SidePanelEntryObserver::OnEntryShowDeferred, this);
-}
-
 void SidePanelEntry::OnEntryHiddenWithReason(SidePanelEntryHideReason reason) {
   observers_.Notify(&SidePanelEntryObserver::OnEntryHiddenWithReason, this,
                     reason);

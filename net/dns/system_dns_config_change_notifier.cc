@@ -38,17 +38,18 @@ class WrappedObserver {
 
   ~WrappedObserver() { DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_); }
 
-  void OnNotifyThreadsafe(const DnsConfig& config) {
+  void OnNotifyThreadsafe(std::optional<DnsConfig> config) {
     task_runner_->PostTask(
         FROM_HERE,
         base::BindOnce(&WrappedObserver::OnNotify,
-                       weak_ptr_factory_.GetWeakPtr(), config));
+                       weak_ptr_factory_.GetWeakPtr(), std::move(config)));
   }
 
-  void OnNotify(const DnsConfig& config) {
+  void OnNotify(std::optional<DnsConfig> config) {
     DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+    DCHECK(!config || config.value().IsValid());
 
-    observer_->OnSystemDnsConfigChanged(config);
+    observer_->OnSystemDnsConfigChanged(std::move(config));
   }
 
  private:
@@ -99,7 +100,7 @@ class SystemDnsConfigChangeNotifier::Core {
         // Even though this is the same sequence as the observer, use the
         // threadsafe OnNotify to post the notification for both lock and
         // reentrancy safety.
-        wrapped_observer->OnNotifyThreadsafe(config_.value());
+        wrapped_observer->OnNotifyThreadsafe(config_);
       }
 
       DCHECK_EQ(0u, wrapped_observers_.count(observer));
@@ -158,13 +159,20 @@ class SystemDnsConfigChangeNotifier::Core {
     DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
     base::AutoLock lock(lock_);
 
-    if (config_ == config)
+    // |config_| is |std::nullopt| if most recent config was invalid (or no
+    // valid config has yet been read), so convert |config| to a similar form
+    // before comparing for change.
+    std::optional<DnsConfig> new_config;
+    if (config.IsValid())
+      new_config = config;
+
+    if (config_ == new_config)
       return;
 
-    config_ = config;
+    config_ = std::move(new_config);
 
     for (auto& wrapped_observer : wrapped_observers_) {
-      wrapped_observer.second->OnNotifyThreadsafe(config);
+      wrapped_observer.second->OnNotifyThreadsafe(config_);
     }
   }
 
@@ -176,8 +184,8 @@ class SystemDnsConfigChangeNotifier::Core {
   // Fields that may be accessed from any sequence. Must protect access using
   // |lock_|.
   mutable base::Lock lock_;
-  // Holds the most recently read system DNS config. `std::nullopt` only if no
-  // config has yet been read.
+  // Only stores valid configs. |std::nullopt| if most recent config was
+  // invalid (or no valid config has yet been read).
   std::optional<DnsConfig> config_ GUARDED_BY(lock_);
   std::map<Observer*, std::unique_ptr<WrappedObserver>> wrapped_observers_
       GUARDED_BY(lock_);

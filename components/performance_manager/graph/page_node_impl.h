@@ -154,7 +154,7 @@ class PageNodeImpl
   // Accessors.
   FrameNodeImpl* opener_frame_node() const;
   FrameNodeImpl* embedder_frame_node() const;
-  FrameNodeImpl* primary_main_frame_node() const;
+  FrameNodeImpl* main_frame_node() const;
   NodeSetView<FrameNodeImpl*> main_frame_nodes() const;
 
   // Invoked to set/clear the opener of this page.
@@ -200,6 +200,7 @@ class PageNodeImpl
   void TraceFrame(base::PassKey<FrameNodeImpl>, FrameNodeImpl* frame_node);
   void RemoveFrame(base::PassKey<FrameNodeImpl>, FrameNodeImpl* frame_node);
 
+  // Function meant to be called by FrozenFrameAggregator.
   void SetLifecycleState(base::PassKey<FrozenFrameAggregator>,
                          LifecycleState lifecycle_state) {
     SetLifecycleState(lifecycle_state);
@@ -238,7 +239,7 @@ class PageNodeImpl
   // Partial PageNode implementation:
   const FrameNode* GetOpenerFrameNode() const override;
   const FrameNode* GetEmbedderFrameNode() const override;
-  const FrameNode* GetPrimaryMainFrameNode() const override;
+  const FrameNode* GetMainFrameNode() const override;
   NodeSetView<const FrameNode*> GetMainFrameNodes() const override;
 
   // NodeBase:
@@ -299,10 +300,9 @@ class PageNodeImpl
 
   // The URL the main frame last committed, or the initial URL a page was
   // initialized with. The latter case is distinguished by a zero navigation ID.
-  ObservedProperty::NotifiesOnlyOnChangesWithPreviousValue<
-      GURL,
-      &PageNodeObserver::OnMainFrameUrlChanged>
-      main_frame_url_ GUARDED_BY_CONTEXT(sequence_checker_);
+  ObservedProperty::
+      NotifiesOnlyOnChanges<GURL, &PageNodeObserver::OnMainFrameUrlChanged>
+          main_frame_url_ GUARDED_BY_CONTEXT(sequence_checker_);
 
   // The unique ID of the navigation handle the main frame last committed, or
   // zero if the page has never committed a navigation.

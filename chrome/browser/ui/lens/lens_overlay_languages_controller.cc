@@ -8,7 +8,6 @@
 #include <utility>
 #include <vector>
 
-#include "base/i18n/tag_converters.h"
 #include "base/json/json_reader.h"
 #include "base/values.h"
 #include "chrome/browser/browser_process.h"
@@ -96,8 +95,7 @@ void LensOverlayLanguagesController::SendGetSupportedLanguagesRequest(
 void LensOverlayLanguagesController::OnGetSupportedLanguagesResponse(
     std::optional<std::string> response_body) {
   if (!response_body) {
-    std::move(callback_).Run(std::string(locale_.tag_string()),
-                             std::vector<mojom::LanguagePtr>(),
+    std::move(callback_).Run(locale_, std::vector<mojom::LanguagePtr>(),
                              std::vector<mojom::LanguagePtr>());
     return;
   }
@@ -105,8 +103,7 @@ void LensOverlayLanguagesController::OnGetSupportedLanguagesResponse(
   std::optional<base::DictValue> result_dict =
       base::JSONReader::ReadDict(*response_body, base::JSON_PARSE_RFC);
   if (!result_dict) {
-    std::move(callback_).Run(std::string(locale_.tag_string()),
-                             std::vector<mojom::LanguagePtr>(),
+    std::move(callback_).Run(locale_, std::vector<mojom::LanguagePtr>(),
                              std::vector<mojom::LanguagePtr>());
     return;
   }
@@ -122,8 +119,7 @@ void LensOverlayLanguagesController::OnGetSupportedLanguagesResponse(
       RetrieveLanguagesFromResults(target_language_list);
 
   if (callback_) {
-    std::move(callback_).Run(std::string(locale_.tag_string()),
-                             std::move(source_languages),
+    std::move(callback_).Run(locale_, std::move(source_languages),
                              std::move(target_languages));
   }
 }
@@ -161,12 +157,9 @@ LensOverlayLanguagesController::InitializeURLLoader() {
       std::make_unique<network::ResourceRequest>();
   resource_request->credentials_mode = network::mojom::CredentialsMode::kOmit;
 
-  locale_ = base::i18n::GetLanguageTagFromString(
-                g_browser_process->GetApplicationLocale())
-                .value_or(base::i18n::GetKnownLanguageTag("und"));
-  std::string_view country = locale_.region_subtag();
-  std::string_view language = locale_.language_subtag();
-  resource_request->url = BuildTranslateLanguagesURL(country, language);
+  locale_ = g_browser_process->GetApplicationLocale();
+  resource_request->url = BuildTranslateLanguagesURL(
+      l10n_util::GetCountry(locale_), l10n_util::GetLanguage(locale_));
 
   google_apis::AddDefaultAPIKeyToRequest(*resource_request,
                                          chrome::GetChannel());

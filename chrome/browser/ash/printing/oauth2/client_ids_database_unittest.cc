@@ -24,8 +24,7 @@ class PrintingOAuth2ClientIdsDatabaseTest : public testing::Test {
  protected:
   base::test::TaskEnvironment task_environment_;
   std::unique_ptr<ClientIdsDatabase> client_ids_database_ =
-      ClientIdsDatabase::Create(
-          TestingBrowserProcess::GetGlobal()->local_state());
+      ClientIdsDatabase::Create();
 };
 
 // Represents results returned by callback void(StatusCode, std::string).

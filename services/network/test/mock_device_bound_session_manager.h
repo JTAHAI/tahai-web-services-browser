@@ -52,10 +52,6 @@ class MockDeviceBoundSessionManager : public mojom::DeviceBoundSessionManager {
                const net::CookieOptions& cookie_options,
                CreateBoundSessionsCallback callback),
               (override));
-  MOCK_METHOD(void,
-              PrewarmSessionsForUrl,
-              (const GURL& url, PrewarmSessionsForUrlCallback callback),
-              (override));
 };
 
 }  // namespace network

@@ -591,10 +591,7 @@ if (is_win || is_mac || is_linux) {
       "tag_internal.h",
     ]
 
-    deps = [
-      "//base",
-      "//crypto",
-    ]
+    deps = [ "//base" ]
   }
 
   source_set("public_util") {
@@ -1060,7 +1057,6 @@ if (is_win || is_mac || is_linux) {
         "win/task_scheduler_unittest.cc",
         "win/ui/l10n_util_unittest.cc",
         "win/ui/progress_wnd_unittest.cc",
-        "win/ui/ui_util_unittest.cc",
         "win/updater_tests.rc",
         "win/user_info_unittest.cc",
       ]

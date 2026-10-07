@@ -92,7 +92,7 @@ TEST_P(ContentSettingPermissionResolverTest,
                     .prompt_options = std::monostate(),
                     .is_final = true}),
 
-            PermissionSetting(CONTENT_SETTING_DEFAULT));
+            PermissionSetting(CONTENT_SETTING_ASK));
 }
 
 }  // namespace permissions

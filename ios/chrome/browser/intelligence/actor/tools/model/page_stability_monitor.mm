@@ -18,12 +18,9 @@
 #import "base/state_transitions.h"
 #import "base/task/sequenced_task_runner.h"
 #import "base/time/time.h"
-#import "components/actor/core/journal_details_builder.h"
-#import "components/actor/core/page_stability_monitor_delegate.h"
-#import "components/page_content_annotations/core/page_stability_event.h"
 #import "components/page_content_annotations/core/page_stability_state.h"
-#import "ios/chrome/browser/intelligence/actor/tools/model/ios_page_stability_monitor_delegate.h"
 #import "ios/chrome/browser/intelligence/actor/tools/model/page_stability_java_script_feature.h"
+#import "ios/chrome/browser/intelligence/features/features.h"
 #import "ios/web/public/js_messaging/web_frame.h"
 
 namespace actor {
@@ -32,16 +29,7 @@ using State = ::page_content_annotations::PageStabilityState;
 
 PageStabilityMonitor::PageStabilityMonitor(
     base::WeakPtr<web::WebFrame> target_frame)
-    : PageStabilityMonitor(
-          target_frame,
-          std::make_unique<IOSPageStabilityMonitorDelegate>()) {}
-
-PageStabilityMonitor::PageStabilityMonitor(
-    base::WeakPtr<web::WebFrame> target_frame,
-    std::unique_ptr<PageStabilityMonitorDelegate> delegate)
-    : target_frame_(target_frame), delegate_(std::move(delegate)) {
-  CHECK(delegate_);
-}
+    : target_frame_(target_frame) {}
 
 PageStabilityMonitor::~PageStabilityMonitor() {
   if (state_ == State::kDone) {
@@ -59,9 +47,6 @@ void PageStabilityMonitor::NotifyWhenStable(base::TimeDelta observation_delay,
   CHECK(!is_stable_callback_);
   is_stable_callback_ = std::move(callback);
 
-  delegate_->OnEvent(
-      page_content_annotations::PageStabilityMonitorStartEvent{});
-
   if (!target_frame_) {
     MoveToState(State::kRenderFrameGoingAway);
     return;
@@ -73,7 +58,7 @@ void PageStabilityMonitor::NotifyWhenStable(base::TimeDelta observation_delay,
       FROM_HERE,
       base::BindOnce(&PageStabilityMonitor::OnTimeout,
                      weak_ptr_factory_.GetWeakPtr()),
-      delegate_->GetTimeoutDelay());
+      GetActorPageStabilityTimeout());
 
   MoveToState(State::kMonitorStartDelay);
 }
@@ -84,7 +69,6 @@ void PageStabilityMonitor::MoveToState(State new_state) {
   }
 
   CheckStateTransition(state_, new_state);
-  delegate_->WillMoveToState(new_state);
 
   state_ = new_state;
   state_history_.push_back(state_);
@@ -93,9 +77,6 @@ void PageStabilityMonitor::MoveToState(State new_state) {
       NOTREACHED();
     }
     case State::kMonitorStartDelay: {
-      delegate_->OnEvent(
-          page_content_annotations::PageStabilityMonitorStartDelayEvent{
-              .delay = monitoring_start_delay_});
       PostMoveToStateClosure(State::kStartMonitoring, monitoring_start_delay_)
           .Run();
       break;
@@ -114,12 +95,11 @@ void PageStabilityMonitor::MoveToState(State new_state) {
     case State::kTimeout: {
       final_result_ =
           ToolExecutionResult(mojom::ActionResultCode::kToolTimeout);
-      StopMonitoring();
       MoveToState(State::kInvokeCallback);
       break;
     }
     case State::kMonitorCompleted: {
-      base::TimeDelta min_wait_time = delegate_->GetMinWait();
+      base::TimeDelta min_wait_time = GetActorPageStabilityMinWait();
 
       base::TimeDelta callback_invoke_delay;
       if (min_wait_time.is_positive()) {
@@ -145,12 +125,10 @@ void PageStabilityMonitor::MoveToState(State new_state) {
     case State::kInvokeCallback: {
       CHECK(is_stable_callback_);
 
-      // Transition to kDone before running the callback in case the callback
-      // destroys this object.
-      NotifyWhenStableCallback callback = std::move(is_stable_callback_);
-      MoveToState(State::kDone);
+      // TODO(crbug.com/498991756): Log the `final_result_` here.
+      std::move(is_stable_callback_).Run();
 
-      std::move(callback).Run();
+      MoveToState(State::kDone);
       break;
     }
     case State::kRenderFrameGoingAway: {
@@ -172,7 +150,6 @@ void PageStabilityMonitor::MoveToState(State new_state) {
 }
 
 void PageStabilityMonitor::StopMonitoring() {
-  delegate_->OnEvent(page_content_annotations::PageStabilityMonitorStopEvent{});
   if (target_frame_ && target_frame_->GetBrowserState()) {
     PageStabilityJavaScriptFeature::GetInstance()->CancelWaitForStability(
         target_frame_.get());
@@ -180,8 +157,6 @@ void PageStabilityMonitor::StopMonitoring() {
 }
 
 void PageStabilityMonitor::Teardown() {
-  delegate_->OnEvent(
-      page_content_annotations::PageStabilityMonitorTearDownEvent{});
   weak_ptr_factory_.InvalidateWeakPtrsAndDoom();
 }
 
@@ -227,6 +202,7 @@ void PageStabilityMonitor::OnWebFrameGoingAway() {
 }
 
 void PageStabilityMonitor::OnTimeout() {
+  StopMonitoring();
   MoveToState(State::kTimeout);
 }
 

@@ -11,7 +11,6 @@ import win32gui
 
 try:
   import pywinauto
-
   _UI_TEST = True
 except ImportError:
   _UI_TEST = False
@@ -40,9 +39,9 @@ def _get_chrome_windows():
 def shutdown_chrome():
   """Shutdown Chrome cleanly.
 
-  Surprisingly there is no easy way in chromedriver to shutdown Chrome
-  cleanly on Windows. So we have to use win32 API to do that: we find
-  the chrome window first, then send WM_CLOSE message to it.
+    Surprisingly there is no easy way in chromedriver to shutdown Chrome
+    cleanly on Windows. So we have to use win32 API to do that: we find
+    the chrome window first, then send WM_CLOSE message to it.
   """
   window_list = _get_chrome_windows()
   if not window_list:
@@ -64,9 +63,8 @@ class Policy(NamedTuple):
 
 
 # TODO(crbug.com/399483772): Update tests to use this to get policies.
-def fetch_policies(
-  driver: webdriver.Chrome, refresh: bool = True
-) -> dict[str, Policy]:
+def fetch_policies(driver: webdriver.Chrome,
+                   refresh: bool = True) -> dict[str, Policy]:
   driver.get('chrome://policy')
   if refresh:
     clickable = EC.element_to_be_clickable((By.ID, 'reload-policies'))
@@ -86,8 +84,7 @@ def fetch_policies(
     policy_attrs = {}
     for attr in ['value', 'source', 'scope', 'messages']:
       policy_attrs[attr] = getElementFromShadowRoot(
-        driver, row, f'div.policy.row > div.{attr}'
-      ).text
+          driver, row, f'div.policy.row > div.{attr}').text
     policies[name] = Policy(**policy_attrs)
   return policies
 
@@ -98,22 +95,18 @@ def getElementFromShadowRoot(driver, element, selector):
     return None
   else:
     return driver.execute_script(
-      "return arguments[0].shadowRoot.querySelector(arguments[1])",
-      element,
-      selector,
-    )
+        "return arguments[0].shadowRoot.querySelector(arguments[1])", element,
+        selector)
 
 
 def getElementsFromShadowRoot(driver, element, selector):
-  """Gets a list of matched WebElements from ShadowRoot."""
+  """Gets a list of matched WebElements from ShadowRoot. """
   if element is None:
     return None
   else:
     return driver.execute_script(
-      "return arguments[0].shadowRoot.querySelectorAll(arguments[1])",
-      element,
-      selector,
-    )
+        "return arguments[0].shadowRoot.querySelectorAll(arguments[1])",
+        element, selector)
 
 
 def create_chrome_webdriver(chrome_options=None, incognito=False, prefs=None):
@@ -136,12 +129,10 @@ def create_chrome_webdriver(chrome_options=None, incognito=False, prefs=None):
   os.environ["CHROME_LOG_FILE"] = r"c:\temp\chrome_log.txt"
 
   return webdriver.Chrome(
-    service=Service(
-      executable_path=r"C:\temp\chromedriver.exe",
-      service_args=["--verbose", r"--log-path=c:\temp\chromedriver.log"],
-    ),
-    options=chrome_options,
-  )
+      service=Service(
+          executable_path=r"C:\temp\chromedriver.exe",
+          service_args=["--verbose", r"--log-path=c:\temp\chromedriver.log"]),
+      options=chrome_options)
 
 
 def sign_in(driver: webdriver.Chrome, account: str, password: str):
@@ -152,8 +143,7 @@ def sign_in(driver: webdriver.Chrome, account: str, password: str):
   """
   if not _UI_TEST:
     raise Exception(
-      "not running inside a UI test, which is required for sign-in"
-    )
+        "not running inside a UI test, which is required for sign-in")
   # Start sign-in from the "New Tab Page" (NTP) so that the login page opens
   # in-place instead of in a new tab.
   driver.get("chrome://newtab")
@@ -162,41 +152,35 @@ def sign_in(driver: webdriver.Chrome, account: str, password: str):
   old_window = app.top_window()
   old_window.child_window(title="You", control_type="Button").click()
   old_window.child_window(
-    title="Sign in to Chrome", control_type="Button"
-  ).click()
+      title="Sign in to Chrome", control_type="Button").click()
 
-  for selector, value in [
-    ("input[type=email]", account),
-    ("input[type=password]", password),
-  ]:
+  for (selector, value) in [("input[type=email]", account),
+                            ("input[type=password]", password)]:
     condition = EC.element_to_be_clickable((By.CSS_SELECTOR, selector))
-    _fill_form_with_retries(
-      driver, condition, lambda element: element.send_keys(value)
-    )
+    _fill_form_with_retries(driver, condition,
+                            lambda element: element.send_keys(value))
     condition = EC.element_to_be_clickable(
-      (By.XPATH, '//button//*[text()="Next"]')
-    )
+        (By.XPATH, '//button//*[text()="Next"]'))
     _fill_form_with_retries(driver, condition, lambda element: element.click())
 
   # Dismiss "Your organization will manage this profile" dialog. Merge with the
   # existing unsynced profile to avoid opening another window (one for each
   # profile).
   merge_profiles = old_window.child_window(
-    title="Add existing browsing data to managed profile",
-    auto_id="checkbox",
-    control_type="CheckBox",
-  )
+      title="Add existing browsing data to managed profile",
+      auto_id="checkbox",
+      control_type="CheckBox")
   merge_profiles.wait("exists ready")
   merge_profiles.click_input()
   continue_button = old_window.child_window(
-    title="Continue", auto_id="proceed-button", control_type="Button"
-  )
+      title="Continue", auto_id="proceed-button", control_type="Button")
   continue_button.click()
 
 
-def _fill_form_with_retries(
-  driver: webdriver.Chrome, condition, callback, attempts: int = 3
-):
+def _fill_form_with_retries(driver: webdriver.Chrome,
+                            condition,
+                            callback,
+                            attempts: int = 3):
   # The login page dynamically adds and manipulates form input elements,
   # which:
   #   1. May not be immediately clickable or interactable

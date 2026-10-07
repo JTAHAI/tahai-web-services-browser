@@ -19,9 +19,9 @@ enum class TaskType {
   kSafeBrowsing = 7,
   kIncognito = 8,
   kPasswordCheckup = 9,
-  kLensWebsiteSearch = 10,
+  kLensSearch = 10,
   kAISearch = 11,
-  kLensCameraSearch = 12,
+  kCameraSearch = 12,
 };
 
 // Categories grouping the level-up tasks.

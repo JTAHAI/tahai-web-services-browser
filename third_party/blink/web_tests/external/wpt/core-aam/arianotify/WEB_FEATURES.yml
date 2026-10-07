@@ -1,2 +1,3 @@
-rules:
-- "**": [arianotify]
+features:
+- name: arianotify
+  files: "**"

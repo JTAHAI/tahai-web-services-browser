@@ -6,7 +6,6 @@
 #include <vector>
 
 #include "base/compiler_specific.h"
-#include "base/test/task_environment.h"
 #include "components/viz/common/hit_test/aggregated_hit_test_region.h"
 #include "components/viz/common/hit_test/hit_test_region_list.h"
 #include "mojo/public/cpp/test_support/test_utils.h"
@@ -17,8 +16,6 @@
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/fuzztest/src/fuzztest/fuzztest.h"
 #include "ui/gfx/geometry/mojom/geometry_mojom_traits.h"
-#include "ui/gfx/geometry/rect_f.h"
-#include "ui/gfx/geometry/rrect_f.h"
 #include "ui/gfx/mojom/transform_mojom_traits.h"
 
 namespace viz {
@@ -35,25 +32,6 @@ auto AnyRect() {
       fuzztest::InRange(0, 10000), fuzztest::InRange(0, 10000));
 }
 
-auto AnyRRectF() {
-  auto radius = fuzztest::InRange(0.f, 10000.f);
-  return fuzztest::Map(
-      [](const gfx::Rect& rect, bool has_rounded_corners, float upper_left_x,
-         float upper_left_y, float upper_right_x, float upper_right_y,
-         float lower_right_x, float lower_right_y, float lower_left_x,
-         float lower_left_y) {
-        const gfx::RectF rect_f(rect);
-        if (!has_rounded_corners) {
-          return gfx::RRectF(rect_f);
-        }
-        return gfx::RRectF(rect_f, upper_left_x, upper_left_y, upper_right_x,
-                           upper_right_y, lower_right_x, lower_right_y,
-                           lower_left_x, lower_left_y);
-      },
-      AnyRect(), fuzztest::Arbitrary<bool>(), radius, radius, radius, radius,
-      radius, radius, radius, radius);
-}
-
 auto AnyTransform() {
   return fuzztest::ConstructorOf<gfx::Transform>();
 }
@@ -61,7 +39,7 @@ auto AnyTransform() {
 auto AnyAggregatedHitTestRegion() {
   return fuzztest::Map(
       [](const FrameSinkId& frame_sink_id, uint32_t flags,
-         uint32_t async_hit_test_reasons, const gfx::RRectF& rect,
+         uint32_t async_hit_test_reasons, const gfx::Rect& rect,
          const gfx::Transform& transform, int32_t child_count) {
         if (flags & HitTestRegionFlags::kHitTestAsk) {
           if (!async_hit_test_reasons) {
@@ -74,14 +52,14 @@ auto AnyAggregatedHitTestRegion() {
                                        child_count, async_hit_test_reasons);
       },
       AnyFrameSinkId(), fuzztest::Arbitrary<uint32_t>(),
-      fuzztest::Arbitrary<uint32_t>(), AnyRRectF(), AnyTransform(),
+      fuzztest::Arbitrary<uint32_t>(), AnyRect(), AnyTransform(),
       fuzztest::Arbitrary<int32_t>());
 }
 
 auto AnyHitTestRegion() {
   return fuzztest::Map(
       [](const FrameSinkId& frame_sink_id, uint32_t flags,
-         uint32_t async_hit_test_reasons, const gfx::RRectF& rect,
+         uint32_t async_hit_test_reasons, const gfx::Rect& rect,
          const gfx::Transform& transform) {
         HitTestRegion region;
         region.frame_sink_id = frame_sink_id;
@@ -92,7 +70,7 @@ auto AnyHitTestRegion() {
         return region;
       },
       AnyFrameSinkId(), fuzztest::Arbitrary<uint32_t>(),
-      fuzztest::Arbitrary<uint32_t>(), AnyRRectF(), AnyTransform());
+      fuzztest::Arbitrary<uint32_t>(), AnyRect(), AnyTransform());
 }
 
 auto AnyHitTestRegionList() {
@@ -113,59 +91,29 @@ auto AnyHitTestRegionList() {
       fuzztest::VectorOf(AnyHitTestRegion()).WithMaxSize(100));
 }
 
-class HitTestStructTraitsTest : public testing::Test {
- public:
-  HitTestStructTraitsTest() = default;
-  ~HitTestStructTraitsTest() override = default;
-
- private:
-  // StructTraits for hit testing can return deserialization error traces,
-  // which have an implicit dependency on a functioning task environment to
-  // look up the current `MessageDispatchContext`.
-  base::test::SingleThreadTaskEnvironment task_environment_;
-};
-
-class HitTestStructTraitsFuzzTest {
- public:
-  HitTestStructTraitsFuzzTest() = default;
-  ~HitTestStructTraitsFuzzTest() = default;
-
-  void AggregatedHitTestRegionFuzz(const AggregatedHitTestRegion& input);
-  void HitTestRegionListFuzz(const HitTestRegionList& input);
-
- private:
-  // StructTraits for hit testing can return deserialization error traces,
-  // which have an implicit dependency on a functioning task environment to
-  // look up the current `MessageDispatchContext`.
-  base::test::SingleThreadTaskEnvironment task_environment_;
-};
-
 }  // namespace
 
-void HitTestStructTraitsFuzzTest::AggregatedHitTestRegionFuzz(
-    const AggregatedHitTestRegion& input) {
+void AggregatedHitTestRegionFuzz(const AggregatedHitTestRegion& input) {
   AggregatedHitTestRegion output;
   mojo::test::SerializeAndDeserialize<mojom::AggregatedHitTestRegion>(input,
                                                                       output);
 }
-FUZZ_TEST_F(HitTestStructTraitsFuzzTest, AggregatedHitTestRegionFuzz)
+FUZZ_TEST(StructTraitsTest, AggregatedHitTestRegionFuzz)
     .WithDomains(AnyAggregatedHitTestRegion());
 
-void HitTestStructTraitsFuzzTest::HitTestRegionListFuzz(
-    const HitTestRegionList& input) {
+void HitTestRegionListFuzz(const HitTestRegionList& input) {
   HitTestRegionList output;
   mojo::test::SerializeAndDeserialize<mojom::HitTestRegionList>(input, output);
 }
-FUZZ_TEST_F(HitTestStructTraitsFuzzTest, HitTestRegionListFuzz)
+FUZZ_TEST(StructTraitsTest, HitTestRegionListFuzz)
     .WithDomains(AnyHitTestRegionList());
 
-TEST_F(HitTestStructTraitsTest, AggregatedHitTestRegion) {
+TEST(StructTraitsTest, AggregatedHitTestRegion) {
   constexpr FrameSinkId frame_sink_id(1337, 1234);
   constexpr uint32_t flags = HitTestRegionFlags::kHitTestAsk;
   constexpr uint32_t async_hit_test_reasons =
       AsyncHitTestReasons::kOverlappedRegion;
-  const gfx::RRectF rect(gfx::RectF(0, 0, 1024, 768), 1.f, 2.f, 3.f, 4.f, 5.f,
-                         6.f, 7.f, 8.f);
+  constexpr gfx::Rect rect(1024, 768);
   gfx::Transform transform;
   transform.Scale(.5f, .7f);
   constexpr int32_t child_count = 5;
@@ -182,7 +130,7 @@ TEST_F(HitTestStructTraitsTest, AggregatedHitTestRegion) {
   EXPECT_EQ(input.child_count, output.child_count);
 }
 
-TEST_F(HitTestStructTraitsTest, HitTestRegionList) {
+TEST(StructTraitsTest, HitTestRegionList) {
   std::optional<HitTestRegionList> input(std::in_place);
   input->flags = HitTestRegionFlags::kHitTestAsk;
   input->async_hit_test_reasons = AsyncHitTestReasons::kOverlappedRegion;
@@ -193,8 +141,7 @@ TEST_F(HitTestStructTraitsTest, HitTestRegionList) {
   input_region1.flags = HitTestRegionFlags::kHitTestIgnore;
   input_region1.async_hit_test_reasons = AsyncHitTestReasons::kNotAsyncHitTest;
   input_region1.frame_sink_id = FrameSinkId(12, 13);
-  input_region1.rect = gfx::RRectF(gfx::RectF(4, 5, 6, 7), 1.f, 2.f, 3.f, 4.f,
-                                   5.f, 6.f, 7.f, 8.f);
+  input_region1.rect = gfx::Rect(4, 5, 6, 7);
   input_region1.transform.Scale(1.2f, 1.3f);
   input->regions.push_back(input_region1);
 
@@ -216,7 +163,7 @@ TEST_F(HitTestStructTraitsTest, HitTestRegionList) {
 
 // Ensures gfx::Transform doesn't mutate itself when its const methods are
 // called, to ensure it won't change in the read-only shared memory segment.
-TEST_F(HitTestStructTraitsTest, TransformImmutable) {
+TEST(StructTraitsTest, TransformImmutable) {
   auto t = gfx::Transform::RowMajor(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13,
                                     14, 15, 16);
   uint8_t mem[sizeof(t)];

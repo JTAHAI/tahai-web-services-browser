@@ -116,7 +116,16 @@ const CGFloat kTitleTopMarginWhenNoHeaderImage = 30;
       IsUseDefaultAppsDestinationForPromosEnabled();
   UIStackView* contentStack = [self contentStack:useDefaultAppsDestination];
   [self.specificContentView addSubview:contentStack];
-  AddSameConstraints(contentStack, self.specificContentView);
+  [NSLayoutConstraint activateConstraints:@[
+    [contentStack.leadingAnchor
+        constraintEqualToAnchor:self.specificContentView.leadingAnchor],
+    [contentStack.trailingAnchor
+        constraintEqualToAnchor:self.specificContentView.trailingAnchor],
+    [contentStack.bottomAnchor
+        constraintEqualToAnchor:self.specificContentView.bottomAnchor],
+    [contentStack.topAnchor
+        constraintEqualToAnchor:self.specificContentView.topAnchor]
+  ]];
 
   [super viewDidLoad];
 }

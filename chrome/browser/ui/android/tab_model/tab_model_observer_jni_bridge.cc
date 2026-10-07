@@ -51,21 +51,6 @@ void TabModelObserverJniBridge::DidSelectTab(JNIEnv* env,
   }
 }
 
-void TabModelObserverJniBridge::WillCloseTabs(
-    JNIEnv* env,
-    const std::vector<TabAndroid*>& tabs,
-    bool is_all_tabs,
-    bool allow_undo) {
-  for (auto& observer : model_observers_) {
-    observer.WillCloseTabs(tabs, is_all_tabs, allow_undo);
-  }
-  if (is_all_tabs) {
-    for (auto& observer : interface_observers_) {
-      observer.OnAllTabsAreClosing(*tab_model_);
-    }
-  }
-}
-
 void TabModelObserverJniBridge::WillCloseTab(JNIEnv* env, TabAndroid* tab) {
   CHECK(tab);
   for (auto& observer : model_observers_) {
@@ -100,19 +85,6 @@ void TabModelObserverJniBridge::OnFinishingMultipleTabClosure(
     bool can_restore) {
   for (auto& observer : model_observers_) {
     observer.OnFinishingMultipleTabClosure(tabs, can_restore);
-  }
-}
-
-void TabModelObserverJniBridge::OnTabCloseCommitted(
-    JNIEnv* env,
-    const std::vector<TabAndroid*>& tabs,
-    bool is_all_tabs,
-    bool can_restore,
-    int source) {
-  for (auto& observer : model_observers_) {
-    observer.OnTabCloseCommitted(
-        tabs, is_all_tabs, can_restore,
-        static_cast<TabModel::TabClosingSource>(source));
   }
 }
 
@@ -276,25 +248,6 @@ void TabModelObserverJniBridge::OnTabGroupVisualsChanged(JNIEnv* env,
   CHECK(!tab_group_id.is_empty());
   for (auto& observer : model_observers_) {
     observer.OnTabGroupVisualsChanged(tab_group_id);
-  }
-}
-
-void TabModelObserverJniBridge::OnWillActiveStateChange(JNIEnv* env,
-                                                        TabModel* tab_model,
-                                                        bool active) {
-  for (auto& observer : model_observers_) {
-    observer.OnWillActiveStateChange(*tab_model, active);
-  }
-}
-
-void TabModelObserverJniBridge::OnDidActiveStateChange(JNIEnv* env,
-                                                       TabModel* tab_model,
-                                                       bool active) {
-  for (auto& observer : model_observers_) {
-    observer.OnDidActiveStateChange(*tab_model, active);
-  }
-  for (auto& observer : interface_observers_) {
-    observer.OnTabListActiveChanged(*tab_model, active);
   }
 }
 

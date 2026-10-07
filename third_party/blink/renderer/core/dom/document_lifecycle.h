@@ -34,8 +34,6 @@
 #include "base/auto_reset.h"
 #include "base/check_op.h"
 #include "base/dcheck_is_on.h"
-#include "base/memory/raw_ptr.h"
-#include "base/memory/raw_ref.h"
 #include "third_party/blink/renderer/core/core_export.h"
 #include "third_party/blink/renderer/platform/wtf/allocator/allocator.h"
 #include "third_party/blink/renderer/platform/wtf/forward.h"
@@ -108,8 +106,7 @@ class CORE_EXPORT DocumentLifecycle {
     LifecycleState To() const { return to_; }
 
    private:
-    raw_ptr<DeprecatedTransition, UnprotectedInRelease | DanglingUntriaged>
-        previous_;
+    DeprecatedTransition* previous_;
     LifecycleState from_;
     LifecycleState to_;
   };
@@ -162,15 +159,14 @@ class CORE_EXPORT DocumentLifecycle {
    public:
     explicit PostponeTransitionScope(DocumentLifecycle& document_lifecycle)
         : document_lifecycle_(document_lifecycle) {
-      document_lifecycle_->SetLifecyclePostponed();
+      document_lifecycle_.SetLifecyclePostponed();
     }
     ~PostponeTransitionScope() {
-      document_lifecycle_->ResetLifecyclePostponed();
+      document_lifecycle_.ResetLifecyclePostponed();
     }
 
    private:
-    const raw_ref<DocumentLifecycle, UnprotectedInRelease | DanglingUntriaged>
-        document_lifecycle_;
+    DocumentLifecycle& document_lifecycle_;
   };
 
   class CheckNoTransitionScope {

@@ -24,6 +24,10 @@ PowerMonitorDeviceSource::GetCurrentThermalState() const {
   return thermal_state_observer_->GetCurrentThermalState();
 }
 
+int PowerMonitorDeviceSource::GetInitialSpeedLimit() const {
+  return thermal_state_observer_->GetCurrentSpeedLimit();
+}
+
 void PowerMonitorDeviceSource::GetBatteryState() {
   DCHECK(battery_level_provider_);
   // base::Unretained is safe because the callback is immediately invoked

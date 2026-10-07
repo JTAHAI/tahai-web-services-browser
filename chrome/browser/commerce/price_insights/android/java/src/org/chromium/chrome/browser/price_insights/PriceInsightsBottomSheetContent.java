@@ -96,9 +96,4 @@ public class PriceInsightsBottomSheetContent implements BottomSheetContent {
         // Don't show a scrim (gray overlay on page) when open the bottom sheet.
         return true;
     }
-
-    @Override
-    public boolean showHandlebar() {
-        return true;
-    }
 }

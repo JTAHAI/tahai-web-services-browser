@@ -11,7 +11,6 @@
 #include "base/time/time.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/content_settings/content_setting_image_model.h"
-#include "chrome/browser/ui/content_settings/content_setting_image_view_delegate.h"
 #include "chrome/browser/ui/location_bar/location_bar.h"
 #include "chrome/browser/ui/tabs/public/tab_features.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
@@ -293,7 +292,7 @@ bool PermissionDashboardController::Update(
       const permissions::PermissionIndicatorsTabData*
           permission_indicators_tab_data =
               location_bar_->GetBrowser()
-                  ->GetTabStripModel()
+                  ->tab_strip_model()
                   ->GetActiveTab()
                   ->GetTabFeatures()
                   ->permission_indicators_tab_data();
@@ -362,7 +361,7 @@ void PermissionDashboardController::OnCollapseAnimationEnded() {
 
   permissions::PermissionIndicatorsTabData* permission_indicators_tab_data =
       location_bar_->GetBrowser()
-          ->GetTabStripModel()
+          ->tab_strip_model()
           ->GetActiveTab()
           ->GetTabFeatures()
           ->permission_indicators_tab_data();
@@ -386,7 +385,8 @@ void PermissionDashboardController::OnCollapseAnimationEnded() {
 }
 
 void PermissionDashboardController::OnMousePressed() {
-  page_info_bubble_suppressor_.OnMousePressed();
+  should_suppress_reopening_page_info_ =
+      page_info_bubble_suppressor_.ShouldSuppress();
 }
 
 bool PermissionDashboardController::SuppressVerboseIndicator() {
@@ -489,8 +489,7 @@ void PermissionDashboardController::ShowBubble() {
   }
 }
 
-void PermissionDashboardController::ShowPageInfoDialog(
-    bool is_pointer_interaction) {
+void PermissionDashboardController::ShowPageInfoDialog() {
   content::WebContents* contents = location_bar_->GetWebContents();
   if (!contents) {
     return;
@@ -513,8 +512,10 @@ void PermissionDashboardController::ShowPageInfoDialog(
     return;
   }
 
-  if (page_info_bubble_suppressor_.ShouldSuppressBubbleShow(
-          is_pointer_interaction)) {
+  if (should_suppress_reopening_page_info_) {
+    // Reset the flag because `OnMousePressed()` is not called if the LHS
+    // indicator gets keyboard interaction.
+    should_suppress_reopening_page_info_ = false;
     return;
   }
 
@@ -531,8 +532,9 @@ void PermissionDashboardController::ShowPageInfoDialog(
   page_info_bubble_suppressor_.Observe(bubble->GetWidget());
 }
 
-void PermissionDashboardController::OnIndicatorsChipButtonPressed(
-    bool is_pointer_interaction) {
+
+
+void PermissionDashboardController::OnIndicatorsChipButtonPressed() {
   content::WebContents* contents = location_bar_->GetWebContents();
   if (!contents) {
     return;
@@ -550,7 +552,7 @@ void PermissionDashboardController::OnIndicatorsChipButtonPressed(
       url.SchemeIs(dom_distiller::kDomDistillerScheme)) {
     ShowBubble();
   } else {
-    ShowPageInfoDialog(is_pointer_interaction);
+    ShowPageInfoDialog();
   }
 
   if (content_setting_image_model_) {

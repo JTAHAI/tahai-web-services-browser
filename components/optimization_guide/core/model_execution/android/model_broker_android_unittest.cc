@@ -11,7 +11,6 @@
 #include "base/test/test_future.h"
 #include "components/optimization_guide/core/model_execution/model_execution_prefs.h"
 #include "components/optimization_guide/core/model_execution/on_device_features.h"
-#include "components/optimization_guide/core/model_execution/on_device_model_adaptation_loader.h"
 #include "components/optimization_guide/core/model_execution/on_device_model_download_progress_manager.h"
 #include "components/optimization_guide/core/model_execution/test/fake_model_assets.h"
 #include "components/optimization_guide/core/model_execution/test/fake_model_broker_android.h"
@@ -19,7 +18,6 @@
 #include "components/optimization_guide/core/model_execution/test/mock_download_progress_observer.h"
 #include "components/optimization_guide/core/model_execution/test/request_builder.h"
 #include "components/optimization_guide/core/model_execution/test/response_holder.h"
-#include "components/optimization_guide/core/optimization_guide_features.h"
 #include "components/optimization_guide/proto/model_execution.pb.h"
 #include "components/optimization_guide/public/mojom/model_broker.mojom-shared.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -51,6 +49,7 @@ class ModelBrokerAndroidFeatureDisabledList {
     feature_list_.InitWithFeaturesAndParameters(
         {}, {
                 {features::kOptimizationGuideModelExecution},
+                {features::kOptimizationGuideOnDeviceModel},
             });
   }
   ~ModelBrokerAndroidFeatureDisabledList() = default;
@@ -65,6 +64,7 @@ class RequirePersistentModeForScamDetectionEnabledFeatureList {
     feature_list_.InitWithFeaturesAndParameters(
         {
             {features::kOptimizationGuideModelExecution, {}},
+            {features::kOptimizationGuideOnDeviceModel, {}},
             {features::kAICorePrompt, {}},
             {features::kAICoreScamDetection, {}},
             {features::kAICoreTest, {}},
@@ -108,7 +108,8 @@ class ModelBrokerAndroidTest : public testing::Test {
  protected:
   base::test::TaskEnvironment task_environment_{
       base::test::TaskEnvironment::TimeSource::MOCK_TIME};
-  OnDeviceBaseModelSpec spec_{.model_name = "Test", .model_version = "0.0.1"};
+  OnDeviceBaseModelSpec spec_{
+      "Test", "0.0.1", proto::ON_DEVICE_MODEL_PERFORMANCE_HINT_UNSPECIFIED};
   FakeModelBrokerAndroid fake_broker_{{
       .metadata = MatchingMetadata(spec_),
       .preinstall_base_model = false,

@@ -1,2 +1,3 @@
-rules:
-- "**": [letter-spacing]
+features:
+- name: letter-spacing
+  files: "**"

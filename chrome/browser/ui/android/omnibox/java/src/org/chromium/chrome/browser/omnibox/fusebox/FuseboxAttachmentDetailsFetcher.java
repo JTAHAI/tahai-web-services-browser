@@ -212,15 +212,8 @@ class FuseboxAttachmentDetailsFetcher extends AsyncTask<Boolean> {
 
         @Nullable CompressFormat outputFormat = getCompressionFormat(mimeType);
         boolean oomOccurred = false;
-        boolean downscalingEnabled =
-                outputFormat != null && OmniboxFeatures.sOmniboxAimImageDownscaling.isEnabled();
-        boolean hasC2pa =
-                downscalingEnabled && C2paMetadataUtils.hasC2paMetadata(mContentResolver, mUri);
-        if (downscalingEnabled) {
-            FuseboxMetrics.recordAttachmentC2paDetected(hasC2pa);
-        }
 
-        if (outputFormat != null && downscalingEnabled && !hasC2pa) {
+        if (outputFormat != null && OmniboxFeatures.sOmniboxAimImageDownscaling.isEnabled()) {
             try {
                 data = loadDownscaledImage(outputFormat);
             } catch (OutOfMemoryError e) {

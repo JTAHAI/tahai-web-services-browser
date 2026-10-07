@@ -216,7 +216,6 @@ CGFloat const kSheetTopPadding = 40.0f;
                          browser:self.browser];
   _pickerPresenter.delegate = self;
   _pickerPresenter.dataSource = self;
-  _pickerPresenter.metricsRecorder = _metricsRecorder;
 }
 
 - (void)stop {
@@ -255,7 +254,6 @@ CGFloat const kSheetTopPadding = 40.0f;
                     didTapTool:(ComposeboxMode)toolMode {
   _successfulActionPerformed = YES;
 
-  __weak __typeof(self) weakSelf = self;
   if (_isStandaloneMenu) {
     [_metricsRecorder recordToolSelected:toolMode];
     if (toolMode == ComposeboxMode::kAIM) {
@@ -269,6 +267,7 @@ CGFloat const kSheetTopPadding = 40.0f;
                   toolMode:toolMode
                  modelMode:ComposeboxModelOption::kNone
             attachmentList:nil];
+    __weak __typeof(self) weakSelf = self;
     [_viewController.presentingViewController
         dismissViewControllerAnimated:YES
                            completion:^{
@@ -277,10 +276,7 @@ CGFloat const kSheetTopPadding = 40.0f;
   } else {
     [self.inputPlateDelegate composeboxMenuCoordinator:self
                                             didTapTool:toolMode];
-    [_viewController dismissViewControllerAnimated:YES
-                                        completion:^{
-                                          [weakSelf requestMenuDismissal];
-                                        }];
+    [_viewController dismissViewControllerAnimated:YES completion:nil];
   }
 }
 
@@ -288,7 +284,6 @@ CGFloat const kSheetTopPadding = 40.0f;
                    didTapModel:(ComposeboxModelOption)modelMode {
   _successfulActionPerformed = YES;
 
-  __weak __typeof(self) weakSelf = self;
   if (_isStandaloneMenu) {
     [_metricsRecorder recordModelSelected:modelMode];
     ComposeboxFocusParams* focusParams = [[ComposeboxFocusParams alloc]
@@ -297,6 +292,7 @@ CGFloat const kSheetTopPadding = 40.0f;
                   toolMode:ComposeboxMode::kRegularSearch
                  modelMode:modelMode
             attachmentList:nil];
+    __weak __typeof(self) weakSelf = self;
     [_viewController.presentingViewController
         dismissViewControllerAnimated:YES
                            completion:^{
@@ -305,17 +301,13 @@ CGFloat const kSheetTopPadding = 40.0f;
   } else {
     [self.inputPlateDelegate composeboxMenuCoordinator:self
                                            didTapModel:modelMode];
-    [_viewController dismissViewControllerAnimated:YES
-                                        completion:^{
-                                          [weakSelf requestMenuDismissal];
-                                        }];
+    [_viewController dismissViewControllerAnimated:YES completion:nil];
   }
 }
 
 - (void)composeboxMenuMediator:(ComposeboxMenuMediator*)mediator
           didUpdateAttachments:(ComposeboxAttachmentSelection*)attachments {
   _successfulActionPerformed = YES;
-  __weak __typeof(self) weakSelf = self;
   if (_isStandaloneMenu) {
     ComposeboxFocusParams* focusParams = [[ComposeboxFocusParams alloc]
         initWithEntrypoint:_entrypoint
@@ -323,6 +315,7 @@ CGFloat const kSheetTopPadding = 40.0f;
                   toolMode:ComposeboxMode::kRegularSearch
                  modelMode:ComposeboxModelOption::kNone
             attachmentList:attachments];
+    __weak __typeof(self) weakSelf = self;
     [_viewController.presentingViewController
         dismissViewControllerAnimated:YES
                            completion:^{
@@ -331,10 +324,7 @@ CGFloat const kSheetTopPadding = 40.0f;
   } else {
     [self.inputPlateDelegate composeboxMenuCoordinator:self
                                   didUpdateAttachments:attachments];
-    [_viewController dismissViewControllerAnimated:YES
-                                        completion:^{
-                                          [weakSelf requestMenuDismissal];
-                                        }];
+    [_viewController dismissViewControllerAnimated:YES completion:nil];
   }
 }
 
@@ -481,9 +471,6 @@ CGFloat const kSheetTopPadding = 40.0f;
 
   if (diff.added.size() > 0) {
     [_metricsRecorder recordTabPickerTabsAttached:diff.added.size()];
-    [_metricsRecorder
-        recordPickerOutcome:MobileFuseboxPickerOutcome::kAttachmentAdded
-          forAttachmentType:MobileFuseboxPickerAttachmentType::kTabs];
   }
 
   [_mediator processWebStateIDs:selectedWebStateIDs
@@ -497,9 +484,6 @@ CGFloat const kSheetTopPadding = 40.0f;
     return;
   }
   [_metricsRecorder recordDriveFilesAttached:results.count];
-  [_metricsRecorder
-      recordPickerOutcome:MobileFuseboxPickerOutcome::kAttachmentAdded
-        forAttachmentType:MobileFuseboxPickerAttachmentType::kDrive];
   [_mediator processDriveItems:results];
 }
 
@@ -514,12 +498,6 @@ CGFloat const kSheetTopPadding = 40.0f;
     (ComposeboxPickerPresenter*)presenter {
   CHECK(_inputState);
   return _inputState.maxTabAttachmentCount;
-}
-
-- (NSUInteger)maxDriveAttachmentCountForPresenter:
-    (ComposeboxPickerPresenter*)presenter {
-  CHECK(_inputState);
-  return _inputState.remainingAttachmentCapacity;
 }
 
 - (NSArray<NSString*>*)attachedImageAssetIDsForPresenter:

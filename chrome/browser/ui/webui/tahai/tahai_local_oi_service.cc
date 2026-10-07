@@ -602,8 +602,7 @@ bool TahaiLocalOiService::AddReport(LocalOiReportRecord record) {
   return CanWriteLocalData() &&
          TahaiLocalOiPolicy(profile_->GetPrefs())
              .IsEnabled(LocalOiPolicyControl::kReports) &&
-         store_.AddReport(std::move(record)) && alive &&
-         CanWriteLocalData() &&
+         store_.AddReport(std::move(record)) && alive && CanWriteLocalData() &&
          TahaiLocalOiPolicy(profile_->GetPrefs())
              .IsEnabled(LocalOiPolicyControl::kReports) &&
          EnforceRetentionAfterDirectMutation();

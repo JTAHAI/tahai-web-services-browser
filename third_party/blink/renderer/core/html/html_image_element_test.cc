@@ -14,12 +14,9 @@
 #include "third_party/blink/renderer/core/execution_context/security_context.h"
 #include "third_party/blink/renderer/core/frame/local_frame_view.h"
 #include "third_party/blink/renderer/core/frame/settings.h"
-#include "third_party/blink/renderer/core/loader/resource/image_resource_content.h"
 #include "third_party/blink/renderer/core/testing/page_test_base.h"
 #include "third_party/blink/renderer/core/testing/sim/sim_request.h"
 #include "third_party/blink/renderer/core/testing/sim/sim_test.h"
-#include "third_party/blink/renderer/platform/graphics/bitmap_image.h"
-#include "third_party/blink/renderer/platform/testing/runtime_enabled_features_test_helpers.h"
 #include "third_party/blink/renderer/platform/testing/unit_test_helpers.h"
 
 namespace blink {
@@ -86,6 +83,44 @@ TEST_F(HTMLImageElementTest, ResourceWidthWithPictureContainingScripts) {
 
 using HTMLImageElementSimTest = SimTest;
 
+TEST_F(HTMLImageElementSimTest, Sharedstoragewritable_SecureContext_Allowed) {
+  WebRuntimeFeaturesBase::EnableSharedStorageAPI(true);
+  SimRequest main_resource("https://example.com/index.html", "text/html");
+  SimSubresourceRequest image_resource("https://example.com/foo.png",
+                                       "image/png");
+  LoadURL("https://example.com/index.html");
+  main_resource.Complete(R"(
+    <img src="foo.png" id="target"
+      allow="shared-storage"
+      sharedstoragewritable></img>
+  )");
+
+  image_resource.Complete("image data");
+  EXPECT_TRUE(ConsoleMessages().empty());
+}
+
+TEST_F(HTMLImageElementSimTest,
+       Sharedstoragewritable_InsecureContext_NotAllowed) {
+  WebRuntimeFeaturesBase::EnableSharedStorageAPI(true);
+  SimRequest main_resource("http://example.com/index.html", "text/html");
+  SimSubresourceRequest image_resource("http://example.com/foo.png",
+                                       "image/png");
+  LoadURL("http://example.com/index.html");
+  main_resource.Complete(R"(
+    <img src="foo.png" id="target"
+      allow="shared-storage"
+      sharedstoragewritable></img>
+  )");
+
+  image_resource.Complete("image data");
+  EXPECT_EQ(ConsoleMessages().size(), 1u);
+  EXPECT_TRUE(ConsoleMessages().front().starts_with(
+      "sharedStorageWritable: sharedStorage operations are only available in "
+      "secure contexts."))
+      << "Expect error that Shared Storage operations are not allowed in "
+         "insecure contexts but got: "
+      << ConsoleMessages().front();
+}
 
 TEST_F(HTMLImageElementSimTest, OnloadTransparentPlaceholderImage) {
   SimRequest main_resource("http://example.com/index.html", "text/html");
@@ -123,59 +158,6 @@ TEST_F(HTMLImageElementSimTest, CurrentSrcForTransparentPlaceholderImage) {
 
   // Ensure that currentSrc is correctly set as the image source.
   EXPECT_TRUE(ConsoleMessages().Contains(image_source));
-}
-
-TEST_F(HTMLImageElementSimTest, ResetAnimationForBitmapImage) {
-  ScopedSvgImageAnimationResetForTest enable_svg_reset(true);
-
-  SimRequest main_resource("http://example.com/index.html", "text/html");
-  SimRequest image_resource("http://example.com/animated-10color.gif",
-                            "image/gif");
-  LoadURL("http://example.com/index.html");
-  main_resource.Complete(R"(
-    <body>
-      <img id="gif" src="animated-10color.gif">
-    </body>
-  )");
-
-  test::RunPendingTasks();
-
-  std::optional<Vector<char>> data = test::ReadFromFile(
-      test::BlinkWebTestsImagesTestDataPath("animated-10color.gif"));
-  ASSERT_TRUE(data && data->size());
-  image_resource.Complete(*data);
-
-  // Run pending tasks to let the image resource load and dirty layout.
-  test::RunPendingTasks();
-
-  HTMLImageElement* image_element =
-      To<HTMLImageElement>(GetDocument().getElementById(AtomicString("gif")));
-  ASSERT_NE(image_element, nullptr);
-  ASSERT_TRUE(image_element->CachedImage());
-  ASSERT_TRUE(image_element->CachedImage()->HasImage());
-
-  Image* image = image_element->CachedImage()->GetImage();
-  ASSERT_TRUE(image);
-  auto* bitmap_image = DynamicTo<BitmapImage>(image);
-  ASSERT_TRUE(bitmap_image);
-
-  // Get the initial reset animation sequence ID.
-  PaintImage initial_paint_image = bitmap_image->PaintImageForCurrentFrame();
-  PaintImage::AnimationSequenceId initial_seq =
-      initial_paint_image.reset_animation_sequence_id();
-
-  // Clone the image element and insert it into the document.
-  HTMLImageElement* cloned_element =
-      To<HTMLImageElement>(image_element->cloneNode(true));
-  GetDocument().body()->AppendChild(cloned_element);
-
-  // Let loading and resource updates complete.
-  test::RunPendingTasks();
-
-  // Ensure that the clone's loading did NOT reset the original/shared bitmap
-  // image's timeline.
-  PaintImage final_paint_image = bitmap_image->PaintImageForCurrentFrame();
-  EXPECT_EQ(final_paint_image.reset_animation_sequence_id(), initial_seq);
 }
 
 class HTMLImageElementUseCounterTest : public HTMLImageElementTest {

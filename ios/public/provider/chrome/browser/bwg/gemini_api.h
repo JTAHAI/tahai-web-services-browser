@@ -193,11 +193,13 @@ void UpdatePageAttachmentState(
 
 // Updates the prompt action of the floaty if it's invoked.
 void UpdatePromptAction(gemini::EntryPoint entry_point,
-                        NSString* prepopulated_prompt,
-                        bool should_auto_submit = false);
+                        NSString* prepopulated_prompt);
 
 // Returns true if a URL is protected.
 bool IsProtectedUrl(std::string url);
+
+// Updates the page context of the floaty.
+void UpdatePageContext(GeminiPageContext* gemini_page_context);
 
 // Updates the floaty's active page context and shared tabs, if any.
 void UpdateActivePageContext(GeminiPageContext* gemini_page_context,
@@ -266,14 +268,6 @@ int GetLiveCaptionsNumberOfLines();
 
 // Sets whether the suggestion chips should be shown on the floaty.
 void SetShouldShowSuggestionChips(bool should_show);
-
-// Sets whether query submission should be blocked while page context is
-// loading.
-void SetBlockQuerySubmissionWhileLoading(bool block_submission);
-
-// Sets whether to display the page loading snackbar on the opening invocation
-// while page context is loading.
-void SetShowPageLoadingSnackbarOnOpeningInvocation(bool show_snackbar);
 
 // Shows the account snackbar on the Gemini floaty.
 void ShowAccountSnackbar();

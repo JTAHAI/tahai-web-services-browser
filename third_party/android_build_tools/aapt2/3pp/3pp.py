@@ -19,13 +19,8 @@ _SRC_ROOT = _THIS_DIR.parents[3 if _THIS_DIR.name == "3pp" else 2]
 sys.path.insert(1, str(_SRC_ROOT / "build" / "3pp_common"))
 import common
 
-_FILE_URL = 'https://dl.google.com/dl/android/maven2/com/android/tools/build/aapt2/{0}/aapt2-{0}-{1}.jar'
+_FILE_URL = 'https://dl.google.com/dl/android/maven2/com/android/tools/build/aapt2/{0}/aapt2-{0}-linux.jar'
 _GROUP_INDEX_URL = 'https://dl.google.com/dl/android/maven2/com/android/tools/build/group-index.xml'
-
-_PLATFORM_FILE_SUFFIX = {
-    'linux-amd64': 'linux',
-    'mac-arm64': 'osx',
-}
 
 
 def do_latest():
@@ -43,8 +38,7 @@ def do_latest():
 def do_install(args):
     """Downloads and extracts the aapt2 binary."""
     version = args.version
-    suffix = _PLATFORM_FILE_SUFFIX[os.environ['_3PP_PLATFORM']]
-    url = _FILE_URL.format(version, suffix)
+    url = _FILE_URL.format(version)
     jar_path = 'aapt2.jar'
     common.download_file(url, jar_path)
 
@@ -59,13 +53,7 @@ def do_install(args):
 
 
 def main():
-    # aapt2 is pinned per-platform in DEPS via ${platform}, which needs a
-    # version tag that is identical across platforms. Omit the per-build script
-    # hash so the version stays stable and platform-invariant.
-    common.main(do_latest=do_latest,
-                do_install=do_install,
-                runtime_deps=[],
-                include_deps_hash=False)
+    common.main(do_latest=do_latest, do_install=do_install, runtime_deps=[])
 
 
 if __name__ == '__main__':

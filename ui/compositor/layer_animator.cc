@@ -53,10 +53,9 @@ LayerAnimator::LayerAnimator(base::TimeDelta transition_duration)
 }
 
 LayerAnimator::~LayerAnimator() {
-  for (const auto& running_animation : running_animations_) {
-    if (running_animation.is_sequence_alive()) {
-      running_animation.sequence()->OnAnimatorDestroyed();
-    }
+  for (size_t i = 0; i < running_animations_.size(); ++i) {
+    if (running_animations_[i].is_sequence_alive())
+      running_animations_[i].sequence()->OnAnimatorDestroyed();
   }
   ClearAnimationsInternal();
   delegate_ = nullptr;
@@ -511,15 +510,14 @@ void LayerAnimator::Step(base::TimeTicks now) {
   // and finishing them may indirectly affect the collection of running
   // animations.
   RunningAnimations running_animations_copy = running_animations_;
-  for (const auto& running_animation_copy : running_animations_copy) {
-    if (!SAFE_INVOKE_BOOL(HasAnimation, running_animation_copy)) {
+  for (size_t i = 0; i < running_animations_copy.size(); ++i) {
+    if (!SAFE_INVOKE_BOOL(HasAnimation, running_animations_copy[i]))
       continue;
-    }
 
-    if (running_animation_copy.sequence()->IsFinished(now)) {
-      SAFE_INVOKE_VOID(FinishAnimation, running_animation_copy, false);
+    if (running_animations_copy[i].sequence()->IsFinished(now)) {
+      SAFE_INVOKE_VOID(FinishAnimation, running_animations_copy[i], false);
     } else {
-      SAFE_INVOKE_VOID(ProgressAnimation, running_animation_copy, now);
+      SAFE_INVOKE_VOID(ProgressAnimation, running_animations_copy[i], now);
     }
   }
 }
@@ -651,16 +649,15 @@ void LayerAnimator::FinishAnyAnimationWithZeroDuration() {
   // and get rid of it. We need to make a copy because Progress may indirectly
   // cause new animations to start running.
   RunningAnimations running_animations_copy = running_animations_;
-  for (const auto& running_animation_copy : running_animations_copy) {
-    if (!SAFE_INVOKE_BOOL(HasAnimation, running_animation_copy)) {
+  for (size_t i = 0; i < running_animations_copy.size(); ++i) {
+    if (!SAFE_INVOKE_BOOL(HasAnimation, running_animations_copy[i]))
       continue;
-    }
 
-    if (running_animation_copy.sequence()->IsFinished(
-            running_animation_copy.sequence()->start_time())) {
-      SAFE_INVOKE_VOID(ProgressAnimationToEnd, running_animation_copy);
+    if (running_animations_copy[i].sequence()->IsFinished(
+          running_animations_copy[i].sequence()->start_time())) {
+      SAFE_INVOKE_VOID(ProgressAnimationToEnd, running_animations_copy[i]);
       std::unique_ptr<LayerAnimationSequence> removed(
-          SAFE_INVOKE_PTR(RemoveAnimation, running_animation_copy));
+          SAFE_INVOKE_PTR(RemoveAnimation, running_animations_copy[i]));
     }
   }
   ProcessQueue();
@@ -707,19 +704,18 @@ void LayerAnimator::RemoveAllAnimationsWithACommonProperty(
   // animations may affect the collection of running animations, so we need to
   // operate on a copy.
   RunningAnimations running_animations_copy = running_animations_;
-  for (const auto& running_animation_copy : running_animations_copy) {
-    if (!SAFE_INVOKE_BOOL(HasAnimation, running_animation_copy)) {
+  for (size_t i = 0; i < running_animations_copy.size(); ++i) {
+    if (!SAFE_INVOKE_BOOL(HasAnimation, running_animations_copy[i]))
       continue;
-    }
 
-    if (running_animation_copy.sequence()->HasConflictingProperty(
+    if (running_animations_copy[i].sequence()->HasConflictingProperty(
             sequence->properties())) {
       std::unique_ptr<LayerAnimationSequence> removed(
-          SAFE_INVOKE_PTR(RemoveAnimation, running_animation_copy));
+          SAFE_INVOKE_PTR(RemoveAnimation, running_animations_copy[i]));
       if (abort)
-        running_animation_copy.sequence()->Abort(delegate());
+        running_animations_copy[i].sequence()->Abort(delegate());
       else
-        SAFE_INVOKE_VOID(ProgressAnimationToEnd, running_animation_copy);
+        SAFE_INVOKE_VOID(ProgressAnimationToEnd, running_animations_copy[i]);
     }
   }
 
@@ -946,13 +942,12 @@ void LayerAnimator::ClearAnimationsInternal() {
   // Abort should never affect the set of running animations, but just in case
   // clients are badly behaved, we will use a copy of the running animations.
   RunningAnimations running_animations_copy = running_animations_;
-  for (const auto& running_animation_copy : running_animations_copy) {
-    if (!SAFE_INVOKE_BOOL(HasAnimation, running_animation_copy)) {
+  for (size_t i = 0; i < running_animations_copy.size(); ++i) {
+    if (!SAFE_INVOKE_BOOL(HasAnimation, running_animations_copy[i]))
       continue;
-    }
 
     std::unique_ptr<LayerAnimationSequence> removed(
-        RemoveAnimation(running_animation_copy.sequence()));
+        RemoveAnimation(running_animations_copy[i].sequence()));
     if (removed.get())
       removed->Abort(delegate());
   }

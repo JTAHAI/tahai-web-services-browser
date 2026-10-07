@@ -16,6 +16,7 @@
 #include "chrome/browser/profiles/profile_test_util.h"
 #include "chrome/browser/profiles/profile_window.h"
 #include "chrome/browser/signin/signin_util.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
@@ -82,7 +83,7 @@ IN_PROC_BROWSER_TEST_F(AvatarMenuBrowserTest, EditProfile) {
   menu()->EditProfile(*active_profile_index);
 
   content::WebContents* web_contents =
-      browser()->GetTabStripModel()->GetActiveWebContents();
+      browser()->tab_strip_model()->GetActiveWebContents();
   EXPECT_EQ(web_contents->GetVisibleURL(),
             chrome::GetSettingsUrl(chrome::kManageProfileSubPage));
 }
@@ -201,7 +202,7 @@ IN_PROC_BROWSER_TEST_F(AvatarMenuBrowserTest, Guest) {
   EXPECT_EQ(GlobalBrowserCollection::GetInstance()->GetSize(), 0U);
 
   profiles::SwitchToGuestProfile();
-  BrowserWindowInterface* guest_browser = ui_test_utils::WaitForBrowserToOpen();
+  Browser* guest_browser = ui_test_utils::WaitForBrowserToOpen();
 
   // ProfileManager will switch active profile upon observing
   // BrowserList::OnBrowserSetLastActive().

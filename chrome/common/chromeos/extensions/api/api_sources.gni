@@ -3,9 +3,8 @@
 # found in the LICENSE file.
 
 import("//chrome/common/features.gni")
-import("//extensions/buildflags/buildflags.gni")
 
-assert(enable_extensions_core && is_chromeos)
+assert(enable_extensions)
 
 schema_sources_ = [
   "diagnostics.idl",

@@ -17,7 +17,6 @@ namespace blink {
 
 class URLLoaderThrottleProvider;
 class WebSocketHandshakeThrottleProvider;
-
 struct RendererPreferences;
 
 // Worker fetch context for service worker. This has a feature to update the
@@ -42,11 +41,6 @@ class BLINK_EXPORT WebServiceWorkerFetchContext : public WebWorkerFetchContext {
           pending_subresource_loader_updater,
       const std::vector<WebString>& cors_exempt_header_list,
       const bool is_third_party_context);
-
- protected:
-  explicit WebServiceWorkerFetchContext(
-      const RendererPreferences& renderer_preferences)
-      : WebWorkerFetchContext(renderer_preferences) {}
 };
 
 }  // namespace blink

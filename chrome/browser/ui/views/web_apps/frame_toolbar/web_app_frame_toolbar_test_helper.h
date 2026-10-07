@@ -14,6 +14,7 @@
 #include "components/webapps/common/web_app_id.h"
 #include "content/public/browser/web_contents.h"
 
+class Browser;
 class BrowserFrameView;
 class BrowserView;
 class BrowserWindowInterface;
@@ -58,10 +59,10 @@ class WebAppFrameToolbarTestHelper {
   // views related to this latest launched web app.
   webapps::AppId InstallAndLaunchWebApp(Profile* profile,
                                         const GURL& start_url);
-  webapps::AppId InstallAndLaunchWebApp(BrowserWindowInterface* browser,
+  webapps::AppId InstallAndLaunchWebApp(Browser* browser,
                                         const GURL& start_url);
   webapps::AppId InstallAndLaunchCustomWebApp(
-      BrowserWindowInterface* browser,
+      Browser* browser,
       std::unique_ptr<web_app::WebAppInstallInfo> web_app_info,
       const GURL& start_url);
   web_app::IsolatedWebAppUrlInfo InstallAndLaunchIsolatedWebApp(
@@ -113,7 +114,7 @@ class WebAppFrameToolbarTestHelper {
       content::WebContents* web_contents);
   void GrantWindowManagementPermission();
 
-  BrowserWindowInterface* app_browser();
+  Browser* app_browser();
   BrowserView* browser_view() { return browser_view_; }
   BrowserFrameView* frame_view() { return frame_view_; }
   views::View* root_view() { return root_view_; }

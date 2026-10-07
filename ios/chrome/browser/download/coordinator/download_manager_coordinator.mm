@@ -136,10 +136,6 @@
                     selector:@selector(applicationDidEnterBackground:)
                         name:UIApplicationDidEnterBackgroundNotification
                       object:nil];
-  [defaultCenter addObserver:self
-                    selector:@selector(applicationWillEnterForeground:)
-                        name:UIApplicationWillEnterForegroundNotification
-                      object:nil];
 
   BOOL isIncognito = self.isOffTheRecord;
   _viewController = [[DownloadManagerViewController alloc] init];
@@ -224,7 +220,6 @@
   [self stopStoreKitCoordinator];
 
   [[InstallationNotifier sharedInstance] unregisterForNotifications:self];
-  [[NSNotificationCenter defaultCenter] removeObserver:self];
   _stopped = YES;
 }
 
@@ -654,10 +649,6 @@
   [_openInController.presentingViewController
       dismissViewControllerAnimated:YES
                          completion:nil];
-}
-
-- (void)applicationWillEnterForeground:(NSNotification*)note {
-  _mediator.SetGoogleDriveAppInstalled(IsGoogleDriveAppInstalled());
 }
 
 #pragma mark - StoreKitCoordinatorDelegate

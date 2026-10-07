@@ -10,7 +10,6 @@ import static androidx.test.espresso.matcher.ViewMatchers.withId;
 
 import static org.junit.Assert.assertEquals;
 
-import android.app.Activity;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
@@ -18,12 +17,10 @@ import android.content.res.Resources;
 import android.net.Uri;
 import android.os.Build;
 import android.os.IBinder;
-import android.view.View;
 
 import androidx.test.core.app.ApplicationProvider;
 import androidx.test.filters.LargeTest;
 
-import org.hamcrest.Matchers;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -31,13 +28,10 @@ import org.junit.Test;
 import org.junit.rules.RuleChain;
 import org.junit.runner.RunWith;
 
-import org.chromium.base.ApplicationStatus;
 import org.chromium.base.CommandLine;
 import org.chromium.base.task.TaskTraits;
 import org.chromium.base.test.util.CallbackHelper;
 import org.chromium.base.test.util.CommandLineFlags;
-import org.chromium.base.test.util.Criteria;
-import org.chromium.base.test.util.CriteriaHelper;
 import org.chromium.base.test.util.DisableIf;
 import org.chromium.base.test.util.DisabledTest;
 import org.chromium.base.test.util.DoNotBatch;
@@ -116,6 +110,7 @@ public class WebApkIntegrationTest {
     @LargeTest
     @Feature({"Webapps"})
     @MinAndroidSdkLevel(Build.VERSION_CODES.S)
+    @DisableIf.Build(product_name_includes = "brya", message = "Flaky, see crbug.com/527174394")
     public void testWebApkTrampoline() {
         Context targetContext = ApplicationProvider.getApplicationContext();
         String pageUrl = "https://pwa-directory.appspot.com/defaultresponse";
@@ -136,19 +131,6 @@ public class WebApkIntegrationTest {
         targetContext.startActivity(intent);
 
         if (OpenInAppUtils.isOpenInAppAvailable()) {
-            CriteriaHelper.pollUiThread(
-                    () -> {
-                        Activity activity = ApplicationStatus.getLastTrackedFocusedActivity();
-                        Criteria.checkThat("No active activity", activity, Matchers.notNullValue());
-                        View view = activity.findViewById(R.id.omnibox_chip_full);
-                        Criteria.checkThat("Omnibox chip not found", view, Matchers.notNullValue());
-                        Criteria.checkThat(
-                                "Omnibox chip not visible",
-                                view.getVisibility(),
-                                Matchers.is(View.VISIBLE));
-                    },
-                    STARTUP_TIMEOUT,
-                    CriteriaHelper.DEFAULT_POLLING_INTERVAL);
             onView(withId(R.id.omnibox_chip_full)).perform(click());
         }
 

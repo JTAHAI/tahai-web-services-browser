@@ -71,12 +71,12 @@ class SelectionEditor final : public GarbageCollected<SelectionEditor> {
   void DidChangeChildren(const ContainerNode::ChildrenChange& change);
   void DidMergeTextNodes(const Text& merged_node,
                          const NodeWithIndex& node_to_be_removed_with_index,
-                         wtf_size_t old_length);
+                         unsigned old_length);
   void DidSplitTextNode(const Text&);
   void DidUpdateCharacterData(CharacterData*,
-                              wtf_size_t offset,
-                              wtf_size_t old_length,
-                              wtf_size_t new_length);
+                              unsigned offset,
+                              unsigned old_length,
+                              unsigned new_length);
   void NodeChildrenWillBeRemoved(ContainerNode&);
   void NodeWillBeRemoved(Node&);
 

@@ -1,4 +1,10 @@
-rules:
-- output-setcustomvalidity.html: [constraint-validation]
-- output-validity.html: [constraint-validation]
-- "*": [output]
+features:
+- name: output
+  files:
+  - '*'
+  - '!output-setcustomvalidity.html'
+  - '!output-validity.html'
+- name: constraint-validation
+  files:
+  - output-setcustomvalidity.html
+  - output-validity.html

@@ -61,4 +61,4 @@ class TemplatedIsNotLeftMostPolymorphic
 
 }
 
-#endif  // POLYMORPHIC_CLASS_WITH_NON_VIRTUAL_TRACE_H_
+#endif

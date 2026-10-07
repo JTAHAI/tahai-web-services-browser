@@ -34,7 +34,7 @@ guest_os::GuestId MockMountProvider::GuestId() {
 }
 
 VmType MockMountProvider::vm_type() {
-  return VmType::TERMINA;
+  return VmType::PLUGIN_VM;
 }
 
 void MockMountProvider::Prepare(

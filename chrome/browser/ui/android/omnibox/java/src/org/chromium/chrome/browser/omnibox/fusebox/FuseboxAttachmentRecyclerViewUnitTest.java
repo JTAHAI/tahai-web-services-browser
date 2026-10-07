@@ -25,10 +25,10 @@ import org.chromium.chrome.browser.omnibox.fusebox.FuseboxAttachmentRecyclerView
 /** Unit tests for {@link FuseboxAttachmentRecyclerView}. */
 @RunWith(BaseRobolectricTestRunner.class)
 public class FuseboxAttachmentRecyclerViewUnitTest {
-    @Rule public final MockitoRule mMockitoRule = MockitoJUnit.rule();
+    public @Rule MockitoRule mMockitoRule = MockitoJUnit.rule();
 
-    @Mock private FuseboxAttachmentRecyclerView mScrollToEndOnInsertionMockView;
-    @Mock private RecyclerView.Adapter mAdapter;
+    private @Mock FuseboxAttachmentRecyclerView mScrollToEndOnInsertionMockView;
+    private @Mock RecyclerView.Adapter mAdapter;
 
     private ScrollToEndOnInsertionObserver mScrollToEndOnInsertionObserver;
 

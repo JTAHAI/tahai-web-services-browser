@@ -26,7 +26,6 @@
 #include "chrome/browser/ui/toasts/api/toast_id.h"
 #include "chrome/browser/ui/toasts/toast_controller.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
-#include "components/tabs/public/tab_interface.h"
 #endif
 
 #if BUILDFLAG(IS_ANDROID)
@@ -139,8 +138,9 @@ void SafeBrowsingPrefChangeHandler::
   // settings page.
   // 2. If the user has turned off ESB and is on the security page, we do
   // not show a toast at all.
-  if (!web_contents && browser->GetActiveTabInterface()) {
-    web_contents = browser->GetActiveTabInterface()->GetContents();
+  TabStripModel* tab_strip_model = browser->GetTabStripModel();
+  if (!web_contents) {
+    web_contents = tab_strip_model->GetActiveWebContents();
   }
   bool is_security_page =
       web_contents ? web_contents->GetLastCommittedURL().spec().starts_with(

@@ -62,17 +62,12 @@ class UploadTracker
   void NotifyUploadsStarted(
       QueryContextualizer::ContextualizedCallback callback,
       base::WeakPtr<contextual_search::ContextualSearchSessionHandle>
-          session_handle,
-      QueryContextualizer::ContextualizedCallback on_uploads_started_callback =
-          base::NullCallback()) {
+          session_handle) {
     callback_ = std::move(callback);
     session_handle_ = session_handle;
     uploads_started_ = true;
     if (!pending_tokens_.empty()) {
       self_ref_ = base::WrapRefCounted(this);
-    }
-    if (on_uploads_started_callback) {
-      std::move(on_uploads_started_callback).Run(session_handle_);
     }
     CheckCompletion();
   }
@@ -106,7 +101,7 @@ class UploadTracker
   }
 
   void CheckCompletion() {
-    if (uploads_started_ && pending_tokens_.empty()) {
+    if (uploads_started_ && pending_tokens_.empty() && callback_) {
       if (controller_) {
         controller_->RemoveObserver(this);
         controller_ = nullptr;
@@ -118,9 +113,9 @@ class UploadTracker
       base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
           FROM_HERE, base::DoNothingWithBoundArgs(base::WrapRefCounted(this)));
 
-      if (callback_) {
-        std::move(callback_).Run(session_handle_);
-      }
+      // Run the callback synchronously so that tests (and synchronous flows)
+      // can verify it immediately.
+      std::move(callback_).Run(session_handle_);
       self_ref_.reset();
     }
   }
@@ -146,9 +141,7 @@ ConversationThread::ConversationThread(const ConversationThread&) = default;
 ConversationThread& ConversationThread::operator=(const ConversationThread&) =
     default;
 
-QueryContextualizer::ContextualizeParams::ContextualizeParams()
-    : on_ineligible_callback(base::DoNothing()),
-      on_processed_callback(base::DoNothing()) {}
+QueryContextualizer::ContextualizeParams::ContextualizeParams() = default;
 QueryContextualizer::ContextualizeParams::~ContextualizeParams() = default;
 QueryContextualizer::ContextualizeParams::ContextualizeParams(
     ContextualizeParams&&) = default;
@@ -248,8 +241,9 @@ std::vector<std::string> QueryContextualizer::ExtractUrlsFromQuery(
 }
 
 void QueryContextualizer::Contextualize(ContextualizeParams params) {
-  DCHECK(!params.complete_callback.is_null() ||
-         !params.on_uploads_started_callback.is_null());
+  DCHECK(!params.on_ineligible_callback.is_null());
+  DCHECK(!params.on_processed_callback.is_null());
+  DCHECK(!params.complete_callback.is_null());
   auto context_decoration_params = std::make_unique<ContextDecorationParams>();
   base::WeakPtr<contextual_search::ContextualSearchSessionHandle>
       session_handle;
@@ -354,12 +348,7 @@ void QueryContextualizer::OnContextRetrieved(
   // task. This indicates that the task was not available (i.e. was deleted)
   // and no further action is needed.
   if (params.task_id.has_value() && !context) {
-    if (params.on_uploads_started_callback) {
-      std::move(params.on_uploads_started_callback).Run(session_handle);
-    }
-    if (params.complete_callback) {
-      std::move(params.complete_callback).Run(session_handle);
-    }
+    std::move(params.complete_callback).Run(session_handle);
     return;
   }
 
@@ -409,9 +398,6 @@ void QueryContextualizer::OnContextRetrieved(
                       smart_tabs_to_contextualize);
 
   if (tabs_to_update.empty()) {
-    if (params.on_uploads_started_callback) {
-      std::move(params.on_uploads_started_callback).Run(session_handle);
-    }
     if (upload_tracker) {
       upload_tracker->NotifyUploadsStarted(std::move(params.complete_callback),
                                            session_handle);
@@ -425,23 +411,10 @@ void QueryContextualizer::OnContextRetrieved(
   if (upload_tracker) {
     on_all_tabs_fetched =
         base::BindOnce(&UploadTracker::NotifyUploadsStarted, upload_tracker,
-                       std::move(params.complete_callback), session_handle,
-                       std::move(params.on_uploads_started_callback));
+                       std::move(params.complete_callback), session_handle);
   } else {
-    on_all_tabs_fetched = base::BindOnce(
-        [](QueryContextualizer::ContextualizedCallback on_started,
-           QueryContextualizer::ContextualizedCallback on_complete,
-           base::WeakPtr<contextual_search::ContextualSearchSessionHandle>
-               handle) {
-          if (on_started) {
-            std::move(on_started).Run(handle);
-          }
-          if (on_complete) {
-            std::move(on_complete).Run(handle);
-          }
-        },
-        std::move(params.on_uploads_started_callback),
-        std::move(params.complete_callback), session_handle);
+    on_all_tabs_fetched =
+        base::BindOnce(std::move(params.complete_callback), session_handle);
   }
 
   base::RepeatingClosure barrier_closure = base::BarrierClosure(
@@ -460,16 +433,6 @@ void QueryContextualizer::OnContextRetrieved(
   }
 }
 
-void QueryContextualizer::FinishTabProcessing(
-    const TabProcessedCallback& on_processed_callback,
-    TabId tab_id,
-    base::RepeatingClosure barrier_closure) {
-  if (on_processed_callback) {
-    on_processed_callback.Run(tab_id);
-  }
-  barrier_closure.Run();
-}
-
 void QueryContextualizer::OnTabContextualizationFetched(
     const std::optional<base::Uuid>& task_id,
     std::unique_ptr<ContextualTaskContext> context,
@@ -482,7 +445,8 @@ void QueryContextualizer::OnTabContextualizationFetched(
     TabProcessedCallback on_processed_callback,
     std::unique_ptr<lens::ContextualInputData> page_content_data) {
   if (!page_content_data) {
-    FinishTabProcessing(on_processed_callback, tab_update.id, barrier_closure);
+    on_processed_callback.Run(tab_update.id);
+    barrier_closure.Run();
     return;
   }
 
@@ -511,10 +475,9 @@ void QueryContextualizer::OnTabContextualizationFetched(
 
   if (GetIsProtectedPageErrorEnabled() &&
       !page_content_data->is_page_context_eligible.value_or(false)) {
-    if (on_ineligible_callback) {
-      on_ineligible_callback.Run();
-    }
-    FinishTabProcessing(on_processed_callback, tab_update.id, barrier_closure);
+    on_ineligible_callback.Run();
+    on_processed_callback.Run(tab_update.id);
+    barrier_closure.Run();
     return;
   }
 
@@ -526,17 +489,20 @@ void QueryContextualizer::OnTabContextualizationFetched(
 
   if (CheckIfContextChangedAndPrepareUploadData(
           maybe_context_id, *page_content_data, session_handle)) {
-    FinishTabProcessing(on_processed_callback, tab_update.id, barrier_closure);
+    on_processed_callback.Run(tab_update.id);
+    barrier_closure.Run();
     return;
   }
 
   if (!session_handle) {
-    FinishTabProcessing(on_processed_callback, tab_update.id, barrier_closure);
+    on_processed_callback.Run(tab_update.id);
+    barrier_closure.Run();
     return;
   }
 
   if (!delegate_->IsTabValid(tab_update.id)) {
-    FinishTabProcessing(on_processed_callback, tab_update.id, barrier_closure);
+    on_processed_callback.Run(tab_update.id);
+    barrier_closure.Run();
     return;
   }
 
@@ -551,7 +517,8 @@ void QueryContextualizer::OnTabContextualizationFetched(
       context_token, std::move(page_content_data),
       delegate_->GetTabViewportEncodingOptionsForQueryContextualizer());
 
-  FinishTabProcessing(on_processed_callback, tab_update.id, barrier_closure);
+  on_processed_callback.Run(tab_update.id);
+  barrier_closure.Run();
 }
 
 std::vector<QueryContextualizer::TabUpdate>

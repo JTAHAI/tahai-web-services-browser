@@ -6,9 +6,10 @@
 
 namespace one_time_tokens::switches {
 
-const char kOneTimeTokenServiceBaseUrl[] = "one-time-token-service-base-url";
+const char kOneTimeTokenFetchEmailEndpointUrl[] =
+    "one-time-token-fetch-email-endpoint-url";
 
-const char kDefaultOneTimeTokenServiceBaseUrl[] =
-    "https://onetimetoken.pa.googleapis.com";
+const char kDefaultOneTimeTokenFetchEmailEndpointUrl[] =
+    "https://onetimetoken.pa.googleapis.com/v1/onetimetokens:fetchEmail";
 
 }  // namespace one_time_tokens::switches

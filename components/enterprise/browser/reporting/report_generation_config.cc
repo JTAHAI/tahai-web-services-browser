@@ -10,7 +10,7 @@
 namespace {
 constexpr char kReportGenerationConfigTemplate[] =
     R"(Trigger: %s, Report Type: %s, Security Signals Mode: %s,"
-    " Using Cookies: %s, Has Challenge: %s, Selectors: %s, Is Retrying: %s)";
+    " Using Cookies: %s, Has Challenge: %s, Selectors: %s)";
 
 std::string_view TranslateReportType(
     enterprise_reporting::ReportType report_type) {
@@ -65,15 +65,13 @@ ReportGenerationConfig::ReportGenerationConfig(
     SecuritySignalsMode security_signals_mode,
     bool use_cookies,
     std::optional<std::string> challenge,
-    base::ListValue client_certificates_selectors,
-    bool is_retrying)
+    base::ListValue client_certificates_selectors)
     : report_trigger(report_trigger),
       report_type(report_type),
       security_signals_mode(security_signals_mode),
       use_cookies(use_cookies),
       challenge(std::move(challenge)),
-      client_certificates_selectors(std::move(client_certificates_selectors)),
-      is_retrying(is_retrying) {
+      client_certificates_selectors(std::move(client_certificates_selectors)) {
   // Currently security signals are only being reported in profile level
   // reporting.
   if (report_type != ReportType::kProfileReport) {
@@ -99,8 +97,7 @@ ReportGenerationConfig::ReportGenerationConfig(
       use_cookies(other.use_cookies),
       challenge(other.challenge),
       client_certificates_selectors(
-          other.client_certificates_selectors.Clone()),
-      is_retrying(other.is_retrying) {}
+          other.client_certificates_selectors.Clone()) {}
 
 ReportGenerationConfig& ReportGenerationConfig::operator=(
     const ReportGenerationConfig& other) {
@@ -111,7 +108,6 @@ ReportGenerationConfig& ReportGenerationConfig::operator=(
     use_cookies = other.use_cookies;
     challenge = other.challenge;
     client_certificates_selectors = other.client_certificates_selectors.Clone();
-    is_retrying = other.is_retrying;
   }
   return *this;
 }
@@ -133,17 +129,11 @@ std::string ReportGenerationConfig::ToString() const {
       TranslateReportType(report_type),
       TranslateSecuritySignalsMode(security_signals_mode),
       use_cookies ? "Yes" : "No", challenge.has_value() ? "Yes" : "No",
-      client_certificates_selectors.DebugString().c_str(),
-      is_retrying ? "Yes" : "No");
+      client_certificates_selectors.DebugString().c_str());
 }
 
 void ReportGenerationConfig::PrintDebugString(std::ostream* os) const {
   *os << ToString();
-}
-
-std::ostream& operator<<(std::ostream& os,
-                         const ReportGenerationConfig& config) {
-  return os << config.ToString();
 }
 
 }  // namespace enterprise_reporting

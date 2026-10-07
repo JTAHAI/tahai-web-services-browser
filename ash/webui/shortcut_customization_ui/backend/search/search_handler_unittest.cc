@@ -220,7 +220,6 @@ class SearchHandlerTest : public testing::Test {
     return future.Take();
   }
 
-  base::test::ScopedFeatureList scoped_feature_list_;
   base::test::TaskEnvironment task_environment_;
   std::unique_ptr<local_search_service::LocalSearchServiceProxy>
       local_search_service_proxy_ =
@@ -229,6 +228,7 @@ class SearchHandlerTest : public testing::Test {
   shortcut_ui::SearchConceptRegistry search_concept_registry_;
   mojo::Remote<shortcut_customization::mojom::SearchHandler> handler_remote_;
   shortcut_ui::SearchHandler handler_;
+  base::test::ScopedFeatureList scoped_feature_list_;
   FakeObserver results_availability_observer_;
 };
 

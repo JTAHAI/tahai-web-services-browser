@@ -352,17 +352,8 @@ IN_PROC_BROWSER_TEST_P(SingleClientCommonSyncTest, ReusesSameCacheGuid) {
   EXPECT_EQ(old_cache_guid, transport_data_prefs.GetCacheGuid());
 }
 
-// TODO(crbug.com/542347163): Re-enable test.
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
-#define MAYBE_ShouldCrashAwaitQuiescenceForE2ETest \
-  DISABLED_ShouldCrashAwaitQuiescenceForE2ETest
-#else
-#define MAYBE_ShouldCrashAwaitQuiescenceForE2ETest \
-  ShouldCrashAwaitQuiescenceForE2ETest
-#endif
-IN_PROC_BROWSER_TEST_P(
-    SingleClientCommonSyncTest,
-    E2E_ENABLED(MAYBE_ShouldCrashAwaitQuiescenceForE2ETest)) {
+IN_PROC_BROWSER_TEST_P(SingleClientCommonSyncTest,
+                       E2E_ENABLED(ShouldCrashAwaitQuiescenceForE2ETest)) {
   ASSERT_TRUE(SetupSync());
   EXPECT_CHECK_DEATH_WITH(
       { EXPECT_TRUE(AwaitQuiescence()); },
@@ -706,10 +697,8 @@ class SingleClientPolicySyncTest
  public:
   SingleClientPolicySyncTest() : SyncTest(SINGLE_CLIENT) {
     if (GetSetupSyncMode() == SetupSyncMode::kSyncTransportOnly) {
-      scoped_feature_list_.InitWithFeatures(
-          {syncer::kReplaceSyncPromosWithSignInPromos,
-           switches::kSyncEnableBookmarksInTransportMode},
-          {});
+      scoped_feature_list_.InitAndEnableFeature(
+          syncer::kReplaceSyncPromosWithSignInPromos);
     }
   }
   ~SingleClientPolicySyncTest() override = default;

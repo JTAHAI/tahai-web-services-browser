@@ -77,7 +77,7 @@ enum ItemType {
       [[TableViewImageItem alloc] initWithType:kItemTypeWebAndAppActivity];
   webAndAppActivityItem.accessoryView = [[UIImageView alloc]
       initWithImage:DefaultAccessorySymbolConfigurationWithRegularWeight(
-                        SymbolExternalLink)];
+                        kExternalLinkSymbol)];
   webAndAppActivityItem.accessoryView.tintColor =
       [UIColor colorNamed:kTextQuaternaryColor];
   webAndAppActivityItem.title =
@@ -91,7 +91,7 @@ enum ItemType {
       [[TableViewImageItem alloc] initWithType:kItemTypeLinkedGoogleServices];
   linkedGoogleServicesItem.accessoryView = [[UIImageView alloc]
       initWithImage:DefaultAccessorySymbolConfigurationWithRegularWeight(
-                        SymbolExternalLink)];
+                        kExternalLinkSymbol)];
   linkedGoogleServicesItem.accessoryView.tintColor =
       [UIColor colorNamed:kTextQuaternaryColor];
   linkedGoogleServicesItem.title = l10n_util::GetNSString(

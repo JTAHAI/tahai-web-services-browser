@@ -79,7 +79,6 @@ class LayoutSVGForeignObject final : public LayoutSVGBlock {
   // LayoutBlock override:
   void StyleDidChange(StyleDifference,
                       const ComputedStyle* old_style,
-                      const ComputedStyle& new_style,
                       const StyleChangeContext&) override;
 
   // The resolved viewport in the regular SVG coordinate space (after any

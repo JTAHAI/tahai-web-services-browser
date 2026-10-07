@@ -30,11 +30,11 @@
 #include "chrome/browser/sessions/session_restore_test_helper.h"
 #include "chrome/browser/sessions/session_service_factory.h"
 #include "chrome/browser/sessions/session_service_test_helper.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
-#include "chrome/browser/ui/browser_window/public/create_browser_window.h"
 #include "chrome/browser/ui/startup/features.h"
 #include "chrome/browser/ui/startup/startup_browser_creator.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
@@ -174,10 +174,9 @@ class BetterSessionRestoreTest : public InProcessBrowserTest {
 
   // This function succeeds if data for |filename| could be stored successfully.
   // It fails if data already exists or there is an error when writing it.
-  void StoreDataWithPage(BrowserWindowInterface* browser,
-                         const std::string& filename) {
+  void StoreDataWithPage(Browser* browser, const std::string& filename) {
     content::WebContents* web_contents =
-        browser->GetTabStripModel()->GetActiveWebContents();
+        browser->tab_strip_model()->GetActiveWebContents();
     content::TitleWatcher title_watcher(web_contents, title_storing_);
     title_watcher.AlsoWaitForTitle(title_pass_);
     title_watcher.AlsoWaitForTitle(title_error_write_failed_);
@@ -193,12 +192,12 @@ class BetterSessionRestoreTest : public InProcessBrowserTest {
   }
 
   // This function succeeds if data for |filename| is still stored.
-  void NavigateAndCheckStoredData(BrowserWindowInterface* browser,
+  void NavigateAndCheckStoredData(Browser* browser,
                                   const std::string& filename) {
     // Navigate to a page which has previously stored data; check that the
     // stored data can be accessed.
     content::WebContents* web_contents =
-        browser->GetTabStripModel()->GetActiveWebContents();
+        browser->tab_strip_model()->GetActiveWebContents();
     content::TitleWatcher title_watcher(web_contents, title_pass_);
     title_watcher.AlsoWaitForTitle(title_storing_);
     title_watcher.AlsoWaitForTitle(title_error_write_failed_);
@@ -213,7 +212,7 @@ class BetterSessionRestoreTest : public InProcessBrowserTest {
     CheckTitle(browser(), title_pass_);
   }
 
-  void CheckReloadedPageRestored(BrowserWindowInterface* browser) {
+  void CheckReloadedPageRestored(Browser* browser) {
     CheckTitle(browser, title_pass_);
   }
 
@@ -221,14 +220,13 @@ class BetterSessionRestoreTest : public InProcessBrowserTest {
     CheckReloadedPageNotRestored(browser());
   }
 
-  void CheckReloadedPageNotRestored(BrowserWindowInterface* browser) {
+  void CheckReloadedPageNotRestored(Browser* browser) {
     CheckTitle(browser, title_storing_);
   }
 
-  void CheckTitle(BrowserWindowInterface* browser,
-                  const std::u16string& expected_title) {
+  void CheckTitle(Browser* browser, const std::u16string& expected_title) {
     content::WebContents* web_contents =
-        browser->GetTabStripModel()->GetWebContentsAt(0);
+        browser->tab_strip_model()->GetWebContentsAt(0);
     content::TitleWatcher title_watcher(web_contents, expected_title);
     title_watcher.AlsoWaitForTitle(title_pass_);
     title_watcher.AlsoWaitForTitle(title_storing_);
@@ -276,9 +274,8 @@ class BetterSessionRestoreTest : public InProcessBrowserTest {
     CheckFormRestored(browser(), text_present, password_present);
   }
 
-  void CheckFormRestored(BrowserWindowInterface* browser,
-                         bool text_present,
-                         bool password_present) {
+  void CheckFormRestored(
+      Browser* browser, bool text_present, bool password_present) {
     CheckReloadedPageRestored(browser);
     EXPECT_EQ(text_present, DidLastUploadContain("posted-text"));
     EXPECT_EQ(text_present, DidLastUploadContain("text-entered"));
@@ -286,9 +283,8 @@ class BetterSessionRestoreTest : public InProcessBrowserTest {
     EXPECT_EQ(password_present, DidLastUploadContain("password-entered"));
   }
 
-  virtual BrowserWindowInterface* QuitBrowserAndRestore(
-      BrowserWindowInterface* browser,
-      bool close_all_windows) {
+  virtual Browser* QuitBrowserAndRestore(Browser* browser,
+                                         bool close_all_windows) {
     Profile* profile = browser->GetProfile();
 
     ScopedKeepAlive test_keep_alive(KeepAliveOrigin::PANEL_VIEW,
@@ -364,13 +360,11 @@ class ContinueWhereILeftOffTest : public BetterSessionRestoreTest {
   }
 
  protected:
-  BrowserWindowInterface* QuitBrowserAndRestore(
-      BrowserWindowInterface* browser,
-      bool close_all_windows) override {
+  Browser* QuitBrowserAndRestore(Browser* browser,
+                                 bool close_all_windows) override {
     SessionRestoreTestHelper session_restore_observer;
-    BrowserWindowInterface* new_browser =
-        BetterSessionRestoreTest::QuitBrowserAndRestore(browser,
-                                                        close_all_windows);
+    Browser* new_browser = BetterSessionRestoreTest::QuitBrowserAndRestore(
+        browser, close_all_windows);
     session_restore_observer.Wait();
     return new_browser;
   }
@@ -519,7 +513,7 @@ IN_PROC_BROWSER_TEST_F(ContinueWhereILeftOffTest, SessionCookiesBrowserClose) {
   // Set the startup preference to "continue where I left off" and visit a page
   // which stores a session cookie.
   StoreDataWithPage("session_cookies.html");
-  BrowserWindowInterface* new_browser = QuitBrowserAndRestore(browser(), false);
+  Browser* new_browser = QuitBrowserAndRestore(browser(), false);
   // The browsing session will be continued; just wait for the page to reload
   // and check the stored data.
   CheckReloadedPageRestored(new_browser);
@@ -533,14 +527,14 @@ IN_PROC_BROWSER_TEST_F(ContinueWhereILeftOffTest, SessionCookiesBrowserClose) {
 #endif
 IN_PROC_BROWSER_TEST_F(ContinueWhereILeftOffTest, MAYBE_PostBrowserClose) {
   PostFormWithPage("post.html", false);
-  BrowserWindowInterface* new_browser = QuitBrowserAndRestore(browser(), false);
+  Browser* new_browser = QuitBrowserAndRestore(browser(), false);
   CheckFormRestored(new_browser, true, false);
 }
 
 IN_PROC_BROWSER_TEST_F(ContinueWhereILeftOffTest,
                        PostWithPasswordBrowserClose) {
   PostFormWithPage("post_with_password.html", true);
-  BrowserWindowInterface* new_browser = QuitBrowserAndRestore(browser(), false);
+  Browser* new_browser = QuitBrowserAndRestore(browser(), false);
   CheckReloadedPageRestored(new_browser);
   // The form data contained passwords, so it's removed completely.
   CheckFormRestored(new_browser, false, false);
@@ -559,7 +553,7 @@ IN_PROC_BROWSER_TEST_F(ContinueWhereILeftOffTest,
   // Set the startup preference to "continue where I left off" and visit a page
   // which stores a session cookie.
   StoreDataWithPage("session_cookies.html");
-  BrowserWindowInterface* new_browser = QuitBrowserAndRestore(browser(), true);
+  Browser* new_browser = QuitBrowserAndRestore(browser(), true);
   // The browsing session will be continued; just wait for the page to reload
   // and check the stored data.
   CheckReloadedPageRestored(new_browser);
@@ -568,7 +562,7 @@ IN_PROC_BROWSER_TEST_F(ContinueWhereILeftOffTest,
 // Check that form data is restored after wrench menu quit.
 IN_PROC_BROWSER_TEST_F(ContinueWhereILeftOffTest, PostCloseAllBrowsers) {
   PostFormWithPage("post.html", false);
-  BrowserWindowInterface* new_browser = QuitBrowserAndRestore(browser(), true);
+  Browser* new_browser = QuitBrowserAndRestore(browser(), true);
   CheckFormRestored(new_browser, true, false);
 }
 
@@ -583,7 +577,7 @@ IN_PROC_BROWSER_TEST_F(ContinueWhereILeftOffTest, PostCloseAllBrowsers) {
 IN_PROC_BROWSER_TEST_F(ContinueWhereILeftOffTest,
                        MAYBE_PostWithPasswordCloseAllBrowsers) {
   PostFormWithPage("post_with_password.html", true);
-  BrowserWindowInterface* new_browser = QuitBrowserAndRestore(browser(), true);
+  Browser* new_browser = QuitBrowserAndRestore(browser(), true);
   CheckReloadedPageRestored(new_browser);
   // The form data contained passwords, so it's removed completely.
   CheckFormRestored(new_browser, false, false);
@@ -595,7 +589,7 @@ IN_PROC_BROWSER_TEST_F(ContinueWhereILeftOffTest,
                        CookiesClearedOnBrowserClose) {
   StoreDataWithPage("cookies.html");
   // Normally cookies are restored.
-  BrowserWindowInterface* new_browser = QuitBrowserAndRestore(browser(), false);
+  Browser* new_browser = QuitBrowserAndRestore(browser(), false);
   CheckReloadedPageRestored(new_browser);
   // ... but not if the content setting is set to clear on exit.
   CookieSettingsFactory::GetForProfile(new_browser->GetProfile())
@@ -616,7 +610,7 @@ IN_PROC_BROWSER_TEST_F(ContinueWhereILeftOffTest,
                        CookiesClearedOnCloseAllBrowsers) {
   StoreDataWithPage("cookies.html");
   // Normally cookies are restored.
-  BrowserWindowInterface* new_browser = QuitBrowserAndRestore(browser(), true);
+  Browser* new_browser = QuitBrowserAndRestore(browser(), true);
   CheckReloadedPageRestored(new_browser);
   // ... but not if the content setting is set to clear on exit.
   CookieSettingsFactory::GetForProfile(new_browser->GetProfile())
@@ -944,11 +938,10 @@ IN_PROC_BROWSER_TEST_F(NoSessionRestoreTest, LocalStorageClearedOnStartup) {
 IN_PROC_BROWSER_TEST_F(NoSessionRestoreTest,
                        SessionCookiesBrowserCloseWithPopupOpen) {
   StoreDataWithPage("session_cookies.html");
-  BrowserWindowInterface* popup = CreateBrowserWindow(BrowserWindowCreateParams(
-      BrowserWindowInterface::TYPE_POPUP, browser()->GetProfile(),
-      /*from_user_gesture=*/true));
+  Browser* popup = Browser::Create(Browser::CreateParams(
+      Browser::TYPE_POPUP, browser()->GetProfile(), true));
   popup->GetWindow()->Show();
-  BrowserWindowInterface* new_browser = QuitBrowserAndRestore(browser(), false);
+  Browser* new_browser = QuitBrowserAndRestore(browser(), false);
   NavigateAndCheckStoredData(new_browser, "session_cookies.html");
 }
 
@@ -957,12 +950,11 @@ IN_PROC_BROWSER_TEST_F(NoSessionRestoreTest,
 IN_PROC_BROWSER_TEST_F(NoSessionRestoreTest,
                        SessionCookiesBrowserClosePopupLast) {
   StoreDataWithPage("session_cookies.html");
-  BrowserWindowInterface* popup = CreateBrowserWindow(BrowserWindowCreateParams(
-      BrowserWindowInterface::TYPE_POPUP, browser()->GetProfile(),
-      /*from_user_gesture=*/true));
+  Browser* popup = Browser::Create(Browser::CreateParams(
+      Browser::TYPE_POPUP, browser()->GetProfile(), true));
   popup->GetWindow()->Show();
   CloseBrowserSynchronously(browser());
-  BrowserWindowInterface* new_browser = QuitBrowserAndRestore(popup, false);
+  Browser* new_browser = QuitBrowserAndRestore(popup, false);
   if (browser_defaults::kBrowserAliveWithNoWindows)
     NavigateAndCheckStoredData(new_browser, "session_cookies.html");
   else
@@ -977,7 +969,7 @@ IN_PROC_BROWSER_TEST_F(NoSessionRestoreTest,
   StoreDataWithPage("subdomain_cookies.html");
 
   // Normally cookies are restored.
-  BrowserWindowInterface* new_browser = QuitBrowserAndRestore(browser(), true);
+  Browser* new_browser = QuitBrowserAndRestore(browser(), true);
   NavigateAndCheckStoredData(new_browser, "subdomain_cookies.html");
 
   // ... but not if the content setting is set to clear on exit.
@@ -996,7 +988,7 @@ IN_PROC_BROWSER_TEST_F(NoSessionRestoreTest, CookiesClearedOnBrowserClose) {
   StoreDataWithPage("cookies.html");
 
   // Normally cookies are restored.
-  BrowserWindowInterface* new_browser = QuitBrowserAndRestore(browser(), false);
+  Browser* new_browser = QuitBrowserAndRestore(browser(), false);
   NavigateAndCheckStoredData(new_browser, "cookies.html");
 
   // ... but not if the content setting is set to clear on exit.
@@ -1015,7 +1007,7 @@ IN_PROC_BROWSER_TEST_F(NoSessionRestoreTest, CookiesClearedOnBrowserClose) {
 IN_PROC_BROWSER_TEST_F(NoSessionRestoreTest, SessionCookiesCloseAllBrowsers) {
   StoreDataWithPage("session_cookies.html");
   EnableBackgroundMode();
-  BrowserWindowInterface* new_browser = QuitBrowserAndRestore(browser(), true);
+  Browser* new_browser = QuitBrowserAndRestore(browser(), true);
   StoreDataWithPage(new_browser, "session_cookies.html");
   DisableBackgroundMode();
   new_browser = QuitBrowserAndRestore(new_browser, true);
@@ -1028,7 +1020,7 @@ IN_PROC_BROWSER_TEST_F(NoSessionRestoreTest, CookiesClearedOnCloseAllBrowsers) {
   StoreDataWithPage("cookies.html");
 
   // Normally cookies are restored.
-  BrowserWindowInterface* new_browser = QuitBrowserAndRestore(browser(), true);
+  Browser* new_browser = QuitBrowserAndRestore(browser(), true);
   NavigateAndCheckStoredData(new_browser, "cookies.html");
 
   // ... but not if the content setting is set to clear on exit.
@@ -1046,7 +1038,7 @@ IN_PROC_BROWSER_TEST_F(NoSessionRestoreTest, CookiesClearedOnCloseAllBrowsers) {
 IN_PROC_BROWSER_TEST_F(NoSessionRestoreTest, SessionCookiesBrowserClose) {
   StoreDataWithPage("session_cookies.html");
   EnableBackgroundMode();
-  BrowserWindowInterface* new_browser = QuitBrowserAndRestore(browser(), false);
+  Browser* new_browser = QuitBrowserAndRestore(browser(), false);
   if (browser_defaults::kBrowserAliveWithNoWindows)
     NavigateAndCheckStoredData(new_browser, "session_cookies.html");
   else

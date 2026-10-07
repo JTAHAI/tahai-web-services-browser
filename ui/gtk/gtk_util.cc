@@ -12,11 +12,9 @@
 #include <string_view>
 
 #include "base/compiler_specific.h"
-#include "base/containers/flat_map.h"
 #include "base/environment.h"
 #include "base/files/file_path.h"
 #include "base/functional/callback.h"
-#include "base/no_destructor.h"
 #include "base/notreached.h"
 #include "base/strings/string_split.h"
 #include "base/strings/string_tokenizer.h"
@@ -40,34 +38,6 @@
 namespace gtk {
 
 namespace {
-
-// Colors read from the GTK theme, keyed by the CSS selector they were queried
-// with. Each query builds a chain of style contexts and renders into a small
-// bitmap, which costs 50-100 microseconds, and the same selectors are queried
-// for every GTK ColorProvider that is built and again on each theme load. The
-// results only change with the theme, so they are cached until
-// ClearStyleColorCache().
-struct StyleColorCache {
-  base::flat_map<std::string, SkColor> bg;
-  base::flat_map<std::string, SkColor> fg;
-  base::flat_map<std::string, SkColor> border;
-  base::flat_map<std::string, SkColor> separator;
-};
-
-StyleColorCache& GetStyleColorCache() {
-  static base::NoDestructor<StyleColorCache> cache;
-  return *cache;
-}
-
-SkColor GetCachedStyleColor(base::flat_map<std::string, SkColor>& cache,
-                            const std::string& css_selector,
-                            SkColor (*compute)(const std::string&)) {
-  auto it = cache.find(css_selector);
-  if (it == cache.end()) {
-    it = cache.emplace(css_selector, compute(css_selector)).first;
-  }
-  return it->second;
-}
 
 const char kAuraTransientParent[] = "aura-transient-parent";
 
@@ -233,7 +203,6 @@ bool GtkInitFromCommandLine(int* argc, char** argv) {
   // This prevents GTK from calling setlocale(LC_ALL, ""), which potentially
   // overwrites the LC_NUMERIC locale to something other than "C".
   gtk_disable_setlocale();
-  InstallGtkSettingsInterceptor();
   return GtkInitCheck(argc, argv);
 }
 
@@ -554,8 +523,6 @@ GtkCssContext GetStyleContextFromCss(const std::string& css_selector) {
   return context;
 }
 
-void ApplyCssProviderToContext(GtkCssContext context, GtkCssProvider* provider);
-
 SkColor GetBgColorFromStyleContext(GtkCssContext context) {
   // Backgrounds are more general than solid colors (eg. gradients),
   // but chromium requires us to boil this down to one color.  We
@@ -563,22 +530,19 @@ SkColor GetBgColorFromStyleContext(GtkCssContext context) {
   // set to a garbage color because a background-image will cover it
   // anyway.  So we instead render the background into a 24x24 bitmap,
   // removing any borders, and hope that we get a good color.
-  static base::NoDestructor<ScopedCssProvider> strip_borders(
-      GetCssProvider("* {"
-                     "border-radius: 0px;"
-                     "border-style: none;"
-                     "box-shadow: none;"
-                     "}"));
-  ApplyCssProviderToContext(context, *strip_borders);
+  ApplyCssToContext(context,
+                    "* {"
+                    "border-radius: 0px;"
+                    "border-style: none;"
+                    "box-shadow: none;"
+                    "}");
   gfx::Size size(24, 24);
   CairoSurface surface(size);
   RenderBackground(size, surface.cairo(), context);
   return surface.GetAveragePixelValue(false);
 }
 
-namespace {
-
-SkColor ComputeFgColor(const std::string& css_selector) {
+SkColor GetFgColor(const std::string& css_selector) {
   auto context = GetStyleContextFromCss(css_selector);
   auto fg = GtkStyleContextGetColor(context);
   if (SkColorGetA(fg) == SK_AlphaOPAQUE) {
@@ -586,13 +550,6 @@ SkColor ComputeFgColor(const std::string& css_selector) {
   }
   return color_utils::GetResultingPaintColor(
       fg, GetBgColorFromStyleContext(context));
-}
-
-}  // namespace
-
-SkColor GetFgColor(const std::string& css_selector) {
-  return GetCachedStyleColor(GetStyleColorCache().fg, css_selector,
-                             &ComputeFgColor);
 }
 
 ScopedCssProvider GetCssProvider(const std::string& css) {
@@ -625,22 +582,11 @@ void RenderBackground(const gfx::Size& size,
   gtk_render_background(context, cr, 0, 0, size.width(), size.height());
 }
 
-namespace {
-
-SkColor ComputeBgColor(const std::string& css_selector) {
+SkColor GetBgColor(const std::string& css_selector) {
   return GetBgColorFromStyleContext(GetStyleContextFromCss(css_selector));
 }
 
-}  // namespace
-
-SkColor GetBgColor(const std::string& css_selector) {
-  return GetCachedStyleColor(GetStyleColorCache().bg, css_selector,
-                             &ComputeBgColor);
-}
-
-namespace {
-
-SkColor ComputeBorderColor(const std::string& css_selector) {
+SkColor GetBorderColor(const std::string& css_selector) {
   // Borders have the same issue as backgrounds, due to the
   // border-image property.
   auto context = GetStyleContextFromCss(css_selector);
@@ -655,13 +601,6 @@ SkColor ComputeBorderColor(const std::string& css_selector) {
       border, GetBgColorFromStyleContext(context));
 }
 
-}  // namespace
-
-SkColor GetBorderColor(const std::string& css_selector) {
-  return GetCachedStyleColor(GetStyleColorCache().border, css_selector,
-                             &ComputeBorderColor);
-}
-
 bool ContextHasClass(GtkCssContext context, const std::string& style_class) {
   bool has_class = gtk_style_context_has_class(context, style_class.c_str());
   if (!GtkCheckVersion(4)) {
@@ -671,9 +610,7 @@ bool ContextHasClass(GtkCssContext context, const std::string& style_class) {
   return has_class;
 }
 
-namespace {
-
-SkColor ComputeSeparatorColor(const std::string& css_selector) {
+SkColor GetSeparatorColor(const std::string& css_selector) {
   auto context = GetStyleContextFromCss(css_selector);
   bool horizontal = ContextHasClass(context, "horizontal");
 
@@ -703,21 +640,6 @@ SkColor ComputeSeparatorColor(const std::string& css_selector) {
   gtk_render_background(context, surface.cairo(), 0, 0, w, h);
   gtk_render_frame(context, surface.cairo(), 0, 0, w, h);
   return surface.GetAveragePixelValue(false);
-}
-
-}  // namespace
-
-SkColor GetSeparatorColor(const std::string& css_selector) {
-  return GetCachedStyleColor(GetStyleColorCache().separator, css_selector,
-                             &ComputeSeparatorColor);
-}
-
-void ClearStyleColorCache() {
-  StyleColorCache& cache = GetStyleColorCache();
-  cache.bg.clear();
-  cache.fg.clear();
-  cache.border.clear();
-  cache.separator.clear();
 }
 
 std::string GetGtkSettingsStringProperty(GtkSettings* settings,
@@ -840,14 +762,13 @@ double GetOpacityFromContext(GtkStyleContext* context) {
 }
 
 bool IsValidThemeName(ThemeProperty property, const char* theme) {
-  const bool is_optional = property == ThemeProperty::kKeyThemeName ||
-                           property == ThemeProperty::kCursorThemeName;
+  const bool is_key_theme = property == ThemeProperty::kKeyThemeName;
   if (!theme) {
-    return is_optional;
+    return is_key_theme;
   }
   std::string_view theme_str(theme);
   if (theme_str.empty()) {
-    return is_optional;
+    return is_key_theme;
   }
   return ui::IsValidCursorThemeName(theme_str);
 }
@@ -879,14 +800,6 @@ void GtkSettingsSetProperty(GObject* object,
                             GParamSpec* pspec) {
   if (pspec && pspec->name) {
     std::string_view prop_name(pspec->name);
-    if (prop_name == "gtk-modules") {
-      GValue sanitized_value = G_VALUE_INIT;
-      g_value_init(&sanitized_value, G_TYPE_STRING);
-      g_value_set_string(&sanitized_value, "");
-      g_orig_set_property(object, property_id, &sanitized_value, pspec);
-      g_value_unset(&sanitized_value);
-      return;
-    }
     std::optional<ThemeProperty> property;
     if (prop_name == "gtk-theme-name") {
       property = ThemeProperty::kThemeName;

@@ -13,6 +13,7 @@
 #include "chrome/browser/ash/logging/logging.h"
 #include "chrome/browser/ash/login/login_manager_test.h"
 #include "chrome/browser/ash/login/test/login_manager_mixin.h"
+#include "chrome/common/chrome_switches.h"
 #include "chrome/common/env_vars.h"
 #include "chrome/common/logging_chrome.h"
 #include "components/account_id/account_id.h"
@@ -81,7 +82,7 @@ class LoggingBrowserTest : public LoginManagerTest {
     // This isn't done in SetUpCommandLine because InProcessBrowserTest::SetUp
     // sets kDisableLoggingRedirect after it gets called.
     base::CommandLine::ForCurrentProcess()->RemoveSwitch(
-        ash::switches::kDisableLoggingRedirect);
+        ::switches::kDisableLoggingRedirect);
   }
 
  protected:

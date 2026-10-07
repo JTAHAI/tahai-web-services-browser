@@ -28,7 +28,7 @@ import org.chromium.base.test.BaseRobolectricTestRunner;
 /** Tests for {@link ActionButtonView}. */
 @RunWith(BaseRobolectricTestRunner.class)
 public class ActionButtonViewUnitTest {
-    @Rule public final MockitoRule mMockitoRule = MockitoJUnit.rule();
+    public @Rule MockitoRule mMockitoRule = MockitoJUnit.rule();
     private ActionButtonView mView;
 
     @Before

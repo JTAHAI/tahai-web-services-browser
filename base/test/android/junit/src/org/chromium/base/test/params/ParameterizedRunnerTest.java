@@ -85,6 +85,7 @@ public class ParameterizedRunnerTest {
     @SuppressWarnings("ModifiedButNotUsed")
     public void testUnsupportedParameterType() throws Throwable {
         class MyPair {}
+        ;
         List<ParameterSet> paramList = new ArrayList<>();
         paramList.add(new ParameterSet().value(new MyPair()));
     }

@@ -63,7 +63,7 @@ export class ShareDataPageElement extends ShareDataPageElementBase {
   declare feedbackContext: FeedbackContext;
   declare screenshotUrl: string;
   declare shouldShowBluetoothCheckbox: boolean;
-  shouldShowWifiDebugLogsCheckbox = false;
+  shouldShowWifiDebugLogsCheckbox: boolean;
   declare shouldShowAutofillCheckbox: boolean;
   private feedbackServiceProvider: FeedbackServiceProviderInterface;
 

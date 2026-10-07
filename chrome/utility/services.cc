@@ -33,7 +33,7 @@
 #include "ui/accessibility/accessibility_features.h"
 
 #if BUILDFLAG(IS_ANDROID)
-#include "chrome/services/readaloud/read_aloud_playback_controller.h"  // nogncheck
+#include "chrome/services/readaloud/read_aloud_playback_controller.h"
 #endif  // BUILDFLAG(IS_ANDROID)
 
 #if BUILDFLAG(IS_WIN)
@@ -96,7 +96,7 @@
 
 #if BUILDFLAG(ENABLE_EXTENSIONS) || BUILDFLAG(IS_ANDROID)
 #include "chrome/services/media_gallery_util/media_parser_factory.h"
-#include "components/media_gallery_util/public/mojom/media_parser.mojom.h"
+#include "chrome/services/media_gallery_util/public/mojom/media_parser.mojom.h"
 #endif
 
 #if BUILDFLAG(ENABLE_PRINT_PREVIEW) || \
@@ -469,13 +469,9 @@ auto RunBabelOrcaTachyonParsingService(
 #endif  // BUILDFLAG(IS_CHROMEOS)
 
 #if BUILDFLAG(IS_ANDROID)
-std::unique_ptr<readaloud::ReadAloudPlaybackController>
-RunReadAloudPlaybackControllerFactory(
-    mojo::PendingReceiver<
-        read_aloud::mojom::ReadAloudPlaybackControllerFactory> receiver) {
-  if (!features::IsReadAloudNativeEnabled()) {
-    return nullptr;
-  }
+auto RunReadAloudPlaybackControllerFactory(
+    mojo::PendingReceiver<read_aloud::mojom::ReadAloudPlaybackControllerFactory>
+        receiver) {
   return std::make_unique<readaloud::ReadAloudPlaybackController>(
       std::move(receiver));
 }

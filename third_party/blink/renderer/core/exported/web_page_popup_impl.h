@@ -31,7 +31,6 @@
 #ifndef THIRD_PARTY_BLINK_RENDERER_CORE_EXPORTED_WEB_PAGE_POPUP_IMPL_H_
 #define THIRD_PARTY_BLINK_RENDERER_CORE_EXPORTED_WEB_PAGE_POPUP_IMPL_H_
 
-#include "base/memory/raw_ptr.h"
 #include "base/time/time.h"
 #include "build/build_config.h"
 #include "mojo/public/cpp/bindings/associated_remote.h"
@@ -274,8 +273,7 @@ class CORE_EXPORT WebPagePopupImpl final : public WebPagePopup,
   void DidSetBounds();
 
   // This is the WebView that opened the popup.
-  raw_ptr<WebViewImpl, UnprotectedInRelease | DanglingUntriaged>
-      opener_web_view_ = nullptr;
+  WebViewImpl* opener_web_view_ = nullptr;
   Persistent<PagePopupChromeClient> chrome_client_;
   Persistent<EmptyLocalFrameClient> local_frame_client_;
   // WebPagePopupImpl wraps its own Page that renders the content in the popup.

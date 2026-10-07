@@ -9,17 +9,6 @@
 
 namespace signin {
 
-std::optional<SyncDataQuartile> SyncDataQuartileFromValue(int value) {
-  if (value < 0 || value > static_cast<int>(SyncDataQuartile::kMaxValue)) {
-    return std::nullopt;
-  }
-  return static_cast<SyncDataQuartile>(value);
-}
-
-int SyncDataQuartileToValue(SyncDataQuartile quartile) {
-  return static_cast<int>(quartile);
-}
-
 // static
 void AccountPreviewDataService::RegisterProfilePrefs(
     PrefRegistrySimple* registry) {
@@ -29,14 +18,6 @@ void AccountPreviewDataService::RegisterProfilePrefs(
   registry->RegisterDictionaryPref(prefs::kAccountPreviewPreference);
   registry->RegisterIntegerPref(prefs::kAccountPreviewNonPeriodicFetchCountPref,
                                 0);
-  registry->RegisterTimePref(prefs::kAccountPreviewDataLast429TimePref,
-                             base::Time());
-  registry->RegisterTimePref(
-      prefs::kAccountPreviewSelectionHeuristicScoresLastRecordedPref,
-      base::Time());
-#if BUILDFLAG(IS_ANDROID)
-  registry->RegisterDictionaryPref(prefs::kAccountPreviewExternalAppAccount);
-#endif
 }
 
 }  // namespace signin

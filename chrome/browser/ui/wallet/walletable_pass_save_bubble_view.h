@@ -15,6 +15,7 @@ class WebContents;
 
 namespace views {
 class StyledLabel;
+class View;
 }  // namespace views
 
 namespace wallet {
@@ -32,7 +33,7 @@ class WalletablePassSaveBubbleView : public WalletablePassBubbleViewBase {
   METADATA_HEADER(WalletablePassSaveBubbleView, WalletablePassBubbleViewBase)
 
  public:
-  WalletablePassSaveBubbleView(views::BubbleAnchor anchor,
+  WalletablePassSaveBubbleView(views::View* anchor_view,
                                content::WebContents* web_contents,
                                WalletablePassSaveBubbleController* controller);
   ~WalletablePassSaveBubbleView() override;

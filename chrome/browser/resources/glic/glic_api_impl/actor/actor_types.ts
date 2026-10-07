@@ -114,16 +114,6 @@ export const ActorHostDef = defInterface({
       },
     },
     {
-      name: 'updateActorTaskStepProgress',
-      request: defMessage<{
-        taskId: number,
-        stepProgress: string,
-      }>(),
-      histogram: {
-        id: 103,
-      },
-    },
-    {
       name: 'createActorTab',
       request: defMessage<{
         taskId: number,

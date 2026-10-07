@@ -361,10 +361,7 @@ IN_PROC_BROWSER_TEST_F(ChromeRenderProcessHostTest, DISABLED_ProcessPerTab) {
 class ChromeRenderProcessHostBackgroundingTest
     : public ChromeRenderProcessHostTest {
  public:
-  ChromeRenderProcessHostBackgroundingTest() {
-    feature_list_.InitAndDisableFeature(
-        performance_manager::features::kPMLoadingPageVoter);
-  }
+  ChromeRenderProcessHostBackgroundingTest() = default;
 
   ChromeRenderProcessHostBackgroundingTest(
       const ChromeRenderProcessHostBackgroundingTest&) = delete;
@@ -408,8 +405,6 @@ class ChromeRenderProcessHostBackgroundingTest
       EXPECT_EQ(expected_is_backgrounded, IsProcessBackgrounded(p));
     }
   }
-
-  base::test::ScopedFeatureList feature_list_;
 };
 
 #define EXPECT_PROCESS_IS_BACKGROUNDED(process_or_tab)                       \
@@ -662,8 +657,17 @@ class ChromeRenderProcessHostBackgroundingTestWithAudio
     : public ChromeRenderProcessHostTest {
  public:
   ChromeRenderProcessHostBackgroundingTestWithAudio() {
-    // Tests require that each tab has a different process.
-    feature_list_.InitAndEnableFeature(features::kDisableProcessReuse);
+    feature_list_.InitWithFeatures(
+        /*enabled_features=*/
+        {
+          // Tests require that each tab has a different process.
+          features::kDisableProcessReuse,
+#if BUILDFLAG(IS_MAC)
+          // Tests require that backgrounding processes is possible.
+          features::kMacAllowBackgroundingRenderProcesses,
+#endif
+        },
+        /*disabled_features=*/{});
   }
 
   ChromeRenderProcessHostBackgroundingTestWithAudio(

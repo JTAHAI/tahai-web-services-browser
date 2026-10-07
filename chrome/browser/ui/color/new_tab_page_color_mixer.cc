@@ -284,10 +284,6 @@ void AddSearchboxColors(ui::ColorMixer& mixer, const ui::ColorProviderKey& key) 
   mixer[kColorNewTabPageRealboxNextIconHover] = {
       kColorSysStateHoverOnSubtle_Light};
 
-#if BUILDFLAG(IS_ANDROID)
-  mixer[kColorNewTabPageComposeboxSubmitButtonBackground] = {
-      SkColorSetRGB(0x0B, 0x57, 0xD0)};
-#else
   if (base::FeatureList::IsEnabled(ntp_features::kEnergyEffect)) {
     mixer[kColorNewTabPageComposeboxSubmitButtonBackground] = {
         SkColorSetRGB(0x33, 0x6E, 0xF3)};
@@ -295,7 +291,6 @@ void AddSearchboxColors(ui::ColorMixer& mixer, const ui::ColorProviderKey& key) 
     mixer[kColorNewTabPageComposeboxSubmitButtonBackground] = {
         SkColorSetRGB(0x34, 0x6B, 0xF1)};
   }
-#endif
 
   mixer[kColorComposeboxBackground] = {SK_ColorWHITE};
   mixer[kColorComposeboxFileChipSpinner] = {kColorSysPrimary_Light};
@@ -452,8 +447,6 @@ void AddNewTabPageColorMixer(ui::ColorProvider* provider,
   mixer[kColorNewTabPageAddShortcutForeground] =
       ui::SelectBasedOnDarkInput(kColorNewTabPageAddShortcutBackground,
                                  SK_ColorWHITE, gfx::kGoogleGrey900);
-  mixer[kColorNewTabPageAddShortcutBackgroundHovered] = {
-      kColorNewTabPageControlBackgroundHovered};
 
   AddSearchboxColors(mixer, key);
 
@@ -649,14 +642,5 @@ void AddWebThemeNewTabPageColors(ui::ColorMixer& mixer, bool dark_mode) {
                                                          : gfx::kGoogleGrey800};
   mixer[kColorNewTabPageActionChipDeepSearchIcon] = {
       dark_mode ? SK_ColorWHITE : gfx::kGoogleGrey800};
-
-  // Isolated Tab colors.
-  // The Isolated Tab Page is designed to always remain in light mode.
-  mixer[kColorIsolatedTabPageBackground] = {SK_ColorWHITE};
-  mixer[kColorIsolatedTabPageCardBackground] = {
-      SkColorSetRGB(0xF8, 0xFA, 0xFD)};
-  mixer[kColorIsolatedTabPageLink] = {gfx::kGoogleBlue600};
-  mixer[kColorIsolatedTabPageNoticeBorder] = {gfx::kGoogleBlue100};
-  mixer[kColorIsolatedTabPageNoticeIcon] = {SK_ColorBLACK};
   // LINT.ThenChange(//chrome/browser/ui/color/material_new_tab_page_color_mixer.cc)
 }

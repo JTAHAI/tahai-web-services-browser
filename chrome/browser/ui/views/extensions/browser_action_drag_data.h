@@ -10,7 +10,6 @@
 #include <string>
 
 #include "base/memory/stack_allocated.h"
-#include "base/unguessable_token.h"
 #include "ui/base/dragdrop/os_exchange_data.h"
 
 class Profile;
@@ -56,8 +55,8 @@ class BrowserActionDragData {
   void WriteToPickle(Profile* profile, base::Pickle* pickle) const;
   bool ReadFromPickle(base::Pickle* pickle);
 
-  // The unique token of the profile we originated from.
-  base::UnguessableToken profile_unique_token_;
+  // The unique ID of the profile we originated from.
+  std::string profile_unique_id_;
 
   // The id of the view being dragged.
   std::string id_;

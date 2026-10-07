@@ -128,39 +128,20 @@ void LayoutSVGInline::MapLocalToAncestor(const LayoutBoxModelObject* ancestor,
 void LayoutSVGInline::QuadsInAncestorInternal(
     Vector<gfx::QuadF>& quads,
     const LayoutBoxModelObject* ancestor,
-    MapCoordinatesFlags mode,
-    BoxQuadType) const {
+    MapCoordinatesFlags mode) const {
   NOT_DESTROYED();
   if (IsInLayoutNGInlineFormattingContext()) {
     InlineCursor cursor;
     for (cursor.MoveToIncludingCulledInline(*this); cursor;
          cursor.MoveToNextForSameLayoutObject()) {
-      gfx::RectF bounds;
-      bool has_bounds = false;
       const FragmentItem& item = *cursor.CurrentItem();
       if (item.IsSvgText()) {
-        bounds = cursor.Current().ObjectBoundingBox(cursor);
-        has_bounds = true;
-      } else if (InlineCursor descendants = cursor.CursorForDescendants()) {
-        for (; descendants; descendants.MoveToNext()) {
-          const FragmentItem& descendant_item = *descendants.CurrentItem();
-          if (descendant_item.IsSvgText()) {
-            bounds.Union(descendants.Current().ObjectBoundingBox(cursor));
-            has_bounds = true;
-          }
-        }
-      }
-      if (has_bounds) {
         quads.push_back(LocalToAncestorQuad(
-            gfx::QuadF(
-                SVGLayoutSupport::ExtendTextBBoxWithStroke(*this, bounds)),
+            gfx::QuadF(SVGLayoutSupport::ExtendTextBBoxWithStroke(
+                *this, cursor.Current().ObjectBoundingBox(cursor))),
             ancestor, mode));
       }
     }
-  }
-  if (quads.empty() && IsObjectBoundingBoxValid()) {
-    quads.push_back(LocalToAncestorQuad(gfx::QuadF(DecoratedBoundingBox()),
-                                        ancestor, mode));
   }
 }
 
@@ -190,17 +171,16 @@ void LayoutSVGInline::Paint(const PaintInfo& paint_info) const {
   CHECK(paint_info.IsRenderingResourceSubtree());
 }
 
-void LayoutSVGInline::WillBeDestroyed(const ComputedStyle* style) {
+void LayoutSVGInline::WillBeDestroyed() {
   NOT_DESTROYED();
-  SVGResources::ClearEffects(*this, style);
-  SVGResources::ClearPaints(*this, style);
-  LayoutInline::WillBeDestroyed(style);
+  SVGResources::ClearEffects(*this);
+  SVGResources::ClearPaints(*this, Style());
+  LayoutInline::WillBeDestroyed();
 }
 
 void LayoutSVGInline::StyleDidChange(
     StyleDifference diff,
     const ComputedStyle* old_style,
-    const ComputedStyle& new_style,
     const StyleChangeContext& style_change_context) {
   NOT_DESTROYED();
   if (diff.HasDifference()) {
@@ -209,18 +189,18 @@ void LayoutSVGInline::StyleDidChange(
         diff.SetNeedsFullLayout();
     }
   }
-  LayoutInline::StyleDidChange(diff, old_style, new_style,
-                               style_change_context);
+  LayoutInline::StyleDidChange(diff, old_style, style_change_context);
 
   if (diff.NeedsFullLayout()) {
     // The boundaries affect mask clip and clip path mask/clip.
-    if (new_style.HasMask() || new_style.HasClipPath()) {
+    const ComputedStyle& style = StyleRef();
+    if (style.HasMask() || style.HasClipPath()) {
       SetNeedsPaintPropertyUpdate();
     }
   }
 
   SVGResources::UpdateEffects(*this, diff, old_style);
-  SVGResources::UpdatePaints(*this, old_style, new_style);
+  SVGResources::UpdatePaints(*this, old_style, StyleRef());
 
   if (!Parent())
     return;

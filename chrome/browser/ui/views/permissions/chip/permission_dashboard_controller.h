@@ -12,6 +12,7 @@
 #include "base/time/time.h"
 #include "base/timer/timer.h"
 #include "chrome/browser/ui/views/bubble/webui_bubble_reopen_suppressor.h"
+#include "chrome/browser/ui/views/location_bar/content_setting_image_view.h"
 #include "chrome/browser/ui/views/permissions/chip/permission_chip_interface.h"
 #include "content/public/browser/global_routing_id.h"
 #include "ui/views/mouse_constants.h"
@@ -20,7 +21,6 @@
 class LocationBar;
 class ChipController;
 class ContentSettingImageModel;
-class ContentSettingImageViewDelegate;
 class PermissionDashboardInterface;
 
 class PermissionDashboardController : public PermissionChipInterface::Observer {
@@ -74,8 +74,7 @@ class PermissionDashboardController : public PermissionChipInterface::Observer {
                      ->GetContentsView()
                : nullptr;
   }
-
-  void ShowPageInfoDialogForTesting() { ShowPageInfoDialog(true); }
+  void ShowPageInfoDialogForTesting() { ShowPageInfoDialog(); }
 
   void DoNotCollapseForTesting();
 
@@ -91,9 +90,9 @@ class PermissionDashboardController : public PermissionChipInterface::Observer {
   void Collapse(bool hide);
   void HideIndicators();
   void ShowBubble();
-  void ShowPageInfoDialog(bool is_pointer_interaction);
+  void ShowPageInfoDialog();
   // Actions executed when the user closes the page info dialog.
-  void OnIndicatorsChipButtonPressed(bool is_pointer_interaction);
+  void OnIndicatorsChipButtonPressed();
   std::u16string GetIndicatorTitle(ContentSettingImageModel* model);
   std::u16string GetSensorsIndicatorTitle(ContentSettingImageModel* model);
   std::u16string GetMediaStreamIndicatorTitle(ContentSettingImageModel* model);
@@ -120,6 +119,7 @@ class PermissionDashboardController : public PermissionChipInterface::Observer {
   bool is_verbose_ = false;
   bool blocked_on_system_level_ = false;
   content::GlobalRenderFrameHostId main_frame_id_;
+  bool should_suppress_reopening_page_info_ = false;
   WebUIBubbleReopenSuppressor page_info_bubble_suppressor_;
 
   base::ScopedObservation<PermissionChipInterface,

@@ -34,6 +34,7 @@
 #include "base/auto_reset.h"
 #include "base/compiler_specific.h"
 #include "third_party/blink/public/mojom/input/focus_type.mojom-blink.h"
+#include "third_party/blink/renderer/core/css/active_navigation_condition.h"
 #include "third_party/blink/renderer/core/css/check_pseudo_has_argument_context.h"
 #include "third_party/blink/renderer/core/css/check_pseudo_has_cache_scope.h"
 #include "third_party/blink/renderer/core/css/css_selector_list.h"
@@ -102,6 +103,7 @@
 #include "third_party/blink/renderer/core/paint/paint_layer_scrollable_area.h"
 #include "third_party/blink/renderer/core/probe/core_probes.h"
 #include "third_party/blink/renderer/core/route_matching/navigation_state.h"
+#include "third_party/blink/renderer/core/route_matching/route_map.h"
 #include "third_party/blink/renderer/core/scroll/scrollable_area.h"
 #include "third_party/blink/renderer/core/scroll/scrollbar_theme.h"
 #include "third_party/blink/renderer/core/style/computed_style.h"
@@ -757,6 +759,7 @@ SelectorChecker::FeaturelessMatch SelectorChecker::MatchShadowHost(
     case CSSSelector::kPseudoRightPage:
     case CSSSelector::kPseudoRoot:
     case CSSSelector::kPseudoLinkTo:
+    case CSSSelector::kPseudoActiveNavigation:
     case CSSSelector::kPseudoScrollbar:
     case CSSSelector::kPseudoScrollbarButton:
     case CSSSelector::kPseudoScrollbarCorner:
@@ -827,7 +830,7 @@ SelectorChecker::FeaturelessMatch SelectorChecker::MatchShadowHost(
     case CSSSelector::kPseudoTextField:
     case CSSSelector::kPseudoToolFormActive:
     case CSSSelector::kPseudoToolSubmitActive:
-    case CSSSelector::kPseudoNavigationSource:
+    case CSSSelector::kPseudoNavSource:
     case CSSSelector::kPseudoUnbounded:
     case CSSSelector::kPseudoViewTransition:
     case CSSSelector::kPseudoViewTransitionGroup:
@@ -843,7 +846,6 @@ SelectorChecker::FeaturelessMatch SelectorChecker::MatchShadowHost(
     case CSSSelector::kPseudoSelectContainsInput:
     case CSSSelector::kPseudoOverscrollBackdrop:
     case CSSSelector::kPseudoSelectHasSlottedButton:
-    case CSSSelector::kPseudoSkeleton:
       // These pseudos are not allowed to match featureless elements. When
       // adding new pseudos here, they would typically be allowed if they are
       // logical pseudos which take selector arguments.
@@ -2279,9 +2281,19 @@ bool SelectorChecker::CheckPseudoHas(const SelectorCheckingContext& context,
 bool SelectorChecker::CheckPseudoLinkTo(const SelectorCheckingContext& context,
                                         MatchResult& result) const {
   DCHECK(context.selector);
-  DCHECK(context.selector->GetNavigationLocation());
+  DCHECK(context.selector->GetRouteLocation());
   Element& element = GetCandidateElement(context, result);
-  return context.selector->GetNavigationLocation()->CheckSelectorMatch(element);
+  return context.selector->GetRouteLocation()->CheckSelectorMatch(element);
+}
+
+bool SelectorChecker::CheckPseudoActiveNavigation(
+    const SelectorCheckingContext& context,
+    MatchResult& result) const {
+  DCHECK(context.selector);
+  DCHECK(context.selector->GetActiveNavigationCondition());
+  Element& element = GetCandidateElement(context, result);
+  return context.selector->GetActiveNavigationCondition()->CheckSelectorMatch(
+      element);
 }
 
 bool SelectorChecker::CheckPseudoClass(const SelectorCheckingContext& context,
@@ -2918,13 +2930,21 @@ bool SelectorChecker::CheckPseudoClass(const SelectorCheckingContext& context,
     case CSSSelector::kPseudoLinkTo:
       DCHECK(RuntimeEnabledFeatures::RouteMatchingEnabled());
       return CheckPseudoLinkTo(context, result);
-    case CSSSelector::kPseudoNavigationSource:
-      DCHECK(RuntimeEnabledFeatures::NavigationSourcePseudoClassEnabled());
+    case CSSSelector::kPseudoActiveNavigation:
+      DCHECK(RuntimeEnabledFeatures::RouteMatchingEnabled());
+      return CheckPseudoActiveNavigation(context, result);
+    case CSSSelector::kPseudoNavSource:
+      DCHECK(RuntimeEnabledFeatures::RouteMatchingEnabled());
       if (const auto* state = NavigationState::Get(&element.GetDocument())) {
         if (&element == state->GetSourceElement()) {
           return true;
         }
       }
+
+      // TODO(crbug.com/436805487) Find a better solution. For now we need a
+      // RouteMap instance in order to trigger style recalc of source elements
+      // for :nav-source, when navigation starts and ends.
+      RouteMap::Ensure(element.GetDocument()).SetNeedsStyleUpdateOnNavigation();
       return false;
     case CSSSelector::kPseudoLang: {
       auto* vtt_element = DynamicTo<VTTElement>(element);

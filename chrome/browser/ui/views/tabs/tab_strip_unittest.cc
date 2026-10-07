@@ -12,7 +12,6 @@
 #include "base/test/bind.h"
 #include "base/test/scoped_feature_list.h"
 #include "chrome/browser/ui/layout_constants.h"
-#include "chrome/browser/ui/tabs/features.h"
 #include "chrome/browser/ui/tabs/tab_data.h"
 #include "chrome/browser/ui/tabs/tab_style.h"
 #include "chrome/browser/ui/views/tabs/fake_base_tab_strip_controller.h"
@@ -103,9 +102,7 @@ class TabStripTestBase : public ChromeViewsTestBase {
   explicit TabStripTestBase(bool touch_ui)
       : touch_ui_scoper_(touch_ui),
         animation_mode_reset_(gfx::AnimationTestApi::SetRichAnimationRenderMode(
-            gfx::Animation::RichAnimationRenderMode::FORCE_ENABLED)) {
-    scoped_feature_list_.InitAndDisableFeature(tabs::kTabStripUnification);
-  }
+            gfx::Animation::RichAnimationRenderMode::FORCE_ENABLED)) {}
   TabStripTestBase(const TabStripTestBase&) = delete;
   TabStripTestBase& operator=(const TabStripTestBase&) = delete;
   ~TabStripTestBase() override = default;

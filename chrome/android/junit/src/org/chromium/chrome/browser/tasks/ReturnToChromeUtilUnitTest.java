@@ -45,6 +45,7 @@ import org.mockito.Mockito;
 import org.mockito.Spy;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
+import org.robolectric.annotation.Config;
 
 import org.chromium.base.BaseSwitches;
 import org.chromium.base.DeviceInfo;
@@ -74,8 +75,8 @@ import org.chromium.chrome.browser.tabmodel.TabModelSelector;
 import org.chromium.chrome.browser.tabmodel.TabModelUtils;
 import org.chromium.chrome.browser.tasks.ReturnToChromeUtil.FailToShowHomeSurfaceReason;
 import org.chromium.chrome.browser.ui.native_page.FrozenNativePage;
+import org.chromium.chrome.browser.util.ChromeAccessibilityUtil;
 import org.chromium.ui.R;
-import org.chromium.ui.accessibility.AccessibilityStateTestHelper;
 import org.chromium.ui.base.DeviceFormFactor;
 import org.chromium.url.JUnitTestGURLs;
 
@@ -84,8 +85,10 @@ import java.util.List;
 
 /** Unit tests for {@link ReturnToChromeUtil} class. */
 @RunWith(BaseRobolectricTestRunner.class)
+@Config(manifest = Config.NONE)
 @CommandLineFlags.Add({BaseSwitches.DISABLE_LOW_END_DEVICE_MODE})
 public class ReturnToChromeUtilUnitTest {
+    private static final int ON_RETURN_THRESHOLD_SECOND = 1000;
     private static final int DELTA_MS = 100;
     @Rule public final MockitoRule mMockitoRule = MockitoJUnit.rule();
     @Mock private Context mContext;
@@ -123,7 +126,7 @@ public class ReturnToChromeUtilUnitTest {
         Assert.assertFalse(SysUtils.isLowEndDevice());
 
         // Sets accessibility:
-        AccessibilityStateTestHelper.setAccessibilityEnabledForTesting(false);
+        ChromeAccessibilityUtil.get().setAccessibilityEnabledForTesting(false);
 
         // Sets for phones, i.e., !DeviceFormFactor.isNonMultiDisplayContextOnTablet():
         doReturn(mResources).when(mContext).getResources();

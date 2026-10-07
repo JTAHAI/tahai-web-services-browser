@@ -35,20 +35,14 @@ class TestToolbarUiHandler extends TestBrowserProxy implements
     return new Promise<never>(() => {});
   }
   showContextMenu() {}
-  showOverflowMenu() {
-    return Promise.resolve({result: {}});
-  }
   onOmniboxAction() {
     return new Promise<never>(() => {});
   }
 
   onPageInitialized() {}
-  onContentSettingImagePointerDown() {}
   showContentSettingsBubble() {
     return new Promise<never>(() => {});
   }
-  onContentSettingImageAnimationEnded() {}
-  onPageActionPointerDown() {}
   onPageActionClick() {
     return new Promise<never>(() => {});
   }
@@ -78,13 +72,10 @@ class TestToolbarUiHandler extends TestBrowserProxy implements
   onAppMenuFocusChanged(_focused: boolean) {}
   executeExtensionAction(_extensionId: string) {}
   showExtensionContextMenu(_extensionId: string, _source: MenuSourceType) {}
-  onPerformanceInterventionButtonClicked(_isMouseInteraction: boolean) {}
-
-  onPerformanceInterventionButtonMousePressed() {}
 
   onLocationBarFocusWithinChanged(_focusInside: boolean) {}
 
-  onLhsChipMousePressed(id: LhsChipIdentifier, _isMiddleClick: boolean) {
+  onLhsChipMousePressed(id: LhsChipIdentifier) {
     this.methodCalled('onLhsChipMousePressed', id);
   }
 
@@ -189,7 +180,7 @@ class TestToolbarBrowserProxy extends TestBrowserProxy implements BrowserProxy {
     this.toolbarUIHandler.onLhsChipPointerExited(chip);
   }
   onChipMousePressed(chip: LhsChipIdentifier) {
-    this.toolbarUIHandler.onLhsChipMousePressed(chip, false);
+    this.toolbarUIHandler.onLhsChipMousePressed(chip);
   }
   onChipExpandAnimationEnded(chip: LhsChipIdentifier) {
     this.toolbarUIHandler.onLhsChipExpandAnimationEnded(chip);

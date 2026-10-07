@@ -86,7 +86,7 @@ void SigninUiDelegateImplAndroid::ShowReauthUI(
   }
   CoreAccountId account_id = IdentityManagerFactory::GetForProfile(profile)
                                  ->FindExtendedAccountInfoByEmailAddress(email)
-                                 .GetAccountId();
+                                 .account_id;
   CHECK(!account_id.empty());
   SigninBridgeFactory::GetForProfile(profile)->StartUpdateCredentialsFlow(
       TabAndroid::FromWebContents(web_contents),

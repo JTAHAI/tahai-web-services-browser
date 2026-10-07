@@ -14,7 +14,7 @@ import org.chromium.chrome.browser.tab.TabSelectionType;
 import org.chromium.chrome.browser.tabmodel.TabModel;
 import org.chromium.chrome.browser.tabmodel.TabModelObserver;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController.StateChangeReason;
-import org.chromium.components.browser_ui.bottomsheet.BottomSheetObserver;
+import org.chromium.components.browser_ui.bottomsheet.EmptyBottomSheetObserver;
 
 /**
  * The lifecycle for the save card bottom sheet. Notifies the caller when a tab or layout changes
@@ -22,8 +22,8 @@ import org.chromium.components.browser_ui.bottomsheet.BottomSheetObserver;
  * navigation.
  */
 @NullMarked
-/*package*/ class AutofillSaveCardBottomSheetLifecycle
-        implements BottomSheetObserver, TabModelObserver, LayoutStateProvider.LayoutStateObserver {
+/*package*/ class AutofillSaveCardBottomSheetLifecycle extends EmptyBottomSheetObserver
+        implements TabModelObserver, LayoutStateProvider.LayoutStateObserver {
     /** Controller callbacks from the save card bottom sheet. */
     interface ControllerDelegate {
         void onCanceled();
@@ -76,7 +76,7 @@ import org.chromium.components.browser_ui.bottomsheet.BottomSheetObserver;
         mUiController.removeObserver(this);
     }
 
-    // Overrides BottomSheetObserver onSheetClosed method for BottomSheetController.
+    // Overrides EmptyBottomSheetObserver onSheetClosed method for BottomSheetController.
     @Override
     public void onSheetClosed(@StateChangeReason int reason) {
         switch (reason) {

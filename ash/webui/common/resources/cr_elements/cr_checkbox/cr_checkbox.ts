@@ -88,7 +88,7 @@ export class CrCheckboxElement extends CrCheckboxElementBase {
   declare tabIndex: number;
 
   /* eslint-disable-next-line @typescript-eslint/naming-convention */
-  override _rippleContainer: Element|null = null;
+  override _rippleContainer: Element;
 
   override ready() {
     super.ready();
@@ -121,12 +121,12 @@ export class CrCheckboxElement extends CrCheckboxElementBase {
     return this.$.checkbox;
   }
 
-  protected checkedChanged_() {
+  private checkedChanged_() {
     this.$.checkbox.setAttribute(
         'aria-checked', this.checked ? 'true' : 'false');
   }
 
-  protected disabledChanged_(_current: boolean, previous: boolean) {
+  private disabledChanged_(_current: boolean, previous: boolean) {
     if (previous === undefined && !this.disabled) {
       return;
     }
@@ -136,7 +136,7 @@ export class CrCheckboxElement extends CrCheckboxElementBase {
         'aria-disabled', this.disabled ? 'true' : 'false');
   }
 
-  protected showRipple_() {
+  private showRipple_() {
     if (this.noink) {
       return;
     }
@@ -144,11 +144,11 @@ export class CrCheckboxElement extends CrCheckboxElementBase {
     this.getRipple().showAndHoldDown();
   }
 
-  protected hideRipple_() {
+  private hideRipple_() {
     this.getRipple().clear();
   }
 
-  protected onClick_(e: Event) {
+  private onClick_(e: Event) {
     if (this.disabled || (e.target as HTMLElement).tagName === 'A') {
       return;
     }
@@ -163,7 +163,7 @@ export class CrCheckboxElement extends CrCheckboxElementBase {
         'change', {bubbles: true, composed: true, detail: this.checked}));
   }
 
-  protected onKeyDown_(e: KeyboardEvent) {
+  private onKeyDown_(e: KeyboardEvent) {
     if (e.key !== ' ' && e.key !== 'Enter') {
       return;
     }
@@ -179,7 +179,7 @@ export class CrCheckboxElement extends CrCheckboxElementBase {
     }
   }
 
-  protected onKeyUp_(e: KeyboardEvent) {
+  private onKeyUp_(e: KeyboardEvent) {
     if (e.key === ' ' || e.key === 'Enter') {
       e.preventDefault();
       e.stopPropagation();
@@ -190,7 +190,7 @@ export class CrCheckboxElement extends CrCheckboxElementBase {
     }
   }
 
-  protected onTabIndexChanged_() {
+  private onTabIndexChanged_() {
     // :host shouldn't have a tabindex because it's set on #checkbox.
     this.removeAttribute('tabindex');
   }

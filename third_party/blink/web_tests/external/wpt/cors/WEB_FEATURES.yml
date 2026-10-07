@@ -1,2 +1,3 @@
-rules:
-- "**": [cors]
+features:
+- name: cors
+  files: "**"

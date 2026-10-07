@@ -13,12 +13,11 @@ static_assert(BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC));
 
 namespace extensions {
 
-namespace {
-
 policy::ManagementAuthorityTrustworthiness
-GetHigherManagementAuthorityTrustworthinessHelper(
-    Profile* profile,
-    policy::ManagementAuthorityTrustworthiness platform_trustworthiness) {
+GetHigherManagementAuthorityTrustworthiness(Profile* profile) {
+  policy::ManagementAuthorityTrustworthiness platform_trustworthiness =
+      policy::ManagementServiceFactory::GetForPlatform()
+          ->GetManagementAuthorityTrustworthiness();
   if (profile->IsGuestSession() || profile->IsSystemProfile()) {
     // Guest and System profiles cannot have user-level management policies.
     // We only return the platform-level trustworthiness and avoid triggering
@@ -29,22 +28,6 @@ GetHigherManagementAuthorityTrustworthinessHelper(
       policy::ManagementServiceFactory::GetForProfile(profile)
           ->GetManagementAuthorityTrustworthiness();
   return std::max(platform_trustworthiness, browser_trustworthiness);
-}
-
-}  // namespace
-
-policy::ManagementAuthorityTrustworthiness
-GetHigherManagementAuthorityTrustworthiness(Profile* profile) {
-  return GetHigherManagementAuthorityTrustworthinessHelper(
-      profile, policy::ManagementServiceFactory::GetForPlatform()
-                   ->GetManagementAuthorityTrustworthiness());
-}
-
-policy::ManagementAuthorityTrustworthiness
-GetHigherManagementAuthorityTrustworthinessForPolicyLoading(Profile* profile) {
-  return GetHigherManagementAuthorityTrustworthinessHelper(
-      profile, policy::ManagementServiceFactory::GetForPlatform()
-                   ->GetManagementAuthorityTrustworthinessForPolicyLoading());
 }
 
 }  // namespace extensions

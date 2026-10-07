@@ -2,7 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "base/memory/raw_ptr.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/blink/public/platform/web_prescient_networking.h"
 #include "third_party/blink/renderer/core/dom/document.h"
@@ -61,8 +60,7 @@ class HTMLPreloadScannerDocumentTest : public SimTest {
   }
 
  protected:
-  raw_ptr<MockPrescientNetworking, UnprotectedInRelease | DanglingUntriaged>
-      mock_network_hints_ = nullptr;
+  MockPrescientNetworking* mock_network_hints_ = nullptr;
   std::unique_ptr<SimRequest> main_resource_;
 };
 

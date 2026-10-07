@@ -32,7 +32,6 @@
 #include "content/public/browser/spare_render_process_host_manager.h"
 #include "content/public/common/content_features.h"
 #include "content/public/common/content_switches.h"
-#include "content/public/common/process_type.h"
 #include "content/public/test/back_forward_cache_util.h"
 #include "content/public/test/browser_test.h"
 #include "content/public/test/browser_test_utils.h"
@@ -607,13 +606,7 @@ IN_PROC_BROWSER_TEST_F(SiteDetailsBrowserTest, DISABLED_IsolateExtensions) {
 
 // Exercises accounting in the case where an extension has two different-site
 // web iframes.
-#if BUILDFLAG(IS_WIN)
-#define MAYBE_ExtensionWithTwoWebIframes DISABLED_ExtensionWithTwoWebIframes
-#else
-#define MAYBE_ExtensionWithTwoWebIframes ExtensionWithTwoWebIframes
-#endif
-IN_PROC_BROWSER_TEST_F(SiteDetailsBrowserTest,
-                       MAYBE_ExtensionWithTwoWebIframes) {
+IN_PROC_BROWSER_TEST_F(SiteDetailsBrowserTest, ExtensionWithTwoWebIframes) {
   size_t baseline_count = GetRenderProcessCount() - 1;
   scoped_refptr<TestMemoryDetails> details =
       base::MakeRefCounted<TestMemoryDetails>();

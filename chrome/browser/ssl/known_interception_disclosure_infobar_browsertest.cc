@@ -6,7 +6,6 @@
 #include "base/run_loop.h"
 #include "base/test/simple_test_clock.h"
 #include "base/threading/thread_restrictions.h"
-#include "chrome/browser/infobars/infobar_features.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ssl/known_interception_disclosure_infobar_delegate.h"
 #include "chrome/browser/ui/tabs/tab_enums.h"
@@ -28,7 +27,7 @@
 #include "components/messages/android/message_wrapper.h"
 #include "components/messages/android/mock_message_dispatcher_bridge.h"
 #else
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/test/base/ui_test_utils.h"
 #include "components/infobars/content/content_infobar_manager.h"
@@ -67,21 +66,15 @@ infobars::InfoBar* GetInfobar(content::WebContents* contents) {
   return infobar_manager->infobars()[0];
 }
 
-// Simulates dismissing the infobar (e.g., clicking the 'X' close button).
-// This triggers the dismissal callback which activates the cooldown.
-//
-// We use InfoBarDismissed() instead of Accept() because this infobar has no
-// action buttons on Desktop. While Accept() worked as a fallback in the legacy
-// delegate, the new framework only binds the cooldown activation to the
-// dismissal path (since there is no OK button to Accept). Calling
-// InfoBarDismissed() works correctly for both the legacy and migrated paths.
+// Follows same logic as clicking the "Continue" button would.
 void CloseDisclosure(content::WebContents* contents) {
   infobars::InfoBar* infobar = GetInfobar(contents);
   if (!infobar) {
     return;
   }
 
-  infobar->delegate()->InfoBarDismissed();
+  ASSERT_TRUE(
+      static_cast<ConfirmInfoBarDelegate*>(infobar->delegate())->Accept());
   infobar->RemoveSelf();
 }
 #endif
@@ -89,20 +82,11 @@ void CloseDisclosure(content::WebContents* contents) {
 }  // namespace
 
 class KnownInterceptionDisclosurePlatformBrowserTest
-    : public PlatformBrowserTest,
-      public testing::WithParamInterface<bool> {
+    : public PlatformBrowserTest {
  public:
   KnownInterceptionDisclosurePlatformBrowserTest()
       : https_server_(net::EmbeddedTestServer::TYPE_HTTPS) {
     https_server_.AddDefaultHandlers(GetChromeTestDataDir());
-    if (GetParam()) {
-      feature_list_.InitAndEnableFeatureWithParameters(
-          infobars::kCentralizedInfoBarFramework,
-          {{"MigratedKnownInterceptionDisclosure", "true"}});
-    } else {
-      feature_list_.InitAndDisableFeature(
-          infobars::kCentralizedInfoBarFramework);
-    }
   }
 
   KnownInterceptionDisclosurePlatformBrowserTest(
@@ -160,10 +144,9 @@ class KnownInterceptionDisclosurePlatformBrowserTest
   testing::NiceMock<messages::MockMessageDispatcherBridge>
       mock_message_dispatcher_bridge_;
 #endif
-  base::test::ScopedFeatureList feature_list_;
 };
 
-IN_PROC_BROWSER_TEST_P(KnownInterceptionDisclosurePlatformBrowserTest,
+IN_PROC_BROWSER_TEST_F(KnownInterceptionDisclosurePlatformBrowserTest,
                        DisclosureTriggerSmokeTest) {
 #if BUILDFLAG(IS_ANDROID)
   // Clear the mock so the real MessageDispatcherBridge is used to ensure
@@ -178,7 +161,7 @@ IN_PROC_BROWSER_TEST_P(KnownInterceptionDisclosurePlatformBrowserTest,
   ASSERT_TRUE(content::NavigateToURL(tab, kInterceptedUrl));
 }
 
-IN_PROC_BROWSER_TEST_P(KnownInterceptionDisclosurePlatformBrowserTest,
+IN_PROC_BROWSER_TEST_F(KnownInterceptionDisclosurePlatformBrowserTest,
                        OnlyShowDisclosureOncePerSession) {
   const GURL kInterceptedUrl(https_server_.GetURL("/ssl/google.html"));
 
@@ -196,7 +179,7 @@ IN_PROC_BROWSER_TEST_P(KnownInterceptionDisclosurePlatformBrowserTest,
   EXPECT_EQ(1u, GetDisclosureCount(tab1));
 
 #if !BUILDFLAG(IS_ANDROID)
-  TabStripModel* tab_strip_model = browser()->GetTabStripModel();
+  TabStripModel* tab_strip_model = browser()->tab_strip_model();
   // Test that the infobar is shown on new tabs after it has been triggered
   // once.
   ui_test_utils::NavigateToURLWithDisposition(
@@ -230,7 +213,7 @@ IN_PROC_BROWSER_TEST_P(KnownInterceptionDisclosurePlatformBrowserTest,
   EXPECT_EQ(1u, GetDisclosureCount(tab1));
 }
 
-IN_PROC_BROWSER_TEST_P(KnownInterceptionDisclosurePlatformBrowserTest,
+IN_PROC_BROWSER_TEST_F(KnownInterceptionDisclosurePlatformBrowserTest,
                        PRE_CooldownResetsOnBrowserRestart) {
   const GURL kInterceptedUrl(https_server_.GetURL("/ssl/google.html"));
 
@@ -253,7 +236,7 @@ IN_PROC_BROWSER_TEST_P(KnownInterceptionDisclosurePlatformBrowserTest,
 #endif
 }
 
-IN_PROC_BROWSER_TEST_P(KnownInterceptionDisclosurePlatformBrowserTest,
+IN_PROC_BROWSER_TEST_F(KnownInterceptionDisclosurePlatformBrowserTest,
                        CooldownResetsOnBrowserRestart) {
   const GURL kInterceptedUrl(https_server_.GetURL("/ssl/google.html"));
 
@@ -273,10 +256,3 @@ IN_PROC_BROWSER_TEST_P(KnownInterceptionDisclosurePlatformBrowserTest,
   EXPECT_EQ(0u, GetDisclosureCount(tab));
 #endif
 }
-
-INSTANTIATE_TEST_SUITE_P(All,
-                         KnownInterceptionDisclosurePlatformBrowserTest,
-                         testing::Bool(),
-                         [](const testing::TestParamInfo<bool>& info) {
-                           return info.param ? "Migrated" : "Legacy";
-                         });

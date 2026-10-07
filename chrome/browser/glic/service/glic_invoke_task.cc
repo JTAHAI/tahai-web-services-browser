@@ -10,7 +10,6 @@
 #include "base/strings/escape.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/task/sequenced_task_runner.h"
-#include "chrome/browser/actor/actor_keyed_service.h"
 #include "chrome/browser/enterprise/data_protection/data_protection_clipboard_utils.h"
 #include "chrome/browser/glic/public/glic_context_menu_invocation_helper.h"
 #include "chrome/browser/glic/public/glic_enabling.h"
@@ -19,7 +18,6 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/common/chrome_features.h"
 #include "content/public/browser/navigation_handle.h"
-#include "content/public/browser/visibility.h"
 #include "content/public/browser/web_contents.h"
 
 namespace glic {
@@ -157,29 +155,6 @@ void WaitForNavigationTask::DidFinishNavigation(
   }
 }
 
-SetTabPendingActuationTask::SetTabPendingActuationTask(
-    Profile* profile,
-    tabs::TabHandle tab_handle)
-    : profile_(profile), tab_handle_(tab_handle) {}
-
-SetTabPendingActuationTask::~SetTabPendingActuationTask() = default;
-
-void SetTabPendingActuationTask::Start(base::OnceClosure done_callback) {
-  if (auto* actor_service = actor::ActorKeyedService::Get(profile_)) {
-    actor_service->SetTabPendingActuation(tab_handle_);
-  }
-  std::move(done_callback).Run();
-}
-
-void SetTabPendingActuationTask::OnSequenceCompleted(bool success) {
-  if (success) {
-    return;
-  }
-  if (auto* actor_service = actor::ActorKeyedService::Get(profile_)) {
-    actor_service->ClearTabPendingActuation(tab_handle_);
-  }
-}
-
 ShowInstanceTask::ShowInstanceTask(GlicInstanceImpl& instance,
                                    ShowOptions options)
     : instance_(instance), options_(options) {}
@@ -221,16 +196,32 @@ MaybeInitializeHiddenClientTask::~MaybeInitializeHiddenClientTask() = default;
 void MaybeInitializeHiddenClientTask::Start(base::OnceClosure done_callback) {
   if (!instance_->HasActiveEmbedder()) {
     instance_->MaybeInitializeHiddenClient(invocation_source_, fre_override_);
-    instance_->host().SetWebContentsVisibilityOverride(
-        content::Visibility::VISIBLE);
+    if (content::WebContents* ui_contents =
+            instance_->host().webui_contents()) {
+      ui_contents->WasShown();
+    }
+    if (content::WebContents* client_contents =
+            instance_->host().web_client_contents()) {
+      client_contents->WasShown();
+    }
     forced_shown_ = true;
   }
   std::move(done_callback).Run();
 }
 
 void MaybeInitializeHiddenClientTask::OnSequenceCompleted(bool success) {
-  if (forced_shown_) {
-    instance_->host().SetWebContentsVisibilityOverride(std::nullopt);
+  // Only revert to hidden if we forced it to be shown and there is still no
+  // active embedder. This prevents overriding the state if an active embedder
+  // was created while the task was running (as this code is async).
+  if (forced_shown_ && !instance_->HasActiveEmbedder()) {
+    if (content::WebContents* ui_contents =
+            instance_->host().webui_contents()) {
+      ui_contents->WasHidden();
+    }
+    if (content::WebContents* client_contents =
+            instance_->host().web_client_contents()) {
+      client_contents->WasHidden();
+    }
   }
 }
 
@@ -402,6 +393,7 @@ void WaitForActuationTask::Update() {
   if (!task_started_) {
     return;
   }
+
 
   if (did_finish_ && done_callback_) {
     timer_.Stop();

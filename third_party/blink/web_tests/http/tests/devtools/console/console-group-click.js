@@ -27,9 +27,7 @@ import * as Console from 'devtools/panels/console/console.js';
   await ConsoleTestRunner.dumpConsoleMessages();
 
   TestRunner.addResult(`\nClick on the object`);
-  messagesElement.querySelector('devtools-tree')
-      .shadowRoot.querySelector('.console-object')
-      .click();
+  messagesElement.querySelector('.console-object').click();
   ConsoleTestRunner.waitForRemoteObjectsConsoleMessages(async () => {
     await ConsoleTestRunner.dumpConsoleMessages();
     TestRunner.completeTest();

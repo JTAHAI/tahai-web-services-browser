@@ -23,6 +23,7 @@
 #include "chrome/browser/ash/floating_workspace/floating_workspace_service_factory.h"
 #include "chrome/browser/ash/floating_workspace/floating_workspace_util.h"
 #include "chrome/browser/ash/login/demo_mode/demo_session.h"
+#include "chrome/browser/ash/login/lock/screen_locker.h"
 #include "chrome/browser/ash/profiles/profile_helper.h"
 #include "chrome/browser/ash/settings/device_settings_service.h"
 #include "chrome/browser/ash/system_web_apps/apps/personalization_app/personalization_app_utils.h"
@@ -231,6 +232,10 @@ void SessionControllerClientImpl::RequestLockScreen() {
   DoLockScreen();
 }
 
+void SessionControllerClientImpl::RequestHideLockScreen() {
+  ash::ScreenLocker::Hide();
+}
+
 void SessionControllerClientImpl::RequestSignOut() {
   chrome::AttemptUserExit();
 }
@@ -290,6 +295,16 @@ void SessionControllerClientImpl::ShowMultiProfileLogin() {
   } else {
     ash::UserAddingScreen::Get()->Start();
   }
+}
+
+void SessionControllerClientImpl::EmitAshInitialized() {
+  // Emit the ash-initialized upstart signal to start Chrome OS tasks that
+  // expect that Ash is listening to D-Bus signals they emit. For example,
+  // hammerd, which handles detachable base state, communicates the base state
+  // purely by emitting D-Bus signals, and thus has to be run whenever Ash is
+  // started so Ash (DetachableBaseHandler in particular) gets the proper view
+  // of the current detachable base state.
+  ash::SessionManagerClient::Get()->EmitAshInitialized();
 }
 
 PrefService* SessionControllerClientImpl::GetSigninScreenPrefService() {

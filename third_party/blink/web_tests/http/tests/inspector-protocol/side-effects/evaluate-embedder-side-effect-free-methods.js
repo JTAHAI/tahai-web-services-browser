@@ -49,6 +49,8 @@
   // Unsafe Command Line API
   await checkHasSideEffect(`monitorEvents()`);
   await checkHasSideEffect(`unmonitorEvents()`);
+  await checkHasNoSideEffect(`monitorEvents.toString()`);
+  await checkHasNoSideEffect(`unmonitorEvents.toString()`);
 
   // Document
   await checkHasNoSideEffect(`document.getElementsByTagName('div')`);

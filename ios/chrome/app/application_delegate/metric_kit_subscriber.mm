@@ -6,7 +6,6 @@
 
 #import "base/apple/foundation_util.h"
 #import "base/files/file_path.h"
-#import "base/functional/bind.h"
 #import "base/metrics/histogram_base.h"
 #import "base/metrics/histogram_functions.h"
 #import "base/numerics/safe_conversions.h"
@@ -14,15 +13,33 @@
 #import "base/strings/sys_string_conversions.h"
 #import "base/task/task_traits.h"
 #import "base/task/thread_pool.h"
-#import "base/time/time.h"
 #import "base/version.h"
 #import "components/crash/core/app/crashpad.h"
 #import "components/crash/core/common/reporter_running_ios.h"
 #import "components/previous_session_info/previous_session_info.h"
 #import "components/version_info/version_info.h"
 #import "ios/chrome/browser/crash_report/model/features.h"
-#import "ios/chrome/browser/metrics/model/activity_reporter.h"
-#import "ios/chrome/browser/metrics/model/histogram_bridge.h"
+
+// The different causes of app exit as reported by MetricKit.
+// This enum is used in UMA. Do not change the order.
+// These values are persisted to logs. Entries should not be renumbered and
+// numeric values should never be reused.
+enum MetricKitExitReason {
+  kNormalAppExit = 0,
+  kAbnormalAppExit = 1,
+  kWatchdogExit = 2,
+  kCPUResourceLimitExit = 3,
+  kMemoryResourceLimitExit = 4,
+  kMemoryPressureExit = 5,
+  kSuspendedWithLockedFileExit = 6,
+  kBadAccessExit = 7,
+  kIllegalInstructionExit = 8,
+  kBackgroundTaskAssertionTimeoutExit = 9,
+
+  // Must be the last enum entries.
+  kMetricKitExitReasonMaxValue = kBackgroundTaskAssertionTimeoutExit,
+  kMetricKitExitReasonCount = kMetricKitExitReasonMaxValue + 1
+};
 
 namespace {
 
@@ -35,8 +52,7 @@ void ReportExitReason(base::HistogramBase* histogram,
   if (!count) {
     return;
   }
-  histogram->AddCount(base::saturated_cast<int>(bucket),
-                      base::saturated_cast<int>(count));
+  histogram->AddCount(bucket, count);
 }
 
 void ReportLongDuration(const std::string& histogram_name,
@@ -64,12 +80,7 @@ void ReportMemory(const std::string& histogram_name,
   base::UmaHistogramMemoryLargeMB(histogram_name, value);
 }
 
-// Sends a compressed external diagnostic dump to Crashpad using pre-cached
-// base annotations to avoid redundant string conversions and lock contention.
-void SendDiagnostic(
-    MXDiagnostic* diagnostic,
-    const std::string& type,
-    const std::map<std::string, std::string>& base_annotations) {
+void SendDiagnostic(MXDiagnostic* diagnostic, const std::string& type) {
   base::FilePath cache_dir_path;
   if (!base::PathService::Get(base::DIR_CACHE, &cache_dir_path)) {
     return;
@@ -84,59 +95,53 @@ void SendDiagnostic(
     return;
   }
 
-  base::span<const uint8_t> spanpayload = base::apple::NSDataToSpan(payload);
+  if (crash_reporter::IsCrashpadRunning()) {
+    base::span<const uint8_t> spanpayload = base::apple::NSDataToSpan(payload);
 
-  std::map<std::string, std::string> override_annotations = base_annotations;
-  override_annotations["ver"] =
-      base::SysNSStringToUTF8(diagnostic.metaData.applicationBuildVersion);
-  override_annotations["metrickit_type"] = type;
-
-  const std::string source =
-      type == "crash" ? "MetricKit" : "MetricKit_Diagnostics";
-  crash_reporter::ProcessExternalDump(source, spanpayload,
-                                      override_annotations);
+    std::map<std::string, std::string> override_annotations = {
+        {"ver",
+         base::SysNSStringToUTF8(diagnostic.metaData.applicationBuildVersion)},
+        {"metrickit", "true"},
+        {"metrickit_type", type}};
+    PreviousSessionInfo* previous_session =
+        [PreviousSessionInfo sharedInstance];
+    for (NSString* key in previous_session.reportParameters.allKeys) {
+      override_annotations.insert(
+          {base::SysNSStringToUTF8(key),
+           base::SysNSStringToUTF8(previous_session.reportParameters[key])});
+    }
+    if (previous_session.breadcrumbs) {
+      override_annotations.insert(
+          {"breadcrumbs",
+           base::SysNSStringToUTF8(previous_session.breadcrumbs)});
+    }
+    const std::string source =
+        type == "crash" ? "MetricKit" : "MetricKit_Diagnostics";
+    crash_reporter::ProcessExternalDump(source, spanpayload,
+                                        override_annotations);
+  }
 }
 
-// Iterates through diagnostic payloads and exports reports to Crashpad.
 void ProcessDiagnosticPayloads(NSArray<MXDiagnosticPayload*>* payloads) {
-  if (!crash_reporter::IsCrashpadRunning()) {
-    return;
-  }
-
-  PreviousSessionInfo* previous_session = [PreviousSessionInfo sharedInstance];
-  NSDictionary<NSString*, NSString*>* report_parameters =
-      [previous_session.reportParameters copy];
-  NSString* breadcrumbs = [previous_session.breadcrumbs copy];
-
-  std::map<std::string, std::string> base_annotations;
-  base_annotations["metrickit"] = "true";
-  for (NSString* key in report_parameters.allKeys) {
-    base_annotations[base::SysNSStringToUTF8(key)] =
-        base::SysNSStringToUTF8(report_parameters[key]);
-  }
-  if (breadcrumbs) {
-    base_annotations["breadcrumbs"] = base::SysNSStringToUTF8(breadcrumbs);
-  }
-
   for (MXDiagnosticPayload* payload in payloads) {
     for (MXCrashDiagnostic* diagnostic in payload.crashDiagnostics) {
-      SendDiagnostic(diagnostic, "crash", base_annotations);
+      SendDiagnostic(diagnostic, "crash");
     }
     if (base::FeatureList::IsEnabled(kMetrickitNonCrashReport)) {
       for (MXCPUExceptionDiagnostic* diagnostic in payload
                .cpuExceptionDiagnostics) {
-        SendDiagnostic(diagnostic, "cpu-exception", base_annotations);
+        SendDiagnostic(diagnostic, "cpu-exception");
       }
       for (MXHangDiagnostic* diagnostic in payload.hangDiagnostics) {
-        SendDiagnostic(diagnostic, "hang", base_annotations);
+        SendDiagnostic(diagnostic, "hang");
       }
       for (MXDiskWriteExceptionDiagnostic* diagnostic in payload
                .diskWriteExceptionDiagnostics) {
-        SendDiagnostic(diagnostic, "diskwrite-exception", base_annotations);
+        SendDiagnostic(diagnostic, "diskwrite-exception");
       }
       for (MXCPUExceptionDiagnostic* diagnostic in payload
                .appLaunchDiagnostics) {
-        SendDiagnostic(diagnostic, "app-launch", base_annotations);
+        SendDiagnostic(diagnostic, "app-launch");
       }
     }
   }
@@ -180,11 +185,6 @@ std::string HistogramPrefix(bool include_mismatch) {
     [[MXMetricManager sharedManager] addSubscriber:self];
   } else {
     [[MXMetricManager sharedManager] removeSubscriber:self];
-  }
-  if (@available(iOS 27.0, *)) {
-    if (base::FeatureList::IsEnabled(kMetrickitSwiftReportSubscriber)) {
-      [[MetricKitReportSubscriber sharedInstance] setEnabled:enable];
-    }
   }
 }
 
@@ -232,52 +232,49 @@ std::string HistogramPrefix(bool include_mismatch) {
 
 - (void)logForegroundExit:(MXForegroundExitData*)exitData
           histogramPrefix:(const std::string&)prefix {
-  int exclusive_max = static_cast<int>(MetricKitExitReasonMaxValue) + 1;
   base::HistogramBase* histogramUMA = base::LinearHistogram::FactoryGet(
-      prefix + "ForegroundExitData", 1, exclusive_max,
-      static_cast<size_t>(exclusive_max + 1),
+      prefix + "ForegroundExitData", 1, kMetricKitExitReasonCount,
+      kMetricKitExitReasonCount + 1,
       base::HistogramBase::kUmaTargetedHistogramFlag);
-  ReportExitReason(histogramUMA, MetricKitExitReasonNormal,
+  ReportExitReason(histogramUMA, kNormalAppExit,
                    exitData.cumulativeNormalAppExitCount);
-  ReportExitReason(histogramUMA, MetricKitExitReasonAbnormal,
+  ReportExitReason(histogramUMA, kAbnormalAppExit,
                    exitData.cumulativeAbnormalExitCount);
-  ReportExitReason(histogramUMA, MetricKitExitReasonWatchdog,
+  ReportExitReason(histogramUMA, kWatchdogExit,
                    exitData.cumulativeAppWatchdogExitCount);
-  ReportExitReason(histogramUMA, MetricKitExitReasonMemoryLimit,
+  ReportExitReason(histogramUMA, kMemoryResourceLimitExit,
                    exitData.cumulativeMemoryResourceLimitExitCount);
-  ReportExitReason(histogramUMA, MetricKitExitReasonBadAccess,
+  ReportExitReason(histogramUMA, kBadAccessExit,
                    exitData.cumulativeBadAccessExitCount);
-  ReportExitReason(histogramUMA, MetricKitExitReasonIllegalInstruction,
+  ReportExitReason(histogramUMA, kIllegalInstructionExit,
                    exitData.cumulativeIllegalInstructionExitCount);
 }
 
 - (void)logBackgroundExit:(MXBackgroundExitData*)exitData
           histogramPrefix:(const std::string&)prefix {
-  int exclusive_max = static_cast<int>(MetricKitExitReasonMaxValue) + 1;
   base::HistogramBase* histogramUMA = base::LinearHistogram::FactoryGet(
-      prefix + "BackgroundExitData", 1, exclusive_max,
-      static_cast<size_t>(exclusive_max + 1),
+      prefix + "BackgroundExitData", 1, kMetricKitExitReasonCount,
+      kMetricKitExitReasonCount + 1,
       base::HistogramBase::kUmaTargetedHistogramFlag);
-  ReportExitReason(histogramUMA, MetricKitExitReasonNormal,
+  ReportExitReason(histogramUMA, kNormalAppExit,
                    exitData.cumulativeNormalAppExitCount);
-  ReportExitReason(histogramUMA, MetricKitExitReasonAbnormal,
+  ReportExitReason(histogramUMA, kAbnormalAppExit,
                    exitData.cumulativeAbnormalExitCount);
-  ReportExitReason(histogramUMA, MetricKitExitReasonWatchdog,
+  ReportExitReason(histogramUMA, kWatchdogExit,
                    exitData.cumulativeAppWatchdogExitCount);
-  ReportExitReason(histogramUMA, MetricKitExitReasonCpuLimit,
+  ReportExitReason(histogramUMA, kCPUResourceLimitExit,
                    exitData.cumulativeCPUResourceLimitExitCount);
-  ReportExitReason(histogramUMA, MetricKitExitReasonMemoryLimit,
+  ReportExitReason(histogramUMA, kMemoryResourceLimitExit,
                    exitData.cumulativeMemoryResourceLimitExitCount);
-  ReportExitReason(histogramUMA, MetricKitExitReasonMemoryPressure,
+  ReportExitReason(histogramUMA, kMemoryPressureExit,
                    exitData.cumulativeMemoryPressureExitCount);
-  ReportExitReason(histogramUMA, MetricKitExitReasonSuspendedWithLockedFile,
+  ReportExitReason(histogramUMA, kSuspendedWithLockedFileExit,
                    exitData.cumulativeSuspendedWithLockedFileExitCount);
-  ReportExitReason(histogramUMA, MetricKitExitReasonBadAccess,
+  ReportExitReason(histogramUMA, kBadAccessExit,
                    exitData.cumulativeBadAccessExitCount);
-  ReportExitReason(histogramUMA, MetricKitExitReasonIllegalInstruction,
+  ReportExitReason(histogramUMA, kIllegalInstructionExit,
                    exitData.cumulativeIllegalInstructionExitCount);
-  ReportExitReason(histogramUMA,
-                   MetricKitExitReasonBackgroundTaskAssertionTimeout,
+  ReportExitReason(histogramUMA, kBackgroundTaskAssertionTimeoutExit,
                    exitData.cumulativeBackgroundTaskAssertionTimeoutExitCount);
 }
 

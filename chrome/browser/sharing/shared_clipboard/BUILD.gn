@@ -3,7 +3,8 @@
 # found in the LICENSE file.
 
 source_set("shared_clipboard") {
-  sources = []
+  public = [ "shared_clipboard_message_handler.h" ]
+  sources = [ "shared_clipboard_message_handler.cc" ]
   public_deps = [
     "//base",
     "//components/sharing_message",
@@ -15,8 +16,14 @@ source_set("shared_clipboard") {
   ]
 
   if (!is_android) {
-    public = [ "remote_copy_message_handler.h" ]
-    sources += [ "remote_copy_message_handler.cc" ]
+    public += [
+      "remote_copy_message_handler.h",
+      "shared_clipboard_message_handler_desktop.h",
+    ]
+    sources += [
+      "remote_copy_message_handler.cc",
+      "shared_clipboard_message_handler_desktop.cc",
+    ]
     public_deps += [
       "//chrome/browser/image_decoder",
       "//components/sharing_message/shared_clipboard",
@@ -40,6 +47,7 @@ if (!is_android) {
     testonly = true
     sources = [
       "remote_copy_message_handler_unittest.cc",
+      "shared_clipboard_message_handler_desktop_unittest.cc",
       "shared_clipboard_test_base.cc",
       "shared_clipboard_test_base.h",
     ]

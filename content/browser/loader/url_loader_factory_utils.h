@@ -73,8 +73,7 @@ class CONTENT_EXPORT ContentClientParams final {
            mojo::PendingRemote<network::mojom::TrustedURLLoaderHeaderClient>*
                header_client,
            bool* disable_secure_dns,
-           network::mojom::URLLoaderFactoryOverridePtr* factory_override,
-           bool is_for_network_service);
+           network::mojom::URLLoaderFactoryOverridePtr* factory_override);
 
  private:
   raw_ptr<BrowserContext> browser_context_;
@@ -156,7 +155,6 @@ class CONTENT_EXPORT TerminalParams final {
   int process_id() const;
   network::mojom::URLLoaderFactoryParamsPtr TakeFactoryParams();
   std::optional<URLLoaderFactoryTypes> TakeURLLoaderFactory();
-  bool is_for_network_service() const;
 
  private:
   TerminalParams(network::mojom::NetworkContext* network_context,
@@ -166,8 +164,7 @@ class CONTENT_EXPORT TerminalParams final {
                  DisableSecureDnsOption disable_secure_dns_option,
                  StoragePartitionImpl* storage_partition,
                  std::optional<URLLoaderFactoryTypes> url_loader_factory,
-                 int process_id,
-                 bool is_for_network_service);
+                 int process_id);
 
   raw_ptr<network::mojom::NetworkContext> network_context_;
   network::mojom::URLLoaderFactoryParamsPtr factory_params_;
@@ -184,7 +181,6 @@ class CONTENT_EXPORT TerminalParams final {
   // `ContentClientParams::render_process_id_`. Clarify the meaning of
   // `process_id_` here if needed.
   int process_id_;
-  bool is_for_network_service_;
 };
 
 // Creates a URLLoaderFactory, intercepted by:
@@ -203,9 +199,6 @@ class CONTENT_EXPORT TerminalParams final {
 //
 // Note that the created URLLoaderFactory might NOT support auto-reconnect after
 // a crash of Network Service.
-//
-// These methods below are essentially the same, exposed for each of specific
-// return types or for templatization.
 [[nodiscard]] CONTENT_EXPORT scoped_refptr<network::SharedURLLoaderFactory>
 Create(ContentBrowserClient::URLLoaderFactoryType type,
        TerminalParams terminal_params,
@@ -229,15 +222,6 @@ CONTENT_EXPORT void CreateAndConnectToPendingReceiver(
     std::optional<ContentClientParams> content_client_params = std::nullopt,
     std::optional<devtools_instrumentation::WillCreateURLLoaderFactoryParams>
         devtools_params = std::nullopt);
-
-template <typename OutType, typename... FinishArgs>
-[[nodiscard]] CONTENT_EXPORT OutType CreateInternal(
-    ContentBrowserClient::URLLoaderFactoryType type,
-    TerminalParams terminal_params,
-    std::optional<ContentClientParams> content_client_params,
-    std::optional<devtools_instrumentation::WillCreateURLLoaderFactoryParams>
-        devtools_params,
-    FinishArgs... finish_args);
 
 }  // namespace url_loader_factory
 }  // namespace content

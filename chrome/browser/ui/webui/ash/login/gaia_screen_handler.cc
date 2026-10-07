@@ -1285,7 +1285,8 @@ void GaiaScreenHandler::StartClearingCookies(
   cookies_cleared_ = false;
   LOG_ASSERT(Profile::FromWebUI(web_ui()) ==
              Profile::FromBrowserContext(
-                 BrowserContextHelper::Get()->GetSigninBrowserContext()));
+                 BrowserContextHelper::Get()
+                     ->DeprecatedGetOrCreateSigninBrowserContext()));
   SigninProfileHandler::Get()->ClearSigninProfile(
       base::BindOnce(&GaiaScreenHandler::OnCookiesCleared,
                      weak_factory_.GetWeakPtr(), std::move(on_clear_callback)));
@@ -1738,9 +1739,7 @@ void GaiaScreenHandler::HideOfflineMessage(NetworkStateInformer::State state,
 
   // Forces a reload for Gaia screen on hiding error message.
   if (IsGaiaVisible() || IsGaiaHiddenByError()) {
-    if (frame_state_ != FRAME_STATE_LOADED) {
-      ReloadGaia(reason == NetworkError::ERROR_REASON_NETWORK_STATE_CHANGED);
-    }
+    ReloadGaia(reason == NetworkError::ERROR_REASON_NETWORK_STATE_CHANGED);
   }
 }
 
@@ -1789,9 +1788,7 @@ void GaiaScreenHandler::OnProxyAuthDone() {
 void GaiaScreenHandler::OnErrorScreenHide() {
   histogram_helper_->OnErrorHide();
   error_screen_->SetParentScreen(ash::OOBE_SCREEN_UNKNOWN);
-  if (frame_state_ != FRAME_STATE_LOADED) {
-    ReloadGaia(/*force_reload=*/true);
-  }
+  ReloadGaia(/*force_reload=*/true);
   ShowScreenDeprecated(GaiaView::kScreenId);
 }
 

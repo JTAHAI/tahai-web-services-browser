@@ -96,7 +96,6 @@ template("webapk_with_service_java") {
     ]
     deps += [
       ":compiled_in_runtime_library_java",
-      "//chrome/android/webapk/libs/common:common_java",
       "//third_party/androidx:androidx_annotation_annotation_java",
     ]
     errorprone_args = [ "-Xep:NoAndroidLog:OFF" ]
@@ -289,9 +288,6 @@ template("webapk_tmpl") {
 
 java_strings_grd("webapk_strings_grd") {
   grd_file = "//chrome/android/webapk/strings/android_webapk_strings.grd"
-  inputs = process_file_template(
-          xtb_locales,
-          [ "../strings/translations/android_webapk_strings_{{source_name_part}}.xtb" ])
 }
 
 # Template for WebAPK. When a WebAPK is generated:

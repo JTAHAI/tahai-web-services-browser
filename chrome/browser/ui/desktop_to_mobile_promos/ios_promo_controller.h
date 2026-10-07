@@ -9,6 +9,7 @@
 #include "base/memory/raw_ptr.h"
 #include "ui/base/unowned_user_data/scoped_unowned_user_data.h"
 
+class Browser;
 class BrowserWindowInterface;
 
 namespace desktop_to_mobile_promos {
@@ -25,7 +26,7 @@ class IOSPromoController {
  public:
   DECLARE_USER_DATA(IOSPromoController);
 
-  explicit IOSPromoController(BrowserWindowInterface* browser);
+  explicit IOSPromoController(Browser* browser);
   ~IOSPromoController();
 
   IOSPromoController(const IOSPromoController&) = delete;
@@ -46,7 +47,7 @@ class IOSPromoController {
 
   bool IsUserEligibleForPromo(desktop_to_mobile_promos::PromoType promo_type);
 
-  const raw_ptr<BrowserWindowInterface> browser_;
+  const raw_ptr<Browser> browser_;
 
   base::CallbackListSubscription promo_trigger_subscription_;
   base::CallbackListSubscription tab_group_editor_hidden_subscription_;

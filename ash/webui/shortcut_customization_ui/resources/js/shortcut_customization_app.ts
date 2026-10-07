@@ -136,9 +136,8 @@ export class ShortcutCustomizationAppElement extends
   private shortcutProvider: ShortcutProviderInterface = getShortcutProvider();
   private acceleratorlookupManager: AcceleratorLookupManager =
       AcceleratorLookupManager.getInstance();
-  private policyUpdatedReceiver: PolicyUpdatedObserverReceiver|null = null;
-  private acceleratorsUpdatedReceiver: AcceleratorsUpdatedObserverReceiver|
-      null = null;
+  private acceleratorsUpdatedReceiver: AcceleratorsUpdatedObserverReceiver;
+  private policyUpdatedReceiver: PolicyUpdatedObserverReceiver;
 
   override connectedCallback(): void {
     super.connectedCallback();
@@ -180,11 +179,8 @@ export class ShortcutCustomizationAppElement extends
 
   override disconnectedCallback(): void {
     super.disconnectedCallback();
-    assert(this.policyUpdatedReceiver);
     this.policyUpdatedReceiver.$.close();
-    if (this.acceleratorsUpdatedReceiver) {
-      this.acceleratorsUpdatedReceiver.$.close();
-    }
+    this.acceleratorsUpdatedReceiver.$.close();
     this.removeEventListener('show-edit-dialog', this.showDialog);
     this.removeEventListener('edit-dialog-closed', this.onDialogClosed);
     this.removeEventListener(

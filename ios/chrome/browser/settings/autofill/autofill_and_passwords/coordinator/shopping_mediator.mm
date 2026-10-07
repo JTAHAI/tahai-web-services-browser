@@ -7,7 +7,6 @@
 #import "base/apple/foundation_util.h"
 #import "base/notreached.h"
 #import "components/autofill/core/common/autofill_prefs.h"
-#import "components/personal_context/core/personal_context_prefs.h"
 #import "components/prefs/pref_service.h"
 #import "ios/chrome/browser/settings/autofill/autofill_ai/ui/autofill_ai_entity_item.h"
 #import "ios/chrome/browser/settings/autofill/autofill_and_passwords/coordinator/autofill_ai_base_mediator_protected.h"
@@ -30,7 +29,6 @@ static constexpr autofill::DenseSet<autofill::EntityTypeName> kShopping = {
 @implementation ShoppingMediator {
   PrefBackedBoolean* _shoppingEnabled;
   PrefBackedBoolean* _autofillProfileEnabled;
-  PrefBackedBoolean* _personalContextEnabled;
 }
 
 - (instancetype)initWithEntityDataManager:
@@ -49,12 +47,6 @@ static constexpr autofill::DenseSet<autofill::EntityTypeName> kShopping = {
           initWithPrefService:prefService
                      prefName:autofill::prefs::kAutofillProfileEnabled];
       _autofillProfileEnabled.observer = self;
-      _personalContextEnabled = [[PrefBackedBoolean alloc]
-          initWithPrefService:prefService
-                     prefName:
-                         personal_context::prefs::
-                             kPersonalContextInAutofillSettingsToggleStatus];
-      _personalContextEnabled.observer = self;
     }
   }
   return self;
@@ -70,7 +62,6 @@ static constexpr autofill::DenseSet<autofill::EntityTypeName> kShopping = {
     [self pushEntitiesToConsumer];
 
     [self updateConsumerToggleState];
-    [self updateSuggestionsFromGeminiConsumerState];
   }
 }
 
@@ -82,9 +73,6 @@ static constexpr autofill::DenseSet<autofill::EntityTypeName> kShopping = {
   _autofillProfileEnabled.observer = nil;
   [_autofillProfileEnabled stop];
   _autofillProfileEnabled = nil;
-  _personalContextEnabled.observer = nil;
-  [_personalContextEnabled stop];
-  _personalContextEnabled = nil;
   _consumer = nil;
 }
 
@@ -94,8 +82,6 @@ static constexpr autofill::DenseSet<autofill::EntityTypeName> kShopping = {
   if (observableBoolean == _shoppingEnabled ||
       observableBoolean == _autofillProfileEnabled) {
     [self updateConsumerToggleState];
-  } else if (observableBoolean == _personalContextEnabled) {
-    [self updateSuggestionsFromGeminiConsumerState];
   }
 }
 
@@ -112,22 +98,6 @@ static constexpr autofill::DenseSet<autofill::EntityTypeName> kShopping = {
   [self.consumer setShoppingToggleState:shoppingEnabled && profileEnabled
                                 enabled:profileEnabled
                                 managed:managed];
-}
-
-#pragma mark - Private
-
-// Updates the consumer with the Suggestions from Gemini entry point visibility
-// and enabled state.
-- (void)updateSuggestionsFromGeminiConsumerState {
-  if (!self.consumer) {
-    return;
-  }
-
-  BOOL suggestionsFromGeminiEnabled =
-      _personalContextEnabled ? _personalContextEnabled.value : NO;
-  [self.consumer
-      setShouldShowSuggestionsFromGemini:_shouldShowSuggestionsFromGemini
-                                 enabled:suggestionsFromGeminiEnabled];
 }
 
 #pragma mark - ShoppingMutator

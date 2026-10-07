@@ -22,7 +22,7 @@
 #include "chrome/browser/optimization_guide/optimization_guide_keyed_service_factory.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profile_key.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/omnibox/omnibox_next_features.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/ui_test_utils.h"
@@ -185,9 +185,8 @@ class LanguageDetectionModelServiceBrowserTest : public InProcessBrowserTest {
     InProcessBrowserTest::SetUp();
   }
 
-  std::string EvalJsCatchingError(BrowserWindowInterface* browser,
-                                  std::string_view script) {
-    return EvalJs(browser->GetTabStripModel()->GetActiveWebContents(),
+  std::string EvalJsCatchingError(Browser* browser, std::string_view script) {
+    return EvalJs(browser->tab_strip_model()->GetActiveWebContents(),
                   base::StringPrintf(R"(
         (async () => {
             try {
@@ -201,7 +200,7 @@ class LanguageDetectionModelServiceBrowserTest : public InProcessBrowserTest {
         .ExtractString();
   }
 
-  void TestLanguageDetectionAvailable(BrowserWindowInterface* browser,
+  void TestLanguageDetectionAvailable(Browser* browser,
                                       const std::string_view result) {
     ASSERT_EQ(EvalJsCatchingError(
                   browser, "return await LanguageDetector.availability();"),
@@ -439,7 +438,7 @@ IN_PROC_BROWSER_TEST_F(LanguageDetectionModelServiceBrowserTest,
       "LanguageDetection.TFLiteModel.WasModelRequestDeferred", true, 2);
 
   // Make the background tab the active tab.
-  browser()->GetTabStripModel()->SelectNextTab();
+  browser()->tab_strip_model()->SelectNextTab();
 
   RetryForHistogramUntilCountReached(
       &histogram_tester,
@@ -615,7 +614,7 @@ IN_PROC_BROWSER_TEST_F(LanguageDetectionModelServiceBrowserTest,
 
   EXPECT_EQ(
       "ReferenceError",
-      content::EvalJs(browser()->GetTabStripModel()->GetActiveWebContents(),
+      content::EvalJs(browser()->tab_strip_model()->GetActiveWebContents(),
                       "waitForMessage();"));
 }
 

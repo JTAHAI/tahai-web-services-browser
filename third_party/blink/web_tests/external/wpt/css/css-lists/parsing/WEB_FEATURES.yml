@@ -1,4 +1,6 @@
-rules:
-- content-invalid.html: [counters]
-- counter-reset-*: [counters, counters]
-- counter-*: [counters]
+features:
+- name: counters
+  files:
+  - content-invalid.html
+  - counter-*
+  - counter-reset-*

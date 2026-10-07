@@ -81,7 +81,6 @@ TEST(CrossOriginReadBlockingTest, GetCanonicalMimeType) {
       {"multipart/byteranges", MimeType::kNeverSniffed},
       {"multipart/signed", MimeType::kNeverSniffed},
       {"text/csv", MimeType::kNeverSniffed},
-      {"text/pdf", MimeType::kNeverSniffed},
       {"text/event-stream", MimeType::kNeverSniffed},
   };
 

@@ -1,4 +1,10 @@
-use regex::{bytes, regex, Regex};
+use regex::Regex;
+
+macro_rules! regex {
+    ($pattern:expr) => {
+        regex::Regex::new($pattern).unwrap()
+    };
+}
 
 #[test]
 fn unclosed_group_error() {
@@ -134,28 +140,4 @@ fn dfa_handles_pathological_case() {
         pieces
     };
     assert!(re.is_match(&text));
-}
-
-#[test]
-fn re_macro() {
-    // >1 regex! should work in a scope since the static is in a block
-    assert!(regex!("foo").is_match("foo"));
-    assert!(regex!("bar").is_match("bar"));
-
-    let re: &Regex = regex!("foo");
-    ensure_static(re);
-
-    fn ensure_static(_re: &'static Regex) {}
-}
-
-#[test]
-fn re_bytes_macro() {
-    // >1 regex! should work in a scope since the static is in a block
-    assert!(bytes::regex!("foo").is_match(b"foo"));
-    assert!(bytes::regex!("bar").is_match(b"bar"));
-
-    let re: &bytes::Regex = bytes::regex!("foo");
-    ensure_static(re);
-
-    fn ensure_static(_re: &'static bytes::Regex) {}
 }

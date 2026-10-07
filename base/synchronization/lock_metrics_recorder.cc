@@ -78,15 +78,12 @@ std::atomic<base::ThreadLocalOwnedPointer<LockMetricsRecorder>*> g_tls_slot{
 
 constexpr int kHistogramBucketCount = 100;
 
-base::HistogramBase* CreateLockHistogram(const LockMetricTag& lock_tag,
+base::HistogramBase* CreateLockHistogram(std::string_view lock_name,
                                          std::string_view histogram_suffix) {
-  // TODO(crbug.com/545219041): Update the histogram name to better reflect what
-  // is being measured.
-  std::string name = StrCat({"Scheduling.ContendedLockAcquisitionTime.",
-                             lock_tag.name(), ".", histogram_suffix});
-
   return base::Histogram::FactoryMicrosecondsTimeGet(
-      name, Microseconds(1), Seconds(1), kHistogramBucketCount,
+      StrCat({"Scheduling.ContendedLockAcquisitionTime.", lock_name, ".",
+              histogram_suffix}),
+      Microseconds(1), Seconds(1), kHistogramBucketCount,
       base::HistogramBase::kUmaTargetedHistogramFlag);
 }
 
@@ -124,70 +121,65 @@ LockMetricsRecorder* LockMetricsRecorder::GetForCurrentThread() {
   return slot->Get();
 }
 
-base::HistogramBase* LockMetricsRecorder::GetOrCreateHistogram(
-    const LockMetricTag& lock_tag) {
-  DCHECK(CalledOnValidThread());
-
-  const uint64_t hash = lock_tag.hash();
-  const auto it = tagged_lock_histograms_.find(hash);
-  if (it != tagged_lock_histograms_.end()) {
-    return it->second;
-  }
-
-  base::HistogramBase* const histogram =
-      CreateLockHistogram(lock_tag, histogram_suffix_);
-  tagged_lock_histograms_.insert({hash, histogram});
-  return histogram;
-}
-
-void LockMetricsRecorder::ReportLockHistogram(const LockMetricSample& sample) {
-  DCHECK(CalledOnValidThread());
-  DCHECK_LE(sample.tags.size(), LockMetricTagList::kMaxTags);
-
-  for (size_t i = 0; i < sample.tags.size(); ++i) {
-    if (const LockMetricTag* lock_tag = sample.tags[i]) {
-      GetOrCreateHistogram(*lock_tag)->AddTimeMicrosecondsGranularity(
-          sample.wait_time);
-    }
-  }
+// static
+void LockMetricsRecorder::ReportLockHistogram(
+    const TimeDelta& sample,
+    base::HistogramBase* histogram_pointer) {
+  histogram_pointer->AddTimeMicrosecondsGranularity(sample);
 }
 
 bool LockMetricsRecorder::ShouldRecordLockAcquisitionTime() const {
-  DCHECK(CalledOnValidThread());
+  DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
   return !iterating_in_progress_ && subsampler_.ShouldSample(kSamplingRatio);
 }
 
-void LockMetricsRecorder::RecordLockAcquisitionTime(
-    const LockMetricSample& sample) {
-  DCHECK(CalledOnValidThread());
-  unified_sample_buffer_.SaveToBuffer(sample);
+void LockMetricsRecorder::RecordLockAcquisitionTime(TimeDelta sample,
+                                                    LockType type) {
+  DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
+  sample_buffer_[static_cast<size_t>(type)].SaveToBuffer(sample);
 }
 
-void LockMetricsRecorder::ForEachSample(
-    FunctionRef<void(const LockMetricSample&)> f) {
-  DCHECK(CalledOnValidThread());
+void LockMetricsRecorder::ForEachSample(LockType type,
+                                        FunctionRef<void(const TimeDelta&)> f) {
+  DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
   CHECK(!iterating_in_progress_);
+  CHECK_LE(type, LockType::kMax);
   // Set the `iterating_in_progress_` flag to true to prevent reentrancy due to
   // any lock contention during the recording of the histogram. This keeps the
   // recording and reporting logic simple at the cost of a tiny blind-spot in
   // our metrics.
   AutoReset<bool> mark_iterating_in_progress(&iterating_in_progress_, true);
 
-  for (auto it = unified_sample_buffer_.Begin(); it; ++it) {
+  auto& buffer = sample_buffer_[static_cast<size_t>(type)];
+  for (auto it = buffer.Begin(); it; ++it) {
     f(**it);
   }
-  unified_sample_buffer_.Clear();
+  buffer.Clear();
 }
 
 void LockMetricsRecorder::ReportLockAcquisitionTimes() {
-  DCHECK(CalledOnValidThread());
+  DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
 
   if (iterating_in_progress_) {
     return;
   }
 
-  ForEachSample(
-      [this](const LockMetricSample& sample) { ReportLockHistogram(sample); });
+  // Copy guarded members to local variables to appease the static analyzer.
+  // Clang's thread-safety analysis treats lambda scopes as new contexts and
+  // generates false-positive "missing lock" errors, even though the context was
+  // verified at the top of this function.
+  base::HistogramBase* base_lock_histogram = base_lock_histogram_;
+  base::HistogramBase* partition_alloc_lock_histogram =
+      partition_alloc_lock_histogram_;
+
+  ForEachSample(LockType::kBaseLock,
+                [base_lock_histogram](const TimeDelta& sample) {
+                  ReportLockHistogram(sample, base_lock_histogram);
+                });
+  ForEachSample(LockType::kPartitionAllocLock,
+                [partition_alloc_lock_histogram](const TimeDelta& sample) {
+                  ReportLockHistogram(sample, partition_alloc_lock_histogram);
+                });
 }
 
 // `EnableRecordingOnCurrentThread()` is the only function responsible for
@@ -226,16 +218,15 @@ void LockMetricsRecorder::EnableRecordingOnCurrentThread(
 
 LockMetricsRecorder::LockMetricsRecorder(PassKey,
                                          std::string_view histogram_suffix)
-    : histogram_suffix_(histogram_suffix) {}
-
-LockMetricsRecorder::~LockMetricsRecorder() = default;
+    : base_lock_histogram_(CreateLockHistogram("BaseLock", histogram_suffix)),
+      partition_alloc_lock_histogram_(
+          CreateLockHistogram("PartitionAllocLock", histogram_suffix)) {}
 
 // static
 LockMetricsRecorder::ScopedLockAcquisitionTimer
 LockMetricsRecorder::ScopedLockAcquisitionTimer::CreateForTest(
-    LockMetricsRecorder* recorder,
-    const LockMetricTagList& tags) {
-  return LockMetricsRecorder::ScopedLockAcquisitionTimer(recorder, tags);
+    LockMetricsRecorder* recorder) {
+  return LockMetricsRecorder::ScopedLockAcquisitionTimer(recorder);
 }
 
 // static

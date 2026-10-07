@@ -258,7 +258,8 @@ std::optional<FaviconData> GetFaviconData(BookmarkModel* model,
                      node->icon_url() ? *node->icon_url() : GURL());
 }
 
-// Sets the favicon for |profile| and |node|.
+// Sets the favicon for |profile| and |node|. |profile| may be
+// |test()->verifier()|.
 void SetFaviconImpl(Profile* profile,
                     const BookmarkNode* node,
                     const GURL& icon_url,
@@ -281,7 +282,8 @@ void SetFaviconImpl(Profile* profile,
   observer.WaitUntilFaviconChangedToIconURL();
 }
 
-// Expires the favicon for |profile| and |node|.
+// Expires the favicon for |profile| and |node|. |profile| may be
+// |test()->verifier()|.
 void ExpireFaviconImpl(Profile* profile, const BookmarkNode* node) {
   favicon::FaviconService* favicon_service =
       FaviconServiceFactory::GetForProfile(profile,
@@ -299,7 +301,8 @@ void OnGotFaviconData(
   std::move(callback).Run();
 }
 
-// Deletes favicon mappings for |profile| and |node|.
+// Deletes favicon mappings for |profile| and |node|. |profile| may be
+// |test()->verifier()|.
 void DeleteFaviconMappingsImpl(Profile* profile,
                                const BookmarkNode* node,
                                FaviconSource favicon_source) {
@@ -315,8 +318,9 @@ void DeleteFaviconMappingsImpl(Profile* profile,
     favicon_service->DeleteFaviconMappings({node->url()},
                                            favicon_base::IconType::kFavicon);
   } else {
-    ApplyBookmarkFavicon(node, favicon_service, /*icon_url=*/GURL(),
-                         base::MakeRefCounted<base::RefCountedString>());
+    ApplyBookmarkFavicon(
+        node, favicon_service, /*icon_url=*/GURL(),
+        scoped_refptr<base::RefCountedString>(new base::RefCountedString()));
   }
 
   // Wait for the favicon for |node| to be deleted.
@@ -943,15 +947,13 @@ BookmarksMatchChecker::BookmarksMatchChecker() {
 
 bool BookmarksMatchChecker::IsExitConditionSatisfied(std::ostream* os) {
   *os << "Waiting for matching models";
-  // Trigger favicon loading for all nodes across all models to ensure
-  // concurrent asynchronous lookups rather than sequential loading.
-  // AllModelsMatch() early-outs on the first missing favicon, so failing
-  // to eagerly load them here would cause the checker to sequentially wait for
-  // each node one-by-one.
+  return AllModelsMatch();
+}
+
+void BookmarksMatchChecker::WillStartWaiting() {
   for (int i = 0; i < sync_datatype_helper::test()->num_clients(); ++i) {
     TriggerAllFaviconLoading(GetBookmarkModel(i));
   }
-  return AllModelsMatch();
 }
 
 SingleBookmarkModelStatusChangeChecker::SingleBookmarkModelStatusChangeChecker(

@@ -140,13 +140,6 @@ void FileSystemAccessDirectoryHandleImpl::GetFile(const std::string& basename,
   // and create the document. DidGetFile() will then update the child path
   // before creating the returned handle.
   if (url().virtual_path().IsContentUri()) {
-    if (!IsSafePathComponent(basename)) {
-      std::move(callback).Run(
-          file_system_access_error::FromStatus(
-              FileSystemAccessStatus::kInvalidArgument, "Name is not allowed."),
-          mojo::NullRemote());
-      return;
-    }
     std::string mime_type;
     if (!net::GetWellKnownMimeTypeFromFile(base::FilePath(basename),
                                            &mime_type)) {
@@ -288,13 +281,6 @@ void FileSystemAccessDirectoryHandleImpl::GetDirectory(
   // and create the document. DidGetDirectory() will then update the child path
   // before creating the returned handle.
   if (url().virtual_path().IsContentUri()) {
-    if (!IsSafePathComponent(basename)) {
-      std::move(callback).Run(
-          file_system_access_error::FromStatus(
-              FileSystemAccessStatus::kInvalidArgument, "Name is not allowed."),
-          mojo::NullRemote());
-      return;
-    }
     base::ThreadPool::PostTaskAndReplyWithResult(
         FROM_HERE, {base::MayBlock(), base::TaskPriority::USER_VISIBLE},
         base::BindOnce(&base::ContentUriGetChildDocumentOrQuery,
@@ -472,11 +458,6 @@ void FileSystemAccessDirectoryHandleImpl::RemoveEntry(
 #if BUILDFLAG(IS_ANDROID)
   // Lookup content-URI by display-name.
   if (url().virtual_path().IsContentUri()) {
-    if (!IsSafePathComponent(basename)) {
-      std::move(callback).Run(file_system_access_error::FromStatus(
-          FileSystemAccessStatus::kInvalidArgument, "Name is not allowed."));
-      return;
-    }
     base::ThreadPool::PostTaskAndReplyWithResult(
         FROM_HERE, {base::MayBlock(), base::TaskPriority::USER_VISIBLE},
         base::BindOnce(&base::ContentUriGetChildDocumentOrQuery,
@@ -557,8 +538,7 @@ void FileSystemAccessDirectoryHandleImpl::ResolveImpl(
     FileSystemAccessTransferTokenImpl* possible_child) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
-  if (!possible_child ||
-      possible_child->origin() != context().storage_key.origin()) {
+  if (!possible_child) {
     std::move(callback).Run(
         file_system_access_error::FromStatus(
             blink::mojom::FileSystemAccessStatus::kOperationFailed),
@@ -933,23 +913,18 @@ void FileSystemAccessDirectoryHandleImpl::CurrentBatchEntriesReady(
                                               more_batches_are_expected);
 }
 
-bool FileSystemAccessDirectoryHandleImpl::IsSafePathComponent(
-    const std::string& basename) const {
-  return manager()->IsSafePathComponent(url().type(), basename);
-}
-
 blink::mojom::FileSystemAccessErrorPtr
 FileSystemAccessDirectoryHandleImpl::GetChildURL(
     const std::string& basename,
     storage::FileSystemURL* result) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
-  if (!IsSafePathComponent(basename)) {
+  const storage::FileSystemURL& parent = url();
+  if (!manager()->IsSafePathComponent(parent.type(), basename)) {
     return file_system_access_error::FromStatus(
         FileSystemAccessStatus::kInvalidArgument, "Name is not allowed.");
   }
 
-  const storage::FileSystemURL& parent = url();
 #if BUILDFLAG(IS_ANDROID)
   base::FilePath child_path =
       parent.virtual_path().IsContentUri()
@@ -962,14 +937,8 @@ FileSystemAccessDirectoryHandleImpl::GetChildURL(
         blink::mojom::FileSystemAccessStatus::kInvalidModificationError);
   }
 #else
-  // OPFS uses kFileSystemTypeTemporary, where names are virtual path
-  // components. StringToFilePath() preserves their bytes on POSIX, avoiding
-  // locale-dependent native conversion through FromUTF8Unsafe().
   base::FilePath child_path =
-      parent.type() == storage::kFileSystemTypeTemporary
-          ? parent.virtual_path().Append(storage::StringToFilePath(basename))
-          : parent.virtual_path().Append(
-                base::FilePath::FromUTF8Unsafe(basename));
+      parent.virtual_path().Append(base::FilePath::FromUTF8Unsafe(basename));
 #endif
   *result = CreateChildURL(child_path);
   return file_system_access_error::Ok();
@@ -995,14 +964,8 @@ FileSystemAccessEntryPtr FileSystemAccessDirectoryHandleImpl::CreateEntry(
     HandleType handle_type) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
-  std::string name = display_name;
-  if (name.empty()) {
-    // OPFS names are virtual path components, so avoid locale-dependent native
-    // path conversion when no display name is provided.
-    name = url.type() == storage::kFileSystemTypeTemporary
-               ? storage::FilePathToString(basename.path())
-               : basename.AsUTF8Unsafe();
-  }
+  std::string name =
+      !display_name.empty() ? display_name : basename.AsUTF8Unsafe();
   if (handle_type == HandleType::kDirectory) {
     return FileSystemAccessEntry::New(
         FileSystemAccessHandle::NewDirectory(

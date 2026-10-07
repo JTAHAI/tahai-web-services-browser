@@ -38,17 +38,9 @@
 
 namespace blink {
 
-class CORE_EXPORT PaintLayerPaintOrderIteratorBase {
-  STACK_ALLOCATED();
-
- public:
-  virtual PaintLayer* Next() = 0;
-};
-
 // This iterator walks the PaintLayer descendants in the following paint order:
 // NegativeZOrderChildren -> NormalFlowChildren -> PositiveZOrderChildren.
-class CORE_EXPORT PaintLayerPaintOrderIterator final
-    : public PaintLayerPaintOrderIteratorBase {
+class CORE_EXPORT PaintLayerPaintOrderIterator {
   STACK_ALLOCATED();
 
  public:
@@ -68,7 +60,7 @@ class CORE_EXPORT PaintLayerPaintOrderIterator final
   PaintLayerPaintOrderIterator& operator=(const PaintLayerPaintOrderIterator&) =
       delete;
 
-  PaintLayer* Next() override;
+  PaintLayer* Next();
 
   const GCedHeapVector<Member<PaintLayer>>*
   LayersPaintingOverlayOverflowControlsAfter(const PaintLayer* layer) const {
@@ -90,8 +82,7 @@ class CORE_EXPORT PaintLayerPaintOrderIterator final
 
 // This iterator is similar to PaintLayerPaintOrderIterator but it walks the
 // lists in reverse order (from the last item to the first one).
-class CORE_EXPORT PaintLayerPaintOrderReverseIterator final
-    : public PaintLayerPaintOrderIteratorBase {
+class CORE_EXPORT PaintLayerPaintOrderReverseIterator {
   STACK_ALLOCATED();
 
  public:
@@ -111,7 +102,7 @@ class CORE_EXPORT PaintLayerPaintOrderReverseIterator final
   PaintLayerPaintOrderReverseIterator& operator=(
       const PaintLayerPaintOrderReverseIterator&) = delete;
 
-  PaintLayer* Next() override;
+  PaintLayer* Next();
 
  private:
   void SetIndexToLastItem();
@@ -123,24 +114,6 @@ class CORE_EXPORT PaintLayerPaintOrderReverseIterator final
 #if DCHECK_IS_ON()
   PaintLayerListMutationDetector mutation_detector_;
 #endif
-};
-
-// This is used to iterate through descendants of a <canvas> that have been
-// drawn into the canvas via `drawElementImage()` or explicitly marked as
-// hit-testable via `canvas.updateElementGeometry()`, in reverse order of
-// drawing.
-class CORE_EXPORT CanvasDrawnElementPaintOrderReverseIterator final
-    : public PaintLayerPaintOrderIteratorBase {
-  STACK_ALLOCATED();
-
- public:
-  explicit CanvasDrawnElementPaintOrderReverseIterator(
-      HTMLCanvasElement& canvas);
-  PaintLayer* Next() override;
-
- private:
-  HTMLCanvasElement* canvas_;
-  HeapLinkedHashSet<WeakMember<Element>>::reverse_iterator current_;
 };
 
 }  // namespace blink

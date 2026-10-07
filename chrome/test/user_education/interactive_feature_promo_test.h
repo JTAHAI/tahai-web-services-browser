@@ -56,13 +56,13 @@ class InteractiveFeaturePromoTestApi
   ~InteractiveFeaturePromoTestApi() override;
 
   // Gets the mock tracker, if the tracker mode is `UseMockTracker`.
-  MockTracker* GetMockTrackerFor(BrowserWindowInterface* browser);
+  MockTracker* GetMockTrackerFor(Browser* browser);
 
   // Registers a test feature for use with a mock tracker.
   //
   // Note that since a promo specification can only be registered in one
   // registry, this method requires the `browser` to be specified.
-  void RegisterTestFeature(BrowserWindowInterface* browser,
+  void RegisterTestFeature(Browser* browser,
                            user_education::FeaturePromoSpecification spec);
 
   // Ensures that the feature engagement tracker is initialized and ready.
@@ -220,7 +220,7 @@ class InteractiveFeaturePromoTestMixin : public T,
     private_test_impl().DoTestSetUp();
     g_browser_process->local_state()->SetBoolean(
         chrome_urls::kInternalOnlyUisEnabled, true);
-    if (BrowserWindowInterface* browser = T::browser()) {
+    if (Browser* browser = T::browser()) {
       SetContextWidget(
           BrowserView::GetBrowserViewForBrowser(browser)->GetWidget());
       feature_promo_test_impl().MaybeWaitForTrackerInitialization(browser);

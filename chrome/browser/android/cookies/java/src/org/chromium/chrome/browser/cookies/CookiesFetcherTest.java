@@ -15,6 +15,7 @@ import org.mockito.Spy;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
+import org.mockito.stubbing.Answer;
 import org.robolectric.util.TempDirectory;
 
 import org.chromium.base.ImportantFileWriterAndroid;
@@ -67,13 +68,16 @@ public class CookiesFetcherTest {
                         mImportantFileWriterJni.writeFileAtomically(
                                 Mockito.anyString(), Mockito.any(byte[].class)))
                 .thenAnswer(
-                        (InvocationOnMock invocation) -> {
-                            try (FileOutputStream stream =
-                                    new FileOutputStream((String) invocation.getArgument(0))) {
-                                stream.write(invocation.getArgument(1));
-                                return true;
-                            } catch (Exception ex) {
-                                return false;
+                        new Answer<>() {
+                            @Override
+                            public Boolean answer(InvocationOnMock invocation) {
+                                try (FileOutputStream stream =
+                                        new FileOutputStream((String) invocation.getArgument(0))) {
+                                    stream.write(invocation.getArgument(1));
+                                    return true;
+                                } catch (Exception ex) {
+                                    return false;
+                                }
                             }
                         });
 

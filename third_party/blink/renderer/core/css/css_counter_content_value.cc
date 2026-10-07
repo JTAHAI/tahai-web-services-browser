@@ -24,10 +24,7 @@ String CSSCounterContentValue::CustomCSSText() const {
     result.Append(", ");
     result.Append(separator_->CssText());
   }
-  // 'decimal' is the initial <counter-style> and is omitted when serializing.
-  // A symbols() list style is never the default, so it is always serialized.
-  bool is_default_list_style =
-      !ListStyleIsSymbolsFunction() && ListStyleName() == "decimal";
+  bool is_default_list_style = ListStyle() == "decimal";
   if (!is_default_list_style) {
     result.Append(", ");
     result.Append(list_style_->CssText());
@@ -40,11 +37,10 @@ String CSSCounterContentValue::CustomCSSText() const {
 const CSSCounterContentValue& CSSCounterContentValue::PopulateWithTreeScope(
     const TreeScope* tree_scope) const {
   DCHECK(!IsScopedValue());
-  // `EnsureScopedValue` is a no-op for a symbols() function, which is always
-  // already scoped; only the identifier (and a name, when used) is populated.
   return *MakeGarbageCollected<CSSCounterContentValue>(
       &To<CSSCustomIdentValue>(identifier_->EnsureScopedValue(tree_scope)),
-      &list_style_->EnsureScopedValue(tree_scope), separator_);
+      &To<CSSCustomIdentValue>(list_style_->EnsureScopedValue(tree_scope)),
+      separator_);
 }
 
 bool CSSCounterContentValue::HasRandomFunctions() const {

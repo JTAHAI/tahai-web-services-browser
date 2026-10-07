@@ -54,7 +54,7 @@ public class InterceptNavigationDelegateClientImpl implements InterceptNavigatio
     InterceptNavigationDelegateClientImpl(Tab tab) {
         mTab = (TabImpl) tab;
         mTabObserver =
-                new TabObserver() {
+                new EmptyTabObserver() {
                     @Override
                     public void onContentChanged(Tab tab) {
                         mInterceptNavigationDelegate.associateWithWebContents(tab.getWebContents());
@@ -92,7 +92,7 @@ public class InterceptNavigationDelegateClientImpl implements InterceptNavigatio
     @Override
     public @Nullable ExternalNavigationHandler createExternalNavigationHandler() {
         TabDelegateFactory delegateFactory = mTab.getDelegateFactory();
-        if (delegateFactory == null || mTab.getWindowAndroid() == null) return null;
+        if (delegateFactory == null) return null;
         return delegateFactory.createExternalNavigationHandler(mTab);
     }
 
@@ -108,8 +108,7 @@ public class InterceptNavigationDelegateClientImpl implements InterceptNavigatio
 
     @Override
     public @Nullable Activity getActivity() {
-        WindowAndroid window = mTab.getWindowAndroid();
-        return window != null && window.getActivity() != null ? window.getActivity().get() : null;
+        return mTab.getActivity();
     }
 
     @Override
@@ -125,23 +124,18 @@ public class InterceptNavigationDelegateClientImpl implements InterceptNavigatio
     @Override
     public void closeTab() {
         if (mTab.isClosing()) return;
-        Activity activity = getActivity();
-        if (activity instanceof ChromeActivity chromeActivity) {
-            if (mTab.isCustomTab() && !chromeActivity.didFinishNativeInitialization()) {
-                // Test the assumption that the tab hasn't been added to a tab model yet.
-                assert chromeActivity.getTabModelSelector().getModelForTabId(mTab.getId()) == null;
-                // Tab is closing before being attached to a tab model. Delay the closing until
-                // native initialization finishes.
-                mTab.setDidCloseWhileDetached();
-            } else {
-                chromeActivity
-                        .getTabModelSelector()
-                        .tryCloseTab(
-                                TabClosureParams.closeTab(mTab)
-                                        .allowUndo(/* allowUndo= */ false)
-                                        .build(),
-                                /* allowDialog= */ false);
-            }
+        ChromeActivity activity = assumeNonNull(mTab.getActivity());
+        if (mTab.isCustomTab() && !activity.didFinishNativeInitialization()) {
+            // Test the assumption that the tab hasn't been added to a tab model yet.
+            assert activity.getTabModelSelector().getModelForTabId(mTab.getId()) == null;
+            // Tab is closing before being attached to a tab model. Delay the closing until native
+            // initialization finishes.
+            mTab.setDidCloseWhileDetached();
+        } else {
+            activity.getTabModelSelector()
+                    .tryCloseTab(
+                            TabClosureParams.closeTab(mTab).allowUndo(false).build(),
+                            /* allowDialog= */ false);
         }
     }
 
@@ -199,11 +193,6 @@ public class InterceptNavigationDelegateClientImpl implements InterceptNavigatio
     @Override
     public boolean isTabInBrowser() {
         return mTab.isTabInBrowser();
-    }
-
-    @Override
-    public boolean isTabInPopup() {
-        return mTab.isTabInPopup();
     }
 
     @Override

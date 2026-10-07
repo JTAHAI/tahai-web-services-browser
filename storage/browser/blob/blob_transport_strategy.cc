@@ -328,7 +328,7 @@ class FileTransportStrategy : public BlobTransportStrategy {
   void OnReply(BlobDataBuilder::FutureFile future_file,
                scoped_refptr<ShareableFileReference> file_reference,
                std::optional<base::Time> time_file_modified) {
-    if (!time_file_modified || time_file_modified->is_null()) {
+    if (!time_file_modified) {
       // Writing to the file failed in the renderer.
       std::move(result_callback_).Run(BlobStatus::ERR_FILE_WRITE_FAILED);
       return;
@@ -338,9 +338,8 @@ class FileTransportStrategy : public BlobTransportStrategy {
         future_file.Populate(std::move(file_reference), *time_file_modified);
     DCHECK(populate_result);
 
-    if (--num_unresolved_requests_ == 0) {
+    if (--num_unresolved_requests_ == 0)
       std::move(result_callback_).Run(BlobStatus::DONE);
-    }
   }
 
   const BlobStorageLimits limits_;

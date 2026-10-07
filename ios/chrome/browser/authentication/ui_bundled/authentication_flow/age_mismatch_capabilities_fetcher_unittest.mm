@@ -121,14 +121,12 @@ TEST_P(AgeMismatchCapabilitiesFetcherTest,
       });
 
   fetcher_ = BuildAgeMismatchCapabilitiesFetcher();
-  EXPECT_EQ(
-      [fetcher_ canSignInToChromeCapabilityForAccount:account.GetAccountId()],
-      expected_capability);
+  EXPECT_EQ([fetcher_ canSignInToChromeCapabilityForAccount:account.account_id],
+            expected_capability);
 
   [fetcher_
       startFetchingCanSignInToChromeCapabilityWithCallback:std::move(callback)
-                                                forAccount:account
-                                                               .GetAccountId()];
+                                                forAccount:account.account_id];
   run_loop.Run();
 
   histogram_tester.ExpectTotalCount(
@@ -152,13 +150,12 @@ TEST_P(AgeMismatchCapabilitiesFetcherTest,
 
   [fetcher_
       startFetchingCanSignInToChromeCapabilityWithCallback:std::move(callback)
-                                                forAccount:account
-                                                               .GetAccountId()];
+                                                forAccount:account.account_id];
 
   // Simulate successful fetch before timeout.
   SetAccountInfoCanSignInToChromeCapability(account, expected_capability);
   identity_test_env_.SimulateSuccessfulFetchOfAccountInfo(
-      account.GetAccountId(), account.GetEmail(), account.GetGaiaId(),
+      account.account_id, account.email, account.gaia,
       /*hosted_domain=*/"", "full_name", "given_name", "locale",
       /*picture_url=*/"");
   run_loop.Run();
@@ -182,8 +179,7 @@ TEST_P(AgeMismatchCapabilitiesFetcherTest, TestCapabilityFetchDeadline) {
 
   [fetcher_
       startFetchingCanSignInToChromeCapabilityWithCallback:std::move(callback)
-                                                forAccount:account
-                                                               .GetAccountId()];
+                                                forAccount:account.account_id];
 
   // Fast forward time to trigger timeout.
   task_environment_.FastForwardBy(kCanSignInToChromeCapabilityFetchTimeout);
@@ -204,10 +200,10 @@ TEST_P(AgeMismatchCapabilitiesFetcherTest, TestConcurrentFetches) {
       identity_test_env_.MakeAccountAvailable("test2@gmail.com");
 
   EXPECT_EQ(
-      [fetcher_ canSignInToChromeCapabilityForAccount:account1.GetAccountId()],
+      [fetcher_ canSignInToChromeCapabilityForAccount:account1.account_id],
       signin::Tribool::kUnknown);
   EXPECT_EQ(
-      [fetcher_ canSignInToChromeCapabilityForAccount:account2.GetAccountId()],
+      [fetcher_ canSignInToChromeCapabilityForAccount:account2.account_id],
       signin::Tribool::kUnknown);
 
   base::RunLoop run_loop1;
@@ -227,22 +223,20 @@ TEST_P(AgeMismatchCapabilitiesFetcherTest, TestConcurrentFetches) {
 
   [fetcher_
       startFetchingCanSignInToChromeCapabilityWithCallback:std::move(callback1)
-                                                forAccount:account1
-                                                               .GetAccountId()];
+                                                forAccount:account1.account_id];
   [fetcher_
       startFetchingCanSignInToChromeCapabilityWithCallback:std::move(callback2)
-                                                forAccount:account2
-                                                               .GetAccountId()];
+                                                forAccount:account2.account_id];
 
   SetAccountInfoCanSignInToChromeCapability(account1, expected_capability);
   SetAccountInfoCanSignInToChromeCapability(account2, expected_capability);
 
   identity_test_env_.SimulateSuccessfulFetchOfAccountInfo(
-      account1.GetAccountId(), account1.GetEmail(), account1.GetGaiaId(),
+      account1.account_id, account1.email, account1.gaia,
       /*hosted_domain=*/"", "full_name", "given_name", "locale",
       /*picture_url=*/"");
   identity_test_env_.SimulateSuccessfulFetchOfAccountInfo(
-      account2.GetAccountId(), account2.GetEmail(), account2.GetGaiaId(),
+      account2.account_id, account2.email, account2.gaia,
       /*hosted_domain=*/"", "full_name", "given_name", "locale",
       /*picture_url=*/"");
 

@@ -114,7 +114,7 @@ TEST(SchemaRegistryTest, IsReady) {
   registry.AddObserver(&observer);
 
   EXPECT_FALSE(registry.IsReady());
-#if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
+#if BUILDFLAG(ENABLE_EXTENSIONS)
   EXPECT_CALL(observer, OnSchemaRegistryReady()).Times(0);
   registry.SetExtensionsDomainsReady();
   registry.SetDomainReady(POLICY_DOMAIN_EXTENSION_INSTALL);

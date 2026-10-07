@@ -42,12 +42,13 @@ promise_test(async test => {
       import(`./serve-text-then-js.py?key=${uuid_token}`),
       "Dynamic import of text without a type attribute should fail");
 
-    // Import using the same specifier/module type pair again; this time we get JS.
-    // The import should succeed because the previous failure did not create a
-    // module map entry, so the module is fetched again.
-    const result_js = await import(`./serve-text-then-js.py?key=${uuid_token}`);
-    assert_equals(result_js.default, "world");
-}, "An import should succeed even if the same specifier/type attribute pair previously failed due to a MIME type mismatch");
+    // Import using the same specifier/module type pair again; this time we get JS,
+    // but the import should still fail because the module map entry for this
+    // specifier/module type pair already contains a failure.
+    await promise_rejects_js(test, TypeError,
+      import(`./serve-text-then-js.py?key=${uuid_token}`),
+      "import should always fail if the same specifier/type attribute pair failed previously");
+}, "An import should always fail if the same specifier/type attribute pair failed previously");
 
 promise_test(async test => {
     const uuid_token = token();

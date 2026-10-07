@@ -160,7 +160,6 @@ base::span<const base::cstring_view> ChromeURLHosts() {
       kChromeUINetInternalsHost,
       kChromeUINewTabHost,
       kChromeUIOmniboxHost,
-      kChromeUIOmniboxAimEligibilityPage,
 #if !BUILDFLAG(IS_ANDROID)
       kChromeUIOnDeviceInternalsHost,
 #endif
@@ -179,7 +178,9 @@ base::span<const base::cstring_view> ChromeURLHosts() {
       kChromeUISiteEngagementHost,
       kChromeUISkillsHost,
       kChromeUISubresourceFilterInternalsHost,
+#if !BUILDFLAG(IS_ANDROID)
       kChromeUISuggestInternalsHost,
+#endif
       kChromeUINTPTilesInternalsHost,
       safe_browsing::kChromeUISafeBrowsingHost,
       kChromeUISyncInternalsHost,
@@ -284,7 +285,6 @@ base::span<const base::cstring_view> ChromeURLHosts() {
       ash::kChromeUIDlpInternalsHost,
 #endif  // BUILDFLAG(IS_CHROMEOS)
 #if !BUILDFLAG(IS_ANDROID)
-      kChromeUIOrganizerPanelHost,
       kChromeUIWebuiBrowserHost,
 #endif  // !BUILDFLAG(IS_ANDROID)
   });

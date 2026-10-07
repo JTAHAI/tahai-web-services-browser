@@ -43,7 +43,11 @@ class AnalysisServiceSettings : public AnalysisServiceSettingsBase {
   AnalysisServiceSettings& operator=(AnalysisServiceSettings&&);
   ~AnalysisServiceSettings() override;
 
-  using AnalysisServiceSettingsBase::GetAnalysisSettings;
+  // This method extends the result of the base class's GetAnalysisSettings with
+  // local analysis settings if applicable.
+  std::optional<AnalysisSettings> GetAnalysisSettings(
+      const GURL& url,
+      DataRegion data_region) const override;
 
 #if BUILDFLAG(IS_CHROMEOS)
   std::optional<AnalysisSettings> GetAnalysisSettings(
@@ -54,6 +58,13 @@ class AnalysisServiceSettings : public AnalysisServiceSettingsBase {
 #endif
 
  private:
+  LocalAnalysisSettings GetLocalAnalysisSettings() const;
+
+  // Helper methods for parsing the raw policy settings input
+#if BUILDFLAG(ENTERPRISE_LOCAL_CONTENT_ANALYSIS)
+  void ParseVerificationSignatures(const base::DictValue& settings_dict);
+#endif
+
 #if BUILDFLAG(IS_CHROMEOS)
   void ParseSourceDestinationPatternSettings(
       const base::ListValue* pattern_settings_list,
@@ -71,6 +82,10 @@ class AnalysisServiceSettings : public AnalysisServiceSettingsBase {
   std::unique_ptr<SourceDestinationMatcherAsh> source_destination_matcher_ =
       std::make_unique<SourceDestinationMatcherAsh>();
 #endif  // BUILDFLAG(IS_CHROMEOS)
+
+  // Arrays of base64 encoded signing key signatures used to verify the
+  // authenticity of the service provider.
+  std::vector<std::string> verification_signatures_;
 };
 
 }  // namespace enterprise_connectors

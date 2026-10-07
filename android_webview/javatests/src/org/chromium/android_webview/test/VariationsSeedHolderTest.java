@@ -99,19 +99,14 @@ public class VariationsSeedHolderTest {
 
     @Test
     @SmallTest
-    public void testConstructorInitializesEntropySources() {
+    public void testConstructorInitializesEntropySource() {
         new TestHolder();
 
-        // Verify the entropy sources exist.
-        int lowSource = AwEntropyState.getLowEntropySource();
+        // Verify the entropy source exist.
+        int source = AwEntropyState.getLowEntropySource();
+        Assert.assertTrue("Entropy source should be non-negative, but was " + source, source >= 0);
         Assert.assertTrue(
-                "Low entropy source should be non-negative, but was " + lowSource, lowSource >= 0);
-        Assert.assertTrue(
-                "Low entropy source should be less than 8000, but was " + lowSource,
-                lowSource < 8000);
-
-        String limitedSource = AwEntropyState.getLimitedEntropyRandomizationSource();
-        Assert.assertNotNull("Limited entropy source should not be null", limitedSource);
+                "Entropy source should be less than 8000, but was " + source, source < 8000);
     }
 
     // Request that the seed holder write its current seed to a file when the holder has no seed. No
@@ -375,7 +370,7 @@ public class VariationsSeedHolderTest {
     }
 
     // Test that updateSeed() saves the seed to the service's internal storage
-    // without the entropy sources, as they are added when serving the seed.
+    // without the low entropy source, as this is added when serving the seed.
     @Test
     @MediumTest
     public void testUpdateSeed_NoEntropy() throws IOException, TimeoutException {
@@ -386,25 +381,20 @@ public class VariationsSeedHolderTest {
         Assert.assertTrue("Internal seed file should exist", internalSeedFile.exists());
         AwVariationsSeed readProto = VariationsTestUtils.readProtoFromFile(internalSeedFile);
 
-        // The internal file should NOT have the entropy sources.
+        // The internal file should NOT have the entropy source.
         Assert.assertFalse(
                 "Internal seed file should not contain low entropy source",
                 readProto.hasLowEntropySource());
-        Assert.assertFalse(
-                "Internal seed file should not contain limited entropy source",
-                readProto.hasLimitedEntropyRandomizationSource());
     }
 
-    // Test that writeSeedIfNewer() serves the seed to the app with the entropy
-    // sources included.
+    // Test that writeSeedIfNewer() serves the seed to the app with the low
+    // entropy source included.
     @Test
     @MediumTest
     public void testWriteSeed_HasEntropy() throws IOException, TimeoutException {
         TestHolder holder = new TestHolder();
-        int expectedLowEntropy = AwEntropyState.getLowEntropySource();
-        Assert.assertTrue(expectedLowEntropy >= 0);
-        String expectedLimitedEntropy = AwEntropyState.getLimitedEntropyRandomizationSource();
-        Assert.assertNotNull(expectedLimitedEntropy);
+        int expectedEntropy = AwEntropyState.getLowEntropySource();
+        Assert.assertTrue(expectedEntropy >= 0);
         holder.updateSeedBlocking(VariationsTestUtils.createMockSeed());
 
         File appSeedFile = null;
@@ -413,16 +403,12 @@ public class VariationsSeedHolderTest {
 
             holder.writeSeedIfNewerBlocking(appSeedFile, Long.MIN_VALUE);
 
-            // The file written for the app should have the entropy sources.
+            // The file written for the app should have the entropy source.
             AwVariationsSeed readProto = VariationsTestUtils.readProtoFromFile(appSeedFile);
             Assert.assertEquals(
-                    "App seed file has wrong low entropy source",
-                    expectedLowEntropy,
+                    "App seed file has wrong entropy source",
+                    expectedEntropy,
                     readProto.getLowEntropySource());
-            Assert.assertEquals(
-                    "App seed file has wrong limited entropy source",
-                    expectedLimitedEntropy,
-                    readProto.getLimitedEntropyRandomizationSource());
         } finally {
             if (appSeedFile != null) appSeedFile.delete();
         }

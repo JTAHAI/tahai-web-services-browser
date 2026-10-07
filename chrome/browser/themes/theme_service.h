@@ -104,14 +104,6 @@ class ThemeService : public KeyedService,
       Profile* profile,
       BrowserThemeProviderDelegate* delegate);
 
-  // Displays the theme installed infobar for `profile` on the last active tab
-  // using the modern centralized infobar framework.
-  static void ShowThemeInstalledInfoBar(
-      Profile* profile,
-      const std::string& theme_name,
-      const std::string& theme_id,
-      std::unique_ptr<ThemeReinstaller> prev_theme_reinstaller);
-
   static void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry);
 
   ThemeService(Profile* profile, const ThemeHelper& theme_helper);
@@ -190,8 +182,8 @@ class ThemeService : public KeyedService,
   virtual ThemeSyncableService* GetThemeSyncableService() const;
 
   // Gets the ThemeProvider for |profile|. This will be different for an
-  // incognito or isolated profile and its original profile, even though all
-  // profiles use the same ThemeService.
+  // incognito profile and its original profile, even though both profiles use
+  // the same ThemeService.
   //
   // Before using this function, consider if the caller is in a rooted UI tree.
   // If it is, strongly favor referring to the conceptual roots for a
@@ -266,10 +258,6 @@ class ThemeService : public KeyedService,
 
   const ThemeHelper& theme_helper_for_testing() const { return *theme_helper_; }
 
-  // Returns a baseline ThemeProvider where custom theme assets (such as
-  // extension images) are suppressed.
-  const ui::ThemeProvider& GetDefaultThemeProvider() const;
-
   // Don't create "Cached Theme.pak" in the extension directory, for testing.
   static void DisableThemePackForTesting();
 
@@ -329,7 +317,7 @@ class ThemeService : public KeyedService,
     int GetDisplayProperty(int id) const override;
     bool ShouldUseNativeFrame() const override;
     bool HasCustomImage(int id) const override;
-    scoped_refptr<base::RefCountedMemory> GetRawData(
+    base::RefCountedMemory* GetRawData(
         int id,
         ui::ResourceScaleFactor scale_factor) const override;
 
@@ -346,8 +334,6 @@ class ThemeService : public KeyedService,
   friend class InitialWebUIProfileService;
   friend class ThemeColorsSourceManager;
   friend class theme_service_internal::ThemeServiceTest;
-  friend class ThemeServiceBrowserTest;
-  friend class BrowserWidgetColorProviderTest;
   friend class waap::PrewarmHelper;
 
   // Returns a ColorProviderKey configured with Profile-scoped state. The
@@ -435,7 +421,6 @@ class ThemeService : public KeyedService,
 
   BrowserThemeProvider original_theme_provider_;
   BrowserThemeProvider incognito_theme_provider_;
-  BrowserThemeProvider default_theme_provider_;
 
   // Allows us to cancel building a theme pack from an extension.
   base::CancelableTaskTracker build_extension_task_tracker_;

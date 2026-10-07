@@ -157,6 +157,7 @@ public abstract class NotificationBuilderBase {
     protected boolean mSilent;
     protected long mTimestamp;
     protected boolean mRenotify;
+    protected int mPriority;
     private @Nullable Bitmap mLargeIcon;
     private boolean mSuppressShowingLargeIcon;
     protected long mTimeoutAfterMs;
@@ -427,6 +428,15 @@ public abstract class NotificationBuilderBase {
         return this;
     }
 
+    /**
+     * Sets the priority of the notification (if set to private, overrides |setDefaults| and
+     * |setVibrate|)
+     */
+    public NotificationBuilderBase setPriority(int priority) {
+        mPriority = priority;
+        return this;
+    }
+
     /** Sets the timestamp at which the event of the notification took place. */
     public NotificationBuilderBase setTimestamp(long timestamp) {
         mTimestamp = timestamp;
@@ -550,7 +560,7 @@ public abstract class NotificationBuilderBase {
                 actionBuilder.build(),
                 action.intent.getFlags(),
                 action.umaActionType,
-                action.intent.getRequestCode());
+                /* requestCode= */ 0);
     }
 
     /**

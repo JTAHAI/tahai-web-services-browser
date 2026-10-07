@@ -7,10 +7,8 @@
 #include "base/memory/raw_ptr.h"
 #include "base/no_destructor.h"
 #include "chrome/browser/chromeos/policy/dlp/test/mock_dlp_content_observer.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
-#include "chrome/browser/ui/browser_window/public/create_browser_window.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/tabs/tab_activity_simulator.h"
-#include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/test/base/chrome_render_view_host_test_harness.h"
 #include "chrome/test/base/test_browser_window.h"
 #include "content/public/browser/render_frame_host.h"
@@ -45,9 +43,9 @@ class DlpContentTabHelperTest : public ChromeRenderViewHostTestHarness {
             &mock_dlp_content_observer_);
 
     // Initialize browser.
-    BrowserWindowCreateParams params(profile(), /*user_gesture=*/true);
-    browser_ = CreateBrowserWithTestWindowForParams(std::move(params));
-    tab_strip_model_ = browser_->GetTabStripModel();
+    const Browser::CreateParams params(profile(), /*user_gesture=*/true);
+    browser_ = CreateBrowserWithTestWindowForParams(params);
+    tab_strip_model_ = browser_->tab_strip_model();
   }
 
   void TearDown() override {
@@ -66,22 +64,22 @@ class DlpContentTabHelperTest : public ChromeRenderViewHostTestHarness {
       scoped_dlp_content_observer_;
   TabActivitySimulator tab_activity_simulator_;
   raw_ptr<TabStripModel, DanglingUntriaged> tab_strip_model_;
-  std::unique_ptr<BrowserWindowInterface> browser_;
+  std::unique_ptr<Browser> browser_;
 };
 
 TEST_F(DlpContentTabHelperTest, NotCreatedForIncognito) {
-  BrowserWindowCreateParams params(
+  const Browser::CreateParams params(
       profile()->GetPrimaryOTRProfile(/*create_if_needed=*/true),
       /*user_gesture=*/true);
-  auto browser = CreateBrowserWithTestWindowForParams(std::move(params));
+  auto browser = CreateBrowserWithTestWindowForParams(params);
 
   content::WebContents* web_contents =
       tab_activity_simulator_.AddWebContentsAndNavigate(
-          browser->GetTabStripModel(), GURL("https://example.com"));
+          browser->tab_strip_model(), GURL("https://example.com"));
   EXPECT_EQ(nullptr, DlpContentTabHelper::FromWebContents(web_contents));
 
   // Close tabs before |browser| is destructed.
-  browser->GetTabStripModel()->CloseAllTabs();
+  browser->tab_strip_model()->CloseAllTabs();
 }
 
 TEST_F(DlpContentTabHelperTest, NotConfidential) {

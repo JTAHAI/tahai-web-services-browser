@@ -141,7 +141,7 @@ VizProcessTransportFactory::VizProcessTransportFactory(
       host_frame_sink_manager_(
           BrowserMainLoop::GetInstance()->host_frame_sink_manager()),
       resize_task_runner_(resize_task_runner) {
-  CHECK(gpu_channel_establish_factory_, base::NotFatalUntil::M159);
+  DCHECK(gpu_channel_establish_factory_);
   task_graph_runner_->Start("CompositorTileWorker1",
                             base::SimpleThread::Options());
   GetHostFrameSinkManager()->SetConnectionLostCallback(
@@ -483,7 +483,7 @@ void VizProcessTransportFactory::OnEstablishedGpuChannel(
 gpu::ContextResult
 VizProcessTransportFactory::TryCreateContextsForGpuCompositing(
     scoped_refptr<gpu::GpuChannelHost> gpu_channel_host) {
-  CHECK(!is_gpu_compositing_disabled_, base::NotFatalUntil::M159);
+  DCHECK(!is_gpu_compositing_disabled_);
 
   if (!gpu_channel_host && base::FeatureList::IsEnabled(
                                features::kShutdownForFailedChannelCreation)) {
@@ -572,7 +572,7 @@ void VizProcessTransportFactory::CreateDisplayLinkMacMojoIfNeeded(
   }
 
   // Create only one CADisplayLinkMojo/VSyncThread.
-  if (display_link_mac_mojo_) {
+  if (vsync_thread_task_posted_ || display_link_mac_mojo_) {
     return;
   }
 
@@ -581,8 +581,28 @@ void VizProcessTransportFactory::CreateDisplayLinkMacMojoIfNeeded(
   // ConnectHostFrameSinkManager(), but display::Screen is not available in that
   // function in Content Shell. (Note: display::Screen is available and not an
   // issue there when running on Chrome.)
-  display_link_mac_mojo_ =
-      std::make_unique<ui::DisplayLinkMacMojo>(GetHostFrameSinkManager());
+  if (ui::NoDelayForVSyncThread()) {
+    display_link_mac_mojo_ =
+        std::make_unique<ui::DisplayLinkMacMojo>(GetHostFrameSinkManager());
+  } else {
+    vsync_thread_task_posted_ = true;
+
+    // Delay the creation of DisplayLinkMacMojo (which starts the dedicated
+    // browser-side VSyncThread) to prevent desktop startup performance
+    // regressions.
+    base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+        FROM_HERE,
+        base::BindOnce(
+            [](base::WeakPtr<VizProcessTransportFactory> weak_this) {
+              if (weak_this && !weak_this->display_link_mac_mojo_) {
+                weak_this->display_link_mac_mojo_ =
+                    std::make_unique<ui::DisplayLinkMacMojo>(
+                        weak_this->GetHostFrameSinkManager());
+              }
+            },
+            weak_ptr_factory_.GetWeakPtr()),
+        base::Seconds(60));
+  }
 }
 #endif
 

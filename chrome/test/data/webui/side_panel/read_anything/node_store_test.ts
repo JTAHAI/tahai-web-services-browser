@@ -4,30 +4,18 @@
 
 import 'chrome-untrusted://read-anything-side-panel.top-chrome/read_anything.js';
 
-import type {NodeStore} from 'chrome-untrusted://read-anything-side-panel.top-chrome/read_anything.js';
-import {ESTIMATED_WORDS_PER_MS, getWordCount, MIN_MS_TO_READ, ReadAloudNode} from 'chrome-untrusted://read-anything-side-panel.top-chrome/read_anything.js';
-import {assertEquals, assertFalse, assertGT, assertNotEquals, assertTrue} from 'chrome-untrusted://webui-test/chai_assert.js';
+import {BrowserProxy, ESTIMATED_WORDS_PER_MS, getWordCount, MIN_MS_TO_READ, NodeStore, ReadAloudNode} from 'chrome-untrusted://read-anything-side-panel.top-chrome/read_anything.js';
+import {assertArrayEquals, assertEquals, assertFalse, assertGT, assertNotEquals, assertTrue} from 'chrome-untrusted://webui-test/chai_assert.js';
 import {MockTimer} from 'chrome-untrusted://webui-test/mock_timer.js';
 
-import {setupTestEnvironment, setWindowSize} from './common.js';
-import type {TestContentBrowserProxy} from './test_content_browser_proxy.js';
-import type {TestMetricsBrowserProxy} from './test_metrics_browser_proxy.js';
-import type {TestVisualBrowserProxy} from './test_visual_browser_proxy.js';
+import {setWindowSize} from './common.js';
+import {FakeReadingMode} from './fake_reading_mode.js';
+import {TestColorUpdaterBrowserProxy} from './test_color_updater_browser_proxy.js';
 
 suite('NodeStore', () => {
   let nodeStore: NodeStore;
-  let metricsBrowserProxy: TestMetricsBrowserProxy;
-  let visualBrowserProxy: TestVisualBrowserProxy;
-  let contentBrowserProxy: TestContentBrowserProxy;
+  let readingMode: FakeReadingMode;
   let now: number;
-
-  function getWordsSeen(): number {
-    const count = metricsBrowserProxy.getCallCount('updateWordsSeen');
-    if (count === 0) {
-      return 0;
-    }
-    return metricsBrowserProxy.getArgs('updateWordsSeen')[count - 1];
-  }
 
   function areNodesAllHidden(axNodeIds: number[]): boolean {
     return nodeStore.areNodesAllHidden(
@@ -50,17 +38,19 @@ suite('NodeStore', () => {
   }
 
   setup(() => {
-    const result = setupTestEnvironment();
+    // Clearing the DOM should always be done first.
+    document.body.innerHTML = window.trustedTypes!.emptyHTML;
+
     // Always set a large innerHeight and innerWidth to ensure elements are
     // considered visible and don't wrap unexpectedly in tests.
     setWindowSize(10000, 10000);
 
-    metricsBrowserProxy = result.metrics;
-    visualBrowserProxy = result.visualBrowserProxy;
-    contentBrowserProxy = result.contentBrowserProxy;
-    nodeStore = result.nodeStore;
+    BrowserProxy.setInstance(new TestColorUpdaterBrowserProxy());
+    readingMode = new FakeReadingMode();
+    chrome.readingMode = readingMode as unknown as typeof chrome.readingMode;
     now = 0;
     Date.now = () => now;
+    nodeStore = new NodeStore();
   });
 
   test('setDomNode', () => {
@@ -165,8 +155,7 @@ suite('NodeStore', () => {
   });
 
   test('areNodesAllHidden', () => {
-    contentBrowserProxy.activeDistillationMethod = 0;
-    contentBrowserProxy.distillationTypeReadability = 1;
+    readingMode.activeDistillationMethod = readingMode.distillationTypeScreen2x;
     const id1 = 216;
     const id2 = 218;
     const id3 = 219;
@@ -180,8 +169,8 @@ suite('NodeStore', () => {
   });
 
   test('areNodesAllHidden with Readability', () => {
-    contentBrowserProxy.activeDistillationMethod = 1;
-    contentBrowserProxy.distillationTypeReadability = 1;
+    readingMode.activeDistillationMethod =
+        readingMode.distillationTypeReadability;
 
     const element = document.createElement('p');
     element.innerText = 'Some text';
@@ -242,10 +231,7 @@ suite('NodeStore', () => {
 
     nodeStore.fetchImages();
 
-    assertEquals(3, visualBrowserProxy.getCallCount('requestImageData'));
-    assertEquals(id1, visualBrowserProxy.getArgs('requestImageData')[0]);
-    assertEquals(id2, visualBrowserProxy.getArgs('requestImageData')[1]);
-    assertEquals(id3, visualBrowserProxy.getArgs('requestImageData')[2]);
+    assertArrayEquals([id1, id2, id3], readingMode.fetchedImages);
     assertFalse(nodeStore.hasImagesToFetch());
   });
 
@@ -260,11 +246,11 @@ suite('NodeStore', () => {
     mockTimer.install();
 
     nodeStore.estimateWordsSeenWithDelay();
-    assertEquals(0, getWordsSeen());
+    assertEquals(0, readingMode.wordsSeen);
 
     mockTimer.tick(MIN_MS_TO_READ);
     mockTimer.uninstall();
-    assertEquals(4, getWordsSeen());
+    assertEquals(4, readingMode.wordsSeen);
   });
 
   test(
@@ -291,16 +277,16 @@ suite('NodeStore', () => {
         node.appendChild(text2);
         mockTimer.tick(MIN_MS_TO_READ / 2);
         nodeStore.estimateWordsSeenWithDelay();
-        assertEquals(0, getWordsSeen());
+        assertEquals(0, readingMode.wordsSeen);
 
         // The above request should have reset the timer, so still no words
         // seen.
         mockTimer.tick(MIN_MS_TO_READ / 2);
-        assertEquals(0, getWordsSeen());
+        assertEquals(0, readingMode.wordsSeen);
 
         // After the full timer, we should only count the latest text shown.
         mockTimer.tick(MIN_MS_TO_READ / 2);
-        assertEquals(6, getWordsSeen());
+        assertEquals(6, readingMode.wordsSeen);
         mockTimer.uninstall();
       });
 
@@ -321,7 +307,7 @@ suite('NodeStore', () => {
         // First request, with text1 in view.
         nodeStore.estimateWordsSeenWithDelay();
         mockTimer.tick(MIN_MS_TO_READ);
-        assertEquals(4, getWordsSeen());
+        assertEquals(4, readingMode.wordsSeen);
 
         // Second request, with only text2 in view, we should count all text
         // as being read since there was the full delay between each.
@@ -329,7 +315,7 @@ suite('NodeStore', () => {
         node.appendChild(text2);
         nodeStore.estimateWordsSeenWithDelay();
         mockTimer.tick(MIN_MS_TO_READ);
-        assertEquals(7, getWordsSeen());
+        assertEquals(7, readingMode.wordsSeen);
         mockTimer.uninstall();
       });
 
@@ -349,14 +335,14 @@ suite('NodeStore', () => {
     // First request, with text1 in view.
     nodeStore.estimateWordsSeenWithDelay();
     mockTimer.tick(MIN_MS_TO_READ);
-    assertEquals(5, getWordsSeen());
+    assertEquals(5, readingMode.wordsSeen);
 
     // Second request, with both text1 and text2 in view, we should not count
     // text1 again.
     node.appendChild(text2);
     nodeStore.estimateWordsSeenWithDelay();
     mockTimer.tick(MIN_MS_TO_READ);
-    assertEquals(12, getWordsSeen());
+    assertEquals(12, readingMode.wordsSeen);
     mockTimer.uninstall();
   });
 
@@ -374,7 +360,7 @@ suite('NodeStore', () => {
     // First request, with text1 in view.
     nodeStore.estimateWordsSeenWithDelay();
     mockTimer.tick(MIN_MS_TO_READ);
-    assertEquals(5, getWordsSeen());
+    assertEquals(5, readingMode.wordsSeen);
 
     // Simulate the nodes clearing for a new tree.
     node.removeChild(text1);
@@ -386,7 +372,7 @@ suite('NodeStore', () => {
     // Count only the newly visible text2.
     nodeStore.estimateWordsSeenWithDelay();
     mockTimer.tick(MIN_MS_TO_READ);
-    assertEquals(4, getWordsSeen());
+    assertEquals(4, readingMode.wordsSeen);
     mockTimer.uninstall();
   });
 
@@ -428,7 +414,7 @@ suite('NodeStore', () => {
         mockTimer.install();
 
         nodeStore.estimateWordsSeenWithDelay();
-        assertEquals(0, getWordsSeen());
+        assertEquals(0, readingMode.wordsSeen);
 
         // After a time less than the full delay, request again with both text1
         // and text2 in view, and no words should be counted as seen yet.
@@ -436,23 +422,23 @@ suite('NodeStore', () => {
         mockTimer.tick(timeToReadText1 / 2);
         node.appendChild(text2);
         nodeStore.estimateWordsSeenWithDelay();
-        assertEquals(0, getWordsSeen());
+        assertEquals(0, readingMode.wordsSeen);
 
         // The above request should have extended the timer, so still no words
         // seen.
         now += timeToReadText1 / 2;
         mockTimer.tick(timeToReadText1 / 2);
-        assertEquals(0, getWordsSeen());
+        assertEquals(0, readingMode.wordsSeen);
 
         // After the full timer, we should count all the text shown.
         now += timeToReadText2;
         mockTimer.tick(timeToReadText2);
-        assertEquals(text1WordCount + text2WordCount, getWordsSeen());
+        assertEquals(text1WordCount + text2WordCount, readingMode.wordsSeen);
 
         // After another full timer, don't count the same words again.
         now += timeToReadText1 + timeToReadText2;
         mockTimer.tick(timeToReadText1 + timeToReadText2);
-        assertEquals(text1WordCount + text2WordCount, getWordsSeen());
+        assertEquals(text1WordCount + text2WordCount, readingMode.wordsSeen);
         mockTimer.uninstall();
       });
 

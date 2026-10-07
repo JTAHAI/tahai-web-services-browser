@@ -8,7 +8,6 @@ import {sendWithPromise} from 'chrome://resources/js/cr.js';
  * Proxy for interacting with the browser from the Dictation settings page.
  */
 export interface DictationBrowserProxy {
-  getDictationShortcut(): Promise<string>;
   setDictationShortcut(shortcut: string): Promise<boolean>;
 }
 
@@ -16,10 +15,6 @@ export interface DictationBrowserProxy {
  * Default implementation of DictationBrowserProxy.
  */
 export class DictationBrowserProxyImpl implements DictationBrowserProxy {
-  getDictationShortcut(): Promise<string> {
-    return sendWithPromise('getDictationShortcut');
-  }
-
   setDictationShortcut(shortcut: string): Promise<boolean> {
     return sendWithPromise('setDictationShortcut', shortcut);
   }

@@ -9,70 +9,54 @@
 #include <algorithm>
 #include <cstdio>
 #include <sstream>
-#include <string>
 
 #include "base/compiler_specific.h"
 #include "base/containers/span.h"
 #include "base/logging.h"
 #include "base/strings/cstring_view.h"
-#include "base/strings/strcat.h"
 
 namespace logging {
 
 char* CheckOpValueStr(int v) {
   char buf[50];
   snprintf(buf, sizeof(buf), "%d", v);
-  // SAFETY: `buf` is a fixed-size stack buffer that snprintf always
-  // NUL-terminates within `sizeof(buf)`.
-  return UNSAFE_BUFFERS(strdup(buf));
+  return UNSAFE_TODO(strdup(buf));
 }
 
 char* CheckOpValueStr(unsigned v) {
   char buf[50];
   snprintf(buf, sizeof(buf), "%u", v);
-  // SAFETY: `buf` is a fixed-size stack buffer that snprintf always
-  // NUL-terminates within `sizeof(buf)`.
-  return UNSAFE_BUFFERS(strdup(buf));
+  return UNSAFE_TODO(strdup(buf));
 }
 
 char* CheckOpValueStr(long v) {
   char buf[50];
   snprintf(buf, sizeof(buf), "%ld", v);
-  // SAFETY: `buf` is a fixed-size stack buffer that snprintf always
-  // NUL-terminates within `sizeof(buf)`.
-  return UNSAFE_BUFFERS(strdup(buf));
+  return UNSAFE_TODO(strdup(buf));
 }
 
 char* CheckOpValueStr(unsigned long v) {
   char buf[50];
   snprintf(buf, sizeof(buf), "%lu", v);
-  // SAFETY: `buf` is a fixed-size stack buffer that snprintf always
-  // NUL-terminates within `sizeof(buf)`.
-  return UNSAFE_BUFFERS(strdup(buf));
+  return UNSAFE_TODO(strdup(buf));
 }
 
 char* CheckOpValueStr(long long v) {
   char buf[50];
   snprintf(buf, sizeof(buf), "%lld", v);
-  // SAFETY: `buf` is a fixed-size stack buffer that snprintf always
-  // NUL-terminates within `sizeof(buf)`.
-  return UNSAFE_BUFFERS(strdup(buf));
+  return UNSAFE_TODO(strdup(buf));
 }
 
 char* CheckOpValueStr(unsigned long long v) {
   char buf[50];
   snprintf(buf, sizeof(buf), "%llu", v);
-  // SAFETY: `buf` is a fixed-size stack buffer that snprintf always
-  // NUL-terminates within `sizeof(buf)`.
-  return UNSAFE_BUFFERS(strdup(buf));
+  return UNSAFE_TODO(strdup(buf));
 }
 
 char* CheckOpValueStr(const void* v) {
   char buf[50];
   snprintf(buf, sizeof(buf), "%p", v);
-  // SAFETY: `buf` is a fixed-size stack buffer that snprintf always
-  // NUL-terminates within `sizeof(buf)`.
-  return UNSAFE_BUFFERS(strdup(buf));
+  return UNSAFE_TODO(strdup(buf));
 }
 
 char* CheckOpValueStr(std::nullptr_t v) {
@@ -80,8 +64,7 @@ char* CheckOpValueStr(std::nullptr_t v) {
 }
 
 char* CheckOpValueStr(const std::string& v) {
-  // SAFETY: `std::string` guarantees `v.c_str()` is NUL-terminated.
-  return UNSAFE_BUFFERS(strdup(v.c_str()));
+  return UNSAFE_TODO(strdup(v.c_str()));
 }
 
 char* CheckOpValueStr(std::string_view v) {
@@ -99,35 +82,30 @@ char* CheckOpValueStr(std::string_view v) {
 }
 
 char* CheckOpValueStr(base::cstring_view v) {
-  // SAFETY: `base::string_view` guarantees `v.c_str()` is NUL-terminated.
-  return UNSAFE_BUFFERS(strdup(v.c_str()));
+  return UNSAFE_TODO(strdup(v.c_str()));
 }
 
 char* CheckOpValueStr(double v) {
   char buf[50];
   snprintf(buf, sizeof(buf), "%.6lf", v);
-  // SAFETY: `buf` is a fixed-size stack buffer that snprintf always
-  // NUL-terminates within `sizeof(buf)`.
-  return UNSAFE_BUFFERS(strdup(buf));
+  return UNSAFE_TODO(strdup(buf));
 }
 
 char* StreamValToStr(const void* v,
                      void (*stream_func)(std::ostream&, const void*)) {
   std::stringstream ss;
   stream_func(ss, v);
-  // SAFETY: `std::string` guarantees `c_str()` is NUL-terminated.
-  return UNSAFE_BUFFERS(strdup(std::move(ss).str().c_str()));
+  return UNSAFE_TODO(strdup(std::move(ss).str().c_str()));
 }
 
 char* CreateCheckOpLogMessageString(const char* expr_str,
                                     char* v1_str,
                                     char* v2_str) {
-  const std::string message =
-      base::StrCat({expr_str, " (", v1_str, " vs. ", v2_str, ")"});
+  std::stringstream ss;
+  ss << expr_str << " (" << v1_str << " vs. " << v2_str << ")";
   free(v1_str);
   free(v2_str);
-  // SAFETY: `std::string` guarantees `message.c_str()` is NUL-terminated.
-  return UNSAFE_BUFFERS(strdup(message.c_str()));
+  return UNSAFE_TODO(strdup(std::move(ss).str().c_str()));
 }
 
 }  // namespace logging

@@ -58,20 +58,6 @@ public class AnchoredPopupWindowUtils {
     }
 
     @VisibleForTesting
-    static int getMaxContentHeight(
-            int desiredMaxHeightPx, int rootViewHeight, int marginPx, int paddingY) {
-        int maxHeightBasedOnRootView = rootViewHeight - marginPx * 2;
-        int maxHeight;
-        if (desiredMaxHeightPx != 0 && desiredMaxHeightPx < maxHeightBasedOnRootView) {
-            maxHeight = desiredMaxHeightPx;
-        } else {
-            maxHeight = maxHeightBasedOnRootView;
-        }
-
-        return maxHeight > paddingY ? maxHeight - paddingY : 0;
-    }
-
-    @VisibleForTesting
     static int getPopupX(
             Rect anchorRect,
             Rect windowRect,
@@ -96,28 +82,15 @@ public class AnchoredPopupWindowUtils {
         return clamp(x, marginPx, windowRect.right - popupWidth - marginPx);
     }
 
+    // TODO(crbug.com/40831293): Account margin when position above the anchor.
     @VisibleForTesting
     static int getPopupY(
-            Rect anchorRect,
-            Rect windowRect,
-            int popupHeight,
-            int marginPx,
-            boolean overlapAnchor,
-            boolean positionBelow) {
-        int y;
+            Rect anchorRect, int popupHeight, boolean overlapAnchor, boolean positionBelow) {
         if (positionBelow) {
-            y = overlapAnchor ? anchorRect.top : anchorRect.bottom;
+            return overlapAnchor ? anchorRect.top : anchorRect.bottom;
         } else {
-            y = (overlapAnchor ? anchorRect.bottom : anchorRect.top) - popupHeight;
+            return (overlapAnchor ? anchorRect.bottom : anchorRect.top) - popupHeight;
         }
-
-        // Clamp within window bounds when vertical overlap is allowed. When
-        // overlap is not allowed, avoid clamping to prevent shifting the popup
-        // over the anchor point.
-        if (overlapAnchor) {
-            return clamp(y, windowRect.top + marginPx, windowRect.bottom - popupHeight - marginPx);
-        }
-        return y;
     }
 
     private static int clamp(int value, int a, int b) {

@@ -72,7 +72,7 @@ Element* ToggleEvent::source() const {
     return related_target ? DynamicTo<Element>(related_target->ToNode())
                           : nullptr;
   }
-  return DynamicTo<Element>(Retarget(source_));
+  return Retarget(source_);
 }
 
 const AtomicString& ToggleEvent::InterfaceName() const {

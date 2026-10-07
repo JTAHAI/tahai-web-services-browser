@@ -51,7 +51,6 @@ namespace ui {
 struct OsSettingsProviderMac::ObjCMembers {
   id __strong non_blinking_cursor_token;
   id __strong display_accessibility_notification_token;
-  id __strong scroller_style_notification_token;
   EffectiveAppearanceObserver* __strong appearance_observer;
 };
 
@@ -82,15 +81,6 @@ OsSettingsProviderMac::OsSettingsProviderMac()
                     provider->NotifyOnSettingsChanged();
                   }];
 
-  objc_members_->scroller_style_notification_token =
-      [[NSNotificationCenter defaultCenter]
-          addObserverForName:NSPreferredScrollerStyleDidChangeNotification
-                      object:nil
-                       queue:nil
-                  usingBlock:^(NSNotification* notification) {
-                    provider->NotifyOnSettingsChanged();
-                  }];
-
   objc_members_->appearance_observer =
       [[EffectiveAppearanceObserver alloc] initWithHandler:^{
         provider->NotifyOnSettingsChanged();
@@ -100,8 +90,6 @@ OsSettingsProviderMac::OsSettingsProviderMac()
 OsSettingsProviderMac::~OsSettingsProviderMac() {
   [NSNotificationCenter.defaultCenter
       removeObserver:objc_members_->display_accessibility_notification_token];
-  [NSNotificationCenter.defaultCenter
-      removeObserver:objc_members_->scroller_style_notification_token];
   if (@available(macOS 15.0, *)) {
     [NSNotificationCenter.defaultCenter
         removeObserver:objc_members_->non_blinking_cursor_token];
@@ -133,10 +121,6 @@ bool OsSettingsProviderMac::PrefersReducedTransparency() const {
 
 bool OsSettingsProviderMac::PrefersInvertedColors() const {
   return NSWorkspace.sharedWorkspace.accessibilityDisplayShouldInvertColors;
-}
-
-bool OsSettingsProviderMac::PrefersOverlayScrollbars() const {
-  return [NSScroller preferredScrollerStyle] == NSScrollerStyleOverlay;
 }
 
 base::TimeDelta OsSettingsProviderMac::CaretBlinkInterval() const {

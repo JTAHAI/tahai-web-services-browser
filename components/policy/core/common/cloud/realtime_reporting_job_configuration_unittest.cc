@@ -55,14 +55,11 @@ class MockCallbackObserver {
  public:
   MockCallbackObserver() = default;
 
-  MOCK_METHOD(
-      void,
-      OnURLLoadComplete,
-      (DeviceManagementService::Job * job,
-       DeviceManagementStatus code,
-       int response_code,
-       std::optional<base::DictValue> response,
-       const ::chrome::cros::reporting::proto::UploadEventsRequest& request));
+  MOCK_METHOD4(OnURLLoadComplete,
+               void(DeviceManagementService::Job* job,
+                    DeviceManagementStatus code,
+                    int response_code,
+                    std::optional<base::DictValue>));
 };
 
 class RealtimeReportingJobConfigurationTest : public testing::Test {
@@ -228,7 +225,7 @@ TEST_F(RealtimeReportingJobConfigurationTest, OnURLLoadComplete_Success) {
   EXPECT_CALL(callback_observer_,
               OnURLLoadComplete(&job_, DM_STATUS_SUCCESS,
                                 DeviceManagementService::kSuccess,
-                                testing::Eq(testing::ByRef(response)), _));
+                                testing::Eq(testing::ByRef(response))));
   configuration_->OnURLLoadComplete(&job_, net::OK,
                                     DeviceManagementService::kSuccess,
                                     CreateResponseString(response));
@@ -237,7 +234,7 @@ TEST_F(RealtimeReportingJobConfigurationTest, OnURLLoadComplete_Success) {
 TEST_F(RealtimeReportingJobConfigurationTest, OnURLLoadComplete_NetError) {
   EXPECT_CALL(callback_observer_,
               OnURLLoadComplete(&job_, DM_STATUS_REQUEST_FAILED, _,
-                                testing::Eq(std::nullopt), _));
+                                testing::Eq(std::nullopt)));
   configuration_->OnURLLoadComplete(&job_, net::ERR_CONNECTION_RESET,
                                     0 /* ignored */, "");
 }
@@ -247,7 +244,7 @@ TEST_F(RealtimeReportingJobConfigurationTest,
   EXPECT_CALL(callback_observer_,
               OnURLLoadComplete(&job_, DM_STATUS_REQUEST_INVALID,
                                 DeviceManagementService::kInvalidArgument,
-                                testing::Eq(std::nullopt), _));
+                                testing::Eq(std::nullopt)));
   configuration_->OnURLLoadComplete(
       &job_, net::OK, DeviceManagementService::kInvalidArgument, "");
 }
@@ -258,7 +255,7 @@ TEST_F(RealtimeReportingJobConfigurationTest,
       callback_observer_,
       OnURLLoadComplete(&job_, DM_STATUS_SERVICE_MANAGEMENT_TOKEN_INVALID,
                         DeviceManagementService::kInvalidAuthCookieOrDMToken,
-                        testing::Eq(std::nullopt), _));
+                        testing::Eq(std::nullopt)));
   configuration_->OnURLLoadComplete(
       &job_, net::OK, DeviceManagementService::kInvalidAuthCookieOrDMToken, "");
 }
@@ -268,7 +265,7 @@ TEST_F(RealtimeReportingJobConfigurationTest, OnURLLoadComplete_NotSupported) {
       callback_observer_,
       OnURLLoadComplete(&job_, DM_STATUS_SERVICE_MANAGEMENT_NOT_SUPPORTED,
                         DeviceManagementService::kDeviceManagementNotAllowed,
-                        testing::Eq(std::nullopt), _));
+                        testing::Eq(std::nullopt)));
   configuration_->OnURLLoadComplete(
       &job_, net::OK, DeviceManagementService::kDeviceManagementNotAllowed, "");
 }
@@ -277,7 +274,7 @@ TEST_F(RealtimeReportingJobConfigurationTest, OnURLLoadComplete_TempError) {
   EXPECT_CALL(callback_observer_,
               OnURLLoadComplete(&job_, DM_STATUS_TEMPORARY_UNAVAILABLE,
                                 DeviceManagementService::kServiceUnavailable,
-                                testing::Eq(std::nullopt), _));
+                                testing::Eq(std::nullopt)));
   configuration_->OnURLLoadComplete(
       &job_, net::OK, DeviceManagementService::kServiceUnavailable, "");
 }
@@ -286,7 +283,7 @@ TEST_F(RealtimeReportingJobConfigurationTest, OnURLLoadComplete_UnknownError) {
   EXPECT_CALL(callback_observer_,
               OnURLLoadComplete(&job_, DM_STATUS_HTTP_STATUS_ERROR,
                                 DeviceManagementService::kInvalidURL,
-                                testing::Eq(std::nullopt), _));
+                                testing::Eq(std::nullopt)));
   configuration_->OnURLLoadComplete(&job_, net::OK,
                                     DeviceManagementService::kInvalidURL, "");
 }

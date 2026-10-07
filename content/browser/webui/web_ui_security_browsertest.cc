@@ -58,8 +58,7 @@ class WebUISecurityTest : public ContentBrowserTest {
   ScopedWebUIControllerFactoryRegistration factory_registration_{&factory_};
 };
 
-// Verify chrome-untrusted:// have no bindings and cannot request chrome or file
-// URLs.
+// Verify chrome-untrusted:// have no bindings.
 IN_PROC_BROWSER_TEST_F(WebUISecurityTest, UntrustedNoBindings) {
   auto* web_contents = shell()->web_contents();
   WebUIConfigMap::GetInstance().AddUntrustedWebUIConfig(
@@ -68,19 +67,17 @@ IN_PROC_BROWSER_TEST_F(WebUISecurityTest, UntrustedNoBindings) {
   const GURL untrusted_url(GetChromeUntrustedUIURL("test-host/title1.html"));
   EXPECT_TRUE(NavigateToURL(web_contents, untrusted_url));
 
-  auto process_id =
-      *shell()->web_contents()->GetPrimaryMainFrame()->GetProcess()->GetID();
   EXPECT_FALSE(ChildProcessSecurityPolicyImpl::GetInstance()->HasWebUIBindings(
-      process_id));
+      shell()
+          ->web_contents()
+          ->GetPrimaryMainFrame()
+          ->GetProcess()
+          ->GetDeprecatedID()));
   EXPECT_TRUE(shell()
                   ->web_contents()
                   ->GetPrimaryMainFrame()
                   ->GetEnabledBindings()
                   .empty());
-  EXPECT_FALSE(ChildProcessSecurityPolicyImpl::GetInstance()->CanRequestURL(
-      process_id, GURL("file:///etc/passwd")));
-  EXPECT_FALSE(ChildProcessSecurityPolicyImpl::GetInstance()->CanRequestURL(
-      process_id, GURL("chrome://version")));
 }
 
 // Loads a WebUI which does not have any bindings.

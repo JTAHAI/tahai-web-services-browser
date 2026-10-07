@@ -15,6 +15,7 @@ import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetObserver;
+import org.chromium.components.browser_ui.bottomsheet.EmptyBottomSheetObserver;
 
 /**
  * Controller, which displays the acknowledgement bottom sheet before filling credential that were
@@ -27,9 +28,10 @@ public class AcknowledgeGroupedCredentialSheetController {
     private final Callback<Integer> mOnSheetDismissed;
     private @Nullable AcknowledgeGroupedCredentialSheetView mView;
     private final BottomSheetObserver mBottomSheetObserver =
-            new BottomSheetObserver() {
+            new EmptyBottomSheetObserver() {
                 @Override
                 public void onSheetClosed(@BottomSheetController.StateChangeReason int reason) {
+                    super.onSheetClosed(reason);
                     if (mBottomSheetController.getCurrentSheetContent() != null
                             && mBottomSheetController.getCurrentSheetContent() == mView) {
                         mBottomSheetController.removeObserver(mBottomSheetObserver);

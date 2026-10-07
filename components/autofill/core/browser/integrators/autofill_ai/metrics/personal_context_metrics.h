@@ -12,13 +12,6 @@
 
 namespace autofill {
 
-// Delay before logging the non-eligibility reason on startup. Instead of
-// reporting immediately at startup (which would incorrectly report non-eligible
-// before preferences are loaded from disk), this delay ensures initial
-// preference and device state have been populated.
-inline constexpr base::TimeDelta kNonEligibilityLoggingDelayOnStartup =
-    base::Seconds(30);
-
 class AutofillAiPersonalContextAccessManager;
 class EntityDataManager;
 
@@ -60,7 +53,6 @@ PersonalContextCacheReadinessOnFirstInteraction GetCacheReadinessState(
 // Logs the readiness state of the prefetch cache on the user's first
 // interaction with an Ambient Autofill supported field.
 void LogPersonalContextCacheReadinessOnFirstInteraction(
-    EntityType type,
     PersonalContextCacheReadinessOnFirstInteraction readiness);
 
 // Logs the unique prefetch trigger outcomes present in a batch of requested

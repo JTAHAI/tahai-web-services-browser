@@ -12,7 +12,6 @@
 #include "chrome/browser/ui/passwords/passwords_leak_dialog_delegate.h"
 #include "chrome/browser/ui/passwords/passwords_model_delegate.h"
 #include "components/password_manager/core/browser/password_form.h"
-#include "components/password_manager/core/browser/password_string.h"
 #include "testing/gmock/include/gmock/gmock.h"
 
 class PasswordsModelDelegateMock : public PasswordsModelDelegate {
@@ -81,7 +80,7 @@ class PasswordsModelDelegateMock : public PasswordsModelDelegate {
   MOCK_METHOD(void, OnPasswordsRevealed, (), (override));
   MOCK_METHOD(void,
               SavePassword,
-              (const std::u16string&, const password_manager::PasswordString&),
+              (const std::u16string&, const std::u16string&),
               (override));
   MOCK_METHOD(void, MovePasswordToAccountStore, (), (override));
   MOCK_METHOD(void, BlockMovingPasswordToAccountStore, (), (override));

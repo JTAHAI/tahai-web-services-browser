@@ -775,10 +775,7 @@ public class TabContentManager {
         void invalidateIfChanged(
                 long nativeTabContentManager, int tabId, @JniType("GURL") GURL url);
 
-        void updateVisibleIds(
-                long nativeTabContentManager,
-                @JniType("std::vector<int32_t>") int[] priority,
-                int primaryTabId);
+        void updateVisibleIds(long nativeTabContentManager, int[] priority, int primaryTabId);
 
         void removeTabThumbnail(long nativeTabContentManager, int tabId);
 

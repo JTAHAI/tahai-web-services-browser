@@ -116,14 +116,10 @@ public class NfcImpl implements Nfc {
     /** Last time in milliseconds when a Tag was discovered. */
     private long mTagDiscoveredLastTimeMs = -1;
 
-    public NfcImpl(
-            int hostId,
-            NfcDelegate delegate,
-            InterfaceRequest<Nfc> request,
-            boolean operationsSuspended) {
+    public NfcImpl(int hostId, NfcDelegate delegate, InterfaceRequest<Nfc> request) {
         mHostId = hostId;
         mDelegate = delegate;
-        mOperationsSuspended = operationsSuspended;
+        mOperationsSuspended = false;
 
         // |request| may be null in tests.
         if (request != null) {
@@ -459,16 +455,10 @@ public class NfcImpl implements Nfc {
 
     /**
      * Enables reader mode, allowing NFC device to read / write / make read-only NFC tags.
-     *
      * @see android.nfc.NfcAdapter#enableReaderMode
      */
     private void enableReaderModeIfNeeded() {
-        if (mOperationsSuspended
-                || mReaderCallbackHandler != null
-                || mActivity == null
-                || mNfcAdapter == null) {
-            return;
-        }
+        if (mReaderCallbackHandler != null || mActivity == null || mNfcAdapter == null) return;
 
         if (!hasActiveOperations()) return;
 
@@ -741,9 +731,5 @@ public class NfcImpl implements Nfc {
         processPendingWatchOperations();
         processPendingPushOperation();
         processPendingMakeReadOnlyOperation();
-    }
-
-    boolean isOperationsSuspendedForTesting() {
-        return mOperationsSuspended;
     }
 }

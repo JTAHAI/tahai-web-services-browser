@@ -147,6 +147,9 @@ class CORE_EXPORT PreloadRequest {
     is_potentially_lcp_influencer_ = flag;
   }
 
+  void SetSharedStorageWritableOptedIn(bool opted_in) {
+    shared_storage_writable_opted_in_ = opted_in;
+  }
 
   // Set whether the preload request is eligible for the Browsing Topics API.
   //
@@ -212,6 +215,7 @@ class CORE_EXPORT PreloadRequest {
   base::TimeTicks creation_time_ = base::TimeTicks::Now();
   bool is_potentially_lcp_element_ = false;
   bool is_potentially_lcp_influencer_ = false;
+  bool shared_storage_writable_opted_in_ = false;
   bool browsing_topics_eligible_ = false;
 };
 

@@ -71,7 +71,8 @@ enum class TimePeriod {
 // A Java counterpart will be generated for this enum.
 // GENERATED_JAVA_ENUM_PACKAGE: org.chromium.components.browsing_data
 //
-// LINT.IfChange(DeleteBrowsingDataAction)
+// Note: Make sure to keep in sync with DeleteBrowsingDataAction defined in
+//   chrome/browser/resources/settings/site_settings/metrics_browser_proxy.ts
 enum class DeleteBrowsingDataAction {
   kClearBrowsingDataDialog = 0,
   kClearBrowsingDataOnExit = 1,
@@ -84,10 +85,6 @@ enum class DeleteBrowsingDataAction {
   kRwsDeleteAllData = 8,
   kMaxValue = kRwsDeleteAllData,
 };
-// LINT.ThenChange(
-//   //chrome/browser/resources/settings/metrics_browser_proxy.ts:DeleteBrowsingDataAction,
-//   //tools/metrics/histograms/metadata/privacy/enums.xml:DeleteBrowsingDataAction
-// )
 
 // These values are persisted to logs. Entries should not be renumbered and
 // numeric values should never be reused.

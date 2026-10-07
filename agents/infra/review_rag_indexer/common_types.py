@@ -11,7 +11,6 @@ from metadata_tree import MetadataTree
 @dataclasses.dataclass
 class PreviousRunInfo:
     """Information extracted from the previous run's manifest."""
-
     # The git revision that was used as HEAD in the previous run.
     revision: str
     # The time that the previous run was started at. Equivalent to the
@@ -22,7 +21,6 @@ class PreviousRunInfo:
 @dataclasses.dataclass
 class CommonArgs:
     """Arguments that are expected to be passed around frequently."""
-
     # The Git-on-Borg project hosting the repo that is being operated on.
     project: str
     # The git repo within `project` that is being operated on.
@@ -49,7 +47,6 @@ class CommonArgs:
 @dataclasses.dataclass
 class CommentThread:
     """Represents a reconstructed comment thread."""
-
     file_path: str
     patch_set: int
     thread_markdown: str
@@ -58,7 +55,6 @@ class CommentThread:
 @dataclasses.dataclass
 class ClInfo:
     """Information representing a changelist/commit."""
-
     # The git revision of the CL.
     revision: str
     # The Gerrit CL number.

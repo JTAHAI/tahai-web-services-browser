@@ -42,14 +42,14 @@ TransferableResourceTracker::ImportResources(
       if (view_transition_element_resource_id.IsValid()) {
         resource_frame
             .element_id_to_resource[view_transition_element_resource_id] =
-            *resource_frame.shared[i];
+            resource_frame.shared[i]->resource;
       }
     }
   }
 
   for (auto resource_id : frame_result.empty_resource_ids) {
     DCHECK(!resource_frame.element_id_to_resource.contains(resource_id));
-    resource_frame.element_id_to_resource[resource_id] = PositionedResource();
+    resource_frame.element_id_to_resource[resource_id] = TransferableResource();
   }
 
   return resource_frame;
@@ -81,7 +81,6 @@ TransferableResourceTracker::ImportResource(
 
   PositionedResource result;
   result.resource = resource;
-  result.pixel_alignment_offset = output_copy.pixel_alignment_offset;
   return result;
 }
 
@@ -93,22 +92,20 @@ void TransferableResourceTracker::ReturnFrame(const ResourceFrame& frame) {
   }
 }
 
-bool TransferableResourceTracker::RefResource(ResourceId id) {
+void TransferableResourceTracker::RefResource(ResourceId id) {
   if (!managed_resources_.contains(id)) {
-    return false;
+    return;
   }
 
   id_tracker_->RefId(id, /*count=*/1);
-  return true;
 }
 
-bool TransferableResourceTracker::UnrefResource(
+void TransferableResourceTracker::UnrefResource(
     ResourceId id,
     int count,
     const gpu::SyncToken& sync_token) {
-  auto it = managed_resources_.find(id);
-  if (it == managed_resources_.end()) {
-    return false;
+  if (!managed_resources_.contains(id)) {
+    return;
   }
 
   // Always update the release sync token, even if we're still keeping the
@@ -116,13 +113,14 @@ bool TransferableResourceTracker::UnrefResource(
   // then release it from surface animation manager, we will still have the
   // right sync token.
   if (sync_token.HasData()) {
+    auto it = managed_resources_.find(id);
+    CHECK(it != managed_resources_.end());
     it->second.release_sync_token = sync_token;
   }
 
   if (id_tracker_->UnrefId(id, count)) {
-    managed_resources_.erase(it);
+    managed_resources_.erase(id);
   }
-  return true;
 }
 
 TransferableResourceTracker::TransferableResourceHolder::

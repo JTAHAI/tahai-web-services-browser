@@ -10,7 +10,6 @@
 #import "base/memory/weak_ptr.h"
 #import "base/supports_user_data.h"
 
-@class BrowserLayoutState;
 class BrowserObserver;
 @class CommandDispatcher;
 class ProfileIOS;
@@ -65,9 +64,6 @@ class Browser : public base::SupportsUserData {
 
   // Accessor for the SceneState.
   virtual SceneState* GetSceneState() = 0;
-
-  // Accessor for the BrowserLayoutState.
-  virtual BrowserLayoutState* GetBrowserLayoutState() = 0;
 
   // Adds and removes observers.
   virtual void AddObserver(BrowserObserver* observer) = 0;

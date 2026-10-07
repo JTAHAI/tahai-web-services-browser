@@ -43,11 +43,11 @@ class CORE_EXPORT BitStack {
   void Pop();
 
   bool Top() const;
-  wtf_size_t size() const;
+  unsigned size() const;
 
  private:
-  wtf_size_t size_ = 0;
-  Vector<uint32_t, 1> words_;
+  unsigned size_;
+  Vector<unsigned, 1> words_;
 };
 
 }  // namespace blink

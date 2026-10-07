@@ -60,22 +60,13 @@ DevToolsNavigationThrottle::WillRedirectRequest() {
 content::NavigationThrottle::ThrottleCheckResult
 DevToolsNavigationThrottle::WillStartOrRedirectRequest() {
   const GURL& request_url = navigation_handle()->GetURL();
+  const auto& rules = DevToolsNavigationGatingRuleManager::Get();
 
-  DevToolsNavigationGatingRuleManager::Get().IsNavigationAllowed(
-      request_url, base::BindOnce(&DevToolsNavigationThrottle::OnGatingDecision,
-                                  weak_ptr_factory_.GetWeakPtr()));
-
-  return content::NavigationThrottle::DEFER;
-}
-
-void DevToolsNavigationThrottle::OnGatingDecision(bool is_allowed) {
-  if (is_allowed) {
-    Resume();
-    return;
+  if (!rules.IsNavigationAllowed(request_url)) {
+    return {content::NavigationThrottle::CANCEL, net::ERR_BLOCKED_BY_CLIENT};
   }
 
-  CancelDeferredNavigation(content::NavigationThrottle::ThrottleCheckResult(
-      CANCEL, net::ERR_BLOCKED_BY_CLIENT));
+  return content::NavigationThrottle::PROCEED;
 }
 
 const char* DevToolsNavigationThrottle::GetNameForLogging() {

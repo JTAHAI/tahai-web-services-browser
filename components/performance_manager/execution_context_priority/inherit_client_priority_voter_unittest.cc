@@ -7,6 +7,7 @@
 #include "base/memory/raw_ptr.h"
 #include "components/performance_manager/execution_context_priority/root_vote_observer.h"
 #include "components/performance_manager/public/execution_context/execution_context.h"
+#include "components/performance_manager/public/execution_context/execution_context_registry.h"
 #include "components/performance_manager/public/graph/graph.h"
 #include "components/performance_manager/test_support/graph_test_harness.h"
 #include "components/performance_manager/test_support/mock_graphs.h"
@@ -19,6 +20,13 @@ namespace execution_context_priority {
 using DummyVoteObserver = voting::test::DummyVoteObserver<Vote>;
 
 namespace {
+
+const execution_context::ExecutionContext* GetExecutionContext(
+    const WorkerNode* worker_node) {
+  return execution_context::ExecutionContextRegistry::GetFromGraph(
+             worker_node->GetGraph())
+      ->GetExecutionContextForWorkerNode(worker_node);
+}
 
 class InheritClientPriorityVoterTest : public GraphTestHarness {
  public:
@@ -70,7 +78,7 @@ TEST_F(InheritClientPriorityVoterTest, OneWorker) {
       test_worker_node_factory_.CreateDedicatedWorker(process_node, frame_node);
   EXPECT_EQ(observer().GetVoteCount(), 0u);
   EXPECT_FALSE(
-      observer().HasVote(voter_id(), ExecutionContext::From(worker_node)));
+      observer().HasVote(voter_id(), GetExecutionContext(worker_node)));
 
   // Now set the priority of the client to a non-default value, and expect an
   // inherited vote.
@@ -79,7 +87,7 @@ TEST_F(InheritClientPriorityVoterTest, OneWorker) {
 
   EXPECT_EQ(observer().GetVoteCount(), 1u);
   EXPECT_TRUE(
-      observer().HasVote(voter_id(), ExecutionContext::From(worker_node),
+      observer().HasVote(voter_id(), GetExecutionContext(worker_node),
                          base::Process::Priority::kUserVisible,
                          InheritClientPriorityVoter::kPriorityInheritedReason));
 
@@ -111,11 +119,11 @@ TEST_F(InheritClientPriorityVoterTest, MultipleWorkers) {
 
   EXPECT_EQ(observer().GetVoteCount(), 2u);
   EXPECT_TRUE(
-      observer().HasVote(voter_id(), ExecutionContext::From(worker_node_1),
+      observer().HasVote(voter_id(), GetExecutionContext(worker_node_1),
                          base::Process::Priority::kUserVisible,
                          InheritClientPriorityVoter::kPriorityInheritedReason));
   EXPECT_TRUE(
-      observer().HasVote(voter_id(), ExecutionContext::From(worker_node_2),
+      observer().HasVote(voter_id(), GetExecutionContext(worker_node_2),
                          base::Process::Priority::kUserVisible,
                          InheritClientPriorityVoter::kPriorityInheritedReason));
 }
@@ -159,7 +167,7 @@ TEST_F(InheritClientPriorityVoterTest, DeepWorkerTree) {
   EXPECT_EQ(observer().GetVoteCount(), kTreeDepth);
   for (WorkerNodeImpl* worker_node : worker_nodes) {
     ASSERT_TRUE(observer().HasVote(
-        voter_id(), ExecutionContext::From(worker_node),
+        voter_id(), GetExecutionContext(worker_node),
         base::Process::Priority::kUserVisible,
         InheritClientPriorityVoter::kPriorityInheritedReason));
   }
@@ -184,7 +192,7 @@ TEST_F(InheritClientPriorityVoterTest, MultipleClients) {
   // No vote will be submitted yet as its clients still have a default priority.
   EXPECT_EQ(observer().GetVoteCount(), 0u);
   EXPECT_FALSE(
-      observer().HasVote(voter_id(), ExecutionContext::From(worker_node)));
+      observer().HasVote(voter_id(), GetExecutionContext(worker_node)));
 
   // Change the priority of the first client to a non-default value. This will
   // create a vote for the worker.
@@ -192,7 +200,7 @@ TEST_F(InheritClientPriorityVoterTest, MultipleClients) {
       {base::Process::Priority::kUserVisible, "Some reason"});
   EXPECT_EQ(observer().GetVoteCount(), 1u);
   EXPECT_TRUE(
-      observer().HasVote(voter_id(), ExecutionContext::From(worker_node),
+      observer().HasVote(voter_id(), GetExecutionContext(worker_node),
                          base::Process::Priority::kUserVisible,
                          InheritClientPriorityVoter::kPriorityInheritedReason));
 
@@ -202,7 +210,7 @@ TEST_F(InheritClientPriorityVoterTest, MultipleClients) {
       {base::Process::Priority::kUserBlocking, "Some reason"});
   EXPECT_EQ(observer().GetVoteCount(), 1u);
   EXPECT_TRUE(
-      observer().HasVote(voter_id(), ExecutionContext::From(worker_node),
+      observer().HasVote(voter_id(), GetExecutionContext(worker_node),
                          base::Process::Priority::kUserBlocking,
                          InheritClientPriorityVoter::kPriorityInheritedReason));
 }
@@ -226,7 +234,7 @@ TEST_F(InheritClientPriorityVoterTest, SamePriorityDifferentReason) {
       test_worker_node_factory_.CreateDedicatedWorker(process_node, frame_node);
   EXPECT_EQ(observer().GetVoteCount(), 1u);
   EXPECT_TRUE(
-      observer().HasVote(voter_id(), ExecutionContext::From(worker_node),
+      observer().HasVote(voter_id(), GetExecutionContext(worker_node),
                          base::Process::Priority::kUserVisible,
                          InheritClientPriorityVoter::kPriorityInheritedReason));
 
@@ -238,7 +246,7 @@ TEST_F(InheritClientPriorityVoterTest, SamePriorityDifferentReason) {
   // Should not change the inherited priority and should not crash.
   EXPECT_EQ(observer().GetVoteCount(), 1u);
   EXPECT_TRUE(
-      observer().HasVote(voter_id(), ExecutionContext::From(worker_node),
+      observer().HasVote(voter_id(), GetExecutionContext(worker_node),
                          base::Process::Priority::kUserVisible,
                          InheritClientPriorityVoter::kPriorityInheritedReason));
 

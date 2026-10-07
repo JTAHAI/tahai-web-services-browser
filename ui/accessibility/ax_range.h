@@ -395,12 +395,8 @@ class AXRange final {
       int max_count = -1,
       bool include_ignored = false,
       std::vector<size_t>* appended_newlines_indices = nullptr) const {
-    // Selection ranges can have valid object IDs but kNoSelectionOffset
-    // endpoints, producing non-null invalid positions.
-    if (max_count == 0 || IsNull() || !anchor_->IsValid() ||
-        !focus_->IsValid()) {
+    if (max_count == 0 || IsNull())
       return std::u16string();
-    }
 
     std::optional<int> endpoint_comparison =
         CompareEndpoints(anchor(), focus());

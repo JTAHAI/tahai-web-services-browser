@@ -10,7 +10,6 @@
 #include <string_view>
 
 #include "base/functional/callback.h"
-#include "base/i18n/language_tag.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "components/live_caption/caption_bubble_settings.h"
@@ -40,11 +39,11 @@ class CaptionBubbleSettingsImpl : public ::captions::CaptionBubbleSettings {
   bool GetLiveCaptionBubbleExpanded() override;
   bool GetLiveTranslateEnabled() override;
   std::string GetLiveCaptionLanguageCode() override;
-  base::i18n::LanguageTag GetLiveTranslateTargetLanguageCode() override;
+  std::string GetLiveTranslateTargetLanguageCode() override;
   void SetLiveCaptionEnabled(bool enabled) override;
   void SetLiveCaptionBubbleExpanded(bool expanded) override;
   void SetLiveTranslateTargetLanguageCode(
-      const base::i18n::LanguageTag& language_tag) override;
+      std::string_view language_code) override;
   bool ShouldAdjustPositionOnExpand() override;
 
   void SetLiveTranslateEnabled(bool enabled);

@@ -14,8 +14,9 @@ import {TestRunner} from 'test_runner';
   Common.Settings.Settings.instance().moduleSetting('sidebar-position').set('right');
   await UI.ViewManager.ViewManager.instance().showView(
       'sources.event-listener-breakpoints');
-  const eventListenerWidget = await UI.ViewManager.ViewManager.instance().view(
-      'sources.event-listener-breakpoints').widget();
+  const eventListenerWidget =
+      BrowserDebugger.EventListenerBreakpointsSidebarPane
+          .EventListenerBreakpointsSidebarPane.instance();
   TestRunner.addResult('Setting event listener breakpoints.');
   const breakpoints = eventListenerWidget.categories.get('animation');
   breakpoints?.forEach(b => b.setEnabled(true));

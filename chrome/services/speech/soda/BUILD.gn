@@ -60,7 +60,6 @@ source_set("unit_tests") {
     deps = [
       ":soda",
       "//base",
-      "//base/test:test_support",
       "//chrome/services/speech/soda:soda_api_proto",
       "//media",
       "//testing/gtest",

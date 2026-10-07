@@ -22,7 +22,6 @@
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_window.h"
-#include "chrome/browser/ui/browser_window/public/create_browser_window.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/ui_test_utils.h"
@@ -40,7 +39,6 @@
 #include "content/public/test/test_utils.h"
 #include "net/dns/mock_host_resolver.h"
 #include "testing/gmock/include/gmock/gmock.h"
-#include "ui/base/base_window.h"
 
 using ::boca::LockedNavigationOptions;
 using ::testing::IsNull;
@@ -129,10 +127,11 @@ class OnTaskSessionManagerBrowserTestBase : public InProcessBrowserTest {
     return boca_manager->GetOnTaskSessionManager();
   }
 
-  BrowserWindowInterface* FindBocaSystemWebAppBrowser() {
+  Browser* FindBocaSystemWebAppBrowser() {
     ash::BrowserDelegate* delegate = ash::FindSystemWebAppBrowser(
         profile(), ash::SystemWebAppType::BOCA, ash::BrowserType::kApp);
-    return delegate ? &delegate->GetBrowser() : nullptr;
+    return delegate ? delegate->GetBrowser().GetBrowserForMigrationOnly()
+                    : nullptr;
   }
 
   void VerifyNotificationShown(std::string notification_id,
@@ -201,12 +200,11 @@ IN_PROC_BROWSER_TEST_F(
   GetOnTaskSessionManager()->OnSessionStarted(kSessionId,
                                               ::boca::UserIdentity());
   navigation_observer.Wait();
-  BrowserWindowInterface* const boca_app_browser =
-      FindBocaSystemWebAppBrowser();
+  Browser* const boca_app_browser = FindBocaSystemWebAppBrowser();
   ASSERT_THAT(boca_app_browser, NotNull());
   ASSERT_TRUE(
       OnTaskLockedController::From(boca_app_browser)->is_locked_for_on_task());
-  auto* const tab_strip_model = boca_app_browser->GetTabStripModel();
+  auto* const tab_strip_model = boca_app_browser->tab_strip_model();
   ASSERT_EQ(tab_strip_model->count(), 1);
   ASSERT_EQ(tab_strip_model->GetActiveWebContents()->GetLastCommittedURL(),
             boca_url);
@@ -242,12 +240,11 @@ IN_PROC_BROWSER_TEST_F(OnTaskSessionManagerBrowserTest,
   navigation_observer_1.Wait();
   navigation_observer_2.Wait();
 
-  BrowserWindowInterface* const boca_app_browser =
-      FindBocaSystemWebAppBrowser();
+  Browser* const boca_app_browser = FindBocaSystemWebAppBrowser();
   ASSERT_THAT(boca_app_browser, NotNull());
   ASSERT_TRUE(
       OnTaskLockedController::From(boca_app_browser)->is_locked_for_on_task());
-  auto* const tab_strip_model = boca_app_browser->GetTabStripModel();
+  auto* const tab_strip_model = boca_app_browser->tab_strip_model();
   ASSERT_EQ(tab_strip_model->count(), 3);
   tab_strip_model->ActivateTabAt(1);
   EXPECT_EQ(tab_strip_model->GetActiveWebContents()->GetLastCommittedURL(),
@@ -270,12 +267,11 @@ IN_PROC_BROWSER_TEST_F(OnTaskSessionManagerBrowserTest,
   GetOnTaskSessionManager()->OnBundleUpdated(bundle);
   navigation_observer.Wait();
 
-  BrowserWindowInterface* const boca_app_browser =
-      FindBocaSystemWebAppBrowser();
+  Browser* const boca_app_browser = FindBocaSystemWebAppBrowser();
   ASSERT_THAT(boca_app_browser, NotNull());
   ASSERT_TRUE(
       OnTaskLockedController::From(boca_app_browser)->is_locked_for_on_task());
-  auto* const tab_strip_model = boca_app_browser->GetTabStripModel();
+  auto* const tab_strip_model = boca_app_browser->tab_strip_model();
   ASSERT_EQ(tab_strip_model->count(), 2);
   tab_strip_model->ActivateTabAt(1);
   EXPECT_EQ(tab_strip_model->GetActiveWebContents()->GetLastCommittedURL(),
@@ -310,12 +306,11 @@ IN_PROC_BROWSER_TEST_F(OnTaskSessionManagerBrowserTest,
   navigation_observer_1.Wait();
   navigation_observer_2.Wait();
 
-  BrowserWindowInterface* const boca_app_browser =
-      FindBocaSystemWebAppBrowser();
+  Browser* const boca_app_browser = FindBocaSystemWebAppBrowser();
   ASSERT_THAT(boca_app_browser, NotNull());
   ASSERT_TRUE(
       OnTaskLockedController::From(boca_app_browser)->is_locked_for_on_task());
-  auto* const tab_strip_model = boca_app_browser->GetTabStripModel();
+  auto* const tab_strip_model = boca_app_browser->tab_strip_model();
   ASSERT_EQ(tab_strip_model->count(), 3);
   tab_strip_model->ActivateTabAt(1);
   EXPECT_EQ(tab_strip_model->GetActiveWebContents()->GetLastCommittedURL(),
@@ -348,8 +343,7 @@ IN_PROC_BROWSER_TEST_F(
   GetOnTaskSessionManager()->OnBundleUpdated(bundle);
   navigation_observer.Wait();
 
-  BrowserWindowInterface* const boca_app_browser =
-      FindBocaSystemWebAppBrowser();
+  Browser* const boca_app_browser = FindBocaSystemWebAppBrowser();
   ASSERT_THAT(boca_app_browser, NotNull());
   ASSERT_TRUE(
       OnTaskLockedController::From(boca_app_browser)->is_locked_for_on_task());
@@ -400,12 +394,11 @@ IN_PROC_BROWSER_TEST_F(OnTaskSessionManagerBrowserTest,
   GetOnTaskSessionManager()->OnBundleUpdated(bundle);
   navigation_observer.Wait();
 
-  BrowserWindowInterface* const boca_app_browser =
-      FindBocaSystemWebAppBrowser();
+  Browser* const boca_app_browser = FindBocaSystemWebAppBrowser();
   ASSERT_THAT(boca_app_browser, NotNull());
   ASSERT_TRUE(
       OnTaskLockedController::From(boca_app_browser)->is_locked_for_on_task());
-  auto* const tab_strip_model = boca_app_browser->GetTabStripModel();
+  auto* const tab_strip_model = boca_app_browser->tab_strip_model();
   ASSERT_EQ(tab_strip_model->count(), 2);
   tab_strip_model->ActivateTabAt(1);
   EXPECT_EQ(tab_strip_model->GetActiveWebContents()->GetVisibleURL(),
@@ -460,12 +453,11 @@ IN_PROC_BROWSER_TEST_F(OnTaskSessionManagerBrowserTest,
   GetOnTaskSessionManager()->OnBundleUpdated(bundle);
   navigation_observer.Wait();
 
-  BrowserWindowInterface* const boca_app_browser =
-      FindBocaSystemWebAppBrowser();
+  Browser* const boca_app_browser = FindBocaSystemWebAppBrowser();
   ASSERT_THAT(boca_app_browser, NotNull());
   ASSERT_TRUE(
       OnTaskLockedController::From(boca_app_browser)->is_locked_for_on_task());
-  auto* const tab_strip_model = boca_app_browser->GetTabStripModel();
+  auto* const tab_strip_model = boca_app_browser->tab_strip_model();
   ASSERT_EQ(tab_strip_model->count(), 2);
   tab_strip_model->ActivateTabAt(1);
   EXPECT_EQ(tab_strip_model->GetActiveWebContents()->GetVisibleURL(),
@@ -513,12 +505,11 @@ IN_PROC_BROWSER_TEST_F(OnTaskSessionManagerBrowserTest,
   GetOnTaskSessionManager()->OnBundleUpdated(bundle);
   navigation_observer.Wait();
 
-  BrowserWindowInterface* const boca_app_browser =
-      FindBocaSystemWebAppBrowser();
+  Browser* const boca_app_browser = FindBocaSystemWebAppBrowser();
   ASSERT_THAT(boca_app_browser, NotNull());
   ASSERT_TRUE(
       OnTaskLockedController::From(boca_app_browser)->is_locked_for_on_task());
-  auto* const tab_strip_model = boca_app_browser->GetTabStripModel();
+  auto* const tab_strip_model = boca_app_browser->tab_strip_model();
   ASSERT_EQ(tab_strip_model->count(), 2);
   tab_strip_model->ActivateTabAt(1);
   EXPECT_EQ(tab_strip_model->GetActiveWebContents()->GetVisibleURL(),
@@ -574,8 +565,7 @@ IN_PROC_BROWSER_TEST_F(OnTaskSessionManagerBrowserTest,
 
   // Boca should not be locked before the full countdown, and locked after the
   // full countdown.
-  BrowserWindowInterface* const boca_app_browser =
-      FindBocaSystemWebAppBrowser();
+  Browser* const boca_app_browser = FindBocaSystemWebAppBrowser();
   ASSERT_THAT(boca_app_browser, NotNull());
   ASSERT_TRUE(
       OnTaskLockedController::From(boca_app_browser)->is_locked_for_on_task());
@@ -611,12 +601,11 @@ IN_PROC_BROWSER_TEST_F(OnTaskSessionManagerBrowserTest,
   GetOnTaskSessionManager()->OnBundleUpdated(bundle);
   navigation_observer.Wait();
 
-  BrowserWindowInterface* const boca_app_browser =
-      FindBocaSystemWebAppBrowser();
+  Browser* const boca_app_browser = FindBocaSystemWebAppBrowser();
   ASSERT_THAT(boca_app_browser, NotNull());
   ASSERT_TRUE(
       OnTaskLockedController::From(boca_app_browser)->is_locked_for_on_task());
-  auto* const tab_strip_model = boca_app_browser->GetTabStripModel();
+  auto* const tab_strip_model = boca_app_browser->tab_strip_model();
   ASSERT_EQ(tab_strip_model->count(), 2);
   tab_strip_model->ActivateTabAt(1);
   EXPECT_EQ(tab_strip_model->GetActiveWebContents()->GetLastCommittedURL(),
@@ -647,12 +636,11 @@ IN_PROC_BROWSER_TEST_F(OnTaskSessionManagerBrowserTest,
   GetOnTaskSessionManager()->OnBundleUpdated(bundle);
   navigation_observer.Wait();
 
-  BrowserWindowInterface* const boca_app_browser =
-      FindBocaSystemWebAppBrowser();
+  Browser* const boca_app_browser = FindBocaSystemWebAppBrowser();
   ASSERT_THAT(boca_app_browser, NotNull());
   ASSERT_TRUE(
       OnTaskLockedController::From(boca_app_browser)->is_locked_for_on_task());
-  auto* const tab_strip_model = boca_app_browser->GetTabStripModel();
+  auto* const tab_strip_model = boca_app_browser->tab_strip_model();
   ASSERT_EQ(tab_strip_model->count(), 2);
   tab_strip_model->ActivateTabAt(1);
   EXPECT_EQ(tab_strip_model->GetActiveWebContents()->GetLastCommittedURL(),
@@ -683,12 +671,11 @@ IN_PROC_BROWSER_TEST_F(OnTaskSessionManagerBrowserTest,
   GetOnTaskSessionManager()->OnBundleUpdated(bundle);
   navigation_observer.Wait();
 
-  BrowserWindowInterface* const boca_app_browser =
-      FindBocaSystemWebAppBrowser();
+  Browser* const boca_app_browser = FindBocaSystemWebAppBrowser();
   ASSERT_THAT(boca_app_browser, NotNull());
   ASSERT_TRUE(
       OnTaskLockedController::From(boca_app_browser)->is_locked_for_on_task());
-  auto* const tab_strip_model = boca_app_browser->GetTabStripModel();
+  auto* const tab_strip_model = boca_app_browser->tab_strip_model();
   ASSERT_EQ(tab_strip_model->count(), 2);
   tab_strip_model->ActivateTabAt(1);
   EXPECT_EQ(tab_strip_model->GetActiveWebContents()->GetLastCommittedURL(),
@@ -728,12 +715,11 @@ IN_PROC_BROWSER_TEST_F(OnTaskSessionManagerBrowserTest,
   GetOnTaskSessionManager()->OnBundleUpdated(bundle);
   navigation_observer.Wait();
 
-  BrowserWindowInterface* const boca_app_browser =
-      FindBocaSystemWebAppBrowser();
+  Browser* const boca_app_browser = FindBocaSystemWebAppBrowser();
   ASSERT_THAT(boca_app_browser, NotNull());
   ASSERT_TRUE(
       OnTaskLockedController::From(boca_app_browser)->is_locked_for_on_task());
-  auto* const tab_strip_model = boca_app_browser->GetTabStripModel();
+  auto* const tab_strip_model = boca_app_browser->tab_strip_model();
   ASSERT_EQ(tab_strip_model->count(), 2);
   tab_strip_model->ActivateTabAt(1);
   EXPECT_EQ(tab_strip_model->GetActiveWebContents()->GetLastCommittedURL(),
@@ -766,8 +752,7 @@ IN_PROC_BROWSER_TEST_F(OnTaskSessionManagerBrowserTest,
                                               ::boca::UserIdentity());
   navigation_observer.Wait();
 
-  BrowserWindowInterface* const boca_app_browser =
-      FindBocaSystemWebAppBrowser();
+  Browser* const boca_app_browser = FindBocaSystemWebAppBrowser();
   ASSERT_THAT(boca_app_browser, NotNull());
   ASSERT_TRUE(
       OnTaskLockedController::From(boca_app_browser)->is_locked_for_on_task());
@@ -801,12 +786,11 @@ IN_PROC_BROWSER_TEST_F(OnTaskSessionManagerBrowserTest,
   GetOnTaskSessionManager()->OnBundleUpdated(bundle);
   navigation_observer.Wait();
 
-  BrowserWindowInterface* const boca_app_browser =
-      FindBocaSystemWebAppBrowser();
+  Browser* const boca_app_browser = FindBocaSystemWebAppBrowser();
   ASSERT_THAT(boca_app_browser, NotNull());
   ASSERT_TRUE(
       OnTaskLockedController::From(boca_app_browser)->is_locked_for_on_task());
-  auto* const tab_strip_model = boca_app_browser->GetTabStripModel();
+  auto* const tab_strip_model = boca_app_browser->tab_strip_model();
   ASSERT_EQ(tab_strip_model->count(), 3);
   tab_strip_model->ActivateTabAt(1);
   EXPECT_EQ(tab_strip_model->GetActiveWebContents()->GetLastCommittedURL(),
@@ -850,12 +834,11 @@ IN_PROC_BROWSER_TEST_F(OnTaskSessionManagerBrowserTest,
   GetOnTaskSessionManager()->OnBundleUpdated(bundle);
   navigation_observer.Wait();
 
-  BrowserWindowInterface* const boca_app_browser =
-      FindBocaSystemWebAppBrowser();
+  Browser* const boca_app_browser = FindBocaSystemWebAppBrowser();
   ASSERT_THAT(boca_app_browser, NotNull());
   ASSERT_TRUE(
       OnTaskLockedController::From(boca_app_browser)->is_locked_for_on_task());
-  auto* const tab_strip_model = boca_app_browser->GetTabStripModel();
+  auto* const tab_strip_model = boca_app_browser->tab_strip_model();
   ASSERT_EQ(tab_strip_model->count(), 2);
   tab_strip_model->ActivateTabAt(1);
   EXPECT_EQ(tab_strip_model->GetActiveWebContents()->GetLastCommittedURL(),
@@ -872,12 +855,11 @@ IN_PROC_BROWSER_TEST_F(OnTaskSessionManagerBrowserTest,
   GetOnTaskSessionManager()->OnBundleUpdated(bundle_2);
   navigation_observer_2.Wait();
 
-  BrowserWindowInterface* const boca_app_browser_2 =
-      FindBocaSystemWebAppBrowser();
+  Browser* const boca_app_browser_2 = FindBocaSystemWebAppBrowser();
   ASSERT_THAT(boca_app_browser_2, NotNull());
   ASSERT_TRUE(OnTaskLockedController::From(boca_app_browser_2)
                   ->is_locked_for_on_task());
-  auto* const tab_strip_model_2 = boca_app_browser_2->GetTabStripModel();
+  auto* const tab_strip_model_2 = boca_app_browser_2->tab_strip_model();
   ASSERT_EQ(tab_strip_model_2->count(), 2);
   tab_strip_model_2->ActivateTabAt(1);
   EXPECT_EQ(tab_strip_model_2->GetActiveWebContents()->GetLastCommittedURL(),
@@ -898,37 +880,35 @@ IN_PROC_BROWSER_TEST_F(OnTaskSessionManagerBrowserTest,
   on_task_session_manager->OnBundleUpdated(bundle);
   navigation_observer.Wait();
 
-  BrowserWindowInterface* const boca_app_browser =
-      FindBocaSystemWebAppBrowser();
+  Browser* const boca_app_browser = FindBocaSystemWebAppBrowser();
   ASSERT_THAT(boca_app_browser, NotNull());
   ASSERT_TRUE(
       OnTaskLockedController::From(boca_app_browser)->is_locked_for_on_task());
 
   // Open first browser window.
-  BrowserWindowInterface* const browser_1 = browser();
+  Browser* const browser_1 = browser();
   chrome::NewTab(browser_1, NewTabTypes::kNoUserAction);
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser_1, GURL(kTestUrl1)));
 
   // Open second browser window.
-  BrowserWindowInterface* const browser_2 = CreateBrowserWindow(
-      BrowserWindowCreateParams(profile(), /*from_user_gesture=*/true));
+  Browser* const browser_2 =
+      Browser::Create(Browser::CreateParams(profile(), true));
   chrome::NewTab(browser_2, NewTabTypes::kNoUserAction);
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser_2, GURL(kTestUrl2)));
 
   // Lock the boca app and tabs in boca app browser are not muted.
   bundle.set_locked(true);
   on_task_session_manager->OnBundleUpdated(bundle);
-  WaitForLockedModeCountdown();
-  auto* const tab_strip_model = boca_app_browser->GetTabStripModel();
+  auto* const tab_strip_model = boca_app_browser->tab_strip_model();
   ASSERT_EQ(tab_strip_model->count(), 2);
   tab_strip_model->ActivateTabAt(1);
   EXPECT_FALSE(tab_strip_model->GetActiveWebContents()->IsAudioMuted());
 
   // Tabs in other browsers are muted.
   EXPECT_TRUE(
-      browser_1->GetTabStripModel()->GetActiveWebContents()->IsAudioMuted());
+      browser_1->tab_strip_model()->GetActiveWebContents()->IsAudioMuted());
   EXPECT_TRUE(
-      browser_2->GetTabStripModel()->GetActiveWebContents()->IsAudioMuted());
+      browser_2->tab_strip_model()->GetActiveWebContents()->IsAudioMuted());
 
   // Unlock the boca app and tabs in boca app browser are not muted.
   bundle.set_locked(false);
@@ -939,9 +919,9 @@ IN_PROC_BROWSER_TEST_F(OnTaskSessionManagerBrowserTest,
 
   // Tabs in other browsers are unmuted.
   EXPECT_FALSE(
-      browser_1->GetTabStripModel()->GetActiveWebContents()->IsAudioMuted());
+      browser_1->tab_strip_model()->GetActiveWebContents()->IsAudioMuted());
   EXPECT_FALSE(
-      browser_2->GetTabStripModel()->GetActiveWebContents()->IsAudioMuted());
+      browser_2->tab_strip_model()->GetActiveWebContents()->IsAudioMuted());
 }
 
 IN_PROC_BROWSER_TEST_F(OnTaskSessionManagerBrowserTest,
@@ -957,8 +937,7 @@ IN_PROC_BROWSER_TEST_F(OnTaskSessionManagerBrowserTest,
   GetOnTaskSessionManager()->OnBundleUpdated(bundle);
   navigation_observer.Wait();
 
-  BrowserWindowInterface* const boca_app_browser =
-      FindBocaSystemWebAppBrowser();
+  Browser* const boca_app_browser = FindBocaSystemWebAppBrowser();
   ASSERT_THAT(boca_app_browser, NotNull());
   ASSERT_TRUE(
       OnTaskLockedController::From(boca_app_browser)->is_locked_for_on_task());
@@ -1000,8 +979,7 @@ IN_PROC_BROWSER_TEST_F(OnTaskSessionManagerCloseSWAOnSessionEndBrowserTest,
                                               ::boca::UserIdentity());
   navigation_observer.Wait();
 
-  BrowserWindowInterface* const boca_app_browser =
-      FindBocaSystemWebAppBrowser();
+  Browser* const boca_app_browser = FindBocaSystemWebAppBrowser();
   ASSERT_THAT(boca_app_browser, NotNull());
   ASSERT_TRUE(
       OnTaskLockedController::From(boca_app_browser)->is_locked_for_on_task());

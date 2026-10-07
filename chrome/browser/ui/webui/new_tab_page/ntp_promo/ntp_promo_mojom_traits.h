@@ -14,18 +14,16 @@ namespace mojo {
 template <>
 struct StructTraits<ntp_promo::mojom::PromoDataView,
                     user_education::NtpShowablePromo> {
-  static const std::string& id(const user_education::NtpShowablePromo& promo) {
+  static std::string id(const user_education::NtpShowablePromo& promo) {
     return promo.id;
   }
-  static const std::string& icon_name(
-      const user_education::NtpShowablePromo& promo) {
+  static std::string icon_name(const user_education::NtpShowablePromo& promo) {
     return promo.icon_name;
   }
-  static const std::string& body_text(
-      const user_education::NtpShowablePromo& promo) {
+  static std::string body_text(const user_education::NtpShowablePromo& promo) {
     return promo.body_text;
   }
-  static const std::string& button_text(
+  static std::string button_text(
       const user_education::NtpShowablePromo& promo) {
     return promo.action_button_text;
   }

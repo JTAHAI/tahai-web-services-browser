@@ -237,7 +237,7 @@ TEST_F(OneTimePermissionProviderTest,
 
   one_time_permission_provider_->OnAllTabsInBackgroundTimerExpired(
       url::Origin::Create(primary_url),
-      /*is_long_timeout=*/false);
+      OneTimePermissionsTrackerObserver::BackgroundExpiryType::kTimeout);
 
   EXPECT_EQ(std::nullopt,
             TestUtils::GetPermissionSetting(
@@ -350,7 +350,7 @@ TEST_F(OneTimePermissionProviderTest,
 
   one_time_permission_provider_->OnAllTabsInBackgroundTimerExpired(
       url::Origin::Create(primary_url),
-      /*is_long_timeout=*/false);
+      OneTimePermissionsTrackerObserver::BackgroundExpiryType::kTimeout);
 
   EXPECT_EQ(CONTENT_SETTING_ALLOW,
             TestUtils::GetContentSetting(

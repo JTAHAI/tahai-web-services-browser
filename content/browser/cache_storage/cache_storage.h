@@ -107,7 +107,7 @@ class CONTENT_EXPORT CacheStorage : public CacheStorageCacheObserver {
   void DropHandleRef();
   void AssertUnreferenced() const {
     DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-    CHECK(!handle_ref_count_, base::NotFatalUntil::M158);
+    DCHECK(!handle_ref_count_);
   }
 
   // Explicitly begin initialization if it has not already been triggered.

@@ -64,7 +64,6 @@
 #include "third_party/blink/renderer/platform/graphics/paint/tracked_element_data.h"
 #include "third_party/blink/renderer/platform/heap/collection_support/heap_hash_map.h"
 #include "third_party/blink/renderer/platform/heap/collection_support/heap_linked_hash_set.h"
-#include "third_party/blink/renderer/platform/heap/collection_support/heap_vector.h"
 #include "third_party/blink/renderer/platform/heap/garbage_collected.h"
 #include "third_party/blink/renderer/platform/loader/fetch/ad_tagging_utils.h"
 #include "third_party/blink/renderer/platform/region_capture_crop_id.h"
@@ -79,7 +78,6 @@
 namespace gfx {
 class QuadF;
 class RectF;
-class Transform;
 class Vector2dF;
 }  // namespace gfx
 
@@ -95,11 +93,9 @@ class AnimationTrigger;
 class AriaNotificationOptions;
 class Attr;
 class Attribute;
-class BoxQuadOptions;
 class CheckVisibilityOptions;
 class ColumnPseudoElement;
 class ComputedStyleBuilder;
-class ConvertCoordinateOptions;
 class ContainerQueryData;
 class ContainerQueryEvaluator;
 class ContainerQueryList;
@@ -113,13 +109,8 @@ class CustomElementRegistry;
 class DisplayLockContext;
 class DisplayStyle;
 class Document;
-class DOMPoint;
-class DOMPointInit;
-class DOMQuad;
-class DOMQuadInit;
 class DOMRect;
 class DOMRectList;
-class DOMRectReadOnly;
 class DOMStringMap;
 class DOMTokenList;
 class EditContext;
@@ -128,10 +119,8 @@ class ElementAnimations;
 class ElementInternals;
 class ElementIntersectionObserverData;
 class ExceptionState;
-class FocusEvent;
 class FocusOptions;
 class GetAnimationsOptions;
-class HTMLCanvasElement;
 class HTMLElement;
 class HTMLSubmitButtonBehavior;
 class HTMLTemplateElement;
@@ -173,7 +162,6 @@ class StyleScopeData;
 class TextVisitor;
 class TrustedParserOptions;
 class V8UnionBooleanOrScrollIntoViewOptions;
-class V8UnionCSSPseudoElementOrDocumentOrElementOrText;
 class V8UnionKeyframeAnimationOptionsOrUnrestrictedDouble;
 class V8UnionStringLegacyNullToEmptyStringOrTrustedHTML;
 class V8UnionStringOrTrustedHTML;
@@ -290,8 +278,6 @@ enum class CommandEventType {
   kPageInlineEnd,
   // Overscroll,
   kToggleOverscroll,
-  kShowOverscroll,
-  kHideOverscroll,
 };
 
 // Defaults for the `interestfor` API's `normal` value.
@@ -648,24 +634,6 @@ class CORE_EXPORT Element : public ContainerNode {
   gfx::Rect VisibleBoundsRespectingClipsInLocalRoot() const;
 
   DOMRectList* getClientRects();
-  HeapVector<Member<DOMQuad>> getBoxQuads(const BoxQuadOptions* options,
-                                          ExceptionState&) const;
-  DOMQuad* convertQuadFromNode(
-      DOMQuadInit* quad,
-      const V8UnionCSSPseudoElementOrDocumentOrElementOrText* from,
-      const ConvertCoordinateOptions* options,
-      ExceptionState&) const;
-  DOMQuad* convertRectFromNode(
-      DOMRectReadOnly* rect,
-      const V8UnionCSSPseudoElementOrDocumentOrElementOrText* from,
-      const ConvertCoordinateOptions* options,
-      ExceptionState&) const;
-  DOMPoint* convertPointFromNode(
-      DOMPointInit* point,
-      const V8UnionCSSPseudoElementOrDocumentOrElementOrText* from,
-      const ConvertCoordinateOptions* options,
-      ExceptionState&) const;
-
   // Returns a list of clients Rects in zoomed pixel units.
   Vector<gfx::RectF> GetClientRectsNoAdjustment();
 
@@ -1162,13 +1130,12 @@ class CORE_EXPORT Element : public ContainerNode {
     SetElementFlag(ElementFlags::kStyleAffectedByEmpty);
   }
 
-  // Determine whether the parent or owner of this element in the flat tree is a
-  // canvas element or in a canvas subtree.
+  // Determine whether the parent or owner of this element is a canvas element
+  // or in a canvas subtree.
   bool ComputeIsInCanvasSubtree() const;
   // Recursively sets the IsInCanvasSubtree bit for the element and its subtree.
   void SetIsInCanvasSubtree(bool value);
-  // Is in the flat subtree of a canvas element, but not the canvas element
-  // itself.
+  // Is in the subtree of a canvas element, but not the canvas element itself.
   bool IsInCanvasSubtree() const {
     return HasElementFlag(ElementFlags::kIsInCanvasSubtree);
   }
@@ -1179,24 +1146,6 @@ class CORE_EXPORT Element : public ContainerNode {
 #if DCHECK_IS_ON()
   void VerifySubtreeIsInCanvas(bool value);
 #endif
-
-  // Returns the nearest ancestor <canvas layoutsubtree> if this element is
-  // eligible for drawing into it (i.e. is connected, is in a canvas subtree,
-  // is not a pseudo-element, and is an immediate child of the canvas or has
-  // the 'drawable' attribute). Returns nullptr otherwise.
-  HTMLCanvasElement* CanvasForDrawing() const;
-
-  bool HasCanvasTransform() const;
-  // Returns the transform that should be used for mapping the border-box,
-  // before CSS transforms, to the canvas coordinate space. When the element
-  // has a CanvasForDrawing, this affects the geometry of the element (e.g.,
-  // for hit-testing, `getBoundingClientRect()`) and can be used to make the
-  // element's geometry match its drawn position in a canvas. Returns nullptr
-  // if the element does not have a CanvasForDrawing.
-  const gfx::Transform* GetUsedCanvasTransform() const;
-  const gfx::Transform* GetCanvasTransform() const;
-  void SetCanvasTransform(const gfx::Transform& transform);
-  void ClearCanvasTransform();
 
   bool IsDefined() const {
     // An element whose custom element state is "uncustomized" or "custom"
@@ -1260,7 +1209,6 @@ class CORE_EXPORT Element : public ContainerNode {
   void FocusWithinStateChanged();
   void ActiveViewTransitionStateChanged();
   void ActiveViewTransitionTypeStateChanged();
-  void OverscrollTargetStateChanged();
 
   void SetDragged(bool) override;
 
@@ -1370,9 +1318,7 @@ class CORE_EXPORT Element : public ContainerNode {
   }
 
   static bool IsOverscrollCommand(CommandEventType command) {
-    return command == CommandEventType::kToggleOverscroll ||
-           command == CommandEventType::kShowOverscroll ||
-           command == CommandEventType::kHideOverscroll;
+    return command == CommandEventType::kToggleOverscroll;
   }
 
   // This allows customization of how Invoker Commands are handled, per element.
@@ -1475,14 +1421,6 @@ class CORE_EXPORT Element : public ContainerNode {
 
   // Lose interest immediately in all elements that currently have interest.
   static void LoseInterestInAllElements(Document&);
-
-  enum class InterestSource {
-    kHover,
-    kDeHover,
-    kFocus,
-    kBlur,
-  };
-  void HandleInterestForHoverOrFocus(InterestSource source);
 
   // Returns true if any of its (non-inclusive) flat tree descendants is
   // keyboard focusable. Note that this is quite slow, since it traverses the
@@ -2032,7 +1970,6 @@ class CORE_EXPORT Element : public ContainerNode {
   InterestInvokerTargetData& EnsureInterestInvokerTargetData();
   InterestInvokerTargetData* GetInterestInvokerTargetData() const;
   void HandlePointerEventsForInterestFor(const AtomicString& event_type);
-  void HandleFocusEventsForInterestFor(FocusEvent* focus_event);
 
   void DefaultEventHandler(Event&) override;
 
@@ -2075,16 +2012,13 @@ class CORE_EXPORT Element : public ContainerNode {
   void AdjustDirectionalityIfNeededAfterChildrenChanged(
       const ChildrenChange& change);
 
-  // True if this element carries the container timing ignore marker, either
-  // spelled `containertimingignore` or with the deprecated dashed
-  // `containertiming-ignore` spelling. Both are functional; the dashed one
-  // additionally warns in the console.
-  //
-  // TODO(crbug.com/539984792): the dashed spelling is going away right after
-  // the origin trial ends. Once it does, drop this helper and inline
-  // FastHasAttribute(html_names::kContainertimingignoreAttr) back into its
-  // callers.
-  bool HasContainerTimingIgnoreAttribute() const;
+  void UpdateDescendantHasContainerTiming(bool has_container_timing);
+  void AdjustContainerTimingIfNeededAfterChildrenChanged(
+      const ChildrenChange& change);
+  bool ShouldAdjustContainerTimingForInsert(const ChildrenChange& change) const;
+  bool DoesChildContainerTimingNeedChange(const Node& node) const;
+
+  bool RecalcSelfOrAncestorHasContainerTiming() const;
 
   // The "nonce" attribute is hidden when:
   // 1) The Content-Security-Policy is delivered from the HTTP headers.
@@ -2415,6 +2349,8 @@ class CORE_EXPORT Element : public ContainerNode {
                                    const StyleRecalcChange& child_change,
                                    const StyleRecalcContext&);
 
+  void MarkNonSlottedHostChildrenForStyleRecalc();
+
   void RebuildPseudoElementLayoutTree(PseudoId, WhitespaceAttacher&);
   void RebuildColumnLayoutTrees(WhitespaceAttacher&);
   void RebuildFirstLetterLayoutTree();
@@ -2733,6 +2669,13 @@ class CORE_EXPORT Element : public ContainerNode {
   // These schedule interest gained/lost events, for `interestfor` invokers.
   void ScheduleInterestGainedTask();
   void ScheduleInterestLostTask();
+  enum class InterestSource {
+    kHover,
+    kDeHover,
+    kFocus,
+    kBlur,
+  };
+  void HandleInterestForHoverOrFocus(InterestSource source);
   void ScheduleInterestChangesIfNeeded(InterestSource source);
 
   // Highlight pseudos inherit all properties from the corresponding highlight

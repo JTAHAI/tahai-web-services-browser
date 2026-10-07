@@ -543,8 +543,7 @@ mojom::ResultCode PrintingContextMac::UpdatePrinterSettings(
         !SetCollateInPrintSettings(settings_->collate()) ||
         !SetDuplexModeInPrintSettings(settings_->duplex_mode()) ||
         !SetOutputColor(static_cast<int>(settings_->color())) ||
-        !SetResolution(settings_->dpi_size()) ||
-        !SetPrintRangeInPrintSettings(settings_->ranges())) {
+        !SetResolution(settings_->dpi_size())) {
       return OnError();
     }
   }
@@ -797,26 +796,6 @@ bool PrintingContextMac::SetKeyValue(std::string_view key,
 
   return PMPrintSettingsSetValue(print_settings, cf_key.get(), cf_value.get(),
                                  /*locked=*/false) == noErr;
-}
-
-bool PrintingContextMac::SetPrintRangeInPrintSettings(
-    const PageRanges& ranges) {
-  // The default is already NSPrintAllPages, so there is nothing to do.
-  if (ranges.empty()) {
-    return true;
-  }
-
-  PMPrintSettings print_settings =
-      static_cast<PMPrintSettings>([print_info_ PMPrintSettings]);
-
-  // macOS does not allow multiple ranges, so always choose the first.
-  const auto& range = ranges.front();
-  bool set_first_page =
-      PMSetFirstPage(print_settings, range.from + 1, false) == noErr;
-  bool set_last_page =
-      PMSetLastPage(print_settings, range.to + 1, false) == noErr;
-
-  return set_first_page && set_last_page;
 }
 
 PageRanges PrintingContextMac::GetPageRangesFromPrintInfo() {

@@ -21,8 +21,6 @@
 #include "media/base/mac/channel_layout_util_mac.h"
 #include "media/base/sample_format.h"
 
-API_AVAILABLE_BEGIN(macos(27))
-
 namespace media {
 
 namespace {
@@ -306,5 +304,3 @@ void AVFoundationOutputStream::HandleError() {
 }
 
 }  // namespace media
-
-API_AVAILABLE_END

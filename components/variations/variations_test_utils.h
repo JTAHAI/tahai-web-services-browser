@@ -21,10 +21,6 @@
 #include "components/variations/synthetic_trial_registry.h"
 #include "components/variations/variations_associated_data.h"
 
-namespace base {
-class FilePath;
-}  // namespace base
-
 class PrefService;
 
 namespace variations {
@@ -32,8 +28,8 @@ namespace variations {
 struct ClientFilterableState;
 
 // Packages signed variations seed data into a tuple for use with
-// WriteSignedSeedData(). This allows for encapsulated seed information to be
-// created below for generic test seeds as well as seeds which cause crashes.
+// WriteSeedData(). This allows for encapsulated seed information to be created
+// below for generic test seeds as well as seeds which cause crashes.
 //
 // Note: To manually get the raw data, you can use the following command:
 // echo -n base64_compressed_data | base64 -d | hexdump -e '8 1 ", 0x%x"'
@@ -121,13 +117,9 @@ scoped_refptr<base::FieldTrial> CreateTrialAndAssociateId(
 void SimulateCrash(PrefService* local_state);
 
 // Writes |seed_info| into |local_state| using the given seed |pref_keys|.
-void WriteSignedSeedData(PrefService* local_state,
-                         const SignedSeedData& seed_data,
-                         const SignedSeedPrefKeys& pref_keys);
-
-// Writes the seed to both Local State and a seed file.
-void WriteSeedData(const base::FilePath& user_data_dir,
-                   const VariationsSeed& seed);
+void WriteSeedData(PrefService* local_state,
+                   const SignedSeedData& seed_data,
+                   const SignedSeedPrefKeys& pref_keys);
 
 // Returns true if all of the study_names listed in |seed_data| exist in the
 // (global) field trial list.
@@ -183,7 +175,7 @@ bool ContainsTrialAndGroupName(
     std::string_view group_name);
 
 // Sets up the seed file experiment where `group_name` is the active group.
-void SetUpSeedFileTrial(std::string_view group_name);
+void SetUpSeedFileTrial(std::string group_name);
 
 // Returns true if there are no adjacent elements (a, b) when iterating over
 // `container` such that a >= b.

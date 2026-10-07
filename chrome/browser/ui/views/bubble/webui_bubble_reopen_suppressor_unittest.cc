@@ -16,34 +16,23 @@ TEST_F(WebUIBubbleReopenSuppressorTest, ShowsAndCloses) {
   WebUIBubbleReopenSuppressor suppressor;
   // Use a long threshold to prevent flakiness on slow trybots.
   suppressor.SetSuppressionThresholdForTesting(base::Days(1));
-
-  auto should_suppress = [&]() {
-    suppressor.OnMousePressed();
-    return suppressor.ShouldSuppressBubbleShow(/*is_pointer_interaction=*/true);
-  };
-
   EXPECT_FALSE(suppressor.IsShowing());
-  EXPECT_FALSE(should_suppress());
+  EXPECT_FALSE(suppressor.ShouldSuppress());
 
   auto widget = CreateTestWidget(views::Widget::InitParams::CLIENT_OWNS_WIDGET);
   suppressor.Observe(widget.get());
   EXPECT_TRUE(suppressor.IsShowing());
-  EXPECT_TRUE(should_suppress());
+  EXPECT_TRUE(suppressor.ShouldSuppress());
 
   widget->CloseNow();
   EXPECT_FALSE(suppressor.IsShowing());
   // The threshold check should catch that it closed just now.
-  EXPECT_TRUE(should_suppress());
+  EXPECT_TRUE(suppressor.ShouldSuppress());
 }
 
 TEST_F(WebUIBubbleReopenSuppressorTest, ThresholdBypass) {
   WebUIBubbleReopenSuppressor suppressor;
   suppressor.SetSuppressionThresholdForTesting(base::TimeDelta());
-
-  auto should_suppress = [&]() {
-    suppressor.OnMousePressed();
-    return suppressor.ShouldSuppressBubbleShow(/*is_mouse_interaction=*/true);
-  };
 
   auto widget = CreateTestWidget(views::Widget::InitParams::CLIENT_OWNS_WIDGET);
   suppressor.Observe(widget.get());
@@ -51,5 +40,5 @@ TEST_F(WebUIBubbleReopenSuppressorTest, ThresholdBypass) {
   widget->CloseNow();
   EXPECT_FALSE(suppressor.IsShowing());
   // Because threshold is zero, it should no longer suppress.
-  EXPECT_FALSE(should_suppress());
+  EXPECT_FALSE(suppressor.ShouldSuppress());
 }

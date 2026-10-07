@@ -69,10 +69,10 @@ void DebugRectHistory::SaveDebugRectsForCurrentFrame(
     SavePropertyChangedRects(tree_impl, hud_layer);
   }
   if (debug_state.show_surface_damage_rects) {
-    SaveSurfaceDamageRects(tree_impl, render_surface_list);
+    SaveSurfaceDamageRects(render_surface_list);
   }
   if (debug_state.show_screen_space_rects) {
-    SaveScreenSpaceRects(tree_impl, render_surface_list);
+    SaveScreenSpaceRects(render_surface_list);
   }
 }
 
@@ -99,8 +99,7 @@ void DebugRectHistory::SaveWebVitalsDebugRects(HeadsUpDisplayLayerImpl* hud) {
         type,
         MathUtil::MapEnclosingClippedRect(hud->ScreenSpaceTransform(),
                                           web_vital_rect.rect),
-        TouchAction::kNone, MainThreadRepaintReasons{},
-        DebugColors::kFadeSteps);
+        TouchAction::kNone, 0, DebugColors::kFadeSteps);
   }
   hud->ClearWebVitalsDebugRects();
 }
@@ -119,8 +118,7 @@ void DebugRectHistory::SavePaintRects(LayerTreeImpl* tree_impl) {
       debug_rects_.emplace_back(DebugRectType::kPaint,
                                 MathUtil::MapEnclosingClippedRect(
                                     layer->ScreenSpaceTransform(), rect),
-                                TouchAction::kNone, MainThreadRepaintReasons{},
-                                DebugColors::kFadeSteps);
+                                TouchAction::kNone, 0, DebugColors::kFadeSteps);
     }
   }
 }
@@ -142,12 +140,10 @@ void DebugRectHistory::SavePropertyChangedRects(LayerTreeImpl* tree_impl,
 }
 
 void DebugRectHistory::SaveSurfaceDamageRects(
-    LayerTreeImpl* tree_impl,
     const RenderSurfaceList& render_surface_list) {
   for (size_t i = 0; i < render_surface_list.size(); ++i) {
     size_t surface_index = render_surface_list.size() - 1 - i;
-    int effect_id = render_surface_list[surface_index];
-    RenderSurfaceImpl* render_surface = tree_impl->GetRenderSurface(effect_id);
+    RenderSurfaceImpl* render_surface = render_surface_list[surface_index];
     DCHECK(render_surface);
 
     debug_rects_.emplace_back(DebugRectType::kSurfaceDamage,
@@ -158,12 +154,10 @@ void DebugRectHistory::SaveSurfaceDamageRects(
 }
 
 void DebugRectHistory::SaveScreenSpaceRects(
-    LayerTreeImpl* tree_impl,
     const RenderSurfaceList& render_surface_list) {
   for (size_t i = 0; i < render_surface_list.size(); ++i) {
     size_t surface_index = render_surface_list.size() - 1 - i;
-    int effect_id = render_surface_list[surface_index];
-    RenderSurfaceImpl* render_surface = tree_impl->GetRenderSurface(effect_id);
+    RenderSurfaceImpl* render_surface = render_surface_list[surface_index];
     DCHECK(render_surface);
 
     debug_rects_.emplace_back(DebugRectType::kScreenSpace,

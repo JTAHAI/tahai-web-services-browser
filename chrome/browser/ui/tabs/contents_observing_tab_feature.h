@@ -6,13 +6,9 @@
 #define CHROME_BROWSER_UI_TABS_CONTENTS_OBSERVING_TAB_FEATURE_H_
 
 #include "base/callback_list.h"
-#include "build/build_config.h"
+#include "chrome/browser/ui/tabs/public/tab_features.h"
 #include "components/tabs/public/tab_interface.h"
 #include "content/public/browser/web_contents_observer.h"
-
-#if !BUILDFLAG(IS_ANDROID)
-#include "chrome/browser/ui/tabs/public/tab_features.h"
-#endif
 
 namespace tabs {
 

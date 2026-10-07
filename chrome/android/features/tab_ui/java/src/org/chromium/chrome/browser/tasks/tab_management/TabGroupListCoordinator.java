@@ -114,10 +114,13 @@ public class TabGroupListCoordinator {
 
         ViewBuilder<TabGroupRowView> innerBuilder = new LayoutViewBuilder<>(R.layout.tab_group_row);
         ViewBuilder<TabGroupRowView> tabGroupRowLayoutBuilder =
-                (ViewGroup parent) -> {
-                    TabGroupRowView view = innerBuilder.buildView(parent);
-                    if (enableContainment()) view.setupForContainment();
-                    return view;
+                new ViewBuilder<>() {
+                    @Override
+                    public TabGroupRowView buildView(ViewGroup parent) {
+                        TabGroupRowView view = innerBuilder.buildView(parent);
+                        if (enableContainment()) view.setupForContainment();
+                        return view;
+                    }
                 };
 
         mSimpleRecyclerViewAdapter.registerType(

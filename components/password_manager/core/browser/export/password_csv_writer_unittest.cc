@@ -11,7 +11,6 @@
 #include "base/strings/utf_string_conversions.h"
 #include "components/password_manager/core/browser/import/csv_password.h"
 #include "components/password_manager/core/browser/import/csv_password_sequence.h"
-#include "components/password_manager/core/browser/password_string.h"
 #include "components/password_manager/core/browser/ui/credential_ui_entry.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -54,7 +53,7 @@ TEST(PasswordCSVWriterTest, SerializePasswords_SinglePassword) {
   form.signon_realm = "https://example.com/";
   form.url = GURL("https://example.com");
   form.username_value = u"Someone";
-  form.password_value = PasswordString(u"Secret");
+  form.password_value = u"Secret";
   form.notes = {PasswordNote(kNoteValue, base::Time::Now())};
   credentials.emplace_back(form);
 
@@ -82,12 +81,12 @@ TEST(PasswordCSVWriterTest, SerializePasswords_TwoPasswords) {
   form.signon_realm = "https://example.com/";
   form.url = GURL("https://example.com");
   form.username_value = u"Someone";
-  form.password_value = PasswordString(u"Secret");
+  form.password_value = u"Secret";
   credentials.emplace_back(form);
   form.signon_realm = "https://other.org/";
   form.url = GURL("https://other.org");
   form.username_value = u"Anyone";
-  form.password_value = PasswordString(u"None");
+  form.password_value = u"None";
   credentials.emplace_back(form);
 
   CSVPasswordSequence seq(PasswordCSVWriter::SerializePasswords(credentials));
@@ -110,7 +109,7 @@ TEST(PasswordCSVWriterTest, SerializePasswordsWritesNames) {
   form.signon_realm = "https://example.com/";
   form.url = GURL("https://example.com");
   form.username_value = u"a";
-  form.password_value = PasswordString(u"b");
+  form.password_value = u"b";
   credentials.emplace_back(form);
   form.url = GURL(
       "android://"
@@ -126,7 +125,7 @@ TEST(PasswordCSVWriterTest, SerializePasswordsWritesNames) {
       "com.netflix.mediaclient";
   form.app_display_name = "Netflix";
   form.username_value = u"a";
-  form.password_value = PasswordString(u"b");
+  form.password_value = u"b";
   credentials.emplace_back(form);
   std::string expected = "name,url,username,password,note" + kLineEnding +
                          "Netflix,android://Jzj5T2E45Hb33D-lk-"
@@ -143,22 +142,22 @@ TEST(PasswordCSVWriterTest, SerializePasswordsIsSorted) {
   form.signon_realm = "https://example.com/";
   form.url = GURL("https://example.com");
   form.username_value = u"a";
-  form.password_value = PasswordString(u"b");
+  form.password_value = u"b";
   credentials.emplace_back(form);
   form.signon_realm = "https://other.org/";
   form.url = GURL("https://other.org");
   form.username_value = u"a";
-  form.password_value = PasswordString(u"b");
+  form.password_value = u"b";
   credentials.emplace_back(form);
   form.signon_realm = "https://example.com/";
   form.url = GURL("https://example.com");
   form.username_value = u"someone";
-  form.password_value = PasswordString(u"secret");
+  form.password_value = u"secret";
   credentials.emplace_back(form);
   form.signon_realm = "https://example.org/";
   form.url = GURL("https://example.org");
   form.username_value = u"a";
-  form.password_value = PasswordString(u"b");
+  form.password_value = u"b";
   credentials.emplace_back(form);
   std::string expected = "name,url,username,password,note" + kLineEnding +
                          "example.com,https://example.com/,a,b," + kLineEnding +
@@ -175,7 +174,7 @@ TEST(PasswordCSVWriterTest, SerializeAffiliatedPasswords) {
   form1.signon_realm = "https://example.com/";
   form1.url = GURL("https://example.com");
   form1.username_value = u"username";
-  form1.password_value = PasswordString(u"Secret");
+  form1.password_value = u"Secret";
   PasswordForm form2;
   form2.signon_realm = "https://other.org/";
   form2.url = GURL("https://other.org");

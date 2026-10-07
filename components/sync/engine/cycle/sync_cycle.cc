@@ -14,12 +14,8 @@
 
 namespace syncer {
 
-SyncCycle::SyncCycle(SyncCycleContext* context,
-                     Delegate* delegate,
-                     signin::AccessTokenInfo access_token_info)
-    : context_(context),
-      delegate_(delegate),
-      access_token_info_(std::move(access_token_info)) {
+SyncCycle::SyncCycle(SyncCycleContext* context, Delegate* delegate)
+    : context_(context), delegate_(delegate) {
   status_controller_ = std::make_unique<StatusController>();
 }
 

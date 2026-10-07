@@ -65,7 +65,9 @@ class SVGMarkerDataBuilder : private SVGPathConsumer {
 
  public:
   explicit SVGMarkerDataBuilder(Vector<MarkerPosition>& positions)
-      : positions_(positions) {}
+      : positions_(positions),
+        last_moveto_index_(0),
+        last_element_type_(kPathElementMoveToPoint) {}
 
   // Build marker data for a Path.
   void Build(const Path&);
@@ -108,8 +110,8 @@ class SVGMarkerDataBuilder : private SVGPathConsumer {
   void Flush();
 
   Vector<MarkerPosition>& positions_;
-  unsigned last_moveto_index_ = 0;
-  PathElementType last_element_type_ = kPathElementMoveToPoint;
+  unsigned last_moveto_index_;
+  PathElementType last_element_type_;
   gfx::PointF origin_;
   gfx::PointF subpath_start_;
   gfx::Vector2dF in_slope_;

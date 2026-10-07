@@ -35,7 +35,7 @@ import {PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bu
 import {PasskeysBrowserProxyImpl} from './passkeys_browser_proxy.js';
 // </if>
 import type {ActorLoginPermission} from './password_manager.mojom-webui.js';
-import type {BlockedSite, BlockedSitesListChangedListener, CredentialsChangedListener} from './password_manager_proxy.js';
+import type {BlockedSite, BlockedSitesListChangedListener, CredentialsChangedListener, ShouldShowAccountStorageToggleChangedListener} from './password_manager_proxy.js';
 import {PasswordManagerActionableError, PasswordManagerImpl} from './password_manager_proxy.js';
 import type {PrefToggleButtonElement} from './prefs/pref_toggle_button.js';
 import type {Route} from './router.js';
@@ -46,6 +46,7 @@ import {UserUtilMixin} from './user_utils_mixin.js';
 
 export interface SettingsSectionElement {
   $: {
+    accountStorageToggle: PrefToggleButtonElement,
     autosigninToggle: PrefToggleButtonElement,
     blockedSitesList: HTMLElement,
     passkeyUpgradeToggle: PrefToggleButtonElement,
@@ -59,6 +60,8 @@ const PASSWORD_MANAGER_ADD_SHORTCUT_ELEMENT_ID =
     'PasswordManagerUI::kAddShortcutElementId';
 const PASSWORD_MANAGER_ADD_SHORTCUT_CUSTOM_EVENT_ID =
     'PasswordManagerUI::kAddShortcutCustomEventId';
+export const PASSWORD_MANAGER_ACCOUNT_STORE_TOGGLE_ELEMENT_ID =
+    'PasswordManagerUI::kAccountStoreToggleElementId';
 
 const SettingsSectionElementBase = HelpBubbleMixin(RouteObserverMixin(
     PrefsMixin(UserUtilMixin(WebUiListenerMixin(I18nMixin(PolymerElement))))));
@@ -192,6 +195,11 @@ export class SettingsSectionElement extends SettingsSectionElementBase {
         type: Number,
         value: 0,
       },
+
+      shouldShowAccountStorageSettingToggle_: {
+        type: Boolean,
+        value: false,
+      },
     };
   }
 
@@ -230,11 +238,14 @@ export class SettingsSectionElement extends SettingsSectionElementBase {
   // This variable depend on the sync service API, which the Batch Upload Dialog
   // uses.
   declare private localPasswordCount_: number;
+  declare private shouldShowAccountStorageSettingToggle_: boolean;
 
   private setBlockedSitesListListener_: BlockedSitesListChangedListener|null =
       null;
   private setCredentialsChangedListener_: CredentialsChangedListener|null =
       null;
+  private shouldShowAccountStorageSettingToggleListener_:
+      ShouldShowAccountStorageToggleChangedListener|null = null;
 
   override ready() {
     super.ready();
@@ -284,6 +295,16 @@ export class SettingsSectionElement extends SettingsSectionElementBase {
     PasswordManagerImpl.getInstance().addSavedPasswordListChangedListener(
         this.setCredentialsChangedListener_);
 
+    this.shouldShowAccountStorageSettingToggleListener_ = show => {
+      this.shouldShowAccountStorageSettingToggle_ = show;
+    };
+    PasswordManagerImpl.getInstance()
+        .shouldShowAccountStorageSettingToggle()
+        .then(this.shouldShowAccountStorageSettingToggleListener_);
+    PasswordManagerImpl.getInstance()
+        .addShouldShowAccountStorageSettingToggleListener(
+            this.shouldShowAccountStorageSettingToggleListener_);
+
     const trustedVaultStateChanged = (state: TrustedVaultBannerState) => {
       // Set the state provided by the backend.
       this.trustedVaultBannerState_ = state;
@@ -312,6 +333,11 @@ export class SettingsSectionElement extends SettingsSectionElementBase {
       this.hasPasskeys_ = hasPasskeys;
     });
     // </if>
+
+    const accountStorageToggleRoot = this.$.accountStorageToggle.shadowRoot;
+    this.registerHelpBubble(
+        PASSWORD_MANAGER_ACCOUNT_STORE_TOGGLE_ELEMENT_ID,
+        accountStorageToggleRoot!.querySelector('#control')!);
   }
 
   override disconnectedCallback() {
@@ -325,6 +351,12 @@ export class SettingsSectionElement extends SettingsSectionElementBase {
     PasswordManagerImpl.getInstance().removeSavedPasswordListChangedListener(
         this.setCredentialsChangedListener_);
     this.setCredentialsChangedListener_ = null;
+
+    assert(this.shouldShowAccountStorageSettingToggleListener_);
+    PasswordManagerImpl.getInstance()
+        .removeShouldShowAccountStorageSettingToggleListener(
+            this.shouldShowAccountStorageSettingToggleListener_);
+    this.shouldShowAccountStorageSettingToggleListener_ = null;
 
     this.$.toast.hide();
   }
@@ -455,6 +487,18 @@ export class SettingsSectionElement extends SettingsSectionElementBase {
   private getAriaLabelForBlockedSite_(
       blockedSite: chrome.passwordsPrivate.ExceptionEntry): string {
     return this.i18n('removeBlockedAriaDescription', blockedSite.urls.shown);
+  }
+
+  private changeAccountStorageEnabled_() {
+    if (this.isAccountStoreUser) {
+      this.disableAccountStorage();
+    } else {
+      this.enableAccountStorage();
+    }
+  }
+
+  private getAccountStorageSubLabel_(accountEmail: string): string {
+    return this.i18n('accountStorageToggleSubLabel', accountEmail);
   }
 
   // <if expr="is_win or is_macosx">

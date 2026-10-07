@@ -59,8 +59,7 @@ class SupportedResolutionResolverTest : public ::testing::Test {
         .WillByDefault(SetComPointeeAndReturnOk<1>(mock_dxgi_device_.Get()));
 
     mock_d3d11_video_device_ = MakeComPtr<NiceMock<D3D11VideoDeviceMock>>();
-    ON_CALL(*mock_d3d11_device_.Get(),
-            QueryInterface(IID_ID3D11VideoDevice1, _))
+    ON_CALL(*mock_d3d11_device_.Get(), QueryInterface(IID_ID3D11VideoDevice, _))
         .WillByDefault(
             SetComPointeeAndReturnOk<1>(mock_d3d11_video_device_.Get()));
 

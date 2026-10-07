@@ -36,7 +36,6 @@
                 "vulkan-1.dll"
             ],
             "file_globs": [
-                "chrome_renderer.dll",
                 "locales\\*.pak",
                 "*.manifest"
             ],
@@ -75,9 +74,6 @@
                 "setup.exe.pdb",
                 "vk_swiftshader.dll.pdb",
                 "vulkan-1.dll.pdb"
-            ],
-            "file_globs": [
-                "chrome_renderer.dll.pdb"
             ],
             "rename_dirs": [
                 {"from_dir": ".", "to_dir": "chrome-win32-syms"}

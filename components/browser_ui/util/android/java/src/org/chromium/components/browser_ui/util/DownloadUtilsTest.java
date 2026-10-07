@@ -5,6 +5,7 @@
 package org.chromium.components.browser_ui.util;
 
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -20,6 +21,11 @@ import org.chromium.url.GURL;
 @RunWith(BaseRobolectricTestRunner.class)
 public class DownloadUtilsTest {
     @Rule public MockitoRule mMockitoRule = MockitoJUnit.rule();
+
+    @Before
+    public void setUp() {
+        GURL.ensureNativeInitializedForGURL();
+    }
 
     @Test
     public void testFormatUrlForDisplayInNotification_InvalidOrEmptyUrl() {

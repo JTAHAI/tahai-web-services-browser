@@ -7,31 +7,26 @@
 
 #include <variant>
 
-#include "base/memory/stack_allocated.h"
-
-class BrowserWindowInterface;
+class Browser;
 class Profile;
 
 namespace webui {
 
-// PreloadContext wraps a Profile or BrowserWindowInterface under which the
-// preload manager determines the best preloading strategy. Currently, this
-// class is used only as a Profile wrapper because the preload manager does not
-// have access to BrowserWindowInterface when creating WebContents. This may
+// PreloadContext wraps a Profile or Browser under which the preload manager
+// determines the best preloading strategy.
+// Currently, this class is used only as a Profile wrapper because the preload
+// manager does not have access to Browser when creating WebContents. This may
 // change in the future so we prepare for it.
-// NOTE: a PreloadContext should NOT outlive the Profile or
-// BrowserWindowInterface it wraps.
+// NOTE: a PreloadContext should NOT outlive the Profile or Browser it wraps.
 class PreloadContext {
-  STACK_ALLOCATED();
-
  public:
   ~PreloadContext();
 
-  static PreloadContext From(BrowserWindowInterface* browser);
+  static PreloadContext From(Browser* browser);
   static PreloadContext From(Profile* profile);
 
-  BrowserWindowInterface* GetBrowser();
-  const BrowserWindowInterface* GetBrowser() const;
+  Browser* GetBrowser();
+  const Browser* GetBrowser() const;
   Profile* GetProfile();
   const Profile* GetProfile() const;
 
@@ -41,9 +36,8 @@ class PreloadContext {
  private:
   PreloadContext();
 
-  // This class should NOT outlive the Profile or BrowserWindowInterface it
-  // wraps.
-  std::variant<BrowserWindowInterface*, Profile*> store_;
+  // This class should NOT outlive the Profile or Browser it wraps.
+  std::variant<Browser*, Profile*> store_;
 };
 
 }  // namespace webui

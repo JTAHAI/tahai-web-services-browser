@@ -12,7 +12,6 @@ import android.text.method.LinkMovementMethod;
 import android.text.style.ForegroundColorSpan;
 import android.text.style.RelativeSizeSpan;
 import android.text.style.SuperscriptSpan;
-import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.LinearLayout;
@@ -20,13 +19,11 @@ import android.widget.TextView;
 
 import androidx.annotation.VisibleForTesting;
 import androidx.appcompat.content.res.AppCompatResources;
-import androidx.fragment.app.FragmentActivity;
 
 import org.jni_zero.CalledByNative;
 import org.jni_zero.JniType;
 
 import org.chromium.base.ResettersForTesting;
-import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.autofill.R;
@@ -50,10 +47,6 @@ import java.util.List;
 /** Prompt that asks users to confirm saving an entity imported from a form submission. */
 @NullMarked
 public class AutofillAiSaveUpdateEntityPrompt implements EntityEditorCoordinator.Delegate {
-    @VisibleForTesting
-    public static final String ENTITY_EDITOR_OPENED_HISTOGRAM =
-            "Autofill.Ai.EntityEditor.OpenedFromSaveUpdatePrompt";
-
     private final AutofillAiSaveUpdateEntityPromptController mController;
     private final ModalDialogManager mModalDialogManager;
     private final Context mContext;
@@ -61,14 +54,13 @@ public class AutofillAiSaveUpdateEntityPrompt implements EntityEditorCoordinator
     private final View mDialogView;
     private EntityEditorCoordinator mEntityEditor;
     private boolean mEditorClosingPending;
-    private boolean mEditorWasOpened;
     private boolean mPromptDismissed;
 
     /** Save prompt to confirm saving an entity imported from a form submission. */
     public AutofillAiSaveUpdateEntityPrompt(
             AutofillAiSaveUpdateEntityPromptController controller,
             ModalDialogManager modalDialogManager,
-            FragmentActivity activity,
+            Activity activity,
             Profile profile,
             EntityInstance entityInstance) {
         mController = controller;
@@ -126,18 +118,10 @@ public class AutofillAiSaveUpdateEntityPrompt implements EntityEditorCoordinator
             @JniType("autofill::EntityInstanceAndroid") EntityInstance entityInstance) {
         @Nullable Activity activity = windowAndroid.getActivity().get();
         @Nullable ModalDialogManager modalDialogManager = windowAndroid.getModalDialogManager();
-        if (activity == null
-                || modalDialogManager == null
-                || !(activity instanceof FragmentActivity)) {
-            return null;
-        }
+        if (activity == null || modalDialogManager == null) return null;
 
         return new AutofillAiSaveUpdateEntityPrompt(
-                controller,
-                modalDialogManager,
-                (FragmentActivity) activity,
-                browserProfile,
-                entityInstance);
+                controller, modalDialogManager, activity, browserProfile, entityInstance);
     }
 
     /**
@@ -161,10 +145,6 @@ public class AutofillAiSaveUpdateEntityPrompt implements EntityEditorCoordinator
             mDialogModel.set(
                     ModalDialogProperties.TITLE_END_ICON,
                     AppCompatResources.getDrawable(mContext, R.drawable.google_wallet_24dp));
-            if (ChromeFeatureList.isEnabled(
-                    ChromeFeatureList.AUTOFILL_AI_WALLET_PASS_BRANDING_2026)) {
-                mDialogModel.set(ModalDialogProperties.TITLE_END_ICON_GRAVITY, Gravity.TOP);
-            }
         }
     }
 
@@ -199,7 +179,6 @@ public class AutofillAiSaveUpdateEntityPrompt implements EntityEditorCoordinator
                     .setOnClickListener(
                             v -> {
                                 mEditorClosingPending = false;
-                                mEditorWasOpened = true;
                                 mEntityEditor.showEditorDialog();
                             });
         }
@@ -325,7 +304,10 @@ public class AutofillAiSaveUpdateEntityPrompt implements EntityEditorCoordinator
                                 "<link>",
                                 "</link>",
                                 new ChromeClickableSpan(
-                                        mContext, _ -> mController.onWalletLinkClicked())));
+                                        mContext,
+                                        view -> {
+                                            mController.onWalletLinkClicked();
+                                        })));
         sourceNoticeView.setText(sourceNoticeWithLink, TextView.BufferType.SPANNABLE);
         sourceNoticeView.setMovementMethod(LinkMovementMethod.getInstance());
     }
@@ -368,11 +350,6 @@ public class AutofillAiSaveUpdateEntityPrompt implements EntityEditorCoordinator
                 break;
         }
         mController.onPromptDismissed();
-        if (ChromeFeatureList.isEnabled(
-                ChromeFeatureList.AUTOFILL_AI_EDIT_ENTITIES_FROM_SAVE_UPDATE_PROMPT)) {
-            RecordHistogram.recordBooleanHistogram(
-                    ENTITY_EDITOR_OPENED_HISTOGRAM, mEditorWasOpened);
-        }
     }
 
     void setEntityEditorForTesting(EntityEditorCoordinator entityEditor) {

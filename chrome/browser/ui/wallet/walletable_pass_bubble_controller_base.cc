@@ -7,6 +7,7 @@
 #include "base/check_deref.h"
 #include "chrome/browser/ui/autofill/bubble_manager.h"
 #include "chrome/browser/ui/wallet/walletable_pass_bubble_view_base.h"
+#include "components/autofill/core/common/autofill_features.h"
 
 namespace wallet {
 namespace {
@@ -34,7 +35,11 @@ WalletablePassClient::WalletablePassBubbleResult GetResult(
 
 WalletablePassBubbleControllerBase::WalletablePassBubbleControllerBase(
     tabs::TabInterface* tab)
-    : tab_(CHECK_DEREF(tab)) {}
+    : tab_(CHECK_DEREF(tab)) {
+  tab_activation_subscription_ = tab->RegisterDidActivate(
+      base::BindRepeating(&WalletablePassBubbleControllerBase::OnTabActivated,
+                          base::Unretained(this)));
+}
 
 WalletablePassBubbleControllerBase::~WalletablePassBubbleControllerBase() =
     default;
@@ -52,6 +57,8 @@ bool WalletablePassBubbleControllerBase::IsShowingBubble() const {
 }
 
 void WalletablePassBubbleControllerBase::OnBubbleDiscarded() {
+  CHECK(base::FeatureList::IsEnabled(
+      autofill::features::kAutofillShowBubblesBasedOnPriorities));
   std::move(callback_).Run(
       WalletablePassClient::WalletablePassBubbleResult::kDiscarded);
 }
@@ -70,14 +77,27 @@ bool WalletablePassBubbleControllerBase::IsMouseHovered() const {
 
 void WalletablePassBubbleControllerBase::OnBubbleClosed(
     WalletablePassBubbleClosedReason reason) {
-  if (autofill::BubbleManager* manager =
-          autofill::BubbleManager::GetForTab(&tab())) {
-    if (manager->HasPendingBubbleOfSameType(GetBubbleType())) {
-      // It means that the BubbleManager has the bubble in the queue,
-      // therefore, do not run the callback.
-      ResetBubbleViewAndInformBubbleManager();
-      return;
+  if (base::FeatureList::IsEnabled(
+          autofill::features::kAutofillShowBubblesBasedOnPriorities)) {
+    if (autofill::BubbleManager* manager =
+            autofill::BubbleManager::GetForTab(&tab())) {
+      if (manager->HasPendingBubbleOfSameType(GetBubbleType())) {
+        // It means that the BubbleManager has the bubble in the queue,
+        // therefore, do not run the callback.
+        ResetBubbleViewAndInformBubbleManager();
+        return;
+      }
     }
+  }
+
+  if (!base::FeatureList::IsEnabled(
+          autofill::features::kAutofillShowBubblesBasedOnPriorities) &&
+      reshow_bubble_on_activation_) {
+    // If the bubble is closed because the user clicked a link that opened a new
+    // tab, we want to reshow the bubble when the user returns to this tab.
+    // In this case, we don't run the callback yet.
+    ResetBubbleViewAndInformBubbleManager();
+    return;
   }
 
   if (callback_) {
@@ -97,15 +117,23 @@ void WalletablePassBubbleControllerBase::SetCallback(
 }
 
 void WalletablePassBubbleControllerBase::QueueOrShowBubble(bool force_show) {
-  if (autofill::BubbleManager* manager =
-          autofill::BubbleManager::GetForTab(&tab())) {
-    manager->RequestShowController(*this, force_show);
+  if (base::FeatureList::IsEnabled(
+          autofill::features::kAutofillShowBubblesBasedOnPriorities)) {
+    if (autofill::BubbleManager* manager =
+            autofill::BubbleManager::GetForTab(&tab())) {
+      manager->RequestShowController(*this, force_show);
+    }
+    return;
   }
+
+  ShowBubble();
 }
 
 void WalletablePassBubbleControllerBase::
     ResetBubbleViewAndInformBubbleManager() {
-  if (IsShowingBubble()) {
+  if (IsShowingBubble() &&
+      base::FeatureList::IsEnabled(
+          autofill::features::kAutofillShowBubblesBasedOnPriorities)) {
     if (autofill::BubbleManager* manager =
             autofill::BubbleManager::GetForTab(&tab())) {
       manager->OnBubbleHiddenByController(*this, /*show_next_bubble=*/true);
@@ -116,6 +144,16 @@ void WalletablePassBubbleControllerBase::
 
 void WalletablePassBubbleControllerBase::SetReshowOnActivation(bool reshow) {
   reshow_bubble_on_activation_ = reshow;
+}
+
+void WalletablePassBubbleControllerBase::OnTabActivated(
+    tabs::TabInterface* tab) {
+  if (!base::FeatureList::IsEnabled(
+          autofill::features::kAutofillShowBubblesBasedOnPriorities) &&
+      reshow_bubble_on_activation_) {
+    reshow_bubble_on_activation_ = false;
+    QueueOrShowBubble();
+  }
 }
 
 }  // namespace wallet

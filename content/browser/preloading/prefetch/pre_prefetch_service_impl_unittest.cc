@@ -18,7 +18,6 @@
 #include "base/threading/thread_restrictions.h"
 #include "content/browser/preloading/prefetch/prefetch_features.h"
 #include "content/browser/preloading/prefetch/prefetch_test_util_internal.h"
-#include "content/browser/preloading/prefetch/prefetch_url_loader_factory_utils.h"
 #include "content/public/browser/pre_prefetch_handle.h"
 #include "content/public/browser/pre_prefetch_service.h"
 #include "content/public/browser/prefetch_priority.h"
@@ -47,12 +46,12 @@ class PrePrefetchServiceImplTest : public testing::Test {
         /*enabled_features=*/{{features::kPrefetchOffTheMainThread,
                                {{"update_missing_header_cache", "true"}}}},
         /*disabled_features=*/{});
-    SetTerminalPrefetchURLLoaderFactoryForTesting(
+    PrePrefetchServiceImpl::SetURLLoaderFactoryForTesting(
         test_shared_url_loader_factory_.get());
   }
 
   void TearDown() override {
-    SetTerminalPrefetchURLLoaderFactoryForTesting(nullptr);
+    PrePrefetchServiceImpl::SetURLLoaderFactoryForTesting(nullptr);
     // For some tests calling `URLLoaderFactory` refresh, reset the service and
     // drain tasks (both on UI and Core sequences) to ensure all resources
     // associated with the `BrowserContext` accessed during `URLLoaderFactory`
@@ -345,7 +344,7 @@ TEST_F(PrePrefetchServiceImplTest,
   auto shared_factory =
       base::MakeRefCounted<network::WeakWrapperSharedURLLoaderFactory>(
           local_factory.get());
-  SetTerminalPrefetchURLLoaderFactoryForTesting(shared_factory.get());
+  PrePrefetchServiceImpl::SetURLLoaderFactoryForTesting(shared_factory.get());
 
   const GURL prefetch_url("https://example.com/prefetch");
   auto service = PrePrefetchService::Create(
@@ -406,7 +405,7 @@ TEST_F(PrePrefetchServiceImplTest,
   auto shared_factory1 =
       base::MakeRefCounted<network::WeakWrapperSharedURLLoaderFactory>(
           local_factory1.get());
-  SetTerminalPrefetchURLLoaderFactoryForTesting(shared_factory1.get());
+  PrePrefetchServiceImpl::SetURLLoaderFactoryForTesting(shared_factory1.get());
 
   const GURL prefetch_url("https://example.com/prefetch");
   auto service = PrePrefetchService::Create(
@@ -426,7 +425,7 @@ TEST_F(PrePrefetchServiceImplTest,
   auto shared_factory2 =
       base::MakeRefCounted<network::WeakWrapperSharedURLLoaderFactory>(
           local_factory2.get());
-  SetTerminalPrefetchURLLoaderFactoryForTesting(shared_factory2.get());
+  PrePrefetchServiceImpl::SetURLLoaderFactoryForTesting(shared_factory2.get());
 
   // Destroy the first factory to close the pipe.
   local_factory1.reset();

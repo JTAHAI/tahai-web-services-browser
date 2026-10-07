@@ -41,8 +41,6 @@
 #include "base/compiler_specific.h"
 #include "base/containers/to_vector.h"
 #include "base/functional/callback_helpers.h"
-#include "base/memory/raw_ptr.h"
-#include "base/memory/raw_ref.h"
 #include "base/strings/stringprintf.h"
 #include "base/test/bind.h"
 #include "base/test/scoped_feature_list.h"
@@ -236,7 +234,6 @@
 #include "third_party/blink/renderer/platform/wtf/forward.h"
 #include "third_party/blink/renderer/platform/wtf/hash_map.h"
 #include "third_party/blink/renderer/platform/wtf/hash_set.h"
-#include "third_party/blink/renderer/platform/wtf/text/format.h"
 #include "third_party/skia/include/core/SkTextBlob.h"
 #include "ui/base/ime/mojom/text_input_state.mojom-blink.h"
 #include "ui/base/mojom/menu_source_type.mojom-blink.h"
@@ -309,8 +306,7 @@ void ExecuteScriptsInMainWorld(
       mojom::blink::EvaluationTiming::kSynchronous,
       mojom::blink::LoadEventBlockingOption::kDoNotBlock, std::move(callback),
       BackForwardCacheAware::kAllow,
-      mojom::blink::WantResultOption::kWantResult, wait_for_promise,
-      /*is_injected_extension_script=*/false);
+      mojom::blink::WantResultOption::kWantResult, wait_for_promise);
 }
 
 // Same as above, but for a single script.
@@ -1435,7 +1431,7 @@ class WebFrameCSSCallbackTest : public testing::Test {
   test::TaskEnvironment task_environment_;
   CSSCallbackWebFrameClient client_;
   frame_test_helpers::WebViewHelper helper_;
-  raw_ptr<WebLocalFrame, UnprotectedInRelease | DanglingUntriaged> frame_;
+  WebLocalFrame* frame_;
 };
 
 TEST_F(WebFrameCSSCallbackTest, AuthorStyleSheet) {
@@ -2074,368 +2070,6 @@ TEST_F(WebFrameTest, WideViewportSetsTo980WithoutViewportTag) {
                 ->LayoutViewport()
                 ->ContentsSize()
                 .height());
-}
-
-class WebFrameViewportEmulationTest : public WebFrameTest {
- protected:
-  using ViewportStyle = mojom::blink::ViewportStyle;
-
-  static constexpr int kMobileWideViewportWidth = 980;
-
-  WebFrameViewportEmulationTest() {
-    RegisterMockedHttpURLLoad("no_viewport_tag.html");
-  }
-
-  WebViewImpl* InitializeAndroidWideViewport(const gfx::Size& initial_size) {
-    return InitializeAndroidWideViewport(initial_size, web_view_helper_);
-  }
-
-  WebViewImpl* InitializeAndroidWideViewport(
-      const gfx::Size& initial_size,
-      frame_test_helpers::WebViewHelper& web_view_helper) {
-    WebViewImpl* web_view = web_view_helper.InitializeAndLoad(
-        base_url_ + "no_viewport_tag.html", nullptr, nullptr, ConfigureAndroid);
-    web_view->GetSettings()->SetWideViewportQuirkEnabled(true);
-    web_view->GetSettings()->SetUseWideViewport(true);
-    web_view->SetDefaultPageScaleLimits(0.25f, 5.0f);
-    web_view_helper.Resize(initial_size);
-    return web_view;
-  }
-
-  static gfx::Size LayoutViewportSize(WebViewImpl* web_view) {
-    return web_view->MainFrameImpl()->GetFrameView()->Size();
-  }
-
-  static void ExpectViewportProfile(WebViewImpl* web_view,
-                                    ViewportStyle expected_style,
-                                    float expected_min_scale,
-                                    float expected_max_scale) {
-    EXPECT_EQ(expected_style,
-              web_view->GetPage()->GetSettings().GetViewportStyle());
-    EXPECT_FLOAT_EQ(expected_min_scale,
-                    web_view->DefaultMinimumPageScaleFactor());
-    EXPECT_FLOAT_EQ(expected_max_scale,
-                    web_view->DefaultMaximumPageScaleFactor());
-  }
-
-  frame_test_helpers::WebViewHelper web_view_helper_;
-};
-
-TEST_F(WebFrameViewportEmulationTest,
-       DefaultPageScaleLimitsDoNotChangeViewportStyle) {
-  WebViewImpl* web_view =
-      web_view_helper_.InitializeAndLoad(base_url_ + "no_viewport_tag.html");
-
-  // Keep device metrics disabled and bypass DevToolsEmulator so the Page's
-  // effective style deliberately differs from its cached embedder style.
-  ASSERT_EQ(ViewportStyle::kDefault,
-            web_view->GetPage()->GetSettings().GetViewportStyle());
-  web_view->GetPage()->GetSettings().SetViewportStyle(ViewportStyle::kMobile);
-  ASSERT_EQ(ViewportStyle::kMobile,
-            web_view->GetPage()->GetSettings().GetViewportStyle());
-
-  web_view->SetDefaultPageScaleLimits(0.5f, 4.0f);
-
-  ExpectViewportProfile(web_view, ViewportStyle::kMobile, 0.5f, 4.0f);
-}
-
-TEST_F(WebFrameViewportEmulationTest,
-       ViewportStyleDoesNotChangeDefaultPageScaleLimits) {
-  WebViewImpl* web_view =
-      web_view_helper_.InitializeAndLoad(base_url_ + "no_viewport_tag.html");
-
-  // Keep device metrics disabled and bypass DevToolsEmulator so the Page's
-  // effective limits deliberately differ from its cached embedder limits.
-  ASSERT_EQ(ViewportStyle::kDefault,
-            web_view->GetPage()->GetSettings().GetViewportStyle());
-  ASSERT_TRUE(web_view->DefaultMinimumPageScaleFactor() != 0.5f ||
-              web_view->DefaultMaximumPageScaleFactor() != 4.0f);
-  web_view->GetPage()->SetDefaultPageScaleLimits(0.5f, 4.0f);
-  ASSERT_FLOAT_EQ(0.5f, web_view->DefaultMinimumPageScaleFactor());
-  ASSERT_FLOAT_EQ(4.0f, web_view->DefaultMaximumPageScaleFactor());
-
-  web_view->GetSettings()->SetViewportStyle(ViewportStyle::kTelevision);
-
-  ExpectViewportProfile(web_view, ViewportStyle::kTelevision, 0.5f, 4.0f);
-}
-
-TEST_F(WebFrameViewportEmulationTest,
-       DesktopDeviceMetricsUseDefaultViewportStyleOnAndroid) {
-  const gfx::Size original_size(360, 640);
-  WebViewImpl* web_view = InitializeAndroidWideViewport(original_size);
-
-  UpdateAllLifecyclePhases(web_view);
-  ExpectViewportProfile(web_view, ViewportStyle::kMobile, 0.25f, 5.0f);
-  EXPECT_EQ(kMobileWideViewportWidth, LayoutViewportSize(web_view).width());
-
-  DeviceEmulationParams params;
-  params.screen_type = mojom::EmulatedScreenType::kDesktop;
-  params.view_size = gfx::Size(250, 300);
-  web_view->EnableDeviceEmulation(params);
-  UpdateAllLifecyclePhases(web_view);
-  ExpectViewportProfile(web_view, ViewportStyle::kDefault, 1.0f, 5.0f);
-  EXPECT_EQ(params.view_size, LayoutViewportSize(web_view));
-
-  // Replaying identical parameters takes the fast path and must leave the
-  // effective desktop profile intact.
-  web_view->EnableDeviceEmulation(params);
-  UpdateAllLifecyclePhases(web_view);
-  ExpectViewportProfile(web_view, ViewportStyle::kDefault, 1.0f, 5.0f);
-  EXPECT_EQ(params.view_size, LayoutViewportSize(web_view));
-
-  params.view_size = gfx::Size(320, 480);
-  web_view->EnableDeviceEmulation(params);
-  UpdateAllLifecyclePhases(web_view);
-  ExpectViewportProfile(web_view, ViewportStyle::kDefault, 1.0f, 5.0f);
-  EXPECT_EQ(params.view_size, LayoutViewportSize(web_view));
-
-  params.view_size = gfx::Size(0, 480);
-  web_view->EnableDeviceEmulation(params);
-  UpdateAllLifecyclePhases(web_view);
-  ExpectViewportProfile(web_view, ViewportStyle::kDefault, 1.0f, 5.0f);
-  EXPECT_EQ(gfx::Size(original_size.width(), 480),
-            LayoutViewportSize(web_view));
-
-  params.view_size = gfx::Size(320, 0);
-  web_view->EnableDeviceEmulation(params);
-  UpdateAllLifecyclePhases(web_view);
-  ExpectViewportProfile(web_view, ViewportStyle::kDefault, 1.0f, 5.0f);
-  EXPECT_EQ(gfx::Size(320, original_size.height()),
-            LayoutViewportSize(web_view));
-
-  // Embedder updates are saved while the DevTools desktop profile is active.
-  web_view->SetDefaultPageScaleLimits(0.5f, 4.0f);
-  ExpectViewportProfile(web_view, ViewportStyle::kDefault, 1.0f, 4.0f);
-
-  // Changing the saved embedder style removes and reapplies the correction
-  // immediately. kDefault looks identical at the Settings layer, so the
-  // effective minimum scale distinguishes the native desktop profile from the
-  // Android desktop-viewport correction.
-  web_view->GetSettings()->SetViewportStyle(
-      mojom::blink::ViewportStyle::kDefault);
-  ExpectViewportProfile(web_view, ViewportStyle::kDefault, 0.5f, 4.0f);
-
-  web_view->GetSettings()->SetViewportStyle(
-      mojom::blink::ViewportStyle::kMobile);
-  ExpectViewportProfile(web_view, ViewportStyle::kDefault, 1.0f, 4.0f);
-
-  web_view->DisableDeviceEmulation();
-  UpdateAllLifecyclePhases(web_view);
-  ExpectViewportProfile(web_view, ViewportStyle::kMobile, 0.5f, 4.0f);
-  EXPECT_EQ(2 * original_size.width(), LayoutViewportSize(web_view).width());
-}
-
-TEST_F(WebFrameViewportEmulationTest,
-       DesktopDeviceMetricsSizeTransitionsRestoreAndroidViewportStyle) {
-  const gfx::Size original_size(360, 640);
-  WebViewImpl* web_view = InitializeAndroidWideViewport(original_size);
-
-  DeviceEmulationParams params;
-  params.screen_type = mojom::EmulatedScreenType::kDesktop;
-  params.view_size = gfx::Size(250, 300);
-  web_view->EnableDeviceEmulation(params);
-  UpdateAllLifecyclePhases(web_view);
-  ExpectViewportProfile(web_view, ViewportStyle::kDefault, 1.0f, 5.0f);
-  EXPECT_EQ(params.view_size, LayoutViewportSize(web_view));
-
-  // A DPR-only update has no layout viewport dimensions, so it must restore
-  // the native Android viewport profile instead of retaining stale desktop
-  // settings from the preceding explicit-size override.
-  params.view_size = gfx::Size();
-  params.device_scale_factor = 2.0f;
-  web_view->EnableDeviceEmulation(params);
-  UpdateAllLifecyclePhases(web_view);
-  ExpectViewportProfile(web_view, ViewportStyle::kMobile, 0.25f, 5.0f);
-  EXPECT_EQ(kMobileWideViewportWidth, LayoutViewportSize(web_view).width());
-
-  params.view_size = gfx::Size(320, 480);
-  web_view->EnableDeviceEmulation(params);
-  UpdateAllLifecyclePhases(web_view);
-  ExpectViewportProfile(web_view, ViewportStyle::kDefault, 1.0f, 5.0f);
-  EXPECT_EQ(params.view_size, LayoutViewportSize(web_view));
-
-  web_view->DisableDeviceEmulation();
-  UpdateAllLifecyclePhases(web_view);
-  ExpectViewportProfile(web_view, ViewportStyle::kMobile, 0.25f, 5.0f);
-  EXPECT_EQ(kMobileWideViewportWidth, LayoutViewportSize(web_view).width());
-}
-
-TEST_F(WebFrameViewportEmulationTest,
-       EmbedderViewportStyleUpdatesDoNotForceLifecycle) {
-  WebViewImpl* web_view = InitializeAndroidWideViewport(gfx::Size(360, 640));
-
-  DeviceEmulationParams params;
-  params.screen_type = mojom::EmulatedScreenType::kDesktop;
-  params.view_size = gfx::Size(250, 300);
-  web_view->EnableDeviceEmulation(params);
-  UpdateAllLifecyclePhases(web_view);
-  ExpectViewportProfile(web_view, ViewportStyle::kDefault, 1.0f, 5.0f);
-
-  LocalFrameView* frame_view = web_view->MainFrameImpl()->GetFrameView();
-  ASSERT_FALSE(frame_view->NeedsLayout());
-
-  // A scalar WebSettings update can run while a larger preferences update is
-  // in progress. It must update the effective profile without synchronously
-  // flushing unrelated pending layout work.
-  frame_view->SetNeedsLayout();
-  ASSERT_TRUE(frame_view->NeedsLayout());
-  web_view->GetSettings()->SetViewportStyle(ViewportStyle::kDefault);
-  EXPECT_TRUE(frame_view->NeedsLayout());
-  ExpectViewportProfile(web_view, ViewportStyle::kDefault, 0.25f, 5.0f);
-  UpdateAllLifecyclePhases(web_view);
-
-  // Reapplying the Android embedder style under explicit desktop metrics
-  // restores the desktop-viewport correction with the same non-flushing
-  // setter behavior.
-  frame_view->SetNeedsLayout();
-  ASSERT_TRUE(frame_view->NeedsLayout());
-  web_view->GetSettings()->SetViewportStyle(ViewportStyle::kMobile);
-  EXPECT_TRUE(frame_view->NeedsLayout());
-  ExpectViewportProfile(web_view, ViewportStyle::kDefault, 1.0f, 5.0f);
-  UpdateAllLifecyclePhases(web_view);
-}
-
-TEST_F(WebFrameViewportEmulationTest,
-       DeviceMetricsScaleOnlyPreservesAndroidViewportStyle) {
-  WebViewImpl* web_view = InitializeAndroidWideViewport(gfx::Size(360, 640));
-
-  DeviceEmulationParams params;
-  params.screen_type = mojom::EmulatedScreenType::kDesktop;
-  params.scale = 2.0f;
-  web_view->EnableDeviceEmulation(params);
-  UpdateAllLifecyclePhases(web_view);
-  EXPECT_EQ(gfx::Size(180, 320), web_view->MainFrameViewWidget()->Size());
-  ExpectViewportProfile(web_view, ViewportStyle::kMobile, 0.25f, 5.0f);
-  // Scale-only emulation still scales the widget and layout viewport; it must
-  // not additionally replace the embedder's mobile viewport profile.
-  EXPECT_EQ(kMobileWideViewportWidth / 2, LayoutViewportSize(web_view).width());
-
-  web_view->DisableDeviceEmulation();
-}
-
-TEST_F(WebFrameViewportEmulationTest,
-       DeviceMetricsTransitionBetweenDesktopAndMobileProfiles) {
-  WebViewImpl* web_view = InitializeAndroidWideViewport(gfx::Size(360, 640));
-
-  DeviceEmulationParams params;
-  params.screen_type = mojom::EmulatedScreenType::kDesktop;
-  params.view_size = gfx::Size(250, 300);
-  web_view->EnableDeviceEmulation(params);
-  UpdateAllLifecyclePhases(web_view);
-  ExpectViewportProfile(web_view, ViewportStyle::kDefault, 1.0f, 5.0f);
-  EXPECT_EQ(params.view_size, LayoutViewportSize(web_view));
-
-  params.screen_type = mojom::EmulatedScreenType::kMobile;
-  web_view->EnableDeviceEmulation(params);
-  UpdateAllLifecyclePhases(web_view);
-  ExpectViewportProfile(web_view, ViewportStyle::kMobile, 0.25f, 5.0f);
-  EXPECT_EQ(kMobileWideViewportWidth, LayoutViewportSize(web_view).width());
-
-  // Updates from the embedder are cached while the complete mobile profile
-  // remains effective.
-  web_view->SetDefaultPageScaleLimits(0.5f, 4.0f);
-  web_view->GetSettings()->SetViewportStyle(
-      mojom::blink::ViewportStyle::kDefault);
-  ExpectViewportProfile(web_view, ViewportStyle::kMobile, 0.25f, 5.0f);
-
-  params.screen_type = mojom::EmulatedScreenType::kDesktop;
-  web_view->EnableDeviceEmulation(params);
-  UpdateAllLifecyclePhases(web_view);
-  ExpectViewportProfile(web_view, ViewportStyle::kDefault, 0.5f, 4.0f);
-
-  // Re-enabling the saved Android mobile style while explicit desktop
-  // dimensions remain active reapplies the desktop viewport correction.
-  web_view->GetSettings()->SetViewportStyle(
-      mojom::blink::ViewportStyle::kMobile);
-  UpdateAllLifecyclePhases(web_view);
-  ExpectViewportProfile(web_view, ViewportStyle::kDefault, 1.0f, 4.0f);
-  EXPECT_EQ(params.view_size, LayoutViewportSize(web_view));
-
-  web_view->DisableDeviceEmulation();
-  UpdateAllLifecyclePhases(web_view);
-  ExpectViewportProfile(web_view, ViewportStyle::kMobile, 0.5f, 4.0f);
-
-  // Clearing directly from mobile mode must release its shared overrides
-  // before restoring the latest embedder profile.
-  params.screen_type = mojom::EmulatedScreenType::kMobile;
-  web_view->EnableDeviceEmulation(params);
-  UpdateAllLifecyclePhases(web_view);
-  ExpectViewportProfile(web_view, ViewportStyle::kMobile, 0.25f, 5.0f);
-
-  web_view->DisableDeviceEmulation();
-  UpdateAllLifecyclePhases(web_view);
-  ExpectViewportProfile(web_view, ViewportStyle::kMobile, 0.5f, 4.0f);
-}
-
-TEST_F(WebFrameViewportEmulationTest,
-       MobileDeviceMetricsShareGlobalOverridesAcrossWebViews) {
-  ScopedMobileLayoutThemeForTest mobile_layout_theme(false);
-  ScopedOrientationEventForTest orientation_event(false);
-  EXPECT_FALSE(RuntimeEnabledFeatures::MobileLayoutThemeEnabled());
-  EXPECT_FALSE(RuntimeEnabledFeatures::OrientationEventEnabled());
-
-  WebViewImpl* first_web_view =
-      InitializeAndroidWideViewport(gfx::Size(360, 640));
-  frame_test_helpers::WebViewHelper second_web_view_helper;
-  WebViewImpl* second_web_view = InitializeAndroidWideViewport(
-      gfx::Size(360, 640), second_web_view_helper);
-
-  DeviceEmulationParams params;
-  params.screen_type = mojom::EmulatedScreenType::kMobile;
-  params.view_size = gfx::Size(250, 300);
-  first_web_view->EnableDeviceEmulation(params);
-  second_web_view->EnableDeviceEmulation(params);
-  EXPECT_TRUE(RuntimeEnabledFeatures::MobileLayoutThemeEnabled());
-  EXPECT_TRUE(RuntimeEnabledFeatures::OrientationEventEnabled());
-
-  // Releasing the first WebView's mobile profile must not restore the shared
-  // process settings while the second WebView still owns them.
-  params.screen_type = mojom::EmulatedScreenType::kDesktop;
-  first_web_view->EnableDeviceEmulation(params);
-  ExpectViewportProfile(first_web_view, ViewportStyle::kDefault, 1.0f, 5.0f);
-  ExpectViewportProfile(second_web_view, ViewportStyle::kMobile, 0.25f, 5.0f);
-  EXPECT_TRUE(RuntimeEnabledFeatures::MobileLayoutThemeEnabled());
-  EXPECT_TRUE(RuntimeEnabledFeatures::OrientationEventEnabled());
-
-  params.screen_type = mojom::EmulatedScreenType::kMobile;
-  first_web_view->EnableDeviceEmulation(params);
-  first_web_view->DisableDeviceEmulation();
-  ExpectViewportProfile(first_web_view, ViewportStyle::kMobile, 0.25f, 5.0f);
-  ExpectViewportProfile(second_web_view, ViewportStyle::kMobile, 0.25f, 5.0f);
-  EXPECT_TRUE(RuntimeEnabledFeatures::MobileLayoutThemeEnabled());
-  EXPECT_TRUE(RuntimeEnabledFeatures::OrientationEventEnabled());
-
-  second_web_view->DisableDeviceEmulation();
-  ExpectViewportProfile(second_web_view, ViewportStyle::kMobile, 0.25f, 5.0f);
-  EXPECT_FALSE(RuntimeEnabledFeatures::MobileLayoutThemeEnabled());
-  EXPECT_FALSE(RuntimeEnabledFeatures::OrientationEventEnabled());
-}
-
-TEST_F(WebFrameViewportEmulationTest,
-       DesktopDeviceMetricsKeepDefaultViewportStyle) {
-  WebViewImpl* web_view =
-      web_view_helper_.InitializeAndLoad(base_url_ + "no_viewport_tag.html");
-  web_view->SetDefaultPageScaleLimits(1.0f, 4.0f);
-  web_view_helper_.Resize(gfx::Size(360, 640));
-
-  ExpectViewportProfile(web_view, ViewportStyle::kDefault, 1.0f, 4.0f);
-
-  DeviceEmulationParams params;
-  params.screen_type = mojom::EmulatedScreenType::kDesktop;
-  params.view_size = gfx::Size(250, 300);
-  web_view->EnableDeviceEmulation(params);
-  UpdateAllLifecyclePhases(web_view);
-  ExpectViewportProfile(web_view, ViewportStyle::kDefault, 1.0f, 4.0f);
-  EXPECT_EQ(params.view_size, LayoutViewportSize(web_view));
-
-  params.view_size = gfx::Size();
-  params.device_scale_factor = 2.0f;
-  web_view->EnableDeviceEmulation(params);
-  UpdateAllLifecyclePhases(web_view);
-  ExpectViewportProfile(web_view, ViewportStyle::kDefault, 1.0f, 4.0f);
-
-  web_view->DisableDeviceEmulation();
-  ExpectViewportProfile(web_view, ViewportStyle::kDefault, 1.0f, 4.0f);
 }
 
 TEST_F(WebFrameTest, WideViewportSetsTo980WithXhtmlMp) {
@@ -5073,7 +4707,7 @@ class ContextLifetimeTestWebFrameClient
              world_id == other->world_id;
     }
 
-    raw_ptr<WebLocalFrame, UnprotectedInRelease | DanglingUntriaged> frame;
+    WebLocalFrame* frame;
     v8::Persistent<v8::Context> context;
     int32_t world_id;
   };
@@ -5086,8 +4720,8 @@ class ContextLifetimeTestWebFrameClient
   ~ContextLifetimeTestWebFrameClient() override = default;
 
   void Reset() {
-    create_notifications_->clear();
-    release_notifications_->clear();
+    create_notifications_.clear();
+    release_notifications_.clear();
   }
 
   // WebLocalFrameClient:
@@ -5101,32 +4735,28 @@ class ContextLifetimeTestWebFrameClient
       WebPolicyContainerBindParams policy_container_bind_params,
       ukm::SourceId document_ukm_source_id,
       FinishChildFrameCreationFn finish_creation) override {
-    return CreateLocalChild(
-        *Frame(), scope,
-        std::make_unique<ContextLifetimeTestWebFrameClient>(
-            *create_notifications_, *release_notifications_),
-        std::move(policy_container_bind_params), finish_creation);
+    return CreateLocalChild(*Frame(), scope,
+                            std::make_unique<ContextLifetimeTestWebFrameClient>(
+                                create_notifications_, release_notifications_),
+                            std::move(policy_container_bind_params),
+                            finish_creation);
   }
 
   void DidCreateScriptContext(v8::Local<v8::Context> context,
                               int32_t world_id) override {
-    create_notifications_->push_back(
+    create_notifications_.push_back(
         std::make_unique<Notification>(Frame(), context, world_id));
   }
 
   void WillReleaseScriptContext(v8::Local<v8::Context> context,
                                 int32_t world_id) override {
-    release_notifications_->push_back(
+    release_notifications_.push_back(
         std::make_unique<Notification>(Frame(), context, world_id));
   }
 
  private:
-  const raw_ref<Vector<std::unique_ptr<Notification>>,
-                UnprotectedInRelease | DanglingUntriaged>
-      create_notifications_;
-  const raw_ref<Vector<std::unique_ptr<Notification>>,
-                UnprotectedInRelease | DanglingUntriaged>
-      release_notifications_;
+  Vector<std::unique_ptr<Notification>>& create_notifications_;
+  Vector<std::unique_ptr<Notification>>& release_notifications_;
 };
 
 TEST_F(WebFrameTest, ContextNotificationsLoadUnload) {
@@ -5558,8 +5188,9 @@ TEST_F(WebFrameTest, FindInPageMatchRects) {
     Range* result = main_frame->GetTextFinder()->ActiveMatch();
     ASSERT_TRUE(result);
     result->setEnd(result->endContainer(), result->endOffset() + 3);
-    EXPECT_EQ(result->GetText(),
-              Format("{} {:02d}", kFindString, result_index + 2));
+    EXPECT_EQ(
+        result->GetText(),
+        UNSAFE_TODO(String::Format("%s %02d", kFindString, result_index + 2)));
 
     // Verify that the expected match rect also matches the currently active
     // match.  Compare the enclosing rects to prevent precision issues caused by
@@ -7912,7 +7543,6 @@ class TestNewWindowWebFrameClient
   // frame_test_helpers::TestWebFrameClient:
   void BeginNavigation(std::unique_ptr<WebNavigationInfo> info) override {
     begin_navigation_call_count_++;
-    last_navigation_policy_ = info->navigation_policy;
     if (ignore_navigations_) {
       return;
     }
@@ -7925,37 +7555,21 @@ class TestNewWindowWebFrameClient
       const WebString&,
       const gfx::Rect&,
       WebNavigationPolicy,
-      network::mojom::blink::WebSandboxFlags sandbox_flags,
+      network::mojom::blink::WebSandboxFlags,
       const SessionStorageNamespaceId&,
       bool& consumed_user_gesture,
       const std::optional<WebPictureInPictureWindowOptions>&,
       const WebURL&) override {
-    EXPECT_TRUE(expect_create_new_window_);
-    did_call_create_new_window_ = true;
-    new_window_sandbox_flags_ = sandbox_flags;
+    EXPECT_TRUE(false);
     return nullptr;
   }
 
   int BeginNavigationCallCount() const { return begin_navigation_call_count_; }
-  WebNavigationPolicy LastNavigationPolicy() const {
-    return last_navigation_policy_;
-  }
-  bool DidCallCreateNewWindow() const { return did_call_create_new_window_; }
-  network::mojom::blink::WebSandboxFlags NewWindowSandboxFlags() const {
-    return new_window_sandbox_flags_;
-  }
-
   void IgnoreNavigations() { ignore_navigations_ = true; }
-  void ExpectCreateNewWindow() { expect_create_new_window_ = true; }
 
  private:
   bool ignore_navigations_ = false;
-  bool expect_create_new_window_ = false;
-  bool did_call_create_new_window_ = false;
   int begin_navigation_call_count_ = 0;
-  WebNavigationPolicy last_navigation_policy_ = kWebNavigationPolicyCurrentTab;
-  network::mojom::blink::WebSandboxFlags new_window_sandbox_flags_ =
-      network::mojom::blink::WebSandboxFlags::kNone;
 };
 
 TEST_F(WebFrameTest, ModifiedClickNewWindow) {
@@ -8596,20 +8210,15 @@ TEST_F(WebFrameTest, fixedPositionInFixedViewport) {
 }
 
 TEST_F(WebFrameTest, FrameViewMoveWithSetFrameRect) {
-  if (RuntimeEnabledFeatures::AvoidEmbeddedContentViewLocationEnabled()) {
-    // We will never call SetFrameRect() with a non-zero origin, so this test
-    // is not applicable.
-    GTEST_SKIP();
-  }
   frame_test_helpers::WebViewHelper web_view_helper;
   web_view_helper.InitializeAndLoad("about:blank");
   web_view_helper.Resize(gfx::Size(200, 200));
   UpdateAllLifecyclePhases(web_view_helper.GetWebView());
 
   LocalFrameView* frame_view = web_view_helper.LocalMainFrame()->GetFrameView();
-  EXPECT_EQ(gfx::Rect(0, 0, 200, 200), frame_view->DeprecatedFrameRect());
+  EXPECT_EQ(gfx::Rect(0, 0, 200, 200), frame_view->FrameRect());
   frame_view->SetFrameRect(gfx::Rect(100, 100, 200, 200));
-  EXPECT_EQ(gfx::Rect(100, 100, 200, 200), frame_view->DeprecatedFrameRect());
+  EXPECT_EQ(gfx::Rect(100, 100, 200, 200), frame_view->FrameRect());
 }
 
 TEST_F(WebFrameTest, FrameViewScrollAccountsForBrowserControls) {
@@ -9569,8 +9178,7 @@ class WebFrameSwapTestClient : public frame_test_helpers::TestWebFrameClient {
     }
 
     bool did_propagate_display_none_ = false;
-    raw_ptr<WebFrameSwapTestClient, UnprotectedInRelease | DanglingUntriaged>
-        parent_ = nullptr;
+    WebFrameSwapTestClient* parent_ = nullptr;
   };
 
   std::unique_ptr<TestLocalFrameHostForFrameOwnerPropertiesChanges>
@@ -11852,7 +11460,7 @@ class WebRemoteFrameVisibilityChangeTest : public WebFrameTest {
  private:
   TestRemoteFrameHostForVisibility remote_frame_host_;
   frame_test_helpers::WebViewHelper web_view_helper_;
-  raw_ptr<WebLocalFrame, UnprotectedInRelease | DanglingUntriaged> frame_;
+  WebLocalFrame* frame_;
   Persistent<WebRemoteFrameImpl> web_remote_frame_;
 };
 
@@ -11955,7 +11563,7 @@ class WebLocalFrameVisibilityChangeTest
   TestLocalFrameHostForVisibility child_host_;
   frame_test_helpers::TestWebFrameClient child_client_;
   frame_test_helpers::WebViewHelper web_view_helper_;
-  raw_ptr<WebLocalFrame, UnprotectedInRelease | DanglingUntriaged> frame_;
+  WebLocalFrame* frame_;
 };
 
 TEST_F(WebLocalFrameVisibilityChangeTest, FrameVisibilityChange) {
@@ -12161,7 +11769,7 @@ class TestLocalFrameHostForSaveImageFromDataURL : public FakeLocalFrameHost {
 
    private:
     base::RunLoop run_loop_;
-    raw_ptr<String, UnprotectedInRelease | DanglingUntriaged> output_;
+    String* output_;
   };
 
   BlobRegistryForSaveImageFromDataURL blob_registry_;
@@ -14569,9 +14177,8 @@ TEST_F(WebFrameTest, RemoteViewportAndMainframeIntersections) {
 
   // The viewport intersection should be applied by the layout geometry mapping
   // code when these flags are used.
-  MapCoordinatesFlags viewport_intersection_flags = {
-      MapCoordinatesMode::kTraverseDocumentBoundaries,
-      MapCoordinatesMode::kApplyRemoteMainFrameTransform};
+  int viewport_intersection_flags =
+      kTraverseDocumentBoundaries | kApplyRemoteMainFrameTransform;
 
   // Expectation is: (target location) + (viewport offset) = (20, 10) + (7, -11)
   PhysicalOffset offset = target->GetLayoutObject()->LocalToAbsolutePoint(
@@ -14591,15 +14198,13 @@ TEST_F(WebFrameTest, RemoteViewportAndMainframeIntersections) {
   local_frame->GetFrame()
       ->GetDocument()
       ->GetLayoutView()
-      ->MapToVisualRectInAncestorSpace(
-          nullptr, mainframe_rect,
-          {VisualRectFlag::kDontApplyMainFrameOverflowClip});
+      ->MapToVisualRectInAncestorSpace(nullptr, mainframe_rect,
+                                       kDontApplyMainFrameOverflowClip);
   EXPECT_EQ(PhysicalRect(7, -11, 25, 35), mainframe_rect);
 
-  constexpr VisualRectFlags kGeometryMapperFlags = {
-      VisualRectFlag::kUseGeometryMapper,
-      VisualRectFlag::kApplyRemoteViewportTransform,
-      VisualRectFlag::kIgnoreFilters};
+  constexpr auto kGeometryMapperFlags = static_cast<VisualRectFlags>(
+      kUseGeometryMapper | kVisualRectApplyRemoteViewportTransform |
+      kIgnoreFilters);
 
   // Translate (0,0) by (7, -11) => (7, -11)
   // Clip against parent viewport (0, 0, 200, 140):
@@ -14831,7 +14436,7 @@ TEST_F(WebFrameTest, DownloadReferrerPolicy) {
             policy_container_host.BindNewEndpointAndPassDedicatedRemote(),
             mojom::blink::PolicyContainerPolicies::New()));
     EXPECT_CALL(policy_container_host,
-                SetReferrerPolicy(network::mojom::ReferrerPolicy::kNever, _));
+                SetReferrerPolicy(network::mojom::ReferrerPolicy::kNever));
     frame_test_helpers::LoadHTMLString(
         frame, GetHTMLStringForReferrerPolicy("no-referrer", std::string()),
         test_url);
@@ -14849,7 +14454,7 @@ TEST_F(WebFrameTest, DownloadReferrerPolicy) {
             policy_container_host.BindNewEndpointAndPassDedicatedRemote(),
             mojom::blink::PolicyContainerPolicies::New()));
     EXPECT_CALL(policy_container_host,
-                SetReferrerPolicy(network::mojom::ReferrerPolicy::kOrigin, _));
+                SetReferrerPolicy(network::mojom::ReferrerPolicy::kOrigin));
     frame_test_helpers::LoadHTMLString(
         frame, GetHTMLStringForReferrerPolicy("origin", std::string()),
         test_url);
@@ -14866,7 +14471,7 @@ TEST_F(WebFrameTest, DownloadReferrerPolicy) {
         std::make_unique<PolicyContainer>(
             policy_container_host.BindNewEndpointAndPassDedicatedRemote(),
             mojom::blink::PolicyContainerPolicies::New()));
-    EXPECT_CALL(policy_container_host, SetReferrerPolicy(_, _)).Times(0);
+    EXPECT_CALL(policy_container_host, SetReferrerPolicy(_)).Times(0);
     frame_test_helpers::LoadHTMLString(
         frame, GetHTMLStringForReferrerPolicy(std::string(), std::string()),
         test_url);
@@ -14884,7 +14489,7 @@ TEST_F(WebFrameTest, DownloadReferrerPolicy) {
         std::make_unique<PolicyContainer>(
             policy_container_host.BindNewEndpointAndPassDedicatedRemote(),
             mojom::blink::PolicyContainerPolicies::New()));
-    EXPECT_CALL(policy_container_host, SetReferrerPolicy(_, _)).Times(0);
+    EXPECT_CALL(policy_container_host, SetReferrerPolicy(_)).Times(0);
     frame_test_helpers::LoadHTMLString(
         frame, GetHTMLStringForReferrerPolicy(std::string(), "origin"),
         test_url);
@@ -14901,7 +14506,7 @@ TEST_F(WebFrameTest, DownloadReferrerPolicy) {
         std::make_unique<PolicyContainer>(
             policy_container_host.BindNewEndpointAndPassDedicatedRemote(),
             mojom::blink::PolicyContainerPolicies::New()));
-    EXPECT_CALL(policy_container_host, SetReferrerPolicy(_, _)).Times(0);
+    EXPECT_CALL(policy_container_host, SetReferrerPolicy(_)).Times(0);
     frame_test_helpers::LoadHTMLString(
         frame, GetHTMLStringForReferrerPolicy(std::string(), "same-origin"),
         test_url);
@@ -14918,7 +14523,7 @@ TEST_F(WebFrameTest, DownloadReferrerPolicy) {
         std::make_unique<PolicyContainer>(
             policy_container_host.BindNewEndpointAndPassDedicatedRemote(),
             mojom::blink::PolicyContainerPolicies::New()));
-    EXPECT_CALL(policy_container_host, SetReferrerPolicy(_, _)).Times(0);
+    EXPECT_CALL(policy_container_host, SetReferrerPolicy(_)).Times(0);
     frame_test_helpers::LoadHTMLString(
         frame, GetHTMLStringForReferrerPolicy(std::string(), "no-referrer"),
         test_url);
@@ -14964,7 +14569,7 @@ TEST_F(WebFrameTest, RemoteFrameCompositingRectUpdatesWithFrameRect) {
   RemoteFrameView* remote_frame_view = remote_frame->GetFrame()->View();
   ASSERT_EQ(remote_frame_view->GetCompositingRect(), gfx::Rect(0, 0, 120, 120));
 
-  remote_frame_view->Resize(520, 320);
+  remote_frame_view->SetFrameRect(gfx::Rect(0, 0, 520, 320));
 
   EXPECT_EQ(remote_frame_view->GetCompositingRect(), gfx::Rect(0, 0, 520, 320));
 }
@@ -15302,8 +14907,7 @@ class IframeBeginNavivationCountTestWebFrameClient
   TestNewWindowWebFrameClient* iframe_client() const { return client_; }
 
  private:
-  raw_ptr<TestNewWindowWebFrameClient, UnprotectedInRelease | DanglingUntriaged>
-      client_ = nullptr;
+  TestNewWindowWebFrameClient* client_ = nullptr;
 };
 
 TEST_F(WebFrameTest, SandboxedIframePopupCtrlClick) {
@@ -15314,7 +14918,6 @@ TEST_F(WebFrameTest, SandboxedIframePopupCtrlClick) {
       base_url_ + "sandboxed-srcdoc-ctrl-click.html", &web_frame_client);
 
   ASSERT_EQ(web_frame_client.iframe_client()->BeginNavigationCallCount(), 1);
-  web_frame_client.iframe_client()->IgnoreNavigations();
 
   LocalFrame* child = To<LocalFrame>(
       web_view_helper.GetWebView()->GetPage()->MainFrame()->FirstChild());
@@ -15323,45 +14926,9 @@ TEST_F(WebFrameTest, SandboxedIframePopupCtrlClick) {
   To<HTMLElement>(element)->click();
 
   // Clicking the button will attempt a synthetic Ctrl+Click from an iframe
-  // sandboxed without `allow-popups`. This should reach begin navigation, but
-  // not reach CreateNewWindow() (TestNewWindowWebFrameClient will fail the test
-  // if CreateNewWindow() is reached).
-  EXPECT_EQ(web_frame_client.iframe_client()->BeginNavigationCallCount(), 2);
-  EXPECT_EQ(web_frame_client.iframe_client()->LastNavigationPolicy(),
-            kWebNavigationPolicyCurrentTab);
-}
-
-TEST_F(WebFrameTest,
-       SandboxedIframePropagatesToAuxiliaryBrowsingContextsCtrlClick) {
-  RegisterMockedHttpURLLoad("sandboxed-allow-popups-srcdoc-ctrl-click.html");
-  IframeBeginNavivationCountTestWebFrameClient web_frame_client;
-  frame_test_helpers::WebViewHelper web_view_helper;
-  web_view_helper.InitializeAndLoad(
-      base_url_ + "sandboxed-allow-popups-srcdoc-ctrl-click.html",
-      &web_frame_client);
-
-  ASSERT_EQ(web_frame_client.iframe_client()->BeginNavigationCallCount(), 1);
-  web_frame_client.iframe_client()->IgnoreNavigations();
-  web_frame_client.iframe_client()->ExpectCreateNewWindow();
-
-  LocalFrame* child = To<LocalFrame>(
-      web_view_helper.GetWebView()->GetPage()->MainFrame()->FirstChild());
-  ASSERT_TRUE(child->GetSecurityContext()->IsSandboxed(
-      network::mojom::blink::WebSandboxFlags::
-          kPropagatesToAuxiliaryBrowsingContexts));
-
-  Element* element =
-      child->GetDocument()->body()->getElementById(AtomicString("btn"));
-  To<HTMLElement>(element)->click();
-
-  // Clicking the button will attempt a synthetic Ctrl+Click from an iframe
-  // sandboxed without sandbox escaping. This should go through the
-  // CreateNewWindow() path instead of the BeginNavigation() path, and should
-  // include the child's sandbox flags.
+  // sandboxed without `allow-popups`. This should be blocked before reaching
+  // BeginNavigation().
   EXPECT_EQ(web_frame_client.iframe_client()->BeginNavigationCallCount(), 1);
-  EXPECT_TRUE(web_frame_client.iframe_client()->DidCallCreateNewWindow());
-  EXPECT_EQ(web_frame_client.iframe_client()->NewWindowSandboxFlags(),
-            child->GetSecurityContext()->GetSandboxFlags());
 }
 
 // Tests that a FrameLoadRequest for a GET request made from an opaque origin
@@ -15383,18 +14950,6 @@ TEST_F(WebFrameTest, FrameLoadRequestOriginGETOpaque) {
   EXPECT_TRUE(frame_load_request.GetResourceRequest()
                   .HttpHeaderField(http_names::kOrigin)
                   .IsNull());
-}
-
-TEST_F(WebFrameTest, FindFrameByNameCurrent) {
-  frame_test_helpers::WebViewHelper web_view_helper;
-  web_view_helper.Initialize();
-  WebLocalFrame* frame = web_view_helper.LocalMainFrame();
-
-  EXPECT_EQ(frame->FindFrameByName(WebString("_self")), frame);
-  EXPECT_EQ(frame->FindFrameByName(WebString("_current")), nullptr);
-
-  ScopedRemoveTargetCurrentForTest scoped_feature(false);
-  EXPECT_EQ(frame->FindFrameByName(WebString("_current")), frame);
 }
 
 }  // namespace blink

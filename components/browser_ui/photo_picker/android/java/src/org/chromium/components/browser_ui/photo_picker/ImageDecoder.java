@@ -10,6 +10,7 @@ import android.graphics.Bitmap;
 import android.os.Bundle;
 import android.os.ParcelFileDescriptor;
 import android.os.RemoteException;
+import android.os.SystemClock;
 import android.util.Pair;
 
 import org.jni_zero.NativeMethods;
@@ -34,6 +35,7 @@ public class ImageDecoder extends IDecoderService.Stub {
     public static final String KEY_RATIO = "ratio";
     public static final String KEY_FULL_WIDTH = "full_width";
     public static final String KEY_SUCCESS = "success";
+    public static final String KEY_DECODE_TIME = "decode_time";
 
     // A tag for logging error messages.
     private static final String TAG = "ImageDecoder";
@@ -74,8 +76,10 @@ public class ImageDecoder extends IDecoderService.Stub {
             assumeNonNull(pfd);
             FileDescriptor fd = pfd.getFileDescriptor();
 
+            long begin = SystemClock.elapsedRealtime();
             Pair<Bitmap, Float> decodedBitmap =
                     BitmapUtils.decodeBitmapFromFileDescriptor(fd, width, fullWidth);
+            long decodeTime = SystemClock.elapsedRealtime() - begin;
 
             try {
                 pfd.close();
@@ -99,6 +103,7 @@ public class ImageDecoder extends IDecoderService.Stub {
             bundle.putParcelable(KEY_IMAGE_BITMAP, bitmap);
             bundle.putFloat(KEY_RATIO, decodedBitmap.second);
             bundle.putBoolean(KEY_SUCCESS, true);
+            bundle.putLong(KEY_DECODE_TIME, decodeTime);
             bundle.putBoolean(KEY_FULL_WIDTH, payload.getBoolean(KEY_FULL_WIDTH));
             sendReply(callback, bundle);
             bitmap.recycle();

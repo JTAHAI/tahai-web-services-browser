@@ -22,7 +22,6 @@ import androidx.annotation.ChecksSdkIntAtLeast
 import androidx.annotation.RequiresApi
 import androidx.annotation.RestrictTo
 import androidx.annotation.VisibleForTesting
-import java.util.Locale
 
 /**
  * This class contains additional platform version checking methods for targeting pre-release
@@ -41,31 +40,28 @@ public object BuildCompat {
     @RestrictTo(RestrictTo.Scope.LIBRARY)
     @VisibleForTesting
     public fun isAtLeastPreReleaseCodename(codename: String, buildCodename: String): Boolean {
+        fun codenameToInt(codename: String): Int? =
+            when (codename.uppercase()) {
+                "BAKLAVA" -> 0
+                else -> null
+            }
+
         // Special case "REL", which means the build is not a pre-release build.
         if ("REL" == buildCodename) {
             return false
         }
 
-        val buildUpper = buildCodename.uppercase(Locale.US)
-        val codeUpper = codename.uppercase(Locale.US)
-
-        fun codenameToInt(upperCodename: String): Int? =
-            when (upperCodename) {
-                "BAKLAVA" -> 0
-                else -> null
-            }
-
         // Starting with Baklava, the Android dessert names wrapped around to the start of the
         // alphabet; handle these "new" codenames explicitly; lexically compare "old" codenames.
         // Return true if the build codename is equal to or greater than the requested codename.
-        val buildCodenameInt = codenameToInt(buildUpper)
-        val codenameInt = codenameToInt(codeUpper)
+        val buildCodenameInt = codenameToInt(buildCodename)
+        val codenameInt = codenameToInt(codename)
         if (buildCodenameInt != null && codenameInt != null) {
             // both codenames are "new" -> use hard-coded int values
             return buildCodenameInt >= codenameInt
         } else if (buildCodenameInt == null && codenameInt == null) {
             // both codenames are "old" -> use lexical comparison
-            return buildUpper >= codeUpper
+            return buildCodename.uppercase() >= codename.uppercase()
         } else {
             // one codename is "new", one is "old"
             return buildCodenameInt != null

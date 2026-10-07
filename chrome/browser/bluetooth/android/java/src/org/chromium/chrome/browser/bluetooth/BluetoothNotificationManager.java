@@ -11,7 +11,6 @@ import android.util.SparseIntArray;
 import androidx.annotation.IntDef;
 
 import org.chromium.base.ContextUtils;
-import org.chromium.base.FeatureList;
 import org.chromium.base.shared_preferences.SharedPreferencesManager;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
@@ -279,9 +278,8 @@ public class BluetoothNotificationManager {
 
     private static boolean shouldStartService(
             @BluetoothType int bluetoothType, int notificationTabId) {
-        if (!FeatureList.isNativeInitialized()
-                || !ContentFeatureMap.isEnabled(
-                        ContentFeatureList.WEB_BLUETOOTH_NEW_PERMISSIONS_BACKEND)) {
+        if (!ContentFeatureMap.isEnabled(
+                ContentFeatureList.WEB_BLUETOOTH_NEW_PERMISSIONS_BACKEND)) {
             return false;
         }
         if (bluetoothType != BluetoothType.NO_BLUETOOTH) return true;
@@ -327,9 +325,8 @@ public class BluetoothNotificationManager {
      * @param service The bluetooth notification service class.
      */
     public static void clearBluetoothNotifications(Class service) {
-        if (!FeatureList.isNativeInitialized()
-                || !ContentFeatureMap.isEnabled(
-                        ContentFeatureList.WEB_BLUETOOTH_NEW_PERMISSIONS_BACKEND)) {
+        if (!ContentFeatureMap.isEnabled(
+                ContentFeatureList.WEB_BLUETOOTH_NEW_PERMISSIONS_BACKEND)) {
             return;
         }
         SharedPreferencesManager sharedPreferences = ChromeSharedPreferences.getInstance();

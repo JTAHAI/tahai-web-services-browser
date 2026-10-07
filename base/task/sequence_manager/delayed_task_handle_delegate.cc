@@ -4,6 +4,7 @@
 
 #include "base/task/sequence_manager/delayed_task_handle_delegate.h"
 
+#include "base/features.h"
 #include "base/task/sequence_manager/task_queue_impl.h"
 
 namespace base::sequence_manager::internal {
@@ -32,10 +33,11 @@ void DelayedTaskHandleDelegate::CancelTask() {
     return;
   }
 
-  // Use InvalidateWeakPtrsAndDoom() to avoid allocating a new
-  // WeakReference::Flag, as no new WeakPtrs will ever be issued from this
-  // delegate.
-  weak_ptr_factory_.InvalidateWeakPtrsAndDoom();
+  if (features::IsReducePPMsEnabled()) {
+    weak_ptr_factory_.InvalidateWeakPtrsAndDoom();
+  } else {
+    weak_ptr_factory_.InvalidateWeakPtrs();
+  }
 
   // If the task is still inside the heap, then it can be removed directly.
   if (heap_handle_.IsValid()) {
@@ -65,10 +67,11 @@ void DelayedTaskHandleDelegate::WillRunTask() {
   // The task must be removed from the heap before running it.
   DCHECK(!heap_handle_.IsValid());
 
-  // Use InvalidateWeakPtrsAndDoom() to avoid allocating a new
-  // WeakReference::Flag, as no new WeakPtrs will ever be issued from this
-  // delegate.
-  weak_ptr_factory_.InvalidateWeakPtrsAndDoom();
+  if (features::IsReducePPMsEnabled()) {
+    weak_ptr_factory_.InvalidateWeakPtrsAndDoom();
+  } else {
+    weak_ptr_factory_.InvalidateWeakPtrs();
+  }
 }
 
 }  // namespace base::sequence_manager::internal

@@ -124,10 +124,7 @@ import java.util.function.Supplier;
  * MAKE_IDENTITY_MANAGER_SOURCE_OF_ACCOUNTS launch.
  */
 @RunWith(ParameterizedRobolectricTestRunner.class)
-@DisableFeatures({
-    ChromeFeatureList.APP_SPECIFIC_HISTORY,
-    ChromeFeatureList.ANDROID_DESKTOP_HISTORY_LAYOUT
-})
+@DisableFeatures({ChromeFeatureList.APP_SPECIFIC_HISTORY})
 @EnableFeatures({
     ChromeFeatureList.ENABLE_ESCAPE_HANDLING_FOR_SECONDARY_ACTIVITIES,
     SigninFeatures.ENABLE_SEAMLESS_SIGNIN

@@ -10,13 +10,11 @@
 
 #include "base/byte_size.h"
 #include "base/strings/string_util.h"
-#include "base/test/metrics/user_action_tester.h"
 #include "base/test/scoped_feature_list.h"
 #include "chrome/app/chrome_command_ids.h"
-#include "chrome/browser/browser_process.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_command_controller.h"
 #include "chrome/browser/ui/browser_tabstrip.h"
-#include "chrome/browser/ui/browser_ui_controller/browser_ui_controller.h"
 #include "chrome/browser/ui/performance_controls/tab_resource_usage_tab_helper.h"
 #include "chrome/browser/ui/recently_audible_helper.h"
 #include "chrome/browser/ui/tabs/features.h"
@@ -31,12 +29,10 @@
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/frame/horizontal_tab_strip_region_view.h"
 #include "chrome/browser/ui/window_metadata/window_metadata_controller.h"
-#include "chrome/common/pref_names.h"
 #include "chrome/grit/generated_resources.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/ui_test_utils.h"
 #include "components/data_sharing/public/features.h"
-#include "components/prefs/pref_service.h"
 #include "components/tab_groups/tab_group_id.h"
 #include "components/tabs/public/tab_group.h"
 #include "components/ukm/test_ukm_recorder.h"
@@ -68,15 +64,15 @@ class TabStripBrowsertest : public InProcessBrowserTest {
     // The TabStrip is not used in Vertical Tabs. Ensure this suite is not run
     // which would end up testing behavior that is not part of the browser.
     feature_list_.InitWithFeatures(
-        {}, {tabs::kTabStripUnification, features::kTabGroupHoverCards});
+        {}, {tabs::kVerticalTabs, tabs::kTabStripUnification,
+             features::kTabGroupHoverCards});
   }
 
-  TabStripModel* tab_strip_model() { return browser()->GetTabStripModel(); }
+  TabStripModel* tab_strip_model() { return browser()->tab_strip_model(); }
 
   TabStrip* tab_strip() {
     return views::AsViewClass<HorizontalTabStripRegionView>(
-               BrowserView::GetBrowserViewForBrowser(browser())
-                   ->tab_strip_view())
+               browser()->GetBrowserView().tab_strip_view())
         ->tab_strip();
   }
 
@@ -995,7 +991,7 @@ IN_PROC_BROWSER_TEST_F(TabStripBrowsertest, AccessibleName) {
   tab_groups::TabGroupId group = AddTabToNewGroup(1);
   std::u16string tab_title =
       WindowMetadataController::From(browser())->GetTitleForTab(
-          browser()->GetTabStripModel()->GetTabAtIndex(1)->GetHandle());
+          browser()->tab_strip_model()->GetTabAtIndex(1)->GetHandle());
   std::u16string group_title = tab_strip()->GetGroupTitle(group);
   std::u16string title =
       group_title.empty()
@@ -1045,8 +1041,6 @@ IN_PROC_BROWSER_TEST_F(TabStripBrowsertest, AccessibleName) {
       data.GetString16Attribute(ax::mojom::StringAttribute::kName));
 
   // AccessibleName update with tab resource usage update
-  g_browser_process->local_state()->SetBoolean(
-      prefs::kHoverCardMemoryUsageEnabled, true);
   tab_data = tab_strip()->tab_at(new_index)->data();
   auto tab_resource_usage = base::MakeRefCounted<TabResourceUsage>();
   tab_resource_usage->SetMemoryUsage(base::ByteSize(100));
@@ -1064,8 +1058,6 @@ IN_PROC_BROWSER_TEST_F(TabStripBrowsertest, AccessibleName) {
 }
 
 IN_PROC_BROWSER_TEST_F(TabStripBrowsertest, AccessibleNameUpdatesOnTabFocus) {
-  g_browser_process->local_state()->SetBoolean(
-      prefs::kHoverCardMemoryUsageEnabled, false);
   AppendTab();
   Tab* tab = tab_strip()->tab_at(1);
   tabs::TabInterface* tab_interface = tab->tab_handle().Get();
@@ -1094,26 +1086,14 @@ IN_PROC_BROWSER_TEST_F(TabStripBrowsertest, AccessibleNameUpdatesOnTabFocus) {
   std::u16string updated_name =
       data.GetString16Attribute(ax::mojom::StringAttribute::kName);
 
-  // The updated name should not contain the memory usage because the hover card
-  // doesn't show tab memory usage by default.
+  // The updated name should contain the memory usage.
   std::u16string expected_memory_string = ui::FormatBytes(memory_usage);
-  EXPECT_EQ(std::u16string::npos, updated_name.find(expected_memory_string));
-
-  // Enabling the hover card memory usage pref and refreshing the accessible
-  // name should include the tab memory usage value in the accessible name.
-  g_browser_process->local_state()->SetBoolean(
-      prefs::kHoverCardMemoryUsageEnabled, true);
-  tab->UpdateAccessibleName();
-
-  data = ui::AXNodeData();
-  tab->GetViewAccessibility().GetAccessibleNodeData(&data);
-  updated_name = data.GetString16Attribute(ax::mojom::StringAttribute::kName);
   EXPECT_NE(std::u16string::npos, updated_name.find(expected_memory_string));
 }
 
 IN_PROC_BROWSER_TEST_F(TabStripBrowsertest,
                        DISABLED_TabGroupHeaderAccessibleProperties) {
-  BrowserUiController::From(browser())->set_update_ui_immediately_for_testing();
+  browser()->set_update_ui_immediately_for_testing();
   AppendTab();
   AppendTab();
   AppendTab();
@@ -1316,7 +1296,7 @@ IN_PROC_BROWSER_TEST_F(
 }
 
 IN_PROC_BROWSER_TEST_F(TabStripBrowsertest, TabGroupHeaderTooltipText) {
-  BrowserUiController::From(browser())->set_update_ui_immediately_for_testing();
+  browser()->set_update_ui_immediately_for_testing();
   AppendTab();
   AppendTab();
   AppendTab();
@@ -1354,7 +1334,7 @@ IN_PROC_BROWSER_TEST_F(TabStripBrowsertest, TabGroupHeaderTooltipText) {
 
 IN_PROC_BROWSER_TEST_F(TabStripBrowsertest,
                        TabGroupHeaderTooltipTextAccessibility) {
-  BrowserUiController::From(browser())->set_update_ui_immediately_for_testing();
+  browser()->set_update_ui_immediately_for_testing();
   AppendTab();
   AppendTab();
   AppendTab();
@@ -1427,7 +1407,7 @@ IN_PROC_BROWSER_TEST_F(TabStripBrowsertest,
 // IDC_SELECT_LAST_TAB. The tab navigation accelerators should ignore tabs in
 // collapsed groups.
 IN_PROC_BROWSER_TEST_F(TabStripBrowsertest, TabGroupTabNavigationAccelerators) {
-  ASSERT_TRUE(browser()->GetTabStripModel()->SupportsTabGroups());
+  ASSERT_TRUE(browser()->tab_strip_model()->SupportsTabGroups());
   // Create five tabs.
   for (int i = 0; i < 4; i++) {
     AppendTab();
@@ -1446,7 +1426,7 @@ IN_PROC_BROWSER_TEST_F(TabStripBrowsertest, TabGroupTabNavigationAccelerators) {
   // Select the fourth tab.
   tab_strip_model()->ActivateTabAt(3);
 
-  CommandUpdater* updater = chrome::BrowserCommandController::From(browser());
+  CommandUpdater* updater = browser()->command_controller();
 
   // Navigate to the first tab using an accelerator.
   updater->ExecuteCommand(IDC_SELECT_TAB_0);
@@ -1514,7 +1494,6 @@ IN_PROC_BROWSER_TEST_F(TabStripBrowsertest, TabGroupHeaderAccessibleState) {
 }
 
 IN_PROC_BROWSER_TEST_F(TabStripBrowsertest, ToggleTabSelection) {
-  base::UserActionTester user_action_tester;
   AppendTab();
   AppendTab();
   tab_strip()->SelectTab(tab_strip()->tab_at(0), GetDummyEvent());
@@ -1532,12 +1511,9 @@ IN_PROC_BROWSER_TEST_F(TabStripBrowsertest, ToggleTabSelection) {
   tab_strip()->tab_at(1)->OnMousePressed(click);
   EXPECT_TRUE(tab_strip()->IsTabSelected(tab_strip()->tab_at(0)));
   EXPECT_TRUE(tab_strip()->IsTabSelected(tab_strip()->tab_at(1)));
-  EXPECT_EQ(1,
-            user_action_tester.GetActionCount("TabMultiSelect_ToggleSelected"));
 }
 
 IN_PROC_BROWSER_TEST_F(TabStripBrowsertest, ExtendTabSelection) {
-  base::UserActionTester user_action_tester;
   AppendTab();
   AppendTab();
   AppendTab();
@@ -1553,34 +1529,6 @@ IN_PROC_BROWSER_TEST_F(TabStripBrowsertest, ExtendTabSelection) {
   EXPECT_TRUE(tab_strip()->IsTabSelected(tab_strip()->tab_at(1)));
   EXPECT_TRUE(tab_strip()->IsTabSelected(tab_strip()->tab_at(2)));
   EXPECT_TRUE(tab_strip()->IsTabSelected(tab_strip()->tab_at(3)));
-  EXPECT_EQ(
-      1, user_action_tester.GetActionCount("TabMultiSelect_ExtendSelectionTo"));
-}
-
-IN_PROC_BROWSER_TEST_F(TabStripBrowsertest, AddSelectionFromAnchorTo) {
-  base::UserActionTester user_action_tester;
-  AppendTab();
-  AppendTab();
-  AppendTab();
-  AppendTab();
-  tab_strip()->SelectTab(tab_strip()->tab_at(0), GetDummyEvent());
-
-  const ui::EventFlags modifier =
-#if BUILDFLAG(IS_MAC)
-      ui::EF_COMMAND_DOWN;
-#else
-      ui::EF_CONTROL_DOWN;
-#endif
-  ui::MouseEvent click(ui::EventType::kMousePressed, gfx::Point(0, 0),
-                       gfx::Point(0, 0), ui::EventTimeForNow(),
-                       ui::EF_LEFT_MOUSE_BUTTON | ui::EF_SHIFT_DOWN | modifier,
-                       ui::EF_LEFT_MOUSE_BUTTON);
-  tab_strip()->tab_at(2)->OnMousePressed(click);
-  EXPECT_TRUE(tab_strip()->IsTabSelected(tab_strip()->tab_at(0)));
-  EXPECT_TRUE(tab_strip()->IsTabSelected(tab_strip()->tab_at(1)));
-  EXPECT_TRUE(tab_strip()->IsTabSelected(tab_strip()->tab_at(2)));
-  EXPECT_EQ(1, user_action_tester.GetActionCount(
-                   "TabMultiSelect_AddSelectionFromAnchorTo"));
 }
 
 IN_PROC_BROWSER_TEST_F(TabStripBrowsertest, CreateSplitUKMLogged) {
@@ -1741,7 +1689,7 @@ IN_PROC_BROWSER_TEST_F(TabStripSaveBrowsertest, AttentionIndicatorIsShown) {
   auto* group_header = tab_strip()->group_header(group);
 
   TabGroup* tab_group =
-      browser()->GetTabStripModel()->group_model()->GetTabGroup(group);
+      browser()->tab_strip_model()->group_model()->GetTabGroup(group);
 
   TabGroupAttentionIndicator* attention_indicator =
       tab_group->GetTabGroupFeatures()->attention_indicator();

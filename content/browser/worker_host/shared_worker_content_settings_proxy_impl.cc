@@ -16,7 +16,7 @@ SharedWorkerContentSettingsProxyImpl::SharedWorkerContentSettingsProxyImpl(
     const GURL& script_url,
     SharedWorkerHost* owner,
     mojo::PendingReceiver<blink::mojom::WorkerContentSettingsProxy> receiver)
-    : origin_(owner->GetWorkerStorageKey().origin()),
+    : origin_(url::Origin::Create(script_url)),
       owner_(owner),
       receiver_(this, std::move(receiver)) {}
 
@@ -50,8 +50,8 @@ void SharedWorkerContentSettingsProxyImpl::AllowWebLocks(
   }
 }
 
-void SharedWorkerContentSettingsProxyImpl::AllowFileSystem(
-    AllowFileSystemCallback callback) {
+void SharedWorkerContentSettingsProxyImpl::RequestFileSystemAccessSync(
+    RequestFileSystemAccessSyncCallback callback) {
   if (!origin_.opaque()) {
     owner_->AllowFileSystem(origin_.GetURL(), std::move(callback));
   } else {

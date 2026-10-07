@@ -32,8 +32,8 @@ const base::FeatureParam<int> kCacheStorageMaxSharedOps{
 
 bool OpPointerLessThan(const std::unique_ptr<CacheStorageOperation>& left,
                        const std::unique_ptr<CacheStorageOperation>& right) {
-  CHECK(left, base::NotFatalUntil::M158);
-  CHECK(right, base::NotFatalUntil::M158);
+  DCHECK(left);
+  DCHECK(right);
   // We want to prioritize high priority operations, but otherwise sort
   // by creation order.  Since the first created operations will have a lower
   // identifier value we reverse the logic of the id comparison.
@@ -96,15 +96,15 @@ void CacheStorageScheduler::CompleteOperationAndRunNext(
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   auto it = running_operations_.find(id);
   CHECK(it != running_operations_.end());
-  CHECK_EQ(it->second->id(), id, base::NotFatalUntil::M158);
+  DCHECK_EQ(it->second->id(), id);
 
   if (it->second->mode() == CacheStorageSchedulerMode::kShared) {
-    CHECK_EQ(num_running_exclusive_, 0, base::NotFatalUntil::M158);
-    CHECK_GT(num_running_shared_, 0, base::NotFatalUntil::M158);
+    DCHECK_EQ(num_running_exclusive_, 0);
+    DCHECK_GT(num_running_shared_, 0);
     num_running_shared_ -= 1;
   } else {
-    CHECK_EQ(num_running_shared_, 0, base::NotFatalUntil::M158);
-    CHECK_EQ(num_running_exclusive_, 1, base::NotFatalUntil::M158);
+    DCHECK_EQ(num_running_shared_, 0);
+    DCHECK_EQ(num_running_exclusive_, 1);
     num_running_exclusive_ -= 1;
   }
 

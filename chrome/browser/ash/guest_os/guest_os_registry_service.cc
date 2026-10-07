@@ -40,6 +40,9 @@
 #include "chrome/browser/ash/guest_os/guest_os_pref_names.h"
 #include "chrome/browser/ash/guest_os/guest_os_shelf_utils.h"
 #include "chrome/browser/ash/guest_os/public/types.h"
+#include "chrome/browser/ash/plugin_vm/plugin_vm_features.h"
+#include "chrome/browser/ash/plugin_vm/plugin_vm_files.h"
+#include "chrome/browser/ash/plugin_vm/plugin_vm_util.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/icon_transcoder/svg_icon_transcoder.h"
 #include "chrome/browser/profiles/profile.h"
@@ -61,22 +64,10 @@ namespace guest_os {
 
 namespace {
 
-using ::base::i18n::LanguageTag;
-using ::base::i18n::LanguageTagConverter;
-
 // Returns the current locale and fallbacks for it (in this order).
 std::vector<std::string> GetFallbackLocales() {
-  std::vector<std::string> locales;
-  std::optional<LanguageTag> base_tag =
-      LanguageTagConverter::GetInstance().FromString(
-          g_browser_process->GetApplicationLocale());
-
-  if (base_tag) {
-    for (const LanguageTag& tag : base_tag->GetLineage()) {
-      locales.push_back(tag.ToLegacyICUFormat());
-    }
-  }
-
+  std::vector<std::string> locales =
+      l10n_util::GetParentLocales(g_browser_process->GetApplicationLocale());
   // We use an empty locale as fallback.
   locales.push_back(std::string());
   return locales;
@@ -90,6 +81,11 @@ void Launch(vm_tools::apps::VmType vm_type,
     case VmType::TERMINA:
       crostini::LaunchCrostiniApp(profile, app_id, display::kInvalidDisplayId,
                                   {url.spec()}, base::DoNothing());
+      break;
+
+    case VmType::PLUGIN_VM:
+      plugin_vm::LaunchPluginVmApp(profile, app_id, {url.spec()},
+                                   base::DoNothing());
       break;
 
     case VmType::BOREALIS:
@@ -372,6 +368,11 @@ std::string GuestOsRegistryService::Registration::ContainerName() const {
 }
 
 std::string GuestOsRegistryService::Registration::Name() const {
+  if (VmType() == VmType::PLUGIN_VM) {
+    return l10n_util::GetStringFUTF8(
+        IDS_PLUGIN_VM_APP_NAME_WINDOWS_SUFFIX,
+        base::UTF8ToUTF16(GetLocalizedString(guest_os::prefs::kAppNameKey)));
+  }
   return GetLocalizedString(guest_os::prefs::kAppNameKey);
 }
 
@@ -537,11 +538,13 @@ std::map<std::string, GuestOsRegistryService::Registration>
 GuestOsRegistryService::GetEnabledApps() const {
   bool crostini_enabled =
       crostini::CrostiniFeatures::Get()->IsEnabled(profile_);
+  bool plugin_vm_enabled =
+      plugin_vm::PluginVmFeatures::Get()->IsEnabled(profile_);
   bool borealis_enabled =
       borealis::BorealisServiceFactory::GetForProfile(profile_)
           ->Features()
           .IsEnabled();
-  if (!crostini_enabled && !borealis_enabled) {
+  if (!crostini_enabled && !plugin_vm_enabled && !borealis_enabled) {
     return {};
   }
 
@@ -553,6 +556,7 @@ GuestOsRegistryService::GetEnabledApps() const {
         enabled = crostini_enabled;
         break;
       case VmType::PLUGIN_VM:
+        enabled = plugin_vm_enabled;
         break;
       case VmType::BOREALIS:
         enabled = borealis_enabled;

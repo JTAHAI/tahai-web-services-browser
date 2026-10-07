@@ -12,14 +12,13 @@
 #include "cc/input/browser_controls_state.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/search/search.h"
-#include "chrome/browser/ssl/chrome_security_state_util.h"
-#include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/frame/top_container_view.h"
 #include "chrome/browser/ui/views/location_bar/location_bar_view.h"
 #include "chrome/browser/ui/views/omnibox/omnibox_view_views.h"
 #include "chrome/common/url_constants.h"
 #include "components/permissions/permission_request_manager.h"
+#include "components/security_state/content/security_state_tab_helper.h"
 #include "content/public/browser/editable_level.h"
 #include "content/public/browser/focused_node_details.h"
 #include "content/public/browser/navigation_controller.h"
@@ -94,7 +93,8 @@ cc::BrowserControlsState GetBrowserControlsStateConstraints(
     return cc::BrowserControlsState::kShown;
   }
 
-  switch (chrome_security_state::GetSecurityLevel(contents)) {
+  auto* helper = SecurityStateTabHelper::FromWebContents(contents);
+  switch (helper->GetSecurityLevel()) {
     case security_state::WARNING:
     case security_state::DANGEROUS:
       return cc::BrowserControlsState::kShown;
@@ -301,12 +301,18 @@ TopControlsSlideControllerChromeOS::TopControlsSlideControllerChromeOS(
   DCHECK(browser_view->browser_widget());
   DCHECK(browser_view->browser());
   DCHECK(browser_view->GetIsNormalType());
-  DCHECK(browser_view->browser()->GetTabStripModel());
-  if (LocationBar* location_bar = browser_view->GetLocationBar()) {
-    observed_location_bar_.Observe(location_bar);
+  DCHECK(browser_view->browser()->tab_strip_model());
+
+  // TODO(crbug.com/474059135): If WebUILocationBar ship on ChromeOS,
+  // this will need adjustment.
+  if (browser_view->GetLocationBarView()) {
+    DCHECK(browser_view->GetLocationBarView()->omnibox_view());
+
+    observed_omni_box_ = browser_view->GetLocationBarView()->omnibox_view();
+    observed_omni_box_->AddObserver(this);
   }
 
-  browser_view_->browser()->GetTabStripModel()->AddObserver(this);
+  browser_view_->browser()->tab_strip_model()->AddObserver(this);
 
   auto* accessibility_manager = ash::AccessibilityManager::Get();
   if (accessibility_manager) {
@@ -322,7 +328,11 @@ TopControlsSlideControllerChromeOS::TopControlsSlideControllerChromeOS(
 TopControlsSlideControllerChromeOS::~TopControlsSlideControllerChromeOS() {
   OnEnabledStateChanged(false);
 
-  browser_view_->browser()->GetTabStripModel()->RemoveObserver(this);
+  browser_view_->browser()->tab_strip_model()->RemoveObserver(this);
+
+  if (observed_omni_box_) {
+    observed_omni_box_->RemoveObserver(this);
+  }
 }
 
 bool TopControlsSlideControllerChromeOS::IsEnabled() const {
@@ -522,6 +532,7 @@ void TopControlsSlideControllerChromeOS::OnTabStripModelChanged(
 
 void TopControlsSlideControllerChromeOS::OnTabChangedAt(
     tabs::TabInterface* tab,
+    int index,
     TabChangeType change_type) {
   if (change_type == TabChangeType::kAttentionOnly) {
     UpdateBrowserControlsStateShown(/*web_contents=*/nullptr, /*animate=*/true);
@@ -580,7 +591,22 @@ void TopControlsSlideControllerChromeOS::OnDisplayMetricsChanged(
   OnEnabledStateChanged(false);
 }
 
-void TopControlsSlideControllerChromeOS::OnLocationBarFocusChanged() {
+void TopControlsSlideControllerChromeOS::OnViewIsDeleting(
+    views::View* observed_view) {
+  DCHECK_EQ(observed_view, observed_omni_box_);
+  observed_omni_box_ = nullptr;
+  UpdateBrowserControlsStateShown(/*web_contents=*/nullptr, /*animate=*/true);
+}
+
+void TopControlsSlideControllerChromeOS::OnViewFocused(
+    views::View* observed_view) {
+  DCHECK_EQ(observed_view, observed_omni_box_);
+  UpdateBrowserControlsStateShown(/*web_contents=*/nullptr, /*animate=*/true);
+}
+
+void TopControlsSlideControllerChromeOS::OnViewBlurred(
+    views::View* observed_view) {
+  DCHECK_EQ(observed_view, observed_omni_box_);
   UpdateBrowserControlsStateShown(/*web_contents=*/nullptr, /*animate=*/true);
 }
 
@@ -593,12 +619,10 @@ void TopControlsSlideControllerChromeOS::UpdateBrowserControlsStateShown(
     return;
   }
 
-  auto* location_bar = observed_location_bar_.GetSource();
-
   // If the omnibox is focused, then the top controls should be constrained to
   // remain fully shown until the omnibox is blurred.
   const cc::BrowserControlsState constraints_state =
-      location_bar && location_bar->IsFocusWithin()
+      observed_omni_box_ && observed_omni_box_->HasFocus()
           ? cc::BrowserControlsState::kShown
           : GetBrowserControlsStateConstraints(web_contents);
 

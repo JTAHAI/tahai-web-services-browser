@@ -59,10 +59,12 @@ std::string GetSessionIdForPid(base::ProcessId pid) {
   char* session_id = nullptr;
   int ret = sd_pid_get_session(pid, &session_id);
   if (ret < 0 && IsRunningInGraphicalSession(pid)) {
-    // If the process is not directly in a session scope (e.g. running under
-    // the systemd user manager), sd_pid_get_session() returns -ENODATA.
+    // For user sessions, the process is executed by the per-user systemd
+    // instance and is not associated with a specific login session, meaning
+    // sd_pid_get_session() will always return -ENODATA. See:
+    // https://manpages.debian.org/stretch/libsystemd-dev/sd_pid_get_session.3.en.html
     // For modern GDM, each user can only have one graphical session, so it
-    // falls back to the user's primary graphical display session.
+    // should be safe to fallback to the user's primary graphical session.
     HOST_LOG << "Failed to get session ID for PID " << pid << ": "
              << base::safe_strerror(-ret)
              << ". Falling back to the user's display session.";

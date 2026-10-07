@@ -21,15 +21,12 @@ class SyncServiceImpl;
 
 namespace extension_settings_helper {
 
-// Returns the extension settings for `profile` and the extension with ID `id`.
-base::DictValue GetExtensionSettings(Profile* profile, const std::string& id);
-
-// Calls Set() with `settings` for `profile` and the extension with ID `id`.
+// Calls Set() with |settings| for |profile| and the extension with ID |id|.
 void SetExtensionSettings(Profile* profile,
                           const std::string& id,
                           const base::DictValue& settings);
 
-// Calls Set() with `settings` for all profiles the extension with ID `id`.
+// Calls Set() with |settings| for all profiles the extension with ID |id|.
 void SetExtensionSettings(
     const std::vector<raw_ptr<Profile, VectorExperimental>>& profiles,
     const std::string& id,

@@ -1,2 +1,3 @@
-rules:
-- "**": [overscroll-behavior]
+features:
+- name: overscroll-behavior
+  files: "**"

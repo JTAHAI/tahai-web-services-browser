@@ -706,11 +706,6 @@ public class GlicSettings extends ChromeBaseSettingsFragment {
     }
 
     @Override
-    public @Nullable String getMainMenuKey() {
-        return "glic";
-    }
-
-    @Override
     public @SettingsFragment.AnimationType int getAnimationType() {
         return SettingsFragment.AnimationType.PROPERTY;
     }

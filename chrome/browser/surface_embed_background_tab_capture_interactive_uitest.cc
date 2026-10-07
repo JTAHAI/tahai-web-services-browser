@@ -50,9 +50,10 @@ class SurfaceEmbedBackgroundTabCaptureInteractiveUiTest
   base::test::ScopedFeatureList feature_list_;
 };
 
-#if BUILDFLAG(IS_CHROMEOS)
+#if BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_LINUX)
 // TODO(crbug.com/451876195): Enable this test for CrOS once WebUIBrowser
 // window management is fixed on CrOS.
+// TODO(crbug.com/534306599): Disabled on Linux.
 #define MAYBE_KeepAliveWorksForCapturedBackgroundTab \
   DISABLED_KeepAliveWorksForCapturedBackgroundTab
 #else

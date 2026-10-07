@@ -36,7 +36,7 @@ import org.chromium.chrome.browser.locale.LocaleManager;
 import org.chromium.chrome.browser.locale.LocaleManagerDelegate;
 import org.chromium.chrome.browser.preferences.ChromePreferenceKeys;
 import org.chromium.chrome.browser.ui.searchactivityutils.SearchActivityExtras.SearchType;
-import org.chromium.chrome.browser.ui.searchactivityutils.SearchActivityPreferences;
+import org.chromium.chrome.browser.ui.searchactivityutils.SearchActivityPreferencesManager.SearchActivityPreferences;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 
 import java.util.ArrayList;
@@ -106,14 +106,17 @@ public class SearchWidgetProviderTest {
      * @param voiceSearchAvailable Whether voice search is available.
      */
     private void performUpdate(String searchEngineName, boolean voiceSearchAvailable) {
-        SearchActivityPreferences preferences =
-                new SearchActivityPreferences.Builder()
-                        .setSearchEngineName(searchEngineName)
-                        .setVoiceSearchAvailable(voiceSearchAvailable)
-                        .build();
         ThreadUtils.runOnUiThreadBlocking(
                 () -> {
-                    SearchWidgetProvider.performUpdate(null, preferences);
+                    SearchWidgetProvider.performUpdate(
+                            null,
+                            new SearchActivityPreferences(
+                                    /* accountEmail= */ null,
+                                    searchEngineName,
+                                    null,
+                                    voiceSearchAvailable,
+                                    /* googleLensAvailable= */ false,
+                                    /* incognitoAvailable= */ true));
                 });
     }
 

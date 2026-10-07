@@ -299,14 +299,12 @@ void TestAutofillManagerWaiter::OnAfterFormWithEmailVerificationTokenSubmitted(
 }
 
 void TestAutofillManagerWaiter::OnBeforeLoadedServerPredictions(
-    AutofillManager& manager,
-    base::span<const FormGlobalId> forms) {
+    AutofillManager& manager) {
   OnBefore(Event::kLoadedServerPredictions);
 }
 
 void TestAutofillManagerWaiter::OnAfterLoadedServerPredictions(
-    AutofillManager& manager,
-    base::span<const FormGlobalId> forms) {
+    AutofillManager& manager) {
   OnAfter(Event::kLoadedServerPredictions);
 }
 

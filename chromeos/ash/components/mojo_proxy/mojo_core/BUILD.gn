@@ -7,7 +7,10 @@ import("//build/config/compiler/compiler.gni")
 import("//build/config/features.gni")
 import("//testing/test.gni")
 
-assert(is_chromeos)
+# TODO(crbug.com/359926651): assert(is_chromeos) when the proxy's
+# integration tests no longer need to build on Linux (they currently require
+# mojo_support_legacy_core=true, which only Linux developer builds can set).
+assert(is_linux || is_chromeos)
 
 group("mojo_core") {
   visibility = [ "//chromeos/ash/components/mojo_proxy/*" ]
@@ -18,8 +21,8 @@ group("mojo_core") {
 }
 
 # Corresponds to buildflag_header("buildflags") in //mojo/BUILD.gn.
-# The clone is frozen, so dynamic GN flags like $mojo_use_apple_channel
-# are replaced with constant values.
+# The clone is frozen, so dynamic GN flags ($mojo_use_apple_channel,
+# $mojo_support_legacy_core) are replaced with constant values.
 buildflag_header("buildflags") {
   header = "buildflags.h"
   flags = [
@@ -94,7 +97,8 @@ source_set("public_cpp_platform") {
 # Corresponds to source_set("impl_for_embedder") in //mojo/core/BUILD.gn,
 # component("embedder") in //mojo/core/embedder/BUILD.gn, and component("ports")
 # in //mojo/core/ports/BUILD.gn. Pruned all ipcz transport/driver sources
-# (ipcz_driver/*, core_ipcz.*, ipcz_api.*) and included the legacy Core files.
+# (ipcz_driver/*, core_ipcz.*, ipcz_api.*) and hardcoded the legacy Core files
+# (from upstream if (mojo_support_legacy_core)).
 source_set("core") {
   visibility = [ ":*" ]
   sources = [
@@ -187,15 +191,17 @@ source_set("core") {
     "core/watcher_set.h",
   ]
 
-  defines = [
-    "MOJO_LEGACY_SYSTEM_IMPL_IMPLEMENTATION",
+  defines = [ "MOJO_LEGACY_SYSTEM_IMPL_IMPLEMENTATION" ]
 
-    # Mirrors the //mojo/core and //mojo/core/ports defines, which are enabled
-    # on ChromeOS (and Android) builds. They affect the wire protocol, so they
-    # must match what ChromeOS legacy Mojo Core peers were built with.
-    "MOJO_LEGACY_CORE_LEGACY_PROTOCOL",
-    "MOJO_LEGACY_BACKWARDS_COMPAT",
-  ]
+  # Mirrors the //mojo/core and //mojo/core/ports defines, which are enabled
+  # on ChromeOS (and Android) builds. They affect the wire protocol, so they
+  # must match what ChromeOS legacy Mojo Core peers were built with.
+  if (is_chromeos) {
+    defines += [
+      "MOJO_LEGACY_CORE_LEGACY_PROTOCOL",
+      "MOJO_LEGACY_BACKWARDS_COMPAT",
+    ]
+  }
 
   public_deps = [
     ":mojo_buildflags",
@@ -250,7 +256,7 @@ source_set("public_cpp_system") {
 
 # Test support and the retained legacy Mojo Core unit tests. The clone is
 # self-contained, so these build wherever the clone does (no dependency on
-# //mojo).
+# //mojo or mojo_support_legacy_core).
 
 # Corresponds to static_library("test_support") in //mojo/public/c/test_support.
 static_library("public_test_support") {

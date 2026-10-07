@@ -25,8 +25,4 @@ bool DefaultCTPolicyEnforcer::IsCtEnabled() const {
   return false;
 }
 
-bool DefaultCTPolicyEnforcer::IsLogDataTimely(base::Time current_time) const {
-  return false;
-}
-
 }  // namespace net

@@ -72,12 +72,6 @@
   [_snapshotGenerator generateSnapshotWithCompletion:wrappedCompletion];
 }
 
-- (void)generateSnapshotWithoutOverlaysWithCompletion:
-    (void (^)(UIImage*))completion {
-  DCHECK(_snapshotGenerator);
-  [_snapshotGenerator generateSnapshotWithoutOverlaysWithCompletion:completion];
-}
-
 - (UIImage*)generateUIViewSnapshot {
   CHECK(_snapshotGenerator);
   return [_snapshotGenerator generateUIViewSnapshot];

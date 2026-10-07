@@ -4,7 +4,6 @@
 
 #include "base/test/metrics/histogram_tester.h"
 #include "base/test/mock_callback.h"
-#include "cc/base/region.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/blink/renderer/core/css/css_property_names.h"
@@ -17,16 +16,11 @@
 #include "third_party/blink/renderer/core/layout/physical_box_fragment.h"
 #include "third_party/blink/renderer/core/testing/core_unit_test_helper.h"
 #include "third_party/blink/renderer/platform/heap/garbage_collected.h"
-#include "third_party/blink/renderer/platform/wtf/text/format.h"
-#include "ui/gfx/geometry/quad_f.h"
 
 namespace blink {
 
-using HitNodeCb = base::MockRepeatingCallback<ListBasedHitTestBehavior(
-    const Node& node,
-    const PhysicalRect* physical_rect,
-    const gfx::QuadF* quad,
-    const cc::Region* region)>;
+using HitNodeCb =
+    base::MockRepeatingCallback<ListBasedHitTestBehavior(const Node& node)>;
 using testing::_;
 using testing::Return;
 
@@ -62,12 +56,9 @@ class HitNodeCallbackStopper : public GarbageCollected<HitNodeCallbackStopper> {
   HitNodeCallbackStopper& operator=(const HitNodeCallbackStopper&) = delete;
   ~HitNodeCallbackStopper() = default;
 
-  ListBasedHitTestBehavior StopAtNode(const Node& node,
-                                      const PhysicalRect* physical_rect,
-                                      const gfx::QuadF* quad,
-                                      const cc::Region* region) {
+  ListBasedHitTestBehavior StopAtNode(const Node& node) {
     did_stop_hit_testing_ = false;
-    if (&node == stop_node_) {
+    if (node == stop_node_) {
       did_stop_hit_testing_ = true;
       return ListBasedHitTestBehavior::kStopHitTesting;
     }
@@ -152,7 +143,7 @@ TEST_F(HitTestingTest, HitTestWithCallback) {
 
   // Perform hit test without stopping, and verify that the result innernode is
   // set to the target.
-  EXPECT_CALL(hit_node_cb, Run(_, _, _, _))
+  EXPECT_CALL(hit_node_cb, Run(_))
       .WillRepeatedly(Return(ListBasedHitTestBehavior::kContinueHitTesting));
 
   LocalFrame* frame = GetDocument().GetFrame();
@@ -179,17 +170,19 @@ TEST_F(HitTestingTest, HitTestWithCallback) {
   const int div_height = static_cast<int>(
       GetLayoutObjectByElementId("target")->StyleRef().Height().Pixels());
   occluder_1->SetInlineStyleProperty(CSSPropertyID::kMarginTop, "-10px");
-  occluder_2->SetInlineStyleProperty(CSSPropertyID::kMarginTop,
-                                     Format("{}px", (-div_height * 1) - 10));
-  occluder_3->SetInlineStyleProperty(CSSPropertyID::kMarginTop,
-                                     Format("{}px", (-div_height * 2) - 10));
+  occluder_2->SetInlineStyleProperty(
+      CSSPropertyID::kMarginTop,
+      String::Format("%dpx", (-div_height * 1) - 10));
+  occluder_3->SetInlineStyleProperty(
+      CSSPropertyID::kMarginTop,
+      String::Format("%dpx", (-div_height * 2) - 10));
   UpdateAllLifecyclePhasesForTest();
 
   // Set up HitNodeCb helper, and the HitNodeCb expectations.
   Node* stop_node = GetElementById("occluder_2");
   HitNodeCallbackStopper* hit_node_callback_stopper =
       MakeGarbageCollected<HitNodeCallbackStopper>(stop_node);
-  EXPECT_CALL(hit_node_cb, Run(_, _, _, _))
+  EXPECT_CALL(hit_node_cb, Run(_))
       .WillRepeatedly(testing::Invoke(hit_node_callback_stopper,
                                       &HitNodeCallbackStopper::StopAtNode));
   EXPECT_FALSE(hit_node_callback_stopper->DidStopHitTesting());
@@ -489,44 +482,6 @@ TEST_F(HitTestingTest, OcclusionHitTestWith3DTransform) {
   UpdateAllLifecyclePhasesForTest();
   result = HitTestForOcclusion(*target);
   EXPECT_EQ(result.InnerNode(), target);
-}
-
-TEST_F(HitTestingTest, OcclusionHitTestWithFlattenedPreserve3DOccluder) {
-  SetBodyInnerHTML(R"HTML(
-    <style>
-    div {
-      position: absolute;
-      width: 100px;
-      height: 100px;
-    }
-    #target {
-      background: green;
-    }
-    #occluder {
-      background: red;
-      transform: translateZ(-10px);
-      transform-style: preserve-3d;
-    }
-    </style>
-    <div id=target></div>
-    <div id=occluder></div>
-  )HTML");
-
-  Element* target = GetElementById("target");
-  Element* occluder = GetElementById("occluder");
-
-  // The occluder paints on top of the target because the parent stacking
-  // context is flat (its translateZ is flattened away, and it comes later in
-  // DOM order).
-  HitTestResult result = HitTestForOcclusion(*target);
-  EXPECT_EQ(result.InnerNode(), occluder);
-
-  // Same with a positive z offset.
-  occluder->SetInlineStyleProperty(CSSPropertyID::kTransform,
-                                   "translateZ(10px)");
-  UpdateAllLifecyclePhasesForTest();
-  result = HitTestForOcclusion(*target);
-  EXPECT_EQ(result.InnerNode(), occluder);
 }
 
 }  // namespace blink

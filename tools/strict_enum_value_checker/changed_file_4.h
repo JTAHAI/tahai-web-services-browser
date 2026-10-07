@@ -2,8 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef MOCK_ENUM_H_
-#define MOCK_ENUM_H_
+#ifndef MOCK_ENUM_H
+#define MOCK_ENUM_H
 
 // Here is our mock enum. Beyond testing it is completely meaningless.
 // MockEnum follows strict rules for valid modifications:
@@ -23,4 +23,4 @@
   mBoundary // Do not add below here
 };
 
-#endif  // MOCK_ENUM_H_
+#endif

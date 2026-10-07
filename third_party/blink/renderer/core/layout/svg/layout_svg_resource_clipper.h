@@ -64,7 +64,6 @@ class LayoutSVGResourceClipper final : public LayoutSVGResourceContainer {
  private:
   void StyleDidChange(StyleDifference,
                       const ComputedStyle* old_style,
-                      const ComputedStyle& new_style,
                       const StyleChangeContext&) override;
 
   void CalculateLocalClipBounds();

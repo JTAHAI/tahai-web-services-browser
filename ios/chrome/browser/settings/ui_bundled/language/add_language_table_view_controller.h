@@ -5,7 +5,8 @@
 #ifndef IOS_CHROME_BROWSER_SETTINGS_UI_BUNDLED_LANGUAGE_ADD_LANGUAGE_TABLE_VIEW_CONTROLLER_H_
 #define IOS_CHROME_BROWSER_SETTINGS_UI_BUNDLED_LANGUAGE_ADD_LANGUAGE_TABLE_VIEW_CONTROLLER_H_
 
-#include "base/i18n/language_tag.h"
+#include <string>
+
 #import "ios/chrome/browser/settings/ui_bundled/settings_controller_protocol.h"
 #import "ios/chrome/browser/settings/ui_bundled/settings_root_table_view_controller.h"
 
@@ -16,10 +17,10 @@
 // delegate.
 @protocol AddLanguageTableViewControllerDelegate
 
-// Informs the delegate that user selected a language with the given tag.
+// Informs the delegate that user selected a language with the given code.
 - (void)addLanguageTableViewController:
             (AddLanguageTableViewController*)tableViewController
-                  didSelectLanguageTag:(base::i18n::LanguageTag)languageTag;
+                 didSelectLanguageCode:(const std::string&)languageCode;
 
 @end
 

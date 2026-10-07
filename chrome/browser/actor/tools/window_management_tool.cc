@@ -8,11 +8,9 @@
 #include "chrome/browser/actor/actor_task.h"
 #include "chrome/browser/actor/tools/observation_delay_controller.h"
 #include "chrome/browser/actor/tools/tool_callbacks.h"
-#include "chrome/browser/ui/browser_commands.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_tabstrip.h"
 #include "chrome/browser/ui/browser_window.h"
-#include "chrome/browser/ui/browser_window/public/create_browser_window.h"
-#include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/common/actor/action_result.h"
 #include "components/actor/public/mojom/actor_types.mojom.h"
 #include "ui/base/mojom/window_show_state.mojom.h"
@@ -28,11 +26,7 @@ WindowManagementTool::WindowManagementTool(Action action,
                                            TaskId task_id,
                                            ToolDelegate& tool_delegate,
                                            int32_t window_id)
-    : Tool(task_id, tool_delegate), action_(action), window_id_(window_id) {
-  CHECK(action_ == Action::kActivate || action_ == Action::kClose ||
-        action_ == Action::kEnterFullscreen ||
-        action_ == Action::kExitFullscreen);
-}
+    : Tool(task_id, tool_delegate), action_(action), window_id_(window_id) {}
 
 WindowManagementTool::~WindowManagementTool() = default;
 
@@ -41,11 +35,10 @@ void WindowManagementTool::Validate(ToolCallback callback) {
     case Action::kCreate:
       break;
     case Action::kActivate:
-    case Action::kClose:
-    case Action::kEnterFullscreen:
-    case Action::kExitFullscreen: {
+    case Action::kClose: {
       CHECK(window_id_.has_value());
-      BrowserWindowInterface* browser = GetTargetBrowser();
+      BrowserWindowInterface* browser = BrowserWindowInterface::FromSessionID(
+          SessionID::FromSerializedValue(*window_id_));
       if (!browser) {
         std::move(callback).Run(
             MakeResult(mojom::ActionResultCode::kWindowWentAway,
@@ -58,11 +51,9 @@ void WindowManagementTool::Validate(ToolCallback callback) {
         std::move(callback).Run(std::move(result));
         return;
       }
-      if (action_ == Action::kClose) {
-        browser_did_close_subscription_ = browser->RegisterBrowserDidClose(
-            base::BindRepeating(&WindowManagementTool::OnBrowserDidClose,
-                                base::Unretained(this)));
-      }
+      browser_did_close_subscription_ = browser->RegisterBrowserDidClose(
+          base::BindRepeating(&WindowManagementTool::OnBrowserDidClose,
+                              base::Unretained(this)));
       break;
     }
   }
@@ -71,17 +62,16 @@ void WindowManagementTool::Validate(ToolCallback callback) {
 }
 
 void WindowManagementTool::Invoke(ToolCallback callback) {
-  // The callback is invoked from observing changes to the
-  // BrowserWindowInterface instance.
+  // The callback is invoked from observing changes to the Browser instance.
   callback_ = std::move(callback);
 
   switch (action_) {
     case Action::kCreate: {
-      BrowserWindowCreateParams params(BrowserWindowInterface::TYPE_NORMAL,
-                                       &tool_delegate().GetProfile(),
-                                       /*from_user_gesture=*/false);
+      Browser::CreateParams params(Browser::TYPE_NORMAL,
+                                   &tool_delegate().GetProfile(),
+                                   /*user_gesture=*/false);
       params.initial_show_state = ::ui::mojom::WindowShowState::kNormal;
-      BrowserWindowInterface* browser = CreateBrowserWindow(std::move(params));
+      Browser* browser = Browser::Create(params);
       browser_did_become_active_subscription_ =
           browser->RegisterDidBecomeActive(base::BindRepeating(
               &WindowManagementTool::OnBrowserDidBecomeActive,
@@ -103,7 +93,8 @@ void WindowManagementTool::Invoke(ToolCallback callback) {
       break;
     }
     case Action::kActivate: {
-      BrowserWindowInterface* browser = GetTargetBrowser();
+      BrowserWindowInterface* browser = BrowserWindowInterface::FromSessionID(
+          SessionID::FromSerializedValue(*window_id_));
       if (!browser || !browser->GetWindow()) {
         OnInvokeFinished(MakeResult(mojom::ActionResultCode::kWindowWentAway,
                                     /*requires_page_stabilization=*/false,
@@ -123,7 +114,8 @@ void WindowManagementTool::Invoke(ToolCallback callback) {
       break;
     }
     case Action::kClose: {
-      BrowserWindowInterface* browser = GetTargetBrowser();
+      auto* browser = BrowserWindowInterface::FromSessionID(
+          SessionID::FromSerializedValue(*window_id_));
       if (!browser || !browser->GetWindow()) {
         OnInvokeFinished(MakeResult(mojom::ActionResultCode::kWindowWentAway,
                                     /*requires_page_stabilization=*/false,
@@ -137,46 +129,6 @@ void WindowManagementTool::Invoke(ToolCallback callback) {
       }
 
       browser->GetWindow()->Close();
-      break;
-    }
-    case Action::kEnterFullscreen: {
-      BrowserWindowInterface* browser = GetTargetBrowser();
-      if (!browser || !browser->GetWindow()) {
-        OnInvokeFinished(MakeResult(mojom::ActionResultCode::kWindowWentAway,
-                                    /*requires_page_stabilization=*/false,
-                                    "The target window could not be found."));
-        return;
-      }
-      mojom::ActionResultPtr result = CheckCrossProfile(browser);
-      if (!IsOk(*result)) {
-        OnInvokeFinished(std::move(result));
-        return;
-      }
-
-      if (!browser->GetWindow()->IsFullscreen()) {
-        chrome::ToggleFullscreenMode(browser);
-      }
-      OnInvokeFinished(MakeOkResult());
-      break;
-    }
-    case Action::kExitFullscreen: {
-      BrowserWindowInterface* browser = GetTargetBrowser();
-      if (!browser || !browser->GetWindow()) {
-        OnInvokeFinished(MakeResult(mojom::ActionResultCode::kWindowWentAway,
-                                    /*requires_page_stabilization=*/false,
-                                    "The target window could not be found."));
-        return;
-      }
-      mojom::ActionResultPtr result = CheckCrossProfile(browser);
-      if (!IsOk(*result)) {
-        OnInvokeFinished(std::move(result));
-        return;
-      }
-
-      if (browser->GetWindow()->IsFullscreen()) {
-        chrome::ToggleFullscreenMode(browser);
-      }
-      OnInvokeFinished(MakeOkResult());
       break;
     }
   }
@@ -194,10 +146,6 @@ std::string WindowManagementTool::JournalEvent() const {
       return "ActivateWindow";
     case Action::kClose:
       return "CloseWindow";
-    case Action::kEnterFullscreen:
-      return "EnterFullscreen";
-    case Action::kExitFullscreen:
-      return "ExitFullscreen";
   }
 }
 
@@ -213,7 +161,8 @@ void WindowManagementTool::UpdateTaskBeforeInvoke(ActorTask& task,
     // If closing a window, ensure all acting tabs in this window are removed
     // from the acting set. In particular, this ensures the task isn't stopped
     // when the acting tab is closed.
-    BrowserWindowInterface* browser = GetTargetBrowser();
+    auto* browser = BrowserWindowInterface::FromSessionID(
+        SessionID::FromSerializedValue(*window_id_));
     if (browser) {
       for (tabs::TabInterface* tab : *browser->GetTabStripModel()) {
         task.RemoveTab(tab->GetHandle());
@@ -243,13 +192,6 @@ tabs::TabHandle WindowManagementTool::GetTargetTab() const {
   return tabs::TabHandle::Null();
 }
 
-BrowserWindowInterface* WindowManagementTool::GetTargetBrowser() const {
-  CHECK_NE(action_, Action::kCreate);
-  CHECK(window_id_.has_value());
-  return BrowserWindowInterface::FromSessionID(
-      SessionID::FromSerializedValue(*window_id_));
-}
-
 void WindowManagementTool::OnBrowserDidClose(BrowserWindowInterface* browser) {
   CHECK(window_id_);
   if (action_ == Action::kClose) {
@@ -258,7 +200,7 @@ void WindowManagementTool::OnBrowserDidClose(BrowserWindowInterface* browser) {
 }
 
 void WindowManagementTool::OnBrowserDidBecomeActive(
-    BrowserWindowInterface* browser) {
+    BrowserWindowInterface* Browser) {
   OnInvokeFinished(MakeOkResult());
 }
 

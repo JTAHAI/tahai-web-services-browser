@@ -8,7 +8,6 @@ import android.graphics.Bitmap;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 
-import androidx.core.graphics.drawable.RoundedBitmapDrawable;
 import androidx.recyclerview.widget.RecyclerView.ViewHolder;
 
 import org.chromium.base.task.AsyncTask;
@@ -70,13 +69,8 @@ public class ContactViewHolder extends ViewHolder implements ContactsFetcher.Ico
 
         Drawable drawable = contact.getSelfIcon();
         if (drawable != null) {
-            assert drawable instanceof BitmapDrawable || drawable instanceof RoundedBitmapDrawable;
-            Bitmap bitmap = null;
-            if (drawable instanceof BitmapDrawable bd) {
-                bitmap = bd.getBitmap();
-            } else if (drawable instanceof RoundedBitmapDrawable rbd) {
-                bitmap = rbd.getBitmap();
-            }
+            assert drawable instanceof BitmapDrawable;
+            Bitmap bitmap = ((BitmapDrawable) drawable).getBitmap();
             mItemView.initialize(contact, bitmap);
         } else {
             Bitmap icon = mCategoryView.getIconCache().getBitmap(mContact.getId());

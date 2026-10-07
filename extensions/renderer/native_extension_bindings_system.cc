@@ -5,7 +5,6 @@
 #include "extensions/renderer/native_extension_bindings_system.h"
 
 #include <algorithm>
-#include <optional>
 #include <string_view>
 #include <utility>
 
@@ -35,11 +34,9 @@
 #include "extensions/common/mojom/context_type.mojom.h"
 #include "extensions/common/mojom/event_dispatcher.mojom.h"
 #include "extensions/common/mojom/frame.mojom.h"
-#include "extensions/common/mojom/host_id.mojom.h"
 #include "extensions/common/permissions/permissions_data.h"
 #include "extensions/common/switches.h"
 #include "extensions/common/utils/extension_utils.h"
-#include "extensions/renderer/api/web_request_event_handling_tracker.h"
 #include "extensions/renderer/api_activity_logger.h"
 #include "extensions/renderer/bindings/api_binding_bridge.h"
 #include "extensions/renderer/bindings/api_binding_hooks.h"
@@ -87,11 +84,14 @@ namespace {
 
 constexpr char kBindingsSystemPerContextKey[] = "extension_bindings_system";
 
-// Returns true if `api` begins with `root_api` followed by a period. For
-// example, 'app.runtime' is a prefixed API of 'app'.
+// Returns true if the given |api| is a "prefixed" api of the |root_api|; that
+// is, if the api begins with the root.
+// For example, 'app.runtime' is a prefixed api of 'app'.
+// This is designed to be used as a utility when iterating over a sorted map, so
+// assumes that |api| is lexicographically greater than |root_api|.
 bool IsPrefixedAPI(std::string_view api, std::string_view root_api) {
-  return api.size() > root_api.size() &&
-         base::StartsWith(api, root_api, base::CompareCase::SENSITIVE) &&
+  CHECK_GT(api, root_api);
+  return base::StartsWith(api, root_api, base::CompareCase::SENSITIVE) &&
          api[root_api.size()] == '.';
 }
 
@@ -226,7 +226,7 @@ bool IsAPIFeatureAvailable(v8::Local<v8::Context> context,
 // specific feature.
 v8::Local<v8::Object> CreateRootBinding(v8::Local<v8::Context> context,
                                         ScriptContext* script_context,
-                                        std::string_view name,
+                                        const std::string& name,
                                         APIBindingsSystem* bindings_system) {
   APIBindingHooks* hooks = nullptr;
   v8::Local<v8::Object> binding_object =
@@ -264,7 +264,7 @@ v8::Local<v8::Object> CreateFullBinding(
     ScriptContext* script_context,
     APIBindingsSystem* bindings_system,
     const FeatureProvider* api_feature_provider,
-    std::string_view root_name) {
+    const std::string& root_name) {
   const FeatureMap& features = api_feature_provider->GetAllFeatures();
   auto lower = features.lower_bound(root_name);
   CHECK(lower != features.end());
@@ -281,7 +281,7 @@ v8::Local<v8::Object> CreateFullBinding(
             *feature, CheckAliasStatus::NOT_ALLOWED)) {
       // If this feature is an alias for a different API, use the other binding
       // as the basis for the API contents.
-      const std::string_view source_name =
+      const std::string& source_name =
           feature->source().empty() ? root_name : feature->source();
       root_binding = CreateRootBinding(context, script_context, source_name,
                                        bindings_system);
@@ -289,8 +289,10 @@ v8::Local<v8::Object> CreateFullBinding(
     ++lower;
   }
 
-  // Look for bindings nested below the root API. These start with the same base
-  // name followed by a period, such as 'app.runtime' for 'app'.
+  // Look for any bindings that would be on the same object. Any of these would
+  // start with the same base name (e.g. 'app') + '.' (since '.' is < x for any
+  // absl::ascii_isalpha(x)).
+  std::string upper = root_name + static_cast<char>('.' + 1);
   std::string_view last_binding_name;
   // The following loop is a little painful because we have crazy binding names
   // and syntaxes. The way this works is as follows:
@@ -317,8 +319,7 @@ v8::Local<v8::Object> CreateFullBinding(
   // have strings.
   // On the upside, most APIs are not prefixed at all, and this loop is never
   // entered.
-  for (auto iter = lower;
-       iter != features.end() && IsPrefixedAPI(iter->first, root_name);
+  for (auto iter = lower; iter != features.end() && iter->first < upper;
        ++iter) {
     if (iter->second->IsInternal())
       continue;
@@ -339,7 +340,7 @@ v8::Local<v8::Object> CreateFullBinding(
 
     v8::Local<v8::Object> nested_binding =
         CreateFullBinding(context, script_context, bindings_system,
-                          api_feature_provider, binding_name);
+                          api_feature_provider, std::string(binding_name));
     // It's possible that we don't create a binding if no features or
     // prefixed features are available to the context.
     if (nested_binding.IsEmpty())
@@ -387,7 +388,8 @@ bool CanWebpageContextConnectExternally(ScriptContext* context) {
   for (const auto& extension :
        *RendererExtensionRegistry::Get()->GetMainThreadExtensionSet()) {
     const ExternallyConnectableInfo* info =
-        extension->GetManifestData<ExternallyConnectableInfo>();
+        static_cast<const ExternallyConnectableInfo*>(
+            extension->GetManifestData(manifest_keys::kExternallyConnectable));
     if (info && info->matches.MatchesURL(context->url())) {
       return true;
     }
@@ -503,9 +505,6 @@ NativeExtensionBindingsSystem::NativeExtensionBindingsSystem(
     std::unique_ptr<IPCMessageSender> ipc_message_sender)
     : delegate_(delegate),
       ipc_message_sender_(std::move(ipc_message_sender)),
-      web_request_event_handling_tracker_(
-          std::make_unique<WebRequestEventHandlingTracker>(
-              ipc_message_sender_.get())),
       api_system_(
           base::BindRepeating(&GetAPISchema),
           base::BindRepeating(&IsAPIFeatureAvailable),
@@ -820,50 +819,10 @@ void NativeExtensionBindingsSystem::DispatchEventInContext(
     const base::ListValue& event_args,
     const mojom::EventFilteringInfoPtr& filtering_info,
     ScriptContext* context) {
-  // Per-context webRequest events need special handling: register the context
-  // before the event runs in it, so that a report during the dispatch finds
-  // the pending entry. `blocking_dispatch` is nullopt for every other event.
-  // TODO(crbug.com/494684626): Move this out of the generic dispatch path;
-  // see DidDispatchEvent().
-  const ExtensionId& extension_id = context->GetExtensionID();
-  std::optional<WebRequestEventHandlingTracker::DispatchInfo>
-      blocking_dispatch =
-          WebRequestEventHandlingTracker::GetBlockingDispatchInfo(
-              extension_id.empty() ? std::nullopt : std::optional(extension_id),
-              event_name, event_args);
-  if (blocking_dispatch && HasEventListenerInContext(event_name, context)) {
-    web_request_event_handling_tracker_->ExpectReportFrom(*context,
-                                                          *blocking_dispatch);
-  }
-
   v8::HandleScope handle_scope(context->isolate());
   v8::Context::Scope context_scope(context->v8_context());
   api_system_.FireEventInContext(event_name, context->v8_context(), event_args,
                                  filtering_info.Clone());
-}
-
-void NativeExtensionBindingsSystem::DidDispatchEvent(
-    const mojom::HostID& host_id,
-    const std::string& event_name,
-    const base::ListValue& event_args) {
-  // For blocking per-context webRequest events, the browser awaits the
-  // completion signal, even if no context had a matching listener. Once every
-  // listener was notified, the completion signal waits only for the pending
-  // context reports (and goes out at once if there are none).
-  // `blocking_dispatch` is nullopt for every other event.
-  std::optional<ExtensionId> extension_id;
-  if (host_id.type == mojom::HostID::HostType::kExtensions &&
-      !host_id.id.empty()) {
-    extension_id = host_id.id;
-  }
-  std::optional<WebRequestEventHandlingTracker::DispatchInfo>
-      blocking_dispatch =
-          WebRequestEventHandlingTracker::GetBlockingDispatchInfo(
-              std::move(extension_id), event_name, event_args);
-  if (blocking_dispatch) {
-    web_request_event_handling_tracker_->OnAllListenersNotified(
-        *blocking_dispatch);
-  }
 }
 
 bool NativeExtensionBindingsSystem::HasEventListenerInContext(

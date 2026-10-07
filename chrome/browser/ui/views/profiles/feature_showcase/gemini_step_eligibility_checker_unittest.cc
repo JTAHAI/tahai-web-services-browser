@@ -7,7 +7,6 @@
 #include <memory>
 #include <string>
 
-#include "base/check_deref.h"
 #include "base/command_line.h"
 #include "base/test/scoped_command_line.h"
 #include "base/test/task_environment.h"
@@ -26,18 +25,6 @@
 #include "content/public/test/browser_task_environment.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
-namespace {
-
-class TestVariationsService : public variations::TestVariationsService {
- public:
-  using variations::TestVariationsService::TestVariationsService;
-
-  void NotifySeedFetched() {
-    OnSeedStoreResult(/*is_delta_compressed=*/false,
-                      /*store_success=*/true, variations::VariationsSeed());
-  }
-};
-
 class GeminiStepEligibilityCheckerTest : public testing::Test {
  public:
   GeminiStepEligibilityCheckerTest() {
@@ -52,7 +39,7 @@ class GeminiStepEligibilityCheckerTest : public testing::Test {
         &metrics_enabled_state_provider_, std::wstring(), base::FilePath(),
         metrics::StartupVisibility::kUnknown);
 
-    variations_service_ = std::make_unique<TestVariationsService>(
+    variations_service_ = std::make_unique<variations::TestVariationsService>(
         TestingBrowserProcess::GetGlobal()->local_state(),
         metrics_state_manager_.get());
 
@@ -64,22 +51,27 @@ class GeminiStepEligibilityCheckerTest : public testing::Test {
     TestingBrowserProcess::GetGlobal()->SetVariationsService(nullptr);
   }
 
-  Profile& profile() { return CHECK_DEREF(profile_); }
+  Profile& profile() { return *profile_; }
 
-  signin::IdentityTestEnvironment& identity_test_env() {
-    return CHECK_DEREF(identity_test_env_profile_adaptor_->identity_test_env());
+  signin::IdentityTestEnvironment* identity_test_env() {
+    return identity_test_env_profile_adaptor_->identity_test_env();
+  }
+  variations::TestVariationsService* variations_service() {
+    return variations_service_.get();
+  }
+
+  void AdvanceClock(base::TimeDelta delta) {
+    task_environment_.FastForwardBy(delta);
   }
 
   void SetCountry(const std::string& country) {
     variations_service_->OverrideStoredPermanentCountry(country);
-    scoped_command_line_.GetProcessCommandLine()->AppendSwitchASCII(
+    base::CommandLine::ForCurrentProcess()->AppendSwitchASCII(
         variations::switches::kVariationsOverrideCountry, country);
   }
 
-  void NotifySeedFetched() { variations_service_->NotifySeedFetched(); }
-
   AccountInfo MakePrimaryAccountAvailable(const std::string& email) {
-    return identity_test_env().MakePrimaryAccountAvailable(
+    return identity_test_env()->MakePrimaryAccountAvailable(
         email, signin::ConsentLevel::kSignin);
   }
 
@@ -87,16 +79,17 @@ class GeminiStepEligibilityCheckerTest : public testing::Test {
     AccountInfo updated_info = account_info;
     AccountCapabilitiesTestMutator mutator(&updated_info);
     mutator.SetAllSupportedCapabilities(true);
-    identity_test_env().UpdateAccountInfoForAccount(updated_info);
+    identity_test_env()->UpdateAccountInfoForAccount(updated_info);
   }
 
  private:
-  content::BrowserTaskEnvironment task_environment_;
+  content::BrowserTaskEnvironment task_environment_{
+      base::test::TaskEnvironment::TimeSource::MOCK_TIME};
   base::test::ScopedCommandLine scoped_command_line_;
   metrics::TestEnabledStateProvider metrics_enabled_state_provider_{false,
                                                                     false};
   std::unique_ptr<metrics::MetricsStateManager> metrics_state_manager_;
-  std::unique_ptr<TestVariationsService> variations_service_;
+  std::unique_ptr<variations::TestVariationsService> variations_service_;
   std::unique_ptr<TestingProfile> profile_;
   std::unique_ptr<IdentityTestEnvironmentProfileAdaptor>
       identity_test_env_profile_adaptor_;
@@ -108,7 +101,7 @@ TEST_F(GeminiStepEligibilityCheckerTest, FailsImmediatelyIfSignedOut) {
 
   checker.CheckEligibility(profile(), future.GetCallback());
 
-  EXPECT_TRUE(future.IsReady());
+  EXPECT_FALSE(future.Get());
 }
 
 TEST_F(GeminiStepEligibilityCheckerTest, WaitsForCountryData) {
@@ -120,34 +113,11 @@ TEST_F(GeminiStepEligibilityCheckerTest, WaitsForCountryData) {
   checker.CheckEligibility(profile(), future.GetCallback());
 
   ASSERT_FALSE(future.IsReady());
+
   SetCountry("us");
-  ASSERT_FALSE(future.IsReady());
+  AdvanceClock(base::Milliseconds(500));
 
-  NotifySeedFetched();
-
-  EXPECT_TRUE(future.IsReady());
-}
-
-TEST_F(GeminiStepEligibilityCheckerTest,
-       WaitsForCountryDataAcrossMultipleSeedFetches) {
-  GeminiStepEligibilityChecker checker;
-  base::test::TestFuture<bool> future;
-
-  UpdateAccountCapabilities(MakePrimaryAccountAvailable("test@example.com"));
-
-  checker.CheckEligibility(profile(), future.GetCallback());
-
-  ASSERT_FALSE(future.IsReady());
-
-  // Seed fetch without country being populated should not resolve eligibility.
-  NotifySeedFetched();
-  EXPECT_FALSE(future.IsReady());
-
-  // Once country is available and seed fetch occurs, eligibility resolves.
-  SetCountry("us");
-  NotifySeedFetched();
-
-  EXPECT_TRUE(future.IsReady());
+  EXPECT_FALSE(future.Get());
 }
 
 TEST_F(GeminiStepEligibilityCheckerTest, WaitsForAccountCapabilities) {
@@ -165,7 +135,7 @@ TEST_F(GeminiStepEligibilityCheckerTest, WaitsForAccountCapabilities) {
 
   UpdateAccountCapabilities(account_info);
 
-  EXPECT_TRUE(future.IsReady());
+  EXPECT_FALSE(future.Get());
 }
 
 TEST_F(GeminiStepEligibilityCheckerTest,
@@ -179,7 +149,7 @@ TEST_F(GeminiStepEligibilityCheckerTest,
 
   checker.CheckEligibility(profile(), future.GetCallback());
 
-  EXPECT_TRUE(future.IsReady());
+  EXPECT_FALSE(future.Get());
 }
 
 TEST_F(GeminiStepEligibilityCheckerTest, FailsOnIdentityManagerShutdown) {
@@ -194,22 +164,7 @@ TEST_F(GeminiStepEligibilityCheckerTest, FailsOnIdentityManagerShutdown) {
 
   ASSERT_FALSE(future.IsReady());
 
-  checker.OnIdentityManagerShutdown(identity_test_env().identity_manager());
+  checker.OnIdentityManagerShutdown(identity_test_env()->identity_manager());
 
-  EXPECT_TRUE(future.IsReady());
+  EXPECT_FALSE(future.Get());
 }
-
-TEST_F(GeminiStepEligibilityCheckerTest, FailsOnTimeout) {
-  GeminiStepEligibilityChecker checker;
-  base::test::TestFuture<bool> future;
-
-  UpdateAccountCapabilities(MakePrimaryAccountAvailable("test@example.com"));
-
-  checker.CheckEligibility(profile(), future.GetCallback());
-
-  ASSERT_FALSE(future.IsReady());
-
-  EXPECT_FALSE(checker.OnTimeout());
-}
-
-}  // namespace

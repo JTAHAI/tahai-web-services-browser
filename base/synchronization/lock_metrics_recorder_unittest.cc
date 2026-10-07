@@ -30,11 +30,6 @@ class LockMetricsRecorderTest : public testing::Test {
   LockMetricsRecorderTest() = default;
 
  protected:
-  static const LockMetricTag* GetTag(const LockMetricTagList& tags,
-                                     size_t index) {
-    return tags[index];
-  }
-
   LockMetricsRecorder lock_metrics_recorder_{
       base::PassKey<LockMetricsRecorderTest>(), "LockMetricsRecorderTest"};
 
@@ -43,16 +38,6 @@ class LockMetricsRecorderTest : public testing::Test {
 };
 
 namespace {
-
-const LockMetricTag& GetTestCoreLockMetricTag() {
-  static constinit LockMetricTag tag("BaseLock.TestCoreLockTag");
-  return tag;
-}
-
-const LockMetricTag& GetTestCustomLockMetricTag() {
-  static constinit LockMetricTag tag("BaseLock.TestCustomLockTag");
-  return tag;
-}
 
 class IsolatedTestThread : public PlatformThread::Delegate {
  public:
@@ -73,66 +58,56 @@ void RecordAndVerifySampleOnCurrentThread(TimeDelta duration) {
   LockMetricsRecorder* recorder = LockMetricsRecorder::GetForCurrentThread();
   ASSERT_NE(recorder, nullptr);
 
-  recorder->RecordLockAcquisitionTime(
-      {duration, Lock::GetBaseLockMetricTagList()});
-
+  recorder->RecordLockAcquisitionTime(duration,
+                                      LockMetricsRecorder::LockType::kBaseLock);
   size_t num_samples = 0;
-  recorder->ForEachSample(
-      [&](const LockMetricsRecorder::LockMetricSample& sample) {
-        EXPECT_EQ(sample.wait_time, duration);
-        num_samples++;
-      });
+  recorder->ForEachSample(LockMetricsRecorder::LockType::kBaseLock,
+                          [&](const TimeDelta& sample) {
+                            EXPECT_EQ(sample, duration);
+                            num_samples++;
+                          });
   EXPECT_EQ(num_samples, 1u);
 }
 
 }  // namespace
 
-// Test that samples are classified internally by lock type.
+// Test that samples are classified internally by type
 TEST_F(LockMetricsRecorderTest, SamplesClassifiedByLockType) {
   constexpr size_t kSamplesRecordedPerType = 3;
+  size_t i;
 
-  const LockMetricTag& base_lock_metric_tag = Lock::GetBaseLockMetricTag();
-  const LockMetricTag& test_core_lock_tag = GetTestCoreLockMetricTag();
-  const LockMetricTag& test_custom_lock_tag = GetTestCustomLockMetricTag();
-
-  for (size_t i = 0; i < kSamplesRecordedPerType; i++) {
+  for (i = 0; i < kSamplesRecordedPerType; i++) {
     lock_metrics_recorder_.RecordLockAcquisitionTime(
-        {Microseconds(i),
-         LockMetricTagList{base_lock_metric_tag, test_core_lock_tag}});
-
+        Microseconds(i), LockMetricsRecorder::LockType::kBaseLock);
     lock_metrics_recorder_.RecordLockAcquisitionTime(
-        {Milliseconds(i),
-         LockMetricTagList{base_lock_metric_tag, test_custom_lock_tag}});
+        Milliseconds(i), LockMetricsRecorder::LockType::kPartitionAllocLock);
   }
 
-  size_t test_core_lock_num_samples = 0;
-  size_t test_custom_lock_num_samples = 0;
+  size_t base_lock_num_samples = 0;
   lock_metrics_recorder_.ForEachSample(
-      [&](const LockMetricsRecorder::LockMetricSample& sample) {
-        if (GetTag(sample.tags, 1) &&
-            GetTag(sample.tags, 1)->hash() == test_core_lock_tag.hash()) {
-          EXPECT_EQ(Microseconds(test_core_lock_num_samples), sample.wait_time);
-          test_core_lock_num_samples++;
-        } else if (GetTag(sample.tags, 1) && GetTag(sample.tags, 1)->hash() ==
-                                                 test_custom_lock_tag.hash()) {
-          EXPECT_EQ(Milliseconds(test_custom_lock_num_samples),
-                    sample.wait_time);
-          test_custom_lock_num_samples++;
-        } else {
-          GTEST_FAIL() << "Unexpected lock type";
-        }
+      LockMetricsRecorder::LockType::kBaseLock, [&](const TimeDelta& sample) {
+        EXPECT_EQ(Microseconds(base_lock_num_samples), sample);
+        base_lock_num_samples++;
       });
-  EXPECT_EQ(test_core_lock_num_samples, kSamplesRecordedPerType);
-  EXPECT_EQ(test_custom_lock_num_samples, kSamplesRecordedPerType);
+  EXPECT_EQ(base_lock_num_samples, kSamplesRecordedPerType);
+
+  size_t pa_lock_num_samples = 0;
+  lock_metrics_recorder_.ForEachSample(
+      LockMetricsRecorder::LockType::kPartitionAllocLock,
+      [&](const TimeDelta& sample) {
+        EXPECT_EQ(Milliseconds(pa_lock_num_samples), sample);
+        pa_lock_num_samples++;
+      });
+  EXPECT_EQ(pa_lock_num_samples, kSamplesRecordedPerType);
 }
 
 // Test that recording while iterating through the ring buffer is not permitted.
 TEST_F(LockMetricsRecorderTest, TestRecordingWhileIterating) {
   EXPECT_TRUE(lock_metrics_recorder_.ShouldRecordLockAcquisitionTime());
   lock_metrics_recorder_.RecordLockAcquisitionTime(
-      {Microseconds(1), LockMetricTagList{GetTestCoreLockMetricTag()}});
+      Microseconds(1), LockMetricsRecorder::LockType::kBaseLock);
   lock_metrics_recorder_.ForEachSample(
-      [&](const LockMetricsRecorder::LockMetricSample& sample) {
+      LockMetricsRecorder::LockType::kBaseLock, [&](const TimeDelta& sample) {
         EXPECT_FALSE(lock_metrics_recorder_.ShouldRecordLockAcquisitionTime());
       });
   EXPECT_TRUE(lock_metrics_recorder_.ShouldRecordLockAcquisitionTime());
@@ -150,14 +125,14 @@ TEST_F(LockMetricsRecorderTest, TestSampleOverwrite) {
   // the sample.
   for (size_t i = 0; i < kBufferSize + kExtraSamples; i++) {
     lock_metrics_recorder_.RecordLockAcquisitionTime(
-        {Microseconds(i), LockMetricTagList{GetTestCoreLockMetricTag()}});
+        Microseconds(i), LockMetricsRecorder::LockType::kBaseLock);
   }
   size_t num_samples = 0;
   lock_metrics_recorder_.ForEachSample(
-      [&](const LockMetricsRecorder::LockMetricSample& sample) {
-        // The oldest `kExtraSamples` are expected to be overwritten, leaving
-        // us with samples starting at `kExtraSamples` microseconds.
-        EXPECT_EQ(sample.wait_time, Microseconds(num_samples + kExtraSamples));
+      LockMetricsRecorder::LockType::kBaseLock, [&](const TimeDelta& sample) {
+        // The oldest `kExtraSamples` are expected to be overwritten, leaving us
+        // with samples starting at `kExtraSamples` microseconds.
+        EXPECT_EQ(sample, Microseconds(num_samples + kExtraSamples));
         num_samples++;
       });
   EXPECT_EQ(num_samples, kBufferSize);
@@ -175,12 +150,12 @@ TEST_F(LockMetricsRecorderTest, TestSamplesIteratedOverExactlyOnce) {
     // the sample.
     for (size_t j = 0; j < kSamplesPerIteration; j++) {
       lock_metrics_recorder_.RecordLockAcquisitionTime(
-          {Microseconds(j + num_samples),
-           LockMetricTagList{GetTestCoreLockMetricTag()}});
+          Microseconds(j + num_samples),
+          LockMetricsRecorder::LockType::kBaseLock);
     }
     lock_metrics_recorder_.ForEachSample(
-        [&](const LockMetricsRecorder::LockMetricSample& sample) {
-          EXPECT_EQ(sample.wait_time, Microseconds(num_samples));
+        LockMetricsRecorder::LockType::kBaseLock, [&](const TimeDelta& sample) {
+          EXPECT_EQ(sample, Microseconds(num_samples));
           num_samples++;
         });
     EXPECT_EQ(num_samples - num_samples_prev, kSamplesPerIteration);
@@ -191,24 +166,20 @@ TEST_F(LockMetricsRecorderTest, TestSamplesIteratedOverExactlyOnce) {
 TEST_F(LockMetricsRecorderTest, ScopedLockAcquisitionTimerRecordsSample) {
   size_t num_samples = 0;
   lock_metrics_recorder_.ForEachSample(
-      [&](const LockMetricsRecorder::LockMetricSample& sample) {
-        num_samples++;
-      });
+      LockMetricsRecorder::LockType::kBaseLock,
+      [&](const TimeDelta& sample) { num_samples++; });
   EXPECT_EQ(num_samples, 0);
 
   {
     auto timer = LockMetricsRecorder::ScopedLockAcquisitionTimer::CreateForTest(
-        &lock_metrics_recorder_,
-        LockMetricTagList{Lock::GetBaseLockMetricTag(),
-                          GetTestCoreLockMetricTag(),
-                          GetTestCustomLockMetricTag()});
+        &lock_metrics_recorder_);
     PlatformThread::Sleep(Microseconds(500));
   }
-  lock_metrics_recorder_.ForEachSample(
-      [&](const LockMetricsRecorder::LockMetricSample& sample) {
-        EXPECT_GT(sample.wait_time, Microseconds(500));
-        num_samples++;
-      });
+  lock_metrics_recorder_.ForEachSample(LockMetricsRecorder::LockType::kBaseLock,
+                                       [&](const TimeDelta& sample) {
+                                         EXPECT_GT(sample, Microseconds(500));
+                                         num_samples++;
+                                       });
   EXPECT_EQ(num_samples, 1);
 }
 
@@ -234,8 +205,7 @@ TEST(LockMetricsRecorderFeatureTest, FilterByThreadName) {
   // Instantiating a ScopedLockAcquisitionTimer on a blocked thread should
   // not record anything.
   {
-    LockMetricsRecorder::ScopedLockAcquisitionTimer timer(
-        LockMetricTagList{GetTestCoreLockMetricTag()});
+    LockMetricsRecorder::ScopedLockAcquisitionTimer timer;
     PlatformThread::Sleep(Microseconds(500));
   }
 
@@ -315,20 +285,18 @@ void MakeThreadsContendOnLock() {
   PlatformThread::Join(handle);
 }
 
-// Creates a `LockMetricsRecorder` object to record lock metrics for the current
-// thread to histograms without subsampling, and enables it to record lock
-// metrics for different lock types.
-class LockMetricsEnabledTest : public testing::Test {
+// Creates a LockMetricsRecorder object to record lock metrics for the current
+// thread without subsampling and sets it to record lock metrics for Lock
+class BaseLockMetricsTest : public testing::Test {
  public:
-  LockMetricsEnabledTest() {
+  BaseLockMetricsTest() {
     scoped_feature_list_.InitAndEnableFeature(
         base::features::kRecordLockAcquisitionTime);
     LockMetricsRecorder::SetAllowedThreadsForTesting(
-        {"LockMetricsEnabledTest", "BackgroundThread", "HammerThread",
+        {"BaseLockMetricsTest", "BackgroundThread", "HammerThread",
          "MetricsTestThread"});
 
-    LockMetricsRecorder::EnableRecordingOnCurrentThread(
-        "LockMetricsEnabledTest");
+    LockMetricsRecorder::EnableRecordingOnCurrentThread("BaseLockMetricsTest");
   }
 
   void SetUp() override {
@@ -348,7 +316,7 @@ class LockMetricsEnabledTest : public testing::Test {
 }  // namespace
 
 // Test that no samples are recorded when there is no contention on the lock.
-TEST_F(LockMetricsEnabledTest, NoSamplesRecordedWhenUncontended) {
+TEST_F(BaseLockMetricsTest, NoSamplesRecordedWhenUncontended) {
   Lock lock;
 
   {
@@ -356,50 +324,45 @@ TEST_F(LockMetricsEnabledTest, NoSamplesRecordedWhenUncontended) {
   }
 
   LockMetricsRecorder::GetForCurrentThread()->ForEachSample(
-      [](const LockMetricsRecorder::LockMetricSample& sample) {
-        GTEST_FAIL() << "No samples expected";
-      });
+      LockMetricsRecorder::LockType::kBaseLock,
+      [](const TimeDelta& sample) { GTEST_FAIL() << "No samples expected"; });
 }
 
 // Test that samples are recorded when there is contention on the lock.
-TEST_F(LockMetricsEnabledTest, SamplesRecordedWhenContended) {
+TEST_F(BaseLockMetricsTest, SamplesRecordedWhenContended) {
   MakeThreadsContendOnLock();
   bool did_record_sample = false;
   LockMetricsRecorder::GetForCurrentThread()->ForEachSample(
-      [&](const LockMetricsRecorder::LockMetricSample& sample) {
-        did_record_sample = true;
-      });
+      LockMetricsRecorder::LockType::kBaseLock,
+      [&](const TimeDelta&) { did_record_sample = true; });
   EXPECT_TRUE(did_record_sample);
 }
 
 // Test that samples are correctly flushed to histograms.
-TEST_F(LockMetricsEnabledTest, ReportLockAcquisitionTimesFlushesToHistograms) {
+TEST_F(BaseLockMetricsTest, ReportLockAcquisitionTimesFlushesToHistograms) {
   constexpr std::string_view kThreadName = "MetricsTestThread";
   base::HistogramTester histogram_tester;
-  static const LockMetricsRecorder::LockMetricSample kBaseLockMetricSample = {
-      Microseconds(100), Lock::GetBaseLockMetricTagList()};
-  static const LockMetricsRecorder::LockMetricSample kTestLockMetricSample = {
-      Milliseconds(1), LockMetricTagList{GetTestCoreLockMetricTag()}};
 
   IsolatedTestThread background_thread(
       kThreadName, base::BindLambdaForTesting([]() {
-        LockMetricsRecorder* recorder =
-            LockMetricsRecorder::GetForCurrentThread();
+        auto* recorder = LockMetricsRecorder::GetForCurrentThread();
 
         // Record some samples
-        recorder->RecordLockAcquisitionTime(kBaseLockMetricSample);
-        recorder->RecordLockAcquisitionTime(kBaseLockMetricSample);
-        recorder->RecordLockAcquisitionTime(kTestLockMetricSample);
+        recorder->RecordLockAcquisitionTime(
+            Microseconds(100), LockMetricsRecorder::LockType::kBaseLock);
+        recorder->RecordLockAcquisitionTime(
+            Microseconds(200), LockMetricsRecorder::LockType::kBaseLock);
+        recorder->RecordLockAcquisitionTime(
+            Milliseconds(1),
+            LockMetricsRecorder::LockType::kPartitionAllocLock);
 
         // Flush to histograms
         recorder->ReportLockAcquisitionTimes();
 
         // Verify buffer is now empty (flushed)
         size_t remaining_samples = 0;
-        recorder->ForEachSample(
-            [&](const LockMetricsRecorder::LockMetricSample& sample) {
-              remaining_samples++;
-            });
+        recorder->ForEachSample(LockMetricsRecorder::LockType::kBaseLock,
+                                [&](const TimeDelta&) { remaining_samples++; });
         EXPECT_EQ(remaining_samples, 0u);
       }));
 
@@ -414,39 +377,33 @@ TEST_F(LockMetricsEnabledTest, ReportLockAcquisitionTimesFlushesToHistograms) {
           {"Scheduling.ContendedLockAcquisitionTime.BaseLock.", kThreadName}));
   EXPECT_GE(base_samples->TotalCount(), 2);
 
-  std::unique_ptr<HistogramSamples> test_samples =
-      histogram_tester.GetHistogramSamplesSinceCreation(StrCat(
-          {"Scheduling.ContendedLockAcquisitionTime.BaseLock.TestCoreLockTag.",
-           kThreadName}));
-  EXPECT_GE(test_samples->TotalCount(), 1);
+  std::unique_ptr<HistogramSamples> pa_samples =
+      histogram_tester.GetHistogramSamplesSinceCreation(
+          StrCat({"Scheduling.ContendedLockAcquisitionTime.PartitionAllocLock.",
+                  kThreadName}));
+  EXPECT_GE(pa_samples->TotalCount(), 1);
 }
 
 // Test that different threads use separate thread-local storage for lock
 // metrics.
-TEST_F(LockMetricsEnabledTest, ThreadLocalBufferIsolation) {
-  static constexpr size_t kSamples = 5;
-  static constexpr TimeDelta kBackgroundThreadSampleValue = Microseconds(1);
-  constexpr TimeDelta kMainThreadSampleValue = Microseconds(3);
-
-  static const LockMetricsRecorder::LockMetricSample kBackgroundThreadSample = {
-      kBackgroundThreadSampleValue,
-      LockMetricTagList{Lock::GetBaseLockMetricTag()}};
-  static const LockMetricsRecorder::LockMetricSample kMainThreadSample = {
-      kMainThreadSampleValue, LockMetricTagList{Lock::GetBaseLockMetricTag()}};
+TEST_F(BaseLockMetricsTest, ThreadLocalBufferIsolation) {
+  constexpr size_t kSamples = 5;
+  const TimeDelta kSampleValue = Microseconds(1);
 
   IsolatedTestThread background_thread(
-      "BackgroundThread", base::BindLambdaForTesting([]() {
+      "BackgroundThread", base::BindLambdaForTesting([&]() {
         // Record samples
         for (size_t i = 0; i < kSamples; ++i) {
           LockMetricsRecorder::GetForCurrentThread()->RecordLockAcquisitionTime(
-              kBackgroundThreadSample);
+              kSampleValue, LockMetricsRecorder::LockType::kBaseLock);
         }
 
         // Verify this thread only sees its own samples
         size_t count = 0;
         LockMetricsRecorder::GetForCurrentThread()->ForEachSample(
-            [&](const LockMetricsRecorder::LockMetricSample& sample) {
-              EXPECT_EQ(sample.wait_time, kBackgroundThreadSampleValue);
+            LockMetricsRecorder::LockType::kBaseLock,
+            [&](const TimeDelta& sample) {
+              EXPECT_EQ(sample, kSampleValue);
               count++;
             });
         EXPECT_EQ(count, kSamples);
@@ -462,22 +419,21 @@ TEST_F(LockMetricsEnabledTest, ThreadLocalBufferIsolation) {
   // Check that the main thread did not record any samples
   size_t main_thread_count = 0;
   LockMetricsRecorder::GetForCurrentThread()->ForEachSample(
-      [&](const LockMetricsRecorder::LockMetricSample& sample) {
-        main_thread_count++;
-      });
+      LockMetricsRecorder::LockType::kBaseLock,
+      [&](const TimeDelta& sample) { main_thread_count++; });
   EXPECT_EQ(main_thread_count, 0u);
 
   // Record some samples on the main thread
   for (size_t i = 0; i < kSamples; ++i) {
     LockMetricsRecorder::GetForCurrentThread()->RecordLockAcquisitionTime(
-        kMainThreadSample);
+        Microseconds(3), LockMetricsRecorder::LockType::kBaseLock);
   }
 
   // Verify that the main thread records samples correctly
   size_t main_thread_count_after = 0;
   LockMetricsRecorder::GetForCurrentThread()->ForEachSample(
-      [&](const LockMetricsRecorder::LockMetricSample& sample) {
-        EXPECT_EQ(sample.wait_time, kMainThreadSampleValue);
+      LockMetricsRecorder::LockType::kBaseLock, [&](const TimeDelta& sample) {
+        EXPECT_EQ(sample, Microseconds(3));
         main_thread_count_after++;
       });
   EXPECT_EQ(main_thread_count_after, kSamples);
@@ -485,12 +441,11 @@ TEST_F(LockMetricsEnabledTest, ThreadLocalBufferIsolation) {
 
 // Test that concurrent reporting from multiple threads with the same name
 // doesn't deadlock or crash due to reentrancy/lock contention.
-TEST_F(LockMetricsEnabledTest, ConcurrentReportingStressTest) {
+TEST_F(BaseLockMetricsTest, ConcurrentReportingStressTest) {
   constexpr size_t kNumThreads = 4;
-  static constexpr size_t kIterations = 1000;
+  constexpr size_t kIterations = 1000;
   constexpr std::string_view kSharedThreadName = "HammerThread";
-  static const LockMetricsRecorder::LockMetricSample base_lock_metric_sample = {
-      Microseconds(1), Lock::GetBaseLockMetricTagList()};
+
   base::HistogramTester histogram_tester;
 
   std::array<std::unique_ptr<IsolatedTestThread>, kNumThreads> delegates;
@@ -498,10 +453,11 @@ TEST_F(LockMetricsEnabledTest, ConcurrentReportingStressTest) {
 
   for (size_t i = 0; i < kNumThreads; ++i) {
     delegates[i] = std::make_unique<IsolatedTestThread>(
-        kSharedThreadName, base::BindLambdaForTesting([]() {
+        kSharedThreadName, base::BindLambdaForTesting([&]() {
           auto* recorder = LockMetricsRecorder::GetForCurrentThread();
           for (size_t iter = 0; iter < kIterations; ++iter) {
-            recorder->RecordLockAcquisitionTime(base_lock_metric_sample);
+            recorder->RecordLockAcquisitionTime(
+                Microseconds(1), LockMetricsRecorder::LockType::kBaseLock);
             recorder->ReportLockAcquisitionTimes();
           }
         }));
@@ -520,100 +476,6 @@ TEST_F(LockMetricsEnabledTest, ConcurrentReportingStressTest) {
   // Use >= to account for organic lock contention during concurrent test
   // execution.
   EXPECT_GE(samples->TotalCount(), kNumThreads * kIterations);
-}
-
-class LockMetricTagTest : public testing::Test {
- public:
-  void SetUp() override {
-    scoped_feature_list_.InitAndEnableFeature(
-        base::features::kRecordLockAcquisitionTime);
-    LockMetricsRecorder::SetAllowedThreadsForTesting({kThreadName});
-    LockMetricsRecorder::EnableRecordingOnCurrentThread(kThreadName);
-  }
-
-  void TearDown() override {
-    LockMetricsRecorder::DisableRecordingOnCurrentThreadForTesting();
-  }
-
- protected:
-  static constexpr std::string_view kBaseLockPrefix =
-      "Scheduling.ContendedLockAcquisitionTime.BaseLock.";
-  static constexpr char kThreadName[] = "MetricTagTestThread";
-  base::test::ScopedFeatureList scoped_feature_list_;
-  base::HistogramTester histogram_tester_;
-
-  const LockMetricTag base_lock_metric_tag_ = Lock::GetBaseLockMetricTag();
-  const LockMetricTag test_core_lock_metric_tag_ = GetTestCoreLockMetricTag();
-  const LockMetricTag test_custom_lock_metric_tag_ =
-      GetTestCustomLockMetricTag();
-
- private:
-  MetricsSubSampler::ScopedAlwaysSampleForTesting always_sample_;
-};
-
-// Test that LockMetricTag objects have unique indices and names.
-TEST_F(LockMetricTagTest, UniqueIndicesAndNames) {
-  EXPECT_EQ(base_lock_metric_tag_.name(), "BaseLock");
-  EXPECT_EQ(test_core_lock_metric_tag_.name(), "BaseLock.TestCoreLockTag");
-  EXPECT_EQ(test_custom_lock_metric_tag_.name(), "BaseLock.TestCustomLockTag");
-
-  EXPECT_NE(base_lock_metric_tag_.hash(), test_core_lock_metric_tag_.hash());
-  EXPECT_NE(base_lock_metric_tag_.hash(), test_custom_lock_metric_tag_.hash());
-  EXPECT_NE(test_core_lock_metric_tag_.hash(),
-            test_custom_lock_metric_tag_.hash());
-}
-
-// Verify that a sample is recorded with both a core tag and a custom tag.
-TEST_F(LockMetricTagTest, ResolvesTaggedLockHistograms) {
-  {
-    LockMetricsRecorder::ScopedLockAcquisitionTimer metrics_timer(
-        LockMetricTagList{base_lock_metric_tag_, test_core_lock_metric_tag_,
-                          test_custom_lock_metric_tag_});
-  }
-
-  LockMetricsRecorder::GetForCurrentThread()->ReportLockAcquisitionTimes();
-
-  histogram_tester_.ExpectTotalCount(StrCat({kBaseLockPrefix, kThreadName}), 1);
-  histogram_tester_.ExpectTotalCount(
-      StrCat({kBaseLockPrefix, "TestCoreLockTag.", kThreadName}), 1);
-  histogram_tester_.ExpectTotalCount(
-      StrCat({kBaseLockPrefix, "TestCustomLockTag.", kThreadName}), 1);
-}
-
-// Verify histogram caching and sample accumulation across multiple
-// sequential reporting flushes.
-TEST_F(LockMetricTagTest, CachesAndAccumulatesHistogramsAcrossFlushes) {
-  constexpr size_t kNumBothTagSamples = 3;
-  constexpr size_t kNumCoreOnlySamples = 2;
-
-  // Record samples with both core and custom tags.
-  for (size_t i = 0; i < kNumBothTagSamples; ++i) {
-    LockMetricsRecorder::ScopedLockAcquisitionTimer metrics_timer(
-        LockMetricTagList{base_lock_metric_tag_, test_core_lock_metric_tag_,
-                          test_custom_lock_metric_tag_});
-  }
-  LockMetricsRecorder::GetForCurrentThread()->ReportLockAcquisitionTimes();
-
-  // Record additional samples with core tag only.
-  for (size_t i = 0; i < kNumCoreOnlySamples; ++i) {
-    LockMetricsRecorder::ScopedLockAcquisitionTimer metrics_timer(
-        LockMetricTagList{base_lock_metric_tag_, test_core_lock_metric_tag_});
-  }
-  LockMetricsRecorder::GetForCurrentThread()->ReportLockAcquisitionTimes();
-
-  // Base lock histogram should accumulate all 5 samples.
-  histogram_tester_.ExpectTotalCount(StrCat({kBaseLockPrefix, kThreadName}),
-                                     kNumBothTagSamples + kNumCoreOnlySamples);
-
-  // CoreTag histogram should accumulate all 5 samples.
-  histogram_tester_.ExpectTotalCount(
-      StrCat({kBaseLockPrefix, "TestCoreLockTag.", kThreadName}),
-      kNumBothTagSamples + kNumCoreOnlySamples);
-
-  // CustomTag histogram should reflect only the 3 samples.
-  histogram_tester_.ExpectTotalCount(
-      StrCat({kBaseLockPrefix, "TestCustomLockTag.", kThreadName}),
-      kNumBothTagSamples);
 }
 
 }  // namespace base

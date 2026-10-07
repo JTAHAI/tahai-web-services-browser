@@ -23,7 +23,7 @@
 #include "base/threading/thread_checker.h"
 #include "base/time/time.h"
 #include "base/values.h"
-#include "crypto/hash.h"
+#include "crypto/sha2.h"
 #include "net/base/expiring_cache.h"
 #include "net/base/hash_value.h"
 #include "net/base/net_export.h"
@@ -68,7 +68,7 @@ enum class SSLUpgradeDecision {
 // http://tools.ietf.org/html/ietf-websec-strict-transport-sec.
 class NET_EXPORT TransportSecurityState {
  public:
-  using HashedHost = std::array<uint8_t, crypto::hash::kSha256Size>;
+  using HashedHost = std::array<uint8_t, crypto::kSHA256Length>;
 
   class NET_EXPORT Delegate {
    public:

@@ -27,6 +27,8 @@ AccountInfoFetcherGaia::AccountInfoFetcherGaia(
   TRACE_EVENT_INSTANT("AccountFetcherService", "AccountIdFetcher",
                       perfetto::Flow::FromPointer(this), "account_id",
                       account_id.ToString());
+
+  Start();
 }
 
 AccountInfoFetcherGaia::~AccountInfoFetcherGaia() {

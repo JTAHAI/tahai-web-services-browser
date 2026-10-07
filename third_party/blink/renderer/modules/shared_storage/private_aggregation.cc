@@ -18,6 +18,12 @@ void PrivateAggregation::contributeToHistogram(
     const PrivateAggregationHistogramContribution* contribution,
     ExceptionState& exception_state) {}
 
+void PrivateAggregation::contributeToHistogramOnEvent(
+    ScriptState* script_state,
+    const String& event,
+    const PrivateAggregationHistogramContribution* contribution,
+    ExceptionState& exception_state) {}
+
 void PrivateAggregation::enableDebugMode(ScriptState* script_state,
                                          ExceptionState& exception_state) {}
 

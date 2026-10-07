@@ -134,7 +134,6 @@ CodeCachePolicy GetCodeCachePolicy(ExecutionContext* context,
 }
 
 bool ShouldGenerateV8CodeCache(ScriptState* script_state,
-                               const Request* request,
                                const Response* response) {
   ExecutionContext* context = ExecutionContext::From(script_state);
   auto* global_scope = DynamicTo<ServiceWorkerGlobalScope>(context);
@@ -154,14 +153,6 @@ bool ShouldGenerateV8CodeCache(ScriptState* script_state,
   DCHECK_EQ(policy, CodeCachePolicy::kAuto);
   if (!global_scope->IsInstalling())
     return false;
-
-  // If the response was synthetically constructed (`new Response()`, empty
-  // URL list) or fetched from a different URL than the request URL, do not
-  // generate eager code cache.
-  if (response->InternalURLList().empty() ||
-      response->InternalURLList().back() != request->url()) {
-    return false;
-  }
 
   return true;
 }
@@ -362,9 +353,7 @@ class Cache::ResponseBodyLoader final
     barrier_callback_->FailedResponse();
   }
 
-  void Abort(ScriptValue reason) override {
-    barrier_callback_->AbortedResponse();
-  }
+  void Abort() override { barrier_callback_->AbortedResponse(); }
 
   Member<ScriptState> script_state_;
   Member<BarrierCallbackForPutResponse> barrier_callback_;
@@ -626,7 +615,7 @@ class Cache::CodeCacheHandleCallbackForPut final
     barrier_callback_->OnError("network error");
   }
 
-  void Abort(ScriptValue reason) override { barrier_callback_->Abort(); }
+  void Abort() override { barrier_callback_->Abort(); }
 
   void Trace(Visitor* visitor) const override {
     visitor->Trace(script_state_);
@@ -1191,7 +1180,7 @@ void Cache::PutImpl(ScriptPromiseResolver<IDLUndefined>* resolver,
 
   for (wtf_size_t i = 0; i < requests.size(); ++i) {
     if (!blob_list[i] ||
-        !ShouldGenerateV8CodeCache(script_state, requests[i], responses[i])) {
+        !ShouldGenerateV8CodeCache(script_state, responses[i])) {
       mojom::blink::BatchOperationPtr batch_operation =
           mojom::blink::BatchOperation::New();
       batch_operation->operation_type = mojom::blink::OperationType::kPut;

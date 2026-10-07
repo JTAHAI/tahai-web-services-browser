@@ -5,14 +5,13 @@
 #ifndef CHROME_CREDENTIAL_PROVIDER_GAIACP_REAUTH_CREDENTIAL_H_
 #define CHROME_CREDENTIAL_PROVIDER_GAIACP_REAUTH_CREDENTIAL_H_
 
-#include "base/win/atl.h"
 #include "chrome/credential_provider/gaiacp/gaia_credential_base.h"
 
 namespace credential_provider {
 
 // A credential for a user that exists on the system and is associated with a
 // Gaia account.
-class __declspec(novtable) CReauthCredential
+class ATL_NO_VTABLE CReauthCredential
     : public CComObjectRootEx<CComMultiThreadModel>,
       public CGaiaCredentialBase,
       public IReauthCredential {

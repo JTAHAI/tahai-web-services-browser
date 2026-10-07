@@ -16,8 +16,7 @@ from typing import Any, Dict, Generator, List, Optional, Sequence, Set, Tuple
 # Add extra dependencies to the python path.
 _SCRIPT_DIR = os.path.realpath(os.path.dirname(__file__))
 _CHROME_SOURCE = os.path.realpath(
-    os.path.join(_SCRIPT_DIR, *[os.path.pardir] * 5)
-)
+    os.path.join(_SCRIPT_DIR, *[os.path.pardir] * 5))
 sys.path.append(os.path.join(_CHROME_SOURCE, 'build'))
 
 import action_helpers
@@ -30,29 +29,29 @@ LOGGER = logging.getLogger(__name__)
 SYMBOLS_GROUPS = {
     'Arrows': [
         # Arrows Unicode Block.
-        (0x2190, 0x21FF),
+        (0x2190, 0x21ff),
         # Supplemental Arrows-C Unicode Block.
         # Note: There are unassigned code points in the block which are
         # automatically skipped by the script.
-        (0x1F800, 0x1F8FF),
+        (0x1f800, 0x1f8ff),
     ],
     'Bullet/Stars': [
         # Some rows from Miscellaneous Symbols and Arrows Unicode block.
-        (0x2B20, 0x2B2F),
-        (0x2B50, 0x2B5F),
-        (0x2B90, 0x2B9F),
-        (0x2BB0, 0x2BBF),
-        (0x2BC0, 0x2BCF),
+        (0x2b20, 0x2b2f),
+        (0x2b50, 0x2b5f),
+        (0x2b90, 0x2b9f),
+        (0x2bb0, 0x2bbf),
+        (0x2bc0, 0x2bcf),
     ],
     'Currency': [
         # Currency Unicode Block.
-        (0x20A0, 0x20BF),
+        (0x20a0, 0x20bf),
         # Currency from Latin-1 Supplement.
         (0x00A2, 0x00A5),
     ],
     'Letterlike': [
         # Letterlike Symbols Unicode Block.
-        (0x2100, 0x210F),
+        (0x2100, 0x210f),
     ],
     'Math': [
         # Greek Letters and Symbols from Mathematical and Alphanumeric
@@ -60,10 +59,10 @@ SYMBOLS_GROUPS = {
         # Normal Capital Letters.
         (0x0391, 0x0391 + 25),
         # Normal Small Letters.
-        (0x03B1, 0x03B1 + 25),
+        (0x03b1, 0x03b1 + 25),
         # Mathematical Operators
         (0x2200, 0x2235),
-        (0x2260, 0x228B),
+        (0x2260, 0x228b),
         # Fractions from Latin-1 Supplement
         (0x00BC, 0x00BE),
         # Degree symbol from Latin-1 Supplement
@@ -71,7 +70,7 @@ SYMBOLS_GROUPS = {
     ],
     'Miscellaneous': [
         # Miscellaneous Symbols Unicode Block.
-        (0x2600, 0x26FF),
+        (0x2600, 0x26ff),
         # Copyright
         (0x00A9, 0x00A9),
         # Registered
@@ -83,7 +82,7 @@ SYMBOLS_GROUPS = {
 SEARCH_ONLY_SYMBOLS_GROUPS = {
     'Letterlike': [
         # Letterlike Symbols Unicode Block.
-        (0x2110, 0x214F),
+        (0x2110, 0x214f),
     ],
     'Math': [
         # Greek Letters and Symbols from Mathematical and Alphanumeric
@@ -95,8 +94,8 @@ SEARCH_ONLY_SYMBOLS_GROUPS = {
         # Bold-Italic Capital Letters.
         (0x1D71C, 0x1D71C + 25),
         # Mathematical Operators
-        (0x2236, 0x225F),
-        (0x228C, 0x22DF),
+        (0x2236, 0x225f),
+        (0x228c, 0x22df),
         # Number Forms.
         (0x2150, 0x218B),
     ],
@@ -117,17 +116,15 @@ SEARCH_ONLY_SYMBOLS_GROUPS = {
 }
 
 # Set of unicode symbols that do not render with fonts available on ChromeOS
-INVALID_SYMBOLS = set(
-    [
-        '\u2bba',
-        '\u2bbb',
-        '\u2bbc',
-        '\u2b97',
-        '\u2bc9',
-        '\U0001f8b0',
-        '\U0001f8b1',
-    ]
-)
+INVALID_SYMBOLS = set([
+    '\u2BBA',
+    '\u2BBB',
+    '\u2BBC',
+    '\u2B97',
+    '\u2BC9',
+    '\U0001F8B0',
+    '\U0001F8B1',
+])
 
 # Custom search keywords for symbols.
 # By default, symbols do not have search keywords.
@@ -178,7 +175,6 @@ CUSTOM_KEYWORDS = {
 @dataclasses.dataclass
 class EmojiPickerChar:
     """A type representing a single character in EmojiPicker."""
-
     # Unicode character.
     string: str
     # Name of the unicode character.
@@ -190,7 +186,6 @@ class EmojiPickerChar:
 @dataclasses.dataclass
 class EmojiPickerEmoji:
     """A type representing an emoji/emoticon/symbol in EmojiPicker."""
-
     # Base Emoji.
     base: EmojiPickerChar
     # Base Emoji's variants and alternative emojis.
@@ -200,7 +195,6 @@ class EmojiPickerEmoji:
 @dataclasses.dataclass
 class EmojiPickerGroup:
     """A type representing a group of emoji/emoticon/symbols."""
-
     # Name of the group.
     group: str
     # List of the emojis in the group.
@@ -223,7 +217,8 @@ def _convert_snake_case_to_camel_case(snake_case_input: str) -> str:
     return words[0] + ''.join(word.title() for word in words[1:])
 
 
-def _emoji_data_dict_factory(data: Sequence[Tuple[str, Any]]) -> Dict[str, Any]:
+def _emoji_data_dict_factory(
+        data: Sequence[Tuple[str, Any]]) -> Dict[str, Any]:
     """Implements a dictionary factory for emoji data preparation.
 
     This factory skips empty keys with empty value. It also converts snake-case
@@ -238,8 +233,7 @@ def _emoji_data_dict_factory(data: Sequence[Tuple[str, Any]]) -> Dict[str, Any]:
     """
     return {
         _convert_snake_case_to_camel_case(key): value
-        for (key, value) in data
-        if not isinstance(value, list) or value
+        for (key, value) in data if not isinstance(value, list) or value
     }
 
 
@@ -268,7 +262,7 @@ def _load_emoji_characters_from_files(data_paths: List[str]) -> Set[str]:
 def _convert_unicode_ranges_to_emoji_chars(
     unicode_ranges: List[Tuple[int, int]],
     cldr_map: Dict[str, EmojiPickerChar],
-    ignore_errors: bool = True,
+    ignore_errors: bool = True
 ) -> Generator[EmojiPickerChar, None, None]:
     """Converts unicode ranges to `EmojiPickerChar` instances.
 
@@ -291,22 +285,17 @@ def _convert_unicode_ranges_to_emoji_chars(
 
     LOGGER.info(
         'generating EmojiPickerChar instances for ranges: [%s].',
-        ', '.join(
-            '(U+{:02x}, U+{:02x})'.format(*rng) for rng in unicode_ranges
-        ),
-    )
+        ', '.join('(U+{:02x}, U+{:02x})'.format(*rng)
+                  for rng in unicode_ranges))
 
     num_chars = 0
     num_ignored = 0
 
     # Iterate over the input unicode ranges.
-    for start_code_point, end_code_point in unicode_ranges:
+    for (start_code_point, end_code_point) in unicode_ranges:
         LOGGER.debug(
             'generating EmojiPickerChar instances '
-            'for range (U+%02x to U+%02x).',
-            start_code_point,
-            end_code_point,
-        )
+            'for range (U+%02x to U+%02x).', start_code_point, end_code_point)
 
         num_chars += end_code_point + 1 - start_code_point
         # Iterate over all code points in the range.
@@ -322,8 +311,7 @@ def _convert_unicode_ranges_to_emoji_chars(
                     yield EmojiPickerChar(
                         string=unicode_character,
                         name=unicodedata.name(unicode_character).lower(),
-                        keywords=CUSTOM_KEYWORDS.get(unicode_character, []),
-                    )
+                        keywords=CUSTOM_KEYWORDS.get(unicode_character, []))
             except ValueError:
                 # If ignore_errors is False, raise the exception.
                 if not ignore_errors:
@@ -332,11 +320,8 @@ def _convert_unicode_ranges_to_emoji_chars(
                     num_ignored += 1
                     LOGGER.warning('invalid code point U+%02x.', code_point)
 
-    LOGGER.info(
-        'stats: #returned instances: %d, #ignored code points: %d',
-        num_chars,
-        num_ignored,
-    )
+    LOGGER.info('stats: #returned instances: %d, #ignored code points: %d',
+                num_chars, num_ignored)
 
 
 def get_symbols_groups(
@@ -344,7 +329,7 @@ def get_symbols_groups(
     cldr_map: Dict[str, EmojiPickerChar],
     search_only: bool = False,
     ignore_errors: bool = True,
-    filter_set: Optional[Set[str]] = None,
+    filter_set: Optional[Set[str]] = None
 ) -> List[EmojiPickerGroup]:
     """Creates symbols data from predefined groups and their unicode ranges.
 
@@ -363,20 +348,18 @@ def get_symbols_groups(
     """
 
     emoji_groups = list()
-    for group_name, unicode_ranges in group_unicode_ranges.items():
+    for (group_name, unicode_ranges) in group_unicode_ranges.items():
         LOGGER.info('generating symbols for group %s.', group_name)
         emoji_chars = _convert_unicode_ranges_to_emoji_chars(
-            unicode_ranges, ignore_errors=ignore_errors, cldr_map=cldr_map
-        )
+            unicode_ranges, ignore_errors=ignore_errors, cldr_map=cldr_map)
         emoji = [
-            EmojiPickerEmoji(base=emoji_char)
-            for emoji_char in emoji_chars
+            EmojiPickerEmoji(base=emoji_char) for emoji_char in emoji_chars
             if filter_set is None or emoji_char.string not in filter_set
         ]
 
-        emoji_group = EmojiPickerGroup(
-            group=group_name, emoji=emoji, search_only=search_only
-        )
+        emoji_group = EmojiPickerGroup(group=group_name,
+                                       emoji=emoji,
+                                       search_only=search_only)
         emoji_groups.append(emoji_group)
     return emoji_groups
 
@@ -402,26 +385,20 @@ def parse_cldr_annotations(keyword_file: str) -> Dict[str, EmojiPickerChar]:
 
 def main(argv: List[str]) -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        '--output',
-        required=True,
-        type=str,
-        help='Path to write the output JSON file.',
-    )
-    parser.add_argument(
-        '--verbose',
-        required=False,
-        default=False,
-        action='store_true',
-        help='Set the logging level to Debug.',
-    )
+    parser.add_argument('--output',
+                        required=True,
+                        type=str,
+                        help='Path to write the output JSON file.')
+    parser.add_argument('--verbose',
+                        required=False,
+                        default=False,
+                        action='store_true',
+                        help='Set the logging level to Debug.')
     parser.add_argument('--filter-data-paths', action='append', nargs='+')
-    parser.add_argument(
-        '--cldr_data_paths',
-        default=[],
-        nargs='*',
-        help='Paths to find CLDR unicode annotations',
-    )
+    parser.add_argument('--cldr_data_paths',
+                        default=[],
+                        nargs='*',
+                        help='Paths to find CLDR unicode annotations')
 
     args = parser.parse_args(argv)
 
@@ -436,7 +413,8 @@ def main(argv: List[str]) -> None:
 
     # Loads a list of other emoji characters that must be
     # excluded from symbols.
-    filter_set = _load_emoji_characters_from_files(data_paths=filter_data_paths)
+    filter_set = _load_emoji_characters_from_files(
+        data_paths=filter_data_paths)
 
     # Explicitly remove individual symbols that don't render on ChromeOS
     filter_set |= INVALID_SYMBOLS
@@ -447,38 +425,31 @@ def main(argv: List[str]) -> None:
         cldr_map.update(parse_cldr_annotations(path))
 
     # Add symbol groups.
-    symbols_groups = get_symbols_groups(
-        group_unicode_ranges=SYMBOLS_GROUPS,
-        filter_set=filter_set,
-        search_only=False,
-        cldr_map=cldr_map,
-    )
+    symbols_groups = get_symbols_groups(group_unicode_ranges=SYMBOLS_GROUPS,
+                                        filter_set=filter_set,
+                                        search_only=False,
+                                        cldr_map=cldr_map)
 
     # Add search-only symbol groups.
     symbols_groups.extend(
-        get_symbols_groups(
-            group_unicode_ranges=SEARCH_ONLY_SYMBOLS_GROUPS,
-            filter_set=filter_set,
-            search_only=True,
-            cldr_map=cldr_map,
-        )
-    )
+        get_symbols_groups(group_unicode_ranges=SEARCH_ONLY_SYMBOLS_GROUPS,
+                           filter_set=filter_set,
+                           search_only=True,
+                           cldr_map=cldr_map))
 
     # Create the data and convert them to dict.
     symbols_groups_dicts = []
     for symbol_group in symbols_groups:
         symbol_group_dict = dataclasses.asdict(
-            symbol_group, dict_factory=_emoji_data_dict_factory
-        )
+            symbol_group, dict_factory=_emoji_data_dict_factory)
         symbols_groups_dicts.append(symbol_group_dict)
 
     # Write the result to output path as json file.
     with action_helpers.atomic_output(args.output) as tmp_file:
         tmp_file.write(
-            json.dumps(
-                symbols_groups_dicts, separators=(',', ':'), ensure_ascii=False
-            ).encode('utf-8')
-        )
+            json.dumps(symbols_groups_dicts,
+                       separators=(',', ':'),
+                       ensure_ascii=False).encode('utf-8'))
 
 
 if __name__ == '__main__':

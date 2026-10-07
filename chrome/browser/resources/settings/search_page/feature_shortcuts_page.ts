@@ -9,17 +9,17 @@
  */
 import 'chrome://resources/cr_elements/cr_collapse/cr_collapse.js';
 import 'chrome://resources/cr_elements/cr_expand_button/cr_expand_button.js';
+import 'chrome://resources/cr_elements/cr_shared_style.css.js';
 import './search_engines_list.js';
 import '../settings_page/settings_section.js';
+import '../settings_shared.css.js';
 
 import type {CrExpandButtonElement} from 'chrome://resources/cr_elements/cr_expand_button/cr_expand_button.js';
-import {I18nMixinLit} from 'chrome://resources/cr_elements/i18n_mixin_lit.js';
-import {WebUiListenerMixinLit} from 'chrome://resources/cr_elements/web_ui_listener_mixin_lit.js';
-import type {PropertyValues} from 'chrome://resources/lit/v3_0/lit.rollup.js';
-import {CrLitElement} from 'chrome://resources/lit/v3_0/lit.rollup.js';
+import {I18nMixin} from 'chrome://resources/cr_elements/i18n_mixin.js';
+import {WebUiListenerMixin} from 'chrome://resources/cr_elements/web_ui_listener_mixin.js';
+import {PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
-import {getCss} from './feature_shortcuts_page.css.js';
-import {getHtml} from './feature_shortcuts_page.html.js';
+import {getTemplate} from './feature_shortcuts_page.html.js';
 import type {CategorizedTemplateUrls, SearchEngine} from './search_engines_browser_proxy.js';
 import {SearchEnginesBrowserProxyImpl, SearchEnginesInteractions} from './search_engines_browser_proxy.js';
 import type {SettingsSearchEnginesListElement} from './search_engines_list.js';
@@ -36,7 +36,7 @@ export interface FeatureShortcutsPageElement {
 }
 
 const FeatureShortcutsPageElementBase =
-    I18nMixinLit(WebUiListenerMixinLit(CrLitElement));
+    I18nMixin(WebUiListenerMixin(PolymerElement));
 
 export class FeatureShortcutsPageElement extends
     FeatureShortcutsPageElementBase {
@@ -44,30 +44,26 @@ export class FeatureShortcutsPageElement extends
     return 'settings-feature-shortcuts-page';
   }
 
-  static override get styles() {
-    return getCss();
+  static get template() {
+    return getTemplate();
   }
 
-  override render() {
-    return getHtml.bind(this)();
-  }
-
-  static override get properties() {
+  static get properties() {
     return {
-      activeShortcuts: {type: Array},
-      inactiveShortcuts: {type: Array},
+      activeShortcuts: Array,
+      inactiveShortcuts: Array,
 
       // Whether the corresponding subsection is expanded.
-      activeShortcutsExpanded_: {type: Boolean},
-      inactiveShortcutsExpanded_: {type: Boolean},
+      activeShortcutsExpanded_: {type: Boolean, value: false},
+      inactiveShortcutsExpanded_: {type: Boolean, value: false},
     };
   }
 
-  accessor activeShortcuts: SearchEngine[] = [];
-  accessor inactiveShortcuts: SearchEngine[] = [];
+  declare activeShortcuts: SearchEngine[];
+  declare inactiveShortcuts: SearchEngine[];
 
-  protected accessor activeShortcutsExpanded_: boolean = false;
-  protected accessor inactiveShortcutsExpanded_: boolean = false;
+  declare private activeShortcutsExpanded_: boolean;
+  declare private inactiveShortcutsExpanded_: boolean;
 
   override connectedCallback() {
     super.connectedCallback();
@@ -79,42 +75,13 @@ export class FeatureShortcutsPageElement extends
         'search-engines-changed', this.enginesChanged_.bind(this));
   }
 
-  override willUpdate(changedProperties: PropertyValues<this>) {
-    super.willUpdate(changedProperties);
-
-    const changedPrivateProperties =
-        changedProperties as Map<PropertyKey, unknown>;
-
-    if (changedPrivateProperties.has('activeShortcutsExpanded_') &&
-        changedPrivateProperties.get('activeShortcutsExpanded_') !==
-            undefined) {
-      this.onSectionExpandedChanged_(this.activeShortcutsExpanded_);
-    }
-
-    if (changedPrivateProperties.has('inactiveShortcutsExpanded_') &&
-        changedPrivateProperties.get('inactiveShortcutsExpanded_') !==
-            undefined) {
-      this.onSectionExpandedChanged_(this.inactiveShortcutsExpanded_);
-    }
-  }
-
   private enginesChanged_(categorizedTemplateUrls: CategorizedTemplateUrls) {
     this.activeShortcuts = categorizedTemplateUrls.activeFeatureShortcuts;
     this.inactiveShortcuts = categorizedTemplateUrls.inactiveFeatureShortcuts;
   }
 
-  protected onActiveShortcutsExpandedChanged_(
-      e: CustomEvent<{value: boolean}>) {
-    this.activeShortcutsExpanded_ = e.detail.value;
-  }
-
-  protected onInactiveShortcutsExpandedChanged_(
-      e: CustomEvent<{value: boolean}>) {
-    this.inactiveShortcutsExpanded_ = e.detail.value;
-  }
-
-  private onSectionExpandedChanged_(expanded: boolean) {
-    const interaction = expanded ?
+  private onSectionExpandedChanged_(e: CustomEvent<{value: boolean}>) {
+    const interaction = e.detail.value ?
         SearchEnginesInteractions.FEATURE_SHORTCUTS_SECTION_EXPANDED :
         SearchEnginesInteractions.FEATURE_SHORTCUTS_SECTION_COLLAPSED;
     SearchEnginesBrowserProxyImpl.getInstance()

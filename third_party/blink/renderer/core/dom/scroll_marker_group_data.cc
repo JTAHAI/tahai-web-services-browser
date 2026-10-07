@@ -14,7 +14,6 @@
 #include "third_party/blink/renderer/core/layout/layout_box.h"
 #include "third_party/blink/renderer/core/paint/paint_layer_scrollable_area.h"
 #include "third_party/blink/renderer/core/scroll/scroll_into_view_util.h"
-#include "third_party/blink/renderer/platform/runtime_enabled_features.h"
 #include "third_party/blink/renderer/platform/wtf/wtf_size_t.h"
 
 namespace blink {
@@ -100,15 +99,16 @@ std::optional<double> ScrollMarkerChooser::GetScrollTargetPosition(
           ? scroll_marker->GetLayoutObject()
           : target_object;
   CHECK(bounding_box_object);
-  const PhysicalBoxStrut scroll_margin =
-      target_object->StyleRef().ScrollMarginStrut();
+  PhysicalBoxStrut scroll_margin =
+      target_object->Style() ? target_object->StyleRef().ScrollMarginStrut()
+                             : PhysicalBoxStrut();
   // Ignore sticky position offsets for the purposes of scrolling elements
   // into view. See https://www.w3.org/TR/css-position-3/#stickypos-scroll for
   // details
   const MapCoordinatesFlags flag =
       (RuntimeEnabledFeatures::CSSPositionStickyStaticScrollPositionEnabled())
-          ? MapCoordinatesFlags{MapCoordinatesMode::kIgnoreStickyOffset}
-          : MapCoordinatesFlags{};
+          ? kIgnoreStickyOffset
+          : 0;
   PhysicalRect rect_to_scroll = scroller_box_->AbsoluteToLocalRect(
       bounding_box_object->AbsoluteBoundingBoxRectForScrollIntoView(), flag);
   rect_to_scroll.Expand(scroll_margin);
@@ -591,11 +591,9 @@ Element* ScrollMarkerGroupData::ChooseMarkerRecursively() {
     // Form controls in autofill preview state may have been scrolled to bring
     // the previewed value into view. Keep the current selection so that the
     // suggested value cannot be observed via the selected scroll marker.
-    if (!RuntimeEnabledFeatures::SelectAutofillPopoverPreviewEnabled()) {
-      if (auto* form_control = DynamicTo<HTMLFormControlElement>(scroller);
-          form_control && form_control->IsPreviewed()) {
-        return selected_marker_;
-      }
+    if (auto* form_control = DynamicTo<HTMLFormControlElement>(scroller);
+        form_control && form_control->IsPreviewed()) {
+      return selected_marker_;
     }
     LayoutBox* scroller_box = scroller->GetLayoutBox();
     DCHECK(scroller_box);

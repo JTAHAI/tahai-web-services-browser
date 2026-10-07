@@ -2,10 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "chrome/browser/ui/extensions/confirm_protocol_handler_dialog.h"
-
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/ui/tabs/tab_strip_model.h"
+#include "chrome/browser/ui/extensions/extensions_dialogs.h"
 #include "chrome/test/interaction/interactive_browser_test.h"
 #include "components/custom_handlers/protocol_handler.h"
 #include "content/public/test/browser_test.h"
@@ -28,7 +26,7 @@ class ConfirmProtocolHandlerDialogUITest : public InteractiveBrowserTest {
       const std::optional<url::Origin>& initiating_origin) {
     return Do([&]() {
       extensions::ShowConfirmProtocolHandlerDialog(
-          browser()->GetTabStripModel()->GetActiveWebContents(), handler,
+          browser()->tab_strip_model()->GetActiveWebContents(), handler,
           initiating_origin,
           base::BindOnce(
               &ConfirmProtocolHandlerDialogUITest::OnPermissionGranted,

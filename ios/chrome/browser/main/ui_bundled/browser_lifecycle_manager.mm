@@ -87,7 +87,6 @@
 }
 
 - (void)createMainCoordinatorAndInterface {
-  CHECK(!_isShutdown, base::NotFatalUntil::M152);
   TRACE_EVENT("ui",
               "-[BrowserLifecycleManager createMainCoordinatorAndInterface]");
   CHECK(!_mainInterface, base::NotFatalUntil::M155)
@@ -333,7 +332,6 @@
 
 // Create the OTR interface object.
 - (WrangledBrowser*)createOTRInterface {
-  CHECK(!_isShutdown, base::NotFatalUntil::M152);
   TRACE_EVENT("ui", "-[BrowserLifecycleManager createOTRInterface]");
   CHECK(!_incognitoInterface, base::NotFatalUntil::M155);
 

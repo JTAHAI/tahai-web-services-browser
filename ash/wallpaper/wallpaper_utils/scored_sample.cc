@@ -7,8 +7,8 @@
 #include <type_traits>
 #include <vector>
 
+#include "base/compiler_specific.h"
 #include "base/logging.h"
-#include "base/numerics/safe_conversions.h"
 #include "base/timer/elapsed_timer.h"
 #include "third_party/material_color_utilities/src/cpp/quantize/celebi.h"
 #include "third_party/material_color_utilities/src/cpp/score/score.h"
@@ -36,18 +36,11 @@ std::vector<Argb> ImageToArgb(const SkBitmap* bitmap) {
                 "Assert that SkColor is encoded as ARGB.");
 
   const SkPixmap& pixmap = bitmap->pixmap();
-  const size_t num_pixels =
-      base::checked_cast<size_t>(pixmap.dimensions().area());
+  int64_t num_pixels = pixmap.dimensions().area();
   if (pixmap.colorType() == kBGRA_8888_SkColorType) {
     // Fast path if the buffer is already in the expected format.
-    if (num_pixels == 0) {
-      return {};
-    }
-
-    std::vector<Argb> pixels(num_pixels);
-    CHECK(pixmap.readPixels(pixmap.info(), pixels.data(),
-                            pixmap.info().minRowBytes()));
-    return pixels;
+    return std::vector<Argb>(pixmap.addr32(),
+                             UNSAFE_TODO(pixmap.addr32() + num_pixels));
   }
 
   // TODO(b/266948729): Evaluate if there are faster ways to perform this

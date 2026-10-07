@@ -20,7 +20,6 @@
 #include "chrome/browser/ui/views/omnibox/omnibox_popup_closer.h"
 #include "chrome/browser/ui/views/omnibox/omnibox_view_views.h"
 #include "chrome/browser/ui/views/toolbar/toolbar_view.h"
-#include "chrome/common/chrome_features.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/ui_test_utils.h"
 #include "chrome/test/permissions/permission_request_manager_test_api.h"
@@ -28,7 +27,6 @@
 #include "components/omnibox/browser/aim_eligibility_service.h"
 #include "components/omnibox/browser/mock_aim_eligibility_service.h"
 #include "components/permissions/permission_request_manager.h"
-#include "components/permissions/test/mock_permission_prompt_factory.h"
 #include "components/permissions/test/mock_permission_request.h"
 #include "components/permissions/test/permission_request_observer.h"
 #include "components/variations/service/variations_service.h"
@@ -87,7 +85,7 @@ class OmniboxAimPopupBrowserTest : public InProcessBrowserTest {
   OmniboxAimPopupBrowserTest() {
     feature_list_.InitWithFeatures({omnibox::internal::kWebUIOmniboxAimPopup,
                                     omnibox::internal::kWebUIOmniboxPopup},
-                                   {features::kWebUILocationBar});
+                                   {});
   }
 
   void TriggerMenuClosed(OmniboxPopupWebUIBaseContent* content) {
@@ -330,29 +328,21 @@ IN_PROC_BROWSER_TEST_F(OmniboxAimPopupBrowserTest,
   auto* presenter = location_bar()->GetOmniboxPopupAimPresenter();
   ASSERT_TRUE(presenter);
 
-  // Wait for the WebContents to finish loading and popup state transition to
-  // finish.
-  content::WaitForLoadStop(content->GetWebContents());
-  ASSERT_TRUE(base::test::RunUntil(
-      [&]() { return !location_bar()->in_popup_state_transition(); }));
-
   auto* permission_manager =
       permissions::PermissionRequestManager::FromWebContents(
           content->GetWebContents());
   ASSERT_TRUE(permission_manager);
 
-  permissions::MockPermissionPromptFactory prompt_factory(permission_manager);
-
   // Add a mock permission request for a standard origin to set
   // IsRequestInProgress() to true without auto-approving. This avoids needing
   // a page navigation while allowing for a website to request a permission.
   // Cannot be about:blank due to DCheck.
+  permissions::PermissionRequestObserver observer(content->GetWebContents());
   auto request = std::make_unique<permissions::MockPermissionRequest>(
-      GURL("https://example.com"), permissions::RequestType::kMicStream,
-      permissions::PermissionRequestGestureType::GESTURE);
+      GURL("https://example.com"), permissions::RequestType::kMicStream);
   permission_manager->AddRequest(
       content->GetWebContents()->GetPrimaryMainFrame(), std::move(request));
-  prompt_factory.WaitForPermissionBubble();
+  observer.Wait();
 
   EXPECT_TRUE(permission_manager->IsRequestInProgress());
 
@@ -825,7 +815,7 @@ class TestPermissionPromptDelegate
   }
 
   const std::vector<std::unique_ptr<permissions::PermissionRequest>>& Requests()
-      const override {
+      override {
     return request_list_;
   }
   GURL GetRequestingOrigin() const override {
@@ -900,7 +890,7 @@ IN_PROC_BROWSER_TEST_F(OmniboxAimPopupBrowserTest,
   // (Verifies `PermissionRequestManager` did NOT set it).
   EXPECT_FALSE(presenter->IsPermissionPromptPreventingClose());
 
-  auto* web_contents = browser()->GetTabStripModel()->GetActiveWebContents();
+  auto* web_contents = browser()->tab_strip_model()->GetActiveWebContents();
   TestPermissionPromptDelegate test_delegate(web_contents);
 
   // Directly call `PermissionPromptFactory::CreatePermissionPrompt`
@@ -943,7 +933,7 @@ IN_PROC_BROWSER_TEST_F(OmniboxAimPopupBrowserTest,
   ASSERT_TRUE(presenter);
   EXPECT_FALSE(presenter->IsShown());
 
-  auto* web_contents = browser()->GetTabStripModel()->GetActiveWebContents();
+  auto* web_contents = browser()->tab_strip_model()->GetActiveWebContents();
   TestPermissionPromptDelegate test_delegate(web_contents);
 
   // Directly call PermissionPromptFactory::CreatePermissionPrompt synchronously
@@ -970,7 +960,7 @@ IN_PROC_BROWSER_TEST_F(
   EXPECT_TRUE(presenter->IsShown());
 
   // Allow prompt to drop if it cannot show quietly.
-  auto* web_contents = browser()->GetTabStripModel()->GetActiveWebContents();
+  auto* web_contents = browser()->tab_strip_model()->GetActiveWebContents();
   TestPermissionPromptDelegate test_delegate(web_contents);
   test_delegate.set_should_drop(true);
 
@@ -985,23 +975,4 @@ IN_PROC_BROWSER_TEST_F(
 
   // Presenter MUST NOT be locked if prompt creation returned `nullptr`.
   EXPECT_FALSE(presenter->IsPermissionPromptPreventingClose());
-}
-
-// Verifies that when `kWebUIOmniboxFullPopup` is enabled, `OmniboxPopupCloser`
-// transitions `kFull` popup state to `kNone` on `CloseWithReason(kRevertAll)`.
-IN_PROC_BROWSER_TEST_F(OmniboxAimPopupBrowserTest,
-                       PopupCloserTransitionsFullPopupStateToNone) {
-  auto* state_manager =
-      location_bar()->GetOmniboxController()->popup_state_manager();
-  ASSERT_TRUE(state_manager);
-
-  state_manager->SetPopupState(OmniboxPopupState::kFull);
-  EXPECT_EQ(state_manager->popup_state(), OmniboxPopupState::kFull);
-
-  auto* popup_closer =
-      location_bar()->GetOmniboxController()->client()->GetOmniboxPopupCloser();
-  ASSERT_TRUE(popup_closer);
-  popup_closer->CloseWithReason(omnibox::PopupCloseReason::kRevertAll);
-
-  EXPECT_EQ(state_manager->popup_state(), OmniboxPopupState::kNone);
 }

@@ -4,39 +4,57 @@
 
 #include "chrome/browser/ui/startup/default_browser_prompt/default_browser_prompt_manager.h"
 
-#include <optional>
+#include <map>
 
-#include "base/memory/raw_ptr.h"
-#include "base/test/run_until.h"
-#include "base/test/scoped_feature_list.h"
+#include "base/run_loop.h"
 #include "base/time/time.h"
 #include "build/build_config.h"
 #include "chrome/browser/browser_process.h"
-#include "chrome/browser/default_browser/default_browser_controller.h"
 #include "chrome/browser/default_browser/default_browser_features.h"
 #include "chrome/browser/ui/startup/default_browser_prompt/default_browser_prompt_prefs.h"
-#include "chrome/browser/ui/startup/default_browser_prompt/default_browser_surface_manager.h"
-#include "chrome/browser/ui/ui_features.h"
 #include "chrome/common/pref_names.h"
+#include "chrome/test/base/browser_with_test_window_test.h"
+#include "components/infobars/content/content_infobar_manager.h"
+#include "components/prefs/pref_registry_simple.h"
 #include "components/prefs/pref_service.h"
+#include "components/prefs/testing_pref_service.h"
 #include "content/public/test/browser_task_environment.h"
+#include "content/public/test/web_contents_tester.h"
+#include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
-class DefaultBrowserPromptManagerTest : public testing::Test {
+namespace {
+class InfoBarManagerObserver : public infobars::InfoBarManager::Observer {
+ public:
+  MOCK_METHOD(void, OnInfoBarAdded, (infobars::InfoBar * infobar), (override));
+};
+}  // namespace
+
+class DefaultBrowserPromptManagerTest : public BrowserWithTestWindowTest {
  public:
   DefaultBrowserPromptManagerTest()
-      : task_environment_(base::test::TaskEnvironment::TimeSource::MOCK_TIME) {}
+      : BrowserWithTestWindowTest(
+            base::test::TaskEnvironment::TimeSource::MOCK_TIME) {}
 
  protected:
   void SetUp() override {
+    BrowserWithTestWindowTest::SetUp();
+
     manager_ = DefaultBrowserPromptManager::GetInstance();
     manager_->CloseAllPrompts(
         DefaultBrowserPromptManager::CloseReason::kAccept);
+
+    // Set up a single tab in the foreground.
+    std::unique_ptr<content::WebContents> contents =
+        content::WebContentsTester::CreateTestWebContents(
+            profile(), content::SiteInstance::Create(profile()));
+    browser()->tab_strip_model()->AppendWebContents(std::move(contents), true);
   }
 
   void TearDown() override {
     manager_->CloseAllPrompts(
         DefaultBrowserPromptManager::CloseReason::kAccept);
+    BrowserWithTestWindowTest::TearDown();
   }
 
   void TestShouldShowInfoBarPrompt(
@@ -66,30 +84,27 @@ class DefaultBrowserPromptManagerTest : public testing::Test {
     manager()->CloseAllPrompts(
         DefaultBrowserPromptManager::CloseReason::kAccept);
 
-    bool prompt_shown = manager()->MaybeShowPrompt();
-    if (prompt_shown) {
-      ASSERT_TRUE(base::test::RunUntil([this]() {
-        return manager()->GetPromptSurfaceManager() != nullptr;
-      }));
+    infobars::ContentInfoBarManager* infobar_manager =
+        infobars::ContentInfoBarManager::FromWebContents(
+            browser()->tab_strip_model()->GetWebContentsAt(0));
+    infobar_observation_.Observe(infobar_manager);
+
+    base::RunLoop run_loop;
+    if (expect_infobar_exists) {
+      EXPECT_CALL(infobar_manager_observer_, OnInfoBarAdded)
+          .WillOnce([&](infobars::InfoBar* infobar) { run_loop.Quit(); });
+    } else {
+      EXPECT_CALL(infobar_manager_observer_, OnInfoBarAdded).Times(0);
     }
 
+    manager()->MaybeShowPrompt();
     if (expect_infobar_exists) {
-      EXPECT_TRUE(prompt_shown);
-      ASSERT_NE(manager()->GetPromptSurfaceManager(), nullptr);
-      EXPECT_EQ(manager()->GetPromptSurfaceManager()->GetEntrypointType(),
-                default_browser::DefaultBrowserEntrypointType::kStartupInfobar);
-    } else {
-      if (!prompt_shown) {
-        EXPECT_EQ(manager()->GetPromptSurfaceManager(), nullptr);
-      } else {
-        // Prompt was shown, but using a non-infobar surface (e.g. bubble
-        // dialog).
-        ASSERT_NE(manager()->GetPromptSurfaceManager(), nullptr);
-        EXPECT_NE(
-            manager()->GetPromptSurfaceManager()->GetEntrypointType(),
-            default_browser::DefaultBrowserEntrypointType::kStartupInfobar);
-      }
+      // The info bar shows asynchronously, after checking if Chrome can be
+      // pinned to the taskbar, so need to wait for it to be shown.
+      run_loop.Run();
     }
+    // The decision not to show the info bar is synchronous; no need to wait.
+    infobar_observation_.Reset();
   }
 
   PrefService* local_state() { return g_browser_process->local_state(); }
@@ -97,11 +112,15 @@ class DefaultBrowserPromptManagerTest : public testing::Test {
   DefaultBrowserPromptManager* manager() { return manager_; }
 
  protected:
-  content::BrowserTaskEnvironment task_environment_;
   base::test::ScopedFeatureList scoped_feature_list_;
 
  private:
-  raw_ptr<DefaultBrowserPromptManager> manager_ = nullptr;
+  raw_ptr<DefaultBrowserPromptManager> manager_;
+
+  InfoBarManagerObserver infobar_manager_observer_;
+  base::ScopedObservation<infobars::InfoBarManager,
+                          infobars::InfoBarManager::Observer>
+      infobar_observation_{&infobar_manager_observer_};
 };
 
 TEST_F(DefaultBrowserPromptManagerTest, ShowsAppMenuItem) {
@@ -190,9 +209,8 @@ constexpr int kFrameworkMaxPromptCount = 5;
 constexpr int kFrameworkRepromptDurationDays = 14;
 
 TEST_F(DefaultBrowserPromptManagerTest, FrameworkInfoBarMaxPromptCount) {
-  scoped_feature_list_.InitWithFeatures(
-      /*enabled_features=*/{default_browser::kDefaultBrowserPromptSurfaces},
-      /*disabled_features=*/{features::kSeparateDefaultAndPinPrompt});
+  scoped_feature_list_.InitAndEnableFeature(
+      default_browser::kDefaultBrowserPromptSurfaces);
 
   // Show if the declined count is less than the max prompt count.
   TestShouldShowInfoBarPrompt(
@@ -210,9 +228,8 @@ TEST_F(DefaultBrowserPromptManagerTest, FrameworkInfoBarMaxPromptCount) {
 }
 
 TEST_F(DefaultBrowserPromptManagerTest, FrameworkInfoBarRepromptDuration) {
-  scoped_feature_list_.InitWithFeatures(
-      /*enabled_features=*/{default_browser::kDefaultBrowserPromptSurfaces},
-      /*disabled_features=*/{features::kSeparateDefaultAndPinPrompt});
+  scoped_feature_list_.InitAndEnableFeature(
+      default_browser::kDefaultBrowserPromptSurfaces);
 
   // After the prompt is declined once, show the prompt again if the time since
   // the last time the prompt was declined is strictly longer than the base
@@ -258,12 +275,10 @@ TEST_F(DefaultBrowserPromptManagerTest, FrameworkInfoBarRepromptDuration) {
 }
 
 TEST_F(DefaultBrowserPromptManagerTest, FrameworkPromptSurfaceBecomesInfoBar) {
-  scoped_feature_list_.InitWithFeaturesAndParameters(
-      /*enabled_features=*/{{default_browser::kDefaultBrowserPromptSurfaces,
-                             {{default_browser::
-                                   kDefaultBrowserPromptSurfaceParam.name,
-                               "bubble_dialog"}}}},
-      /*disabled_features=*/{features::kSeparateDefaultAndPinPrompt});
+  scoped_feature_list_.InitAndEnableFeatureWithParameters(
+      default_browser::kDefaultBrowserPromptSurfaces,
+      {{default_browser::kDefaultBrowserPromptSurfaceParam.name,
+        "bubble_dialog"}});
 
   // When decline count is < 3, the surface should be bubble_dialog, so no
   // infobar is shown.

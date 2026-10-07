@@ -5,13 +5,17 @@
 #ifndef ASH_PUBLIC_CPP_KEYBOARD_KEYBOARD_SWITCHES_H_
 #define ASH_PUBLIC_CPP_KEYBOARD_KEYBOARD_SWITCHES_H_
 
-namespace keyboard::switches {
+#include "ash/public/cpp/ash_public_export.h"
 
-inline constexpr char kEnableVirtualKeyboard[] = "enable-virtual-keyboard";
+namespace keyboard {
+namespace switches {
+
+ASH_PUBLIC_EXPORT extern const char kEnableVirtualKeyboard[];
 // TODO(crbug/1154939): Remove this const when we found a solution to
 // crbug/1140667
-inline constexpr char kDisableVirtualKeyboard[] = "disable-virtual-keyboard";
+ASH_PUBLIC_EXPORT extern const char kDisableVirtualKeyboard[];
 
-}  // namespace keyboard::switches
+}  // namespace switches
+}  // namespace keyboard
 
-#endif  // ASH_PUBLIC_CPP_KEYBOARD_KEYBOARD_SWITCHES_H_
+#endif  //  ASH_PUBLIC_CPP_KEYBOARD_KEYBOARD_SWITCHES_H_

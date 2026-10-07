@@ -5,7 +5,6 @@
 #import "ios/chrome/browser/intelligence/bwg/model/gemini_actuation_handler.h"
 
 #import <map>
-#import <optional>
 #import <string>
 #import <vector>
 
@@ -18,7 +17,6 @@
 #import "base/strings/sys_string_conversions.h"
 #import "components/actor/public/mojom/actor_types.mojom.h"
 #import "components/optimization_guide/proto/features/actions_data.pb.h"
-#import "components/sessions/core/session_id.h"
 #import "ios/chrome/browser/intelligence/actor/model/actor_service.h"
 #import "ios/chrome/browser/intelligence/actor/public/actor_types.h"
 #import "ios/chrome/browser/intelligence/actor/tools/model/actor_tool_request.h"
@@ -139,12 +137,10 @@ NSData* CreateSerializedFailureActionsResult(
   return SerializeProtoToNSData(actionsResult);
 }
 
-// Injects the current tab and window ID into the given action depending on its
-// case.
-// LINT.IfChange(InjectDataIntoAction)
-void InjectDataIntoAction(optimization_guide::proto::Action& action,
-                          web::WebStateID web_state_id,
-                          SessionID window_id) {
+// Injects the tab ID into the given action depending on its case.
+// LINT.IfChange(InjectTabIdIntoAction)
+void InjectTabIdIntoAction(optimization_guide::proto::Action& action,
+                           web::WebStateID web_state_id) {
   int32_t tab_id = web_state_id.identifier();
   switch (action.action_case()) {
     case optimization_guide::proto::Action::kNavigate:
@@ -183,14 +179,6 @@ void InjectDataIntoAction(optimization_guide::proto::Action& action,
     case optimization_guide::proto::Action::kCloseTab:
       action.mutable_close_tab()->set_tab_id(tab_id);
       break;
-    case optimization_guide::proto::Action::kCreateTab:
-      if (window_id.is_valid()) {
-        action.mutable_create_tab()->set_window_id(window_id.id());
-      }
-      break;
-    case optimization_guide::proto::Action::kActivateTab:
-      action.mutable_activate_tab()->set_tab_id(tab_id);
-      break;
     default:
       break;
   }
@@ -206,23 +194,16 @@ void InjectDataIntoAction(optimization_guide::proto::Action& action,
   // The WebStateList to obtain the active WebState.
   raw_ptr<WebStateList> _webStateList;
 
-  // The Browser ID. We use std::optional here because SessionID is not
-  // default-constructible and cannot be declared as an Objective-C instance
-  // variable directly.
-  std::optional<SessionID> _browserId;
-
   // Map from task IDs to WebState IDs.
   std::map<actor::ActorTaskId, web::WebStateID> _taskToWebStateIDMap;
 }
 
 - (instancetype)initWithActorService:(actor::ActorService*)actorService
-                        webStateList:(WebStateList*)webStateList
-                           browserId:(SessionID)browserId {
+                        webStateList:(WebStateList*)webStateList {
   self = [super init];
   if (self) {
     _actorService = actorService;
     _webStateList = webStateList;
-    _browserId = browserId;
   }
   return self;
 }
@@ -338,7 +319,7 @@ void InjectDataIntoAction(optimization_guide::proto::Action& action,
           "Failed to parse action proto"));
       return;
     }
-    InjectDataIntoAction(action, webStateId, *_browserId);
+    InjectTabIdIntoAction(action, webStateId);
     actions.push_back(action);
   }
 
@@ -422,11 +403,6 @@ void InjectDataIntoAction(optimization_guide::proto::Action& action,
 
 - (void)pauseTaskWithID:(actor::ActorTaskId)taskID {
   _actorService->PauseTask(taskID, /*from_actor=*/true);
-}
-
-- (void)interruptTaskWithID:(actor::ActorTaskId)taskID
-                     reason:(actor::ActorTaskInterruptReason)reason {
-  _actorService->InterruptTask(taskID, reason);
 }
 
 - (void)stopTaskWithID:(actor::ActorTaskId)taskID

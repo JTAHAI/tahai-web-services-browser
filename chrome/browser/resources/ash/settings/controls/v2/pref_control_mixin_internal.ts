@@ -74,7 +74,7 @@ export const PrefControlMixinInternal = dedupingMixin(
           return ['syncPrefEnforcementToDisabled_(disabled, isPrefEnforced)'];
         }
 
-        declare disabled: boolean;
+        disabled: boolean;
         declare readonly isPrefEnforced: boolean;
         pref?: PrefObject;
 

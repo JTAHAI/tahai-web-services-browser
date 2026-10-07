@@ -14,16 +14,13 @@
 #import "ios/chrome/browser/cobrowse/ui/assistant_aim_consumer.h"
 #import "ios/chrome/browser/cobrowse/ui/assistant_aim_mutator.h"
 #import "ios/chrome/browser/composebox/coordinator/composebox_url_loader.h"
+#import "third_party/lens_server_proto/aim_communication.pb.h"
 
 @protocol AssistantContainerCommands;
 @protocol SceneCommands;
 class GURL;
 @class CobrowseContext;
 @class AimSRPDebuggerEvent;
-
-namespace lens {
-enum FeatureCapability : int;
-}  // namespace lens
 
 namespace contextual_tasks {
 class ContextualTasksService;
@@ -98,7 +95,7 @@ class WebState;
 // Instructs the mediator to navigate the web state to the given URL.
 // For debugging and testing only. Has no effect unless omnibox debugging
 // is enabled.
-- (void)loadDebugURL:(const GURL&)url;
+- (void)loadURL:(const GURL&)url;
 
 // Returns YES if the AIM page supports the given capability. Returns NO if
 // the handshake has not completed yet or the capability is not supported.
@@ -116,12 +113,6 @@ class WebState;
 
 // Ends the current cobrowse session.
 - (void)endSession;
-
-// Called when the user interface style (light/dark mode) changes.
-- (void)updateDarkModeState:(BOOL)isDarkMode;
-
-// Reloads the web state if necessary.
-- (void)loadIfNecessary;
 
 @end
 

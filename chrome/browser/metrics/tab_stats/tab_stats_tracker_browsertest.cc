@@ -39,8 +39,8 @@
 #include "chrome/browser/ui/android/tab_model/tab_model_test_helper.h"
 #include "chrome/test/base/android/android_browser_test.h"
 #else
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_window.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "ui/display/screen.h"
 #include "ui/gfx/geometry/rect.h"
@@ -414,16 +414,8 @@ IN_PROC_BROWSER_TEST_F(TabStatsTrackerBrowserTest,
   EnsureTabDuplicateHistogramsMatchExpectations(expected_histograms);
 }
 
-// TODO(crbug.com/449230856): Consistently failing on Android.
-#if BUILDFLAG(IS_ANDROID)
-#define MAYBE_AdditionalTabStatsObserverGetsInitiliazed \
-  DISABLED_AdditionalTabStatsObserverGetsInitiliazed
-#else
-#define MAYBE_AdditionalTabStatsObserverGetsInitiliazed \
-  AdditionalTabStatsObserverGetsInitiliazed
-#endif
 IN_PROC_BROWSER_TEST_F(TabStatsTrackerBrowserTest,
-                       MAYBE_AdditionalTabStatsObserverGetsInitiliazed) {
+                       AdditionalTabStatsObserverGetsInitiliazed) {
   // Assert that the |TabStatsTracker| instance is initialized during the
   // creation of the main browser.
   ASSERT_TRUE(tab_stats_tracker_ != nullptr);
@@ -724,14 +716,7 @@ class AudioStartObserver : public content::WebContentsObserver {
 
 }  // namespace
 
-// TODO(crbug.com/449389404): Consistently failing on Android.
-#if BUILDFLAG(IS_ANDROID)
-#define MAYBE_AddObserverAudibleTab DISABLED_AddObserverAudibleTab
-#else
-#define MAYBE_AddObserverAudibleTab AddObserverAudibleTab
-#endif
-IN_PROC_BROWSER_TEST_F(TabStatsTrackerBrowserTest,
-                       MAYBE_AddObserverAudibleTab) {
+IN_PROC_BROWSER_TEST_F(TabStatsTrackerBrowserTest, AddObserverAudibleTab) {
   // Set up the embedded test server to serve the test javascript file.
   embedded_test_server()->ServeFilesFromSourceDirectory(
       media::GetTestDataPath());

@@ -9,7 +9,6 @@
 
 #include "ash/constants/ash_login_pref_names.h"
 #include "ash/public/cpp/login_screen_test_api.h"
-#include "ash/public/cpp/notification_utils.h"
 #include "ash/public/cpp/reauth_reason.h"
 #include "ash/shell.h"
 #include "base/auto_reset.h"
@@ -36,7 +35,10 @@
 #include "chrome/browser/ash/login/test/user_auth_config.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/lifetime/termination_notification.h"
+#include "chrome/browser/notifications/notification_display_service_tester.h"
+#include "chrome/browser/notifications/notification_handler.h"
 #include "chrome/browser/profiles/profile_manager.h"
+#include "chrome/browser/profiles/profile_manager_observer.h"
 #include "chrome/browser/ui/ash/login/login_display_host.h"
 #include "chrome/browser/ui/webui/ash/login/gaia_screen_handler.h"
 #include "chrome/browser/ui/webui/ash/login/oobe_ui.h"
@@ -48,14 +50,12 @@
 #include "chromeos/ash/components/login/auth/stub_authenticator.h"
 #include "components/account_id/account_id.h"
 #include "components/user_manager/known_user.h"
-#include "components/user_manager/user.h"
 #include "components/user_manager/user_manager.h"
 #include "content/public/test/browser_test.h"
 #include "content/public/test/test_launcher.h"
 #include "google_apis/gaia/gaia_id.h"
 #include "ui/events/keycodes/keyboard_codes_posix.h"
 #include "ui/events/test/event_generator.h"
-#include "ui/message_center/message_center.h"
 
 namespace ash {
 
@@ -63,7 +63,6 @@ namespace {
 
 constexpr char kUserEmail[] = "test-user@gmail.com";
 constexpr GaiaId::Literal kGaiaID("111111");
-constexpr char kProfileSigninNotificationId[] = "chrome://settings/signin/";
 constexpr char kTokenHandle[] = "test_token_handle";
 constexpr char kTestingFileName[] = "testing-file.txt";
 constexpr char kTokenHandleLastCheckedPref[] = "TokenHandleLastChecked";
@@ -462,16 +461,6 @@ class PasswordChangeTokenCheck : public PasswordChangeTest {
     LoginManagerTest::TearDownOnMainThread();
   }
 
-  const message_center::Notification* FindProfileSigninNotification() {
-    const user_manager::User* active_user =
-        user_manager::UserManager::Get()->GetActiveUser();
-    return message_center::MessageCenter::Get()->FindVisibleNotificationById(
-        CreateUserScopedNotificationId(
-            kProfileSigninNotificationId +
-                ProfileManager::GetActiveUserProfile()->GetProfileUserName(),
-            active_user->username_hash()));
-  }
-
   AccountId user_with_invalid_token_;
   raw_ptr<TokenHandleStore> token_handle_store_;
   std::unique_ptr<base::AutoReset<bool>> ignore_sync_errors_for_test_;
@@ -566,6 +555,29 @@ IN_PROC_BROWSER_TEST_F(PasswordChangeTokenCheck, LoginScreenNoPasswordChange) {
                                      ReauthReason::kInvalidTokenHandle, 1);
 }
 
+// Helper class to create NotificationDisplayServiceTester before notification
+// in the session shown.
+class ProfileWaiter : public ProfileManagerObserver {
+ public:
+  ProfileWaiter() { g_browser_process->profile_manager()->AddObserver(this); }
+  // ProfileManagerObserver:
+  void OnProfileAdded(Profile* profile) override {
+    g_browser_process->profile_manager()->RemoveObserver(this);
+    display_service_ =
+        std::make_unique<NotificationDisplayServiceTester>(profile);
+    run_loop_.Quit();
+  }
+
+  std::unique_ptr<NotificationDisplayServiceTester> Wait() {
+    run_loop_.Run();
+    return std::move(display_service_);
+  }
+
+ private:
+  std::unique_ptr<NotificationDisplayServiceTester> display_service_;
+  base::RunLoop run_loop_;
+};
+
 // Tests token handle check on the session start.
 IN_PROC_BROWSER_TEST_F(PasswordChangeTokenCheck, PRE_Session) {
   // Focus triggers token check. User does not have stored token, so online
@@ -581,20 +593,27 @@ IN_PROC_BROWSER_TEST_F(PasswordChangeTokenCheck, PRE_Session) {
   known_user.SetPath(user_with_invalid_token_, kTokenHandleLastCheckedPref,
                      base::TimeToValue(base::Time()));
 
+  ProfileWaiter waiter;
   login_mixin_.LoginWithDefaultContext(login_mixin_.users().back());
+  // We need to replace notification service very early to intercept reauth
+  // notification.
+  auto display_service_tester = waiter.Wait();
 
   login_mixin_.WaitForActiveSession();
 
-  const message_center::Notification* notification =
-      FindProfileSigninNotification();
-  ASSERT_TRUE(notification);
+  std::vector<message_center::Notification> notifications =
+      display_service_tester->GetDisplayedNotificationsForType(
+          NotificationHandler::Type::TRANSIENT);
+  ASSERT_EQ(notifications.size(), 1u);
 
   // Click on notification should trigger Chrome restart.
   base::RunLoop exit_waiter;
   auto subscription =
       browser_shutdown::AddAppTerminatingCallback(exit_waiter.QuitClosure());
 
-  message_center::MessageCenter::Get()->ClickOnNotification(notification->id());
+  display_service_tester->SimulateClick(NotificationHandler::Type::TRANSIENT,
+                                        notifications[0].id(), std::nullopt,
+                                        std::nullopt);
   exit_waiter.Run();
 }
 
@@ -622,11 +641,18 @@ IN_PROC_BROWSER_TEST_F(PasswordChangeTokenCheck, TokenRecentlyChecked) {
   LoginScreenTestApi::FocusUser(user_with_invalid_token_);
   OpenGaiaDialog(user_with_invalid_token_);
 
+  ProfileWaiter waiter;
   login_mixin_.LoginWithDefaultContext(login_mixin_.users().back());
+  // We need to replace notification service very early to intercept reauth
+  // notification.
+  auto display_service_tester = waiter.Wait();
 
   login_mixin_.WaitForActiveSession();
 
-  ASSERT_FALSE(FindProfileSigninNotification());
+  std::vector<message_center::Notification> notifications =
+      display_service_tester->GetDisplayedNotificationsForType(
+          NotificationHandler::Type::TRANSIENT);
+  ASSERT_EQ(notifications.size(), 0u);
 }
 
 class TokenAfterCrash : public MixinBasedInProcessBrowserTest {

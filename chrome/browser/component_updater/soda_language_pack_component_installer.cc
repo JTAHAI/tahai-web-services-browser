@@ -4,11 +4,9 @@
 
 #include "chrome/browser/component_updater/soda_language_pack_component_installer.h"
 
-#include <cstdint>
+#include <iterator>
 #include <memory>
-#include <optional>
 #include <string>
-#include <utility>
 #include <vector>
 
 #include "base/containers/flat_set.h"
@@ -86,7 +84,7 @@ void SodaLanguagePackComponentInstallerPolicy::
           LOG(ERROR)
               << "On demand update of the SODA language component failed "
                  "with error: "
-              << std::to_underlying(error);
+              << static_cast<int>(error);
         }
       }));
 }
@@ -148,7 +146,8 @@ base::FilePath SodaLanguagePackComponentInstallerPolicy::GetRelativeInstallDir()
 
 void SodaLanguagePackComponentInstallerPolicy::GetHash(
     std::vector<uint8_t>* hash) const {
-  hash->assign_range(language_config_.public_key_sha);
+  hash->assign(std::begin(language_config_.public_key_sha),
+               std::end(language_config_.public_key_sha));
 }
 
 std::string SodaLanguagePackComponentInstallerPolicy::GetName() const {

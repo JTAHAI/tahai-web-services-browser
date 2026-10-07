@@ -70,9 +70,6 @@ class ASH_EXPORT NotificationIconTrayItemView : public TrayItemView {
   void ImmediatelyUpdateVisibility() override;
   void AnimationEnded(const gfx::Animation* animation) override;
 
-  // Resets the controller pointer when the controller is destroyed.
-  void ResetController();
-
  private:
   void UpdateImageViewColor();
 
@@ -87,7 +84,7 @@ class ASH_EXPORT NotificationIconTrayItemView : public TrayItemView {
   // of this tray.
   std::unique_ptr<message_center::Notification> notification_;
 
-  raw_ptr<NotificationIconsController> controller_ = nullptr;
+  const raw_ptr<NotificationIconsController, DanglingUntriaged> controller_;
 };
 
 // NotificationIconsController -------------------------------------------------

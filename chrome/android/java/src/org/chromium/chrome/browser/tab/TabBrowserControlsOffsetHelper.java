@@ -6,6 +6,7 @@ package org.chromium.chrome.browser.tab;
 
 import androidx.annotation.VisibleForTesting;
 
+import org.chromium.base.ObserverList.RewindableIterator;
 import org.chromium.base.ResettersForTesting;
 import org.chromium.base.UserData;
 import org.chromium.build.annotations.NullMarked;
@@ -16,7 +17,7 @@ import org.chromium.ui.base.WindowAndroid;
  * Helper that coordinates the browser controls offsets from the perspective of a particular Tab.
  */
 @NullMarked
-public class TabBrowserControlsOffsetHelper implements TabObserver, UserData {
+public class TabBrowserControlsOffsetHelper extends EmptyTabObserver implements UserData {
     @VisibleForTesting
     public static final Class<TabBrowserControlsOffsetHelper> USER_DATA_KEY =
             TabBrowserControlsOffsetHelper.class;
@@ -101,19 +102,23 @@ public class TabBrowserControlsOffsetHelper implements TabObserver, UserData {
 
     private void notifyControlsOffsetChanged() {
         mOffsetInitialized = true;
-        for (TabObserver observer : mTab.getTabObservers()) {
-            observer.onBrowserControlsOffsetChanged(
-                    mTab,
-                    mTopControlsOffset,
-                    mBottomControlsOffset,
-                    mContentOffset,
-                    mTopControlsMinHeightOffset,
-                    mBottomControlsMinHeightOffset);
+        RewindableIterator<TabObserver> observers = mTab.getTabObservers();
+        while (observers.hasNext()) {
+            observers
+                    .next()
+                    .onBrowserControlsOffsetChanged(
+                            mTab,
+                            mTopControlsOffset,
+                            mBottomControlsOffset,
+                            mContentOffset,
+                            mTopControlsMinHeightOffset,
+                            mBottomControlsMinHeightOffset);
         }
     }
 
     @Override
     public void onCrash(Tab tab) {
+        super.onCrash(tab);
         mTopControlsOffset = 0;
         mBottomControlsOffset = 0;
         mContentOffset = 0;

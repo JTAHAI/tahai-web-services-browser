@@ -86,7 +86,7 @@ export class ViewerPdfSidenavElement extends CrLitElement {
     const tabs = [
       {
         id: TabId.THUMBNAIL,
-        icon: 'pdf:image',
+        icon: 'pdf:thumbnails',
         title: this.strings ? loadTimeData.getString('tooltipThumbnails') : '',
       },
     ];
@@ -94,7 +94,7 @@ export class ViewerPdfSidenavElement extends CrLitElement {
     if (this.bookmarks.length > 0) {
       tabs.push({
         id: TabId.OUTLINE,
-        icon: 'pdf:list-alt',
+        icon: 'pdf:doc-outline',
         title: this.strings ? loadTimeData.getString('tooltipDocumentOutline') :
                               '',
       });

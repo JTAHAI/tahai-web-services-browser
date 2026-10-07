@@ -16,12 +16,6 @@ typedef NS_ENUM(NSInteger, ChromeButtonStyle) {
   ChromeButtonStyleTertiary,
 };
 
-// Sizes for the buttons.
-typedef NS_ENUM(NSInteger, ChromeButtonSize) {
-  ChromeButtonSizeRegular,
-  ChromeButtonSizeSmall,
-};
-
 // Image for the primary buttons.
 typedef NS_ENUM(NSInteger, PrimaryButtonImage) {
   // Default image.
@@ -41,10 +35,6 @@ typedef NS_ENUM(NSInteger, PrimaryButtonImage) {
 // appearance to match the new style.
 @property(nonatomic, assign) ChromeButtonStyle style;
 
-// The button's size style. Setting this property will update the button's
-// layout format to match the new size. Default is ChromeButtonSizeRegular.
-@property(nonatomic, assign) ChromeButtonSize buttonSize;
-
 // The button's title.
 @property(nonatomic, copy) NSString* title;
 
@@ -62,9 +52,7 @@ typedef NS_ENUM(NSInteger, PrimaryButtonImage) {
 
 // Designated init.
 - (instancetype)initWithStyle:(ChromeButtonStyle)style
-                   buttonSize:(ChromeButtonSize)buttonSize
     NS_DESIGNATED_INITIALIZER;
-- (instancetype)initWithStyle:(ChromeButtonStyle)style;
 - (instancetype)init NS_UNAVAILABLE;
 - (instancetype)initWithFrame:(CGRect)frame NS_UNAVAILABLE;
 - (instancetype)initWithCoder:(NSCoder*)coder NS_UNAVAILABLE;

@@ -31,7 +31,6 @@ namespace {
 
 std::string_view GetHistogramSuffix(
     profile_metrics::BrowserProfileType profile_type) {
-  // LINT.IfChange(BrowserProfileType)
   switch (profile_type) {
     case profile_metrics::BrowserProfileType::kRegular:
       return "Regular";
@@ -43,10 +42,7 @@ std::string_view GetHistogramSuffix(
       return "System";
     case profile_metrics::BrowserProfileType::kOtherOffTheRecordProfile:
       return "OtherOffTheRecordProfile";
-    case profile_metrics::BrowserProfileType::kEnterpriseIsolated:
-      return "EnterpriseIsolated";
   }
-  // LINT.ThenChange(//tools/metrics/histograms/metadata/profile/histograms.xml:BrowserProfileType)
 }
 
 }  // namespace

@@ -8,8 +8,7 @@
 
 #include <cguid.h>
 
-#include <string_view>
-
+#include "base/compiler_specific.h"
 #include "base/strings/string_util.h"
 #include "build/branding_buildflags.h"
 #include "chrome/install_static/buildflags.h"
@@ -32,7 +31,9 @@ namespace {
 // A matcher that returns true if |arg| contains a character that is neither
 // alphanumeric nor a period.
 MATCHER(ContainsIllegalProgIdChar, "") {
-  for (wchar_t c : std::wstring_view(arg)) {
+  const wchar_t* scan = arg;
+  wchar_t c;
+  while ((c = *UNSAFE_TODO(scan++)) != 0) {
     if (!base::IsAsciiAlphaNumeric(c) && c != L'.') {
       return true;
     }
@@ -88,13 +89,13 @@ TEST(InstallModes, VerifyModes) {
     // characters long, must contain no punctuation, and may not start with a
     // digit (https://msdn.microsoft.com/library/windows/desktop/dd542719.aspx).
     ASSERT_THAT(mode.browser_prog_id_prefix, StrNe(L""));
-    ASSERT_THAT(std::wstring_view(mode.browser_prog_id_prefix).size(), Le(11u));
+    ASSERT_THAT(lstrlen(mode.browser_prog_id_prefix), Le(11));
     ASSERT_THAT(mode.browser_prog_id_prefix, Not(ContainsIllegalProgIdChar()));
     ASSERT_THAT(*mode.browser_prog_id_prefix, ResultOf(iswdigit, Eq(0)));
 
     // Test the same things for PDF ProgID prefix.
     ASSERT_THAT(mode.pdf_prog_id_prefix, StrNe(L""));
-    ASSERT_THAT(std::wstring_view(mode.pdf_prog_id_prefix).size(), Le(11u));
+    ASSERT_THAT(lstrlen(mode.pdf_prog_id_prefix), Le(11));
     ASSERT_THAT(mode.pdf_prog_id_prefix, Not(ContainsIllegalProgIdChar()));
     ASSERT_THAT(*mode.pdf_prog_id_prefix, ResultOf(iswdigit, Eq(0)));
 

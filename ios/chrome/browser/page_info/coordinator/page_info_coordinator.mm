@@ -65,6 +65,8 @@
   PageInfoHistoryMediator* _pageInfoHistoryMediator;
 }
 
+@synthesize presentationProvider = _presentationProvider;
+
 #pragma mark - ChromeCoordinator
 
 - (void)start {

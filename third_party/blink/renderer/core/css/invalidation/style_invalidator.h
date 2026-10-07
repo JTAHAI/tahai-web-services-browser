@@ -5,7 +5,6 @@
 #ifndef THIRD_PARTY_BLINK_RENDERER_CORE_CSS_INVALIDATION_STYLE_INVALIDATOR_H_
 #define THIRD_PARTY_BLINK_RENDERER_CORE_CSS_INVALIDATION_STYLE_INVALIDATOR_H_
 
-#include "base/memory/raw_ptr.h"
 #include "third_party/blink/renderer/core/core_export.h"
 #include "third_party/blink/renderer/core/css/invalidation/invalidation_flags.h"
 #include "third_party/blink/renderer/core/css/invalidation/pending_invalidations.h"
@@ -116,9 +115,7 @@ class CORE_EXPORT StyleInvalidator {
           : invalidation_set_(invalidation_set),
             invalidation_limit_(invalidation_limit) {}
 
-      raw_ptr<const SiblingInvalidationSet,
-              UnprotectedInRelease | DanglingUntriaged>
-          invalidation_set_;
+      const SiblingInvalidationSet* invalidation_set_;
       unsigned invalidation_limit_;
     };
 

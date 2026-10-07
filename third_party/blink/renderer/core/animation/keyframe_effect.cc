@@ -953,8 +953,10 @@ void KeyframeEffect::CountAnimatedProperties() const {
   if (target_element_) {
     Document& document = target_element_->GetDocument();
     for (const auto& property : model_->Properties()) {
-      DCHECK(IsValidCSSPropertyID(property.GetCSSProperty().PropertyID()));
-      document.CountAnimatedProperty(property.GetCSSProperty().PropertyID());
+      if (property.IsCSSProperty()) {
+        DCHECK(IsValidCSSPropertyID(property.GetCSSProperty().PropertyID()));
+        document.CountAnimatedProperty(property.GetCSSProperty().PropertyID());
+      }
     }
   }
 }

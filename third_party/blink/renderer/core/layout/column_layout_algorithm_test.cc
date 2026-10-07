@@ -8,6 +8,7 @@
 #include "third_party/blink/renderer/core/layout/block_layout_algorithm.h"
 #include "third_party/blink/renderer/core/layout/length_utils.h"
 #include "third_party/blink/renderer/core/layout/physical_box_fragment.h"
+#include "third_party/blink/renderer/platform/testing/runtime_enabled_features_test_helpers.h"
 
 namespace blink {
 namespace {
@@ -6473,6 +6474,7 @@ TEST_F(ColumnLayoutAlgorithmTest, TallReplacedContent) {
 }
 
 TEST_F(ColumnLayoutAlgorithmTest, GapDecorationBasic) {
+  ScopedCSSGapDecorationForTest scoped_gap_decoration(true);
   SetBodyInnerHTML(R"HTML(
     <style>
  body {
@@ -6547,6 +6549,7 @@ TEST_F(ColumnLayoutAlgorithmTest, GapDecorationBasic) {
 
 TEST_F(ColumnLayoutAlgorithmTest,
        GapDecorationContentEndPastContainer) {
+  ScopedCSSGapDecorationForTest scoped_gap_decoration(true);
   SetBodyInnerHTML(R"HTML(
     <style>
  body {
@@ -6613,6 +6616,7 @@ TEST_F(ColumnLayoutAlgorithmTest,
 
 TEST_F(ColumnLayoutAlgorithmTest,
        GapDecorationColumnWrapOneColumn) {
+  ScopedCSSGapDecorationForTest scoped_gap_decoration(true);
   SetBodyInnerHTML(R"HTML(
  <style>
   body {
@@ -6704,6 +6708,7 @@ TEST_F(ColumnLayoutAlgorithmTest,
 }
 
 TEST_F(ColumnLayoutAlgorithmTest, GapDecorationColumnWrapBasic) {
+  ScopedCSSGapDecorationForTest scoped_gap_decoration(true);
   SetBodyInnerHTML(R"HTML(
     <style>
   body {
@@ -6792,6 +6797,7 @@ TEST_F(ColumnLayoutAlgorithmTest, GapDecorationColumnWrapBasic) {
 
 TEST_F(ColumnLayoutAlgorithmTest,
        GapDecorationColumnWrapAndSpanner) {
+  ScopedCSSGapDecorationForTest scoped_gap_decoration(true);
   SetBodyInnerHTML(R"HTML(
 <style>
   #container {
@@ -6887,6 +6893,7 @@ TEST_F(ColumnLayoutAlgorithmTest,
 
 TEST_F(ColumnLayoutAlgorithmTest,
        GapDecorationColumnWrapLastRowNotFilled) {
+  ScopedCSSGapDecorationForTest scoped_gap_decoration(true);
   SetBodyInnerHTML(R"HTML(
  <style>
   #container {
@@ -6944,6 +6951,7 @@ TEST_F(ColumnLayoutAlgorithmTest,
 }
 
 TEST_F(ColumnLayoutAlgorithmTest, GapDecorationTwoSpanners) {
+  ScopedCSSGapDecorationForTest scoped_gap_decoration(true);
   SetBodyInnerHTML(R"HTML(
  <style>
   body {

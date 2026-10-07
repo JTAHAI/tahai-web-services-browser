@@ -66,27 +66,27 @@ public abstract class GeneratedMessageLite<
   /** For use by generated code only. Lazily initialized to reduce allocations. */
   protected UnknownFieldSetLite unknownFields = UnknownFieldSetLite.getDefaultInstance();
 
-  final boolean isMutable() {
+  boolean isMutable() {
     return (memoizedSerializedSize & MUTABLE_FLAG_MASK) != 0;
   }
 
-  final void markImmutable() {
+  void markImmutable() {
     memoizedSerializedSize &= ~MUTABLE_FLAG_MASK;
   }
 
-  final int getMemoizedHashCode() {
+  int getMemoizedHashCode() {
     return memoizedHashCode;
   }
 
-  final void setMemoizedHashCode(int value) {
+  void setMemoizedHashCode(int value) {
     memoizedHashCode = value;
   }
 
-  final void clearMemoizedHashCode() {
+  void clearMemoizedHashCode() {
     memoizedHashCode = UNINITIALIZED_HASH_CODE;
   }
 
-  final boolean hashCodeIsNotMemoized() {
+  boolean hashCodeIsNotMemoized() {
     return UNINITIALIZED_HASH_CODE == getMemoizedHashCode();
   }
 
@@ -109,7 +109,7 @@ public abstract class GeneratedMessageLite<
   }
 
   @SuppressWarnings("unchecked") // Guaranteed by runtime.
-  final MessageType newMutableInstance() {
+  MessageType newMutableInstance() {
     return (MessageType) dynamicMethod(MethodToInvoke.NEW_MUTABLE_INSTANCE, null, null);
   }
 
@@ -143,7 +143,7 @@ public abstract class GeneratedMessageLite<
     return getMemoizedHashCode();
   }
 
-  final int computeHashCode() {
+  int computeHashCode() {
     return Protobuf.getInstance().schemaFor(this).hashCode(this);
   }
 
@@ -182,7 +182,7 @@ public abstract class GeneratedMessageLite<
    *
    * @return {@code true} unless the tag is an end-group tag.
    */
-  protected final boolean parseUnknownField(int tag, CodedInputStream input) throws IOException {
+  protected boolean parseUnknownField(int tag, CodedInputStream input) throws IOException {
     // This will avoid the allocation of unknown fields when a group tag is encountered.
     if (WireFormat.getTagWireType(tag) == WireFormat.WIRETYPE_END_GROUP) {
       return false;
@@ -193,19 +193,19 @@ public abstract class GeneratedMessageLite<
   }
 
   /** Called by subclasses to parse an unknown field. For use by generated code only. */
-  protected final void mergeVarintField(int tag, int value) {
+  protected void mergeVarintField(int tag, int value) {
     ensureUnknownFieldsInitialized();
     unknownFields.mergeVarintField(tag, value);
   }
 
   /** Called by subclasses to parse an unknown field. For use by generated code only. */
-  protected final void mergeLengthDelimitedField(int fieldNumber, ByteString value) {
+  protected void mergeLengthDelimitedField(int fieldNumber, ByteString value) {
     ensureUnknownFieldsInitialized();
     unknownFields.mergeLengthDelimitedField(fieldNumber, value);
   }
 
   /** Called by subclasses to complete parsing. For use by generated code only. */
-  protected final void makeImmutable() {
+  protected void makeImmutable() {
     Protobuf.getInstance().schemaFor(this).makeImmutable(this);
     markImmutable();
   }
@@ -218,7 +218,6 @@ public abstract class GeneratedMessageLite<
     return (BuilderType2) dynamicMethod(MethodToInvoke.NEW_BUILDER, null, null);
   }
 
-  @SuppressWarnings("unchecked") // Guaranteed by runtime.
   protected final <
           MessageType2 extends GeneratedMessageLite<MessageType2, BuilderType2>,
           BuilderType2 extends GeneratedMessageLite.Builder<MessageType2, BuilderType2>>
@@ -227,7 +226,6 @@ public abstract class GeneratedMessageLite<
   }
 
   @Override
-  @SuppressWarnings("unchecked") // Guaranteed by runtime.
   public final boolean isInitialized() {
     return isInitialized((MessageType) this, /* shouldMemoize= */ true);
   }
@@ -286,12 +284,12 @@ public abstract class GeneratedMessageLite<
           Object arg0,
           Object arg1);
 
-  final void clearMemoizedSerializedSize() {
+  void clearMemoizedSerializedSize() {
     setMemoizedSerializedSize(UNINITIALIZED_SERIALIZED_SIZE);
   }
 
   @Override
-  final int getMemoizedSerializedSize() {
+  int getMemoizedSerializedSize() {
     return memoizedSerializedSize & MEMOIZED_SERIALIZED_SIZE_MASK;
   }
 
@@ -312,7 +310,6 @@ public abstract class GeneratedMessageLite<
   }
 
   @Override
-  @SuppressWarnings("rawtypes")
   int getSerializedSize(
           Schema schema) {
     if (isMutable()) {
@@ -342,7 +339,6 @@ public abstract class GeneratedMessageLite<
     return getSerializedSize(null);
   }
 
-  @SuppressWarnings("unchecked")
   private int computeSerializedSize(
           Schema<?> nullableSchema) {
     if (nullableSchema == null) {
@@ -354,11 +350,11 @@ public abstract class GeneratedMessageLite<
   }
 
   /** Constructs a {@link MessageInfo} for this message type. */
-  final Object buildMessageInfo() throws Exception {
+  Object buildMessageInfo() throws Exception {
     return dynamicMethod(MethodToInvoke.BUILD_MESSAGE_INFO, null, null);
   }
 
-  private static final Map<Class<?>, GeneratedMessageLite<?, ?>> defaultInstanceMap =
+  private static Map<Class<?>, GeneratedMessageLite<?, ?>> defaultInstanceMap =
       new ConcurrentHashMap<>();
 
   @SuppressWarnings("unchecked")
@@ -1143,7 +1139,7 @@ public abstract class GeneratedMessageLite<
           final Internal.EnumLiteMap<?> enumTypeMap,
           final int number,
           final WireFormat.FieldType type,
-          final Class<?> singularType) {
+          final Class singularType) {
     return new GeneratedExtension<ContainingType, Type>(
         containingTypeDefaultInstance,
         defaultValue,
@@ -1162,7 +1158,7 @@ public abstract class GeneratedMessageLite<
           final int number,
           final WireFormat.FieldType type,
           final boolean isPacked,
-          final Class<?> singularType) {
+          final Class singularType) {
     @SuppressWarnings("unchecked") // Subclasses ensure Type is a List
     Type emptyList = (Type) ProtobufArrayList.emptyList();
     return new GeneratedExtension<ContainingType, Type>(
@@ -1244,7 +1240,7 @@ public abstract class GeneratedMessageLite<
   // =================================================================
 
   /** Calls Class.getMethod and throws a RuntimeException if it fails. */
-  @SuppressWarnings({"unchecked", "rawtypes"})
+  @SuppressWarnings("unchecked")
   static Method getMethodOrDie(Class clazz, String name, Class... params) {
     try {
       return clazz.getMethod(name, params);
@@ -1296,7 +1292,7 @@ public abstract class GeneratedMessageLite<
         final Type defaultValue,
         final MessageLite messageDefaultInstance,
         final ExtensionDescriptor descriptor,
-        final Class<?> singularType) {
+        final Class singularType) {
       // Defensive checks to verify the correct initialization order of
       // GeneratedExtensions and their related GeneratedMessages.
       if (containingTypeDefaultInstance == null) {

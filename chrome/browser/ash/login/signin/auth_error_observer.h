@@ -28,9 +28,7 @@ class AuthErrorObserver : public KeyedService,
   static bool ShouldObserve(Profile* profile);
 
   // `local_state` must be non-null and must outlive `this`.
-  AuthErrorObserver(PrefService* local_state,
-                    Profile* profile,
-                    syncer::SyncService* sync_service);
+  AuthErrorObserver(PrefService* local_state, Profile* profile);
 
   AuthErrorObserver(const AuthErrorObserver&) = delete;
   AuthErrorObserver& operator=(const AuthErrorObserver&) = delete;
@@ -61,7 +59,6 @@ class AuthErrorObserver : public KeyedService,
 
   const raw_ref<PrefService> local_state_;
   const raw_ptr<Profile> profile_;
-  const raw_ptr<syncer::SyncService> sync_service_;
 };
 
 }  // namespace ash

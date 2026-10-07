@@ -73,12 +73,13 @@ class TabStripViewBinder {
                         });
             } else {
                 button.setOnClickListener(
-                        (View v) ->
-                                model.get(TabProperties.TAB_CLICK_LISTENER)
-                                        .run(
-                                                v,
-                                                model.get(TabProperties.TAB_ID),
-                                                /* triggeringMotion= */ null));
+                        v -> {
+                            model.get(TabProperties.TAB_CLICK_LISTENER)
+                                    .run(
+                                            v,
+                                            model.get(TabProperties.TAB_ID),
+                                            /* triggeringMotion= */ null);
+                        });
             }
             setContentDescription(view, model);
         } else if (TabProperties.FAVICON_FETCHER == propertyKey) {

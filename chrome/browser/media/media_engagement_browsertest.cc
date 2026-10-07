@@ -27,11 +27,10 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/sessions/session_restore.h"
 #include "chrome/browser/sessions/session_restore_test_helper.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
 #include "chrome/browser/ui/navigator/browser_navigator.h"
-#include "chrome/browser/ui/navigator/browser_navigator_params.h"
 #include "chrome/browser/ui/recently_audible_helper.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/test/base/in_process_browser_test.h"
@@ -228,7 +227,7 @@ class MediaEngagementBrowserTest : public InProcessBrowserTest {
   }
 
   content::WebContents* GetWebContents() {
-    return browser()->GetTabStripModel()->GetActiveWebContents();
+    return browser()->tab_strip_model()->GetActiveWebContents();
   }
 
   void ExecuteScript(const std::string& script) {
@@ -243,9 +242,9 @@ class MediaEngagementBrowserTest : public InProcessBrowserTest {
   }
 
   void CloseTab() {
-    const int previous_tab_count = browser()->GetTabStripModel()->count();
-    browser()->GetTabStripModel()->CloseWebContentsAt(0, 0);
-    EXPECT_EQ(previous_tab_count - 1, browser()->GetTabStripModel()->count());
+    const int previous_tab_count = browser()->tab_strip_model()->count();
+    browser()->tab_strip_model()->CloseWebContentsAt(0, 0);
+    EXPECT_EQ(previous_tab_count - 1, browser()->tab_strip_model()->count());
   }
 
   void LoadSubFrame(const GURL& url) {
@@ -654,7 +653,7 @@ IN_PROC_BROWSER_TEST_F(MediaEngagementBrowserTest,
   LoadTestPageAndWaitForPlayAndAudible(url, false);
   AdvanceMeaningfulPlaybackTime();
 
-  browser()->GetTabStripModel()->CloseAllTabs();
+  browser()->tab_strip_model()->CloseAllTabs();
 
   ExpectScores(2, 2);
 }
@@ -674,7 +673,7 @@ IN_PROC_BROWSER_TEST_F(MediaEngagementBrowserTest, MAYBE_SessionNewTabSameURL) {
   OpenTabAndWaitForPlayAndAudible(url);
   AdvanceMeaningfulPlaybackTime();
 
-  browser()->GetTabStripModel()->CloseAllTabs();
+  browser()->tab_strip_model()->CloseAllTabs();
 
   ExpectScores(1, 1);
 }
@@ -696,7 +695,7 @@ IN_PROC_BROWSER_TEST_F(MediaEngagementBrowserTest,
   OpenTabAndWaitForPlayAndAudible(other_url);
   AdvanceMeaningfulPlaybackTime();
 
-  browser()->GetTabStripModel()->CloseAllTabs();
+  browser()->tab_strip_model()->CloseAllTabs();
 
   ExpectScores(1, 1);
 }
@@ -711,7 +710,7 @@ IN_PROC_BROWSER_TEST_F(MediaEngagementBrowserTest, SessionNewTabCrossOrigin) {
   OpenTabAndWaitForPlayAndAudible(other_url);
   AdvanceMeaningfulPlaybackTime();
 
-  browser()->GetTabStripModel()->CloseAllTabs();
+  browser()->tab_strip_model()->CloseAllTabs();
 
   ExpectScores(http_server().base_url(), 1, 1);
   ExpectScores(http_server_origin2().base_url(), 1, 1);
@@ -741,7 +740,7 @@ IN_PROC_BROWSER_TEST_F(MediaEngagementBrowserTest,
   OpenTabAndWaitForPlayAndAudible(url);
   AdvanceMeaningfulPlaybackTime();
 
-  browser()->GetTabStripModel()->CloseAllTabs();
+  browser()->tab_strip_model()->CloseAllTabs();
 
   ExpectScores(1, 1);
 }
@@ -777,7 +776,7 @@ IN_PROC_BROWSER_TEST_F(MediaEngagementBrowserTest,
   WaitForWasRecentlyAudible();
   AdvanceMeaningfulPlaybackTime();
 
-  browser()->GetTabStripModel()->CloseAllTabs();
+  browser()->tab_strip_model()->CloseAllTabs();
 
   // The new tab should only count as the same visit if we visited that tab
   // through a link or reload (duplicate tab).
@@ -881,15 +880,8 @@ IN_PROC_BROWSER_TEST_F(MediaEngagementSessionRestoreBrowserTest,
   ExpectScores(MediaEngagementService::Get(browser->GetProfile()), url, 1, 0);
 }
 
-// TODO(crbug.com/541174985): Flaky on LSAN builders.
-// TODO(crbug.com/551552509): Flaky on Linux.
-#if defined(LEAK_SANITIZER) || BUILDFLAG(IS_LINUX)
-#define MAYBE_RestoredSession_Playback_MEI DISABLED_RestoredSession_Playback_MEI
-#else
-#define MAYBE_RestoredSession_Playback_MEI RestoredSession_Playback_MEI
-#endif
 IN_PROC_BROWSER_TEST_F(MediaEngagementSessionRestoreBrowserTest,
-                       MAYBE_RestoredSession_Playback_MEI) {
+                       RestoredSession_Playback_MEI) {
   const GURL& url = http_server().GetURL("/engagement_test.html");
 
   LoadTestPageAndWaitForPlayAndAudible(url, false);

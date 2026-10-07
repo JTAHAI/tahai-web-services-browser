@@ -8,6 +8,7 @@
 #include "base/functional/bind.h"
 #include "base/test/bind.h"
 #include "base/test/scoped_feature_list.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_element_identifiers.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
@@ -15,7 +16,6 @@
 #include "chrome/browser/ui/tabs/tab_group_model.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/tabs/vertical_tab_strip_state_controller.h"
-#include "chrome/browser/ui/ui_features.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/frame/vertical_tab_strip_region_view.h"
 #include "chrome/browser/ui/views/tabs/common/root_tab_collection_node.h"
@@ -283,7 +283,7 @@ class VerticalTabDragTest
 
   auto PinTabAt(int tab_index) {
     return Do([&, tab_index]() {
-      browser()->GetTabStripModel()->SetTabPinned(tab_index, true);
+      browser()->tab_strip_model()->SetTabPinned(tab_index, true);
       views::test::RunScheduledLayout(&GetBrowserView());
     });
   }
@@ -318,7 +318,7 @@ class VerticalTabDragTest
     return Do([&]() {
       BrowserWindowInterface& latest = GetLatestBrowser();
       BrowserView* browser_view =
-          BrowserView::GetBrowserViewForBrowser(&latest);
+          BrowserView::GetBrowserViewForBrowser(static_cast<Browser*>(&latest));
       views::Widget* widget = browser_view->GetWidget();
       if (!widget->IsVisible() && widget->IsMoveLoopSupported()) {
         base::RunLoop run_loop;
@@ -337,7 +337,7 @@ class VerticalTabDragTest
 
   auto CollapseGroup(int group_index) {
     return Do([&, group_index]() {
-      TabStripModel* model = browser()->GetTabStripModel();
+      TabStripModel* model = browser()->tab_strip_model();
       std::vector<tab_groups::TabGroupId> groups =
           model->group_model()->ListTabGroups();
       ASSERT_LT(static_cast<size_t>(group_index), groups.size());
@@ -585,10 +585,10 @@ IN_PROC_BROWSER_TEST_F(VerticalTabDragTest, MAYBE_DragMultipleTabs) {
       AddInstrumentedTab(kThirdTab, GURL(chrome::kChromeUISettingsURL), 2),
       SelectTabAt(1),
       CheckResult(
-          [this]() { return browser()->GetTabStripModel()->IsTabSelected(1); },
+          [this]() { return browser()->tab_strip_model()->IsTabSelected(1); },
           true),
       CheckResult(
-          [this]() { return browser()->GetTabStripModel()->IsTabSelected(2); },
+          [this]() { return browser()->tab_strip_model()->IsTabSelected(2); },
           true),
       StartDragBetweenTabs(2, 0),
       PollState(kTabOrderPoller, GetTabOrder(tab_strip_model)),
@@ -626,10 +626,10 @@ IN_PROC_BROWSER_TEST_F(VerticalTabDragTest, MAYBE_DragMultipleTabsInGroup) {
                                     })),
       SelectTabAt(2),
       CheckResult(
-          [this]() { return browser()->GetTabStripModel()->IsTabSelected(3); },
+          [this]() { return browser()->tab_strip_model()->IsTabSelected(3); },
           true),
       CheckResult(
-          [this]() { return browser()->GetTabStripModel()->IsTabSelected(2); },
+          [this]() { return browser()->tab_strip_model()->IsTabSelected(2); },
           true),
       StartDragBetweenTabs(2, 1),
       WaitForState(kTabOrderPoller, URLs({
@@ -758,11 +758,11 @@ IN_PROC_BROWSER_TEST_F(VerticalTabDragTest,
 
       SelectTabAt(2), Log("Check tab 3 selected"),
       CheckResult(
-          [this]() { return browser()->GetTabStripModel()->IsTabSelected(3); },
+          [this]() { return browser()->tab_strip_model()->IsTabSelected(3); },
           true),
       Log("Check tab 2 selected"),
       CheckResult(
-          [this]() { return browser()->GetTabStripModel()->IsTabSelected(2); },
+          [this]() { return browser()->tab_strip_model()->IsTabSelected(2); },
           true),
       StartDragBetweenTabs(2, 0),
       WaitForState(kPinnedTabOrderPoller, PinnedURLs({
@@ -858,7 +858,7 @@ IN_PROC_BROWSER_TEST_F(VerticalTabDragTest, DragGroupHeader) {
       StartDragFromGroupToTab(0, 0),
       CheckResult(
           [&]() {
-            TabStripModel* model = browser()->GetTabStripModel();
+            TabStripModel* model = browser()->tab_strip_model();
             std::vector<tab_groups::TabGroupId> groups =
                 model->group_model()->ListTabGroups();
             if (groups.empty()) {
@@ -883,7 +883,7 @@ IN_PROC_BROWSER_TEST_F(VerticalTabDragTest, DragGroupHeader) {
       ReleaseMouse(),
       CheckResult(
           [&]() {
-            TabStripModel* model = browser()->GetTabStripModel();
+            TabStripModel* model = browser()->tab_strip_model();
             std::vector<tab_groups::TabGroupId> groups =
                 model->group_model()->ListTabGroups();
             if (groups.empty()) {
@@ -897,57 +897,9 @@ IN_PROC_BROWSER_TEST_F(VerticalTabDragTest, DragGroupHeader) {
           true));
 }
 
-class VerticalTabDragFocusModeTest : public VerticalTabDragTest {
- public:
-  const std::vector<base::test::FeatureRefAndParams> GetEnabledFeatures()
-      override {
-    auto enabled = VerticalTabDragTest::GetEnabledFeatures();
-    enabled.push_back({features::kTabGroupsFocusing, {}});
-    return enabled;
-  }
-};
-
-IN_PROC_BROWSER_TEST_F(VerticalTabDragFocusModeTest,
-                       DragGroupHeaderInFocusModeDoesNotMoveGroup) {
-  DEFINE_LOCAL_ELEMENT_IDENTIFIER_VALUE(kFourthTab);
-  TabStripModel* tab_strip_model = browser()->GetTabStripModel();
-  ASSERT_NE(nullptr, tab_strip_model);
-  const char kGroupToDragFrom[] = "Group to drag";
-  RunTestSequence(
-      AddInstrumentedTab(kSecondTab, GURL(chrome::kChromeUIBookmarksURL), 1),
-      AddInstrumentedTab(kThirdTab, GURL(chrome::kChromeUISettingsURL), 2),
-      AddInstrumentedTab(kFourthTab, GURL(chrome::kChromeUIVersionURL), 3),
-      AddTabsToNewGroup({1, 2}),
-      PollState(kTabOrderPoller, GetTabOrder(tab_strip_model)),
-      WaitForState(kTabOrderPoller,
-                   URLs({url::kAboutBlankURL,
-                         TabGroupURLs({chrome::kChromeUIBookmarksURL,
-                                       chrome::kChromeUISettingsURL}),
-                         chrome::kChromeUIVersionURL})),
-
-      Do([&]() {
-        const std::vector<tab_groups::TabGroupId> groups =
-            tab_strip_model->group_model()->ListTabGroups();
-        ASSERT_EQ(1u, groups.size());
-        tab_strip_model->SetFocusedGroup(groups[0]);
-      }),
-
-      NameDescendantViewByType<TabGroupHeaderView>(kBrowserViewElementId,
-                                                   kGroupToDragFrom, 0),
-      MoveMouseTo(kGroupToDragFrom),
-      DragMouseTo(kNewTabButtonElementId, CenterPoint(), /*release=*/false),
-      RunScheduledLayout(), ReleaseMouse(),
-
-      CheckResult([&]() { return GetTabOrder(tab_strip_model).Run(); },
-                  URLs({url::kAboutBlankURL,
-                        TabGroupURLs({chrome::kChromeUIBookmarksURL,
-                                      chrome::kChromeUISettingsURL}),
-                        chrome::kChromeUIVersionURL})));
-}
-
 IN_PROC_BROWSER_TEST_F(VerticalTabDragTest, DragCollapsedGroupStaysCollapsed) {
   DEFINE_LOCAL_ELEMENT_IDENTIFIER_VALUE(kFourthTab);
-  TabStripModel* tab_strip_model = browser()->GetTabStripModel();
+  TabStripModel* tab_strip_model = browser()->tab_strip_model();
   ASSERT_NE(nullptr, tab_strip_model);
   RunTestSequence(
       AddInstrumentedTab(kSecondTab, GURL(chrome::kChromeUIBookmarksURL), 1),
@@ -981,7 +933,7 @@ IN_PROC_BROWSER_TEST_F(VerticalTabDragTest, DragCollapsedGroupStaysCollapsed) {
 IN_PROC_BROWSER_TEST_F(VerticalTabDragTest,
                        DragCollapsedGroupOverExpandedGroup) {
   DEFINE_LOCAL_ELEMENT_IDENTIFIER_VALUE(kFourthTab);
-  TabStripModel* tab_strip_model = browser()->GetTabStripModel();
+  TabStripModel* tab_strip_model = browser()->tab_strip_model();
   ASSERT_NE(nullptr, tab_strip_model);
   RunTestSequence(
       AddInstrumentedTab(kSecondTab, GURL(chrome::kChromeUIBookmarksURL), 1),
@@ -1129,8 +1081,6 @@ IN_PROC_BROWSER_TEST_F(VerticalTabDragTest,
         ASSERT_NE(nullptr, controller);
         EXPECT_TRUE(controller->IsCollapsed());
         EXPECT_EQ(kInitialWidth, controller->GetUncollapsedWidth());
-        EXPECT_EQ(1, new_browser.GetTabStripModel()->count());
-        EXPECT_EQ(2, browser()->GetTabStripModel()->count());
       }));
 }
 
@@ -1196,10 +1146,10 @@ IN_PROC_BROWSER_TEST_F(VerticalTabDragTest, DetachMultipleTabs) {
       PollState(kBrowserCountPoller, GetBrowserCount()),
       PollState(kDragStatePoller, GetDragActive()), SelectTabAt(1),
       CheckResult(
-          [this]() { return browser()->GetTabStripModel()->IsTabSelected(1); },
+          [this]() { return browser()->tab_strip_model()->IsTabSelected(1); },
           true),
       CheckResult(
-          [this]() { return browser()->GetTabStripModel()->IsTabSelected(2); },
+          [this]() { return browser()->tab_strip_model()->IsTabSelected(2); },
           true),
       NameTabViewAt("Tab to drag", 1), MoveMouseTo("Tab to drag"),
       ClickMouse(ui_controls::MouseButton::LEFT, /*release=*/false),
@@ -1266,21 +1216,19 @@ IN_PROC_BROWSER_TEST_F(VerticalTabDragTest, DetachTabPreservesActiveTab) {
       AddInstrumentedTab(kThirdTab, GURL(chrome::kChromeUISettingsURL), 2),
       PollState(kBrowserCountPoller, GetBrowserCount()),
       PollState(kDragStatePoller, GetDragActive()), Do([this]() {
-        browser()->GetTabStripModel()->ActivateTabAt(
+        browser()->tab_strip_model()->ActivateTabAt(
             0, TabStripUserGestureDetails(
                    TabStripUserGestureDetails::GestureType::kOther));
       }),
       CheckResult(
-          [this]() { return browser()->GetTabStripModel()->active_index(); },
-          0),
+          [this]() { return browser()->tab_strip_model()->active_index(); }, 0),
       NameTabViewAt("Tab to drag", 2), MoveMouseTo("Tab to drag"),
       ClickMouse(ui_controls::MouseButton::LEFT, /*release=*/false),
       MoveMouseOutOfTabstrip(), WaitForState(kBrowserCountPoller, 2u),
       WaitForDetachedWindowVisible(), ReleaseMouse(),
       WaitForState(kDragStatePoller, false),
       CheckResult(
-          [this]() { return browser()->GetTabStripModel()->active_index(); },
-          0),
+          [this]() { return browser()->tab_strip_model()->active_index(); }, 0),
       CheckResult([this]() { return browser()->GetTabStripModel()->count(); },
                   2));
 }
@@ -1478,10 +1426,10 @@ IN_PROC_BROWSER_TEST_F(VerticalTabDragDetachTest, MAYBE_DetachMultipleTabs) {
       AddInstrumentedTab(kThirdTab, GURL(chrome::kChromeUISettingsURL), 2),
       SelectTabAt(1),
       CheckResult(
-          [this]() { return browser()->GetTabStripModel()->IsTabSelected(1); },
+          [this]() { return browser()->tab_strip_model()->IsTabSelected(1); },
           true),
       CheckResult(
-          [this]() { return browser()->GetTabStripModel()->IsTabSelected(2); },
+          [this]() { return browser()->tab_strip_model()->IsTabSelected(2); },
           true),
       DragTabTo(1, GetBrowserView().GetBoundsInScreen().top_right() +
                        gfx::Vector2d(50, 50)),
@@ -1550,21 +1498,20 @@ IN_PROC_BROWSER_TEST_F(VerticalTabDragDetachTest,
       AddInstrumentedTab(kSecondTab, GURL(chrome::kChromeUIBookmarksURL), 1),
       AddInstrumentedTab(kThirdTab, GURL(chrome::kChromeUISettingsURL), 2),
       Do([&]() {
-        browser()->GetTabStripModel()->ActivateTabAt(
+        browser()->tab_strip_model()->ActivateTabAt(
             0, TabStripUserGestureDetails(
                    TabStripUserGestureDetails::GestureType::kOther));
       }),
       CheckResult(
-          [this]() { return browser()->GetTabStripModel()->active_index(); },
-          0),
+          [this]() { return browser()->tab_strip_model()->active_index(); }, 0),
       DragTabTo(2, GetBrowserView().GetBoundsInScreen().top_right() +
                        gfx::Vector2d(50, 50)),
       PollState(kBrowserCountPoller, GetBrowserCount()),
       WaitForState(kBrowserCountPoller, 2), ReleaseMouseAsync(),
       PollState(kDragStatePoller, GetDragActive()),
       WaitForState(kDragStatePoller, false), Do([&]() {
-        EXPECT_EQ(0, browser()->GetTabStripModel()->active_index());
-        EXPECT_EQ(2, browser()->GetTabStripModel()->count());
+        EXPECT_EQ(0, browser()->tab_strip_model()->active_index());
+        EXPECT_EQ(2, browser()->tab_strip_model()->count());
       }));
 }
 

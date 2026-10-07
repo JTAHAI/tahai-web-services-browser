@@ -508,15 +508,12 @@ IN_PROC_BROWSER_TEST_F(DownloadContentAreaUserProviderTest, FrameUrlChain) {
   content::WebContents* web_contents =
       browser()->tab_strip_model()->GetActiveWebContents();
 
+  // Focus the iframe.
+  ASSERT_TRUE(content::ExecJs(web_contents,
+                              "document.getElementById('test').focus();"));
   GURL iframe_url = embedded_test_server()->GetURL("/title1.html");
-  content::RenderFrameHost* child_rfh =
-      content::ChildFrameAt(web_contents->GetPrimaryMainFrame(), 0);
-  ASSERT_TRUE(child_rfh);
 
-  // Focus the main frame, simulating focus shifting away from the iframe.
-  web_contents->Focus();
-
-  // Construct a mock DownloadItem originating from the child frame.
+  // Construct a mock DownloadItem.
   GURL empty_url;
   std::vector<GURL> empty_url_chain;
   testing::NiceMock<download::MockDownloadItem> mock_download_item;
@@ -527,15 +524,13 @@ IN_PROC_BROWSER_TEST_F(DownloadContentAreaUserProviderTest, FrameUrlChain) {
   ON_CALL(mock_download_item, GetUrlChain())
       .WillByDefault(testing::ReturnRef(empty_url_chain));
 
-  content::DownloadItemUtils::AttachInfo(&mock_download_item,
-                                         browser()->GetProfile(), web_contents,
-                                         child_rfh->GetGlobalId());
+  content::DownloadItemUtils::AttachInfoForTesting(
+      &mock_download_item, browser()->GetProfile(), web_contents);
 
   // Initialize the provider, trigger iframe urls collection.
   DownloadContentAreaUserProvider provider(mock_download_item);
 
-  // Verify that the iframe url chain contains the initiating iframe despite
-  // main frame focus.
+  // Verify that the iframe url chain contains only the focused iframe.
   auto frame_url_chain = provider.frame_url_chain();
   ASSERT_EQ(1u, frame_url_chain.size());
   EXPECT_EQ(iframe_url.spec(), frame_url_chain[0]);

@@ -32,7 +32,6 @@
 #include <memory>
 
 #include "base/functional/callback_helpers.h"
-#include "base/memory/raw_ptr.h"
 #include "cc/animation/animation_host.h"
 #include "cc/animation/animation_timeline.h"
 #include "cc/base/features.h"
@@ -368,7 +367,7 @@ class PagePopupChromeClient final : public EmptyChromeClient {
         delta, granularity, scrollable_area_element_id, injected_type);
   }
 
-  raw_ptr<WebPagePopupImpl, UnprotectedInRelease | DanglingUntriaged> popup_;
+  WebPagePopupImpl* popup_;
 };
 
 // WebPagePopupImpl ----------------------------------------------------------
@@ -452,10 +451,8 @@ WebPagePopupImpl::WebPagePopupImpl(
   }
 
   // TODO(https://crbug.com/1355751) Initialize `storage_key`.
-  frame->Init(/*opener=*/nullptr, DocumentToken(),
-              /*initiator_state_token=*/base::UnguessableToken::Create(),
-              /*policy_container=*/nullptr, StorageKey(),
-              /*document_ukm_source_id=*/ukm::kInvalidSourceId,
+  frame->Init(/*opener=*/nullptr, DocumentToken(), /*policy_container=*/nullptr,
+              StorageKey(), /*document_ukm_source_id=*/ukm::kInvalidSourceId,
               /*creator_base_url=*/NullUrl());
   frame->View()->SetParentVisible(true);
   frame->View()->SetSelfVisible(true);
@@ -853,8 +850,8 @@ WebInputEventResult WebPagePopupImpl::HandleGestureEvent(
         MainFrame().GetEventHandler().HitTestResultAtLocation(locationScroll);
     scrollable_node_ = FindFirstScroller(resultScroll.InnerNode());
     RecordScrollReasonsMetric(
-        event.SourceDevice(), {}, {},
-        {cc::MainThreadScrollingOtherReason::kPopupNoThreadedInput});
+        event.SourceDevice(),
+        cc::MainThreadScrollingReason::kPopupNoThreadedInput);
     return WebInputEventResult::kHandledSystem;
   }
   if (event.GetType() == WebInputEvent::Type::kGestureScrollUpdate) {
@@ -981,9 +978,8 @@ void WebPagePopupImpl::CheckScreenPointInOwnerWindowAndCount(
 gfx::Rect WebPagePopupImpl::OwnerWindowRectInScreen() const {
   LocalFrameView* view = popup_client_->OwnerElement().GetDocument().View();
   DCHECK(view);
-
-  return view->GetChromeClient()->LocalRootToScreenDIPs(
-      gfx::Rect(view->GetFrame().LocalFrameRoot().View()->Size()), view);
+  gfx::Rect frame_rect = view->FrameRect();
+  return view->FrameToScreen(frame_rect);
 }
 
 gfx::Rect WebPagePopupImpl::GetAnchorRectInScreen() const {

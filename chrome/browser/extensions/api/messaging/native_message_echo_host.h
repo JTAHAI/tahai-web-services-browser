@@ -20,8 +20,7 @@ class BrowserContext;
 namespace extensions {
 
 // A test NativeMessageHost used in ExtensionApiTest::NativeMessagingBasic.
-// See
-// //chrome/browser/extensions/api/messaging/native_messaging_apitest_desktop.cc
+// See //chrome/browser/extensions/api/messaging/native_messaging_apitest.cc
 // The behavior in this implementation must match the expectations defined in
 // //chrome/test/data/native_messaging/native_hosts/echo.py as that script is
 // used to drive the tests.

@@ -25,12 +25,10 @@
 #include "third_party/blink/renderer/bindings/modules/v8/v8_web_transport_connection_stats.h"
 #include "third_party/blink/renderer/bindings/modules/v8/v8_web_transport_datagram_stats.h"
 #include "third_party/blink/renderer/core/execution_context/execution_context_lifecycle_state_observer.h"
-#include "third_party/blink/renderer/core/fetch/headers.h"
 #include "third_party/blink/renderer/modules/modules_export.h"
 #include "third_party/blink/renderer/platform/bindings/script_wrappable.h"
 #include "third_party/blink/renderer/platform/heap/collection_support/heap_hash_map.h"
 #include "third_party/blink/renderer/platform/heap/collection_support/heap_hash_set.h"
-#include "third_party/blink/renderer/platform/heap/collection_support/heap_linked_hash_set.h"
 #include "third_party/blink/renderer/platform/heap/collection_support/heap_vector.h"
 #include "third_party/blink/renderer/platform/heap/garbage_collected.h"
 #include "third_party/blink/renderer/platform/heap/prefinalizer.h"
@@ -51,10 +49,8 @@ class ReadableStream;
 class ReadableByteStreamController;
 class ScriptState;
 class WebTransportCloseInfo;
-class WebTransportDatagramsWritable;
 class WebTransportOptions;
 class WebTransportSendGroup;
-class WebTransportSendOptions;
 class WebTransportSendStreamOptions;
 class WritableStream;
 
@@ -92,16 +88,11 @@ class MODULES_EXPORT WebTransport final
   ReadableStream* incomingBidirectionalStreams();
 
   DatagramDuplexStream* datagrams();
-  WebTransportDatagramsWritable* CreateDatagramsWritable(
-      ScriptState*,
-      WebTransportSendOptions*,
-      ExceptionState&);
   WritableStream* datagramWritable();
   ReadableStream* datagramReadable();
   void close(WebTransportCloseInfo*);
   ScriptPromise<IDLUndefined> ready(ScriptState*);
   ScriptPromise<WebTransportCloseInfo> closed(ScriptState*);
-  ScriptPromise<IDLUndefined> draining(ScriptState*);
   void setDatagramWritableQueueExpirationDuration(double ms);
   ScriptPromise<WebTransportConnectionStats> getStats(ScriptState*);
   const String& protocol();
@@ -115,10 +106,8 @@ class MODULES_EXPORT WebTransport final
       const;
   void setAnticipatedConcurrentIncomingBidirectionalStreams(
       std::optional<uint16_t> value);
-  Headers* responseHeaders() const;
 
   void SetNextSendGroupIdForTesting(uint32_t id) { next_send_group_id_ = id; }
-  wtf_size_t DatagramSinksWithPendingWritesSizeForTesting() const;
 
   // Flushes the connector_ Mojo remote so a pending Connect() call is
   // delivered to the bound receiver. Used by tests that inspect Connect args.
@@ -145,7 +134,6 @@ class MODULES_EXPORT WebTransport final
   void OnClosed(
       network::mojom::blink::WebTransportCloseInfoPtr close_info,
       network::mojom::blink::WebTransportStatsPtr final_stats) override;
-  void OnDraining() override;
 
   // Implementation of ExecutionContextLifecycleStateObserver
   void ContextDestroyed() final;
@@ -162,12 +150,6 @@ class MODULES_EXPORT WebTransport final
 
   // Forwards a StopSending() message to the mojo interface.
   void StopSending(uint32_t stream_id, uint32_t code);
-
-  // Forwards a SetStreamPriority() message to the mojo interface. Used by
-  // WebTransportSendStream when its sendGroup or sendOrder is changed.
-  void SetStreamPriority(
-      uint32_t stream_id,
-      network::mojom::blink::WebTransportStreamPriorityPtr priority);
 
   // Removes the reference to a stream. |has_received_close| indicates whether
   // OnIncomingStreamClosed() was called for this stream before it was
@@ -224,9 +206,6 @@ class MODULES_EXPORT WebTransport final
   void OnConnectionError();
   void RejectPendingStreamResolvers(v8::Local<v8::Value> error);
   void HandlePendingGetStatsResolvers(v8::Local<v8::Value> error);
-  void ForgetDatagramUnderlyingSink(DatagramUnderlyingSink*);
-  void RetainDatagramUnderlyingSinkWithPendingWrites(DatagramUnderlyingSink*);
-  void ReleaseDatagramUnderlyingSinkWithPendingWrites(DatagramUnderlyingSink*);
 
   // Result type for ExtractSendStreamOptions().
   struct SendStreamOptions {
@@ -279,16 +258,7 @@ class MODULES_EXPORT WebTransport final
 
   // This corresponds to the [[SentDatagrams]] internal slot in the standard.
   Member<WritableStream> outgoing_datagrams_;
-  // Tracks the legacy sink and each createWritable() sink without keeping
-  // abandoned streams alive. Sinks unregister on abort (and the legacy sink
-  // also unregisters on close), while Cleanup() takes a strong snapshot before
-  // invoking script.
-  HeapLinkedHashSet<WeakMember<DatagramUnderlyingSink>>
-      datagram_underlying_sinks_;
-  // Keeps createWritable() sinks alive while sends are pending. Entries are
-  // released after the last send callback or during cleanup.
-  HeapHashSet<Member<DatagramUnderlyingSink>>
-      datagram_underlying_sinks_with_pending_writes_;
+  Member<DatagramUnderlyingSink> datagram_underlying_sink_;
 
   base::TimeDelta outgoing_datagram_expiration_duration_;
 
@@ -297,7 +267,6 @@ class MODULES_EXPORT WebTransport final
   const KURL url_;
 
   String selected_application_protocol_ = "";
-  Member<Headers> response_headers_;
 
   V8WebTransportCongestionControl congestion_control_{
       V8WebTransportCongestionControl::Enum::kDefault};
@@ -348,8 +317,6 @@ class MODULES_EXPORT WebTransport final
   using ReadyProperty = ScriptPromiseProperty<IDLUndefined, IDLAny>;
   Member<ReadyProperty> ready_;
   Member<ScriptPromiseProperty<WebTransportCloseInfo, IDLAny>> closed_;
-  using DrainingProperty = ScriptPromiseProperty<IDLUndefined, IDLAny>;
-  Member<DrainingProperty> draining_;
   // True if [[State]] is "connecting".
   bool connection_pending_ = true;
 

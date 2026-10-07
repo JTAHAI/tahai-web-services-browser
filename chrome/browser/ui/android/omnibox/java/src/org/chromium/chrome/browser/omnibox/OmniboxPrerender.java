@@ -88,10 +88,10 @@ public class OmniboxPrerender {
 
         void prerenderMaybe(
                 long nativeOmniboxPrerender,
-                @JniType("std::u16string") String url,
-                @JniType("std::u16string") String currentUrl,
+                String url,
+                String currentUrl,
                 long nativeAutocompleteResult,
                 @JniType("Profile*") Profile profile,
-                @JniType("TabAndroid*") @Nullable Tab tab);
+                @Nullable Tab tab);
     }
 }

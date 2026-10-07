@@ -7,31 +7,21 @@ package org.chromium.chrome.browser.ui.signin;
 import static org.chromium.build.NullUtil.assumeNonNull;
 
 import android.content.Context;
-import android.view.LayoutInflater;
-import android.view.View;
-import android.widget.TextView;
 
 import androidx.annotation.IntDef;
 import androidx.annotation.MainThread;
 
-import org.chromium.base.DeviceInfo;
 import org.chromium.base.ThreadUtils;
 import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.base.task.PostTask;
 import org.chromium.base.task.TaskTraits;
 import org.chromium.build.annotations.NullMarked;
-import org.chromium.chrome.browser.browsing_data.BrowsingDataBridge;
-import org.chromium.chrome.browser.browsing_data.BrowsingDataType;
-import org.chromium.chrome.browser.browsing_data.TimePeriod;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.signin.services.IdentityServicesProvider;
 import org.chromium.chrome.browser.signin.services.SigninManager;
 import org.chromium.chrome.browser.sync.SyncServiceFactory;
 import org.chromium.chrome.browser.ui.messages.snackbar.Snackbar;
 import org.chromium.chrome.browser.ui.messages.snackbar.SnackbarManager;
-import org.chromium.components.browser_ui.widget.CheckBoxWithDescription;
-import org.chromium.components.signin.SigninFeatureMap;
-import org.chromium.components.signin.SigninFeatures;
 import org.chromium.components.signin.identitymanager.IdentityManager;
 import org.chromium.components.signin.metrics.SignoutReason;
 import org.chromium.components.sync.SyncService;
@@ -65,7 +55,6 @@ public class SignOutCoordinator {
      * @param snackbarManager The manager for displaying snackbars at the bottom of the activity.
      * @param signOutReason The access point to sign out from.
      * @param showConfirmDialog Whether a confirm dialog should be shown before sign-out.
-     * @param offerDataDeletionChoice Preset a checkbox to allow users to delete all browsing data.
      * @param onSignOut A {@link Runnable} to run when the user presses the confirm button. Will be
      *     called on the UI thread when the sign-out flow finishes. If sign-out fails it will not be
      *     called.
@@ -78,7 +67,6 @@ public class SignOutCoordinator {
             SnackbarManager snackbarManager,
             @SignoutReason int signOutReason,
             boolean showConfirmDialog,
-            boolean offerDataDeletionChoice,
             Runnable onSignOut) {
         startSignOutFlow(
                 context,
@@ -87,7 +75,6 @@ public class SignOutCoordinator {
                 snackbarManager,
                 signOutReason,
                 showConfirmDialog,
-                offerDataDeletionChoice,
                 onSignOut,
                 false);
     }
@@ -111,7 +98,6 @@ public class SignOutCoordinator {
      *     activity.
      * @param signOutReason The access point to sign out from.
      * @param showConfirmDialog Whether a confirm dialog should be shown before sign-out.
-     * @param offerDataDeletionChoice Preset a checkbox to allow users to delete all browsing data.
      * @param onSignOut A {@link Runnable} to run when the user presses the confirm button. Will be
      *     called on the UI thread when the sign-out flow finishes. If sign-out fails it will not be
      *     called.
@@ -125,7 +111,6 @@ public class SignOutCoordinator {
             SnackbarManager snackbarManager,
             @SignoutReason int signOutReason,
             boolean showConfirmDialog,
-            boolean offerDataDeletionChoice,
             Runnable onSignOut,
             boolean suppressSnackbar) {
         ThreadUtils.assertOnUiThread();
@@ -143,7 +128,6 @@ public class SignOutCoordinator {
         assumeNonNull(signinManager);
         SyncService syncService = SyncServiceFactory.getForProfile(profile);
         assumeNonNull(syncService);
-        BrowsingDataBridge browsingDataBridge = BrowsingDataBridge.getForProfile(profile);
         @UserActionableError int userActionableError = syncService.getUserActionableError();
         syncService.getTypesWithUnsyncedData(
                 unsyncedTypes -> {
@@ -169,9 +153,7 @@ public class SignOutCoordinator {
                                         context,
                                         dialogManager,
                                         signinManager,
-                                        browsingDataBridge,
                                         userActionableError,
-                                        offerDataDeletionChoice,
                                         signOutReason,
                                         onSignOut);
                         case UiState.SHOW_CONFIRM_DIALOG ->
@@ -181,8 +163,6 @@ public class SignOutCoordinator {
                                         snackbarManager,
                                         signinManager,
                                         syncService,
-                                        browsingDataBridge,
-                                        offerDataDeletionChoice,
                                         signOutReason,
                                         onSignOut);
                     }
@@ -199,9 +179,10 @@ public class SignOutCoordinator {
      * Starts a silent sign-out flow that only shows a snackbar upon completion. This bypasses the
      * standard signout confirmation dialog.
      *
-     * <p>This should ONLY be used for reversing a sign-in action immediately after it was completed
-     * (e.g., via an "Undo" button on a snackbar). For all other sign-out scenarios, use {@link
-     * #startSignOutFlow()} to ensure the user can save their work.
+     * <p>This should ONLY be used when caller is sure there's no unsynced data, such as reversing a
+     * sign-in action immediately after it was completed (e.g., via an "Undo" button on a snackbar).
+     * For all other sign-out scenarios, use {@link #startSignOutFlow()} to ensure the user can save
+     * their work.
      *
      * @param context Context to create the view.
      * @param profile The Profile to sign out of.
@@ -211,7 +192,7 @@ public class SignOutCoordinator {
      *     finishes. If sign-out fails it will not be called.
      */
     @MainThread
-    static void undoSignInWithSnackbar(
+    public static void undoSignInWithSnackbar(
             Context context,
             Profile profile,
             SnackbarManager snackbarManager,
@@ -242,6 +223,13 @@ public class SignOutCoordinator {
         SyncService syncService = SyncServiceFactory.getForProfile(profile);
         assumeNonNull(syncService);
 
+        syncService.getTypesWithUnsyncedData(
+                unsyncedTypes -> {
+                    if (!unsyncedTypes.isEmpty()) {
+                        throw new IllegalStateException(
+                                "This sign-out flow should not be used if there is unsaved data.");
+                    }
+                });
         signOutAndShowSnackbar(
                 context,
                 snackbarManager,
@@ -328,12 +316,9 @@ public class SignOutCoordinator {
             Context context,
             ModalDialogManager dialogManager,
             SigninManager signinManager,
-            BrowsingDataBridge browsingDataBridge,
             @UserActionableError int userActionableError,
-            boolean offerDataDeletionChoice,
             @SignoutReason int signOutReason,
             Runnable onSignOut) {
-        View customView = createCustomView(context, signinManager, offerDataDeletionChoice);
         String message = context.getString(R.string.sign_out_unsaved_data_message);
         if (userActionableError == UserActionableError.BOOKMARKS_LIMIT_EXCEEDED) {
             message =
@@ -342,25 +327,21 @@ public class SignOutCoordinator {
                             NumberFormat.getIntegerInstance()
                                     .format(SyncService.SYNC_BOOKMARKS_LIMIT));
         }
-        if (customViewHasCheckBoxes(customView)) {
-            message += context.getString(R.string.sign_out_unsaved_data_message_with_checkbox);
-        }
-        ((TextView) customView.findViewById(R.id.sign_out_message)).setText(message);
-
-        ModalDialogProperties.Controller controller =
-                createController(
-                        dialogManager,
-                        customView,
-                        signinManager,
-                        browsingDataBridge,
-                        signOutReason,
-                        onSignOut);
-
         final PropertyModel model =
                 new PropertyModel.Builder(ModalDialogProperties.ALL_KEYS)
                         .with(
                                 ModalDialogProperties.TITLE,
                                 context.getString(R.string.sign_out_unsaved_data_title))
+                        .with(ModalDialogProperties.MESSAGE_PARAGRAPH_1, message)
+                        // Setting CHECKBOX_TEXT to an empty string hides the checkbox.
+                        .with(
+                                ModalDialogProperties.CHECKBOX_TEXT,
+                                signinManager.hasSignedInAccountExtensions()
+                                        ? context.getString(
+                                                R.string
+                                                        .sign_out_unsaved_data_remove_extensions_message)
+                                        : "")
+                        .with(ModalDialogProperties.CHECKBOX_CHECKED, false)
                         .with(
                                 ModalDialogProperties.POSITIVE_BUTTON_TEXT,
                                 context.getString(R.string.sign_out_unsaved_data_primary_button))
@@ -368,9 +349,10 @@ public class SignOutCoordinator {
                                 ModalDialogProperties.NEGATIVE_BUTTON_TEXT,
                                 context.getString(R.string.cancel))
                         .with(ModalDialogProperties.CANCEL_ON_TOUCH_OUTSIDE, true)
-                        .with(ModalDialogProperties.CUSTOM_VIEW, customView)
-                        .with(ModalDialogProperties.WRAP_CUSTOM_VIEW_IN_SCROLLABLE, true)
-                        .with(ModalDialogProperties.CONTROLLER, controller)
+                        .with(
+                                ModalDialogProperties.CONTROLLER,
+                                createController(
+                                        dialogManager, signinManager, signOutReason, onSignOut))
                         .build();
         dialogManager.showDialog(model, ModalDialogManager.ModalDialogType.APP);
     }
@@ -381,31 +363,33 @@ public class SignOutCoordinator {
             SnackbarManager snackbarManager,
             SigninManager signinManager,
             SyncService syncService,
-            BrowsingDataBridge browsingDataBridge,
-            boolean offerDataDeletionChoice,
             @SignoutReason int signOutReason,
             Runnable onSignOut) {
-        View customView = createCustomView(context, signinManager, offerDataDeletionChoice);
-        String message = context.getString(R.string.sign_out_message);
-        ((TextView) customView.findViewById(R.id.sign_out_message)).setText(message);
-
         ModalDialogProperties.Controller controller =
                 createController(
                         dialogManager,
-                        customView,
                         signinManager,
-                        browsingDataBridge,
                         signOutReason,
                         () -> {
                             onSignOut.run();
                             showSnackbar(context, snackbarManager, syncService);
                         });
-
         final PropertyModel model =
                 new PropertyModel.Builder(ModalDialogProperties.ALL_KEYS)
                         .with(
                                 ModalDialogProperties.TITLE,
                                 context.getString(R.string.sign_out_title))
+                        .with(
+                                ModalDialogProperties.MESSAGE_PARAGRAPH_1,
+                                context.getString(R.string.sign_out_message))
+                        // Setting CHECKBOX_TEXT to an empty string hides the checkbox.
+                        .with(
+                                ModalDialogProperties.CHECKBOX_TEXT,
+                                signinManager.hasSignedInAccountExtensions()
+                                        ? context.getString(
+                                                R.string.sign_out_remove_extensions_message)
+                                        : "")
+                        .with(ModalDialogProperties.CHECKBOX_CHECKED, false)
                         .with(
                                 ModalDialogProperties.POSITIVE_BUTTON_TEXT,
                                 context.getString(R.string.sign_out))
@@ -416,81 +400,26 @@ public class SignOutCoordinator {
                                 ModalDialogProperties.BUTTON_STYLES,
                                 ModalDialogProperties.ButtonStyles.PRIMARY_FILLED_NEGATIVE_OUTLINE)
                         .with(ModalDialogProperties.CANCEL_ON_TOUCH_OUTSIDE, true)
-                        .with(ModalDialogProperties.CUSTOM_VIEW, customView)
-                        .with(ModalDialogProperties.WRAP_CUSTOM_VIEW_IN_SCROLLABLE, true)
                         .with(ModalDialogProperties.CONTROLLER, controller)
                         .build();
         dialogManager.showDialog(model, ModalDialogManager.ModalDialogType.APP);
     }
 
-    private static View createCustomView(
-            Context context, SigninManager signinManager, boolean offerDataDeletionChoice) {
-        View customView = LayoutInflater.from(context).inflate(R.layout.sign_out_dialog, null);
-        CheckBoxWithDescription deleteDataCheckBox =
-                customView.findViewById(R.id.delete_browsing_data_checkbox);
-        CheckBoxWithDescription removeExtensionsCheckBox =
-                customView.findViewById(R.id.remove_extensions_checkbox);
-
-        if (offerDataDeletionChoice) {
-            assert DeviceInfo.isDesktop()
-                    && SigninFeatureMap.isEnabled(SigninFeatures.SIGN_OUT_DELETES_BROWSING_DATA);
-            deleteDataCheckBox.setVisibility(View.VISIBLE);
-            deleteDataCheckBox.setPrimaryText(
-                    context.getString(R.string.sign_out_delete_browsing_data_checkbox_title));
-            deleteDataCheckBox.setDescriptionText(
-                    context.getString(R.string.sign_out_delete_browsing_data_checkbox_subtitle));
-        }
-        if (signinManager.hasSignedInAccountExtensions()) {
-            removeExtensionsCheckBox.setVisibility(View.VISIBLE);
-            removeExtensionsCheckBox.setPrimaryText(
-                    context.getString(R.string.sign_out_remove_extensions_checkbox_title));
-            if (DeviceInfo.isDesktop()
-                    && SigninFeatureMap.isEnabled(SigninFeatures.SIGN_OUT_DELETES_BROWSING_DATA)) {
-                removeExtensionsCheckBox.setDescriptionText(
-                        context.getString(R.string.sign_out_remove_extensions_checkbox_subtitle));
-            }
-        }
-
-        return customView;
-    }
-
-    private static boolean customViewHasCheckBoxes(View customView) {
-        return customView.findViewById(R.id.delete_browsing_data_checkbox).getVisibility()
-                        == View.VISIBLE
-                || customView.findViewById(R.id.remove_extensions_checkbox).getVisibility()
-                        == View.VISIBLE;
-    }
-
     private static ModalDialogProperties.Controller createController(
             ModalDialogManager dialogManager,
-            View customView,
             SigninManager signinManager,
-            BrowsingDataBridge browsingDataBridge,
             @SignoutReason int signOutReason,
             Runnable onSignOut) {
-        CheckBoxWithDescription deleteDataCheckBox =
-                customView.findViewById(R.id.delete_browsing_data_checkbox);
-        assert deleteDataCheckBox != null;
-        CheckBoxWithDescription removeExtensionsCheckBox =
-                customView.findViewById(R.id.remove_extensions_checkbox);
-        assert removeExtensionsCheckBox != null;
-
         return new ModalDialogProperties.Controller() {
             @Override
             public void onClick(PropertyModel model, int buttonType) {
                 if (buttonType == ModalDialogProperties.ButtonType.POSITIVE) {
-                    boolean clearBrowsingData = deleteDataCheckBox.isChecked();
-                    Runnable onSignOutWithOptionalDataClear =
-                            () -> {
-                                if (clearBrowsingData) {
-                                    clearBrowsingData(browsingDataBridge);
-                                }
-                                onSignOut.run();
-                            };
-
                     signinManager.setUninstallAccountExtensionsOnSignout(
-                            removeExtensionsCheckBox.isChecked());
-                    signOut(signinManager, signOutReason, onSignOutWithOptionalDataClear);
+                            model.get(ModalDialogProperties.CHECKBOX_CHECKED));
+                    signOut(
+                            signinManager,
+                            signOutReason,
+                            () -> PostTask.runOrPostTask(TaskTraits.UI_DEFAULT, onSignOut));
                     dialogManager.dismissDialog(
                             model, DialogDismissalCause.POSITIVE_BUTTON_CLICKED);
                 } else if (buttonType == ModalDialogProperties.ButtonType.NEGATIVE) {
@@ -502,21 +431,6 @@ public class SignOutCoordinator {
             @Override
             public void onDismiss(PropertyModel model, int dismissalCause) {}
         };
-    }
-
-    private static void clearBrowsingData(BrowsingDataBridge browsingDataBridge) {
-        assert DeviceInfo.isDesktop()
-                && SigninFeatureMap.isEnabled(SigninFeatures.SIGN_OUT_DELETES_BROWSING_DATA);
-        int[] browsingDatatypes = {
-            BrowsingDataType.HISTORY,
-            BrowsingDataType.CACHE,
-            BrowsingDataType.SITE_DATA,
-            BrowsingDataType.PASSWORDS,
-            BrowsingDataType.FORM_DATA,
-            BrowsingDataType.SITE_SETTINGS,
-            BrowsingDataType.TABS
-        };
-        browsingDataBridge.clearBrowsingData(null, browsingDatatypes, TimePeriod.ALL_TIME);
     }
 
     private static void signOutAndShowSnackbar(
@@ -531,10 +445,14 @@ public class SignOutCoordinator {
                 signinManager,
                 signOutReason,
                 () -> {
-                    if (!supressSnackbar) {
-                        showSnackbar(context, snackbarManager, syncService);
-                    }
-                    onSignOut.run();
+                    PostTask.runOrPostTask(
+                            TaskTraits.UI_DEFAULT,
+                            () -> {
+                                if (!supressSnackbar) {
+                                    showSnackbar(context, snackbarManager, syncService);
+                                }
+                                onSignOut.run();
+                            });
                 });
     }
 
@@ -542,8 +460,6 @@ public class SignOutCoordinator {
             SigninManager signinManager,
             @SignoutReason int signOutReason,
             Runnable signOutCallback) {
-        Runnable signOutCallbackOnUiThread =
-                () -> PostTask.runOrPostTask(TaskTraits.UI_DEFAULT, signOutCallback);
         signinManager.runAfterOperationInProgress(
                 () -> {
                     if (!signinManager.isSignOutAllowed()) {
@@ -551,7 +467,7 @@ public class SignOutCoordinator {
                         // asynchronous. In that case return early instead.
                         return;
                     }
-                    signinManager.signOut(signOutReason, signOutCallbackOnUiThread);
+                    signinManager.signOut(signOutReason, signOutCallback);
                 });
     }
 }

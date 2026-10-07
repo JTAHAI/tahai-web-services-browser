@@ -142,8 +142,8 @@ TabStripModelAdapterImpl::MoveTab(tabs::TabHandle tab,
       to_position =
           tab_strip_model_->IndexOfFirstNonPinnedTab() + position.index();
       break;
-    // Callers can not move a Tab within TabStrip and SplitTab collections. This
-    // should return an error to the client.
+    // TODO(crbug.com/412709271) Callers can not move a Tab within TabStrip and
+    // SplitTab collections. This should return an error to the client.
     case tabs::TabCollection::Type::TABSTRIP:
     case tabs::TabCollection::Type::SPLIT:
       NOTIMPLEMENTED();
@@ -170,8 +170,8 @@ TabStripModelAdapterImpl::MoveCollection(const NodeId& id,
     case tabs::TabCollection::Type::GROUP: {
       std::optional<const tab_groups::TabGroupId> group_id =
           FindGroupIdFor(collection_handle.value());
-      // Invalid group id is a user supplied data and should result in API
-      // failure.
+      // TODO(crbug.com/409086859): Invalid group id is a user supplied data and
+      // should result in API failure.
       CHECK(group_id.has_value());
       const int to_position =
           tab_strip_model_->IndexOfFirstNonPinnedTab() + position.index();
@@ -184,7 +184,8 @@ TabStripModelAdapterImpl::MoveCollection(const NodeId& id,
       const split_tabs::SplitTabId split_id = split_collection->GetSplitTabId();
       const int to_position =
           tab_strip_model_->IndexOfFirstNonPinnedTab() + position.index();
-      // Currently only moves within the unpinned collection.
+      // TODO(crbug.com/412709271): Currently only moves within the unpinned
+      // collection.
       tab_strip_model_->MoveSplitTo(split_id, to_position, false /* pinned */,
                                     std::nullopt);
       break;

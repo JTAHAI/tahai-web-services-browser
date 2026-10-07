@@ -2,13 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "chrome/browser/ui/views/frame/browser_native_widget_aura_linux.h"
-
 #include "base/test/bind.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/themes/theme_service.h"
 #include "chrome/browser/themes/theme_service_factory.h"
-#include "chrome/browser/ui/browser_window/public/create_browser_window.h"
+#include "chrome/browser/ui/views/frame/browser_native_widget_aura_linux.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/common/pref_names.h"
 #include "chrome/test/base/in_process_browser_test.h"
@@ -26,7 +24,7 @@ using SupportsForTest =
 
 namespace {
 
-gfx::Size GetWindowSize(const BrowserWindowInterface* browser) {
+gfx::Size GetWindowSize(Browser* browser) {
   BrowserView* const browser_view =
       BrowserView::GetBrowserViewForBrowser(browser);
   const BrowserNativeWidget* const native_widget =
@@ -37,8 +35,7 @@ gfx::Size GetWindowSize(const BrowserWindowInterface* browser) {
   return bounds.size();
 }
 
-void VerifyColorsForFrameType(BrowserWindowInterface* browser,
-                              bool use_custom_frame) {
+void VerifyColorsForFrameType(Browser* browser, bool use_custom_frame) {
   ThemeService* theme_service =
       ThemeServiceFactory::GetForProfile(browser->GetProfile());
   EXPECT_EQ(use_custom_frame, theme_service->ShouldUseCustomFrame());
@@ -123,8 +120,8 @@ IN_PROC_BROWSER_TEST_F(BrowserNativeWidgetAuraLinuxTest, NewWindowSize) {
   // Ensure the first window is active before creating the second one.
   ui_test_utils::BrowserActivationWaiter(browser()).WaitForActivation();
   Profile* profile = browser()->GetProfile();
-  BrowserWindowCreateParams params(profile, /*from_user_gesture=*/true);
-  BrowserWindowInterface* browser2 = CreateBrowserWindow(std::move(params));
+  Browser::CreateParams params(profile, true /* user_gesture */);
+  Browser* browser2 = Browser::Create(params);
   browser2->GetWindow()->Show();
 
   // The first window saves its placement on losing the active state, then the

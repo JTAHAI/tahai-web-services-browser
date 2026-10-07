@@ -55,7 +55,7 @@ constexpr inline bool IsAscii(CharType c) {
 }
 
 template <typename CharType>
-constexpr inline bool IsAsciiAlpha(CharType c) {
+inline bool IsAsciiAlpha(CharType c) {
   return (c | 0x20) >= 'a' && (c | 0x20) <= 'z';
 }
 

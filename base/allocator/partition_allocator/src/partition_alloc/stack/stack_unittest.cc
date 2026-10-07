@@ -8,7 +8,6 @@
 #include <ostream>
 
 #include "partition_alloc/build_config.h"
-#include "partition_alloc/buildflags.h"
 #include "partition_alloc/partition_alloc_base/compiler_specific.h"
 #include "testing/gtest/include/gtest/gtest.h"
 

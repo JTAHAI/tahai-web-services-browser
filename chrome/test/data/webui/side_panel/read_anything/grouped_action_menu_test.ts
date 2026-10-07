@@ -9,7 +9,8 @@ import type {GroupedActionMenuElement} from 'chrome-untrusted://read-anything-si
 import {assertEquals, assertTrue} from 'chrome-untrusted://webui-test/chai_assert.js';
 import {microtasksFinished} from 'chrome-untrusted://webui-test/test_util.js';
 
-import {assertTestSettingsAreNotDefaultSettings, getItemsInMenu, setupTestEnvironment} from './common.js';
+import {assertTestSettingsAreNotDefaultSettings, getItemsInMenu, mockMetrics} from './common.js';
+import {FakeReadingMode} from './fake_reading_mode.js';
 
 suite('GroupedActionMenuElement', () => {
   let menu: GroupedActionMenuElement;
@@ -19,7 +20,11 @@ suite('GroupedActionMenuElement', () => {
   });
 
   setup(() => {
-    setupTestEnvironment();
+    // Clearing the DOM should always be done first.
+    document.body.innerHTML = window.trustedTypes!.emptyHTML;
+    const readingMode = new FakeReadingMode();
+    chrome.readingMode = readingMode as unknown as typeof chrome.readingMode;
+    mockMetrics();
 
     menu = document.createElement('grouped-action-menu');
     document.body.appendChild(menu);

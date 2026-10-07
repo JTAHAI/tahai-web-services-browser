@@ -16,10 +16,8 @@ sys.path.append(os.path.join(INFRA_CONFIG_DIR, 'scripts'))
 
 import branch
 
-
 class ParseError(Exception):
   pass
-
 
 class ArgumentParser(argparse.ArgumentParser):
   """Test version of ArgumentParser
@@ -34,8 +32,8 @@ class ArgumentParser(argparse.ArgumentParser):
   def error(self, message):
     raise ParseError(message)
 
-
 class BranchUnitTest(unittest.TestCase):
+
   def test_parse_args_fails_without_subcommand(self):
     with self.assertRaises(ParseError) as caught:
       branch.parse_args([], parser_type=ArgumentParser)
@@ -45,28 +43,26 @@ class BranchUnitTest(unittest.TestCase):
     with self.assertRaises(ParseError) as caught:
       branch.parse_args(['initialize'], parser_type=ArgumentParser)
     self.assertEqual(
-      str(caught.exception),
-      'the following arguments are required: --milestone, --branch',
-    )
+        str(caught.exception),
+        'the following arguments are required: --milestone, --branch')
 
   def test_initialize_parse_args(self):
     args = branch.parse_args(
-      ['initialize', '--milestone', 'MM', '--branch', 'BBBB'],
-      parser_type=ArgumentParser,
-    )
+        ['initialize', '--milestone', 'MM', '--branch', 'BBBB'],
+        parser_type=ArgumentParser)
     self.assertEqual(args.milestone, 'MM')
     self.assertEqual(args.branch, 'BBBB')
 
   def test_initial_settings(self):
     output = branch.initial_settings(
-      milestone='MM',
-      branch='BBBB',
-      chromium_project='CHROMIUM',
-      chrome_project='CHROME',
+        milestone='MM',
+        branch='BBBB',
+        chromium_project='CHROMIUM',
+        chrome_project='CHROME',
     )
     self.assertEqual(
-      output,
-      textwrap.dedent("""\
+        output,
+        textwrap.dedent("""\
             {
                 "project": "CHROMIUM",
                 "project_title": "Chromium MMM",
@@ -105,36 +101,32 @@ class BranchUnitTest(unittest.TestCase):
                     }
                 }
             }
-            """),
-    )
+            """))
 
   def test_enable_platform_parse_args_fails_when_missing_required_args(self):
     with self.assertRaises(ParseError) as caught:
       branch.parse_args(['enable-platform'], parser_type=ArgumentParser)
     self.assertEqual(
-      str(caught.exception),
-      'the following arguments are required: platform, --description',
-    )
+        str(caught.exception),
+        'the following arguments are required: platform, --description')
 
   def test_enable_platform_parse_args(self):
-    args = branch.parse_args(
-      ['enable-platform', 'fake-platform', '--description', 'fake-description']
-    )
+    args = branch.parse_args([
+        'enable-platform', 'fake-platform', '--description', 'fake-description'
+    ])
     self.assertEqual(args.platform, 'fake-platform')
     self.assertEqual(args.description, 'fake-description')
     self.assertIsNone(args.gardener_rotation)
 
   def test_enable_platform_parse_args_gardener_rotation(self):
-    args = branch.parse_args(
-      [
+    args = branch.parse_args([
         'enable-platform',
         'fake-platform',
         '--description',
         'fake-description',
         '--gardener-rotation',
         'fake-gardener-rotation',
-      ]
-    )
+    ])
     self.assertEqual(args.platform, 'fake-platform')
     self.assertEqual(args.description, 'fake-description')
     self.assertEqual(args.gardener_rotation, 'fake-gardener-rotation')
@@ -148,14 +140,14 @@ class BranchUnitTest(unittest.TestCase):
             "is_main": true
         }""")
     output = branch.enable_platform(
-      input,
-      'fake-platform',
-      'fake-description',
-      None,
+        input,
+        'fake-platform',
+        'fake-description',
+        None,
     )
     self.assertEqual(
-      output,
-      textwrap.dedent("""\
+        output,
+        textwrap.dedent("""\
             {
                 "project": "chromium-mMM",
                 "project_title": "Chromium MMM",
@@ -167,8 +159,7 @@ class BranchUnitTest(unittest.TestCase):
                     }
                 }
             }
-            """),
-    )
+            """))
 
   def test_enable_platform_gardener_rotation(self):
     input = textwrap.dedent("""\
@@ -179,14 +170,14 @@ class BranchUnitTest(unittest.TestCase):
             "is_main": true
         }""")
     output = branch.enable_platform(
-      input,
-      'fake-platform',
-      'fake-description',
-      'fake-gardener-rotation',
+        input,
+        'fake-platform',
+        'fake-description',
+        'fake-gardener-rotation',
     )
     self.assertEqual(
-      output,
-      textwrap.dedent("""\
+        output,
+        textwrap.dedent("""\
             {
                 "project": "chromium-mMM",
                 "project_title": "Chromium MMM",
@@ -199,8 +190,7 @@ class BranchUnitTest(unittest.TestCase):
                     }
                 }
             }
-            """),
-    )
+            """))
 
   def test_enable_platform_with_existing_platforms(self):
     input = textwrap.dedent("""\
@@ -216,14 +206,14 @@ class BranchUnitTest(unittest.TestCase):
             "is_main": false
         }""")
     output = branch.enable_platform(
-      input,
-      'fake-platform1',
-      'fake-description',
-      None,
+        input,
+        'fake-platform1',
+        'fake-description',
+        None,
     )
     self.assertEqual(
-      output,
-      textwrap.dedent("""\
+        output,
+        textwrap.dedent("""\
             {
                 "project": "chromium-mMM",
                 "project_title": "Chromium MMM",
@@ -238,8 +228,7 @@ class BranchUnitTest(unittest.TestCase):
                     }
                 }
             }
-            """),
-    )
+            """))
 
 
 if __name__ == '__main__':

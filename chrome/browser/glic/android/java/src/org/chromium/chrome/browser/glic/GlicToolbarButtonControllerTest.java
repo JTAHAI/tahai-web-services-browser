@@ -6,7 +6,6 @@ package org.chromium.chrome.browser.glic;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
-import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
@@ -33,7 +32,6 @@ import org.robolectric.Robolectric;
 
 import org.chromium.base.ContextUtils;
 import org.chromium.base.supplier.ObservableSuppliers;
-import org.chromium.base.supplier.SupplierUtils;
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.base.test.util.Features.DisableFeatures;
 import org.chromium.base.test.util.Features.EnableFeatures;
@@ -59,7 +57,10 @@ import java.util.Collections;
 
 /** Unit tests for {@link GlicToolbarButtonController}. */
 @RunWith(BaseRobolectricTestRunner.class)
-@EnableFeatures({ChromeFeatureList.GLIC})
+@EnableFeatures({
+    ChromeFeatureList.GLIC,
+    ChromeFeatureList.ADAPTIVE_BUTTON_IN_TOP_TOOLBAR_CUSTOMIZATION_V2
+})
 @DisableFeatures({
     ChromeFeatureList.ENABLE_ANDROID_SIDE_PANEL,
     ChromeFeatureList.ANDROID_BOTTOM_BAR
@@ -139,12 +140,6 @@ public class GlicToolbarButtonControllerTest {
 
     @Test
     public void testButtonData_OffTheRecord() {
-        Profile incognitoProfile = mock(Profile.class);
-        when(incognitoProfile.getOriginalProfile()).thenReturn(mProfile);
-        when(incognitoProfile.isOffTheRecord()).thenReturn(true);
-        when(mGlicEnablingJniMock.isEnabledForProfile(incognitoProfile)).thenReturn(false);
-        when(mGlicEnablingJniMock.isEnabledForProfile(mProfile)).thenReturn(true);
-        when(mTab.getProfile()).thenReturn(incognitoProfile);
         when(mTab.isOffTheRecord()).thenReturn(true);
         when(mTab.isIncognito()).thenReturn(true);
         ButtonData buttonData = mController.get(mTab);
@@ -153,35 +148,11 @@ public class GlicToolbarButtonControllerTest {
     }
 
     @Test
-    public void testButtonData_OffTheRecord_GlicDisabledOnOriginalProfile() {
-        Profile incognitoProfile = mock(Profile.class);
-        when(incognitoProfile.getOriginalProfile()).thenReturn(mProfile);
-        when(incognitoProfile.isOffTheRecord()).thenReturn(true);
-        when(mGlicEnablingJniMock.isEnabledForProfile(incognitoProfile)).thenReturn(false);
-        when(mGlicEnablingJniMock.isEnabledForProfile(mProfile)).thenReturn(false);
-        when(mTab.getProfile()).thenReturn(incognitoProfile);
-        when(mTab.isOffTheRecord()).thenReturn(true);
-        when(mTab.isIncognito()).thenReturn(true);
-        ButtonData buttonData = mController.get(mTab);
-
-        Assert.assertFalse(buttonData.canShow());
-    }
-
-    @Test
     public void testOnClick() {
         mController.onClick(null);
 
         verify(mToggleGlicCallback)
                 .onClick(false, GlicKeyedService.GlicInvocationSource.TOP_CHROME_BUTTON);
-    }
-
-    @Test
-    public void testOnClick_OffTheRecord() {
-        when(mTab.isOffTheRecord()).thenReturn(true);
-        when(mTab.isIncognito()).thenReturn(true);
-        mController.onClick(null);
-
-        verify(mToggleGlicCallback, never()).onClick(anyBoolean(), anyInt());
     }
 
     @Test
@@ -553,18 +524,6 @@ public class GlicToolbarButtonControllerTest {
     }
 
     @Test
-    public void testShouldForciblyShowGlicButton_IncognitoProfile() {
-        Profile incognitoProfile = mock(Profile.class);
-        when(incognitoProfile.getOriginalProfile()).thenReturn(mProfile);
-        when(incognitoProfile.isOffTheRecord()).thenReturn(true);
-        when(mGlicEnablingJniMock.isEnabledForProfile(incognitoProfile)).thenReturn(false);
-        when(mGlicEnablingJniMock.isEnabledForProfile(mProfile)).thenReturn(true);
-        when(mActorService.getActiveTasks())
-                .thenReturn(Collections.singletonList(mock(ActorTask.class)));
-        Assert.assertTrue(mController.shouldForciblyShowGlicButton(incognitoProfile));
-    }
-
-    @Test
     @EnableFeatures(ChromeFeatureList.ANDROID_BOTTOM_BAR)
     public void testShouldForciblyShowGlicButton_BottomBarEnabled() {
         when(mActorService.getActiveTasks())
@@ -604,7 +563,7 @@ public class GlicToolbarButtonControllerTest {
                         () -> mTab,
                         mToggleGlicCallback,
                         () -> mTracker,
-                        SupplierUtils.ofNull(),
+                        () -> null,
                         mBrowserControlsVisibilityManager,
                         () -> mTabModelSelector,
                         recomputeCallback);

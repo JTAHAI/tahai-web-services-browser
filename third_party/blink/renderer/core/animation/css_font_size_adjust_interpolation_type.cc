@@ -138,6 +138,7 @@ InterpolationValue CSSFontSizeAdjustInterpolationType::MaybeConvertValue(
                                      FontSizeAdjust::Metric::kExHeight);
   }
 
+  DCHECK(value.IsValuePair());
   const auto& pair = To<CSSValuePair>(value);
   auto metric =
       To<CSSIdentifierValue>(pair.First()).ConvertTo<FontSizeAdjust::Metric>();

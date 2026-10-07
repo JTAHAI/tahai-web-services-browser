@@ -62,6 +62,7 @@
 #include "chrome/browser/web_applications/commands/web_app_install_from_migrate_from_field_command.h"
 #include "chrome/browser/web_applications/commands/web_app_uninstall_command.h"
 #include "chrome/browser/web_applications/commands/web_install_from_manifest_command.h"
+#include "chrome/browser/web_applications/commands/web_install_from_url_command.h"
 #include "chrome/browser/web_applications/isolated_web_apps/commands/check_isolated_web_app_bundle_user_installability_command.h"
 #include "chrome/browser/web_applications/isolated_web_apps/commands/cleanup_orphaned_isolated_web_apps_command.h"
 #include "chrome/browser/web_applications/isolated_web_apps/commands/get_controlled_frame_partition_command.h"
@@ -292,7 +293,6 @@ void WebAppCommandScheduler::InstallIsolatedWebApp(
     std::unique_ptr<ScopedKeepAlive> optional_keep_alive,
     std::unique_ptr<ScopedProfileKeepAlive> optional_profile_keep_alive,
     InstallIsolatedWebAppCallback callback,
-    std::optional<IwaUpdateInfo> optional_update_info,
     const base::Location& call_location) {
   CHECK(optional_profile_keep_alive == nullptr ||
         optional_profile_keep_alive->profile() == &*profile_);
@@ -300,8 +300,7 @@ void WebAppCommandScheduler::InstallIsolatedWebApp(
       std::make_unique<InstallIsolatedWebAppCommand>(
           url_info, install_source, expected_version, *profile_,
           std::move(optional_keep_alive),
-          std::move(optional_profile_keep_alive), std::move(callback),
-          std::move(optional_update_info)),
+          std::move(optional_profile_keep_alive), std::move(callback)),
       call_location);
 }
 
@@ -414,6 +413,7 @@ void WebAppCommandScheduler::RemoveObsoleteIsolatedWebAppVersionsCache(
 }
 
 #endif  // BUILDFLAG(IS_CHROMEOS)
+
 
 void WebAppCommandScheduler::GetControlledFramePartition(
     const IsolatedWebAppUrlInfo& url_info,
@@ -726,6 +726,22 @@ void WebAppCommandScheduler::RunIconDiagnosticsForApp(
       location);
 }
 
+void WebAppCommandScheduler::InstallAppFromUrl(
+    const GURL& install_url,
+    const std::optional<GURL>& manifest_id,
+    base::WeakPtr<content::WebContents> web_contents,
+    const GURL& last_committed_url,
+    WebAppInstallDialogCallback dialog_callback,
+    WebInstallFromUrlCommandCallback installed_callback,
+    const base::Location& location) {
+  provider_->command_manager().ScheduleCommand(
+      std::make_unique<WebInstallFromUrlCommand>(
+          profile_.get(), install_url, manifest_id, web_contents,
+          last_committed_url, std::move(dialog_callback),
+          std::move(installed_callback)),
+      location);
+}
+
 void WebAppCommandScheduler::InstallAppFromManifest(
     blink::mojom::ManifestPtr manifest,
     const GURL& manifest_url,
@@ -973,16 +989,7 @@ void WebAppCommandScheduler::LaunchAppWithKeepAlives(
     std::unique_ptr<ScopedProfileKeepAlive> profile_keep_alive,
     std::unique_ptr<ScopedKeepAlive> browser_keep_alive,
     const base::Location& location) {
-  // TODO(crbug.com/crbug.com/506131577): `WebAppProvider::on_registry_ready()`
-  // may fire in the case database reads fail, `WebAppProvider` is not
-  // initialized and `WebAppProvider::is_registry_ready()` reports false. Either
-  // `on_registry_ready()` should be renamed to indicate it is independent of
-  // init success or better error handling is implemented.
-  if (!provider_->is_registry_ready()) {
-    std::move(callback).Run(nullptr, nullptr,
-                            apps::LaunchContainer::kLaunchContainerNone);
-    return;
-  }
+  DCHECK(provider_->is_registry_ready());
 
   // Decorate the callback to ensure the keep alives are kept alive during the
   // execution of the launch.

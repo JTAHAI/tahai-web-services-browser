@@ -77,7 +77,7 @@ export class CrToggleElement extends CrToggleElementBase {
   private pointerDownX_: number = 0;
 
   /* eslint-disable-next-line @typescript-eslint/naming-convention */
-  override _rippleContainer: Element|null = null;
+  override _rippleContainer: Element;
 
   override ready() {
     super.ready();
@@ -127,30 +127,30 @@ export class CrToggleElement extends CrToggleElementBase {
     };
   }
 
-  protected checkedChanged_() {
+  private checkedChanged_() {
     this.setAttribute('aria-pressed', this.checked ? 'true' : 'false');
   }
 
-  protected disabledChanged_() {
+  private disabledChanged_() {
     this.setAttribute('tabindex', this.disabled ? '-1' : '0');
     this.setAttribute('aria-disabled', this.disabled ? 'true' : 'false');
   }
 
-  protected onFocus_() {
+  private onFocus_() {
     this.getRipple().showAndHoldDown();
   }
 
-  protected hideRipple_() {
+  private hideRipple_() {
     this.getRipple().clear();
   }
 
-  protected onPointerUp_() {
+  private onPointerUp_() {
     assert(this.boundPointerMove_);
     this.removeEventListener('pointermove', this.boundPointerMove_);
     this.hideRipple_();
   }
 
-  protected onPointerDown_(e: PointerEvent) {
+  private onPointerDown_(e: PointerEvent) {
     // Don't do anything if this was not a primary button click or touch event.
     if (e.button !== 0) {
       return;
@@ -165,7 +165,7 @@ export class CrToggleElement extends CrToggleElementBase {
     this.addEventListener('pointermove', this.boundPointerMove_);
   }
 
-  protected onClick_(e: Event) {
+  private onClick_(e: Event) {
     // Prevent |click| event from bubbling. It can cause parents of this
     // elements to erroneously re-toggle this control.
     e.stopPropagation();
@@ -198,7 +198,7 @@ export class CrToggleElement extends CrToggleElementBase {
         'change', {bubbles: true, composed: true, detail: this.checked}));
   }
 
-  protected onKeyDown_(e: KeyboardEvent) {
+  private onKeyDown_(e: KeyboardEvent) {
     if (e.key !== ' ' && e.key !== 'Enter') {
       return;
     }
@@ -214,7 +214,7 @@ export class CrToggleElement extends CrToggleElementBase {
     }
   }
 
-  protected onKeyUp_(e: KeyboardEvent) {
+  private onKeyUp_(e: KeyboardEvent) {
     if (e.key !== ' ' && e.key !== 'Enter') {
       return;
     }

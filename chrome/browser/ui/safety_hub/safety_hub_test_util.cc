@@ -16,7 +16,6 @@
 #include "chrome/browser/ui/safety_hub/notification_permission_review_service_factory.h"
 #include "chrome/browser/ui/safety_hub/revoked_permissions_service_factory.h"
 #include "components/content_settings/core/common/content_settings.h"
-#include "components/password_manager/core/browser/password_string.h"
 #include "services/network/test/test_shared_url_loader_factory.h"
 
 #if !BUILDFLAG(IS_ANDROID)
@@ -125,7 +124,6 @@ namespace safety_hub_test_util {
 
 #if !BUILDFLAG(IS_ANDROID)
 using password_manager::BulkLeakCheckService;
-using password_manager::PasswordString;
 
 MockCWSInfoService::MockCWSInfoService(Profile* profile)
     : extensions::CWSInfoService(profile) {}
@@ -288,7 +286,7 @@ password_manager::PasswordForm MakeForm(std::u16string_view username,
                                         bool is_leaked) {
   password_manager::PasswordForm form;
   form.username_value = username;
-  form.password_value = PasswordString(std::u16string(password));
+  form.password_value = password;
   form.signon_realm = origin;
   form.url = GURL(origin);
 

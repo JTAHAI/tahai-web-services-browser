@@ -25,7 +25,7 @@ import java.util.ArrayList;
 
 /** Unit test for {@link ChildProcessConnectionMetrics}. */
 @RunWith(BaseRobolectricTestRunner.class)
-@Config(sdk = BaseRobolectricTestRunner.MIN_SDK)
+@Config(manifest = Config.NONE, sdk = BaseRobolectricTestRunner.MIN_SDK)
 public class ChildProcessConnectionMetricsUnitTest {
     private ArrayList<ChildProcessConnection> mRanking;
     private BindingManager mBindingManager;

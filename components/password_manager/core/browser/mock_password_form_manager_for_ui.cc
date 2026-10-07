@@ -6,7 +6,12 @@
 
 namespace password_manager {
 
-MockPasswordFormManagerForUI::MockPasswordFormManagerForUI() = default;
+MockPasswordFormManagerForUI::MockPasswordFormManagerForUI() {
+  // TODO(crbug.com/538574948): Avoid defining pre-specified behavior in this
+  // mock.
+  ON_CALL(*this, IsFetchCompleted()).WillByDefault(testing::Return(true));
+  ON_CALL(*this, IsPasswordUpdate()).WillByDefault(testing::Return(false));
+}
 MockPasswordFormManagerForUI::~MockPasswordFormManagerForUI() = default;
 
 }  // namespace password_manager

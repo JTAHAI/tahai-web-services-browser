@@ -66,4 +66,4 @@ class E : public A {
 };
 }
 
-#endif  // TRACE_AFTER_DISPATCH_H_
+#endif

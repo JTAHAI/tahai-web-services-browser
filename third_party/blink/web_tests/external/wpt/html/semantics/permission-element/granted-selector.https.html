@@ -8,39 +8,31 @@
 <script src="/resources/testdriver-vendor.js"></script>
 <body>
 
-<geolocation id="geolocation_element"></geolocation>
+<usermedia id="usermedia_element" type="camera"></usermedia>
 
 <script>
-  const PEPC_CLICK_DELAY = 600;
+  promise_test(async() => {
 
-  promise_test(async(t) => {
-    // Wait for initialization
-    await new Promise((r) => t.step_timeout(r, PEPC_CLICK_DELAY));
+    // Set the initial camera state to denied.
+    await test_driver.set_permission({name: "camera"}, "denied");
+    await navigator.permissions.query({name: "camera"});
 
-    // Set the initial state to denied.
-    await test_driver.set_permission({name: "geolocation"}, "denied");
-    await navigator.permissions.query({name: "geolocation"});
-    // Wait for renderer to receive update
-    await new Promise((r) => t.step_timeout(r, 100));
+    assert_false(usermedia_element.matches(":granted"));
 
-    assert_false(geolocation_element.matches(":granted"));
-
-    // Set the state to allowed.
-    await test_driver.set_permission({name: "geolocation"}, "granted");
-    await navigator.permissions.query({name: "geolocation"});
-    await new Promise((r) => t.step_timeout(r, 100));
+    // Set the camera state to allowed.
+    await test_driver.set_permission({name: "camera"}, "granted");
+    await navigator.permissions.query({name: "camera"});
 
     // The granted selector should now be applied.
-    assert_true(geolocation_element.matches(":granted"));
+    assert_true(usermedia_element.matches(":granted"));
 
-    // Set the state to denied.
-    await test_driver.set_permission({name: "geolocation"}, "denied");
-    await navigator.permissions.query({name: "geolocation"});
-    await new Promise((r) => t.step_timeout(r, 100));
+    // Set the camera state to denied.
+    await test_driver.set_permission({name: "camera"}, "denied");
+    await navigator.permissions.query({name: "camera"});
 
     // The granted selector should now be removed.
-    assert_false(geolocation_element.matches(":granted"));
+    assert_false(usermedia_element.matches(":granted"));
 
-  }, "Geolocation element should not have the granted selector when the \
+  }, "Usermedia element should not have the granted selector when the \
       permission is not granted.")
 </script>

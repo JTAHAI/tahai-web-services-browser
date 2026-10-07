@@ -96,10 +96,13 @@ public class PassphraseActivity extends ChromeBaseAppCompatActivity
             return;
         }
         mSyncStateChangedListener =
-                () -> {
-                    if (mSyncService.isEngineInitialized()) {
-                        removeSyncStateChangedListener();
-                        displayPassphraseDialog();
+                new SyncService.SyncStateChangedListener() {
+                    @Override
+                    public void syncStateChanged() {
+                        if (mSyncService.isEngineInitialized()) {
+                            removeSyncStateChangedListener();
+                            displayPassphraseDialog();
+                        }
                     }
                 };
         mSyncService.addSyncStateChangedListener(mSyncStateChangedListener);

@@ -22,7 +22,6 @@ import org.chromium.chrome.browser.omnibox.styles.SuggestionSpannable;
 import org.chromium.chrome.browser.omnibox.suggestions.AutocompleteUIContext;
 import org.chromium.chrome.browser.omnibox.suggestions.SuggestionCommonProperties;
 import org.chromium.chrome.browser.omnibox.suggestions.base.BaseSuggestionViewProcessor;
-import org.chromium.components.metrics.OmniboxEventProtosIntDef.PageClassification;
 import org.chromium.components.omnibox.AutocompleteInput;
 import org.chromium.components.omnibox.AutocompleteMatch;
 import org.chromium.components.omnibox.DocumentType;
@@ -102,40 +101,39 @@ public class BasicSuggestionProcessor extends BaseSuggestionViewProcessor {
                 return R.drawable.ic_suggestion_magnifier;
 
             case SuggestTemplateInfo.IconType.GLOBE_WITH_SEARCH_LOOP_VALUE:
-                return R.drawable.travel_explore_24dp;
+                // TODO(crbug.com/479890202): Replace with the correct symbol when it's available.
+                return R.drawable.ic_suggestion_magnifier;
 
             case SuggestTemplateInfo.IconType.BANANA_VALUE:
-                return R.drawable.create_image_24dp;
+                // TODO(crbug.com/479890202): Replace with the correct symbol when it's available.
+                return R.drawable.ic_suggestion_magnifier;
 
             case SuggestTemplateInfo.IconType.FAVICON_VALUE:
-                return R.drawable.ic_globe_24dp;
+                // TODO(crbug.com/479890202): Replace with the correct symbol when it's available.
+                return R.drawable.ic_suggestion_magnifier;
 
             case SuggestTemplateInfo.IconType.NOTES_SPARK_VALUE:
                 return R.drawable.notes_spark;
 
             case SuggestTemplateInfo.IconType.DRAFT_SPARK_VALUE:
-                return R.drawable.draft_spark_24dp;
+                // TODO(crbug.com/479890202): Replace with the correct symbol when it's available.
+                return R.drawable.ic_suggestion_magnifier;
 
             case SuggestTemplateInfo.IconType.LIGHTBULB_VALUE:
-                return R.drawable.ic_lightbulb_24dp;
+                // TODO(crbug.com/479890202): Replace with the correct symbol when it's available.
+                return R.drawable.ic_suggestion_magnifier;
 
             case SuggestTemplateInfo.IconType.ATTACH_FILE_VALUE:
-                return R.drawable.ic_attach_file_24dp;
+                // TODO(crbug.com/479890202): Replace with the correct symbol when it's available.
+                return R.drawable.ic_suggestion_magnifier;
 
             case SuggestTemplateInfo.IconType.SCHOOL_VALUE:
-                return R.drawable.ic_school_24dp;
+                // TODO(crbug.com/479890202): Replace with the correct symbol when it's available.
+                return R.drawable.ic_suggestion_magnifier;
 
             case SuggestTemplateInfo.IconType.INK_PEN_VALUE:
-                return R.drawable.ic_ink_pen_24dp;
-
-            case SuggestTemplateInfo.IconType.TAB_VALUE:
-                return R.drawable.tab;
-
-            case SuggestTemplateInfo.IconType.PHOTO_SPARK_VALUE:
-                return R.drawable.ic_photo_spark_24dp;
-
-            case SuggestTemplateInfo.IconType.BOLT_VALUE:
-                return R.drawable.bolt_24dp;
+                // TODO(crbug.com/479890202): Replace with the correct symbol when it's available.
+                return R.drawable.ic_suggestion_magnifier;
 
             default: // Icon type is specified, but not recognized
                 assert false : "Unrecognized IconType: " + iconType;
@@ -200,7 +198,7 @@ public class BasicSuggestionProcessor extends BaseSuggestionViewProcessor {
 
         return icon == 0
                 ? super.getFallbackIcon(suggestion)
-                : OmniboxDrawableState.forSmallIcon(mUiContext.resourceProvider, icon, allowTint);
+                : OmniboxDrawableState.forSmallIcon(mContext, icon, allowTint);
     }
 
     @Override
@@ -213,8 +211,6 @@ public class BasicSuggestionProcessor extends BaseSuggestionViewProcessor {
         final boolean isSearchSuggestion = suggestion.isSearchSuggestion();
         final boolean isDocumentSuggestion =
                 suggestion.getType() == OmniboxSuggestionType.DOCUMENT_SUGGESTION;
-        final boolean isTabSearch =
-                input.getPageClassification() == PageClassification.ANDROID_TAB_SEARCH_OVERLAY;
         SuggestionSpannable textLine2 = null;
         boolean urlHighlighted = false;
         @ColorInt int textLine2Color = 0;
@@ -241,10 +237,7 @@ public class BasicSuggestionProcessor extends BaseSuggestionViewProcessor {
         applyTextColor(textLine1, mUiContext.resourceProvider.getSuggestionPrimaryTextColor());
         applyTextColor(textLine2, textLine2Color);
 
-        // Tab search on desktop is exempt from the standard single-line desktop layout.
-        if (!isTabSearch
-                && OmniboxCapabilities.isDesktopPlatform()
-                && !TextUtils.isEmpty(textLine2)) {
+        if (OmniboxCapabilities.isDesktopPlatform() && !TextUtils.isEmpty(textLine2)) {
             // Separate text and url with an emdash on Desktop. Desktop shows URLs as a single line.
             var separator =
                     mUiContext.resourceProvider.getString(
@@ -257,6 +250,12 @@ public class BasicSuggestionProcessor extends BaseSuggestionViewProcessor {
                                     .append(separator)
                                     .append(textLine2));
             textLine2 = null;
+        }
+
+        if (OmniboxCapabilities.isDesktopPlatform()) {
+            model.set(
+                    SuggestionViewProperties.TEXT_LINE_1_TEXT_APPEARANCE,
+                    R.style.TextAppearance_TextMedium);
         }
 
         model.set(SuggestionViewProperties.IS_SEARCH_SUGGESTION, isSearchSuggestion);

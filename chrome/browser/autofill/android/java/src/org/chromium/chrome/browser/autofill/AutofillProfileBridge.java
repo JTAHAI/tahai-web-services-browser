@@ -17,6 +17,7 @@ import org.chromium.components.autofill.DropdownKeyValue;
 import java.text.Collator;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 
@@ -46,10 +47,13 @@ public final class AutofillProfileBridge {
         collator.setStrength(Collator.PRIMARY);
         Collections.sort(
                 countries,
-                (DropdownKeyValue lhs, DropdownKeyValue rhs) -> {
-                    int result = collator.compare(lhs.getValue(), rhs.getValue());
-                    if (result == 0) result = lhs.getKey().compareTo(rhs.getKey());
-                    return result;
+                new Comparator<>() {
+                    @Override
+                    public int compare(DropdownKeyValue lhs, DropdownKeyValue rhs) {
+                        int result = collator.compare(lhs.getValue(), rhs.getValue());
+                        if (result == 0) result = lhs.getKey().compareTo(rhs.getKey());
+                        return result;
+                    }
                 });
         return countries;
     }
@@ -69,10 +73,13 @@ public final class AutofillProfileBridge {
         collator.setStrength(Collator.PRIMARY);
         Collections.sort(
                 adminAreas,
-                (DropdownKeyValue lhs, DropdownKeyValue rhs) -> {
-                    // Sorted according to the admin area values, such as Quebec,
-                    // rather than the admin area keys, such as QC.
-                    return collator.compare(lhs.getValue(), rhs.getValue());
+                new Comparator<>() {
+                    @Override
+                    public int compare(DropdownKeyValue lhs, DropdownKeyValue rhs) {
+                        // Sorted according to the admin area values, such as Quebec,
+                        // rather than the admin area keys, such as QC.
+                        return collator.compare(lhs.getValue(), rhs.getValue());
+                    }
                 });
         return adminAreas;
     }

@@ -11,38 +11,41 @@
 @class TableViewHeaderFooterItem;
 @class TableViewSwitchItem;
 
-// Returns the detail text based on the `enabled` state. If `enabled` is YES, it
-// returns the localized "On" string; otherwise it returns the localized "Off"
-// string.
-NSString* DetailTextForEnabledState(BOOL enabled);
+// Returns the detail text for the passwords item.
+NSString* PasswordsItemDetailText(BOOL enabled);
 
-// Returns the passwords item. `enabled` indicates if the passwords saving
-// service is enabled.
+// Returns the detail text for the autofill credit card item.
+NSString* AutofillCreditCardItemDetailText(BOOL enabled);
+
+// Returns the detail text for the autofill profile item.
+NSString* AutofillProfileItemDetailText(BOOL enabled);
+
+// Returns the detail text for the identity docs item.
+NSString* IdentityDocsItemDetailText(BOOL enabled);
+
+// Returns the detail text for the travel info item.
+NSString* TravelInfoItemDetailText(BOOL enabled);
+
+// Returns the detail text for the shopping info item.
+NSString* ShoppingInfoItemDetailText(BOOL enabled);
+
+// Returns the passwords item.
 TableViewDetailIconItem* PasswordsItem(BOOL enabled);
 
-// Returns the autofill credit card item. `enabled` indicates if autofill for
-// credit cards is enabled.
+// Returns the autofill credit card item.
 TableViewDetailIconItem* AutofillCreditCardItem(BOOL enabled);
 
-// Returns the autofill profile item. `enabled` indicates if autofill for
-// profiles/addresses is enabled.
+// Returns the autofill profile item.
 TableViewDetailIconItem* AutofillProfileItem(BOOL enabled);
 
-// Returns the identity docs item. `enabled` indicates if autofill for identity
-// documents is enabled.
+// Returns the identity docs item.
 TableViewDetailIconItem* IdentityDocsItem(BOOL enabled);
 
-// Returns the travel info item. `enabled` indicates if autofill for travel
-// info is enabled.
+// Returns the travel info item.
 TableViewDetailIconItem* TravelInfoItem(BOOL enabled);
 
-// Returns the shopping info item. `enabled` indicates if autofill for shopping
-// info is enabled.
+// Returns the shopping info item.
 TableViewDetailIconItem* ShoppingInfoItem(BOOL enabled);
-
-// Returns the suggestions from gemini item. `enabled` indicates if Suggestions
-// from Gemini is enabled.
-TableViewDetailIconItem* SuggestionsFromGeminiItem(BOOL enabled);
 
 // Returns the autofill settings item.
 TableViewDetailIconItem* AutofillSettingsItem();

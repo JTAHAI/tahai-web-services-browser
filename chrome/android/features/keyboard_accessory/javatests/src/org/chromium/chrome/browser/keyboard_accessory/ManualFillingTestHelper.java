@@ -46,7 +46,6 @@ import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 import org.junit.Assert;
 
-import org.chromium.base.CallbackUtils;
 import org.chromium.base.ThreadUtils;
 import org.chromium.base.task.PostTask;
 import org.chromium.base.task.TaskTraits;
@@ -235,7 +234,9 @@ public class ManualFillingTestHelper {
     public void focusPasswordField(boolean useFakeKeyboard) throws TimeoutException {
         DOMUtils.focusNode(mActivityTestRule.getWebContents(), PASSWORD_NODE_ID);
         ThreadUtils.runOnUiThreadBlocking(
-                () -> mActivityTestRule.getWebContents().scrollFocusedEditableNodeIntoView());
+                () -> {
+                    mActivityTestRule.getWebContents().scrollFocusedEditableNodeIntoView();
+                });
 
         ChromeKeyboardVisibilityDelegate keyboard;
         if (useFakeKeyboard && getKeyboard() != null) {
@@ -288,11 +289,10 @@ public class ManualFillingTestHelper {
             throws TimeoutException {
         DOMUtils.clickNode(mWebContentsRef.get(), node);
         ThreadUtils.runOnUiThreadBlocking(
-                () ->
-                        ManualFillingComponentBridge.notifyFocusedFieldType(
-                                mActivityTestRule.getWebContents(),
-                                focusedFieldId,
-                                focusedFieldType));
+                () -> {
+                    ManualFillingComponentBridge.notifyFocusedFieldType(
+                            mActivityTestRule.getWebContents(), focusedFieldId, focusedFieldType);
+                });
     }
 
     /**
@@ -357,7 +357,9 @@ public class ManualFillingTestHelper {
         pollUiThread(() -> checkThatAccessoryViewFullyShown(mActivityTestRule.getActivity()));
         if (waitForSuggestionsToLoad) {
             pollUiThread(
-                    () -> getFirstAccessorySuggestion() != null,
+                    () -> {
+                        return getFirstAccessorySuggestion() != null;
+                    },
                     "Waited for suggestions that never appeared.");
         }
         waitForManualFillingIconsToBeLoaded();
@@ -374,20 +376,22 @@ public class ManualFillingTestHelper {
 
         // Wait for InputConnection to be ready and fill the filterInput. Then wait for the anchor.
         pollUiThread(
-                () ->
-                        Criteria.checkThat(
-                                mInputMethodManagerWrapper.getShowSoftInputCounter(),
-                                Matchers.is(1)));
+                () -> {
+                    Criteria.checkThat(
+                            mInputMethodManagerWrapper.getShowSoftInputCounter(), Matchers.is(1));
+                });
         ThreadUtils.runOnUiThreadBlocking(
-                () ->
-                        assertNonNull(ImeAdapter.fromWebContents(webContents))
-                                .setComposingTextForTest(filterInput, 4));
+                () -> {
+                    assertNonNull(ImeAdapter.fromWebContents(webContents))
+                            .setComposingTextForTest(filterInput, 4);
+                });
         pollUiThread(
-                () ->
-                        Criteria.checkThat(
-                                "Autofill Popup anchor view was never added.",
-                                view.findViewById(R.id.dropdown_popup_window),
-                                Matchers.notNullValue()));
+                () -> {
+                    Criteria.checkThat(
+                            "Autofill Popup anchor view was never added.",
+                            view.findViewById(R.id.dropdown_popup_window),
+                            Matchers.notNullValue());
+                });
         View anchorView = view.findViewById(R.id.dropdown_popup_window);
 
         Assert.assertTrue(anchorView.getTag() instanceof DropdownPopupWindowInterface);
@@ -469,12 +473,13 @@ public class ManualFillingTestHelper {
      */
     public void cacheCredentials(String[] usernames, String[] passwords, boolean originDenylisted) {
         ThreadUtils.runOnUiThreadBlocking(
-                () ->
-                        ManualFillingComponentBridge.cachePasswordSheetData(
-                                mActivityTestRule.getWebContents(),
-                                usernames,
-                                passwords,
-                                originDenylisted));
+                () -> {
+                    ManualFillingComponentBridge.cachePasswordSheetData(
+                            mActivityTestRule.getWebContents(),
+                            usernames,
+                            passwords,
+                            originDenylisted);
+                });
     }
 
     public static void createAutofillTestProfiles() throws TimeoutException {
@@ -524,7 +529,9 @@ public class ManualFillingTestHelper {
 
     public static void disableServerPredictions() {
         ThreadUtils.runOnUiThreadBlocking(
-                ManualFillingComponentBridge::disableServerPredictionsForTesting);
+                () -> {
+                    ManualFillingComponentBridge.disableServerPredictionsForTesting();
+                });
     }
 
     // --------------------------------------------------
@@ -671,20 +678,21 @@ public class ManualFillingTestHelper {
         getManualFillingCoordinator()
                 .registerActionProvider(mWebContentsRef.get(), generationActionProvider);
         ThreadUtils.runOnUiThreadBlocking(
-                () ->
-                        generationActionProvider.notifyObservers(
-                                new KeyboardAccessoryData.Action[] {
-                                    new KeyboardAccessoryData.Action(
-                                            AccessoryAction.GENERATE_PASSWORD_AUTOMATIC,
-                                            CallbackUtils.emptyCallback())
-                                }));
+                () -> {
+                    generationActionProvider.notifyObservers(
+                            new KeyboardAccessoryData.Action[] {
+                                new KeyboardAccessoryData.Action(
+                                        AccessoryAction.GENERATE_PASSWORD_AUTOMATIC, result -> {})
+                            });
+                });
     }
 
     public void signalAutoGenerationStatus(boolean available) {
         ThreadUtils.runOnUiThreadBlocking(
-                () ->
-                        ManualFillingComponentBridge.signalAutoGenerationStatus(
-                                mActivityTestRule.getWebContents(), available));
+                () -> {
+                    ManualFillingComponentBridge.signalAutoGenerationStatus(
+                            mActivityTestRule.getWebContents(), available);
+                });
     }
 
     public void registerSheetDataProvider(@AccessoryTabType int tabType) {

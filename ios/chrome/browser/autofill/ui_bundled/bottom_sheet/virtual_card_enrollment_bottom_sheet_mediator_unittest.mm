@@ -14,7 +14,6 @@
 #import "components/autofill/core/browser/payments/virtual_card_enrollment_manager.h"
 #import "components/autofill/core/browser/ui/payments/virtual_card_enroll_ui_model.h"
 #import "components/autofill/core/browser/ui/payments/virtual_card_enroll_ui_model_test_api.h"
-#import "ios/chrome/browser/autofill/model/message/autofill_legal_message_line.h"
 #import "ios/chrome/browser/autofill/ui_bundled/bottom_sheet/virtual_card_enrollment_bottom_sheet_consumer.h"
 #import "ios/chrome/browser/shared/public/commands/browser_coordinator_commands.h"
 #import "testing/gmock/include/gmock/gmock.h"
@@ -139,14 +138,14 @@ TEST_F(VirtualCardEnrollmentBottomSheetMediatorTest, SetsCardDataOnConsumer) {
   EXPECT_NSEQ(data.cancelActionText, @"Cancel action");
   EXPECT_NSEQ(data.learnMoreLinkText, @"Learn more");
   EXPECT_EQ(1u, [data.paymentServerLegalMessageLines count]);
-  for (AutofillLegalMessageLine* line in data.paymentServerLegalMessageLines) {
+  for (SaveCardMessageWithLinks* line in data.paymentServerLegalMessageLines) {
     EXPECT_NSEQ(line.messageText, @"Google legal message");
     EXPECT_NSEQ(line.linkRanges,
                 @[ [NSValue valueWithRange:NSMakeRange(2, 1)] ]);
     EXPECT_EQ(line.linkURLs, std::vector<GURL>({GURL("https://google.test")}));
   }
   EXPECT_EQ(1u, [data.issuerLegalMessageLines count]);
-  for (AutofillLegalMessageLine* line in data.issuerLegalMessageLines) {
+  for (SaveCardMessageWithLinks* line in data.issuerLegalMessageLines) {
     EXPECT_NSEQ(line.messageText, @"Issuer legal message");
     EXPECT_NSEQ(line.linkRanges,
                 @[ [NSValue valueWithRange:NSMakeRange(4, 5)] ]);
@@ -270,7 +269,7 @@ TEST_F(VirtualCardEnrollmentBottomSheetMediatorTest,
       MakeMediator(MakeModel());
 
   OCMExpect([mock_browser_coordinator_handler_
-      legacyDismissVirtualCardEnrollmentBottomSheet]);
+      dismissVirtualCardEnrollmentBottomSheet]);
 
   [mediator didCancel];
 
@@ -317,7 +316,7 @@ TEST_F(VirtualCardEnrollmentBottomSheetMediatorTest,
 
   // Do not dismiss before the delay.
   OCMReject([mock_browser_coordinator_handler_
-      legacyDismissVirtualCardEnrollmentBottomSheet]);
+      dismissVirtualCardEnrollmentBottomSheet]);
   task_env_.FastForwardBy(kExpectedConfirmationDismissDelay -
                           base::Milliseconds(1));
 
@@ -334,7 +333,7 @@ TEST_F(VirtualCardEnrollmentBottomSheetMediatorTest,
 
   // Dismiss after the delay.
   OCMExpect([mock_browser_coordinator_handler_
-      legacyDismissVirtualCardEnrollmentBottomSheet]);
+      dismissVirtualCardEnrollmentBottomSheet]);
   task_env_.FastForwardBy(kExpectedConfirmationDismissDelay);
 
   EXPECT_OCMOCK_VERIFY((id)mock_browser_coordinator_handler_);
@@ -347,7 +346,7 @@ TEST_F(VirtualCardEnrollmentBottomSheetMediatorTest,
       MakeMediator(MakeModel());
 
   OCMExpect([mock_browser_coordinator_handler_
-      legacyDismissVirtualCardEnrollmentBottomSheet]);
+      dismissVirtualCardEnrollmentBottomSheet]);
 
   model_->SetEnrollmentProgress(
       autofill::VirtualCardEnrollUiModel::EnrollmentProgress::kFailed);

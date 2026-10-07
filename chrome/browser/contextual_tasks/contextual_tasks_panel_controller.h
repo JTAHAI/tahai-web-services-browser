@@ -134,8 +134,7 @@ class ContextualTasksPanelController {
   virtual bool CanExpandToFullTab() const = 0;
 
   // Shows the native PageInfo bubble.
-  virtual void ShowPageInfoBubble(bool is_pointer_interaction) = 0;
-  virtual void OnLogoPointerDown() = 0;
+  virtual void ShowPageInfoBubble() = 0;
 
   // Static.
   static ContextualTasksPanelController* From(BrowserWindowInterface* browser);

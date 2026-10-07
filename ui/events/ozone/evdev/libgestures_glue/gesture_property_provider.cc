@@ -488,13 +488,13 @@ bool IsMatchDeviceType(const std::string& match_type) {
 
 // Parse a boolean value keyword (e.g., on/off, true/false).
 int ParseBooleanKeyword(const std::string& value) {
-  for (const char* keyword : kTrue) {
-    if (base::EqualsCaseInsensitiveASCII(value, keyword)) {
+  for (size_t i = 0; i < std::size(kTrue); ++i) {
+    if (base::EqualsCaseInsensitiveASCII(value, UNSAFE_TODO(kTrue[i]))) {
       return 1;
     }
   }
-  for (const char* keyword : kFalse) {
-    if (base::EqualsCaseInsensitiveASCII(value, keyword)) {
+  for (size_t i = 0; i < std::size(kFalse); ++i) {
+    if (base::EqualsCaseInsensitiveASCII(value, UNSAFE_TODO(kFalse[i]))) {
       return -1;
     }
   }

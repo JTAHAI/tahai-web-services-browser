@@ -32,11 +32,7 @@ args = parser.parse_args()
 package = os.path.abspath(args.package)
 
 cmd = [
-    'lintian',
-    package,
-    '--no-tag-display-limit',
-    '--pedantic',
-    '--suppress-tags',
-    ','.join(SUPPRESSIONS),
+    'lintian', package, '--no-tag-display-limit', '--pedantic',
+    '--suppress-tags', ','.join(SUPPRESSIONS)
 ]
 subprocess.check_call(cmd)

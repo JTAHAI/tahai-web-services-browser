@@ -29,12 +29,9 @@ namespace sync_tab_context {
 // ephemeral key set. Supports multiple concurrent fetch requests.
 class HttpRpcBasedEphemeralKeyFetcher : public EphemeralKeyFetcher {
  public:
-  using UrlLoaderFactoryGetter =
-      base::RepeatingCallback<scoped_refptr<network::SharedURLLoaderFactory>()>;
-
   HttpRpcBasedEphemeralKeyFetcher(
       signin::IdentityManager* identity_manager,
-      UrlLoaderFactoryGetter url_loader_factory_getter,
+      scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory,
       const GURL& server_url);
   HttpRpcBasedEphemeralKeyFetcher(const HttpRpcBasedEphemeralKeyFetcher&) =
       delete;
@@ -58,7 +55,7 @@ class HttpRpcBasedEphemeralKeyFetcher : public EphemeralKeyFetcher {
                             std::optional<Result> result);
 
   const raw_ptr<signin::IdentityManager> identity_manager_;
-  const UrlLoaderFactoryGetter url_loader_factory_getter_;
+  const scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory_;
   const GURL server_url_;
 
   std::vector<std::unique_ptr<Operation>> ongoing_operations_;

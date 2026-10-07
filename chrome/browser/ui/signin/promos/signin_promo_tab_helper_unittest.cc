@@ -50,7 +50,7 @@ class SigninPromoTabHelperTest : public ChromeRenderViewHostTestHarness {
       signin_metrics::AccessPoint access_point) {
     AccountInfo info = MakePrimaryAccountWithAccessPoint(email, access_point);
     signin::UpdatePersistentErrorOfRefreshTokenForAccount(
-        identity_manager(), info.GetAccountId(),
+        identity_manager(), info.account_id,
         GoogleServiceAuthError::FromInvalidGaiaCredentialsReason(
             GoogleServiceAuthError::InvalidGaiaCredentialsReason::UNKNOWN));
     EXPECT_TRUE(signin_util::IsSigninPending(identity_manager()));
@@ -127,7 +127,7 @@ TEST_F(SigninPromoTabHelperTest, CallbackFiresOnSuccessfulReauth) {
 
   // Successfully reauthenticate (clearing the token error status).
   signin::UpdatePersistentErrorOfRefreshTokenForAccount(
-      identity_manager(), info.GetAccountId(),
+      identity_manager(), info.account_id,
       GoogleServiceAuthError::AuthErrorNone());
 
   EXPECT_TRUE(future.Wait());
@@ -162,14 +162,11 @@ TEST_F(SigninPromoTabHelperTest,
   // Simulate reauth but completed with a DIFFERENT access point (e.g.
   // PasswordBubble).
   AccountInfo extended_info = identity_manager()->FindExtendedAccountInfo(info);
-  extended_info = AccountInfo::Builder(extended_info)
-                      .SetLastAuthenticationAccessPoint(
-                          signin_metrics::AccessPoint::kPasswordBubble)
-                      .Build();
+  extended_info.access_point = signin_metrics::AccessPoint::kPasswordBubble;
   signin::UpdateAccountInfoForAccount(identity_manager(), extended_info);
 
   signin::UpdatePersistentErrorOfRefreshTokenForAccount(
-      identity_manager(), info.GetAccountId(),
+      identity_manager(), info.account_id,
       GoogleServiceAuthError::AuthErrorNone());
 
   task_environment()->RunUntilIdle();

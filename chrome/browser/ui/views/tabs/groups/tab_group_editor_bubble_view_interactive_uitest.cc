@@ -54,7 +54,7 @@ IN_PROC_BROWSER_TEST_F(TabGroupEditorBubbleInteractiveUiTest,
                   [this](ui::TrackedElement* el) {
                     auto* contents =
                         AsInstrumentedWebContents(el)->web_contents();
-                    auto* model = browser()->GetTabStripModel();
+                    auto* model = browser()->tab_strip_model();
                     int tab_index = model->GetIndexOfWebContents(contents);
                     auto group = model->AddToNewGroup({tab_index});
                     // Bypassing tracker to ensure the fix is what closes the

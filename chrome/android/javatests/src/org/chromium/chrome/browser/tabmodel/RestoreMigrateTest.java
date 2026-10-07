@@ -140,7 +140,7 @@ public class RestoreMigrateTest {
                                     true,
                                     ObservableSuppliers.createNonNull(false));
                     return new TabPersistentStoreImpl(
-                            TabOrchestratorType.TABBED,
+                            TabPersistentStoreImpl.CLIENT_TAG_REGULAR,
                             persistencePolicy,
                             selector,
                             null,

@@ -22,7 +22,6 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-import org.chromium.base.CallbackUtils;
 import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.BaseActivityTestRule;
 import org.chromium.base.test.params.ParameterAnnotations;
@@ -105,7 +104,7 @@ public class AutoPipPermissionDialogViewRenderTest {
                                     "Allow while visiting the site",
                                     "Allow this time",
                                     "Don't allow",
-                                    CallbackUtils.emptyCallback());
+                                    (result) -> {});
                     mContentView.setBackgroundColor(mFakeBgColor);
                     activity.setContentView(mContentView);
                     mContentView.addView(mView, MATCH_PARENT, WRAP_CONTENT);

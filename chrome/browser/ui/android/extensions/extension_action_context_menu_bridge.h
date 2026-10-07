@@ -9,7 +9,6 @@
 
 #include "base/android/scoped_java_ref.h"
 #include "base/memory/scoped_refptr.h"
-#include "base/memory/weak_ptr.h"
 #include "chrome/browser/extensions/extension_context_menu_model.h"
 #include "chrome/browser/ui/toolbar/toolbar_actions_model.h"
 #include "ui/menus/android/menu_model_bridge.h"
@@ -50,12 +49,8 @@ class ExtensionActionContextMenuBridge {
 
   void Destroy(JNIEnv* env);
 
-  ExtensionContextMenuModel* extension_context_menu_model_for_testing() {
-    return static_cast<ExtensionContextMenuModel*>(context_menu_model_.get());
-  }
-
  private:
-  base::WeakPtr<ui::MenuModel> context_menu_model_;
+  std::unique_ptr<ExtensionContextMenuModel> extension_context_menu_model_;
   std::unique_ptr<ui::MenuModelBridge> menu_model_bridge_;
 };
 }  // namespace extensions

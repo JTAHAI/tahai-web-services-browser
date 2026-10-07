@@ -74,10 +74,6 @@ public class BatchUploadCardCoordinator {
 
     public void destroy() {
         mMediator.destroy();
-        if (mPropertyModelChangeProcessor != null) {
-            mPropertyModelChangeProcessor.destroy();
-            mPropertyModelChangeProcessor = null;
-        }
     }
 
     public void setView(View view) {

@@ -129,7 +129,7 @@ namespace {
 class BackgroundReaper : public PlatformThread::Delegate, public SelfDeleting {
  public:
   BackgroundReaper(Process child_process,
-                   TimeDelta wait_time,
+                   const TimeDelta& wait_time,
                    SelfDeletingPassKey key)
       : SelfDeleting(key),
         child_process_(std::move(child_process)),

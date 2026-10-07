@@ -128,7 +128,7 @@ typedef NS_ENUM(NSInteger, ItemType) {
   [self.delegate
       languageDetailsTableViewController:self
                  didSelectOfferTranslate:(type == ItemTypeOfferTranslate)
-                             languageTag:self.languageItem.languageTag];
+                            languageCode:self.languageItem.languageCode];
 }
 
 #pragma mark - SettingsControllerProtocol

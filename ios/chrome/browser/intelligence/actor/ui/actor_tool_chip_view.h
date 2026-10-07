@@ -15,7 +15,7 @@
 - (instancetype)initWithText:(NSString*)text
                         icon:(UIImage*)icon NS_DESIGNATED_INITIALIZER;
 
-- (instancetype)init;
+- (instancetype)init NS_UNAVAILABLE;
 - (instancetype)initWithFrame:(CGRect)frame NS_UNAVAILABLE;
 - (instancetype)initWithCoder:(NSCoder*)coder NS_UNAVAILABLE;
 

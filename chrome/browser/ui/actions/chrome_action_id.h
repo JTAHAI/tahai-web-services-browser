@@ -87,14 +87,9 @@
   E(kActionShowMemorySaverChip) \
   E(kActionShowJsOptimizationsIcon) \
   E(kActionShowCookieControls) \
-  E(kActionShowZoomBubble) \
   E(kActionUnfocusTabGroup, IDC_UNFOCUS_TAB_GROUP) \
   E(kActionAddNewTabToGroup, IDC_ADD_NEW_TAB_TO_GROUP) \
   E(kActionCreateNewTabGroup, IDC_CREATE_NEW_TAB_GROUP) \
-  E(kActionTabGroupOpenInBrowser) \
-  E(kActionTabGroupOpenInNewWindow) \
-  E(kActionTabGroupPin) \
-  E(kActionTabGroupDelete) \
   E(kActionFocusNextTabGroup, IDC_FOCUS_NEXT_TAB_GROUP) \
   E(kActionFocusPrevTabGroup, IDC_FOCUS_PREV_TAB_GROUP) \
   E(kActionCloseTabGroup, IDC_CLOSE_TAB_GROUP) \
@@ -230,8 +225,6 @@
     IDC_CONTENT_CONTEXT_OPENLINKNEWWINDOW) \
   E(kActionContentContextOpenLinkOffTheRecord, \
     IDC_CONTENT_CONTEXT_OPENLINKOFFTHERECORD) \
-  E(kActionContentContextOpenLinkIsolated, \
-    IDC_CONTENT_CONTEXT_OPENLINK_ISOLATED) \
   E(kActionContentContextSaveLinkAs, IDC_CONTENT_CONTEXT_SAVELINKAS) \
   E(kActionContentContextCopyLinkLocation, \
     IDC_CONTENT_CONTEXT_COPYLINKLOCATION) \
@@ -337,7 +330,6 @@
   E(kActionBookmarkBarOpenAllNewWindow, IDC_BOOKMARK_BAR_OPEN_ALL_NEW_WINDOW) \
   E(kActionBookmarkBarOpenAllIncognito, IDC_BOOKMARK_BAR_OPEN_ALL_INCOGNITO) \
   E(kActionBookmarkBarOpenIncognito, IDC_BOOKMARK_BAR_OPEN_INCOGNITO) \
-  E(kActionBookmarkBarOpenAllIsolated, IDC_BOOKMARK_BAR_OPEN_ALL_ISOLATED) \
   E(kActionBookmarkBarOpenAllNewTabGroup, \
     IDC_BOOKMARK_BAR_OPEN_ALL_NEW_TAB_GROUP) \
   E(kActionBookmarkBarRenameFolder, IDC_BOOKMARK_BAR_RENAME_FOLDER) \
@@ -389,8 +381,6 @@
   /* Tab Search */ \
   E(kActionTabSearchClose, IDC_TAB_SEARCH_CLOSE) \
   E(kActionTabSearchTogglePin, IDC_TAB_SEARCH_TOGGLE_PIN) \
-  /* Tab Scroll */ \
-  E(kActionTabScrollTogglePin, IDC_TAB_SCROLL_BUTTONS_TOGGLE_PIN) \
   /* Views debug commands. */ \
   E(kActionDebugToggleTabletMode, IDC_DEBUG_TOGGLE_TABLET_MODE) \
   E(kActionDebugPrintViewTree, IDC_DEBUG_PRINT_VIEW_TREE) \
@@ -441,13 +431,6 @@
   E(kActionOmniboxContextSetModelAuto, IDC_OMNIBOX_CONTEXT_SET_MODEL_AUTO)  \
   E(kActionOmniboxContextSetModelThinking, IDC_OMNIBOX_CONTEXT_SET_MODEL_THINKING)  \
   E(kActionOmniboxContextSetModelRegular, IDC_OMNIBOX_CONTEXT_SET_MODEL_REGULAR)  \
-  /*Omnibox Everywhere Status Icon Menu*/ \
-  E(kActionOmniboxEverywhereStatusIconMenuToggle, \
-    IDC_OMNIBOX_EVERYWHERE_STATUS_ICON_MENU_TOGGLE) \
-  E(kActionOmniboxEverywhereStatusIconMenuCustomizeKeyboardShortcut, \
-    IDC_OMNIBOX_EVERYWHERE_STATUS_ICON_MENU_CUSTOMIZE_KEYBOARD_SHORTCUT) \
-  E(kActionOmniboxEverywhereStatusIconMenuSettings, \
-    IDC_OMNIBOX_EVERYWHERE_STATUS_ICON_MENU_SETTINGS) \
   E(kActionShowPaymentsChurnedUsersBubble) \
 
 #if BUILDFLAG(IS_CHROMEOS)
@@ -493,15 +476,13 @@
   E(kActionSidePanelShowCustomizeChromeToolbar, \
     IDC_SHOW_CUSTOMIZE_CHROME_TOOLBAR) \
   E(kActionSidePanelShowFeed) \
-  E(kActionSidePanelShowGeic) \
   E(kActionSidePanelShowGlic) \
   E(kActionSidePanelShowContextualTasks) \
   E(kActionSidePanelShowHistoryCluster, IDC_SHOW_HISTORY_CLUSTERS_SIDE_PANEL) \
   E(kActionSidePanelShowHistory, IDC_SHOW_HISTORY_SIDE_PANEL) \
   E(kActionSidePanelShowLens) \
   E(kActionSidePanelShowLensOverlayResults) \
-  E(kActionSidePanelShowReadAnything) \
-  E(kActionShowReadingModeSidePanel, IDC_SHOW_READING_MODE_SIDE_PANEL) \
+  E(kActionSidePanelShowReadAnything, IDC_SHOW_READING_MODE_SIDE_PANEL) \
   E(kActionShowReadingModeKeyboard, IDC_SHOW_READING_MODE_KEYBOARD) \
   E(kActionSidePanelShowReadingList, IDC_READING_LIST_MENU_SHOW_UI) \
   E(kActionSidePanelShowSearchCompanion) \
@@ -515,7 +496,6 @@
   E(kActionHome, IDC_HOME) \
   E(kActionForward, IDC_FORWARD) \
   E(kActionNewIncognitoWindow, IDC_NEW_INCOGNITO_WINDOW) \
-  E(kActionNewIsolatedWindow, IDC_NEW_ISOLATED_WINDOW) \
   E(kActionSendSharedTabGroupFeedback, IDC_SEND_SHARED_TAB_GROUP_FEEDBACK) \
   E(kActionShowPasswordManager, IDC_SHOW_PASSWORD_MANAGER) \
   E(kActionShowPaymentMethods, IDC_SHOW_PAYMENT_METHODS) \
@@ -541,7 +521,7 @@
   E(kActionShowPasswordsBubbleOrPage) \
   E(kActionManagePasswordsForPage, IDC_MANAGE_PASSWORDS_FOR_PAGE) \
   E(kActionCopyUrl, IDC_COPY_URL) \
-  E(kActionTabGroupsMenu, IDC_SAVED_TAB_GROUPS_MENU) \
+  E(kActionTabGroupsMenu, kSavedTabGroupsMenuId) \
   E(kActionTabSearch, IDC_TAB_SEARCH) \
   E(kActionSplitTab, IDC_NEW_SPLIT_TAB) \
   E(kActionFederation) \
@@ -551,23 +531,19 @@
   E(kActionShowAiOverlayDialog) \
   E(kActionWebAuthnAmbientSignin) \
   E(kActionAutofillPayment) \
-  E(kActionWalletReminderNotice) \
 
 #define SUBMENU_ACTION_IDS                                                     \
-  E(kActionAppMenuRoot)                                                        \
-  E(kActionBookmarksSubmenu, IDC_BOOKMARKS_MENU)                               \
-  E(kActionBookmarkBarSubmenu, IDC_BOOKMARK_BAR_SUBMENU)                       \
-  E(kActionPasswordsAndAutofillSubmenu, IDC_PASSWORDS_AND_AUTOFILL_MENU)       \
-  E(kActionReadingListSubmenu, IDC_READING_LIST_MENU)                      \
-  E(kActionZoomSubmenu, IDC_ZOOM_MENU)                                     \
-  E(kActionProfileSubmenu, IDC_PROFILE_MENU_IN_APP_MENU)                   \
-  E(kActionFindAndEditSubmenu, IDC_FIND_AND_EDIT_MENU)                     \
-  E(kActionSaveAndShareSubmenu, IDC_SAVE_AND_SHARE_MENU)                   \
-  E(kActionHelpSubmenu, IDC_HELP_MENU)                                     \
-  E(kActionSavedTabGroupsSubmenu, IDC_SAVED_TAB_GROUPS_MENU)               \
-  E(kActionRecentTabsSubmenu, IDC_RECENT_TABS_MENU)                       \
-  E(kActionDeveloperSubmenu, IDC_DEVELOPER_MENU)                               \
-  E(kActionExtensionsSubmenu, IDC_EXTENSIONS_SUBMENU)
+  E(kActionMenuBookmarksSubmenu, kBookmarksMenuId)                             \
+  E(kActionMenuPasswordsAndAutofillSubmenu, kPasswordsAndAutofillMenuId)       \
+  E(kActionMenuReadingListSubmenu, kReadingListMenuId)                         \
+  E(kActionMenuZoomSubmenu, kZoomMenuId)                                       \
+  E(kActionMenuProfileSubmenu, kProfileMenuId)                                 \
+  E(kActionMenuFindAndEditSubmenu, kFindAndEditMenuId)                         \
+  E(kActionMenuSaveAndShareSubmenu, kSaveAndShareMenuId)                       \
+  E(kActionMenuHelpSubmenu, kHelpMenuId)                                       \
+  E(kActionMenuSavedTabGroupsSubmenu, kSavedTabGroupsMenuId)                   \
+  E(kActionMenuRecentTabsSubmenu, kRecentTabsMenuId)                           \
+  E(kActionMenuDeveloperSubmenu, kDeveloperMenuId)
 
 #define CHROME_ACTION_IDS \
     CHROME_COMMON_ACTION_IDS \

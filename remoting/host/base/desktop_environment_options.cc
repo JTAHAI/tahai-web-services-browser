@@ -141,26 +141,30 @@ void DesktopEnvironmentOptions::set_audio_playback_mode(
 void DesktopEnvironmentOptions::ApplySessionOptions(
     const SessionOptions& options) {
   // This field is for test purpose. Usually it should not be set to false.
-  if (options.detect_updated_region.has_value()) {
-    desktop_capture_options_.set_detect_updated_region(
-        *options.detect_updated_region);
+  std::optional<bool> detect_updated_region =
+      options.GetBool("Detect-Updated-Region");
+  if (detect_updated_region.has_value()) {
+    desktop_capture_options_.set_detect_updated_region(*detect_updated_region);
   }
-  if (options.capture_video_on_dedicated_thread.has_value()) {
-    set_capture_video_on_dedicated_thread(
-        *options.capture_video_on_dedicated_thread);
+  std::optional<bool> capture_video_on_dedicated_thread =
+      options.GetBool("Capture-Video-On-Dedicated-Thread");
+  if (capture_video_on_dedicated_thread.has_value()) {
+    set_capture_video_on_dedicated_thread(*capture_video_on_dedicated_thread);
   }
 
 #if BUILDFLAG(IS_MAC)
-  if (options.enable_sck_capturer.has_value()) {
-    desktop_capture_options_.set_allow_sck_capturer(
-        *options.enable_sck_capturer);
+  std::optional<bool> enable_sck_capturer =
+      options.GetBool("Enable-Sck-Capturer");
+  if (enable_sck_capturer.has_value()) {
+    desktop_capture_options_.set_allow_sck_capturer(*enable_sck_capturer);
   }
 #endif  // IS_MAC
 
 #if BUILDFLAG(IS_WIN)
-  if (options.allow_dxgi_capturer.has_value()) {
-    desktop_capture_options_.set_allow_directx_capturer(
-        *options.allow_dxgi_capturer);
+  std::optional<bool> allow_dxgi_capturer =
+      options.GetBool("Allow-Dxgi-Capturer");
+  if (allow_dxgi_capturer.has_value()) {
+    desktop_capture_options_.set_allow_directx_capturer(*allow_dxgi_capturer);
   }
 #endif  // IS_WIN
 
@@ -168,22 +172,6 @@ void DesktopEnvironmentOptions::ApplySessionOptions(
   desktop_capture_options_.set_allow_pipewire(true);
   desktop_capture_options_.set_pipewire_use_damage_region(true);
 #endif  // defined(WEBRTC_USE_PIPEWIRE)
-}
-
-void DesktopEnvironmentOptions::ApplySessionPolicies(
-    const SessionPolicies& policies) {
-  if (policies.curtain_required.has_value()) {
-    set_enable_curtaining(*policies.curtain_required);
-  }
-  // `allow_webauthn_forwarding` should not override the existing value for
-  // `enable_remote_webauthn` if it was not enabled for this connection mode.
-  if (enable_remote_webauthn() &&
-      policies.allow_webauthn_forwarding.has_value()) {
-    set_enable_remote_webauthn(*policies.allow_webauthn_forwarding);
-  }
-  if (enable_security_key() && policies.allow_gnubby_forwarding.has_value()) {
-    set_enable_security_key(*policies.allow_gnubby_forwarding);
-  }
 }
 
 }  // namespace remoting

@@ -31,7 +31,6 @@
 #include "components/viz/host/host_frame_sink_manager.h"
 #include "mojo/public/cpp/bindings/pending_receiver.h"
 #include "mojo/public/cpp/bindings/pending_remote.h"
-#include "third_party/skia/include/core/SkColor.h"
 #include "third_party/skia/include/core/SkPath.h"
 #include "ui/aura/client/aura_constants.h"
 #include "ui/aura/client/capture_client.h"
@@ -56,9 +55,8 @@
 #include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/base/ui_base_features.h"
 #include "ui/compositor/compositor.h"
+#include "ui/compositor/layer.h"
 #include "ui/compositor/layer_animator.h"
-#include "ui/compositor/layer_surface.h"
-#include "ui/compositor/layer_textured.h"
 #include "ui/compositor/layer_type.h"
 #include "ui/display/display.h"
 #include "ui/display/screen.h"
@@ -321,10 +319,6 @@ void Window::Init(ui::LayerType layer_type) {
   SetLayer(ui::Layer::Create(layer_type));
   layer()->SetVisible(false);
   layer()->set_delegate(this);
-  if (auto* surface = layer()->AsSurface()) {
-    surface->SetFallbackBackgroundColor(SkColors::kWhite);
-  }
-
   UpdateLayerName();
   Env::GetInstance()->NotifyWindowInitialized(this);
 }
@@ -393,7 +387,7 @@ void Window::SetTransparent(bool transparent) {
     return;
   transparent_ = transparent;
 
-  if (!layer()->AsSolidColor()) {
+  if (layer()->type() != ui::LAYER_SOLID_COLOR) {
     layer()->SetFillsBoundsOpaquely(!transparent_);
   }
   TriggerChangedCallback(&transparent_);
@@ -483,34 +477,16 @@ ScopedWindowCaptureRequest Window::MakeWindowCapturable() {
 }
 
 gfx::Rect Window::GetBoundsInRootWindow() const {
-  if (!GetRootWindow()) {
+  if (!GetRootWindow())
     return bounds();
-  }
-  // When the layer is not managed by the parent (e.g. hosted in
-  // NativeViewHost), the window may be reparented across root windows before
-  // its layer is reparented into the new root layer tree. In that transient
-  // state, return `bounds()`.
-  if (!layer_managed_by_parent() &&
-      GetRootLayer(layer()) != GetRootWindow()->layer()) {
-    return bounds();
-  }
   gfx::Rect bounds_in_root(bounds().size());
   ConvertRectToTarget(this, GetRootWindow(), &bounds_in_root);
   return bounds_in_root;
 }
 
 gfx::Rect Window::GetActualBoundsInRootWindow() const {
-  if (!GetRootWindow()) {
+  if (!GetRootWindow())
     return bounds();
-  }
-  // When the layer is not managed by the parent (e.g. hosted in
-  // NativeViewHost), the window may be reparented across root windows before
-  // its layer is reparented into the new root layer tree. In that transient
-  // state, return `bounds()`.
-  if (!layer_managed_by_parent() &&
-      GetRootLayer(layer()) != GetRootWindow()->layer()) {
-    return bounds();
-  }
   gfx::Rect bounds_in_root(bounds().size());
   gfx::PointF origin_f = gfx::PointF(bounds_in_root.origin());
   ui::Layer::ConvertPointToLayer(layer(), GetRootWindow()->layer(),
@@ -791,8 +767,6 @@ void Window::ConvertPointToTarget(const Window* source,
     CHECK(target->layer());
     const ui::Layer* source_layer = source->layer();
     const ui::Layer* target_layer = target->layer();
-
-#if !BUILDFLAG(IS_WIN)
     auto chain_name = [](const aura::Window* window) {
       std::ostringstream out;
       out << "[";
@@ -808,12 +782,7 @@ void Window::ConvertPointToTarget(const Window* source,
         << "Root layer in source and target window are different. "
            "source chain="
         << chain_name(source) << ", target chain=" << chain_name(target);
-#else
-    // TODO(crbug.com/550457201): Investigate why this is hitting on Windows.
-    if (GetRootLayer(source_layer) != GetRootLayer(target_layer)) {
-      return;
-    }
-#endif
+
     ui::Layer::ConvertPointToLayer(source_layer, target_layer,
                                    /*use_target_transform=*/true, point);
   }
@@ -918,17 +887,8 @@ void Window::SetEventTargetingPolicy(EventTargetingPolicy policy) {
 
 bool Window::ContainsPointInRoot(const gfx::Point& point_in_root) const {
   const Window* root_window = GetRootWindow();
-  if (!root_window) {
+  if (!root_window)
     return false;
-  }
-  // When the layer is not managed by the parent (e.g. hosted in
-  // NativeViewHost), the window may be reparented across root windows before
-  // its layer is reparented into the new root layer tree. In that transient
-  // state, return false.
-  if (!layer_managed_by_parent() &&
-      GetRootLayer(layer()) != root_window->layer()) {
-    return false;
-  }
   gfx::Point local_point(point_in_root);
   ConvertPointToTarget(root_window, this, &local_point);
   return gfx::Rect(GetTargetBounds().size()).Contains(local_point);
@@ -1176,12 +1136,6 @@ void Window::GetDebugInfo(const aura::Window* active_window,
     case ui::LAYER_NINE_PATCH:
       *out << " layer(nine_patch ";
       break;
-    case ui::LAYER_SURFACE:
-      *out << " layer(surface ";
-      break;
-    case ui::LAYER_WITH_EXTERNAL_TEXTURE:
-      *out << " layer(with_external_texture ";
-      break;
   }
 
   *out << (layer()->GetTargetVisibility() ? " visible)" : " hidden)");
@@ -1302,20 +1256,10 @@ void Window::SetBoundsInternal(const gfx::Rect& new_bounds) {
   // This may cause important side effects such as stopping animation.
   layer()->SetBounds(layer_bounds);
 
-  // We will not get bounds changed notification
-  // from the layer (this typically happens after animating hidden).
-  // This can happen if:
-  // 1) we are currently not the layer's delegate.
-  //    We must notify ourselves because layer will notify
-  //    another delegatee.
-  // 2) The layer_bounds is the same, but window bounds is different.
-  //    If `layer_managed_by_parent` is off, we need to notify to
-  //    update the window bounds based on the layer hierarchy.
-  bool notify_now =
-      layer()->delegate() != this ||
-      (new_bounds != bounds_ && old_layer_bounds == layer_bounds &&
-       !layer_managed_by_parent());
-  if (notify_now) {
+  // If we are currently not the layer's delegate, we will not get bounds
+  // changed notification from the layer (this typically happens after animating
+  // hidden). We must notify ourselves.
+  if (layer()->delegate() != this) {
     OnLayerBoundsChanged(old_layer_bounds,
                          ui::PropertyChangeReason::NOT_FROM_ANIMATION);
   }
@@ -1840,7 +1784,7 @@ void Window::SetOpaqueRegionsForOcclusion(
   // Opaque regions for occlusion do not apply to opaque windows, so only
   // allow opaque regions for occlusion to be set for them if they are the
   // same as the window bounds size.
-  DCHECK(GetTransparent() || layer()->AsNotDrawn() ||
+  DCHECK(GetTransparent() || layer()->type() == ui::LAYER_NOT_DRAWN ||
          opaque_regions_for_occlusion.empty() ||
          (opaque_regions_for_occlusion.size() == 1 &&
           opaque_regions_for_occlusion[0] == gfx::Rect(bounds().size())));
@@ -1935,7 +1879,7 @@ void Window::OnLayerFillsBoundsOpaquelyChanged(
 
   // Non-transparent windows should not have opaque regions for occlusion set.
 #if DCHECK_IS_ON()
-  if (!GetTransparent() && !layer()->AsNotDrawn()) {
+  if (!GetTransparent() && layer()->type() != ui::LAYER_NOT_DRAWN) {
     DCHECK(opaque_regions_for_occlusion_.empty());
   }
 #endif
@@ -2082,10 +2026,9 @@ void Window::SetLayer(std::unique_ptr<ui::Layer> alayer) {
 
 void Window::OnFirstSurfaceActivation(const viz::SurfaceInfo& surface_info) {
   DCHECK_EQ(surface_info.id().frame_sink_id(), GetFrameSinkId());
-  layer()->AsSurface()->SetShowSurface(
-      surface_info.id(), bounds().size(),
-      cc::DeadlinePolicy::UseDefaultDeadline(),
-      /*stretch_content_to_fill_bounds=*/false);
+  layer()->SetShowSurface(surface_info.id(), bounds().size(), SkColors::kWhite,
+                          cc::DeadlinePolicy::UseDefaultDeadline(),
+                          false /* stretch_content_to_fill_bounds */);
 }
 
 void Window::OnFrameTokenChanged(uint32_t frame_token,
@@ -2106,23 +2049,20 @@ void Window::UpdateLayerName() {
 
 void Window::RegisterFrameSinkId() {
   DCHECK(frame_sink_id_.is_valid());
-  if (registered_frame_sink_id_ || disable_frame_sink_id_registration_) {
+  if (registered_frame_sink_id_ || disable_frame_sink_id_registration_)
     return;
-  }
-  if (auto* host = GetHost(); host && host->compositor()) {
-    host->compositor()->AddChildFrameSink(frame_sink_id_);
+  if (auto* compositor = layer()->GetCompositor()) {
+    compositor->AddChildFrameSink(frame_sink_id_);
     registered_frame_sink_id_ = true;
   }
 }
 
 void Window::UnregisterFrameSinkId() {
-  if (!registered_frame_sink_id_) {
+  if (!registered_frame_sink_id_)
     return;
-  }
   registered_frame_sink_id_ = false;
-  if (auto* host = GetHost(); host && host->compositor()) {
-    host->compositor()->RemoveChildFrameSink(frame_sink_id_);
-  }
+  if (auto* compositor = layer()->GetCompositor())
+    compositor->RemoveChildFrameSink(frame_sink_id_);
 }
 
 void Window::UpdateLocalSurfaceId() {

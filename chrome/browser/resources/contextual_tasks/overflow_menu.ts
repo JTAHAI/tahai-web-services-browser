@@ -140,7 +140,6 @@ export class OverflowMenuElement extends OverflowMenuElementBase {
     this.$.menu.showAt(target, {
       noOffset: true,
       anchorAlignmentY: AnchorAlignment.AFTER_END,
-      maxY: this.isUnboundedMenuEnabled_ ? Number.MAX_SAFE_INTEGER : undefined,
     });
     showUnboundedMenu(this.$.menu, this.isUnboundedMenuEnabled_, 'overflow');
   }
@@ -151,7 +150,7 @@ export class OverflowMenuElement extends OverflowMenuElementBase {
 
   protected shouldShowPinButton_(): boolean {
     return this.isPinButtonEnabled && this.isAiPage &&
-        this.isHandshakeComplete;
+        this.isCobrowseEligible && this.isHandshakeComplete;
   }
 
   protected getPinButtonTooltip_(): string {

@@ -77,12 +77,7 @@ class TestProfileManagerIOS : public ProfileManagerIOS {
   ProfileMap profiles_map_;
 
   // The list of registered observers.
-  // TODO(crbug.com/484371187): Investigate if reentrancy can be removed.
-  base::ObserverList<
-      ProfileManagerObserverIOS,
-      true,
-      base::ObserverListReentrancyPolicy::kAllowReentrancyUntriaged>
-      observers_;
+  base::ObserverList<ProfileManagerObserverIOS, true> observers_;
 };
 
 #endif  // IOS_CHROME_BROWSER_SHARED_MODEL_PROFILE_TEST_TEST_PROFILE_MANAGER_IOS_H_

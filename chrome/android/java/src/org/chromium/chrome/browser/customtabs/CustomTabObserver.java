@@ -31,6 +31,7 @@ import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.intents.BrowserIntentUtils;
 import org.chromium.chrome.browser.metrics.SimpleStartupForegroundSessionDetector;
 import org.chromium.chrome.browser.page_load_metrics.PageLoadMetrics;
+import org.chromium.chrome.browser.tab.EmptyTabObserver;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.Tab.LoadUrlResult;
 import org.chromium.chrome.browser.tab.TabHidingType;
@@ -50,7 +51,7 @@ import java.util.List;
 
 /** A {@link TabObserver} that also handles custom tabs specific logging and messaging. */
 @NullMarked
-public class CustomTabObserver implements TabObserver {
+public class CustomTabObserver extends EmptyTabObserver {
     private final @Nullable CustomTabsConnection mCustomTabsConnection;
     private final @Nullable SessionHolder<?> mSession;
 
@@ -501,12 +502,12 @@ public class CustomTabObserver implements TabObserver {
                     webContents,
                     mContentBitmapWidth,
                     mContentBitmapHeight,
-                    (@Nullable Uri snapshotPath) ->
-                            mCustomTabsConnection.sendNavigationInfo(
-                                    mSession, urlString, title, snapshotPath));
+                    (@Nullable Uri snapshotPath) -> {
+                        mCustomTabsConnection.sendNavigationInfo(
+                                mSession, urlString, title, snapshotPath);
+                    });
         } else {
-            mCustomTabsConnection.sendNavigationInfo(
-                    mSession, urlString, title, /* snapshotPath= */ null);
+            mCustomTabsConnection.sendNavigationInfo(mSession, urlString, title, /* snapshotPath= */ null);
         }
     }
 

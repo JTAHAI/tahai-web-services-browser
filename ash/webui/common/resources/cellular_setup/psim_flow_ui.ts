@@ -48,7 +48,6 @@ export enum PsimUiState {
 // The reason that caused the user to exit the PSim Setup flow.
 // These values are persisted to logs. Entries should not be renumbered
 // and numeric values should never be reused.
-// LINT.IfChange(PSimSetupFlowResult)
 export enum PsimSetupFlowResult {
   SUCCESS = 0,
   CANCELLED = 1,
@@ -58,9 +57,7 @@ export enum PsimSetupFlowResult {
   CANCELLED_PORTAL_ERROR = 5,
   CARRIER_PORTAL_TIMEOUT = 6,
   NETWORK_ERROR = 7,
-  COUNT = NETWORK_ERROR + 1,
 }
-// LINT.ThenChange(//tools/metrics/histograms/metadata/network/enums.xml:PSimSetupFlowResult)
 
 /**
  * The time delta, in ms, for the timeout corresponding to |state|. If no
@@ -285,7 +282,7 @@ export class PsimFlowUiElement extends PsimFlowUiElementBase {
     assert(resultCode !== null);
     MetricsBrowserProxy.getInstance().recordEnumerationValue(
         PSIM_SETUP_RESULT_METRIC_NAME, resultCode,
-        PsimSetupFlowResult.COUNT);
+        Object.keys(PsimSetupFlowResult).length);
 
     const elapsedTimeMs = Date.now() - this.timeOnAttached_!.getTime();
     if (resultCode === PsimSetupFlowResult.SUCCESS) {

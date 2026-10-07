@@ -32,7 +32,6 @@
 #include "third_party/blink/renderer/core/editing/commands/clipboard_commands.h"
 
 #include "base/auto_reset.h"
-#include "base/memory/raw_ptr.h"
 #include "third_party/blink/public/platform/web_content_settings_client.h"
 #include "third_party/blink/renderer/core/clipboard/clipboard_utilities.h"
 #include "third_party/blink/renderer/core/clipboard/data_transfer.h"
@@ -94,8 +93,7 @@ class ExecutionContextClipboardEventState
   virtual ~ExecutionContextClipboardEventState() = default;
 
   struct State {
-    raw_ptr<const AtomicString, UnprotectedInRelease | DanglingUntriaged>
-        event_type = nullptr;
+    const AtomicString* event_type = nullptr;
     std::optional<EditorCommandSource> source;
     std::optional<absl::uint128> sequence_number = 0;
   };
@@ -583,10 +581,6 @@ void ClipboardCommands::Paste(LocalFrame& frame, EditorCommandSource source) {
 
   if (!DispatchPasteEvent(frame, PasteMode::kAllMimeTypes, source))
     return;
-  // A 'paste' event handler may destroy target frame.
-  if (frame.GetDocument()->GetFrame() != frame) {
-    return;
-  }
   if (!frame.GetEditor().CanPaste())
     return;
 
@@ -632,7 +626,9 @@ void ClipboardCommands::Paste(LocalFrame& frame, EditorCommandSource source) {
   }
 
   if (paste_mode == PasteMode::kAllMimeTypes) {
-    PasteFromClipboard(frame, source, data_transfer);
+    RuntimeEnabledFeatures::InputEventDataTransferForInsertCmdEnabled()
+        ? PasteFromClipboard(frame, source, data_transfer)
+        : PasteFromClipboard(frame, source);
     return;
   }
   PasteAsPlainTextFromClipboard(frame, source);
@@ -845,10 +841,6 @@ bool ClipboardCommands::ExecutePasteAndMatchStyle(LocalFrame& frame,
                                                   const String&) {
   if (!DispatchPasteEvent(frame, PasteMode::kPlainTextOnly, source))
     return false;
-  // A 'paste' event handler may destroy target frame.
-  if (frame.GetDocument()->GetFrame() != frame) {
-    return false;
-  }
   if (!frame.GetEditor().CanPaste())
     return false;
 

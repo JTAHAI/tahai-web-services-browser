@@ -43,8 +43,6 @@ import org.chromium.chrome.browser.ChromeTabbedActivity;
 import org.chromium.chrome.browser.compositor.layouts.Layout.Orientation;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
-import org.chromium.chrome.browser.ntp_customization.NtpCustomizationConfigManager;
-import org.chromium.chrome.browser.ntp_customization.NtpCustomizationUtils.NtpBackgroundType;
 import org.chromium.chrome.browser.tasks.tab_management.TabUiTestHelper;
 import org.chromium.chrome.browser.ui.edge_to_edge.EdgeToEdgeControllerImpl;
 import org.chromium.chrome.browser.ui.edge_to_edge.EdgeToEdgeUtils;
@@ -128,11 +126,10 @@ public class EdgeToEdgeInstrumentationTest {
 
     @After
     public void tearDown() {
-        ActivityTestUtils.clearActivityOrientation(mActivity);
-        ThreadUtils.runOnUiThreadBlocking(
-                () -> {
-                    NtpCustomizationConfigManager.getInstance().resetForTesting();
-                });
+        if (mActivity.getResources().getConfiguration().orientation
+                != Configuration.ORIENTATION_PORTRAIT) {
+            rotate(Configuration.ORIENTATION_PORTRAIT);
+        }
     }
 
     /** Puts the screen ToEdge by loading a page that has the appropriate HTML. */
@@ -365,7 +362,7 @@ public class EdgeToEdgeInstrumentationTest {
     @DisableFeatures(ChromeFeatureList.HOME_BUTTON_REMOVAL)
     @CommandLineFlags.Add(UiSwitches.ENABLE_EDGE_TO_EDGE_DEBUG_LAYERS)
     public void testPadWithEdgeToEdgeLayout() throws IOException {
-        testPadWithEdgeToEdgeLayoutImpl("e2e-everywhere-no-bottom-padding_v1");
+        testPadWithEdgeToEdgeLayoutImpl("e2e-everywhere-no-bottom-padding");
     }
 
     @Test
@@ -385,7 +382,7 @@ public class EdgeToEdgeInstrumentationTest {
     @CommandLineFlags.Add(UiSwitches.ENABLE_EDGE_TO_EDGE_DEBUG_LAYERS)
     public void testPadWithEdgeToEdgeLayout_withHomeButtonRemovalKeepOnNtp() throws IOException {
         testPadWithEdgeToEdgeLayoutImpl(
-                "e2e-everywhere-no-bottom-padding-with-home-button-removal_v1");
+                "e2e-everywhere-no-bottom-padding-with-home-button-removal");
     }
 
     private void testPadWithEdgeToEdgeLayoutImpl(String goldenId) throws IOException {
@@ -431,40 +428,5 @@ public class EdgeToEdgeInstrumentationTest {
                                         .getEdgeToEdgeManager()
                                         .getEdgeToEdgeSystemBarColorHelper()
                                         .getNavigationBarColor());
-    }
-
-    /**
-     * Verifies that when NEW_TAB_PAGE_CUSTOMIZATION_V2 and EDGELESS_TOP_INSET are enabled,
-     * navigating from an NTP with a customized background theme (where top edge-to-edge is active)
-     * to a standard web page properly transitions isDrawingToTopEdge to false without displacing
-     * browser controls.
-     */
-    @Test
-    @MediumTest
-    @EnableFeatures(ChromeFeatureList.EDGELESS_TOP_INSET)
-    public void testTopEdgeToEdge_restoresAfterNtpNavigation() {
-        try {
-            ThreadUtils.runOnUiThreadBlocking(
-                    () -> {
-                        NtpCustomizationConfigManager.getInstance()
-                                .setBackgroundTypeForTesting(NtpBackgroundType.CHROME_COLOR);
-                    });
-            mActivityTestRule.loadUrl("chrome-native://newtab/");
-            CriteriaHelper.pollUiThread(
-                    () -> {
-                        Criteria.checkThat(mEdgeToEdgeController.isDrawingToTopEdge(), is(true));
-                    });
-
-            mActivityTestRule.loadUrl(mTestServer.getURL(TEST_AUTO_PAGE));
-            CriteriaHelper.pollUiThread(
-                    () -> {
-                        Criteria.checkThat(mEdgeToEdgeController.isDrawingToTopEdge(), is(false));
-                    });
-        } finally {
-            ThreadUtils.runOnUiThreadBlocking(
-                    () -> {
-                        NtpCustomizationConfigManager.getInstance().resetForTesting();
-                    });
-        }
     }
 }

@@ -100,7 +100,7 @@ TEST_P(PDFiumInkWriterTest, BasicWriteAndRead) {
       CreateInkInputBatch(kBasicInputs);
   ASSERT_TRUE(inputs.has_value());
   ink::Stroke stroke(brush->ink_brush(), inputs.value());
-  auto results = WriteStrokeToPage(page, stroke);
+  std::vector<FPDF_PAGEOBJECT> results = WriteStrokeToPage(page, stroke);
   EXPECT_EQ(1u, results.size());
 
   ASSERT_TRUE(FPDFPage_GenerateContent(page));
@@ -183,7 +183,7 @@ TEST_P(PDFiumInkWriterTest, WriteToCroppedPage) {
       CreateInkInputBatch(kBasicInputs);
   ASSERT_TRUE(inputs.has_value());
   ink::Stroke stroke(brush->ink_brush(), inputs.value());
-  auto results = WriteStrokeToPage(page, stroke);
+  std::vector<FPDF_PAGEOBJECT> results = WriteStrokeToPage(page, stroke);
   EXPECT_EQ(results.size(), 1u);
 
   ASSERT_TRUE(FPDFPage_GenerateContent(page));
@@ -242,7 +242,7 @@ TEST_P(PDFiumInkWriterTest, EmptyStroke) {
 
   auto brush = CreateTestBrush();
   ink::Stroke unused_stroke(brush->ink_brush());
-  auto results = WriteStrokeToPage(page, unused_stroke);
+  std::vector<FPDF_PAGEOBJECT> results = WriteStrokeToPage(page, unused_stroke);
   EXPECT_TRUE(results.empty());
 }
 
@@ -258,7 +258,8 @@ TEST_P(PDFiumInkWriterTest, NoPage) {
 
   auto brush = CreateTestBrush();
   ink::Stroke unused_stroke(brush->ink_brush());
-  auto results = WriteStrokeToPage(/*page=*/nullptr, unused_stroke);
+  std::vector<FPDF_PAGEOBJECT> results =
+      WriteStrokeToPage(/*page=*/nullptr, unused_stroke);
   EXPECT_TRUE(results.empty());
 }
 

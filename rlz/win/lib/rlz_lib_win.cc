@@ -195,21 +195,21 @@ bool CreateMachineState() {
   return success;
 }
 
-bool SetMachineDealCode(std::string_view dcc) {
+bool SetMachineDealCode(const char* dcc) {
   return MachineDealCode::Set(dcc);
 }
 
-std::optional<std::string> GetMachineDealCodeAsCgi() {
-  return MachineDealCode::GetAsCgi();
+bool GetMachineDealCodeAsCgi(char* cgi, size_t cgi_size) {
+  return MachineDealCode::GetAsCgi(cgi, cgi_size);
 }
 
-std::optional<std::string> GetMachineDealCode() {
-  return MachineDealCode::Get();
+bool GetMachineDealCode(char* dcc, size_t dcc_size) {
+  return MachineDealCode::Get(dcc, dcc_size);
 }
 
 // Combined functions.
 
-bool SetMachineDealCodeFromPingResponse(std::string_view response) {
+bool SetMachineDealCodeFromPingResponse(const char* response) {
   return MachineDealCode::SetFromPingResponse(response);
 }
 

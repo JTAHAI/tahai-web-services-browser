@@ -53,7 +53,13 @@ namespace supervised_user {
 namespace {
 
 class SupervisedUserBrowserCasedTestBase
-    : public SupervisedUserBrowserTestBase {};
+    : public SupervisedUserBrowserTestBase,
+      public base::test::WithFeatureOverride {
+ protected:
+  SupervisedUserBrowserCasedTestBase()
+      : base::test::WithFeatureOverride(kSupervisedUserUseUrlFilteringService) {
+  }
+};
 
 // A suite for regular users (most of the time should assert that features are
 // initially disabled and provide neutral, default browsing experience, unless
@@ -61,7 +67,7 @@ class SupervisedUserBrowserCasedTestBase
 class RegularUserUrlFilteringServiceAndroidBrowserTest
     : public SupervisedUserBrowserCasedTestBase {};
 
-IN_PROC_BROWSER_TEST_F(RegularUserUrlFilteringServiceAndroidBrowserTest,
+IN_PROC_BROWSER_TEST_P(RegularUserUrlFilteringServiceAndroidBrowserTest,
                        EnablingAndroidParentalControlsEnablesUrlFiltering) {
   GetDeviceParentalControls().SetBrowserContentFiltersEnabledForTesting(true);
   EXPECT_EQ(
@@ -69,6 +75,9 @@ IN_PROC_BROWSER_TEST_F(RegularUserUrlFilteringServiceAndroidBrowserTest,
       SupervisedUserUrlFilteringServiceFactory::GetForProfile(GetProfile())
           ->GetWebFilterType());
 }
+
+INSTANTIATE_FEATURE_OVERRIDE_TEST_SUITE(
+    RegularUserUrlFilteringServiceAndroidBrowserTest);
 
 // A suite for supervised users with configured by Family Link.
 class FamilyLinkUrlFilteringServiceAndroidBrowserTest
@@ -80,8 +89,36 @@ class FamilyLinkUrlFilteringServiceAndroidBrowserTest
   }
 };
 
-IN_PROC_BROWSER_TEST_F(FamilyLinkUrlFilteringServiceAndroidBrowserTest,
+IN_PROC_BROWSER_TEST_P(FamilyLinkUrlFilteringServiceAndroidBrowserTest,
+                       AndroidParentalControlsAreIgnored) {
+  if (base::FeatureList::IsEnabled(kSupervisedUserUseUrlFilteringService)) {
+    GTEST_SKIP() << "Test for legacy implementation only.";
+  }
+
+  // Android parental controls only can set web filter to
+  // kTryToBlockMatureSites; so let's reconfigure to something else to make sure
+  // that the change is ignored.
+  supervised_user_test_util::SetWebFilterType(GetProfile(),
+                                              WebFilterType::kAllowAllSites);
+  ASSERT_EQ(
+      WebFilterType::kAllowAllSites,
+      SupervisedUserUrlFilteringServiceFactory::GetForProfile(GetProfile())
+          ->GetWebFilterType());
+
+  // Setting is ignored.
+  GetDeviceParentalControls().SetBrowserContentFiltersEnabledForTesting(true);
+  EXPECT_EQ(
+      WebFilterType::kAllowAllSites,
+      SupervisedUserUrlFilteringServiceFactory::GetForProfile(GetProfile())
+          ->GetWebFilterType());
+}
+
+IN_PROC_BROWSER_TEST_P(FamilyLinkUrlFilteringServiceAndroidBrowserTest,
                        AndroidParentalControlsArePreferred) {
+  if (!base::FeatureList::IsEnabled(kSupervisedUserUseUrlFilteringService)) {
+    GTEST_SKIP() << "Test for experimental implementation only.";
+  }
+
   // Android parental controls only can set web filter to
   // kTryToBlockMatureSites; so let's reconfigure to something else to make sure
   // that the change is ignored.
@@ -99,6 +136,9 @@ IN_PROC_BROWSER_TEST_F(FamilyLinkUrlFilteringServiceAndroidBrowserTest,
           ->GetWebFilterType());
 }
 
+INSTANTIATE_FEATURE_OVERRIDE_TEST_SUITE(
+    FamilyLinkUrlFilteringServiceAndroidBrowserTest);
+
 // A suite for supervised users configured by Android parental controls.
 class AndroidParentalControlsUrlFilteringServiceAndroidBrowserTest
     : public SupervisedUserBrowserCasedTestBase {
@@ -112,11 +152,11 @@ class AndroidParentalControlsUrlFilteringServiceAndroidBrowserTest
   }
 };
 
-IN_PROC_BROWSER_TEST_F(
+IN_PROC_BROWSER_TEST_P(
     AndroidParentalControlsUrlFilteringServiceAndroidBrowserTest,
-    FamilyLinkAndAndroidParentalControlsCoexist) {
-  ASSERT_TRUE(GetDeviceParentalControls().IsEnabled());
-  ASSERT_FALSE(IsSubjectToParentalControls(*GetProfile()->GetPrefs()));
+    FamilyLinkDisablesAndroidParentalControls) {
+  ASSERT_TRUE(
+      AreAndroidParentalControlsEffectiveForTesting(*GetProfile()->GetPrefs()));
   ASSERT_EQ(
       WebFilterType::kTryToBlockMatureSites,
       SupervisedUserUrlFilteringServiceFactory::GetForProfile(GetProfile())
@@ -124,15 +164,15 @@ IN_PROC_BROWSER_TEST_F(
 
   EnableParentalControls(*GetProfile()->GetPrefs());
 
-  EXPECT_TRUE(GetDeviceParentalControls().IsEnabled());
-  EXPECT_TRUE(IsSubjectToParentalControls(*GetProfile()->GetPrefs()));
+  EXPECT_FALSE(
+      AreAndroidParentalControlsEffectiveForTesting(*GetProfile()->GetPrefs()));
   EXPECT_EQ(
       WebFilterType::kTryToBlockMatureSites,
       SupervisedUserUrlFilteringServiceFactory::GetForProfile(GetProfile())
           ->GetWebFilterType());
 }
 
-IN_PROC_BROWSER_TEST_F(
+IN_PROC_BROWSER_TEST_P(
     AndroidParentalControlsUrlFilteringServiceAndroidBrowserTest,
     DisablingAndroidParentalControlsSupervisionDisablesUrlFiltering) {
   GetDeviceParentalControls().SetBrowserContentFiltersEnabledForTesting(false);
@@ -143,9 +183,13 @@ IN_PROC_BROWSER_TEST_F(
           ->GetWebFilterType());
 }
 
-IN_PROC_BROWSER_TEST_F(
+IN_PROC_BROWSER_TEST_P(
     AndroidParentalControlsUrlFilteringServiceAndroidBrowserTest,
     DisablingWebFilterOnlyPutsUrlFilterininInAllowAllMode) {
+  if (!base::FeatureList::IsEnabled(kSupervisedUserUseUrlFilteringService)) {
+    GTEST_SKIP() << "Test for experimental implementation only.";
+  }
+
   GetDeviceParentalControls().SetBrowserContentFiltersEnabledForTesting(false);
   GetDeviceParentalControls().SetSearchContentFiltersEnabledForTesting(true);
   EXPECT_EQ(
@@ -153,6 +197,9 @@ IN_PROC_BROWSER_TEST_F(
       SupervisedUserUrlFilteringServiceFactory::GetForProfile(GetProfile())
           ->GetWebFilterType());
 }
+
+INSTANTIATE_FEATURE_OVERRIDE_TEST_SUITE(
+    AndroidParentalControlsUrlFilteringServiceAndroidBrowserTest);
 
 }  // namespace
 }  // namespace supervised_user

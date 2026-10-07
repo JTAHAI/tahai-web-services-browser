@@ -54,9 +54,6 @@ class PLATFORM_EXPORT AudioServiceAudioProcessorProxy
   // threads.
   void MaybeUpdateNumPreferredCaptureChannels(int32_t num_channels);
 
-  // Called on the main thread.
-  void SetVoiceIsolation(bool enabled);
-
  protected:
   ~AudioServiceAudioProcessorProxy() override;
 
@@ -78,9 +75,6 @@ class PLATFORM_EXPORT AudioServiceAudioProcessorProxy
 
   // Accessed only in MaybeUpdateNumPreferredCaptureChannels().
   int32_t num_preferred_capture_channels_ = 1;
-
-  std::optional<bool> voice_isolation_enabled_
-      GUARDED_BY_CONTEXT(main_thread_checker_);
 
   THREAD_CHECKER(main_thread_checker_);
   base::WeakPtr<AudioServiceAudioProcessorProxy> weak_this_;

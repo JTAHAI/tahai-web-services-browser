@@ -134,7 +134,9 @@ class IncognitoReauthSceneAgentTest : public PlatformTest {
     }
   }
 
-  void AdvanceClock(base::TimeDelta delay) { scoped_clock_.Advance(delay); }
+  void AdvanceClock(const base::TimeDelta& delay) {
+    scoped_clock_.Advance(delay);
+  }
 
   void RecordCurrentTimeInPref() {
     pref_service_.SetTime(prefs::kLastBackgroundedTime, scoped_clock_.Now());

@@ -106,7 +106,6 @@ builders.builder(
             "android-x86-rel",
         ],
         "exclude_suites": [
-            "ash_pixeltests",
             "chrome_all_tast_tests",
         ],
         "target_runtime": 15.0,

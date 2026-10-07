@@ -1,2 +1,4 @@
-rules:
-- foreignObject-graphics.svg: [svg]
+features:
+- name: svg
+  files:
+  - foreignObject-graphics.svg

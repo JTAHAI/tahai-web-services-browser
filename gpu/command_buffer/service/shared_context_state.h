@@ -41,7 +41,6 @@
 
 #if BUILDFLAG(IS_WIN)
 #include <d3d11.h>
-#include <d3d12.h>
 #include <wrl/client.h>
 #endif
 
@@ -138,7 +137,6 @@ class GPU_GLES2_EXPORT SharedContextState
   bool IsGraphiteDawnMetal() const;
   bool IsGraphiteDawnD3D() const;
   bool IsGraphiteDawnD3D11() const;
-  bool IsGraphiteDawnD3D12() const;
   bool IsGraphiteDawnVulkan() const;
   bool IsGraphiteDawnVulkanSwiftShader() const;
 
@@ -163,13 +161,7 @@ class GPU_GLES2_EXPORT SharedContextState
   void MarkContextLost(error::ContextLostReason reason = error::kUnknown);
   bool IsCurrent(gl::GLSurface* surface, bool needs_gl = false);
 
-  // Immediately evicts unlocked resources (scratch resources under moderate
-  // pressure, or all resources under critical pressure) down to `memory_limit`.
-  void PurgeMemory(int memory_limit);
-
-  // Updates internal memory target budgets non-destructively without forcing
-  // immediate resource purges.
-  void OnUpdateMemoryLimit(int memory_limit);
+  void PurgeMemory(base::MemoryPressureLevel memory_pressure_level);
 
   void UpdateSkiaOwnedMemorySize();
   uint64_t GetMemoryUsage();
@@ -226,9 +218,6 @@ class GPU_GLES2_EXPORT SharedContextState
   bool context_lost() const { return !!context_lost_reason_; }
   std::optional<error::ContextLostReason> context_lost_reason() {
     return context_lost_reason_;
-  }
-  base::WeakPtr<SharedContextState> GetWeakPtr() {
-    return weak_ptr_factory_.GetWeakPtr();
   }
   bool need_context_state_reset() const { return need_context_state_reset_; }
   void set_need_context_state_reset(bool reset) {
@@ -310,9 +299,8 @@ class GPU_GLES2_EXPORT SharedContextState
   int32_t GetMaxTextureSize();
 
 #if BUILDFLAG(IS_WIN)
-  // Get the D3D device and command queue used for compositing.
+  // Get the D3D11 device used for the compositing.
   Microsoft::WRL::ComPtr<ID3D11Device> GetD3D11Device() const;
-  Microsoft::WRL::ComPtr<ID3D12CommandQueue> GetD3D12CommandQueue() const;
 #endif
 
  private:
@@ -342,9 +330,6 @@ class GPU_GLES2_EXPORT SharedContextState
                           GpuProcessShmCount* use_shader_cache_shm_count);
 
   std::optional<error::ContextLostReason> GetResetStatus(bool needs_gl);
-
-  void PurgeGaneshMemory(int memory_limit);
-  void PurgeGraphiteMemory(int memory_limit);
 
   // gpu::GLContextVirtualDelegate implementation.
   bool initialized() const override;
@@ -444,7 +429,6 @@ class GPU_GLES2_EXPORT SharedContextState
       viz_compositor_graphite_cache_controller_;
 
   std::optional<int> max_texture_size_;
-  size_t max_resource_cache_bytes_ = 0;
 
   base::WeakPtrFactory<SharedContextState> weak_ptr_factory_{this};
 };

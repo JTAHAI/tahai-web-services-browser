@@ -1,2 +1,3 @@
-rules:
-- "**": [mix-blend-mode]
+features:
+- name: mix-blend-mode
+  files: "**"

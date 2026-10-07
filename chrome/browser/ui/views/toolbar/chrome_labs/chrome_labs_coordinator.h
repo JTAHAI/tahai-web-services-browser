@@ -16,6 +16,7 @@
 #include "ui/views/view_observer.h"
 #include "ui/views/view_tracker.h"
 
+class Browser;
 class BrowserWindowInterface;
 class ChromeLabsBubbleView;
 class ChromeLabsViewController;
@@ -35,7 +36,7 @@ class ChromeLabsCoordinator : public PinnedToolbarActionsModel::Observer {
     kChromeOsOwnerUserType,
   };
 
-  explicit ChromeLabsCoordinator(BrowserWindowInterface* browser);
+  explicit ChromeLabsCoordinator(Browser* browser);
   ~ChromeLabsCoordinator() override;
 
   void TearDown();
@@ -75,7 +76,7 @@ class ChromeLabsCoordinator : public PinnedToolbarActionsModel::Observer {
 #endif
 
  private:
-  raw_ptr<BrowserWindowInterface, DanglingUntriaged> browser_;
+  raw_ptr<Browser, DanglingUntriaged> browser_;
   std::unique_ptr<flags_ui::FlagsStorage> flags_storage_;
   raw_ptr<flags_ui::FlagsState, DanglingUntriaged> flags_state_;
   std::unique_ptr<ChromeLabsViewController> controller_;

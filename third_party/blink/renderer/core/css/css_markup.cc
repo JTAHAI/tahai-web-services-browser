@@ -34,7 +34,6 @@
 #include "third_party/blink/renderer/platform/font_family_names.h"
 #include "third_party/blink/renderer/platform/fonts/font_family.h"
 #include "third_party/blink/renderer/platform/wtf/text/character_visitor.h"
-#include "third_party/blink/renderer/platform/wtf/text/format.h"
 #include "third_party/blink/renderer/platform/wtf/text/strcat.h"
 #include "third_party/blink/renderer/platform/wtf/text/string_buffer.h"
 #include "third_party/blink/renderer/platform/wtf/text/string_builder.h"
@@ -139,7 +138,7 @@ static void SerializeCharacter(UChar32 c, StringBuilder& append_to) {
 }
 
 static void SerializeCharacterAsCodePoint(UChar32 c, StringBuilder& append_to) {
-  FormatTo(append_to, "\\{:x} ", c);
+  append_to.AppendFormat("\\%x ", c);
 }
 
 void SerializeIdentifier(const String& identifier,

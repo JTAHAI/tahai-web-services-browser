@@ -1,5 +1,7 @@
 include_rules = [
   # go/keep-sorted start
+  "+components/accessibility_annotator/core",
+  "+components/accessibility_annotator/core/annotation_reducer",
   "+components/affiliations",
   "+components/browser_ui/device_lock/android",
   "+components/consent_auditor",
@@ -22,11 +24,13 @@ include_rules = [
   "+components/optimization_guide/core",
   "+components/password_manager/core/browser/features/password_features.h",
   "+components/payments/core/currency_formatter.h",
-  "+components/personal_context",
+  "+components/personal_context/core",
+  "+components/personal_context/proto",
   "+components/policy",
   "+components/profile_metrics",
   "+components/resources",
   "+components/security_interstitials/core/insecure_form_util.h",
+  "+components/security_interstitials/core/pref_names.h",
   "+components/security_state",
   "+components/sessions/core/session_id.h",
   "+components/signin/public",
@@ -34,7 +38,6 @@ include_rules = [
   "+components/strings",
   "+components/subscription_eligibility",
   "+components/sync",
-  "+components/sync_device_info",
   "+components/sync_preferences",
   "+components/translate/core/browser",
   "+components/translate/core/common",
@@ -73,7 +76,7 @@ specific_include_rules = {
     "+components/device_reauth",
     "+content/public/test",
   ],
-  "cross_tab_copy_paste_tracker_unittest\\.cc": [
+  "at_memory_cross_tab_copy_paste_tracker_unittest\\.cc": [
     "+components/ukm",
   ],
   "at_memory_metrics_recorder_unittest\\.cc": [

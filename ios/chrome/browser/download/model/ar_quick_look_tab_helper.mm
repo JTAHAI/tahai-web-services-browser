@@ -265,13 +265,3 @@ void ARQuickLookTabHelper::DidStartNavigation(
     pending_preview_.reset();
   }
 }
-
-void ARQuickLookTabHelper::DidFinishNavigation(
-    web::WebState* web_state,
-    web::NavigationContext* navigation_context) {
-  CHECK_EQ(web_state_, web_state);
-  if (navigation_context->HasCommitted() &&
-      !navigation_context->IsSameDocument()) {
-    pending_preview_.reset();
-  }
-}

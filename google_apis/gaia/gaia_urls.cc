@@ -123,6 +123,8 @@ const char kOAuth2UpgradeTokenUrlSuffix[] = "v1/upgradetoken";
 // API calls from accountcapabilities-pa.googleapis.com
 const char kAccountCapabilitiesBatchGetUrlSuffix[] =
     "v1/accountcapabilities:batchGet";
+const char kAccountCapabilitiesGetAllVisibleUrlSuffix[] =
+    "v1/accountcapabilities:getAllVisible";
 
 const char kRotateBoundCookiesUrlSuffix[] = "RotateBoundCookies";
 
@@ -337,6 +339,10 @@ const GURL& GaiaUrls::reauth_url() const {
 
 const GURL& GaiaUrls::account_capabilities_batch_get_url() const {
   return account_capabilities_batch_get_url_;
+}
+
+const GURL& GaiaUrls::account_capabilities_get_all_visible_url() const {
+  return account_capabilities_get_all_visible_url_;
 }
 
 const std::string& GaiaUrls::oauth2_chrome_client_id() const {
@@ -555,6 +561,9 @@ void GaiaUrls::InitializeDefault() {
   ResolveURLIfInvalid(&account_capabilities_batch_get_url_,
                       account_capabilities_origin_url_,
                       kAccountCapabilitiesBatchGetUrlSuffix);
+  ResolveURLIfInvalid(&account_capabilities_get_all_visible_url_,
+                      account_capabilities_origin_url_,
+                      kAccountCapabilitiesGetAllVisibleUrlSuffix);
 }
 
 void GaiaUrls::InitializeFromConfig() {
@@ -606,6 +615,8 @@ void GaiaUrls::InitializeFromConfig() {
   config->GetURLIfExists(URL_KEY_AND_PTR(add_account_url));
   config->GetURLIfExists(URL_KEY_AND_PTR(reauth_url));
   config->GetURLIfExists(URL_KEY_AND_PTR(account_capabilities_batch_get_url));
+  config->GetURLIfExists(
+      URL_KEY_AND_PTR(account_capabilities_get_all_visible_url));
   config->GetURLIfExists(URL_KEY_AND_PTR(get_check_connection_info_url));
   config->GetURLIfExists(URL_KEY_AND_PTR(oauth2_token_url));
   config->GetURLIfExists(URL_KEY_AND_PTR(mtls_oauth2_token_url));

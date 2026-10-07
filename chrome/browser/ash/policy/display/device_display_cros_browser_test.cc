@@ -92,6 +92,7 @@ gfx::Size DeviceDisplayCrosTestHelper::GetResolutionOfSecondDisplay() const {
 
 void DeviceDisplayCrosTestHelper::ToggleSecondDisplay() {
   GetDisplayManager()->AddRemoveDisplay();
+  base::RunLoop().RunUntilIdle();
 }
 
 void DeviceDisplayPolicyCrosBrowserTest::SetUpInProcessBrowserTestFixture() {

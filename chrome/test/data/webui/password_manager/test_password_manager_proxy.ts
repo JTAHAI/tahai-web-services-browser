@@ -5,7 +5,7 @@
 /** @fileoverview Test implementation of PasswordManagerProxy. */
 
 import {ExportPasswordsResult, ExportProgressStatus, ImportResultsStatus, PageCallbackRouter, PasswordManagerActionableError} from 'chrome://password-manager/password_manager.js';
-import type {AccountStorageActiveStateChangedListener, BlockedSite, BlockedSitesListChangedListener, CredentialsChangedListener, ImportResults, PasswordCheckInteraction, PasswordCheckStatusChangedListener, PasswordManagerActionableErrorChangedListener, PasswordManagerAuthTimeoutListener, PasswordManagerProxy, PasswordsFileExportProgressListener, PasswordViewPageInteractions} from 'chrome://password-manager/password_manager.js';
+import type {AccountStorageActiveStateChangedListener, BlockedSite, BlockedSitesListChangedListener, CredentialsChangedListener, ImportResults, PasswordCheckInteraction, PasswordCheckStatusChangedListener, PasswordManagerActionableErrorChangedListener, PasswordManagerAuthTimeoutListener, PasswordManagerProxy, PasswordsFileExportProgressListener, PasswordViewPageInteractions, ShouldShowAccountStorageToggleChangedListener} from 'chrome://password-manager/password_manager.js';
 import {TestBrowserProxy} from 'chrome://webui-test/test_browser_proxy.js';
 
 import type {ActorLoginPermission} from './password_manager.mojom-webui.js';
@@ -27,6 +27,7 @@ export class TestPasswordManagerProxy extends TestBrowserProxy implements
     groups: chrome.passwordsPrivate.CredentialGroup[],
     insecureCredentials: chrome.passwordsPrivate.PasswordUiEntry[],
     isAccountStorageActive: boolean,
+    shouldShowAccountStorageSettingToggle: boolean,
     passwords: chrome.passwordsPrivate.PasswordUiEntry[],
     isPasswordManagerPinAvailable: boolean,
     isCloudAuthenticatorConnected: boolean,
@@ -40,6 +41,8 @@ export class TestPasswordManagerProxy extends TestBrowserProxy implements
   listeners: {
     accountStorageActiveStateListener: AccountStorageActiveStateChangedListener|
     null,
+    shouldShowAccountStorageToggleListener:
+        ShouldShowAccountStorageToggleChangedListener|null,
     blockedSitesListChangedListener: BlockedSitesListChangedListener|null,
     savedPasswordListChangedListener: CredentialsChangedListener|null,
     passwordCheckStatusListener: PasswordCheckStatusChangedListener|null,
@@ -91,9 +94,11 @@ export class TestPasswordManagerProxy extends TestBrowserProxy implements
       'importPasswords',
       'isConnectedToCloudAuthenticator',
       'isAccountStorageActive',
+      'shouldShowAccountStorageSettingToggle',
       'isPasswordManagerPinAvailable',
       'movePasswordsToAccount',
       'muteInsecureCredential',
+      'setAccountStorageEnabled',
       'recordPasswordCheckInteraction',
       'recordPasswordViewInteraction',
       'removeBlockedSite',
@@ -106,7 +111,6 @@ export class TestPasswordManagerProxy extends TestBrowserProxy implements
       'revokeActorLoginPermission',
       'requestChangePassword',
       'stopPasswordChange',
-      'openPasswordChangeTab',
       'sharePassword',
       'showAddShortcutDialog',
       'showLastExportedFileInShell',
@@ -115,7 +119,6 @@ export class TestPasswordManagerProxy extends TestBrowserProxy implements
       'undoRemoveSavedPasswordOrException',
       'unmuteInsecureCredential',
       'getPasswordManagerActionableError',
-      'startTrustedVaultUnlock',
     ]);
 
     // Set these to have non-empty data.
@@ -128,6 +131,7 @@ export class TestPasswordManagerProxy extends TestBrowserProxy implements
       groups: [],
       insecureCredentials: [],
       isAccountStorageActive: false,
+      shouldShowAccountStorageSettingToggle: false,
       passwords: [],
       isPasswordManagerPinAvailable: false,
       isCloudAuthenticatorConnected: false,
@@ -140,6 +144,7 @@ export class TestPasswordManagerProxy extends TestBrowserProxy implements
     // Holds listeners so they can be called when needed.
     this.listeners = {
       accountStorageActiveStateListener: null,
+      shouldShowAccountStorageToggleListener: null,
       blockedSitesListChangedListener: null,
       insecureCredentialsListener: null,
       passwordCheckStatusListener: null,
@@ -381,6 +386,16 @@ export class TestPasswordManagerProxy extends TestBrowserProxy implements
     this.listeners.accountStorageActiveStateListener = null;
   }
 
+  addShouldShowAccountStorageSettingToggleListener(
+      listener: ShouldShowAccountStorageToggleChangedListener) {
+    this.listeners.shouldShowAccountStorageToggleListener = listener;
+  }
+
+  removeShouldShowAccountStorageSettingToggleListener(
+      _listener: ShouldShowAccountStorageToggleChangedListener) {
+    this.listeners.shouldShowAccountStorageToggleListener = null;
+  }
+
   fetchFamilyMembers() {
     this.methodCalled('fetchFamilyMembers');
     return Promise.resolve(this.data.familyFetchResults);
@@ -417,6 +432,17 @@ export class TestPasswordManagerProxy extends TestBrowserProxy implements
     this.methodCalled('isAccountStorageActive');
     return Promise.resolve(this.data.isAccountStorageActive);
   }
+
+  setAccountStorageEnabled(enabled: boolean) {
+    this.methodCalled('setAccountStorageEnabled');
+    this.data.isAccountStorageActive = enabled;
+  }
+
+  shouldShowAccountStorageSettingToggle() {
+    this.methodCalled('shouldShowAccountStorageSettingToggle');
+    return Promise.resolve(this.data.shouldShowAccountStorageSettingToggle);
+  }
+
 
   movePasswordsToAccount(ids: number[]) {
     this.methodCalled('movePasswordsToAccount', ids);
@@ -469,20 +495,12 @@ export class TestPasswordManagerProxy extends TestBrowserProxy implements
     this.methodCalled('requestChangePassword', id);
   }
 
-  stopPasswordChange(id: number): void {
-    this.methodCalled('stopPasswordChange', id);
-  }
-
-  openPasswordChangeTab(id: number): void {
-    this.methodCalled('openPasswordChangeTab', id);
+  stopPasswordChange(): void {
+    this.methodCalled('stopPasswordChange');
   }
 
   getPasswordManagerActionableError(): Promise<PasswordManagerActionableError> {
     this.methodCalled('getPasswordManagerActionableError');
     return Promise.resolve(this.data.getActionableError);
-  }
-
-  startTrustedVaultUnlock(): void {
-    this.methodCalled('startTrustedVaultUnlock');
   }
 }

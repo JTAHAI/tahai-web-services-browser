@@ -299,16 +299,19 @@ constexpr FlagDefaultArg DefaultArg(char) {
 
 template <typename T>
 using FlagUseValueAndInitBitStorage =
-    std::bool_constant<std::is_trivially_copyable_v<T> &&
-                       std::is_default_constructible_v<T> && (sizeof(T) < 8)>;
+    std::integral_constant<bool, std::is_trivially_copyable_v<T> &&
+                                     std::is_default_constructible_v<T> &&
+                                     (sizeof(T) < 8)>;
 
 template <typename T>
 using FlagUseOneWordStorage =
-    std::bool_constant<std::is_trivially_copyable_v<T> && (sizeof(T) <= 8)>;
+    std::integral_constant<bool,
+                           std::is_trivially_copyable_v<T> && (sizeof(T) <= 8)>;
 
 template <class T>
 using FlagUseSequenceLockStorage =
-    std::bool_constant<std::is_trivially_copyable_v<T> && (sizeof(T) > 8)>;
+    std::integral_constant<bool,
+                           std::is_trivially_copyable_v<T> && (sizeof(T) > 8)>;
 
 enum class FlagValueStorageKind : uint8_t {
   kValueAndInitBit = 0,

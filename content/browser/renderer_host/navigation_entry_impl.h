@@ -490,8 +490,8 @@ class CONTENT_EXPORT NavigationEntryImpl : public NavigationEntry {
 
   void set_back_forward_cache_metrics(
       scoped_refptr<BackForwardCacheMetrics> metrics) {
-    CHECK(metrics, base::NotFatalUntil::M158);
-    CHECK(!back_forward_cache_metrics_, base::NotFatalUntil::M158);
+    DCHECK(metrics);
+    DCHECK(!back_forward_cache_metrics_);
     back_forward_cache_metrics_ = metrics;
   }
 

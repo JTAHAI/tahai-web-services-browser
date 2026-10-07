@@ -9,9 +9,9 @@
 
 #include "build/build_config.h"
 #include "chrome/app/chrome_command_ids.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_command_controller.h"
 #include "chrome/browser/ui/browser_commands.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/frame/toolbar_button_provider.h"
 #include "chrome/browser/ui/views/toolbar/back_forward_button.h"
@@ -57,7 +57,7 @@ WebAppNavigationButtonContainer::WebAppNavigationButtonContainer(
   back_button_ = AddChildView(std::make_unique<BackForwardButton>(
       BackForwardButton::Direction::kBack,
       base::BindRepeating(
-          [](BrowserWindowInterface* browser, const ui::Event& event) {
+          [](Browser* browser, const ui::Event& event) {
             chrome::ExecuteCommandWithDisposition(
                 browser, IDC_BACK,
                 ui::DispositionFromEventFlags(event.flags()));
@@ -72,8 +72,7 @@ WebAppNavigationButtonContainer::WebAppNavigationButtonContainer(
   const auto* app_controller = web_app::AppBrowserController::From(browser_);
   if (app_controller->HasReloadButton()) {
     reload_button_ = AddChildView(std::make_unique<ReloadButton>(
-        browser_->GetProfile(),
-        chrome::BrowserCommandController::From(browser_),
+        browser_->GetProfile(), browser_->command_controller(),
         InitialWebUIWindowMetricsManager::From(browser_)));
     reload_button_->set_tag(IDC_RELOAD);
     ConfigureWebAppToolbarButton(reload_button_, toolbar_button_provider);

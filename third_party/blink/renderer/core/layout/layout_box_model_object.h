@@ -240,7 +240,7 @@ class CORE_EXPORT LayoutBoxModelObject : public LayoutObject {
       bool enable_composited_background_attachment_fixed);
 
  protected:
-  void WillBeDestroyed(const ComputedStyle*) override;
+  void WillBeDestroyed() override;
   void ImageChanged(WrappedImagePtr, CanDeferInvalidation) override;
 
   PhysicalOffset OffsetFromContainerInternal(
@@ -266,12 +266,10 @@ class CORE_EXPORT LayoutBoxModelObject : public LayoutObject {
     return ShouldBeHandledAsInline(StyleRef());
   }
   void StyleWillChange(StyleDifference,
-                       const ComputedStyle* old_style,
                        const ComputedStyle& new_style,
                        StyleChangeContext&) override;
   void StyleDidChange(StyleDifference,
                       const ComputedStyle* old_style,
-                      const ComputedStyle& new_style,
                       const StyleChangeContext&) override;
   virtual bool ComputeCanCompositeBackgroundAttachmentFixed() const {
     NOT_DESTROYED();

@@ -5,6 +5,8 @@
 import '//resources/ash/common/cr_elements/cr_button/cr_button.js';
 import '//resources/ash/common/cr_elements/md_select.css.js';
 import '//resources/ash/common/cr_elements/policy/cr_tooltip_icon.js';
+import '../i18n_behavior.js';
+import './onc_mojo.js';
 import '//resources/polymer/v3_0/iron-icon/iron-icon.js';
 import './network_property_list_mojo.js';
 import './network_shared.css.js';
@@ -15,8 +17,9 @@ import type {ApnProperties, ManagedApnProperties, ManagedProperties} from '//res
 import {ApnAuthenticationType, ApnIpType, ApnSource, ApnState, ApnType} from '//resources/mojo/chromeos/services/network_config/public/mojom/cros_network_config.mojom-webui.js';
 import {PolymerElement} from '//resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
+import {OncMojo} from '../network/onc_mojo.js';
+
 import {getTemplate} from './network_apnlist.html.js';
-import {OncMojo} from './onc_mojo.js';
 
 const kDefaultAccessPointName = 'NONE';
 const kOtherAccessPointName = 'Other';
@@ -50,7 +53,7 @@ export class NetworkApnListElement extends NetworkApnListElementBase {
 
       managedProperties: {
         type: Object,
-        observer: 'managedPropertiesChanged_',
+        observer: 'managedPropertiesChanged',
       },
 
       /**
@@ -131,23 +134,21 @@ export class NetworkApnListElement extends NetworkApnListElementBase {
     };
   }
 
-  declare disabled: boolean;
-  declare managedProperties: ManagedProperties|undefined;
-  declare private selectedApn_: string;
-  declare private apnSelectList_: ApnProperties[];
-  declare private otherApn_: ApnProperties;
-  declare private readonly otherApnFields_: string[];
-  declare private readonly otherApnEditTypes_: Record<string, string>;
-  declare private isAttachApnToggleEnabled_: boolean;
+  disabled: boolean;
+  managedProperties: ManagedProperties;
+  private otherApn_: ApnProperties;
+  private selectedApn_: string;
+  private apnSelectList_: ApnProperties[];
+  private isAttachApnToggleEnabled_: boolean;
 
-  /**
+  /*
    * Returns the select APN SelectElement.
    */
-  public getApnSelect(): HTMLSelectElement|null {
+  getApnSelect(): HTMLSelectElement|null {
     return this.shadowRoot!.querySelector<HTMLSelectElement>('#selectApn');
   }
 
-  public getApnFromManaged(apn: ManagedApnProperties): ApnProperties {
+  getApnFromManaged(apn: ManagedApnProperties): ApnProperties {
     return {
       // authentication and language are ignored in this UI.
       accessPointName: OncMojo.getActiveString(apn.accessPointName),
@@ -169,7 +170,7 @@ export class NetworkApnListElement extends NetworkApnListElementBase {
     };
   }
 
-  public getActiveApnFromProperties(managedProperties: ManagedProperties):
+  getActiveApnFromProperties(managedProperties: ManagedProperties):
       ApnProperties|undefined {
     const cellular = managedProperties.typeProperties.cellular;
     assert(cellular);
@@ -188,13 +189,11 @@ export class NetworkApnListElement extends NetworkApnListElementBase {
     return activeApn;
   }
 
-  public shouldUpdateSelectList(oldManagedProperties: ManagedProperties):
-      boolean {
+  shouldUpdateSelectList(oldManagedProperties: ManagedProperties): boolean {
     if (!oldManagedProperties) {
       return true;
     }
 
-    assert(this.managedProperties);
     const newActiveApn =
         this.getActiveApnFromProperties(this.managedProperties);
     const oldActiveApn = this.getActiveApnFromProperties(oldManagedProperties);
@@ -203,6 +202,7 @@ export class NetworkApnListElement extends NetworkApnListElementBase {
         (newActiveApn && !oldActiveApn) || (!newActiveApn && oldActiveApn)) {
       return true;
     }
+    assert(this.managedProperties);
 
     const newApnList = this.managedProperties.typeProperties.cellular!.apnList;
     const oldApnList = oldManagedProperties.typeProperties.cellular!.apnList;
@@ -222,15 +222,20 @@ export class NetworkApnListElement extends NetworkApnListElementBase {
     return false;
   }
 
-  public isApnItemSelected(item: ApnProperties): boolean {
-    return item.accessPointName === this.selectedApn_;
+  managedPropertiesChanged(
+      managedProperties: ManagedProperties,
+      oldManagedProperties: ManagedProperties): void {
+    if (!this.shouldUpdateSelectList(oldManagedProperties)) {
+      return;
+    }
+    this.setApnSelectList(this.getActiveApnFromProperties(managedProperties));
   }
 
   /**
    * Sets the list of selectable APNs for the UI. Appends an 'Other' entry
    * (see comments for |otherApn_| above).
    */
-  public setApnSelectList(activeApn: ApnProperties|undefined): void {
+  setApnSelectList(activeApn: ApnProperties|undefined) {
     const apnList = this.generateApnList();
     if (apnList === undefined || apnList.length === 0) {
       // Show other APN when no APN list property is available.
@@ -289,7 +294,7 @@ export class NetworkApnListElement extends NetworkApnListElementBase {
     this.setSelectedApn();
   }
 
-  public async setSelectedApn(): Promise<void> {
+  async setSelectedApn() {
     this.getApnSelect()!.value = this.selectedApn_;
   }
 
@@ -298,7 +303,7 @@ export class NetworkApnListElement extends NetworkApnListElementBase {
    * property is not set. All entries in the returned copy will have nonempty
    * name and accessPointName properties.
    */
-  public generateApnList(): ApnProperties[]|undefined {
+  generateApnList(): ApnProperties[]|undefined {
     if (!this.managedProperties) {
       return undefined;
     }
@@ -327,63 +332,9 @@ export class NetworkApnListElement extends NetworkApnListElementBase {
   }
 
   /**
-   * Attempts to send the apn-change event. Returns true if it succeeds.
-   * @param name The APN name property.
-   */
-  public sendApnChange(name: string): boolean {
-    let apn: ApnProperties|undefined;
-    if (name === kOtherAccessPointName) {
-      if (!this.otherApn_.accessPointName ||
-          this.otherApn_.accessPointName === kDefaultAccessPointName) {
-        // No valid APN set, do nothing.
-        return false;
-      }
-      apn = {
-        accessPointName: this.otherApn_.accessPointName,
-        username: this.otherApn_.username,
-        password: this.otherApn_.password,
-        attach: this.isAttachApnToggleEnabled_ ? OncMojo.USE_ATTACH_APN_NAME :
-                                                 '',
-        id: null,
-        authentication: ApnAuthenticationType.kAutomatic,
-        language: null,
-        localizedName: null,
-        name: null,
-        state: ApnState.kEnabled,
-        ipType: ApnIpType.kAutomatic,
-        apnTypes: [ApnType.kDefault],
-        source: ApnSource.kUi,
-      };
-    } else {
-      apn = this.apnSelectList_.find(a => a.name === name);
-      if (apn === undefined) {
-        // Potential edge case if an update is received before this is invoked.
-        console.error('Selected APN not in list');
-        return false;
-      }
-    }
-    // Add required field with a default value since it's unused when
-    // kApnRevamp=false.
-    apn!.apnTypes = [ApnType.kDefault];
-    this.dispatchEvent(
-        new CustomEvent<ApnProperties>('apn-change', {detail: apn}));
-    return true;
-  }
-
-  private managedPropertiesChanged_(
-      managedProperties: ManagedProperties|undefined,
-      oldManagedProperties: ManagedProperties): void {
-    if (!managedProperties ||
-        !this.shouldUpdateSelectList(oldManagedProperties)) {
-      return;
-    }
-    this.setApnSelectList(this.getActiveApnFromProperties(managedProperties));
-  }
-
-  /**
    * Event triggered when the selectApn selection changes.
    */
-  private onSelectApnChange_(event: Event): void {
+  private onSelectApnChange_(event: Event) {
     const target = (event.target) as HTMLSelectElement;
     const name = target!.value;
     // When selecting 'Other', don't send a change event unless a valid
@@ -423,6 +374,50 @@ export class NetworkApnListElement extends NetworkApnListElementBase {
     }
   }
 
+  /**
+   * Attempts to send the apn-change event. Returns true if it succeeds.
+   * @param name The APN name property.
+   */
+  sendApnChange(name: string): boolean {
+    let apn: ApnProperties|undefined;
+    if (name === kOtherAccessPointName) {
+      if (!this.otherApn_.accessPointName ||
+          this.otherApn_.accessPointName === kDefaultAccessPointName) {
+        // No valid APN set, do nothing.
+        return false;
+      }
+      apn = {
+        accessPointName: this.otherApn_.accessPointName,
+        username: this.otherApn_.username,
+        password: this.otherApn_.password,
+        attach: this.isAttachApnToggleEnabled_ ? OncMojo.USE_ATTACH_APN_NAME :
+                                                 '',
+        id: null,
+        authentication: ApnAuthenticationType.kAutomatic,
+        language: null,
+        localizedName: null,
+        name: null,
+        state: ApnState.kEnabled,
+        ipType: ApnIpType.kAutomatic,
+        apnTypes: [ApnType.kDefault],
+        source: ApnSource.kUi,
+      };
+    } else {
+      apn = this.apnSelectList_.find(a => a.name === name);
+      if (apn === undefined) {
+        // Potential edge case if an update is received before this is invoked.
+        console.error('Selected APN not in list');
+        return false;
+      }
+    }
+    // Add required field with a default value since it's unused when
+    // kApnRevamp=false.
+    apn!.apnTypes = [ApnType.kDefault];
+    this.dispatchEvent(
+        new CustomEvent<ApnProperties>('apn-change', {detail: apn}));
+    return true;
+  }
+
   private isDisabled_(): boolean {
     return this.disabled || this.selectedApn_ === '';
   }
@@ -434,6 +429,10 @@ export class NetworkApnListElement extends NetworkApnListElementBase {
   private apnDesc_(apn: ApnProperties): string|undefined {
     assert(apn.name);
     return apn.localizedName || apn.name;
+  }
+
+  isApnItemSelected(item: ApnProperties): boolean {
+    return item.accessPointName === this.selectedApn_;
   }
 }
 

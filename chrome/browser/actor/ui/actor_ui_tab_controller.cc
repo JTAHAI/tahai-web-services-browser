@@ -4,7 +4,6 @@
 
 #include "chrome/browser/actor/ui/actor_ui_tab_controller.h"
 
-#include "base/check_op.h"
 #include "base/functional/bind.h"
 #include "base/functional/concurrent_closures.h"
 #include "base/task/single_thread_task_runner.h"
@@ -52,19 +51,9 @@ ActorUiTabController::ActorUiTabController(
   CHECK(base::FeatureList::IsEnabled(features::kGlicActorUi));
   CHECK(base::FeatureList::IsEnabled(features::kGlicActor));
   CHECK(actor_keyed_service_);
-  RegisterTabSubscriptions();
 }
 
 ActorUiTabController::~ActorUiTabController() = default;
-
-void ActorUiTabController::RegisterTabSubscriptions() {
-  if (base::FeatureList::IsEnabled(
-          features::kGlicHandoffButtonHideWhenModalUIShown)) {
-    tab_subscriptions_.push_back(
-        tab_->RegisterModalUIChanged(base::BindRepeating(
-            &ActorUiTabController::OnModalUIChanged, base::Unretained(this))));
-  }
-}
 
 void ActorUiTabController::OnUiTabStateChange(const UiTabState& ui_tab_state,
                                               UiResultCallback callback) {
@@ -79,6 +68,19 @@ void ActorUiTabController::OnUiTabStateChange(const UiTabState& ui_tab_state,
 
   current_ui_tab_state_ = ui_tab_state;
   UpdateUi(std::move(callback));
+}
+
+[[nodiscard]] base::ScopedClosureRunner
+ActorUiTabController::RegisterActorTabIndicatorStateChangedCallback(
+    ActorTabIndicatorStateChangedCallback callback) {
+  // Crash if attempting to register a null callback, or if a callback is
+  // already registered.
+  CHECK(!callback.is_null());
+  CHECK(on_actor_tab_indicator_changed_callback_.is_null());
+  on_actor_tab_indicator_changed_callback_ = std::move(callback);
+  return base::ScopedClosureRunner(base::BindOnce(
+      &ActorUiTabController::UnregisterActorTabIndicatorStateChange,
+      weak_factory_.GetWeakPtr()));
 }
 
 [[nodiscard]] base::ScopedClosureRunner
@@ -115,12 +117,11 @@ void ActorUiTabController::SetActorTabIndicatorVisibility(
   // alert migrates away from the GLIC_ACCESSING resources.
   if (tab_indicator_ != tab_indicator_status) {
     tab_indicator_ = tab_indicator_status;
-    if (NotifyActorTabIndicatorStateChanged(tab_indicator_)) {
+    if (on_actor_tab_indicator_changed_callback_) {
+      on_actor_tab_indicator_changed_callback_.Run(tab_indicator_);
       // Notify tab strip model of state change.
-      if (auto* browser_window = tab_->GetBrowserWindowInterface()) {
-        browser_window->GetTabStripModel()->NotifyTabChanged(
-            base::to_address(tab_), TabChangeType::kAll);
-      }
+      tab_->GetBrowserWindowInterface()->GetTabStripModel()->NotifyTabChanged(
+          base::to_address(tab_), TabChangeType::kAll);
     }
   }
   std::move(callback).Run();
@@ -195,12 +196,6 @@ bool ActorUiTabController::ComputeActorOverlayVisibility() {
 }
 
 bool ActorUiTabController::ComputeHandoffButtonVisibility() {
-  if (base::FeatureList::IsEnabled(
-          features::kGlicHandoffButtonHideWhenModalUIShown) &&
-      !tab_->CanShowModalUI()) {
-    return false;
-  }
-
   // TODO(crbug.com/436662421): Clean up this null check for
   // ActorUiWindowController. The GetImmersiveModeController call is done
   // on the BrowserView, which causes crashes in test scenarios where the
@@ -277,11 +272,6 @@ void ActorUiTabController::OnWindowOmniboxPopupVisibilityChanged() {
                           "OnWindowOmniboxPopupVisibilityChanged"));
 }
 
-void ActorUiTabController::OnModalUIChanged(tabs::TabInterface* tab) {
-  DCHECK_EQ(tab, base::to_address(tab_));
-  UpdateUi(base::BindOnce(&LogAndIgnoreCallbackError, "OnModalUIChanged"));
-}
-
 void ActorUiTabController::OnOverlayHoverStatusChanged(bool is_hovering) {
   is_overlay_hovered_ = is_hovering;
   update_scrim_background_debounce_timer_.Reset();
@@ -297,6 +287,10 @@ void ActorUiTabController::UnregisterActorOverlayStateChange() {
 
 void ActorUiTabController::UnregisterActorOverlayBackgroundChange() {
   actor_overlay_background_changed_callback_.Reset();
+}
+
+void ActorUiTabController::UnregisterActorTabIndicatorStateChange() {
+  on_actor_tab_indicator_changed_callback_.Reset();
 }
 
 void ActorUiTabController::UnregisterHandoffButtonController() {

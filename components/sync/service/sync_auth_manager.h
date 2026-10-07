@@ -7,9 +7,7 @@
 
 #include <memory>
 #include <string>
-#include <vector>
 
-#include "base/functional/callback.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/scoped_observation.h"
@@ -109,11 +107,6 @@ class SyncAuthManager : public signin::IdentityManager::Observer {
   // Returns the state of the access token and token request, for display in
   // internals UI.
   SyncTokenStatus GetSyncTokenStatus() const;
-
-  // Requests an access token. runs `callback` with the result (can be called
-  // synchronously or asynchronously).
-  void FetchAccessToken(
-      base::OnceCallback<void(signin::AccessTokenInfo)> callback);
 
   // Called by SyncServiceImpl when Sync starts up and will try talking to
   // the server soon. This initiates fetching an access token.
@@ -221,8 +214,6 @@ class SyncAuthManager : public signin::IdentityManager::Observer {
 
   void SetLastAuthError(const GoogleServiceAuthError& error);
 
-  void NotifyAccessTokenCallbacks(const signin::AccessTokenInfo& token);
-
   const raw_ptr<signin::IdentityManager> identity_manager_;
   base::ScopedObservation<signin::IdentityManager,
                           signin::IdentityManager::Observer>
@@ -273,9 +264,6 @@ class SyncAuthManager : public signin::IdentityManager::Observer {
   // happen once during browser startup, so it's sufficient to have a single
   // retry (i.e. not per request).
   bool access_token_retried_ = false;
-
-  std::vector<base::OnceCallback<void(signin::AccessTokenInfo)>>
-      access_token_callbacks_;
 
   base::WeakPtrFactory<SyncAuthManager> weak_ptr_factory_{this};
 };

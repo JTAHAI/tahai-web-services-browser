@@ -12,7 +12,6 @@
 #include "chrome/browser/apps/app_shim/app_shim_manager_mac.h"
 #include "chrome/browser/ui/browser_command_controller.h"
 #include "chrome/browser/ui/browser_commands.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #import "chrome/browser/ui/cocoa/browser_window_command_handler.h"
 #import "chrome/browser/ui/cocoa/chrome_command_dispatcher_delegate.h"
 #include "components/input/native_web_keyboard_event.h"
@@ -27,7 +26,7 @@
 
 namespace {
 
-AppShimHost* GetHostForBrowser(BrowserWindowInterface* browser) {
+AppShimHost* GetHostForBrowser(Browser* browser) {
   auto* const shim_manager = apps::AppShimManager::Get();
   CHECK(browser);
   if (!shim_manager) {
@@ -72,8 +71,7 @@ bool WebUIBrowserWindow::HandleKeyboardEvent(
 // Note that the logic here is often derived from BrowserNativeWidgetMac.
 class WebUIBrowserNativeWidgetMac : public views::NativeWidgetMac {
  public:
-  WebUIBrowserNativeWidgetMac(BrowserWindowInterface* browser,
-                              views::Widget* widget)
+  WebUIBrowserNativeWidgetMac(Browser* browser, views::Widget* widget)
       : NativeWidgetMac(widget), browser_(browser) {}
 
  private:
@@ -129,8 +127,8 @@ class WebUIBrowserNativeWidgetMac : public views::NativeWidgetMac {
       // on macOS.
       input::NativeWebKeyboardEvent dummy_event(
           blink::WebInputEvent::Type::kKeyDown, 0, base::TimeTicks());
-      if (!chrome::BrowserCommandController::From(browser_)
-               ->IsReservedCommandOrKey(command, dummy_event)) {
+      if (!browser_->command_controller()->IsReservedCommandOrKey(
+              command, dummy_event)) {
         return false;
       }
     }
@@ -179,7 +177,7 @@ class WebUIBrowserNativeWidgetMac : public views::NativeWidgetMac {
     *titlebar_height = 40;
   }
 
-  raw_ptr<BrowserWindowInterface> browser_;
+  raw_ptr<Browser> browser_;
 };
 
 views::NativeWidget* WebUIBrowserWindow::CreateNativeWidget() {

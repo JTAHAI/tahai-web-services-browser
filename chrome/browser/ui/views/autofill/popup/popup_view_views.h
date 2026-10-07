@@ -43,7 +43,6 @@ namespace autofill {
 
 class AutofillPopupController;
 class PopupBnplFootnoteView;
-class PopupCenteredTextView;
 class PopupSeparatorView;
 class PopupTitleView;
 class PopupWarningView;
@@ -82,8 +81,6 @@ class PopupViewViews : public PopupBaseView,
   DECLARE_CLASS_ELEMENT_IDENTIFIER_VALUE(
       kAutofillCreditCardSuggestionEntryElementId);
   DECLARE_CLASS_ELEMENT_IDENTIFIER_VALUE(kAutofillAiOptInIphElementId);
-  DECLARE_CLASS_ELEMENT_IDENTIFIER_VALUE(
-      kAutofillWalletDirectOffersIphElementId);
   DECLARE_CLASS_ELEMENT_IDENTIFIER_VALUE(kAutofillAiValuablesElementId);
   DECLARE_CLASS_ELEMENT_IDENTIFIER_VALUE(
       kAutofillStandaloneCvcSuggestionElementId);
@@ -99,22 +96,13 @@ class PopupViewViews : public PopupBaseView,
                                   PopupTitleView*,
                                   PopupWarningView*,
                                   PopupLoadingView*,
-                                  PopupCenteredTextView*,
                                   PopupBnplFootnoteView*>;
 
   // The maximum width of the popup.
   static constexpr int kAutofillPopupMaxWidth = 456;
 
-  // The maximum width of an Autofill AI sub-popup.
-  static constexpr int kAutofillAiSubPopupMaxWidth = 320;
-
-  // The width of the AtMemory popup.
+  // The width of the @memory popup.
   static constexpr int kAtMemoryPopupWidth = 320;
-
-  // The maximum number of entries shown before making the popup scrollable. A
-  // decimal number means the last element will appear "cut-off" to indicate
-  // the scroll area.
-  static constexpr double kAutofillPopupMaxVisibleEntries = 5.3;
 
   // The time it takes for a selected cell to open a sub-popup if it has one.
   static constexpr base::TimeDelta kMouseOpenSubPopupDelay =
@@ -213,8 +201,12 @@ class PopupViewViews : public PopupBaseView,
   // metadata.
   void ShowIPHFeaturePromos();
 
-  // Automatically selects the first interactive row in the popup.
-  void AutoSelectFirstSuggestion();
+  // Automatically selects the first interactive row in the popup (or
+  // clears/skips selection) if required by trigger source or suggestion type
+  // default.
+  void MaybeAutoSelectSuggestion(
+      AutoselectFirstSuggestion force_by_trigger_source =
+          AutoselectFirstSuggestion(false));
 
   // If the current suggestions are for password recovery, announces it to the
   // user.
@@ -303,7 +295,7 @@ class PopupViewViews : public PopupBaseView,
       const input::NativeWebKeyboardEvent& event);
 
   // Reacts to key events under the assumption that the currently shown popup
-  // contains AtMemory content.
+  // contains @memory content.
   bool HandleKeyPressEventForAtMemory(
       const input::NativeWebKeyboardEvent& event);
 
@@ -348,10 +340,6 @@ class PopupViewViews : public PopupBaseView,
   // sub-popup. This closes the sub-popup and has the effect of going one menu
   // level up. Returns whether this was successful.
   bool SelectParentPopupContentCell();
-
-  // Schedules or stops closing of the open sub-popup.
-  void ScheduleSubPopupClosing();
-  void StopSubPopupClosing();
 
   // The popup can be used for informing the user without providing suggestions
   // to select, e.g. when the suggestions are loading. It has only one

@@ -16,12 +16,12 @@ LayoutInlineListItem::LayoutInlineListItem(Element* element)
   View()->AddLayoutListItem();
 }
 
-void LayoutInlineListItem::WillBeDestroyed(const ComputedStyle* style) {
+void LayoutInlineListItem::WillBeDestroyed() {
   NOT_DESTROYED();
   if (View()) {
     View()->RemoveLayoutListItem();
   }
-  LayoutInline::WillBeDestroyed(style);
+  LayoutInline::WillBeDestroyed();
 }
 
 const char* LayoutInlineListItem::GetName() const {
@@ -54,10 +54,8 @@ void LayoutInlineListItem::UpdateMarkerTextIfNeeded() {
 void LayoutInlineListItem::StyleDidChange(
     StyleDifference diff,
     const ComputedStyle* old_style,
-    const ComputedStyle& new_style,
     const StyleChangeContext& style_change_context) {
-  LayoutInline::StyleDidChange(diff, old_style, new_style,
-                               style_change_context);
+  LayoutInline::StyleDidChange(diff, old_style, style_change_context);
 
   LayoutObject* marker = Marker();
   auto* list_marker = ListMarker::Get(marker);
@@ -68,7 +66,7 @@ void LayoutInlineListItem::StyleDidChange(
 
   if (old_style) {
     const ListStyleTypeData* old_list_style_type = old_style->ListStyleType();
-    const ListStyleTypeData* new_list_style_type = new_style.ListStyleType();
+    const ListStyleTypeData* new_list_style_type = StyleRef().ListStyleType();
     if (old_list_style_type != new_list_style_type &&
         (!old_list_style_type || !new_list_style_type ||
          *old_list_style_type != *new_list_style_type)) {

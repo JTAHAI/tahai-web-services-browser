@@ -19,6 +19,8 @@ import org.chromium.build.annotations.NullMarked;
 import org.chromium.ui.modelutil.PropertyModel;
 import org.chromium.ui.modelutil.PropertyModelChangeProcessor;
 
+import java.util.Locale;
+
 /**
  * Internal Mediator for the page zoom feature. Created by the |PageZoomIndicatorCoordinator|, and
  * should not be accessed outside the component.
@@ -27,6 +29,7 @@ import org.chromium.ui.modelutil.PropertyModelChangeProcessor;
 class PageZoomIndicatorMediator {
     private final PropertyModel mModel;
     private final PageZoomManager mManager;
+    private double mDefaultZoomFactor;
 
     PageZoomIndicatorMediator(PageZoomManager manager) {
         mManager = manager;
@@ -48,8 +51,10 @@ class PageZoomIndicatorMediator {
     }
 
     /** Sets the initial state of the model. */
-    void pushProperties() {
+    protected void pushProperties() {
         updateZoomPercentage();
+        mDefaultZoomFactor = mManager.getDefaultZoomLevel();
+        mModel.set(PageZoomProperties.DEFAULT_ZOOM_FACTOR, mDefaultZoomFactor);
     }
 
     /** Updates the zoom percentage text and button states for the current zoom factor. */
@@ -71,8 +76,18 @@ class PageZoomIndicatorMediator {
 
     @VisibleForTesting
     void handleResetClicked() {
-        mManager.resetZoomLevel();
-        updateZoomPercentage();
+        mManager.setZoomLevel(mDefaultZoomFactor);
+        updateZoomPercentageText(mDefaultZoomFactor);
+        updateButtonStates(mDefaultZoomFactor);
+    }
+
+    @VisibleForTesting
+    boolean isZoomLevelDefault() {
+        return Math.abs(mManager.getZoomLevel() - mManager.getDefaultZoomLevel()) < 0.0001;
+    }
+
+    boolean isCurrentTabNull() {
+        return mManager.isCurrentTabNull();
     }
 
     PopupWindow buildPopupWindow(View view, OnDismissListener onDismissListener) {
@@ -114,22 +129,27 @@ class PageZoomIndicatorMediator {
     }
 
     private void updateButtonStates(double newZoomFactor) {
+        // If the new zoom factor is greater than the minimum zoom factor, enable decrease button.
         mModel.set(
                 PageZoomProperties.DECREASE_ZOOM_ENABLED,
-                PageZoomUtils.canDecreaseZoom(newZoomFactor));
+                newZoomFactor > AVAILABLE_ZOOM_FACTORS[0]);
+
+        // If the new zoom factor is less than the maximum zoom factor, enable increase button.
         mModel.set(
                 PageZoomProperties.INCREASE_ZOOM_ENABLED,
-                PageZoomUtils.canIncreaseZoom(newZoomFactor));
+                newZoomFactor < AVAILABLE_ZOOM_FACTORS[AVAILABLE_ZOOM_FACTORS.length - 1]);
     }
 
     private void updateZoomPercentageText(double newZoomFactor) {
+        long readableZoomLevel =
+                Math.round(100 * PageZoomUtils.convertZoomFactorToZoomLevel(newZoomFactor));
         mModel.set(
                 PageZoomProperties.ZOOM_PERCENT_TEXT,
-                PageZoomUtils.formatZoomPercentage(newZoomFactor));
+                String.format(Locale.US, "%d%%", readableZoomLevel));
     }
 
     // Testing
-    PropertyModel getModelForTesting() {
+    public PropertyModel getModelForTesting() {
         return mModel;
     }
 }

@@ -10,15 +10,23 @@
 #include <utility>
 #include <vector>
 
+#include "base/command_line.h"
+#include "base/feature_list.h"
 #include "base/functional/bind.h"
+#include "base/logging.h"
+#include "base/metrics/histogram_functions.h"
 #include "base/values.h"
 #include "build/build_config.h"
 #include "components/feed/core/shared_prefs/pref_names.h"
 #include "components/policy/core/common/policy_pref_names.h"
 #include "components/prefs/pref_value_map.h"
+#include "components/safe_search_api/safe_search_util.h"
 #include "components/signin/public/base/signin_pref_names.h"
+#include "components/signin/public/base/signin_switches.h"
 #include "components/supervised_user/core/browser/device_parental_controls.h"
 #include "components/supervised_user/core/browser/family_link_settings_service.h"
+#include "components/supervised_user/core/browser/supervised_user_utils.h"
+#include "components/supervised_user/core/common/features.h"
 #include "components/supervised_user/core/common/pref_names.h"
 #include "components/supervised_user/core/common/supervised_user_constants.h"
 #include "components/sync/base/user_selectable_type.h"
@@ -27,6 +35,14 @@
 
 namespace supervised_user {
 namespace {
+
+const char kSupervisionConflictHistogramName[] =
+    "SupervisedUsers.FamilyLinkSupervisionConflict";
+enum class SupervisionHasConflict : int {
+  kNoConflict = 0,
+  kHasConflict = 1,
+  kMaxValue = kHasConflict,
+};
 
 struct FamilyLinkSettingsPrefMappingEntry {
   const char* settings_name;
@@ -71,6 +87,13 @@ FamilyLinkSettingsPrefMappingEntry kFamilyLinkWebFilteringPrefMapping[] = {
 }  // namespace
 
 void SetSupervisedUserPrefStoreDefaults(PrefValueMap& pref_values) {
+  if (!base::FeatureList::IsEnabled(
+          supervised_user::kSupervisedUserUseUrlFilteringService)) {
+    pref_values.SetInteger(
+        prefs::kDefaultSupervisedUserFilteringBehavior,
+        static_cast<int>(supervised_user::FilteringBehavior::kAllow));
+    pref_values.SetBoolean(prefs::kSupervisedUserSafeSites, true);
+  }
 
   pref_values.SetBoolean(policy::policy_prefs::kHideWebStoreIcon, false);
   pref_values.SetBoolean(feed::prefs::kEnableSnippets, false);
@@ -210,20 +233,50 @@ void SupervisedUserPrefStore::RecreatePreferences() {
                          !permissions_disallowed);
     }
 #endif  // BUILDFLAG(ENABLE_EXTENSIONS_CORE)
+
+    // Apparently two parental controls systems are enabled at the same time.
+    // This is considered a conflict which in versions before
+    // kSupervisedUserUseUrlFilteringService and
+    // kSupervisedUserMergeDeviceParentalControlsAndFamilyLinkPrefs was resolved
+    // in favor of Family Link settings.
+    if (device_parental_controls_state_.is_enabled) {
+      base::UmaHistogramEnumeration(
+          supervised_user::kSupervisionConflictHistogramName,
+          supervised_user::SupervisionHasConflict::kHasConflict);
+    }
   }
 
-  // Merge device parental controls settings with the Family Link settings.
+  // Merge device parental controls settings with the Family Link settings in
+  // one of two situations:
+  // 1. Family Link is not enabled (old behavior).
+  // 2. Family Link is enabled, and new merging feature is enabled too.
   // The merge policy is to select the most restrictive setting.
-  if (device_parental_controls_state_.is_incognito_mode_disabled) {
-    // IncognitoModeAvailability::kDisabled is the most restrictive setting -
-    // it's safe to apply it regardless of the Family Link settings.
-    prefs_->SetInteger(
-        policy::policy_prefs::kIncognitoModeAvailability,
-        static_cast<int>(policy::IncognitoModeAvailability::kDisabled));
+  if (!is_family_link_settings_service_active ||
+      base::FeatureList::IsEnabled(
+          supervised_user::
+              kSupervisedUserMergeDeviceParentalControlsAndFamilyLinkPrefs)) {
+    if (device_parental_controls_state_.is_incognito_mode_disabled) {
+      // IncognitoModeAvailability::kDisabled is the most restrictive setting -
+      // it's safe to apply it regardless of the Family Link settings.
+      prefs_->SetInteger(
+          policy::policy_prefs::kIncognitoModeAvailability,
+          static_cast<int>(policy::IncognitoModeAvailability::kDisabled));
+    }
+    if (device_parental_controls_state_.is_safe_search_forced) {
+      // kForceGoogleSafeSearch=true is also the most restrictive setting.
+      prefs_->SetBoolean(policy::policy_prefs::kForceGoogleSafeSearch, true);
+    }
   }
-  if (device_parental_controls_state_.is_safe_search_forced) {
-    // kForceGoogleSafeSearch=true is also the most restrictive setting.
-    prefs_->SetBoolean(policy::policy_prefs::kForceGoogleSafeSearch, true);
+
+  // Web filtering prefs are being deprecated: only merge them if device
+  // parental controls are mutually exclusive with family link settings and new
+  // way of delivering the web filtering settings is not enabled.
+  if (!is_family_link_settings_service_active &&
+      !base::FeatureList::IsEnabled(
+          supervised_user::kSupervisedUserUseUrlFilteringService)) {
+    if (device_parental_controls_state_.is_web_filtering_enabled) {
+      prefs_->SetBoolean(prefs::kSupervisedUserSafeSites, true);
+    }
   }
 
   // Unset `old_prefs` means that this is the first notification from the

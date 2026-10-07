@@ -145,9 +145,9 @@ public class SerializationTest {
 
         ByteBuffer buf = input.serialize();
 
-        byte[] expectedRawBytes = {16, 0, 0, 0, 0, 0, 0, 0, 0x7F, 0, 0, 0, 0, 0, 0, 0};
-        ByteBuffer expectedBuf = ByteBuffer.wrap(expectedRawBytes);
-        Assert.assertEquals(expectedBuf, buf);
+        byte[] expected_raw_bytes = {16, 0, 0, 0, 0, 0, 0, 0, 0x7F, 0, 0, 0, 0, 0, 0, 0};
+        ByteBuffer expected_buf = ByteBuffer.wrap(expected_raw_bytes);
+        Assert.assertEquals(expected_buf, buf);
 
         Struct1 output = Struct1.deserialize(buf);
         Assert.assertEquals(0x7F, output.i);

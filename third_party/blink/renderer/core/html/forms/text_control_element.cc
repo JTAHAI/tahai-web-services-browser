@@ -878,15 +878,12 @@ void TextControlElement::SelectionChanged(bool user_triggered) {
   if (!GetLayoutObject() || !IsTextControl())
     return;
 
-  // The cached selection is authoritative when ShouldApplySelectionCache() is
-  // true, so only refresh it from the live DOM selection otherwise.
-  if (!ShouldApplySelectionCache() ||
-      !RuntimeEnabledFeatures::PreserveUnfocusedSelectionCacheEnabled()) {
-    ComputedSelection computed_selection;
-    ComputeSelection(kStart | kEnd | kDirection, computed_selection);
-    CacheSelection(computed_selection.start, computed_selection.end,
-                   computed_selection.direction);
-  }
+  // selectionStart() or selectionEnd() will return cached selection when this
+  // node doesn't have focus.
+  ComputedSelection computed_selection;
+  ComputeSelection(kStart | kEnd | kDirection, computed_selection);
+  CacheSelection(computed_selection.start, computed_selection.end,
+                 computed_selection.direction);
 
   LocalFrame* frame = GetDocument().GetFrame();
   if (!frame || !user_triggered)
@@ -994,7 +991,9 @@ Node* TextControlElement::CreatePlaceholderBreakElement() const {
   auto* element = MakeGarbageCollected<HTMLBRElement>(GetDocument());
   element->setAttribute(html_names::kIdAttr,
                         shadow_element_names::kIdPlaceholderBreak);
-  element->setAttribute(html_names::kAriaHiddenAttr, keywords::kTrue);
+  if (RuntimeEnabledFeatures::TextAreaEmptyPlaceholderBreakEnabled()) {
+    element->setAttribute(html_names::kAriaHiddenAttr, keywords::kTrue);
+  }
   return element;
 }
 
@@ -1034,7 +1033,8 @@ void TextControlElement::AdjustPlaceholderBreakElement() {
     }
     return;
   }
-  if (!last_child && IsA<HTMLTextAreaElement>(this)) {
+  if (RuntimeEnabledFeatures::TextAreaEmptyPlaceholderBreakEnabled() &&
+      !last_child && IsA<HTMLTextAreaElement>(this)) {
     // We need a placeholder break for an empty value in order to provide one
     // line-height and a baseline even if this element is not editable.
     inner_editor->AppendChild(CreatePlaceholderBreakElement());

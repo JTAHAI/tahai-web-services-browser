@@ -1,2 +1,3 @@
-rules:
-- "**": [fetchlater]
+features:
+- name: fetchlater
+  files: "**"

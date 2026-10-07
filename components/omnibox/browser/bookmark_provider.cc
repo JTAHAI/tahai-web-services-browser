@@ -21,7 +21,6 @@
 #include "components/omnibox/browser/match_compare.h"
 #include "components/omnibox/browser/omnibox_field_trial.h"
 #include "components/omnibox/browser/omnibox_triggered_feature_service.h"
-#include "components/omnibox/browser/page_classification_functions.h"
 #include "components/omnibox/browser/scoring_functor.h"
 #include "components/omnibox/browser/titled_url_match_utils.h"
 #include "components/prefs/pref_service.h"
@@ -45,12 +44,6 @@ void BookmarkProvider::Start(const AutocompleteInput& input,
                              bool minimal_changes) {
   TRACE_EVENT0("omnibox", "BookmarkProvider::Start");
   matches_.clear();
-
-  // Tab search does not support bookmark suggestions.
-  if (input.current_page_classification() ==
-      metrics::OmniboxEventProto::ANDROID_TAB_SEARCH_OVERLAY) {
-    return;
-  }
 
   if (input.IsZeroSuggest() || input.text().empty()) {
     return;
@@ -122,8 +115,8 @@ void BookmarkProvider::DoAutocomplete(const AutocompleteInput& input) {
         match.fill_into_edit.insert(0, match.keyword + u" ");
       }
 
-      if (omnibox::IsAndroidHubOrTabSearch(
-              input.current_page_classification())) {
+      if (input.current_page_classification() ==
+          metrics::OmniboxEventProto_PageClassification_ANDROID_HUB) {
         match.suggestion_group_id = omnibox::GROUP_MOBILE_BOOKMARKS;
       }
 
@@ -142,7 +135,8 @@ void BookmarkProvider::DoAutocomplete(const AutocompleteInput& input) {
   size_t num_matches = std::min(matches_.size(), max_matches);
   std::partial_sort(matches_.begin(), matches_.begin() + num_matches,
                     matches_.end(), AutocompleteMatch::MoreRelevant);
-  if (!omnibox::IsAndroidHubOrTabSearch(input.current_page_classification())) {
+  if (input.current_page_classification() !=
+      PageClassification::OmniboxEventProto_PageClassification_ANDROID_HUB) {
     ResizeMatches(
         num_matches,
         OmniboxFieldTrial::IsMlUrlScoringUnlimitedNumCandidatesEnabled());
@@ -151,7 +145,8 @@ void BookmarkProvider::DoAutocomplete(const AutocompleteInput& input) {
 
 query_parser::MatchingAlgorithm BookmarkProvider::GetMatchingAlgorithm(
     AutocompleteInput input) {
-  if (omnibox::IsAndroidHubOrTabSearch(input.current_page_classification())) {
+  if (input.current_page_classification() ==
+      PageClassification::OmniboxEventProto_PageClassification_ANDROID_HUB) {
     return query_parser::MatchingAlgorithm::ALWAYS_PREFIX_SEARCH;
   }
 

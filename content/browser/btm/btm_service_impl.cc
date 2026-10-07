@@ -108,14 +108,11 @@ inline void UmaHistogramDeletion(BtmCookieMode mode, BtmDeletionAction action) {
 
 void RecordRedirectMetrics(const BtmRedirect& redirect,
                            const BtmRedirectChain& chain) {
-  CHECK(redirect.site_had_user_activation.has_value(),
-        base::NotFatalUntil::M158);
-  CHECK(redirect.site_had_webauthn_assertion.has_value(),
-        base::NotFatalUntil::M158);
-  CHECK(redirect.chain_id.has_value(), base::NotFatalUntil::M158);
-  CHECK(redirect.chain_index.has_value(), base::NotFatalUntil::M158);
-  CHECK_LT(redirect.chain_index.value(), chain.length,
-           base::NotFatalUntil::M158);
+  DCHECK(redirect.site_had_user_activation.has_value());
+  DCHECK(redirect.site_had_webauthn_assertion.has_value());
+  DCHECK(redirect.chain_id.has_value());
+  DCHECK(redirect.chain_index.has_value());
+  DCHECK_LT(redirect.chain_index.value(), chain.length);
 
   bool initial_site_same = (redirect.site == chain.initial_site);
   bool final_site_same = (redirect.site == chain.final_site);
@@ -202,7 +199,7 @@ class StateClearer : public BrowsingDataRemover::Observer {
                           std::vector<std::string> sites_to_clear,
                           BrowsingDataRemover::DataType remove_mask,
                           base::OnceClosure callback) {
-    CHECK_CURRENTLY_ON(BrowserThread::UI, base::NotFatalUntil::M158);
+    DCHECK_CURRENTLY_ON(BrowserThread::UI);
 
     // This filter will match unpartitioned cookies and storage, as well as
     // storage (but not cookies) that is partitioned under tracking domains.
@@ -312,8 +309,7 @@ BtmService* BtmService::Get(BrowserContext* context) {
 BtmServiceImpl::BtmServiceImpl(base::PassKey<BrowserContextImpl>,
                                BrowserContext* context)
     : browser_context_(context) {
-  CHECK(base::FeatureList::IsEnabled(features::kBtm),
-        base::NotFatalUntil::M158);
+  DCHECK(base::FeatureList::IsEnabled(features::kBtm));
   base::FilePath btm_path = GetBtmFilePath(browser_context_);
   // This feature explicitly uses in-memory storage on WebEngine on Fuchsia to
   // avoid consuming too much storage space. WebEngine has only 2MB of storage
@@ -400,10 +396,10 @@ void BtmServiceImpl::HandleRedirectChain(
     std::vector<BtmRedirectPtr> redirects,
     BtmRedirectChainPtr chain,
     StatefulBounceCallback stateful_bounce_callback) {
-  CHECK_LE(redirects.size(), chain->length, base::NotFatalUntil::M158);
+  DCHECK_LE(redirects.size(), chain->length);
 
   if (redirects.empty()) {
-    CHECK(!chain->is_partial_chain, base::NotFatalUntil::M158);
+    DCHECK(!chain->is_partial_chain);
     for (auto& observer : observers_) {
       observer.OnChainHandled(redirects, chain);
     }
@@ -450,22 +446,20 @@ void BtmServiceImpl::HandleRedirects(
   for (size_t index = 0; index < redirects.size(); index++) {
     auto& redirect = *redirects[index];
 
-    CHECK(!redirect.site_had_user_activation.has_value(),
-          base::NotFatalUntil::M158);
+    DCHECK(!redirect.site_had_user_activation.has_value());
     redirect.site_had_user_activation =
         sites_with_user_activation.contains(redirect.site);
-    CHECK(!redirect.site_had_webauthn_assertion.has_value(),
-          base::NotFatalUntil::M158);
+    DCHECK(!redirect.site_had_webauthn_assertion.has_value());
     redirect.site_had_webauthn_assertion =
         sites_with_webauthn_assertion.contains(redirect.site);
-    CHECK(!redirect.chain_id.has_value(), base::NotFatalUntil::M158);
+    DCHECK(!redirect.chain_id.has_value());
     redirect.chain_id = chain->chain_id;
     // If the chain was too long, some redirects may have been trimmed already,
     // which would make `index` not the "true" index of the redirect in the
     // whole chain. `chain->length` is accurate though. `chain->length -
     // redirects.size()` is then the number of trimmed redirects; so add that to
     // `index` to get the "true" index to report in our metrics.
-    CHECK(!redirect.chain_index.has_value(), base::NotFatalUntil::M158);
+    DCHECK(!redirect.chain_index.has_value());
     redirect.chain_index = chain->length - redirects.size() + index;
 
     RecordRedirectMetrics(redirect, *chain);
@@ -622,7 +616,7 @@ void BtmServiceImpl::DeleteBtmEligibleState(
 
 void BtmServiceImpl::RunDeletionTaskOnUIThread(std::vector<std::string> sites,
                                                base::OnceClosure callback) {
-  CHECK_CURRENTLY_ON(BrowserThread::UI, base::NotFatalUntil::M158);
+  DCHECK_CURRENTLY_ON(BrowserThread::UI);
 
   uint64_t remove_mask = GetContentClient()->browser()->GetBtmRemoveMask();
 

@@ -21,9 +21,8 @@
 #include "chrome/browser/media/media_engagement_service.h"
 #include "chrome/browser/picture_in_picture/picture_in_picture_occlusion_tracker.h"
 #include "chrome/browser/picture_in_picture/picture_in_picture_window_manager.h"
-#include "chrome/browser/picture_in_picture/video_overlay_window.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/ui/browser_init_state.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "chrome/browser/ui/color/chrome_color_id.h"
@@ -63,7 +62,7 @@
 #include "ui/base/mojom/ui_base_types.mojom-shared.h"
 #include "ui/base/ui_base_features.h"
 #include "ui/compositor/compositor.h"
-#include "ui/compositor/layer_surface.h"
+#include "ui/compositor/layer.h"
 #include "ui/display/display.h"
 #include "ui/display/screen.h"
 #include "ui/gfx/canvas.h"
@@ -375,16 +374,14 @@ std::unique_ptr<VideoOverlayWindowViews> VideoOverlayWindowViews::Create(
       GlobalBrowserCollection::GetInstance()->FindBrowserWithTab(
           controller->GetWebContents());
   if (browser) {
+    Browser* raw_browser = browser->GetBrowserForMigrationOnly();
     const base::FilePath& profile_path = browser->GetProfile()->GetPath();
     // Set the window app id to GetAppUserModelIdForApp if the original window
     // is an app window, GetAppUserModelIdForBrowser if it's a browser window.
     app_user_model_id =
         browser->GetType() == BrowserWindowInterface::Type::TYPE_APP
             ? shell_integration::win::GetAppUserModelIdForApp(
-                  base::UTF8ToWide(BrowserInitState::From(browser)
-                                       ->create_params()
-                                       .app_name),
-                  profile_path)
+                  base::UTF8ToWide(raw_browser->app_name()), profile_path)
             : shell_integration::win::GetAppUserModelIdForBrowser(profile_path);
     if (!app_user_model_id.empty()) {
       ui::win::SetAppIdForWindow(
@@ -420,7 +417,8 @@ std::unique_ptr<VideoOverlayWindowViews> VideoOverlayWindowViews::Create(
 }
 
 // static
-std::unique_ptr<content::VideoOverlayWindow> CreateVideoOverlayWindow(
+std::unique_ptr<content::VideoOverlayWindow>
+content::VideoOverlayWindow::Create(
     content::VideoPictureInPictureWindowController* controller) {
   return VideoOverlayWindowViews::Create(controller);
 }
@@ -1284,7 +1282,7 @@ void VideoOverlayWindowViews::SetUpViews() {
 #endif
 
   // view::View that holds the video. -----------------------------------------
-  video_view->SetPaintToLayer(ui::LAYER_SURFACE);
+  video_view->SetPaintToLayer(ui::LAYER_TEXTURED);
   video_view->layer()->SetMasksToBounds(true);
   video_view->layer()->SetFillsBoundsOpaquely(false);
   video_view->layer()->SetName("VideoView");
@@ -1465,7 +1463,9 @@ void VideoOverlayWindowViews::UpdateLayerBoundsWithLetterboxing(
   window_background_view_->SetBoundsRect(
       gfx::Rect(gfx::Point(0, 0), GetBounds().size()));
   video_view_->SetBoundsRect(video_bounds);
-  video_view_->layer()->AsSurface()->SetSurfaceSize(video_bounds.size());
+  if (video_view_->layer()->HasExternalContent()) {
+    video_view_->layer()->SetSurfaceSize(video_bounds.size());
+  }
 
   if (IsOverlayViewShown()) {
     overlay_view_->SetBoundsRect(gfx::Rect(GetBounds().size()));
@@ -1979,12 +1979,12 @@ void VideoOverlayWindowViews::SetSurfaceId(const viz::SurfaceId& surface_id) {
   // Add the new frame sink to the PiP window and set the surface.
   GetCompositor()->AddChildFrameSink(surface_id.frame_sink_id());
   has_registered_frame_sink_hierarchy_ = true;
-  auto* video_surface = video_view_->layer()->AsSurface();
-  video_surface->SetFallbackBackgroundColor(SkColor4f::FromColor(
-      GetColorProvider()->GetColor(kColorPipWindowBackground)));
-  video_surface->SetShowSurface(surface_id, GetBounds().size(),
-                                cc::DeadlinePolicy::UseDefaultDeadline(),
-                                /*stretch_content_to_fill_bounds=*/true);
+  video_view_->layer()->SetShowSurface(
+      surface_id, GetBounds().size(),
+      SkColor4f::FromColor(
+          GetColorProvider()->GetColor(kColorPipWindowBackground)),
+      cc::DeadlinePolicy::UseDefaultDeadline(),
+      true /* stretch_content_to_fill_bounds */);
 }
 
 void VideoOverlayWindowViews::SetPlaybackControlsVisibility(bool is_visible) {
@@ -2329,8 +2329,8 @@ VideoOverlayWindowViews::initial_title_hide_timer_for_testing() {
 }
 
 const viz::FrameSinkId* VideoOverlayWindowViews::GetCurrentFrameSinkId() const {
-  if (auto* surface_id = video_view_->layer()->AsSurface()->GetSurfaceId()) {
-    return &surface_id->frame_sink_id();
+  if (auto* surface = video_view_->layer()->GetSurfaceId()) {
+    return &surface->frame_sink_id();
   }
 
   return nullptr;

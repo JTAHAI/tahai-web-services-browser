@@ -30,7 +30,6 @@ public class RecentSearchQueue extends LinkedHashMap<String, SettingsIndexData.E
     private static final int MAX_SIZE = 3;
 
     private @Nullable static RecentSearchQueue sInstance;
-    private boolean mDirty;
 
     /** Returns {@link RecentSearchQueue} instance. */
     public static RecentSearchQueue getInstance() {
@@ -40,32 +39,9 @@ public class RecentSearchQueue extends LinkedHashMap<String, SettingsIndexData.E
         return sInstance;
     }
 
-    private void addInternal(SettingsIndexData.Entry entry) {
-        put(entry.key, entry);
-    }
-
     /** Adds a new search entry to the recent search list. */
     public void add(SettingsIndexData.Entry entry) {
-        addInternal(entry);
-        mDirty = true;
-    }
-
-    private void clearInternal() {
-        super.clear();
-    }
-
-    @Override
-    public void clear() {
-        clearInternal();
-        mDirty = true;
-    }
-
-    /**
-     * Clears recent entries and immediately schedules the explicit user deletion for persistence.
-     */
-    public void clearAndPersist() {
-        clear();
-        flushIfDirty();
+        put(entry.key, entry);
     }
 
     @Override
@@ -75,18 +51,13 @@ public class RecentSearchQueue extends LinkedHashMap<String, SettingsIndexData.E
 
     @CalledByNative
     public static void deleteDiskData() {
-        if (sInstance != null) {
-            sInstance.clearInternal();
-            sInstance.mDirty = false;
-        }
+        if (sInstance != null) sInstance.clear();
         SharedPreferencesManager preferencesManager = ChromeSharedPreferences.getInstance();
         preferencesManager.removeKey(ChromePreferenceKeys.SETTINGS_RECENT_SEARCH_ENTRIES);
     }
 
-    /** Persists pending user mutations, if any. */
-    public void flushIfDirty() {
-        if (!mDirty) return;
-
+    /** Persist the recent entries to disk and reset cached data. */
+    public void persistToDiskAndReset() {
         JSONArray jsonArray = new JSONArray();
         for (SettingsIndexData.Entry entry : values()) {
             var obj = entry.toJsonObject();
@@ -95,13 +66,7 @@ public class RecentSearchQueue extends LinkedHashMap<String, SettingsIndexData.E
         SharedPreferencesManager preferencesManager = ChromeSharedPreferences.getInstance();
         preferencesManager.writeString(
                 ChromePreferenceKeys.SETTINGS_RECENT_SEARCH_ENTRIES, jsonArray.toString());
-        mDirty = false;
-    }
-
-    /** Persist the recent entries to disk and reset cached data. */
-    public void persistToDiskAndReset() {
-        flushIfDirty();
-        clearInternal();
+        clear();
         sInstance = null;
     }
 
@@ -126,7 +91,7 @@ public class RecentSearchQueue extends LinkedHashMap<String, SettingsIndexData.E
             try {
                 JSONObject obj = jsonArray.getJSONObject(i);
                 var entry = SettingsIndexData.Entry.fromJson(obj);
-                if (entry != null) addInternal(entry);
+                if (entry != null) add(entry);
             } catch (JSONException e) {
                 Log.e(TAG, "Error restoring Entry from JSON object");
             }

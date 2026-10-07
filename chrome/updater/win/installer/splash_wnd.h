@@ -32,7 +32,6 @@ class SplashWnd : public gfx::WindowImpl {
     CR_MESSAGE_HANDLER_EX(WM_DPICHANGED, OnDpiChanged)
     CR_MESSAGE_HANDLER_EX(WM_CLOSE, OnClose)
     CR_MESSAGE_HANDLER_EX(WM_DESTROY, OnDestroy)
-    CR_MESSAGE_HANDLER_EX(WM_SETCURSOR, OnSetCursor)
   CR_END_MSG_MAP()
 
  private:
@@ -42,7 +41,6 @@ class SplashWnd : public gfx::WindowImpl {
   LRESULT OnDpiChanged(UINT msg, WPARAM wparam, LPARAM lparam);
   LRESULT OnClose(UINT msg, WPARAM wparam, LPARAM lparam);
   LRESULT OnDestroy(UINT msg, WPARAM wparam, LPARAM lparam);
-  LRESULT OnSetCursor(UINT msg, WPARAM wparam, LPARAM lparam);
 
   int GetScaledValue(int value, UINT dpi) const;
 

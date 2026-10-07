@@ -42,7 +42,6 @@ import org.chromium.base.test.util.CriteriaHelper;
 import org.chromium.base.test.util.Restriction;
 import org.chromium.chrome.R;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
-import org.chromium.ui.base.ViewUtils;
 import org.chromium.ui.listmenu.ListMenuItemProperties;
 import org.chromium.ui.modelutil.PropertyModel;
 import org.chromium.ui.modelutil.PropertyModelChangeProcessor;
@@ -382,8 +381,7 @@ public class ContextMenuHeaderViewTest {
                 () -> {
                     mModel.set(ListMenuItemProperties.TITLE, SHORT_TITLE_STRING);
                     mModel.set(
-                            ContextMenuHeaderProperties.TITLE_AND_URL_CLICK_LISTENER,
-                            ViewUtils.emptyClickListener());
+                            ContextMenuHeaderProperties.TITLE_AND_URL_CLICK_LISTENER, view -> {});
                 });
 
         assertThat(

@@ -27,11 +27,10 @@
 
 // static
 std::unique_ptr<BrowserWindow, BrowserWindowDeleter>
-BrowserWindow::CreateBrowserWindow(BrowserWindowInterface* browser,
+BrowserWindow::CreateBrowserWindow(Browser* browser,
                                    bool user_gesture,
                                    bool in_tab_dragging) {
-  if (webui_browser::IsWebUIBrowserEnabled() &&
-      browser->GetType() == BrowserWindowInterface::Type::TYPE_NORMAL) {
+  if (webui_browser::IsWebUIBrowserEnabled() && browser->is_type_normal()) {
     return std::unique_ptr<BrowserWindow, BrowserWindowDeleter>(
         new WebUIBrowserWindow(browser));
   }

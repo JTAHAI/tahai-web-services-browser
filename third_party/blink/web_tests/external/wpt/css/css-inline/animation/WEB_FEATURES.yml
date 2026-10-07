@@ -1,3 +1,7 @@
-rules:
-- alignment-baseline-*: [alignment-baseline]
-- dominant-baseline-no-interpolation.html: [dominant-baseline]
+features:
+- name: alignment-baseline
+  files:
+  - alignment-baseline-*
+- name: dominant-baseline
+  files:
+  - dominant-baseline-no-interpolation.html

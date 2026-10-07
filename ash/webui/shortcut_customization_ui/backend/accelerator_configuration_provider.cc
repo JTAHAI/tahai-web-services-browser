@@ -455,12 +455,11 @@ bool ShouldExcludeItem(const AcceleratorLayoutDetails& details) {
     case kToggleMouseKeys:
       return !::features::IsAccessibilityMouseKeysEnabled();
     case kToggleGeminiApp:
-      // The Gemini app shortcut is permanently enabled.
-      return false;
+      return !features::IsAppLaunchShortcutEnabled();
     case kToggleSnapGroupWindowsMinimizeAndRestore:
       return true;
     case kToggleCameraAllowed:
-      return false;
+      return !features::IsToggleCameraShortcutEnabled();
     case kStartSunfishSession:
       return !CanShowSunfishOrScannerUi();
   }

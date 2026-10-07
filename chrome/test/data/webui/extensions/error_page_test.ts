@@ -103,7 +103,7 @@ suite('ExtensionErrorPageTest', function() {
     assertEquals(
         'message',
         error.querySelector<HTMLElement>('.error-message')!.textContent.trim());
-    assertTrue(error.querySelector('cr-icon')!.icon === 'cr:error-filled');
+    assertTrue(error.querySelector('cr-icon')!.icon === 'cr:error');
 
     const manifestError = Object.assign(
         {
@@ -125,7 +125,7 @@ suite('ExtensionErrorPageTest', function() {
     assertEquals(
         'invalid key',
         error.querySelector<HTMLElement>('.error-message')!.textContent.trim());
-    assertTrue(error.querySelector('cr-icon')!.icon === 'cr:warning-filled');
+    assertTrue(error.querySelector('cr-icon')!.icon === 'cr:warning');
 
     mockDelegate.testClickingCalls(
         error.querySelector<HTMLElement>('.icon-delete-gray')!, 'deleteErrors',
@@ -259,8 +259,7 @@ suite('ExtensionErrorPageTest', function() {
         'message',
         errorElements[0]!.querySelector<HTMLElement>(
                              '.error-message')!.textContent.trim());
-    assertEquals(
-        'cr:error-filled', errorElements[0]!.querySelector('cr-icon')!.icon);
+    assertEquals('cr:error', errorElements[0]!.querySelector('cr-icon')!.icon);
     assertEquals(1, crCollapses.length);
     assertTrue(crCollapses[0]!.opened);
     assertEquals(

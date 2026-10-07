@@ -32,9 +32,8 @@ void GenerateSerializeExtensionRange(io::Printer* printer,
 // number.
 inline void GenerateSerializeFieldsAndExtensions(
     io::Printer* printer,
-    absl::Span<const FieldGenerator* const> field_generators,
-    const Descriptor* descriptor,
-    absl::Span<const FieldDescriptor* const> sorted_fields) {
+    const std::vector<const FieldGenerator*>& field_generators,
+    const Descriptor* descriptor, const FieldDescriptor** sorted_fields) {
   std::vector<const Descriptor::ExtensionRange*> sorted_extensions;
   sorted_extensions.reserve(descriptor->extension_range_count());
   for (int i = 0; i < descriptor->extension_range_count(); ++i) {

@@ -2,15 +2,18 @@
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
+load("@chromium-luci//builders.star", "builders", "cpu", "os")
 load("@chromium-luci//gn_args.star", "gn_args")
-load("@chromium-luci//gpu.star", shared_gpu = "gpu")
 load("@chromium-luci//try.star", "try_")
-load("//lib/gpu.star", "gpu")
 load("//lib/siso.star", "siso")
 
 try_.defaults.set(
     bucket = "try",
     executable = "recipe:chromium_trybot",
+    pool = "luci.chromium.try",
+    cores = 8,
+    os = os.LINUX_DEFAULT,
+    cpu = cpu.X86_64,
     build_numbers = True,
     contact_team_email = "chrome-gpu-infra@google.com",
     cq_group = "cq",
@@ -19,7 +22,7 @@ try_.defaults.set(
         "chromium_tests.resultdb_module": 100,
     },
     expiration_timeout = 2 * time.hour,
-    service_account = gpu.try_.SERVICE_ACCOUNT,
+    service_account = "chromium-try-gpu-builder@chops-service-accounts.iam.gserviceaccount.com",
     siso_project = siso.project.DEFAULT_UNTRUSTED,
     subproject_list_view = "luci.chromium.try",
     task_template_canary_percentage = 5,
@@ -37,10 +40,18 @@ try_.defaults.set(
 # functions for specializing on OS: XXX_builder and XXX_YYY_builder where XXX is
 # the part after the last dot in the builder group and YYY is the OS
 
-def gpu_android_builder(*args, **kwargs):
-    kwargs.setdefault("builder_group", "tryserver.chromium.android")
-    kwargs.setdefault("siso_remote_jobs", siso.remote_jobs.LOW_JOBS_FOR_CQ)
-    return shared_gpu.try_.linux_manual_builder(*args, **kwargs)
+def gpu_android_builder(*, name, **kwargs):
+    return try_.builder(
+        name = name,
+        pool = "luci.chromium.gpu.try",
+        builder_group = "tryserver.chromium.android",
+        builderless = True,
+        max_concurrent_builds = 1,
+        os = os.LINUX_DEFAULT,
+        siso_remote_jobs = siso.remote_jobs.LOW_JOBS_FOR_CQ,
+        ssd = None,
+        **kwargs
+    )
 
 gpu_android_builder(
     name = "gpu-fyi-try-android-q-pixel-2-32",
@@ -126,10 +137,18 @@ gpu_android_builder(
     gn_args = "ci/Android Release (Pixel 2)",
 )
 
-def gpu_chromeos_builder(*args, **kwargs):
-    kwargs.setdefault("builder_group", "tryserver.chromium.chromiumos")
-    kwargs.setdefault("siso_remote_jobs", siso.remote_jobs.LOW_JOBS_FOR_CQ)
-    return shared_gpu.try_.linux_manual_builder(*args, **kwargs)
+def gpu_chromeos_builder(*, name, **kwargs):
+    return try_.builder(
+        name = name,
+        pool = "luci.chromium.gpu.try",
+        builder_group = "tryserver.chromium.chromiumos",
+        builderless = True,
+        max_concurrent_builds = 1,
+        os = os.LINUX_DEFAULT,
+        siso_remote_jobs = siso.remote_jobs.LOW_JOBS_FOR_CQ,
+        ssd = None,
+        **kwargs
+    )
 
 gpu_chromeos_builder(
     name = "gpu-fyi-try-chromeos-amd64-generic",
@@ -139,17 +158,35 @@ gpu_chromeos_builder(
     gn_args = "ci/ChromeOS FYI Release (amd64-generic)",
 )
 
-def gpu_linux_builder(*args, **kwargs):
-    kwargs.setdefault("builder_group", "tryserver.chromium.linux")
-    kwargs.setdefault("siso_remote_jobs", siso.remote_jobs.LOW_JOBS_FOR_CQ)
-    return shared_gpu.try_.linux_manual_builder(*args, **kwargs)
+def gpu_linux_builder(*, name, **kwargs):
+    return try_.builder(
+        name = name,
+        pool = "luci.chromium.gpu.try",
+        builder_group = "tryserver.chromium.linux",
+        builderless = True,
+        max_concurrent_builds = 1,
+        os = os.LINUX_DEFAULT,
+        siso_remote_jobs = siso.remote_jobs.LOW_JOBS_FOR_CQ,
+        ssd = None,
+        **kwargs
+    )
 
 gpu_linux_builder(
     name = "gpu-fyi-try-linux-wayland-amd-rel",
-    description_html = "Runs release GPU tests on stable Linux/AMD RX 5500XT configs using Wayland",
+    description_html = "Runs GPU tests on weston with AMD RX 5500 XT",
     mirrors = [
         "ci/GPU FYI Linux Wayland Builder",
         "ci/Linux Wayland FYI Release (AMD)",
+    ],
+    gn_args = "ci/GPU FYI Linux Wayland Builder",
+)
+
+gpu_linux_builder(
+    name = "gpu-fyi-try-linux-wayland-intel-rel",
+    description_html = "Runs GPU tests on weston with Intel UHD 630",
+    mirrors = [
+        "ci/GPU FYI Linux Wayland Builder",
+        "ci/Linux Wayland FYI Release (Intel)",
     ],
     gn_args = "ci/GPU FYI Linux Wayland Builder",
 )
@@ -239,6 +276,15 @@ gpu_linux_builder(
 )
 
 gpu_linux_builder(
+    name = "gpu-fyi-try-linux-nvidia-dbg",
+    mirrors = [
+        "ci/GPU FYI Linux Builder (dbg)",
+        "ci/Linux FYI Debug (NVIDIA)",
+    ],
+    gn_args = "ci/GPU FYI Linux Builder (dbg)",
+)
+
+gpu_linux_builder(
     name = "gpu-fyi-try-linux-nvidia-exp",
     mirrors = [
         "ci/GPU FYI Linux Builder",
@@ -306,10 +352,33 @@ gpu_linux_builder(
     ),
 )
 
-def gpu_mac_builder(*args, **kwargs):
-    kwargs.setdefault("builder_group", "tryserver.chromium.mac")
-    kwargs.setdefault("siso_remote_jobs", siso.remote_jobs.LOW_JOBS_FOR_CQ)
-    return shared_gpu.try_.mac_manual_builder(*args, **kwargs)
+def gpu_mac_builder(*, name, **kwargs):
+    kwargs.setdefault("cpu", "arm64")
+    return try_.builder(
+        name = name,
+        builder_group = "tryserver.chromium.mac",
+        builderless = True,
+        cores = None,
+        os = os.MAC_ANY,
+        pool = "luci.chromium.gpu.try",
+        max_concurrent_builds = 1,
+        ssd = None,
+        siso_remote_jobs = siso.remote_jobs.LOW_JOBS_FOR_CQ,
+        **kwargs
+    )
+
+gpu_mac_builder(
+    name = "gpu-fyi-try-mac-amd-retina-asan",
+    mirrors = [
+        "ci/GPU FYI Mac Builder (asan)",
+        "ci/Mac FYI Retina ASAN (AMD)",
+    ],
+    gn_args = "ci/GPU FYI Mac Builder (asan)",
+    # //tools/grit:brotli_mac_asan_workaround doesn't create bundle
+    # `obj/tools/grit/brotli_mac_asan_workaround/` when cross compiling
+    # from ARM host.
+    cpu = cpu.X86_64,
+)
 
 gpu_mac_builder(
     name = "gpu-fyi-try-mac-amd-retina-dbg",
@@ -404,6 +473,19 @@ gpu_mac_builder(
 )
 
 gpu_mac_builder(
+    name = "gpu-fyi-try-mac-intel-asan",
+    mirrors = [
+        "ci/GPU FYI Mac Builder (asan)",
+        "ci/Mac FYI ASAN (Intel)",
+    ],
+    gn_args = "ci/GPU FYI Mac Builder (asan)",
+    # //tools/grit:brotli_mac_asan_workaround doesn't create bundle
+    # `obj/tools/grit/brotli_mac_asan_workaround/` when cross compiling
+    # from ARM host.
+    cpu = cpu.X86_64,
+)
+
+gpu_mac_builder(
     name = "gpu-fyi-try-mac-intel-dbg",
     mirrors = [
         "ci/GPU FYI Mac Builder (dbg)",
@@ -448,10 +530,19 @@ gpu_mac_builder(
     gn_args = "ci/GPU Mac Builder (dbg)",
 )
 
-def gpu_win_builder(*args, **kwargs):
-    kwargs.setdefault("builder_group", "tryserver.chromium.win")
-    kwargs.setdefault("siso_remote_jobs", siso.remote_jobs.LOW_JOBS_FOR_CQ)
-    return shared_gpu.try_.win_manual_builder(*args, **kwargs)
+def gpu_win_builder(*, name, **kwargs):
+    return try_.builder(
+        name = name,
+        pool = "luci.chromium.gpu.try",
+        builder_group = "tryserver.chromium.win",
+        builderless = True,
+        max_concurrent_builds = 1,
+        os = os.WINDOWS_ANY,
+        siso_remote_jobs = siso.remote_jobs.LOW_JOBS_FOR_CQ,
+        ssd = builders.with_expiration(True, expiration = 5 * time.minute),
+        free_space = None,
+        **kwargs
+    )
 
 gpu_win_builder(
     name = "gpu-fyi-try-win10-amd-rel-64",

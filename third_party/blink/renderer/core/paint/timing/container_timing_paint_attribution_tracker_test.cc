@@ -32,7 +32,7 @@ class ContainerTimingPaintAttributionTrackerTest : public PageTestBase {
   }
 
   Persistent<ContainerTimingPaintAttributionTracker> tracker_;
-  ScopedContainerTimingForTest scoped_feature_{true};
+  ScopedContainerTimingPrepaintTraversalForTest scoped_feature_{true};
 };
 
 TEST_F(ContainerTimingPaintAttributionTrackerTest, SingleRoot) {
@@ -92,7 +92,7 @@ TEST_F(ContainerTimingPaintAttributionTrackerTest, NestedRoots) {
 TEST_F(ContainerTimingPaintAttributionTrackerTest, ContainerTimingIgnore) {
   SetBodyContent(R"HTML(
     <div id="root" containertiming="root">
-      <div id="ignored" containertimingignore>
+      <div id="ignored" containertiming-ignore>
         <img id="img">
       </div>
     </div>
@@ -112,7 +112,7 @@ TEST_F(ContainerTimingPaintAttributionTrackerTest, ContainerTimingIgnore) {
 TEST_F(ContainerTimingPaintAttributionTrackerTest, BothAttrsOnSameElement) {
   SetBodyContent(R"HTML(
     <div id="outer" containertiming="outer">
-      <div id="both" containertiming="both" containertimingignore>
+      <div id="both" containertiming="both" containertiming-ignore>
         <img id="img">
       </div>
     </div>
@@ -198,7 +198,7 @@ TEST_F(ContainerTimingPaintAttributionTrackerTest, ImageIsContainerRoot) {
   EXPECT_EQ(tracker->GetParentContainerRootFor(img), nullptr);
 }
 
-// An <img> with both containertiming and containertimingignore is itself a
+// An <img> with both containertiming and containertiming-ignore is itself a
 // container root and reports its own paint under that root. The ignore
 // attribute only blocks upward propagation to ancestor roots — it does not
 // suppress self-marking.
@@ -206,7 +206,7 @@ TEST_F(ContainerTimingPaintAttributionTrackerTest,
        ImageRootWithIgnoreSelfMarked) {
   SetBodyContent(R"HTML(
     <div id="outer" containertiming="outer">
-      <img id="img" containertiming="img-root" containertimingignore>
+      <img id="img" containertiming="img-root" containertiming-ignore>
     </div>
   )HTML");
   UpdateAllLifecyclePhasesForTest();
@@ -425,7 +425,7 @@ TEST_F(ContainerTimingPaintAttributionTrackerTest,
   ASSERT_EQ(tracker->GetContainerRootFor(img), root);
 
   root->removeAttribute(html_names::kContainertimingAttr);
-  root->setAttribute(html_names::kContainertimingignoreAttr, g_empty_atom);
+  root->setAttribute(html_names::kContainertimingIgnoreAttr, g_empty_atom);
   UpdateAllLifecyclePhasesForTest();
 
   EXPECT_EQ(tracker->GetContainerRootFor(img), nullptr);
@@ -454,7 +454,7 @@ TEST_F(ContainerTimingPaintAttributionTrackerTest,
   ASSERT_TRUE(img);
   ASSERT_EQ(tracker->GetContainerRootFor(img), root);
 
-  mid->setAttribute(html_names::kContainertimingignoreAttr, g_empty_atom);
+  mid->setAttribute(html_names::kContainertimingIgnoreAttr, g_empty_atom);
   UpdateAllLifecyclePhasesForTest();
 
   // Stop in the middle: img is no longer attributed to root.
@@ -467,7 +467,7 @@ TEST_F(ContainerTimingPaintAttributionTrackerTest,
        StopRemovedReattributesLeaf) {
   SetBodyContent(R"HTML(
     <div id="root" containertiming="root">
-      <div id="mid" containertimingignore>
+      <div id="mid" containertiming-ignore>
         <img id="img">
       </div>
     </div>
@@ -483,7 +483,7 @@ TEST_F(ContainerTimingPaintAttributionTrackerTest,
   ASSERT_TRUE(img);
   ASSERT_EQ(tracker->GetContainerRootFor(img), nullptr);
 
-  mid->removeAttribute(html_names::kContainertimingignoreAttr);
+  mid->removeAttribute(html_names::kContainertimingIgnoreAttr);
   UpdateAllLifecyclePhasesForTest();
 
   EXPECT_EQ(tracker->GetContainerRootFor(img), root);
@@ -511,7 +511,7 @@ TEST_F(ContainerTimingPaintAttributionTrackerTest, IgnoreAddedToExistingRoot) {
   ASSERT_EQ(tracker->GetContainerRootFor(img), inner);
   ASSERT_EQ(tracker->GetParentContainerRootFor(inner), outer);
 
-  inner->setAttribute(html_names::kContainertimingignoreAttr, g_empty_atom);
+  inner->setAttribute(html_names::kContainertimingIgnoreAttr, g_empty_atom);
   UpdateAllLifecyclePhasesForTest();
 
   // Descendants still map to inner; inner just no longer propagates upward.
@@ -526,7 +526,7 @@ TEST_F(ContainerTimingPaintAttributionTrackerTest,
        IgnoreRemovedFromBothAttrRoot) {
   SetBodyContent(R"HTML(
     <div id="outer" containertiming="outer">
-      <div id="inner" containertiming="inner" containertimingignore>
+      <div id="inner" containertiming="inner" containertiming-ignore>
         <img id="img">
       </div>
     </div>
@@ -543,7 +543,7 @@ TEST_F(ContainerTimingPaintAttributionTrackerTest,
   ASSERT_EQ(tracker->GetContainerRootFor(img), inner);
   ASSERT_EQ(tracker->GetParentContainerRootFor(inner), nullptr);
 
-  inner->removeAttribute(html_names::kContainertimingignoreAttr);
+  inner->removeAttribute(html_names::kContainertimingIgnoreAttr);
   UpdateAllLifecyclePhasesForTest();
 
   EXPECT_EQ(tracker->GetContainerRootFor(img), inner);
@@ -586,7 +586,7 @@ TEST_F(ContainerTimingPaintAttributionTrackerTest, SiblingSubtreeUnaffected) {
   EXPECT_EQ(tracker->GetParentContainerRootFor(b), nullptr);
 }
 
-// An image-type leaf with containertimingignore (and no containertiming)
+// An image-type leaf with containertiming-ignore (and no containertiming)
 // under a CT ancestor must not be stored in the tracker. The leaf-marking
 // step would otherwise map the image to the ancestor root, which would be
 // semantically wrong even though ContributesToContainerTiming masks it at
@@ -594,7 +594,7 @@ TEST_F(ContainerTimingPaintAttributionTrackerTest, SiblingSubtreeUnaffected) {
 TEST_F(ContainerTimingPaintAttributionTrackerTest, IgnoreOnlyOnImageLeaf) {
   SetBodyContent(R"HTML(
     <div id="root" containertiming="root">
-      <img id="img" containertimingignore>
+      <img id="img" containertiming-ignore>
     </div>
   )HTML");
   UpdateAllLifecyclePhasesForTest();

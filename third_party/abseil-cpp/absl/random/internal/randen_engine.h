@@ -17,9 +17,7 @@
 
 #include <algorithm>
 #include <cinttypes>
-#include <cstdint>
 #include <cstdlib>
-#include <cstring>
 #include <istream>
 #include <iterator>
 #include <limits>

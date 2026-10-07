@@ -48,7 +48,6 @@
 #include "third_party/blink/renderer/platform/runtime_enabled_features.h"
 #include "third_party/blink/renderer/platform/text/segmented_string.h"
 #include "third_party/blink/renderer/platform/wtf/text/character_names.h"
-#include "third_party/blink/renderer/platform/wtf/text/format.h"
 #include "third_party/blink/renderer/platform/wtf/text/wtf_string.h"
 
 namespace blink {
@@ -335,8 +334,6 @@ bool VTTParser::CheckAndStoreRegion(const String& line) {
     return false;
   }
 
-  // Only register the region if it has a non-empty id; a cue's "region:"
-  // setting matches by id, so regions without one can never be referenced.
   if (!current_region_->id().empty())
     region_map_.Set(current_region_->id(), current_region_);
   current_region_ = nullptr;
@@ -508,8 +505,8 @@ static String SerializeTimeStamp(double time_stamp) {
   value /= 60;
   unsigned minutes = value % 60;
   unsigned hours = static_cast<unsigned>(value / 60);
-  return Format("{:02}:{:02}:{:02}.{:03}", hours, minutes, seconds,
-                milliseconds);
+  return String::Format("%02u:%02u:%02u.%03u", hours, minutes, seconds,
+                        milliseconds);
 }
 
 bool VTTParser::CollectTimeStamp(VTTScanner& input, double& time_stamp) {

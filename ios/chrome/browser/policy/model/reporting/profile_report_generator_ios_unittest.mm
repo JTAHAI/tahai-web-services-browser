@@ -138,7 +138,7 @@ class ProfileReportGeneratorIOSTest
     TestProfileIOS::Builder builder;
     builder.AddTestingFactory(
         AuthenticationServiceFactory::GetInstance(),
-        AuthenticationServiceFactory::GetFactoryWithDelegateForTesting(
+        AuthenticationServiceFactory::GetFactoryWithDelegate(
             std::make_unique<FakeAuthenticationServiceDelegate>()));
     builder.AddTestingFactory(
         enterprise::ProfileIdServiceFactoryIOS::GetInstance(),
@@ -259,9 +259,9 @@ class ProfileReportGeneratorIOSTest
     AccountInfo account_info = signin::MakePrimaryAccountAvailable(
         identity_manager, kFakeEmail, signin::ConsentLevel::kSignin);
     signin::SimulateSuccessfulFetchOfAccountInfo(
-        identity_manager, account_info.GetAccountId(), account_info.GetEmail(),
-        account_info.GetGaiaId(), kFakeHostedDomain, kFakeFullName,
-        kFakeGivenName, kFakeLocale, "");
+        identity_manager, account_info.account_id, account_info.email,
+        account_info.gaia, kFakeHostedDomain, kFakeFullName, kFakeGivenName,
+        kFakeLocale, "");
     return account_info;
   }
 
@@ -333,8 +333,8 @@ TEST_P(ProfileReportGeneratorIOSTest, SignedInProfile) {
   auto report = GenerateReport();
   ASSERT_TRUE(report);
   EXPECT_TRUE(report->has_chrome_signed_in_user());
-  EXPECT_EQ(fake_identity.GetEmail(), report->chrome_signed_in_user().email());
-  EXPECT_EQ(fake_identity.GetGaiaId().ToString(),
+  EXPECT_EQ(fake_identity.email, report->chrome_signed_in_user().email());
+  EXPECT_EQ(fake_identity.gaia.ToString(),
             report->chrome_signed_in_user().obfuscated_gaia_id());
   EXPECT_EQ(GetProfileName(), report->name());
   EXPECT_NE(std::string(), report->name());

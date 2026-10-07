@@ -105,11 +105,11 @@ TEST(ShellDialogs, ShortenFileNameIfNeeded) {
                          "cdefghijklmnopqrstuvwxyz1234ab.abcdefghijkl")},
   });
 
-  for (auto& test_case : test_cases) {
+  for (size_t i = 0; i < std::size(test_cases); ++i) {
     base::FilePath input =
-        base::FilePath(test_case.input).NormalizePathSeparators();
+        base::FilePath(test_cases[i].input).NormalizePathSeparators();
     base::FilePath output =
-        base::FilePath(test_case.expected).NormalizePathSeparators();
+        base::FilePath(test_cases[i].expected).NormalizePathSeparators();
     EXPECT_EQ(output.value(),
               ui::SelectFileDialog::GetShortenedFilePath(input).value());
     EXPECT_LE(ui::SelectFileDialog::GetShortenedFilePath(input)

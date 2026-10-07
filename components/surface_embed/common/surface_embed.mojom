@@ -41,21 +41,6 @@ interface SurfaceEmbed {
   // WebContents::Focus() in multi-level embedding setups (e.g., root -> parent
   // embed -> child embed when clicking on the child embed).
   RequestFocusOnEmbedElement() => ();
-
-  // Requests to advance focus from the <embed> element in the embedder page.
-  // When `reverse` is true, advances backward (e.g. Shift+Tab), otherwise
-  // advances forward (e.g. Tab).
-  AdvanceFocusFromEmbedElement(bool reverse);
-};
-
-// Represents the render throttling status of an embedded frame.
-// Uses the same set of parameters as RemoteFrame::UpdateRenderThrottlingStatus.
-// TODO(crbug.com/532190467): Make this a shared struct across RemoteFrame,
-// FrameWidget, and SurfaceEmbedHost.
-struct RenderThrottlingStatus {
-  bool is_throttled;
-  bool subtree_throttled;
-  bool display_locked;
 };
 
 // Implemented by SurfaceEmbedHost in the browser process.
@@ -68,10 +53,7 @@ interface SurfaceEmbedHost {
   SetSurfaceEmbed(pending_associated_remote<SurfaceEmbed> surface_embed);
 
   // Attaches the child content identified by `content_id` to the parent.
-  // `is_embed_element_focused` indicates whether the <embed> element currently
-  // has focus in the parent document.
-  AttachConnector(mojo_base.mojom.UnguessableToken content_id,
-                  bool is_embed_element_focused);
+  AttachConnector(mojo_base.mojom.UnguessableToken content_id);
 
   // Synchronizes the visual properties of the <embed> element.
   // `is_visible` reports visibility with respect to "visibility:" CSS property;
@@ -88,17 +70,5 @@ interface SurfaceEmbedHost {
   // WebContents::Focus() on the embedded WebContents in multi-level embedding
   // setups.
   OnEmbedElementFocused(bool focused, blink.mojom.FocusType focus_type);
-
-  // Called when the render throttling status of the <embed> element changes.
-  // `SurfaceEmbedHost` will decide how this state is applied to the child
-  // WebContents (e.g. it may reject throttling when the child WebContents is
-  // being screen-captured).
-  OnEmbedElementThrottlingStatusChanged(RenderThrottlingStatus status);
-
-  // Sends the parent HTML element accessibility node ID from the render process
-  // to the browser process to stitch together accessibility trees in the
-  // browser process. This may happen during creation or later
-  // if accessibility is not yet enabled.
-  SetParentAccessibilityInfo(int32 ax_node_id);
 };
 

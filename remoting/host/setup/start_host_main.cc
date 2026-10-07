@@ -14,7 +14,6 @@
 #include "base/compiler_specific.h"
 #include "base/functional/bind.h"
 #include "base/logging/logging_settings.h"
-#include "base/memory_coordinator/dummy_memory_consumer_registry.h"
 #include "base/message_loop/message_pump_type.h"
 #include "base/notreached.h"
 #include "base/run_loop.h"
@@ -31,6 +30,7 @@
 #include "net/url_request/url_request_context_getter.h"
 #include "remoting/base/certificate_helpers.h"
 #include "remoting/base/logging.h"
+#include "remoting/base/memory_consumer_registry.h"
 #include "remoting/base/url_request_context_getter.h"
 #include "remoting/host/setup/cloud_host_starter.h"
 #include "remoting/host/setup/corp_host_starter.h"
@@ -412,7 +412,7 @@ bool InitializeCloudMachineParams(HostStarter::Params& params,
 }  // namespace
 
 int StartHostMain(int argc, char** argv) {
-  base::ScopedMemoryConsumerRegistry<base::DummyMemoryConsumerRegistry>
+  base::ScopedMemoryConsumerRegistry<remoting::MemoryConsumerRegistry>
       memory_consumer_registry;
 
   // google_apis::GetOAuth2ClientID/Secret need a static CommandLine.

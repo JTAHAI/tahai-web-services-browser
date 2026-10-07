@@ -1,2 +1,4 @@
-rules:
-- "*text-decoration-*": [text-decoration]
+features:
+- name: text-decoration
+  files:
+  - "*text-decoration-*"

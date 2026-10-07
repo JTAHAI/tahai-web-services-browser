@@ -34,6 +34,7 @@
 #if BUILDFLAG(IS_ANDROID)
 #include "chrome/test/base/android/android_ui_test_utils.h"
 #else
+#include "chrome/browser/ui/browser.h"
 #include "chrome/test/base/ui_test_utils.h"
 #endif
 

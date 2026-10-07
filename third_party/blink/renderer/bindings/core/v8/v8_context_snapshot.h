@@ -26,6 +26,7 @@ class CORE_EXPORT V8ContextSnapshot {
   static v8::Local<v8::Context> CreateContextFromSnapshot(
       v8::Isolate* isolate,
       const DOMWrapperWorld& world,
+      v8::ExtensionConfiguration* extension_config,
       v8::Local<v8::Object> global_proxy,
       Document* document);
 
@@ -40,6 +41,7 @@ class CORE_EXPORT V8ContextSnapshot {
   using CreateContextFromSnapshotFuncType =
       v8::Local<v8::Context> (*)(v8::Isolate*,
                                  const DOMWrapperWorld&,
+                                 v8::ExtensionConfiguration*,
                                  v8::Local<v8::Object>,
                                  Document*);
   static void SetCreateContextFromSnapshotFunc(

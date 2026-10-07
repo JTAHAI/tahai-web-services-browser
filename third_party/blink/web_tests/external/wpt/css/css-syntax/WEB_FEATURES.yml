@@ -1,4 +1,6 @@
-rules:
-- custom-property-rule-ambiguity.html: [nesting]
-- trailing-braces.html: [nesting]
-- var-with-blocks.html: [nesting]
+features:
+- name: nesting
+  files:
+  - custom-property-rule-ambiguity.html
+  - trailing-braces.html
+  - var-with-blocks.html

@@ -11,8 +11,9 @@
 #include "chrome/browser/download/chrome_download_manager_delegate.h"
 #include "chrome/browser/download/download_core_service.h"
 #include "chrome/browser/download/download_core_service_factory.h"
+#include "chrome/browser/download/download_item_warning_data.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_element_identifiers.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/views/download/bubble/download_bubble_navigation_handler.h"
 #include "chrome/browser/ui/views/download/bubble/download_bubble_partial_view.h"
 #include "chrome/browser/ui/views/download/bubble/download_bubble_primary_view.h"
@@ -54,7 +55,7 @@ void MaybeSendDownloadReport(content::BrowserContext* browser_context,
 #endif
 
 DownloadBubbleContentsView::DownloadBubbleContentsView(
-    BrowserWindowInterface* browser,
+    base::WeakPtr<Browser> browser,
     base::WeakPtr<DownloadBubbleUIController> bubble_controller,
     base::WeakPtr<DownloadBubbleNavigationHandler> navigation_handler,
     DownloadBubbleMode mode,

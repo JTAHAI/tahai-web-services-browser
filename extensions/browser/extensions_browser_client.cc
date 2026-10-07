@@ -141,7 +141,6 @@ bool ExtensionsBrowserClient::ShouldSchemeBypassNavigationChecks(
 
 bool ExtensionsBrowserClient::IsDefaultSearchEngineRedirect(
     content::BrowserContext* context,
-    const ExtensionId& extension_id,
     const GURL& request_url,
     const GURL& redirect_url) const {
   return false;

@@ -217,9 +217,8 @@ bool HistoryService::BackendLoaded() {
 void HistoryService::HandleBackgrounding() {
   TRACE_EVENT0("browser", "HistoryService::HandleBackgrounding");
 
-  if (!backend_task_runner_ || !history_backend_.get()) {
+  if (!backend_task_runner_ || !history_backend_.get())
     return;
-  }
 
   ScheduleTask(
       PRIORITY_NORMAL,
@@ -271,9 +270,8 @@ void HistoryService::DeleteAllSearchTermsForKeyword(KeywordID keyword_id) {
   DCHECK(backend_task_runner_) << "History service being called after cleanup";
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
-  if (in_memory_backend_) {
+  if (in_memory_backend_)
     in_memory_backend_->DeleteAllSearchTermsForKeyword(keyword_id);
-  }
 
   ScheduleTask(PRIORITY_UI,
                base::BindOnce(&HistoryBackend::DeleteAllSearchTermsForKeyword,
@@ -563,7 +561,8 @@ void HistoryService::AddPage(const GURL& url,
 
   bool consider_for_ntp_most_visited = true;
 #if !BUILDFLAG(IS_IOS)
-  consider_for_ntp_most_visited = visit_source != VisitSource::SOURCE_ACTOR;
+  consider_for_ntp_most_visited =
+      visit_source != VisitSource::SOURCE_ACTOR;
 #endif
 
   AddPage(HistoryAddPageArgs(url, time, context_id, nav_entry_id,
@@ -581,7 +580,8 @@ void HistoryService::AddPage(const GURL& url,
 
   bool consider_for_ntp_most_visited = true;
 #if !BUILDFLAG(IS_IOS)
-  consider_for_ntp_most_visited = visit_source != VisitSource::SOURCE_ACTOR;
+  consider_for_ntp_most_visited =
+      visit_source != VisitSource::SOURCE_ACTOR;
 #endif
 
   // This function will construct the following "self-links" entry in the
@@ -602,9 +602,8 @@ void HistoryService::AddPage(HistoryAddPageArgs add_page_args) {
   DCHECK(backend_task_runner_) << "History service being called after cleanup";
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
-  if (!CanAddURL(add_page_args.url)) {
+  if (!CanAddURL(add_page_args.url))
     return;
-  }
 
   DCHECK(add_page_args.url.is_valid());
 
@@ -677,9 +676,11 @@ void HistoryService::AddPartitionedVisitedLinks(
       VisitedLink link = {redirect, net::SchemefulSite(*args.top_level_url),
                           url::Origin::Create(*args.frame_url)};
       visit_delegate_->AddVisitedLink(link);
-      // Redirects for chains ending in a 404 are saved to History because the
-      // final 404 visit is saved. Therefore, VisitedLink hashtable entries
-      // for redirects in chains ending in a 404 are caused by the 404 visit.
+      // Redirects for chains ending in a 404 are only saved to History if
+      // `history::kVisitedLinksOn404` is enabled, because the final visit is
+      // only saved to History if the flag is enabled. Therefore, VisitedLink
+      // hashtable entries for redirects in chains ending in a 404 are caused by
+      // the 404 visit.
       EmitVisitedLinksAdditionCausedBy404Uma(
           /*was_addition_caused_by_404=*/args.response_code_category ==
           VisitResponseCodeCategory::k404);
@@ -699,9 +700,8 @@ void HistoryService::AddPageNoVisitForBookmark(const GURL& url,
   TRACE_EVENT0("browser", "HistoryService::AddPageNoVisitForBookmark");
   DCHECK(backend_task_runner_) << "History service being called after cleanup";
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  if (!CanAddURL(url)) {
+  if (!CanAddURL(url))
     return;
-  }
 
   DCHECK(url.is_valid());
 
@@ -730,6 +730,17 @@ void HistoryService::UpdateWithPageEndTime(ContextID context_id,
       PRIORITY_NORMAL,
       base::BindOnce(&HistoryBackend::UpdateWithPageEndTime, history_backend_,
                      context_id, nav_entry_id, url, end_ts));
+}
+
+void HistoryService::SetBrowsingTopicsAllowed(ContextID context_id,
+                                              int nav_entry_id,
+                                              const GURL& url) {
+  TRACE_EVENT0("browser", "HistoryService::SetBrowsingTopicsAllowed");
+  DCHECK(backend_task_runner_) << "History service being called after cleanup";
+  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  ScheduleTask(PRIORITY_NORMAL,
+               base::BindOnce(&HistoryBackend::SetBrowsingTopicsAllowed,
+                              history_backend_, context_id, nav_entry_id, url));
 }
 
 void HistoryService::SetPageLanguageForVisit(ContextID context_id,
@@ -836,9 +847,8 @@ void HistoryService::AddPageWithDetails(const GURL& url,
   DCHECK(backend_task_runner_) << "History service being called after cleanup";
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   // Filter out unwanted URLs.
-  if (!CanAddURL(url)) {
+  if (!CanAddURL(url))
     return;
-  }
 
   DCHECK(url.is_valid());
 
@@ -875,9 +885,8 @@ void HistoryService::AddPagesWithDetails(const URLRows& info,
   if (!info.empty() && visit_delegate_) {
     std::vector<GURL> urls;
     urls.reserve(info.size());
-    for (const auto& row : info) {
+    for (const auto& row : info)
       urls.push_back(row.url());
-    }
     visit_delegate_->AddURLs(urls);
     // This visit will always be a LINK PageTransition type. See function
     // comment for more info.
@@ -994,9 +1003,8 @@ void HistoryService::MergeFavicon(
   TRACE_EVENT0("browser", "HistoryService::MergeFavicon");
   DCHECK(backend_task_runner_) << "History service being called after cleanup";
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  if (!CanAddURL(page_url)) {
+  if (!CanAddURL(page_url))
     return;
-  }
 
   ScheduleTask(
       PRIORITY_NORMAL,
@@ -1015,14 +1023,12 @@ void HistoryService::SetFavicons(const base::flat_set<GURL>& page_urls,
   base::flat_set<GURL> page_urls_to_save;
   page_urls_to_save.reserve(page_urls.capacity());
   for (const GURL& page_url : page_urls) {
-    if (CanAddURL(page_url)) {
+    if (CanAddURL(page_url))
       page_urls_to_save.insert(page_url);
-    }
   }
 
-  if (page_urls_to_save.empty()) {
+  if (page_urls_to_save.empty())
     return;
-  }
 
   ScheduleTask(PRIORITY_NORMAL,
                base::BindOnce(&HistoryBackend::SetFavicons, history_backend_,
@@ -1445,9 +1451,8 @@ void HistoryService::Cleanup() {
   weak_ptr_factory_.InvalidateWeakPtrs();
 
   // Inform the HistoryClient that we are shuting down.
-  if (history_client_) {
+  if (history_client_)
     history_client_->Shutdown();
-  }
 
   // Unload the backend.
   if (history_backend_) {
@@ -1615,9 +1620,8 @@ void HistoryService::SetInMemoryBackend(
 void HistoryService::NotifyProfileError(sql::InitStatus init_status,
                                         const std::string& diagnostics) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  if (history_client_) {
+  if (history_client_)
     history_client_->NotifyProfileError(init_status, diagnostics);
-  }
 }
 
 void HistoryService::DeleteURLs(const std::vector<GURL>& urls) {
@@ -1764,16 +1768,14 @@ void HistoryService::NotifyURLVisited(const VisitedURLInfo& visited_url_info) {
 
 void HistoryService::NotifyURLsModified(const URLRows& changed_urls) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  for (HistoryServiceObserver& observer : observers_) {
+  for (HistoryServiceObserver& observer : observers_)
     observer.OnURLsModified(this, changed_urls);
-  }
 }
 
 void HistoryService::NotifyDeletions(const DeletionInfo& deletion_info) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  if (!backend_task_runner_) {
+  if (!backend_task_runner_)
     return;
-  }
 
   // Inform the VisitDelegate of the deleted URLs. We will inform the delegate
   // of added URLs as soon as we get the add notification (we don't have to wait
@@ -1790,9 +1792,8 @@ void HistoryService::NotifyDeletions(const DeletionInfo& deletion_info) {
     } else {
       std::vector<GURL> urls;
       urls.reserve(deletion_info.deleted_rows().size());
-      for (const auto& row : deletion_info.deleted_rows()) {
+      for (const auto& row : deletion_info.deleted_rows())
         urls.push_back(row.url());
-      }
       visit_delegate_->DeleteURLs(urls);
       // The deletion of individual VisitedLinks is completed by the
       // ExpireHistoryBackend class, so we don't need to duplicate that behavior
@@ -1800,9 +1801,8 @@ void HistoryService::NotifyDeletions(const DeletionInfo& deletion_info) {
     }
   }
 
-  for (HistoryServiceObserver& observer : observers_) {
+  for (HistoryServiceObserver& observer : observers_)
     observer.OnHistoryDeletions(this, deletion_info);
-  }
 }
 
 void HistoryService::NotifyVisitedLinksDeleted(
@@ -1825,16 +1825,14 @@ void HistoryService::NotifyVisitedLinksDeleted(
 
 void HistoryService::NotifyHistoryServiceLoaded() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  for (HistoryServiceObserver& observer : observers_) {
+  for (HistoryServiceObserver& observer : observers_)
     observer.OnHistoryServiceLoaded(this);
-  }
 }
 
 void HistoryService::NotifyHistoryServiceBeingDeleted() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  for (HistoryServiceObserver& observer : observers_) {
+  for (HistoryServiceObserver& observer : observers_)
     observer.HistoryServiceBeingDeleted(this);
-  }
 }
 
 void HistoryService::NotifyKeywordSearchTermUpdated(
@@ -1842,16 +1840,14 @@ void HistoryService::NotifyKeywordSearchTermUpdated(
     KeywordID keyword_id,
     const std::u16string& term) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  for (HistoryServiceObserver& observer : observers_) {
+  for (HistoryServiceObserver& observer : observers_)
     observer.OnKeywordSearchTermUpdated(this, row, keyword_id, term);
-  }
 }
 
 void HistoryService::NotifyKeywordSearchTermDeleted(URLID url_id) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  for (HistoryServiceObserver& observer : observers_) {
+  for (HistoryServiceObserver& observer : observers_)
     observer.OnKeywordSearchTermDeleted(this, url_id);
-  }
 }
 
 base::CallbackListSubscription HistoryService::AddFaviconsChangedCallback(

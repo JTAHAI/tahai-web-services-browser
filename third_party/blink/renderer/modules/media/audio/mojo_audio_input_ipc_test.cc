@@ -74,7 +74,6 @@ class MockAudioProcessorControls
   }
   MOCK_METHOD0(GetStatsCalled, void());
   MOCK_METHOD1(SetPreferredNumCaptureChannels, void(int32_t));
-  MOCK_METHOD1(SetVoiceIsolation, void(bool));
 };
 
 class MockDelegate : public media::AudioInputIPCDelegate {
@@ -484,14 +483,12 @@ TEST(MojoAudioInputIPC, Controls_Called_AfterStreamCreated_WithProcessing) {
 
   EXPECT_CALL(delegate, GotOnStreamCreated(_));
   EXPECT_CALL(controls, SetPreferredNumCaptureChannels(1));
-  EXPECT_CALL(controls, SetVoiceIsolation(true));
   EXPECT_CALL(controls, GetStatsCalled());
 
   ipc->CreateStream(&delegate, Params(), false, kTotalSegments);
   base::RunLoop().RunUntilIdle();
 
   media_controls->SetPreferredNumCaptureChannels(1);
-  media_controls->SetVoiceIsolation(true);
   media_controls->GetStats(
       BindOnce([](const media::AudioProcessingStats& stats) {}));
   base::RunLoop().RunUntilIdle();

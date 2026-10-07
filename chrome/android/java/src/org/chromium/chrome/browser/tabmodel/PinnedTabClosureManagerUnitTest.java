@@ -8,8 +8,6 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.eq;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -33,7 +31,6 @@ import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.chrome.browser.tab.Tab;
 
 import java.util.HashMap;
-import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 /** Unit tests for {@link PinnedTabClosureManager}. */
@@ -66,7 +63,8 @@ public class PinnedTabClosureManagerUnitTest {
         when(mTab.getIsPinned()).thenReturn(false);
 
         // Verify unpinned tab should close.
-        assertTrue(mPinnedTabClosureManager.shouldCloseTab(mSelector, mTab, List.of(mTab)));
+        assertTrue(
+                mPinnedTabClosureManager.shouldCloseTab(mSelector, mTab, /* isBulkClose= */ false));
 
         // Verify no entry in the pending tabs map.
         HashMap<TabModelSelector, Integer> pendingPinnedTabs =
@@ -80,7 +78,8 @@ public class PinnedTabClosureManagerUnitTest {
     @Test
     public void testClosePinnedTabByKeyboardShortcut_firstAttempt_tabShouldNotClose() {
         // Verify first close attempt should not close the pinned tab.
-        assertFalse(mPinnedTabClosureManager.shouldCloseTab(mSelector, mTab, List.of(mTab)));
+        assertFalse(
+                mPinnedTabClosureManager.shouldCloseTab(mSelector, mTab, /* isBulkClose= */ false));
 
         HashMap<TabModelSelector, Integer> pendingPinnedTabs =
                 mPinnedTabClosureManager.getPendingPinnedTabsForTesting();
@@ -92,25 +91,14 @@ public class PinnedTabClosureManagerUnitTest {
         assertEquals(1, (int) pendingPinnedTabs.getOrDefault(mSelector, -1));
 
         // Verify toast is showing.
-        verify(mPinnedTabClosureManager).showToast(any(), eq(1));
-    }
-
-    @Test
-    public void testClosePinnedTabByKeyboardShortcut_multipleTabs_showPluralToast() {
-        Tab tab2 = mock(Tab.class);
-        when(tab2.getId()).thenReturn(2);
-        when(tab2.getIsPinned()).thenReturn(true);
-
-        assertFalse(mPinnedTabClosureManager.shouldCloseTab(mSelector, mTab, List.of(mTab, tab2)));
-
-        // Verify toast is showing with count 2.
-        verify(mPinnedTabClosureManager).showToast(any(), eq(2));
+        verify(mPinnedTabClosureManager).showToast(any());
     }
 
     @Test
     public void testClosePinnedTabByKeyboardShortcut_timeout_pendingStateCleared() {
         // Verify first close attempt should not close the pinned tab.
-        assertFalse(mPinnedTabClosureManager.shouldCloseTab(mSelector, mTab, List.of(mTab)));
+        assertFalse(
+                mPinnedTabClosureManager.shouldCloseTab(mSelector, mTab, /* isBulkClose= */ false));
 
         // Verify one entry in the Pending tabs map.
         HashMap<TabModelSelector, Integer> pendingPinnedTabs =
@@ -131,10 +119,12 @@ public class PinnedTabClosureManagerUnitTest {
     @Test
     public void testClosePinnedTabByKeyboardShortcut_secondAttempt_tabShouldClose() {
         // Verify first close attempt should not close the pinned tab.
-        assertFalse(mPinnedTabClosureManager.shouldCloseTab(mSelector, mTab, List.of(mTab)));
+        assertFalse(
+                mPinnedTabClosureManager.shouldCloseTab(mSelector, mTab, /* isBulkClose= */ false));
 
         // Verify second close attempt should close the pinned tab.
-        assertTrue(mPinnedTabClosureManager.shouldCloseTab(mSelector, mTab, List.of(mTab)));
+        assertTrue(
+                mPinnedTabClosureManager.shouldCloseTab(mSelector, mTab, /* isBulkClose= */ false));
 
         // Verify no entry in the pending tabs map.
         HashMap<TabModelSelector, Integer> pendingPinnedTabs =
@@ -147,12 +137,9 @@ public class PinnedTabClosureManagerUnitTest {
 
     @Test
     public void testClosePinnedTabByKeyboardShortcut_multiselect_tabShouldClose() {
-        Tab tab2 = mock(Tab.class);
-        when(tab2.getId()).thenReturn(2);
-        when(tab2.getIsPinned()).thenReturn(false);
-
         // Verify first close attempt should close bulk tabs.
-        assertTrue(mPinnedTabClosureManager.shouldCloseTab(mSelector, mTab, List.of(mTab, tab2)));
+        assertTrue(
+                mPinnedTabClosureManager.shouldCloseTab(mSelector, mTab, /* isBulkClose= */ true));
 
         // Verify no entry in the pending tabs map.
         HashMap<TabModelSelector, Integer> pendingPinnedTabs =

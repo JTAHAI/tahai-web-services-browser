@@ -14,10 +14,9 @@
 #include "base/memory/weak_ptr.h"
 #include "base/uuid.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_tabrestore.h"
 #include "chrome/browser/ui/browser_window.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
-#include "chrome/browser/ui/browser_window/public/create_browser_window.h"
 #include "chrome/browser/ui/tabs/tab_group_model.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/tabs/tab_strip_model_delegate.h"
@@ -31,10 +30,8 @@
 
 namespace tahai {
 
-BrowserWindowInterface* ActivateNativeCustomMode(BrowserWindowInterface* source,
-                                                 std::string_view id) {
-  if (!source ||
-      !(source->GetType() == BrowserWindowInterface::Type::TYPE_NORMAL) ||
+Browser* ActivateNativeCustomMode(Browser* source, std::string_view id) {
+  if (!source || !(source->is_type_normal()) ||
       !source->GetProfile()->IsRegularProfile() ||
       source->GetProfile()->IsOffTheRecord()) {
     return nullptr;
@@ -55,27 +52,25 @@ BrowserWindowInterface* ActivateNativeCustomMode(BrowserWindowInterface* source,
   if (!ValidateWindowPresentation(presentation)) {
     return nullptr;
   }
-  BrowserWindowInterface* target =
+  Browser* target =
       workspace_id.empty() ? source : OpenNamedWorkspace(source, workspace_id);
   auto* controller = WindowModeController::GetForBrowser(target);
   if (!controller) {
     return nullptr;
   }
-  const auto weak_target = target->GetWeakPtr();
+  const auto weak_target = target->AsWeakPtr();
   return controller->RestorePresentation(presentation) ? weak_target.get()
                                                        : nullptr;
 }
 
-NamedWorkspaceCaptureResult CaptureNamedWorkspace(
-    BrowserWindowInterface* browser,
-    std::string_view name) {
-  if (!browser ||
-      !(browser->GetType() == BrowserWindowInterface::Type::TYPE_NORMAL) ||
+NamedWorkspaceCaptureResult CaptureNamedWorkspace(Browser* browser,
+                                                  std::string_view name) {
+  if (!browser || !(browser->is_type_normal()) ||
       !NamedWorkspaceStore(browser->GetProfile()).enabled()) {
     return {.failure = NamedWorkspaceCaptureFailure::kUnavailable};
   }
   auto* mode = WindowModeController::GetForBrowser(browser);
-  auto* model = browser->GetTabStripModel();
+  auto* model = browser->tab_strip_model();
   if (!mode || !model || !model->delegate()->IsTabStripEditable()) {
     return {.failure = NamedWorkspaceCaptureFailure::kUnsupportedLayout};
   }
@@ -132,25 +127,23 @@ NamedWorkspaceCaptureResult CaptureNamedWorkspace(
   return {.workspace = std::move(workspace)};
 }
 
-BrowserWindowInterface* OpenNamedWorkspace(BrowserWindowInterface* source,
-                                           std::string_view id) {
-  if (!source ||
-      !(source->GetType() == BrowserWindowInterface::Type::TYPE_NORMAL)) {
+Browser* OpenNamedWorkspace(Browser* source, std::string_view id) {
+  if (!source || !(source->is_type_normal())) {
     return nullptr;
   }
   auto workspace = NamedWorkspaceStore(source->GetProfile()).Find(id);
   if (!workspace || !NamedWorkspaceStore::Validate(*workspace) ||
-      GetBrowserWindowCreationStatusForProfile(*source->GetProfile()) !=
-          BrowserWindowInterface::CreationStatus::kOk) {
+      Browser::GetCreationStatusForProfile(source->GetProfile()) !=
+          Browser::CreationStatus::kOk) {
     return nullptr;
   }
-  BrowserWindowInterface* restored = CreateBrowserWindow(
-      BrowserWindowCreateParams(source->GetProfile(), true));
+  Browser* restored =
+      Browser::Create(Browser::CreateParams(source->GetProfile(), true));
   if (!restored) {
     return nullptr;
   }
-  const auto weak_restored = restored->GetWeakPtr();
-  auto* model = restored->GetTabStripModel();
+  const auto weak_restored = restored->AsWeakPtr();
+  auto* model = restored->tab_strip_model();
   if (!model || !model->empty() ||
       (!workspace->groups.empty() && !model->SupportsTabGroups())) {
     restored->GetWindow()->Show();
@@ -169,7 +162,7 @@ BrowserWindowInterface* OpenNamedWorkspace(BrowserWindowInterface* source,
       applied_visuals;
   bool active_tab_selected = false;
   const auto matches_restored_tabs = [&] {
-    if (!weak_restored || restored->GetTabStripModel() != model ||
+    if (!weak_restored || restored->tab_strip_model() != model ||
         model->count() != static_cast<int>(identities.size())) {
       return false;
     }
@@ -197,7 +190,7 @@ BrowserWindowInterface* OpenNamedWorkspace(BrowserWindowInterface* source,
     return !active_tab_selected ||
            model->active_index() == workspace->active_tab;
   };
-  const auto preserve_interrupted_window = [&]() -> BrowserWindowInterface* {
+  const auto preserve_interrupted_window = [&]() -> Browser* {
     if (weak_restored) {
       restored->GetWindow()->Show();
     }

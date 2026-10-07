@@ -6,7 +6,6 @@
 #define CONTENT_BROWSER_WEBNN_WEBNN_COMPILER_PROCESS_HOST_H_
 
 #include "base/containers/flat_map.h"
-#include "base/functional/callback.h"
 #include "base/memory/weak_ptr.h"
 #include "content/common/content_export.h"
 #include "mojo/public/cpp/bindings/remote.h"
@@ -36,17 +35,15 @@ class CONTENT_EXPORT WebNNCompilerProcessHost {
 
   // Requests a new CompilerContext for `target_device` from its Compiler
   // process. Each EP device has its own Compiler process, which is launched on
-  // demand if not already running.
-  using RequestCompilerContextResultCallback =
-      base::OnceCallback<void(bool success)>;
+  // demand if not already running. On failure, the pipe endpoints are simply
+  // dropped (disconnecting the peer endpoints held by the GPU/Renderer).
   void RequestCompilerContext(
       webnn::mojom::CreateContextOptionsPtr context_options,
       const webnn::ContextProperties& context_properties,
       const webnn::EpDeviceInfo& target_device,
       mojo::PendingReceiver<webnn::mojom::WebNNCompilerContext>
           compiler_context_receiver,
-      mojo::PendingRemote<webnn::mojom::WebNNModelLoader> model_loader_remote,
-      RequestCompilerContextResultCallback callback);
+      mojo::PendingRemote<webnn::mojom::WebNNModelLoader> model_loader_remote);
 
  private:
   void OnEpsResolvedForCompilerContext(
@@ -56,7 +53,6 @@ class CONTENT_EXPORT WebNNCompilerProcessHost {
       mojo::PendingReceiver<webnn::mojom::WebNNCompilerContext>
           compiler_context_receiver,
       mojo::PendingRemote<webnn::mojom::WebNNModelLoader> model_loader_remote,
-      RequestCompilerContextResultCallback callback,
       base::flat_map<std::string, webnn::mojom::EpPackageInfoPtr>
           ep_package_info_map);
 

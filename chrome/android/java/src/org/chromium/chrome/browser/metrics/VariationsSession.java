@@ -34,7 +34,13 @@ public class VariationsSession {
         }
 
         mRestrictModeFetchStarted = true;
-        getRestrictModeValue(_ -> VariationsSessionJni.get().startVariationsSession(mRestrictMode));
+        getRestrictModeValue(
+                new Callback<>() {
+                    @Override
+                    public void onResult(String restrictMode) {
+                        VariationsSessionJni.get().startVariationsSession(mRestrictMode);
+                    }
+                });
     }
 
     /**
@@ -52,10 +58,13 @@ public class VariationsSession {
             return;
         }
         getRestrictMode(
-                (String restrictMode) -> {
-                    assert restrictMode != null;
-                    mRestrictMode = restrictMode;
-                    callback.onResult(restrictMode);
+                new Callback<>() {
+                    @Override
+                    public void onResult(String restrictMode) {
+                        assert restrictMode != null;
+                        mRestrictMode = restrictMode;
+                        callback.onResult(restrictMode);
+                    }
                 });
     }
 

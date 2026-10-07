@@ -18,7 +18,8 @@ class WebContents;
 namespace extensions::side_panel_util {
 
 // Toggles the side panel for the given `extension_id` in `browser_window`,
-// opening the panel if it is closed and closing it if it is open.
+// opening the panel if it is closed and closing it if it is open. Implemented
+// by extension_side_panel_utils.cc in views/.
 void ToggleExtensionSidePanel(BrowserWindowInterface* browser_window,
                               const ExtensionId& extension_id);
 
@@ -28,6 +29,7 @@ void ToggleExtensionSidePanel(BrowserWindowInterface* browser_window,
 // This may not immediately show the side panel if `web_contents` is not the
 // active tab and the active tab has an open contextual panel. No-op (and safe
 // to call) if the panel is already open.
+// Implemented by extension_side_panel_utils.cc in views/.
 void OpenGlobalExtensionSidePanel(BrowserWindowInterface& browser_window,
                                   content::WebContents* web_contents,
                                   const ExtensionId& extension_id);
@@ -35,7 +37,8 @@ void OpenGlobalExtensionSidePanel(BrowserWindowInterface& browser_window,
 // Opens a contextual side panel for the given `extension_id` in
 // `browser_window` for `web_contents`. If `web_contents` is not the active tab,
 // this will set the panel for that tab, but will not open the side panel until
-// that tab is activated.
+// that tab is activated. Implemented by extension_side_panel_utils.cc in
+// views/.
 void OpenContextualExtensionSidePanel(BrowserWindowInterface& browser_window,
                                       content::WebContents& web_contents,
                                       const ExtensionId& extension_id);
@@ -44,7 +47,8 @@ void OpenContextualExtensionSidePanel(BrowserWindowInterface& browser_window,
 // `browser_window`. This will close the global side panel across all tabs where
 // no contextual panel is active. No-op (and safe to call) if the panel is
 // already closed. This function provides a programmatic way to close global
-// side panels without user interaction.
+// side panels without user interaction. Implemented by
+// extension_side_panel_utils.cc in views/.
 void CloseGlobalExtensionSidePanel(BrowserWindowInterface* browser_window,
                                    const ExtensionId& extension_id);
 
@@ -53,6 +57,7 @@ void CloseGlobalExtensionSidePanel(BrowserWindowInterface* browser_window,
 // represent a tab. If `web_contents` is not the active tab, this will reset
 // that tab's contextual panel, preventing it from reopening on a future tab
 // switch. No-op (and safe to call) if the contextual panel is already closed.
+// Implemented by extension_side_panel_utils.cc in views/.
 void CloseContextualExtensionSidePanel(BrowserWindowInterface* browser_window,
                                        content::WebContents* web_contents,
                                        const ExtensionId& extension_id);

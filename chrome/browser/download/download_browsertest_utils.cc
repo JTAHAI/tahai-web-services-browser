@@ -16,7 +16,7 @@
 #include "base/test/test_file_util.h"
 #include "chrome/browser/download/download_prefs.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "chrome/common/chrome_paths.h"
 #include "chrome/common/pref_names.h"
@@ -36,12 +36,11 @@ using download::DownloadItem;
 using download::DownloadUrlParameters;
 using extensions::Extension;
 
-DownloadManager* DownloadManagerForBrowser(BrowserWindowInterface* browser) {
+DownloadManager* DownloadManagerForBrowser(Browser* browser) {
   return browser->GetProfile()->GetDownloadManager();
 }
 
-void SetPromptForDownload(BrowserWindowInterface* browser,
-                          bool prompt_for_download) {
+void SetPromptForDownload(Browser* browser, bool prompt_for_download) {
   browser->GetProfile()->GetPrefs()->SetBoolean(prefs::kPromptForDownload,
                                                 prompt_for_download);
 }
@@ -138,7 +137,7 @@ bool DownloadTestBase::InitialSetup() {
   // Sanity check default values for window and tab count.
   int window_count = GlobalBrowserCollection::GetInstance()->GetSize();
   EXPECT_EQ(1, window_count);
-  EXPECT_EQ(1, browser()->GetTabStripModel()->count());
+  EXPECT_EQ(1, browser()->tab_strip_model()->count());
 
   SetPromptForDownload(browser(), false);
 
@@ -161,9 +160,8 @@ base::FilePath DownloadTestBase::OriginFile(const base::FilePath& file) {
   return test_dir_.Append(file);
 }
 
-base::FilePath DownloadTestBase::DestinationFile(
-    BrowserWindowInterface* browser,
-    const base::FilePath& file) {
+base::FilePath DownloadTestBase::DestinationFile(Browser* browser,
+                                                 const base::FilePath& file) {
   return GetDownloadDirectory(browser).Append(file.BaseName());
 }
 
@@ -172,18 +170,16 @@ DownloadTestBase::test_response_handler() {
   return &test_response_handler_;
 }
 
-DownloadPrefs* DownloadTestBase::GetDownloadPrefs(
-    BrowserWindowInterface* browser) {
+DownloadPrefs* DownloadTestBase::GetDownloadPrefs(Browser* browser) {
   return DownloadPrefs::FromDownloadManager(DownloadManagerForBrowser(browser));
 }
 
-base::FilePath DownloadTestBase::GetDownloadDirectory(
-    BrowserWindowInterface* browser) {
+base::FilePath DownloadTestBase::GetDownloadDirectory(Browser* browser) {
   return GetDownloadPrefs(browser)->DownloadPath();
 }
 
 content::DownloadTestObserver* DownloadTestBase::CreateWaiter(
-    BrowserWindowInterface* browser,
+    Browser* browser,
     int num_downloads) {
   DownloadManager* download_manager = DownloadManagerForBrowser(browser);
   return new content::DownloadTestObserverTerminal(
@@ -192,7 +188,7 @@ content::DownloadTestObserver* DownloadTestBase::CreateWaiter(
 }
 
 content::DownloadTestObserver* DownloadTestBase::CreateInProgressWaiter(
-    BrowserWindowInterface* browser,
+    Browser* browser,
     int num_downloads) {
   DownloadManager* download_manager = DownloadManagerForBrowser(browser);
   return new content::DownloadTestObserverInProgress(download_manager,
@@ -200,7 +196,7 @@ content::DownloadTestObserver* DownloadTestBase::CreateInProgressWaiter(
 }
 
 content::DownloadTestObserver* DownloadTestBase::DangerousDownloadWaiter(
-    BrowserWindowInterface* browser,
+    Browser* browser,
     int num_downloads,
     content::DownloadTestObserver::DangerousDownloadAction
         dangerous_download_action) {
@@ -210,7 +206,7 @@ content::DownloadTestObserver* DownloadTestBase::DangerousDownloadWaiter(
 }
 
 void DownloadTestBase::CheckDownloadStatesForBrowser(
-    BrowserWindowInterface* browser,
+    Browser* browser,
     size_t num,
     DownloadItem::DownloadState state) {
   std::vector<raw_ptr<DownloadItem, VectorExperimental>> download_items;
@@ -235,7 +231,7 @@ bool DownloadTestBase::VerifyNoDownloads() const {
 }
 
 void DownloadTestBase::DownloadAndWaitWithDisposition(
-    BrowserWindowInterface* browser,
+    Browser* browser,
     const GURL& url,
     WindowOpenDisposition disposition,
     int browser_test_flags,
@@ -255,7 +251,7 @@ void DownloadTestBase::DownloadAndWaitWithDisposition(
   EXPECT_FALSE(DidShowFileChooser());
 }
 
-void DownloadTestBase::DownloadAndWait(BrowserWindowInterface* browser,
+void DownloadTestBase::DownloadAndWait(Browser* browser,
                                        const GURL& url,
                                        bool prompt_for_download) {
   DownloadAndWaitWithDisposition(
@@ -263,7 +259,7 @@ void DownloadTestBase::DownloadAndWait(BrowserWindowInterface* browser,
       ui_test_utils::BROWSER_TEST_WAIT_FOR_LOAD_STOP, prompt_for_download);
 }
 
-bool DownloadTestBase::CheckDownload(BrowserWindowInterface* browser,
+bool DownloadTestBase::CheckDownload(Browser* browser,
                                      const base::FilePath& downloaded_filename,
                                      const base::FilePath& origin_filename) {
   // Find the path to which the data will be downloaded.
@@ -275,7 +271,7 @@ bool DownloadTestBase::CheckDownload(BrowserWindowInterface* browser,
 }
 
 bool DownloadTestBase::CheckDownloadFullPaths(
-    BrowserWindowInterface* browser,
+    Browser* browser,
     const base::FilePath& downloaded_file,
     const base::FilePath& origin_file) {
   base::ScopedAllowBlockingForTesting allow_blocking;
@@ -309,8 +305,7 @@ bool DownloadTestBase::CheckDownloadFullPaths(
   return downloaded_file_deleted;
 }
 
-DownloadItem* DownloadTestBase::CreateSlowTestDownload(
-    BrowserWindowInterface* browser) {
+DownloadItem* DownloadTestBase::CreateSlowTestDownload(Browser* browser) {
   if (!browser) {
     browser = DownloadTestBase::browser();
   }
@@ -349,7 +344,7 @@ DownloadItem* DownloadTestBase::CreateSlowTestDownload(
   return new_item;
 }
 
-bool DownloadTestBase::RunSizeTest(BrowserWindowInterface* browser,
+bool DownloadTestBase::RunSizeTest(Browser* browser,
                                    SizeTestType type,
                                    const std::string& partial_indication,
                                    const std::string& total_indication) {
@@ -405,7 +400,7 @@ bool DownloadTestBase::RunSizeTest(BrowserWindowInterface* browser,
   EXPECT_EQ(1u, observer->NumDownloadsSeenInState(DownloadItem::COMPLETE));
   CheckDownloadStatesForBrowser(browser, 1, DownloadItem::COMPLETE);
 
-  EXPECT_EQ(2, browser->GetTabStripModel()->count());
+  EXPECT_EQ(2, browser->tab_strip_model()->count());
 
   // TODO(ahendrickson): check download status text after downloading.
 
@@ -432,7 +427,7 @@ bool DownloadTestBase::RunSizeTest(BrowserWindowInterface* browser,
 }
 
 void DownloadTestBase::GetDownloads(
-    BrowserWindowInterface* browser,
+    Browser* browser,
     std::vector<raw_ptr<DownloadItem, VectorExperimental>>* downloads) const {
   DCHECK(downloads);
   DownloadManager* manager = DownloadManagerForBrowser(browser);

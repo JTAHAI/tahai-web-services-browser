@@ -7,18 +7,17 @@
 
 #include <cstddef>
 
-#include "base/functional/callback.h"
 #include "base/time/time.h"
+#include "chrome/browser/ui/browser.h"
 #include "components/signin/core/browser/account_reconcilor.h"
 #include "components/signin/public/identity_manager/identity_manager.h"
 #include "components/signin/public/identity_manager/test_accounts.h"
 #include "components/sync/service/sync_service.h"
 #include "content/public/browser/web_contents.h"
-#include "ui/base/page_transition_types.h"
-#include "url/gurl.h"
 
-class Browser;
-class BrowserWindowInterface;
+namespace content {
+class WebContents;
+}
 
 namespace signin::test {
 
@@ -29,11 +28,11 @@ inline constexpr base::TimeDelta kDialogTimeout = base::Seconds(10);
 inline constexpr char kSettingsScriptWrapperFormat[] =
     "import('./settings.js').then(settings => {%s});";
 
-signin::IdentityManager* identity_manager(BrowserWindowInterface* browser);
+signin::IdentityManager* identity_manager(Browser* browser);
 
-syncer::SyncService* sync_service(BrowserWindowInterface* browser);
+syncer::SyncService* sync_service(Browser* browser);
 
-AccountReconcilor* account_reconcilor(BrowserWindowInterface* browser);
+AccountReconcilor* account_reconcilor(Browser* browser);
 
 class SignInFunctions {
  public:
@@ -47,11 +46,6 @@ class SignInFunctions {
     kAcceptAllOptionalDataTypesSync = 0,
     kRejectOptionalDateTypesSync = 1,
   };
-
-  SignInFunctions(
-      const base::RepeatingCallback<BrowserWindowInterface*()> browser,
-      const base::RepeatingCallback<bool(int, const GURL&, ui::PageTransition)>
-          add_tab_function);
 
   SignInFunctions(
       const base::RepeatingCallback<Browser*()> browser,
@@ -76,12 +70,15 @@ class SignInFunctions {
                              const TestAccountSigninCredentials& test_account,
                              int previously_signed_in_accounts);
 
+  void TurnOnSync(const TestAccountSigninCredentials& test_account,
+                  int previously_signed_in_accounts);
+
   void SignOutFromWeb();
 
-  void SignOut();
+  void TurnOffSync();
 
  private:
-  const base::RepeatingCallback<BrowserWindowInterface*()> browser_;
+  const base::RepeatingCallback<Browser*()> browser_;
   const base::RepeatingCallback<bool(int, const GURL&, ui::PageTransition)>
       add_tab_function_;
 };

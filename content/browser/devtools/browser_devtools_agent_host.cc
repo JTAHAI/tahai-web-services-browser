@@ -254,8 +254,7 @@ bool BrowserDevToolsAgentHost::AttachSession(DevToolsSession* session) {
         socket_callback_, tethering_task_runner_);
   }
   session->CreateAndAddHandler<protocol::TracingHandler>(
-      this, GetIOContext(), /* root_session */ nullptr,
-      session->GetClient()->IsTrusted());
+      this, GetIOContext(), /* root_session */ nullptr);
 
 #if BUILDFLAG(CLANG_PROFILING_INSIDE_SANDBOX) && BUILDFLAG(CLANG_PGO_PROFILING)
   session->CreateAndAddHandler<protocol::NativeProfilingHandler>();

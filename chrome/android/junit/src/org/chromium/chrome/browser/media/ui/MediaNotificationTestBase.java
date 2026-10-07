@@ -233,7 +233,7 @@ public class MediaNotificationTestBase {
     }
 
     MediaNotificationController getController() {
-        return MediaNotificationManager.getControllerByNotificationId(getNotificationId());
+        return MediaNotificationManager.getController(getNotificationId());
     }
 
     void ensureMediaNotificationInfo() {

@@ -30,6 +30,7 @@ import org.chromium.base.Promise;
 import org.chromium.base.TimeUtils;
 import org.chromium.base.test.BaseRobolectricTestRule;
 import org.chromium.base.test.BaseRobolectricTestRunner;
+import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.Features;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.password_manager.FakePasswordCheckupClientHelper;
@@ -49,6 +50,7 @@ import java.util.Collection;
 public class SafetyHubPasswordsFetchServiceTest {
 
     @RunWith(ParameterizedRobolectricTestRunner.class)
+    @Batch(Batch.UNIT_TESTS)
     @Features.EnableFeatures({ChromeFeatureList.SAFETY_HUB_WEAK_AND_REUSED_PASSWORDS})
     public static class SafetyHubPasswordsFetchServiceParamTests {
         @Rule public MockitoRule mMockitoRule = MockitoJUnit.rule();
@@ -273,6 +275,7 @@ public class SafetyHubPasswordsFetchServiceTest {
     }
 
     @RunWith(BaseRobolectricTestRunner.class)
+    @Batch(Batch.UNIT_TESTS)
     @Features.EnableFeatures({ChromeFeatureList.SAFETY_HUB_WEAK_AND_REUSED_PASSWORDS})
     public static class SafetyHubPasswordsFetchServiceSingleTests {
         @Rule public MockitoRule mMockitoRule = MockitoJUnit.rule();

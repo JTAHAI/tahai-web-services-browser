@@ -163,7 +163,7 @@
 <translation id="1611649489706141841">هدایت</translation>
 <translation id="1615335640928990664">مصرف داده از <ph name="FRIENDLY_DATE" /></translation>
 <translation id="1618566998877964907">استفاده از زمینه</translation>
-<translation id="1621067168122174824">اجرای آزمایش شارژشدن</translation>
+<translation id="1621067168122174824">اجرای آزمایش شارژ</translation>
 <translation id="1622402072367425417">حباب‌های درخشان</translation>
 <translation id="1626590945318984973">میان‌بر دردسترس نیست. میان‌بر جدیدی را بدون استفاده از کلیدهای عملیات و <ph name="META_KEY" /> فشار دهید.</translation>
 <translation id="163774412591892664">سرپرست شما دستگاهتان را غیرفعال کرده است و می‌تواند به مکان آن دسترسی داشته باشد.</translation>
@@ -1831,6 +1831,7 @@
 <translation id="9082718469794970195">استفاده از این ویدیو</translation>
 <translation id="9088306295921699330">مصرف فعلی</translation>
 <translation id="9088994563996376283">ساده کردن</translation>
+<translation id="9095775724867566971">Pluginvm</translation>
 <translation id="909856219855259344">اطلاعات بیشتر درباره «تاریخ بازنشانی»</translation>
 <translation id="9100765901046053179">تنظیمات پیشرفته</translation>
 <translation id="910415269708673980">بازآوری بلیت برای <ph name="PRINCIPAL_NAME" /></translation>

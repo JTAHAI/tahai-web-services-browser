@@ -1,3 +1,7 @@
-rules:
-- broadcastchannel-*: [broadcast-channel]
-- messageport-*: [channel-messaging]
+features:
+- name: broadcast-channel
+  files:
+  - broadcastchannel-*
+- name: channel-messaging
+  files:
+  - messageport-*

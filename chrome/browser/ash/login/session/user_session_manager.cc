@@ -76,7 +76,7 @@
 #include "chrome/browser/ash/login/demo_mode/demo_session.h"
 #include "chrome/browser/ash/login/existing_user_controller.h"
 #include "chrome/browser/ash/login/helper.h"
-#include "chrome/browser/ash/login/lock/screen_locker_controller.h"
+#include "chrome/browser/ash/login/lock/screen_locker.h"
 #include "chrome/browser/ash/login/onboarding_user_activity_counter.h"
 #include "chrome/browser/ash/login/profile_auth_data.h"
 #include "chrome/browser/ash/login/quick_unlock/pin_backend.h"
@@ -113,16 +113,17 @@
 #include "chrome/browser/ash/tether/tether_service.h"
 #include "chrome/browser/ash/tpm/tpm_firmware_update_notification.h"
 #include "chrome/browser/browser_process.h"
+#include "chrome/browser/browser_process_platform_part_ash.h"
 #include "chrome/browser/first_run/first_run.h"
 #include "chrome/browser/global_features.h"
 #include "chrome/browser/metrics/first_web_contents_profiler.h"
-#include "chrome/browser/password_manager/factories/password_reuse_manager_factory.h"
 #include "chrome/browser/prefs/session_startup_pref.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profile_manager.h"
 #include "chrome/browser/signin/chrome_device_id_helper.h"
 #include "chrome/browser/signin/identity_manager_factory.h"
 #include "chrome/browser/supervised_user/child_accounts/child_account_service_factory.h"
+#include "chrome/browser/sync/desk_sync_service_factory.h"
 #include "chrome/browser/trusted_vault/trusted_vault_service_factory.h"
 #include "chrome/browser/ui/ash/login/input_events_blocker.h"
 #include "chrome/browser/ui/ash/login/login_display_host.h"
@@ -487,7 +488,9 @@ void OnPrepareTpmDeviceFinished() {
 void SaveSyncTrustedVaultKeysToProfile(
     const GaiaId& gaia_id,
     const SyncTrustedVaultKeys& trusted_vault_keys,
-    trusted_vault::TrustedVaultService* trusted_vault_service) {
+    Profile* profile) {
+  trusted_vault::TrustedVaultService* trusted_vault_service =
+      TrustedVaultServiceFactory::GetForProfile(profile);
   if (!trusted_vault_service) {
     return;
   }
@@ -716,13 +719,11 @@ UserSessionManager::UserSessionManager(
     PrefService* local_state,
     ApplicationLocaleStorage* application_locale_storage,
     scoped_refptr<network::SharedURLLoaderFactory> shared_url_loader_factory,
-    policy::BrowserPolicyConnectorAsh* browser_policy_connector_ash,
-    scoped_refptr<component_updater::ComponentManagerAsh> component_manager_ash)
+    policy::BrowserPolicyConnectorAsh* browser_policy_connector_ash)
     : local_state_(CHECK_DEREF(local_state)),
       application_locale_storage_(CHECK_DEREF(application_locale_storage)),
       shared_url_loader_factory_(std::move(shared_url_loader_factory)),
       browser_policy_connector_ash_(CHECK_DEREF(browser_policy_connector_ash)),
-      component_manager_ash_(std::move(component_manager_ash)),
       delegate_(nullptr),
       network_connection_tracker_(nullptr),
       authenticator_(nullptr),
@@ -734,9 +735,6 @@ UserSessionManager::UserSessionManager(
       attempt_restart_closure_(base::BindRepeating(
           []() { session_manager::SessionManager::Get()->RequestRestart(); })) {
   CHECK(shared_url_loader_factory_);
-  if (!component_manager_ash_) {
-    CHECK_IS_TEST();
-  }
 
   user_manager::UserManager::Get()->AddSessionStateObserver(this);
   content::GetNetworkConnectionTrackerFromUIThread(
@@ -854,7 +852,7 @@ void UserSessionManager::CompleteGuestSessionLogin(const GURL& start_url) {
 scoped_refptr<Authenticator> UserSessionManager::CreateAuthenticator(
     AuthStatusConsumer* consumer) {
   // Screen locker needs new Authenticator instance each time.
-  if (ScreenLockerController::Get().screen_locker()) {
+  if (ScreenLocker::default_screen_locker()) {
     if (authenticator_.get())
       authenticator_->SetConsumer(nullptr);
     authenticator_.reset();
@@ -1442,10 +1440,9 @@ void UserSessionManager::VoteForSavingLoginPassword(
 }
 
 void UserSessionManager::InitDemoSessionIfNeeded(base::OnceClosure callback) {
-  CHECK(component_manager_ash_);
   DemoSession* demo_session = DemoSession::StartIfInDemoMode(
       &local_state_.get(), &application_locale_storage_.get(),
-      component_manager_ash_);
+      g_browser_process->platform_part()->component_manager_ash());
   if (!demo_session || !demo_session->started()) {
     std::move(callback).Run();
     return;
@@ -1915,8 +1912,7 @@ void UserSessionManager::FinalizePrepareProfile(Profile* profile) {
     // Save sync password hash and salt to profile prefs if they are available.
     // These will be used to detect Gaia password reuses.
     if (user_context_.GetSyncPasswordData().has_value()) {
-      login::SaveSyncPasswordDataToProfile(
-          user_context_, PasswordReuseManagerFactory::GetForProfile(profile));
+      login::SaveSyncPasswordDataToProfile(user_context_, profile);
     }
 
     if (!user_context_.GetChallengeResponseKeys().empty()) {
@@ -1932,7 +1928,7 @@ void UserSessionManager::FinalizePrepareProfile(Profile* profile) {
     if (user_context_.GetSyncTrustedVaultKeys().has_value()) {
       SaveSyncTrustedVaultKeysToProfile(
           user_context_.GetGaiaID(), *user_context_.GetSyncTrustedVaultKeys(),
-          TrustedVaultServiceFactory::GetForProfile(profile));
+          profile);
     }
 
     VLOG(1) << "Clearing all secrets";

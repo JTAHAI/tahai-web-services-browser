@@ -1,2 +1,3 @@
-rules:
-- "**": [structured-clone]
+features:
+- name: structured-clone
+  files: "**"

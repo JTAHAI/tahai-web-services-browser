@@ -2,20 +2,17 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import type {ProfileData, SwitchToTabInfo} from './tab_search.mojom-webui.js';
+import type {ProfileData, SwitchToTabInfo, TokenRange} from './tab_search.mojom-webui.js';
 import {PageCallbackRouter, PageHandlerFactory, PageHandlerRemote} from './tab_search.mojom-webui.js';
 
-// LINT.IfChange(TabSearchRecentlyClosedItemOpenAction)
 /**
  * These values are persisted to logs and should not be renumbered or reused.
- * See tools/metrics/histograms/metadata/tab/enums.xml.
+ * See tools/metrics/histograms/enums.xml.
  */
 export enum RecentlyClosedItemOpenAction {
   WITHOUT_SEARCH = 0,
   WITH_SEARCH = 1,
-  COUNT = WITH_SEARCH + 1,
 }
-// LINT.ThenChange(//tools/metrics/histograms/metadata/tab/enums.xml:TabSearchRecentlyClosedItemOpenAction)
 
 export interface TabSearchApiProxy {
   closeTab(tabId: number): void;
@@ -40,6 +37,9 @@ export interface TabSearchApiProxy {
   saveRecentlyClosedExpandedPref(expanded: boolean): void;
 
   maybeShowUi(): void;
+
+  getRangesIgnoringCaseAndAccents(searchText: string, targets: string[]):
+      Promise<{ranges: TokenRange[][]}>;
 }
 
 export class TabSearchApiProxyImpl implements TabSearchApiProxy {
@@ -79,7 +79,7 @@ export class TabSearchApiProxyImpl implements TabSearchApiProxy {
                 'Tabs.TabSearch.WebUI.RecentlyClosedGroupOpenAction',
         withSearch ? RecentlyClosedItemOpenAction.WITH_SEARCH :
                      RecentlyClosedItemOpenAction.WITHOUT_SEARCH,
-        RecentlyClosedItemOpenAction.COUNT);
+        Object.keys(RecentlyClosedItemOpenAction).length);
     this.handler.openRecentlyClosedEntry(id);
   }
 
@@ -101,6 +101,10 @@ export class TabSearchApiProxyImpl implements TabSearchApiProxy {
 
   maybeShowUi() {
     this.handler.maybeShowUI();
+  }
+
+  getRangesIgnoringCaseAndAccents(searchText: string, targets: string[]) {
+    return this.handler.getRangesIgnoringCaseAndAccents(searchText, targets);
   }
 
   static getInstance(): TabSearchApiProxy {

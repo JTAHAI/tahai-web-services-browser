@@ -8,13 +8,13 @@
 namespace partition_alloc::internal {
 
 #if PA_BUILDFLAG(HAS_64_BIT_POINTERS)
-constinit ReservationOffsetTable::_ReservationOffsetTable<
+PA_CONSTINIT ReservationOffsetTable::_ReservationOffsetTable<
     ReservationOffsetTable::kRegularOffsetTableLength>
     ReservationOffsetTable::regular_pool_table_;
-constinit ReservationOffsetTable::_ReservationOffsetTable<
+PA_CONSTINIT ReservationOffsetTable::_ReservationOffsetTable<
     ReservationOffsetTable::kBRPOffsetTableLength>
     ReservationOffsetTable::brp_pool_table_;
-constinit ReservationOffsetTable::_ReservationOffsetTable<
+PA_CONSTINIT ReservationOffsetTable::_ReservationOffsetTable<
     ReservationOffsetTable::kConfigurableOffsetTableLength>
     ReservationOffsetTable::configurable_pool_table_;
 #if PA_BUILDFLAG(ENABLE_THREAD_ISOLATION)
@@ -22,14 +22,14 @@ constinit ReservationOffsetTable::_ReservationOffsetTable<
 // of the thread isolated pool. For this, the thread isolated ones start on a
 // page boundary.
 PA_THREAD_ISOLATED_ALIGN
-constinit ReservationOffsetTable::_ReservationOffsetTable<
+PA_CONSTINIT ReservationOffsetTable::_ReservationOffsetTable<
     ReservationOffsetTable::kThreadIsolatedOffsetTableLength,
     ReservationOffsetTable::kThreadIsolatedOffsetTablePaddingSize>
     ReservationOffsetTable::thread_isolated_pool_table_;
 #endif
 #else
 // A single table for the entire 32-bit address space.
-constinit ReservationOffsetTable::_ReservationOffsetTable<
+PA_CONSTINIT ReservationOffsetTable::_ReservationOffsetTable<
     ReservationOffsetTable::kReservationOffsetTableLength>
     ReservationOffsetTable::reservation_offset_table_;
 #endif  // PA_BUILDFLAG(HAS_64_BIT_POINTERS)

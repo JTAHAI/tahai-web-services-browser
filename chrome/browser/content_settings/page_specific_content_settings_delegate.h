@@ -5,10 +5,9 @@
 #ifndef CHROME_BROWSER_CONTENT_SETTINGS_PAGE_SPECIFIC_CONTENT_SETTINGS_DELEGATE_H_
 #define CHROME_BROWSER_CONTENT_SETTINGS_PAGE_SPECIFIC_CONTENT_SETTINGS_DELEGATE_H_
 
-#include <memory>
-
 #include "base/scoped_observation.h"
 #include "build/build_config.h"
+#include "chrome/browser/media/webrtc/media_stream_capture_indicator.h"
 #include "components/browsing_data/content/browsing_data_model.h"
 #include "components/content_settings/browser/page_specific_content_settings.h"
 #include "components/custom_handlers/protocol_handler.h"
@@ -19,7 +18,8 @@ using StorageType =
 
 class PageSpecificContentSettingsDelegate
     : public content_settings::PageSpecificContentSettings::Delegate,
-      public content::WebContentsObserver {
+      public content::WebContentsObserver,
+      public MediaStreamCaptureIndicator::Observer {
  public:
   explicit PageSpecificContentSettingsDelegate(
       content::WebContents* web_contents);
@@ -68,11 +68,11 @@ class PageSpecificContentSettingsDelegate
     return pending_protocol_handler_setting_;
   }
 
-  // Called by MediaObserver
+  // MediaStreamCaptureIndicator::Observer
   void OnIsCapturingVideoChanged(content::WebContents* web_contents,
-                                 bool is_capturing_video);
+                                 bool is_capturing_video) override;
   void OnIsCapturingAudioChanged(content::WebContents* web_contents,
-                                 bool is_capturing_audio);
+                                 bool is_capturing_audio) override;
 
  private:
   // PageSpecificContentSettings::Delegate:
@@ -119,8 +119,9 @@ class PageSpecificContentSettingsDelegate
 
   // It subscribes to Camera and Microphone capturing updates. It is used to
   // show/hide camera/mic activity indicators.
-  class MediaObserver;
-  std::unique_ptr<MediaObserver> media_observer_;
+  base::ScopedObservation<MediaStreamCaptureIndicator,
+                          MediaStreamCaptureIndicator::Observer>
+      media_observation_{this};
 
   // The setting on the pending protocol handler registration. Persisted in case
   // the user opens the bubble and makes changes multiple times.

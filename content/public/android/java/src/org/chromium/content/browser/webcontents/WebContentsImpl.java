@@ -16,7 +16,6 @@ import android.os.Message;
 import android.os.Parcel;
 import android.os.ParcelUuid;
 import android.os.Parcelable;
-import android.util.LongSparseArray;
 import android.view.MotionEvent;
 import android.view.Surface;
 import android.view.ViewStructure;
@@ -81,8 +80,10 @@ import org.chromium.url.GURL;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -100,7 +101,7 @@ public class WebContentsImpl
     // Map from native web contents pointer to WebContentsImpl to allow scaling of unlimited web
     // contents objects.
     // ScopedGlobalRef tables are finite.
-    private static final LongSparseArray<WebContentsImpl> sWebContentsMap = new LongSparseArray<>();
+    private static final Map<Long, WebContentsImpl> sWebContentsMap = new HashMap<>();
 
     private static final String PARCEL_VERSION_KEY = "version";
     private static final String PARCEL_WEBCONTENTS_KEY = "webcontents";
@@ -217,8 +218,8 @@ public class WebContentsImpl
         assert nativeWebContentsAndroid != 0;
         mNativeWebContentsAndroid = nativeWebContentsAndroid;
         mNavigationController = navigationController;
-        assert sWebContentsMap.get(mNativeWebContentsAndroid) == null;
-        sWebContentsMap.put(mNativeWebContentsAndroid, this);
+        var oldValue = sWebContentsMap.put(mNativeWebContentsAndroid, this);
+        assert oldValue == null;
     }
 
     @CalledByNative
@@ -310,8 +311,7 @@ public class WebContentsImpl
             userDataHost.destroy();
             mInternalsHolder.set(null);
         }
-        var removedValue = sWebContentsMap.get(nativeWebContentsAndroid);
-        sWebContentsMap.remove(nativeWebContentsAndroid);
+        var removedValue = sWebContentsMap.remove(nativeWebContentsAndroid);
         assert removedValue != null;
     }
 

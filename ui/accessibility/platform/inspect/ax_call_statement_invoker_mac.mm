@@ -512,8 +512,8 @@ AXOptionalNSObject AXCallStatementInvoker::ParamFrom(
   }
   if (attribute == "AXIndexForTextMarker" ||
       attribute == "AXNextWordEndTextMarkerForTextMarker" ||
-      attribute == "AXPreviousWordStartTextMarkerForTextMarker" ||
-      attribute == "AXLineTextMarkerRangeForTextMarker") {  // TextMarker
+      attribute ==
+          "AXPreviousWordStartTextMarkerForTextMarker") {  // TextMarker
     return AXOptionalNSObject::NotNullOrError(
         PropertyNodeToTextMarker(argument));
   }

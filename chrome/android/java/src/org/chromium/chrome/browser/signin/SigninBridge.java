@@ -18,14 +18,12 @@ import androidx.annotation.VisibleForTesting;
 import org.jni_zero.CalledByNative;
 import org.jni_zero.JniType;
 
-import org.chromium.base.DeviceInfo;
 import org.chromium.base.ThreadUtils;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.device_lock.DeviceLockActivityLauncherImpl;
 import org.chromium.chrome.browser.profiles.Profile;
-import org.chromium.chrome.browser.signin.services.AccountPreviewDataService;
 import org.chromium.chrome.browser.signin.services.IdentityServicesProvider;
 import org.chromium.chrome.browser.signin.services.SigninManager;
 import org.chromium.chrome.browser.signin.services.SigninMetricsUtils;
@@ -59,7 +57,6 @@ import org.chromium.components.signin.SigninFeatureMap;
 import org.chromium.components.signin.SigninFeatures;
 import org.chromium.components.signin.base.AccountInfo;
 import org.chromium.components.signin.base.CoreAccountInfo;
-import org.chromium.components.signin.base.ExternalEntryPoint;
 import org.chromium.components.signin.base.SigninDeepLinkPayload;
 import org.chromium.components.signin.identitymanager.IdentityManager;
 import org.chromium.components.signin.metrics.AccountConsistencyPromoAction;
@@ -67,7 +64,6 @@ import org.chromium.components.signin.metrics.CrossDeviceInitialState;
 import org.chromium.components.signin.metrics.SigninAccessPoint;
 import org.chromium.google_apis.gaia.CoreAccountId;
 import org.chromium.ui.base.WindowAndroid;
-import org.chromium.ui.modaldialog.ModalDialogManager;
 import org.chromium.ui.widget.Toast;
 import org.chromium.url.GURL;
 
@@ -86,8 +82,6 @@ final class SigninBridge {
                 WindowAndroid windowAndroid,
                 IdentityManager identityManager,
                 SigninManager signinManager,
-                @Nullable AccountPreviewDataService accountPreviewDataService,
-                ModalDialogManager modalDialogManager,
                 BottomSheetController bottomSheetController,
                 AccountPickerDelegate accountPickerDelegate,
                 AccountPickerBottomSheetStrings accountPickerBottomSheetStrings,
@@ -100,8 +94,6 @@ final class SigninBridge {
                     windowAndroid,
                     identityManager,
                     signinManager,
-                    accountPreviewDataService,
-                    modalDialogManager,
                     bottomSheetController,
                     accountPickerDelegate,
                     accountPickerBottomSheetStrings,
@@ -264,20 +256,9 @@ final class SigninBridge {
 
     /** Opens account management screen. */
     @CalledByNative
-    static void openAccountManagementScreen(
+    private static void openAccountManagementScreen(
             WindowAndroid windowAndroid, @GAIAServiceType int gaiaServiceType) {
         ThreadUtils.assertOnUiThread();
-        // TODO(crbug.com/8225307): Allowlist DeviceInfo.isDesktop() for this use case or branch
-        // in native code for desktop.
-        if (DeviceInfo.isDesktop()
-                && SigninFeatureMap.isEnabled(
-                        SigninFeatures.OPEN_SYSTEM_ACCOUNT_SETTINGS_DIRECTLY)) {
-            Activity activity = windowAndroid.getActivity().get();
-            if (activity != null) {
-                SigninUtils.openSettingsForAllAccounts(activity);
-            }
-            return;
-        }
         final Context context = windowAndroid.getContext().get();
         if (context != null) {
             AccountManagementFragment.openAccountManagementScreen(context, gaiaServiceType);
@@ -409,14 +390,10 @@ final class SigninBridge {
             return;
         }
 
-        AccountPreviewDataService accountPreviewDataService =
-                IdentityServicesProvider.get().getAccountPreviewDataService(profile);
         factory.create(
                 windowAndroid,
                 signinManager.getIdentityManager(),
                 signinManager,
-                accountPreviewDataService,
-                assertNonNull(windowAndroid.getModalDialogManager()),
                 bottomSheetController,
                 new WebSigninAccountPickerDelegate(tab, new WebSigninBridge.Factory(), continueUrl),
                 strings,
@@ -498,16 +475,19 @@ final class SigninBridge {
         @Nullable Context context = windowAndroid.getContext().get();
         @Nullable IdentityManager identityManager =
                 IdentityServicesProvider.get().getIdentityManager(profile);
-        if (context == null || identityManager == null) {
+        @Nullable SigninManager signinManager =
+                IdentityServicesProvider.get().getSigninManager(profile);
+        if (context == null || identityManager == null || signinManager == null) {
             return;
         }
-        startSigninDeepLinkFlow(context, profile, identityManager, payload);
+        startSigninDeepLinkFlow(context, profile, identityManager, signinManager, payload);
     }
 
     private static void startSigninDeepLinkFlow(
             Context context,
             Profile profile,
             IdentityManager identityManager,
+            SigninManager signinManager,
             SigninDeepLinkPayload payload) {
         ThreadUtils.assertOnUiThread();
 
@@ -522,10 +502,15 @@ final class SigninBridge {
                         && targetAccountInfo != null
                         && primaryAccountInfo.getId().equals(targetAccountInfo.getId());
 
+        SigninMetricsUtils.recordCrossDeviceInitialState(
+                payload.getExternalEntryPoint(),
+                getCrossDeviceInitialState(
+                        /* isSigninAllowed= */ signinManager.isSigninAllowed(),
+                        /* isSignedIn= */ primaryAccountInfo != null,
+                        /* isTargetAccountOnDevice= */ targetAccountInfo != null,
+                        /* isTargetAccountSignedIn= */ isTargetAccountSignedIn));
+
         if (isTargetAccountSignedIn) {
-            SigninMetricsUtils.recordCrossDeviceInitialState(
-                    payload.getExternalEntryPoint(),
-                    CrossDeviceInitialState.SIGNED_IN_WITH_TARGET_ACCOUNT);
             String message =
                     SigninDeepLinkFlowStrings.alreadySignedInMessage(
                             context, assumeNonNull(targetAccountInfo), payload);
@@ -546,36 +531,31 @@ final class SigninBridge {
                 SigninAndHistorySyncActivityLauncherImpl.get()
                         .createFullscreenSigninIntentOrShowError(
                                 context, profile, config, SigninAccessPoint.DEEP_LINK_DEFAULT);
-        if (intent == null) {
-            SigninMetricsUtils.recordCrossDeviceInitialState(
-                    payload.getExternalEntryPoint(), CrossDeviceInitialState.FLOW_FORBIDDEN);
-            return;
+        if (intent != null) {
+            context.startActivity(intent);
         }
-
-        recordCrossDeviceFlowStart(
-                payload.getExternalEntryPoint(), primaryAccountInfo, targetAccountInfo);
-        context.startActivity(intent);
     }
 
-    private static void recordCrossDeviceFlowStart(
-            @ExternalEntryPoint int entryPoint,
-            @Nullable CoreAccountInfo primaryAccountInfo,
-            @Nullable AccountInfo targetAccountInfo) {
-        @CrossDeviceInitialState int initialState;
-        if (primaryAccountInfo != null) {
-            initialState =
-                    targetAccountInfo != null
-                            ? CrossDeviceInitialState
-                                    .SIGNED_IN_WITH_DIFFERENT_ACCOUNT_TARGET_ACCOUNT_ON_DEVICE
-                            : CrossDeviceInitialState
-                                    .SIGNED_IN_WITH_DIFFERENT_ACCOUNT_TARGET_ACCOUNT_NOT_ON_DEVICE;
+    private static @CrossDeviceInitialState int getCrossDeviceInitialState(
+            boolean isSigninAllowed,
+            boolean isSignedIn,
+            boolean isTargetAccountOnDevice,
+            boolean isTargetAccountSignedIn) {
+        if (!isSigninAllowed) {
+            return CrossDeviceInitialState.FLOW_FORBIDDEN;
+        } else if (isTargetAccountSignedIn) {
+            return CrossDeviceInitialState.SIGNED_IN_WITH_TARGET_ACCOUNT;
+        } else if (isSignedIn) {
+            return isTargetAccountOnDevice
+                    ? CrossDeviceInitialState
+                            .SIGNED_IN_WITH_DIFFERENT_ACCOUNT_TARGET_ACCOUNT_ON_DEVICE
+                    : CrossDeviceInitialState
+                            .SIGNED_IN_WITH_DIFFERENT_ACCOUNT_TARGET_ACCOUNT_NOT_ON_DEVICE;
         } else {
-            initialState =
-                    targetAccountInfo != null
-                            ? CrossDeviceInitialState.SIGNED_OUT_TARGET_ACCOUNT_ON_DEVICE
-                            : CrossDeviceInitialState.SIGNED_OUT_TARGET_ACCOUNT_NOT_ON_DEVICE;
+            return isTargetAccountOnDevice
+                    ? CrossDeviceInitialState.SIGNED_OUT_TARGET_ACCOUNT_ON_DEVICE
+                    : CrossDeviceInitialState.SIGNED_OUT_TARGET_ACCOUNT_NOT_ON_DEVICE;
         }
-        SigninMetricsUtils.recordCrossDeviceInitialState(entryPoint, initialState);
     }
 
     private SigninBridge() {}

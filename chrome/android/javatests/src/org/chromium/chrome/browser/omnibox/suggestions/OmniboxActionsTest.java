@@ -58,12 +58,13 @@ public class OmniboxActionsTest {
     public @Rule MockitoRule mMockitoRule = MockitoJUnit.rule();
     private @Mock AutocompleteController mAutocompleteController;
 
+    private WebPageStation mStartingPage;
     private OmniboxTestUtils mOmniboxUtils;
 
     @Before
     public void setUp() throws InterruptedException {
         AutocompleteController.setInstanceForTesting(mAutocompleteController);
-        mActivityTestRule.start();
+        mStartingPage = mActivityTestRule.start();
         mOmniboxUtils = new OmniboxTestUtils(mActivityTestRule.getActivity());
     }
 

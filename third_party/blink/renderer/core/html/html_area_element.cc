@@ -100,7 +100,7 @@ PhysicalRect HTMLAreaElement::ComputeAbsoluteRect(
 
   // FIXME: This doesn't work correctly with transforms.
   PhysicalOffset abs_pos = container_object->LocalToAbsolutePoint(
-      PhysicalOffset(), {MapCoordinatesMode::kIgnoreTransforms});
+      PhysicalOffset(), kIgnoreTransforms);
 
   const Path path = PathBuilder(GetPath(container_object))
                         .Translate(gfx::Vector2dF(abs_pos))

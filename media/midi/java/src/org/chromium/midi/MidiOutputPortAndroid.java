@@ -23,7 +23,7 @@ import java.io.IOException;
 @NullMarked
 class MidiOutputPortAndroid {
     /** The underlying port. */
-    private volatile @Nullable MidiInputPort mPort;
+    private @Nullable MidiInputPort mPort;
 
     /** The device this port belongs to. */
     private final MidiDevice mDevice;
@@ -31,11 +31,10 @@ class MidiOutputPortAndroid {
     /** The index of the port in the associated device. */
     private final int mIndex;
 
-    private static final String TAG = "MidiOutPortAndroid";
+    private static final String TAG = "midi";
 
     /**
      * constructor
-     *
      * @param device The device this port belongs to.
      * @param index The index of the port in the associated device.
      */
@@ -53,24 +52,18 @@ class MidiOutputPortAndroid {
         if (mPort != null) {
             return true;
         }
-        try {
-            mPort = mDevice.openInputPort(mIndex);
-            return mPort != null;
-        } catch (SecurityException | IllegalArgumentException e) {
-            Log.w(TAG, "Failed to open port", e);
-            return false;
-        }
+        mPort = mDevice.openInputPort(mIndex);
+        return mPort != null;
     }
 
     /** Sends the data to the underlying output port. */
     @CalledByNative
     void send(byte[] bs) {
-        MidiInputPort localPort = mPort;
-        if (localPort == null) {
+        if (mPort == null) {
             return;
         }
         try {
-            localPort.send(bs, 0, bs.length);
+            mPort.send(bs, 0, bs.length);
         } catch (IOException e) {
             // We can do nothing here. Just ignore the error.
             Log.e(TAG, "MidiOutputPortAndroid.send: " + e);
@@ -80,20 +73,14 @@ class MidiOutputPortAndroid {
     /** Closes the port. */
     @CalledByNative
     void close() {
-        MidiInputPort localPort;
-
-        synchronized (this) {
-            if (mPort == null) {
-                return;
-            }
-            localPort = mPort;
-            mPort = null;
+        if (mPort == null) {
+            return;
         }
-
         try {
-            localPort.close();
+            mPort.close();
         } catch (IOException e) {
             // We can do nothing here. Just ignore the error.
         }
+        mPort = null;
     }
 }

@@ -24,6 +24,7 @@
 #include "components/keyed_service/content/browser_context_dependency_manager.h"
 #include "components/optimization_guide/core/delivery/model_info.h"
 #include "components/page_content_annotations/content/page_content_extraction_service.h"
+#include "components/page_content_annotations/core/page_content_annotations_features.h"
 #include "components/page_content_annotations/core/page_content_annotations_service.h"
 #include "components/page_content_annotations/core/test_page_content_annotator.h"
 #include "components/passage_embeddings/core/passage_embeddings_test_util.h"
@@ -91,7 +92,8 @@ class HistoryEmbeddingsInteractiveTest
 
   void SetUp() override {
     scoped_feature_list_.InitWithFeaturesAndParameters(
-        {{history_embeddings::kHistoryEmbeddings, {{}}}},
+        {{history_embeddings::kHistoryEmbeddings, {{}}},
+         {page_content_annotations::features::kPageContentAnnotations, {{}}}},
         /*disabled_features=*/{});
 
     InteractiveBrowserTest::SetUp();

@@ -13,7 +13,7 @@
 #include "base/threading/thread_restrictions.h"
 #include "base/time/time.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/webui/tahai/tahai_local_oi_service.h"
 #include "chrome/browser/ui/webui/tahai/tahai_local_oi_service_factory.h"
@@ -36,8 +36,8 @@
 #include "net/http/http_response_headers.h"
 #include "net/test/embedded_test_server/embedded_test_server.h"
 #include "net/traffic_annotation/network_traffic_annotation_test_helper.h"
-#include "services/network/public/cpp/ip_address_space_util.h"
 #include "services/network/public/cpp/resource_request.h"
+#include "services/network/public/cpp/ip_address_space_util.h"
 #include "services/network/public/cpp/shared_url_loader_factory.h"
 #include "services/network/public/cpp/simple_url_loader.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -60,7 +60,7 @@ class TahaiLocalOiBrowserTest : public InProcessBrowserTest {
   content::WebContents* NavigateToLocalOi() {
     EXPECT_TRUE(
         ui_test_utils::NavigateToURL(browser(), GURL(kTahaiLocalOiURL)));
-    return browser()->GetTabStripModel()->GetActiveWebContents();
+    return browser()->tab_strip_model()->GetActiveWebContents();
   }
 };
 
@@ -278,9 +278,9 @@ IN_PROC_BROWSER_TEST_F(TahaiLocalOiBrowserTest,
 
 IN_PROC_BROWSER_TEST_F(TahaiLocalOiBrowserTest,
                        BrowserCommandsAndClipboardRequireActiveGesture) {
-  auto* contents = browser()->GetTabStripModel()->GetActiveWebContents();
+  auto* contents = browser()->tab_strip_model()->GetActiveWebContents();
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), GURL(kTahaiSupportURL)));
-  const int initial_tabs = browser()->GetTabStripModel()->count();
+  const int initial_tabs = browser()->tab_strip_model()->count();
   ui::ScopedClipboardWriter(ui::ClipboardBuffer::kCopyPaste)
       .WriteText(u"command-gesture-sentinel");
   ASSERT_TRUE(content::ExecJs(contents, R"JS(
@@ -288,7 +288,7 @@ IN_PROC_BROWSER_TEST_F(TahaiLocalOiBrowserTest,
     chrome.send('executeTahaiCommand', ['tab.new']);
   )JS", content::EXECUTE_SCRIPT_NO_USER_GESTURE));
   content::RunAllTasksUntilIdle();
-  EXPECT_EQ(initial_tabs, browser()->GetTabStripModel()->count());
+  EXPECT_EQ(initial_tabs, browser()->tab_strip_model()->count());
   EXPECT_EQ(u"command-gesture-sentinel",
             ui::clipboard_test_util::ReadText(
                 ui::Clipboard::GetForCurrentThread(),
@@ -313,9 +313,8 @@ IN_PROC_BROWSER_TEST_F(TahaiLocalOiBrowserTest,
   ASSERT_TRUE(content::ExecJs(contents,
       "chrome.send('executeTahaiCommand', ['tab.new'])"));
   content::RunAllTasksUntilIdle();
-  EXPECT_EQ(initial_tabs + 1, browser()->GetTabStripModel()->count());
-  EXPECT_EQ(GURL("about:blank"), browser()
-                                     ->GetTabStripModel()
+  EXPECT_EQ(initial_tabs + 1, browser()->tab_strip_model()->count());
+  EXPECT_EQ(GURL("about:blank"), browser()->tab_strip_model()
                                      ->GetActiveWebContents()
                                      ->GetLastCommittedURL());
 }
@@ -349,7 +348,7 @@ IN_PROC_BROWSER_TEST_F(TahaiLocalOiBrowserTest,
 
 IN_PROC_BROWSER_TEST_F(TahaiLocalOiBrowserTest,
                        InspectionRequiresSupportDocumentAndExplicitGesture) {
-  auto* contents = browser()->GetTabStripModel()->GetActiveWebContents();
+  auto* contents = browser()->tab_strip_model()->GetActiveWebContents();
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), GURL(kTahaiSupportURL)));
   ASSERT_TRUE(content::ExecJs(contents, R"JS(
     window.inspectionResults = 0;
@@ -380,7 +379,7 @@ IN_PROC_BROWSER_TEST_F(TahaiLocalOiBrowserTest,
 
 IN_PROC_BROWSER_TEST_F(TahaiLocalOiBrowserTest,
                        InspectionSummaryCannotSurviveSupportReload) {
-  auto* contents = browser()->GetTabStripModel()->GetActiveWebContents();
+  auto* contents = browser()->tab_strip_model()->GetActiveWebContents();
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), GURL(kTahaiSupportURL)));
   EXPECT_EQ(true, content::EvalJs(contents, R"JS(
     new Promise(resolve => {
@@ -423,7 +422,7 @@ IN_PROC_BROWSER_TEST_F(TahaiLocalOiBrowserTest,
                                 params->client.Unbind());
         return true;
       }));
-  auto* contents = browser()->GetTabStripModel()->GetActiveWebContents();
+  auto* contents = browser()->tab_strip_model()->GetActiveWebContents();
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), GURL(kTahaiSupportURL)));
   ASSERT_TRUE(content::ExecJs(contents,
       "chrome.send('inspectTahaiNetwork', ['probe.example.com'])"));
@@ -502,8 +501,8 @@ IN_PROC_BROWSER_TEST_F(TahaiLocalOiBrowserTest,
   EXPECT_TRUE(has_record());
   EXPECT_TRUE(profile->GetPrefs()->GetBoolean(prefs::kTahaiLocalOiReportsEnabled));
 
-  browser()->GetTabStripModel()->ActivateTabAt(
-      browser()->GetTabStripModel()->GetIndexOfWebContents(contents));
+  browser()->tab_strip_model()->ActivateTabAt(
+      browser()->tab_strip_model()->GetIndexOfWebContents(contents));
   EXPECT_EQ(true, content::EvalJs(contents, R"JS(
     new Promise(resolve => {
       window.tahaiLocalOiControlUpdated = (setting, stored) => {
@@ -558,11 +557,11 @@ IN_PROC_BROWSER_TEST_F(TahaiLocalOiBrowserTest,
   EXPECT_TRUE(config.IsWebUIEnabled(regular_profile));
   EXPECT_TRUE(config.IsWebUIEnabled(off_the_record));
 
-  BrowserWindowInterface* incognito = CreateIncognitoBrowser(regular_profile);
+  Browser* incognito = CreateIncognitoBrowser(regular_profile);
   ASSERT_TRUE(incognito);
   ASSERT_TRUE(ui_test_utils::NavigateToURL(incognito, GURL(kTahaiLocalOiURL)));
   content::WebContents* contents =
-      incognito->GetTabStripModel()->GetActiveWebContents();
+      incognito->tab_strip_model()->GetActiveWebContents();
   ASSERT_TRUE(contents);
   EXPECT_EQ(GURL(kTahaiLocalOiURL), contents->GetLastCommittedURL());
   EXPECT_FALSE(content::EvalJs(

@@ -28,7 +28,6 @@
 #import "components/password_manager/core/browser/password_manager_metrics_util.h"
 #import "components/password_manager/core/browser/password_manager_util.h"
 #import "components/password_manager/core/browser/password_store/stored_credential.h"
-#import "components/password_manager/core/browser/password_string.h"
 #import "components/password_manager/core/browser/password_sync_util.h"
 #import "components/password_manager/core/browser/password_ui_utils.h"
 #import "components/password_manager/core/browser/ui/credential_ui_entry.h"
@@ -47,7 +46,6 @@
 namespace {
 
 using ::password_manager::PasswordFormManagerForUI;
-using ::password_manager::PasswordString;
 using ::password_manager::features_util::ComputePasswordAccountStorageUserState;
 using ::password_manager::features_util::PasswordAccountStorageUserState;
 using ::password_manager::sync_util::GetAccountForSaving;
@@ -136,8 +134,7 @@ void RecordDismissalMetrics(
     PasswordFormManagerForUI* form_to_save,
     password_manager::metrics_util::UIDismissalReason infobar_response,
     PasswordAccountStorageUserState account_storage_user_state,
-    bool update_infobar,
-    std::optional<password_manager::ActionableError> saving_blocked_error) {
+    bool update_infobar) {
   form_to_save->GetMetricsRecorder()->RecordUIDismissalReason(infobar_response);
 
   if (update_infobar) {
@@ -146,7 +143,7 @@ void RecordDismissalMetrics(
   } else {
     password_manager::metrics_util::LogSaveUIDismissalReason(
         infobar_response, account_storage_user_state,
-        /*log_adoption_metric=*/false, saving_blocked_error);
+        /*log_adoption_metric=*/false);
   }
 }
 
@@ -190,29 +187,21 @@ void RecordDurationAtMoment(bool is_update,
 // Returns an error preventing user from saving passwords in their account, if
 // any.
 password_manager::ActionableError GetPasswordStoreActionableError(
-    const syncer::SyncService* sync_service,
-    const password_manager::PasswordFormManagerForUI* form_manager,
+    password_manager::PasswordStoreInterface* profile_store,
     password_manager::PasswordStoreInterface* account_store) {
   if (!base::FeatureList::IsEnabled(
           password_manager::features::kPasswordSaveInContextErrorResolution)) {
     return password_manager::ActionableError::kNoError;
   }
-
-  // If the user disabled password syncing, the passwords will be saved locally,
-  // and saving should not be blocked by actionable errors in this case.
-  if (!password_manager::sync_util::HasChosenToSyncPasswords(sync_service)) {
-    return password_manager::ActionableError::kNoError;
+  password_manager::ActionableError error =
+      password_manager::ActionableError::kNoError;
+  if (account_store) {
+    error = account_store->GetError();
   }
-
-  // The updates of the locally stored passwords should not be blocked by
-  // actionable errors.
-  if (form_manager && form_manager->IsPasswordUpdate() &&
-      !form_manager->IsUpdateAffectingPasswordsStoredInTheGoogleAccount()) {
-    return password_manager::ActionableError::kNoError;
+  if (error == password_manager::ActionableError::kNoError && profile_store) {
+    error = profile_store->GetError();
   }
-
-  return account_store ? account_store->GetError()
-                       : password_manager::ActionableError::kNoError;
+  return error;
 }
 
 // Returns true if `error` can be fixed by the user in save password flow.
@@ -275,7 +264,7 @@ IOSChromeSavePasswordInfoBarDelegate::~IOSChromeSavePasswordInfoBarDelegate() {
     RecordDismissalMetrics(
         form_to_save_.get(), infobar_response_,
         ComputePasswordAccountStorageUserState(sync_service_),
-        IsUpdateInfobar(infobar_type_), resolved_error_);
+        IsUpdateInfobar(infobar_type_));
     RecordInfobarDuration(/*on_dismiss=*/false);
   }
 }
@@ -296,7 +285,7 @@ NSString* IOSChromeSavePasswordInfoBarDelegate::GetUserNameText() const {
 
 NSString* IOSChromeSavePasswordInfoBarDelegate::GetPasswordText() const {
   return base::SysUTF16ToNSString(
-      form_to_save_->GetPendingCredentials().password_value.value());
+      form_to_save_->GetPendingCredentials().password_value);
 }
 
 NSString* IOSChromeSavePasswordInfoBarDelegate::GetURLHostText() const {
@@ -305,7 +294,7 @@ NSString* IOSChromeSavePasswordInfoBarDelegate::GetURLHostText() const {
 
 NSString* IOSChromeSavePasswordInfoBarDelegate::GetSubtitle() const {
   password_manager::ActionableError error = GetPasswordStoreActionableError(
-      sync_service_, form_to_save_.get(), account_store_.get());
+      profile_store_.get(), account_store_.get());
   if (IsActionableError(error)) {
     return GetSubtitleForActionableError(error);
   }
@@ -351,7 +340,7 @@ std::u16string IOSChromeSavePasswordInfoBarDelegate::GetMessageText() const {
 std::u16string IOSChromeSavePasswordInfoBarDelegate::GetButtonLabel(
     InfoBarButton button) const {
   password_manager::ActionableError error = GetPasswordStoreActionableError(
-      sync_service_, form_to_save_.get(), account_store_.get());
+      profile_store_.get(), account_store_.get());
   bool has_actionable_error = IsActionableError(error);
 
   switch (button) {
@@ -397,7 +386,7 @@ void IOSChromeSavePasswordInfoBarDelegate::SavePassword() {
                     *form_to_save_)) {
       const password_manager::PasswordForm& pending_credentials =
           form_to_save_->GetPendingCredentials();
-      if (changed_credential_with_backup->GetPasswordBackup() ==
+      if (changed_credential_with_backup->GetPasswordBackup().value() ==
           pending_credentials.password_value) {
         password_manager::metrics_util::LogPrimaryPasswordUpdatedWithBackup(
             ukm_source_id_);
@@ -427,8 +416,7 @@ void IOSChromeSavePasswordInfoBarDelegate::UpdateCredentials(
     NSString* username,
     NSString* password) {
   const std::u16string username_string = base::SysNSStringToUTF16(username);
-  const PasswordString password_string =
-      PasswordString(base::SysNSStringToUTF16(password));
+  const std::u16string password_string = base::SysNSStringToUTF16(password);
   UpdatePasswordFormUsernameAndPassword(username_string, password_string,
                                         form_to_save_.get());
 }
@@ -454,7 +442,7 @@ void IOSChromeSavePasswordInfoBarDelegate::InfobarGone() {
 
   RecordDismissalMetrics(form_to_save_.get(), infobar_response_,
                          ComputePasswordAccountStorageUserState(sync_service_),
-                         IsUpdateInfobar(infobar_type_), resolved_error_);
+                         IsUpdateInfobar(infobar_type_));
 
   RecordInfobarDuration(/*on_dismiss=*/true);
 
@@ -505,21 +493,21 @@ bool IOSChromeSavePasswordInfoBarDelegate::MaybeHandlePasswordError() {
     return false;
   }
 
-  password_manager::ActionableError error = GetPasswordStoreActionableError(
-      sync_service_, form_to_save_.get(), account_store_.get());
-  if (!IsActionableError(error)) {
-    return false;
-  }
-
   base::WeakPtr<IOSChromeSavePasswordInfoBarDelegate> weak_this =
       weak_ptr_factory_.GetWeakPtr();
   SyncPresenterCompletionCallback completion = ^{
     if (weak_this) {
-      weak_this->OnPasswordErrorFlowCompleted(error);
+      weak_this->OnPasswordErrorFlowCompleted();
     }
   };
 
-  switch (error) {
+  switch (GetPasswordStoreActionableError(profile_store_.get(),
+                                          account_store_.get())) {
+    case password_manager::ActionableError::kNoError:
+    case password_manager::ActionableError::kInactionable:
+    case password_manager::ActionableError::kInactionableTemporaryError:
+    case password_manager::ActionableError::kKeychainError:
+      return false;
     case password_manager::ActionableError::kNeedsPassphrase:
       [sync_presenter_handler_
           showSyncPassphraseSettingsWithDismissalCompletion:completion];
@@ -535,11 +523,6 @@ bool IOSChromeSavePasswordInfoBarDelegate::MaybeHandlePasswordError() {
                   kPasswordSavePrompt
                                              completion:completion];
       break;
-    case password_manager::ActionableError::kNoError:
-    case password_manager::ActionableError::kInactionable:
-    case password_manager::ActionableError::kInactionableTemporaryError:
-    case password_manager::ActionableError::kKeychainError:
-      NOTREACHED();
   }
 
   return true;
@@ -549,17 +532,15 @@ bool IOSChromeSavePasswordInfoBarDelegate::IsHandlingPasswordError() const {
   return handling_password_error_;
 }
 
-void IOSChromeSavePasswordInfoBarDelegate::OnPasswordErrorFlowCompleted(
-    password_manager::ActionableError handled_error) {
+void IOSChromeSavePasswordInfoBarDelegate::OnPasswordErrorFlowCompleted() {
   handling_password_error_ = false;
   password_manager::ActionableError error = GetPasswordStoreActionableError(
-      sync_service_, form_to_save_.get(), account_store_.get());
+      profile_store_.get(), account_store_.get());
   infobars::InfoBar* infobar_ptr = infobar();
   infobars::InfoBarManager* owner =
       infobar_ptr ? infobar_ptr->owner() : nullptr;
 
   if (error == password_manager::ActionableError::kNoError) {
-    resolved_error_ = handled_error;
     SavePassword();
     if (!owner) {
       return;

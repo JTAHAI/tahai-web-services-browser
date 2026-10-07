@@ -160,11 +160,7 @@ size_t Archive::ReadHeader15()
       UnexpEndArcMsg();
       return 0;
     }
-    if (!HeadersCrypt.SetCryptKeys(false,CRYPT_RAR30,&Cmd->Password,Salt,NULL,0,NULL,NULL))
-    {
-      FailedHeaderDecryption=true;
-      return 0;
-    }
+    HeadersCrypt.SetCryptKeys(false,CRYPT_RAR30,&Cmd->Password,Salt,NULL,0,NULL,NULL);
     Raw.SetCrypt(&HeadersCrypt);
 #endif
   }

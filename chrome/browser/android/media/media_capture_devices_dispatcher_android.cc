@@ -9,9 +9,8 @@
 #include "base/android/jni_android.h"
 #include "base/android/jni_string.h"
 #include "base/no_destructor.h"
-#include "chrome/browser/media/webrtc/capture_policy_utils.h"
+#include "chrome/browser/media/android/tab_sharing_ui_android.h"
 #include "chrome/browser/media/webrtc/media_stream_capture_indicator.h"
-#include "content/public/browser/browser_thread.h"
 #include "content/public/browser/web_contents.h"
 
 // Must come after all headers that specialize FromJniType() / ToJniType().
@@ -117,27 +116,10 @@ static void JNI_MediaCaptureDevicesDispatcherAndroid_NotifyDisplayMediaStopped(
       web_contents, MediaStreamCaptureIndicator::MediaType::kDisplayMedia);
 }
 
-static bool JNI_MediaCaptureDevicesDispatcherAndroid_ShouldFilterWebContents(
-    content::WebContents* capturer_web_contents,
-    content::WebContents* target_web_contents) {
-  CHECK_CURRENTLY_ON(content::BrowserThread::UI);
-  if (!capturer_web_contents || !target_web_contents ||
-      !capturer_web_contents->GetPrimaryMainFrame()) {
-    return true;
-  }
-
-  const GURL& request_origin = capturer_web_contents->GetPrimaryMainFrame()
-                                   ->GetLastCommittedOrigin()
-                                   .GetURL();
-  AllowedScreenCaptureLevel capture_level =
-      capture_policy::GetAllowedCaptureLevel(request_origin,
-                                             capturer_web_contents);
-  auto filter = capture_policy::GetIncludableWebContentsFilter(request_origin,
-                                                               capture_level);
-  if (!filter) {
-    return false;
-  }
-  return !filter.Run(target_web_contents);
+static void JNI_MediaCaptureDevicesDispatcherAndroid_NotifyTabCapturingStopped(
+    content::WebContents* web_contents) {
+  EnsureObserverCreated();
+  TabSharingUIAndroid::StopSharing(web_contents);
 }
 
 DEFINE_JNI(MediaCaptureDevicesDispatcherAndroid)

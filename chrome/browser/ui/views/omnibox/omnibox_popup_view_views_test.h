@@ -17,7 +17,6 @@
 #include "chrome/browser/ui/views/omnibox/omnibox_popup_view_views.h"
 #include "chrome/browser/ui/views/omnibox/omnibox_view_views.h"
 #include "chrome/browser/ui/views/toolbar/toolbar_view.h"
-#include "chrome/common/chrome_features.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "components/omnibox/browser/omnibox_triggered_feature_service.h"
 #include "components/omnibox/common/omnibox_features.h"
@@ -27,9 +26,6 @@
 // Base class for omnibox browser and ui tests.
 class OmniboxPopupViewViewsTest : public InProcessBrowserTest {
  public:
-  OmniboxPopupViewViewsTest() {
-    feature_list_.InitAndDisableFeature(features::kWebUILocationBar);
-  }
   // Helper to wait for theme changes. The wait is triggered when an instance of
   // this class goes out of scope.
   class ThemeChangeWaiter {
@@ -76,13 +72,13 @@ class OmniboxPopupViewViewsTest : public InProcessBrowserTest {
     return popup_view()->metrics_weak_factory_.GetWeakPtr();
   }
 
-  SkColor GetSelectedColor(BrowserWindowInterface* browser) {
+  SkColor GetSelectedColor(Browser* browser) {
     return BrowserView::GetBrowserViewForBrowser(browser)
         ->GetColorProvider()
         ->GetColor(kColorOmniboxResultsBackgroundSelected);
   }
 
-  SkColor GetNormalColor(BrowserWindowInterface* browser) {
+  SkColor GetNormalColor(Browser* browser) {
     return BrowserView::GetBrowserViewForBrowser(browser)
         ->GetColorProvider()
         ->GetColor(kColorOmniboxResultsBackground);
@@ -111,7 +107,6 @@ class OmniboxPopupViewViewsTest : public InProcessBrowserTest {
  private:
   ui::MockOsSettingsProvider os_settings_provider_;
   OmniboxTriggeredFeatureService triggered_feature_service_;
-  base::test::ScopedFeatureList feature_list_;
 };
 
 class OmniboxPopupSuggestionGroupHeadersTest

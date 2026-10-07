@@ -36,6 +36,11 @@ namespace tabs {
 
 class StorageRestoreOrchestrator;
 
+// Standardizes the underlying types backing the TabInterface to ensure
+// consistent handles.
+using TabCanonicalizer =
+    base::RepeatingCallback<const TabInterface*(const TabInterface*)>;
+
 // Constructs an associater using the specified callbacks. This indirection is
 // required to minimize OS-specific coupling.
 using RestoreEntityTrackerFactory = base::RepeatingCallback<std::unique_ptr<
@@ -79,6 +84,7 @@ class TabStateStorageService : public KeyedService,
   TabStateStorageService(const base::FilePath& profile_path,
                          bool support_off_the_record_data,
                          std::unique_ptr<TabStoragePackager> packager,
+                         TabCanonicalizer tab_canonicalizer,
                          RestoreEntityTrackerFactory builder_factory);
   ~TabStateStorageService() override;
 
@@ -103,13 +109,6 @@ class TabStateStorageService : public KeyedService,
 
   void Save(const TabInterface* tab);
   void Save(const TabCollection* collection);
-
-  // Saves the tab state directly using an explicit window_tag and
-  // off-the-record status. This is used when a Tab lacks a parent
-  // TabCollection.
-  void Save(std::string window_tag,
-            bool is_off_the_record,
-            const TabInterface* tab);
 
   // These will silently fail if the collection has not already been saved to
   // the database.
@@ -158,6 +157,8 @@ class TabStateStorageService : public KeyedService,
   // Generates a new key for encryption.
   std::vector<uint8_t> GenerateKey(std::string_view window_tag);
 
+  TabCanonicalizer GetCanonicalizer() const;
+
 #if defined(NDEBUG)
   void PrintAll();
 #endif
@@ -197,6 +198,7 @@ class TabStateStorageService : public KeyedService,
   TabStateStorageBackend tab_backend_;
   std::unique_ptr<TabStoragePackager> packager_;
 
+  TabCanonicalizer tab_canonicalizer_;
   RestoreEntityTrackerFactory tracker_factory_;
 
   // Storage ids need to be unique across tabs and collections, but the handles

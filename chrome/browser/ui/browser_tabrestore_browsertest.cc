@@ -8,6 +8,7 @@
 #include <string>
 
 #include "chrome/browser/sessions/tab_restore_service_factory.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_live_tab_context.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
@@ -15,7 +16,7 @@
 #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "chrome/browser/ui/tabs/recent_tabs_sub_menu_model.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
-#include "chrome/test/base/chrome_test_path_utils.h"
+#include "chrome/test/base/chrome_test_utils.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/ui_test_utils.h"
 #include "components/sessions/core/tab_restore_service.h"
@@ -50,7 +51,7 @@ void CheckVisbility(TabStripModel* tab_strip_model, int visible_index) {
   }
 }
 
-void CreateTestTabs(BrowserWindowInterface* browser) {
+void CreateTestTabs(Browser* browser) {
   GURL test_page(chrome_test_utils::GetTestUrl(
       base::FilePath(),
       base::FilePath(FILE_PATH_LITERAL("tab-restore-visibility.html"))));
@@ -65,7 +66,7 @@ void CreateTestTabs(BrowserWindowInterface* browser) {
 IN_PROC_BROWSER_TEST_F(BrowserTabRestoreTest, RecentTabsMenuTabDisposition) {
   // Create tabs.
   CreateTestTabs(browser());
-  EXPECT_EQ(3, browser()->GetTabStripModel()->count());
+  EXPECT_EQ(3, browser()->tab_strip_model()->count());
 
   // Create a new browser.
   ui_test_utils::NavigateToURLWithDisposition(
@@ -74,7 +75,7 @@ IN_PROC_BROWSER_TEST_F(BrowserTabRestoreTest, RecentTabsMenuTabDisposition) {
   EXPECT_EQ(2u, GlobalBrowserCollection::GetInstance()->GetSize());
 
   // Close the first browser.
-  const int active_tab_index = browser()->GetTabStripModel()->active_index();
+  const int active_tab_index = browser()->tab_strip_model()->active_index();
   CloseBrowserSynchronously(browser());
   EXPECT_EQ(1u, GlobalBrowserCollection::GetInstance()->GetSize());
 
@@ -82,7 +83,7 @@ IN_PROC_BROWSER_TEST_F(BrowserTabRestoreTest, RecentTabsMenuTabDisposition) {
   content::DOMMessageQueue queue;
   BrowserWindowInterface* const browser =
       GetLastActiveBrowserWindowInterfaceWithAnyProfile();
-  RecentTabsSubMenuModel menu(nullptr, browser);
+  RecentTabsSubMenuModel menu(nullptr, browser->GetBrowserForMigrationOnly());
 
   ui_test_utils::BrowserCreatedObserver browser_created_observer;
   menu.ExecuteCommand(menu.GetFirstRecentTabsCommandId(), 0);
@@ -176,7 +177,7 @@ IN_PROC_BROWSER_TEST_F(BrowserTabRestoreTest,
 IN_PROC_BROWSER_TEST_F(BrowserTabRestoreTest, DelegateRestoreTabDisposition) {
   // Create tabs.
   CreateTestTabs(browser());
-  EXPECT_EQ(3, browser()->GetTabStripModel()->count());
+  EXPECT_EQ(3, browser()->tab_strip_model()->count());
 
   // Create a new browser.
   auto browser_created_observer =
@@ -189,7 +190,7 @@ IN_PROC_BROWSER_TEST_F(BrowserTabRestoreTest, DelegateRestoreTabDisposition) {
   EXPECT_EQ(2u, GlobalBrowserCollection::GetInstance()->GetSize());
 
   // Close the first browser.
-  const int active_tab_index = browser()->GetTabStripModel()->active_index();
+  const int active_tab_index = browser()->tab_strip_model()->active_index();
   CloseBrowserSynchronously(browser());
   EXPECT_EQ(1u, GlobalBrowserCollection::GetInstance()->GetSize());
 

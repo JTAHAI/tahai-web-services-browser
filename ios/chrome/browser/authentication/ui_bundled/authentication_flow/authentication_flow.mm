@@ -318,9 +318,10 @@ void RecordUnsyncedDataHistogramIfNeeded(UnsyncedDataTypeHistogram histogram,
   if ((self = [super init])) {
     CHECK(browser);
     // Sign-in related work should be done on regular browser.
-    CHECK_EQ(browser->type(), Browser::Type::kRegular);
-    CHECK(presentingViewController);
-    CHECK(identity);
+    CHECK_EQ(browser->type(), Browser::Type::kRegular,
+             base::NotFatalUntil::M145);
+    CHECK(presentingViewController, base::NotFatalUntil::M145);
+    CHECK(identity, base::NotFatalUntil::M142);
     _browser = browser;
 
     _identityToSignIn = identity;
@@ -343,7 +344,8 @@ void RecordUnsyncedDataHistogramIfNeeded(UnsyncedDataTypeHistogram histogram,
         authenticationService->GetPrimaryIdentity();
     // The user should not be allowed to sign-in to the current primary
     // identity.
-    CHECK(![current_primary_identity isEqual:identity]);
+    CHECK(![current_primary_identity isEqual:identity],
+          base::NotFatalUntil::M142);
     if (current_primary_identity) {
       _wasPrimaryAccountManaged =
           authenticationService->HasPrimaryIdentityManaged();
@@ -577,7 +579,8 @@ void RecordUnsyncedDataHistogramIfNeeded(UnsyncedDataTypeHistogram histogram,
   id<SystemIdentity> currentIdentity =
       authenticationService->GetPrimaryIdentity();
   // AuthenticationFlow should not switch to the same identity.
-  CHECK(![currentIdentity isEqual:_identityToSignIn]);
+  CHECK(![currentIdentity isEqual:_identityToSignIn],
+        base::NotFatalUntil::M145);
   if (!currentIdentity) {
     _unsyncedDataTypes = syncer::DataTypeSet();
     [self continueFlow];
@@ -589,7 +592,7 @@ void RecordUnsyncedDataHistogramIfNeeded(UnsyncedDataTypeHistogram histogram,
 }
 
 - (void)showLeavingPrimaryAccountConfirmationIfNeededStep {
-  CHECK(_unsyncedDataTypes.has_value());
+  CHECK(_unsyncedDataTypes.has_value(), base::NotFatalUntil::M140);
   ProfileIOS* profile = [self profile];
   AuthenticationService* authenticationService =
       AuthenticationServiceFactory::GetForProfile(profile);
@@ -1073,12 +1076,13 @@ void RecordUnsyncedDataHistogramIfNeeded(UnsyncedDataTypeHistogram histogram,
   CHECK(completion);
   CHECK(newProfileBrowser);
   // Sign-in related work should be done on regular browser.
-  CHECK_EQ(newProfileBrowser->type(), Browser::Type::kRegular);
+  CHECK_EQ(newProfileBrowser->type(), Browser::Type::kRegular,
+           base::NotFatalUntil::M145);
   // With the profile switching `_browser` and `_presentingViewController` are
   // not valid anymore.
-  CHECK(!_browser);
-  CHECK(!_presentingViewController);
-  CHECK(!_browserForAuthenticationFlowInProfile);
+  CHECK(!_browser, base::NotFatalUntil::M145);
+  CHECK(!_presentingViewController, base::NotFatalUntil::M145);
+  CHECK(!_browserForAuthenticationFlowInProfile, base::NotFatalUntil::M145);
   _browserForAuthenticationFlowInProfile = newProfileBrowser;
   CHECK(!_signInInProfileCompletion);
   _signInInProfileCompletion = base::CallbackToBlock(

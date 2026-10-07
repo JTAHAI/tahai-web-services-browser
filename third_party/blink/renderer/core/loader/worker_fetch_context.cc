@@ -29,7 +29,6 @@
 #include "third_party/blink/renderer/platform/runtime_enabled_features.h"
 #include "third_party/blink/renderer/platform/scheduler/public/virtual_time_controller.h"
 #include "third_party/blink/renderer/platform/supplementable.h"
-#include "third_party/blink/renderer/platform/weborigin/security_origin.h"
 #include "third_party/blink/renderer/platform/weborigin/security_policy.h"
 
 namespace blink {
@@ -125,12 +124,11 @@ CoreProbeSink* WorkerFetchContext::Probe() const {
 }
 
 bool WorkerFetchContext::ShouldBlockWebSocketByMixedContentCheck(
-    const KURL& url,
-    network::mojom::blink::IPAddressSpace target_address_space) const {
+    const KURL& url) const {
   // Worklets don't support WebSocket.
   DCHECK(global_scope_->IsWorkerGlobalScope());
   return !MixedContentChecker::IsWebSocketAllowed(
-      *const_cast<WorkerFetchContext*>(this), url, target_address_space);
+      *const_cast<WorkerFetchContext*>(this), url);
 }
 
 std::unique_ptr<WebSocketHandshakeThrottle>
@@ -160,29 +158,17 @@ bool WorkerFetchContext::ShouldBlockFetchByMixedContentCheck(
 bool WorkerFetchContext::ShouldBlockFetchAsCredentialedSubresource(
     const ResourceRequest& resource_request,
     const KURL& url) const {
-  // URLs with no embedded credentials should load correctly.
-  if (url.User().empty() && url.Pass().empty()) {
-    return false;
+  if ((!url.User().empty() || !url.Pass().empty()) &&
+      resource_request.GetRequestContext() !=
+          mojom::blink::RequestContextType::XML_HTTP_REQUEST) {
+    if (Url().User() != url.User() || Url().Pass() != url.Pass()) {
+      CountDeprecation(
+          WebFeature::kRequestedSubresourceWithEmbeddedCredentials);
+
+      return true;
+    }
   }
-
-  if (resource_request.GetRequestContext() ==
-      mojom::blink::RequestContextType::XML_HTTP_REQUEST) {
-    return false;
-  }
-
-  // Relative URLs on worker scripts that were loaded with embedded credentials
-  // should load correctly if same-origin.
-  if (Url().User() == url.User() && Url().Pass() == url.Pass() &&
-      SecurityOrigin::Create(url)->IsSameOriginWith(
-          GetResourceFetcherProperties()
-              .GetFetchClientSettingsObject()
-              .GetSecurityOrigin())) {
-    return false;
-  }
-
-  CountDeprecation(WebFeature::kRequestedSubresourceWithEmbeddedCredentials);
-
-  return true;
+  return false;
 }
 
 const KURL& WorkerFetchContext::Url() const {
@@ -254,8 +240,8 @@ void WorkerFetchContext::AddAdditionalRequestHeaders(ResourceRequest& request) {
 void WorkerFetchContext::FillInitiatorInfo(FetchInitiatorInfo& initiator_info) {
   CHECK(RuntimeEnabledFeatures::ResourceTimingInitiatorEnabled());
   if (initiator_info.is_imported_module && !initiator_info.referrer.empty()) {
+    // TODO(crbug.com/40919714): Fill |initiator_url|.
     // Initiator is a referrer of an imported js file.
-    initiator_info.initiator_url = KURL(initiator_info.referrer);
     return;
   }
 

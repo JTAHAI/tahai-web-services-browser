@@ -6,16 +6,14 @@ package org.chromium.chrome.browser.actor;
 
 import org.jni_zero.CalledByNative;
 import org.jni_zero.JNINamespace;
-import org.jni_zero.JniType;
 import org.jni_zero.NativeMethods;
 
-import org.chromium.base.Callback;
 import org.chromium.base.ObserverList;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
-import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.tab.Tab;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
@@ -33,9 +31,6 @@ public class ActorKeyedService {
     public interface Observer {
         /** Triggered when a task switches states (e.g., from ACTING to PAUSED). */
         void onTaskStateChanged(@ActorTaskId int taskId, @ActorTaskState int newState);
-
-        /** Triggered when a task's intermediate step progress (worklog) is updated. */
-        default void onTaskStepProgressUpdated(@ActorTaskId int taskId, String stepProgress) {}
     }
 
     @CalledByNative
@@ -55,7 +50,11 @@ public class ActorKeyedService {
         // Fast-path early out to avoid JNI array allocation overhead if there are no tasks,
         // effectively suppressing GC pressure for idle clients.
         if (mNativePtr == 0 || getActiveTasksCount() == 0) return Collections.emptyList();
-        return ActorKeyedServiceJni.get().getActiveTasks(mNativePtr);
+        ActorTask[] tasks = ActorKeyedServiceJni.get().getActiveTasks(mNativePtr);
+        if (tasks == null) return Collections.emptyList();
+        List<ActorTask> taskList = new ArrayList<>(tasks.length);
+        Collections.addAll(taskList, tasks);
+        return taskList;
     }
 
     /** Returns the number of active tasks. */
@@ -119,13 +118,7 @@ public class ActorKeyedService {
     }
 
     @CalledByNative
-    private void onMessageTriggerTaskStopped(@JniType("std::string") String glicTriggerMessageId) {
-        ActorForegroundServiceController.get().onMessageTriggerTaskStopped(glicTriggerMessageId);
-    }
-
-    @CalledByNative
-    private void ensureForegroundServiceStarted(
-            @JniType("std::string") String glicTriggerMessageId) {
+    private void ensureForegroundServiceStarted(String glicTriggerMessageId) {
         ActorForegroundServiceController.get().startService(glicTriggerMessageId);
     }
 
@@ -162,18 +155,9 @@ public class ActorKeyedService {
         }
     }
 
-    @CalledByNative
-    private void onTaskStepProgressChanged(
-            @ActorTaskId int taskId, @JniType("std::string") String stepProgress) {
-        for (Observer obs : mObservers) {
-            obs.onTaskStepProgressUpdated(taskId, stepProgress);
-        }
-    }
-
     @NativeMethods
     interface Natives {
-        @JniType("std::vector<jni_zero::ScopedJavaLocalRef<jobject>>")
-        List<ActorTask> getActiveTasks(long nativeActorKeyedServiceAndroid);
+        ActorTask[] getActiveTasks(long nativeActorKeyedServiceAndroid);
 
         int getActiveTasksCount(long nativeActorKeyedServiceAndroid);
 
@@ -182,21 +166,9 @@ public class ActorKeyedService {
         void stopTask(long nativeActorKeyedServiceAndroid, int taskId, int stopReason);
 
         void setPreparedBackgroundTab(
-                long nativeActorKeyedServiceAndroid,
-                @JniType("TabAndroid*") Tab tab,
-                @JniType("std::string") String glicTriggerMessageId);
+                long nativeActorKeyedServiceAndroid, Tab tab, String glicTriggerMessageId);
 
         void notifyBackgroundSetupFailed(
-                long nativeActorKeyedServiceAndroid,
-                @JniType("std::string") String glicTriggerMessageId);
-    }
-
-    @CalledByNative
-    private void createBackgroundTabForTask(
-            @JniType("Profile*") Profile profile,
-            @ActorTaskId int taskId,
-            Callback<@Nullable Tab> callback) {
-        ActorForegroundServiceController.get()
-                .provisionBackgroundTabForTask(profile, taskId, callback);
+                long nativeActorKeyedServiceAndroid, String glicTriggerMessageId);
     }
 }

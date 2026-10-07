@@ -19,6 +19,7 @@
 // Must come after all headers that specialize FromJniType() / ToJniType().
 #include "android_webview/browser_jni_headers/AwHttpAuthHandler_jni.h"
 
+using base::android::ConvertJavaStringToUTF16;
 using base::android::JavaRef;
 using content::BrowserThread;
 
@@ -51,15 +52,18 @@ AwHttpAuthHandler::~AwHttpAuthHandler() {
                                           http_auth_handler_);
 }
 
-void AwHttpAuthHandler::Proceed(const std::u16string& user,
-                                const std::u16string& password) {
+void AwHttpAuthHandler::Proceed(JNIEnv* env,
+                                const JavaRef<jstring>& user,
+                                const JavaRef<jstring>& password) {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
   if (callback_) {
-    std::move(callback_).Run(net::AuthCredentials(user, password));
+    std::move(callback_).Run(
+        net::AuthCredentials(ConvertJavaStringToUTF16(env, user),
+                             ConvertJavaStringToUTF16(env, password)));
   }
 }
 
-void AwHttpAuthHandler::Cancel() {
+void AwHttpAuthHandler::Cancel(JNIEnv* env) {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
   if (callback_) {
     std::move(callback_).Run(std::nullopt);

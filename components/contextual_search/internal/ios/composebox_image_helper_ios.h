@@ -8,10 +8,7 @@
 #import <UIKit/UIKit.h>
 
 #include "components/lens/lens_bitmap_processing.h"
-
-namespace lens {
-class ImageData;
-}  // namespace lens
+#include "third_party/lens_server_proto/lens_overlay_image_data.pb.h"
 
 namespace composebox {
 

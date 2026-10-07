@@ -15,7 +15,6 @@
 #include "chrome/browser/ui/browser_window/public/profile_browser_collection.h"
 #include "chrome/browser/ui/send_tab_to_self/send_tab_to_self_activation_tracker.h"
 #include "chrome/browser/ui/send_tab_to_self/send_tab_to_self_util.h"
-#include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/toasts/api/toast_id.h"
 #include "chrome/browser/ui/toasts/toast_controller.h"
 #include "chrome/browser/ui/toasts/toast_service.h"
@@ -88,8 +87,10 @@ void SendTabToSelfToolbarIconController::DisplayNewEntries(
               l10n_util::GetStringUTF16(IDS_SEND_TAB_RECEIVE_TOAST_FOREGROUND),
               static_cast<int>(new_entries.size()),
               base::UTF8ToUTF16(new_entries[0]->GetDeviceName()));
-      ToastService::From(browser)->toast_controller()->MaybeShowToast(
-          std::move(params));
+      browser->GetFeatures()
+          .toast_service()
+          ->toast_controller()
+          ->MaybeShowToast(std::move(params));
     } else {
       // If no browser is active, record the entries as pending and wait for
       // a browser window to be activated.
@@ -172,7 +173,7 @@ void SendTabToSelfToolbarIconController::OnBrowserActivated(
     params.toast_close_callback = base::ScopedClosureRunner(
         base::BindOnce(&SendTabToSelfToolbarIconController::OnToastClosed,
                        weak_ptr_factory_.GetWeakPtr()));
-    ToastService::From(browser)->toast_controller()->MaybeShowToast(
+    browser->GetFeatures().toast_service()->toast_controller()->MaybeShowToast(
         std::move(params));
   }
 }
@@ -225,8 +226,7 @@ void SendTabToSelfToolbarIconController::ShowBubbleWithAnchor(
   }
   send_tab_to_self::SendTabToSelfToolbarBubbleController::From(browser.get())
       ->ShowBubble(entry, anchor.value());
-  send_tab_to_self::RecordNotificationStatus(
-      send_tab_to_self::NotificationStatus::kShown);
+  send_tab_to_self::RecordNotificationShown();
 }
 
 void SendTabToSelfToolbarIconController::SwitchToLatestTabsOpenedInBackground(

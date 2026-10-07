@@ -27,8 +27,7 @@ class EntityInstanceBuilder {
   EntityInstanceBuilder& SetDateModified(base::Time date_modified);
   EntityInstanceBuilder& SetUseCount(int64_t use_count);
   EntityInstanceBuilder& SetUseDate(base::Time use_date);
-  EntityInstanceBuilder& SetRecordTypeData(
-      EntityInstance::RecordTypeData record_type_data);
+  EntityInstanceBuilder& SetRecordType(EntityInstance::RecordType record_type);
   EntityInstanceBuilder& SetAreAttributesReadOnly(
       EntityInstance::AreAttributesReadOnly are_attributes_read_only);
   EntityInstanceBuilder& SetFrecencyOverride(std::string frecency_override);
@@ -49,8 +48,7 @@ class EntityInstanceBuilder {
   base::Time date_modified_;
   int64_t use_count_ = 0;
   base::Time use_date_;
-  EntityInstance::RecordTypeData record_type_data_ =
-      EntityInstance::LocalRecordTypePayload{};
+  EntityInstance::RecordType record_type_ = EntityInstance::RecordType::kLocal;
   EntityInstance::AreAttributesReadOnly are_attributes_read_only_ =
       EntityInstance::AreAttributesReadOnly(false);
   std::string frecency_override_;

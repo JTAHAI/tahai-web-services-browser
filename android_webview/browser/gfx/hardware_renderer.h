@@ -86,11 +86,7 @@ class HardwareRenderer {
   void CommitFrame();
   void SetChildFrameForTesting(std::unique_ptr<ChildFrame> child_frame);
   void RemoveOverlays(OverlaysParams::MergeTransactionFn merge_transaction);
-
-  // Checks if the underlying gpu::SharedContextState has reported context loss.
-  // If so it reports the context loss reason and crashes. It runs on
-  // RenderThread so it crashes on that thread.
-  void CrashOnContextLoss();
+  void AbandonContext();
 
  private:
   class OnViz;
@@ -110,6 +106,7 @@ class HardwareRenderer {
       const HardwareRendererDrawParams& params,
       const OverlaysParams& overlays_params,
       ReportRenderingThreadsCallback report_rendering_threads_callback);
+  void MarkAllowContextLoss();
 
   THREAD_CHECKER(render_thread_checker_);
 

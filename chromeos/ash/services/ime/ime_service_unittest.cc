@@ -4,9 +4,8 @@
 
 #include "chromeos/ash/services/ime/ime_service.h"
 
-#include <string_view>
-
 #include "ash/constants/ash_features.h"
+#include "base/compiler_specific.h"
 #include "base/functional/bind.h"
 #include "base/strings/strcat.h"
 #include "base/strings/utf_string_conversions.h"
@@ -32,7 +31,7 @@ namespace ime {
 
 namespace {
 
-constexpr char kInvalidImeSpec[] = "ime_spec_never_support";
+const char kInvalidImeSpec[] = "ime_spec_never_support";
 constexpr char kValidImeSpec[] = "valid_spec";
 
 void ConnectCallback(bool* success, bool result) {
@@ -105,7 +104,7 @@ class TestImeSharedLibraryWrapper : public ImeSharedLibraryWrapper {
         .close_proto_mode = []() {},
         .proto_mode_supports =
             [](const char* ime_spec) {
-              return std::string_view(kInvalidImeSpec) != ime_spec;
+              return UNSAFE_TODO(strcmp(kInvalidImeSpec, ime_spec)) != 0;
             },
         .proto_mode_activate_ime =
             [](const char* ime_spec, ImeClientDelegate* delegate) {

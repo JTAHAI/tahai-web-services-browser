@@ -6,9 +6,9 @@
 
 #import "base/i18n/rtl.h"
 #import "base/logging.h"
+#import "base/memory/raw_ptr.h"
 #import "ios/chrome/browser/presenters/ui_bundled/contained_presenter_delegate.h"
-#import "ios/chrome/browser/shared/coordinator/scene/state/browser_layout_state.h"
-#import "ios/chrome/browser/shared/coordinator/scene/state/scene_layout_state.h"
+#import "ios/chrome/browser/shared/coordinator/scene/state/layout_state.h"
 #import "ios/chrome/browser/shared/ui/util/image/image_util.h"
 #import "ios/chrome/browser/shared/ui/util/uikit_ui_util.h"
 #import "ios/chrome/browser/toolbar/legacy/ui_bundled/accessory/toolbar_accessory_constants.h"
@@ -56,8 +56,8 @@ const CGFloat kAnimationDuration = 0.15;
   /// Whether the accessory is presented above the bottom toolbar.
   BOOL _isPresentedAboveBottomToolbar;
 
-  // BrowserLayoutState to query the omnibox position.
-  __weak BrowserLayoutState* _browserLayoutState;
+  // LayoutState to query the omnibox position.
+  __weak LayoutState* _layoutState;
 }
 
 @synthesize baseViewController = _baseViewController;
@@ -67,16 +67,16 @@ const CGFloat kAnimationDuration = 0.15;
 #pragma mark - Public
 
 - (instancetype)initWithIsIncognito:(BOOL)isIncognito
-                 browserLayoutState:(BrowserLayoutState*)browserLayoutState {
+                        layoutState:(LayoutState*)layoutState {
   if ((self = [super init])) {
     _isIncognito = isIncognito;
-    _browserLayoutState = browserLayoutState;
+    _layoutState = layoutState;
   }
   return self;
 }
 
 - (void)disconnect {
-  _browserLayoutState = nil;
+  _layoutState = nil;
 }
 
 - (BOOL)isPresentingViewController:(UIViewController*)viewController {
@@ -179,9 +179,9 @@ const CGFloat kAnimationDuration = 0.15;
 
 // Positions the view into its initial, pre-animation position on iPhone.
 - (void)prepareForPresentationOnIPhone {
-  if (_browserLayoutState) {
+  if (_layoutState) {
     _isPresentedAboveBottomToolbar =
-        _browserLayoutState.toolbarPosition == ToolbarPosition::kBottom;
+        _layoutState.toolbarPosition == ToolbarPosition::kBottom;
   }
 
   if (_isPresentedAboveBottomToolbar) {
@@ -289,8 +289,10 @@ const CGFloat kAnimationDuration = 0.15;
         constraintEqualToAnchor:self.backgroundView.bottomAnchor],
   ]];
   // Layouts `shadow` around `self.backgroundView`.
-  AddSameConstraintsWithInsets(
+  AddSameConstraintsToSidesWithInsets(
       shadow, self.backgroundView,
+      LayoutSides::kTop | LayoutSides::kLeading | LayoutSides::kBottom |
+          LayoutSides::kTrailing,
       {-kShadowMargin, -kShadowMargin, -kShadowMargin, -kShadowMargin});
 }
 

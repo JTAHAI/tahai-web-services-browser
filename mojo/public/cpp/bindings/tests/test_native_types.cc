@@ -4,7 +4,7 @@
 
 #include "mojo/public/cpp/bindings/tests/test_native_types.h"
 
-#include "ipc/mojo_param_traits.h"
+#include "ipc/ipc_mojo_message_helper.h"
 
 namespace mojo {
 namespace test {
@@ -67,7 +67,7 @@ void ParamTraits<mojo::test::TestNativeStructWithAttachments>::Write(
     base::Pickle* m,
     const param_type& p) {
   m->WriteString(p.message());
-  IPC::ParamTraits<mojo::MessagePipeHandle>::Write(m, p.PassPipe().release());
+  IPC::MojoMessageHelper::WriteMessagePipeTo(m, p.PassPipe());
 }
 
 // static
@@ -81,12 +81,12 @@ bool ParamTraits<mojo::test::TestNativeStructWithAttachments>::Read(
   }
   r->set_message(message);
 
-  mojo::MessagePipeHandle pipe;
-  if (!IPC::ParamTraits<mojo::MessagePipeHandle>::Read(m, iter, &pipe)) {
+  mojo::ScopedMessagePipeHandle pipe;
+  if (!IPC::MojoMessageHelper::ReadMessagePipeFrom(m, iter, &pipe)) {
     return false;
   }
 
-  r->set_pipe(mojo::ScopedMessagePipeHandle(pipe));
+  r->set_pipe(std::move(pipe));
   return true;
 }
 

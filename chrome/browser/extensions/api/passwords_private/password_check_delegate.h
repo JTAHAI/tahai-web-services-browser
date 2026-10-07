@@ -39,10 +39,6 @@ extern const char kPasswordCheckDataKey[];
 class PasswordCheckProgress;
 class PasswordsPrivateEventRouter;
 
-// Constructs a `CompromisedInfo` object for an insecure credential.
-api::passwords_private::CompromisedInfo CreateCompromiseInfo(
-    const password_manager::CredentialUIEntry& credential);
-
 // This class handles the part of the passwordsPrivate extension API that deals
 // with the bulk password check feature.
 class PasswordCheckDelegate

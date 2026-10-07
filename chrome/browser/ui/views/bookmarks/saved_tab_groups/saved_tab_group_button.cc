@@ -15,8 +15,8 @@
 #include "chrome/app/vector_icons/vector_icons.h"
 #include "chrome/browser/tab_group_sync/tab_group_sync_service_factory.h"
 #include "chrome/browser/ui/bookmarks/bookmark_utils_desktop.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_element_identifiers.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/tabs/saved_tab_groups/saved_tab_group_utils.h"
 #include "chrome/browser/ui/tabs/saved_tab_groups/tab_group_menu_utils.h"
 #include "chrome/browser/ui/tabs/tab_group_theme.h"
@@ -42,7 +42,6 @@
 #include "ui/gfx/geometry/insets.h"
 #include "ui/gfx/geometry/rect.h"
 #include "ui/views/accessibility/view_accessibility.h"
-#include "ui/views/animation/ink_drop.h"
 #include "ui/views/background.h"
 #include "ui/views/border.h"
 #include "ui/views/controls/button/label_button_border.h"
@@ -77,7 +76,7 @@ constexpr float kSharedEmptyChipInsets = 2.0f;
 
 SavedTabGroupButton::SavedTabGroupButton(const SavedTabGroup& group,
                                          PressedCallback callback,
-                                         BrowserWindowInterface* browser,
+                                         Browser* browser,
                                          bool animations_enabled)
     : MenuButton(std::move(callback), group.title()),
       browser_(browser),
@@ -335,19 +334,13 @@ void SavedTabGroupButton::ShowContextMenuForViewImpl(
       base::BindRepeating(&SavedTabGroupButton::GetAndIncrementLatestCommandId,
                           base::Unretained(this)));
 
-  context_menu_highlight_ = AddAnchorHighlight();
   context_menu_runner_ = std::make_unique<views::MenuRunner>(
       menu_model_.get(),
-      views::MenuRunner::CONTEXT_MENU | views::MenuRunner::IS_NESTED,
-      base::BindRepeating(&SavedTabGroupButton::OnContextMenuClosed,
-                          base::Unretained(this)));
+      views::MenuRunner::CONTEXT_MENU | views::MenuRunner::IS_NESTED);
   context_menu_runner_->RunMenuAt(
-      source->GetWidget(), button_controller(), gfx::Rect(point, gfx::Size()),
+      source->GetWidget(),
+      /*button_controller=*/nullptr, gfx::Rect(point, gfx::Size()),
       views::MenuAnchorPosition::kTopLeft, source_type);
-}
-
-void SavedTabGroupButton::OnContextMenuClosed() {
-  context_menu_highlight_.reset();
 }
 
 BEGIN_METADATA(SavedTabGroupButton)

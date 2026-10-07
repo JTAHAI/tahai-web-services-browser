@@ -168,14 +168,16 @@ public class CustomTabActivityIncognitoTest {
         CustomTabsTestUtils.openAppMenuAndAssertMenuShown(activity);
     }
 
-    private void launchAndTestMenuItemIsVisible(int itemId) throws Exception {
+    private void launchAndTestMenuItemIsVisible(int itemId, String screenshotName)
+            throws Exception {
         launchMenuItem();
         assertNotNull(
                 AppMenuTestSupport.getMenuItemPropertyModel(
                         mCustomTabActivityTestRule.getAppMenuCoordinator(), itemId));
     }
 
-    private void launchAndTestMenuItemIsNotVisible(int itemId) throws Exception {
+    private void launchAndTestMenuItemIsNotVisible(int itemId, String screenshotName)
+            throws Exception {
         launchMenuItem();
         assertNull(
                 AppMenuTestSupport.getMenuItemPropertyModel(
@@ -317,31 +319,32 @@ public class CustomTabActivityIncognitoTest {
     @Test
     @MediumTest
     public void openInBrowserMenuItemIsNotVisible() throws Exception {
-        launchAndTestMenuItemIsNotVisible(R.id.open_in_browser_id);
+        launchAndTestMenuItemIsNotVisible(R.id.open_in_browser_id, "Open in Browser not visible");
     }
 
     @Test
     @MediumTest
     public void doesNotHaveAddToHomeScreenMenuItem() throws Exception {
-        launchAndTestMenuItemIsNotVisible(R.id.universal_install);
+        launchAndTestMenuItemIsNotVisible(R.id.universal_install, "Install not visible");
     }
 
     @Test
     @MediumTest
     public void bookmarkTopIconIsVisible() throws Exception {
-        launchAndTestMenuItemIsVisible(R.id.bookmark_this_page_id);
+        launchAndTestMenuItemIsVisible(R.id.bookmark_this_page_id, "Bookmark icon is visible");
     }
 
     @Test
     @MediumTest
     public void downloadTopIconIsNotVisible() throws Exception {
-        launchAndTestMenuItemIsNotVisible(R.id.offline_page_id);
+        launchAndTestMenuItemIsNotVisible(R.id.offline_page_id, "Download icon not visible");
     }
 
     @Test
     @MediumTest
     public void shareMenuItemByDefaultIsNotVisibile() throws Exception {
-        launchAndTestMenuItemIsNotVisible(R.id.share_menu_id);
+        launchAndTestMenuItemIsNotVisible(
+                R.id.share_menu_id, "Share menu item not visible by default");
     }
 
     @Test

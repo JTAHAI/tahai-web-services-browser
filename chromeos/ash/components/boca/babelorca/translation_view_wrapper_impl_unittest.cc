@@ -8,7 +8,6 @@
 #include <string>
 
 #include "base/functional/callback_helpers.h"
-#include "base/i18n/language_tag.h"
 #include "base/memory/raw_ptr.h"
 #include "chromeos/ash/components/boca/babelorca/caption_bubble_settings_impl.h"
 #include "chromeos/ash/components/boca/babelorca/pref_names.h"
@@ -26,7 +25,8 @@
 namespace ash::babelorca {
 namespace {
 
-constexpr char kEnglishLanguage[] = "en-US";
+const std::string kEnglishLanguage = "en-US";
+const std::string kFrenchLanguage = "fr";
 
 class TranslationViewWrapperImplBaseTest
     : public captions::TranslationViewWrapperBase::Delegate {
@@ -61,9 +61,8 @@ class TranslationViewWrapperImplBaseTest
   TestingPrefServiceSimple* InitPrefService() {
     pref_service_.registry()->RegisterBooleanPref(prefs::kCaptionBubbleExpanded,
                                                   false);
-    pref_service_.registry()->RegisterLanguageTagPref(
-        prefs::kTranslateTargetLanguageCode,
-        base::i18n::GetKnownLanguageTag("en"));
+    pref_service_.registry()->RegisterStringPref(
+        prefs::kTranslateTargetLanguageCode, kEnglishLanguage);
     return &pref_service_;
   }
 
@@ -76,8 +75,7 @@ struct TranslationViewWrapperImplTestCase {
   std::string test_name;
   bool translate_allowed;
   bool translate_enabled;
-  base::i18n::LanguageTag target_language_code =
-      base::i18n::GetKnownLanguageTag("fr");
+  std::string target_language_code = kFrenchLanguage;
   int toggle_text_id = IDS_BOCA_CAPTIONS_TRANSLATION_AVAILABLE_BUTTON_TEXT;
 };
 
@@ -103,8 +101,7 @@ TEST_P(TranslationViewWrapperImplTest, Init) {
   views::MdTextButton* const translate_toggle =
       translation_view_wrapper_.GetTranslateToggleButtonForTesting();
 
-  bool languages_match = GetParam().target_language_code ==
-                         base::i18n::GetKnownLanguageTag(kEnglishLanguage);
+  bool languages_match = GetParam().target_language_code == kEnglishLanguage;
   bool translate_enabled =
       GetParam().translate_allowed && GetParam().translate_enabled;
   VerifyTranslationItemsVisible(
@@ -119,8 +116,7 @@ TEST_P(TranslationViewWrapperImplTest, Init) {
 TEST_F(TranslationViewWrapperImplTest, ClickToStartTranslation) {
   caption_bubble_settings_.SetTranslateAllowed(true);
   caption_bubble_settings_.SetLiveTranslateEnabled(false);
-  caption_bubble_settings_.SetLiveTranslateTargetLanguageCode(
-      base::i18n::GetKnownLanguageTag("fr"));
+  caption_bubble_settings_.SetLiveTranslateTargetLanguageCode(kFrenchLanguage);
 
   translation_view_wrapper_.Init(&translation_container_, this);
   translation_view_wrapper_.SimulateTranslateToggleButtonClickForTesting();
@@ -139,8 +135,7 @@ TEST_F(TranslationViewWrapperImplTest, ClickToStartTranslation) {
 TEST_F(TranslationViewWrapperImplTest, ClickToStopTranslation) {
   caption_bubble_settings_.SetTranslateAllowed(true);
   caption_bubble_settings_.SetLiveTranslateEnabled(true);
-  caption_bubble_settings_.SetLiveTranslateTargetLanguageCode(
-      base::i18n::GetKnownLanguageTag("fr"));
+  caption_bubble_settings_.SetLiveTranslateTargetLanguageCode(kFrenchLanguage);
 
   translation_view_wrapper_.Init(&translation_container_, this);
   translation_view_wrapper_.SimulateTranslateToggleButtonClickForTesting();
@@ -176,7 +171,7 @@ INSTANTIATE_TEST_SUITE_P(
         {.test_name = "TranslateEnabledAndAllowedSameLanguage",
          .translate_allowed = true,
          .translate_enabled = true,
-         .target_language_code = base::i18n::GetKnownLanguageTag("en-US"),
+         .target_language_code = kEnglishLanguage,
          .toggle_text_id = IDS_BOCA_CAPTIONS_STOP_TRANSLATING_BUTTON_TEXT},
     }),
     [](const testing::TestParamInfo<TranslationViewWrapperImplTest::ParamType>&

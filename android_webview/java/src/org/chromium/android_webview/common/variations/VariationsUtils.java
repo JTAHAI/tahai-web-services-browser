@@ -143,14 +143,8 @@ public class VariationsUtils {
      *
      * @param lowEntropySource The low entropy source value to embed in the seed. If -1, the field
      *     will be omitted.
-     * @param limitedEntropyRandomizationSource The limited entropy randomization source value to
-     *     embed in the seed. If null, the field will be omitted.
      */
-    public static boolean writeSeed(
-            FileOutputStream out,
-            SeedInfo info,
-            int lowEntropySource,
-            @Nullable String limitedEntropyRandomizationSource) {
+    public static boolean writeSeed(FileOutputStream out, SeedInfo info, int lowEntropySource) {
         try {
             AwVariationsSeed.Builder builder =
                     AwVariationsSeed.newBuilder()
@@ -162,9 +156,6 @@ public class VariationsUtils {
 
             if (lowEntropySource != -1) {
                 builder.setLowEntropySource(lowEntropySource);
-            }
-            if (limitedEntropyRandomizationSource != null) {
-                builder.setLimitedEntropyRandomizationSource(limitedEntropyRandomizationSource);
             }
             builder.build().writeTo(out);
             return true;

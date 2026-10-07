@@ -590,11 +590,10 @@ struct NetworkContextParams {
   // Whether "Compression dictionary transport" feature should be enabled.
   bool shared_dictionary_enabled = false;
 
-  // Initial maximum size of the shared dictionary cache. If null,
-  // no byte limit is enforced at initialization time (an automatic limit is
-  // typically calculated and set later via SetSharedDictionaryCacheMaxSize).
-  // Ignored if `shared_dictionary_enabled` is false.
-  mojo_base.mojom.ByteSize? shared_dictionary_cache_max_size;
+  // Maximum size of the shared dictionary cache. If this value is 0, the max
+  // size will be propagated via SetSharedDictionaryCacheMaxSize message.
+  // Ignored if `shared_dictionary_enabled` field is false.
+  uint64 shared_dictionary_cache_max_size = 0;
 
   // Parameters for constructing the FirstPartySetsAccessDelegate.
   // |first_party_sets_access_delegate_params| is the initial configuration to
@@ -856,17 +855,6 @@ struct URLLoaderFactoryParams {
   // field once Chrome Platform Apps are gone.
   bool ignore_isolated_world_origin = true;
 
-  // The origin of the isolated world that is permitted to use this factory.
-  // When `ignore_isolated_world_origin` is false, requests with an
-  // `isolated_world_origin` that does not match this lock will be rejected
-  // with a bad message report.
-  // Setting this field when `ignore_isolated_world_origin` is true is invalid
-  // and will also result in a bad message report.
-  //
-  // TODO(crbug.com/40137011): Remove `isolated_world_origin_lock` once Chrome
-  // Platform Apps are gone and `ignore_isolated_world_origin` is removed.
-  url.mojom.Origin? isolated_world_origin_lock;
-
   // Indicate whether a request is not from web page ( probably from chrome
   // extension background page ).
   bool unsafe_non_webby_initiator = false;
@@ -1009,11 +997,6 @@ struct URLLoaderFactoryParams {
   // (e.g., a subframe whose effective top frame for storage
   // partitioning differs from the actual top frame).
   bool prefer_factory_site_for_cookies = false;
-
-  // If available, the network that URLLoaders, created out of this factory,
-  // will target. If absent, the default network is instead used. Represents a
-  //net::handles::NetworkHandle. See URLRequestContext::CreateRequest.
-  int64? target_network;
 };
 
 struct IdAndAllowlistedPatterns {
@@ -1082,13 +1065,6 @@ interface NetworkContext {
   //
   // If |role| == SCRIPT, this interface can be safely handed out to a process
   // that is known to represent the given origin, such as a renderer process.
-  //
-  // If |prefer_bound_cookie_context| is true, cookie access decisions use
-  // |isolation_info|'s site_for_cookies and top_frame_origin instead of the
-  // renderer-provided per-call values. Set when the browser holds an
-  // authoritative cookie context that the renderer cannot compute (e.g., a
-  // frame whose effective top frame for storage partitioning differs from
-  // the actual top frame).
   GetRestrictedCookieManager(
       pending_receiver<RestrictedCookieManager> restricted_cookie_manager,
       RestrictedCookieManagerRole role,
@@ -1096,7 +1072,6 @@ interface NetworkContext {
       IsolationInfo isolation_info,
       CookieSettingOverrides cookie_setting_overrides,
       CookieSettingOverrides devtools_cookie_setting_overrides,
-      bool prefer_bound_cookie_context,
       pending_remote<CookieAccessObserver>? cookie_observer);
 
   // Provides a TrustTokenQueryAnswerer scoped to the given top-frame origin
@@ -1336,12 +1311,6 @@ interface NetworkContext {
   SendReportsAndRemoveSource(
       mojo_base.mojom.UnguessableToken reporting_source);
 
-  // Queues any outstanding reports for a single |reporting_source| (which
-  // must not be empty) to be sent immediately, without removing the reporting
-  // endpoint configuration for that source.
-  SendReportsForSource(
-      mojo_base.mojom.UnguessableToken reporting_source);
-
   // Queues a report via the Reporting API. `type` describes the type of report
   // (as well as what data will contained in `body`). |group| specifies the
   // endpoint group that the report will be delivered to. `url` indicates the
@@ -1567,11 +1536,6 @@ interface NetworkContext {
   // emulation for this web socket connection. Emulated network conditions
   // can be set by calling SetNetworkConditions with a matching throttling
   // profile id.
-  //
-  // |target_address_space| specifies the target IP address space expected by
-  // the client (for Local Network Access checks). When set to a value other
-  // than kUnknown, connections will be validated against this target address
-  // space.
   CreateWebSocket(
       url.mojom.Url url,
       array<string> requested_protocols,
@@ -1589,8 +1553,7 @@ interface NetworkContext {
       pending_remote<WebSocketAuthenticationHandler>? auth_handler,
       pending_remote<TrustedHeaderClient>? header_client,
       mojo_base.mojom.UnguessableToken? throttling_profile_id,
-      mojo_base.mojom.UnguessableToken network_restrictions_id,
-      IPAddressSpace target_address_space);
+      mojo_base.mojom.UnguessableToken network_restrictions_id);
 
   // Creates a WebTransport connection to |url|. |origin| is used for the
   // client indication - see
@@ -1611,7 +1574,6 @@ interface NetworkContext {
       WebTransportCongestionControl congestion_control,
       uint16? anticipated_concurrent_incoming_unidirectional_streams,
       uint16? anticipated_concurrent_incoming_bidirectional_streams,
-      WebTransportHttpRequestHeaders additional_headers,
       pending_remote<WebTransportHandshakeClient> handshake_client,
       pending_remote<URLLoaderNetworkServiceObserver>?
           url_loader_network_observer,
@@ -1851,11 +1813,8 @@ interface NetworkContext {
       mojo_base.mojom.Time start_time, mojo_base.mojom.Time end_time)
       => (array<url.mojom.Origin> origins);
 
-  // Sets or updates the maximum size of the shared dictionary cache.
-  // - If null: disables byte limits (unlimited cache size).
-  // - If 0: enforces a 0-byte limit (evicts all cached dictionaries).
-  // - If >0: enforces an explicit byte limit.
-  SetSharedDictionaryCacheMaxSize(mojo_base.mojom.ByteSize? cache_max_size);
+  // Sets maximum size of the shared dictionary cache.
+  SetSharedDictionaryCacheMaxSize(uint64 cache_max_size);
 
   // Preloads matching dictionaries for loading documents of the `urls`.
   PreloadSharedDictionaryInfoForDocument(
@@ -1915,6 +1874,12 @@ interface NetworkContext {
            URLRequest request,
            MutableNetworkTrafficAnnotationTag traffic_annotation,
            mojo_base.mojom.UnguessableToken network_restrictions_id);
+
+  // Returns whether this NetworkContext was bound to a network.
+  // `bound_network` represents a net::handles::NetworkHandle,
+  // `bound_network` == -1 means that this NetworkContext is not bound to any
+  // network. Refer to NetworkContextParams::bound_network for more info.
+  GetBoundNetworkForTesting() => (int64 bound_network);
 
   // Gets the DeviceBoundSessionManager associated with this network context.
   //

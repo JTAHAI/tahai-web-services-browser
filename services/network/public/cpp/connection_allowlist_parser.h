@@ -6,28 +6,20 @@
 #define SERVICES_NETWORK_PUBLIC_CPP_CONNECTION_ALLOWLIST_PARSER_H_
 
 #include <optional>
-#include <string>
 
 #include "base/component_export.h"
 #include "base/memory/raw_ptr.h"
-#include "base/types/optional_ref.h"
+#include "net/http/http_response_headers.h"
+#include "services/network/public/cpp/connection_allowlist.h"
 #include "services/network/public/mojom/devtools_observer.mojom-forward.h"
 #include "services/network/public/mojom/origin_or_wildcard_header_value.mojom-forward.h"
-
-class GURL;
-
-namespace net {
-class HttpResponseHeaders;
-}  // namespace net
+#include "url/gurl.h"
 
 namespace url {
 class Origin;
 }  // namespace url
 
 namespace network {
-
-struct ConnectionAllowlist;
-struct ConnectionAllowlists;
 
 // Parses `Connection-Allowlist` and `Connection-Allowlist-Report-Only` headers
 // from a net::HttpResponseHeaders object, returning a `ConnectionAllowlists`
@@ -62,7 +54,7 @@ ConnectionAllowlists ParseConnectionAllowlistsFromHeaders(
 COMPONENT_EXPORT(NETWORK_CPP)
 std::optional<ConnectionAllowlist> ParseConnectionAllowlist(
     const std::string& header_value,
-    base::optional_ref<const GURL> response_url);
+    std::optional<GURL> response_url);
 
 // Parses the `Allow-Connection-Allowlist-From` response header, which lets a
 // framed document opt in to having its embedder enforce a required

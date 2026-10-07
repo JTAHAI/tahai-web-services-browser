@@ -91,7 +91,7 @@ user_education::FeaturePromoResult WindowActivePrecondition::CheckPrecondition(
 }
 
 ContentNotFullscreenPrecondition::ContentNotFullscreenPrecondition(
-    BrowserWindowInterface& browser)
+    Browser& browser)
     : FeaturePromoPreconditionBase(kContentNotFullscreenPrecondition,
                                    "Content is not fullscreen"),
       browser_(browser) {}

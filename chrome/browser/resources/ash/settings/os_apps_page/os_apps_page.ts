@@ -234,18 +234,15 @@ export class OsSettingsAppsPageElement extends OsSettingsAppsPageElementBase {
   ]);
 
   declare private app_: App;
-  private appNotificationsObserverReceiver_ =
-      new AppNotificationsObserverReceiver(this);
+  private appNotificationsObserverReceiver_: AppNotificationsObserverReceiver;
   declare private appsWithNotifications_: AppWithNotifications[];
   declare private readonly isAppParentalControlsFeatureAvailable_: boolean;
   declare private isArcVmManageUsbAvailable_: boolean;
   declare private isDndEnabled_: boolean;
   declare private isPinVerified_: boolean;
   declare private readonly isPlayStoreAvailable_: boolean;
-  private mojoInterfaceProvider_: AppNotificationsHandlerInterface =
-      getAppNotificationProvider();
-  private parentalControlsHandler_: AppParentalControlsHandlerInterface =
-      getAppParentalControlsProvider();
+  private mojoInterfaceProvider_: AppNotificationsHandlerInterface;
+  private parentalControlsHandler_: AppParentalControlsHandlerInterface;
   declare private onStartupOptions_: DropdownMenuOptionList;
   declare private section_: Section;
   declare private readonly showAndroidApps_: boolean;
@@ -279,6 +276,11 @@ export class OsSettingsAppsPageElement extends OsSettingsAppsPageElementBase {
       return getSelectedApp(state) || undefined;
     });
 
+    this.mojoInterfaceProvider_ = getAppNotificationProvider();
+
+    this.appNotificationsObserverReceiver_ =
+        new AppNotificationsObserverReceiver(this);
+
     this.mojoInterfaceProvider_.addObserver(
         this.appNotificationsObserverReceiver_.$.bindNewPipeAndPassRemote());
 
@@ -289,6 +291,7 @@ export class OsSettingsAppsPageElement extends OsSettingsAppsPageElementBase {
       this.appsWithNotifications_ = result.apps;
     });
 
+    this.parentalControlsHandler_ = getAppParentalControlsProvider();
     this.getIsParentalControlsSetupCompleted_().then((isCompleted) => {
       this.isParentalControlsSetupCompleted_ = isCompleted;
     });
@@ -329,7 +332,7 @@ export class OsSettingsAppsPageElement extends OsSettingsAppsPageElementBase {
     chrome.metricsPrivate.recordEnumerationValue(
         AppManagementEntryPointsHistogramName,
         AppManagementEntryPoint.OS_SETTINGS_MAIN_PAGE,
-        AppManagementEntryPoint.COUNT);
+        Object.keys(AppManagementEntryPoint).length);
     Router.getInstance().navigateTo(routes.APP_MANAGEMENT);
   }
 

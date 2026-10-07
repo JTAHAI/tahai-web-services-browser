@@ -51,7 +51,7 @@ KioskSystemSession::KioskSystemSession(
     PrefService& local_state,
     Profile* profile,
     const KioskAppId& kiosk_app_id,
-    const std::optional<webapps::AppId>& app_id)
+    const std::optional<std::string>& app_name)
     : local_state_(local_state),
       profile_(profile),
       browser_session_(profile),
@@ -66,12 +66,10 @@ KioskSystemSession::KioskSystemSession(
       InitForChromeAppKiosk();
       break;
     case KioskAppType::kWebApp:
-      CHECK(app_id.has_value());
-      InitForWebKiosk(*app_id);
+      InitForWebKiosk(app_name);
       break;
     case KioskAppType::kIsolatedWebApp:
-      CHECK(app_id.has_value());
-      InitForIwaKiosk(*app_id);
+      InitForIwaKiosk(app_name);
       break;
     case KioskAppType::kArcvmApp:
       // TODO(crbug.com/418950414): Implement kiosk system session for ARCVM
@@ -90,13 +88,15 @@ void KioskSystemSession::InitForChromeAppKiosk() {
   InitCommon();
 }
 
-void KioskSystemSession::InitForWebKiosk(const webapps::AppId& app_id) {
-  browser_session_.InitForWebKiosk(app_id);
+void KioskSystemSession::InitForWebKiosk(
+    const std::optional<std::string>& app_name) {
+  browser_session_.InitForWebKiosk(app_name);
   InitCommon();
 }
 
-void KioskSystemSession::InitForIwaKiosk(const webapps::AppId& app_id) {
-  browser_session_.InitForIwaKiosk(app_id);
+void KioskSystemSession::InitForIwaKiosk(
+    const std::optional<std::string>& app_name) {
+  browser_session_.InitForIwaKiosk(app_name);
   InitCommon();
 }
 
@@ -148,7 +148,7 @@ bool KioskSystemSession::is_shutting_down() const {
   return browser_session_.is_shutting_down();
 }
 
-BrowserDelegate* KioskSystemSession::GetSettingsBrowserForTesting() {
+Browser* KioskSystemSession::GetSettingsBrowserForTesting() {
   return browser_session_.GetSettingsBrowserForTesting();  // IN-TEST
 }
 

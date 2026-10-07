@@ -856,6 +856,7 @@ void CollectDawnInfo(const gpu::GpuPreferences& gpu_preferences,
       dawn_search_path = module_path.AsEndingWithSeparator().MaybeAsASCII();
     }
   }
+  const char* dawn_search_path_c_str = dawn_search_path.c_str();
 
   // Get the list of required toggles for WebGPU.
   std::vector<const char*> required_enabled_toggles_webgpu;
@@ -877,11 +878,9 @@ void CollectDawnInfo(const gpu::GpuPreferences& gpu_preferences,
   dawn_toggles.disabledToggles = required_disabled_toggles_webgpu.data();
 
   dawn::native::DawnInstanceDescriptor dawn_instance_desc = {};
-  std::string_view dawn_search_path_view = dawn_search_path;
-  if (!dawn_search_path.empty()) {
-    dawn_instance_desc.additionalRuntimeSearchPaths =
-        base::span_from_ref(dawn_search_path_view);
-  }
+  dawn_instance_desc.additionalRuntimeSearchPathsCount =
+      dawn_search_path.empty() ? 0u : 1u;
+  dawn_instance_desc.additionalRuntimeSearchPaths = &dawn_search_path_c_str;
 
   wgpu::InstanceDescriptor instance_desc = {};
   instance_desc.nextInChain = &dawn_instance_desc;

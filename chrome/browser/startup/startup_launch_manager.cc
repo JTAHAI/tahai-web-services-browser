@@ -85,9 +85,7 @@ StartupLaunchManager::Client::Client(StartupLaunchReason launch_reason)
   // processing the final launch configuration until this client has
   // initialized.
   auto* launch_manager = StartupLaunchManager::From(g_browser_process);
-  if (launch_manager) {
-    launch_manager->AcquireSharedWriteLock();
-  }
+  launch_manager->AcquireSharedWriteLock();
 }
 
 StartupLaunchManager::Client::~Client() {
@@ -110,16 +108,14 @@ void StartupLaunchManager::Client::SetLaunchOnStartup(bool enable_launch) {
   launch_enabled_.emplace(enable_launch);
 
   auto* launch_manager = StartupLaunchManager::From(g_browser_process);
-  if (launch_manager) {
-    if (enable_launch) {
-      launch_manager->RegisterLaunchOnStartup(launch_reason_);
-    } else {
-      launch_manager->UnregisterLaunchOnStartup(launch_reason_);
-    }
+  if (enable_launch) {
+    launch_manager->RegisterLaunchOnStartup(launch_reason_);
+  } else {
+    launch_manager->UnregisterLaunchOnStartup(launch_reason_);
+  }
 
-    if (release_lock) {
-      launch_manager->ReleaseSharedWriteLock();
-    }
+  if (release_lock) {
+    launch_manager->ReleaseSharedWriteLock();
   }
 }
 
@@ -172,8 +168,7 @@ void StartupLaunchManager::SetInfoBarManager(
 }
 
 void StartupLaunchManager::MaybeShowInfoBars() {
-  if (features::IsForegroundLaunchInfoBarEnabled() &&
-      infobar_type_.has_value() && ShouldShowInfoBars()) {
+  if (infobar_type_.has_value() && ShouldShowInfoBars()) {
     infobar_manager_->ShowInfoBars(*infobar_type_);
     is_showing_infobar_ = true;
   }

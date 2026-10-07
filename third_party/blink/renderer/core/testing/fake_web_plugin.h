@@ -31,7 +31,6 @@
 #ifndef THIRD_PARTY_BLINK_RENDERER_CORE_TESTING_FAKE_WEB_PLUGIN_H_
 #define THIRD_PARTY_BLINK_RENDERER_CORE_TESTING_FAKE_WEB_PLUGIN_H_
 
-#include "base/memory/raw_ptr.h"
 #include "third_party/blink/public/mojom/input/focus_type.mojom-blink-forward.h"
 #include "third_party/blink/public/web/web_plugin.h"
 
@@ -85,8 +84,7 @@ class FakeWebPlugin : public WebPlugin {
   WebPluginContainer* Container() const override { return container_; }
 
  private:
-  raw_ptr<WebPluginContainer, UnprotectedInRelease | DanglingUntriaged>
-      container_;
+  WebPluginContainer* container_;
 };
 
 }  // namespace blink

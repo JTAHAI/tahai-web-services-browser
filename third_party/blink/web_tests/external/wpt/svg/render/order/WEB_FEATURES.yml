@@ -1,3 +1,7 @@
-rules:
-- z-index.svg: [z-index]
-- clip-path-filter-order.svg: [svg-filters]
+features:
+- name: z-index
+  files:
+  - z-index.svg
+- name: svg-filters
+  files:
+  - clip-path-filter-order.svg

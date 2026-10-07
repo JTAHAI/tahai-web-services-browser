@@ -123,11 +123,11 @@ class MockAutofillManagerObserver : public AutofillManager::Observer {
 
   MOCK_METHOD(void,
               OnBeforeLoadedServerPredictions,
-              (AutofillManager&, base::span<const FormGlobalId>),
+              (AutofillManager&),
               (override));
   MOCK_METHOD(void,
               OnAfterLoadedServerPredictions,
-              (AutofillManager&, base::span<const FormGlobalId>),
+              (AutofillManager&),
               (override));
 
   MOCK_METHOD(void,

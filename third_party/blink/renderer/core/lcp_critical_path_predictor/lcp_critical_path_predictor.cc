@@ -234,6 +234,8 @@ void LCPCriticalPathPredictor::OnLargestContentfulPaintUpdated(
           lcp_image_url.ProtocolIsInHttpFamily()) {
         auto lcp_origin = url::Origin::Create((GURL)lcp_image_url);
         bool is_lcp_cross_origin = !lcp_origin.IsSameOriginWith(root_origin);
+        base::UmaHistogramBoolean("Blink.LCPP.CrossOriginLcpImage",
+                                  is_lcp_cross_origin);
         if (is_lcp_cross_origin) {
           GetHost().AddPreconnectOrigin(SecurityOrigin::Create(lcp_image_url));
         }

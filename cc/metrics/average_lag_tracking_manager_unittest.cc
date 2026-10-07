@@ -103,8 +103,7 @@ class AverageLagTrackingManagerTest : public testing::Test {
         arrived_in_browser_main_timestamp,
         /*blocking_touch_dispatched_to_renderer=*/base::TimeTicks(),
         base::IdType64<class ui::LatencyInfo>(trace_id),
-        /*scroll_begin_generated_timestamp=*/MillisecondsToTimeTicks(1),
-        /*scroll_begin_arrival_timestamp=*/MillisecondsToTimeTicks(2));
+        /*scroll_begin_arrival_timestamp=*/MillisecondsToTimeTicks(1));
   }
 
   AverageLagTrackingManager average_lag_tracking_manager_;

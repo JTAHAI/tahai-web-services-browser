@@ -55,6 +55,7 @@ import org.chromium.chrome.browser.tasks.tab_management.TabUiTestHelper;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.chrome.test.transit.ChromeTransitTestRules;
 import org.chromium.chrome.test.transit.FreshCtaTransitTestRule;
+import org.chromium.chrome.test.transit.page.WebPageStation;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController;
 import org.chromium.components.feature_engagement.FeatureConstants;
 import org.chromium.components.feature_engagement.Tracker;
@@ -90,10 +91,11 @@ public class RestoreTabsTest {
 
     private BottomSheetController mBottomSheetController;
     private Supplier<ModalDialogManager> mModalDialogManagerSupplier;
+    private WebPageStation mPage;
 
     @Before
     public void setUp() {
-        mActivityTestRule.startOnBlankPage();
+        mPage = mActivityTestRule.startOnBlankPage();
         TrackerFactory.setTrackerForTests(mMockTracker);
 
         mForeignSessionHelperJniSpy = Mockito.spy(ForeignSessionHelperJni.get());

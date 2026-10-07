@@ -6,7 +6,6 @@ package org.chromium.chrome.browser.tab;
 
 import androidx.annotation.VisibleForTesting;
 
-import org.jni_zero.JniType;
 import org.jni_zero.NativeMethods;
 
 import org.chromium.base.UnownedUserDataKey;
@@ -158,12 +157,10 @@ public class TrustedCdn extends TabWebContentsUserData {
 
         void onDestroyed(long nativeTrustedCdn);
 
-        void setWebContents(
-                long nativeTrustedCdn, @JniType("content::WebContents*") WebContents webContents);
+        void setWebContents(long nativeTrustedCdn, WebContents webContents);
 
         void resetWebContents(long nativeTrustedCdn);
 
-        @JniType("GURL")
         GURL getPublisherUrl(long nativeTrustedCdn);
     }
 }

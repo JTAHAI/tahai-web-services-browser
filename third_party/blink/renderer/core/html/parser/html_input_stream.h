@@ -26,7 +26,6 @@
 #ifndef THIRD_PARTY_BLINK_RENDERER_CORE_HTML_PARSER_HTML_INPUT_STREAM_H_
 #define THIRD_PARTY_BLINK_RENDERER_CORE_HTML_PARSER_HTML_INPUT_STREAM_H_
 
-#include "base/memory/raw_ptr.h"
 #include "third_party/blink/renderer/core/html/parser/input_stream_preprocessor.h"
 #include "third_party/blink/renderer/platform/text/segmented_string.h"
 #include "third_party/blink/renderer/platform/wtf/allocator/allocator.h"
@@ -117,7 +116,7 @@ class HTMLInputStream {
 
  private:
   SegmentedString first_;
-  raw_ptr<SegmentedString, UnprotectedInRelease | DanglingUntriaged> last_;
+  SegmentedString* last_;
 };
 
 class InsertionPointRecord {

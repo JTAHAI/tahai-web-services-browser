@@ -4,7 +4,7 @@
 
 #include "components/page_load_metrics/common/page_load_timing.h"
 
-#include "components/page_load_metrics/common/page_load_metrics.mojom.h"
+#include "components/page_load_metrics/common/page_load_metrics.mojom-forward.h"
 #include "third_party/blink/public/web/web_performance_metrics_for_reporting.h"
 
 namespace page_load_metrics {
@@ -73,12 +73,11 @@ bool IsEmpty(const mojom::LargestContentfulPaintTiming& timing) {
 }
 
 bool IsEmpty(const mojom::MonotonicPaintTiming& timing) {
-  return !timing.first_paint && !timing.first_contentful_paint &&
-         !timing.first_contentful_paint_submitted;
+  return !timing.first_paint && !timing.first_contentful_paint;
 }
 
 bool IsEmpty(const mojom::SoftNavigationMetrics& timing) {
-  return !timing.performance_timeline_navigation_id;
+  return !timing.soft_navigation_offset;
 }
 
 bool IsEmpty(const page_load_metrics::mojom::PageLoadTiming& timing) {

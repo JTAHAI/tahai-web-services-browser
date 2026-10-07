@@ -11,7 +11,6 @@
 #include "base/functional/bind.h"
 #include "base/run_loop.h"
 #include "build/build_config.h"
-#include "chrome/browser/ash/login/lock/screen_locker_controller.h"
 #include "chrome/browser/ash/login/lock/screen_locker_tester.h"
 #include "chrome/browser/ash/login/quick_unlock/quick_unlock_utils.h"
 #include "chrome/browser/profiles/profile_manager.h"
@@ -181,12 +180,12 @@ IN_PROC_BROWSER_TEST_F(ScreenLockerTest, TestShowTwice) {
   tester.Lock();
 
   // Calling Show again simply send LockCompleted signal.
-  ScreenLockerController::Get().ShowLockScreen();
+  ScreenLocker::Show();
   EXPECT_TRUE(tester.IsLocked());
   EXPECT_EQ(2, session_manager_client()->notify_lock_screen_shown_call_count());
 
   // Close the locker to match expectations.
-  ScreenLockerController::Get().HideLockScreen();
+  ScreenLocker::Hide();
   base::RunLoop().RunUntilIdle();
   EXPECT_FALSE(tester.IsLocked());
   EXPECT_EQ(
@@ -204,7 +203,7 @@ IN_PROC_BROWSER_TEST_F(ScreenLockerTest, PasswordAuthWhenAuthDisabled) {
   EXPECT_TRUE(tester.IsLocked());
 
   // Disable authentication for user.
-  ScreenLockerController::Get().screen_locker()->TemporarilyDisableAuthForUser(
+  ScreenLocker::default_screen_locker()->TemporarilyDisableAuthForUser(
       user_manager::StubAccountId(),
       AuthDisabledData(AuthDisabledReason::kTimeWindowLimit,
                        base::Time::Now() + base::Hours(1), base::Hours(1),
@@ -215,7 +214,7 @@ IN_PROC_BROWSER_TEST_F(ScreenLockerTest, PasswordAuthWhenAuthDisabled) {
   EXPECT_TRUE(tester.IsLocked());
 
   // Re-enable authentication for user.
-  ScreenLockerController::Get().screen_locker()->ReenableAuthForUser(
+  ScreenLocker::default_screen_locker()->ReenableAuthForUser(
       user_manager::StubAccountId());
 
   // Try to authenticate with password.
@@ -241,7 +240,7 @@ IN_PROC_BROWSER_TEST_F(ScreenLockerTest, FingerprintAuthWhenAuthDisabled) {
   EXPECT_TRUE(tester.IsLocked());
 
   // Disable authentication for user.
-  ScreenLockerController::Get().screen_locker()->TemporarilyDisableAuthForUser(
+  ScreenLocker::default_screen_locker()->TemporarilyDisableAuthForUser(
       user_manager::StubAccountId(),
       AuthDisabledData(AuthDisabledReason::kTimeUsageLimit,
                        base::Time::Now() + base::Hours(1), base::Hours(3),
@@ -252,7 +251,7 @@ IN_PROC_BROWSER_TEST_F(ScreenLockerTest, FingerprintAuthWhenAuthDisabled) {
   EXPECT_TRUE(tester.IsLocked());
 
   // Re-enable authentication for user.
-  ScreenLockerController::Get().screen_locker()->ReenableAuthForUser(
+  ScreenLocker::default_screen_locker()->ReenableAuthForUser(
       user_manager::StubAccountId());
 
   // Try to authenticate with fingerprint.

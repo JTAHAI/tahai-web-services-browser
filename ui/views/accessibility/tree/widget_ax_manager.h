@@ -39,7 +39,6 @@ struct AXUpdatesAndEvents;
 
 namespace views {
 
-class AXVirtualView;
 class ViewAccessibility;
 class Widget;
 
@@ -86,13 +85,6 @@ class VIEWS_EXPORT WidgetAXManager : public ui::AXModeObserver,
   void OnChildManagerAdded(WidgetAXManager& child_manager);
   void OnChildManagerRemoved(WidgetAXManager& child_manager);
 
-  size_t child_widget_tree_host_count() const {
-    return child_widget_tree_hosts_.size();
-  }
-
-  void AppendChildWidgetTreeHosts(
-      std::vector<raw_ptr<ViewAccessibility>>& out) const;
-
   // Hosts this widget's AX tree in `host_view_ax` by wiring this tree's
   // parent_tree_id to the host view's widget tree and setting the host view's
   // child tree id to this tree.
@@ -103,8 +95,6 @@ class VIEWS_EXPORT WidgetAXManager : public ui::AXModeObserver,
   void ScheduleUnhostAXTree();
 
   gfx::NativeViewAccessible GetNativeViewAccessibleForId(ui::AXNodeID id);
-
-  ui::AXTreeID GetAXTreeID() const;
 
   // Sets a test callback that is invoked on every exit from
   // SendPendingUpdate(). If updates/events were actually sent, the optional
@@ -126,7 +116,6 @@ class VIEWS_EXPORT WidgetAXManager : public ui::AXModeObserver,
   // WidgetObserver:
   void OnWidgetCreated(Widget* widget) override;
   void OnWidgetDestroyed(Widget* widget) override;
-  void OnWidgetVisibilityChanged(Widget* widget, bool visible) override;
 
   // ui::AXNodeIdDelegate:
   ui::AXPlatformNodeId GetOrCreateAXNodeUniqueId(
@@ -172,15 +161,7 @@ class VIEWS_EXPORT WidgetAXManager : public ui::AXModeObserver,
   void Enable();
   void NotifyEnabled();
   void SetParentAXTreeID(const ui::AXTreeID& parent_ax_tree_id);
-
-  void UpdateParentTreeConnection();
-
-  void AddChildWidgetTreeHost(const ui::AXTreeID& child_tree_id);
-  void RemoveChildWidgetTreeHost(const ui::AXTreeID& child_tree_id);
-  AXVirtualView* FindChildWidgetTreeHost(
-      const ui::AXTreeID& child_tree_id) const;
-
-  void DetachFromParentTree();
+  void UpdateParentAXTreeIDFromWidget();
 
   void ClearAXTreeHost();
   static void UnhostAXTreeAfterFlush(base::WeakPtr<WidgetAXManager> manager,
@@ -204,11 +185,6 @@ class VIEWS_EXPORT WidgetAXManager : public ui::AXModeObserver,
 
   // The view currently hosting this widget's AX tree, if any.
   ViewTracker ax_tree_host_tracker_;
-
-  // The virtual views that carry the tree ids of the child Widgets. They are
-  // ignored, thus each hosted tree takes the place of its host under the root
-  // view.
-  std::vector<std::unique_ptr<AXVirtualView>> child_widget_tree_hosts_;
 
   // Incremented whenever the hosting relationship changes so a scheduled
   // unhost task cannot clear a newer hosting relationship.

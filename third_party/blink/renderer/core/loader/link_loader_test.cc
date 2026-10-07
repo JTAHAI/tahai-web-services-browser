@@ -6,7 +6,6 @@
 
 #include <memory>
 
-#include "base/memory/raw_ptr.h"
 #include "base/task/single_thread_task_runner.h"
 #include "base/test/metrics/histogram_tester.h"
 #include "base/test/scoped_feature_list.h"
@@ -548,9 +547,7 @@ class ModulePreloadTestModulator final : public DummyModulator {
   bool fetched() const { return fetched_; }
 
  private:
-  raw_ptr<const ModulePreloadTestParams,
-          UnprotectedInRelease | DanglingUntriaged>
-      params_;
+  const ModulePreloadTestParams* params_;
   bool fetched_;
 };
 

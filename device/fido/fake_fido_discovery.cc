@@ -106,8 +106,6 @@ FakeFidoDiscoveryFactory::Create(FidoTransportProtocol transport) {
       return SingleDiscovery(std::move(next_cable_discovery_));
     case FidoTransportProtocol::kInternal:
       return std::move(next_platform_discovery_list_);
-    case FidoTransportProtocol::kSmartCard:
-      return {};
     case FidoTransportProtocol::kDeprecatedAoa:
       break;
   }

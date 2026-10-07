@@ -35,15 +35,11 @@ import org.chromium.base.supplier.ObservableSuppliers;
 import org.chromium.base.supplier.SettableMonotonicObservableSupplier;
 import org.chromium.base.supplier.SettableNonNullObservableSupplier;
 import org.chromium.base.test.BaseRobolectricTestRunner;
-import org.chromium.base.test.util.Features.DisableFeatures;
-import org.chromium.base.test.util.Features.EnableFeatures;
 import org.chromium.build.BuildConfig;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.browser_controls.BrowserControlsOffsetTagsInfo;
 import org.chromium.chrome.browser.browser_controls.BrowserControlsStateProvider;
 import org.chromium.chrome.browser.browser_controls.BrowserControlsStateProvider.ControlsPosition;
-import org.chromium.chrome.browser.browser_controls.BrowserControlsVisibilityManager;
-import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.layouts.LayoutStateProvider;
 import org.chromium.chrome.browser.layouts.LayoutType;
 import org.chromium.chrome.browser.tab.Tab;
@@ -60,7 +56,7 @@ public class TopToolbarOverlayMediatorTest {
 
     private Context mContext;
     @Mock private LayoutStateProvider mLayoutStateProvider;
-    @Mock private BrowserControlsVisibilityManager mBrowserControlsVisibilityManager;
+    @Mock private BrowserControlsStateProvider mBrowserControlsStateProvider;
     @Mock private ToolbarThemeColorProvider mToolbarThemeColorProvider;
     @Mock private Tab mTab;
     @Mock private Tab mTab2;
@@ -115,7 +111,7 @@ public class TopToolbarOverlayMediatorTest {
                         mLayoutStateProvider,
                         (info) -> {},
                         mTabSupplier,
-                        mBrowserControlsVisibilityManager,
+                        mBrowserControlsStateProvider,
                         mToolbarThemeColorProvider,
                         mBottomToolbarControlsOffsetSupplier,
                         mSuppressToolbarSceneLayerSupplier,
@@ -131,8 +127,7 @@ public class TopToolbarOverlayMediatorTest {
 
         verify(mProgressBar).addObserver(mProgressBarObserverCaptor.capture());
         verify(mTab).addObserver(mTabObserverCaptor.capture());
-        verify(mBrowserControlsVisibilityManager)
-                .addObserver(mBrowserControlsObserverCaptor.capture());
+        verify(mBrowserControlsStateProvider).addObserver(mBrowserControlsObserverCaptor.capture());
         verify(mLayoutStateProvider).addObserver(mLayoutObserverCaptor.capture());
         verify(mToolbarThemeColorProvider).addThemeColorObserver(mMediator);
 
@@ -146,7 +141,7 @@ public class TopToolbarOverlayMediatorTest {
 
     @Test
     public void testShadowVisibilityWhenControlsOffsetChanges() {
-        when(mBrowserControlsVisibilityManager.getBrowserControlHiddenRatio()).thenReturn(0.0f);
+        when(mBrowserControlsStateProvider.getBrowserControlHiddenRatio()).thenReturn(0.0f);
         mBrowserControlsObserverCaptor
                 .getValue()
                 .onControlsOffsetChanged(0, 0, false, 0, 0, false, false, false);
@@ -154,7 +149,7 @@ public class TopToolbarOverlayMediatorTest {
         assertTrue(
                 "Shadow should be visible.", mModel.get(TopToolbarOverlayProperties.SHOW_SHADOW));
 
-        when(mBrowserControlsVisibilityManager.getBrowserControlHiddenRatio()).thenReturn(0.5f);
+        when(mBrowserControlsStateProvider.getBrowserControlHiddenRatio()).thenReturn(0.5f);
         mBrowserControlsObserverCaptor
                 .getValue()
                 .onControlsOffsetChanged(100, 0, false, 0, 0, false, false, false);
@@ -198,8 +193,7 @@ public class TopToolbarOverlayMediatorTest {
     }
 
     private void testShadowVisibility_suppressToolbarCaptures_initialState() {
-        when(mBrowserControlsVisibilityManager.getAndroidControlsVisibility())
-                .thenReturn(View.VISIBLE);
+        when(mBrowserControlsStateProvider.getAndroidControlsVisibility()).thenReturn(View.VISIBLE);
 
         mMediator =
                 new TopToolbarOverlayMediator(
@@ -208,7 +202,7 @@ public class TopToolbarOverlayMediatorTest {
                         mLayoutStateProvider,
                         (info) -> {},
                         mTabSupplier,
-                        mBrowserControlsVisibilityManager,
+                        mBrowserControlsStateProvider,
                         mToolbarThemeColorProvider,
                         mBottomToolbarControlsOffsetSupplier,
                         mSuppressToolbarSceneLayerSupplier,
@@ -372,54 +366,15 @@ public class TopToolbarOverlayMediatorTest {
     }
 
     @Test
-    @EnableFeatures(ChromeFeatureList.BROWSER_CONTROLS_HIDING_TOKEN)
-    public void testUpdateVisibility_hasHidingTokens() {
-        assertTrue("View should be visible.", mModel.get(TopToolbarOverlayProperties.VISIBLE));
-
-        when(mBrowserControlsVisibilityManager.hasHidingTokens()).thenReturn(true);
-        mBrowserControlsObserverCaptor
-                .getValue()
-                .onAndroidControlsVisibilityChanged(View.INVISIBLE);
-
-        assertFalse(
-                "View should be hidden when hiding tokens are held.",
-                mModel.get(TopToolbarOverlayProperties.VISIBLE));
-
-        when(mBrowserControlsVisibilityManager.hasHidingTokens()).thenReturn(false);
-        mBrowserControlsObserverCaptor.getValue().onAndroidControlsVisibilityChanged(View.VISIBLE);
-
-        assertTrue(
-                "View should be restored when hiding tokens are released.",
-                mModel.get(TopToolbarOverlayProperties.VISIBLE));
-    }
-
-    @Test
-    @DisableFeatures(ChromeFeatureList.BROWSER_CONTROLS_HIDING_TOKEN)
-    public void testUpdateVisibility_hasHidingTokens_flagDisabled() {
-        assertTrue("View should be visible.", mModel.get(TopToolbarOverlayProperties.VISIBLE));
-
-        when(mBrowserControlsVisibilityManager.hasHidingTokens()).thenReturn(true);
-        mBrowserControlsObserverCaptor
-                .getValue()
-                .onAndroidControlsVisibilityChanged(View.INVISIBLE);
-
-        assertTrue(
-                "View should remain visible when flag is disabled.",
-                mModel.get(TopToolbarOverlayProperties.VISIBLE));
-    }
-
-    @Test
     public void testOffsetTagAndConstraintChanges() {
         BrowserControlsOffsetTagsInfo originalOffsetTag = new BrowserControlsOffsetTagsInfo();
         int offset = -10;
-        doReturn(offset).when(mBrowserControlsVisibilityManager).getContentOffset();
+        doReturn(offset).when(mBrowserControlsStateProvider).getContentOffset();
 
         mMediator.updateOffsetTag(originalOffsetTag);
 
         BrowserControlsOffsetTagsInfo newOffsetTag = new BrowserControlsOffsetTagsInfo();
-        doReturn(ControlsPosition.TOP)
-                .when(mBrowserControlsVisibilityManager)
-                .getControlsPosition();
+        doReturn(ControlsPosition.TOP).when(mBrowserControlsStateProvider).getControlsPosition();
         mBrowserControlsObserverCaptor
                 .getValue()
                 .onOffsetTagsInfoChanged(null, newOffsetTag, 0, false);
@@ -428,9 +383,7 @@ public class TopToolbarOverlayMediatorTest {
                 originalOffsetTag.getTopControlsOffsetTag(),
                 mModel.get(TopToolbarOverlayProperties.TOOLBAR_OFFSET_TAG));
 
-        doReturn(ControlsPosition.BOTTOM)
-                .when(mBrowserControlsVisibilityManager)
-                .getControlsPosition();
+        doReturn(ControlsPosition.BOTTOM).when(mBrowserControlsStateProvider).getControlsPosition();
         mBrowserControlsObserverCaptor
                 .getValue()
                 .onOffsetTagsInfoChanged(null, newOffsetTag, 0, false);
@@ -445,7 +398,7 @@ public class TopToolbarOverlayMediatorTest {
         assertTrue(mBottomToolbarControlsOffsetSupplier.hasObservers());
         assertTrue(mSuppressToolbarSceneLayerSupplier.hasObservers());
         verify(mLayoutStateProvider, never()).removeObserver(mLayoutObserverCaptor.getValue());
-        verify(mBrowserControlsVisibilityManager, never())
+        verify(mBrowserControlsStateProvider, never())
                 .removeObserver(mBrowserControlsObserverCaptor.getValue());
         assertTrue(mCaptureResourceIdSupplier.hasObservers());
 
@@ -456,7 +409,7 @@ public class TopToolbarOverlayMediatorTest {
         assertFalse(mBottomToolbarControlsOffsetSupplier.hasObservers());
         assertFalse(mSuppressToolbarSceneLayerSupplier.hasObservers());
         verify(mLayoutStateProvider).removeObserver(mLayoutObserverCaptor.getValue());
-        verify(mBrowserControlsVisibilityManager)
+        verify(mBrowserControlsStateProvider)
                 .removeObserver(mBrowserControlsObserverCaptor.getValue());
         assertFalse(mCaptureResourceIdSupplier.hasObservers());
     }
@@ -473,11 +426,9 @@ public class TopToolbarOverlayMediatorTest {
     public void testContentOffset() {
         int offset = -10;
         int height = 150;
-        doReturn(offset).when(mBrowserControlsVisibilityManager).getContentOffset();
-        doReturn(height).when(mBrowserControlsVisibilityManager).getTopControlsHeight();
-        doReturn(ControlsPosition.TOP)
-                .when(mBrowserControlsVisibilityManager)
-                .getControlsPosition();
+        doReturn(offset).when(mBrowserControlsStateProvider).getContentOffset();
+        doReturn(height).when(mBrowserControlsStateProvider).getTopControlsHeight();
+        doReturn(ControlsPosition.TOP).when(mBrowserControlsStateProvider).getControlsPosition();
         mBrowserControlsObserverCaptor.getValue().onControlsPositionChanged(ControlsPosition.TOP);
 
         mBrowserControlsObserverCaptor
@@ -494,10 +445,8 @@ public class TopToolbarOverlayMediatorTest {
         mMediator.setVisibilityManuallyControlledForTesting(true);
 
         int height = 150;
-        doReturn(height).when(mBrowserControlsVisibilityManager).getTopControlsHeight();
-        doReturn(ControlsPosition.TOP)
-                .when(mBrowserControlsVisibilityManager)
-                .getControlsPosition();
+        doReturn(height).when(mBrowserControlsStateProvider).getTopControlsHeight();
+        doReturn(ControlsPosition.TOP).when(mBrowserControlsStateProvider).getControlsPosition();
         mBrowserControlsObserverCaptor.getValue().onControlsPositionChanged(ControlsPosition.TOP);
 
         // When requestNewFrame is false, applyContentOffsetToModel receives getTopControlsHeight().
@@ -512,7 +461,7 @@ public class TopToolbarOverlayMediatorTest {
 
         // When requestNewFrame is true, applyContentOffsetToModel receives getContentOffset().
         int contentOffset = 200;
-        doReturn(contentOffset).when(mBrowserControlsVisibilityManager).getContentOffset();
+        doReturn(contentOffset).when(mBrowserControlsStateProvider).getContentOffset();
         mBrowserControlsObserverCaptor
                 .getValue()
                 .onControlsOffsetChanged(
@@ -528,9 +477,7 @@ public class TopToolbarOverlayMediatorTest {
         float height = 700.0f;
         mMediator.setViewportHeight(height);
         mBottomToolbarControlsOffsetSupplier.set(0);
-        doReturn(ControlsPosition.BOTTOM)
-                .when(mBrowserControlsVisibilityManager)
-                .getControlsPosition();
+        doReturn(ControlsPosition.BOTTOM).when(mBrowserControlsStateProvider).getControlsPosition();
 
         mBrowserControlsObserverCaptor
                 .getValue()
@@ -547,9 +494,7 @@ public class TopToolbarOverlayMediatorTest {
         mMediator.updateOffsetTag(originalOffsetTag);
 
         // Set position to BOTTOM.
-        doReturn(ControlsPosition.BOTTOM)
-                .when(mBrowserControlsVisibilityManager)
-                .getControlsPosition();
+        doReturn(ControlsPosition.BOTTOM).when(mBrowserControlsStateProvider).getControlsPosition();
         mBrowserControlsObserverCaptor
                 .getValue()
                 .onControlsPositionChanged(ControlsPosition.BOTTOM);

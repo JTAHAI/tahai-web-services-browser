@@ -305,7 +305,7 @@ public class MultiInstanceManagerImpl extends MultiInstanceManager
                     // Wait for the other ChromeTabbedActivity to pause before trying to merge
                     // tabs.
                     mOtherCTAStateObserver =
-                            (Activity _, int newState) -> {
+                            (activity, newState) -> {
                                 if (newState == ActivityState.PAUSED) {
                                     removeOtherCTAStateObserver();
                                     maybeMergeTabs();

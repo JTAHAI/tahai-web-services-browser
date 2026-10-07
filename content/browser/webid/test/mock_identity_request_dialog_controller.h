@@ -82,8 +82,7 @@ class MockIdentityRequestDialogController
               (const GURL&,
                blink::mojom::RpMode rp_mode,
                DismissCallback,
-               ShownModalAsyncCallback,
-               NativeAppResultCallback),
+               ShownModalAsyncCallback),
               (override));
   MOCK_METHOD(void, CloseModalDialog, (), (override));
   MOCK_METHOD(void, NotifyAutofillSourceReadyForTesting, (), (override));

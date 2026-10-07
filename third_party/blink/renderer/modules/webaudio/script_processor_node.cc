@@ -42,7 +42,6 @@
 #include "third_party/blink/renderer/modules/webaudio/audio_node_output.h"
 #include "third_party/blink/renderer/modules/webaudio/audio_processing_event.h"
 #include "third_party/blink/renderer/modules/webaudio/base_audio_context.h"
-#include "third_party/blink/renderer/modules/webaudio/realtime_audio_destination_handler.h"
 #include "third_party/blink/renderer/modules/webaudio/realtime_audio_destination_node.h"
 #include "third_party/blink/renderer/platform/bindings/exception_state.h"
 #include "third_party/blink/renderer/platform/scheduler/public/post_cross_thread_task.h"
@@ -91,15 +90,17 @@ uint32_t ChooseBufferSize(uint32_t callback_buffer_size) {
 
 }  // namespace
 
-ScriptProcessorNode::ScriptProcessorNode(base::PassKey<ScriptProcessorNode>,
-                                         BaseAudioContext& context,
+ScriptProcessorNode::ScriptProcessorNode(BaseAudioContext& context,
                                          float sample_rate,
                                          uint32_t buffer_size,
                                          uint32_t number_of_input_channels,
                                          uint32_t number_of_output_channels)
     : AudioNode(context), ActiveScriptWrappable<ScriptProcessorNode>({}) {
-  CHECK_GE(buffer_size, context.renderQuantumSize());
-  CHECK_EQ(buffer_size % context.renderQuantumSize(), 0u);
+  // Regardless of the allowed buffer sizes, we still need to process at the
+  // granularity of the AudioNode.
+  if (buffer_size < context.renderQuantumSize()) {
+    buffer_size = context.renderQuantumSize();
+  }
 
   // Create double buffers on both the input and output sides.
   // These AudioBuffers will be directly accessed in the main thread by
@@ -214,7 +215,7 @@ ScriptProcessorNode* ScriptProcessorNode::Create(
       if (context.HasRealtimeConstraint() && !context.IsContextCleared()) {
         RealtimeAudioDestinationHandler& destination_handler =
             static_cast<RealtimeAudioDestinationHandler&>(
-                context.destinationNode()->GetAudioDestinationHandler());
+                context.destination()->GetAudioDestinationHandler());
         buffer_size =
             ChooseBufferSize(destination_handler.GetCallbackBufferSize());
       } else {
@@ -253,8 +254,8 @@ ScriptProcessorNode* ScriptProcessorNode::Create(
   }
 
   ScriptProcessorNode* node = MakeGarbageCollected<ScriptProcessorNode>(
-      base::PassKey<ScriptProcessorNode>(), context, context.sampleRate(),
-      buffer_size, number_of_input_channels, number_of_output_channels);
+      context, context.sampleRate(), buffer_size, number_of_input_channels,
+      number_of_output_channels);
 
   if (!node) {
     return nullptr;

@@ -34,8 +34,7 @@ class AccountCapabilitiesFetcherGaia
     kOAuthError = 3,
     kNetworkError = 4,
     kCancelled = 5,
-    kPartialSuccess = 6,
-    kMaxValue = kPartialSuccess
+    kMaxValue = kCancelled
   };
 
   AccountCapabilitiesFetcherGaia(

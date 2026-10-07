@@ -51,12 +51,8 @@ void RightClick(const views::View* view, int flags) {
 }
 
 views::MenuItemView* SelectMenuItemWithCommandId(
-    const views::View* context_view,
     HoldingSpaceCommandId command_id) {
-  auto* const menu_controller =
-      context_view && context_view->GetWidget()
-          ? views::MenuController::GetForOwnerWidget(context_view->GetWidget())
-          : nullptr;
+  auto* const menu_controller = views::MenuController::GetActiveInstance();
   if (!menu_controller) {
     return nullptr;
   }

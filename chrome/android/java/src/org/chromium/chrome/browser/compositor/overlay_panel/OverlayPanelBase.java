@@ -246,7 +246,7 @@ abstract class OverlayPanelBase implements OverlayPanelStateProvider, AppHeaderO
         return mContext;
     }
 
-    /** Tracks whether the panel has been hidden. See {@link #showPanel} and {@link #hidePanel}. */
+    /** Tracks whether the panel has been hidden. {@See #showPanel, #hidePanel}. */
     protected boolean mPanelHidden;
 
     /**
@@ -267,7 +267,7 @@ abstract class OverlayPanelBase implements OverlayPanelStateProvider, AppHeaderO
     /** Temporarily hides a peeking panel for the given reason. Does nothing if not peeking. */
     public abstract void hidePanel(@StateChangeReason int reason);
 
-    /** Shows a previously hidden panel again. See {@link #hidePanel}. */
+    /** Shows a previously hidden panel again. {@See #hidePanel}. */
     public abstract void showPanel(@StateChangeReason int reason);
 
     /**

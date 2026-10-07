@@ -28,6 +28,11 @@ namespace {
 std::atomic<bool> g_subsampling_always_sample = false;
 std::atomic<bool> g_subsampling_never_sample = false;
 
+MetricsSubSampler* GetSharedSubsampler() {
+  static thread_local MetricsSubSampler g_shared_subsampler;
+  return &g_shared_subsampler;
+}
+
 }  // namespace
 
 uint64_t RandUint64() {
@@ -188,12 +193,6 @@ void MetricsSubSampler::Reseed() {
   generator_ = InsecureRandomGenerator();
 }
 
-// static
-MetricsSubSampler& MetricsSubSampler::GetSharedMetricsSubsampler() {
-  static thread_local MetricsSubSampler g_shared_subsampler;
-  return g_shared_subsampler;
-}
-
 MetricsSubSampler::ScopedAlwaysSampleForTesting::
     ScopedAlwaysSampleForTesting() {
   DCHECK(!g_subsampling_always_sample.load(std::memory_order_relaxed));
@@ -221,12 +220,11 @@ MetricsSubSampler::ScopedNeverSampleForTesting::~ScopedNeverSampleForTesting() {
 }
 
 bool ShouldRecordSubsampledMetric(double probability) {
-  return MetricsSubSampler::GetSharedMetricsSubsampler().ShouldSample(
-      probability);
+  return GetSharedSubsampler()->ShouldSample(probability);
 }
 
 void ReseedSharedMetricsSubsampler() {
-  MetricsSubSampler::GetSharedMetricsSubsampler().Reseed();
+  GetSharedSubsampler()->Reseed();
 }
 
 }  // namespace base

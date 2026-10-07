@@ -26,7 +26,6 @@
 #include "components/back_forward_cache/back_forward_cache_disable.h"
 #include "components/webapps/browser/banners/app_banner_metrics.h"
 #include "components/webapps/browser/banners/app_banner_settings_helper.h"
-#include "components/webapps/browser/banners/before_install_prompt_event.h"
 #include "components/webapps/browser/banners/install_banner_config.h"
 #include "components/webapps/browser/banners/installable_web_app_check_result.h"
 #include "components/webapps/browser/banners/web_app_banner_data.h"
@@ -133,6 +132,22 @@ class NullStatusReporter : public AppBannerManager::StatusReporter {
   }
 };
 
+void TrackBeforeInstallEventPrompt(AppBannerManager::State state) {
+  switch (state) {
+    case AppBannerManager::State::SENDING_EVENT_GOT_EARLY_PROMPT:
+      TrackBeforeInstallEvent(BEFORE_INSTALL_EVENT_EARLY_PROMPT);
+      break;
+    case AppBannerManager::State::PENDING_PROMPT_CANCELED:
+      TrackBeforeInstallEvent(
+          BEFORE_INSTALL_EVENT_PROMPT_CALLED_AFTER_PREVENT_DEFAULT);
+      break;
+    case AppBannerManager::State::PENDING_PROMPT_NOT_CANCELED:
+      TrackBeforeInstallEvent(BEFORE_INSTALL_EVENT_PROMPT_CALLED_NOT_CANCELED);
+      break;
+    default:
+      break;
+  }
+}
 }  // anonymous namespace
 
 namespace test {
@@ -224,23 +239,22 @@ void AppBannerManager::OnInstall(blink::mojom::DisplayMode display,
 
   // App has been installed (possibly by the user), page may no longer request
   // install prompt.
-  if (before_install_prompt_event_) {
-    before_install_prompt_event_.reset();
-  }
+  receiver_.reset();
   if (set_current_web_app_not_installable) {
     SetInstallableWebAppCheckResult(InstallableWebAppCheckResult::kNo);
   }
 }
 
 void AppBannerManager::SendBannerAccepted() {
-  if (before_install_prompt_event_) {
-    before_install_prompt_event_->SendBannerAccepted(GetBannerType());
+  if (event_.is_bound()) {
+    event_->BannerAccepted(GetBannerType());
+    event_.reset();
   }
 }
 
 void AppBannerManager::SendBannerDismissed() {
-  if (before_install_prompt_event_) {
-    before_install_prompt_event_->SendBannerDismissed();
+  if (event_.is_bound()) {
+    event_->BannerDismissed();
     SendBannerPromptRequest();
   }
 }
@@ -266,8 +280,7 @@ void AppBannerManager::SetTriggeringDisabledForTesting(bool disable) {
 }
 
 bool AppBannerManager::IsPromptAvailableForTesting() const {
-  return before_install_prompt_event_ &&
-         before_install_prompt_event_->IsPromptAvailable();
+  return receiver_.is_bound();
 }
 
 // static
@@ -518,7 +531,8 @@ void AppBannerManager::ReportStatus(InstallableStatusCode code) {
 }
 
 void AppBannerManager::ResetBindings() {
-  before_install_prompt_event_.reset();
+  receiver_.reset();
+  event_.reset();
 }
 
 void AppBannerManager::ResetCurrentPageData() {
@@ -546,15 +560,27 @@ void AppBannerManager::OverrideInstallableParamsForTesting(
 }
 
 void AppBannerManager::Terminate(InstallableStatusCode code) {
+  switch (state_) {
+    case State::PENDING_PROMPT_CANCELED:
+      TrackBeforeInstallEvent(
+          BEFORE_INSTALL_EVENT_PROMPT_NOT_CALLED_AFTER_PREVENT_DEFAULT);
+      break;
+    case State::PENDING_PROMPT_NOT_CANCELED:
+      TrackBeforeInstallEvent(
+          BEFORE_INSTALL_EVENT_PROMPT_NOT_CALLED_NOT_CANCELLED);
+      break;
+    default:
+      break;
+  }
+
   Stop(code);
 }
 
 InstallableStatusCode AppBannerManager::TerminationCodeFromState() const {
-  if (before_install_prompt_event_ &&
-      before_install_prompt_event_->IsPendingPrompt()) {
-    return InstallableStatusCode::RENDERER_CANCELLED;
-  }
   switch (state_) {
+    case State::PENDING_PROMPT_CANCELED:
+    case State::PENDING_PROMPT_NOT_CANCELED:
+      return InstallableStatusCode::RENDERER_CANCELLED;
     case State::FETCHING_MANIFEST:
       return InstallableStatusCode::WAITING_FOR_MANIFEST;
     case State::FETCHING_NATIVE_DATA:
@@ -562,7 +588,8 @@ InstallableStatusCode AppBannerManager::TerminationCodeFromState() const {
     case State::PENDING_INSTALLABLE_CHECK:
       return InstallableStatusCode::WAITING_FOR_INSTALLABLE_CHECK;
     case State::PENDING_CONFLICTING_INSTALLATION_CHECK:
-    case State::PENDING_PROMPT:
+    case State::SENDING_EVENT:
+    case State::SENDING_EVENT_GOT_EARLY_PROMPT:
     case State::INACTIVE:
     case State::COMPLETE:
       break;
@@ -631,7 +658,7 @@ void AppBannerManager::Stop(InstallableStatusCode code) {
   ResetBindings();
   UpdateState(State::COMPLETE);
   for (Observer& observer : observer_list_) {
-    observer.OnComplete(code);
+    observer.OnComplete();
   }
   status_reporter_ = std::make_unique<NullStatusReporter>();
 }
@@ -645,19 +672,25 @@ void AppBannerManager::SendBannerPromptRequest() {
       web_contents(), install_config.value(),
       AppBannerSettingsHelper::APP_BANNER_EVENT_COULD_SHOW, GetCurrentTime());
 
-  UpdateState(State::PENDING_PROMPT);
+  UpdateState(State::SENDING_EVENT);
+  TrackBeforeInstallEvent(BEFORE_INSTALL_EVENT_CREATED);
 
   // Any existing binding is invalid when we send a new beforeinstallprompt.
   ResetBindings();
 
-  before_install_prompt_event_ = std::make_unique<BeforeInstallPromptEvent>(
-      web_contents(),
-      base::BindOnce(&AppBannerManager::OnBeforeInstallPromptPrompt,
-                     weak_factory_for_this_navigation_.GetWeakPtr()),
-      base::BindOnce(&AppBannerManager::OnBeforeInstallPromptReply,
+  mojo::Remote<blink::mojom::AppBannerController> controller;
+  web_contents()->GetPrimaryMainFrame()->GetRemoteInterfaces()->GetInterface(
+      controller.BindNewPipeAndPassReceiver());
+
+  // Get a raw controller pointer before we move out of the smart pointer to
+  // avoid crashing with MSVC's order of evaluation.
+  blink::mojom::AppBannerController* controller_ptr = controller.get();
+  controller_ptr->BannerPromptRequest(
+      receiver_.BindNewPipeAndPassRemote(), event_.BindNewPipeAndPassReceiver(),
+      {GetBannerType()},
+      base::BindOnce(&AppBannerManager::OnBannerPromptReply,
                      weak_factory_for_this_navigation_.GetWeakPtr(),
-                     install_config.value()));
-  before_install_prompt_event_->Send({GetBannerType()});
+                     install_config.value(), std::move(controller)));
 }
 
 void AppBannerManager::UpdateState(State state) {
@@ -668,14 +701,23 @@ void AppBannerManager::UpdateState(State state) {
            {State::FETCHING_NATIVE_DATA, State::PENDING_INSTALLABLE_CHECK,
             State::COMPLETE}},
           {State::FETCHING_NATIVE_DATA,
-           {State::PENDING_PROMPT, State::COMPLETE}},
+           {State::SENDING_EVENT, State::COMPLETE}},
           {State::PENDING_INSTALLABLE_CHECK,
            {State::PENDING_CONFLICTING_INSTALLATION_CHECK, State::COMPLETE}},
           {State::PENDING_CONFLICTING_INSTALLATION_CHECK,
-           {State::PENDING_PROMPT, State::COMPLETE}},
-          {State::PENDING_PROMPT, {State::PENDING_PROMPT, State::COMPLETE}},
+           {State::SENDING_EVENT, State::COMPLETE}},
+          {State::SENDING_EVENT,
+           {State::SENDING_EVENT_GOT_EARLY_PROMPT,
+            State::PENDING_PROMPT_CANCELED, State::PENDING_PROMPT_NOT_CANCELED,
+            State::COMPLETE}},
+          {State::SENDING_EVENT_GOT_EARLY_PROMPT,
+           {State::SENDING_EVENT, State::COMPLETE}},
+          {State::PENDING_PROMPT_NOT_CANCELED,
+           {State::SENDING_EVENT, State::COMPLETE}},
+          {State::PENDING_PROMPT_CANCELED,
+           {State::SENDING_EVENT, State::COMPLETE}},
           {State::COMPLETE,
-           {State::INACTIVE, State::PENDING_PROMPT, State::COMPLETE}},
+           {State::INACTIVE, State::SENDING_EVENT, State::COMPLETE}},
       }));
   CHECK_STATE_TRANSITION(allowed_transitions, state_, state);
   state_ = state;
@@ -779,19 +821,18 @@ void AppBannerManager::WebContentsDestroyed() {
 }
 
 bool AppBannerManager::IsRunningForTesting() const {
-  if (before_install_prompt_event_ &&
-      before_install_prompt_event_->IsRunning()) {
-    return true;
-  }
   switch (state_) {
     case State::INACTIVE:
-    case State::PENDING_PROMPT:
+    case State::PENDING_PROMPT_CANCELED:
+    case State::PENDING_PROMPT_NOT_CANCELED:
     case State::COMPLETE:
       return false;
     case State::PENDING_CONFLICTING_INSTALLATION_CHECK:
     case State::FETCHING_MANIFEST:
     case State::FETCHING_NATIVE_DATA:
     case State::PENDING_INSTALLABLE_CHECK:
+    case State::SENDING_EVENT:
+    case State::SENDING_EVENT_GOT_EARLY_PROMPT:
       return true;
   }
   return false;
@@ -824,8 +865,8 @@ std::string AppBannerManager::GetInstallableWebAppManifestId(
   switch (manager->installable_web_app_check_result_) {
     case InstallableWebAppCheckResult::kUnknown:
     case InstallableWebAppCheckResult::kNo:
-      return std::string();
     case InstallableWebAppCheckResult::kNo_AlreadyInstalled:
+      return std::string();
     case InstallableWebAppCheckResult::kYes_ByUserRequest:
     case InstallableWebAppCheckResult::kYes_Promotable:
       CHECK(manager->web_app_data_);
@@ -896,28 +937,59 @@ bool AppBannerManager::MaybeConsumeInstallAnimation() {
   return true;
 }
 
-void AppBannerManager::OnBeforeInstallPromptPrompt() {
-  ShowBannerForCurrentPageState();
-}
-
-void AppBannerManager::OnBeforeInstallPromptReply(
+void AppBannerManager::OnBannerPromptReply(
     const InstallBannerConfig& install_config,
-    bool event_canceled) {
+    mojo::Remote<blink::mojom::AppBannerController> controller,
+    blink::mojom::AppBannerPromptReply reply) {
+  // The renderer might have requested the prompt to be canceled. They may
+  // request that it is redisplayed later, so don't Terminate() here. However,
+  // log that the cancelation was requested, so Terminate() can be called if a
+  // redisplay isn't asked for.
+  //
+  // If the redisplay request has not been received already, we stop here and
+  // wait for the prompt function to be called. If the redisplay request has
+  // already been received before cancel was sent (e.g. if redisplay was
+  // requested in the beforeinstallprompt event handler), we keep going and show
+  // the banner immediately.
+  bool event_canceled = reply == blink::mojom::AppBannerPromptReply::CANCEL;
+  if (event_canceled) {
+    TrackBeforeInstallEvent(BEFORE_INSTALL_EVENT_PREVENT_DEFAULT_CALLED);
+    web_contents()->GetPrimaryMainFrame()->AddMessageToConsole(
+        blink::mojom::ConsoleMessageLevel::kInfo,
+        "Banner not shown: beforeinstallpromptevent.preventDefault() called. "
+        "The page must call beforeinstallpromptevent.prompt() to show the "
+        "banner.");
+  }
+
   for (Observer& observer : observer_list_) {
     observer.OnBannerPromptReply();
   }
 
-  if (!event_canceled) {
-    delegate_->MaybeShowAmbientBadge(install_config);
+  if (state_ == State::SENDING_EVENT) {
+    if (!event_canceled) {
+      delegate_->MaybeShowAmbientBadge(install_config);
+      UpdateState(State::PENDING_PROMPT_NOT_CANCELED);
+    } else {
+      UpdateState(State::PENDING_PROMPT_CANCELED);
+    }
+    return;
   }
+
+  DCHECK_EQ(State::SENDING_EVENT_GOT_EARLY_PROMPT, state_);
+
+  ShowBannerForCurrentPageState();
 }
 
 void AppBannerManager::ShowBannerForCurrentPageState() {
   // The banner is only shown if the site explicitly requests it to be shown.
-  DCHECK_EQ(state_, State::PENDING_PROMPT);
+  DCHECK(state_ == State::SENDING_EVENT_GOT_EARLY_PROMPT ||
+         state_ == State::PENDING_PROMPT_CANCELED ||
+         state_ == State::PENDING_PROMPT_NOT_CANCELED);
 
   content::WebContents* contents = web_contents();
   WebappInstallSource install_source;
+
+  TrackBeforeInstallEventPrompt(state_);
 
   install_source =
       status_reporter_->GetInstallSource(contents, InstallTrigger::API);
@@ -959,6 +1031,19 @@ void AppBannerManager::ShowBannerForCurrentPageState() {
 
   for (Observer& observer : observer_list_) {
     observer.OnBannerShown();
+  }
+}
+
+void AppBannerManager::DisplayAppBanner() {
+  // Prevent this from being called multiple times on the same connection.
+  receiver_.reset();
+
+  if (state_ == State::PENDING_PROMPT_CANCELED ||
+      state_ == State::PENDING_PROMPT_NOT_CANCELED) {
+    ShowBannerForCurrentPageState();
+  } else if (state_ == State::SENDING_EVENT) {
+    // Log that the prompt request was made for when we get the prompt reply.
+    UpdateState(State::SENDING_EVENT_GOT_EARLY_PROMPT);
   }
 }
 

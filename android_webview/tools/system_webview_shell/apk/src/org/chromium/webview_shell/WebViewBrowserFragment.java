@@ -421,7 +421,6 @@ public class WebViewBrowserFragment extends Fragment {
     @Override
     public void onSaveInstanceState(Bundle savedInstanceState) {
         super.onSaveInstanceState(savedInstanceState);
-        if (mWebView == null) return;
 
         if (WebViewFeature.isFeatureSupported(WebViewFeature.SAVE_STATE)) {
             WebViewCompat.saveState(

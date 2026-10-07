@@ -22,7 +22,6 @@ namespace autofill {
 namespace {
 
 using enum AttributeTypeName;
-using Source = EntityInstance::PersonalContextRecordTypePayload::Source;
 
 // Helper to check the string value of an attribute.
 void ExpectAttributeValue(const EntityInstance& entity,
@@ -337,6 +336,8 @@ TEST(AutofillAiPersonalContextConverters, ConvertShipment) {
   shipment.set_merchant_name("SuperStore");
   shipment.add_product_names("Widget A");
   shipment.add_product_names("Widget B");
+  shipment.add_associated_order_ids("ORD-001");
+  shipment.add_associated_order_ids("ORD-002");
 
   personal_context::proto::Entity entity;
   *entity.mutable_shipment() = shipment;
@@ -356,6 +357,7 @@ TEST(AutofillAiPersonalContextConverters, ConvertShipment) {
   ExpectAttributeValue(result, kShipmentDeliveryZipCode, u"94043");
   ExpectAttributeValue(result, kShipmentMerchantName, u"SuperStore");
   ExpectAttributeValue(result, kShipmentProductNames, u"Widget A, Widget B");
+  ExpectAttributeValue(result, kShipmentOrderIds, u"ORD-001, ORD-002");
 }
 
 TEST(AutofillAiPersonalContextConverters, ConvertKnownTravelerNumber) {
@@ -396,91 +398,6 @@ TEST(AutofillAiPersonalContextConverters, ConvertKnownTravelerNumber_Unmasked) {
   ExpectAttributeValue(result, kKnownTravelerNumberNumber, u"KTN12345");
 }
 
-TEST(AutofillAiPersonalContextConverters, ConvertEntityWithGmailSource) {
-  personal_context::proto::Passport passport;
-  passport.set_name("Jane Doe");
-
-  personal_context::proto::Entity entity;
-  *entity.mutable_passport() = passport;
-  personal_context::proto::SourceReference* source =
-      entity.add_source_references();
-  source->mutable_gmail()->set_message_url(
-      "https://mail.google.com/mail/u/0/#inbox/123");
-  source->mutable_gmail()->set_subject("Passport Information");
-
-  std::optional<EntityInstance> opt_result =
-      PersonalContextEntityToEntityInstance(entity);
-
-  ASSERT_TRUE(opt_result.has_value());
-  const EntityInstance& result = opt_result.value();
-  EntityInstance::PersonalContextRecordTypePayload payload{
-      .sources = {
-          Source{.type = Source::Type::kGmail,
-                 .url = "https://mail.google.com/mail/u/0/#inbox/123"}}};
-  EXPECT_EQ(std::get<EntityInstance::PersonalContextRecordTypePayload>(
-                result.record_type_data()),
-            payload);
-}
-
-TEST(AutofillAiPersonalContextConverters, ConvertEntityWithPhotosSource) {
-  personal_context::proto::DriversLicense dl;
-  dl.set_name("John Smith");
-
-  personal_context::proto::Entity entity;
-  *entity.mutable_drivers_license() = dl;
-  personal_context::proto::SourceReference* source =
-      entity.add_source_references();
-  source->mutable_photos()->set_photos_url(
-      "https://photos.google.com/photo/abc");
-
-  std::optional<EntityInstance> opt_result =
-      PersonalContextEntityToEntityInstance(entity);
-
-  ASSERT_TRUE(opt_result.has_value());
-  const EntityInstance& result = opt_result.value();
-  EntityInstance::PersonalContextRecordTypePayload payload{
-      .sources = {Source{.type = Source::Type::kPhotos,
-                         .url = "https://photos.google.com/photo/abc"}}};
-  EXPECT_EQ(std::get<EntityInstance::PersonalContextRecordTypePayload>(
-                result.record_type_data()),
-            payload);
-}
-
-TEST(AutofillAiPersonalContextConverters, ConvertEntityWithMultipleSources) {
-  personal_context::proto::Order order;
-  order.set_order_id("ORD-001");
-
-  personal_context::proto::Entity entity;
-  *entity.mutable_order() = order;
-
-  personal_context::proto::SourceReference* gmail_source =
-      entity.add_source_references();
-  gmail_source->mutable_gmail()->set_message_url(
-      "https://mail.google.com/mail/u/0/#inbox/123");
-
-  personal_context::proto::SourceReference* photos_source =
-      entity.add_source_references();
-  photos_source->mutable_photos()->set_photos_url(
-      "https://photos.google.com/photo/abc");
-
-  // Add empty source.
-  entity.add_source_references();
-
-  std::optional<EntityInstance> opt_result =
-      PersonalContextEntityToEntityInstance(entity);
-
-  ASSERT_TRUE(opt_result.has_value());
-  const EntityInstance& result = opt_result.value();
-  EntityInstance::PersonalContextRecordTypePayload payload{
-      .sources = {Source{.type = Source::Type::kGmail,
-                         .url = "https://mail.google.com/mail/u/0/#inbox/123"},
-                  Source{.type = Source::Type::kPhotos,
-                         .url = "https://photos.google.com/photo/abc"}}};
-  EXPECT_EQ(std::get<EntityInstance::PersonalContextRecordTypePayload>(
-                result.record_type_data()),
-            payload);
-}
-
 TEST(AutofillAiPersonalContextConverters,
      AutofillEntityTypeToPersonalContextEntityType) {
   using personal_context::proto::EntityType;
@@ -510,54 +427,6 @@ TEST(AutofillAiPersonalContextConverters,
   EXPECT_EQ(AutofillEntityTypeToPersonalContextEntityType(
                 autofill::EntityType(kKnownTravelerNumber)),
             EntityType::KNOWN_TRAVELER_NUMBER);
-}
-
-TEST(AutofillAiPersonalContextConverters, MaskSpiiEntityFields) {
-  // Passport
-  {
-    personal_context::proto::Entity entity;
-    entity.mutable_passport()->set_name("Jane Doe");
-    entity.mutable_passport()->set_number("P12345");
-    MaskSpiiEntityFields(entity);
-    EXPECT_EQ(entity.passport().name(), "Jane Doe");
-    EXPECT_EQ(entity.passport().number(), "45");
-  }
-  // Drivers License
-  {
-    personal_context::proto::Entity entity;
-    entity.mutable_drivers_license()->set_name("John Smith");
-    entity.mutable_drivers_license()->set_number("DL9876");
-    MaskSpiiEntityFields(entity);
-    EXPECT_EQ(entity.drivers_license().name(), "John Smith");
-    EXPECT_EQ(entity.drivers_license().number(), "76");
-  }
-  // National ID
-  {
-    personal_context::proto::Entity entity;
-    entity.mutable_national_id()->set_name("Alex Doe");
-    entity.mutable_national_id()->set_number("4658233983");
-    MaskSpiiEntityFields(entity);
-    EXPECT_EQ(entity.national_id().name(), "Alex Doe");
-    EXPECT_EQ(entity.national_id().number(), "983");
-  }
-  // Known Traveler Number
-  {
-    personal_context::proto::Entity entity;
-    entity.mutable_known_traveler_number()->set_name("Alice");
-    entity.mutable_known_traveler_number()->set_number("T12345678");
-    MaskSpiiEntityFields(entity);
-    EXPECT_EQ(entity.known_traveler_number().name(), "Alice");
-    EXPECT_EQ(entity.known_traveler_number().number(), "678");
-  }
-  // Non-SPII entity (Order) should not be modified
-  {
-    personal_context::proto::Entity entity;
-    entity.mutable_order()->set_order_id("ORD-12345");
-    entity.mutable_order()->set_merchant_name("Merchant");
-    MaskSpiiEntityFields(entity);
-    EXPECT_EQ(entity.order().order_id(), "ORD-12345");
-    EXPECT_EQ(entity.order().merchant_name(), "Merchant");
-  }
 }
 
 }  // namespace

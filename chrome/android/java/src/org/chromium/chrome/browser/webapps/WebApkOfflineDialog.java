@@ -6,6 +6,7 @@ package org.chromium.chrome.browser.webapps;
 
 import android.app.Activity;
 import android.app.Dialog;
+import android.content.DialogInterface;
 
 import androidx.appcompat.app.AlertDialog;
 
@@ -32,7 +33,14 @@ public class WebApkOfflineDialog {
         AlertDialog.Builder builder =
                 new AlertDialog.Builder(activity, R.style.ThemeOverlay_BrowserUI_AlertDialog);
         builder.setMessage(errorMessage)
-                .setPositiveButton(R.string.ok, (_, _) -> activity.finishAndRemoveTask());
+                .setPositiveButton(
+                        R.string.ok,
+                        new DialogInterface.OnClickListener() {
+                            @Override
+                            public void onClick(DialogInterface dialog, int which) {
+                                activity.finishAndRemoveTask();
+                            }
+                        });
 
         mDialog = builder.create();
         mDialog.setCanceledOnTouchOutside(false);

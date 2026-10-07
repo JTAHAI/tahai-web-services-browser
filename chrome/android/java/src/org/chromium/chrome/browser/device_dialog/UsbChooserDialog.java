@@ -108,6 +108,8 @@ public class UsbChooserDialog implements ItemChooserDialog.ItemSelectedCallback 
                                             // Get rid of the highlight background on selection.
                                             view.invalidate();
                                         })));
+        SpannableString statusIdleNoneFound = statusActive;
+        SpannableString statusIdleSomeFound = statusActive;
         String positiveButton = activity.getString(R.string.usb_chooser_dialog_connect_button_text);
 
         ItemChooserDialog.ItemChooserLabels labels =
@@ -116,8 +118,8 @@ public class UsbChooserDialog implements ItemChooserDialog.ItemSelectedCallback 
                         searching,
                         noneFound,
                         statusActive,
-                        statusActive,
-                        statusActive,
+                        statusIdleNoneFound,
+                        statusIdleSomeFound,
                         positiveButton);
         mItemChooserDialog = new ItemChooserDialog(activity, activity.getWindow(), this, labels);
     }

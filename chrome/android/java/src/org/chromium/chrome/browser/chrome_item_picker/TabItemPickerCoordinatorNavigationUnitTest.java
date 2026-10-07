@@ -211,8 +211,8 @@ public class TabItemPickerCoordinatorNavigationUnitTest {
     @Test
     public void testFinishSelectionRecordsCorrectMetrics() {
         mCachedTabIds.add(102);
-        mockTabActiveState(101, true);
-        mockTabActiveState(102, false);
+        Tab activeTab = mockTabActiveState(101, true);
+        Tab cachedTab = mockTabActiveState(102, false);
 
         captureAndSpyNavigationProvider();
 

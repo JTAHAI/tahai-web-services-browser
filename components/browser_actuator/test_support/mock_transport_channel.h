@@ -25,7 +25,7 @@ class MockTransportChannel : public TransportChannel {
               SendUpstreamMessage,
               (std::string_view session_id,
                PayloadType payload_type,
-               const google::protobuf::MessageLite& message),
+               std::string_view payload),
               (override));
 
   base::WeakPtr<MockTransportChannel> GetWeakPtr();

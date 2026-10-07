@@ -13,14 +13,10 @@
 #include "third_party/blink/renderer/core/dom/pseudo_element.h"
 #include "third_party/blink/renderer/core/fullscreen/fullscreen.h"
 #include "third_party/blink/renderer/core/html/html_dialog_element.h"
-#include "third_party/blink/renderer/core/html/html_element.h"
 #include "third_party/blink/renderer/core/html/media/html_media_element.h"
-#include "third_party/blink/renderer/core/html_names.h"
-#include "third_party/blink/renderer/modules/accessibility/ax_node_object.h"
 #include "third_party/blink/renderer/modules/accessibility/ax_object-inl.h"
 #include "third_party/blink/renderer/modules/accessibility/ax_object_cache_impl.h"
 #include "third_party/blink/renderer/modules/accessibility/testing/accessibility_selection_test.h"
-#include "third_party/blink/renderer/platform/bindings/exception_state.h"
 #include "third_party/blink/renderer/platform/weborigin/kurl.h"
 #include "ui/accessibility/ax_action_data.h"
 #include "ui/accessibility/ax_mode.h"
@@ -1285,112 +1281,6 @@ TEST_F(AccessibilityTest, DisplayLockedContentWithoutScreenReaderIsHidden) {
             DisplayLockUtilities::LockedInclusiveAncestorPreventingPaint(
                 *paragraph->GetNode()))
       << "The <p> element should be display locked.";
-}
-
-TEST_F(AccessibilityTest, ComputedDetailsRelationWithDisplayLockedHintPopover) {
-  // A popover="hint" inside content-visibility:hidden is pruned from the AX
-  // tree when no screen reader is present (as in kAXModeComplete), so
-  // AXObjectCache::Get() returns null while popoverOpen() stays true.
-  // Serializing an invoking element with such a target must not dereference
-  // that null result.
-  ax_context_ = std::make_unique<AXContext>(GetDocument(), ui::kAXModeComplete);
-  SetBodyInnerHTML(R"HTML(
-      <div style="content-visibility: hidden">
-        <div id="popoverTargetHint" popover="hint">tooltip</div>
-      </div>
-      <button id="popoverTargetButton"
-              popovertarget="popoverTargetHint">A</button>
-      <div style="content-visibility: hidden">
-        <div id="commandForHint" popover="hint">tooltip</div>
-      </div>
-      <button id="commandForButton" commandfor="commandForHint"
-              command="show-popover">B</button>
-      )HTML");
-
-  // Returns the button's serialized details relation IDs.
-  auto details_ids = [&](const char* button_id) -> std::vector<int32_t> {
-    AXObject* ax_button = GetAXObjectByElementId(button_id);
-    if (!ax_button) {
-      ADD_FAILURE() << "No AXObject for " << button_id;
-      return {};
-    }
-    ScopedFreezeAXCache freeze(GetAXObjectCache());
-    ui::AXNodeData node_data;
-    ax_button->Serialize(&node_data, ui::kAXModeComplete);
-    return node_data.GetIntListAttribute(
-        ax::mojom::IntListAttribute::kDetailsIds);
-  };
-
-  // popovertarget: the hint is open in the DOM but absent from the AX tree.
-  auto* popover_target_hint =
-      To<HTMLElement>(GetElementById("popoverTargetHint"));
-  popover_target_hint->showPopover(ASSERT_NO_EXCEPTION);
-  ASSERT_TRUE(popover_target_hint->popoverOpen());
-  ASSERT_EQ(nullptr, GetAXObjectCache().Get(popover_target_hint));
-  EXPECT_TRUE(details_ids("popoverTargetButton").empty());
-
-  // commandfor: the hint is open in the DOM but absent from the AX tree.
-  auto* command_for_hint = To<HTMLElement>(GetElementById("commandForHint"));
-  command_for_hint->showPopover(ASSERT_NO_EXCEPTION);
-  ASSERT_TRUE(command_for_hint->popoverOpen());
-  ASSERT_EQ(nullptr, GetAXObjectCache().Get(command_for_hint));
-  EXPECT_TRUE(details_ids("commandForButton").empty());
-}
-
-TEST_F(AccessibilityTest, ComputedDetailsRelationForPlainContentPopover) {
-  // For popovertarget and commandfor invoking elements, a plain-content hint
-  // popover is excluded from the details relation, while a plain-content
-  // manual popover still establishes the relation.
-  SetBodyInnerHTML(R"HTML(
-      <div id="hintPopover" popover="hint">tooltip</div>
-      <div id="manualPopover" popover="manual">plain</div>
-      <button id="popoverTargetHintButton"
-              popovertarget="hintPopover">A</button>
-      <button id="popoverTargetManualButton"
-              popovertarget="manualPopover">B</button>
-      <button id="commandForHintButton" commandfor="hintPopover"
-              command="show-popover">C</button>
-      <button id="commandForManualButton" commandfor="manualPopover"
-              command="show-popover">D</button>
-      )HTML");
-
-  auto* hint_popover = To<HTMLElement>(GetElementById("hintPopover"));
-  hint_popover->showPopover(ASSERT_NO_EXCEPTION);
-  auto* manual_popover = To<HTMLElement>(GetElementById("manualPopover"));
-  manual_popover->showPopover(ASSERT_NO_EXCEPTION);
-  ASSERT_TRUE(hint_popover->popoverOpen());
-  ASSERT_TRUE(manual_popover->popoverOpen());
-  GetAXObjectCache().UpdateAXForAllDocuments();
-
-  // Both target popovers are present in the AX tree and have plain content,
-  // so popover type is the relevant difference within each pair below.
-  const AXObject* ax_hint_popover = GetAXObjectByElementId("hintPopover");
-  ASSERT_NE(nullptr, ax_hint_popover);
-  ASSERT_TRUE(ax_hint_popover->IsPlainContent());
-  const AXObject* ax_manual_popover = GetAXObjectByElementId("manualPopover");
-  ASSERT_NE(nullptr, ax_manual_popover);
-  ASSERT_TRUE(ax_manual_popover->IsPlainContent());
-
-  // Returns the button's serialized details relation IDs.
-  auto details_ids = [&](const char* button_id) -> std::vector<int32_t> {
-    AXObject* ax_button = GetAXObjectByElementId(button_id);
-    if (!ax_button) {
-      ADD_FAILURE() << "No AXObject for " << button_id;
-      return {};
-    }
-    ScopedFreezeAXCache freeze(GetAXObjectCache());
-    ui::AXNodeData node_data;
-    ax_button->Serialize(&node_data, ui::kAXModeComplete);
-    return node_data.GetIntListAttribute(
-        ax::mojom::IntListAttribute::kDetailsIds);
-  };
-
-  const std::vector<int32_t> manual_popover_ids = {
-      static_cast<int32_t>(ax_manual_popover->AXObjectID())};
-  EXPECT_TRUE(details_ids("popoverTargetHintButton").empty());
-  EXPECT_EQ(manual_popover_ids, details_ids("popoverTargetManualButton"));
-  EXPECT_TRUE(details_ids("commandForHintButton").empty());
-  EXPECT_EQ(manual_popover_ids, details_ids("commandForManualButton"));
 }
 
 TEST_F(AccessibilityTest, ListMarkerIsNotLineBreakingObject) {
@@ -2677,91 +2567,6 @@ TEST_F(AccessibilityTest, PopulateAXRelativeBoundsSanitizesNonFiniteValues) {
 
   // null means identity
   EXPECT_FALSE(bounds.transform);
-}
-
-TEST_F(AccessibilityTest, UnslottedIsInCanvasSubtreeWithoutCanvasTransform) {
-  GetDocument().body()->SetHTMLUnsafeWithoutTrustedTypes(R"HTML(
-    <div id="slotHost">
-      <template shadowrootmode="open">
-        <canvas layoutsubtree>
-          <slot name="slot">
-            <button id="unslotted">fallback</button>
-          </slot>
-        </canvas>
-      </template>
-      <div id="slotted" slot="slot"></div>
-    </div>
-  )HTML");
-  UpdateAllLifecyclePhasesForTest();
-
-  auto* unslotted = GetDocument()
-                        .getElementById(AtomicString("slotHost"))
-                        ->GetShadowRoot()
-                        ->getElementById(AtomicString("unslotted"));
-  AXObject* ax_unslotted =
-      MakeGarbageCollected<AXNodeObject>(unslotted, GetAXObjectCache());
-  EXPECT_FALSE(ax_unslotted->IsInCanvasSubtreeWithoutCanvasTransform());
-  ax_unslotted->Detach();
-
-  auto* slotted = GetDocument().getElementById(AtomicString("slotted"));
-  AXObject* ax_slotted =
-      MakeGarbageCollected<AXNodeObject>(slotted, GetAXObjectCache());
-  EXPECT_TRUE(ax_slotted->IsInCanvasSubtreeWithoutCanvasTransform());
-  ax_slotted->Detach();
-}
-
-TEST_F(AccessibilityTest, DynamicScrollHeightUpdatesScrollMax) {
-  SetBodyInnerHTML(R"HTML(
-    <div id="container" style="overflow: scroll; width: 200px; height: 50px;">
-      <div id="inner" style="height: 100px;">Content</div>
-    </div>
-  )HTML");
-
-  AXObject* container = GetAXObjectByElementId("container");
-  ASSERT_NE(nullptr, container);
-
-  auto& cache = GetAXObjectCache();
-  // Clear any initial serialization queue so we only capture incremental updates.
-  std::vector<ui::AXTreeUpdate> initial_updates;
-  std::vector<ui::AXEvent> events;
-  bool had_end_of_test_event = false;
-  bool had_load_complete_messages = false;
-  if (cache.HasObjectsPendingSerialization()) {
-    ScopedFreezeAXCache freeze(cache);
-    cache.GetUpdatesAndEventsForSerialization(
-        initial_updates, events, had_end_of_test_event,
-        had_load_complete_messages);
-  }
-
-  // Dynamically expand inner content height.
-  GetElementById("inner")->setAttribute(html_names::kStyleAttr,
-                                        AtomicString("height: 1000px;"));
-  UpdateAllLifecyclePhasesForTest();
-
-  // Verify that the container was marked dirty and queued for serialization.
-  ASSERT_TRUE(cache.HasObjectsPendingSerialization());
-
-  std::vector<ui::AXTreeUpdate> updates;
-  events.clear();
-  {
-    ScopedFreezeAXCache freeze(cache);
-    cache.GetUpdatesAndEventsForSerialization(
-        updates, events, had_end_of_test_event, had_load_complete_messages);
-  }
-
-  // Find container node data in the incremental updates.
-  bool found_container_update = false;
-  for (const auto& update : updates) {
-    for (const auto& node : update.nodes) {
-      if (node.id == container->AXObjectID()) {
-        found_container_update = true;
-        EXPECT_EQ(
-            node.GetIntAttribute(ax::mojom::blink::IntAttribute::kScrollYMax),
-            950);
-      }
-    }
-  }
-  EXPECT_TRUE(found_container_update);
 }
 
 }  // namespace test

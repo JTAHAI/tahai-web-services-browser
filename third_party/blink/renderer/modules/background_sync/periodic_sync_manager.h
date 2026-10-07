@@ -26,7 +26,8 @@ class PeriodicSyncManager final : public ScriptWrappable {
   DEFINE_WRAPPERTYPEINFO();
 
  public:
-  explicit PeriodicSyncManager(ServiceWorkerRegistration* registration);
+  PeriodicSyncManager(ServiceWorkerRegistration* registration,
+                      scoped_refptr<base::SequencedTaskRunner> task_runner);
 
   // IDL exposed interface
   ScriptPromise<IDLUndefined> registerPeriodicSync(
@@ -59,6 +60,7 @@ class PeriodicSyncManager final : public ScriptWrappable {
                           mojom::blink::BackgroundSyncError error);
 
   Member<ServiceWorkerRegistration> registration_;
+  scoped_refptr<base::SequencedTaskRunner> task_runner_;
   HeapMojoRemote<mojom::blink::PeriodicBackgroundSyncService>
       background_sync_service_;
 };

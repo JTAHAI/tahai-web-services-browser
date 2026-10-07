@@ -291,7 +291,7 @@ WebViewPlugin::WebViewHelper::WebViewHelper(
 
   WebLocalFrame* web_frame = WebLocalFrame::CreateMainFrame(
       web_view_, this, nullptr, mojo::NullRemote(), blink::LocalFrameToken(),
-      blink::DocumentToken(), base::UnguessableToken::Create(), nullptr);
+      blink::DocumentToken(), nullptr);
   blink::WebFrameWidget* frame_widget = web_frame->InitializeFrameWidget(
       blink::CrossVariantMojoAssociatedRemote<
           blink::mojom::FrameWidgetHostInterfaceBase>(),

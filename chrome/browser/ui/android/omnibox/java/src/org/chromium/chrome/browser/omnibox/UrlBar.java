@@ -115,8 +115,6 @@ public class UrlBar extends AutocompleteEditText {
     private @Nullable UrlBarTextContextMenuDelegate mTextContextMenuDelegate;
     private @Nullable Callback<Integer> mUrlDirectionListener;
     private @Nullable Callback<Boolean> mUrlTextWrappingChangeListener;
-    private @Nullable Runnable mDetectAndNotifyOnTextWrappingChanges;
-    private boolean mWrapDetectionScheduled;
     private @Nullable Runnable mManageSearchEnginesCallback;
     private boolean mShowAiMode;
     private @Nullable Callback<Boolean> mShowAiModeCallback;
@@ -218,17 +216,17 @@ public class UrlBar extends AutocompleteEditText {
         /** Called to notify that UrlBar has been touched after focus. */
         void onTouchAfterFocus();
 
+        /**
+         * Called when an editor action is performed on the UrlBar.
+         *
+         * @param actionCode The action code performed.
+         */
+        default void onEditorAction(int actionCode) {}
+
         /** Returns whether showing the keyboard should be suppressed. */
         default boolean isKeyboardSuppressed() {
             return false;
         }
-
-        /**
-         * Called when the 'Paste and go' action is performed.
-         *
-         * @param text The pasted text to be loaded.
-         */
-        default void onPerformPasteAndGo(String text) {}
 
         /**
          * Called when the share action is selected from the text context menu.
@@ -242,7 +240,8 @@ public class UrlBar extends AutocompleteEditText {
          * cut/copy actions. If null is returned, the existing text will be cut or copied.
          *
          * @param currentText The current displayed text.
-         * @param selection The current text selection range in the URL bar.
+         * @param selectionStart The selection start in the display text.
+         * @param selectionEnd The selection end in the display text.
          * @return The text to be cut/copied instead of the currently selected text.
          */
         default @Nullable String getReplacementCutCopyText(
@@ -268,7 +267,8 @@ public class UrlBar extends AutocompleteEditText {
          * cut/copy actions. If null is returned, the existing text will be cut or copied.
          *
          * @param currentText The current displayed text.
-         * @param selection The current text selection range in the URL bar.
+         * @param selectionStart The selection start in the display text.
+         * @param selectionEnd The selection end in the display text.
          * @return The text to be cut/copied instead of the currently selected text.
          */
         @Nullable String getReplacementCutCopyText(String currentText, TextSelection selection);
@@ -355,12 +355,6 @@ public class UrlBar extends AutocompleteEditText {
     }
 
     public void destroy() {
-        if (mDetectAndNotifyOnTextWrappingChanges != null) {
-            removeCallbacks(mDetectAndNotifyOnTextWrappingChanges);
-            mDetectAndNotifyOnTextWrappingChanges = null;
-        }
-        mWrapDetectionScheduled = false;
-        mUrlTextWrappingChangeListener = null;
         if (mContextMenuHelper != null) {
             mContextMenuHelper.destroy();
             mContextMenuHelper = null;
@@ -449,6 +443,9 @@ public class UrlBar extends AutocompleteEditText {
 
         // Ensure the URL bar is ready to generate autocomplete suggestions on user input.
         if (focused) setIgnoreTextChangesForAutocomplete(false);
+        if (mFocusChangeCallback != null) {
+            mFocusChangeCallback.onResult(new UrlBarFocusChangeInfo(focused, direction));
+        }
 
         updateCursorVisibility();
 
@@ -467,10 +464,6 @@ public class UrlBar extends AutocompleteEditText {
             // limits.
             setEllipsize(focused ? null : TextUtils.TruncateAt.END);
             if (focused) clearBoundsEllipsisSpans(getText());
-        }
-
-        if (mFocusChangeCallback != null) {
-            mFocusChangeCallback.onResult(new UrlBarFocusChangeInfo(focused, direction));
         }
     }
 
@@ -497,7 +490,20 @@ public class UrlBar extends AutocompleteEditText {
     @Override
     public void onFinishInflate() {
         super.onFinishInflate();
-        mContextMenuHelper = new UrlBarContextMenuHelper(this, this::onTextContextMenuItem);
+        mContextMenuHelper =
+                new UrlBarContextMenuHelper(
+                        this,
+                        new UrlBarContextMenuHelper.Delegate() {
+                            @Override
+                            public void onTextContextMenuItem(int id) {
+                                UrlBar.this.onTextContextMenuItem(id);
+                            }
+
+                            @Override
+                            public @Nullable Runnable getManageSearchEnginesCallback() {
+                                return mManageSearchEnginesCallback;
+                            }
+                        });
         enforceMaxTextHeight();
         setPrivateImeOptions(IME_OPTION_RESTRICT_STYLUS_WRITING_AREA);
     }
@@ -507,6 +513,13 @@ public class UrlBar extends AutocompleteEditText {
         mAllowFocus = allowFocus;
         setFocusable(allowFocus);
         setFocusableInTouchMode(allowFocus);
+    }
+
+    /** Sets whether this {@link UrlBar} allows multiline input. */
+    public void setAllowMultilineInput(boolean allowMultilineInput) {
+        if (mAllowMultilineInput == allowMultilineInput) return;
+        mAllowMultilineInput = allowMultilineInput;
+        updateUrlBarForMultilineInput();
     }
 
     /** Sets whether this {@link UrlBar} should enable bounds ellipsis. */
@@ -520,15 +533,8 @@ public class UrlBar extends AutocompleteEditText {
                 && ToolbarVariationUtils.isToolbarUiRefactorEnabled(getContext());
     }
 
-    /** Sets whether this {@link UrlBar} should allow multiline input. */
-    public void setAllowMultilineInput(boolean allowMultiline) {
-        if (mAllowMultilineInput == allowMultiline) return;
-        mAllowMultilineInput = allowMultiline;
-        updateUrlBarForMultilineInput();
-    }
-
     private void updateUrlBarForMultilineInput() {
-        boolean wantWrap = mAllowMultilineInput && mFocused && mCurrentInputCanBeWrapped;
+        boolean wantWrap = mFocused && mAllowMultilineInput && mCurrentInputCanBeWrapped;
         if (wantWrap == !isHorizontallyScrollable()) return;
         setHorizontallyScrolling(!wantWrap);
     }
@@ -623,14 +629,10 @@ public class UrlBar extends AutocompleteEditText {
                             getTextWithoutAutocomplete(), start, lengthBefore, lengthAfter));
         }
 
-        if (mDetectAndNotifyOnTextWrappingChanges != null && !mWrapDetectionScheduled) {
-            mWrapDetectionScheduled = true;
-            post(mDetectAndNotifyOnTextWrappingChanges);
-        }
+        post(this::detectAndNotifyOnTextWrappingChanges);
     }
 
     private void detectAndNotifyOnTextWrappingChanges() {
-        mWrapDetectionScheduled = false;
         var layout = getLayout();
         boolean textIsWrapped = layout != null && layout.getLineCount() > 1;
 
@@ -729,7 +731,13 @@ public class UrlBar extends AutocompleteEditText {
         return result;
     }
 
-
+    @Override
+    public void onEditorAction(int actionCode) {
+        if (mUrlBarDelegate != null) {
+            mUrlBarDelegate.onEditorAction(actionCode);
+        }
+        super.onEditorAction(actionCode);
+    }
 
     /**
      * If the direction of the URL has changed, update mUrlDirection and notify the
@@ -785,14 +793,8 @@ public class UrlBar extends AutocompleteEditText {
      *
      * @param listener The listener to be notified.
      */
-    /* package */ void setUrlTextWrappingChangeListener(@Nullable Callback<Boolean> listener) {
-        if (mDetectAndNotifyOnTextWrappingChanges != null) {
-            removeCallbacks(mDetectAndNotifyOnTextWrappingChanges);
-        }
-        mWrapDetectionScheduled = false;
+    /* package */ void setUrlTextWrappingChangeListener(Callback<Boolean> listener) {
         mUrlTextWrappingChangeListener = listener;
-        mDetectAndNotifyOnTextWrappingChanges =
-                listener == null ? null : this::detectAndNotifyOnTextWrappingChanges;
     }
 
     /**
@@ -809,7 +811,7 @@ public class UrlBar extends AutocompleteEditText {
      *
      * @param listener The listener to be notified.
      */
-    public void setTextChangeListener(@Nullable Callback<String> listener) {
+    public void setTextChangeListener(Callback<String> listener) {
         mTextChangeListener = listener;
     }
 
@@ -819,7 +821,7 @@ public class UrlBar extends AutocompleteEditText {
      *
      * @param listener The listener to be notified.
      */
-    public void setRichTextChangeListener(@Nullable Callback<UrlBarTextChangeInfo> listener) {
+    public void setRichTextChangeListener(Callback<UrlBarTextChangeInfo> listener) {
         mRichTextChangeListener = listener;
     }
 
@@ -893,35 +895,12 @@ public class UrlBar extends AutocompleteEditText {
             return true;
         }
 
-        if (id == R.id.url_bar_manage_search_engines) {
-            if (mManageSearchEnginesCallback != null) {
-                mManageSearchEnginesCallback.run();
-            }
-            return true;
-        }
-
         if (mTextContextMenuDelegate == null) return super.onTextContextMenuItem(id);
 
         boolean isCutOption = false;
         int selStart = isFocused() ? getSelectionStart() : 0;
         int selEnd = isFocused() ? getSelectionEnd() : getText().length();
         TextSelection selection = new TextSelection(selStart, selEnd);
-
-        if (id == R.id.url_bar_paste_and_go) {
-            String pasteString =
-                    mTextContextMenuDelegate != null
-                            ? mTextContextMenuDelegate.getTextToPaste()
-                            : null;
-            if (pasteString != null && isFocused()) {
-                getText().replace(0, getText().length(), pasteString);
-                Selection.setSelection(getText(), pasteString.length());
-                RecordUserAction.record("Omnibox.LongPress.PasteAndGo");
-                if (mUrlBarDelegate != null) {
-                    mUrlBarDelegate.onPerformPasteAndGo(pasteString);
-                }
-            }
-            return true;
-        }
 
         switch (id) {
             case android.R.id.paste:
@@ -1017,37 +996,39 @@ public class UrlBar extends AutocompleteEditText {
                 && menu.findItem(R.id.url_bar_delete) == null) {
             MenuItem copyItem = menu.findItem(android.R.id.copy);
             if (copyItem != null) {
-                menu.add(
-                        copyItem.getGroupId(),
-                        R.id.url_bar_delete,
-                        copyItem.getOrder(),
-                        R.string.omnibox_context_menu_delete);
+                MenuItem item =
+                        menu.add(
+                                copyItem.getGroupId(),
+                                R.id.url_bar_delete,
+                                copyItem.getOrder(),
+                                R.string.omnibox_context_menu_delete);
+                item.setOnMenuItemClickListener(
+                        clickedItem -> {
+                            onTextContextMenuItem(R.id.url_bar_delete);
+                            return true;
+                        });
             }
         }
 
-        MenuItem pasteItem = menu.findItem(android.R.id.paste);
-        if (pasteItem != null && isFocused() && menu.findItem(R.id.url_bar_paste_and_go) == null) {
-            menu.add(
-                    pasteItem.getGroupId(),
-                    R.id.url_bar_paste_and_go,
-                    pasteItem.getOrder(),
-                    R.string.omnibox_context_menu_paste_and_go_to_copied_text);
-        }
-
         if (mManageSearchEnginesCallback != null
+                && OmniboxFeatures.sOmniboxSiteSearch.isEnabled()
                 && menu.findItem(R.id.url_bar_manage_search_engines) == null) {
-            int titleRes =
-                    OmniboxFeatures.sOmniboxSiteSearch.isEnabled()
-                            ? R.string.manage_search_engines_and_site_search
-                            : R.string.manage_search_engines;
-            menu.add(
-                    Menu.NONE,
-                    R.id.url_bar_manage_search_engines,
-                    Menu.CATEGORY_SECONDARY,
-                    titleRes);
+            MenuItem item =
+                    menu.add(
+                            Menu.NONE,
+                            R.id.url_bar_manage_search_engines,
+                            Menu.CATEGORY_SECONDARY,
+                            getContext().getString(R.string.manage_search_engines_and_site_search));
+            item.setOnMenuItemClickListener(
+                    clickedItem -> {
+                        if (mManageSearchEnginesCallback != null) {
+                            mManageSearchEnginesCallback.run();
+                        }
+                        return true;
+                    });
         }
 
-        if (mContextMenuHelper != null) {
+        if (OmniboxFeatures.sOmniboxListMenuContextMenu.isEnabled() && mContextMenuHelper != null) {
             mContextMenuHelper.showListMenu(menu);
             menu.clear();
         }
@@ -1577,7 +1558,7 @@ public class UrlBar extends AutocompleteEditText {
         // CAUTION: Avoid returning `null` from this method.
         // IMF lifecycle is different from android focus. IMF keeps an InputConnection alive
         // even after the View it is connected to loses focus.
-        // Returning `null` from here will force IMF to bind a no-op input connection
+        // Returning `null` from here will force IMF to bind a "Dummy" input connection
         // (see https://crbug.com/512199013), which may result in users in select locales
         // be unable to work with locale-appropriate keyboards.
 
@@ -1735,16 +1716,6 @@ public class UrlBar extends AutocompleteEditText {
     float getMaxHeightOfFont() {
         var fontMetrics = getPaint().getFontMetrics();
         return fontMetrics.bottom - fontMetrics.top;
-    }
-
-    /* package */ @Px
-    int getTextWidth() {
-        return (int) Math.ceil(getPaint().measureText(getText().toString()));
-    }
-
-    /* package */ @Px
-    int getWidthWithoutCompoundPadding() {
-        return getWidth() - getCompoundPaddingLeft() - getCompoundPaddingRight();
     }
 
     /**

@@ -42,7 +42,6 @@ suite('AiPageIndex', function() {
       enableAiModeSearchSetting: true,
       actorLoginFederatedLoginSupportEnabled: true,
       showAiSuggestionsControl: true,
-      showInlineCueMenuControl: true,
       showDictationControl: true,
     });
     resetRouterForTesting();
@@ -83,10 +82,6 @@ suite('AiPageIndex', function() {
     Router.getInstance().navigateTo(routes.AI_SUGGESTIONS);
     await microtasksFinished();
     assertActiveViews(['aiSuggestions']);
-
-    Router.getInstance().navigateTo(routes.INLINE_CUE_MENU);
-    await microtasksFinished();
-    assertActiveViews(['inlineCueMenu']);
 
     Router.getInstance().navigateTo(routes.DICTATION);
     await microtasksFinished();
@@ -148,7 +143,6 @@ suite('AiPageIndex', function() {
       'historySearch',
       'compose',
       'aiSuggestions',
-      'inlineCueMenu',
       'dictation',
     ];
     for (const id of childViewsId) {

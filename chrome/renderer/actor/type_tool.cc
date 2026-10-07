@@ -647,7 +647,7 @@ void TypeTool::OnFocusingClickComplete(ToolFinishedCallback callback,
                       .Build());
     base::WeakPtr<TypeTool> weak_this = weak_ptr_factory_.GetWeakPtr();
     focused_element.PasteText(WebString::FromUtf8(action_->text),
-                              /*replace_all=*/false, /*smart_replace=*/true);
+                              /*replace_all=*/false);
     if (!weak_this) {
       return;
     }

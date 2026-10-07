@@ -11,7 +11,6 @@
 
 #include "ash/constants/ash_switches.h"
 #include "ash/constants/chrome_pref_names.h"
-#include "base/check_deref.h"
 #include "base/command_line.h"
 #include "base/containers/fixed_flat_set.h"
 #include "base/functional/bind.h"
@@ -36,6 +35,7 @@
 #include "chrome/browser/policy/developer_tools_policy_handler.h"
 #include "chrome/browser/policy/profile_policy_connector.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/common/chrome_switches.h"
 #include "chromeos/ash/experiences/arc/arc_browser_context_keyed_service_factory_base.h"
 #include "chromeos/ash/experiences/arc/arc_prefs.h"
 #include "chromeos/ash/experiences/arc/session/arc_bridge_service.h"
@@ -290,7 +290,7 @@ void AddChoosePrivateKeyRuleToPolicy(
 // Finds managed configurations of applications in |arc_policy| and replace
 // string values that refer to template variables.
 void ReplaceManagedConfigurationVariables(
-    const user_manager::User& user,
+    const Profile* profile,
     const policy::DeviceAttributes& device_attributes,
     base::DictValue* arc_policy) {
   // Replace template variables in application managed configuration.
@@ -301,8 +301,8 @@ void ReplaceManagedConfigurationVariables(
       base::DictValue* config =
           entry.GetDict().FindDict(ArcPolicyBridge::kManagedConfiguration);
       if (config) {
-        RecursivelyReplaceManagedConfigurationVariables(user, device_attributes,
-                                                        *config);
+        RecursivelyReplaceManagedConfigurationVariables(
+            profile, device_attributes, *config);
       }
     }
   }
@@ -433,7 +433,7 @@ void OverrideArcPolicies(base::DictValue& filtered_policies,
   // available for ARC as well. This must be after the initial writing of
   // "debuggingFeaturesDisabled".
   if (base::CommandLine::ForCurrentProcess()->HasSwitch(
-          ash::switches::kForceDevToolsAvailable)) {
+          switches::kForceDevToolsAvailable)) {
     filtered_policies.Set(policy_util::kArcPolicyKeyDebuggingFeaturesDisabled,
                           false);
   }
@@ -468,7 +468,6 @@ void OverrideArcPolicies(base::DictValue& filtered_policies,
 }
 
 base::DictValue GetFilteredDictPolicies(
-    const user_manager::User& user,
     policy::PolicyService* const policy_service,
     const std::string& guid,
     bool is_affiliated,
@@ -489,7 +488,7 @@ base::DictValue GetFilteredDictPolicies(
   AddChoosePrivateKeyRuleToPolicy(policy_service, cert_store_service,
                                   &filtered_policies);
 
-  ReplaceManagedConfigurationVariables(user, device_attributes,
+  ReplaceManagedConfigurationVariables(profile, device_attributes,
                                        &filtered_policies);
 
   OverrideArcPolicies(filtered_policies, policy_map, guid, is_affiliated,
@@ -498,7 +497,6 @@ base::DictValue GetFilteredDictPolicies(
 }
 
 std::string GetFilteredJSONPolicies(
-    const user_manager::User& user,
     policy::PolicyService* const policy_service,
     const std::string& guid,
     bool is_affiliated,
@@ -506,7 +504,7 @@ std::string GetFilteredJSONPolicies(
     const Profile* profile,
     const policy::DeviceAttributes& device_attributes) {
   base::DictValue filtered_policies =
-      GetFilteredDictPolicies(user, policy_service, guid, is_affiliated,
+      GetFilteredDictPolicies(policy_service, guid, is_affiliated,
                               cert_store_service, profile, device_attributes);
 
   std::string policy_json;
@@ -784,9 +782,9 @@ std::string ArcPolicyBridge::GetCurrentJSONPolicies() const {
   const CertStoreService* cert_store_service =
       CertStoreServiceFactory::GetForBrowserContext(context_);
 
-  return GetFilteredJSONPolicies(
-      CHECK_DEREF(user), policy_service_, instance_guid_, user->IsAffiliated(),
-      cert_store_service, profile, *device_attributes_);
+  return GetFilteredJSONPolicies(policy_service_, instance_guid_,
+                                 user->IsAffiliated(), cert_store_service,
+                                 profile, *device_attributes_);
 }
 
 void ArcPolicyBridge::OnReportComplianceParse(

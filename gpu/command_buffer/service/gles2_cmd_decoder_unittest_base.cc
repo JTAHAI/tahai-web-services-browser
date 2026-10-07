@@ -867,13 +867,12 @@ void GLES2DecoderTestBase::SetupExpectationsForFramebufferClearing(
     GLint restore_scissor_x,
     GLint restore_scissor_y,
     GLsizei restore_scissor_width,
-    GLsizei restore_scissor_height,
-    GLenum clear_error) {
+    GLsizei restore_scissor_height) {
   SetupExpectationsForFramebufferClearingMulti(
       0, 0, target, clear_bits, restore_red, restore_green, restore_blue,
       restore_alpha, restore_stencil, restore_depth, restore_scissor_test,
       restore_scissor_x, restore_scissor_y, restore_scissor_width,
-      restore_scissor_height, clear_error);
+      restore_scissor_height);
 }
 
 void GLES2DecoderTestBase::SetupExpectationsForRestoreClearState(
@@ -925,8 +924,7 @@ void GLES2DecoderTestBase::SetupExpectationsForFramebufferClearingMulti(
     GLint restore_scissor_x,
     GLint restore_scissor_y,
     GLsizei restore_scissor_width,
-    GLsizei restore_scissor_height,
-    GLenum clear_error) {
+    GLsizei restore_scissor_height) {
   // TODO(gman): Figure out why InSequence stopped working.
   // InSequence sequence;
   EXPECT_CALL(*gl_, CheckFramebufferStatusEXT(target))
@@ -963,13 +961,6 @@ void GLES2DecoderTestBase::SetupExpectationsForFramebufferClearingMulti(
         .Times(1)
         .RetiresOnSaturation();
   }
-  // ClearUnclearedAttachments() drains pre-existing driver errors before the
-  // clear and peeks afterwards, so that a clear that failed is not committed
-  // as "cleared".
-  EXPECT_CALL(*gl_, GetError())
-      .WillOnce(Return(GL_NO_ERROR))
-      .WillOnce(Return(clear_error))
-      .RetiresOnSaturation();
   EXPECT_CALL(*gl_, Clear(clear_bits))
       .Times(1)
       .RetiresOnSaturation();

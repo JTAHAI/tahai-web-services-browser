@@ -11,6 +11,7 @@ import androidx.annotation.GuardedBy;
 import androidx.annotation.Nullable;
 
 import org.chromium.base.Log;
+import org.chromium.base.ResettersForTesting;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -21,7 +22,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
-import java.util.WeakHashMap;
 
 /**
  * An implementation of SharedPreferences that can be used in tests.
@@ -36,13 +36,8 @@ public class InMemorySharedPreferences implements SharedPreferences {
     @GuardedBy("mData")
     private final Map<String, Object> mData = new HashMap<>();
 
-    // In the Android framework (android.app.SharedPreferencesImpl), listeners are stored
-    // in a WeakHashMap<OnSharedPreferenceChangeListener, Object> so that SharedPreferences
-    // does not hold a strong reference to listeners or their enclosing components (e.g.
-    // Activities or Panes). We mirror this behavior here to prevent test-only memory leaks.
     @GuardedBy("mObservers")
-    private final Set<OnSharedPreferenceChangeListener> mObservers =
-            Collections.newSetFromMap(new WeakHashMap<>());
+    private final List<OnSharedPreferenceChangeListener> mObservers = new ArrayList<>();
 
     @GuardedBy("mData")
     @Nullable
@@ -50,7 +45,7 @@ public class InMemorySharedPreferences implements SharedPreferences {
 
     @GuardedBy("mObservers")
     @Nullable
-    private Set<OnSharedPreferenceChangeListener> mObserversSnapshot;
+    private List<OnSharedPreferenceChangeListener> mObserversSnapshot;
 
     void reset() {
         synchronized (mData) {
@@ -88,8 +83,7 @@ public class InMemorySharedPreferences implements SharedPreferences {
             mDataSnapshot = new HashMap<>(mData);
         }
         synchronized (mObservers) {
-            mObserversSnapshot = Collections.newSetFromMap(new WeakHashMap<>());
-            mObserversSnapshot.addAll(mObservers);
+            mObserversSnapshot = new ArrayList<>(mObservers);
         }
     }
 
@@ -116,7 +110,6 @@ public class InMemorySharedPreferences implements SharedPreferences {
             }
         }
         synchronized (mObservers) {
-            assert mObserversSnapshot != null;
             int origCount = mObservers.size();
             // Likely never want to re-add a removed listener, so just remove new listeners.
             mObservers.retainAll(mObserversSnapshot);
@@ -200,6 +193,8 @@ public class InMemorySharedPreferences implements SharedPreferences {
             SharedPreferences.OnSharedPreferenceChangeListener listener) {
         synchronized (mObservers) {
             mObservers.add(listener);
+            ResettersForTesting.register(
+                    () -> unregisterOnSharedPreferenceChangeListener(listener));
         }
     }
 
@@ -321,13 +316,11 @@ public class InMemorySharedPreferences implements SharedPreferences {
                     mChanges.clear();
                 }
             }
-            List<OnSharedPreferenceChangeListener> observersCopy;
             synchronized (mObservers) {
-                observersCopy = new ArrayList<>(mObservers);
-            }
-            for (OnSharedPreferenceChangeListener observer : observersCopy) {
-                for (String key : changedKeys) {
-                    observer.onSharedPreferenceChanged(InMemorySharedPreferences.this, key);
+                for (OnSharedPreferenceChangeListener observer : mObservers) {
+                    for (String key : changedKeys) {
+                        observer.onSharedPreferenceChanged(InMemorySharedPreferences.this, key);
+                    }
                 }
             }
         }

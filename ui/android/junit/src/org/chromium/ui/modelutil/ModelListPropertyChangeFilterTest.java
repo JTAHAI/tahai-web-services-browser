@@ -7,6 +7,7 @@ package org.chromium.ui.modelutil;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.robolectric.annotation.Config;
 
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.ui.modelutil.MVCListAdapter.ListItem;
@@ -17,6 +18,7 @@ import java.util.Set;
 
 /** Unit tests for {@link ModelListPropertyChangeFilter}. */
 @RunWith(BaseRobolectricTestRunner.class)
+@Config(manifest = Config.NONE)
 public class ModelListPropertyChangeFilterTest {
     private static final WritableBooleanPropertyKey PROPERTY_FOO = new WritableBooleanPropertyKey();
     private static final WritableBooleanPropertyKey PROPERTY_BAR = new WritableBooleanPropertyKey();

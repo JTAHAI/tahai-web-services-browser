@@ -65,7 +65,6 @@ bool ContentAnalysisActionAllowsDataUse(TriggeredRule::Action action) {
     case TriggeredRule::WARN:
     case TriggeredRule::BLOCK:
     case TriggeredRule::FORCE_SAVE_TO_CLOUD:
-    case TriggeredRule::JUSTIFICATION_REQUIRED:
     case TriggeredRule::KEEP_IN_MANAGED_CHROME:
       return false;
   }

@@ -120,6 +120,10 @@ export interface ManagementBrowserProxy {
    */
   getDeviceReportingInfo(): Promise<DeviceReportingResponse[]>;
 
+  /**
+   * @return Whether the Plugin VM data collection is enabled or not.
+   */
+  getPluginVmDataCollectionStatus(): Promise<boolean>;
   // </if>
 
   getContextualManagedData(): Promise<ManagedDataResponse>;
@@ -172,6 +176,9 @@ export class ManagementBrowserProxyImpl implements ManagementBrowserProxy {
     return sendWithPromise<DeviceReportingResponse[]>('getDeviceReportingInfo');
   }
 
+  getPluginVmDataCollectionStatus() {
+    return sendWithPromise<boolean>('getPluginVmDataCollectionStatus');
+  }
   // </if>
 
   getContextualManagedData() {

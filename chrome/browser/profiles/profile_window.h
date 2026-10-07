@@ -17,6 +17,7 @@
 #error "Not used on Android"
 #endif
 
+class Browser;
 class BrowserWindowInterface;
 class GlobalBrowserCollection;
 class Profile;
@@ -50,14 +51,13 @@ void FindOrCreateNewWindowForProfile(
 // If |is_new_profile| is true a first run window is created.
 // If |open_command_line_urls| is true, urls provided via the command line will
 // be passed to the new browser.
-// |callback| is called with a nullptr `BrowserWindowInterface` in case of
-// failure. |callback| may be null.
-void OpenBrowserWindowForProfile(
-    base::OnceCallback<void(BrowserWindowInterface*)> callback,
-    bool always_create,
-    bool is_new_profile,
-    bool open_command_line_urls,
-    Profile* profile);
+// |callback| is called with a nullptr `Browser` in case of failure.
+// |callback| may be null.
+void OpenBrowserWindowForProfile(base::OnceCallback<void(Browser*)> callback,
+                                 bool always_create,
+                                 bool is_new_profile,
+                                 bool open_command_line_urls,
+                                 Profile* profile);
 
 // Loads the specified profile given by |path| asynchronously. Once profile is
 // loaded and initialized it runs |callback| if it isn't null.
@@ -68,17 +68,15 @@ void LoadProfileAsync(const base::FilePath& path,
 // If |always_create| is true then a new window is created
 // even if a window for that profile already exists. When the browser is
 // opened, |callback| will be run if it isn't null.
-void SwitchToProfile(
-    const base::FilePath& path,
-    bool always_create,
-    base::OnceCallback<void(BrowserWindowInterface*)> callback =
-        base::OnceCallback<void(BrowserWindowInterface*)>(),
-    bool open_command_line_urls = false);
+void SwitchToProfile(const base::FilePath& path,
+                     bool always_create,
+                     base::OnceCallback<void(Browser*)> callback =
+                         base::OnceCallback<void(Browser*)>(),
+                     bool open_command_line_urls = false);
 
 // Opens a Browser for the guest profile and runs |callback| if it isn't null.
-void SwitchToGuestProfile(
-    base::OnceCallback<void(BrowserWindowInterface*)> callback =
-        base::OnceCallback<void(BrowserWindowInterface*)>());
+void SwitchToGuestProfile(base::OnceCallback<void(Browser*)> callback =
+                              base::OnceCallback<void(Browser*)>());
 
 // Returns true if |profile| has potential profile switch targets, ie there's at
 // least one other profile available to switch to, not counting guest. This is
@@ -97,9 +95,8 @@ void CloseProfileWindows(Profile* profile);
 class BrowserAddedForProfileObserver : public BrowserCollectionObserver,
                                        public ProfileObserver {
  public:
-  BrowserAddedForProfileObserver(
-      Profile* profile,
-      base::OnceCallback<void(BrowserWindowInterface*)> callback);
+  BrowserAddedForProfileObserver(Profile* profile,
+                                 base::OnceCallback<void(Browser*)> callback);
   ~BrowserAddedForProfileObserver() override;
 
   BrowserAddedForProfileObserver(const BrowserAddedForProfileObserver&) =
@@ -119,8 +116,8 @@ class BrowserAddedForProfileObserver : public BrowserCollectionObserver,
 
   // Profile for which the browser should be opened.
   base::WeakPtr<Profile> profile_;
-  raw_ptr<BrowserWindowInterface> browser_ = nullptr;
-  base::OnceCallback<void(BrowserWindowInterface*)> callback_;
+  raw_ptr<Browser> browser_ = nullptr;
+  base::OnceCallback<void(Browser*)> callback_;
   base::ScopedObservation<GlobalBrowserCollection, BrowserCollectionObserver>
       browser_collection_observation_{this};
   base::ScopedObservation<Profile, ProfileObserver> profile_observation_{this};

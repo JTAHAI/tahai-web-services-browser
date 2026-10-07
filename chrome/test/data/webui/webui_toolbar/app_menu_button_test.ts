@@ -180,7 +180,7 @@ suite('AppMenuButtonTest', function() {
       accessibilityText: 'App Menu accessibility',
       tooltip: 'App Menu tooltip',
       isContextMenuVisible: true,
-      windowIsMaximizedOrFullscreen: false,
+      trailingMargin: 0,
     };
     await microtasksFinished();
 
@@ -240,7 +240,7 @@ suite('AppMenuButtonTest', function() {
       accessibilityText: '',
       tooltip: '',
       isContextMenuVisible: false,
-      windowIsMaximizedOrFullscreen: false,
+      trailingMargin: 0,
     };
     await microtasksFinished();
     assertTrue(button.classList.contains('has-severity'));
@@ -275,68 +275,21 @@ suite('AppMenuButtonTest', function() {
         [true, false], toolbarUiHandler.getArgs('onAppMenuFocusChanged'));
   });
 
-  test('Window State Margin', async function() {
-    // Default: not maximized/fullscreen, attribute not present
-    assertFalse(
-        appMenuButton.hasAttribute('window-is-maximized-or-fullscreen'));
-    assertEquals(
-        '',
-        getComputedStyle(appMenuButton)
-            .getPropertyValue('--toolbar-chip-trailing-margin')
-            .trim());
+  test('Trailing Margin', async function() {
+    const button = appMenuButton.$.button;
 
-    // Set window to maximized/fullscreen
+    // Default is 0px
+    assertEquals(
+        '0px', button.style.getPropertyValue('--toolbar-chip-trailing-margin'));
+
+    // Set non-zero margin
     appMenuButton.state = {
       ...appMenuButton.state,
-      windowIsMaximizedOrFullscreen: true,
+      trailingMargin: 16,
     };
     await microtasksFinished();
-    assertTrue(appMenuButton.hasAttribute('window-is-maximized-or-fullscreen'));
     assertEquals(
-        '6px',
-        getComputedStyle(appMenuButton)
-            .getPropertyValue('--toolbar-chip-trailing-margin')
-            .trim());
-  });
-
-  test('Anchor Highlight Does Not Pulse', async function() {
-    const visualTarget =
-        appMenuButton.$.button.shadowRoot.querySelector('.iph-visual-target')!;
-    assertTrue(!!visualTarget);
-
-    appMenuButton.classList.add('anchor-highlight');
-    await microtasksFinished();
-
-    assertEquals(
-        'none',
-        window.getComputedStyle(visualTarget, '::before').animationName);
-    assertEquals(
-        '1',
-        getComputedStyle(appMenuButton.$.button)
-            .getPropertyValue('--toolbar-chip-highlight-opacity')
-            .trim());
-  });
-
-  test('Help Bubble Activates Pulse Animation', async function() {
-    const visualTarget =
-        appMenuButton.$.button.shadowRoot.querySelector('.iph-visual-target')!;
-    assertTrue(!!visualTarget);
-
-    appMenuButton.hasHelpBubble = true;
-    await microtasksFinished();
-
-    assertTrue(
-        appMenuButton.$.button.classList.contains('help-anchor-highlight'));
-    assertEquals(
-        'pulse',
-        window.getComputedStyle(visualTarget, '::before').animationName);
-    assertEquals(
-        '1', window.getComputedStyle(visualTarget, '::before').opacity);
-
-    appMenuButton.hasHelpBubble = false;
-    await microtasksFinished();
-
-    assertFalse(
-        appMenuButton.$.button.classList.contains('help-anchor-highlight'));
+        '16px',
+        button.style.getPropertyValue('--toolbar-chip-trailing-margin'));
   });
 });

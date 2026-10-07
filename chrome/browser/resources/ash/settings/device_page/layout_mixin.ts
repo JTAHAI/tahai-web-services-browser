@@ -77,8 +77,8 @@ export const LayoutMixin = dedupingMixin(
           };
         }
 
-        declare layouts: DisplayLayout[];
-        declare mirroring: boolean;
+        layouts: DisplayLayout[];
+        mirroring: boolean;
 
         /**
          * The calculated bounds used for generating the div bounds.

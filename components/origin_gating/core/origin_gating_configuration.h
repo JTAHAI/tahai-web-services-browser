@@ -13,7 +13,7 @@
 
 #include "base/functional/callback.h"
 #include "components/origin_gating/core/types.h"
-#include "url/gurl.h"
+#include "url/origin.h"
 
 namespace origin_gating {
 
@@ -21,13 +21,13 @@ namespace origin_gating {
 class CustomPredicate {
  public:
   using AsyncPredicate = base::RepeatingCallback<void(
-      GatingDecisionContext* context,
+      const GatingDecisionContext* context,
       const GURL& source,
       const GURL& destination,
       base::OnceCallback<void(Decision)> callback)>;
 
   using SyncPredicate =
-      base::RepeatingCallback<Decision(GatingDecisionContext* context,
+      base::RepeatingCallback<Decision(const GatingDecisionContext* context,
                                        const GURL& source,
                                        const GURL& destination)>;
 
@@ -38,14 +38,15 @@ class CustomPredicate {
   CustomPredicate(const CustomPredicate&);
   CustomPredicate& operator=(const CustomPredicate&);
 
-  const std::variant<AsyncPredicate, SyncPredicate>& predicate() const {
-    return predicate_;
-  }
+  void Run(const GatingDecisionContext* context,
+           const GURL& source,
+           const GURL& destination,
+           base::OnceCallback<void(Decision)> callback) const;
 
   const std::string& name() const { return name_; }
 
  private:
-  std::variant<AsyncPredicate, SyncPredicate> predicate_;
+  AsyncPredicate predicate_;
   std::string name_;
 };
 

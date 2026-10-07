@@ -54,7 +54,6 @@ const SAMPLE_INPUT_STATE = new MockInputState({
       hintText: '',
       aimUrlParams: [],
       menuTooltip: '',
-      icon: 0,
     },
     {
       model: ModelMode.kGeminiPro,
@@ -62,7 +61,6 @@ const SAMPLE_INPUT_STATE = new MockInputState({
       hintText: '',
       aimUrlParams: [],
       menuTooltip: '',
-      icon: 0,
     },
   ],
   modelSectionConfig: {header: ''},
@@ -462,16 +460,12 @@ suite('NewTabPageRealboxNextTest', () => {
       colorSourceIsBaseline: false,
     });
     await microtasksFinished();
-    const expectedVoiceIcon =
-        document.documentElement.hasAttribute('webui-rounded-icons') ?
-        'mic.svg' :
-        'mic_old.svg';
 
     const buttonsToTest = [
       {
         selector: '#voiceSearchButton',
-        iconUrl: `url("chrome://resources/cr_components/searchbox/icons/${
-            expectedVoiceIcon}")`,
+        iconUrl:
+            'url("chrome://resources/cr_components/searchbox/icons/mic.svg")',
       },
       {
         selector: '#lensSearchButton',

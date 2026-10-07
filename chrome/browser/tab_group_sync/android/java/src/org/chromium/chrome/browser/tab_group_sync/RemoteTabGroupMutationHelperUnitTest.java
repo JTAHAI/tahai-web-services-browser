@@ -22,6 +22,7 @@ import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
+import org.robolectric.annotation.Config;
 
 import org.chromium.base.Token;
 import org.chromium.base.test.BaseRobolectricTestRunner;
@@ -39,6 +40,7 @@ import java.util.List;
 
 /** Unit tests for the {@link RemoteTabGroupMutationHelper}. */
 @RunWith(BaseRobolectricTestRunner.class)
+@Config(manifest = Config.NONE)
 public class RemoteTabGroupMutationHelperUnitTest {
     private static final int TAB_ID_1 = 1;
     private static final int TAB_ID_2 = 2;

@@ -14,7 +14,6 @@ class Layer;
 class COMPOSITOR_EXPORT LayerObserver {
  public:
   virtual void LayerDestroyed(Layer* layer) {}
-  virtual void OnLayerRecreated(Layer* old_layer, Layer* new_layer) {}
 
  protected:
   virtual ~LayerObserver() {}

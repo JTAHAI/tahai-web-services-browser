@@ -12,13 +12,12 @@
 #include "base/mac/mac_util.h"
 #endif
 #include "chrome/browser/devtools/devtools_window.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_element_identifiers.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/interaction/browser_elements.h"
 #include "chrome/browser/ui/location_bar/location_bar.h"
 #include "chrome/browser/ui/side_panel/side_panel_entry.h"
-#include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/toolbar/app_menu_model.h"
 #include "chrome/browser/ui/toolbar/back_forward_menu_model.h"
 #include "chrome/browser/ui/views/bubble_anchor_util_views.h"
@@ -258,9 +257,8 @@ void WebUIBrowserPageHandler::OpenAppMenu() {
 }
 
 void WebUIBrowserPageHandler::OpenProfileMenu() {
-  ProfileMenuCoordinator::From(GetBrowser())
-      ->Show(
-          /*is_source_accelerator=*/false);
+  GetBrowser()->GetFeatures().profile_menu_coordinator()->Show(
+      /*is_source_accelerator=*/false);
 }
 
 void WebUIBrowserPageHandler::LaunchDevToolsForBrowser() {
@@ -296,7 +294,7 @@ void WebUIBrowserPageHandler::ShowBackForwardMenu(bool is_back) {
   back_forward_menu_model_.reset();
 
   content::WebContents* web_contents =
-      GetBrowser()->GetTabStripModel()->GetActiveWebContents();
+      GetBrowser()->tab_strip_model()->GetActiveWebContents();
   if (!web_contents) {
     return;
   }
@@ -322,19 +320,16 @@ void WebUIBrowserPageHandler::ShowBackForwardMenu(bool is_back) {
       views::MenuAnchorPosition::kTopLeft, ui::mojom::MenuSourceType::kMouse);
 }
 
-// static
-int WebUIBrowserPageHandler::GetTabStripInsetWidth() {
-#if BUILDFLAG(IS_MAC)
-  // Values from BrowserFrameViewMac::GetCaptionButtonBounds()
-  return (base::mac::MacOSVersion() >= 26'00'00) ? 76 : 82;
-#else
-  return 0;
-#endif
-}
-
 void WebUIBrowserPageHandler::GetTabStripInset(
     GetTabStripInsetCallback callback) {
-  std::move(callback).Run(GetTabStripInsetWidth());
+  std::move(callback).Run(
+#if BUILDFLAG(IS_MAC)
+      // Values from BrowserFrameViewMac::GetCaptionButtonBounds()
+      (base::mac::MacOSVersion() >= 26'00'00) ? 76 : 82
+#else
+      0
+#endif
+  );
 }
 
 WebUIBrowserPageHandler::WebUIBrowserPageHandler(
@@ -346,7 +341,7 @@ WebUIBrowserPageHandler::WebUIBrowserPageHandler(
           std::move(receiver)),
       controller_(controller->GetWeakPtr()) {}
 
-BrowserWindowInterface* WebUIBrowserPageHandler::GetBrowser() {
+Browser* WebUIBrowserPageHandler::GetBrowser() {
   if (!controller_) {
     return nullptr;
   }

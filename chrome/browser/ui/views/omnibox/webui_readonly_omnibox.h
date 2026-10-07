@@ -60,24 +60,15 @@ class WebUIReadOnlyOmnibox
       public TemplateURLServiceObserver,
       public content::WebContentsObserver {
  public:
-  // Interface from the omnibox to its embedder (e.g. the location bar).
   class UpdatePropagator {
    public:
     virtual ~UpdatePropagator();
-    // Push omnibox state, `update`, to WebUI.
     virtual void PropagateOmniboxUpdate(
         toolbar_ui_api::mojom::OmniboxViewStatePtr update) = 0;
-
-    // Push whether to synthesize fake focus ring for AIM button to WebUI.
-    virtual void PropagateApplyFocusRingToAimButton(bool force_focus) = 0;
-
-    // Push a focus request to WebUI.
     virtual void PropagateFocusRequest(
         toolbar_ui_api::mojom::FocusRequestTarget target) = 0;
-
-    // If the location bar is using a full popup, ask to open it,
-    // potentially also querying zero suggest.
-    virtual void OpenOmniboxIfFullPopup(bool query_zps) = 0;
+    virtual std::optional<GURL> ConsumeDroppedUrl(
+        const gfx::PointF& drop_position) = 0;
   };
 
   // Parameters must outlive `this`.
@@ -94,7 +85,6 @@ class WebUIReadOnlyOmnibox
   void SaveStateToTab(content::WebContents* tab);
   void OnTabChanged(content::WebContents* web_contents);
   void ResetTabState(content::WebContents* web_contents);
-  void OnBlur();
   base::expected<std::monostate, mojo_base::mojom::ErrorPtr> OnOmniboxAction(
       toolbar_ui_api::mojom::OmniboxActionPtr action);
 
@@ -107,10 +97,7 @@ class WebUIReadOnlyOmnibox
   // notify the OmniboxEditModel or the WebUI end.
   void SetTextAndSelectedRange(const std::u16string& text,
                                const std::u16string& inline_autocompletion,
-                               const gfx::Range& selection,
-                               bool keep_additional_text);
-
-  void ClearAccessibilityLabel();
+                               const gfx::Range& selection);
 
   // OmniboxView:
   void Update() override;
@@ -124,18 +111,12 @@ class WebUIReadOnlyOmnibox
   void EnterKeywordModeForDefaultSearchProvider() override;
   bool IsSelectAll() const override;
   gfx::Range GetSelectionBounds() const override;
-  void SetSelectionBounds(gfx::Range selection) override;
-  bool HasSelection() const override;
   void SelectAll(bool reversed) override;
   void RevertAll() override;
   void UpdatePopup() override;
   void SetFocus(bool is_user_initiated) override;
-  void ApplyFocusRingToAimButton(bool focus_aim) override;
   bool AimButtonVisible() const override;
   void ApplyCaretVisibility() override;
-  void SetAccessibilityLabel(const std::u16string& display_text,
-                             const AutocompleteMatch& match,
-                             bool notify_text_changed) override;
   void OnTemporaryTextMaybeChanged(const std::u16string& display_text,
                                    const AutocompleteMatch& match,
                                    bool save_original_selection,
@@ -170,13 +151,8 @@ class WebUIReadOnlyOmnibox
   // Requests focus with particular omnibox-related target
   void SetFocusWithTarget(toolbar_ui_api::mojom::FocusRequestTarget target);
 
-  // Sends the current state of the omnibox to the UpdatePropagator
-  // passed to the constructor.
-  void RequestUpdateWebUI();
-
-  bool has_focus() const { return has_focus_; }
-
  private:
+  void RequestUpdateWebUI();
   void ResetFormatting();
   void ResetBrowserVersion();
 
@@ -186,8 +162,8 @@ class WebUIReadOnlyOmnibox
       const toolbar_ui_api::mojom::OmniboxActionTextInput& text_input);
   base::expected<std::monostate, mojo_base::mojom::ErrorPtr> OnKey(
       const toolbar_ui_api::mojom::OmniboxActionKey& key);
-  base::expected<std::monostate, mojo_base::mojom::ErrorPtr> OnPointer(
-      const toolbar_ui_api::mojom::OmniboxActionPointer& pointer);
+  base::expected<std::monostate, mojo_base::mojom::ErrorPtr> OnMouse(
+      const toolbar_ui_api::mojom::OmniboxActionMouse& mouse);
   base::expected<std::monostate, mojo_base::mojom::ErrorPtr> OnDropText(
       const toolbar_ui_api::mojom::OmniboxActionDropText& drop_text);
   base::expected<std::monostate, mojo_base::mojom::ErrorPtr> OnDropFile(
@@ -229,10 +205,6 @@ class WebUIReadOnlyOmnibox
   // An additional description for what's being displayed.
   std::u16string additional_text_;
 
-  // Accessibility info on selected suggestion entry. Empty when the user input
-  // is what's in use.
-  std::u16string friendly_accessible_label_;
-
   // Rich text formatting for `text`.
   gfx::BreakList<bool> text_strike_through_;
   gfx::BreakList<toolbar_ui_api::mojom::OmniboxTextColor> text_colors_;
@@ -252,7 +224,6 @@ class WebUIReadOnlyOmnibox
 
   bool has_focus_ = false;
   bool aim_hint_currently_shown_ = false;
-  bool aim_page_action_icon_has_fake_focus_ = false;
 
   // Used to show the context menu.
   content::ContextMenuParams menu_params_;

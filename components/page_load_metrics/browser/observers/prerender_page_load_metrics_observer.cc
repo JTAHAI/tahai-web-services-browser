@@ -244,7 +244,7 @@ void PrerenderPageLoadMetricsObserver::
   CHECK(navigation_to_activation_time_.has_value());
 
   const page_load_metrics::InteractionToNextPaintCalculator& calculator =
-      GetDelegate().GetInteractionToNextPaintCalculator();
+      GetDelegate().GetSoftNavigationIntervalInteractionToNextPaintCalculator();
   std::optional<
       page_load_metrics::InteractionToNextPaintCalculator::InteractionData>
       inp_data = calculator.ApproximateHighPercentile();
@@ -267,9 +267,7 @@ void PrerenderPageLoadMetricsObserver::RecordLayoutShiftBeforeSoftNavigation() {
   CHECK(navigation_to_activation_time_.has_value());
 
   const page_load_metrics::NormalizedCLSData& normalized_cls_data =
-      GetDelegate().GetNormalizedCLSData(
-          page_load_metrics::PageLoadMetricsObserverDelegate::BfcacheStrategy::
-              ACCUMULATE);
+      GetDelegate().GetSoftNavigationIntervalNormalizedCLSData();
   if (normalized_cls_data.data_tainted) {
     return;
   }
@@ -282,14 +280,12 @@ void PrerenderPageLoadMetricsObserver::RecordLayoutShiftBeforeSoftNavigation() {
   builder.Record(ukm::UkmRecorder::Get());
 }
 
-void PrerenderPageLoadMetricsObserver::OnSoftNavigationFirstContentfulPaint(
-    const page_load_metrics::mojom::SoftNavigationMetrics&
-        soft_navigation_metrics) {
+void PrerenderPageLoadMetricsObserver::OnSoftNavigation() {
   CHECK_GE(soft_navigation_count_, 0);
   soft_navigation_count_++;
 
-  // When the 1st soft navigation presents FCP, we record the CWVs before then,
-  // so that we can blend them. We also require:
+  // When the 1st soft navigation comes in, we record the CWVs before then, so
+  // that we can blend them. We also require:
   //
   // * Must have been prerendered and activated in the foreground.
   //

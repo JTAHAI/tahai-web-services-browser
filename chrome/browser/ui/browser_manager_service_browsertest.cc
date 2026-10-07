@@ -6,11 +6,8 @@
 
 #include "base/memory/raw_ptr.h"
 #include "base/scoped_observation.h"
-#include "build/build_config.h"
-#include "chrome/browser/ui/browser_active_state_manager/browser_active_state_manager.h"
 #include "chrome/browser/ui/browser_manager_service_factory.h"
 #include "chrome/browser/ui/browser_window/public/browser_collection_observer.h"
-#include "chrome/browser/ui/browser_window/public/create_browser_window.h"
 #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "content/public/test/browser_test.h"
@@ -91,15 +88,14 @@ class BrowserManagerServiceTest : public InProcessBrowserTest {
 
   // TODO(crbug.com/356183782): Consider rewriting this test as an interactive
   // ui test and using ui_test_utils::BringBrowserWindowToFront() instead.
-  void ActivatePrimaryBrowser(BrowserWindowInterface* const secondary_browser) {
-    BrowserActiveStateManager::From(browser())->DidBecomeActive();
-    BrowserActiveStateManager::From(secondary_browser)->DidBecomeInactive();
+  void ActivatePrimaryBrowser(Browser* const secondary_browser) {
+    browser()->DidBecomeActive();
+    secondary_browser->DidBecomeInactive();
   }
 
-  void ActivateSecondaryBrowser(
-      BrowserWindowInterface* const secondary_browser) {
-    BrowserActiveStateManager::From(secondary_browser)->DidBecomeActive();
-    BrowserActiveStateManager::From(browser())->DidBecomeInactive();
+  void ActivateSecondaryBrowser(Browser* const secondary_browser) {
+    secondary_browser->DidBecomeActive();
+    browser()->DidBecomeInactive();
   }
 };
 
@@ -114,7 +110,7 @@ IN_PROC_BROWSER_TEST_F(BrowserManagerServiceTest,
 
   // Create secondary browser and expect events.
   EXPECT_CALL(observer, OnBrowserCreated(_)).Times(1);
-  BrowserWindowInterface* secondary_browser = CreateBrowser(GetProfile());
+  Browser* secondary_browser = CreateBrowser(GetProfile());
   testing::Mock::VerifyAndClearExpectations(&observer);
 
   // Start with secondary browser active.
@@ -154,15 +150,8 @@ IN_PROC_BROWSER_TEST_F(BrowserManagerServiceTest,
   EXPECT_TRUE(verifier.called());
 }
 
-#if BUILDFLAG(IS_MAC)
-#define MAYBE_FilterDeletedScheduledLastBrowser \
-  DISABLED_FilterDeletedScheduledLastBrowser
-#else
-#define MAYBE_FilterDeletedScheduledLastBrowser \
-  FilterDeletedScheduledLastBrowser
-#endif
 IN_PROC_BROWSER_TEST_F(BrowserManagerServiceTest,
-                       MAYBE_FilterDeletedScheduledLastBrowser) {
+                       FilterDeletedScheduledLastBrowser) {
   BrowserManagerService* service =
       BrowserManagerServiceFactory::GetForProfile(GetProfile());
   ASSERT_NE(service, nullptr);
@@ -198,7 +187,7 @@ IN_PROC_BROWSER_TEST_F(BrowserManagerServiceTest,
 
   // Create secondary browser and expect events.
   EXPECT_CALL(secondary_observer, OnBrowserCreated(_)).Times(1);
-  BrowserWindowInterface* secondary_browser = CreateBrowser(&secondary_profile);
+  Browser* secondary_browser = CreateBrowser(&secondary_profile);
   testing::Mock::VerifyAndClearExpectations(&secondary_observer);
 
   // Start with secondary browser active.
@@ -245,8 +234,8 @@ IN_PROC_BROWSER_TEST_F(BrowserManagerServiceTest,
       /*create_if_needed=*/true);
   ASSERT_NE(otr_profile, nullptr);
 
-  BrowserWindowInterface* otr_browser = CreateBrowserWindow(
-      BrowserWindowCreateParams(otr_profile, /*from_user_gesture=*/true));
+  Browser* otr_browser =
+      Browser::Create(Browser::CreateParams(otr_profile, true));
   EXPECT_EQ(global_collection->GetSize(), initial_size + 1);
 
   // Observe the GlobalBrowserCollection to verify close events are emitted.

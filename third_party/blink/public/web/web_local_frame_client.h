@@ -274,7 +274,6 @@ class BLINK_EXPORT WebLocalFrameClient {
   using FinishChildFrameCreationFn = base::FunctionRef<void(
       WebLocalFrame*,
       const DocumentToken&,
-      const base::UnguessableToken& initiator_state_token,
       CrossVariantMojoRemote<mojom::BrowserInterfaceBrokerInterfaceBase>,
       std::unique_ptr<base::UnguessableToken> sandbox_origin_token)>;
   virtual WebLocalFrame* CreateChildFrame(
@@ -616,8 +615,7 @@ class BLINK_EXPORT WebLocalFrameClient {
       base::TimeTicks max_event_processing_start,
       base::TimeTicks max_event_commit_finish,
       base::TimeTicks max_event_end,
-      uint64_t interaction_offset,
-      uint64_t performance_timeline_navigation_id) {}
+      uint64_t interaction_offset) {}
 
   // The first scroll delay, which measures the time between the user's first
   // scrolling and the resultant display update, has been observed.
@@ -657,21 +655,14 @@ class BLINK_EXPORT WebLocalFrameClient {
   virtual void DidObserveSoftNavigation(
       SoftNavigationMetricsForReporting metrics) {}
 
-  // A new First Contentful Paint was observed for a soft navigation.
-  virtual void DidObserveSoftNavigationFirstContentfulPaint(
-      uint64_t performance_timeline_navigation_id,
-      base::TimeDelta first_contentful_paint) {}
-
   // A new largest contentful paint candidate relating to the most recent
   // soft navigation was observed. Also see DidObserveSoftNavigation().
   virtual void DidObserveSoftLargestContentfulPaint(
       const LargestContentfulPaintDetailsForReporting& lcp) {}
 
   // Reports that visible elements in the frame shifted (bit.ly/lsm-explainer).
-  virtual void DidObserveLayoutShift(
-      double score,
-      bool after_input_or_scroll,
-      uint64_t performance_timeline_navigation_id) {}
+  virtual void DidObserveLayoutShift(double score, bool after_input_or_scroll) {
+  }
 
   // Script notifications ------------------------------------------------
 

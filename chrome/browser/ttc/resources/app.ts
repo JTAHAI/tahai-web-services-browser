@@ -18,7 +18,7 @@ import {AudioPlayer} from './audio_player.js';
 import {CaptionBlockManager, formatCaptions} from './caption_block_manager.js';
 import {LocalSpeechRecognition} from './local_speech_recognition.js';
 // <if expr="_google_chrome">
-import {Conversation, DEFAULT_TTC_BUNDLE_URL, State} from './internal/conversation.js';
+import {Conversation, State} from './internal/conversation.js';
 import type {ApiConfig, ConversationConfig, Persona} from './internal/conversation.js';
 export type ConversationMessage =|{
   type: 'inputTranscription',
@@ -43,20 +43,17 @@ enum State {
 class Conversation {
   connected: boolean = false;
   pageContext: any = null;
-  constructor(
-      _config: any, _callbacks: {
-        sendToUI: (msg: any) => void,
-        onStateChange: (state: any, oldState: any) => void,
-        onResponse: (audioData: any) => void,
-      },
-      _tools?: any, _router?: any, _context?: any, _pageHandler?: any) {}
+  constructor(_config: any, _callbacks: {
+    sendToUI: (msg: any) => void,
+    onStateChange: (state: any, oldState: any) => void,
+    onResponse: (audioData: any) => void,
+  }, _tools?: any, _router?: any, _context?: any) {}
   sendAudio(..._args: any[]): void {}
   sendText(..._args: any[]): void {}
   markMockAudioEndTime(..._args: any[]): void {}
   onTranscription(..._args: any[]): void {}
   onTurnComplete(): void {}
   interrupt(): void {}
-  recordOnDeviceSpeechTranscript(..._args: any[]): void {}
   start(): Promise<void> { return Promise.resolve(); }
   stop(): void {}
 }
@@ -69,7 +66,6 @@ type ConversationConfig = {
 };
 type ConversationMessage = any;
 type Persona = any;
-const DEFAULT_TTC_BUNDLE_URL = '';
 // </if>
 /* eslint-enable @typescript-eslint/no-explicit-any */
 import {errorLog, log} from './logging.js';
@@ -315,16 +311,11 @@ export class AppElement extends CrLitElement {
         this.toolsRemote.$.bindNewPipeAndPassReceiver());
   }
 
-  private isAndroidBackend(): boolean {
-    return loadTimeData.valueExists('isAndroidBackend') &&
-        loadTimeData.getBoolean('isAndroidBackend');
-  }
-
   override connectedCallback() {
     super.connectedCallback();
     document.addEventListener('visibilitychange', this.onVisibilityChange);
     window.addEventListener('focus', this.onWindowFocus);
-    if (document.visibilityState === 'visible' || this.isAndroidBackend()) {
+    if (document.visibilityState === 'visible') {
       this.startConversation();
     }
   }
@@ -359,9 +350,6 @@ export class AppElement extends CrLitElement {
   }
 
   private onVisibilityChange = () => {
-    if (this.isAndroidBackend()) {
-      return;
-    }
     if (document.visibilityState === 'visible') {
       this.startConversation();
     } else {
@@ -429,8 +417,7 @@ export class AppElement extends CrLitElement {
           onStateChange: (state) => this.onConversationStateChanged(state),
           onResponse: (audioData) => this.onAudioOutput(audioData),
         },
-        this.toolsRemote, this.pageCallbackRouter, this.initialPageContext,
-        this.pageHandler);
+        this.toolsRemote, this.pageCallbackRouter, this.initialPageContext);
 
     if (this.unregisterPageContextListeners) {
       this.unregisterPageContextListeners();
@@ -453,29 +440,18 @@ export class AppElement extends CrLitElement {
 
     this.pageHandler.updateAudioEnergy(energy);
 
-    if (!this.isAndroidBackend()) {
-      this.energyAnimationId = requestAnimationFrame(this.energyAnimationLoop);
-    }
+    this.energyAnimationId = requestAnimationFrame(this.energyAnimationLoop);
   };
 
   private startEnergyAnimation() {
     if (this.energyAnimationId === null) {
-      // On Android, this runs in a background/offscreen WebContents without
-      // active rendering, so requestAnimationFrame does not tick. Fallback to
-      // setInterval to pump audio energy updates to the native toolbar.
-      this.energyAnimationId = this.isAndroidBackend() ?
-          window.setInterval(this.energyAnimationLoop, 50) :
-          requestAnimationFrame(this.energyAnimationLoop);
+      this.energyAnimationId = requestAnimationFrame(this.energyAnimationLoop);
     }
   }
 
   private stopEnergyAnimation() {
     if (this.energyAnimationId !== null) {
-      if (this.isAndroidBackend()) {
-        window.clearInterval(this.energyAnimationId);
-      } else {
-        cancelAnimationFrame(this.energyAnimationId);
-      }
+      cancelAnimationFrame(this.energyAnimationId);
       this.energyAnimationId = null;
       this.pageHandler.updateAudioEnergy(0.0);
     }
@@ -673,11 +649,7 @@ export class AppElement extends CrLitElement {
     this.initializationState = InitializationState.CONNECTING;
 
     try {
-      const ttcBundleUrl =
-          (loadTimeData.valueExists('ttcBundleUrl') ?
-               loadTimeData.getString('ttcBundleUrl') :
-               '') ||
-          DEFAULT_TTC_BUNDLE_URL;
+      const ttcBundleUrl = loadTimeData.getString('ttcBundleUrl');
       const bundle = await this.initializeResourceBundle(ttcBundleUrl);
 
       log(FILE, 'Bundle initialized');
@@ -721,7 +693,6 @@ export class AppElement extends CrLitElement {
     } catch (e) {
       this.initializationState = InitializationState.ERROR;
       errorLog(FILE, 'startConversation failed: ', e);
-      this.stopConversation();
     }
   }
 
@@ -799,10 +770,6 @@ export class AppElement extends CrLitElement {
     this.inputTranscription = text;
     this.isLocalTranscription = true;
     this.activeType = 'input';
-
-    if (this.conversation) {
-      this.conversation.recordOnDeviceSpeechTranscript(text);
-    }
 
     clearTimeout(this.transcriptionTimeout);
     this.transcriptionTimeout = window.setTimeout(() => {

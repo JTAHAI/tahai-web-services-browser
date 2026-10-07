@@ -64,7 +64,7 @@ class CORE_EXPORT TextTrackCue : public EventTarget {
   void setStartTime(double);
 
   double endTime() const { return end_time_; }
-  void setEndTime(double, ExceptionState&);
+  void setEndTime(double);
 
   bool pauseOnExit() const { return pause_on_exit_; }
   void setPauseOnExit(bool);

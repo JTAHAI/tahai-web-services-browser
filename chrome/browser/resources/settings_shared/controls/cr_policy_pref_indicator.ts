@@ -93,20 +93,20 @@ export class CrPolicyPrefIndicatorElement extends PolymerElement {
   private getIndicatorIcon_(type: CrPolicyIndicatorType): string {
     switch (type) {
       case CrPolicyIndicatorType.EXTENSION:
-        return 'cr:chrome-extension-filled';
+        return 'cr:extension';
       case CrPolicyIndicatorType.NONE:
         return '';
       case CrPolicyIndicatorType.PRIMARY_USER:
-        return 'cr:group-filled';
+        return 'cr:group';
       case CrPolicyIndicatorType.OWNER:
-        return 'cr:person-filled';
+        return 'cr:person';
       case CrPolicyIndicatorType.USER_POLICY:
       case CrPolicyIndicatorType.DEVICE_POLICY:
       case CrPolicyIndicatorType.RECOMMENDED:
         return 'cr20:domain';
       case CrPolicyIndicatorType.PARENT:
       case CrPolicyIndicatorType.CHILD_RESTRICTION:
-        return 'cr20:family-link';
+        return 'cr20:kite';
       default:
         assertNotReached();
     }

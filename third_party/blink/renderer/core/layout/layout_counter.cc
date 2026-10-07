@@ -61,7 +61,7 @@ String CounterTextFromStyleAndValue(const CounterStyle* counter_style,
 LayoutCounter::LayoutCounter(Document& document,
                              const CounterContentData& counter)
     : LayoutText(nullptr, StringImpl::empty_), counter_(counter) {
-  SetDocumentForAnonymous(document);
+  SetDocumentForAnonymous(&document);
   View()->AddLayoutCounter();
 }
 
@@ -72,12 +72,12 @@ void LayoutCounter::Trace(Visitor* visitor) const {
   LayoutText::Trace(visitor);
 }
 
-void LayoutCounter::WillBeDestroyed(const ComputedStyle* style) {
+void LayoutCounter::WillBeDestroyed() {
   NOT_DESTROYED();
   if (View()) {
     View()->RemoveLayoutCounter();
   }
-  LayoutText::WillBeDestroyed(style);
+  LayoutText::WillBeDestroyed();
 }
 
 String LayoutCounter::GenerateCounterText(Vector<int> counter_values,
@@ -109,7 +109,8 @@ const CounterStyle* LayoutCounter::NullableCounterStyle() const {
   if (counter_->ListStyle() == keywords::kNone) {
     return nullptr;
   }
-  return &counter_->ResolveCounterStyle(GetDocument().GetStyleEngine());
+  return &GetDocument().GetStyleEngine().FindCounterStyleAcrossScopes(
+      counter_->ListStyle(), counter_->GetTreeScope());
 }
 
 bool LayoutCounter::IsDirectionalSymbolMarker() const {

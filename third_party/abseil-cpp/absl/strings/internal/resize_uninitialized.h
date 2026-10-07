@@ -18,7 +18,6 @@
 #define ABSL_STRINGS_INTERNAL_RESIZE_UNINITIALIZED_H_
 
 #include <algorithm>
-#include <cstddef>
 #include <string>
 #include <type_traits>
 #include <utility>

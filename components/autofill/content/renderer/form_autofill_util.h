@@ -16,7 +16,6 @@
 
 #include "base/containers/flat_map.h"
 #include "base/i18n/rtl.h"
-#include "base/memory/stack_allocated.h"
 #include "components/autofill/content/renderer/timing.h"
 #include "components/autofill/core/common/autofill_constants.h"
 #include "components/autofill/core/common/dense_set.h"
@@ -125,13 +124,6 @@ FieldRendererId GetFieldRendererId(const blink::WebElement& e);
 base::i18n::TextDirection GetTextDirectionForElement(
     const blink::WebFormControlElement& element);
 
-// Returns all connected form control elements
-// - owned by `form_element` if `!form_element.IsNull()`;
-// - owned by no form otherwise.
-std::vector<blink::WebFormControlElement> GetOwnedFormControls(
-    const blink::WebDocument& document,
-    const blink::WebFormElement& form_element);
-
 // Returns all connected, autofillable form control elements
 // - owned by `form_element` if `!form_element.IsNull()`;
 // - owned by no form otherwise.
@@ -139,20 +131,13 @@ std::vector<blink::WebFormControlElement> GetOwnedAutofillableFormControls(
     const blink::WebDocument& document,
     const blink::WebFormElement& form_element);
 
-struct FormAndField {
-  STACK_ALLOCATED();
-
- public:
-  FormData form;
-  const FormFieldData& field;
-};
-
 // Extracts the FormData that represents the form of `element`. If that form
 // cannot be extracted (e.g., because it is too large), falls back to a
 // single-field form that contains `element`. If however `element` is not
 // autofillable, returns nullopt. `form_cache` can be used to optimize form
 // extractions occurring synchronously after this function call.
-std::optional<FormAndField> FindFormAndFieldForFormControlElement(
+std::optional<std::pair<FormData, raw_ref<const FormFieldData>>>
+FindFormAndFieldForFormControlElement(
     const blink::WebFormControlElement& element,
     const FieldDataManager& field_data_manager,
     const CallTimerState& timer_state,
@@ -356,8 +341,7 @@ std::u16string FindChildTextWithIgnoreListForTesting(
     const std::set<blink::WebNode>& divs_to_skip);
 std::vector<SelectOption> GetDataListOptionsForTesting(
     const blink::WebInputElement& element);
-blink::WebFormElement GetOutermostAncestorFormElementForTesting(
-    blink::WebNode n);
+blink::WebFormElement GetClosestAncestorFormElementForTesting(blink::WebNode n);
 bool IsDOMPredecessorForTesting(const blink::WebNode& x,
                                 const blink::WebNode& y,
                                 const blink::WebNode& ancestor_hint);

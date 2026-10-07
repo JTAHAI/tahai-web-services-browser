@@ -42,7 +42,6 @@ export enum MenuItemId {
   DELETE = 9,
   DIVIDER = 10,
   OPEN_SPLIT_VIEW = 11,
-  OPEN_ISOLATED = 12,
 }
 
 export interface MenuItem {
@@ -70,7 +69,7 @@ export class PowerBookmarksContextMenuElement extends CrLitElement {
       priceTracked_: {type: Boolean},
       priceTrackingEligible_: {type: Boolean},
       isInSplitView_: {type: Boolean},
-      offTheRecordCount_: {type: Number},
+      incognitoCount_: {type: Number},
     };
   }
 
@@ -82,18 +81,18 @@ export class PowerBookmarksContextMenuElement extends CrLitElement {
   private accessor priceTracked_: boolean = false;
   private accessor priceTrackingEligible_: boolean = false;
   private accessor isInSplitView_: boolean = false;
-  private accessor offTheRecordCount_: number = 0;
+  private accessor incognitoCount_: number = 0;
 
   showAt(
       target: HTMLElement, bookmarks: BookmarksTreeNode[],
       priceTracked: boolean, priceTrackingEligible: boolean,
-      isInSplitView: boolean, offTheRecordCount: number,
+      isInSplitView: boolean, incognitoCount: number,
       onShown: Function = () => {}) {
     this.bookmarks_ = bookmarks;
     this.priceTracked_ = priceTracked;
     this.priceTrackingEligible_ = priceTrackingEligible;
     this.isInSplitView_ = isInSplitView;
-    this.offTheRecordCount_ = offTheRecordCount;
+    this.incognitoCount_ = incognitoCount;
     this.updateComplete.then(() => {
       this.$.menu.showAt(target);
       onShown();
@@ -103,12 +102,12 @@ export class PowerBookmarksContextMenuElement extends CrLitElement {
   showAtPosition(
       event: MouseEvent, bookmarks: BookmarksTreeNode[], priceTracked: boolean,
       priceTrackingEligible: boolean, isInSplitView: boolean,
-      offTheRecordCount: number, onShown: Function = () => {}) {
+      incognitoCount: number, onShown: Function = () => {}) {
     this.bookmarks_ = bookmarks;
     this.priceTracked_ = priceTracked;
     this.priceTrackingEligible_ = priceTrackingEligible;
     this.isInSplitView_ = isInSplitView;
-    this.offTheRecordCount_ = offTheRecordCount;
+    this.incognitoCount_ = incognitoCount;
     const menuMargin = 20;
     const doc = document.scrollingElement!;
     const minX = doc.scrollLeft + menuMargin;
@@ -179,7 +178,17 @@ export class PowerBookmarksContextMenuElement extends CrLitElement {
       });
     }
 
-    menuItems.push(...this.getIncognitoAndIsolatedMenuItems_());
+    if (!loadTimeData.getBoolean('incognitoMode') &&
+        loadTimeData.getBoolean('isIncognitoModeAvailable')) {
+      menuItems.push({
+        id: MenuItemId.OPEN_INCOGNITO,
+        label: this.incognitoCount_ < 2 ?
+            loadTimeData.getString('menuOpenIncognito') :
+            loadTimeData.getStringF(
+                'menuOpenIncognitoWithCount', this.incognitoCount_),
+        disabled: this.incognitoCount_ === 0,
+      });
+    }
 
     if (this.bookmarks_.length !== 1 || !firstBookmark.url) {
       menuItems.push({
@@ -243,7 +252,17 @@ export class PowerBookmarksContextMenuElement extends CrLitElement {
         },
       ];
 
-      revisedItems.push(...this.getIncognitoAndIsolatedMenuItems_());
+      if (!loadTimeData.getBoolean('incognitoMode') &&
+          loadTimeData.getBoolean('isIncognitoModeAvailable')) {
+        revisedItems.push({
+          id: MenuItemId.OPEN_INCOGNITO,
+          label: this.incognitoCount_ < 2 ?
+              loadTimeData.getString('menuOpenIncognito') :
+              loadTimeData.getStringF(
+                  'menuOpenIncognitoWithCount', this.incognitoCount_),
+          disabled: this.incognitoCount_ === 0,
+        });
+      }
 
       revisedItems.push({id: MenuItemId.DIVIDER});
 
@@ -332,34 +351,6 @@ export class PowerBookmarksContextMenuElement extends CrLitElement {
     return menuItems;
   }
 
-  private getIncognitoAndIsolatedMenuItems_(): MenuItem[] {
-    const items: MenuItem[] = [];
-    if (!loadTimeData.getBoolean('incognitoMode') &&
-        loadTimeData.getBoolean('isIncognitoModeAvailable')) {
-      const isIsolatedModeEnabled =
-          loadTimeData.getBoolean('isIsolatedModeEnabled');
-      items.push({
-        id: MenuItemId.OPEN_INCOGNITO,
-        label: this.offTheRecordCount_ < 2 ?
-            loadTimeData.getString('menuOpenIncognito') :
-            loadTimeData.getStringF(
-                'menuOpenIncognitoWithCount', this.offTheRecordCount_),
-        disabled: this.offTheRecordCount_ === 0 || isIsolatedModeEnabled,
-      });
-      if (isIsolatedModeEnabled) {
-        items.push({
-          id: MenuItemId.OPEN_ISOLATED,
-          label: this.offTheRecordCount_ < 2 ?
-              loadTimeData.getString('menuOpenIsolated') :
-              loadTimeData.getStringF(
-                  'menuOpenIsolatedWithCount', this.offTheRecordCount_),
-          disabled: this.offTheRecordCount_ === 0,
-        });
-      }
-    }
-    return items;
-  }
-
   protected showDivider_(menuItem: MenuItem): boolean {
     return menuItem.id === MenuItemId.DIVIDER;
   }
@@ -398,8 +389,7 @@ export class PowerBookmarksContextMenuElement extends CrLitElement {
             ActionSource.kBookmark);
         break;
       case MenuItemId.OPEN_INCOGNITO:
-      case MenuItemId.OPEN_ISOLATED:
-        this.bookmarksApi_.contextMenuOpenBookmarkInOffTheRecordWindow(
+        this.bookmarksApi_.contextMenuOpenBookmarkInIncognitoWindow(
             this.bookmarks_.map(bookmark => bookmark.id),
             ActionSource.kBookmark);
         break;
@@ -478,8 +468,6 @@ export class PowerBookmarksContextMenuElement extends CrLitElement {
     }
     this.$.menu.close();
   }
-
-
 }
 
 declare global {

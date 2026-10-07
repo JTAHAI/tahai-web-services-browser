@@ -31,6 +31,7 @@ import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.browser.permissions.RuntimePermissionTestUtils.RuntimePromptResponse;
 import org.chromium.chrome.browser.permissions.RuntimePermissionTestUtils.TestAndroidPermissionDelegate;
 import org.chromium.chrome.browser.profiles.ProfileManager;
+import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.test.ChromeJUnit4RunnerDelegate;
 import org.chromium.chrome.test.transit.ChromeTransitTestRules;
 import org.chromium.chrome.test.transit.FreshCtaTransitTestRule;
@@ -139,6 +140,7 @@ public class ApproximateGeolocationTest {
     }
 
     private void checkPermission(boolean precise) throws Exception {
+        final Tab tab = ThreadUtils.runOnUiThreadBlocking(() -> mActivityTestRule.getActivityTab());
         final String origin = mTestServer.getURL(TEST_FILE);
         GeolocationSetting actualSetting =
                 ThreadUtils.runOnUiThreadBlocking(

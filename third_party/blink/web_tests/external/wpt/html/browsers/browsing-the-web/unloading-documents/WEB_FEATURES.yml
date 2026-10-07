@@ -1,2 +1,4 @@
-rules:
-- "*beforeunload*": [beforeunload]
+features:
+- name: beforeunload
+  files:
+  - "*beforeunload*"

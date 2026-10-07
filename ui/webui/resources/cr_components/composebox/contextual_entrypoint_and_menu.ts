@@ -61,7 +61,7 @@ export class ContextualEntrypointAndMenuElement extends
         reflect: true,
         type: Boolean,
       },
-      selectedTabIds: {type: Object},
+      disabledTabIds: {type: Object},
       aimThreadRestoredTabs: {type: Array},
       tabSuggestions: {type: Array},
       inputState: {type: Object},
@@ -76,11 +76,6 @@ export class ContextualEntrypointAndMenuElement extends
       disableFallbackGlifAnimation: {type: Boolean},
       recentTabId: {type: Number},
       shareTabsFlyoutOpen: {type: Boolean},
-      unboundedMenuEnabled: {
-        reflect: true,
-        type: Boolean,
-        attribute: 'unbounded-menu-enabled',
-      },
 
       // =========================================================================
       // Protected properties
@@ -99,7 +94,7 @@ export class ContextualEntrypointAndMenuElement extends
   accessor smartTabSharingActive: boolean = false;
   accessor smartTabSharingVisible: boolean = false;
   accessor contextManagementInComposeboxEnabled: boolean = false;
-  accessor selectedTabIds: Map<number, UnguessableToken> = new Map();
+  accessor disabledTabIds: Map<number, UnguessableToken> = new Map();
   accessor aimThreadRestoredTabs: TabInfo[] = [];
   accessor tabSuggestions: TabInfo[] = [];
   accessor inputState: InputState|null = null;
@@ -109,7 +104,6 @@ export class ContextualEntrypointAndMenuElement extends
   accessor sharedTabs: TabInfo[] = [];
   accessor recentTabId: number|null = null;
   accessor shareTabsFlyoutOpen: boolean = false;
-  accessor unboundedMenuEnabled: boolean = false;
   accessor tabSuggestionsState: TabSuggestionsState =
       TabSuggestionsState.NOT_STARTED;
   menuOpenDelayMs: number = 200;

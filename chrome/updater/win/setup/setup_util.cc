@@ -14,6 +14,7 @@
 #include <cstring>
 #include <optional>
 #include <string>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -722,9 +723,7 @@ void RegisterWakeTaskWorkItem::RollbackImpl() {
   if (!task_scheduler) {
     return;
   }
-  if (!task_scheduler->DeleteTask(task_name_)) {
-    VLOG(1) << "Rollback failed to delete task: " << task_name_;
-  }
+  std::ignore = task_scheduler->DeleteTask(task_name_);
 }
 
 }  // namespace updater

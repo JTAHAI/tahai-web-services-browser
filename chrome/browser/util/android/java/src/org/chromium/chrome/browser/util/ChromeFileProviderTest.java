@@ -13,6 +13,7 @@ import androidx.test.filters.SmallTest;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.robolectric.annotation.Config;
 
 import org.chromium.base.task.PostTask;
 import org.chromium.base.task.TaskTraits;
@@ -28,6 +29,7 @@ import java.io.FileNotFoundException;
  * does not work correctly.
  */
 @RunWith(BaseRobolectricTestRunner.class)
+@Config(manifest = Config.NONE)
 public class ChromeFileProviderTest {
     private ParcelFileDescriptor openFileFromProvider(Uri uri) {
         ChromeFileProvider provider = new ChromeFileProvider();

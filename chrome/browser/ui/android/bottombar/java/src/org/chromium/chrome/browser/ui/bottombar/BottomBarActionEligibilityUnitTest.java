@@ -22,15 +22,12 @@ import org.mockito.junit.MockitoRule;
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.base.test.util.Features.DisableFeatures;
 import org.chromium.base.test.util.Features.EnableFeatures;
-import org.chromium.base.test.util.HistogramWatcher;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.glic.GlicEnabling;
 import org.chromium.chrome.browser.glic.GlicEnablingJni;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.ui.actions.ActionId;
-import org.chromium.chrome.browser.ui.bottombar.BottomBarMetrics.AimIneligibilityReason;
-import org.chromium.chrome.browser.ui.bottombar.BottomBarMetrics.GlicIneligibilityReason;
 
 /** Unit tests for {@link BottomBarActionEligibility}. */
 @NullMarked
@@ -154,35 +151,29 @@ public class BottomBarActionEligibilityUnitTest {
     }
 
     @Test
-    @EnableFeatures({
-        ChromeFeatureList.ANDROID_BOTTOM_BAR_AIM,
-        ChromeFeatureList.ANDROID_BOTTOM_BAR + ":bypass_aim_geofencing/true"
-    })
+    @EnableFeatures(ChromeFeatureList.ANDROID_BOTTOM_BAR_AIM)
     public void testGetCandidateExtraAction_GlicEnabled_NonUS() {
         when(mGlicEnablingJniMock.isEnabledForProfile(any())).thenReturn(true);
-        // Australia: Not allowed for Glic, but allowed for AIM (bypassed) -> Candidate should be AI
-        // Mode.
+        // Australia: Not allowed for Glic, but allowed for AIM -> Candidate should be AI Mode.
         assertEquals(
                 ActionId.AI_MODE,
                 BottomBarActionEligibility.getCandidateExtraAction(mProfile, "au"));
     }
 
     @Test
-    public void testGetCandidateExtraAction_GlicEnabled_India() {
+    public void testGetCandidateExtraAction_GlicSoonCountry() {
         when(mGlicEnablingJniMock.isEnabledForProfile(any())).thenReturn(true);
-        // India is allowed for Glic -> Candidate should be GLIC.
+        // India (Soon country -> Should show nothing)
         assertEquals(
-                ActionId.GLIC, BottomBarActionEligibility.getCandidateExtraAction(mProfile, "in"));
+                BottomBarActionEligibility.ACTION_NONE,
+                BottomBarActionEligibility.getCandidateExtraAction(mProfile, "in"));
     }
 
     @Test
-    @EnableFeatures({
-        ChromeFeatureList.ANDROID_BOTTOM_BAR_AIM,
-        ChromeFeatureList.ANDROID_BOTTOM_BAR + ":bypass_aim_geofencing/true"
-    })
+    @EnableFeatures(ChromeFeatureList.ANDROID_BOTTOM_BAR_AIM)
     public void testGetCandidateExtraAction_AiMode_Eligible() {
         when(mGlicEnablingJniMock.isEnabledForProfile(any())).thenReturn(false);
-        // Australia (AIM allowed via bypass)
+        // Australia (AIM allowed)
         assertEquals(
                 ActionId.AI_MODE,
                 BottomBarActionEligibility.getCandidateExtraAction(mProfile, "au"));
@@ -199,10 +190,7 @@ public class BottomBarActionEligibilityUnitTest {
     }
 
     @Test
-    @EnableFeatures({
-        ChromeFeatureList.ANDROID_BOTTOM_BAR_AIM,
-        ChromeFeatureList.ANDROID_BOTTOM_BAR + ":bypass_aim_geofencing/true"
-    })
+    @EnableFeatures(ChromeFeatureList.ANDROID_BOTTOM_BAR_AIM)
     public void testGetCandidateExtraAction_AiMode_DseNotGoogle() {
         when(mGlicEnablingJniMock.isEnabledForProfile(any())).thenReturn(false);
         // Candidate is still AI_MODE; DSE check is handled dynamically by Mediator.
@@ -297,8 +285,7 @@ public class BottomBarActionEligibilityUnitTest {
 
     @Test
     @EnableFeatures(ChromeFeatureList.ANDROID_BOTTOM_BAR + ":show_glic_setting_toggle/true")
-    public void
-            testGetCandidateExtraAction_GlicButtonDisabledByUser_PolicyEnforced_ForceShowsGlic() {
+    public void testGetCandidateExtraAction_GlicButtonDisabledByUser_PolicyEnforced_ForceShowsGlic() {
         when(mGlicEnablingJniMock.isEnabledForProfile(any())).thenReturn(true);
         when(mGlicEnablingJniMock.isPolicyEnforced(any())).thenReturn(true);
 
@@ -343,9 +330,9 @@ public class BottomBarActionEligibilityUnitTest {
 
     @Test
     public void testGeofencing_IsAimAllowedInCountry() {
-        assertFalse(BottomBarActionEligibility.isAimAllowedInCountry("us"));
-        assertFalse(BottomBarActionEligibility.isAimAllowedInCountry("au"));
-        assertFalse(BottomBarActionEligibility.isAimAllowedInCountry("AU"));
+        assertTrue(BottomBarActionEligibility.isAimAllowedInCountry("us"));
+        assertTrue(BottomBarActionEligibility.isAimAllowedInCountry("au"));
+        assertTrue(BottomBarActionEligibility.isAimAllowedInCountry("AU"));
         assertFalse(BottomBarActionEligibility.isAimAllowedInCountry("fr"));
         assertFalse(BottomBarActionEligibility.isAimAllowedInCountry(/* country= */ null));
         assertFalse(BottomBarActionEligibility.isAimAllowedInCountry(""));
@@ -436,61 +423,5 @@ public class BottomBarActionEligibilityUnitTest {
     public void testResolveCountryCodeWithLocalDevFallback() {
         assertEquals("us", BottomBarActionEligibility.resolveCountryCodeWithLocalDevFallback("us"));
         assertEquals("in", BottomBarActionEligibility.resolveCountryCodeWithLocalDevFallback("in"));
-    }
-
-    @Test
-    public void testGetCandidateExtraAction_RecordsIneligibilityReasons() {
-        // 1. GLIC eligible -> AIM preempted by GLIC.
-        when(mGlicEnablingJniMock.isEnabledForProfile(any())).thenReturn(true);
-        var aimPreemptedWatcher =
-                HistogramWatcher.newSingleRecordWatcher(
-                        "Android.BottomBar.Aim.IneligibilityReason",
-                        AimIneligibilityReason.PREEMPTED_BY_GLIC);
-        assertEquals(
-                ActionId.GLIC, BottomBarActionEligibility.getCandidateExtraAction(mProfile, "us"));
-        aimPreemptedWatcher.assertExpected();
-
-        // 2. GLIC profile ineligible -> GLIC ProfileIneligible recorded.
-        when(mGlicEnablingJniMock.isEnabledForProfile(any())).thenReturn(false);
-        var glicProfileIneligibleWatcher =
-                HistogramWatcher.newSingleRecordWatcher(
-                        "Android.BottomBar.Glic.IneligibilityReason",
-                        GlicIneligibilityReason.PROFILE_INELIGIBLE);
-        BottomBarActionEligibility.getCandidateExtraAction(mProfile, "us");
-        glicProfileIneligibleWatcher.assertExpected();
-
-        // 3. GLIC country geofenced -> GLIC CountryGeofenced recorded.
-        when(mGlicEnablingJniMock.isEnabledForProfile(any())).thenReturn(true);
-        var glicCountryGeofencedWatcher =
-                HistogramWatcher.newSingleRecordWatcher(
-                        "Android.BottomBar.Glic.IneligibilityReason",
-                        GlicIneligibilityReason.COUNTRY_GEOFENCED);
-        BottomBarActionEligibility.getCandidateExtraAction(mProfile, "au");
-        glicCountryGeofencedWatcher.assertExpected();
-    }
-
-    @Test
-    @DisableFeatures(ChromeFeatureList.ANDROID_BOTTOM_BAR_AIM)
-    public void testGetCandidateExtraAction_AimFeatureDisabled_RecordsIneligibility() {
-        when(mGlicEnablingJniMock.isEnabledForProfile(any())).thenReturn(false);
-        var watcher =
-                HistogramWatcher.newSingleRecordWatcher(
-                        "Android.BottomBar.Aim.IneligibilityReason",
-                        AimIneligibilityReason.FEATURE_FLAG_DISABLED);
-        BottomBarActionEligibility.getCandidateExtraAction(mProfile, "au");
-        watcher.assertExpected();
-    }
-
-    @Test
-    @EnableFeatures(ChromeFeatureList.ANDROID_BOTTOM_BAR_AIM)
-    public void testGetCandidateExtraAction_AimCountryGeofenced_RecordsIneligibility() {
-        when(mGlicEnablingJniMock.isEnabledForProfile(any())).thenReturn(false);
-        var watcher =
-                HistogramWatcher.newSingleRecordWatcher(
-                        "Android.BottomBar.Aim.IneligibilityReason",
-                        AimIneligibilityReason.COUNTRY_GEOFENCED);
-        // France is not in AIM_ALLOWED_COUNTRIES.
-        BottomBarActionEligibility.getCandidateExtraAction(mProfile, "fr");
-        watcher.assertExpected();
     }
 }

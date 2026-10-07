@@ -12,6 +12,7 @@
 
 #include "base/memory/raw_ptr.h"
 #include "base/uuid.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/toolbar/app_menu_model.h"
 #include "components/saved_tab_groups/public/features.h"
 #include "ui/base/mojom/menu_source_type.mojom-forward.h"
@@ -21,7 +22,6 @@
 #include "ui/views/controls/menu/menu_item_view.h"
 #include "ui/views/controls/menu/submenu_view.h"
 
-class BrowserWindowInterface;
 class ExpandOnHoverLock;
 
 namespace tab_groups {
@@ -42,7 +42,7 @@ class STGEverythingMenu : public views::MenuDelegate,
   enum class MenuContext { kAppMenu, kSavedTabGroupBar, kVerticalTabStrip };
 
   STGEverythingMenu(views::MenuButtonController* menu_button_controller,
-                    BrowserWindowInterface* browser,
+                    Browser* browser,
                     MenuContext menu_context);
 
   STGEverythingMenu(const STGEverythingMenu&) = delete;
@@ -136,7 +136,7 @@ class STGEverythingMenu : public views::MenuDelegate,
   std::unique_ptr<AppMenuSubMenuModelDelegate> submenu_delegate_;
   std::optional<base::Uuid> latest_group_id_;
 
-  raw_ptr<BrowserWindowInterface> const browser_;
+  raw_ptr<Browser> const browser_;
   raw_ptr<views::Widget> const widget_;
 
   MenuContext menu_context_;

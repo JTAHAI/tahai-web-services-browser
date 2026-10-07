@@ -51,6 +51,7 @@ import org.chromium.base.Callback;
 import org.chromium.base.supplier.ObservableSuppliers;
 import org.chromium.base.supplier.SettableNonNullObservableSupplier;
 import org.chromium.base.test.BaseRobolectricTestRunner;
+import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.Features.EnableFeatures;
 import org.chromium.base.test.util.HistogramWatcher;
 import org.chromium.chrome.browser.commerce.ShoppingServiceFactory;
@@ -74,6 +75,7 @@ import org.chromium.url.JUnitTestGURLs;
 import java.util.Arrays;
 
 /** Tests for {@link PriceInsightsBottomSheetMediator}. */
+@Batch(Batch.UNIT_TESTS)
 @RunWith(BaseRobolectricTestRunner.class)
 @EnableFeatures({NotificationFeatureMap.CACHE_NOTIIFICATIONS_ENABLED})
 @Config(

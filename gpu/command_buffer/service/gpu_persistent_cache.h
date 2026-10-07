@@ -13,13 +13,9 @@
 #include "base/containers/flat_set.h"
 #include "base/containers/heap_array.h"
 #include "base/containers/span.h"
-#include "base/memory/ref_counted.h"
-#include "base/memory/scoped_refptr.h"
-#include "base/memory_coordinator/utils.h"
+#include "base/memory/memory_pressure_listener.h"
 #include "base/synchronization/atomic_flag.h"
-#include "base/synchronization/lock.h"
 #include "base/task/sequenced_task_runner.h"
-#include "base/thread_annotations.h"
 #include "base/trace_event/memory_dump_provider.h"
 #include "components/persistent_cache/buffer_provider.h"
 #include "components/persistent_cache/pending_backend.h"
@@ -139,12 +135,7 @@ class GPU_GLES2_EXPORT GpuPersistentCache :
                       const void* value,
                       int64_t value_size);
 
-  // Memory coordinator interface:
-  // Triggers immediate eviction of cache entries down to `memory_limit`.
-  void OnReleaseMemory(int memory_limit);
-  // Updates the target cache size limit non-destructively without forcing
-  // immediate eviction.
-  void OnUpdateMemoryLimit(int memory_limit);
+  void PurgeMemory(base::MemoryPressureLevel memory_pressure_level);
 
   void OnMemoryDump(const std::string& dump_name,
                     base::trace_event::ProcessMemoryDump* pmd);
@@ -249,12 +240,7 @@ class GPU_GLES2_EXPORT GpuPersistentCacheCollection
 
   scoped_refptr<GpuPersistentCache> GetCache(const GpuDiskCacheHandle& handle);
 
-  // Memory coordinator interface:
-  // Triggers immediate eviction of cache entries down to `memory_limit`.
-  void OnReleaseMemory(int memory_limit);
-  // Updates the target cache size limit non-destructively without forcing
-  // immediate eviction.
-  void OnUpdateMemoryLimit(int memory_limit);
+  void PurgeMemory(base::MemoryPressureLevel memory_pressure_level);
 
   bool OnMemoryDump(const base::trace_event::MemoryDumpArgs& args,
                     base::trace_event::ProcessMemoryDump* pmd) override;
@@ -267,8 +253,6 @@ class GPU_GLES2_EXPORT GpuPersistentCacheCollection
   base::Lock mutex_;
   std::map<GpuDiskCacheHandle, scoped_refptr<GpuPersistentCache>> caches_
       GUARDED_BY(mutex_);
-  int current_memory_limit_ GUARDED_BY(mutex_) =
-      base::kNoMemoryPressureThreshold;
 };
 
 }  // namespace gpu

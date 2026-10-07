@@ -23,6 +23,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
+import org.robolectric.annotation.Config;
 
 import org.chromium.base.test.BaseRobolectricTestRunner;
 
@@ -32,6 +33,7 @@ import java.io.FileWriter;
 
 /** Tests for {@link ContentUriUtils}. */
 @RunWith(BaseRobolectricTestRunner.class)
+@Config(manifest = Config.NONE)
 public class ContentUriUtilsUnitTest {
 
     @Mock private Context mMockContext;

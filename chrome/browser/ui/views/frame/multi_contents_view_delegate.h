@@ -8,7 +8,7 @@
 #include "chrome/browser/ui/views/frame/multi_contents_view_drop_target_controller.h"
 
 class TabStripModel;
-class BrowserWindowInterface;
+class Browser;
 
 namespace content {
 class WebContents;
@@ -32,7 +32,7 @@ class MultiContentsViewDelegate
 // tabstrip operations.
 class MultiContentsViewDelegateImpl : public MultiContentsViewDelegate {
  public:
-  explicit MultiContentsViewDelegateImpl(BrowserWindowInterface& browser);
+  explicit MultiContentsViewDelegateImpl(Browser& browser);
   MultiContentsViewDelegateImpl(const MultiContentsViewDelegateImpl&) = delete;
   MultiContentsViewDelegateImpl& operator=(
       const MultiContentsViewDelegateImpl&) = delete;
@@ -65,7 +65,7 @@ class MultiContentsViewDelegateImpl : public MultiContentsViewDelegate {
 
  private:
   // TODO(crbug.com/431000266): Use a browser window feature instead.
-  const raw_ref<BrowserWindowInterface> browser_;
+  const raw_ref<Browser> browser_;
   const raw_ref<TabStripModel> tab_strip_model_;
 };
 

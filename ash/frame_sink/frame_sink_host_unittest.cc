@@ -31,13 +31,12 @@ class TestFrameSinkHost : public FrameSinkHost {
 
   std::unique_ptr<viz::CompositorFrame> CreateCompositorFrame(
       const viz::BeginFrameAck& begin_frame_ack,
-      viz::ClientResourceProvider& client_resource_provider,
-      cc::ResourcePool& resource_pool,
+      UiResourceManager& resource_manager,
       bool auto_refresh,
       const gfx::Size& last_submitted_frame_size,
       float last_submitted_frame_dsf) override {
     return frame_factory_.CreateCompositorFrame(
-        begin_frame_ack, client_resource_provider, resource_pool, auto_refresh,
+        begin_frame_ack, resource_manager, auto_refresh,
         last_submitted_frame_size, last_submitted_frame_dsf);
   }
 

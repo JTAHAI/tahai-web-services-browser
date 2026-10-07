@@ -60,7 +60,6 @@ component("kcer") {
     "//chromeos/ash/components/dbus/chaps",
     "//chromeos/constants",
     "//content/public/browser",
-    "//crypto",
     "//net",
   ]
 }

@@ -57,8 +57,8 @@
         (id<SigninPromoViewMediatorDelegate>)signinPromoViewMediatorDelegate
            accountSettingsPresenter:
                (id<AccountSettingsPresenter>)accountSettingsPresenter {
-  CHECK(browser);
-  CHECK(syncService);
+  CHECK(browser, base::NotFatalUntil::M145);
+  CHECK(syncService, base::NotFatalUntil::M145);
   self = [super init];
   if (self) {
     _delegate = delegate;
@@ -195,8 +195,10 @@
 #pragma mark - SigninPromoViewConsumer
 
 - (void)configureSigninPromoWithConfigurator:
-    (SigninPromoViewConfigurator*)configurator {
-  [self.delegate configureSigninPromoWithConfigurator:configurator];
+            (SigninPromoViewConfigurator*)configurator
+                             identityChanged:(BOOL)identityChanged {
+  [self.delegate configureSigninPromoWithConfigurator:configurator
+                                      identityChanged:identityChanged];
 }
 
 - (void)promoProgressStateDidChange {

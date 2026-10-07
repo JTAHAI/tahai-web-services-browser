@@ -11,7 +11,6 @@ import android.util.AttributeSet;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.FrameLayout;
-import android.widget.ImageView;
 
 import androidx.core.widget.ImageViewCompat;
 
@@ -19,14 +18,15 @@ import org.chromium.base.Callback;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.tab_ui.R;
+import org.chromium.ui.widget.ChromeImageView;
 
 /** Toolbar for the bottom tab strip see {@link TabGroupUiCoordinator}. */
 @NullMarked
 public class TabGroupUiToolbarView extends FrameLayout {
-    private ImageView mNewTabButton;
-    private ImageView mShowGroupDialogButton;
-    private ImageView mFadingEdgeStart;
-    private ImageView mFadingEdgeEnd;
+    private ChromeImageView mNewTabButton;
+    private ChromeImageView mShowGroupDialogButton;
+    private ChromeImageView mFadingEdgeStart;
+    private ChromeImageView mFadingEdgeEnd;
     private ViewGroup mContainerView;
     private ViewGroup mMainContent;
     private @Nullable FrameLayout mImageTilesContainer;

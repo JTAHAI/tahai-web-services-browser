@@ -11,18 +11,17 @@
 namespace glic {
 namespace {
 
-TEST(GlicInvokeMetricsTest, ConstructorRecordsSource) {
+TEST(GlicInvokeMetricsTest, RecordInvokeSource) {
   base::HistogramTester histogram_tester;
-  GlicInvokeMetrics metrics(mojom::InvocationSource::kOsButton);
+  RecordInvokeSource(mojom::InvocationSource::kOsButton);
 
   histogram_tester.ExpectUniqueSample("Glic.Invoke.InvocationSource",
                                       mojom::InvocationSource::kOsButton, 1);
 }
 
-TEST(GlicInvokeMetricsTest, RecordSuccess) {
+TEST(GlicInvokeMetricsTest, RecordInvokeSuccess) {
   base::HistogramTester histogram_tester;
-  GlicInvokeMetrics metrics(mojom::InvocationSource::kOsButton);
-  metrics.RecordSuccess();
+  RecordInvokeSuccess(mojom::InvocationSource::kOsButton);
 
   histogram_tester.ExpectUniqueSample("Glic.InvokeResult",
                                       GlicInvokeResult::kSuccess, 1);
@@ -30,27 +29,15 @@ TEST(GlicInvokeMetricsTest, RecordSuccess) {
                                       GlicInvokeResult::kSuccess, 1);
 }
 
-TEST(GlicInvokeMetricsTest, RecordError) {
+TEST(GlicInvokeMetricsTest, RecordInvokeError) {
   base::HistogramTester histogram_tester;
-  GlicInvokeMetrics metrics(mojom::InvocationSource::kOsButton);
-  metrics.RecordError(GlicInvokeError::kInvalidTab);
+  RecordInvokeError(mojom::InvocationSource::kOsButton,
+                    GlicInvokeError::kInvalidTab);
 
   histogram_tester.ExpectUniqueSample("Glic.InvokeResult",
                                       GlicInvokeError::kInvalidTab, 1);
   histogram_tester.ExpectUniqueSample("Glic.InvokeResult.OsButton",
                                       GlicInvokeError::kInvalidTab, 1);
-}
-
-TEST(GlicInvokeMetricsTest, RecordDurationIsCaptured) {
-  base::HistogramTester histogram_tester;
-  GlicInvokeMetrics metrics(mojom::InvocationSource::kOsButton);
-
-  // Note: Since time advances inside the method, we test that SOME sample is
-  // recorded.
-  metrics.RecordSuccess();
-
-  histogram_tester.ExpectTotalCount("Glic.Invoke.Duration", 1);
-  histogram_tester.ExpectTotalCount("Glic.Invoke.Duration.OsButton", 1);
 }
 
 }  // namespace

@@ -27,7 +27,6 @@
 #include "third_party/blink/renderer/platform/testing/testing_platform_support.h"
 #include "third_party/blink/renderer/platform/weborigin/kurl.h"
 #include "third_party/blink/renderer/platform/weborigin/scheme_registry.h"
-#include "third_party/blink/renderer/platform/wtf/text/format.h"
 #include "third_party/blink/renderer/platform/wtf/text/string_utf8_adaptor.h"
 #include "third_party/blink/renderer/platform/wtf/text/text_encoding.h"
 #include "v8/include/v8.h"
@@ -51,10 +50,10 @@ class V8ScriptRunnerTest : public testing::Test {
     // Simple function for testing. Note:
     // - Add counter to trick V8 code cache.
     // - Pad counter to 1000 digits, to trick minimal cacheability threshold.
-    return Format("a = function() {{ 1 + 1; }} // {:01000d}\n", counter_);
+    return String::Format("a = function() { 1 + 1; } // %01000d\n", counter_);
   }
   String DifferentCode() const {
-    return Format("a = function() {{ 1 + 12; }} // {:01000d}\n", counter_);
+    return String::Format("a = function() { 1 + 12; } // %01000d\n", counter_);
   }
   KURL Url() const { return KURL(StrCat({url_, String::Number(counter_)})); }
   unsigned TagForCodeCache(CachedMetadataHandler* cache_handler) const {
@@ -203,8 +202,8 @@ class V8ScriptRunnerTest : public testing::Test {
  protected:
   static int counter_;
   String url_ = "http://bla.com/bla";
-  base::test::ScopedFeatureList feature_list_;
   test::TaskEnvironment task_environment_;
+  base::test::ScopedFeatureList feature_list_;
   base::RunLoop run_loop_;
 };
 

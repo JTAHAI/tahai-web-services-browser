@@ -10,9 +10,7 @@
 
 namespace blink {
 
-class Element;
 class OverscrollEventInit;
-
 class OverscrollEvent final : public Event {
   DEFINE_WRAPPERTYPEINFO();
 

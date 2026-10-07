@@ -46,7 +46,6 @@ TEST(InstallResultCodeTest, IsSuccess) {
   EXPECT_FALSE(IsSuccess(InstallResultCode::kFallbackInstallUsingTrustedIcons));
   EXPECT_FALSE(IsSuccess(InstallResultCode::kNoValidMigrationSource));
   EXPECT_FALSE(IsSuccess(InstallResultCode::kInvalidManifestId));
-  EXPECT_FALSE(IsSuccess(InstallResultCode::kInstallAlreadyInProgress));
 }
 
 }  // namespace webapps

@@ -3,8 +3,8 @@
 // found in the LICENSE file.
 
 #include "base/check_op.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/translate/translate_bubble_model.h"
 #include "chrome/browser/ui/translate/translate_bubble_test_utils.h"
 #include "chrome/browser/ui/views/translate/translate_bubble_controller.h"
@@ -16,18 +16,18 @@
 
 namespace translate::test_utils {
 
-TranslateBubbleView* GetTranslateBubble(BrowserWindowInterface* browser) {
+TranslateBubbleView* GetTranslateBubble(Browser* browser) {
   return TranslateBubbleController::From(browser)->GetTranslateBubble();
 }
 
-const TranslateBubbleModel* GetCurrentModel(BrowserWindowInterface* browser) {
+const TranslateBubbleModel* GetCurrentModel(Browser* browser) {
   DCHECK(browser);
   TranslateBubbleView* view = GetTranslateBubble(browser);
 
   return view ? view->model() : nullptr;
 }
 
-void CloseCurrentBubble(BrowserWindowInterface* browser) {
+void CloseCurrentBubble(Browser* browser) {
   DCHECK(browser);
   TranslateBubbleController* controller =
       TranslateBubbleController::From(browser);
@@ -36,7 +36,7 @@ void CloseCurrentBubble(BrowserWindowInterface* browser) {
   }
 }
 
-void PressTranslate(BrowserWindowInterface* browser) {
+void PressTranslate(Browser* browser) {
   DCHECK(browser);
   TranslateBubbleView* bubble = GetTranslateBubble(browser);
   DCHECK(bubble);
@@ -44,7 +44,7 @@ void PressTranslate(BrowserWindowInterface* browser) {
   bubble->TabSelectedAt(1);
 }
 
-void PressRevert(BrowserWindowInterface* browser) {
+void PressRevert(Browser* browser) {
   DCHECK(browser);
   TranslateBubbleView* bubble = GetTranslateBubble(browser);
   DCHECK(bubble);
@@ -52,7 +52,7 @@ void PressRevert(BrowserWindowInterface* browser) {
   bubble->TabSelectedAt(0);
 }
 
-void SelectTargetLanguageByDisplayName(BrowserWindowInterface* browser,
+void SelectTargetLanguageByDisplayName(Browser* browser,
                                        const std::u16string& display_name) {
   DCHECK(browser);
 

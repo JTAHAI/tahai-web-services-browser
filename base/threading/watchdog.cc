@@ -39,7 +39,7 @@ StaticData* GetStaticData() {
 }  // namespace
 
 // Start thread running in a Disarmed state.
-Watchdog::Watchdog(TimeDelta duration,
+Watchdog::Watchdog(const TimeDelta& duration,
                    const std::string& thread_watched_name,
                    bool enabled,
                    Delegate* delegate)
@@ -90,7 +90,7 @@ void Watchdog::Arm() {
   ArmAtStartTime(TimeTicks::Now());
 }
 
-void Watchdog::ArmSomeTimeDeltaAgo(TimeDelta time_delta) {
+void Watchdog::ArmSomeTimeDeltaAgo(const TimeDelta& time_delta) {
   ArmAtStartTime(TimeTicks::Now() - time_delta);
 }
 

@@ -32,6 +32,7 @@ void Conv(const float* source_p,
           size_t filter_size);
 
 void PrepareFilterForConv(const float* filter_p,
+                          int filter_stride,
                           size_t filter_size,
                           AudioFloatArray* prepared_filter);
 
@@ -62,15 +63,27 @@ void Vmul(base::span<const float> source1,
           base::span<float> dest);
 
 // dest[k] += scale * source[k]
-void Vsma(base::span<const float> source, float scale, base::span<float> dest);
+void Vsma(const float* source_p,
+          const float* scale,
+          float* dest_p,
+          size_t frames_to_process);
 
 // dest[k] = scale * source[k]
-void Vsmul(base::span<const float> source, float scale, base::span<float> dest);
+void Vsmul(const float* source_p,
+           const float* scale,
+           float* dest_p,
+           size_t frames_to_process);
 
 // dest[k] = addend + source[k]
-void Vsadd(base::span<const float> source,
+void Vsadd(const float* source_p,
+           const float* addend,
+           float* dest_p,
+           size_t frames_to_process);
+
+void Vsadd(const float* source_p,
            float addend,
-           base::span<float> dest);
+           float* dest_p,
+           size_t frames_to_process);
 
 // sum += sum(source[k]^2) for all k
 void Vsvesq(const float* source_p, float* sum_p, size_t frames_to_process);

@@ -194,10 +194,12 @@ IN_PROC_BROWSER_TEST_F(SubresourceFilterBrowserTest,
 class SubresourceFilterBrowserTestWithoutAdTagging
     : public SubresourceFilterBrowserTest {
  public:
-  base::flat_set<base::test::FeatureRef> GetSubresourceFilterDisabledFeatures()
-      const override {
-    return {subresource_filter::kAdTagging};
+  SubresourceFilterBrowserTestWithoutAdTagging() {
+    feature_list_.InitAndDisableFeature(subresource_filter::kAdTagging);
   }
+
+ private:
+  base::test::ScopedFeatureList feature_list_;
 };
 
 IN_PROC_BROWSER_TEST_F(SubresourceFilterBrowserTestWithoutAdTagging,
@@ -212,10 +214,12 @@ IN_PROC_BROWSER_TEST_F(SubresourceFilterBrowserTestWithoutAdTagging,
 class SubresourceFilterBrowserTestWithAdTagging
     : public SubresourceFilterBrowserTest {
  public:
-  base::flat_set<base::test::FeatureRef> GetSubresourceFilterEnabledFeatures()
-      const override {
-    return {subresource_filter::kAdTagging};
+  SubresourceFilterBrowserTestWithAdTagging() {
+    feature_list_.InitAndEnableFeature(subresource_filter::kAdTagging);
   }
+
+ private:
+  base::test::ScopedFeatureList feature_list_;
 };
 
 IN_PROC_BROWSER_TEST_F(SubresourceFilterBrowserTestWithAdTagging,

@@ -1,2 +1,4 @@
-rules:
-- a-download-click.svg: [download]
+features:
+  - name: download
+    files:
+      - 'a-download-click.svg'

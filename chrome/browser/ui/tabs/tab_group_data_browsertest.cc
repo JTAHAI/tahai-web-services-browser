@@ -4,6 +4,7 @@
 
 #include "chrome/browser/ui/tabs/tab_group_data.h"
 
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/tabs/tab_enums.h"
 #include "chrome/browser/ui/tabs/tab_group_model.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"

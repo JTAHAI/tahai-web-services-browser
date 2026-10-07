@@ -29,6 +29,8 @@ class KeyItemView : public views::View {
   ~KeyItemView() override;
 
   // views::View:
+  void AddedToWidget() override;
+  void OnBoundsChanged(const gfx::Rect& previous_bounds) override;
   void OnThemeChanged() override;
   void Layout(PassKey) override;
   gfx::Size CalculatePreferredSize(
@@ -45,7 +47,9 @@ class KeyItemView : public views::View {
   raw_ptr<views::ImageView> icon_ = nullptr;
   raw_ptr<views::Label> label_ = nullptr;
 
-  // The shadow around each key item UI component in the combo.
+  // The shadow around each key item UI component in the combo. The shadow
+  // should be `SystemShadowOnTextureLayer` as the corners are perfectly
+  // rounded.
   std::unique_ptr<SystemShadow> shadow_;
 };
 

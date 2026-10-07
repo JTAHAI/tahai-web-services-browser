@@ -16,8 +16,7 @@
 #include "ui/gfx/geometry/rounded_corners_f.h"
 #include "ui/views/controls/webview/webview.h"
 
-BrowserViewAsh::BrowserViewAsh(BrowserWindowInterface* browser)
-    : BrowserView(browser) {}
+BrowserViewAsh::BrowserViewAsh(Browser* browser) : BrowserView(browser) {}
 
 void BrowserViewAsh::Layout(PassKey) {
   LayoutSuperclass<BrowserView>(this);

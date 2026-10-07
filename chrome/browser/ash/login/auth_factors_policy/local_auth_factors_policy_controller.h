@@ -6,7 +6,6 @@
 #define CHROME_BROWSER_ASH_LOGIN_AUTH_FACTORS_POLICY_LOCAL_AUTH_FACTORS_POLICY_CONTROLLER_H_
 
 #include <memory>
-#include <string>
 
 #include "base/functional/callback_helpers.h"
 #include "base/memory/raw_ptr.h"
@@ -23,10 +22,6 @@
 class PrefChangeRegistrar;
 class PrefService;
 class Profile;
-
-namespace user_manager {
-class User;
-}
 
 namespace ash {
 
@@ -53,7 +48,7 @@ class LocalAuthFactorsPolicyController
  public:
   LocalAuthFactorsPolicyController(PrefService& local_state,
                                    Profile* profile,
-                                   const user_manager::User& user);
+                                   const AccountId& account_id);
   ~LocalAuthFactorsPolicyController() override;
 
   // Sets the callback that is called every time the pref is processed.
@@ -93,7 +88,6 @@ class LocalAuthFactorsPolicyController
   std::unique_ptr<ash::AuthFactorEditor> auth_factor_editor_;
   const raw_ptr<Profile> profile_;
   const AccountId account_id_;
-  const std::string notification_id_;
 
   mojo::Receiver<ash::auth::mojom::FactorObserver> receiver_{this};
 

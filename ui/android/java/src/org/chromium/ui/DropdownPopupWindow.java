@@ -128,9 +128,4 @@ public class DropdownPopupWindow {
     public void setFocusable(boolean focusable) {
         mPopup.setFocusable(focusable);
     }
-
-    /** Sets the list selector to transparent to prevent double ripple effects. */
-    public void setListSelectorTransparent() {
-        mPopup.setListSelectorTransparent();
-    }
 }

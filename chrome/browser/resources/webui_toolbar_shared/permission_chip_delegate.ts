@@ -8,8 +8,7 @@ export interface PermissionChipDelegate {
   onChipClicked(identifier: LhsChipIdentifier, isPointer: boolean): void;
   onChipPointerEntered(identifier: LhsChipIdentifier): void;
   onChipPointerExited(identifier: LhsChipIdentifier): void;
-  onChipMousePressed(identifier: LhsChipIdentifier, isMiddleClick?: boolean):
-      void;
+  onChipMousePressed(identifier: LhsChipIdentifier): void;
   onChipExpandAnimationEnded(identifier: LhsChipIdentifier): void;
   onChipCollapseAnimationEnded(identifier: LhsChipIdentifier): void;
 }

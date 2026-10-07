@@ -40,6 +40,16 @@ export class CrTextareaElement extends PolymerElement {
   static get properties() {
     return {
       /**
+       * Whether the text area should automatically get focus when the page
+       * loads.
+       */
+      autofocus: {
+        type: Boolean,
+        value: false,
+        reflectToAttribute: true,
+      },
+
+      /**
        * Whether the text area is disabled. When disabled, the text area loses
        * focus and is not reachable by tabbing.
        */
@@ -144,6 +154,7 @@ export class CrTextareaElement extends PolymerElement {
     };
   }
 
+  declare autofocus: boolean;
   declare disabled: boolean;
   declare readonly: boolean;
   declare required: boolean;
@@ -167,12 +178,12 @@ export class CrTextareaElement extends PolymerElement {
    * This function helps propagate it to host since change events don't
    * propagate across Shadow DOM boundary by default.
    */
-  protected onInputChange_(e: Event) {
+  private onInputChange_(e: Event) {
     this.dispatchEvent(new CustomEvent(
         'change', {bubbles: true, composed: true, detail: {sourceEvent: e}}));
   }
 
-  protected calculateMirror_(): string {
+  private calculateMirror_(): string {
     if (!this.autogrow) {
       return '';
     }
@@ -186,7 +197,7 @@ export class CrTextareaElement extends PolymerElement {
     return tokens.join('\n') + '&nbsp;';
   }
 
-  protected onInputFocusChange_() {
+  private onInputFocusChange_() {
     // focused_ is used instead of :focus-within, so focus on elements within
     // the suffix slot does not trigger a change in input styles.
     if (this.shadowRoot!.activeElement === this.$.input) {
@@ -196,11 +207,11 @@ export class CrTextareaElement extends PolymerElement {
     }
   }
 
-  protected onDisabledChanged_() {
+  private onDisabledChanged_() {
     this.setAttribute('aria-disabled', this.disabled ? 'true' : 'false');
   }
 
-  protected getFooterAria_(): string {
+  private getFooterAria_(): string {
     return this.invalid ? 'assertive' : 'polite';
   }
 }

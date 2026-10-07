@@ -9,6 +9,7 @@
 
 #import "ios/chrome/browser/autofill/manual_fill/model/full_card_request_result_delegate_bridge.h"
 
+@protocol BrowserCoordinatorCommands;
 namespace autofill {
 class CreditCard;
 class PersonalDataManager;
@@ -21,6 +22,7 @@ class WebState;
 @protocol ManualFillContentInjector;
 @protocol ManualFillCardConsumer;
 @protocol CardListDelegate;
+@class ReauthenticationModule;
 
 // Object in charge of getting the cards relevant for the manual fill
 // cards UI.
@@ -40,6 +42,8 @@ class WebState;
 // The designated initializer. `personalDataManager` must not be nil.
 - (instancetype)initWithPersonalDataManager:
                     (autofill::PersonalDataManager*)personalDataManager
+                     reauthenticationModule:
+                         (ReauthenticationModule*)reauthenticationModule
                      showAutofillFormButton:(BOOL)showAutofillFormButton
                                    webState:(web::WebState*)webState
     NS_DESIGNATED_INITIALIZER;

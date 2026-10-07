@@ -9,20 +9,21 @@ import type {PresentationMenuElement} from 'chrome-untrusted://read-anything-sid
 import {assertEquals, assertFalse, assertTrue} from 'chrome-untrusted://webui-test/chai_assert.js';
 import {eventToPromise} from 'chrome-untrusted://webui-test/test_util.js';
 
-import {assertCheckMarksForDropdown, setupTestEnvironment, stubAnimationFrame} from './common.js';
-import type {TestVisualBrowserProxy} from './test_visual_browser_proxy.js';
+import {assertCheckMarksForDropdown, stubAnimationFrame} from './common.js';
+import {FakeReadingMode} from './fake_reading_mode.js';
 
 suite('PresentationMenuElement', () => {
   let presentationMenu: PresentationMenuElement;
-  let visualBrowserProxy: TestVisualBrowserProxy;
 
   setup(() => {
-    const result = setupTestEnvironment();
-    visualBrowserProxy = result.visualBrowserProxy;
+    // Clearing the DOM should always be done first.
+    document.body.innerHTML = window.trustedTypes!.emptyHTML;
+    const readingMode = new FakeReadingMode();
+    chrome.readingMode = readingMode as unknown as typeof chrome.readingMode;
 
     presentationMenu = document.createElement('presentation-menu');
     presentationMenu.presentationState =
-        visualBrowserProxy.getInImmersiveOverlayPresentationState();
+        chrome.readingMode.inImmersiveOverlayPresentationState;
     document.body.appendChild(presentationMenu);
   });
 
@@ -30,26 +31,33 @@ suite('PresentationMenuElement', () => {
     assertCheckMarksForDropdown(presentationMenu);
   });
 
+
+
   test('presentation change', async () => {
-    const sidePanelState = visualBrowserProxy.getInSidePanelPresentationState();
+    const sidePanelState = chrome.readingMode.inSidePanelPresentationState;
     const immersiveState =
-        visualBrowserProxy.getInImmersiveOverlayPresentationState();
+        chrome.readingMode.inImmersiveOverlayPresentationState;
+    chrome.readingMode.togglePresentation = () => {
+      if (presentationMenu.presentationState === sidePanelState) {
+        presentationMenu.presentationState = immersiveState;
+      } else if (presentationMenu.presentationState === immersiveState) {
+        presentationMenu.presentationState = sidePanelState;
+      }
+    };
 
     const closeAllMenusPromise1 =
-        eventToPromise(ToolbarEvent.CLOSE_ALL_MENUS, document);
+    eventToPromise(ToolbarEvent.CLOSE_ALL_MENUS, document);
     presentationMenu.$.menu.dispatchEvent(new CustomEvent(
         ToolbarEvent.PRESENTATION_CHANGE, {detail: {data: sidePanelState}}));
     await closeAllMenusPromise1;
-    assertEquals(1, visualBrowserProxy.getCallCount('togglePresentation'));
-
-    presentationMenu.presentationState = sidePanelState;
+    assertEquals(sidePanelState, presentationMenu.presentationState);
 
     const closeAllMenusPromise2 =
-        eventToPromise(ToolbarEvent.CLOSE_ALL_MENUS, document);
+    eventToPromise(ToolbarEvent.CLOSE_ALL_MENUS, document);
     presentationMenu.$.menu.dispatchEvent(new CustomEvent(
         ToolbarEvent.PRESENTATION_CHANGE, {detail: {data: immersiveState}}));
     await closeAllMenusPromise2;
-    assertEquals(2, visualBrowserProxy.getCallCount('togglePresentation'));
+    assertEquals(immersiveState, presentationMenu.presentationState);
   });
 
   test('can be closed programatically', () => {

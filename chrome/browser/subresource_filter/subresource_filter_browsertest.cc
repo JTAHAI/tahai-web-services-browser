@@ -100,19 +100,18 @@ constexpr const char kBlinkDisallowChildFrameConsoleMessageFormat[] =
 
 // Tests -----------------------------------------------------------------------
 
-IN_PROC_BROWSER_TEST_P(SubresourceFilterListInsertingBrowserTestWithV4V5Param,
-                       MainFrameActivationWithEnforcement_BetterAdsList) {
+IN_PROC_BROWSER_TEST_F(SubresourceFilterListInsertingBrowserTest,
+                       MainFrameActivation_SubresourceFilterList) {
   content::WebContentsConsoleObserver console_observer(web_contents());
   console_observer.SetPattern(kActivationConsoleMessage);
   GURL url(GetTestUrl("subresource_filter/frame_with_included_script.html"));
-  ConfigureURLWithEnforcement(url,
-                              safe_browsing::SubresourceFilterType::BETTER_ADS);
+  ConfigureAsSubresourceFilterOnlyURL(url);
   ASSERT_NO_FATAL_FAILURE(SetRulesetToDisallowURLsWithPathSuffix(
       "suffix-that-does-not-match-anything"));
 
   Configuration config(subresource_filter::mojom::ActivationLevel::kEnabled,
                        subresource_filter::ActivationScope::ACTIVATION_LIST,
-                       subresource_filter::ActivationList::BETTER_ADS);
+                       subresource_filter::ActivationList::SUBRESOURCE_FILTER);
   ResetConfiguration(std::move(config));
 
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), url));
@@ -134,13 +133,13 @@ IN_PROC_BROWSER_TEST_P(SubresourceFilterListInsertingBrowserTestWithV4V5Param,
       WasParsedScriptElementLoaded(web_contents()->GetPrimaryMainFrame()));
 }
 
-IN_PROC_BROWSER_TEST_P(SubresourceFilterListInsertingBrowserTestWithV4V5Param,
+IN_PROC_BROWSER_TEST_F(SubresourceFilterListInsertingBrowserTest,
                        MainFrameActivationWithWarning_BetterAdsList) {
   content::WebContentsConsoleObserver console_observer(web_contents());
   console_observer.SetPattern("*show ads*");
   GURL url(GetTestUrl("subresource_filter/frame_with_included_script.html"));
   ConfigureURLWithWarning(url,
-                          safe_browsing::SubresourceFilterType::BETTER_ADS);
+                          {safe_browsing::SubresourceFilterType::BETTER_ADS});
   ASSERT_NO_FATAL_FAILURE(SetRulesetToDisallowURLsWithPathSuffix(
       "suffix-that-does-not-match-anything"));
 
@@ -167,9 +166,9 @@ IN_PROC_BROWSER_TEST_P(SubresourceFilterListInsertingBrowserTestWithV4V5Param,
             console_observer.GetMessageAt(1u));
 }
 
-IN_PROC_BROWSER_TEST_P(
-    SubresourceFilterListInsertingBrowserTestWithV4V5Param,
-    ExpectRedirectPatternHistogramsAreRecordedForBetterAdsRedirectMatch) {
+IN_PROC_BROWSER_TEST_F(
+    SubresourceFilterListInsertingBrowserTest,
+    ExpectRedirectPatternHistogramsAreRecordedForSubresourceFilterOnlyRedirectMatch) {
   ASSERT_NO_FATAL_FAILURE(
       SetRulesetToDisallowURLsWithPathSuffix("included_script.js"));
   const std::string initial_host("a.com");
@@ -180,21 +179,16 @@ IN_PROC_BROWSER_TEST_P(
   GURL url(embedded_test_server()->GetURL(
       initial_host, "/server-redirect?" + redirect_url.spec()));
 
-  ConfigureURLWithEnforcement(url.DeprecatedGetOriginAsURL(),
-                              safe_browsing::SubresourceFilterType::BETTER_ADS);
+  ConfigureAsSubresourceFilterOnlyURL(url.DeprecatedGetOriginAsURL());
   base::HistogramTester tester;
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), url));
   tester.ExpectUniqueSample(kActivationListHistogram,
                             static_cast<int>(ActivationList::NONE), 1);
 }
 
-INSTANTIATE_TEST_SUITE_P(All,
-                         SubresourceFilterListInsertingBrowserTestWithV4V5Param,
-                         ::testing::Bool());
-
 // Normally, the subresource filter list is only sync'd in chrome branded
 // builds.
-IN_PROC_BROWSER_TEST_P(SubresourceFilterBrowserTestWithV4V5Param,
+IN_PROC_BROWSER_TEST_F(SubresourceFilterBrowserTest,
                        SubresourceFilterListNeedsBranding) {
   bool has_list = database_helper()->HasListSynced(
       safe_browsing::GetUrlSubresourceFilterId());
@@ -205,8 +199,7 @@ IN_PROC_BROWSER_TEST_P(SubresourceFilterBrowserTestWithV4V5Param,
 #endif
 }
 
-IN_PROC_BROWSER_TEST_P(SubresourceFilterBrowserTestWithV4V5Param,
-                       MainFrameActivation) {
+IN_PROC_BROWSER_TEST_F(SubresourceFilterBrowserTest, MainFrameActivation) {
   content::WebContentsConsoleObserver console_observer(web_contents());
   console_observer.SetPattern(kActivationConsoleMessage);
   GURL url(GetTestUrl("subresource_filter/frame_with_included_script.html"));
@@ -234,7 +227,7 @@ IN_PROC_BROWSER_TEST_P(SubresourceFilterBrowserTestWithV4V5Param,
 
 // There should be no document-level de-/reactivation happening on the renderer
 // side as a result of a same document navigation.
-IN_PROC_BROWSER_TEST_P(SubresourceFilterBrowserTestWithV4V5Param,
+IN_PROC_BROWSER_TEST_F(SubresourceFilterBrowserTest,
                        DocumentActivationOutlivesSameDocumentNavigation) {
   GURL url(GetTestUrl("subresource_filter/frame_with_delayed_script.html"));
   ConfigureAsPhishingURL(url);
@@ -254,8 +247,7 @@ IN_PROC_BROWSER_TEST_P(SubresourceFilterBrowserTestWithV4V5Param,
       IsDynamicScriptElementLoaded(web_contents()->GetPrimaryMainFrame()));
 }
 
-IN_PROC_BROWSER_TEST_P(SubresourceFilterBrowserTestWithV4V5Param,
-                       SubFrameActivation) {
+IN_PROC_BROWSER_TEST_F(SubresourceFilterBrowserTest, SubFrameActivation) {
   std::string message_filter =
       base::StringPrintf(kBlinkDisallowChildFrameConsoleMessageFormat, "*");
   content::WebContentsConsoleObserver console_observer(web_contents());
@@ -284,7 +276,7 @@ IN_PROC_BROWSER_TEST_P(SubresourceFilterBrowserTestWithV4V5Param,
                          "*included_script.js")));
 }
 
-IN_PROC_BROWSER_TEST_P(SubresourceFilterBrowserTestWithV4V5Param,
+IN_PROC_BROWSER_TEST_F(SubresourceFilterBrowserTest,
                        ActivationDisabled_NoConsoleMessage) {
   std::string message_filter =
       base::StringPrintf(kBlinkDisallowChildFrameConsoleMessageFormat, "*");
@@ -308,7 +300,7 @@ IN_PROC_BROWSER_TEST_P(SubresourceFilterBrowserTestWithV4V5Param,
   EXPECT_TRUE(console_observer.messages().empty());
 }
 
-IN_PROC_BROWSER_TEST_P(SubresourceFilterBrowserTestWithV4V5Param,
+IN_PROC_BROWSER_TEST_F(SubresourceFilterBrowserTest,
                        ActivationDryRun_NoConsoleMessage) {
   std::string message_filter =
       base::StringPrintf(kBlinkDisallowChildFrameConsoleMessageFormat, "*");
@@ -332,7 +324,7 @@ IN_PROC_BROWSER_TEST_P(SubresourceFilterBrowserTestWithV4V5Param,
   EXPECT_TRUE(console_observer.messages().empty());
 }
 
-IN_PROC_BROWSER_TEST_P(SubresourceFilterBrowserTestWithV4V5Param,
+IN_PROC_BROWSER_TEST_F(SubresourceFilterBrowserTest,
                        SubframeDocumentLoadFiltering) {
   base::HistogramTester histogram_tester;
   GURL url(GetTestUrl(kTestFrameSetPath));
@@ -391,15 +383,11 @@ IN_PROC_BROWSER_TEST_P(SubresourceFilterBrowserTestWithV4V5Param,
 
   content::RenderFrameHost* frame = FindFrameByName(kSubframeNames[0]);
   ASSERT_TRUE(frame);
-  // We expect the URL to be sanitized, per https://crbug.com/517156678.
-  // TODO(crbug.com/40134629): Remove the sanitization once Subframe Error Page
-  // Isolation ships.
-  EXPECT_EQ(disallowed_subdocument_url.DeprecatedGetOriginAsURL(),
-            frame->GetLastCommittedURL());
+  EXPECT_EQ(disallowed_subdocument_url, frame->GetLastCommittedURL());
   ExpectFramesIncludedInLayout(kSubframeNames, kExpectOnlySecondSubframe);
 }
 
-IN_PROC_BROWSER_TEST_P(SubresourceFilterBrowserTestWithV4V5Param,
+IN_PROC_BROWSER_TEST_F(SubresourceFilterBrowserTest,
                        HistoryNavigationActivation) {
   content::WebContentsConsoleObserver console_observer(web_contents());
   console_observer.SetPattern(kActivationConsoleMessage);
@@ -445,7 +433,7 @@ IN_PROC_BROWSER_TEST_P(SubresourceFilterBrowserTestWithV4V5Param,
       kSubframeNames, kExpectScriptInFrameToLoadWithActivation));
 }
 
-IN_PROC_BROWSER_TEST_P(SubresourceFilterBrowserTestWithV4V5Param,
+IN_PROC_BROWSER_TEST_F(SubresourceFilterBrowserTest,
                        FailedProvisionalLoadInMainframe) {
   GURL url_with_activation_but_dns_error(
       "http://host-with-dns-lookup-failure/");
@@ -476,7 +464,7 @@ IN_PROC_BROWSER_TEST_P(SubresourceFilterBrowserTestWithV4V5Param,
 // The page-level activation state on the browser-side should not be reset when
 // a same document navigation starts in the root frame. Verify this by
 // dynamically inserting a subframe afterwards, and still expecting activation.
-IN_PROC_BROWSER_TEST_P(SubresourceFilterBrowserTestWithV4V5Param,
+IN_PROC_BROWSER_TEST_F(SubresourceFilterBrowserTest,
                        PageLevelActivationOutlivesSameDocumentNavigation) {
   content::WebContentsConsoleObserver console_observer(web_contents());
   console_observer.SetPattern(kActivationConsoleMessage);
@@ -502,7 +490,7 @@ IN_PROC_BROWSER_TEST_P(SubresourceFilterBrowserTestWithV4V5Param,
 
 // If a navigation starts but aborts before commit, page level activation should
 // remain unchanged.
-IN_PROC_BROWSER_TEST_P(SubresourceFilterBrowserTestWithV4V5Param,
+IN_PROC_BROWSER_TEST_F(SubresourceFilterBrowserTest,
                        PageLevelActivationOutlivesAbortedNavigation) {
   GURL url(GetTestUrl(kTestFrameSetPath));
   ConfigureAsPhishingURL(url);
@@ -534,8 +522,7 @@ IN_PROC_BROWSER_TEST_P(SubresourceFilterBrowserTestWithV4V5Param,
   EXPECT_FALSE(WasParsedScriptElementLoaded(dynamic_frame));
 }
 
-IN_PROC_BROWSER_TEST_P(SubresourceFilterBrowserTestWithV4V5Param,
-                       DynamicFrame) {
+IN_PROC_BROWSER_TEST_F(SubresourceFilterBrowserTest, DynamicFrame) {
   GURL url(GetTestUrl("subresource_filter/frame_set.html"));
   ConfigureAsPhishingURL(url);
   ASSERT_NO_FATAL_FAILURE(
@@ -548,12 +535,12 @@ IN_PROC_BROWSER_TEST_P(SubresourceFilterBrowserTestWithV4V5Param,
   EXPECT_FALSE(WasParsedScriptElementLoaded(dynamic_frame));
 }
 
-IN_PROC_BROWSER_TEST_P(SubresourceFilterBrowserTestWithV4V5Param,
+IN_PROC_BROWSER_TEST_F(SubresourceFilterBrowserTest,
                        PRE_MainFrameActivationOnStartup) {
   SetRulesetToDisallowURLsWithPathSuffix("included_script.js");
 }
 
-IN_PROC_BROWSER_TEST_P(SubresourceFilterBrowserTestWithV4V5Param,
+IN_PROC_BROWSER_TEST_F(SubresourceFilterBrowserTest,
                        MainFrameActivationOnStartup) {
   GURL url(GetTestUrl("subresource_filter/frame_with_included_script.html"));
   ConfigureAsPhishingURL(url);
@@ -564,7 +551,7 @@ IN_PROC_BROWSER_TEST_P(SubresourceFilterBrowserTestWithV4V5Param,
       WasParsedScriptElementLoaded(web_contents()->GetPrimaryMainFrame()));
 }
 
-IN_PROC_BROWSER_TEST_P(SubresourceFilterBrowserTestWithV4V5Param,
+IN_PROC_BROWSER_TEST_F(SubresourceFilterBrowserTest,
                        PromptShownAgainOnNextNavigation) {
   ASSERT_NO_FATAL_FAILURE(
       SetRulesetToDisallowURLsWithPathSuffix("included_script.js"));
@@ -591,7 +578,7 @@ IN_PROC_BROWSER_TEST_P(SubresourceFilterBrowserTestWithV4V5Param,
       subresource_filter::SubresourceFilterAction::kUIShown, 2);
 }
 
-IN_PROC_BROWSER_TEST_P(SubresourceFilterBrowserTestWithV4V5Param,
+IN_PROC_BROWSER_TEST_F(SubresourceFilterBrowserTest,
                        CrossSiteSubFrameActivationWithoutAllowlist) {
   GURL a_url(embedded_test_server()->GetURL(
       "a.com", "/subresource_filter/frame_cross_site_set.html"));
@@ -603,7 +590,7 @@ IN_PROC_BROWSER_TEST_P(SubresourceFilterBrowserTestWithV4V5Param,
       std::vector<const char*>{"b", "c", "d"}, {false, false, false});
 }
 
-IN_PROC_BROWSER_TEST_P(SubresourceFilterBrowserTestWithV4V5Param,
+IN_PROC_BROWSER_TEST_F(SubresourceFilterBrowserTest,
                        CrossSiteSubFrameActivationWithAllowlist) {
   GURL a_url(embedded_test_server()->GetURL(
       "a.com", "/subresource_filter/frame_cross_site_set.html"));
@@ -654,7 +641,7 @@ IN_PROC_BROWSER_TEST_F(SubresourceFilterBrowserTest,
 
 // Test that resources in frames with an aborted initial load due to a doc.write
 // are still disallowed.
-IN_PROC_BROWSER_TEST_P(SubresourceFilterBrowserTestWithV4V5Param,
+IN_PROC_BROWSER_TEST_F(SubresourceFilterBrowserTest,
                        FrameWithDocWriteAbortedLoad_ResourceStillDisallowed) {
   ASSERT_NO_FATAL_FAILURE(
       SetRulesetWithRules({testing::CreateSuffixRule("ad=true")}));
@@ -679,7 +666,7 @@ IN_PROC_BROWSER_TEST_P(SubresourceFilterBrowserTestWithV4V5Param,
 
 // Test that resources in frames with an aborted initial load due to a
 // window.stop are still disallowed.
-IN_PROC_BROWSER_TEST_P(SubresourceFilterBrowserTestWithV4V5Param,
+IN_PROC_BROWSER_TEST_F(SubresourceFilterBrowserTest,
                        FrameWithWindowStopAbortedLoad_ResourceStillDisallowed) {
   ASSERT_NO_FATAL_FAILURE(
       SetRulesetWithRules({testing::CreateSuffixRule("ad=true")}));
@@ -704,7 +691,7 @@ IN_PROC_BROWSER_TEST_P(SubresourceFilterBrowserTestWithV4V5Param,
 
 // Test that a frame with an aborted initial load due to a frame deletion does
 // not cause a crash.
-IN_PROC_BROWSER_TEST_P(SubresourceFilterBrowserTestWithV4V5Param,
+IN_PROC_BROWSER_TEST_F(SubresourceFilterBrowserTest,
                        FrameDeletedDuringLoad_DoesNotCrash) {
   // Watches for title set by end of frame deletion script.
   content::TitleWatcher title_watcher(web_contents(), u"done");
@@ -718,8 +705,8 @@ IN_PROC_BROWSER_TEST_P(SubresourceFilterBrowserTestWithV4V5Param,
 
 // Test that an allowed resource in the child of a frame with its initial load
 // aborted due to a doc.write is not blocked.
-IN_PROC_BROWSER_TEST_P(
-    SubresourceFilterBrowserTestWithV4V5Param,
+IN_PROC_BROWSER_TEST_F(
+    SubresourceFilterBrowserTest,
     ChildOfFrameWithAbortedLoadLoadsAllowedResource_ResourceLoaded) {
   ASSERT_NO_FATAL_FAILURE(
       SetRulesetWithRules({testing::CreateSuffixRule("ad=true")}));
@@ -758,8 +745,8 @@ IN_PROC_BROWSER_TEST_P(
 
 // Test that a disallowed resource in the child of a frame with its initial load
 // aborted due to a doc.write is blocked.
-IN_PROC_BROWSER_TEST_P(
-    SubresourceFilterBrowserTestWithV4V5Param,
+IN_PROC_BROWSER_TEST_F(
+    SubresourceFilterBrowserTest,
     ChildOfFrameWithAbortedLoadLoadsDisallowedResource_ResourceBlocked) {
   ASSERT_NO_FATAL_FAILURE(
       SetRulesetWithRules({testing::CreateSuffixRule("ad=true")}));
@@ -796,7 +783,7 @@ IN_PROC_BROWSER_TEST_P(
   EXPECT_EQ(u"failed", title_watcher.WaitAndGetTitle());
 }
 
-IN_PROC_BROWSER_TEST_P(SubresourceFilterBrowserTestWithV4V5Param,
+IN_PROC_BROWSER_TEST_F(SubresourceFilterBrowserTest,
                        PopupsInheritActivation_ResourcesBlocked) {
   ASSERT_NO_FATAL_FAILURE(
       SetRulesetWithRules({testing::CreateSuffixRule("ad=true")}));
@@ -850,7 +837,7 @@ IN_PROC_BROWSER_TEST_P(SubresourceFilterBrowserTestWithV4V5Param,
   }
 }
 
-IN_PROC_BROWSER_TEST_P(SubresourceFilterBrowserTestWithV4V5Param,
+IN_PROC_BROWSER_TEST_F(SubresourceFilterBrowserTest,
                        PopupNavigatesBackToAboutBlank_FilterChecked) {
   const GURL kInitialPopupUrl =
       embedded_test_server()->GetURL("b.com", "/title2.html");
@@ -948,8 +935,8 @@ IN_PROC_BROWSER_TEST_P(SubresourceFilterBrowserTestWithV4V5Param,
 // doc.write are still blocked when disallowed, even if the opener is
 // immediately closed after writing.
 // TODO(alexmt): Fix test flakiness and then reenable.
-IN_PROC_BROWSER_TEST_P(
-    SubresourceFilterBrowserTestWithV4V5Param,
+IN_PROC_BROWSER_TEST_F(
+    SubresourceFilterBrowserTest,
     DISABLED_PopupWithDocWriteAbortedLoadAndOpenerClosed_FilterChecked) {
   ASSERT_NO_FATAL_FAILURE(
       SetRulesetWithRules({testing::CreateSuffixRule("ad_script.js"),
@@ -1008,23 +995,19 @@ void ExpectHistogramsAreRecordedForTestFrameSet(
 
   // The following histograms are generated on the browser side.
   tester.ExpectUniqueSample(
-      SubresourceFilterBrowserTestWithV4V5Param::kSubresourceLoadsTotalForPage,
-      6, 1);
-  tester.ExpectUniqueSample(SubresourceFilterBrowserTestWithV4V5Param::
-                                kSubresourceLoadsEvaluatedForPage,
-                            6, 1);
-  tester.ExpectUniqueSample(SubresourceFilterBrowserTestWithV4V5Param::
-                                kSubresourceLoadsMatchedRulesForPage,
-                            4, 1);
-  tester.ExpectUniqueSample(SubresourceFilterBrowserTestWithV4V5Param::
-                                kSubresourceLoadsDisallowedForPage,
-                            4, 1);
-  tester.ExpectTotalCount(SubresourceFilterBrowserTestWithV4V5Param::
-                              kEvaluationTotalWallDurationForPage,
-                          time_recorded);
-  tester.ExpectTotalCount(SubresourceFilterBrowserTestWithV4V5Param::
-                              kEvaluationTotalCPUDurationForPage,
-                          time_recorded);
+      SubresourceFilterBrowserTest::kSubresourceLoadsTotalForPage, 6, 1);
+  tester.ExpectUniqueSample(
+      SubresourceFilterBrowserTest::kSubresourceLoadsEvaluatedForPage, 6, 1);
+  tester.ExpectUniqueSample(
+      SubresourceFilterBrowserTest::kSubresourceLoadsMatchedRulesForPage, 4, 1);
+  tester.ExpectUniqueSample(
+      SubresourceFilterBrowserTest::kSubresourceLoadsDisallowedForPage, 4, 1);
+  tester.ExpectTotalCount(
+      SubresourceFilterBrowserTest::kEvaluationTotalWallDurationForPage,
+      time_recorded);
+  tester.ExpectTotalCount(
+      SubresourceFilterBrowserTest::kEvaluationTotalCPUDurationForPage,
+      time_recorded);
 
   // The rest is produced by renderers, therefore needs to be merged here.
   content::FetchHistogramsFromChildProcesses();
@@ -1032,12 +1015,10 @@ void ExpectHistogramsAreRecordedForTestFrameSet(
 
   // 5 subframes, each with an include.js, plus a top level include.js.
   int num_subresource_checks = 5 + 5 + 1;
-  tester.ExpectTotalCount(
-      SubresourceFilterBrowserTestWithV4V5Param::kEvaluationWallDuration,
-      time_recorded ? num_subresource_checks : 0);
-  tester.ExpectTotalCount(
-      SubresourceFilterBrowserTestWithV4V5Param::kEvaluationCPUDuration,
-      time_recorded ? num_subresource_checks : 0);
+  tester.ExpectTotalCount(SubresourceFilterBrowserTest::kEvaluationWallDuration,
+                          time_recorded ? num_subresource_checks : 0);
+  tester.ExpectTotalCount(SubresourceFilterBrowserTest::kEvaluationCPUDuration,
+                          time_recorded ? num_subresource_checks : 0);
 }
 
 }  // namespace
@@ -1050,7 +1031,7 @@ void ExpectHistogramsAreRecordedForTestFrameSet(
 #define MAYBE_ExpectPerformanceHistogramsAreRecorded \
   ExpectPerformanceHistogramsAreRecorded
 #endif
-IN_PROC_BROWSER_TEST_P(SubresourceFilterBrowserTestWithV4V5Param,
+IN_PROC_BROWSER_TEST_F(SubresourceFilterBrowserTest,
                        MAYBE_ExpectPerformanceHistogramsAreRecorded) {
   ASSERT_NO_FATAL_FAILURE(
       SetRulesetToDisallowURLsWithPathSuffix("included_script.js"));
@@ -1065,19 +1046,20 @@ IN_PROC_BROWSER_TEST_P(SubresourceFilterBrowserTestWithV4V5Param,
       tester, true /* expect_performance_measurements */);
 }
 
-class SubresourceFilterBrowserTestWithV4V5ParamWithoutAdTagging
-    : public SubresourceFilterBrowserTestWithV4V5Param {
+class SubresourceFilterBrowserTestWithoutAdTagging
+    : public SubresourceFilterBrowserTest {
  public:
-  base::flat_set<base::test::FeatureRef> GetSubresourceFilterDisabledFeatures()
-      const override {
-    return {kAdTagging};
+  SubresourceFilterBrowserTestWithoutAdTagging() {
+    feature_list_.InitAndDisableFeature(kAdTagging);
   }
+
+ private:
+  base::test::ScopedFeatureList feature_list_;
 };
 
 // This test only makes sense when AdTagging is disabled.
-IN_PROC_BROWSER_TEST_P(
-    SubresourceFilterBrowserTestWithV4V5ParamWithoutAdTagging,
-    ExpectHistogramsNotRecordedWhenFilteringNotActivated) {
+IN_PROC_BROWSER_TEST_F(SubresourceFilterBrowserTestWithoutAdTagging,
+                       ExpectHistogramsNotRecordedWhenFilteringNotActivated) {
   ASSERT_NO_FATAL_FAILURE(SetRulesetToDisallowURLsWithPathSuffix(
       "suffix-that-does-not-match-anything"));
   ResetConfigurationToEnableOnPhishingSites(true /* measure_performance */);
@@ -1107,12 +1089,7 @@ IN_PROC_BROWSER_TEST_P(
   // Although SubresourceFilterAgents still record the activation decision.
 }
 
-INSTANTIATE_TEST_SUITE_P(
-    All,
-    SubresourceFilterBrowserTestWithV4V5ParamWithoutAdTagging,
-    ::testing::Bool());
-
-IN_PROC_BROWSER_TEST_P(SubresourceFilterBrowserTestWithV4V5Param,
+IN_PROC_BROWSER_TEST_F(SubresourceFilterBrowserTest,
                        ActivationEnabledOnReload) {
   GURL url(GetTestUrl("subresource_filter/frame_with_included_script.html"));
   ConfigureAsPhishingURL(url);
@@ -1149,7 +1126,7 @@ IN_PROC_BROWSER_TEST_P(SubresourceFilterBrowserTestWithV4V5Param,
 // navigation we destroy the handle if it is "no longer in use". Since a corrupt
 // or invalid ruleset will never be "in use" (i.e. activate any frame), we
 // destroy the handle after every navigation / frame destruction.
-IN_PROC_BROWSER_TEST_P(SubresourceFilterBrowserTestWithV4V5Param,
+IN_PROC_BROWSER_TEST_F(SubresourceFilterBrowserTest,
                        NewRulesetSameTab_ActivatesSuccessfully) {
   GURL a_url(embedded_test_server()->GetURL(
       "a.com", "/subresource_filter/frame_cross_site_set.html"));
@@ -1168,7 +1145,7 @@ IN_PROC_BROWSER_TEST_P(SubresourceFilterBrowserTestWithV4V5Param,
 // Perform a hash change before the initial URL of a frame is navigated. Ensure
 // we don't trip any CHECKs (crbug.com/40193093) and that filtering works as
 // expected.
-IN_PROC_BROWSER_TEST_P(SubresourceFilterBrowserTestWithV4V5Param,
+IN_PROC_BROWSER_TEST_F(SubresourceFilterBrowserTest,
                        SameDocumentBeforeInitialNavigation) {
   const GURL kInitialUrl = embedded_test_server()->GetURL("/title1.html");
   const GURL kFrameUrl(
@@ -1215,9 +1192,4 @@ IN_PROC_BROWSER_TEST_P(SubresourceFilterBrowserTestWithV4V5Param,
   // Ensure the included_script.js script was filtered.
   EXPECT_FALSE(WasParsedScriptElementLoaded(child_rfh));
 }
-
-INSTANTIATE_TEST_SUITE_P(All,
-                         SubresourceFilterBrowserTestWithV4V5Param,
-                         ::testing::Bool());
-
 }  // namespace subresource_filter

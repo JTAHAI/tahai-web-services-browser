@@ -545,7 +545,6 @@ ViewTransitionStyleTracker::ViewTransitionStyleTracker(
     InvalidateHitTestingCache();
     InvalidateStyleAndCompositing();
     view_transition_names_.clear();
-    scope_tag_ = g_null_atom;
   }
 }
 
@@ -1369,7 +1368,6 @@ void ViewTransitionStyleTracker::EndTransition() {
   pending_transition_element_names_.clear();
   set_element_sequence_id_ = 0;
   view_transition_names_.clear();
-  scope_tag_ = g_null_atom;
   is_root_transitioning_ = false;
 }
 
@@ -1484,22 +1482,14 @@ PseudoElement* ViewTransitionStyleTracker::CreatePseudoElement(
 bool ViewTransitionStyleTracker::RunPostPrePaintSteps() {
   DCHECK_GE(document_->Lifecycle().GetState(),
             DocumentLifecycle::kPrePaintClean);
-  CHECK_NE(state_, State::kFinished);
-
   // Abort if the originating element is not there.
   Element* scope = OriginatingElement();
   if (!scope) {
     return false;
   }
 
-  const LayoutObject* layout_object = scope->GetLayoutObject();
-  bool is_element_scoped = element_ && element_ != document_->documentElement();
-  bool has_valid_layout =
-      is_element_scoped
-          ? (layout_object && layout_object->ShouldApplyLayoutContainment())
-          : IsA<LayoutBox>(layout_object);
-  if (!has_valid_layout) {
-    // If we have any view transition elements, while not having a valid layout
+  if (!DynamicTo<LayoutBox>(scope->GetLayoutObject())) {
+    // If we have any view transition elements, while not having a layout box
     // for the scoped element, we should abort. Target elements are only set
     // on the current phase of the animation, so it means that the scope's
     // layout object changed in this phase.

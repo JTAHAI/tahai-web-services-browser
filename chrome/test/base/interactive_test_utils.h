@@ -19,6 +19,7 @@
 #include "ui/gfx/native_ui_types.h"
 #include "ui/views/widget/widget_observer.h"
 
+class Browser;
 class BrowserWindowInterface;
 
 namespace display {
@@ -74,10 +75,10 @@ bool IsViewFocused(const BrowserWindowInterface* browser, ViewID vid);
 
 // Simulates a mouse click on a View in the browser.
 void ClickOnView(views::View* view);
-void ClickOnView(const BrowserWindowInterface* browser, ViewID vid);
+void ClickOnView(const Browser* browser, ViewID vid);
 
 // Makes focus shift to the given View without clicking it.
-void FocusView(const BrowserWindowInterface* browser, ViewID vid);
+void FocusView(const Browser* browser, ViewID vid);
 
 // A collection of utilities that are used from interactive_ui_tests. These are
 // separated from ui_test_utils.h to ensure that browser_tests don't use them,
@@ -153,12 +154,8 @@ gfx::Point GetCenterInScreenCoordinates(const views::View* view);
 
 // Blocks until the given view is focused (or not focused, depending on
 // |focused|). Returns immediately if the state is already correct.
-void WaitForViewFocus(BrowserWindowInterface* browser,
-                      ViewID vid,
-                      bool focused);
-void WaitForViewFocus(BrowserWindowInterface* browser,
-                      views::View* view,
-                      bool focused);
+void WaitForViewFocus(Browser* browser, ViewID vid, bool focused);
+void WaitForViewFocus(Browser* browser, views::View* view, bool focused);
 #endif
 
 #if BUILDFLAG(IS_MAC)

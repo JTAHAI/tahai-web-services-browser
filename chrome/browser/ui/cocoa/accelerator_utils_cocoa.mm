@@ -51,7 +51,6 @@ bool IsChromeAccelerator(const ui::Accelerator& accelerator) {
   return CommandForKeyEvent(event).found();
 }
 
-ui::AcceleratorProvider* AcceleratorProviderForBrowser(
-    BrowserWindowInterface* browser) {
+ui::AcceleratorProvider* AcceleratorProviderForBrowser(Browser* browser) {
   return BrowserView::GetBrowserViewForBrowser(browser);
 }

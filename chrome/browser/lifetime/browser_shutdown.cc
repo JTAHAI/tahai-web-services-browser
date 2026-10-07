@@ -45,7 +45,6 @@
 #if BUILDFLAG(IS_WIN)
 #include "chrome/browser/first_run/upgrade_util_win.h"
 #include "chrome/browser/win/browser_util.h"
-#include "components/app_launch_prefetch/app_launch_prefetch.h"
 #endif
 
 #if !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_CHROMEOS)
@@ -295,10 +294,6 @@ void ShutdownPostThreadsStop(RestartMode restart_mode) {
 
       case RestartMode::kRestartInBackground:
         new_cl.AppendSwitch(switches::kNoStartupWindow);
-#if BUILDFLAG(IS_WIN)
-        new_cl.AppendArgNative(app_launch_prefetch::GetPrefetchSwitch(
-            app_launch_prefetch::SubprocessType::kBrowserBackground));
-#endif  // BUILDFLAG(IS_WIN)
         [[fallthrough]];
 
       case RestartMode::kRestartLastSession:

@@ -27,9 +27,11 @@ std::optional<int> ResolveMissionNativeCommand(
     std::string_view archive_sha256, const MissionSummary& mission, size_t index);
 
 // Completion notifies preference observers. Never retain a raw owner or a
-// borrowed mission ID across that notification; report only its surviving state.
+// borrowed mission ID across that notification; report only its surviving
+// state.
 std::string CompleteMissionNativeAttempt(base::WeakPtr<MissionService> service,
-                                         std::string_view id, size_t index,
+                                         std::string_view id,
+                                         size_t index,
                                          std::string_view result);
 
 std::unique_ptr<content::WebUIMessageHandler> CreateWorkflowNativeHandler(Profile* profile);

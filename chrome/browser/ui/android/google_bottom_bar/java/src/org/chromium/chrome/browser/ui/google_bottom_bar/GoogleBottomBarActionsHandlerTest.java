@@ -72,7 +72,9 @@ import java.util.function.Supplier;
 
 /** Unit tests for {@link GoogleBottomBarActionsHandler}. */
 @RunWith(BaseRobolectricTestRunner.class)
-@Config(shadows = {ShadowLog.class})
+@Config(
+        manifest = Config.NONE,
+        shadows = {ShadowLog.class})
 public class GoogleBottomBarActionsHandlerTest {
     private static final String TEST_URI = "https://www.test.com/";
 

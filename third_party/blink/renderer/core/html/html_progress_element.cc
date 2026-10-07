@@ -128,10 +128,10 @@ double HTMLProgressElement::max() const {
 }
 
 void HTMLProgressElement::setMax(double max) {
-  if (max <= 0) {
+  if (RuntimeEnabledFeatures::ProgressMaxIsPositiveEnabled() && max <= 0) {
     return;
   }
-  SetFloatingPointAttribute(html_names::kMaxAttr, max);
+  SetFloatingPointAttribute(html_names::kMaxAttr, max > 0 ? max : 1);
 }
 
 double HTMLProgressElement::position() const {

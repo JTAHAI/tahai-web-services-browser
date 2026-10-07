@@ -3,10 +3,10 @@
 // found in the LICENSE file.
 
 [
-    Exposed=Window,
+    Exposed=(Window, Worker),
     RuntimeEnabled=TrustedTypesCreateParserOptions
 ]
 interface TrustedParserOptions {
-  Sanitizer? sanitizer();
+  Sanitizer sanitizer();
   readonly attribute boolean runScripts;
 };

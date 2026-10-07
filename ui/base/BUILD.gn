@@ -646,10 +646,7 @@ if (is_ios) {
       "l10n/l10n_util_ios.h",
       "l10n/l10n_util_ios.mm",
     ]
-    deps = [
-      "//base",
-      "//base/i18n:language_tag_no_icu",
-    ]
+    deps = [ "//base" ]
     frameworks = [ "Foundation.framework" ]
   }
 }
@@ -1098,10 +1095,6 @@ test("ui_base_unittests") {
       "//ui/base/accelerators/global_accelerator_listener",
       "//ui/events:events_base",
     ]
-  }
-
-  if (is_chromeos) {
-    sources += [ "accelerators/global_accelerator_listener/global_accelerator_listener_chromeos_unittest.cc" ]
   }
 
   if (is_win || is_mac || is_linux || is_chromeos || is_android) {

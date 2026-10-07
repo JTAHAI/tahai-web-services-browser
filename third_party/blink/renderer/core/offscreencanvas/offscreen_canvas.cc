@@ -15,7 +15,6 @@
 #include "third_party/blink/public/platform/platform.h"
 #include "third_party/blink/public/platform/scheduler/web_agent_group_scheduler.h"
 #include "third_party/blink/renderer/bindings/core/v8/v8_union_element_elementimage.h"
-#include "third_party/blink/renderer/bindings/core/v8/v8_update_element_geometry_options.h"
 #include "third_party/blink/renderer/core/css/css_font_selector.h"
 #include "third_party/blink/renderer/core/css/offscreen_font_selector.h"
 #include "third_party/blink/renderer/core/css/style_engine.h"
@@ -131,48 +130,6 @@ void ClearAllRenderedTextOnMainThread(int placeholder_canvas_id) {
   }
 }
 
-void UpdateDrawnElementGeometryOnMainThread(int placeholder_canvas_id,
-                                            Element& element,
-                                            const gfx::Transform* transform,
-                                            bool update_hit_test_order) {
-  DCHECK(IsMainThread());
-  if (auto* placeholder = OffscreenCanvasPlaceholder::GetPlaceholderCanvasById(
-          placeholder_canvas_id)) {
-    placeholder->UpdateDrawnElementGeometry(element, transform,
-                                            update_hit_test_order);
-  }
-}
-
-void UpdateDrawnElementGeometryOnMainThread(int placeholder_canvas_id,
-                                            ElementImage& element_image,
-                                            const gfx::Transform* transform,
-                                            bool update_hit_test_order) {
-  DCHECK(IsMainThread());
-  if (auto* placeholder = OffscreenCanvasPlaceholder::GetPlaceholderCanvasById(
-          placeholder_canvas_id)) {
-    placeholder->UpdateDrawnElementGeometry(element_image, transform,
-                                            update_hit_test_order);
-  }
-}
-
-void ClearDrawnElementGeometryOnMainThread(int placeholder_canvas_id,
-                                           Element& element) {
-  DCHECK(IsMainThread());
-  if (auto* placeholder = OffscreenCanvasPlaceholder::GetPlaceholderCanvasById(
-          placeholder_canvas_id)) {
-    placeholder->ClearDrawnElementGeometry(element);
-  }
-}
-
-void ClearDrawnElementGeometryOnMainThread(int placeholder_canvas_id,
-                                           ElementImage& element_image) {
-  DCHECK(IsMainThread());
-  if (auto* placeholder = OffscreenCanvasPlaceholder::GetPlaceholderCanvasById(
-          placeholder_canvas_id)) {
-    placeholder->ClearDrawnElementGeometry(element_image);
-  }
-}
-
 }  // namespace
 
 OffscreenCanvas::OffscreenCanvas(ExecutionContext* context,
@@ -217,11 +174,6 @@ OffscreenCanvas::OffscreenCanvas(ExecutionContext* context,
   CanvasResourceTracker::For(context->GetIsolate())->Add(this, context);
 
   OffscreenCanvasRegistry::From(execution_context_).Register(canvas_id, this);
-
-  if (HasPlaceholderCanvas() && execution_context_->IsWorkerGlobalScope()) {
-    UseCounter::Count(execution_context_,
-                      WebFeature::kOffscreenCanvasTransferToWorker);
-  }
 
   if (HasPlaceholderCanvas() &&
       execution_context_->IsDedicatedWorkerGlobalScope()) {
@@ -463,9 +415,7 @@ DOMMatrix* OffscreenCanvas::getElementTransform(
       return nullptr;
     }
     gfx::Transform transform = GetElementTransform(
-        paint_record->paint_state, Size(), draw_transform->Matrix(),
-        RuntimeEnabledFeatures::ElementCanvasTransformEnabled(
-            GetExecutionContext()));
+        paint_record->paint_state, Size(), draw_transform->Matrix());
     return MakeGarbageCollected<DOMMatrix>(transform,
                                            transform.Is2dTransform());
   }
@@ -473,45 +423,14 @@ DOMMatrix* OffscreenCanvas::getElementTransform(
   return DOMMatrix::Create();
 }
 
-void OffscreenCanvas::updateElementGeometry(
-    const V8UnionElementOrElementImage* element_or_element_image,
-    const UpdateElementGeometryOptions* options,
-    ExceptionState& exception_state) {
-  const gfx::Transform* transform_ptr = nullptr;
-  gfx::Transform transform;
-  if (options->hasCanvasTransform()) {
-    DOMMatrix* matrix =
-        DOMMatrix::fromMatrix(options->canvasTransform(), exception_state);
-    if (exception_state.HadException()) {
-      return;
-    }
-    CHECK(matrix);
-    transform = matrix->Matrix();
-    transform_ptr = &transform;
-  }
-  if (element_or_element_image->IsElement()) {
-    UpdateDrawnElementGeometry(*element_or_element_image->GetAsElement(),
-                               transform_ptr, !options->preserveHitTestOrder());
-  } else if (element_or_element_image->IsElementImage()) {
-    UpdateDrawnElementGeometry(*element_or_element_image->GetAsElementImage(),
-                               transform_ptr, !options->preserveHitTestOrder());
-  }
-}
-
-void OffscreenCanvas::clearElementGeometry(
-    const V8UnionElementOrElementImage* element_or_element_image) {
-  if (element_or_element_image->IsElement()) {
-    ClearDrawnElementGeometry(*element_or_element_image->GetAsElement());
-  } else if (element_or_element_image->IsElementImage()) {
-    ClearDrawnElementGeometry(*element_or_element_image->GetAsElementImage());
-  }
-}
-
 ScriptPromise<Blob> OffscreenCanvas::convertToBlob(
     ScriptState* script_state,
     const ImageEncodeOptions* options,
     ExceptionState& exception_state) {
   DCHECK(IsOffscreenCanvas());
+  String object_name = "OffscreenCanvas";
+  std::stringstream error_msg;
+
   if (is_neutered_) {
     exception_state.ThrowDOMException(DOMExceptionCode::kInvalidStateError,
                                       "OffscreenCanvas object is detached.");
@@ -526,8 +445,8 @@ ScriptPromise<Blob> OffscreenCanvas::convertToBlob(
   }
 
   if (!OriginClean()) {
-    exception_state.ThrowSecurityError(
-        "A tainted OffscreenCanvas may not be exported.");
+    error_msg << "Tainted " << object_name << " may not be exported.";
+    exception_state.ThrowSecurityError(error_msg.str().c_str());
     return EmptyPromise();
   }
 
@@ -539,16 +458,16 @@ ScriptPromise<Blob> OffscreenCanvas::convertToBlob(
   }
 
   if (!IsPaintable() || Size().IsEmpty()) {
-    exception_state.ThrowDOMException(
-        DOMExceptionCode::kIndexSizeError,
-        "The size of the OffscreenCanvas is zero.");
+    error_msg << "The size of " << object_name << " is zero.";
+    exception_state.ThrowDOMException(DOMExceptionCode::kIndexSizeError,
+                                      error_msg.str().c_str());
     return EmptyPromise();
   }
 
   if (!context_) {
-    exception_state.ThrowDOMException(
-        DOMExceptionCode::kInvalidStateError,
-        "The OffscreenCanvas has no rendering context.");
+    error_msg << object_name << " has no rendering context.";
+    exception_state.ThrowDOMException(DOMExceptionCode::kInvalidStateError,
+                                      error_msg.str().c_str());
     return EmptyPromise();
   }
 
@@ -942,40 +861,6 @@ void OffscreenCanvas::ClearRenderedText() {
                                 placeholder_canvas_id_));
       }
     }
-  }
-}
-
-void OffscreenCanvas::UpdateDrawnElementGeometry(
-    Element& element,
-    const gfx::Transform* transform,
-    bool update_hit_test_order) {
-  UpdateDrawnElementGeometryOnMainThread(placeholder_canvas_id_, element,
-                                         transform, update_hit_test_order);
-}
-
-void OffscreenCanvas::UpdateDrawnElementGeometry(
-    ElementImage& element_image,
-    const gfx::Transform* transform,
-    bool update_hit_test_order) {
-  if (IsMainThread()) {
-    UpdateDrawnElementGeometryOnMainThread(placeholder_canvas_id_,
-                                           element_image, transform,
-                                           update_hit_test_order);
-  } else {
-    // TODO(paint-dev): queue update for event dispatch to main thread
-  }
-}
-
-void OffscreenCanvas::ClearDrawnElementGeometry(Element& element) {
-  ClearDrawnElementGeometryOnMainThread(placeholder_canvas_id_, element);
-}
-
-void OffscreenCanvas::ClearDrawnElementGeometry(ElementImage& element_image) {
-  if (IsMainThread()) {
-    ClearDrawnElementGeometryOnMainThread(placeholder_canvas_id_,
-                                          element_image);
-  } else {
-    // TODO(paint-dev): queue update for event dispatch to main thread
   }
 }
 

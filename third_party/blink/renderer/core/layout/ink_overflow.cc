@@ -4,8 +4,6 @@
 
 #include "third_party/blink/renderer/core/layout/ink_overflow.h"
 
-#include "base/memory/raw_ptr_exclusion.h"
-#include "base/types/optional_util.h"
 #include "third_party/blink/renderer/core/editing/editing_utilities.h"
 #include "third_party/blink/renderer/core/editing/markers/custom_highlight_marker.h"
 #include "third_party/blink/renderer/core/editing/markers/document_marker.h"
@@ -32,8 +30,7 @@ namespace blink {
 namespace {
 
 struct SameSizeAsInkOverflow {
-  // Excluded from raw_ptr because this is only used for size comparison.
-  RAW_PTR_EXCLUSION void* pointer;
+  void* pointer;
 #if DCHECK_IS_ON()
   InkOverflow::Type type;
 #endif
@@ -568,12 +565,10 @@ LogicalRect InkOverflow::ComputeDecorationOverflow(
   if (!used_font.PrimaryFont()) {
     return accumulated_bound;
   }
-
   // Text decoration from the fragment's style.
   if (style.HasAppliedTextDecorations()) {
-    accumulated_bound =
-        ComputeAppliedDecorationOverflow(style, used_font, container_offset,
-                                         ink_overflow, inline_context, &cursor);
+    accumulated_bound = ComputeAppliedDecorationOverflow(
+        style, used_font, container_offset, ink_overflow, inline_context);
   }
 
   // Text decorations due to selection
@@ -583,7 +578,7 @@ LogicalRect InkOverflow::ComputeDecorationOverflow(
       if (selection_style->HasAppliedTextDecorations()) {
         LogicalRect selection_bound = ComputeAppliedDecorationOverflow(
             *selection_style, used_font, container_offset, ink_overflow,
-            inline_context, &cursor);
+            inline_context);
         accumulated_bound.Unite(selection_bound);
       }
       if (const ShadowList* text_shadow = selection_style->TextShadow()) {
@@ -669,32 +664,15 @@ LogicalRect InkOverflow::ComputeAppliedDecorationOverflow(
     const PhysicalOffset& offset_in_container,
     const LogicalRect& ink_overflow,
     const InlinePaintContext* inline_context,
-    const InlineCursor* fragment_cursor,
     const AppliedTextDecoration* decoration_override) {
   DCHECK(style.HasAppliedTextDecorations() || decoration_override);
-
-  std::optional<TextDecorationFragmentContext> fragment_context;
-  if (fragment_cursor) {
-    // Text-combine recalculates overflow with a cursor positioned at a line
-    // item, for which fragment context is not applicable.
-    const FragmentItem* item = fragment_cursor->CurrentItem();
-    if (item && item->IsText() && fragment_cursor->HasRoot() &&
-        TextDecorationInfo::NeedsFragmentContextForInset(style)) {
-      fragment_context.emplace(
-          ComputeTextDecorationFragmentContext(*fragment_cursor));
-    }
-  }
-
   // SVGText is currently the only reason we use decoration_override,
   // so use it as a proxy for determining minimum thickness.
-  const IsSvgText is_svg_text(decoration_override != nullptr);
+  const IsSvgText is_svg_text(decoration_override);
   TextDecorationInfo decoration_info(
       LineRelativeOffset::CreateFromBoxOrigin(offset_in_container),
       ink_overflow.size.inline_size, style, used_font, inline_context,
-      TextDecorationLine::kNone, Color(), decoration_override, is_svg_text,
-      /*svg_resource_scaling_factor=*/1.0f,
-      fragment_context ? *fragment_context : TextDecorationFragmentContext(),
-      /*conservative_inset_bounds=*/!fragment_context);
+      TextDecorationLine::kNone, Color(), decoration_override, is_svg_text);
   TextDecorationOffset decoration_offset(style);
   gfx::RectF accumulated_bound;
   for (wtf_size_t i = 0; i < decoration_info.AppliedDecorationCount(); i++) {
@@ -764,19 +742,17 @@ LogicalRect InkOverflow::ComputeMarkerOverflow(
       if (has_pseudo_decorations) {
         decoration_bound = ComputeAppliedDecorationOverflow(
             *pseudo_style, used_font, offset_in_container, ink_overflow,
-            inline_context, /*fragment_cursor=*/nullptr);
+            inline_context);
       } else if (is_spelling_or_grammar) {
         const AppliedTextDecoration synthesised{
             HighlightPainter::LineFor(type),
             {},
             HighlightPainter::ColorFor(type),
             {},
-            {},
-            TextDecorationInset(Length::Fixed(0), Length::Fixed(0)),
-            EBoxDecorationBreak::kClone};
+            {}};
         decoration_bound = ComputeAppliedDecorationOverflow(
             style, used_font, offset_in_container, ink_overflow, inline_context,
-            /*fragment_cursor=*/nullptr, &synthesised);
+            &synthesised);
       }
       accumulated_bound.Unite(decoration_bound);
       if (text_shadow) [[unlikely]] {
@@ -819,7 +795,7 @@ LogicalRect InkOverflow::ComputeCustomHighlightOverflow(
     if (pseudo_style && pseudo_style->HasAppliedTextDecorations()) {
       decoration_bound = ComputeAppliedDecorationOverflow(
           *pseudo_style, used_font, offset_in_container, ink_overflow,
-          inline_context, /*fragment_cursor=*/nullptr);
+          inline_context);
       accumulated_bound.Unite(decoration_bound);
     }
   }

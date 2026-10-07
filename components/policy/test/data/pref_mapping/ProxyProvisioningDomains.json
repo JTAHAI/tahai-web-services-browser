@@ -4,9 +4,7 @@
       "linux",
       "win",
       "android",
-      "mac",
-      "ios",
-      "chromeos"
+      "mac"
     ],
     "simple_policy_pref_mapping_test": {
       "pref_name": "proxy_provisioning_domains",

@@ -7,7 +7,6 @@
 #import "base/command_line.h"
 #import "base/functional/callback_helpers.h"
 #import "base/ios/block_types.h"
-#import "base/strings/sys_string_conversions.h"
 #import "base/time/time.h"
 #import "components/infobars/core/infobar.h"
 #import "components/infobars/core/infobar_manager.h"
@@ -37,12 +36,12 @@
 #import "ios/chrome/browser/snapshots/model/snapshot_tab_helper.h"
 #import "ios/chrome/browser/translate/model/chrome_ios_translate_client.h"
 #import "ios/chrome/browser/web/model/web_view_proxy/web_view_proxy_tab_helper.h"
+#import "ios/web/navigation/wk_navigation_util.h"
 #import "ios/web/public/js_messaging/web_frame.h"
 #import "ios/web/public/js_messaging/web_frames_manager.h"
 #import "ios/web/public/navigation/navigation_context.h"
 #import "ios/web/public/navigation/navigation_manager.h"
 #import "net/base/apple/url_conversions.h"
-#import "net/http/http_request_headers.h"
 
 namespace {
 
@@ -378,9 +377,8 @@ void ReaderModeTabHelper::ReaderModeContentDidCancelRequest(
   // When the Reader mode content cancels a request to navigate, load the
   // requested URL in the host WebState instead.
   web::NavigationManager::WebLoadParams params(net::GURLWithNSURL(request.URL));
-  NSString* referrer_value =
-      [request valueForHTTPHeaderField:base::SysUTF8ToNSString(
-                                           net::HttpRequestHeaders::kReferer)];
+  NSString* referrer_value = [request
+      valueForHTTPHeaderField:web::wk_navigation_util::kReferrerHeaderName];
   if (referrer_value) {
     NSURL* referrer_url = [NSURL URLWithString:referrer_value];
     params.referrer.url = net::GURLWithNSURL(referrer_url);
@@ -426,18 +424,20 @@ void ReaderModeTabHelper::PageDistillationCompleted(
                         ? ReaderModeDistillerResult::kPageIsDistillable
                         : ReaderModeDistillerResult::kPageIsNotDistillable);
 
-  if (is_distillable_page) {
-    // Load the Reader mode content in the Reader mode content WebState.
-    NSData* content_data = [NSData dataWithBytes:html.data()
-                                          length:html.length()];
-    metrics_helper_.RecordDataLoadTriggered();
-    ReaderModeContentTabHelper::FromWebState(reader_mode_web_state_.get())
-        ->LoadContent(page_url, content_data);
-  } else {
-    RecordDistillationFailure();
-    // If the page could not be distilled, deactivate Reader mode in this tab.
-    DeactivateReader(
-        ReaderModeDeactivationReason::kDistillationFailureDeactivated);
+  if (IsReaderModeAvailable()) {
+    if (is_distillable_page) {
+      // Load the Reader mode content in the Reader mode content WebState.
+      NSData* content_data = [NSData dataWithBytes:html.data()
+                                            length:html.length()];
+      metrics_helper_.RecordDataLoadTriggered();
+      ReaderModeContentTabHelper::FromWebState(reader_mode_web_state_.get())
+          ->LoadContent(page_url, content_data);
+    } else {
+      RecordDistillationFailure();
+      // If the page could not be distilled, deactivate Reader mode in this tab.
+      DeactivateReader(
+          ReaderModeDeactivationReason::kDistillationFailureDeactivated);
+    }
   }
 }
 
@@ -471,7 +471,8 @@ void ReaderModeTabHelper::CreateReaderModeContent(
 
   // Apply a blurring effect to the original web page as part of the translation
   // settings experiment.
-  if (reader_mode_handler_) {
+  if (reader_mode_handler_ &&
+      base::FeatureList::IsEnabled(kEnableReaderModeTranslationWithInfobar)) {
     [reader_mode_handler_
         showReaderModeBlurOverlay:
             base::CallbackToBlock(
@@ -629,7 +630,8 @@ void ReaderModeTabHelper::CompleteDistillation(
       ChromeIOSTranslateClient::FromWebState(web_state_.get());
   source_translation_state_ =
       GenerateTranslationState(translate_client, web_state_.get());
-  if (source_translation_state_.is_page_translated) {
+  if (source_translation_state_.is_page_translated &&
+      base::FeatureList::IsEnabled(kEnableReaderModeTranslationWithInfobar)) {
     translate_client->GetTranslateManager()->RevertTranslation();
   }
 

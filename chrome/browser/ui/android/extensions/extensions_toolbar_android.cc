@@ -14,11 +14,9 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/tab_list/tab_list_interface.h"
 #include "chrome/browser/ui/android/extensions/extension_action_delegate_android.h"
-#include "chrome/browser/ui/android/extensions/extension_action_popup_contents.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/color/chrome_color_id.h"
 #include "chrome/browser/ui/extensions/extensions_toolbar_view_model.h"
-#include "chrome/browser/ui/extensions/settings_api_bubble_helpers.h"
 #include "chrome/browser/ui/toolbar/toolbar_actions_model.h"
 #include "content/public/browser/web_contents.h"
 #include "extensions/browser/extension_registry.h"
@@ -79,16 +77,10 @@ bool ExtensionsToolbarAndroid::HasActivePopup() {
 
 void ExtensionsToolbarAndroid::TriggerPopup(
     const ToolbarActionsModel::ActionId& action_id,
-    std::unique_ptr<ExtensionViewHost> host,
-    PopupShowAction show_action,
-    ShowPopupCallback callback) {
-  auto* popup_contents = new ExtensionActionPopupContents(
-      std::move(host), show_action == PopupShowAction::kShowAndInspect,
-      std::move(callback));
+    std::unique_ptr<ExtensionViewHost> host) {
   Java_ExtensionsToolbarBridge_triggerPopup(
       AttachCurrentThread(), java_object_, action_id,
-      popup_contents->GetJavaObject(),
-      show_action == PopupShowAction::kShowAndInspect);
+      reinterpret_cast<int64_t>(host.release()));
 }
 
 void ExtensionsToolbarAndroid::ShowContextMenu(
@@ -111,10 +103,8 @@ base::android::ScopedJavaLocalRef<jobject>
 ExtensionsToolbarAndroid::GetRequestAccessButtonParams(
     JNIEnv* env,
     content::WebContents* web_contents) {
-  ExtensionsToolbarViewModel::RequestAccessButtonParams params;
-  if (ToolbarActionsModel::CanShowActionsInToolbar(*browser_)) {
-    params = toolbar_view_model_->GetRequestAccessButtonParams(web_contents);
-  }
+  ExtensionsToolbarViewModel::RequestAccessButtonParams params =
+      toolbar_view_model_->GetRequestAccessButtonParams(web_contents);
   return Java_RequestAccessButtonParams_Constructor(env, params.extension_ids,
                                                     params.tooltip_text);
 }
@@ -137,10 +127,8 @@ void ExtensionsToolbarAndroid::CloseExtensionsMenuIfOpen() {
 
 bool ExtensionsToolbarAndroid::CanShowToolbarActionPopupForAPICall(
     const std::string& action_id) {
-  return !Java_ExtensionsToolbarBridge_hasPoppedOutAction(AttachCurrentThread(),
-                                                          java_object_) &&
-         !Java_ExtensionsToolbarBridge_hasActivePopup(AttachCurrentThread(),
-                                                      java_object_);
+  return Java_ExtensionsToolbarBridge_hasPoppedOutAction(AttachCurrentThread(),
+                                                         java_object_);
 }
 
 void ExtensionsToolbarAndroid::ToggleExtensionsMenu() {
@@ -198,11 +186,7 @@ void ExtensionsToolbarAndroid::OnActiveWebContentsChanged(
     bool /*is_same_document*/,
     content::WebContents* web_contents) {
   Java_ExtensionsToolbarBridge_onActiveWebContentsChanged(
-      AttachCurrentThread(), java_object_,
-      web_contents ? web_contents->GetJavaWebContents() : nullptr);
-  if (web_contents) {
-    extensions::MaybeShowExtensionControlledNewTabPage(browser_, web_contents);
-  }
+      AttachCurrentThread(), java_object_, web_contents->GetJavaWebContents());
 }
 
 void ExtensionsToolbarAndroid::OnToolbarControlStateUpdated() {
@@ -292,9 +276,6 @@ ExtensionsToolbarAndroid::GetAllActionIds(JNIEnv* env) {
 
 std::vector<ToolbarActionsModel::ActionId>
 ExtensionsToolbarAndroid::GetPinnedActionIds(JNIEnv* env) {
-  if (!ToolbarActionsModel::CanShowActionsInToolbar(*browser_)) {
-    return {};
-  }
   const auto& ids = toolbar_view_model_->GetPinnedActionIds();
   return std::vector(ids.begin(), ids.end());
 }

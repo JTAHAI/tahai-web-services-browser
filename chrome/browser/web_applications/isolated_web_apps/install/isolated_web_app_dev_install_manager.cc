@@ -31,7 +31,6 @@
 #include "chrome/browser/web_applications/isolated_web_apps/install/isolated_web_app_install_source.h"
 #include "chrome/browser/web_applications/isolated_web_apps/isolated_web_app_features.h"
 #include "chrome/browser/web_applications/isolated_web_apps/isolated_web_app_url_info.h"
-#include "chrome/browser/web_applications/model/iwa_update_info.h"
 #include "chrome/browser/web_applications/web_app_command_manager.h"
 #include "chrome/browser/web_applications/web_app_command_scheduler.h"
 #include "chrome/browser/web_applications/web_app_provider.h"
@@ -239,8 +238,7 @@ void IsolatedWebAppDevInstallManager::InstallIsolatedWebAppFromDevModeProxy(
     const GURL& gurl,
     InstallSurface install_surface,
     base::OnceCallback<void(MaybeInstallIsolatedWebAppCommandSuccess)> callback,
-    std::optional<web_package::SignedWebBundleId> explicit_bundle_id,
-    std::optional<IwaUpdateInfo> optional_update_info) {
+    std::optional<web_package::SignedWebBundleId> explicit_bundle_id) {
   CHECK(content::BrowserThread::CurrentlyOn(content::BrowserThread::UI));
   CHECK(!callback.is_null());
   if (!are_isolated_web_apps_enabled_) {
@@ -273,8 +271,7 @@ void IsolatedWebAppDevInstallManager::InstallIsolatedWebAppFromDevModeBundle(
     const base::FilePath& path,
     InstallSurface install_surface,
     base::OnceCallback<void(MaybeInstallIsolatedWebAppCommandSuccess)> callback,
-    std::optional<web_package::SignedWebBundleId> expected_bundle_id,
-    std::optional<IwaUpdateInfo> optional_update_info) {
+    std::optional<web_package::SignedWebBundleId> expected_bundle_id) {
   CHECK(content::BrowserThread::CurrentlyOn(content::BrowserThread::UI));
   CHECK(!callback.is_null());
   if (!are_isolated_web_apps_enabled_) {
@@ -284,15 +281,14 @@ void IsolatedWebAppDevInstallManager::InstallIsolatedWebAppFromDevModeBundle(
 
   InstallIsolatedWebAppFromInstallSource(
       CreateInstallSource(path, install_surface), std::move(expected_bundle_id),
-      std::move(callback), std::move(optional_update_info));
+      std::move(callback));
 }
 
 void IsolatedWebAppDevInstallManager::InstallIsolatedWebAppFromDevModeBundle(
     const base::ScopedTempFile* file,
     InstallSurface install_surface,
     base::OnceCallback<void(MaybeInstallIsolatedWebAppCommandSuccess)> callback,
-    std::optional<web_package::SignedWebBundleId> expected_bundle_id,
-    std::optional<IwaUpdateInfo> optional_update_info) {
+    std::optional<web_package::SignedWebBundleId> expected_bundle_id) {
   CHECK(content::BrowserThread::CurrentlyOn(content::BrowserThread::UI));
   CHECK(!callback.is_null());
   if (!are_isolated_web_apps_enabled_) {
@@ -302,7 +298,7 @@ void IsolatedWebAppDevInstallManager::InstallIsolatedWebAppFromDevModeBundle(
 
   InstallIsolatedWebAppFromInstallSource(
       CreateInstallSource(file, install_surface), std::move(expected_bundle_id),
-      std::move(callback), std::move(optional_update_info));
+      std::move(callback));
 }
 
 void IsolatedWebAppDevInstallManager::
@@ -311,8 +307,7 @@ void IsolatedWebAppDevInstallManager::
         InstallSurface install_surface,
         base::OnceCallback<void(MaybeInstallIsolatedWebAppCommandSuccess)>
             callback,
-        std::optional<web_package::SignedWebBundleId> expected_bundle_id,
-        std::optional<IwaUpdateInfo> optional_update_info) {
+        std::optional<web_package::SignedWebBundleId> expected_bundle_id) {
   CHECK(content::BrowserThread::CurrentlyOn(content::BrowserThread::UI));
   CHECK(!callback.is_null());
   CHECK(url.SchemeIsHTTPOrHTTPS());
@@ -324,8 +319,7 @@ void IsolatedWebAppDevInstallManager::
   ScopedTempWebBundleFile::Create(base::BindOnce(
       &IsolatedWebAppDevInstallManager::DownloadWebBundleToFile,
       weak_ptr_factory_.GetWeakPtr(), url, std::move(install_surface),
-      std::move(callback), std::move(expected_bundle_id),
-      std::move(optional_update_info)));
+      std::move(callback), std::move(expected_bundle_id)));
 }
 
 // static
@@ -452,8 +446,8 @@ void IsolatedWebAppDevInstallManager::InstallFromCommandLine(
 void IsolatedWebAppDevInstallManager::InstallIsolatedWebAppFromInstallSource(
     MaybeIwaInstallSource install_source,
     std::optional<web_package::SignedWebBundleId> expected_bundle_id,
-    base::OnceCallback<void(MaybeInstallIsolatedWebAppCommandSuccess)> callback,
-    std::optional<IwaUpdateInfo> optional_update_info) {
+    base::OnceCallback<void(MaybeInstallIsolatedWebAppCommandSuccess)>
+        callback) {
   if (KeepAliveRegistry::GetInstance()->IsShuttingDown()) {
     // If the browser is shutting down, then there is no point in attempting to
     // install an IWA.
@@ -468,8 +462,7 @@ void IsolatedWebAppDevInstallManager::InstallIsolatedWebAppFromInstallSource(
       &profile_.get(), ProfileKeepAliveOrigin::kIsolatedWebAppInstall);
   InstallIsolatedWebAppFromInstallSource(
       std::move(keep_alive), std::move(optional_profile_keep_alive),
-      std::move(expected_bundle_id), install_source, std::move(callback),
-      std::move(optional_update_info));
+      std::move(expected_bundle_id), install_source, std::move(callback));
 }
 
 void IsolatedWebAppDevInstallManager::InstallIsolatedWebAppFromInstallSource(
@@ -477,8 +470,8 @@ void IsolatedWebAppDevInstallManager::InstallIsolatedWebAppFromInstallSource(
     std::unique_ptr<ScopedProfileKeepAlive> optional_profile_keep_alive,
     std::optional<web_package::SignedWebBundleId> expected_bundle_id,
     MaybeIwaInstallSource install_source,
-    base::OnceCallback<void(MaybeInstallIsolatedWebAppCommandSuccess)> callback,
-    std::optional<IwaUpdateInfo> optional_update_info) {
+    base::OnceCallback<void(MaybeInstallIsolatedWebAppCommandSuccess)>
+        callback) {
   ASSIGN_OR_RETURN(
       std::optional<IsolatedWebAppInstallSource> optional_install_source,
       install_source, [&](std::string error) {
@@ -500,8 +493,7 @@ void IsolatedWebAppDevInstallManager::InstallIsolatedWebAppFromInstallSource(
           &IsolatedWebAppDevInstallManager::OnGetIsolatedWebAppUrlInfo,
           weak_ptr_factory_.GetWeakPtr(), std::move(keep_alive),
           std::move(optional_profile_keep_alive), std::move(expected_bundle_id),
-          *optional_install_source, std::move(callback),
-          std::move(optional_update_info)));
+          *optional_install_source, std::move(callback)));
 }
 
 void IsolatedWebAppDevInstallManager::
@@ -513,8 +505,7 @@ void IsolatedWebAppDevInstallManager::
       std::move(keep_alive), std::move(optional_profile_keep_alive),
       /*expected_bundle_id=*/std::nullopt, std::move(install_source),
       base::BindOnce(&IsolatedWebAppDevInstallManager::ReportInstallationResult,
-                     weak_ptr_factory_.GetWeakPtr()),
-      std::nullopt);
+                     weak_ptr_factory_.GetWeakPtr()));
 }
 
 void IsolatedWebAppDevInstallManager::OnGetIsolatedWebAppUrlInfo(
@@ -523,7 +514,6 @@ void IsolatedWebAppDevInstallManager::OnGetIsolatedWebAppUrlInfo(
     std::optional<web_package::SignedWebBundleId> expected_bundle_id,
     const IsolatedWebAppInstallSource& install_source,
     base::OnceCallback<void(MaybeInstallIsolatedWebAppCommandSuccess)> callback,
-    std::optional<IwaUpdateInfo> optional_update_info,
     base::expected<IsolatedWebAppUrlInfo, std::string> url_info) {
   RETURN_IF_ERROR(url_info, [&](std::string error) {
     std::move(callback).Run(
@@ -539,11 +529,11 @@ void IsolatedWebAppDevInstallManager::OnGetIsolatedWebAppUrlInfo(
   }
 
   provider_->scheduler().InstallIsolatedWebApp(
-      url_info.value(), install_source, /*expected_version=*/std::nullopt,
-      std::move(keep_alive), std::move(optional_profile_keep_alive),
+      url_info.value(), install_source,
+      /*expected_version=*/std::nullopt, std::move(keep_alive),
+      std::move(optional_profile_keep_alive),
       base::BindOnce(&IsolatedWebAppDevInstallManager::OnInstallIsolatedWebApp,
-                     weak_ptr_factory_.GetWeakPtr(), std::move(callback)),
-      std::move(optional_update_info), FROM_HERE);
+                     weak_ptr_factory_.GetWeakPtr(), std::move(callback)));
 }
 
 void IsolatedWebAppDevInstallManager::OnInstallIsolatedWebApp(
@@ -573,7 +563,6 @@ void IsolatedWebAppDevInstallManager::DownloadWebBundleToFile(
     InstallSurface install_surface,
     base::OnceCallback<void(MaybeInstallIsolatedWebAppCommandSuccess)> callback,
     std::optional<web_package::SignedWebBundleId> expected_bundle_id,
-    std::optional<IwaUpdateInfo> optional_update_info,
     ScopedTempWebBundleFile bundle) {
   base::FilePath path = bundle.path();
   auto downloader = IsolatedWebAppDownloader::Create(
@@ -589,7 +578,7 @@ void IsolatedWebAppDevInstallManager::DownloadWebBundleToFile(
       base::BindOnce(&IsolatedWebAppDevInstallManager::OnWebBundleDownloaded,
                      weak_ptr_factory_.GetWeakPtr(), std::move(install_surface),
                      std::move(callback), std::move(expected_bundle_id),
-                     std::move(bundle), std::move(optional_update_info))
+                     std::move(bundle))
           .Then(std::move(downloader_keep_alive)));
 }
 
@@ -598,7 +587,6 @@ void IsolatedWebAppDevInstallManager::OnWebBundleDownloaded(
     base::OnceCallback<void(MaybeInstallIsolatedWebAppCommandSuccess)> callback,
     std::optional<web_package::SignedWebBundleId> expected_bundle_id,
     ScopedTempWebBundleFile bundle,
-    std::optional<IwaUpdateInfo> optional_update_info,
     int32_t result) {
   if (result != net::OK) {
     std::move(callback).Run(base::unexpected(
@@ -616,7 +604,7 @@ void IsolatedWebAppDevInstallManager::OnWebBundleDownloaded(
       .InstallIsolatedWebAppFromDevModeBundle(
           file, std::move(install_surface),
           std::move(callback).Then(std::move(bundle_keep_alive)),
-          std::move(expected_bundle_id), std::move(optional_update_info));
+          std::move(expected_bundle_id));
 }
 
 }  // namespace web_app

@@ -119,8 +119,9 @@ CGFloat NavigationBarTopConstraintConstant() {
 
   [self addSubview:datePicker];
 
-  AddSameConstraintsToSides(datePicker, self,
-                            LayoutSides::kBottom | LayoutSides::kHorizontal);
+  AddSameConstraintsToSides(
+      datePicker, self,
+      LayoutSides::kLeading | LayoutSides::kTrailing | LayoutSides::kBottom);
 
   return datePicker;
 }
@@ -165,7 +166,8 @@ CGFloat NavigationBarTopConstraintConstant() {
 
   [self addSubview:navigationBar];
 
-  AddSameConstraintsToSides(navigationBar, self, LayoutSides::kHorizontal);
+  AddSameConstraintsToSides(navigationBar, self,
+                            LayoutSides::kLeading | LayoutSides::kTrailing);
 
   NSLayoutConstraint* topConstraint = [navigationBar.topAnchor
       constraintEqualToAnchor:self.topAnchor

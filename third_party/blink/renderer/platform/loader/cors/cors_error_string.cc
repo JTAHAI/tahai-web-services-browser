@@ -16,7 +16,6 @@
 #include "third_party/blink/renderer/platform/weborigin/security_origin.h"
 #include "third_party/blink/renderer/platform/wtf/text/ascii_ctype.h"
 #include "third_party/blink/renderer/platform/wtf/text/atomic_string.h"
-#include "third_party/blink/renderer/platform/wtf/text/format.h"
 #include "third_party/blink/renderer/platform/wtf/text/string_builder.h"
 #include "third_party/blink/renderer/platform/wtf/text/string_view.h"
 
@@ -73,7 +72,7 @@ String EncodeHint(StringView hint) {
         builder.Append(static_cast<char>(c));
       } else {
         // Print "\uXXXX" for control or non-ASCII characters.
-        FormatTo(builder, "\\u{:04X}", c);
+        builder.AppendFormat("\\u%04X", c);
       }
     }
   }

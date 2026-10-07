@@ -19,7 +19,6 @@
 #import "components/omnibox/browser/omnibox_pref_names.h"
 #import "components/prefs/pref_service.h"
 #import "components/segmentation_platform/embedder/default_model/device_switcher_result_dispatcher.h"
-#import "components/strings/grit/components_strings.h"
 #import "ios/chrome/browser/bubble/model/utils.h"
 #import "ios/chrome/browser/bubble/ui_bundled/bubble_constants.h"
 #import "ios/chrome/browser/bubble/ui_bundled/bubble_presenter_delegate.h"
@@ -39,7 +38,7 @@
 #import "ios/chrome/browser/overlays/model/public/overlay_presenter.h"
 #import "ios/chrome/browser/overlays/model/public/overlay_presenter_observer_bridge.h"
 #import "ios/chrome/browser/segmentation_platform/model/segmentation_platform_service_factory.h"
-#import "ios/chrome/browser/shared/coordinator/scene/state/scene_layout_state.h"
+#import "ios/chrome/browser/shared/coordinator/scene/state/layout_state.h"
 #import "ios/chrome/browser/shared/model/application_context/application_context.h"
 #import "ios/chrome/browser/shared/model/prefs/pref_names.h"
 #import "ios/chrome/browser/shared/model/profile/profile_ios.h"
@@ -109,7 +108,7 @@ constexpr CGFloat kAdditionalBorderMargin = 4;
   LayoutGuideCenter* _layoutGuideCenter;
   raw_ptr<WebStateList> _webStateList;
   raw_ptr<feature_engagement::Tracker> _engagementTracker;
-  SceneLayoutState* _layoutState;
+  LayoutState* _layoutState;
 
   // Overlay observing.
   raw_ptr<OverlayPresenter> _webContentOverlayPresenter;
@@ -148,7 +147,6 @@ constexpr CGFloat kAdditionalBorderMargin = 4;
   BubbleViewControllerPresenter* _readerModeOptionsBubblePresenter;
   BubbleViewControllerPresenter* _geminiImageRemixBubblePresenter;
   BubbleViewControllerPresenter* _pinSiteToMostVisitedTilesBubblePresenter;
-  BubbleViewControllerPresenter* _sendTabToSelfOmniboxBubblePresenter;
 
   // List of existing gestural IPH views.
   GestureInProductHelpView* _pullToRefreshGestureIPH;
@@ -163,7 +161,7 @@ constexpr CGFloat kAdditionalBorderMargin = 4;
                      webStateList:(raw_ptr<WebStateList>)webStateList
              fullscreenController:
                  (raw_ptr<FullscreenController>)fullscreenController
-                      layoutState:(SceneLayoutState*)layoutState
+                      layoutState:(LayoutState*)layoutState
     overlayPresenterForWebContent:
         (raw_ptr<OverlayPresenter>)webContentOverlayPresenter
                     infobarBanner:(raw_ptr<OverlayPresenter>)bannerPresenter
@@ -222,18 +220,17 @@ constexpr CGFloat kAdditionalBorderMargin = 4;
   [_whatsNewBubblePresenter dismissAnimated:NO];
   [_lensKeyboardPresenter dismissAnimated:NO];
   [_defaultPageModeTipBubblePresenter dismissAnimated:NO];
+  [_lensOverlayEntrypointBubblePresenter dismissAnimated:NO];
   [_pageActionMenuBubblePresenter dismissAnimated:NO];
   [_readerModeOptionsBubblePresenter dismissAnimated:NO];
   [_geminiImageRemixBubblePresenter dismissAnimated:NO];
   [_pinSiteToMostVisitedTilesBubblePresenter dismissAnimated:NO];
-  [self hideBubblesPointingToOmnibox];
   [self hideAllGestureInProductHelpViewsForReason:IPHDismissalReasonType::
                                                       kUnknown];
 }
 
 - (void)hideBubblesPointingToOmnibox {
   [_lensOverlayEntrypointBubblePresenter dismissAnimated:NO];
-  [_sendTabToSelfOmniboxBubblePresenter dismissAnimated:NO];
 }
 
 - (void)handleTapOutsideOfVisibleGestureInProductHelp {
@@ -754,8 +751,9 @@ constexpr CGFloat kAdditionalBorderMargin = 4;
   }
   UILayoutGuide* guide = [[UILayoutGuide alloc] init];
   [self.rootViewController.view addLayoutGuide:guide];
-  AddSameConstraintsToSides(guide, contentAreaGuide,
-                            LayoutSides::kBottom | LayoutSides::kHorizontal);
+  AddSameConstraintsToSides(
+      guide, contentAreaGuide,
+      LayoutSides::kLeading | LayoutSides::kTrailing | LayoutSides::kBottom);
   NSLayoutConstraint* topConstraintForBottomEdgeSwipe = [guide.topAnchor
       constraintEqualToAnchor:self.rootViewController.view.topAnchor];
   NSLayoutConstraint* topConstraintForTopEdgeSwipe =
@@ -834,66 +832,38 @@ constexpr CGFloat kAdditionalBorderMargin = 4;
 }
 
 - (void)presentPageActionMenuBubbleForFeature:(const base::Feature&)feature {
+  if (IsChromeNextIaEnabled()) {
+    return;
+  }
+
   if (![self canPresentBubbleWithCheckTabScrolledToTop:NO]) {
     return;
   }
 
-  BOOL nextIAEnabled = IsChromeNextIaEnabled();
-
-  GuideName* anchorGuide;
-  BubbleArrowDirection arrowDirection;
-  BubbleAlignment alignment = BubbleAlignmentTopOrLeading;
-
-  if (nextIAEnabled) {
-    // In Next IA, the Assistant button is located in the App Bar.
-    anchorGuide = kAppBarAssistantButtonGuide;
-    switch (_layoutState.appBarPosition) {
-      case AppBarPosition::kLeft:
-        // AppBar position is actual left/right, not leading/trailing, so RTL
-        // must be handled specially.
-        arrowDirection = UseRTLLayout() ? BubbleArrowDirectionTrailing
-                                        : BubbleArrowDirectionLeading;
-        break;
-      case AppBarPosition::kRight:
-        // AppBar position is actual left/right, not leading/trailing, so RTL
-        // must be handled specially.
-        arrowDirection = UseRTLLayout() ? BubbleArrowDirectionLeading
-                                        : BubbleArrowDirectionTrailing;
-        break;
-      case AppBarPosition::kBottom:
-        arrowDirection = BubbleArrowDirectionDown;
-        break;
-      case AppBarPosition::kNone:
-        // No App Bar position means the app is on iPad, where the Assistant
-        // Button is in the toolbar.
-        arrowDirection = BubbleArrowDirectionUp;
-        alignment = BubbleAlignmentBottomOrTrailing;
-        break;
-    }
-  } else {
-    anchorGuide = kPageActionMenuEntrypointGuide;
-    arrowDirection = [self isGuideAtBottom:anchorGuide]
-                         ? BubbleArrowDirectionDown
-                         : BubbleArrowDirectionUp;
+  web::WebState* currentWebState = _webStateList->GetActiveWebState();
+  if (currentWebState && IsUrlNtp(currentWebState->GetVisibleURL())) {
+    return;
   }
 
-  UIView* anchorView = [_layoutGuideCenter referencedViewUnderName:anchorGuide];
-  CGRect anchorFrameInWindow = [anchorView convertRect:anchorView.bounds
-                                                toView:nil];
-  CGPoint anchorPointInWindow =
-      bubble_util::AnchorPoint(anchorFrameInWindow, arrowDirection);
-
+  BubbleArrowDirection arrowDirection =
+      [self isGuideAtBottom:kPageActionMenuEntrypointGuide]
+          ? BubbleArrowDirectionDown
+          : BubbleArrowDirectionUp;
   NSString* text = l10n_util::GetNSString(IDS_IOS_BWG_IPH_TEXT);
+
+  CGPoint pageActionMenuEntrypointAnchor =
+      [self anchorPointToGuide:kPageActionMenuEntrypointGuide
+                     direction:arrowDirection];
 
   __weak __typeof(self) weakSelf = self;
   BubbleViewControllerPresenter* presenter = [self
       presentBubbleForFeature:feature
       direction:arrowDirection
-      alignment:alignment
+      alignment:BubbleAlignmentTopOrLeading
       text:text
       voiceOverAnnouncement:text
-      anchorPoint:anchorPointInWindow
-      anchorViewFrame:anchorFrameInWindow
+      anchorPoint:CGPoint(pageActionMenuEntrypointAnchor.x,
+                          pageActionMenuEntrypointAnchor.y)
       presentAction:^{
         [weakSelf.pageActionMenuEntryPointHandler
             toggleEntryPointHighlight:YES];
@@ -902,8 +872,7 @@ constexpr CGFloat kAdditionalBorderMargin = 4;
         [weakSelf.pageActionMenuEntryPointHandler toggleEntryPointHighlight:NO];
       }];
 
-  if (presenter &&
-      feature.name == feature_engagement::kIPHIOSPageActionMenu.name) {
+  if (presenter) {
     _pageActionMenuBubblePresenter = presenter;
   }
 }
@@ -947,34 +916,6 @@ constexpr CGFloat kAdditionalBorderMargin = 4;
   }
 }
 
-- (void)presentSendTabToSelfOmniboxBubble {
-  if (![self canPresentBubbleWithCheckTabScrolledToTop:NO]) {
-    return;
-  }
-
-  BOOL isBottomOmnibox = [self isBottomOmnibox];
-  BubbleArrowDirection arrowDirection =
-      isBottomOmnibox ? BubbleArrowDirectionDown : BubbleArrowDirectionUp;
-  GuideName* guideName =
-      isBottomOmnibox ? kSecondaryToolbarGuide : kTopOmniboxGuide;
-  NSString* text =
-      l10n_util::GetNSString(IDS_SEND_TAB_TO_SELF_OMNIBOX_IPH_TEXT);
-
-  CGPoint omniboxAnchor = [self anchorPointToGuide:guideName
-                                         direction:arrowDirection];
-
-  BubbleViewControllerPresenter* presenter =
-      [self presentBubbleForFeature:feature_engagement::kIPHSendTabToSelfOmnibox
-                          direction:arrowDirection
-                          alignment:BubbleAlignmentCenter
-                               text:text
-              voiceOverAnnouncement:text
-                        anchorPoint:omniboxAnchor];
-  if (presenter) {
-    _sendTabToSelfOmniboxBubblePresenter = presenter;
-  }
-}
-
 - (void)presentGeminiImageRemixBubbleWithGeminiHandler:
             (id<GeminiCommands>)geminiHandler
                        pageActionMenuEntryPointHandler:
@@ -986,24 +927,14 @@ constexpr CGFloat kAdditionalBorderMargin = 4;
 
   BOOL nextIAEnabled = IsChromeNextIaEnabled();
   BubbleArrowDirection arrowDirection;
-  BubbleAlignment alignment = BubbleAlignmentTopOrLeading;
   if (nextIAEnabled) {
-    switch (_layoutState.appBarPosition) {
-      case AppBarPosition::kLeft:
-        arrowDirection = BubbleArrowDirectionLeading;
-        break;
-      case AppBarPosition::kRight:
-        arrowDirection = BubbleArrowDirectionTrailing;
-        break;
-      case AppBarPosition::kBottom:
-        arrowDirection = BubbleArrowDirectionDown;
-        break;
-      case AppBarPosition::kNone:
-        // No App Bar position means the app is on iPad, where the Assistant
-        // Button is in the toolbar.
-        arrowDirection = BubbleArrowDirectionUp;
-        alignment = BubbleAlignmentBottomOrTrailing;
-        break;
+    AppBarPosition position = _layoutState.appBarPosition;
+    if (position == AppBarPosition::kLeft) {
+      arrowDirection = BubbleArrowDirectionLeading;
+    } else if (position == AppBarPosition::kRight) {
+      arrowDirection = BubbleArrowDirectionTrailing;
+    } else {
+      arrowDirection = BubbleArrowDirectionDown;
     }
   } else {
     arrowDirection = [self isGuideAtBottom:kPageActionMenuEntrypointGuide]
@@ -1022,7 +953,7 @@ constexpr CGFloat kAdditionalBorderMargin = 4;
   BubbleViewControllerPresenter* presenter = [self
       presentBubbleForFeature:feature_engagement::kIPHiOSGeminiImageRemixFeature
       direction:arrowDirection
-      alignment:alignment
+      alignment:BubbleAlignmentTopOrLeading
       text:text
       voiceOverAnnouncement:text
       anchorPoint:CGPoint(pageActionMenuEntrypointAnchor.x,
@@ -1045,12 +976,9 @@ constexpr CGFloat kAdditionalBorderMargin = 4;
           base::RecordAction(
               base::UserMetricsAction("MobileGeminiImageRemixIPHTapped"));
           [geminiHandler
-              startGeminiEntryFlowWithStartupState:
+              startGeminiFlowWithStartupState:
                   [[GeminiStartupState alloc]
-                      initWithEntryPoint:gemini::EntryPoint::ImageRemixIPH]
-                                baseViewController:self.rootViewController
-                          showSnackbarOnCompletion:YES
-                                        completion:nil];
+                      initWithEntryPoint:gemini::EntryPoint::ImageRemixIPH]];
         }
       }];
 
@@ -1464,15 +1392,16 @@ constexpr CGFloat kAdditionalBorderMargin = 4;
                                 : UISwipeGestureRecognizerDirectionLeft;
   switch (direction) {
     case UISwipeGestureRecognizerDirectionUp:
-      AddSameConstraintsToSides(boundingSizeGuide, contentAreaGuide,
-                                LayoutSides::kTop | LayoutSides::kHorizontal);
+      AddSameConstraintsToSides(
+          boundingSizeGuide, contentAreaGuide,
+          LayoutSides::kLeading | LayoutSides::kTrailing | LayoutSides::kTop);
       AddSameConstraintsToSides(boundingSizeGuide, safeAreaGuide,
                                 LayoutSides::kBottom);
       break;
     case UISwipeGestureRecognizerDirectionDown:
-      AddSameConstraintsToSides(
-          boundingSizeGuide, contentAreaGuide,
-          LayoutSides::kBottom | LayoutSides::kHorizontal);
+      AddSameConstraintsToSides(boundingSizeGuide, contentAreaGuide,
+                                LayoutSides::kLeading | LayoutSides::kTrailing |
+                                    LayoutSides::kBottom);
       AddSameConstraintsToSides(boundingSizeGuide, safeAreaGuide,
                                 LayoutSides::kTop);
       break;
@@ -1481,13 +1410,13 @@ constexpr CGFloat kAdditionalBorderMargin = 4;
       if (isDirectionLeading) {
         AddSameConstraintsToSides(
             boundingSizeGuide, contentAreaGuide,
-            LayoutSides::kLeading | LayoutSides::kVertical);
+            LayoutSides::kTop | LayoutSides::kBottom | LayoutSides::kLeading);
         AddSameConstraintsToSides(boundingSizeGuide, safeAreaGuide,
                                   LayoutSides::kTrailing);
       } else {
         AddSameConstraintsToSides(
             boundingSizeGuide, contentAreaGuide,
-            LayoutSides::kTrailing | LayoutSides::kVertical);
+            LayoutSides::kTop | LayoutSides::kBottom | LayoutSides::kTrailing);
         AddSameConstraintsToSides(boundingSizeGuide, safeAreaGuide,
                                   LayoutSides::kLeading);
       }
@@ -1587,13 +1516,6 @@ constexpr CGFloat kAdditionalBorderMargin = 4;
 // inform the FET of dismissal in this case. The client is responsible for
 // informing the FET.
 - (BOOL)shouldForcePresentBubbleForFeature:(const base::Feature&)feature {
-  // When Level Up is enabled, the Page Action Menu bubble is triggered
-  // on-demand when the user selects the Gemini task, bypassing standard FET
-  // engagement limits.
-  if (IsLevelUpEnabled() &&
-      feature.name == feature_engagement::kIPHIOSPageActionMenu.name) {
-    return YES;
-  }
   // The background customization feature bubble is tied in with other IPH, so
   // the feature engagement tracker is checked externally to this class.
   if (feature.name ==
@@ -1626,13 +1548,6 @@ constexpr CGFloat kAdditionalBorderMargin = 4;
   return IsBottomOmniboxAvailable() &&
          GetApplicationContext()->GetLocalState()->GetBoolean(
              omnibox::kIsOmniboxInBottomPosition);
-}
-
-#pragma mark - Testing
-
-- (BubbleViewControllerPresenter*)
-    sendTabToSelfOmniboxBubblePresenterForTesting {
-  return _sendTabToSelfOmniboxBubblePresenter;
 }
 
 @end

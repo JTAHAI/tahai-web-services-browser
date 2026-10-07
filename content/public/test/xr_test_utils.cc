@@ -13,4 +13,9 @@ GetXRDeviceServiceForTesting() {
   return GetXRDeviceService();
 }
 
+void SetXRDeviceServiceStartupCallbackForTesting(
+    base::RepeatingClosure callback) {
+  SetXRDeviceServiceStartupCallbackForTestingInternal(std::move(callback));
+}
+
 }  // namespace content

@@ -89,8 +89,7 @@ export function getHtml(this: ContextualTasksInnerComposeboxElement) {
             .cancelButtonTitle="${this.computeCancelButtonTitle()}"
             @input-input="${this.onInputInput}"
             @input-focusin="${this.onInputFocusin}"
-            @cancel-click="${this.onCancelClick}"
-            @clear-smart-compose="${this.onClearSmartCompose}">
+            @cancel-click="${this.onCancelClick}">
         </cr-composebox-input>
         <cr-composebox-file-inputs id="fileInputs"
             @file-change="${this.onFileChange}"
@@ -129,7 +128,7 @@ export function getHtml(this: ContextualTasksInnerComposeboxElement) {
           ${this.shouldShowVoiceSearchAtBottom() ? html`
             <cr-icon-button id="voiceSearchButton" class="voice-icon"
                 part="voice-icon"
-                iron-icon="cr:mic-filled" @click="${this.onVoiceSearchButtonClick}"
+                iron-icon="cr:mic" @click="${this.onVoiceSearchButtonClick}"
                 title="${this.i18n('voiceSearchButtonLabel')}">
             </cr-icon-button>
           ` : ''}

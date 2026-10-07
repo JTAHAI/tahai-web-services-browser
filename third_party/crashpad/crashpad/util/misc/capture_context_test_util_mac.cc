@@ -14,7 +14,6 @@
 
 #include "util/misc/capture_context_test_util.h"
 
-#include "build/build_config.h"
 #include "gtest/gtest.h"
 #include "util/misc/implicit_cast.h"
 

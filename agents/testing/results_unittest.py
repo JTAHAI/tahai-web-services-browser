@@ -21,30 +21,27 @@ _POLLING_INTERVAL = 100
 
 
 class TestResultTest(unittest.TestCase):
+
     def test_lt_less_than(self):
         result1 = results.TestResult(
             config=eval_config.TestConfig(test_file=pathlib.Path('a')),
             success=True,
-            iteration_results=[],
-        )
+            iteration_results=[])
         result2 = results.TestResult(
             config=eval_config.TestConfig(test_file=pathlib.Path('b')),
             success=True,
-            iteration_results=[],
-        )
+            iteration_results=[])
         self.assertLess(result1, result2)
 
     def test_lt_greater_than(self):
         result1 = results.TestResult(
             config=eval_config.TestConfig(test_file=pathlib.Path('b')),
             success=True,
-            iteration_results=[],
-        )
+            iteration_results=[])
         result2 = results.TestResult(
             config=eval_config.TestConfig(test_file=pathlib.Path('a')),
             success=True,
-            iteration_results=[],
-        )
+            iteration_results=[])
         self.assertGreater(result1, result2)
 
     def test_lt_equal(self):
@@ -60,8 +57,7 @@ class TestResultTest(unittest.TestCase):
                     prompt=None,
                     response=None,
                 )
-            ],
-        )
+            ])
         result2 = results.TestResult(
             config=eval_config.TestConfig(test_file=pathlib.Path('a')),
             success=False,
@@ -74,8 +70,7 @@ class TestResultTest(unittest.TestCase):
                     prompt=None,
                     response=None,
                 )
-            ],
-        )
+            ])
         self.assertFalse(result1 < result2)
         self.assertFalse(result2 < result1)
 
@@ -83,18 +78,15 @@ class TestResultTest(unittest.TestCase):
         result_b = results.TestResult(
             config=eval_config.TestConfig(test_file=pathlib.Path('b')),
             success=True,
-            iteration_results=[],
-        )
+            iteration_results=[])
         result_a = results.TestResult(
             config=eval_config.TestConfig(test_file=pathlib.Path('a')),
             success=True,
-            iteration_results=[],
-        )
+            iteration_results=[])
         result_c = results.TestResult(
             config=eval_config.TestConfig(test_file=pathlib.Path('c')),
             success=True,
-            iteration_results=[],
-        )
+            iteration_results=[])
         result_list = [result_b, result_c, result_a]
         self.assertEqual(sorted(result_list), [result_a, result_b, result_c])
 
@@ -118,12 +110,10 @@ class TestResultTest(unittest.TestCase):
                     metrics={},
                     prompt=None,
                     response=None,
-                ),
-            ],
-        )
-        self.assertEqual(
-            result.combined_logs, 'Iteration #0:\nlog1\nIteration #1:\nlog2'
-        )
+                )
+            ])
+        self.assertEqual(result.combined_logs,
+                         'Iteration #0:\nlog1\nIteration #1:\nlog2')
 
     def test_total_duration(self):
         result = results.TestResult(
@@ -145,9 +135,8 @@ class TestResultTest(unittest.TestCase):
                     metrics={},
                     prompt=None,
                     response=None,
-                ),
-            ],
-        )
+                )
+            ])
         self.assertAlmostEqual(result.total_duration, 4.6)
 
     def test_average_duration(self):
@@ -170,9 +159,8 @@ class TestResultTest(unittest.TestCase):
                     metrics={},
                     prompt=None,
                     response=None,
-                ),
-            ],
-        )
+                )
+            ])
         self.assertAlmostEqual(result.average_duration, 2.0)
 
     def test_successful_runs(self):
@@ -203,13 +191,16 @@ class TestResultTest(unittest.TestCase):
                     metrics={},
                     prompt=None,
                     response=None,
-                ),
-            ],
-        )
+                )
+            ])
         self.assertEqual(result.successful_runs, 2)
 
 
+
+
+
 class AtomicCounterTest(unittest.TestCase):
+
     def test_initial_value(self):
         counter = results.AtomicCounter()
         self.assertEqual(counter.get(), 0)
@@ -243,6 +234,7 @@ class AtomicCounterTest(unittest.TestCase):
 
 
 class ResultThreadTest(unittest.TestCase):
+
     def setUp(self):
         self._setUpPatches()
 
@@ -254,14 +246,15 @@ class ResultThreadTest(unittest.TestCase):
     def _setUpPatches(self):
         """Set up patches for tests."""
         self.polling_mock = mock.patch(
-            'results._RESULT_THREAD_POLLING_SLEEP_DURATION', 0.001
-        )
+            'results._RESULT_THREAD_POLLING_SLEEP_DURATION', 0.001)
         self.polling_mock.start()
         self.addCleanup(self.polling_mock.stop)
 
         stdout_patcher = mock.patch('sys.stdout')
         self.mock_stdout = stdout_patcher.start()
         self.addCleanup(stdout_patcher.stop)
+
+
 
     def _create_result_thread(self):
         return results.ResultThread(result_options=self.result_options)
@@ -299,11 +292,11 @@ class ResultThreadTest(unittest.TestCase):
                     prompt=None,
                     response=None,
                 )
-            ],
-        )
+            ])
         _ = self._run_test_with_results([test_result])
 
         handler_mock.assert_called_once_with(test_result)
+
 
     def test_passed_result(self):
         test_result = results.TestResult(
@@ -318,8 +311,7 @@ class ResultThreadTest(unittest.TestCase):
                     prompt=None,
                     response=None,
                 )
-            ],
-        )
+            ])
         thread = self._run_test_with_results([test_result])
 
         self.assertEqual(thread.total_results_reported.get(), 1)
@@ -338,8 +330,7 @@ class ResultThreadTest(unittest.TestCase):
                     prompt=None,
                     response=None,
                 )
-            ],
-        )
+            ])
         thread = self._run_test_with_results([test_result])
 
         self.assertEqual(thread.total_results_reported.get(), 1)
@@ -348,62 +339,52 @@ class ResultThreadTest(unittest.TestCase):
 
     def test_multiple_results(self):
         results_to_send = [
-            results.TestResult(
-                config=eval_config.TestConfig(
-                    test_file=pathlib.Path('test1.yaml')
-                ),
-                success=True,
-                iteration_results=[
-                    results.IterationResult(
-                        success=True,
-                        duration=1.0,
-                        test_log='log1',
-                        metrics={},
-                        prompt=None,
-                        response=None,
-                    )
-                ],
-            ),
-            results.TestResult(
-                config=eval_config.TestConfig(
-                    test_file=pathlib.Path('test2.yaml')
-                ),
-                success=False,
-                iteration_results=[
-                    results.IterationResult(
-                        success=False,
-                        duration=2.0,
-                        test_log='log2',
-                        metrics={},
-                        prompt=None,
-                        response=None,
-                    )
-                ],
-            ),
-            results.TestResult(
-                config=eval_config.TestConfig(
-                    test_file=pathlib.Path('test3.yaml')
-                ),
-                success=True,
-                iteration_results=[
-                    results.IterationResult(
-                        success=True,
-                        duration=3.0,
-                        test_log='log3',
-                        metrics={},
-                        prompt=None,
-                        response=None,
-                    )
-                ],
-            ),
+            results.TestResult(config=eval_config.TestConfig(
+                test_file=pathlib.Path('test1.yaml')),
+                               success=True,
+                               iteration_results=[
+                                   results.IterationResult(
+                                       success=True,
+                                       duration=1.0,
+                                       test_log='log1',
+                                       metrics={},
+                                       prompt=None,
+                                       response=None,
+                                   )
+                               ]),
+            results.TestResult(config=eval_config.TestConfig(
+                test_file=pathlib.Path('test2.yaml')),
+                               success=False,
+                               iteration_results=[
+                                   results.IterationResult(
+                                       success=False,
+                                       duration=2.0,
+                                       test_log='log2',
+                                       metrics={},
+                                       prompt=None,
+                                       response=None,
+                                   )
+                               ]),
+            results.TestResult(config=eval_config.TestConfig(
+                test_file=pathlib.Path('test3.yaml')),
+                               success=True,
+                               iteration_results=[
+                                   results.IterationResult(
+                                       success=True,
+                                       duration=3.0,
+                                       test_log='log3',
+                                       metrics={},
+                                       prompt=None,
+                                       response=None,
+                                   )
+                               ]),
         ]
         thread = self._run_test_with_results(results_to_send)
 
         self.assertEqual(thread.total_results_reported.get(), 3)
         self.assertEqual(thread.failed_result_output_queue.qsize(), 1)
-        self.assertEqual(
-            thread.failed_result_output_queue.get(), results_to_send[1]
-        )
+        self.assertEqual(thread.failed_result_output_queue.get(),
+                         results_to_send[1])
 
     def test_shutdown(self):
         thread = self._create_result_thread()
@@ -415,11 +396,9 @@ class ResultThreadTest(unittest.TestCase):
 
     def test_fatal_exception(self):
         thread = self._create_result_thread()
-        with mock.patch.object(
-            thread,
-            '_process_incoming_results_until_shutdown',
-            side_effect=ValueError('Test Error'),
-        ):
+        with mock.patch.object(thread,
+                               '_process_incoming_results_until_shutdown',
+                               side_effect=ValueError('Test Error')):
             thread.start()
             thread.join(1)
 
@@ -448,8 +427,7 @@ class ResultThreadTest(unittest.TestCase):
                     prompt=None,
                     response=None,
                 )
-            ],
-        )
+            ])
         self._run_test_with_results([test_result])
 
         self.mock_stdout.write.assert_called_once_with('log')
@@ -468,8 +446,7 @@ class ResultThreadTest(unittest.TestCase):
                     prompt=None,
                     response=None,
                 )
-            ],
-        )
+            ])
         self._run_test_with_results([test_result])
 
         self.mock_stdout.write.assert_not_called()
@@ -488,11 +465,12 @@ class ResultThreadTest(unittest.TestCase):
                     prompt=None,
                     response=None,
                 )
-            ],
-        )
+            ])
         self._run_test_with_results([test_result])
 
         self.mock_stdout.write.assert_called_once_with('log')
+
+
 
 
 if __name__ == '__main__':

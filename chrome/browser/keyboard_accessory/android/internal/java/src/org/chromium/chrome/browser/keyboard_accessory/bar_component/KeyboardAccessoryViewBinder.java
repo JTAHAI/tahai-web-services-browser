@@ -27,7 +27,6 @@ import android.content.res.Resources;
 import android.graphics.drawable.Drawable;
 import android.text.TextUtils;
 import android.view.LayoutInflater;
-import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewGroup.LayoutParams;
@@ -267,8 +266,15 @@ class KeyboardAccessoryViewBinder {
                         });
             }
 
+            final boolean isLoading =
+                    item.getViewState() == ActionBarItem.ViewState.LOADING
+                            || item.getSuggestion().isLoading();
+            final boolean isVisuallyDeactivated =
+                    item.getViewState() == ActionBarItem.ViewState.DEACTIVATED
+                            || item.getSuggestion().applyDeactivatedStyle();
+
             float iconAlpha;
-            if (!item.isEnabled()) {
+            if (isVisuallyDeactivated) {
                 // Disabling chipview if deactivated style is set.
                 chipView.setEnabled(false);
                 iconAlpha = GRAYED_OUT_OPACITY_ALPHA;
@@ -280,7 +286,7 @@ class KeyboardAccessoryViewBinder {
             } else {
                 // Explicitly re-enable the view in case it was recycled from a deactivated state.
                 // If it is currently loading, it should also be disabled.
-                chipView.setEnabled(!item.isLoading());
+                chipView.setEnabled(!isLoading);
                 iconAlpha = COMPLETE_OPACITY_ALPHA;
                 chipView.setBorder(
                         chipView.getResources().getDimensionPixelSize(R.dimen.chip_border_width),
@@ -292,28 +298,12 @@ class KeyboardAccessoryViewBinder {
             }
             chipView.setIconWithTint(iconDrawable, /* tintWithTextColor= */ false);
 
-            if (item.isLoading()) {
+            if (isLoading) {
                 // The `showLoadingView` must be called after `setIconWithTint` because
                 // `setIconWithTint` updates the icon visibility.
                 chipView.showLoadingView(/* loadingViewObserver= */ null);
             } else {
                 chipView.hideLoadingView(/* loadingViewObserver= */ null, /* skipDelay= */ true);
-            }
-
-            @Nullable Callback<Boolean> hoverCallback = action.getHoverCallback();
-            if (hoverCallback != null) {
-                chipView.setOnHoverListener(
-                        (view, motionEvent) -> {
-                            int actionMasked = motionEvent.getActionMasked();
-                            if (actionMasked == MotionEvent.ACTION_HOVER_ENTER) {
-                                hoverCallback.onResult(true);
-                            } else if (actionMasked == MotionEvent.ACTION_HOVER_EXIT) {
-                                hoverCallback.onResult(false);
-                            }
-                            return false;
-                        });
-            } else {
-                chipView.setOnHoverListener(null);
             }
 
             @Nullable String voiceOver = item.getSuggestion().getVoiceOver();
@@ -371,9 +361,12 @@ class KeyboardAccessoryViewBinder {
             KeyboardAccessoryData.Action action = barItem.getAction();
             assert action != null : "Tried to bind item without action. Chose a wrong ViewHolder?";
             textView.setText(barItem.getCaptionId());
-            textView.setEnabled(barItem.isEnabled());
+            int state = barItem.getViewState();
+            textView.setEnabled(state == ActionBarItem.ViewState.ENABLED);
             textView.setAlpha(
-                    barItem.isEnabled() ? COMPLETE_OPACITY_ALPHA : GRAYED_OUT_OPACITY_ALPHA);
+                    state == ActionBarItem.ViewState.DEACTIVATED
+                            ? GRAYED_OUT_OPACITY_ALPHA
+                            : COMPLETE_OPACITY_ALPHA);
             textView.setOnClickListener(view -> action.getCallback().onResult(action));
             // Margins can be either set in XML layouts or programmatically, they can't be part of
             // the KeyboardAccessory* styles.
@@ -422,8 +415,12 @@ class KeyboardAccessoryViewBinder {
         @Override
         protected void bind(ActionBarItem item, ChipView chipView) {
             chipView.getPrimaryTextView().setText(item.getCaptionId());
-            chipView.setEnabled(item.isEnabled());
-            chipView.setAlpha(item.isEnabled() ? COMPLETE_OPACITY_ALPHA : GRAYED_OUT_OPACITY_ALPHA);
+            int state = item.getViewState();
+            chipView.setEnabled(state == ActionBarItem.ViewState.ENABLED);
+            chipView.setAlpha(
+                    state == ActionBarItem.ViewState.DEACTIVATED
+                            ? GRAYED_OUT_OPACITY_ALPHA
+                            : COMPLETE_OPACITY_ALPHA);
             @Nullable Action action = item.getAction();
             if (action != null) {
                 chipView.setOnClickListener(view -> action.getCallback().onResult(action));
@@ -463,11 +460,12 @@ class KeyboardAccessoryViewBinder {
         protected void bind(
                 SheetOpenerBarItem sheetOpenerItem, KeyboardAccessoryButtonGroupView view) {
             mSheetOpenerItem = sheetOpenerItem;
-            view.setEnabled(sheetOpenerItem.isEnabled());
+            int state = sheetOpenerItem.getViewState();
+            view.setEnabled(state == ActionBarItem.ViewState.ENABLED);
             view.setAlpha(
-                    sheetOpenerItem.isEnabled()
-                            ? COMPLETE_OPACITY_ALPHA
-                            : GRAYED_OUT_OPACITY_ALPHA);
+                    state == ActionBarItem.ViewState.DEACTIVATED
+                            ? GRAYED_OUT_OPACITY_ALPHA
+                            : COMPLETE_OPACITY_ALPHA);
             sheetOpenerItem.notifyAboutViewCreation(itemView);
 
             // The `ViewRectProvider` used by `getAtMemoryIphRectProvider()` requires

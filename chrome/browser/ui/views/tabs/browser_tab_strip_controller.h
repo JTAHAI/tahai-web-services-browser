@@ -12,7 +12,9 @@
 #include "base/memory/raw_ptr.h"
 #include "chrome/browser/ui/immersive/immersive_mode_controller.h"
 #include "chrome/browser/ui/tabs/hover_tab_selector.h"
+#include "chrome/browser/ui/tabs/tab_menu_model_factory.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
+#include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/tabs/shared/tab_strip_types.h"
 #include "chrome/browser/ui/views/tabs/tab/tab_context_menu_controller.h"
 #include "chrome/browser/ui/views/tabs/tab_strip.h"
@@ -23,7 +25,6 @@
 #include "ui/menus/simple_menu_model.h"
 
 class BrowserFrameView;
-class BrowserView;
 class BrowserWindowInterface;
 class Tab;
 class TabGroup;
@@ -43,7 +44,10 @@ class BrowserTabStripController : public TabStripController,
                                   public TabStripModelObserver,
                                   public TabContextMenuController::Delegate {
  public:
-  BrowserTabStripController(TabStripModel* model, BrowserView* browser_view);
+  BrowserTabStripController(TabStripModel* model,
+                            BrowserView* browser_view,
+                            std::unique_ptr<TabMenuModelFactory>
+                                menu_model_factory_override = nullptr);
   BrowserTabStripController(const BrowserTabStripController&) = delete;
   BrowserTabStripController& operator=(const BrowserTabStripController&) =
       delete;
@@ -71,6 +75,7 @@ class BrowserTabStripController : public TabStripController,
   void OnCloseTab(int model_index,
                   CloseTabSource source,
                   base::OnceCallback<void(CloseTabSource)> callback) override;
+  void CloseTab(int model_index) override;
   void ToggleTabAudioMute(int model_index) override;
   void AddTabToGroup(int model_index,
                      const tab_groups::TabGroupId& group) override;
@@ -135,15 +140,6 @@ class BrowserTabStripController : public TabStripController,
       std::optional<tab_groups::TabGroupId> new_focused_group_id,
       std::optional<tab_groups::TabGroupId> old_focused_group_id) override;
 
-  // Updates the browser theme when focus mode is active for a tab group.
-  // Triggered when tab group focus changes or when the color of the currently
-  // focused tab group changes.
-  void UpdateFocusModeTheme(std::optional<tab_groups::TabGroupId> group_id);
-
-  // Updates freezing votes when focus mode or tab membership changes.
-  void UpdateTabFocusFreezing(int model_index);
-  void UpdateAllTabsFocusFreezing();
-
   BrowserFrameView* GetFrameView();
   const BrowserFrameView* GetFrameView() const;
 
@@ -183,6 +179,8 @@ class BrowserTabStripController : public TabStripController,
   // top-of-window views to be revealed when the user is dragging `tabstrip`'s
   // tabs.
   std::unique_ptr<ImmersiveRevealedLock> immersive_reveal_lock_;
+
+  std::unique_ptr<TabMenuModelFactory> menu_model_factory_;
 
   base::CallbackListSubscription glass_frame_service_subscription_;
 };

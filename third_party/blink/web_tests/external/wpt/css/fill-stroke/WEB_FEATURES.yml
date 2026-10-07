@@ -1,2 +1,4 @@
-rules:
-- paint-order-*: [paint-order]
+features:
+- name: paint-order
+  files:
+  - paint-order-*

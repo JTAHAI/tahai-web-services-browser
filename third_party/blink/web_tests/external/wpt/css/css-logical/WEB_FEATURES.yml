@@ -1,2 +1,3 @@
-rules:
-- "**": [logical-properties]
+features:
+- name: logical-properties
+  files: "**"

@@ -8,7 +8,6 @@ import static org.chromium.build.NullUtil.assumeNonNull;
 
 import androidx.annotation.VisibleForTesting;
 
-import org.chromium.base.CallbackUtils;
 import org.chromium.base.lifetime.Destroyable;
 import org.chromium.base.shared_preferences.SharedPreferencesManager;
 import org.chromium.build.annotations.NullMarked;
@@ -97,8 +96,7 @@ public class CommerceSubscriptionsService implements Destroyable {
 
     private void recordMetricsForEligibleAccount() {
         // Record notification opt-in metrics.
-        mPriceDropNotificationManager.canPostNotificationWithMetricsRecorded(
-                CallbackUtils.emptyCallback());
+        mPriceDropNotificationManager.canPostNotificationWithMetricsRecorded((canPost) -> {});
         mPriceDropNotificationManager.recordMetricsForNotificationCounts();
     }
 }

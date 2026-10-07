@@ -23,9 +23,9 @@ struct PhysicalStaticPosition;
 // `align_self_direction` represents what direction 'align-self' applies in,
 // with 'justify-self' applying in the opposite direction.
 struct CORE_EXPORT LogicalStaticPosition {
-  enum InlineEdge : uint8_t { kInlineStart, kInlineCenter, kInlineEnd };
-  enum BlockEdge : uint8_t { kBlockStart, kBlockCenter, kBlockEnd };
-  enum LogicalAlignmentDirection : uint8_t { kBlock, kInline };
+  enum InlineEdge { kInlineStart, kInlineCenter, kInlineEnd };
+  enum BlockEdge { kBlockStart, kBlockCenter, kBlockEnd };
+  enum LogicalAlignmentDirection { kBlock, kInline };
 
   LogicalStaticPosition() = default;
   explicit LogicalStaticPosition(LogicalOffset offset) : offset(offset) {}
@@ -49,14 +49,14 @@ struct CORE_EXPORT LogicalStaticPosition {
 
 // Similar to `LogicalStaticPosition` but in the physical coordinate space.
 struct CORE_EXPORT PhysicalStaticPosition {
-  enum HorizontalEdge : uint8_t { kLeft, kHorizontalCenter, kRight };
-  enum VerticalEdge : uint8_t { kTop, kVerticalCenter, kBottom };
-  enum PhysicalAlignmentDirection : uint8_t { kHorizontal, kVertical };
+  enum HorizontalEdge { kLeft, kHorizontalCenter, kRight };
+  enum VerticalEdge { kTop, kVerticalCenter, kBottom };
+  enum PhysicalAlignmentDirection { kHorizontal, kVertical };
 
   PhysicalOffset offset;
-  HorizontalEdge horizontal_edge;
-  VerticalEdge vertical_edge;
-  PhysicalAlignmentDirection align_self_direction;
+  unsigned horizontal_edge : 2;       // HorizontalEdge
+  unsigned vertical_edge : 2;         // VerticalEdge
+  unsigned align_self_direction : 1;  // PhysicalAlignmentDirection
 
   PhysicalStaticPosition(PhysicalOffset offset,
                          HorizontalEdge horizontal_edge,
@@ -66,6 +66,16 @@ struct CORE_EXPORT PhysicalStaticPosition {
         horizontal_edge(horizontal_edge),
         vertical_edge(vertical_edge),
         align_self_direction(align_self_direction) {}
+
+  HorizontalEdge GetHorizontalEdge() const {
+    return static_cast<HorizontalEdge>(horizontal_edge);
+  }
+  VerticalEdge GetVerticalEdge() const {
+    return static_cast<VerticalEdge>(vertical_edge);
+  }
+  PhysicalAlignmentDirection GetPhysicalAlignmentDirection() const {
+    return static_cast<PhysicalAlignmentDirection>(align_self_direction);
+  }
 
   LogicalStaticPosition ConvertToLogical(
       const WritingModeConverter& converter) const {
@@ -83,33 +93,33 @@ struct CORE_EXPORT PhysicalStaticPosition {
 
     switch (converter.GetWritingMode()) {
       case WritingMode::kHorizontalTb:
-        inline_edge = ((horizontal_edge == kLeft) == converter.IsLtr())
+        inline_edge = ((GetHorizontalEdge() == kLeft) == converter.IsLtr())
                           ? InlineEdge::kInlineStart
                           : InlineEdge::kInlineEnd;
-        block_edge = (vertical_edge == kTop) ? BlockEdge::kBlockStart
-                                             : BlockEdge::kBlockEnd;
+        block_edge = (GetVerticalEdge() == kTop) ? BlockEdge::kBlockStart
+                                                 : BlockEdge::kBlockEnd;
         break;
       case WritingMode::kVerticalRl:
       case WritingMode::kSidewaysRl:
-        inline_edge = ((vertical_edge == kTop) == converter.IsLtr())
+        inline_edge = ((GetVerticalEdge() == kTop) == converter.IsLtr())
                           ? InlineEdge::kInlineStart
                           : InlineEdge::kInlineEnd;
-        block_edge = (horizontal_edge == kRight) ? BlockEdge::kBlockStart
-                                                 : BlockEdge::kBlockEnd;
+        block_edge = (GetHorizontalEdge() == kRight) ? BlockEdge::kBlockStart
+                                                     : BlockEdge::kBlockEnd;
         break;
       case WritingMode::kVerticalLr:
-        inline_edge = ((vertical_edge == kTop) == converter.IsLtr())
+        inline_edge = ((GetVerticalEdge() == kTop) == converter.IsLtr())
                           ? InlineEdge::kInlineStart
                           : InlineEdge::kInlineEnd;
-        block_edge = (horizontal_edge == kLeft) ? BlockEdge::kBlockStart
-                                                : BlockEdge::kBlockEnd;
+        block_edge = (GetHorizontalEdge() == kLeft) ? BlockEdge::kBlockStart
+                                                    : BlockEdge::kBlockEnd;
         break;
       case WritingMode::kSidewaysLr:
-        inline_edge = ((vertical_edge == kBottom) == converter.IsLtr())
+        inline_edge = ((GetVerticalEdge() == kBottom) == converter.IsLtr())
                           ? InlineEdge::kInlineStart
                           : InlineEdge::kInlineEnd;
-        block_edge = (horizontal_edge == kLeft) ? BlockEdge::kBlockStart
-                                                : BlockEdge::kBlockEnd;
+        block_edge = (GetHorizontalEdge() == kLeft) ? BlockEdge::kBlockStart
+                                                    : BlockEdge::kBlockEnd;
         break;
     }
 
@@ -117,29 +127,31 @@ struct CORE_EXPORT PhysicalStaticPosition {
     // direction.
     switch (converter.GetWritingMode()) {
       case WritingMode::kHorizontalTb:
-        inline_edge = (horizontal_edge == kHorizontalCenter)
+        inline_edge = (GetHorizontalEdge() == kHorizontalCenter)
                           ? InlineEdge::kInlineCenter
                           : inline_edge;
-        block_edge = (vertical_edge == kVerticalCenter)
+        block_edge = (GetVerticalEdge() == kVerticalCenter)
                          ? BlockEdge::kBlockCenter
                          : block_edge;
-        logical_align_self_direction = (align_self_direction == kHorizontal)
-                                           ? LogicalAlignmentDirection::kInline
-                                           : LogicalAlignmentDirection::kBlock;
+        logical_align_self_direction =
+            (GetPhysicalAlignmentDirection() == kHorizontal)
+                ? LogicalAlignmentDirection::kInline
+                : LogicalAlignmentDirection::kBlock;
         break;
       case WritingMode::kVerticalRl:
       case WritingMode::kSidewaysRl:
       case WritingMode::kVerticalLr:
       case WritingMode::kSidewaysLr:
-        inline_edge = (vertical_edge == kVerticalCenter)
+        inline_edge = (GetVerticalEdge() == kVerticalCenter)
                           ? InlineEdge::kInlineCenter
                           : inline_edge;
-        block_edge = (horizontal_edge == kHorizontalCenter)
+        block_edge = (GetHorizontalEdge() == kHorizontalCenter)
                          ? BlockEdge::kBlockCenter
                          : block_edge;
-        logical_align_self_direction = (align_self_direction == kHorizontal)
-                                           ? LogicalAlignmentDirection::kBlock
-                                           : LogicalAlignmentDirection::kInline;
+        logical_align_self_direction =
+            (GetPhysicalAlignmentDirection() == kHorizontal)
+                ? LogicalAlignmentDirection::kBlock
+                : LogicalAlignmentDirection::kInline;
         break;
     }
 

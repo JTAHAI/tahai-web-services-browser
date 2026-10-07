@@ -13,6 +13,7 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.robolectric.annotation.Config;
 
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.chrome.browser.recent_tabs.ForeignSessionHelper.ForeignSessionTab;
@@ -21,6 +22,7 @@ import org.chromium.url.JUnitTestGURLs;
 
 /** Tests for the TabItem model. */
 @RunWith(BaseRobolectricTestRunner.class)
+@Config(manifest = Config.NONE)
 public class TabItemPropertiesUnitTest {
     private ForeignSessionTab mTab;
     private PropertyModel mModel;

@@ -84,6 +84,15 @@
          "mime_type": "application/20773535220+bar"
       } ],
       "action": "https://example.com/open-20773535220",
+      "downloaded_icons": [ {
+         "purpose": "kAny",
+         "square_size_px": 16,
+         "url": "https://example.com/image.png"
+      }, {
+         "purpose": "kAny",
+         "square_size_px": 48,
+         "url": "https://example.com/image2.png"
+      } ],
       "launch_type": "kSingleClient",
       "name": "20773535220 file"
    }, {
@@ -95,6 +104,15 @@
          "mime_type": "application/20773535221+bar"
       } ],
       "action": "https://example.com/open-20773535221",
+      "downloaded_icons": [ {
+         "purpose": "kAny",
+         "square_size_px": 16,
+         "url": "https://example.com/image.png"
+      }, {
+         "purpose": "kAny",
+         "square_size_px": 48,
+         "url": "https://example.com/image2.png"
+      } ],
       "launch_type": "kSingleClient",
       "name": "20773535221 file"
    }, {
@@ -106,6 +124,15 @@
          "mime_type": "application/20773535222+bar"
       } ],
       "action": "https://example.com/open-20773535222",
+      "downloaded_icons": [ {
+         "purpose": "kAny",
+         "square_size_px": 16,
+         "url": "https://example.com/image.png"
+      }, {
+         "purpose": "kAny",
+         "square_size_px": 48,
+         "url": "https://example.com/image2.png"
+      } ],
       "launch_type": "kSingleClient",
       "name": "20773535222 file"
    }, {
@@ -117,6 +144,15 @@
          "mime_type": "application/20773535223+bar"
       } ],
       "action": "https://example.com/open-20773535223",
+      "downloaded_icons": [ {
+         "purpose": "kAny",
+         "square_size_px": 16,
+         "url": "https://example.com/image.png"
+      }, {
+         "purpose": "kAny",
+         "square_size_px": 48,
+         "url": "https://example.com/image2.png"
+      } ],
       "launch_type": "kSingleClient",
       "name": "20773535223 file"
    }, {
@@ -128,6 +164,15 @@
          "mime_type": "application/20773535224+bar"
       } ],
       "action": "https://example.com/open-20773535224",
+      "downloaded_icons": [ {
+         "purpose": "kAny",
+         "square_size_px": 16,
+         "url": "https://example.com/image.png"
+      }, {
+         "purpose": "kAny",
+         "square_size_px": 48,
+         "url": "https://example.com/image2.png"
+      } ],
       "launch_type": "kSingleClient",
       "name": "20773535224 file"
    } ],

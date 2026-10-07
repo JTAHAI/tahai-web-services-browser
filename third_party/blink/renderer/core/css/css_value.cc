@@ -93,7 +93,6 @@
 #include "third_party/blink/renderer/core/css/css_shape_value.h"
 #include "third_party/blink/renderer/core/css/css_string_value.h"
 #include "third_party/blink/renderer/core/css/css_superellipse_value.h"
-#include "third_party/blink/renderer/core/css/css_symbols_value.h"
 #include "third_party/blink/renderer/core/css/css_timing_function_value.h"
 #include "third_party/blink/renderer/core/css/css_trigger_attachment_value.h"
 #include "third_party/blink/renderer/core/css/css_unicode_range_value.h"
@@ -317,8 +316,6 @@ bool CSSValue::operator==(const CSSValue& other) const {
         return CompareCSSValues<CSSShadowValue>(*this, other);
       case kStringClass:
         return CompareCSSValues<CSSStringValue>(*this, other);
-      case kSymbolsClass:
-        return CompareCSSValues<cssvalue::CSSSymbolsValue>(*this, other);
       case kProgressClass:
         return CompareCSSValues<cssvalue::CSSProgressValue>(*this, other);
       case kLinearTimingFunctionClass:
@@ -508,8 +505,6 @@ String CSSValue::CssText() const {
       return To<CSSShadowValue>(this)->CustomCSSText();
     case kStringClass:
       return To<CSSStringValue>(this)->CustomCSSText();
-    case kSymbolsClass:
-      return To<cssvalue::CSSSymbolsValue>(this)->CustomCSSText();
     case kProgressClass:
       return To<cssvalue::CSSProgressValue>(this)->CustomCSSText();
     case kLinearTimingFunctionClass:
@@ -621,7 +616,6 @@ unsigned CSSValue::Hash() const {
     case kContrastColorClass:
     case kCounterClass:
     case kCounterContentClass:
-    case kSymbolsClass:
     case kQuadClass:
     case kURIClass:
     case kURLPatternClass:
@@ -897,9 +891,6 @@ void CSSValue::Trace(Visitor* visitor) const {
     case kStringClass:
       To<CSSStringValue>(this)->TraceAfterDispatch(visitor);
       return;
-    case kSymbolsClass:
-      To<cssvalue::CSSSymbolsValue>(this)->TraceAfterDispatch(visitor);
-      return;
     case kProgressClass:
       To<cssvalue::CSSProgressValue>(this)->TraceAfterDispatch(visitor);
       return;
@@ -1029,8 +1020,6 @@ String CSSValue::ClassTypeToString() const {
       return "CustomIdentClass";
     case kStringClass:
       return "StringClass";
-    case kSymbolsClass:
-      return "SymbolsClass";
     case kURIClass:
       return "URIClass";
     case kURLPatternClass:
@@ -1291,8 +1280,6 @@ bool CSSValue::HasRandomFunctions() const {
       return To<CSSShadowValue>(this)->HasRandomFunctions();
     case kRayClass:
       return To<cssvalue::CSSRayValue>(this)->HasRandomFunctions();
-    case kUnparsedDeclarationClass:
-      return To<CSSUnparsedDeclarationValue>(this)->HasRandomFunctions();
 
     case kInheritedClass:
     case kInitialClass:
@@ -1306,6 +1293,7 @@ bool CSSValue::HasRandomFunctions() const {
     case kStringClass:
     case kBasicShapePathClass:
     case kCSSContentDistributionClass:
+    case kUnparsedDeclarationClass:
     case kImageClass:
     case kCursorImageClass:
     case kProgressClass:
@@ -1326,7 +1314,6 @@ bool CSSValue::HasRandomFunctions() const {
     case kGridAutoRepeatClass:
     case kScopedKeywordClass:
     case kNumericLiteralClass:
-    case kSymbolsClass:
     case kIdentifierClass:
       return false;
   }

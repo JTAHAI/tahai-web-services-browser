@@ -12,6 +12,8 @@
 #include "content/public/test/test_utils.h"
 #include "services/network/public/cpp/features.h"
 
+class Browser;
+
 namespace policy {
 
 enum class Policy {

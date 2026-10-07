@@ -21,6 +21,12 @@
 
 namespace {
 
+// Returns the localized "On" or "Off" text based on the `enabled` state.
+NSString* DetailTextForEnabledState(BOOL enabled) {
+  return enabled ? l10n_util::GetNSString(IDS_IOS_SETTING_ON)
+                 : l10n_util::GetNSString(IDS_IOS_SETTING_OFF);
+}
+
 // Creates and returns a configured TableViewDetailIconItem.
 TableViewDetailIconItem* DetailItemWithType(
     NSInteger type,
@@ -65,10 +71,6 @@ TableViewDetailIconItem* DetailItemWithType(
         detail_item.detailText =
             l10n_util::GetNSString(IDS_AUTOFILL_AND_PASSWORDS_SHOPPING_SUMMARY);
         break;
-      case SettingsItemTypeSuggestionsFromGemini:
-        detail_item.detailText = l10n_util::GetNSString(
-            IDS_IOS_PERSONAL_CONTEXT_AUTOFILL_SETTINGS_SUBPAGE_SUMMARY);
-        break;
       default:
         detail_item.detailText = nil;
         break;
@@ -109,9 +111,28 @@ TableViewDetailIconItem* EnhancedAutofillDetailItem(NSInteger itemType,
 
 }  // namespace
 
-NSString* DetailTextForEnabledState(BOOL enabled) {
-  return enabled ? l10n_util::GetNSString(IDS_IOS_SETTING_ON)
-                 : l10n_util::GetNSString(IDS_IOS_SETTING_OFF);
+NSString* PasswordsItemDetailText(BOOL enabled) {
+  return DetailTextForEnabledState(enabled);
+}
+
+NSString* AutofillCreditCardItemDetailText(BOOL enabled) {
+  return DetailTextForEnabledState(enabled);
+}
+
+NSString* AutofillProfileItemDetailText(BOOL enabled) {
+  return DetailTextForEnabledState(enabled);
+}
+
+NSString* IdentityDocsItemDetailText(BOOL enabled) {
+  return DetailTextForEnabledState(enabled);
+}
+
+NSString* TravelInfoItemDetailText(BOOL enabled) {
+  return DetailTextForEnabledState(enabled);
+}
+
+NSString* ShoppingInfoItemDetailText(BOOL enabled) {
+  return DetailTextForEnabledState(enabled);
 }
 
 TableViewDetailIconItem* PasswordsItem(BOOL enabled) {
@@ -119,7 +140,7 @@ TableViewDetailIconItem* PasswordsItem(BOOL enabled) {
       l10n_util::GetNSString(IDS_IOS_PASSWORD_MANAGER);
 
   return DetailItemWithType(SettingsItemTypePasswords, passwordsSectionTitle,
-                            DetailTextForEnabledState(enabled),
+                            PasswordsItemDetailText(enabled),
                             SettingsRootSymbol(SymbolPassword),
                             kSettingsPasswordsCellId);
 }
@@ -130,7 +151,7 @@ TableViewDetailIconItem* AutofillCreditCardItem(BOOL enabled) {
                                               : IDS_AUTOFILL_PAYMENT_METHODS);
 
   return DetailItemWithType(SettingsItemTypeAutofillCreditCard, title,
-                            DetailTextForEnabledState(enabled),
+                            AutofillCreditCardItemDetailText(enabled),
                             SettingsRootSymbol(SymbolCreditCard),
                             kSettingsPaymentMethodsCellId);
 }
@@ -146,14 +167,14 @@ TableViewDetailIconItem* AutofillProfileItem(BOOL enabled) {
                         : SettingsRootSymbol(SymbolLocation);
 
   return DetailItemWithType(SettingsItemTypeAutofillProfile, title,
-                            DetailTextForEnabledState(enabled), symbol,
+                            AutofillProfileItemDetailText(enabled), symbol,
                             kSettingsAddressesAndMoreCellId);
 }
 
 TableViewDetailIconItem* IdentityDocsItem(BOOL enabled) {
   NSString* title = l10n_util::GetNSString(IDS_AUTOFILL_IDENTITY_DOCS_TITLE);
   return DetailItemWithType(SettingsItemTypeIdentityDocs, title,
-                            DetailTextForEnabledState(enabled),
+                            IdentityDocsItemDetailText(enabled),
                             SettingsRootSymbol(SymbolPersonTextRectangle),
                             kSettingsIdentityDocsCellId);
 }
@@ -161,28 +182,15 @@ TableViewDetailIconItem* IdentityDocsItem(BOOL enabled) {
 TableViewDetailIconItem* TravelInfoItem(BOOL enabled) {
   NSString* title = l10n_util::GetNSString(IDS_AUTOFILL_TRAVEL_TITLE);
   return DetailItemWithType(
-      SettingsItemTypeTravelInfo, title, DetailTextForEnabledState(enabled),
+      SettingsItemTypeTravelInfo, title, TravelInfoItemDetailText(enabled),
       SettingsRootSymbol(SymbolSuitcase), kSettingsTravelInfoCellId);
 }
 
 TableViewDetailIconItem* ShoppingInfoItem(BOOL enabled) {
   NSString* title = l10n_util::GetNSString(IDS_AUTOFILL_SHOPPING_TITLE);
   return DetailItemWithType(
-      SettingsItemTypeShoppingInfo, title, DetailTextForEnabledState(enabled),
+      SettingsItemTypeShoppingInfo, title, ShoppingInfoItemDetailText(enabled),
       SettingsRootSymbol(SymbolCart), kSettingsShoppingInfoCellId);
-}
-
-TableViewDetailIconItem* SuggestionsFromGeminiItem(BOOL enabled) {
-  NSString* title =
-      l10n_util::GetNSString(IDS_IOS_PERSONAL_CONTEXT_AUTOFILL_SETTINGS_TITLE);
-#if BUILDFLAG(IOS_USE_BRANDED_ASSETS)
-  UIImage* image = SettingsRootSymbol(SymbolGeminiBrandedLogo);
-#else
-  UIImage* image = SettingsRootSymbol(SymbolGeminiNonBrandedLogo);
-#endif
-  return DetailItemWithType(SettingsItemTypeSuggestionsFromGemini, title,
-                            DetailTextForEnabledState(enabled), image,
-                            kSettingsSuggestionsFromGeminiCellId);
 }
 
 TableViewDetailIconItem* AutofillSettingsItem() {
@@ -213,10 +221,8 @@ TableViewSwitchItem* EnhancedAutofillSwitchItem(NSInteger itemType,
 TableViewHeaderFooterItem* EnhancedAutofillSwitchFooter(NSInteger itemType) {
   TableViewLinkHeaderFooterItem* footer =
       [[TableViewLinkHeaderFooterItem alloc] initWithType:itemType];
-  footer.text = l10n_util::GetNSString(
-      base::FeatureList::IsEnabled(autofill::features::kAutofillAiUsePrivateAi)
-          ? IDS_SETTINGS_AUTOFILL_AI_TOGGLE_SUB_LABEL_V2
-          : IDS_SETTINGS_AUTOFILL_AI_TOGGLE_SUB_LABEL);
+  footer.text =
+      l10n_util::GetNSString(IDS_SETTINGS_AUTOFILL_AI_TOGGLE_SUB_LABEL);
   return footer;
 }
 
@@ -247,10 +253,7 @@ TableViewHeaderFooterItem* EnhancedAutofillThingsToConsiderSectionHeader(
 
 TableViewDetailIconItem* EnhancedAutofillDataUsageItem(NSInteger itemType) {
   return EnhancedAutofillDetailItem(
-      itemType,
-      base::FeatureList::IsEnabled(autofill::features::kAutofillAiUsePrivateAi)
-          ? IDS_SETTINGS_AUTOFILL_AI_TO_CONSIDER_DATA_USAGE_V2
-          : IDS_SETTINGS_AUTOFILL_AI_TO_CONSIDER_DATA_USAGE,
+      itemType, IDS_SETTINGS_AUTOFILL_AI_TO_CONSIDER_DATA_USAGE,
       MakeSymbolMonochrome(GetBrandedGoogleServicesSymbol()));
 }
 

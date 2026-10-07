@@ -22,8 +22,6 @@
 #include "chrome/browser/glic/suggestions/contextual_cueing_features.h"
 #include "chrome/browser/private_ai/private_ai_service_factory.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/themes/theme_service.h"
-#include "chrome/browser/themes/theme_service_factory.h"
 #include "chrome/browser/ui/browser_element_identifiers.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/color/chrome_color_id.h"
@@ -210,45 +208,15 @@ class GlicButton : public GlicBaseShim<T>,
         menu_model_(CreateMenuModel()),
         profile_(browser_window_interface
                      ? browser_window_interface->GetProfile()
-                     : nullptr) {
+                     : nullptr),
+        normal_icon_(GetNormalIcon(icon_size)),
+        icon_for_highlight_(GetIconForHighlight(icon_size)) {
     Init(expansion_animation_done_callback, tooltip);
   }
 
   GlicButton(const GlicButton&) = delete;
   GlicButton& operator=(const GlicButton&) = delete;
   ~GlicButton() override = default;
-
-  bool ShouldApplyCustomThemeFallback() const {
-    if (!base::FeatureList::IsEnabled(features::kGlicButtonPressedState)) {
-      return false;
-    }
-    if (!features::kGlicButtonCustomThemeFallback.Get()) {
-      return false;
-    }
-    if (!profile_) {
-      return false;
-    }
-    ThemeService* theme_service = ThemeServiceFactory::GetForProfile(profile_);
-    return theme_service && theme_service->UsingExtensionTheme();
-  }
-
-  SkColor GetTextColorForTesting(views::Button::ButtonState state) const {
-    return this->label()->GetEnabledColor();
-  }
-
-  virtual ui::ColorId GetCustomThemeForegroundId() const = 0;
-  virtual ui::ColorId GetCustomThemeBackgroundActiveId() const {
-    return ui::kColorSysBase;
-  }
-  virtual ui::ColorId GetCustomThemeBackgroundInactiveId() const {
-    return ui::kColorSysBase;
-  }
-  virtual ui::ColorId GetCustomThemeForegroundActiveId() const {
-    return kForegroundOnAltBackground;
-  }
-  virtual ui::ColorId GetCustomThemeForegroundInactiveId() const {
-    return kForegroundOnAltBackground;
-  }
 
   // These functions below work together to hide the nudge label on the static
   // button when another nudge occupies the display space.
@@ -375,11 +343,6 @@ class GlicButton : public GlicBaseShim<T>,
     return gfx::Size(width, height);
   }
 
-  void OnThemeChanged() override {
-    T::OnThemeChanged();
-    UpdateTextAndBackgroundColors();
-  }
-
   void StateChanged(views::Button::ButtonState old_state) override {
     T::StateChanged(old_state);
 
@@ -410,9 +373,7 @@ class GlicButton : public GlicBaseShim<T>,
     T::AddedToWidget();
     // Button starts in WidthState::kNormal. Measure that state's width and set
     // `start_width_` and `end_width_` for CalculatePreferredSize().
-    if (!normal_width_) {
-      normal_width_ = PreferredSize().width();
-    }
+    normal_width_ = PreferredSize().width();
     start_width_ = normal_width_;
     end_width_ = normal_width_;
 
@@ -584,9 +545,8 @@ class GlicButton : public GlicBaseShim<T>,
     const bool solid_icon_for_pressed_state =
         base::FeatureList::IsEnabled(features::kGlicButtonPressedState) &&
         features::kGlicButtonPressedForceSolidIcon.Get() && glic_panel_is_open_;
-    const ui::ImageModel model = solid_icon_for_pressed_state
-                                     ? GetIconForHighlight(icon_size_)
-                                     : GetNormalIcon(icon_size_);
+    const ui::ImageModel& model =
+        solid_icon_for_pressed_state ? icon_for_highlight_ : normal_icon_;
 
     this->SetImageModel(views::Button::STATE_NORMAL, model);
     this->SetImageModel(views::Button::STATE_HOVERED, model);
@@ -733,20 +693,8 @@ class GlicButton : public GlicBaseShim<T>,
   }
 
   void UpdateTextAndBackgroundColors() {
-    if (ShouldApplyCustomThemeFallback()) {
-      SetBackgroundFrameActiveColorId(GetCustomThemeBackgroundActiveId());
-      SetBackgroundFrameInactiveColorId(GetCustomThemeBackgroundInactiveId());
-      SetForegroundFrameActiveColorId(GetCustomThemeForegroundActiveId());
-      SetForegroundFrameInactiveColorId(GetCustomThemeForegroundInactiveId());
-      if (this->GetColorProvider()) {
-        this->SetTextColor(
-            views::Button::STATE_NORMAL,
-            this->GetColorProvider()->GetColor(GetCustomThemeForegroundId()));
-      }
-    } else {
-      SetBackgroundFrameActiveColorId(ui::kColorSysBase);
-      SetForegroundFrameActiveColorId(kForegroundOnAltBackground);
-    }
+    SetBackgroundFrameActiveColorId(ui::kColorSysBase);
+    SetForegroundFrameActiveColorId(kForegroundOnAltBackground);
     this->SetTextColor(views::Button::STATE_DISABLED, kTextDisabled);
 
     if (base::FeatureList::IsEnabled(features::kGlicButtonPressedState) &&
@@ -911,11 +859,7 @@ class GlicButton : public GlicBaseShim<T>,
   }
 
   ui::ImageModel GetIconForHighlight(const int icon_size) {
-    ui::ColorId foreground_color_id = kForeground;
-    if (ShouldApplyCustomThemeFallback()) {
-      foreground_color_id = GetCustomThemeForegroundId();
-    }
-    return ui::ImageModel::FromVectorIcon(GlicVectorIcon(), foreground_color_id,
+    return ui::ImageModel::FromVectorIcon(GlicVectorIcon(), kForeground,
                                           icon_size);
   }
 
@@ -933,6 +877,9 @@ class GlicButton : public GlicBaseShim<T>,
   // Holds the incoming nudge text until the point in the animation when it can
   // be applied.
   std::optional<std::u16string> pending_text_;
+
+  const ui::ImageModel normal_icon_;
+  const ui::ImageModel icon_for_highlight_;
 
   bool glic_panel_is_open_ = false;
 

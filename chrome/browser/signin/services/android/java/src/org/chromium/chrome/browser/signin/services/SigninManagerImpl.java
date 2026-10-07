@@ -14,7 +14,6 @@ import org.jni_zero.JniType;
 import org.jni_zero.NativeMethods;
 
 import org.chromium.base.Callback;
-import org.chromium.base.CallbackUtils;
 import org.chromium.base.ContextUtils;
 import org.chromium.base.Log;
 import org.chromium.base.ObserverList;
@@ -291,7 +290,7 @@ class SigninManagerImpl implements SigninManager, AccountsChangeObserver {
         @PrimaryAccountError
         int primaryAccountError =
                 mIdentityMutator.setPrimaryAccountWithSyncConsentForTesting(
-                        coreAccountInfo.getId(), accessPoint, CallbackUtils.emptyRunnable());
+                        coreAccountInfo.getId(), accessPoint, () -> {});
         assert primaryAccountError == PrimaryAccountError.NO_ERROR
                 : "Encountered error: " + primaryAccountError;
     }
@@ -486,7 +485,7 @@ class SigninManagerImpl implements SigninManager, AccountsChangeObserver {
         RecordHistogram.recordEnumeratedHistogram(
                 "Signin.SigninAbortedAccessPoint",
                 signInState.getAccessPoint(),
-                SigninAccessPoint.MAX_VALUE + 1);
+                SigninAccessPoint.MAX_VALUE);
 
         signInState.mCallback.onSignInAborted();
 

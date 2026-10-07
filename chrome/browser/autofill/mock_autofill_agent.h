@@ -31,7 +31,6 @@ class MockAutofillAgent : public mojom::AutofillAgent {
               TriggerFormExtractionWithResponse,
               (base::OnceCallback<void(bool)>),
               (override));
-  MOCK_METHOD(void, ClearFormCache, (), (override));
   MOCK_METHOD(
       void,
       ExtractFormWithField,

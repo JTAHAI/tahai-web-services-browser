@@ -13,17 +13,16 @@
 #include "base/test/bind.h"
 #include "chrome/app/vector_icons/vector_icons.h"
 #include "chrome/browser/ui/views/controls/hover_button.h"
+#include "chrome/browser/ui/views/frame/browser_view.h"
+#include "chrome/browser/ui/views/frame/test_with_browser_view.h"
 #include "chrome/grit/branded_strings.h"
 #include "chrome/grit/generated_resources.h"
-#include "chrome/test/base/testing_profile.h"
-#include "chrome/test/views/chrome_views_test_base.h"
+#include "chrome/test/base/browser_with_test_window_test.h"
 #include "components/sharing_message/sharing_app.h"
 #include "components/sharing_message/sharing_metrics.h"
 #include "components/sharing_message/sharing_target_device_info.h"
 #include "components/sync_device_info/device_info.h"
 #include "components/url_formatter/elide_url.h"
-#include "content/public/test/test_renderer_host.h"
-#include "content/public/test/web_contents_tester.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "ui/base/l10n/l10n_util.h"
@@ -35,7 +34,6 @@
 #include "ui/views/bubble/bubble_frame_view.h"
 #include "ui/views/controls/styled_label.h"
 #include "ui/views/test/button_test_api.h"
-#include "ui/views/widget/widget.h"
 #include "url/gurl.h"
 #include "url/origin.h"
 
@@ -45,30 +43,26 @@ MATCHER_P(AppEquals, app, "") {
   return app->name == arg.name;
 }
 
-class SharingDialogViewTest : public ChromeViewsTestBase {
+class SharingDialogViewTest : public TestWithBrowserView {
  protected:
   void SetUp() override {
-    ChromeViewsTestBase::SetUp();
-
-    anchor_widget_ =
-        CreateTestWidget(views::Widget::InitParams::CLIENT_OWNS_WIDGET);
-    anchor_widget_->Show();
+    TestWithBrowserView::SetUp();
 
     // We create |web_contents_| to have a valid committed page origin to check
     // against when showing the origin view.
-    web_contents_ =
-        content::WebContentsTester::CreateTestWebContents(&profile_, nullptr);
-    content::WebContentsTester::For(web_contents_.get())
-        ->NavigateAndCommit(GURL("https://google.com"));
+    web_contents_ = browser()->OpenURL(
+        content::OpenURLParams(GURL("https://google.com"), content::Referrer(),
+                               WindowOpenDisposition::CURRENT_TAB,
+                               ui::PAGE_TRANSITION_TYPED, false),
+        /*navigation_handle_callback=*/{});
+    CommitPendingLoad(&web_contents_->GetController());
   }
 
   void TearDown() override {
     if (dialog_) {
       dialog_->GetWidget()->CloseNow();
     }
-    anchor_widget_.reset();
-    web_contents_.reset();
-    ChromeViewsTestBase::TearDown();
+    TestWithBrowserView::TearDown();
   }
 
   std::vector<SharingTargetDeviceInfo> CreateDevices(int count) {
@@ -97,10 +91,8 @@ class SharingDialogViewTest : public ChromeViewsTestBase {
   }
 
   void CreateDialogView(SharingDialogData dialog_data) {
-    dialog_ = new SharingDialogView(
-        views::BubbleAnchor(anchor_widget_->GetContentsView()),
-        web_contents_.get(), std::move(dialog_data));
-    dialog_->set_parent_window(anchor_widget_->GetNativeView());
+    dialog_ = new SharingDialogView(views::BubbleAnchor(browser_view()),
+                                    web_contents_, std::move(dialog_data));
     views::BubbleDialogDelegateView::CreateBubble(dialog_);
   }
 
@@ -139,10 +131,7 @@ class SharingDialogViewTest : public ChromeViewsTestBase {
   testing::MockFunction<void(const SharingApp&)> app_callback_;
 
  private:
-  content::RenderViewHostTestEnabler rvh_test_enabler_;
-  TestingProfile profile_;
-  std::unique_ptr<views::Widget> anchor_widget_;
-  std::unique_ptr<content::WebContents> web_contents_;
+  raw_ptr<content::WebContents, DanglingUntriaged> web_contents_ = nullptr;
   raw_ptr<SharingDialogView, DanglingUntriaged> dialog_ = nullptr;
 };
 

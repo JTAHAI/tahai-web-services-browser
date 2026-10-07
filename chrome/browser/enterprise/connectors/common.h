@@ -78,7 +78,8 @@ std::string GetProfileEmail(Profile* profile);
 google::protobuf::RepeatedPtrField<std::string> CollectFrameUrls(
     content::WebContents* web_contents,
     DeepScanAccessPoint access_point,
-    std::optional<content::GlobalRenderFrameHostId> initiating_frame_id);
+    std::optional<content::GlobalRenderFrameHostId> initiating_frame_id =
+        std::nullopt);
 
 #if BUILDFLAG(SAFE_BROWSING_AVAILABLE)
 

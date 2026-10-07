@@ -11,11 +11,9 @@ source_set("proxy") {
 
   configs += [ "//chromeos/ash/components/network:network_config" ]
   deps = [
-    "//ash/constants",
     "//base",
     "//chromeos/ash/components/dbus/shill",
     "//chromeos/ash/components/network/onc",
-    "//chromeos/components/onc",
     "//chromeos/constants",
     "//components/onc",
     "//components/pref_registry",
@@ -43,12 +41,10 @@ source_set("proxy") {
 source_set("unit_tests") {
   testonly = true
   deps = [
-    "//ash/constants",
     "//base",
     "//chromeos/ash/components/dbus/shill",
     "//chromeos/ash/components/network",
     "//chromeos/ash/components/network:test_support",
-    "//chromeos/components/onc",
     "//chromeos/constants",
     "//components/onc",
     "//components/prefs",

@@ -106,7 +106,6 @@ class CORE_EXPORT LayoutGrid : public LayoutBlock {
   void RemoveChild(LayoutObject* child) override;
   void StyleDidChange(StyleDifference diff,
                       const ComputedStyle* old_style,
-                      const ComputedStyle& new_style,
                       const StyleChangeContext&) override;
 
   std::optional<GridPlacementData> cached_placement_data_;

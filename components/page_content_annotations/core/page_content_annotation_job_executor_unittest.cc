@@ -4,8 +4,10 @@
 
 #include "components/page_content_annotations/core/page_content_annotation_job_executor.h"
 
+#include "base/test/scoped_feature_list.h"
 #include "base/test/scoped_run_loop_timeout.h"
 #include "base/test/task_environment.h"
+#include "components/page_content_annotations/core/page_content_annotations_features.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
 namespace page_content_annotations {
@@ -32,11 +34,15 @@ class TestJobExecutor : public PageContentAnnotationJobExecutor {
 
 class PageContentAnnotationJobExecutorTest : public testing::Test {
  public:
-  PageContentAnnotationJobExecutorTest() = default;
+  PageContentAnnotationJobExecutorTest() {
+    scoped_feature_list_.InitAndEnableFeature(
+        features::kPageContentAnnotations);
+  }
   ~PageContentAnnotationJobExecutorTest() override = default;
 
  private:
   base::test::TaskEnvironment task_environment_;
+  base::test::ScopedFeatureList scoped_feature_list_;
 };
 
 TEST_F(PageContentAnnotationJobExecutorTest, FullFlow) {

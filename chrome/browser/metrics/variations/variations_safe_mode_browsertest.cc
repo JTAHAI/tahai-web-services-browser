@@ -35,7 +35,7 @@ IN_PROC_BROWSER_TEST_F(VariationsSafeModeBrowserTest,
   // pref to be set early enough to be read by the variations code, which runs
   // very early during startup.
   PrefService* local_state = g_browser_process->local_state();
-  WriteSignedSeedData(local_state, TestSeedData(), kSafeSeedPrefKeys);
+  WriteSeedData(local_state, TestSeedData(), kSafeSeedPrefKeys);
   SimulateCrash(local_state);
 }
 
@@ -76,7 +76,7 @@ IN_PROC_BROWSER_TEST_F(VariationsSafeModeBrowserTest,
   // very early during startup.
   PrefService* local_state = g_browser_process->local_state();
   local_state->SetInteger(prefs::kVariationsFailedToFetchSeedStreak, 25);
-  WriteSignedSeedData(local_state, TestSeedData(), kSafeSeedPrefKeys);
+  WriteSeedData(local_state, TestSeedData(), kSafeSeedPrefKeys);
 }
 
 IN_PROC_BROWSER_TEST_F(VariationsSafeModeBrowserTest,
@@ -104,7 +104,7 @@ IN_PROC_BROWSER_TEST_F(VariationsSafeModeBrowserTest,
   PrefService* local_state = g_browser_process->local_state();
   local_state->SetInteger(prefs::kVariationsCrashStreak, 2);
   local_state->SetInteger(prefs::kVariationsFailedToFetchSeedStreak, 24);
-  WriteSignedSeedData(local_state, TestSeedData(), kRegularSeedPrefKeys);
+  WriteSeedData(local_state, TestSeedData(), kRegularSeedPrefKeys);
 }
 
 IN_PROC_BROWSER_TEST_F(VariationsSafeModeBrowserTest, DoNotTriggerSafeMode) {

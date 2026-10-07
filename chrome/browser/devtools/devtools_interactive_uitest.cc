@@ -18,7 +18,6 @@
 #include "chrome/test/base/ui_test_utils.h"
 #include "content/public/test/browser_test.h"
 #include "ui/display/types/display_constants.h"
-#include "ui/gfx/geometry/rect.h"
 
 #if BUILDFLAG(IS_MAC)
 #include "chrome/browser/devtools/devtools_window_testing.h"
@@ -39,7 +38,7 @@ class DevToolsManagerDelegateTest : public InProcessBrowserTest {
     auto window_bounds =
         protocol::Browser::Bounds::Create().SetWindowState(state).Build();
     BrowserHandler handler(nullptr, "");
-    handler.SetWindowBounds(browser()->GetSessionID().id(),
+    handler.SetWindowBounds(browser()->session_id().id(),
                             std::move(window_bounds));
   }
 
@@ -50,7 +49,7 @@ class DevToolsManagerDelegateTest : public InProcessBrowserTest {
                              .SetHeight(400)
                              .Build();
     BrowserHandler handler(nullptr, "");
-    handler.SetWindowBounds(browser()->GetSessionID().id(),
+    handler.SetWindowBounds(browser()->session_id().id(),
                             std::move(window_bounds));
   }
 

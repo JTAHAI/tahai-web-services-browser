@@ -14,10 +14,10 @@
 #include "base/test/scoped_feature_list.h"
 #include "build/build_config.h"
 #include "chrome/browser/browser_process.h"
-#include "chrome/browser/preloading/preloading_features.h"
 #include "chrome/browser/task_manager/common/task_manager_features.h"
 #include "chrome/browser/task_manager/task_manager_browsertest_util.h"
 #include "chrome/browser/task_manager/task_manager_tester.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_tabstrip.h"
 #include "chrome/browser/ui/browser_window.h"
@@ -64,15 +64,13 @@ using browsertest_util::WaitForTaskManagerRows;
 class TaskManagerViewTest : public InProcessBrowserTest {
  public:
   TaskManagerViewTest() {
-    // TODO(crbug.com/539786691): Re-enable kPrewarm once the feature is
-    // compatible with the test.
     webui_omnibox_feature_list_.InitWithFeatures(
         /*enabled_features=*/{},
         /*disabled_features=*/
         // TODO(crbug.com/452061489): Fix tests that fail when the WebUI Omnibox
         // is enabled and then remove these two Features.
         {omnibox::internal::kWebUIOmniboxPopup,
-         omnibox::internal::kWebUIOmniboxAimPopup, features::kPrewarm});
+         omnibox::internal::kWebUIOmniboxAimPopup});
   }
 
   TaskManagerViewTest(const TaskManagerViewTest&) = delete;
@@ -319,15 +317,15 @@ IN_PROC_BROWSER_TEST_F(TaskManagerViewTest, InitialSelection) {
 
   EXPECT_EQ(1UL, GetTable()->selection_model().size());
   EXPECT_EQ(GetTable()->GetFirstSelectedRow(),
-            FindRowForTab(browser()->GetTabStripModel()->GetWebContentsAt(1)));
+            FindRowForTab(browser()->tab_strip_model()->GetWebContentsAt(1)));
 
   // Activate tab 0. The selection should not change.
-  browser()->GetTabStripModel()->ActivateTabAt(
+  browser()->tab_strip_model()->ActivateTabAt(
       0, TabStripUserGestureDetails(
              TabStripUserGestureDetails::GestureType::kOther));
   EXPECT_EQ(1UL, GetTable()->selection_model().size());
   EXPECT_EQ(GetTable()->GetFirstSelectedRow(),
-            FindRowForTab(browser()->GetTabStripModel()->GetWebContentsAt(1)));
+            FindRowForTab(browser()->tab_strip_model()->GetWebContentsAt(1)));
 
   // If the user re-triggers chrome::ShowTaskManager (e.g. via shift-esc), this
   // should set the TaskManager selection to the active tab.
@@ -335,7 +333,7 @@ IN_PROC_BROWSER_TEST_F(TaskManagerViewTest, InitialSelection) {
 
   EXPECT_EQ(1UL, GetTable()->selection_model().size());
   EXPECT_EQ(GetTable()->GetFirstSelectedRow(),
-            FindRowForTab(browser()->GetTabStripModel()->GetWebContentsAt(0)));
+            FindRowForTab(browser()->tab_strip_model()->GetWebContentsAt(0)));
 }
 
 // Test is flaky. https://crbug.com/41478531

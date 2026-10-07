@@ -9,12 +9,11 @@
 #include <optional>
 #include <string>
 
-#include "base/containers/flat_set.h"
 #include "base/memory/raw_ptr.h"
 #include "chrome/browser/themes/browser_theme_provider_delegate.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/page_action/page_action_icon_type.h"
 #include "chrome/browser/ui/tabs/tab_strip_model_observer.h"
-#include "components/tabs/public/tab_context_menu_command.h"
 #include "components/url_formatter/url_formatter.h"
 #include "components/webapps/browser/installable/installable_metrics.h"
 #include "components/webapps/common/web_app_id.h"
@@ -31,9 +30,11 @@
 #include "chromeos/ash/components/system_web_apps/system_web_app_type.h"
 #endif  // BUILDFLAG(IS_CHROMEOS)
 
+class Browser;
 class BrowserWindowInterface;
 class BrowserThemePack;
 class CustomThemeSupplier;
+class TabMenuModelFactory;
 
 #if BUILDFLAG(IS_CHROMEOS)
 namespace ash {
@@ -243,11 +244,8 @@ class AppBrowserController : public ui::ColorProviderKey::InitializerSupplier,
   // Returns whether this is the first launch of the app after it was installed.
   virtual bool IsFirstLaunchAfterInstall() const;
 
-  // If std::nullopt (the default), the standard web app tab menu is built.
-  // If a set is returned, exactly those contained will be used (modulo pinned
-  // home tab restrictions).
-  virtual std::optional<base::flat_set<tabs::TabContextMenuCommand>>
-  GetAllowedTabMenuCommands() const;
+  // Returns an optional custom tab menu model factory.
+  virtual std::unique_ptr<TabMenuModelFactory> GetTabMenuModelFactory() const;
 
   // Returns true when an app's effective display mode is
   // window-controls-overlay.
@@ -328,7 +326,7 @@ class AppBrowserController : public ui::ColorProviderKey::InitializerSupplier,
   bool IsTrustedSource() const;
 
 #if !BUILDFLAG(IS_ANDROID)
-  BrowserWindowInterface* browser() const { return browser_; }
+  Browser* browser() const { return browser_->GetBrowserForMigrationOnly(); }
 #endif
 
   // Gets the url that the app browser controller was created with. Note: This

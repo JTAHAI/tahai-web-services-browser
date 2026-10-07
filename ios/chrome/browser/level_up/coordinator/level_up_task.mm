@@ -36,12 +36,12 @@
   return base::SysUTF8ToNSString(_taskInfo->GetTaskDescription());
 }
 
-- (Symbol)iconSymbol {
-  return _taskInfo->GetIconSymbol();
+- (NSString*)iconSymbolName {
+  return base::SysUTF8ToNSString(_taskInfo->GetIconSymbolName());
 }
 
-- (BOOL)multicolorIcon {
-  return _taskInfo->IsMulticolorIcon();
+- (BOOL)isCustomSymbol {
+  return _taskInfo->IsCustomSymbol();
 }
 
 - (LevelUpTaskCategory)category {

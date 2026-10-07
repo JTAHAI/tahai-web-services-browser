@@ -11,9 +11,8 @@
 #include "components/optimization_guide/core/delivery/model_provider_registry.h"
 #include "components/optimization_guide/core/delivery/optimization_guide_model_provider.h"
 #include "components/optimization_guide/core/model_execution/android/model_broker_android.h"
-#include "components/optimization_guide/core/model_execution/test/fake_model_assets.h"
+#include "components/optimization_guide/core/model_execution/test/fake_model_broker.h"
 #include "components/optimization_guide/public/mojom/model_broker.mojom.h"
-#include "components/prefs/testing_pref_service.h"
 #include "services/on_device_model/android/on_device_model_bridge_native_unittest_helper.h"
 
 namespace optimization_guide {
@@ -49,7 +48,7 @@ class FakeModelBrokerAndroid {
 
   void UpdateModelAdaptation(const FakeAdaptationAsset& asset);
 
-  PrefService& local_state() { return local_state_; }
+  PrefService& local_state() { return local_state_.local_state(); }
   on_device_model::OnDeviceModelBridgeNativeUnitTestHelper& java_helper() {
     return java_helper_;
   }
@@ -62,7 +61,7 @@ class FakeModelBrokerAndroid {
 
   Options options_;
   ScopedModelBrokerAndroidFeatureList feature_list_;
-  TestingPrefServiceSimple local_state_;
+  ModelBrokerPrefService local_state_;
   OptimizationGuideLogger logger_;
   ModelProviderRegistry model_provider_{&logger_};
   on_device_model::OnDeviceModelBridgeNativeUnitTestHelper java_helper_;

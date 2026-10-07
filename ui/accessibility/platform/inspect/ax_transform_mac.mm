@@ -17,8 +17,6 @@
 #include "ui/accessibility/platform/inspect/ax_element_wrapper_mac.h"
 #include "ui/accessibility/platform/inspect/ax_inspect_utils.h"
 
-using base::apple::ObjCCast;
-
 namespace ui {
 
 constexpr char kHeightDictKey[] = "h";
@@ -35,22 +33,23 @@ base::Value AXNSObjectToBaseValue(id value, const AXTreeIndexerMac* indexer) {
   }
 
   // NSArray
-  if (ObjCCast<NSArray>(value)) {
+  if (base::apple::ObjCCast<NSArray>(value)) {
     return base::Value(AXNSArrayToBaseValue(value, indexer));
   }
 
   // AXCustomContent
-  if (AXCustomContent* custom_content = ObjCCast<AXCustomContent>(value)) {
+  if (AXCustomContent* custom_content =
+          base::apple::ObjCCast<AXCustomContent>(value)) {
     return base::Value(AXCustomContentToBaseValue(custom_content));
   }
 
   // NSDictionary
-  if (NSDictionary* dictionary = ObjCCast<NSDictionary>(value)) {
+  if (NSDictionary* dictionary = base::apple::ObjCCast<NSDictionary>(value)) {
     return base::Value(AXNSDictionaryToBaseValue(dictionary, indexer));
   }
 
   // NSNumber
-  if (NSNumber* number = ObjCCast<NSNumber>(value)) {
+  if (NSNumber* number = base::apple::ObjCCast<NSNumber>(value)) {
     return base::Value(number.intValue);
   }
 
@@ -65,7 +64,8 @@ base::Value AXNSObjectToBaseValue(id value, const AXTreeIndexerMac* indexer) {
   }
 
   // NSAttributedString
-  if (NSAttributedString* attr_string = ObjCCast<NSAttributedString>(value)) {
+  if (NSAttributedString* attr_string =
+          base::apple::ObjCCast<NSAttributedString>(value)) {
     return NSAttributedStringToBaseValue(attr_string, indexer);
   }
 
@@ -125,7 +125,7 @@ base::Value AXNSObjectToBaseValue(id value, const AXTreeIndexerMac* indexer) {
 
   // NSAccessibilityCustomAction: expose the action name.
   if (NSAccessibilityCustomAction* custom_action =
-          ObjCCast<NSAccessibilityCustomAction>(value)) {
+          base::apple::ObjCCast<NSAccessibilityCustomAction>(value)) {
     return base::Value(base::SysNSStringToUTF16(custom_action.name));
   }
 
@@ -158,8 +158,9 @@ base::Value AXPositionToBaseValue(
     return AXNilToBaseValue();
   }
 
-  AXPlatformNodeCocoa* cocoa_anchor = ObjCCast<AXPlatformNodeCocoa>(
-      platform_node_anchor->GetNativeViewAccessible().Get());
+  AXPlatformNodeCocoa* cocoa_anchor =
+      base::apple::ObjCCast<AXPlatformNodeCocoa>(
+          platform_node_anchor->GetNativeViewAccessible().Get());
   if (!cocoa_anchor) {
     return AXNilToBaseValue();
   }

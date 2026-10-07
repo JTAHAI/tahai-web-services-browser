@@ -13,6 +13,8 @@ class ThemeHelperWin : public ThemeHelper {
   ~ThemeHelperWin() override = default;
 
   // ThemeHelper:
+  int GetDefaultDisplayProperty(int id) const override;
+
   bool ShouldUseNativeFrame(
       const CustomThemeSupplier* theme_supplier) const override;
 };

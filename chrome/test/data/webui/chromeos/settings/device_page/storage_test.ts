@@ -50,9 +50,7 @@ suite('<settings-storage> for device page', () => {
     document.body.appendChild(storageSubpage);
     await flushTasks();
 
-    (storageSubpage as unknown as {
-      stopPeriodicUpdate_: () => void,
-    }).stopPeriodicUpdate_();
+    storageSubpage['stopPeriodicUpdate_']();
   }
 
   async function assertDriveOfflineSizeVisibility(

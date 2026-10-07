@@ -4,7 +4,7 @@
 
 #include "ash/constants/web_app_id_constants.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_window/public/profile_browser_collection.h"
 #include "chrome/browser/ui/web_applications/test/web_app_browsertest_util.h"
 #include "chrome/browser/ui/web_applications/web_app_browsertest_base.h"
@@ -85,8 +85,7 @@ IN_PROC_BROWSER_TEST_F(PreventCloseControllerBrowserTest,
   const GURL url(kCalculatorAppUrl);
   ForceInstallWebApp(ash::kCalculatorAppId, url);
 
-  BrowserWindowInterface* browser =
-      LaunchWebAppBrowserAndWait(ash::kCalculatorAppId);
+  Browser* browser = LaunchWebAppBrowserAndWait(ash::kCalculatorAppId);
   ++expected_browser_count;
 
   ASSERT_TRUE(browser);
@@ -96,8 +95,7 @@ IN_PROC_BROWSER_TEST_F(PreventCloseControllerBrowserTest,
   ConfigurePreventClose(url, /*prevent_close=*/true);
 
   // Act by launching PWA a second time
-  BrowserWindowInterface* second_browser =
-      LaunchWebAppBrowser(ash::kCalculatorAppId);
+  Browser* second_browser = LaunchWebAppBrowser(ash::kCalculatorAppId);
 
 #if BUILDFLAG(IS_CHROMEOS)
   // Assert that the PWA only has one existing window
@@ -128,8 +126,7 @@ IN_PROC_BROWSER_TEST_F(PreventCloseControllerBrowserTest,
   const GURL url(kCalculatorAppUrl);
   ForceInstallWebApp(ash::kCalculatorAppId, url);
 
-  BrowserWindowInterface* browser =
-      LaunchWebAppBrowserAndWait(ash::kCalculatorAppId);
+  Browser* browser = LaunchWebAppBrowserAndWait(ash::kCalculatorAppId);
   ++expected_browser_count;
 
   ASSERT_TRUE(browser);
@@ -139,8 +136,7 @@ IN_PROC_BROWSER_TEST_F(PreventCloseControllerBrowserTest,
   ConfigurePreventClose(url, /*prevent_close=*/false);
 
   // Act by launching PWA a second time
-  BrowserWindowInterface* second_browser =
-      LaunchWebAppBrowserAndWait(ash::kCalculatorAppId);
+  Browser* second_browser = LaunchWebAppBrowserAndWait(ash::kCalculatorAppId);
   expected_browser_count++;
 
   // Assert that the PWA only has one existing window

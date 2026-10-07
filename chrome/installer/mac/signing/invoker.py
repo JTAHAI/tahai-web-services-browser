@@ -51,7 +51,6 @@ class Base(object):
 
 class InvokerConfigError(Exception):
     """An exception type used to report errors in configuring an invoker."""
-
     pass
 
 

@@ -1,5 +1,3 @@
-#![allow(clippy::empty_docs)]
-
 ///
 #[cfg_attr(feature = "derive", derive(crate::PanicFmt))]
 pub enum Direction {

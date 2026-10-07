@@ -26,7 +26,6 @@
 #ifndef THIRD_PARTY_BLINK_RENDERER_MODULES_WEBAUDIO_AUDIO_BUFFER_SOURCE_NODE_H_
 #define THIRD_PARTY_BLINK_RENDERER_MODULES_WEBAUDIO_AUDIO_BUFFER_SOURCE_NODE_H_
 
-#include "third_party/blink/renderer/modules/modules_export.h"
 #include "third_party/blink/renderer/modules/webaudio/audio_buffer.h"
 #include "third_party/blink/renderer/modules/webaudio/audio_buffer_source_handler.h"
 #include "third_party/blink/renderer/modules/webaudio/audio_param.h"
@@ -44,8 +43,7 @@ class BaseAudioContext;
 // in-memory audio asset represented by an AudioBuffer.  It generally will be
 // used for short sounds which require a high degree of scheduling flexibility
 // (can playback in rhythmically perfect ways).
-class MODULES_EXPORT AudioBufferSourceNode final
-    : public AudioScheduledSourceNode {
+class AudioBufferSourceNode final : public AudioScheduledSourceNode {
   DEFINE_WRAPPERTYPEINFO();
 
  public:

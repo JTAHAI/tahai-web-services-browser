@@ -10,7 +10,6 @@
 #include "third_party/blink/renderer/core/testing/sim/sim_compositor.h"
 #include "third_party/blink/renderer/core/testing/sim/sim_request.h"
 #include "third_party/blink/renderer/core/testing/sim/sim_test.h"
-#include "third_party/blink/renderer/platform/wtf/text/format.h"
 
 namespace blink {
 
@@ -67,10 +66,10 @@ void OverscrollBehaviorTest::SetUp() {
 void OverscrollBehaviorTest::SetInnerOverscrollBehavior(String x, String y) {
   GetDocument()
       .getElementById(AtomicString("inner"))
-      ->setAttribute(
-          html_names::kStyleAttr,
-          AtomicString(Format(
-              "overscroll-behavior-x: {}; overscroll-behavior-y: {}", x, y)));
+      ->setAttribute(html_names::kStyleAttr,
+                     AtomicString(String::Format(
+                         "overscroll-behavior-x: %s; overscroll-behavior-y: %s",
+                         x.Utf8().c_str(), y.Utf8().c_str())));
 }
 
 void OverscrollBehaviorTest::ScrollBegin(double hint_x, double hint_y) {

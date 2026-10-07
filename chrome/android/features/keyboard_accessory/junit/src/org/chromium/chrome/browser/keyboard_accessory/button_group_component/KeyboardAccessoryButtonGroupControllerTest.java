@@ -63,7 +63,7 @@ public class KeyboardAccessoryButtonGroupControllerTest {
 
     @Test
     public void testSetsAtMemoryCallback() {
-        mCoordinator.getAtMemoryDelegate().setAtMemoryCallback(mMockAtMemoryCallback);
+        mCoordinator.setAtMemoryCallback(mMockAtMemoryCallback);
         assertThat(mModel.get(AT_MEMORY_CALLBACK), is(mMockAtMemoryCallback));
     }
 
@@ -83,6 +83,11 @@ public class KeyboardAccessoryButtonGroupControllerTest {
         verify(mMockTabListObserver).onItemRangeInserted(mModel.get(TABS), 0, 1);
         assertThat(mModel.get(TABS).size(), is(1));
         assertThat(mModel.get(TABS).get(0), is(mTestTab));
+
+        // Calling hide on the coordinator should make the model propagate that it's invisible.
+        mCoordinator.getTabSwitchingDelegate().removeTab(mTestTab);
+        verify(mMockTabListObserver).onItemRangeRemoved(mModel.get(TABS), 0, 1);
+        assertThat(mModel.get(TABS).size(), is(0));
     }
 
     @Test

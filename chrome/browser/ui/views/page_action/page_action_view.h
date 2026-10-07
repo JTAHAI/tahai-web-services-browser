@@ -76,9 +76,6 @@ class PageActionView : public IconLabelBubbleView,
   // Indicates whether this view is showing an anchored message
   bool IsAnchoredMessageVisible() const;
 
-  // Returns whether this view is declared visible in its model.
-  bool GetDeclaredVisible() const;
-
   // Reports the chip visibility change state at the beginning of the animation.
   using ChipVisibilityChanged = base::RepeatingCallback<void(PageActionView*)>;
   base::CallbackListSubscription AddChipVisibilityChangedCallback(
@@ -89,12 +86,6 @@ class PageActionView : public IconLabelBubbleView,
       base::RepeatingCallback<void(PageActionView*)>;
   base::CallbackListSubscription AddAnchoredMessageVisibilityChangedCallback(
       AnchoredMessageVisibilityCallback callback);
-
-  // Reports when the declared visibility changes in the model.
-  using VisibilityChangedCallback =
-      base::RepeatingCallback<void(PageActionView*)>;
-  base::CallbackListSubscription AddVisibilityChangedCallback(
-      VisibilityChangedCallback callback);
 
   // PageActionController::Delegate:
   // Reports the chip visibility change state at the end of the animation.
@@ -145,21 +136,14 @@ class PageActionView : public IconLabelBubbleView,
   views::View* GetLabelForTesting();
   gfx::SlideAnimation& GetSlideAnimationForTesting();
   AnchoredMessageBubbleView* GetAnchoredMessageForTesting();
-  SkColor GetForegroundColorForTesting() const { return GetForegroundColor(); }
-  SkColor GetBackgroundColorForTesting() const { return GetBackgroundColor(); }
 
   // IconLabelBubbleView:
-  gfx::RoundedCornersF GetCornerRadii() const override;
-  void UpdateBackground() override;
+  SkColor GetBackgroundColor() const override;
 
   static PageActionPassKey PassKeyForTesting() { return PageActionPassKey(); }
 
  protected:
   static PageActionPassKey PassKey() { return PageActionPassKey(); }
-
-  // IconLabelBubbleView:
-  SkColor GetBackgroundColor() const override;
-  bool PaintedOnSolidBackground() const override;
 
  private:
   // The image associated with the `action_item_` size may be different from the
@@ -184,7 +168,6 @@ class PageActionView : public IconLabelBubbleView,
   void MaybeRecordCollapsedMetrics(int label_width);
 
   void OnAnchoredMessageWidgetClose(views::Widget::ClosedReason closed_reason);
-  void SetIsShowingBubble(bool showing);
 
   void CreateAndShowAnchoredMessage(const PageActionModelInterface& model);
 
@@ -217,10 +200,6 @@ class PageActionView : public IconLabelBubbleView,
   base::RepeatingCallbackList<void(PageActionView*)>
       anchored_message_visibility_changed_callbacks_;
 
-  // Client-provided callbacks for changes to declared visibility.
-  base::RepeatingCallbackList<void(PageActionView*)>
-      visibility_changed_callbacks_;
-
   // Used to notify when the chip state changes (expanded/hidden). The state is
   // only reported when there is not an ongoing animation. It's initialized to
   // base::DoNothing() for testing purpose.
@@ -236,8 +215,6 @@ class PageActionView : public IconLabelBubbleView,
 
   PageActionIconType type_;
   bool chip_shown_metric_recorded_ = false;
-  // Logical visibility. GetVisible() can be overridden by layouts/animations.
-  bool declared_visible_ = false;
 
   // Used to record click event histogram. It's initialized to base::DoNothing()
   // for testing purpose.

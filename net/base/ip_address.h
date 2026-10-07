@@ -116,11 +116,6 @@ class NET_EXPORT IPAddressBytes {
 
   size_t EstimateMemoryUsage() const;
 
-  template <typename H>
-  friend H AbslHashValue(H h, const IPAddressBytes& b) {
-    return H::combine(std::move(h), b.span());
-  }
-
  private:
   // Underlying sequence of bytes.
   IPAddressStorage bytes_;
@@ -326,11 +321,6 @@ class NET_EXPORT IPAddress {
   base::Value ToValue() const;
 
   size_t EstimateMemoryUsage() const;
-
-  template <typename H>
-  friend H AbslHashValue(H h, const IPAddress& address) {
-    return H::combine(std::move(h), address.ip_address_);
-  }
 
  private:
   IPAddressBytes ip_address_;

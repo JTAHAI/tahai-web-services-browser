@@ -39,9 +39,6 @@ class MODULES_EXPORT BackgroundColorPaintDefinition final
       const CompositorPaintWorkletInput*,
       const CompositorPaintWorkletJob::AnimatedPropertyValues&) override;
 
-  Color Sample(const CompositorPaintWorkletInput*,
-               const CompositorPaintWorkletJob::AnimatedPropertyValues&);
-
   // The |container_size| is without subpixel snapping.
   scoped_refptr<Image> Paint(const gfx::SizeF& container_size, const Node*);
 
@@ -55,11 +52,11 @@ class MODULES_EXPORT BackgroundColorPaintDefinition final
  private:
   friend class BackgroundColorPaintDefinitionTest;
 
-  Color SampleForTest(const Vector<Color>& animated_colors,
-                      const Vector<double>& offsets,
-                      const Color& main_thread_value,
-                      const CompositorPaintWorkletJob::AnimatedPropertyValues&
-                          animated_property_values);
+  PaintRecord PaintForTest(
+      const Vector<Color>& animated_colors,
+      const Vector<double>& offsets,
+      const CompositorPaintWorkletJob::AnimatedPropertyValues&
+          animated_property_values);
 };
 
 }  // namespace blink

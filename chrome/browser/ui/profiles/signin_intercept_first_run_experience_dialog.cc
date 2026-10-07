@@ -19,8 +19,8 @@
 #include "chrome/browser/sync/sync_service_factory.h"
 #include "chrome/browser/themes/theme_service.h"
 #include "chrome/browser/themes/theme_service_factory.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_window.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/chrome_pages.h"
 #include "chrome/browser/ui/dialogs/browser_dialogs.h"
 #include "chrome/browser/ui/profiles/profile_customization_synced_theme_waiter.h"
@@ -272,7 +272,7 @@ class SigninInterceptFirstRunExperienceDialog::InterceptTurnSyncOnHelperDelegate
  private:
   const base::WeakPtr<SigninInterceptFirstRunExperienceDialog> dialog_;
   // Store `browser_` separately as it may outlive `dialog_`.
-  const base::WeakPtr<BrowserWindowInterface> browser_;
+  const base::WeakPtr<Browser> browser_;
 
   base::OnceCallback<void(LoginUIService::SyncConfirmationUIClosedResult)>
       sync_confirmation_callback_;
@@ -283,7 +283,7 @@ class SigninInterceptFirstRunExperienceDialog::InterceptTurnSyncOnHelperDelegate
 SigninInterceptFirstRunExperienceDialog::InterceptTurnSyncOnHelperDelegate::
     InterceptTurnSyncOnHelperDelegate(
         base::WeakPtr<SigninInterceptFirstRunExperienceDialog> dialog)
-    : dialog_(std::move(dialog)), browser_(dialog_->browser_->GetWeakPtr()) {
+    : dialog_(std::move(dialog)), browser_(dialog_->browser_->AsWeakPtr()) {
   CHECK(!syncer::IsReplaceSyncPromosWithSignInPromosEnabled());
 }
 
@@ -422,7 +422,7 @@ void SigninInterceptFirstRunExperienceDialog::
 }
 
 SigninInterceptFirstRunExperienceDialog::
-    SigninInterceptFirstRunExperienceDialog(BrowserWindowInterface* browser,
+    SigninInterceptFirstRunExperienceDialog(Browser* browser,
                                             const CoreAccountId& account_id,
                                             bool is_forced_intercept,
                                             base::OnceClosure on_close_callback)

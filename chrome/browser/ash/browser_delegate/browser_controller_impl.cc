@@ -16,21 +16,16 @@
 #include "chrome/browser/lifetime/application_lifetime_desktop.h"
 #include "chrome/browser/lifetime/browser_shutdown.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/tab_list/tab_removed_reason.h"
 #include "chrome/browser/ui/autofill/chrome_autofill_client.h"
 #include "chrome/browser/ui/browser.h"
-#include "chrome/browser/ui/browser_init_state.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
-#include "chrome/browser/ui/browser_window/public/create_browser_window.h"
 #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "chrome/browser/ui/browser_window/public/profile_browser_collection.h"
-#include "chrome/browser/ui/intent_picker_tab_helper.h"
 #include "chrome/browser/ui/navigator/browser_navigator.h"
 #include "chrome/browser/ui/navigator/browser_navigator_params.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
-#include "chrome/browser/ui/tabs/tab_strip_model_delegate.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/simple_web_view_dialog.h"
 #include "chrome/browser/ui/web_applications/web_app_launch_utils.h"
@@ -55,8 +50,7 @@ bool BrowserMatches(BrowserWindowInterface* browser,
                     const GURL& url) {
   return browser->GetProfile() == profile && browser->GetType() == type &&
          web_app::GetAppIdFromApplicationName(
-             BrowserInitState::From(browser)->create_params().app_name) ==
-             app_id &&
+             browser->GetBrowserForMigrationOnly()->app_name()) == app_id &&
          (url.is_empty() || BrowserMatchesURL(browser, url));
 }
 
@@ -87,20 +81,9 @@ namespace ash {
 
 BrowserControllerImpl::BrowserControllerImpl() {
   observation_.Observe(GlobalBrowserCollection::GetInstance());
-  GlobalBrowserCollection::GetInstance()->ForEach(
-      [this](BrowserWindowInterface* browser) {
-        browser->GetTabStripModel()->AddObserver(this);
-        return true;
-      });
 }
 
-BrowserControllerImpl::~BrowserControllerImpl() {
-  GlobalBrowserCollection::GetInstance()->ForEach(
-      [this](BrowserWindowInterface* browser) {
-        browser->GetTabStripModel()->RemoveObserver(this);
-        return true;
-      });
-}
+BrowserControllerImpl::~BrowserControllerImpl() = default;
 
 BrowserDelegate* BrowserControllerImpl::GetDelegate(
     BrowserWindowInterface* bwi) {
@@ -110,7 +93,9 @@ BrowserDelegate* BrowserControllerImpl::GetDelegate(
 
   auto it = browsers_.find(bwi);
   if (it == browsers_.end()) {
-    it = browsers_.emplace(bwi, std::make_unique<BrowserDelegateImpl>(bwi))
+    it = browsers_
+             .emplace(bwi, std::make_unique<BrowserDelegateImpl>(
+                               bwi->GetBrowserForMigrationOnly()))
              .first;
   }
   return it->second.get();
@@ -246,12 +231,11 @@ BrowserDelegate* BrowserControllerImpl::NewTabWithPostData(
 
   navigate_params.browser = FindTabbedBrowserOnCurrentWorkspace(profile);
   if (!navigate_params.browser &&
-      GetBrowserWindowCreationStatusForProfile(*profile) ==
-          BrowserWindowInterface::CreationStatus::kOk) {
-    BrowserWindowCreateParams create_params(profile,
-                                            navigate_params.user_gesture);
+      Browser::GetCreationStatusForProfile(profile) ==
+          Browser::CreationStatus::kOk) {
+    Browser::CreateParams create_params(profile, navigate_params.user_gesture);
     create_params.should_trigger_session_restore = false;
-    navigate_params.browser = CreateBrowserWindow(std::move(create_params));
+    navigate_params.browser = Browser::Create(create_params);
   }
 
   Navigate(&navigate_params);
@@ -272,13 +256,13 @@ BrowserDelegate* BrowserControllerImpl::CreateWebApp(
       BrowserContextHelper::Get()->GetBrowserContextByAccountId(account_id));
   CHECK(profile);
 
-  if (GetBrowserWindowCreationStatusForProfile(*profile) !=
+  if (Browser::GetCreationStatusForProfile(profile) !=
       Browser::CreationStatus::kOk) {
     LOG(WARNING) << "Cannot create browser for given profile";
     return nullptr;
   }
 
-  BrowserWindowCreateParams cparams =
+  Browser::CreateParams cparams =
       web_app::CreateParamsForApp(app_id, popup,
                                   /*trusted_source=*/true,
                                   /*window_bounds=*/gfx::Rect(), profile,
@@ -290,7 +274,7 @@ BrowserDelegate* BrowserControllerImpl::CreateWebApp(
   cparams.can_maximize = params.allow_maximize;
   cparams.can_fullscreen = params.allow_fullscreen;
   return GetDelegate(
-      web_app::CreateWebAppWindowMaybeWithHomeTab(app_id, std::move(cparams)));
+      web_app::CreateWebAppWindowMaybeWithHomeTab(app_id, cparams));
 }
 
 void BrowserControllerImpl::MayCloseAllBrowsers() {
@@ -317,26 +301,10 @@ void BrowserControllerImpl::RemoveObserver(Observer* observer) {
   observers_.RemoveObserver(observer);
 }
 
-void BrowserControllerImpl::AddTabObserver(TabObserver* observer) {
-  tab_observers_.AddObserver(observer);
-}
-
-void BrowserControllerImpl::RemoveTabObserver(TabObserver* observer) {
-  tab_observers_.RemoveObserver(observer);
-}
-
 void BrowserControllerImpl::OnBrowserCreated(BrowserWindowInterface* browser) {
   ash::BrowserDelegate* browser_delegate = GetDelegate(browser);
   for (auto& observer : observers_) {
     observer.OnBrowserCreated(browser_delegate);
-  }
-
-  browser->GetTabStripModel()->AddObserver(this);
-  for (size_t i = 0; i < browser_delegate->GetWebContentsCount(); ++i) {
-    content::WebContents* contents = browser_delegate->GetWebContentsAt(i);
-    for (auto& observer : tab_observers_) {
-      observer.OnTabInserted(browser_delegate, contents);
-    }
   }
 }
 
@@ -350,69 +318,15 @@ void BrowserControllerImpl::OnBrowserActivated(
 
 void BrowserControllerImpl::OnBrowserClosed(BrowserWindowInterface* browser) {
   ash::BrowserDelegate* browser_delegate = GetDelegate(browser);
-
-  for (size_t i = browser_delegate->GetWebContentsCount(); i-- > 0;) {
-    content::WebContents* contents = browser_delegate->GetWebContentsAt(i);
-    for (auto& observer : tab_observers_) {
-      observer.OnTabRemoved(browser_delegate, contents, /*will_delete=*/true);
-    }
-  }
-  browser->GetTabStripModel()->RemoveObserver(this);
-
   for (auto& observer : observers_) {
     observer.OnBrowserClosed(browser_delegate);
+
     if (GlobalBrowserCollection::GetInstance()->IsEmpty()) {
       observer.OnLastBrowserClosed();
     }
   }
-
   browsers_.erase(browser);
-  // `browser_delegate` is now dead.
-}
-
-void BrowserControllerImpl::OnTabStripModelChanged(
-    TabStripModel* tab_strip_model,
-    const TabStripModelChange& change,
-    const TabStripSelectionChange& selection) {
-  BrowserDelegate* browser =
-      GetDelegate(tab_strip_model->delegate()->GetBrowserWindowInterface());
-
-  switch (change.type()) {
-    case TabStripModelChange::kInserted:
-      for (const auto& item : change.GetInsert()->contents) {
-        for (auto& observer : tab_observers_) {
-          observer.OnTabInserted(browser, item.contents);
-        }
-      }
-      break;
-    case TabStripModelChange::kRemoved:
-      for (const auto& item : change.GetRemove()->contents) {
-        bool will_delete =
-            TabRemoveReasonUtils::WillDeleteTab(item.remove_reason);
-        for (auto& observer : tab_observers_) {
-          observer.OnTabRemoved(browser, item.contents, will_delete);
-        }
-      }
-      break;
-    case TabStripModelChange::kReplaced: {
-      auto* replace = change.GetReplace();
-      for (auto& observer : tab_observers_) {
-        observer.OnTabReplaced(browser, replace->old_contents,
-                               replace->new_contents);
-      }
-      break;
-    }
-    case TabStripModelChange::kMoved:
-    case TabStripModelChange::kSelectionOnly:
-      break;
-  }
-
-  if (selection.active_tab_changed() && !tab_strip_model->empty()) {
-    for (auto& observer : tab_observers_) {
-      observer.OnActiveWebContentsChanged(browser, selection.old_contents,
-                                          selection.new_contents);
-    }
-  }
+  // The corresponding BrowserDelegateImpl, if any, is now dead.
 }
 
 void BrowserControllerImpl::CreateAutofillClientForWebContents(
@@ -425,49 +339,6 @@ BrowserControllerImpl::CreateSimpleWebViewForSigninScreen(
     views::SimpleWebViewDialogDelegate* delegate) {
   return std::make_unique<SimpleWebViewDialog>(
       ash::ProfileHelper::GetSigninProfile(), delegate);
-}
-
-bool BrowserControllerImpl::ShowIntentPicker(
-    base::WeakPtr<content::WebContents> web_contents,
-    std::vector<apps::IntentPickerAppInfo> app_info,
-    bool show_stay_in_chrome,
-    bool show_remember_selection,
-    apps::IntentPickerBubbleType bubble_type,
-    base::optional_ref<const url::Origin> initiating_origin,
-    IntentPickerResponse callback) {
-  BrowserDelegate* browser =
-      web_contents ? GetBrowserForTab(web_contents.get()) : nullptr;
-  if (!browser || app_info.empty()) {
-    return false;
-  }
-
-  auto* browser_window = BrowserWindow::FromBrowser(&browser->GetBrowser());
-  if (!browser_window) {
-    return false;
-  }
-
-  IntentPickerTabHelper::ShowOrHideIcon(web_contents.get(),
-                                        /*should_show_icon=*/true);
-
-  auto wrapped_callback = base::BindOnce(
-      [](base::WeakPtr<content::WebContents> web_contents,
-         IntentPickerResponse callback, const std::string& launch_name,
-         apps::PickerEntryType entry_type,
-         apps::IntentPickerCloseReason close_reason, bool should_persist) {
-        if (web_contents) {
-          IntentPickerTabHelper::ShowOrHideIcon(web_contents.get(),
-                                                /*should_show_icon=*/false);
-        }
-        std::move(callback).Run(launch_name, entry_type, close_reason,
-                                should_persist);
-      },
-      web_contents, std::move(callback));
-
-  browser_window->ShowIntentPickerBubble(
-      std::move(app_info), show_stay_in_chrome, show_remember_selection,
-      bubble_type, initiating_origin.CopyAsOptional(),
-      std::move(wrapped_callback));
-  return true;
 }
 
 }  // namespace ash

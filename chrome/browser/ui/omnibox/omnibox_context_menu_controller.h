@@ -38,7 +38,6 @@ class OmniboxController;
 class ContextualSearchboxHandler;
 class OmniboxContextMenuControllerPecBrowserTest;
 class OmniboxContextMenuControllerPecBrowserTestWithFlagsDisabled;
-class OmniboxEverywhereUI;
 
 namespace favicon_base {
 struct FaviconImageResult;
@@ -57,7 +56,6 @@ class WebContents;
 }  // namespace content
 
 namespace contextual_search {
-class ContextualSearchSessionHandle;
 struct FileInfo;
 }  // namespace contextual_search
 
@@ -116,7 +114,7 @@ class OmniboxContextMenuController : public ui::SimpleMenuModel::Delegate {
       omnibox::ToolMode aim_tool_mode,
       const std::vector<contextual_search::FileInfo>& file_infos,
       int max_num_files,
-      OmniboxPopupState popup_state) const;
+      OmniboxPopupState page_type) const;
   bool IsCommandIdVisible(int command_id) const override;
   void AddTabContext(const TabInfo& tab_info);
   static void UpdateSearchboxContext(
@@ -139,18 +137,8 @@ class OmniboxContextMenuController : public ui::SimpleMenuModel::Delegate {
   static OmniboxController* GetOmniboxController(
       content::WebContents* web_contents);
   static OmniboxPopupUI* GetOmniboxPopupUI(content::WebContents* web_contents);
-  static OmniboxEverywhereUI* GetOmniboxEverywhereUI(
-      content::WebContents* web_contents);
-  static ContextualSearchboxHandler* GetContextualSearchboxHandler(
-      content::WebContents* web_contents);
-  static contextual_search::ContextualSearchSessionHandle*
-  GetOrCreateContextualSessionHandle(content::WebContents* web_contents);
-
   std::optional<size_t> GetMaxTabSuggestions() const;
   bool IsTabCommandId(int command_id) const;
-
-  ContextualSearchboxHandler* GetComposeboxHandler() const;
-  ContextualSearchboxHandler* GetOmniboxHandler() const;
 
  private:
   friend class TabSimpleMenuModel;
@@ -266,11 +254,7 @@ class OmniboxContextMenuController : public ui::SimpleMenuModel::Delegate {
   OmniboxEditModel* GetEditModel();
   void OpenAiMode(OmniboxEditModel::AimActivation activation);
   virtual OmniboxPopupUI* GetOmniboxPopupUI() const;
-  virtual ContextualSearchboxHandler* GetContextualSearchboxHandler() const;
-  contextual_search::ContextualSearchSessionHandle*
-  GetOrCreateContextualSessionHandle() const;
-  bool IsAimPopupOpen() const;
-  Profile* GetProfile() const;
+  virtual ContextualSearchboxHandler* GetSearchboxHandler() const;
 
   std::unique_ptr<TabSimpleMenuModel> menu_model_;
   std::unique_ptr<TabSimpleMenuModel> shared_tabs_menu_model_;

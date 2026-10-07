@@ -8,7 +8,6 @@
 #include <concepts>
 #include <cstdint>
 #include <iosfwd>
-#include <optional>
 
 #include "base/base_export.h"
 #include "base/numerics/checked_math.h"
@@ -28,16 +27,16 @@ namespace base {
 // Sample usage:
 //
 //   // Do not reinvent conversion between units.
-//   constexpr ByteSize kBufferSize = MiB(1);
+//   constexpr ByteSize kBufferSize = MiBU(1);
 //   std::vector<char> buffer(kBufferSize.InBytes());
 //
 //   // Enforce that correct units are used across APIs at compile time.
 //   ByteSize quota = GetQuota();
-//   SetMetadataSize(KiB(10));
-//   ByteSizeDelta remaining_quota = quota - KiB(10);
+//   SetMetadataSize(KiBU(10));
+//   ByteSizeDelta remaining_quota = quota - KiBU(10);
 //   SetDatabaseSize(remaining_quota.AsByteSize());
 //
-// KiB()/KiBS(), MiB()/MiBS(), etc. can take float parameters. This will
+// KiBU()/KiBS(), MiBU()/MiBS(), etc. can take float parameters. This will
 // return the nearest integral number of bytes, rounding towards zero.
 
 namespace internal {
@@ -411,16 +410,18 @@ class BASE_EXPORT ByteSizeDelta : public internal::ByteSizeBase {
 // Templated functions to construct from various types. Note that integers must
 // be converted to CheckedNumeric BEFORE multiplying to detect overflows, while
 // floats must be converted AFTER multiplying to avoid premature truncation.
+//
+// TODO(crbug.com/448661443): Rename KiBU, etc, to KiB, etc.
 
 template <typename T>
   requires std::integral<T>
-constexpr ByteSize KiB(T kib) {
+constexpr ByteSize KiBU(T kib) {
   return ByteSize(kib) * 1024;
 }
 
 template <typename T>
   requires std::floating_point<T>
-constexpr ByteSize KiB(T kib) {
+constexpr ByteSize KiBU(T kib) {
   return ByteSize(checked_cast<uint64_t>(kib * 1024.0));
 }
 
@@ -438,13 +439,13 @@ constexpr ByteSizeDelta KiBS(T kib) {
 
 template <typename T>
   requires std::integral<T>
-constexpr ByteSize MiB(T mib) {
+constexpr ByteSize MiBU(T mib) {
   return ByteSize(mib) * 1024 * 1024;
 }
 
 template <typename T>
   requires std::floating_point<T>
-constexpr ByteSize MiB(T mib) {
+constexpr ByteSize MiBU(T mib) {
   return ByteSize(checked_cast<uint64_t>(mib * 1024.0 * 1024.0));
 }
 
@@ -462,13 +463,13 @@ constexpr ByteSizeDelta MiBS(T mib) {
 
 template <typename T>
   requires std::integral<T>
-constexpr ByteSize GiB(T gib) {
+constexpr ByteSize GiBU(T gib) {
   return ByteSize(gib) * 1024 * 1024 * 1024;
 }
 
 template <typename T>
   requires std::floating_point<T>
-constexpr ByteSize GiB(T gib) {
+constexpr ByteSize GiBU(T gib) {
   return ByteSize(checked_cast<uint64_t>(gib * 1024.0 * 1024.0 * 1024.0));
 }
 
@@ -486,13 +487,13 @@ constexpr ByteSizeDelta GiBS(T gib) {
 
 template <typename T>
   requires std::integral<T>
-constexpr ByteSize TiB(T tib) {
+constexpr ByteSize TiBU(T tib) {
   return ByteSize(tib) * 1024 * 1024 * 1024 * 1024;
 }
 
 template <typename T>
   requires std::floating_point<T>
-constexpr ByteSize TiB(T tib) {
+constexpr ByteSize TiBU(T tib) {
   return ByteSize(
       checked_cast<uint64_t>(tib * 1024.0 * 1024.0 * 1024.0 * 1024.0));
 }
@@ -512,13 +513,13 @@ constexpr ByteSizeDelta TiBS(T tib) {
 
 template <typename T>
   requires std::integral<T>
-constexpr ByteSize PiB(T pib) {
+constexpr ByteSize PiBU(T pib) {
   return ByteSize(pib) * 1024 * 1024 * 1024 * 1024 * 1024;
 }
 
 template <typename T>
   requires std::floating_point<T>
-constexpr ByteSize PiB(T pib) {
+constexpr ByteSize PiBU(T pib) {
   return ByteSize(
       checked_cast<uint64_t>(pib * 1024.0 * 1024.0 * 1024.0 * 1024.0 * 1024.0));
 }
@@ -538,13 +539,13 @@ constexpr ByteSizeDelta PiBS(T pib) {
 
 template <typename T>
   requires std::integral<T>
-constexpr ByteSize EiB(T eib) {
+constexpr ByteSize EiBU(T eib) {
   return ByteSize(eib) * 1024 * 1024 * 1024 * 1024 * 1024 * 1024;
 }
 
 template <typename T>
   requires std::floating_point<T>
-constexpr ByteSize EiB(T eib) {
+constexpr ByteSize EiBU(T eib) {
   return ByteSize(checked_cast<uint64_t>(eib * 1024.0 * 1024.0 * 1024.0 *
                                          1024.0 * 1024.0 * 1024.0));
 }
@@ -566,10 +567,6 @@ constexpr ByteSizeDelta EiBS(T eib) {
 
 BASE_EXPORT std::ostream& operator<<(std::ostream& os, ByteSize size);
 BASE_EXPORT std::ostream& operator<<(std::ostream& os, ByteSizeDelta delta);
-BASE_EXPORT std::ostream& operator<<(std::ostream& os,
-                                     std::optional<ByteSize> size);
-BASE_EXPORT std::ostream& operator<<(std::ostream& os,
-                                     std::optional<ByteSizeDelta> delta);
 
 // Implementation.
 

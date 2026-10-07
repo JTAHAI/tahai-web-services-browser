@@ -102,7 +102,15 @@ class CORE_EXPORT LayoutSVGRoot final : public LayoutReplaced {
   // preserveAspectRatio="none" is used in an SVG image container).
   // This is set by SVGImage before layout so that
   // vector-effect:non-scaling-stroke can account for the full CTM.
-  void SetContainerScale(const gfx::Vector2dF& container_scale);
+  void SetContainerScale(const gfx::Vector2dF& container_scale) {
+    NOT_DESTROYED();
+    if (container_scale_ != container_scale) {
+      container_scale_changed_ = true;
+      SetNeedsLayoutAndFullPaintInvalidation(
+          layout_invalidation_reason::kSvgChanged);
+    }
+    container_scale_ = container_scale;
+  }
 
   const gfx::Vector2dF& GetContainerScale() const {
     NOT_DESTROYED();
@@ -165,10 +173,9 @@ class CORE_EXPORT LayoutSVGRoot final : public LayoutReplaced {
   void PaintReplaced(const PaintInfo&,
                      const PhysicalOffset& paint_offset) const override;
 
-  void WillBeDestroyed(const ComputedStyle*) override;
+  void WillBeDestroyed() override;
   void StyleDidChange(StyleDifference,
                       const ComputedStyle* old_style,
-                      const ComputedStyle& new_style,
                       const StyleChangeContext&) override;
   bool IsChildAllowed(LayoutObject*, const ComputedStyle&) const override;
   void AddChild(LayoutObject* child,
@@ -232,15 +239,10 @@ class CORE_EXPORT LayoutSVGRoot final : public LayoutReplaced {
   // laid out.
   const PhysicalSize* new_content_size_ = nullptr;
 
-  // True if the local transform of this object is not up-to-date.
-  bool needs_transform_update_ : 1 = true;
-  // True if the `container_scale_` field has changed.
-  bool container_scale_changed_ : 1 = false;
-  // True if any descendants that are not isolated uses a non-default
-  // blend-mode (not source-over/"normal").
-  mutable bool has_non_isolated_blending_descendants_ : 1 = false;
-  // True if the above flag is not up-to-date.
-  mutable bool has_non_isolated_blending_descendants_dirty_ : 1 = false;
+  bool needs_transform_update_ : 1;
+  bool container_scale_changed_ : 1;
+  mutable bool has_non_isolated_blending_descendants_ : 1;
+  mutable bool has_non_isolated_blending_descendants_dirty_ : 1;
 };
 
 template <>

@@ -1,3 +1,8 @@
-rules:
-- getactionurl.html: [data-urls]
-- "*": [form]
+features:
+- name: data-urls
+  files:
+  - getactionurl.html
+- name: form
+  files:
+  - "*"
+  - "!getactionurl.html"

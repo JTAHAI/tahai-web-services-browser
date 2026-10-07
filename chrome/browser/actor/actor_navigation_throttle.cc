@@ -6,6 +6,7 @@
 
 #include <algorithm>
 
+#include "base/containers/fixed_flat_set.h"
 #include "base/types/pass_key.h"
 #include "chrome/browser/actor/actor_keyed_service.h"
 #include "chrome/browser/actor/actor_task.h"
@@ -22,9 +23,26 @@
 #include "content/public/browser/navigation_throttle.h"
 #include "content/public/browser/navigation_throttle_registry.h"
 #include "content/public/browser/web_contents.h"
+#include "net/http/http_response_headers.h"
+#include "third_party/blink/public/common/mime_util/mime_util.h"
 #include "ui/base/page_transition_types.h"
 
 namespace actor {
+namespace {
+bool IsDangerousMimeType(std::string_view mime_type) {
+  static constexpr auto kBlockedTabularTypes =
+      base::MakeFixedFlatSet<std::string_view>({
+          "text/csv",
+          "text/comma-separated-values",
+          "text/tsv",
+          "text/tab-separated-values",
+      });
+  return kBlockedTabularTypes.contains(mime_type) ||
+         blink::IsJSONMimeType(mime_type) ||
+         blink::IsXMLMimeType(mime_type) ||
+         blink::IsSupportedJavascriptMimeType(mime_type);
+}
+}  // namespace
 
 // static
 void ActorNavigationThrottle::MaybeCreateAndAdd(
@@ -48,31 +66,27 @@ void ActorNavigationThrottle::MaybeCreateAndAdd(
   if (!tab) {
     return;
   }
+  const tabs::TabHandle tab_handle = tab->GetHandle();
 
   Profile* profile =
       Profile::FromBrowserContext(web_contents->GetBrowserContext());
-  if (!profile) {
-    return;
-  }
 
   auto* actor_service = actor::ActorKeyedService::Get(profile);
   if (!actor_service) {
     return;
   }
 
-  const ActorTask* task = actor_service->GetTaskFromTab(*tab);
-  if (!task) {
-    return;
-  }
-
-  if (!base::FeatureList::IsEnabled(
-          kGlicAttachNavigationThrottleToPausedTasks) &&
-      !task->IsActingOnTab(tab->GetHandle())) {
+  const auto& tasks = actor_service->GetActiveTasks();
+  auto task_it = std::ranges::find_if(tasks, [tab_handle](const auto& t) {
+    const ActorTask* task = t.second;
+    return task->IsActingOnTab(tab_handle);
+  });
+  if (task_it == tasks.end()) {
     return;
   }
 
   registry.AddThrottle(std::make_unique<ActorNavigationThrottle>(
-      base::PassKey<ActorNavigationThrottle>(), registry, *task));
+      base::PassKey<ActorNavigationThrottle>(), registry, *task_it->second));
 }
 
 ActorNavigationThrottle ActorNavigationThrottle::CreateForTesting(
@@ -104,20 +118,55 @@ ActorNavigationThrottle::WillRedirectRequest() {
 
 content::NavigationThrottle::ThrottleCheckResult
 ActorNavigationThrottle::WillProcessResponse() {
+  if (base::FeatureList::IsEnabled(
+          kGlicBlockNavigationToDangerousContentTypes)) {
+    if (const net::HttpResponseHeaders* headers =
+            navigation_handle()->GetResponseHeaders();
+        headers) {
+      std::string mime_type;
+      if (headers->GetMimeType(&mime_type) && IsDangerousMimeType(mime_type)) {
+        GetJournal().Log(navigation_handle()->GetURL(), task_id_, "NavThrottle",
+                         JournalDetailsBuilder()
+                             .AddError("Navigate to disallowed content-type")
+                             .Add("mime_type", mime_type)
+                             .Build());
+
+        // If the navigation we're about to cancel is attributable to the
+        // actor's tool usage, consider the action a failure.
+        if (navigation_handle()->IsInPrimaryMainFrame() && execution_engine_) {
+          execution_engine_->FailCurrentTool(
+              mojom::ActionResultCode::kTriggeredNavigationBlocked);
+        }
+
+        return content::NavigationThrottle::CANCEL_AND_IGNORE;
+      }
+    }
+  }
+
   if (!execution_engine_) {
     return content::NavigationThrottle::PROCEED;
   }
-  execution_engine_->ShouldNavigationCommit(
-      *navigation_handle(),
-      base::BindOnce(&ActorNavigationThrottle::OnNavigationConfirmationDecision,
-                     weak_factory_.GetWeakPtr()));
-  return content::NavigationThrottle::DEFER;
+  content::NavigationThrottle::ThrottleAction action =
+      execution_engine_->ShouldDeferNavigation(
+          *navigation_handle(),
+          base::BindOnce(
+              &ActorNavigationThrottle::OnNavigationConfirmationDecision,
+              weak_factory_.GetWeakPtr(), /*was_deferred=*/true));
+  if (action != content::NavigationThrottle::DEFER) {
+    OnNavigationConfirmationDecision(
+        /*was_deferred=*/false,
+        /*may_continue=*/action == content::NavigationThrottle::PROCEED);
+  }
+  return action;
 }
 
 void ActorNavigationThrottle::OnNavigationConfirmationDecision(
-    MayActOnUrlBlockReason block_reason) {
-  if (block_reason == MayActOnUrlBlockReason::kAllowed) {
-    Resume();
+    bool was_deferred,
+    bool may_continue) {
+  if (may_continue) {
+    if (was_deferred) {
+      Resume();
+    }
     return;
   }
   AggregatedJournal& journal = GetJournal();
@@ -128,9 +177,11 @@ void ActorNavigationThrottle::OnNavigationConfirmationDecision(
   // tool usage, consider the action a failure.
   if (navigation_handle()->IsInPrimaryMainFrame() && execution_engine_) {
     execution_engine_->FailCurrentTool(
-        BlockReasonToResultCode(block_reason, /*for_navigation=*/true));
+        mojom::ActionResultCode::kTriggeredNavigationBlocked);
   }
-  CancelDeferredNavigation(CANCEL_AND_IGNORE);
+  if (was_deferred) {
+    CancelDeferredNavigation(CANCEL_AND_IGNORE);
+  }
 }
 
 void ActorNavigationThrottle::OnUserLeaveDialogDecision(bool may_continue) {
@@ -254,14 +305,13 @@ ActorNavigationThrottle::WillStartOrRedirectRequest(bool is_redirection) {
 
   execution_engine_->IsAcceptableNavigationDestination(
       navigation_url,
-      base::BindOnce(
-          &ActorNavigationThrottle::OnIsAcceptableNavigationDestinationResult,
-          weak_factory_.GetWeakPtr(), std::move(journal_entry)));
+      base::BindOnce(&ActorNavigationThrottle::OnMayActOnUrlResult,
+                     weak_factory_.GetWeakPtr(), std::move(journal_entry)));
 
   return content::NavigationThrottle::DEFER;
 }
 
-void ActorNavigationThrottle::OnIsAcceptableNavigationDestinationResult(
+void ActorNavigationThrottle::OnMayActOnUrlResult(
     std::unique_ptr<AggregatedJournal::PendingAsyncEntry> journal_entry,
     MayActOnUrlBlockReason block_reason) {
   if (block_reason == MayActOnUrlBlockReason::kAllowed) {

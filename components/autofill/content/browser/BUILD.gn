@@ -91,8 +91,8 @@ proto_library("risk_proto") {
 source_set("test_support") {
   testonly = true
   sources = [
-    "autofill_test_util.cc",
-    "autofill_test_util.h",
+    "autofill_test_utils.cc",
+    "autofill_test_utils.h",
     "content_autofill_driver_factory_test_api.cc",
     "content_autofill_driver_factory_test_api.h",
     "content_autofill_driver_test_api.h",
@@ -146,7 +146,6 @@ source_set("unit_tests") {
     "//components/autofill/core/common",
     "//components/page_load_metrics/browser",
     "//components/page_load_metrics/browser:test_support",
-    "//components/ukm:test_support",
     "//components/version_info",
     "//content/public/browser",
     "//content/public/common",

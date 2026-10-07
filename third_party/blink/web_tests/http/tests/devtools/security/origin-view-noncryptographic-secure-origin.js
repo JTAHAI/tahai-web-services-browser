@@ -18,8 +18,7 @@ import * as Security from 'devtools/panels/security/security.js';
   request1.setSecurityState(Protocol.Security.SecurityState.Secure);
   SecurityTestRunner.dispatchRequestFinished(request1);
 
-  Security.SecurityPanel.SecurityPanel.instance().sidebar.selectedOrigin =
-      'chrome-test://test';
+  Security.SecurityPanel.SecurityPanel.instance().sidebar.elementsByOrigin().get('chrome-test://test').select(undefined, true);
 
   TestRunner.addResult('Panel on origin view:');
   TestRunner.dumpDeepInnerHTML(Security.SecurityPanel.SecurityPanel.instance().visibleView.contentElement);

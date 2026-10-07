@@ -7,11 +7,9 @@ import '//resources/cr_elements/cr_button/cr_button.js';
 import {I18nMixinLit} from '//resources/cr_elements/i18n_mixin_lit.js';
 import {loadTimeData} from '//resources/js/load_time_data.js';
 import {CrLitElement} from '//resources/lit/v3_0/lit.rollup.js';
-import type {PropertyValues} from '//resources/lit/v3_0/lit.rollup.js';
 
 import {getCss} from './searchbox_compose_button.css.js';
 import {getHtml} from './searchbox_compose_button.html.js';
-import {announce} from './utils.js';
 
 export interface ComposeClickEventDetail {
   button: number;
@@ -96,17 +94,6 @@ export class SearchboxComposeButtonElement extends
         reflect: true,
         attribute: 'energy-effect-animation-enabled',
       },
-      hasVirtualFocus: {
-        type: Boolean,
-        reflect: true,
-      },
-      virtualFocusEnabled: {
-        type: Boolean,
-        reflect: true,
-      },
-      dropdownIsVisible: {
-        type: Boolean,
-      },
     };
   }
 
@@ -124,10 +111,6 @@ export class SearchboxComposeButtonElement extends
       loadTimeData.getString('searchboxComposeButtonIcon') :
       '//resources/cr_components/searchbox/icons/search_spark.svg';
 
-  accessor hasVirtualFocus: boolean = false;
-  accessor dropdownIsVisible: boolean = false;
-  accessor virtualFocusEnabled: boolean = false;
-
   protected accessor isFuseboxEnabled_: boolean =
       loadTimeData.getBoolean('isFuseboxEnabled');
 
@@ -135,9 +118,7 @@ export class SearchboxComposeButtonElement extends
       loadTimeData.getBoolean('energyEffectAnimationEnabled');
 
   protected accessor arrowIcon_: string =
-      (document.documentElement.hasAttribute('webui-rounded-icons') ?
-           '//resources/cr_components/searchbox/icons/arrow_forward.svg' :
-           '//resources/cr_components/searchbox/icons/arrow_forward_old.svg');
+      '//resources/cr_components/searchbox/icons/arrow_forward.svg';
 
   protected accessor showAnimation_: boolean = false;
 
@@ -161,14 +142,6 @@ export class SearchboxComposeButtonElement extends
           this.$.glowAnimationWrapper.classList.remove('play');
         });
       }
-    }
-  }
-
-  override updated(changedProperties: PropertyValues<this>) {
-    super.updated(changedProperties);
-    if (this.virtualFocusEnabled && changedProperties.has('hasVirtualFocus') &&
-        this.hasVirtualFocus) {
-      announce(this, this.a11yLabel || this.labelText);
     }
   }
 

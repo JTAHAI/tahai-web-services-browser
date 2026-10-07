@@ -5,6 +5,7 @@
 #include "chrome/browser/ui/fullscreen_util_mac.h"
 
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/exclusive_access/exclusive_access_context.h"
 #include "chrome/browser/ui/exclusive_access/exclusive_access_manager.h"
@@ -29,14 +30,13 @@ bool IsInContentFullscreen(
                         controller->IsExtensionFullscreenOrPending());
 }
 
-bool IsAlwaysShowToolbarEnabled(
-    const BrowserWindowInterface* browser_window_interface) {
-  if (web_app::AppBrowserController::IsWebApp(browser_window_interface)) {
+bool IsAlwaysShowToolbarEnabled(const Browser* browser) {
+  if (web_app::AppBrowserController::IsWebApp(browser)) {
     const web_app::AppBrowserController* controller =
-        web_app::AppBrowserController::From(browser_window_interface);
+        web_app::AppBrowserController::From(browser);
     return controller->AlwaysShowToolbarInFullscreen();
   }
-  return browser_window_interface->GetProfile()->GetPrefs()->GetBoolean(
+  return browser->GetProfile()->GetPrefs()->GetBoolean(
       prefs::kShowFullscreenToolbar);
 }
 

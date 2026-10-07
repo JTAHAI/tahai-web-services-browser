@@ -82,7 +82,8 @@ bool DedicatedWorkerDevToolsAgentHost::AttachSession(DevToolsSession* session) {
       auto_attacher_.get(), session);
   session->CreateAndAddHandler<protocol::NetworkHandler>(
       GetId(), devtools_worker_token(), GetIOContext(), session,
-      GetProcessHost()->GetStoragePartition(), session->GetClient());
+      GetProcessHost()->GetStoragePartition(), base::DoNothing(),
+      session->GetClient());
   return true;
 }
 

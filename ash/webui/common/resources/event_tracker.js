@@ -85,8 +85,10 @@ export class EventTracker {
 
 /**
  * The type of the internal tracking entry.
- * @typedef {{target: EventTarget,
+ * @typedef {{target: !EventTarget,
  *            eventType: string,
  *            listener: (EventListener|Function),
- *            capture: boolean}} EventTrackerEntry
+ *            capture: boolean}}
  */
+let EventTrackerEntry;
+

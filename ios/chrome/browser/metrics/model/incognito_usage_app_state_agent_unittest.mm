@@ -26,7 +26,9 @@
 
 class IncognitoUsageAppStateAgentTest : public PlatformTest {
  public:
-  void AdvanceClock(base::TimeDelta delay) { scoped_clock_.Advance(delay); }
+  void AdvanceClock(const base::TimeDelta& delay) {
+    scoped_clock_.Advance(delay);
+  }
 
  protected:
   void SetUp() override {

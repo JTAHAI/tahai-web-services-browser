@@ -69,14 +69,10 @@ void PlatformRuntimeImpl::UpdatePlatformRuntimeLibrary(
   }
 
   base::NativeLibraryLoadError error;
-  base::NativeLibraryOptions options;
-#if BUILDFLAG(IS_WIN)
-  options.verify_signature = true;
-#endif
   // This function must be called from a thread that allows blocking, as
   // loading a native library involves disk I/O.
   base::NativeLibrary native_lib =
-      base::LoadNativeLibraryWithOptions(library_path, options, &error);
+      base::LoadNativeLibrary(library_path, &error);
   if (!native_lib) {
     DLOG(ERROR) << "Failed to load Platform Runtime library: "
                 << error.ToString();

@@ -26,8 +26,12 @@ namespace android_webview {
 //   any thread.
 // - Can be destroyed on any thread.
 //
-// Thread-safe staleness inspection is supported via
-// `content::CrossThreadPrefetchHandle::IsPrefetchStale()`.
+// Under `kWebViewPrefetchOffTheMainThread` being enabled, the deduplication is
+// performed solely by `AwPrefetchManager`'s `url_` and
+// `expected_no_vary_search_`. Thus, we use less information compared to
+// `BrowserContext::IsPrefetchDuplicate()`, which uses
+// `PrefetchService`/`PrefetchContainer`'s state. i.e. `IsPrefetchStale()` is
+// always false here.
 class AwPrefetchHandleWrapper final
     : public content::PrefetchDeduplicationEntry {
  public:

@@ -258,7 +258,7 @@ export class SettingsCupsNearbyPrintersElement extends
     this.showCupsPrinterToast_(result, printerName);
     chrome.metricsPrivate.recordEnumerationValue(
         'Printing.CUPS.PrinterSetupResult.SettingsDiscoveredPrinters', result,
-        PrinterSetupResult.COUNT);
+        Object.keys(PrinterSetupResult).length);
     recordSettingChange(Setting.kAddPrinter);
   }
 
@@ -277,7 +277,7 @@ export class SettingsCupsNearbyPrintersElement extends
     chrome.metricsPrivate.recordEnumerationValue(
         'Printing.CUPS.PrinterSetupResult.SettingsDiscoveredPrinters',
         PrinterSetupResult.MANUAL_SETUP_REQUIRED,
-        PrinterSetupResult.COUNT);
+        Object.keys(PrinterSetupResult).length);
   }
 
   /**

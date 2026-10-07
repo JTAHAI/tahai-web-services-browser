@@ -42,7 +42,6 @@ export interface PasswordsSectionElement {
     noPasswordsFound: HTMLElement,
     movePasswords: HTMLElement,
     importPasswords: HTMLElement,
-    trustedVaultUnlock: HTMLElement,
   };
 }
 
@@ -70,7 +69,7 @@ export class PasswordsSectionElement extends PasswordsSectionElementBase {
        */
       groups_: {
         type: Array,
-        value: null,
+        value: () => [],
         observer: 'onGroupsChanged_',
       },
 
@@ -104,8 +103,7 @@ export class PasswordsSectionElement extends PasswordsSectionElementBase {
 
       showPasswordsDescription_: {
         type: Boolean,
-        computed: 'computeShowPasswordsDescription_(groups_, ' +
-            'searchTerm_)',
+        computed: 'computeShowPasswordsDescription_(groups_, searchTerm_)',
       },
 
       notificationCard_: {
@@ -134,14 +132,20 @@ export class PasswordsSectionElement extends PasswordsSectionElementBase {
     };
   }
 
+  static get observers() {
+    return [
+      'updateImportPasswordsLink_(importPasswordsText_)',
+    ];
+  }
+
   declare focusConfig: FocusConfig;
 
-  declare private groups_: chrome.passwordsPrivate.CredentialGroup[]|null;
+  declare private groups_: chrome.passwordsPrivate.CredentialGroup[];
   declare private searchTerm_: string;
   declare private shownGroupsCount_: number;
   declare private showAddPasswordDialog_: boolean;
   declare private showAuthTimedOutDialog_: boolean;
-  declare private importPasswordsText_: TrustedHTML;
+  declare private importPasswordsText_: string;
   // TODO(crbug.com/410001569): This should check for localPasswordCount
   // instead, coming from the SyncHandler that queries the batch uploader. This
   // is needed to align the showing of the trigger and the content (which now
@@ -161,9 +165,8 @@ export class PasswordsSectionElement extends PasswordsSectionElementBase {
   override connectedCallback() {
     super.connectedCallback();
     const updateGroups = () => {
-      PasswordManagerImpl.getInstance().getCredentialGroups().then(groups => {
-        this.groups_ = groups;
-      });
+      PasswordManagerImpl.getInstance().getCredentialGroups().then(
+          groups => this.groups_ = groups);
     };
 
     this.setSavedPasswordsListener_ = _passwordList => {
@@ -215,9 +218,6 @@ export class PasswordsSectionElement extends PasswordsSectionElementBase {
   }
 
   private hideGroupsList_(): boolean {
-    if (this.groups_ === null) {
-      return true;
-    }
     return this.groups_.filter(this.groupFilter_()).length === 0;
   }
 
@@ -246,9 +246,7 @@ export class PasswordsSectionElement extends PasswordsSectionElementBase {
   }
 
   private onAddPasswordClick_() {
-    this.executeIfTrustedVaultUnlocked(() => {
-      this.showAddPasswordDialog_ = true;
-    });
+    this.showAddPasswordDialog_ = true;
   }
 
   private onAddPasswordDialogClose_() {
@@ -265,9 +263,6 @@ export class PasswordsSectionElement extends PasswordsSectionElementBase {
 
   private computePasswordsOnDevice_():
       chrome.passwordsPrivate.PasswordUiEntry[] {
-    if (this.groups_ === null) {
-      return [];
-    }
     const localStorage = [
       chrome.passwordsPrivate.PasswordStoreSet.DEVICE_AND_ACCOUNT,
       chrome.passwordsPrivate.PasswordStoreSet.DEVICE,
@@ -288,19 +283,10 @@ export class PasswordsSectionElement extends PasswordsSectionElementBase {
   }
 
   private showImportPasswordsOption_(): boolean {
-    if (this.groups_ === null || this.actionableError === null ||
-        this.passwordManagerDisabled_) {
+    if (!this.groups_ || this.passwordManagerDisabled_) {
       return false;
     }
-    return this.groups_.length === 0 && !this.isTrustedVaultKeyNeeded();
-  }
-
-  private showTrustedVaultUnlockOption_(): boolean {
-    if (this.groups_ === null || this.actionableError === null ||
-        this.passwordManagerDisabled_) {
-      return false;
-    }
-    return this.groups_.length === 0 && this.isTrustedVaultKeyNeeded();
+    return this.groups_.length === 0;
   }
 
   private computeImportPasswordsText_(): TrustedHTML {
@@ -318,22 +304,19 @@ export class PasswordsSectionElement extends PasswordsSectionElementBase {
     return this.i18nAdvanced('emptyStateImportDevice');
   }
 
-  private onTrustedVaultUnlockClick_(e: Event) {
-    const target = e.target as HTMLElement;
-    if (target.tagName === 'A') {
-      e.preventDefault();
-      PasswordManagerImpl.getInstance().startTrustedVaultUnlock();
-    }
-  }
+  private updateImportPasswordsLink_() {
+    const importLink = this.$.importPasswords.querySelector('a');
+    // Add an event listener to the import link, points to the import flow.
+    assert(importLink);
+    importLink.addEventListener('click', (event: Event) => {
+      // The action is triggered from a dummy anchor element poining to "#".
+      // For that case preventing the default behaviour is required here.
+      event.preventDefault();
 
-  private onImportPasswordsClick_(e: Event) {
-    const target = e.target as HTMLElement;
-    if (target.tagName === 'A') {
-      e.preventDefault();
       const params = new URLSearchParams();
       params.set(UrlParam.START_IMPORT, 'true');
       Router.getInstance().navigateTo(Page.SETTINGS, null, params);
-    }
+    });
   }
 
   private onCardClosed_() {
@@ -357,13 +340,11 @@ export class PasswordsSectionElement extends PasswordsSectionElementBase {
   }
 
   private computeShowPasswordsDescription_(): boolean {
-    return this.groups_ !== null && !this.searchTerm_ &&
-        this.groups_.length > 0;
+    return !this.searchTerm_ && this.groups_.length > 0;
   }
 
   private showNoPasswordsFound_(): boolean {
-    return this.groups_ !== null && this.hideGroupsList_() &&
-        this.groups_.length > 0;
+    return this.hideGroupsList_() && this.groups_.length > 0;
   }
 
   private onPasswordDetailsShown_(e: CustomEvent) {

@@ -10,12 +10,8 @@
 #include "base/check_is_test.h"
 #include "base/command_line.h"
 #include "base/feature_list.h"
-#include "base/metrics/histogram_functions.h"
-#include "base/metrics/user_metrics.h"
-#include "base/metrics/user_metrics_action.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/enterprise/signin/managed_profile_creation_controller.h"
-#include "chrome/browser/enterprise/signin/signals_disclaimer_metrics.h"
 #include "chrome/browser/enterprise/util/managed_browser_utils.h"
 #include "chrome/browser/lifetime/application_lifetime_desktop.h"
 #include "chrome/browser/net/system_network_context_manager.h"
@@ -35,17 +31,16 @@
 #include "chrome/browser/signin/signin_util.h"
 #include "chrome/browser/themes/theme_service.h"
 #include "chrome/browser/themes/theme_service_factory.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_tabstrip.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
-#include "chrome/browser/ui/browser_window/public/create_browser_window.h"
 #include "chrome/browser/ui/browser_window/public/profile_browser_collection.h"
 #include "chrome/browser/ui/profiles/profile_colors_util.h"
 #include "chrome/browser/ui/profiles/profile_picker.h"
 #include "chrome/browser/ui/signin/signin_view_controller.h"
 #include "chrome/browser/ui/webui/signin/signin_utils.h"
-#include "chrome/browser/ui/window_feature_controller/window_feature_controller.h"
 #include "chrome/common/channel_info.h"
 #include "chrome/common/chrome_switches.h"
 #include "components/device_signals/core/browser/pref_names.h"
@@ -286,8 +281,8 @@ void ProfileManagementDisclaimerService::
       ProfileBrowserCollection::GetForProfile(&profile_.get())
           ->GetLastActiveBrowser();
   bool has_browser_with_tab =
-      browser && WindowFeatureController::From(browser)->SupportsWindowFeature(
-                     WindowFeatureController::WindowFeature::kFeatureTabStrip);
+      browser && browser->GetBrowserForMigrationOnly()->SupportsWindowFeature(
+                     Browser::WindowFeature::kFeatureTabStrip);
   // If there is no browser and we are not in tests, abort.
   if (!has_browser_with_tab && !profile_separation_policies_for_testing_ &&
       !user_choice_for_testing_) {
@@ -376,32 +371,11 @@ void ProfileManagementDisclaimerService::MaybeShowDeviceSignalsDisclaimerDialog(
     return;
   }
 
-  // A tab must be active to present a modal dialog. We'll back off and try
-  // again once the next OnBrowserActivated is fired.
-  if (browser && !browser->GetActiveTabInterface()) {
-    base::UmaHistogramEnumeration(
-        kEnterpriseSignalsDisclaimerNotShownReason,
-        EnterpriseSignalsDisclaimerNotShownReason::kTabsNotReady);
+  // The management notice dialog or this dialog are already open.
+  if ((state_ && state_->profile_creation_controller) ||
+      browser->GetFeatures().signin_view_controller()->ShowsModalDialog()) {
     return;
   }
-
-  // Profile creation is already in progress.
-  if (state_ && state_->profile_creation_controller) {
-    base::UmaHistogramEnumeration(
-        kEnterpriseSignalsDisclaimerNotShownReason,
-        EnterpriseSignalsDisclaimerNotShownReason::kProfileCreationInProgress);
-    return;
-  }
-
-  // The management notice dialog or another modal dialog is already open.
-  if (browser->GetFeatures().signin_view_controller()->ShowsModalDialog()) {
-    base::UmaHistogramEnumeration(
-        kEnterpriseSignalsDisclaimerNotShownReason,
-        EnterpriseSignalsDisclaimerNotShownReason::kOtherModalDialogShown);
-    return;
-  }
-
-  base::UmaHistogramBoolean(kEnterpriseSignalsDisclaimerModalShown, true);
 
   browser->GetFeatures()
       .signin_view_controller()
@@ -411,39 +385,28 @@ void ProfileManagementDisclaimerService::MaybeShowDeviceSignalsDisclaimerDialog(
                   GetPrimaryAccountInfo(),
                   base::BindOnce(&ProfileManagementDisclaimerService::
                                      HandleDeviceSignalsDisclaimerChoice,
-                                 weak_ptr_factory_.GetWeakPtr(),
-                                 browser->GetWeakPtr()),
+                                 weak_ptr_factory_.GetWeakPtr()),
                   /*is_modal_dialog=*/true));
   opened_device_signals_disclaimers_.push_back(browser->GetWeakPtr());
 }
 
 void ProfileManagementDisclaimerService::HandleDeviceSignalsDisclaimerChoice(
-    base::WeakPtr<BrowserWindowInterface> source_browser,
     signin::DeviceSignalsDisclaimerResult result) {
   switch (result) {
-    case signin::DeviceSignalsDisclaimerResult::kAccepted: {
-      base::UmaHistogramEnumeration(
-          kEnterpriseSignalsDisclaimerModalResult,
-          EnterpriseSignalsDisclaimerModalResult::kAccepted);
+    case signin::DeviceSignalsDisclaimerResult::kAccepted:
       // Close the dialog on all windows it was open and mark the permission as
       // granted.
       OnDeviceSignalsCollectionConsentGranted();
-
-      auto browsers_to_close = std::move(opened_device_signals_disclaimers_);
-      for (const auto& browser : browsers_to_close) {
+      for (const auto& browser :
+           std::move(opened_device_signals_disclaimers_)) {
         if (browser) {
           // This will trigger `HandleDeviceSignalsDisclaimerChoice` with
           // `kDismissed` for any other dialogs.
           browser->GetFeatures().signin_view_controller()->CloseModalSignin();
         }
       }
-
       break;
-    }
     case signin::DeviceSignalsDisclaimerResult::kCanceled:
-      base::UmaHistogramEnumeration(
-          kEnterpriseSignalsDisclaimerModalResult,
-          EnterpriseSignalsDisclaimerModalResult::kDeclined);
       // If the user does not grant permission all windows for this profile
       // should be closed and the profile picker should be presented.
       //
@@ -455,26 +418,14 @@ void ProfileManagementDisclaimerService::HandleDeviceSignalsDisclaimerChoice(
           ProfilePicker::EntryPoint::kProfileMenuManageProfiles));
       break;
     case signin::DeviceSignalsDisclaimerResult::kDismissed:
-      // This case means the dialog in `source_browser` was not closed by
-      // choosing either of the dialog buttons. If the dialog is missing from
-      // `opened_device_signals_disclaimers_` it had to be closed explicitly by
-      // either `kAccepted` or `kCanceled` branch.
-      auto itr = std::find_if(opened_device_signals_disclaimers_.begin(),
-                              opened_device_signals_disclaimers_.end(),
-                              [&source_browser](const auto& browser) {
-                                return browser && source_browser &&
-                                       browser.get() == source_browser.get();
-                              });
-      if (itr != opened_device_signals_disclaimers_.end()) {
-        base::UmaHistogramEnumeration(kEnterpriseSignalsDisclaimerModalResult,
-                                      EnterpriseSignalsDisclaimerModalResult::
-                                          kDismissedWithoutExplicitUserAction);
-        opened_device_signals_disclaimers_.erase(itr);
-      } else {
-        base::UmaHistogramEnumeration(
-            kEnterpriseSignalsDisclaimerModalResult,
-            EnterpriseSignalsDisclaimerModalResult::kDismissedByAnotherWindow);
-      }
+      // This case means the dialog was not closed by choosing either of the
+      // dialog buttons.
+      // If device_signals::prefs::kDeviceSignalsPermanentConsentReceived is
+      // still false here it means the dialog was interrupted by a different one
+      // or by a window being closed for another reason.
+      // TODO(b/512836948): Figure out how to determine if the dismissal was
+      // caused by another window or not. Emit a metric to track unexpected
+      // dismissals.
       break;
   }
 }
@@ -647,16 +598,7 @@ void ProfileManagementDisclaimerService::
       device_signals::prefs::kDeviceSignalsPermanentConsentReceived, true);
 }
 
-void ProfileManagementDisclaimerService::OpenPrivacyPolicyArticlePopUp(
-    bool is_modal_dialog) {
-  if (is_modal_dialog) {
-    base::UmaHistogramBoolean(kEnterpriseSignalsDisclaimerModalLearnMoreClicked,
-                              true);
-  } else {
-    base::UmaHistogramBoolean(
-        kEnterpriseSignalsDisclaimerProfilePickerLearnMoreClicked, true);
-  }
-
+void ProfileManagementDisclaimerService::OpenPrivacyPolicyArticlePopUp() {
   // If the dedicated browser for the privacy article has already been created
   // bring it to focus instead of creating a new window.
   if (privacy_article_browser_) {
@@ -672,13 +614,9 @@ void ProfileManagementDisclaimerService::OpenPrivacyPolicyArticlePopUp(
   // This will open a new browser window in the same profile. We need to make
   // sure the dialog is not shown in that window to allow the user to read the
   // article.
-  BrowserWindowCreateParams create_params(BrowserWindowInterface::TYPE_POPUP,
-                                          &*profile_,
-                                          /*from_user_gesture=*/true);
-  create_params.should_trigger_session_restore = false;
-  create_params.omit_from_session_restore = true;
-  BrowserWindowInterface* popup_browser =
-      CreateBrowserWindow(std::move(create_params));
+  Browser::CreateParams create_params(Browser::TYPE_POPUP, &*profile_,
+                                      /*user_gesture=*/true);
+  Browser* popup_browser = Browser::Create(create_params);
   if (popup_browser) {
     privacy_article_browser_ = popup_browser->GetWeakPtr();
     chrome::AddSelectedTabWithURL(popup_browser,

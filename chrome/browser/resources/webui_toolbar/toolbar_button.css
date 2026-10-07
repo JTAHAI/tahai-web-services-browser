@@ -5,25 +5,19 @@
 /* #css_wrapper_metadata_start
  * #type=style-lit
  * #import=//resources/cr_elements/cr_hidden_style_lit.css.js
- * #import=/shared/help_bubble_anchor.css.js
  * #scheme=relative
- * #include=cr-hidden-style-lit help-bubble-anchor
+ * #include=cr-hidden-style-lit
  * #css_wrapper_metadata_end */
 
 :host {
   align-items: center;
   display: inline-flex;
-  flex: none;
   justify-content: center;
   position: relative;
   --button-height: var(--toolbar-button-height);
   --button-width: var(--toolbar-button-height);
   height: var(--button-height);
   width: var(--button-width);
-}
-
-:host([overflow-display-none]) {
-  display: none !important;
 }
 
 cr-icon-button {
@@ -36,12 +30,6 @@ cr-icon-button {
 
 cr-button {
   cursor: default;
-  /* Zero out font-size and line-height because cr-button wraps slotted content
-   * in an inline span. This collapses the font baseline offset, ensuring the
-   * icon is vertically centered. This is safe as toolbar buttons using
-   * cr-button are strictly icon-only and have no text. */
-  font-size: 0;
-  line-height: 0;
   margin: 0;
   padding: 0;
   min-width: var(--toolbar-button-height);
@@ -59,6 +47,41 @@ cr-button[is-menu-open],
 :host(.anchor-highlight) cr-icon-button {
   background-color: var(--cr-active-background-color);
 }
+
+:host(.help-anchor-highlight) cr-icon-button,
+:host(.help-anchor-highlight) cr-button {
+  --cr-hover-background-color: transparent;
+  --cr-icon-button-hover-background-color: transparent;
+  --cr-icon-button-active-background-color: transparent;
+  background-color: transparent !important;
+}
+
+:host(.help-anchor-highlight) cr-icon-button::before,
+:host(.help-anchor-highlight) cr-button::before {
+  animation: pulse 1600ms infinite;
+  background-color: var(--color-button-feature-attention-highlight);
+  border-radius: 50%;
+  content: '';
+  inset: 0;
+  pointer-events: none;
+  position: absolute;
+  z-index: -1;
+}
+
+@keyframes pulse {
+  0% {
+    inset: 0;
+    animation-timing-function: cubic-bezier(0.333, 0.667, 0.667, 1);
+  }
+  50% {
+    inset: 3px;
+    animation-timing-function: cubic-bezier(0.333, 0.667, 0.667, 1);
+  }
+  100% {
+    inset: 0;
+  }
+}
+
 
 /* The "Blue Bar" status indicator that appears when a split is active */
 .status-indicator {

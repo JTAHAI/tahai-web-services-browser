@@ -5,7 +5,6 @@
 package org.chromium.chrome.test.transit.page;
 
 import static androidx.test.espresso.matcher.ViewMatchers.isDisplayed;
-import static androidx.test.espresso.matcher.ViewMatchers.withContentDescription;
 import static androidx.test.espresso.matcher.ViewMatchers.withId;
 
 import static org.hamcrest.CoreMatchers.allOf;
@@ -51,14 +50,7 @@ import java.util.function.Supplier;
  * the expected title, etc.
  */
 public class CtaPageStation extends BasePageStation<ChromeTabbedActivity> {
-    private static final String SEARCH_PATH = "/search";
-    private static final String SEARCH_QUERY_PARAM = "q";
     public static final ViewSpec<UrlBar> URL_BAR = viewSpec(UrlBar.class, withId(R.id.url_bar));
-    public static final ViewSpec<View> TOOLBAR_MIC_BUTTON =
-            viewSpec(
-                    withId(R.id.optional_toolbar_button),
-                    withContentDescription(R.string.accessibility_toolbar_btn_mic));
-    public final OptionalViewElement<View> optionalToolbarMicButtonElement;
     public final OptionalViewElement<View> homeButtonElement;
     // TODO(crbug.com/477035792): Temporarily nullable while the toolbar is being migrated.
     public final @Nullable ViewElement<ToolbarControlContainer> toolbarElement;
@@ -105,28 +97,6 @@ public class CtaPageStation extends BasePageStation<ChromeTabbedActivity> {
                 declareOptionalView(
                         allOf(withId(R.id.home_button), isDisplayed()),
                         ViewElement.unscopedOption());
-
-        // The optional toolbar mic button specifically.
-        optionalToolbarMicButtonElement = declareOptionalView(TOOLBAR_MIC_BUTTON);
-    }
-
-    /**
-     * Clicks the mic button in the toolbar, expecting to navigate to a search results page.
-     *
-     * @param query the query to expect in the search URL
-     * @return the {@link WebPageStation} representing the search results page
-     */
-    public WebPageStation clickToolbarMicToSearchPage(String query) {
-        return optionalToolbarMicButtonElement.clickTo().arriveAt(createSearchPageStation(query));
-    }
-
-    /** Returns a {@link WebPageStation} expecting a search results page for the given query. */
-    public WebPageStation createSearchPageStation(String query) {
-        return WebPageStation.newBuilder()
-                .initFrom(this)
-                // TODO(b/543914644): Create a method for verifying url args directly.
-                .withExpectedUrlSubstring(SEARCH_PATH + "?" + SEARCH_QUERY_PARAM + "=" + query)
-                .build();
     }
 
     /** Long presses the tab switcher button to open the action menu. */
@@ -184,8 +154,8 @@ public class CtaPageStation extends BasePageStation<ChromeTabbedActivity> {
     }
 
     /**
-     * Opens a new tab programmatically as if selecting "New Tab" from the app menu, or opens a new
-     * window if we are currently in an incognito window that cannot open regular tabs.
+     * Attempts to open a new tab programmatically as if selecting "New Tab" from the app menu if
+     * available. If not available, attempts to open a new window.
      */
     public RegularNewTabPageStation openNewTabOrWindowFast() {
         if (IncognitoUtils.shouldOpenIncognitoAsWindow() && mIsIncognito) {
@@ -196,9 +166,8 @@ public class CtaPageStation extends BasePageStation<ChromeTabbedActivity> {
     }
 
     /**
-     * Opens a new incognito tab programmatically as if selecting "New Incognito Tab" from the app
-     * menu, or opens a new incognito window if we are currently in a regular window that cannot
-     * open incognito tabs.
+     * Attempts to open a new incognito tab programmatically as if selecting "New Incognito Tab"
+     * from the app menu if available. If not available, attempts to open a new incognito window.
      */
     public IncognitoNewTabPageStation openNewIncognitoTabOrWindowFast() {
         if (IncognitoUtils.shouldOpenIncognitoAsWindow() && !mIsIncognito) {
@@ -295,13 +264,12 @@ public class CtaPageStation extends BasePageStation<ChromeTabbedActivity> {
      * @param fakeSuggestions If non-null, fake suggestions expected to be shown in the Omnibox.
      */
     public OmniboxFacility openOmnibox(@Nullable FakeOmniboxSuggestions fakeSuggestions) {
-        OmniboxFacility omniboxFacility = new OmniboxFacility(fakeSuggestions);
+        OmniboxFacility omniboxFacility =
+                new OmniboxFacility(/* incognito= */ mIsIncognito, fakeSuggestions);
         SoftKeyboardFacility softKeyboard = new SoftKeyboardFacility();
 
         // The Omnibox opens and so does the soft keyboard.
-        clickUrlBarOrSearchBarTo()
-                .withPossiblyAlreadyFulfilled()
-                .enterFacilities(omniboxFacility, softKeyboard);
+        clickUrlBarOrSearchBarTo().enterFacilities(omniboxFacility, softKeyboard);
 
         // Close the soft keyboard before returning since autocomplete doesn't work well with the
         // GBoard displayed in the 12L AVD image (android_32_google_apis_x64_foldable_*.textpb).

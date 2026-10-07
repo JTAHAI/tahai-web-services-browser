@@ -7,6 +7,7 @@
 #include "partition_alloc/buildflags.h"
 
 #if PA_BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC)
+#include "base/no_destructor.h"
 #include "partition_alloc/shim/allocator_shim_default_dispatch_to_partition_alloc.h"
 #endif  // PA_BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC)
 
@@ -64,10 +65,19 @@ GetPartitionRootForMemorySafetyCheckedAllocation() {
   return allocator_shim::internal::PartitionAllocMalloc::Allocator();
 }
 
+partition_alloc::PartitionOptions
+GetPartitionRootOptionsForLeakedSecurityObjectAllocation() {
+  partition_alloc::PartitionOptions opts;
+  opts.thread_cache = partition_alloc::PartitionOptions::kDisabled;
+  opts.backup_ref_ptr = partition_alloc::PartitionOptions::kDisabled;
+  return opts;
+}
+
 ALWAYS_INLINE partition_alloc::PartitionRoot*
 GetPartitionRootForLeakedSecurityObjectAllocation() {
-  return allocator_shim::internal::PartitionAllocMalloc::
-      IntendedLeakAllocator();
+  static base::NoDestructor<partition_alloc::PartitionRoot> s_root(
+      GetPartitionRootOptionsForLeakedSecurityObjectAllocation());
+  return s_root.get();
 }
 
 // For malloc_dump_provider and tests, use this NOINLINE function.

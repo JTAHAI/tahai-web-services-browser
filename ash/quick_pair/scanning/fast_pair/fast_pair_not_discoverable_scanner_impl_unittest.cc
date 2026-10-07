@@ -8,7 +8,6 @@
 #include <iomanip>
 #include <memory>
 #include <sstream>
-#include <string>
 #include <vector>
 
 #include "ash/quick_pair/common/constants.h"

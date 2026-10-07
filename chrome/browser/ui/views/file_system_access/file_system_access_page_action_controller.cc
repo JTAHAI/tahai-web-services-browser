@@ -13,32 +13,28 @@
 #include "chrome/grit/generated_resources.h"
 #include "components/tabs/public/tab_interface.h"
 #include "components/vector_icons/vector_icons.h"
-#include "content/public/browser/page.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/ui_base_features.h"
 
 FileSystemAccessPageActionController::FileSystemAccessPageActionController(
     tabs::TabInterface& tab_interface)
-    : tabs::ContentsObservingTabFeature(tab_interface) {}
-
-FileSystemAccessPageActionController::~FileSystemAccessPageActionController() =
-    default;
+    : tab_interface_(tab_interface) {}
 
 void FileSystemAccessPageActionController::UpdateVisibility() {
   bool has_write_access = false;
   bool show_read_indicator = false;
 
-  content::WebContents* contents = tab().GetContents();
+  content::WebContents* web_contents = tab_interface_->GetContents();
   url::Origin origin =
-      contents->GetPrimaryMainFrame()->GetLastCommittedOrigin();
+      web_contents->GetPrimaryMainFrame()->GetLastCommittedOrigin();
   auto* context =
       FileSystemAccessPermissionContextFactory::GetForProfileIfExists(
-          contents->GetBrowserContext());
+          web_contents->GetBrowserContext());
   if (context) {
     has_write_access = context->OriginHasWriteAccess(origin);
     show_read_indicator = context->OriginHasReadAccess(origin);
   }
-  tabs::TabFeatures* tab_features = tab().GetTabFeatures();
+  tabs::TabFeatures* tab_features = tab_interface_->GetTabFeatures();
   CHECK(tab_features);
   page_actions::PageActionController* page_action_controller =
       tab_features->page_action_controller();
@@ -66,23 +62,14 @@ void FileSystemAccessPageActionController::UpdateVisibility() {
       page_action_controller->Show(kActionShowFileSystemAccess);
     }
   } else {
-    if (FileSystemAccessUsageBubbleView* bubble =
-            FileSystemAccessUsageBubbleView::GetBubble();
-        bubble && bubble->web_contents() == contents) {
-      FileSystemAccessUsageBubbleView::CloseCurrentBubble();
-    }
+    FileSystemAccessUsageBubbleView::CloseCurrentBubble();
     HideIcon();
   }
 }
 
-void FileSystemAccessPageActionController::PrimaryPageChanged(
-    content::Page& page) {
-  UpdateVisibility();
-}
-
 void FileSystemAccessPageActionController::HideIcon() {
   page_actions::PageActionController* page_action_controller =
-      tab().GetTabFeatures()->page_action_controller();
+      tab_interface_->GetTabFeatures()->page_action_controller();
   CHECK(page_action_controller);
   page_action_controller->Hide(kActionShowFileSystemAccess);
 }

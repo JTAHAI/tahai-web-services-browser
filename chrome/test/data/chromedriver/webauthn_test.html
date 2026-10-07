@@ -72,9 +72,8 @@ async function getCredential(credential, options = {}) {
           attestation.getClientExtensionResults().largeBlob.blob);
     }
     if (attestation.response?.authenticatorData) {
-      const dataView = new DataView(attestation.response.authenticatorData);
-      result.flags = parseAuthenticatorFlags(dataView.getUint8(32));
-      result.signCount = dataView.getUint32(33, false);
+      result.flags = parseAuthenticatorFlags(
+          new Uint8Array(attestation.response.authenticatorData)[32]);
     }
     return result;
   } catch (error) {

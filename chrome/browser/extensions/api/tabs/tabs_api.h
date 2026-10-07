@@ -330,7 +330,6 @@ class TabsCreateFunction : public ExtensionFunction {
   std::optional<bool> active_;
   std::optional<bool> pinned_;
   std::optional<int> index_;
-  std::optional<int> split_with_tab_id_;
 
   // The validated URL to open.
   GURL validated_url_;
@@ -429,12 +428,6 @@ class TabsUngroupFunction : public ExtensionFunction {
   ResponseAction Run() override;
   bool UngroupTab(int tab_id, std::string* error);
   DECLARE_EXTENSION_FUNCTION("tabs.ungroup", TABS_UNGROUP)
-};
-class TabsCreateSplitFunction : public ExtensionFunction {
- private:
-  ~TabsCreateSplitFunction() override;
-  ResponseAction Run() override;
-  DECLARE_EXTENSION_FUNCTION("tabs.createSplit", TABS_CREATESPLIT)
 };
 class TabsDetectLanguageFunction
     : public ExtensionFunction,

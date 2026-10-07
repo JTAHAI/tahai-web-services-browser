@@ -18,9 +18,6 @@
 // The metadata object to use as base for Lens or `nil` if absent.
 @property(nonatomic, readonly) id<LensImageMetadata> imageMetadata;
 
-// The raw image data to use as base for Lens or `nil` if absent.
-@property(nonatomic, readonly) NSData* rawImageData;
-
 // Whether the image source is valid.
 @property(nonatomic, readonly) BOOL isValid;
 
@@ -29,9 +26,6 @@
 
 // Creates a new image source from an image metadata.
 - (instancetype)initWithImageMetadata:(id<LensImageMetadata>)imageMetadata;
-
-// Creates a new image source from raw image data.
-- (instancetype)initWithRawImageData:(NSData*)rawImageData;
 
 - (instancetype)init NS_UNAVAILABLE;
 

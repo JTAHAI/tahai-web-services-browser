@@ -5,8 +5,11 @@
 #ifndef COMPONENTS_BROWSER_APIS_TAB_DRAG_SESSIONS_TAB_DRAG_SESSION_LISTENER_H_
 #define COMPONENTS_BROWSER_APIS_TAB_DRAG_SESSIONS_TAB_DRAG_SESSION_LISTENER_H_
 
+#include <vector>
+
+#include "components/browser_apis/tab_drag/adapters/tab_drag_window_adapter.h"
 #include "components/browser_apis/tab_drag/destinations/drop_target_id.h"
-#include "components/browser_apis/tab_drag/tab_drag_types.h"
+#include "components/browser_apis/tab_strip/types/node_id.h"
 #include "ui/gfx/geometry/point.h"
 
 namespace tabs_api {
@@ -16,7 +19,9 @@ class TabDragSessionListener {
   virtual ~TabDragSessionListener() = default;
 
   // Called when a new drag session starts.
-  virtual void OnSessionStarted(const TabDragSessionParams& params) = 0;
+  virtual void OnSessionStarted(std::vector<tabs_api::NodeId> dragged_tabs,
+                                TabDragWindowId source_window_id,
+                                const gfx::Point& start_point) = 0;
 
   // Called when the active drop target for the drag changes.
   virtual void OnTargetChanged(DropTargetId new_target,

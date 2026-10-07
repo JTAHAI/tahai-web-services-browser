@@ -165,7 +165,7 @@ public class ConnectivityDetector implements NetworkChangeNotifier.ConnectionTyp
                 NetworkCapabilities capabilities =
                         connectivityManager.getNetworkCapabilities(network);
                 if (capabilities == null) continue;
-                Log.i(TAG, "Reported by system: " + capabilities);
+                Log.i(TAG, "Reported by system: " + capabilities.toString());
                 if (capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
                         && capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
                         && capabilities.hasCapability(
@@ -496,7 +496,13 @@ public class ConnectivityDetector implements NetworkChangeNotifier.ConnectionTyp
         }
         Log.i(TAG, "Retry after " + mConnectivityCheckDelayMs + "ms");
 
-        mRunnable = this::performConnectivityCheck;
+        mRunnable =
+                new Runnable() {
+                    @Override
+                    public void run() {
+                        performConnectivityCheck();
+                    }
+                };
         mHandler.postDelayed(mRunnable, mConnectivityCheckDelayMs);
     }
 

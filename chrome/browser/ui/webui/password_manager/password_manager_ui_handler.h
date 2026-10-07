@@ -5,7 +5,6 @@
 #ifndef CHROME_BROWSER_UI_WEBUI_PASSWORD_MANAGER_PASSWORD_MANAGER_UI_HANDLER_H_
 #define CHROME_BROWSER_UI_WEBUI_PASSWORD_MANAGER_PASSWORD_MANAGER_UI_HANDLER_H_
 
-#include "base/containers/flat_map.h"
 #include "base/memory/weak_ptr.h"
 #include "base/scoped_observation.h"
 #include "chrome/browser/extensions/api/passwords_private/passwords_private_delegate.h"
@@ -88,14 +87,17 @@ class PasswordManagerUIHandler
 
   void IsAccountStorageActive(IsAccountStorageActiveCallback callback) override;
 
+  void SetAccountStorageEnabled(bool enabled) override;
+
+  void ShouldShowAccountStorageSettingToggle(
+      ShouldShowAccountStorageSettingToggleCallback callback) override;
+
   void SwitchBiometricAuthBeforeFillingState(
       SwitchBiometricAuthBeforeFillingStateCallback callback) override;
 
   void StartPasswordChange(int credential_id) override;
 
-  void StopPasswordChange(int credential_id) override;
-
-  void OpenPasswordChangeTab(int credential_id) override;
+  void StopPasswordChange() override;
 
   void GetPasswordManagerActionableError(
       GetPasswordManagerActionableErrorCallback callback) override;
@@ -121,8 +123,6 @@ class PasswordManagerUIHandler
   void ContinueImport(const std::vector<int32_t>& selected_ids,
                       ContinueImportCallback callback) override;
 
-  void StartTrustedVaultUnlock() override;
-
   // extensions::PasswordsPrivateDelegate::Observer:
   void OnPasswordsExportProgress(password_manager::ExportProgressStatus status,
                                  const std::string& folder_name) override;
@@ -141,9 +141,6 @@ class PasswordManagerUIHandler
   base::ScopedObservation<extensions::PasswordsPrivateDelegate,
                           extensions::PasswordsPrivateDelegate::Observer>
       passwords_private_delegate_observation_{this};
-
-  base::flat_map<int, base::WeakPtr<PasswordChangeFromCheckupDelegate>>
-      password_change_from_checkup_delegates_;
 
   // NOTE: These are located at the end of the list of member variables to
   // ensure the WebUI page is disconnected before other members are destroyed.

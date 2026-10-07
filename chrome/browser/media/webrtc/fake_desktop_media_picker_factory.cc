@@ -22,9 +22,6 @@ FakeDesktopMediaPicker::FakeDesktopMediaPicker(
 }
 FakeDesktopMediaPicker::~FakeDesktopMediaPicker() {
   expectation_->picker_deleted = true;
-  if (picker_params_.on_picker_destroying) {
-    picker_params_.on_picker_destroying.Run();
-  }
 }
 
 // DesktopMediaPicker interface.
@@ -67,8 +64,7 @@ void FakeDesktopMediaPicker::Show(
 #endif  // !BUILDFLAG(IS_ANDROID)
 
   EXPECT_EQ(expectation_->expect_audio, params.request_audio);
-  EXPECT_TRUE(params.modality == ui::mojom::ModalType::kChild ||
-              params.modality == ui::mojom::ModalType::kWindow);
+  EXPECT_EQ(params.modality, ui::mojom::ModalType::kChild);
 
   if (!expectation_->cancelled) {
     // Post a task to call the callback asynchronously.

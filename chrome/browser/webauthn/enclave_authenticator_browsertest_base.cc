@@ -24,8 +24,7 @@
 #include "chrome/browser/sync/sync_service_factory.h"
 #include "chrome/browser/sync/test/integration/sync_service_impl_harness.h"
 #include "chrome/browser/sync/test/integration/sync_test.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
-#include "chrome/browser/ui/tabs/tab_strip_model.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/webauthn/enclave_keys_waiter.h"
 #include "chrome/browser/webauthn/enclave_manager.h"
 #include "chrome/browser/webauthn/enclave_manager_factory.h"
@@ -240,7 +239,7 @@ void EnclaveAuthenticatorTestBase::OverrideUVKeyAvailability(bool available) {
 
 bool EnclaveAuthenticatorTestBase::IsUVPAA() {
   content::WebContents* web_contents =
-      browser()->GetTabStripModel()->GetActiveWebContents();
+      browser()->tab_strip_model()->GetActiveWebContents();
   content::DOMMessageQueue message_queue(web_contents);
   content::ExecuteScriptAsync(web_contents, kIsUVPAA);
 
@@ -330,7 +329,7 @@ void EnclaveAuthenticatorTestBase::SetMockVaultConnectionOnRequestDelegate(
           });
   if (rfh == nullptr) {
     rfh = browser()
-              ->GetTabStripModel()
+              ->tab_strip_model()
               ->GetActiveWebContents()
               ->GetPrimaryMainFrame();
   }
@@ -371,7 +370,7 @@ void EnclaveAuthenticatorTestBase::SetTrustedVaultSlowAndCacheCallback() {
       .WillOnce(connection_callback);
   GpmTrustedVaultConnectionProvider::SetOverrideForFrame(
       browser()
-          ->GetTabStripModel()
+          ->tab_strip_model()
           ->GetActiveWebContents()
           ->GetPrimaryMainFrame(),
       std::move(connection));

@@ -7,6 +7,7 @@
 #include <memory>
 #include <utility>
 
+#include "base/compiler_specific.h"
 #include "base/functional/bind.h"
 #include "base/run_loop.h"
 #include "base/test/metrics/histogram_tester.h"
@@ -40,8 +41,8 @@ class LightSamplesObserverTest : public testing::Test {
     channels_data.push_back(std::move(illuminance_data));
 
     if (is_color_sensor) {
-      for (const char* channel : kIlluminanceColorChannels) {
-        illuminance_data.id = channel;
+      for (size_t i = 0; i < std::size(kIlluminanceColorChannels); ++i) {
+        illuminance_data.id = UNSAFE_TODO(kIlluminanceColorChannels[i]);
         illuminance_data.sample_data = kFakeColorSampleData;
         channels_data.push_back(std::move(illuminance_data));
       }

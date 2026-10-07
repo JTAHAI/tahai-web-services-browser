@@ -1,2 +1,3 @@
-rules:
-- "**": [gyroscope]
+features:
+- name: gyroscope
+  files: "**"

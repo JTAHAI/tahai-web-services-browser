@@ -77,7 +77,8 @@ SearchEngineType GetEngineType(const GURL& url) {
       all_engines, matched_engine->migrate_to_id, &PrepopulatedEngine::id);
   // Enforced in data pipeline checks and on startup by a CHECK in
   // `regional_capabilities::ComputeMigratedEnginesMapping`
-  CHECK(found_migrated_engine_it != all_engines.end());
+  CHECK(found_migrated_engine_it != all_engines.end(),
+        base::NotFatalUntil::M149);
   return (*found_migrated_engine_it)->type;
 }
 

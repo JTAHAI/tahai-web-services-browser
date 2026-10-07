@@ -277,9 +277,6 @@ ActorUiWindowController::~ActorUiWindowController() = default;
 // static
 ActorUiWindowController* ActorUiWindowController::From(
     BrowserWindowInterface* browser_window_interface) {
-  if (!browser_window_interface) {
-    return nullptr;
-  }
   return Get(browser_window_interface->GetUnownedUserDataHost());
 }
 

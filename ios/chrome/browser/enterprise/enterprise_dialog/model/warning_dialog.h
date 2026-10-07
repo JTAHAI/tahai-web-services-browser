@@ -24,10 +24,7 @@ enum DialogType {
   kDownloadSaveWarn,
 
   // Triggered by downloading from Share sheet.
-  kDownloadShareWarn,
-
-  // Triggered by Pasted Content DLP Rules Warn.
-  kPastedContentWarn
+  kDownloadShareWarn
 };
 
 // The warning dialog shown to the user when an Enterprise Policy is triggered.

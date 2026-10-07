@@ -143,6 +143,7 @@ DOMWrapperWorld::DOMWrapperWorld(PassKey,
       break;
     case WorldType::kIsolated:
     case WorldType::kInspectorIsolated:
+    case WorldType::kRegExp:
     case WorldType::kForV8ContextSnapshotNonMain:
     case WorldType::kWorkerOrWorklet:
     case WorldType::kShadowRealm: {
@@ -293,6 +294,7 @@ std::optional<int> DOMWrapperWorld::GenerateWorldIdForType(
       }
       return next_devtools_isolated_world_id++;
     }
+    case WorldType::kRegExp:
     case WorldType::kForV8ContextSnapshotNonMain:
     case WorldType::kWorkerOrWorklet:
     case WorldType::kShadowRealm: {

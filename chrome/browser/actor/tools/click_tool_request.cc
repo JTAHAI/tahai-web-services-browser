@@ -15,19 +15,25 @@ namespace actor {
 
 using ::tabs::TabHandle;
 
-ClickToolRequest::ClickToolRequest(
-    TabHandle tab_handle,
-    const PageTarget& target,
-    mojom::ClickType type,
-    mojom::ClickCount count,
-    bool requires_opening_web_contents,
-    std::optional<ObservationDelayController::PageStabilityConfig>
-        page_stability_config)
+ClickToolRequest::ClickToolRequest(TabHandle tab_handle,
+                                   const PageTarget& target,
+                                   mojom::ClickType type,
+                                   mojom::ClickCount count)
+    : ClickToolRequest(tab_handle,
+                       target,
+                       type,
+                       count,
+                       /*requires_opening_web_contents=*/false) {}
+
+ClickToolRequest::ClickToolRequest(TabHandle tab_handle,
+                                   const PageTarget& target,
+                                   mojom::ClickType type,
+                                   mojom::ClickCount count,
+                                   bool requires_opening_web_contents)
     : PageToolRequest(tab_handle, target),
       click_type_(type),
       click_count_(count),
-      requires_opening_web_contents_(requires_opening_web_contents),
-      page_stability_config_(page_stability_config) {}
+      requires_opening_web_contents_(requires_opening_web_contents) {}
 
 ClickToolRequest::~ClickToolRequest() = default;
 
@@ -69,9 +75,6 @@ bool ClickToolRequest::IsSubframeTargetingAllowed() const {
 
 ObservationDelayController::PageStabilityConfig
 ClickToolRequest::GetObservationPageStabilityConfig() const {
-  if (page_stability_config_.has_value()) {
-    return *page_stability_config_;
-  }
   return ObservationDelayController::PageStabilityConfig{
       .supports_paint_stability = true,
   };

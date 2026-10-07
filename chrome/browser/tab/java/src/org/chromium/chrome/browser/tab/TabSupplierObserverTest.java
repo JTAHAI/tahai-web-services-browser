@@ -18,6 +18,7 @@ import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
+import org.robolectric.annotation.Config;
 
 import org.chromium.base.supplier.NullableObservableSupplier;
 import org.chromium.base.supplier.ObservableSuppliers;
@@ -27,6 +28,7 @@ import org.chromium.base.test.util.Feature;
 
 /** Tests for the TabSupplierObserver. */
 @RunWith(BaseRobolectricTestRunner.class)
+@Config(manifest = Config.NONE)
 public class TabSupplierObserverTest {
     @Rule public MockitoRule mMockitoRule = MockitoJUnit.rule();
     @Mock private Tab mMockTab;

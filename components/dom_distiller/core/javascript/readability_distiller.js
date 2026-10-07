@@ -3,7 +3,7 @@
 // found in the LICENSE file.
 
 // Runs readability heuristic on the page and return the result.
-(function(allowedVideoRegex) {
+(function() {
 try {
   function initialize() {
     // This include will be processed at build time by grit.
@@ -14,12 +14,7 @@ try {
   }
   initialize();
 
-  const options = {};
-  if (allowedVideoRegex) {
-    options.allowedVideoRegex = new RegExp('//' + allowedVideoRegex, 'i');
-  }
-  const clonedDoc = document.cloneNode(/*deep=*/ true);
-  const article = new Readability(clonedDoc, options).parse();
+  const article = new Readability(document.cloneNode(/*deep=*/ true)).parse();
   return article;
 } catch (e) {
   window.console.error('Error during distillation: ' + e);
@@ -28,4 +23,4 @@ try {
   }
 }
 return undefined;
-})($$ALLOWED_VIDEO_REGEX);
+})();

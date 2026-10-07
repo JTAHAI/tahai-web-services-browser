@@ -54,8 +54,7 @@ struct BLINK_COMMON_EXPORT RendererPreferences {
   bool allow_cross_origin_auth_prompt{false};
   bool enable_do_not_track{false};
   bool enable_encrypted_media{true};
-#if BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_MAC) || \
-    BUILDFLAG(IS_WIN)
+#if BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_WIN)
   bool use_overlay_scrollbar{false};
 #endif
   blink::mojom::WebRtcIpHandlingPolicy webrtc_ip_handling_policy =
@@ -96,12 +95,10 @@ struct BLINK_COMMON_EXPORT RendererPreferences {
   // The default value must be false to avoid performance problems on very large
   // source pages.
   bool view_source_line_wrap_enabled{false};
-  bool system_color_chooser_is_modal{false};
-  bool is_global_privacy_control_setting_enabled{false};
 
   ui::KeyboardCode autofill_shortcut_key_code = ui::VKEY_UNKNOWN;
   int autofill_shortcut_modifiers = 0;
-  std::u16string autofill_trigger_string;
+  std::string autofill_trigger_string;
 
   RendererPreferences();
   RendererPreferences(const RendererPreferences& other);

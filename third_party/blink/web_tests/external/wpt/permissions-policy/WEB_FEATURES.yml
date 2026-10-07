@@ -1,2 +1,3 @@
-rules:
-- "**": [permissions-policy]
+features:
+- name: permissions-policy
+  files: "**"

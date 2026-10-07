@@ -22,6 +22,7 @@ import org.junit.runner.RunWith;
 
 import org.chromium.base.test.BaseActivityTestRule;
 import org.chromium.base.test.BaseJUnit4ClassRunner;
+import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.Features.DisableFeatures;
 import org.chromium.base.test.util.Features.EnableFeatures;
 import org.chromium.ui.R;
@@ -30,6 +31,7 @@ import org.chromium.ui.test.util.BlankUiTestActivity;
 
 /** Unit tests for {@link TextViewWithLeading}. */
 @RunWith(BaseJUnit4ClassRunner.class)
+@Batch(Batch.PER_CLASS)
 public class TextViewWithLeadingTest {
     @ClassRule
     public static BaseActivityTestRule<BlankUiTestActivity> sActivityTestRule =

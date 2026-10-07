@@ -1,3 +1,6 @@
-rules:
-- clip-path-animation-unset.html: [unset-value, clip-path-animatable]
-- "**": [clip-path-animatable]
+features:
+- name: clip-path-animatable
+  files: "**"
+- name: unset-value
+  files:
+  - clip-path-animation-unset.html

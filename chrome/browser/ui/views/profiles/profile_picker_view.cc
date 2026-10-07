@@ -87,7 +87,6 @@
 
 #if BUILDFLAG(IS_MAC)
 #include "chrome/browser/global_keyboard_shortcuts_mac.h"
-#include "chrome/browser/renderer_host/chrome_render_widget_host_view_mac_history_swiping_control.h"
 #endif
 
 #if BUILDFLAG(IS_LINUX)
@@ -103,9 +102,6 @@ constexpr int kWindowTitleId = IDS_PRODUCT_NAME;
 
 constexpr int kWindowWidth = 1024;
 constexpr int kWindowHeight = 758;
-constexpr int kWindowWidthIncreased = 1600;
-constexpr int kWindowHeightIncreased = 1000;
-
 constexpr float kMaxRatioOfWorkArea = 0.9;
 
 constexpr int kSupportedAcceleratorCommands[] = {
@@ -351,10 +347,6 @@ void ProfilePickerView::ShowScreen(
       std::move(navigation_finished_closure).Run();
     }
     return;
-  }
-
-  if (GetWidget()) {
-    contents->SetColorProviderSource(GetWidget());
   }
 
   contents->GetController().LoadURL(url, content::Referrer(),
@@ -649,15 +641,6 @@ void ProfilePickerView::Init(Profile* picker_profile) {
       contents_.get());
   web_modal::WebContentsModalDialogManager::FromWebContents(contents_.get())
       ->SetDelegate(this);
-#if BUILDFLAG(IS_MAC)
-  history_swiper::HistorySwipingControl::CreateForWebContents(
-      contents_.get(),
-      base::BindRepeating(
-          [](base::WeakPtr<ProfilePickerView> view) {
-            return view ? view->CanNavigateBack() : true;
-          },
-          weak_ptr_factory_.GetWeakPtr()));
-#endif
 
   // Destroy the System Profile when the ProfilePickerView is closed (assuming
   // its refcount hits 0). We need to use GetOriginalProfile() here because
@@ -776,10 +759,6 @@ void ProfilePickerView::WindowClosing() {
   // delete the profile.
   ClearLockedProfilesFirstBrowserKeepAlive();
 
-  if (flow_controller_) {
-    flow_controller_->OnWindowClosing();
-  }
-
   views::WidgetDelegateView::WindowClosing();
   // Now that the window is closed, we can allow a new one to be opened.
   // (WindowClosing comes in asynchronously from the call to Close() and we
@@ -820,11 +799,7 @@ std::u16string ProfilePickerView::GetAccessibleWindowTitle() const {
 
 gfx::Size ProfilePickerView::CalculatePreferredSize(
     const views::SizeBounds& available_size) const {
-  gfx::Size preferred_size = gfx::Size(
-      switches::IsPreFirstRunDesktopRefreshEnabled() ? kWindowWidthIncreased
-                                                     : kWindowWidth,
-      switches::IsPreFirstRunDesktopRefreshEnabled() ? kWindowHeightIncreased
-                                                     : kWindowHeight);
+  gfx::Size preferred_size = gfx::Size(kWindowWidth, kWindowHeight);
   gfx::Size work_area_size = GetWidget()->GetWorkAreaBoundsInScreen().size();
   // Keep the window smaller then |work_area_size| so that it feels more like a
   // dialog then like the actual Chrome window.

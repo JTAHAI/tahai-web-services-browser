@@ -293,6 +293,7 @@ public class VoiceRecognitionHandler {
     /** Returns whether voice search is enabled on the current tab. */
     public boolean isVoiceSearchEnabled() {
         if (mLocationBarDataProvider == null) return false;
+        if (mLocationBarDataProvider.isIncognito()) return false;
 
         return mIntentHandler.isVoiceSearchEnabled();
     }

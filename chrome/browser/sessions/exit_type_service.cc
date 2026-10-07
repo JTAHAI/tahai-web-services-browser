@@ -14,6 +14,7 @@
 #include "chrome/browser/sessions/session_restore.h"
 #include "chrome/browser/sessions/session_service.h"
 #include "chrome/browser/sessions/session_service_utils.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_init_state.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/browser_window/public/browser_collection_observer.h"
@@ -82,7 +83,7 @@ class ExitTypeService::BrowserTabObserverImpl
       return;
     }
     if (BrowserInitState::From(browser)->create_params().creation_source !=
-        BrowserWindowCreateParams::CreationSource::kStartupCreator) {
+        Browser::CreationSource::kStartupCreator) {
       // Ideally this would call directly to `service_`, but at the time this
       // is called it is too early to do that. So, this waits for the first tab
       // to be added.

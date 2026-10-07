@@ -133,7 +133,9 @@ public class LayoutManagerImpl
     private TabModelSelector mTabModelSelector;
 
     private final Callback<TabModel> mCurrentTabModelObserver =
-            (tabModel) -> tabModelSwitched(tabModel.isIncognitoBranded());
+            (tabModel) -> {
+                tabModelSwitched(tabModel.isIncognitoBranded());
+            };
     private TabModelSelectorTabObserver mTabModelSelectorTabObserver;
 
     // An observer for watching TabModels changes events.
@@ -263,14 +265,6 @@ public class LayoutManagerImpl
         }
 
         @Override
-        public void willCloseTabs(List<Tab> tabs, boolean isAllTabs, boolean allowUndo) {
-            if (!isAllTabs) return;
-            assert !tabs.isEmpty();
-            boolean isIncognito = tabs.get(0).isIncognito();
-            tabsAllClosing(isIncognito);
-        }
-
-        @Override
         public void onFinishingTabClosure(Tab tab, @TabClosingSource int closingSource) {
             tabClosed(tab.getId(), tab.isIncognito(), false);
         }
@@ -296,7 +290,7 @@ public class LayoutManagerImpl
             tabClosed(tab.getId(), tab.isIncognito(), true);
         }
 
-        boolean willAddedTabBeSelected(@TabLaunchType int launchType, boolean incognito) {
+        private boolean willAddedTabBeSelected(@TabLaunchType int launchType, boolean incognito) {
             boolean isBackgroundLaunch;
             switch (launchType) {
                 case TabLaunchType.FROM_LONGPRESS_BACKGROUND:
@@ -306,9 +300,6 @@ public class LayoutManagerImpl
                 case TabLaunchType.FROM_SYNC_BACKGROUND:
                 case TabLaunchType.FROM_BROWSER_ACTIONS:
                 case TabLaunchType.FROM_COLLABORATION_BACKGROUND_IN_GROUP:
-                case TabLaunchType.FROM_TAB_LIST_INTERFACE_BACKGROUND:
-                case TabLaunchType.FROM_BOOKMARK_BAR_BACKGROUND:
-                case TabLaunchType.FROM_HISTORY_NAVIGATION_BACKGROUND:
                     isBackgroundLaunch = true;
                     break;
                 default:
@@ -354,7 +345,7 @@ public class LayoutManagerImpl
      *
      * @param host A {@link LayoutManagerHost} instance.
      * @param contentContainer A {@link ViewGroup} for Android views to be bound to.
-     * @param tabContentManagerSupplier Supplier of the manager providing tab thumbnail snapshots.
+     * @param tabContentManagerSupplier Supplier of the {@link TabContentManager} instance.
      * @param toolbarThemeColorProvider {@link ToolbarThemeColorProvider} for the toolbar.
      */
     public LayoutManagerImpl(

@@ -302,15 +302,6 @@ enum class AuthenticationFlowInProfileState {
 // Sets the primary identity if not already set.
 - (void)signInIfNeededStep {
   ProfileIOS* profile = [self originalProfile];
-  AuthenticationService* authenticationService =
-      AuthenticationServiceFactory::GetForProfile(profile);
-  if (!authenticationService->SigninEnabled()) {
-    // Signin could be disabled at any time. This method being called
-    // asynchronously, it occurs - rarely - that sign-in got disabled.
-    [self handleAuthenticationError:ios::provider::
-                                        CreateUserCancelledSigninError()];
-    return;
-  }
   signin::IdentityManager* identityManager =
       IdentityManagerFactory::GetForProfile(profile);
   std::vector<CoreAccountInfo> accountsInProfile =
@@ -322,6 +313,8 @@ enum class AuthenticationFlowInProfileState {
                                         CreateMissingIdentitySigninError()];
     return;
   }
+  AuthenticationService* authenticationService =
+      AuthenticationServiceFactory::GetForProfile(profile);
   id<SystemIdentity> currentIdentity =
       authenticationService->GetPrimaryIdentity();
   if (!currentIdentity) {
@@ -353,7 +346,7 @@ enum class AuthenticationFlowInProfileState {
     [self continueFlow];
     return;
   }
-  CHECK(_isManagedIdentity);
+  CHECK(_isManagedIdentity, base::NotFatalUntil::M140);
   ProfileIOS* profile = [self originalProfile];
   [_performer fetchUserPolicy:profile
                   withDmToken:_dmToken
@@ -424,7 +417,7 @@ enum class AuthenticationFlowInProfileState {
   // going away, which is more "abort" than "fail)"). If any failable steps
   // after the signin step get added in the future, then a call to
   // `[_performer signOutImmediatelyFromProfile:...]` should be added here.
-  CHECK(!_browser || !_didSignIn);
+  CHECK(!_browser || !_didSignIn, base::NotFatalUntil::M140);
   CHECK(_signInCompletion);
   signin_ui::SigninCompletionCallback signInCompletion = _signInCompletion;
   _signInCompletion = nil;

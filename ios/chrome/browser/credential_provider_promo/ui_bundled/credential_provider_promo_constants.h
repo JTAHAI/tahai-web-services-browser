@@ -17,8 +17,7 @@ enum class IOSCredentialProviderPromoSource {
   kAutofillUsed = 3,
   kSetUpList = 4,
   kTipsNotification = 5,
-  kPasskeyCreated = 6,
-  kMaxValue = kPasskeyCreated,
+  kMaxValue = kTipsNotification,
 };
 // LINT.ThenChange(/tools/metrics/histograms/metadata/ios/enums.xml)
 

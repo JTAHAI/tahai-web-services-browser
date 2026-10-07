@@ -24,7 +24,6 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_tabstrip.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/hats/hats_service_desktop.h"
 #include "chrome/browser/ui/hats/hats_service_factory.h"
 #include "chrome/browser/ui/hats/survey_config.h"
@@ -36,6 +35,7 @@
 #include "components/autofill/core/common/autofill_features.h"
 #include "components/content_settings/core/common/pref_names.h"
 #include "components/metrics_services_manager/metrics_services_manager.h"
+#include "components/plus_addresses/core/common/features.h"
 #include "components/policy/core/common/policy_pref_names.h"
 #include "components/policy/policy_constants.h"
 #include "components/prefs/pref_service.h"
@@ -98,8 +98,7 @@ class HatsServiceBrowserTestBase : public policy::PolicyTest {
 
   Profile* profile() { return chrome_test_utils::GetProfile(this); }
 
-  HatsServiceDesktop* GetHatsService(
-      BrowserWindowInterface* browser = nullptr) {
+  HatsServiceDesktop* GetHatsService(Browser* browser = nullptr) {
     Profile* profile =
         browser ? browser->GetProfile() : this->browser()->GetProfile();
     HatsServiceDesktop* service = static_cast<HatsServiceDesktop*>(
@@ -111,7 +110,7 @@ class HatsServiceBrowserTestBase : public policy::PolicyTest {
     scoped_metrics_consent_.emplace(consent);
   }
 
-  bool HatsNextDialogCreated(BrowserWindowInterface* browser = nullptr) {
+  bool HatsNextDialogCreated(Browser* browser = nullptr) {
     return GetHatsService(browser)->hats_next_dialog_exists_for_testing();
   }
 
@@ -119,7 +118,7 @@ class HatsServiceBrowserTestBase : public policy::PolicyTest {
   // param may be used to mock the survey in another browser too. Returns the
   // trigger to use when launching the survey.
   std::string MockSurveyWithRequestedBrowserType(
-      BrowserWindowInterface* other_browser,
+      Browser* other_browser,
       hats::SurveyConfig::RequestedBrowserType requested_browser_type) {
     for (HatsServiceDesktop* service :
          {GetHatsService(), GetHatsService(other_browser)}) {
@@ -203,7 +202,7 @@ IN_PROC_BROWSER_TEST_F(HatsServiceProbabilityOne, NoShowConsentNotGiven) {
   GetHatsService()->LaunchSurvey(kHatsSurveyTriggerSettings);
   EXPECT_FALSE(HatsNextDialogCreated());
 
-  BrowserWindowInterface* incognito_browser = CreateIncognitoBrowser();
+  Browser* incognito_browser = CreateIncognitoBrowser();
   GetHatsService(incognito_browser)->LaunchSurvey(kHatsSurveyTriggerSettings);
   EXPECT_FALSE(HatsNextDialogCreated(incognito_browser));
 }
@@ -244,7 +243,7 @@ IN_PROC_BROWSER_TEST_F(HatsServiceProbabilityOne,
   GetHatsService()->LaunchSurvey(kHatsSurveyTriggerSettings);
   EXPECT_FALSE(HatsNextDialogCreated());
 
-  BrowserWindowInterface* incognito_browser = CreateIncognitoBrowser();
+  Browser* incognito_browser = CreateIncognitoBrowser();
   auto trigger = MockSurveyWithRequestedBrowserType(
       incognito_browser, hats::SurveyConfig::RequestedBrowserType::kIncognito);
   GetHatsService(incognito_browser)->LaunchSurvey(trigger);
@@ -364,7 +363,7 @@ IN_PROC_BROWSER_TEST_F(HatsServiceProbabilityOne,
   base::HistogramTester histogram_tester;
 
   // A regular survey should not be shown in incognito
-  BrowserWindowInterface* incognito_browser = CreateIncognitoBrowser();
+  Browser* incognito_browser = CreateIncognitoBrowser();
   GetHatsService(incognito_browser)->LaunchSurvey(kHatsSurveyTriggerSettings);
   histogram_tester.ExpectUniqueSample(
       kHatsShouldShowSurveyReasonHistogram,
@@ -377,7 +376,7 @@ IN_PROC_BROWSER_TEST_F(HatsServiceProbabilityOne,
   SetMetricsConsent(true);
   base::HistogramTester histogram_tester;
 
-  BrowserWindowInterface* incognito_browser = CreateIncognitoBrowser();
+  Browser* incognito_browser = CreateIncognitoBrowser();
   auto trigger = MockSurveyWithRequestedBrowserType(
       incognito_browser, hats::SurveyConfig::RequestedBrowserType::kIncognito);
 
@@ -691,7 +690,7 @@ IN_PROC_BROWSER_TEST_F(HatsServiceProbabilityOne,
   // Clear any existing survey metadata.
   GetHatsService()->SetSurveyMetadataForTesting({});
 
-  BrowserWindowInterface* incognito_browser = CreateIncognitoBrowser();
+  Browser* incognito_browser = CreateIncognitoBrowser();
   auto trigger = MockSurveyWithRequestedBrowserType(
       incognito_browser, hats::SurveyConfig::RequestedBrowserType::kIncognito);
 

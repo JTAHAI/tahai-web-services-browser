@@ -70,7 +70,7 @@ class QuickDeleteBridge {
 
     @CalledByNative
     private void onLastVisitedDomainAndUniqueDomainCountReady(
-            @JniType("std::u16string") String lastVisitedDomain, int domainCount) {
+            String lastVisitedDomain, int domainCount) {
         mCallback.onLastVisitedDomainAndUniqueDomainCountReady(lastVisitedDomain, domainCount);
     }
 

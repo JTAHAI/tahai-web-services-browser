@@ -44,7 +44,7 @@ bool IsCorsExposedResponseHeader(
   // Partial Content" range responses. We permit it in URLResponseHead to avoid
   // breaking media playback, while it remains filtered out and hidden from
   // JavaScript's view in the renderer.
-  if (base::EqualsCaseInsensitiveASCII(name, "content-range")) {
+  if (base::ToLowerASCII(name) == "content-range") {
     return true;
   }
   for (const auto& exposed : cors_exposed_header_names) {
@@ -159,7 +159,6 @@ void ServiceWorkerLoaderHelpers::SaveResponseInfo(
   out_head->was_fetched_via_spdy = response.was_fetched_via_spdy;
   out_head->has_range_requested = response.has_range_requested;
   out_head->auth_challenge_info = response.auth_challenge_info;
-  out_head->timing_allow_passed = false;
   SaveResponseHeaders(response, out_head);
 }
 

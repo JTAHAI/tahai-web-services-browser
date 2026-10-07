@@ -4,75 +4,36 @@
 
 #include "remoting/host/terminal_session_manager.h"
 
-#include <limits>
-#include <set>
 #include <utility>
 
-#include "base/check.h"
 #include "base/functional/bind.h"
 #include "base/logging.h"
+#include "base/notimplemented.h"
 #include "base/task/sequenced_task_runner.h"
-#include "base/task/thread_pool.h"
 #include "remoting/host/terminal_session.h"
 
 namespace remoting {
 
 TerminalSessionManager::TerminalSessionManager() = default;
-TerminalSessionManager::~TerminalSessionManager() {
-  DetachAllSessions();
-}
+TerminalSessionManager::~TerminalSessionManager() = default;
 
-void TerminalSessionManager::Start(OutputCallback output_callback,
-                                   ExitCallback exit_callback,
-                                   ProcessInfoCallback process_info_callback) {
-  DCHECK(terminal_sessions_.empty());
-  if (is_restoring_) {
-    LOG(ERROR) << "Cannot restore persistent terminals while already restoring";
-    return;
-  }
-  output_callback_ = std::move(output_callback);
-  exit_callback_ = std::move(exit_callback);
-  process_info_callback_ = std::move(process_info_callback);
-  is_restoring_ = true;
-  base::ThreadPool::PostTaskAndReplyWithResult(
-      FROM_HERE,
-      {base::MayBlock(), base::TaskPriority::USER_VISIBLE,
-       base::TaskShutdownBehavior::SKIP_ON_SHUTDOWN},
-      base::BindOnce(&TerminalSession::GetPersistentTerminalIds),
-      base::BindOnce(&TerminalSessionManager::OnPersistentTerminalIdsRetrieved,
-                     weak_factory_.GetWeakPtr()));
-}
+int32_t TerminalSessionManager::CreateTerminal(OutputCallback output_callback,
+                                               ExitCallback exit_callback) {
+  int32_t id = next_terminal_id_++;
 
-int32_t TerminalSessionManager::CreateTerminal() {
-  if (is_restoring_) {
-    LOG(ERROR) << "Cannot create terminal while restoring persistent terminals";
-    return -1;
-  }
-  if (next_id_ == std::numeric_limits<int32_t>::max()) {
-    LOG(ERROR) << "Maximum terminal ID reached";
-    return -1;
-  }
-  int32_t id = next_id_++;
-
+  // base::Unretained is safe here because the TerminalSessionManager
+  // owns the TerminalSession object. Therefore, it will always outlive the
+  // wrapped_exit_callback which is owned by the TerminalSession.
   auto wrapped_exit_callback =
-      base::BindRepeating(&TerminalSessionManager::OnTerminalExited,
-                          weak_factory_.GetWeakPtr());
+      base::BindOnce(&TerminalSessionManager::OnTerminalExited,
+                     base::Unretained(this), std::move(exit_callback));
 
   std::unique_ptr<TerminalSession> session = TerminalSession::Create(
-      output_callback_, std::move(wrapped_exit_callback),
-      process_info_callback_, id);
-  if (!session) {
+      std::move(output_callback), std::move(wrapped_exit_callback), id);
+  if (session == nullptr || !session->Start()) {
     return -1;
   }
-  auto* session_ptr = session.get();
   terminal_sessions_[id] = std::move(session);
-  base::WeakPtr<TerminalSessionManager> weak_this = weak_factory_.GetWeakPtr();
-  if (!session_ptr->Start()) {
-    if (weak_this) {
-      weak_this->terminal_sessions_.erase(id);
-    }
-    return -1;
-  }
   return id;
 }
 
@@ -100,29 +61,16 @@ void TerminalSessionManager::ResizeTerminal(const int32_t terminal_id,
 void TerminalSessionManager::CloseTerminal(const int32_t terminal_id) {
   auto it = terminal_sessions_.find(terminal_id);
   if (it != terminal_sessions_.end()) {
-    std::unique_ptr<TerminalSession> session = std::move(it->second);
+    it->second->Terminate();
     terminal_sessions_.erase(it);
-    session->Terminate();
   } else {
     LOG(ERROR) << "Failed to find session for terminal ID: " << terminal_id;
   }
 }
 
-void TerminalSessionManager::DetachAllSessions() {
-  if (is_detached_) {
-    return;
-  }
-  is_detached_ = true;
-
-  // Invalidate all weak pointers and doom the factory to prevent any pending or
-  // future callbacks from executing after detachment.
-  weak_factory_.InvalidateWeakPtrsAndDoom();
-  is_restoring_ = false;
-  std::map<int32_t, std::unique_ptr<TerminalSession>> sessions;
-  sessions.swap(terminal_sessions_);
-  for (auto& [id, session] : sessions) {
-    session->Detach();
-  }
+void TerminalSessionManager::OnClientDisconnected() {
+  // TODO: kraphael - Implement disconnect persistence.
+  NOTIMPLEMENTED();
 }
 
 TerminalSession* TerminalSessionManager::GetTerminalSession(
@@ -143,7 +91,8 @@ std::vector<int32_t> TerminalSessionManager::GetTerminalSessionIds() {
   return ids;
 }
 
-void TerminalSessionManager::OnTerminalExited(int32_t terminal_id) {
+void TerminalSessionManager::OnTerminalExited(ExitCallback client_callback,
+                                              int32_t terminal_id) {
   auto it = terminal_sessions_.find(terminal_id);
   if (it != terminal_sessions_.end()) {
     std::unique_ptr<TerminalSession> session = std::move(it->second);
@@ -155,64 +104,8 @@ void TerminalSessionManager::OnTerminalExited(int32_t terminal_id) {
         FROM_HERE, std::move(session));
   }
 
-  if (exit_callback_) {
-    exit_callback_.Run(terminal_id);
-  }
-}
-
-void TerminalSessionManager::OnPersistentTerminalIdsRetrieved(
-    const std::vector<int32_t>& restored_ids) {
-  std::set<int32_t> ids_to_restore;
-  for (int32_t id : restored_ids) {
-    if (id <= 0) {
-      LOG(WARNING) << "Ignoring invalid persistent terminal ID: " << id;
-      continue;
-    }
-    // Update the next ID to be the next ID after the largest restored ID.
-    // If the ID is the maximum value, then we will keep the next ID at the
-    // maximum value.
-    if (id >= next_id_) {
-      next_id_ = (id == std::numeric_limits<int32_t>::max()) ? id : id + 1;
-    }
-    // Skip duplicate IDs in the restored IDs list.
-    if (!ids_to_restore.insert(id).second) {
-      LOG(INFO) << "Ignoring duplicate terminal ID: " << id;
-    }
-  }
-
-  for (int32_t id : ids_to_restore) {
-    RestoreTerminal(id);
-  }
-  is_restoring_ = false;
-}
-
-void TerminalSessionManager::RestoreTerminal(int32_t terminal_id) {
-  if (terminal_id <= 0) {
-    LOG(ERROR) << "Invalid terminal ID: " << terminal_id;
-    return;
-  }
-  auto wrapped_exit_callback =
-      base::BindRepeating(&TerminalSessionManager::OnTerminalExited,
-                          weak_factory_.GetWeakPtr());
-
-  std::unique_ptr<TerminalSession> session = TerminalSession::Create(
-      output_callback_, std::move(wrapped_exit_callback),
-      process_info_callback_, terminal_id);
-  if (!session) {
-    LOG(ERROR) << "Failed to restore terminal session for ID: " << terminal_id;
-    return;
-  }
-  auto* session_ptr = session.get();
-  terminal_sessions_[terminal_id] = std::move(session);
-  base::WeakPtr<TerminalSessionManager> weak_this = weak_factory_.GetWeakPtr();
-  // Start the terminal session. If it fails, remove the session from the
-  // terminal sessions map.
-  if (!session_ptr->Start()) {
-    if (weak_this) {
-      weak_this->terminal_sessions_.erase(terminal_id);
-    }
-    LOG(ERROR) << "Failed to restore terminal session for ID: " << terminal_id;
-    return;
+  if (client_callback) {
+    std::move(client_callback).Run(terminal_id);
   }
 }
 

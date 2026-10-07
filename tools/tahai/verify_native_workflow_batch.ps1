@@ -1,4 +1,4 @@
-param([string]$BuildDirectory = 'out\tahai_ga_release_x64')
+param([string]$BuildDirectory = 'out\tahai_152_2_0_33_release_x64')
 
 # Source-focused checks, not a final browser build or GA/package acceptance.
 $ErrorActionPreference = 'Stop'

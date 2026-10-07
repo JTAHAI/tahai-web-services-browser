@@ -4,6 +4,7 @@
 
 #include "ash/wm/desks/desk_animation_impl.h"
 
+#include "ash/app_menu/menu_util.h"
 #include "ash/shell.h"
 #include "ash/wm/desks/desk.h"
 #include "ash/wm/desks/desks_util.h"
@@ -15,7 +16,6 @@
 #include "chromeos/utils/haptics_util.h"
 #include "ui/compositor/presentation_time_recorder.h"
 #include "ui/events/devices/haptic_touchpad_effects.h"
-#include "ui/views/controls/menu/menu_controller.h"
 
 namespace ash {
 
@@ -302,7 +302,7 @@ void DeskActivationAnimation::AddOnAnimationFinishedCallbackForTesting(
 }
 
 void DeskActivationAnimation::PrepareDeskForScreenshot(int index) {
-  views::MenuController::CancelAllActive(/*disable_animation=*/true);
+  HideActiveContextMenu();
 
   // Check that ending_desk_index_ is in range.
   // See crbug.com/1346900.
@@ -361,7 +361,7 @@ void DeskRemovalAnimation::OnStartingDeskScreenshotTakenInternal(
   split_view_controller->EndSplitView(
       SplitViewController::EndReason::kDesksChange);
 
-  views::MenuController::CancelAllActive(/*disable_animation=*/true);
+  HideActiveContextMenu();
 
   // At the end of phase (1), we activate the target desk (i.e. the desk that
   // will be activated after the active desk `desk_to_remove_index_` is

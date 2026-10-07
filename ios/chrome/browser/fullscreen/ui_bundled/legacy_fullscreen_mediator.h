@@ -125,12 +125,7 @@ class LegacyFullscreenMediator : public FullscreenModelObserver {
   bool scrolled_to_top_during_trait_collection_updates_ = false;
   // The FullscreenControllerObservers that need to get notified of model
   // changes.
-  // TODO(crbug.com/484371187): Investigate if reentrancy can be removed.
-  base::ObserverList<
-      FullscreenControllerObserver,
-      true,
-      base::ObserverListReentrancyPolicy::kAllowReentrancyUntriaged>
-      observers_;
+  base::ObserverList<FullscreenControllerObserver, true> observers_;
   // Type of entrypoint that triggers the exit of fullscreen mode.
   std::optional<FullscreenModeTransitionTrigger> fullscreen_exit_trigger_;
   // Type of entrypoint that triggers the enter of fullscreen mode.

@@ -28,7 +28,6 @@ import android.app.Activity;
 import android.view.MotionEvent;
 import android.view.View;
 
-import androidx.test.espresso.NoMatchingViewException;
 import androidx.test.filters.MediumTest;
 import androidx.test.filters.SmallTest;
 
@@ -143,13 +142,17 @@ public class AutofillKeyboardAccessoryIntegrationTest {
         whenDisplayed(withId(R.id.bar_items_view))
                 .perform(scrollTo(isAssignableFrom(KeyboardAccessoryButtonGroupView.class)));
         CriteriaHelper.pollUiThread(
-                () -> mHelper.getAccessoryBarView().computeHorizontalScrollOffset() > 0,
+                () -> {
+                    return mHelper.getAccessoryBarView().computeHorizontalScrollOffset() > 0;
+                },
                 "Should keep the manual scroll position.");
 
         // Clicking any other node should now scroll the items back to the initial position.
         mHelper.clickNodeAndShowKeyboard("NAME_LAST", 2);
         CriteriaHelper.pollUiThread(
-                () -> mHelper.getAccessoryBarView().computeHorizontalScrollOffset() == 0,
+                () -> {
+                    return mHelper.getAccessoryBarView().computeHorizontalScrollOffset() == 0;
+                },
                 "Should be scrolled back to position 0.");
     }
 
@@ -308,8 +311,9 @@ public class AutofillKeyboardAccessoryIntegrationTest {
 
         whenDisplayed(withId(R.id.keyboard_accessory_sheet_frame), /* atLeast= */ 51)
                 .check(
-                        (View sheetView, NoMatchingViewException _) ->
-                                assertTrue(sheetView.isShown() && sheetView.getHeight() > 0));
+                        (sheetView, exception) -> {
+                            assertTrue(sheetView.isShown() && sheetView.getHeight() > 0);
+                        });
 
         // Click the back arrow.
         whenDisplayed(withId(R.id.show_keyboard)).perform(click());

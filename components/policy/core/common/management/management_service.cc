@@ -11,7 +11,6 @@
 
 #include "base/barrier_callback.h"
 #include "base/barrier_closure.h"
-#include "base/memory/raw_ptr.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/task/task_traits.h"
@@ -35,12 +34,11 @@ EnterpriseManagementAuthority ManagementStatusProvider::GetAuthority() {
   if (!RequiresCache())
     return FetchAuthority();
 
-  if (auto* pref_service =
-          std::get_if<raw_ptr<PrefService, DanglingUntriaged>>(&cache_);
-      pref_service && *pref_service &&
-      (*pref_service)->HasPrefPath(cache_pref_name_)) {
+  if (std::holds_alternative<PrefService*>(cache_) &&
+      std::get<PrefService*>(cache_) &&
+      std::get<PrefService*>(cache_)->HasPrefPath(cache_pref_name_)) {
     return static_cast<EnterpriseManagementAuthority>(
-        (*pref_service)->GetInteger(cache_pref_name_));
+        std::get<PrefService*>(cache_)->GetInteger(cache_pref_name_));
   }
 
   if (std::holds_alternative<scoped_refptr<PersistentPrefStore>>(cache_) &&
@@ -61,12 +59,10 @@ bool ManagementStatusProvider::RequiresCache() const {
 
 void ManagementStatusProvider::UpdateCache(
     EnterpriseManagementAuthority authority) {
-  DCHECK(
-      (std::holds_alternative<raw_ptr<PrefService, DanglingUntriaged>>(cache_)))
+  DCHECK(std::holds_alternative<PrefService*>(cache_))
       << "A PrefService is required to refresh the management "
          "status provider cache.";
-  std::get<raw_ptr<PrefService, DanglingUntriaged>>(cache_)->SetInteger(
-      cache_pref_name_, authority);
+  std::get<PrefService*>(cache_)->SetInteger(cache_pref_name_, authority);
 }
 
 void ManagementStatusProvider::UsePrefStoreAsCache(

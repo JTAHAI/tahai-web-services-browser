@@ -280,10 +280,6 @@ void PictureInPictureWindowManager::FocusInitiator() {
     pip_window_controller_->FocusInitiator();
 }
 
-bool PictureInPictureWindowManager::IsInPictureInPicture() const {
-  return pip_window_controller_ != nullptr;
-}
-
 content::WebContents* PictureInPictureWindowManager::GetWebContents() const {
   if (!pip_window_controller_)
     return nullptr;

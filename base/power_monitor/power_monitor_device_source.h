@@ -127,6 +127,7 @@ class BASE_EXPORT PowerMonitorDeviceSource : public PowerMonitorSource {
   // PowerMonitorSource:
   PowerThermalObserver::DeviceThermalState GetCurrentThermalState()
       const override;
+  int GetInitialSpeedLimit() const override;
 
   // Retrieves the current battery state to update `is_on_battery_`.
   void GetBatteryState();

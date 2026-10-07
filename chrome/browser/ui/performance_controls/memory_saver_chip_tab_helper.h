@@ -58,7 +58,7 @@ class MemorySaverChipTabHelper : public tabs::ContentsObservingTabFeature,
  private:
   // Threshold was selected based on the 75th percentile of tab memory usage.
   static constexpr base::ByteSize kExpandedMemorySaverChipThreshold =
-      base::MiB(197);
+      base::MiBU(197);
 
   static constexpr base::TimeDelta kExpandedMemorySaverChipFrequency =
       base::Days(1);

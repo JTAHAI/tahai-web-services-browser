@@ -22,8 +22,6 @@ namespace enterprise_connectors {
 // A struct representing a custom message and associated "learn more" URL. These
 // are scoped to a tag.
 struct CustomMessageData {
-  bool operator==(const CustomMessageData&) const;
-
   std::u16string message;
   GURL learn_more_url;
 };
@@ -31,8 +29,6 @@ struct CustomMessageData {
 // A struct representing tag-specific settings that are applied to an analysis
 // which includes that tag.
 struct TagSettings {
-  bool operator==(const TagSettings&) const;
-
   CustomMessageData custom_message;
   bool requires_justification = false;
 };
@@ -58,7 +54,6 @@ struct CloudAnalysisSettings {
   CloudAnalysisSettings& operator=(CloudAnalysisSettings&&);
   CloudAnalysisSettings(const CloudAnalysisSettings&);
   CloudAnalysisSettings& operator=(const CloudAnalysisSettings&);
-  bool operator==(const CloudAnalysisSettings&) const;
   ~CloudAnalysisSettings();
 
   // The URL of the server that performs an analysis in the cloud.
@@ -79,7 +74,6 @@ struct LocalAnalysisSettings {
   LocalAnalysisSettings& operator=(LocalAnalysisSettings&&);
   LocalAnalysisSettings(const LocalAnalysisSettings&);
   LocalAnalysisSettings& operator=(const LocalAnalysisSettings&);
-  bool operator==(const LocalAnalysisSettings&) const;
   ~LocalAnalysisSettings();
 
   std::string local_path;
@@ -101,7 +95,6 @@ class CloudOrLocalAnalysisSettings
   CloudOrLocalAnalysisSettings& operator=(CloudOrLocalAnalysisSettings&&);
   CloudOrLocalAnalysisSettings(const CloudOrLocalAnalysisSettings&);
   CloudOrLocalAnalysisSettings& operator=(const CloudOrLocalAnalysisSettings&);
-  bool operator==(const CloudOrLocalAnalysisSettings&) const;
 
   ~CloudOrLocalAnalysisSettings();
 
@@ -130,7 +123,6 @@ struct AnalysisSettings {
   AnalysisSettings();
   AnalysisSettings(AnalysisSettings&&);
   AnalysisSettings& operator=(AnalysisSettings&&);
-  bool operator==(const AnalysisSettings&) const;
   ~AnalysisSettings();
 
   CloudOrLocalAnalysisSettings cloud_or_local_settings;

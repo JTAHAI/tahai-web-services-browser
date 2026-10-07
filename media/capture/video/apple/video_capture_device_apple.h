@@ -63,14 +63,14 @@ class CAPTURE_EXPORT VideoCaptureDeviceApple
       std::unique_ptr<VideoCaptureDevice::Client> client) override;
   void StopAndDeAllocate() override;
   void TakePhoto(TakePhotoCallback callback) override;
-  void InvalidateBuffers() override;
   void GetPhotoState(GetPhotoStateCallback callback) override;
   void SetPhotoOptions(mojom::PhotoSettingsPtr settings,
                        SetPhotoOptionsCallback callback) override;
   bool Init(VideoCaptureApi capture_api_type);
 
   // VideoCaptureDeviceAVFoundationFrameReceiver:
-  void ReceiveFrame(base::span<const uint8_t> sample,
+  void ReceiveFrame(const uint8_t* video_frame,
+                    int video_frame_length,
                     const VideoCaptureFormat& frame_format,
                     const gfx::ColorSpace color_space,
                     int aspect_numerator,

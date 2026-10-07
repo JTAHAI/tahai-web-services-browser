@@ -31,7 +31,6 @@
 
 #include "base/check_op.h"
 #include "base/dcheck_is_on.h"
-#include "base/memory/raw_ptr.h"
 #include "third_party/blink/renderer/core/dom/attribute.h"
 #include "third_party/blink/renderer/core/html/parser/html_parser_idioms.h"
 #include "third_party/blink/renderer/core/html/parser/literal_buffer.h"
@@ -424,8 +423,7 @@ class HTMLToken {
   AttributeList attributes_;
 
   // A pointer into attributes_ used during lexing.
-  raw_ptr<Attribute, UnprotectedInRelease | DanglingUntriaged>
-      current_attribute_ = nullptr;
+  Attribute* current_attribute_ = nullptr;
 
   // For DOCTYPE
   std::unique_ptr<DoctypeData> doctype_data_;

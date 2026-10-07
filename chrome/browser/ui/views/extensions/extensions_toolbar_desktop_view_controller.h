@@ -9,6 +9,7 @@
 #include "chrome/browser/ui/tabs/tab_strip_model_observer.h"
 #include "chrome/browser/ui/toolbar/toolbar_actions_model.h"
 
+class Browser;
 class ExtensionsToolbarDesktop;
 
 class ExtensionsToolbarDesktopViewController final {
@@ -19,6 +20,7 @@ class ExtensionsToolbarDesktopViewController final {
   static constexpr int kFlexOrderActionView = 3;
 
   ExtensionsToolbarDesktopViewController(
+      Browser* browser,
       ExtensionsToolbarDesktop* extensions_container);
   ExtensionsToolbarDesktopViewController(
       const ExtensionsToolbarDesktopViewController&) = delete;
@@ -34,6 +36,8 @@ class ExtensionsToolbarDesktopViewController final {
   void WindowControlsOverlayEnabledChanged(bool enabled);
 
  private:
+  const raw_ptr<Browser> browser_;
+
   raw_ptr<ExtensionsToolbarDesktop> extensions_container_;
 };
 #endif  // CHROME_BROWSER_UI_VIEWS_EXTENSIONS_EXTENSIONS_TOOLBAR_DESKTOP_VIEW_CONTROLLER_H_

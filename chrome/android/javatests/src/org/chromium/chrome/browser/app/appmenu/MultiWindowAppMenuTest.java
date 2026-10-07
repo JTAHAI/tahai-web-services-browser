@@ -36,8 +36,6 @@ import org.chromium.ui.test.util.DeviceRestriction;
 // multi-display mode with Chrome not running in an adjacent window.
 @Restriction({DeviceFormFactor.TABLET_OR_DESKTOP, DeviceRestriction.RESTRICTION_TYPE_NON_AUTO})
 @EnableFeatures(ChromeFeatureList.TOOLBAR_TABLET_RESIZE_REFACTOR)
-// TODO(b/555414915): Update Android tests with WebUI NTP enabled on AL.
-@DisableFeatures(ChromeFeatureList.USE_WEB_UI_NTP_ANDROID)
 public class MultiWindowAppMenuTest {
     @Rule
     public FreshCtaTransitTestRule mCtaTestRule =
@@ -114,10 +112,7 @@ public class MultiWindowAppMenuTest {
 
     @Test
     @LargeTest
-    @DisableFeatures({
-        ChromeFeatureList.SETTINGS_MULTI_COLUMN,
-        ChromeFeatureList.SETTINGS_IN_TAB // crbug.com/521895796
-    })
+    @DisableFeatures(ChromeFeatureList.SETTINGS_MULTI_COLUMN)
     @DisableIf.Device(DeviceFormFactor.DESKTOP_FREEFORM) // crbug.com/511288091
     public void testInteractWithBothWindows() {
         doTestInteractWithBothWindows();

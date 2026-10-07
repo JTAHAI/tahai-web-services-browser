@@ -75,12 +75,11 @@ import org.chromium.content_public.browser.WebContents;
 
     /**
      * Invoked when the visible area of the content container changes.
-     *
      * @param heightPx The height of the visible area of the Payment Handler UI content container,
-     *     in pixels.
+     *         in pixels.
      */
     /* package */ void onContentVisibleHeightChanged(int heightPx) {
-        LayoutParams params = mThinWebView.getLayoutParams();
+        LayoutParams params = (LayoutParams) mThinWebView.getLayoutParams();
         params.height = Math.max(0, heightPx);
         mThinWebView.setLayoutParams(params);
     }
@@ -108,6 +107,11 @@ import org.chromium.content_public.browser.WebContents;
     @Override
     public float getHalfHeightRatio() {
         return PaymentHandlerMediator.HALF_HEIGHT_RATIO;
+    }
+
+    @Override
+    public boolean hasCustomScrimLifecycle() {
+        return true;
     }
 
     @Override

@@ -41,7 +41,6 @@
 #include "content/browser/bad_message.h"
 #include "content/browser/dom_storage/session_storage_namespace_impl.h"
 #include "content/browser/fenced_frame/fenced_frame.h"
-#include "content/browser/global_privacy_control_util.h"
 #include "content/browser/gpu/compositor_util.h"
 #include "content/browser/gpu/gpu_data_manager_impl.h"
 #include "content/browser/gpu/gpu_process_host.h"
@@ -90,7 +89,6 @@
 #include "third_party/blink/public/common/web_preferences/web_preferences.h"
 #include "third_party/blink/public/mojom/page/prerender_page_param.mojom.h"
 #include "third_party/perfetto/include/perfetto/tracing/traced_value.h"
-#include "third_party/perfetto/include/perfetto/tracing/track.h"
 #include "third_party/skia/include/core/SkBitmap.h"
 #include "ui/base/clipboard/clipboard.h"
 #include "ui/base/device_form_factor.h"
@@ -286,8 +284,6 @@ void RenderViewHostImpl::GetPlatformSpecificPrefs(
       ui::Clipboard::IsSupportedClipboardBuffer(
           ui::ClipboardBuffer::kSelection);
 #endif
-  prefs->is_global_privacy_control_setting_enabled =
-      IsGlobalPrivacyControlSettingEnabled();
 }
 
 // static
@@ -326,7 +322,7 @@ RenderViewHostImpl::RenderViewHostImpl(
   TRACE_EVENT("navigation", "RenderViewHostImpl::RenderViewHostImpl",
               ChromeTrackEvent::kRenderViewHost, *this);
   TRACE_EVENT_BEGIN("navigation.debug", "RenderViewHost",
-                    perfetto::NamedTrack::FromPointer("RenderViewHost", this),
+                    perfetto::Track::FromPointer(this),
                     "render_view_host_when_created", this);
 
   CHECK(delegate_, base::NotFatalUntil::M152);
@@ -388,8 +384,7 @@ RenderViewHostImpl::~RenderViewHostImpl() {
     frame_tree_->UnregisterRenderViewHost(render_view_host_map_id_, this);
 
   // Corresponds to the TRACE_EVENT_BEGIN in RenderViewHostImpl's constructor.
-  TRACE_EVENT_END("navigation.debug",
-                  perfetto::NamedTrack::FromPointer("RenderViewHost", this));
+  TRACE_EVENT_END("navigation.debug", perfetto::Track::FromPointer(this));
 }
 
 RenderViewHostDelegate* RenderViewHostImpl::GetDelegate() {
@@ -505,11 +500,8 @@ bool RenderViewHostImpl::CreateRenderView(
           main_rfh->policy_container_host()->CreatePolicyContainerForBlink();
     }
 
-    local_frame_params->initiator_state_token =
-        main_rfh->current_initiator_state_token();
-
     // Populate the sandbox origin token if available.
-    if (auto token = main_rfh->GetPage().TakeSandboxOriginTokenForPopup()) {
+    if (auto token = main_rfh->TakeSandboxOriginToken()) {
       local_frame_params->sandbox_origin_token = *token;
     }
 
@@ -647,7 +639,8 @@ void RenderViewHostImpl::SetFrameTree(FrameTree& frame_tree) {
   render_widget_host_->SetFrameTree(frame_tree);
 }
 
-void RenderViewHostImpl::EnterBackForwardCache() {
+void RenderViewHostImpl::EnterBackForwardCache(
+    const base::optional_ref<const GURL> navigation_request_url) {
   if (!will_enter_back_forward_cache_callback_for_testing_.is_null())
     will_enter_back_forward_cache_callback_for_testing_.Run();
 
@@ -663,7 +656,8 @@ void RenderViewHostImpl::EnterBackForwardCache() {
   }
   is_in_back_forward_cache_ = true;
   page_lifecycle_state_manager_->SetIsInBackForwardCache(
-      is_in_back_forward_cache_, /*page_restore_params=*/nullptr);
+      is_in_back_forward_cache_, /*page_restore_params=*/nullptr,
+      navigation_request_url);
 }
 
 void RenderViewHostImpl::PrepareToLeaveBackForwardCache(
@@ -689,7 +683,8 @@ void RenderViewHostImpl::LeaveBackForwardCache(
   }
   is_in_back_forward_cache_ = false;
   page_lifecycle_state_manager_->SetIsInBackForwardCache(
-      is_in_back_forward_cache_, std::move(page_restore_params));
+      is_in_back_forward_cache_, std::move(page_restore_params),
+      /*navigation_request_url=*/std::nullopt);
 }
 
 void RenderViewHostImpl::ActivatePrerenderedPage(

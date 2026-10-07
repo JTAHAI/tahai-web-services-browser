@@ -8,7 +8,6 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.util.Base64;
 
-import androidx.annotation.UiThread;
 import androidx.annotation.WorkerThread;
 import androidx.browser.trusted.Token;
 
@@ -27,27 +26,30 @@ import java.util.Set;
  * Stores data about origins associated with an installed webapp (TWA or WebAPK) for the purpose of
  * Permission Delegation. Primarily we store (indexed by origin):
  *
- * <p>- A list of all apps associated with an origin. - The app that will be used for delegation. -
- * The permission state of the app that will be used for delegation.
+ * - A list of all apps associated with an origin.
+ * - The app that will be used for delegation.
+ * - The permission state of the app that will be used for delegation.
  *
- * <p>We did not use a similar technique to {@link
- * org.chromium.chrome.browser.webapps.WebappDataStorage}, because the data backing each
- * WebappDataStore is stored in its own Preferences file, so while {@link
- * org.chromium.chrome.browser.webapps.WebappRegistry} is eagerly loaded when Chrome starts up, we
- * don't want the first permission check to cause loading separate Preferences files for each
- * installed app.
+ * We did not use a similar technique to
+ * {@link org.chromium.chrome.browser.webapps.WebappDataStorage}, because the data backing each
+ * WebappDataStore is stored in its own Preferences file, so while
+ * {@link org.chromium.chrome.browser.webapps.WebappRegistry} is eagerly loaded when Chrome starts
+ * up, we don't want the first permission check to cause loading separate Preferences files for
+ * each installed app.
  *
- * <p>A key difference between this class and the {@link
- * org.chromium.chrome.browser.browserservices.InstalledWebappDataRegister} is that the register
- * stores data keyed by the client app, whereas this class stores data keyed by the origin. There
- * may be two client apps installed for the same origin, the InstalledWebappDataRegister will hold
- * two entries, whereas this class will hold one entry.
+ * A key difference between this class and the
+ * {@link org.chromium.chrome.browser.browserservices.InstalledWebappDataRegister} is that the
+ * register stores data keyed by the client app, whereas this class stores data keyed by the origin.
+ * There may be two client apps installed for the same origin, the InstalledWebappDataRegister will
+ * hold two entries, whereas this class will hold one entry.
  *
- * <p>Lifecycle: This class is designed to be owned by {@link
- * org.chromium.chrome.browser.webapps.WebappRegistry}, get it from there, don't create your own
- * instance. Native: Does not require native.
+ * Lifecycle: This class is designed to be owned by
+ * {@link org.chromium.chrome.browser.webapps.WebappRegistry}, get it from there, don't create your
+ * own instance.
+ * Thread safety: Is thread-safe (only operates on underlying SharedPreferences).
+ * Native: Does not require native.
  *
- * <p>TODO(peconn): Unify this and WebappDataStorage?
+ * TODO(peconn): Unify this and WebappDataStorage?
  */
 @NullMarked
 public class InstalledWebappPermissionStore {
@@ -70,17 +72,6 @@ public class InstalledWebappPermissionStore {
     private static final String KEY_ALL_DELEGATE_APPS_PREFIX = "all_delegate_apps.";
 
     private final SharedPreferences mPreferences;
-    private @Nullable Runnable mListener;
-
-    public void setListener(Runnable listener) {
-        mListener = listener;
-    }
-
-    private void notifyListener() {
-        if (mListener != null) {
-            mListener.run();
-        }
-    }
 
     /**
      * Reads the underlying storage into memory, should be called initially on a background thread.
@@ -159,7 +150,6 @@ public class InstalledWebappPermissionStore {
      * Sets the permission state for the origin. Returns whether {@code true} if state was changed,
      * {@code false} if the provided state was the same as the state beforehand.
      */
-    @UiThread
     public boolean setStateForOrigin(
             Origin origin,
             String packageName,
@@ -190,18 +180,13 @@ public class InstalledWebappPermissionStore {
                 .putString(createAppNameKey(origin), appName)
                 .apply();
 
-        if (modified) {
-            notifyListener();
-        }
-
         return modified;
     }
 
     /** Removes the origin from the store. */
-    @UiThread
     public void removeOrigin(Origin origin) {
         Set<String> origins = getStoredOrigins();
-        boolean modified = origins.remove(origin.toString());
+        origins.remove(origin.toString());
 
         mPreferences
                 .edit()
@@ -218,13 +203,9 @@ public class InstalledWebappPermissionStore {
                 .remove(createPackageNameKey(origin))
                 .remove(createAllDelegateAppsKey(origin))
                 .apply();
-
-        if (modified) {
-            notifyListener();
-        }
     }
 
-    /** Reset permission {@code type} from the store. */
+    /** Reset permission {@type} from the store. */
     public void resetPermission(Origin origin, @ContentSettingsType.EnumType int type) {
         mPreferences
                 .edit()

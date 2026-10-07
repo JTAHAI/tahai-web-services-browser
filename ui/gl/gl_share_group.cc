@@ -32,10 +32,9 @@ void* GLShareGroup::GetHandle() {
 }
 
 GLContext* GLShareGroup::GetContext() {
-  for (const auto& context : contexts_) {
-    if (context->GetHandle()) {
-      return context;
-    }
+  for (auto it = contexts_.begin(); it != contexts_.end(); ++it) {
+    if ((*it)->GetHandle())
+      return *it;
   }
 
   return NULL;

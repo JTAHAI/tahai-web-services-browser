@@ -132,11 +132,10 @@ allow_first_party_usage = false
 extra_kv = { allow_unsafe = true }
 
 [crate.aho-corasick]
-# Upstream also uses this crate outside Guard. Guard's parser and regex engine
-# remain confined to their sandbox process regardless of this crate's group.
-group = 'safe'
+# Used by the sandbox-only TAHAI Guard regex engine; not first-party exposed.
+group = 'sandbox'
 allow_first_party_usage = false
-extra_kv = { allow_unsafe = false }
+extra_kv = { allow_unsafe = true }
 
 [crate.android_system_properties]
 extra_kv = { allow_unsafe = true }
@@ -305,30 +304,14 @@ allow_unsafe = false
 [crate.derivre.extra_kv]
 allow_unsafe = false
 
-# TODO: Remove multiple versions of the `diplomat` crate:
-# diplomat@0.15.0, diplomat@0.16.0
-[crate.diplomat]
-group = 'safe'
-allow_first_party_usage = true
-
 [crate.diplomat.extra_kv]
 allow_unsafe = false
-multiversion_cleanup_bug = "https://crbug.com/482994758"
 
-[crate.diplomat-runtime]
-group = 'safe'
-allow_first_party_usage = true
-extra_kv = { allow_unsafe = true }
-
-# TODO: Remove multiple versions of the `diplomat_core` crate:
-# diplomat_core@0.15.0, diplomat_core@0.16.0
-[crate.diplomat_core]
-group = 'safe'
-allow_first_party_usage = true
+[crate.diplomat-runtime.extra_kv]
+allow_unsafe = true
 
 [crate.diplomat_core.extra_kv]
 allow_unsafe = false
-multiversion_cleanup_bug = "https://crbug.com/482994758"
 
 [crate.displaydoc.extra_kv]
 allow_unsafe = false
@@ -351,9 +334,6 @@ allow_unsafe = false
 group = 'test'
 allow_first_party_usage = false
 extra_kv = { allow_unsafe = true }
-
-[crate.extended]
-extra_kv = { allow_unsafe = false }
 
 [crate.fastbloom]
 extra_input_roots = ["../README.md"]
@@ -473,17 +453,6 @@ allow_unsafe = true
 extra_input_roots = ['../data']
 extra_kv = { allow_unsafe = false }
 
-[crate.icu_capi]
-group = 'safe'
-allow_first_party_usage = true
-
-[crate.icu_capi.extra_kv]
-allow_unsafe = true
-testonly = false
-visibility = [
-  "//base/i18n/*",
-]
-
 [crate.icu_casemap.extra_kv]
 allow_unsafe = true
 
@@ -519,14 +488,8 @@ extra_input_roots = ['../data']
 [crate.icu_list_data.extra_kv]
 allow_unsafe = false
 
-[crate.icu_locale]
-group = 'safe'
-
 [crate.icu_locale.extra_kv]
 allow_unsafe = true
-
-[crate.icu_locale_core]
-group = 'safe'
 
 [crate.icu_locale_core.extra_kv]
 allow_unsafe = true
@@ -534,9 +497,6 @@ allow_unsafe = true
 [crate.icu_locale_data]
 extra_input_roots = ['../data']
 extra_kv = { allow_unsafe = false }
-
-[crate.icu_normalizer]
-group = 'safe'
 
 [crate.icu_normalizer.extra_kv]
 allow_unsafe = true
@@ -562,9 +522,6 @@ allow_unsafe = false
 extra_input_roots = ['../data']
 extra_kv = { allow_unsafe = false }
 
-[crate.icu_provider]
-group = 'safe'
-
 [crate.icu_provider.extra_kv]
 allow_unsafe = true
 
@@ -572,11 +529,6 @@ allow_unsafe = true
 extra_kv = { allow_unsafe = true }
 
 [crate.idna_adapter]
-extra_kv = { allow_unsafe = false }
-
-[crate.icu_provider_adapters]
-group = 'safe'
-allow_first_party_usage = true
 extra_kv = { allow_unsafe = false }
 
 [crate.image]
@@ -786,6 +738,12 @@ extra_kv = { allow_unsafe = false }
 [crate.primal-check]
 extra_kv = { allow_unsafe = false }
 
+[crate.proc-macro-error-attr2]
+extra_kv = { allow_unsafe = false }
+
+[crate.proc-macro-error2]
+extra_kv = { allow_unsafe = false }
+
 [crate.proc-macro2.extra_kv]
 allow_unsafe = true
 
@@ -990,26 +948,11 @@ extra_kv = { allow_unsafe = false }
 [crate.symphonia-core.extra_kv]
 allow_unsafe = false
 
-[crate.symphonia-format-isomp4]
-extra_kv = { allow_unsafe = false }
-
-[crate.symphonia-format-mkv]
-extra_kv = { allow_unsafe = false }
-
-[crate.symphonia-format-ogg]
-extra_kv = { allow_unsafe = false }
-
-[crate.symphonia-format-riff]
-extra_kv = { allow_unsafe = false }
-
 [crate.symphonia-metadata.extra_kv]
 allow_unsafe = false
 
-# TODO(https://crbug.com/540235303): Remove multiple versions of the `syn` crate:
-# syn@2.0.118, syn@3.0.3
 [crate.syn.extra_kv]
 allow_unsafe = true
-multiversion_cleanup_bug = "https://crbug.com/540235303"
 
 [crate.synstructure.extra_kv]
 allow_unsafe = false
@@ -1096,15 +1039,6 @@ extra_kv = { allow_unsafe = true }
 [crate.url]
 extra_kv = { allow_unsafe = true }
 
-[crate.utf16_iter]
-license_files = ["LICENSE-APACHE"]
-
-[crate.utf16_iter.extra_kv]
-allow_unsafe = true
-
-[crate.utf8_iter]
-license_files = ["LICENSE-APACHE"]
-
 [crate.utf8_iter.extra_kv]
 # Crate exists to encapsulate common UTF8 decoding code
 allow_unsafe = true
@@ -1162,10 +1096,6 @@ extra_kv = { allow_unsafe = false }
 extra_input_roots = ['../generated']
 extra_kv = { allow_unsafe = false }
 
-[crate.write16]
-license_files = ["LICENSE-APACHE"]
-extra_kv = { allow_unsafe = false }
-
 [crate.writeable.extra_kv]
 allow_unsafe = true
 
@@ -1198,7 +1128,6 @@ allow_unsafe = false
 allow_unsafe = false
 
 [crate.zeroize]
-extra_input_roots = ["../README.md"]
 extra_kv = { allow_unsafe = true }
 
 [crate.zeroize_derive]

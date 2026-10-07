@@ -98,7 +98,7 @@ public class AutofillPopup extends DropdownPopupWindow
 
     @Override
     public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
-        mAutofillDelegate.suggestionAccepted(position);
+        mAutofillDelegate.suggestionSelected(position);
     }
 
     @Override

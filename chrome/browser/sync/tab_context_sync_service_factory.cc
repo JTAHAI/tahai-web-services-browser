@@ -35,13 +35,9 @@ std::unique_ptr<KeyedService> BuildServiceInstance(
     return nullptr;
   }
 
-  // `base::Unretained(profile)` is safe because `Profile` outlives all
-  // `KeyedService` instances associated with it.
   auto ephemeral_key_fetcher =
       std::make_unique<sync_tab_context::HttpRpcBasedEphemeralKeyFetcher>(
-          identity_manager,
-          base::BindRepeating(&Profile::GetURLLoaderFactory,
-                              base::Unretained(profile)),
+          identity_manager, profile->GetURLLoaderFactory(),
           sync_tab_context::GetEphemeralKeyServerUrl());
 
   return std::make_unique<sync_tab_context::TabContextSyncServiceImpl>(

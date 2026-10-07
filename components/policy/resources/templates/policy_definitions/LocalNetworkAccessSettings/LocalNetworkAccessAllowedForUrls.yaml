@@ -19,8 +19,8 @@ desc: |-
 
     - LocalNetworkBlockedForUrls
     - LocalNetworkAllowedForUrls
-    - LoopbackNetworkBlockedForUrls
-    - LoopbackNetworkAllowedForUrls
+    - LoopbackNetworkAccessBlockedForUrls
+    - LoopbackNetworkAccessAllowedForUrls
     - LocalNetworkAccessBlockedForUrls
     - LocalNetworkAccessAllowedForUrls
 

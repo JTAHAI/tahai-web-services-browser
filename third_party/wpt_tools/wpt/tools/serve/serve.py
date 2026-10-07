@@ -967,7 +967,6 @@ class RoutesBuilder:
             ("*", "/.well-known/interest-group/real-time-report", handlers.PythonScriptHandler),
             ("*", "/.well-known/private-aggregation/*", handlers.PythonScriptHandler),
             ("GET", "/.well-known/shared-storage/trusted-origins", handlers.PythonScriptHandler),
-            ("GET", "/.well-known/web-app-origin-association", handlers.PythonScriptHandler),
             ("*", "/.well-known/web-identity", handlers.PythonScriptHandler),
             ("*", "/.well-known/device-bound-sessions", handlers.PythonScriptHandler),
             ("*", "*.py", handlers.PythonScriptHandler),

@@ -267,8 +267,6 @@ class FacilitatedPaymentsPaymentMethodsProperties {
                 new WritableObjectPropertyKey<>("video_link_callback");
         static final WritableIntPropertyKey DECLINE_BUTTON_TEXT_ID =
                 new WritableIntPropertyKey("decline_button_text_id");
-        static final WritableObjectPropertyKey<String> ACCOUNT_EMAIL =
-                new WritableObjectPropertyKey<>("account_email");
 
         /** All the properties of Pix account linking prompt. */
         static final PropertyKey[] ALL_KEYS = {
@@ -276,8 +274,7 @@ class FacilitatedPaymentsPaymentMethodsProperties {
             DECLINE_BUTTON_CALLBACK,
             SETTINGS_LINK_CALLBACK,
             VIDEO_LINK_CALLBACK,
-            DECLINE_BUTTON_TEXT_ID,
-            ACCOUNT_EMAIL
+            DECLINE_BUTTON_TEXT_ID
         };
     }
 

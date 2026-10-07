@@ -6,11 +6,8 @@ import 'chrome://settings/lazy_load.js';
 
 import {flush} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 import type {SettingsCheckboxElement} from 'chrome://settings/lazy_load.js';
-import {PrefsBrowserProxy, PrefService} from 'chrome://settings/settings.js';
 import {assertEquals, assertFalse, assertNotReached, assertTrue} from 'chrome://webui-test/chai_assert.js';
-import {eventToPromise, microtasksFinished} from 'chrome://webui-test/test_util.js';
-
-import {TestPrefsBrowserProxy} from './test_prefs_browser_proxy.js';
+import {eventToPromise} from 'chrome://webui-test/test_util.js';
 
 /** @fileoverview Suite of tests for settings-checkbox. */
 suite('SettingsCheckbox', function() {
@@ -40,12 +37,12 @@ suite('SettingsCheckbox', function() {
     assertTrue(testElement.checked);
 
     testElement.$.checkbox.click();
-    await microtasksFinished();
+    await testElement.$.checkbox.updateComplete;
     assertFalse(testElement.checked);
     assertFalse(pref.value);
 
     testElement.$.checkbox.click();
-    await microtasksFinished();
+    await testElement.$.checkbox.updateComplete;
     assertTrue(testElement.checked);
     assertTrue(pref.value);
   });
@@ -65,7 +62,7 @@ suite('SettingsCheckbox', function() {
     assertTrue(testElement.$.checkbox.disabled);
 
     testElement.$.checkbox.click();
-    await microtasksFinished();
+    await testElement.$.checkbox.updateComplete;
     assertFalse(testElement.checked);
     assertFalse(testElement.$.checkbox.checked);
   });
@@ -81,12 +78,12 @@ suite('SettingsCheckbox', function() {
     assertTrue(testElement.checked);
 
     testElement.$.checkbox.click();
-    await microtasksFinished();
+    await testElement.$.checkbox.updateComplete;
     assertFalse(testElement.checked);
     assertEquals(0, prefNum.value);
 
     testElement.$.checkbox.click();
-    await microtasksFinished();
+    await testElement.$.checkbox.updateComplete;
     assertTrue(testElement.checked);
     assertEquals(1, prefNum.value);
   });
@@ -121,7 +118,7 @@ suite('SettingsCheckbox', function() {
         assertTrue(testElement.checked);
 
         actionLink.click();
-        await microtasksFinished();
+        await testElement.$.checkbox.updateComplete;
 
         assertTrue(testElement.checked);
       });
@@ -134,7 +131,7 @@ suite('SettingsCheckbox', function() {
     assertTrue(testElement.checked);
 
     testElement.$.subLabel.click();
-    await microtasksFinished();
+    await testElement.$.checkbox.updateComplete;
 
     assertFalse(testElement.checked);
   });
@@ -162,61 +159,5 @@ suite('SettingsCheckbox', function() {
     flush();
 
     testElement.$.subLabel.click();
-  });
-});
-
-suite('SettingsCheckboxPrefKey', () => {
-  let testElement: SettingsCheckboxElement;
-  let prefsBrowserProxy: TestPrefsBrowserProxy;
-
-  const initialPrefs = [
-    {
-      key: 'test_boolean',
-      type: chrome.settingsPrivate.PrefType.BOOLEAN,
-      value: true,
-    },
-  ];
-
-  setup(async () => {
-    prefsBrowserProxy = new TestPrefsBrowserProxy(initialPrefs);
-    PrefsBrowserProxy.setInstance(prefsBrowserProxy);
-
-    PrefService.resetInstanceForTesting();
-    await PrefService.getInstance().whenInitialized();
-
-    document.body.innerHTML = window.trustedTypes!.emptyHTML;
-    testElement = document.createElement('settings-checkbox');
-    testElement.prefKey = 'test_boolean';
-    document.body.appendChild(testElement);
-  });
-
-  test('valueChangesOnClick', async () => {
-    assertTrue(testElement.checked);
-    assertTrue(
-        PrefService.getInstance().getPref<boolean>('test_boolean').value);
-
-    testElement.$.checkbox.click();
-    await microtasksFinished();
-    assertFalse(testElement.checked);
-    assertFalse(
-        PrefService.getInstance().getPref<boolean>('test_boolean').value);
-
-    testElement.$.checkbox.click();
-    await microtasksFinished();
-    assertTrue(testElement.checked);
-    assertTrue(
-        PrefService.getInstance().getPref<boolean>('test_boolean').value);
-  });
-
-  test('prefChangeUpdatesValue', async () => {
-    assertTrue(testElement.checked);
-
-    PrefService.getInstance().setPrefValue('test_boolean', false);
-    await microtasksFinished();
-    assertFalse(testElement.checked);
-
-    PrefService.getInstance().setPrefValue('test_boolean', true);
-    await microtasksFinished();
-    assertTrue(testElement.checked);
   });
 });

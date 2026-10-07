@@ -20,17 +20,6 @@
 #include "chrome/browser/visited_url_ranking/visited_url_ranking_service_factory.h"
 #include "components/keyed_service/core/keyed_service.h"
 
-namespace {
-
-bool IsServiceEnabled() {
-  return base::FeatureList::IsEnabled(
-             chrome::android::kAuxiliarySearchHistoryDonation) &&
-         AuxiliarySearchDonationServiceBridge::
-             IsBrowsingDataDonationSupported();
-}
-
-}  // namespace
-
 // static
 AuxiliarySearchDonationService*
 AuxiliarySearchDonationServiceFactory::GetForProfile(Profile* profile) {
@@ -64,7 +53,8 @@ AuxiliarySearchDonationServiceFactory::
 std::unique_ptr<KeyedService>
 AuxiliarySearchDonationServiceFactory::BuildServiceInstanceForBrowserContext(
     content::BrowserContext* context) const {
-  if (!IsServiceEnabled()) {
+  if (!base::FeatureList::IsEnabled(
+          chrome::android::kAuxiliarySearchHistoryDonation)) {
     return nullptr;
   }
 
@@ -73,14 +63,16 @@ AuxiliarySearchDonationServiceFactory::BuildServiceInstanceForBrowserContext(
       PageContentAnnotationsServiceFactory::GetForProfile(profile),
       visited_url_ranking::VisitedURLRankingServiceFactory::GetForProfile(
           profile),
-      IdentityManagerFactory::GetForProfile(profile), profile->GetPrefs());
+      IdentityManagerFactory::GetForProfile(profile), profile->GetPrefs(),
+      AuxiliarySearchDonationServiceBridge::CreateDonationCallback());
 }
 
 bool AuxiliarySearchDonationServiceFactory::ServiceIsCreatedWithBrowserContext()
     const {
   // Don't attempt to eagerly create the service (and its dependents) if we know
   // the feature is disabled.
-  return IsServiceEnabled();
+  return base::FeatureList::IsEnabled(
+      chrome::android::kAuxiliarySearchHistoryDonation);
 }
 
 bool AuxiliarySearchDonationServiceFactory::ServiceIsNULLWhileTesting() const {

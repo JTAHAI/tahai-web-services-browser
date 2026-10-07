@@ -31,7 +31,6 @@
 #include "components/optimization_guide/proto/hints.pb.h"
 #include "components/page_content_annotations/content/page_content_extraction_service.h"
 #include "components/page_content_annotations/core/page_content_extraction_types.h"
-#include "components/tabs/public/tab_interface.h"
 #include "content/public/browser/web_contents.h"
 #include "third_party/blink/public/mojom/content_extraction/ai_page_content.mojom.h"
 
@@ -98,9 +97,7 @@ ZeroStateSuggestionsPageData::ZeroStateSuggestionsPageData(content::Page& page)
       web_contents->GetLastCommittedURL().spec()));
 
   base::TimeDelta initiate_page_content_extraction_delay;
-  tabs::TabInterface* tab =
-      tabs::TabInterface::MaybeGetFromContents(web_contents);
-  if (auto* helper = tab ? ContextualCueingHelper::From(tab) : nullptr) {
+  if (auto* helper = ContextualCueingHelper::FromWebContents(web_contents)) {
     std::optional<base::TimeTicks> last_same_doc_navigation_time =
         helper->last_same_doc_navigation_committed();
     if (last_same_doc_navigation_time) {
@@ -168,9 +165,7 @@ void ZeroStateSuggestionsPageData::InitiatePageContentExtraction() {
   content::WebContents* web_contents =
       content::WebContents::FromRenderFrameHost(&(page().GetMainDocument()));
   bool has_first_contentful_paint = false;
-  tabs::TabInterface* tab =
-      tabs::TabInterface::MaybeGetFromContents(web_contents);
-  if (auto* helper = tab ? ContextualCueingHelper::From(tab) : nullptr) {
+  if (auto* helper = ContextualCueingHelper::FromWebContents(web_contents)) {
     has_first_contentful_paint = helper->has_first_contentful_paint();
   }
   if (!has_first_contentful_paint &&

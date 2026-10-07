@@ -34,13 +34,13 @@ import org.chromium.chrome.browser.omnibox.fusebox.FuseboxCoordinator.FuseboxLay
 import org.chromium.chrome.browser.omnibox.fusebox.FuseboxCoordinator.FuseboxState;
 import org.chromium.chrome.browser.omnibox.fusebox.FuseboxCoordinator.PopupState;
 import org.chromium.chrome.browser.toolbar.optional_button.OptionalButtonCoordinator;
-import org.chromium.components.metrics.OmniboxEventProtosIntDef.PageClassification;
+import org.chromium.components.metrics.OmniboxEventProtos.OmniboxEventProto.PageClassification;
 
 /** Unit tests for {@link LocationBarCoordinator}. */
 @RunWith(BaseRobolectricTestRunner.class)
 @EnableFeatures(ChromeFeatureList.TOOLBAR_PHONE_ANIMATION_REFACTOR)
 public class LocationBarCoordinatorUnitTest {
-    @Rule public final MockitoRule mMockitoRule = MockitoJUnit.rule();
+    @Rule public MockitoRule mMockitoRule = MockitoJUnit.rule();
 
     @Mock private UrlBarCoordinator mUrlCoordinator;
     @Mock private FuseboxCoordinator mFuseboxCoordinator;
@@ -132,7 +132,7 @@ public class LocationBarCoordinatorUnitTest {
     @Test
     public void testInitializeBoundsEllipsis_EnableInTabbedMode() {
         when(mLocationBarDataProvider.getPageClassification(false))
-                .thenReturn(PageClassification.OTHER);
+                .thenReturn(PageClassification.OTHER_VALUE);
         mCoordinator.initializeBoundsEllipsis(mLocationBarDataProvider);
         verify(mUrlCoordinator).setBoundsEllipsisEnabled(true);
     }
@@ -140,7 +140,7 @@ public class LocationBarCoordinatorUnitTest {
     @Test
     public void testInitializeBoundsEllipsis_DisableInHubSearch() {
         when(mLocationBarDataProvider.getPageClassification(false))
-                .thenReturn(PageClassification.ANDROID_HUB);
+                .thenReturn(PageClassification.ANDROID_HUB_VALUE);
         mCoordinator.initializeBoundsEllipsis(mLocationBarDataProvider);
         verify(mUrlCoordinator).setBoundsEllipsisEnabled(false);
     }
@@ -148,7 +148,15 @@ public class LocationBarCoordinatorUnitTest {
     @Test
     public void testInitializeBoundsEllipsis_DisableInCct() {
         when(mLocationBarDataProvider.getPageClassification(false))
-                .thenReturn(PageClassification.OTHER_ON_CCT);
+                .thenReturn(PageClassification.OTHER_ON_CCT_VALUE);
+        mCoordinator.initializeBoundsEllipsis(mLocationBarDataProvider);
+        verify(mUrlCoordinator).setBoundsEllipsisEnabled(false);
+    }
+
+    @Test
+    public void testInitializeBoundsEllipsis_DisableInCobrowseComposebox() {
+        when(mLocationBarDataProvider.getPageClassification(false))
+                .thenReturn(PageClassification.CO_BROWSING_COMPOSEBOX_VALUE);
         mCoordinator.initializeBoundsEllipsis(mLocationBarDataProvider);
         verify(mUrlCoordinator).setBoundsEllipsisEnabled(false);
     }
@@ -157,7 +165,7 @@ public class LocationBarCoordinatorUnitTest {
     public void testSetMiniOriginMode_Transitions() {
         // Setup default bounds ellipsis
         when(mLocationBarDataProvider.getPageClassification(false))
-                .thenReturn(PageClassification.OTHER);
+                .thenReturn(PageClassification.OTHER_VALUE);
         mCoordinator.initializeBoundsEllipsis(mLocationBarDataProvider);
         verify(mUrlCoordinator).setBoundsEllipsisEnabled(true);
 
@@ -181,13 +189,5 @@ public class LocationBarCoordinatorUnitTest {
     public void testOnPopupStateChange_DoesNotClearTextSelectionWhenHidden() {
         mCoordinator.onPopupStateChange(PopupState.HIDDEN);
         verify(mUrlCoordinator, never()).clearTextSelection();
-    }
-
-    @Test
-    public void testOnTextWrappingChanged() {
-        mCoordinator.onTextWrappingChanged(true);
-        verify(mFuseboxCoordinator).onFuseboxTextWrappingChanged(true);
-        verify(mLocationBarMediator).setIsTextWrapping(true);
-        verify(mLocationBarMediator).updateButtonVisibility();
     }
 }

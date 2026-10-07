@@ -70,13 +70,12 @@ class ExampleCoordinator {
     private final BottomSheetController mBottomSheetController;
 
     private final BottomSheetObserver mBottomSheetObserver =
-            new BottomSheetObserver() {
+            new EmptyBottomSheetObserver() {
                 @Override
-                public void onSheetClosed(
-                        @BottomSheetController.StateChangeReason int reason) {
+                public void onSheetClosed(@BottomSheetController.StateChangeReason int reason) {
+                    super.onSheetClosed(reason);
                     if (mBottomSheetController.getCurrentSheetContent() != null
-                            && mBottomSheetController.getCurrentSheetContent()
-                                    == mContent) {
+                            && mBottomSheetController.getCurrentSheetContent() == mContent) {
                         onDismissed();
                     }
                 }
@@ -92,8 +91,7 @@ class ExampleCoordinator {
 
     void show() {
         mBottomSheetController.addObserver(mBottomSheetObserver);
-        if (!mBottomSheetController.requestShowContent(
-                mContent, /* animate= */ true)) {
+        if (!mBottomSheetController.requestShowContent(mContent, /* animate= */ true)) {
             onDismissed();
         }
     }

@@ -4,18 +4,21 @@
 
 #include "chrome/browser/ui/views/toolbar/webui_app_menu_control.h"
 
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_element_identifiers.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/toolbar/app_menu_model.h"
 #include "chrome/browser/ui/views/frame/app_menu_button_observer.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
-#include "chrome/browser/ui/views/toolbar/app_menu.h"
 #include "chrome/browser/ui/views/toolbar/toolbar_view.h"
 #include "chrome/browser/ui/views/toolbar/webui_toolbar_web_view.h"
+#include "chrome/grit/branded_strings.h"
+#include "chrome/grit/generated_resources.h"
 #include "ui/base/interaction/element_tracker.h"
+#include "ui/base/l10n/l10n_util.h"
 #include "ui/views/accessible_pane_view.h"
 #include "ui/views/controls/menu/menu_runner.h"
 #include "ui/views/interaction/element_tracker_views.h"
+#include "ui/views/view_utils.h"
 
 namespace {
 
@@ -58,7 +61,7 @@ toolbar_ui_api::mojom::AppMenuControlStatePtr WebUIAppMenuControl::GetState()
   state->icon_type = ToMojomIconType(type_and_severity_.type);
   state->severity = ToMojomSeverity(type_and_severity_.severity);
   state->is_context_menu_visible = IsMenuShowing();
-  state->window_is_maximized_or_fullscreen = window_is_maximized_or_fullscreen_;
+  state->trailing_margin = trailing_margin_;
 
   const std::u16string descriptive_name =
       AppMenuIconController::GetIconAccessibleName(type_and_severity_.type);
@@ -98,7 +101,7 @@ bool WebUIAppMenuControl::IsDrawn() const {
 }
 
 bool WebUIAppMenuControl::IsMenuShowing() const {
-  return menu_ && menu_->IsShowing();
+  return menu_runner_ && menu_runner_->IsRunning();
 }
 
 views::DialogDelegate* WebUIAppMenuControl::GetDialogDelegate() {
@@ -107,8 +110,8 @@ views::DialogDelegate* WebUIAppMenuControl::GetDialogDelegate() {
 }
 
 void WebUIAppMenuControl::CloseMenu() {
-  if (menu_) {
-    menu_->CloseMenu();
+  if (menu_runner_) {
+    menu_runner_->Cancel();
   }
 }
 
@@ -146,19 +149,11 @@ void WebUIAppMenuControl::HandleContextMenu(const gfx::Rect& anchor_bounds,
     return;
   }
 
-  BrowserWindowInterface* browser_window = delegate_->GetBrowser();
-  BrowserView* browser_view =
-      BrowserView::GetBrowserViewForBrowser(browser_window);
-  CHECK(browser_view);
-  ToolbarView* toolbar_view = browser_view->toolbar();
+  ToolbarView* toolbar_view =
+      BrowserView::GetBrowserViewForBrowser(delegate_->GetBrowser())->toolbar();
   CHECK(toolbar_view);
-  BrowserWindowInterface* browser = browser_window;
+  Browser* browser = toolbar_view->browser();
 
-  // Explicitly destroy the old menu UI before recreating the model. `AppMenu`
-  // holds a `raw_ptr` to `AppMenuModel`. If we don't reset `menu_` first,
-  // recreating `menu_model_` would temporarily leave `menu_` with a dangling
-  // pointer to the destroyed model.
-  menu_.reset();
   menu_model_ = std::make_unique<AppMenuModel>(
       toolbar_view, browser, toolbar_view->app_menu_icon_controller(),
       AppMenuModel::GetAlertItemForRunningTutorial(browser));
@@ -170,12 +165,14 @@ void WebUIAppMenuControl::HandleContextMenu(const gfx::Rect& anchor_bounds,
                  views::MenuRunner::INVOKED_FROM_KEYBOARD;
   }
 
-  menu_ = std::make_unique<AppMenu>(
-      browser, menu_model_.get(), run_flags,
+  menu_runner_ = std::make_unique<views::MenuRunner>(
+      menu_model_.get(), run_flags,
       base::BindRepeating(&WebUIAppMenuControl::UpdateOpenState,
-                          weak_ptr_factory_.GetWeakPtr()));
+                          base::Unretained(this)));
 
-  menu_->RunMenu(delegate_->GetView()->GetWidget(), anchor_bounds, source);
+  menu_runner_->RunMenuAt(delegate_->GetView()->GetWidget(), nullptr,
+                          anchor_bounds, views::MenuAnchorPosition::kTopRight,
+                          source);
   UpdateOpenState();
 }
 
@@ -190,13 +187,13 @@ void WebUIAppMenuControl::SetTypeAndSeverity(
   delegate_->OnPreferredSizeChanged();
 }
 
-void WebUIAppMenuControl::SetIsMaximizedOrFullscreen(
-    bool maximized_or_fullscreen) {
-  if (window_is_maximized_or_fullscreen_ == maximized_or_fullscreen) {
+void WebUIAppMenuControl::SetTrailingMargin(int margin) {
+  if (trailing_margin_ == margin) {
     return;
   }
-  window_is_maximized_or_fullscreen_ = maximized_or_fullscreen;
+  trailing_margin_ = margin;
   delegate_->OnAppMenuControlStateChanged(GetState());
+  delegate_->OnPreferredSizeChanged();
 }
 
 views::View* WebUIAppMenuControl::GetFocusablePaneView() {

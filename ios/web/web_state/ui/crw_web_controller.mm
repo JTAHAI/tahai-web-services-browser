@@ -75,7 +75,6 @@
 #import "net/base/apple/url_conversions.h"
 #import "services/metrics/public/cpp/ukm_builders.h"
 #import "url/gurl.h"
-#import "url/origin.h"
 
 #if !BUILDFLAG(IOS_IS_APP_EXTENSION)
 #import "ios/web/common/uikit_ui_util.h"  // nogncheck
@@ -1792,7 +1791,8 @@ CrFullscreenState CrFullscreenStateFromWKFullscreenState(
 
   if (base::FeatureList::IsEnabled(
           web::features::kCrashOnUnexpectedURLChange)) {
-    if (!url::IsSameOriginWith(_documentURL, newURL)) {
+    if (_documentURL.DeprecatedGetOriginAsURL() !=
+        newURL.DeprecatedGetOriginAsURL()) {
       if (!_documentURL.GetHost().empty() &&
           (newURL.GetUsername().contains(_documentURL.GetHost()) ||
            newURL.GetPassword().contains(_documentURL.GetHost()))) {

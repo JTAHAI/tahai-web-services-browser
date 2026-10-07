@@ -2131,9 +2131,7 @@ Status WebViewImpl::CallAsyncFunctionInternal(
   /*is_user_supplied=*/
   async_args.Append(true);
   /*timeout=*/
-  if (!timeout.is_max()) {
-    async_args.Append(timeout.InMicrosecondsF());
-  }
+  async_args.Append(timeout.InMicrosecondsF());
   std::unique_ptr<base::Value> tmp;
   Timeout local_timeout(timeout);
   std::unique_ptr<base::Value> query_value;
@@ -2176,11 +2174,8 @@ void WebViewImpl::SetFrame(const std::string& new_frame_id) {
 Status WebViewImpl::IsNotPendingNavigation(const std::string& frame_id,
                                            const Timeout* timeout,
                                            bool* is_not_pending) {
-  // An unknown subframe may have been destroyed. The top-level frame can be
-  // temporarily absent from the tracker while its execution context is
-  // replaced, so defer to NavigationTracker for it.
-  if (!frame_id.empty() && frame_id != id_ &&
-      !frame_tracker_->IsKnownFrame(frame_id)) {
+  if (!frame_id.empty() && !frame_tracker_->IsKnownFrame(frame_id)) {
+    // Frame has already been destroyed.
     *is_not_pending = true;
     return Status(kOk);
   }

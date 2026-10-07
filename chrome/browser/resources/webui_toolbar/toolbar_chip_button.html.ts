@@ -9,8 +9,7 @@ import type {ToolbarChipButtonElement} from './toolbar_chip_button.js';
 export function getHtml(this: ToolbarChipButtonElement) {
   // clang-format off
   return html`<!--_html_template_start_-->
-    <button id="button" class="iph-visual-target"
-      tabindex="${this.buttonTabIndex}"
+    <button id="button"
       ?disabled="${this.disabled}"
       aria-label="${this.ariaLabel}"
       aria-description="${this.ariaDescription}"

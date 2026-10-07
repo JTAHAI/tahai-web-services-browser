@@ -14,8 +14,6 @@ import androidx.annotation.VisibleForTesting;
 import org.chromium.base.Callback;
 import org.chromium.base.Log;
 import org.chromium.base.ResettersForTesting;
-import org.chromium.base.TriState;
-import org.chromium.base.TriStateUtils;
 import org.chromium.base.task.PostTask;
 import org.chromium.base.task.TaskTraits;
 import org.chromium.blink.mojom.TextFragmentReceiver;
@@ -28,9 +26,9 @@ import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.share.ChromeShareExtras;
 import org.chromium.chrome.browser.share.share_sheet.ChromeOptionShareCallback;
 import org.chromium.chrome.browser.share.share_sheet.ShareSheetLinkToggleCoordinator.LinkToggleState;
+import org.chromium.chrome.browser.tab.EmptyTabObserver;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.TabHidingType;
-import org.chromium.chrome.browser.tab.TabObserver;
 import org.chromium.components.browser_ui.share.ShareParams;
 import org.chromium.content_public.browser.NavigationHandle;
 import org.chromium.content_public.browser.RenderFrameHost;
@@ -41,13 +39,13 @@ import org.chromium.url.GURL;
 
 /** Handles the Link To Text action in the Sharing Hub. */
 @NullMarked
-public class LinkToTextCoordinator implements TabObserver {
-    @IntDef({LinkGeneration.TEXT, LinkGeneration.LINK, LinkGeneration.FAILURE, LinkGeneration.COUNT})
+public class LinkToTextCoordinator extends EmptyTabObserver {
+    @IntDef({LinkGeneration.TEXT, LinkGeneration.LINK, LinkGeneration.FAILURE, LinkGeneration.MAX})
     public @interface LinkGeneration {
         int TEXT = 0;
         int LINK = 1;
         int FAILURE = 2;
-        int COUNT = 3;
+        int MAX = 3;
     }
 
     /**
@@ -140,7 +138,8 @@ public class LinkToTextCoordinator implements TabObserver {
                             ShareParams params,
                             ChromeShareExtras chromeShareExtras,
                             long shareStartTime) {
-                        if (params.getLinkToTextSuccessful() == TriState.TRUE
+                        if (params.getLinkToTextSuccessful() != null
+                                && params.getLinkToTextSuccessful()
                                 && !TextUtils.isEmpty(params.getUrl())) {
                             Clipboard.getInstance().copyUrlToClipboard(new GURL(params.getUrl()));
                         } else {
@@ -254,7 +253,7 @@ public class LinkToTextCoordinator implements TabObserver {
                                         LinkToTextHelper.getUrlToShare(mShareUrl, selector))
                                 .setText(mSelectedText, SHARE_TEXT_TEMPLATE)
                                 .setPreviewText(getPreviewText(), SHARE_TEXT_TEMPLATE)
-                                .setLinkToTextSuccessful(TriState.TRUE)
+                                .setLinkToTextSuccessful(true)
                                 .build();
         mShareTextParams =
                 new ShareParams.Builder(
@@ -262,7 +261,7 @@ public class LinkToTextCoordinator implements TabObserver {
                                 mTab.getTitle(),
                                 /* url= */ "")
                         .setText(mSelectedText)
-                        .setLinkToTextSuccessful(TriStateUtils.from(!isSelectorEmpty))
+                        .setLinkToTextSuccessful(!isSelectorEmpty)
                         .build();
         mChromeOptionShareCallback.showShareSheet(
                 getShareParams(isSelectorEmpty ? LinkToggleState.NO_LINK : LinkToggleState.LINK),

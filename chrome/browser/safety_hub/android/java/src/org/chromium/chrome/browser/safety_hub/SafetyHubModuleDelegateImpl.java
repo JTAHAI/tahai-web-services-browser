@@ -103,8 +103,8 @@ public class SafetyHubModuleDelegateImpl
                                                 profileSupplier,
                                                 SupplierUtils.asNonNull(
                                                         bottomSheetControllerSupplier),
-                                                SupplierUtils.asNonNull(modalDialogManagerSupplier),
-                                                snackbarManagerSupplier,
+                                                assertNonNull(modalDialogManagerSupplier.get()),
+                                                assertNonNull(snackbarManagerSupplier.get()),
                                                 SigninAccessPoint.SAFETY_CHECK);
                     },
                     windowAndroidSupplier,

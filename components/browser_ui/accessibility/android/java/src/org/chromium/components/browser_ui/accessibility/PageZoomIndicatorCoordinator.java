@@ -58,7 +58,7 @@ public class PageZoomIndicatorCoordinator {
                     @Override
                     public void onZoomLevelChanged(String host, double newZoomLevel) {
                         setTooltip();
-                        if (!mManager.canShowPopupWindow(host)) return;
+                        if (!mManager.isActivityFocused()) return;
                         WebContents webContents = mManager.getWebContents();
                         if (webContents != null && !isPopupWindowShowing()) {
                             showInternal(/* shouldHaveDismissalTimer= */ true);
@@ -105,7 +105,6 @@ public class PageZoomIndicatorCoordinator {
     }
 
     private void showInternal(boolean shouldHaveDismissalTimer) {
-        if (!mManager.isPageZoomSupported()) return;
         View anchorView = mZoomIndicatorViewSupplier.get();
         if (anchorView == null
                 || !DeviceFormFactor.isNonMultiDisplayContextOnTablet(anchorView.getContext())) {
@@ -178,7 +177,8 @@ public class PageZoomIndicatorCoordinator {
 
     /** Returns true if the given zoom level is the default zoom level for the current Profile. */
     public boolean isZoomLevelDefault() {
-        return mManager.isZoomLevelDefault();
+        if (mMediator.isCurrentTabNull()) return true;
+        return mMediator.isZoomLevelDefault();
     }
 
     /** Returns true if the popup window is showing. */
@@ -188,7 +188,6 @@ public class PageZoomIndicatorCoordinator {
 
     /** Sets the tooltip to the current zoom level. */
     public void setTooltip() {
-        if (!mManager.isPageZoomSupported()) return;
         if (mOnZoomLevelChangedCallback != null) {
             WebContents webContents = mManager.getWebContents();
             // Depending on when getZoomLevel is called, the web contents may be transitioning

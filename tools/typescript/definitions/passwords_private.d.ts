@@ -255,6 +255,8 @@ declare global {
           ChromeEvent<(progress: PasswordExportProgress) => void>;
       export const onAccountStorageActiveStateChanged:
           ChromeEvent<(activeState: boolean) => void>;
+      export const onShouldShowAccountStorageSettingToggleChanged:
+          ChromeEvent<(show: boolean) => void>;
       export const onInsecureCredentialsChanged:
           ChromeEvent<(credentials: PasswordUiEntry[]) => void>;
       export const onPasswordCheckStatusChanged:

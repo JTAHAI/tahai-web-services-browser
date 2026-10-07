@@ -25,9 +25,9 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/signin/identity_manager_factory.h"
 #include "chrome/browser/sync/sync_service_factory.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_actions.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/page_action/action_ids.h"
 #include "chrome/browser/ui/page_action/page_action_controller.h"
 #include "chrome/browser/ui/toasts/api/toast_id.h"
@@ -93,8 +93,8 @@ constexpr char kTestAttributeValue[] = "red";
 constexpr char kTestAttributeKey2[] = "size";
 constexpr char kTestAttributeValue2[] = "large";
 
-FilterTabController* GetTabController(BrowserWindowInterface* browser) {
-  tabs::TabInterface* active_tab = browser->GetTabStripModel()->GetActiveTab();
+FilterTabController* GetTabController(Browser* browser) {
+  tabs::TabInterface* active_tab = browser->tab_strip_model()->GetActiveTab();
   if (!active_tab) {
     return nullptr;
   }
@@ -275,7 +275,7 @@ IN_PROC_BROWSER_TEST_F(MultistepFilterBrowserTest,
   EXPECT_TRUE(suggestion_future_.Take().has_value());
 
   FilterUiController* ui_controller =
-      FilterUiController::From(browser()->GetTabStripModel()->GetActiveTab());
+      FilterUiController::From(browser()->tab_strip_model()->GetActiveTab());
   ASSERT_TRUE(ui_controller);
   const std::optional<FilterUiController::SuggestionState>& state =
       test_api(*ui_controller).suggestion_state();
@@ -285,7 +285,7 @@ IN_PROC_BROWSER_TEST_F(MultistepFilterBrowserTest,
 
   page_actions::PageActionController* page_action_controller =
       browser()
-          ->GetTabStripModel()
+          ->tab_strip_model()
           ->GetActiveTab()
           ->GetTabFeatures()
           ->page_action_controller();
@@ -295,18 +295,20 @@ IN_PROC_BROWSER_TEST_F(MultistepFilterBrowserTest,
   }));
 
   content::TestNavigationObserver nav_observer(
-      browser()->GetTabStripModel()->GetActiveWebContents());
+      browser()->tab_strip_model()->GetActiveWebContents());
 
   actions::ActionItem* action = actions::ActionManager::Get().FindAction(
-      kActionMultistepFilter,
-      BrowserActions::From(browser())->root_action_item());
+      kActionMultistepFilter, browser()
+                                  ->browser_window_features()
+                                  ->browser_actions()
+                                  ->root_action_item());
   ASSERT_TRUE(action);
   action->InvokeAction(actions::ActionInvocationContext());
 
   nav_observer.Wait();
 
   EXPECT_EQ(suggestion_url, browser()
-                                ->GetTabStripModel()
+                                ->tab_strip_model()
                                 ->GetActiveWebContents()
                                 ->GetLastCommittedURL());
   EXPECT_TRUE(nav_observer.last_navigation_succeeded());
@@ -404,20 +406,19 @@ IN_PROC_BROWSER_TEST_F(MultistepFilterBrowserTest,
   EXPECT_FALSE(suggestion_future_.Take().has_value());
 
   FilterUiController* ui_controller =
-      FilterUiController::From(browser()->GetTabStripModel()->GetActiveTab());
+      FilterUiController::From(browser()->tab_strip_model()->GetActiveTab());
   ASSERT_TRUE(ui_controller);
   EXPECT_FALSE(test_api(*ui_controller).suggestion_state().has_value());
 
   ToastController* toast_controller =
-      browser()->GetFeatures().toast_controller();
+      browser()->browser_window_features()->toast_controller();
   EXPECT_FALSE(toast_controller->IsShowingToast());
 }
 #endif
 
 IN_PROC_BROWSER_TEST_F(MultistepFilterBrowserTest,
                        ExecuteSettingsCommandOpensAiPage) {
-  tabs::TabInterface* active_tab =
-      browser()->GetTabStripModel()->GetActiveTab();
+  tabs::TabInterface* active_tab = browser()->tab_strip_model()->GetActiveTab();
   auto* ui_controller = multistep_filter::FilterUiController::From(active_tab);
   ASSERT_TRUE(ui_controller);
 
@@ -425,14 +426,14 @@ IN_PROC_BROWSER_TEST_F(MultistepFilterBrowserTest,
       .ExecuteCommand(multistep_filter::internal::kSettingsCommand, 0);
 
   ASSERT_TRUE(base::test::RunUntil([&]() {
-    return browser()->GetTabStripModel()->GetActiveWebContents()->GetURL() ==
+    return browser()->tab_strip_model()->GetActiveWebContents()->GetURL() ==
            GURL(base::StrCat({::chrome::kChromeUISettingsURL,
                               ::chrome::kSuggestionsSubPage}));
   }));
 }
 
 IN_PROC_BROWSER_TEST_F(MultistepFilterBrowserTest,
-                       NoExtractionOrSuggestionWhenSmartSuggestionsDisabled) {
+                       CueNotShownWhenPrefDisabled) {
   browser()->GetProfile()->GetPrefs()->SetInteger(
       optimization_guide::prefs::GetSettingEnabledPrefName(
           optimization_guide::UserVisibleFeatureKey::kContextualCueing),
@@ -443,17 +444,54 @@ IN_PROC_BROWSER_TEST_F(MultistepFilterBrowserTest,
       embedded_test_server()->GetURL(kTestAllowedDomain, kExtractionUrlPath);
   GURL suggestion_trigger_url = embedded_test_server()->GetURL(
       kTestAllowedDomain2, kSuggestionTriggerUrlPath);
+  GURL suggestion_url =
+      embedded_test_server()->GetURL(kTestAllowedDomain2, kSuggestionUrlPath);
+
+  OptimizationMetadata supported_metadata = CreateOptimizationMetadata(
+      AnyWrapProto(CreateSupportedTasksResponse({kTestTaskType})));
+  OptimizationMetadata extract_metadata = CreateOptimizationMetadata(
+      AnyWrapProto(CreateExtractTaskAttributesResponse(
+          kTestTaskType, {{kTestAttributeKey, kTestAttributeValue},
+                          {kTestAttributeKey2, kTestAttributeValue2}})));
+
+  optimization_guide_decider_->AddHintWithMultipleOptimizationsForTesting(
+      extraction_url,
+      {{OptimizationType::FILTER_TASKS_SUPPORTED, supported_metadata},
+       {OptimizationType::FILTER_EXTRACT_ATTRIBUTES, extract_metadata}});
 
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), extraction_url));
-  EXPECT_FALSE(extraction_future_.Take().has_value());
+
+  std::optional<base::Uuid> extraction_result = extraction_future_.Take();
+  ASSERT_TRUE(extraction_result.has_value());
+  base::Uuid annotation_id = std::move(extraction_result).value();
   EXPECT_FALSE(suggestion_future_.Take().has_value());
+
+  GetTaskExecutionStrategiesResponse execution_strategies_response =
+      CreateTaskExecutionStrategiesResponse(
+          suggestion_url, {{kTestAttributeKey, kTestAttributeValue},
+                           {kTestAttributeKey2, kTestAttributeValue2}});
+  execution_strategies_response.mutable_execution_strategies(0)
+      ->set_candidate_id(annotation_id.AsLowercaseString());
+  OptimizationMetadata execution_metadata = CreateOptimizationMetadata(
+      AnyWrapProto(execution_strategies_response));
+  OptimizationGuideDecisionWithMetadata execution_decision_with_metadata =
+      CreateDecisionWithMetadata(OptimizationGuideDecision::kTrue,
+                                 execution_metadata);
+
+  optimization_guide_decider_->AddOnDemandHintForTesting(
+      suggestion_trigger_url, OptimizationType::FILTER_EXECUTION_STRATEGY,
+      execution_decision_with_metadata);
+  optimization_guide_decider_->AddHintWithMultipleOptimizationsForTesting(
+      suggestion_trigger_url,
+      {{OptimizationType::FILTER_TASKS_SUPPORTED, supported_metadata},
+       {OptimizationType::FILTER_EXTRACT_ATTRIBUTES, std::nullopt}});
 
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), suggestion_trigger_url));
   EXPECT_FALSE(extraction_future_.Take().has_value());
-  EXPECT_FALSE(suggestion_future_.Take().has_value());
+  EXPECT_TRUE(suggestion_future_.Take().has_value());
 
   FilterUiController* ui_controller =
-      FilterUiController::From(browser()->GetTabStripModel()->GetActiveTab());
+      FilterUiController::From(browser()->tab_strip_model()->GetActiveTab());
   ASSERT_TRUE(ui_controller);
   EXPECT_FALSE(test_api(*ui_controller).suggestion_state().has_value());
 }

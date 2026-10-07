@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/390223051): Remove C-library calls to fix the errors.
+#pragma allow_unsafe_libc_calls
+#endif
+
 #include <dlfcn.h>
 #include <errno.h>
 #include <libgen.h>
@@ -13,7 +18,6 @@
 #include <memory>
 
 #include "base/allocator/early_zone_registration_apple.h"
-#include "base/compiler_specific.h"
 
 #if defined(HELPER_EXECUTABLE)
 #include "sandbox/mac/seatbelt_exec.h"  // nogncheck
@@ -70,31 +74,29 @@ int main(int argc, char* argv[]) {
   // version framework information.
   const char* parent_dir = dirname(exec_path.get());
   if (!parent_dir) {
-    UNSAFE_TODO(
-        fprintf(stderr, "dirname %s: %s\n", exec_path.get(), strerror(errno)));
+    fprintf(stderr, "dirname %s: %s\n", exec_path.get(), strerror(errno));
     abort();
   }
 
-  const size_t parent_dir_len = UNSAFE_TODO(strlen(parent_dir));
-  const size_t rel_path_len = UNSAFE_TODO(strlen(rel_path));
+  const size_t parent_dir_len = strlen(parent_dir);
+  const size_t rel_path_len = strlen(rel_path);
   // 2 accounts for a trailing NUL byte and the '/' in the middle of the paths.
   const size_t framework_path_size = parent_dir_len + rel_path_len + 2;
   std::unique_ptr<char[]> framework_path(new char[framework_path_size]);
-  UNSAFE_TODO(snprintf(framework_path.get(), framework_path_size, "%s/%s",
-                       parent_dir, rel_path));
+  snprintf(framework_path.get(), framework_path_size, "%s/%s", parent_dir,
+           rel_path);
 
   void* library =
       dlopen(framework_path.get(), RTLD_LAZY | RTLD_LOCAL | RTLD_FIRST);
   if (!library) {
-    UNSAFE_TODO(
-        fprintf(stderr, "dlopen %s: %s\n", framework_path.get(), dlerror()));
+    fprintf(stderr, "dlopen %s: %s\n", framework_path.get(), dlerror());
     abort();
   }
 
   const ContentMainPtr content_main =
       reinterpret_cast<ContentMainPtr>(dlsym(library, "ContentMain"));
   if (!content_main) {
-    UNSAFE_TODO(fprintf(stderr, "dlsym ContentMain: %s\n", dlerror()));
+    fprintf(stderr, "dlsym ContentMain: %s\n", dlerror());
     abort();
   }
   rv = content_main(argc, argv);

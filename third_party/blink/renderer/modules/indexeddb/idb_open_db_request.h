@@ -112,8 +112,9 @@ class MODULES_EXPORT IDBOpenDBRequest final : public IDBRequest {
 
  private:
   void OnRequestComplete();
-  void RegisterSharedConnection(SharedIDBDatabaseConnection* connection,
-                                const String& name);
+  SharedIDBDatabaseConnection* CreateAndRegisterSharedConnection(
+      mojo::PendingAssociatedRemote<mojom::blink::IDBDatabase> pending_database,
+      const IDBDatabaseMetadata& metadata);
 
   mojo::PendingAssociatedReceiver<mojom::blink::IDBDatabaseCallbacks>
       callbacks_receiver_;

@@ -33,6 +33,8 @@ namespace page_actions {
 class PageActionController;
 }
 
+class PrefService;
+
 namespace multistep_filter {
 
 enum class SuggestionUserDecision;
@@ -73,9 +75,6 @@ class FilterUiController : public tabs::ContentsObservingTabFeature,
     // leaving
     // only the page action icon visible inside the location bar / omnibox.
     kCollapsedInOmniboxAfterReopen,
-    // The cue bubble was hidden because the tab became inactive or not in
-    // focus, and we expect it to be reshown when the tab becomes active again.
-    kTabHidden,
   };
 
   // Holds the suggestion details and presentation state for the current tab.
@@ -94,9 +93,6 @@ class FilterUiController : public tabs::ContentsObservingTabFeature,
     // Callbacks to notify the core about user interactions with this
     // suggestion.
     MultistepFilterUiDelegate::SuggestionUiCallbacks callbacks;
-
-    // Stores the state before it was temporarily hidden due to tab switch.
-    std::optional<SuggestionViewState> state_before_tab_hide;
   };
 
   static FilterUiController* From(tabs::TabInterface* tab);
@@ -106,8 +102,8 @@ class FilterUiController : public tabs::ContentsObservingTabFeature,
   FilterUiController& operator=(const FilterUiController&) = delete;
   ~FilterUiController() override;
 
-  // Shows the suggestion UI.
-  virtual void ShowSuggestion(
+  // Callback for when a suggestion is generated.
+  virtual void OnSuggestionGenerated(
       std::optional<UrlFilterSuggestion> suggestion,
       MultistepFilterUiDelegate::SuggestionUiCallbacks callbacks);
 
@@ -147,12 +143,11 @@ class FilterUiController : public tabs::ContentsObservingTabFeature,
 
   void OnFaviconAvailable(const favicon_base::FaviconImageResult& result);
 
+  // Helper check to verify if the contextual cue feature is enabled.
+  bool ShouldShowCue() const;
 
   // Clears the cue UI.
   void ClearCue();
-
-  // Shows the suggestion chip.
-  void ShowSuggestionChip();
 
   // Attempts to show the First Run Experience Toast promo bubble.
   void MaybeShowPromo();
@@ -179,6 +174,8 @@ class FilterUiController : public tabs::ContentsObservingTabFeature,
   // Controller for the page action.
   raw_ptr<page_actions::PageActionController> page_action_controller_ = nullptr;
 
+  // Service for user preferences.
+  raw_ptr<PrefService> pref_service_ = nullptr;
 
   // Service for fetching favicons.
   raw_ptr<favicon::FaviconService> favicon_service_ = nullptr;

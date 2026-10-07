@@ -17,7 +17,6 @@
 #import "components/image_fetcher/core/mock_image_fetcher.h"
 #import "components/omnibox/browser/mock_aim_eligibility_service.h"
 #import "components/signin/public/identity_manager/identity_manager.h"
-#import "components/subscription_eligibility/subscription_eligibility_service.h"
 #import "components/sync/protocol/theme_types.pb.h"
 #import "components/sync/test/test_sync_service.h"
 #import "ios/chrome/browser/browser_view/model/browser_view_visibility_notifier_browser_agent.h"
@@ -29,7 +28,6 @@
 #import "ios/chrome/browser/discover_feed/model/discover_feed_visibility_browser_agent.h"
 #import "ios/chrome/browser/discover_feed/model/discover_feed_visibility_observer.h"
 #import "ios/chrome/browser/feature_engagement/model/tracker_factory.h"
-#import "ios/chrome/browser/fullscreen/model/fullscreen_browser_agent.h"
 #import "ios/chrome/browser/home_customization/model/home_background_customization_service_factory.h"
 #import "ios/chrome/browser/home_customization/model/home_background_image_service_factory.h"
 #import "ios/chrome/browser/home_customization/model/user_uploaded_image_manager_factory.h"
@@ -57,7 +55,6 @@
 #import "ios/chrome/browser/signin/model/chrome_account_manager_service_factory.h"
 #import "ios/chrome/browser/signin/model/fake_authentication_service_delegate.h"
 #import "ios/chrome/browser/signin/model/identity_manager_factory.h"
-#import "ios/chrome/browser/subscription_eligibility/model/subscription_eligibility_service_factory.h"
 #import "ios/chrome/browser/sync/model/sync_service_factory.h"
 #import "ios/chrome/browser/sync/model/test_sync_service_utils.h"
 #import "ios/chrome/browser/toolbar/legacy/ui_bundled/test/toolbar_test_navigation_manager.h"
@@ -114,7 +111,7 @@ class NewTabPageMediatorTest : public PlatformTest {
         ios::TemplateURLServiceFactory::GetDefaultFactory());
     test_profile_builder.AddTestingFactory(
         AuthenticationServiceFactory::GetInstance(),
-        AuthenticationServiceFactory::GetFactoryWithDelegateForTesting(
+        AuthenticationServiceFactory::GetFactoryWithDelegate(
             std::make_unique<FakeAuthenticationServiceDelegate>()));
     test_profile_builder.AddTestingFactory(
         SyncServiceFactory::GetInstance(),
@@ -179,11 +176,8 @@ class NewTabPageMediatorTest : public PlatformTest {
             nullptr, identity_manager_);
   }
 
-  /// Creates mediator with optional `aim_eligibility_service` and
-  /// `fullscreen_browser_agent`.
-  void CreateMediator(
-      bool with_aim_eligibility_service = false,
-      FullscreenBrowserAgent* fullscreen_browser_agent = nullptr) {
+  /// Creates mediator with optional `aim_eligibility_service`.
+  void CreateMediator(bool with_aim_eligibility_service = false) {
     ChromeAccountManagerService* account_manager_service =
         ChromeAccountManagerServiceFactory::GetForProfile(profile_.get());
     HomeBackgroundCustomizationService* background_customization_service =
@@ -206,9 +200,6 @@ class NewTabPageMediatorTest : public PlatformTest {
                   identityDiscImageUpdater:image_updater_
                        discoverFeedService:test_discover_feed_service_
                                prefService:prefs_
-            subscriptionEligibilityService:
-                SubscriptionEligibilityServiceFactory::GetForProfile(
-                    profile_.get())
                                syncService:&test_sync_service_
                regionalCapabilitiesService:
                    ios::RegionalCapabilitiesServiceFactory::GetForProfile(
@@ -223,8 +214,7 @@ class NewTabPageMediatorTest : public PlatformTest {
                   featureEngagementTracker:&mock_tracker_
                      aimEligibilityService:with_aim_eligibility_service
                                                ? aim_eligibility_service_.get()
-                                               : nullptr
-                    fullscreenBrowserAgent:fullscreen_browser_agent];
+                                               : nullptr];
     header_consumer_ = OCMProtocolMock(@protocol(NewTabPageHeaderConsumer));
     mediator_.headerConsumer = header_consumer_;
     visibility_observer_ =
@@ -610,26 +600,4 @@ TEST_F(NewTabPageMediatorTest, TestFetchCustomBackground_NewURL) {
 
   [mediator_ fetchCustomBackground:background1];
   [mediator_ fetchCustomBackground:background2];
-}
-
-// Tests that the consumer receives feed bottom inset updates from
-// FullscreenBrowserAgent when ChromeNextIa and FullscreenRefactoring are
-// enabled.
-TEST_F(NewTabPageMediatorTest, TestFeedBottomInsetWithChromeNextIa) {
-  scoped_feature_list_.InitWithFeatures(
-      /*enabled_features=*/{kChromeNextIa, kFullscreenRefactoring},
-      /*disabled_features=*/{});
-  FullscreenBrowserAgent::CreateForBrowser(browser_.get());
-  FullscreenBrowserAgent* fullscreen_browser_agent =
-      FullscreenBrowserAgent::FromBrowser(browser_.get());
-  CreateMediator(/*with_aim_eligibility_service=*/false,
-                 fullscreen_browser_agent);
-
-  id ntp_consumer = OCMProtocolMock(@protocol(NewTabPageConsumer));
-  OCMExpect([ntp_consumer
-      setFeedBottomInset:fullscreen_browser_agent->max_insets().bottom]);
-
-  mediator_.consumer = ntp_consumer;
-
-  EXPECT_OCMOCK_VERIFY(ntp_consumer);
 }

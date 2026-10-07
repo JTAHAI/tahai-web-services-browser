@@ -18,8 +18,7 @@ import {createAutocompleteMatch, SearchboxBrowserProxy} from './searchbox_browse
 import type {SearchboxIconElement} from './searchbox_icon.js';
 import {getCss} from './searchbox_match.css.js';
 import {getHtml} from './searchbox_match.html.js';
-import {selectionsEqual} from './searchbox_selection_mixin.js';
-import {announce, mojoTimeTicks} from './utils.js';
+import {mojoTimeTicks} from './utils.js';
 
 
 
@@ -93,11 +92,6 @@ export class SearchboxMatchElement extends CrLitElement {
         reflect: true,
       },
 
-      showContextualDescription: {
-        type: Boolean,
-        reflect: true,
-      },
-
       /**
        * Whether the match features an image (as opposed to an icon or favicon).
        */
@@ -123,7 +117,7 @@ export class SearchboxMatchElement extends CrLitElement {
        * Whether the match should be rendered in a two-row layout. Currently
        * limited to matches that feature an image, calculator, and answers.
        */
-      isTwoRowSuggestion: {
+      isRichSuggestion: {
         type: Boolean,
         reflect: true,
       },
@@ -195,11 +189,10 @@ export class SearchboxMatchElement extends CrLitElement {
 
   override accessor ariaLabel: string = '';
   accessor hasAction: boolean = false;
-  accessor showContextualDescription: boolean = false;
   accessor hasImage: boolean = false;
   accessor hasKeywordChip: boolean = false;
   accessor isEntitySuggestion: boolean = false;
-  accessor isTwoRowSuggestion: boolean = false;
+  accessor isRichSuggestion: boolean = false;
   accessor match: AutocompleteMatch = createAutocompleteMatch();
   accessor selection: OmniboxPopupSelection = kDefaultSelection;
   accessor matchIndex: number = -1;
@@ -245,7 +238,7 @@ export class SearchboxMatchElement extends CrLitElement {
       this.hasImage = this.computeHasImage_();
       this.isContextualSuggestion_ = this.computeIsContextualSuggestion_();
       this.isEntitySuggestion = this.computeIsEntitySuggestion_();
-      this.isTwoRowSuggestion = this.computeIsTwoRowSuggestion_();
+      this.isRichSuggestion = this.computeIsRichSuggestion_();
       this.removeButtonAriaLabel_ = this.computeRemoveButtonAriaLabel_();
       this.separatorText_ = this.computeSeparatorText_();
       this.tailSuggestPrefix_ = this.computeTailSuggestPrefix_();
@@ -266,22 +259,13 @@ export class SearchboxMatchElement extends CrLitElement {
     this.addEventListener('click', (event) => this.onMatchClick_(event));
     this.addEventListener('auxclick', (event) => this.onMatchClick_(event));
     this.addEventListener('focusin', () => this.onMatchFocusin_());
-    this.addEventListener(
-        'mousedown', (event) => this.onMatchMouseDown_(event));
+    this.addEventListener('mousedown', () => this.onMatchMouseDown_());
   }
 
   override updated(changedProperties: PropertyValues<this>) {
     super.updated(changedProperties);
     if (changedProperties.has('selection') || changedProperties.has('match')) {
       this.updateAriaLabel_();
-    }
-    if (this.virtualFocusEnabled && this.selection.line === this.matchIndex &&
-        this.selection.state !== SelectionLineState.kFocusedButtonAim) {
-      const oldSelection = changedProperties.get('selection');
-      if (changedProperties.has('selection') &&
-          (!oldSelection || !selectionsEqual(oldSelection, this.selection))) {
-        announce(this, this.ariaLabel);
-      }
     }
   }
 
@@ -315,8 +299,6 @@ export class SearchboxMatchElement extends CrLitElement {
     // Keyboard activation isn't possible because when the keyword chip is
     // focused, focus is redirected to the omnibox view.
     const event = e.detail.event as PointerEvent;
-    this.fire(
-        'keyword-click', {match: this.match, matchIndex: this.matchIndex});
     this.pageHandler_.activateKeyword(
         this.matchIndex, this.match.destinationUrl, mojoTimeTicks(Date.now()),
         // Distinguish mouse and touch or pen events for logging purposes.
@@ -344,15 +326,6 @@ export class SearchboxMatchElement extends CrLitElement {
     e.preventDefault();   // Prevents default browser action (navigation).
     e.stopPropagation();  // Prevents <iron-selector> from selecting the match.
 
-    if (this.match.keywordModel?.type === KeywordType.kInstant) {
-      this.fire(
-          'keyword-click', {match: this.match, matchIndex: this.matchIndex});
-      this.pageHandler_.activateKeyword(
-          this.matchIndex, this.match.destinationUrl, mojoTimeTicks(Date.now()),
-          e.button === 0);
-      return;
-    }
-
     this.pageHandler_.openAutocompleteMatch(
         this.matchIndex, this.match.destinationUrl,
         /*areMatchesShowing=*/ true,
@@ -377,10 +350,7 @@ export class SearchboxMatchElement extends CrLitElement {
     this.fire('match-focusin', this.matchIndex);
   }
 
-  private onMatchMouseDown_(e: MouseEvent) {
-    if (this.match.keywordModel?.type === KeywordType.kInstant) {
-      e.preventDefault();  // Prevents default browser action (focus loss).
-    }
+  private onMatchMouseDown_() {
     this.pageHandler_.onNavigationLikely(
         this.matchIndex, this.match.destinationUrl,
         NavigationPredictor.kMouseDown);
@@ -439,6 +409,11 @@ export class SearchboxMatchElement extends CrLitElement {
     if (!this.match) {
       return window.trustedTypes!.emptyHTML;
     }
+    // `match.answer.firstLine` is generated by appending an optional additional
+    // text from the answer's first line to `match.contents`, making the latter
+    // a prefix of the former. Thus `match.answer.firstLine` can be rendered
+    // using the markup in `match.contentsClass` which contains positions in
+    // `match.contents` and the markup to be applied to those positions.
     // See //chrome/browser/ui/webui/searchbox/searchbox_handler.cc
     return this.sanitizeInnerHtml_(
         this.renderTextWithClassifications_(
@@ -454,7 +429,8 @@ export class SearchboxMatchElement extends CrLitElement {
     return this.sanitizeInnerHtml_(
         this.renderTextWithClassifications_(
                 this.getMatchDescription_(),
-                this.getMatchDescriptionClassifications_())
+                this.match.answer ? [] :
+                                    this.getMatchDescriptionClassifications_())
             .innerHTML);
   }
 
@@ -478,11 +454,11 @@ export class SearchboxMatchElement extends CrLitElement {
     return this.match && this.match.type === ENTITY_MATCH_TYPE;
   }
 
-  private computeIsTwoRowSuggestion_(): boolean {
+  private computeIsRichSuggestion_(): boolean {
     // When the searchbox is embedded in the top-chrome (i.e. Omnibox), all
     // suggestions should be rendered using a one-line layout.
     return !this.isTopChromeSearchbox_ && this.match &&
-        this.match.isTwoRowSuggestion;
+        this.match.isRichSuggestion;
   }
 
   private computeRemoveButtonAriaLabel_(): string {
@@ -592,8 +568,10 @@ export class SearchboxMatchElement extends CrLitElement {
     }
 
     const match = this.match;
-    const matchContents = match.contents;
-    const matchDescription = match.description;
+    const matchContents =
+        match.answer ? match.answer.firstLine : match.contents;
+    const matchDescription =
+        match.answer ? match.answer.secondLine : match.description;
 
     return match.swapContentsAndDescription ? matchDescription : matchContents;
   }
@@ -604,8 +582,10 @@ export class SearchboxMatchElement extends CrLitElement {
     }
 
     const match = this.match;
-    const matchContents = match.contents;
-    const matchDescription = match.description;
+    const matchContents =
+        match.answer ? match.answer.firstLine : match.contents;
+    const matchDescription =
+        match.answer ? match.answer.secondLine : match.description;
 
     return match.swapContentsAndDescription ? matchContents : matchDescription;
   }

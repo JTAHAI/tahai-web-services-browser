@@ -1,2 +1,4 @@
-rules:
-- "**": [sibling-count]
+features:
+- name: sibling-count
+  files: "**"
+

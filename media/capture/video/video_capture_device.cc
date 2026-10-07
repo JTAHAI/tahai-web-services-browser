@@ -6,11 +6,8 @@
 
 #include <string_view>
 
-#include "base/check_op.h"
 #include "base/command_line.h"
-#include "base/compiler_specific.h"
 #include "base/containers/fixed_flat_set.h"
-#include "base/containers/span.h"
 #include "base/functional/callback.h"
 #include "base/i18n/timezone.h"
 #include "base/strings/string_util.h"
@@ -97,7 +94,8 @@ VideoCaptureDevice::Client::Buffer& VideoCaptureDevice::Client::Buffer::
 operator=(VideoCaptureDevice::Client::Buffer&& other) = default;
 
 void VideoCaptureDevice::Client::OnIncomingCapturedData(
-    base::span<const uint8_t> data,
+    const uint8_t* data,
+    int length,
     const VideoCaptureFormat& frame_format,
     const gfx::ColorSpace& color_space,
     int clockwise_rotation,
@@ -106,8 +104,8 @@ void VideoCaptureDevice::Client::OnIncomingCapturedData(
     base::TimeDelta timestamp,
     std::optional<base::TimeTicks> capture_begin_timestamp,
     const std::optional<VideoFrameMetadata>& metadata) {
-  OnIncomingCapturedData(data, frame_format, color_space, clockwise_rotation,
-                         flip_y, reference_time, timestamp,
+  OnIncomingCapturedData(data, length, frame_format, color_space,
+                         clockwise_rotation, flip_y, reference_time, timestamp,
                          capture_begin_timestamp, metadata,
                          /*frame_feedback_id=*/0);
 }

@@ -16,9 +16,6 @@ extern const int kDesktopPartialTranslateTextSelectionMaxCharacters;
 // is shown.
 extern const int kDesktopPartialTranslateBubbleShowDelayMs;
 
-extern const char kPdfMimeType[];
-extern const char kReadingModeSidePanelHost[];
-
 }  // namespace translate
 
 #endif  // COMPONENTS_TRANSLATE_CORE_COMMON_TRANSLATE_CONSTANTS_H_

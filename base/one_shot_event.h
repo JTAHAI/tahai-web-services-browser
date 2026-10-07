@@ -77,7 +77,7 @@ class BASE_EXPORT OneShotEvent {
                 SequencedTaskRunner::GetCurrentDefault()) const;
   void PostDelayed(const Location& from_here,
                    OnceClosure task,
-                   TimeDelta delay,
+                   const TimeDelta& delay,
                    scoped_refptr<TaskRunner> runner =
                        SequencedTaskRunner::GetCurrentDefault()) const;
 

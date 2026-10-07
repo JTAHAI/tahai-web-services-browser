@@ -30,9 +30,10 @@ def ParseCommandLine():
     """Parse the command line arguments."""
     cmd_parser = argparse.ArgumentParser(description='Run command as user')
 
-    cmd_parser.add_argument(
-        '--command', dest='command', type=str, help='The command to run.'
-    )
+    cmd_parser.add_argument('--command',
+                            dest='command',
+                            type=str,
+                            help='The command to run.')
     return cmd_parser.parse_known_args()
 
 
@@ -61,8 +62,7 @@ def KeepAliveThread():
         time.sleep(60)
         logging.error(
             "%s: still waiting for test sub-process to complete, sleep 60s ...",
-            i,
-        )
+            i)
 
 
 def main():
@@ -98,8 +98,7 @@ def main():
 
     with updater_test_service_control.OpenService():
         pid, exit_code, stdout, stderr = rpc_client.RunAsStandardUser(
-            command_line
-        )
+            command_line)
         if pid is None:
             logging.error('Failed to launch command: %s', command_line)
             sys.exit(-3)

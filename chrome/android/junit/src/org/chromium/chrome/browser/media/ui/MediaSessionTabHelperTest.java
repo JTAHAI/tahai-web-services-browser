@@ -18,13 +18,14 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.robolectric.annotation.Config;
 
-import org.chromium.base.DeviceInfo;
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.base.test.util.Features.DisableFeatures;
+import org.chromium.base.test.util.Features.EnableFeatures;
 import org.chromium.base.test.util.HistogramWatcher;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.components.browser_ui.media.AudioBecomingNoisyReceiver;
+import org.chromium.components.browser_ui.media.MediaFeatureList;
 import org.chromium.content.browser.MediaSessionImpl;
 import org.chromium.content.browser.MediaSessionImplJni;
 import org.chromium.content_public.browser.MediaSession;
@@ -98,9 +99,8 @@ public class MediaSessionTabHelperTest {
     }
 
     @Test
-    public void testAudioBecomingNoisy_NonDesktopDevice_PausesPlayback() {
-        DeviceInfo.setIsDesktopForTesting(false);
-
+    @DisableFeatures(MediaFeatureList.NO_PAUSE_MEDIA_ON_HEADPHONE_UNPLUG)
+    public void testAudioBecomingNoisy_PausesPlayback() {
         MediaNotificationTestTabHolder tabHolder =
                 new MediaNotificationTestTabHolder(1, "https://example.com", "Title");
         mHelper = tabHolder.mMediaSessionTabHelper;
@@ -127,9 +127,8 @@ public class MediaSessionTabHelperTest {
     }
 
     @Test
-    public void testAudioBecomingNoisy_DesktopDevice_DoesNotPause() {
-        DeviceInfo.setIsDesktopForTesting(true);
-
+    @EnableFeatures(MediaFeatureList.NO_PAUSE_MEDIA_ON_HEADPHONE_UNPLUG)
+    public void testAudioBecomingNoisy_FeatureEnabled_DoesNotPause() {
         MediaNotificationTestTabHolder tabHolder =
                 new MediaNotificationTestTabHolder(1, "https://example.com", "Title");
         mHelper = tabHolder.mMediaSessionTabHelper;
@@ -148,12 +147,13 @@ public class MediaSessionTabHelperTest {
         org.chromium.components.browser_ui.media.AudioBecomingNoisyReceiver.getInstance()
                 .onReceive(context, intent);
 
-        // Verify that suspend is never called on desktop
+        // Verify that suspend is never called
         verify(session, never()).suspend(anyInt());
         histogramWatcher.assertExpected();
     }
 
     @Test
+    @DisableFeatures(MediaFeatureList.NO_PAUSE_MEDIA_ON_HEADPHONE_UNPLUG)
     public void testAudioBecomingNoisy_TimeToResumeMetric() {
         MediaNotificationTestTabHolder tabHolder =
                 new MediaNotificationTestTabHolder(1, "https://example.com", "Title");
@@ -187,6 +187,7 @@ public class MediaSessionTabHelperTest {
     }
 
     @Test
+    @DisableFeatures(MediaFeatureList.NO_PAUSE_MEDIA_ON_HEADPHONE_UNPLUG)
     public void testAudioBecomingNoisy_AlreadyPaused_DoesNotLogMetric() {
         MediaNotificationTestTabHolder tabHolder =
                 new MediaNotificationTestTabHolder(1, "https://example.com", "Title");

@@ -26,7 +26,6 @@
 #ifndef THIRD_PARTY_BLINK_RENDERER_CORE_SCROLL_SCROLLBAR_H_
 #define THIRD_PARTY_BLINK_RENDERER_CORE_SCROLL_SCROLLBAR_H_
 
-#include "base/memory/raw_ref.h"
 #include "third_party/blink/public/common/input/web_input_event.h"
 #include "third_party/blink/public/mojom/css/preferred_contrast.mojom-blink-forward.h"
 #include "third_party/blink/public/mojom/frame/color_scheme.mojom-blink-forward.h"
@@ -165,7 +164,10 @@ class CORE_EXPORT Scrollbar : public GarbageCollected<Scrollbar>,
   void MouseUp(const WebMouseEvent&);
   void MouseDown(const WebMouseEvent&);
 
-  ScrollbarTheme& GetTheme() const { return *theme_; }
+  ScrollbarTheme& GetTheme() const { return theme_; }
+
+  gfx::Rect ConvertToContainingEmbeddedContentView(const gfx::Rect&) const;
+  gfx::Point ConvertFromContainingEmbeddedContentView(const gfx::Point&) const;
 
   void MoveThumb(int pos, bool dragging_document = false);
 
@@ -260,8 +262,7 @@ class CORE_EXPORT Scrollbar : public GarbageCollected<Scrollbar>,
 
   Member<ScrollableArea> scrollable_area_;
   ScrollbarOrientation orientation_;
-  const raw_ref<ScrollbarTheme, UnprotectedInRelease | DanglingUntriaged>
-      theme_;
+  ScrollbarTheme& theme_;
 
   int visible_size_;
   int total_size_;

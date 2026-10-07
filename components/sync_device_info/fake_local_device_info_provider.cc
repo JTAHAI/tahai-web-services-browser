@@ -46,8 +46,7 @@ FakeLocalDeviceInfoProvider::FakeLocalDeviceInfoProvider()
                    DeviceInfo::GlicExperimentalTriggeringState::kUnavailable,
                    /*glic_experimental_triggering_version=*/
                    std::nullopt,
-                   /*android_os_build_fingerprint_prefix=*/std::nullopt,
-                   /*personal_context_info=*/std::nullopt) {}
+                   /*android_os_build_fingerprint_prefix=*/std::nullopt) {}
 
 FakeLocalDeviceInfoProvider::~FakeLocalDeviceInfoProvider() = default;
 

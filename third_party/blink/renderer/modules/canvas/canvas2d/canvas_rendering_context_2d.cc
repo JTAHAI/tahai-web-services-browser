@@ -97,7 +97,6 @@
 #include "third_party/blink/renderer/modules/canvas/canvas2d/path_2d.h"
 #include "third_party/blink/renderer/modules/canvas/htmlcanvas/canvas_context_creation_attributes_helpers.h"
 #include "third_party/blink/renderer/platform/fonts/font.h"
-#include "third_party/blink/renderer/platform/fonts/font_orientation.h"
 #include "third_party/blink/renderer/platform/geometry/layout_unit.h"
 #include "third_party/blink/renderer/platform/geometry/path.h"
 #include "third_party/blink/renderer/platform/geometry/path_builder.h"
@@ -305,7 +304,6 @@ void CanvasRenderingContext2D::LoseContext(LostContextMode lost_mode) {
   if (element != nullptr) [[likely]] {
     shared_image_provider_ = nullptr;
     bitmap_provider_ = nullptr;
-    last_recording_ = std::nullopt;
     element->DiscardResources();
     element->DiscardResourceDispatcher();
 
@@ -387,11 +385,14 @@ bool CanvasRenderingContext2D::WritePixels(const SkImageInfo& orig_info,
   if (shared_image_provider_) {
     result =
         shared_image_provider_->WritePixels(orig_info, pixels, row_bytes, x, y);
+    if (result) {
+      shared_image_provider_->ClearLastRecording();
+    }
   } else {
     result = bitmap_provider_->WritePixels(orig_info, pixels, row_bytes, x, y);
-  }
-  if (result) {
-    last_recording_ = std::nullopt;
+    if (result) {
+      bitmap_provider_->ClearLastRecording();
+    }
   }
   return result;
 }
@@ -436,8 +437,8 @@ void CanvasRenderingContext2D::ScrollPathIntoViewInternal(const Path& path) {
   PhysicalRect path_rect = PhysicalRect::EnclosingRect(bounding_rect);
   PhysicalRect canvas_rect = layout_box->PhysicalContentBoxRect();
   // TODO(fserb): Is this kIgnoreTransforms correct?
-  canvas_rect.Move(layout_box->LocalToAbsolutePoint(
-      PhysicalOffset(), {MapCoordinatesMode::kIgnoreTransforms}));
+  canvas_rect.Move(
+      layout_box->LocalToAbsolutePoint(PhysicalOffset(), kIgnoreTransforms));
   path_rect.SetX(
       (canvas_rect.X() + path_rect.X() * canvas_rect.Width() / width));
   path_rect.SetY(
@@ -598,20 +599,6 @@ std::optional<cc::PaintRecord> CanvasRenderingContext2D::FlushCanvas(
                              bitmap_provider_.get(), reason);
 }
 
-void CanvasRenderingContext2D::DidFlushRecording(
-    const cc::PaintRecord& recording,
-    bool clear_frame,
-    FlushReason reason) {
-  bool want_to_print = (Host() && Host()->IsPrinting()) ||
-                       reason == FlushReason::kPrinting ||
-                       reason == FlushReason::kCanvasPushFrameWhilePrinting;
-  if (want_to_print && clear_frame) {
-    last_recording_ = recording;
-  } else {
-    last_recording_ = std::nullopt;
-  }
-}
-
 void CanvasRenderingContext2D::OnFlushForImage(
     cc::PaintImage::ContentId content_id) {
   if (shared_image_provider_ && !shared_image_provider_->IsSoftware()) {
@@ -694,9 +681,6 @@ bool CanvasRenderingContext2D::ResolveFont(const String& new_font) {
           element_font_description.SpecifiedSize());
       element_font_description.SetAdjustedSize(
           element_font_description.SpecifiedSize());
-      // Reset the orientation to avoid inheriting the vertical
-      // writing-mode/text-orientation from the <canvas> element.
-      element_font_description.SetOrientation(FontOrientation::kHorizontal);
 
       font_style_builder.SetFontDescription(element_font_description);
       const ComputedStyle* font_style = font_style_builder.TakeStyle();
@@ -770,7 +754,9 @@ void CanvasRenderingContext2D::PruneLocalFontCache(size_t target_size) {
 void CanvasRenderingContext2D::StyleDidChange(const ComputedStyle* old_style,
                                               const ComputedStyle& new_style) {
   if (old_style &&
-      base::ValuesEquivalent(old_style->GetFont(), new_style.GetFont())) {
+      (base::FeatureList::IsEnabled(blink::features::kCSSFontComparisonFix)
+           ? base::ValuesEquivalent(old_style->GetFont(), new_style.GetFont())
+           : old_style->GetFont() == new_style.GetFont())) {
     return;
   }
   PruneLocalFontCache(0);
@@ -852,7 +838,16 @@ CanvasRenderingContext2D::PaintRenderingResultsToSnapshot(
 
 const std::optional<cc::PaintRecord>&
 CanvasRenderingContext2D::GetLastRecording() {
-  return last_recording_;
+  if (!canvas()) {
+    return empty_recording_;
+  }
+  if (shared_image_provider_) {
+    return shared_image_provider_->LastRecording();
+  }
+  if (bitmap_provider_) {
+    return bitmap_provider_->LastRecording();
+  }
+  return empty_recording_;
 }
 
 bool CanvasRenderingContext2D::CanCreateResourceProvider() {
@@ -901,6 +896,15 @@ void CanvasRenderingContext2D::EnableAccelerationIfPossible() {
   }
 }
 
+void CanvasRenderingContext2D::PreFinalizeFrame() {
+  // Low-latency 2d canvases produce their frames after the resource gets single
+  // buffered.
+  // TODO(crbug.com/40280152): Analyze whether this call is redundant (i.e.,
+  // whether the CRP is guaranteed to always be present).
+  if (canvas() && canvas()->LowLatencyEnabled() && canvas()->IsDirty()) {
+    InitializeResourceProvider();
+  }
+}
 
 void CanvasRenderingContext2D::FinalizeFrame(FlushReason reason) {
   TRACE_EVENT0("blink", "CanvasRenderingContext2D::FinalizeFrame");
@@ -1167,7 +1171,6 @@ UniqueFontSelector* CanvasRenderingContext2D::GetFontSelector() const {
 void CanvasRenderingContext2D::SizeChanged() {
   shared_image_provider_ = nullptr;
   bitmap_provider_ = nullptr;
-  last_recording_ = std::nullopt;
   did_fail_to_create_resource_provider_ = false;
 }
 
@@ -1181,7 +1184,6 @@ void CanvasRenderingContext2D::Dispose() {
   hibernation_handler_ = nullptr;
   shared_image_provider_ = nullptr;
   bitmap_provider_ = nullptr;
-  last_recording_ = std::nullopt;
   CanvasRenderingContext::Dispose();
 }
 
@@ -1255,9 +1257,6 @@ base::ByteSize CanvasRenderingContext2D::AllocatedBufferSize() const {
   }
   if (bitmap_provider_) {
     return bitmap_provider_->EstimatedSizeInBytes();
-  }
-  if (hibernation_handler_ && hibernation_handler_->IsHibernating()) {
-    return base::ByteSize(hibernation_handler_->memory_size());
   }
   return base::ByteSize();
 }
@@ -1350,7 +1349,6 @@ bool CanvasRenderingContext2D::InitializeResourceProvider() {
 void CanvasRenderingContext2D::ResetResourceProvider() {
   auto old_shared = std::move(shared_image_provider_);
   auto old_bitmap = std::move(bitmap_provider_);
-  last_recording_ = std::nullopt;
   if (canvas()) {
     canvas()->UpdateMemoryUsage();
   }

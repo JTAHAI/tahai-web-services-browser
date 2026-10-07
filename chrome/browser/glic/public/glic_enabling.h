@@ -9,7 +9,6 @@
 #include <optional>
 #include <string>
 
-#include "base/auto_reset.h"
 #include "base/callback_list.h"
 #include "base/functional/callback.h"
 #include "base/memory/raw_ptr.h"
@@ -20,7 +19,6 @@
 #include "chrome/browser/glic/glic_enums.h"
 #include "chrome/browser/glic/glic_user_status_fetcher.h"
 #include "chrome/browser/glic/host/glic.mojom.h"
-#include "chrome/browser/glic/host/glic_webui.mojom.h"
 #include "chrome/browser/glic/public/features.h"
 #include "components/optimization_guide/core/optimization_guide_features.h"
 #include "components/prefs/pref_change_registrar.h"
@@ -28,6 +26,7 @@
 #include "components/signin/public/identity_manager/tribool.h"
 #include "components/subscription_eligibility/subscription_eligibility_service.h"
 #include "components/sync_device_info/device_info.h"
+#include "content/public/browser/web_contents.h"
 
 class AccountCapabilities;
 class Profile;
@@ -219,17 +218,10 @@ class GlicEnabling final : public signin::IdentityManager::Observer,
   // the standard country determination methods, nor does it query
   // `IdentityManager` directly. The caller is responsible for resolving the
   // country data and account capabilities and providing them as arguments.
-  //
-  // Certain users may not be eligible for the GiC opt-in in Chrome First Run
-  // (e.g. U18).
   static bool IsEnabledForFirstRunProfile(Profile* profile,
                                           std::string_view permanent_country,
                                           std::string_view session_country,
                                           const AccountInfo& account_info);
-
-  // Returns true if the device is running in retail demo mode on Android
-  // Desktop.
-  static bool IsRetailDemoModeDesktop();
 
   // Returns true if the user was previously determined to be ineligible for
   // Glic.
@@ -545,20 +537,8 @@ class GlicEnabling final : public signin::IdentityManager::Observer,
     glic_user_status_fetcher_->UpdateUserStatusWithThrottling();
   }
 
-  // RAII helper to temporarily bypass enablement checks during a test, and
-  // restore the previous state upon destruction.
-  class ScopedBypassEnablementChecksForTesting {
-   public:
-    ScopedBypassEnablementChecksForTesting();
-    ~ScopedBypassEnablementChecksForTesting();
-    ScopedBypassEnablementChecksForTesting(
-        const ScopedBypassEnablementChecksForTesting&) = delete;
-    ScopedBypassEnablementChecksForTesting& operator=(
-        const ScopedBypassEnablementChecksForTesting&) = delete;
-
-   private:
-    base::AutoReset<bool> auto_reset_;
-  };
+  // Test-only method to bypass enablement checks.
+  static void SetBypassEnablementChecksForTesting(bool bypass);
 
   // Test-only method to bypass system requirement checks.
   static void SetSystemRequirementMetForTesting(std::optional<bool> met);

@@ -71,9 +71,6 @@ public class TabBottomSheetMediator extends GestureStateListener {
     }
 
     void onSheetStateChanged(@SheetState int state) {
-        if (mCurrentSheetState == state) {
-            return;
-        }
         mCurrentSheetState = state;
         if (state == SheetState.PEEK) {
             mModel.set(TabBottomSheetProperties.PEEK_STATE_ALPHA, 1.0f);

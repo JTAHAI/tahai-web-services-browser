@@ -176,13 +176,12 @@ void OmniboxAutofillBubbleController::OnBubbleClosed(
     action_item->SetIsShowingBubble(false);
   }
 
-  // When the bubble is closed without accepting a suggestion, collapse the
-  // expanded omnibox chip down to icon-only mode.
-  if (reason != PaymentsUiClosedReason::kAccepted) {
-    if (OmniboxAutofillPageActionController* page_action_controller =
-            OmniboxAutofillPageActionController::From(*tab_interface_)) {
-      page_action_controller->ShowCollapsedChip();
-    }
+  // When the bubble is closed (whether after interaction, dismissal, or
+  // selection), collapse the expanded text chip down to icon-only mode so
+  // the omnibox stays uncluttered while keeping the page action active.
+  if (OmniboxAutofillPageActionController* page_action_controller =
+          OmniboxAutofillPageActionController::From(*tab_interface_)) {
+    page_action_controller->ShowCollapsedChip();
   }
 
   ResetBubbleViewAndInformBubbleManager();
@@ -217,7 +216,7 @@ actions::ActionItem* OmniboxAutofillBubbleController::GetActionItem() {
     return nullptr;
   }
   actions::ActionItem* root_action_item =
-      BrowserActions::From(browser_window)->root_action_item();
+      browser_window->GetActions()->root_action_item();
   if (!root_action_item) {
     return nullptr;
   }

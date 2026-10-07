@@ -1,2 +1,3 @@
-rules:
-- "**": [webnn]
+features:
+- name: webnn
+  files: "**"

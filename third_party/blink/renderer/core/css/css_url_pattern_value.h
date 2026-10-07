@@ -19,9 +19,7 @@ class CSSURLPatternValue : public CSSValue {
   // The base class requires these to be implemented:
   String CustomCSSText() const;
   bool Equals(const CSSURLPatternValue&) const;
-  void TraceAfterDispatch(Visitor* visitor) const {
-    CSSValue::TraceAfterDispatch(visitor);
-  }
+  void TraceAfterDispatch(Visitor*) const;
 
   const AtomicString& UrlString() const { return url_string_; }
 

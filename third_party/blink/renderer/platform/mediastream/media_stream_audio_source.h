@@ -130,9 +130,8 @@ class PLATFORM_EXPORT MediaStreamAudioSource
   virtual bool IsProcessedSource() const { return false; }
   virtual bool IsApmProcessedSource() const { return false; }
 
-#if BUILDFLAG(CHROME_WIDE_ECHO_CANCELLATION)
-  virtual void SetVoiceIsolation(bool enabled) {}
-#endif
+  virtual void SetAudioProcessingProperties(
+      const blink::AudioProcessingProperties& properties) {}
 
   std::optional<media::AudioCapturerSource::ErrorCode> ErrorCode();
 

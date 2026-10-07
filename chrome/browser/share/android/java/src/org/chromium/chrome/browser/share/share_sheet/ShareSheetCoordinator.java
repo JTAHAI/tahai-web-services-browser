@@ -44,6 +44,7 @@ import org.chromium.chrome.browser.ui.signin.SigninAndHistorySyncActivityLaunche
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetContent;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetObserver;
+import org.chromium.components.browser_ui.bottomsheet.EmptyBottomSheetObserver;
 import org.chromium.components.browser_ui.device_lock.DeviceLockActivityLauncher;
 import org.chromium.components.browser_ui.share.ShareParams;
 import org.chromium.components.favicon.LargeIconBridge;
@@ -91,7 +92,7 @@ public class ShareSheetCoordinator
     private @Nullable LinkToTextCoordinator mLinkToTextCoordinator;
     private @Nullable ShareSheetLinkToggleCoordinator mShareSheetLinkToggleCoordinator;
     private final ShareSheetUsageRankingHelper mShareSheetUsageRankingHelper;
-    private @LinkGeneration int mLinkGenerationStatusForMetrics = LinkGeneration.COUNT;
+    private @LinkGeneration int mLinkGenerationStatusForMetrics = LinkGeneration.MAX;
     private LinkToggleMetricsDetails mLinkToggleMetricsDetails =
             new LinkToggleMetricsDetails(LinkToggleState.COUNT, DetailedContentType.NOT_SPECIFIED);
     private final DeviceLockActivityLauncher mDeviceLockActivityLauncher;
@@ -144,9 +145,10 @@ public class ShareSheetCoordinator
         mModalDialogManagerSupplier = modalDialogManagerSupplier;
         mSnackbarManager = snackbarManager;
         mBottomSheetObserver =
-                new BottomSheetObserver() {
+                new EmptyBottomSheetObserver() {
                     @Override
                     public void onSheetContentChanged(@Nullable BottomSheetContent bottomSheet) {
+                        super.onSheetContentChanged(bottomSheet);
                         if (mBottomSheet == null) {
                             return;
                         }

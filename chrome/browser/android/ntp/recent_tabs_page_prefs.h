@@ -5,30 +5,30 @@
 #ifndef CHROME_BROWSER_ANDROID_NTP_RECENT_TABS_PAGE_PREFS_H_
 #define CHROME_BROWSER_ANDROID_NTP_RECENT_TABS_PAGE_PREFS_H_
 
-#include <string>
-
+#include "base/android/scoped_java_ref.h"
 #include "base/memory/raw_ptr.h"
 #include "chrome/browser/profiles/profile.h"
 
 class RecentTabsPagePrefs {
  public:
   explicit RecentTabsPagePrefs(Profile* profile);
-  void Destroy();
+  void Destroy(JNIEnv* env);
 
   RecentTabsPagePrefs(const RecentTabsPagePrefs&) = delete;
   RecentTabsPagePrefs& operator=(const RecentTabsPagePrefs&) = delete;
 
-  bool GetSnapshotDocumentCollapsed();
-  void SetSnapshotDocumentCollapsed(bool is_collapsed);
+  bool GetSnapshotDocumentCollapsed(JNIEnv* env);
+  void SetSnapshotDocumentCollapsed(JNIEnv* env, bool is_collapsed);
 
-  bool GetRecentlyClosedTabsCollapsed();
-  void SetRecentlyClosedTabsCollapsed(bool is_collapsed);
+  bool GetRecentlyClosedTabsCollapsed(JNIEnv* env);
+  void SetRecentlyClosedTabsCollapsed(JNIEnv* env, bool is_collapsed);
 
-  bool GetSyncPromoCollapsed();
-  void SetSyncPromoCollapsed(bool is_collapsed);
+  bool GetSyncPromoCollapsed(JNIEnv* env);
+  void SetSyncPromoCollapsed(JNIEnv* env, bool is_collapsed);
 
-  bool GetForeignSessionCollapsed(const std::string& session_tag);
-  void SetForeignSessionCollapsed(const std::string& session_tag,
+  bool GetForeignSessionCollapsed(JNIEnv* env, const std::string& session_tag);
+  void SetForeignSessionCollapsed(JNIEnv* env,
+                                  const std::string& session_tag,
                                   bool is_collapsed);
 
   static void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry);

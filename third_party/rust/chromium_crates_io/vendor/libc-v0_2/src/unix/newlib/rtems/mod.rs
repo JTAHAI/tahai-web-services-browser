@@ -56,11 +56,7 @@ pub const SIGWINCH: c_int = 24;
 pub const SIGUSR1: c_int = 25;
 pub const SIGUSR2: c_int = 26;
 pub const SIGRTMIN: c_int = 27;
-
-/// Constants may change across releases. See the [usage guidelines](crate#usage-guidelines)
-/// for details.
 pub const SIGRTMAX: c_int = 31;
-
 pub const SIGXCPU: c_int = 24;
 pub const SIGXFSZ: c_int = 25;
 pub const SIGVTALRM: c_int = 26;
@@ -87,38 +83,38 @@ pub const WUNTRACED: c_int = 2;
 pub const SOMAXCONN: c_int = 128;
 
 safe_f! {
-    pub const safe fn WIFSTOPPED(status: c_int) -> bool {
+    pub const fn WIFSTOPPED(status: c_int) -> bool {
         (status & 0xff) == 0x7f
     }
 
-    pub const safe fn WSTOPSIG(status: c_int) -> c_int {
+    pub const fn WSTOPSIG(status: c_int) -> c_int {
         // (status >> 8) & 0xff
         WEXITSTATUS(status)
     }
 
-    pub const safe fn WIFSIGNALED(status: c_int) -> bool {
+    pub const fn WIFSIGNALED(status: c_int) -> bool {
         ((status & 0x7f) > 0) && ((status & 0x7f) < 0x7f)
     }
 
-    pub const safe fn WTERMSIG(status: c_int) -> c_int {
+    pub const fn WTERMSIG(status: c_int) -> c_int {
         status & 0x7f
     }
 
-    pub const safe fn WIFEXITED(status: c_int) -> bool {
+    pub const fn WIFEXITED(status: c_int) -> bool {
         (status & 0xff) == 0
     }
 
-    pub const safe fn WEXITSTATUS(status: c_int) -> c_int {
+    pub const fn WEXITSTATUS(status: c_int) -> c_int {
         (status >> 8) & 0xff
     }
 
     // RTEMS doesn't have native WIFCONTINUED.
-    pub const safe fn WIFCONTINUED(_status: c_int) -> bool {
+    pub const fn WIFCONTINUED(_status: c_int) -> bool {
         true
     }
 
     // RTEMS doesn't have native WCOREDUMP.
-    pub const safe fn WCOREDUMP(_status: c_int) -> bool {
+    pub const fn WCOREDUMP(_status: c_int) -> bool {
         false
     }
 }

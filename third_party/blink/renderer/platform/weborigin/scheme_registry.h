@@ -196,8 +196,6 @@ class PLATFORM_EXPORT SchemeRegistry {
   // WebUI Schemes that can use bundled resource bytecode retrieved from the
   // static resource bundle.
   static void RegisterURLSchemeAsWebUIBundledBytecode(const String& scheme);
-  static void RegisterURLSchemeAsWebUIBundledBytecodeForTest(
-      const String& scheme);
   static void RemoveURLSchemeAsWebUIBundledBytecodeForTest(
       const String& scheme);
   static bool SchemeSupportsWebUIBundledBytecode(const String& scheme);

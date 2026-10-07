@@ -5,7 +5,6 @@
 #include "components/enterprise/connectors/core/analysis_service_settings_base.h"
 
 #include "base/logging.h"
-#include "base/notreached.h"
 #include "base/strings/utf_string_conversions.h"
 #include "components/enterprise/connectors/core/common.h"
 #include "components/url_matcher/url_util.h"
@@ -42,10 +41,6 @@ AnalysisServiceSettingsBase::AnalysisServiceSettingsBase(
   ParseMinimumDataSize(settings_dict);
   ParseCustomMessages(settings_dict);
   ParseJustificationTags(settings_dict);
-
-#if BUILDFLAG(ENTERPRISE_LOCAL_CONTENT_ANALYSIS)
-  ParseVerificationSignatures(settings_dict);
-#endif
 }
 
 bool AnalysisServiceSettingsBase::TryParseServiceProviderData(
@@ -59,14 +54,9 @@ bool AnalysisServiceSettingsBase::TryParseServiceProviderData(
     return false;
   }
 
-  return SetServiceProvider(*service_provider_name, service_provider_config);
-}
-
-bool AnalysisServiceSettingsBase::SetServiceProvider(
-    const std::string& service_provider_name,
-    const ServiceProviderConfig& config) {
-  service_provider_name_ = service_provider_name;
-  if (auto it = config.find(service_provider_name_); it != config.end()) {
+  service_provider_name_ = *service_provider_name;
+  if (auto it = service_provider_config.find(service_provider_name_);
+      it != service_provider_config.end()) {
     analysis_config_ = it->second.analysis;
   }
   if (!analysis_config_) {
@@ -245,68 +235,14 @@ AnalysisServiceSettingsBase::GetAnalysisSettings(const GURL& url,
   }
 
   auto settings = GetCommonAnalysisSettings(matches);
-  if (!settings.has_value()) {
-    return std::nullopt;
+  if (!settings.has_value() || is_local_analysis()) {
+    return settings;
   }
 
-  if (is_cloud_analysis()) {
-    settings->cloud_or_local_settings =
-        CloudOrLocalAnalysisSettings(GetCloudAnalysisSettings(data_region));
-  } else {
-    settings->cloud_or_local_settings =
-        CloudOrLocalAnalysisSettings(GetLocalAnalysisSettings());
-  }
+  settings->cloud_or_local_settings =
+      CloudOrLocalAnalysisSettings(GetCloudAnalysisSettings(data_region));
 
   return settings;
-}
-
-LocalAnalysisSettings AnalysisServiceSettingsBase::GetLocalAnalysisSettings()
-    const {
-  CHECK(is_local_analysis());
-
-  LocalAnalysisSettings local_settings;
-  local_settings.local_path = analysis_config_->local_path;
-  local_settings.user_specific = analysis_config_->user_specific;
-  local_settings.subject_names = analysis_config_->subject_names;
-  // We assume all support_tags structs have the same max file size.
-  local_settings.max_file_size =
-      analysis_config_->supported_tags[0].max_file_size;
-  local_settings.verification_signatures = verification_signatures_;
-
-  return local_settings;
-}
-
-#if BUILDFLAG(ENTERPRISE_LOCAL_CONTENT_ANALYSIS)
-void AnalysisServiceSettingsBase::ParseVerificationSignatures(
-    const base::DictValue& settings_dict) {
-#if BUILDFLAG(IS_WIN)
-  const char* verification_key = kKeyWindowsVerification;
-#elif BUILDFLAG(IS_MAC)
-  const char* verification_key = kKeyMacVerification;
-#elif BUILDFLAG(IS_LINUX)
-  const char* verification_key = kKeyLinuxVerification;
-#endif
-
-  const base::ListValue* signatures =
-      settings_dict.FindListByDottedPath(verification_key);
-  if (!signatures) {
-    return;
-  }
-
-  for (auto& v : *signatures) {
-    if (v.is_string()) {
-      verification_signatures_.push_back(v.GetString());
-    }
-  }
-}
-#endif
-
-std::optional<AnalysisSettings>
-AnalysisServiceSettingsBase::GetNetworkRequestAnalysisSettings(
-    const GURL& tab_url,
-    const GURL& request_url,
-    DataRegion data_region) const {
-  NOTREACHED();
 }
 
 std::optional<AnalysisSettings>
@@ -473,7 +409,6 @@ bool AnalysisServiceSettingsBase::is_local_analysis() const {
   return analysis_config_ && analysis_config_->local_path != nullptr;
 }
 
-AnalysisServiceSettingsBase::AnalysisServiceSettingsBase() = default;
 AnalysisServiceSettingsBase::AnalysisServiceSettingsBase(
     AnalysisServiceSettingsBase&&) = default;
 AnalysisServiceSettingsBase& AnalysisServiceSettingsBase::operator=(

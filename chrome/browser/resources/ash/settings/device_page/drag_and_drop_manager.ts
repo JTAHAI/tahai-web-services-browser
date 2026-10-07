@@ -11,7 +11,6 @@
  * when an eligible element is dropped.
  */
 
-import {assert} from 'chrome://resources/js/assert.js';
 import {EventTracker} from 'chrome://resources/js/event_tracker.js';
 
 import {CustomizeButtonRowElement} from './customize_button_row.js';
@@ -72,9 +71,9 @@ export function getDataTransferOriginIndex(dragEvent: DragEvent): number|null {
 
 export class DragAndDropManager {
   private eventTracker_: EventTracker = new EventTracker();
-  private dropDestination: DropDestination|null = null;
-  private dropElement: CustomizeButtonRowElement|null = null;
-  private onDropCallback: OnDropCallback|null = null;
+  private dropDestination: DropDestination|null;
+  private dropElement: CustomizeButtonRowElement|null;
+  private onDropCallback: OnDropCallback;
 
   init(element: HTMLElement, onDropCallbackParam: OnDropCallback): void {
     this.eventTracker_.add(
@@ -162,7 +161,6 @@ export class DragAndDropManager {
       return;
     }
 
-    assert(this.onDropCallback);
     this.onDropCallback(originIndex, destinationElementIndex);
   }
 

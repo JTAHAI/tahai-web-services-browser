@@ -4,7 +4,6 @@
 
 #include "partition_alloc/thread_isolation/thread_isolation.h"
 
-#include "partition_alloc/buildflags.h"
 #include "partition_alloc/partition_alloc_base/compiler_specific.h"
 
 #if PA_BUILDFLAG(ENABLE_THREAD_ISOLATION)
@@ -23,7 +22,7 @@ namespace partition_alloc::internal {
 
 #if PA_BUILDFLAG(DCHECKS_ARE_ON) || \
     PA_BUILDFLAG(ENABLE_PARTITION_LOCK_REENTRANCY_CHECK)
-constinit ThreadIsolationSettings ThreadIsolationSettings::settings;
+PA_CONSTINIT ThreadIsolationSettings ThreadIsolationSettings::settings;
 #endif
 
 void WriteProtectThreadIsolatedMemory(ThreadIsolationOption thread_isolation,

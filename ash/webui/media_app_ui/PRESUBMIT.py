@@ -12,7 +12,8 @@ def CheckChangeOnCommit(input_api, output_api):
 
 
 def _CommonChecks(input_api, output_api):
-  results = []
+  results = input_api.canned_checks.CheckPatchFormatted(input_api, output_api,
+                                                        check_js=True)
   try:
     import sys
     old_sys_path = sys.path[:]

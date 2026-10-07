@@ -4,8 +4,6 @@
 
 #include "components/contextual_search/mock_contextual_search_service.h"
 
-#include "base/functional/callback_helpers.h"
-
 namespace contextual_search {
 
 MockContextualSearchService::MockContextualSearchService(
@@ -21,8 +19,7 @@ MockContextualSearchService::MockContextualSearchService(
                               variations_client,
                               channel,
                               locale,
-                              /*tab_validator=*/nullptr,
-                              base::DoNothing()) {}
+                              /*tab_validator=*/nullptr) {}
 
 MockContextualSearchService::~MockContextualSearchService() = default;
 

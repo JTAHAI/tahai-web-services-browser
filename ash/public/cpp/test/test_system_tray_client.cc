@@ -66,9 +66,7 @@ void TestSystemTrayClient::ShowAboutChromeOSDetails() {}
 
 void TestSystemTrayClient::ShowAccessibilityHelp() {}
 
-void TestSystemTrayClient::ShowAccessibilitySettings() {
-  show_accessibility_settings_count_++;
-}
+void TestSystemTrayClient::ShowAccessibilitySettings() {}
 
 void TestSystemTrayClient::ShowColorCorrectionSettings() {
   show_color_correction_settings_count_++;

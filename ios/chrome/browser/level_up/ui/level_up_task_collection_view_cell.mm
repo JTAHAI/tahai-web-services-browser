@@ -96,8 +96,9 @@ const CGFloat kLayoutSpacing = 16.0;
 
     [self.contentView addSubview:mainStack];
 
-    AddSameConstraintsToSides(mainStack, self.contentView,
-                              LayoutSides::kTop | LayoutSides::kHorizontal);
+    AddSameConstraintsToSides(
+        mainStack, self.contentView,
+        LayoutSides::kTop | LayoutSides::kLeading | LayoutSides::kTrailing);
     NSLayoutConstraint* stackBottomConstraint = [mainStack.bottomAnchor
         constraintEqualToAnchor:self.contentView.bottomAnchor];
     stackBottomConstraint.priority = UILayoutPriorityDefaultHigh - 1;

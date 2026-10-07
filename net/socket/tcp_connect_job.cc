@@ -67,7 +67,14 @@ bool IsDualRaceOptimisticDnsEnabled() {
 }
 
 bool IsEchEnabled(SSLClientContext* ssl_client_context, std::string_view host) {
-  return ssl_client_context && ssl_client_context->IsEchEnabled(host);
+  if (!ssl_client_context || !ssl_client_context->config().ech_enabled) {
+    return false;
+  }
+  if (!ssl_client_context->ssl_config_service()) {
+    return true;
+  }
+  return ssl_client_context->ssl_config_service()->GetEchMode(host) !=
+         EchMode::kDisabled;
 }
 
 // Returns true if the given `endpoint` is present in the provided `results`

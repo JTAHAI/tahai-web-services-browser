@@ -28,7 +28,7 @@
 #include "build/build_config.h"
 #include "chrome/browser/content_settings/cookie_settings_factory.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/login/login_handler.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/web_applications/isolated_web_apps/test/isolated_web_app_builder.h"
@@ -68,14 +68,11 @@
 #include "net/traffic_annotation/network_traffic_annotation_test_helper.h"
 #include "services/network/public/cpp/constants.h"
 #include "services/network/public/cpp/features.h"
-#include "services/network/public/cpp/ip_address_space_overrides_test_utils.h"
 #include "services/network/public/cpp/network_switches.h"
-#include "services/network/public/mojom/ip_address_space.mojom.h"
 #include "services/network/public/mojom/network_context.mojom.h"
 #include "services/network/public/mojom/websocket.mojom.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
-#include "third_party/blink/public/common/features.h"
 #include "url/gurl.h"
 #include "url/origin.h"
 
@@ -186,8 +183,7 @@ class WebSocketBrowserTest : public InProcessBrowserTest {
                                              frame->GetRoutingID())),
         /*auth_handler=*/mojo::NullRemote(), std::move(header_client),
         /*throttling_profile_id=*/std::nullopt,
-        /*network_restrictions_id=*/network::GetTestNetworkRestrictionsId(),
-        /*target_address_space=*/network::mojom::IPAddressSpace::kUnknown);
+        /*network_restrictions_id=*/network::GetTestNetworkRestrictionsId());
   }
 
   void SetBlockThirdPartyCookies(bool blocked) {
@@ -217,9 +213,6 @@ class WebSocketBrowserTestWithAllowFileAccessFromFiles
 
 // Framework for tests using the connect_to.html page served by a separate HTTP
 // or HTTPS server.
-// The title watcher and HTTP/HTTPS server are set up automatically by the test
-// framework. Each test case still needs to configure and start the
-// WebSocket server(s) it needs.
 class WebSocketBrowserConnectToTest : public WebSocketBrowserTest {
  protected:
   explicit WebSocketBrowserConnectToTest(
@@ -227,9 +220,13 @@ class WebSocketBrowserConnectToTest : public WebSocketBrowserTest {
           net::EmbeddedTestServer::CERT_OK)
       : WebSocketBrowserTest(cert) {}
 
+  // The title watcher and HTTP server are set up automatically by the test
+  // framework. Each test case still needs to configure and start the
+  // WebSocket server(s) it needs.
   void SetUpOnMainThread() override {
+    server().ServeFilesFromSourceDirectory(GetChromeTestDataDir());
     WebSocketBrowserTest::SetUpOnMainThread();
-    server().StartAcceptingConnections();
+    ASSERT_TRUE(server().Start());
   }
 
   // Supply a ws: or wss: URL to connect to. Serves connect_to.html from the
@@ -252,14 +249,6 @@ class WebSocketBrowserConnectToTest : public WebSocketBrowserTest {
     ASSERT_TRUE(ui_test_utils::NavigateToURL(
         browser(),
         server().GetURL(host, resource).ReplaceComponents(replacements)));
-  }
-
-  // Initialize server() here because port is needed for command line overrides
-  // in subclasses.
-  void SetUpCommandLine(base::CommandLine* command_line) override {
-    WebSocketBrowserTest::SetUpCommandLine(command_line);
-    server().ServeFilesFromSourceDirectory(GetChromeTestDataDir());
-    ASSERT_TRUE(server().InitializeAndListen());
   }
 
   virtual net::EmbeddedTestServer& server() = 0;
@@ -298,12 +287,8 @@ class WebSocketBrowserHTTPSConnectToTest
 
   void SetUpOnMainThread() override {
     host_resolver()->AddRule("*", "127.0.0.1");
-    WebSocketBrowserConnectToTest::SetUpOnMainThread();
-  }
-
-  void SetUpCommandLine(base::CommandLine* command_line) override {
     server().SetSSLConfig(net::EmbeddedTestServer::CERT_TEST_NAMES);
-    WebSocketBrowserConnectToTest::SetUpCommandLine(command_line);
+    WebSocketBrowserConnectToTest::SetUpOnMainThread();
   }
 
   net::EmbeddedTestServer& server() override { return https_server_; }
@@ -327,21 +312,14 @@ class LocalNetworkAccessWebSocketsBrowserTest
               resource);
   }
 
-  // For checking that mixed content checks are bypassed properly when using a
-  // literal local hostname.
+  // For checking that mixed content checks are bypassed properly.
+  //
+  // Note the usage of kHostLocal, as that's the only method of signaling to the
+  // mixed content checker that the websocket connection might be LNA as the
+  // WebSocket API doesn't have the fetch API's targetAddressSpace option.
   void ConnectToInsecureLNAWebSocket(const std::string& resource) {
     ConnectTo(kHostB,
               net::test_server::GetWebSocketURL(ws_server_, kHostLocal,
-                                                "/echo-with-no-extension"),
-              resource);
-  }
-
-  // For checking that mixed content checks are bypassed properly when using the
-  // targetAddressSpace option on an arbitrary target hostname.
-  void ConnectToInsecureLNAWebSocketWithTargetAddressSpace(
-      const std::string& resource) {
-    ConnectTo(kHostB,
-              net::test_server::GetWebSocketURL(ws_server_, kHostA,
                                                 "/echo-with-no-extension"),
               resource);
   }
@@ -353,10 +331,7 @@ class LocalNetworkAccessWebSocketsBrowserTest
     feature_list_.InitWithFeaturesAndParameters(
         {{network::features::kLocalNetworkAccessChecks,
           {{"LocalNetworkAccessChecksWarn", "false"}}},
-         {network::features::kLocalNetworkAccessChecksWebSockets, {}},
-         {blink::features::kWebSocketOptionBag, {}},
-         {blink::features::kLocalNetworkAccessWebSocketsTargetAddressSpace,
-          {}}},
+         {network::features::kLocalNetworkAccessChecksWebSockets, {}}},
         {});
     WebSocketBrowserHTTPSConnectToTest::SetUp();
   }
@@ -378,11 +353,12 @@ class LocalNetworkAccessWebSocketsBrowserTest
   }
 
   void SetUpCommandLine(base::CommandLine* command_line) override {
+    // Clear default from InProcessBrowserTest as test doesn't want 127.0.0.1 in
+    // the public address space
+    command_line->AppendSwitchASCII(network::switches::kIpAddressSpaceOverrides,
+                                    "");
+
     WebSocketBrowserHTTPSConnectToTest::SetUpCommandLine(command_line);
-    // Change default from InProcessBrowserTest as test only want
-    // server() in the public address space.
-    network::AddPublicIpAddressSpaceOverrideToCommandLine(server(),
-                                                          *command_line);
   }
 
  private:
@@ -392,78 +368,62 @@ class LocalNetworkAccessWebSocketsBrowserTest
 };
 
 IN_PROC_BROWSER_TEST_F(LocalNetworkAccessWebSocketsBrowserTest,
-                       DISABLED_LNAWebSocketConnectionHasPermission) {
+                       LNAWebSocketConnectionHasPermission) {
   bubble_factory()->set_response_type(ACCEPT_ALL);
-  ConnectToLNAWebSocket("/websocket/connect_to.html");
+  ConnectToLNAWebSocket("/websocket/connect_to_as_public_address.html");
   EXPECT_EQ("PASS", WaitAndGetTitle());
 }
 
 IN_PROC_BROWSER_TEST_F(LocalNetworkAccessWebSocketsBrowserTest,
-                       DISABLED_LNAWebSocketConnectionDeniedPermission) {
+                       LNAWebSocketConnectionDeniedPermission) {
   bubble_factory()->set_response_type(DENY_ALL);
-  ConnectToLNAWebSocket("/websocket/connect_to.html");
+  ConnectToLNAWebSocket("/websocket/connect_to_as_public_address.html");
   EXPECT_EQ("FAIL", WaitAndGetTitle());
 }
 
 IN_PROC_BROWSER_TEST_F(LocalNetworkAccessWebSocketsBrowserTest,
-                       DISABLED_LNAInsecureWebSocketConnectionHasPermission) {
+                       LNAInsecureWebSocketConnectionHasPermission) {
   bubble_factory()->set_response_type(ACCEPT_ALL);
-  ConnectToInsecureLNAWebSocket("/websocket/connect_to.html");
+  ConnectToInsecureLNAWebSocket("/websocket/connect_to_as_public_address.html");
   EXPECT_EQ("PASS", WaitAndGetTitle());
 }
 
 IN_PROC_BROWSER_TEST_F(LocalNetworkAccessWebSocketsBrowserTest,
-                       DISABLED_LNAInsecureWebSocketDeniedPermission) {
+                       LNAInsecureWebSocketDeniedPermission) {
   bubble_factory()->set_response_type(DENY_ALL);
-  ConnectToInsecureLNAWebSocket("/websocket/connect_to.html");
-  EXPECT_EQ("FAIL", WaitAndGetTitle());
-}
-
-IN_PROC_BROWSER_TEST_F(
-    LocalNetworkAccessWebSocketsBrowserTest,
-    DISABLED_LNAInsecureWebSocketTargetAddressSpaceHasPermission) {
-  bubble_factory()->set_response_type(ACCEPT_ALL);
-  ConnectToInsecureLNAWebSocketWithTargetAddressSpace(
-      "/websocket/connect_to_with_target_address_space_loopback.html");
-  EXPECT_EQ("PASS", WaitAndGetTitle());
-}
-
-IN_PROC_BROWSER_TEST_F(
-    LocalNetworkAccessWebSocketsBrowserTest,
-    DISABLED_LNAInsecureWebSocketTargetAddressSpaceDeniedPermission) {
-  bubble_factory()->set_response_type(DENY_ALL);
-  ConnectToInsecureLNAWebSocketWithTargetAddressSpace(
-      "/websocket/connect_to_with_target_address_space_loopback.html");
+  ConnectToInsecureLNAWebSocket("/websocket/connect_to_as_public_address.html");
   EXPECT_EQ("FAIL", WaitAndGetTitle());
 }
 
 IN_PROC_BROWSER_TEST_F(LocalNetworkAccessWebSocketsBrowserTest,
-                       DISABLED_LNAWorkerWebSocketConnectionHasPermission) {
+                       LNAWorkerWebSocketConnectionHasPermission) {
   bubble_factory()->set_response_type(ACCEPT_ALL);
-  ConnectToLNAWebSocket("/websocket/connect_to_using_worker.html");
+  ConnectToLNAWebSocket(
+      "/websocket/connect_to_using_worker_as_public_address.html");
   EXPECT_EQ("PASS", WaitAndGetTitle());
 }
 
 IN_PROC_BROWSER_TEST_F(LocalNetworkAccessWebSocketsBrowserTest,
-                       DISABLED_LNAWorkerWebSocketConnectionDeniedPermission) {
+                       LNAWorkerWebSocketConnectionDeniedPermission) {
   bubble_factory()->set_response_type(DENY_ALL);
-  ConnectToLNAWebSocket("/websocket/connect_to_using_worker.html");
+  ConnectToLNAWebSocket(
+      "/websocket/connect_to_using_worker_as_public_address.html");
   EXPECT_EQ("FAIL", WaitAndGetTitle());
 }
 
-IN_PROC_BROWSER_TEST_F(
-    LocalNetworkAccessWebSocketsBrowserTest,
-    DISABLED_LNAWorkerInsecureWebSocketConnectionHasPermission) {
+IN_PROC_BROWSER_TEST_F(LocalNetworkAccessWebSocketsBrowserTest,
+                       LNAWorkerInsecureWebSocketConnectionHasPermission) {
   bubble_factory()->set_response_type(ACCEPT_ALL);
-  ConnectToInsecureLNAWebSocket("/websocket/connect_to_using_worker.html");
+  ConnectToInsecureLNAWebSocket(
+      "/websocket/connect_to_using_worker_as_public_address.html");
   EXPECT_EQ("PASS", WaitAndGetTitle());
 }
 
-IN_PROC_BROWSER_TEST_F(
-    LocalNetworkAccessWebSocketsBrowserTest,
-    DISABLED_LNAWorkerInsecureWebSocketConnectionDeniedPermission) {
+IN_PROC_BROWSER_TEST_F(LocalNetworkAccessWebSocketsBrowserTest,
+                       LNAWorkerInsecureWebSocketConnectionDeniedPermission) {
   bubble_factory()->set_response_type(DENY_ALL);
-  ConnectToInsecureLNAWebSocket("/websocket/connect_to_using_worker.html");
+  ConnectToInsecureLNAWebSocket(
+      "/websocket/connect_to_using_worker_as_public_address.html");
   EXPECT_EQ("FAIL", WaitAndGetTitle());
 }
 
@@ -509,13 +469,15 @@ IN_PROC_BROWSER_TEST_F(LocalNetworkAccessWebSocketsPolicyBrowserTest,
             base::Value(base::ListValue().Append("*")));
   UpdateProviderPolicy(policies);
 
-  ConnectToLNAWebSocket("/websocket/connect_to_using_service_worker.html");
+  ConnectToLNAWebSocket(
+      "/websocket/connect_to_using_service_worker_as_public_address.html");
   EXPECT_EQ("PASS", WaitAndGetTitle());
 }
 
 IN_PROC_BROWSER_TEST_F(LocalNetworkAccessWebSocketsPolicyBrowserTest,
                        LNAServiceWorkerWebSocketConnectionDeniedPermission) {
-  ConnectToLNAWebSocket("/websocket/connect_to_using_service_worker.html");
+  ConnectToLNAWebSocket(
+      "/websocket/connect_to_using_service_worker_as_public_address.html");
   EXPECT_EQ("FAIL", WaitAndGetTitle());
 }
 
@@ -528,13 +490,15 @@ IN_PROC_BROWSER_TEST_F(LocalNetworkAccessWebSocketsPolicyBrowserTest,
             base::Value(base::ListValue().Append("*")));
   UpdateProviderPolicy(policies);
 
-  ConnectToLNAWebSocket("/websocket/connect_to_using_shared_worker.html");
+  ConnectToLNAWebSocket(
+      "/websocket/connect_to_using_shared_worker_as_public_address.html");
   EXPECT_EQ("PASS", WaitAndGetTitle());
 }
 
 IN_PROC_BROWSER_TEST_F(LocalNetworkAccessWebSocketsPolicyBrowserTest,
                        LNASharedWorkerWebSocketConnectionDeniedPermission) {
-  ConnectToLNAWebSocket("/websocket/connect_to_using_shared_worker.html");
+  ConnectToLNAWebSocket(
+      "/websocket/connect_to_using_shared_worker_as_public_address.html");
   EXPECT_EQ("FAIL", WaitAndGetTitle());
 }
 

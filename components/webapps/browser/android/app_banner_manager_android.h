@@ -111,7 +111,6 @@ class AppBannerManagerAndroid
 
   // Returns true if the banner pipeline is currently running.
   bool IsRunningForTesting(JNIEnv* env);
-  void RecheckInstallability(JNIEnv* env);
 
   // Returns the state of the processing pipeline for testing purposes.
   int GetPipelineStatusForTesting(JNIEnv* env);

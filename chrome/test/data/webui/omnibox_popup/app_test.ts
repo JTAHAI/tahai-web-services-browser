@@ -72,7 +72,7 @@ suite('AppTest', function() {
   test('CurrentTabChipShown', async () => {
     loadTimeData.overrideValues({
       composeboxShowCurrentTabChip: true,
-      composeboxShowChip: true,
+      composeboxShowLensSearchChip: true,
     });
 
     // Re-create app to apply loadTimeData overrides.

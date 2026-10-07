@@ -14,7 +14,6 @@
 #include "base/feature_list.h"
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
-#include "base/files/important_file_writer.h"
 #include "base/functional/bind.h"
 #include "base/functional/callback.h"
 #include "base/functional/callback_helpers.h"
@@ -98,24 +97,8 @@ PersistentPrefStore::PrefReadError HandleReadErrors(
   return PersistentPrefStore::PREF_READ_ERROR_NONE;
 }
 
-// Returns the a histogram suffix for a few allowlisted JsonPref files.
-const char* GetHistogramSuffix(const base::FilePath& path) {
-  std::string spaceless_basename;
-  base::ReplaceChars(path.BaseName().MaybeAsASCII(), " ", "_",
-                     &spaceless_basename);
-  // Entries here should be reflected in the ImportantFileClients variant in
-  // histograms.xml.
-  static constexpr std::array<const char*, 4> kAllowList{
-      "Secure_Preferences", "Preferences", "Local_State", "AccountPreferences"};
-  auto it = std::ranges::find(kAllowList, spaceless_basename);
-  return it != kAllowList.end() ? *it : "";
-}
-
 std::unique_ptr<JsonPrefStore::ReadResult> ReadPrefsFromDisk(
     const base::FilePath& path) {
-  base::ImportantFileWriter::RestoreMissingFileIfNeeded(
-      path, GetHistogramSuffix(path));
-
   int error_code;
   std::string error_msg;
   auto read_result = std::make_unique<JsonPrefStore::ReadResult>();
@@ -127,6 +110,19 @@ std::unique_ptr<JsonPrefStore::ReadResult> ReadPrefsFromDisk(
   read_result->num_bytes_read = deserializer.get_last_read_size();
 
   return read_result;
+}
+
+// Returns the a histogram suffix for a few allowlisted JsonPref files.
+const char* GetHistogramSuffix(const base::FilePath& path) {
+  std::string spaceless_basename;
+  base::ReplaceChars(path.BaseName().MaybeAsASCII(), " ", "_",
+                     &spaceless_basename);
+  // Entries here should be reflected in the ImportantFileClients variant in
+  // histograms.xml.
+  static constexpr std::array<const char*, 4> kAllowList{
+      "Secure_Preferences", "Preferences", "Local_State", "AccountPreferences"};
+  auto it = std::ranges::find(kAllowList, spaceless_basename);
+  return it != kAllowList.end() ? *it : "";
 }
 
 std::optional<std::string> DoSerialize(base::ValueView value,

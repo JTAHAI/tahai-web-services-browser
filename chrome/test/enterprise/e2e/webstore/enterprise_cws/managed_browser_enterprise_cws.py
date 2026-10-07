@@ -14,6 +14,7 @@ from infra import ChromeEnterpriseTestCase
 @category('chrome_only')
 @environment(file="../policy_test.asset.textpb")
 class ManagedBrowserEnterpriseWebStore(ChromeEnterpriseTestCase):
+
   @before_all
   def setup(self):
     self.InstallChrome(self.win_config['client'])
@@ -26,17 +27,15 @@ class ManagedBrowserEnterpriseWebStore(ChromeEnterpriseTestCase):
     cmd = r'gsutil cat ' + path
     token = self.RunCommand(self.win_config['dc'], cmd).rstrip().decode()
 
-    self.SetPolicy(
-      self.win_config['dc'], r'CloudManagementEnrollmentToken', token, 'String'
-    )
+    self.SetPolicy(self.win_config['dc'], r'CloudManagementEnrollmentToken',
+                   token, 'String')
     self.RunCommand(self.win_config['client'], 'gpupdate /force')
 
     local_dir = os.path.dirname(os.path.abspath(__file__))
 
     output = self.RunWebDriverTest(
-      self.win_config['client'],
-      os.path.join(local_dir, '../enterprise_cws_webdriver.py'),
-    )
+        self.win_config['client'],
+        os.path.join(local_dir, '../enterprise_cws_webdriver.py'))
 
     # Verify Enterprise signals
     print(output)

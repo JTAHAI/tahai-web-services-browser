@@ -44,7 +44,6 @@
     },
     {
       name: "font-stretch",
-      alias: "font-width",
     },
     {
       name: "font-style",

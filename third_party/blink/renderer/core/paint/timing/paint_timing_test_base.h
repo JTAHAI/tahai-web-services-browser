@@ -7,14 +7,12 @@
 
 #include "base/time/time.h"
 #include "third_party/blink/public/strings/grit/blink_strings.h"
-#include "third_party/blink/renderer/core/html/html_image_element.h"
 #include "third_party/blink/renderer/core/loader/resource/image_resource_content.h"
 #include "third_party/blink/renderer/core/paint/timing/mock_paint_timing_callback_manager.h"
 #include "third_party/blink/renderer/core/paint/timing/paint_timing.h"
 #include "third_party/blink/renderer/core/paint/timing/paint_timing_detector.h"
 #include "third_party/blink/renderer/core/paint/timing/paint_timing_record.h"
 #include "third_party/blink/renderer/core/scroll/scroll_types.h"
-#include "third_party/blink/renderer/core/svg/svg_image_element.h"
 #include "third_party/blink/renderer/core/testing/core_unit_test_helper.h"
 #include "third_party/blink/renderer/core/timing/dom_window_performance.h"
 #include "third_party/blink/renderer/platform/graphics/unaccelerated_static_bitmap_image.h"
@@ -140,12 +138,6 @@ class PaintTimingTestBase : public RenderingTest {
 
   base::TimeTicks NowTicks() { return base::TimeTicks::Now(); }
 
-  PaintTiming& GetPaintTiming() { return PaintTiming::From(GetDocument()); }
-
-  PaintTiming& GetChildFramePaintTiming() {
-    return PaintTiming::From(ChildDocument());
-  }
-
   PaintTimingDetector& GetPaintTimingDetector() {
     return PaintTimingDetector::From(GetDocument());
   }
@@ -160,58 +152,16 @@ class PaintTimingTestBase : public RenderingTest {
     return scrollable_area->VisibleContentRect(kExcludeScrollbars);
   }
 
-  void SimulateScroll(
-      mojom::blink::ScrollType type = mojom::blink::ScrollType::kUser) {
-    GetPaintTiming().NotifyScroll(type);
+  void SimulateScroll() {
+    GetPaintTimingDetector().NotifyScroll(mojom::blink::ScrollType::kUser);
   }
 
   void SimulateKeyDown() {
-    GetPaintTiming().NotifyInputEvent(WebInputEvent::Type::kKeyDown);
+    GetPaintTimingDetector().NotifyInputEvent(WebInputEvent::Type::kKeyDown);
   }
 
   void SimulateKeyUp() {
-    GetPaintTiming().NotifyInputEvent(WebInputEvent::Type::kKeyUp);
-  }
-
-  // Sets the image content the given `id`, which must be an `ImageElement` or
-  // `SVGImageElement`. Returns the corresponding `ImageResourceContent`.
-  ImageResourceContent* SetImageContent(
-      const char* id,
-      int width,
-      int height,
-      int bytes = 0,
-      ImageStatus status = ImageStatus::kLoaded) {
-    return SetImageContentImpl(GetElementById(id), width, height, bytes,
-                               status);
-  }
-
-  ImageResourceContent* SetChildFrameImageContent(
-      const char* id,
-      int width,
-      int height,
-      int bytes = 0,
-      ImageStatus status = ImageStatus::kLoaded) {
-    return SetImageContentImpl(ChildDocument().getElementById(AtomicString(id)),
-                               width, height, bytes, status);
-  }
-
- private:
-  ImageResourceContent* SetImageContentImpl(
-      Element* element,
-      int width,
-      int height,
-      int bytes = 0,
-      ImageStatus status = ImageStatus::kLoaded) {
-    ImageResourceContent* content =
-        CreateImageForTest(width, height, bytes, status);
-    if (auto* image = DynamicTo<HTMLImageElement>(element)) {
-      image->SetImageForTest(content);
-    } else if (auto* svg_image = DynamicTo<SVGImageElement>(element)) {
-      svg_image->SetImageForTest(content);
-    } else {
-      NOTREACHED();
-    }
-    return content;
+    GetPaintTimingDetector().NotifyInputEvent(WebInputEvent::Type::kKeyUp);
   }
 
   ScopedTestingPlatformSupport<PaintTimingTestingPlatformSupport> platform_;

@@ -638,7 +638,7 @@ public class AutofillAiDelegate {
             return AutofillAiToggleState.DISABLED;
         }
 
-        if (entityDataManager.getIsAutofillAiEntityTypeDisabledByEnterprisePolicy(entityTypeName)) {
+        if (entityDataManager.getIsAutofillAiDisabledByEnterprisePolicy()) {
             return AutofillAiToggleState.DISABLED_BY_POLICY;
         }
 

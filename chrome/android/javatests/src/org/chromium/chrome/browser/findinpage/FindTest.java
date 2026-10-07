@@ -61,6 +61,7 @@ import org.chromium.chrome.test.util.MenuUtils;
 import org.chromium.content_public.browser.test.util.TouchCommon;
 import org.chromium.content_public.browser.test.util.UiUtils;
 import org.chromium.ui.base.DeviceFormFactor;
+import org.chromium.ui.base.DeviceInput;
 
 /** Find in page tests. */
 @RunWith(ChromeJUnit4ClassRunner.class)
@@ -77,6 +78,8 @@ public class FindTest {
 
     @Before
     public void setUp() throws Exception {
+        DeviceInput.setSupportsKeyboardForTesting(false);
+        DeviceInput.setSupportsPrecisionPointerForTesting(false);
         mActivityTestRule.waitForActivityNativeInitializationComplete();
         mPage = mActivityTestRule.startOnBlankPage();
 
@@ -241,7 +244,6 @@ public class FindTest {
     @Test
     @MediumTest
     @Feature({"FindInPage"})
-    @DisableIf.Device(DeviceFormFactor.ONLY_TABLET)
     public void testFindNext() {
         String query = "pitts";
         loadTestAndVerifyFindInPage(query, "1/7");
@@ -257,7 +259,6 @@ public class FindTest {
     @Test
     @MediumTest
     @Feature({"FindInPage"})
-    @DisableIf.Device(DeviceFormFactor.ONLY_TABLET)
     public void testFindNextPrevious() {
         String query = "pitts";
         loadTestAndVerifyFindInPage(query, "1/7");

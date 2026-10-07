@@ -211,8 +211,7 @@ class BatchUploadDialogViewPixelTest
     ASSERT_TRUE(account_info.IsValid());
     signin::UpdateAccountInfoForAccount(identity_manager, account_info);
 
-    signin::SimulateAccountImageFetch(identity_manager,
-                                      account_info.GetAccountId(),
+    signin::SimulateAccountImageFetch(identity_manager, account_info.account_id,
                                       kSignedInImageUrl, kSignedInImage);
   }
 

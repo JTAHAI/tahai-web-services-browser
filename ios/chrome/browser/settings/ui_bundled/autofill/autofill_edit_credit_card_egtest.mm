@@ -23,7 +23,6 @@
 using chrome_test_util::ButtonWithAccessibilityLabel;
 using chrome_test_util::ButtonWithAccessibilityLabelId;
 using chrome_test_util::NavigationBarDoneButton;
-using chrome_test_util::NavigationBarEditButton;
 using chrome_test_util::PaymentMethodsButton;
 using chrome_test_util::TextFieldForCellWithLabelId;
 
@@ -36,6 +35,14 @@ namespace {
 // Matcher for the 'Nickname' text field in the edit credit card view.
 id<GREYMatcher> NicknameTextField() {
   return TextFieldForCellWithLabelId(IDS_IOS_AUTOFILL_NICKNAME);
+}
+
+// Matcher for the edit button in the navigation bar.
+id<GREYMatcher> NavigationBarEditButton() {
+  return grey_allOf(
+      ButtonWithAccessibilityLabelId(IDS_IOS_NAVIGATION_BAR_EDIT_BUTTON),
+      grey_kindOfClass([UIButton class]),
+      grey_ancestor(grey_kindOfClass([UINavigationBar class])), nil);
 }
 
 // Returns an action to scroll down (swipe up).

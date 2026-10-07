@@ -85,7 +85,6 @@
 #include "base/metrics/histogram_macros.h"
 #include "base/task/single_thread_task_runner.h"
 #include "base/time/time.h"
-#include "root_window_controller.h"
 #include "ui/aura/client/aura_constants.h"
 #include "ui/aura/client/drag_drop_client.h"
 #include "ui/aura/client/screen_position_client.h"
@@ -560,11 +559,11 @@ RootWindowController* RootWindowController::ForTargetRootWindow() {
 }
 
 aura::WindowTreeHost* RootWindowController::GetHost() {
-  return ash_host_->AsWindowTreeHost();
+  return window_tree_host_;
 }
 
 const aura::WindowTreeHost* RootWindowController::GetHost() const {
-  return ash_host_->AsWindowTreeHost();
+  return window_tree_host_;
 }
 
 aura::Window* RootWindowController::GetRootWindow() {
@@ -577,11 +576,6 @@ const aura::Window* RootWindowController::GetRootWindow() const {
 
 ShelfLayoutManager* RootWindowController::GetShelfLayoutManager() {
   return shelf_->shelf_layout_manager();
-}
-
-RootWindowLayoutManager* RootWindowController::GetRootWindowLayoutManager() {
-  return static_cast<RootWindowLayoutManager*>(
-      GetRootWindow()->layout_manager());
 }
 
 SystemModalContainerLayoutManager*
@@ -678,7 +672,7 @@ aura::Window* RootWindowController::FindEventTarget(
 }
 
 gfx::Point RootWindowController::GetLastMouseLocationInRoot() {
-  return GetHost()->dispatcher()->GetLastMouseLocationInRoot();
+  return window_tree_host_->dispatcher()->GetLastMouseLocationInRoot();
 }
 
 aura::Window* RootWindowController::GetContainer(int container_id) {
@@ -686,7 +680,7 @@ aura::Window* RootWindowController::GetContainer(int container_id) {
 }
 
 const aura::Window* RootWindowController::GetContainer(int container_id) const {
-  return GetHost()->window()->GetChildById(container_id);
+  return window_tree_host_->window()->GetChildById(container_id);
 }
 
 ScreenRotationAnimator* RootWindowController::GetScreenRotationAnimator() {
@@ -974,10 +968,11 @@ bool RootWindowController::IsContextMenuShownForTest() const {
 
 RootWindowController::RootWindowController(AshWindowTreeHost* ash_host)
     : ash_host_(ash_host),
+      window_tree_host_(ash_host->AsWindowTreeHost()),
       shelf_(std::make_unique<Shelf>()),
       work_area_insets_(std::make_unique<WorkAreaInsets>(this)) {
   DCHECK(ash_host_);
-  DCHECK(GetHost());
+  DCHECK(window_tree_host_);
 
   if (!root_window_controllers_) {
     root_window_controllers_ = new std::vector<RootWindowController*>;
@@ -1019,7 +1014,13 @@ void RootWindowController::Init(RootWindowType root_window_type) {
       root_window->SetEventTargeter(std::make_unique<RootWindowTargeter>());
   DCHECK(!old_targeter);
 
-  InitLayoutManagers();
+  std::unique_ptr<RootWindowLayoutManager> root_window_layout_manager =
+      std::make_unique<RootWindowLayoutManager>(root_window);
+  root_window_layout_manager_ = root_window_layout_manager.get();
+
+  CreateContainers();
+
+  InitLayoutManagers(std::move(root_window_layout_manager));
   InitTouchHuds();
 
   // `shelf_` was created in the constructor.
@@ -1037,7 +1038,7 @@ void RootWindowController::Init(RootWindowType root_window_type) {
 
   wallpaper_widget_controller_->Init(
       shell->session_controller()->IsUserSessionBlocked());
-  GetRootWindowLayoutManager()->OnWindowResized();
+  root_window_layout_manager_->OnWindowResized();
 
   CreateAmbientWidget();
 
@@ -1049,7 +1050,7 @@ void RootWindowController::Init(RootWindowType root_window_type) {
   if (root_window_type == RootWindowType::PRIMARY) {
     shell->keyboard_controller()->RebuildKeyboardIfEnabled();
   } else {
-    GetHost()->Show();
+    window_tree_host_->Show();
 
     // Notify shell observers about new root window.
     shell->OnRootWindowAdded(root_window);
@@ -1062,16 +1063,15 @@ void RootWindowController::Init(RootWindowType root_window_type) {
   }
 }
 
-void RootWindowController::InitLayoutManagers() {
+void RootWindowController::InitLayoutManagers(
+    std::unique_ptr<RootWindowLayoutManager> root_window_layout_manager) {
   // Create the shelf and status area widgets. Creates the ShelfLayoutManager
   // as a side-effect.
   DCHECK(!shelf_->shelf_widget());
   aura::Window* root = GetRootWindow();
-  root->SetLayoutManager(std::make_unique<RootWindowLayoutManager>(root));
-  CreateContainers();
-
   shelf_->CreateShelfWidget(root);
 
+  root->SetLayoutManager(std::move(root_window_layout_manager));
 
   for (auto* container : desks_util::GetDesksContainers(root)) {
     // Installs WorkspaceLayoutManager on the container.
@@ -1114,7 +1114,7 @@ void RootWindowController::InitLayoutManagers() {
 
 void RootWindowController::CreateContainers() {
   // CreateContainer() depends on root_window_layout_manager_.
-  DCHECK(GetRootWindowLayoutManager());
+  DCHECK(root_window_layout_manager_);
 
   aura::Window* root = GetRootWindow();
 
@@ -1399,7 +1399,7 @@ aura::Window* RootWindowController::CreateContainer(int window_id,
   if (window_id != kShellWindowId_UnparentedContainer) {
     window->Show();
   }
-  GetRootWindowLayoutManager()->AddContainer(window);
+  root_window_layout_manager_->AddContainer(window);
   return window;
 }
 

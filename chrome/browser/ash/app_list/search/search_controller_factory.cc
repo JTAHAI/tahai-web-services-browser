@@ -35,6 +35,7 @@
 #include "chrome/browser/ash/arc/arc_util.h"
 #include "chrome/browser/ash/system_web_apps/apps/personalization_app/personalization_app_utils.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/search_engines/template_url_service_factory.h"
 #include "components/omnibox/browser/autocomplete_classifier.h"
 
 namespace app_list {
@@ -52,8 +53,7 @@ std::unique_ptr<SearchController> CreateSearchController(
     Profile* profile,
     AppListModelUpdater* model_updater,
     AppListControllerDelegate* list_controller,
-    ash::AppListNotifier* notifier,
-    TemplateURLService* template_url_service) {
+    ash::AppListNotifier* notifier) {
   auto controller = std::make_unique<SearchController>(
       local_state, model_updater, list_controller, notifier, profile);
   controller->Initialize();
@@ -64,7 +64,8 @@ std::unique_ptr<SearchController> CreateSearchController(
   controller->AddProvider(std::make_unique<AppZeroStateProvider>(
       controller->GetAppSearchDataSource()));
   controller->AddProvider(std::make_unique<OmniboxProvider>(
-      profile, list_controller, template_url_service,
+      profile, list_controller,
+      TemplateURLServiceFactory::GetForProfile(profile),
       LauncherSearchProviderTypes()));
 
   // File search providers are added only when not in guest session and running

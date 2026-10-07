@@ -268,7 +268,7 @@ public abstract class SigninAndHistorySyncCoordinator {
             RecordHistogram.recordEnumeratedHistogram(
                     "Signin.SigninDisabledNotificationShown",
                     accessPoint,
-                    SigninAccessPoint.MAX_VALUE + 1);
+                    SigninAccessPoint.MAX_VALUE);
             ManagedPreferencesUtils.showManagedByAdministratorToast(context);
         } else {
             Toast.makeText(

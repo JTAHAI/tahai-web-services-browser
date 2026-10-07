@@ -69,6 +69,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import org.chromium.base.Callback;
 import org.chromium.base.ThreadUtils;
 import org.chromium.base.Token;
 import org.chromium.base.supplier.NonNullObservableSupplier;
@@ -93,6 +94,7 @@ import org.chromium.chrome.browser.tabmodel.TabGroupColorUtils;
 import org.chromium.chrome.browser.tabmodel.TabModel;
 import org.chromium.chrome.browser.ui.messages.snackbar.SnackbarManager;
 import org.chromium.chrome.browser.undo_tab_close_snackbar.UndoBarController;
+import org.chromium.chrome.browser.util.ChromeAccessibilityUtil;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.chrome.test.transit.ChromeTransitTestRules;
 import org.chromium.chrome.test.transit.FreshCtaTransitTestRule;
@@ -105,7 +107,6 @@ import org.chromium.components.tab_groups.TabGroupColorPickerUtils;
 import org.chromium.content_public.browser.LoadUrlParams;
 import org.chromium.net.test.EmbeddedTestServer;
 import org.chromium.ui.KeyboardVisibilityDelegate;
-import org.chromium.ui.accessibility.AccessibilityStateTestHelper;
 import org.chromium.ui.base.DeviceFormFactor;
 import org.chromium.ui.base.PageTransition;
 import org.chromium.ui.modaldialog.DialogDismissalCause;
@@ -115,6 +116,7 @@ import org.chromium.ui.widget.ViewLookupCachingFrameLayout;
 
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
@@ -134,7 +136,9 @@ public class TabSwitcherLayoutTest {
 
     private String mUrl;
     private int mRepeat;
-
+    private final List<WeakReference<Bitmap>> mAllBitmaps = new ArrayList<>();
+    private final Callback<Bitmap> mBitmapListener =
+            (bitmap) -> mAllBitmaps.add(new WeakReference<>(bitmap));
     private NonNullObservableSupplier<ModalDialogManager> mModalDialogManagerSupplier;
     private RegularNewTabPageStation mNtp;
 
@@ -160,7 +164,7 @@ public class TabSwitcherLayoutTest {
     @After
     public void tearDown() {
         ThreadUtils.runOnUiThreadBlocking(
-                () -> AccessibilityStateTestHelper.uninitializeForTesting());
+                () -> ChromeAccessibilityUtil.get().setAccessibilityEnabledForTesting(null));
         if (mModalDialogManagerSupplier != null) {
             dismissAllModalDialogs();
         }
@@ -422,7 +426,7 @@ public class TabSwitcherLayoutTest {
     @MediumTest
     public void testUndoClosure_AccessibilityMode() {
         ThreadUtils.runOnUiThreadBlocking(
-                () -> AccessibilityStateTestHelper.setAccessibilityEnabledForTesting(true));
+                () -> ChromeAccessibilityUtil.get().setAccessibilityEnabledForTesting(true));
         ChromeTabbedActivity cta = mActivityTestRule.getActivity();
         SnackbarManager snackbarManager = mActivityTestRule.getActivity().getSnackbarManager();
         createTabs(cta, false, 3);

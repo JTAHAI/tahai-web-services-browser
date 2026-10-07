@@ -20,8 +20,12 @@
 #include "ui/views/widget/widget.h"
 #include "ui/views/widget/widget_observer.h"
 
-class BrowserWindowInterface;
+class Browser;
 class ContentSettingImageModel;
+
+namespace content {
+class WebContents;
+}
 
 namespace gfx {
 class FontList;
@@ -42,7 +46,7 @@ class ContentSettingImageView : public IconLabelBubbleView,
   ContentSettingImageView(std::unique_ptr<ContentSettingImageModel> image_model,
                           IconLabelBubbleView::Delegate* parent_delegate,
                           ContentSettingImageViewDelegate* delegate,
-                          BrowserWindowInterface* browser,
+                          Browser* browser,
                           const gfx::FontList& font_list);
   ContentSettingImageView(const ContentSettingImageView&) = delete;
   ContentSettingImageView& operator=(const ContentSettingImageView&) = delete;
@@ -72,8 +76,6 @@ class ContentSettingImageView : public IconLabelBubbleView,
   ContentSettingImageModel::ImageType GetType() const;
 
   views::Widget* GetBubbleWidgetForTesting() const;
-
-  views::BubbleDialogDelegateView* GetBubbleViewForTesting() const;
 
   ContentSettingImageModel* content_setting_image_model() const {
     return content_setting_image_model_.get();
@@ -114,7 +116,7 @@ class ContentSettingImageView : public IconLabelBubbleView,
   std::unique_ptr<ContentSettingImageModel> content_setting_image_model_;
   raw_ptr<views::BubbleDialogDelegateView> bubble_view_ = nullptr;
   std::optional<SkColor> icon_color_;
-  raw_ptr<BrowserWindowInterface> browser_;
+  raw_ptr<Browser> browser_;
 
   // Observes destruction of bubble's Widgets spawned by this ImageView.
   base::ScopedObservation<views::Widget, views::WidgetObserver> observation_{

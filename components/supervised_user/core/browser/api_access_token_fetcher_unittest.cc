@@ -60,7 +60,7 @@ class ApiAccessTokenFetcherTest
     account_id_ = identity_test_env_
                       .MakePrimaryAccountAvailable("bob@example.com",
                                                    ConsentLevel::kSignin)
-                      .GetAccountId();
+                      .account_id;
   }
   ~ApiAccessTokenFetcherTest() override {
     identity_test_env_.identity_manager()->RemoveDiagnosticsObserver(this);

@@ -1,2 +1,3 @@
-rules:
-- "**": [serial]
+features:
+- name: serial
+  files: "**"

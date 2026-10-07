@@ -32,9 +32,9 @@
 #include "chrome/browser/picture_in_picture/picture_in_picture_window_manager.h"
 #include "chrome/browser/platform_util.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_tabstrip.h"
 #include "chrome/browser/ui/browser_window.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/tabs/tab_enums.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/test/test_browser_dialog.h"
@@ -69,7 +69,6 @@
 #include "ui/events/event_utils.h"
 #include "ui/gfx/native_ui_types.h"
 #include "ui/views/accessibility/view_accessibility.h"
-#include "ui/views/controls/button/md_text_button.h"
 #include "ui/views/controls/scroll_view.h"
 #include "ui/views/metrics.h"
 #include "ui/views/test/button_test_api.h"
@@ -186,7 +185,7 @@ void ExtensionInstallDialogViewTestBase::SetUpOnMainThread() {
   extension_ = LoadExtension(test_data_dir_.AppendASCII(
       "install_prompt/permissions_scrollbar_regression"));
 
-  web_contents_ = browser()->GetTabStripModel()->GetWebContentsAt(0);
+  web_contents_ = browser()->tab_strip_model()->GetWebContentsAt(0);
 }
 
 std::unique_ptr<InstallPromptData>
@@ -336,7 +335,7 @@ IN_PROC_BROWSER_TEST_F(ExtensionInstallDialogViewTest, NotifyDelegate) {
 // user switches the tab after starting the installation.
 IN_PROC_BROWSER_TEST_F(ExtensionInstallDialogViewTest,
                        ActivateWebContentsOnTabChange) {
-  TabStripModel* tab_strip_model = browser()->GetTabStripModel();
+  TabStripModel* tab_strip_model = browser()->tab_strip_model();
   content::WebContents* originating_web_contents =
       tab_strip_model->GetActiveWebContents();
 
@@ -415,7 +414,7 @@ IN_PROC_BROWSER_TEST_F(ExtensionInstallDialogViewTest,
                        TabClosureClearsWebContentsFromDialogView) {
   ExtensionInstallPromptTestHelper helper;
   ExtensionInstallDialogView* delegate_view = CreateAndShowPrompt(&helper);
-  TabStripModel* tab_strip_model = browser()->GetTabStripModel();
+  TabStripModel* tab_strip_model = browser()->tab_strip_model();
   content::WebContents* originator_contents =
       tab_strip_model->GetActiveWebContents();
   ASSERT_TRUE(delegate_view->GetShowParamsForTesting());
@@ -427,11 +426,11 @@ IN_PROC_BROWSER_TEST_F(ExtensionInstallDialogViewTest,
   {
     // Close the first tab that results in install dialog moving to the second
     // tab.
+    int tab1_idx = tab_strip_model->GetIndexOfWebContents(originator_contents);
     content::WebContentsDestroyedWatcher tab_destroyed_watcher(
-        originator_contents);
+        tab_strip_model->GetWebContentsAt(tab1_idx));
     int previous_tab_count = tab_strip_model->count();
-    tab_strip_model->CloseWebContents(originator_contents,
-                                      TabCloseTypes::CLOSE_NONE);
+    tab_strip_model->CloseWebContentsAt(tab1_idx, TabCloseTypes::CLOSE_NONE);
     EXPECT_EQ(previous_tab_count - 1, tab_strip_model->count());
     tab_destroyed_watcher.Wait();
   }
@@ -529,7 +528,7 @@ class ExtensionInstallDialogViewInteractiveBrowserTest
     }
 
     ExtensionInstallDialogView::SetInstallButtonDelayForTesting(0);
-    auto* web_contents = browser()->GetTabStripModel()->GetActiveWebContents();
+    auto* web_contents = browser()->tab_strip_model()->GetActiveWebContents();
     auto install_prompt = std::make_unique<ExtensionInstallPrompt>(
         web_contents, std::move(prompt));
     install_prompt->ShowDialog(base::DoNothing(), extension.get(), &icon,

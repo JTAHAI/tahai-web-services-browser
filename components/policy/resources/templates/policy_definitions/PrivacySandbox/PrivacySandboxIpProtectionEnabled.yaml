@@ -41,6 +41,7 @@ items:
   value: null
 owners:
 - awillia@chromium.org
+- file://components/ip_protection/OWNERS
 schema:
   type: boolean
 tags: []

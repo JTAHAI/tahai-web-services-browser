@@ -5,7 +5,6 @@
 #ifndef COMPONENTS_WEBAPPS_ISOLATED_WEB_APPS_SERVICE_ISOLATED_WEB_APP_BROWSER_CONTEXT_SERVICE_FACTORY_H_
 #define COMPONENTS_WEBAPPS_ISOLATED_WEB_APPS_SERVICE_ISOLATED_WEB_APP_BROWSER_CONTEXT_SERVICE_FACTORY_H_
 
-#include "base/component_export.h"
 #include "components/keyed_service/content/browser_context_keyed_service_factory.h"
 
 namespace content {
@@ -17,8 +16,7 @@ namespace web_app {
 // This factory acts as a base class for keyed services that should only exist
 // for browser contexts that support isolated web apps. If a browser context
 // does not support isolated web apps, it will not create the keyed service.
-class COMPONENT_EXPORT(ISOLATED_WEB_APPS)
-    IsolatedWebAppBrowserContextServiceFactory
+class IsolatedWebAppBrowserContextServiceFactory
     : public BrowserContextKeyedServiceFactory {
  public:
   IsolatedWebAppBrowserContextServiceFactory(

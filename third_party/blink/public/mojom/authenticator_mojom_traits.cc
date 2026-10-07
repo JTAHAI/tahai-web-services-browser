@@ -24,8 +24,6 @@ EnumTraits<blink::mojom::AuthenticatorTransport,
       return blink::mojom::AuthenticatorTransport::HYBRID;
     case ::device::FidoTransportProtocol::kInternal:
       return blink::mojom::AuthenticatorTransport::INTERNAL;
-    case ::device::FidoTransportProtocol::kSmartCard:
-      return blink::mojom::AuthenticatorTransport::SMART_CARD;
     case ::device::FidoTransportProtocol::kDeprecatedAoa:
       return blink::mojom::AuthenticatorTransport::HYBRID;
   }
@@ -47,8 +45,6 @@ device::FidoTransportProtocol EnumTraits<blink::mojom::AuthenticatorTransport,
       return ::device::FidoTransportProtocol::kHybrid;
     case blink::mojom::AuthenticatorTransport::INTERNAL:
       return ::device::FidoTransportProtocol::kInternal;
-    case blink::mojom::AuthenticatorTransport::SMART_CARD:
-      return ::device::FidoTransportProtocol::kSmartCard;
   }
   NOTREACHED();
 }

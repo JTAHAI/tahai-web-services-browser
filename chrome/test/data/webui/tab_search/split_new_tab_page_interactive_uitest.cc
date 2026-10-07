@@ -46,9 +46,7 @@ class SplitNewTabPageUiTest
   GURL GetTestUrl() { return embedded_test_server()->GetURL("/title1.html"); }
 };
 
-// TODO(crbug.com/542635262): Disable on Windows due to flakiness.
-#if BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX) || \
-    BUILDFLAG(IS_WIN)
+#if BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX)
 #define MAYBE_Focus DISABLED_Focus
 #else
 #define MAYBE_Focus Focus

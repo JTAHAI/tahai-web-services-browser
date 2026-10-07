@@ -14,10 +14,12 @@
 namespace remoting {
 
 PeerConnectionProcessHandler::PeerConnectionProcessHandler(
+    int terminal_id,
     scoped_refptr<base::SingleThreadTaskRunner> caller_task_runner,
     std::unique_ptr<WorkerProcessLauncher::Delegate> launcher_delegate,
     StoppedCallback stopped_callback)
-    : caller_task_runner_(caller_task_runner),
+    : terminal_id_(terminal_id),
+      caller_task_runner_(caller_task_runner),
       stopped_callback_(std::move(stopped_callback)) {
   launcher_ = std::make_unique<WorkerProcessLauncher>(
       std::move(launcher_delegate), this);
@@ -27,16 +29,14 @@ PeerConnectionProcessHandler::~PeerConnectionProcessHandler() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 }
 
-void PeerConnectionProcessHandler::BindPeerSession(
-    mojo::PendingReceiver<mojom::PeerSession> receiver) {
+void PeerConnectionProcessHandler::ConnectDesktopChannel(
+    mojo::ScopedMessagePipeHandle desktop_pipe) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
   if (pc_process_control_.is_bound()) {
-    pc_process_control_->BindPeerSession(std::move(receiver));
+    pc_process_control_->ConnectDesktopChannel(std::move(desktop_pipe));
   } else {
-    CHECK(!pending_session_receiver_) << "Only one peer session receiver can "
-                                         "be buffered prior to connection.";
-    pending_session_receiver_ = std::move(receiver);
+    desktop_pipe_ = std::move(desktop_pipe);
   }
 }
 
@@ -54,8 +54,8 @@ void PeerConnectionProcessHandler::OnChannelConnected(int32_t peer_pid) {
   launcher_->GetRemoteAssociatedInterface(
       pc_process_control_.BindNewEndpointAndPassReceiver());
 
-  if (pending_session_receiver_) {
-    pc_process_control_->BindPeerSession(std::move(pending_session_receiver_));
+  if (desktop_pipe_) {
+    pc_process_control_->ConnectDesktopChannel(std::move(desktop_pipe_));
   }
 }
 
@@ -80,17 +80,13 @@ void PeerConnectionProcessHandler::OnWorkerProcessStopped() {
 void PeerConnectionProcessHandler::OnAssociatedInterfaceRequest(
     const std::string& interface_name,
     mojo::ScopedInterfaceEndpointHandle handle) {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   LOG(ERROR) << "Unexpected associated interface request: " << interface_name;
 }
 
 void PeerConnectionProcessHandler::CloseSelf() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  if (stopped_callback_) {
-    caller_task_runner_->PostTask(FROM_HERE,
-                                  base::BindOnce(std::move(stopped_callback_),
-                                                 weak_factory_.GetWeakPtr()));
-  }
+  caller_task_runner_->PostTask(
+      FROM_HERE, base::BindOnce(std::move(stopped_callback_), terminal_id_));
 }
 
 }  // namespace remoting

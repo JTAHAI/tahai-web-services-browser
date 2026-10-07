@@ -7,8 +7,6 @@
 #include <utility>
 
 #include "base/base64.h"
-#include "base/callback_list.h"
-#include "base/command_line.h"
 #include "base/functional/bind.h"
 #include "base/run_loop.h"
 #include "base/strings/string_util.h"
@@ -21,11 +19,7 @@
 #include "chrome/browser/extensions/extension_apitest.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/webui/omnibox/aim_eligibility_extension/aim_eligibility_extension_bridge.h"
-#include "chrome/browser/ui/webui/omnibox/aim_eligibility_extension/aim_eligibility_extension_frame_page_handler_factory.h"
-#include "chrome/browser/ui/webui/omnibox/aim_eligibility_extension/aim_eligibility_extension_service_worker_page_handler_factory.h"
 #include "chrome/common/extensions/extension_constants.h"
-#include "components/crash/content/browser/error_reporting/javascript_error_report.h"
-#include "components/crash/content/browser/error_reporting/js_error_report_processor.h"
 #include "components/keyed_service/content/browser_context_dependency_manager.h"
 #include "components/omnibox/browser/aim_eligibility_service.h"
 #include "components/omnibox/browser/mock_aim_eligibility_service.h"
@@ -34,7 +28,6 @@
 #include "content/public/test/browser_test.h"
 #include "content/public/test/browser_test_utils.h"
 #include "extensions/browser/extension_registry.h"
-#include "extensions/common/switches.h"
 #include "extensions/test/test_extension_dir.h"
 #include "mojo/public/cpp/bindings/pending_receiver.h"
 #include "mojo/public/cpp/bindings/pending_remote.h"
@@ -44,31 +37,6 @@
 #include "testing/gtest/include/gtest/gtest.h"
 
 namespace extensions {
-
-namespace {
-
-class MockJsErrorReportProcessor : public JsErrorReportProcessor {
- public:
-  void SendErrorReport(JavaScriptErrorReport error_report,
-                       base::OnceClosure completion_callback,
-                       content::BrowserContext* browser_context) override {
-    last_report_ = std::move(error_report);
-    std::move(completion_callback).Run();
-  }
-
-  void SetAsDefault() { JsErrorReportProcessor::SetDefault(this); }
-  static void ResetDefault() { JsErrorReportProcessor::SetDefault(nullptr); }
-
-  const JavaScriptErrorReport& last_report() const { return last_report_; }
-
- protected:
-  ~MockJsErrorReportProcessor() override = default;
-
- private:
-  JavaScriptErrorReport last_report_;
-};
-
-}  // namespace
 
 class AimEligibilityExtensionBrowserTest : public ExtensionApiTest {
  public:
@@ -80,12 +48,6 @@ class AimEligibilityExtensionBrowserTest : public ExtensionApiTest {
   ~AimEligibilityExtensionBrowserTest() override = default;
 
  protected:
-  void SetUpCommandLine(base::CommandLine* command_line) override {
-    ExtensionApiTest::SetUpCommandLine(command_line);
-    command_line->AppendSwitch(
-        switches::kDisableCrashOnComponentExtensionJsError);
-  }
-
   void SetUpInProcessBrowserTestFixture() override {
     create_services_subscription_ =
         BrowserContextDependencyManager::GetInstance()
@@ -94,6 +56,10 @@ class AimEligibilityExtensionBrowserTest : public ExtensionApiTest {
                                         OnWillCreateBrowserContextServices,
                                     base::Unretained(this)));
     ExtensionApiTest::SetUpInProcessBrowserTestFixture();
+  }
+
+  void TearDownOnMainThread() override {
+    ExtensionApiTest::TearDownOnMainThread();
   }
 
   virtual void OnWillCreateBrowserContextServices(
@@ -132,15 +98,14 @@ IN_PROC_BROWSER_TEST_F(AimEligibilityExtensionBrowserTest,
 
   auto* bridge = AimEligibilityExtensionBridge::Get(profile());
   ASSERT_TRUE(bridge);
-  auto& factory = bridge->service_worker_page_handler_factory();
-  EXPECT_EQ(0u, factory.page_handlers_size_for_testing());
+  EXPECT_EQ(0u, bridge->page_handlers_size_for_testing());
 
   // Create a first page handler.
   mojo::Remote<aim_eligibility::mojom::PageHandler> page_handler_remote_1;
   mojo::PendingReceiver<aim_eligibility::mojom::Page> page_receiver_1;
-  factory.CreatePageHandler(page_receiver_1.InitWithNewPipeAndPassRemote(),
+  bridge->CreatePageHandler(page_receiver_1.InitWithNewPipeAndPassRemote(),
                             page_handler_remote_1.BindNewPipeAndPassReceiver());
-  EXPECT_EQ(1u, factory.page_handlers_size_for_testing());
+  EXPECT_EQ(1u, bridge->page_handlers_size_for_testing());
 
   // Verify it works.
   base::test::TestFuture<aim_eligibility::mojom::EligibilityStatePtr> future_1;
@@ -150,9 +115,9 @@ IN_PROC_BROWSER_TEST_F(AimEligibilityExtensionBrowserTest,
   // Create a second page handler.
   mojo::Remote<aim_eligibility::mojom::PageHandler> page_handler_remote_2;
   mojo::PendingReceiver<aim_eligibility::mojom::Page> page_receiver_2;
-  factory.CreatePageHandler(page_receiver_2.InitWithNewPipeAndPassRemote(),
+  bridge->CreatePageHandler(page_receiver_2.InitWithNewPipeAndPassRemote(),
                             page_handler_remote_2.BindNewPipeAndPassReceiver());
-  EXPECT_EQ(2u, factory.page_handlers_size_for_testing());
+  EXPECT_EQ(2u, bridge->page_handlers_size_for_testing());
 
   // Verify it also works.
   base::test::TestFuture<aim_eligibility::mojom::EligibilityStatePtr> future_2;
@@ -164,12 +129,12 @@ IN_PROC_BROWSER_TEST_F(AimEligibilityExtensionBrowserTest,
 
   // Wait for the disconnect handler callback to execute.
   ASSERT_TRUE(base::test::RunUntil(
-      [&]() { return factory.page_handlers_size_for_testing() == 1u; }));
+      [&]() { return bridge->page_handlers_size_for_testing() == 1u; }));
 
   // Disconnect the second page handler.
   page_handler_remote_2.reset();
   ASSERT_TRUE(base::test::RunUntil(
-      [&]() { return factory.page_handlers_size_for_testing() == 0u; }));
+      [&]() { return bridge->page_handlers_size_for_testing() == 0u; }));
 }
 
 // Tests that the component extension's UI loads, resolves Mojo JS, and updates
@@ -183,13 +148,14 @@ IN_PROC_BROWSER_TEST_F(AimEligibilityExtensionBrowserTest, UiParity) {
   EXPECT_CALL(*mock_service, IsAimEligible())
       .WillRepeatedly(testing::ReturnPointee(&aim_eligible_));
 
-  // Intercept the registration of eligibility changed callbacks to invoke them
+  // Intercept the registration of eligibility changed callbacks to invoke it
   // manually.
-  base::RepeatingClosureList eligibility_changed_callbacks;
+  base::RepeatingClosure eligibility_changed_callback;
   EXPECT_CALL(*mock_service, RegisterEligibilityChangedCallback(testing::_))
       .WillRepeatedly(
-          [&eligibility_changed_callbacks](base::RepeatingClosure callback) {
-            return eligibility_changed_callbacks.Add(std::move(callback));
+          [&eligibility_changed_callback](base::RepeatingClosure callback) {
+            eligibility_changed_callback = callback;
+            return base::CallbackListSubscription();
           });
 
   // Verify the component extension is loaded.
@@ -227,7 +193,8 @@ IN_PROC_BROWSER_TEST_F(AimEligibilityExtensionBrowserTest, UiParity) {
 
   // Change state to Ineligible.
   aim_eligible_ = false;
-  eligibility_changed_callbacks.Notify();
+  ASSERT_TRUE(eligibility_changed_callback);
+  eligibility_changed_callback.Run();
 
   // Wait for the UI checklist to update.
   ASSERT_TRUE(base::test::RunUntil([&]() {
@@ -318,51 +285,6 @@ IN_PROC_BROWSER_TEST_F(AimEligibilityExtensionBrowserTest,
   // 404.
   EXPECT_TRUE(base::StartsWith(result, "failed:") || result == "404")
       << "Actual: " << result;
-}
-
-#if BUILDFLAG(IS_ANDROID)
-#define MAYBE_JavaScriptErrorReportingCapturesConsoleError \
-  DISABLED_JavaScriptErrorReportingCapturesConsoleError
-#else
-#define MAYBE_JavaScriptErrorReportingCapturesConsoleError \
-  JavaScriptErrorReportingCapturesConsoleError
-#endif
-IN_PROC_BROWSER_TEST_F(AimEligibilityExtensionBrowserTest,
-                       MAYBE_JavaScriptErrorReportingCapturesConsoleError) {
-  auto mock_processor = base::MakeRefCounted<MockJsErrorReportProcessor>();
-  mock_processor->SetAsDefault();
-
-  auto* mock_service = static_cast<MockAimEligibilityService*>(
-      AimEligibilityServiceFactory::GetForProfile(profile()));
-  EXPECT_CALL(*mock_service, IsServerEligibilityEnabled())
-      .WillRepeatedly(testing::Return(false));
-  EXPECT_CALL(*mock_service, IsAimEligible())
-      .WillRepeatedly(testing::Return(true));
-
-  auto* registry = ExtensionRegistry::Get(profile());
-  const Extension* extension = registry->enabled_extensions().GetByID(
-      extension_misc::kAimEligibilityExtensionId);
-  ASSERT_TRUE(extension);
-
-  auto* bridge = AimEligibilityExtensionBridge::Get(profile());
-  ASSERT_TRUE(bridge);
-
-  GURL popup_url = extension->GetResourceURL("aim_eligibility.html");
-  ASSERT_TRUE(NavigateToURL(web_contents(), popup_url));
-
-  // Trigger an artificial JS error in the component extension frame.
-  ASSERT_TRUE(content::ExecJs(web_contents(),
-                              "console.error('Artificial JS console error in "
-                              "AIM eligibility extension');"));
-
-  const JavaScriptErrorReport& report = mock_processor->last_report();
-  EXPECT_EQ(report.message,
-            "Artificial JS console error in AIM eligibility extension");
-  EXPECT_EQ(report.url, popup_url.spec());
-  EXPECT_EQ(report.source_system,
-            JavaScriptErrorReport::SourceSystem::kExtensionObserver);
-
-  MockJsErrorReportProcessor::ResetDefault();
 }
 
 }  // namespace extensions

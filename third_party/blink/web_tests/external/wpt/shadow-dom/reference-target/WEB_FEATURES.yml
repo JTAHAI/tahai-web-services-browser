@@ -1,2 +1,3 @@
-rules:
-- "**": [referencetarget]
+features:
+- name: referencetarget
+  files: "**"

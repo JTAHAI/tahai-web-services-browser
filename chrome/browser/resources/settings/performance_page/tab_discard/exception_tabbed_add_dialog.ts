@@ -9,18 +9,19 @@ import 'chrome://resources/cr_elements/cr_tabs/cr_tabs.js';
 import './exception_add_input.js';
 import './exception_current_sites_list.js';
 
+import type {PrefsMixinInterface} from '/shared/settings/prefs/prefs_mixin.js';
+import {PrefsMixin} from '/shared/settings/prefs/prefs_mixin.js';
 import type {CrButtonElement} from 'chrome://resources/cr_elements/cr_button/cr_button.js';
 import type {CrDialogElement} from 'chrome://resources/cr_elements/cr_dialog/cr_dialog.js';
 import type {CrTabsElement} from 'chrome://resources/cr_elements/cr_tabs/cr_tabs.js';
 import {NONE_SELECTED} from 'chrome://resources/cr_elements/cr_tabs/cr_tabs.js';
-import {CrLitElement} from 'chrome://resources/lit/v3_0/lit.rollup.js';
+import {PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
 import {loadTimeData} from '../../i18n_setup.js';
 
 import type {ExceptionAddInputElement} from './exception_add_input.js';
 import type {ExceptionCurrentSitesListElement} from './exception_current_sites_list.js';
-import {getCss} from './exception_tabbed_add_dialog.css.js';
-import {getHtml} from './exception_tabbed_add_dialog.html.js';
+import {getTemplate} from './exception_tabbed_add_dialog.html.js';
 
 export enum ExceptionAddDialogTabs {
   CURRENT_SITES = 0,
@@ -38,50 +39,55 @@ export interface ExceptionTabbedAddDialogElement {
   };
 }
 
-export class ExceptionTabbedAddDialogElement extends CrLitElement {
+type Constructor<T> = new (...args: any[]) => T;
+const ExceptionTabbedAddDialogElementBase =
+    PrefsMixin(PolymerElement) as
+    Constructor<PrefsMixinInterface&PolymerElement>;
+
+export class ExceptionTabbedAddDialogElement extends
+    ExceptionTabbedAddDialogElementBase {
   static get is() {
     return 'tab-discard-exception-tabbed-add-dialog';
   }
 
-  static override get styles() {
-    return getCss();
+  static get template() {
+    return getTemplate();
   }
 
-  override render() {
-    return getHtml.bind(this)();
-  }
-
-  static override get properties() {
+  static get properties() {
     return {
-      selectedTab_: {type: Number},
-      tabNames_: {type: Array},
-      submitDisabledList_: {type: Boolean},
-      submitDisabledManual_: {type: Boolean},
+      selectedTab_: {
+        type: Number,
+        value: NONE_SELECTED,
+      },
+
+      tabNames_: {
+        type: Array,
+        value: [
+          loadTimeData.getString('tabDiscardingExceptionsAddDialogCurrentTabs'),
+          loadTimeData.getString('tabDiscardingExceptionsAddDialogManual'),
+        ],
+      },
+
+      submitDisabledList_: Boolean,
+      submitDisabledManual_: Boolean,
     };
   }
 
-  protected accessor selectedTab_: ExceptionAddDialogTabs = NONE_SELECTED;
-  protected accessor tabNames_: string[] = [
-    loadTimeData.getString('tabDiscardingExceptionsAddDialogCurrentTabs'),
-    loadTimeData.getString('tabDiscardingExceptionsAddDialogManual'),
-  ];
-  protected accessor submitDisabledList_: boolean = true;
-  protected accessor submitDisabledManual_: boolean = true;
+  declare private selectedTab_: ExceptionAddDialogTabs;
+  declare private tabNames_: string[];
+  declare private submitDisabledList_: boolean;
+  declare private submitDisabledManual_: boolean;
 
-  protected onTabsSelectedChanged_(
-      e: CustomEvent<{value: ExceptionAddDialogTabs}>) {
-    this.selectedTab_ = e.detail.value;
+  private onSelectedTabChanged_() {
+    // Asynchronously notify the list that its visibility has changed. This is
+    // necessary because the list has an iron-list child that needs to be
+    // manually notified of visibility changes that are triggered by any element
+    // that does not implement iron-resizable-behavior.
+    setTimeout(() => this.$.list.notifyResize(), 0);
   }
 
-  protected onListSubmitDisabledChanged_(e: CustomEvent<{value: boolean}>) {
-    this.submitDisabledList_ = e.detail.value;
-  }
-
-  protected onInputSubmitDisabledChanged_(e: CustomEvent<{value: boolean}>) {
-    this.submitDisabledManual_ = e.detail.value;
-  }
-
-  protected onSitesPopulated_(e: CustomEvent<{length: number}>) {
+  private onSitesPopulated_(e: CustomEvent<{length: number}>) {
     if (e.detail.length > 0) {
       this.selectedTab_ = ExceptionAddDialogTabs.CURRENT_SITES;
     } else if (this.selectedTab_ === NONE_SELECTED) {
@@ -90,15 +96,15 @@ export class ExceptionTabbedAddDialogElement extends CrLitElement {
     this.$.dialog.showModal();
   }
 
-  protected isAddCurrentSitesTabSelected_(): boolean {
+  private isAddCurrentSitesTabSelected_() {
     return this.selectedTab_ === ExceptionAddDialogTabs.CURRENT_SITES;
   }
 
-  protected onCancelClick_() {
+  private onCancelClick_() {
     this.$.dialog.cancel();
   }
 
-  protected onSubmitClick_() {
+  private onSubmitClick_() {
     this.$.dialog.close();
     if (this.isAddCurrentSitesTabSelected_()) {
       this.$.list.submit();
@@ -107,7 +113,7 @@ export class ExceptionTabbedAddDialogElement extends CrLitElement {
     }
   }
 
-  protected isSubmitDisabled_(): boolean {
+  private isSubmitDisabled_() {
     if (this.isAddCurrentSitesTabSelected_()) {
       return this.submitDisabledList_;
     }

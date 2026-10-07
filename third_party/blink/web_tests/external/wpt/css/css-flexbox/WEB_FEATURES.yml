@@ -1,3 +1,6 @@
-rules:
-- "*gap*": [flexbox-gap, flexbox]
-- "**": [flexbox]
+features:
+- name: flexbox
+  files: "**"
+- name: flexbox-gap
+  files:
+  - "*gap*"

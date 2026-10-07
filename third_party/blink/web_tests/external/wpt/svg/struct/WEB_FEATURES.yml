@@ -1,2 +1,4 @@
-rules:
-- "*": [svg]
+features:
+- name: svg
+  files:
+  - "*"

@@ -4,12 +4,11 @@
 
 #include "third_party/blink/renderer/modules/image_downloader/image_downloader_impl.h"
 
-#include <algorithm>
-#include <ranges>
 #include <utility>
 #include <vector>
 
 #include "base/check.h"
+#include "base/compiler_specific.h"
 #include "base/containers/adapters.h"
 #include "base/functional/bind.h"
 #include "skia/ext/image_operations.h"
@@ -50,7 +49,7 @@ Vector<SkBitmap> DecodeImageData(const std::string& data,
     std::vector<SkBitmap> original_bitmaps =
         blink::WebImage::FramesFromData(buffer);
     bitmaps.append_range(
-        base::Reversed(std::views::as_rvalue(original_bitmaps)));
+        base::Reversed(base::RangeAsRvalues(std::move(original_bitmaps))));
   }
   return bitmaps;
 }
@@ -305,11 +304,14 @@ void ImageDownloaderImpl::DidFetchImage(
 
   // Remove the image fetcher from our pending list. We're in the callback from
   // MultiResolutionImageResourceFetcher, best to delay deletion.
-  auto it = std::find_if(
-      image_fetchers_.begin(), image_fetchers_.end(),
-      [fetcher](const auto& item) { return item.get() == fetcher; });
-  if (it != image_fetchers_.end()) {
-    image_fetchers_.erase(it);
+  for (auto it = image_fetchers_.begin(); it != image_fetchers_.end();
+       UNSAFE_TODO(++it)) {
+    MultiResolutionImageResourceFetcher* image_fetcher = it->get();
+    DCHECK(image_fetcher);
+    if (image_fetcher == fetcher) {
+      it = image_fetchers_.erase(it);
+      break;
+    }
   }
 
   // |this| may be destructed after callback is run.

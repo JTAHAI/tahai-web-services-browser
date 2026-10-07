@@ -24,8 +24,6 @@
 
 using ::testing::_;
 
-using read_anything::mojom::ReadAnythingOpenTrigger;
-
 namespace {
 constexpr base::TimeDelta kMinSessionDuration = base::Seconds(10);
 constexpr base::TimeDelta kUsageHistoryWindow = base::Days(14);
@@ -58,8 +56,9 @@ class ReadAnythingHatsSurveyControllerUnitTest : public testing::Test {
 
     side_panel_registry_ = std::make_unique<SidePanelRegistry>(mock_tab_.get());
 
-    scoped_feature_list_.InitWithFeatures({features::kHatsReadingModeSurvey},
-                                          {});
+    scoped_feature_list_.InitWithFeatures(
+        {features::kImmersiveReadAnything, features::kHatsReadingModeSurvey},
+        {});
 
     controller_ = std::make_unique<ReadAnythingController>(
         mock_tab_.get(), side_panel_registry_.get());

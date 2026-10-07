@@ -15,17 +15,7 @@ namespace user_education {
 // static
 bool NewBadgeController::disable_new_badges_ = false;
 
-// static
-NewBadgeController::TestLock NewBadgeController::DisableNewBadgesForTesting() {
-  return std::make_unique<base::AutoReset<bool>>(&disable_new_badges_, true);
-}
-
-// static
-base::PassKey<NewBadgeController> NewBadgeController::GetPassKey() {
-  return base::PassKey<NewBadgeController>();
-}
-
-NewBadgeControllerImpl::NewBadgeControllerImpl(
+NewBadgeController::NewBadgeController(
     NewBadgeRegistry& registry,
     UserEducationStorageService& storage_service,
     std::unique_ptr<NewBadgePolicy> policy)
@@ -33,7 +23,7 @@ NewBadgeControllerImpl::NewBadgeControllerImpl(
       storage_service_(storage_service),
       policy_(std::move(policy)) {}
 
-void NewBadgeControllerImpl::InitData() {
+void NewBadgeController::InitData() {
   // Ensure that all registered New Badge features that are enabled have their
   // `feature_enabled_time` set.
   for (const auto& [feature, spec] : registry_->feature_data()) {
@@ -47,11 +37,11 @@ void NewBadgeControllerImpl::InitData() {
   }
 }
 
-NewBadgeControllerImpl::~NewBadgeControllerImpl() = default;
+NewBadgeController::~NewBadgeController() = default;
 
-DisplayNewBadge NewBadgeControllerImpl::MaybeShowNewBadge(
+DisplayNewBadge NewBadgeController::MaybeShowNewBadge(
     const base::Feature& feature) {
-  if (disable_new_badges()) {
+  if (disable_new_badges_) {
     return DisplayNewBadge();
   }
 
@@ -72,20 +62,20 @@ DisplayNewBadge NewBadgeControllerImpl::MaybeShowNewBadge(
   ++data.show_count;
   storage_service_->SaveNewBadgeData(feature, data);
   policy_->RecordNewBadgeShown(feature, data.show_count);
-  return DisplayNewBadge(GetPassKey(), true);
+  return DisplayNewBadge(base::PassKey<NewBadgeController>(), true);
 }
 
-void NewBadgeControllerImpl::NotifyFeatureUsed(const base::Feature& feature) {
+void NewBadgeController::NotifyFeatureUsed(const base::Feature& feature) {
   NotifyFeatureUsedImpl(feature, /*allow_not_registered=*/false);
 }
 
-void NewBadgeControllerImpl::NotifyFeatureUsedIfValid(
+void NewBadgeController::NotifyFeatureUsedIfValid(
     const base::Feature& feature) {
   NotifyFeatureUsedImpl(feature, /*allow_not_registered=*/true);
 }
 
-void NewBadgeControllerImpl::NotifyFeatureUsedImpl(const base::Feature& feature,
-                                                   bool allow_not_registered) {
+void NewBadgeController::NotifyFeatureUsedImpl(const base::Feature& feature,
+                                               bool allow_not_registered) {
   if (!CheckPrerequisites(feature, allow_not_registered)) {
     return;
   }
@@ -102,9 +92,8 @@ void NewBadgeControllerImpl::NotifyFeatureUsedImpl(const base::Feature& feature,
   }
 }
 
-bool NewBadgeControllerImpl::CheckPrerequisites(
-    const base::Feature& feature,
-    bool allow_not_registered) const {
+bool NewBadgeController::CheckPrerequisites(const base::Feature& feature,
+                                            bool allow_not_registered) const {
   // It's possible the same entry point is being re-used for the new feature as
   // for an older version; just ignore cases where the new feature is not
   // enabled.
@@ -125,6 +114,11 @@ bool NewBadgeControllerImpl::CheckPrerequisites(
   }
 
   return true;
+}
+
+// static
+NewBadgeController::TestLock NewBadgeController::DisableNewBadgesForTesting() {
+  return std::make_unique<base::AutoReset<bool>>(&disable_new_badges_, true);
 }
 
 }  // namespace user_education

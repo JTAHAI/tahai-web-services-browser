@@ -67,6 +67,7 @@ namespace content {
 class BackgroundSyncContext;
 class BrowserContext;
 class BrowsingDataFilterBuilder;
+class BrowsingTopicsSiteDataManager;
 class CdmStorageDataModel;
 class ContentIndexContext;
 class DedicatedWorkerService;
@@ -101,10 +102,6 @@ class CONTENT_EXPORT StoragePartition {
   // or restarts, the raw pointer will not be valid or safe to use. Therefore,
   // caller should not hold onto this pointer beyond the same message loop task.
   virtual network::mojom::NetworkContext* GetNetworkContext() = 0;
-
-  // Returns true if the NetworkContext for this partition has already been
-  // initialized.
-  virtual bool IsNetworkContextInitialized() = 0;
 
   virtual cert_verifier::mojom::CertVerifierServiceUpdater*
   GetCertVerifierServiceUpdater() = 0;
@@ -162,14 +159,12 @@ class CONTENT_EXPORT StoragePartition {
   virtual HostZoomLevelContext* GetHostZoomLevelContext() = 0;
   virtual ZoomLevelDelegate* GetZoomLevelDelegate() = 0;
   virtual PlatformNotificationContext* GetPlatformNotificationContext() = 0;
+  virtual BrowsingTopicsSiteDataManager* GetBrowsingTopicsSiteDataManager() = 0;
 #if BUILDFLAG(ENABLE_LIBRARY_CDMS)
   virtual CdmStorageDataModel* GetCdmStorageDataModel() = 0;
 #endif  // BUILDFLAG(ENABLE_LIBRARY_CDMS)
   virtual network::mojom::DeviceBoundSessionManager*
   GetDeviceBoundSessionManager() = 0;
-  virtual void OverrideDeviceBoundSessionManagerForTesting(
-      std::unique_ptr<network::mojom::DeviceBoundSessionManager>
-          device_bound_session_manager) = 0;
 
   // This clears stale session cookies/storage from the current profile. This
   // must only be called after session restore has completed to ensure active
@@ -188,7 +183,6 @@ class CONTENT_EXPORT StoragePartition {
     REMOVE_DATA_MASK_COOKIES = 1 << 1,
     REMOVE_DATA_MASK_FILE_SYSTEMS = 1 << 2,
     REMOVE_DATA_MASK_INDEXEDDB = 1 << 3,
-    // Includes both local storage and session storage.
     REMOVE_DATA_MASK_LOCAL_STORAGE = 1 << 4,
     REMOVE_DATA_MASK_SHADER_CACHE = 1 << 5,
     REMOVE_DATA_MASK_WEBSQL_DEPRECATED = 1 << 6,
@@ -200,6 +194,7 @@ class CONTENT_EXPORT StoragePartition {
     // Public explainer here:
     // https://github.com/WICG/turtledove/blob/main/FLEDGE.md
     REMOVE_DATA_MASK_INTEREST_GROUPS = 1 << 12,
+    REMOVE_DATA_MASK_AGGREGATION_SERVICE = 1 << 13,
     // Shared storage data as part of the Shared Storage API.
     // Public explainer: https://github.com/pythagoraskitty/shared-storage
     REMOVE_DATA_MASK_SHARED_STORAGE = 1 << 14,
@@ -209,6 +204,7 @@ class CONTENT_EXPORT StoragePartition {
     // https://github.com/WICG/turtledove/blob/main/FLEDGE.md
     REMOVE_DATA_MASK_INTEREST_GROUP_PERMISSIONS_CACHE = 1 << 15,
 
+    REMOVE_DATA_MASK_PRIVATE_AGGREGATION_INTERNAL = 1 << 17,
     REMOVE_DATA_MASK_INTEREST_GROUPS_INTERNAL = 1 << 18,
     // Device bound sessions. Public explainer:
     // https://github.com/WICG/dbsc/blob/main/README.md
@@ -234,6 +230,8 @@ class CONTENT_EXPORT StoragePartition {
   // inside this StoragePartition for the given |storage_origin|.
   // |callback| is called when data deletion is done or at least the deletion is
   // scheduled.
+  // Note session dom storage is not cleared even if you specify
+  // REMOVE_DATA_MASK_LOCAL_STORAGE.
   // No notification is dispatched upon completion.
   //
   // TODO(ajwong): Right now, the embedder may have some
@@ -337,12 +335,12 @@ class CONTENT_EXPORT StoragePartition {
   // Resets all URLLoaderFactories bound to this partition's network context.
   virtual void ResetURLLoaderFactories() = 0;
 
-  // Clears the bluetooth allowed devices map.
-  virtual void ClearBluetoothAllowedDevicesMap() = 0;
-
   virtual void AddObserver(DataRemovalObserver* observer) = 0;
 
   virtual void RemoveObserver(DataRemovalObserver* observer) = 0;
+
+  // Clear the bluetooth allowed devices map. For test use only.
+  virtual void ClearBluetoothAllowedDevicesMapForTesting() = 0;
 
   // Call |FlushForTesting()| on Network Service related interfaces. For test
   // use only.

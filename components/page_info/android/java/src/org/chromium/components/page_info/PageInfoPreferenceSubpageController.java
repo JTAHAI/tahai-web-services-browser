@@ -35,10 +35,10 @@ public abstract class PageInfoPreferenceSubpageController implements PageInfoSub
     protected @Nullable View addSubpageFragment(BaseSiteSettingsFragment fragment) {
         assert mSubPage == null;
 
+        FragmentManager fragmentManager = mDelegate.getFragmentManager();
         // If the activity is getting destroyed or saved, it is not allowed to modify fragments.
-        if (!canCreateSubpageFragment()) return null;
+        if (assumeNonNull(fragmentManager).isStateSaved()) return null;
 
-        FragmentManager fragmentManager = assumeNonNull(mDelegate.getFragmentManager());
         mSubPage = fragment;
         mSubPage.setSiteSettingsDelegate(mDelegate.getSiteSettingsDelegate());
         fragmentManager.beginTransaction().add(mSubPage, null).commitNow();
@@ -47,24 +47,18 @@ public abstract class PageInfoPreferenceSubpageController implements PageInfoSub
 
     /** Removes the last added preference fragment. */
     protected void removeSubpageFragment() {
-        if (mSubPage == null) return;
+        assert mSubPage != null;
+        FragmentManager fragmentManager = mDelegate.getFragmentManager();
         BaseSiteSettingsFragment subPage = mSubPage;
         mSubPage = null;
         // If the activity is getting destroyed or saved, it is not allowed to modify fragments.
-        if (!canCreateSubpageFragment()) return;
-
-        FragmentManager fragmentManager = assumeNonNull(mDelegate.getFragmentManager());
+        if (fragmentManager == null || fragmentManager.isStateSaved()) return;
         fragmentManager.beginTransaction().remove(subPage).commitNow();
     }
 
-    /**
-     * @return Whether it is possible to add preference fragments.
-     */
+    /** @return Whether it is possible to add preference fragments. */
     protected boolean canCreateSubpageFragment() {
-        FragmentManager fragmentManager = mDelegate.getFragmentManager();
-        return fragmentManager != null
-                && !fragmentManager.isStateSaved()
-                && !fragmentManager.isDestroyed();
+        return !assumeNonNull(mDelegate.getFragmentManager()).isStateSaved();
     }
 
     @Override

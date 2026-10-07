@@ -10,7 +10,6 @@ load("@chromium-luci//builder_health_indicators.star", "health_spec")
 load("@chromium-luci//ci.star", "ci")
 load("@chromium-luci//consoles.star", "consoles")
 load("@chromium-luci//gn_args.star", "gn_args")
-load("@chromium-luci//gpu.star", shared_gpu = "gpu")
 load("@chromium-luci//targets.star", "targets")
 load("//lib/ci_constants.star", "ci_constants")
 load("//lib/gardener_rotations.star", "gardener_rotations")
@@ -21,7 +20,7 @@ load("//project.star", "settings")
 ci.defaults.set(
     executable = ci_constants.DEFAULT_EXECUTABLE,
     builder_group = "chromium.dawn",
-    pool = shared_gpu.ci.POOL,
+    pool = gpu.ci.POOL,
     gardener_rotations = gardener_rotations.DAWN,
     contact_team_email = "chrome-gpu-infra@google.com",
     execution_timeout = ci_constants.DEFAULT_EXECUTION_TIMEOUT,
@@ -71,7 +70,7 @@ consoles.console_view(
     },
 )
 
-shared_gpu.ci.linux_builder(
+gpu.ci.linux_builder(
     name = "Dawn Chromium Presubmit",
     branch_selector = [
         branches.selector.ANDROID_BRANCHES,
@@ -126,7 +125,7 @@ shared_gpu.ci.linux_builder(
     execution_timeout = 30 * time.minute,
 )
 
-shared_gpu.ci.linux_builder(
+gpu.ci.linux_builder(
     name = "Dawn Linux x64 Builder",
     description_html = "Builds Linux x64 binaries using ToT Dawn",
     builder_spec = builder_config.builder_spec(
@@ -165,7 +164,7 @@ shared_gpu.ci.linux_builder(
     ),
 )
 
-shared_gpu.ci.linux_builder(
+gpu.ci.linux_builder(
     name = "Dawn Linux x64 DEPS Builder",
     branch_selector = branches.selector.LINUX_BRANCHES,
     description_html = "Builds Linux x64 binaries using DEPS-ed in Dawn",
@@ -209,7 +208,7 @@ shared_gpu.ci.linux_builder(
     cq_mirrors_console_view = "mirrors",
 )
 
-shared_gpu.ci.linux_builder(
+gpu.ci.linux_builder(
     name = "Dawn Android arm DEPS Builder",
     description_html = "Builds Android arm binaries using DEPS-ed in Dawn",
     builder_spec = builder_config.builder_spec(
@@ -250,7 +249,7 @@ shared_gpu.ci.linux_builder(
     siso_remote_jobs = siso.remote_jobs.HIGH_JOBS_FOR_CI,
 )
 
-shared_gpu.ci.linux_builder(
+gpu.ci.linux_builder(
     name = "Dawn Android arm64 DEPS Builder",
     description_html = "Builds Android arm64 binaries using DEPS-ed in Dawn",
     builder_spec = builder_config.builder_spec(
@@ -648,7 +647,7 @@ ci.thin_tester(
     cq_mirrors_console_view = "mirrors",
 )
 
-shared_gpu.ci.linux_builder(
+gpu.ci.linux_builder(
     name = "Dawn Android arm Builder",
     description_html = "Builds Android arm binaries using ToT Dawn",
     builder_spec = builder_config.builder_spec(
@@ -690,7 +689,7 @@ shared_gpu.ci.linux_builder(
     siso_remote_jobs = siso.remote_jobs.HIGH_JOBS_FOR_CI,
 )
 
-shared_gpu.ci.linux_builder(
+gpu.ci.linux_builder(
     name = "Dawn Android arm64 Builder",
     description_html = "Builds Android arm64 binaries using ToT Dawn",
     builder_spec = builder_config.builder_spec(
@@ -1100,16 +1099,21 @@ ci.thin_tester(
         run_tests_serially = True,
     ),
     targets = targets.bundle(
+        # TODO(crbug.com/333424893): Enable tests.
         targets = [
-            "gpu_dawn_galaxy_s24_gtests",
-            "gpu_dawn_galaxy_s24_telemetry_tests",
+            "gpu_noop_sleep_telemetry_test",
         ],
         mixins = [
             "has_native_resultdb_integration",
             "gpu_samsung_s24_stable",
             "limited_capacity_bot",
-            "no_tombstones",
         ],
+        per_test_modifications = {
+            "noop_sleep_tests": targets.mixin(
+                # TODO(crbug.com/333424893): Enable tests.
+                experiment_percentage = 100,
+            ),
+        },
     ),
     targets_settings = targets.settings(
         browser_config = targets.browser_config.ANDROID_CHROMIUM,
@@ -1120,7 +1124,6 @@ ci.thin_tester(
         category = "ToT|Android",
         short_name = "s24",
     ),
-    execution_timeout = 6 * time.hour,
 )
 
 ci.thin_tester(
@@ -1224,12 +1227,10 @@ ci.thin_tester(
     targets = targets.bundle(
         # If the experimental configuration is the same as stable, this should
         # only be running 'gpu_noop_sleep_telemetry_test'. Otherwise, this
-        # should be running the same tests as 'Dawn Linux x64 Release (NVIDIA
+        # should be running the same tests as 'Dawn LKinux x64 Release (NVIDIA
         # GTX 1660)'.
         targets = [
-            "dawn_chromium_isolated_scripts",
-            "gpu_common_gtests_passthrough",
-            "gpu_dawn_compat_telemetry_tests",
+            "gpu_noop_sleep_telemetry_test",
         ],
         mixins = [
             "linux_nvidia_gtx_1660_experimental",
@@ -1241,10 +1242,10 @@ ci.thin_tester(
         os_type = targets.os_type.LINUX,
     ),
     # Uncomment this entry when this experimental tester is actually in use.
-    console_view_entry = consoles.console_view_entry(
-        category = "ToT|Linux|Nvidia",
-        short_name = "exp",
-    ),
+    # console_view_entry = consoles.console_view_entry(
+    #     category = "ToT|Linux|Nvidia",
+    #     short_name = "exp",
+    # ),
     list_view = "chromium.gpu.experimental",
 )
 
@@ -1410,7 +1411,7 @@ ci.thin_tester(
     ),
 )
 
-shared_gpu.ci.mac_builder(
+gpu.ci.mac_builder(
     name = "Dawn Mac arm64 Builder",
     description_html = "Builds Mac arm64 binaries using ToT Dawn",
     builder_spec = builder_config.builder_spec(
@@ -1449,7 +1450,7 @@ shared_gpu.ci.mac_builder(
     ),
 )
 
-shared_gpu.ci.mac_builder(
+gpu.ci.mac_builder(
     name = "Dawn Mac arm64 DEPS Builder",
     branch_selector = branches.selector.MAC_BRANCHES,
     description_html = "Builds Mac arm64 binaries using DEPS-ed in Dawn",
@@ -1635,7 +1636,7 @@ ci.thin_tester(
     ),
 )
 
-shared_gpu.ci.mac_builder(
+gpu.ci.mac_builder(
     name = "Dawn Mac x64 Builder",
     description_html = "Builds Mac x64 binaries using ToT Dawn",
     builder_spec = builder_config.builder_spec(
@@ -1675,7 +1676,7 @@ shared_gpu.ci.mac_builder(
     ),
 )
 
-shared_gpu.ci.mac_builder(
+gpu.ci.mac_builder(
     name = "Dawn Mac x64 DEPS Builder",
     branch_selector = branches.selector.MAC_BRANCHES,
     description_html = "Builds Mac x64 binaries using DEPS-ed in Dawn",
@@ -2107,7 +2108,7 @@ ci.thin_tester(
     ),
 )
 
-shared_gpu.ci.windows_builder(
+gpu.ci.windows_builder(
     name = "Dawn Win10 x64 ASAN Builder",
     description_html = "Builds Windows x64 binaries with ASan enabled using ToT Dawn",
     # One build every 2 hours.
@@ -2279,7 +2280,7 @@ ci.thin_tester(
     execution_timeout = 4 * time.hour,
 )
 
-shared_gpu.ci.windows_builder(
+gpu.ci.windows_builder(
     name = "Dawn Win10 x64 Builder",
     description_html = "Builds Windows x64 binaries using ToT Dawn",
     builder_spec = builder_config.builder_spec(
@@ -2320,7 +2321,7 @@ shared_gpu.ci.windows_builder(
     siso_remote_jobs = siso.remote_jobs.LOW_JOBS_FOR_CI,
 )
 
-shared_gpu.ci.windows_builder(
+gpu.ci.windows_builder(
     name = "Dawn Win10 x64 DEPS Builder",
     branch_selector = branches.selector.WINDOWS_BRANCHES,
     description_html = "Builds Windows x64 binaries using DEPS-ed in Dawn",
@@ -2364,7 +2365,7 @@ shared_gpu.ci.windows_builder(
     siso_remote_jobs = siso.remote_jobs.LOW_JOBS_FOR_CI,
 )
 
-shared_gpu.ci.windows_builder(
+gpu.ci.windows_builder(
     name = "Dawn Win11 arm64 Builder",
     description_html = "Builds Windows arm64 binaries using ToT Dawn",
     builder_spec = builder_config.builder_spec(
@@ -2417,7 +2418,7 @@ shared_gpu.ci.windows_builder(
     ),
 )
 
-shared_gpu.ci.windows_builder(
+gpu.ci.windows_builder(
     name = "Dawn Win11 arm64 DEPS Builder",
     branch_selector = branches.selector.WINDOWS_BRANCHES,
     description_html = "Builds Windows arm64 binaries using DEPS-ed in Dawn",
@@ -2985,7 +2986,7 @@ ci.thin_tester(
     execution_timeout = 4 * time.hour,
 )
 
-shared_gpu.ci.windows_builder(
+gpu.ci.windows_builder(
     name = "Dawn Win10 x86 Builder",
     description_html = "Builds Windows x86 binaries using ToT Dawn",
     builder_spec = builder_config.builder_spec(
@@ -3025,7 +3026,7 @@ shared_gpu.ci.windows_builder(
     siso_remote_jobs = siso.remote_jobs.LOW_JOBS_FOR_CI,
 )
 
-shared_gpu.ci.windows_builder(
+gpu.ci.windows_builder(
     name = "Dawn Win10 x86 DEPS Builder",
     branch_selector = branches.selector.WINDOWS_BRANCHES,
     description_html = "Builds Windows x86 binaries using DEPS-ed in Dawn",

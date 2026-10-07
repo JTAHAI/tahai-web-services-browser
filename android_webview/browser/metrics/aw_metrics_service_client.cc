@@ -706,8 +706,13 @@ std::string AwMetricsServiceClient::GetAppPackageNameIfLoggable() {
 }
 
 std::string AwMetricsServiceClient::GetAppPackageName() {
-  return Java_AwMetricsServiceClient_getAppPackageName(
-      jni_zero::AttachCurrentThread());
+  JNIEnv* env = base::android::AttachCurrentThread();
+  base::android::ScopedJavaLocalRef<jstring> j_app_name =
+      Java_AwMetricsServiceClient_getAppPackageName(env);
+  if (j_app_name) {
+    return base::android::ConvertJavaStringToUTF8(env, j_app_name);
+  }
+  return std::string();
 }
 
 void AwMetricsServiceClient::SetUpMetricsDir() {
@@ -903,9 +908,12 @@ static void JNI_AwMetricsServiceClient_SetUploadIntervalForTesting(
 // static
 static void
 JNI_AwMetricsServiceClient_SetOnFinalMetricsCollectedListenerForTesting(
-    base::RepeatingClosure listener) {
+    JNIEnv* env,
+    const base::android::JavaRef<jobject>& listener) {
   AwMetricsServiceClient::GetInstance()
-      ->SetOnFinalMetricsCollectedListenerForTesting(std::move(listener));
+      ->SetOnFinalMetricsCollectedListenerForTesting(base::BindRepeating(
+          jni_zero::RunRunnable,
+          base::android::ScopedJavaGlobalRef<jobject>(listener)));
 }
 
 }  // namespace android_webview

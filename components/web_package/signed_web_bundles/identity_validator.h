@@ -8,7 +8,6 @@
 #include <string>
 #include <vector>
 
-#include "base/auto_reset.h"
 #include "base/no_destructor.h"
 #include "base/types/expected.h"
 #include "base/version.h"
@@ -28,8 +27,6 @@ class IdentityValidator {
   IdentityValidator& operator=(const IdentityValidator&) = delete;
 
   static IdentityValidator* GetInstance();
-  static base::AutoReset<IdentityValidator*> SetInstanceForTesting(
-      IdentityValidator* instance);
 
   // Reports whether the inferred web bundle ID is credible.
   virtual base::expected<void, std::string> ValidateWebBundleIdentity(

@@ -29,19 +29,16 @@ class CONTENT_EXPORT AnchorElementInteractionHostImpl
       mojo::PendingReceiver<blink::mojom::AnchorElementInteractionHost>
           receiver);
   // blink::mojom::AnchorElementInteractionHost:
-  void OnPointerDown(const GURL& target, bool renderer_enacted) override;
-  void OnPointerHoverEager(const GURL& target,
-                           blink::mojom::AnchorElementPointerDataPtr mouse_data,
-                           bool renderer_enacted) override;
+  void OnPointerDown(const GURL& target) override;
+  void OnPointerHoverEager(
+      const GURL& target,
+      blink::mojom::AnchorElementPointerDataPtr mouse_data) override;
   void OnPointerHoverModerate(
       const GURL& target,
-      blink::mojom::AnchorElementPointerDataPtr mouse_data,
-      bool renderer_enacted) override;
-  void OnModerateViewportHeuristicTriggered(const GURL& target,
-                                            bool renderer_enacted) override;
+      blink::mojom::AnchorElementPointerDataPtr mouse_data) override;
+  void OnModerateViewportHeuristicTriggered(const GURL& target) override;
   void OnEagerViewportHeuristicTriggered(
-      std::vector<blink::mojom::AnchorElementInteractionTargetPtr> targets)
-      override;
+      const std::vector<GURL>& targets) override;
 };
 
 }  // namespace content

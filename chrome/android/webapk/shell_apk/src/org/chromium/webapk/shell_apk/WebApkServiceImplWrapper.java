@@ -18,7 +18,6 @@ import android.util.Log;
 
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
-import org.chromium.webapk.lib.common.WebApkConstants;
 import org.chromium.webapk.lib.runtime_library.IWebApkApi;
 
 import java.lang.reflect.Field;
@@ -31,6 +30,9 @@ import java.lang.reflect.Method;
 @NullMarked
 public class WebApkServiceImplWrapper extends IWebApkApi.Stub {
     private static final String TAG = "cr_WebApkServiceImplWrapper";
+
+    /** The channel id of the WebAPK. */
+    private static final String DEFAULT_NOTIFICATION_CHANNEL_ID = "default_channel_id";
 
     private static final String FUNCTION_NAME_NOTIFY_NOTIFICATION =
             "TRANSACTION_notifyNotification";
@@ -98,16 +100,8 @@ public class WebApkServiceImplWrapper extends IWebApkApi.Stub {
     @Override
     @SuppressWarnings("NewApi")
     public void notifyNotification(String platformTag, int platformID, Notification notification) {
-        String channelId = notification.getChannelId();
-        if (channelId == null) {
-            channelId = WebApkConstants.DEFAULT_NOTIFICATION_CHANNEL_ID;
-        }
-        ensureNotificationChannelExists(channelId);
-
-        Notification.Builder builder = Notification.Builder.recoverBuilder(mContext, notification);
-        builder.setChannelId(channelId);
-        notification = builder.build();
-
+        ensureNotificationChannelExists();
+        notification = rebuildNotificationWithChannelId(mContext, notification);
         delegateNotifyNotification(platformTag, platformID, notification);
     }
 
@@ -156,15 +150,13 @@ public class WebApkServiceImplWrapper extends IWebApkApi.Stub {
                 mContext, channelName, channelId);
     }
 
-    protected void ensureNotificationChannelExists(String channelId) {
-        int importance =
-                WebApkConstants.HIGH_PRIORITY_NOTIFICATION_CHANNEL_ID.equals(channelId)
-                        ? NotificationManager.IMPORTANCE_HIGH
-                        : NotificationManager.IMPORTANCE_DEFAULT;
-
+    /** Creates a WebAPK notification channel if one does not exist. */
+    protected void ensureNotificationChannelExists() {
         NotificationChannel channel =
                 new NotificationChannel(
-                        channelId, WebApkUtils.getNotificationChannelName(mContext), importance);
+                        DEFAULT_NOTIFICATION_CHANNEL_ID,
+                        WebApkUtils.getNotificationChannelName(mContext),
+                        NotificationManager.IMPORTANCE_DEFAULT);
         getNotificationManager().createNotificationChannel(channel);
     }
 
@@ -201,6 +193,14 @@ public class WebApkServiceImplWrapper extends IWebApkApi.Stub {
         }
 
         return false;
+    }
+
+    /** Rebuilds a notification with channel ID from the given notification object. */
+    private static Notification rebuildNotificationWithChannelId(
+            Context context, Notification notification) {
+        Notification.Builder builder = Notification.Builder.recoverBuilder(context, notification);
+        builder.setChannelId(DEFAULT_NOTIFICATION_CHANNEL_ID);
+        return builder.build();
     }
 
     /** Calls the delegate's {@link notifyNotification} method via reflection. */

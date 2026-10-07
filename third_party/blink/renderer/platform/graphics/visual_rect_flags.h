@@ -5,32 +5,29 @@
 #ifndef THIRD_PARTY_BLINK_RENDERER_PLATFORM_GRAPHICS_VISUAL_RECT_FLAGS_H_
 #define THIRD_PARTY_BLINK_RENDERER_PLATFORM_GRAPHICS_VISUAL_RECT_FLAGS_H_
 
-#include "base/containers/enum_set.h"
-
 namespace blink {
 
-enum class VisualRectFlag {
-  kMinValue,
-
+enum VisualRectFlags : unsigned int {
   // The following flags are used in both
   // LayoutObject::MapToVisualRectInAncestorSpace() and
   // GeometryMapper::LocalToAncestorVisualRect().
 
+  kDefaultVisualRectFlags = 0,
   // Use gfx::RectF::InclusiveIntersect instead of gfx::RectF::Intersect for
   // intersection.
-  kEdgeInclusive = kMinValue,
+  kEdgeInclusive = 1 << 0,
   // Don't expand visual rect for pixel-moving filters.
-  kIgnoreFilters,
+  kIgnoreFilters = 1 << 1,
 
   // The following flags are used in
   // LayoutObject::MapToVisualRectInAncestorSpace() only.
 
   // Use the GeometryMapper fast-path, if possible.
-  kUseGeometryMapper,
+  kUseGeometryMapper = 1 << 2,
   // When mapping to absolute coordinates and the main frame is remote, don't
   // apply the main frame root scroller's overflow clip.
-  kDontApplyMainFrameOverflowClip,
-  kIgnoreLocalClipPath,
+  kDontApplyMainFrameOverflowClip = 1 << 3,
+  kIgnoreLocalClipPath = 1 << 4,
 
   // If the local root frame has a remote frame parent, apply the transformation
   // from the local root frame to the viewport, i.e., (0, 0) maps to the origin
@@ -39,22 +36,19 @@ enum class VisualRectFlag {
   // NOTE: This is guaranteed to provide a correct value only if the iframe is
   // onscreen. This is because we don't sync scroll updates from the main
   // frame's root scroller. See kSkipUnnecessaryRemoteFrameGeometryPropagation.
-  kApplyRemoteViewportTransform,
+  kVisualRectApplyRemoteViewportTransform = 1 << 5,
 
   // Use the real clip-path bounding rect, ignoring any large clip path bounding
   // rect designed to facilitate painting of composited clip path animations.
   // Used for intersection observers.
-  kUsePreciseClipPath,
+  kUsePreciseClipPath = 1 << 6,
 
   // Skip all ancestor clips, including the viewport clip. Callers that need to
   // derive both the unclipped and clipped rects can map once with this flag to
   // obtain the unclipped geometry and once without it for the fully clipped
   // rect, ensuring identical transform and scroll offset logic.
-  kSkipAncestorAndViewportClips,
-  kMaxValue = kSkipAncestorAndViewportClips,
+  kSkipAncestorAndViewportClips = 1 << 7
 };
-
-using VisualRectFlags = base::EnumSet<VisualRectFlag>;
 
 }  // namespace blink
 

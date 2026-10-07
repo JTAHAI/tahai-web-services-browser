@@ -1,2 +1,3 @@
-rules:
-- "**": [zoom]
+features:
+- name: zoom
+  files: "**"

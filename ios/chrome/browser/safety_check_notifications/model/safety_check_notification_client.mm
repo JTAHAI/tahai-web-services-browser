@@ -597,16 +597,18 @@ void SafetyCheckNotificationClient::ShowUIForNotificationMetadata(
     NOTREACHED();
   }
 
-  AuthenticationService* authService =
-      AuthenticationServiceFactory::GetForProfile(browser->GetProfile());
-  id<SystemIdentity> identity = authService->GetPrimaryIdentity();
-  if (!push_notification_settings::
-          GetMobileNotificationPermissionStatusForClient(
-              PushNotificationClientId::kSafetyCheck, identity.gaiaId)) {
-    PushNotificationService* service =
-        GetApplicationContext()->GetPushNotificationService();
-    service->SetPreference(identity.gaiaId,
-                           PushNotificationClientId::kSafetyCheck, true);
+  if (IsProvisionalNotificationAlertEnabled()) {
+    AuthenticationService* authService =
+        AuthenticationServiceFactory::GetForProfile(browser->GetProfile());
+    id<SystemIdentity> identity = authService->GetPrimaryIdentity();
+    if (!push_notification_settings::
+            GetMobileNotificationPermissionStatusForClient(
+                PushNotificationClientId::kSafetyCheck, identity.gaiaId)) {
+      PushNotificationService* service =
+          GetApplicationContext()->GetPushNotificationService();
+      service->SetPreference(identity.gaiaId,
+                             PushNotificationClientId::kSafetyCheck, true);
+    }
   }
 
   id<SceneCommands> sceneHandler =

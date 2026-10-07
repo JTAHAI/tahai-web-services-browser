@@ -13,11 +13,6 @@ namespace switches {
 const char kVideoCaptureUseGpuMemoryBuffer[] =
     "video-capture-use-gpu-memory-buffer";
 
-// Makes the video capture service ignore devices from the wrapped factory and
-// expose only registered virtual devices.
-const char kVideoCaptureUseVirtualDevicesOnly[] =
-    "video-capture-use-virtual-devices-only";
-
 // This is for the same feature controlled by kVideoCaptureUseGpuMemoryBuffer.
 // kVideoCaptureUseGpuMemoryBuffer is settled by chromeos overlays. This flag is
 // necessary to overwrite the settings via chrome:// flag. The behavior of

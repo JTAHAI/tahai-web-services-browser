@@ -22,10 +22,9 @@
 #include "chrome/browser/page_load_metrics/page_load_metrics_initialize.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/task_manager/web_contents_tags.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_window/public/profile_browser_collection.h"
 #include "chrome/browser/ui/prefs/prefs_tab_helper.h"
-#include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/ui_features.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/webui/log_web_ui_url.h"
@@ -279,7 +278,6 @@ constexpr base::MemoryConsumerTraits kWebUIContentsPreloadManagerTraits(
 
 WebUIContentsPreloadManager::WebUIContentsPreloadManager()
     : memory_consumer_registration_(
-          std::in_place,
           /*consumer_name=*/"WebUIContentsPreloadManager",
           kWebUIContentsPreloadManagerTraits,
           this,
@@ -304,13 +302,6 @@ WebUIContentsPreloadManager::WebUIContentsPreloadManager()
   }
 }
 
-void WebUIContentsPreloadManager::ReregisterMemoryConsumerForTesting() {
-  memory_consumer_registration_.emplace(
-      /*consumer_name=*/"WebUIContentsPreloadManager",
-      kWebUIContentsPreloadManagerTraits, this,
-      base::MemoryConsumerRegistration::CheckUnregister::kDisabled);
-}
-
 WebUIContentsPreloadManager::~WebUIContentsPreloadManager() = default;
 
 // static
@@ -319,11 +310,10 @@ WebUIContentsPreloadManager* WebUIContentsPreloadManager::GetInstance() {
   return s_instance.get();
 }
 
-void WebUIContentsPreloadManager::WarmupForBrowser(
-    BrowserWindowInterface* browser) {
+void WebUIContentsPreloadManager::WarmupForBrowser(Browser* browser) {
   // Most WebUIs, if not all, are hosted by a TYPE_NORMAL browser. This check
   // skips unnecessary preloading for the majority of WebUIs.
-  if (browser->GetType() != BrowserWindowInterface::Type::TYPE_NORMAL) {
+  if (!browser->is_type_normal()) {
     return;
   }
 
@@ -336,7 +326,7 @@ void WebUIContentsPreloadManager::WarmupForBrowser(
   if (IsDelayPreloadEnabled()) {
     MaybePreloadForBrowserContextLater(
         browser->GetProfile(),
-        browser->GetTabStripModel()->GetActiveWebContents(),
+        browser->tab_strip_model()->GetActiveWebContents(),
         PreloadReason::kBrowserWarmup);
   } else {
     MaybePreloadForBrowserContext(browser->GetProfile(),
@@ -547,10 +537,6 @@ void WebUIContentsPreloadManager::DisableNavigationForTesting() {
   is_navigation_disabled_for_test_ = true;
 }
 
-void WebUIContentsPreloadManager::ReenableNavigationForTesting() {
-  is_navigation_disabled_for_test_ = false;
-}
-
 std::unique_ptr<content::WebContents>
 WebUIContentsPreloadManager::CreateNewContents(
     content::BrowserContext* browser_context,
@@ -615,7 +601,7 @@ bool WebUIContentsPreloadManager::ShouldPreloadForBrowserContext(
   }
 
   // Don't preload if under heavy memory pressure.
-  if (memory_limit() <= base::MemoryLimit::ModeratePressureThreshold()) {
+  if (memory_limit() <= base::kModerateMemoryPressureThreshold) {
     return false;
   }
 

@@ -32,8 +32,8 @@
 #include "chrome/browser/policy/profile_policy_connector_builder.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/search_engines/ui_thread_search_terms_data.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/common/chrome_paths.h"
@@ -49,7 +49,6 @@
 #include "components/policy/core/common/mock_configuration_policy_provider.h"
 #include "components/policy/core/common/policy_map.h"
 #include "components/policy/policy_constants.h"
-#include "components/prefs/pref_change_registrar.h"
 #include "components/prefs/pref_member.h"
 #include "components/prefs/pref_service.h"
 #include "components/strings/grit/components_strings.h"
@@ -116,23 +115,21 @@ namespace {
   return content::EvalJs(render_frame_host, command).ExtractBool();
 }
 
-[[nodiscard]] bool IsDisplayingText(BrowserWindowInterface* browser,
-                                    const std::string& text) {
+[[nodiscard]] bool IsDisplayingText(Browser* browser, const std::string& text) {
   return IsDisplayingText(
       browser->tab_strip_model()->GetActiveWebContents()->GetPrimaryMainFrame(),
       text);
 }
 
 // Expands the details box on the currently displayed error page.
-void ToggleDetails(BrowserWindowInterface* browser) {
+void ToggleDetails(Browser* browser) {
   EXPECT_TRUE(
       content::ExecJs(browser->tab_strip_model()->GetActiveWebContents(),
                       "document.getElementById('details-button').click();"));
 }
 
 // Returns true if the diagnostics link suggestion is displayed.
-[[nodiscard]] bool IsDisplayingDiagnosticsLink(
-    BrowserWindowInterface* browser) {
+[[nodiscard]] bool IsDisplayingDiagnosticsLink(Browser* browser) {
   std::string command = base::StringPrintf(
       "var diagnose_link = document.getElementById('diagnose-link');"
       "diagnose_link != null;");
@@ -143,14 +140,13 @@ void ToggleDetails(BrowserWindowInterface* browser) {
 
 // Checks that the error page is being displayed with the specified error
 // string.
-void ExpectDisplayingErrorPage(BrowserWindowInterface* browser,
+void ExpectDisplayingErrorPage(Browser* browser,
                                const std::string& error_string) {
   EXPECT_TRUE(IsDisplayingText(browser, error_string));
 }
 
 // Checks that the error page is being displayed with the specified error code.
-void ExpectDisplayingErrorPage(BrowserWindowInterface* browser,
-                               net::Error error_code) {
+void ExpectDisplayingErrorPage(Browser* browser, net::Error error_code) {
   ExpectDisplayingErrorPage(browser, net::ErrorToShortString(error_code));
 }
 
@@ -753,7 +749,7 @@ IN_PROC_BROWSER_TEST_F(DNSErrorPageTest, CheckEasterEgg) {
 // Test error page in incognito mode. The only difference is that no network
 // diagnostic link is included, except on ChromeOS.
 IN_PROC_BROWSER_TEST_F(DNSErrorPageTest, Incognito) {
-  BrowserWindowInterface* incognito_browser = CreateIncognitoBrowser();
+  Browser* incognito_browser = CreateIncognitoBrowser();
 
   ASSERT_TRUE(ui_test_utils::NavigateToURL(
       incognito_browser,
@@ -1132,7 +1128,7 @@ IN_PROC_BROWSER_TEST_F(ErrorPageSniffTest,
 
 #if BUILDFLAG(IS_CHROMEOS)
 // For ChromeOS, launches appropriate diagnostics app.
-void ClickDiagnosticsLink(BrowserWindowInterface* browser) {
+void ClickDiagnosticsLink(Browser* browser) {
   DCHECK(IsDisplayingDiagnosticsLink(browser));
   EXPECT_TRUE(
       content::ExecJs(browser->tab_strip_model()->GetActiveWebContents(),

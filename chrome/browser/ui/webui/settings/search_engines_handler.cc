@@ -21,7 +21,6 @@
 #include "build/branding_buildflags.h"
 #include "chrome/browser/autocomplete/aim_eligibility_service_factory.h"
 #include "chrome/browser/extensions/extension_util.h"
-#include "chrome/browser/metrics/profile_metrics_service_factory.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/regional_capabilities/regional_capabilities_service_factory.h"
 #include "chrome/browser/safe_browsing/extension_telemetry/search_hijacking_detector.h"
@@ -33,7 +32,6 @@
 #include "chrome/common/url_constants.h"
 #include "chrome/common/webui_url_constants.h"
 #include "chrome/grit/generated_resources.h"
-#include "components/metrics/profile_metrics_service.h"
 #include "components/omnibox/browser/omnibox_field_trial.h"
 #include "components/omnibox/common/omnibox_features.h"
 #include "components/optimization_guide/core/feature_registry/feature_registration.h"
@@ -41,7 +39,6 @@
 #include "components/regional_capabilities/regional_capabilities_service.h"
 #include "components/search_engines/search_engine_choice/search_engine_choice_service.h"
 #include "components/search_engines/search_engine_choice/search_engine_choice_utils.h"
-#include "components/search_engines/search_engine_split_metrics.h"
 #include "components/search_engines/search_engines_switches.h"
 #include "components/search_engines/template_url.h"
 #include "components/search_engines/template_url_id.h"
@@ -173,8 +170,6 @@ void SearchEnginesHandler::OnJavascriptAllowed() {
   CHECK(template_url_service);
   scoped_url_service_observation_.Observe(template_url_service);
   list_controller_.Refresh();
-
-  RecordSearchHijackingHeuristicMetric();
 }
 
 void SearchEnginesHandler::OnJavascriptDisallowed() {
@@ -201,13 +196,11 @@ base::DictValue SearchEnginesHandler::GetCategorizedTemplateUrls() {
       template_url_service->GetCategorizedTemplateURLs(
           internal::GetDisabledStarterPackIds(ai_mode_enabled, gemini_enabled));
 
-  TemplateURL::TemplateURLVector displayed_engines;
   auto transform_urls =
       [&](const TemplateURL::TemplateURLVector& template_urls) {
         base::ListValue transformed_list;
         for (const auto& template_url : template_urls) {
           transformed_list.Append(CreateDictionaryForEngine(template_url));
-          displayed_engines.push_back(template_url);
         }
         return transformed_list;
       };
@@ -220,18 +213,11 @@ base::DictValue SearchEnginesHandler::GetCategorizedTemplateUrls() {
                           transform_urls(data.active_feature_shortcuts));
   search_engines_data.Set("inactiveFeatureShortcuts",
                           transform_urls(data.inactive_feature_shortcuts));
-
-  RecordSearchEngineSplitMetrics(displayed_engines);
-
   return search_engines_data;
 }
 
 base::DictValue SearchEnginesHandler::GetSearchEnginesList() {
   CHECK(!base::FeatureList::IsEnabled(switches::kSearchSettingsUpdate));
-
-  TemplateURL::TemplateURLVector displayed_engines;
-  size_t engine_count = list_controller_.table_model()->engine_count();
-  displayed_engines.reserve(engine_count);
 
   // Build the first list (default search engines).
   base::ListValue defaults;
@@ -240,9 +226,8 @@ base::DictValue SearchEnginesHandler::GetSearchEnginesList() {
 
   for (size_t i = 0; i < last_default_engine_index; ++i) {
     // Third argument is false, as the engine is not from an extension.
-    TemplateURL* turl = list_controller_.GetTemplateURLForIndex(i);
-    defaults.Append(CreateDictionaryForEngine(turl));
-    displayed_engines.push_back(turl);
+    defaults.Append(
+        CreateDictionaryForEngine(list_controller_.GetTemplateURLForIndex(i)));
   }
 
   // Build the second list (active search engines).
@@ -253,9 +238,8 @@ base::DictValue SearchEnginesHandler::GetSearchEnginesList() {
   CHECK_LE(last_default_engine_index, last_active_engine_index);
   for (size_t i = last_default_engine_index; i < last_active_engine_index;
        ++i) {
-    TemplateURL* turl = list_controller_.GetTemplateURLForIndex(i);
-    actives.Append(CreateDictionaryForEngine(turl));
-    displayed_engines.push_back(turl);
+    actives.Append(
+        CreateDictionaryForEngine(list_controller_.GetTemplateURLForIndex(i)));
   }
 
   // Build the third list (other search engines).
@@ -267,24 +251,21 @@ base::DictValue SearchEnginesHandler::GetSearchEnginesList() {
   CHECK_LE(last_active_engine_index, last_other_engine_index);
 
   for (size_t i = last_active_engine_index; i < last_other_engine_index; ++i) {
-    TemplateURL* turl = list_controller_.GetTemplateURLForIndex(i);
-    others.Append(CreateDictionaryForEngine(turl));
-    displayed_engines.push_back(turl);
+    others.Append(
+        CreateDictionaryForEngine(list_controller_.GetTemplateURLForIndex(i)));
   }
 
   // Build the third list (omnibox extensions).
   base::ListValue extensions;
+  size_t engine_count = list_controller_.table_model()->engine_count();
 
   // Sanity check for https://crbug.com/40548229.
   CHECK_LE(last_other_engine_index, engine_count);
 
   for (size_t i = last_other_engine_index; i < engine_count; ++i) {
-    TemplateURL* turl = list_controller_.GetTemplateURLForIndex(i);
-    extensions.Append(CreateDictionaryForEngine(turl));
-    displayed_engines.push_back(turl);
+    extensions.Append(
+        CreateDictionaryForEngine(list_controller_.GetTemplateURLForIndex(i)));
   }
-
-  RecordSearchEngineSplitMetrics(displayed_engines);
 
   base::DictValue search_engines_info;
   search_engines_info.Set("defaults", std::move(defaults));
@@ -295,7 +276,7 @@ base::DictValue SearchEnginesHandler::GetSearchEnginesList() {
 }
 
 void SearchEnginesHandler::OnTemplateURLServiceChanged() {
-  CHECK(IsJavascriptAllowed(), base::NotFatalUntil::M159);
+  AllowJavascript();
 
   list_controller_.Refresh();
 
@@ -373,9 +354,6 @@ base::DictValue SearchEnginesHandler::CreateDictionaryForEngine(
   dict.Set("shouldConfirmRemoval",
            list_controller_.ShouldConfirmRemoval(template_url));
   dict.Set("isManaged", list_controller_.IsManaged(template_url));
-  dict.Set("isRecommendedFromPolicy",
-           template_url->CreatedByDefaultSearchProviderPolicy() &&
-               !template_url->enforced_by_policy());
   TemplateURL::Type type = template_url->type();
   dict.Set("isOmniboxExtension", type == TemplateURL::OMNIBOX_API_EXTENSION);
   dict.Set("isPrepopulated", template_url->prepopulate_id() > 0);
@@ -428,48 +406,13 @@ void SearchEnginesHandler::RecordSearchHijackingHeuristicMetric() {
   has_recorded_hijacking_metric_ = true;
 }
 
-void SearchEnginesHandler::RecordSearchEngineSplitMetrics(
-    TemplateURL::TemplateURLVectorSpan displayed_engines) {
-  if (has_recorded_search_engine_split_metrics_) {
-    return;
-  }
-  has_recorded_search_engine_split_metrics_ = true;
-
-  regional_capabilities::RegionalCapabilitiesService*
-      regional_capabilities_service = regional_capabilities::
-          RegionalCapabilitiesServiceFactory::GetForProfile(profile_);
-  CHECK(regional_capabilities_service);
-  if (!regional_capabilities_service->IsSearchEngineSplitRegion()) {
-    return;
-  }
-
-  TemplateURLService* template_url_service =
-      TemplateURLServiceFactory::GetForProfile(profile_);
-  CHECK(template_url_service);
-  metrics::ProfileMetricsService* profile_metrics_service =
-      ProfileMetricsServiceFactory::GetForProfile(profile_);
-  CHECK(profile_metrics_service);
-
-  search_engines::RecordSearchEngineSplitSettingsPageLoadMetrics(
-      displayed_engines, template_url_service->GetDefaultSearchProvider(),
-      template_url_service->search_terms_data(), *profile_metrics_service);
-}
-
 void SearchEnginesHandler::HandleGetCategorizedTemplateUrls(
     const base::ListValue& args) {
   CHECK_EQ(1U, args.size());
   const base::Value& callback_id = args[0];
-
-  // This adds the TemplateURLService observer.
   AllowJavascript();
 
-  // Don't send an update if the TemplateURLService is not ready. Once it is
-  // loaded, the TemplateURLService will send an update through the observer.
-  TemplateURLService* template_url_service =
-      TemplateURLServiceFactory::GetForProfile(profile_);
-  if (!template_url_service || !template_url_service->loaded()) {
-    return;
-  }
+  RecordSearchHijackingHeuristicMetric();
 
   ResolveJavascriptCallback(callback_id, GetCategorizedTemplateUrls());
 }
@@ -478,17 +421,9 @@ void SearchEnginesHandler::HandleGetSearchEnginesList(
     const base::ListValue& args) {
   CHECK_EQ(1U, args.size());
   const base::Value& callback_id = args[0];
-
-  // This adds the TemplateURLService observer.
   AllowJavascript();
 
-  // Don't send an update if the TemplateURLService is not ready. Once it is
-  // loaded, the TemplateURLService will send an update through the observer.
-  TemplateURLService* template_url_service =
-      TemplateURLServiceFactory::GetForProfile(profile_);
-  if (!template_url_service || !template_url_service->loaded()) {
-    return;
-  }
+  RecordSearchHijackingHeuristicMetric();
 
   ResolveJavascriptCallback(callback_id, GetSearchEnginesList());
 }

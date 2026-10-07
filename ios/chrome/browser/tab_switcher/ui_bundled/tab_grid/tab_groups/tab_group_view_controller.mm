@@ -16,7 +16,7 @@
 #import "ios/chrome/browser/saved_tab_groups/ui/face_pile_color_updater.h"
 #import "ios/chrome/browser/saved_tab_groups/ui/face_pile_providing.h"
 #import "ios/chrome/browser/share_kit/model/sharing_state.h"
-#import "ios/chrome/browser/shared/coordinator/scene/state/scene_layout_state.h"
+#import "ios/chrome/browser/shared/coordinator/scene/state/layout_state.h"
 #import "ios/chrome/browser/shared/model/web_state_list/tab_group.h"
 #import "ios/chrome/browser/shared/public/commands/tab_groups_commands.h"
 #import "ios/chrome/browser/shared/public/features/features.h"
@@ -168,7 +168,10 @@ UIButton* TopToolbarButton(Symbol symbol,
   // Container for the content of the ViewController.
   UIView* _container;
   // The background of the container, for animations.
-  TabGroupGradientView* _containerBackground;
+  UIView* _containerBackground;
+  // An ivar that stores the _containerBackground as TabGroupGradientView,
+  // should be removed once IsTabGroupColorOnSurfaceEnabled shipped.
+  TabGroupGradientView* _containerGradientBackground;
   // The gesture recognizer to swipe to dismiss the tab group view.
   UIPanGestureRecognizer* _swipeDownGestureRecognizer;
   // Face pile provider.
@@ -395,8 +398,9 @@ UIButton* TopToolbarButton(Symbol symbol,
   _bottomGradient.translatesAutoresizingMaskIntoConstraints = NO;
   _bottomGradient.userInteractionEnabled = NO;
   [_container addSubview:_bottomGradient];
-  AddSameConstraintsToSides(_container, _bottomGradient,
-                            LayoutSides::kBottom | LayoutSides::kHorizontal);
+  AddSameConstraintsToSides(
+      _container, _bottomGradient,
+      LayoutSides::kBottom | LayoutSides::kLeading | LayoutSides::kTrailing);
   [_bottomGradient.heightAnchor constraintEqualToConstant:kGradientHeight]
       .active = YES;
 
@@ -743,6 +747,7 @@ UIButton* TopToolbarButton(Symbol symbol,
                          gradientBackgroundColors:_tabGroupColorPalette
                                                       .tabGroupColorID]];
   background.translatesAutoresizingMaskIntoConstraints = NO;
+  _containerGradientBackground = background;
 
   return background;
 }
@@ -1029,7 +1034,7 @@ UIButton* TopToolbarButton(Symbol symbol,
   closeButtonConfig.background.backgroundColor = buttonColor;
   _closeButton.configuration = closeButtonConfig;
 
-  [_containerBackground
+  [_containerGradientBackground
       updateColors:[TabGroupColorPalette
                        gradientBackgroundColors:_tabGroupColorPalette
                                                     .tabGroupColorID]];

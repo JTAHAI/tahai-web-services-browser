@@ -43,7 +43,6 @@
 #import "ios/chrome/browser/menu/ui_bundled/browser_action_factory.h"
 #import "ios/chrome/browser/net/model/crurl.h"
 #import "ios/chrome/browser/ntp/ui_bundled/new_tab_page_actions_delegate.h"
-#import "ios/chrome/browser/ntp/ui_bundled/new_tab_page_feature.h"
 #import "ios/chrome/browser/ntp_tiles/model/most_visited_sites_observer_bridge.h"
 #import "ios/chrome/browser/policy/model/policy_util.h"
 #import "ios/chrome/browser/shared/model/application_context/application_context.h"
@@ -203,13 +202,6 @@ GURL GetValidUrl(NSString* urlString) {
 
 - (MostVisitedTilesConfig*)mostVisitedTilesConfig {
   return _mostVisitedConfig;
-}
-
-- (void)setConsumer:(id<ContentSuggestionsConsumer>)consumer {
-  _consumer = consumer;
-  if (IsNTPRedesignEnabled() && _consumer && _mostVisitedConfig) {
-    [_consumer setMostVisitedTilesConfig:_mostVisitedConfig];
-  }
 }
 
 #pragma mark - MostVisitedSitesObserving
@@ -476,7 +468,7 @@ GURL GetValidUrl(NSString* urlString) {
 
 // Removes the most visited `item`.
 - (void)removeMostVisited:(MostVisitedItem*)item {
-  [ContentSuggestionsMetricsRecorder recordMostVisitedTileRemoved];
+  [self.contentSuggestionsMetricsRecorder recordMostVisitedTileRemoved];
   [self blockMostVisitedURL:item.URL];
   __weak MostVisitedTilesMediator* weakSelf = self;
   [self showSnackbarWithMessage:l10n_util::GetNSString(
@@ -595,7 +587,7 @@ GURL GetValidUrl(NSString* urlString) {
 - (void)logMostVisitedOpening:(MostVisitedItem*)item
                       atIndex:(NSInteger)mostVisitedIndex {
   [self.NTPActionsDelegate mostVisitedTileOpened];
-  [ContentSuggestionsMetricsRecorder
+  [self.contentSuggestionsMetricsRecorder
       recordMostVisitedTileOpened:item
                           atIndex:mostVisitedIndex];
 }

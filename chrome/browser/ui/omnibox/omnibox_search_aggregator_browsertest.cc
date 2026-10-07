@@ -13,8 +13,8 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/search_engines/template_url_service_factory.h"
 #include "chrome/browser/signin/identity_test_environment_profile_adaptor.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_window.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/location_bar/location_bar.h"
 #include "chrome/browser/ui/omnibox/omnibox_controller.h"
 #include "chrome/browser/ui/omnibox/omnibox_edit_model.h"
@@ -56,9 +56,9 @@ const char kSearchAggregatorPolicySuggestUrl[] =
     "https://www.aggregator.com/suggest";
 
 const char kSearchAggregatorPolicySuggestPath[] = "/suggest";
-const char16_t kSearchInput[] = u"@aggregator john d";
+const std::u16string kSearchInput = u"@aggregator john d";
 
-const char kGoodJsonResponse[] =
+const std::string kGoodJsonResponse = base::StringPrintf(
     R"({
         "querySuggestions": [
           {
@@ -120,7 +120,7 @@ const char kGoodJsonResponse[] =
             "dataStore": "project2"
           }
         ]
-      })";
+      })");
 
 }  // namespace
 

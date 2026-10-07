@@ -14,16 +14,13 @@
 #include "cc/layers/layer_impl.h"
 #include "cc/layers/render_surface_impl.h"
 #include "cc/trees/layer_tree_impl.h"
-#include "cc/trees/property_tree.h"
 #include "ui/gfx/geometry/quad_f.h"
 #include "ui/gfx/geometry/rect_conversions.h"
 
 namespace cc {
 
-OcclusionTracker::OcclusionTracker(const gfx::Rect& screen_space_clip_rect,
-                                   const EffectTree* effect_tree)
-    : effect_tree_(effect_tree),
-      screen_space_clip_rect_(screen_space_clip_rect) {}
+OcclusionTracker::OcclusionTracker(const gfx::Rect& screen_space_clip_rect)
+    : screen_space_clip_rect_(screen_space_clip_rect) {}
 
 OcclusionTracker::~OcclusionTracker() = default;
 
@@ -55,9 +52,7 @@ OcclusionTracker::OcclusionSurfaceForContributingSurface() const {
   // A contributing surface doesn't get occluded by things inside its own
   // surface, so only things outside the surface can occlude it. That occlusion
   // is found just below the top of the stack (if it exists).
-  CHECK(effect_tree_);
-  return effect_tree_->GetRenderSurface(
-      stack_[stack_.size() - 2].target_effect_node_id);
+  return stack_[stack_.size() - 2].target;
 }
 
 void OcclusionTracker::EnterLayer(
@@ -129,28 +124,20 @@ static SimpleEnclosedRegion TransformSurfaceOpaqueRegion(
 void OcclusionTracker::EnterRenderTarget(
     const RenderSurfaceImpl* new_target_surface) {
   DCHECK(new_target_surface);
-  if (!effect_tree_) {
-    // Lazily initialize effect_tree_ from the surface if not supplied at
-    // construction (e.g. in certain unit test fixtures).
-    effect_tree_ = new_target_surface->effect_tree();
-  }
-  int new_target_id = new_target_surface->EffectTreeIndex();
-  if (!stack_.empty() && stack_.back().target_effect_node_id == new_target_id) {
+  if (!stack_.empty() && stack_.back().target == new_target_surface)
     return;
-  }
 
   const RenderSurfaceImpl* old_target_surface = nullptr;
   const RenderSurfaceImpl* old_occlusion_immune_ancestor = nullptr;
   if (!stack_.empty()) {
-    old_target_surface =
-        effect_tree_->GetRenderSurface(stack_.back().target_effect_node_id);
+    old_target_surface = stack_.back().target;
     old_occlusion_immune_ancestor =
         old_target_surface->nearest_occlusion_immune_ancestor();
   }
   const RenderSurfaceImpl* new_occlusion_immune_ancestor =
       new_target_surface->nearest_occlusion_immune_ancestor();
 
-  stack_.emplace_back(new_target_id);
+  stack_.emplace_back(new_target_surface);
 
   // We copy the screen occlusion into the new RenderSurfaceImpl subtree, but we
   // never copy in the occlusion from inside the target, since we are looking
@@ -283,21 +270,17 @@ static void ReduceOcclusionBelowSurface(
 
 void OcclusionTracker::LeaveToRenderTarget(
     const RenderSurfaceImpl* new_target_surface) {
-  CHECK(!stack_.empty());
-  CHECK(effect_tree_);
+  DCHECK(!stack_.empty());
   size_t last_index = stack_.size() - 1;
   DCHECK(new_target_surface);
-  int new_target_id = new_target_surface->EffectTreeIndex();
   bool surface_will_be_at_top_after_pop =
-      stack_.size() > 1 &&
-      stack_[last_index - 1].target_effect_node_id == new_target_id;
+      stack_.size() > 1 && stack_[last_index - 1].target == new_target_surface;
 
   // We merge the screen occlusion from the current RenderSurfaceImpl subtree
   // out to its parent target RenderSurfaceImpl. The target occlusion can be
   // merged out as well but needs to be transformed to the new target.
 
-  const RenderSurfaceImpl* old_surface =
-      effect_tree_->GetRenderSurface(stack_[last_index].target_effect_node_id);
+  const RenderSurfaceImpl* old_surface = stack_[last_index].target;
 
   SimpleEnclosedRegion old_occlusion_from_inside_target_in_new_target =
       TransformSurfaceOpaqueRegion(
@@ -332,7 +315,7 @@ void OcclusionTracker::LeaveToRenderTarget(
     stack_.pop_back();
   } else {
     // Replace the top of the stack with the new pushed surface.
-    stack_.back().target_effect_node_id = new_target_id;
+    stack_.back().target = new_target_surface;
     stack_.back().occlusion_from_inside_target =
         old_occlusion_from_inside_target_in_new_target;
     if (!is_root) {
@@ -355,9 +338,8 @@ void OcclusionTracker::LeaveToRenderTarget(
 }
 
 void OcclusionTracker::MarkOccludedBehindLayer(const LayerImpl* layer) {
-  CHECK(!stack_.empty());
-  CHECK_EQ(layer->render_target()->EffectTreeIndex(),
-           stack_.back().target_effect_node_id);
+  DCHECK(!stack_.empty());
+  DCHECK_EQ(layer->render_target(), stack_.back().target);
 
   if (layer->draw_opacity() < 1)
     return;
@@ -413,8 +395,7 @@ void OcclusionTracker::MarkOccludedBehindLayer(const LayerImpl* layer) {
 
 Region OcclusionTracker::ComputeVisibleRegionInScreen(
     const LayerTreeImpl* layer_tree) const {
-  CHECK_EQ(layer_tree->RootRenderSurface()->EffectTreeIndex(),
-           stack_.back().target_effect_node_id);
+  DCHECK(layer_tree->RootRenderSurface() == stack_.back().target);
   const SimpleEnclosedRegion& occluded =
       stack_.back().occlusion_from_inside_target;
   Region visible_region(screen_space_clip_rect_);

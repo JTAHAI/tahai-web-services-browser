@@ -43,8 +43,7 @@ void SuspiciousSiteDialogViewAndroid::ContinueAnyway(JNIEnv* env) {
 }
 
 void SuspiciousSiteDialogViewAndroid::GoBack(JNIEnv* env) {
-  controller_->HandleBackNavigation(
-      safe_browsing::SuspiciousSiteWarningUserInteraction::kBackToSafetyButton);
+  controller_->OnGoBackButtonClicked();
 }
 
 void SuspiciousSiteDialogViewAndroid::OnLearnMoreClicked(JNIEnv* env) {

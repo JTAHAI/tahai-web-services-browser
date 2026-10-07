@@ -33,6 +33,7 @@ import org.chromium.base.lifetime.Destroyable;
 import org.chromium.base.supplier.OneshotSupplier;
 import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.CommandLineFlags;
+import org.chromium.base.test.util.DisableIf;
 import org.chromium.base.test.util.Feature;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.app.tabmodel.AsyncTabParamsManagerSingleton;
@@ -51,9 +52,11 @@ import org.chromium.chrome.browser.tabwindow.WindowId;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.chrome.test.transit.AutoResetCtaTransitTestRule;
 import org.chromium.chrome.test.transit.ChromeTransitTestRules;
+import org.chromium.chrome.test.transit.page.WebPageStation;
 import org.chromium.chrome.test.util.browser.contextmenu.ContextMenuUtils;
 import org.chromium.content_public.browser.AdditionalNavigationParams;
 import org.chromium.content_public.browser.LoadUrlParams;
+import org.chromium.ui.base.DeviceFormFactor;
 import org.chromium.ui.modaldialog.ModalDialogManager;
 
 import java.util.concurrent.TimeoutException;
@@ -63,6 +66,7 @@ import java.util.regex.Pattern;
 @RunWith(ChromeJUnit4ClassRunner.class)
 @CommandLineFlags.Add({ChromeSwitches.DISABLE_FIRST_RUN_EXPERIENCE})
 @Batch(Batch.PER_CLASS)
+@DisableIf.Device(DeviceFormFactor.DESKTOP_FREEFORM) // crbug.com/511288160
 public class ContextMenuLoadUrlParamsTest {
     @Rule
     public AutoResetCtaTransitTestRule mActivityTestRule =
@@ -81,6 +85,7 @@ public class ContextMenuLoadUrlParamsTest {
 
     // Load parameters of the last call to openNewTab().
     private static LoadUrlParams sOpenNewTabLoadUrlParams;
+    private WebPageStation mInitialPage;
 
     // Records parameters of calls to TabModelSelector methods and otherwise behaves like
     // TabModelSelectorImpl.
@@ -161,7 +166,7 @@ public class ContextMenuLoadUrlParamsTest {
                 () -> {
                     FirstRunStatus.setFirstRunFlowComplete(true);
                 });
-        mActivityTestRule.startOnBlankPage();
+        mInitialPage = mActivityTestRule.startOnBlankPage();
     }
 
     @After

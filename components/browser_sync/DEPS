@@ -1,5 +1,6 @@
 include_rules = [
   "+ash/constants",
+  "+components/accessibility_annotator/core/storage",
   "+components/account_settings",
   "+components/autofill/core",
   "+components/bookmarks/browser",
@@ -17,6 +18,7 @@ include_rules = [
   "+components/keyed_service/core",
   "+components/notebooks/public",
   "+components/password_manager/core/browser",
+  "+components/plus_addresses/core/browser",
   "+components/prefs",
   "+components/reading_list/core",
   "+components/reading_list/features",

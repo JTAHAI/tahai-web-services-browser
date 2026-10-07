@@ -21,4 +21,4 @@ private:
 
 }
 
-#endif  // PART_OBJECT_TO_GC_DERIVED_CLASS_H_
+#endif

@@ -8,7 +8,6 @@
 #include <memory>
 #include <optional>
 
-#include "base/component_export.h"
 #include "base/files/file_path.h"
 #include "base/files/scoped_temp_file.h"
 #include "base/functional/callback.h"
@@ -32,7 +31,7 @@ struct PartialNetworkTrafficAnnotationTag;
 
 namespace web_app {
 
-class COMPONENT_EXPORT(ISOLATED_WEB_APPS) ScopedTempWebBundleFile {
+class ScopedTempWebBundleFile {
  public:
   // Creates a ScopedTempWebBundleFile on a non-blocking thread.
   // The result might be null if something goes wrong during the operation.
@@ -63,7 +62,7 @@ class COMPONENT_EXPORT(ISOLATED_WEB_APPS) ScopedTempWebBundleFile {
 };
 
 // Helper class to download the Signed Web Bundle of an Isolated Web App.
-class COMPONENT_EXPORT(ISOLATED_WEB_APPS) IsolatedWebAppDownloader {
+class IsolatedWebAppDownloader {
  public:
   using DownloadCallback = base::OnceCallback<void(int32_t net_error)>;
   using PartialDownloadCallback =

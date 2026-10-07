@@ -21,6 +21,7 @@ import org.chromium.build.annotations.EnsuresNonNullIf;
 import org.chromium.build.annotations.MonotonicNonNull;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.chrome.R;
+import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.ui.base.ViewUtils;
 import org.chromium.ui.interpolators.Interpolators;
 
@@ -46,6 +47,7 @@ class CustomTabToolbarAnimationDelegate {
     private final SecurityButtonAnimationDelegate mSecurityButtonAnimationDelegate;
     private final BrandingSecurityButtonAnimationDelegate mBrandingAnimationDelegate;
     private final Runnable mAnimationEndRunnable;
+    private final View mSecurityButtonOffsetTarget;
 
     private @MonotonicNonNull TextView mUrlBar;
     private @MonotonicNonNull TextView mTitleBar;
@@ -55,6 +57,7 @@ class CustomTabToolbarAnimationDelegate {
     private @DrawableRes int mPendingSecurityIconRes;
     private @DrawableRes int mSecurityIconRes;
     private boolean mIsInAnimation;
+    private int mSecurityButtonWidth;
 
     private final AnimatorListenerAdapter mTitleBarAnimatorListenerAdapter =
             new AnimatorListenerAdapter() {
@@ -89,6 +92,10 @@ class CustomTabToolbarAnimationDelegate {
             final View securityButtonOffsetTarget,
             Runnable animationEndRunnable,
             @DimenRes int securityStatusIconSize) {
+        mSecurityButtonWidth =
+                securityButton.getResources().getDimensionPixelSize(securityStatusIconSize);
+        mSecurityButtonOffsetTarget = securityButtonOffsetTarget;
+        mSecurityButtonOffsetTarget.setTranslationX(-mSecurityButtonWidth);
         mSecurityButtonAnimationDelegate =
                 new SecurityButtonAnimationDelegate(
                         securityButton, securityButtonOffsetTarget, securityStatusIconSize);
@@ -108,6 +115,8 @@ class CustomTabToolbarAnimationDelegate {
      * @param width The width of the security button in pixels.
      */
     void setSecurityButtonWidth(int width) {
+        mSecurityButtonWidth = width;
+        mSecurityButtonOffsetTarget.setTranslationX(-mSecurityButtonWidth);
         mSecurityButtonAnimationDelegate.setSecurityButtonWidth(width);
     }
 
@@ -180,7 +189,13 @@ class CustomTabToolbarAnimationDelegate {
                         urlBar.setScaleX(scale);
                         urlBar.setScaleY(scale);
 
+                        boolean nestSecurityIcon =
+                                ChromeFeatureList.sCctNestedSecurityIcon.isEnabled();
                         int xOffset = oldLoc[0] - newLoc[0];
+
+                        if (nestSecurityIcon) {
+                            xOffset -= mSecurityButtonWidth;
+                        }
 
                         urlBar.setTranslationX(xOffset);
                         urlBar.setTranslationY(oldLoc[1] - newLoc[1]);
@@ -189,7 +204,7 @@ class CustomTabToolbarAnimationDelegate {
                         urlBar.animate()
                                 .scaleX(1f)
                                 .scaleY(1f)
-                                .translationX(0)
+                                .translationX(nestSecurityIcon ? -mSecurityButtonWidth : 0)
                                 .translationY(0)
                                 .setDuration(SecurityButtonAnimationDelegate.SLIDE_DURATION_MS)
                                 .setInterpolator(Interpolators.FAST_OUT_SLOW_IN_INTERPOLATOR)

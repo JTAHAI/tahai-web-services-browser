@@ -97,7 +97,7 @@ class MIDIPort : public EventTarget,
            midi::mojom::PortState);
 
   void open();
-  bool IsOpening() const { return running_open_count_; }
+  bool IsOpening() { return running_open_count_; }
   MIDIAccess* midiAccess() const { return access_.Get(); }
 
  private:
@@ -107,8 +107,6 @@ class MIDIPort : public EventTarget,
 
   ScriptPromise<MIDIPort> Accept(ScriptState*);
 
-  // Dispatches or buffers statechange events for both this port and its parent
-  // MIDIAccess depending on page visibility.
   void SetStates(midi::mojom::PortState, MIDIPortConnectionState);
 
   String id_;
@@ -118,7 +116,7 @@ class MIDIPort : public EventTarget,
   String version_;
   Member<MIDIAccess> access_;
   midi::mojom::PortState state_;
-  MIDIPortConnectionState connection_ = MIDIPortConnectionState::kClosed;
+  MIDIPortConnectionState connection_;
   unsigned running_open_count_ = 0;
 };
 

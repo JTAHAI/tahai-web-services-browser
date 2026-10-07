@@ -105,7 +105,6 @@ import {ConsoleTestRunner} from 'console_test_runner';
         arr = [arr];
       console.log(arr);
   `);
-  await ConsoleTestRunner.waitForRemoteObjectsConsoleMessagesPromise();
   await ConsoleTestRunner.dumpConsoleMessages();
   TestRunner.completeTest();
 })();

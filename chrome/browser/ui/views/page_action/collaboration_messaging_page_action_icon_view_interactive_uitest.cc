@@ -12,7 +12,6 @@
 #include "chrome/browser/ui/tabs/saved_tab_groups/collaboration_messaging_observer_factory.h"
 #include "chrome/browser/ui/tabs/saved_tab_groups/collaboration_messaging_tab_data.h"
 #include "chrome/browser/ui/tabs/tab_group_model.h"
-#include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/views/page_action/test_support/page_action_interactive_test_mixin.h"
 #include "chrome/test/interaction/interactive_browser_test.h"
 #include "components/collaboration/public/messaging/message.h"
@@ -85,12 +84,9 @@ class CollaborationMessagingPageActionIconViewInteractiveTest
     MultiStep steps;
     steps +=
         WaitForPageActionChipVisible(kActionShowCollaborationRecentActivity);
-    steps += CheckResult(
-        [this]() {
-          return page_actions::PageActionTestAccessor(
-                     browser(), kActionShowCollaborationRecentActivity)
-              .GetText();
-        },
+    steps += CheckView(
+        kCollaborationMessagingPageActionIconElementId,
+        [](IconLabelBubbleView* icon) { return icon->GetText(); },
         expected_string);
     return steps;
   }
@@ -101,9 +97,9 @@ class CollaborationMessagingPageActionIconViewInteractiveTest
 
 IN_PROC_BROWSER_TEST_F(CollaborationMessagingPageActionIconViewInteractiveTest,
                        ShowPageActionWithAvatarFallback) {
-  ASSERT_TRUE(browser()->GetTabStripModel()->SupportsTabGroups());
+  ASSERT_TRUE(browser()->tab_strip_model()->SupportsTabGroups());
 
-  TabStripModel* model = browser()->GetTabStripModel();
+  TabStripModel* model = browser()->tab_strip_model();
   tab_groups::TabGroupId group = model->AddToNewGroup({0});
 
   EXPECT_EQ(1, model->count());
@@ -113,7 +109,7 @@ IN_PROC_BROWSER_TEST_F(CollaborationMessagingPageActionIconViewInteractiveTest,
       tab_groups::CollaborationMessagingObserverFactory::GetForProfile(
           browser()->GetProfile());
 
-  auto* tab = browser()->GetTabStripModel()->GetActiveTab();
+  auto* tab = browser()->tab_strip_model()->GetActiveTab();
   auto message = CreateChipMessage("User", CollaborationEvent::TAB_ADDED, tab);
 
   RunTestSequence(
@@ -132,19 +128,19 @@ IN_PROC_BROWSER_TEST_F(CollaborationMessagingPageActionIconViewInteractiveTest,
         collaboration_message_observer->DispatchMessageForTests(
             message, /*display=*/false);
       }),
-      WaitForPageActionChipNotVisible(kActionShowCollaborationRecentActivity));
+      WaitForHide(kCollaborationMessagingPageActionIconElementId));
 }
 
 IN_PROC_BROWSER_TEST_F(CollaborationMessagingPageActionIconViewInteractiveTest,
                        ReactsToChangesInTabData) {
-  ASSERT_TRUE(browser()->GetTabStripModel()->SupportsTabGroups());
+  ASSERT_TRUE(browser()->tab_strip_model()->SupportsTabGroups());
 
   const std::u16string expected_added_string =
       base::UTF8ToUTF16(std::string("Added this tab"));
   const std::u16string expected_updated_string =
       base::UTF8ToUTF16(std::string("Changed this tab"));
 
-  TabStripModel* model = browser()->GetTabStripModel();
+  TabStripModel* model = browser()->tab_strip_model();
   tab_groups::TabGroupId group = model->AddToNewGroup({0});
 
   EXPECT_EQ(1, model->count());
@@ -154,28 +150,28 @@ IN_PROC_BROWSER_TEST_F(CollaborationMessagingPageActionIconViewInteractiveTest,
       tab_groups::CollaborationMessagingObserverFactory::GetForProfile(
           browser()->GetProfile());
 
-  auto* tab = browser()->GetTabStripModel()->GetActiveTab();
+  auto* tab = browser()->tab_strip_model()->GetActiveTab();
   auto message = CreateChipMessage("User", CollaborationEvent::TAB_ADDED, tab);
 
-  RunTestSequence(
-      Do([&]() {
-        // Dispatch "added" message.
-        collaboration_message_observer->DispatchMessageForTests(
-            message, /*display=*/true);
-      }),
-      WaitForPageActionToShow(),
-      // Text shows the "added" string.
-      CheckLabelText(expected_added_string), Do([&]() {
-        // Change to an "update" message and dispatch.
-        message.collaboration_event = CollaborationEvent::TAB_UPDATED;
-        collaboration_message_observer->DispatchMessageForTests(
-            message, /*display=*/true);
-      }),
-      // Text changes to the "updated" string.
-      CheckLabelText(expected_updated_string), Do([&]() {
-        // Hide message.
-        collaboration_message_observer->DispatchMessageForTests(
-            message, /*display=*/false);
-      }),
-      WaitForPageActionChipNotVisible(kActionShowCollaborationRecentActivity));
+  RunTestSequence(Do([&]() {
+                    // Dispatch "added" message.
+                    collaboration_message_observer->DispatchMessageForTests(
+                        message, /*display=*/true);
+                  }),
+                  WaitForPageActionToShow(),
+                  // Text shows the "added" string.
+                  CheckLabelText(expected_added_string), Do([&]() {
+                    // Change to an "update" message and dispatch.
+                    message.collaboration_event =
+                        CollaborationEvent::TAB_UPDATED;
+                    collaboration_message_observer->DispatchMessageForTests(
+                        message, /*display=*/true);
+                  }),
+                  // Text changes to the "updated" string.
+                  CheckLabelText(expected_updated_string), Do([&]() {
+                    // Hide message.
+                    collaboration_message_observer->DispatchMessageForTests(
+                        message, /*display=*/false);
+                  }),
+                  WaitForHide(kCollaborationMessagingPageActionIconElementId));
 }

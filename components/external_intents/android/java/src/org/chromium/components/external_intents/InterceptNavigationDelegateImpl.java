@@ -34,7 +34,6 @@ import org.chromium.components.navigation_interception.InterceptNavigationDelega
 import org.chromium.content_public.browser.ContentWebFeatureUsageUtils;
 import org.chromium.content_public.browser.LoadUrlParams;
 import org.chromium.content_public.browser.NavigationController;
-import org.chromium.content_public.browser.NavigationEntry;
 import org.chromium.content_public.browser.NavigationHandle;
 import org.chromium.content_public.browser.Visibility;
 import org.chromium.content_public.browser.WebContents;
@@ -196,10 +195,8 @@ public class InterceptNavigationDelegateImpl extends InterceptNavigationDelegate
         cancelPendingShouldIgnoreCheck();
 
         if (mWebContents != null) {
-            if (mWebContentsObserver != null) {
-                mWebContentsObserver.observe(null);
-                mWebContentsObserver = null;
-            }
+            assumeNonNull(mWebContentsObserver).observe(null);
+            mWebContentsObserver = null;
             InterceptNavigationDelegateImplJni.get().clearWebContentsAssociation(mWebContents);
         }
         mWebContents = webContents;
@@ -208,6 +205,7 @@ public class InterceptNavigationDelegateImpl extends InterceptNavigationDelegate
         // Lazily initialize the external navigation handler.
         if (mExternalNavHandler == null) {
             setExternalNavigationHandler(mClient.createExternalNavigationHandler());
+            if (mExternalNavHandler == null) return;
         }
 
         InterceptNavigationDelegateImplJni.get().associateWithWebContents(this, mWebContents);
@@ -216,16 +214,14 @@ public class InterceptNavigationDelegateImpl extends InterceptNavigationDelegate
                 new WebContentsObserver(mWebContents) {
                     @Override
                     public void didStartNavigationInPrimaryMainFrame(NavigationHandle navigation) {
-                        if (mExternalNavHandler != null) {
-                            mExternalNavHandler.onNavigationStarted(navigation.getNavigationId());
-                        }
+                        assumeNonNull(mExternalNavHandler);
+                        mExternalNavHandler.onNavigationStarted(navigation.getNavigationId());
                     }
 
                     @Override
                     public void didFinishNavigationInPrimaryMainFrame(NavigationHandle navigation) {
-                        if (mExternalNavHandler != null) {
-                            mExternalNavHandler.onNavigationFinished(navigation.getNavigationId());
-                        }
+                        assumeNonNull(mExternalNavHandler);
+                        mExternalNavHandler.onNavigationFinished(navigation.getNavigationId());
                     }
                 };
     }
@@ -484,7 +480,6 @@ public class InterceptNavigationDelegateImpl extends InterceptNavigationDelegate
                         .setNavigationId(navigationId)
                         .setIsTabInPWA(mClient.isTabInPWA())
                         .setIsTabInBrowser(mClient.isTabInBrowser())
-                        .setIsTabInPopup(mClient.isTabInPopup())
                         .setIsInDesktopWindowingMode(mClient.isInDesktopWindowingMode())
                         .build();
         if (!shouldRunAsync) return doShouldOverrideUrlLoading(params, isExternalProtocol);
@@ -646,12 +641,7 @@ public class InterceptNavigationDelegateImpl extends InterceptNavigationDelegate
 
     private boolean isInitialNavigation() {
         if (mClient.getWebContents() == null) return true;
-        NavigationController controller = mClient.getWebContents().getNavigationController();
-        if (controller.isInitialNavigation()) return true;
-
-        NavigationEntry lastCommittedEntry =
-                controller.getEntryAtIndex(controller.getLastCommittedEntryIndex());
-        return lastCommittedEntry != null && lastCommittedEntry.isInitialEntry();
+        return mClient.getWebContents().getNavigationController().isInitialNavigation();
     }
 
     private boolean isTabOnInitialNavigationChain() {

@@ -18,7 +18,8 @@ namespace ash {
 // space between the buttons. Clients can customize the padding of the group,
 // the padding, the type of the radio button, and the vertical space between the
 // buttons. If they're not provided, the default values will be applied.
-class ASH_EXPORT RadioButtonGroup : public OptionButtonGroup {
+class ASH_EXPORT RadioButtonGroup : public OptionButtonGroup,
+                                    public OptionButtonBase::Delegate {
   METADATA_HEADER(RadioButtonGroup, OptionButtonGroup)
 
  public:
@@ -39,8 +40,9 @@ class ASH_EXPORT RadioButtonGroup : public OptionButtonGroup {
   RadioButton* AddButton(RadioButton::PressedCallback callback,
                          const std::u16string& label) override;
 
- protected:
-  void OnButtonSelected(OptionButtonBase* button);
+  // OptionButtonBase::Delegate:
+  void OnButtonSelected(OptionButtonBase* button) override;
+  void OnButtonClicked(OptionButtonBase* button) override;
 
  private:
   // The icon direction of the buttons.

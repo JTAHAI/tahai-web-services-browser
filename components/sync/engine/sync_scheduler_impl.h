@@ -127,11 +127,10 @@ class SyncSchedulerImpl : public SyncScheduler {
   static const char* GetModeString(Mode mode);
 
   // Invoke the syncer to perform a nudge job.
-  void DoNudgeSyncCycleJob(signin::AccessTokenInfo access_token_info);
+  void DoNudgeSyncCycleJob();
 
   // Invoke the syncer to perform a configuration job.
-  void DoConfigurationSyncCycleJob(RespectGlobalBackoff respect_backoff,
-                                   signin::AccessTokenInfo access_token_info);
+  void DoConfigurationSyncCycleJob(RespectGlobalBackoff respect_backoff);
 
   // Helper function for Do{Nudge,Configuration,Poll}SyncCycleJob.
   void HandleSuccess();
@@ -140,7 +139,7 @@ class SyncSchedulerImpl : public SyncScheduler {
   void HandleFailure(const ModelNeutralState& model_neutral_state);
 
   // Invoke the Syncer to perform a poll job.
-  void DoPollSyncCycleJob(signin::AccessTokenInfo access_token_info);
+  void DoPollSyncCycleJob();
 
   // Helper function to calculate poll interval.
   base::TimeDelta GetPollInterval();
@@ -180,9 +179,7 @@ class SyncSchedulerImpl : public SyncScheduler {
   // Looks for pending work and, if it finds any, runs it. TrySyncCycleJob just
   // posts a call to TrySyncCycleJobImpl on the current sequence.
   void TrySyncCycleJob(RespectGlobalBackoff respect_backoff);
-  void TrySyncCycleJobImpl(RespectGlobalBackoff respect_backoff,
-                           signin::AccessTokenInfo access_token_info);
-  void OnAccessTokenFetched(signin::AccessTokenInfo access_token_info);
+  void TrySyncCycleJobImpl(RespectGlobalBackoff respect_backoff);
 
   // Transitions out of the THROTTLED WaitInterval then triggers a job which
   // ignores global backoff. This is used for global throttling.
@@ -267,10 +264,6 @@ class SyncSchedulerImpl : public SyncScheduler {
 
   // Used to prevent changing nudge delays by the server in integration tests.
   bool force_short_nudge_delay_for_test_ = false;
-
-  // Tracks if an asynchronous access token request is currently in flight,
-  // storing the RespectGlobalBackoff setting.
-  std::optional<RespectGlobalBackoff> pending_access_token_request_backoff_;
 
   SEQUENCE_CHECKER(sequence_checker_);
 

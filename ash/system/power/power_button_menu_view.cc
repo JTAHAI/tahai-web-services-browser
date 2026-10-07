@@ -82,8 +82,7 @@ PowerButtonMenuView::PowerButtonMenuView(
   // Create a system shadow for current view.
   shadow_ = SystemShadow::CreateShadowOnNinePatchLayerForView(
       this, SystemShadow::Type::kElevation12);
-  shadow_->SetRoundedCorners(
-      gfx::RoundedCornersF(kPowerButtonMenuCornerRadius));
+  shadow_->SetRoundedCornerRadius(kPowerButtonMenuCornerRadius);
 }
 
 PowerButtonMenuView::~PowerButtonMenuView() = default;

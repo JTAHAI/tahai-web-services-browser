@@ -48,6 +48,7 @@ class AccountSelectionProperties {
         public Account mAccount;
         public IdentityProviderMetadata mIdpMetadata;
     }
+    ;
 
     /** Properties for an account entry in AccountSelection sheet. */
     static class AccountProperties {

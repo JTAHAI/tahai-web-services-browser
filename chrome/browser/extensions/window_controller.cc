@@ -12,7 +12,6 @@
 #include "base/values.h"
 #include "chrome/browser/extensions/window_controller_list.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/common/extensions/api/windows.h"
 #include "extensions/buildflags/buildflags.h"
 
@@ -74,7 +73,7 @@ BrowserWindowInterface* WindowController::GetBrowserWindowInterface() {
 }
 
 #if !BUILDFLAG(IS_ANDROID)
-BrowserWindowInterface* WindowController::GetBrowser() const {
+Browser* WindowController::GetBrowser() const {
   return nullptr;
 }
 #endif

@@ -60,9 +60,10 @@ public class DexFixer {
                             // Runtime.exec()).
                             PostTask.postTask(
                                     TaskTraits.BEST_EFFORT_MAY_BLOCK,
-                                    () ->
-                                            fixDexIfNecessary(
-                                                    command -> Runtime.getRuntime().exec(command)));
+                                    () -> {
+                                        fixDexIfNecessary(
+                                                command -> Runtime.getRuntime().exec(command));
+                                    });
                         });
     }
 

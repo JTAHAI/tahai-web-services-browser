@@ -29,6 +29,7 @@
 #include "chrome/browser/extensions/extension_service.h"
 #include "chrome/browser/extensions/external_install_manager.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window/public/profile_browser_collection.h"
 #include "chrome/browser/ui/global_error/global_error.h"
@@ -91,10 +92,10 @@ class ExternalInstallMenuAlert : public GlobalError {
   bool HasMenuItem() override;
   int MenuItemCommandID() override;
   std::u16string MenuItemLabel() override;
-  void ExecuteMenuItem(BrowserWindowInterface* browser) override;
+  void ExecuteMenuItem(Browser* browser) override;
   bool HasBubbleView() override;
   bool HasShownBubbleView() override;
-  void ShowBubbleView(BrowserWindowInterface* browser) override;
+  void ShowBubbleView(Browser* browser) override;
   GlobalErrorBubbleViewBase* GetBubbleView() override;
 
   // The owning ExternalInstallErrorDesktop.
@@ -122,16 +123,16 @@ class ExternalInstallBubbleAlert final : public GlobalErrorWithStandardBubble {
   bool HasMenuItem() override;
   int MenuItemCommandID() override;
   std::u16string MenuItemLabel() override;
-  void ExecuteMenuItem(BrowserWindowInterface* browser) override;
+  void ExecuteMenuItem(Browser* browser) override;
 
   // GlobalErrorWithStandardBubble implementation.
   std::u16string GetBubbleViewTitle() override;
   std::vector<std::u16string> GetBubbleViewMessages() override;
   std::u16string GetBubbleViewAcceptButtonLabel() override;
   std::u16string GetBubbleViewCancelButtonLabel() override;
-  void OnBubbleViewDidClose(BrowserWindowInterface* browser) override;
-  void BubbleViewAcceptButtonPressed(BrowserWindowInterface* browser) override;
-  void BubbleViewCancelButtonPressed(BrowserWindowInterface* browser) override;
+  void OnBubbleViewDidClose(Browser* browser) override;
+  void BubbleViewAcceptButtonPressed(Browser* browser) override;
+  void BubbleViewCancelButtonPressed(Browser* browser) override;
   base::WeakPtr<GlobalErrorWithStandardBubble> AsWeakPtr() override;
 
   // The owning ExternalInstallErrorDesktop.
@@ -170,8 +171,7 @@ std::u16string ExternalInstallMenuAlert::MenuItemLabel() {
   return GetMenuItemLabel(error_->GetExtension());
 }
 
-void ExternalInstallMenuAlert::ExecuteMenuItem(
-    BrowserWindowInterface* browser) {
+void ExternalInstallMenuAlert::ExecuteMenuItem(Browser* browser) {
   error_->ShowDialog(browser);
 }
 
@@ -183,7 +183,7 @@ bool ExternalInstallMenuAlert::HasShownBubbleView() {
   NOTREACHED();
 }
 
-void ExternalInstallMenuAlert::ShowBubbleView(BrowserWindowInterface* browser) {
+void ExternalInstallMenuAlert::ShowBubbleView(Browser* browser) {
   NOTREACHED();
 }
 
@@ -220,8 +220,7 @@ std::u16string ExternalInstallBubbleAlert::MenuItemLabel() {
   return GetMenuItemLabel(error_->GetExtension());
 }
 
-void ExternalInstallBubbleAlert::ExecuteMenuItem(
-    BrowserWindowInterface* browser) {
+void ExternalInstallBubbleAlert::ExecuteMenuItem(Browser* browser) {
   // |browser| is nullptr in unit test.
   if (browser) {
     ShowBubbleView(browser);
@@ -266,19 +265,18 @@ std::u16string ExternalInstallBubbleAlert::GetBubbleViewCancelButtonLabel() {
   return prompt_->GetAbortButtonLabel();
 }
 
-void ExternalInstallBubbleAlert::OnBubbleViewDidClose(
-    BrowserWindowInterface* browser) {
+void ExternalInstallBubbleAlert::OnBubbleViewDidClose(Browser* browser) {
   error_->DidCloseBubbleView();
 }
 
 void ExternalInstallBubbleAlert::BubbleViewAcceptButtonPressed(
-    BrowserWindowInterface* browser) {
+    Browser* browser) {
   error_->OnInstallPromptDone(ExtensionInstallPrompt::DoneCallbackPayload(
       ExtensionInstallPrompt::Result::ACCEPTED));
 }
 
 void ExternalInstallBubbleAlert::BubbleViewCancelButtonPressed(
-    BrowserWindowInterface* browser) {
+    Browser* browser) {
   error_->OnInstallPromptDone(ExtensionInstallPrompt::DoneCallbackPayload(
       ExtensionInstallPrompt::Result::USER_CANCELED));
 }
@@ -398,12 +396,12 @@ void ExternalInstallErrorDesktop::DidCloseBubbleView() {
   manager_->DidChangeInstallAlertVisibility(this, false);
 }
 
-void ExternalInstallErrorDesktop::ShowDialog(BrowserWindowInterface* browser) {
+void ExternalInstallErrorDesktop::ShowDialog(Browser* browser) {
   DCHECK(install_ui_.get());
   DCHECK(prompt_.get());
   DCHECK(browser);
   content::WebContents* web_contents = nullptr;
-  web_contents = browser->GetTabStripModel()->GetActiveWebContents();
+  web_contents = browser->tab_strip_model()->GetActiveWebContents();
   manager_->DidChangeInstallAlertVisibility(this, true);
   ExtensionInstallPrompt::GetDefaultShowDialogCallback().Run(
       std::make_unique<ExtensionInstallPromptShowParams>(web_contents),
@@ -490,7 +488,7 @@ void ExternalInstallErrorDesktop::OnDialogReady(
               Profile::FromBrowserContext(browser_context_))
               ->FindTabbedBrowser(/*match_original_profiles=*/true);
       if (browser) {
-        global_error_->ShowBubbleView(browser);
+        global_error_->ShowBubbleView(browser->GetBrowserForMigrationOnly());
       }
     }
   } else {

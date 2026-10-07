@@ -124,7 +124,7 @@ export class ClearBrowsingDataBrowserProxyImpl implements
     chrome.send('metricsHandler:recordInHistogram', [
       'Settings.ClearBrowsingData.Advanced.TimePeriod',
       bucket,
-      TimePeriod.TIME_PERIOD_LAST + 1,
+      TimePeriod.TIME_PERIOD_LAST,
     ]);
   }
 

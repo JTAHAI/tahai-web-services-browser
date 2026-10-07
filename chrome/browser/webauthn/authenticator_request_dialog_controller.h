@@ -63,6 +63,7 @@ class AuthenticatorRequestDialogController
   AuthenticatorRequestDialogModel* model() const;
 
   // AuthenticatorRequestDialogModel::Observer:
+  void OnModelDestroyed(AuthenticatorRequestDialogModel* model) override;
   void StartOver() override;
   void OnChromeProfileCreatePasskeyAccepted() override;
   void OnGPMRecoverSecurityDomainClosed() override;
@@ -427,13 +428,13 @@ class AuthenticatorRequestDialogController
   // default. This only makes sense for a create() call.
   bool CanDefaultToEnclave(Profile* profile);
 
-  // Returns the render frame host associated with this request. May return
-  // nullptr if the initiating frame or tab has been destroyed or detached.
-  content::RenderFrameHost* MaybeGetRenderFrameHost() const;
+  // Returns the render frame host associated with this request. The render
+  // frame host indirectly owns the controller, and so it should outlive it.
+  content::RenderFrameHost* GetRenderFrameHost() const;
 
   void PopulatePasswords();
 
-  scoped_refptr<AuthenticatorRequestDialogModel> model_;
+  raw_ptr<AuthenticatorRequestDialogModel> model_;
 
   // Identifier for the RenderFrameHost of the frame that initiated the current
   // request.

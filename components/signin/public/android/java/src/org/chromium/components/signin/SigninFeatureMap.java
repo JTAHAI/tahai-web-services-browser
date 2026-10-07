@@ -46,7 +46,7 @@ public final class SigninFeatureMap extends FeatureMap {
             new CachedFlag(
                     sInstance,
                     SigninFeatures.SUPPORT_FORCED_SIGNIN_POLICY,
-                    /* defaultValue= */ true,
+                    /* defaultValue= */ false,
                     /* defaultValueInTests= */ true);
     public static final List<CachedFlag> sCachedFlags =
             List.of(
@@ -69,18 +69,18 @@ public final class SigninFeatureMap extends FeatureMap {
 
     /** Returns the currently enabled sign-in promo type. */
     public @SeamlessSigninPromoType int getSeamlessSigninPromoType() {
-        if (!isEnabledInNative(SigninFeatures.ENABLE_SEAMLESS_SIGNIN)) {
-            return SeamlessSigninPromoType.NON_SEAMLESS;
-        }
         String promoType =
-                getFieldTrialParamByFeature(
-                        SigninFeatures.ENABLE_SEAMLESS_SIGNIN, "seamless-signin-promo-type");
+                SigninFeatureMap.getInstance()
+                        .getFieldTrialParamByFeature(
+                                SigninFeatures.ENABLE_SEAMLESS_SIGNIN,
+                                "seamless-signin-promo-type");
         switch (promoType) {
+            case "compact":
+                return SeamlessSigninPromoType.COMPACT;
             case "twoButtons":
                 return SeamlessSigninPromoType.TWO_BUTTONS;
-            case "compact":
             default:
-                return SeamlessSigninPromoType.COMPACT;
+                return SeamlessSigninPromoType.NON_SEAMLESS;
         }
     }
 
@@ -98,18 +98,18 @@ public final class SigninFeatureMap extends FeatureMap {
 
     /** Returns the set of strings that is currently enabled for the seamless sign-in experiment. */
     public @SeamlessSigninStringType int getSeamlessSigninStringType() {
-        if (!isEnabledInNative(SigninFeatures.ENABLE_SEAMLESS_SIGNIN)) {
-            return SeamlessSigninStringType.NON_SEAMLESS;
-        }
         String stringType =
-                getFieldTrialParamByFeature(
-                        SigninFeatures.ENABLE_SEAMLESS_SIGNIN, "seamless-signin-string-type");
+                SigninFeatureMap.getInstance()
+                        .getFieldTrialParamByFeature(
+                                SigninFeatures.ENABLE_SEAMLESS_SIGNIN,
+                                "seamless-signin-string-type");
         switch (stringType) {
+            case "continueButton":
+                return SeamlessSigninStringType.CONTINUE_BUTTON;
             case "signinButton":
                 return SeamlessSigninStringType.SIGNIN_BUTTON;
-            case "continueButton":
             default:
-                return SeamlessSigninStringType.CONTINUE_BUTTON;
+                return SeamlessSigninStringType.NON_SEAMLESS;
         }
     }
 

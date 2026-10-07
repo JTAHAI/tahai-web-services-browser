@@ -3,8 +3,6 @@
 # found in the LICENSE file.
 
 source_set("download") {
-  defines = [ "IS_ISOLATED_WEB_APPS_IMPL" ]
-  visibility = [ "//components/webapps/isolated_web_apps/*" ]
   sources = [
     "bundle_downloader.cc",
     "bundle_downloader.h",
@@ -26,7 +24,7 @@ source_set("unit_tests") {
   testonly = true
   sources = [ "bundle_downloader_unittest.cc" ]
   deps = [
-    "//components/webapps/isolated_web_apps",
+    ":download",
     "//base",
     "//base/test:test_support",
     "//net",

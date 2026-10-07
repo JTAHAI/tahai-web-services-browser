@@ -60,8 +60,10 @@ NotShared<DOMArrayBufferView> Crypto::getRandomValues(
   if (!IsIntegerArray(array)) {
     exception_state.ThrowDOMException(
         DOMExceptionCode::kTypeMismatchError,
-        StrCat({"The provided ArrayBufferView is of type '", array->TypeName(),
-                "', which is not an integer array type."}));
+        UNSAFE_TODO(String::Format(
+            "The provided ArrayBufferView is of type '%s', which is "
+            "not an integer array type.",
+            array->TypeName())));
     return NotShared<DOMArrayBufferView>(nullptr);
   }
   if (array->byteLength() > 65536) {

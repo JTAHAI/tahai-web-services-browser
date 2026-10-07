@@ -20,6 +20,8 @@
 #include "components/sync_device_info/fake_device_info_tracker.h"
 #include "url/gurl.h"
 
+class PageActionIconView;
+
 class FakeSharingMessageBridge : public SharingMessageBridge {
  public:
   FakeSharingMessageBridge() = default;
@@ -74,6 +76,8 @@ class SharingBrowserTest : public SyncTest {
   SharingService* sharing_service() const;
 
   content::WebContents* web_contents() const;
+
+  PageActionIconView* GetPageActionIconView(PageActionIconType type);
 
  private:
   void SetUpDevices(syncer::DeviceInfo::SharingFeature first_device_feature,

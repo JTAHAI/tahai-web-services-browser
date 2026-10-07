@@ -305,10 +305,8 @@ void CanvasPerformanceMonitor::RecordMetrics(TimeTicks start_time,
   }
 }
 
-void CanvasPerformanceMonitor::DidProcessTask(
-    TimeTicks start_time,
-    TimeTicks end_time,
-    TimeTicks /*desired_execution_time*/) {
+void CanvasPerformanceMonitor::DidProcessTask(TimeTicks start_time,
+                                              TimeTicks end_time) {
   DCHECK(is_render_task_);
   Thread::Current()->RemoveTaskTimeObserver(this);
 

@@ -7,7 +7,6 @@
 
 #include <cstdint>
 #include <string>
-#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -29,11 +28,9 @@ class FakeTerminalSession : public TerminalSession {
   static void SetPersistentTerminalIds(std::vector<int32_t> ids);
   static std::vector<int32_t> GetPersistentIds();
 
-  FakeTerminalSession(
-      TerminalSessionManager::OutputCallback output_cb,
-      TerminalSessionManager::ExitCallback exit_cb,
-      TerminalSessionManager::ProcessInfoCallback process_info_cb,
-      int32_t id);
+  FakeTerminalSession(TerminalSessionManager::OutputCallback output_cb,
+                      TerminalSessionManager::ExitCallback exit_cb,
+                      int32_t id);
   ~FakeTerminalSession() override;
 
   // TerminalSession implementation:
@@ -54,8 +51,6 @@ class FakeTerminalSession : public TerminalSession {
 
   void TriggerOutput(const std::string& data);
   void TriggerExit();
-  void TriggerProcessInfo(bool is_active,
-                          std::string_view process_name = "test-process");
 
  private:
   // If true, the next call to Start() will fail.
@@ -63,7 +58,6 @@ class FakeTerminalSession : public TerminalSession {
 
   TerminalSessionManager::OutputCallback output_cb_;
   TerminalSessionManager::ExitCallback exit_cb_;
-  TerminalSessionManager::ProcessInfoCallback process_info_cb_;
   int32_t id_;
   std::vector<std::string> inputs_;
   std::vector<std::pair<uint32_t, uint32_t>> resizes_;

@@ -1,2 +1,3 @@
-rules:
-- "**": [script]
+features:
+- name: script
+  files: '**'

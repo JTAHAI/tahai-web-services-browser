@@ -18,7 +18,8 @@ class MockVideoCaptureDeviceAVFoundationFrameReceiver
 
   MOCK_METHOD(void,
               ReceiveFrame,
-              (base::span<const uint8_t> sample,
+              (const uint8_t* video_frame,
+               int video_frame_length,
                const VideoCaptureFormat& frame_format,
                const gfx::ColorSpace color_space,
                int aspect_numerator,

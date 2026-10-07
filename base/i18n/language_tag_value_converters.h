@@ -7,7 +7,7 @@
 
 #include <optional>
 
-#include "base/component_export.h"
+#include "base/i18n/base_i18n_export.h"
 #include "base/i18n/language_tag.h"
 
 namespace base {
@@ -17,16 +17,15 @@ class Value;
 namespace base::i18n {
 
 // Converts a LanguageTag to a string base::Value.
-COMPONENT_EXPORT(LANGUAGE_TAG)
-base::Value LanguageTagToValue(const LanguageTag& tag);
+BASE_I18N_EXPORT base::Value LanguageTagToValue(const LanguageTag& tag);
 
 // Parses a LanguageTag from a base::Value.
 // Returns std::nullopt if `value` is nullptr, not a string Value, or not a
 // valid BCP 47 language tag.
-COMPONENT_EXPORT(LANGUAGE_TAG)
-std::optional<LanguageTag> ValueToLanguageTag(const base::Value* value);
-COMPONENT_EXPORT(LANGUAGE_TAG)
-std::optional<LanguageTag> ValueToLanguageTag(const base::Value& value);
+BASE_I18N_EXPORT std::optional<LanguageTag> ValueToLanguageTag(
+    const base::Value* value);
+BASE_I18N_EXPORT std::optional<LanguageTag> ValueToLanguageTag(
+    const base::Value& value);
 
 }  // namespace base::i18n
 

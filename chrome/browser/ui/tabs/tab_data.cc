@@ -57,8 +57,9 @@ TabData TabData::FromTabInterface(tabs::TabInterface* tab_interface) {
   tab_data.pinned = tab_interface->IsPinned();
   tab_data.blocked = tab_interface->IsBlocked();
 
+  content::WebContents* const web_contents = tab_interface->GetContents();
   ThumbnailTabHelper* const thumbnail_tab_helper =
-      ThumbnailTabHelper::From(tab_interface);
+      ThumbnailTabHelper::FromWebContents(web_contents);
   tab_data.thumbnail =
       thumbnail_tab_helper ? thumbnail_tab_helper->thumbnail() : nullptr;
 
@@ -188,10 +189,9 @@ void TabDataObserver::OnTabDiscarded(tabs::TabInterface* tab_interface,
                                      content::WebContents* old_web_contents,
                                      content::WebContents* new_web_contents) {
   // Update the thumbnail because the thumbnail's delegate has changed after a
-  // discard. TabFeatures has already recreated the helper for the new
-  // contents: it subscribed to the discard callback list first.
+  // discard.
   ThumbnailTabHelper* const thumbnail_tab_helper =
-      ThumbnailTabHelper::From(tab_interface);
+      ThumbnailTabHelper::FromWebContents(new_web_contents);
   scoped_refptr<ThumbnailImage> updated_thumbnail =
       thumbnail_tab_helper ? thumbnail_tab_helper->thumbnail() : nullptr;
   if (tab_data_.thumbnail != updated_thumbnail) {

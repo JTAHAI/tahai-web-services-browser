@@ -17,7 +17,7 @@
 #include "components/affiliations/core/browser/affiliation_utils.h"
 #include "components/autofill/core/browser/field_types.h"
 #include "components/autofill/core/browser/integrators/identity_credential/identity_credential_delegate.h"
-#include "components/autofill/core/browser/suggestions/identity_credential_suggestion_util.h"
+#include "components/autofill/core/browser/suggestions/identity_credential_suggestion_utils.h"
 #include "components/autofill/core/browser/suggestions/suggestion.h"
 #include "components/autofill/core/browser/suggestions/suggestion_type.h"
 #include "components/autofill/core/common/password_form_fill_data.h"
@@ -298,10 +298,9 @@ void AppendManualFallbackSuggestions(
         /*display_signon_realm=*/base::UTF8ToUTF16(domain_info.name),
         is_cross_origin.value());
     suggestion.payload = payload;
-    suggestion.acceptability =
-        on_password_form.value()
-            ? Suggestion::Acceptability::kSelectableAndAcceptable
-            : Suggestion::Acceptability::kSelectableButUnacceptable;
+    suggestion.acceptability = on_password_form.value()
+                                   ? Suggestion::Acceptability::kAcceptable
+                                   : Suggestion::Acceptability::kUnacceptable;
     if (FacetURI::FromPotentiallyInvalidSpec(domain_info.signon_realm)
             .IsValidWebFacetURI() &&
         domain_info.url.SchemeIs(url::kHttpsScheme)) {
@@ -381,6 +380,7 @@ PasswordSuggestionGenerator::PasswordSuggestionGenerator(
       autofill_client_(autofill_client) {}
 
 void PasswordSuggestionGenerator::AppendOptionalFooterSection(
+    bool is_manual_fallback,
     std::vector<autofill::Suggestion>* suggestions) const {
   bool has_webauthn_credential = std::ranges::any_of(
       *suggestions,
@@ -402,7 +402,7 @@ void PasswordSuggestionGenerator::AppendOptionalFooterSection(
   std::optional<autofill::Suggestion> inline_qr_suggestion =
       GetWebauthnInlineQrCodeSuggestion();
   std::optional<autofill::Suggestion> hybrid_suggestion =
-      GetWebauthnSignInWithAnotherDeviceSuggestion();
+      GetWebauthnSignInWithAnotherDeviceSuggestion(is_manual_fallback);
 
   if (has_no_fillable_suggestions && !inline_qr_suggestion &&
       !hybrid_suggestion) {
@@ -543,7 +543,7 @@ std::vector<Suggestion> PasswordSuggestionGenerator::GetSuggestionsForDomain(
 #endif
 
   // Add "Manage all passwords" link to settings.
-  AppendOptionalFooterSection(&suggestions);
+  AppendOptionalFooterSection(/*is_manual_fallback=*/false, &suggestions);
 
   return suggestions;
 }
@@ -583,7 +583,7 @@ PasswordSuggestionGenerator::GetProactiveRecoverySuggestions(
   Suggestion footer(footer_text, SuggestionType::kFreeformFooter);
   footer.filtration_policy = Suggestion::FiltrationPolicy::kStatic;
   footer.acceptability =
-      autofill::Suggestion::Acceptability::kUnselectableAndUnacceptable;
+      autofill::Suggestion::Acceptability::kUnacceptableWithDeactivatedStyle;
   suggestions.emplace_back(std::move(footer));
 
   return suggestions;
@@ -622,10 +622,14 @@ PasswordSuggestionGenerator::GetManualFallbackSuggestions(
         ui_entry.stored_in.contains(PasswordForm::Store::kAccountStore);
     const bool favicon_can_be_requested_from_google =
         (is_sync_passwords_enabled || is_from_account) && !is_passphrase_user;
-    const bool is_cross_domain =
-        form.match_type.has_value() &&
-        password_manager_util::GetMatchType(form) ==
-            password_manager_util::GetLoginMatchType::kGrouped;
+    bool is_cross_domain = false;
+    if (base::FeatureList::IsEnabled(
+            password_manager::features::
+                kShowConfirmationForGroupedCredentials)) {
+      is_cross_domain = form.match_type.has_value() &&
+                        password_manager_util::GetMatchType(form) ==
+                            password_manager_util::GetLoginMatchType::kGrouped;
+    }
     if (!is_cross_domain) {
       // Insert only same site or affiliated signon realms.
       suggested_signon_realms.insert(form.signon_realm);
@@ -673,14 +677,20 @@ PasswordSuggestionGenerator::GetManualFallbackSuggestions(
       [](const Suggestion& suggestion) { return suggestion.main_text.value; });
 
   // Add "Manage all passwords" link to settings.
-  AppendOptionalFooterSection(&suggestions);
+  AppendOptionalFooterSection(/*is_manual_fallback=*/true, &suggestions);
 
   return suggestions;
 }
 
 std::optional<autofill::Suggestion>
-PasswordSuggestionGenerator::GetWebauthnSignInWithAnotherDeviceSuggestion()
-    const {
+PasswordSuggestionGenerator::GetWebauthnSignInWithAnotherDeviceSuggestion(
+    bool is_manual_fallback) const {
+  if (is_manual_fallback &&
+      !base::FeatureList::IsEnabled(
+          password_manager::features::
+              kWebAuthnUsePasskeyFromAnotherDeviceInManualFallback)) {
+    return std::nullopt;
+  }
 #if BUILDFLAG(IS_ANDROID)
   return std::nullopt;
 #else   // BUILDFLAG(IS_ANDROID)

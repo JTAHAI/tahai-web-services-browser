@@ -396,6 +396,8 @@ public class SingleWebsiteSettingsTest {
 
         GeolocationSetting allowSetting =
                 new GeolocationSetting(ContentSetting.ALLOW, ContentSetting.BLOCK);
+        GeolocationSetting askSetting =
+                new GeolocationSetting(ContentSetting.ASK, ContentSetting.ASK);
 
         Website website =
                 createWebsiteWithGeolocationPermission(allowSetting, /* isOneTime= */ false);
@@ -435,6 +437,8 @@ public class SingleWebsiteSettingsTest {
 
         GeolocationSetting allowSetting =
                 new GeolocationSetting(ContentSetting.ALLOW, ContentSetting.ALLOW);
+        GeolocationSetting askSetting =
+                new GeolocationSetting(ContentSetting.ASK, ContentSetting.ASK);
 
         Website website =
                 createWebsiteWithGeolocationPermission(allowSetting, /* isOneTime= */ false);
@@ -595,6 +599,8 @@ public class SingleWebsiteSettingsTest {
 
         GeolocationSetting allowSetting =
                 new GeolocationSetting(ContentSetting.ALLOW, ContentSetting.ALLOW);
+        GeolocationSetting askSetting =
+                new GeolocationSetting(ContentSetting.ASK, ContentSetting.ASK);
 
         Website website =
                 createWebsiteWithGeolocationPermission(allowSetting, /* isOneTime= */ false);

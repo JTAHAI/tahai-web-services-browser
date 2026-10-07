@@ -20,15 +20,9 @@ void RecordGmailOtpOptInCardInteraction(
                                 interaction);
 }
 
-void RecordGmailOtpConfirmationDialogInteraction(
-    GmailOtpConfirmationDialogInteraction interaction) {
-  base::UmaHistogramEnumeration(kGmailOtpConfirmationDialogInteractionHistogram,
-                                interaction);
-}
-
-void RecordActorLoginFlowVerification(ActorLoginFlowVerifier::Result result) {
+void RecordActorLoginFlowVerification(VerifyIsActorLoginFlowEvent event) {
   base::UmaHistogramEnumeration(kActorOtpVerifyIsActorLoginFlowHistogram,
-                                result);
+                                event);
 }
 
 void RecordPredictedOtpTypeMetrics(

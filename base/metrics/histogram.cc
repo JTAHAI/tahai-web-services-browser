@@ -282,12 +282,10 @@ HistogramBase* Histogram::Factory::Build() {
         "DevTools.DeveloperResourceLoaded",
         "DevTools.DeveloperResourceScheme",
         "DevTools.ExperimentEnabledAtLaunch",
-        "DevTools.ExperimentDisabledAtLaunch",
         "DevTools.PanelShown",
     };
     if (!std::ranges::contains(kKnownBadHistogramsHashes, name_)) {
-      SCOPED_CRASH_KEY_STRING256("MismatchedHistogramArgs", "name",
-                                 std::string(name_));
+      DEBUG_ALIAS_FOR_CSTR(hist_name, std::string(name_).c_str(), 32);
       debug::DumpWithoutCrashing();
     }
 

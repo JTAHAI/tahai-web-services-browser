@@ -8,7 +8,6 @@
 #include <array>
 #include <string_view>
 
-#include "base/i18n/legacy_language_tag_helpers.h"
 #include "ui/base/l10n/l10n_util.h"
 
 namespace quick_answers {
@@ -51,7 +50,7 @@ constexpr auto kSupportedLocales = std::to_array<std::string_view>({
 // static
 bool TranslationV2Utils::IsSupported(std::string_view language) {
   return std::ranges::any_of(kSupportedLocales, [&](std::string_view locale) {
-    return language == base::i18n::GetLanguageSubtagUsingLanguageTag(locale);
+    return language == l10n_util::GetLanguage(locale);
   });
 }
 

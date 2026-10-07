@@ -44,7 +44,7 @@ use self::symbol::Symbol;
 use proc_macro2::{Ident, Span};
 use syn::punctuated::Punctuated;
 use syn::token::{Brace, Bracket, Paren};
-use syn::{Expr, Generics, Lifetime, LitInt, PointerMutability, Token, Type as RustType};
+use syn::{Expr, Generics, Lifetime, LitInt, Token, Type as RustType};
 
 pub(crate) use self::atom::Atom;
 pub(crate) use self::derive::{Derive, Trait};
@@ -298,7 +298,8 @@ pub(crate) struct Ptr {
     pub star: Token![*],
     pub mutable: bool,
     pub inner: Type,
-    pub mutability: PointerMutability,
+    pub mutability: Option<Token![mut]>,
+    pub constness: Option<Token![const]>,
 }
 
 pub(crate) struct SliceRef {

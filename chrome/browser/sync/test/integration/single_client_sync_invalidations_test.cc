@@ -17,7 +17,6 @@
 #include "chrome/browser/sync/test/integration/sync_test.h"
 #include "components/bookmarks/browser/bookmark_model.h"
 #include "components/browser_sync/browser_sync_switches.h"
-#include "components/signin/public/base/signin_switches.h"
 #include "components/sync/base/data_type.h"
 #include "components/sync/base/features.h"
 #include "components/sync/base/time.h"
@@ -29,6 +28,7 @@
 #include "components/sync/protocol/sync.pb.h"
 #include "components/sync/protocol/sync_entity.pb.h"
 #include "components/sync/protocol/sync_enums.pb.h"
+#include "components/sync/service/glue/sync_transport_data_prefs.h"
 #include "components/sync/test/bookmark_entity_builder.h"
 #include "components/sync/test/entity_builder_factory.h"
 #include "components/sync_device_info/device_info_sync_service.h"
@@ -268,52 +268,14 @@ class SingleClientSyncInvalidationsTest
  public:
   SingleClientSyncInvalidationsTest() : SyncTest(SINGLE_CLIENT) {
     if (GetSetupSyncMode() == SetupSyncMode::kSyncTransportOnly) {
-      scoped_feature_list_.InitWithFeatures(
-          {syncer::kReplaceSyncPromosWithSignInPromos,
-           switches::kSyncEnableBookmarksInTransportMode},
-          {});
+      scoped_feature_list_.InitAndEnableFeature(
+          syncer::kReplaceSyncPromosWithSignInPromos);
     } else {
       // Skip sync-to-signin migration for sync-the-feature tests. This is to
       // avoid the sync state changing between the PRE_ tests.
       scoped_feature_list_.InitAndDisableFeature(
           switches::kMigrateSyncingUserToSignedIn);
     }
-  }
-
-  ~SingleClientSyncInvalidationsTest() override = default;
-
-  [[nodiscard]] bool SetupSync() {
-    if (!SyncTest::SetupSync()) {
-      return false;
-    }
-
-    // Wait for committing DeviceInfo with sharing_fields, it may happen
-    // asynchronously due to FCM token registration.
-    if (!device_info_helper::WaitForFullDeviceInfoCommitted(
-            GetLocalCacheGuid())) {
-      return false;
-    }
-
-    // Wait for the client to download the committed DeviceInfo reflection and
-    // settle into a quiescent state.
-    //
-    // This is required because invalidation optimization flags (e.g.
-    // `devices_fcm_registration_tokens` in commit messages) are dropped
-    // whenever `DEVICE_INFO` is updated during a sync cycle (see
-    // `Syncer::GetInvalidationInfo()`).
-    //
-    // For example:
-    // 1. Local DeviceInfo with sharing fields is committed to FakeServer.
-    // 2. FakeServer generates a DEVICE_INFO invalidation.
-    // 3. If a test immediately modifies a data type (e.g. adding a bookmark),
-    //    the resulting sync cycle will download the pending DEVICE_INFO update
-    //    during GetUpdates before committing the bookmark.
-    // 4. Because DEVICE_INFO was updated in that cycle, the optimization flags
-    //    and FCM registration tokens will be omitted from the bookmark commit.
-    //
-    // AwaitQuiescence() ensures this download cycle completes before the test
-    // executes any subsequent commits.
-    return AwaitQuiescence();
   }
 
   SyncTest::SetupSyncMode GetSetupSyncMode() const override {
@@ -339,8 +301,11 @@ class SingleClientSyncInvalidationsTest
             specifics.device_info().last_updated_timestamp()));
   }
 
-  std::string GetLocalCacheGuid() const {
-    return GetCacheGuid(/*profile_index=*/0);
+  std::string GetLocalCacheGuid() {
+    syncer::SyncTransportDataPrefs prefs(
+        GetProfile(0)->GetPrefs(),
+        GetClient(0)->GetGaiaIdHashForPrimaryAccount());
+    return prefs.GetCacheGuid();
   }
 
   StoreType GetStoreType() const {
@@ -464,12 +429,11 @@ IN_PROC_BROWSER_TEST_P(
   const std::string kRemoteFCMRegistrationToken = "other_fcm_token";
 
   // Simulate the case when the server already knows another device which is
-  // subscribed only to NIGORI. This ensures that other data types (e.g.
-  // PREFERENCES) that may be committed alongside BOOKMARKS do not cause the
-  // remote token to be included in
-  // fcm_registration_tokens_for_interested_clients.
-  InjectDeviceInfoEntityToServer(kRemoteDeviceCacheGuid, {syncer::NIGORI},
-                                 kRemoteFCMRegistrationToken);
+  // not subscribed to BOOKMARKS.
+  InjectDeviceInfoEntityToServer(
+      kRemoteDeviceCacheGuid,
+      Difference(DefaultInterestedDataTypes(), {syncer::BOOKMARKS}),
+      kRemoteFCMRegistrationToken);
   ASSERT_TRUE(SetupSync());
 
   // Commit a new bookmark to check if the next commit message has FCM

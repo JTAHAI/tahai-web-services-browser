@@ -13,11 +13,9 @@
 // Task request for handling URL opening contexts.
 @interface TaskRequestForURLContext : TaskRequest
 
-// Factory method to instantiate the appropriate TaskRequestForURLContext
-// subclass for `URLContext`.
-+ (instancetype)taskRequestWithURLContext:(UIOpenURLContext*)URLContext
-                               sceneState:(SceneState*)sceneState
-                              isColdStart:(BOOL)isColdStart;
+- (instancetype)initWithURLContext:(UIOpenURLContext*)URLContext
+                        sceneState:(SceneState*)sceneState
+                       isColdStart:(BOOL)isColdStart;
 
 @end
 

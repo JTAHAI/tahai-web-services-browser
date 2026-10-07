@@ -10,7 +10,7 @@
 //     basic-enum.test-mojom
 //
 
-private let mojoPrefix = "golden."
+private static let mojoPrefix = "golden."
 
 ///
 /// Interfaces
@@ -23,7 +23,6 @@ extension ILType {
         withMethods: [
             "getEnum",
             "enumForEnum",
-            "syncEnumForEnum",
         ])
     fileprivate static let jsGoldenPrimaryRemoteWrapper: ILType = .object(
         ofGroup: "golden.PrimaryRemoteWrapper",
@@ -41,13 +40,10 @@ extension ObjectGroup {
         methods: [
             "getEnum": [
                 .plain(.string),
-            ] => .jsPromise(resolvingTo: .jsGoldenPrimary_GetEnum_ResponseParams),
+            ] => .jsPromise,
             "enumForEnum": [
                 .plain(.jsGoldenPrimary_NestedEnum),
-            ] => .jsPromise(resolvingTo: .jsGoldenPrimary_EnumForEnum_ResponseParams),
-            "syncEnumForEnum": [
-                .plain(.jsGoldenPrimary_NestedEnum),
-            ] => .jsGoldenPrimary_SyncEnumForEnum_ResponseParams,
+            ] => .jsPromise,
         ]
     )
 
@@ -68,66 +64,6 @@ extension ObjectGroup {
         properties: [:],
         methods: [:]
     )
-}
-
-///
-/// Structs
-///
-extension ILType {
-    fileprivate static let jsGoldenPrimary_GetEnum_ResponseParams: ILType = .object(
-        ofGroup: "golden.Primary_GetEnum_ResponseParams",
-        withProperties: [
-            "result",
-        ])
-    fileprivate static let jsGoldenPrimary_EnumForEnum_ResponseParams: ILType = .object(
-        ofGroup: "golden.Primary_EnumForEnum_ResponseParams",
-        withProperties: [
-            "enumResult",
-        ])
-    fileprivate static let jsGoldenPrimary_SyncEnumForEnum_ResponseParams: ILType = .object(
-        ofGroup: "golden.Primary_SyncEnumForEnum_ResponseParams",
-        withProperties: [
-            "enumResult",
-        ])
-}
-
-extension ObjectGroup {
-    fileprivate static let goldenPrimaryGetEnumResponseParams = ObjectGroup(
-        name: "golden.Primary_GetEnum_ResponseParams",
-        instanceType: .jsGoldenPrimary_GetEnum_ResponseParams,
-        properties: [
-            "result": .jsGoldenPrimary_NestedEnum,
-        ],
-        methods: [:]
-    )
-    fileprivate static let goldenPrimaryEnumForEnumResponseParams = ObjectGroup(
-        name: "golden.Primary_EnumForEnum_ResponseParams",
-        instanceType: .jsGoldenPrimary_EnumForEnum_ResponseParams,
-        properties: [
-            "enumResult": .jsGoldenExternalEnum,
-        ],
-        methods: [:]
-    )
-    fileprivate static let goldenPrimarySyncEnumForEnumResponseParams = ObjectGroup(
-        name: "golden.Primary_SyncEnumForEnum_ResponseParams",
-        instanceType: .jsGoldenPrimary_SyncEnumForEnum_ResponseParams,
-        properties: [
-            "enumResult": .jsGoldenExternalEnum,
-        ],
-        methods: [:]
-    )
-}
-
-///
-/// Enumerations
-///
-extension ILType {
-    fileprivate static let jsGoldenPrimary_NestedEnum: ILType = .intEnumeration(
-        ofName: "golden.Primary_NestedEnum",
-        withValues: [1, 5, 6])
-    fileprivate static let jsGoldenExternalEnum: ILType = .intEnumeration(
-        ofName: "golden.ExternalEnum",
-        withValues: [0])
 }
 
 ///
@@ -235,23 +171,15 @@ let mojoPrimaryProfile = Profile(
     ] + commonMojoCodeGenerators,
     additionalProgramTemplates: WeightedList([]),
     disabledCodeGenerators: mojoDisabledGenerators,
-    disabledMutators: [
-        "ExplorationMutator", "ProbingMutator", "PropertyAccessorMutator"
-    ],
+    disabledMutators: v8Profile.disabledMutators,
     additionalBuiltins: mojoBuiltins.merging(commonMojoBuiltins) { (existing, _) in existing },
     additionalObjectGroups: [
         .goldenPrimaryRemote,
         .goldenPrimaryRemoteWrapper,
         .goldenPrimaryPendingReceiver,
-        .goldenPrimaryGetEnumResponseParams,
-        .goldenPrimaryEnumForEnumResponseParams,
-        .goldenPrimarySyncEnumForEnumResponseParams,
     ] + commonMojoObjectGroups,
     additionalEnumerations: [
-        .jsGoldenPrimary_NestedEnum,
-        .jsGoldenExternalEnum,
     ] + commonMojoEnumerations,
-    additionalOptionsBags: [
-    ] + commonMojoOptionsBags,
+    additionalOptionsBags: [] + commonMojoOptionsBags,
     optionalPostProcessor: nil
 )

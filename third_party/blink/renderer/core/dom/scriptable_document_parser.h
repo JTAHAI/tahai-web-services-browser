@@ -64,7 +64,7 @@ class CORE_EXPORT ScriptableDocumentParser : public DecodedDataDocumentParser {
   }
   bool WasCreatedByScript() const { return was_created_by_script_; }
 
-  ParserContentPolicy GetParserContentPolicy() const {
+  ParserContentPolicy GetParserContentPolicy() {
     return parser_content_policy_;
   }
 

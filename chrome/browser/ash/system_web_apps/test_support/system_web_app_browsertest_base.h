@@ -13,7 +13,6 @@
 #include "chrome/test/base/mixin_based_in_process_browser_test.h"
 #include "chrome/test/interaction/interactive_browser_test.h"
 
-class BrowserWindowInterface;
 class KeyedService;
 
 namespace apps {
@@ -66,31 +65,28 @@ class SystemWebAppBrowserTestBase
   apps::AppLaunchParams LaunchParamsForApp(SystemWebAppType system_app_type);
 
   // Launch the given System App from |params|, and wait for the application to
-  // finish loading. If |browser| is not nullptr, it will store the
-  // BrowserWindowInterface* that hosts the launched application.
+  // finish loading. If |browser| is not nullptr, it will store the Browser*
+  // that hosts the launched application.
   content::WebContents* LaunchApp(apps::AppLaunchParams&& params,
-                                  BrowserWindowInterface** browser = nullptr);
+                                  Browser** browser = nullptr);
 
   // Launch the given System App |type| with default AppLaunchParams, and wait
   // for the application to finish loading. If |browser| is not nullptr, it will
-  // store the BrowserWindowInterface* that hosts the launched application.
+  // store the Browser* that hosts the launched application.
   content::WebContents* LaunchApp(SystemWebAppType type,
-                                  BrowserWindowInterface** browser = nullptr);
+                                  Browser** browser = nullptr);
 
   // Launch the given System App from |params|, without waiting for the
   // application to finish loading. If |browser| is not nullptr, it will store
-  // the BrowserWindowInterface* that hosts the launched application.
-  content::WebContents* LaunchAppWithoutWaiting(
-      apps::AppLaunchParams&& params,
-      BrowserWindowInterface** browser = nullptr);
+  // the Browser* that hosts the launched application.
+  content::WebContents* LaunchAppWithoutWaiting(apps::AppLaunchParams&& params,
+                                                Browser** browser = nullptr);
 
   // Launch the given System App |type| with default AppLaunchParams, without
   // waiting for the application to finish loading. If |browser| is not nullptr,
-  // it will store the BrowserWindowInterface* that hosts the launched
-  // application.
-  content::WebContents* LaunchAppWithoutWaiting(
-      SystemWebAppType type,
-      BrowserWindowInterface** browser = nullptr);
+  // it will store the Browser* that hosts the launched application.
+  content::WebContents* LaunchAppWithoutWaiting(SystemWebAppType type,
+                                                Browser** browser = nullptr);
 
   // Returns number of system web app browser windows matching |type|.
   size_t GetSystemWebAppBrowserCount(SystemWebAppType type);
@@ -107,11 +103,11 @@ class SystemWebAppBrowserTestBase
 
   // Invokes OpenApplication() using the test's Profile. If |wait_for_load| is
   // true, returns after the application finishes loading. Otherwise, returns
-  // immediately. If |browser| is not nullptr, it will store the
-  // BrowserWindowInterface* that hosts the launched application.
+  // immediately. If |browser| is not nullptr, it will store the Browser* that
+  // hosts the launched application.
   content::WebContents* LaunchApp(apps::AppLaunchParams&& params,
                                   bool wait_for_load,
-                                  BrowserWindowInterface** out_browser);
+                                  Browser** out_browser);
 
   std::unique_ptr<TestSystemWebAppInstallation> installation_ = nullptr;
 };

@@ -60,8 +60,8 @@ export class CrFeedbackButtonsElement extends CrLitElement {
 
   protected getThumbsDownIcon_(): string {
     return this.selectedOption === CrFeedbackOption.THUMBS_DOWN ?
-        'cr:thumb-down-filled' :
-        'cr:thumb-down';
+        'cr:thumbs-down-filled' :
+        'cr:thumbs-down';
   }
 
   protected getThumbsUpAriaPressed_(): boolean {
@@ -70,8 +70,8 @@ export class CrFeedbackButtonsElement extends CrLitElement {
 
   protected getThumbsUpIcon_(): string {
     return this.selectedOption === CrFeedbackOption.THUMBS_UP ?
-        'cr:thumb-up-filled' :
-        'cr:thumb-up';
+        'cr:thumbs-up-filled' :
+        'cr:thumbs-up';
   }
 
   private async notifySelectedOptionChanged_() {

@@ -214,16 +214,12 @@ NSString* const kCustomDetentIdentifier = @"customDetent";
 // Applies horizontal constraints to a button.
 - (void)applyHorizontalConstraints:(CGFloat)buttonHorizontalMargin
                          forButton:(UIView*)button {
-  [button.leadingAnchor
-      constraintGreaterThanOrEqualToAnchor:self.view.safeAreaLayoutGuide
-                                               .leadingAnchor
-                                  constant:buttonHorizontalMargin]
+  [button.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor
+                                       constant:buttonHorizontalMargin]
       .active = YES;
 
-  [button.trailingAnchor
-      constraintLessThanOrEqualToAnchor:self.view.safeAreaLayoutGuide
-                                            .trailingAnchor
-                               constant:-buttonHorizontalMargin]
+  [button.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor
+                                        constant:-buttonHorizontalMargin]
       .active = YES;
 }
 

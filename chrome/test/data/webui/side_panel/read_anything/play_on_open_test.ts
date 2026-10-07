@@ -4,51 +4,42 @@
 import 'chrome-untrusted://read-anything-side-panel.top-chrome/read_anything.js';
 
 import type {AppElement} from 'chrome-untrusted://read-anything-side-panel.top-chrome/read_anything.js';
-import {ContentBrowserProxyImpl, ContentController, SpeechBrowserProxyImpl, SpeechController, VisualBrowserProxyImpl, VoiceLanguageController} from 'chrome-untrusted://read-anything-side-panel.top-chrome/read_anything.js';
+import {SpeechBrowserProxyImpl, SpeechController} from 'chrome-untrusted://read-anything-side-panel.top-chrome/read_anything.js';
 import {assertFalse, assertTrue} from 'chrome-untrusted://webui-test/chai_assert.js';
 import {microtasksFinished} from 'chrome-untrusted://webui-test/test_util.js';
 
 import {createApp, setupBasicSpeech} from './common.js';
-import {TestContentBrowserProxy} from './test_content_browser_proxy.js';
+import {FakeReadingMode} from './fake_reading_mode.js';
 import {TestSpeechBrowserProxy} from './test_speech_browser_proxy.js';
-import {TestVisualBrowserProxy} from './test_visual_browser_proxy.js';
 
 suite('PlayOnOpen', () => {
   let app: AppElement;
+  let readingMode: FakeReadingMode;
   let speech: TestSpeechBrowserProxy;
   let speechController: SpeechController;
-  let visualBrowserProxy: TestVisualBrowserProxy;
-  let contentBrowserProxy: TestContentBrowserProxy;
 
-  function setPlayableContent() {
-    contentBrowserProxy.rootId = 1;
-    contentBrowserProxy.childrenMap = {1: [2]};
-    contentBrowserProxy.textContentMap = {2: 'Hello world'};
-    contentBrowserProxy.htmlTagMap = {1: 'p'};
-  }
-
-  function setEmptyContent() {
-    contentBrowserProxy.rootId = 1;
-    contentBrowserProxy.childrenMap = {1: []};
-    contentBrowserProxy.textContentMap = {};
-    contentBrowserProxy.htmlTagMap = {};
-  }
+  const axTree = {
+    rootId: 1,
+    nodes: [
+      {id: 1, role: 'rootWebArea', htmlTag: '#document', childIds: [2]},
+      {id: 2, role: 'paragraph', htmlTag: 'p', childIds: [3]},
+      {id: 3, role: 'staticText', name: 'Hello world'},
+    ],
+  };
 
   setup(async () => {
     document.body.innerHTML = window.trustedTypes!.emptyHTML;
-    visualBrowserProxy = new TestVisualBrowserProxy();
-    VisualBrowserProxyImpl.setInstance(visualBrowserProxy);
-    visualBrowserProxy.readAnythingImprovedUiEnabled = true;
-    contentBrowserProxy = new TestContentBrowserProxy();
-    ContentBrowserProxyImpl.setInstance(contentBrowserProxy);
-    ContentController.setInstance(new ContentController());
+    readingMode = new FakeReadingMode();
+    readingMode.isImprovedReadAloudEnabled = true;
+    chrome.readingMode = readingMode as unknown as typeof chrome.readingMode;
+
     speech = new TestSpeechBrowserProxy();
     SpeechBrowserProxyImpl.setInstance(speech);
     speechController = SpeechController.getInstance();
 
-    VoiceLanguageController.setInstance(new VoiceLanguageController());
     app = await createApp();
     setupBasicSpeech(speech);
+    app['selectedVoice_'] = speech.getVoices()[0]!;
   });
 
   test(
@@ -59,11 +50,11 @@ suite('PlayOnOpen', () => {
           playPauseToggled = true;
         };
 
-        contentBrowserProxy.requiresDistillationVal = false;
+        readingMode.requiresDistillation = false;
 
         // Populate content and call updateContent() so
         // computeIsReadAloudPlayable() becomes true
-        setPlayableContent();
+        chrome.readingMode.setContentForTesting(axTree, [3]);
         app.updateContent();
         await microtasksFinished();
 
@@ -72,15 +63,9 @@ suite('PlayOnOpen', () => {
 
         assertTrue(
             playPauseToggled, 'onPlayPauseToggle should have been called');
-
-        // Verify playOnOpen was reset to false by updating content again and
-        // ensuring onPlayPauseToggle is not called a second time.
-        playPauseToggled = false;
-        app.updateContent();
-        await microtasksFinished();
         assertFalse(
-            playPauseToggled,
-            'onPlayPauseToggle should not be called again after reset');
+            app['playOnOpen_'],
+            'playOnOpen_ should be automatically reset to false');
       });
 
   test(
@@ -91,13 +76,14 @@ suite('PlayOnOpen', () => {
           playPauseToggled = true;
         };
 
-        contentBrowserProxy.requiresDistillationVal = false;
+        readingMode.requiresDistillation = false;
 
-        setPlayableContent();
+        chrome.readingMode.setContentForTesting(axTree, [3]);
         app.updateContent();
         await microtasksFinished();
 
         assertFalse(playPauseToggled, 'onPlayPauseToggle should not be called');
+        assertFalse(app['playOnOpen_']);
       });
 
   test(
@@ -108,11 +94,23 @@ suite('PlayOnOpen', () => {
           playPauseToggled = true;
         };
 
-        contentBrowserProxy.requiresDistillationVal = false;
+        readingMode.requiresDistillation = false;
+        readingMode.getChildren = (_nodeId: number) => {
+          return [];
+        };
+        readingMode.getTextContent = (_nodeId: number) => {
+          return '';
+        };
 
         // Pass an empty tree with no text nodes so computeIsReadAloudPlayable()
         // is false
-        setEmptyContent();
+        const emptyAxTree = {
+          rootId: 1,
+          nodes: [
+            {id: 1, role: 'rootWebArea', htmlTag: '#document', childIds: []},
+          ],
+        };
+        chrome.readingMode.setContentForTesting(emptyAxTree, []);
         app.updateContent();
         app.setPlayOnOpen(true);
         await microtasksFinished();
@@ -120,14 +118,8 @@ suite('PlayOnOpen', () => {
         assertFalse(
             playPauseToggled,
             'Should not toggle playback before content is ready');
-
-        // Now provide playable content and verify speech triggers when ready
-        setPlayableContent();
-        app.updateContent();
-        await microtasksFinished();
-
         assertTrue(
-            playPauseToggled,
-            'onPlayPauseToggle should be called once content is ready');
+            app['playOnOpen_'],
+            'playOnOpen_ should remain true until playable content arrives');
       });
 });

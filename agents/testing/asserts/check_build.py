@@ -122,7 +122,8 @@ def check_build(_: str, context) -> dict:
             return {
                 'pass': True,
                 'reason': (
-                    f'Build succeeded for targets: {", ".join(sorted(targets))}'
+                    'Build succeeded for targets:'
+                    f' {", ".join(sorted(targets))}'
                 ),
                 'score': 1,
             }

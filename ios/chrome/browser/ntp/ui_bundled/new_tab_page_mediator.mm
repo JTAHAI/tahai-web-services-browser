@@ -36,16 +36,12 @@
 #import "components/signin/public/base/signin_switches.h"
 #import "components/signin/public/identity_manager/objc/identity_manager_observer_bridge.h"
 #import "components/strings/grit/components_strings.h"
-#import "components/subscription_eligibility/objc/subscription_eligibility_observer_bridge.h"
-#import "components/subscription_eligibility/subscription_eligibility_service.h"
 #import "ios/chrome/browser/browser_view/model/browser_view_visibility_notifier_browser_agent.h"
 #import "ios/chrome/browser/content_suggestions/coordinator/content_suggestions_mediator.h"
 #import "ios/chrome/browser/content_suggestions/ui/user_account_image_update_delegate.h"
 #import "ios/chrome/browser/discover_feed/model/discover_feed_service.h"
 #import "ios/chrome/browser/discover_feed/model/discover_feed_service_factory.h"
 #import "ios/chrome/browser/discover_feed/model/discover_feed_visibility_browser_agent.h"
-#import "ios/chrome/browser/fullscreen/model/fullscreen_browser_agent.h"
-#import "ios/chrome/browser/fullscreen/model/fullscreen_browser_agent_observer_bridge.h"
 #import "ios/chrome/browser/home_customization/coordinator/home_customization_data_conversion.h"
 #import "ios/chrome/browser/home_customization/model/home_background_customization_service.h"
 #import "ios/chrome/browser/home_customization/model/home_background_customization_service_observer_bridge.h"
@@ -91,14 +87,11 @@
 #import "ios/chrome/browser/signin/model/authentication_service.h"
 #import "ios/chrome/browser/signin/model/avatar/avatar_provider.h"
 #import "ios/chrome/browser/signin/model/chrome_account_manager_service.h"
-#import "ios/chrome/browser/signin/model/constants.h"
-#import "ios/chrome/browser/signin/model/signin_util.h"
 #import "ios/chrome/browser/sync/model/sync_observer_bridge.h"
 #import "ios/chrome/browser/url_loading/model/url_loading_browser_agent.h"
 #import "ios/chrome/browser/url_loading/model/url_loading_params.h"
 #import "ios/chrome/common/NSString+Chromium.h"
 #import "ios/chrome/common/ui/favicon/favicon_attributes.h"
-#import "ios/chrome/common/ui/util/image_util.h"
 #import "ios/chrome/grit/ios_strings.h"
 #import "ios/public/provider/chrome/browser/voice_search/voice_search_api.h"
 #import "ios/web/public/navigation/navigation_item.h"
@@ -296,13 +289,11 @@ void CleanupImageFetcherCacheIfNeeded(PrefService* pref_service,
 }  // namespace
 
 @interface NewTabPageMediator () <BooleanObserver,
-                                  FullscreenBrowserAgentObserving,
                                   HomeBackgroundCustomizationServiceObserving,
                                   IdentityManagerObserving,
                                   PlaceholderServiceObserving,
                                   PrefObserverDelegate,
                                   SearchEngineObserving,
-                                  SubscriptionEligibilityServiceObserving,
                                   SyncObserverModelBridge>
 
 @property(nonatomic, assign) ChromeAccountManagerService* accountManagerService;
@@ -316,9 +307,6 @@ void CleanupImageFetcherCacheIfNeeded(PrefService* pref_service,
 @end
 
 @implementation NewTabPageMediator {
-  raw_ptr<FullscreenBrowserAgent> _fullscreenBrowserAgent;
-  std::unique_ptr<FullscreenBrowserAgentObserverBridge>
-      _fullscreenBrowserAgentObserverBridge;
   // AIM eligibility service.
   raw_ptr<AimEligibilityService> _aimEligibilityService;
   // AIM eligibility subscription.
@@ -330,10 +318,6 @@ void CleanupImageFetcherCacheIfNeeded(PrefService* pref_service,
   // Observes changes in identity and updates the Identity Disc.
   std::unique_ptr<signin::IdentityManagerObserverBridge>
       _identityObserverBridge;
-  // Observes changes in AI subscription tier.
-  std::unique_ptr<
-      subscription_eligibility::SubscriptionEligibilityObserverBridge>
-      _subscriptionEligibilityObserverBridge;
   // Observes changes of the browser view visibility state.
   raw_ptr<BrowserViewVisibilityNotifierBrowserAgent, DanglingUntriaged>
       _browserViewVisibilityNotifierBrowserAgent;
@@ -392,8 +376,6 @@ void CleanupImageFetcherCacheIfNeeded(PrefService* pref_service,
   uint64_t _fetchSequenceNumber;
   // Holds whether the omnibox should be pinned to the bottom position.
   PrefBackedBoolean* _bottomOmniboxEnabled;
-  raw_ptr<subscription_eligibility::SubscriptionEligibilityService>
-      _subscriptionEligibilityService;
 }
 
 // Synthesized from NewTabPageMutator.
@@ -410,9 +392,6 @@ void CleanupImageFetcherCacheIfNeeded(PrefService* pref_service,
                   (id<UserAccountImageUpdateDelegate>)imageUpdater
                    discoverFeedService:(DiscoverFeedService*)discoverFeedService
                            prefService:(PrefService*)prefService
-        subscriptionEligibilityService:
-            (subscription_eligibility::SubscriptionEligibilityService*)
-                subscriptionEligibilityService
                            syncService:(syncer::SyncService*)syncService
            regionalCapabilitiesService:
                (regional_capabilities::RegionalCapabilitiesService*)
@@ -432,9 +411,7 @@ void CleanupImageFetcherCacheIfNeeded(PrefService* pref_service,
         (DiscoverFeedVisibilityBrowserAgent*)discoverFeedVisibilityBrowserAgent
               featureEngagementTracker:(feature_engagement::Tracker*)tracker
                  aimEligibilityService:
-                     (AimEligibilityService*)aimEligibilityService
-                fullscreenBrowserAgent:
-                    (FullscreenBrowserAgent*)fullscreenBrowserAgent {
+                     (AimEligibilityService*)aimEligibilityService {
   self = [super init];
   if (self) {
     CHECK(identityManager);
@@ -449,10 +426,6 @@ void CleanupImageFetcherCacheIfNeeded(PrefService* pref_service,
     _identityObserverBridge =
         std::make_unique<signin::IdentityManagerObserverBridge>(identityManager,
                                                                 self);
-    CHECK(subscriptionEligibilityService);
-    _subscriptionEligibilityObserverBridge = std::make_unique<
-        subscription_eligibility::SubscriptionEligibilityObserverBridge>(
-        subscriptionEligibilityService, self);
     _browserViewVisibilityNotifierBrowserAgent =
         browserViewVisibilityNotifierBrowserAgent;
     // Listen for default search engine changes.
@@ -464,7 +437,6 @@ void CleanupImageFetcherCacheIfNeeded(PrefService* pref_service,
     _discoverFeedService = discoverFeedService;
     _discoverFeedVisibilityBrowserAgent = discoverFeedVisibilityBrowserAgent;
     _prefService = prefService;
-    _subscriptionEligibilityService = subscriptionEligibilityService;
     _regionalCapabilitiesService = regionalCapabilitiesService;
     _backgroundCustomizationService = backgroundCustomizationService;
     _backgroundImageCacheService = backgroundImageCacheService;
@@ -488,26 +460,14 @@ void CleanupImageFetcherCacheIfNeeded(PrefService* pref_service,
       _bottomOmniboxEnabled.observer = self;
       [_bottomOmniboxEnabled.observer booleanDidChange:_bottomOmniboxEnabled];
     }
-    if (IsFullscreenRefactoringEnabled() && fullscreenBrowserAgent) {
-      _fullscreenBrowserAgent = fullscreenBrowserAgent;
-      _fullscreenBrowserAgentObserverBridge =
-          std::make_unique<FullscreenBrowserAgentObserverBridge>(
-              self, _fullscreenBrowserAgent);
-    }
   }
   return self;
 }
 
 - (void)setConsumer:(id<NewTabPageConsumer>)consumer {
   _consumer = consumer;
-  if (IsChromeNextIaEnabled()) {
-    if (IsBottomOmniboxAvailable()) {
-      [self.consumer setOmniboxInBottomPosition:_bottomOmniboxEnabled.value];
-    }
-    if (IsFullscreenRefactoringEnabled() && _fullscreenBrowserAgent) {
-      [self.consumer
-          setFeedBottomInset:_fullscreenBrowserAgent->max_insets().bottom];
-    }
+  if (IsChromeNextIaEnabled() && IsBottomOmniboxAvailable()) {
+    [self.consumer setOmniboxInBottomPosition:_bottomOmniboxEnabled.value];
   }
 }
 
@@ -618,13 +578,11 @@ void CleanupImageFetcherCacheIfNeeded(PrefService* pref_service,
       self.feedVisibilityObserver);
   _searchEngineObserver.reset();
   _identityObserverBridge.reset();
-  _subscriptionEligibilityObserverBridge.reset();
   self.accountManagerService = nil;
   self.discoverFeedService = nullptr;
   _prefChangeRegistrar.reset();
   _prefObserverBridge.reset();
   _prefService = nullptr;
-  _subscriptionEligibilityService = nullptr;
   _syncObserver.reset();
   _syncService = nullptr;
   _regionalCapabilitiesService = nullptr;
@@ -638,8 +596,6 @@ void CleanupImageFetcherCacheIfNeeded(PrefService* pref_service,
   _imageFetcherService = nullptr;
   _backgroundImageCacheService = nullptr;
   self.placeholderService = nullptr;
-  _fullscreenBrowserAgentObserverBridge.reset();
-  _fullscreenBrowserAgent = nullptr;
   base::UmaHistogramBoolean("IOS.NTP.LandscapeMode", _wasNTPInLandscape);
 }
 
@@ -680,12 +636,6 @@ void CleanupImageFetcherCacheIfNeeded(PrefService* pref_service,
     self.discoverFeedService->UpdateFeedViewVisibilityState(
         self.contentCollectionView, currentState, previousState);
   }
-}
-
-#pragma mark - FullscreenBrowserAgentObserving
-
-- (void)fullscreenDidUpdateObscuredInsetRange:(FullscreenBrowserAgent*)agent {
-  [self.consumer setFeedBottomInset:agent->max_insets().bottom];
 }
 
 #pragma mark - BooleanObserver
@@ -900,17 +850,12 @@ void CleanupImageFetcherCacheIfNeeded(PrefService* pref_service,
   // Fetches user's identity from Authentication Service.
   if (_signedInIdentity) {
     // Only show an avatar if the user is signed in.
-    UIImage* avatarImage =
+    UIImage* image =
         GetApplicationContext()->GetIdentityAvatarProvider()->GetIdentityAvatar(
             _signedInIdentity, IdentityAvatarSize::SmallSize);
-
-    BOOL hasAITier =
-        IsAiSubscriptionAvatarRingIOSEnabled() &&
-        _subscriptionEligibilityService->GetAiSubscriptionTier() > 0;
-    [self.imageUpdater updateAccountWithName:_signedInIdentity.userFullName
-                                       email:_signedInIdentity.userEmail
-                                 avatarImage:avatarImage
-                                   hasAITier:hasAITier];
+    [self.imageUpdater updateAccountImage:image
+                                     name:_signedInIdentity.userFullName
+                                    email:_signedInIdentity.userEmail];
   } else {
     [self.imageUpdater setSignedOutAccountImage];
     signin_metrics::LogSignInOffered(
@@ -1055,10 +1000,8 @@ void CleanupImageFetcherCacheIfNeeded(PrefService* pref_service,
   [traitAccessor setObjectForNewTabPageTrait:[NewTabPageTrait defaultValue]];
   [traitAccessor setBoolForNewTabPageImageBackgroundTrait:NO];
   [self.logoMediator setLogoTintColor:nil];
-  if (initialLoad) {
-    base::UmaHistogramEnumeration("IOS.HomeCustomization.Background.Ntp.Loaded",
-                                  HomeCustomizationBackgroundStyle::kDefault);
-  }
+  base::UmaHistogramEnumeration("IOS.HomeCustomization.Background.Ntp.Loaded",
+                                HomeCustomizationBackgroundStyle::kDefault);
 }
 
 // Fetches and applies a custom background image.
@@ -1168,12 +1111,6 @@ void CleanupImageFetcherCacheIfNeeded(PrefService* pref_service,
 
 - (image_fetcher::ImageFetcherService*)imageFetcherService {
   return _imageFetcherService;
-}
-
-#pragma mark - SubscriptionEligibilityServiceObserving
-
-- (void)aiSubscriptionTierDidUpdate:(int32_t)newSubscriptionTier {
-  [self updateAccountImage];
 }
 
 @end

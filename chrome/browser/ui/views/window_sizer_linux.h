@@ -7,12 +7,12 @@
 
 #include "chrome/browser/ui/window_sizer/window_sizer.h"
 
-class BrowserWindowInterface;
+class Browser;
 
 class WindowSizerLinux : public WindowSizer {
  public:
   WindowSizerLinux(std::unique_ptr<StateProvider> state_provider,
-                   BrowserWindowInterface* browser);
+                   Browser* browser);
   WindowSizerLinux(const WindowSizerLinux&) = delete;
   WindowSizerLinux& operator=(const WindowSizerLinux&) = delete;
   ~WindowSizerLinux() override;

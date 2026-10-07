@@ -54,7 +54,8 @@ void DecorationTitle::Update(int title_resource_id,
 }
 
 void DecorationTitle::SetUIResourceIds() {
-  if (!needs_refresh_) {
+  if (!needs_refresh_ && base::FeatureList::IsEnabled(
+                             chrome::android::kReloadTabUiResourcesIfChanged)) {
     return;
   }
   ui::Resource* title_resource = resource_manager_->GetResource(

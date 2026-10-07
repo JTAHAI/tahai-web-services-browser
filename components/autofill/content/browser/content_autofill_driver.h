@@ -222,7 +222,6 @@ class ContentAutofillDriver : public AutofillDriver,
   void TriggerFormExtractionInAllFrames(
       base::OnceCallback<void(bool success)> form_extraction_finished_callback)
       override;
-  void ClearFormCacheInAllFrames() override;
   void RendererShouldClearPreviewedForm() override;
 
   // Group (1b): browser -> renderer events, routed (see comment above).
@@ -234,18 +233,15 @@ class ContentAutofillDriver : public AutofillDriver,
       const FillId& fill_id,
       bool supports_refill,
       const url::Origin& triggered_origin,
-      const absl::flat_hash_map<FieldGlobalId, FieldType>& field_type_map)
-      override;
+      const absl::flat_hash_map<FieldGlobalId, FieldType>& field_type_map,
+      const Section& section_for_clear_form_on_ios) override;
   void ApplyFieldAction(mojom::FieldActionType action_type,
                         mojom::ActionPersistence action_persistence,
                         const FieldGlobalId& field_id,
                         const std::u16string& value) override;
-  void GetNonceForEmailVerification(
-      FieldGlobalId email_field_id,
-      base::OnceCallback<void(const std::optional<std::string>&)> callback)
-      override;
   void SendEmailVerificationToken(FieldGlobalId email_field_id,
                                   const std::string& email,
+                                  FieldGlobalId token_field_id,
                                   const std::string& token) override;
   void UpdateEmailVerificationState(
       const FieldGlobalId& email_field_id,
@@ -329,7 +325,7 @@ class ContentAutofillDriver : public AutofillDriver,
                           FieldRendererId field_id) override;
   void FormWithEmailVerificationTokenSubmitted(
       const FormData& form,
-      FieldRendererId email_field_id) override;
+      FieldRendererId field_id) override;
   void DidDetectJavaScriptAutofill(
       const FormData& form,
       FieldRendererId trigger_field_id,

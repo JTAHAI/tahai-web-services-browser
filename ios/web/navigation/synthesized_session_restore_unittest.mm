@@ -17,9 +17,9 @@ namespace {
 
 // Creates a vector with given number of navigation items. All items will
 // have distinct titles, URLs, and referrers
-std::vector<std::unique_ptr<NavigationItemImpl>> CreateTestNavigationItems(
-    size_t count) {
-  std::vector<std::unique_ptr<NavigationItemImpl>> items;
+void CreateTestNavigationItems(
+    size_t count,
+    std::vector<std::unique_ptr<NavigationItem>>& items) {
   for (size_t i = 0; i < count; i++) {
     auto item = std::make_unique<NavigationItemImpl>();
     item->SetURL(GURL(base::StringPrintf("http://www.%zu.com", i)));
@@ -32,7 +32,6 @@ std::vector<std::unique_ptr<NavigationItemImpl>> CreateTestNavigationItems(
     }
     items.push_back(std::move(item));
   }
-  return items;
 }
 
 }  // namespace
@@ -53,8 +52,8 @@ class SynthesizedSessionRestoreTest : public web::WebTest {
 // Test that the synthetic session data blob can be successfully loaded
 // by WebStateImpl and correctly restores the session.
 TEST_F(SynthesizedSessionRestoreTest, TestRestore) {
-  std::vector<std::unique_ptr<NavigationItemImpl>> items =
-      CreateTestNavigationItems(100);
+  std::vector<std::unique_ptr<NavigationItem>> items;
+  CreateTestNavigationItems(100, items);
 
   NSData* synthesized_data = SynthesizedSessionRestore(
       /*last_committed_item_index=*/0, items, /*off_the_record=*/false);

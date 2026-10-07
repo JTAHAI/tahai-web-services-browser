@@ -697,8 +697,6 @@ export class PowerBookmarksAppElement extends CrLitElement implements
       e: CustomEvent<{value: BookmarksTreeNode[]}>) {
     this.activeFolderPath_ = e.detail.value;
   }
-
-
 }
 
 declare global {

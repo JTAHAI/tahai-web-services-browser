@@ -106,8 +106,6 @@ class PaymentRequestDialogView : public views::DialogDelegateView,
 
     virtual void OnPaymentHandlerTitleSet() = 0;
 
-    virtual void OnPaymentHandlerThemeColorSet() = 0;
-
     virtual void OnDialogSizeCheckAfterBrowserResize() = 0;
   };
 
@@ -205,10 +203,6 @@ class PaymentRequestDialogView : public views::DialogDelegateView,
   // underlying WebContents.
   void OnPaymentHandlerTitleSet();
 
-  // Called when a PaymentHandler dialog detects a theme color being set from
-  // the underlying WebContents.
-  void OnPaymentHandlerThemeColorSet();
-
  private:
   friend class PaymentRequestDialogViewTestApi;
 
@@ -227,7 +221,6 @@ class PaymentRequestDialogView : public views::DialogDelegateView,
   void RemoveLoadingView();
   void OnDialogClosed();
   void ResizeDialogWindow();
-  void ResizeToPaymentHandlerSize();
   void CheckIfDialogFitsInBrowserWindow();
   bool DialogFitsInBrowserWindow() const;
 
@@ -243,7 +236,7 @@ class PaymentRequestDialogView : public views::DialogDelegateView,
   // The PaymentRequest object that initiated this dialog.
   base::WeakPtr<PaymentRequest> request_;
   ControllerMap controller_map_;
-  raw_ptr<ViewStack> view_stack_ = nullptr;
+  raw_ptr<ViewStack, AcrossTasksDanglingUntriaged> view_stack_;
 
   // A full dialog overlay that shows a spinner and the "processing" label. It's
   // hidden until ShowProcessingSpinner is called.
@@ -253,7 +246,6 @@ class PaymentRequestDialogView : public views::DialogDelegateView,
   // A full dialog overlay that shows a loading view for a payment app. It's
   // hidden until ShowLoadingView is called.
   raw_ptr<PaymentAppLoadingView> loading_view_overlay_ = nullptr;
-  base::TimeTicks loading_view_shown_time_;
 
   base::WeakPtr<ObserverForTest> observer_for_testing_;
 

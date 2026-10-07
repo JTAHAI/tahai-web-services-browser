@@ -22,8 +22,7 @@ namespace blink {
 //
 // It's a Blink-variant of base::StrCat() and absl::StrCat().
 //
-// For concatenating only strings, StrCat is generally faster than operator+,
-// StringBuilder, and blink::Format. See README.md for other cases.
+// StrCat is generally faster than operator+ and String::Format.
 [[nodiscard]] WTF_EXPORT String
 StrCat(std::initializer_list<StringView> pieces);
 

@@ -15,6 +15,18 @@ namespace autofill::bad_message {
 
 namespace internal {
 
+bool CheckSingleValidTriggerSource(
+    AutofillSuggestionTriggerSource trigger_source) {
+  if (trigger_source ==
+      AutofillSuggestionTriggerSource::kPlusAddressUpdatedInBrowserProcess) {
+    mojo::ReportBadMessage(
+        "PlusAddressUpdatedInBrowserProcess is not a permitted trigger source "
+        "in the renderer");
+    return false;
+  }
+  return true;
+}
+
 bool CheckFieldInForm(const FormData& form, FieldRendererId field_id) {
   if (!std::ranges::contains(form.fields(), field_id,
                              &FormFieldData::renderer_id)) {

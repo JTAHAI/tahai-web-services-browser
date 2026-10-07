@@ -3,7 +3,6 @@
 // found in the LICENSE file.
 
 // clang-format off
-import 'chrome://settings/lazy_load.js';
 import 'chrome://settings/settings.js';
 
 import {ScrollableMixin} from 'chrome://settings/settings.js';

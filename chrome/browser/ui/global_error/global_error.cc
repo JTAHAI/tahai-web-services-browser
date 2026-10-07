@@ -40,8 +40,7 @@ bool GlobalErrorWithStandardBubble::HasShownBubbleView() {
   return has_shown_bubble_view_;
 }
 
-void GlobalErrorWithStandardBubble::ShowBubbleView(
-    BrowserWindowInterface* browser) {
+void GlobalErrorWithStandardBubble::ShowBubbleView(Browser* browser) {
   has_shown_bubble_view_ = true;
   bubble_view_ =
       GlobalErrorBubbleViewBase::ShowStandardBubbleView(browser, AsWeakPtr());
@@ -65,14 +64,13 @@ GlobalErrorWithStandardBubble::GetBubbleViewDetailsButtonLabel() {
 }
 
 void GlobalErrorWithStandardBubble::BubbleViewDetailsButtonPressed(
-    BrowserWindowInterface* browser) {}
+    Browser* browser) {}
 
 bool GlobalErrorWithStandardBubble::ShouldAddElevationIconToAcceptButton() {
   return false;
 }
 
-void GlobalErrorWithStandardBubble::BubbleViewDidClose(
-    BrowserWindowInterface* browser) {
+void GlobalErrorWithStandardBubble::BubbleViewDidClose(Browser* browser) {
   bubble_view_ = nullptr;
   OnBubbleViewDidClose(browser);
 }

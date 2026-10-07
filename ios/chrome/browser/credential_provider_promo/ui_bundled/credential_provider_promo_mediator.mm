@@ -81,15 +81,15 @@ NSString* GetLearnMoreSubtitleString() {
     // Notification.
     return YES;
   }
-  BOOL promoDisabled = GetApplicationContext()->GetLocalState()->GetBoolean(
-      prefs::kIosCredentialProviderPromoStopPromo);
   BOOL impressionLimitMet =
-      promoSeenInCurrentSession &&
-      trigger != CredentialProviderPromoTrigger::RemindMeLater;
+      GetApplicationContext()->GetLocalState()->GetBoolean(
+          prefs::kIosCredentialProviderPromoStopPromo) ||
+      (promoSeenInCurrentSession &&
+       trigger != CredentialProviderPromoTrigger::RemindMeLater);
   BOOL policyEnabled = GetApplicationContext()->GetLocalState()->GetBoolean(
       prefs::kIosCredentialProviderPromoPolicyEnabled);
   PrefService* localState = GetApplicationContext()->GetLocalState();
-  return !promoDisabled && !impressionLimitMet && policyEnabled &&
+  return !impressionLimitMet && policyEnabled &&
          !password_manager_util::IsCredentialProviderEnabledOnStartup(
              localState);
 }
@@ -101,9 +101,9 @@ NSString* GetLearnMoreSubtitleString() {
   switch (trigger) {
     case CredentialProviderPromoTrigger::SuccessfulLoginUsingExistingPassword:
       source = IOSCredentialProviderPromoSource::kAutofillUsed;
-      break;
-    case CredentialProviderPromoTrigger::SuccessfulPasskeyCreation:
-      source = IOSCredentialProviderPromoSource::kPasskeyCreated;
+      if (self.promoContext == CredentialProviderPromoContext::kLearnMore) {
+        [self setAnimation];
+      }
       break;
     case CredentialProviderPromoTrigger::RemindMeLater:
       source = [self promoOriginalSource];

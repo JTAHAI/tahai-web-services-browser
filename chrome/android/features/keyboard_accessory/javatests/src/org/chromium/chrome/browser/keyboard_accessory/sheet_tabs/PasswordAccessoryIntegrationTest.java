@@ -89,7 +89,9 @@ public class PasswordAccessoryIntegrationTest {
         mHelper.startAtTestPage(/* isRtl= */ false);
 
         CriteriaHelper.pollUiThread(
-                () -> mHelper.getOrCreatePasswordAccessorySheet() != null,
+                () -> {
+                    return mHelper.getOrCreatePasswordAccessorySheet() != null;
+                },
                 " Password Sheet should be bound to accessory sheet.");
     }
 
@@ -98,12 +100,13 @@ public class PasswordAccessoryIntegrationTest {
     public void testPasswordSheetDisplaysProvidedItems() throws TimeoutException {
         preparePasswordBridge();
         ThreadUtils.runOnUiThreadBlocking(
-                () ->
-                        mPasswordStoreBridge.insertPasswordCredential(
-                                new PasswordStoreCredential(
-                                        new GURL(mTestServer.getURL("/")),
-                                        "mayapark@gmail.com",
-                                        "SomeHiddenPassword")));
+                () -> {
+                    mPasswordStoreBridge.insertPasswordCredential(
+                            new PasswordStoreCredential(
+                                    new GURL(mTestServer.getURL("/")),
+                                    "mayapark@gmail.com",
+                                    "SomeHiddenPassword"));
+                });
         mActivityTestRule.loadUrl(
                 mTestServer.getURL("/chrome/test/data/password/password_form.html"));
         mHelper.focusPasswordField(false);
@@ -155,12 +158,13 @@ public class PasswordAccessoryIntegrationTest {
     public void testFillsPasswordOnTap() throws TimeoutException {
         preparePasswordBridge();
         ThreadUtils.runOnUiThreadBlocking(
-                () ->
-                        mPasswordStoreBridge.insertPasswordCredential(
-                                new PasswordStoreCredential(
-                                        new GURL(mTestServer.getURL("/")),
-                                        "mpark@abc.com",
-                                        "ShorterPassword")));
+                () -> {
+                    mPasswordStoreBridge.insertPasswordCredential(
+                            new PasswordStoreCredential(
+                                    new GURL(mTestServer.getURL("/")),
+                                    "mpark@abc.com",
+                                    "ShorterPassword"));
+                });
         mHelper.loadUrl("/chrome/test/data/password/password_form.html");
         mHelper.focusPasswordField(false);
         mHelper.waitForKeyboardAccessoryToBeShown();
@@ -200,7 +204,10 @@ public class PasswordAccessoryIntegrationTest {
     public void testEnablesUndenylistingToggle() throws TimeoutException, InterruptedException {
         preparePasswordBridge();
         String url = mTestServer.getURL("/chrome/test/data/password/password_form.html");
-        ThreadUtils.runOnUiThreadBlocking(() -> mPasswordStoreBridge.blocklistForTesting(url));
+        ThreadUtils.runOnUiThreadBlocking(
+                () -> {
+                    mPasswordStoreBridge.blocklistForTesting(url);
+                });
         mActivityTestRule.loadUrl(url);
         mHelper.focusPasswordField(false);
         mHelper.waitForKeyboardAccessoryToBeShown();

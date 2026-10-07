@@ -33,7 +33,6 @@ extern const char kWebViewProfileStoreNotTriggerStartup[];
 extern const char kWebViewOptInToGmsBindServiceOptimization[];
 extern const char kWebViewReduceUserAgentMinorVersion[];
 extern const char kWebViewReduceUAAndroidVersionDeviceModel[];
-extern const char kWebViewRunStartupTasksSync[];
 
 }  // namespace switches
 

@@ -44,9 +44,7 @@
 #include "components/permissions/permission_request_manager.h"
 #include "components/prefs/pref_service.h"
 #include "components/strings/grit/components_strings.h"
-#include "components/tabs/public/tab_interface.h"
 #include "components/vector_icons/vector_icons.h"
-#include "content/public/browser/page.h"
 #include "content/public/browser/web_contents.h"
 #include "media/base/media_switches.h"
 #include "net/base/schemeful_site.h"
@@ -112,88 +110,6 @@ DEFINE_CLASS_ELEMENT_IDENTIFIER_VALUE(ContentSettingImageModel,
                                       kProtectedMediaElementId);
 #endif
 
-namespace {
-
-using ImageType = ContentSettingImageModel::ImageType;
-
-// The ordering of the models here influences the order in which icons are
-// shown in the omnibox.
-constexpr ImageType kContentSettingImageOrder[] = {
-    ImageType::kCookies,
-    ImageType::kImages,
-    ImageType::kJavaScript,
-    ImageType::kPopups,
-    ImageType::kGeolocation,
-    ImageType::kMixedScript,
-    ImageType::kProtocolHandlers,
-    ImageType::kMediaStream,
-    ImageType::kSensors,
-    ImageType::kAds,
-    ImageType::kAutomaticDownloads,
-    ImageType::kMidiSysex,
-    ImageType::kSound,
-    ImageType::kFramebust,
-    ImageType::kClipboardReadWrite,
-    ImageType::kNotifications,
-    ImageType::kStorageAccess,
-#if BUILDFLAG(IS_CHROMEOS)
-    ImageType::kSmartCard,
-#endif
-#if BUILDFLAG(IS_WIN)
-    ImageType::kProtectedMediaIdentifier,
-#endif
-};
-
-ui::ElementIdentifier GetElementIdentifierForType(ImageType image_type) {
-  switch (image_type) {
-    case ImageType::kCookies:
-      return ContentSettingImageModel::kCookiesIconElementId;
-    case ImageType::kImages:
-      return ContentSettingImageModel::kImagesIconElementId;
-    case ImageType::kJavaScript:
-      return ContentSettingImageModel::kJavaScriptIconElementId;
-    case ImageType::kPopups:
-      return ContentSettingImageModel::kPopupsIconElementId;
-    case ImageType::kGeolocation:
-      return ContentSettingImageModel::kGeolocationIconElementId;
-    case ImageType::kMixedScript:
-      return ContentSettingImageModel::kMixedScriptIconElementId;
-    case ImageType::kProtocolHandlers:
-      return ContentSettingImageModel::kProtocolHandlersIconElementId;
-    case ImageType::kMediaStream:
-      return ContentSettingImageModel::kMediaStreamIconElementId;
-    case ImageType::kAds:
-      return ContentSettingImageModel::kAdsIconElementId;
-    case ImageType::kAutomaticDownloads:
-      return ContentSettingImageModel::kAutomaticDownloadsIconElementId;
-    case ImageType::kMidiSysex:
-      return ContentSettingImageModel::kMidiSysexIconElementId;
-    case ImageType::kSound:
-      return ContentSettingImageModel::kSoundIconElementId;
-    case ImageType::kFramebust:
-      return ContentSettingImageModel::kFramebustElementId;
-    case ImageType::kSensors:
-      return ContentSettingImageModel::kSensorsElementId;
-    case ImageType::kClipboardReadWrite:
-      return ContentSettingImageModel::kClipboardRWElementId;
-    case ImageType::kStorageAccess:
-      return ContentSettingImageModel::kStorageAccessElementId;
-    case ImageType::kNotifications:
-      return kNotificationContentSettingImageView;
-#if BUILDFLAG(IS_CHROMEOS)
-    case ImageType::kSmartCard:
-      return ContentSettingImageModel::kSmartCardIconElementId;
-#endif
-#if BUILDFLAG(IS_WIN)
-    case ImageType::kProtectedMediaIdentifier:
-      return ContentSettingImageModel::kProtectedMediaElementId;
-#endif
-  }
-  NOTREACHED();
-}
-
-}  // namespace
-
 // The image models hierarchy:
 //
 // ContentSettingImageModel                   - base class
@@ -241,7 +157,7 @@ class ContentSettingGeolocationImageModel : public ContentSettingImageModel {
 
   std::unique_ptr<ContentSettingBubbleModel> CreateBubbleModelImpl(
       ContentSettingBubbleModel::Delegate* delegate,
-      content::Page& page) override;
+      WebContents* web_contents) override;
 };
 
 class ContentSettingRPHImageModel : public ContentSettingSimpleImageModel {
@@ -317,7 +233,7 @@ class ContentSettingMediaImageModel : public ContentSettingImageModel {
 
   std::unique_ptr<ContentSettingBubbleModel> CreateBubbleModelImpl(
       ContentSettingBubbleModel::Delegate* delegate,
-      content::Page& page) override;
+      WebContents* web_contents) override;
 
  private:
   PageSpecificContentSettings::MicrophoneCameraState state_;
@@ -353,9 +269,9 @@ class ContentSettingSmartCardImageModel
 
   std::unique_ptr<ContentSettingBubbleModel> CreateBubbleModelImpl(
       ContentSettingBubbleModel::Delegate* delegate,
-      content::Page& page) override {
+      WebContents* web_contents) override {
     return std::make_unique<ContentSettingSimpleBubbleModel>(
-        delegate, page, ContentSettingsType::SMART_CARD_GUARD);
+        delegate, web_contents, ContentSettingsType::SMART_CARD_GUARD);
   }
 };
 #endif  // BUILDFLAG(IS_CHROMEOS)
@@ -391,7 +307,7 @@ class ContentSettingNotificationsImageModel
   bool UpdateAndGetVisibility(WebContents* web_contents) override;
   std::unique_ptr<ContentSettingBubbleModel> CreateBubbleModelImpl(
       ContentSettingBubbleModel::Delegate* delegate,
-      content::Page& page) override;
+      WebContents* web_contents) override;
 };
 
 class ContentSettingPopupImageModel : public ContentSettingSimpleImageModel {
@@ -661,9 +577,9 @@ ContentSettingSimpleImageModel::ContentSettingSimpleImageModel(
 std::unique_ptr<ContentSettingBubbleModel>
 ContentSettingSimpleImageModel::CreateBubbleModelImpl(
     ContentSettingBubbleModel::Delegate* delegate,
-    content::Page& page) {
+    WebContents* web_contents) {
   return ContentSettingBubbleModel::CreateContentSettingBubbleModel(
-      delegate, page, content_type());
+      delegate, web_contents, content_type());
 }
 
 // static
@@ -939,8 +855,9 @@ bool ContentSettingGeolocationImageModel::UpdateAndGetVisibility(
 std::unique_ptr<ContentSettingBubbleModel>
 ContentSettingGeolocationImageModel::CreateBubbleModelImpl(
     ContentSettingBubbleModel::Delegate* delegate,
-    content::Page& page) {
-  return std::make_unique<ContentSettingGeolocationBubbleModel>(delegate, page);
+    WebContents* web_contents) {
+  return std::make_unique<ContentSettingGeolocationBubbleModel>(delegate,
+                                                                web_contents);
 }
 
 // Protocol handlers -----------------------------------------------------------
@@ -1255,8 +1172,9 @@ bool ContentSettingMediaImageModel::IsMicAccessPendingOnSystemLevelPrompt() {
 std::unique_ptr<ContentSettingBubbleModel>
 ContentSettingMediaImageModel::CreateBubbleModelImpl(
     ContentSettingBubbleModel::Delegate* delegate,
-    content::Page& page) {
-  return std::make_unique<ContentSettingMediaStreamBubbleModel>(delegate, page);
+    WebContents* web_contents) {
+  return std::make_unique<ContentSettingMediaStreamBubbleModel>(delegate,
+                                                                web_contents);
 }
 
 // Blocked Framebust -----------------------------------------------------------
@@ -1265,13 +1183,9 @@ ContentSettingFramebustBlockImageModel::ContentSettingFramebustBlockImageModel()
 
 bool ContentSettingFramebustBlockImageModel::UpdateAndGetVisibility(
     WebContents* web_contents) {
-  // Early exit if no blocked Framebust. Non-tab WebContents have no
-  // FramebustBlockTabHelper.
-  tabs::TabInterface* tab =
-      tabs::TabInterface::MaybeGetFromContents(web_contents);
-  FramebustBlockTabHelper* helper =
-      tab ? FramebustBlockTabHelper::From(tab) : nullptr;
-  if (!helper || !helper->HasBlockedUrls()) {
+  // Early exit if no blocked Framebust.
+  if (!FramebustBlockTabHelper::FromWebContents(web_contents)
+           ->HasBlockedUrls()) {
     return false;
   }
 
@@ -1284,9 +1198,9 @@ bool ContentSettingFramebustBlockImageModel::UpdateAndGetVisibility(
 std::unique_ptr<ContentSettingBubbleModel>
 ContentSettingFramebustBlockImageModel::CreateBubbleModelImpl(
     ContentSettingBubbleModel::Delegate* delegate,
-    content::Page& page) {
-  return std::make_unique<ContentSettingFramebustBlockBubbleModel>(delegate,
-                                                                   page);
+    WebContents* web_contents) {
+  return std::make_unique<ContentSettingFramebustBlockBubbleModel>(
+      delegate, web_contents);
 }
 
 // Sensors ---------------------------------------------------------------------
@@ -1485,17 +1399,17 @@ bool ContentSettingNotificationsImageModel::UpdateAndGetVisibility(
 std::unique_ptr<ContentSettingBubbleModel>
 ContentSettingNotificationsImageModel::CreateBubbleModelImpl(
     ContentSettingBubbleModel::Delegate* delegate,
-    content::Page& page) {
+    WebContents* web_contents) {
   if (blocked_on_system_level()) {
 #if BUILDFLAG(IS_MAC)
-    return std::make_unique<ContentSettingNotificationsBubbleModel>(delegate,
-                                                                    page);
+    return std::make_unique<ContentSettingNotificationsBubbleModel>(
+        delegate, web_contents);
 #else
     NOTREACHED();
 #endif
   } else {
-    return std::make_unique<ContentSettingQuietRequestBubbleModel>(delegate,
-                                                                   page);
+    return std::make_unique<ContentSettingQuietRequestBubbleModel>(
+        delegate, web_contents);
   }
 }
 
@@ -1550,7 +1464,51 @@ void ContentSettingImageModel::SetIconSize(int icon_size) {
 }
 
 ui::ElementIdentifier ContentSettingImageModel::GetElementIdentifier() const {
-  return GetElementIdentifierForType(image_type_);
+  switch (image_type_) {
+    case ImageType::kCookies:
+      return kCookiesIconElementId;
+    case ImageType::kImages:
+      return kImagesIconElementId;
+    case ImageType::kJavaScript:
+      return kJavaScriptIconElementId;
+    case ImageType::kPopups:
+      return kPopupsIconElementId;
+    case ImageType::kGeolocation:
+      return kGeolocationIconElementId;
+    case ImageType::kMixedScript:
+      return kMixedScriptIconElementId;
+    case ImageType::kProtocolHandlers:
+      return kProtocolHandlersIconElementId;
+    case ImageType::kMediaStream:
+      return kMediaStreamIconElementId;
+    case ImageType::kAds:
+      return kAdsIconElementId;
+    case ImageType::kAutomaticDownloads:
+      return kAutomaticDownloadsIconElementId;
+    case ImageType::kMidiSysex:
+      return kMidiSysexIconElementId;
+    case ImageType::kSound:
+      return kSoundIconElementId;
+    case ImageType::kFramebust:
+      return kFramebustElementId;
+    case ImageType::kSensors:
+      return kSensorsElementId;
+    case ImageType::kClipboardReadWrite:
+      return kClipboardRWElementId;
+    case ImageType::kStorageAccess:
+      return kStorageAccessElementId;
+    case ImageType::kNotifications:
+      return kNotificationContentSettingImageView;
+#if BUILDFLAG(IS_CHROMEOS)
+    case ImageType::kSmartCard:
+      return kSmartCardIconElementId;
+#endif
+#if BUILDFLAG(IS_WIN)
+    case ImageType::kProtectedMediaIdentifier:
+      return kProtectedMediaElementId;
+#endif
+  }
+  NOTREACHED();
 }
 
 int ContentSettingImageModel::AccessibilityAnnouncementStringId() const {
@@ -1574,12 +1532,40 @@ ContentSettingImageModel::CreateBubbleModel(
     ContentSettingBubbleModel::Delegate* delegate,
     content::WebContents* web_contents) {
   DCHECK(web_contents);
-  return CreateBubbleModelImpl(delegate, web_contents->GetPrimaryPage());
+  return CreateBubbleModelImpl(delegate, web_contents);
 }
 
 // static
 std::vector<std::unique_ptr<ContentSettingImageModel>>
 ContentSettingImageModel::GenerateContentSettingImageModels() {
+  // The ordering of the models here influences the order in which icons are
+  // shown in the omnibox.
+  constexpr ImageType kContentSettingImageOrder[] = {
+      ImageType::kCookies,
+      ImageType::kImages,
+      ImageType::kJavaScript,
+      ImageType::kPopups,
+      ImageType::kGeolocation,
+      ImageType::kMixedScript,
+      ImageType::kProtocolHandlers,
+      ImageType::kMediaStream,
+      ImageType::kSensors,
+      ImageType::kAds,
+      ImageType::kAutomaticDownloads,
+      ImageType::kMidiSysex,
+      ImageType::kSound,
+      ImageType::kFramebust,
+      ImageType::kClipboardReadWrite,
+      ImageType::kNotifications,
+      ImageType::kStorageAccess,
+#if BUILDFLAG(IS_CHROMEOS)
+      ImageType::kSmartCard,
+#endif
+#if BUILDFLAG(IS_WIN)
+      ImageType::kProtectedMediaIdentifier,
+#endif
+  };
+
   std::vector<std::unique_ptr<ContentSettingImageModel>> result;
   for (auto type : kContentSettingImageOrder) {
 #if BUILDFLAG(IS_WIN)
@@ -1590,18 +1576,6 @@ ContentSettingImageModel::GenerateContentSettingImageModels() {
     }
 #endif
     result.push_back(CreateForContentType(type));
-  }
-
-  return result;
-}
-
-// static
-std::vector<ui::ElementIdentifier>
-ContentSettingImageModel::GetAllElementIdentifiers() {
-  std::vector<ui::ElementIdentifier> result;
-  result.reserve(std::size(kContentSettingImageOrder));
-  for (auto type : kContentSettingImageOrder) {
-    result.push_back(GetElementIdentifierForType(type));
   }
 
   return result;

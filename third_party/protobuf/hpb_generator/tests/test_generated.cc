@@ -14,7 +14,6 @@
 #include "absl/strings/string_view.h"
 #include "hpb_generator/tests/child_model.hpb.h"
 #include "hpb_generator/tests/no_package.hpb.h"
-#include "hpb_generator/tests/null_enum.hpb.h"
 #include "hpb_generator/tests/set_alias.hpb.h"
 #include "hpb_generator/tests/test_enum.hpb.h"
 #include "hpb_generator/tests/test_extension.hpb.h"
@@ -50,8 +49,6 @@ TEST(CppGeneratedCode, MessageEnum) { EXPECT_EQ(5, TestModel_Category_IMAGES); }
 TEST(CppGeneratedCode, ImportedEnum) { EXPECT_EQ(3, TestEnum::DEVICE_MONITOR); }
 
 TEST(CppGeneratedCode, Enum) { EXPECT_EQ(1, RED); }
-
-TEST(CppGeneratedCode, NullEnum) { EXPECT_EQ(1, hpb_test::protos::NULL_); }
 
 TEST(CppGeneratedCode, EnumNoPackage) { EXPECT_EQ(1, ::hpb_CELSIUS); }
 
@@ -440,9 +437,7 @@ TEST(CppGeneratedCode, SerializeUsingArena) {
   hpb::Arena arena;
   absl::StatusOr<absl::string_view> bytes = ::hpb::Serialize(&model, arena);
   EXPECT_EQ(true, bytes.ok());
-  TestModel parsed_model =
-      ::hpb::Parse<TestModel>(bytes.value(), hpb::DefaultParseOptions())
-          .value();
+  TestModel parsed_model = ::hpb::Parse<TestModel>(bytes.value()).value();
   EXPECT_EQ("Hello World", parsed_model.str1());
 }
 
@@ -454,9 +449,7 @@ TEST(CppGeneratedCode, SerializeProxyUsingArena) {
   absl::StatusOr<absl::string_view> bytes =
       ::hpb::Serialize(&model_proxy, arena);
   EXPECT_EQ(true, bytes.ok());
-  TestModel parsed_model =
-      ::hpb::Parse<TestModel>(bytes.value(), hpb::DefaultParseOptions())
-          .value();
+  TestModel parsed_model = ::hpb::Parse<TestModel>(bytes.value()).value();
   EXPECT_EQ("Hello World", parsed_model.str1());
 }
 
@@ -467,9 +460,7 @@ TEST(CppGeneratedCode, SerializeNestedMessageUsingArena) {
   hpb::Ptr<const TestModel> child = model.recursive_child();
   absl::StatusOr<absl::string_view> bytes = ::hpb::Serialize(child, arena);
   EXPECT_EQ(true, bytes.ok());
-  TestModel parsed_model =
-      ::hpb::Parse<TestModel>(bytes.value(), hpb::DefaultParseOptions())
-          .value();
+  TestModel parsed_model = ::hpb::Parse<TestModel>(bytes.value()).value();
   EXPECT_EQ("Hello World", parsed_model.str1());
 }
 

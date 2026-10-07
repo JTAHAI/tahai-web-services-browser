@@ -170,29 +170,24 @@ static bool GetAudioDeviceInfo(bool is_input,
   bool had_error = false;
 
   for (AudioObjectID device_id : device_ids) {
-    const std::optional<bool> is_valid_for_direction =
+    const bool is_valid_for_direction =
         (is_input ? core_audio_mac.IsInputDevice(device_id)
                   : core_audio_mac.IsOutputDevice(device_id));
 
-    if (!is_valid_for_direction.has_value()) {
-      had_error = true;
-      continue;
-    }
-
-    if (!*is_valid_for_direction) {
+    if (!is_valid_for_direction) {
       continue;
     }
 
     std::optional<std::string> unique_id =
         core_audio_mac.GetDeviceUniqueID(device_id);
-    if (!unique_id.has_value()) {
+    if (!unique_id) {
       had_error = true;
       continue;
     }
 
     std::optional<std::string> label =
         core_audio_mac.GetDeviceLabel(device_id, is_input);
-    if (!label.has_value()) {
+    if (!label) {
       had_error = true;
       continue;
     }
@@ -488,7 +483,7 @@ static bool GetOutputDeviceChannelsAndLayout(AudioDeviceID device,
   int total_channel_count = 0;
   if (GetDeviceTotalChannelCount(device, kAudioDevicePropertyScopeOutput,
                                  &total_channel_count) &&
-      total_channel_count > kMaxConcurrentChannels) {
+      total_channel_count > GetConcurrentMaxChannels()) {
     *channels = total_channel_count;
     *channel_layout = CHANNEL_LAYOUT_DISCRETE;
   } else {
@@ -825,7 +820,7 @@ std::string AudioManagerMac::GetAssociatedOutputDeviceID(
   // GetRelatedDeviceIDs().
   base::flat_set<AudioObjectID> related_output_device_ids;
   for (AudioObjectID device_id : related_device_ids) {
-    if (core_audio_mac_->IsOutputDevice(device_id).value_or(false)) {
+    if (core_audio_mac_->GetNumStreams(device_id, /*is_input=*/false) > 0) {
       related_output_device_ids.insert(device_id);
     }
   }
@@ -901,16 +896,13 @@ AudioOutputStream* AudioManagerMac::MakeLowLatencyOutputStream(
   }
 
   // Use AVFoundationOutputStream for kPlayback audio output streams as it is
-  // able to tell the OS to use Spatial Audio. Robust support for Spatial Audio
-  // playback via AVFoundation in third-party applications requires macOS 27+.
-  if (__builtin_available(macOS 27, *)) {
-    if (base::FeatureList::IsEnabled(features::kMacAVFoundationPlayback) &&
-        params.latency_tag() == AudioLatency::Type::kPlayback) {
-      DVLOG(1) << __func__ << ": Creating AVFoundationOutputStream for "
-               << ChannelLayoutToString(params.channel_layout()) << " layout.";
-      auto* stream = new AVFoundationOutputStream(this, params, device_id);
-      return stream;
-    }
+  // able to tell the OS to use Spatial Audio.
+  if (base::FeatureList::IsEnabled(features::kMacAVFoundationPlayback) &&
+      params.latency_tag() == AudioLatency::Type::kPlayback) {
+    DVLOG(1) << __func__ << ": Creating AVFoundationOutputStream for "
+             << ChannelLayoutToString(params.channel_layout()) << " layout.";
+    auto* stream = new AVFoundationOutputStream(this, params, device_id);
+    return stream;
   }
 
   AUHALStream* stream = new AUHALStream(this, params, device, log_callback);
@@ -1036,12 +1028,9 @@ AudioParameters AudioManagerMac::GetPreferredOutputStreamParameters(
   // The AVFoundation backend can handle multichannel audio and perform mixing
   // itself. In this case, we can pass the original layout to the OS instead of
   // downmixing. This is only done for playback streams.
-  bool use_avf_streams = false;
-  if (__builtin_available(macOS 27, *)) {
-    use_avf_streams =
-        base::FeatureList::IsEnabled(features::kMacAVFoundationPlayback) &&
-        input_params.latency_tag() == AudioLatency::Type::kPlayback;
-  }
+  const bool use_avf_streams =
+      base::FeatureList::IsEnabled(features::kMacAVFoundationPlayback) &&
+      input_params.latency_tag() == AudioLatency::Type::kPlayback;
 
   if (!has_valid_input_params ||
       (base::checked_cast<uint32_t>(output_channels) > hardware_channels &&
@@ -1550,9 +1539,7 @@ AudioDeviceID AudioManagerMac::FindFirstOutputSubdevice(
       std::string uid = base::SysCFStringRefToUTF8(value);
       output_subdevice_id = AudioManagerMac::GetAudioDeviceIdByUId(false, uid);
       if (output_subdevice_id != kAudioObjectUnknown &&
-          CoreAudioUtilMac()
-              .IsOutputDevice(output_subdevice_id)
-              .value_or(false)) {
+          CoreAudioUtilMac().GetNumStreams(output_subdevice_id, false) > 0) {
         return output_subdevice_id;
       }
     }

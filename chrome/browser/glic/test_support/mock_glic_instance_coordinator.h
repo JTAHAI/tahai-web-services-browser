@@ -46,14 +46,10 @@ class MockGlicInstanceCoordinator
               (override));
 
   MOCK_METHOD(void,
-              Show,
-              (BrowserWindowInterface*, mojom::InvocationSource),
-              (override));
-  MOCK_METHOD(void,
               Toggle,
               (BrowserWindowInterface*, bool, mojom::InvocationSource),
               (override));
-  MOCK_METHOD(bool, MaybeStartWarming, (GlicWarmingTrigger), (override));
+  MOCK_METHOD(bool, MaybeStartInitialWarming, (), (override));
   MOCK_METHOD(base::WeakPtr<GlicInstance>,
               Invoke,
               (GlicInvokeOptions),

@@ -27,6 +27,7 @@
 // Configures the row with generic styling and content parameters.
 - (void)configureWithTitle:(NSString*)title
                description:(NSString*)description
+                      icon:(UIImage*)icon
            backgroundColor:(UIColor*)backgroundColor
            chevronExpanded:(BOOL)chevronExpanded
            separatorHidden:(BOOL)separatorHidden;

@@ -185,6 +185,11 @@ void ClearPresentedState(ProceduralBlock completion) {
                          dismissOmnibox:YES];
 }
 
+void PresentSignInAccountsViewControllerIfNecessary() {
+  [GetForegroundActiveSceneController()
+      presentSignInAccountsViewControllerIfNecessary];
+}
+
 void SetBooleanLocalStatePref(const char* pref_name, bool value) {
   DCHECK(GetApplicationContext());
   DCHECK(GetApplicationContext()->GetLocalState());

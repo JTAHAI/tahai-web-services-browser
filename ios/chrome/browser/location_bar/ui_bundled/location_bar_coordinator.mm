@@ -9,7 +9,6 @@
 #import "base/metrics/histogram_macros.h"
 #import "base/strings/sys_string_conversions.h"
 #import "base/supports_user_data.h"
-#import "components/feature_engagement/public/event_constants.h"
 #import "components/feature_engagement/public/tracker.h"
 #import "components/omnibox/browser/aim_eligibility_service.h"
 #import "components/omnibox/browser/location_bar_model_impl.h"
@@ -79,11 +78,9 @@
 #import "ios/chrome/browser/reader_mode/model/features.h"
 #import "ios/chrome/browser/reader_mode/model/reader_mode_web_state_utils.h"
 #import "ios/chrome/browser/search_engines/model/template_url_service_factory.h"
-#import "ios/chrome/browser/send_tab_to_self/model/send_tab_to_self_util.h"
 #import "ios/chrome/browser/shared/coordinator/layout_guide/layout_guide_util.h"
 #import "ios/chrome/browser/shared/coordinator/scene/scene_state.h"
-#import "ios/chrome/browser/shared/coordinator/scene/state/browser_layout_state.h"
-#import "ios/chrome/browser/shared/coordinator/scene/state/scene_layout_state.h"
+#import "ios/chrome/browser/shared/coordinator/scene/state/layout_state.h"
 #import "ios/chrome/browser/shared/model/browser/browser.h"
 #import "ios/chrome/browser/shared/model/prefs/pref_names.h"
 #import "ios/chrome/browser/shared/model/profile/profile_ios.h"
@@ -99,7 +96,6 @@
 #import "ios/chrome/browser/shared/public/commands/page_action_menu_commands.h"
 #import "ios/chrome/browser/shared/public/commands/page_action_menu_entry_point_commands.h"
 #import "ios/chrome/browser/shared/public/commands/search_image_with_lens_command.h"
-#import "ios/chrome/browser/shared/public/commands/send_tab_to_self_commands.h"
 #import "ios/chrome/browser/shared/public/features/features.h"
 #import "ios/chrome/browser/shared/ui/util/layout_guide_names.h"
 #import "ios/chrome/browser/shared/ui/util/pasteboard_util.h"
@@ -167,9 +163,6 @@ struct AIHubBadgeActiveWindowsData : public base::SupportsUserData::Data {
   raw_ptr<PrefService> _prefService;
   // Tracker for feature events.
   raw_ptr<feature_engagement::Tracker> _tracker;
-
-  // Whether this coordinator is for a text-only location bar.
-  BOOL _textOnly;
 }
 // Whether the coordinator is started.
 @property(nonatomic, assign, getter=isStarted) BOOL started;
@@ -227,21 +220,9 @@ struct AIHubBadgeActiveWindowsData : public base::SupportsUserData::Data {
   return self.viewController;
 }
 
-- (UILayoutGuide*)steadyViewLayoutGuide {
-  return self.viewController.steadyViewLayoutGuide;
-}
-
-- (instancetype)initWithBrowser:(Browser*)browser textOnly:(BOOL)textOnly {
-  CHECK(browser);
-  self = [super initWithBaseViewController:nil browser:browser];
-  if (self) {
-    _textOnly = textOnly;
-  }
-  return self;
-}
-
 - (instancetype)initWithBrowser:(Browser*)browser {
-  return [self initWithBrowser:browser textOnly:NO];
+  CHECK(browser);
+  return [super initWithBaseViewController:nil browser:browser];
 }
 
 - (void)start {
@@ -259,8 +240,7 @@ struct AIHubBadgeActiveWindowsData : public base::SupportsUserData::Data {
 
   BOOL isIncognito = self.isOffTheRecord;
 
-  self.viewController =
-      [[LocationBarViewController alloc] initWithTextOnly:_textOnly];
+  self.viewController = [[LocationBarViewController alloc] init];
   self.viewController.incognito = isIncognito;
   _prefService = self.profile->GetPrefs();
   self.viewController.profilePrefs = _prefService;
@@ -357,16 +337,18 @@ struct AIHubBadgeActiveWindowsData : public base::SupportsUserData::Data {
         didMoveToParentViewController:self.viewController];
   }
 
-  self.readerModeChipCoordinator = [[ReaderModeChipCoordinator alloc]
-      initWithBaseViewController:self.viewController
-                         browser:self.browser];
-  if (!IsLocationBarBadgeMigrationEnabled()) {
-    self.readerModeChipCoordinator.visibilityDelegate =
-        self.viewController.readerModeChipVisibilityDelegate;
+  if (IsReaderModeAvailable()) {
+    self.readerModeChipCoordinator = [[ReaderModeChipCoordinator alloc]
+        initWithBaseViewController:self.viewController
+                           browser:self.browser];
+    if (!IsLocationBarBadgeMigrationEnabled()) {
+      self.readerModeChipCoordinator.visibilityDelegate =
+          self.viewController.readerModeChipVisibilityDelegate;
+    }
+    [self.readerModeChipCoordinator start];
+    [self.viewController setReaderModeChipView:self.readerModeChipCoordinator
+                                                   .viewController.view];
   }
-  [self.readerModeChipCoordinator start];
-  [self.viewController
-      setReaderModeChipView:self.readerModeChipCoordinator.viewController.view];
 
   // Create button factory that wil be used by the ViewController to get
   // BadgeButtons for a BadgeType.
@@ -463,7 +445,7 @@ struct AIHubBadgeActiveWindowsData : public base::SupportsUserData::Data {
   self.steadyViewMediator.tracker = _tracker;
 
   if (IsFullscreenRefactoringEnabled()) {
-    self.mediator.browserLayoutState = self.browser->GetBrowserLayoutState();
+    self.mediator.layoutState = self.browser->GetSceneState().layoutState;
     _fullscreenBrowserAgentObserver =
         std::make_unique<FullscreenBrowserAgentObserverBridge>(
             self.mediator, FullscreenBrowserAgent::FromBrowser(self.browser));
@@ -761,26 +743,33 @@ struct AIHubBadgeActiveWindowsData : public base::SupportsUserData::Data {
 }
 
 - (BOOL)locationBarCanSendTabToSelf {
-  return send_tab_to_self::IsOmniboxEntryPointEligible(self.webState,
-                                                       self.profile);
+  if (!base::FeatureList::IsEnabled(
+          send_tab_to_self::kSendTabToSelfExtraEntryPoints)) {
+    return NO;
+  }
+  if (!self.webState) {
+    return NO;
+  }
+  send_tab_to_self::SendTabToSelfSyncService* send_tab_to_self_service =
+      SendTabToSelfSyncServiceFactory::GetForProfile(self.profile);
+  return send_tab_to_self_service &&
+         send_tab_to_self_service
+             ->GetEntryPointDisplayReason(self.webState->GetVisibleURL())
+             .has_value();
 }
 
 - (void)locationBarSendTabToSelfTapped {
-  if (!self.profile || !self.webState || ![self locationBarCanSendTabToSelf]) {
+  if (!self.webState || ![self locationBarCanSendTabToSelf]) {
     return;
-  }
-  if (feature_engagement::Tracker* tracker =
-          feature_engagement::TrackerFactory::GetForProfile(self.profile)) {
-    tracker->NotifyEvent(feature_engagement::events::kSendTabToSelfOmniboxUsed);
   }
   GURL url = self.webState->GetVisibleURL();
   NSString* title = base::SysUTF16ToNSString(self.webState->GetTitle());
-  id<SendTabToSelfCommands> sendTabToSelfHandler = HandlerForProtocol(
-      self.browser->GetCommandDispatcher(), SendTabToSelfCommands);
+  id<BrowserCoordinatorCommands> browserCoordinatorHandler = HandlerForProtocol(
+      self.browser->GetCommandDispatcher(), BrowserCoordinatorCommands);
 
   ExecuteWhenTransitionsComplete(
       ^{
-        [sendTabToSelfHandler
+        [browserCoordinatorHandler
             showSendTabToSelfUI:url
                           title:title
                      entryPoint:send_tab_to_self::ShareEntryPoint::
@@ -848,8 +837,9 @@ struct AIHubBadgeActiveWindowsData : public base::SupportsUserData::Data {
   if (IsFullscreenRefactoringEnabled()) {
     [HandlerForProtocol(self.browser->GetCommandDispatcher(),
                         FullscreenCommands)
-        forceFullscreen:YES
-                feature:ForceFullscreenFeature::kHideToolbars];
+        enterFullscreenWithTrigger:FullscreenModeTransitionTrigger::
+                                       kForcedByUser
+                          animated:YES];
     return;
   }
   FullscreenController* fullscreenController =
@@ -1050,8 +1040,6 @@ struct AIHubBadgeActiveWindowsData : public base::SupportsUserData::Data {
     return;
   }
 
-  // TODO(b/541315801): C2PA: Copied image could have C2PA metadata; candidate
-  // to pass raw bytes.
   UIImage* image = optionalImage->ToUIImage();
   if (usingLens) {
     id<LensCommands> handler =

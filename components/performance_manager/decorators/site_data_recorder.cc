@@ -107,8 +107,7 @@ class SiteDataReaderWaiter final : public PageNodeObserver {
     }
   }
 
-  void OnMainFrameUrlChanged(const PageNode* page_node,
-                             const GURL& previous_url) final {
+  void OnMainFrameUrlChanged(const PageNode* page_node) final {
     if (page_node == watched_page_node_ && !waiting_for_data_ready_) {
       CheckForSiteDataReader();
     }
@@ -205,8 +204,7 @@ void SiteDataRecorder::OnBeforePageNodeRemoved(const PageNode* page_node) {
   data.Reset();
 }
 
-void SiteDataRecorder::OnMainFrameUrlChanged(const PageNode* page_node,
-                                            const GURL& previous_url) {
+void SiteDataRecorder::OnMainFrameUrlChanged(const PageNode* page_node) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   SiteDataNodeData& data = GetSiteDataNodeDataFromPageNode(page_node);
   data.OnMainFrameUrlChanged(page_node->GetMainFrameUrl(),

@@ -19,6 +19,15 @@
 #import "ios/chrome/browser/shared/public/commands/autofill_commands.h"
 #import "ios/chrome/browser/shared/public/commands/snackbar_commands.h"
 
+namespace {
+
+bool IsAutofillAcrossIframesEnabled() {
+  return base::FeatureList::IsEnabled(
+      autofill::features::kAutofillAcrossIframesIos);
+}
+
+}  // namespace
+
 AutofillTabHelper::~AutofillTabHelper() = default;
 
 void AutofillTabHelper::SetBaseViewController(
@@ -76,8 +85,10 @@ AutofillTabHelper::AutofillTabHelper(web::WebState* web_state)
   autofill_client_ = std::make_unique<autofill::ChromeAutofillClientIOS>(
       profile, web_state_, infobar_manager, autofill_agent_);
 
-  autofill::ChildFrameRegistrar::GetOrCreateForWebState(web_state_)
-      ->AddObserver(this);
+  if (IsAutofillAcrossIframesEnabled()) {
+    autofill::ChildFrameRegistrar::GetOrCreateForWebState(web_state_)
+        ->AddObserver(this);
+  }
 }
 
 void AutofillTabHelper::WebStateDestroyed(web::WebState* web_state) {
@@ -85,9 +96,11 @@ void AutofillTabHelper::WebStateDestroyed(web::WebState* web_state) {
 
   web_state_observation_.Reset();
   autofill_agent_ = nil;
-  auto* registrar = autofill::ChildFrameRegistrar::FromWebState(web_state_);
-  CHECK(registrar);
-  registrar->RemoveObserver(this);
+  if (IsAutofillAcrossIframesEnabled()) {
+    auto* registrar = autofill::ChildFrameRegistrar::FromWebState(web_state_);
+    CHECK(registrar);
+    registrar->RemoveObserver(this);
+  }
 }
 
 void AutofillTabHelper::OnDidDoubleRegistration(

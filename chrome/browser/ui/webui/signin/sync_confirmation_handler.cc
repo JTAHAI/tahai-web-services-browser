@@ -18,6 +18,7 @@
 #include "chrome/browser/profiles/profile_avatar_icon_util.h"
 #include "chrome/browser/signin/identity_manager_factory.h"
 #include "chrome/browser/sync/sync_service_factory.h"
+#include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/signin/signin_view_controller_delegate.h"
 #include "chrome/browser/ui/webui/signin/login_ui_service_factory.h"
 #include "chrome/browser/ui/webui/signin/signin_utils.h"
@@ -92,7 +93,7 @@ SyncConfirmationScreenMode GetScreenMode(
 SyncConfirmationHandler::SyncConfirmationHandler(
     Profile* profile,
     const std::unordered_map<std::string, int>& string_to_grd_id_map,
-    BrowserWindowInterface* browser)
+    Browser* browser)
     : profile_(profile),
       string_to_grd_id_map_(string_to_grd_id_map),
       browser_(browser),
@@ -282,7 +283,7 @@ void SyncConfirmationHandler::DispatchAccountInfoUpdate(
     return;
   }
 
-  if (info.GetAccountId() !=
+  if (info.account_id !=
       identity_manager_->GetPrimaryAccountId(ConsentLevel::kSignin)) {
     return;
   }

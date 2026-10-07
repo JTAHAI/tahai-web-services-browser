@@ -180,7 +180,6 @@ export class ComposeAppElement extends ComposeAppElementBase {
       hasOutput_: {type: Boolean},
       displayedText_: {type: String},
       modifierOptions_: {type: Array},
-      webuiRoundedIconsEnabled_: {type: Boolean},
     };
   }
 
@@ -252,8 +251,6 @@ export class ComposeAppElement extends ComposeAppElementBase {
   ];
   protected accessor responseText_:
       TextInput = {text: '', isPartial: false, streamingEnabled: false};
-  protected accessor webuiRoundedIconsEnabled_: boolean =
-      loadTimeData.getBoolean('webuiRoundedIconsEnabled');
 
   private animator_: ComposeAppAnimator;
   private apiProxy_: ComposeApiProxy = ComposeApiProxyImpl.getInstance();
@@ -1042,20 +1039,11 @@ export class ComposeAppElement extends ComposeAppElementBase {
     }
     switch (mode) {
       case InputMode.kPolish:
-        return (
-            loadTimeData.getBoolean('webuiRoundedIconsEnabled') ?
-                'compose:edit-fix-auto' :
-                'compose:polish-old');
+        return 'compose:polish';
       case InputMode.kElaborate:
-        return (
-            loadTimeData.getBoolean('webuiRoundedIconsEnabled') ?
-                'compose:expand' :
-                'compose:elaborate-old');
+        return 'compose:elaborate';
       case InputMode.kFormalize:
-        return (
-            loadTimeData.getBoolean('webuiRoundedIconsEnabled') ?
-                'compose:work' :
-                'compose:formalize-old');
+        return 'compose:formalize';
       default:
         return '';
     }

@@ -8,7 +8,6 @@
 #include <utility>
 
 #include "base/memory/ptr_util.h"
-#include "base/memory/raw_ref.h"
 #include "third_party/blink/renderer/core/animation/interpolable_length.h"
 #include "third_party/blink/renderer/core/animation/list_interpolation_functions.h"
 #include "third_party/blink/renderer/core/animation/side_index.h"
@@ -205,11 +204,10 @@ class InheritedSideTypesChecker
   bool IsValid(const StyleResolverState& state,
                const InterpolationValue& underlying) const final {
     return inherited_side_types_ ==
-           SideTypes(GetBorderImageLengthBox(*property_, *state.ParentStyle()));
+           SideTypes(GetBorderImageLengthBox(property_, *state.ParentStyle()));
   }
 
-  const raw_ref<const CSSProperty, UnprotectedInRelease | DanglingUntriaged>
-      property_;
+  const CSSProperty& property_;
   const SideTypes inherited_side_types_;
 };
 

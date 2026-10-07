@@ -19,10 +19,6 @@ template <typename T>
 class NoDestructor;
 }
 
-namespace enterprise_data_protection {
-struct BasicPasteSource;
-}
-
 namespace data_controls {
 
 // Desktop-specific implementation of `data_controls::RulesServiceBase`.
@@ -39,10 +35,6 @@ class ChromeRulesService : public RulesServiceBase {
       const content::ClipboardEndpoint& source,
       const content::ClipboardEndpoint& destination,
       const ui::ClipboardMetadata& metadata) const;
-  Verdict GetPasteVerdict(
-      const enterprise_data_protection::BasicPasteSource& source,
-      const content::ClipboardEndpoint& destination,
-      const ui::ClipboardMetadata& metadata) const;
 
  protected:
   friend class ChromeRulesServiceFactory;
@@ -55,15 +47,13 @@ class ChromeRulesService : public RulesServiceBase {
 
   // Helpers to convert action-specific types to rule-specific types.
   ActionSource GetAsActionSource(
-      const enterprise_data_protection::BasicPasteSource& source,
+      const content::ClipboardEndpoint& endpoint,
       const ui::ClipboardMetadata& metadata) const;
   ActionDestination GetAsActionDestination(
       const content::ClipboardEndpoint& endpoint) const;
   template <typename ActionSourceOrDestination>
   ActionSourceOrDestination ExtractPasteActionContext(
       const content::ClipboardEndpoint& endpoint) const;
-  ActionSource ExtractPasteActionContextSource(
-      const enterprise_data_protection::BasicPasteSource& source) const;
 
   // Initialized with the browser_context passed in the constructor.
   const raw_ptr<Profile> profile_ = nullptr;

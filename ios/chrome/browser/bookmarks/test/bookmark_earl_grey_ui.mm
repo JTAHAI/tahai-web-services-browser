@@ -190,8 +190,13 @@ id<GREYMatcher> SearchIconButton() {
 
 - (void)starCurrentTab {
   [ChromeEarlGreyUI openToolsMenu];
-  [ChromeEarlGreyUI
-      tapToolsMenuAction:grey_accessibilityID(kToolsMenuAddToBookmarks)];
+  [[[EarlGrey
+      selectElementWithMatcher:grey_allOf(grey_accessibilityID(
+                                              kToolsMenuAddToBookmarks),
+                                          grey_sufficientlyVisible(), nil)]
+         usingSearchAction:grey_scrollInDirection(kGREYDirectionDown, 200)
+      onElementWithMatcher:grey_accessibilityID(kPopupMenuToolsMenuTableViewId)]
+      performAction:grey_tap()];
 }
 
 - (void)starAndEditCurrentTabWithSnackbarTitle:(NSString*)title {
@@ -724,7 +729,6 @@ id<GREYMatcher> SearchIconButton() {
       performAction:grey_tap()];
   [[EarlGrey selectElementWithMatcher:grey_accessibilityID(editorId)]
       assertWithMatcher:grey_notVisible()];
-  [ChromeEarlGreyUI waitForAppToIdle];
 }
 
 - (NSString*)contextBarNewFolderString {

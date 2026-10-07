@@ -11,6 +11,7 @@
 #include "base/test/test_future.h"
 #include "chrome/browser/actor/actor_metrics.h"
 #include "chrome/browser/actor/actor_tab_data.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/common/chrome_features.h"
 #include "chrome/test/base/in_process_browser_test.h"
@@ -109,8 +110,6 @@ class ActorUiDomNodeGeometryBrowserTest
   }
 
   void SetUpOnMainThread() override {
-    embedded_test_server()->ServeFilesFromSourceDirectory(
-        "components/test/data");
     ASSERT_TRUE(embedded_test_server()->Start());
   }
 

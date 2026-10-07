@@ -11,7 +11,6 @@ namespace features {
 
 // All features in alphabetical order. The features should be documented
 // alongside the definition of their values in the .cc file.
-BASE_DECLARE_FEATURE(kDeviceBoundSessionsDsePrewarmer);
 BASE_DECLARE_FEATURE(kNavigationPredictorPreconnectHoldback);
 
 }  // namespace features

@@ -11,7 +11,6 @@ package lens;
 import "tool_mode.proto";
 import "tool_substate.proto";
 import "model_mode.proto";
-import "actions_data.proto";
 import "aim_query.proto";
 import "modality_chip_props.proto";
 
@@ -45,9 +44,6 @@ enum FeatureCapability {
 
   // lockInput() method
   LOCK_INPUT = 26;
-
-  // AiModeExitTool event
-  EXIT_TOOL = 29;
 
   // openLinkInSidePanelMode() method
   OPEN_LINK_IN_SIDE_PANEL_MODE = 31;
@@ -112,13 +108,15 @@ message InjectedInputUpdate {
   InjectedInputUpdatePayload payload = 1;
 }
 
+// LINT.IfChange(ExitToolPayload)
 // Payload for the ExitTool Event.
 message ExitToolPayload {
   // The tool to exit.
-  int32 tool_mode = 1;
+  ToolMode tool_mode = 1;
   // The new tool mode we are switching to.
-  int32 new_tool_mode = 2;
+  ToolMode new_tool_mode = 2;
 }
+// LINT.ThenChange()
 
 // Message from client to AIM to exit a tool.
 message ExitTool {
@@ -145,7 +143,6 @@ message ClientToAimMessage {
     SetCobrowsingDisplayMode set_cobrowsing_display_mode = 4;
     InjectedInputUpdate injected_input_update = 5;
     ExitTool exit_tool = 6;
-    ActionsResult actions_result = 7;
   }
 }
 
@@ -166,23 +163,8 @@ message AimToClientMessage {
     UnlockInput unlock_input = 12;
     LockInput lock_input = 13;
     OpenLinkInSidePanelMode open_link_in_side_panel_mode = 14;
-    ExecuteActions execute_actions = 15;
     UpdateInputPlateStateRequest update_input_plate_state = 16;
   }
-}
-
-// Message AIM sends to clients to execute actions.
-// NOTE: This message is strictly for prototyping WebMCP and script tool
-// integration in AIM at this time.
-message ExecuteActions {
-  optimization_guide.proto.Actions actions = 1;
-}
-
-// Message clients send to AIM with the results of executed actions.
-// NOTE: This message is strictly for prototyping WebMCP and script tool
-// integration in AIM at this time.
-message ActionsResult {
-  optimization_guide.proto.ActionsResult actions_result = 1;
 }
 
 // Message AIM sends to clients to unlock the input plate.

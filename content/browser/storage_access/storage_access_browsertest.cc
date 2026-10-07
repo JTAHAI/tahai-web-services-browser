@@ -2,7 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "base/strings/strcat.h"
 #include "base/test/bind.h"
 #include "content/browser/permissions/permission_controller_impl.h"
 #include "content/browser/web_contents/web_contents_impl.h"
@@ -59,23 +58,22 @@ class StorageAccessBrowserTest : public ContentBrowserTest,
 
   bool is_cookie_access_allowed() const { return GetParam(); }
 
-  base::expected<void, std::string> expected_handle_result() const {
+  base::expected<void, std::optional<std::string>> expected_handle_result()
+      const {
     if (is_cookie_access_allowed()) {
       return base::ok();
     }
 
-    return expected_restricted_handle_result();
-  }
-
-  base::expected<void, std::string> expected_restricted_handle_result() const {
-    return base::unexpected(
-        "Binding a StorageAccessHandle requires third-party cookie access "
-        "and an unrestricted frame context.");
+    if constexpr (DCHECK_IS_ON()) {
+      return base::unexpected(
+          "Binding a StorageAccessHandle requires third-party cookie access.");
+    }
+    return base::unexpected(std::nullopt);
   }
 
  protected:
-  [[nodiscard]] base::expected<void, std::string>
-  BindStorageAccessHandleInFrame(RenderFrameHostImpl* target_host) {
+  [[nodiscard]] base::expected<void, std::optional<std::string>>
+  BindStorageAccessHandle() {
     // Setup message interceptor.
     std::optional<std::string> received_error;
     mojo::SetDefaultProcessErrorHandler(
@@ -84,11 +82,17 @@ class StorageAccessBrowserTest : public ContentBrowserTest,
           received_error = error;
         }));
 
-    EXPECT_TRUE(target_host->ResetBrowserInterfaceBrokerReceiverForTesting());
+    // Load website.
+    EXPECT_TRUE(NavigateToURL(shell(), embedded_https_test_server().GetURL(
+                                           "a.test", "/simple_page.html")));
+
+    // We need access to the interface broker to test bad messages, so must
+    // unbind the existing one and bind our own.
+    EXPECT_TRUE(host()->ResetBrowserInterfaceBrokerReceiverForTesting());
     mojo::Remote<blink::mojom::BrowserInterfaceBroker> broker_remote;
     mojo::PendingReceiver<blink::mojom::BrowserInterfaceBroker>
         broker_receiver = broker_remote.BindNewPipeAndPassReceiver();
-    target_host->BindBrowserInterfaceBrokerReceiver(std::move(broker_receiver));
+    host()->BindBrowserInterfaceBrokerReceiver(std::move(broker_receiver));
 
     // Try to bind our StorageAccessHandle.
     mojo::Remote<blink::mojom::StorageAccessHandle> storage_remote;
@@ -98,46 +102,10 @@ class StorageAccessBrowserTest : public ContentBrowserTest,
     // Cleanup message interceptor.
     mojo::SetDefaultProcessErrorHandler(base::NullCallback());
 
-    if (received_error) {
-      return base::unexpected(received_error.value());
+    if (received_error || !storage_remote.is_connected()) {
+      return base::unexpected(received_error);
     }
     return base::ok();
-  }
-
-  [[nodiscard]] base::expected<void, std::string> BindStorageAccessHandle() {
-    // Load website.
-    EXPECT_TRUE(NavigateToURL(shell(), embedded_https_test_server().GetURL(
-                                           "a.test", "/simple_page.html")));
-
-    return BindStorageAccessHandleInFrame(host());
-  }
-
-  [[nodiscard]] bool BindDomStorageInFrame(
-      const std::string& iframe_structure) {
-    CHECK(NavigateToURL(
-        shell(), embedded_https_test_server().GetURL(
-                     "a.test", base::StrCat({"/cross_site_iframe_factory.html?",
-                                             iframe_structure}))));
-    FrameTreeNode* root = static_cast<WebContentsImpl*>(shell()->web_contents())
-                              ->GetPrimaryFrameTree()
-                              .root();
-    CHECK_EQ(1U, root->child_count());
-    FrameTreeNode* child = root->child_at(0);
-
-    mojo::Remote<blink::mojom::StorageArea> first_party_remote;
-    child->current_frame_host()
-        ->GetStoragePartition()
-        ->GetDOMStorageContext()
-        ->OpenLocalStorage(
-            blink::StorageKey::CreateFirstParty(
-                child->current_frame_host()->GetStorageKey().origin()),
-            child->current_frame_host()->GetFrameToken(),
-            first_party_remote.BindNewPipeAndPassReceiver(),
-            ChildProcessSecurityPolicyImpl::GetInstance()->CreateHandle(
-                child->current_frame_host()->GetProcess()->GetDeprecatedID()),
-            base::DoNothing());
-    first_party_remote.FlushForTesting();
-    return first_party_remote.is_connected();
   }
 
   [[nodiscard]] bool BindDomStorage() {
@@ -169,7 +137,20 @@ class StorageAccessBrowserTest : public ContentBrowserTest,
     EXPECT_TRUE(third_party_remote.is_connected());
 
     // We might be able to bind a first-party storage area too.
-    return BindDomStorageInFrame("a.test(b.test)");
+    mojo::Remote<blink::mojom::StorageArea> first_party_remote;
+    child->current_frame_host()
+        ->GetStoragePartition()
+        ->GetDOMStorageContext()
+        ->OpenLocalStorage(
+            blink::StorageKey::CreateFirstParty(
+                child->current_frame_host()->GetStorageKey().origin()),
+            child->current_frame_host()->GetFrameToken(),
+            first_party_remote.BindNewPipeAndPassReceiver(),
+            ChildProcessSecurityPolicyImpl::GetInstance()->CreateHandle(
+                child->current_frame_host()->GetProcess()->GetDeprecatedID()),
+            base::DoNothing());
+    first_party_remote.FlushForTesting();
+    return first_party_remote.is_connected();
   }
 
   RenderFrameHostImpl* host() {
@@ -188,104 +169,8 @@ IN_PROC_BROWSER_TEST_P(StorageAccessBrowserTest, BindStorageAccessHandle) {
   EXPECT_EQ(BindStorageAccessHandle(), expected_handle_result());
 }
 
-IN_PROC_BROWSER_TEST_P(StorageAccessBrowserTest,
-                       BindStorageAccessHandle_SandboxedWithoutSaa) {
-  CHECK(NavigateToURL(
-      shell(),
-      embedded_https_test_server().GetURL(
-          "a.test",
-          "/cross_site_iframe_factory.html?a.test(b.test{sandbox-allow-scripts,"
-          "sandbox-allow-same-origin})")));
-  FrameTreeNode* root = static_cast<WebContentsImpl*>(shell()->web_contents())
-                            ->GetPrimaryFrameTree()
-                            .root();
-  ASSERT_EQ(1U, root->child_count());
-  RenderFrameHostImpl* child = root->child_at(0)->current_frame_host();
-
-  EXPECT_EQ(BindStorageAccessHandleInFrame(child),
-            expected_restricted_handle_result());
-}
-
-IN_PROC_BROWSER_TEST_P(StorageAccessBrowserTest,
-                       BindStorageAccessHandle_SandboxedWithSaa) {
-  CHECK(NavigateToURL(
-      shell(),
-      embedded_https_test_server().GetURL(
-          "a.test",
-          "/cross_site_iframe_factory.html?a.test(b.test{sandbox-allow-scripts,"
-          "sandbox-allow-same-origin,"
-          "sandbox-allow-storage-access-by-user-activation})")));
-  FrameTreeNode* root = static_cast<WebContentsImpl*>(shell()->web_contents())
-                            ->GetPrimaryFrameTree()
-                            .root();
-  ASSERT_EQ(1U, root->child_count());
-  RenderFrameHostImpl* child = root->child_at(0)->current_frame_host();
-
-  EXPECT_EQ(BindStorageAccessHandleInFrame(child), expected_handle_result());
-}
-
-IN_PROC_BROWSER_TEST_P(StorageAccessBrowserTest,
-                       BindStorageAccessHandle_SandboxedOpaqueOrigin) {
-  CHECK(NavigateToURL(
-      shell(),
-      embedded_https_test_server().GetURL(
-          "a.test",
-          "/cross_site_iframe_factory.html?a.test(b.test{sandbox-allow-scripts}"
-          ")")));
-  FrameTreeNode* root = static_cast<WebContentsImpl*>(shell()->web_contents())
-                            ->GetPrimaryFrameTree()
-                            .root();
-  ASSERT_EQ(1U, root->child_count());
-  RenderFrameHostImpl* child = root->child_at(0)->current_frame_host();
-
-  EXPECT_EQ(BindStorageAccessHandleInFrame(child),
-            expected_restricted_handle_result());
-}
-
-IN_PROC_BROWSER_TEST_P(StorageAccessBrowserTest,
-                       BindStorageAccessHandle_Credentialless) {
-  CHECK(NavigateToURL(
-      shell(),
-      embedded_https_test_server().GetURL(
-          "a.test",
-          "/cross_site_iframe_factory.html?a.test(b.test{credentialless})")));
-  FrameTreeNode* root = static_cast<WebContentsImpl*>(shell()->web_contents())
-                            ->GetPrimaryFrameTree()
-                            .root();
-  ASSERT_EQ(1U, root->child_count());
-  RenderFrameHostImpl* child = root->child_at(0)->current_frame_host();
-  ASSERT_TRUE(child->IsCredentialless());
-
-  EXPECT_EQ(BindStorageAccessHandleInFrame(child),
-            expected_restricted_handle_result());
-}
-
 IN_PROC_BROWSER_TEST_P(StorageAccessBrowserTest, BindDomStorage) {
   EXPECT_EQ(BindDomStorage(), is_cookie_access_allowed());
-}
-
-IN_PROC_BROWSER_TEST_P(StorageAccessBrowserTest,
-                       BindDomStorage_SandboxedWithoutSaa) {
-  EXPECT_FALSE(BindDomStorageInFrame(
-      "a.test(b.test{sandbox-allow-scripts,sandbox-allow-same-origin})"));
-}
-
-IN_PROC_BROWSER_TEST_P(StorageAccessBrowserTest,
-                       BindDomStorage_SandboxedWithSaa) {
-  EXPECT_EQ(BindDomStorageInFrame(
-                "a.test(b.test{sandbox-allow-scripts,sandbox-allow-same-origin,"
-                "sandbox-allow-storage-access-by-user-activation})"),
-            is_cookie_access_allowed());
-}
-
-IN_PROC_BROWSER_TEST_P(StorageAccessBrowserTest,
-                       BindDomStorage_SandboxedOpaqueOrigin) {
-  EXPECT_FALSE(BindDomStorageInFrame("a.test(b.test{sandbox-allow-scripts})"));
-}
-
-IN_PROC_BROWSER_TEST_P(StorageAccessBrowserTest,
-                       BindDomStorage_Credentialless) {
-  EXPECT_FALSE(BindDomStorageInFrame("a.test(b.test{credentialless})"));
 }
 
 INSTANTIATE_TEST_SUITE_P(, StorageAccessBrowserTest, testing::Bool());

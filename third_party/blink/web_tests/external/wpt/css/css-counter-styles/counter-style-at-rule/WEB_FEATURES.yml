@@ -1,2 +1,3 @@
-rules:
-- "**": [counter-style]
+features:
+- name: counter-style
+  files: "**"

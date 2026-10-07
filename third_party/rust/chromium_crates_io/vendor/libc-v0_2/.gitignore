@@ -1,4 +1,2 @@
 target
 *~
-# Used by libc-util
-.libc-backports

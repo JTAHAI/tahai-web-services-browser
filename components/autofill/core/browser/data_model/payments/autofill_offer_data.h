@@ -42,8 +42,6 @@ class AutofillOfferData {
     GPAY_CARD_LINKED_OFFER,
     // GPay-activated promo code offer.
     GPAY_PROMO_CODE_OFFER,
-    // Google Wallet direct offer.
-    WALLET_DIRECT_OFFER,
   };
 
   // Returns an AutofillOfferData for a GPay card-linked offer.
@@ -57,14 +55,6 @@ class AutofillOfferData {
       const std::string& offer_reward_amount);
   // Returns an AutofillOfferData for a GPay promo code offer.
   static AutofillOfferData GPayPromoCodeOffer(
-      int64_t offer_id,
-      base::Time expiry,
-      const std::vector<GURL>& merchant_origins,
-      const GURL& offer_details_url,
-      const DisplayStrings& display_strings,
-      const std::string& promo_code);
-  // Returns an AutofillOfferData for a Google Wallet direct offer.
-  static AutofillOfferData WalletDirectOffer(
       int64_t offer_id,
       base::Time expiry,
       const std::vector<GURL>& merchant_origins,
@@ -88,11 +78,12 @@ class AutofillOfferData {
   // Returns true if the current offer is a card-linked offer.
   bool IsCardLinkedOffer() const;
 
+  // Returns true if the current offer is a GPay promo code offer or an offer
+  // from the FreeListingCouponService.
+  bool IsPromoCodeOffer() const;
+
   // Returns true if the current offer is a GPay promo code offer.
   bool IsGPayPromoCodeOffer() const;
-
-  // Returns true if the current offer is a Google Wallet direct offer.
-  bool IsWalletDirectOffer() const;
 
   // Returns true if the current offer is 1) not expired and 2) contains the
   // given |origin| in the list of |merchant_origins|.
@@ -144,8 +135,7 @@ class AutofillOfferData {
                     const DisplayStrings& display_strings,
                     const std::vector<int64_t>& eligible_instrument_id,
                     const std::string& offer_reward_amount);
-  // Constructs an AutofillOfferData for a GPay promo code offer or Wallet
-  // direct offer.
+  // Constructs an AutofillOfferData for a promo code offer (GPay).
   AutofillOfferData(OfferType offer_type,
                     int64_t offer_id,
                     base::Time expiry,

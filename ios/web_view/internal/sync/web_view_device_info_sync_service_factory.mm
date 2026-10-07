@@ -110,12 +110,6 @@ class DeviceInfoSyncClient : public syncer::DeviceInfoSyncClient {
     return std::nullopt;
   }
 
-  // syncer::DeviceInfoSyncClient:
-  std::optional<syncer::DeviceInfo::PersonalContextInfo>
-  GetLocalPersonalContextInfo() const override {
-    return std::nullopt;
-  }
-
  private:
   PrefService* const prefs_;
   syncer::SyncInvalidationsService* const sync_invalidations_service_;
@@ -174,7 +168,9 @@ WebViewDeviceInfoSyncServiceFactory::BuildServiceInstanceFor(
       std::move(local_device_info_provider), std::move(device_prefs),
       std::move(device_info_sync_client), sync_invalidations_service,
       /*pulse_task_runner=*/
-      web::GetUIThreadTaskRunner({base::TaskPriority::BEST_EFFORT}));
+      base::FeatureList::IsEnabled(base::features::kReducePPMs)
+          ? web::GetUIThreadTaskRunner({base::TaskPriority::BEST_EFFORT})
+          : web::GetUIThreadTaskRunner({}));
 }
 
 }  // namespace ios_web_view

@@ -142,7 +142,7 @@ uint64_t PerformanceEventTiming::interactionId() const {
     return 0u;
   }
   CHECK(HasInteractionId());
-  return interaction_id_->web_exposed_id;
+  return interaction_id_->id;
 }
 
 UserInteractionType PerformanceEventTiming::InteractionType() const {
@@ -350,9 +350,9 @@ void PerformanceEventTiming::SetPerfettoData(
   event_timing->set_cancelable(cancelable());
   if (interaction_id_) {
     event_timing->set_interaction_id(
-        static_cast<uint32_t>(interaction_id_->web_exposed_id));
+        static_cast<uint32_t>(interaction_id_->id));
     event_timing->set_interaction_offset(
-        static_cast<uint32_t>(interaction_id_->non_web_exposed_id));
+        static_cast<uint32_t>(interaction_id_->offset));
   }
   event_timing->set_node_id(target_ ? target_->GetDomNodeId()
                                     : kInvalidDOMNodeId);
@@ -381,10 +381,9 @@ std::unique_ptr<TracedValue> PerformanceEventTiming::ToTracedValue(
   // If int overflows occurs, the static_cast may not work correctly.
   if (interaction_id_) {
     traced_value->SetInteger("interactionId",
-                             static_cast<int>(interaction_id_->web_exposed_id));
-    traced_value->SetInteger(
-        "interactionOffset",
-        static_cast<int>(interaction_id_->non_web_exposed_id));
+                             static_cast<int>(interaction_id_->id));
+    traced_value->SetInteger("interactionOffset",
+                             static_cast<int>(interaction_id_->offset));
   }
   traced_value->SetInteger(
       "nodeId", target_ ? target_->GetDomNodeId() : kInvalidDOMNodeId);

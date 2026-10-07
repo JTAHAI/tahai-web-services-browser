@@ -29,7 +29,7 @@ export class TestBookmarksApiProxy extends TestBrowserProxy implements
       'openBookmark',
       'contextMenuOpenBookmarkInNewTab',
       'contextMenuOpenBookmarkInNewWindow',
-      'contextMenuOpenBookmarkInOffTheRecordWindow',
+      'contextMenuOpenBookmarkInIncognitoWindow',
       'contextMenuOpenBookmarkInNewTabGroup',
       'contextMenuOpenBookmarkInSplitView',
       'contextMenuEdit',
@@ -93,10 +93,9 @@ export class TestBookmarksApiProxy extends TestBrowserProxy implements
     this.methodCalled('contextMenuOpenBookmarkInNewWindow', ids, source);
   }
 
-  contextMenuOpenBookmarkInOffTheRecordWindow(
+  contextMenuOpenBookmarkInIncognitoWindow(
       ids: string[], source: ActionSource) {
-    this.methodCalled(
-        'contextMenuOpenBookmarkInOffTheRecordWindow', ids, source);
+    this.methodCalled('contextMenuOpenBookmarkInIncognitoWindow', ids, source);
   }
 
   contextMenuOpenBookmarkInNewTabGroup(ids: string[], source: ActionSource) {

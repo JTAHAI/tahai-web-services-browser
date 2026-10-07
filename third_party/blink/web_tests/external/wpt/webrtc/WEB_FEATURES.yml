@@ -1,3 +1,8 @@
-rules:
-- RTCSctpTransport-*: [webrtc-sctp]
-- "*": [webrtc]
+features:
+- name: webrtc
+  files:
+  - '*'
+  - '!RTCSctpTransport-*'
+- name: webrtc-sctp
+  files:
+  - RTCSctpTransport-*

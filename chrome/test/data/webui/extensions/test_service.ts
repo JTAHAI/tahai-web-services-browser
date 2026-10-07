@@ -36,7 +36,6 @@ export class TestService extends TestBrowserProxy implements ServiceInterface {
       'dismissSafetyHubExtensionsMenuNotification',
       'dismissMv2DeprecationNotice',
       'uninstallItem',
-      'openReviewPage',
       'downloadActivities',
       'getExtensionActivityLog',
       'getExtensionsInfo',
@@ -349,11 +348,6 @@ export class TestService extends TestBrowserProxy implements ServiceInterface {
 
   uninstallItem(id: string) {
     this.methodCalled('uninstallItem', id);
-    return Promise.resolve();
-  }
-
-  openReviewPage(id: string) {
-    this.methodCalled('openReviewPage', id);
     return Promise.resolve();
   }
 

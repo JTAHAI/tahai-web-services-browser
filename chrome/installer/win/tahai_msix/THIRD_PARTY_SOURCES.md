@@ -2,8 +2,8 @@
 
 The browser's `chrome://credits` page and the packaged `ThirdPartyNotices/`
 directory contain third-party attribution and license texts. TAHAI uses
-Chromium 152.0.7977.83; Chromium source is available from
-https://chromium.googlesource.com/chromium/src/+/152.0.7977.83/.
+Chromium 152.0.7977.158; Chromium source is available from
+https://chromium.googlesource.com/chromium/src/+/152.0.7977.158/.
 
 Guard uses unmodified adblock-rust 0.12.6 source, upstream commit
 `ca7f9f4a24a439da99e052b4e4041c45d87687f5`, under MPL-2.0:

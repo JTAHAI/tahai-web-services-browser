@@ -27,32 +27,30 @@ constexpr base::TimeDelta kPendingRequestTimeout = base::Seconds(3600);
 int GetPriorityForBubbleType(BubbleType type) {
   switch (type) {
     case BubbleType::kOmniboxAutofill:
-      return 13;
-    case BubbleType::kFilledCardInformation:
       return 12;
-    case BubbleType::kPassword:
+    case BubbleType::kFilledCardInformation:
       return 11;
-    case BubbleType::kSaveUpdateAutofillAi:
+    case BubbleType::kPassword:
       return 10;
-    case BubbleType::kSaveUpdateCard:
+    case BubbleType::kSaveUpdateAutofillAi:
       return 9;
-    case BubbleType::kVirtualCardEnrollConfirmation:
+    case BubbleType::kSaveUpdateCard:
       return 8;
-    case BubbleType::kSaveIban:
+    case BubbleType::kVirtualCardEnrollConfirmation:
       return 7;
-    case BubbleType::kMandatoryReauth:
+    case BubbleType::kSaveIban:
       return 6;
-    case BubbleType::kSaveUpdateAddress:
+    case BubbleType::kMandatoryReauth:
       return 5;
-    case BubbleType::kOfferNotification:
+    case BubbleType::kSaveUpdateAddress:
       return 4;
-    case BubbleType::kPaymentsChurnedUsers:
+    case BubbleType::kOfferNotification:
       return 3;
-    case BubbleType::kWalletablePassConsent:
+    case BubbleType::kPaymentsChurnedUsers:
       return 2;
-    case BubbleType::kWalletablePassSave:
+    case BubbleType::kWalletablePassConsent:
       return 1;
-    case BubbleType::kWalletReminderNotice:
+    case BubbleType::kWalletablePassSave:
       return 0;
   }
   NOTREACHED();
@@ -76,7 +74,6 @@ bool ShouldAlwaysPreemptSameType(BubbleType bubble_type) {
     case BubbleType::kOfferNotification:
     case BubbleType::kWalletablePassConsent:
     case BubbleType::kWalletablePassSave:
-    case BubbleType::kWalletReminderNotice:
       return false;
   }
   NOTREACHED();
@@ -111,8 +108,6 @@ std::string_view BubbleTypeToMetricSuffix(BubbleType bubble_type) {
       return "WalletablePassConsent";
     case BubbleType::kWalletablePassSave:
       return "WalletablePassSave";
-    case BubbleType::kWalletReminderNotice:
-      return "WalletReminderNotice";
   }
   NOTREACHED();
 }

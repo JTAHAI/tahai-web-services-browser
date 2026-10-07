@@ -13,6 +13,7 @@
 #include "chrome/browser/ash/profiles/profile_helper.h"
 #include "chrome/browser/signin/identity_manager_factory.h"
 #include "chrome/browser/signin/signin_error_controller_factory.h"
+#include "chrome/browser/sync/sync_service_factory.h"
 #include "components/signin/public/base/consent_level.h"
 #include "components/signin/public/identity_manager/identity_manager.h"
 #include "components/sync/service/sync_service.h"
@@ -27,21 +28,18 @@ bool AuthErrorObserver::ShouldObserve(Profile* profile) {
   return user && user->HasGaiaAccount();
 }
 
-AuthErrorObserver::AuthErrorObserver(PrefService* local_state,
-                                     Profile* profile,
-                                     syncer::SyncService* sync_service)
-    : local_state_(CHECK_DEREF(local_state)),
-      profile_(profile),
-      sync_service_(sync_service) {
+AuthErrorObserver::AuthErrorObserver(PrefService* local_state, Profile* profile)
+    : local_state_(CHECK_DEREF(local_state)), profile_(profile) {
   DCHECK(ShouldObserve(profile));
 }
 
 AuthErrorObserver::~AuthErrorObserver() = default;
 
 void AuthErrorObserver::StartObserving() {
-  if (sync_service_) {
-    sync_service_->AddObserver(this);
-  }
+  syncer::SyncService* const sync_service =
+      SyncServiceFactory::GetForProfile(profile_);
+  if (sync_service)
+    sync_service->AddObserver(this);
 
   SigninErrorController* const error_controller =
       SigninErrorControllerFactory::GetForProfile(profile_);
@@ -52,9 +50,10 @@ void AuthErrorObserver::StartObserving() {
 }
 
 void AuthErrorObserver::Shutdown() {
-  if (sync_service_) {
-    sync_service_->RemoveObserver(this);
-  }
+  syncer::SyncService* const sync_service =
+      SyncServiceFactory::GetForProfile(profile_);
+  if (sync_service)
+    sync_service->RemoveObserver(this);
 
   SigninErrorController* const error_controller =
       SigninErrorControllerFactory::GetForProfile(profile_);

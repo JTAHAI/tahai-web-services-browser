@@ -124,7 +124,6 @@ using ::testing::IsTrue;
 using ::testing::Matcher;
 using ::testing::MockFunction;
 using ::testing::NiceMock;
-using ::testing::Optional;
 using ::testing::Pair;
 using ::testing::Pointwise;
 using ::testing::Return;
@@ -1781,59 +1780,6 @@ TEST_F(PdfViewWebPluginTest, SelectAll) {
       /*value=*/blink::WebString()));
 }
 
-TEST_F(PdfViewWebPluginTest, MakeTextWritingDirection) {
-  // When text editing is allowed, the command should succeed and call the
-  // engine.
-  EXPECT_CALL(*engine_ptr_, CanEditText()).WillRepeatedly(Return(true));
-  EXPECT_CALL(*engine_ptr_,
-              SetFocusedFormTextDirection(base::i18n::LEFT_TO_RIGHT))
-      .WillOnce(Return(true));
-  EXPECT_TRUE(plugin_->ExecuteEditCommand(
-      /*name=*/blink::WebString::FromAscii(
-          "MakeTextWritingDirectionLeftToRight"),
-      /*value=*/blink::WebString()));
-
-  EXPECT_CALL(*engine_ptr_,
-              SetFocusedFormTextDirection(base::i18n::RIGHT_TO_LEFT))
-      .WillOnce(Return(true));
-  EXPECT_TRUE(plugin_->ExecuteEditCommand(
-      /*name=*/blink::WebString::FromAscii(
-          "MakeTextWritingDirectionRightToLeft"),
-      /*value=*/blink::WebString()));
-
-  EXPECT_CALL(*engine_ptr_,
-              SetFocusedFormTextDirection(base::i18n::UNKNOWN_DIRECTION))
-      .WillOnce(Return(true));
-  EXPECT_TRUE(plugin_->ExecuteEditCommand(
-      /*name=*/blink::WebString::FromAscii("MakeTextWritingDirectionNatural"),
-      /*value=*/blink::WebString()));
-}
-
-TEST_F(PdfViewWebPluginTest, MakeTextWritingDirectionDenied) {
-  // When text editing is not allowed, the command should fail and not call the
-  // engine.
-  EXPECT_CALL(*engine_ptr_, CanEditText()).WillRepeatedly(Return(false));
-  EXPECT_CALL(*engine_ptr_, SetFocusedFormTextDirection(_)).Times(0);
-  EXPECT_FALSE(plugin_->ExecuteEditCommand(
-      /*name=*/blink::WebString::FromAscii(
-          "MakeTextWritingDirectionLeftToRight"),
-      /*value=*/blink::WebString()));
-  EXPECT_FALSE(plugin_->ExecuteEditCommand(
-      /*name=*/blink::WebString::FromAscii(
-          "MakeTextWritingDirectionRightToLeft"),
-      /*value=*/blink::WebString()));
-  EXPECT_FALSE(plugin_->ExecuteEditCommand(
-      /*name=*/blink::WebString::FromAscii("MakeTextWritingDirectionNatural"),
-      /*value=*/blink::WebString()));
-}
-
-TEST_F(PdfViewWebPluginTest, GetFocusedFormTextDirection) {
-  EXPECT_CALL(*engine_ptr_, GetFocusedFormTextDirection())
-      .WillOnce(Return(base::i18n::RIGHT_TO_LEFT));
-  EXPECT_THAT(plugin_->GetFocusedFormTextDirection(),
-              Optional(base::i18n::RIGHT_TO_LEFT));
-}
-
 TEST_F(PdfViewWebPluginTest, FormTextFieldFocusChangeUpdatesTextInputType) {
   ASSERT_EQ(blink::WebTextInputType::kWebTextInputTypeNone,
             plugin_->GetPluginTextInputType());
@@ -1946,32 +1892,13 @@ TEST_F(PdfViewWebPluginTest, NotifyNumberOfFindResultsChanged) {
 }
 
 TEST_F(PdfViewWebPluginTest, OnDocumentLoadComplete) {
-  const auto message =
+  auto message =
       base::DictValue()
           .Set("type", "metadata")
           .Set("metadataData", base::DictValue()
                                    .Set("fileSize", "0 B")
                                    .Set("linearized", false)
                                    .Set("pageSize", "Varies")
-                                   .Set("canSerializeDocument", true));
-
-  EXPECT_CALL(*client_ptr_, PostMessage);
-  EXPECT_CALL(*client_ptr_, PostMessage(Eq(std::ref(message))));
-  plugin_->DocumentLoadComplete();
-}
-
-TEST_F(PdfViewWebPluginTest, OnDocumentLoadCompleteWithContentDisposition) {
-  EXPECT_CALL(*engine_ptr_, GetFileNameFromContentDisposition)
-      .WillOnce(Return("custom.pdf"));
-
-  const auto message =
-      base::DictValue()
-          .Set("type", "metadata")
-          .Set("metadataData", base::DictValue()
-                                   .Set("fileSize", "0 B")
-                                   .Set("linearized", false)
-                                   .Set("pageSize", "Varies")
-                                   .Set("title", "custom.pdf")
                                    .Set("canSerializeDocument", true));
 
   EXPECT_CALL(*client_ptr_, PostMessage);
@@ -3901,18 +3828,17 @@ TEST_P(PdfViewWebPluginInkTest, DrawText) {
   EXPECT_CALL(*engine_ptr_,
               DrawText(kPageIndex, kTextId, _, kAscent, kZoom, _));
 
-  const InkTextBoxAttributes text_box_attributes{
-      .rect = gfx::RectF(20.0f, 20.0f, 100.0f, 100.0f),
-      .color = SK_ColorBLACK,
-      .css_font_size = 10.0f,
-      .typeface = TextTypeface::kSansSerif,
-      .alignment = TextAlignment::kLeft,
-      .orientation = 0,
-      .viewport_orientation = PageOrientation::kOriginal,
-      .is_bold = true,
-      .is_italic = false,
-      .text = "Hello",
-  };
+  const InkTextBoxAttributes text_box_attributes(
+      /*rect=*/gfx::RectF(20.0f, 20.0f, 100.0f, 100.0f),
+      /*color=*/SK_ColorBLACK,
+      /*css_font_size=*/10.0f,
+      /*typeface=*/TextTypeface::kSansSerif,
+      /*alignment=*/TextAlignment::kLeft,
+      /*orientation=*/0,
+      /*viewport_orientation=*/PageOrientation::kOriginal,
+      /*is_bold=*/true,
+      /*is_italic=*/false,
+      /*text=*/"Hello");
   plugin_->ink_module_client_for_testing()->DrawText(
       kPageIndex, kTextId, {}, kAscent, kZoom, text_box_attributes);
 }
@@ -4105,7 +4031,10 @@ TEST_P(PdfViewWebPluginInkTextHighlightTest,
   EXPECT_FALSE(plugin_->HasInkInputsSnapshotForTesting());
 }
 
-using PdfViewWebPluginInk2SaveTest = PdfViewWebPluginSaveTest;
+class PdfViewWebPluginInk2SaveTest : public PdfViewWebPluginSaveTest {
+ private:
+  base::test::ScopedFeatureList feature_list_{features::kPdfInk2};
+};
 
 TEST_F(PdfViewWebPluginInk2SaveTest, AnnotationInNonEditMode) {
   // Modify the document with an Ink stroke.
@@ -4364,8 +4293,11 @@ TEST_P(PdfViewWebPluginInkMetricTest, LoadedWithV2InkAnnotationsTimeout) {
                                 PDFLoadedWithV2InkAnnotations::kUnknown, 1);
 }
 
-using PdfViewWebPluginPrintPreviewInkMetricTest =
-    PdfViewWebPluginPrintPreviewTest;
+class PdfViewWebPluginPrintPreviewInkMetricTest
+    : public PdfViewWebPluginPrintPreviewTest {
+ private:
+  base::test::ScopedFeatureList feature_list_{features::kPdfInk2};
+};
 
 TEST_F(PdfViewWebPluginPrintPreviewInkMetricTest,
        LoadedWithInkAnnotationsDoesNotCountPrintPreview) {

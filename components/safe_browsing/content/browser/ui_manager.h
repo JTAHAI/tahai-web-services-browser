@@ -135,8 +135,7 @@ class SafeBrowsingUIManager : public BaseUIManager {
   // HaTS service can later send it over if the user takes the survey.
   void AttachThreatDetailsAndLaunchSurvey(
       content::BrowserContext* browser_context,
-      std::unique_ptr<ClientSafeBrowsingReportRequest> report,
-      bool is_tab_closed) override;
+      std::unique_ptr<ClientSafeBrowsingReportRequest> report) override;
 
   // Calls |BaseUIManager::OnBlockingPageDone()| and triggers
   // |OnSecurityInterstitialProceeded| event if |proceed| is true.

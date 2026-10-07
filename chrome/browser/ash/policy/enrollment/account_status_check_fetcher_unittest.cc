@@ -45,6 +45,8 @@ class AccountStatusCheckFetcherUnitTest : public testing::TestWithParam<bool> {
   void SetUpAccountStatusCheckFetcher(const std::string& email) {
     service_ =
         std::make_unique<FakeDeviceManagementService>(&job_creation_handler_);
+    service_->ScheduleInitialization(0);
+    base::RunLoop().RunUntilIdle();
     shared_url_loader_factory_ =
         base::MakeRefCounted<network::WeakWrapperSharedURLLoaderFactory>(
             &url_loader_factory_);

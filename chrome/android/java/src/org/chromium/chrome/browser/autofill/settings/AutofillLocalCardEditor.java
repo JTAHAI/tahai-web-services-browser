@@ -6,7 +6,6 @@ package org.chromium.chrome.browser.autofill.settings;
 
 import static org.chromium.build.NullUtil.assumeNonNull;
 
-import android.app.Activity;
 import android.content.Context;
 import android.os.Bundle;
 import android.text.Editable;
@@ -44,13 +43,11 @@ import org.chromium.chrome.browser.autofill.PersonalDataManager;
 import org.chromium.chrome.browser.autofill.PersonalDataManager.CreditCard;
 import org.chromium.chrome.browser.autofill.PersonalDataManagerFactory;
 import org.chromium.chrome.browser.autofill.settings.CreditCardScannerManager.FieldType;
-import org.chromium.chrome.browser.init.AsyncInitializationActivity;
 import org.chromium.chrome.browser.settings.SettingsActivity;
 import org.chromium.components.browser_ui.settings.SettingsFragment;
 import org.chromium.components.browser_ui.styles.SemanticColorUtils;
 import org.chromium.ui.KeyboardVisibilityDelegate;
 import org.chromium.ui.accessibility.AccessibilityState;
-import org.chromium.ui.base.IntentRequestTracker;
 import org.chromium.ui.text.EmptyTextWatcher;
 
 import java.util.Calendar;
@@ -69,6 +66,8 @@ public class AutofillLocalCardEditor extends AutofillCreditCardEditor
     private static final String AMEX_NETWORK_NAME = "amex";
     static final String CARD_COUNT_BEFORE_ADDING_NEW_CARD_HISTOGRAM =
             "Autofill.PaymentMethods.SettingsPage.StoredCreditCardCountBeforeCardAdded";
+    static final String ADD_CARD_FLOW_HISTOGRAM =
+            "Autofill.PaymentMethodsSettingsPage.AddCardClicked2";
     static final String ADD_CARD_FLOW_WITHOUT_EXISTING_CARDS_HISTOGRAM =
             "Autofill.PaymentMethodsSettingsPage.AddCardClickedWithoutExistingCards2";
     static final String CARD_ADDED_WITHOUT_EXISTING_CARDS_HISTOGRAM =
@@ -179,13 +178,17 @@ public class AutofillLocalCardEditor extends AutofillCreditCardEditor
         mScannerManager = new CreditCardScannerManager(this);
         if (mScannerManager.canScan()) {
             mScanButton.setVisibility(View.VISIBLE);
-            mScanButton.setOnClickListener(v1 -> mScannerManager.scan(getIntentRequestTracker()));
+            mScanButton.setOnClickListener(
+                    v1 ->
+                            mScannerManager.scan(
+                                    ((SettingsActivity) getActivity()).getIntentRequestTracker()));
         }
 
         addCardDataToEditFields();
         initializeButtons(v);
 
         if (mIsNewEntry) {
+            RecordHistogram.recordBooleanHistogram(ADD_CARD_FLOW_HISTOGRAM, true);
             RecordHistogram.recordBooleanHistogram(
                     ADD_CARD_FLOW_WITHOUT_EXISTING_CARDS_HISTOGRAM,
                     PersonalDataManagerFactory.getForProfile(getProfile())
@@ -589,19 +592,5 @@ public class AutofillLocalCardEditor extends AutofillCreditCardEditor
     @Override
     public @SettingsFragment.AnimationType int getAnimationType() {
         return SettingsFragment.AnimationType.PROPERTY;
-    }
-
-    private IntentRequestTracker getIntentRequestTracker() {
-        Activity activity = getActivity();
-        // SettingsActivity is used on phones.
-        if (activity instanceof SettingsActivity settingsActivity) {
-            return settingsActivity.getIntentRequestTracker();
-        }
-        // ChromeTabbedActivity, which is-a AsyncInitializationActivity, is used on tablets and
-        // desktops for settings-in-a-tab.
-        if (activity instanceof AsyncInitializationActivity asyncActivity) {
-            return asyncActivity.getIntentRequestTracker();
-        }
-        throw new IllegalStateException("Unknown settings activity type");
     }
 }

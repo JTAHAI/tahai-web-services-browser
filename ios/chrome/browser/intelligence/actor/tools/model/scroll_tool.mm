@@ -11,7 +11,6 @@
 #import "base/functional/callback.h"
 #import "base/types/expected.h"
 #import "components/optimization_guide/proto/features/actions_data.pb.h"
-#import "ios/chrome/browser/intelligence/actor/tools/model/action_target.h"
 #import "ios/chrome/browser/intelligence/actor/tools/model/actor_tool_constants.h"
 #import "ios/chrome/browser/intelligence/actor/tools/model/scroll_tool_java_script_feature.h"
 #import "ios/chrome/browser/intelligence/actor/tools/public/actor_tool_types.h"
@@ -28,9 +27,7 @@ ScrollTool::~ScrollTool() = default;
 std::unique_ptr<ScrollTool> ScrollTool::Create(
     base::WeakPtr<web::WebState> web_state,
     const optimization_guide::proto::ScrollAction& action) {
-  ActionTarget target = ActionTarget::FromProto(action.target());
-  return std::unique_ptr<ScrollTool>(
-      new ScrollTool(web_state, action, std::move(target)));
+  return std::unique_ptr<ScrollTool>(new ScrollTool(web_state, action));
 }
 
 void ScrollTool::Validate(ToolExecutionCallback callback) {
@@ -40,8 +37,30 @@ void ScrollTool::Validate(ToolExecutionCallback callback) {
     return;
   }
 
-  // The tool will fall back to targeting the document root if a target is not
-  // specified, so an empty target should have passed the validation.
+  if (action_.has_target()) {
+    const optimization_guide::proto::ActionTarget& target = action_.target();
+    // TODO(crbug.com/537772128): Share common target validation logic.
+    // Callers must either target by coordinate or (document_identifier,
+    // node_id).
+    if (target.has_content_node_id() && !target.has_document_identifier()) {
+      std::move(callback).Run(
+          ToolExecutionResult(mojom::ActionResultCode::kArgumentsInvalid));
+      return;
+    }
+    bool can_target_by_coordinate = target.has_coordinate();
+    bool can_target_by_node_id =
+        target.has_content_node_id() && target.has_document_identifier();
+    if (!can_target_by_coordinate && !can_target_by_node_id) {
+      std::move(callback).Run(
+          ToolExecutionResult(mojom::ActionResultCode::kArgumentsInvalid));
+      return;
+    }
+    if (can_target_by_coordinate && can_target_by_node_id) {
+      std::move(callback).Run(
+          ToolExecutionResult(mojom::ActionResultCode::kArgumentsInvalid));
+      return;
+    }
+  }
   std::move(callback).Run(ToolExecutionResult::Ok());
 }
 
@@ -62,25 +81,23 @@ void ScrollTool::Execute(ToolExecutionCallback callback) {
   // Fall back to targeting the document root if a target is not specified.
   // This follows the behavior of Desktop's ScrollTool, see
   // https://source.chromium.org/chromium/chromium/src/+/main:chrome/browser/actor/actor_proto_conversion.cc;l=264-277;drc=4a530ad3251da1da3fbde56051d440a7df0a60bd
-  if (!target_.is_valid()) {
-    optimization_guide::proto::ActionTarget target_proto;
-    target_proto.set_content_node_id(kRootElementDomNodeId);
-    target_proto.mutable_document_identifier()->set_serialized_token(
+  if (!action_.has_target()) {
+    optimization_guide::proto::ActionTarget* target = action_.mutable_target();
+    target->set_content_node_id(kRootElementDomNodeId);
+    target->mutable_document_identifier()->set_serialized_token(
         frames_manager->GetMainWebFrame()->GetFrameId());
-
-    target_ = ActionTarget::FromProto(target_proto);
-
     OnTargetFrameResolved(
-        std::move(callback),
+        action_, std::move(callback),
         base::ok(ActionTargetJavaScriptFeature::TargetFrameResult{
-            frames_manager->GetMainWebFrame(), target_}));
+            frames_manager->GetMainWebFrame(), *target}));
     return;
   }
 
-  ResolveTargetFrame(
-      web_state_, frames_manager->GetMainWebFrame()->AsWeakPtr(), target_,
-      base::BindOnce(&ScrollTool::OnTargetFrameResolved,
-                     weak_ptr_factory_.GetWeakPtr(), std::move(callback)));
+  ResolveTargetFrame(web_state_, frames_manager->GetMainWebFrame()->AsWeakPtr(),
+                     action_.target(),
+                     base::BindOnce(&ScrollTool::OnTargetFrameResolved,
+                                    weak_ptr_factory_.GetWeakPtr(), action_,
+                                    std::move(callback)));
 }
 
 base::WeakPtr<web::WebState> ScrollTool::GetTargetWebState() const {
@@ -92,14 +109,13 @@ ToolType ScrollTool::GetToolType() const {
 }
 
 ScrollTool::ScrollTool(base::WeakPtr<web::WebState> web_state,
-                       const optimization_guide::proto::ScrollAction& action,
-                       ActionTarget target)
+                       const optimization_guide::proto::ScrollAction& action)
     : action_(action),
-      target_(std::move(target)),
       web_state_(web_state),
       js_feature_(ScrollToolJavaScriptFeature::GetInstance()) {}
 
 void ScrollTool::OnTargetFrameResolved(
+    optimization_guide::proto::ScrollAction action,
     ToolExecutionCallback callback,
     base::expected<ActionTargetJavaScriptFeature::TargetFrameResult,
                    ToolExecutionResult> result) {
@@ -108,7 +124,7 @@ void ScrollTool::OnTargetFrameResolved(
     return;
   }
 
-  ActionTargetJavaScriptFeature::TargetFrameResult target_frame =
+  const ActionTargetJavaScriptFeature::TargetFrameResult& target_frame =
       result.value();
   web::WebFrame* target_web_frame = target_frame.frame;
   if (!target_web_frame) {
@@ -119,8 +135,11 @@ void ScrollTool::OnTargetFrameResolved(
 
   target_frame_ = target_web_frame->AsWeakPtr();
 
-  js_feature_->Scroll(target_web_frame->AsWeakPtr(), target_frame.target,
-                      action_.direction(), action_.distance(),
+  // Update the target with the potentially translated coordinates relative
+  // to the target frame.
+  *action.mutable_target() = target_frame.target;
+
+  js_feature_->Scroll(target_web_frame->AsWeakPtr(), action,
                       std::move(callback));
 }
 

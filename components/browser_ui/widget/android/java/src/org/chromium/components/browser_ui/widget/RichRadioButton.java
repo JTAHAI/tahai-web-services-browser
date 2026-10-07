@@ -10,7 +10,6 @@ import android.view.LayoutInflater;
 import android.view.ViewGroup;
 import android.widget.Checkable;
 import android.widget.FrameLayout;
-import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.RadioButton;
 import android.widget.TextView;
@@ -20,6 +19,7 @@ import androidx.constraintlayout.widget.ConstraintLayout;
 
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
+import org.chromium.ui.widget.ChromeImageView;
 
 /**
  * A custom view that combines a RadioButton with an optional icon, title, and optional description.
@@ -31,7 +31,7 @@ import org.chromium.build.annotations.Nullable;
 public class RichRadioButton extends ConstraintLayout implements Checkable {
 
     private FrameLayout mIconContainer;
-    private ImageView mItemIcon;
+    private ChromeImageView mItemIcon;
     private TextView mItemTitle;
     private TextView mItemDescription;
     private RadioButton mItemRadioButton;

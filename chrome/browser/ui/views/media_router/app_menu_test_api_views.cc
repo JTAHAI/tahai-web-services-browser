@@ -4,7 +4,7 @@
 
 #include "base/memory/raw_ptr.h"
 #include "build/build_config.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/media_router/app_menu_test_api.h"
 #include "chrome/browser/ui/views/toolbar/app_menu.h"
@@ -16,7 +16,7 @@ namespace {
 
 class AppMenuTestApiViews : public test::AppMenuTestApi {
  public:
-  explicit AppMenuTestApiViews(BrowserWindowInterface* browser);
+  explicit AppMenuTestApiViews(Browser* browser);
 
   AppMenuTestApiViews(const AppMenuTestApiViews&) = delete;
   AppMenuTestApiViews& operator=(const AppMenuTestApiViews&) = delete;
@@ -29,10 +29,10 @@ class AppMenuTestApiViews : public test::AppMenuTestApi {
   void ExecuteCommand(int command) override;
 
  private:
-  raw_ptr<BrowserWindowInterface> browser_;
+  raw_ptr<Browser> browser_;
 };
 
-AppMenuTestApiViews::AppMenuTestApiViews(BrowserWindowInterface* browser)
+AppMenuTestApiViews::AppMenuTestApiViews(Browser* browser)
     : browser_(browser) {}
 AppMenuTestApiViews::~AppMenuTestApiViews() = default;
 
@@ -68,8 +68,7 @@ void AppMenuTestApiViews::ExecuteCommand(int command) {
 
 namespace test {
 
-std::unique_ptr<AppMenuTestApi> AppMenuTestApi::Create(
-    BrowserWindowInterface* browser) {
+std::unique_ptr<AppMenuTestApi> AppMenuTestApi::Create(Browser* browser) {
   return std::make_unique<AppMenuTestApiViews>(browser);
 }
 

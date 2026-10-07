@@ -12,10 +12,6 @@
 #include "third_party/skia/include/core/SkBitmap.h"
 #include "ui/gfx/geometry/size.h"
 
-namespace gfx {
-class Image;
-}
-
 namespace safe_browsing::visual_utils {
 
 // Enum used to represent the result of the function |CanExtractVisualFeatures|.
@@ -49,7 +45,7 @@ std::unique_ptr<SkBitmap> BlockMeanAverage(const SkBitmap& image,
 // level. For password protection, the safe browsing preference that allows the
 // extraction are extended reporting and enhanced safe browsing, whereas for
 // client side detection, it's just enhanced safe browsing.
-#if BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_IOS)
+#if BUILDFLAG(IS_ANDROID)
 CanExtractVisualFeaturesResult CanExtractVisualFeatures(bool is_user_opted_in,
                                                         bool is_off_the_record,
                                                         gfx::Size size);
@@ -60,11 +56,7 @@ CanExtractVisualFeaturesResult CanExtractVisualFeatures(bool is_user_opted_in,
                                                         double zoom_level);
 #endif
 
-// Extract a VisualFeatures proto from the given `image`.
-std::unique_ptr<VisualFeatures> ExtractVisualFeatures(const gfx::Image& image);
-
-// Extract a VisualFeatures proto from the given `bitmap` (used by password
-// protection).
+// Extract a VisualFeatures proto from the given `bitmap`.
 std::unique_ptr<VisualFeatures> ExtractVisualFeatures(const SkBitmap& bitmap);
 
 }  // namespace safe_browsing::visual_utils

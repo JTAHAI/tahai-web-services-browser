@@ -62,7 +62,7 @@ class JavaScriptTabModalDialogManagerDelegateDesktop
   // Marks the tab as needing attention.
   void SetTabNeedsAttentionImpl(bool attention,
                                 TabStripModel* tab_strip_model,
-                                content::WebContents* web_contents);
+                                int index);
 
   // If this instance is observing a TabStripModel, then this member is not
   // nullptr.

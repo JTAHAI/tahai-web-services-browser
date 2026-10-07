@@ -53,9 +53,9 @@ const tests = [
 
     // Verify the button types.
     chrome.test.assertEq(
-        'pdf:image', thumbnailButton.getAttribute('iron-icon'));
+        'pdf:thumbnails', thumbnailButton.getAttribute('iron-icon'));
     chrome.test.assertEq(
-        'pdf:list-alt', outlineButton.getAttribute('iron-icon'));
+        'pdf:doc-outline', outlineButton.getAttribute('iron-icon'));
     chrome.test.assertEq(
         'pdf:attach-file', attachmentButton.getAttribute('iron-icon'));
 
@@ -206,9 +206,9 @@ const tests = [
 
     // Verify the button types.
     chrome.test.assertEq(
-        'pdf:image', thumbnailButton.getAttribute('iron-icon'));
+        'pdf:thumbnails', thumbnailButton.getAttribute('iron-icon'));
     chrome.test.assertEq(
-        'pdf:list-alt', outlineButton.getAttribute('iron-icon'));
+        'pdf:doc-outline', outlineButton.getAttribute('iron-icon'));
 
     function assertThumbnailView() {
       chrome.test.assertTrue(
@@ -302,7 +302,7 @@ const tests = [
 
     // Verify the button types.
     chrome.test.assertEq(
-        'pdf:image', thumbnailButton.getAttribute('iron-icon'));
+        'pdf:thumbnails', thumbnailButton.getAttribute('iron-icon'));
     chrome.test.assertEq(
         'pdf:attach-file', attachmentButton.getAttribute('iron-icon'));
 

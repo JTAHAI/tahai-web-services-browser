@@ -1,2 +1,3 @@
-rules:
-- "**": [periodic-background-sync]
+features:
+- name: periodic-background-sync
+  files: "**"

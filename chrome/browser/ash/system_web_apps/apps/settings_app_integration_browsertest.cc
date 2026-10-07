@@ -7,6 +7,7 @@
 #include "chrome/browser/ash/system_web_apps/test_support/system_web_app_integration_test.h"
 #include "chrome/browser/policy/system_features_disable_list_policy_handler.h"
 #include "chrome/browser/ui/ash/system_web_apps/system_web_app_ui_utils.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/settings_window_manager_chromeos.h"
 #include "chrome/test/base/testing_browser_process.h"
@@ -46,7 +47,7 @@ IN_PROC_BROWSER_TEST_P(SettingsAppIntegrationTest, SettingsAppDisabled) {
 
   // Don't wait for load here, because we navigate to chrome error page instead.
   // The App's launch URL won't be loaded.
-  BrowserWindowInterface* app_browser = nullptr;
+  Browser* app_browser;
   LaunchAppWithoutWaiting(ash::SystemWebAppType::SETTINGS, &app_browser);
 
   ASSERT_TRUE(GetManager()
@@ -54,7 +55,7 @@ IN_PROC_BROWSER_TEST_P(SettingsAppIntegrationTest, SettingsAppDisabled) {
                   .has_value());
 
   content::WebContents* web_contents =
-      app_browser->GetTabStripModel()->GetActiveWebContents();
+      app_browser->tab_strip_model()->GetActiveWebContents();
   EXPECT_TRUE(content::WaitForLoadStop(web_contents));
   content::WebUI* web_ui = web_contents->GetWebUI();
   ASSERT_TRUE(web_ui);

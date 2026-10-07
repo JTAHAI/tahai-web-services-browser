@@ -26,7 +26,7 @@ class FirstRunPagerAdapter extends FragmentStateAdapter {
     public FirstRunPagerAdapter(FragmentActivity activity, List<FirstRunPage> pages) {
         super(activity);
         assert pages != null;
-        assert !pages.isEmpty();
+        assert pages.size() > 0;
         mPages = pages;
     }
 

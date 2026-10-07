@@ -19,13 +19,17 @@
 #include "base/callback_list.h"
 #include "base/check_op.h"
 #include "base/containers/to_vector.h"
+#include "base/feature_list.h"
 #include "base/functional/bind.h"
+#include "base/functional/callback_helpers.h"
 #include "base/i18n/rtl.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/raw_ref.h"
+#include "base/metrics/histogram_functions.h"
 #include "base/metrics/user_metrics.h"
 #include "base/notreached.h"
 #include "base/observer_list.h"
+#include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/task/single_thread_task_runner.h"
 #include "base/time/time.h"
@@ -37,9 +41,11 @@
 #include "chrome/browser/bookmarks/managed_bookmark_service_factory.h"
 #include "chrome/browser/browser_features.h"
 #include "chrome/browser/browser_process.h"
+#include "chrome/browser/defaults.h"
 #include "chrome/browser/favicon/favicon_utils.h"
 #include "chrome/browser/page_load_metrics/chrome_initiator_location.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/search/search.h"
 #include "chrome/browser/tab_group_sync/tab_group_sync_service_factory.h"
 #include "chrome/browser/themes/theme_properties.h"
 #include "chrome/browser/ui/bookmarks/bookmark_context_menu_controller.h"
@@ -48,9 +54,8 @@
 #include "chrome/browser/ui/bookmarks/bookmark_ui_operations_helper.h"
 #include "chrome/browser/ui/bookmarks/bookmark_utils.h"
 #include "chrome/browser/ui/bookmarks/bookmark_utils_desktop.h"
-#include "chrome/browser/ui/bookmarks/controllers/bookmark_bar_ui_controller.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_element_identifiers.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/chrome_pages.h"
 #include "chrome/browser/ui/color/chrome_color_id.h"
 #include "chrome/browser/ui/layout_constants.h"
@@ -67,11 +72,14 @@
 #include "chrome/browser/ui/views/bookmarks/bookmark_menu_controller_views.h"
 #include "chrome/browser/ui/views/bookmarks/saved_tab_groups/saved_tab_group_bar.h"
 #include "chrome/browser/ui/views/chrome_layout_provider.h"
+#include "chrome/browser/ui/views/event_utils.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/frame/themed_background.h"
 #include "chrome/browser/ui/views/toolbar/toolbar_ink_drop_util.h"
 #include "chrome/browser/ui/views/toolbar/toolbar_view.h"
 #include "chrome/common/chrome_switches.h"
+#include "chrome/common/extensions/extension_constants.h"
+#include "chrome/common/extensions/extension_metrics.h"
 #include "chrome/common/pref_names.h"
 #include "chrome/common/url_constants.h"
 #include "chrome/grit/generated_resources.h"
@@ -82,10 +90,15 @@
 #include "components/bookmarks/common/bookmark_pref_names.h"
 #include "components/bookmarks/managed/managed_bookmark_service.h"
 #include "components/feature_engagement/public/feature_constants.h"
+#include "components/metrics/metrics_service.h"
 #include "components/prefs/pref_service.h"
+#include "components/profile_metrics/browser_profile_type.h"
 #include "components/saved_tab_groups/public/features.h"
 #include "components/url_formatter/elide_url.h"
 #include "components/url_formatter/url_formatter.h"
+#include "extensions/browser/extension_registry.h"
+#include "extensions/common/extension.h"
+#include "extensions/common/extension_set.h"
 #include "ui/accessibility/ax_action_data.h"
 #include "ui/accessibility/ax_enums.mojom.h"
 #include "ui/accessibility/ax_node_data.h"
@@ -289,6 +302,19 @@ END_METADATA
 // BookmarkTabGroupButton
 // -------------------------------------------------------
 
+void RecordAppLaunch(Profile* profile, const GURL& url) {
+  const extensions::Extension* extension =
+      extensions::ExtensionRegistry::Get(profile)
+          ->enabled_extensions()
+          .GetAppByURL(url);
+  if (!extension) {
+    return;
+  }
+
+  extensions::RecordAppLaunchType(extension_misc::APP_LAUNCH_BOOKMARK_BAR,
+                                  extension->GetType());
+}
+
 std::vector<raw_ptr<const BookmarkNode, VectorExperimental>> ToRawPtrVector(
     const std::vector<const BookmarkNode*>& nodes) {
   return base::ToVector(nodes, [](const BookmarkNode* node) {
@@ -389,14 +415,10 @@ END_METADATA
 
 // BookmarkBarView ------------------------------------------------------------
 
-BookmarkBarView::BookmarkBarView(
-    BrowserWindowInterface* browser,
-    std::unique_ptr<BookmarkBarUIController> controller,
-    BrowserView* browser_view)
+BookmarkBarView::BookmarkBarView(Browser* browser, BrowserView* browser_view)
     : AnimationDelegateViews(this),
       browser_(browser),
-      browser_view_(browser_view),
-      controller_(std::move(controller)) {
+      browser_view_(browser_view) {
   SetID(VIEW_ID_BOOKMARK_BAR);
   SetProperty(views::kElementIdentifierKey, kBookmarkBarElementId);
 
@@ -417,10 +439,6 @@ BookmarkBarView::BookmarkBarView(
       l10n_util::GetStringUTF8(IDS_ACCNAME_BOOKMARKS));
 
   Init();
-
-  if (controller_) {
-    controller_->Bind(this);
-  }
 }
 
 BookmarkBarView::~BookmarkBarView() {
@@ -457,6 +475,13 @@ void BookmarkBarView::AddObserver(BookmarkBarViewObserver* observer) {
 
 void BookmarkBarView::RemoveObserver(BookmarkBarViewObserver* observer) {
   observers_.RemoveObserver(observer);
+}
+
+void BookmarkBarView::SetPageNavigator(content::PageNavigator* navigator) {
+  page_navigator_ = navigator;
+  if (saved_tab_group_bar_) {
+    saved_tab_group_bar_->SetPageNavigator(navigator);
+  }
 }
 
 void BookmarkBarView::SetInfoBarVisible(bool infobar_visible) {
@@ -1410,9 +1435,13 @@ bool BookmarkBarView::CanStartDragForView(views::View* sender,
 }
 
 void BookmarkBarView::AppsPageShortcutPressed(const ui::Event& event) {
-  if (controller_) {
-    controller_->OpenAppsPage(ui::DispositionFromEventFlags(event.flags()));
-  }
+  content::OpenURLParams params(GURL(chrome::kChromeUIAppsURL),
+                                content::Referrer(),
+                                ui::DispositionFromEventFlags(event.flags()),
+                                ui::PAGE_TRANSITION_AUTO_BOOKMARK, false);
+  page_navigator_->OpenURL(params, /*navigation_handle_callback=*/{});
+  RecordBookmarkAppsPageOpen(BookmarkLaunchLocation::kAttachedBar);
+  chrome::UpdateBookmarkBarVisibilityPrefOnUserAction(browser_->GetProfile());
 }
 
 void BookmarkBarView::OnButtonPressed(const bookmarks::BookmarkNode* node,
@@ -1420,10 +1449,16 @@ void BookmarkBarView::OnButtonPressed(const bookmarks::BookmarkNode* node,
   // Only URL nodes have regular buttons on the bookmarks bar; folder clicks
   // are directed to ::OnMenuButtonPressed().
   DCHECK(node->is_url());
-  if (controller_) {
-    controller_->OpenBookmark(node->id(),
-                              ui::DispositionFromEventFlags(event.flags()));
-  }
+  RecordAppLaunch(browser_->GetProfile(), node->url());
+  bookmarks::OpenAllIfAllowed(
+      browser_, {node}, ui::DispositionFromEventFlags(event.flags()),
+      bookmarks::OpenAllBookmarksContext::kNone,
+      GetInitiatorLocation(ChromeInitiatorLocation::kBookmarkBar),
+      {{BookmarkLaunchLocation::kAttachedBar, base::TimeTicks::Now()}});
+  RecordBookmarkLaunch(
+      BookmarkLaunchLocation::kAttachedBar,
+      profile_metrics::GetBrowserProfileType(browser_->GetProfile()));
+  chrome::UpdateBookmarkBarVisibilityPrefOnUserAction(browser_->GetProfile());
 }
 
 void BookmarkBarView::OnMenuButtonPressed(const BookmarkParentFolder& folder,
@@ -1617,7 +1652,25 @@ void BookmarkBarView::Init() {
   // We'll re-enable when the model is loaded.
   all_bookmarks_button_->SetEnabled(false);
 
+  profile_pref_registrar_.Init(browser_->GetProfile()->GetPrefs());
+  profile_pref_registrar_.Add(
+      bookmarks::prefs::kShowAppsShortcutInBookmarkBar,
+      base::BindRepeating(
+          &BookmarkBarView::OnAppsPageShortcutVisibilityPrefChanged,
+          base::Unretained(this)));
 
+  profile_pref_registrar_.Add(
+      bookmarks::prefs::kShowTabGroupsInBookmarkBar,
+      base::BindRepeating(&BookmarkBarView::OnTabGroupsVisibilityPrefChanged,
+                          base::Unretained(this)));
+
+  profile_pref_registrar_.Add(
+      bookmarks::prefs::kShowManagedBookmarksInBookmarkBar,
+      base::BindRepeating(&BookmarkBarView::OnShowManagedBookmarksPrefChanged,
+                          base::Unretained(this)));
+
+  apps_page_shortcut_->SetVisible(
+      chrome::ShouldShowAppsShortcutInBookmarkBar(browser_->GetProfile()));
 
   bookmarks_separator_view_ =
       AddChildView(std::make_unique<ButtonSeparatorView>());
@@ -2197,7 +2250,8 @@ bool BookmarkBarView::UpdateOtherAndManagedButtonsVisibility() {
 
   bool show_managed = bookmark_service_->GetChildrenCount(
                           BookmarkParentFolder::ManagedFolder()) &&
-                      managed_bookmarks_pref_visible_;
+                      browser_->GetProfile()->GetPrefs()->GetBoolean(
+                          bookmarks::prefs::kShowManagedBookmarksInBookmarkBar);
   bool update_managed = show_managed != managed_bookmarks_button_->GetVisible();
   if (update_managed) {
     managed_bookmarks_button_->SetVisible(show_managed);
@@ -2210,9 +2264,11 @@ void BookmarkBarView::UpdateBookmarksSeparatorVisibility() {
   bookmarks_separator_view_->SetVisible(all_bookmarks_button_->GetVisible());
 }
 
-void BookmarkBarView::SetAppsPageShortcutVisibility(bool visible) {
+void BookmarkBarView::OnAppsPageShortcutVisibilityPrefChanged() {
   DCHECK(apps_page_shortcut_);
   // Only perform layout if required.
+  bool visible =
+      chrome::ShouldShowAppsShortcutInBookmarkBar(browser_->GetProfile());
   if (apps_page_shortcut_->GetVisible() == visible) {
     return;
   }
@@ -2221,12 +2277,19 @@ void BookmarkBarView::SetAppsPageShortcutVisibility(bool visible) {
   LayoutAndPaint();
 }
 
-void BookmarkBarView::SetSavedTabGroupsVisibility(bool visible) {
-  if (!saved_tab_group_bar_) {
+void BookmarkBarView::OnTabGroupsVisibilityPrefChanged() {
+  // Incognito browsers also get triggered if the associated regular profile
+  // browser is triggered. Early return because incognito has no
+  // `saved_tab_group_bar_`.
+  if (!tab_groups::SavedTabGroupUtils::IsEnabledForProfile(
+          browser_->GetProfile())) {
     return;
   }
 
+  DCHECK(saved_tab_group_bar_);
   // Only perform layout if required.
+  bool visible =
+      chrome::ShouldShowTabGroupsInBookmarkBar(browser_->GetProfile());
   if (saved_tab_group_bar_->GetVisible() == visible) {
     return;
   }
@@ -2234,8 +2297,7 @@ void BookmarkBarView::SetSavedTabGroupsVisibility(bool visible) {
   LayoutAndPaint();
 }
 
-void BookmarkBarView::SetManagedBookmarksFolderVisibility(bool visible) {
-  managed_bookmarks_pref_visible_ = visible;
+void BookmarkBarView::OnShowManagedBookmarksPrefChanged() {
   if (UpdateOtherAndManagedButtonsVisibility()) {
     LayoutAndPaint();
   }
@@ -2396,8 +2458,8 @@ void BookmarkBarView::MaybeShowSavedTabGroupsIntroPromo() const {
     }
   }
 
-  BrowserUserEducationInterface::From(browser())->MaybeShowStartupFeaturePromo(
-      std::move(params));
+  BrowserUserEducationInterface::From(browser_view_->browser())
+      ->MaybeShowStartupFeaturePromo(std::move(params));
 }
 
 bool BookmarkBarView::HasDropInfo() const {

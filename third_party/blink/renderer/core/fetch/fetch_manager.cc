@@ -70,7 +70,6 @@
 #include "third_party/blink/renderer/core/page/chrome_client.h"
 #include "third_party/blink/renderer/core/page/page.h"
 #include "third_party/blink/renderer/core/probe/core_probes.h"
-#include "third_party/blink/renderer/core/streams/readable_stream.h"
 #include "third_party/blink/renderer/core/typed_arrays/dom_array_buffer.h"
 #include "third_party/blink/renderer/core/workers/shared_worker_global_scope.h"
 #include "third_party/blink/renderer/platform/bindings/exception_state.h"
@@ -113,7 +112,6 @@
 #include "third_party/blink/renderer/platform/weborigin/security_policy.h"
 #include "third_party/blink/renderer/platform/wtf/functional.h"
 #include "third_party/blink/renderer/platform/wtf/hash_set.h"
-#include "third_party/blink/renderer/platform/wtf/text/format.h"
 #include "third_party/blink/renderer/platform/wtf/text/wtf_string.h"
 #include "third_party/blink/renderer/platform/wtf/vector.h"
 #include "v8/include/v8.h"
@@ -848,15 +846,6 @@ void FetchManager::Loader::DidFinishLoading(uint64_t) {
     window->GetFrame()->GetPage()->GetChromeClient().AjaxSucceeded(
         window->GetFrame());
   }
-
-  // Record success metrics and clean up race network request loader state if
-  // this fetch was initiated with a ServiceWorkerRaceNetworkRequest token.
-  // Non-race fetches do not track success metrics.
-  if (GetExecutionContext() && GetFetchRequestData() &&
-      GetFetchRequestData()->ServiceWorkerRaceNetworkRequestToken()) {
-    GetExecutionContext()->MaybeRecordFetchError(net::OK,
-                                                 GetFetchRequestData());
-  }
   NotifyFinished();
 }
 
@@ -1194,6 +1183,9 @@ void FetchLoaderBase::PerformHTTPFetch(ExceptionState& exception_state) {
   if (fetch_request_data_->HasRetryOptions()) {
     request.SetFetchRetryOptions(fetch_request_data_->RetryOptions().value());
   }
+
+  request.SetSharedStorageWritableOptedIn(
+      fetch_request_data_->SharedStorageWritable());
 
   request.SetOriginalDestination(fetch_request_data_->OriginalDestination());
 
@@ -1716,9 +1708,10 @@ FetchLaterResult* FetchLaterManager::FetchLater(
                       WebFeature::kFetchLaterErrorQuotaExceeded);
     QuotaExceededError::Throw(
         exception_state,
-        Format("fetchLater exceeds its quota for the origin: got {} bytes, "
-               "expected less than {} bytes.",
-               total_request_length, available_quota));
+        String::Format(
+            "fetchLater exceeds its quota for the origin: got %" PRIu64 " "
+            "bytes, expected less than %" PRIu64 " bytes.",
+            total_request_length, available_quota));
     return nullptr;
   }
 

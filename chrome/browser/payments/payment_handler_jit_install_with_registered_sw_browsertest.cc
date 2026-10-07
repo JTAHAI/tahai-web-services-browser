@@ -11,12 +11,7 @@ namespace payments {
 namespace {
 
 class PaymentHandlerJitInstallWithRegisteredSwTest
-    : public PaymentRequestPlatformBrowserTestBase {
- protected:
-  PaymentHandlerJitInstallWithRegisteredSwTest() {
-    SetBypassUserInteractionForTesting();
-  }
-};
+    : public PaymentRequestPlatformBrowserTestBase {};
 
 // If a service worker is already installed, but the instruments are not saved
 // in the database, a payment handler still can be installed just-in-time.

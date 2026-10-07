@@ -167,8 +167,4 @@ source_set("unit_tests") {
       deps += [ "//media/test:pipeline_integration_test_base" ]
     }
   }
-
-  if (media_use_iamf_tools) {
-    sources += [ "default_decoder_factory_unittest.cc" ]
-  }
 }

@@ -25,7 +25,9 @@ class LargeMessageCardViewBinder {
         if (MessageCardViewProperties.ACTION_TEXT == propertyKey) {
             itemView.setActionText(model.get(MessageCardViewProperties.ACTION_TEXT));
             itemView.setActionButtonOnClickListener(
-                    _ -> LargeMessageCardViewBinder.handleReviewActionButton(model));
+                    v -> {
+                        LargeMessageCardViewBinder.handleReviewActionButton(model);
+                    });
         } else if (MessageCardViewProperties.TITLE_TEXT == propertyKey) {
             itemView.setTitleText(model.get(MessageCardViewProperties.TITLE_TEXT));
         } else if (MessageCardViewProperties.DESCRIPTION_TEXT == propertyKey) {
@@ -34,7 +36,9 @@ class LargeMessageCardViewBinder {
             itemView.setDismissButtonContentDescription(
                     model.get(MessageCardViewProperties.DISMISS_BUTTON_CONTENT_DESCRIPTION));
             itemView.setDismissButtonOnClickListener(
-                    _ -> LargeMessageCardViewBinder.handleDismissActionButton(model));
+                    v -> {
+                        LargeMessageCardViewBinder.handleDismissActionButton(model);
+                    });
         } else if (MessageCardViewProperties.SECONDARY_ACTION_TEXT == propertyKey) {
             itemView.setSecondaryActionText(
                     model.get(MessageCardViewProperties.SECONDARY_ACTION_TEXT));
@@ -66,7 +70,10 @@ class LargeMessageCardViewBinder {
         MessageCardView.IconProvider provider = model.get(MessageCardViewProperties.ICON_PROVIDER);
 
         if (provider != null) {
-            provider.fetchIconDrawable(itemView::setIconDrawable);
+            provider.fetchIconDrawable(
+                    (drawable) -> {
+                        itemView.setIconDrawable(drawable);
+                    });
         }
     }
 

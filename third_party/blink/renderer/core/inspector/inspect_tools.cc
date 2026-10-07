@@ -837,9 +837,8 @@ void PausedInDebuggerTool::ExecuteOnV8Session(Action action) {
   }
 }
 
-void PausedInDebuggerTool::Dispose() {
-  v8_session_.reset();
-  weak_factory_.Invalidate();
+void PausedInDebuggerTool::OnAgentDisable() {
+  v8_session_ = nullptr;
 }
 
 void PausedInDebuggerTool::Trace(Visitor* visitor) const {

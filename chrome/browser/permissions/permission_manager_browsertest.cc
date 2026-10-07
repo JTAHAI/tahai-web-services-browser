@@ -2,8 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "components/permissions/permission_manager.h"
-
 #include <memory>
 
 #include "base/functional/bind.h"
@@ -12,9 +10,10 @@
 #include "chrome/browser/geolocation/geolocation_permission_context_delegate.h"
 #include "chrome/browser/permissions/permission_manager_factory.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/ui_test_utils.h"
+#include "components/permissions/permission_manager.h"
 #include "content/public/browser/browser_context.h"
 #include "content/public/common/url_constants.h"
 #include "content/public/test/browser_test.h"
@@ -96,11 +95,10 @@ class PermissionManagerBrowserTest : public InProcessBrowserTest {
     ASSERT_TRUE(embedded_test_server()->Start());
   }
 
-  BrowserWindowInterface* incognito_browser() { return incognito_browser_; }
+  Browser* incognito_browser() { return incognito_browser_; }
 
  private:
-  raw_ptr<BrowserWindowInterface, AcrossTasksDanglingUntriaged>
-      incognito_browser_ = nullptr;
+  raw_ptr<Browser, AcrossTasksDanglingUntriaged> incognito_browser_ = nullptr;
 };
 
 // TODO(crbug.com/41485058): Disabled for flakiness.
@@ -137,7 +135,7 @@ IN_PROC_BROWSER_TEST_F(PermissionManagerBrowserTest,
   content::ScopedAllowRendererCrashes scoped_allow_renderer_crashes_;
 
   content::RenderProcessHostWatcher crash_observer(
-      incognito_browser()->GetTabStripModel()->GetActiveWebContents(),
+      incognito_browser()->tab_strip_model()->GetActiveWebContents(),
       content::RenderProcessHostWatcher::WATCH_FOR_PROCESS_EXIT);
   incognito_browser()->OpenURL(
       content::OpenURLParams(

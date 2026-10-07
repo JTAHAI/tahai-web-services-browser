@@ -129,11 +129,22 @@ void WaitForPrinterStoreToLoad(content::BrowserContext* context) {
   content::RunAllTasksUntilIdle();
 }
 
+ash::SyncedPrintersManager* GetVerifierPrinterStore() {
+  ash::SyncedPrintersManager* manager =
+      GetPrinterStore(sync_datatype_helper::test()->verifier());
+
+  return manager;
+}
+
 ash::SyncedPrintersManager* GetPrinterStore(int index) {
   ash::SyncedPrintersManager* manager =
       GetPrinterStore(sync_datatype_helper::test()->GetProfile(index));
 
   return manager;
+}
+
+int GetVerifierPrinterCount() {
+  return GetVerifierPrinterStore()->GetSavedPrinters().size();
 }
 
 int GetPrinterCount(int index) {
@@ -155,6 +166,12 @@ bool AllProfilesContainSamePrinters(std::ostream* os) {
   }
 
   return true;
+}
+
+bool ProfileContainsSamePrintersAsVerifier(int index) {
+  return ListsContainTheSamePrinters(
+      GetVerifierPrinterStore()->GetSavedPrinters(),
+      GetPrinterStore(index)->GetSavedPrinters());
 }
 
 PrintersMatchChecker::PrintersMatchChecker()

@@ -12,6 +12,7 @@
 #include "base/check.h"
 #include "base/check_op.h"
 #include "base/command_line.h"
+#include "base/compiler_specific.h"
 #include "base/functional/bind.h"
 #include "base/location.h"
 #include "base/logging.h"
@@ -80,13 +81,14 @@ media::VideoCaptureFormats GetDeviceSupportedFormats(AVCaptureDevice* device) {
 constexpr const char* kBlockedCamerasIdSignature[] = {"-01FDA82C8A9C"};
 
 bool IsDeviceBlockedForAVFoundation(const std::string& device_id) {
-  for (const char* signature : kBlockedCamerasIdSignature) {
-    if (base::EndsWith(device_id, signature,
-                       base::CompareCase::INSENSITIVE_ASCII)) {
-      return true;
-    }
+  bool is_device_blocked = false;
+  for (size_t i = 0;
+       !is_device_blocked && i < std::size(kBlockedCamerasIdSignature); ++i) {
+    is_device_blocked =
+        base::EndsWith(device_id, UNSAFE_TODO(kBlockedCamerasIdSignature[i]),
+                       base::CompareCase::INSENSITIVE_ASCII);
   }
-  return false;
+  return is_device_blocked;
 }
 
 bool IsDeviceBlocked(const media::VideoCaptureDeviceDescriptor& descriptor) {

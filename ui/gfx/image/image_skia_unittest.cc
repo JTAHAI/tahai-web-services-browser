@@ -300,12 +300,11 @@ TEST_F(ImageSkiaTest, ManyRepsPerScaleFactor) {
 
   int num_1x = 0;
   int num_2x = 0;
-  for (const auto& image_rep : image_reps) {
-    if (image_rep.scale() == 1.0f) {
+  for (size_t i = 0; i < image_reps.size(); ++i) {
+    if (image_reps[i].scale() == 1.0f)
       num_1x++;
-    } else if (image_rep.scale() == 2.0f) {
+    else if (image_reps[i].scale() == 2.0f)
       num_2x++;
-    }
   }
   EXPECT_EQ(2, num_1x);
   EXPECT_EQ(1, num_2x);
@@ -501,8 +500,8 @@ namespace {
 std::vector<float> GetSortedScaleFactors(const gfx::ImageSkia& image) {
   const std::vector<ImageSkiaRep>& image_reps = image.image_reps();
   std::vector<float> scale_factors;
-  for (const auto& image_rep : image_reps) {
-    scale_factors.push_back(image_rep.scale());
+  for (size_t i = 0; i < image_reps.size(); ++i) {
+    scale_factors.push_back(image_reps[i].scale());
   }
   std::sort(scale_factors.begin(), scale_factors.end());
   return scale_factors;

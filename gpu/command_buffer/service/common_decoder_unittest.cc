@@ -8,11 +8,9 @@
 #include <stdint.h>
 
 #include <array>
-#include <limits>
 #include <memory>
 
 #include "base/compiler_specific.h"
-#include "base/containers/span.h"
 #include "gpu/command_buffer/client/client_test_helper.h"
 #include "gpu/command_buffer/service/mocks.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -22,7 +20,7 @@ namespace gpu {
 TEST(CommonDecoderBucket, Basic) {
   CommonDecoder::Bucket bucket;
   EXPECT_EQ(0u, bucket.size());
-  EXPECT_TRUE(bucket.GetDataAsByteSpan(0, 0).empty());
+  EXPECT_TRUE(nullptr == bucket.GetData(0, 0));
 }
 
 TEST(CommonDecoderBucket, Size) {
@@ -33,32 +31,17 @@ TEST(CommonDecoderBucket, Size) {
   EXPECT_EQ(12u, bucket.size());
 }
 
-TEST(CommonDecoderBucket, GetDataAsByteSpan) {
+TEST(CommonDecoderBucket, GetData) {
   CommonDecoder::Bucket bucket;
 
   bucket.SetSize(24);
-  // In-range requests return a span of exactly the requested size.
-  EXPECT_EQ(24u, bucket.GetDataAsByteSpan(0, 24).size());
-  EXPECT_EQ(8u, bucket.GetDataAsByteSpan(16, 8).size());
-
-  // A zero-sized request yields an empty span, so it is indistinguishable from
-  // an out-of-range request.
-  EXPECT_TRUE(bucket.GetDataAsByteSpan(0, 0).empty());
-  EXPECT_TRUE(bucket.GetDataAsByteSpan(24, 0).empty());
-
-  // Out-of-range requests return an empty span.
-  EXPECT_TRUE(bucket.GetDataAsByteSpan(25, 0).empty());
-  EXPECT_TRUE(bucket.GetDataAsByteSpan(0, 25).empty());
-  EXPECT_TRUE(bucket.GetDataAsByteSpan(16, 9).empty());
-
-  // Requests whose offset + size overflows size_t are rejected as well.
-  constexpr size_t kMaxSize = std::numeric_limits<size_t>::max();
-  EXPECT_TRUE(bucket.GetDataAsByteSpan(1, kMaxSize).empty());
-  EXPECT_TRUE(bucket.GetDataAsByteSpan(kMaxSize, 1).empty());
-  EXPECT_TRUE(bucket.GetDataAsByteSpan(kMaxSize, kMaxSize).empty());
-
+  EXPECT_TRUE(nullptr != bucket.GetData(0, 0));
+  EXPECT_TRUE(nullptr != bucket.GetData(24, 0));
+  EXPECT_TRUE(nullptr == bucket.GetData(25, 0));
+  EXPECT_TRUE(nullptr != bucket.GetData(0, 24));
+  EXPECT_TRUE(nullptr == bucket.GetData(0, 25));
   bucket.SetSize(23);
-  EXPECT_TRUE(bucket.GetDataAsByteSpan(0, 24).empty());
+  EXPECT_TRUE(nullptr == bucket.GetData(0, 24));
 }
 
 TEST(CommonDecoderBucket, SetData) {
@@ -67,11 +50,11 @@ TEST(CommonDecoderBucket, SetData) {
 
   bucket.SetSize(10);
   EXPECT_TRUE(bucket.SetData(data, 0, sizeof(data)));
-  EXPECT_EQ(bucket.GetDataAsByteSpan(0, sizeof(data)),
-            base::as_byte_span(data));
+  UNSAFE_TODO(EXPECT_EQ(
+      0, memcmp(data, bucket.GetData(0, sizeof(data)), sizeof(data))));
   EXPECT_TRUE(bucket.SetData(data, 2, sizeof(data)));
-  EXPECT_EQ(bucket.GetDataAsByteSpan(2, sizeof(data)),
-            base::as_byte_span(data));
+  UNSAFE_TODO(EXPECT_EQ(
+      0, memcmp(data, bucket.GetData(2, sizeof(data)), sizeof(data))));
   EXPECT_FALSE(bucket.SetData(data, 0, sizeof(data) * 2));
   EXPECT_FALSE(bucket.SetData(data, 5, sizeof(data)));
 }
@@ -203,8 +186,8 @@ TEST_F(CommonDecoderTest, SetBucketData) {
   EXPECT_EQ(error::kNoError, ExecuteCmd(size_cmd));
   CommonDecoder::Bucket* bucket = decoder_.GetBucket(kBucketId);
   // Check the data is not there.
-  EXPECT_NE(bucket->GetDataAsByteSpan(0, sizeof(kData)),
-            base::as_byte_span(kData));
+  UNSAFE_TODO(EXPECT_NE(
+      0, memcmp(bucket->GetData(0, sizeof(kData)), kData, sizeof(kData))));
 
   // Check we can set it.
   const uint32_t kSomeOffsetInSharedMemory = 50;
@@ -213,8 +196,8 @@ TEST_F(CommonDecoderTest, SetBucketData) {
   cmd.Init(kBucketId, 0, sizeof(kData), valid_shm_id_,
            kSomeOffsetInSharedMemory);
   EXPECT_EQ(error::kNoError, ExecuteCmd(cmd));
-  EXPECT_EQ(bucket->GetDataAsByteSpan(0, sizeof(kData)),
-            base::as_byte_span(kData));
+  UNSAFE_TODO(EXPECT_EQ(
+      0, memcmp(bucket->GetData(0, sizeof(kData)), kData, sizeof(kData))));
 
   // Check we can set it partially.
   static const char kData2[] = "ABCEDFG";
@@ -223,15 +206,15 @@ TEST_F(CommonDecoderTest, SetBucketData) {
   cmd.Init(kBucketId, kSomeOffsetInBucket, sizeof(kData2), valid_shm_id_,
            kSomeOffsetInSharedMemory);
   EXPECT_EQ(error::kNoError, ExecuteCmd(cmd));
-  EXPECT_EQ(bucket->GetDataAsByteSpan(kSomeOffsetInBucket, sizeof(kData2)),
-            base::as_byte_span(kData2));
-  base::span<const char> bucket_data =
-      base::as_chars(bucket->GetDataAsByteSpan(0, sizeof(kData)));
+  UNSAFE_TODO(
+      EXPECT_EQ(0, memcmp(bucket->GetData(kSomeOffsetInBucket, sizeof(kData2)),
+                          kData2, sizeof(kData2))));
+  const char* bucket_data = bucket->GetDataAs<const char*>(0, sizeof(kData));
   // Check that nothing was affected outside of updated area.
-  EXPECT_EQ(kData[kSomeOffsetInBucket - 1],
-            bucket_data[kSomeOffsetInBucket - 1]);
-  EXPECT_EQ(kData[kSomeOffsetInBucket + sizeof(kData2)],
-            bucket_data[kSomeOffsetInBucket + sizeof(kData2)]);
+  UNSAFE_TODO(EXPECT_EQ(kData[kSomeOffsetInBucket - 1],
+                        bucket_data[kSomeOffsetInBucket - 1]));
+  UNSAFE_TODO(EXPECT_EQ(kData[kSomeOffsetInBucket + sizeof(kData2)],
+                        bucket_data[kSomeOffsetInBucket + sizeof(kData2)]));
 
   // Check that it fails if the bucket_id is invalid
   cmd.Init(kInvalidBucketId, kSomeOffsetInBucket, sizeof(kData2), valid_shm_id_,
@@ -264,8 +247,8 @@ TEST_F(CommonDecoderTest, SetBucketDataImmediate) {
   EXPECT_EQ(error::kNoError, ExecuteCmd(size_cmd));
   CommonDecoder::Bucket* bucket = decoder_.GetBucket(kBucketId);
   // Check the data is not there.
-  EXPECT_NE(bucket->GetDataAsByteSpan(0, sizeof(kData)),
-            base::as_byte_span(kData));
+  UNSAFE_TODO(EXPECT_NE(
+      0, memcmp(bucket->GetData(0, sizeof(kData)), kData, sizeof(kData))));
 
   // Check we can set it.
   void* memory = UNSAFE_TODO(&buffer[0] + sizeof(cmd));
@@ -273,8 +256,8 @@ TEST_F(CommonDecoderTest, SetBucketDataImmediate) {
   cmd.Init(kBucketId, 0, sizeof(kData));
   EXPECT_EQ(error::kNoError,
             ExecuteImmediateCmd(cmd, sizeof(kData)));
-  EXPECT_EQ(bucket->GetDataAsByteSpan(0, sizeof(kData)),
-            base::as_byte_span(kData));
+  UNSAFE_TODO(EXPECT_EQ(
+      0, memcmp(bucket->GetData(0, sizeof(kData)), kData, sizeof(kData))));
 
   // Check we can set it partially.
   static const char kData2[] = "ABCEDFG";
@@ -283,15 +266,15 @@ TEST_F(CommonDecoderTest, SetBucketDataImmediate) {
   cmd.Init(kBucketId, kSomeOffsetInBucket, sizeof(kData2));
   EXPECT_EQ(error::kNoError,
             ExecuteImmediateCmd(cmd, sizeof(kData2)));
-  EXPECT_EQ(bucket->GetDataAsByteSpan(kSomeOffsetInBucket, sizeof(kData2)),
-            base::as_byte_span(kData2));
-  base::span<const char> bucket_data =
-      base::as_chars(bucket->GetDataAsByteSpan(0, sizeof(kData)));
+  UNSAFE_TODO(
+      EXPECT_EQ(0, memcmp(bucket->GetData(kSomeOffsetInBucket, sizeof(kData2)),
+                          kData2, sizeof(kData2))));
+  const char* bucket_data = bucket->GetDataAs<const char*>(0, sizeof(kData));
   // Check that nothing was affected outside of updated area.
-  EXPECT_EQ(kData[kSomeOffsetInBucket - 1],
-            bucket_data[kSomeOffsetInBucket - 1]);
-  EXPECT_EQ(kData[kSomeOffsetInBucket + sizeof(kData2)],
-            bucket_data[kSomeOffsetInBucket + sizeof(kData2)]);
+  UNSAFE_TODO(EXPECT_EQ(kData[kSomeOffsetInBucket - 1],
+                        bucket_data[kSomeOffsetInBucket - 1]));
+  UNSAFE_TODO(EXPECT_EQ(kData[kSomeOffsetInBucket + sizeof(kData2)],
+                        bucket_data[kSomeOffsetInBucket + sizeof(kData2)]));
 
   // Check that it fails if the bucket_id is invalid
   cmd.Init(kInvalidBucketId, kSomeOffsetInBucket, sizeof(kData2));
@@ -515,34 +498,6 @@ TEST_F(CommonDecoderTest, GetAsStrings_StringsSizeNegative) {
   bucket.SetData(&length1, 8, sizeof(length1));
   std::array<uint8_t, 2> str = {'A', 0};
   bucket.SetData(&str, 12, sizeof(str));
-
-  GLsizei count_out;
-  std::vector<char*> strings_out;
-  std::vector<GLint> lengths_out;
-  EXPECT_FALSE(bucket.GetAsStrings(&count_out, &strings_out, &lengths_out));
-}
-
-// Test that GetAsStrings rejects strings that are not NUL-terminated.
-TEST_F(CommonDecoderTest, GetAsStrings_MissingNulTerminator) {
-  CommonDecoder::Bucket bucket;
-
-  // Layout: count=1, length0=2, followed by 3 bytes of string data where the
-  // byte at the expected NUL position is not zero.
-  const size_t kBucketSize = sizeof(GLint) + sizeof(GLint) + 3;
-  bucket.SetSize(kBucketSize);
-  size_t write_offset = 0;
-
-  const GLint count = 1;
-  bucket.SetData(&count, write_offset, sizeof(count));
-  write_offset += sizeof(count);
-
-  const GLint length0 = 2;
-  bucket.SetData(&length0, write_offset, sizeof(length0));
-  write_offset += sizeof(length0);
-
-  // "abc" instead of "ab\0", so the NUL terminator is missing.
-  const std::array<char, 3> str0 = {'a', 'b', 'c'};
-  bucket.SetData(&str0, write_offset, sizeof(str0));
 
   GLsizei count_out;
   std::vector<char*> strings_out;

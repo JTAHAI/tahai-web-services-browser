@@ -4,8 +4,6 @@
 
 #include "content/public/browser/tracing_support.h"
 
-#include <optional>
-
 #include "base/hash/hash.h"
 #include "base/no_destructor.h"
 #include "base/trace_event/trace_event.h"
@@ -16,15 +14,6 @@ namespace {
 // A random value mixed into child process track uuids to avoid collisions with
 // other types of tracks.
 static constexpr uint64_t kProcessTrackMagic = 0x12E91CFDD3E3509Bul;
-
-std::optional<base::trace_event::TrackRegistration<perfetto::NamedTrack>>&
-GetWebContentsListTrackRegistrationStorage() {
-  static base::NoDestructor<
-      std::optional<base::trace_event::TrackRegistration<perfetto::NamedTrack>>>
-      page_group_track;
-  return *page_group_track;
-}
-
 }  // namespace
 
 perfetto::Track GetChildProcessTracingTrack(ChildProcessId process_id) {
@@ -51,11 +40,9 @@ perfetto::StateTrack GetLocalFrameTracingTrack(
 perfetto::StateTrack GetWebContentsTracingTrack(
     const WebContents::UniqueToken& web_contents_token,
     perfetto::StaticString name) {
-  auto& page_group_track = GetWebContentsListTrackRegistrationStorage();
-  if (!page_group_track.has_value()) {
-    page_group_track.emplace(
-        perfetto::NamedTrack::Global("WebContentsList", 0));
-  }
+  static const base::NoDestructor<
+      base::trace_event::TrackRegistration<perfetto::NamedTrack>>
+      page_group_track(perfetto::NamedTrack::Global("WebContentsList", 0));
 
   auto track = perfetto::StateTrack(
       name, base::UnguessableTokenHash()(web_contents_token.value()),
@@ -65,10 +52,6 @@ perfetto::StateTrack GetWebContentsTracingTrack(
 
 CONTENT_EXPORT perfetto::Flow GetNavigationTracingFlow(int64_t navigation_id) {
   return perfetto::Flow::Global(navigation_id, "navigation_id");
-}
-
-void ResetWebContentsListTrackRegistrationForTesting() {
-  GetWebContentsListTrackRegistrationStorage().reset();
 }
 
 }  // namespace content

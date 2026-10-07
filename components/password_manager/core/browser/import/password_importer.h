@@ -10,11 +10,9 @@
 #include "base/files/file_path.h"
 #include "base/functional/callback.h"
 #include "base/functional/callback_helpers.h"
-#include "base/memory/raw_ref.h"
 #include "base/types/expected.h"
 #include "components/password_manager/core/browser/import/import_results.h"
 #include "components/password_manager/core/browser/password_form.h"
-#include "components/password_manager/core/browser/password_store/stored_credential.h"
 #include "components/password_manager/core/browser/ui/credential_ui_entry.h"
 #include "components/password_manager/services/csv_password/csv_password_parser_service.h"
 #include "components/password_manager/services/csv_password/public/mojom/csv_password_parser.mojom.h"
@@ -46,7 +44,7 @@ struct IncomingPasswords {
   // Passwords that should be added to the store.
   std::vector<CredentialUIEntry> add_credentials;
   // Passwords that should be updated in the store.
-  std::vector<StoredCredential> edit_credentials;
+  std::vector<PasswordForm> edit_forms;
 };
 
 struct ConflictsResolutionCache;
@@ -85,7 +83,7 @@ class PasswordImporter {
   using DeleteFileCallback =
       base::RepeatingCallback<bool(const base::FilePath&)>;
 
-  explicit PasswordImporter(SavedPasswordsPresenter& presenter,
+  explicit PasswordImporter(SavedPasswordsPresenter* presenter,
                             bool user_confirmation_required = false);
   PasswordImporter(const PasswordImporter&) = delete;
   PasswordImporter& operator=(const PasswordImporter&) = delete;
@@ -166,11 +164,10 @@ class PasswordImporter {
 
   // Caches the import results and triggers the user interaction flow to resolve
   // conflicts or confirm the import.
-  void ShowImportConflicts(
-      ImportResultsCallback results_callback,
-      ImportResults results,
-      IncomingPasswords incoming_passwords,
-      std::vector<std::vector<StoredCredential>> conflicts);
+  void ShowImportConflicts(ImportResultsCallback results_callback,
+                           ImportResults results,
+                           IncomingPasswords incoming_passwords,
+                           std::vector<std::vector<PasswordForm>> conflicts);
 
   // Triggers the processes for adding and updating `incoming_passwords`.
   void ExecuteImport(ImportResultsCallback results_callback,
@@ -202,7 +199,7 @@ class PasswordImporter {
   // base::DeleteFile, unless it's changed for testing purposes.
   DeleteFileCallback delete_function_;
 
-  const raw_ref<SavedPasswordsPresenter> presenter_;
+  const raw_ptr<SavedPasswordsPresenter> presenter_;
 
   // Whether the user must confirm before the imported passwords are added to
   // the store.

@@ -53,7 +53,6 @@ import org.mockito.junit.MockitoRule;
 
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.DisableIf;
-import org.chromium.base.test.util.DisabledTest;
 import org.chromium.base.test.util.DoNotBatch;
 import org.chromium.base.test.util.Feature;
 import org.chromium.base.test.util.Features.DisableFeatures;
@@ -67,7 +66,7 @@ import org.chromium.chrome.browser.privacy_guide.PrivacyGuideFragment.FragmentTy
 import org.chromium.chrome.browser.profiles.ProfileManager;
 import org.chromium.chrome.browser.safe_browsing.SafeBrowsingBridge;
 import org.chromium.chrome.browser.safe_browsing.SafeBrowsingState;
-import org.chromium.chrome.browser.settings.SettingsTestRule;
+import org.chromium.chrome.browser.settings.SettingsActivityTestRule;
 import org.chromium.chrome.browser.signin.services.UnifiedConsentServiceBridge;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.chrome.test.util.ChromeRenderTestRule;
@@ -101,12 +100,12 @@ public class PrivacyGuideFragmentTest {
     @Rule public SigninTestRule mSigninTestRule = new SigninTestRule();
 
     @Rule
-    public SettingsTestRule<PrivacyGuideFragment> mPrivacyGuideTestRule =
-            new SettingsTestRule<>(PrivacyGuideFragment.class);
+    public SettingsActivityTestRule<PrivacyGuideFragment> mPrivacyGuideTestRule =
+            new SettingsActivityTestRule<>(PrivacyGuideFragment.class);
 
     @Rule
-    public SettingsTestRule<PrivacySettings> mPrivacySettingsTestRule =
-            new SettingsTestRule<>(PrivacySettings.class);
+    public SettingsActivityTestRule<PrivacySettings> mPrivacySettingsTestRule =
+            new SettingsActivityTestRule<>(PrivacySettings.class);
 
     @Rule
     public ChromeRenderTestRule mRenderTestRule =
@@ -387,7 +386,6 @@ public class PrivacyGuideFragmentTest {
 
     @Test
     @LargeTest
-    @DisabledTest(message = "crbug.com/543408467")
     @Feature({"PrivacyGuide"})
     public void testBackwardNavAllActions() {
         setMSBBState(false);

@@ -33,6 +33,7 @@
 #include "base/values.h"
 #include "build/build_config.h"
 #include "crypto/hash.h"
+#include "crypto/sha2.h"
 #include "net/base/features.h"
 #include "net/base/hash_value.h"
 #include "net/base/host_port_pair.h"
@@ -184,6 +185,9 @@ class TransportSecurityStateTest : public ::testing::Test,
       ret = true;
     return ret;
   }
+
+ private:
+  base::test::ScopedFeatureList scoped_feature_list_;
 };
 
 // Setting `is_top_level_nav` true prevents the upgrade from being blocked by
@@ -737,7 +741,8 @@ TEST_F(TransportSecurityStateTest, LongNames) {
 }
 
 TEST_F(TransportSecurityStateTest, PinValidationWithoutRejectedCerts) {
-  AddScopedFeatureList().InitAndEnableFeature(
+  base::test::ScopedFeatureList scoped_feature_list_;
+  scoped_feature_list_.InitAndEnableFeature(
       features::kStaticKeyPinningEnforcement);
 
   std::vector<SHA256HashValue> good_hashes = DeserializeHashes(kGoodPath);
@@ -761,7 +766,8 @@ TEST_F(TransportSecurityStateTest, PinValidationWithoutRejectedCerts) {
 // the lookup methods can find the entry and correctly decode the different
 // preloaded states (HSTS and HPKP).
 TEST_F(TransportSecurityStateTest, DecodePreloadedSingle) {
-  AddScopedFeatureList().InitAndEnableFeature(
+  base::test::ScopedFeatureList scoped_feature_list_;
+  scoped_feature_list_.InitAndEnableFeature(
       features::kStaticKeyPinningEnforcement);
   SetTransportSecurityStateSourceForTesting(&test1::kHSTSSource);
 
@@ -788,7 +794,8 @@ TEST_F(TransportSecurityStateTest, DecodePreloadedSingle) {
 // entries and correctly decode the different preloaded states (HSTS and HPKP)
 // for each entry.
 TEST_F(TransportSecurityStateTest, DecodePreloadedMultiplePrefix) {
-  AddScopedFeatureList().InitAndEnableFeature(
+  base::test::ScopedFeatureList scoped_feature_list_;
+  scoped_feature_list_.InitAndEnableFeature(
       features::kStaticKeyPinningEnforcement);
   SetTransportSecurityStateSourceForTesting(&test2::kHSTSSource);
 
@@ -837,7 +844,8 @@ TEST_F(TransportSecurityStateTest, DecodePreloadedMultiplePrefix) {
 // all entries and correctly decode the different preloaded states (HSTS and
 // HPKP) for each entry.
 TEST_F(TransportSecurityStateTest, DecodePreloadedMultipleMix) {
-  AddScopedFeatureList().InitAndEnableFeature(
+  base::test::ScopedFeatureList scoped_feature_list_;
+  scoped_feature_list_.InitAndEnableFeature(
       features::kStaticKeyPinningEnforcement);
   SetTransportSecurityStateSourceForTesting(&test3::kHSTSSource);
 
@@ -1134,7 +1142,8 @@ static bool OnlyPinningInStaticState(const char* hostname) {
 }
 
 TEST_F(TransportSecurityStateStaticTest, EnableStaticPins) {
-  AddScopedFeatureList().InitAndEnableFeature(
+  base::test::ScopedFeatureList scoped_feature_list_;
+  scoped_feature_list_.InitAndEnableFeature(
       features::kStaticKeyPinningEnforcement);
   TransportSecurityState state;
   state.SetPinningListAlwaysTimelyForTesting(true);
@@ -1193,7 +1202,8 @@ TEST_F(TransportSecurityStateStaticTest, IsPreloaded) {
 }
 
 TEST_F(TransportSecurityStateStaticTest, PreloadedDomainSet) {
-  AddScopedFeatureList().InitAndEnableFeature(
+  base::test::ScopedFeatureList scoped_feature_list_;
+  scoped_feature_list_.InitAndEnableFeature(
       features::kStaticKeyPinningEnforcement);
   TransportSecurityState state;
   EnableStaticPins(&state);
@@ -1213,7 +1223,8 @@ TEST_F(TransportSecurityStateStaticTest, PreloadedDomainSet) {
 }
 
 TEST_F(TransportSecurityStateStaticTest, Preloaded) {
-  AddScopedFeatureList().InitAndEnableFeature(
+  base::test::ScopedFeatureList scoped_feature_list_;
+  scoped_feature_list_.InitAndEnableFeature(
       features::kStaticKeyPinningEnforcement);
   TransportSecurityState state;
   EnableStaticPins(&state);
@@ -1429,7 +1440,8 @@ TEST_F(TransportSecurityStateStaticTest, Preloaded) {
 }
 
 TEST_F(TransportSecurityStateStaticTest, PreloadedPins) {
-  AddScopedFeatureList().InitAndEnableFeature(
+  base::test::ScopedFeatureList scoped_feature_list_;
+  scoped_feature_list_.InitAndEnableFeature(
       features::kStaticKeyPinningEnforcement);
   TransportSecurityState state;
   EnableStaticPins(&state);
@@ -1474,7 +1486,8 @@ TEST_F(TransportSecurityStateStaticTest, PreloadedPins) {
 }
 
 TEST_F(TransportSecurityStateStaticTest, BuiltinCertPins) {
-  AddScopedFeatureList().InitAndEnableFeature(
+  base::test::ScopedFeatureList scoped_feature_list_;
+  scoped_feature_list_.InitAndEnableFeature(
       features::kStaticKeyPinningEnforcement);
   TransportSecurityState state;
   EnableStaticPins(&state);
@@ -1520,7 +1533,8 @@ TEST_F(TransportSecurityStateStaticTest, BuiltinCertPins) {
 }
 
 TEST_F(TransportSecurityStateStaticTest, OptionalHSTSCertPins) {
-  AddScopedFeatureList().InitAndEnableFeature(
+  base::test::ScopedFeatureList scoped_feature_list_;
+  scoped_feature_list_.InitAndEnableFeature(
       features::kStaticKeyPinningEnforcement);
   TransportSecurityState state;
   EnableStaticPins(&state);
@@ -1547,7 +1561,8 @@ TEST_F(TransportSecurityStateStaticTest, OptionalHSTSCertPins) {
 // Setting `is_top_level_nav` true prevents the upgrade from being blocked by
 // kHstsTopLevelNavigationsOnly.
 TEST_F(TransportSecurityStateStaticTest, OverrideBuiltins) {
-  AddScopedFeatureList().InitAndEnableFeature(
+  base::test::ScopedFeatureList scoped_feature_list_;
+  scoped_feature_list_.InitAndEnableFeature(
       features::kStaticKeyPinningEnforcement);
   EXPECT_TRUE(HasStaticPublicKeyPins("google.com"));
   EXPECT_FALSE(StaticShouldRedirect("google.com"));
@@ -1605,7 +1620,8 @@ TEST_F(TransportSecurityStateTest, DecodeSizeFour) {
 #endif  // BUILDFLAG(INCLUDE_TRANSPORT_SECURITY_STATE_PRELOAD_LIST)
 
 TEST_F(TransportSecurityStateTest, UpdateKeyPinsListValidPin) {
-  AddScopedFeatureList().InitAndEnableFeature(
+  base::test::ScopedFeatureList scoped_feature_list_;
+  scoped_feature_list_.InitAndEnableFeature(
       features::kStaticKeyPinningEnforcement);
   std::vector<SHA256HashValue> bad_hashes = DeserializeHashes(kBadPath);
 
@@ -1633,7 +1649,8 @@ TEST_F(TransportSecurityStateTest, UpdateKeyPinsListValidPin) {
 }
 
 TEST_F(TransportSecurityStateTest, UpdateKeyPinsListNotValidPin) {
-  AddScopedFeatureList().InitAndEnableFeature(
+  base::test::ScopedFeatureList scoped_feature_list_;
+  scoped_feature_list_.InitAndEnableFeature(
       features::kStaticKeyPinningEnforcement);
   std::vector<SHA256HashValue> good_hashes = DeserializeHashes(kGoodPath);
 
@@ -1670,7 +1687,8 @@ TEST_F(TransportSecurityStateTest, UpdateKeyPinsListNotValidPin) {
 }
 
 TEST_F(TransportSecurityStateTest, UpdateKeyPinsEmptyList) {
-  AddScopedFeatureList().InitAndEnableFeature(
+  base::test::ScopedFeatureList scoped_feature_list_;
+  scoped_feature_list_.InitAndEnableFeature(
       features::kStaticKeyPinningEnforcement);
   std::vector<SHA256HashValue> bad_hashes = DeserializeHashes(kBadPath);
 
@@ -1690,7 +1708,8 @@ TEST_F(TransportSecurityStateTest, UpdateKeyPinsEmptyList) {
 }
 
 TEST_F(TransportSecurityStateTest, UpdateKeyPinsIncludeSubdomains) {
-  AddScopedFeatureList().InitAndEnableFeature(
+  base::test::ScopedFeatureList scoped_feature_list_;
+  scoped_feature_list_.InitAndEnableFeature(
       features::kStaticKeyPinningEnforcement);
   // unpinned_hashes is a set of hashes that (after the update) won't match the
   // expected hashes for the tld of this domain. kGoodPath is used here because
@@ -1728,7 +1747,8 @@ TEST_F(TransportSecurityStateTest, UpdateKeyPinsIncludeSubdomains) {
 }
 
 TEST_F(TransportSecurityStateTest, UpdateKeyPinsIncludeSubdomainsTLD) {
-  AddScopedFeatureList().InitAndEnableFeature(
+  base::test::ScopedFeatureList scoped_feature_list_;
+  scoped_feature_list_.InitAndEnableFeature(
       features::kStaticKeyPinningEnforcement);
   // unpinned_hashes is a set of hashes that (after the update) won't match the
   // expected hashes for the tld of this domain. kGoodPath is used here because
@@ -1764,7 +1784,8 @@ TEST_F(TransportSecurityStateTest, UpdateKeyPinsIncludeSubdomainsTLD) {
 }
 
 TEST_F(TransportSecurityStateTest, UpdateKeyPinsDontIncludeSubdomains) {
-  AddScopedFeatureList().InitAndEnableFeature(
+  base::test::ScopedFeatureList scoped_feature_list_;
+  scoped_feature_list_.InitAndEnableFeature(
       features::kStaticKeyPinningEnforcement);
   // unpinned_hashes is a set of hashes that (after the update) won't match the
   // expected hashes for the tld of this domain. kGoodPath is used here because
@@ -1807,7 +1828,8 @@ TEST_F(TransportSecurityStateTest, UpdateKeyPinsDontIncludeSubdomains) {
 }
 
 TEST_F(TransportSecurityStateTest, UpdateKeyPinsListTimestamp) {
-  AddScopedFeatureList().InitAndEnableFeature(
+  base::test::ScopedFeatureList scoped_feature_list_;
+  scoped_feature_list_.InitAndEnableFeature(
       features::kStaticKeyPinningEnforcement);
   std::vector<SHA256HashValue> bad_hashes = DeserializeHashes(kBadPath);
 
@@ -1851,9 +1873,12 @@ class TransportSecurityStatePinningKillswitchTest
     : public TransportSecurityStateTest {
  public:
   TransportSecurityStatePinningKillswitchTest() {
-    AddScopedFeatureList().InitAndDisableFeature(
+    scoped_feature_list_.InitAndDisableFeature(
         features::kStaticKeyPinningEnforcement);
   }
+
+ protected:
+  base::test::ScopedFeatureList scoped_feature_list_;
 };
 
 TEST_F(TransportSecurityStatePinningKillswitchTest, PinningKillswitchSet) {

@@ -39,7 +39,6 @@ class RawPointerVideoCaptureDevice : public media::VideoCaptureDevice {
   void TakePhoto(TakePhotoCallback callback) override {
     device_->TakePhoto(std::move(callback));
   }
-  void InvalidateBuffers() override { device_->InvalidateBuffers(); }
   void OnUtilizationReport(media::VideoCaptureFeedback feedback) override {
     device_->OnUtilizationReport(feedback);
   }

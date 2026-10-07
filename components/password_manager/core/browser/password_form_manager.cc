@@ -56,7 +56,6 @@
 #include "components/password_manager/core/browser/password_store/password_store_backend_error.h"
 #include "components/password_manager/core/browser/password_store/password_store_util.h"
 #include "components/password_manager/core/browser/password_store/psl_matching_helper.h"
-#include "components/password_manager/core/browser/password_string.h"
 #include "components/password_manager/core/browser/possible_username_data.h"
 #include "components/password_manager/core/browser/votes_uploader.h"
 #include "components/password_manager/core/common/password_manager_features.h"
@@ -356,6 +355,11 @@ PasswordFormManager::~PasswordFormManager() {
 }
 
 void PasswordFormManager::OnPasswordFilledManually() {
+  if (client_->IsActorTaskActive()) {
+    client_->OnPasswordFilled(
+        driver_.get(), GetURL(),
+        PasswordManagerClient::PasswordFillTrigger::kAgentTask);
+  }
   allow_filling_upon_fetching_ = false;
   if (!base::FeatureList::IsEnabled(features::kPasswordDateLastFilled) ||
       !parsed_submitted_form_ ||
@@ -484,7 +488,7 @@ bool PasswordFormManager::IsMovableToAccountStore() const {
   DCHECK(!gaia_id.empty()) << "Cannot move without signed in user";
 
   const std::u16string& username = GetPendingCredentials().username_value;
-  const PasswordString& password = GetPendingCredentials().password_value;
+  const std::u16string& password = GetPendingCredentials().password_value;
   // If no match in the profile store with the same username and password
   // exists, then there is nothing to move.
   auto is_movable = [&username, &password](const StoredCredential& match) {
@@ -573,7 +577,7 @@ void PasswordFormManager::OnUpdateUsernameFromPrompt(
 }
 
 void PasswordFormManager::OnUpdatePasswordFromPrompt(
-    const PasswordString& new_password) {
+    const std::u16string& new_password) {
   DCHECK(parsed_submitted_form_);
   parsed_submitted_form_->password_value = new_password;
   parsed_submitted_form_->password_element.clear();
@@ -588,7 +592,7 @@ void PasswordFormManager::OnUpdatePasswordFromPrompt(
   const AlternativeElementVector& alternative_passwords =
       parsed_submitted_form_->all_alternative_passwords;
   auto alternative_password_it = std::ranges::find(
-      alternative_passwords, new_password.value(), &AlternativeElement::value);
+      alternative_passwords, new_password, &AlternativeElement::value);
   if (alternative_password_it != alternative_passwords.end()) {
     parsed_submitted_form_->password_element = alternative_password_it->name;
     parsed_submitted_form_->password_element_renderer_id =
@@ -701,7 +705,7 @@ FormFetcher* PasswordFormManager::GetFormFetcher() {
 
 void PasswordFormManager::PresaveGeneratedPassword(
     const FormData& form_data,
-    const PasswordString& generated_password) {
+    const std::u16string& generated_password) {
   *mutable_observed_form() = form_data;
   PresaveGeneratedPasswordInternal(form_data, generated_password);
 }
@@ -1302,10 +1306,7 @@ void PasswordFormManager::OnGeneratedPasswordAccepted(
     parsed_form->url = form_data.url();
     parsed_form->signon_realm = GetSignonRealm(form_data.url());
   }
-  // TODO(crbug.com/513276101): Explicit construction of std::u16string
-  // R-Value to be removed once incoming parameter is converted to
-  // PasswordString
-  parsed_form->password_value = PasswordString(std::u16string(password));
+  parsed_form->password_value = password;
   password_save_manager_->GeneratedPasswordAccepted(*parsed_form, driver_);
 }
 
@@ -1417,10 +1418,10 @@ void PasswordFormManager::UpdateBackupPassword(
 void PasswordFormManager::PresaveGeneratedPasswordAsBackup(
     const PasswordFormManager& form_manager,
     PasswordForm form,
-    const PasswordString& generated_password) {
+    const std::u16string& generated_password) {
   CHECK(!form.password_value.empty());
   CHECK(!form.username_value.empty());
-  form.SetPasswordBackupNote(generated_password.value());
+  form.SetPasswordBackupNote(generated_password);
   // Create a temporary manager to avoid changing the state of |this|.
   // TODO(crbug.com/422125487): Fix metrics duplication.
   std::unique_ptr<PasswordFormManager> temporary_password_form_manager =
@@ -1434,7 +1435,7 @@ void PasswordFormManager::PresaveGeneratedPasswordAsBackup(
 
 void PasswordFormManager::PresaveGeneratedPasswordInternal(
     const FormData& form,
-    const PasswordString& generated_password) {
+    const std::u16string& generated_password) {
   std::unique_ptr<PasswordForm> parsed_form =
       ParseFormAndMakeLogging(form, FormDataParser::Mode::kSaving)
           .password_form;
@@ -1464,8 +1465,7 @@ void PasswordFormManager::CalculateFillingAssistanceAndCorrectnessMetrics(
     if (!saved_form.username_value.empty()) {
       saved_usernames.emplace(saved_form.username_value, saved_form.in_store);
     }
-    saved_passwords.emplace(saved_form.password_value.value(),
-                            saved_form.in_store);
+    saved_passwords.emplace(saved_form.password_value, saved_form.in_store);
   }
 
   metrics_recorder_->CalculateFillingAssistanceMetric(

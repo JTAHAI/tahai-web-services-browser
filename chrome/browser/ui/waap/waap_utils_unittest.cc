@@ -18,7 +18,8 @@ namespace {
 TEST(IsForInitialWebUITest, FeaturesDisabled) {
   base::test::ScopedFeatureList feature_list;
   feature_list.InitWithFeatures(
-      {}, {features::kInitialWebUI, features::kWebUIReloadButton});
+      {}, {features::kInitialWebUI, features::kInitialWebUIMetrics,
+           features::kWebUIReloadButton});
 
   EXPECT_FALSE(
       IsForInitialWebUI(GURL(std::string(content::kChromeUIScheme) + "://" +
@@ -28,7 +29,9 @@ TEST(IsForInitialWebUITest, FeaturesDisabled) {
 TEST(IsForInitialWebUITest, FeaturesEnabled) {
   base::test::ScopedFeatureList feature_list;
   feature_list.InitWithFeatures(
-      {features::kInitialWebUI, features::kWebUIReloadButton}, {});
+      {features::kInitialWebUI, features::kInitialWebUIMetrics,
+       features::kWebUIReloadButton},
+      {});
 
   EXPECT_TRUE(
       IsForInitialWebUI(GURL(std::string(content::kChromeUIScheme) + "://" +
@@ -38,7 +41,9 @@ TEST(IsForInitialWebUITest, FeaturesEnabled) {
 TEST(IsForInitialWebUITest, NonChromeScheme) {
   base::test::ScopedFeatureList feature_list;
   feature_list.InitWithFeatures(
-      {features::kInitialWebUI, features::kWebUIReloadButton}, {});
+      {features::kInitialWebUI, features::kInitialWebUIMetrics,
+       features::kWebUIReloadButton},
+      {});
 
   EXPECT_FALSE(IsForInitialWebUI(
       GURL(std::string("https") + "://" + chrome::kChromeUIWebUIToolbarHost)));
@@ -47,10 +52,26 @@ TEST(IsForInitialWebUITest, NonChromeScheme) {
 TEST(IsForInitialWebUITest, NonInitialWebUIHost) {
   base::test::ScopedFeatureList feature_list;
   feature_list.InitWithFeatures(
-      {features::kInitialWebUI, features::kWebUIReloadButton}, {});
+      {features::kInitialWebUI, features::kInitialWebUIMetrics,
+       features::kWebUIReloadButton},
+      {});
 
   EXPECT_FALSE(IsForInitialWebUI(
       GURL(std::string(content::kChromeUIScheme) + "://" + "wrong-host")));
+}
+
+TEST(IsInitialWebUIMetricsLoggingEnabledTest, FeaturesDisabled) {
+  base::test::ScopedFeatureList feature_list;
+  feature_list.InitWithFeatures({}, {features::kInitialWebUIMetrics});
+
+  EXPECT_FALSE(IsInitialWebUIMetricsLoggingEnabled());
+}
+
+TEST(IsInitialWebUIMetricsLoggingEnabledTest, FeaturesEnabled) {
+  base::test::ScopedFeatureList feature_list;
+  feature_list.InitWithFeatures({features::kInitialWebUIMetrics}, {});
+
+  EXPECT_TRUE(IsInitialWebUIMetricsLoggingEnabled());
 }
 
 }  // namespace

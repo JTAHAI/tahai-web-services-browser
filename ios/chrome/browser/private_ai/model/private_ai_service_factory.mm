@@ -60,6 +60,5 @@ std::unique_ptr<KeyedService> PrivateAiServiceFactory::BuildServiceInstanceFor(
       /*network_context=*/nullptr, private_ai::kPrivateAiUrl.Get(),
       private_ai::PrivateAiService::GetApiKey(::GetChannel()),
       private_ai::kPrivateAiProxyServerUrl.Get(),
-      base::FeatureList::IsEnabled(private_ai::kPrivateAiUseTokenAttestation),
-      ::GetChannel());
+      base::FeatureList::IsEnabled(private_ai::kPrivateAiUseTokenAttestation));
 }

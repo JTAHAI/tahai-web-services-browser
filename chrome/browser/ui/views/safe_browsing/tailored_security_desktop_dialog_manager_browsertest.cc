@@ -8,7 +8,7 @@
 #include "base/test/metrics/histogram_tester.h"
 #include "base/test/metrics/user_action_tester.h"
 #include "base/test/run_until.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/test/test_browser_dialog.h"
 #include "components/safe_browsing/core/browser/tailored_security_service/tailored_security_outcome.h"
@@ -22,7 +22,6 @@
 #include "ui/gfx/geometry/point.h"
 #include "ui/gfx/scoped_animation_duration_scale_mode.h"
 #include "ui/views/bubble/bubble_dialog_delegate_view.h"
-#include "ui/views/controls/button/md_text_button.h"
 #include "ui/views/test/widget_test.h"
 #include "ui/views/widget/any_widget_observer.h"
 #include "ui/views/widget/widget.h"
@@ -103,8 +102,7 @@ class TailoredSecurityDesktopDialogManagerTest
     }
   }
 
-  views::Widget* ShowTailoredSecurityEnabledDialog(
-      BrowserWindowInterface* browser) {
+  views::Widget* ShowTailoredSecurityEnabledDialog(Browser* browser) {
     views::NamedWidgetShownWaiter waiter(
         views::test::AnyWidgetTestPasskey{},
         safe_browsing::kTailoredSecurityNoticeDialog);
@@ -115,8 +113,7 @@ class TailoredSecurityDesktopDialogManagerTest
     return widget;
   }
 
-  views::Widget* ShowTailoredSecurityDisabledDialog(
-      BrowserWindowInterface* browser) {
+  views::Widget* ShowTailoredSecurityDisabledDialog(Browser* browser) {
     views::NamedWidgetShownWaiter waiter(
         views::test::AnyWidgetTestPasskey{},
         safe_browsing::kTailoredSecurityNoticeDialog);
@@ -175,9 +172,9 @@ IN_PROC_BROWSER_TEST_P(TailoredSecurityDesktopDialogManagerTest,
 
   ClickButton(bubble_delegate, bubble_delegate->GetCancelButton());
   EXPECT_TRUE(content::WaitForLoadStop(
-      browser()->GetTabStripModel()->GetActiveWebContents()));
+      browser()->tab_strip_model()->GetActiveWebContents()));
   EXPECT_EQ(browser()
-                ->GetTabStripModel()
+                ->tab_strip_model()
                 ->GetActiveWebContents()
                 ->GetLastCommittedURL(),
             GURL(kEnhancedProtectionSettingsUrl));
@@ -262,9 +259,9 @@ IN_PROC_BROWSER_TEST_P(TailoredSecurityDesktopDialogManagerTest,
 
   ClickButton(bubble_delegate, bubble_delegate->GetCancelButton());
   EXPECT_TRUE(content::WaitForLoadStop(
-      browser()->GetTabStripModel()->GetActiveWebContents()));
+      browser()->tab_strip_model()->GetActiveWebContents()));
   EXPECT_EQ(browser()
-                ->GetTabStripModel()
+                ->tab_strip_model()
                 ->GetActiveWebContents()
                 ->GetLastCommittedURL(),
             GURL(kEnhancedProtectionSettingsUrl));

@@ -7,6 +7,7 @@
 #include <memory>
 
 #include "ash/public/cpp/shelf_types.h"
+#include "base/debug/dump_without_crashing.h"
 #include "base/memory/raw_ptr.h"
 #include "chrome/browser/ash/browser_delegate/browser_controller.h"
 #include "chrome/browser/ash/browser_delegate/browser_delegate.h"
@@ -16,8 +17,14 @@
 #include "chrome/browser/ui/ash/shelf/chrome_shelf_controller_util.h"
 #include "chrome/browser/ui/ash/shelf/shelf_spinner_controller.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
+#include "chrome/browser/ui/tabs/tab_strip_model.h"
+#include "chrome/browser/web_applications/web_app_helpers.h"
+#include "chrome/browser/web_applications/web_app_utils.h"
+#include "components/user_manager/user_manager.h"
 #include "content/public/browser/navigation_controller.h"
 #include "content/public/browser/navigation_entry.h"
+#include "content/public/browser/navigation_handle.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/browser/web_contents_observer.h"
 
@@ -35,19 +42,17 @@ bool IsAppBrowser(const ash::BrowserDelegate* browser) {
   return browser->GetAppId().has_value();
 }
 
-// Returns the index of the given web contents in the browser, or std::nullopt
-// if not found.
-std::optional<size_t> GetIndexOfWebContents(
-    const ash::BrowserDelegate& browser,
-    const content::WebContents* contents) {
-  if (contents) {
-    for (size_t i = 0; i < browser.GetWebContentsCount(); ++i) {
-      if (browser.GetWebContentsAt(i) == contents) {
-        return i;
-      }
-    }
-  }
-  return std::nullopt;
+BrowserWindowInterface* GetBrowserWithTabStripModel(
+    TabStripModel* tab_strip_model) {
+  BrowserWindowInterface* found_browser = nullptr;
+  ForEachCurrentBrowserWindowInterfaceOrderedByActivation(
+      [&](BrowserWindowInterface* browser) {
+        if (browser->GetTabStripModel() == tab_strip_model) {
+          found_browser = browser;
+        }
+        return !found_browser;
+      });
+  return found_browser;
 }
 
 }  // namespace
@@ -77,7 +82,8 @@ class BrowserStatusMonitor::LocalWebContentsObserver
 
 BrowserStatusMonitor::BrowserStatusMonitor(
     ChromeShelfController* shelf_controller)
-    : shelf_controller_(shelf_controller) {
+    : shelf_controller_(shelf_controller),
+      browser_tab_strip_tracker_(this, nullptr) {
   DCHECK(shelf_controller_);
 
   app_service_instance_helper_ =
@@ -89,8 +95,7 @@ BrowserStatusMonitor::BrowserStatusMonitor(
 BrowserStatusMonitor::~BrowserStatusMonitor() {
   DCHECK(initialized_);
 
-  browser_observation_.Reset();
-  tab_observation_.Reset();
+  ash::BrowserController::GetInstance()->RemoveObserver(this);
 
   // Simulate OnBrowserClosed() for all Browsers.
   ash::BrowserController::GetInstance()->ForEachBrowser(
@@ -105,50 +110,47 @@ void BrowserStatusMonitor::Initialize() {
   DCHECK(!initialized_);
   initialized_ = true;
 
-  // Simulate OnBrowserCreated() and initial tab insertions for all existing
-  // Browsers.
+  // Simulate OnBrowserCreated() for all existing Browsers.
   ash::BrowserController::GetInstance()->ForEachBrowser(
       ash::BrowserController::BrowserOrder::kAscendingActivationTime,
       [&](ash::BrowserDelegate& browser_delegate) {
         OnBrowserCreated(&browser_delegate);
-        for (size_t i = 0; i < browser_delegate.GetWebContentsCount(); ++i) {
-          if (content::WebContents* contents =
-                  browser_delegate.GetWebContentsAt(i)) {
-            OnTabInserted(&browser_delegate, contents);
-          }
-        }
         return ash::BrowserController::kContinueIteration;
       });
 
-  browser_observation_.Observe(ash::BrowserController::GetInstance());
-  tab_observation_.Observe(ash::BrowserController::GetInstance());
+  // ash::BrowserController::AddObserver() comes before
+  // BrowserTabStripTracker::Init() to ensure that OnBrowserCreated() is always
+  // invoked before OnTabStripModelChanged() is invoked to describe the initial
+  // state of the Browser.
+  ash::BrowserController::GetInstance()->AddObserver(this);
+  browser_tab_strip_tracker_.Init();
 }
 
 void BrowserStatusMonitor::ActiveUserChanged(const std::string& user_email) {
   // When the active profile changes, all windowed and tabbed apps owned by the
   // newly selected profile are added to the shelf, and the ones owned by other
   // profiles are removed.
-  ash::BrowserController::GetInstance()->ForEachBrowser(
-      ash::BrowserController::BrowserOrder::kAscendingActivationTime,
-      [&](ash::BrowserDelegate& browser_delegate) {
-        const bool owned = multi_user_util::IsProfileFromActiveUser(
-            browser_delegate.GetBrowser().GetProfile());
+  ForEachCurrentBrowserWindowInterfaceOrderedByActivation(
+      [&](BrowserWindowInterface* browser) {
+        const bool owned =
+            multi_user_util::IsProfileFromActiveUser(browser->GetProfile());
+        TabStripModel* const tab_strip_model = browser->GetTabStripModel();
 
-        const BrowserWindowInterface::Type browser_type =
-            browser_delegate.GetBrowser().GetType();
+        const BrowserWindowInterface::Type browser_type = browser->GetType();
         if (browser_type == BrowserWindowInterface::TYPE_APP ||
             browser_type == BrowserWindowInterface::TYPE_APP_POPUP) {
           // Add windowed apps owned by the current profile, and remove the one
           // owned by other profiles.
-          const bool app_in_shelf =
-              IsAppBrowserInShelf(&browser_delegate.GetBrowser());
+          const bool app_in_shelf = IsAppBrowserInShelf(browser);
           content::WebContents* const active_web_contents =
-              browser_delegate.GetActiveWebContents();
+              tab_strip_model->GetActiveWebContents();
 
           if (owned && !app_in_shelf) {
             // Adding an app to the shelf consists of two actions: add the
             // browser (shelf item) and add the content (shelf item status).
-            AddAppBrowserToShelf(&browser_delegate);
+            ash::BrowserDelegate* browser_delegate =
+                ash::BrowserController::GetInstance()->GetDelegate(browser);
+            AddAppBrowserToShelf(browser_delegate);
             if (active_web_contents) {
               shelf_controller_->UpdateAppState(active_web_contents,
                                                 false /*remove*/);
@@ -160,18 +162,20 @@ void BrowserStatusMonitor::ActiveUserChanged(const std::string& user_email) {
               shelf_controller_->UpdateAppState(active_web_contents,
                                                 true /*remove*/);
             }
-            RemoveAppBrowserFromShelf(&browser_delegate);
+            ash::BrowserDelegate* browser_delegate =
+                ash::BrowserController::GetInstance()->GetDelegate(browser);
+            RemoveAppBrowserFromShelf(browser_delegate);
           }
 
         } else if (browser_type == BrowserWindowInterface::TYPE_NORMAL) {
           // Add tabbed apps owned by the current profile, and remove the ones
           // owned by other profiles.
-          for (size_t i = 0; i < browser_delegate.GetWebContentsCount(); ++i) {
+          for (int i = 0; i < tab_strip_model->count(); ++i) {
             shelf_controller_->UpdateAppState(
-                browser_delegate.GetWebContentsAt(i), !owned /*remove*/);
+                tab_strip_model->GetWebContentsAt(i), !owned /*remove*/);
           }
         }
-        return ash::BrowserController::kContinueIteration;
+        return true;
       });
 
   // Update the browser state since some of the additions/removals above might
@@ -205,6 +209,11 @@ void BrowserStatusMonitor::OnBrowserCreated(
 
   BrowserWindowInterface* browser = &browser_delegate->GetBrowser();
 
+#if DCHECK_IS_ON()
+  auto insert_result = known_browsers_.insert(browser);
+  DCHECK(insert_result.second);
+#endif
+
   if (IsAppBrowser(browser_delegate) &&
       multi_user_util::IsProfileFromActiveUser(browser->GetProfile())) {
     AddAppBrowserToShelf(browser_delegate);
@@ -216,6 +225,11 @@ void BrowserStatusMonitor::OnBrowserClosed(
   DCHECK(initialized_);
 
   BrowserWindowInterface* browser = &browser_delegate->GetBrowser();
+
+#if DCHECK_IS_ON()
+  size_t num_removed = known_browsers_.erase(browser);
+  DCHECK_EQ(num_removed, 1U);
+#endif
 
   if (IsAppBrowser(browser_delegate) &&
       multi_user_util::IsProfileFromActiveUser(browser->GetProfile())) {
@@ -229,94 +243,73 @@ void BrowserStatusMonitor::OnBrowserClosed(
   }
 }
 
-void BrowserStatusMonitor::OnTabInserted(ash::BrowserDelegate* browser,
-                                         content::WebContents* contents) {
-  UpdateAppItemState(contents, false /*remove*/);
-  // If the visible navigation entry is the initial entry, wait until a
-  // navigation status changes before setting the browser window Shelf ID
-  // (done by the web contents observer added by AddWebContentsObserver()).
-  if (browser->GetActiveWebContents() == contents &&
-      !contents->GetController().GetVisibleEntry()->IsInitialEntry()) {
-    SetShelfIDForBrowserWindowContents(browser, contents);
-  }
+void BrowserStatusMonitor::OnTabStripModelChanged(
+    TabStripModel* tab_strip_model,
+    const TabStripModelChange& change,
+    const TabStripSelectionChange& selection) {
+  // OnBrowserAdded() must be invoked before OnTabStripModelChanged(). See
+  // comment in constructor.
+  BrowserWindowInterface* const browser =
+      GetBrowserWithTabStripModel(tab_strip_model);
+#if DCHECK_IS_ON()
+  DCHECK(known_browsers_.contains(browser));
+#endif
 
-  AddWebContentsObserver(contents);
-
-  if (app_service_instance_helper_) {
-    app_service_instance_helper_->OnTabInserted(contents);
-  }
-
-  UpdateBrowserItemState();
-}
-
-void BrowserStatusMonitor::OnTabRemoved(ash::BrowserDelegate* browser,
-                                        content::WebContents* contents,
-                                        bool will_delete) {
-  if (will_delete || browser->GetType() == ash::BrowserType::kDevTools) {
-    // TODO(crbug.com/40773744): when a dev tools window is docked, and
-    // its WebContents is removed, it will not be reinserted into
-    // another tab strip, so it should be treated as closed.
-    UpdateAppItemState(contents, true /*remove*/);
-    RemoveWebContentsObserver(contents);
-
-    if (app_service_instance_helper_) {
-      app_service_instance_helper_->OnTabClosing(contents);
+  if (change.type() == TabStripModelChange::kInserted) {
+    for (const auto& contents : change.GetInsert()->contents) {
+      if (webcontents_to_observer_map_.contains(contents.contents)) {
+#if DCHECK_IS_ON()
+        {
+          // The tab must be in the set of tabs in transit.
+          size_t num_removed = tabs_in_transit_.erase(contents.contents.get());
+          DCHECK_EQ(num_removed, 1u);
+        }
+#endif
+        OnTabMoved(tab_strip_model, contents.contents);
+      } else {
+#if DCHECK_IS_ON()
+        DCHECK(!tabs_in_transit_.contains(contents.contents));
+#endif
+        OnTabInserted(tab_strip_model, contents.contents);
+      }
     }
-  }
-}
-
-void BrowserStatusMonitor::OnTabReplaced(ash::BrowserDelegate* browser,
-                                         content::WebContents* old_contents,
-                                         content::WebContents* new_contents) {
-  DCHECK(old_contents);
-  DCHECK(new_contents);
-
-  UpdateAppItemState(old_contents, true /*remove*/);
-  RemoveWebContentsObserver(old_contents);
-
-  UpdateAppItemState(new_contents, false /*remove*/);
-  UpdateBrowserItemState();
-
-  if (IsAppBrowserInShelf(&browser->GetBrowser()) &&
-      multi_user_util::IsProfileFromActiveUser(
-          browser->GetBrowser().GetProfile())) {
-    shelf_controller_->SetAppStatus(browser->GetAppId().value_or(std::string()),
-                                    ash::STATUS_RUNNING);
-  }
-
-  if (browser->GetActiveWebContents() == new_contents) {
-    SetShelfIDForBrowserWindowContents(browser, new_contents);
-  }
-
-  AddWebContentsObserver(new_contents);
-
-  if (app_service_instance_helper_) {
-    app_service_instance_helper_->OnTabReplaced(old_contents, new_contents);
-  }
-}
-
-void BrowserStatusMonitor::OnActiveWebContentsChanged(
-    ash::BrowserDelegate* browser,
-    content::WebContents* old_contents,
-    content::WebContents* new_contents) {
-  // Use |new_contents|. |old_contents| could be nullptr.
-  DCHECK(new_contents);
-
-  // Update immediately on a tab change.
-  if (old_contents &&
-      GetIndexOfWebContents(*browser, old_contents).has_value()) {
-    UpdateAppItemState(old_contents, false /*remove*/);
-  }
-
-  if (new_contents) {
-    UpdateAppItemState(new_contents, false /*remove*/);
     UpdateBrowserItemState();
-    SetShelfIDForBrowserWindowContents(browser, new_contents);
+  } else if (change.type() == TabStripModelChange::kRemoved) {
+    auto* remove = change.GetRemove();
+    for (const auto& contents : remove->contents) {
+      if (TabRemoveReasonUtils::WillDeleteTab(contents.remove_reason)) {
+#if DCHECK_IS_ON()
+        DCHECK(!tabs_in_transit_.contains(contents.contents));
+#endif
+        OnTabClosing(contents.contents);
+      } else {
+        // The tab will be reinserted immediately into another browser, so
+        // this event is ignored.
+        if (browser->GetType() == BrowserWindowInterface::TYPE_DEVTOOLS) {
+          // TODO(crbug.com/40773744): when a dev tools window is docked, and
+          // its WebContents is removed, it will not be reinserted into
+          // another tab strip, so it should be treated as closed.
+          OnTabClosing(contents.contents);
+        } else {
+#if DCHECK_IS_ON()
+          // The tab must not be already in the set of tabs in transit.
+          DCHECK(tabs_in_transit_.insert(contents.contents).second);
+#endif
+        }
+      }
+    }
+  } else if (change.type() == TabStripModelChange::kReplaced) {
+    auto* replace = change.GetReplace();
+    OnTabReplaced(tab_strip_model, replace->old_contents,
+                  replace->new_contents);
   }
 
-  if (app_service_instance_helper_) {
-    app_service_instance_helper_->OnActiveTabChanged(old_contents,
-                                                     new_contents);
+  if (tab_strip_model->empty()) {
+    return;
+  }
+
+  if (selection.active_tab_changed()) {
+    OnActiveTabChanged(selection.old_contents, selection.new_contents);
   }
 }
 
@@ -368,6 +361,100 @@ bool BrowserStatusMonitor::IsAppBrowserInShelfWithAppId(
   return false;
 }
 
+void BrowserStatusMonitor::OnActiveTabChanged(
+    content::WebContents* old_contents,
+    content::WebContents* new_contents) {
+  // Use |new_contents|. |old_contents| could be nullptr.
+  DCHECK(new_contents);
+  ash::BrowserDelegate* browser =
+      ash::BrowserController::GetInstance()->GetBrowserForTab(new_contents);
+
+  // Update immediately on a tab change.
+  if (old_contents &&
+      (TabStripModel::kNoTab !=
+       browser->GetBrowser().GetTabStripModel()->GetIndexOfWebContents(
+           old_contents))) {
+    UpdateAppItemState(old_contents, false /*remove*/);
+  }
+
+  if (new_contents) {
+    UpdateAppItemState(new_contents, false /*remove*/);
+    UpdateBrowserItemState();
+    SetShelfIDForBrowserWindowContents(browser, new_contents);
+  }
+
+  if (app_service_instance_helper_) {
+    app_service_instance_helper_->OnActiveTabChanged(old_contents,
+                                                     new_contents);
+  }
+}
+
+void BrowserStatusMonitor::OnTabReplaced(TabStripModel* tab_strip_model,
+                                         content::WebContents* old_contents,
+                                         content::WebContents* new_contents) {
+  DCHECK(old_contents);
+  DCHECK(new_contents);
+  ash::BrowserDelegate* browser =
+      ash::BrowserController::GetInstance()->GetBrowserForTab(new_contents);
+
+  UpdateAppItemState(old_contents, true /*remove*/);
+  RemoveWebContentsObserver(old_contents);
+
+  UpdateAppItemState(new_contents, false /*remove*/);
+  UpdateBrowserItemState();
+
+  if (browser && IsAppBrowserInShelf(&browser->GetBrowser()) &&
+      multi_user_util::IsProfileFromActiveUser(
+          browser->GetBrowser().GetProfile())) {
+    shelf_controller_->SetAppStatus(browser->GetAppId().value_or(std::string()),
+                                    ash::STATUS_RUNNING);
+  }
+
+  if (tab_strip_model->GetActiveWebContents() == new_contents) {
+    SetShelfIDForBrowserWindowContents(browser, new_contents);
+  }
+
+  AddWebContentsObserver(new_contents);
+
+  if (app_service_instance_helper_) {
+    app_service_instance_helper_->OnTabReplaced(old_contents, new_contents);
+  }
+}
+
+void BrowserStatusMonitor::OnTabInserted(TabStripModel* tab_strip_model,
+                                         content::WebContents* contents) {
+  UpdateAppItemState(contents, false /*remove*/);
+  // If the visible navigation entry is the initial entry, wait until a
+  // navigation status changes before setting the browser window Shelf ID
+  // (done by the web contents observer added by AddWebContentsObserver()).
+  if (tab_strip_model->GetActiveWebContents() == contents &&
+      !contents->GetController().GetVisibleEntry()->IsInitialEntry()) {
+    ash::BrowserDelegate* browser =
+        ash::BrowserController::GetInstance()->GetBrowserForTab(contents);
+    SetShelfIDForBrowserWindowContents(browser, contents);
+  }
+
+  AddWebContentsObserver(contents);
+
+  if (app_service_instance_helper_) {
+    app_service_instance_helper_->OnTabInserted(contents);
+  }
+}
+
+void BrowserStatusMonitor::OnTabClosing(content::WebContents* contents) {
+  UpdateAppItemState(contents, true /*remove*/);
+  RemoveWebContentsObserver(contents);
+
+  if (app_service_instance_helper_) {
+    app_service_instance_helper_->OnTabClosing(contents);
+  }
+}
+
+void BrowserStatusMonitor::OnTabMoved(TabStripModel* tab_strip_model,
+                                      content::WebContents* contents) {
+  // TODO(crbug.com/40763808): split this into inserted and moved cases.
+  OnTabInserted(tab_strip_model, contents);
+}
 
 void BrowserStatusMonitor::OnTabNavigationFinished(
     content::WebContents* contents) {

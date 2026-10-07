@@ -54,6 +54,7 @@ class ActorFormFillingServiceImpl : public ActorFormFillingService {
   void FillSuggestions(
       AutofillClient& client,
       base::span<const ActorFormFillingSelection> chosen_suggestions,
+      base::flat_map<FieldGlobalId, ::actor::PageTarget> trigger_field_map,
       base::OnceCallback<
           void(base::expected<std::string, ActorFormFillingError>)> callback)
       override;

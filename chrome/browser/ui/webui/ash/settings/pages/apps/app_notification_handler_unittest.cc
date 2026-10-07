@@ -248,7 +248,7 @@ TEST_F(AppNotificationHandlerTest, TestAppListUpdated) {
   base::RunLoop().RunUntilIdle();
   EXPECT_EQ(observer()->app_list_changed(), 2);
 
-  CreateAndStoreFakeApp("borealisAppWithPrinting", apps::AppType::kBorealis,
+  CreateAndStoreFakeApp("pluginVmAppWithPrinting", apps::AppType::kPluginVm,
                         apps::PermissionType::kPrinting);
 
   base::RunLoop().RunUntilIdle();

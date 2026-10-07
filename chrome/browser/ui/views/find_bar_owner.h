@@ -7,10 +7,7 @@
 
 #include <string>
 
-#include "ui/base/unowned_user_data/scoped_unowned_user_data.h"
 #include "ui/gfx/geometry/rect.h"
-
-class BrowserWindowInterface;
 
 namespace views {
 class View;
@@ -22,15 +19,7 @@ class Widget;
 // BrowserView.
 class FindBarOwner {
  public:
-  DECLARE_USER_DATA(FindBarOwner);
-
-  // `host` is the UnownedUserDataHost of the browser window that this owner
-  // serves.
-  explicit FindBarOwner(ui::UnownedUserDataHost& host);
-  virtual ~FindBarOwner();
-
-  // Returns the owner for `browser`, or null if it does not have one.
-  static FindBarOwner* From(BrowserWindowInterface* browser);
+  virtual ~FindBarOwner() = default;
 
   // Returns the owner's widget.
   virtual views::Widget* GetOwnerWidget() = 0;
@@ -71,9 +60,6 @@ class FindBarOwner {
 
   // Closes any overlapping bubbles, such as the translate bubble.
   virtual void CloseOverlappingBubbles() = 0;
-
- private:
-  ui::ScopedUnownedUserData<FindBarOwner> scoped_unowned_user_data_;
 };
 
 #endif  // CHROME_BROWSER_UI_VIEWS_FIND_BAR_OWNER_H_

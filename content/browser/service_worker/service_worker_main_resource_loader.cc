@@ -145,14 +145,9 @@ void MaybeSetFetchHandlerBypassOptionForsyntheticResponse(
 }
 
 void RecordAutoPreloadDispatchResult(
-    ServiceWorkerAutoPreloadDispatchResult result,
-    bool is_outermost_main_frame = false) {
+    ServiceWorkerAutoPreloadDispatchResult result) {
   base::UmaHistogramEnumeration("ServiceWorker.AutoPreload.DispatchResult",
                                 result);
-  if (is_outermost_main_frame) {
-    base::UmaHistogramEnumeration(
-        "ServiceWorker.AutoPreload.MainFrame.DispatchResult", result);
-  }
 }
 
 }  // namespace
@@ -483,11 +478,6 @@ void ServiceWorkerMainResourceLoader::MaybeDispatchPreload(
             MaybeStartAutoPreload(context_wrapper, version);
         base::UmaHistogramBoolean("ServiceWorker.AutoPreload.Dispatched",
                                   auto_preload_dispatched);
-        if (resource_request_.is_outermost_main_frame) {
-          base::UmaHistogramBoolean(
-              "ServiceWorker.AutoPreload.MainFrame.Dispatched",
-              auto_preload_dispatched);
-        }
         if (auto_preload_dispatched) {
           return;
         }
@@ -511,24 +501,21 @@ bool ServiceWorkerMainResourceLoader::MaybeStartAutoPreload(
 
   if (!base::FeatureList::IsEnabled(features::kServiceWorkerAutoPreload)) {
     RecordAutoPreloadDispatchResult(
-        ServiceWorkerAutoPreloadDispatchResult::kFeatureDisabled,
-        resource_request_.is_outermost_main_frame);
+        ServiceWorkerAutoPreloadDispatchResult::kFeatureDisabled);
     return false;
   }
 
   if (!GetContentClient()->browser()->IsServiceWorkerAutoPreloadAllowed(
           context->browser_context())) {
     RecordAutoPreloadDispatchResult(
-        ServiceWorkerAutoPreloadDispatchResult::kNotAllowedByBrowser,
-        resource_request_.is_outermost_main_frame);
+        ServiceWorkerAutoPreloadDispatchResult::kNotAllowedByBrowser);
     return false;
   }
 
   // AutoPreload is triggered only in a main frame.
   if (!resource_request_.is_outermost_main_frame) {
     RecordAutoPreloadDispatchResult(
-        ServiceWorkerAutoPreloadDispatchResult::kNotOutermostMainFrame,
-        /*is_outermost_main_frame=*/false);
+        ServiceWorkerAutoPreloadDispatchResult::kNotOutermostMainFrame);
     return false;
   }
 
@@ -538,8 +525,7 @@ bool ServiceWorkerMainResourceLoader::MaybeStartAutoPreload(
           features::kOptimizeWebRequestProxyForServiceWorkerAutoPreload) &&
       context->storage_partition()->is_guest()) {
     RecordAutoPreloadDispatchResult(
-        ServiceWorkerAutoPreloadDispatchResult::kGuestStoragePartition,
-        /*is_outermost_main_frame=*/true);
+        ServiceWorkerAutoPreloadDispatchResult::kGuestStoragePartition);
     return false;
   }
 
@@ -550,8 +536,7 @@ bool ServiceWorkerMainResourceLoader::MaybeStartAutoPreload(
   if (GetContentClient()->browser()->HasWebRequestAPIProxy(
           context->browser_context())) {
     RecordAutoPreloadDispatchResult(
-        ServiceWorkerAutoPreloadDispatchResult::kWebRequestAPIProxy,
-        /*is_outermost_main_frame=*/true);
+        ServiceWorkerAutoPreloadDispatchResult::kWebRequestAPIProxy);
     return false;
   }
 
@@ -570,12 +555,10 @@ bool ServiceWorkerMainResourceLoader::MaybeStartAutoPreload(
     // receiving the fetch handler result.
     SetCommitResponsibility(FetchResponseFrom::kServiceWorker);
     RecordAutoPreloadDispatchResult(
-        ServiceWorkerAutoPreloadDispatchResult::kDispatched,
-        /*is_outermost_main_frame=*/true);
+        ServiceWorkerAutoPreloadDispatchResult::kDispatched);
   } else {
     RecordAutoPreloadDispatchResult(
-        ServiceWorkerAutoPreloadDispatchResult::kStartFailed,
-        /*is_outermost_main_frame=*/true);
+        ServiceWorkerAutoPreloadDispatchResult::kStartFailed);
   }
 
   return result;
@@ -1352,18 +1335,9 @@ void ServiceWorkerMainResourceLoader::StartResponse(
         fetch_event_timing_->respond_with_settled_time;
   }
 
-  // Synthetic and same-origin responses are same-origin to the requesting
-  // client if the request initiator is same-origin with the request URL, so
-  // the timing allow check trivially passes. Filtered responses wrap a
-  // cross-origin response for which the timing allow check must not be
-  // assumed to have passed unless the Timing-Allow-Origin check passes.
-  if (resource_request_.request_initiator &&
-      ((resource_request_.request_initiator->IsSameOriginWith(
-            resource_request_.url) &&
-        (response_head_->response_type ==
-             network::mojom::FetchResponseType::kBasic ||
-         response_head_->response_type ==
-             network::mojom::FetchResponseType::kDefault)) ||
+  if (resource_request_.request_initiator && response_head_->parsed_headers &&
+      (resource_request_.request_initiator->IsSameOriginWith(
+           resource_request_.url) ||
        (response_head_->parsed_headers &&
         network::TimingAllowOriginCheck(
             response_head_->parsed_headers->timing_allow_origin,

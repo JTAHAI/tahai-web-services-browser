@@ -115,7 +115,7 @@ class SelectToolJavaScriptTest
                                    const std::string& value) {
     const std::string script = base::StringPrintf(
         R"(__gCrWeb.getRegisteredApi('select_tool').getFunction()"
-        R"('select')({coordinate: {x: %d, y: %d, pixelType: %d}}, '%s'))",
+        R"('selectByCoordinate')(%d, %d, %d, '%s'))",
         x, y, pixelType, value.c_str());
     id result = web::test::ExecuteJavaScript(web_view(),
                                              base::SysUTF8ToNSString(script));
@@ -126,7 +126,7 @@ class SelectToolJavaScriptTest
   NSDictionary* SelectByNodeId(int nodeId, const std::string& value) {
     const std::string script = base::StringPrintf(
         R"(__gCrWeb.getRegisteredApi('select_tool').getFunction()"
-        R"('select')({contentNodeId: %d}, '%s'))",
+        R"('selectByNodeId')(%d, '%s'))",
         nodeId, value.c_str());
     id result = web::test::ExecuteJavaScript(web_view(),
                                              base::SysUTF8ToNSString(script));

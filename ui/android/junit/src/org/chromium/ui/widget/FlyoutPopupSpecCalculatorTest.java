@@ -23,7 +23,7 @@ import org.chromium.ui.widget.AnchoredPopupWindow.VerticalOrientation;
 
 /** Unit tests for the static positioning methods in {@link FlyoutPopupSpecCalculator}. */
 @RunWith(BaseRobolectricTestRunner.class)
-@Config(shadows = ShadowView.class, qualifiers = "w600dp-h1000dp-mdpi")
+@Config(manifest = Config.NONE, shadows = ShadowView.class, qualifiers = "w600dp-h1000dp-mdpi")
 public final class FlyoutPopupSpecCalculatorTest {
     private FlyoutPopupSpecCalculator mCalculator;
 
@@ -38,7 +38,6 @@ public final class FlyoutPopupSpecCalculatorTest {
     private int mPaddingY;
     private int mMarginPx;
     private int mMaxWidthPx;
-    private int mMaxHeightPx;
     private int mDesiredWidthPx;
     private int mDesiredHeightPx;
     private @HorizontalOrientation int mPreferredHorizontalOrientation;
@@ -117,12 +116,10 @@ public final class FlyoutPopupSpecCalculatorTest {
                         anchoredRect,
                         mContentView,
                         mRootWidth,
-                        mRootHeight,
                         mPaddingX,
                         mPaddingY,
                         mMarginPx,
                         mMaxWidthPx,
-                        mMaxHeightPx,
                         mDesiredWidthPx,
                         mDesiredHeightPx,
                         mPreferredHorizontalOrientation,
@@ -146,7 +143,6 @@ public final class FlyoutPopupSpecCalculatorTest {
         mPaddingY = 0;
         mMarginPx = 0;
         mMaxWidthPx = 0;
-        mMaxHeightPx = 0;
         mDesiredWidthPx = 0;
         mDesiredHeightPx = 0;
         mPreferredHorizontalOrientation = HorizontalOrientation.MAX_AVAILABLE_SPACE;

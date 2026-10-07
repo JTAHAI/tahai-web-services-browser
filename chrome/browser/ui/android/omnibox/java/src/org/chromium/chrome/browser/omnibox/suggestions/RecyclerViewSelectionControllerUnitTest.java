@@ -31,23 +31,24 @@ import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
+import org.robolectric.annotation.Config;
 
 import org.chromium.base.Callback;
 import org.chromium.base.test.BaseRobolectricTestRunner;
-import org.chromium.chrome.browser.omnibox.suggestions.SelectionController.TraversalMode;
 
 /** Tests for {@link RecyclerViewSelectionController}. */
 @RunWith(BaseRobolectricTestRunner.class)
+@Config(manifest = Config.NONE)
 public class RecyclerViewSelectionControllerUnitTest {
-    @Rule public final MockitoRule mMockitoRule = MockitoJUnit.rule();
+    public @Rule MockitoRule mMockitoRule = MockitoJUnit.rule();
 
-    @Mock private LayoutManager mLayoutManager;
-    @Mock private View mChildView1;
-    @Mock private View mChildView2;
-    @Mock private View mChildView3;
-    @Mock private View mChildView4;
-    @Mock private View mChildView5;
-    @Mock private Callback<Boolean> mVirtualCallback;
+    private @Mock LayoutManager mLayoutManager;
+    private @Mock View mChildView1;
+    private @Mock View mChildView2;
+    private @Mock View mChildView3;
+    private @Mock View mChildView4;
+    private @Mock View mChildView5;
+    private @Mock Callback<Boolean> mVirtualCallback;
     RecyclerViewSelectionController mSelectionController;
     RecyclerViewSelectionController mSelectionControllerWithSentinel;
 
@@ -67,10 +68,12 @@ public class RecyclerViewSelectionControllerUnitTest {
         lenient().doReturn(true).when(mChildView5).isFocusable();
 
         mSelectionController =
-                new RecyclerViewSelectionController(mLayoutManager, TraversalMode.SATURATING);
+                new RecyclerViewSelectionController(
+                        mLayoutManager, RecyclerViewSelectionController.Mode.SATURATING);
         mSelectionControllerWithSentinel =
                 new RecyclerViewSelectionController(
-                        mLayoutManager, TraversalMode.SATURATING_WITH_SENTINEL);
+                        mLayoutManager,
+                        RecyclerViewSelectionController.Mode.SATURATING_WITH_SENTINEL);
 
         // Saturating controller will initialize selection, impacting tests. Reset this right away.
         clearInvocations(mChildView1);

@@ -54,7 +54,7 @@ class CORE_EXPORT DocumentMarker : public GarbageCollected<DocumentMarker> {
     kMarkerTypeIndexesCount
   };
 
-  enum MarkerType : uint32_t {
+  enum MarkerType : unsigned {
     kSpelling = 1 << kSpellingMarkerIndex,
     kGrammar = 1 << kGrammarMarkerIndex,
     kTextMatch = 1 << kTextMatchMarkerIndex,
@@ -75,7 +75,7 @@ class CORE_EXPORT DocumentMarker : public GarbageCollected<DocumentMarker> {
     using pointer = MarkerType*;
     using reference = MarkerType&;
 
-    explicit MarkerTypesIterator(uint32_t marker_types)
+    explicit MarkerTypesIterator(unsigned marker_types)
         : remaining_types_(marker_types) {}
     MarkerTypesIterator(const MarkerTypesIterator& other) = default;
 
@@ -106,14 +106,14 @@ class CORE_EXPORT DocumentMarker : public GarbageCollected<DocumentMarker> {
     }
 
    private:
-    uint32_t remaining_types_;
+    unsigned remaining_types_;
   };
 
   class MarkerTypes {
     DISALLOW_NEW();
 
    public:
-    explicit MarkerTypes(uint32_t mask = 0) : mask_(mask) {}
+    explicit MarkerTypes(unsigned mask = 0) : mask_(mask) {}
 
     static MarkerTypes All() {
       return MarkerTypes((1 << kMarkerTypeIndexesCount) - 1);
@@ -174,7 +174,7 @@ class CORE_EXPORT DocumentMarker : public GarbageCollected<DocumentMarker> {
     MarkerTypesIterator end() const { return MarkerTypesIterator(0); }
 
    private:
-    uint32_t mask_;
+    unsigned mask_;
   };
 
   DocumentMarker(const DocumentMarker&) = delete;

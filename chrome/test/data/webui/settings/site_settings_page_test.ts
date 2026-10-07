@@ -244,6 +244,25 @@ suite('SiteSettingsPage', function() {
       '#automatic-fullscreen'));
   });
 
+  test('InlineCueMenuRow', async function() {
+    loadTimeData.overrideValues({enableInlineCueMenuContentSetting: true});
+    setupPage();
+    const expandButton =
+        page.shadowRoot!.querySelector<CrExpandButtonElement>('#expandContent');
+    assertTrue(!!expandButton);
+    expandButton.click();
+    await expandButton.updateComplete;
+    assertTrue(isChildVisible(
+        page.shadowRoot!.querySelector('#advancedContentList')!,
+        '#inline-cue-menu'));
+
+    loadTimeData.overrideValues({enableInlineCueMenuContentSetting: false});
+    setupPage();
+    assertFalse(isChildVisible(
+        page.shadowRoot!.querySelector('#advancedContentList')!,
+        '#inline-cue-menu'));
+  });
+
   test('UnusedSitePermissionsControlToggleUpdatesPrefs', function() {
     const unusedSitePermissionsRevocationToggle =
         page.shadowRoot!.querySelector<SettingsToggleButtonElement>(
@@ -396,7 +415,9 @@ suite('SiteSettingsList', function() {
       route: routes.SITE_SETTINGS_SENSORS,
       id: ContentSettingsTypes.SENSORS,
       label: 'siteSettingsSensors',
-      icon: 'privacy:sensors',
+      icon: loadTimeData.getBoolean('webuiRoundedIconsEnabled') ?
+          'privacy:sensors' :
+          'privacy:sensors-old',
       enabledLabel: 'siteSettingsSensorsAllowed',
       disabledLabel: 'siteSettingsSensorsBlocked',
       askLabel: 'siteSettingsSensorsAsk',
@@ -419,7 +440,11 @@ suite('SiteSettingsList', function() {
         [], []);
     browserProxy.setPrefs(allowPrefs);
     await flushTasks();
-    assertEquals('privacy:sensors', sensorsRow.startIcon);
+    assertEquals(
+        loadTimeData.getBoolean('webuiRoundedIconsEnabled') ?
+            'privacy:sensors' :
+            'privacy:sensors-old',
+        sensorsRow.startIcon);
 
     const askPrefs = createSiteSettingsPrefs(
         [createContentSettingTypeToValuePair(
@@ -439,6 +464,10 @@ suite('SiteSettingsList', function() {
         [], []);
     browserProxy.setPrefs(blockPrefs);
     await flushTasks();
-    assertEquals('privacy:sensors-off', sensorsRow.startIcon);
+    assertEquals(
+        loadTimeData.getBoolean('webuiRoundedIconsEnabled') ?
+            'privacy:sensors-off' :
+            'privacy:sensors-off-old',
+        sensorsRow.startIcon);
   });
 });

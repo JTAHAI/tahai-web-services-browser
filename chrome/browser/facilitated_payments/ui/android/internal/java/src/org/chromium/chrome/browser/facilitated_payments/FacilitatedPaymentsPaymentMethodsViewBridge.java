@@ -39,11 +39,10 @@ public class FacilitatedPaymentsPaymentMethodsViewBridge {
     private FacilitatedPaymentsPaymentMethodsViewBridge(
             Context context,
             BottomSheetController bottomSheetController,
-            WindowAndroid windowAndroid,
             Delegate delegate,
             Profile profile) {
         mComponent = new FacilitatedPaymentsPaymentMethodsCoordinator();
-        mComponent.initialize(context, bottomSheetController, windowAndroid, delegate, profile);
+        mComponent.initialize(context, bottomSheetController, delegate, profile);
     }
 
     @CalledByNative
@@ -70,7 +69,7 @@ public class FacilitatedPaymentsPaymentMethodsViewBridge {
         }
 
         return new FacilitatedPaymentsPaymentMethodsViewBridge(
-                context, bottomSheetController, windowAndroid, delegate, profile);
+                context, bottomSheetController, delegate, profile);
     }
 
     /**
@@ -87,8 +86,8 @@ public class FacilitatedPaymentsPaymentMethodsViewBridge {
      * <p>If a Facilitated Payments bottom sheet is being shown, then the FOP selector replaces the
      * screen being shown. If not, opens a new bottom sheet and shows the FOP selector screen.
      *
-     * <p>The bottom sheet may not be shown in some cases. See {@link
-     * BottomSheetController#requestShowContent}.
+     * <p>The bottom sheet may not be shown in some cases. {@see
+     * BottomSheetController#requestShowContent}
      *
      * @param bankAccounts User's bank accounts which passed from facilitated payments client.
      */
@@ -142,9 +141,8 @@ public class FacilitatedPaymentsPaymentMethodsViewBridge {
 
     /** Requests to show the Pix account linking prompt in a bottom sheet. */
     @CalledByNative
-    public void showPixAccountLinkingPrompt(
-            int strikeCount, @JniType("std::string") String accountEmail) {
-        mComponent.showPixAccountLinkingPrompt(strikeCount, accountEmail);
+    public void showPixAccountLinkingPrompt(int strikeCount) {
+        mComponent.showPixAccountLinkingPrompt(strikeCount);
     }
 
     /** Requests to show the Pix account linking success screen in a bottom sheet. */
@@ -160,11 +158,5 @@ public class FacilitatedPaymentsPaymentMethodsViewBridge {
             @JniType("std::u16string") String fopDisplayName,
             int strikeCount) {
         mComponent.showAccountLinkingPrompt(fopType, fopDisplayName, strikeCount);
-    }
-
-    /** Requests to show the account linking failure notification. */
-    @CalledByNative
-    public void showAccountLinkingFailureNotification(@FacilitatedPaymentsType int fopType) {
-        mComponent.showAccountLinkingFailureNotification(fopType);
     }
 }

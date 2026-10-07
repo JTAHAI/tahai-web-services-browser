@@ -27,7 +27,8 @@ lazy_static! {
     /// value of s(i) is bound between 0..8207.
     static ref POW43: Box<[f32; POW43_LEN]> = {
         let pow43: Vec<f32> = (0..POW43_LEN).map(|i| f32::powf(i as f32, 4.0 / 3.0)).collect();
-        pow43.into_boxed_slice().try_into().expect("vec initialized to POW43_LEN")
+        // UNWRAP: The vector was initialized to be the correct size.
+        pow43.into_boxed_slice().try_into().unwrap()
     };
 }
 

@@ -65,6 +65,7 @@ public class AwImeTest extends AwParameterizedTest {
     private AwTestContainerView mTestContainerView;
     private EditText mEditText;
     private final TestJavascriptInterface mTestJavascriptInterface = new TestJavascriptInterface();
+    private TestInputMethodManagerWrapper mInputMethodManagerWrapper;
 
     public AwImeTest(AwSettingsMutation param) {
         this.mActivityTestRule = new AwActivityTestRule(param.getMutation());
@@ -118,25 +119,24 @@ public class AwImeTest extends AwParameterizedTest {
         // Shows an input at the bottom of the screen.
         final String htmlDocument =
                 """
-                <html>
-                <head>
-                    <style>
-                        html,
-                        body {
-                            background-color: beige
-                        }
+                        <html>
+                        <head>
+                            <style>
+                                html,
+                                body {
+                                    background-color: beige
+                                }
 
-                        div {
-                            position: absolute;
-                            top: 10000px;
-                        }
-                    </style>
-                </head>
+                                div {
+                                    position: absolute;
+                                    top: 10000px;
+                                }
+                            </style>
+                        </head>
 
-                <body>Test<div id='footer'><input id='input_text'><br /></div>
-                </body>
-                </html>
-                """;
+                        <body>Test<div id='footer'><input id='input_text'><br /></div>
+                        </body>
+                        </html>""";
         final CallbackHelper loadHelper = mContentsClient.getOnPageFinishedHelper();
 
         mActivityTestRule.loadHtmlSync(
@@ -175,8 +175,7 @@ public class AwImeTest extends AwParameterizedTest {
                         onDocumentFocused();
                 } else {
                         window.addEventListener('focus', onDocumentFocused)
-                }})();
-                """);
+                }})();""");
         mTestJavascriptInterface.getFocusCallbackHelper().waitForCallback(0);
     }
 

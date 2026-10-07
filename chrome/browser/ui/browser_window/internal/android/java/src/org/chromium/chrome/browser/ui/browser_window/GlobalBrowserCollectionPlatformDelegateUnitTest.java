@@ -7,7 +7,6 @@ package org.chromium.chrome.browser.ui.browser_window;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
@@ -24,9 +23,6 @@ import org.mockito.junit.MockitoRule;
 import org.robolectric.annotation.Config;
 
 import org.chromium.base.test.BaseRobolectricTestRunner;
-import org.chromium.chrome.browser.profiles.Profile;
-import org.chromium.chrome.browser.ui.browser_window.AndroidBrowserWindowObserver.AndroidBrowserWindowInfo;
-import org.chromium.ui.base.ActivityWindowAndroid;
 
 /** Unit tests for {@link GlobalBrowserCollectionPlatformDelegate}. */
 @RunWith(BaseRobolectricTestRunner.class)
@@ -109,16 +105,11 @@ public class GlobalBrowserCollectionPlatformDelegateUnitTest {
     public void testBrowserWindowAddedAndRemoved() {
         GlobalBrowserCollectionPlatformDelegate delegate =
                 new GlobalBrowserCollectionPlatformDelegate(DELEGATE_PTR);
-        var info =
-                new AndroidBrowserWindowInfo(
-                        FAKE_NATIVE_ANDROID_BROWSER_WINDOW_PTR,
-                        mock(Profile.class),
-                        mock(ActivityWindowAndroid.class));
 
-        delegate.onBrowserWindowAdded(info);
+        delegate.onBrowserWindowAdded(FAKE_NATIVE_ANDROID_BROWSER_WINDOW_PTR);
         verify(mNativeMock).onBrowserCreated(DELEGATE_PTR, FAKE_NATIVE_ANDROID_BROWSER_WINDOW_PTR);
 
-        delegate.onBrowserWindowRemoved(info);
+        delegate.onBrowserWindowRemoved(FAKE_NATIVE_ANDROID_BROWSER_WINDOW_PTR);
         verify(mNativeMock).onBrowserClosed(DELEGATE_PTR, FAKE_NATIVE_ANDROID_BROWSER_WINDOW_PTR);
 
         delegate.destroy();
@@ -130,13 +121,8 @@ public class GlobalBrowserCollectionPlatformDelegateUnitTest {
                 new GlobalBrowserCollectionPlatformDelegate(DELEGATE_PTR);
         delegate.destroy();
 
-        var info =
-                new AndroidBrowserWindowInfo(
-                        FAKE_NATIVE_ANDROID_BROWSER_WINDOW_PTR,
-                        mock(Profile.class),
-                        mock(ActivityWindowAndroid.class));
-        delegate.onBrowserWindowAdded(info);
-        delegate.onBrowserWindowRemoved(info);
+        delegate.onBrowserWindowAdded(FAKE_NATIVE_ANDROID_BROWSER_WINDOW_PTR);
+        delegate.onBrowserWindowRemoved(FAKE_NATIVE_ANDROID_BROWSER_WINDOW_PTR);
         verify(mNativeMock, never())
                 .onBrowserCreated(DELEGATE_PTR, FAKE_NATIVE_ANDROID_BROWSER_WINDOW_PTR);
         verify(mNativeMock, never())

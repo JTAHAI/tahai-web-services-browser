@@ -8,9 +8,6 @@
 #import <Cocoa/Cocoa.h>
 #import <MediaPlayer/MediaPlayer.h>
 
-#include "base/component_export.h"
-
-COMPONENT_EXPORT(SYSTEM_MEDIA_CONTROLS)
 @interface NowPlayingInfoCenterDelegateCocoa : NSObject
 
 - (instancetype)init;
@@ -29,9 +26,6 @@ COMPONENT_EXPORT(SYSTEM_MEDIA_CONTROLS)
 - (void)setDuration:(NSNumber*)duration;
 - (void)setThumbnail:(NSImage*)image;
 - (void)updateNowPlayingInfo;
-
-// Removes position-related fields while preserving descriptive metadata.
-- (void)clearPosition;
 
 // Sets all metadata to default values.
 - (void)clearMetadata;

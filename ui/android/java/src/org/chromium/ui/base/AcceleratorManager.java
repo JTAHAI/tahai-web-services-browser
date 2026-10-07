@@ -21,7 +21,6 @@ import org.chromium.build.annotations.Nullable;
 public class AcceleratorManager {
     private static final UnownedUserDataKey<AcceleratorManager> KEY = new UnownedUserDataKey<>();
     private final @Nullable LifetimeAssert mLifetimeAssert;
-    private final WindowAndroid mWindow;
     // Note: the native side is not created until it's first accessed in
     // getNativePointerFromWindow().
     private long mNativeAcceleratorManagerAndroid;
@@ -45,11 +44,9 @@ public class AcceleratorManager {
             mNativeAcceleratorManagerAndroid = 0;
             mAcceleratorsAreRegistered = false;
         }
-        KEY.detachFromHost(mWindow.getUnownedUserDataHost());
     }
 
     private AcceleratorManager(WindowAndroid window) {
-        mWindow = window;
         mLifetimeAssert = LifetimeAssert.create(this);
         KEY.attachToHost(window.getUnownedUserDataHost(), this);
     }

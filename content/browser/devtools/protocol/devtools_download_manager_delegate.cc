@@ -33,8 +33,6 @@ DevToolsDownloadManagerDelegate::DevToolsDownloadManagerDelegate(
   download_manager_->SetDelegate(this);
 }
 
-DevToolsDownloadManagerDelegate::~DevToolsDownloadManagerDelegate() = default;
-
 // static
 DevToolsDownloadManagerDelegate*
 DevToolsDownloadManagerDelegate::GetOrCreateInstance(BrowserContext* context) {
@@ -53,29 +51,6 @@ DevToolsDownloadManagerDelegate* DevToolsDownloadManagerDelegate::GetInstance(
     BrowserContext* context) {
   return static_cast<DevToolsDownloadManagerDelegate*>(
       context->GetUserData(kDevToolsDownloadManagerDelegateName));
-}
-
-DevToolsDownloadManagerDelegate::DownloadBehaviorOverrideHandle
-DevToolsDownloadManagerDelegate::SetDownloadBehavior(
-    DownloadBehavior behavior,
-    std::string download_path) {
-  DCHECK_CURRENTLY_ON(BrowserThread::UI);
-  download_behavior_ = behavior;
-  download_path_ = std::move(download_path);
-  const uint64_t override_id = ++last_download_behavior_override_id_;
-  return DownloadBehaviorOverrideHandle(
-      base::BindOnce(&DevToolsDownloadManagerDelegate::ResetDownloadBehavior,
-                     weak_factory_.GetWeakPtr(), override_id));
-}
-
-void DevToolsDownloadManagerDelegate::ResetDownloadBehavior(
-    uint64_t override_id) {
-  DCHECK_CURRENTLY_ON(BrowserThread::UI);
-  if (last_download_behavior_override_id_ != override_id) {
-    return;
-  }
-  download_behavior_ = DownloadBehavior::DEFAULT;
-  download_path_.clear();
 }
 
 void DevToolsDownloadManagerDelegate::Shutdown() {

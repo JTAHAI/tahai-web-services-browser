@@ -11,9 +11,7 @@
 #include "base/callback_list.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
-#include "base/scoped_observation.h"
 #include "chrome/browser/glic/host/glic.mojom.h"
-#include "chrome/browser/glic/host/glic_webui.mojom.h"
 #include "chrome/browser/glic/host/host.h"
 #include "mojo/public/cpp/bindings/receiver.h"
 #include "mojo/public/cpp/bindings/remote.h"
@@ -31,8 +29,7 @@ class GlicKeyedService;
 
 // Handles the Mojo requests coming from the Glic WebUI.
 class GlicPageHandler : public glic::mojom::PageHandler,
-                        public PanelStateObserver,
-                        public Host::Observer {
+                        public PanelStateObserver {
  public:
   GlicPageHandler(content::WebContents* webui_contents,
                   Host* host,
@@ -48,12 +45,14 @@ class GlicPageHandler : public glic::mojom::PageHandler,
 
   void NotifyWindowIntentToShow();
 
-  void Zoom(mojom::ZoomAction zoom_action, ZoomSource source);
+  void Zoom(mojom::ZoomAction zoom_action);
 
   Host& host();
 
   // glic::mojom::PageHandler implementation.
 
+  void CreateWebClient(::mojo::PendingReceiver<glic::mojom::WebClientHandler>
+                           web_client_receiver) override;
   void PrepareForClient(base::OnceCallback<void(mojom::PrepareForClientResult)>
                             callback) override;
   // Called whenever the webview main frame commits.
@@ -68,14 +67,6 @@ class GlicPageHandler : public glic::mojom::PageHandler,
   void SignInAndClosePanel() override;
 
   void OpenDisabledByAdminLinkAndClosePanel() override;
-
-  void OpenLinkInPopup(const GURL& url,
-                       int32_t popup_width,
-                       int32_t popup_height) override;
-  void OpenLinkInNewTab(const GURL& url) override;
-
-  void ShouldAllowGeolocationPermissionRequest(
-      ShouldAllowGeolocationPermissionRequestCallback callback) override;
 
   void OpenHelpCenterTopicAndClosePanel(
       glic::mojom::HelpCenterTopic topic) override;
@@ -93,17 +84,13 @@ class GlicPageHandler : public glic::mojom::PageHandler,
   void SetProfileReadyState(glic::mojom::ProfileReadyState ready_state);
   void UpdateProfileReadyState();
 
-  void OnWebUiStateChanged(glic::mojom::WebUiState new_state) override;
-
-  // Host::Observer implementation.
-  void ClientReadyToShow(const mojom::OpenPanelInfo& open_info) override;
+  void WebUiStateChanged(glic::mojom::WebUiState new_state) override;
 
   // PanelStateObserver implementation.
   void PanelStateChanged(const glic::mojom::PanelState& panel_state) override;
 
   void UpdatePageState(mojom::PanelStateKind panelStateKind);
 
-  glic::mojom::Page* page() { return page_.get(); }
 
  private:
   GlicKeyedService* GetGlicService();
@@ -115,7 +102,6 @@ class GlicPageHandler : public glic::mojom::PageHandler,
   mojo::Receiver<glic::mojom::PageHandler> receiver_;
   mojo::Remote<glic::mojom::Page> page_;
   mojo::Remote<glic::mojom::WebClient> web_client_;
-  base::ScopedObservation<Host, Host::Observer> host_observation_{this};
   std::vector<base::CallbackListSubscription> subscriptions_;
   base::WeakPtrFactory<GlicPageHandler> weak_ptr_factory_{this};
 };

@@ -9,7 +9,6 @@
 #import "base/memory/weak_ptr.h"
 #import "base/types/expected.h"
 #import "components/optimization_guide/proto/features/actions_data.pb.h"
-#import "ios/chrome/browser/intelligence/actor/tools/model/action_target.h"
 #import "ios/chrome/browser/intelligence/actor/tools/model/action_target_java_script_feature.h"
 #import "ios/chrome/browser/intelligence/actor/tools/model/web_actor_tool.h"
 
@@ -39,16 +38,14 @@ class SelectTool : public WebActorTool {
 
  private:
   SelectTool(base::WeakPtr<web::WebState> web_state,
-             std::optional<std::string> value,
-             ActionTarget target);
+             const optimization_guide::proto::SelectAction& action);
 
   void OnTargetFrameResolved(
       ToolExecutionCallback callback,
       base::expected<ActionTargetJavaScriptFeature::TargetFrameResult,
                      ToolExecutionResult> result);
 
-  std::optional<std::string> value_;
-  ActionTarget target_;
+  optimization_guide::proto::SelectAction action_;
   base::WeakPtr<web::WebState> web_state_;
   raw_ptr<SelectToolJavaScriptFeature> js_feature_ = nullptr;
   base::WeakPtrFactory<SelectTool> weak_ptr_factory_{this};

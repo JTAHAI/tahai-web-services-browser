@@ -21,6 +21,8 @@ Storage
   Cookies
     http://127.0.0.1:8000
   Private state tokens
+  Shared storage
+    http://127.0.0.1:8000
   Cache storage
   Storage buckets
 Background services
@@ -63,6 +65,8 @@ Storage
   Cookies
     http://127.0.0.1:8000
   Private state tokens
+  Shared storage
+    http://127.0.0.1:8000
   Cache storage
   Storage buckets
 Background services

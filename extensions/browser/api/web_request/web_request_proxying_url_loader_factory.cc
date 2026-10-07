@@ -31,7 +31,6 @@
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/content_browser_client.h"
 #include "content/public/browser/global_request_id.h"
-#include "content/public/browser/navigation_handle.h"
 #include "content/public/browser/network_service_instance.h"
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/storage_partition.h"
@@ -265,16 +264,6 @@ void WebRequestProxyingURLLoaderFactory::InProgressRequest::Restart() {
 }
 
 void WebRequestProxyingURLLoaderFactory::InProgressRequest::
-    AuthorizeBypassRedirectChecks() {
-  if (info_->is_navigation_request && info_->navigation_id.has_value() &&
-      factory_->navigation_ui_data_) {
-    content::NavigationHandle::SetBypassRedirectChecksForNextRedirect(
-        factory_->navigation_ui_data_->frame_tree_node_id(),
-        info_->navigation_id.value());
-  }
-}
-
-void WebRequestProxyingURLLoaderFactory::InProgressRequest::
     UpdateRequestInfo() {
   // Derive a new WebRequestInfo value any time |Restart()| is called, because
   // the details in |request_| may have changed e.g. if we've been redirected.
@@ -481,7 +470,7 @@ void WebRequestProxyingURLLoaderFactory::InProgressRequest::OnReceiveRedirect(
   bool redirect_url_comes_from_extension =
       redirect_url_ == redirect_info.new_url;
   if (redirect_url_comes_from_extension) {
-    AuthorizeBypassRedirectChecks();
+    head->bypass_redirect_checks = true;
   }
 
   if (!redirect_url_comes_from_extension &&
@@ -750,7 +739,7 @@ void WebRequestProxyingURLLoaderFactory::InProgressRequest::
   head->headers = base::MakeRefCounted<net::HttpResponseHeaders>(
       net::HttpUtil::AssembleRawHeaders(headers));
   head->encoded_data_length = 0;
-  AuthorizeBypassRedirectChecks();
+  head->bypass_redirect_checks = true;
 
   current_response_ = std::move(head);
   ContinueToBeforeRedirect(redirect_info, net::OK);
@@ -1249,7 +1238,7 @@ void WebRequestProxyingURLLoaderFactory::InProgressRequest::
 
     // Since this is an extension-generated redirect, we need to tell
     // the client to bypass redirect checks.
-    AuthorizeBypassRedirectChecks();
+    current_response_->bypass_redirect_checks = true;
 
     // These will get re-bound if a new request is initiated by
     // |FollowRedirect()|.

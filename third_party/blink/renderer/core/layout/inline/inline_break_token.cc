@@ -6,7 +6,6 @@
 
 #include "third_party/blink/renderer/core/layout/block_break_token.h"
 #include "third_party/blink/renderer/platform/wtf/size_assertions.h"
-#include "third_party/blink/renderer/platform/wtf/text/format.h"
 #include "third_party/blink/renderer/platform/wtf/text/string_builder.h"
 
 namespace blink {
@@ -85,8 +84,8 @@ InlineBreakToken::InlineBreakToken(PassKey key,
 
 String InlineBreakToken::ToString() const {
   StringBuilder string_builder;
-  FormatTo(string_builder, "InlineBreakToken index:{} offset:{}",
-           StartItemIndex(), StartTextOffset());
+  string_builder.Append(String::Format("InlineBreakToken index:%u offset:%u",
+                                       StartItemIndex(), StartTextOffset()));
   if (UseFirstLineStyle()) {
     string_builder.Append(" first-line");
   }
@@ -98,7 +97,7 @@ String InlineBreakToken::ToString() const {
   if (IsInParallelBlockFlow()) {
     string_builder.Append(" parallel-flow");
   }
-  return string_builder.ReleaseString();
+  return string_builder.ToString();
 }
 
 #endif  // DCHECK_IS_ON()

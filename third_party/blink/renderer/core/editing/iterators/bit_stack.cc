@@ -28,22 +28,22 @@
 #include "third_party/blink/renderer/core/editing/iterators/bit_stack.h"
 
 namespace blink {
-static const wtf_size_t kBitsInWord = sizeof(uint32_t) * 8;
-static const wtf_size_t kBitInWordMask = kBitsInWord - 1;
+static const unsigned kBitsInWord = sizeof(unsigned) * 8;
+static const unsigned kBitInWordMask = kBitsInWord - 1;
 
-BitStack::BitStack() = default;
+BitStack::BitStack() : size_(0) {}
 
 BitStack::~BitStack() = default;
 
 void BitStack::Push(bool bit) {
-  wtf_size_t index = size_ / kBitsInWord;
-  wtf_size_t shift = size_ & kBitInWordMask;
+  unsigned index = size_ / kBitsInWord;
+  unsigned shift = size_ & kBitInWordMask;
   if (!shift && index == words_.size()) {
     words_.Grow(index + 1);
     words_[index] = 0;
   }
-  uint32_t& word = words_[index];
-  uint32_t mask = 1U << shift;
+  unsigned& word = words_[index];
+  unsigned mask = 1U << shift;
   if (bit)
     word |= mask;
   else
@@ -59,12 +59,12 @@ void BitStack::Pop() {
 bool BitStack::Top() const {
   if (!size_)
     return false;
-  wtf_size_t shift = (size_ - 1) & kBitInWordMask;
-  wtf_size_t index = (size_ - 1) / kBitsInWord;
+  unsigned shift = (size_ - 1) & kBitInWordMask;
+  unsigned index = (size_ - 1) / kBitsInWord;
   return words_[index] & (1U << shift);
 }
 
-wtf_size_t BitStack::size() const {
+unsigned BitStack::size() const {
   return size_;
 }
 

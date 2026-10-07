@@ -25,6 +25,7 @@
 #include "chrome/browser/devtools/devtools_window.h"
 #include "chrome/browser/devtools/features.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/common/chrome_paths.h"
 #include "chrome/common/chrome_paths_internal.h"
 #include "chrome/common/chrome_switches.h"
@@ -230,11 +231,8 @@ void RemoteDebuggingServer::StartHttpServerInApprovalModeWithPort(
     int port) {
   is_http_server_being_started_ = false;
 
-  // Recheck the policy and pref value in case they changed since the task was
-  // posted.
-  PrefService* local_state = pref_change_registrar_->prefs();
-  if (!local_state->GetBoolean(prefs::kDevToolsRemoteDebuggingAllowed) ||
-      !isRemoteDebuggingEnabledViaPrefs(local_state)) {
+  // Recheck the pref value in case it changed since we posted the task.
+  if (!isRemoteDebuggingEnabledViaPrefs(pref_change_registrar_->prefs())) {
     return;
   }
 
@@ -254,9 +252,17 @@ void RemoteDebuggingServer::MaybeStartOrStopServerForPrefChange() {
 
   PrefService* local_state = pref_change_registrar_->prefs();
 
-  if (!local_state->GetBoolean(prefs::kDevToolsRemoteDebuggingAllowed) ||
-      !isRemoteDebuggingEnabledViaPrefs(local_state)) {
+  // In case the policy is changed after the server was started somehow.
+  if (!local_state->GetBoolean(prefs::kDevToolsRemoteDebuggingAllowed)) {
     StopHttpServer();
+    is_http_server_running_ = false;
+    return;
+  }
+
+  // Latest chrome://inspect page preference value.
+  if (!isRemoteDebuggingEnabledViaPrefs(local_state)) {
+    StopHttpServer();
+    is_http_server_running_ = false;
     return;
   }
 
@@ -300,10 +306,6 @@ RemoteDebuggingServer::~RemoteDebuggingServer() {
   // Ensure Profile is alive, because the whole DevTools subsystem
   // accesses it during shutdown.
   DCHECK(g_browser_process->profile_manager());
-  StopServer();
-}
-
-void RemoteDebuggingServer::StopServer() {
   StopHttpServer();
   StopPipeHandler();
 }
@@ -319,7 +321,6 @@ void RemoteDebuggingServer::StartHttpServer(
 
 void RemoteDebuggingServer::StopHttpServer() {
   content::DevToolsAgentHost::StopRemoteDebuggingServer();
-  is_http_server_running_ = false;
 }
 
 void RemoteDebuggingServer::StartPipeHandler() {

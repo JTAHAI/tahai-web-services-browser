@@ -20,8 +20,8 @@
 #include "chrome/browser/glic/public/glic_instance.h"
 #include "chrome/browser/glic/public/glic_invoke_options.h"
 #include "chrome/browser/glic/public/glic_passkeys.h"
-#include "chrome/browser/glic/service/metrics/glic_invoke_metrics.h"
 #include "components/tabs/public/tab_interface.h"
+#include "content/public/browser/web_contents_observer.h"
 
 class Profile;
 
@@ -45,9 +45,6 @@ class GlicInvokeHandler {
 
   using ResolvedTarget = std::variant<TabSurface, Floating>;
 
-  static bool RequiresClientInvoke(const mojom::InvokeOptionsPtr& mojo_options,
-                                   bool has_auto_submit_passkey);
-
   // Resolves the target surface to a specific tab.
   static ResolvedTarget ResolveTargetSurface(Profile* profile,
                                              const Target& target);
@@ -61,7 +58,6 @@ class GlicInvokeHandler {
       GlicInvokeOptions options,
       GlicInvokeWithAutoSubmitOptions auto_submit_options,
       std::optional<InvokeWithAutoSubmitPasskey> auto_submit_passkey,
-      std::unique_ptr<GlicInvokeMetrics> invoke_metrics,
       CompletionCallback completion_callback);
   ~GlicInvokeHandler();
 
@@ -73,10 +69,6 @@ class GlicInvokeHandler {
 
   // Cancels the invocation, generating an error callback.
   void Cancel(GlicInvokeError error);
-
-  void set_completion_callback(CompletionCallback completion_callback) {
-    completion_callback_ = std::move(completion_callback);
-  }
 
  private:
   bool IsFloatingTarget() const;
@@ -110,7 +102,6 @@ class GlicInvokeHandler {
   base::OneShotTimer timeout_timer_;
 
   std::unique_ptr<SequentialTaskGroup> main_task_;
-  std::unique_ptr<GlicInvokeMetrics> metrics_;
 
   base::WeakPtrFactory<GlicInvokeHandler> weak_ptr_factory_{this};
 };

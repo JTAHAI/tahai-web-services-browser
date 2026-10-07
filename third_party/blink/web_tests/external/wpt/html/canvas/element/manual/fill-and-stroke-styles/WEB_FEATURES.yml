@@ -1,5 +1,9 @@
-rules:
-- conic-gradient.html: [canvas-createconicgradient]
-- conic-gradient-rotation.html: [canvas-createconicgradient]
-- conic-gradient*: []
-- "*": [canvas-2d]
+features:
+- name: canvas-2d
+  files:
+  - "*"
+  - "!conic-gradient*"
+- name: canvas-createconicgradient
+  files:
+  - conic-gradient.html
+  - conic-gradient-rotation.html

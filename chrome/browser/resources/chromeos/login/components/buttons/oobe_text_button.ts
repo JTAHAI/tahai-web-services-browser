@@ -60,8 +60,8 @@ export class OobeTextButton extends OobeBaseButton {
     };
   }
 
-  declare inverse: boolean;
-  declare border: boolean;
+  inverse: boolean;
+  border: boolean;
 
   private onInverseChanged(): void {
     this.$.button.classList.toggle('action-button', this.inverse);

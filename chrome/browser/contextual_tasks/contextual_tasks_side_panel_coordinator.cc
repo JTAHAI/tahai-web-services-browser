@@ -22,7 +22,6 @@
 #include "chrome/browser/contextual_search/contextual_search_service_factory.h"
 #include "chrome/browser/contextual_search/contextual_search_web_contents_helper.h"
 #include "chrome/browser/contextual_tasks/active_task_context_provider.h"
-#include "chrome/browser/contextual_tasks/aim_user_agent_tab_helper.h"
 #include "chrome/browser/contextual_tasks/contextual_search_session_finder.h"
 #include "chrome/browser/contextual_tasks/contextual_tasks_panel_controller.h"
 #include "chrome/browser/contextual_tasks/contextual_tasks_panel_host.h"
@@ -147,23 +146,10 @@ std::unique_ptr<content::WebContents> CreateWebContents(
       browser_window->GetProfile());
   std::unique_ptr<content::WebContents> web_contents =
       content::WebContents::Create(create_params);
-  if (contextual_tasks::IsContextualTasksUIEnabled()) {
-    contextual_tasks::AimUserAgentTabHelper::CreateForWebContents(
-        web_contents.get());
-  }
-  webui::SetBrowserWindowInterface(web_contents.get(), browser_window);
-
-  // Apply required side panel URL changes to the url being loaded into the
-  // WebContents. This is important since loading begins before the WebContents
-  // is attached to a side panel and therefore the navigation handler won't
-  // trigger.
-  if (contextual_tasks::IsContextualTasksSidePanelRearchitectureEnabled()) {
-    url = contextual_tasks::ContextualTasksUiService::
-        AddRequiredSidePanelUrlChanges(url, web_contents.get());
-  }
   web_contents->GetController().LoadURL(url, content::Referrer(),
                                         ui::PAGE_TRANSITION_AUTO_TOPLEVEL,
                                         std::string());
+  webui::SetBrowserWindowInterface(web_contents.get(), browser_window);
 
   // Create PermissionRequestManager explicitly for this WebContents.
   // The permission bubble will anchor to the browser window via
@@ -410,10 +396,6 @@ void ContextualTasksSidePanelCoordinator::Close() {
       ContextualTasksPanelHost::AnimationStyle::kStandard);
   Observe(nullptr);
 
-  if (active_task_context_provider_) {
-    active_task_context_provider_->ClearAllLocalTabUnderlines();
-  }
-
   NotifyActiveTaskContextProvider();
 
   RecordSessionEndMetrics();
@@ -439,16 +421,7 @@ void ContextualTasksSidePanelCoordinator::Close() {
 }
 
 void ContextualTasksSidePanelCoordinator::OpenInZeroState() {
-  // Disassociate only the active tab from its current task so that Show()
-  // creates a fresh zero-state task for this tab, without affecting any
-  // background tabs that may still be associated with the previous task.
-  TabListInterface* tab_list = TabListInterface::From(browser_window_);
-  if (tab_list) {
-    tabs::TabInterface* active_tab_interface = tab_list->GetActiveTab();
-    if (active_tab_interface && active_tab_interface->GetContents()) {
-      DisassociateTabFromTask(active_tab_interface->GetContents());
-    }
-  }
+  DisassociateAllTabsFromCurrentTask();
 
   if (content::WebContents* active_contents = GetActiveWebContents()) {
     MaybeDetachWebContents(active_contents);
@@ -706,13 +679,6 @@ void ContextualTasksSidePanelCoordinator::OnTabAdded(TabListInterface& tab_list,
                                                      tabs::TabInterface* tab,
                                                      int index) {
   content::WebContents* content = tab->GetContents();
-
-  // Background tabs opened via hotkey commands (e.g. Ctrl+Click, middle-click)
-  // or context menus should not inherit task association from the opener.
-  if (tab_list.GetActiveTab() != tab) {
-    return;
-  }
-
   // If the new tab is already associated with a task, do nothing.
   if (contextual_tasks_service_->GetContextualTaskForTab(
           sessions::SessionTabHelper::IdForTab(content))) {
@@ -1122,7 +1088,8 @@ void ContextualTasksSidePanelCoordinator::DisassociateAllTabsFromCurrentTask() {
   std::optional<ContextualTask> current_task = GetCurrentTask();
   if (current_task) {
     if (contextual_tasks::kShowEntryPoint.Get() ==
-        contextual_tasks::EntryPointOption::kToolbarEphemeralBranded) {
+            contextual_tasks::EntryPointOption::kToolbarEphemeralBranded &&
+        current_task->GetThread().has_value()) {
       return;
     }
 
@@ -1357,10 +1324,10 @@ void ContextualTasksSidePanelCoordinator::OnEligibilityChange(
     task_id_to_web_contents_cache_.clear();
   }
 #if !BUILDFLAG(IS_ANDROID)
-  if (browser_window_ && BrowserActions::From(browser_window_)) {
+  if (browser_window_ && browser_window_->GetActions()) {
     if (auto* action_item = actions::ActionManager::Get().FindAction(
             kActionSidePanelShowContextualTasks,
-            BrowserActions::From(browser_window_)->root_action_item())) {
+            browser_window_->GetActions()->root_action_item())) {
       action_item->SetVisible(is_eligible);
     }
   }
@@ -1392,11 +1359,9 @@ bool ContextualTasksSidePanelCoordinator::CanExpandToFullTab() const {
   return web_ui_interface ? web_ui_interface->CanExpandToFullTab() : false;
 }
 
-void ContextualTasksSidePanelCoordinator::ShowPageInfoBubble(
-    bool is_pointer_interaction) {
+void ContextualTasksSidePanelCoordinator::ShowPageInfoBubble() {
 #if !BUILDFLAG(IS_ANDROID)
-  if (page_info_bubble_suppressor_.ShouldSuppressBubbleShow(
-          is_pointer_interaction)) {
+  if (page_info_bubble_suppressor_.ShouldSuppress()) {
     return;
   }
 
@@ -1452,12 +1417,6 @@ void ContextualTasksSidePanelCoordinator::ShowPageInfoBubble(
 #else
   // TODO(crbug.com/536100150): Add support to trigger this menu on Android
   // Desktop
-#endif
-}
-
-void ContextualTasksSidePanelCoordinator::OnLogoPointerDown() {
-#if !BUILDFLAG(IS_ANDROID)
-  page_info_bubble_suppressor_.OnMousePressed();
 #endif
 }
 

@@ -25,6 +25,7 @@ import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.test.util.ChromeTabUtils;
 import org.chromium.chrome.test.util.browser.LocationSettingsTestUtil;
 import org.chromium.content_public.browser.test.util.JavaScriptUtils;
+import org.chromium.content_public.browser.test.util.TouchCommon;
 import org.chromium.device.geolocation.LocationProviderOverrider;
 import org.chromium.device.geolocation.MockLocationProvider;
 import org.chromium.ui.modaldialog.DialogDismissalCause;
@@ -220,9 +221,10 @@ public class RuntimePermissionTestUtils {
                 });
 
         if (javascriptToExecute != null && !javascriptToExecute.isEmpty()) {
-            JavaScriptUtils.executeJavaScriptWithUserGestureAndWaitForResult(
+            JavaScriptUtils.executeJavaScriptAndWaitForResult(
                     ThreadUtils.runOnUiThreadBlocking(() -> tab.getWebContents()),
-                    javascriptToExecute);
+                    "functionToRun = '" + javascriptToExecute + "'");
+            TouchCommon.singleClickView(ThreadUtils.runOnUiThreadBlocking(() -> tab.getView()));
         }
 
         PropertyModel askPermissionDialogModel = null;

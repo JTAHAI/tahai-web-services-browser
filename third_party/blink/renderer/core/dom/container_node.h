@@ -499,8 +499,6 @@ class CORE_EXPORT ContainerNode : public Node {
   template <typename Collection>
   const Collection* CachedCollection(CollectionType) const;
 
-  ContainerNode* TargetForHTMLInsertion();
-
  private:
   bool IsContainerNode() const =
       delete;  // This will catch anyone doing an unnecessary check.

@@ -8,11 +8,12 @@ import android.os.Bundle;
 import android.webkit.WebChromeClient;
 import android.webkit.WebViewClient;
 
+import com.android.webview.chromium.WebViewChromiumAwInit.CallSite;
+
 import org.chromium.android_webview.AwBrowserContextStore;
 import org.chromium.android_webview.AwContents;
 import org.chromium.android_webview.AwRenderProcess;
 import org.chromium.android_webview.ScriptHandler;
-import org.chromium.android_webview.StartupCallSite;
 import org.chromium.android_webview.WebMessageListener;
 import org.chromium.android_webview.WebViewChromiumRunQueue;
 import org.chromium.base.ThreadUtils;
@@ -70,8 +71,7 @@ public class SharedWebViewChromium {
     }
 
     public AwRenderProcess getRenderProcess() {
-        mAwInit.triggerAndWaitForChromiumStarted(
-                StartupCallSite.WEBVIEW_INSTANCE_GET_RENDER_PROCESS);
+        mAwInit.triggerAndWaitForChromiumStarted(CallSite.WEBVIEW_INSTANCE_GET_RENDER_PROCESS);
         if (checkNeedsPost()) {
             return mRunQueue.runOnUiThreadBlocking(() -> getRenderProcess());
         }
@@ -85,13 +85,6 @@ public class SharedWebViewChromium {
             throw new RuntimeException(
                     "Cannot create multiple AwContents for the same SharedWebViewChromium");
         }
-        mAwContents = awContents;
-        mContentsClientAdapter =
-                (SharedWebViewContentsClientAdapter) awContents.getContentsClient();
-    }
-
-    public void setAwContentsForTransfer(AwContents awContents) {
-        assert ThreadUtils.runningOnUiThread();
         mAwContents = awContents;
         mContentsClientAdapter =
                 (SharedWebViewContentsClientAdapter) awContents.getContentsClient();
@@ -124,7 +117,7 @@ public class SharedWebViewChromium {
 
     public MessagePort[] createWebMessageChannel() {
         mAwInit.triggerAndWaitForChromiumStarted(
-                StartupCallSite.WEBVIEW_INSTANCE_CREATE_WEBMESSAGE_CHANNEL);
+                CallSite.WEBVIEW_INSTANCE_CREATE_WEBMESSAGE_CHANNEL);
         if (checkNeedsPost()) {
             MessagePort[] ret =
                     mRunQueue.runOnUiThreadBlocking(
@@ -244,7 +237,7 @@ public class SharedWebViewChromium {
 
     public SharedWebViewRendererClientAdapter getWebViewRendererClientAdapter() {
         mAwInit.triggerAndWaitForChromiumStarted(
-                StartupCallSite.WEBVIEW_INSTANCE_GET_WEBVIEW_RENDERER_CLIENT_ADAPTER);
+                CallSite.WEBVIEW_INSTANCE_GET_WEBVIEW_RENDERER_CLIENT_ADAPTER);
         if (checkNeedsPost()) {
             return mRunQueue.runOnUiThreadBlocking(
                     new Callable<SharedWebViewRendererClientAdapter>() {
@@ -291,7 +284,7 @@ public class SharedWebViewChromium {
     }
 
     public AwContents getAwContents() {
-        mAwInit.triggerAndWaitForChromiumStarted(StartupCallSite.WEBVIEW_INSTANCE_GET_AW_CONTENTS);
+        mAwInit.triggerAndWaitForChromiumStarted(CallSite.WEBVIEW_INSTANCE_GET_AW_CONTENTS);
         return mAwContents;
     }
 

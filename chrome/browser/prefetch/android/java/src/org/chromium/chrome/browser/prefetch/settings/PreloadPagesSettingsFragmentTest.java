@@ -23,19 +23,17 @@ import org.mockito.junit.MockitoRule;
 import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.util.DoNotBatch;
 import org.chromium.base.test.util.Feature;
-import org.chromium.base.test.util.Restriction;
 import org.chromium.chrome.browser.feedback.HelpAndFeedbackLauncher;
 import org.chromium.chrome.browser.feedback.HelpAndFeedbackLauncherFactory;
 import org.chromium.chrome.browser.init.ChromeBrowserInitializer;
 import org.chromium.chrome.browser.profiles.ProfileManager;
+import org.chromium.chrome.browser.settings.SettingsActivityTestRule;
 import org.chromium.chrome.browser.settings.SettingsNavigationFactory;
-import org.chromium.chrome.browser.settings.SettingsTestRule;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.components.browser_ui.settings.SettingsNavigation;
 import org.chromium.components.browser_ui.widget.RadioButtonWithDescription;
 import org.chromium.components.browser_ui.widget.RadioButtonWithDescriptionAndAuxButton;
 import org.chromium.components.policy.test.annotations.Policies;
-import org.chromium.ui.base.DeviceFormFactor;
 
 /** Tests for {@link PreloadPagesSettingsFragment}. */
 @RunWith(ChromeJUnit4ClassRunner.class)
@@ -51,8 +49,8 @@ public class PreloadPagesSettingsFragmentTest {
     @Rule public final MockitoRule mMockitoRule = MockitoJUnit.rule();
 
     @Rule
-    public SettingsTestRule<PreloadPagesSettingsFragment> mTestRule =
-            new SettingsTestRule<>(PreloadPagesSettingsFragment.class);
+    public SettingsActivityTestRule<PreloadPagesSettingsFragment> mTestRule =
+            new SettingsActivityTestRule<>(PreloadPagesSettingsFragment.class);
 
     @Mock private SettingsNavigation mSettingsNavigation;
 
@@ -184,7 +182,7 @@ public class PreloadPagesSettingsFragmentTest {
                     getExtendedPreloadingButton().getAuxButtonForTests().performClick();
                     Mockito.verify(mSettingsNavigation)
                             .startSettings(
-                                    mPreloadPagesSettingsFragment.getActivity(),
+                                    mPreloadPagesSettingsFragment.getContext(),
                                     ExtendedPreloadingSettingsFragment.class,
                                     null,
                                     true);
@@ -202,7 +200,7 @@ public class PreloadPagesSettingsFragmentTest {
                     getStandardPreloadingButton().getAuxButtonForTests().performClick();
                     Mockito.verify(mSettingsNavigation)
                             .startSettings(
-                                    mPreloadPagesSettingsFragment.getActivity(),
+                                    mPreloadPagesSettingsFragment.getContext(),
                                     StandardPreloadingSettingsFragment.class,
                                     null,
                                     true);
@@ -244,7 +242,6 @@ public class PreloadPagesSettingsFragmentTest {
     @Test
     @SmallTest
     @Feature({"PreloadPages"})
-    @Restriction(DeviceFormFactor.PHONE) // Tablets and desktops don't have a help button or menu.
     public void testHelpButtonClicked() {
         startSettings();
         HelpAndFeedbackLauncherFactory.setInstanceForTesting(mHelpAndFeedbackLauncher);

@@ -30,7 +30,6 @@ class NowPlayingInfoCenterDelegate {
   void SetAlbum(const std::u16string& album);
   void SetThumbnail(const SkBitmap& bitmap);
   void SetPosition(const media_session::MediaPosition& position);
-  void ClearPosition();
   void ClearMetadata();
 
  private:

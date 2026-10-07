@@ -17,9 +17,9 @@ namespace {
 
 MergeBehavior GetMergeBehavior(const PrefModelAssociatorClient& client,
                                std::string_view pref_name) {
-  const SyncablePrefMetadata* metadata =
+  std::optional<SyncablePrefMetadata> metadata =
       client.GetSyncablePrefsDatabase().GetSyncablePrefMetadata(pref_name);
-  CHECK(metadata);
+  CHECK(metadata.has_value());
   return metadata->merge_behavior();
 }
 

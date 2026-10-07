@@ -7,7 +7,7 @@
 </head>
 <body>
 <script type="module">
-import {GeolocationMock, GeolocationPermissionStatus} from './resources/geolocation-mock.js';
+import {GeolocationMock} from './resources/geolocation-mock.js';
 
 description("Tests that when multiple requests are waiting for permission, no callbacks are invoked until permission is denied.");
 
@@ -20,7 +20,7 @@ let permissionSet = false;
 
 function denyPermission() {
     permissionSet = true;
-    mock.setGeolocationPermission(GeolocationPermissionStatus.DENIED);
+    mock.setGeolocationPermission(false);
 }
 
 let watchCallbackInvoked = false;

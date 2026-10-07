@@ -489,7 +489,7 @@ void FirstLetterPseudoElement::AttachFirstLetterTextLayoutObjects(
 
   remaining_text->SetFirstLetterPseudoElement(this);
   remaining_text->SetIsRemainingTextLayoutObject(true);
-  remaining_text->SetStyle(&first_letter_text->StyleRef());
+  remaining_text->SetStyle(first_letter_text->Style());
 
   if (remaining_text->GetNode())
     remaining_text->GetNode()->SetLayoutObject(remaining_text);

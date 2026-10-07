@@ -273,6 +273,20 @@ void FakeDebugDaemonClient::SetServiceIsAvailable(bool is_available) {
     std::move(callback).Run(true);
 }
 
+void FakeDebugDaemonClient::StartPluginVmDispatcher(
+    const std::string& /* owner_id */,
+    const std::string& /* lang */,
+    PluginVmDispatcherCallback callback) {
+  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+      FROM_HERE, base::BindOnce(std::move(callback), true));
+}
+
+void FakeDebugDaemonClient::StopPluginVmDispatcher(
+    PluginVmDispatcherCallback callback) {
+  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+      FROM_HERE, base::BindOnce(std::move(callback), true));
+}
+
 void FakeDebugDaemonClient::SetRlzPingSent(SetRlzPingSentCallback callback) {
   base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
       FROM_HERE, base::BindOnce(std::move(callback), true));

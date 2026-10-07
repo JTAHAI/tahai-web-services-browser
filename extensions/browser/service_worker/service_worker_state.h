@@ -41,11 +41,8 @@ class ServiceWorkerState
     // Worker thread has been initialized, but has not executed all its
     // JavaScript and registered all its listeners.
     kInitialized,
-    // Worker thread has started and completed a synchronous first pass of
-    // its JavaScript. In classic listener registration, all listeners must
-    // be registered at this point; with async listener registration,
-    // listeners can continue to be registered until calling
-    // `runtime.markListenerRegistrationComplete()`.
+    // Worker thread has started, has executed all its JavaScript, registered
+    // all listeners, and it's running.
     kActive,
   };
 
@@ -104,11 +101,8 @@ class ServiceWorkerState
       const WorkerId& worker_id);
 
   // Called when a service worker renderer process is running, has executed its
-  // global JavaScript scope, and its global event listeners have been
-  // registered with the //extensions layer. In classic listener registration,
-  // all listeners must be registered at this point; with async listener
-  // registration, listeners can continue to be registered until calling
-  // `runtime.markListenerRegistrationComplete()`. It is considered the
+  // global JavaScript scope, and all its global event listeners have been
+  // registered with the //extensions layer. It is considered the
   // "renderer-side" signal that the worker is ready.
   // NOTE: this can be called before or after `DidStartWorkerForScope`.
   void RendererDidStartServiceWorkerContext(

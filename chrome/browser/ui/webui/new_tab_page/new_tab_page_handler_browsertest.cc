@@ -13,7 +13,9 @@
 #include "chrome/browser/search/background/ntp_custom_background_service_factory.h"
 #include "chrome/browser/search_provider_logos/logo_service_factory.h"
 #include "chrome/browser/themes/theme_service_factory.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_element_identifiers.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_features.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/customize_chrome/side_panel_controller.h"
 #include "chrome/browser/ui/side_panel/side_panel_entry.h"
@@ -21,7 +23,7 @@
 #include "chrome/browser/ui/side_panel/side_panel_entry_key.h"
 #include "chrome/browser/ui/side_panel/side_panel_registry.h"
 #include "chrome/browser/ui/side_panel/side_panel_ui.h"
-#include "chrome/browser/ui/tabs/tab_strip_model.h"
+#include "chrome/browser/ui/tabs/public/tab_features.h"
 #include "chrome/browser/ui/webui/customize_buttons/customize_buttons_handler.h"
 #include "chrome/browser/ui/webui/webui_embedding_context.h"
 #include "chrome/common/pref_names.h"
@@ -32,7 +34,6 @@
 #include "chrome/test/user_education/interactive_feature_promo_test.h"
 #include "components/prefs/pref_service.h"
 #include "components/search/ntp_features.h"
-#include "components/tabs/public/tab_interface.h"
 #include "components/user_education/views/help_bubble_view.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/test/browser_test.h"
@@ -74,6 +75,7 @@ class MockPage : public new_tab_page::mojom::Page {
   MOCK_METHOD(void, SetActionChipsVisibility, (bool));
   MOCK_METHOD(void, SetModulesFreVisibility, (bool));
   MOCK_METHOD(void, SetCustomizeChromeSidePanelVisibility, (bool));
+  MOCK_METHOD(void, SetPromo, (new_tab_page::mojom::PromoPtr));
   MOCK_METHOD(void, ShowWebstoreToast, ());
   MOCK_METHOD(void, SetWallpaperSearchButtonVisibility, (bool));
   MOCK_METHOD(void, FooterVisibilityUpdated, (bool));
@@ -100,7 +102,7 @@ class NewTabPageHandlerBaseBrowserTest : public InProcessBrowserTest {
   void CloseSidePanel() {
     BrowserWindowInterface* const browser_window_interface =
         webui::GetBrowserWindowInterface(web_contents());
-    SidePanelUI::From(browser_window_interface)->Close();
+    browser_window_interface->GetFeatures().side_panel_ui()->Close();
   }
 
   MockPage* mock_page() { return &mock_page_; }
@@ -133,9 +135,12 @@ class NewTabPageHandlerWithCustomizeChromePromoBaseBrowserTest
     : public NewTabPageHandlerBaseBrowserTest {
  protected:
   bool IsCustomizeChromeEntryShowing() {
-    auto* controller = customize_chrome::SidePanelController::Get(
-        chrome_test_utils::GetActiveTab(this)->GetUnownedUserDataHost());
-    return controller->IsCustomizeChromeEntryShowing();
+    return webui::GetBrowserWindowInterface(web_contents())
+        ->GetTabStripModel()
+        ->GetActiveTab()
+        ->GetTabFeatures()
+        ->customize_chrome_side_panel_controller()
+        ->IsCustomizeChromeEntryShowing();
   }
 
   void OpenNewTabPageInForeground() {

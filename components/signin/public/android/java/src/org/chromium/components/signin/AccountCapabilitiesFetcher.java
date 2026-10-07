@@ -39,6 +39,7 @@ public class AccountCapabilitiesFetcher {
         mCoreAccountInfo = coreAccountInfo;
         mNativeCallback = nativeCallback;
     }
+    ;
 
     @CalledByNative
     public void startFetchingAccountCapabilities() {

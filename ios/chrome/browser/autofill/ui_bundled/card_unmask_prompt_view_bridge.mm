@@ -95,7 +95,7 @@ void CardUnmaskPromptViewBridge::PerformClose() {
   // Disconnect the vc from the bridge, and dismiss it.
   [prompt_view_controller_ disconnectFromBridge];
 
-  [browser_coordinator_commands_handler_ legacyDismissCardUnmaskAuthentication];
+  [browser_coordinator_commands_handler_ dismissCardUnmaskAuthentication];
 }
 
 UIImage* CardUnmaskPromptViewBridge::GetCardIcon() {

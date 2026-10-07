@@ -41,7 +41,6 @@ class BrowserContext;
 }  // namespace content
 
 namespace actor {
-class AggregatedJournalFileSerializer;
 namespace ui {
 class ActorUiStateManagerInterface;
 }
@@ -128,11 +127,6 @@ class ActorKeyedService : public KeyedService,
   // The associated ActorUiStateManager for the associated profile.
   ui::ActorUiStateManagerInterface* GetActorUiStateManager();
 
-  // Sets/clears pending actuation indicator on a tab prior to an ActorTask
-  // starting.
-  void SetTabPendingActuation(tabs::TabHandle tab_handle);
-  bool ClearTabPendingActuation(tabs::TabHandle tab_handle);
-
   // Returns true if there is a task that is actively (i.e. not paused) acting
   // in the given `tab`.
   bool IsActiveOnTab(const tabs::TabInterface& tab) const;
@@ -173,34 +167,6 @@ class ActorKeyedService : public KeyedService,
 
   void NotifyTaskStateChanged(ActorTask& task);
 
-  // Notifies subscribers when the visibility of tabs controlled by an active
-  // ActorTask changes (when `task.has_visible_tab()` toggles between true and
-  // false).
-  //
-  // Note on scope and visibility semantics:
-  // - Scope: This strictly tracks tabs under active control by an ActorTask; it
-  //   does not monitor unassociated browser tabs, nor is it triggered by
-  //   Picture-in-Picture (PiP) transitions (which are managed per-task via
-  //   `ActorTask::SetIsInPip()`).
-  // - Definition of "Visible": Evaluates whether any controlled tab's
-  //   WebContents reports `content::Visibility::VISIBLE`. A tab partially
-  //   occluded by an overlapping window or overlay remains VISIBLE; switching
-  //   to another tab transitions the task to not visible.
-  //   TODO(crbug.com/540512932): Full window minimization and complete window
-  //   occlusion are not yet tracked.
-  using TaskVisibilityChangedCallback =
-      base::RepeatingCallback<void(ActorTask&)>;
-  base::CallbackListSubscription AddTaskVisibilityChangedCallback(
-      TaskVisibilityChangedCallback callback);
-  void NotifyTaskVisibilityChanged(ActorTask& task);
-
-  using TaskStepProgressChangedCallback =
-      base::RepeatingCallback<void(ActorTask&, const std::string&)>;
-  base::CallbackListSubscription AddTaskStepProgressChangedCallback(
-      TaskStepProgressChangedCallback callback);
-  void NotifyTaskStepProgressChanged(ActorTask& task,
-                                     const std::string& step_progress);
-
   // Returns the acting task for web_contents. Returns nullptr if acting task
   // does not exist.
   const ActorTask* GetActingActorTaskForWebContents(
@@ -221,6 +187,7 @@ class ActorKeyedService : public KeyedService,
   // download::AllDownloadItemNotifier::Observer
   void OnProfileInitializationComplete(Profile* profile) override;
 
+#if BUILDFLAG(IS_ANDROID)
   class BackgroundActuationObserver : public base::CheckedObserver {
    public:
     virtual void OnBackgroundTabPrepared(
@@ -236,13 +203,6 @@ class ActorKeyedService : public KeyedService,
                                 const std::string& glic_trigger_message_id);
   void NotifyBackgroundSetupFailed(const std::string& glic_trigger_message_id);
 
-  using MessageTriggerTaskStoppedCallback =
-      base::RepeatingCallback<void(const std::string&)>;
-  base::CallbackListSubscription AddMessageTriggerTaskStoppedCallback(
-      MessageTriggerTaskStoppedCallback callback);
-  void OnMessageTriggerTaskStopped(const std::string& message_id);
-
-#if BUILDFLAG(IS_ANDROID)
   using EnsureForegroundServiceStartedCallback =
       base::RepeatingCallback<void(const std::string&)>;
   base::CallbackListSubscription AddForegroundServiceStartedCallback(
@@ -272,13 +232,6 @@ class ActorKeyedService : public KeyedService,
   // ActorTask might be using a SafeRef to this object.
   AggregatedJournal journal_;
 
-  void InitializeTraceRecording(const base::FilePath& trace_path);
-  void OnTraceFilePathResolved(const base::FilePath& resolved_path);
-  void OnTraceFileInitDone(bool success);
-
-  // Serializes journal events to a file when --actor-trace-path is set.
-  std::unique_ptr<AggregatedJournalFileSerializer> trace_file_serializer_;
-
   // download notifier for metrics and the profile observer to help set up the
   // download notifier.
   std::unique_ptr<download::AllDownloadItemNotifier> download_notifier_;
@@ -299,22 +252,12 @@ class ActorKeyedService : public KeyedService,
   TaskId::Generator next_task_id_;
 
   base::RepeatingCallbackList<void(ActorTask&)>
-      task_visibility_change_callback_list_;
-
-  base::RepeatingCallbackList<void(ActorTask&, const std::string&)>
-      task_step_progress_change_callback_list_;
-
-  base::RepeatingCallbackList<void(ActorTask&)>
       task_state_change_callback_list_;
-
-  base::ObserverList<BackgroundActuationObserver> observers_;
-
-  base::RepeatingCallbackList<void(const std::string&)>
-      message_trigger_task_stopped_callbacks_;
 
 #if BUILDFLAG(IS_ANDROID)
   base::RepeatingCallbackList<void(const std::string&)>
       ensure_foreground_service_started_callbacks_;
+  base::ObserverList<BackgroundActuationObserver> observers_;
 #endif
 
   // Owns this.

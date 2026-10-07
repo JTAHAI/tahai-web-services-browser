@@ -12,7 +12,7 @@
 #include "base/test/simple_test_clock.h"
 #include "base/time/time.h"
 #include "chrome/browser/apps/link_capturing/link_capturing_feature_test_support.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "chrome/browser/ui/views/web_apps/web_app_link_capturing_test_utils.h"
 #include "chrome/browser/ui/web_applications/app_browser_controller.h"
@@ -25,7 +25,6 @@
 #include "chrome/browser/web_applications/web_app_filter.h"
 #include "chrome/browser/web_applications/web_app_install_info.h"
 #include "chrome/browser/web_applications/web_app_navigation_capturing_browsertest_base.h"
-#include "chrome/browser/web_applications/web_app_origin_association_manager.h"
 #include "chrome/browser/web_applications/web_app_provider.h"
 #include "chrome/browser/web_applications/web_app_tab_helper.h"
 #include "chrome/common/pref_names.h"
@@ -386,7 +385,7 @@ IN_PROC_BROWSER_TEST_P(IsolatedWebAppLinkCapturingFromBrowserWindowBrowserTest,
   ASSERT_TRUE(content::ExecJs(GetBrowserTab(), script));
 
   if (expect_new_window) {
-    BrowserWindowInterface* new_browser = browser_observer.Wait();
+    Browser* new_browser = browser_observer.Wait();
     ASSERT_TRUE(new_browser);
     EXPECT_NE(new_browser, browser());
     EXPECT_NE(new_browser, existing_app_browser);
@@ -506,7 +505,7 @@ IN_PROC_BROWSER_TEST_P(IsolatedWebAppLinkCapturingFromAppWindowBrowserTest,
                          blink::WebMouseEvent::Button::kLeft);
 
   // Verify NEW window opened regardless of ClientMode.
-  BrowserWindowInterface* new_browser = browser_observer.Wait();
+  Browser* new_browser = browser_observer.Wait();
   ASSERT_TRUE(new_browser);
   EXPECT_NE(new_browser, browser());
   EXPECT_NE(new_browser, existing_app_browser);
@@ -548,7 +547,7 @@ IN_PROC_BROWSER_TEST_P(IsolatedWebAppLinkCapturingFromAppWindowBrowserTest,
                          blink::WebMouseEvent::Button::kLeft);
 
   if (expect_new_window) {
-    BrowserWindowInterface* new_browser = browser_observer.Wait();
+    Browser* new_browser = browser_observer.Wait();
     ASSERT_TRUE(new_browser);
     EXPECT_NE(new_browser, existing_app_browser);
     EXPECT_TRUE(AppBrowserController::IsForWebApp(new_browser, app_id()));
@@ -593,7 +592,7 @@ IN_PROC_BROWSER_TEST_P(IsolatedWebAppLinkCapturingFromAppWindowBrowserTest,
                          blink::WebInputEvent::kNoModifiers,
                          blink::WebMouseEvent::Button::kLeft);
 
-  BrowserWindowInterface* new_browser = browser_observer.Wait();
+  Browser* new_browser = browser_observer.Wait();
   ASSERT_TRUE(new_browser);
   EXPECT_NE(new_browser, existing_app_browser);
   EXPECT_TRUE(AppBrowserController::IsForWebApp(new_browser, app_id()));
@@ -636,7 +635,7 @@ IN_PROC_BROWSER_TEST_F(IsolatedWebAppLinkCapturingDefaultBehaviorBrowserTest,
                          blink::WebInputEvent::kNoModifiers,
                          blink::WebMouseEvent::Button::kLeft);
 
-  BrowserWindowInterface* new_browser = browser_observer.Wait();
+  Browser* new_browser = browser_observer.Wait();
   ASSERT_TRUE(new_browser);
   EXPECT_TRUE(AppBrowserController::IsForWebApp(new_browser, app_id()));
 
@@ -718,7 +717,7 @@ IN_PROC_BROWSER_TEST_F(IsolatedWebAppLinkCapturingDefaultBehaviorBrowserTest,
                          blink::WebInputEvent::kNoModifiers,
                          blink::WebMouseEvent::Button::kLeft);
 
-  BrowserWindowInterface* new_browser = browser_observer.Wait();
+  Browser* new_browser = browser_observer.Wait();
   ASSERT_TRUE(new_browser);
 
   EXPECT_TRUE(
@@ -784,7 +783,7 @@ IN_PROC_BROWSER_TEST_F(IsolatedWebAppLinkCapturingAddValidatedOriginBrowserTest,
                          blink::WebInputEvent::kNoModifiers,
                          blink::WebMouseEvent::Button::kLeft);
 
-  BrowserWindowInterface* new_browser = browser_observer.Wait();
+  Browser* new_browser = browser_observer.Wait();
   ASSERT_TRUE(new_browser);
   EXPECT_NE(new_browser, existing_app_browser);
   EXPECT_TRUE(AppBrowserController::IsForWebApp(new_browser, app_id()));

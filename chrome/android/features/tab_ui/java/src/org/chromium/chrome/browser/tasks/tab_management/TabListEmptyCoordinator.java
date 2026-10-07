@@ -25,6 +25,7 @@ import org.chromium.build.annotations.EnsuresNonNullIf;
 import org.chromium.build.annotations.Initializer;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
+import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.tab_ui.R;
 import org.chromium.ui.modelutil.ListObservable;
 import org.chromium.ui.modelutil.ListObservable.ListObserver;
@@ -37,6 +38,8 @@ import org.chromium.ui.util.CommonOnLayoutChangeListeners;
 // @TODO(crbug.com/40910476) Add instrumentation test for TabListEmptyCoordinator class.
 @NullMarked
 class TabListEmptyCoordinator {
+    public final long ILLUSTRATION_ANIMATION_DURATION_MS = 700L;
+
     private final TabListRecyclerView mRecyclerView;
     private final ViewGroup mRootView;
     private final Context mContext;
@@ -52,6 +55,7 @@ class TabListEmptyCoordinator {
     private ImageView mImageView;
     private boolean mIsTabSwitcherShowing;
     private boolean mIsListObserverAttached;
+    private @Nullable TabListEmptyIllustrationAnimationManager mIllustrationAnimationManager;
 
     public TabListEmptyCoordinator(
             TabListRecyclerView recyclerView,
@@ -99,6 +103,18 @@ class TabListEmptyCoordinator {
         setEmptyStateViewText(emptyHeadingStringResId, emptySubheadingStringResId);
 
         mRootView.addOnLayoutChangeListener(mLayoutChangeListener);
+
+        mIllustrationAnimationManager = tryGetAnimationManager(imageResId);
+        transformIllustrationIfPresent();
+    }
+
+    private @Nullable TabListEmptyIllustrationAnimationManager tryGetAnimationManager(
+            @DrawableRes int imageResId) {
+        return isDrawableForPhones(imageResId)
+                        && ChromeFeatureList.sEmptyTabListAnimationKillSwitch.isEnabled()
+                ? new PhoneTabListEmptyIllustrationAnimationManager(
+                        mImageView, mEmptyStateHeading, mEmptyStateSubheading)
+                : null;
     }
 
     private void setEmptyStateViewText(
@@ -127,12 +143,17 @@ class TabListEmptyCoordinator {
                         () -> {
                             // Re-check requirements since this is now async.
                             if (isEmptyViewAttached() && isInEmptyState()) {
+                                if (mIllustrationAnimationManager != null) {
+                                    mIllustrationAnimationManager.animate(
+                                            ILLUSTRATION_ANIMATION_DURATION_MS);
+                                }
                                 setEmptyViewVisibility(View.VISIBLE);
                                 fixMargins();
                             }
                         });
             } else {
                 setEmptyViewVisibility(View.GONE);
+                transformIllustrationIfPresent();
             }
         }
     }
@@ -155,6 +176,12 @@ class TabListEmptyCoordinator {
             params.topMargin += mRecyclerView.getTop();
         }
         mEmptyView.setLayoutParams(params);
+    }
+
+    private void transformIllustrationIfPresent() {
+        if (mIllustrationAnimationManager != null) {
+            mIllustrationAnimationManager.initialTransformation();
+        }
     }
 
     public void setIsTabSwitcherShowing(boolean isShowing) {
@@ -203,5 +230,10 @@ class TabListEmptyCoordinator {
 
     private boolean getIsListObserverAttached() {
         return mIsListObserverAttached;
+    }
+
+    // TODO(https://crbug.com/423697444): Clean up old animation class for GTS mobile.
+    private boolean isDrawableForPhones(@DrawableRes int drawableResId) {
+        return drawableResId == R.drawable.phone_tab_switcher_empty_state_illustration;
     }
 }

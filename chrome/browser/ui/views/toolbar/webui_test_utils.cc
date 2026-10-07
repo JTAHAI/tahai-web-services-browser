@@ -7,12 +7,11 @@
 #include "base/functional/bind.h"
 #include "base/notimplemented.h"
 #include "base/run_loop.h"
-#include "base/strings/strcat.h"
-#include "base/strings/stringprintf.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/test/run_until.h"
 #include "chrome/browser/headless/headless_command_processor.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_element_identifiers.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/interaction/browser_elements.h"
@@ -26,9 +25,7 @@
 #include "chrome/browser/ui/views/toolbar/webui_avatar_toolbar_button.h"
 #include "chrome/browser/ui/views/toolbar/webui_toolbar_web_view.h"
 #include "chrome/browser/ui/waap/initial_web_ui_manager.h"
-#include "chrome/browser/ui/window_feature_controller/window_feature_controller.h"
 #include "chrome/common/chrome_features.h"
-#include "chrome/common/pref_names.h"
 #include "components/browser_apis/ui_controllers/toolbar/toolbar_ui_api_data_model.mojom.h"
 #include "components/metrics/content/subprocess_metrics_provider.h"
 #include "content/public/test/browser_test_utils.h"
@@ -50,9 +47,6 @@ namespace {
       return ::AvatarToolbarButtonState::kGuestSession;
     case toolbar_ui_api::mojom::AvatarToolbarButtonState::kIncognitoProfile:
       return ::AvatarToolbarButtonState::kIncognitoProfile;
-    case toolbar_ui_api::mojom::AvatarToolbarButtonState::
-        kEnterpriseIsolatedProfile:
-      return ::AvatarToolbarButtonState::kEnterpriseIsolatedProfile;
     case toolbar_ui_api::mojom::AvatarToolbarButtonState::kExplicitTextShowing:
       return ::AvatarToolbarButtonState::kExplicitTextShowing;
     case toolbar_ui_api::mojom::AvatarToolbarButtonState::kOnSignin:
@@ -86,25 +80,6 @@ namespace {
       return ::AvatarToolbarButtonState::kNormal;
   }
 }
-
-// JavaScript template for locating an extension button in the WebUI toolbar
-// and performing an action on it. Expects two format arguments:
-// 1. (const char*): The extension ID (or empty string for the puzzle piece
-//    extensions menu button) to locate the button element `btn`.
-// 2. (const char*): The JavaScript statement(s) to execute on `btn` (e.g.
-//    "btn.click();" or dispatching an event).
-constexpr char kClickExtensionButtonScript[] = R"(
-  (() => {
-    const app = document.querySelector('toolbar-app');
-    const extensionsContainer = app.shadowRoot.querySelector('#extensions');
-    const extensionElements = extensionsContainer.shadowRoot
-        .querySelectorAll('webui-toolbar-extension');
-    const el = Array.from(extensionElements)
-        .find(el => el.state.id === '%s');
-    const btn = el.shadowRoot.querySelector('cr-button');
-    %s
-  })();
-)";
 
 }  // namespace
 
@@ -156,7 +131,7 @@ void SetUpWebUI(const ui::ElementIdentifier& element_id,
                 ui::TrackedElement** element_out,
                 WebUIToolbarWebView** webui_toolbar_view_out,
                 views::WebView** web_view_out,
-                BrowserWindowInterface* browser) {
+                Browser* browser) {
   // Wait for the WebUIToolbarWebView to be available.
   *webui_toolbar_view_out = nullptr;
   ASSERT_TRUE(base::test::RunUntil([&]() {
@@ -192,7 +167,7 @@ void SetUpWebUI(const ui::ElementIdentifier& element_id,
   content::WaitForCopyableViewInWebContents((*web_view_out)->GetWebContents());
 }
 
-WebUIToolbarWebView* GetWebUIToolbarWebView(BrowserWindowInterface* browser) {
+WebUIToolbarWebView* GetWebUIToolbarWebView(Browser* browser) {
   return BrowserView::GetBrowserViewForBrowser(browser)
       ->toolbar_button_provider()
       ->GetWebUIToolbarViewForTesting();
@@ -248,9 +223,9 @@ void AvatarToolbarButtonTestAccessor::WaitForAvatarButton() {
 #if !BUILDFLAG(IS_ANDROID)
   // The avatar button is only added to normal browsers (those with a tab
   // strip).
-  if (!browser_ ||
-      !WindowFeatureController::From(browser_)->SupportsWindowFeature(
-          WindowFeatureController::WindowFeature::kFeatureTabStrip)) {
+  if (Browser* const browser_ptr = browser_->GetBrowserForMigrationOnly();
+      !browser_ptr || !browser_ptr->SupportsWindowFeature(
+                          Browser::WindowFeature::kFeatureTabStrip)) {
     return;
   }
 #endif
@@ -373,11 +348,6 @@ bool AvatarToolbarButtonTestAccessor::WaitForAccessibilityDescription(
       [this, text]() { return GetAccessibilityDescription() == text; });
 }
 
-bool AvatarToolbarButtonTestAccessor::WaitForEnabled(bool enabled) {
-  return base::test::RunUntil(
-      [this, enabled]() { return GetEnabled() == enabled; });
-}
-
 AvatarToolbarButtonInterface* AvatarToolbarButtonTestAccessor::GetInterface() {
   auto* const browser_view = BrowserView::GetBrowserViewForBrowser(browser_);
   if (!browser_view) {
@@ -461,20 +431,10 @@ bool AvatarToolbarButtonTestAccessor::GetEnabled() {
             return contents &&
                    content::EvalJs(
                        contents,
-                       "(async () => {"
-                       "  const app = document.querySelector('toolbar-app');"
-                       "  if (!app) return false;"
-                       "  await app.updateComplete;"
-                       "  const btn = "
-                       "app.shadowRoot?.querySelector('avatar-button');"
-                       "  if (!btn) return false;"
-                       "  await btn.updateComplete;"
-                       "  const chip = "
-                       "btn.shadowRoot?.querySelector('#button');"
-                       "  if (!chip) return false;"
-                       "  await chip.updateComplete;"
-                       "  return !chip.disabled;"
-                       "})()")
+                       "document.querySelector('toolbar-app')"
+                       "?.shadowRoot?.querySelector('avatar-button')"
+                       "?.shadowRoot?.querySelector('#button')"
+                       "?.disabled === false")
                        .ExtractBool();
           },
       },
@@ -788,122 +748,4 @@ std::u16string AvatarToolbarButtonTestAccessor::GetAccessibilityDescription() {
           },
       },
       GetButton());
-}
-
-void LeftClickExtensionButton(content::WebContents* web_contents,
-                              const std::string& id) {
-  EXPECT_TRUE(content::ExecJs(
-      web_contents, base::StringPrintf(kClickExtensionButtonScript, id.c_str(),
-                                       "btn.click();")));
-}
-
-void RightClickExtensionButton(content::WebContents* web_contents,
-                               const std::string& id) {
-  EXPECT_TRUE(content::ExecJs(
-      web_contents,
-      base::StringPrintf(kClickExtensionButtonScript, id.c_str(), R"(
-        btn.dispatchEvent(new MouseEvent('contextmenu', {
-          bubbles: true,
-          cancelable: true,
-          view: window,
-          button: 2
-        }));
-      )")));
-}
-
-const char kGetCoordinatesJS[] =
-    "const rect = target.getBoundingClientRect(); "
-    "const x = rect.left + rect.width / 2; "
-    "const y = rect.top + rect.height / 2; ";
-
-std::string GetButtonAppJS(const std::string& selector) {
-  return base::StringPrintf(
-      "document.querySelector('toolbar-app')?.shadowRoot?.querySelector('%s')",
-      selector.c_str());
-}
-
-bool IsButtonVisible(content::WebContents* web_contents,
-                     const std::string& selector) {
-  static constexpr char kScript[] = R"(
-    (() => {
-      const btn = %s;
-      return !!btn && btn.checkVisibility();
-    })();
-  )";
-
-  return content::EvalJs(
-             web_contents,
-             base::StringPrintf(kScript, GetButtonAppJS(selector).c_str()))
-      .ExtractBool();
-}
-
-bool WaitForButtonVisible(content::WebContents* web_contents,
-                          const std::string& selector) {
-  return base::test::RunUntil(
-      [&]() { return IsButtonVisible(web_contents, selector); });
-}
-
-bool WaitForButtonHidden(content::WebContents* web_contents,
-                         const std::string& selector) {
-  return base::test::RunUntil(
-      [&]() { return !IsButtonVisible(web_contents, selector); });
-}
-
-void PinButton(BrowserWindowInterface* browser,
-               views::WebView* web_view,
-               const char* pref) {
-  browser->GetProfile()->GetPrefs()->SetBoolean(pref, true);
-  content::WaitForCopyableViewInWebContents(web_view->GetWebContents());
-}
-
-WebUIToolbarWebView* SetUpAndPinHomeButton(BrowserWindowInterface* browser) {
-  WebUIToolbarWebView* webui_toolbar_view = GetWebUIToolbarWebView(browser);
-  views::WebView* web_view = webui_toolbar_view->GetWebViewForTesting();
-  PinButton(browser, web_view, prefs::kShowHomeButton);
-  EXPECT_TRUE(WaitForButtonVisible(web_view->GetWebContents(), "#home"));
-  return webui_toolbar_view;
-}
-
-std::string GetButtonIconJS(const std::string& selector) {
-  return base::StrCat(
-      {GetButtonAppJS(selector),
-       "?.shadowRoot?.querySelector('cr-icon-button, toolbar-chip-button')"});
-}
-
-std::string AddMockPointerCaptureFunctions(const char* target) {
-  return base::StringPrintf(
-      R"({
-        var element = %s;
-        var elements = [element, element?.parentElement].filter(Boolean);
-        var hasCapture = null;
-        for (var el of elements) {
-          el.setPointerCapture = (id) => { hasCapture = id; };
-          el.hasPointerCapture = (id) => { return id == hasCapture; };
-          el.releasePointerCapture = (id) => {
-            if (id == hasCapture || id == '*') {
-              hasCapture = null;
-            }
-          };
-        }
-      })",
-      target);
-}
-
-std::string DispatchEventScript(const std::string& selector,
-                                const std::string& event_class,
-                                const std::string& type,
-                                const std::string& options) {
-  return base::StringPrintf(
-      "(() => { const target = %s; "
-      "if (target) { "
-      "  %s"
-      "  %s"
-      "  target.dispatchEvent(new %s('%s', "
-      "  {bubbles: true, cancelable: true, view: window, clientX: x, clientY: "
-      "y, "
-      "  %s}));"
-      "} })();",
-      GetButtonIconJS(selector).c_str(), kGetCoordinatesJS,
-      AddMockPointerCaptureFunctions("target").c_str(), event_class.c_str(),
-      type.c_str(), options.c_str());
 }

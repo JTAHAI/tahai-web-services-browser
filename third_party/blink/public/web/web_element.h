@@ -162,11 +162,8 @@ class BLINK_EXPORT WebElement : public WebNode {
   // - Otherwise, the current selection is unchanged, so that the paste replaces
   //   the selected text.
   //
-  // The `smart_replace` parameter controls whether spaces may be added around
-  // the pasted value.
-  //
   // This is a no-op if the element is not editable.
-  void PasteText(const WebString& text, bool replace_all, bool smart_replace);
+  void PasteText(const WebString& text, bool replace_all);
 
   // Returns all <label> elements associated to this element.
   std::vector<WebLabelElement> Labels() const;
@@ -261,17 +258,13 @@ class BLINK_EXPORT WebElement : public WebNode {
   // Observes the visibility of this element.
   //
   // Invokes `callback` once this element has been visible for at least
-  // `minimum_visible_duration`. `visibility_threshold` specifies the minimum
-  // unoccluded visible ratio (defaults to 1.0 for fully visible, with lower
-  // values tolerating partial occlusion). If the observer is disconnected via
-  // the returned closure runner before the threshold is met, `callback` is
-  // dropped.
+  // `minimum_visible_duration`. If the observer is disconnected via the
+  // returned closure runner before the threshold is met, `callback` is dropped.
   //
   // The returned closure runner removes the observer.
   base::ScopedClosureRunner MonitorVisibility(
       base::TimeDelta minimum_visible_duration,
-      base::OnceClosure callback,
-      float visibility_threshold = 1.0f);
+      base::OnceClosure callback);
 
 #if INSIDE_BLINK
   WebElement(Element*);

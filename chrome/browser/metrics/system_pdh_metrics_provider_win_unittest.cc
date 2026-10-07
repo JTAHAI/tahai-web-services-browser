@@ -142,6 +142,8 @@ TEST_F(PdhMetricsProviderTest, RecordsChildProcessHistograms) {
 
     histogram_tester_.ExpectTotalCount(
         base::win::ScopedPdhQuery::kQueryErrorHistogram, 0);
+    histogram_tester_.ExpectTotalCount(
+        base::win::ScopedPdhQuery::kResultErrorHistogram, 0);
   } else {
     histogram_tester_.ExpectTotalCount(
         base::win::ScopedPdhQuery::kQueryErrorHistogram, 18);
@@ -212,6 +214,8 @@ TEST_F(PdhMetricsProviderTest, RecordsSubsetOfChildProcessHistograms) {
 
     histogram_tester_.ExpectTotalCount(
         base::win::ScopedPdhQuery::kQueryErrorHistogram, 0);
+    histogram_tester_.ExpectTotalCount(
+        base::win::ScopedPdhQuery::kResultErrorHistogram, 0);
   } else {
     histogram_tester_.ExpectTotalCount(
         base::win::ScopedPdhQuery::kQueryErrorHistogram, 3);

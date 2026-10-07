@@ -30,13 +30,6 @@
 #import "net/base/net_errors.h"
 #import "ui/base/l10n/l10n_util.h"
 
-namespace {
-
-// Minimum time interval between consumer updates during progress updates.
-constexpr base::TimeDelta kProgressUpdateInterval = base::Milliseconds(100);
-
-}  // namespace
-
 DownloadManagerMediator::DownloadManagerMediator() : weak_ptr_factory_(this) {}
 
 DownloadManagerMediator::~DownloadManagerMediator() {
@@ -92,7 +85,6 @@ void DownloadManagerMediator::SetDownloadTask(web::DownloadTask* task) {
     download_task_->GetWebState()->RemoveObserver(this);
     download_task_->RemoveObserver(this);
   }
-  progress_update_timer_.Stop();
   download_task_ = task;
   if (download_task_) {
     download_task_->AddObserver(this);
@@ -199,7 +191,6 @@ void DownloadManagerMediator::UpdateConsumer() {
     return;
   }
   DownloadManagerState state = GetDownloadManagerState();
-  last_state_ = state;
 
   base::FilePath download_path = GetDownloadPath();
   base::FilePath filename = download_path.empty()
@@ -339,20 +330,7 @@ void DownloadManagerMediator::DidFinishNavigation(
 #pragma mark - web::DownloadTaskObserver overrides
 
 void DownloadManagerMediator::OnDownloadUpdated(web::DownloadTask* task) {
-  DownloadManagerState current_state = GetDownloadManagerState();
-  if (current_state != last_state_) {
-    progress_update_timer_.Stop();
-    UpdateConsumer();
-    return;
-  }
-
-  if (!progress_update_timer_.IsRunning()) {
-    UpdateConsumer();
-    progress_update_timer_.Start(
-        FROM_HERE, kProgressUpdateInterval,
-        base::BindOnce(&DownloadManagerMediator::UpdateConsumer,
-                       weak_ptr_factory_.GetWeakPtr()));
-  }
+  UpdateConsumer();
 }
 
 void DownloadManagerMediator::OnDownloadDestroyed(web::DownloadTask* task) {

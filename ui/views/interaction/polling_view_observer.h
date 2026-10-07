@@ -32,14 +32,8 @@ namespace views::test {
 // See `PollingElementStateObserver<T>` for more information on usage.
 template <typename T, typename V>
   requires(std::is_base_of_v<View, V>)
-class PollingViewObserver
-    : public ui::test::PollingStateObserver<
-          std::optional<T>,
-          std::optional<ui::test::internal::MatcherTypeFor<T>>> {
+class PollingViewObserver : public ui::test::PollingElementStateObserver<T> {
  public:
-  using Superclass = ui::test::PollingStateObserver<
-      std::optional<T>,
-      std::optional<ui::test::internal::MatcherTypeFor<T>>>;
   using PollViewCallback = base::RepeatingCallback<T(const V*)>;
 
   template <typename C>
@@ -47,39 +41,25 @@ class PollingViewObserver
       ui::ElementIdentifier view_id,
       std::optional<ui::ElementContext> context,
       C&& poll_view_callback,
-      base::TimeDelta polling_interval = Superclass::kDefaultPollingInterval)
-      : Superclass(
+      base::TimeDelta polling_interval = ui::test::PollingStateObserver<
+          std::optional<T>>::kDefaultPollingInterval)
+      : ui::test::PollingElementStateObserver<T>(
+            view_id,
+            context,
             base::BindRepeating(
-                [](ui::ElementIdentifier id,
-                   std::optional<ui::ElementContext> ctx,
-                   PollViewCallback callback) -> std::optional<T> {
-                  if (ctx.has_value()) {
-                    for (auto* v :
-                         ElementTrackerViews::GetInstance()
-                             ->GetAllMatchingViews(id, *ctx,
-                                                   /*require_visible=*/true)) {
-                      if (auto* view = views::AsViewClass<V>(v)) {
-                        return callback.Run(view);
-                      }
-                    }
-                  } else {
-                    for (auto* v : ElementTrackerViews::GetInstance()
-                                       ->GetAllMatchingViewsInAnyContext(
-                                           id, /*require_visible=*/true)) {
-                      if (auto* view = views::AsViewClass<V>(v)) {
-                        return callback.Run(view);
-                      }
-                    }
-                  }
-                  return std::nullopt;
+                [](PollViewCallback callback, const ui::TrackedElement* el) {
+                  const auto* const view_el = el->AsA<TrackedElementViews>();
+                  CHECK(view_el);
+                  const auto* const view =
+                      views::AsViewClass<V>(view_el->view());
+                  CHECK(view);
+                  return callback.Run(view);
                 },
-                view_id,
-                context,
                 ui::test::internal::MaybeBindRepeating(
                     std::forward<C>(poll_view_callback))),
             polling_interval) {}
 
-  ~PollingViewObserver() override = default;
+  ~PollingViewObserver() = default;
 };
 
 // Polling static observer that repeatedly calls `property` on a View of type

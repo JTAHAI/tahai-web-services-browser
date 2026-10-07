@@ -36,9 +36,7 @@ source_set("signin") {
 
   if (enable_dice_support) {
     sources += [
-      "account_preview_utils.h",
       "chrome_signout_confirmation_prompt.h",
-      "cross_device_signin_qr_bubble.h",
       "dice_migration_service.h",
       "dice_migration_service_factory.h",
       "dice_web_signin_interceptor_delegate.h",
@@ -108,7 +106,6 @@ source_set("impl") {
 
   if (enable_dice_support) {
     sources += [
-      "account_preview_utils.cc",
       "chrome_signout_confirmation_prompt.cc",
       "dice_migration_service.cc",
       "dice_migration_service_factory.cc",
@@ -131,7 +128,6 @@ source_set("impl") {
       "//chrome/browser/ui/views:layout_provider",
       "//chrome/browser/ui/views/controls",
       "//chrome/browser/ui/views/infobars",
-      "//chrome/browser/ui/views/profiles:badged_profile_photo",
       "//chrome/browser/ui/views/webauthn",
       "//chrome/browser/ui/web_applications",
       "//components/infobars/content",
@@ -164,7 +160,6 @@ if (!is_android) {
         "//chrome/browser",
         "//chrome/browser/bookmarks",
         "//chrome/browser/password_manager:test_support",
-        "//chrome/browser/signin:signin_browser_test_base",
         "//chrome/browser/ui",
         "//chrome/browser/ui:browser_element_identifiers",
         "//chrome/browser/ui:chrome_pages",
@@ -175,11 +170,7 @@ if (!is_android) {
         "//chrome/browser/ui/hats",
         "//chrome/browser/ui/hats:test_support",
         "//chrome/browser/ui/passwords:test_support",
-        "//chrome/browser/ui/views/autofill:address_sign_in_promo_view",
-        "//chrome/browser/ui/views/autofill:save_address_profile_view",
-        "//chrome/browser/ui/views/bookmarks",
         "//chrome/browser/ui/views/extensions:extension_post_install_dialog_view_utils",
-        "//chrome/browser/ui/views/passwords",
         "//chrome/browser/ui/views/passwords:password_bubble_view_base",
         "//chrome/browser/ui/webui/signin:test_support_ui",
         "//chrome/test:test_support",
@@ -226,7 +217,6 @@ if (!is_android) {
       "//base",
       "//base/test:test_support",
       "//chrome/browser",
-      "//chrome/browser/signin:signin_browser_test_base",
       "//chrome/browser/sync",
       "//chrome/browser/sync/test/integration:sync_integration_test_support",
       "//chrome/browser/ui",
@@ -282,15 +272,14 @@ if (enable_dice_support) {
   source_set("unit_tests") {
     testonly = true
 
-    sources = [
-      "account_preview_utils_unittest.cc",
-      "promos/signin_promo_tab_helper_unittest.cc",
-    ]
+    sources = [ "promos/signin_promo_tab_helper_unittest.cc" ]
 
     deps = [
       ":signin",
       "//base",
       "//base/test:test_support",
+      "//chrome/browser",
+      "//chrome/browser/ui",
       "//chrome/test:test_support",
       "//components/signin/public/base",
       "//components/signin/public/identity_manager",

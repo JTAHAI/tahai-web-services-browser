@@ -148,30 +148,24 @@ std::string GetHtmlTagForPDF(const ui::AXNode* ax_node,
 std::string GetHeadingHtmlTagForPDF(const ui::AXNode* ax_node,
                                     const std::string& html_tag) {
   // Sometimes whole paragraphs can be formatted as a heading. If the text is
-  // longer than 2 lines, assume it was meant to be a paragragh. Since the "ch"
-  // unit in CSS doesn't actually correspond exactly to the number of
-  // characters, use a larger multiplier to approximate 2 actual lines of RM.
-  int multiplier =
-      features::IsPdfAccessibilityHeuristicEnhancementsEnabled() ? 3 : 2;
-  if (ax_node->GetTextContentLengthUTF8() > (multiplier * kMaxLineWidth)) {
+  // longer than 2 lines, assume it was meant to be a paragragh.
+  if (ax_node->GetTextContentLengthUTF8() > (2 * kMaxLineWidth)) {
     return "p";
   }
 
-  if (!features::IsPdfAccessibilityHeuristicEnhancementsEnabled()) {
-    // A single block of text could be incorrectly formatted with multiple
-    // heading nodes (one for each line of text) instead of a single paragraph
-    // node. This case should be detected to improve readability. If there are
-    // multiple consecutive nodes with the same heading level, assume that they
-    // are all a part of one paragraph.
-    ui::AXNode* next = ax_node->GetNextUnignoredSibling();
-    ui::AXNode* prev = ax_node->GetPreviousUnignoredSibling();
+  // A single block of text could be incorrectly formatted with multiple heading
+  // nodes (one for each line of text) instead of a single paragraph node. This
+  // case should be detected to improve readability. If there are multiple
+  // consecutive nodes with the same heading level, assume that they are all a
+  // part of one paragraph.
+  ui::AXNode* next = ax_node->GetNextUnignoredSibling();
+  ui::AXNode* prev = ax_node->GetPreviousUnignoredSibling();
 
-    if ((next && next->GetStringAttribute(
-                     ax::mojom::StringAttribute::kHtmlTag) == html_tag) ||
-        (prev && prev->GetStringAttribute(
-                     ax::mojom::StringAttribute::kHtmlTag) == html_tag)) {
-      return "span";
-    }
+  if ((next && next->GetStringAttribute(ax::mojom::StringAttribute::kHtmlTag) ==
+                   html_tag) ||
+      (prev && prev->GetStringAttribute(ax::mojom::StringAttribute::kHtmlTag) ==
+                   html_tag)) {
+    return "span";
   }
 
   int32_t hierarchical_level =
@@ -218,9 +212,20 @@ std::u16string GetTextContent(const ui::AXNode* ax_node,
     }
   }
 
-  if (is_pdf && !features::IsPdfAccessibilityHeuristicEnhancementsEnabled()) {
+  // TODO(crbug.com/467180032): Investigate whether to move this to the pdf
+  // side. Requires better understanding of other assistive technologies needs
+  // and expectations. See discussion at go/rm-pdf-heuristic.
+  if (is_pdf) {
     std::u16string filtered_string(ax_node->GetTextContentUTF16());
     if (filtered_string.size() > 0) {
+      // Ignore non-whitespace control characters (e.g. hyphens for words split
+      // across a visual line in the PDF) as those are artifacts of the page-
+      // based format of PDFs and breaks the reading flow in reading mode.
+      if (features::IsPdfAccessibilityHeuristicEnhancementsEnabled()) {
+        std::erase_if(filtered_string, [](char16_t c) {
+          return base::IsUnicodeControl(c) && !base::IsAsciiWhitespace(c);
+        });
+      }
 
       // When we receive text from a pdf node, there are return characters at
       // each visual line break in the page. If these aren't filtered, one of

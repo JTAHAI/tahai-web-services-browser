@@ -191,7 +191,7 @@ TEST_F(SignInCelebrationHandlerTest, ReturnsAvatarUrl) {
   {
     EXPECT_CALL(mock_page(), OnSignInCelebrationUserInfoUpdated(_));
     signin::SimulateAccountImageFetch(
-        identity_env().identity_manager(), account_info.GetAccountId(),
+        identity_env().identity_manager(), account_info.account_id,
         "https://example.com/image.png", gfx::test::CreateImage(100, 100));
     mock_page().FlushForTesting();
 

@@ -1218,8 +1218,7 @@ bool DownloadTargetDeterminer::IsDownloadDlpBlocked(
   if (!files_controller)
     return false;
   const GURL authority_url = download::BaseFile::GetEffectiveAuthorityURL(
-      download_->GetURL(), download_->GetReferrerUrl(),
-      download_->GetRequestInitiator());
+      download_->GetURL(), download_->GetReferrerUrl());
   if (!authority_url.is_valid()) {
     return true;
   }

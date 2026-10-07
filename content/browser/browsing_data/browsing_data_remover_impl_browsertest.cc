@@ -3,7 +3,6 @@
 // found in the LICENSE file.
 
 #include <memory>
-#include <optional>
 
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
@@ -947,7 +946,6 @@ class BrowsingDataRemoverImplPrefetchBrowserTest
         PrefetchDocumentManager::GetOrCreateForCurrentDocument(
             shell->web_contents()->GetPrimaryMainFrame());
     auto candidate = blink::mojom::SpeculationCandidate::New();
-    candidate->tags = {std::nullopt};
     candidate->url = url;
     candidate->action = blink::mojom::SpeculationAction::kPrefetch;
     candidate->eagerness = blink::mojom::SpeculationEagerness::kImmediate;

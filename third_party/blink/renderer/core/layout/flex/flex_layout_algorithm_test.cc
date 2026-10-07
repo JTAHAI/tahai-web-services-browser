@@ -5,7 +5,6 @@
 #include "third_party/blink/renderer/core/layout/flex/flex_layout_algorithm.h"
 
 #include "testing/gmock/include/gmock/gmock.h"
-#include "third_party/blink/renderer/core/css/resolver/style_resolver.h"
 #include "third_party/blink/renderer/core/layout/base_layout_algorithm_test.h"
 #include "third_party/blink/renderer/core/layout/block_node.h"
 #include "third_party/blink/renderer/core/layout/flex/devtools_flex_info.h"
@@ -69,6 +68,7 @@ TEST_F(FlexLayoutAlgorithmTest, ReplacedAspectRatioPrecision) {
 }
 
 TEST_F(FlexLayoutAlgorithmTest, GapDecorationsOneLine) {
+  ScopedCSSGapDecorationForTest scoped_gap_decoration(true);
   SetBodyInnerHTML(R"HTML(
     <style>
     body {
@@ -141,6 +141,7 @@ TEST_F(FlexLayoutAlgorithmTest, GapDecorationsOneLine) {
 }
 
 TEST_F(FlexLayoutAlgorithmTest, GapDecorationsBasic) {
+  ScopedCSSGapDecorationForTest scoped_gap_decoration(true);
   SetBodyInnerHTML(R"HTML(
     <style>
     body {
@@ -217,6 +218,7 @@ TEST_F(FlexLayoutAlgorithmTest, GapDecorationsBasic) {
 
 TEST_F(FlexLayoutAlgorithmTest,
        GapDecorationsContentEndPastContainer) {
+  ScopedCSSGapDecorationForTest scoped_gap_decoration(true);
   SetBodyInnerHTML(R"HTML(
     <style>
     body {
@@ -282,6 +284,7 @@ TEST_F(FlexLayoutAlgorithmTest,
 }
 
 TEST_F(FlexLayoutAlgorithmTest, GapDecorationsNonAlignedColumn) {
+  ScopedCSSGapDecorationForTest scoped_gap_decoration(true);
   SetBodyInnerHTML(R"HTML(
     <style>
 body {
@@ -367,6 +370,7 @@ body {
 }
 
 TEST_F(FlexLayoutAlgorithmTest, GapDecorationsNonAlignedColumn2) {
+  ScopedCSSGapDecorationForTest scoped_gap_decoration(true);
   SetBodyInnerHTML(R"HTML(
     <style>
 body {
@@ -451,6 +455,7 @@ body {
 
 TEST_F(FlexLayoutAlgorithmTest,
        GapDecorationsVerticalFlexAlignedCenter) {
+  ScopedCSSGapDecorationForTest scoped_gap_decoration(true);
   SetBodyInnerHTML(R"HTML(
     <style>
 body {
@@ -536,6 +541,7 @@ body {
 
 TEST_F(FlexLayoutAlgorithmTest,
        GapDecorationsVerticalFlexAlignedStart) {
+  ScopedCSSGapDecorationForTest scoped_gap_decoration(true);
   SetBodyInnerHTML(R"HTML(
     <style>
 body {
@@ -621,6 +627,7 @@ body {
 
 TEST_F(FlexLayoutAlgorithmTest,
        GapDecorationsVerticalFlexAlignedStretch) {
+  ScopedCSSGapDecorationForTest scoped_gap_decoration(true);
   SetBodyInnerHTML(R"HTML(
     <style>
 body {
@@ -705,6 +712,7 @@ body {
 }
 
 TEST_F(FlexLayoutAlgorithmTest, GapDecorationsColumnFlexDirection) {
+  ScopedCSSGapDecorationForTest scoped_gap_decoration(true);
   SetBodyInnerHTML(R"HTML(
     <style>
     body {
@@ -787,6 +795,7 @@ TEST_F(FlexLayoutAlgorithmTest, GapDecorationsColumnFlexDirection) {
 }
 
 TEST_F(FlexLayoutAlgorithmTest, GapDecorationsContentDistributionGaps) {
+  ScopedCSSGapDecorationForTest scoped_gap_decoration(true);
   SetBodyInnerHTML(R"HTML(
     <style>
     body {
@@ -875,6 +884,7 @@ TEST_F(FlexLayoutAlgorithmTest, GapDecorationsContentDistributionGaps) {
 
 TEST_F(FlexLayoutAlgorithmTest,
        GapDecorationsContentDistributionGapsBetweenLines) {
+  ScopedCSSGapDecorationForTest scoped_gap_decoration(true);
   SetBodyInnerHTML(R"HTML(
     <style>
     body {
@@ -1120,48 +1130,6 @@ TEST_F(FlexLayoutAlgorithmTest, DevtoolsAutoScrollbar) {
 
   devtools = LayoutForDevtools();
   EXPECT_TRUE(devtools);
-}
-
-TEST_F(FlexLayoutAlgorithmTest, SingleAxisScrollerAutoMinSizeUseCount) {
-  ScopedSingleAxisScrollContainersForTest single_axis_scroll_containers(true);
-
-  SetBodyInnerHTML(R"HTML(
-    <div style='display: flex'>
-      <div style='overflow-x: clip; overflow-y: auto; min-width: 0'></div>
-    </div>
-  )HTML");
-  EXPECT_FALSE(
-      GetDocument().IsUseCounted(WebFeature::kSingleAxisScrollerAutoMinSize));
-  GetDocument().ClearUseCounterForTesting(
-      WebFeature::kSingleAxisScrollerAutoMinSize);
-
-  SetBodyInnerHTML(R"HTML(
-    <div style='display: flex'>
-      <div style='overflow-x: clip; overflow-y: auto'></div>
-    </div>
-  )HTML");
-  EXPECT_TRUE(
-      GetDocument().IsUseCounted(WebFeature::kSingleAxisScrollerAutoMinSize));
-  GetDocument().ClearUseCounterForTesting(
-      WebFeature::kSingleAxisScrollerAutoMinSize);
-
-  SetBodyInnerHTML(R"HTML(
-    <div style='display: flex; flex-direction: column'>
-      <div style='overflow-x: auto; overflow-y: clip'></div>
-    </div>
-  )HTML");
-  EXPECT_TRUE(
-      GetDocument().IsUseCounted(WebFeature::kSingleAxisScrollerAutoMinSize));
-  GetDocument().ClearUseCounterForTesting(
-      WebFeature::kSingleAxisScrollerAutoMinSize);
-
-  SetBodyInnerHTML(R"HTML(
-    <div style='display: flex'>
-      <div style='overflow-y: auto'></div>
-    </div>
-  )HTML");
-  EXPECT_FALSE(
-      GetDocument().IsUseCounted(WebFeature::kSingleAxisScrollerAutoMinSize));
 }
 
 }  // namespace

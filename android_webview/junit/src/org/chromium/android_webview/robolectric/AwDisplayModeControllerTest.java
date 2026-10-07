@@ -62,6 +62,7 @@ public class AwDisplayModeControllerTest {
 
     private Matrix mGlobalTransformMatrix;
 
+    private float mDipScale;
     private int mDisplayWidth;
     private int mDisplayHeight;
 

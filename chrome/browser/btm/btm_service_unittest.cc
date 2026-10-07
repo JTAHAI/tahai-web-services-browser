@@ -4,7 +4,6 @@
 
 #include "content/public/browser/btm_service.h"
 
-#include "base/containers/span.h"
 #include "base/memory/raw_ptr.h"
 #include "chrome/browser/content_settings/cookie_settings_factory.h"
 #include "chrome/browser/content_settings/host_content_settings_map_factory.h"

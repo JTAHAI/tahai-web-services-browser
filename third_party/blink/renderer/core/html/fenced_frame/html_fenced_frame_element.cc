@@ -45,7 +45,6 @@
 #include "third_party/blink/renderer/platform/instrumentation/use_counter.h"
 #include "third_party/blink/renderer/platform/runtime_enabled_features.h"
 #include "third_party/blink/renderer/platform/weborigin/kurl.h"
-#include "third_party/blink/renderer/platform/wtf/text/format.h"
 #include "third_party/blink/renderer/platform/wtf/text/strcat.h"
 
 namespace blink {
@@ -237,6 +236,74 @@ void HTMLFencedFrameElement::setConfig(FencedFrameConfig* config) {
   }
 }
 
+// static
+bool HTMLFencedFrameElement::canLoadOpaqueURL(ScriptState* script_state) {
+  if (!script_state->ContextIsValid())
+    return false;
+
+  LocalDOMWindow::From(script_state)
+      ->document()
+      ->AddConsoleMessage(MakeGarbageCollected<ConsoleMessage>(
+          mojom::blink::ConsoleMessageSource::kJavaScript,
+          mojom::blink::ConsoleMessageLevel::kWarning,
+          "HTMLFencedFrameElement.canLoadOpaqueURL() is deprecated and will be "
+          "removed. Please use navigator.canLoadAdAuctionFencedFrame() "
+          "instead."));
+
+  UseCounter::Count(LocalDOMWindow::From(script_state)->document(),
+                    WebFeature::kFencedFrameCanLoadOpaqueURL);
+
+  LocalFrame* frame_to_check = LocalDOMWindow::From(script_state)->GetFrame();
+  ExecutionContext* context = ExecutionContext::From(script_state);
+  DCHECK(frame_to_check && context);
+
+  // "A fenced frame tree of one mode cannot contain a child fenced frame of
+  // another mode."
+  // See: https://github.com/WICG/fenced-frame/blob/master/explainer/modes.md
+  // TODO(lbrady) Link to spec once it's written.
+  if (ParentModeIsDifferent(
+          blink::FencedFrame::DeprecatedFencedFrameMode::kOpaqueAds,
+          *frame_to_check)) {
+    return false;
+  }
+
+  if (!context->IsSecureContext())
+    return false;
+
+  // Check that the flags specified in kFencedFrameMandatoryUnsandboxedFlags
+  // are not set in this context. Fenced frames loaded in a sandboxed document
+  // require these flags to remain unsandboxed.
+  if (context->IsSandboxed(kFencedFrameMandatoryUnsandboxedFlags))
+    return false;
+
+  // Check the results of the browser checks for the current frame.
+  // If the embedding frame is an iframe with CSPEE set, or any ancestor
+  // iframes has CSPEE set, the fenced frame will not be allowed to load.
+  // The renderer has no knowledge of CSPEE up the ancestor chain, so we defer
+  // to the browser to determine the existence of CSPEE outside of the scope
+  // we can see here.
+  if (frame_to_check->AncestorOrSelfHasCSPEE())
+    return false;
+
+  // Ensure that if any CSP headers are set that will affect a fenced frame,
+  // they allow all https urls to load. Opaque-ads fenced frames do not support
+  // allowing/disallowing specific hosts, as that could reveal information to
+  // a fenced frame about its embedding page. See design doc for more info:
+  // https://github.com/WICG/fenced-frame/blob/master/explainer/interaction_with_content_security_policy.md
+  // This is being checked in the renderer because processing of <meta> tags
+  // (including CSP) happen in the renderer after navigation commit, so we can't
+  // piggy-back off of the ancestor_or_self_has_cspee bit being sent from the
+  // browser (which is sent at commit time) since it doesn't know about all the
+  // CSP headers yet.
+  ContentSecurityPolicy* csp = context->GetContentSecurityPolicy();
+  DCHECK(csp);
+  if (!csp->AllowFencedFrameOpaqueURL()) {
+    return false;
+  }
+
+  return true;
+}
+
 Node::InsertionNotificationRequest HTMLFencedFrameElement::InsertedInto(
     ContainerNode& insertion_point) {
   HTMLFrameOwnerElement::InsertedInto(insertion_point);
@@ -315,7 +382,8 @@ void HTMLFencedFrameElement::Navigate(
     const KURL& url,
     std::optional<bool> deprecated_should_freeze_initial_size,
     std::optional<gfx::Size> container_size,
-    std::optional<gfx::Size> content_size) {
+    std::optional<gfx::Size> content_size,
+    String embedder_shared_storage_context) {
   TRACE_EVENT0("navigation", "HTMLFencedFrameElement::Navigate");
   if (!isConnected())
     return;
@@ -395,7 +463,7 @@ void HTMLFencedFrameElement::Navigate(
 
   UpdateContainerPolicy();
 
-  frame_delegate_->Navigate(url);
+  frame_delegate_->Navigate(url, embedder_shared_storage_context);
 
   RecordFencedFrameCreationOutcome(
       mode_ == blink::FencedFrame::DeprecatedFencedFrameMode::kDefault
@@ -459,8 +527,8 @@ void HTMLFencedFrameElement::NavigateToConfig() {
             ->GetValueIgnoringVisibility<FencedFrameConfig::Attribute::kURL>();
   }
   Navigate(url, config_->deprecated_should_freeze_initial_size(PassKey()),
-           config_->container_size(PassKey()),
-           config_->content_size(PassKey()));
+           config_->container_size(PassKey()), config_->content_size(PassKey()),
+           config_->GetSharedStorageContext());
 }
 
 void HTMLFencedFrameElement::CreateDelegateAndNavigate() {
@@ -677,9 +745,9 @@ void HTMLFencedFrameElement::FreezeCurrentFrameSize() {
 
 void HTMLFencedFrameElement::SetContainerSize(const gfx::Size& size) {
   setAttribute(html_names::kWidthAttr,
-               AtomicString(Format("{}px", size.width())));
+               AtomicString(String::Format("%dpx", size.width())));
   setAttribute(html_names::kHeightAttr,
-               AtomicString(Format("{}px", size.height())));
+               AtomicString(String::Format("%dpx", size.height())));
 
   frame_delegate_->MarkContainerSizeStale();
 }
@@ -836,10 +904,13 @@ HTMLFencedFrameElement::FencedFrameDelegate::FencedFrameDelegate(
   DCHECK_EQ(remote_frame, GetElement().ContentFrame());
 }
 
-void HTMLFencedFrameElement::FencedFrameDelegate::Navigate(const KURL& url) {
+void HTMLFencedFrameElement::FencedFrameDelegate::Navigate(
+    const KURL& url,
+    const String& embedder_shared_storage_context) {
   DCHECK(remote_.get());
   const auto navigation_start_time = base::TimeTicks::Now();
-  remote_->Navigate(url, navigation_start_time);
+  remote_->Navigate(url, navigation_start_time,
+                    embedder_shared_storage_context);
 }
 
 void HTMLFencedFrameElement::FencedFrameDelegate::Dispose() {

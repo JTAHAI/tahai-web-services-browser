@@ -135,7 +135,7 @@ public class TabWebContentsObserver extends TabWebContentsUserData {
 
     private void showSadTab(SadTab sadTab) {
         sadTab.show(
-                TabImpl.getThemedApplicationContext(),
+                mTab.getThemedApplicationContext(),
                 /* suggestionAction= */ () -> {
                     Activity activity = mTab.getWindowAndroidChecked().getActivity().get();
                     assert activity != null;
@@ -148,14 +148,11 @@ public class TabWebContentsObserver extends TabWebContentsUserData {
 
                 /* buttonAction= */ () -> {
                     if (sadTab.showSendFeedbackView()) {
-                        Activity activity = TabUtils.getActivity(mTab);
-                        if (activity != null) {
-                            HelpAndFeedbackLauncherImpl.getForProfile(mTab.getProfile())
-                                    .showHelpAndFeedbackForUrl(
-                                            activity,
-                                            mTab.getUrl().getSpec(),
-                                            "MobileSadTabFeedback");
-                        }
+                        assumeNonNull(mTab.getActivity())
+                                .startHelpAndFeedback(
+                                        mTab.getUrl().getSpec(),
+                                        "MobileSadTabFeedback",
+                                        mTab.getProfile());
                     } else {
                         mTab.reload();
                     }
@@ -247,16 +244,6 @@ public class TabWebContentsObserver extends TabWebContentsUserData {
         }
 
         @Override
-        public void documentLoadedInPrimaryMainFrame(
-                Page page, GlobalRenderFrameHostId rfhId, @LifecycleState int rfhLifecycleState) {
-            if (rfhLifecycleState == LifecycleState.ACTIVE) {
-                for (TabObserver observer : mTab.getTabObservers()) {
-                    observer.onDocumentLoadedInPrimaryMainFrame(mTab);
-                }
-            }
-        }
-
-        @Override
         public void didFailLoad(
                 boolean isInPrimaryMainFrame,
                 int errorCode,
@@ -302,21 +289,23 @@ public class TabWebContentsObserver extends TabWebContentsUserData {
                 mTab.setNavigationStartMs(navigation.getNavigationStartMs());
             }
 
-            for (TabObserver observer : mTab.getTabObservers()) {
-                observer.onDidStartNavigationInPrimaryMainFrame(mTab, navigation);
+            RewindableIterator<TabObserver> observers = mTab.getTabObservers();
+            while (observers.hasNext()) {
+                observers.next().onDidStartNavigationInPrimaryMainFrame(mTab, navigation);
             }
         }
 
         @Override
         public void didRedirectNavigation(NavigationHandle navigation) {
-            for (TabObserver observer : mTab.getTabObservers()) {
-                observer.onDidRedirectNavigation(mTab, navigation);
+            RewindableIterator<TabObserver> observers = mTab.getTabObservers();
+            while (observers.hasNext()) {
+                observers.next().onDidRedirectNavigation(mTab, navigation);
             }
         }
 
         @Override
         public void didFinishNavigationInPrimaryMainFrame(NavigationHandle navigation) {
-            RewindableIterator<TabObserver> observers = mTab.getRewindableTabObservers();
+            RewindableIterator<TabObserver> observers = mTab.getTabObservers();
             while (observers.hasNext()) {
                 observers.next().onDidFinishNavigationInPrimaryMainFrame(mTab, navigation);
             }
@@ -365,9 +354,10 @@ public class TabWebContentsObserver extends TabWebContentsUserData {
 
         @Override
         public void didFirstVisuallyNonEmptyPaint() {
+            RewindableIterator<TabObserver> observers = mTab.getTabObservers();
             mTab.notifyDidFirstVisuallyNonEmptyPaint();
-            for (TabObserver observer : mTab.getTabObservers()) {
-                observer.didFirstVisuallyNonEmptyPaint(mTab);
+            while (observers.hasNext()) {
+                observers.next().didFirstVisuallyNonEmptyPaint(mTab);
             }
         }
 
@@ -407,8 +397,9 @@ public class TabWebContentsObserver extends TabWebContentsUserData {
 
         @Override
         public void virtualKeyboardModeChanged(@VirtualKeyboardMode.EnumType int mode) {
-            for (TabObserver observer : mTab.getTabObservers()) {
-                observer.onVirtualKeyboardModeChanged(mTab, mode);
+            RewindableIterator<TabObserver> observers = mTab.getTabObservers();
+            while (observers.hasNext()) {
+                observers.next().onVirtualKeyboardModeChanged(mTab, mode);
             }
         }
 

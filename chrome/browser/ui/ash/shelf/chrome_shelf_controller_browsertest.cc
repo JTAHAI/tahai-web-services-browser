@@ -80,11 +80,9 @@
 #include "chrome/browser/ui/ash/shelf/shelf_context_menu.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
-#include "chrome/browser/ui/browser_init_state.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
-#include "chrome/browser/ui/browser_window/public/create_browser_window.h"
 #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "chrome/browser/ui/browser_window/public/profile_browser_collection.h"
 #include "chrome/browser/ui/dialogs/browser_dialogs.h"
@@ -188,7 +186,7 @@ BrowserWindowInterface* FindBrowserForApp(const std::string& app_name) {
   ForEachCurrentBrowserWindowInterfaceOrderedByActivation(
       [app_name, &found_browser](BrowserWindowInterface* browser) {
         if (web_app::GetAppIdFromApplicationName(
-                BrowserInitState::From(browser)->create_params().app_name) ==
+                browser->GetBrowserForMigrationOnly()->app_name()) ==
             app_name) {
           found_browser = browser;
         }
@@ -205,7 +203,7 @@ void CloseAppBrowserWindow(BrowserWindowInterface* app_browser) {
 }
 
 // Close browsers from context menu
-void CloseBrowserWindow(BrowserWindowInterface* browser,
+void CloseBrowserWindow(Browser* browser,
                         ShelfContextMenu* menu,
                         int close_command) {
   ui_test_utils::BrowserDestroyedObserver observer(browser);
@@ -220,7 +218,7 @@ int64_t GetDisplayIdForBrowserWindow(ui::BaseWindow* window) {
       .id();
 }
 
-void ExtendHotseat(BrowserWindowInterface* browser) {
+void ExtendHotseat(Browser* browser) {
   ash::RootWindowController* const controller =
       ash::Shell::GetRootWindowControllerWithDisplayId(
           display::Screen::Get()->GetPrimaryDisplay().id());
@@ -825,7 +823,7 @@ IN_PROC_BROWSER_TEST_F(ShelfPlatformAppBrowserTest, MultipleBrowsers) {
       GlobalBrowserCollection::GetInstance()->GetLastActiveBrowser();
   ASSERT_TRUE(browser1);
 
-  BrowserWindowInterface* const browser2 = CreateBrowser(profile());
+  Browser* const browser2 = CreateBrowser(profile());
   ASSERT_TRUE(browser2);
   EXPECT_EQ(2u, GlobalBrowserCollection::GetInstance()->GetSize());
   EXPECT_NE(browser1->GetWindow(), browser2->GetWindow());
@@ -1364,9 +1362,9 @@ IN_PROC_BROWSER_TEST_F(ShelfAppBrowserTest, LaunchInBackground) {
 IN_PROC_BROWSER_TEST_F(ShelfAppBrowserTest, LaunchMaximized) {
   browser()->GetWindow()->Maximize();
   // Load about:blank in a new window.
-  BrowserWindowInterface* browser2 = CreateBrowser(browser()->GetProfile());
+  Browser* browser2 = CreateBrowser(browser()->GetProfile());
   EXPECT_NE(browser(), browser2);
-  TabStripModel* tab_strip = browser2->GetTabStripModel();
+  TabStripModel* tab_strip = browser2->tab_strip_model();
   int tab_count = tab_strip->count();
   browser2->GetWindow()->Maximize();
 
@@ -1537,9 +1535,9 @@ IN_PROC_BROWSER_TEST_F(ShelfAppBrowserTest, TabDragAndDrop) {
   EXPECT_EQ(ash::STATUS_RUNNING, shelf_model()->ItemByID(shortcut_id)->status);
 
   // Create a new browser with blank tab.
-  BrowserWindowInterface* browser2 = CreateBrowser(profile());
+  Browser* browser2 = CreateBrowser(profile());
   EXPECT_EQ(2u, GlobalBrowserCollection::GetInstance()->GetSize());
-  TabStripModel* tab_strip_model2 = browser2->GetTabStripModel();
+  TabStripModel* tab_strip_model2 = browser2->tab_strip_model();
   EXPECT_EQ(1, tab_strip_model2->count());
   EXPECT_EQ(ash::STATUS_RUNNING, shelf_model()->items()[browser_index].status);
   EXPECT_EQ(ash::STATUS_RUNNING, shelf_model()->ItemByID(shortcut_id)->status);
@@ -2049,7 +2047,7 @@ IN_PROC_BROWSER_TEST_F(ShelfAppBrowserTestNoDefaultBrowser,
   BrowserWindowInterface* browser1 =
       GlobalBrowserCollection::GetInstance()->GetLastActiveBrowser();
   EXPECT_TRUE(browser1);
-  BrowserWindowInterface* browser2 = CreateBrowser(profile());
+  Browser* browser2 = CreateBrowser(profile());
 
   EXPECT_EQ(2u, GlobalBrowserCollection::GetInstance()->GetSize());
   EXPECT_NE(browser1->GetWindow(), browser2->GetWindow());
@@ -2063,7 +2061,7 @@ IN_PROC_BROWSER_TEST_F(ShelfAppBrowserTestNoDefaultBrowser,
 
   // Create a third browser - make sure that we do not toggle simply between
   // two windows.
-  BrowserWindowInterface* browser3 = CreateBrowser(profile());
+  Browser* browser3 = CreateBrowser(profile());
 
   EXPECT_EQ(3u, GlobalBrowserCollection::GetInstance()->GetSize());
   EXPECT_NE(browser1->GetWindow(), browser3->GetWindow());
@@ -2100,9 +2098,9 @@ IN_PROC_BROWSER_TEST_F(ShelfAppBrowserTest, ActivateAfterSessionRestore) {
   ash::ShelfID shortcut_id = CreateShortcut("app1");
 
   // Create a new browser - without activating it - and load an "app" into it.
-  BrowserWindowCreateParams params(profile(), /*from_user_gesture=*/true);
+  Browser::CreateParams params = Browser::CreateParams(profile(), true);
   params.initial_show_state = ui::mojom::WindowShowState::kInactive;
-  BrowserWindowInterface* browser2 = CreateBrowserWindow(std::move(params));
+  Browser* browser2 = Browser::Create(params);
   SetRefocusURL(shortcut_id, GURL("https://www.example.com/path/*"));
   std::string url = "https://www.example.com/path/bla";
   ui_test_utils::NavigateToURLWithDisposition(
@@ -3029,8 +3027,7 @@ class PerDeskShelfAppBrowserTest : public ShelfAppBrowserTest,
   }
 
   void CreateTestBrowser() {
-    BrowserWindowInterface* new_browser =
-        CreateBrowser(browser()->GetProfile());
+    Browser* new_browser = CreateBrowser(browser()->GetProfile());
     new_browser->GetWindow()->Show();
     new_browser->GetWindow()->Activate();
   }

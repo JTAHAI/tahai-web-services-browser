@@ -6,8 +6,7 @@
  * @fileoverview Logic for the ActorTool to perform actions on elements.
  */
 
-import type {ActionTarget, Coordinate} from '//ios/chrome/browser/intelligence/actor/tools/model/resources/actor_tool_utils.js';
-import {getElementFromPoint, isCoordinateTarget, isNodeIdTarget} from '//ios/chrome/browser/intelligence/actor/tools/model/resources/actor_tool_utils.js';
+import {getElementFromPoint} from '//ios/chrome/browser/intelligence/actor/tools/model/resources/actor_tool_utils.js';
 import {getNodeById} from '//ios/chrome/browser/intelligence/proto_wrappers/resources/dom_node_ids.js';
 import {CrWebApi, gCrWeb} from '//ios/web/public/js_messaging/resources/gcrweb.js';
 
@@ -132,36 +131,42 @@ function dispatchClickEvents(
 }
 
 /**
- * Simulates a click on an element at the specified coordinates.
- * @param coordinate The target coordinate.
+ * Simulates a click on a coordinate.
+ * @param x The x-coordinate.
+ * @param y The y-coordinate.
  * @param clickType The type of click (0=UNKNOWN, 1=LEFT, 2=RIGHT).
  * @param clickCount The number of clicks (0=UNKNOWN, 1=SINGLE, 2=DOUBLE).
- * @return An object containing the result of the click attempt.
+ * @param pixelType The type of pixels (0=UNSPECIFIED, 1=DIPS, 2=PHYSICAL).
+ * @return an object containing the result of the click attempt.
  */
 function clickByCoordinate(
-    coordinate: Coordinate, clickType: number,
-    clickCount: number): {resultCode: number, message: string} {
-  const target = getElementFromPoint(coordinate);
-  if (!target.element) {
+    x: number, y: number, clickType: number, clickCount: number,
+    pixelType: number): {
+  resultCode: number,
+  message: string,
+} {
+  const {element, clientX, clientY} = getElementFromPoint(x, y, pixelType);
+
+  if (!element) {
     return {
       resultCode: ClickToolResultCode.COORDINATES_OUT_OF_BOUNDS,
       message: 'Point is outside of the viewport.',
     };
   }
-
-  return dispatchClickEvents(
-      target.element, target.clientX, target.clientY, clickType, clickCount);
+  return dispatchClickEvents(element, clientX, clientY, clickType, clickCount);
 }
 
 /**
- * Simulates a click on an element with the given DOM node ID.
- * @param nodeId The DOM node ID of the target element.
+ * Simulates a click on an element specified by its DOM node ID.
+ * @param nodeId The ID of the node.
  * @param clickType The type of click (0=UNKNOWN, 1=LEFT, 2=RIGHT).
  * @param clickCount The number of clicks (0=UNKNOWN, 1=SINGLE, 2=DOUBLE).
  * @return an object containing the result of the click attempt.
  */
-function clickByNodeId(nodeId: number, clickType: number, clickCount: number):
-    {resultCode: number, message: string} {
+function clickByNodeId(nodeId: number, clickType: number, clickCount: number): {
+  resultCode: number,
+  message: string,
+} {
   const node = getNodeById(nodeId, window);
   if (!node) {
     return {
@@ -190,27 +195,7 @@ function clickByNodeId(nodeId: number, clickType: number, clickCount: number):
   return dispatchClickEvents(element, clientX, clientY, clickType, clickCount);
 }
 
-/**
- * Simulates a click on an element specified by an ActionTarget.
- * @param target The action target (coordinate or node ID).
- * @param clickType The type of click (0=UNKNOWN, 1=LEFT, 2=RIGHT).
- * @param clickCount The number of clicks (0=UNKNOWN, 1=SINGLE, 2=DOUBLE).
- * @return an object containing the result of the click attempt.
- */
-function click(target: ActionTarget, clickType: number, clickCount: number):
-    {resultCode: number, message: string} {
-  if (isNodeIdTarget(target)) {
-    return clickByNodeId(target.contentNodeId, clickType, clickCount);
-  } else if (isCoordinateTarget(target)) {
-    return clickByCoordinate(target.coordinate, clickType, clickCount);
-  }
-
-  return {
-    resultCode: ClickToolResultCode.COORDINATES_OUT_OF_BOUNDS,
-    message: 'Invalid target.',
-  };
-}
-
 const clickToolApi = new CrWebApi('click_tool');
-clickToolApi.addFunction('click', click);
+clickToolApi.addFunction('clickByCoordinate', clickByCoordinate);
+clickToolApi.addFunction('clickByNodeId', clickByNodeId);
 gCrWeb.registerApi(clickToolApi);

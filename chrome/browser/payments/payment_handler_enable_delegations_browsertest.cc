@@ -14,17 +14,14 @@ namespace {
 class PaymentHandlerEnableDelegationsTest
     : public PaymentRequestPlatformBrowserTestBase {
  public:
+  PaymentHandlerEnableDelegationsTest() = default;
+
   PaymentHandlerEnableDelegationsTest(
       const PaymentHandlerEnableDelegationsTest&) = delete;
   PaymentHandlerEnableDelegationsTest& operator=(
       const PaymentHandlerEnableDelegationsTest&) = delete;
 
   ~PaymentHandlerEnableDelegationsTest() override = default;
-
- protected:
-  PaymentHandlerEnableDelegationsTest() {
-    SetBypassUserInteractionForTesting();
-  }
 
   void SetUpOnMainThread() override {
     PaymentRequestPlatformBrowserTestBase::SetUpOnMainThread();

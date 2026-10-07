@@ -17,7 +17,6 @@ import {generateRandomId, sendWebKitMessage} from '//ios/web/public/js_messaging
 class CrWeb {
   private readonly registeredApis: {[id: string]: CrWebApi} = {};
   private frameId: string = generateRandomId();
-  registerFrameCallback: ((payload: any) => void)|null = null;
 
   constructor() {
     const crweb = new CrWebApi('crweb');
@@ -71,13 +70,8 @@ class CrWeb {
       return;
     }
 
-    const payload: any = {
-      'crwFrameId': this.getFrameId(),
-    };
-    if (this.registerFrameCallback) {
-      this.registerFrameCallback(payload);
-    }
-    sendWebKitMessage('FrameBecameAvailable', payload);
+    sendWebKitMessage(
+      'FrameBecameAvailable', {'crwFrameId': this.getFrameId()});
   }
 
   /**
@@ -174,12 +168,3 @@ if (!(window as CrWebType).__gCrWeb) {
 }
 
 export const gCrWeb: CrWeb = (window as CrWebType).__gCrWeb;
-
-/**
- * Sets a callback that is invoked when a frame registers itself. This is used
- * by the isolated world script to append additional metadata (e.g.
- * crwParentChildToken) to the FrameBecameAvailable payload.
- */
-export function setRegisterCallback(callback: (payload: any) => void) {
-  gCrWeb.registerFrameCallback = callback;
-}

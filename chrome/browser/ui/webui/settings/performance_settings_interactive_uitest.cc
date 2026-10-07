@@ -79,7 +79,7 @@ const WebContentsInteractionTestUtil::DeepQuery kExceptionDialogEntry = {
     "tab-discard-exception-list",
     "tab-discard-exception-tabbed-add-dialog",
     "tab-discard-exception-current-sites-list#list",
-    "cr-checkbox"};
+    "settings-checkbox-list-entry"};
 
 const WebContentsInteractionTestUtil::DeepQuery kExceptionDialogAddButton = {
     "settings-ui",
@@ -690,7 +690,9 @@ class TabDiscardExceptionsSettingsInteractiveTest
     StateChange element_renders;
     element_renders.event = kElementHides;
     element_renders.where = element;
-    element_renders.type = StateChange::Type::kDoesNotExist;
+    element_renders.test_function =
+        "(el) => { let rect = el.getBoundingClientRect(); return rect.width "
+        "=== 0 && rect.height === 0; }";
 
     return WaitForStateChange(contents_id, element_renders);
   }

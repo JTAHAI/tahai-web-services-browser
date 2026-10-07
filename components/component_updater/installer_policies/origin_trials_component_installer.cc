@@ -4,8 +4,7 @@
 
 #include "components/component_updater/installer_policies/origin_trials_component_installer.h"
 
-#include <cstdint>
-#include <string>
+#include <iterator>
 #include <utility>
 #include <vector>
 
@@ -56,7 +55,8 @@ void OriginTrialsComponentInstallerPolicy::GetComponentHash(
   if (!hash) {
     return;
   }
-  hash->assign_range(kOriginTrialSha2Hash);
+  hash->assign(std::begin(kOriginTrialSha2Hash),
+               std::end(kOriginTrialSha2Hash));
 }
 
 void OriginTrialsComponentInstallerPolicy::GetHash(

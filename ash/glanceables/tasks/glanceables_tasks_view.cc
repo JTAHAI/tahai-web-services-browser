@@ -301,6 +301,7 @@ void GlanceablesTasksView::SelectedListChanged() {
   UpdateComboboxReplacementLabelText();
 
   weak_ptr_factory_.InvalidateWeakPtrs();
+  tasks_requested_time_ = base::TimeTicks::Now();
   tasks_list_change_count_++;
   ScheduleUpdateTasks(ListShownContext::kUserSelectedList);
 }
@@ -564,11 +565,17 @@ void GlanceablesTasksView::UpdateTasksInTaskList(
   switch (context) {
     case ListShownContext::kCachedList:
       break;
-    case ListShownContext::kInitialList:
+    case ListShownContext::kInitialList: {
+      auto* controller = Shell::Get()->glanceables_controller();
+      RecordTasksInitialLoadTime(
+          /*first_occurrence=*/controller->bubble_shown_count() == 1,
+          base::TimeTicks::Now() - controller->last_bubble_show_time());
       first_task_list_shown_ = true;
       break;
+    }
     case ListShownContext::kUserSelectedList:
       RecordActiveTaskListChanged();
+      RecordTasksChangeLoadTime(base::TimeTicks::Now() - tasks_requested_time_);
       first_task_list_shown_ = true;
       break;
   }

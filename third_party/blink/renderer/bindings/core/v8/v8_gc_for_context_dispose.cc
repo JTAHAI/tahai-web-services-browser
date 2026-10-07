@@ -85,9 +85,7 @@ void V8GCForContextDispose::NotifyContextDisposed(
     force_page_navigation_gc_ = false;
   }
 #endif  // BUILDFLAG(IS_ANDROID)
-  isolate->ContextDisposedNotification(
-      is_main_frame ? v8::ContextDependants::kNoDependants
-                    : v8::ContextDependants::kSomeDependants);
+  isolate->ContextDisposedNotification(!is_main_frame);
 }
 
 void V8GCForContextDispose::SetForcePageNavigationGC() {

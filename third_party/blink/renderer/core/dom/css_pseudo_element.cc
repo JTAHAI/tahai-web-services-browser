@@ -17,7 +17,6 @@
 #include "third_party/blink/renderer/core/geometry/dom_quad.h"
 #include "third_party/blink/renderer/core/geometry/dom_rect_read_only.h"
 #include "third_party/blink/renderer/core/layout/layout_object.h"
-#include "third_party/blink/renderer/core/layout/layout_view.h"
 #include "third_party/blink/renderer/platform/runtime_enabled_features.h"
 
 namespace blink {
@@ -268,6 +267,10 @@ PseudoElement* GetPseudoElementForCSSPseudoElement(
 
 LayoutObject* CSSPseudoElement::GetLayoutObject() const {
   CHECK(element_);
+  // Ensure layout is up to date.
+  element_->GetDocument().EnsurePaintLocationDataValidForNode(
+      element_, DocumentUpdateReason::kJavaScript);
+
   PseudoElement* pseudo_element = GetPseudoElementForCSSPseudoElement(
       parent_, pseudo_id_, pseudo_argument_);
   if (!pseudo_element) {
@@ -282,40 +285,48 @@ PseudoElement* CSSPseudoElement::GetPseudoElement() const {
 }
 
 HeapVector<Member<DOMQuad>> CSSPseudoElement::getBoxQuads(
-    const BoxQuadOptions* options,
-    ExceptionState& exception_state) const {
+    const BoxQuadOptions* options) const {
   CHECK(RuntimeEnabledFeatures::GeometryUtilsForCSSPseudoElementEnabled());
-  return geometry_utils::GetBoxQuads(element_, this, options, exception_state);
+  V8CSSBoxType::Enum box_type = V8CSSBoxType::Enum::kBorder;
+  if (options && options->hasBox()) {
+    box_type = options->box().AsEnum();
+  }
+  LayoutObject* relative_to = nullptr;
+  if (options && options->hasRelativeTo()) {
+    relative_to =
+        geometry_utils::GetLayoutObjectFromGeometryNode(options->relativeTo());
+  }
+  return geometry_utils::GetBoxQuads(GetLayoutObject(), box_type, relative_to);
 }
 
 DOMQuad* CSSPseudoElement::convertQuadFromNode(
     DOMQuadInit* quad,
     const V8UnionCSSPseudoElementOrDocumentOrElementOrText* from,
-    const ConvertCoordinateOptions* options,
-    ExceptionState& exception_state) const {
+    const ConvertCoordinateOptions* options) const {
   CHECK(RuntimeEnabledFeatures::GeometryUtilsForCSSPseudoElementEnabled());
-  return geometry_utils::ConvertQuadFromNode(quad, element_, this, from,
-                                             options, exception_state);
+  return geometry_utils::ConvertQuadFromNode(
+      DOMQuad::fromQuad(quad),
+      geometry_utils::GetLayoutObjectFromGeometryNode(from), GetLayoutObject());
 }
 
 DOMQuad* CSSPseudoElement::convertRectFromNode(
     DOMRectReadOnly* rect,
     const V8UnionCSSPseudoElementOrDocumentOrElementOrText* from,
-    const ConvertCoordinateOptions* options,
-    ExceptionState& exception_state) const {
+    const ConvertCoordinateOptions* options) const {
   CHECK(RuntimeEnabledFeatures::GeometryUtilsForCSSPseudoElementEnabled());
-  return geometry_utils::ConvertRectFromNode(rect, element_, this, from,
-                                             options, exception_state);
+  return geometry_utils::ConvertRectFromNode(
+      rect, geometry_utils::GetLayoutObjectFromGeometryNode(from),
+      GetLayoutObject());
 }
 
 DOMPoint* CSSPseudoElement::convertPointFromNode(
     DOMPointInit* point,
     const V8UnionCSSPseudoElementOrDocumentOrElementOrText* from,
-    const ConvertCoordinateOptions* options,
-    ExceptionState& exception_state) const {
+    const ConvertCoordinateOptions* options) const {
   CHECK(RuntimeEnabledFeatures::GeometryUtilsForCSSPseudoElementEnabled());
-  return geometry_utils::ConvertPointFromNode(point, element_, this, from,
-                                              options, exception_state);
+  return geometry_utils::ConvertPointFromNode(
+      DOMPoint::fromPoint(point),
+      geometry_utils::GetLayoutObjectFromGeometryNode(from), GetLayoutObject());
 }
 
 void CSSPseudoElement::Trace(Visitor* v) const {

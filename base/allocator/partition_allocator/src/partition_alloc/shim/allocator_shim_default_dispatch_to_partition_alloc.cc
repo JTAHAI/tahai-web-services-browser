@@ -20,7 +20,6 @@
 #include "partition_alloc/memory_reclaimer.h"
 #include "partition_alloc/partition_alloc.h"
 #include "partition_alloc/partition_alloc_base/compiler_specific.h"
-#include "partition_alloc/partition_alloc_base/containers/span.h"
 #include "partition_alloc/partition_alloc_base/export_template.h"
 #include "partition_alloc/partition_alloc_base/no_destructor.h"
 #include "partition_alloc/partition_alloc_base/numerics/checked_math.h"
@@ -46,11 +45,7 @@ using allocator_shim::AllocatorDispatch;
 
 namespace allocator_shim {
 
-using partition_alloc::internal::base::span;
-
 namespace {
-
-using partition_alloc::internal::base::span;
 
 class SimpleScopedSpinLocker {
  public:
@@ -175,14 +170,10 @@ std::array<
     kNumPartitions>
     g_roots = {};
 
-PA_ALWAYS_INLINE size_t PartitionIndexFromAllocToken(AllocToken alloc_token) {
-  return AllocTokenHasPointerValue(alloc_token) ? kPointerPartitionIndex
-                                                : kDefaultPartitionIndex;
-}
-
-partition_alloc::PartitionRoot* Allocator(size_t partition_index) {
+partition_alloc::PartitionRoot* Allocator(AllocToken alloc_token) {
 #if PA_BUILDFLAG(ENABLE_AUTO_PARTITIONING)
-  return g_roots[partition_index].Get();
+  PA_DCHECK(alloc_token.value() < kNumPartitions);
+  return PA_UNSAFE_TODO(g_roots[alloc_token.value()]).Get();
 #else
   return g_roots[kDefaultPartitionIndex].Get();
 #endif
@@ -194,27 +185,8 @@ std::array<std::atomic<partition_alloc::PartitionRoot*>, kNumPartitions>
 
 std::atomic<bool> g_roots_finalized = false;
 
-partition_alloc::PartitionRoot* OriginalAllocator(size_t partition_index) {
-  return g_original_roots[partition_index].load(std::memory_order_relaxed);
-}
-
-class IntendedLeakRootConstructor {
- public:
-  static partition_alloc::PartitionRoot* New(void* buffer) {
-    partition_alloc::PartitionOptions opts;
-    opts.thread_cache = partition_alloc::PartitionOptions::kDisabled;
-    opts.backup_ref_ptr = partition_alloc::PartitionOptions::kDisabled;
-    opts.intended_leak = partition_alloc::PartitionOptions::kEnabled;
-    auto* new_root = new (buffer) partition_alloc::PartitionRoot(opts);
-    return new_root;
-  }
-};
-
-LeakySingleton<partition_alloc::PartitionRoot, IntendedLeakRootConstructor>
-    g_intended_leak_root = {};
-
-partition_alloc::PartitionRoot* IntendedLeakAllocator() {
-  return g_intended_leak_root.Get();
+partition_alloc::PartitionRoot* OriginalAllocator(AllocToken alloc_token) {
+  return g_original_roots[alloc_token.value()].load(std::memory_order_relaxed);
 }
 
 bool AllocatorConfigurationFinalized() {
@@ -238,12 +210,10 @@ void* AllocateAlignedMemory(size_t alignment,
     PA_CHECK(std::has_single_bit(alignment));
     // TODO(bartekn): See if the compiler optimizes branches down the stack on
     // Mac, where PartitionPageSize() isn't constexpr.
-    return Allocator(PartitionIndexFromAllocToken(alloc_token))
-        ->Alloc<flags>(size);
+    return Allocator(alloc_token)->Alloc<flags>(size);
   }
 
-  return Allocator(PartitionIndexFromAllocToken(alloc_token))
-      ->AlignedAlloc<flags>(alignment, size);
+  return Allocator(alloc_token)->AlignedAlloc<flags>(alignment, size);
 }
 
 }  // namespace
@@ -256,8 +226,7 @@ template <partition_alloc::AllocFlags base_alloc_flags,
 void* PartitionAllocFunctionsInternal<base_alloc_flags, base_free_flags>::
     Malloc(size_t size, AllocToken alloc_token, void* context) {
   partition_alloc::ScopedDisallowAllocations guard{};
-  return Allocator(PartitionIndexFromAllocToken(alloc_token))
-      ->Alloc<base_alloc_flags>(size);
+  return Allocator(alloc_token)->Alloc<base_alloc_flags>(size);
 }
 
 // static
@@ -266,7 +235,7 @@ template <partition_alloc::AllocFlags base_alloc_flags,
 void* PartitionAllocFunctionsInternal<base_alloc_flags, base_free_flags>::
     MallocUnchecked(size_t size, AllocToken alloc_token, void* context) {
   partition_alloc::ScopedDisallowAllocations guard{};
-  return Allocator(PartitionIndexFromAllocToken(alloc_token))
+  return Allocator(alloc_token)
       ->Alloc<base_alloc_flags | partition_alloc::AllocFlags::kReturnNull>(
           size);
 }
@@ -279,7 +248,7 @@ void* PartitionAllocFunctionsInternal<base_alloc_flags, base_free_flags>::
   partition_alloc::ScopedDisallowAllocations guard{};
   const size_t total =
       partition_alloc::internal::base::CheckMul(n, size).ValueOrDie();
-  return Allocator(PartitionIndexFromAllocToken(alloc_token))
+  return Allocator(alloc_token)
       ->Alloc<base_alloc_flags | partition_alloc::AllocFlags::kZeroFill>(total);
 }
 
@@ -294,7 +263,7 @@ void* PartitionAllocFunctionsInternal<base_alloc_flags, base_free_flags>::
   partition_alloc::ScopedDisallowAllocations guard{};
   const size_t total =
       partition_alloc::internal::base::CheckMul(n, size).ValueOrDie();
-  return Allocator(PartitionIndexFromAllocToken(alloc_token))
+  return Allocator(alloc_token)
       ->Alloc<base_alloc_flags | partition_alloc::AllocFlags::kReturnNull |
               partition_alloc::AllocFlags::kZeroFill>(total);
 }
@@ -309,20 +278,6 @@ void* PartitionAllocFunctionsInternal<base_alloc_flags, base_free_flags>::
              void* context) {
   partition_alloc::ScopedDisallowAllocations guard{};
   return AllocateAlignedMemory<base_alloc_flags>(alignment, size, alloc_token);
-}
-
-// static
-template <partition_alloc::AllocFlags base_alloc_flags,
-          partition_alloc::FreeFlags base_free_flags>
-void* PartitionAllocFunctionsInternal<base_alloc_flags, base_free_flags>::
-    MemalignUnchecked(size_t alignment,
-                      size_t size,
-                      AllocToken alloc_token,
-                      void* context) {
-  partition_alloc::ScopedDisallowAllocations guard{};
-  return AllocateAlignedMemory<base_alloc_flags |
-                               partition_alloc::AllocFlags::kReturnNull>(
-      alignment, size, alloc_token);
 }
 
 // static
@@ -387,16 +342,7 @@ void* PartitionAllocFunctionsInternal<base_alloc_flags, base_free_flags>::
   if (address) {
     size_t usage = partition_alloc::PartitionRoot::GetUsableSize(address);
     size_t copy_size = usage > size ? size : usage;
-    // SAFETY: `new_ptr` is a newly allocated buffer of at least `size` bytes.
-    // `address` is an active allocation of at least `usage` bytes.
-    // `copy_size` is the minimum of `size` and `usage`, ensuring we do not read
-    // or write out of bounds.
-    auto dst = PA_UNSAFE_BUFFERS(span(static_cast<uint8_t*>(new_ptr), size))
-                    .first(copy_size);
-    auto src =
-        PA_UNSAFE_BUFFERS(span(static_cast<const uint8_t*>(address), usage))
-            .first(copy_size);
-    dst.copy_from(src);
+    PA_UNSAFE_TODO(memcpy(new_ptr, address, copy_size));
 
     partition_alloc::PartitionRoot::FreeInUnknownRoot<base_free_flags>(address);
   }
@@ -434,16 +380,7 @@ void* PartitionAllocFunctionsInternal<base_alloc_flags, base_free_flags>::
   if (address) {
     size_t usage = partition_alloc::PartitionRoot::GetUsableSize(address);
     size_t copy_size = usage > size ? size : usage;
-    // SAFETY: `new_ptr` is a newly allocated buffer of at least `size` bytes.
-    // `address` is an active allocation of at least `usage` bytes.
-    // `copy_size` is the minimum of `size` and `usage`, ensuring we do not read
-    // or write out of bounds.
-    auto dst = PA_UNSAFE_BUFFERS(span(static_cast<uint8_t*>(new_ptr), size))
-                   .first(copy_size);
-    auto src =
-        PA_UNSAFE_BUFFERS(span(static_cast<const uint8_t*>(address), usage))
-            .first(copy_size);
-    dst.copy_from(src);
+    PA_UNSAFE_TODO(memcpy(new_ptr, address, copy_size));
 
     partition_alloc::PartitionRoot::FreeInUnknownRoot<base_free_flags>(address);
   }
@@ -469,9 +406,9 @@ void* PartitionAllocFunctionsInternal<base_alloc_flags, base_free_flags>::
 
   // PartitionRoot::Realloc uses the root only when the address is nullptr;
   // otherwise it uses the root calculated from the address.　Therefore,
-  // Allocator(PartitionIndexFromAllocToken(alloc_token)) is safe even if the
-  // token is different from the one used in malloc.
-  return Allocator(PartitionIndexFromAllocToken(alloc_token))
+  // Allocator(alloc_token) is safe even if the token is different from the one
+  // used in malloc.
+  return Allocator(alloc_token)
       ->Realloc<base_alloc_flags, base_free_flags>(address, size, "");
 }
 
@@ -495,7 +432,7 @@ void* PartitionAllocFunctionsInternal<base_alloc_flags, base_free_flags>::
   }
 #endif  // PA_BUILDFLAG(IS_APPLE)
 
-  return Allocator(PartitionIndexFromAllocToken(alloc_token))
+  return Allocator(alloc_token)
       ->Realloc<base_alloc_flags | partition_alloc::AllocFlags::kReturnNull>(
           address, size, "");
 }
@@ -707,7 +644,7 @@ size_t
 PartitionAllocFunctionsInternal<base_alloc_flags, base_free_flags>::GoodSize(
     size_t size,
     void* context) {
-  return Allocator(kDefaultPartitionIndex)
+  return Allocator(AllocToken(kDefaultPartitionIndex))
       ->AllocationCapacityFromRequestedSize(size);
 }
 
@@ -732,12 +669,10 @@ PartitionAllocFunctionsInternal<base_alloc_flags, base_free_flags>::BatchMalloc(
     void* context) {
   // No real batching: we could only acquire the lock once for instance, keep it
   // simple for now.
-  // SAFETY: `results` must point to an array of at least `num_requested`
-  // elements.
-  auto results_span = PA_UNSAFE_BUFFERS(span(results, num_requested));
-  for (auto& result : results_span) {
+  for (unsigned i = 0; i < num_requested; i++) {
     // No need to check the results, we crash if it fails.
-    result = Malloc(size, kDefaultAllocToken, nullptr);
+    PA_UNSAFE_TODO(results[i]) =
+        Malloc(size, AllocToken(kDefaultPartitionIndex), nullptr);
   }
 
   // Either all succeeded, or we crashed.
@@ -751,11 +686,8 @@ void PartitionAllocFunctionsInternal<base_alloc_flags, base_free_flags>::
     BatchFree(void** to_be_freed, unsigned num_to_be_freed, void* context) {
   // No real batching: we could only acquire the lock once for instance, keep it
   // simple for now.
-  // SAFETY: `to_be_freed` must point to an array of at least `num_to_be_freed`
-  // elements.
-  auto to_be_freed_span = PA_UNSAFE_BUFFERS(span(to_be_freed, num_to_be_freed));
-  for (auto& to_be_freed_element : to_be_freed_span) {
-    Free(to_be_freed_element, nullptr);
+  for (unsigned i = 0; i < num_to_be_freed; i++) {
+    Free(PA_UNSAFE_TODO(to_be_freed[i]), nullptr);
   }
 }
 
@@ -796,20 +728,14 @@ bool PartitionAllocMalloc::AllocatorConfigurationFinalized() {
 
 // static
 partition_alloc::PartitionRoot* PartitionAllocMalloc::Allocator(
-    size_t partition_index) {
-  return ::allocator_shim::Allocator(partition_index);
+    AllocToken alloc_token) {
+  return ::allocator_shim::Allocator(alloc_token);
 }
 
 // static
 partition_alloc::PartitionRoot* PartitionAllocMalloc::OriginalAllocator(
-    size_t partition_index) {
-  return ::allocator_shim::OriginalAllocator(partition_index);
-}
-
-// static
-partition_alloc::PartitionRoot*
-PartitionAllocMalloc::IntendedLeakAllocator() {
-  return ::allocator_shim::IntendedLeakAllocator();
+    AllocToken alloc_token) {
+  return ::allocator_shim::OriginalAllocator(alloc_token);
 }
 
 }  // namespace internal
@@ -863,15 +789,6 @@ void* DelegatedAllocAlignedFn(size_t alignment,
   const AllocatorDispatch* delegate = GetDelegate();
   PA_MUSTTAIL return delegate->alloc_aligned_function(alignment, size,
                                                       alloc_token, context);
-}
-
-void* DelegatedAllocAlignedUncheckedFn(size_t alignment,
-                                       size_t size,
-                                       AllocToken alloc_token,
-                                       void* context) {
-  const AllocatorDispatch* delegate = GetDelegate();
-  PA_MUSTTAIL return delegate->alloc_aligned_unchecked_function(
-      alignment, size, alloc_token, context);
 }
 
 void* DelegatedReallocFn(void* address,
@@ -1046,7 +963,7 @@ void InstallCustomDispatch(AllocatorDispatch* dispatch) {
 }  // namespace
 
 void InstallPartitionAllocWithAdvancedChecks() {
-  constinit static AllocatorDispatch dispatch = []() constexpr {
+  PA_CONSTINIT static AllocatorDispatch dispatch = []() constexpr {
     auto dispatch =
         internal::PartitionAllocWithAdvancedChecksFunctions::MakeDispatch();
     dispatch.next = &internal::kPartitionAllocDispatch;
@@ -1075,20 +992,19 @@ const AllocatorDispatch* GetCustomDispatchForTesting() {
 }
 
 void EnablePartitionAllocMemoryReclaimer() {
-  for (size_t partition_index = 0; partition_index < kNumPartitions;
-       partition_index++) {
+  for (size_t alloc_token = 0; alloc_token < kNumPartitions; alloc_token++) {
     // Unlike other partitions, Allocator() does not register its PartitionRoot
     // to the memory reclaimer, because doing so may allocate memory. Thus, the
     // registration to the memory reclaimer has to be done some time later, when
     // the main root is fully configured.
     ::partition_alloc::MemoryReclaimer::Instance()->RegisterPartition(
-        Allocator(partition_index));
+        Allocator(AllocToken(alloc_token)));
 
     // There is only one PartitionAlloc-Everywhere partition at the moment. Any
     // additional partitions will be created in ConfigurePartitions() and
     // registered for memory reclaimer there.
     PA_DCHECK(!AllocatorConfigurationFinalized());
-    PA_DCHECK(OriginalAllocator(partition_index) == nullptr);
+    PA_DCHECK(OriginalAllocator(AllocToken(alloc_token)) == nullptr);
   }
 }
 
@@ -1105,7 +1021,8 @@ void ConfigurePartitions(
     partition_alloc::internal::SchedulerLoopQuarantineConfig
         scheduler_loop_quarantine_for_advanced_memory_safety_checks_config,
     EventuallyZeroFreedMemory eventually_zero_freed_memory,
-    EnableTighterAlignedAllocBound enable_tighter_aligned_alloc_bound) {
+    EnableFreeWithSize enable_free_with_size,
+    EnableStrictFreeSizeCheck enable_strict_free_size_check) {
   partition_alloc::PartitionOptions opts;
   // The caller of ConfigurePartitions() will decide whether this or
   // another partition will have the thread cache enabled, by calling
@@ -1120,10 +1037,6 @@ void ConfigurePartitions(
       eventually_zero_freed_memory
           ? partition_alloc::PartitionOptions::kEnabled
           : partition_alloc::PartitionOptions::kDisabled;
-  opts.tighter_aligned_alloc_bound =
-      enable_tighter_aligned_alloc_bound
-          ? partition_alloc::PartitionOptions::kEnabled
-          : partition_alloc::PartitionOptions::kDisabled;
   opts.scheduler_loop_quarantine_global_config =
       scheduler_loop_quarantine_global_config;
   opts.scheduler_loop_quarantine_thread_local_config =
@@ -1135,29 +1048,37 @@ void ConfigurePartitions(
                      ? partition_alloc::PartitionOptions::kEnabled
                      : partition_alloc::PartitionOptions::kDisabled,
       .reporting_mode = memory_tagging_reporting_mode};
+  opts.free_with_size = enable_free_with_size
+                            ? partition_alloc::PartitionOptions::kEnabled
+                            : partition_alloc::PartitionOptions::kDisabled;
+  opts.strict_free_size_check =
+      enable_strict_free_size_check
+          ? partition_alloc::PartitionOptions::kEnabled
+          : partition_alloc::PartitionOptions::kDisabled;
 
-  using MainAllocator = partition_alloc::internal::base::NoDestructor<
-      partition_alloc::PartitionAllocator>;
-
-  static std::array<MainAllocator, kNumPartitions> new_main_allocators = {
-      MainAllocator([&opts] {
-        opts.thread_cache_index = 0;
-        return opts;
-      }()),
+  static std::array<partition_alloc::internal::base::NoDestructor<
+                        partition_alloc::PartitionAllocator>,
+                    kNumPartitions>
+      new_main_allocators = {partition_alloc::internal::base::NoDestructor<
+                                 partition_alloc::PartitionAllocator>([&opts] {
+                               opts.thread_cache_index = 0;
+                               return opts;
+                             }())
 #if PA_BUILDFLAG(ENABLE_AUTO_PARTITIONING)
-      MainAllocator([&opts] {
-        opts.thread_cache_index = 1;
-        return opts;
-      }()),
+                                 ,
+                             partition_alloc::internal::base::NoDestructor<
+                                 partition_alloc::PartitionAllocator>([&opts] {
+                               opts.thread_cache_index = 1;
+                               return opts;
+                             }())
 #endif
-  };
+      };
 
-  for (size_t partition_index = 0; partition_index < kNumPartitions;
-       partition_index++) {
+  for (size_t alloc_token = 0; alloc_token < kNumPartitions; alloc_token++) {
     // Calling Get() is actually important, even if the return value isn't
     // used, because it has a side effect of initializing the variable, if it
     // wasn't already.
-    auto* current_root = g_roots[partition_index].Get();
+    auto* current_root = PA_UNSAFE_TODO(g_roots[alloc_token]).Get();
 
     // We've been bitten before by using a static local when initializing a
     // partition. For synchronization, static local variables call into the
@@ -1167,7 +1088,7 @@ void ConfigurePartitions(
     // shouldn't bite us here. Mentioning just in case we move this code
     // earlier.
     partition_alloc::PartitionRoot* new_root =
-        new_main_allocators[partition_index]->root();
+        PA_UNSAFE_TODO(new_main_allocators[alloc_token])->root();
 
     // Ensure that we switch `new_root` before directing new traffic to it, this
     // ensures that a BucketDistribution is consistent over the life of an
@@ -1182,8 +1103,8 @@ void ConfigurePartitions(
     }
 
     // Now switch traffic to the new partition.
-    g_original_roots[partition_index] = current_root;
-    g_roots[partition_index].Replace(new_root);
+    PA_UNSAFE_TODO(g_original_roots[alloc_token]) = current_root;
+    PA_UNSAFE_TODO(g_roots[alloc_token]).Replace(new_root);
 
     // Purge memory, now that the traffic to the original partition is cut off.
     current_root->PurgeMemory(
@@ -1197,7 +1118,7 @@ void ConfigurePartitions(
 // to in `PartitionRoot::Init()`.
 uint32_t GetMainPartitionRootExtrasSize() {
 #if PA_CONFIG(EXTRAS_REQUIRED)
-  return g_roots[0].Get()->settings_.extras_size;
+  return PA_UNSAFE_TODO(g_roots[0]).Get()->settings_.extras_size;
 #else
   return 0;
 #endif  // PA_CONFIG(EXTRAS_REQUIRED)
@@ -1210,7 +1131,6 @@ const AllocatorDispatch AllocatorDispatch::default_dispatch = {
     .alloc_zero_initialized_unchecked_function =
         &DelegatedAllocZeroInitializedUncheckedFn,
     .alloc_aligned_function = &DelegatedAllocAlignedFn,
-    .alloc_aligned_unchecked_function = &DelegatedAllocAlignedUncheckedFn,
     .realloc_function = &DelegatedReallocFn,
     .realloc_unchecked_function = &DelegatedReallocUncheckedFn,
     .free_function = &DelegatedFreeFn,
@@ -1255,7 +1175,8 @@ SHIM_ALWAYS_EXPORT struct mallinfo mallinfo(void) __THROW {
   partition_alloc::SimplePartitionStatsDumper allocator_dumper;
   // TODO(crbug.com/477186304): Dump stats for all alloc tokens, by accumulating
   // the stats or separating reporting stats.
-  allocator_shim::Allocator(allocator_shim::kDefaultPartitionIndex)
+  allocator_shim::Allocator(
+      allocator_shim::AllocToken(allocator_shim::kDefaultPartitionIndex))
       ->DumpStats("malloc", /*is_light_dump=*/true,
                   /*populate_discardable_bytes=*/false, &allocator_dumper);
 
@@ -1290,9 +1211,8 @@ void InitializeDefaultAllocatorPartitionRoot() {
   // internally, e.g. __builtin_available, and it's not easy to avoid it.
   // Thus, we initialize the PartitionRoot with using the system default
   // allocator before we intercept the system default allocator.
-  for (size_t partition_index = 0; partition_index < kNumPartitions;
-       partition_index++) {
-    std::ignore = Allocator(partition_index);
+  for (size_t alloc_token = 0; alloc_token < kNumPartitions; alloc_token++) {
+    std::ignore = Allocator(AllocToken(alloc_token));
   }
 }
 

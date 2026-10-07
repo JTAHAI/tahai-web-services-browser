@@ -34,10 +34,7 @@ DEFINE_BINARY_PROTO_FUZZER(
   // Serialize fuzzable proto and then deserialize as production proto.
   std::string serialized = fuzzable_response.SerializeAsString();
   affiliation_pb::LookupAffiliationByHashPrefixResponse response;
-  // Recursion limits can cause parsing to fail.
-  if (!response.ParseFromString(serialized)) {
-    return;
-  }
+  CHECK(response.ParseFromString(serialized));
 
   AffiliationFetcherInterface::ParsedFetchResponse result;
 

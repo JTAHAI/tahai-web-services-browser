@@ -6,7 +6,6 @@ package org.chromium.android_webview.test;
 
 import androidx.test.filters.SmallTest;
 
-import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -16,7 +15,6 @@ import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.UseParametersRunnerFactory;
 
 import org.chromium.android_webview.AwContents;
-import org.chromium.android_webview.AwDarkMode;
 import org.chromium.android_webview.AwSettings;
 import org.chromium.android_webview.settings.ForceDarkBehavior;
 import org.chromium.android_webview.settings.ForceDarkMode;
@@ -37,14 +35,8 @@ public class DarkModeTest extends AwParameterizedTest {
 
     @Before
     public void setUp() {
-        AwDarkMode.enableLegacyDarkMode();
         mContents = createAwContentsJsEnabled();
         mSettings = mContents.getSettings();
-    }
-
-    @After
-    public void tearDown() {
-        AwDarkMode.resetForTesting();
     }
 
     @Test
@@ -124,16 +116,14 @@ public class DarkModeTest extends AwParameterizedTest {
         mSettings.setForceDarkMode(ForceDarkMode.FORCE_DARK_ON);
         mSettings.setForceDarkBehavior(ForceDarkBehavior.MEDIA_QUERY_ONLY);
 
-        TestAwContentsClient otherContentsClient = new TestAwContentsClient();
-        AwContents otherContents = createAwContentsJsEnabled(otherContentsClient);
+        AwContents otherContents = createAwContentsJsEnabled();
         AwSettings otherSettings = otherContents.getSettings();
-        mRule.loadUrlSync(
-                otherContents, otherContentsClient.getOnPageFinishedHelper(), "about:blank");
+        mRule.loadUrlSync(otherContents, mContentsClient.getOnPageFinishedHelper(), "about:blank");
         otherSettings.setForceDarkMode(ForceDarkMode.FORCE_DARK_ON);
         otherSettings.setForceDarkBehavior(ForceDarkBehavior.FORCE_DARK_ONLY);
 
-        assertDarkScheme(mContents, mContentsClient);
-        assertNotDarkScheme(otherContents, otherContentsClient);
+        assertDarkScheme(mContents);
+        assertNotDarkScheme(otherContents);
     }
 
     @Test
@@ -166,40 +156,26 @@ public class DarkModeTest extends AwParameterizedTest {
         assertDarkScheme(mContents);
     }
 
-    private boolean prefersDarkTheme(AwContents contents, TestAwContentsClient client)
-            throws Exception {
+    private boolean prefersDarkTheme(AwContents contents) throws Exception {
         final String colorSchemeSelector =
                 "window.matchMedia('(prefers-color-scheme: dark)').matches";
         String result =
-                mRule.executeJavaScriptAndWaitForResult(contents, client, colorSchemeSelector);
+                mRule.executeJavaScriptAndWaitForResult(
+                        contents, mContentsClient, colorSchemeSelector);
 
         return "true".equals(result);
     }
 
-    private void assertNotDarkScheme(AwContents contents, TestAwContentsClient client)
-            throws Exception {
-        Assert.assertFalse(prefersDarkTheme(contents, client));
-    }
-
-    private void assertDarkScheme(AwContents contents, TestAwContentsClient client)
-            throws Exception {
-        Assert.assertTrue(prefersDarkTheme(contents, client));
-    }
-
     private void assertNotDarkScheme(AwContents contents) throws Exception {
-        assertNotDarkScheme(contents, mContentsClient);
+        Assert.assertFalse(prefersDarkTheme(contents));
     }
 
     private void assertDarkScheme(AwContents contents) throws Exception {
-        assertDarkScheme(contents, mContentsClient);
+        Assert.assertTrue(prefersDarkTheme(contents));
     }
 
     private AwContents createAwContentsJsEnabled() {
-        return createAwContentsJsEnabled(mContentsClient);
-    }
-
-    private AwContents createAwContentsJsEnabled(TestAwContentsClient client) {
-        AwTestContainerView view = mRule.createAwTestContainerViewOnMainSync(client);
+        AwTestContainerView view = mRule.createAwTestContainerViewOnMainSync(mContentsClient);
         AwContents contents = view.getAwContents();
         AwActivityTestRule.enableJavaScriptOnUiThread(contents);
         return contents;

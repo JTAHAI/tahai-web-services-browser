@@ -237,8 +237,7 @@ class PLATFORM_EXPORT HeapAllocator {
                                  const T* const* backing_slot) {
     using BackingType = HeapVectorBacking<T>;
 
-    if constexpr (internal::CompactionTraits<
-                      BackingType>::SupportsCompaction()) {
+    if constexpr (BackingType::TraitsType::kCanMoveWithMemcpy) {
       visitor->RegisterMovableReference(const_cast<const BackingType**>(
           reinterpret_cast<const BackingType* const*>(backing_slot)));
     }

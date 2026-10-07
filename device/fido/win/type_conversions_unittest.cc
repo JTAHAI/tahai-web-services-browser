@@ -4,7 +4,6 @@
 
 #include "device/fido/win/type_conversions.h"
 
-#include "base/containers/to_vector.h"
 #include "base/numerics/safe_conversions.h"
 #include "base/strings/utf_string_conversions.h"
 #include "components/cbor/values.h"
@@ -12,6 +11,7 @@
 #include "device/fido/attestation_object.h"
 #include "device/fido/attestation_statement.h"
 #include "device/fido/discoverable_credential_metadata.h"
+#include "device/fido/fido_parsing_utils.h"
 #include "device/fido/fido_test_data.h"
 #include "device/fido/public/fido_transport_protocol.h"
 #include "testing/gmock/include/gmock/gmock.h"
@@ -29,56 +29,62 @@ TEST(TypeConversionsTest, ToAuthenticatorMakeCredentialResponse) {
     bool success;
     std::optional<FidoTransportProtocol> expected_transport;
   } test_cases[] = {
-      {L"packed", base::ToVector(test_data::kTestSignAuthenticatorData),
-       base::ToVector(test_data::kPackedAttestationStatementCBOR),
+      {L"packed",
+       fido_parsing_utils::Materialize(test_data::kTestSignAuthenticatorData),
+       fido_parsing_utils::Materialize(
+           test_data::kPackedAttestationStatementCBOR),
        WEBAUTHN_CTAP_TRANSPORT_USB, true,
        FidoTransportProtocol::kUsbHumanInterfaceDevice},
-      {L"packed", base::ToVector(test_data::kTestSignAuthenticatorData),
-       base::ToVector(test_data::kPackedAttestationStatementCBOR),
+      {L"packed",
+       fido_parsing_utils::Materialize(test_data::kTestSignAuthenticatorData),
+       fido_parsing_utils::Materialize(
+           test_data::kPackedAttestationStatementCBOR),
        WEBAUTHN_CTAP_TRANSPORT_NFC, true,
        FidoTransportProtocol::kNearFieldCommunication},
-      {L"packed", base::ToVector(test_data::kTestSignAuthenticatorData),
-       base::ToVector(test_data::kPackedAttestationStatementCBOR),
+      {L"packed",
+       fido_parsing_utils::Materialize(test_data::kTestSignAuthenticatorData),
+       fido_parsing_utils::Materialize(
+           test_data::kPackedAttestationStatementCBOR),
        WEBAUTHN_CTAP_TRANSPORT_INTERNAL, true,
        FidoTransportProtocol::kInternal},
-      {L"packed", base::ToVector(test_data::kTestSignAuthenticatorData),
-       base::ToVector(test_data::kPackedAttestationStatementCBOR),
+      {L"packed",
+       fido_parsing_utils::Materialize(test_data::kTestSignAuthenticatorData),
+       fido_parsing_utils::Materialize(
+           test_data::kPackedAttestationStatementCBOR),
        WEBAUTHN_CTAP_TRANSPORT_TEST, true, std::nullopt},
-      {L"packed", base::ToVector(test_data::kTestSignAuthenticatorData),
-       base::ToVector(test_data::kPackedAttestationStatementCBOR),
-       WEBAUTHN_CTAP_TRANSPORT_SMART_CARD, true,
-       FidoTransportProtocol::kSmartCard},
       // Unknown attestation formats
       {L"weird-unknown-format",
-       base::ToVector(test_data::kTestSignAuthenticatorData),
+       fido_parsing_utils::Materialize(test_data::kTestSignAuthenticatorData),
        {0xa0},  // Empty CBOR map.
        WEBAUTHN_CTAP_TRANSPORT_USB,
        true,
        FidoTransportProtocol::kUsbHumanInterfaceDevice},
       {L"weird-unknown-format",
-       base::ToVector(test_data::kTestSignAuthenticatorData),
+       fido_parsing_utils::Materialize(test_data::kTestSignAuthenticatorData),
        {0x60},  // Empty string. Not a valid attStmt.
        WEBAUTHN_CTAP_TRANSPORT_USB,
        false},
       // Invalid authenticator data
       {L"packed",
        {},
-       base::ToVector(test_data::kPackedAttestationStatementCBOR),
+       fido_parsing_utils::Materialize(
+           test_data::kPackedAttestationStatementCBOR),
        WEBAUTHN_CTAP_TRANSPORT_USB,
        false},
       {L"packed",
        {1, 2, 3},
-       base::ToVector(test_data::kPackedAttestationStatementCBOR),
+       fido_parsing_utils::Materialize(
+           test_data::kPackedAttestationStatementCBOR),
        WEBAUTHN_CTAP_TRANSPORT_USB,
        false},
       // Invalid attestation statement
       {L"packed",
-       base::ToVector(test_data::kTestSignAuthenticatorData),
+       fido_parsing_utils::Materialize(test_data::kTestSignAuthenticatorData),
        {},
        WEBAUTHN_CTAP_TRANSPORT_USB,
        false},
       {L"packed",
-       base::ToVector(test_data::kTestSignAuthenticatorData),
+       fido_parsing_utils::Materialize(test_data::kTestSignAuthenticatorData),
        {1, 2, 3},
        WEBAUTHN_CTAP_TRANSPORT_USB,
        false},
@@ -132,8 +138,10 @@ TEST(TypeConversionsTest, ToAuthenticatorMakeCredentialResponse) {
 TEST(TypeConversionsTest, ToAuthenticatorMakeCredentialResponseVersion8) {
   // With VERSION_8, dwTransports (multi-transport bitmask) should be used
   // instead of inferring from dwUsedTransport alone.
-  auto auth_data = base::ToVector(test_data::kTestSignAuthenticatorData);
-  auto att_stmt = base::ToVector(test_data::kPackedAttestationStatementCBOR);
+  auto auth_data =
+      fido_parsing_utils::Materialize(test_data::kTestSignAuthenticatorData);
+  auto att_stmt = fido_parsing_utils::Materialize(
+      test_data::kPackedAttestationStatementCBOR);
   WEBAUTHN_CREDENTIAL_ATTESTATION attestation = {};
   attestation.dwVersion = WEBAUTHN_CREDENTIAL_ATTESTATION_VERSION_8;
   attestation.pwszFormatType = L"packed";
@@ -186,13 +194,12 @@ TEST(TypeConversionsTest, FromWinTransportsBitmask) {
       FromWinTransportsBitmask(
           WEBAUTHN_CTAP_TRANSPORT_USB | WEBAUTHN_CTAP_TRANSPORT_NFC |
           WEBAUTHN_CTAP_TRANSPORT_BLE | WEBAUTHN_CTAP_TRANSPORT_INTERNAL |
-          WEBAUTHN_CTAP_TRANSPORT_HYBRID | WEBAUTHN_CTAP_TRANSPORT_SMART_CARD),
+          WEBAUTHN_CTAP_TRANSPORT_HYBRID),
       testing::UnorderedElementsAre(
           FidoTransportProtocol::kUsbHumanInterfaceDevice,
           FidoTransportProtocol::kNearFieldCommunication,
           FidoTransportProtocol::kBluetoothLowEnergy,
-          FidoTransportProtocol::kInternal, FidoTransportProtocol::kHybrid,
-          FidoTransportProtocol::kSmartCard));
+          FidoTransportProtocol::kInternal, FidoTransportProtocol::kHybrid));
 
   // Unknown bits are ignored.
   EXPECT_THAT(FromWinTransportsBitmask(WEBAUTHN_CTAP_TRANSPORT_INTERNAL |

@@ -15,44 +15,41 @@ import org.chromium.components.browser_ui.bottomsheet.BottomSheetController.Stat
 @NullMarked
 public interface BottomSheetObserver {
     /**
-     * A notification that the sheet has been opened, meaning the sheet is any height greater than
-     * its peeking state.
-     *
+     * A notification that the sheet has been opened, meaning the sheet is any height greater
+     * than its peeking state.
      * @param reason The {@link StateChangeReason} that the sheet was opened.
      */
-    default void onSheetOpened(@StateChangeReason int reason) {}
+    void onSheetOpened(@StateChangeReason int reason);
 
     /**
      * A notification that the sheet has closed, meaning the sheet has reached its peeking state.
-     *
      * @param reason The {@link StateChangeReason} that the sheet was closed.
      */
-    default void onSheetClosed(@StateChangeReason int reason) {}
+    void onSheetClosed(@StateChangeReason int reason);
 
     /**
      * An event for when the sheet's offset from the bottom of the screen changes.
      *
-     * @param heightFraction The fraction of the way to the fully expanded state that the sheet is.
-     *     This will be 0.0f when the sheet is hidden or scrolled off-screen and 1.0f when the sheet
-     *     is completely expanded.
+     * @param heightFraction The fraction of the way to the fully expanded state that the sheet
+     *                       is. This will be 0.0f when the sheet is hidden or scrolled off-screen
+     *                       and 1.0f when the sheet is completely expanded.
      * @param offsetPx The offset of the top of the sheet from the bottom of the screen in pixels.
      */
-    default void onSheetOffsetChanged(float heightFraction, float offsetPx) {}
+    void onSheetOffsetChanged(float heightFraction, float offsetPx);
 
     /**
      * An event for when the sheet changes state.
-     *
      * @param newState The new sheet state. See {@link SheetState}.
      * @param reason The {@link StateChangeReason} that the sheet's state changed.
      */
-    default void onSheetStateChanged(@SheetState int newState, @StateChangeReason int reason) {}
+    void onSheetStateChanged(@SheetState int newState, @StateChangeReason int reason);
 
     /**
      * An event for when the sheet content changes.
      *
      * @param newContent The new {@link BottomSheetContent}, or null if the sheet has no content.
      */
-    default void onSheetContentChanged(@Nullable BottomSheetContent newContent) {}
+    void onSheetContentChanged(@Nullable BottomSheetContent newContent);
 
     /**
      * Called when the sheet layout changes.

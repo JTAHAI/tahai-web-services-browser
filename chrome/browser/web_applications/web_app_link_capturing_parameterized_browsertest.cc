@@ -46,6 +46,7 @@
 #include "chrome/browser/notifications/notification_permission_context.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/renderer_context_menu/render_view_context_menu_browsertest_util.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
@@ -96,106 +97,6 @@
 namespace web_app {
 
 namespace {
-
-std::string_view MetricValueToString(apps::LaunchSource launch_source) {
-  switch (launch_source) {
-    case apps::LaunchSource::kUnknown:
-      return "kUnknown";
-    case apps::LaunchSource::kFromAppListGrid:
-      return "kFromAppListGrid";
-    case apps::LaunchSource::kFromAppListGridContextMenu:
-      return "kFromAppListGridContextMenu";
-    case apps::LaunchSource::kFromAppListQuery:
-      return "kFromAppListQuery";
-    case apps::LaunchSource::kFromAppListQueryContextMenu:
-      return "kFromAppListQueryContextMenu";
-    case apps::LaunchSource::kFromAppListRecommendation:
-      return "kFromAppListRecommendation";
-    case apps::LaunchSource::kFromParentalControls:
-      return "kFromParentalControls";
-    case apps::LaunchSource::kFromShelf:
-      return "kFromShelf";
-    case apps::LaunchSource::kFromFileManager:
-      return "kFromFileManager";
-    case apps::LaunchSource::kFromLink:
-      return "kFromLink";
-    case apps::LaunchSource::kFromOmnibox:
-      return "kFromOmnibox";
-    case apps::LaunchSource::kFromChromeInternal:
-      return "kFromChromeInternal";
-    case apps::LaunchSource::kFromKeyboard:
-      return "kFromKeyboard";
-    case apps::LaunchSource::kFromOtherApp:
-      return "kFromOtherApp";
-    case apps::LaunchSource::kFromMenu:
-      return "kFromMenu";
-    case apps::LaunchSource::kFromInstalledNotification:
-      return "kFromInstalledNotification";
-    case apps::LaunchSource::kFromTest:
-      return "kFromTest";
-    case apps::LaunchSource::kFromArc:
-      return "kFromArc";
-    case apps::LaunchSource::kFromSharesheet:
-      return "kFromSharesheet";
-    case apps::LaunchSource::kFromReleaseNotesNotification:
-      return "kFromReleaseNotesNotification";
-    case apps::LaunchSource::kFromFullRestore:
-      return "kFromFullRestore";
-    case apps::LaunchSource::kFromSmartTextContextMenu:
-      return "kFromSmartTextContextMenu";
-    case apps::LaunchSource::kFromDiscoverTabNotification:
-      return "kFromDiscoverTabNotification";
-    case apps::LaunchSource::kFromManagementApi:
-      return "kFromManagementApi";
-    case apps::LaunchSource::kFromKiosk:
-      return "kFromKiosk";
-    case apps::LaunchSource::kFromCommandLine:
-      return "kFromCommandLine";
-    case apps::LaunchSource::kFromBackgroundMode:
-      return "kFromBackgroundMode";
-    case apps::LaunchSource::kFromNewTabPage:
-      return "kFromNewTabPage";
-    case apps::LaunchSource::kFromIntentUrl:
-      return "kFromIntentUrl";
-    case apps::LaunchSource::kFromOsLogin:
-      return "kFromOsLogin";
-    case apps::LaunchSource::kFromProtocolHandler:
-      return "kFromProtocolHandler";
-    case apps::LaunchSource::kFromUrlHandler:
-      return "kFromUrlHandler";
-    case apps::LaunchSource::kFromLockScreen:
-      return "kFromLockScreen";
-    case apps::LaunchSource::kFromAppHomePage:
-      return "kFromAppHomePage";
-    case apps::LaunchSource::kFromReparenting:
-      return "kFromReparenting";
-    case apps::LaunchSource::kFromProfileMenu:
-      return "kFromProfileMenu";
-    case apps::LaunchSource::kFromSysTrayCalendar:
-      return "kFromSysTrayCalendar";
-    case apps::LaunchSource::kFromInstaller:
-      return "kFromInstaller";
-    case apps::LaunchSource::kFromFirstRun:
-      return "kFromFirstRun";
-    case apps::LaunchSource::kFromWelcomeTour:
-      return "kFromWelcomeTour";
-    case apps::LaunchSource::kFromFocusMode:
-      return "kFromFocusMode";
-    case apps::LaunchSource::kFromSparky:
-      return "kFromSparky";
-    case apps::LaunchSource::kFromNavigationCapturing:
-      return "kFromNavigationCapturing";
-    case apps::LaunchSource::kFromWebInstallApi:
-      return "kFromWebInstallApi";
-    case apps::LaunchSource::kFromMigration:
-      return "kFromMigration";
-  }
-}
-
-template <typename T>
-std::string MetricValueToString(T value) {
-  return base::ToString(value);
-}
 
 constexpr char kStartPageScopeA[] =
     "/banners/link_capturing/scope_a/start.html";
@@ -1069,8 +970,8 @@ class NavCaptureParameterizedBrowserTest
   }
 
  protected:
-  void EnsureValidNewTabPage(BrowserWindowInterface* browser) {
-    CHECK(browser->GetType() == BrowserWindowInterface::Type::TYPE_NORMAL);
+  void EnsureValidNewTabPage(Browser* browser) {
+    CHECK(browser->is_type_normal());
     // Ensure that if a fixture ended up loading a different page in the
     // starting tab, create a new tab for the navigation.
     GURL last_committed_url = browser->tab_strip_model()
@@ -1106,9 +1007,8 @@ class NavCaptureParameterizedBrowserTest
     return contents;
   }
 
-  content::WebContents* LaunchPageInTab(
-      const GURL& url,
-      BrowserWindowInterface* browser_window = nullptr) {
+  content::WebContents* LaunchPageInTab(const GURL& url,
+                                        Browser* browser_window = nullptr) {
     content::DOMMessageQueue message_queue;
     if (browser_window == nullptr) {
       browser_window = browser();
@@ -1287,7 +1187,7 @@ class NavCaptureParameterizedBrowserTest
     base::ListValue bucket_list;
     for (const base::Bucket& bucket : launch_source_buckets) {
       for (int count = 0; count < bucket.count; count++) {
-        bucket_list.Append(MetricValueToString(static_cast<T>(bucket.min)));
+        bucket_list.Append(base::ToString(static_cast<T>(bucket.min)));
       }
     }
     return base::Value(std::move(bucket_list));
@@ -1927,24 +1827,24 @@ class NavCaptureParameterizedBrowserTest
     return GetExpectationsFile(file_config);
   }
 
-  BrowserWindowInterface::Type StringToBrowserType(std::string type) {
+  Browser::Type StringToBrowserType(std::string type) {
     if (type == "TYPE_NORMAL") {
-      return BrowserWindowInterface::Type::TYPE_NORMAL;
+      return Browser::Type::TYPE_NORMAL;
     }
     if (type == "TYPE_POPUP") {
-      return BrowserWindowInterface::Type::TYPE_POPUP;
+      return Browser::Type::TYPE_POPUP;
     }
     if (type == "TYPE_APP") {
-      return BrowserWindowInterface::Type::TYPE_APP;
+      return Browser::Type::TYPE_APP;
     }
     if (type == "TYPE_DEVTOOLS") {
-      return BrowserWindowInterface::Type::TYPE_DEVTOOLS;
+      return Browser::Type::TYPE_DEVTOOLS;
     }
     if (type == "TYPE_APP_POPUP") {
-      return BrowserWindowInterface::Type::TYPE_APP_POPUP;
+      return Browser::Type::TYPE_APP_POPUP;
     }
     if (type == "TYPE_PICTURE_IN_PICTURE") {
-      return BrowserWindowInterface::Type::TYPE_PICTURE_IN_PICTURE;
+      return Browser::Type::TYPE_PICTURE_IN_PICTURE;
     }
 
     NOTREACHED() << "Unknown browser type: " + type;
@@ -2954,7 +2854,7 @@ class NavigationCapturingTestWithAppBInNewBrowserWindow
   testing::AssertionResult MaybeCustomPreSetup(
       const webapps::AppId& app_a,
       const webapps::AppId& app_b) override {
-    BrowserWindowInterface* browser_b = CreateBrowser(profile());
+    Browser* browser_b = CreateBrowser(profile());
     GURL url_b_dest = embedded_test_server()->GetURL(kDestinationPageScopeB);
     if (!LaunchPageInTab(url_b_dest, browser_b)) {
       return testing::AssertionFailure() << "Unable to launch app b in a tab.";

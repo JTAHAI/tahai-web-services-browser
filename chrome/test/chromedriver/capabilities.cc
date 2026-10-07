@@ -723,7 +723,10 @@ Status ParseTimeouts(const base::Value& option, Capabilities* capabilities) {
     base::TimeDelta timeout;
     const std::string& type = it.first;
     if (it.second.is_none()) {
-      timeout = base::TimeDelta::Max();
+      if (type == "script")
+        timeout = base::TimeDelta::Max();
+      else
+        return Status(kInvalidArgument, "timeout can not be null");
     } else {
       if (!GetOptionalSafeInt(*timeouts, it.first, &timeout_ms_int64) ||
           timeout_ms_int64 < 0)
@@ -1389,8 +1392,6 @@ Status Capabilities::Parse(const base::DictValue& desired_caps,
   parser_map["webauthn:virtualAuthenticators"] =
       base::BindRepeating(&ParseBoolean, nullptr);
   parser_map["webauthn:extension:largeBlob"] =
-      base::BindRepeating(&ParseBoolean, nullptr);
-  parser_map["webauthn:extension:cmtgKey"] =
       base::BindRepeating(&ParseBoolean, nullptr);
   // See https://github.com/fedidcg/FedCM/pull/478
   parser_map["fedcm:accounts"] = base::BindRepeating(&ParseBoolean, nullptr);

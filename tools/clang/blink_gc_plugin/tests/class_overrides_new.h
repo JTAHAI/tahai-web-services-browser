@@ -28,4 +28,4 @@ class HeapObjectDerived : public HeapObjectBase {
 };
 }
 
-#endif  // CLASS_OVERRIDES_NEW_H_
+#endif

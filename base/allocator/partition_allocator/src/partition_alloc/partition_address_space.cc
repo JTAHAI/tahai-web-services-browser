@@ -96,7 +96,7 @@ MetadataInnerOffset(pool_handle pool) {
 
 }  // namespace
 
-constinit PartitionAddressSpace::PoolSetup PartitionAddressSpace::setup_;
+PA_CONSTINIT PartitionAddressSpace::PoolSetup PartitionAddressSpace::setup_;
 
 #if PA_CONFIG(ENABLE_USER_SPACE_ZERO_SEGMENT)
 size_t PartitionAddressSpace::zero_segment_size_ = 0;

@@ -21,13 +21,13 @@ constexpr float kInnerHightlightBorderThickness =
 
 SkColor GetHighlightBorderInnerColor(views::View* view) {
   DCHECK(view);
-  return view->GetColorProvider()->GetColor(ui::kColorCrosSystemHighlight);
+  return view->GetColorProvider()->GetColor(
+      ui::kColorHighlightBorderHighlight1);
 }
 
 SkColor GetHighlightBorderOuterColor(views::View* view) {
   DCHECK(view);
-  return view->GetColorProvider()->GetColor(
-      ui::kColorCrosSystemHighlightBorder);
+  return view->GetColorProvider()->GetColor(ui::kColorHighlightBorderBorder1);
 }
 
 cc::PaintFlags GetHighlightBorderPaintFlags() {

@@ -19,10 +19,6 @@ namespace base {
 class FilePath;
 }
 
-namespace base::i18n {
-class LanguageTag;
-}
-
 // A simple implementation of PrefRegistry.
 class COMPONENTS_PREFS_EXPORT PrefRegistrySimple : public PrefRegistry {
  public:
@@ -52,10 +48,6 @@ class COMPONENTS_PREFS_EXPORT PrefRegistrySimple : public PrefRegistry {
   void RegisterFilePathPref(std::string_view path,
                             const base::FilePath& default_value,
                             uint32_t flags = NO_REGISTRATION_FLAGS);
-
-  void RegisterLanguageTagPref(std::string_view path,
-                               const base::i18n::LanguageTag& default_value,
-                               uint32_t flags = NO_REGISTRATION_FLAGS);
 
   void RegisterListPref(std::string_view path,
                         uint32_t flags = NO_REGISTRATION_FLAGS);

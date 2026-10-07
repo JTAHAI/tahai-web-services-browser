@@ -1,2 +1,3 @@
-rules:
-- "**": [meta]
+features:
+- name: meta
+  files: "**"

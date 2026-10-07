@@ -21,18 +21,20 @@ class Profile;
 class FaviconHelper {
  public:
   FaviconHelper();
-  void Destroy();
+  void Destroy(JNIEnv* env);
 
   FaviconHelper(const FaviconHelper&) = delete;
   FaviconHelper& operator=(const FaviconHelper&) = delete;
 
   bool GetLocalFaviconImageForURL(
+      JNIEnv* env,
       Profile* profile,
       const GURL& page_url,
       int32_t j_desired_size_in_pixel,
       bool fallback_to_host,
       const base::android::JavaRef<jobject>& j_favicon_image_callback);
   bool GetForeignFaviconImageForURL(
+      JNIEnv* env,
       Profile* profile,
       const GURL& page_url,
       int32_t j_desired_size_in_pixel,

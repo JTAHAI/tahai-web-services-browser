@@ -13,7 +13,7 @@ namespace content {
 FeatureObserver::FeatureObserver(FeatureObserverClient* client,
                                  GlobalRenderFrameHostId id)
     : client_(client), id_(id) {
-  CHECK(client_, base::NotFatalUntil::M158);
+  DCHECK(client_);
 
   for (size_t i = 0;
        i <= static_cast<size_t>(blink::mojom::ObservedFeatureType::kMaxValue);
@@ -44,7 +44,7 @@ void FeatureObserver::GetFeatureObserver(
 void FeatureObserver::Register(
     mojo::PendingReceiver<blink::mojom::ObservedFeature> feature,
     blink::mojom::ObservedFeatureType type) {
-  CHECK(client_, base::NotFatalUntil::M158);
+  DCHECK(client_);
 
   auto& set = features_by_type_[static_cast<int>(type)];
 

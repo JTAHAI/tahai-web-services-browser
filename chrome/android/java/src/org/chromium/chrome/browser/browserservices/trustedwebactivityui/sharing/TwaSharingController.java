@@ -6,7 +6,6 @@ package org.chromium.chrome.browser.browserservices.trustedwebactivityui.sharing
 
 import static org.chromium.build.NullUtil.assertNonNull;
 
-import android.app.Activity;
 import android.content.Intent;
 import android.net.Uri;
 import android.text.TextUtils;
@@ -24,7 +23,6 @@ import org.chromium.chrome.browser.browserservices.intents.WebApkShareTarget;
 import org.chromium.chrome.browser.browserservices.ui.controller.Verifier;
 import org.chromium.chrome.browser.customtabs.content.CustomTabActivityNavigationController;
 import org.chromium.chrome.browser.customtabs.content.CustomTabActivityTabProvider;
-import org.chromium.chrome.browser.customtabs.content.WebAppLaunchHandler;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.webapps.WebApkPostShareTargetNavigator;
 import org.chromium.content_public.browser.LoadUrlParams;
@@ -69,24 +67,6 @@ public class TwaSharingController {
         Intent intent = intentDataProvider.getIntent();
         assert intent != null;
 
-        if (shareData.uris != null && !shareData.uris.isEmpty()) {
-            Tab tab = mTabProvider.getTab();
-            Activity activity =
-                    (tab != null && tab.getWindowAndroid() != null)
-                            ? tab.getWindowAndroid().getActivity().get()
-                            : null;
-            // Pass null for caller because activity.getInitialCaller() in CustomTabActivity
-            // would return Chrome's own UID (due to trampoline dispatch). Passing null
-            // forces fallback to session UID/PID verification.
-            shareData =
-                    WebAppLaunchHandler.filterShareData(
-                            intentDataProvider, activity, /* caller= */ null);
-            if (shareData == null) {
-                return Promise.fulfilled(false);
-            }
-        }
-
-        final ShareData finalShareData = shareData;
         return mVerifierDelegate
                 .verify(shareTarget.getAction())
                 .then(
@@ -96,13 +76,13 @@ public class TwaSharingController {
                                         return false;
                                     }
                                     if (shareTarget.isShareMethodPost()) {
-                                        return sendPost(finalShareData, shareTarget);
+                                        return sendPost(shareData, shareTarget);
                                     }
 
                                     mNavigationController.navigate(
                                             new LoadUrlParams(
                                                     computeStartUrlForGETShareTarget(
-                                                            finalShareData, shareTarget)),
+                                                            shareData, shareTarget)),
                                             intent);
                                     return true;
                                 });

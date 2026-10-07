@@ -14,14 +14,14 @@
 #include "chrome/browser/media/webrtc/media_stream_capture_indicator.h"
 #include "content/public/browser/desktop_media_id.h"
 #include "content/public/browser/media_stream_request.h"
+#include "content/public/browser/web_contents_observer.h"
 
 // Android-specific implementation of MediaStreamUI for tab sharing state
 // (capturee).
 class TabSharingUIAndroid : public MediaStreamUI {
  public:
   explicit TabSharingUIAndroid(content::WebContents* capturer_web_contents,
-                               const content::DesktopMediaID& media_id,
-                               bool app_preferred_current_tab);
+                               const content::DesktopMediaID& media_id);
   ~TabSharingUIAndroid() override;
 
   // chrome::MediaStreamUI override.
@@ -29,6 +29,10 @@ class TabSharingUIAndroid : public MediaStreamUI {
       base::OnceClosure stop_callback,
       content::MediaStreamUI::SourceCallback source_callback,
       const std::vector<content::DesktopMediaID>& media_ids) override;
+
+  // Called by native browser code (e.g., MediaCaptureDevicesDispatcherAndroid)
+  // to stop the sharing session associated with |capturer_web_contents|.
+  static void StopSharing(content::WebContents* capturer_web_contents);
 
   // Called via JNI from TabSharingUIBridge when the user clicks the "Stop
   // sharing" button on the toolbar, or internally upon teardown. Executes the
@@ -43,9 +47,7 @@ class TabSharingUIAndroid : public MediaStreamUI {
  private:
   base::WeakPtr<content::WebContents> capturer_web_contents_;
   base::OnceClosure stop_callback_;
-  content::MediaStreamUI::SourceCallback source_callback_;
   const content::DesktopMediaID media_id_;
-  const bool app_preferred_current_tab_;
   std::unique_ptr<content::MediaStreamUI> tab_capture_indicator_ui_;
   base::android::ScopedJavaGlobalRef<jobject> java_bridge_;
 };

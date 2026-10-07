@@ -766,12 +766,15 @@ struct NonTransparentCompare {
   }
 };
 
-template <class T, class = void>
-struct CanEraseWithEmptyBrace : std::false_type {};
+template <typename T>
+bool CanEraseWithEmptyBrace(T t, decltype(t.erase({})) *) {
+  return true;
+}
 
-template <class T>
-struct CanEraseWithEmptyBrace<
-    T, std::void_t<decltype(std::declval<T>().erase({}))*>> : std::true_type {};
+template <typename T>
+bool CanEraseWithEmptyBrace(T, ...) {
+  return false;
+}
 
 template <typename T>
 void TestHeterogeneous(T table) {
@@ -816,7 +819,7 @@ void TestHeterogeneous(T table) {
   EXPECT_EQ(table.size() - 1, copy.size());
   copy.erase({"5"});
   EXPECT_EQ(table.size() - 2, copy.size());
-  EXPECT_FALSE(CanEraseWithEmptyBrace<T>::value);
+  EXPECT_FALSE(CanEraseWithEmptyBrace(table, nullptr));
 
   // Also run it with const T&.
   if (std::is_class<T>()) TestHeterogeneous<const T &>(table);
@@ -1107,7 +1110,7 @@ class BtreeMapTest : public ::testing::Test {
   struct Key {};
   struct Cmp {
     template <typename T>
-    [[maybe_unused]] bool operator()(T, T) const {
+    bool operator()(T, T) const {
       return false;
     }
   };
@@ -3530,7 +3533,7 @@ TEST(Btree, FieldTypeEqualsSlotType) {
   // This breaks if we try to do layout_type::Pointer<slot_type> because
   // slot_type is the same as field_type.
   using set_type = absl::btree_set<uint8_t>;
-  static_assert(BtreeNodePeer::FieldTypeEqualsSlotType<set_type>());
+  static_assert(BtreeNodePeer::FieldTypeEqualsSlotType<set_type>(), "");
   TestBasicFunctionality(set_type());
 }
 

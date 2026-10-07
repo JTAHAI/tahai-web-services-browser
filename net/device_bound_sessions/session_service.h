@@ -6,18 +6,14 @@
 #define NET_DEVICE_BOUND_SESSIONS_SESSION_SERVICE_H_
 
 #include <memory>
-#include <vector>
 
 #include "base/callback_list.h"
 #include "base/functional/callback_forward.h"
 #include "base/functional/callback_helpers.h"
 #include "base/memory/raw_ref.h"
-#include "base/time/time.h"
-#include "base/types/optional_ref.h"
 #include "net/base/net_export.h"
 #include "net/device_bound_sessions/cookie_access_check_params.h"
 #include "net/device_bound_sessions/deletion_reason.h"
-#include "net/device_bound_sessions/refresh_result.h"
 #include "net/device_bound_sessions/registration_fetcher_param.h"
 #include "net/device_bound_sessions/session.h"
 #include "net/device_bound_sessions/session_access.h"
@@ -39,14 +35,6 @@ class SSLPrivateKey;
 }  // namespace net
 
 namespace net::device_bound_sessions {
-
-// Result of prewarming DBSC sessions for a URL.
-struct NET_EXPORT SessionPrewarmResult {
-  std::vector<RefreshResult> results;
-  base::Time earliest_next_refresh_time = base::Time::Max();
-
-  bool operator==(const SessionPrewarmResult&) const = default;
-};
 
 // Callback invoked when a client certificate selection has finished.
 // `cert` and `key` are the selected certificate and its private key. Both are
@@ -77,7 +65,6 @@ class NET_EXPORT SessionService {
   using RefreshCompleteCallback = base::OnceCallback<void(RefreshResult)>;
   using CookieAccessCallback =
       base::RepeatingCallback<bool(const CookieAccessCheckParams&)>;
-  using PrewarmCallback = base::OnceCallback<void(SessionPrewarmResult)>;
 
   // Indicates the reason for deferring. Exactly one of
   // `is_pending_initialization` or `session_id` will be truthy.
@@ -130,20 +117,13 @@ class NET_EXPORT SessionService {
   virtual ~SessionService() = default;
 
   // Called to register a new session after getting a
-  // Sec-Session-Registration header.
-  // - `on_access_callback`: Callback invoked when a session is successfully
-  //   created. Not invoked if registration fails.
-  // - `registration_params`: Parameters parsed from the
-  //   Sec-Session-Registration header used for creating the registration
-  //   request.
-  //
-  // The following parameters configure the registration request and they should
-  // correspond to the request that received the Sec-Session-Registration
-  // header:
-  // - `isolation_info`
-  // - `site_for_cookies`
-  // - `net_log`
-  // - `original_request_initiator`
+  // Secure-Session-Registration header. Registration parameters to be used for
+  // creating the registration request. Isolation info to be used for
+  // registration request, this should be the same as was used for the response
+  // with the Secure-Session-Registration header. `net_log` is the log
+  // corresponding to the request receiving the Secure-Session-Registration
+  // header. 'original_request_initiator` was the initiator for the request that
+  // received the Secure-Session-Registration header.
   virtual void RegisterBoundSession(
       OnAccessCallback on_access_callback,
       RegistrationFetcherParam registration_params,
@@ -217,31 +197,6 @@ class NET_EXPORT SessionService {
           origin_and_site_matcher,
       base::OnceClosure completion_callback) = 0;
 
-  // Adds a pre-provisioned key to an in-memory storage.
-  //
-  // Returns `true` if the key was successfully added, `false` otherwise.
-  //
-  // A key insertion can fail if the key already exists, i.e. same rp_origin,
-  // provider_key, and provider_url.
-  //
-  // A key insertion can fail if there are more than
-  // `kMaxPreProvisionedKeysPerIdentityProvider` keys per Identity Provider
-  // site.
-  //
-  // A key insertion can fail if the Identity Provider site does not have access
-  // to its cookies from a third-party context.
-  virtual bool AddPreProvisionedKey(
-      const url::Origin& rp_origin,
-      std::string_view provider_key,
-      const GURL& provider_url,
-      unexportable_keys::UnexportableSigningKeyId key_id) = 0;
-
-  // Find a pre-provisioned key that matches the parameters.
-  virtual SessionErrorOr<unexportable_keys::UnexportableSigningKeyId>
-  FindPreProvisionedKey(
-      const RegistrationFetcherParam& param,
-      base::optional_ref<const url::Origin> original_request_initiator) = 0;
-
   // Add an observer for session changes that include `url`. `callback`
   // will only be notified until the destruction of the returned
   // `ScopedClosureRunner`.
@@ -292,17 +247,6 @@ class NET_EXPORT SessionService {
       const GURL& url,
       scoped_refptr<SSLCertRequestInfo> cert_info,
       SelectClientCertificateCallback callback) = 0;
-
-  // Evaluates all DBSC sessions matching `url` to determine if their required
-  // cookies are missing or expiring soon. If a refresh is needed, initiates
-  // background proactive refreshes and invokes `callback` asynchronously when
-  // all concurrent evaluations and refreshes complete, passing a
-  // `SessionPrewarmResult` containing a vector of `RefreshResult` outcomes and
-  // an absolute `base::Time` timestamp for `earliest_next_refresh_time`. If
-  // `url` is invalid or no matching sessions are found, `callback` is invoked
-  // asynchronously with an empty `SessionPrewarmResult`.
-  virtual void PrewarmSessionsForUrl(const GURL& url,
-                                     PrewarmCallback callback) = 0;
 
  protected:
   SessionService() = default;

@@ -15,6 +15,7 @@ import static org.mockito.Mockito.when;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.robolectric.annotation.Config;
 
 import org.chromium.base.library_loader.LibraryLoader;
 import org.chromium.base.library_loader.LibraryProcessType;
@@ -31,6 +32,7 @@ import java.util.concurrent.TimeUnit;
 
 /** Tests for {@link AsyncInitTaskRunner} */
 @RunWith(BaseRobolectricTestRunner.class)
+@Config(manifest = Config.NONE)
 public class AsyncInitTaskRunnerTest {
     private final LibraryLoader mLoader;
     private final AsyncInitTaskRunner mRunner;

@@ -14,9 +14,7 @@ build_webui("build") {
 
   static_files = [
     "alert_indicators/tab_audio_muting_rounded.svg",
-    "alert_indicators/tab_audio_muting_rounded_old.svg",
     "alert_indicators/tab_audio_rounded.svg",
-    "alert_indicators/tab_audio_rounded_old.svg",
     "alert_indicators/tab_media_recording.svg",
     "split_new_tab_page.html",
     "tab_search.html",
@@ -28,7 +26,6 @@ build_webui("build") {
     "app.html.ts",
     "app.ts",
     "search.ts",
-    "search_api_proxy.ts",
     "selectable_lazy_list.ts",
     "split_new_tab_page.ts",
     "split_view/app.html.ts",

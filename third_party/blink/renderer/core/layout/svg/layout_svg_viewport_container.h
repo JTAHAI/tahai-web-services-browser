@@ -84,7 +84,6 @@ class LayoutSVGViewportContainer final
 
   void StyleDidChange(StyleDifference,
                       const ComputedStyle* old_style,
-                      const ComputedStyle& new_style,
                       const StyleChangeContext&) override;
 
   gfx::RectF viewport_;

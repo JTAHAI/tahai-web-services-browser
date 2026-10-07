@@ -15,6 +15,8 @@
 #include "base/memory/raw_ptr.h"
 #include "base/run_loop.h"
 #include "chrome/browser/ash/login/users/fake_chrome_user_manager.h"
+#include "chrome/browser/notifications/notification_display_service_tester.h"
+#include "chrome/browser/notifications/system_notification_helper.h"
 #include "chrome/browser/profiles/profile_manager.h"
 #include "chrome/test/base/testing_browser_process.h"
 #include "chrome/test/base/testing_profile_manager.h"
@@ -31,7 +33,6 @@
 #include "components/user_manager/scoped_user_manager.h"
 #include "content/public/test/browser_task_environment.h"
 #include "third_party/cros_system_api/dbus/service_constants.h"
-#include "ui/message_center/message_center.h"
 
 namespace {
 
@@ -82,7 +83,7 @@ class MobileDataNotificationsTest : public testing::Test {
     testing::Test::SetUp();
     ash::LoginState::Initialize();
     SetupUserManagerAndProfileManager();
-    message_center::MessageCenter::Initialize();
+    SetupSystemNotifications();
     AddUserAndSetActive(kTestUserName);
     SetupNetworkShillState();
     base::RunLoop().RunUntilIdle();
@@ -95,7 +96,6 @@ class MobileDataNotificationsTest : public testing::Test {
     mobile_data_notifications_.reset();
     ash::NetworkConnect::Shutdown();
     network_connect_delegate_.reset();
-    message_center::MessageCenter::Shutdown();
     profile_manager_.reset();
     user_manager_enabler_.reset();
     ash::LoginState::Shutdown();
@@ -103,6 +103,13 @@ class MobileDataNotificationsTest : public testing::Test {
   }
 
  protected:
+  void SetupSystemNotifications() {
+    TestingBrowserProcess::GetGlobal()->SetSystemNotificationHelper(
+        std::make_unique<SystemNotificationHelper>());
+    // Passing nullptr sets up |display_service_| with system notifications.
+    display_service_ = std::make_unique<NotificationDisplayServiceTester>(
+        nullptr /* profile */);
+  }
   void SetupUserManagerAndProfileManager() {
     user_manager_ = new ash::FakeChromeUserManager;
     user_manager_enabler_ = std::make_unique<user_manager::ScopedUserManager>(
@@ -158,11 +165,6 @@ class MobileDataNotificationsTest : public testing::Test {
     ASSERT_TRUE(ProfileManager::GetActiveUserProfile() == profile);
   }
 
-  const message_center::Notification* GetNotification() {
-    return message_center::MessageCenter::Get()->FindVisibleNotificationById(
-        kNotificationId);
-  }
-
   content::BrowserTaskEnvironment task_environment_;
   ash::NetworkHandlerTestHelper network_handler_test_helper_;
   session_manager::SessionManager session_manager_{
@@ -173,12 +175,13 @@ class MobileDataNotificationsTest : public testing::Test {
 
   raw_ptr<ash::FakeChromeUserManager, DanglingUntriaged> user_manager_;
   std::unique_ptr<TestingProfileManager> profile_manager_;
+  std::unique_ptr<NotificationDisplayServiceTester> display_service_;
 };
 
 // Verify that basic network setup does not trigger notification.
 TEST_F(MobileDataNotificationsTest, SimpleSetup) {
   pref_service()->SetBoolean(ash::prefs::kShowMobileDataNotification, true);
-  EXPECT_FALSE(GetNotification());
+  EXPECT_FALSE(display_service_->GetNotification(kNotificationId));
 }
 
 // Verify that switching to cellular whiile pref is false does not display a
@@ -190,7 +193,7 @@ TEST_F(MobileDataNotificationsTest, NotificationAlreadyShown) {
   // Wait for async ConnectToNetworkId to take effect.
   base::RunLoop().RunUntilIdle();
 
-  EXPECT_FALSE(GetNotification());
+  EXPECT_FALSE(display_service_->GetNotification(kNotificationId));
 }
 
 // Verify that switching to cellular while pref is true displays notification.
@@ -201,7 +204,7 @@ TEST_F(MobileDataNotificationsTest, DisplayNotification) {
   // Wait for async ConnectToNetworkId to take effect.
   base::RunLoop().RunUntilIdle();
 
-  EXPECT_TRUE(GetNotification());
+  EXPECT_TRUE(display_service_->GetNotification(kNotificationId));
 }
 
 // Verify that displaying the notification toggles the profile pref.
@@ -230,7 +233,7 @@ TEST_F(MobileDataNotificationsTest, SessionUpdateDisplayNotification) {
 
   AddUserAndSetActive("other-user@example.com");
 
-  EXPECT_TRUE(GetNotification());
+  EXPECT_TRUE(display_service_->GetNotification(kNotificationId));
 }
 
 // Verify that session changes does not dispalay the notification if celluar is
@@ -240,7 +243,7 @@ TEST_F(MobileDataNotificationsTest, SessionUpdateNoNotification) {
 
   AddUserAndSetActive("other-user@example.com");
 
-  EXPECT_FALSE(GetNotification());
+  EXPECT_FALSE(display_service_->GetNotification(kNotificationId));
 }
 
 }  // namespace

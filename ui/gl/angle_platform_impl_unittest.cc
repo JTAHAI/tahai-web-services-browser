@@ -4,31 +4,30 @@
 
 #include "ui/gl/angle_platform_impl.h"
 
-#include "base/memory/raw_ptr.h"
-#include "base/synchronization/waitable_event.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
 namespace gl {
 namespace {
 
-TEST(ANGLEPlatformImplTest, PostWorkerTask) {
-  base::WaitableEvent event;
-  bool ran = false;
-  struct Context {
-    raw_ptr<base::WaitableEvent> event;
-    raw_ptr<bool> ran;
-  } context{&event, &ran};
+TEST(ANGLEPlatformImplTest, PostWorkerTaskShutdownFallback) {
+  // 1. Simulate PostTask failure.
+  angle::SetPostTaskFailedForTesting(true);
 
+  // 2. Call postWorkerTask directly.
+  bool ran = false;
   angle::ANGLEPlatformImpl_postWorkerTask(
       nullptr,
-      [](void* user_data) {
-        auto* ctx = static_cast<Context*>(user_data);
-        *ctx->ran = true;
-        ctx->event->Signal();
+      [](void* userData) {
+        bool* ran_ptr = static_cast<bool*>(userData);
+        *ran_ptr = true;
       },
-      &context);
-  event.Wait();
+      &ran);
+
+  // 3. Verify that it ran synchronously.
   EXPECT_TRUE(ran);
+
+  // Clean up.
+  angle::SetPostTaskFailedForTesting(false);
 }
 
 }  // namespace

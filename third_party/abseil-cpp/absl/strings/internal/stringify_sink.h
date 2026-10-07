@@ -16,7 +16,6 @@
 #define ABSL_STRINGS_INTERNAL_STRINGIFY_SINK_H_
 
 #include <array>
-#include <cstddef>
 #include <string>
 #include <type_traits>
 #include <utility>

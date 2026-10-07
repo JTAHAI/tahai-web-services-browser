@@ -145,18 +145,16 @@ const std::string& FakeWebHistoryService::FakeRequest::GetResponseBody() const {
 
     response_body_ = "{ \"event\": [";
     bool more_results_left;
-    auto visits = service_->GetVisitsBetween(begin, end, max_count,
-                                             /*client_ids=*/{},
-                                             &more_results_left);
+    auto visits =
+        service_->GetVisitsBetween(begin, end, max_count, &more_results_left);
     std::vector<std::string> results;
     for (const FakeWebHistoryService::Visit& visit : visits) {
       std::string unix_time = base::NumberToString(
           (visit.timestamp - base::Time::UnixEpoch()).InMicroseconds());
       results.push_back(base::StringPrintf(
-          "{\"result\":[{\"id\":[{\"timestamp_usec\":\"%s\",\"client_id\":\"%"
-          "s\"}],\"url\":\"%s\",\"favicon_url\":\"%s\"}]}",
-          unix_time.c_str(), visit.client_id.c_str(), visit.url.c_str(),
-          visit.icon_url.c_str()));
+          "{\"result\":[{\"id\":[{\"timestamp_usec\":\"%s\"}"
+          "],\"url\":\"%s\",\"favicon_url\":\"%s\"}]}",
+          unix_time.c_str(), visit.url.c_str(), visit.icon_url.c_str()));
     }
     response_body_ += base::JoinString(results, ",");
     response_body_ +=
@@ -169,7 +167,6 @@ const std::string& FakeWebHistoryService::FakeRequest::GetResponseBody() const {
     base::Time begin;
     base::Time end;
     int max_count = 0;
-    std::vector<std::string> client_ids;
     std::optional<base::DictValue> request_data =
         base::JSONReader::ReadDict(post_data_, base::JSON_PARSE_RFC);
     if (request_data) {
@@ -196,16 +193,6 @@ const std::string& FakeWebHistoryService::FakeRequest::GetResponseBody() const {
               base::StringToInt64(*max_time_str, &max_time_us)) {
             end = base::Time::UnixEpoch() + base::Microseconds(max_time_us);
           }
-
-          const base::ListValue* client_id_list =
-              lookup_dict.FindList("client_id");
-          if (client_id_list) {
-            for (const base::Value& id_val : *client_id_list) {
-              if (id_val.is_string()) {
-                client_ids.push_back(id_val.GetString());
-              }
-            }
-          }
         }
       }
     }
@@ -214,18 +201,16 @@ const std::string& FakeWebHistoryService::FakeRequest::GetResponseBody() const {
     }
 
     bool more_results_left = false;
-    auto visits = service_->GetVisitsBetween(begin, end, max_count, client_ids,
-                                             &more_results_left);
+    auto visits =
+        service_->GetVisitsBetween(begin, end, max_count, &more_results_left);
 
     std::vector<std::string> results;
     for (const FakeWebHistoryService::Visit& visit : visits) {
       std::string unix_time = base::NumberToString(
           (visit.timestamp - base::Time::UnixEpoch()).InMicroseconds());
       results.push_back(base::StringPrintf(
-          "{\"timestamp\":\"%s\",\"url\":\"%s\",\"faviconUrl\":\"%s\","
-          "\"clientId\":\"%s\"}",
-          unix_time.c_str(), visit.url.c_str(), visit.icon_url.c_str(),
-          visit.client_id.c_str()));
+          "{\"timestamp\":\"%s\",\"url\":\"%s\",\"faviconUrl\":\"%s\"}",
+          unix_time.c_str(), visit.url.c_str(), visit.icon_url.c_str()));
     }
     response_body_ = "{ \"lookup\": [{ \"chromeHistory\": [";
     response_body_ += base::JoinString(results, ",");
@@ -307,9 +292,8 @@ void FakeWebHistoryService::SetupFakeResponse(bool emulate_success,
 
 void FakeWebHistoryService::AddSyncedVisit(const std::string& url,
                                            base::Time timestamp,
-                                           const std::string& icon_url,
-                                           const std::string& client_id) {
-  visits_.emplace_back(Visit(url, timestamp, icon_url, client_id));
+                                           const std::string& icon_url) {
+  visits_.emplace_back(Visit(url, timestamp, icon_url));
 }
 
 void FakeWebHistoryService::ClearSyncedVisits() {
@@ -317,12 +301,10 @@ void FakeWebHistoryService::ClearSyncedVisits() {
 }
 
 std::vector<FakeWebHistoryService::Visit>
-FakeWebHistoryService::GetVisitsBetween(
-    base::Time begin,
-    base::Time end,
-    size_t count,
-    const std::vector<std::string>& client_ids,
-    bool* more_results_left) {
+FakeWebHistoryService::GetVisitsBetween(base::Time begin,
+                                        base::Time end,
+                                        size_t count,
+                                        bool* more_results_left) {
   // Make sure that `visits_` is sorted in reverse chronological order before we
   // return anything. This means that the most recent results are returned
   // first.
@@ -335,11 +317,6 @@ FakeWebHistoryService::GetVisitsBetween(
   for (const Visit& visit : visits_) {
     // `begin` is inclusive, `end` is exclusive.
     if (visit.timestamp >= begin && visit.timestamp < end) {
-      if (!client_ids.empty() &&
-          !std::ranges::contains(client_ids, visit.client_id)) {
-        continue;
-      }
-
       // We found another valid result, but cannot return it because we've
       // reached max count.
       if (count > 0 && result.size() >= count) {
@@ -381,19 +358,7 @@ void FakeWebHistoryService::SetOtherFormsOfBrowsingHistoryPresent(
 
 FakeWebHistoryService::Visit::Visit(const std::string& url,
                                     base::Time timestamp,
-                                    const std::string& icon_url,
-                                    const std::string& client_id)
-    : url(url),
-      timestamp(timestamp),
-      icon_url(icon_url),
-      client_id(client_id.empty() ? kDefaultClientId : client_id) {}
-
-FakeWebHistoryService::Visit::Visit(const Visit&) = default;
-FakeWebHistoryService::Visit& FakeWebHistoryService::Visit::operator=(
-    const Visit&) = default;
-FakeWebHistoryService::Visit::Visit(Visit&&) noexcept = default;
-FakeWebHistoryService::Visit& FakeWebHistoryService::Visit::operator=(
-    Visit&&) noexcept = default;
-FakeWebHistoryService::Visit::~Visit() = default;
+                                    const std::string& icon_url)
+    : url(url), timestamp(timestamp), icon_url(icon_url) {}
 
 }  // namespace history

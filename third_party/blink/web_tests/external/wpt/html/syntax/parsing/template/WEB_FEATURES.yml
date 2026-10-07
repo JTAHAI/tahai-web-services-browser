@@ -1,2 +1,3 @@
-rules:
-- "**": [template]
+features:
+- name: template
+  files: "**"

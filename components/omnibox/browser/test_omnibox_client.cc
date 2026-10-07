@@ -127,10 +127,6 @@ std::u16string TestOmniboxClient::GetURLForDisplay() const {
   return location_bar_model_.GetURLForDisplay();
 }
 
-bool TestOmniboxClient::IsContextualTasksPage() const {
-  return location_bar_model_.IsContextualTasksPage();
-}
-
 GURL TestOmniboxClient::GetNavigationEntryURL() const {
   return location_bar_model_.GetURL();
 }

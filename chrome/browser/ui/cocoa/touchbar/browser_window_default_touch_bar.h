@@ -8,7 +8,7 @@
 #import <Cocoa/Cocoa.h>
 
 class BookmarkTabHelperObserver;
-class BrowserWindowInterface;
+class Browser;
 @class BrowserWindowTouchBarController;
 
 // Provides a default touch bar for the browser window. This class implements
@@ -29,7 +29,7 @@ class BrowserWindowInterface;
 
 @property(nonatomic, weak) BrowserWindowTouchBarController* controller;
 
-@property(nonatomic) BrowserWindowInterface* browser;
+@property(nonatomic) Browser* browser;
 
 // Creates and returns a touch bar for the browser window.
 - (NSTouchBar*)makeTouchBar;

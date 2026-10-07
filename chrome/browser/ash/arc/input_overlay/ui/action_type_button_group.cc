@@ -113,8 +113,7 @@ ActionTypeButton* ActionTypeButtonGroup::AddActionTypeButton(
     const gfx::VectorIcon& icon) {
   auto* button = AddChildView(
       std::make_unique<ActionTypeButton>(std::move(callback), label, icon));
-  button->set_button_selected_callback(base::BindRepeating(
-      &ActionTypeButtonGroup::OnButtonSelected, base::Unretained(this)));
+  button->set_delegate(this);
   buttons_.push_back(button);
   return button;
 }
@@ -145,6 +144,10 @@ void ActionTypeButtonGroup::OnButtonSelected(ash::OptionButtonBase* button) {
       action_type_button->RefreshColors();
     }
   }
+}
+
+void ActionTypeButtonGroup::OnButtonClicked(ash::OptionButtonBase* button) {
+  button->SetSelected(true);
 }
 
 void ActionTypeButtonGroup::OnActionTapButtonPressed() {

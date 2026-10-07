@@ -833,8 +833,12 @@ void ThreadSafeArena::AddCleanup(void* elem, void (*cleanup)(void*)) {
   GetSerialArena()->AddCleanup(elem, cleanup);
 }
 
-SerialArena* ThreadSafeArena::GetSerialArenaSlow() {
-  return GetSerialArenaFallback(0);
+SerialArena* ThreadSafeArena::GetSerialArena() {
+  SerialArena* arena;
+  if (ABSL_PREDICT_FALSE(!GetSerialArenaFast(&arena))) {
+    arena = GetSerialArenaFallback(kMaxCleanupNodeSize);
+  }
+  return arena;
 }
 
 PROTOBUF_NOINLINE
@@ -918,10 +922,10 @@ PROTOBUF_NOINLINE void* ThreadSafeArena::AllocateAlignedFallback(size_t n) {
   return GetSerialArenaFallback(n)->AllocateAligned<alloc_client>(n);
 }
 
+template void* ThreadSafeArena::AllocateAlignedFallback<
+    AllocationClient::kDefault>(size_t);
 template void*
-ThreadSafeArena::AllocateAlignedFallback<AllocationClient::kDefault>(size_t);
-template void*
-ThreadSafeArena::AllocateAlignedFallback<AllocationClient::kArray>(size_t);
+    ThreadSafeArena::AllocateAlignedFallback<AllocationClient::kArray>(size_t);
 
 void ThreadSafeArena::CleanupList() {
   if constexpr (HasMemoryPoisoning()) {

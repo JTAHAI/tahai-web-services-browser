@@ -36,13 +36,12 @@ class ScrimViewBinder {
             // until it is attached to its parent.
             if (model.get(ANCHOR_VIEW) != null) {
                 assert view.getLayoutParams() instanceof MarginLayoutParams;
-                var layoutParams = (MarginLayoutParams) view.getLayoutParams();
                 if (TOP_MARGIN == propertyKey) {
-                    layoutParams.topMargin = model.get(TOP_MARGIN);
+                    ((MarginLayoutParams) view.getLayoutParams()).topMargin = model.get(TOP_MARGIN);
                 } else {
-                    layoutParams.bottomMargin = model.get(BOTTOM_MARGIN);
+                    ((MarginLayoutParams) view.getLayoutParams()).bottomMargin =
+                            model.get(BOTTOM_MARGIN);
                 }
-                view.setLayoutParams(layoutParams);
             }
         } else if (AFFECTS_STATUS_BAR == propertyKey) {
             // Noop; the mediator handles this interaction.

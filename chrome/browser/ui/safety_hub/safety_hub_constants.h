@@ -68,7 +68,8 @@ extern const char kBlocklistCheckCountHistogramName[];
 
 // State that a top card in the Safety Hub page can be in. This enum should
 // remain sorted from the "worst" state (warning) to the "best" state (safe).
-// LINT.IfChange(SafetyHubCardState)
+// Should be kept in sync with the corresponding enum in
+// chrome/browser/resources/settings/safety_hub/safety_hub_browser_proxy.ts
 enum class SafetyHubCardState {
   kWarning = 0,
   kWeak = 1,
@@ -76,10 +77,6 @@ enum class SafetyHubCardState {
   kSafe = 3,
   kMaxValue = kSafe,
 };
-// LINT.ThenChange(
-//   //chrome/browser/resources/settings/safety_hub/safety_hub_browser_proxy.ts:CardState,
-//   //chrome/browser/resources/settings/metrics_browser_proxy.ts:SafetyHubCardState
-// )
 
 // Smallest time duration between two subsequent password checks.
 extern const base::TimeDelta kMinTimeBetweenPasswordChecks;
@@ -90,7 +87,6 @@ extern const base::TimeDelta kMinTimeBetweenPasswordChecks;
 // Values should correspond to 'SafetyHubModuleType' in enums.xml.
 // These values are persisted to logs. Entries should not be renumbered and
 // numeric values should never be reused.
-// LINT.IfChange(SafetyHubModuleType)
 enum class SafetyHubModuleType {
   UNUSED_SITE_PERMISSIONS = 0,
   NOTIFICATION_PERMISSIONS = 1,
@@ -100,12 +96,10 @@ enum class SafetyHubModuleType {
   VERSION = 5,
   kMaxValue = VERSION,
 };
-// LINT.ThenChange(
-//   //chrome/browser/resources/settings/metrics_browser_proxy.ts:SafetyHubModuleType,
-//   //tools/metrics/histograms/metadata/settings/enums.xml:SafetyHubModuleType
-// )
 
-// LINT.IfChange(SafetyHubEntryPoint)
+// Values should correspond to 'SafetyHubEntryPoint' in enums.xml.
+// These values are persisted to logs. Entries should not be renumbered and
+// numeric values should never be reused.
 enum class SafetyHubEntryPoint {
   kPrivacySafe = 0,
   kPrivacyWarning = 1,
@@ -114,21 +108,17 @@ enum class SafetyHubEntryPoint {
   kNotificationSettings = 4,
   kMaxValue = kNotificationSettings,
 };
-// LINT.ThenChange(
-//   //chrome/browser/resources/settings/metrics_browser_proxy.ts:SafetyHubEntryPoint,
-//   //tools/metrics/histograms/metadata/settings/enums.xml:SafetyHubEntryPoint
-// )
 
-// LINT.IfChange(SafetyHubSurfaces)
+// The various surfaces that users could see (a part of) Safety Hub, or interact
+// with it.
+// Values should correspond to 'SafetyHubSurfaces' in enums.xml.
+// These values are persisted to logs. Entries should not be renumbered and
+// numeric values should never be reused.
 enum class SafetyHubSurfaces {
   kThreeDotMenu = 0,
   kSafetyHubPage = 1,
   kMaxValue = kSafetyHubPage,
 };
-// LINT.ThenChange(
-//   //chrome/browser/resources/settings/metrics_browser_proxy.ts:SafetyHubSurfaces,
-//   //tools/metrics/histograms/metadata/settings/enums.xml:SafetyHubSurfaces
-// )
 
 // Duration to wait for cleaning up the revoked permissions after showing them
 // to the user.

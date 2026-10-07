@@ -25,7 +25,7 @@ import org.chromium.ui.base.LocalizationUtils;
 
 /** Tests for {@link StripStacker}. */
 @RunWith(BaseRobolectricTestRunner.class)
-@Config(qualifiers = "sw600dp")
+@Config(manifest = Config.NONE, qualifiers = "sw600dp")
 public class StripStackerUnitTest {
     @Rule public MockitoRule mMockitoRule = MockitoJUnit.rule();
 
@@ -120,8 +120,6 @@ public class StripStackerUnitTest {
 
         @Override
         public void pushDrawPropertiesToViews(
-                StripLayoutView[] indexOrderedViews,
-                float visibleLeftBound,
-                float visibleRightBound) {}
+                StripLayoutView[] indexOrderedViews, float leftBound, float rightBound) {}
     }
 }

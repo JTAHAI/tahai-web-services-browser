@@ -48,8 +48,7 @@ enum class GlicPinTrigger {
   kWebClientUnknown,
   kContextualCue,
   kTabGroupIntegration,
-  kTabPicker,
-  kMaxValue = kTabPicker
+  kMaxValue = kTabGroupIntegration
 };
 
 enum class GlicUnpinTrigger {
@@ -64,8 +63,7 @@ enum class GlicUnpinTrigger {
   kActuation,
   kWebClientUnknown,
   kTabGroupIntegration,
-  kTabPicker,
-  kMaxValue = kTabPicker
+  kMaxValue = kTabGroupIntegration
 };
 
 struct GlicPinEvent {
@@ -178,9 +176,6 @@ class GlicSharingManager {
     return UnpinTabs(tab_handles, GlicUnpinTrigger::kUnknown);
   }
 
-  // Fetches the current list of pinned tabs.
-  virtual std::vector<tabs::TabInterface*> GetPinnedTabs() const = 0;
-
   // Queries whether the given tab has been explicitly pinned.
   virtual bool IsTabPinned(tabs::TabHandle tab_handle) const = 0;
 
@@ -291,8 +286,10 @@ class GlicSharingManagerInternal : public GlicSharingManager {
   // having more tabs currently pinned than requested.
   virtual int32_t SetMaxPinnedTabs(uint32_t max_pinned_tabs) = 0;
 
+  // Fetches the current list of pinned tabs.
+  virtual std::vector<tabs::TabInterface*> GetPinnedTabs() const = 0;
+
   // GlicSharingManager override.
-  std::vector<tabs::TabInterface*> GetPinnedTabs() const override = 0;
   bool IsTabPinned(tabs::TabHandle tab_handle) const override = 0;
   bool IsTabShared(tabs::TabInterface* tab) const override = 0;
 

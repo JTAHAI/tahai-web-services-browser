@@ -253,7 +253,6 @@ void ExtensionUpdater::Stop() {
   external_install_manager_ = nullptr;
   extension_cache_ = nullptr;
   corrupted_extension_reinstaller_ = nullptr;
-  requests_in_progress_.clear();
 }
 
 void ExtensionUpdater::ScheduleNextCheck() {
@@ -294,13 +293,6 @@ void ExtensionUpdater::CheckSoon() {
 
 bool ExtensionUpdater::WillCheckSoon() const {
   return will_check_soon_;
-}
-
-bool ExtensionUpdater::HasFullCheckInProgress() const {
-  return alive_ &&
-         std::ranges::any_of(requests_in_progress_, [](const auto& pair) {
-           return pair.second.is_full_check;
-         });
 }
 
 void ExtensionUpdater::AddObserver(UpdateObserver* observer) {
@@ -360,7 +352,6 @@ void ExtensionUpdater::DoCheckSoon() {
     // check.
     return;
   }
-  will_check_soon_ = false;
   CheckNow(CheckParams());
 }
 
@@ -453,11 +444,9 @@ void ExtensionUpdater::CheckNow(CheckParams params) {
 
   EnsureDownloaderCreated();
 
-  const bool is_full_check = params.ids.empty();
-
   // Gather the set of extension IDs to update.
   std::set<ExtensionId> ids_to_update;
-  if (!is_full_check) {
+  if (!params.ids.empty()) {
     // Check just the provided set of extensions.
     ids_to_update.insert(params.ids.begin(), params.ids.end());
   } else {
@@ -498,7 +487,6 @@ void ExtensionUpdater::CheckNow(CheckParams params) {
   update_check_params.install_immediately = params.install_immediately;
 
   InProgressCheck& request = requests_in_progress_[request_id];
-  request.is_full_check = is_full_check;
   request.update_found_callback = params.update_found_callback;
   request.callback = std::move(params.callback);
   request.install_immediately = params.install_immediately;

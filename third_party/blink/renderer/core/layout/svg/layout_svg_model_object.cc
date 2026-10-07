@@ -69,8 +69,7 @@ void LayoutSVGModelObject::MapAncestorToLocal(
 void LayoutSVGModelObject::QuadsInAncestorInternal(
     Vector<gfx::QuadF>& quads,
     const LayoutBoxModelObject* ancestor,
-    MapCoordinatesFlags mode,
-    BoxQuadType) const {
+    MapCoordinatesFlags mode) const {
   NOT_DESTROYED();
   quads.push_back(
       LocalToAncestorQuad(gfx::QuadF(DecoratedBoundingBox()), ancestor, mode));
@@ -101,10 +100,10 @@ gfx::RectF LayoutSVGModelObject::LocalBoundingBoxRectForAccessibility(
   return DecoratedBoundingBox();
 }
 
-void LayoutSVGModelObject::WillBeDestroyed(const ComputedStyle* style) {
+void LayoutSVGModelObject::WillBeDestroyed() {
   NOT_DESTROYED();
-  SVGResources::ClearEffects(*this, style);
-  LayoutObject::WillBeDestroyed(style);
+  SVGResources::ClearEffects(*this);
+  LayoutObject::WillBeDestroyed();
 }
 
 bool LayoutSVGModelObject::MapToVisualRectInAncestorSpaceInternal(
@@ -161,11 +160,9 @@ void LayoutSVGModelObject::ImageChanged(WrappedImagePtr image,
 void LayoutSVGModelObject::StyleDidChange(
     StyleDifference diff,
     const ComputedStyle* old_style,
-    const ComputedStyle& new_style,
     const StyleChangeContext& style_change_context) {
   NOT_DESTROYED();
-  LayoutObject::StyleDidChange(diff, old_style, new_style,
-                               style_change_context);
+  LayoutObject::StyleDidChange(diff, old_style, style_change_context);
 
   if (diff.NeedsFullLayout()) {
     if (diff.transform_changed) {
@@ -173,7 +170,8 @@ void LayoutSVGModelObject::StyleDidChange(
     }
   }
 
-  SetHasTransformRelatedProperty(new_style.HasTransformRelatedPropertyForSVG());
+  SetHasTransformRelatedProperty(
+      StyleRef().HasTransformRelatedPropertyForSVG());
 
   SVGResources::UpdateEffects(*this, diff, old_style);
 
@@ -184,12 +182,12 @@ void LayoutSVGModelObject::StyleDidChange(
     if (diff.blend_mode_changed) {
       DCHECK(IsBlendingAllowed());
       Parent()->DescendantIsolationRequirementsChanged(
-          new_style.HasBlendMode() ? kDescendantIsolationRequired
-                                   : kDescendantIsolationNeedsUpdate);
+          StyleRef().HasBlendMode() ? kDescendantIsolationRequired
+                                    : kDescendantIsolationNeedsUpdate);
     }
-    if ((new_style.HasCurrentTransformRelatedAnimation() &&
+    if ((StyleRef().HasCurrentTransformRelatedAnimation() &&
          !old_style->HasCurrentTransformRelatedAnimation()) ||
-        (new_style.HasNonIdentityTransformOperation() &&
+        (StyleRef().HasNonIdentityTransformOperation() &&
          !old_style->HasNonIdentityTransformOperation())) {
       Parent()->SetSVGDescendantMayHaveTransformRelatedOperations();
     }

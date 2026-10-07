@@ -109,8 +109,6 @@ void ContextualTasksUiServiceTestBase::SetUp() {
   // By default, assume URLs have the correct URL params to be intercepted.
   ON_CALL(*aim_eligibility_service_, HasAimUrlParams(_))
       .WillByDefault(Return(true));
-  ON_CALL(*aim_eligibility_service_, IsAimEligible())
-      .WillByDefault(Return(true));
   ON_CALL(*aim_eligibility_service_, IsCobrowseEligible())
       .WillByDefault(Return(true));
   ON_CALL(*aim_eligibility_service_, RegisterEligibilityChangedCallback(_))

@@ -76,6 +76,11 @@ class PasswordSenderService;
 class PasswordStoreInterface;
 }  // namespace password_manager
 
+namespace plus_addresses {
+class PlusAddressSettingService;
+class PlusAddressWebDataService;
+}  // namespace plus_addresses
+
 namespace reading_list {
 class DualReadingListModel;
 }  // namespace reading_list
@@ -197,6 +202,12 @@ class CommonControllerBuilder {
           profile_password_store,
       const scoped_refptr<password_manager::PasswordStoreInterface>&
           account_password_store);
+#if !BUILDFLAG(IS_IOS)
+  void SetPlusAddressServices(
+      plus_addresses::PlusAddressSettingService* plus_address_setting_service,
+      const scoped_refptr<plus_addresses::PlusAddressWebDataService>&
+          plus_address_webdata_service);
+#endif  // !BUILDFLAG(IS_IOS)
   void SetPrefService(PrefService* pref_service);
   void SetPrefServiceSyncable(
       sync_preferences::PrefServiceSyncable* pref_service_syncable);
@@ -270,6 +281,12 @@ class CommonControllerBuilder {
   std::unique_ptr<syncer::DataTypeController>
   CreateOutgoingPasswordSharingInvitationDataTypeController(
       syncer::SyncService* sync_service);
+#if !BUILDFLAG(IS_IOS)
+  std::unique_ptr<syncer::DataTypeController>
+  CreatePlusAddressDataTypeController();
+  std::unique_ptr<syncer::DataTypeController>
+  CreatePlusAddressSettingDataTypeController();
+#endif  // !BUILDFLAG(IS_IOS)
   std::unique_ptr<syncer::DataTypeController>
   CreatePreferencesDataTypeController(version_info::Channel channel);
   std::unique_ptr<syncer::DataTypeController>
@@ -315,7 +332,6 @@ class CommonControllerBuilder {
   CreateContextualTaskDataTypeController();
   std::unique_ptr<syncer::DataTypeController>
   CreateNotebookDataTypeController();
-  std::unique_ptr<syncer::DataTypeController> CreateJourneyDataTypeController();
 #if !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_IOS)
   std::unique_ptr<syncer::DataTypeController> CreateSkillDataTypeController(
       syncer::SyncService* sync_service);
@@ -326,8 +342,7 @@ class CommonControllerBuilder {
 #endif
 #if BUILDFLAG(ENABLE_SUPERVISED_USERS)
   std::unique_ptr<syncer::DataTypeController>
-  CreateFamilyLinkSettingsDataTypeController(syncer::SyncService* sync_service,
-                                             version_info::Channel channel);
+  CreateFamilyLinkSettingsDataTypeController(version_info::Channel channel);
 #endif
   std::unique_ptr<syncer::DataTypeController>
   CreateCollaborationGroupDataTypeController(syncer::SyncService* sync_service);
@@ -416,6 +431,12 @@ class CommonControllerBuilder {
   SafeOptional<raw_ptr<bookmarks::BookmarkModel>> bookmark_model_;
   SafeOptional<raw_ptr<supervised_user::FamilyLinkSettingsService>>
       family_link_settings_service_;
+#if !BUILDFLAG(IS_IOS)
+  SafeOptional<raw_ptr<plus_addresses::PlusAddressSettingService>>
+      plus_address_setting_service_;
+  SafeOptional<scoped_refptr<plus_addresses::PlusAddressWebDataService>>
+      plus_address_webdata_service_;
+#endif  // !BUILDFLAG(IS_IOS)
   SafeOptional<raw_ptr<collaboration::CollaborationService>>
       collaboration_service_;
   SafeOptional<raw_ptr<contextual_tasks::ContextualTasksService>>

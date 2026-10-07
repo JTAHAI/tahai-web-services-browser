@@ -10,13 +10,11 @@
 #include <vector>
 
 #include "base/containers/flat_set.h"
-#include "base/containers/hashing_lru_cache.h"
 #include "base/files/file_path.h"
 #include "base/functional/callback.h"
 #include "base/functional/callback_helpers.h"
 #include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
-#include "base/time/time.h"
 #include "base/values.h"
 #include "content/common/content_export.h"
 #include "url/origin.h"
@@ -94,34 +92,21 @@ class CONTENT_EXPORT DeclarativePerformanceObserverStore {
   // pending I/O transactions on the background sequence.
   void Close(base::OnceClosure callback = base::DoNothing());
 
-  // Sets the policy limit for testing purposes.
-  void SetMaxPoliciesForTesting(size_t max_policies);  // IN-TEST
-
   // Verifies that database tables and indexes are properly configured.
   void CheckSchemaForTesting(  // IN-TEST
       base::OnceCallback<void(bool, bool)> callback);
 
  private:
-  struct LoadedPolicy {
-    url::Origin origin;
-    base::Time created_at;
-  };
-
   class Backend;
 
-  void OnPoliciesLoadedOnUISequence(
-      base::OnceClosure on_loaded_callback,
-      std::vector<LoadedPolicy> loaded);
-
-  void EvictOldestPolicy();
+  void OnPoliciesLoadedOnUISequence(base::OnceClosure on_loaded_callback,
+                                    std::vector<url::Origin> loaded);
 
   scoped_refptr<base::SequencedTaskRunner> db_task_runner_;
   scoped_refptr<Backend> backend_;
 
   // UI-thread In-Memory Policy Cache for instant 0ns lookups:
-  base::HashingLRUCache<url::Origin, base::Time> cached_policies_;
-
-  size_t max_policies_;
+  base::flat_set<url::Origin> cached_policies_;
 
   // True if the initial database loading has completed.
   bool loaded_ = false;

@@ -4,7 +4,6 @@
 
 import '../../components/buttons/oobe_text_button.js';
 
-import {assert} from '//resources/js/assert.js';
 import type {PolymerElementProperties} from '//resources/polymer/v3_0/polymer/interfaces.js';
 import {PolymerElement} from '//resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
@@ -33,14 +32,13 @@ export class FjordTouchControllerScreen extends
     return {};
   }
 
-  private webview: chrome.webviewTag.WebView|null = null;
-  private handler = new FjordTouchControllerPageHandlerRemote();
+  private webview: chrome.webviewTag.WebView;
+  private handler: FjordTouchControllerPageHandlerRemote;
 
   override onBeforeShow(): void {
     super.onBeforeShow();
     // Trigger a reload because at the time the dialog is created, the web
     // server is not up yet and will show an error page.
-    assert(this.webview);
     this.webview.reload();
   }
 
@@ -49,6 +47,7 @@ export class FjordTouchControllerScreen extends
     this.initializeLoginScreen('FjordTouchControllerScreen');
     this.webview =
         this.shadowRoot!.querySelector<chrome.webviewTag.WebView>('webview')!;
+    this.handler = new FjordTouchControllerPageHandlerRemote();
     OobeScreensFactoryBrowserProxy.getInstance()
         .screenFactory.establishFjordTouchControllerScreenPipe(
             this.handler.$.bindNewPipeAndPassReceiver());

@@ -39,11 +39,10 @@ public class PinnedTabStripItemViewBinder {
             TabActionListener listener = model.get(TabProperties.TAB_CLICK_LISTENER);
             if (listener == null) return;
             view.setOnClickListener(
-                    (View v) ->
-                            listener.run(
-                                    v,
-                                    model.get(TabProperties.TAB_ID),
-                                    /* triggeringMotion= */ null));
+                    v -> {
+                        listener.run(
+                                v, model.get(TabProperties.TAB_ID), /* triggeringMotion= */ null);
+                    });
         } else if (TabProperties.TAB_CONTEXT_CLICK_LISTENER == propertyKey) {
             itemView.setNullableContextClickListener(
                     model.get(TabProperties.TAB_CONTEXT_CLICK_LISTENER),

@@ -53,4 +53,4 @@ public:
 
 }
 
-#endif  // CLASS_REQUIRES_TRACE_METHOD_H_
+#endif

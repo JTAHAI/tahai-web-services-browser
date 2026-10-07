@@ -12,7 +12,6 @@
 #include "chrome/browser/extensions/api/storage/settings_sync_processor.h"
 #include "chrome/browser/extensions/api/storage/settings_sync_util.h"
 #include "chrome/browser/extensions/api/storage/syncable_settings_storage.h"
-#include "components/crx_file/id_util.h"
 #include "components/sync/model/sync_change_processor.h"
 #include "components/sync/protocol/entity_data.h"
 #include "extensions/browser/api/storage/backend_task_runner.h"
@@ -172,11 +171,6 @@ std::optional<syncer::ModelError> SyncStorageBackend::MergeDataAndStartSyncing(
 
   for (const syncer::SyncData& sync_data : initial_sync_data) {
     SettingSyncData data(sync_data);
-    if (!crx_file::id_util::IdIsValid(data.extension_id())) {
-      DVLOG(1) << "Ignoring sync data with invalid extension ID "
-               << data.extension_id();
-      continue;
-    }
     base::DictValue& settings = grouped_sync_data[data.extension_id()];
     DCHECK(!settings.Find(data.key()))
         << "Duplicate settings for " << data.extension_id() << "/"
@@ -228,12 +222,7 @@ std::optional<syncer::ModelError> SyncStorageBackend::ProcessSyncChanges(
   std::map<ExtensionId, SettingSyncDataList*> grouped_sync_data;
 
   for (const syncer::SyncChange& change : sync_changes) {
-    auto data = std::make_unique<SettingSyncData>(change);
-    if (!crx_file::id_util::IdIsValid(data->extension_id())) {
-      DVLOG(1) << "Ignoring sync change with invalid extension ID "
-               << data->extension_id();
-      continue;
-    }
+    std::unique_ptr<SettingSyncData> data(new SettingSyncData(change));
     SettingSyncDataList*& group = grouped_sync_data[data->extension_id()];
     if (!group) {
       group = new SettingSyncDataList();

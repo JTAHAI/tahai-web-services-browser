@@ -147,15 +147,10 @@ void SetRuntimeFeaturesFromChromiumFeatures() {
           {wf::EnableEyeDropperAPI, raw_ref(features::kEyeDropper),
            kSetOnlyIfOverridden},
           {wf::EnableFedCm, raw_ref(features::kFedCm), kSetOnlyIfOverridden},
-          {wf::EnableFedCmActiveModeMultipleIdentityProviders,
-           raw_ref(features::kFedCmActiveModeMultipleIdentityProviders),
-           kDefault},
           {wf::EnableFedCmAutofill, raw_ref(features::kFedCmAutofill),
            kDefault},
           {wf::EnableFedCmDelegation, raw_ref(features::kFedCmDelegation),
            kDefault},
-          {wf::EnableFedCmIdentityHandler,
-           raw_ref(features::kFedCmIdentityHandler), kDefault},
           {wf::EnableFedCmIdPRegistration,
            raw_ref(features::kFedCmIdPRegistration), kDefault},
           {wf::EnableFedCmLightweightMode,
@@ -166,11 +161,21 @@ void SetRuntimeFeaturesFromChromiumFeatures() {
            raw_ref(features::kFedCmNavigationInterception), kDefault},
           {wf::EnableFedCmNavigationInterception,
            raw_ref(features::kFedCmEmbedderInitiatedLogin), kDefault},
+          {wf::EnableFedCmErrorAttribute,
+           raw_ref(features::kFedCmErrorAttribute), kDefault},
+          {wf::EnableFedCmNonStringToken,
+           raw_ref(features::kFedCmNonStringToken), kDefault},
           {wf::EnableGamepadMultitouch,
            raw_ref(features::kEnableGamepadMultitouch)},
           {wf::EnableGamepadRawInputChangeEvent,
            raw_ref(features::kGamepadRawInputChangeEvent),
            kSetOnlyIfOverridden},
+          {wf::EnableSharedStorageAPI,
+           raw_ref(features::kPrivacySandboxAdsAPIsOverride),
+           kSetOnlyIfOverridden},
+          {wf::EnableSharedStorageAPI,
+           raw_ref(features::kPrivacySandboxAdsAPIsM1Override)},
+
           {wf::EnableFencedFrames,
            raw_ref(features::kPrivacySandboxAdsAPIsOverride),
            kSetOnlyIfOverridden},
@@ -235,6 +240,8 @@ void SetRuntimeFeaturesFromChromiumFeatures() {
           {wf::EnableWebOTPAssertionFeaturePolicy,
            raw_ref(features::kWebOTPAssertionFeaturePolicy),
            kSetOnlyIfOverridden},
+          {wf::EnableWebGPUCompatibilityMode,
+           raw_ref(features::kWebGPUCompatibilityMode)},
           {wf::EnableWebUSB, raw_ref(features::kWebUsb)},
           {wf::EnableWebXR, raw_ref(features::kWebXr)},
 #if BUILDFLAG(ENABLE_VR)
@@ -281,7 +288,10 @@ void SetRuntimeFeaturesFromChromiumFeatures() {
           {"AllowURNsInIframes",
            raw_ref(features::kPrivacySandboxAdsAPIsM1Override)},
           {"AttributionReporting",
-           raw_ref(attribution_reporting::features::kConversionMeasurement)},
+           raw_ref(features::kPrivacySandboxAdsAPIsOverride),
+           kSetOnlyIfOverridden},
+          {"AttributionReporting",
+           raw_ref(features::kPrivacySandboxAdsAPIsM1Override)},
           {"ApproximateGeolocationPermission",
            raw_ref(
                content_settings::features::kApproximateGeolocationPermission)},
@@ -321,7 +331,18 @@ void SetRuntimeFeaturesFromChromiumFeatures() {
           {"SerialPortConnected", raw_ref(features::kSerialPortConnected)},
           {"WebSerialWorldIsolatedCache",
            raw_ref(features::kWebSerialWorldIsolatedCache)},
-          {"TopicsAPI", raw_ref(network::features::kBrowsingTopics)},
+          {"SplitViewLinkOpen", raw_ref(features::kSplitViewLinkOpen)},
+          {"TopicsAPI", raw_ref(features::kPrivacySandboxAdsAPIsOverride),
+           kSetOnlyIfOverridden},
+          {"TopicsAPI", raw_ref(features::kPrivacySandboxAdsAPIsM1Override)},
+          {"TopicsDocumentAPI",
+           raw_ref(features::kPrivacySandboxAdsAPIsOverride),
+           kSetOnlyIfOverridden},
+          {"TopicsDocumentAPI",
+           raw_ref(features::kPrivacySandboxAdsAPIsM1Override)},
+          {"TopicsImgAPI", raw_ref(features::kPrivacySandboxAdsAPIsOverride),
+           kSetOnlyIfOverridden},
+          {"TopicsImgAPI", raw_ref(features::kPrivacySandboxAdsAPIsM1Override)},
           {"TouchTextEditingRedesign",
            raw_ref(features::kTouchTextEditingRedesign)},
           {"TrustedTypesFromLiteral",
@@ -332,9 +353,6 @@ void SetRuntimeFeaturesFromChromiumFeatures() {
            raw_ref(webnn::mojom::features::
                        kExperimentalWebMachineLearningNeuralNetwork),
            kSetOnlyIfOverridden},
-          {"RequestStorageAccessFor",
-           raw_ref(content_settings::features::
-                       kStorageAccessAPIRelatedWebsiteSets)},
           {"LocalNetworkAccessPermissionPolicy",
            raw_ref(network::features::kLocalNetworkAccessChecks)}};
   for (const auto& mapping : runtimeFeatureNameToChromiumFeatureMapping) {
@@ -516,6 +534,51 @@ void ResolveInvalidConfigurations() {
     WebRuntimeFeatures::EnableFeatureFromString(
         "FencedFramesLocalUnpartitionedDataAccess", false);
   }
+
+  // Topics API cannot be enabled without the support of the browser process.
+  // The Document API should be additionally gated by the
+  // `kBrowsingTopicsDocumentAPI` feature.
+  if (!base::FeatureList::IsEnabled(network::features::kBrowsingTopics)) {
+    LOG_IF(WARNING, WebRuntimeFeatures::IsTopicsAPIEnabled())
+        << "Topics cannot be enabled in this configuration. Use --"
+        << switches::kEnableFeatures << "="
+        << network::features::kBrowsingTopics.name << " in addition.";
+    WebRuntimeFeatures::EnableTopicsAPI(false);
+    WebRuntimeFeatures::EnableTopicsDocumentAPI(false);
+    WebRuntimeFeatures::EnableTopicsImgAPI(false);
+  } else {
+    if (!base::FeatureList::IsEnabled(
+            blink::features::kBrowsingTopicsDocumentAPI)) {
+      LOG_IF(WARNING, WebRuntimeFeatures::IsTopicsDocumentAPIEnabled())
+          << "Topics Document API cannot be enabled in this configuration. Use "
+             "--"
+          << switches::kEnableFeatures << "="
+          << blink::features::kBrowsingTopicsDocumentAPI.name
+          << " in addition.";
+      WebRuntimeFeatures::EnableTopicsDocumentAPI(false);
+    }
+  }
+
+  if (!base::FeatureList::IsEnabled(network::features::kSharedStorageAPI)) {
+    LOG_IF(WARNING, WebRuntimeFeatures::IsSharedStorageAPIEnabled())
+        << "SharedStorage cannot be enabled in this "
+           "configuration. Use --"
+        << switches::kEnableFeatures << "="
+        << network::features::kSharedStorageAPI.name << " in addition.";
+    WebRuntimeFeatures::EnableSharedStorageAPI(false);
+  }
+
+  if (!base::FeatureList::IsEnabled(
+          attribution_reporting::features::kConversionMeasurement)) {
+    LOG_IF(WARNING, WebRuntimeFeatures::IsAttributionReportingEnabled())
+        << "AttributionReporting cannot be enabled in this "
+           "configuration. Use --"
+        << switches::kEnableFeatures << "="
+        << attribution_reporting::features::kConversionMeasurement.name
+        << " in addition.";
+    WebRuntimeFeatures::EnableAttributionReporting(false);
+  }
+
 
   // UserMediaElement cannot be enabled without the support of the
   // browser process.

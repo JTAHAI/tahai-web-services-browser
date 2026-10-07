@@ -68,12 +68,9 @@
 #include "third_party/blink/renderer/core/frame/settings.h"
 #include "third_party/blink/renderer/core/frame/visual_viewport.h"
 #include "third_party/blink/renderer/core/html/forms/html_input_element.h"
-#include "third_party/blink/renderer/core/html/html_area_element.h"
 #include "third_party/blink/renderer/core/html/html_dialog_element.h"
-#include "third_party/blink/renderer/core/html/html_element.h"
 #include "third_party/blink/renderer/core/html/html_frame_element_base.h"
 #include "third_party/blink/renderer/core/html/html_frame_set_element.h"
-#include "third_party/blink/renderer/core/html/html_image_element.h"
 #include "third_party/blink/renderer/core/html/html_plugin_element.h"
 #include "third_party/blink/renderer/core/html/menu_safe_triangle.h"
 #include "third_party/blink/renderer/core/input/event_handling_util.h"
@@ -233,9 +230,10 @@ const ComputedStyle* GetComputedStyleFromScrollbar(
       return nullptr;
     }
 
-    if (const LayoutCustomScrollbarPart* scroll_corner_layout_object =
-            scrollable_area->ScrollCorner()) {
-      return &scroll_corner_layout_object->StyleRef();
+    LayoutCustomScrollbarPart* scroll_corner_layout_object =
+        scrollable_area->ScrollCorner();
+    if (scroll_corner_layout_object) {
+      return scroll_corner_layout_object->Style();
     }
   }
 
@@ -423,7 +421,7 @@ HitTestResult EventHandler::HitTestResultAtLocation(
             PhysicalRect main_frame_rect =
                 frame_view->GetLayoutView()->LocalToAncestorRect(
                     local_rect, main_view->GetLayoutView(),
-                    {MapCoordinatesMode::kTraverseDocumentBoundaries});
+                    kTraverseDocumentBoundaries);
             adjusted_location = HitTestLocation(main_frame_rect);
           } else {
             // Don't apply ancestor transforms to bounding box
@@ -437,8 +435,7 @@ HitTestResult EventHandler::HitTestResultAtLocation(
               frame_view->ConvertToRootFrame(location.Point())));
         }
         return main_frame.GetEventHandler().HitTestResultAtLocation(
-            adjusted_location, hit_type, stop_node, no_lifecycle_update,
-            std::move(hit_node_cb));
+            adjusted_location, hit_type, stop_node, no_lifecycle_update);
       }
     }
   }
@@ -588,32 +585,12 @@ std::optional<ui::Cursor> EventHandler::SelectCursor(
   }
 
   Node* node = result.InnerPossiblyPseudoNode();
-  if (!node) {
-    return SelectAutoCursor(result, node, IBeamCursor());
-  }
-  const LayoutObject* hit_layout_object = node->GetLayoutObject();
-
-  // A default-styled <area> has no layout object, but hit testing still
-  // resolves image map hits to it (see HitTestResult::ImageAreaForImage). Use
-  // the image's box for geometry and the area's own style, retained during
-  // style recalc, for the cursor.
-  const ComputedStyle* area_style = nullptr;
-  if (auto* area = DynamicTo<HTMLAreaElement>(node);
-      area && !hit_layout_object &&
-      RuntimeEnabledFeatures::HTMLAreaElementDisplayNoneEnabled()) {
-    area_style = area->GetComputedStyle();
-    if (area_style) {
-      HTMLImageElement* image = area->ImageElement();
-      hit_layout_object = image ? image->GetLayoutObject() : nullptr;
-    }
-  }
-
-  if (!hit_layout_object) {
+  if (!node || !node->GetLayoutObject()) {
     return SelectAutoCursor(result, node, IBeamCursor());
   }
 
-  const LayoutObject& layout_object = *hit_layout_object;
-  if (!area_style && ShouldShowResizeForNode(layout_object, location)) {
+  const LayoutObject& layout_object = *node->GetLayoutObject();
+  if (ShouldShowResizeForNode(layout_object, location)) {
     const LayoutBox* box = layout_object.EnclosingLayer()->GetLayoutBox();
     EResize resize = box->StyleRef().UsedResize();
     switch (resize) {
@@ -647,9 +624,8 @@ std::optional<ui::Cursor> EventHandler::SelectCursor(
   const ComputedStyle* scrollbar_style =
       GetComputedStyleFromScrollbar(layout_object, result);
 
-  const ComputedStyle& style = area_style        ? *area_style
-                               : scrollbar_style ? *scrollbar_style
-                                                 : layout_object.StyleRef();
+  const ComputedStyle& style =
+      scrollbar_style ? *scrollbar_style : layout_object.StyleRef();
 
   if (const CursorList* cursors = style.Cursors()) {
     for (const auto& cursor : *cursors) {
@@ -733,8 +709,7 @@ std::optional<ui::Cursor> EventHandler::SelectCursor(
             frame_->ContentLayoutObject()->LocalToAncestorPoint(
                 location.Point(),
                 nullptr,  // no ancestor maps all the way up the hierarchy
-                {MapCoordinatesMode::kTraverseDocumentBoundaries,
-                 MapCoordinatesMode::kApplyRemoteMainFrameTransform});
+                kTraverseDocumentBoundaries | kApplyRemoteMainFrameTransform);
 
         // Check the cursor rect with device and accessibility scaling applied.
         const float scale_factor =
@@ -954,11 +929,8 @@ WebInputEventResult EventHandler::HandleMousePressEvent(
   if (!mouse_event.FromTouch())
     frame_->Selection().SetCaretBlinkingSuspended(true);
 
-  if (mev.GetHitTestResult().InnerNode() &&
-      mouse_event.button == WebPointerProperties::Button::kLeft) {
-    HitTestResult result = mev.GetHitTestResult();
-    result.SetToShadowHostIfInUAShadowRoot();
-    frame_->GetChromeClient().WillDispatchPointerDown(*result.InnerNode());
+  if (mouse_event.button == WebPointerProperties::Button::kLeft) {
+    frame_->GetChromeClient().WillDispatchPointerDown(*frame_);
   }
 
   WebInputEventResult event_result = DispatchMousePointerEvent(
@@ -1728,21 +1700,10 @@ WebInputEventResult EventHandler::HandleGestureEvent(
     UpdateGestureTargetNodeForMouseEvent(targeted_event);
 
   // Route to the correct frame.
-  if (auto unbounded_result =
-          event_handling_util::SubframeForActiveUnboundedElement(
-              frame_, targeted_event.Event().PositionInRootFrame())) {
-    GestureEventWithHitTestResults subframe_event(targeted_event.Event(),
-                                                  unbounded_result->location,
-                                                  unbounded_result->result);
-    return unbounded_result->frame->GetEventHandler().HandleGestureEventInFrame(
-        subframe_event);
-  }
-
   if (LocalFrame* inner_frame =
-          targeted_event.GetHitTestResult().InnerNodeFrame()) {
+          targeted_event.GetHitTestResult().InnerNodeFrame())
     return inner_frame->GetEventHandler().HandleGestureEventInFrame(
         targeted_event);
-  }
 
   // No hit test result, handle in root instance. Perhaps we should just return
   // false instead?

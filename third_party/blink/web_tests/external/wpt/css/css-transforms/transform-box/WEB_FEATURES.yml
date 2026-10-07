@@ -1,2 +1,4 @@
-rules:
-- "*": [transform-box]
+features:
+- name: transform-box
+  files:
+  - "*"

@@ -1,2 +1,4 @@
-rules:
-- break-no-interpolation.html: [column-breaks]
+features:
+- name: column-breaks
+  files:
+  - break-no-interpolation.html

@@ -127,7 +127,6 @@ if (!is_android) {
       "//chrome/browser/preloading:prefs",
       "//chrome/browser/preloading:test_support",
       "//chrome/browser/preloading/prefetch/no_state_prefetch",
-      "//chrome/browser/ui/browser_window",
       "//chrome/test:test_support",
       "//components/embedder_support",
       "//components/no_state_prefetch/browser",

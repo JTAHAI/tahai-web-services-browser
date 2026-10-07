@@ -1,2 +1,4 @@
-rules:
-- domstringmap-supported-property-names.html: [dataset]
+features:
+- name: dataset
+  files:
+  - domstringmap-supported-property-names.html

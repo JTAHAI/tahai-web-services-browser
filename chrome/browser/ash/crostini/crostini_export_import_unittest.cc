@@ -6,11 +6,10 @@
 
 #include <cstdint>
 
-#include "ash/public/cpp/notification_utils.h"
-#include "base/check_deref.h"
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
 #include "base/files/scoped_temp_file.h"
+#include "base/memory/raw_ptr.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/task/current_thread.h"
 #include "base/test/test_file_util.h"
@@ -20,6 +19,8 @@
 #include "chrome/browser/ash/file_manager/path_util.h"
 #include "chrome/browser/ash/guest_os/guest_os_share_path.h"
 #include "chrome/browser/ash/guest_os/guest_os_share_path_factory.h"
+#include "chrome/browser/notifications/notification_display_service_factory.h"
+#include "chrome/browser/notifications/notification_display_service_tester.h"
 #include "chrome/test/base/testing_browser_process.h"
 #include "chrome/test/base/testing_profile.h"
 #include "chromeos/ash/components/browser_context_helper/annotated_account_id.h"
@@ -38,12 +39,10 @@
 #include "components/user_manager/fake_user_manager_delegate.h"
 #include "components/user_manager/scoped_user_manager.h"
 #include "components/user_manager/test_helper.h"
-#include "components/user_manager/user.h"
 #include "components/user_manager/user_manager_impl.h"
 #include "content/public/test/browser_task_environment.h"
 #include "storage/browser/file_system/external_mount_points.h"
 #include "testing/gtest/include/gtest/gtest.h"
-#include "ui/message_center/message_center.h"
 #include "ui/message_center/public/cpp/notification.h"
 #include "ui/shell_dialogs/selected_file_info.h"
 
@@ -73,67 +72,41 @@ class CrostiniExportImportTest : public testing::Test {
         container_id);
   }
 
-  const message_center::Notification* GetUiNotification(
-      const std::string& notification_id) {
-    const user_manager::User& user =
-        CHECK_DEREF(user_manager_->GetActiveUser());
-    return message_center::MessageCenter::Get()->FindNotificationById(
-        ash::CreateUserScopedNotificationId(notification_id,
-                                            user.username_hash()));
-  }
-
-  const message_center::Notification* GetNotification(
+  const message_center::Notification& GetNotification(
       const guest_os::GuestId& container_id) {
+    // Assertions in this function are wrap in IILEs because you cannot assert
+    // in a function with a non-void return type.
     const base::WeakPtr<CrostiniExportImportNotificationController>&
         controller = GetController(container_id);
-    EXPECT_NE(controller, nullptr);
-    if (!controller) {
-      return nullptr;
-    }
+    [&] { ASSERT_NE(controller, nullptr); }();
     const message_center::Notification* controller_notification =
         controller->get_notification();
-    EXPECT_NE(controller_notification, nullptr);
-    if (!controller_notification) {
-      return nullptr;
-    }
-    const user_manager::User& user =
-        CHECK_DEREF(user_manager_->GetActiveUser());
-    const std::string ui_notification_id = ash::CreateUserScopedNotificationId(
-        controller_notification->id(), user.username_hash());
-    const message_center::Notification* ui_notification =
-        GetUiNotification(controller_notification->id());
-    EXPECT_NE(ui_notification, nullptr);
-    if (!ui_notification) {
-      return nullptr;
-    }
+    [&] { ASSERT_NE(controller_notification, nullptr); }();
+    const std::optional<message_center::Notification>& ui_notification =
+        notification_display_service_->GetNotification(
+            controller_notification->id());
+    [&] { ASSERT_NE(ui_notification, std::nullopt); }();
     // The controller notification is stored on the
     // CrostiniExportImportNotificationController, but copied into the
     // message_center's storage whenever it changes. If they could share the
     // same instance of the notification then this function wouldn't be
     // necessary.
-    EXPECT_NE(controller_notification, ui_notification);
-    if (controller_notification == ui_notification) {
-      return nullptr;
-    }
-    const bool notification_matches =
-        controller_notification->type() == ui_notification->type() &&
-        ui_notification_id == ui_notification->id() &&
-        ui_notification->notifier_id().profile_id ==
-            user.GetAccountId().GetUserEmail() &&
-        controller_notification->title() == ui_notification->title() &&
-        controller_notification->message() == ui_notification->message() &&
-        controller_notification->timestamp() == ui_notification->timestamp() &&
-        controller_notification->progress() == ui_notification->progress() &&
-        controller_notification->never_timeout() ==
-            ui_notification->never_timeout() &&
-        controller_notification->delegate() == ui_notification->delegate();
-    EXPECT_TRUE(notification_matches);
-    if (!notification_matches) {
-      return nullptr;
-    }
-    // Return the notification with the logical ID rather than the user-scoped
-    // MessageCenter ID.
-    return controller_notification;
+    [&] { ASSERT_NE(controller_notification, &*ui_notification); }();
+    [&] {
+      ASSERT_TRUE(
+          controller_notification->type() == ui_notification->type() &&
+          controller_notification->id() == ui_notification->id() &&
+          controller_notification->title() == ui_notification->title() &&
+          controller_notification->message() == ui_notification->message() &&
+          controller_notification->timestamp() ==
+              ui_notification->timestamp() &&
+          controller_notification->progress() == ui_notification->progress() &&
+          controller_notification->never_timeout() ==
+              ui_notification->never_timeout() &&
+          controller_notification->delegate() == ui_notification->delegate());
+    }();
+    // Either notification could be returned here, they are fungible.
+    return *controller_notification;
   }
 
   void SendExportProgress(
@@ -216,10 +189,15 @@ class CrostiniExportImportTest : public testing::Test {
 
     profile_ = std::make_unique<TestingProfile>();
     ash::AnnotatedAccountId::Set(profile_.get(), account_id);
-    message_center::MessageCenter::Initialize();
 
     crostini_export_import_ = std::make_unique<CrostiniExportImport>(profile());
     test_helper_ = std::make_unique<CrostiniTestHelper>(profile_.get());
+    notification_display_service_tester_ =
+        std::make_unique<NotificationDisplayServiceTester>(profile());
+    notification_display_service_ =
+        static_cast<StubNotificationDisplayService*>(
+            NotificationDisplayServiceFactory::GetForProfile(profile()));
+    ASSERT_NE(notification_display_service_, nullptr);
     CrostiniManager::GetForProfile(profile())->AddRunningVmForTesting(
         default_container_id_.vm_name);
     CrostiniManager::GetForProfile(profile())->AddRunningVmForTesting(
@@ -248,7 +226,6 @@ class CrostiniExportImportTest : public testing::Test {
     base::DeleteFile(tarball_);
     base::DeleteFile(zstdfile_);
     test_helper_.reset();
-    message_center::MessageCenter::Shutdown();
     profile_.reset();
     user_manager_.Reset();
   }
@@ -260,6 +237,11 @@ class CrostiniExportImportTest : public testing::Test {
   std::unique_ptr<TestingProfile> profile_;
   std::unique_ptr<CrostiniExportImport> crostini_export_import_;
   std::unique_ptr<CrostiniTestHelper> test_helper_;
+  std::unique_ptr<NotificationDisplayServiceTester>
+      notification_display_service_tester_;
+  raw_ptr<StubNotificationDisplayService, DanglingUntriaged>
+      notification_display_service_;
+
   guest_os::GuestId default_container_id_;
   guest_os::GuestId custom_container_id_;
   base::FilePath tarball_;
@@ -301,12 +283,11 @@ TEST_F(CrostiniExportImportTest, TestExportDiskImageSuccess) {
 
   std::string notification_id;
   {
-    const message_center::Notification* notification =
+    const message_center::Notification& notification =
         GetNotification(default_container_id_);
-    ASSERT_NE(notification, nullptr);
-    notification_id = notification->id();
-    EXPECT_EQ(notification->progress(), 0);
-    EXPECT_TRUE(notification->pinned());
+    notification_id = notification.id();
+    EXPECT_EQ(notification.progress(), 0);
+    EXPECT_TRUE(notification.pinned());
   }
 
   // 50% done.
@@ -316,12 +297,11 @@ TEST_F(CrostiniExportImportTest, TestExportDiskImageSuccess) {
   EXPECT_EQ(controller->status(),
             CrostiniExportImportStatusTracker::Status::RUNNING);
   {
-    const message_center::Notification* notification =
+    const message_center::Notification& notification =
         GetNotification(default_container_id_);
-    ASSERT_NE(notification, nullptr);
-    EXPECT_EQ(notification->id(), notification_id);
-    EXPECT_EQ(notification->progress(), 50);
-    EXPECT_TRUE(notification->pinned());
+    EXPECT_EQ(notification.id(), notification_id);
+    EXPECT_EQ(notification.progress(), 50);
+    EXPECT_TRUE(notification.pinned());
   }
 
   // Close notification and update progress. Should not update notification.
@@ -332,12 +312,11 @@ TEST_F(CrostiniExportImportTest, TestExportDiskImageSuccess) {
   EXPECT_EQ(controller->status(),
             CrostiniExportImportStatusTracker::Status::RUNNING);
   {
-    const message_center::Notification* notification =
+    const message_center::Notification& notification =
         GetNotification(default_container_id_);
-    ASSERT_NE(notification, nullptr);
-    EXPECT_EQ(notification->id(), notification_id);
-    EXPECT_EQ(notification->progress(), 50);
-    EXPECT_TRUE(notification->pinned());
+    EXPECT_EQ(notification.id(), notification_id);
+    EXPECT_EQ(notification.progress(), 50);
+    EXPECT_TRUE(notification.pinned());
   }
 
   // Done.
@@ -346,9 +325,9 @@ TEST_F(CrostiniExportImportTest, TestExportDiskImageSuccess) {
   EXPECT_EQ(GetController(default_container_id_), nullptr);
   EXPECT_EQ(controller, nullptr);
   {
-    const message_center::Notification* ui_notification =
-        GetUiNotification(notification_id);
-    ASSERT_NE(ui_notification, nullptr);
+    const std::optional<message_center::Notification> ui_notification =
+        notification_display_service_->GetNotification(notification_id);
+    ASSERT_NE(ui_notification, std::nullopt);
     EXPECT_FALSE(ui_notification->pinned());
     std::string msg("Linux apps & files have been successfully backed up");
     EXPECT_EQ(ui_notification->message(), base::UTF8ToUTF16(msg));
@@ -371,12 +350,11 @@ TEST_F(CrostiniExportImportTest, TestExportDiskImageFail) {
 
   std::string notification_id;
   {
-    const message_center::Notification* notification =
+    const message_center::Notification& notification =
         GetNotification(default_container_id_);
-    ASSERT_NE(notification, nullptr);
-    notification_id = notification->id();
-    EXPECT_EQ(notification->progress(), 0);
-    EXPECT_TRUE(notification->pinned());
+    notification_id = notification.id();
+    EXPECT_EQ(notification.progress(), 0);
+    EXPECT_TRUE(notification.pinned());
   }
 
   // Fails.
@@ -385,9 +363,9 @@ TEST_F(CrostiniExportImportTest, TestExportDiskImageFail) {
   EXPECT_EQ(GetController(default_container_id_), nullptr);
   EXPECT_EQ(controller, nullptr);
   {
-    const message_center::Notification* ui_notification =
-        GetUiNotification(notification_id);
-    ASSERT_NE(ui_notification, nullptr);
+    const std::optional<message_center::Notification> ui_notification =
+        notification_display_service_->GetNotification(notification_id);
+    ASSERT_NE(ui_notification, std::nullopt);
     EXPECT_FALSE(ui_notification->pinned());
     std::string msg("Backup couldn't be completed due to an error");
     EXPECT_EQ(ui_notification->message(), base::UTF8ToUTF16(msg));
@@ -410,12 +388,11 @@ TEST_F(CrostiniExportImportTest, TestExportDiskImageCancelled) {
 
   std::string notification_id;
   {
-    const message_center::Notification* notification =
+    const message_center::Notification& notification =
         GetNotification(custom_container_id_);
-    ASSERT_NE(notification, nullptr);
-    notification_id = notification->id();
-    EXPECT_EQ(notification->progress(), 0);
-    EXPECT_TRUE(notification->pinned());
+    notification_id = notification.id();
+    EXPECT_EQ(notification.progress(), 0);
+    EXPECT_TRUE(notification.pinned());
   }
 
   // CANCEL:
@@ -425,12 +402,11 @@ TEST_F(CrostiniExportImportTest, TestExportDiskImageCancelled) {
   EXPECT_EQ(controller->status(),
             CrostiniExportImportStatusTracker::Status::CANCELLING);
   {
-    const message_center::Notification* notification =
+    const message_center::Notification& notification =
         GetNotification(custom_container_id_);
-    ASSERT_NE(notification, nullptr);
-    EXPECT_EQ(notification->id(), notification_id);
-    EXPECT_EQ(notification->progress(), -1);
-    EXPECT_FALSE(notification->pinned());
+    EXPECT_EQ(notification.id(), notification_id);
+    EXPECT_EQ(notification.progress(), -1);
+    EXPECT_FALSE(notification.pinned());
   }
 
   // Should not be displayed as cancel is in progress
@@ -440,12 +416,11 @@ TEST_F(CrostiniExportImportTest, TestExportDiskImageCancelled) {
   EXPECT_EQ(controller->status(),
             CrostiniExportImportStatusTracker::Status::CANCELLING);
   {
-    const message_center::Notification* notification =
+    const message_center::Notification& notification =
         GetNotification(custom_container_id_);
-    ASSERT_NE(notification, nullptr);
-    EXPECT_EQ(notification->id(), notification_id);
-    EXPECT_EQ(notification->progress(), -1);
-    EXPECT_FALSE(notification->pinned());
+    EXPECT_EQ(notification.id(), notification_id);
+    EXPECT_EQ(notification.progress(), -1);
+    EXPECT_FALSE(notification.pinned());
   }
 
   // CANCELLED:
@@ -453,9 +428,9 @@ TEST_F(CrostiniExportImportTest, TestExportDiskImageCancelled) {
   EXPECT_EQ(GetController(custom_container_id_), nullptr);
   EXPECT_EQ(controller, nullptr);
   {
-    const message_center::Notification* ui_notification =
-        GetUiNotification(notification_id);
-    EXPECT_EQ(ui_notification, nullptr);
+    const std::optional<message_center::Notification> ui_notification =
+        notification_display_service_->GetNotification(notification_id);
+    EXPECT_EQ(ui_notification, std::nullopt);
   }
 }
 
@@ -476,12 +451,11 @@ TEST_F(CrostiniExportImportTest, TestImportDiskImageSuccess) {
 
   std::string notification_id;
   {
-    const message_center::Notification* notification =
+    const message_center::Notification& notification =
         GetNotification(default_container_id_);
-    ASSERT_NE(notification, nullptr);
-    notification_id = notification->id();
-    EXPECT_EQ(notification->progress(), 0);
-    EXPECT_TRUE(notification->pinned());
+    notification_id = notification.id();
+    EXPECT_EQ(notification.progress(), 0);
+    EXPECT_TRUE(notification.pinned());
   }
 
   // 50% done.
@@ -491,12 +465,11 @@ TEST_F(CrostiniExportImportTest, TestImportDiskImageSuccess) {
   EXPECT_EQ(controller->status(),
             CrostiniExportImportStatusTracker::Status::RUNNING);
   {
-    const message_center::Notification* notification =
+    const message_center::Notification& notification =
         GetNotification(default_container_id_);
-    ASSERT_NE(notification, nullptr);
-    EXPECT_EQ(notification->id(), notification_id);
-    EXPECT_EQ(notification->progress(), 50);
-    EXPECT_TRUE(notification->pinned());
+    EXPECT_EQ(notification.id(), notification_id);
+    EXPECT_EQ(notification.progress(), 50);
+    EXPECT_TRUE(notification.pinned());
   }
 
   // Close notification and update progress. Should not update notification.
@@ -507,12 +480,11 @@ TEST_F(CrostiniExportImportTest, TestImportDiskImageSuccess) {
   EXPECT_EQ(controller->status(),
             CrostiniExportImportStatusTracker::Status::RUNNING);
   {
-    const message_center::Notification* notification =
+    const message_center::Notification& notification =
         GetNotification(default_container_id_);
-    ASSERT_NE(notification, nullptr);
-    EXPECT_EQ(notification->id(), notification_id);
-    EXPECT_EQ(notification->progress(), 50);
-    EXPECT_TRUE(notification->pinned());
+    EXPECT_EQ(notification.id(), notification_id);
+    EXPECT_EQ(notification.progress(), 50);
+    EXPECT_TRUE(notification.pinned());
   }
 
   // Done.
@@ -521,9 +493,9 @@ TEST_F(CrostiniExportImportTest, TestImportDiskImageSuccess) {
   EXPECT_EQ(GetController(default_container_id_), nullptr);
   EXPECT_EQ(controller, nullptr);
   {
-    const message_center::Notification* ui_notification =
-        GetUiNotification(notification_id);
-    ASSERT_NE(ui_notification, nullptr);
+    const std::optional<message_center::Notification> ui_notification =
+        notification_display_service_->GetNotification(notification_id);
+    ASSERT_NE(ui_notification, std::nullopt);
     EXPECT_FALSE(ui_notification->pinned());
     std::string msg("Linux apps & files have been successfully replaced");
     EXPECT_EQ(ui_notification->message(), base::UTF8ToUTF16(msg));
@@ -547,12 +519,11 @@ TEST_F(CrostiniExportImportTest, TestImportZstdFileSuccess) {
 
   std::string notification_id;
   {
-    const message_center::Notification* notification =
+    const message_center::Notification& notification =
         GetNotification(default_container_id_);
-    ASSERT_NE(notification, nullptr);
-    notification_id = notification->id();
-    EXPECT_EQ(notification->progress(), 0);
-    EXPECT_TRUE(notification->pinned());
+    notification_id = notification.id();
+    EXPECT_EQ(notification.progress(), 0);
+    EXPECT_TRUE(notification.pinned());
   }
 
   // 50% done.
@@ -562,12 +533,11 @@ TEST_F(CrostiniExportImportTest, TestImportZstdFileSuccess) {
   EXPECT_EQ(controller->status(),
             CrostiniExportImportStatusTracker::Status::RUNNING);
   {
-    const message_center::Notification* notification =
+    const message_center::Notification& notification =
         GetNotification(default_container_id_);
-    ASSERT_NE(notification, nullptr);
-    EXPECT_EQ(notification->id(), notification_id);
-    EXPECT_EQ(notification->progress(), 50);
-    EXPECT_TRUE(notification->pinned());
+    EXPECT_EQ(notification.id(), notification_id);
+    EXPECT_EQ(notification.progress(), 50);
+    EXPECT_TRUE(notification.pinned());
   }
 
   // Close notification and update progress. Should not update notification.
@@ -578,12 +548,11 @@ TEST_F(CrostiniExportImportTest, TestImportZstdFileSuccess) {
   EXPECT_EQ(controller->status(),
             CrostiniExportImportStatusTracker::Status::RUNNING);
   {
-    const message_center::Notification* notification =
+    const message_center::Notification& notification =
         GetNotification(default_container_id_);
-    ASSERT_NE(notification, nullptr);
-    EXPECT_EQ(notification->id(), notification_id);
-    EXPECT_EQ(notification->progress(), 50);
-    EXPECT_TRUE(notification->pinned());
+    EXPECT_EQ(notification.id(), notification_id);
+    EXPECT_EQ(notification.progress(), 50);
+    EXPECT_TRUE(notification.pinned());
   }
 
   // Done.
@@ -592,9 +561,9 @@ TEST_F(CrostiniExportImportTest, TestImportZstdFileSuccess) {
   EXPECT_EQ(GetController(default_container_id_), nullptr);
   EXPECT_EQ(controller, nullptr);
   {
-    const message_center::Notification* ui_notification =
-        GetUiNotification(notification_id);
-    ASSERT_NE(ui_notification, nullptr);
+    const std::optional<message_center::Notification> ui_notification =
+        notification_display_service_->GetNotification(notification_id);
+    ASSERT_NE(ui_notification, std::nullopt);
     EXPECT_FALSE(ui_notification->pinned());
     std::string msg("Linux apps & files have been successfully replaced");
     EXPECT_EQ(ui_notification->message(), base::UTF8ToUTF16(msg));
@@ -618,12 +587,11 @@ TEST_F(CrostiniExportImportTest, TestImportDiskImageFail) {
 
   std::string notification_id;
   {
-    const message_center::Notification* notification =
+    const message_center::Notification& notification =
         GetNotification(default_container_id_);
-    ASSERT_NE(notification, nullptr);
-    notification_id = notification->id();
-    EXPECT_EQ(notification->progress(), 0);
-    EXPECT_TRUE(notification->pinned());
+    notification_id = notification.id();
+    EXPECT_EQ(notification.progress(), 0);
+    EXPECT_TRUE(notification.pinned());
   }
 
   // Fails.
@@ -632,9 +600,9 @@ TEST_F(CrostiniExportImportTest, TestImportDiskImageFail) {
   EXPECT_EQ(GetController(default_container_id_), nullptr);
   EXPECT_EQ(controller, nullptr);
   {
-    const message_center::Notification* ui_notification =
-        GetUiNotification(notification_id);
-    ASSERT_NE(ui_notification, nullptr);
+    const std::optional<message_center::Notification> ui_notification =
+        notification_display_service_->GetNotification(notification_id);
+    ASSERT_NE(ui_notification, std::nullopt);
     EXPECT_FALSE(ui_notification->pinned());
     std::string msg("Restoring couldn't be completed due to an error");
     EXPECT_EQ(ui_notification->message(), base::UTF8ToUTF16(msg));
@@ -658,12 +626,11 @@ TEST_F(CrostiniExportImportTest, TestImportDiskImageCancelled) {
 
   std::string notification_id;
   {
-    const message_center::Notification* notification =
+    const message_center::Notification& notification =
         GetNotification(custom_container_id_);
-    ASSERT_NE(notification, nullptr);
-    notification_id = notification->id();
-    EXPECT_EQ(notification->progress(), 0);
-    EXPECT_TRUE(notification->pinned());
+    notification_id = notification.id();
+    EXPECT_EQ(notification.progress(), 0);
+    EXPECT_TRUE(notification.pinned());
   }
 
   // CANCEL:
@@ -673,12 +640,11 @@ TEST_F(CrostiniExportImportTest, TestImportDiskImageCancelled) {
   EXPECT_EQ(controller->status(),
             CrostiniExportImportStatusTracker::Status::CANCELLING);
   {
-    const message_center::Notification* notification =
+    const message_center::Notification& notification =
         GetNotification(custom_container_id_);
-    ASSERT_NE(notification, nullptr);
-    EXPECT_EQ(notification->id(), notification_id);
-    EXPECT_EQ(notification->progress(), -1);
-    EXPECT_FALSE(notification->pinned());
+    EXPECT_EQ(notification.id(), notification_id);
+    EXPECT_EQ(notification.progress(), -1);
+    EXPECT_FALSE(notification.pinned());
   }
 
   // Should not be displayed as cancel is in progress
@@ -688,12 +654,11 @@ TEST_F(CrostiniExportImportTest, TestImportDiskImageCancelled) {
   EXPECT_EQ(controller->status(),
             CrostiniExportImportStatusTracker::Status::CANCELLING);
   {
-    const message_center::Notification* notification =
+    const message_center::Notification& notification =
         GetNotification(custom_container_id_);
-    ASSERT_NE(notification, nullptr);
-    EXPECT_EQ(notification->id(), notification_id);
-    EXPECT_EQ(notification->progress(), -1);
-    EXPECT_FALSE(notification->pinned());
+    EXPECT_EQ(notification.id(), notification_id);
+    EXPECT_EQ(notification.progress(), -1);
+    EXPECT_FALSE(notification.pinned());
   }
 
   // CANCELLED:
@@ -701,9 +666,9 @@ TEST_F(CrostiniExportImportTest, TestImportDiskImageCancelled) {
   EXPECT_EQ(GetController(custom_container_id_), nullptr);
   EXPECT_EQ(controller, nullptr);
   {
-    const message_center::Notification* ui_notification =
-        GetUiNotification(notification_id);
-    EXPECT_EQ(ui_notification, nullptr);
+    const std::optional<message_center::Notification> ui_notification =
+        notification_display_service_->GetNotification(notification_id);
+    EXPECT_EQ(ui_notification, std::nullopt);
   }
 }
 
@@ -719,12 +684,11 @@ TEST_F(CrostiniExportImportTest, TestExportSuccess) {
             CrostiniExportImportStatusTracker::Status::RUNNING);
   std::string notification_id;
   {
-    const message_center::Notification* notification =
+    const message_center::Notification& notification =
         GetNotification(default_container_id_);
-    ASSERT_NE(notification, nullptr);
-    notification_id = notification->id();
-    EXPECT_EQ(notification->progress(), 0);
-    EXPECT_TRUE(notification->pinned());
+    notification_id = notification.id();
+    EXPECT_EQ(notification.progress(), 0);
+    EXPECT_TRUE(notification.pinned());
   }
 
   // STREAMING 10% bytes done + 30% files done = 20% overall.
@@ -740,12 +704,11 @@ TEST_F(CrostiniExportImportTest, TestExportSuccess) {
   EXPECT_EQ(controller->status(),
             CrostiniExportImportStatusTracker::Status::RUNNING);
   {
-    const message_center::Notification* notification =
+    const message_center::Notification& notification =
         GetNotification(default_container_id_);
-    ASSERT_NE(notification, nullptr);
-    EXPECT_EQ(notification->id(), notification_id);
-    EXPECT_EQ(notification->progress(), 20);
-    EXPECT_TRUE(notification->pinned());
+    EXPECT_EQ(notification.id(), notification_id);
+    EXPECT_EQ(notification.progress(), 20);
+    EXPECT_TRUE(notification.pinned());
   }
 
   // STREAMING 66% bytes done + 55% files done then floored = 60% overall.
@@ -761,12 +724,11 @@ TEST_F(CrostiniExportImportTest, TestExportSuccess) {
   EXPECT_EQ(controller->status(),
             CrostiniExportImportStatusTracker::Status::RUNNING);
   {
-    const message_center::Notification* notification =
+    const message_center::Notification& notification =
         GetNotification(default_container_id_);
-    ASSERT_NE(notification, nullptr);
-    EXPECT_EQ(notification->id(), notification_id);
-    EXPECT_EQ(notification->progress(), 60);
-    EXPECT_TRUE(notification->pinned());
+    EXPECT_EQ(notification.id(), notification_id);
+    EXPECT_EQ(notification.progress(), 60);
+    EXPECT_TRUE(notification.pinned());
   }
 
   // Close notification and update progress. Should not update notification.
@@ -783,12 +745,11 @@ TEST_F(CrostiniExportImportTest, TestExportSuccess) {
   EXPECT_EQ(controller->status(),
             CrostiniExportImportStatusTracker::Status::RUNNING);
   {
-    const message_center::Notification* notification =
+    const message_center::Notification& notification =
         GetNotification(default_container_id_);
-    ASSERT_NE(notification, nullptr);
-    EXPECT_EQ(notification->id(), notification_id);
-    EXPECT_EQ(notification->progress(), 60);
-    EXPECT_TRUE(notification->pinned());
+    EXPECT_EQ(notification.id(), notification_id);
+    EXPECT_EQ(notification.progress(), 60);
+    EXPECT_TRUE(notification.pinned());
   }
 
   // Done.
@@ -798,9 +759,9 @@ TEST_F(CrostiniExportImportTest, TestExportSuccess) {
   EXPECT_EQ(GetController(default_container_id_), nullptr);
   EXPECT_EQ(controller, nullptr);
   {
-    const message_center::Notification* ui_notification =
-        GetUiNotification(notification_id);
-    ASSERT_NE(ui_notification, nullptr);
+    const std::optional<message_center::Notification> ui_notification =
+        notification_display_service_->GetNotification(notification_id);
+    ASSERT_NE(ui_notification, std::nullopt);
     EXPECT_FALSE(ui_notification->pinned());
     std::string msg("Linux apps & files have been successfully backed up");
     EXPECT_EQ(ui_notification->message(), base::UTF8ToUTF16(msg));
@@ -824,12 +785,11 @@ TEST_F(CrostiniExportImportTest, TestExportCustomVmContainerSuccess) {
             CrostiniExportImportStatusTracker::Status::RUNNING);
   std::string notification_id;
   {
-    const message_center::Notification* notification =
+    const message_center::Notification& notification =
         GetNotification(custom_container_id_);
-    ASSERT_NE(notification, nullptr);
-    notification_id = notification->id();
-    EXPECT_EQ(notification->progress(), 0);
-    EXPECT_TRUE(notification->pinned());
+    notification_id = notification.id();
+    EXPECT_EQ(notification.progress(), 0);
+    EXPECT_TRUE(notification.pinned());
   }
 
   // STREAMING 66% bytes done + 55% files done then floored = 60% overall.
@@ -845,12 +805,11 @@ TEST_F(CrostiniExportImportTest, TestExportCustomVmContainerSuccess) {
   EXPECT_EQ(controller->status(),
             CrostiniExportImportStatusTracker::Status::RUNNING);
   {
-    const message_center::Notification* notification =
+    const message_center::Notification& notification =
         GetNotification(custom_container_id_);
-    ASSERT_NE(notification, nullptr);
-    EXPECT_EQ(notification->id(), notification_id);
-    EXPECT_EQ(notification->progress(), 60);
-    EXPECT_TRUE(notification->pinned());
+    EXPECT_EQ(notification.id(), notification_id);
+    EXPECT_EQ(notification.progress(), 60);
+    EXPECT_TRUE(notification.pinned());
   }
 
   // Close notification and update progress. Should not update notification.
@@ -867,12 +826,11 @@ TEST_F(CrostiniExportImportTest, TestExportCustomVmContainerSuccess) {
   EXPECT_EQ(controller->status(),
             CrostiniExportImportStatusTracker::Status::RUNNING);
   {
-    const message_center::Notification* notification =
+    const message_center::Notification& notification =
         GetNotification(custom_container_id_);
-    ASSERT_NE(notification, nullptr);
-    EXPECT_EQ(notification->id(), notification_id);
-    EXPECT_EQ(notification->progress(), 60);
-    EXPECT_TRUE(notification->pinned());
+    EXPECT_EQ(notification.id(), notification_id);
+    EXPECT_EQ(notification.progress(), 60);
+    EXPECT_TRUE(notification.pinned());
   }
 
   // Done.
@@ -882,9 +840,9 @@ TEST_F(CrostiniExportImportTest, TestExportCustomVmContainerSuccess) {
   EXPECT_EQ(GetController(custom_container_id_), nullptr);
   EXPECT_EQ(controller, nullptr);
   {
-    const message_center::Notification* ui_notification =
-        GetUiNotification(notification_id);
-    ASSERT_NE(ui_notification, nullptr);
+    const std::optional<message_center::Notification> ui_notification =
+        notification_display_service_->GetNotification(notification_id);
+    ASSERT_NE(ui_notification, std::nullopt);
     EXPECT_FALSE(ui_notification->pinned());
     std::string msg("Linux apps & files have been successfully backed up");
     EXPECT_EQ(ui_notification->message(), base::UTF8ToUTF16(msg));
@@ -906,12 +864,11 @@ TEST_F(CrostiniExportImportTest, TestExportFail) {
             CrostiniExportImportStatusTracker::Status::RUNNING);
   std::string notification_id;
   {
-    const message_center::Notification* notification =
+    const message_center::Notification& notification =
         GetNotification(default_container_id_);
-    ASSERT_NE(notification, nullptr);
-    notification_id = notification->id();
-    EXPECT_EQ(notification->progress(), 0);
-    EXPECT_TRUE(notification->pinned());
+    notification_id = notification.id();
+    EXPECT_EQ(notification.progress(), 0);
+    EXPECT_TRUE(notification.pinned());
   }
 
   // Failed.
@@ -921,9 +878,9 @@ TEST_F(CrostiniExportImportTest, TestExportFail) {
   EXPECT_EQ(GetController(default_container_id_), nullptr);
   EXPECT_EQ(controller, nullptr);
   {
-    const message_center::Notification* ui_notification =
-        GetUiNotification(notification_id);
-    ASSERT_NE(ui_notification, nullptr);
+    const std::optional<message_center::Notification> ui_notification =
+        notification_display_service_->GetNotification(notification_id);
+    ASSERT_NE(ui_notification, std::nullopt);
     EXPECT_FALSE(ui_notification->pinned());
     std::string msg("Backup couldn't be completed due to an error");
     EXPECT_EQ(ui_notification->message(), base::UTF8ToUTF16(msg));
@@ -946,12 +903,11 @@ TEST_F(CrostiniExportImportTest, TestExportCancelled) {
             CrostiniExportImportStatusTracker::Status::RUNNING);
   std::string notification_id;
   {
-    const message_center::Notification* notification =
+    const message_center::Notification& notification =
         GetNotification(custom_container_id_);
-    ASSERT_NE(notification, nullptr);
-    notification_id = notification->id();
-    EXPECT_EQ(notification->progress(), 0);
-    EXPECT_TRUE(notification->pinned());
+    notification_id = notification.id();
+    EXPECT_EQ(notification.progress(), 0);
+    EXPECT_TRUE(notification.pinned());
   }
 
   // CANCELLING:
@@ -961,12 +917,11 @@ TEST_F(CrostiniExportImportTest, TestExportCancelled) {
   EXPECT_EQ(controller->status(),
             CrostiniExportImportStatusTracker::Status::CANCELLING);
   {
-    const message_center::Notification* notification =
+    const message_center::Notification& notification =
         GetNotification(custom_container_id_);
-    ASSERT_NE(notification, nullptr);
-    EXPECT_EQ(notification->id(), notification_id);
-    EXPECT_EQ(notification->progress(), -1);
-    EXPECT_FALSE(notification->pinned());
+    EXPECT_EQ(notification.id(), notification_id);
+    EXPECT_EQ(notification.progress(), -1);
+    EXPECT_FALSE(notification.pinned());
   }
   EXPECT_TRUE(base::PathExists(tarball_));
 
@@ -983,12 +938,11 @@ TEST_F(CrostiniExportImportTest, TestExportCancelled) {
   EXPECT_EQ(controller->status(),
             CrostiniExportImportStatusTracker::Status::CANCELLING);
   {
-    const message_center::Notification* notification =
+    const message_center::Notification& notification =
         GetNotification(custom_container_id_);
-    ASSERT_NE(notification, nullptr);
-    EXPECT_EQ(notification->id(), notification_id);
-    EXPECT_EQ(notification->progress(), -1);
-    EXPECT_FALSE(notification->pinned());
+    EXPECT_EQ(notification.id(), notification_id);
+    EXPECT_EQ(notification.progress(), -1);
+    EXPECT_FALSE(notification.pinned());
   }
   EXPECT_TRUE(base::PathExists(tarball_));
 
@@ -999,9 +953,9 @@ TEST_F(CrostiniExportImportTest, TestExportCancelled) {
   EXPECT_EQ(GetController(custom_container_id_), nullptr);
   EXPECT_EQ(controller, nullptr);
   {
-    const message_center::Notification* ui_notification =
-        GetUiNotification(notification_id);
-    EXPECT_EQ(ui_notification, nullptr);
+    const std::optional<message_center::Notification> ui_notification =
+        notification_display_service_->GetNotification(notification_id);
+    EXPECT_EQ(ui_notification, std::nullopt);
   }
 
   task_environment_.RunUntilIdle();
@@ -1019,12 +973,11 @@ TEST_F(CrostiniExportImportTest, TestExportDoneBeforeCancelled) {
             CrostiniExportImportStatusTracker::Status::RUNNING);
   std::string notification_id;
   {
-    const message_center::Notification* notification =
+    const message_center::Notification& notification =
         GetNotification(default_container_id_);
-    ASSERT_NE(notification, nullptr);
-    notification_id = notification->id();
-    EXPECT_EQ(notification->progress(), 0);
-    EXPECT_TRUE(notification->pinned());
+    notification_id = notification.id();
+    EXPECT_EQ(notification.progress(), 0);
+    EXPECT_TRUE(notification.pinned());
   }
 
   // CANCELLING:
@@ -1034,12 +987,11 @@ TEST_F(CrostiniExportImportTest, TestExportDoneBeforeCancelled) {
   EXPECT_EQ(controller->status(),
             CrostiniExportImportStatusTracker::Status::CANCELLING);
   {
-    const message_center::Notification* notification =
+    const message_center::Notification& notification =
         GetNotification(default_container_id_);
-    ASSERT_NE(notification, nullptr);
-    EXPECT_EQ(notification->id(), notification_id);
-    EXPECT_EQ(notification->progress(), -1);
-    EXPECT_FALSE(notification->pinned());
+    EXPECT_EQ(notification.id(), notification_id);
+    EXPECT_EQ(notification.progress(), -1);
+    EXPECT_FALSE(notification.pinned());
   }
   EXPECT_TRUE(base::PathExists(tarball_));
 
@@ -1050,9 +1002,9 @@ TEST_F(CrostiniExportImportTest, TestExportDoneBeforeCancelled) {
   EXPECT_EQ(GetController(default_container_id_), nullptr);
   EXPECT_EQ(controller, nullptr);
   {
-    const message_center::Notification* ui_notification =
-        GetUiNotification(notification_id);
-    EXPECT_EQ(ui_notification, nullptr);
+    const std::optional<message_center::Notification> ui_notification =
+        notification_display_service_->GetNotification(notification_id);
+    EXPECT_EQ(ui_notification, std::nullopt);
   }
 
   task_environment_.RunUntilIdle();
@@ -1071,12 +1023,11 @@ TEST_F(CrostiniExportImportTest, TestImportSuccess) {
             CrostiniExportImportStatusTracker::Status::RUNNING);
   std::string notification_id;
   {
-    const message_center::Notification* notification =
+    const message_center::Notification& notification =
         GetNotification(default_container_id_);
-    ASSERT_NE(notification, nullptr);
-    notification_id = notification->id();
-    EXPECT_EQ(notification->progress(), 0);
-    EXPECT_TRUE(notification->pinned());
+    notification_id = notification.id();
+    EXPECT_EQ(notification.progress(), 0);
+    EXPECT_TRUE(notification.pinned());
   }
 
   // 20% UPLOAD = 10% overall.
@@ -1089,12 +1040,11 @@ TEST_F(CrostiniExportImportTest, TestImportSuccess) {
   EXPECT_EQ(controller->status(),
             CrostiniExportImportStatusTracker::Status::RUNNING);
   {
-    const message_center::Notification* notification =
+    const message_center::Notification& notification =
         GetNotification(default_container_id_);
-    ASSERT_NE(notification, nullptr);
-    EXPECT_EQ(notification->id(), notification_id);
-    EXPECT_EQ(notification->progress(), 10);
-    EXPECT_TRUE(notification->pinned());
+    EXPECT_EQ(notification.id(), notification_id);
+    EXPECT_EQ(notification.progress(), 10);
+    EXPECT_TRUE(notification.pinned());
   }
 
   // 20% UNPACK = 60% overall.
@@ -1107,12 +1057,11 @@ TEST_F(CrostiniExportImportTest, TestImportSuccess) {
   EXPECT_EQ(controller->status(),
             CrostiniExportImportStatusTracker::Status::RUNNING);
   {
-    const message_center::Notification* notification =
+    const message_center::Notification& notification =
         GetNotification(default_container_id_);
-    ASSERT_NE(notification, nullptr);
-    EXPECT_EQ(notification->id(), notification_id);
-    EXPECT_EQ(notification->progress(), 60);
-    EXPECT_TRUE(notification->pinned());
+    EXPECT_EQ(notification.id(), notification_id);
+    EXPECT_EQ(notification.progress(), 60);
+    EXPECT_TRUE(notification.pinned());
   }
 
   // Close notification and update progress. Should not update notification.
@@ -1126,12 +1075,11 @@ TEST_F(CrostiniExportImportTest, TestImportSuccess) {
   EXPECT_EQ(controller->status(),
             CrostiniExportImportStatusTracker::Status::RUNNING);
   {
-    const message_center::Notification* notification =
+    const message_center::Notification& notification =
         GetNotification(default_container_id_);
-    ASSERT_NE(notification, nullptr);
-    EXPECT_EQ(notification->id(), notification_id);
-    EXPECT_EQ(notification->progress(), 60);
-    EXPECT_TRUE(notification->pinned());
+    EXPECT_EQ(notification.id(), notification_id);
+    EXPECT_EQ(notification.progress(), 60);
+    EXPECT_TRUE(notification.pinned());
   }
 
   // Done.
@@ -1141,9 +1089,9 @@ TEST_F(CrostiniExportImportTest, TestImportSuccess) {
   EXPECT_EQ(GetController(default_container_id_), nullptr);
   EXPECT_EQ(controller, nullptr);
   {
-    const message_center::Notification* ui_notification =
-        GetUiNotification(notification_id);
-    ASSERT_NE(ui_notification, nullptr);
+    const std::optional<message_center::Notification> ui_notification =
+        notification_display_service_->GetNotification(notification_id);
+    ASSERT_NE(ui_notification, std::nullopt);
     EXPECT_FALSE(ui_notification->pinned());
     std::string msg("Linux apps & files have been successfully replaced");
     EXPECT_EQ(ui_notification->message(), base::UTF8ToUTF16(msg));
@@ -1163,12 +1111,11 @@ TEST_F(CrostiniExportImportTest, TestImportCustomVmContainerSuccess) {
             CrostiniExportImportStatusTracker::Status::RUNNING);
   std::string notification_id;
   {
-    const message_center::Notification* notification =
+    const message_center::Notification& notification =
         GetNotification(custom_container_id_);
-    ASSERT_NE(notification, nullptr);
-    notification_id = notification->id();
-    EXPECT_EQ(notification->progress(), 0);
-    EXPECT_TRUE(notification->pinned());
+    notification_id = notification.id();
+    EXPECT_EQ(notification.progress(), 0);
+    EXPECT_TRUE(notification.pinned());
   }
 
   // 20% UNPACK = 60% overall.
@@ -1181,12 +1128,11 @@ TEST_F(CrostiniExportImportTest, TestImportCustomVmContainerSuccess) {
   EXPECT_EQ(controller->status(),
             CrostiniExportImportStatusTracker::Status::RUNNING);
   {
-    const message_center::Notification* notification =
+    const message_center::Notification& notification =
         GetNotification(custom_container_id_);
-    ASSERT_NE(notification, nullptr);
-    EXPECT_EQ(notification->id(), notification_id);
-    EXPECT_EQ(notification->progress(), 60);
-    EXPECT_TRUE(notification->pinned());
+    EXPECT_EQ(notification.id(), notification_id);
+    EXPECT_EQ(notification.progress(), 60);
+    EXPECT_TRUE(notification.pinned());
   }
 
   // Close notification and update progress. Should not update notification.
@@ -1200,12 +1146,11 @@ TEST_F(CrostiniExportImportTest, TestImportCustomVmContainerSuccess) {
   EXPECT_EQ(controller->status(),
             CrostiniExportImportStatusTracker::Status::RUNNING);
   {
-    const message_center::Notification* notification =
+    const message_center::Notification& notification =
         GetNotification(custom_container_id_);
-    ASSERT_NE(notification, nullptr);
-    EXPECT_EQ(notification->id(), notification_id);
-    EXPECT_EQ(notification->progress(), 60);
-    EXPECT_TRUE(notification->pinned());
+    EXPECT_EQ(notification.id(), notification_id);
+    EXPECT_EQ(notification.progress(), 60);
+    EXPECT_TRUE(notification.pinned());
   }
 
   // Done.
@@ -1215,9 +1160,9 @@ TEST_F(CrostiniExportImportTest, TestImportCustomVmContainerSuccess) {
   EXPECT_EQ(GetController(custom_container_id_), nullptr);
   EXPECT_EQ(controller, nullptr);
   {
-    const message_center::Notification* ui_notification =
-        GetUiNotification(notification_id);
-    ASSERT_NE(ui_notification, nullptr);
+    const std::optional<message_center::Notification> ui_notification =
+        notification_display_service_->GetNotification(notification_id);
+    ASSERT_NE(ui_notification, std::nullopt);
     EXPECT_FALSE(ui_notification->pinned());
     std::string msg("Linux apps & files have been successfully replaced");
     EXPECT_EQ(ui_notification->message(), base::UTF8ToUTF16(msg));
@@ -1235,12 +1180,11 @@ TEST_F(CrostiniExportImportTest, TestImportFail) {
             CrostiniExportImportStatusTracker::Status::RUNNING);
   std::string notification_id;
   {
-    const message_center::Notification* notification =
+    const message_center::Notification& notification =
         GetNotification(default_container_id_);
-    ASSERT_NE(notification, nullptr);
-    notification_id = notification->id();
-    EXPECT_EQ(notification->progress(), 0);
-    EXPECT_TRUE(notification->pinned());
+    notification_id = notification.id();
+    EXPECT_EQ(notification.progress(), 0);
+    EXPECT_TRUE(notification.pinned());
   }
 
   // Failed.
@@ -1250,9 +1194,9 @@ TEST_F(CrostiniExportImportTest, TestImportFail) {
   EXPECT_EQ(GetController(default_container_id_), nullptr);
   EXPECT_EQ(controller, nullptr);
   {
-    const message_center::Notification* ui_notification =
-        GetUiNotification(notification_id);
-    ASSERT_NE(ui_notification, nullptr);
+    const std::optional<message_center::Notification> ui_notification =
+        notification_display_service_->GetNotification(notification_id);
+    ASSERT_NE(ui_notification, std::nullopt);
     EXPECT_FALSE(ui_notification->pinned());
     std::string msg("Restoring couldn't be completed due to an error");
     EXPECT_EQ(ui_notification->message(), base::UTF8ToUTF16(msg));
@@ -1270,12 +1214,11 @@ TEST_F(CrostiniExportImportTest, TestImportCancelled) {
             CrostiniExportImportStatusTracker::Status::RUNNING);
   std::string notification_id;
   {
-    const message_center::Notification* notification =
+    const message_center::Notification& notification =
         GetNotification(default_container_id_);
-    ASSERT_NE(notification, nullptr);
-    notification_id = notification->id();
-    EXPECT_EQ(notification->progress(), 0);
-    EXPECT_TRUE(notification->pinned());
+    notification_id = notification.id();
+    EXPECT_EQ(notification.progress(), 0);
+    EXPECT_TRUE(notification.pinned());
   }
 
   // CANCELLING:
@@ -1285,12 +1228,11 @@ TEST_F(CrostiniExportImportTest, TestImportCancelled) {
   EXPECT_EQ(controller->status(),
             CrostiniExportImportStatusTracker::Status::CANCELLING);
   {
-    const message_center::Notification* notification =
+    const message_center::Notification& notification =
         GetNotification(default_container_id_);
-    ASSERT_NE(notification, nullptr);
-    EXPECT_EQ(notification->id(), notification_id);
-    EXPECT_EQ(notification->progress(), -1);
-    EXPECT_FALSE(notification->pinned());
+    EXPECT_EQ(notification.id(), notification_id);
+    EXPECT_EQ(notification.progress(), -1);
+    EXPECT_FALSE(notification.pinned());
   }
 
   // STREAMING: should not be displayed as cancel is in progress
@@ -1303,12 +1245,11 @@ TEST_F(CrostiniExportImportTest, TestImportCancelled) {
   EXPECT_EQ(controller->status(),
             CrostiniExportImportStatusTracker::Status::CANCELLING);
   {
-    const message_center::Notification* notification =
+    const message_center::Notification& notification =
         GetNotification(default_container_id_);
-    ASSERT_NE(notification, nullptr);
-    EXPECT_EQ(notification->id(), notification_id);
-    EXPECT_EQ(notification->progress(), -1);
-    EXPECT_FALSE(notification->pinned());
+    EXPECT_EQ(notification.id(), notification_id);
+    EXPECT_EQ(notification.progress(), -1);
+    EXPECT_FALSE(notification.pinned());
   }
 
   // CANCELLED:
@@ -1318,9 +1259,9 @@ TEST_F(CrostiniExportImportTest, TestImportCancelled) {
   EXPECT_EQ(GetController(default_container_id_), nullptr);
   EXPECT_EQ(controller, nullptr);
   {
-    const message_center::Notification* ui_notification =
-        GetUiNotification(notification_id);
-    EXPECT_EQ(ui_notification, nullptr);
+    const std::optional<message_center::Notification> ui_notification =
+        notification_display_service_->GetNotification(notification_id);
+    EXPECT_EQ(ui_notification, std::nullopt);
   }
 }
 
@@ -1335,12 +1276,11 @@ TEST_F(CrostiniExportImportTest, TestImportDoneBeforeCancelled) {
             CrostiniExportImportStatusTracker::Status::RUNNING);
   std::string notification_id;
   {
-    const message_center::Notification* notification =
+    const message_center::Notification& notification =
         GetNotification(default_container_id_);
-    ASSERT_NE(notification, nullptr);
-    notification_id = notification->id();
-    EXPECT_EQ(notification->progress(), 0);
-    EXPECT_TRUE(notification->pinned());
+    notification_id = notification.id();
+    EXPECT_EQ(notification.progress(), 0);
+    EXPECT_TRUE(notification.pinned());
   }
 
   // CANCELLING:
@@ -1350,12 +1290,11 @@ TEST_F(CrostiniExportImportTest, TestImportDoneBeforeCancelled) {
   EXPECT_EQ(controller->status(),
             CrostiniExportImportStatusTracker::Status::CANCELLING);
   {
-    const message_center::Notification* notification =
+    const message_center::Notification& notification =
         GetNotification(default_container_id_);
-    ASSERT_NE(notification, nullptr);
-    EXPECT_EQ(notification->id(), notification_id);
-    EXPECT_EQ(notification->progress(), -1);
-    EXPECT_FALSE(notification->pinned());
+    EXPECT_EQ(notification.id(), notification_id);
+    EXPECT_EQ(notification.progress(), -1);
+    EXPECT_FALSE(notification.pinned());
   }
 
   // DONE: Cancel couldn't be processed in time, done is displayed instead.
@@ -1365,9 +1304,9 @@ TEST_F(CrostiniExportImportTest, TestImportDoneBeforeCancelled) {
   EXPECT_EQ(GetController(default_container_id_), nullptr);
   EXPECT_EQ(controller, nullptr);
   {
-    const message_center::Notification* ui_notification =
-        GetUiNotification(notification_id);
-    ASSERT_NE(ui_notification, nullptr);
+    const std::optional<message_center::Notification> ui_notification =
+        notification_display_service_->GetNotification(notification_id);
+    ASSERT_NE(ui_notification, std::nullopt);
     EXPECT_FALSE(ui_notification->pinned());
     std::string msg("Linux apps & files have been successfully replaced");
     EXPECT_EQ(ui_notification->message(), base::UTF8ToUTF16(msg));
@@ -1385,12 +1324,11 @@ TEST_F(CrostiniExportImportTest, TestImportFailArchitecture) {
             CrostiniExportImportStatusTracker::Status::RUNNING);
   std::string notification_id;
   {
-    const message_center::Notification* notification =
+    const message_center::Notification& notification =
         GetNotification(default_container_id_);
-    ASSERT_NE(notification, nullptr);
-    notification_id = notification->id();
-    EXPECT_EQ(notification->progress(), 0);
-    EXPECT_TRUE(notification->pinned());
+    notification_id = notification.id();
+    EXPECT_EQ(notification.progress(), 0);
+    EXPECT_TRUE(notification.pinned());
   }
 
   // Failed Architecture.
@@ -1401,9 +1339,9 @@ TEST_F(CrostiniExportImportTest, TestImportFailArchitecture) {
   EXPECT_EQ(GetController(default_container_id_), nullptr);
   EXPECT_EQ(controller, nullptr);
   {
-    const message_center::Notification* ui_notification =
-        GetUiNotification(notification_id);
-    ASSERT_NE(ui_notification, nullptr);
+    const std::optional<message_center::Notification> ui_notification =
+        notification_display_service_->GetNotification(notification_id);
+    ASSERT_NE(ui_notification, std::nullopt);
     EXPECT_FALSE(ui_notification->pinned());
     std::string msg(
         "Cannot import container architecture type arch_con with this device "
@@ -1425,12 +1363,11 @@ TEST_F(CrostiniExportImportTest, TestImportFailSpace) {
             CrostiniExportImportStatusTracker::Status::RUNNING);
   std::string notification_id;
   {
-    const message_center::Notification* notification =
+    const message_center::Notification& notification =
         GetNotification(default_container_id_);
-    ASSERT_NE(notification, nullptr);
-    notification_id = notification->id();
-    EXPECT_EQ(notification->progress(), 0);
-    EXPECT_TRUE(notification->pinned());
+    notification_id = notification.id();
+    EXPECT_EQ(notification.progress(), 0);
+    EXPECT_TRUE(notification.pinned());
   }
 
   // Failed Space.
@@ -1444,9 +1381,9 @@ TEST_F(CrostiniExportImportTest, TestImportFailSpace) {
   EXPECT_EQ(GetController(default_container_id_), nullptr);
   EXPECT_EQ(controller, nullptr);
   {
-    const message_center::Notification* ui_notification =
-        GetUiNotification(notification_id);
-    ASSERT_NE(ui_notification, nullptr);
+    const std::optional<message_center::Notification> ui_notification =
+        notification_display_service_->GetNotification(notification_id);
+    ASSERT_NE(ui_notification, std::nullopt);
     EXPECT_FALSE(ui_notification->pinned());
     std::string msg =
         "Cannot restore due to lack of storage space. Free up 15.0 GB from the "

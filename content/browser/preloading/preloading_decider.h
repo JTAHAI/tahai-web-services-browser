@@ -46,26 +46,21 @@ class CONTENT_EXPORT PreloadingDecider
   ~PreloadingDecider() override;
 
   // Receives and processes on pointer down event for 'url' target link.
-  // `renderer_enacted` is whether the renderer already enacted a speculation
-  // candidate for this interaction; see AnchorElementInteractionHost.
-  void OnPointerDown(const GURL& url, bool renderer_enacted);
+  void OnPointerDown(const GURL& url);
 
   // Receives and processes on pointer hover event for 'url' target link.
   void OnPointerHover(const GURL& url,
                       blink::mojom::AnchorElementPointerDataPtr mouse_data,
-                      blink::mojom::SpeculationEagerness target_eagerness,
-                      bool renderer_enacted);
+                      blink::mojom::SpeculationEagerness target_eagerness);
 
   //  Receives and processes ML model score for 'url' target link.
   void OnPreloadingHeuristicsModelDone(const GURL& url, float score);
 
   // Receives and processes `url` selected by "moderate" viewport heuristic.
-  void OnModerateViewportHeuristicTriggered(const GURL& url,
-                                            bool renderer_enacted);
+  void OnModerateViewportHeuristicTriggered(const GURL& url);
 
   // Receives and processes `url` selected by "eager" viewport heuristic.
-  void OnEagerViewportHeuristicTriggered(const GURL& url,
-                                         bool renderer_enacted);
+  void OnEagerViewportHeuristicTriggered(const GURL& url);
 
   // Sets the new preloading decider observer for testing and returns the old
   // one.
@@ -93,12 +88,13 @@ class CONTENT_EXPORT PreloadingDecider
   // Renderer-driven enactment (SpeculationRulesRendererSideHeuristics).
   //
   // Executes a single candidate that the renderer's link-selection
-  // `heuristic` has already selected. The browser uses the heuristic to merge
-  // tags from the corresponding standby candidates and attribute the resulting
-  // prediction, but the renderer owns the enactment decision.
+  // heuristics have already selected. Unlike the OnPointerDown/OnPointerHover
+  // path, this does NOT consult `on_standby_candidates_` or perform
+  // heuristic->eagerness mapping: the renderer owns that decision. This
+  // method only applies browser-side eligibility/holdback/resource limits
+  // and hands the candidate to the Prefetcher/Prerenderer.
   void EnactRendererSelectedCandidate(
-      blink::mojom::SpeculationCandidatePtr candidate,
-      blink::mojom::SpeculationHeuristic heuristic);
+      blink::mojom::SpeculationCandidatePtr candidate);
 
   // Returns true if the |url|, |action| pair is in the on-standby list.
   bool IsOnStandByForTesting(const GURL& url,
@@ -209,15 +205,6 @@ class CONTENT_EXPORT PreloadingDecider
                            SpeculationRulesTagsMergingForNVSMatch);
   FRIEND_TEST_ALL_PREFIXES(PreloadingDeciderTest,
                            SpeculationRulesTagsMergingForNVSMatchWithNullTags);
-
-  // Handles a link-selection heuristic whose candidate enactment has moved to
-  // the renderer (kSpeculationRulesRendererSideHeuristics). The renderer only
-  // enacts when a speculation candidate matches, so this records the preloading
-  // prediction, and optionally preconnects, for the cases it leaves untouched.
-  void HandleRendererOwnedHeuristic(
-      const GURL& url,
-      const PreloadingPredictor& enacting_predictor,
-      bool fallback_to_preconnect);
 
   // This helper function encapsulates the shared logic for finding all
   // suitable candidates matching a lookup key, including No-Vary-Search logic.

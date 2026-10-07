@@ -169,11 +169,11 @@ public abstract class AwContentsClient {
     public abstract void onReceivedSslError(Callback<Boolean> callback, SslError error);
 
     public abstract void onReceivedClientCertRequest(
-            AwContentsClientBridge.ClientCertificateRequestCallback callback,
-            String[] keyTypes,
-            Principal[] principals,
-            String host,
-            int port);
+            final AwContentsClientBridge.ClientCertificateRequestCallback callback,
+            final String[] keyTypes,
+            final Principal[] principals,
+            final String host,
+            final int port);
 
     public abstract void onReceivedLoginRequest(String realm, String account, String args);
 
@@ -279,9 +279,7 @@ public abstract class AwContentsClient {
 
     private static void recordSendBrowsingIntentState(@SendIntentState int activityStarted) {
         RecordHistogram.recordEnumeratedHistogram(
-                "Android.WebView.SendBrowsingIntent",
-                activityStarted,
-                SendIntentState.MAX_VALUE + 1);
+                "Android.WebView.SendBrowsingIntent", activityStarted, SendIntentState.MAX_VALUE);
     }
 
     public static Uri[] parseFileChooserResult(int resultCode, Intent intent) {

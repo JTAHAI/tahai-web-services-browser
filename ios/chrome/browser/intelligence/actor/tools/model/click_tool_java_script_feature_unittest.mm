@@ -7,7 +7,6 @@
 #import "base/strings/stringprintf.h"
 #import "base/test/test_future.h"
 #import "components/optimization_guide/proto/features/actions_data.pb.h"
-#import "ios/chrome/browser/intelligence/actor/tools/model/action_target.h"
 #import "ios/chrome/browser/intelligence/actor/tools/model/actor_tool.h"
 #import "ios/chrome/browser/intelligence/actor/tools/model/actor_tool_java_script_feature_test_base.h"
 #import "ios/chrome/browser/intelligence/actor/tools/public/actor_tool_types.h"
@@ -28,44 +27,48 @@ class ClickToolJavaScriptFeatureTest
     return ClickToolJavaScriptFeature::GetInstance();
   }
 
-  // Mocks JavaScript function for clicking to return the given result.
+  // Mocks both JavaScript functions for clicking to return the given result.
   void MockClickJsFunctions(const std::string& mock_return_value) {
-    MockJsFunction(feature(), "click_tool", "click", mock_return_value);
+    MockJsFunction(feature(), "click_tool", "clickByCoordinate",
+                   mock_return_value);
+    MockJsFunction(feature(), "click_tool", "clickByNodeId", mock_return_value);
   }
 
-  ActionTarget CreateTargetWithCoordinates() {
-    optimization_guide::proto::ActionTarget target;
+  ClickAction CreateClickActionWithCoordinates() {
+    ClickAction action;
     // Use arbitrary values since the JS function is mocked.
-    target.mutable_coordinate()->set_x(1);
-    target.mutable_coordinate()->set_y(2);
-    target.mutable_coordinate()->set_pixel_type(
+    action.mutable_target()->mutable_coordinate()->set_x(1);
+    action.mutable_target()->mutable_coordinate()->set_y(2);
+    action.mutable_target()->mutable_coordinate()->set_pixel_type(
         optimization_guide::proto::Coordinate::PIXEL_TYPE_UNSPECIFIED);
-    return ActionTarget::FromProto(target);
+    action.set_click_type(ClickAction::UNKNOWN_CLICK_TYPE);
+    action.set_click_count(ClickAction::UNKNOWN_CLICK_COUNT);
+    return action;
   }
 
-  ActionTarget CreateTargetWithNodeId() {
-    optimization_guide::proto::ActionTarget target;
+  ClickAction CreateClickActionWithNodeId() {
+    ClickAction action;
     // Use arbitrary values since the JS function is mocked.
-    target.set_content_node_id(123);
-    target.mutable_document_identifier()->set_serialized_token("doc_id");
-    return ActionTarget::FromProto(target);
+    action.mutable_target()->set_content_node_id(123);
+    action.mutable_target()
+        ->mutable_document_identifier()
+        ->set_serialized_token("doc_id");
+    action.set_click_type(ClickAction::UNKNOWN_CLICK_TYPE);
+    action.set_click_count(ClickAction::UNKNOWN_CLICK_COUNT);
+    return action;
   }
 };
 
 TEST_F(ClickToolJavaScriptFeatureTest, JsReturnsNonDict) {
   MockClickJsFunctions(/*mock_return_value=*/"'unexpected type'");
-  ActionTarget click_by_coordinate = CreateTargetWithCoordinates();
-  ActionTarget click_by_node_id = CreateTargetWithNodeId();
+  ClickAction click_by_coordinate = CreateClickActionWithCoordinates();
+  ClickAction click_by_node_id = CreateClickActionWithNodeId();
   base::test::TestFuture<ToolExecutionResult> coordinate_future;
   base::test::TestFuture<ToolExecutionResult> node_id_future;
 
   feature()->Click(GetMainFrame(feature()), click_by_coordinate,
-                   ClickAction::UNKNOWN_CLICK_TYPE,
-                   ClickAction::UNKNOWN_CLICK_COUNT,
                    coordinate_future.GetCallback());
   feature()->Click(GetMainFrame(feature()), click_by_node_id,
-                   ClickAction::UNKNOWN_CLICK_TYPE,
-                   ClickAction::UNKNOWN_CLICK_COUNT,
                    node_id_future.GetCallback());
 
   auto coordinate_result = coordinate_future.Get();
@@ -84,18 +87,14 @@ TEST_F(ClickToolJavaScriptFeatureTest, JsReturnsError) {
       /*mock_return_value=*/base::StringPrintf(
           "{resultCode: %d, message: 'Custom JS Error'}",
           static_cast<int>(ClickToolResultCode::kClickSuppressed)));
-  ActionTarget click_by_coordinate = CreateTargetWithCoordinates();
-  ActionTarget click_by_node_id = CreateTargetWithNodeId();
+  ClickAction click_by_coordinate = CreateClickActionWithCoordinates();
+  ClickAction click_by_node_id = CreateClickActionWithNodeId();
   base::test::TestFuture<ToolExecutionResult> coordinate_future;
   base::test::TestFuture<ToolExecutionResult> node_id_future;
 
   feature()->Click(GetMainFrame(feature()), click_by_coordinate,
-                   ClickAction::UNKNOWN_CLICK_TYPE,
-                   ClickAction::UNKNOWN_CLICK_COUNT,
                    coordinate_future.GetCallback());
   feature()->Click(GetMainFrame(feature()), click_by_node_id,
-                   ClickAction::UNKNOWN_CLICK_TYPE,
-                   ClickAction::UNKNOWN_CLICK_COUNT,
                    node_id_future.GetCallback());
 
   auto coordinate_result = coordinate_future.Get();
@@ -112,18 +111,14 @@ TEST_F(ClickToolJavaScriptFeatureTest, JsReturnsError) {
 }
 
 TEST_F(ClickToolJavaScriptFeatureTest, InvalidatedWebFrame) {
-  ActionTarget click_by_coordinate = CreateTargetWithCoordinates();
-  ActionTarget click_by_node_id = CreateTargetWithNodeId();
+  ClickAction type_by_coordinate = CreateClickActionWithCoordinates();
+  ClickAction type_by_node_id = CreateClickActionWithNodeId();
   base::test::TestFuture<ToolExecutionResult> coordinate_future;
   base::test::TestFuture<ToolExecutionResult> node_id_future;
 
-  feature()->Click(/*target_frame=*/nullptr, click_by_coordinate,
-                   ClickAction::UNKNOWN_CLICK_TYPE,
-                   ClickAction::UNKNOWN_CLICK_COUNT,
+  feature()->Click(/*target_frame=*/nullptr, type_by_coordinate,
                    coordinate_future.GetCallback());
-  feature()->Click(/*target_frame=*/nullptr, click_by_node_id,
-                   ClickAction::UNKNOWN_CLICK_TYPE,
-                   ClickAction::UNKNOWN_CLICK_COUNT,
+  feature()->Click(/*target_frame=*/nullptr, type_by_node_id,
                    node_id_future.GetCallback());
 
   auto coordinate_result = coordinate_future.Get();
@@ -139,18 +134,14 @@ TEST_F(ClickToolJavaScriptFeatureTest, JsReturnsErrorWithoutMessage) {
       /*mock_return_value=*/base::StringPrintf(
           "{resultCode: %d}",
           static_cast<int>(ClickToolResultCode::kClickSuppressed)));
-  ActionTarget click_by_coordinate = CreateTargetWithCoordinates();
-  ActionTarget click_by_node_id = CreateTargetWithNodeId();
+  ClickAction click_by_coordinate = CreateClickActionWithCoordinates();
+  ClickAction click_by_node_id = CreateClickActionWithNodeId();
   base::test::TestFuture<ToolExecutionResult> coordinate_future;
   base::test::TestFuture<ToolExecutionResult> node_id_future;
 
   feature()->Click(GetMainFrame(feature()), click_by_coordinate,
-                   ClickAction::UNKNOWN_CLICK_TYPE,
-                   ClickAction::UNKNOWN_CLICK_COUNT,
                    coordinate_future.GetCallback());
   feature()->Click(GetMainFrame(feature()), click_by_node_id,
-                   ClickAction::UNKNOWN_CLICK_TYPE,
-                   ClickAction::UNKNOWN_CLICK_COUNT,
                    node_id_future.GetCallback());
 
   auto coordinate_result = coordinate_future.Get();
@@ -168,12 +159,10 @@ TEST_F(ClickToolJavaScriptFeatureTest, JsReturnsErrorWithoutMessage) {
 TEST_F(ClickToolJavaScriptFeatureTest, ClickByCoordinate_Success) {
   MockClickJsFunctions(
       /*mock_return_value=*/"{resultCode: 0, message: 'fake success!'}");
-  ActionTarget action = CreateTargetWithCoordinates();
+  ClickAction action = CreateClickActionWithCoordinates();
   base::test::TestFuture<ToolExecutionResult> future;
 
-  feature()->Click(GetMainFrame(feature()), action,
-                   ClickAction::UNKNOWN_CLICK_TYPE,
-                   ClickAction::UNKNOWN_CLICK_COUNT, future.GetCallback());
+  feature()->Click(GetMainFrame(feature()), action, future.GetCallback());
 
   auto result = future.Get();
   EXPECT_TRUE(result.IsOk());
@@ -182,12 +171,10 @@ TEST_F(ClickToolJavaScriptFeatureTest, ClickByCoordinate_Success) {
 TEST_F(ClickToolJavaScriptFeatureTest, ClickByNodeId_Success) {
   MockClickJsFunctions(
       /*mock_return_value=*/"{resultCode: 0, message: 'fake success!'}");
-  ActionTarget action = CreateTargetWithNodeId();
+  ClickAction action = CreateClickActionWithNodeId();
   base::test::TestFuture<ToolExecutionResult> future;
 
-  feature()->Click(GetMainFrame(feature()), action,
-                   ClickAction::UNKNOWN_CLICK_TYPE,
-                   ClickAction::UNKNOWN_CLICK_COUNT, future.GetCallback());
+  feature()->Click(GetMainFrame(feature()), action, future.GetCallback());
 
   auto result = future.Get();
   EXPECT_TRUE(result.IsOk());

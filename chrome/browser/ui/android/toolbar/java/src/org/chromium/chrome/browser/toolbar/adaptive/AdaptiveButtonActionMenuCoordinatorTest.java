@@ -25,6 +25,8 @@ import org.robolectric.Robolectric;
 
 import org.chromium.base.Callback;
 import org.chromium.base.test.BaseRobolectricTestRunner;
+import org.chromium.base.test.util.Features.EnableFeatures;
+import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.toolbar.R;
 import org.chromium.ui.listmenu.ListMenuButton;
 import org.chromium.ui.widget.AnchoredPopupWindow;
@@ -43,6 +45,7 @@ public class AdaptiveButtonActionMenuCoordinatorTest {
 
     @Test
     @SmallTest
+    @EnableFeatures(ChromeFeatureList.ADAPTIVE_BUTTON_IN_TOP_TOOLBAR_CUSTOMIZATION_V2)
     public void testCreateOnLongClickListener() {
         var coordinator = new AdaptiveButtonActionMenuCoordinator(/* showMenu= */ true);
         View.OnLongClickListener listener = coordinator.createOnLongClickListener(mCallback);
@@ -66,6 +69,7 @@ public class AdaptiveButtonActionMenuCoordinatorTest {
 
     @Test
     @SmallTest
+    @EnableFeatures(ChromeFeatureList.ADAPTIVE_BUTTON_IN_TOP_TOOLBAR_CUSTOMIZATION_V2)
     public void testCreateOnLongClickListener_clickHandlerIsNotModified() {
         var coordinator = new AdaptiveButtonActionMenuCoordinator(/* showMenu= */ true);
         View.OnLongClickListener listener = coordinator.createOnLongClickListener(mCallback);
@@ -91,6 +95,7 @@ public class AdaptiveButtonActionMenuCoordinatorTest {
 
     @Test
     @SmallTest
+    @EnableFeatures(ChromeFeatureList.ADAPTIVE_BUTTON_IN_TOP_TOOLBAR_CUSTOMIZATION_V2)
     public void testCreateOnLongClickListener_showsToast() {
         var coordinator = spy(new AdaptiveButtonActionMenuCoordinator(/* showMenu= */ false));
         View.OnLongClickListener listener = coordinator.createOnLongClickListener(mCallback);

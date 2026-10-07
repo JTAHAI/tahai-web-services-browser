@@ -2,20 +2,19 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {WebSpeechTtsClient} from 'chrome-untrusted://read-anything-side-panel.top-chrome/read_anything.js';
+import {SpeechBrowserProxyImpl, WebSpeechTtsClient} from 'chrome-untrusted://read-anything-side-panel.top-chrome/read_anything.js';
 import {assertEquals} from 'chrome-untrusted://webui-test/chai_assert.js';
 
-import {createSpeechSynthesisVoice, setupTestEnvironment} from './common.js';
-import type {TestSpeechBrowserProxy} from './test_speech_browser_proxy.js';
+import {createSpeechSynthesisVoice} from './common.js';
+import {TestSpeechBrowserProxy} from './test_speech_browser_proxy.js';
 
 suite('WebSpeechTtsClient', () => {
   let client: WebSpeechTtsClient;
   let speechBrowserProxy: TestSpeechBrowserProxy;
 
   setup(() => {
-    const result = setupTestEnvironment();
-    speechBrowserProxy = result.speech;
-    speechBrowserProxy.reset();
+    speechBrowserProxy = new TestSpeechBrowserProxy();
+    SpeechBrowserProxyImpl.setInstance(speechBrowserProxy);
 
     client = WebSpeechTtsClient.initialize();
   });

@@ -93,7 +93,8 @@ void FileIconSource::FetchFileIcon(
   gfx::Image* icon = im->LookupIconFromFilepath(path, icon_size, scale_factor);
 
   if (icon) {
-    auto icon_data = base::MakeRefCounted<base::RefCountedBytes>();
+    scoped_refptr<base::RefCountedBytes> icon_data(new base::RefCountedBytes);
+
     std::optional<std::vector<uint8_t>> data =
         gfx::PNGCodec::EncodeBGRASkBitmap(
             icon->ToImageSkia()->GetRepresentation(scale_factor).GetBitmap(),

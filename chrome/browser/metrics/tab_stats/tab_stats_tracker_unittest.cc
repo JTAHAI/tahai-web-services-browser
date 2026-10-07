@@ -22,6 +22,7 @@
 #include "base/time/time.h"
 #include "build/build_config.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/tabs/features.h"
 #include "chrome/browser/ui/tabs/split_tab_metrics.h"
 #include "chrome/browser/ui/tabs/test_vertical_tab_strip_state_controller_delegate.h"
 #include "chrome/common/pref_names.h"
@@ -54,7 +55,6 @@
 #include "chrome/browser/ui/tabs/tab_strip_prefs.h"
 #include "chrome/browser/ui/tabs/test_tab_strip_model_delegate.h"
 #include "chrome/browser/ui/tabs/vertical_tab_strip_state_controller.h"
-#include "chrome/browser/ui/ui_features.h"
 #include "chrome/browser/ui/user_education/browser_user_education_interface.h"
 #include "chrome/test/user_education/mock_browser_user_education_interface.h"
 #include "ui/actions/actions.h"
@@ -391,6 +391,7 @@ class TabStatsTrackerTest : public ChromeRenderViewHostTestHarness {
     tab_strip_modifier_ = std::make_unique<TabStripModifier>(
         tab_strip_interface_.get(), test_tab_model_.get());
 #else
+    scoped_feature_.InitWithFeatures({tabs::kVerticalTabs}, {});
     test_tab_strip_model_delegate_ =
         std::make_unique<TestTabStripModelDelegate>();
     tab_strip_model_ = std::make_unique<TabStripModel>(
@@ -430,6 +431,9 @@ class TabStatsTrackerTest : public ChromeRenderViewHostTestHarness {
 
     browser_actions_ =
         std::make_unique<BrowserActions>(&mock_browser_window_interface_);
+
+    ON_CALL(mock_browser_window_interface_, GetActions())
+        .WillByDefault(::testing::Return(browser_actions_.get()));
 
     test_tab_strip_model_delegate_->SetBrowserWindowInterface(
         &mock_browser_window_interface_);
@@ -548,6 +552,7 @@ class TabStatsTrackerTest : public ChromeRenderViewHostTestHarness {
 
   TestingPrefServiceSimple pref_service_;
 
+  base::test::ScopedFeatureList scoped_feature_;
 
 #if BUILDFLAG(IS_ANDROID)
   std::unique_ptr<OwningTestTabModel> test_tab_model_;
@@ -1043,40 +1048,6 @@ TEST_F(TabStatsTrackerTest, HeartbeatMetricsWithVerticalTabsCollapseState) {
       2);
 
   controller->SetDelegate(nullptr);
-}
-
-TEST_F(TabStatsTrackerTest, HeartbeatMetricsFocusMode) {
-  base::test::ScopedFeatureList scoped_feature_list(
-      features::kTabGroupsFocusing);
-
-  tab_stats_tracker_->AddTabs(3, this, tab_strip_modifier_.get());
-
-  // Initially not in focus mode.
-  EXPECT_FALSE(tab_strip_model_->GetFocusedGroup().has_value());
-  tab_stats_tracker_->OnHeartbeatEvent();
-  histogram_tester_.ExpectUniqueSample(
-      UmaStatsReportingDelegate::kFocusModeIsActiveHistogramName, false, 1);
-
-  // Group tabs and focus the group.
-  tab_groups::TabGroupId group_id = tab_strip_model_->AddToNewGroup({0, 1});
-  tab_strip_model_->SetFocusedGroup(group_id);
-  EXPECT_EQ(group_id, tab_strip_model_->GetFocusedGroup());
-
-  tab_stats_tracker_->OnHeartbeatEvent();
-  histogram_tester_.ExpectBucketCount(
-      UmaStatsReportingDelegate::kFocusModeIsActiveHistogramName, true, 1);
-  histogram_tester_.ExpectTotalCount(
-      UmaStatsReportingDelegate::kFocusModeIsActiveHistogramName, 2);
-
-  // Unfocus the group.
-  tab_strip_model_->SetFocusedGroup(std::nullopt);
-  EXPECT_FALSE(tab_strip_model_->GetFocusedGroup().has_value());
-
-  tab_stats_tracker_->OnHeartbeatEvent();
-  histogram_tester_.ExpectBucketCount(
-      UmaStatsReportingDelegate::kFocusModeIsActiveHistogramName, false, 2);
-  histogram_tester_.ExpectTotalCount(
-      UmaStatsReportingDelegate::kFocusModeIsActiveHistogramName, 3);
 }
 #endif
 

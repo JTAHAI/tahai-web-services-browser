@@ -76,7 +76,7 @@ suite('PriceTrackingSectionTest', () => {
     }
 
     assertEquals(
-        priceTrackingSection.$.toggle.getAttribute('aria-checked')!,
+        priceTrackingSection.$.toggle.getAttribute('aria-pressed')!,
         tracked ? 'true' : 'false');
   }
 
@@ -243,7 +243,7 @@ suite('PriceTrackingSectionTest', () => {
         priceTrackingSection.$.toggleAnnotation.textContent?.trim(),
         loadTimeData.getString('trackPriceError'));
     assertEquals(
-        priceTrackingSection.$.toggle.getAttribute('aria-checked'), 'false');
+        priceTrackingSection.$.toggle.getAttribute('aria-pressed'), 'false');
 
     callbackRouterRemote.operationFailedForBookmark(bookmarkProductInfo, false);
     await microtasksFinished();
@@ -255,7 +255,7 @@ suite('PriceTrackingSectionTest', () => {
         priceTrackingSection.$.toggleAnnotation.textContent?.trim(),
         loadTimeData.getString('trackPriceError'));
     assertEquals(
-        priceTrackingSection.$.toggle.getAttribute('aria-checked'), 'true');
+        priceTrackingSection.$.toggle.getAttribute('aria-pressed'), 'true');
   });
 
   test(`Observe product bookmark move event`, async () => {

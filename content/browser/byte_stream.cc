@@ -189,7 +189,7 @@ ByteStreamWriterImpl::ByteStreamWriterImpl(
       input_contents_size_(0),
       output_size_used_(0),
       peer_(nullptr) {
-  CHECK(my_lifetime_flag_.get(), base::NotFatalUntil::M158);
+  DCHECK(my_lifetime_flag_.get());
   my_lifetime_flag_->is_alive = true;
 }
 
@@ -211,8 +211,7 @@ void ByteStreamWriterImpl::SetPeer(
 
 bool ByteStreamWriterImpl::Write(
     scoped_refptr<net::IOBuffer> buffer, size_t byte_count) {
-  CHECK(my_task_runner_->RunsTasksInCurrentSequence(),
-        base::NotFatalUntil::M158);
+  DCHECK(my_task_runner_->RunsTasksInCurrentSequence());
 
   // Check overflow.
   //
@@ -237,28 +236,24 @@ bool ByteStreamWriterImpl::Write(
 }
 
 void ByteStreamWriterImpl::Flush() {
-  CHECK(my_task_runner_->RunsTasksInCurrentSequence(),
-        base::NotFatalUntil::M158);
+  DCHECK(my_task_runner_->RunsTasksInCurrentSequence());
   if (input_contents_size_ > 0)
     PostToPeer(false, 0);
 }
 
 void ByteStreamWriterImpl::Close(int status) {
-  CHECK(my_task_runner_->RunsTasksInCurrentSequence(),
-        base::NotFatalUntil::M158);
+  DCHECK(my_task_runner_->RunsTasksInCurrentSequence());
   PostToPeer(true, status);
 }
 
 void ByteStreamWriterImpl::RegisterCallback(
     base::RepeatingClosure source_callback) {
-  CHECK(my_task_runner_->RunsTasksInCurrentSequence(),
-        base::NotFatalUntil::M158);
+  DCHECK(my_task_runner_->RunsTasksInCurrentSequence());
   space_available_callback_ = std::move(source_callback);
 }
 
 size_t ByteStreamWriterImpl::GetTotalBufferedBytes() const {
-  CHECK(my_task_runner_->RunsTasksInCurrentSequence(),
-        base::NotFatalUntil::M158);
+  DCHECK(my_task_runner_->RunsTasksInCurrentSequence());
   // This sum doesn't overflow since Write() fails if this sum is going to
   // overflow.
   return input_contents_size_ + output_size_used_;
@@ -275,12 +270,11 @@ void ByteStreamWriterImpl::UpdateWindow(
 }
 
 void ByteStreamWriterImpl::UpdateWindowInternal(size_t bytes_consumed) {
-  CHECK(my_task_runner_->RunsTasksInCurrentSequence(),
-        base::NotFatalUntil::M158);
+  DCHECK(my_task_runner_->RunsTasksInCurrentSequence());
 
   bool was_above_limit = GetTotalBufferedBytes() > total_buffer_size_;
 
-  CHECK_GE(output_size_used_, bytes_consumed, base::NotFatalUntil::M158);
+  DCHECK_GE(output_size_used_, bytes_consumed);
   output_size_used_ -= bytes_consumed;
 
   // Callback if we were above the limit and we're now <= to it.
@@ -292,10 +286,9 @@ void ByteStreamWriterImpl::UpdateWindowInternal(size_t bytes_consumed) {
 }
 
 void ByteStreamWriterImpl::PostToPeer(bool complete, int status) {
-  CHECK(my_task_runner_->RunsTasksInCurrentSequence(),
-        base::NotFatalUntil::M158);
+  DCHECK(my_task_runner_->RunsTasksInCurrentSequence());
   // Valid contexts in which to call.
-  CHECK(complete || 0 != input_contents_size_, base::NotFatalUntil::M158);
+  DCHECK(complete || 0 != input_contents_size_);
 
   std::unique_ptr<ContentVector> transfer_buffer;
   size_t buffer_size = 0;
@@ -324,7 +317,7 @@ ByteStreamReaderImpl::ByteStreamReaderImpl(
       status_(0),
       unreported_consumed_bytes_(0),
       peer_(nullptr) {
-  CHECK(my_lifetime_flag_.get(), base::NotFatalUntil::M158);
+  DCHECK(my_lifetime_flag_.get());
   my_lifetime_flag_->is_alive = true;
 }
 
@@ -347,8 +340,7 @@ void ByteStreamReaderImpl::SetPeer(
 ByteStreamReaderImpl::StreamState
 ByteStreamReaderImpl::Read(scoped_refptr<net::IOBuffer>* data,
                            size_t* length) {
-  CHECK(my_task_runner_->RunsTasksInCurrentSequence(),
-        base::NotFatalUntil::M158);
+  DCHECK(my_task_runner_->RunsTasksInCurrentSequence());
 
   if (available_contents_.size()) {
     *data = available_contents_.front().first;
@@ -366,16 +358,14 @@ ByteStreamReaderImpl::Read(scoped_refptr<net::IOBuffer>* data,
 }
 
 int ByteStreamReaderImpl::GetStatus() const {
-  CHECK(my_task_runner_->RunsTasksInCurrentSequence(),
-        base::NotFatalUntil::M158);
-  CHECK(received_status_, base::NotFatalUntil::M158);
+  DCHECK(my_task_runner_->RunsTasksInCurrentSequence());
+  DCHECK(received_status_);
   return status_;
 }
 
 void ByteStreamReaderImpl::RegisterCallback(
     base::RepeatingClosure sink_callback) {
-  CHECK(my_task_runner_->RunsTasksInCurrentSequence(),
-        base::NotFatalUntil::M158);
+  DCHECK(my_task_runner_->RunsTasksInCurrentSequence());
 
   data_available_callback_ = std::move(sink_callback);
 }
@@ -400,8 +390,7 @@ void ByteStreamReaderImpl::TransferDataInternal(
     size_t buffer_size,
     bool source_complete,
     int status) {
-  CHECK(my_task_runner_->RunsTasksInCurrentSequence(),
-        base::NotFatalUntil::M158);
+  DCHECK(my_task_runner_->RunsTasksInCurrentSequence());
 
   bool was_empty = available_contents_.empty();
 
@@ -428,8 +417,7 @@ void ByteStreamReaderImpl::TransferDataInternal(
 // Currently we do that whenever we've got unreported consumption
 // greater than 1/3 of total size.
 void ByteStreamReaderImpl::MaybeUpdateInput() {
-  CHECK(my_task_runner_->RunsTasksInCurrentSequence(),
-        base::NotFatalUntil::M158);
+  DCHECK(my_task_runner_->RunsTasksInCurrentSequence());
 
   if (unreported_consumed_bytes_ <=
       total_buffer_size_ / kFractionReadBeforeWindowUpdate)

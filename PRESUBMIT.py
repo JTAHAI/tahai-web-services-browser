@@ -580,6 +580,15 @@ _BANNED_CPP_FUNCTIONS: Sequence[BanRule] = (
         ),
     ),
     BanRule(
+        r'/v8::Extension\(',
+        (
+            'Do not introduce new v8::Extensions into the code base, use',
+            'gin::Wrappable instead. See http://crbug.com/334679',
+        ),
+        True,
+        (r'extensions/renderer/safe_builtins\.*', ),
+    ),
+    BanRule(
         '#pragma comment(lib,',
         ('Specify libraries to link with in build files and not in the source.',
          ),
@@ -1306,12 +1315,9 @@ _BANNED_CPP_FUNCTIONS: Sequence[BanRule] = (
         [_THIRD_PARTY_EXCEPT_BLINK],  # Don't warn in third_party folders.
     ),
     BanRule(
-        pattern=r'/std::views::(?!(?:reverse|zip|as_rvalue)\b)\w+|std::views(?!\s*::)',
-        explanation=(
-            'Use of std::views is banned in Chrome (except std::views::reverse, '
-            'std::views::zip, and std::views::as_rvalue). If you need this '
-            'functionality, please contact cxx@chromium.org.',
-        ),
+        pattern='std::views',
+        explanation=('Use of std::views is banned in Chrome. If you need this '
+                     'functionality, please contact cxx@chromium.org.', ),
         treat_as_error=True,
         excluded_paths=[
             # Don't warn in third_party folders.
@@ -1403,6 +1409,13 @@ _BANNED_CPP_FUNCTIONS: Sequence[BanRule] = (
         excluded_paths=[_THIRD_PARTY_EXCEPT_BLINK],
     ),
     BanRule(
+        pattern=r'/std::(in)?out_ptr',
+        explanation=('Use of std::{out_ptr,inout_ptr} isn`t allowed. If you '
+                     'need it, contact cxx@chromium.org.', ),
+        treat_as_error=True,
+        excluded_paths=[_THIRD_PARTY_EXCEPT_BLINK],
+    ),
+    BanRule(
         pattern=r'std::start_lifetime_as',
         explanation=('Use of std::start_lifetime_as isn`t allowed. If you '
                      'need it, contact cxx@chromium.org.', ),
@@ -1462,12 +1475,6 @@ _BANNED_CPP_FUNCTIONS: Sequence[BanRule] = (
             # Views
             'subrange',
             'subrange_kind',
-            'reverse_view',
-            'zip_view',
-            'as_rvalue_view',
-            'views::reverse',
-            'views::zip',
-            'views::as_rvalue',
             # Banned: Range factories
             # Banned: Range adaptors
             # Incidentally listed on
@@ -1626,10 +1633,8 @@ _BANNED_CPP_FUNCTIONS: Sequence[BanRule] = (
             # disallowed (and matches the regex).
         )) + r')\b)\w+',
         explanation=(
-            'Use of range views and associated helpers is banned in Chrome '
-            '(except reverse_view, zip_view, as_rvalue_view, and views:: '
-            'helpers reverse, zip, as_rvalue). If you need this '
-            'functionality, please contact cxx@chromium.org.',
+            'Use of range views and associated helpers is banned in Chrome. '
+            'If you need this functionality, please contact cxx@chromium.org.',
         ),
         treat_as_error=True,
         excluded_paths=[
@@ -1714,9 +1719,8 @@ _BANNED_CPP_FUNCTIONS: Sequence[BanRule] = (
     BanRule(
         'sqlite3_initialize(',
         (
-            'Instead of calling sqlite3_initialize(), depend on //sql,',
-            '#include "sql/initialization.h" and use '
-            'sql::EnsureSqliteInitialized().',
+            'Instead of calling sqlite3_initialize(), depend on //sql, ',
+            '#include "sql/initialize.h" and use sql::EnsureSqliteInitialized().',
         ),
         True,
         (
@@ -2474,52 +2478,28 @@ _DEPRECATED_SYNC_CONSENT_FUNCTION_WARNING = (
     'out to //components/sync/OWNERS.', )
 
 # C++ functions related to signin::ConsentLevel::kSync which are deprecated.
-def _get_deprecated_sync_consent_cpp_functions(
-        treat_as_error: bool) -> Sequence[BanRule]:
-    return (
-        BanRule(
-            'HasSyncConsent(',
-            _DEPRECATED_SYNC_CONSENT_FUNCTION_WARNING,
-            treat_as_error,
-        ),
-        BanRule(
-            'CanSyncFeatureStart(',
-            _DEPRECATED_SYNC_CONSENT_FUNCTION_WARNING,
-            treat_as_error,
-        ),
-        BanRule(
-            'IsSyncFeatureEnabled(',
-            _DEPRECATED_SYNC_CONSENT_FUNCTION_WARNING,
-            treat_as_error,
-        ),
-        BanRule(
-            'IsSyncFeatureActive(',
-            _DEPRECATED_SYNC_CONSENT_FUNCTION_WARNING,
-            treat_as_error,
-        ),
-        BanRule(
-            'ConsentLevel::kSync',
-            _DEPRECATED_SYNC_CONSENT_FUNCTION_WARNING,
-            treat_as_error,
-        ),
-    )
-
-
-def _treat_deprecated_sync_consent_as_error(f, input_api):
-    # The regex is initialized once from `input_api`.
-    if not hasattr(_treat_deprecated_sync_consent_as_error,
-                   "mobile_path_regex"):
-        _treat_deprecated_sync_consent_as_error.mobile_path_regex = (
-            input_api.re.compile(r"(?<![a-zA-Z])(android|ios)(?![a-zA-Z])"))
-    # Allowlisted for now because there are browser tests shared with desktop
-    # that haven't been updated yet.
-    pending_android_file = (
-        "chrome/browser/sync/test/integration/sync_test_utils_android.cc")
-    # Error on mobile where the migration is complete, warning elsewhere.
-    return (f.UnixLocalPath() != pending_android_file and
-            _treat_deprecated_sync_consent_as_error.mobile_path_regex.search(
-                f.UnixLocalPath()))
-
+_DEPRECATED_SYNC_CONSENT_CPP_FUNCTIONS: Sequence[BanRule] = (
+    BanRule(
+        'HasSyncConsent',
+        _DEPRECATED_SYNC_CONSENT_FUNCTION_WARNING,
+        False,
+    ),
+    BanRule(
+        'CanSyncFeatureStart',
+        _DEPRECATED_SYNC_CONSENT_FUNCTION_WARNING,
+        False,
+    ),
+    BanRule(
+        'IsSyncFeatureEnabled',
+        _DEPRECATED_SYNC_CONSENT_FUNCTION_WARNING,
+        False,
+    ),
+    BanRule(
+        'IsSyncFeatureActive',
+        _DEPRECATED_SYNC_CONSENT_FUNCTION_WARNING,
+        False,
+    ),
+)
 
 _BANNED_MOJOM_PATTERNS: Sequence[BanRule] = (
     BanRule(
@@ -2675,6 +2655,7 @@ _GENERIC_PYDEPS_FILES = [
     'build/fuchsia/test/component_storage_test.pydeps',
     'build/protoc_java.pydeps',
     'chrome/browser/resources/glic/glic_api_impl/generate_impl/parse.pydeps',
+    'chrome/browser/resources/glic/glic_api_impl/generate_impl/run_tsc.pydeps',
     'chrome/test/chromedriver/log_replay/client_replay_unittest.pydeps',
     'chrome/test/chromedriver/test/run_py_tests.pydeps',
     'chrome/test/media/performance/openscreen_cast_performance_test.pydeps',
@@ -2688,7 +2669,6 @@ _GENERIC_PYDEPS_FILES = [
     'components/language/content/browser/ulp_language_code_locator/ulp_serialized_to_static_c.pydeps',
     'components/module_installer/android/module_desc_java.pydeps',
     'components/policy/tools/template_writers/template_formatter.pydeps',
-    'components/zucchini/fuzzers/generate_fuzzer_data.pydeps',
     'content/public/android/generate_child_service.pydeps',
     'fuchsia_web/av_testing/av_sync_tests.pydeps',
     'remoting/tools/build/remoting_copy_locales.pydeps',
@@ -2708,8 +2688,6 @@ _GENERIC_PYDEPS_FILES = [
     'third_party/blink/renderer/bindings/scripts/validate_web_idl.pydeps',
     'third_party/blink/tools/blinkpy/web_tests/merge_results.pydeps',
     'third_party/blink/tools/merge_web_test_results.pydeps',
-    'tools/android/layout_inspector/run_server.pydeps',
-    'tools/android/layout_inspector/run_server_test.pydeps',
     'tools/binary_size/sizes.pydeps',
     'tools/binary_size/supersize.pydeps',
     'tools/cygprofile/generate_orderfile.pydeps',
@@ -2722,7 +2700,6 @@ _GENERIC_PYDEPS_FILES = [
     'tools/perf/process_perf_results.pydeps',
     'tools/pgo/generate_profile.pydeps',
     'tools/pgo/generate_profile_webview.pydeps',
-    'tools/resources/generate_resource_allowlist.pydeps',
 ]
 
 _ALL_PYDEPS_FILES = _ANDROID_SPECIFIC_PYDEPS_FILES + _GENERIC_PYDEPS_FILES
@@ -2859,11 +2836,6 @@ def CheckNoProductionCodeUsingTestOnlyFunctions(input_api, output_api):
     exclusion_pattern = input_api.re.compile(
         r'(::[A-Za-z0-9_]+(%s)|(%s))[^;]+\{' %
         (base_function_pattern, base_function_pattern))
-    # exclusion_pattern misses the closing '{' when it wraps to the next line,
-    # support an on demand multi-line check as a last step.
-    multi_line_exclusion_pattern = input_api.re.compile(
-        r'(::[A-Za-z0-9_]+(%s)|(%s))[^;]+\{' %
-        (base_function_pattern, base_function_pattern), input_api.re.DOTALL)
     # Avoid a false positive in this case, where the method name, the ::, and
     # the closing { are all on different lines due to line wrapping.
     # HelperClassForTesting::
@@ -2884,21 +2856,14 @@ def CheckNoProductionCodeUsingTestOnlyFunctions(input_api, output_api):
     for f in input_api.AffectedSourceFiles(FilterFile):
         local_path = f.LocalPath()
         in_method_defn = False
-        cached_file_lines = None
         for line_number, line in f.ChangedContents():
             if (inclusion_pattern.search(line)
                     and not comment_pattern.search(line)
                     and not exclusion_pattern.search(line)
                     and not allowlist_pattern.search(line)
                     and not in_method_defn):
-                if cached_file_lines is None:
-                    cached_file_lines = input_api.ReadFile(f).splitlines()
-                full_text_from_line = '\n'.join(
-                    cached_file_lines[line_number - 1:])
-                match = multi_line_exclusion_pattern.search(full_text_from_line)
-                if not match or match.start() >= len(line):
-                    problems.append('%s:%d\n    %s' %
-                                    (local_path, line_number, line.strip()))
+                problems.append('%s:%d\n    %s' %
+                                (local_path, line_number, line.strip()))
             in_method_defn = method_defn_pattern.search(line)
 
     if problems:
@@ -3254,14 +3219,6 @@ def CheckNoDEPSGIT(input_api, output_api):
     return []
 
 
-def _IsIgnoredLine(line: str) -> bool:
-    """Returns True if the line is a full-line comment or marked with // nocheck.
-
-    Note that GN comments (#) are not ignored.
-    """
-    return line.lstrip().startswith('//') or line.endswith(' nocheck')
-
-
 def _GetMessageForMatchingType(input_api, affected_file, line_number, line,
                                ban_rule):
     """Helper method for checking for banned constructs.
@@ -3271,6 +3228,14 @@ def _GetMessageForMatchingType(input_api, affected_file, line_number, line,
     target type name matches the text inside the line passed as parameter.
     """
     result = []
+
+    # Ignore comments about banned types.
+    if input_api.re.search(r'^ *//', line):
+        return result
+    # A // nocheck comment will bypass this error.
+    if line.endswith(' nocheck'):
+        return result
+
     matched = False
     if ban_rule.pattern[0:1] == '/':
         regex = ban_rule.pattern[1:]
@@ -3291,10 +3256,11 @@ def CheckNoBannedPatterns(input_api, output_api):
     """Make sure that banned patterns are not used."""
     results = []
 
-    def IsExcludedFile(local_path, excluded_paths):
+    def IsExcludedFile(affected_file, excluded_paths):
         if not excluded_paths:
             return False
 
+        local_path = affected_file.UnixLocalPath()
         for item in excluded_paths:
             if input_api.re.match(item, local_path):
                 return True
@@ -3315,8 +3281,11 @@ def CheckNoBannedPatterns(input_api, output_api):
 
     def CheckForMatch(affected_file, line_num: int, line: str,
                       ban_rule: BanRule):
-        message = _GetMessageForMatchingType(input_api, affected_file, line_num,
-                                             line, ban_rule)
+        if IsExcludedFile(affected_file, ban_rule.excluded_paths):
+            return
+
+        message = _GetMessageForMatchingType(input_api, f, line_num, line,
+                                             ban_rule)
         if message:
             result_loc = []
             if ban_rule.surface_as_gerrit_lint:
@@ -3338,68 +3307,58 @@ def CheckNoBannedPatterns(input_api, output_api):
                         'A banned pattern was used.\n' + '\n'.join(message),
                         locations=result_loc))
 
-    def MatchingBanRules(affected_file, ban_rules):
-        matching_ban_rules = []
-        local_path = affected_file.UnixLocalPath()
-        for ban_rule in ban_rules:
-            if IsExcludedFile(local_path, ban_rule.excluded_paths):
-                continue
-            matching_ban_rules.append(ban_rule)
-        return matching_ban_rules
+    file_filter = lambda f: f.LocalPath().endswith(('.java'))
+    for f in input_api.AffectedFiles(file_filter=file_filter):
+        for line_num, line in f.ChangedContents():
+            for ban_rule in _BANNED_JAVA_FUNCTIONS + _BANNED_JAVA_IMPORTS:
+                CheckForMatch(f, line_num, line, ban_rule)
 
-    def CheckFilesForFormat(file_filter, ban_rules):
-        for f in input_api.AffectedFiles(file_filter=file_filter):
-            matching_ban_rules = MatchingBanRules(f, ban_rules)
-            if matching_ban_rules:
-                for line_num, line in f.ChangedContents():
-                    if _IsIgnoredLine(line):
-                        continue
-                    for ban_rule in matching_ban_rules:
-                        CheckForMatch(f, line_num, line, ban_rule)
+    file_filter = lambda f: f.LocalPath().endswith(('.js', '.ts'))
+    for f in input_api.AffectedFiles(file_filter=file_filter):
+        for line_num, line in f.ChangedContents():
+            for ban_rule in _BANNED_JAVASCRIPT_FUNCTIONS:
+                CheckForMatch(f, line_num, line, ban_rule)
 
-    CheckFilesForFormat(
-        file_filter=lambda f: f.LocalPath().endswith(('.java')),
-        ban_rules=_BANNED_JAVA_FUNCTIONS + _BANNED_JAVA_IMPORTS)
+    file_filter = lambda f: f.LocalPath().endswith(('.mm', '.m', '.h'))
+    for f in input_api.AffectedFiles(file_filter=file_filter):
+        for line_num, line in f.ChangedContents():
+            for ban_rule in _BANNED_OBJC_FUNCTIONS:
+                CheckForMatch(f, line_num, line, ban_rule)
 
-    CheckFilesForFormat(
-        file_filter=lambda f: f.LocalPath().endswith(('.js', '.ts')),
-        ban_rules=_BANNED_JAVASCRIPT_FUNCTIONS)
+    for f in input_api.AffectedFiles(file_filter=IsIosObjcFile):
+        for line_num, line in f.ChangedContents():
+            for ban_rule in _BANNED_IOS_OBJC_FUNCTIONS:
+                CheckForMatch(f, line_num, line, ban_rule)
 
-    CheckFilesForFormat(
-        file_filter=lambda f: f.LocalPath().endswith(('.mm', '.m', '.h')),
-        ban_rules=_BANNED_OBJC_FUNCTIONS)
+    egtest_filter = lambda f: f.LocalPath().endswith(('_egtest.mm'))
+    for f in input_api.AffectedFiles(file_filter=egtest_filter):
+        for line_num, line in f.ChangedContents():
+            for ban_rule in _BANNED_IOS_EGTEST_FUNCTIONS:
+                CheckForMatch(f, line_num, line, ban_rule)
 
-    CheckFilesForFormat(
-        file_filter=IsIosObjcFile,
-        ban_rules=_BANNED_IOS_OBJC_FUNCTIONS)
+    file_filter = lambda f: f.LocalPath().endswith(('.cc', '.mm', '.h'))
+    for f in input_api.AffectedFiles(file_filter=file_filter):
+        for line_num, line in f.ChangedContents():
+            for ban_rule in _BANNED_CPP_FUNCTIONS:
+                CheckForMatch(f, line_num, line, ban_rule)
 
-    CheckFilesForFormat(
-        file_filter=lambda f: f.LocalPath().endswith(('_egtest.mm')),
-        ban_rules=_BANNED_IOS_EGTEST_FUNCTIONS)
+    file_filter = lambda f: (f.LocalPath().endswith(('.cc', '.mm', '.h')))
+    for f in input_api.AffectedFiles(file_filter=file_filter):
+        for line_num, line in f.ChangedContents():
+            for ban_rule in _DEPRECATED_SYNC_CONSENT_CPP_FUNCTIONS:
+                CheckForMatch(f, line_num, line, ban_rule)
 
-    cpp_extensions = ('.cc', '.mm', '.h')
-    CheckFilesForFormat(
-        file_filter=lambda f: f.LocalPath().endswith(cpp_extensions),
-        ban_rules=_BANNED_CPP_FUNCTIONS)
+    file_filter = lambda f: f.LocalPath().endswith(('.mojom'))
+    for f in input_api.AffectedFiles(file_filter=file_filter):
+        for line_num, line in f.ChangedContents():
+            for ban_rule in _BANNED_MOJOM_PATTERNS:
+                CheckForMatch(f, line_num, line, ban_rule)
 
-    CheckFilesForFormat(
-        file_filter=lambda f:
-        (f.LocalPath().endswith(cpp_extensions) and
-         _treat_deprecated_sync_consent_as_error(f, input_api)),
-        ban_rules=_get_deprecated_sync_consent_cpp_functions(True))
-    CheckFilesForFormat(
-        file_filter=lambda f:
-        (f.LocalPath().endswith(cpp_extensions) and
-         not _treat_deprecated_sync_consent_as_error(f, input_api)),
-        ban_rules=_get_deprecated_sync_consent_cpp_functions(False))
-
-    CheckFilesForFormat(
-        file_filter=lambda f: f.LocalPath().endswith(('.mojom')),
-        ban_rules=_BANNED_MOJOM_PATTERNS)
-
-    CheckFilesForFormat(
-        file_filter=lambda f: f.LocalPath().endswith(('.gn', '.gni')),
-        ban_rules=_BANNED_GN_PATTERNS)
+    file_filter = lambda f: f.LocalPath().endswith(('.gn', '.gni'))
+    for f in input_api.AffectedFiles(file_filter=file_filter):
+        for line_num, line in f.ChangedContents():
+            for ban_rule in _BANNED_GN_PATTERNS:
+                CheckForMatch(f, line_num, line, ban_rule)
 
     return results
 
@@ -4768,7 +4727,6 @@ def _CheckChangeForIpcSecurityOwners(input_api):
         '*.mojom',
         '*_mojom_traits*.*',
         '*_type_converter*.*',
-        '*_extension_binder_provider*.*',
         # Android native IPC:
         '*.aidl',
     ]
@@ -6236,7 +6194,7 @@ def _CheckNewImagesWarning(input_api, output_api):
     return errors
 
 
-def CheckAndroidSpecificOnUpload(input_api, output_api):
+def ChecksAndroidSpecificOnUpload(input_api, output_api):
     """Groups upload checks that target android code."""
     results = []
     results.extend(_CheckAndroidCrLogUsage(input_api, output_api))
@@ -6253,7 +6211,7 @@ def CheckAndroidSpecificOnUpload(input_api, output_api):
     return results
 
 
-def CheckAndroidSpecificOnCommit(input_api, output_api):
+def ChecksAndroidSpecificOnCommit(input_api, output_api):
     """Groups commit checks that target android code."""
     results = []
     results.extend(_CheckAndroidXmlStyle(input_api, output_api, False))
@@ -6384,7 +6342,7 @@ _NON_INCLUSIVE_TERMS = (
         True), )
 
 
-def CheckCommon(input_api, output_api):
+def ChecksCommon(input_api, output_api):
     """Checks common to both upload and commit."""
     results = []
     results.extend(
@@ -6483,15 +6441,11 @@ def CheckBuildConfigMacrosWithoutInclude(input_api, output_api):
                                       input_api.re.MULTILINE)
     extension_re = input_api.re.compile(r'\.[a-z]+$')
     errors = []
-    file_filter = lambda f: input_api.FilterSourceFile(
-        f,
-        files_to_skip=input_api.DEFAULT_FILES_TO_SKIP +
-        (_THIRD_PARTY_EXCEPT_BLINK, ))
-    for f in input_api.AffectedFiles(include_deletes=False,
-                                     file_filter=file_filter):
+    config_h_file = input_api.os_path.join('build', 'build_config.h')
+    for f in input_api.AffectedFiles(include_deletes=False):
         # The build-config macros are allowed to be used in build_config.h
         # without including itself.
-        if f.UnixLocalPath() == 'build/build_config.h':
+        if f.LocalPath() == config_h_file:
             continue
         if not f.LocalPath().endswith(
             ('.h', '.c', '.cc', '.cpp', '.m', '.mm')):
@@ -6550,11 +6504,7 @@ def CheckForSuperfluousStlIncludesInHeaders(input_api, output_api):
                                           r'vector)>')
     std_namespace_re = input_api.re.compile(r'std::')
     errors = []
-    file_filter = lambda f: input_api.FilterSourceFile(
-        f,
-        files_to_skip=input_api.DEFAULT_FILES_TO_SKIP +
-        (_THIRD_PARTY_EXCEPT_BLINK, ))
-    for f in input_api.AffectedFiles(file_filter=file_filter):
+    for f in input_api.AffectedFiles():
         if not _IsCPlusPlusHeaderFile(input_api, f.LocalPath()):
             continue
 
@@ -7089,29 +7039,51 @@ def CheckNoDirectRefToAndroidSidePanelCachedFlag(input_api, output_api):
     return results
 
 
-def CheckPatchFormatted(input_api, output_api):
-    """Checks that the patch is formatted properly."""
-    return input_api.canned_checks.CheckPatchFormatted(input_api, output_api)
+def CheckChangeOnUpload(input_api, output_api):
+    if input_api.version < [2, 0, 0]:
+        return [
+            output_api.PresubmitError(
+                'Your depot_tools is out of date. '
+                'This PRESUBMIT.py requires at least presubmit_support version 2.0.0, '
+                'but your version is %d.%d.%d' % tuple(input_api.version))
+        ]
+    results = []
+    results.extend(
+        input_api.canned_checks.CheckPatchFormatted(input_api, output_api))
+    results.extend(CheckNoMainLayoutSwitcher(input_api, output_api))
+    results.extend(
+        CheckNoDirectRefToAndroidSidePanelCachedFlag(input_api, output_api))
+    return results
 
 
-def CheckTreeIsOpenOnCommit(input_api, output_api):
-    """Makes sure the tree is 'open' before committing."""
-    return input_api.canned_checks.CheckTreeIsOpen(
-        input_api,
-        output_api,
-        json_url='https://chromium-status.appspot.com/current?format=json')
+def CheckChangeOnCommit(input_api, output_api):
+    if input_api.version < [2, 0, 0]:
+        return [
+            output_api.PresubmitError(
+                'Your depot_tools is out of date. '
+                'This PRESUBMIT.py requires at least presubmit_support version 2.0.0, '
+                'but your version is %d.%d.%d' % tuple(input_api.version))
+        ]
 
+    results = []
+    # Make sure the tree is 'open'.
+    results.extend(
+        input_api.canned_checks.CheckTreeIsOpen(
+            input_api,
+            output_api,
+            json_url='http://chromium-status.appspot.com/current?format=json'))
 
-def CheckChangeHasBugFieldOnCommit(input_api, output_api):
-    """Checks that the commit description contains a BUG= field."""
-    return input_api.canned_checks.CheckChangeHasBugField(
-        input_api, output_api)
-
-
-def CheckChangeHasNoUnwantedTagsOnCommit(input_api, output_api):
-    """Checks that the commit description does not contain unwanted tags."""
-    return input_api.canned_checks.CheckChangeHasNoUnwantedTags(
-        input_api, output_api)
+    results.extend(
+        input_api.canned_checks.CheckPatchFormatted(input_api, output_api))
+    results.extend(
+        input_api.canned_checks.CheckChangeHasBugField(input_api, output_api))
+    results.extend(
+        input_api.canned_checks.CheckChangeHasNoUnwantedTags(
+            input_api, output_api))
+    results.extend(CheckNoMainLayoutSwitcher(input_api, output_api))
+    results.extend(
+        CheckNoDirectRefToAndroidSidePanelCachedFlag(input_api, output_api))
+    return results
 
 
 def CheckStrings(input_api, output_api):
@@ -7836,6 +7808,50 @@ def CheckAssertAshOnlyCode(input_api, output_api):
     return errors
 
 
+def _IsMiraclePtrDisallowed(input_api, affected_file):
+    path = affected_file.UnixLocalPath()
+    if not _IsCPlusPlusFile(input_api, path):
+        return False
+
+    # Renderer-only code is generally allowed to use MiraclePtr. These
+    # directories, however, are specifically disallowed, for perf reasons.
+    if ('third_party/blink/renderer/core/' in path
+            or 'third_party/blink/renderer/platform/heap/' in path
+            or 'third_party/blink/renderer/platform/fonts/' in path):
+        return True
+
+    # `functional.h` contains some shared plumbing, and should not be
+    # excluded directly.
+    if ('third_party/blink/renderer/platform/wtf/' in path and
+            'third_party/blink/renderer/platform/wtf/functional' not in path):
+        return True
+
+    # We assume that everything else may be used outside of Renderer processes.
+    return False
+
+
+# TODO(crbug.com/40206238): Remove these checks, once they are replaced
+# by the Chromium Clang Plugin (which will be preferable because it will
+# 1) report errors earlier - at compile-time and 2) cover more rules).
+def CheckRawPtrUsage(input_api, output_api):
+    """Rough checks that raw_ptr<T> usage guidelines are followed."""
+    errors = []
+    # The regex below matches "raw_ptr<" following a word boundary, but not in a
+    # C++ comment.
+    raw_ptr_matcher = input_api.re.compile(r'^((?!//).)*\braw_(ptr|ref|span)<')
+    file_filter = lambda f: _IsMiraclePtrDisallowed(input_api, f)
+    for f, line_num, line in input_api.RightHandSideLines(file_filter):
+        match_result = raw_ptr_matcher.search(line)
+        if match_result:
+            errors.append(
+                output_api.PresubmitError(
+                    f'Problem on {f.LocalPath()}:{line_num} - '
+                    f'`raw_{match_result.group(2)}` should not be used in this '
+                    'renderer code (as documented in the "Pointers to '
+                    'unprotected memory" section in //base/memory/raw_ptr.md)')
+            )
+    return errors
+
 
 def CheckAdvancedMemorySafetyChecksUsage(input_api, output_api):
     """Checks that ADVANCED_MEMORY_SAFETY_CHECKS() macro is neither added nor
@@ -7889,26 +7905,17 @@ def CheckPythonShebang(input_api, output_api):
 
 
 def CheckAndroidTestAnnotations(input_api, output_api):
-    """Checks annotations for Android test classes:
-    1. On-device instrumentation tests: Newly added tests using batch-capable
-       runners (e.g. ChromeJUnit4ClassRunner, BaseJUnit4ClassRunner, ParameterizedRunner)
-       must be annotated with either @Batch or @DoNotBatch.
-    2. Robolectric host tests: Must NOT use @Batch or @DoNotBatch annotations.
-       Should use BaseRobolectricTestRunner or BaseRobolectricTestRule.
-    """
+    """Checks that tests have either @Batch or @DoNotBatch annotation. If this
+    is not an instrumentation test, disregard."""
 
     batch_annotation = input_api.re.compile(r'^\s*@Batch')
     do_not_batch_annotation = input_api.re.compile(r'^\s*@DoNotBatch')
     robolectric_test = input_api.re.compile(
         r'@RunWith\((.*?)RobolectricTestRunner')
-    # Match batch-capable Chromium instrumentation test runners.
-    instrumentation_test = input_api.re.compile(
-        r'@RunWith\((?:(?:Base|Chrome|Aw|Content)JUnit4ClassRunner|ParameterizedRunner|Parameterized)\.class\)'
-    )
-    test_class_declaration = input_api.re.compile(
-        r'^\s*(?:public\s+|abstract\s+|final\s+)*class\s+\w+')
+    test_class_declaration = input_api.re.compile(r'^\s*public\sclass.*Test')
+    uiautomator_test = input_api.re.compile(r'[uU]i[aA]utomator')
     test_annotation_declaration = input_api.re.compile(
-        r'^\s*(?:public\s+)?@interface\s+\w+')
+        r'^\s*public\s@interface\s.*{')
 
     missing_annotation_errors = []
     extra_annotation_errors = []
@@ -7921,58 +7928,46 @@ def CheckAndroidTestAnnotations(input_api, output_api):
             files_to_check=[r'.*Test\.java$'])
 
     for f in input_api.AffectedSourceFiles(_FilterFile):
+        if f.Action() != 'A':
+            continue
         batch_matched = None
         do_not_batch_matched = None
-        test_annotation_declaration_matched = False
-        has_base_robolectric_runner = False
-        raw_robolectric_runner = False
-        is_robolectric_test = False
-        is_instrumentation_test = False
-
-        has_base_robolectric_rule = any(
-            'BaseRobolectricTestRule' in line for line in f.NewContents())
-        if has_base_robolectric_rule:
-            is_robolectric_test = True
-
+        is_instrumentation_test = True
+        test_annotation_declaration_matched = None
+        has_base_robolectric_rule = False
         for line in f.NewContents():
+            if 'BaseRobolectricTestRule' in line:
+                has_base_robolectric_rule = True
+                continue
             if m := robolectric_test.search(line):
-                is_robolectric_test = True
-                if m.group(1):
-                    has_base_robolectric_runner = True
-                else:
-                    raw_robolectric_runner = True
-            elif instrumentation_test.search(line):
-                is_instrumentation_test = True
-
+                is_instrumentation_test = False
+                if not m.group(1) and not has_base_robolectric_rule:
+                    path = str(f.LocalPath())
+                    # These two spots cannot use it.
+                    if 'webapk' not in path and 'build' not in path:
+                        wrong_robolectric_test_runner_errors.append(path)
+                break
+            if uiautomator_test.search(line):
+                is_instrumentation_test = False
+                break
             if not batch_matched:
                 batch_matched = batch_annotation.search(line)
             if not do_not_batch_matched:
                 do_not_batch_matched = do_not_batch_annotation.search(line)
-
-            if test_annotation_declaration.search(line):
-                test_annotation_declaration_matched = True
+            test_class_declaration_matched = test_class_declaration.search(
+                line)
+            test_annotation_declaration_matched = test_annotation_declaration.search(
+                line)
+            if test_class_declaration_matched or test_annotation_declaration_matched:
                 break
-            if test_class_declaration.search(line):
-                break
-
         if test_annotation_declaration_matched:
             continue
-
-        if is_robolectric_test:
-            if (raw_robolectric_runner and not has_base_robolectric_runner
-                    and not has_base_robolectric_rule):
-                path = str(f.LocalPath())
-                # These two spots cannot use it.
-                if 'webapk' not in path and 'build' not in path:
-                    wrong_robolectric_test_runner_errors.append(path)
-
-            if batch_matched or do_not_batch_matched:
-                extra_annotation_errors.append(str(f.LocalPath()))
-        elif is_instrumentation_test:
-            # Standard on-device instrumentation test.
-            if (f.Action() == 'A' and not batch_matched
-                    and not do_not_batch_matched):
-                missing_annotation_errors.append(str(f.LocalPath()))
+        if (is_instrumentation_test and not batch_matched
+                and not do_not_batch_matched):
+            missing_annotation_errors.append(str(f.LocalPath()))
+        if (not is_instrumentation_test
+                and (batch_matched or do_not_batch_matched)):
+            extra_annotation_errors.append(str(f.LocalPath()))
 
     results = []
 
@@ -7987,9 +7982,9 @@ See https://source.chromium.org/chromium/chromium/src/+/main:docs/testing/batchi
 """, missing_annotation_errors))
     if extra_annotation_errors:
         results.append(
-            output_api.PresubmitError(
+            output_api.PresubmitPromptWarning(
                 """
-Robolectric tests should not use @Batch or @DoNotBatch annotations.
+Robolectric tests do not need a @Batch or @DoNotBatch annotations.
 """, extra_annotation_errors))
     if wrong_robolectric_test_runner_errors:
         results.append(
@@ -8548,13 +8543,9 @@ def CheckSettingsChanges(input_api, output_api):
 
     registry_filename = 'SearchIndexProviderRegistry.java'
 
-    # Filter for Java files, excluding the registry file itself and test files.
-    is_java_file = lambda f: (
-        f.LocalPath().endswith('.java')
-        and not f.LocalPath().endswith(registry_filename)
-        and not f.LocalPath().endswith(('Test.java', 'TestCase.java'))
-        and not input_api.re.search(r'[\\/](?:javatests|junit|test)[\\/]',
-                                    f.LocalPath()))
+    # Filter for Java files, excluding the registry file itself.
+    is_java_file = lambda f: (f.LocalPath().endswith('.java') and not f.
+                              LocalPath().endswith(registry_filename))
     java_files = input_api.AffectedFiles(include_deletes=False,
                                          file_filter=is_java_file)
 
@@ -8640,14 +8631,13 @@ def CheckSettingsChanges(input_api, output_api):
         content = input_api.ReadFile(f)
 
         inheritance_match = java_inheritance_re.search(content)
-        has_provider_field = bool(provider_field_re.search(content))
         # Determine if the file is a Settings screen. We use three different checks
         # to cover the different possible scenarios:
         #   1. Inheritance: Does it extend a known Settings/Preference base class?
         #   2. Field existence: Does it already define a SEARCH_INDEX_DATA_PROVIDER?
         #   3. Signature methods: Does it override onCreatePreferences or
         #      getPreferenceResource (the standard entry points for settings UIs)?
-        if not (inheritance_match or has_provider_field
+        if not (inheritance_match or 'SEARCH_INDEX_DATA_PROVIDER' in content
                 or 'onCreatePreferences' in content):
             continue
 
@@ -8659,7 +8649,7 @@ def CheckSettingsChanges(input_api, output_api):
         name_match = inheritance_match or class_name_re.search(content)
         class_name = name_match.group(1) if name_match else None
 
-        if not has_provider_field:
+        if not provider_field_re.search(content):
             problems.append(
                 f'{f.LocalPath()}:0\n'
                 f'    \tIssue:  Missing SEARCH_INDEX_DATA_PROVIDER field.\n'

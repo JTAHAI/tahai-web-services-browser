@@ -1,2 +1,3 @@
 This tests copy/paste of an unrendered select.  The options inside of it should not be pasted.
-| "Hello World<#selection-caret>"
+| "Hello "
+| "World<#selection-caret>"

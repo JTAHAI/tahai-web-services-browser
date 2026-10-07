@@ -12,10 +12,10 @@
 #include "components/autofill/core/browser/foundations/test_browser_autofill_manager.h"
 #include "components/autofill/core/browser/foundations/with_test_autofill_client_driver_manager.h"
 #include "components/autofill/core/browser/integrators/autofill_ai/mock_autofill_ai_manager.h"
-#include "components/autofill/core/browser/test_utils/entity_data_test_util.h"
+#include "components/autofill/core/browser/test_utils/entity_data_test_utils.h"
 #include "components/autofill/core/browser/webdata/autofill_ai/entity_table.h"
 #include "components/autofill/core/browser/webdata/autofill_webdata_service_test_helper.h"
-#include "components/autofill/core/common/autofill_test_util.h"
+#include "components/autofill/core/common/autofill_test_utils.h"
 #include "components/autofill/core/common/form_data.h"
 #include "components/autofill/core/common/form_field_data.h"
 #include "testing/gmock/include/gmock/gmock.h"
@@ -32,6 +32,14 @@ static constexpr char kTestGuid[] = "00000000-0000-4000-8000-000000000001";
 class MockAutofillClient : public TestAutofillClient {
  public:
   using TestAutofillClient::TestAutofillClient;
+  MOCK_METHOD(bool,
+              ShouldShowPersonalContextAmbientAutofillNotice,
+              (),
+              (const, override));
+  MOCK_METHOD(void,
+              MarkPersonalContextAmbientAutofillNoticeAsAcknowledged,
+              (),
+              (override));
   MOCK_METHOD(bool,
               ShowAmbientAutoFillNotice,
               (base::WeakPtr<TouchToFillAutofillDelegate> delegate),
@@ -111,9 +119,8 @@ TEST_F(TouchToFillAutofillDelegateAndroidImplTest,
       autofill_client().GetAutofillAiManager());
   ON_CALL(*mock_ai_manager, GetSuggestions)
       .WillByDefault(Return(CreatePersonalContextSuggestions()));
-  autofill_client()
-      .GetPersonalContextFirstRunService()
-      ->set_should_show_ambient_autofill_notice(true);
+  EXPECT_CALL(autofill_client(), ShouldShowPersonalContextAmbientAutofillNotice)
+      .WillOnce(Return(true));
   auto [form_id, field_id] = SeeForm();
   EXPECT_TRUE(delegate().IntendsToShowTouchToFill(form_id, field_id));
 }
@@ -122,9 +129,8 @@ TEST_F(TouchToFillAutofillDelegateAndroidImplTest,
 // client disallows it.
 TEST_F(TouchToFillAutofillDelegateAndroidImplTest,
        DoesNotIntendToShowTouchToFillWhenClientShouldNotShow) {
-  autofill_client()
-      .GetPersonalContextFirstRunService()
-      ->set_should_show_ambient_autofill_notice(false);
+  EXPECT_CALL(autofill_client(), ShouldShowPersonalContextAmbientAutofillNotice)
+      .WillOnce(Return(false));
   auto [form_id, field_id] = SeeForm();
   EXPECT_FALSE(delegate().IntendsToShowTouchToFill(form_id, field_id));
 }
@@ -133,10 +139,9 @@ TEST_F(TouchToFillAutofillDelegateAndroidImplTest,
 // acknowledged.
 TEST_F(TouchToFillAutofillDelegateAndroidImplTest,
        OnNoticeAcknowledgedNotifiesClient) {
+  EXPECT_CALL(autofill_client(),
+              MarkPersonalContextAmbientAutofillNoticeAsAcknowledged);
   delegate().OnNoticeAcknowledged();
-  EXPECT_TRUE(autofill_client()
-                  .GetPersonalContextFirstRunService()
-                  ->is_ambient_autofill_notice_acknowledged());
 }
 
 // Verifies that trying to show TouchToFill successfully triggers the notice on
@@ -147,25 +152,16 @@ TEST_F(TouchToFillAutofillDelegateAndroidImplTest,
       autofill_client().GetAutofillAiManager());
   ON_CALL(*mock_ai_manager, GetSuggestions)
       .WillByDefault(Return(CreatePersonalContextSuggestions()));
-  autofill_client()
-      .GetPersonalContextFirstRunService()
-      ->set_should_show_ambient_autofill_notice(true);
+  EXPECT_CALL(autofill_client(), ShouldShowPersonalContextAmbientAutofillNotice)
+      .WillOnce(Return(true));
   EXPECT_CALL(autofill_client(), ShowAmbientAutoFillNotice)
       .WillOnce(Return(true));
   FormData form = test::CreateTestPersonalInformationFormData();
   autofill_manager().AddSeenForm(
       form, std::vector<FieldType>(form.fields().size(), UNKNOWN_TYPE));
   EXPECT_FALSE(delegate().IsShowingTouchToFill());
-  EXPECT_EQ(autofill_client()
-                .GetPersonalContextFirstRunService()
-                ->ambient_autofill_notice_impressions(),
-            0);
   EXPECT_TRUE(delegate().TryToShowTouchToFill(form, form.fields()[0]));
   EXPECT_TRUE(delegate().IsShowingTouchToFill());
-  EXPECT_EQ(autofill_client()
-                .GetPersonalContextFirstRunService()
-                ->ambient_autofill_notice_impressions(),
-            1);
 }
 
 // Verifies that trying to show TouchToFill returns false if the client fails to
@@ -176,9 +172,8 @@ TEST_F(TouchToFillAutofillDelegateAndroidImplTest,
       autofill_client().GetAutofillAiManager());
   ON_CALL(*mock_ai_manager, GetSuggestions)
       .WillByDefault(Return(CreatePersonalContextSuggestions()));
-  autofill_client()
-      .GetPersonalContextFirstRunService()
-      ->set_should_show_ambient_autofill_notice(true);
+  EXPECT_CALL(autofill_client(), ShouldShowPersonalContextAmbientAutofillNotice)
+      .WillOnce(Return(true));
   EXPECT_CALL(autofill_client(), ShowAmbientAutoFillNotice)
       .WillOnce(Return(false));
   FormData form = test::CreateTestPersonalInformationFormData();
@@ -193,9 +188,8 @@ TEST_F(TouchToFillAutofillDelegateAndroidImplTest,
 // disallows showing it.
 TEST_F(TouchToFillAutofillDelegateAndroidImplTest,
        TryToShowTouchToFillReturnsFalseWhenClientShouldNotShow) {
-  autofill_client()
-      .GetPersonalContextFirstRunService()
-      ->set_should_show_ambient_autofill_notice(false);
+  EXPECT_CALL(autofill_client(), ShouldShowPersonalContextAmbientAutofillNotice)
+      .WillOnce(Return(false));
   EXPECT_CALL(autofill_client(), ShowAmbientAutoFillNotice).Times(0);
   FormData form = test::CreateTestPersonalInformationFormData();
   autofill_manager().AddSeenForm(
@@ -210,9 +204,8 @@ TEST_F(TouchToFillAutofillDelegateAndroidImplTest, HideTouchToFillHidesNotice) {
       autofill_client().GetAutofillAiManager());
   ON_CALL(*mock_ai_manager, GetSuggestions)
       .WillByDefault(Return(CreatePersonalContextSuggestions()));
-  autofill_client()
-      .GetPersonalContextFirstRunService()
-      ->set_should_show_ambient_autofill_notice(true);
+  EXPECT_CALL(autofill_client(), ShouldShowPersonalContextAmbientAutofillNotice)
+      .WillOnce(Return(true));
   EXPECT_CALL(autofill_client(), ShowAmbientAutoFillNotice)
       .WillOnce(Return(true));
   FormData form = test::CreateTestPersonalInformationFormData();
@@ -232,9 +225,8 @@ TEST_F(TouchToFillAutofillDelegateAndroidImplTest, OnDismissedResetsState) {
       autofill_client().GetAutofillAiManager());
   ON_CALL(*mock_ai_manager, GetSuggestions)
       .WillByDefault(Return(CreatePersonalContextSuggestions()));
-  autofill_client()
-      .GetPersonalContextFirstRunService()
-      ->set_should_show_ambient_autofill_notice(true);
+  EXPECT_CALL(autofill_client(), ShouldShowPersonalContextAmbientAutofillNotice)
+      .WillOnce(Return(true));
   EXPECT_CALL(autofill_client(), ShowAmbientAutoFillNotice)
       .WillOnce(Return(true));
   FormData form = test::CreateTestPersonalInformationFormData();
@@ -255,9 +247,8 @@ TEST_F(TouchToFillAutofillDelegateAndroidImplTest,
       autofill_client().GetAutofillAiManager());
   ON_CALL(*mock_ai_manager, GetSuggestions)
       .WillByDefault(Return(CreatePersonalContextSuggestions()));
-  autofill_client()
-      .GetPersonalContextFirstRunService()
-      ->set_should_show_ambient_autofill_notice(true);
+  EXPECT_CALL(autofill_client(), ShouldShowPersonalContextAmbientAutofillNotice)
+      .WillRepeatedly(Return(true));
   EXPECT_CALL(autofill_client(), ShowAmbientAutoFillNotice)
       .WillRepeatedly(Return(true));
 
@@ -286,9 +277,8 @@ TEST_F(TouchToFillAutofillDelegateAndroidImplTest,
       autofill_client().GetAutofillAiManager());
   ON_CALL(*mock_ai_manager, GetSuggestions)
       .WillByDefault(Return(CreatePersonalContextSuggestions()));
-  autofill_client()
-      .GetPersonalContextFirstRunService()
-      ->set_should_show_ambient_autofill_notice(true);
+  EXPECT_CALL(autofill_client(), ShouldShowPersonalContextAmbientAutofillNotice)
+      .WillRepeatedly(Return(true));
   EXPECT_CALL(autofill_client(), ShowAmbientAutoFillNotice)
       .WillRepeatedly(Return(true));
 
@@ -300,10 +290,9 @@ TEST_F(TouchToFillAutofillDelegateAndroidImplTest,
   ASSERT_TRUE(delegate().IsShowingTouchToFill());
 
   // Acknowledge notice.
+  EXPECT_CALL(autofill_client(),
+              MarkPersonalContextAmbientAutofillNoticeAsAcknowledged);
   delegate().OnNoticeAcknowledged();
-  EXPECT_TRUE(autofill_client()
-                  .GetPersonalContextFirstRunService()
-                  ->is_ambient_autofill_notice_acknowledged());
 
   // State should still be showing (waiting for dismissal callback).
   EXPECT_TRUE(delegate().IsShowingTouchToFill());
@@ -327,9 +316,8 @@ TEST_F(TouchToFillAutofillDelegateAndroidImplTest,
       autofill_client().GetAutofillAiManager());
   ON_CALL(*mock_ai_manager, GetSuggestions)
       .WillByDefault(Return(CreatePersonalContextSuggestions()));
-  autofill_client()
-      .GetPersonalContextFirstRunService()
-      ->set_should_show_ambient_autofill_notice(true);
+  EXPECT_CALL(autofill_client(), ShouldShowPersonalContextAmbientAutofillNotice)
+      .WillRepeatedly(Return(true));
   EXPECT_CALL(autofill_client(), ShowAmbientAutoFillNotice)
       .WillRepeatedly(Return(true));
 
@@ -360,10 +348,9 @@ TEST_F(TouchToFillAutofillDelegateAndroidImplTest,
       form, std::vector<FieldType>(form.fields().size(), UNKNOWN_TYPE));
 
   // Verify that onsettingslink or notice acknowledge triggers OnDismissed
+  EXPECT_CALL(autofill_client(),
+              MarkPersonalContextAmbientAutofillNoticeAsAcknowledged);
   delegate().OnNoticeAcknowledged();
-  EXPECT_TRUE(autofill_client()
-                  .GetPersonalContextFirstRunService()
-                  ->is_ambient_autofill_notice_acknowledged());
 }
 
 // Verifies that clicking the settings link transitions the state to navigating
@@ -375,9 +362,8 @@ TEST_F(TouchToFillAutofillDelegateAndroidImplTest,
       autofill_client().GetAutofillAiManager());
   ON_CALL(*mock_ai_manager, GetSuggestions)
       .WillByDefault(Return(CreatePersonalContextSuggestions()));
-  autofill_client()
-      .GetPersonalContextFirstRunService()
-      ->set_should_show_ambient_autofill_notice(true);
+  EXPECT_CALL(autofill_client(), ShouldShowPersonalContextAmbientAutofillNotice)
+      .WillRepeatedly(Return(true));
   EXPECT_CALL(autofill_client(), ShowAmbientAutoFillNotice)
       .WillRepeatedly(Return(true));
 
@@ -408,9 +394,8 @@ TEST_F(TouchToFillAutofillDelegateAndroidImplTest,
   // Setup mock to return suggestions initially so the sheet can be shown.
   ON_CALL(*mock_ai_manager, GetSuggestions)
       .WillByDefault(Return(CreatePersonalContextSuggestions()));
-  autofill_client()
-      .GetPersonalContextFirstRunService()
-      ->set_should_show_ambient_autofill_notice(true);
+  EXPECT_CALL(autofill_client(), ShouldShowPersonalContextAmbientAutofillNotice)
+      .WillRepeatedly(Return(true));
   EXPECT_CALL(autofill_client(), ShowAmbientAutoFillNotice)
       .WillRepeatedly(Return(true));
 
@@ -448,9 +433,8 @@ TEST_F(TouchToFillAutofillDelegateAndroidImplTest,
 // no personal context suggestions available.
 TEST_F(TouchToFillAutofillDelegateAndroidImplTest,
        DoesNotIntendToShowTouchToFillWhenSuggestionsAreMissing) {
-  autofill_client()
-      .GetPersonalContextFirstRunService()
-      ->set_should_show_ambient_autofill_notice(true);
+  EXPECT_CALL(autofill_client(), ShouldShowPersonalContextAmbientAutofillNotice)
+      .WillOnce(Return(true));
   auto [form_id, field_id] = SeeForm();
   EXPECT_FALSE(delegate().IntendsToShowTouchToFill(form_id, field_id));
 }

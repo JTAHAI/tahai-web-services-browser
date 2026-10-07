@@ -5,7 +5,6 @@
 #include "components/browser_actuator/internal/transport_handler_factory_registry_impl.h"
 
 #include <algorithm>
-#include <ostream>
 
 #include "base/check.h"
 #include "components/browser_actuator/public/transport_handler_factory.h"
@@ -23,16 +22,6 @@ void TransportHandlerFactoryRegistryImpl::RegisterFactory(
     TransportHandlerFactory* factory) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   DCHECK(factory);
-  for (const auto& [type, list] : factories_) {
-    for (TransportHandlerFactory* registered : list) {
-      if (registered->GetFactoryId() == factory->GetFactoryId() &&
-          registered != factory) {
-        DCHECK(false) << "Duplicate registration of factory with ID: "
-                      << static_cast<int>(factory->GetFactoryId());
-        return;
-      }
-    }
-  }
   for (PayloadType payload_type : factory->GetSupportedPayloadTypes()) {
     auto& registered_factories = factories_[payload_type];
     if (!std::ranges::contains(registered_factories, factory)) {

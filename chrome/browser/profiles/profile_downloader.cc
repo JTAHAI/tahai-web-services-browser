@@ -80,7 +80,7 @@ std::u16string ProfileDownloader::GetProfileGivenName() const {
 }
 
 std::string ProfileDownloader::GetProfileLocale() const {
-  return std::string(account_info_.GetLocale().value_or(""));
+  return account_info_.locale;
 }
 
 SkBitmap ProfileDownloader::GetProfilePicture() const {
@@ -294,7 +294,7 @@ void ProfileDownloader::OnAccessTokenFetchComplete(
 }
 
 void ProfileDownloader::OnExtendedAccountInfoUpdated(const AccountInfo& info) {
-  if (info.GetAccountId() == account_id_ && info.IsValid()) {
+  if (info.account_id == account_id_ && info.IsValid()) {
     account_info_ = info;
 
     // If the StartFetchingImage was called before we had valid info, the

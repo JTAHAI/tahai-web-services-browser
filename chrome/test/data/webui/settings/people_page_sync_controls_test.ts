@@ -6,16 +6,20 @@
 import 'chrome://settings/lazy_load.js';
 
 import {webUIListenerCallback} from 'chrome://resources/js/cr.js';
+import {flush} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 import type {SettingsSyncControlsElement} from 'chrome://settings/lazy_load.js';
 import type {CrRadioButtonElement, CrToggleElement, SyncPrefs} from 'chrome://settings/settings.js';
 import {loadTimeData, Router, resetRouterForTesting, SignedInState, StatusAction, SyncBrowserProxyImpl} from 'chrome://settings/settings.js';
 import {assertEquals, assertDeepEquals, assertFalse, assertTrue} from 'chrome://webui-test/chai_assert.js';
-import {eventToPromise, isChildVisible, isVisible, microtasksFinished} from 'chrome://webui-test/test_util.js';
+import {waitBeforeNextRender} from 'chrome://webui-test/polymer_test_util.js';
+import {eventToPromise, isVisible} from 'chrome://webui-test/test_util.js';
 
 import {getSyncAllPrefs, getSyncAllPrefsManaged} from './sync_test_util.js';
 import {TestSyncBrowserProxy} from './test_sync_browser_proxy.js';
 
-import {PageStatus, routes, UserSelectableType, PluralStringProxyImpl} from 'chrome://settings/settings.js';
+import {isChildVisible} from 'chrome://webui-test/test_util.js';
+import {PageStatus, routes, UserSelectableType, SettingsPluralStringProxyImpl} from 'chrome://settings/settings.js';
+import {waitAfterNextRender, flushTasks} from 'chrome://webui-test/polymer_test_util.js';
 import {BatchUploadPromoProxyImpl} from 'chrome://settings/lazy_load.js';
 import {TestPluralStringProxy} from 'chrome://webui-test/test_plural_string_proxy.js';
 
@@ -44,27 +48,27 @@ suite('SyncControlsTest', function() {
 
     // Start with Sync All.
     webUIListenerCallback('sync-prefs-changed', getSyncAllPrefs());
-    await microtasksFinished();
+    flush();
 
-    syncEverything = syncControls.shadowRoot.querySelector(
+    await waitBeforeNextRender(syncControls);
+    syncEverything = syncControls.shadowRoot!.querySelector(
         'cr-radio-button[name="sync-everything"]')!;
-    customizeSync = syncControls.shadowRoot.querySelector(
+    customizeSync = syncControls.shadowRoot!.querySelector(
         'cr-radio-button[name="customize-sync"]')!;
-    const group = syncControls.shadowRoot.querySelector('cr-radio-group');
+    const group = syncControls.shadowRoot!.querySelector('cr-radio-group');
     assertTrue(!!group);
     radioGroup = group;
     assertTrue(!!customizeSync);
     assertTrue(!!radioGroup);
   });
 
-  async function assertPrefs(
+  function assertPrefs(
       prefs: SyncPrefs, datatypeControls: NodeListOf<CrToggleElement>) {
     const expected = getSyncAllPrefs();
     expected.syncAllDataTypes = false;
     assertDeepEquals(expected, prefs);
 
     webUIListenerCallback('sync-prefs-changed', expected);
-    await microtasksFinished();
 
     // Assert that all the individual datatype controls are checked and enabled.
     for (const control of datatypeControls) {
@@ -74,7 +78,7 @@ suite('SyncControlsTest', function() {
 
     // Assert that all policy indicators are hidden.
     const policyIndicators =
-        syncControls.shadowRoot.querySelectorAll('cr-policy-indicator');
+        syncControls.shadowRoot!.querySelectorAll('cr-policy-indicator');
     assertTrue(policyIndicators.length > 0);
     for (const indicator of policyIndicators) {
       assertFalse(isVisible(indicator));
@@ -87,12 +91,12 @@ suite('SyncControlsTest', function() {
     assertTrue(syncEverything.checked);
     assertFalse(customizeSync.checked);
     assertEquals(
-        syncControls.shadowRoot.querySelector('#syncAllDataTypesControl'),
+        syncControls.shadowRoot!.querySelector('#syncAllDataTypesControl'),
         null);
 
     // Assert that all the individual datatype controls are disabled.
     const datatypeControls =
-        syncControls.shadowRoot.querySelectorAll<CrToggleElement>(
+        syncControls.shadowRoot!.querySelectorAll<CrToggleElement>(
             '.list-item:not([hidden]) > cr-toggle');
 
     assertTrue(datatypeControls.length > 0);
@@ -107,10 +111,10 @@ suite('SyncControlsTest', function() {
     assertTrue(customizeSync.checked);
 
     const prefs = await browserProxy.whenCalled('setSyncDatatypes');
-    await assertPrefs(prefs, datatypeControls);
+    assertPrefs(prefs, datatypeControls);
   });
 
-  test('Syncing', async function() {
+  test('Syncing', function() {
     // Controls are available by default.
     assertFalse(syncControls.hidden);
 
@@ -120,12 +124,11 @@ suite('SyncControlsTest', function() {
       signedInState: SignedInState.SYNCING,
       statusAction: StatusAction.NO_ACTION,
     };
-    await microtasksFinished();
     // Controls are available when syncing and there is no error.
     assertFalse(syncControls.hidden);
   });
 
-  test('SignedIn', async function() {
+  test('SignedIn', function() {
     // Controls are available by default.
     assertFalse(syncControls.hidden);
 
@@ -135,31 +138,28 @@ suite('SyncControlsTest', function() {
       signedInState: SignedInState.SIGNED_IN,
       statusAction: StatusAction.NO_ACTION,
     };
-    await microtasksFinished();
     // Controls are hidden when signed in, even if there is no error.
     assertTrue(syncControls.hidden);
   });
 
-  test('SyncDisabled', async function() {
+  test('SyncDisabled', function() {
     syncControls.syncStatus = {
       disabled: true,
       hasError: false,
       signedInState: SignedInState.SYNCING,
       statusAction: StatusAction.NO_ACTION,
     };
-    await microtasksFinished();
     // Controls are hidden when sync is disabled.
     assertTrue(syncControls.hidden);
   });
 
-  test('SyncError', async function() {
+  test('SyncError', function() {
     syncControls.syncStatus = {
       disabled: false,
       hasError: true,
       signedInState: SignedInState.SYNCING,
       statusAction: StatusAction.NO_ACTION,
     };
-    await microtasksFinished();
     // Controls are hidden when there is an error but it's not a
     // passphrase error.
     assertTrue(syncControls.hidden);
@@ -170,32 +170,29 @@ suite('SyncControlsTest', function() {
       signedInState: SignedInState.SYNCING,
       statusAction: StatusAction.ENTER_PASSPHRASE,
     };
-    await microtasksFinished();
     // Controls are available when there is a passphrase error.
     assertFalse(syncControls.hidden);
   });
 
-  test('BookmarkLimitError', async function() {
+  test('BookmarkLimitError', function() {
     syncControls.syncStatus = {
       disabled: false,
       hasError: true,
       signedInState: SignedInState.SYNCING,
       statusAction: StatusAction.SHOW_BOOKMARKS_LIMIT_HELP_ARTICLE,
     };
-    await microtasksFinished();
     // Controls are available when there is a bookmark limit error.
     assertFalse(syncControls.hidden);
   });
 
   // Regression test for crbug.com/467318495.
-  test('SyncNotConfirmed', async function() {
+  test('SyncNotConfirmed', function() {
     syncControls.syncStatus = {
       disabled: false,
       hasError: true,
       signedInState: SignedInState.SYNCING,
       statusAction: StatusAction.CONFIRM_SYNC_SETTINGS,
     };
-    await microtasksFinished();
     // Controls are not hidden when sync is not yet confirmed.
     assertFalse(syncControls.hidden);
   });
@@ -208,8 +205,8 @@ suite('SyncControlsTest', function() {
 
     // The cookies element is not visible when syncCookiesSupported is disabled
     // (default).
-    let cookieListItem =
-        syncControls.shadowRoot.querySelector('#cookiesSyncItem:not([hidden])');
+    let cookieListItem = syncControls.shadowRoot!.querySelector(
+        '#cookiesSyncItem:not([hidden])');
     assertFalse(!!cookieListItem);
 
     // Enable syncCookiesSupported.
@@ -220,14 +217,13 @@ suite('SyncControlsTest', function() {
       statusAction: StatusAction.NO_ACTION,
       syncCookiesSupported: true,
     };
-    await microtasksFinished();
     // The cookies element is now visible.
-    cookieListItem =
-        syncControls.shadowRoot.querySelector('#cookiesSyncItem:not([hidden])');
+    cookieListItem = syncControls.shadowRoot!.querySelector(
+        '#cookiesSyncItem:not([hidden])');
     assertTrue(!!cookieListItem);
     // Cookies checkbox is disabled.
     let cookiesCheckbox: CrToggleElement =
-        syncControls.shadowRoot.querySelector('#cookiesCheckbox')!;
+        syncControls.shadowRoot!.querySelector('#cookiesCheckbox')!;
     assertTrue(!!cookiesCheckbox);
     assertTrue(cookiesCheckbox.disabled);
     assertTrue(cookiesCheckbox.checked);
@@ -240,7 +236,7 @@ suite('SyncControlsTest', function() {
 
     // Cookies checkbox is enabled.
     cookiesCheckbox =
-        syncControls.shadowRoot.querySelector('#cookiesCheckbox')!;
+        syncControls.shadowRoot!.querySelector('#cookiesCheckbox')!;
     assertTrue(!!cookiesCheckbox);
     assertFalse(cookiesCheckbox.disabled);
     assertTrue(cookiesCheckbox.checked);
@@ -248,12 +244,11 @@ suite('SyncControlsTest', function() {
   // </if>
 });
 
-// <if expr="is_chromeos">
 suite('SyncControlsSubpageTest', function() {
   let syncControls: SettingsSyncControlsElement;
   let browserProxy: TestSyncBrowserProxy;
 
-  setup(async function() {
+  setup(function() {
     browserProxy = new TestSyncBrowserProxy();
     SyncBrowserProxyImpl.setInstance(browserProxy);
 
@@ -273,51 +268,48 @@ suite('SyncControlsSubpageTest', function() {
       signedInState: SignedInState.SYNCING,
       statusAction: StatusAction.NO_ACTION,
     };
-    await microtasksFinished();
+    flush();
 
     assertEquals(router.getRoutes().SYNC_ADVANCED, router.getCurrentRoute());
   });
 
-  test('SignedOut', async function() {
+  test('SignedOut', function() {
     syncControls.syncStatus = {
       disabled: false,
       hasError: false,
       signedInState: SignedInState.SIGNED_OUT,
       statusAction: StatusAction.NO_ACTION,
     };
-    await microtasksFinished();
     const router = Router.getInstance();
     assertEquals(router.getRoutes().SYNC.path, router.getCurrentRoute().path);
   });
 
-  test('PassphraseError', async function() {
+  test('PassphraseError', function() {
     syncControls.syncStatus = {
       disabled: false,
       hasError: true,
       signedInState: SignedInState.SYNCING,
       statusAction: StatusAction.ENTER_PASSPHRASE,
     };
-    await microtasksFinished();
     const router = Router.getInstance();
     assertEquals(
         router.getRoutes().SYNC_ADVANCED.path, router.getCurrentRoute().path);
   });
 
-  test('SyncPaused', async function() {
+  test('SyncPaused', function() {
     syncControls.syncStatus = {
       disabled: false,
       hasError: true,
       signedInState: SignedInState.SYNCING,
       statusAction: StatusAction.REAUTHENTICATE,
     };
-    await microtasksFinished();
     const router = Router.getInstance();
     assertEquals(router.getRoutes().SYNC.path, router.getCurrentRoute().path);
   });
 
   test(
       'NavigateToAccountSettingsWhenReplacingWithSigninPromoAndNotSyncing',
-      async function() {
+      function() {
         loadTimeData.overrideValues({replaceSyncPromosWithSignInPromos: true});
         resetRouterForTesting();
         const router = Router.getInstance();
@@ -329,12 +321,11 @@ suite('SyncControlsSubpageTest', function() {
           signedInState: SignedInState.SIGNED_IN,
           statusAction: StatusAction.NO_ACTION,
         };
-        await microtasksFinished();
+        flush();
 
         assertEquals(routes.ACCOUNT, router.getCurrentRoute());
       });
 });
-// </if>
 
 suite('SyncControlsAccountSettingsTest', function() {
   let syncControls: SettingsSyncControlsElement;
@@ -350,11 +341,9 @@ suite('SyncControlsAccountSettingsTest', function() {
     BatchUploadPromoProxyImpl.setInstance(batchUploadPromoProxy);
 
     pluralStringProxy = new TestPluralStringProxy();
-    PluralStringProxyImpl.setInstance(pluralStringProxy);
+    SettingsPluralStringProxyImpl.setInstance(pluralStringProxy);
 
-    // <if expr="is_chromeos">
     loadTimeData.overrideValues({replaceSyncPromosWithSignInPromos: true});
-    // </if>
     // <if expr="not is_chromeos">
     loadTimeData.overrideValues({unoPhase2FollowUp: true});
     // </if>
@@ -372,7 +361,7 @@ suite('SyncControlsAccountSettingsTest', function() {
       signedInState: SignedInState.SIGNED_IN,
       statusAction: StatusAction.NO_ACTION,
     };
-    await microtasksFinished();
+    await waitBeforeNextRender(syncControls);
 
     assertEquals(routes.ACCOUNT, router.getCurrentRoute());
     await browserProxy.whenCalled('didNavigateToAccountSettingsPage');
@@ -386,12 +375,13 @@ suite('SyncControlsAccountSettingsTest', function() {
     const initialPrefs = getSyncAllPrefs();
     initialPrefs.syncAllDataTypes = false;
     webUIListenerCallback('sync-prefs-changed', initialPrefs);
-    await microtasksFinished();
+    await flushTasks();
+    await waitAfterNextRender(syncControls);
   }
 
   function assertControlsEnabled(enabled: boolean) {
     const datatypeControls =
-        syncControls.shadowRoot.querySelectorAll<CrToggleElement>(
+        syncControls.shadowRoot!.querySelectorAll<CrToggleElement>(
             '.list-item:not([hidden]) > cr-toggle');
     assertTrue(datatypeControls.length > 0);
     for (const control of datatypeControls) {
@@ -400,13 +390,13 @@ suite('SyncControlsAccountSettingsTest', function() {
   }
 
   function assertSyncDisabledPolicyIndicatorShown(shown: boolean) {
-    const policyIndicator = syncControls.shadowRoot.querySelector<Element>(
+    const policyIndicator = syncControls.shadowRoot!.querySelector<Element>(
         '#syncDisabledIndicator');
     assertEquals(shown, isVisible(policyIndicator));
   }
 
   function assertIndividualItemPolicyIndicatorsShown(shown: boolean) {
-    const policyIndicators = syncControls.shadowRoot.querySelectorAll(
+    const policyIndicators = syncControls.shadowRoot!.querySelectorAll(
         'cr-policy-indicator:not(#syncDisabledIndicator)');
     assertTrue(policyIndicators.length > 0);
 
@@ -432,10 +422,10 @@ suite('SyncControlsAccountSettingsTest', function() {
   }
 
   test('SyncEverythingControlsAreHidden', function() {
-    const radioGroup = syncControls.shadowRoot.querySelector('cr-radio-group');
-    const syncEverything = syncControls.shadowRoot.querySelector(
+    const radioGroup = syncControls.shadowRoot!.querySelector('cr-radio-group');
+    const syncEverything = syncControls.shadowRoot!.querySelector(
         'cr-radio-button[name="sync-everything"]')!;
-    const customizeSync = syncControls.shadowRoot.querySelector(
+    const customizeSync = syncControls.shadowRoot!.querySelector(
         'cr-radio-button[name="customize-sync"]')!;
 
     assertFalse(isVisible(radioGroup));
@@ -453,7 +443,7 @@ suite('SyncControlsAccountSettingsTest', function() {
     assertControlsEnabled(true);
   });
 
-  test('SignedInError', async function() {
+  test('SignedInError', function() {
     // Controls are available by default.
     assertFalse(syncControls.hidden);
 
@@ -463,12 +453,11 @@ suite('SyncControlsAccountSettingsTest', function() {
       signedInState: SignedInState.SIGNED_IN,
       statusAction: StatusAction.NO_ACTION,
     };
-    await microtasksFinished();
     // Controls are hidden when signed in and there is an error.
     assertTrue(syncControls.hidden);
   });
 
-  test('SignedInBookmarkLimitError', async function() {
+  test('SignedInBookmarkLimitError', function() {
     // Controls are available by default.
     assertFalse(syncControls.hidden);
 
@@ -478,13 +467,12 @@ suite('SyncControlsAccountSettingsTest', function() {
       signedInState: SignedInState.SIGNED_IN,
       statusAction: StatusAction.SHOW_BOOKMARKS_LIMIT_HELP_ARTICLE,
     };
-    await microtasksFinished();
     // Controls are not hidden when signed in and there is a bookmark limit
     // error.
     assertFalse(syncControls.hidden);
   });
 
-  test('SignedInNeedsUpdate', async function() {
+  test('SignedInNeedsUpdate', function() {
     // Controls are available by default.
     assertFalse(syncControls.hidden);
 
@@ -494,12 +482,11 @@ suite('SyncControlsAccountSettingsTest', function() {
       signedInState: SignedInState.SIGNED_IN,
       statusAction: StatusAction.UPGRADE_CLIENT,
     };
-    await microtasksFinished();
     // Controls are not hidden when the user needs to update Chrome.
     assertFalse(syncControls.hidden);
   });
 
-  test('SignedInPassphraseError', async function() {
+  test('SignedInPassphraseError', function() {
     // Controls are available by default.
     assertFalse(syncControls.hidden);
 
@@ -509,7 +496,6 @@ suite('SyncControlsAccountSettingsTest', function() {
       signedInState: SignedInState.SIGNED_IN,
       statusAction: StatusAction.ENTER_PASSPHRASE,
     };
-    await microtasksFinished();
     // Controls are hidden when signed in and there is a passphrase error.
     assertTrue(syncControls.hidden);
   });
@@ -523,7 +509,8 @@ suite('SyncControlsAccountSettingsTest', function() {
     const syncPrefs = getSyncAllPrefs();
     syncPrefs.localSyncEnabled = true;
     webUIListenerCallback('sync-prefs-changed', syncPrefs);
-    await microtasksFinished();
+    await flushTasks();
+    await waitAfterNextRender(syncControls);
 
     // Controls are hidden when signed in and local sync is enabled.
     assertTrue(syncControls.hidden);
@@ -534,7 +521,7 @@ suite('SyncControlsAccountSettingsTest', function() {
 
     // Make sure that the autofill toggle is present and can be interacted with.
     const autofillToggle =
-        syncControls.shadowRoot.querySelector<CrToggleElement>(
+        syncControls.shadowRoot!.querySelector<CrToggleElement>(
             '#autofillCheckbox');
     assertTrue(!!autofillToggle);
     assertFalse(autofillToggle.disabled);
@@ -568,19 +555,20 @@ suite('SyncControlsAccountSettingsTest', function() {
         syncPrefs.typedUrlsManaged = true;
         syncPrefs.tabsManaged = true;
         webUIListenerCallback('sync-prefs-changed', syncPrefs);
-        await microtasksFinished();
+        await flushTasks();
+        await waitAfterNextRender(syncControls);
 
         // The merged toggle is disabled, but checked because the types are
         // enabled.
         const mergedHistoryTabsToggle =
-            syncControls.shadowRoot.querySelector<CrToggleElement>(
+            syncControls.shadowRoot!.querySelector<CrToggleElement>(
                 '#mergedHistoryTabsToggle');
         assertTrue(!!mergedHistoryTabsToggle);
         assertTrue(mergedHistoryTabsToggle.disabled);
         assertTrue(mergedHistoryTabsToggle.checked);
 
         // Assert that the merged toggle's policy indicator is shown.
-        const policyIndicator = syncControls.shadowRoot.querySelector<Element>(
+        const policyIndicator = syncControls.shadowRoot!.querySelector<Element>(
             '#mergedHistoryTabsToggleIndicator');
         assertTrue(isVisible(policyIndicator));
       });
@@ -592,19 +580,20 @@ suite('SyncControlsAccountSettingsTest', function() {
         const syncPrefs = getSyncAllPrefs();
         syncPrefs.typedUrlsManaged = true;
         webUIListenerCallback('sync-prefs-changed', syncPrefs);
-        await microtasksFinished();
+        await flushTasks();
+        await waitAfterNextRender(syncControls);
 
         // The merged toggle is not disabled, and checked because the types are
         // enabled.
         const mergedHistoryTabsToggle =
-            syncControls.shadowRoot.querySelector<CrToggleElement>(
+            syncControls.shadowRoot!.querySelector<CrToggleElement>(
                 '#mergedHistoryTabsToggle');
         assertTrue(!!mergedHistoryTabsToggle);
         assertFalse(mergedHistoryTabsToggle.disabled);
         assertTrue(mergedHistoryTabsToggle.checked);
 
         // Assert that the merged toggle's policy indicator is not shown.
-        const policyIndicator = syncControls.shadowRoot.querySelector<Element>(
+        const policyIndicator = syncControls.shadowRoot!.querySelector<Element>(
             '#mergedHistoryTabsToggleIndicator');
         assertFalse(isVisible(policyIndicator));
       });
@@ -615,7 +604,8 @@ suite('SyncControlsAccountSettingsTest', function() {
     syncPrefs.tabsSynced = false;
     syncPrefs.savedTabGroupsSynced = false;
     webUIListenerCallback('sync-prefs-changed', syncPrefs);
-    await microtasksFinished();
+    await flushTasks();
+    await waitAfterNextRender(syncControls);
 
     // Override `setSyncDatatype()` in order to collect calls.
     const originalSetSyncDatatype = browserProxy.setSyncDatatype;
@@ -627,11 +617,11 @@ suite('SyncControlsAccountSettingsTest', function() {
       return Promise.resolve(PageStatus.DONE);
     };
 
-    // Make sure that the merged history and tabs toggle is present and can be
+    // Make sure that the merged history and tabs toggle is present and can  be
     // interacted with. The toggle is checked, since at least one of the data
     // types is enabled.
     const mergedHistoryTabsToggle =
-        syncControls.shadowRoot.querySelector<CrToggleElement>(
+        syncControls.shadowRoot!.querySelector<CrToggleElement>(
             '#mergedHistoryTabsToggle');
     assertTrue(!!mergedHistoryTabsToggle);
     assertFalse(mergedHistoryTabsToggle.disabled);
@@ -681,7 +671,8 @@ suite('SyncControlsAccountSettingsTest', function() {
   test(
       'DisableToggleAndHidePolicyIndicatorWhenSyncPrefsNotLoaded', async () => {
         webUIListenerCallback('sync-prefs-changed', undefined);
-        await microtasksFinished();
+        await flushTasks();
+        await waitAfterNextRender(syncControls);
 
         // Controls are still available when prefs are not loaded.
         assertFalse(syncControls.hidden);
@@ -703,7 +694,7 @@ suite('SyncControlsAccountSettingsTest', function() {
       signedInState: SignedInState.SIGNED_IN,
       statusAction: StatusAction.NO_ACTION,
     };
-    await microtasksFinished();
+    await waitAfterNextRender(syncControls);
 
     // Controls are still available when sync is disabled.
     assertFalse(syncControls.hidden);
@@ -719,7 +710,8 @@ suite('SyncControlsAccountSettingsTest', function() {
   test('DisableToggleAndShowPolicyIndicatorWhenDataTypeIsManaged', async () => {
     // Set all prefs to managed.
     webUIListenerCallback('sync-prefs-changed', getSyncAllPrefsManaged());
-    await microtasksFinished();
+    await flushTasks();
+    await waitAfterNextRender(syncControls);
 
     // Controls are still available when data types are managed.
     assertFalse(syncControls.hidden);
@@ -748,16 +740,15 @@ suite('SyncControlsAccountSettingsTest', function() {
       signedInState: SignedInState.SIGNED_IN,
       statusAction: StatusAction.NO_ACTION,
     };
-    await microtasksFinished();
+    await waitAfterNextRender(syncControls);
 
     router.navigateTo(routes.ACCOUNT);
-    await microtasksFinished();
     assertFalse(syncControls.hidden);
   });
 
   test('BatchUploadPromoNotVisibleWithoutLocalData', async () => {
     await setupPrefs();
-    await microtasksFinished();
+    await flushTasks();
 
     assertFalse(isChildVisible(syncControls, '#batchUploadPromo'));
   });
@@ -778,7 +769,7 @@ suite('SyncControlsAccountSettingsTest', function() {
     await setupPrefs();
     const pluralStringArgs =
         await pluralStringProxy.whenCalled('getPluralString');
-    await microtasksFinished();
+    await flushTasks();
 
     assertEquals(localDataCount, pluralStringArgs.itemCount);
     assertTrue(isChildVisible(syncControls, '#batchUploadPromo'));
@@ -793,10 +784,10 @@ suite('SyncControlsAccountSettingsTest', function() {
     batchUploadPromoProxy.page.onLocalDataCountChanged(localDataCount);
     const pluralStringArgs =
         await pluralStringProxy.whenCalled('getPluralString');
-    await microtasksFinished();
+    await flushTasks();
 
     const batchUploadElement =
-        syncControls.shadowRoot.querySelector(`#batchUploadPromo`);
+        syncControls.shadowRoot!.querySelector(`#batchUploadPromo`);
     assertTrue(!!batchUploadElement);
     assertTrue(isVisible(batchUploadElement));
 
@@ -813,10 +804,10 @@ suite('SyncControlsAccountSettingsTest', function() {
     batchUploadPromoProxy.page.onLocalDataCountChanged(localDataCount);
     const pluralStringArgs =
         await pluralStringProxy.whenCalled('getPluralString');
-    await microtasksFinished();
+    await flushTasks();
 
     const batchUploadElement =
-        syncControls.shadowRoot.querySelector(`#batchUploadPromo`);
+        syncControls.shadowRoot!.querySelector(`#batchUploadPromo`);
     assertTrue(!!batchUploadElement);
     assertTrue(isVisible(batchUploadElement));
 
@@ -835,13 +826,13 @@ suite('SyncControlsAccountSettingsTest', function() {
     batchUploadPromoProxy.page.onLocalDataCountChanged(localDataCount);
     const pluralStringArgs =
         await pluralStringProxy.whenCalled('getPluralString');
-    await microtasksFinished();
+    await flushTasks();
 
     assertTrue(isChildVisible(syncControls, '#batchUploadPromo'));
     assertEquals(localDataCount, pluralStringArgs.itemCount);
 
     const batchUploadLinkElement =
-        syncControls.shadowRoot.querySelector<HTMLElement>(
+        syncControls.shadowRoot!.querySelector<HTMLElement>(
             '#openBatchUploadLink');
     assertTrue(!!batchUploadLinkElement);
     batchUploadLinkElement.click();
@@ -881,13 +872,14 @@ suite('SyncControlsManagedTest', function() {
       statusAction: StatusAction.NO_ACTION,
       syncCookiesSupported: true,
     };
-    await microtasksFinished();
+    flush();
 
-    syncEverything = syncControls.shadowRoot.querySelector(
+    await waitBeforeNextRender(syncControls);
+    syncEverything = syncControls.shadowRoot!.querySelector(
         'cr-radio-button[name="sync-everything"]')!;
-    customizeSync = syncControls.shadowRoot.querySelector(
+    customizeSync = syncControls.shadowRoot!.querySelector(
         'cr-radio-button[name="customize-sync"]')!;
-    const group = syncControls.shadowRoot.querySelector('cr-radio-group');
+    const group = syncControls.shadowRoot!.querySelector('cr-radio-group');
     assertTrue(!!group);
     radioGroup = group;
     assertTrue(!!syncEverything);
@@ -901,13 +893,13 @@ suite('SyncControlsManagedTest', function() {
     assertFalse(customizeSync.checked);
 
     const datatypeControls =
-        syncControls.shadowRoot.querySelectorAll<CrToggleElement>(
+        syncControls.shadowRoot!.querySelectorAll<CrToggleElement>(
             '.list-item:not([hidden]) > cr-toggle');
     assertTrue(datatypeControls.length > 0);
 
     // Assert that all toggles have the policy indicator icon visible when they
     // are all managed.
-    const policyIndicators = syncControls.shadowRoot.querySelectorAll(
+    const policyIndicators = syncControls.shadowRoot!.querySelectorAll(
         'cr-policy-indicator:not(#syncDisabledIndicator):' +
         'not(#mergedHistoryTabsToggleIndicator)');
     assertTrue(policyIndicators.length > 0);
@@ -934,7 +926,6 @@ suite('SyncControlsManagedTest', function() {
     assertDeepEquals(expected, prefs);
 
     webUIListenerCallback('sync-prefs-changed', expected);
-    await microtasksFinished();
 
     // Assert that all the individual datatype controls are still unchecked and
     // disabled.
@@ -972,16 +963,17 @@ suite('AutofillAndPaymentsToggles', function() {
     document.body.appendChild(syncControls);
 
     webUIListenerCallback('sync-prefs-changed', getSyncAllPrefs());
-    await microtasksFinished();
+    flush();
 
+    await waitBeforeNextRender(syncControls);
     const customizeSync: CrRadioButtonElement =
-        syncControls.shadowRoot.querySelector(
+        syncControls.shadowRoot!.querySelector(
             'cr-radio-button[name="customize-sync"]')!;
-    const radioGroup = syncControls.shadowRoot.querySelector('cr-radio-group');
+    const radioGroup = syncControls.shadowRoot!.querySelector('cr-radio-group');
     autofillCheckbox =
-        syncControls.shadowRoot.querySelector('#autofillCheckbox')!;
+        syncControls.shadowRoot!.querySelector('#autofillCheckbox')!;
     paymentsCheckbox =
-        syncControls.shadowRoot.querySelector('#paymentsCheckbox')!;
+        syncControls.shadowRoot!.querySelector('#paymentsCheckbox')!;
     assertTrue(!!customizeSync);
     assertTrue(!!radioGroup);
     assertTrue(!!autofillCheckbox);

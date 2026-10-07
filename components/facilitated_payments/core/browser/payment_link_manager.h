@@ -17,7 +17,6 @@
 #include "base/timer/timer.h"
 #include "components/autofill/core/browser/data_model/payments/ewallet.h"
 #include "components/autofill/core/browser/payments/payments_autofill_client.h"
-#include "components/facilitated_payments/core/browser/account_linking_result.h"
 #include "components/facilitated_payments/core/browser/facilitated_payments_api_client.h"
 #include "components/facilitated_payments/core/browser/facilitated_payments_app_info_list.h"
 #include "components/facilitated_payments/core/browser/network_api/facilitated_payments_initiate_payment_request_details.h"
@@ -32,6 +31,10 @@ class GURL;
 
 namespace optimization_guide {
 class OptimizationGuideDecider;
+}
+
+namespace autofill {
+class Ewallet;
 }
 
 namespace payments::facilitated {
@@ -66,10 +69,9 @@ struct SelectedFopData {
   const std::string activity_name;
 };
 
-enum class AvailableEwalletsConfiguration;
-class EwalletAccountLinkingManager;
 class FacilitatedPaymentsClient;
 class FacilitatedPaymentsInitiatePaymentResponseDetails;
+enum class AvailableEwalletsConfiguration;
 
 // A cross-platform interface that manages the push payment flow triggered by
 // payment links. It is owned by `FacilitatedPaymentsDriver`.
@@ -103,8 +105,6 @@ class PaymentLinkManager {
 
   // Determines and populates the list of supported eWallets for a payment link.
   void RetrieveSupportedEwallets(const GURL& payment_link_url);
-
-  void TriggerEwalletAccountLinkingFlow(const GURL& payment_link_url);
 
   // Performs various specific pre-checks for the A2A flow.
   bool CanTriggerAppPaymentFlow(const GURL& page_url);
@@ -157,10 +157,6 @@ class PaymentLinkManager {
 
   // Called by the view to communicate UI events.
   void OnUiScreenEvent(UiEvent ui_event_type);
-
-  // Called when the account linking flow finishes with a result.
-  void OnAccountLinkingResult(const GURL& payment_link_url,
-                              AccountLinkingResult result);
 
   // Updates the `ui_state_` value and triggers dismissal.
   void DismissPrompt();
@@ -264,10 +260,6 @@ class PaymentLinkManager {
 
   // Strike database used to check whether to prompt the FOP selector or not.
   std::unique_ptr<PaymentLinkSuggestionStrikeDatabase> strike_database_;
-
-  // Manages the new account linking flow for unlinked eWallets.
-  std::unique_ptr<EwalletAccountLinkingManager>
-      ewallet_account_linking_manager_;
 
   base::WeakPtrFactory<PaymentLinkManager> weak_ptr_factory_{this};
 };

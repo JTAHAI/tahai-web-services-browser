@@ -4,8 +4,6 @@
 
 #include "services/tracing/public/cpp/trace_startup.h"
 
-#include <optional>
-
 #include "base/check.h"
 #include "base/command_line.h"
 #include "base/containers/span.h"
@@ -34,20 +32,6 @@ namespace tracing {
 namespace {
 
 using base::trace_event::TraceConfig;
-
-std::optional<uint64_t> GetStartupTraceProcessTrackUuid() {
-  std::optional<uint64_t> process_track_uuid;
-  auto* command_line = base::CommandLine::ForCurrentProcess();
-  if (command_line->HasSwitch(switches::kTraceProcessTrackUuid)) {
-    uint64_t parsed_uuid;
-    if (base::StringToUint64(
-            command_line->GetSwitchValueASCII(switches::kTraceProcessTrackUuid),
-            &parsed_uuid)) {
-      process_track_uuid = parsed_uuid;
-    }
-  }
-  return process_track_uuid;
-}
 
 class StartupTrackEventConfigObserver
     : public perfetto::TrackEventSessionObserver {
@@ -126,8 +110,16 @@ void InitTracing(
   g_tracing_initialized = true;
   base::TimeTicks init_start = base::TimeTicks::Now();
 
-  std::optional<uint64_t> maybe_process_track_uuid =
-      GetStartupTraceProcessTrackUuid();
+  std::optional<uint64_t> maybe_process_track_uuid;
+  auto* command_line = base::CommandLine::ForCurrentProcess();
+  if (command_line->HasSwitch(switches::kTraceProcessTrackUuid)) {
+    uint64_t process_track_uuid;
+    if (base::StringToUint64(
+            command_line->GetSwitchValueASCII(switches::kTraceProcessTrackUuid),
+            &process_track_uuid)) {
+      maybe_process_track_uuid = process_track_uuid;
+    }
+  }
 
   // Create the PerfettoTracedProcess.
   auto& traced_process =
@@ -206,11 +198,6 @@ base::UnsafeSharedMemoryRegion CreateTracingOutputSharedMemory() {
     return base::UnsafeSharedMemoryRegion();
   }
   return shm;
-}
-
-void EnableEarlyTrackRegistration() {
-  perfetto::internal::TrackRegistry::InitializeInstance(
-      GetStartupTraceProcessTrackUuid());
 }
 
 }  // namespace tracing

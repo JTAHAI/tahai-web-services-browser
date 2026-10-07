@@ -4,12 +4,10 @@
 
 #include "chrome/browser/ui/views/permissions/chip/webui_permission_dashboard.h"
 
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
-#include "chrome/browser/ui/location_bar/location_bar.h"
-#include "ui/base/base_window.h"
-#include "ui/views/widget/widget.h"
+#include "chrome/browser/ui/views/location_bar/webui_location_bar.h"
 
-WebUIPermissionDashboard::WebUIPermissionDashboard(LocationBar* location_bar)
+WebUIPermissionDashboard::WebUIPermissionDashboard(
+    WebUILocationBar* location_bar)
     : location_bar_(location_bar),
       request_chip_(location_bar),
       indicator_chip_(location_bar) {}
@@ -46,12 +44,8 @@ views::BubbleAnchor WebUIPermissionDashboard::GetAnchor() {
   if (ui::TrackedElement* element = location_bar_->GetAnchorOrNull()) {
     return views::BubbleAnchor(element);
   }
-  ui::BaseWindow* window = location_bar_->GetBrowser()->GetWindow();
-  CHECK(window);
-  views::Widget* widget =
-      views::Widget::GetWidgetForNativeWindow(window->GetNativeWindow());
-  CHECK(widget);
-  return views::BubbleAnchor(widget->GetContentsView());
+  return views::BubbleAnchor(
+      location_bar_->GetLocationBarWidget()->GetContentsView());
 }
 
 toolbar_ui_api::mojom::PermissionDashboardStatePtr

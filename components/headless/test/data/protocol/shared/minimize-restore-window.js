@@ -20,27 +20,14 @@
 
   await dp.Runtime.enable();
 
-  async function waitForWindowState(expectedVisibility, expectedFocus) {
-    return await session.evaluateAsync(async (expectedVis, expectedFoc) => {
-      if (document.visibilityState === expectedVis &&
-          document.hasFocus() === expectedFoc) {
-        return;
+  async function waitForVisibilityChange() {
+    for (;;) {
+      const result = await dp.Runtime.onceConsoleAPICalled();
+      const text = result.params.args[0].value;
+      if (text === 'visible' || text === 'hidden') {
+        break;
       }
-      return await new Promise(resolve => {
-        const check = () => {
-          if (document.visibilityState === expectedVis &&
-              document.hasFocus() === expectedFoc) {
-            document.removeEventListener('visibilitychange', check);
-            window.removeEventListener('focus', check);
-            window.removeEventListener('blur', check);
-            resolve();
-          }
-        };
-        document.addEventListener('visibilitychange', check);
-        window.addEventListener('focus', check);
-        window.addEventListener('blur', check);
-      });
-    }, expectedVisibility, expectedFocus);
+    }
   }
 
   async function logWindowState(text, windowId) {
@@ -57,11 +44,11 @@
 
   await dp.Browser.setWindowBounds(
       {windowId, bounds: {windowState: 'minimized'}});
-  await waitForWindowState('hidden', false);
+  await waitForVisibilityChange();
   await logWindowState('Minimized', windowId);
 
   await dp.Browser.setWindowBounds({windowId, bounds: {windowState: 'normal'}});
-  await waitForWindowState('visible', true);
+  await waitForVisibilityChange();
   await logWindowState('Restored', windowId);
 
   testRunner.completeTest();

@@ -31,8 +31,6 @@ std::string_view GetBackgroundTaskTypeSuffixForHistograms(
       return ".FromWrappedAttestationKey";
     case BackgroundTaskType::kCertify:
       return ".Certify";
-    case BackgroundTaskType::kSignWithAttestationKey:
-      return ".SignWithAttestationKey";
   }
   NOTREACHED();
 }

@@ -213,8 +213,7 @@ bool CodedInputStream::SkipFallback(int count, int original_buffer_size) {
     // We hit the limit.  Skip up to it then fail.
     if (bytes_until_limit > 0) {
       total_bytes_read_ = closest_limit;
-      // TODO: Remove this suppression.
-      (void)input_->Skip(bytes_until_limit);
+      input_->Skip(bytes_until_limit);
     }
     return false;
   }
@@ -236,18 +235,13 @@ bool CodedInputStream::GetDirectBufferPointer(const void** data, int* size) {
 }
 
 bool CodedInputStream::ReadRaw(void* buffer, int size) {
-  if (size < 0) return false;
-  if (size == 0) return true;
-
   int current_buffer_size;
   while ((current_buffer_size = BufferSize()) < size) {
-    if (current_buffer_size > 0) {
-      // Reading past end of buffer.  Copy what we have, then refresh.
-      memcpy(buffer, buffer_, current_buffer_size);
-      buffer = reinterpret_cast<uint8_t*>(buffer) + current_buffer_size;
-      size -= current_buffer_size;
-      Advance(current_buffer_size);
-    }
+    // Reading past end of buffer.  Copy what we have, then refresh.
+    memcpy(buffer, buffer_, current_buffer_size);
+    buffer = reinterpret_cast<uint8_t*>(buffer) + current_buffer_size;
+    size -= current_buffer_size;
+    Advance(current_buffer_size);
     if (!Refresh()) return false;
   }
 
@@ -342,8 +336,7 @@ bool CodedInputStream::ReadCord(absl::Cord* output, int size) {
   const int available = closest_limit - total_bytes_read_;
   if (ABSL_PREDICT_FALSE(size > available)) {
     total_bytes_read_ = closest_limit;
-    // TODO: Remove this suppression.
-    (void)input_->ReadCord(output, available);
+    input_->ReadCord(output, available);
     return false;
   }
   total_bytes_read_ += size;
@@ -365,8 +358,7 @@ bool CodedInputStream::ReadLittleEndian16Fallback(uint16_t* value) {
     if (!ReadRaw(bytes, kSize)) return false;
     ptr = bytes;
   }
-  // TODO: Remove this suppression.
-  (void)ReadLittleEndian16FromArray(ptr, value);
+  ReadLittleEndian16FromArray(ptr, value);
   return true;
 }
 
@@ -384,8 +376,7 @@ bool CodedInputStream::ReadLittleEndian32Fallback(uint32_t* value) {
     if (!ReadRaw(bytes, kSize)) return false;
     ptr = bytes;
   }
-  // TODO: Remove this suppression.
-  (void)ReadLittleEndian32FromArray(ptr, value);
+  ReadLittleEndian32FromArray(ptr, value);
   return true;
 }
 
@@ -403,8 +394,7 @@ bool CodedInputStream::ReadLittleEndian64Fallback(uint64_t* value) {
     if (!ReadRaw(bytes, kSize)) return false;
     ptr = bytes;
   }
-  // TODO: Remove this suppression.
-  (void)ReadLittleEndian64FromArray(ptr, value);
+  ReadLittleEndian64FromArray(ptr, value);
   return true;
 }
 

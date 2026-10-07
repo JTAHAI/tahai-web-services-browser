@@ -46,13 +46,11 @@ void ForEachRule(CSSStyleSheet& sheet, Func func) {
 
 void InspectorGhostRules::Populate(CSSStyleSheet& sheet) {
   Document* document = sheet.OwnerDocument();
-  if (!document || !document->IsActive()) {
+  if (!document) {
     return;
   }
-  ExecutionContext* context = document->GetExecutionContext();
-  CHECK(context);
   wtf_size_t size_before = inserted_rules_.size();
-  PopulateSheet(*context, sheet);
+  PopulateSheet(*document->GetExecutionContext(), sheet);
   wtf_size_t size_after = inserted_rules_.size();
   if (size_before != size_after) {
     affected_stylesheets_.insert(&sheet);

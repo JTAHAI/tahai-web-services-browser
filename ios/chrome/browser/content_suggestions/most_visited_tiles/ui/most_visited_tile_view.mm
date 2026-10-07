@@ -44,14 +44,9 @@
                      tileType:ContentSuggestionsTileType::kMostVisited];
   if (self) {
     self.imageContainerView.layer.cornerRadius =
-        IsNewTabPageUICleanupEnabled()
-            ? kMostVisitedTileImageContainerSquareCornerRadius
-            : kMagicStackImageContainerWidth / 2;
+        kMagicStackImageContainerWidth / 2;
     self.imageContainerView.layer.masksToBounds = NO;
     self.imageContainerView.clipsToBounds = YES;
-    if (IsNewTabPageUICleanupEnabled()) {
-      self.titleLabel.numberOfLines = 1;
-    }
 
     UIStackView* stackView = [[UIStackView alloc] init];
     stackView.translatesAutoresizingMaskIntoConstraints = NO;
@@ -227,14 +222,10 @@
   [self.faviconView configureWithAttributes:configuration.attributes];
 
   if (colorPalette) {
-    self.imageContainerView.backgroundColor = IsNewTabPageUICleanupEnabled()
-                                                  ? colorPalette.primaryColor
-                                                  : colorPalette.tertiaryColor;
+    self.imageContainerView.backgroundColor = colorPalette.tertiaryColor;
   } else {
     self.imageContainerView.backgroundColor =
-        [UIColor colorNamed:IsNewTabPageUICleanupEnabled()
-                                ? kNTPRedesignTileBackgroundColor
-                                : kGrey100Color];
+        [UIColor colorNamed:kGrey100Color];
   }
 }
 

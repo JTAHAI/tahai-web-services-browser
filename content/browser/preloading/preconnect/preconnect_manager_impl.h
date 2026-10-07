@@ -12,7 +12,6 @@
 #include <vector>
 
 #include "base/containers/id_map.h"
-#include "base/feature.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/time/time.h"
@@ -31,8 +30,6 @@ class NetworkContext;
 }  // namespace network::mojom
 
 namespace content {
-
-CONTENT_EXPORT BASE_DECLARE_FEATURE(kPreconnectManagerDirectFastPath);
 
 class BrowserContext;
 

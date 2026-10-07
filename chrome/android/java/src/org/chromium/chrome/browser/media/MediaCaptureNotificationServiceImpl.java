@@ -29,6 +29,7 @@ import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.IntentHandler;
 import org.chromium.chrome.browser.app.tabwindow.TabWindowManagerSingleton;
+import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.notifications.NotificationUmaTracker;
 import org.chromium.chrome.browser.notifications.NotificationWrapperBuilderFactory;
 import org.chromium.chrome.browser.notifications.channels.ChromeChannelDefinitions;
@@ -185,7 +186,7 @@ public class MediaCaptureNotificationServiceImpl extends SplitCompatService.Impl
         if (hasNewMediaTypesToUpdate) {
             createNotification(notificationId, mediaTypes, url, isIncognito);
         }
-        if (mNotificationsType.isEmpty()) {
+        if (mNotificationsType.size() == 0) {
             getService().stopSelf(startId);
         }
     }
@@ -248,9 +249,7 @@ public class MediaCaptureNotificationServiceImpl extends SplitCompatService.Impl
                         notificationEntry -> notificationEntry.first == notificationId);
                 if (!hasNewMediaTypesToUpdate) {
                     if (mNotifications.isEmpty()) {
-                        if (!TabSharingUIManager.getInstance().isSharing()) {
-                            stopForegroundService();
-                        }
+                        stopForegroundService();
                     } else if (isRemovingLatestNotification
                             || mForgroundServiceType != getRequiredForegroundServiceType()) {
                         // 1. For large screen device, we use the previous notification to
@@ -390,7 +389,9 @@ public class MediaCaptureNotificationServiceImpl extends SplitCompatService.Impl
         }
         if (allMediaTypes.contains(MediaType.TAB_CAPTURE)) {
             foregroundServiceType |= ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK;
-            foregroundServiceType |= ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION;
+            if (ChromeFeatureList.sAndroidNewMediaPicker.isEnabled()) {
+                foregroundServiceType |= ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION;
+            }
         }
         if (allMediaTypes.contains(MediaType.SCREEN_CAPTURE)
                 || allMediaTypes.contains(MediaType.WINDOW_CAPTURE)) {

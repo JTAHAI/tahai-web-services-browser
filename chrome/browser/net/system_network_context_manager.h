@@ -113,9 +113,7 @@ class SystemNetworkContextManager {
 
   // Called when content creates a NetworkService. Creates the
   // SystemNetworkContext, if the network service is enabled.
-  static void OnNetworkServiceCreated(
-      network::mojom::NetworkService* network_service,
-      PrefService* pref_service);
+  void OnNetworkServiceCreated(network::mojom::NetworkService* network_service);
 
   // Permanently disables QUIC, both for NetworkContexts using the IOThread's
   // NetworkService, and for those using the network service (if enabled).
@@ -155,16 +153,13 @@ class SystemNetworkContextManager {
   // or destroyed, and so that it's destroyed before Mojo is shut down.
   net_log::NetExportFileWriter* GetNetExportFileWriter();
 
-  // Updates the network service with the given list of
-  // |classic_trust_anchor_ids| and |mtc_standalone_only_trust_anchor_ids|
-  // (lists of TLS Trust Anchor IDs in binary representation).
-  // |mtc_landmark_info| may optionally provide trust anchor id configuration
-  // for landmark-relative MTCs.
+  // Updates the network service with the given list of |trust_anchor_ids|
+  // and |mtc_trust_anchor_ids| (lists of TLS Trust Anchor IDs in binary
+  // representation).
   void UpdateTrustAnchorIDs(
-      base::span<const std::vector<uint8_t>> classic_trust_anchor_ids,
-      base::span<const std::vector<uint8_t>>
-          mtc_standalone_only_trust_anchor_ids,
-      std::optional<SSLConfigServiceMtcLandmarkInfo> mtc_landmark_info);
+      std::vector<std::vector<uint8_t>> trust_anchor_ids,
+      std::vector<std::vector<uint8_t>> mtc_trust_anchor_ids,
+      int64_t mtc_update_time_seconds);
 
   // Returns whether the network sandbox is enabled. This depends on policy but
   // also feature status from sandbox. Called before there is an instance of
@@ -245,9 +240,6 @@ class SystemNetworkContextManager {
 
   // Constructor. |pref_service| must out live this object.
   explicit SystemNetworkContextManager(PrefService* pref_service);
-
-  void OnNetworkServiceCreatedInternal(
-      network::mojom::NetworkService* network_service);
 
   void UpdateReferrersEnabled();
 

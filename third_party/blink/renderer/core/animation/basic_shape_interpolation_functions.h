@@ -11,6 +11,7 @@
 
 namespace blink {
 
+class BasicShape;
 class CSSProperty;
 class CSSToLengthConversionData;
 
@@ -25,9 +26,10 @@ MaybeConvertBasicShape(const BasicShapeInfo&,
 InterpolableValue* CreateNeutralValue(const NonInterpolableValue&);
 CORE_EXPORT bool ShapesAreCompatible(const NonInterpolableValue&,
                                      const NonInterpolableValue&);
-CORE_EXPORT BasicShapeInfo CreateBasicShape(const InterpolableValue&,
-                                            const NonInterpolableValue&,
-                                            const CSSToLengthConversionData&);
+CORE_EXPORT BasicShape* CreateBasicShape(const InterpolableValue&,
+                                         const NonInterpolableValue&,
+                                         const CSSToLengthConversionData&);
+CORE_EXPORT ShapeReferenceBox GetBox(const NonInterpolableValue&);
 
 }  // namespace basic_shape_interpolation_functions
 

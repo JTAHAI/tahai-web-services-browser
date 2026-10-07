@@ -84,6 +84,11 @@ void OnURLLoadComplete(
   int response_code = -1;
   if (headers) {
     response_code = headers->response_code();
+
+    // Only record response code when there are headers.
+    base::UmaHistogramSparse(
+        "OptimizationGuide.ModelQualityLogsUploaderService.Status",
+        response_code);
   }
 
   // Net error codes are negative but histogram enums must be positive.

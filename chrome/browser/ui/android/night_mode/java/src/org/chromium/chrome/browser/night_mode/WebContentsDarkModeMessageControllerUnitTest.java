@@ -63,7 +63,9 @@ import org.chromium.ui.shadows.ShadowAppCompatResources;
  * engagement system.
  */
 @RunWith(BaseRobolectricTestRunner.class)
-@Config(shadows = {ShadowAppCompatResources.class})
+@Config(
+        manifest = Config.NONE,
+        shadows = {ShadowAppCompatResources.class})
 public class WebContentsDarkModeMessageControllerUnitTest {
     private boolean mIsFeatureEnabled;
 

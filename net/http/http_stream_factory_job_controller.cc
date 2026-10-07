@@ -708,12 +708,7 @@ void HttpStreamFactory::JobController::OnConnectionInitialized(Job* job,
   if (rv != OK) {
     // Resume the main job as there's an error raised in connection
     // initiation.
-    base::TimeDelta delay = main_job_wait_time_;
-    if ((job == alternative_job_.get() || job == dns_alpn_h3_job_.get()) &&
-        features::kAsyncDnsQuicJobFastFail.Get()) {
-      delay = base::TimeDelta();
-    }
-    return MaybeResumeMainJob(job, delay);
+    return MaybeResumeMainJob(job, main_job_wait_time_);
   }
 }
 

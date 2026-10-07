@@ -1,2 +1,3 @@
-rules:
-- "**": [text-justify]
+features:
+- name: text-justify
+  files: "**"

@@ -47,13 +47,12 @@ class PNGImageSource : public ImageSkiaSource {
     //    scales are smaller than |scale|.
     // 2) The ImageSkiaRep with the smallest one that is larger than |scale|.
     // TODO(crbug.com/329953472): Use a predefined threshold.
-    for (const auto& image_skia_rep : image_skia_reps_) {
-      if (image_skia_rep.scale() == scale) {
-        return image_skia_rep;
-      }
-      if (!rep || rep->scale() < image_skia_rep.scale()) {
-        rep = &image_skia_rep;
-      }
+    for (auto iter = image_skia_reps_.begin(); iter != image_skia_reps_.end();
+         ++iter) {
+      if ((*iter).scale() == scale)
+        return (*iter);
+      if (!rep || rep->scale() < (*iter).scale())
+        rep = &(*iter);
       if (rep->scale() >= scale)
         break;
     }
@@ -102,10 +101,9 @@ ImageSkia ImageSkiaFromPNG(const std::vector<ImagePNGRep>& image_png_reps) {
     return GetErrorImageSkia();
   std::unique_ptr<PNGImageSource> image_source(new PNGImageSource);
 
-  for (const auto& image_png_rep : image_png_reps) {
-    if (!image_source->AddPNGData(image_png_rep)) {
+  for (size_t i = 0; i < image_png_reps.size(); ++i) {
+    if (!image_source->AddPNGData(image_png_reps[i]))
       return GetErrorImageSkia();
-    }
   }
   const gfx::Size& size = image_source->size();
   DCHECK(!size.IsEmpty());

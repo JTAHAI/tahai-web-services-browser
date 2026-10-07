@@ -10,8 +10,6 @@ import {CrLitElement} from '//resources/lit/v3_0/lit.rollup.js';
 
 import type {SettingsPrefs, ShowAtConfigPrefs} from '../content/read_anything_types.js';
 import {DEFAULT_SETTINGS, ToolbarEvent} from '../content/read_anything_types.js';
-import type {AudioBrowserProxy} from '../read_aloud/audio_browser_proxy.js';
-import {AudioBrowserProxyImpl} from '../read_aloud/audio_browser_proxy.js';
 import {ReadAloudSettingsChange} from '../shared/metrics_browser_proxy.js';
 import {ReadAnythingLogger} from '../shared/read_anything_logger.js';
 
@@ -50,29 +48,26 @@ export class HighlightMenuElement extends HighlightMenuElementBase implements
   accessor settingsPrefs: SettingsPrefs = DEFAULT_SETTINGS;
   accessor nonModal: boolean = false;
 
-  private audioBrowserProxy_: AudioBrowserProxy =
-      AudioBrowserProxyImpl.getInstance();
-
   protected accessor options_: Array<MenuStateItem<number>> = [
     {
       title: loadTimeData.getString('autoHighlightTitle'),
-      data: this.audioBrowserProxy_.getAutoHighlighting(),
+      data: chrome.readingMode.autoHighlighting,
     },
     {
       title: loadTimeData.getString('wordHighlightTitle'),
-      data: this.audioBrowserProxy_.getWordHighlighting(),
+      data: chrome.readingMode.wordHighlighting,
     },
-    ...(this.audioBrowserProxy_.isPhraseHighlightingEnabled()?[{
+    ...(chrome.readingMode.isPhraseHighlightingEnabled?[{
       title: loadTimeData.getString('phraseHighlightTitle'),
-      data: this.audioBrowserProxy_.getPhraseHighlighting(),
+      data: chrome.readingMode.phraseHighlighting,
     }]: []),
     {
       title: loadTimeData.getString('sentenceHighlightTitle'),
-      data: this.audioBrowserProxy_.getSentenceHighlighting(),
+      data: chrome.readingMode.sentenceHighlighting,
     },
     {
       title: loadTimeData.getString('noHighlightTitle'),
-      data: this.audioBrowserProxy_.getNoHighlighting(),
+      data: chrome.readingMode.noHighlighting,
     },
   ];
 
@@ -92,7 +87,7 @@ export class HighlightMenuElement extends HighlightMenuElementBase implements
   }
 
   protected onHighlightChange_(event: CustomEvent<{data: number}>) {
-    this.audioBrowserProxy_.onHighlightGranularityChanged(event.detail.data);
+    chrome.readingMode.onHighlightGranularityChanged(event.detail.data);
     this.logger_.logSpeechSettingsChange(
         ReadAloudSettingsChange.HIGHLIGHT_CHANGE);
     this.logger_.logHighlightGranularity(event.detail.data);

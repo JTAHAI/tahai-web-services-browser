@@ -47,8 +47,7 @@ class Proofreader final : public ScriptWrappable,
   Proofreader(ScriptState* script_state,
               scoped_refptr<base::SequencedTaskRunner> task_runner,
               mojo::PendingRemote<mojom::blink::AIProofreader> pending_remote,
-              ProofreaderCreateOptions* options,
-              uint64_t context_window);
+              ProofreaderCreateOptions* options);
 
   void Trace(Visitor* visitor) const override;
 

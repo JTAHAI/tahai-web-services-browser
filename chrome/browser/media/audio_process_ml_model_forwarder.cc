@@ -63,13 +63,6 @@ AudioProcessMlModelForwarder::WrappedFilePtr OpenFileAndReturn(
 
 // Used to monitor audio process launches and bind to the audio service
 // MlModelManager interface.
-//
-// This class must be accessed on the UI thread due to interaction with the
-// ServiceProcessHost API and the Audio Service API. However, some unit tests
-// (relying on TestingBrowserProcess) do not support such checks, so we only
-// check content::BrowserThread::UI when the observer is explicitly started.
-// When not started, we rely on the AudioProcessMlModelForwarder's sequence
-// checks.
 class AudioProcessMlModelForwarder::AudioProcessObserver
     : content::ServiceProcessHost::Observer {
  public:
@@ -79,11 +72,8 @@ class AudioProcessMlModelForwarder::AudioProcessObserver
   AudioProcessObserver() = default;
 
   ~AudioProcessObserver() override {
-    // For `launch_callback_` data races, we rely on the
-    // AudioProcessMlModelForwarder to sequence check all accesses to the
-    // AudioProcessObserver.
+    DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
     if (launch_callback_) {
-      DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
       content::ServiceProcessHost::RemoveObserver(this);
     }
   }
@@ -172,8 +162,10 @@ AudioProcessMlModelForwarder::AudioProcessMlModelForwarder(
     std::unique_ptr<AudioProcessObserver> audio_process_observer,
     PrefService* pref_service)
     : audio_process_observer_(std::move(audio_process_observer)),
-      pref_service_(pref_service) {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+      pref_service_(pref_service),
+      background_task_runner_(base::ThreadPool::CreateSequencedTaskRunner(
+          {base::MayBlock(), base::TaskPriority::BEST_EFFORT})) {
+  DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
   if (base::FeatureList::IsEnabled(
           media::kWebRtcAudioNeuralResidualEchoEstimation)) {
     model_forwarders_[audio::mojom::MlModelType::kResidualEchoEstimation] =
@@ -189,10 +181,17 @@ AudioProcessMlModelForwarder::AudioProcessMlModelForwarder(
                 OPTIMIZATION_TARGET_WEBRTC_VOICE_ISOLATION_DENOISER,
             audio::mojom::MlModelType::kVoiceIsolationDenoiser, /*owner=*/this);
   }
+
+  if (audio_process_observer_) {
+    // base::Unretained is safe since `this` owns and outlives the observer.
+    audio_process_observer_->Start(base::BindRepeating(
+        &AudioProcessMlModelForwarder::OnAudioProcessLaunched,
+        base::Unretained(this)));
+  }
 }
 
 AudioProcessMlModelForwarder::~AudioProcessMlModelForwarder() {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
 }
 
 AudioProcessMlModelForwarder::SingleModelForwarder::SingleModelForwarder(
@@ -200,17 +199,17 @@ AudioProcessMlModelForwarder::SingleModelForwarder::SingleModelForwarder(
     audio::mojom::MlModelType mojo_type,
     AudioProcessMlModelForwarder* owner)
     : target_(target), mojo_type_(mojo_type), owner_(owner) {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
 }
 
 AudioProcessMlModelForwarder::SingleModelForwarder::~SingleModelForwarder() {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
 }
 
 void AudioProcessMlModelForwarder::SingleModelForwarder::Initialize(
     optimization_guide::OptimizationGuideModelProvider* model_provider,
     scoped_refptr<base::SequencedTaskRunner> background_task_runner) {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
   CHECK(!model_observation_);
   background_task_runner_ = background_task_runner;
   model_observation_.emplace(model_provider, background_task_runner_, this);
@@ -218,7 +217,7 @@ void AudioProcessMlModelForwarder::SingleModelForwarder::Initialize(
 
 void AudioProcessMlModelForwarder::SingleModelForwarder::
     MaybeRegisterModelObserver(bool audio_input_stream_creation_observed) {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
   // Avoid registering the model observer until we have an indication that a
   // model is likely to be used. This reduces unnecessary model downloads.
   if (!audio_input_stream_creation_observed) {
@@ -231,14 +230,14 @@ void AudioProcessMlModelForwarder::SingleModelForwarder::
 
 void AudioProcessMlModelForwarder::SingleModelForwarder::
     CancelModelLoadingTasks() {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
   weak_factory_.InvalidateWeakPtrs();
 }
 
 void AudioProcessMlModelForwarder::SingleModelForwarder::OnModelUpdated(
     optimization_guide::proto::OptimizationTarget optimization_target,
     base::optional_ref<const optimization_guide::ModelInfo> model_info) {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
   CHECK_EQ(optimization_target, target_);
   model_path_ =
       model_info.has_value() ? model_info->model_file_path : base::FilePath();
@@ -252,7 +251,7 @@ void AudioProcessMlModelForwarder::SingleModelForwarder::OnModelUpdated(
 
 void AudioProcessMlModelForwarder::SingleModelForwarder::
     MaybeSendModelToAudioProcess() {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
 
   CancelModelLoadingTasks();
 
@@ -274,7 +273,7 @@ void AudioProcessMlModelForwarder::SingleModelForwarder::
 
 void AudioProcessMlModelForwarder::SingleModelForwarder::OnModelFileOpened(
     WrappedFilePtr file) {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
   if (!file || !owner_->audio_process_model_manager_) {
     // No file or nowhere to send it.
     return;
@@ -284,18 +283,9 @@ void AudioProcessMlModelForwarder::SingleModelForwarder::OnModelFileOpened(
 
 void AudioProcessMlModelForwarder::Initialize(
     optimization_guide::OptimizationGuideModelProvider& model_provider) {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  if (audio_process_observer_) {
-    // base::Unretained is safe since `this` owns and outlives the observer.
-    audio_process_observer_->Start(base::BindRepeating(
-        &AudioProcessMlModelForwarder::OnAudioProcessLaunched,
-        base::Unretained(this)));
-  }
-  scoped_refptr<base::SequencedTaskRunner> background_task_runner =
-      base::ThreadPool::CreateSequencedTaskRunner(
-          {base::MayBlock(), base::TaskPriority::BEST_EFFORT});
+  DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
   for (auto& [_, forwarder] : model_forwarders_) {
-    forwarder->Initialize(&model_provider, background_task_runner);
+    forwarder->Initialize(&model_provider, background_task_runner_);
   }
 
   if (pref_service_) {
@@ -314,7 +304,7 @@ void AudioProcessMlModelForwarder::Initialize(
 }
 
 void AudioProcessMlModelForwarder::OnAudioCaptureStarted() {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
   audio_input_stream_creation_observed_ = true;
   if (pref_service_) {
     // Store the time of this event for checking at initialization.
@@ -326,7 +316,7 @@ void AudioProcessMlModelForwarder::OnAudioCaptureStarted() {
 
 void AudioProcessMlModelForwarder::OnAudioProcessLaunched(
     mojo::Remote<audio::mojom::MlModelManager> model_manager) {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
   audio_process_model_manager_ = std::move(model_manager);
   audio_process_model_manager_.reset_on_disconnect();
 
@@ -338,7 +328,7 @@ void AudioProcessMlModelForwarder::OnAudioProcessLaunched(
 }
 
 void AudioProcessMlModelForwarder::MaybeRegisterModelObservers() {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
   for (auto& [_, forwarder] : model_forwarders_) {
     forwarder->MaybeRegisterModelObserver(
         audio_input_stream_creation_observed_);
@@ -346,7 +336,7 @@ void AudioProcessMlModelForwarder::MaybeRegisterModelObservers() {
 }
 
 void AudioProcessMlModelForwarder::MaybeSendModelsToAudioProcess() {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
   for (auto& [_, forwarder] : model_forwarders_) {
     forwarder->MaybeSendModelToAudioProcess();
   }

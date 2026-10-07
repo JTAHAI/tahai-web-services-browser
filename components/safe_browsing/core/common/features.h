@@ -118,12 +118,6 @@ extern const base::FeatureParam<bool>
 // Specifies whether to enable triggering on detection of a credit card form.
 extern const base::FeatureParam<bool> kCsdCreditCardFormEnableDetectionTrigger;
 
-// Enables the creation of the ClientSideDetectionService on iOS.
-BASE_DECLARE_FEATURE(kClientSideDetectionEnabledIos);
-// Specifies whether to enforce on CSD verdicts on iOS by showing a blocking
-// page.
-extern const base::FeatureParam<bool> kCsdEnforceIos;
-
 // Killswitch for Llama forced trigger info redirect chain check.
 BASE_DECLARE_FEATURE(kClientSideDetectionForcedLlamaRedirectChainKillswitch);
 
@@ -173,17 +167,7 @@ BASE_DECLARE_FEATURE(kClientSideDetectionScamScore);
 BASE_DECLARE_FEATURE(kClientSideDetectionServerModelForScamDetectionAndroid);
 extern const base::FeatureParam<int>
     kClientSideDetectionServerModelMaxScansPerDay;
-#endif
 
-#if !BUILDFLAG(IS_ANDROID)
-// Inquire the server-side model instead of the on-device model for scam
-// detection on Desktop.
-BASE_DECLARE_FEATURE(kClientSideDetectionServerModelForScamDetectionDesktop);
-extern const base::FeatureParam<int>
-    kClientSideDetectionServerModelMaxScansPerDayDesktop;
-#endif
-
-#if BUILDFLAG(IS_ANDROID)
 // Dedicated long-lived feature flag to control future server model rollout and
 // set the model version. This flag should not be cleaned up after the server
 // model is launched. See go/mes-config-rollouts#roll-out-via-finch on the
@@ -193,18 +177,6 @@ BASE_DECLARE_FEATURE(kClientSideDetectionServerModelRolloutAndroid);
 // the model version (e.g. 1001). Update go/slams-mapping accordingly.
 extern const base::FeatureParam<int>
     kClientSideDetectionServerModelRolloutVersionAndroid;
-#endif
-
-#if !BUILDFLAG(IS_ANDROID)
-// Dedicated long-lived feature flag to control future server model rollout and
-// set the model version for Desktop. This flag should not be cleaned up after
-// the server model is launched. See go/mes-config-rollouts#roll-out-via-finch
-// on the recommended way to control rollouts.
-BASE_DECLARE_FEATURE(kClientSideDetectionServerModelRolloutDesktop);
-// Note for future finch config: Set an arbitrary integer value associated with
-// the model version (e.g. 1001). Update go/slams-mapping accordingly.
-extern const base::FeatureParam<int>
-    kClientSideDetectionServerModelRolloutVersionDesktop;
 #endif
 
 BASE_DECLARE_FEATURE(kClientSideDetectionSkipErrorPage);
@@ -437,19 +409,6 @@ extern const base::FeatureParam<std::string> kRedWarningSurveyReportTypeFilter;
 // Specifies the HaTS survey's identifier.
 extern const base::FeatureParam<std::string> kRedWarningSurveyTriggerId;
 
-// Enables HaTS surveys for Android users encountering red warnings.
-BASE_DECLARE_FEATURE(kRedWarningSurveyAndroid);
-// Specifies the HaTS survey trigger ID for general Android red warnings.
-extern const base::FeatureParam<std::string> kRedWarningSurveyAndroidTriggerId;
-// Specifies the HaTS survey trigger ID for Android red warnings when the user
-// proceeded past the warning.
-extern const base::FeatureParam<std::string>
-    kRedWarningSurveyAndroidProceedTriggerId;
-// Specifies the HaTS survey trigger ID for Android red warnings when the user
-// heeded the warning (did not proceed).
-extern const base::FeatureParam<std::string>
-    kRedWarningSurveyAndroidHeedTriggerId;
-
 // If enabled, advanced protection program users are shown relaunch to apply
 // update required.
 BASE_DECLARE_FEATURE(kRelaunchNotificationForAdvancedProtection);
@@ -510,15 +469,6 @@ BASE_DECLARE_FEATURE(kSkipImageClassificationScoringForNonPageLoadTriggers);
 
 // Controls the daily quota for the suspicious site trigger.
 BASE_DECLARE_FEATURE(kSuspiciousSiteTriggerQuotaFeature);
-
-// Enables HaTS surveys for users encountering suspicious site warnings.
-BASE_DECLARE_FEATURE(kSuspiciousSiteWarningSurvey);
-extern const base::FeatureParam<std::string>
-    kSuspiciousSiteWarningSurveyTriggerId;
-extern const base::FeatureParam<std::string>
-    kSuspiciousSiteWarningSurveyProceedTriggerId;
-extern const base::FeatureParam<std::string>
-    kSuspiciousSiteWarningSurveyHeedTriggerId;
 
 // Enables warnings on sites that Safe Browsing deems suspicious.
 BASE_DECLARE_FEATURE(kSuspiciousSiteWarnings);

@@ -73,8 +73,6 @@ public class CustomTabResumeManagerUnitTest {
         setUpShoppingServiceMocks();
         setUpTabImplJniMocks();
 
-        when(mTabDelegateFactory.isCustomTab()).thenReturn(true);
-
         mResumeManager = new CustomTabResumeManager(mIntentDataProvider, mCipherFactory);
     }
 
@@ -358,7 +356,6 @@ public class CustomTabResumeManagerUnitTest {
                 new java.lang.ref.WeakReference<>(
                         androidx.test.core.app.ApplicationProvider.getApplicationContext());
         when(mWindowAndroid.getContext()).thenReturn(contextRef);
-        when(mWindowAndroid.getActivity()).thenReturn(new java.lang.ref.WeakReference<>(null));
     }
 
     private void setUpShoppingServiceMocks() {

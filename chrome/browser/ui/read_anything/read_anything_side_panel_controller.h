@@ -23,8 +23,6 @@
 #include "content/public/browser/web_contents_observer.h"
 #include "content/public/browser/web_contents_user_data.h"
 
-using read_anything::mojom::ReadAnythingOpenTrigger;
-
 class SidePanelEntryScope;
 class SidePanelRegistry;
 

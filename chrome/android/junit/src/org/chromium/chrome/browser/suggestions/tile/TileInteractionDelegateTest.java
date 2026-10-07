@@ -203,7 +203,7 @@ public class TileInteractionDelegateTest {
     }
 
     @Test
-    @Config(sdk = Build.VERSION_CODES.R)
+    @Config(sdk = Build.VERSION_CODES.R, manifest = Config.NONE)
     public void testTileInteractionDelegate_longClick() {
         TileGroup tileGroup =
                 new TileGroup(

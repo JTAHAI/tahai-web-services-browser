@@ -29,7 +29,7 @@ ParseManifestFromManifestUrlCommand::ParseManifestFromManifestUrlCommand(
       manifest_url_(std::move(manifest_url)),
       manifest_contents_(std::move(manifest_contents)) {
 #if EXPENSIVE_DCHECKS_ARE_ON()
-  GetMutableDebugValue().Set("manifest_contents", manifest_contents_);
+  GetMutableDebugValue().Set("manifest_contents", manifest_contents);
 #endif
   GetMutableDebugValue().Set("manifest_url", manifest_url_.spec());
 }

@@ -8,7 +8,6 @@
 #include "base/strings/string_util.h"
 #include "base/test/mock_callback.h"
 #include "base/test/scoped_feature_list.h"
-#include "build/build_config.h"
 #include "chrome/browser/accessibility/live_caption/live_caption_controller_factory.h"
 #include "chrome/browser/glic/glic_pref_names.h"
 #include "chrome/browser/glic/media/glic_media_context.h"
@@ -32,7 +31,6 @@
 #include "content/public/test/web_contents_tester.h"
 #include "media/base/media_switches.h"
 #include "testing/gtest/include/gtest/gtest.h"
-
 #if BUILDFLAG(IS_CHROMEOS)
 #include "ash/constants/ash_features.h"
 #include "chrome/browser/ash/test/glic_user_session_test_helper.h"
@@ -43,10 +41,6 @@
 using content::WebContents;
 
 namespace glic {
-
-// Glic media integration requires SODA which is currently not supported on
-// non-x86 Linux.
-#if !BUILDFLAG(IS_LINUX) || defined(ARCH_CPU_X86_FAMILY)
 
 class GlicMediaIntegrationTest : public ChromeRenderViewHostTestHarness {
  public:
@@ -224,9 +218,6 @@ TEST_F(GlicMediaIntegrationTest, GetWithNullReturnsNull) {
 }
 
 TEST_F(GlicMediaIntegrationTest, GetReturnsNullIfSwitchIsOff) {
-  base::test::ScopedFeatureList scoped_feature_list;
-  scoped_feature_list.InitAndDisableFeature(media::kHeadlessLiveCaption);
-
   EXPECT_EQ(GlicMediaIntegration::GetFor(web_contents()), nullptr);
   EXPECT_EQ(GetMediaTranscriptProvider(), nullptr);
 }
@@ -277,19 +268,14 @@ TEST_F(GlicMediaIntegrationTest, ContextContainsTranscript) {
   }
 
   {
-    // AppendContext is a legacy path and no longer contains transcripts when
-    // kAnnotatedPageContentWithMediaData is enabled.
+    // Expect a leaf node with the entire context when we query with the
+    // WebContents instead.
     optimization_guide::proto::ContentNode root_node;
     integration->AppendContext(web_contents(), &root_node);
     EXPECT_EQ(root_node.children_nodes_size(), 0);
-    if (base::FeatureList::IsEnabled(
-            optimization_guide::features::kAnnotatedPageContentWithMediaData)) {
-      EXPECT_FALSE(root_node.has_content_attributes());
-    } else {
-      EXPECT_TRUE(root_node.has_content_attributes());
-      EXPECT_EQ(root_node.content_attributes().text_data().text_content(),
-                "ABCDEFGHIJ");
-    }
+    EXPECT_TRUE(root_node.has_content_attributes());
+    EXPECT_EQ(root_node.content_attributes().text_data().text_content(),
+              "ABCDEFGHIJ");
   }
 }
 
@@ -298,11 +284,13 @@ TEST_F(GlicMediaIntegrationTest, ContextContainsNoTranscript) {
 
   // Send no strings.
 
-  // Expect no content attributes when there is no transcript.
+  // Expect a leaf node with no text.
   optimization_guide::proto::ContentNode root_node;
   integration->AppendContextForFrame(rfh(), &root_node);
   EXPECT_EQ(root_node.children_nodes_size(), 0);
-  EXPECT_FALSE(root_node.has_content_attributes());
+  EXPECT_TRUE(root_node.has_content_attributes());
+  EXPECT_EQ(root_node.content_attributes().text_data().text_content().length(),
+            0u);
 }
 
 TEST_F(GlicMediaIntegrationTest, ContextTruncatesUTF8Correctly) {
@@ -458,11 +446,12 @@ TEST_F(GlicMediaIntegrationTest, ExcludedOriginsDontReturnTranscriptions) {
   // Exclude the origin after adding the transcript.
   integration->SetExcludedOrigins({excluded_origin});
 
-  // Expect no content attributes when the origin is excluded.
+  // Expect an empty transcript.
   optimization_guide::proto::ContentNode root_node;
-  integration->AppendContextForFrame(rfh(), &root_node);
+  integration->AppendContext(web_contents(), &root_node);
   EXPECT_EQ(root_node.children_nodes_size(), 0);
-  EXPECT_FALSE(root_node.has_content_attributes());
+  EXPECT_TRUE(root_node.has_content_attributes());
+  EXPECT_EQ(root_node.content_attributes().text_data().text_content(), "");
 }
 
 TEST_F(GlicMediaIntegrationTest, DefaultExcludedOriginsStopTranscription) {
@@ -528,7 +517,7 @@ TEST_F(GlicMediaIntegrationTest,
 
   // Expect an empty transcript.
   optimization_guide::proto::ContentNode root_node;
-  integration->AppendContextForFrame(rfh(), &root_node);
+  integration->AppendContext(web_contents(), &root_node);
   EXPECT_EQ(root_node.children_nodes_size(), 0);
   EXPECT_FALSE(root_node.has_content_attributes());
 }
@@ -577,7 +566,5 @@ TEST_F(GlicMediaIntegrationTest, PrefToggleAddsAndRemovesListener) {
       media::SpeechRecognitionResult("transcript 3", /*is_final=*/true)));
   EXPECT_EQ(GetContext()->GetTranscriptChunks().size(), 1u);
 }
-
-#endif  // !BUILDFLAG(IS_LINUX) || defined(ARCH_CPU_X86_FAMILY)
 
 }  // namespace glic

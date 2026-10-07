@@ -7,12 +7,14 @@
 #include "build/branding_buildflags.h"
 #include "build/build_config.h"
 
-#include "base/check.h"
-
-// On Windows don't use FilePath.
+// On Windows don't use FilePath and logging.h.
 // http://crbug.com/604923
 #if !BUILDFLAG(IS_WIN)
+#include "base/check.h"
 #include "base/files/file_path.h"
+#else
+#include <assert.h>
+#define DCHECK assert
 #endif
 
 namespace crash_reporter {
@@ -26,6 +28,9 @@ const char kDefaultUploadURL[] = "https://clients2.google.com/cr/report";
 #endif
 
 }  // namespace
+
+ProductInfo::ProductInfo() = default;
+ProductInfo::~ProductInfo() = default;
 
 void SetCrashReporterClient(CrashReporterClient* client) {
   g_client = client;
@@ -155,11 +160,6 @@ bool CrashReporterClient::ShouldMonitorCrashHandlerExpensively() {
 bool CrashReporterClient::EnableBreakpadForProcess(
     const std::string& process_type) {
   return false;
-}
-
-std::vector<base::ReadOnlySharedMemoryRegion>
-CrashReporterClient::GetUserStreamSharedMemoryRegions() {
-  return {};
 }
 
 }  // namespace crash_reporter

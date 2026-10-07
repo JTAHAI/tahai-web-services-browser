@@ -19,7 +19,6 @@
 namespace client_certificates {
 
 TEST(UnexportablePrivateKeyTest, SupportedCreateKey) {
-  base::test::TaskEnvironment task_environment;
   ScopedSSLKeyConverter scoped_converter;
   auto provider = crypto::GetUnexportableKeyProvider(/*config=*/{});
   ASSERT_TRUE(provider);
@@ -38,9 +37,7 @@ TEST(UnexportablePrivateKeyTest, SupportedCreateKey) {
   EXPECT_GT(spki_bytes.size(), 0U);
   EXPECT_EQ(private_key->GetAlgorithm(),
             crypto::SignatureVerifier::ECDSA_SHA256);
-  base::test::TestFuture<std::optional<std::vector<uint8_t>>> test_future;
-  private_key->Sign(spki_bytes, test_future.GetCallback());
-  EXPECT_TRUE(test_future.Get().has_value());
+  EXPECT_TRUE(private_key->SignSlowly(spki_bytes).has_value());
 
   auto proto_key = private_key->ToProto();
   EXPECT_EQ(proto_key.source(),
@@ -54,7 +51,6 @@ TEST(UnexportablePrivateKeyTest, SupportedCreateKey) {
 }
 
 TEST(UnexportablePrivateKeyTest, SupportedCreateKeySoftware) {
-  base::test::TaskEnvironment task_environment;
   ScopedSSLKeyConverter scoped_converter;
   auto provider = crypto::GetUnexportableKeyProvider(/*config=*/{});
   ASSERT_TRUE(provider);
@@ -73,9 +69,7 @@ TEST(UnexportablePrivateKeyTest, SupportedCreateKeySoftware) {
   EXPECT_GT(spki_bytes.size(), 0U);
   EXPECT_EQ(private_key->GetAlgorithm(),
             crypto::SignatureVerifier::ECDSA_SHA256);
-  base::test::TestFuture<std::optional<std::vector<uint8_t>>> test_future;
-  private_key->Sign(spki_bytes, test_future.GetCallback());
-  EXPECT_TRUE(test_future.Get().has_value());
+  EXPECT_TRUE(private_key->SignSlowly(spki_bytes).has_value());
 
   auto proto_key = private_key->ToProto();
   EXPECT_EQ(proto_key.source(),

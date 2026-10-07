@@ -29,7 +29,9 @@ public class NotificationChannelPreserver {
         SiteChannelsManager.getInstance()
                 .getChannelIdForOriginAsync(
                         origin.toString(),
-                        (String channelId) -> deleteSiteChannel(origin, channelId));
+                        (channelId) -> {
+                            deleteSiteChannel(origin, channelId);
+                        });
     }
 
     private static void deleteSiteChannel(Origin origin, String channelId) {

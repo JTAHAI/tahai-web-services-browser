@@ -4,9 +4,6 @@
 
 #include "third_party/blink/renderer/core/intersection_observer/intersection_geometry.h"
 
-#include <optional>
-
-#include "base/containers/adapters.h"
 #include "base/numerics/safe_conversions.h"
 #include "third_party/blink/renderer/core/display_lock/display_lock_utilities.h"
 #include "third_party/blink/renderer/core/frame/local_frame.h"
@@ -19,7 +16,6 @@
 #include "third_party/blink/renderer/core/layout/layout_box.h"
 #include "third_party/blink/renderer/core/layout/layout_embedded_content.h"
 #include "third_party/blink/renderer/core/layout/layout_inline.h"
-#include "third_party/blink/renderer/core/layout/layout_object.h"
 #include "third_party/blink/renderer/core/layout/layout_text.h"
 #include "third_party/blink/renderer/core/layout/layout_view.h"
 #include "third_party/blink/renderer/core/page/page.h"
@@ -143,11 +139,9 @@ struct VisibilityInfo {
 // The `occluder_node_id` holds the ID of the node that's overlapping the target
 // (if there is one) as the result of hit testing.
 // https://w3c.github.io/IntersectionObserver/v2/#calculate-visibility-algo
-VisibilityInfo ComputeVisibilityInfo(
-    const LayoutObject* target,
-    const PhysicalRect& rect,
-    unsigned flags,
-    std::optional<IntersectionGeometry::HitNodeCb> hit_node_cb) {
+VisibilityInfo ComputeVisibilityInfo(const LayoutObject* target,
+                                     const PhysicalRect& rect,
+                                     unsigned flags) {
   if (!target->GetDocument().GetFrame() ||
       target->GetDocument().GetFrame()->LocalFrameRoot().GetOcclusionState() !=
           mojom::blink::FrameOcclusionState::kGuaranteedNotOccluded) {
@@ -160,23 +154,6 @@ VisibilityInfo ComputeVisibilityInfo(
   }
   if (target->HasDistortingVisualEffects())
     return {false, kInvalidDOMNodeId};
-  // TODO(layout-dev): This should hit-test the intersection rect, not the
-  // target rect; it's not helpful to know that the portion of the target that
-  // is clipped is also occluded.
-  if (hit_node_cb.has_value()) {
-    HitTestResult result(target->HitTestForOcclusion(
-        rect, base::BindRepeating(hit_node_cb.value(), rect)));
-    const HitTestResult::NodeSet& nodes = result.ListBasedTestResult();
-    for (const auto& hit_node : base::Reversed(nodes)) {
-      // If the `target` itself or any of its child nodes is in the hit test
-      // results, then the `target` is visible/unoccluded enough to be hit.
-      if (hit_node == target->GetNode() ||
-          hit_node->IsDescendantOf(target->GetNode())) {
-        return {true, kInvalidDOMNodeId};
-      }
-    }
-    return {false, kInvalidDOMNodeId};
-  }
   // TODO(layout-dev): This should hit-test the intersection rect, not the
   // target rect; it's not helpful to know that the portion of the target that
   // is clipped is also occluded.
@@ -219,7 +196,7 @@ gfx::Transform ObjectToViewTransform(const LayoutObject& object) {
 
   // Fall back to MapLocalToAncestor.
   TransformState transform_state(TransformState::kApplyTransformDirection);
-  object.MapLocalToAncestor(nullptr, transform_state, {});
+  object.MapLocalToAncestor(nullptr, transform_state, 0);
   return transform_state.AccumulatedTransform();
 }
 
@@ -305,10 +282,8 @@ IntersectionGeometry::IntersectionGeometry(
     const Vector<Length>& scroll_margin,
     unsigned flags,
     std::optional<RootGeometry>& root_geometry,
-    CachedRects* cached_rects,
-    std::optional<HitNodeCb> hit_node_cb)
-    : flags_(flags & kConstructorFlagsMask),
-      hit_node_cb_(std::move(hit_node_cb)) {
+    CachedRects* cached_rects)
+    : flags_(flags & kConstructorFlagsMask) {
   // Only one of root_margin or target_margin can be specified.
   DCHECK(root_margin.empty() || target_margin.empty());
 
@@ -631,8 +606,7 @@ void IntersectionGeometry::ComputeGeometry(const RootGeometry& root_geometry,
           TransformState::kUnapplyInverseTransformDirection);
       target->View()->MapAncestorToLocal(
           nullptr, implicit_root_to_target_document_transform,
-          {MapCoordinatesMode::kTraverseDocumentBoundaries,
-           MapCoordinatesMode::kApplyRemoteMainFrameTransform});
+          kTraverseDocumentBoundaries | kApplyRemoteMainFrameTransform);
       gfx::Transform matrix =
           implicit_root_to_target_document_transform.AccumulatedTransform()
               .InverseOrIdentity();
@@ -705,8 +679,7 @@ void IntersectionGeometry::ComputeGeometry(const RootGeometry& root_geometry,
   }
   if (IsIntersecting() && ShouldComputeVisibility()) {
     auto visiblity_info = ComputeVisibilityInfo(
-        target, PhysicalRect::FastAndLossyFromRectF(target_rect_), flags_,
-        std::move(hit_node_cb_));
+        target, PhysicalRect::FastAndLossyFromRectF(target_rect_), flags_);
     occluder_node_id_ = visiblity_info.occluder_node_id;
     if (visiblity_info.is_visible) {
       flags_ |= kIsVisible;
@@ -796,17 +769,16 @@ bool IntersectionGeometry::ApplyClip(const LayoutObject* target,
                                      bool ignore_local_clip_path,
                                      bool root_scrolls_target,
                                      CachedRects* cached_rects) {
-  VisualRectFlags flags = {VisualRectFlag::kEdgeInclusive,
-                           VisualRectFlag::kDontApplyMainFrameOverflowClip,
-                           VisualRectFlag::kUsePreciseClipPath};
+  unsigned flags = kDefaultVisualRectFlags | kEdgeInclusive |
+                   kDontApplyMainFrameOverflowClip | kUsePreciseClipPath;
   if (!ShouldRespectFilters()) {
-    flags.Put(VisualRectFlag::kIgnoreFilters);
+    flags |= kIgnoreFilters;
   }
   if (CanUseGeometryMapper(*target)) {
-    flags.Put(VisualRectFlag::kUseGeometryMapper);
+    flags |= kUseGeometryMapper;
   }
   if (ignore_local_clip_path) {
-    flags.Put(VisualRectFlag::kIgnoreLocalClipPath);
+    flags |= kIgnoreLocalClipPath;
   }
 
   bool does_intersect = false;
@@ -815,7 +787,8 @@ bool IntersectionGeometry::ApplyClip(const LayoutObject* target,
     does_intersect = cached_rects->does_intersect;
   } else {
     does_intersect = target->MapToVisualRectInAncestorSpace(
-        local_ancestor, unclipped_intersection_rect, flags);
+        local_ancestor, unclipped_intersection_rect,
+        static_cast<VisualRectFlags>(flags));
     if (local_ancestor && local_ancestor->IsScrollContainer() &&
         !root_scrolls_target) {
       // Convert the rect from the scrolling contents space to the border box
@@ -886,8 +859,7 @@ bool IntersectionGeometry::ApplyClip(const LayoutObject* target,
         clip_rect = ToPixelSnappedRect(
             local_root_frame->ContentLayoutObject()->LocalToAncestorRect(
                 PhysicalRect(clip_rect), nullptr,
-                {MapCoordinatesMode::kTraverseDocumentBoundaries,
-                 MapCoordinatesMode::kApplyRemoteMainFrameTransform}));
+                kTraverseDocumentBoundaries | kApplyRemoteMainFrameTransform));
         intersection_rect = unclipped_intersection_rect;
         does_intersect &=
             intersection_rect.InclusiveIntersect(gfx::RectF(clip_rect));

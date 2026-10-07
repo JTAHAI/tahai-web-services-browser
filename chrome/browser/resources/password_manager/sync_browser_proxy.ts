@@ -59,11 +59,6 @@ export interface SyncBrowserProxy {
    * entry point as input.
    */
   openBatchUpload(entryPoint: BatchUploadPasswordsEntryPoint): void;
-
-  /**
-   * Triggers the passkey unlock flow.
-   */
-  startPasskeyUnlockFlow(): void;
 }
 
 export class SyncBrowserProxyImpl implements SyncBrowserProxy {
@@ -86,10 +81,6 @@ export class SyncBrowserProxyImpl implements SyncBrowserProxy {
 
   openBatchUpload(entryPoint: BatchUploadPasswordsEntryPoint): void {
     chrome.send('OpenBatchUpload', [entryPoint]);
-  }
-
-  startPasskeyUnlockFlow(): void {
-    chrome.send('StartPasskeyUnlockFlow');
   }
 
   static getInstance(): SyncBrowserProxy {

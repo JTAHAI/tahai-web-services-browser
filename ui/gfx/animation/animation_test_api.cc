@@ -25,14 +25,6 @@ AnimationTestApi::SetRichAnimationRenderMode(
       &Animation::rich_animation_rendering_mode_, mode);
 }
 
-// static
-AnimationTestApi::PrefersReducedMotionResetter
-AnimationTestApi::SetPrefersReducedMotionForTesting(
-    bool prefers_reduced_motion) {
-  return std::make_unique<base::AutoReset<std::optional<bool>>>(
-      &Animation::prefers_reduced_motion_, prefers_reduced_motion);
-}
-
 AnimationTestApi::AnimationTestApi(Animation* animation)
     : animation_(animation) {}
 

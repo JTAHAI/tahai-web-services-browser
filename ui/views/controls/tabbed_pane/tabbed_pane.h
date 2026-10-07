@@ -130,11 +130,6 @@ class VIEWS_EXPORT TabbedPane : public FlexLayoutView {
   // Sets whether a divider will be drawn underneath the Tab Strip.
   void SetDrawTabDivider(bool draw);
 
-  // Gets/sets whether hidden views are included in layout calculations and
-  // proposed layouts.
-  bool GetIncludeHiddenViewsInLayout() const;
-  void SetIncludeHiddenViewsInLayout(bool include);
-
  private:
   friend class FocusTraversalTest;
   friend class TabbedPaneTab;
@@ -393,7 +388,6 @@ class VIEWS_EXPORT TabbedPaneTabStrip : public View,
 };
 
 BEGIN_VIEW_BUILDER(VIEWS_EXPORT, TabbedPane, FlexLayoutView)
-VIEW_BUILDER_PROPERTY(bool, IncludeHiddenViewsInLayout)
 VIEW_BUILDER_METHOD_ALIAS(AddTab,
                           AddTab<View>,
                           const std::u16string&,

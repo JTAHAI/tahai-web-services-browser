@@ -5,25 +5,20 @@
 #endif
 
 #include "build/build_config.h"
+
 /* BEGIN DEFINES */
-#define ENABLE_FDOPEN
 /* #undef HAVE___PROGNAME */
 /* #undef HAVE__CLOSE */
 /* #undef HAVE__DUP */
 /* #undef HAVE__FDOPEN */
 /* #undef HAVE__FILENO */
-/* #undef HAVE__FSEEKI64 */
-/* #undef HAVE__FSTAT64 */
-/* #undef HAVE__FTELLI64 */
 /* #undef HAVE__SETMODE */
 /* #undef HAVE__SNPRINTF */
-/* #undef HAVE__SNPRINTF_S */
-/* #undef HAVE__SNWPRINTF_S */
-/* #undef HAVE__STAT64 */
 /* #undef HAVE__STRDUP */
 /* #undef HAVE__STRICMP */
 /* #undef HAVE__STRTOI64 */
 /* #undef HAVE__STRTOUI64 */
+/* #undef HAVE__UMASK */
 /* #undef HAVE__UNLINK */
 /* #undef HAVE_ARC4RANDOM */
 /* #undef HAVE_CLONEFILE */
@@ -32,26 +27,23 @@
 /* #undef HAVE_FICLONERANGE */
 #define HAVE_FILENO
 #if !BUILDFLAG(IS_WIN)
-#define HAVE_FCHMOD
 #define HAVE_FSEEKO
 #define HAVE_FTELLO
 #endif
 /* #undef HAVE_GETPROGNAME */
-/* #undef HAVE_GETSECURITYINFO */
 /* #undef HAVE_GNUTLS */
 /* #undef HAVE_LIBBZ2 */
 /* #undef HAVE_LIBLZMA */
-/* #undef HAVE_LIBZSTD */
+/* #undef HAVE_LOCALTIME_R */
 #if !BUILDFLAG(IS_WIN)
 #define HAVE_LOCALTIME_R
 #endif
-/* #undef HAVE_LOCALTIME_S */
-/* #undef HAVE_MEMCPY_S */
+/* #undef HAVE_MBEDTLS */
 /* #undef HAVE_MKSTEMP */
+/* #undef HAVE_NULLABLE */
 /* #undef HAVE_OPENSSL */
 /* #undef HAVE_SETMODE */
 #define HAVE_SNPRINTF
-/* #undef HAVE_SNPRINTF_S */
 #if !BUILDFLAG(IS_WIN)
 #define HAVE_STRCASECMP
 #endif
@@ -84,6 +76,6 @@
 #define HAVE_SHARED
 /* END DEFINES */
 #define PACKAGE "libzip"
-#define VERSION "1.11.4"
+#define VERSION "1.7.3"
 
 #endif /* HAD_CONFIG_H */

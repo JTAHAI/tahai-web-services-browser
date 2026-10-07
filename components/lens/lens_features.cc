@@ -18,7 +18,7 @@ namespace lens::features {
 
 BASE_FEATURE(kLensStandalone, base::FEATURE_ENABLED_BY_DEFAULT);
 
-BASE_FEATURE(kShowContextualTasksMenuIcon, base::FEATURE_ENABLED_BY_DEFAULT);
+BASE_FEATURE(kShowContextualTasksMenuIcon, base::FEATURE_DISABLED_BY_DEFAULT);
 
 BASE_FEATURE(kLensOverlay,
 #if BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_IOS)
@@ -137,7 +137,7 @@ BASE_FEATURE(kLensUseSeparateRequestIdForViewportImages,
 BASE_FEATURE(kLensSendVitForSingleContextNextQueries,
              base::FEATURE_ENABLED_BY_DEFAULT);
 
-BASE_FEATURE(kLensSendRawFileMediaTypes, base::FEATURE_ENABLED_BY_DEFAULT);
+BASE_FEATURE(kLensSendRawFileMediaTypes, base::FEATURE_DISABLED_BY_DEFAULT);
 
 BASE_FEATURE(kLensSendQuerySubmissionTime, base::FEATURE_DISABLED_BY_DEFAULT);
 
@@ -743,9 +743,7 @@ int GetLensOverlayImageDownscaleUiScalingFactorThreshold() {
 }
 
 std::string GetLensOverlayEndpointURL() {
-  return UseIdentityDelegationForLensComposeboxRequests()
-             ? kLensComposeboxIdentityDelegationEndpointUrl.Get()
-             : kLensOverlayEndpointUrl.Get();
+  return kLensOverlayEndpointUrl.Get();
 }
 
 bool IsLensOverlayDebuggingEnabled() {
@@ -761,9 +759,7 @@ int GetLensOverlayClusterInfoLifetimeSeconds() {
 }
 
 std::string GetLensOverlayClusterInfoEndpointUrl() {
-  return UseIdentityDelegationForLensComposeboxRequests()
-             ? kLensComposeboxIdentityDelegationClusterInfoEndpointUrl.Get()
-             : kLensOverlayClusterInfoEndpointUrl.Get();
+  return kLensOverlayClusterInfoEndpointUrl.Get();
 }
 
 bool GetLensOverlaySendLensInputsForLensSuggest() {
@@ -1181,9 +1177,7 @@ uint32_t GetLensOverlayChunkSizeBytes() {
 }
 
 std::string GetLensOverlayUploadChunkEndpointURL() {
-  return UseIdentityDelegationForLensComposeboxRequests()
-             ? kLensComposeboxIdentityDelegationUploadChunkEndpointUrl.Get()
-             : kLensOverlayUploadChunkEndpointUrl.Get();
+  return kLensOverlayUploadChunkEndpointUrl.Get();
 }
 
 int GetLensOverlayUploadChunkRequestTimeoutMs() {

@@ -83,7 +83,7 @@ class DesktopPopupHeaderMediator implements DesktopWindowStateManager.AppHeaderO
         mModel.set(DesktopPopupHeaderProperties.TITLE_VISIBLE, showTextInCaptionBar);
 
         final int bgColor = ChromeColors.getDefaultBgColor(mContext, mIsIncognito);
-        mDesktopWindowStateManager.onBackgroundColorChanged(bgColor);
+        mDesktopWindowStateManager.updateForegroundColor(bgColor);
         mModel.set(DesktopPopupHeaderProperties.BACKGROUND_COLOR, bgColor);
 
         mModel.set(

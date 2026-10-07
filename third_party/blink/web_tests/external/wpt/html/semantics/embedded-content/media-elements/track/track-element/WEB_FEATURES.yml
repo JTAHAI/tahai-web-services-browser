@@ -1,3 +1,5 @@
-rules:
-- track-webvtt-*: []
-- "*": [text-tracks]
+features:
+- name: text-tracks
+  files:
+  - "*"
+  - "!track-webvtt-*"

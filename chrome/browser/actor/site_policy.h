@@ -29,12 +29,11 @@ enum class MayActOnUrlBlockReason {
   kOptimizationGuideBlock,
   kSafeBrowsing,
   kTabIsErrorDocument,
+  kUrlNotInAllowlist,
   kWrongScheme,
   kEnterprisePolicy,
   kBlockedByStaticList,
   kBlockedByContainerConfig,
-  kDangerousMimeType,
-  kTaskCancelled,
 };
 
 using DecisionCallback = base::OnceCallback<void(/*may_act=*/bool)>;

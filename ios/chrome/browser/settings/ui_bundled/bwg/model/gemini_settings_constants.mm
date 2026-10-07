@@ -10,7 +10,5 @@ NSString* const kGeminiSettingsPersonalizationIdentifier =
     @"GeminiSettingsPersonalizationIdentifier";
 NSString* const kGeminiSettingsExtensionsIdentifier =
     @"GeminiSettingsExtensionsIdentifier";
-NSString* const kGeminiSettingsUsageLimitsIdentifier =
-    @"GeminiSettingsUsageLimitsIdentifier";
 NSString* const kGeminiSettingsUnknownIdentifier =
     @"GeminiSettingsUnknownIdentifier";

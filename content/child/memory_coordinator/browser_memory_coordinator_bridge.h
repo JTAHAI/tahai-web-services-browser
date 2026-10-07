@@ -5,12 +5,12 @@
 #ifndef CONTENT_CHILD_MEMORY_COORDINATOR_BROWSER_MEMORY_COORDINATOR_BRIDGE_H_
 #define CONTENT_CHILD_MEMORY_COORDINATOR_BROWSER_MEMORY_COORDINATOR_BRIDGE_H_
 
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
 
 #include "base/memory/weak_ptr.h"
-#include "base/memory_coordinator/traits.h"
 #include "base/sequence_checker.h"
 #include "content/common/buildflags.h"
 #include "content/common/memory_coordinator/memory_coordinator_policy.h"
@@ -45,7 +45,7 @@ class BrowserMemoryCoordinatorBridge
   // MemoryCoordinatorPolicy:
   void OnConsumerGroupAdded(uint32_t consumer_id,
                             std::string_view consumer_name,
-                            base::MemoryConsumerTraits traits,
+                            std::optional<base::MemoryConsumerTraits> traits,
                             ProcessType process_type,
                             ChildProcessId child_process_id) override;
   void OnConsumerGroupRemoved(uint32_t consumer_id,
@@ -53,8 +53,6 @@ class BrowserMemoryCoordinatorBridge
 
   // mojom::ChildMemoryCoordinator:
   void UpdateConsumers(std::vector<MemoryConsumerUpdate> updates) override;
-  void SetOverrideLimit(uint32_t consumer_id, int32_t percentage) override;
-  void ClearOverrideLimit(uint32_t consumer_id, int32_t policy_limit) override;
 #if BUILDFLAG(ENABLE_MEMORY_COORDINATOR_INTERNALS)
   void EnableDiagnosticsReporting(
       mojo::PendingRemote<mojom::MemoryCoordinatorDiagnosticsHost> host)
@@ -63,7 +61,7 @@ class BrowserMemoryCoordinatorBridge
   // MemoryCoordinatorPolicyManager::DiagnosticObserver:
   void OnMemoryLimitChanged(uint32_t consumer_id,
                             ChildProcessId child_process_id,
-                            base::MemoryLimit memory_limit) override;
+                            int memory_limit) override;
 #endif  // BUILDFLAG(ENABLE_MEMORY_COORDINATOR_INTERNALS)
 
   // Binds this policy to the browser registry host.
@@ -99,7 +97,7 @@ class BrowserMemoryCoordinatorBridge
 
   struct ConsumerDetails {
     std::string consumer_name;
-    base::MemoryConsumerTraits traits;
+    std::optional<base::MemoryConsumerTraits> traits;
   };
   // Tracks all consumer groups known to this class.
   absl::flat_hash_map<uint32_t, ConsumerDetails> groups_;

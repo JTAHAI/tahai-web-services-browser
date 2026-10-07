@@ -46,7 +46,6 @@
 #include "third_party/blink/renderer/platform/geometry/physical_offset.h"
 #include "third_party/blink/renderer/platform/text/writing_mode.h"
 #include "third_party/blink/renderer/platform/web_test_support.h"
-#include "third_party/blink/renderer/platform/wtf/text/format.h"
 #include "third_party/skia/include/core/SkColor.h"
 #include "ui/gfx/geometry/point_f.h"
 #include "ui/gfx/geometry/rect_f.h"
@@ -165,7 +164,7 @@ class ShapePathBuilder : public HighlightPathBuilder {
     // TODO(pfeldman): Is this kIgnoreTransforms correct?
     gfx::PointF viewport_point(view_->FrameToViewport(
         ToRoundedPoint(layout_object_->LocalToAbsolutePoint(
-            layout_object_point, {MapCoordinatesMode::kIgnoreTransforms}))));
+            layout_object_point, kIgnoreTransforms))));
     viewport_point.Scale(scale_);
     return viewport_point;
   }
@@ -263,8 +262,8 @@ const ShapeOutsideInfo* ShapeOutsideInfoForNode(Node* node,
 }
 
 String ToHEXA(const Color& color) {
-  return Format("#{:02X}{:02X}{:02X}{:02X}", color.Red(), color.Green(),
-                color.Blue(), color.AlphaAsInteger());
+  return String::Format("#%02X%02X%02X%02X", color.Red(), color.Green(),
+                        color.Blue(), color.AlphaAsInteger());
 }
 
 std::unique_ptr<protocol::ListValue> ToRGBAList(const Color& color) {
@@ -923,8 +922,7 @@ std::unique_ptr<protocol::DictionaryValue> BuildAreaNamePaths(
     Node* node,
     float scale,
     const Vector<LayoutUnit>& rows,
-    const Vector<LayoutUnit>& columns,
-    std::optional<LayoutUnit> rtl_offset) {
+    const Vector<LayoutUnit>& columns) {
   const auto* grid = To<LayoutGrid>(ContentLayoutBoxFromNode(node));
   LocalFrameView* containing_view = node->GetDocument().View();
   bool is_rtl = !grid->StyleRef().IsLeftToRightDirection();
@@ -952,10 +950,10 @@ std::unique_ptr<protocol::DictionaryValue> BuildAreaNamePaths(
         continue;
       }
 
-      auto start_column = GetPositionForTrackAt(grid, area.columns.StartLine(),
-                                                kForColumns, columns);
-      auto end_column = GetPositionForTrackAt(grid, area.columns.EndLine(),
-                                              kForColumns, columns);
+      const auto start_column = GetPositionForTrackAt(
+          grid, area.columns.StartLine(), kForColumns, columns);
+      const auto end_column = GetPositionForTrackAt(
+          grid, area.columns.EndLine(), kForColumns, columns);
       const auto start_row =
           GetPositionForTrackAt(grid, area.rows.StartLine(), kForRows, rows);
       const auto end_row =
@@ -965,25 +963,17 @@ std::unique_ptr<protocol::DictionaryValue> BuildAreaNamePaths(
       // container.
       const auto row_gap_offset =
           (area.rows.EndLine() == rows.size() - 1) ? LayoutUnit() : row_gap;
-      const auto column_gap_offset =
-          (area.columns.EndLine() == columns.size() - 1) ? LayoutUnit()
-                                                         : column_gap;
-
+      auto column_gap_offset = (area.columns.EndLine() == columns.size() - 1)
+                                   ? LayoutUnit()
+                                   : column_gap;
       if (is_rtl) {
-        const LayoutUnit rtl_offset_val = rtl_offset.value_or(LayoutUnit());
-        start_column += rtl_offset_val;
-        end_column += rtl_offset_val + column_gap_offset;
-      } else {
-        end_column -= column_gap_offset;
+        column_gap_offset = -column_gap_offset;
       }
 
-      gfx::QuadF local_quad(
-          gfx::PointF(start_column, start_row),
-          gfx::PointF(end_column, start_row),
-          gfx::PointF(end_column, end_row - row_gap_offset),
-          gfx::PointF(start_column, end_row - row_gap_offset));
-
-      gfx::QuadF area_quad = grid->LocalToAbsoluteQuad(local_quad);
+      PhysicalOffset position(start_column, start_row);
+      PhysicalSize size(end_column - start_column - column_gap_offset,
+                        end_row - start_row - row_gap_offset);
+      gfx::QuadF area_quad = grid->LocalRectToAbsoluteQuad({position, size});
       FrameQuadToViewport(containing_view, area_quad);
       HighlightPathBuilder area_builder;
       area_builder.AppendPath(QuadToPath(area_quad), scale);
@@ -999,8 +989,7 @@ std::unique_ptr<protocol::DictionaryValue> BuildAreaNamePathsForGridLanes(
     float scale,
     GridTrackSizingDirection direction,
     const Vector<LayoutUnit>& grid_lanes_tracks,
-    bool is_for_columns,
-    std::optional<LayoutUnit> rtl_offset) {
+    bool is_for_columns) {
   const auto* grid_lanes = To<LayoutGridLanes>(node->GetLayoutObject());
   std::unique_ptr<protocol::DictionaryValue> area_paths =
       protocol::DictionaryValue::create();
@@ -1032,48 +1021,34 @@ std::unique_ptr<protocol::DictionaryValue> BuildAreaNamePathsForGridLanes(
         continue;
       }
 
-      auto grid_lanes_start_offset = GetPositionForTrackAt(
+      const LayoutUnit grid_lanes_start_offset = GetPositionForTrackAt(
           grid_lanes, grid_lanes_span.StartLine(),
           is_for_columns ? kForColumns : kForRows, grid_lanes_tracks);
-      auto grid_lanes_end_offset = GetPositionForTrackAt(
+      const LayoutUnit grid_lanes_end_offset = GetPositionForTrackAt(
           grid_lanes, grid_lanes_span.EndLine(),
           is_for_columns ? kForColumns : kForRows, grid_lanes_tracks);
-      const LayoutUnit gap_offset =
+      LayoutUnit gap_offset =
           (grid_lanes_span.EndLine() == grid_lanes_tracks.size() - 1)
               ? LayoutUnit()
               : gap;
-
-      if (is_for_columns && !grid_lanes->StyleRef().IsLeftToRightDirection()) {
-        const LayoutUnit rtl_offset_val = rtl_offset.value_or(LayoutUnit());
-        grid_lanes_start_offset += rtl_offset_val;
-        grid_lanes_end_offset += rtl_offset_val + gap_offset;
-      } else {
-        grid_lanes_end_offset -= gap_offset;
+      // In RTL layouts, `gap_offset` need to be negated due to the reversed
+      // coordinate system to ensure correct grid-lanes size calculations.
+      if ((direction == kForColumns) &&
+          !grid_lanes->StyleRef().IsLeftToRightDirection()) {
+        gap_offset = -gap_offset;
       }
+      const LayoutUnit grid_lanes_area_size =
+          grid_lanes_end_offset - grid_lanes_start_offset - gap_offset;
 
-      gfx::QuadF local_quad;
-      if (is_for_columns) {
-        const gfx::PointF p1 =
-            gfx::PointF(grid_lanes_start_offset, cross_axis_start);
-        const gfx::PointF p2 =
-            gfx::PointF(grid_lanes_end_offset, cross_axis_start);
-        const gfx::PointF p3 = gfx::PointF(grid_lanes_end_offset,
-                                           cross_axis_start + cross_axis_size);
-        const gfx::PointF p4 = gfx::PointF(grid_lanes_start_offset,
-                                           cross_axis_start + cross_axis_size);
-        local_quad = gfx::QuadF(p1, p2, p3, p4);
-      } else {
-        const gfx::PointF p1 =
-            gfx::PointF(cross_axis_start, grid_lanes_start_offset);
-        const gfx::PointF p2 = gfx::PointF(cross_axis_start + cross_axis_size,
-                                           grid_lanes_start_offset);
-        const gfx::PointF p3 = gfx::PointF(cross_axis_start + cross_axis_size,
-                                           grid_lanes_end_offset);
-        const gfx::PointF p4 =
-            gfx::PointF(cross_axis_start, grid_lanes_end_offset);
-        local_quad = gfx::QuadF(p1, p2, p3, p4);
-      }
-      gfx::QuadF area_quad = grid_lanes->LocalToAbsoluteQuad(local_quad);
+      PhysicalOffset position =
+          is_for_columns
+              ? PhysicalOffset(grid_lanes_start_offset, cross_axis_start)
+              : PhysicalOffset(cross_axis_start, grid_lanes_start_offset);
+      PhysicalSize size =
+          is_for_columns ? PhysicalSize(grid_lanes_area_size, cross_axis_size)
+                         : PhysicalSize(cross_axis_size, grid_lanes_area_size);
+      gfx::QuadF area_quad =
+          grid_lanes->LocalRectToAbsoluteQuad({position, size});
       FrameQuadToViewport(node->GetDocument().View(), area_quad);
       HighlightPathBuilder area_builder;
       area_builder.AppendPath(QuadToPath(area_quad), scale);
@@ -1682,9 +1657,9 @@ std::unique_ptr<protocol::DictionaryValue> BuildGridInfoForGridLanes(
   if (grid_highlight_config.show_area_names) {
     grid_info->setValue(
         "areaNames",
-        BuildAreaNamePathsForGridLanes(
-            element, scale, is_for_columns ? kForColumns : kForRows,
-            grid_lanes_tracks, is_for_columns, optional_rtl_offset));
+        BuildAreaNamePathsForGridLanes(element, scale,
+                                       is_for_columns ? kForColumns : kForRows,
+                                       grid_lanes_tracks, is_for_columns));
   }
 
   // Line names.
@@ -1857,9 +1832,8 @@ std::unique_ptr<protocol::DictionaryValue> BuildGridInfoForGrid(
 
   // Area names
   if (grid_highlight_config.show_area_names) {
-    grid_info->setValue(
-        "areaNames",
-        BuildAreaNamePaths(element, scale, rows, columns, optional_rtl_offset));
+    grid_info->setValue("areaNames",
+                        BuildAreaNamePaths(element, scale, rows, columns));
   }
 
   // line names
@@ -2219,7 +2193,7 @@ void InspectorHighlight::AppendDistanceInfo(Node* node) {
   boxes_ = std::make_unique<protocol::Array<protocol::Array<double>>>();
   computed_style_ = protocol::DictionaryValue::create();
 
-  node->GetDocument().UpdateStyleAndLayoutForNode(
+  node->GetDocument().EnsurePaintLocationDataValidForNode(
       node, DocumentUpdateReason::kInspector);
   LayoutObject* layout_object = node->GetLayoutObject();
   if (!layout_object)
@@ -2480,7 +2454,7 @@ bool InspectorHighlight::GetBoxModel(
     Node* node,
     std::unique_ptr<protocol::DOM::BoxModel>* model,
     bool use_absolute_zoom) {
-  node->GetDocument().UpdateStyleAndLayoutForNode(
+  node->GetDocument().EnsurePaintLocationDataValidForNode(
       node, DocumentUpdateReason::kInspector);
   LayoutObject* layout_object = node->GetLayoutObject();
   LocalFrameView* view = node->GetDocument().View();

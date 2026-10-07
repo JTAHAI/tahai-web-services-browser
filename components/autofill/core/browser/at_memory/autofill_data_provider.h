@@ -10,6 +10,7 @@
 
 #include "base/functional/callback_forward.h"
 #include "base/memory/raw_ptr.h"
+#include "components/autofill/core/browser/at_memory/at_memory_data_type.h"
 #include "components/autofill/core/browser/data_manager/autofill_ai/entity_data_manager.h"
 #include "components/autofill/core/browser/data_manager/personal_data_manager.h"
 #include "components/autofill/core/browser/field_types.h"
@@ -20,7 +21,7 @@ namespace autofill {
 
 // Provides data from various Autofill backends (e.g. addresses, payments,
 // Autofill AI entities) and serves them in a standardized format suitable for
-// AtMemory search results.
+// @memory search results.
 class AutofillDataProvider {
  public:
   AutofillDataProvider(const PersonalDataManager* personal_data_manager,
@@ -37,7 +38,8 @@ class AutofillDataProvider {
  private:
   // Retrieves all entities for a given Autofill data type.
   std::vector<MemorySearchResult> GetAutofillData(
-      MemoryDataType memory_data_type);
+      MemoryDataType memory_data_type,
+      AtMemoryDataType autofill_type);
 
   // Fetches IBAN data from `personal_data_manager_`.
   std::vector<MemorySearchResult> FetchIbanData();

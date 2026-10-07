@@ -33,6 +33,7 @@
 #include "chrome/browser/tab_group_sync/tab_group_sync_service_factory.h"
 #include "chrome/browser/tab_list/tab_list_interface.h"
 #include "chrome/browser/ui/bookmarks/bookmark_utils_desktop.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_element_identifiers.h"
 #include "chrome/browser/ui/browser_tabstrip.h"
 #include "chrome/browser/ui/browser_window.h"
@@ -43,7 +44,6 @@
 #include "chrome/browser/ui/tabs/saved_tab_groups/saved_tab_group_metrics.h"
 #include "chrome/browser/ui/tabs/saved_tab_groups/saved_tab_group_pref_names.h"
 #include "chrome/browser/ui/tabs/saved_tab_groups/saved_tab_group_utils.h"
-#include "chrome/browser/ui/tabs/tab_enums.h"
 #include "chrome/browser/ui/tabs/tab_group_deletion_dialog_controller.h"
 #include "chrome/browser/ui/tabs/tab_group_model.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
@@ -171,8 +171,7 @@ std::unique_ptr<views::LabelButton> CreateMenuItem(
   return button;
 }
 
-std::u16string GetAcceleratorText(int command_id,
-                                  const BrowserWindowInterface* browser) {
+std::u16string GetAcceleratorText(int command_id, const Browser* browser) {
   if (!browser) {
     return std::u16string();
   }
@@ -199,7 +198,7 @@ TabGroupEditorBubbleView::~TabGroupEditorBubbleView() = default;
 
 // static
 std::unique_ptr<views::Widget> TabGroupEditorBubbleView::Show(
-    BrowserWindowInterface* browser,
+    Browser* browser,
     const tab_groups::TabGroupId& group,
     views::View* anchor_view,
     std::optional<gfx::Rect> anchor_rect,
@@ -309,7 +308,7 @@ void TabGroupEditorBubbleView::AddedToWidget() {
 }
 
 TabGroupEditorBubbleView::TabGroupEditorBubbleView(
-    BrowserWindowInterface* browser,
+    Browser* browser,
     const tab_groups::TabGroupId& group,
     views::View* anchor_view,
     std::optional<gfx::Rect> anchor_rect,
@@ -329,7 +328,7 @@ TabGroupEditorBubbleView::TabGroupEditorBubbleView(
                           base::Unretained(this)));
 
   // This dialog should only show up if the browser supports tab groups.
-  DCHECK(browser_->GetTabStripModel()->SupportsTabGroups());
+  DCHECK(browser_->tab_strip_model()->SupportsTabGroups());
 
   // `anchor_view` should always be defined as it will be used to source the
   // `anchor_widget_`.
@@ -368,7 +367,7 @@ TabGroupEditorBubbleView::TabGroupEditorBubbleView(
       ->SetOrientation(views::LayoutOrientation::kVertical)
       .SetInteriorMargin(interior_margins);
 
-  browser_->GetTabStripModel()->AddObserver(this);
+  browser_->tab_strip_model()->AddObserver(this);
 }
 
 // TabStripModelObserver:
@@ -420,7 +419,7 @@ void TabGroupEditorBubbleView::UpdateGroup() {
   const std::optional<int> selected_element =
       color_selector_->GetSelectedElement();
   TabGroup* const tab_group =
-      browser_->GetTabStripModel()->group_model()->GetTabGroup(group_);
+      browser_->tab_strip_model()->group_model()->GetTabGroup(group_);
 
   const tab_groups::TabGroupVisualData* current_visual_data =
       tab_group->visual_data();
@@ -444,8 +443,8 @@ void TabGroupEditorBubbleView::UpdateGroup() {
   tab_groups::TabGroupVisualData new_data(
       std::u16string(title_field_->GetText()), updated_color,
       current_visual_data->is_collapsed());
-  browser_->GetTabStripModel()->ChangeTabGroupVisuals(
-      group_, new_data, tab_group->IsCustomized());
+  browser_->tab_strip_model()->ChangeTabGroupVisuals(group_, new_data,
+                                                     tab_group->IsCustomized());
 }
 
 std::u16string TabGroupEditorBubbleView::GetTextForCloseButton() const {
@@ -572,13 +571,6 @@ void TabGroupEditorBubbleView::RebuildMenuContents() {
     }
     simple_menu_items_.push_back(
         AddChildView(BuildMoveGroupToNewWindowButton()));
-    if (base::FeatureList::IsEnabled(features::kTabGroupsFocusing)) {
-      if (browser_->GetTabStripModel()->GetFocusedGroup() == group_) {
-        simple_menu_items_.push_back(AddChildView(BuildUnfocusGroupButton()));
-      } else {
-        simple_menu_items_.push_back(AddChildView(BuildFocusGroupButton()));
-      }
-    }
     if (base::FeatureList::IsEnabled(features::kGlicTabGroups)) {
       AddChildView(BuildSeparator());
       simple_menu_items_.push_back(AddChildView(BuildAskGeminiButton()));
@@ -595,7 +587,7 @@ void TabGroupEditorBubbleView::RebuildMenuContents() {
         AddChildView(BuildMoveGroupToNewWindowButton()));
 
     if (base::FeatureList::IsEnabled(features::kTabGroupsFocusing)) {
-      if (browser_->GetTabStripModel()->GetFocusedGroup() == group_) {
+      if (browser_->tab_strip_model()->GetFocusedGroup() == group_) {
         simple_menu_items_.push_back(AddChildView(BuildUnfocusGroupButton()));
       } else {
         simple_menu_items_.push_back(AddChildView(BuildFocusGroupButton()));
@@ -920,7 +912,7 @@ void TabGroupEditorBubbleView::AskGeminiPressed() {
 void TabGroupEditorBubbleView::NewTabInGroupPressed() {
   base::RecordAction(
       base::UserMetricsAction("TabGroups_TabGroupBubble_NewTabInGroup"));
-  TabStripModel* const model = browser_->GetTabStripModel();
+  TabStripModel* const model = browser_->tab_strip_model();
   const auto tabs = model->group_model()->GetTabGroup(group_)->ListTabs();
   model->delegate()->AddTabAt(GURL(), tabs.end(), true, group_);
   // Close the widget to allow users to continue their work in their newly
@@ -991,7 +983,7 @@ void TabGroupEditorBubbleView::CloseGroupPressed() {
   bool is_group_shared = IsGroupShared();
   base::WeakPtr<views::Widget> widget = GetWidget()->GetWeakPtr();
 
-  browser_->GetTabStripModel()->CloseAllTabsInGroup(group_);
+  DeleteGroupFromTabstrip();
 
   if (is_group_shared) {
     shared_tab_group_metrics::RecordSharedTabGroupRecallType(
@@ -1063,7 +1055,7 @@ void TabGroupEditorBubbleView::LeaveGroupPressed() {
 void TabGroupEditorBubbleView::MoveGroupToNewWindowPressed() {
   base::WeakPtr<views::Widget> widget = GetWidget()->GetWeakPtr();
 
-  browser_->GetTabStripModel()->delegate()->MoveGroupToNewWindow(group_);
+  browser_->tab_strip_model()->delegate()->MoveGroupToNewWindow(group_);
 
   if (widget) {
     widget->Close();
@@ -1071,17 +1063,13 @@ void TabGroupEditorBubbleView::MoveGroupToNewWindowPressed() {
 }
 
 void TabGroupEditorBubbleView::FocusGroupPressed() {
-  base::UmaHistogramEnumeration("TabGroups.Focus.EntryPoint",
-                                TabGroupFocusEntryPoint::kEditorBubble);
-  TabStripModel* const model = browser_->GetTabStripModel();
+  TabStripModel* const model = browser_->tab_strip_model();
   model->SetFocusedGroup(group_);
   GetWidget()->Close();
 }
 
 void TabGroupEditorBubbleView::UnfocusGroupPressed() {
-  base::UmaHistogramEnumeration("TabGroups.Focus.ExitReason",
-                                TabGroupFocusExitReason::kEditorBubble);
-  TabStripModel* const model = browser_->GetTabStripModel();
+  TabStripModel* const model = browser_->tab_strip_model();
   model->SetFocusedGroup(std::nullopt);
   GetWidget()->Close();
 }
@@ -1096,17 +1084,30 @@ void TabGroupEditorBubbleView::RecentActivityPressed() {
   CHECK(bubble_coordinator);
 
   bubble_coordinator->Show(views::BubbleAnchor(tab_group_header),
-                           browser_->GetTabStripModel()->GetActiveWebContents(),
+                           browser_->tab_strip_model()->GetActiveWebContents(),
                            tab_groups::SavedTabGroupUtils::GetRecentActivity(
                                browser_->GetProfile(), group_),
                            browser_->GetProfile());
 }
 
 bool TabGroupEditorBubbleView::CanMoveGroupToNewWindow() {
-  return browser_->GetTabStripModel()->count() != browser_->GetTabStripModel()
-                                                      ->group_model()
-                                                      ->GetTabGroup(group_)
-                                                      ->tab_count();
+  return browser_->tab_strip_model()->count() != browser_->tab_strip_model()
+                                                     ->group_model()
+                                                     ->GetTabGroup(group_)
+                                                     ->tab_count();
+}
+
+void TabGroupEditorBubbleView::DeleteGroupFromTabstrip() {
+  TabStripModel* const model = browser_->tab_strip_model();
+  const int num_tabs_in_group =
+      model->group_model()->GetTabGroup(group_)->tab_count();
+  if (model->count() == num_tabs_in_group) {
+    // If the group about to be closed has all of the tabs in the browser, add a
+    // new tab outside the group to prevent the browser from closing.
+    model->delegate()->AddTabAt(GURL(), -1, true);
+  }
+
+  model->CloseAllTabsInGroup(group_);
 }
 
 void TabGroupEditorBubbleView::OnBubbleClose() {
@@ -1116,8 +1117,8 @@ void TabGroupEditorBubbleView::OnBubbleClose() {
   }
 
   if (browser_ &&
-      browser_->GetTabStripModel()->group_model()->ContainsTabGroup(group_)) {
-    const int tab_count = browser_->GetTabStripModel()
+      browser_->tab_strip_model()->group_model()->ContainsTabGroup(group_)) {
+    const int tab_count = browser_->tab_strip_model()
                               ->group_model()
                               ->GetTabGroup(group_)
                               ->tab_count();
@@ -1193,14 +1194,14 @@ tab_groups::TabGroupColorId TabGroupEditorBubbleView::InitColorSet() {
 
   // Keep track of the current group's color, to be returned as the initial
   // selected value.
-  auto* const group_model = browser_->GetTabStripModel()->group_model();
+  auto* const group_model = browser_->tab_strip_model()->group_model();
   return group_model->GetTabGroup(group_)->visual_data()->color();
 }
 
 // static
-void TabGroupEditorBubbleView::Ungroup(BrowserWindowInterface* browser,
+void TabGroupEditorBubbleView::Ungroup(Browser* browser,
                                        tab_groups::TabGroupId group) {
-  TabStripModel* const model = browser->GetTabStripModel();
+  TabStripModel* const model = browser->tab_strip_model();
   const gfx::Range tab_range =
       model->group_model()->GetTabGroup(group)->ListTabs();
 
@@ -1297,8 +1298,8 @@ TabGroupEditorBubbleView::BuildTitleField(const std::u16string& title) {
 }
 
 std::u16string TabGroupEditorBubbleView::GetGroupTitle() {
-  return browser_->GetTabStripModel()->SupportsTabGroups()
-             ? browser_->GetTabStripModel()
+  return browser_->tab_strip_model()->SupportsTabGroups()
+             ? browser_->tab_strip_model()
                    ->group_model()
                    ->GetTabGroup(group_)
                    ->visual_data()
@@ -1309,7 +1310,7 @@ std::u16string TabGroupEditorBubbleView::GetGroupTitle() {
 BEGIN_METADATA(TabGroupEditorBubbleView, TitleField)
 END_METADATA
 
-TabGroupEditorBubbleView::Footer::Footer(BrowserWindowInterface* browser) {
+TabGroupEditorBubbleView::Footer::Footer(Browser* browser) {
   views::FlexLayout* flex_layout =
       views::View::SetLayoutManager(std::make_unique<views::FlexLayout>());
   flex_layout->SetOrientation(views::LayoutOrientation::kVertical)
@@ -1367,8 +1368,8 @@ TabGroupEditorBubbleView::Footer::Footer(BrowserWindowInterface* browser) {
 
 // static
 void TabGroupEditorBubbleView::Footer::OpenLearnMorePage(
-    const BrowserWindowInterface* browser) {
-  browser->GetTabStripModel()->delegate()->AddTabAt(
+    const Browser* browser) {
+  browser->tab_strip_model()->delegate()->AddTabAt(
       GURL(chrome::kTabGroupsLearnMoreURL), -1, true);
 }
 

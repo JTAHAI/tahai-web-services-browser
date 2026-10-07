@@ -23,6 +23,7 @@
 #include "components/optimization_guide/core/optimization_guide_enums.h"
 #include "components/optimization_guide/core/optimization_guide_features.h"
 #include "components/optimization_guide/core/optimization_guide_prefs.h"
+#include "components/optimization_guide/core/optimization_guide_switches.h"
 #include "components/prefs/pref_service.h"
 #include "components/prefs/scoped_user_pref_update.h"
 #include "components/prefs/testing_pref_service.h"
@@ -743,7 +744,7 @@ TEST_P(HintsFetcherTest, NoHostsOrURLsToFetch) {
 
 TEST_P(HintsFetcherTest, HintsLanguageOverrideHeader) {
   base::CommandLine::ForCurrentProcess()->AppendSwitchASCII(
-      kOptimizationGuideLanguageOverrideSwitch, "en-CA");
+      switches::kOptimizationGuideLanguageOverride, "en-CA");
   EXPECT_TRUE(FetchHints({"foo.com"}, /*urls=*/{}));
   VerifyHasPendingFetchRequests();
   ResetHintsFetcher();

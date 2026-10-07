@@ -12,11 +12,9 @@
 #include "chrome/browser/glic/common/panel_visibility_dependent_hotkey_manager.h"
 #include "chrome/browser/glic/host/context/glic_screenshot_capturer.h"
 #include "chrome/browser/glic/host/glic.mojom.h"
-#include "chrome/browser/glic/host/glic_webui.mojom.h"
 #include "chrome/browser/glic/host/host.h"
 #include "chrome/browser/glic/service/glic_ui_embedder.h"
 #include "chrome/browser/glic/widget/browser_conditions.h"
-#include "chrome/browser/profiles/keep_alive/scoped_profile_keep_alive.h"
 #include "components/tabs/public/tab_interface.h"
 #include "components/web_modal/web_contents_modal_dialog_host.h"
 #include "components/web_modal/web_contents_modal_dialog_manager_delegate.h"
@@ -59,6 +57,7 @@ class GlicFloatingUi : public GlicUiEmbedder,
   static gfx::Size GetCompositeViewDefaultSize();
 
   // GlicUiEmbedder:
+  void OnClientReady() override;
   Host::EmbedderDelegate* GetHostEmbedderDelegate() override;
   void Show(const ShowOptions& options) override;
   bool IsShowing() const override;
@@ -103,7 +102,7 @@ class GlicFloatingUi : public GlicUiEmbedder,
   void FocusIfOpen() override;
   bool HasFocus() override;
   bool ActivateBrowser() override;
-  void Zoom(mojom::ZoomAction zoom_action, ZoomSource source) override;
+  void Zoom(mojom::ZoomAction zoom_action) override;
   void ShowTitleBarContextMenuAt(gfx::Point event_loc) override;
 #if !BUILDFLAG(IS_ANDROID)
   bool HasSelectionOverlay() override;
@@ -169,7 +168,6 @@ class GlicFloatingUi : public GlicUiEmbedder,
   base::CallbackListSubscription source_tab_destruction_subscription_;
 
   std::unique_ptr<BrowserAttachObservation> browser_attach_observation_;
-  ScopedProfileKeepAlive profile_keep_alive_;
 
   base::WeakPtrFactory<GlicFloatingUi> weak_ptr_factory_{this};
 };

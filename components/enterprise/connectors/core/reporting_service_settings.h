@@ -6,10 +6,9 @@
 #define COMPONENTS_ENTERPRISE_CONNECTORS_CORE_REPORTING_SERVICE_SETTINGS_H_
 
 #include <optional>
+#include <set>
 #include <string>
 
-#include "base/containers/flat_map.h"
-#include "base/containers/flat_set.h"
 #include "base/memory/raw_ptr.h"
 #include "base/values.h"
 #include "components/enterprise/connectors/core/common.h"
@@ -46,11 +45,11 @@ class ReportingServiceSettings {
   std::string service_provider_name_;
 
   // The events that are enabled for the current service provider.
-  base::flat_set<std::string> enabled_event_names_;
+  std::set<std::string> enabled_event_names_;
 
   // The enabled opt-in events for the current service provider, mapping to the
   // URL patterns that represent on which URL they are enabled.
-  base::flat_map<std::string, std::vector<std::string>> enabled_opt_in_events_;
+  std::map<std::string, std::vector<std::string>> enabled_opt_in_events_;
 };
 
 }  // namespace enterprise_connectors

@@ -8,23 +8,21 @@
 namespace autofill {
 
 // The reason why payments bubbles, dialogs, or other UI are closed.
-// These values are persisted to logs. Entries should not be renumbered and
-// numeric values should never be reused.
+// A java IntDef@ is generated from this.
 // GENERATED_JAVA_ENUM_PACKAGE: org.chromium.components.autofill
 enum class PaymentsUiClosedReason {
   // UI closed reason not specified.
-  kUnknown = 0,
+  kUnknown,
   // The user explicitly accepted the UI.
-  kAccepted = 1,
+  kAccepted,
   // The user explicitly cancelled the UI.
-  kCancelled = 2,
+  kCancelled,
   // The user explicitly closed the UI (via the close button or the ESC).
-  kClosed = 3,
+  kClosed,
   // The UI was not interacted.
-  kNotInteracted = 4,
+  kNotInteracted,
   // The UI lost focus and was deactivated.
-  kLostFocus = 5,
-  kMaxValue = kLostFocus,
+  kLostFocus,
 };
 
 }  // namespace autofill

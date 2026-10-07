@@ -58,7 +58,7 @@ public class EducationalTipSetupListBottomSheetListContainerView extends LinearL
             } else {
                 listItemView.setIcon(educationalTip.getCardImage());
                 listItemView.setOnClickListener(
-                        _ -> {
+                        view -> {
                             if (mDismissBottomSheetRunnable != null) {
                                 // Bottom sheet should be dismissed before an item is clicked.
                                 mDismissBottomSheetRunnable.run();

@@ -17,7 +17,7 @@ namespace ui {
 class ColorProvider;
 }
 
-class BrowserWindowInterface;
+class Browser;
 class ProfileAttributesEntry;
 class ProfileAttributesStorage;
 class ThemeService;
@@ -82,7 +82,7 @@ ProfileThemeColors GetDefaultProfileThemeColors(
 
 // Updates the profile theme colors for the profile of the given `browser`.
 // Should be called when the theme changes.
-void UpdateProfileThemeColors(BrowserWindowInterface* browser,
+void UpdateProfileThemeColors(Browser* browser,
                               const ui::ColorProvider* color_provider);
 
 // Returns the color that should be used to display text over the profile

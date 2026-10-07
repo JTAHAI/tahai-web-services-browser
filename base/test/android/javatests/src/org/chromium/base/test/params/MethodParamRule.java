@@ -31,7 +31,7 @@ public abstract class MethodParamRule implements MethodRule {
     }
 
     protected abstract Statement applyParameterAndValues(
-            Statement base,
+            final Statement base,
             Object target,
             Class<? extends ParameterProvider> parameterProvider,
             List<Object> values);

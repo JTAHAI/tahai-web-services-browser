@@ -10,9 +10,6 @@
 namespace blink {
 
 void EmbeddedContentView::SetFrameRect(const gfx::Rect& frame_rect) {
-  if (RuntimeEnabledFeatures::AvoidEmbeddedContentViewLocationEnabled()) {
-    CHECK_EQ(frame_rect.origin(), gfx::Point());
-  }
   if (frame_rect == frame_rect_)
     return;
   gfx::Rect old_rect = frame_rect_;
@@ -20,17 +17,7 @@ void EmbeddedContentView::SetFrameRect(const gfx::Rect& frame_rect) {
   FrameRectsChanged(old_rect);
 }
 
-void EmbeddedContentView::PropagateFrameRects() {
-  needs_frame_rect_propagation_ = false;
-  PropagateFrameRectsInternal();
-}
-
-gfx::Point EmbeddedContentView::DeprecatedLocation() const {
-  if (RuntimeEnabledFeatures::AvoidEmbeddedContentViewLocationEnabled()) {
-    CHECK_EQ(frame_rect_.origin(), gfx::Point());
-    return gfx::Point();
-  }
-
+gfx::Point EmbeddedContentView::Location() const {
   gfx::Point location(frame_rect_.origin());
 
   // As an optimization, we don't include the root layer's scroll offset in the

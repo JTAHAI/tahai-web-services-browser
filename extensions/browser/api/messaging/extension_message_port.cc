@@ -153,7 +153,6 @@ class ExtensionMessagePort::ContextTracker
   }
 
   void OnStoppedTrackingServiceWorkerInstance(
-      content::BrowserContext& browser_context,
       const WorkerId& worker_id) override {
     port_->UnregisterWorker(worker_id);
   }

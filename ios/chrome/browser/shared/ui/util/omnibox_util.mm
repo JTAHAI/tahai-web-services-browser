@@ -5,7 +5,8 @@
 #import "ios/chrome/browser/shared/ui/util/omnibox_util.h"
 
 #import "ios/chrome/browser/shared/coordinator/layout_guide/layout_guide_util.h"
-#import "ios/chrome/browser/shared/coordinator/scene/state/browser_layout_state.h"
+#import "ios/chrome/browser/shared/coordinator/scene/scene_state.h"
+#import "ios/chrome/browser/shared/coordinator/scene/state/layout_state.h"
 #import "ios/chrome/browser/shared/model/browser/browser.h"
 #import "ios/chrome/browser/shared/ui/util/layout_guide_names.h"
 #import "ios/chrome/browser/shared/ui/util/uikit_ui_util.h"
@@ -15,6 +16,6 @@ bool IsCurrentLayoutBottomOmnibox(Browser* browser) {
   if (!browser) {
     return false;
   }
-  BrowserLayoutState* layoutState = browser->GetBrowserLayoutState();
+  LayoutState* layoutState = browser->GetSceneState().layoutState;
   return layoutState && layoutState.toolbarPosition == ToolbarPosition::kBottom;
 }

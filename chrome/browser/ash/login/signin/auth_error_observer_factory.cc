@@ -51,9 +51,8 @@ AuthErrorObserverFactory::BuildServiceInstanceForBrowserContext(
   Profile* profile = static_cast<Profile*>(context);
   // NOTE: Allow g_browser_process here as this class is initialized lazily with
   // base::NoDestructor.
-  return std::make_unique<AuthErrorObserver>(
-      g_browser_process->local_state(), profile,
-      SyncServiceFactory::GetForProfile(profile));
+  return std::make_unique<AuthErrorObserver>(g_browser_process->local_state(),
+                                             profile);
 }
 
 }  // namespace ash

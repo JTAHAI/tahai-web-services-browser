@@ -246,10 +246,12 @@ public class TabbedModeTabPersistencePolicyTest {
                 .runOnMainSync(
                         () -> {
                             for (int tabId : normalTabIds) {
-                                addTabToSaveQueue(store, normalTabModel.addTab(tabId));
+                                addTabToSaveQueue(
+                                        store, normalTabModel, normalTabModel.addTab(tabId));
                             }
                             for (int tabId : incognitoTabIds) {
-                                addTabToSaveQueue(store, incognitoTabModel.addTab(tabId));
+                                addTabToSaveQueue(
+                                        store, incognitoTabModel, incognitoTabModel.addTab(tabId));
                             }
                             TabModelUtils.setIndex(normalTabModel, 0);
                             TabModelUtils.setIndex(incognitoTabModel, 0);
@@ -269,7 +271,7 @@ public class TabbedModeTabPersistencePolicyTest {
         while (tabModel.getCount() > 0) tabModel.removeTab(tabModel.getTabAt(0));
     }
 
-    private void addTabToSaveQueue(TabPersistentStoreImpl store, Tab tab) {
+    private void addTabToSaveQueue(TabPersistentStoreImpl store, TabModel tabModel, Tab tab) {
         TabState tabState = new TabState();
         tabState.contentsState = WEB_CONTENTS_STATE;
         TabStateExtractor.setTabStateForTesting(tab.getId(), tabState);

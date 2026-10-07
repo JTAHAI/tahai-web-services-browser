@@ -1,2 +1,3 @@
-rules:
-- "**": [masks]
+features:
+- name: masks
+  files: "**"

@@ -38,7 +38,7 @@ using CreateWeightsFileWithPathCallback =
 // by the per-origin cap. So the headroom must satisfy `H >= kMaxBytesPerOrigin
 // = 8 GiB` to avoid no space.
 inline constexpr base::ByteSize kWeightsFileMustRemainAvailableBytes =
-    base::GiB(10);
+    base::GiBU(10);
 
 // Fraction of total disk space that must remain available. Used together
 // with `kWeightsFileMustRemainAvailableBytes` as `min(fixed, ratio *

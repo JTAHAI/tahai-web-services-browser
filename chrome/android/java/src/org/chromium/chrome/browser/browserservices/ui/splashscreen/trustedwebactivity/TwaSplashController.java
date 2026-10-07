@@ -85,9 +85,7 @@ public class TwaSplashController implements SplashDelegate {
                         assertNonNull(getSplashScreenParamsFromIntent()),
                         SplashScreenParamKey.KEY_FADE_OUT_DURATION_MS,
                         0);
-        long clampedHideAnimationDurationMs =
-                org.chromium.base.MathUtils.clamp(splashHideAnimationDurationMs, 0, 1000);
-        mSplashController.setConfigAndShowSplash(this, clampedHideAnimationDurationMs);
+        mSplashController.setConfigAndShowSplash(this, splashHideAnimationDurationMs);
     }
 
     @Override

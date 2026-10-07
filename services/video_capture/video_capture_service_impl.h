@@ -24,8 +24,10 @@
 #endif  // BUILDFLAG(IS_CHROMEOS)
 
 #if BUILDFLAG(ENABLE_GPU_CHANNEL_MEDIA_CAPTURE)
-#include "gpu/ipc/client/gpu_channel_host.h"
 #include "services/viz/public/cpp/gpu/gpu.h"
+#if BUILDFLAG(IS_ANDROID)
+#include "gpu/ipc/client/gpu_channel_host.h"
+#endif
 #endif  // BUILDFLAG(ENABLE_GPU_CHANNEL_MEDIA_CAPTURE)
 
 #if BUILDFLAG(IS_MAC)
@@ -70,10 +72,12 @@ class VideoCaptureServiceImpl : public mojom::VideoCaptureService {
 #endif
 #if BUILDFLAG(ENABLE_GPU_CHANNEL_MEDIA_CAPTURE)
   void SetVizGpu(std::unique_ptr<viz::Gpu> viz_gpu);
+#if BUILDFLAG(IS_ANDROID)
   using GpuChannelHostBinder =
       base::RepeatingCallback<void(gpu::GpuChannelEstablishedCallback)>;
   void SetGpuChannelHost(scoped_refptr<gpu::GpuChannelHost> gpu_channel_host,
                          GpuChannelHostBinder binder = GpuChannelHostBinder());
+#endif
 #endif  // BUILDFLAG(ENABLE_GPU_CHANNEL_MEDIA_CAPTURE)
  private:
   class GpuDependenciesContext;
@@ -104,8 +108,14 @@ class VideoCaptureServiceImpl : public mojom::VideoCaptureService {
   std::unique_ptr<GpuDependenciesContext> gpu_dependencies_context_;
 
 #if BUILDFLAG(ENABLE_GPU_CHANNEL_MEDIA_CAPTURE)
-  class GpuChannelHostProvider;
-  std::unique_ptr<GpuChannelHostProvider> gpu_channel_host_provider_;
+  class VizGpuContextProvider;
+  std::unique_ptr<VizGpuContextProvider> viz_gpu_context_provider_;
+  std::unique_ptr<viz::Gpu> viz_gpu_;
+#if BUILDFLAG(IS_ANDROID)
+  class BrowserGpuChannelHostProvider;
+  std::unique_ptr<BrowserGpuChannelHostProvider>
+      browser_gpu_channel_host_provider_;
+#endif
 #endif  // BUILDFLAG(ENABLE_GPU_CHANNEL_MEDIA_CAPTURE)
 
   scoped_refptr<base::SingleThreadTaskRunner> ui_task_runner_;

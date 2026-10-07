@@ -8,7 +8,6 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include <array>
 #include <type_traits>
 
 namespace device {
@@ -60,7 +59,7 @@ struct SensorReadingRaw : public SensorReadingBase {
   ~SensorReadingRaw() = default;
 
   constexpr static size_t kValuesCount = 4;
-  std::array<SensorReadingField<double>, kValuesCount> values;
+  SensorReadingField<double> values[kValuesCount];
 };
 
 // Represents a single data value.

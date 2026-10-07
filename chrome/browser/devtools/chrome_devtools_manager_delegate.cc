@@ -446,7 +446,7 @@ scoped_refptr<DevToolsAgentHost> ChromeDevToolsManagerDelegate::CreateNewTarget(
                    params.navigated_or_inserted_contents);
 }
 
-std::vector<base::WeakPtr<content::BrowserContext>>
+std::vector<content::BrowserContext*>
 ChromeDevToolsManagerDelegate::GetBrowserContexts() {
   return DevToolsBrowserContextManager::GetInstance().GetBrowserContexts();
 }
@@ -455,12 +455,6 @@ content::BrowserContext*
 ChromeDevToolsManagerDelegate::GetDefaultBrowserContext() {
   return DevToolsBrowserContextManager::GetInstance()
       .GetDefaultBrowserContext();
-}
-
-content::BrowserContext* ChromeDevToolsManagerDelegate::GetBrowserContext(
-    const std::string& context_id) {
-  return DevToolsBrowserContextManager::GetInstance().GetProfileById(
-      context_id);
 }
 
 content::BrowserContext* ChromeDevToolsManagerDelegate::CreateBrowserContext() {
@@ -539,7 +533,9 @@ void ChromeDevToolsManagerDelegate::AcceptDebugging(AcceptCallback callback) {
       std::move(callback));
   BrowserWindowInterface* last_active =
       GlobalBrowserCollection::GetInstance()->GetLastActiveBrowser();
-  DevToolsConnectionDialog::Show(last_active, std::move(wrapped_callback));
+  DevToolsConnectionDialog::Show(
+      last_active ? last_active->GetBrowserForMigrationOnly() : nullptr,
+      std::move(wrapped_callback));
 }
 
 void ChromeDevToolsManagerDelegate::SetActiveWebSocketConnections(

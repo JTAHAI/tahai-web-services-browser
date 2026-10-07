@@ -5,29 +5,17 @@
 #ifndef CHROME_BROWSER_UI_WEBUI_BROWSER_WEBUI_STUB_LOCATION_BAR_H_
 #define CHROME_BROWSER_UI_WEBUI_BROWSER_WEBUI_STUB_LOCATION_BAR_H_
 
-#include <memory>
-
 #include "base/memory/raw_ptr.h"
-#include "chrome/browser/ui/content_settings/content_setting_image_view_delegate.h"
 #include "chrome/browser/ui/location_bar/location_bar.h"
 
 class BrowserWindowInterface;
-class PermissionDashboardController;
-class WebUIPermissionDashboard;
 class WebUIBrowserWindow;
 
 // A LocationBar implementation for WebUIBrowser.
-class WebUIStubLocationBar : public LocationBar,
-                             public ContentSettingImageViewDelegate {
+class WebUIStubLocationBar : public LocationBar {
  public:
   explicit WebUIStubLocationBar(WebUIBrowserWindow* window);
   ~WebUIStubLocationBar() override;
-
-  // ContentSettingImageViewDelegate:
-  bool ShouldHideContentSettingImage() override;
-  content::WebContents* GetContentSettingWebContents() override;
-  ContentSettingBubbleModelDelegate* GetContentSettingBubbleModelDelegate()
-      override;
 
   // LocationBar:
   void FocusLocation(bool is_user_initiated,
@@ -42,7 +30,6 @@ class WebUIStubLocationBar : public LocationBar,
   OmniboxController* GetOmniboxController() override;
   bool ShouldCloseOmniboxPopup(ui::MouseEvent* event) override;
   ChipController* GetChipController() override;
-  PermissionDashboardController* GetPermissionDashboardController() override;
   content::WebContents* GetWebContents() override;
   LocationBarModel* GetLocationBarModel() override;
   std::optional<bubble_anchor_util::AnchorConfiguration> GetChipAnchor()
@@ -68,13 +55,9 @@ class WebUIStubLocationBar : public LocationBar,
   void ResetTabState(content::WebContents* contents) override;
   bool HasSecurityStateChanged() override;
   LocationBarTesting* GetLocationBarForTesting() override;
-  void AnnounceAlert(const std::u16string& announcement) override;
 
  private:
   const raw_ptr<WebUIBrowserWindow> window_;
-  std::unique_ptr<WebUIPermissionDashboard> permission_dashboard_;
-  std::unique_ptr<PermissionDashboardController>
-      permission_dashboard_controller_;
 };
 
 #endif  // CHROME_BROWSER_UI_WEBUI_BROWSER_WEBUI_STUB_LOCATION_BAR_H_

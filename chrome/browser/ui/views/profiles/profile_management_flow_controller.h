@@ -78,10 +78,7 @@ class ProfileManagementFlowController
     // part of any profile creation flow.
     kDeviceSignalsDisclaimer = 12,
 
-    // Renders the welcome step at the beginning of the First Run Experience.
-    kWelcome = 13,
-
-    kMaxValue = kWelcome,
+    kMaxValue = kDeviceSignalsDisclaimer,
   };
   // LINT.ThenChange(//tools/metrics/histograms/metadata/profile/enums.xml:ProfileManagementFlowStep)
 
@@ -139,9 +136,6 @@ class ProfileManagementFlowController
   // the content it's rendering. As a final fallback, if this value is empty
   // (which is the default), the host will choose itself some generic title.
   virtual std::u16string GetFallbackAccessibleWindowTitle() const;
-
-  // Called when the native window hosting the flow is being closed.
-  virtual void OnWindowClosing() {}
 
   // A helper method to create a pop callback that will switch to the given
   // step (can be used with `current_step()` to facilitate switching back to the

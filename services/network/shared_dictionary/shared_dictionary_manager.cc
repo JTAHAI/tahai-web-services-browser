@@ -16,7 +16,6 @@
 #include "mojo/public/cpp/bindings/receiver.h"
 #include "net/base/load_flags.h"
 #include "net/shared_dictionary/shared_dictionary.h"
-#include "net/shared_dictionary/shared_dictionary_isolation_key.h"
 #include "services/network/public/cpp/features.h"
 #include "services/network/shared_dictionary/shared_dictionary_manager_in_memory.h"
 #include "services/network/shared_dictionary/shared_dictionary_manager_on_disk.h"
@@ -34,9 +33,8 @@ constexpr size_t kCachedStorageMaxSize = 10;
 
 // static
 std::unique_ptr<SharedDictionaryManager>
-SharedDictionaryManager::CreateInMemory(
-    std::optional<base::ByteSize> cache_max_size,
-    uint64_t cache_max_count) {
+SharedDictionaryManager::CreateInMemory(uint64_t cache_max_size,
+                                        uint64_t cache_max_count) {
   return std::make_unique<SharedDictionaryManagerInMemory>(cache_max_size,
                                                            cache_max_count);
 }
@@ -97,7 +95,7 @@ class SharedDictionaryManager::PreloadedDictionaries
 std::unique_ptr<SharedDictionaryManager> SharedDictionaryManager::CreateOnDisk(
     const base::FilePath& database_path,
     const base::FilePath& cache_directory_path,
-    std::optional<base::ByteSize> cache_max_size,
+    uint64_t cache_max_size,
     uint64_t cache_max_count,
 #if BUILDFLAG(IS_ANDROID)
     disk_cache::ApplicationStatusListenerGetter app_status_listener_getter,
@@ -122,22 +120,6 @@ SharedDictionaryManager::SharedDictionaryManager(
           this,
           base::AsyncMemoryConsumerRegistration::CheckUnregister::kDisabled) {}
 SharedDictionaryManager::~SharedDictionaryManager() = default;
-
-scoped_refptr<SharedDictionaryStorage>
-SharedDictionaryManager::GetPervasiveStorage() {
-  if (!base::FeatureList::IsEnabled(features::kPervasiveSharedDictionaries) ||
-      !base::FeatureList::IsEnabled(
-          features::kCacheSharingForPervasiveResources)) {
-    return nullptr;
-  }
-  if (!pervasive_storage_) {
-    pervasive_storage_ = CreateStorage(
-        net::SharedDictionaryIsolationKey::GetPervasiveIsolationKey(),
-        SharedDictionaryStorageEvictionReason::kNotEvicted);
-    CHECK(pervasive_storage_);
-  }
-  return pervasive_storage_;
-}
 
 scoped_refptr<SharedDictionaryStorage> SharedDictionaryManager::GetStorage(
     const net::SharedDictionaryIsolationKey& isolation_key) {
@@ -176,7 +158,8 @@ scoped_refptr<SharedDictionaryStorage> SharedDictionaryManager::GetStorage(
 
 void SharedDictionaryManager::OnStorageDeleted(
     const net::SharedDictionaryIsolationKey& isolation_key) {
-  storages_.erase(isolation_key);
+  size_t removed_count = storages_.erase(isolation_key);
+  DCHECK_EQ(1U, removed_count);
 }
 
 base::WeakPtr<SharedDictionaryManager> SharedDictionaryManager::GetWeakPtr() {
@@ -213,18 +196,9 @@ scoped_refptr<net::SharedDictionary> SharedDictionaryManager::GetDictionaryImpl(
   if (!isolation_key) {
     return nullptr;
   }
-  scoped_refptr<net::SharedDictionary> dict;
-  // Check the pervasive dictionary storage for a match first and fall back
-  // to the partitioned dictionary storage.
-  if (scoped_refptr<SharedDictionaryStorage> pervasive_storage =
-          GetPervasiveStorage()) {
-    dict =
-        pervasive_storage->GetDictionarySync(request_url, request_destination);
-  }
-  if (!dict) {
-    dict = GetStorage(*isolation_key)
-               ->GetDictionarySync(request_url, request_destination);
-  }
+  scoped_refptr<net::SharedDictionary> dict =
+      GetStorage(*isolation_key)
+          ->GetDictionarySync(request_url, request_destination);
 
   // Disable preloaded dictionary usage if the PreloadedDictionaryConditionalUse
   // feature is enabled and its binary is not yet loaded.
@@ -279,7 +253,6 @@ void SharedDictionaryManager::OnReleaseMemory() {
     }
     cached_storages_.Clear();
     preloaded_dictionaries_set_.clear();
-    pervasive_storage_.reset();
   }
 }
 

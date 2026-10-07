@@ -29,6 +29,7 @@
 #include "chrome/browser/ash/policy/core/device_attributes_fake.h"
 #include "chrome/browser/policy/developer_tools_policy_handler.h"
 #include "chrome/browser/signin/identity_test_environment_profile_adaptor.h"
+#include "chrome/common/chrome_switches.h"
 #include "chrome/test/base/testing_browser_process.h"
 #include "chrome/test/base/testing_profile_manager.h"
 #include "chromeos/ash/components/dbus/concierge/concierge_client.h"
@@ -653,13 +654,13 @@ TEST_F(ArcPolicyBridgeTest, ForceDevToolsAvailabilityTest) {
           policy::DeveloperToolsAvailability::kDisallowed)));
   base::test::ScopedCommandLine command_line;
   command_line.GetProcessCommandLine()->AppendSwitch(
-      ash::switches::kForceDevToolsAvailable);
+      switches::kForceDevToolsAvailable);
   GetPoliciesAndVerifyResult(
       "{\"apkCacheEnabled\":true,\"debuggingFeaturesDisabled\":false,"
       "\"guid\":\"" +
       instance_guid() + "\"," + kMountPhysicalMediaDisabledPolicySetting + "}");
   command_line.GetProcessCommandLine()->RemoveSwitch(
-      ash::switches::kForceDevToolsAvailable);
+      switches::kForceDevToolsAvailable);
 }
 
 TEST_F(ArcPolicyBridgeTest, ManagedConfigurationVariablesTest) {

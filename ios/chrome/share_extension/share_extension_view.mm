@@ -236,7 +236,7 @@ const CGFloat kButtonFontSize = 17;
   UIView* divider = [[UIView alloc] initWithFrame:CGRectZero];
   [divider setTranslatesAutoresizingMaskIntoConstraints:NO];
   divider.backgroundColor = [UIColor colorNamed:kSeparatorColor];
-  CGFloat slidingConstant = AlignValueToLowerPixel(kDividerHeight);
+  CGFloat slidingConstant = AlignValueToPixel(kDividerHeight);
   [divider.heightAnchor constraintEqualToConstant:slidingConstant].active = YES;
   return divider;
 }

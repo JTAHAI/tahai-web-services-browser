@@ -41,10 +41,8 @@ class OmniboxFullPopupWebUIContent
 
   bool EscClosesUI() const override;
 
-  void Clear() override;
+  void CloseUI() override;
 
- private:
-  void OnClearCallback();
   // ui::SimpleMenuModel::Delegate:
   void ExecuteCommand(int command_id, int event_flags) override;
   bool GetAcceleratorForCommandId(int command_id,
@@ -65,12 +63,6 @@ class OmniboxFullPopupWebUIContent
                          const content::ContextMenuParams& params) override;
 
   void ShowContextMenuComplete(const content::ContextMenuParams& params);
-
-  OmniboxPopupHandler* GetPopupHandler() {
-    return const_cast<OmniboxPopupHandler*>(
-        std::as_const(*this).GetPopupHandler());
-  }
-  const OmniboxPopupHandler* GetPopupHandler() const;
 
   content::ContextMenuParams params_;
   std::unique_ptr<ui::SimpleMenuModel> menu_model_;

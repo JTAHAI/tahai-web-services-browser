@@ -67,8 +67,9 @@ DisplayColorSpaces::DisplayColorSpaces(const gfx::ColorSpace& c)
   if (!c.IsValid())
     return;
   primaries_ = c.GetPrimaries();
-  for (auto& color_space : color_spaces_) {
-    color_space = c;
+  for (size_t i = 0; i < kConfigCount;
+       i++) {  // NOLINT (modernize-loop-convert)
+    UNSAFE_TODO(color_spaces_[i]) = c;
   }
 }
 

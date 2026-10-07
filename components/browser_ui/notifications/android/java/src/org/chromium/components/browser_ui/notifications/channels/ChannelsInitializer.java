@@ -30,10 +30,6 @@ public class ChannelsInitializer {
     private Resources mResources;
     private final Queue<Runnable> mPendingTasks = new ArrayDeque<>();
     private boolean mIsTaskRunning;
-    private static final Set<String> sInitializedChannels =
-            Collections.synchronizedSet(new HashSet<>());
-    private static final Set<String> sInitializedChannelGroups =
-            Collections.synchronizedSet(new HashSet<>());
 
     public ChannelsInitializer(
             BaseNotificationManagerProxy notificationManagerProxy,
@@ -61,8 +57,6 @@ public class ChannelsInitializer {
      */
     public void updateLocale(Resources resources) {
         mResources = resources;
-        sInitializedChannels.clear();
-        sInitializedChannelGroups.clear();
         mPendingTasks.add(() -> runUpdateExistingKnownChannelsTask());
         processPendingTasks();
     }
@@ -91,7 +85,6 @@ public class ChannelsInitializer {
         groupIds.retainAll(mChannelDefinitions.getAllChannelGroupIds());
         channelIds.retainAll(mChannelDefinitions.getAllChannelIds());
         runEnsureInitializedWithEnabledStateTask(groupIds, channelIds, true);
-        onCurrentTaskFinished();
     }
 
     /**
@@ -164,7 +157,9 @@ public class ChannelsInitializer {
 
     private void ensureInitializedWithEnabledState(
             Collection<String> groupIds, Collection<String> channelIds, boolean enabled) {
-        runEnsureInitializedWithEnabledStateTask(groupIds, channelIds, enabled);
+        mPendingTasks.add(
+                () -> runEnsureInitializedWithEnabledStateTask(groupIds, channelIds, enabled));
+        processPendingTasks();
     }
 
     private void runEnsureInitializedWithEnabledStateTask(
@@ -173,7 +168,6 @@ public class ChannelsInitializer {
         HashMap<String, NotificationChannel> channels = new HashMap<>();
 
         for (String groupId : groupIds) {
-            if (sInitializedChannelGroups.contains(groupId)) continue;
             ChannelDefinitions.PredefinedChannelGroup predefinedChannelGroup =
                     mChannelDefinitions.getChannelGroup(groupId);
             if (predefinedChannelGroup == null) continue;
@@ -183,7 +177,6 @@ public class ChannelsInitializer {
         }
 
         for (String channelId : channelIds) {
-            if (sInitializedChannels.contains(channelId)) continue;
             ChannelDefinitions.PredefinedChannel predefinedChannel =
                     getPredefinedChannel(channelId);
             if (predefinedChannel == null) continue;
@@ -195,21 +188,18 @@ public class ChannelsInitializer {
             if (!enabled) {
                 channel.setImportance(NotificationManager.IMPORTANCE_NONE);
             }
-            if (!sInitializedChannelGroups.contains(channelGroup.getId())) {
-                channelGroups.put(channelGroup.getId(), channelGroup);
-            }
+            channelGroups.put(channelGroup.getId(), channelGroup);
             channels.put(channel.getId(), channel);
         }
 
         // Channel groups must be created before the channels.
         for (var channelGroup : channelGroups.values()) {
             mNotificationManager.createNotificationChannelGroup(channelGroup);
-            sInitializedChannelGroups.add(channelGroup.getId());
         }
         for (var channel : channels.values()) {
             mNotificationManager.createNotificationChannel(channel);
-            sInitializedChannels.add(channel.getId());
         }
+        onCurrentTaskFinished();
     }
 
     /**
@@ -236,10 +226,5 @@ public class ChannelsInitializer {
     private void onCurrentTaskFinished() {
         mIsTaskRunning = false;
         processPendingTasks();
-    }
-
-    public static void resetForTesting() {
-        sInitializedChannels.clear();
-        sInitializedChannelGroups.clear();
     }
 }

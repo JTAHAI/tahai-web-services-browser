@@ -35,9 +35,14 @@ using ::testing::ElementsAreArray;
 constexpr bool kNonSecure = false;
 constexpr bool kSecure = true;
 
+// Self-descriptive constants for `allow_on_non_secure_context`.
+constexpr bool kDisallowNonSecure = false;
+constexpr bool kAllowNonSecure = true;
+
 // Input arguments to `DeriveLocalNetworkAccessRequestPolicy()`.
 struct DerivePolicyInput {
   bool is_web_secure_context;
+  bool allow_on_non_secure_context;
   AddressSpace address_space;
   RequestContext request_context;
 };
@@ -61,13 +66,16 @@ std::string_view RequestContextToStringPiece(RequestContext request_context) {
 std::ostream& operator<<(std::ostream& out, const DerivePolicyInput& input) {
   return out << "{ " << input.address_space << ", "
              << (input.is_web_secure_context ? "secure" : "non-secure") << ", "
+             << (input.allow_on_non_secure_context ? "allow-non-secure"
+                                                   : "disallow-non-secure")
              << ", " << RequestContextToStringPiece(input.request_context)
              << " }";
 }
 
 Policy DerivePolicy(DerivePolicyInput input) {
   return DeriveLocalNetworkAccessRequestPolicy(
-      input.address_space, input.is_web_secure_context, input.request_context);
+      input.address_space, input.is_web_secure_context,
+      input.allow_on_non_secure_context, input.request_context);
 }
 
 // Maps inputs to their default output (all feature flags left untouched).
@@ -80,111 +88,188 @@ std::vector<std::pair<DerivePolicyInput, Policy>> DefaultPolicyMap() {
       // `RequestContext::kSubresource`
       //
       {
-          {kNonSecure, AddressSpace::kUnknown, RequestContext::kSubresource},
+          {kNonSecure, kDisallowNonSecure, AddressSpace::kUnknown,
+           RequestContext::kSubresource},
           Policy::kAllow,
       },
       {
-          {kNonSecure, AddressSpace::kPublic, RequestContext::kSubresource},
+          {kNonSecure, kDisallowNonSecure, AddressSpace::kPublic,
+           RequestContext::kSubresource},
           Policy::kWarn,
       },
       {
-          {kNonSecure, AddressSpace::kLocal, RequestContext::kSubresource},
+          {kNonSecure, kDisallowNonSecure, AddressSpace::kLocal,
+           RequestContext::kSubresource},
           Policy::kWarn,
       },
       {
-          {kNonSecure, AddressSpace::kLoopback, RequestContext::kSubresource},
+          {kNonSecure, kDisallowNonSecure, AddressSpace::kLoopback,
+           RequestContext::kSubresource},
           Policy::kWarn,
       },
       {
-          {kSecure, AddressSpace::kUnknown, RequestContext::kSubresource},
+          {kNonSecure, kAllowNonSecure, AddressSpace::kUnknown,
+           RequestContext::kSubresource},
           Policy::kAllow,
       },
       {
-          {kSecure, AddressSpace::kPublic, RequestContext::kSubresource},
+          {kNonSecure, kAllowNonSecure, AddressSpace::kPublic,
+           RequestContext::kSubresource},
+          Policy::kWarn,
+      },
+      {
+          {kNonSecure, kAllowNonSecure, AddressSpace::kLocal,
+           RequestContext::kSubresource},
+          Policy::kWarn,
+      },
+      {
+          {kNonSecure, kAllowNonSecure, AddressSpace::kLoopback,
+           RequestContext::kSubresource},
+          Policy::kWarn,
+      },
+      {
+          {kSecure, kDisallowNonSecure, AddressSpace::kUnknown,
+           RequestContext::kSubresource},
           Policy::kAllow,
       },
       {
-          {kSecure, AddressSpace::kLocal, RequestContext::kSubresource},
+          {kSecure, kDisallowNonSecure, AddressSpace::kPublic,
+           RequestContext::kSubresource},
           Policy::kAllow,
       },
       {
-          {kSecure, AddressSpace::kLoopback, RequestContext::kSubresource},
+          {kSecure, kDisallowNonSecure, AddressSpace::kLocal,
+           RequestContext::kSubresource},
+          Policy::kAllow,
+      },
+      {
+          {kSecure, kDisallowNonSecure, AddressSpace::kLoopback,
+           RequestContext::kSubresource},
           Policy::kAllow,
       },
       //
       // `RequestContext::kWorker`
       //
       {
-          {kNonSecure, AddressSpace::kUnknown, RequestContext::kWorker},
+          {kNonSecure, kDisallowNonSecure, AddressSpace::kUnknown,
+           RequestContext::kWorker},
           Policy::kAllow,
       },
       {
-          {kNonSecure, AddressSpace::kPublic, RequestContext::kWorker},
+          {kNonSecure, kDisallowNonSecure, AddressSpace::kPublic,
+           RequestContext::kWorker},
           Policy::kWarn,
       },
       {
-          {kNonSecure, AddressSpace::kLocal, RequestContext::kWorker},
+          {kNonSecure, kDisallowNonSecure, AddressSpace::kLocal,
+           RequestContext::kWorker},
           Policy::kWarn,
       },
       {
-          {kNonSecure, AddressSpace::kLoopback, RequestContext::kWorker},
+          {kNonSecure, kDisallowNonSecure, AddressSpace::kLoopback,
+           RequestContext::kWorker},
           Policy::kWarn,
       },
       {
-          {kSecure, AddressSpace::kUnknown, RequestContext::kWorker},
+          {kNonSecure, kAllowNonSecure, AddressSpace::kUnknown,
+           RequestContext::kWorker},
           Policy::kAllow,
       },
       {
-          {kSecure, AddressSpace::kPublic, RequestContext::kWorker},
+          {kNonSecure, kAllowNonSecure, AddressSpace::kPublic,
+           RequestContext::kWorker},
+          Policy::kWarn,
+      },
+      {
+          {kNonSecure, kAllowNonSecure, AddressSpace::kLocal,
+           RequestContext::kWorker},
+          Policy::kWarn,
+      },
+      {
+          {kNonSecure, kAllowNonSecure, AddressSpace::kLoopback,
+           RequestContext::kWorker},
+          Policy::kWarn,
+      },
+      {
+          {kSecure, kDisallowNonSecure, AddressSpace::kUnknown,
+           RequestContext::kWorker},
           Policy::kAllow,
       },
       {
-          {kSecure, AddressSpace::kLocal, RequestContext::kWorker},
+          {kSecure, kDisallowNonSecure, AddressSpace::kPublic,
+           RequestContext::kWorker},
           Policy::kAllow,
       },
       {
-          {kSecure, AddressSpace::kLoopback, RequestContext::kWorker},
+          {kSecure, kDisallowNonSecure, AddressSpace::kLocal,
+           RequestContext::kWorker},
+          Policy::kAllow,
+      },
+      {
+          {kSecure, kDisallowNonSecure, AddressSpace::kLoopback,
+           RequestContext::kWorker},
           Policy::kAllow,
       },
       //
       // `RequestContext::kMainFrameNavigation`
       //
       {
-          {kNonSecure, AddressSpace::kUnknown,
+          {kNonSecure, kDisallowNonSecure, AddressSpace::kUnknown,
            RequestContext::kMainFrameNavigation},
           Policy::kAllow,
       },
       {
-          {kNonSecure, AddressSpace::kPublic,
+          {kNonSecure, kDisallowNonSecure, AddressSpace::kPublic,
            RequestContext::kMainFrameNavigation},
           Policy::kAllow,
       },
       {
-          {kNonSecure, AddressSpace::kLocal,
+          {kNonSecure, kDisallowNonSecure, AddressSpace::kLocal,
            RequestContext::kMainFrameNavigation},
           Policy::kAllow,
       },
       {
-          {kNonSecure, AddressSpace::kLoopback,
+          {kNonSecure, kDisallowNonSecure, AddressSpace::kLoopback,
            RequestContext::kMainFrameNavigation},
           Policy::kAllow,
       },
       {
-          {kSecure, AddressSpace::kUnknown,
+          {kNonSecure, kAllowNonSecure, AddressSpace::kUnknown,
            RequestContext::kMainFrameNavigation},
           Policy::kAllow,
       },
       {
-          {kSecure, AddressSpace::kPublic,
+          {kNonSecure, kAllowNonSecure, AddressSpace::kPublic,
            RequestContext::kMainFrameNavigation},
           Policy::kAllow,
       },
       {
-          {kSecure, AddressSpace::kLocal, RequestContext::kMainFrameNavigation},
+          {kNonSecure, kAllowNonSecure, AddressSpace::kLocal,
+           RequestContext::kMainFrameNavigation},
           Policy::kAllow,
       },
       {
-          {kSecure, AddressSpace::kLoopback,
+          {kNonSecure, kAllowNonSecure, AddressSpace::kLoopback,
+           RequestContext::kMainFrameNavigation},
+          Policy::kAllow,
+      },
+      {
+          {kSecure, kDisallowNonSecure, AddressSpace::kUnknown,
+           RequestContext::kMainFrameNavigation},
+          Policy::kAllow,
+      },
+      {
+          {kSecure, kDisallowNonSecure, AddressSpace::kPublic,
+           RequestContext::kMainFrameNavigation},
+          Policy::kAllow,
+      },
+      {
+          {kSecure, kDisallowNonSecure, AddressSpace::kLocal,
+           RequestContext::kMainFrameNavigation},
+          Policy::kAllow,
+      },
+      {
+          {kSecure, kDisallowNonSecure, AddressSpace::kLoopback,
            RequestContext::kMainFrameNavigation},
           Policy::kAllow,
       },
@@ -198,111 +283,188 @@ std::vector<std::pair<DerivePolicyInput, Policy>> LNAPolicyMap() {
       // `RequestContext::kSubresource`
       //
       {
-          {kNonSecure, AddressSpace::kUnknown, RequestContext::kSubresource},
+          {kNonSecure, kDisallowNonSecure, AddressSpace::kUnknown,
+           RequestContext::kSubresource},
           Policy::kBlock,
       },
       {
-          {kNonSecure, AddressSpace::kPublic, RequestContext::kSubresource},
+          {kNonSecure, kDisallowNonSecure, AddressSpace::kPublic,
+           RequestContext::kSubresource},
           Policy::kBlock,
       },
       {
-          {kNonSecure, AddressSpace::kLocal, RequestContext::kSubresource},
+          {kNonSecure, kDisallowNonSecure, AddressSpace::kLocal,
+           RequestContext::kSubresource},
           Policy::kBlock,
       },
       {
-          {kNonSecure, AddressSpace::kLoopback, RequestContext::kSubresource},
+          {kNonSecure, kDisallowNonSecure, AddressSpace::kLoopback,
+           RequestContext::kSubresource},
           Policy::kBlock,
       },
       {
-          {kSecure, AddressSpace::kUnknown, RequestContext::kSubresource},
+          {kNonSecure, kAllowNonSecure, AddressSpace::kUnknown,
+           RequestContext::kSubresource},
           Policy::kPermissionBlock,
       },
       {
-          {kSecure, AddressSpace::kPublic, RequestContext::kSubresource},
+          {kNonSecure, kAllowNonSecure, AddressSpace::kPublic,
+           RequestContext::kSubresource},
           Policy::kPermissionBlock,
       },
       {
-          {kSecure, AddressSpace::kLocal, RequestContext::kSubresource},
+          {kNonSecure, kAllowNonSecure, AddressSpace::kLocal,
+           RequestContext::kSubresource},
           Policy::kPermissionBlock,
       },
       {
-          {kSecure, AddressSpace::kLoopback, RequestContext::kSubresource},
+          {kNonSecure, kAllowNonSecure, AddressSpace::kLoopback,
+           RequestContext::kSubresource},
+          Policy::kPermissionBlock,
+      },
+      {
+          {kSecure, kDisallowNonSecure, AddressSpace::kUnknown,
+           RequestContext::kSubresource},
+          Policy::kPermissionBlock,
+      },
+      {
+          {kSecure, kDisallowNonSecure, AddressSpace::kPublic,
+           RequestContext::kSubresource},
+          Policy::kPermissionBlock,
+      },
+      {
+          {kSecure, kDisallowNonSecure, AddressSpace::kLocal,
+           RequestContext::kSubresource},
+          Policy::kPermissionBlock,
+      },
+      {
+          {kSecure, kDisallowNonSecure, AddressSpace::kLoopback,
+           RequestContext::kSubresource},
           Policy::kPermissionBlock,
       },
       //
       // `RequestContext::kWorker`
       //
       {
-          {kNonSecure, AddressSpace::kUnknown, RequestContext::kWorker},
+          {kNonSecure, kDisallowNonSecure, AddressSpace::kUnknown,
+           RequestContext::kWorker},
           Policy::kBlock,
       },
       {
-          {kNonSecure, AddressSpace::kPublic, RequestContext::kWorker},
+          {kNonSecure, kDisallowNonSecure, AddressSpace::kPublic,
+           RequestContext::kWorker},
           Policy::kBlock,
       },
       {
-          {kNonSecure, AddressSpace::kLocal, RequestContext::kWorker},
+          {kNonSecure, kDisallowNonSecure, AddressSpace::kLocal,
+           RequestContext::kWorker},
           Policy::kBlock,
       },
       {
-          {kNonSecure, AddressSpace::kLoopback, RequestContext::kWorker},
+          {kNonSecure, kDisallowNonSecure, AddressSpace::kLoopback,
+           RequestContext::kWorker},
           Policy::kBlock,
       },
       {
-          {kSecure, AddressSpace::kUnknown, RequestContext::kWorker},
+          {kNonSecure, kAllowNonSecure, AddressSpace::kUnknown,
+           RequestContext::kWorker},
           Policy::kPermissionBlock,
       },
       {
-          {kSecure, AddressSpace::kPublic, RequestContext::kWorker},
+          {kNonSecure, kAllowNonSecure, AddressSpace::kPublic,
+           RequestContext::kWorker},
           Policy::kPermissionBlock,
       },
       {
-          {kSecure, AddressSpace::kLocal, RequestContext::kWorker},
+          {kNonSecure, kAllowNonSecure, AddressSpace::kLocal,
+           RequestContext::kWorker},
           Policy::kPermissionBlock,
       },
       {
-          {kSecure, AddressSpace::kLoopback, RequestContext::kWorker},
+          {kNonSecure, kAllowNonSecure, AddressSpace::kLoopback,
+           RequestContext::kWorker},
+          Policy::kPermissionBlock,
+      },
+      {
+          {kSecure, kDisallowNonSecure, AddressSpace::kUnknown,
+           RequestContext::kWorker},
+          Policy::kPermissionBlock,
+      },
+      {
+          {kSecure, kDisallowNonSecure, AddressSpace::kPublic,
+           RequestContext::kWorker},
+          Policy::kPermissionBlock,
+      },
+      {
+          {kSecure, kDisallowNonSecure, AddressSpace::kLocal,
+           RequestContext::kWorker},
+          Policy::kPermissionBlock,
+      },
+      {
+          {kSecure, kDisallowNonSecure, AddressSpace::kLoopback,
+           RequestContext::kWorker},
           Policy::kPermissionBlock,
       },
       //
       // `RequestContext::kMainFrameNavigation`
       //
       {
-          {kNonSecure, AddressSpace::kUnknown,
+          {kNonSecure, kDisallowNonSecure, AddressSpace::kUnknown,
            RequestContext::kMainFrameNavigation},
           Policy::kAllow,
       },
       {
-          {kNonSecure, AddressSpace::kPublic,
+          {kNonSecure, kDisallowNonSecure, AddressSpace::kPublic,
            RequestContext::kMainFrameNavigation},
           Policy::kAllow,
       },
       {
-          {kNonSecure, AddressSpace::kLocal,
+          {kNonSecure, kDisallowNonSecure, AddressSpace::kLocal,
            RequestContext::kMainFrameNavigation},
           Policy::kAllow,
       },
       {
-          {kNonSecure, AddressSpace::kLoopback,
+          {kNonSecure, kDisallowNonSecure, AddressSpace::kLoopback,
            RequestContext::kMainFrameNavigation},
           Policy::kAllow,
       },
       {
-          {kSecure, AddressSpace::kUnknown,
+          {kNonSecure, kAllowNonSecure, AddressSpace::kUnknown,
            RequestContext::kMainFrameNavigation},
           Policy::kAllow,
       },
       {
-          {kSecure, AddressSpace::kPublic,
+          {kNonSecure, kAllowNonSecure, AddressSpace::kPublic,
            RequestContext::kMainFrameNavigation},
           Policy::kAllow,
       },
       {
-          {kSecure, AddressSpace::kLocal, RequestContext::kMainFrameNavigation},
+          {kNonSecure, kAllowNonSecure, AddressSpace::kLocal,
+           RequestContext::kMainFrameNavigation},
           Policy::kAllow,
       },
       {
-          {kSecure, AddressSpace::kLoopback,
+          {kNonSecure, kAllowNonSecure, AddressSpace::kLoopback,
+           RequestContext::kMainFrameNavigation},
+          Policy::kAllow,
+      },
+      {
+          {kSecure, kDisallowNonSecure, AddressSpace::kUnknown,
+           RequestContext::kMainFrameNavigation},
+          Policy::kAllow,
+      },
+      {
+          {kSecure, kDisallowNonSecure, AddressSpace::kPublic,
+           RequestContext::kMainFrameNavigation},
+          Policy::kAllow,
+      },
+      {
+          {kSecure, kDisallowNonSecure, AddressSpace::kLocal,
+           RequestContext::kMainFrameNavigation},
+          Policy::kAllow,
+      },
+      {
+          {kSecure, kDisallowNonSecure, AddressSpace::kLoopback,
            RequestContext::kMainFrameNavigation},
           Policy::kAllow,
       },
@@ -310,40 +472,62 @@ std::vector<std::pair<DerivePolicyInput, Policy>> LNAPolicyMap() {
       // `RequestContext::kSubframeNavigation`
       //
       {
-          {kNonSecure, AddressSpace::kUnknown,
+          {kNonSecure, kDisallowNonSecure, AddressSpace::kUnknown,
            RequestContext::kSubframeNavigation},
           Policy::kBlock,
       },
       {
-          {kNonSecure, AddressSpace::kPublic,
+          {kNonSecure, kDisallowNonSecure, AddressSpace::kPublic,
            RequestContext::kSubframeNavigation},
           Policy::kBlock,
       },
       {
-          {kNonSecure, AddressSpace::kLocal,
+          {kNonSecure, kDisallowNonSecure, AddressSpace::kLocal,
            RequestContext::kSubframeNavigation},
           Policy::kBlock,
       },
       {
-          {kNonSecure, AddressSpace::kLoopback,
+          {kNonSecure, kDisallowNonSecure, AddressSpace::kLoopback,
            RequestContext::kSubframeNavigation},
           Policy::kBlock,
       },
       {
-          {kSecure, AddressSpace::kUnknown,
+          {kNonSecure, kAllowNonSecure, AddressSpace::kUnknown,
            RequestContext::kSubframeNavigation},
           Policy::kPermissionBlock,
       },
       {
-          {kSecure, AddressSpace::kPublic, RequestContext::kSubframeNavigation},
+          {kNonSecure, kAllowNonSecure, AddressSpace::kPublic,
+           RequestContext::kSubframeNavigation},
           Policy::kPermissionBlock,
       },
       {
-          {kSecure, AddressSpace::kLocal, RequestContext::kSubframeNavigation},
+          {kNonSecure, kAllowNonSecure, AddressSpace::kLocal,
+           RequestContext::kSubframeNavigation},
           Policy::kPermissionBlock,
       },
       {
-          {kSecure, AddressSpace::kLoopback,
+          {kNonSecure, kAllowNonSecure, AddressSpace::kLoopback,
+           RequestContext::kSubframeNavigation},
+          Policy::kPermissionBlock,
+      },
+      {
+          {kSecure, kDisallowNonSecure, AddressSpace::kUnknown,
+           RequestContext::kSubframeNavigation},
+          Policy::kPermissionBlock,
+      },
+      {
+          {kSecure, kDisallowNonSecure, AddressSpace::kPublic,
+           RequestContext::kSubframeNavigation},
+          Policy::kPermissionBlock,
+      },
+      {
+          {kSecure, kDisallowNonSecure, AddressSpace::kLocal,
+           RequestContext::kSubframeNavigation},
+          Policy::kPermissionBlock,
+      },
+      {
+          {kSecure, kDisallowNonSecure, AddressSpace::kLoopback,
            RequestContext::kSubframeNavigation},
           Policy::kPermissionBlock,
       },
@@ -351,42 +535,62 @@ std::vector<std::pair<DerivePolicyInput, Policy>> LNAPolicyMap() {
       // `RequestContext::kFencedFrameNavigation`
       //
       {
-          {kNonSecure, AddressSpace::kUnknown,
+          {kNonSecure, kDisallowNonSecure, AddressSpace::kUnknown,
            RequestContext::kFencedFrameNavigation},
           Policy::kBlock,
       },
       {
-          {kNonSecure, AddressSpace::kPublic,
+          {kNonSecure, kDisallowNonSecure, AddressSpace::kPublic,
            RequestContext::kFencedFrameNavigation},
           Policy::kBlock,
       },
       {
-          {kNonSecure, AddressSpace::kLocal,
+          {kNonSecure, kDisallowNonSecure, AddressSpace::kLocal,
            RequestContext::kFencedFrameNavigation},
           Policy::kBlock,
       },
       {
-          {kNonSecure, AddressSpace::kLoopback,
+          {kNonSecure, kDisallowNonSecure, AddressSpace::kLoopback,
            RequestContext::kFencedFrameNavigation},
           Policy::kBlock,
       },
       {
-          {kSecure, AddressSpace::kUnknown,
+          {kNonSecure, kAllowNonSecure, AddressSpace::kUnknown,
            RequestContext::kFencedFrameNavigation},
           Policy::kPermissionBlock,
       },
       {
-          {kSecure, AddressSpace::kPublic,
+          {kNonSecure, kAllowNonSecure, AddressSpace::kPublic,
            RequestContext::kFencedFrameNavigation},
           Policy::kPermissionBlock,
       },
       {
-          {kSecure, AddressSpace::kLocal,
+          {kNonSecure, kAllowNonSecure, AddressSpace::kLocal,
            RequestContext::kFencedFrameNavigation},
           Policy::kPermissionBlock,
       },
       {
-          {kSecure, AddressSpace::kLoopback,
+          {kNonSecure, kAllowNonSecure, AddressSpace::kLoopback,
+           RequestContext::kFencedFrameNavigation},
+          Policy::kPermissionBlock,
+      },
+      {
+          {kSecure, kDisallowNonSecure, AddressSpace::kUnknown,
+           RequestContext::kFencedFrameNavigation},
+          Policy::kPermissionBlock,
+      },
+      {
+          {kSecure, kDisallowNonSecure, AddressSpace::kPublic,
+           RequestContext::kFencedFrameNavigation},
+          Policy::kPermissionBlock,
+      },
+      {
+          {kSecure, kDisallowNonSecure, AddressSpace::kLocal,
+           RequestContext::kFencedFrameNavigation},
+          Policy::kPermissionBlock,
+      },
+      {
+          {kSecure, kDisallowNonSecure, AddressSpace::kLoopback,
            RequestContext::kFencedFrameNavigation},
           Policy::kPermissionBlock,
       },

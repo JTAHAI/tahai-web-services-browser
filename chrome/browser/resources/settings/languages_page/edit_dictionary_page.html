@@ -1,16 +1,34 @@
+  <style include="cr-shared-style settings-shared">
+    :host {
+      display: flex;
+      flex-direction: column;
+    }
+
+    #newWord {
+      width: 100%;
+      --cr-input-width: var(--cr-default-input-max-width);
+    }
+
+    #newWord::part(row-container) {
+      justify-content: normal;
+    }
+
+    iron-list .word {
+      flex: 1;
+    }
+  </style>
   <settings-subpage
       page-title="$i18n{editDictionaryPageTitle}"
-      ?no-search="${!this.enableSpellcheckingPref_?.value}"
-      route-path="${this.routePath}">
-    <div class="cr-row first" @keydown="${this.onNewWordKeydown_}">
-      <cr-input id="newWord" .value="${this.newWordValue_}"
-          @value-changed="${this.onNewWordValueChanged_}"
+      no-search$="[[!prefs.browser.enable_spellchecking.value]]"
+      route-path$="[[routePath]]">
+    <div class="cr-row first" on-keydown="onKeysPress_">
+      <cr-input id="newWord" value="{{newWordValue_}}"
           placeholder="$i18n{addDictionaryWordLabel}"
-          ?invalid="${this.isWordInvalid_()}"
-          error-message="${this.getErrorMessage_()}"
+          invalid="[[isWordInvalid_(newWordValue_, words_.*)]]"
+          error-message="[[getErrorMessage_(newWordValue_, words_.*)]]"
           spellcheck="false">
-        <cr-button @click="${this.onAddWordClick_}" id="addWord" slot="suffix"
-            ?disabled="${this.disableAddButton_()}">
+        <cr-button on-click="onAddWordClick_" id="addWord" slot="suffix"
+            disabled$="[[disableAddButton_(newWordValue_, words_.*)]]">
           $i18n{addDictionaryWordButton}
         </cr-button>
       </cr-input>
@@ -19,22 +37,22 @@
       <h2>$i18n{customDictionaryWords}</h2>
     </div>
     <div class="list-frame">
-      ${this.hasWords_ ? html`
-        <div id="list" role="listbox" focusgroup="listbox block">
-          ${this.words_.map((item, index) => html`
+      <template is="dom-if" if="[[hasWords_]]">
+        <iron-list id="list" items="[[words_]]" preserve-focus
+            scroll-target="[[subpageScrollTarget]]" risk-selection>
+          <template>
             <div class="list-item">
-              <div id="word${index}" class="word text-elide">${item}</div>
-              <cr-icon-button class="icon-clear"
-                  data-item="${item}"
-                  @click="${this.onRemoveWordClick_}"
+              <div id$="word[[index]]" class="word text-elide">[[item]]</div>
+              <cr-icon-button class="icon-clear" on-click="onRemoveWordClick_"
+                  tabindex$="[[tabIndex]]"
                   title="$i18n{deleteDictionaryWordButton}"
-                  aria-describedby="word${index}">
+                  aria-describedby$="word[[index]]">
               </cr-icon-button>
             </div>
-          `)}
-        </div>
-      ` : ''}
-      <div id="noWordsLabel" class="list-item" ?hidden="${this.hasWords_}">
+          </template>
+        </iron-list>
+      </template>
+      <div id="noWordsLabel" class="list-item" hidden$="[[hasWords_]]">
         $i18n{noCustomDictionaryWordsFound}
       </div>
     </div>

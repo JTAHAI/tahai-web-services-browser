@@ -12,19 +12,8 @@ import type {FeaturePromoDemoPageInfo} from './user_education_internals.mojom-we
 import {getCss} from './user_education_internals_card.css.js';
 import {getHtml} from './user_education_internals_card.html.js';
 
-const PROMO_ACTION_EVENT = 'promo-action';
-
-export interface PromoAction {
-  promo: string;
-  key: number;
-}
-
-export interface PromoActionDescription {
-  caption: string;
-  isLaunch: boolean;
-  key: number;
-  warning?: string;
-}
+const PROMO_LAUNCH_EVENT = 'promo-launch';
+const CLEAR_PROMO_DATA_EVENT = 'clear-promo-data';
 
 export class UserEducationInternalsCardElement extends CrLitElement {
   static get is() {
@@ -42,7 +31,7 @@ export class UserEducationInternalsCardElement extends CrLitElement {
   static override get properties() {
     return {
       promo: {type: Object},
-      actions: {type: Array},
+      showAction: {type: Boolean},
 
       /**
        * Indicates if the list of instructions is expanded or collapsed.
@@ -68,26 +57,23 @@ export class UserEducationInternalsCardElement extends CrLitElement {
     data: [],
     requiredFeatures: [],
   };
-  accessor actions: PromoActionDescription[] = [];
+  accessor showAction: boolean = false;
   protected accessor instructionsExpanded_: boolean = false;
   protected accessor dataExpanded_: boolean = false;
 
-  protected onPromoActionClick_(e: Event) {
+  protected onLaunchPromoClick_() {
     assert(this.promo);
-    const keyAttr = (e.target as HTMLElement).getAttribute('actionKey');
-    assert(keyAttr);
-    const key = Number(keyAttr);
-    let desc: PromoActionDescription|undefined;
-    for (const action of this.actions) {
-      if (action.key === key) {
-        desc = action;
-        break;
-      }
+    this.fire(PROMO_LAUNCH_EVENT, this.promo.internalName);
+  }
+
+  protected onClearDataClick_() {
+    assert(this.promo);
+    if (confirm(
+            'Clear all data associated with this User Education journey?\n' +
+            'Note: because of session tracking and event constraints, ' +
+            'Feature Engagement may still disallow some promos.')) {
+      this.fire(CLEAR_PROMO_DATA_EVENT, this.promo.internalName);
     }
-    if (!desc || (desc.warning && !confirm(desc.warning))) {
-      return;
-    }
-    this.fire(PROMO_ACTION_EVENT, {promo: this.promo.internalName, key: key});
   }
 
   protected showMilestone_() {
@@ -138,39 +124,6 @@ export class UserEducationInternalsCardElement extends CrLitElement {
   protected showData_() {
     assert(this.promo);
     return this.promo.data.length;
-  }
-
-  protected getAdditionalActions_(): PromoActionDescription[] {
-    const result = [];
-    const launchKey = this.getLaunchKey_();
-    for (const action of this.actions) {
-      if (action.key !== launchKey) {
-        result.push(action);
-      }
-    }
-    return result;
-  }
-
-  protected getLaunchKey_(): number {
-    for (const action of this.actions) {
-      if (action.isLaunch) {
-        return action.key;
-      }
-    }
-    return -1;
-  }
-
-  protected getLaunchCaption_(): string {
-    for (const action of this.actions) {
-      if (action.isLaunch) {
-        return action.caption;
-      }
-    }
-    return '';
-  }
-
-  protected showLaunch_() {
-    return this.getLaunchKey_() >= 0;
   }
 
   protected onScrollToFollowedByClick_() {

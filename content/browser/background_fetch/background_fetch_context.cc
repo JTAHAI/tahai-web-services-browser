@@ -43,9 +43,9 @@ BackgroundFetchContext::BackgroundFetchContext(
       registration_notifier_(
           std::make_unique<BackgroundFetchRegistrationNotifier>()),
       delegate_proxy_(storage_partition) {
-  CHECK_CURRENTLY_ON(BrowserThread::UI, base::NotFatalUntil::M158);
+  DCHECK_CURRENTLY_ON(BrowserThread::UI);
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  CHECK(service_worker_context_, base::NotFatalUntil::M158);
+  DCHECK(service_worker_context_);
 
   data_manager_ = std::make_unique<BackgroundFetchDataManager>(
       storage_partition, service_worker_context,
@@ -154,8 +154,7 @@ void BackgroundFetchContext::StartFetch(
   // duplicated, because the caller of this function generates a new unique_id
   // every time, which is what BackgroundFetchRegistrationId's comparison
   // operator uses.
-  CHECK_EQ(0u, fetch_callbacks_.count(registration_id),
-           base::NotFatalUntil::M158);
+  DCHECK_EQ(0u, fetch_callbacks_.count(registration_id));
   fetch_callbacks_[registration_id] = std::move(callback);
 
   auto rfh_id = rfh ? rfh->GetGlobalId() : GlobalRenderFrameHostId();
@@ -252,7 +251,7 @@ void BackgroundFetchContext::UpdateUI(
 }
 
 base::WeakPtr<BackgroundFetchContext> BackgroundFetchContext::GetWeakPtr() {
-  CHECK_CURRENTLY_ON(BrowserThread::UI, base::NotFatalUntil::M158);
+  DCHECK_CURRENTLY_ON(BrowserThread::UI);
   return weak_factory_.GetWeakPtr();
 }
 
@@ -288,7 +287,7 @@ void BackgroundFetchContext::DidGetMatchingRequests(
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
   if (error != blink::mojom::BackgroundFetchError::NONE)
-    CHECK(settled_fetches.empty(), base::NotFatalUntil::M158);
+    DCHECK(settled_fetches.empty());
 
   // TODO(crbug.com/40579759): We don't need to call this for requests that're
   // complete.
@@ -309,7 +308,7 @@ void BackgroundFetchContext::Shutdown() {
 void BackgroundFetchContext::SetDataManagerForTesting(
     std::unique_ptr<BackgroundFetchDataManager> data_manager) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  CHECK(data_manager, base::NotFatalUntil::M158);
+  DCHECK(data_manager);
   CHECK(devtools_context_);
   data_manager_ = std::move(data_manager);
   scheduler_ = std::make_unique<BackgroundFetchScheduler>(

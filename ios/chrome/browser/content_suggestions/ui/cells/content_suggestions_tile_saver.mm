@@ -13,13 +13,11 @@
 #import "base/threading/scoped_blocking_call.h"
 #import "components/favicon/core/fallback_url_util.h"
 #import "components/ntp_tiles/ntp_tile.h"
-#import "components/prefs/pref_service.h"
 #import "components/signin/public/base/signin_pref_names.h"
 #import "crypto/obsolete/md5.h"
 #import "google_apis/gaia/gaia_id.h"
 #import "ios/chrome/browser/favicon/ui_bundled/favicon_attributes_provider.h"
 #import "ios/chrome/browser/shared/model/application_context/application_context.h"
-#import "ios/chrome/browser/shared/model/prefs/pref_names.h"
 #import "ios/chrome/browser/signin/model/chrome_account_manager_service.h"
 #import "ios/chrome/browser/signin/model/system_identity.h"
 #import "ios/chrome/browser/widget_kit/model/features.h"
@@ -79,8 +77,7 @@ void UpdateTileList(const ntp_tiles::NTPTilesVector& most_visited_data,
                     ChromeAccountManagerService* account_manager_service) {
   NSMutableDictionary<NSURL*, NTPTile*>* tiles =
       [[NSMutableDictionary alloc] init];
-  NSDictionary<NSURL*, NTPTile*>* old_tiles =
-      ReadSavedMostVisited(account_manager_service);
+  NSDictionary<NSURL*, NTPTile*>* old_tiles = ReadSavedMostVisited();
   for (size_t i = 0; i < most_visited_data.size(); i++) {
     const ntp_tiles::NTPTile& ntp_tile = most_visited_data[i];
     NSURL* ns_url = net::NSURLWithGURL(ntp_tile.url);
@@ -205,8 +202,7 @@ void SaveMostVisitedToDisk(
 void WriteSingleUpdatedTileToDisk(
     NTPTile* tile,
     ChromeAccountManagerService* account_manager_service) {
-  NSMutableDictionary* tiles =
-      [ReadSavedMostVisited(account_manager_service) mutableCopy];
+  NSMutableDictionary* tiles = [ReadSavedMostVisited() mutableCopy];
   if (![tiles objectForKey:tile.URL]) {
     return;
   }
@@ -239,6 +235,12 @@ void WriteSavedMostVisited(
 
   NSUserDefaults* sharedDefaults = app_group::GetGroupUserDefaults();
 
+  // TODO(crbug.com/387971524): To be removed once
+  // ios_enable_widgets_for_mim is enabled by default.
+  [sharedDefaults setObject:data forKey:app_group::kSuggestedItems];
+  [sharedDefaults setObject:last_modification_date
+                     forKey:app_group::kSuggestedItemsLastModificationDate];
+
   NSMutableDictionary* suggested_items = [[sharedDefaults
       objectForKey:app_group::kSuggestedItemsForMultiprofile] mutableCopy];
   if (suggested_items == nil) {
@@ -266,15 +268,10 @@ void WriteSavedMostVisited(
                                 forKey:app_group::kNoAccount];
   }
 
-  // Update "Default" scenario only if this is the last used profile.
-  std::string lastUsedProfile =
-      GetApplicationContext()->GetLocalState()->GetString(
-          prefs::kLastUsedProfile);
-  if (profileName == lastUsedProfile) {
-    [suggested_items setObject:data forKey:app_group::kDefault];
-    [last_modification_dates setObject:last_modification_date
-                                forKey:app_group::kDefault];
-  }
+  // Always update last modification date for "Default" scenario.
+  [suggested_items setObject:data forKey:app_group::kDefault];
+  [last_modification_dates setObject:last_modification_date
+                              forKey:app_group::kDefault];
 
   // Update stored info for all identities in the current profile.
   for (id<SystemIdentity> identity in account_manager_service
@@ -295,39 +292,11 @@ void WriteSavedMostVisited(
   UpdateShortcutsWidget();
 }
 
-NSDictionary* ReadSavedMostVisited(
-    ChromeAccountManagerService* account_manager_service) {
+NSDictionary* ReadSavedMostVisited() {
   NSUserDefaults* sharedDefaults = app_group::GetGroupUserDefaults();
-  NSDictionary* suggested_items =
-      [sharedDefaults objectForKey:app_group::kSuggestedItemsForMultiprofile];
-
-  NSData* data = nil;
-
-  if (!account_manager_service) {
-    data = suggested_items[app_group::kDefault];
-  } else {
-    // Try to find data for any identity in this profile.
-    for (id<SystemIdentity> identity in account_manager_service
-             ->GetAllIdentities()) {
-      NSString* gaia_id_string = identity.gaiaId.ToNSString();
-      if (suggested_items[gaia_id_string]) {
-        data = suggested_items[gaia_id_string];
-        break;
-      }
-    }
-
-    // If personal profile and no identity data found, try kNoAccount.
-    if (!data) {
-      std::string profileName = account_manager_service->GetProfileName();
-      std::string personalProfileName = GetApplicationContext()
-                                            ->GetAccountProfileMapper()
-                                            ->GetPersonalProfileName();
-      if (profileName == personalProfileName) {
-        data = suggested_items[app_group::kNoAccount];
-      }
-    }
-  }
-  return data ? DecodeData(data) : [[NSMutableDictionary alloc] init];
+  NSDictionary* data =
+      DecodeData([sharedDefaults objectForKey:app_group::kSuggestedItems]);
+  return data;
 }
 
 void UpdateSingleFavicon(const GURL& site_url,
@@ -359,7 +328,7 @@ void UpdateSingleFavicon(const GURL& site_url,
               FROM_HERE, {base::MayBlock(), base::TaskPriority::BEST_EFFORT},
               std::move(writeImage), base::BindOnce(&UpdateShortcutsWidget));
         } else {
-          NSDictionary* tiles = ReadSavedMostVisited(account_manager_service);
+          NSDictionary* tiles = ReadSavedMostVisited();
           NTPTile* tile = [tiles objectForKey:siteNSURL];
           if (!tile) {
             return;

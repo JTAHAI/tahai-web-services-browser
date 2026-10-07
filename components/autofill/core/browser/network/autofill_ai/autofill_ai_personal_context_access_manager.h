@@ -10,7 +10,6 @@
 
 #include "base/observer_list_types.h"
 #include "components/autofill/core/browser/data_model/autofill_ai/entity_instance.h"
-#include "components/autofill/core/common/dense_set.h"
 #include "components/keyed_service/core/keyed_service.h"
 
 namespace autofill {
@@ -34,9 +33,6 @@ class AutofillAiPersonalContextAccessManager : public KeyedService {
  public:
   class Observer : public base::CheckedObserver {
    public:
-    // TODO(crbug.com/516721244): Merge `OnPrefetchContextComplete` and
-    // `OnMaskedEntityTypeEvicted` into a single callback.
-
     // Called when asynchronous prefetching of entities through
     // `PrefetchContext()` finishes. If prefetching succeeded, `entities`
     // contains the result. In case it failed or the response was empty,
@@ -71,7 +67,8 @@ class AutofillAiPersonalContextAccessManager : public KeyedService {
   ~AutofillAiPersonalContextAccessManager() override = default;
 
   // Fetches personal context from the personal context service.
-  virtual void PrefetchContext(DenseSet<EntityType> requested_types) = 0;
+  virtual void PrefetchContext(
+      base::span<const EntityType> requested_types) = 0;
 
   virtual RequestStatus GetPrefetchStatusByEntityType(
       EntityType type) const = 0;

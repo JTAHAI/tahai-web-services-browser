@@ -32,6 +32,7 @@ import org.mockito.quality.Strictness;
 import org.robolectric.Robolectric;
 
 import org.chromium.base.test.BaseRobolectricTestRunner;
+import org.chromium.base.test.util.Batch;
 import org.chromium.components.autofill.PaymentsUiClosedReason;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetContent;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController;
@@ -40,6 +41,7 @@ import org.chromium.components.browser_ui.bottomsheet.BottomSheetObserver;
 
 /** Tests for {@link MandatoryReauthOptInBottomSheetViewBridge} */
 @RunWith(BaseRobolectricTestRunner.class)
+@Batch(Batch.PER_CLASS)
 public class MandatoryReauthOptInBottomSheetModuleTest {
     private MandatoryReauthOptInBottomSheetViewBridge mViewBridge;
     ArgumentCaptor<BottomSheetContent> mContentCaptor =

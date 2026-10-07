@@ -152,17 +152,10 @@ class TestBluetoothDelegate : public BluetoothDelegate {
     return checked_allow_web_bluetooth_;
   }
 
-  void set_run_bluetooth_chooser_callback(base::OnceClosure callback) {
-    run_bluetooth_chooser_callback_ = std::move(callback);
-  }
-
   // BluetoothDelegate:
   std::unique_ptr<BluetoothChooser> RunBluetoothChooser(
       RenderFrameHost* frame,
       const BluetoothChooser::EventHandler& event_handler) override {
-    if (run_bluetooth_chooser_callback_) {
-      std::move(run_bluetooth_chooser_callback_).Run();
-    }
     return std::make_unique<FakeBluetoothChooser>(event_handler,
                                                   device_to_select_);
   }
@@ -227,7 +220,6 @@ class TestBluetoothDelegate : public BluetoothDelegate {
 
  private:
   std::string device_to_select_;
-  base::OnceClosure run_bluetooth_chooser_callback_;
   base::OnceClosure show_bluetooth_scanning_prompt_callback_;
   raw_ptr<FakeBluetoothScanningPrompt, DanglingUntriaged> prompt_ = nullptr;
   bool showed_bluetooth_scanning_prompt_ = false;
@@ -690,51 +682,6 @@ IN_PROC_BROWSER_TEST_F(WebBluetoothServiceImplFencedFramesBrowserTest,
 }
 
 IN_PROC_BROWSER_TEST_F(WebBluetoothServiceImplBrowserTest,
-                       FrameDetachDuringRunBluetoothChooser) {
-  // Setup the fake device.
-  AddFakeDevice(kDeviceAddress);
-  SetDeviceToSelect(kDeviceAddress);
-
-  EXPECT_TRUE(NavigateToURL(
-      shell(), embedded_test_server()->GetURL("/simple_page.html")));
-
-  // Add an iframe and wait for it to load.
-  EXPECT_TRUE(ExecJs(GetWebContents(), R"(
-    new Promise(resolve => {
-      let iframe = document.createElement('iframe');
-      iframe.src = '/simple_page.html';
-      iframe.onload = resolve;
-      document.body.appendChild(iframe);
-    });
-  )"));
-
-  RenderFrameHost* child_rfh =
-      ChildFrameAt(GetWebContents()->GetPrimaryMainFrame(), 0);
-  ASSERT_TRUE(child_rfh);
-
-  GetBluetoothDelegate()->set_run_bluetooth_chooser_callback(
-      base::BindLambdaForTesting([&]() {
-        // Synchronously detach the iframe during RunBluetoothChooser.
-        EXPECT_TRUE(ExecJs(GetWebContents(),
-                           "document.querySelector('iframe').remove();"));
-      }));
-
-  auto result = content::EvalJs(child_rfh, R"(
-    (async() => {
-      try {
-        await navigator.bluetooth.requestDevice({
-          filters: [{name: 'Test Device', services: ['heart_rate']}]});
-        return "";
-      } catch(e) {
-        return `${e.name}: ${e.message}`;
-      }
-    })()
-  )");
-  EXPECT_THAT(result,
-              EvalJsResult::ErrorIs(testing::HasSubstr("RenderFrame deleted")));
-}
-
-IN_PROC_BROWSER_TEST_F(WebBluetoothServiceImplBrowserTest,
                        FrameDetachDuringShowBluetoothScanningPrompt) {
   EXPECT_CALL(*adapter(), AddObserver(_)).Times(testing::AnyNumber());
   EXPECT_CALL(*adapter(), RemoveObserver(_)).Times(testing::AnyNumber());
@@ -778,5 +725,4 @@ IN_PROC_BROWSER_TEST_F(WebBluetoothServiceImplBrowserTest,
               EvalJsResult::ErrorIs(testing::HasSubstr("RenderFrame deleted")));
   EXPECT_TRUE(GetBluetoothDelegate()->showed_bluetooth_scanning_prompt());
 }
-
 }  // namespace content

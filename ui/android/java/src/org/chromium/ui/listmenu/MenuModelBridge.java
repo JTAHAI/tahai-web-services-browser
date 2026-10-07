@@ -10,7 +10,6 @@ import static org.chromium.ui.listmenu.ListMenuItemProperties.START_ICON_BITMAP;
 import static org.chromium.ui.listmenu.ListMenuItemProperties.TITLE;
 
 import android.graphics.Bitmap;
-import android.view.Menu;
 
 import androidx.annotation.VisibleForTesting;
 
@@ -47,12 +46,12 @@ public class MenuModelBridge {
     }
 
     @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
-    /** Returns a {@link MenuModelBridge} instance. */
+    /** {@return A {@link MenuModelBridge} instance} */
     public MenuModelBridge(long nativePtr) {
         mNativePtr = nativePtr;
     }
 
-    /** Returns the list of {@link ListItem} held by this {@link MenuModelBridge}. */
+    /** {@return The list of {@link ListItem} held by this {@link MenuModelBridge}} */
     public List<ListItem> getListItems() {
         return mItems;
     }
@@ -68,17 +67,9 @@ public class MenuModelBridge {
         return result;
     }
 
-    private static int getEffectiveOrder(final int order) {
-        // Negative orders indicate no explicit ordering; default to Menu.CATEGORY_ALTERNATIVE
-        // so standard alternative items join the alternative group.
-        return order >= 0 ? order : Menu.CATEGORY_ALTERNATIVE;
-    }
-
     /**
      * Adds a context menu item which triggers a command when activated.
      *
-     * @param commandId The command id of the menu item in the C++ menu model.
-     * @param order The display order of the menu item.
      * @param label The label to display.
      * @param bitmap The icon to display (or null if there should be no icon).
      * @param isEnabled Whether the command is enabled.
@@ -87,16 +78,12 @@ public class MenuModelBridge {
     @CalledByNative
     @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
     void addCommand(
-            final int commandId,
-            final int order,
             @JniType("std::u16string") final String label,
             @JniType("std::optional<SkBitmap>") final @Nullable Bitmap bitmap,
             final boolean isEnabled,
             final int indexForModelActivation) {
         PropertyModel.Builder modelBuilder =
                 new PropertyModel.Builder(ListMenuItemProperties.ALL_KEYS)
-                        .with(ListMenuItemProperties.MENU_ITEM_ID, commandId)
-                        .with(ListMenuItemProperties.ORDER, getEffectiveOrder(order))
                         .with(TITLE, label)
                         .with(START_ICON_BITMAP, bitmap)
                         .with(ENABLED, isEnabled)
@@ -114,8 +101,6 @@ public class MenuModelBridge {
     /**
      * Adds a context menu item with a checkbox.
      *
-     * @param commandId The command id of the menu item in the C++ menu model.
-     * @param order The display order of the menu item.
      * @param label The label to display.
      * @param isChecked Whether the checkbox is checked.
      * @param isEnabled Whether the checkbox and label are enabled.
@@ -124,16 +109,12 @@ public class MenuModelBridge {
     @CalledByNative
     @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
     void addCheck(
-            final int commandId,
-            final int order,
             @JniType("std::u16string") final String label,
             final boolean isChecked,
             final boolean isEnabled,
             final int indexForModelActivation) {
         PropertyModel.Builder modelBuilder =
                 new PropertyModel.Builder(ListMenuCheckItemProperties.ALL_KEYS)
-                        .with(ListMenuItemProperties.MENU_ITEM_ID, commandId)
-                        .with(ListMenuItemProperties.ORDER, getEffectiveOrder(order))
                         .with(TITLE, label)
                         .with(ListMenuCheckItemProperties.CHECKED, isChecked)
                         .with(ENABLED, isEnabled)
@@ -151,8 +132,6 @@ public class MenuModelBridge {
     /**
      * Adds a context menu item with a radio button.
      *
-     * @param commandId The command id of the menu item in the C++ menu model.
-     * @param order The display order of the menu item.
      * @param label The label to display.
      * @param isSelected Whether the radio option is selected.
      * @param isEnabled Whether the radio option and label are enabled.
@@ -161,16 +140,12 @@ public class MenuModelBridge {
     @CalledByNative
     @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
     void addRadioButton(
-            final int commandId,
-            final int order,
             @JniType("std::u16string") final String label,
             final boolean isSelected,
             final boolean isEnabled,
             final int indexForModelActivation) {
         PropertyModel.Builder modelBuilder =
                 new PropertyModel.Builder(ListMenuRadioItemProperties.ALL_KEYS)
-                        .with(ListMenuItemProperties.MENU_ITEM_ID, commandId)
-                        .with(ListMenuItemProperties.ORDER, getEffectiveOrder(order))
                         .with(TITLE, label)
                         .with(ListMenuRadioItemProperties.SELECTED, isSelected)
                         .with(ENABLED, isEnabled)
@@ -188,8 +163,6 @@ public class MenuModelBridge {
     /**
      * Adds a context menu item with a radio button.
      *
-     * @param commandId The command id of the menu item in the C++ menu model.
-     * @param order The display order of the menu item.
      * @param label The label to display.
      * @param bitmap The icon to display (or null if there should be no icon).
      * @param isEnabled Whether the radio option and label are enabled.
@@ -198,16 +171,12 @@ public class MenuModelBridge {
     @CalledByNative
     @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
     void addSubmenu(
-            final int commandId,
-            final int order,
             @JniType("std::u16string") final String label,
             @JniType("std::optional<SkBitmap>") final @Nullable Bitmap bitmap,
             final boolean isEnabled,
             MenuModelBridge submenuItems) {
         PropertyModel.Builder modelBuilder =
                 new PropertyModel.Builder(ListMenuSubmenuItemProperties.ALL_KEYS)
-                        .with(ListMenuItemProperties.MENU_ITEM_ID, commandId)
-                        .with(ListMenuItemProperties.ORDER, getEffectiveOrder(order))
                         .with(TITLE, label)
                         .with(START_ICON_BITMAP, bitmap)
                         .with(ENABLED, isEnabled)
@@ -217,19 +186,15 @@ public class MenuModelBridge {
         mItems.add(new ListItem(ListItemType.MENU_ITEM_WITH_SUBMENU, modelBuilder.build()));
     }
 
-    /**
-     * Adds a divider to the context menu.
-     *
-     * @param order The display order of the divider.
-     */
+    /** Adds a divider to the context menu. */
     @CalledByNative
     @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
-    void addDivider(final int order) {
-        PropertyModel.Builder modelBuilder =
-                new PropertyModel.Builder(ListSectionDividerProperties.ALL_KEYS)
-                        .with(ListMenuItemProperties.ORDER, getEffectiveOrder(order));
+    void addDivider() {
         // TODO(crbug.com/416222384): Update context menus to use incognito theming.
-        mItems.add(new ListItem(ListItemType.DIVIDER, modelBuilder.build()));
+        mItems.add(
+                new ListItem(
+                        ListItemType.DIVIDER,
+                        new PropertyModel(ListSectionDividerProperties.ALL_KEYS)));
     }
 
     @CalledByNative

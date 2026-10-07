@@ -223,13 +223,13 @@ public class ScreenOrientationProviderImpl
         // Note that we can't just use the focused activity, as that would lead to bugs where
         // unlockOrientation unlocks a different activity to the one that was locked.
         if (activity == null) return;
-        byte defaultWebOrientation = (byte) ScreenOrientationLockType.DEFAULT;
+        byte mDefaultWebOrientation = (byte) ScreenOrientationLockType.DEFAULT;
         if (mDefaultOrientationOverrides.containsKey(activity)) {
-            defaultWebOrientation = mDefaultOrientationOverrides.get(activity);
+            mDefaultWebOrientation = mDefaultOrientationOverrides.get(activity);
         }
 
         int defaultOrientation =
-                getOrientationFromWebScreenOrientations(defaultWebOrientation, window, activity);
+                getOrientationFromWebScreenOrientations(mDefaultWebOrientation, window, activity);
 
         try {
             if (defaultOrientation == ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED) {

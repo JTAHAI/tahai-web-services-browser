@@ -4,7 +4,6 @@
 
 #include "components/pdf/renderer/pdf_accessibility_tree_builder.h"
 
-#include <cmath>
 #include <optional>
 #include <string>
 
@@ -19,7 +18,6 @@
 #include "pdf/page_character_index.h"
 #include "services/strings/grit/services_strings.h"
 #include "third_party/blink/public/web/web_ax_object.h"
-#include "ui/accessibility/accessibility_features.h"
 #include "ui/accessibility/ax_enums.mojom-shared.h"
 #include "ui/accessibility/ax_node_data.h"
 #include "ui/base/l10n/l10n_util.h"
@@ -27,9 +25,6 @@
 #include "ui/strings/grit/auto_image_annotation_strings.h"
 
 namespace {
-
-// The upper (exclusive) bound for valid 7-bit ASCII code points [0, 127].
-constexpr uint32_t kMaxAsciiCodePoint = 128;
 
 ax::mojom::Role GetRoleForButtonType(chrome_pdf::ButtonType button_type) {
   switch (button_type) {
@@ -42,74 +37,30 @@ ax::mojom::Role GetRoleForButtonType(chrome_pdf::ButtonType button_type) {
   }
 }
 
-bool IsAsciiWhitespace(uint32_t char_code) {
-  return char_code < kMaxAsciiCodePoint &&
-         base::IsAsciiWhitespace(static_cast<char>(char_code));
-}
-
-// Holds sanitized text and corresponding character offsets for a text run.
-struct ProcessedTextRun {
-  std::string chars_utf8;
-  std::vector<int32_t> char_offsets;
-};
-
-ProcessedTextRun ProcessTextRunChars(
+std::string GetTextRunCharsAsUTF8(
     const chrome_pdf::AccessibilityTextRunInfo& text_run,
     const std::vector<chrome_pdf::AccessibilityCharInfo>& chars,
-    uint32_t char_index) {
-  CHECK_LE(char_index + text_run.len, chars.size());
-  ProcessedTextRun result;
-  const bool is_pdf_enhancements_enabled =
-      features::IsPdfAccessibilityHeuristicEnhancementsEnabled();
-
-  // Find the start index of any trailing whitespace in the text run.
-  uint32_t trailing_whitespace_start = text_run.len;
-  if (is_pdf_enhancements_enabled) {
-    while (trailing_whitespace_start > 0) {
-      uint32_t char_code =
-          chars[char_index + trailing_whitespace_start - 1].unicode_character;
-      if (!IsAsciiWhitespace(char_code)) {
-        break;
-      }
-      --trailing_whitespace_start;
-    }
+    int char_index) {
+  std::string chars_utf8;
+  for (uint32_t i = 0; i < text_run.len; ++i) {
+    base::WriteUnicodeCharacter(
+        static_cast<base_icu::UChar32>(chars[char_index + i].unicode_character),
+        &chars_utf8);
   }
+  return chars_utf8;
+}
 
+std::vector<int32_t> GetTextRunCharOffsets(
+    const chrome_pdf::AccessibilityTextRunInfo& text_run,
+    const std::vector<chrome_pdf::AccessibilityCharInfo>& chars,
+    int char_index) {
+  std::vector<int32_t> char_offsets(text_run.len);
   double offset = 0.0;
   for (uint32_t i = 0; i < text_run.len; ++i) {
-    uint32_t char_code = chars[char_index + i].unicode_character;
-    bool is_ascii_space = IsAsciiWhitespace(char_code);
-
-    // Ignore non-whitespace control characters (e.g. for words split across a
-    // visual line in the PDF).
-    if (is_pdf_enhancements_enabled && base::IsUnicodeControl(char_code) &&
-        !is_ascii_space) {
-      continue;
-    }
-
-    // Replace trailing non-space whitespace (such as '\r' or '\n') with a space
-    // ' '. Collapse consecutive converted spaces (e.g. '\r\n') so extra spaces
-    // are not introduced between lines.
-    bool should_collapse = is_pdf_enhancements_enabled && is_ascii_space &&
-                           char_code != ' ' && i >= trailing_whitespace_start;
-    if (should_collapse) {
-      if (!result.chars_utf8.empty() && result.chars_utf8.back() == ' ') {
-        // Accumulate width for skipped characters so character bounds stay
-        // aligned.
-        offset += chars[char_index + i].char_width;
-        continue;
-      }
-      char_code = ' ';
-    }
-
-    // Convert character code to UTF-8 string representation.
-    base::WriteUnicodeCharacter(static_cast<base_icu::UChar32>(char_code),
-                                &result.chars_utf8);
-    // Accumulate total character offset width and store rounded pixel position.
     offset += chars[char_index + i].char_width;
-    result.char_offsets.push_back(std::floor(offset));
+    char_offsets[i] = floor(offset);
   }
-  return result;
+  return char_offsets;
 }
 
 bool IsTextRenderModeFill(const chrome_pdf::AccessibilityTextRenderMode& mode) {
@@ -135,15 +86,6 @@ bool IsTextRenderModeStroke(
     default:
       return false;
   }
-}
-
-constexpr int kStandardBoldValue = 700;
-constexpr int kMaxValidBoldValue = 900;
-bool IsValidFontWeight(float font_weight) {
-  if (!features::IsPdfAccessibilityHeuristicEnhancementsEnabled()) {
-    return true;
-  }
-  return font_weight <= kMaxValidBoldValue && font_weight >= 0;
 }
 
 }  // namespace
@@ -285,31 +227,8 @@ ui::AXNodeData* PdfAccessibilityTreeBuilder::CreateStaticTextNode(
 bool PdfAccessibilityTreeBuilder::AreStylesEquivalent(
     const chrome_pdf::AccessibilityTextStyleInfo& style1,
     const chrome_pdf::AccessibilityTextStyleInfo& style2) {
-  return style1.is_italic == style2.is_italic &&
-         style1.font_weight == style2.font_weight;
-}
-
-// static
-bool PdfAccessibilityTreeBuilder::IsBoldStyle(
-    const chrome_pdf::AccessibilityTextStyleInfo& style) {
-  return IsValidFontWeight(style.font_weight) &&
-         style.font_weight >= kStandardBoldValue;
-}
-
-// static
-float PdfAccessibilityTreeBuilder::GetFontWeight(
-    const chrome_pdf::AccessibilityTextStyleInfo& style) {
-  return IsValidFontWeight(style.font_weight) ? style.font_weight : 0.0f;
-}
-
-void PdfAccessibilityTreeBuilder::AddFontWeightAttributes(
-    const chrome_pdf::AccessibilityTextStyleInfo& style,
-    ui::AXNodeData* ax_node_data) {
-  if (IsBoldStyle(style)) {
-    ax_node_data->AddTextStyle(ax::mojom::TextStyle::kBold);
-  }
-  ax_node_data->AddFloatAttribute(ax::mojom::FloatAttribute::kFontWeight,
-                                  GetFontWeight(style));
+  return style1.is_bold == style2.is_bold &&
+         style1.is_italic == style2.is_italic;
 }
 
 ui::AXNodeData* PdfAccessibilityTreeBuilder::CreateStaticTextNodeWithStyle(
@@ -319,7 +238,9 @@ ui::AXNodeData* PdfAccessibilityTreeBuilder::CreateStaticTextNodeWithStyle(
   if (style.is_italic) {
     static_text_node->AddTextStyle(ax::mojom::TextStyle::kItalic);
   }
-  AddFontWeightAttributes(style, static_text_node);
+  if (style.is_bold) {
+    static_text_node->AddTextStyle(ax::mojom::TextStyle::kBold);
+  }
 
   return static_text_node;
 }
@@ -331,10 +252,10 @@ ui::AXNodeData* PdfAccessibilityTreeBuilder::CreateInlineTextBoxNode(
       ax::mojom::Role::kInlineTextBox, ax::mojom::Restriction::kReadOnly);
   inline_text_box_node->SetNameFrom(ax::mojom::NameFrom::kContents);
 
-  ProcessedTextRun processed_text =
-      ProcessTextRunChars(text_run, *chars_, page_char_index.char_index);
+  std::string chars__utf8 =
+      GetTextRunCharsAsUTF8(text_run, *chars_, page_char_index.char_index);
   inline_text_box_node->AddStringAttribute(ax::mojom::StringAttribute::kName,
-                                           processed_text.chars_utf8);
+                                           chars__utf8);
   inline_text_box_node->AddIntAttribute(
       ax::mojom::IntAttribute::kTextDirection,
       static_cast<uint32_t>(text_run.direction));
@@ -342,9 +263,13 @@ ui::AXNodeData* PdfAccessibilityTreeBuilder::CreateInlineTextBoxNode(
       ax::mojom::StringAttribute::kFontFamily, text_run.style.font_name);
   inline_text_box_node->AddFloatAttribute(ax::mojom::FloatAttribute::kFontSize,
                                           text_run.style.font_size);
-  AddFontWeightAttributes(text_run.style, inline_text_box_node);
+  inline_text_box_node->AddFloatAttribute(
+      ax::mojom::FloatAttribute::kFontWeight, text_run.style.font_weight);
   if (text_run.style.is_italic) {
     inline_text_box_node->AddTextStyle(ax::mojom::TextStyle::kItalic);
+  }
+  if (text_run.style.is_bold) {
+    inline_text_box_node->AddTextStyle(ax::mojom::TextStyle::kBold);
   }
   if (IsTextRenderModeFill(text_run.style.render_mode)) {
     inline_text_box_node->AddIntAttribute(ax::mojom::IntAttribute::kColor,
@@ -356,9 +281,10 @@ ui::AXNodeData* PdfAccessibilityTreeBuilder::CreateInlineTextBoxNode(
 
   inline_text_box_node->relative_bounds.bounds =
       text_run.bounds + page_node_->relative_bounds.bounds.OffsetFromOrigin();
+  std::vector<int32_t> char_offsets =
+      GetTextRunCharOffsets(text_run, *chars_, page_char_index.char_index);
   inline_text_box_node->AddIntListAttribute(
-      ax::mojom::IntListAttribute::kCharacterOffsets,
-      processed_text.char_offsets);
+      ax::mojom::IntListAttribute::kCharacterOffsets, char_offsets);
   AddWordStartsAndEnds(inline_text_box_node);
   node_id_to_page_char_index_->emplace(inline_text_box_node->id,
                                        page_char_index);

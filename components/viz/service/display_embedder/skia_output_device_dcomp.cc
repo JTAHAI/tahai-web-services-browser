@@ -26,7 +26,6 @@
 #include "gpu/command_buffer/service/skia_utils.h"
 #include "gpu/command_buffer/service/texture_manager.h"
 #include "gpu/config/gpu_driver_bug_workarounds.h"
-#include "gpu/config/gpu_util.h"
 #include "third_party/skia/include/core/SkCanvas.h"
 #include "third_party/skia/include/core/SkSurface.h"
 #include "third_party/skia/include/gpu/ganesh/GrDirectContext.h"
@@ -136,8 +135,7 @@ SkiaOutputDeviceDComp::SkiaOutputDeviceDComp(
   capabilities_.uses_default_gl_framebuffer = true;
   capabilities_.output_surface_origin = gfx::SurfaceOrigin::kTopLeft;
   capabilities_.number_of_buffers =
-      gpu::DirectCompositionRootSurfaceBufferCount(
-          context_state->gr_context_type());
+      gl::DirectCompositionRootSurfaceBufferCount();
   if (base::CommandLine::ForCurrentProcess()->HasSwitch(
           switches::kDoubleBufferCompositing)) {
     // Use switch "double-buffer-compositing" to force 1 |max_pending_swaps|

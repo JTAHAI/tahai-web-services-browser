@@ -17,8 +17,6 @@ import org.chromium.base.CommandLine;
 import org.chromium.base.ContextUtils;
 import org.chromium.base.DeviceInfo;
 import org.chromium.base.SysUtils;
-import org.chromium.base.TriState;
-import org.chromium.base.TriStateUtils;
 import org.chromium.base.shared_preferences.SharedPreferencesManager;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
@@ -52,7 +50,7 @@ public class DesktopSiteUtils {
     private static final String SITE_WILDCARD = "*";
     // Global defaults experiment constants.
     private static @Nullable DisplayMetrics sDisplayMetrics;
-    @VisibleForTesting static @TriState int sDesktopUAAllowedOnExternalDisplayForOem;
+    @VisibleForTesting static @Nullable Boolean sDesktopUAAllowedOnExternalDisplayForOem;
 
     static final double DEFAULT_GLOBAL_SETTING_DEFAULT_ON_DISPLAY_SIZE_THRESHOLD_INCHES = 10.0;
     static final int DEFAULT_GLOBAL_SETTING_DEFAULT_ON_SMALLEST_SCREEN_WIDTH_THRESHOLD_DP = 600;
@@ -340,7 +338,7 @@ public class DesktopSiteUtils {
         if (!ChromeFeatureList.sDesktopUAOnConnectedDisplay.isEnabled()) {
             return false;
         }
-        if (sDesktopUAAllowedOnExternalDisplayForOem == TriState.NOT_SET) {
+        if (sDesktopUAAllowedOnExternalDisplayForOem == null) {
             Set<String> allowlist = new HashSet<>();
             String allowlistStr =
                     ChromeFeatureList.sDesktopUAAllowedOnExternalDisplayForOem.getValue();
@@ -348,12 +346,10 @@ public class DesktopSiteUtils {
                 Collections.addAll(allowlist, allowlistStr.split(","));
             }
             sDesktopUAAllowedOnExternalDisplayForOem =
-                    TriStateUtils.from(
-                            allowlist.isEmpty()
-                                    || allowlist.contains(
-                                            Build.MANUFACTURER.toLowerCase(Locale.US)));
+                    allowlist.isEmpty()
+                            || allowlist.contains(Build.MANUFACTURER.toLowerCase(Locale.US));
         }
-        return sDesktopUAAllowedOnExternalDisplayForOem == TriState.TRUE;
+        return sDesktopUAAllowedOnExternalDisplayForOem;
     }
 
     /** Check if Request Desktop Site ContentSettings is global setting. */

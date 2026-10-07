@@ -20,6 +20,7 @@
 #include "base/strings/escape.h"
 #include "base/strings/stringprintf.h"
 #include "base/values.h"
+#include "chrome/browser/signin/identity_manager_factory.h"
 #include "components/signin/public/base/consent_level.h"
 #include "components/signin/public/identity_manager/access_token_fetcher.h"
 #include "components/signin/public/identity_manager/access_token_info.h"
@@ -123,10 +124,10 @@ PasswordSyncTokenFetcher::Consumer::~Consumer() = default;
 
 PasswordSyncTokenFetcher::PasswordSyncTokenFetcher(
     scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory,
-    signin::IdentityManager* identity_manager,
+    Profile* profile,
     Consumer* consumer)
     : url_loader_factory_(std::move(url_loader_factory)),
-      identity_manager_(identity_manager),
+      profile_(profile),
       consumer_(consumer),
       request_type_(RequestType::kNone) {
   DCHECK(consumer_);
@@ -154,9 +155,14 @@ void PasswordSyncTokenFetcher::StartTokenVerify(const std::string& sync_token) {
 }
 
 void PasswordSyncTokenFetcher::StartAccessTokenFetch() {
+  DCHECK(profile_);
+  signin::IdentityManager* identity_manager =
+      IdentityManagerFactory::GetForProfile(profile_);
+  DCHECK(identity_manager);
+
   access_token_fetcher_ =
       std::make_unique<signin::PrimaryAccountAccessTokenFetcher>(
-          signin::OAuthConsumerId::kPasswordSyncTokenFetcher, identity_manager_,
+          signin::OAuthConsumerId::kPasswordSyncTokenFetcher, identity_manager,
           base::BindOnce(&PasswordSyncTokenFetcher::OnAccessTokenFetchComplete,
                          weak_ptr_factory_.GetWeakPtr()),
           signin::PrimaryAccountAccessTokenFetcher::Mode::kWaitUntilAvailable,

@@ -34,10 +34,6 @@ class EntityType;
                            enabled:(BOOL)enabled
                            managed:(BOOL)managed;
 
-// Sets whether Suggestions from Gemini should be shown, and its enabled state.
-- (void)setShouldShowSuggestionsFromGemini:(BOOL)shouldShow
-                                   enabled:(BOOL)enabled;
-
 @end
 
 #endif  // IOS_CHROME_BROWSER_SETTINGS_AUTOFILL_AUTOFILL_AND_PASSWORDS_UI_IDENTITY_DOCS_CONSUMER_H_

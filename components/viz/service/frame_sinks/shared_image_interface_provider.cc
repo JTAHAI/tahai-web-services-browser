@@ -5,7 +5,6 @@
 #include "components/viz/service/frame_sinks/shared_image_interface_provider.h"
 
 #include <memory>
-#include <utility>
 
 #include "base/functional/callback.h"
 #include "base/synchronization/lock.h"
@@ -51,23 +50,28 @@ void SharedImageInterfaceProvider::CreateSharedImageInterface() {
   // This function should only be called on the compositor thread.
   CHECK(!gpu_service_->main_runner()->BelongsToCurrentThread());
 
-  auto scheduler_sequence = std::make_unique<gpu::SchedulerSequence>(
-      gpu_service_->GetGpuScheduler(), gpu_service_->main_runner(),
-      /*target_thread_is_always_available=*/true);
-  gpu::SingleTaskSequence* sequence_ptr = scheduler_sequence.get();
+  if (!scheduler_sequence_) {
+    // TODO(vmpstr): This can use compositor_gpu_task_runner instead. However,
+    // we also then need to create a SharedContextState from the same runner.
+    // That checks that the access is happening from the thread that owns the
+    // runner, which would not be the case here. All of this, however, is an
+    // optimization and for now we can use main runner for these textures.
+    scheduler_sequence_ = std::make_unique<gpu::SchedulerSequence>(
+        gpu_service_->GetGpuScheduler(), gpu_service_->main_runner(),
+        /*target_thread_is_always_available=*/true);
+  }
 
   base::ScopedAllowBaseSyncPrimitives allow_wait;
   base::WaitableEvent event;
-  sequence_ptr->ScheduleTask(
+  scheduler_sequence_->ScheduleTask(
       base::BindOnce(
           &SharedImageInterfaceProvider::CreateSharedImageInterfaceOnGpu,
-          base::Unretained(this), std::move(scheduler_sequence), &event),
+          base::Unretained(this), &event),
       /*sync_token_fences=*/{}, gpu::SyncToken());
   event.Wait();
 }
 
 void SharedImageInterfaceProvider::CreateSharedImageInterfaceOnGpu(
-    std::unique_ptr<gpu::SingleTaskSequence> scheduler_sequence,
     base::WaitableEvent* event) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(gpu_sequence_checker_);
   base::AutoLock hold(context_lock_);
@@ -78,7 +82,7 @@ void SharedImageInterfaceProvider::CreateSharedImageInterfaceOnGpu(
   context_lost_ = false;
 
   shared_image_interface_ = gpu::SharedImageInterfaceInProcess::Create(
-      std::move(scheduler_sequence), gpu_service_->gpu_preferences(),
+      scheduler_sequence_.get(), gpu_service_->gpu_preferences(),
       gpu_service_->gpu_driver_bug_workarounds(),
       gpu_service_->gpu_feature_info(), shared_context_state_.get(),
       gpu_service_->shared_image_manager(),

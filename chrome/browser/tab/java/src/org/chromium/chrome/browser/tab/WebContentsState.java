@@ -10,7 +10,6 @@ import org.jni_zero.CalledByNative;
 import org.jni_zero.JniType;
 import org.jni_zero.NativeMethods;
 
-import org.chromium.base.ThreadUtils;
 import org.chromium.base.lifetime.Destroyable;
 import org.chromium.base.lifetime.LifetimeAssert;
 import org.chromium.build.annotations.NullMarked;
@@ -25,7 +24,7 @@ import java.nio.ByteBuffer;
 
 /** Contains the state for a {@link WebContents}. */
 @NullMarked
-public class WebContentsState implements Destroyable {
+public class WebContentsState {
     /** Version number used to denote an invalid buffer. */
     public static final int INVALID_BUFFER_VERSION = -1;
 
@@ -47,7 +46,6 @@ public class WebContentsState implements Destroyable {
     /** A packed (pickle) representation of the navigation entries for a {@link WebContents}. */
     private static class PackedData implements Destroyable {
         private final @Nullable LifetimeAssert mLifetimeAssert = LifetimeAssert.create(this);
-        private int mRefCount = 1;
 
         /**
          * mBuffer should not be modified once it is set. Also, it is required to be a "direct"
@@ -56,7 +54,6 @@ public class WebContentsState implements Destroyable {
          * ByteBuffer.allocateDirect() or similar.
          */
         private final ByteBuffer mBuffer;
-
         private final int mVersion;
         private final boolean mLastEntryWasPending;
         private long mNativeStringPointer;
@@ -100,30 +97,14 @@ public class WebContentsState implements Destroyable {
             return mLastEntryWasPending;
         }
 
-        /** Increments reference count for shared instances. */
-        public void acquire() {
-            ThreadUtils.assertOnUiThread();
-            assert mRefCount > 0 : "Cannot acquire a destroyed PackedData";
-            mRefCount++;
-        }
-
         /** Destroys the native string pointer. */
         @Override
         public void destroy() {
-            ThreadUtils.assertOnUiThread();
-            assert mRefCount > 0 : "Underflow in PackedData ref count";
-            mRefCount--;
-            if (mRefCount == 0) {
-                if (mNativeStringPointer != 0) {
-                    WebContentsStateJni.get().freeStringPointer(mNativeStringPointer);
-                    mNativeStringPointer = 0;
-                    LifetimeAssert.destroy(mLifetimeAssert);
-                }
+            if (mNativeStringPointer != 0) {
+                WebContentsStateJni.get().freeStringPointer(mNativeStringPointer);
+                mNativeStringPointer = 0;
+                LifetimeAssert.destroy(mLifetimeAssert);
             }
-        }
-
-        int getRefCountForTesting() {
-            return mRefCount;
         }
     }
 
@@ -174,7 +155,6 @@ public class WebContentsState implements Destroyable {
     private @Nullable WebContentsStateMetadata mMetadata;
     private boolean mMetadataLoaded;
     private PackedData mPackedData;
-    private boolean mIsDestroyed;
 
     private @Nullable String mFallbackUrlForRestorationFailure;
 
@@ -249,43 +229,9 @@ public class WebContentsState implements Destroyable {
                         buffer, version, /* lastEntryWasPending= */ false, nativeStringPointer);
     }
 
-    /**
-     * Copy constructor that creates a new {@link WebContentsState} sharing the underlying {@link
-     * PackedData} buffer with reference counting.
-     *
-     * @param other The existing WebContentsState to copy.
-     */
-    public WebContentsState(WebContentsState other) {
-        ThreadUtils.assertOnUiThread();
-        assert !other.mIsDestroyed : "Cannot copy a destroyed WebContentsState";
-        mPackedData = other.mPackedData;
-        mPackedData.acquire();
-        mFallbackUrlForRestorationFailure = other.mFallbackUrlForRestorationFailure;
-        if (other.mMetadataLoaded) {
-            mMetadata = other.mMetadata;
-            mMetadataLoaded = true;
-        }
-    }
-
     /** Destroys the {@link WebContentsState}. */
-    @Override
     public void destroy() {
-        ThreadUtils.assertOnUiThread();
-        if (mIsDestroyed) {
-            return;
-        }
-        mIsDestroyed = true;
         mPackedData.destroy();
-    }
-
-    /** Returns whether this {@link WebContentsState} has been destroyed. */
-    public boolean isDestroyed() {
-        return mIsDestroyed;
-    }
-
-    /** Returns the current reference count of the underlying packed data for testing. */
-    public int getRefCountForTesting() {
-        return mPackedData.getRefCountForTesting();
     }
 
     /** Returns the buffer for the {@link WebContentsState}. */

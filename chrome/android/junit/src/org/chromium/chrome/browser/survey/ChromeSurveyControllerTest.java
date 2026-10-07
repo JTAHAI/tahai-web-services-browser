@@ -21,6 +21,7 @@ import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
+import org.robolectric.annotation.Config;
 
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.base.test.util.Features;
@@ -39,6 +40,7 @@ import org.chromium.components.user_prefs.UserPrefsJni;
 
 /** Unit tests for {@link ChromeSurveyController} and {@link SurveyThrottler}. */
 @RunWith(BaseRobolectricTestRunner.class)
+@Config(manifest = Config.NONE)
 @Features.EnableFeatures(ChromeFeatureList.CHROME_SURVEY_NEXT_ANDROID)
 public class ChromeSurveyControllerTest {
     @Rule public MockitoRule mMockitoRule = MockitoJUnit.rule();

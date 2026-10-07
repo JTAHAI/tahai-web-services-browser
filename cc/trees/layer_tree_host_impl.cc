@@ -66,6 +66,7 @@
 #include "cc/layers/layer_impl.h"
 #include "cc/layers/render_surface_impl.h"
 #include "cc/layers/surface_layer_impl.h"
+#include "cc/layers/video_layer_impl.h"
 #include "cc/layers/viewport.h"
 #include "cc/metrics/compositor_frame_reporting_controller.h"
 #include "cc/metrics/custom_metrics_recorder.h"
@@ -224,16 +225,12 @@ void DidVisibilityChange(LayerTreeHostImpl* id, bool visible) {
                   /*"LayerTreeHostImpl::SetVisible"*/ visibility_track);
 }
 
-void PopulateMetadataContentColorUsage(const LayerTreeImpl* active_tree,
-                                       const FrameData* frame,
+void PopulateMetadataContentColorUsage(const FrameData* frame,
                                        viz::CompositorFrameMetadata* metadata) {
   metadata->content_color_usage = gfx::ContentColorUsage::kSRGB;
-  for (int layer_id : frame->will_draw_layers) {
-    const LayerImpl* layer = active_tree->LayerById(layer_id);
-    if (layer) {
-      metadata->content_color_usage = std::max(metadata->content_color_usage,
-                                               layer->GetContentColorUsage());
-    }
+  for (const LayerImpl* layer : frame->will_draw_layers) {
+    metadata->content_color_usage =
+        std::max(metadata->content_color_usage, layer->GetContentColorUsage());
   }
 }
 
@@ -653,19 +650,10 @@ LayerTreeHostImpl::LayerTreeHostImpl(
         std::make_unique<CompositorFrameReportingController>(
             /*should_report_histograms=*/!settings
                 .single_thread_proxy_scheduler,
-            /*should_report_scroll_timing=*/
-            settings.enable_scroll_performance_timing,
-            /*layer_tree_host_id=*/id,
+            id,
             /*is_trees_in_viz_client=*/
             settings_.TreesInVizInClientProcess());
-#if BUILDFLAG(IS_ANDROID)
-    if (features::ShouldScrollJankV4MetricReportAndroidAppJankStats()) {
-      compositor_frame_reporting_controller_->SetScrollJankOsReporter(
-          weak_factory_.GetWeakPtr());
-    }
-#endif
   }
-  compositor_frame_reporting_controller_->SetVisible(visible_);
 
   if (base::FeatureList::IsEnabled(features::kTreesInViz) ||
       base::FeatureList::IsEnabled(features::kTreeAnimationsInViz)) {
@@ -701,8 +689,7 @@ LayerTreeHostImpl::LayerTreeHostImpl(
 
   browser_controls_offset_manager_ = BrowserControlsOffsetManager::Create(
       this, settings.top_controls_show_threshold,
-      settings.top_controls_hide_threshold,
-      settings.trees_in_viz_in_viz_process);
+      settings.top_controls_hide_threshold);
 
   SetDebugState(settings.initial_debug_state);
   compositor_frame_reporting_controller_->SetFrameSorter(&frame_sorter_);
@@ -1066,11 +1053,6 @@ bool LayerTreeHostImpl::HasDamage() const {
     return true;
   }
 
-  if (unbounded_frame_sink_handler_ &&
-      unbounded_frame_sink_handler_->HasUnsubmittedLocalSurfaceId()) {
-    return true;
-  }
-
   const LayerTreeImpl* active_tree = active_tree_.get();
   // Make sure we propagate the primary main item sequence number. If there is
   // no stored sequence number, we don't need to damage: either damage will
@@ -1080,19 +1062,6 @@ bool LayerTreeHostImpl::HasDamage() const {
               ->primary_main_frame_item_sequence_number !=
           active_tree->primary_main_frame_item_sequence_number()) {
     return true;
-  }
-
-  // Unbounded elements can be positioned outside the root viewport, so check if
-  // any unbounded render surface has damage even if the root surface has none.
-  if (settings_.enable_unbounded_element) {
-    for (int effect_id : active_tree->GetRenderSurfaceList()) {
-      const RenderSurfaceImpl* surface =
-          active_tree->GetRenderSurface(effect_id);
-      if (surface->IsUnbounded() &&
-          surface->GetDamageRect().Intersects(surface->content_rect())) {
-        return true;
-      }
-    }
   }
 
   // If the root render surface has no visible damage, then don't generate a
@@ -1236,9 +1205,8 @@ DrawResult LayerTreeHostImpl::CalculateRenderPasses(FrameData* frame,
   size_t render_surface_list_size = frame->render_surface_list->size();
   for (size_t i = 0; i < render_surface_list_size; ++i) {
     const size_t surface_index = render_surface_list_size - 1 - i;
-    int effect_id = (*frame->render_surface_list)[surface_index];
     RenderSurfaceImpl* render_surface =
-        active_tree_->GetRenderSurface(effect_id);
+        (*frame->render_surface_list)[surface_index];
 
     const bool is_root_surface =
         render_surface->EffectTreeIndex() == kContentsRootPropertyNodeId;
@@ -1406,7 +1374,7 @@ DrawResult LayerTreeHostImpl::CalculateRenderPasses(FrameData* frame,
 
         // This is necessary in TreesInViz mode to trigger DidDraw() through
         // LayerTreeHostImpl::DidDrawAllLayers().
-        frame->will_draw_layers.push_back(layer->id());
+        frame->will_draw_layers.push_back(layer);
 
         layer->NotifyKnownResourceIdsBeforeAppendQuads(known_resource_ids);
         if (output_frame_data) {
@@ -1882,7 +1850,7 @@ void LayerTreeHostImpl::DidModifyTilePriorities(bool pending_update_tiles) {
 void LayerTreeHostImpl::SetTargetLocalSurfaceId(
     const viz::LocalSurfaceId& target_local_surface_id) {
   target_local_surface_id_ = target_local_surface_id;
-  if (layer_context_ && target_local_surface_id.is_valid()) {
+  if (layer_context_) {
     layer_context_->SetTargetLocalSurfaceId(target_local_surface_id);
   }
 }
@@ -2380,17 +2348,6 @@ void LayerTreeHostImpl::ReportEventLatency(
   if (auto* recorder = CustomMetricRecorder::Get()) {
     recorder->ReportEventLatency(args, std::move(latencies));
   }
-}
-
-void LayerTreeHostImpl::ReportScrollJankStats(uint32_t total_frames,
-                                              uint32_t janky_frames) {
-  CHECK_LE(janky_frames, total_frames);
-#if BUILDFLAG(IS_ANDROID)
-  if (render_frame_metadata_observer_) {
-    render_frame_metadata_observer_->ReportScrollJankStats(total_frames,
-                                                           janky_frames);
-  }
-#endif
 }
 
 void LayerTreeHostImpl::OnCanDrawStateChangedForTree() {
@@ -3014,8 +2971,7 @@ std::optional<SubmitInfo> LayerTreeHostImpl::DrawLayers(FrameData* frame) {
   // The next frame should start by assuming nothing has changed, and changes
   // are noted as they occur.
   for (size_t i = 0; i < frame->render_surface_list->size(); i++) {
-    int effect_id = (*frame->render_surface_list)[i];
-    auto* surface = active_tree_->GetRenderSurface(effect_id);
+    auto* surface = (*frame->render_surface_list)[i];
     surface->damage_tracker()->DidDrawDamagedArea();
   }
   if (active_tree_->RootRenderSurface()) {
@@ -3137,9 +3093,7 @@ viz::CompositorFrame LayerTreeHostImpl::GenerateCompositorFrame(
     ViewTransitionRequest::ViewTransitionElementMap view_transition_element_map;
     const auto& capture_view_transition_tokens =
         active_tree_->GetCaptureViewTransitionTokens();
-    for (int effect_id : *frame->render_surface_list) {
-      RenderSurfaceImpl* render_surface =
-          active_tree_->GetRenderSurface(effect_id);
+    for (RenderSurfaceImpl* render_surface : *frame->render_surface_list) {
       const auto& view_transition_element_resource_id =
           render_surface->OwningEffectNode()
               ->view_transition_element_resource_id;
@@ -3208,7 +3162,7 @@ viz::CompositorFrame LayerTreeHostImpl::GenerateCompositorFrame(
     }
   }
 
-  PopulateMetadataContentColorUsage(active_tree_.get(), frame, &metadata);
+  PopulateMetadataContentColorUsage(frame, &metadata);
   metadata.has_shared_element_resources = frame->has_shared_element_resources;
   uint32_t frame_deadline = frame->deadline_in_frames.value_or(0u);
   // Set a higher frame deadline for ViewTransitions with `kAnimateRenderer` to
@@ -3219,11 +3173,7 @@ viz::CompositorFrame LayerTreeHostImpl::GenerateCompositorFrame(
   // Use the cached values because `TakeViewTransitionRequests()` clears the
   // requests from the tree.
   if (delay_layer_tree_view_deletion && has_view_transition_with_animate) {
-    if (features::UsePerDependencyDeadlines()) {
-      metadata.view_transition_deadline_in_frames = 240u;
-    } else {
-      frame_deadline = 240;
-    }
+    frame_deadline = 240;
   }
   metadata.deadline =
       viz::FrameDeadline(CurrentBeginFrameArgs().frame_time, frame_deadline,
@@ -3428,10 +3378,8 @@ viz::CompositorFrame LayerTreeHostImpl::GenerateCompositorFrame(
 void LayerTreeHostImpl::DidDrawAllLayers(const FrameData& frame) {
   // TODO(lethalantidote): LayerImpl::DidDraw can be removed when
   // VideoLayerImpl is removed.
-  for (int layer_id : frame.will_draw_layers) {
-    if (LayerImpl* layer = active_tree_->LayerById(layer_id)) {
-      layer->DidDraw(resource_provider_.get());
-    }
+  for (LayerImpl* layer : frame.will_draw_layers) {
+    layer->DidDraw(resource_provider_.get());
   }
 
   for (VideoFrameController* it : video_frame_controllers_) {
@@ -3799,7 +3747,7 @@ static void PopulateHitTestRegion(viz::HitTestRegion* hit_test_region,
                                   const LayerImpl* layer,
                                   uint32_t flags,
                                   uint32_t async_hit_test_reasons,
-                                  const gfx::RRectF& rect,
+                                  const gfx::Rect& rect,
                                   const viz::SurfaceId& surface_id,
                                   float device_scale_factor) {
   hit_test_region->frame_sink_id = surface_id.frame_sink_id();
@@ -3868,8 +3816,6 @@ std::optional<viz::HitTestRegionList> LayerTreeHostImpl::BuildHitTestData() {
         continue;
       }
 
-      // Using the enclosing rect to ensure antialised boundary pixels cause
-      // pointer input to be routed to this layer.
       gfx::Rect content_rect(gfx::ScaleToEnclosingRect(
           gfx::Rect(surface_layer->bounds()), device_scale_factor));
 
@@ -3912,8 +3858,8 @@ std::optional<viz::HitTestRegionList> LayerTreeHostImpl::BuildHitTestData() {
       const auto& surface_id = surface_layer->range().end();
       hit_test_region_list->regions.emplace_back();
       PopulateHitTestRegion(&hit_test_region_list->regions.back(), layer, flag,
-                            async_hit_test_reasons, gfx::RRectF(content_rect),
-                            surface_id, device_scale_factor);
+                            async_hit_test_reasons, content_rect, surface_id,
+                            device_scale_factor);
       continue;
     }
 
@@ -4659,10 +4605,6 @@ bool LayerTreeHostImpl::InitializeFrameSink(
   has_valid_layer_tree_frame_sink_ = true;
   if (settings_.TreesInVizInClientProcess()) {
     layer_context_ = layer_tree_frame_sink_->CreateLayerContext(*this);
-    if (unbounded_frame_sink_id_.is_valid()) {
-      layer_context_->SetUnboundedFrameSinkId(unbounded_frame_sink_id_,
-                                              unbounded_local_surface_id_);
-    }
   }
 
   UpdateRasterCapabilities();
@@ -4771,10 +4713,6 @@ gfx::PointF LayerTreeHostImpl::ViewportScrollOffset() const {
   return viewport_->TotalScrollOffset();
 }
 
-float LayerTreeHostImpl::MaxViewportScrollOffsetY() const {
-  return viewport_->MaxUserReachableTotalScrollOffsetY();
-}
-
 void LayerTreeHostImpl::AutoScrollAnimationCreate(
     const ScrollNode& scroll_node,
     const gfx::PointF& target_offset,
@@ -4871,13 +4809,6 @@ void LayerTreeHostImpl::WillScrollContent(ElementId element_id) {
 void LayerTreeHostImpl::DidScrollContent(ElementId element_id,
                                          bool animated,
                                          const gfx::Vector2dF& scroll_delta) {
-  // An animated scroll has not moved content yet; the movement lands on later
-  // animation ticks that do not reach here.
-  if (settings_.enable_scroll_performance_timing && !animated && element_id &&
-      !scroll_delta.IsZero()) {
-    events_metrics_manager_.RecordAppliedScrollObservation(element_id);
-  }
-
   scroll_accumulated_this_frame_ += scroll_delta;
   frame_max_scroll_delta_ =
       std::max(std::abs(scroll_delta.x()), std::abs(scroll_delta.y()));
@@ -6456,30 +6387,9 @@ void LayerTreeHostImpl::SetUnboundedFrameSink(
                                               local_surface_id);
 }
 
-void LayerTreeHostImpl::SetUnboundedFrameSinkId(
-    const viz::FrameSinkId& frame_sink_id,
-    const viz::LocalSurfaceId& local_surface_id) {
-  DCHECK(task_runner_provider_->IsImplThread());
-  CHECK(base::FeatureList::IsEnabled(features::kTreesInViz));
-  CHECK(settings_.TreesInVizInClientProcess());
-  unbounded_frame_sink_id_ = frame_sink_id;
-  unbounded_local_surface_id_ = local_surface_id;
-  if (layer_context_) {
-    layer_context_->SetUnboundedFrameSinkId(frame_sink_id, local_surface_id);
-  }
-}
-
 void LayerTreeHostImpl::DismissUnboundedFrameSink() {
   DCHECK(task_runner_provider_->IsImplThread() ||
          !task_runner_provider_->HasImplThread());
-  if (settings_.TreesInVizInClientProcess()) {
-    unbounded_frame_sink_id_ = viz::FrameSinkId();
-    unbounded_local_surface_id_ = viz::LocalSurfaceId();
-    if (layer_context_) {
-      layer_context_->DismissUnboundedFrameSink();
-    }
-    return;
-  }
   if (unbounded_frame_sink_handler_) {
     unbounded_frame_sink_handler_->DismissFrameSink();
   }
@@ -6488,13 +6398,6 @@ void LayerTreeHostImpl::DismissUnboundedFrameSink() {
 void LayerTreeHostImpl::SetUnboundedLocalSurfaceId(
     const viz::LocalSurfaceId& local_surface_id) {
   DCHECK(task_runner_provider_->IsImplThread());
-  if (settings_.TreesInVizInClientProcess()) {
-    unbounded_local_surface_id_ = local_surface_id;
-    if (layer_context_) {
-      layer_context_->SetUnboundedLocalSurfaceId(local_surface_id);
-    }
-    return;
-  }
   if (unbounded_frame_sink_handler_) {
     unbounded_frame_sink_handler_->SetLocalSurfaceId(local_surface_id);
   }

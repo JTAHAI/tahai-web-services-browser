@@ -166,8 +166,6 @@ void UpdateDebugNames(const LayoutObject& object,
   SetDebugName(properties.StickyTranslation(), "StickyTranslation", object);
   SetDebugName(properties.AnchorPositionScrollTranslation(),
                "AnchorPositionScrollTranslation", object);
-  SetDebugName(properties.ElementCanvasTransform(), "ElementCanvasTransform",
-               object);
   SetDebugName(properties.Translate(), "Translate", object);
   SetDebugName(properties.Rotate(), "Rotate", object);
   SetDebugName(properties.Scale(), "Scale", object);

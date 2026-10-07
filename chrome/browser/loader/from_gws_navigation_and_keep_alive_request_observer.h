@@ -41,7 +41,7 @@ class FromGWSNavigationAndKeepAliveRequestObserver
       const FromGWSNavigationAndKeepAliveRequestObserver&) = delete;
 
   static std::unique_ptr<FromGWSNavigationAndKeepAliveRequestObserver>
-  MaybeCreate(content::WebContents* web_contents);
+  MaybeCreateForWebContents(content::WebContents* web_contents);
 
   // content::WebContentsObserver overrides:
   void DidStartNavigation(

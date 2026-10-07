@@ -755,7 +755,8 @@ TEST_F(TahaiWorkflowNativeTest, NativeCompletionCallerSurvivesOwnerDeletion) {
           manifest_.workflows.front(), manifest_.appearance.id, sha_, true);
       ASSERT_TRUE(created);
       id_ = created->id;
-      ASSERT_TRUE(service_->SetOperationalWorkflowInputValue(id_, "approved", "true"));
+      ASSERT_TRUE(
+          service_->SetOperationalWorkflowInputValue(id_, "approved", "true"));
       ASSERT_TRUE(service_->SetOperationalWorkflowRunState(id_, "running"));
     }
     ASSERT_TRUE(service_->ToggleStep(id_, 0));
@@ -766,29 +767,32 @@ TEST_F(TahaiWorkflowNativeTest, NativeCompletionCallerSurvivesOwnerDeletion) {
     PrefChangeRegistrar registrar;
     registrar.Init(profile_.GetPrefs());
     registrar.Add(prefs::kTahaiMissions, base::BindLambdaForTesting([&] {
-      if (std::string_view(boundary) == "shutdown") {
-        service_->Shutdown();
-      } else {
-        service_.reset();
-      }
-    }));
+                    if (std::string_view(boundary) == "shutdown") {
+                      service_->Shutdown();
+                    } else {
+                      service_.reset();
+                    }
+                  }));
     EXPECT_EQ("unavailable", CompleteMissionNativeAttempt(
-        service_->GetWeakPtr(), id_, 1, "dispatched"));
+                                 service_->GetWeakPtr(), id_, 1, "dispatched"));
     registrar.RemoveAll();
     service_.reset();
     MissionService reloaded(&profile_);
     const auto& saved = reloaded.missions().back();
-    EXPECT_EQ(std::string_view(boundary) == "deadline" ? "unknown" : "dispatched",
-              saved.steps[1].action_state);
+    EXPECT_EQ(
+        std::string_view(boundary) == "deadline" ? "unknown" : "dispatched",
+        saved.steps[1].action_state);
   }
 }
 
-TEST_F(TahaiWorkflowNativeTest, NativeContinuationRechecksStoragePolicyAndDeadline) {
+TEST_F(TahaiWorkflowNativeTest,
+       NativeContinuationRechecksStoragePolicyAndDeadline) {
   ASSERT_FALSE(service_->CanContinueNativeWorkflowStep(id_, 1));
   ASSERT_TRUE(service_->ToggleStep(id_, 0));
   ASSERT_TRUE(service_->BeginNativeWorkflowStep(id_, 1));
   ASSERT_TRUE(service_->CanContinueNativeWorkflowStep(id_, 1));
-  const auto original = profile_.GetPrefs()->GetList(prefs::kTahaiMissions).Clone();
+  const auto original =
+      profile_.GetPrefs()->GetList(prefs::kTahaiMissions).Clone();
   profile_.GetPrefs()->SetList(prefs::kTahaiMissions, base::ListValue());
   EXPECT_FALSE(service_->CanContinueNativeWorkflowStep(id_, 1));
   profile_.GetPrefs()->SetList(prefs::kTahaiMissions, original.Clone());
@@ -800,21 +804,25 @@ TEST_F(TahaiWorkflowNativeTest, NativeContinuationRechecksStoragePolicyAndDeadli
   ASSERT_TRUE(service_->CanContinueNativeWorkflowStep(id_, 1));
   environment_.AdvanceClock(kMissionNativeAttemptTimeout);
   EXPECT_FALSE(service_->CanContinueNativeWorkflowStep(id_, 1));
-  EXPECT_EQ("unknown", CompleteMissionNativeAttempt(
-      service_->GetWeakPtr(), id_, 1, "dispatched"));
+  EXPECT_EQ("unknown", CompleteMissionNativeAttempt(service_->GetWeakPtr(), id_,
+                                                    1, "dispatched"));
   EXPECT_FALSE(service_->CanContinueNativeWorkflowStep(id_, 1));
 }
 
-TEST_F(TahaiWorkflowNativeTest, NativeBeginPinsTokenBeforePreferenceNotification) {
+TEST_F(TahaiWorkflowNativeTest,
+       NativeBeginPinsTokenBeforePreferenceNotification) {
   ASSERT_TRUE(service_->ToggleStep(id_, 0));
   bool changed = false;
   PrefChangeRegistrar registrar;
   registrar.Init(profile_.GetPrefs());
   registrar.Add(prefs::kTahaiMissions, base::BindLambdaForTesting([&] {
-    if (changed) return;
-    changed = true;
-    EXPECT_TRUE(service_->AddLocalNote(id_, "Observer changed the reviewed run"));
-  }));
+                  if (changed) {
+                    return;
+                  }
+                  changed = true;
+                  EXPECT_TRUE(service_->AddLocalNote(
+                      id_, "Observer changed the reviewed run"));
+                }));
   std::string pending_token;
   ASSERT_TRUE(service_->BeginNativeWorkflowStep(id_, 1, &pending_token));
   EXPECT_TRUE(changed);
@@ -831,8 +839,8 @@ TEST_F(TahaiWorkflowNativeTest,
     const auto other = service_->CreateOperationalWorkflowMission(
         manifest_.workflows.front(), manifest_.appearance.id, sha_, true);
     ASSERT_TRUE(other);
-    ASSERT_TRUE(service_->SetOperationalWorkflowInputValue(
-        other->id, "approved", "true"));
+    ASSERT_TRUE(service_->SetOperationalWorkflowInputValue(other->id,
+                                                           "approved", "true"));
     ASSERT_TRUE(service_->SetOperationalWorkflowRunState(other->id, "running"));
     ASSERT_TRUE(service_->ToggleStep(other->id, 0));
     ASSERT_TRUE(service_->BeginNativeWorkflowStep(other->id, 1));
@@ -844,13 +852,17 @@ TEST_F(TahaiWorkflowNativeTest,
     PrefChangeRegistrar registrar;
     registrar.Init(profile_.GetPrefs());
     registrar.Add(prefs::kTahaiMissions, base::BindLambdaForTesting([&] {
-      if (changed) return;
-      changed = true;
-      EXPECT_TRUE(service_->AddLocalNote(id_, "Review changed during settlement"));
-    }));
+                    if (changed) {
+                      return;
+                    }
+                    changed = true;
+                    EXPECT_TRUE(service_->AddLocalNote(
+                        id_, "Review changed during settlement"));
+                  }));
     std::string pending_token;
     EXPECT_FALSE(service_->BeginNativeWorkflowStep(
-        id_, 1, &pending_token, explicit_token ? reviewed_token : std::string()));
+        id_, 1, &pending_token,
+        explicit_token ? reviewed_token : std::string()));
     EXPECT_TRUE(changed);
     EXPECT_TRUE(pending_token.empty());
     EXPECT_NE(reviewed_token, mission().mutation_token);
@@ -858,62 +870,91 @@ TEST_F(TahaiWorkflowNativeTest,
   }
   // A new explicit review still works; the rejection must not open an attempt.
   const std::string current_token = mission().mutation_token;
-  EXPECT_FALSE(service_->BeginNativeWorkflowStep(id_, 1, nullptr,
-                                                 std::string(36, 'x')));
-  EXPECT_TRUE(service_->BeginNativeWorkflowStep(id_, 1, nullptr, current_token));
+  EXPECT_FALSE(
+      service_->BeginNativeWorkflowStep(id_, 1, nullptr, std::string(36, 'x')));
+  EXPECT_TRUE(
+      service_->BeginNativeWorkflowStep(id_, 1, nullptr, current_token));
 }
 
 TEST_F(TahaiWorkflowNativeTest,
        RenderedMutationTokenIsCheckedAfterDeadlineSettlement) {
-  for (const char* operation : {"step", "assign", "wait", "state", "input", "archive"}) {
+  for (const char* operation :
+       {"step", "assign", "wait", "state", "input", "archive"}) {
     SCOPED_TRACE(operation);
     const std::string_view action(operation);
     auto workflow = manifest_.workflows.front();
     if (action == "assign") {
-      workflow.variables = {{"copied", "Copied approval",
-          TahaiOperationalWorkflowInputType::kBoolean, false, {}}};
-      workflow.steps = {{"copy", "Copy approval",
-          TahaiOperationalWorkflowStepKind::kAssignVariable, {}}};
-      workflow.steps[0].assignment = TahaiWorkflowAssignment{"copied", "approved", false};
+      workflow.variables = {{"copied",
+                             "Copied approval",
+                             TahaiOperationalWorkflowInputType::kBoolean,
+                             false,
+                             {}}};
+      workflow.steps = {{"copy",
+                         "Copy approval",
+                         TahaiOperationalWorkflowStepKind::kAssignVariable,
+                         {}}};
+      workflow.steps[0].assignment =
+          TahaiWorkflowAssignment{"copied", "approved", false};
     } else if (action == "wait") {
-      workflow.steps = {{"delay", "Local delay",
-          TahaiOperationalWorkflowStepKind::kWait, {}}};
+      workflow.steps = {{"delay",
+                         "Local delay",
+                         TahaiOperationalWorkflowStepKind::kWait,
+                         {}}};
       workflow.steps[0].wait_seconds = 1;
     }
     const auto target = service_->CreateOperationalWorkflowMission(
         workflow, manifest_.appearance.id, sha_, true);
     ASSERT_TRUE(target);
-    ASSERT_TRUE(service_->SetOperationalWorkflowInputValue(target->id, "approved", "true"));
-    ASSERT_TRUE(service_->SetOperationalWorkflowRunState(target->id, "running"));
+    ASSERT_TRUE(service_->SetOperationalWorkflowInputValue(target->id,
+                                                           "approved", "true"));
+    ASSERT_TRUE(
+        service_->SetOperationalWorkflowRunState(target->id, "running"));
     const auto other = service_->CreateOperationalWorkflowMission(
         manifest_.workflows.front(), manifest_.appearance.id, sha_, true);
     ASSERT_TRUE(other);
-    ASSERT_TRUE(service_->SetOperationalWorkflowInputValue(other->id, "approved", "true"));
+    ASSERT_TRUE(service_->SetOperationalWorkflowInputValue(other->id,
+                                                           "approved", "true"));
     ASSERT_TRUE(service_->SetOperationalWorkflowRunState(other->id, "running"));
     ASSERT_TRUE(service_->ToggleStep(other->id, 0));
     ASSERT_TRUE(service_->BeginNativeWorkflowStep(other->id, 1));
     environment_.AdvanceClock(kMissionNativeAttemptTimeout);
     const auto token = [&] {
-      return std::ranges::find(service_->missions(), target->id, &MissionSummary::id)
+      return std::ranges::find(service_->missions(), target->id,
+                               &MissionSummary::id)
           ->mutation_token;
     };
     const std::string reviewed = token();
     const auto mutate = [&](std::string_view expected) {
-      if (action == "step") return service_->ToggleStep(target->id, 0, expected);
-      if (action == "assign") return service_->AssignWorkflowVariable(target->id, 0, expected);
-      if (action == "wait") return service_->ControlWorkflowWait(target->id, 0, false, expected);
-      if (action == "state") return service_->SetOperationalWorkflowRunState(target->id, "paused", expected);
-      if (action == "input") return service_->SetOperationalWorkflowInputValue(target->id, "approved", "false", expected);
+      if (action == "step") {
+        return service_->ToggleStep(target->id, 0, expected);
+      }
+      if (action == "assign") {
+        return service_->AssignWorkflowVariable(target->id, 0, expected);
+      }
+      if (action == "wait") {
+        return service_->ControlWorkflowWait(target->id, 0, false, expected);
+      }
+      if (action == "state") {
+        return service_->SetOperationalWorkflowRunState(target->id, "paused",
+                                                        expected);
+      }
+      if (action == "input") {
+        return service_->SetOperationalWorkflowInputValue(
+            target->id, "approved", "false", expected);
+      }
       return service_->ArchiveMission(target->id, expected);
     };
     bool changed = false;
     PrefChangeRegistrar registrar;
     registrar.Init(profile_.GetPrefs());
     registrar.Add(prefs::kTahaiMissions, base::BindLambdaForTesting([&] {
-      if (changed) return;
-      changed = true;
-      EXPECT_TRUE(service_->AddLocalNote(target->id, "Changed after UI admission"));
-    }));
+                    if (changed) {
+                      return;
+                    }
+                    changed = true;
+                    EXPECT_TRUE(service_->AddLocalNote(
+                        target->id, "Changed after UI admission"));
+                  }));
     EXPECT_FALSE(mutate(reviewed));
     EXPECT_TRUE(changed);
     EXPECT_NE(reviewed, token());
@@ -924,12 +965,15 @@ TEST_F(TahaiWorkflowNativeTest,
   }
 }
 
-TEST_F(TahaiWorkflowNativeTest, MissionUnknownNestedWorkflowFieldsRemainReadOnly) {
-  const auto original = profile_.GetPrefs()->GetList(prefs::kTahaiMissions).Clone();
-  for (const char* boundary : {"operational_workflow", "steps", "workflow_inputs",
-                               "workflow_variables", "workflow_outputs",
-                               "validation", "notes", "evidence", "timeline",
-                               "links", "oi", "validation_steps", "rollback_steps"}) {
+TEST_F(TahaiWorkflowNativeTest,
+       MissionUnknownNestedWorkflowFieldsRemainReadOnly) {
+  const auto original =
+      profile_.GetPrefs()->GetList(prefs::kTahaiMissions).Clone();
+  for (const char* boundary :
+       {"operational_workflow", "steps", "workflow_inputs",
+        "workflow_variables", "workflow_outputs", "validation", "notes",
+        "evidence", "timeline", "links", "oi", "validation_steps",
+        "rollback_steps"}) {
     SCOPED_TRACE(boundary);
     auto extended = original.Clone();
     auto& stored = extended.front().GetDict();
@@ -937,15 +981,21 @@ TEST_F(TahaiWorkflowNativeTest, MissionUnknownNestedWorkflowFieldsRemainReadOnly
     if (key == "operational_workflow") {
       stored.FindDict(key)->Set("future", true);
     } else if (key == "validation") {
-      stored.FindList("workflow_inputs")->front().GetDict().Set(
-          "validation", base::DictValue().Set("future", true));
+      stored.FindList("workflow_inputs")
+          ->front()
+          .GetDict()
+          .Set("validation", base::DictValue().Set("future", true));
     } else if (key == "links" || key == "oi") {
       base::DictValue oi;
       oi.Set("opaque_reference", "oi:mission:readonly-fixture");
-      if (key == "oi") oi.Set("future", true);
+      if (key == "oi") {
+        oi.Set("future", true);
+      }
       base::DictValue links;
       links.Set("oi", std::move(oi));
-      if (key == "links") links.Set("future", true);
+      if (key == "links") {
+        links.Set("future", true);
+      }
       stored.Set("links", std::move(links));
     } else {
       auto* records = stored.FindList(key);
@@ -953,13 +1003,16 @@ TEST_F(TahaiWorkflowNativeTest, MissionUnknownNestedWorkflowFieldsRemainReadOnly
         stored.Set(key, base::ListValue());
         records = stored.FindList(key);
       }
-      if (records->empty()) records->Append(base::DictValue());
+      if (records->empty()) {
+        records->Append(base::DictValue());
+      }
       records->front().GetDict().Set("future", true);
     }
     profile_.GetPrefs()->SetList(prefs::kTahaiMissions, extended.Clone());
     MissionService reloaded(&profile_);
     ASSERT_EQ(1u, reloaded.missions().size());
-    EXPECT_FALSE(reloaded.AddLocalNote(id_, "Must not erase nested future data"));
+    EXPECT_FALSE(
+        reloaded.AddLocalNote(id_, "Must not erase nested future data"));
     EXPECT_FALSE(reloaded.SetOperationalWorkflowRunState(id_, "cancelled"));
     EXPECT_FALSE(reloaded.CreateMission("Must not rewrite", "incident"));
     reloaded.Shutdown();

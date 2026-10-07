@@ -57,11 +57,10 @@ suite('SettingsViewMixinLit', function() {
     Router.getInstance().navigateTo(routes.BASIC);
   });
 
-  test('ParentViewFocusesChildTrigger', async function() {
+  test('ParentViewFocusesChildTrigger', function() {
     const parentView =
         document.createElement('test-parent-view') as TestParentViewElement;
     document.body.appendChild(parentView);
-    await parentView.updateComplete;
 
     assertEquals(null, parentView.shadowRoot.activeElement);
 
@@ -71,50 +70,26 @@ suite('SettingsViewMixinLit', function() {
           parentView.shadowRoot.activeElement!.id);
     }
 
-    async function simulateNavigateToRouteAndBack(route: Route) {
+    function simulateNavigateToRouteAndBack(route: Route) {
       Router.getInstance().navigateTo(route);
-      const popstate = new Promise<void>(resolve => {
-        window.addEventListener('popstate', () => resolve(), {once: true});
-      });
-      Router.getInstance().navigateToPreviousRoute();
-      await popstate;
+      // TODO(dpapad): Figure out why calling navigateToPreviousRoute() does not
+      // result lastRouteChangeWasPopstate() being true.
+      Router.getInstance().setCurrentRoute(
+          routes.BASIC, new URLSearchParams(), /*isPopstate=*/ true);
+      assertTrue(Router.getInstance().lastRouteChangeWasPopstate());
     }
 
     // Simulate navigating to the first child route and back to the parent.
     // Manually fire the 'view-enter-start' event, normally fired by the
     // cr-view-manager that hosts all parent and child views.
-    await simulateNavigateToRouteAndBack(routes.SECURITY);
+    simulateNavigateToRouteAndBack(routes.SECURITY);
     parentView.dispatchEvent(new Event('view-enter-start'));
     assertFocused('subpageTrigger1');
 
     // Simulate navigating to the second child route and back to the parent.
-    await simulateNavigateToRouteAndBack(routes.FONTS);
+    simulateNavigateToRouteAndBack(routes.FONTS);
     parentView.dispatchEvent(new Event('view-enter-start'));
     assertFocused('subpageTrigger2');
-  });
-
-  test('ParentViewFocusesChildTriggerOnDirectNavigationBack', async function() {
-    const parentView =
-        document.createElement('test-parent-view') as TestParentViewElement;
-    document.body.appendChild(parentView);
-    await parentView.updateComplete;
-
-    assertEquals(null, parentView.shadowRoot.activeElement);
-
-    // Simulate direct navigation to a child route (address bar entry leaves
-    // history state empty).
-    window.history.replaceState(null, '', routes.SECURITY.path);
-    Router.getInstance().setCurrentRoute(
-        routes.SECURITY, new URLSearchParams(), /*isPopstate=*/ false);
-
-    // Simulate clicking Settings back button (navigates to parent route via
-    // fallback).
-    Router.getInstance().navigateToPreviousRoute();
-    parentView.dispatchEvent(new Event('view-enter-start'));
-
-    assertEquals(
-        parentView.shadowRoot.querySelector('#subpageTrigger1')!.id,
-        parentView.shadowRoot.activeElement!.id);
   });
 
   test('ChildViewFocusesBackButton', function() {

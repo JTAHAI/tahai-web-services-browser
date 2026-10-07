@@ -87,8 +87,8 @@ public class AwNavigationClientTest extends AwParameterizedTest {
                                         testListener.postMessage(JSON.stringify(list.getEntries()));
                                 });
                                 observer.observe({ type: "largest-contentful-paint", buffered: true });
-                        }, 2000);
-                }, 2000);
+                        }, 1000);
+                }, 1000);
             """;
     private static final String WEB_PERFORMANCE_MARK_JS =
             """

@@ -54,8 +54,6 @@
       return kGeminiSettingsPersonalizationIdentifier;
     case GeminiSettingsContextExtensions:
       return kGeminiSettingsExtensionsIdentifier;
-    case GeminiSettingsContextUsageLimits:
-      return kGeminiSettingsUsageLimitsIdentifier;
     case GeminiSettingsContextUnknown:
       return kGeminiSettingsUnknownIdentifier;
   }

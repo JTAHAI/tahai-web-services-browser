@@ -14,7 +14,6 @@
 #include "base/strings/string_view_util.h"
 #include "crypto/hash.h"
 #include "crypto/obsolete/sha1.h"
-#include "crypto/openssl_util.h"
 #include "crypto/sha2.h"
 #include "net/cert/asn1_util.h"
 #include "net/cert/signed_certificate_timestamp.h"
@@ -324,9 +323,11 @@ bool GetPrecertSignedEntry(const CRYPTO_BUFFER* leaf,
     return false;
   }
 
-  if (!CBB_flush(cbb.get())) {
+  uint8_t* new_tbs_cert_der;
+  size_t new_tbs_cert_len;
+  if (!CBB_finish(cbb.get(), &new_tbs_cert_der, &new_tbs_cert_len))
     return false;
-  }
+  bssl::UniquePtr<uint8_t> scoped_new_tbs_cert_der(new_tbs_cert_der);
 
   // Extract the issuer's public key.
   std::string_view issuer_key;
@@ -338,7 +339,7 @@ bool GetPrecertSignedEntry(const CRYPTO_BUFFER* leaf,
   // Fill in the SignedEntryData.
   result->type = ct::SignedEntryData::LOG_ENTRY_TYPE_PRECERT;
   result->tbs_certificate.assign(
-      base::as_string_view(crypto::CbbAsSpan(cbb.get())));
+      reinterpret_cast<const char*>(new_tbs_cert_der), new_tbs_cert_len);
   result->issuer_key_hash =
       crypto::hash::Sha256(base::as_byte_span(issuer_key));
 

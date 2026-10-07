@@ -115,30 +115,16 @@ browser.test.runTests([
   },
 
   /**
-   * Tests that `browser.alarms.create()` rejects when the alarm name is
-   * specified both as a positional string argument and in the `alarmInfo`
-   * object parameter. We expect the returned promise to reject with an error.
-   */
-  function testAlarmsCreateNameBothWaysError() {
-    // We manually implement this validation since
-    // `browser.test.assertThrows()` evaluates synchronously and cannot handle
-    // asynchronous methods.
-    return browser.alarms
-        .create(alarmName, {name: alarmName, delayInMinutes: 10})
-        .then(() => Promise.reject(
-                  new Error('create should reject when name is passed twice')),
-              () => {} /* Expected rejection. */);
-  },
-
-  /**
-   * Tests synchronous `browser.alarms` error cases for various methods.
-   * We expect these calls with invalid argument types to synchronously throw
-   * errors.
+   * Tests `browser.alarms` error cases for various methods.
    */
   function testAlarmsErrorCases() {
     // `create` throws when passed invalid alarmInfo (not an object).
     browser.test.assertThrows(() =>
                                   browser.alarms.create('invalid', 'invalid'));
+
+    // `create` throws when passed name twice (both as a string and in object).
+    browser.test.assertThrows(() => browser.alarms.create(
+                                  alarmName, {name: alarmName, delayInMinutes: 10}));
 
     // `get` throws when passed invalid name (not a string).
     browser.test.assertThrows(() => browser.alarms.get(123));

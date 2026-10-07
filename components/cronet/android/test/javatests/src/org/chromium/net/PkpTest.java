@@ -13,6 +13,8 @@ import static org.junit.Assert.fail;
 import static org.chromium.net.Http2TestServer.SERVER_CERT_PEM;
 import static org.chromium.net.truth.UrlResponseInfoSubject.assertThat;
 
+import android.os.Build;
+
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
 
@@ -480,16 +482,21 @@ public class PkpTest {
     private TestUrlRequestCallback startIdnPinningTest(byte[] pinHash) throws Exception {
         // Note the strategic use of ß as our test character, which is handled differently based on
         // which version of IDNA is used - see Unicode Technical Standard #46.
-        final var idnUnicode = "example-idn-begin-ß-end";
+        final var IDN_UNICODE = "example-idn-begin-ß-end";
+        // On Android API <24 Cronet uses IDNA2003, under which "ß" is mapped to "ss".
         // On Android API 24+ Cronet uses IDNA2008, under which "ß" is preserved and triggers
         // punycode conversion.
         // See also https://crbug.com/513446116.
-        final var expectedIdnAscii = "xn--example-idn-begin--end-71b";
+        final var EXPECTED_IDN_ASCII =
+                (Build.VERSION.SDK_INT < Build.VERSION_CODES.N)
+                        ? "example-idn-begin-ss-end"
+                        : "xn--example-idn-begin--end-71b";
 
         final var testFramework = mTestRule.getTestFramework();
         applyCronetEngineBuilderConfigurationPatchWithMockCertVerifier(
                 testFramework, DISABLE_PINNING_BYPASS_FOR_LOCAL_ANCHORS);
-        applyPkpSha256Patch(testFramework, idnUnicode, pinHash, EXCLUDE_SUBDOMAINS, DISTANT_FUTURE);
+        applyPkpSha256Patch(
+                testFramework, IDN_UNICODE, pinHash, EXCLUDE_SUBDOMAINS, DISTANT_FUTURE);
         // Make sure Cronet can resolve the test hostname.
         testFramework.applyEngineBuilderPatch(
                 (builder) -> {
@@ -501,7 +508,7 @@ public class PkpTest {
                                                     .put(
                                                             "host_resolver_rules",
                                                             "MAP "
-                                                                    + expectedIdnAscii
+                                                                    + EXPECTED_IDN_ASCII
                                                                     + " 127.0.0.1"))
                                     .toString());
                 });
@@ -510,7 +517,7 @@ public class PkpTest {
         testFramework
                 .startEngine()
                 .newUrlRequestBuilder(
-                        "https://" + idnUnicode + ":" + Http2TestServer.getServerPort() + "/",
+                        "https://" + IDN_UNICODE + ":" + Http2TestServer.getServerPort() + "/",
                         callback,
                         callback.getExecutor())
                 .build()
@@ -600,7 +607,7 @@ public class PkpTest {
 
     private static void enableMockCertVerifier(ExperimentalCronetEngine.Builder builder)
             throws Exception {
-        final String[] serverCerts = {SERVER_CERT_PEM};
+        final String[] server_certs = {SERVER_CERT_PEM};
         // knownRoot maps to net::CertVerifyResult.is_issued_by_known_root. There is no test which
         // depends on that value as the only thing it affects is certificate verification for QUIC
         // (where we never trust non web PKI certs, regardless of app/user config). Hence, always
@@ -608,7 +615,7 @@ public class PkpTest {
         // use a non-trusted self signed certificate.
         CronetTestUtil.setMockCertVerifierForTesting(
                 builder,
-                MockCertVerifier.createMockCertVerifier(serverCerts, /* knownRoot= */ false));
+                MockCertVerifier.createMockCertVerifier(server_certs, /* knownRoot= */ false));
         // MockCertVerifier uses certificates with hostname != localhost. So, setup fake
         // hostname resolution.
         JSONObject hostResolverParams = CronetTestUtil.generateHostResolverRules();
@@ -623,7 +630,9 @@ public class PkpTest {
             boolean useMockCertVerifier)
             throws Exception {
         builder.enablePublicKeyPinningBypassForLocalTrustAnchors(bypassPinningForLocalAnchors);
-        if (useMockCertVerifier) {
+        // TODO(crbug.com/40284777): When not explicitly enabled, fall back to MockCertVerifier if
+        // custom CAs are not supported.
+        if (useMockCertVerifier || Build.VERSION.SDK_INT <= Build.VERSION_CODES.M) {
             enableMockCertVerifier(builder);
         }
     }

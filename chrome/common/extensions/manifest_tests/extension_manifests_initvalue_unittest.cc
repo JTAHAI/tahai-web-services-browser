@@ -3,9 +3,7 @@
 // found in the LICENSE file.
 
 #include "base/command_line.h"
-#include "base/i18n/language_tag.h"
 #include "base/i18n/rtl.h"
-#include "base/i18n/test/scoped_icu_locale.h"
 #include "base/path_service.h"
 #include "base/strings/utf_string_conversions.h"
 #include "chrome/common/chrome_paths.h"
@@ -179,8 +177,8 @@ TEST_F(InitValueManifestTest, InitFromValueValid) {
 }
 
 TEST_F(InitValueManifestTest, InitFromValueValidNameInRTL) {
-  base::i18n::ScopedDefaultIcuLocale scoped_locale(
-      base::i18n::GetKnownLanguageTag("he"));
+  std::string locale = l10n_util::GetApplicationLocale("");
+  base::i18n::SetICUDefaultLocale("he");
 
   // No strong RTL characters in name.
   scoped_refptr<Extension> extension(LoadAndExpectSuccess(
@@ -196,6 +194,9 @@ TEST_F(InitValueManifestTest, InitFromValueValidNameInRTL) {
   localized_name = u"Dictionary (\x05D1\x05D2 Google)";
   base::i18n::AdjustStringForLocaleDirection(&localized_name);
   EXPECT_EQ(localized_name, base::UTF8ToUTF16(extension->name()));
+
+  // Reset locale.
+  base::i18n::SetICUDefaultLocale(locale);
 }
 
 }  // namespace extensions

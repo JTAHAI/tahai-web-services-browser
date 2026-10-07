@@ -31,7 +31,7 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profile_manager.h"
 #include "chrome/browser/profiles/profile_test_util.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/common/chrome_paths.h"
 #include "chrome/test/base/in_process_browser_test.h"
@@ -227,14 +227,14 @@ class OnDeviceTranslationBrowserTest : public InProcessBrowserTest {
 
   content::BrowserContext* GetBrowserContext() {
     return browser()
-        ->GetTabStripModel()
+        ->tab_strip_model()
         ->GetActiveWebContents()
         ->GetBrowserContext();
   }
 
   const url::Origin GetLastCommittedOrigin() {
     return browser()
-        ->GetTabStripModel()
+        ->tab_strip_model()
         ->GetActiveWebContents()
         ->GetPrimaryMainFrame()
         ->GetLastCommittedOrigin();
@@ -242,7 +242,7 @@ class OnDeviceTranslationBrowserTest : public InProcessBrowserTest {
 
   content::RenderProcessHost* GetRenderProcessHost() {
     return browser()
-        ->GetTabStripModel()
+        ->tab_strip_model()
         ->GetActiveWebContents()
         ->GetPrimaryMainFrame()
         ->GetProcess();
@@ -307,20 +307,20 @@ class OnDeviceTranslationBrowserTest : public InProcessBrowserTest {
 
   content::EvalJsResult EvalJs(
       std::string_view script,
-      BrowserWindowInterface* target_browser = nullptr,
+      Browser* target_browser = nullptr,
       int options = content::EXECUTE_SCRIPT_DEFAULT_OPTIONS) {
     return content::EvalJs((target_browser ? target_browser : browser())
-                               ->GetTabStripModel()
+                               ->tab_strip_model()
                                ->GetActiveWebContents(),
                            script, options);
   }
 
   testing::AssertionResult ExecJs(
       std::string_view script,
-      BrowserWindowInterface* target_browser = nullptr,
+      Browser* target_browser = nullptr,
       int options = content::EXECUTE_SCRIPT_DEFAULT_OPTIONS) {
     return content::ExecJs((target_browser ? target_browser : browser())
-                               ->GetTabStripModel()
+                               ->tab_strip_model()
                                ->GetActiveWebContents(),
                            script, options);
   }
@@ -332,7 +332,7 @@ class OnDeviceTranslationBrowserTest : public InProcessBrowserTest {
   // context of the default browser.
   std::string EvalJsCatchingError(
       std::string_view script,
-      BrowserWindowInterface* target_browser = nullptr,
+      Browser* target_browser = nullptr,
       int options = content::EXECUTE_SCRIPT_DEFAULT_OPTIONS) {
     return EvalJs(base::StringPrintf(R"(
       (async () => {
@@ -354,10 +354,10 @@ class OnDeviceTranslationBrowserTest : public InProcessBrowserTest {
   // browser.
   std::unique_ptr<content::WebContentsConsoleObserver> CreateConsoleObserver(
       const std::string_view pattern,
-      BrowserWindowInterface* target_browser = nullptr) {
+      Browser* target_browser = nullptr) {
     auto observer = std::make_unique<content::WebContentsConsoleObserver>(
         (target_browser ? target_browser : browser())
-            ->GetTabStripModel()
+            ->tab_strip_model()
             ->GetActiveWebContents());
     observer->SetPattern(std::string(pattern));
     return observer;
@@ -381,8 +381,7 @@ class OnDeviceTranslationBrowserTest : public InProcessBrowserTest {
     observer.BlockUntilCompletion();
   }
 
-  content::RenderFrameHost* CreateIframe(
-      BrowserWindowInterface* target_browser = nullptr) {
+  content::RenderFrameHost* CreateIframe(Browser* target_browser = nullptr) {
     EXPECT_EQ(EvalJsCatchingError(R"(
       window._iframe = document.createElement('iframe');
       document.body.appendChild(window._iframe);
@@ -392,12 +391,12 @@ class OnDeviceTranslationBrowserTest : public InProcessBrowserTest {
               "OK");
 
     return ChildFrameAt((target_browser ? target_browser : browser())
-                            ->GetTabStripModel()
+                            ->tab_strip_model()
                             ->GetActiveWebContents(),
                         0);
   }
 
-  bool RemoveIframe(BrowserWindowInterface* target_browser = nullptr) {
+  bool RemoveIframe(Browser* target_browser = nullptr) {
     return ExecJs("document.body.removeChild(window._iframe);");
   }
 
@@ -1625,7 +1624,7 @@ IN_PROC_BROWSER_TEST_F(OnDeviceTranslationBrowserTest,
 
   // Create a guest browser profile in order to access a non-default storage
   // partition, and navigate to an empty page.
-  BrowserWindowInterface* guest_browser = CreateGuestBrowser();
+  Browser* guest_browser = CreateGuestBrowser();
   ASSERT_TRUE(guest_browser);
 
   guest_browser->GetProfile()->GetPrefs()->SetString(
@@ -1637,11 +1636,11 @@ IN_PROC_BROWSER_TEST_F(OnDeviceTranslationBrowserTest,
   mojo::Remote<blink::mojom::TranslationManager> remote;
   TestSupportsUserData fake_user_data;
 
-  content::RenderProcessHost* process_host = guest_browser->GetTabStripModel()
+  content::RenderProcessHost* process_host = guest_browser->tab_strip_model()
                                                  ->GetActiveWebContents()
                                                  ->GetPrimaryMainFrame()
                                                  ->GetProcess();
-  const url::Origin last_committed_origin = guest_browser->GetTabStripModel()
+  const url::Origin last_committed_origin = guest_browser->tab_strip_model()
                                                 ->GetActiveWebContents()
                                                 ->GetPrimaryMainFrame()
                                                 ->GetLastCommittedOrigin();
@@ -1844,7 +1843,7 @@ IN_PROC_BROWSER_TEST_F(OnDeviceTranslationBrowserTest,
 
   EXPECT_EQ(
       "ReferenceError",
-      content::EvalJs(browser()->GetTabStripModel()->GetActiveWebContents(),
+      content::EvalJs(browser()->tab_strip_model()->GetActiveWebContents(),
                       "waitForMessage();"));
 }
 
@@ -1916,7 +1915,7 @@ class OnDeviceTranslationCrossOriginBrowserTest
   }
 
   // Navigates to the test page.
-  void NavigateToTestPage(BrowserWindowInterface* target_browser) {
+  void NavigateToTestPage(Browser* target_browser) {
     CHECK(ui_test_utils::NavigateToURL(
         target_browser ? target_browser : browser(),
         GURL("https://translation-api.test/index.html")));
@@ -1924,7 +1923,7 @@ class OnDeviceTranslationCrossOriginBrowserTest
 
   // Adds an iframe to the test page and optionally sets its permission policy.
   content::RenderFrameHost* AddIframe(size_t index,
-                                      BrowserWindowInterface* target_browser,
+                                      Browser* target_browser,
                                       bool permission_policy_enabled) {
     EXPECT_EQ(EvalJsCatchingError(JsReplace("return addIframe($1, $2);",
                                             CreateCrossOriginIframeUrl(index),
@@ -1933,15 +1932,14 @@ class OnDeviceTranslationCrossOriginBrowserTest
               "loaded");
 
     return ChildFrameAt((target_browser ? target_browser : browser())
-                            ->GetTabStripModel()
+                            ->tab_strip_model()
                             ->GetActiveWebContents(),
                         index);
   }
 
   // Removes the iframe and waits for the service deletion.
-  void RemoveIframeAndWaitForServiceDeletion(
-      size_t index,
-      BrowserWindowInterface* target_browser) {
+  void RemoveIframeAndWaitForServiceDeletion(size_t index,
+                                             Browser* target_browser) {
     auto* manager = ServiceControllerManagerFactory::GetInstance()->Get(
         target_browser->GetProfile());
     url::Origin origin = url::Origin::Create(CreateCrossOriginIframeUrl(index));
@@ -2130,7 +2128,7 @@ IN_PROC_BROWSER_TEST_F(OnDeviceTranslationCrossOriginBrowserTest,
   base::ScopedAllowBlockingForTesting allow_io;
   CHECK(base::CopyFile(GetMockLibraryPath(), fake_installer_.GetLibraryPath()));
 
-  BrowserWindowInterface* incognito_browser = CreateIncognitoBrowser();
+  Browser* incognito_browser = CreateIncognitoBrowser();
   auto* manager = ServiceControllerManagerFactory::GetInstance()->Get(
       incognito_browser->GetProfile());
   manager->SetInstallerForTesting(&fake_installer_);
@@ -2159,7 +2157,7 @@ IN_PROC_BROWSER_TEST_F(OnDeviceTranslationCrossOriginBrowserTest,
   base::ScopedAllowBlockingForTesting allow_io;
   CHECK(base::CopyFile(GetMockLibraryPath(), fake_installer_.GetLibraryPath()));
 
-  BrowserWindowInterface* guest_browser = CreateGuestBrowser();
+  Browser* guest_browser = CreateGuestBrowser();
   auto* manager = ServiceControllerManagerFactory::GetInstance()->Get(
       guest_browser->GetProfile());
   manager->SetInstallerForTesting(&fake_installer_);
@@ -2192,7 +2190,7 @@ IN_PROC_BROWSER_TEST_F(OnDeviceTranslationCrossOriginBrowserTest,
   Profile& additional_profile =
       profiles::testing::CreateProfileSync(profile_manager, other_path);
 
-  std::vector<BrowserWindowInterface*> browsers = {
+  std::vector<Browser*> browsers = {
       browser(),
       CreateBrowser(&additional_profile),
       CreateIncognitoBrowser(),
@@ -2237,7 +2235,7 @@ IN_PROC_BROWSER_TEST_F(OnDeviceTranslationCrossOriginBrowserTest,
   // When the service count per profile is back to under the limit, the
   // translator can be created again.
   for (size_t i = 0; i < browsers.size(); i++) {
-    BrowserWindowInterface* target_browser = browsers[i];
+    Browser* target_browser = browsers[i];
     content::RenderFrameHost* iframe = iframes[i];
     RemoveIframeAndWaitForServiceDeletion(0, target_browser);
     EXPECT_EQ(CheckTranslateInIframe(iframe), "en to ja: hello");

@@ -8,7 +8,6 @@
 #include "components/page_load_metrics/browser/page_load_metrics_observer_delegate.h"
 #include "components/page_load_metrics/browser/page_load_metrics_util.h"
 #include "components/page_load_metrics/browser/page_load_type.h"
-#include "components/page_load_metrics/browser/soft_navigation_data.h"
 #include "content/public/browser/navigation_handle.h"
 #include "content/public/browser/web_contents.h"
 #include "services/metrics/public/cpp/metrics_utils.h"
@@ -117,6 +116,7 @@ SoftNavigationPageLoadMetricsObserver::OnStart(
 PageLoadMetricsObserver::ObservePolicy
 SoftNavigationPageLoadMetricsObserver::OnEnterBackForwardCache(
     const PageLoadTiming& timing) {
+  RecordSoftNavigationEventIfPending();
   should_record_soft_cls_ = false;
   state_ = State::kInBackForwardCache;
   return CONTINUE_OBSERVING;
@@ -131,16 +131,19 @@ void SoftNavigationPageLoadMetricsObserver::OnRestoreFromBackForwardCache(
       web_contents->GetVisibility() == content::Visibility::VISIBLE) {
     should_record_soft_cls_ = true;
   }
+  pending_soft_navigation_ = false;
 }
 
 void SoftNavigationPageLoadMetricsObserver::OnComplete(
     const PageLoadTiming& timing) {
+  RecordSoftNavigationEventIfPending();
   state_ = State::kComplete;
 }
 
 PageLoadMetricsObserver::ObservePolicy
 SoftNavigationPageLoadMetricsObserver::FlushMetricsOnAppEnterBackground(
     const PageLoadTiming& timing) {
+  RecordSoftNavigationEventIfPending();
   return CONTINUE_OBSERVING;
 }
 
@@ -155,83 +158,92 @@ SoftNavigationPageLoadMetricsObserver::OnShown() {
   return CONTINUE_OBSERVING;
 }
 
-void SoftNavigationPageLoadMetricsObserver::OnSoftNavigationCompleted(
-    const page_load_metrics::SoftNavigationData& soft_navigation_data) {
+void SoftNavigationPageLoadMetricsObserver::OnSoftNavigation() {
+  // It's possible that the OnSoftNavigation event arrives late - after a page
+  // lifecycle event (esp. OnEnterBackForwardCache) that would have ended soft
+  // navigation recording, because detected navigations are sent with page load
+  // metrics with buffering from the renderer. At that point we're no longer in
+  // a good position to record the soft navigation, so we ignore it, as flipping
+  // pending_soft_navigation_ to true could cause crashes when the page (later)
+  // gets evicted from the back-forward cache or the app moves to the
+  // background.  See also crbug.com/513856242 and crbug.com/513789479.
+  if (state_ == State::kStarted || state_ == State::kPrerenderActivated ||
+      state_ == State::kRestoredFromBackForwardCache) {
+    // Emit the previous soft navigation, and note the next one as pending.
+    RecordSoftNavigationEventIfPending();
+    pending_soft_navigation_ = true;
+  }
   UMA_HISTOGRAM_ENUMERATION(
       "PageLoad.SoftNavigation.SoftNavigationPageLoadMetricsObserverState",
       state_);
+}
 
-  if (state_ != State::kStarted && state_ != State::kPrerenderActivated &&
-      state_ != State::kRestoredFromBackForwardCache) {
+bool SoftNavigationPageLoadMetricsObserver::
+    FromForegroundOptionalEventInForeground(
+        const std::optional<base::TimeDelta>& event) {
+  // TODO(crbug.com/7817946): We may want to revise this logic so that soft LCP
+  // for soft navs can be counted even when the (hard) navigation was started in
+  // the background.
+  const PageLoadMetricsObserverDelegate& delegate = GetDelegate();
+  if (state_ == State::kStarted) {
+    return WasStartedInForegroundOptionalEventInForeground(event, delegate);
+  } else if (state_ == State::kPrerenderActivated) {
+    return WasActivatedInForegroundOptionalEventInForeground(event, delegate);
+  } else if (state_ == State::kRestoredFromBackForwardCache) {
+    // The index for the most recent bfcache restore is # bfcache restores - 1.
+    size_t num_bfcache_restores = delegate.GetNumBackForwardCacheRestores();
+    CHECK_NE(0u, num_bfcache_restores);
+    return WasStartedInForegroundOptionalEventInForegroundAfterBackForwardCacheRestore(
+        event, delegate, num_bfcache_restores - 1);
+  }
+  return false;
+}
+
+void SoftNavigationPageLoadMetricsObserver::
+    RecordSoftNavigationEventIfPending() {
+  if (!pending_soft_navigation_) {
     return;
   }
-
-  // SoftNavigationTracker only dispatches completed navigations for committed
-  // navigations, so `metrics` is guaranteed to be non-null.
-  CHECK(soft_navigation_data.metrics);
-  const auto& soft_navigation_metrics = *soft_navigation_data.metrics;
-  CHECK(soft_navigation_metrics.commit);
-  const auto& commit = *soft_navigation_metrics.commit;
+  pending_soft_navigation_ = false;
+  const auto& soft_navigation_metrics =
+      GetDelegate().GetSoftNavigationMetrics();
   ukm::SourceId ukm_source_id =
       GetDelegate().GetUkmSourceIdForSameDocumentNavigation(
-          commit.same_document_metrics_token);
+          soft_navigation_metrics.same_document_metrics_token);
   if (ukm_source_id == ukm::kInvalidSourceId) {
     return;
   }
   ukm::builders::SoftNavigation builder(ukm_source_id);
 
-  RecordSoftCommit(builder, commit);
-  RecordSoftFcp(builder, soft_navigation_data);
-  RecordSoftLcp(builder, soft_navigation_data);
-  RecordSoftInp(builder, soft_navigation_data);
-  RecordSoftCls(builder, soft_navigation_data);
+  builder.SetStartTime(soft_navigation_metrics.start_time.InMillisecondsF());
+  PAGE_LOAD_HISTOGRAM("PageLoad.SoftNavigation.StartTime",
+                      soft_navigation_metrics.start_time);
+  builder.SetNavigationType(
+      static_cast<int>(soft_navigation_metrics.navigation_type));
+  builder.SetPageLoadType(static_cast<int>(StateToPageLoadType(state_)));
+
+  RecordSoftLcp(builder);
+  RecordSoftInp(builder);
+  RecordSoftCls(builder);
   builder.Record(ukm::UkmRecorder::Get());
 }
 
-void SoftNavigationPageLoadMetricsObserver::RecordSoftCommit(
-    ukm::builders::SoftNavigation& builder,
-    const page_load_metrics::mojom::SoftNavigationCommit& commit) {
-  builder.SetStartTime(commit.start_time.InMillisecondsF());
-  PAGE_LOAD_HISTOGRAM("PageLoad.SoftNavigation.StartTime", commit.start_time);
-  builder.SetNavigationType(static_cast<int>(commit.navigation_type));
-  builder.SetPageLoadType(static_cast<int>(StateToPageLoadType(state_)));
-}
-
-void SoftNavigationPageLoadMetricsObserver::RecordSoftFcp(
-    ukm::builders::SoftNavigation& builder,
-    const page_load_metrics::SoftNavigationData& soft_navigation_data) {
-  const auto& soft_navigation_metrics = *soft_navigation_data.metrics;
-  CHECK(soft_navigation_metrics.commit);
-  if (soft_navigation_metrics.first_contentful_paint.has_value() &&
-      !soft_navigation_metrics.first_contentful_paint->is_zero()) {
-    base::TimeDelta fcp = *soft_navigation_metrics.first_contentful_paint -
-                          soft_navigation_metrics.commit->start_time;
-    builder.SetPaintTiming_FirstContentfulPaint(fcp.InMilliseconds());
-    PAGE_LOAD_HISTOGRAM("PageLoad.SoftNavigation.FirstContentfulPaint", fcp);
-  }
-}
-
 void SoftNavigationPageLoadMetricsObserver::RecordSoftLcp(
-    ukm::builders::SoftNavigation& builder,
-    const page_load_metrics::SoftNavigationData& soft_navigation_data) {
+    ukm::builders::SoftNavigation& builder) {
   // All loading performance timings within the soft LCP object are relative to
   // the (hard) navigation start. Therefore, when we record the metric values
   // for the soft navigation's LCP below, we need to subtract the soft
   // navigation's start time (which is also relative to the (hard) navigation
   // start) from these values.
-  //
-  // Currently, only main-frame soft LCP candidates are tracked.
-  // TODO(crbug.com/494593459): Support subframe soft LCP candidates if needed.
   const auto& largest_contentful_paint =
-      soft_navigation_data.lcp_handler.MergeMainFrameAndSubframes();
-  const auto& soft_navigation_metrics = *soft_navigation_data.metrics;
-  CHECK(soft_navigation_metrics.commit);
+      GetDelegate().GetSoftNavigationLargestContentfulPaint();
+  const auto& soft_navigation_metrics =
+      GetDelegate().GetSoftNavigationMetrics();
   if (largest_contentful_paint.ContainsValidTime() &&
-      page_load_metrics::
-          WasSoftNavigationStartedInForegroundOptionalEventInForeground(
-              largest_contentful_paint.Time(), soft_navigation_data)) {
+      FromForegroundOptionalEventInForeground(
+          largest_contentful_paint.Time())) {
     base::TimeDelta soft_lcp = (largest_contentful_paint.Time().value() -
-                                soft_navigation_metrics.commit->start_time);
+                                soft_navigation_metrics.start_time);
     builder.SetPaintTiming_LargestContentfulPaint(soft_lcp.InMilliseconds());
     PAGE_LOAD_HISTOGRAM("PageLoad.SoftNavigation.LargestContentfulPaint",
                         soft_lcp);
@@ -253,21 +265,21 @@ void SoftNavigationPageLoadMetricsObserver::RecordSoftLcp(
       if (largest_contentful_paint.ImageDiscoveryTime().has_value()) {
         builder.SetPaintTiming_LargestContentfulPaintImageDiscoveryTime(
             (largest_contentful_paint.ImageDiscoveryTime().value() -
-             soft_navigation_metrics.commit->start_time)
+             soft_navigation_metrics.start_time)
                 .InMilliseconds());
       }
 
       if (largest_contentful_paint.ImageLoadStart().has_value()) {
         builder.SetPaintTiming_LargestContentfulPaintImageLoadStart(
             (largest_contentful_paint.ImageLoadStart().value() -
-             soft_navigation_metrics.commit->start_time)
+             soft_navigation_metrics.start_time)
                 .InMilliseconds());
       }
 
       if (largest_contentful_paint.ImageLoadEnd().has_value()) {
         builder.SetPaintTiming_LargestContentfulPaintImageLoadEnd(
             (largest_contentful_paint.ImageLoadEnd().value() -
-             soft_navigation_metrics.commit->start_time)
+             soft_navigation_metrics.start_time)
                 .InMilliseconds());
       }
     }
@@ -275,13 +287,11 @@ void SoftNavigationPageLoadMetricsObserver::RecordSoftLcp(
 }
 
 void SoftNavigationPageLoadMetricsObserver::RecordSoftInp(
-    ukm::builders::SoftNavigation& builder,
-    const page_load_metrics::SoftNavigationData& soft_navigation_data) {
-  // Currently, only main-frame soft INP events are tracked.
-  // TODO(crbug.com/494593459): Support subframe soft INP events if needed.
+    ukm::builders::SoftNavigation& builder) {
   const InteractionToNextPaintCalculator&
       soft_nav_interaction_to_next_paint_calculator =
-          soft_navigation_data.inp_calculator;
+          GetDelegate()
+              .GetSoftNavigationIntervalInteractionToNextPaintCalculator();
   std::optional<InteractionToNextPaintCalculator::InteractionData> inp_data =
       soft_nav_interaction_to_next_paint_calculator.ApproximateHighPercentile();
   if (inp_data.has_value()) {
@@ -303,10 +313,9 @@ void SoftNavigationPageLoadMetricsObserver::RecordSoftInp(
     // a TimeDelta from navigation_start, we need to add the navigation start
     // TimeTicks to the soft_navigation start_time TimeDelta and then subtract
     // that from the interaction_time TimeTicks.
-    CHECK(soft_navigation_data.metrics->commit);
     base::TimeDelta interaction_time =
         inp.start_time - (GetDelegate().GetNavigationStart() +
-                          soft_navigation_data.metrics->commit->start_time);
+                          GetDelegate().GetSoftNavigationMetrics().start_time);
     builder.SetInteractiveTiming_INPTime(interaction_time.InMilliseconds());
     builder.SetInteractiveTiming_NumInteractions(
         ukm::GetExponentialBucketMinForCounts1000(
@@ -316,16 +325,13 @@ void SoftNavigationPageLoadMetricsObserver::RecordSoftInp(
 }
 
 void SoftNavigationPageLoadMetricsObserver::RecordSoftCls(
-    ukm::builders::SoftNavigation& builder,
-    const page_load_metrics::SoftNavigationData& soft_navigation_data) {
+    ukm::builders::SoftNavigation& builder) {
   // Don't report CLS if we were never in the foreground.
   if (!should_record_soft_cls_) {
     return;
   }
-  // Currently, only main-frame soft layout shifts are tracked.
-  // TODO(crbug.com/494593459): Support subframe soft layout shifts if needed.
   const NormalizedCLSData& normalized_cls =
-      soft_navigation_data.cls_calculator.normalized_cls_data();
+      GetDelegate().GetSoftNavigationIntervalNormalizedCLSData();
   if (normalized_cls.data_tainted) {
     return;
   }

@@ -286,6 +286,7 @@ class TestResponseProvider {
 
 - (AppLaunchConfiguration)appConfigurationForTestCase {
   AppLaunchConfiguration config;
+  config.features_enabled.push_back(kEnableReaderModeTranslationWithInfobar);
   config.additional_args.push_back(std::string("-") +
                                    test_switches::kUseDefaultInfobarDuration);
 
@@ -302,6 +303,7 @@ class TestResponseProvider {
             (testTranslateBadgeWithReaderModeBadgeSupport)] ||
       [self
           isRunningTest:@selector(testTranslateInReaderModeAndNavigatesBack)]) {
+    config.features_enabled.push_back(kEnableReaderModeInUS);
     config.features_enabled.push_back(kProactiveSuggestionsFramework);
     config.features_enabled.push_back(kPageActionMenu);
   }

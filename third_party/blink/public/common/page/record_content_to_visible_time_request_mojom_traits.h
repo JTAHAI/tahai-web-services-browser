@@ -30,11 +30,6 @@ struct BLINK_COMMON_EXPORT StructTraits<
     return reason.had_saved_frame_at_start;
   }
 
-  static bool destination_is_frozen(
-      const blink::VisibleTimeEvent::TabSwitchReason& reason) {
-    return reason.destination_is_frozen;
-  }
-
   static bool Read(blink::mojom::VisibleTimeTabSwitchReasonDataView data,
                    blink::VisibleTimeEvent::TabSwitchReason* out);
 };
@@ -80,7 +75,7 @@ template <>
 struct BLINK_COMMON_EXPORT StructTraits<
     blink::mojom::RecordContentToVisibleTimeRequestDataView,
     blink::RecordContentToVisibleTimeRequest> {
-  static const std::vector<blink::VisibleTimeEvent>& events(
+  static std::vector<blink::VisibleTimeEvent> events(
       const blink::RecordContentToVisibleTimeRequest& request) {
     return request.events;
   }

@@ -205,6 +205,10 @@ void TestGLES2Interface::Finish() {
   test_support_->CallAllSyncPointCallbacks();
 }
 
+void TestGLES2Interface::ShallowFinishCHROMIUM() {
+  test_support_->CallAllSyncPointCallbacks();
+}
+
 void TestGLES2Interface::BindRenderbuffer(GLenum target, GLuint renderbuffer) {
   if (!renderbuffer)
     return;

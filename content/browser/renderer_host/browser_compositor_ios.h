@@ -20,8 +20,11 @@
 #include "ui/compositor/compositor.h"
 #include "ui/compositor/compositor_observer.h"
 #include "ui/compositor/layer_observer.h"
-#include "ui/compositor/layer_surface.h"
 #include "ui/display/screen_info.h"
+
+namespace ui {
+class LayerSolidColor;
+}  // namespace ui
 
 namespace content {
 
@@ -105,7 +108,7 @@ class CONTENT_EXPORT BrowserCompositorIOS : public DelegatedFrameHostClient,
   void TransformPointToRootSurface(gfx::PointF* point);
 
   // DelegatedFrameHostClient implementation.
-  ui::LayerSurface* GetDelegatedFrameHostLayer() const override;
+  ui::Layer* DelegatedFrameHostGetLayer() const override;
   bool DelegatedFrameHostIsVisible() const override;
   SkColor DelegatedFrameHostGetGutterColor() const override;
   void OnFrameTokenChanged(uint32_t frame_token,
@@ -184,7 +187,7 @@ class CONTENT_EXPORT BrowserCompositorIOS : public DelegatedFrameHostClient,
   std::unique_ptr<ui::Compositor> compositor_;
 
   std::unique_ptr<DelegatedFrameHost> delegated_frame_host_;
-  std::unique_ptr<ui::LayerSurface> root_layer_;
+  std::unique_ptr<ui::LayerSolidColor> root_layer_;
 
   SkColor background_color_ = SK_ColorRED;
 

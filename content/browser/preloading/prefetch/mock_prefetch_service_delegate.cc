@@ -13,7 +13,8 @@ const char kApiKey[] = "APIKEY";
 const char MockPrefetchServiceDelegate::kPrefetchProxyAddress[] =
     "https://testprefetchproxy.com";
 
-MockPrefetchServiceDelegate::MockPrefetchServiceDelegate() {
+MockPrefetchServiceDelegate::MockPrefetchServiceDelegate(
+    std::optional<int> num_on_prefetch_likely_calls) {
   // Sets default behavior for the delegate.
   ON_CALL(*this, GetDefaultPrefetchProxyHost)
       .WillByDefault(testing::Return(GURL(kPrefetchProxyAddress)));
@@ -32,6 +33,11 @@ MockPrefetchServiceDelegate::MockPrefetchServiceDelegate() {
   ON_CALL(*this, IsContaminationExempt).WillByDefault(testing::Return(false));
   ON_CALL(*this, IsDomainInPrefetchAllowList(testing::_))
       .WillByDefault(testing::Return(true));
+
+  if (num_on_prefetch_likely_calls.has_value()) {
+    EXPECT_CALL(*this, OnPrefetchLikely(testing::_))
+        .Times(num_on_prefetch_likely_calls.value());
+  }
 }
 
 MockPrefetchServiceDelegate::~MockPrefetchServiceDelegate() = default;

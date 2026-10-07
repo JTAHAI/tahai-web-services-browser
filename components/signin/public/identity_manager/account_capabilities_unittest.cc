@@ -105,19 +105,6 @@ TEST_F(AccountCapabilitiesTest, CanMakeChromeSearchEngineChoiceScreenChoice) {
 }
 #endif  // !BUILDFLAG(IS_ANDROID)
 
-TEST_F(AccountCapabilitiesTest, CanOverrideAccountInfo) {
-  AccountCapabilities capabilities;
-  EXPECT_EQ(capabilities.can_override_account_info(),
-            signin::Tribool::kUnknown);
-
-  AccountCapabilitiesTestMutator mutator(&capabilities);
-  mutator.set_can_override_account_info(true);
-  EXPECT_EQ(capabilities.can_override_account_info(), signin::Tribool::kTrue);
-
-  mutator.set_can_override_account_info(false);
-  EXPECT_EQ(capabilities.can_override_account_info(), signin::Tribool::kFalse);
-}
-
 TEST_F(AccountCapabilitiesTest,
        CanShowHistorySyncOptInsWithoutMinorModeRestrictions) {
   AccountCapabilities capabilities;
@@ -464,21 +451,6 @@ TEST_F(AccountCapabilitiesTest,
       signin::Tribool::kFalse);
 }
 
-TEST_F(AccountCapabilitiesTest, IsSubjectToUniversalOptOut) {
-  AccountCapabilities capabilities;
-  EXPECT_EQ(capabilities.is_subject_to_universal_opt_out(),
-            signin::Tribool::kUnknown);
-
-  AccountCapabilitiesTestMutator mutator(&capabilities);
-  mutator.set_is_subject_to_universal_opt_out(true);
-  EXPECT_EQ(capabilities.is_subject_to_universal_opt_out(),
-            signin::Tribool::kTrue);
-
-  mutator.set_is_subject_to_universal_opt_out(false);
-  EXPECT_EQ(capabilities.is_subject_to_universal_opt_out(),
-            signin::Tribool::kFalse);
-}
-
 TEST_F(AccountCapabilitiesTest, SupportsWalletPrivatePassesInAutofill) {
   AccountCapabilities capabilities;
   EXPECT_EQ(capabilities.supports_wallet_private_passes_in_autofill(),
@@ -674,18 +646,17 @@ TEST_F(AccountCapabilitiesTest, CapabilityOverridesPrecedence) {
   AccountCapabilitiesTestMutator mutator(&capabilities);
 
   // 1. Configures an override.
-  mutator.SetCapabilityOverride(kCanFetchFamilyMemberInfoCapabilityName,
-                                signin::Tribool::kTrue);
+  mutator.SetCapabilityOverride(
+      kCanFetchFamilyMemberInfoCapabilityName, signin::Tribool::kTrue);
 
-  // 2. Simulates receiving a different value for the same capability from the
-  // server.
+  // 2. Simulates receiving a different value for the same capability from the server.
   mutator.set_can_fetch_family_member_info(false);
 
-  // 3. Checks that capability still has the overridden value, and not the one
-  // received later from the server.
+  // 3. Checks that capability still has the overridden value, and not the one received later from the server.
   EXPECT_EQ(capabilities.can_fetch_family_member_info(),
             signin::Tribool::kTrue);
 }
+
 
 #if BUILDFLAG(IS_ANDROID)
 

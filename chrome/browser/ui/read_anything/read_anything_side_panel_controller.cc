@@ -19,7 +19,6 @@
 #include "chrome/browser/ui/actions/chrome_action_id.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
 #include "chrome/browser/ui/page_action/page_action_observer.h"
-#include "chrome/browser/ui/read_anything/read_anything_contents_wrapper.h"
 #include "chrome/browser/ui/read_anything/read_anything_controller.h"
 #include "chrome/browser/ui/read_anything/read_anything_enums.h"
 #include "chrome/browser/ui/read_anything/read_anything_omnibox_controller.h"
@@ -93,6 +92,15 @@ ReadAnythingSidePanelController::ReadAnythingSidePanelController(
   // Assume that a page just finished loading to populate initial state.
   distillable_ = IsActivePageDistillable();
   UpdateIphVisibility();
+  if (features::IsReadAnythingOmniboxChipEnabled() &&
+      base::FeatureList::IsEnabled(features::kPageActionsMigration) &&
+      !features::IsImmersiveReadAnythingEnabled()) {
+    // The omnibox controller can't add itself as an observer because it needs
+    // to access this controller during its construction, so add it as an
+    // observer here.
+    omnibox_controller_ = std::make_unique<ReadAnythingOmniboxController>(tab_);
+    AddObserver(omnibox_controller_.get());
+  }
 }
 
 ReadAnythingSidePanelController::~ReadAnythingSidePanelController() {
@@ -136,6 +144,17 @@ void ReadAnythingSidePanelController::RemoveObserver(Observer* observer) {
 
 void ReadAnythingSidePanelController::OnEntryShown(SidePanelEntry* entry) {
   CHECK_EQ(entry->key().id(), SidePanelEntry::Id::kReadAnything);
+  if (!features::IsImmersiveReadAnythingEnabled()) {
+    auto* service = ReadAnythingService::Get(
+        tab_->GetBrowserWindowInterface()->GetProfile());
+    // At the moment, services are created for normal, incognito, and guest
+    // profiles but not unusual profile types. On the other hand,
+    // ReadAnythingSidePanelController is created for all tabs. Thus we need a
+    // nullptr check.
+    if (service) {
+      service->OnReadAnythingShown();
+    }
+  }
 
   // Build and record UKM record for SidePanelShown to true on the current
   // source Id
@@ -159,9 +178,15 @@ void ReadAnythingSidePanelController::OnEntryShown(SidePanelEntry* entry) {
     }
   }
 
-  auto* controller = ReadAnythingController::From(tab_);
-  CHECK(controller);
-  controller->OnEntryShown(read_anything_trigger);
+  if (features::IsImmersiveReadAnythingEnabled()) {
+    auto* controller = ReadAnythingController::From(tab_);
+    CHECK(controller);
+    controller->OnEntryShown(read_anything_trigger);
+  } else {
+    observers_.Notify(&Observer::Activate, /*active=*/true,
+                      read_anything_trigger,
+                      /*completed_session_duration=*/std::nullopt);
+  }
 }
 
 void ReadAnythingSidePanelController::OnEntryHidden(SidePanelEntry* entry) {
@@ -179,9 +204,27 @@ void ReadAnythingSidePanelController::OnEntryHidden(SidePanelEntry* entry) {
     }
   }
 
-  auto* controller = ReadAnythingController::From(tab_);
-  CHECK(controller);
-  controller->OnEntryHidden();
+  if (!features::IsImmersiveReadAnythingEnabled()) {
+    auto* service = ReadAnythingService::Get(
+        tab_->GetBrowserWindowInterface()->GetProfile());
+    // At the moment, services are created for normal, guest, and incognito
+    // profiles but not unusual profile types. On the other hand,
+    // ReadAnythingSidePanelController is created for all tabs. Thus we need a
+    // nullptr check.
+    if (service) {
+      service->OnReadAnythingHidden();
+    }
+  }
+
+  if (features::IsImmersiveReadAnythingEnabled()) {
+    auto* controller = ReadAnythingController::From(tab_);
+    CHECK(controller);
+    controller->OnEntryHidden();
+  } else {
+    observers_.Notify(&Observer::Activate, /*active=*/false,
+                      /*trigger=*/ReadAnythingOpenTrigger::kUnknown,
+                      /*completed_session_duration=*/std::nullopt);
+  }
 
   // When the reading mode side panel is replaced with another side panel,
   // ownership of its WebContents is transferred back to the
@@ -202,8 +245,13 @@ void ReadAnythingSidePanelController::OnEntryWillHide(
       reason == SidePanelEntryHideReason::kReplaced) {
     ReturnWebUIToController();
   }
-  if (reason == SidePanelEntryHideReason::kReplaced) {
+  if (features::IsImmersiveReadAnythingEnabled() &&
+      reason == SidePanelEntryHideReason::kReplaced) {
     should_clear_cached_view_on_hidden_ = true;
+  }
+
+  if (!features::IsImmersiveReadAnythingEnabled()) {
+    return;
   }
 
   auto read_anything_close_reason =
@@ -214,6 +262,9 @@ void ReadAnythingSidePanelController::OnEntryWillHide(
 }
 
 void ReadAnythingSidePanelController::ReturnWebUIToController() {
+  if (!features::IsImmersiveReadAnythingEnabled()) {
+    return;
+  }
   if (!web_view_ || !web_view_->contents_wrapper()) {
     return;
   }
@@ -222,7 +273,7 @@ void ReadAnythingSidePanelController::ReturnWebUIToController() {
   auto* controller = ReadAnythingController::From(tab_);
   CHECK(controller);
   controller->TransferWebUiOwnership(
-      ReadAnythingContentsWrapper(web_view_->TakeContentsWrapper()),
+      web_view_->TakeContentsWrapper(),
       ReadAnythingController::PresentationState::kInSidePanel);
 }
 
@@ -235,13 +286,16 @@ ReadAnythingSidePanelController::CreateContainerView(
         ReadAnythingSidePanelControllerGlue::UserDataKey());
   }
 
-  std::unique_ptr<ReadAnythingSidePanelWebView> web_view =
-      std::make_unique<ReadAnythingSidePanelWebView>(
-          tab_->GetBrowserWindowInterface()->GetProfile(), scope,
-          ReadAnythingController::From(tab_)
-              ->GetOrCreateWebUIWrapper(
-                  ReadAnythingController::PresentationState::kInSidePanel)
-              .release());
+  std::unique_ptr<ReadAnythingSidePanelWebView> web_view;
+  if (features::IsImmersiveReadAnythingEnabled()) {
+    web_view = std::make_unique<ReadAnythingSidePanelWebView>(
+        tab_->GetBrowserWindowInterface()->GetProfile(), scope,
+        ReadAnythingController::From(tab_)->GetOrCreateWebUIWrapper(
+            ReadAnythingController::PresentationState::kInSidePanel));
+  } else {
+    web_view = std::make_unique<ReadAnythingSidePanelWebView>(
+        tab_->GetBrowserWindowInterface()->GetProfile(), scope);
+  }
   ReadAnythingSidePanelControllerGlue::CreateForWebContents(
       web_view->contents_wrapper()->web_contents(), this);
   web_view_ = web_view->GetWeakPtr();

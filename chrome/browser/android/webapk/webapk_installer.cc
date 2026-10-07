@@ -217,8 +217,7 @@ void WebApkInstaller::InstallOrUpdateWebApk(const std::string& package_name,
                                       package_name);
     Java_WebApkInstaller_installWebApkAsync(
         env, java_ref_, webapk_package_, webapk_version_, short_name_, token,
-        webapps::ShortcutInfo::SOURCE_ADD_TO_HOMESCREEN_PWA,
-        manifest_id_.spec());
+        webapps::ShortcutInfo::SOURCE_ADD_TO_HOMESCREEN_PWA);
   } else {
     Java_WebApkInstaller_updateAsync(env, java_ref_, webapk_package_,
                                      webapk_version_, short_name_, token);
@@ -282,10 +281,6 @@ void WebApkInstaller::InstallAsync(content::WebContents* web_contents,
   short_name_ = shortcut_info.short_name;
   finish_callback_ = std::move(finish_callback);
   manifest_id_ = install_shortcut_info_->manifest_id;
-
-  JNIEnv* env = base::android::AttachCurrentThread();
-  Java_WebApkInstaller_registerPending(env, java_ref_, manifest_id_.spec());
-
   install_source_ = install_source;
   task_type_ = INSTALL;
 

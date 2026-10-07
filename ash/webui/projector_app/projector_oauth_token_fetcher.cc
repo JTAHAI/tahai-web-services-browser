@@ -112,7 +112,7 @@ void ProjectorOAuthTokenFetcher::InitiateAccessTokenFetchFor(
   std::unique_ptr<signin::AccessTokenFetcher> access_token_fetcher =
       identity_manager_->CreateAccessTokenFetcherForAccount(
           identity_manager_->FindExtendedAccountInfoByEmailAddress(email)
-              .GetAccountId(),
+              .account_id,
           signin::OAuthConsumerId::kProjectorTokenFetcher,
           base::BindOnce(
               &ProjectorOAuthTokenFetcher::OnAccessTokenRequestCompleted,

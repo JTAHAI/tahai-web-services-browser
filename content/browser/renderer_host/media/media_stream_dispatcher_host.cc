@@ -23,7 +23,6 @@
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/content_browser_client.h"
 #include "content/public/browser/global_routing_id.h"
-#include "content/public/browser/isolated_context_util.h"
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/render_process_host.h"
 #include "content/public/browser/render_view_host.h"
@@ -395,8 +394,7 @@ void MediaStreamDispatcherHost::CheckRequestAllScreensAllowed(
     return;
   }
 
-  if (HasIsolatedContextCapability(render_frame_host) &&
-      GetContentClient()->browser()->IsMultiCaptureAllowed(render_frame_host)) {
+  if (GetContentClient()->browser()->IsMultiCaptureAllowed(render_frame_host)) {
     CheckStreamsPermissionResultReceived(std::move(get_salt_and_origin_cb),
                                          std::move(result_callback));
   } else {
@@ -513,8 +511,10 @@ void MediaStreamDispatcherHost::DoGenerateStreams(
   }
 
   MediaDeviceSaltAndOrigin salt_and_origin = std::move(*ui_check_result);
-  if (!MediaStreamManager::IsOriginAllowed(render_frame_host_id_.child_id,
-                                           salt_and_origin.origin())) {
+  // TODO(crbug.com/379869738) Remove GetUnsafeValue.
+  if (!MediaStreamManager::IsOriginAllowed(
+          render_frame_host_id_.child_id.GetUnsafeValue(),
+          salt_and_origin.origin())) {
     std::move(callback).Run(MediaStreamRequestResult::INVALID_SECURITY_ORIGIN,
                             /*label=*/std::string(),
                             /*stream_devices_set=*/nullptr,
@@ -609,8 +609,10 @@ void MediaStreamDispatcherHost::DoOpenDevice(
     const MediaDeviceSaltAndOrigin& salt_and_origin) {
   CHECK_CURRENTLY_ON(BrowserThread::IO, base::NotFatalUntil::M152);
 
-  if (!MediaStreamManager::IsOriginAllowed(render_frame_host_id_.child_id,
-                                           salt_and_origin.origin())) {
+  // TODO(crbug.com/379869738) Remove GetUnsafeValue.
+  if (!MediaStreamManager::IsOriginAllowed(
+          render_frame_host_id_.child_id.GetUnsafeValue(),
+          salt_and_origin.origin())) {
     std::move(callback).Run(false /* success */, std::string(),
                             blink::MediaStreamDevice());
     return;
@@ -808,8 +810,10 @@ void MediaStreamDispatcherHost::DoGetOpenDevice(
     GetOpenDeviceCallback callback,
     const MediaDeviceSaltAndOrigin& salt_and_origin) {
   CHECK_CURRENTLY_ON(BrowserThread::IO, base::NotFatalUntil::M152);
-  if (!MediaStreamManager::IsOriginAllowed(render_frame_host_id_.child_id,
-                                           salt_and_origin.origin())) {
+  // TODO(crbug.com/379869738) Remove GetUnsafeValue.
+  if (!MediaStreamManager::IsOriginAllowed(
+          render_frame_host_id_.child_id.GetUnsafeValue(),
+          salt_and_origin.origin())) {
     std::move(callback).Run(MediaStreamRequestResult::INVALID_SECURITY_ORIGIN,
                             nullptr);
     return;

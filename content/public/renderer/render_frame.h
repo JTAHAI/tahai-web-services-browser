@@ -123,6 +123,9 @@ class CONTENT_EXPORT RenderFrame :
   // Gets WebKit related preferences associated with this frame.
   virtual const blink::web_pref::WebPreferences& GetBlinkPreferences() = 0;
 
+  // Issues a request to show the virtual keyboard.
+  virtual void ShowVirtualKeyboard() = 0;
+
   // Execute a string of JavaScript in this frame's context.
   virtual void ExecuteJavaScript(const std::u16string& javascript) = 0;
 

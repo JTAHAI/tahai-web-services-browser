@@ -23,7 +23,7 @@
 #include "components/tabs/public/tab_interface.h"
 #include "ui/views/view_observer.h"
 
-class BrowserWindowInterface;
+class Browser;
 class ContentsWebView;
 
 namespace content {
@@ -47,7 +47,7 @@ class ContextSharingBorderViewControllerImpl
   // ContextSharingBorderViewController overrides:
   void Initialize(ContextSharingBorderView* border_view,
                   ContentsWebView* contents_web_view,
-                  BrowserWindowInterface* browser) override;
+                  Browser* browser) override;
   ContentsWebView* contents_web_view() override;
 
  private:

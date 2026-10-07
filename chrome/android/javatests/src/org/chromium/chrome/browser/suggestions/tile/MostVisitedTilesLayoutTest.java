@@ -83,8 +83,6 @@ import java.util.concurrent.TimeoutException;
 @ParameterAnnotations.UseRunnerDelegate(ChromeJUnit4RunnerDelegate.class)
 @CommandLineFlags.Add(ChromeSwitches.DISABLE_FIRST_RUN_EXPERIENCE)
 @DoNotBatch(reason = "AI automated batching was unsuccessful.")
-// TODO(b/555414915): Update Android tests with WebUI NTP enabled on AL.
-@DisableFeatures(ChromeFeatureList.USE_WEB_UI_NTP_ANDROID)
 public class MostVisitedTilesLayoutTest {
 
     @Rule public final MockitoRule mMockitoRule = MockitoJUnit.rule();
@@ -161,7 +159,7 @@ public class MostVisitedTilesLayoutTest {
     @DisableIf.Device(DeviceFormFactor.DESKTOP_FREEFORM) // crbug.com/511288662
     public void testTilesLayoutAppearance_DisableMvtCustomization(boolean nightModeEnabled)
             throws Exception {
-        doTilesLayoutAppearanceTest("_v1");
+        doTilesLayoutAppearanceTest(nightModeEnabled, "");
     }
 
     @Test
@@ -172,10 +170,11 @@ public class MostVisitedTilesLayoutTest {
     @DisableIf.Device(DeviceFormFactor.DESKTOP_FREEFORM) // crbug.com/511288662
     public void testTilesLayoutAppearance_EnableMvtCustomization(boolean nightModeEnabled)
             throws Exception {
-        doTilesLayoutAppearanceTest("_with_add_new_button_v1");
+        doTilesLayoutAppearanceTest(nightModeEnabled, "_with_add_new_button");
     }
 
-    private void doTilesLayoutAppearanceTest(String suffix) throws Exception {
+    private void doTilesLayoutAppearanceTest(boolean nightModeEnabled, String suffix)
+            throws Exception {
         List<SiteSuggestion> siteSuggestions =
                 makeAndSetUpFakeSuggestions(FAKE_MOST_VISITED_URLS.length);
 
@@ -190,7 +189,7 @@ public class MostVisitedTilesLayoutTest {
     @DisableIf.Device(DeviceFormFactor.DESKTOP_FREEFORM) // crbug.com/511288662
     public void testModernTilesLayoutAppearance_Full_DisableMvtCustomization()
             throws IOException, InterruptedException {
-        doModernTilesLayoutAppearanceTest_Full("_v1");
+        doModernTilesLayoutAppearanceTest_Full("");
     }
 
     @Test
@@ -200,7 +199,7 @@ public class MostVisitedTilesLayoutTest {
     @DisableIf.Device(DeviceFormFactor.DESKTOP_FREEFORM) // crbug.com/511288662
     public void testModernTilesLayoutAppearance_Full_EnableMvtCustomization()
             throws IOException, InterruptedException {
-        doModernTilesLayoutAppearanceTest_Full("_with_add_new_button_v1");
+        doModernTilesLayoutAppearanceTest_Full("_with_add_new_button");
     }
 
     private void doModernTilesLayoutAppearanceTest_Full(String suffix)
@@ -252,7 +251,7 @@ public class MostVisitedTilesLayoutTest {
                             activity.getResources().getConfiguration().orientation,
                             is(ORIENTATION_PORTRAIT));
                 });
-        mRenderTestRule.render(tilesLayout, "modern_tiles_layout_two_tiles_portrait_v1");
+        mRenderTestRule.render(tilesLayout, "modern_tiles_layout_two_tiles_portrait");
 
         activity.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
         CriteriaHelper.pollUiThread(
@@ -261,7 +260,7 @@ public class MostVisitedTilesLayoutTest {
                             activity.getResources().getConfiguration().orientation,
                             is(ORIENTATION_LANDSCAPE));
                 });
-        mRenderTestRule.render(tilesLayout, "modern_tiles_layout_two_tiles_landscape_v1");
+        mRenderTestRule.render(tilesLayout, "modern_tiles_layout_two_tiles_landscape");
 
         // Reset device orientation.
         ActivityTestUtils.clearActivityOrientation(activity);
@@ -279,8 +278,8 @@ public class MostVisitedTilesLayoutTest {
 
         mLoadCompleteHelper.waitForCallback(0);
 
-        mRenderTestRule.render(tiles.getChildAt(0), "tile_modern_offline_v1");
-        mRenderTestRule.render(tiles.getChildAt(1), "tile_modern_v1");
+        mRenderTestRule.render(tiles.getChildAt(0), "tile_modern_offline");
+        mRenderTestRule.render(tiles.getChildAt(1), "tile_modern");
     }
 
     private List<SiteSuggestion> makeAndSetUpFakeSuggestions(int count) {

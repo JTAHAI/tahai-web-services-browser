@@ -94,15 +94,21 @@ export class OsSyncControlsSubpageElement extends
 
   declare hidden: boolean;
   declare private areDataTypeTogglesDisabled_: boolean;
-  private browserProxy_: OsSyncBrowserProxy =
-      OsSyncBrowserProxyImpl.getInstance();
+  private supportedSettingsIds: Set<Setting>;
+  private browserProxy_: OsSyncBrowserProxy;
   declare private osSyncPrefs: OsSyncPrefs|undefined;
-  /**
-   * Caches the individually selected synced data types. This is used to
-   * be able to restore the selections after checking and unchecking Sync All.
-   */
-  private cachedOsSyncPrefs_: Partial<Record<keyof OsSyncPrefs, any>>|null =
-      null;
+  private cachedOsSyncPrefs_: Partial<Record<keyof OsSyncPrefs, any>>|null;
+
+  constructor() {
+    super();
+    this.browserProxy_ = OsSyncBrowserProxyImpl.getInstance();
+
+    /**
+     * Caches the individually selected synced data types. This is used to
+     * be able to restore the selections after checking and unchecking Sync All.
+     */
+    this.cachedOsSyncPrefs_ = null;
+  }
 
   override connectedCallback(): void {
     super.connectedCallback();

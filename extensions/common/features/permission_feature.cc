@@ -10,13 +10,11 @@
 
 namespace extensions {
 
-PermissionFeature::PermissionFeature(StaticFeatureData<SimpleFeatureData> data)
-    : SimpleFeature(data) {}
+PermissionFeature::PermissionFeature() {
+}
 
-PermissionFeature::PermissionFeature(const SimpleFeatureData* data)
-    : SimpleFeature(data) {}
-
-PermissionFeature::~PermissionFeature() = default;
+PermissionFeature::~PermissionFeature() {
+}
 
 Feature::Availability PermissionFeature::IsAvailableToContextImpl(
     const Extension* extension,
@@ -32,10 +30,9 @@ Feature::Availability PermissionFeature::IsAvailableToContextImpl(
   if (!availability.is_available())
     return availability;
 
-  if (extension && !extension->permissions_data()->HasAPIPermission(name())) {
+  if (extension && !extension->permissions_data()->HasAPIPermission(name()))
     return CreateAvailability(AvailabilityResult::kNotPresent,
                               extension->GetType());
-  }
 
   return CreateAvailability(AvailabilityResult::kIsAvailable);
 }

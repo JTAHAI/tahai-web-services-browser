@@ -6,7 +6,7 @@
 
 #include "base/values.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/common/pref_names.h"
 #include "chrome/test/base/in_process_browser_test.h"
@@ -48,12 +48,11 @@ class PerformanceHandlerTest : public InProcessBrowserTest {
   content::TestWebUI* web_ui() { return web_ui_.get(); }
   PerformanceHandler* handler() { return handler_.get(); }
 
-  content::WebContents* AddTabToBrowser(BrowserWindowInterface* browser,
-                                        const GURL& url) {
+  content::WebContents* AddTabToBrowser(Browser* browser, const GURL& url) {
     ui_test_utils::NavigateToURLWithDisposition(
         browser, url, WindowOpenDisposition::NEW_FOREGROUND_TAB,
         ui_test_utils::BROWSER_TEST_WAIT_FOR_LOAD_STOP);
-    return browser->GetTabStripModel()->GetActiveWebContents();
+    return browser->tab_strip_model()->GetActiveWebContents();
   }
 
   void ExpectCurrentOpenSitesEquals(std::vector<std::string> expected_sites,
@@ -76,19 +75,18 @@ class PerformanceHandlerTest : public InProcessBrowserTest {
 };
 
 IN_PROC_BROWSER_TEST_F(PerformanceHandlerTest, GetCurrentOpenSites) {
-  BrowserWindowInterface* first_browser = browser();
+  Browser* first_browser = browser();
   AddTabToBrowser(first_browser, GURL("https://www.foo.com/ignorethispart"));
   content::WebContents* bar_tab =
       AddTabToBrowser(first_browser, GURL("https://bar.com"));
   AddTabToBrowser(first_browser, GURL("chrome://version"));
 
-  BrowserWindowInterface* second_browser =
-      CreateBrowser(browser()->GetProfile());
+  Browser* second_browser = CreateBrowser(browser()->GetProfile());
   AddTabToBrowser(second_browser,
                   GURL("https://www.foo.com/ignorethispartaswell"));
   AddTabToBrowser(second_browser, GURL("http://www.baz.com"));
 
-  BrowserWindowInterface* incognito_browser = CreateIncognitoBrowser();
+  Browser* incognito_browser = CreateIncognitoBrowser();
   AddTabToBrowser(incognito_browser,
                   GURL("https://www.toshowthiswouldbeaprivacyviolation.com"));
 
@@ -97,7 +95,7 @@ IN_PROC_BROWSER_TEST_F(PerformanceHandlerTest, GetCurrentOpenSites) {
 
   // Activate the tab with "bar.com" to test that it is moved to the front of
   // the list.
-  TabStripModel* first_browser_tab_strip = first_browser->GetTabStripModel();
+  TabStripModel* first_browser_tab_strip = first_browser->tab_strip_model();
   int bar_tab_index = first_browser_tab_strip->GetIndexOfWebContents(bar_tab);
   ASSERT_NE(bar_tab_index, TabStripModel::kNoTab);
   first_browser_tab_strip->ActivateTabAt(bar_tab_index);

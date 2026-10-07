@@ -41,6 +41,7 @@ public class AndroidContactsPermissionProviderTest {
     @Mock private WindowAndroid mWindowAndroid;
     @Mock private Activity mActivity;
     @Mock private ContactsPermissionProvider.Callback mCallback;
+    @Mock private ContactsPickerFeatureMap mMockFeatureMap;
 
     private AndroidContactsPermissionProviderImpl mProvider;
 
@@ -55,12 +56,19 @@ public class AndroidContactsPermissionProviderTest {
         fakeDelegate.setSystemContactsPickerEnabled(true);
         AconfigFlaggedApiDelegate.setInstanceForTesting(fakeDelegate);
 
+        ContactsPickerFeatureMap.setInstanceForTesting(mMockFeatureMap);
+
         mProvider = new AndroidContactsPermissionProviderImpl();
     }
 
     @Test
     @SmallTest
     public void testPermissionSkippedWhenSystemPickerEnabled() {
+        // Feature is enabled.
+        when(mMockFeatureMap.isEnabledInNative(
+                        ContactsPickerFeatureList.ANDROID_SYSTEM_CONTACTS_PICKER))
+                .thenReturn(true);
+
         mProvider.run(mWebContents, mCallback);
 
         // Should allow without checking or requesting permissions.
@@ -72,9 +80,10 @@ public class AndroidContactsPermissionProviderTest {
     @Test
     @SmallTest
     public void testPermissionRequestedWhenSystemPickerDisabled() {
-        FakeAconfigFlaggedApiDelegate fakeDelegate = new FakeAconfigFlaggedApiDelegate();
-        fakeDelegate.setSystemContactsPickerEnabled(false);
-        AconfigFlaggedApiDelegate.setInstanceForTesting(fakeDelegate);
+        // Feature is disabled.
+        when(mMockFeatureMap.isEnabledInNative(
+                        ContactsPickerFeatureList.ANDROID_SYSTEM_CONTACTS_PICKER))
+                .thenReturn(false);
         // Assume permission not granted initially.
         when(mWindowAndroid.hasPermission(Manifest.permission.READ_CONTACTS)).thenReturn(false);
         when(mWindowAndroid.canRequestPermission(Manifest.permission.READ_CONTACTS))

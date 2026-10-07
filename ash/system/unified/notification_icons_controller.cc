@@ -96,10 +96,6 @@ NotificationIconTrayItemView::NotificationIconTrayItemView(
 
 NotificationIconTrayItemView::~NotificationIconTrayItemView() = default;
 
-void NotificationIconTrayItemView::ResetController() {
-  controller_ = nullptr;
-}
-
 void NotificationIconTrayItemView::SetNotification(
     message_center::Notification* notification) {
   notification_id_ = notification->id();
@@ -212,14 +208,6 @@ NotificationIconsController::NotificationIconsController(
 NotificationIconsController::~NotificationIconsController() {
   message_center::MessageCenter::Get()->RemoveObserver(this);
   Shell::Get()->session_controller()->RemoveObserver(this);
-  for (NotificationIconTrayItemView* tray_item : tray_items_) {
-    if (tray_item) {
-      tray_item->ResetController();
-    }
-  }
-  if (notification_counter_view_) {
-    notification_counter_view_->ResetController();
-  }
 }
 
 void NotificationIconsController::AddNotificationTrayItems(

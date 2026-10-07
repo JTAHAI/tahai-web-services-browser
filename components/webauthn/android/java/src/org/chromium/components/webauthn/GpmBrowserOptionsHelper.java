@@ -9,8 +9,6 @@ import android.os.Bundle;
 import androidx.annotation.VisibleForTesting;
 
 import org.chromium.base.ResettersForTesting;
-import org.chromium.base.TriState;
-import org.chromium.base.TriStateUtils;
 import org.chromium.base.version_info.VersionInfo;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
@@ -23,7 +21,7 @@ import org.chromium.content_public.browser.WebContentsStatics;
 public class GpmBrowserOptionsHelper {
     private static final String CHANNEL_KEY = "com.android.chrome.CHANNEL";
     private static final String INCOGNITO_KEY = "com.android.chrome.INCOGNITO";
-    private static @TriState int sIsIncognitoForTesting;
+    private static @Nullable Boolean sIsIncognitoForTesting;
 
     /**
      * Adds the channel info so that GPM can (depending on context and request):
@@ -62,7 +60,7 @@ public class GpmBrowserOptionsHelper {
         return browserOptions;
     }
 
-    private static @Nullable String getChannel() {
+    private static final @Nullable String getChannel() {
         if (VersionInfo.isCanaryBuild()) {
             return "canary";
         }
@@ -82,10 +80,8 @@ public class GpmBrowserOptionsHelper {
         return null;
     }
 
-    private static boolean isIncognito(@Nullable RenderFrameHost frameHost) {
-        if (sIsIncognitoForTesting != TriState.NOT_SET) {
-            return sIsIncognitoForTesting == TriState.TRUE;
-        }
+    private static final boolean isIncognito(@Nullable RenderFrameHost frameHost) {
+        if (sIsIncognitoForTesting != null) return sIsIncognitoForTesting;
         if (frameHost == null) return false;
         WebContents webContents = WebContentsStatics.fromRenderFrameHost(frameHost);
         return (webContents == null || webContents.isDestroyed())
@@ -94,9 +90,9 @@ public class GpmBrowserOptionsHelper {
     }
 
     @VisibleForTesting
-    public static void setIsIncognitoExtraUntilTearDown(boolean isIncognito) {
-        sIsIncognitoForTesting = TriStateUtils.from(isIncognito);
-        ResettersForTesting.register(() -> sIsIncognitoForTesting = TriState.NOT_SET);
+    public static void setIsIncognitoExtraUntilTearDown(Boolean isIncognito) {
+        sIsIncognitoForTesting = isIncognito;
+        ResettersForTesting.register(() -> sIsIncognitoForTesting = null);
     }
 
     private GpmBrowserOptionsHelper() {}

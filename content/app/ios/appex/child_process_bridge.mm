@@ -2,18 +2,20 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/342213636): Remove this and spanify to fix the errors.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "content/app/ios/appex/child_process_bridge.h"
 
 #include <pthread.h>
 #include <xpc/xpc.h>
 
-#include <vector>
-
 #include "base/apple/bundle_locations.h"
 #include "base/apple/mach_port_rendezvous_ios.h"
 #include "base/check_op.h"
 #include "base/command_line.h"
-#include "base/compiler_specific.h"
 #include "base/files/file_util.h"
 #include "base/strings/sys_string_conversions.h"
 #include "base/system/sys_info.h"
@@ -24,7 +26,7 @@
 
 // Leaked variables for now.
 static size_t g_argc = 0;
-static std::vector<const char*> g_argv;
+static const char** g_argv = nullptr;
 static pthread_t g_main_thread;
 static id<ChildProcessExtension> g_swift_process;
 static xpc_connection_t g_connection;
@@ -69,7 +71,7 @@ extern "C" IOS_INIT_EXPORT void ChildProcessInit(
 }
 
 void* RunMain(void* data) {
-  ChildProcessMain((int)g_argc, g_argv.data());
+  ChildProcessMain((int)g_argc, g_argv);
   return nullptr;
 }
 
@@ -80,9 +82,9 @@ extern "C" IOS_INIT_EXPORT void ChildProcessHandleNewConnection(
     CHECK_EQ(msg_type, XPC_TYPE_DICTIONARY);
     xpc_object_t args_array = xpc_dictionary_get_array(msg, "args");
     g_argc = xpc_array_get_count(args_array);
-    g_argv.resize(g_argc);
+    g_argv = new const char*[g_argc];
     for (size_t i = 0; i < g_argc; ++i) {
-      g_argv[i] = UNSAFE_TODO(strdup(xpc_array_get_string(args_array, i)));
+      g_argv[i] = strdup(xpc_array_get_string(args_array, i));
     }
 
     // Setup stdout/stderr.

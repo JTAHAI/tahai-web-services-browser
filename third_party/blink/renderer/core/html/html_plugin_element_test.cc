@@ -14,7 +14,6 @@
 #include "third_party/blink/renderer/core/loader/empty_clients.h"
 #include "third_party/blink/renderer/core/testing/fake_web_plugin.h"
 #include "third_party/blink/renderer/core/testing/page_test_base.h"
-#include "third_party/blink/renderer/platform/wtf/text/format.h"
 #include "third_party/blink/renderer/platform/wtf/text/wtf_string.h"
 
 namespace blink {
@@ -97,18 +96,18 @@ INSTANTIATE_TEST_SUITE_P(All,
                          testing::Values("embed", "object"));
 
 TEST_P(HTMLPlugInElementTest, RemovePlugin) {
-  static constexpr char kDivWithPlugin[] = R"HTML(
+  constexpr char kDivWithPlugin[] = R"HTML(
     <div>
-      <{} id='test_plugin'
+      <%s id='test_plugin'
           type='application/x-test-plugin'
           src='test_plugin'>
-      </{}>
+      </%s>
     </div>
   )HTML";
 
   const char* container_type = GetParam();
-  GetDocument().body()->SetInnerHTMLWithoutTrustedTypes(
-      Format(kDivWithPlugin, container_type, container_type));
+  GetDocument().body()->SetInnerHTMLWithoutTrustedTypes(UNSAFE_TODO(
+      String::Format(kDivWithPlugin, container_type, container_type)));
 
   auto* plugin = To<HTMLPlugInElement>(
       GetDocument().getElementById(AtomicString("test_plugin")));

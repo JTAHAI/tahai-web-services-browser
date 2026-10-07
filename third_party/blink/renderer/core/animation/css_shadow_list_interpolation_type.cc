@@ -8,7 +8,6 @@
 #include <utility>
 
 #include "base/memory/ptr_util.h"
-#include "base/memory/raw_ref.h"
 #include "third_party/blink/renderer/core/animation/interpolable_shadow.h"
 #include "third_party/blink/renderer/core/animation/list_interpolation_functions.h"
 #include "third_party/blink/renderer/core/animation/underlying_value_owner.h"
@@ -85,7 +84,7 @@ class InheritedShadowListChecker
   bool IsValid(const StyleResolverState& state,
                const InterpolationValue& underlying) const final {
     const ShadowList* inherited_shadow_list =
-        GetShadowList(*property_, *state.ParentStyle());
+        GetShadowList(property_, *state.ParentStyle());
     if (!inherited_shadow_list && !shadow_list_)
       return true;
     if (!inherited_shadow_list || !shadow_list_)
@@ -93,8 +92,7 @@ class InheritedShadowListChecker
     return *inherited_shadow_list == *shadow_list_;
   }
 
-  const raw_ref<const CSSProperty, UnprotectedInRelease | DanglingUntriaged>
-      property_;
+  const CSSProperty& property_;
   Member<const ShadowList> shadow_list_;
 };
 

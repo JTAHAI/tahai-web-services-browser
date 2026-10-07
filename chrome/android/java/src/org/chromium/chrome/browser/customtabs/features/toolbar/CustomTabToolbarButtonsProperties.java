@@ -17,14 +17,12 @@ import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.browserservices.intents.CustomButtonParams.ButtonType;
 import org.chromium.chrome.browser.customtabs.features.partialcustomtab.PartialCustomTabSideSheetStrategy.MaximizeButtonCallback;
-import org.chromium.ui.base.ViewUtils;
 import org.chromium.ui.modelutil.PropertyKey;
 import org.chromium.ui.modelutil.PropertyListModel;
 import org.chromium.ui.modelutil.PropertyModel;
 import org.chromium.ui.modelutil.PropertyModel.ReadableBooleanPropertyKey;
 import org.chromium.ui.modelutil.PropertyModel.ReadableObjectPropertyKey;
 import org.chromium.ui.modelutil.PropertyModel.WritableBooleanPropertyKey;
-import org.chromium.ui.modelutil.PropertyModel.WritableIntDefPropertyKey;
 import org.chromium.ui.modelutil.PropertyModel.WritableIntPropertyKey;
 import org.chromium.ui.modelutil.PropertyModel.WritableObjectPropertyKey;
 
@@ -38,8 +36,7 @@ public class CustomTabToolbarButtonsProperties {
             new WritableObjectPropertyKey<>();
 
     /** The type of the individual button. Can have {@link ButtonType}. */
-    public static final WritableIntDefPropertyKey<ButtonType> TYPE =
-            new WritableIntDefPropertyKey<>(ButtonType.OTHER);
+    public static final WritableIntPropertyKey TYPE = new WritableIntPropertyKey();
 
     /** OnClickListener for the individual button. */
     public static final WritableObjectPropertyKey<OnClickListener> CLICK_LISTENER =
@@ -101,7 +98,7 @@ public class CustomTabToolbarButtonsProperties {
 
         /** Default constructor to hide the button. */
         MinimizeButtonData() {
-            this(false, ViewUtils.emptyClickListener());
+            this(false, v -> {});
         }
     }
 
@@ -135,7 +132,7 @@ public class CustomTabToolbarButtonsProperties {
         }
 
         CloseButtonData() {
-            this(false, null, CLOSE_BUTTON_POSITION_DEFAULT, ViewUtils.emptyClickListener());
+            this(false, null, CLOSE_BUTTON_POSITION_DEFAULT, v -> {});
         }
     }
 

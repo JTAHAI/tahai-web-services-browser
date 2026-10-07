@@ -34,8 +34,6 @@
 #include "third_party/blink/renderer/core/html/html_collection.h"
 #include "third_party/blink/renderer/core/html/html_div_element.h"
 #include "third_party/blink/renderer/core/html/html_head_element.h"
-#include "third_party/blink/renderer/core/html/html_image_element.h"
-#include "third_party/blink/renderer/core/html/html_map_element.h"
 #include "third_party/blink/renderer/core/html/html_meta_element.h"
 #include "third_party/blink/renderer/core/html/html_script_element.h"
 #include "third_party/blink/renderer/core/inspector/console_message_storage.h"
@@ -209,22 +207,19 @@ class SpeculationRuleSetTest : public ::testing::Test {
 
   SpeculationRuleSet* CreateSpeculationRuleSetWithTargetHint(
       const char* target_hint) {
-    return CreateRuleSet(StrCat({R"({
+    return CreateRuleSet(UNSAFE_TODO(String::Format(R"({
         "prefetch": [{
           "source": "list",
           "urls": ["https://example.com/hint.html"],
-          "target_hint": ")",
-                                 target_hint,
-                                 R"("
+          "target_hint": "%s"
         }],
         "prerender": [{
           "source": "list",
           "urls": ["https://example.com/hint.html"],
-          "target_hint": ")",
-                                 target_hint,
-                                 R"("
+          "target_hint": "%s"
         }]
-      })"}),
+      })",
+                                                    target_hint, target_hint)),
                          KURL("https://example.com/"), execution_context_);
   }
 
@@ -1624,16 +1619,14 @@ class DocumentRulesTest : public SpeculationRuleSetTest {
     // clang-format off
     auto* rule_set =
         CreateRuleSet(
-          StrCat({
+          String::Format(
             R"({
               "prefetch": [{
                 "source": "document",
-                "where": {)",
-            where_text,
-            R"(}
+                "where": {%s}
               }]
             })",
-          }),
+            where_text.Latin1().c_str()),
           base_url, execution_context());
     // clang-format on
     return rule_set;
@@ -2178,21 +2171,8 @@ T* AddAnchor(ContainerNode& parent,
   return link;
 }
 
-// Adds an image map (an <img> plus the <map>/<area> it uses) to |parent| and
-// returns the <area>. A default-styled <area> is rendered through the image
-// that uses its map, so the whole map is needed for it to count as a rendered
-// link.
 HTMLAreaElement* AddAreaElement(ContainerNode& parent, const String& href) {
-  Document& document = parent.GetDocument();
-  auto* image = MakeGarbageCollected<HTMLImageElement>(document);
-  image->setAttribute(html_names::kUsemapAttr, AtomicString("#map"));
-  parent.appendChild(image);
-
-  auto* map = MakeGarbageCollected<HTMLMapElement>(document);
-  map->setAttribute(html_names::kNameAttr, AtomicString("map"));
-  parent.appendChild(map);
-
-  return AddAnchor<HTMLAreaElement>(*map, href);
+  return AddAnchor<HTMLAreaElement>(parent, href);
 }
 
 // Tests that speculation candidates based of existing links are reported after
@@ -2545,14 +2525,6 @@ TEST_F(DocumentRulesTest, AreaElement) {
   PropagateRulesToStubSpeculationHost(page_holder, speculation_host,
                                       [&]() { area->remove(); });
   EXPECT_TRUE(candidates.empty());
-
-  // An author-styled area can render without an associated image.
-  PropagateRulesToStubSpeculationHost(page_holder, speculation_host, [&]() {
-    area = AddAnchor<HTMLAreaElement>(*document.body(),
-                                      "https://foo.com/action.html");
-    area->SetInlineStyleProperty(CSSPropertyID::kDisplay, CSSValueID::kInline);
-  });
-  EXPECT_THAT(candidates, HasURLs("https://foo.com/action.html"));
 }
 
 // Test that adding a link to an element that isn't connected doesn't DCHECK.
@@ -4559,14 +4531,13 @@ TEST_F(SpeculationRuleSetTest, InvalidTag) {
   const char* tag =
       "Qu\xe9"
       "bec";
-  rule_set = CreateRuleSet(StrCat({R"({
-        "tag": ")",
-                                   tag,
-                                   R"(",
+  rule_set = CreateRuleSet(UNSAFE_TODO(String::Format(R"({
+        "tag": "%s",
         "prefetch": [{
           "where": {"href_matches": "/foo"}
         }]
-      })"}),
+      })",
+                                                      tag)),
                            KURL("https://example.com/"), execution_context());
   EXPECT_EQ(rule_set->error_type(),
             SpeculationRuleSetErrorType::kInvalidRulesetLevelTag);

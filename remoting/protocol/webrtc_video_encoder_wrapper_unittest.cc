@@ -576,6 +576,8 @@ TEST_F(WebrtcVideoEncoderWrapperTest, ExtrapolateTopOffFrames) {
 
   std::vector<VideoFrameType> frame_types{VideoFrameType::kVideoFrameKey};
   encoder->Encode(MakeVideoFrame(), &frame_types);
+  ASSERT_LT(base::Seconds(1),
+            WebrtcVideoEncoderWrapper::GetKeepAliveIntervalForTesting());
   task_environment_.FastForwardBy(base::Seconds(1));
 
   PostQuitAndRun();
@@ -603,54 +605,24 @@ TEST_F(WebrtcVideoEncoderWrapperTest,
   PostQuitAndRun();
 }
 
-TEST_F(WebrtcVideoEncoderWrapperTest,
-       EmptyFramesDroppedWithinKeepAliveInterval) {
-  // First frame (non-empty) and fourth frame (after keep-alive interval) are
-  // encoded.
+TEST_F(WebrtcVideoEncoderWrapperTest, ExtrapolateKeepAliveFrames) {
   EXPECT_CALL(callback_, OnEncodedImage(_, _))
-      .Times(2)
+      .Times(6)  // 1 capturer-fed frame plus 5 extrapolated frames.
       .WillRepeatedly(Return(kResultOk));
-
-  // Frame 2 and 3 (empty frames within keep-alive interval) are dropped.
-  EXPECT_CALL(callback_, OnFrameDropped(2, 0, true));
-  EXPECT_CALL(callback_, OnFrameDropped(3, 0, true));
 
   auto encoder = InitEncoder(GetVp9Format(), GetVp9Codec());
   encoder->SetEncoderForTest(std::move(mock_video_encoder_));
 
-  auto frame1 = MakeVideoFrame();
-  frame1.set_rtp_timestamp(1);
-  auto frame2 = MakeEmptyVideoFrame();
-  frame2.set_rtp_timestamp(2);
-  auto frame3 = MakeEmptyVideoFrame();
-  frame3.set_rtp_timestamp(3);
-  auto frame4 = MakeEmptyVideoFrame();
-  frame4.set_rtp_timestamp(4);
-
-  std::vector<VideoFrameType> frame_types{VideoFrameType::kVideoFrameDelta};
-  std::vector<VideoFrameType> key_frame_types{VideoFrameType::kVideoFrameKey};
-
-  // 1. Initial key frame.
-  encoder->Encode(frame1, &key_frame_types);
-
-  // 2. Empty frame after 500ms (dropped).
-  task_environment_.FastForwardBy(base::Milliseconds(500));
-  encoder->Encode(frame2, &frame_types);
-
-  // 3. Empty frame after another 500ms (total 1s < 2s keep-alive interval,
-  // dropped).
-  task_environment_.FastForwardBy(base::Milliseconds(500));
-  encoder->Encode(frame3, &frame_types);
-
-  // 4. Empty frame after another 1100ms (total > 2s keep-alive interval,
-  // encoded).
-  task_environment_.FastForwardBy(base::Milliseconds(1100));
-  encoder->Encode(frame4, &frame_types);
+  std::vector<VideoFrameType> frame_types{VideoFrameType::kVideoFrameKey};
+  encoder->Encode(MakeVideoFrame(), &frame_types);
+  task_environment_.FastForwardBy(
+      WebrtcVideoEncoderWrapper::GetKeepAliveIntervalForTesting() * 5);
 
   PostQuitAndRun();
 }
 
-TEST_F(WebrtcVideoEncoderWrapperTest, EmptyFrameNotDroppedIfKeyFrameRequested) {
+TEST_F(WebrtcVideoEncoderWrapperTest,
+       KeepAliveExtrapolationSuppressedByCapturerFedFrames) {
   EXPECT_CALL(callback_, OnEncodedImage(_, _))
       .Times(2)
       .WillRepeatedly(Return(kResultOk));
@@ -658,19 +630,16 @@ TEST_F(WebrtcVideoEncoderWrapperTest, EmptyFrameNotDroppedIfKeyFrameRequested) {
   auto encoder = InitEncoder(GetVp9Format(), GetVp9Codec());
   encoder->SetEncoderForTest(std::move(mock_video_encoder_));
 
-  auto frame1 = MakeVideoFrame();
-  frame1.set_rtp_timestamp(1);
-  auto frame2 = MakeEmptyVideoFrame();
-  frame2.set_rtp_timestamp(2);
-
-  std::vector<VideoFrameType> key_frame_types{VideoFrameType::kVideoFrameKey};
-
-  // 1. Initial frame.
-  encoder->Encode(frame1, &key_frame_types);
-
-  // 2. Empty frame after 500ms, but with key-frame requested -> NOT dropped.
-  task_environment_.FastForwardBy(base::Milliseconds(500));
-  encoder->Encode(frame2, &key_frame_types);
+  std::vector<VideoFrameType> frame_types{VideoFrameType::kVideoFrameKey};
+  encoder->Encode(MakeVideoFrame(), &frame_types);
+  task_environment_.FastForwardBy(
+      WebrtcVideoEncoderWrapper::GetKeepAliveIntervalForTesting() -
+      base::Milliseconds(100));
+  encoder->Encode(MakeVideoFrame(), &frame_types);
+  // This would extrapolate a keep-alive frame if it weren't suppressed.
+  task_environment_.FastForwardBy(
+      WebrtcVideoEncoderWrapper::GetKeepAliveIntervalForTesting() -
+      base::Milliseconds(100));
 
   PostQuitAndRun();
 }
@@ -678,12 +647,6 @@ TEST_F(WebrtcVideoEncoderWrapperTest, EmptyFrameNotDroppedIfKeyFrameRequested) {
 TEST_F(WebrtcVideoEncoderWrapperTest,
        ExtrapolatedFramesDoNotInheritInputTimestamps) {
   base::TimeTicks input_timestamp = base::TimeTicks::Now();
-
-  EXPECT_CALL(*mock_video_encoder_, Encode)
-      .WillOnce(RespondWithEncodedFrame(1.f))
-      .WillOnce(RespondWithEncodedFrame(0.50f))
-      .WillOnce(RespondWithEncodedFrame(0.25f))
-      .WillOnce(RespondWithEncodedFrame(0.f));
 
   {
     InSequence s;
@@ -698,7 +661,7 @@ TEST_F(WebrtcVideoEncoderWrapperTest,
 
     // Extrapolated frames should not have an input timestamp.
     EXPECT_CALL(observer_, OnEncodedFrameSent(_, _))
-        .Times(3)
+        .Times(5)
         .WillRepeatedly([](EncodedImageCallback::Result result,
                            const WebrtcVideoEncoder::EncodedFrame& frame) {
           auto* stats = static_cast<TestFrameStats*>(frame.stats.get());
@@ -707,7 +670,7 @@ TEST_F(WebrtcVideoEncoderWrapperTest,
   }
 
   EXPECT_CALL(callback_, OnEncodedImage(_, _))
-      .Times(4)
+      .Times(6)
       .WillRepeatedly(Return(kResultOk));
 
   auto encoder = InitEncoder(GetVp9Format(), GetVp9Codec());
@@ -715,7 +678,8 @@ TEST_F(WebrtcVideoEncoderWrapperTest,
 
   std::vector<VideoFrameType> frame_types{VideoFrameType::kVideoFrameKey};
   encoder->Encode(MakeVideoFrameWithTimestamp(input_timestamp), &frame_types);
-  task_environment_.FastForwardBy(base::Seconds(1));
+  task_environment_.FastForwardBy(
+      WebrtcVideoEncoderWrapper::GetKeepAliveIntervalForTesting() * 5);
 
   PostQuitAndRun();
 }
@@ -725,9 +689,8 @@ TEST_F(WebrtcVideoEncoderWrapperTest, ExtrapolatedFramesAdvanceTimestamps) {
   constexpr int64_t kInitialCaptureTimeMs = 500;
   constexpr int64_t kInitialNtpTimeMs = 1600000000000;
 
-  EXPECT_CALL(*mock_video_encoder_, Encode)
-      .WillOnce(RespondWithEncodedFrame(1.f))
-      .WillOnce(RespondWithEncodedFrame(0.f));
+  base::TimeDelta interval =
+      WebrtcVideoEncoderWrapper::GetKeepAliveIntervalForTesting();
 
   EXPECT_CALL(callback_, OnEncodedImage(_, _))
       .WillOnce([&](const EncodedImage& encoded_image,
@@ -739,9 +702,12 @@ TEST_F(WebrtcVideoEncoderWrapperTest, ExtrapolatedFramesAdvanceTimestamps) {
       })
       .WillOnce([&](const EncodedImage& encoded_image,
                     const CodecSpecificInfo* codec_specific_info) {
-        EXPECT_GT(encoded_image.RtpTimestamp(), kInitialRtpTimestamp);
-        EXPECT_GT(encoded_image.capture_time_ms_, kInitialCaptureTimeMs);
-        EXPECT_GT(encoded_image.ntp_time_ms_, kInitialNtpTimeMs);
+        EXPECT_EQ(encoded_image.RtpTimestamp(),
+                  kInitialRtpTimestamp + interval.InMilliseconds() * 90);
+        EXPECT_EQ(encoded_image.capture_time_ms_,
+                  kInitialCaptureTimeMs + interval.InMilliseconds());
+        EXPECT_EQ(encoded_image.ntp_time_ms_,
+                  kInitialNtpTimeMs + interval.InMilliseconds());
         return kResultOk;
       });
 
@@ -756,7 +722,7 @@ TEST_F(WebrtcVideoEncoderWrapperTest, ExtrapolatedFramesAdvanceTimestamps) {
   input_frame.set_ntp_time_ms(kInitialNtpTimeMs);
 
   encoder->Encode(input_frame, &frame_types);
-  task_environment_.FastForwardBy(base::Seconds(1));
+  task_environment_.FastForwardBy(interval);
 
   PostQuitAndRun();
 }

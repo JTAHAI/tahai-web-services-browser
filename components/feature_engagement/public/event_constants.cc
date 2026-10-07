@@ -224,21 +224,11 @@ const char kIOSGeminiWhatCanGeminiDoTriggered[] =
     "ios_gemini_what_can_gemini_do_triggered";
 const char kIOSPinMVTSiteUsed[] = "ios_pin_mvt_site_used";
 const char kIOSChromeOpenedFromIcon[] = "ios_chrome_opened_from_icon";
-const char kDefaultBrowserSettingsCardPromoUsed[] =
-    "default_browser_settings_card_promo_used";
-const char kDefaultBrowserSettingsCellPromoUsed[] =
-    "default_browser_settings_cell_promo_used";
-const char kDefaultBrowserPromoOverflowMenuDestinationUsed[] =
-    "default_browser_promo_overflow_menu_destination_used";
-const char kDefaultBrowserPromoOverflowMenuShortcutsUsed[] =
-    "default_browser_promo_overflow_menu_shortcuts_used";
 #endif  // BUILDFLAG(IS_IOS)
 
 #if BUILDFLAG(IS_ANDROID)
 const char kPwaInstallMenuSelected[] = "pwa_install_menu_clicked";
 #endif  // BUILDFLAG(IS_ANDROID)
-
-const char kSendTabToSelfOmniboxUsed[] = "send_tab_to_self_omnibox_used";
 
 const char kTabSearchComboButtonUsed[] = "tab_search_combo_button_used";
 

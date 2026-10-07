@@ -6,8 +6,6 @@
 #define COMPONENTS_GCM_DRIVER_FAKE_GCM_APP_HANDLER_H_
 
 #include <memory>
-#include <string>
-#include <vector>
 
 #include "base/compiler_specific.h"
 #include "components/gcm_driver/gcm_app_handler.h"
@@ -28,11 +26,6 @@ class FakeGCMAppHandler : public GCMAppHandler {
     DECRYPTION_FAILED_EVENT,
   };
 
-  struct ReceivedMessage {
-    std::string app_id;
-    IncomingMessage message;
-  };
-
   FakeGCMAppHandler();
 
   FakeGCMAppHandler(const FakeGCMAppHandler&) = delete;
@@ -43,12 +36,9 @@ class FakeGCMAppHandler : public GCMAppHandler {
   const Event& received_event() const { return received_event_; }
   const std::string& app_id() const { return app_id_; }
   const std::string& acked_message_id() const { return acked_message_id_; }
-  const IncomingMessage& message() const;
+  const IncomingMessage& message() const { return message_; }
   const GCMClient::SendErrorDetails& send_error_details() const {
     return send_error_details_;
-  }
-  const std::vector<ReceivedMessage>& received_messages() const {
-    return received_messages_;
   }
 
   void WaitForNotification();
@@ -76,8 +66,8 @@ class FakeGCMAppHandler : public GCMAppHandler {
   Event received_event_;
   std::string app_id_;
   std::string acked_message_id_;
+  IncomingMessage message_;
   GCMClient::SendErrorDetails send_error_details_;
-  std::vector<ReceivedMessage> received_messages_;
 };
 
 }  // namespace gcm

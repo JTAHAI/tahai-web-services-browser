@@ -46,8 +46,6 @@ public class AwContentsLifecycleNotifier {
         void onFirstWebViewCreated();
 
         void onLastWebViewDestroyed();
-
-        void onAppStateChanged(@AppState int appState);
     }
 
     private boolean mHasWebViewInstances;
@@ -104,10 +102,6 @@ public class AwContentsLifecycleNotifier {
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             TrackExitReasons.updateAppState();
-        }
-
-        for (Observer observer : mLifecycleObservers) {
-            observer.onAppStateChanged(appState);
         }
     }
 

@@ -58,7 +58,6 @@
 #include "third_party/blink/renderer/platform/instrumentation/use_counter.h"
 #include "third_party/blink/renderer/platform/loader/fetch/resource_request.h"
 #include "third_party/blink/renderer/platform/weborigin/kurl.h"
-#include "third_party/blink/renderer/platform/weborigin/scheme_registry.h"
 #include "third_party/blink/renderer/platform/widget/frame_widget.h"
 #include "third_party/blink/renderer/platform/wtf/text/number_parsing_options.h"
 #include "third_party/blink/renderer/platform/wtf/text/string_to_number.h"
@@ -80,8 +79,6 @@ WebWindowFeatures GetWindowFeaturesFromString(const String& feature_string,
 
   const bool explicit_opener_enabled =
       RuntimeEnabledFeatures::RelOpenerBcgDependencyHintEnabled(dom_window);
-  const bool always_on_top_enabled =
-      RuntimeEnabledFeatures::WindowOpenAlwaysOnTopEnabled();
 
   // This code follows the HTML spec, specifically
   // https://html.spec.whatwg.org/C/#concept-window-open-features-tokenize
@@ -213,8 +210,6 @@ WebWindowFeatures GetWindowFeaturesFromString(const String& feature_string,
       window_features.explicit_opener = value;
     } else if (key_string == "noreferrer") {
       window_features.noreferrer = value;
-    } else if (always_on_top_enabled && key_string == "alwaysontop") {
-      window_features.always_on_top = value;
     } else if (key_string == "background") {
       window_features.background = true;
     } else if (key_string == "persistent") {
@@ -287,15 +282,6 @@ Frame* CreateNewWindow(LocalFrame& opener_frame,
     }
   }
 
-  if (SchemeRegistry::IsDirectLaunchScheme(url.Protocol())) {
-    opener_window.AddConsoleMessage(MakeGarbageCollected<ConsoleMessage>(
-        mojom::blink::ConsoleMessageSource::kSecurity,
-        mojom::blink::ConsoleMessageLevel::kError,
-        StrCat({"Not allowed to navigate to direct-launch scheme '",
-                url.Protocol(), "' from web contexts."})));
-    return nullptr;
-  }
-
   if (!opener_window.GetSecurityOrigin()->CanDisplay(url)) {
     opener_window.AddConsoleMessage(MakeGarbageCollected<ConsoleMessage>(
         mojom::blink::ConsoleMessageSource::kSecurity,
@@ -305,8 +291,6 @@ Frame* CreateNewWindow(LocalFrame& opener_frame,
   }
 
   request.SetInitiatorFrameToken(opener_frame.GetLocalFrameToken());
-  request.SetInitiatorStateToken(opener_frame.GetInitiatorStateToken());
-  request.SetInitiatorDocumentToken(opener_frame.GetDocumentToken());
   request.SetInitiatorNavigationStateKeepAliveHandle(
       opener_frame.IssueKeepAliveHandle());
 

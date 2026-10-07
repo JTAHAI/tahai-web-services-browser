@@ -70,7 +70,7 @@ std::optional<signin::ConsentLevel> GetPrimaryAccountConsentLevel(
 // `MakeAccountAvailable(IdentityManager*, AccountAvailabilityOptions)`.
 //
 CoreAccountInfo SetPrimaryAccount(IdentityManager* identity_manager,
-                                  std::string_view email,
+                                  const std::string& email,
                                   ConsentLevel consent_level);
 
 // When this is set for the given `identity_manager`, access token requests
@@ -107,7 +107,7 @@ void RemoveRefreshTokenForPrimaryAccount(IdentityManager* identity_manager);
 // `MakeAccountAvailable(IdentityManager*, AccountAvailabilityOptions)`.
 //
 AccountInfo MakePrimaryAccountAvailable(IdentityManager* identity_manager,
-                                        std::string_view email,
+                                        const std::string& email,
                                         ConsentLevel consent_level);
 
 #if !BUILDFLAG(IS_CHROMEOS)
@@ -368,13 +368,13 @@ void CancelAllOngoingGaiaCookieOperations(IdentityManager* identity_manager);
 // network requests.
 void SimulateSuccessfulFetchOfAccountInfo(IdentityManager* identity_manager,
                                           const CoreAccountId& account_id,
-                                          std::string_view email,
+                                          const std::string& email,
                                           const GaiaId& gaia,
-                                          std::string_view hosted_domain,
-                                          std::string_view full_name,
-                                          std::string_view given_name,
-                                          std::string_view locale,
-                                          std::string_view picture_url);
+                                          const std::string& hosted_domain,
+                                          const std::string& full_name,
+                                          const std::string& given_name,
+                                          const std::string& locale,
+                                          const std::string& picture_url);
 
 #if BUILDFLAG(IS_CHROMEOS)
 account_manager::AccountManagerFacade* GetAccountManagerFacade(

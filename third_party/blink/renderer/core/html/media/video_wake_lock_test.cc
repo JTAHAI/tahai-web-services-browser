@@ -7,7 +7,6 @@
 #include <memory>
 #include <utility>
 
-#include "base/memory/raw_ptr.h"
 #include "cc/layers/layer.h"
 #include "media/mojo/mojom/media_player.mojom-blink.h"
 #include "mojo/public/cpp/bindings/pending_associated_remote.h"
@@ -167,8 +166,7 @@ class VideoWakeLockTestWebFrameClient
   }
 
  private:
-  raw_ptr<MediaPlayerClient, UnprotectedInRelease | DanglingUntriaged>
-      media_player_client_ = nullptr;
+  MediaPlayerClient* media_player_client_ = nullptr;
   std::unique_ptr<WebMediaPlayer> web_media_player_;
 };
 
@@ -313,8 +311,7 @@ class VideoWakeLockTest : public testing::Test {
   Persistent<HTMLVideoElement> video_;
   Persistent<VideoWakeLock> video_wake_lock_;
 
-  raw_ptr<VideoWakeLockMediaPlayer, UnprotectedInRelease | DanglingUntriaged>
-      media_player_ = nullptr;
+  VideoWakeLockMediaPlayer* media_player_ = nullptr;
   scoped_refptr<cc::Layer> fake_layer_;
 
   VideoWakeLockPictureInPictureService pip_service_;

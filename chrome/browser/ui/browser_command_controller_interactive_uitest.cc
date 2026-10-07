@@ -26,13 +26,13 @@ IN_PROC_BROWSER_TEST_F(BrowserCommandControllerInteractiveTest,
                        MAYBE_ShortcutsShouldTakeEffectInWindowMode) {
   ASSERT_EQ(1, GetTabCount());
   ASSERT_NO_FATAL_FAILURE(SendShortcut(ui::VKEY_T));
-  WaitForTabCount(2);
+  ASSERT_EQ(2, GetTabCount());
   ASSERT_NO_FATAL_FAILURE(SendShortcut(ui::VKEY_T));
-  WaitForTabCount(3);
+  ASSERT_EQ(3, GetTabCount());
   ASSERT_NO_FATAL_FAILURE(SendShortcut(ui::VKEY_W));
-  WaitForTabCount(2);
+  ASSERT_EQ(2, GetTabCount());
   ASSERT_NO_FATAL_FAILURE(SendShortcut(ui::VKEY_W));
-  WaitForTabCount(1);
+  ASSERT_EQ(1, GetTabCount());
   ASSERT_NO_FATAL_FAILURE(SendFullscreenShortcutAndWait());
   ASSERT_TRUE(IsInBrowserFullscreen());
   ASSERT_FALSE(IsActiveTabFullscreen());

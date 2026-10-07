@@ -24,21 +24,8 @@ const BrowserFrameView* GetBrowserFrameView(BrowserWindowInterface* browser) {
   if (!browser_elements || !browser_elements->GetContext()) {
     return nullptr;
   }
-
-  // Attempt to fetch the visible frame first if it exists.
-  const BrowserFrameView* browser_frame_view =
-      browser_elements->GetViewAs<BrowserFrameView>(kBrowserFrameElementId,
-                                                    /*require_visible=*/true);
-
-  if (!browser_frame_view) {
-    // If not visible, fallback to fetching it regardless of visibility, as the
-    // fullscreen controller may need to check frame state before the browser
-    // has been shown.
-    browser_frame_view = browser_elements->GetViewAs<BrowserFrameView>(
-        kBrowserFrameElementId, /*require_visible=*/false);
-  }
-
-  return browser_frame_view;
+  return browser_elements->GetViewAs<BrowserFrameView>(
+      kBrowserFrameElementId, /*require_visible=*/false);
 }
 
 }  // namespace

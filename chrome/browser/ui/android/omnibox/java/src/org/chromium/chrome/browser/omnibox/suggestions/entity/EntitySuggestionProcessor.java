@@ -7,7 +7,6 @@ package org.chromium.chrome.browser.omnibox.suggestions.entity;
 import android.graphics.Color;
 import android.text.TextUtils;
 
-import androidx.annotation.ColorInt;
 import androidx.annotation.VisibleForTesting;
 
 import org.chromium.build.annotations.NullMarked;
@@ -75,7 +74,7 @@ public class EntitySuggestionProcessor extends BasicSuggestionProcessor {
         if (TextUtils.isEmpty(colorSpec)) return super.getFallbackIcon(match);
 
         try {
-            @ColorInt int color = Color.parseColor(colorSpec);
+            int color = Color.parseColor(colorSpec);
             return OmniboxDrawableState.forColor(color);
         } catch (IllegalArgumentException e) {
             return super.getFallbackIcon(match);

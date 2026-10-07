@@ -1,2 +1,3 @@
-rules:
-- "**": [readable-byte-streams]
+features:
+- name: readable-byte-streams
+  files: "**"

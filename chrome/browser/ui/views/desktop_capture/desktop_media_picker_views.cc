@@ -6,7 +6,6 @@
 
 #include <algorithm>
 #include <string>
-#include <string_view>
 #include <utility>
 
 #include "base/command_line.h"
@@ -465,8 +464,7 @@ DesktopMediaPickerDialogView::DesktopMediaPickerDialogView(
               ? params.web_contents->GetPrimaryMainFrame()->GetGlobalId()
               : content::GlobalRenderFrameHostId()),
       parent_(parent),
-      dialog_open_time_(base::TimeTicks::Now()),
-      on_picker_destroying_(std::move(params.on_picker_destroying)) {
+      dialog_open_time_(base::TimeTicks::Now()) {
   CHECK(!params.force_audio_checkboxes_to_default_checked ||
         !params.exclude_system_audio);
   RecordAction(base::UserMetricsAction("GetDisplayMedia.ShowDialog"));
@@ -664,9 +662,6 @@ DesktopMediaPickerDialogView::DesktopMediaPickerDialogView(
   if (request_source_ == RequestSource::kGlic) {
     description_label_->SetText(
         l10n_util::GetStringUTF16(IDS_GLIC_SCREEN_PICKER_DESCRIPTION));
-  } else if (request_source_ == RequestSource::kSearchbox) {
-    description_label_->SetText(
-        l10n_util::GetStringUTF16(IDS_SEARCHBOX_PICKER_DESCRIPTION));
   }
 
   DCHECK(!categories_.empty());
@@ -738,9 +733,6 @@ DesktopMediaPickerDialogView::DesktopMediaPickerDialogView(
 }
 
 DesktopMediaPickerDialogView::~DesktopMediaPickerDialogView() {
-  if (on_picker_destroying_) {
-    std::move(on_picker_destroying_).Run();
-  }
 #if BUILDFLAG(IS_WIN)
   if (!pip_exclusion_session_id_) {
     return;
@@ -1097,6 +1089,10 @@ void DesktopMediaPickerDialogView::RecordAudioToggleUma(
       break;  // Should not happen - subsequent CHECK failure.
   }
   CHECK_NE(display_surface, nullptr);
+  const std::string name =
+      base::StrCat({"Media.Ui.GetDisplayMedia.BasicFlow.AudioToggleState.",
+                    display_surface});
+
   const DesktopMediaList::Type type = AsDesktopMediaListType(source.type);
   AudioToggleStatus status;
   if (!AudioRequestedForType(type)) {
@@ -1109,29 +1105,13 @@ void DesktopMediaPickerDialogView::RecordAudioToggleUma(
                  : AudioToggleStatus::kAudioRequestedButUserDidNotApprove;
   }
 
-  auto log_uma = [&](std::string_view flow, std::string_view surface) {
-    base::UmaHistogramEnumeration(
-        base::StrCat(
-            {"Media.Ui.GetDisplayMedia.", flow, ".AudioToggleState.", surface}),
-        status);
-  };
-
-  log_uma("BasicFlow", display_surface);
-  if (audio_selection_preferred_) {
-    log_uma("AudioSelectionPreferred", display_surface);
-  }
+  base::UmaHistogramEnumeration(name, status);
 
   if (source.type == DesktopMediaID::Type::TYPE_WINDOW &&
-      window_audio_type_offered_ != DesktopMediaID::AudioType::kNone) {
-    const std::string subset_suffix =
-        (window_audio_type_offered_ == DesktopMediaID::AudioType::kSystem)
-            ? "WindowsSystemAudio"
-            : "WindowsAppAudio";
-
-    log_uma("BasicFlow", subset_suffix);
-    if (audio_selection_preferred_) {
-      log_uma("AudioSelectionPreferred", subset_suffix);
-    }
+      window_audio_type_offered_ == DesktopMediaID::AudioType::kApplication) {
+    base::UmaHistogramEnumeration(
+        "Media.Ui.GetDisplayMedia.BasicFlow.AudioToggleState.WindowsAppAudio",
+        status);
   }
 }
 
@@ -1246,9 +1226,6 @@ std::u16string DesktopMediaPickerDialogView::GetWindowTitle() const {
   }
   if (request_source_ == RequestSource::kGlic) {
     return l10n_util::GetStringUTF16(IDS_GLIC_SCREEN_PICKER_HEADLINE);
-  }
-  if (request_source_ == RequestSource::kSearchbox) {
-    return l10n_util::GetStringUTF16(IDS_SEARCHBOX_PICKER_HEADLINE);
   }
 
   int title_id = IDS_DESKTOP_MEDIA_PICKER_TITLE;

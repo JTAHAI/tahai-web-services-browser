@@ -13,7 +13,12 @@
 #include "mojo/public/cpp/bindings/pending_receiver.h"
 #include "mojo/public/cpp/bindings/pending_remote.h"
 #include "mojo/public/cpp/bindings/receiver.h"
+#include "ui/base/resource/resource_scale_factor.h"
 #include "ui/webui/mojo_web_ui_controller.h"
+
+namespace base {
+class RefCountedMemory;
+}
 
 class DownloadsDOMHandler;
 class DownloadsUI;
@@ -33,6 +38,9 @@ class DownloadsUI : public ui::MojoWebUIController,
   DownloadsUI& operator=(const DownloadsUI&) = delete;
 
   ~DownloadsUI() override;
+
+  static base::RefCountedMemory* GetFaviconResourceBytes(
+      ui::ResourceScaleFactor scale_factor);
 
   // Instantiates the implementor of the mojom::PageHandlerFactory mojo
   // interface passing the pending receiver that will be internally bound.

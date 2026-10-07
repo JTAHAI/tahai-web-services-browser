@@ -26,9 +26,6 @@ import java.util.Objects;
  */
 @NullMarked
 public interface BottomSheetContent {
-    /** The maximum height ratio for the sheet content. */
-    float MAX_HEIGHT_RATIO = 1.0f;
-
     /** The different possible height modes for a given state. */
     @IntDef({
         HeightMode.DEFAULT,
@@ -266,9 +263,8 @@ public interface BottomSheetContent {
      * disabled.
      *
      * <p>If {@link HeightMode#RESIZE_CONTENT} is returned, the sheet will dynamically resize the
-     * sheet content to match the sheet offset. The maximum height will be determined by {@link
-     * #getMaxResizeContentHeightRatio()} (in the range (0.0f, 1.0f], defaults to {@link
-     * BottomSheet#MAX_HEIGHT_RATIO}) and the minimum height will be the height of the half height
+     * sheet content to match the sheet offset. The maximum height will be {@link
+     * BottomSheet#MAX_HEIGHT_RATIO} and the minimum height will be the height of the half height
      * ratio.
      *
      * <p>This method cannot return {@link HeightMode#DISABLED}.
@@ -278,18 +274,8 @@ public interface BottomSheetContent {
     }
 
     /**
-     * Maximum full-height ratio cap when {@link #getFullHeightRatio()} returns {@link
-     * HeightMode#RESIZE_CONTENT}. This method is only used when the sheet is in dynamic resize
-     * mode. Must be in the range (0.0f, {@link #MAX_HEIGHT_RATIO}]. Defaults to {@link
-     * #MAX_HEIGHT_RATIO}.
-     */
-    default float getMaxResizeContentHeightRatio() {
-        return MAX_HEIGHT_RATIO;
-    }
-
-    /**
      * @return Whether the sheet should be hidden when it is in the PEEK/HALF state and the user
-     *     scrolls down the page.
+     *         scrolls down the page.
      */
     default boolean hideOnScroll() {
         return false;
@@ -425,15 +411,5 @@ public interface BottomSheetContent {
      */
     default boolean supportsLargeFormFactor() {
         return true;
-    }
-
-    /**
-     * @return Whether the bottom sheet should show the drag handlebar. If true, clicking or tapping
-     *     the handlebar toggles the bottom sheet between its enabled states (e.g. HALF and FULL).
-     *     If the sheet only supports a single open state, clicking the handlebar has no effect.
-     *     Defaults to false.
-     */
-    default boolean showHandlebar() {
-        return false;
     }
 }

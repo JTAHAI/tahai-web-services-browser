@@ -23,7 +23,9 @@ namespace on_device_model {
 
 inline constexpr base::TimeDelta kDefaultModelIdleTimeout = base::Minutes(5);
 
+namespace {
 class SessionWrapper;
+}  // namespace
 
 // The implementation of the OnDeviceModel mojom interface. This is a
 // self-owned object that deletes itself when the model is no longer used.
@@ -52,7 +54,6 @@ class COMPONENT_EXPORT(ON_DEVICE_MODEL) OnDeviceModelMojomImpl
   void UpdateIdleTimer();
 
  private:
-  void SessionDisconnected(SessionWrapper* ptr);
   void RestartIdleTimer();
 
   // mojom::OnDeviceModel:
@@ -68,6 +69,7 @@ class COMPONENT_EXPORT(ON_DEVICE_MODEL) OnDeviceModelMojomImpl
 
   struct PendingTask;
 
+  void SessionDisconnected(SessionWrapper* ptr);
   void ModelDisconnected();
   void LoadAdaptationInternal(mojom::LoadAdaptationParamsPtr params,
                               mojo::PendingReceiver<mojom::OnDeviceModel> model,

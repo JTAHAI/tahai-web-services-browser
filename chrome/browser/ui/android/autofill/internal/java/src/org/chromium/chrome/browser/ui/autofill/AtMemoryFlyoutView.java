@@ -29,7 +29,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/** View wrapper for the flyout screen of the AtMemory bottom sheet. */
+/** View wrapper for the flyout screen of the @memory bottom sheet. */
 @NullMarked
 public class AtMemoryFlyoutView extends LinearLayout {
     private ConstraintLayout mChipsContainer;
@@ -42,7 +42,6 @@ public class AtMemoryFlyoutView extends LinearLayout {
     private final List<ChipView> mActiveChips = new ArrayList<>();
 
     private @Nullable Callback<Integer> mSuggestionClickListener;
-    private @Nullable Runnable mBackClickListener;
     private final View.OnLayoutChangeListener mChipsLayoutListener =
             (v, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom) -> {
                 alignFlyoutChipHeights(v, right - left, oldRight - oldLeft);
@@ -58,7 +57,6 @@ public class AtMemoryFlyoutView extends LinearLayout {
         mChipsContainer = findViewById(R.id.flyout_chips_container);
         mChipsFlow = findViewById(R.id.chips_flow);
         mBackButton = findViewById(R.id.flyout_back_button);
-        mBackButton.setOnClickListener(v -> onBackPressed());
         mTitleView = findViewById(R.id.flyout_title);
         mManageButton = findViewById(R.id.flyout_manage_button);
         mSourceTextView = findViewById(R.id.flyout_source_text);
@@ -100,7 +98,6 @@ public class AtMemoryFlyoutView extends LinearLayout {
         }
 
         mChipsFlow.setReferencedIds(toIntArray(chipViewIds));
-        mChipsContainer.setVisibility(chipViewIds.isEmpty() ? View.GONE : View.VISIBLE);
     }
 
     private void resetViews() {
@@ -139,18 +136,11 @@ public class AtMemoryFlyoutView extends LinearLayout {
     }
 
     public void setBackClickListener(Runnable onClickListener) {
-        mBackClickListener = onClickListener;
+        mBackButton.setOnClickListener(v -> onClickListener.run());
     }
 
     public void setSuggestionClickListener(Callback<Integer> onClickListener) {
         mSuggestionClickListener = onClickListener;
-    }
-
-    /** Invokes the back navigation callback. */
-    public void onBackPressed() {
-        if (mBackClickListener != null) {
-            mBackClickListener.run();
-        }
     }
 
     private ChipView createFlyoutChipView(
@@ -166,8 +156,6 @@ public class AtMemoryFlyoutView extends LinearLayout {
         chip.setId(View.generateViewId());
 
         TextView primaryTextView = chip.getPrimaryTextView();
-        primaryTextView.setMaxLines(2);
-        primaryTextView.setEllipsize(TextUtils.TruncateAt.END);
         primaryTextView.setText(suggestion.getLabel());
 
         TextView secondaryTextView = chip.getSecondaryTextView();

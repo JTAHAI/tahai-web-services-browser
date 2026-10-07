@@ -1,2 +1,3 @@
-rules:
-- "**": [autofocus]
+features:
+- name: autofocus
+  files: "**"

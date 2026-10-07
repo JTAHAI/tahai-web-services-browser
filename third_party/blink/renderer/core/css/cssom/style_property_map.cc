@@ -6,21 +6,16 @@
 
 #include "third_party/blink/renderer/bindings/core/v8/v8_union_cssstylevalue_string.h"
 #include "third_party/blink/renderer/core/css/css_identifier_value.h"
-#include "third_party/blink/renderer/core/css/css_math_expression_node.h"
-#include "third_party/blink/renderer/core/css/css_math_function_value.h"
 #include "third_party/blink/renderer/core/css/css_property_name.h"
 #include "third_party/blink/renderer/core/css/css_scoped_keyword_value.h"
 #include "third_party/blink/renderer/core/css/css_value_list.h"
 #include "third_party/blink/renderer/core/css/css_value_pair.h"
-#include "third_party/blink/renderer/core/css/cssom/css_keyword_value.h"
 #include "third_party/blink/renderer/core/css/cssom/css_style_value.h"
-#include "third_party/blink/renderer/core/css/cssom/cssom_keywords.h"
 #include "third_party/blink/renderer/core/css/cssom/cssom_types.h"
 #include "third_party/blink/renderer/core/css/cssom/style_value_factory.h"
 #include "third_party/blink/renderer/core/css/parser/css_parser.h"
 #include "third_party/blink/renderer/core/css/parser/css_parser_context.h"
 #include "third_party/blink/renderer/core/css/parser/css_tokenizer.h"
-#include "third_party/blink/renderer/core/css/properties/css_parsing_utils.h"
 #include "third_party/blink/renderer/core/css/properties/css_property.h"
 #include "third_party/blink/renderer/core/style_property_shorthand.h"
 #include "third_party/blink/renderer/platform/bindings/exception_state.h"
@@ -46,31 +41,6 @@ CSSValueList* CssValueListForPropertyID(CSSPropertyID property_id) {
   }
 }
 
-// Simplifies the calculation tree of a CSSMathValue's internal representation,
-// per the resolution of csswg-drafts#9451 ("calculation trees ... simplify in
-// all representations, including ... Typed OM"). Only a CSSMathValue lowers to
-// a CSSMathFunctionValue, so gating on the result type is sufficient.
-//
-// TODO: This should apply to every property once the corresponding WPTs are
-// updated upstream (the WG resolution calls for amending them). It is
-// currently limited to properties whose tests already accept the simplified
-// form (e.g. offset-rotate); applying it universally now would diverge from
-// Firefox/Safari, which do not yet simplify, and regress tests that still
-// assert the unsimplified value (column-count, orphans, widows).
-const CSSValue* SimplifyMathValue(const CSSValue* value) {
-  const auto* function = DynamicTo<CSSMathFunctionValue>(value);
-  if (!function) {
-    return value;
-  }
-  const CSSMathExpressionNode* simplified =
-      CSSMathExpressionNode::SimplifyCalculationTree(
-          function->ExpressionNode());
-  if (simplified == function->ExpressionNode()) {
-    return value;
-  }
-  return CSSMathFunctionValue::Create(simplified);
-}
-
 const CSSValue* StyleValueToCSSValue(
     const CSSProperty& property,
     const AtomicString& custom_property_name,
@@ -88,21 +58,6 @@ const CSSValue* StyleValueToCSSValue(
   if (style_value.GetType() == CSSStyleValue::kUnknownType) {
     return CSSParser::ParseSingleValue(
         property.PropertyID(), style_value.toString(),
-        MakeGarbageCollected<CSSParserContext>(execution_context));
-  }
-
-  // For properties that take a <custom-ident>, CSSOMKeywords accepts any
-  // identifier, because an identifier that names a keyword of some other
-  // property ('auto', say) is still a perfectly good custom ident here. Let the
-  // property's own grammar decide instead: parsing rejects the identifiers the
-  // property excludes ('not', 'and' and 'or' for container-name) and yields the
-  // CSSValue shape the property stores, which for container-name is a
-  // space-separated list.
-  if (const auto* keyword_value = DynamicTo<CSSKeywordValue>(style_value);
-      keyword_value && CSSOMKeywords::PropertyTakesCustomIdent(property_id) &&
-      !css_parsing_utils::IsCSSWideKeyword(keyword_value->KeywordValueID())) {
-    return CSSParser::ParseSingleValue(
-        property_id, style_value.toString(),
         MakeGarbageCollected<CSSParserContext>(execution_context));
   }
 
@@ -213,11 +168,11 @@ const CSSValue* StyleValueToCSSValue(
     case CSSPropertyID::kOffsetRotate: {
       // level 1 only accepts single values, which are stored internally
       // as a single element list.
-      const auto* value = SimplifyMathValue(style_value.ToCSSValue());
+      const auto* value = style_value.ToCSSValue();
       if ((value->IsIdentifierValue() && !value->IsCSSWideKeyword()) ||
           value->IsPrimitiveValue()) {
         CSSValueList* list = CSSValueList::CreateSpaceSeparated();
-        list->Append(*value);
+        list->Append(*style_value.ToCSSValue());
         return list;
       }
       break;

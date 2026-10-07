@@ -1,2 +1,3 @@
-rules:
-- "**": [accelerometer]
+features:
+- name: accelerometer
+  files: "**"

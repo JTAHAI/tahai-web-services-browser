@@ -23,7 +23,6 @@
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
-#include "chrome/browser/ui/browser_window/public/create_browser_window.h"
 #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "chrome/browser/ui/navigator/browser_navigator.h"
 #include "chrome/browser/ui/navigator/browser_navigator_params.h"
@@ -137,7 +136,7 @@ void SettingsWindowManager::ShowChromePageForProfile(
   // If this profile isn't allowed to create browser windows (e.g. the login
   // screen profile) then bail out. Neither the new SWA code path nor the legacy
   // code path can successfully open the window for these profiles.
-  if (GetBrowserWindowCreationStatusForProfile(*profile) !=
+  if (Browser::GetCreationStatusForProfile(profile) !=
       Browser::CreationStatus::kOk) {
     LOG(ERROR) << "Unable to open settings for this profile, url "
                << gurl.spec();

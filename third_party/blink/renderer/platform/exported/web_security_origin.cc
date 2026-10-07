@@ -68,11 +68,6 @@ uint16_t WebSecurityOrigin::Port() const {
   return private_->Port();
 }
 
-bool WebSecurityOrigin::IsWebUI() const {
-  DCHECK(private_);
-  return private_->IsWebUI();
-}
-
 bool WebSecurityOrigin::IsOpaque() const {
   DCHECK(private_);
   return private_->IsOpaque();

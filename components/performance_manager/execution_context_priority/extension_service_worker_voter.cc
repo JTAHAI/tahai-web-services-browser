@@ -5,13 +5,19 @@
 #include "components/performance_manager/execution_context_priority/extension_service_worker_voter.h"
 
 #include "components/performance_manager/public/execution_context/execution_context.h"
+#include "components/performance_manager/public/execution_context/execution_context_registry.h"
 #include "components/performance_manager/public/graph/graph.h"
-#include "url/gurl.h"
-#include "url/origin.h"
 
 namespace performance_manager::execution_context_priority {
 
 namespace {
+
+const execution_context::ExecutionContext* GetExecutionContext(
+    const WorkerNode* worker_node) {
+  return execution_context::ExecutionContextRegistry::GetFromGraph(
+             worker_node->GetGraph())
+      ->GetExecutionContextForWorkerNode(worker_node);
+}
 
 // Returns a vote with the appropriate priority depending on if the worker
 // is an extension service worker.
@@ -52,12 +58,13 @@ void ExtensionServiceWorkerVoter::TearDownOnGraph(Graph* graph) {
 void ExtensionServiceWorkerVoter::OnBeforeWorkerNodeAdded(
     const WorkerNode* worker_node,
     const ProcessNode* pending_process_node) {
-  voting_channel_.SetVote(worker_node, GetVote(worker_node));
+  voting_channel_.SubmitVote(GetExecutionContext(worker_node),
+                             GetVote(worker_node));
 }
 
 void ExtensionServiceWorkerVoter::OnBeforeWorkerNodeRemoved(
     const WorkerNode* worker_node) {
-  voting_channel_.SetVote(worker_node, std::nullopt);
+  voting_channel_.InvalidateVote(GetExecutionContext(worker_node));
 }
 
 }  // namespace performance_manager::execution_context_priority

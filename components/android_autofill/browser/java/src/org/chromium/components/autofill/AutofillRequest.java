@@ -84,6 +84,7 @@ public class AutofillRequest {
                         field.setAutofillValue(field.mOptionValues[j]);
                         break;
                     case FormFieldData.ControlType.TOGGLE:
+                        field.setChecked(value.getToggleValue());
                         break;
                     case FormFieldData.ControlType.TEXT:
                     case FormFieldData.ControlType.DATALIST:
@@ -123,7 +124,7 @@ public class AutofillRequest {
                 if (i == -1) return null;
                 return AutofillValue.forList(i);
             case FormFieldData.ControlType.TOGGLE:
-                return null;
+                return AutofillValue.forToggle(field.isChecked());
             case FormFieldData.ControlType.TEXT:
             case FormFieldData.ControlType.DATALIST:
                 return AutofillValue.forText(field.getValue());

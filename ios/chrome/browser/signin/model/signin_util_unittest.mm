@@ -114,14 +114,14 @@ TEST_F(SigninUtilTest, RunSystemCapabilitiesPrefetch) {
   mutator->SetAllSupportedCapabilities(true);
   ASSERT_FALSE(fake_system_identity_manager()
                    ->GetVisibleCapabilities(identity)
-                   .AreAnyCapabilitiesKnown());
+                   .AreAllCapabilitiesKnown());
 
   RunSystemCapabilitiesPrefetch(account_manager_service_->GetAllIdentities());
   base::RunLoop().RunUntilIdle();
 
   EXPECT_TRUE(fake_system_identity_manager()
                   ->GetVisibleCapabilities(identity)
-                  .AreAnyCapabilitiesKnown());
+                  .AreAllCapabilitiesKnown());
 }
 
 TEST_F(SigninUtilTest, RunSystemCapabilitiesPrefetchMultipleIdentities) {
@@ -135,31 +135,31 @@ TEST_F(SigninUtilTest, RunSystemCapabilitiesPrefetchMultipleIdentities) {
   mutator1->SetAllSupportedCapabilities(true);
   ASSERT_FALSE(fake_system_identity_manager()
                    ->GetVisibleCapabilities(identity1)
-                   .AreAnyCapabilitiesKnown());
+                   .AreAllCapabilitiesKnown());
 
   AccountCapabilitiesTestMutator* mutator2 =
       fake_system_identity_manager()->GetPendingCapabilitiesMutator(identity2);
   mutator2->SetAllSupportedCapabilities(true);
   ASSERT_FALSE(fake_system_identity_manager()
                    ->GetVisibleCapabilities(identity2)
-                   .AreAnyCapabilitiesKnown());
+                   .AreAllCapabilitiesKnown());
 
   RunSystemCapabilitiesPrefetch(account_manager_service_->GetAllIdentities());
   base::RunLoop().RunUntilIdle();
 
   EXPECT_TRUE(fake_system_identity_manager()
                   ->GetVisibleCapabilities(identity1)
-                  .AreAnyCapabilitiesKnown());
+                  .AreAllCapabilitiesKnown());
   EXPECT_TRUE(fake_system_identity_manager()
                   ->GetVisibleCapabilities(identity2)
-                  .AreAnyCapabilitiesKnown());
+                  .AreAllCapabilitiesKnown());
 }
 
 TEST_F(SigninUtilTest, GetSizeForIdentityAvatarSize) {
   // The avatar should be its default size.
   {
     base::test::ScopedFeatureList scoped_feature_list;
-    scoped_feature_list.InitAndDisableFeature(kAiSubscriptionAvatarRingIOS);
+    scoped_feature_list.InitAndDisableFeature(kAiAvatarRingIos);
     EXPECT_EQ(GetSizeForIdentityAvatarSize(IdentityAvatarSize::Large,
                                            AITierRingSize::kNoRing)
                   .width,
@@ -168,7 +168,7 @@ TEST_F(SigninUtilTest, GetSizeForIdentityAvatarSize) {
   // The avatar should be its default size as the ring is around it.
   {
     base::test::ScopedFeatureList scoped_feature_list;
-    scoped_feature_list.InitAndEnableFeature(kAiSubscriptionAvatarRingIOS);
+    scoped_feature_list.InitAndEnableFeature(kAiAvatarRingIos);
     EXPECT_EQ(GetSizeForIdentityAvatarSize(IdentityAvatarSize::Large,
                                            AITierRingSize::kImageSize)
                   .width,
@@ -177,7 +177,7 @@ TEST_F(SigninUtilTest, GetSizeForIdentityAvatarSize) {
   // The avatar should be smaller so that the ring takes the usual avatar size.
   {
     base::test::ScopedFeatureList scoped_feature_list;
-    scoped_feature_list.InitAndEnableFeature(kAiSubscriptionAvatarRingIOS);
+    scoped_feature_list.InitAndEnableFeature(kAiAvatarRingIos);
     EXPECT_EQ(GetSizeForIdentityAvatarSize(IdentityAvatarSize::Large,
                                            AITierRingSize::kViewSize)
                   .width,

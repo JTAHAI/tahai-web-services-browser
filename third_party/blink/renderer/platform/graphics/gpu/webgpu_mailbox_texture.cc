@@ -78,18 +78,33 @@ scoped_refptr<WebGPUMailboxTexture> WebGPUMailboxTexture::FromStaticBitmapImage(
       dawn_control_client->LeaseWebGpuSharedImageWrapper(
           image->GetSharedImageFormat(),
           gfx::Size(mailbox_texture_width, mailbox_texture_height),
-          image->GetColorSpace(), image->GetAlphaType());
+          image->GetColorSpace(), image->GetHdrMetadata(),
+          image->GetAlphaType());
 
   if (!wrapper_lease) {
     return nullptr;
   }
 
-  if (!is_dummy_mailbox_texture) {
+  WebGpuSharedImageWrapper* shared_image_wrapper =
+      wrapper_lease->shared_image_wrapper();
+  DCHECK(shared_image_wrapper);
+
+  if (is_dummy_mailbox_texture) {
+    // Since we skip the copy, we must ensure WebGPU still waits for the
+    // previous usage of this recycled resource to finish. We do this by
+    // setting the release sync token (which WebGPU will wait on via
+    // GetSyncToken()) to the acquire sync token (which represents the
+    // completion of the previous usage).
+    if (shared_image_wrapper->GetSharedImage()) {
+      shared_image_wrapper->set_release_sync_token(
+          shared_image_wrapper->acquire_sync_token());
+    }
+  } else {
     bool copy_success = false;
     if (image->IsTextureBacked()) {
       if (auto shared_image = image->GetSharedImage()) {
         gpu::SyncToken completion_sync_token;
-        if (wrapper_lease->CopyToBackingSharedImage(
+        if (shared_image_wrapper->CopyToBackingSharedImage(
                 std::move(shared_image), image_sub_rect.x(), image_sub_rect.y(),
                 image->GetSyncToken(), completion_sync_token)) {
           image->UpdateSyncToken(completion_sync_token);
@@ -101,7 +116,7 @@ scoped_refptr<WebGPUMailboxTexture> WebGPUMailboxTexture::FromStaticBitmapImage(
       if (sk_sp<SkImage> skia_image = paint_image.GetSwSkImage()) {
         SkPixmap pixmap;
         if (skia_image->peekPixels(&pixmap)) {
-          copy_success = wrapper_lease->UploadToBackingSharedImage(
+          copy_success = shared_image_wrapper->UploadToBackingSharedImage(
               pixmap, image_sub_rect.x(), image_sub_rect.y());
         }
       }
@@ -112,16 +127,14 @@ scoped_refptr<WebGPUMailboxTexture> WebGPUMailboxTexture::FromStaticBitmapImage(
   }
 
   scoped_refptr<gpu::ClientSharedImage> shared_image =
-      wrapper_lease->GetSharedImage();
+      shared_image_wrapper->GetSharedImage();
   if (!shared_image) {
     return nullptr;
   }
 
-  gpu::SyncToken sync_token = wrapper_lease->GetSyncToken();
-
   return WebGPUMailboxTexture::FromCanvasResource(
-      dawn_control_client, device, usage, std::move(shared_image), sync_token,
-      std::move(wrapper_lease));
+      dawn_control_client, device, usage, std::move(shared_image),
+      shared_image_wrapper->GetSyncToken(), std::move(wrapper_lease));
 }
 
 // static

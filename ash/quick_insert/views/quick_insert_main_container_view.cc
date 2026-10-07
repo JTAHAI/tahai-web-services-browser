@@ -59,8 +59,7 @@ QuickInsertMainContainerView::QuickInsertMainContainerView() {
       views::HighlightBorder::Type::kHighlightBorderOnShadow));
   shadow_ = SystemShadow::CreateShadowOnNinePatchLayerForView(
       this, kQuickInsertContainerShadowType);
-  shadow_->SetRoundedCorners(
-      gfx::RoundedCornersF(kQuickInsertContainerBorderRadius));
+  shadow_->SetRoundedCornerRadius(kQuickInsertContainerBorderRadius);
 
   SetLayoutManager(std::make_unique<views::BoxLayout>())
       ->SetOrientation(views::LayoutOrientation::kVertical);

@@ -8,7 +8,6 @@ assert(!is_ios)
 
 source_set("search") {
   sources = [
-    "most_visited_metrics_logger.h",
     "ntp_user_data_logger.h",
     "ntp_user_data_types.h",
   ]
@@ -42,10 +41,7 @@ source_set("search") {
 }
 
 source_set("impl") {
-  sources = [
-    "most_visited_metrics_logger.cc",
-    "ntp_user_data_logger.cc",
-  ]
+  sources = [ "ntp_user_data_logger.cc" ]
   deps = [
     ":search",
     "//base",
@@ -76,7 +72,6 @@ source_set("impl") {
       "//chrome/browser/history",
       "//chrome/browser/profiles:profile",
       "//chrome/browser/signin",
-      "//chrome/browser/ui:tab_modal_confirm_dialog",
       "//chrome/browser/ui:tab_modal_confirm_dialog_delegate",
       "//chrome/browser/ui/bookmarks",
       "//chrome/browser/ui/browser_window",
@@ -114,7 +109,6 @@ if (!is_chromeos_device && !is_android) {
       "//chrome/browser/search",
       "//chrome/browser/search_engines",
       "//chrome/browser/ui:view_ids",
-      "//chrome/browser/ui/browser_window",
       "//chrome/browser/ui/location_bar",
       "//chrome/browser/ui/omnibox",
       "//chrome/browser/ui/search:test_support_ui",
@@ -170,7 +164,6 @@ if (!is_android) {
       "//chrome/browser/profiles:profile",
       "//chrome/browser/search",
       "//chrome/browser/search_engines",
-      "//chrome/browser/ui/browser_window",
       "//chrome/browser/ui/search",
       "//chrome/browser/ui/search:test_support_ui",
       "//chrome/browser/ui/tab_contents",
@@ -191,7 +184,6 @@ if (!is_android) {
     testonly = true
     sources = [
       "chrome_search_navigation_throttle_unittest.cc",
-      "most_visited_metrics_logger_unittest.cc",
       "ntp_user_data_logger_unittest.cc",
       "search_ipc_router_unittest.cc",
     ]

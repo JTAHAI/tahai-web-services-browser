@@ -58,7 +58,6 @@ source_set("impl") {
     "//chrome/browser/tab_list",
     "//chrome/browser/ui",
     "//chrome/browser/ui:incognito_allowed_url",
-    "//chrome/browser/ui/browser_window:create_browser_window",
     "//chrome/common:chrome_features",
     "//components/captive_portal/content",
     "//components/captive_portal/core:buildflags",
@@ -70,6 +69,10 @@ source_set("impl") {
     "//ui/base",
     "//url",
   ]
+
+  if (!is_android) {
+    deps += [ "//chrome/browser/ui/tabs:tab_strip" ]
+  }
 
   if (is_chromeos) {
     deps += [
@@ -87,15 +90,11 @@ source_set("impl") {
     deps += [
       "//chrome/browser/apps/app_service",
       "//chrome/browser/apps/link_capturing",
-      "//chrome/browser/ui:browser_init_state",
       "//chrome/browser/ui:status_bubble",
-      "//chrome/browser/ui/browser_ui_controller",
       "//chrome/browser/ui/browser_window",
       "//chrome/browser/ui/location_bar",
-      "//chrome/browser/ui/tabs:tab_strip",
       "//chrome/browser/ui/web_applications",
       "//chrome/browser/ui/web_applications:launch_utils",
-      "//chrome/browser/ui/window_feature_controller",
     ]
   }
 }
@@ -141,10 +140,7 @@ if (!is_android) {
       "//chrome/browser/picture_in_picture",
       "//chrome/browser/prefs",
       "//chrome/browser/renderer_host",
-      "//chrome/browser/ui:browser_init_state",
       "//chrome/browser/ui:chrome_pages",
-      "//chrome/browser/ui/browser_window",
-      "//chrome/browser/ui/browser_window:create_browser_window",
       "//chrome/browser/ui/page_info",
       "//chrome/browser/ui/search:test_support_ui",
       "//chrome/test:test_support",

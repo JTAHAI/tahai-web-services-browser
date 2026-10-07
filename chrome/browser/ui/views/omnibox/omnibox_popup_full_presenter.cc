@@ -49,11 +49,8 @@ OmniboxPopupFullPresenter::OmniboxPopupFullPresenter(
     OmniboxPopupPresenterDelegate& presenter_delegate,
     OmniboxController* controller)
     : OmniboxPopupPresenterBase(location_bar, presenter_delegate, controller) {
-  // `location_bar` may be null in unit tests.
-  if (location_bar) {
-    SetWebUIContent(std::make_unique<OmniboxFullPopupWebUIContent>(
-        this, this->location_bar(), controller));
-  }
+  SetWebUIContent(std::make_unique<OmniboxFullPopupWebUIContent>(
+      this, this->location_bar(), controller));
 }
 
 OmniboxPopupFullPresenter::~OmniboxPopupFullPresenter() = default;
@@ -124,12 +121,6 @@ void OmniboxPopupFullPresenter::Hide() {
   forward_events_timer_.Stop();
   popup_widget_observation_.Reset();
   OmniboxPopupPresenterBase::Hide();
-  if (ShouldApplyHeightWorkarounds()) {
-    // Reset the cached height to force a layout update when the popup is
-    // reshown. This prevents the popup from temporarily using a stale size
-    // from its previous state.
-    content_height_ = 1;
-  }
 }
 
 void OmniboxPopupFullPresenter::RequestFocus() {
@@ -156,37 +147,16 @@ std::string_view OmniboxPopupFullPresenter::GetPopupMetricPrefix() const {
 std::optional<base::TimeDelta>
 OmniboxPopupFullPresenter::ShouldDeferUntilVisualStateReady() const {
   if (!base::FeatureList::IsEnabled(
-          omnibox::kOmniboxFullWebUIDeferShowUntilVisualStateReady)) {
+          omnibox::kOmniboxAimDeferShowUntilVisualStateReady)) {
     return std::nullopt;
   }
   return base::Milliseconds(
-      omnibox::kOmniboxFullWebUIDeferShowUntilVisualStateReadyTimeoutMs.Get());
-}
-
-bool OmniboxPopupFullPresenter::ShouldDebounceResize() const {
-  return base::FeatureList::IsEnabled(omnibox::kOmniboxFullWebUIDebounceResize);
-}
-
-bool OmniboxPopupFullPresenter::ShouldApplyHeightWorkarounds() const {
-  return base::FeatureList::IsEnabled(omnibox::kOmniboxFullWebUIHeightWorkarounds);
+      omnibox::kOmniboxAimDeferShowUntilVisualStateReadyTimeoutMs.Get());
 }
 
 bool OmniboxPopupFullPresenter::ShouldDetachWebContentsOnHide() const {
   return base::FeatureList::IsEnabled(
-      omnibox::kOmniboxFullWebUIDetachWebContentsOnHide);
-}
-
-bool OmniboxPopupFullPresenter::ShouldEvictOnHide() const {
-  return base::FeatureList::IsEnabled(omnibox::kOmniboxFullWebUIEvictOnHide);
-}
-
-bool OmniboxPopupFullPresenter::ShouldSizeWebViewToPreferredHeight() const {
-  return base::FeatureList::IsEnabled(
-      omnibox::kOmniboxFullWebUISizeWebViewToPreferredHeight);
-}
-
-bool OmniboxPopupFullPresenter::ShouldHideForInitialLayout() const {
-  return false;
+      omnibox::kOmniboxAimDetachWebContentsOnHide);
 }
 
 std::unique_ptr<RoundedOmniboxResultsFrame>
@@ -276,12 +246,14 @@ void OmniboxPopupFullPresenter::OnWidgetActivationChanged(views::Widget* widget,
           base::BindOnce(
               [](base::WeakPtr<OmniboxPopupFullPresenter> presenter) {
                 if (presenter) {
-                  if (auto* widget =
-                          presenter->delegate().GetLocationBarWidget()) {
-                    if (auto* focus_manager = widget->GetFocusManager()) {
-                      focus_manager->SetStoredFocusView(
-                          presenter->delegate()
-                              .GetLocationBarFocusRestoreView());
+                  if (auto* omnibox_view =
+                          presenter->location_bar()->GetOmniboxView()) {
+                    if (auto* omnibox_view_views =
+                            static_cast<OmniboxViewViews*>(omnibox_view)) {
+                      if (auto* focus_manager =
+                              omnibox_view_views->GetFocusManager()) {
+                        focus_manager->SetStoredFocusView(omnibox_view_views);
+                      }
                     }
                   }
                 }

@@ -6,7 +6,6 @@
 
 #include "base/observer_list.h"
 #include "components/sync/base/extensions_activity.h"
-#include "components/sync/engine/sync_access_token_fetcher.h"
 
 namespace syncer {
 
@@ -19,9 +18,7 @@ SyncCycleContext::SyncCycleContext(
     const std::string& cache_guid,
     const std::string& birthday,
     const std::string& bag_of_chips,
-    base::TimeDelta poll_interval,
-    const std::string& account_email,
-    SyncAccessTokenFetcher* sync_access_token_fetcher)
+    base::TimeDelta poll_interval)
     : connection_manager_(connection_manager),
       extensions_activity_(extensions_activity),
       cache_guid_(cache_guid),
@@ -29,9 +26,7 @@ SyncCycleContext::SyncCycleContext(
       bag_of_chips_(bag_of_chips),
       debug_info_getter_(debug_info_getter),
       data_type_registry_(data_type_registry),
-      poll_interval_(poll_interval),
-      account_email_(account_email),
-      sync_access_token_fetcher_(sync_access_token_fetcher) {
+      poll_interval_(poll_interval) {
   DCHECK(!poll_interval.is_zero());
   std::vector<SyncEngineEventListener*>::const_iterator it;
   for (it = listeners.begin(); it != listeners.end(); ++it) {

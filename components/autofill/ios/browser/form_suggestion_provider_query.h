@@ -8,10 +8,13 @@
 #import <Foundation/Foundation.h>
 
 #import "components/autofill/core/common/unique_ids.h"
-#import "components/autofill/ios/form_util/form_activity_params.h"
 
-using ActivityType = autofill::FormActivityParams::ActivityType;
-using FieldType = autofill::FormActivityParams::FieldType;
+namespace {
+// The "password" field type does not explicitly mean that the field contains a
+// password, it means that the field obfuscates its information instead of
+// showing it plainly.
+NSString* const kObfuscatedFieldType = @"password";
+}  // namespace
 
 // A class containing the data necessary for FormSuggestionProvider to
 // find and retrieve user-selectable suggestions for an input field of
@@ -34,10 +37,11 @@ using FieldType = autofill::FormActivityParams::FieldType;
 @property(readonly, nonatomic) autofill::FieldRendererId fieldRendererID;
 
 // HTML input field type (i.e. 'text', 'password').
-@property(readonly, nonatomic, assign) FieldType fieldType;
+@property(readonly, nonatomic, copy) NSString* fieldType;
 
-// Type of form activity that initiates the query.
-@property(readonly, nonatomic, assign) ActivityType type;
+// Type of form activity that initiates the query (i.e. 'focus', 'blur',
+// 'form_changed').
+@property(readonly, nonatomic, copy) NSString* type;
 
 // The value contained in a field.
 @property(readonly, nonatomic, copy) NSString* typedValue;
@@ -53,8 +57,8 @@ using FieldType = autofill::FormActivityParams::FieldType;
                   formRendererID:(autofill::FormRendererId)formRendererID
                  fieldIdentifier:(NSString*)fieldIdentifier
                  fieldRendererID:(autofill::FieldRendererId)fieldRendererID
-                       fieldType:(FieldType)fieldType
-                            type:(ActivityType)type
+                       fieldType:(NSString*)fieldType
+                            type:(NSString*)type
                       typedValue:(NSString*)typedValue
                          frameID:(NSString*)frameID
                     onlyPassword:(BOOL)onlyPassword NS_DESIGNATED_INITIALIZER;

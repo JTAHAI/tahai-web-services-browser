@@ -40,11 +40,11 @@ inline void LayoutObject::SetNeedsLayout(
 #if DCHECK_IS_ON()
   DCHECK(!IsSetNeedsLayoutForbidden());
 #endif
-  bool already_needed_layout = SelfNeedsFullLayout();
+  bool already_needed_layout = bitfields_.SelfNeedsFullLayout();
   SetSelfNeedsFullLayout(true);
   SetNeedsOverflowRecalc();
   SetSubgridMinMaxSizesCacheDirty(true);
-  SetTableColumnConstraintsDirty(true);
+  SetTableColumnConstraintDirty(true);
   if (!already_needed_layout) {
     DEVTOOLS_TIMELINE_TRACE_EVENT_INSTANT_WITH_CATEGORIES(
         TRACE_DISABLED_BY_DEFAULT("devtools.timeline.invalidationTracking"),

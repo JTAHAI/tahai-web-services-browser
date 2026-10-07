@@ -135,8 +135,6 @@ uint32_t ComputeAudioOutputBufferSize(int channels, int frames) {
 
 static auto FuchsiaRenderUsageToString(int usage) {
   switch (usage) {
-    case AudioParameters::FUCHSIA_RENDER_USAGE_UNKNOWN:
-      return "FUCHSIA_RENDER_USAGE_UNKNOWN";
     case AudioParameters::FUCHSIA_RENDER_USAGE_BACKGROUND:
       return "FUCHSIA_RENDER_USAGE_BACKGROUND";
     case AudioParameters::FUCHSIA_RENDER_USAGE_MEDIA:
@@ -147,8 +145,6 @@ static auto FuchsiaRenderUsageToString(int usage) {
       return "FUCHSIA_RENDER_USAGE_SYSTEM_AGENT";
     case AudioParameters::FUCHSIA_RENDER_USAGE_COMMUNICATION:
       return "FUCHSIA_RENDER_USAGE_COMMUNICATION";
-    case AudioParameters::FUCHSIA_RENDER_USAGE_ACCESSIBILITY:
-      return "FUCHSIA_RENDER_USAGE_ACCESSIBILITY";
     default:
       return "FUCHSIA_RENDER_USAGE_INVALID";
   }

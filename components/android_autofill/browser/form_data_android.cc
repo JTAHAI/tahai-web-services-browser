@@ -50,6 +50,17 @@ void FormDataAndroid::OnFormFieldDidChange(size_t index,
   fields_[index]->OnFormFieldDidChange(value);
 }
 
+bool FormDataAndroid::GetSimilarFieldIndex(const FormFieldData& field,
+                                           size_t* index) {
+  for (size_t i = 0; i < form_.fields().size(); ++i) {
+    if (fields_[i]->SimilarFieldAs(field)) {
+      *index = i;
+      return true;
+    }
+  }
+  return false;
+}
+
 bool FormDataAndroid::GetFieldByGlobalId(const FormFieldData& field,
                                          size_t* index) {
   for (size_t i = 0; i < form_.fields().size(); ++i) {
@@ -77,11 +88,6 @@ bool FormDataAndroid::SimilarFormAs(const FormData& form) const {
   // Note that comparing unique renderer ids alone is not a strict enough check,
   // since these remain constant even if the page has dynamically modified its
   // fields to have different labels, form control types, etc.
-  if (base::FeatureList::IsEnabled(
-          features::kAutofillAndroidUseGlobalIdForFormComparison)) {
-    return form_.global_id() == form.global_id();
-  }
-
   auto SimilarityTuple = [](const FormData& f) {
     return std::tie(f.host_frame(), f.renderer_id(), f.name(), f.id_attribute(),
                     f.name_attribute(), f.url(), f.action());

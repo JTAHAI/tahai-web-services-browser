@@ -678,6 +678,47 @@ TEST_F(WebFormControlElementTest,
   EXPECT_TRUE(input.SuggestedValue().IsEmpty());
 }
 
+TEST_F(
+    WebFormControlElementTest,
+    TextControlPreviewDisabledWhenSlottedIntoCanvasAfterStyleEnsuredOutsideFlatTree) {
+  ScopedCanvasDrawElementForTest forced_canvas_draw_element_feature(true);
+  ScopedGetComputedStyleOutsideFlatTreeForTest scoped_feature(true);
+
+  GetDocument().body()->SetHTMLUnsafeWithoutTrustedTypes(R"(
+    <div>
+      <template shadowrootmode="open">
+        <canvas layoutsubtree>
+          <div id="slotHost">
+            <slot name="slot1"></slot>
+          </div>
+        </canvas>
+      </template>
+      <input id="input" slot="unslotted">
+    </div>
+  )");
+
+  HTMLInputElement* input =
+      DynamicTo<HTMLInputElement>(GetElementById("input"));
+  ASSERT_TRUE(input);
+
+  GetDocument().UpdateStyleAndLayoutTree();
+
+  // Ensure computed style outside the flat tree before assigning to a slot.
+  input->EnsureComputedStyle();
+
+  WebFormControlElement form_control(input);
+  form_control.SetSuggestedValue("suggestion");
+  EXPECT_EQ(input->SuggestedValue().Ascii(), "suggestion");
+
+  // Now slot 'input' into the canvas slot inside the shadow root.
+  input->setAttribute(html_names::kSlotAttr, AtomicString("slot1"));
+  GetDocument().UpdateStyleAndLayoutTree();
+
+  EXPECT_TRUE(input->IsInCanvasSubtree());
+  EXPECT_TRUE(input->IsCanvasOrInCanvasSubtree());
+  EXPECT_TRUE(form_control.SuggestedValue().IsEmpty());
+}
+
 TEST_F(WebFormControlElementTest,
        TextControlCanvasSubtreeStaleWhenUnslottedFromCanvas) {
   ScopedCanvasDrawElementForTest forced_canvas_draw_element_feature(true);
@@ -1208,107 +1249,6 @@ TEST_F(WebFormElementIntersectionObserverTest, ScrollIntoView) {
   FastForwardBy(kMinimumVisibleDuration);
   UpdateAllLifecyclePhasesForTest();
   EXPECT_TRUE(callback_called);
-  FastForwardUntilNoTasksRemain();
-}
-
-// Tests that WebFormElementIntersectionObserver triggers the callback
-// when the element is partially occluded within the allowed threshold (<=20%).
-TEST_F(WebFormElementIntersectionObserverTest,
-       PartiallyOccludedWithinVisibilityThreshold) {
-  GetDocument().body()->SetHTMLUnsafeWithoutTrustedTypes(R"(
-    <style>
-      #container {
-        position: relative;
-      }
-      #target {
-        box-sizing: border-box;
-        width: 100px;
-        height: 100px;
-        border: 0;
-        padding: 0;
-      }
-      #occluder {
-        position: absolute;
-        top: 0;
-        left: 0;
-        width: 100px;
-        height: 10px;
-        background: red;
-      }
-    </style>
-    <div id="container">
-      <input id="target">
-      <!-- Occlude by 10% -->
-      <div id="occluder"></div>
-    </div>
-  )");
-  UpdateAllLifecyclePhasesForTest();
-
-  WebFormControlElement element(
-      DynamicTo<HTMLFormControlElement>(GetElementById("target")));
-  ASSERT_TRUE(element);
-
-  base::MockOnceClosure mock_callback;
-  EXPECT_CALL(mock_callback, Run());
-
-  base::ScopedClosureRunner runner =
-      element.MonitorVisibility(kMinimumVisibleDuration, mock_callback.Get(),
-                                /*visibility_threshold=*/0.80f);
-
-  UpdateAllLifecyclePhasesForTest();
-  FastForwardBy(kMinimumVisibleDuration);
-  UpdateAllLifecyclePhasesForTest();
-  FastForwardUntilNoTasksRemain();
-}
-
-// Tests that WebFormElementIntersectionObserver does not trigger the callback
-// when the element is partially occluded exceeding the allowed threshold
-// (>20%).
-TEST_F(WebFormElementIntersectionObserverTest,
-       PartiallyOccludedExceedingVisibilityThreshold) {
-  GetDocument().body()->SetHTMLUnsafeWithoutTrustedTypes(R"(
-    <style>
-      #container {
-        position: relative;
-      }
-      #target {
-        box-sizing: border-box;
-        width: 100px;
-        height: 100px;
-        border: 0;
-        padding: 0;
-      }
-      #occluder {
-        position: absolute;
-        top: 0;
-        left: 0;
-        width: 100px;
-        height: 30px;
-        background: red;
-      }
-    </style>
-    <div id="container">
-      <input id="target">
-      <!-- Occlude by 30% -->
-      <div id="occluder"></div>
-    </div>
-  )");
-  UpdateAllLifecyclePhasesForTest();
-
-  WebFormControlElement element(
-      DynamicTo<HTMLFormControlElement>(GetElementById("target")));
-  ASSERT_TRUE(element);
-
-  bool callback_called = false;
-  base::ScopedClosureRunner runner = element.MonitorVisibility(
-      kMinimumVisibleDuration,
-      base::BindOnce([](bool* called) { *called = true; }, &callback_called),
-      /*visibility_threshold=*/0.80f);
-
-  UpdateAllLifecyclePhasesForTest();
-  FastForwardBy(kMinimumVisibleDuration);
-  UpdateAllLifecyclePhasesForTest();
-  EXPECT_FALSE(callback_called);
   FastForwardUntilNoTasksRemain();
 }
 

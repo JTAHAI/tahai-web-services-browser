@@ -136,12 +136,13 @@ public class AccessorySheetTabViewTest {
         assertThat(mView.get().getChildCount(), is(0));
 
         ThreadUtils.runOnUiThreadBlocking(
-                () ->
-                        mModel.add(
-                                new AccessorySheetDataPiece(
-                                        new KeyboardAccessoryData.FooterCommand(
-                                                "Manage passwords", item -> clicked.set(true)),
-                                        Type.FOOTER_COMMAND)));
+                () -> {
+                    mModel.add(
+                            new AccessorySheetDataPiece(
+                                    new KeyboardAccessoryData.FooterCommand(
+                                            "Manage passwords", item -> clicked.set(true)),
+                                    Type.FOOTER_COMMAND));
+                });
 
         CriteriaHelper.pollUiThread(() -> Criteria.checkThat(mView.get().getChildCount(), is(1)));
         assertThat(mView.get().getChildAt(0), instanceOf(TextView.class));

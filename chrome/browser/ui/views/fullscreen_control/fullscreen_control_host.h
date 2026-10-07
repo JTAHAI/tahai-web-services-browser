@@ -9,7 +9,6 @@
 #include "base/memory/raw_ptr.h"
 #include "base/timer/timer.h"
 #include "components/fullscreen_control/fullscreen_control_popup.h"
-#include "ui/base/unowned_user_data/scoped_unowned_user_data.h"
 #include "ui/events/event_observer.h"
 
 class BrowserView;
@@ -32,19 +31,10 @@ class EventMonitor;
 // fullscreen.
 // This UI is also used as a visual progress indicator when keyboard lock
 // requires user to press-and-hold ESC key to exit fullscreen.
-class BrowserWindowInterface;
-
 class FullscreenControlHost : public ui::EventObserver {
  public:
-  DECLARE_USER_DATA(FullscreenControlHost);
-
   FullscreenControlHost(BrowserView* browser_view,
-                        ExclusiveAccessManager* exclusive_access_manager,
-                        ui::UnownedUserDataHost& host);
-
-  // Returns the host for `browser`, or null if it does not have one (e.g.
-  // no BrowserView).
-  static FullscreenControlHost* From(BrowserWindowInterface* browser);
+                        ExclusiveAccessManager* exclusive_access_manager);
 
   FullscreenControlHost(const FullscreenControlHost&) = delete;
   FullscreenControlHost& operator=(const FullscreenControlHost&) = delete;
@@ -74,8 +64,6 @@ class FullscreenControlHost : public ui::EventObserver {
 
  private:
   friend class FullscreenControlViewTest;
-
-  ui::ScopedUnownedUserData<FullscreenControlHost> scoped_unowned_user_data_;
 
   // Ensures symmetric input show and hide (e.g. a touch show is hidden by
   // touch).

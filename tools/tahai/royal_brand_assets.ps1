@@ -13,9 +13,9 @@ if ((Get-FileHash -LiteralPath $taskMasterPath -Algorithm SHA256).Hash -ne $task
 }
 if ($Apply) {
     $taskBuildProcesses = Get-CimInstance Win32_Process | Where-Object {
-        $_.Name -match '^(ninja|clang-cl|lld-link|gn)\.exe$' -and
+        $_.Name -match '^(ninja|clang-cl|lld-link|gn|siso|rustc)\.exe$' -and
         ($_.CommandLine -match [regex]::Escape($taskRoot) -or
-         $_.CommandLine -match 'tahai_ga_release_x64')
+         $_.CommandLine -match 'tahai_[A-Za-z0-9_]*release[A-Za-z0-9_]*')
     }
     if ($taskBuildProcesses) { throw 'Build-consumed artwork is locked while a release build is active.' }
 }

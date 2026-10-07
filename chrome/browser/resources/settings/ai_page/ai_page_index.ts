@@ -14,7 +14,6 @@ import './ai_mode_search_page.js';
 import './ai_page.js';
 import '../glic_page/glic_page.js';
 import '../glic_page/glic_subpage.js';
-import './inline_cue_menu_page.js';
 
 import type {CrViewManagerElement} from 'chrome://resources/cr_elements/cr_view_manager/cr_view_manager.js';
 import {assert} from 'chrome://resources/js/assert.js';
@@ -94,11 +93,6 @@ export class SettingsAiPageIndexElement extends SettingsAiPageIndexElementBase
         value: () => loadTimeData.getBoolean('showAiSuggestionsControl'),
       },
 
-      showInlineCueMenuControl_: {
-        type: Boolean,
-        value: () => loadTimeData.getBoolean('showInlineCueMenuControl'),
-      },
-
       showSkillsSettingPage_: {
         type: Boolean,
         value: () => loadTimeData.getBoolean('showSkillsSettingPage'),
@@ -120,7 +114,6 @@ export class SettingsAiPageIndexElement extends SettingsAiPageIndexElementBase
   declare private enableAiModeSearchSetting_: boolean;
   declare private actorLoginFederatedLoginSupportEnabled_: boolean;
   declare private showAiSuggestionsControl_: boolean;
-  declare private showInlineCueMenuControl_: boolean;
   declare private showSkillsSettingPage_: boolean;
   declare private showDictationControl_: boolean;
 
@@ -188,11 +181,6 @@ export class SettingsAiPageIndexElement extends SettingsAiPageIndexElementBase
           assert(this.showAiSuggestionsControl_);
           this.$.viewManager.switchView(
               'aiSuggestions', 'no-animation', 'no-animation');
-          break;
-        case routes.INLINE_CUE_MENU:
-          assert(this.showInlineCueMenuControl_);
-          this.$.viewManager.switchView(
-              'inlineCueMenu', 'no-animation', 'no-animation');
           break;
         case routes.SKILLS:
           assert(this.showSkillsSettingPage_);

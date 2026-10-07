@@ -18,7 +18,6 @@
 #include "base/functional/callback.h"
 #include "base/numerics/safe_math.h"
 #include "base/strings/string_util.h"
-#include "net/http/http_content_disposition.h"
 #include "pdf/loader/result_codes.h"
 #include "pdf/loader/url_loader_wrapper.h"
 #include "pdf/pdf_features.h"
@@ -151,18 +150,12 @@ bool DocumentLoaderImpl::Init(std::unique_ptr<URLLoaderWrapper> loader,
       type = "application/pdf";
     }
   }
-  if (!type.empty() && !IsValidContentType(type)) {
+  if (!type.empty() && !IsValidContentType(type))
     return false;
-  }
 
-  if (!loader->GetContentDisposition().empty()) {
-    net::HttpContentDisposition content_disposition(
-        loader->GetContentDisposition(), /*referrer_charset=*/std::string());
-    if (content_disposition.is_attachment()) {
-      return false;
-    }
-    content_disposition_file_name_ = content_disposition.filename();
-  }
+  if (base::StartsWith(loader->GetContentDisposition(), "attachment",
+                       base::CompareCase::INSENSITIVE_ASCII))
+    return false;
 
   url_ = url;
   loader_ = std::move(loader);
@@ -194,10 +187,6 @@ uint32_t DocumentLoaderImpl::BytesReceived() const {
 
 void DocumentLoaderImpl::ClearPendingRequests() {
   pending_requests_.Clear();
-}
-
-std::string DocumentLoaderImpl::GetFileNameFromContentDisposition() const {
-  return content_disposition_file_name_;
 }
 
 bool DocumentLoaderImpl::GetBlock(uint32_t position,

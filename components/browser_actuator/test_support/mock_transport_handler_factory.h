@@ -19,11 +19,9 @@ class TransportSession;
 class MockTransportHandlerFactory : public TransportHandlerFactory {
  public:
   explicit MockTransportHandlerFactory(
-      const std::vector<PayloadType>& supported_types,
-      FactoryId factory_id = FactoryId::kUnset);
+      const std::vector<PayloadType>& supported_types);
   ~MockTransportHandlerFactory() override;
 
-  FactoryId GetFactoryId() const override;
   std::vector<PayloadType> GetSupportedPayloadTypes() const override;
 
   MOCK_METHOD(std::unique_ptr<TransportHandler>,
@@ -33,7 +31,6 @@ class MockTransportHandlerFactory : public TransportHandlerFactory {
 
  private:
   const std::vector<PayloadType> supported_types_;
-  const FactoryId factory_id_;
 };
 
 }  // namespace browser_actuator

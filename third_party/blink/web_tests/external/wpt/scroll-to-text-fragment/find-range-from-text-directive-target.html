@@ -13,12 +13,12 @@ function checkScroll() {
   stashResultsThenClose(key, results);
 }
 
-// Ensure animation frames on load to allow delayed text fragment processing and
-// fallback to element anchor.
+// Ensure two animation frames on load to test the fallback to element anchor,
+// which gets queued for the next frame if the text fragment is not found.
 window.onload = function() {
-  requestAnimationFrame(() => requestAnimationFrame(() => {
-    requestAnimationFrame(() => requestAnimationFrame(checkScroll));
-  }));
+  window.requestAnimationFrame(function() {
+    window.requestAnimationFrame(checkScroll);
+  });
 }
 </script>
 <style>

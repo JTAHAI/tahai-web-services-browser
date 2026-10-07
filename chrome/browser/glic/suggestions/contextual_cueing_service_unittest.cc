@@ -22,8 +22,6 @@
 #include "chrome/common/chrome_features.h"
 #include "chrome/test/base/testing_profile.h"
 #include "components/content_extraction/content/browser/inner_text.h"
-#include "components/optimization_guide/core/model_execution/model_execution_manager.h"
-#include "components/optimization_guide/core/optimization_guide_permissions_util.h"
 #include "components/signin/public/base/signin_switches.h"
 #include "components/signin/public/identity_manager/account_capabilities_test_mutator.h"
 #include "components/signin/public/identity_manager/identity_test_environment.h"
@@ -387,7 +385,8 @@ class ContextualCueingServiceTestZeroStateSuggestions : public testing::Test {
 
   void SetUp() override {
     base::CommandLine::ForCurrentProcess()->AppendSwitchASCII(
-        optimization_guide::kOptimizationGuideServiceModelExecutionURLSwitch,
+        optimization_guide::switches::
+            kOptimizationGuideServiceModelExecutionURL,
         "https://mes.com/");
 
     // Set up web contents with URLs of https page type.
@@ -408,7 +407,8 @@ class ContextualCueingServiceTestZeroStateSuggestions : public testing::Test {
                 })));
 
     base::CommandLine::ForCurrentProcess()->AppendSwitch(
-        optimization_guide::kDisableCheckingUserPermissionsForTestingSwitch);
+        optimization_guide::switches::
+            kDisableCheckingUserPermissionsForTesting);
     ON_CALL(mock_optimization_guide_keyed_service(),
             CanApplyOptimization(
                 _, optimization_guide::proto::GLIC_ZERO_STATE_SUGGESTIONS,

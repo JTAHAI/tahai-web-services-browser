@@ -9,8 +9,6 @@ import android.os.Bundle;
 import android.os.Process;
 
 import org.chromium.base.ContextUtils;
-import org.chromium.base.TriState;
-import org.chromium.base.TriStateUtils;
 import org.chromium.base.library_loader.LibraryProcessType;
 import org.chromium.build.BuildConfig;
 import org.chromium.build.annotations.NullMarked;
@@ -38,7 +36,7 @@ public class ChildProcessCreationParamsImpl {
     // Use only the explicit WebContents.setImportance signal, and ignore other implicit
     // signals in content.
     private static boolean sIgnoreVisibilityForImportance;
-    private static @TriState int sForceNativeSandboxedService;
+    private static @Nullable Boolean sForceNativeSandboxedService;
 
     private static boolean sInitialized;
 
@@ -63,7 +61,7 @@ public class ChildProcessCreationParamsImpl {
         sLibraryProcessType = libraryProcessType;
         sBindToCallerCheck = bindToCallerCheck;
         sIgnoreVisibilityForImportance = ignoreVisibilityForImportance;
-        sForceNativeSandboxedService = TriStateUtils.from(forceNativeSandboxedService);
+        sForceNativeSandboxedService = forceNativeSandboxedService;
         sInitialized = true;
     }
 
@@ -132,8 +130,8 @@ public class ChildProcessCreationParamsImpl {
     }
 
     public static boolean isNativeSandboxedServiceEnabled() {
-        if (sForceNativeSandboxedService != TriState.NOT_SET) {
-            return sForceNativeSandboxedService == TriState.TRUE;
+        if (sForceNativeSandboxedService != null) {
+            return sForceNativeSandboxedService;
         }
         return isNativeSandboxedServiceSupported() && JavalessRenderersFeatureList.isEnabled();
     }

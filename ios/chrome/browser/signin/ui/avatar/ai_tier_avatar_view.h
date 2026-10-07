@@ -11,8 +11,14 @@
 // ring.
 @interface AITierAvatarView : UIView
 
+// The inner avatar image view.
+@property(nonatomic, readonly) UIImageView* avatarImageView;
+
+// The ring image view, if visible.
+@property(nonatomic, readonly) UIImageView* ringImageView;
+
 - (instancetype)initWithAvatarImage:(UIImage*)avatarImage
-                     avatarDiameter:(CGFloat)avatarDiameter
+                          outerSize:(CGFloat)outerSize
                     showsAITierRing:(BOOL)showsAITierRing
     NS_DESIGNATED_INITIALIZER;
 

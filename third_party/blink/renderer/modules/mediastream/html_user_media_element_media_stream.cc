@@ -16,7 +16,7 @@ const char HTMLUserMediaElementMediaStream::kSupplementName[] =
 
 // static
 HTMLUserMediaElementMediaStream& HTMLUserMediaElementMediaStream::From(
-    HTMLUserMediaElement& element) {
+    HTMLMediaCaptureElementBase& element) {
   HTMLUserMediaElementMediaStream* supplement =
       Supplement<HTMLMediaCaptureElementBase>::From<
           HTMLUserMediaElementMediaStream>(element);
@@ -29,15 +29,17 @@ HTMLUserMediaElementMediaStream& HTMLUserMediaElementMediaStream::From(
 
 // static
 MediaStream* HTMLUserMediaElementMediaStream::stream(
-    HTMLUserMediaElement& element) {
-  if (element.IsLegacyMode()) {
-    return nullptr;
+    HTMLMediaCaptureElementBase& element) {
+  if (auto* user_media = DynamicTo<HTMLUserMediaElement>(element)) {
+    if (user_media->IsLegacyMode()) {
+      return nullptr;
+    }
   }
   return From(element).GetMediaStream();
 }
 
 HTMLUserMediaElementMediaStream::HTMLUserMediaElementMediaStream(
-    HTMLUserMediaElement& element)
+    HTMLMediaCaptureElementBase& element)
     : Supplement<HTMLMediaCaptureElementBase>(element) {}
 
 void HTMLUserMediaElementMediaStream::Trace(Visitor* visitor) const {

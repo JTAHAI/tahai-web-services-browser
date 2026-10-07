@@ -70,6 +70,7 @@ public class OverlayPanelBaseTest {
 
     private static final int MOCK_TOOLBAR_HEIGHT = 100;
     private static final int CHIN_HEIGHT = 30;
+    private static final Integer READALOUD_HEIGHT = 90;
 
     @ClassRule
     public static BaseActivityTestRule<BlankUiTestActivity> activityTestRule =

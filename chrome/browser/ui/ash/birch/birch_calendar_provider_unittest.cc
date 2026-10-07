@@ -11,7 +11,6 @@
 #include "ash/shell.h"
 #include "ash/system/time/calendar_unittest_utils.h"
 #include "base/check.h"
-#include "chrome/browser/signin/identity_manager_factory.h"
 #include "chrome/browser/ui/ash/birch/birch_calendar_fetcher.h"
 #include "chrome/test/base/browser_with_test_window_test.h"
 #include "google_apis/calendar/calendar_api_response_types.h"
@@ -32,8 +31,7 @@ base::Time TimeFromString(const char* time_string) {
 class TestCalendarFetcher : public BirchCalendarFetcher {
  public:
   explicit TestCalendarFetcher(Profile* profile)
-      : BirchCalendarFetcher(profile,
-                             IdentityManagerFactory::GetForProfile(profile)) {}
+      : BirchCalendarFetcher(profile) {}
   ~TestCalendarFetcher() override = default;
 
   // BirchCalendarFetcher:
@@ -52,8 +50,7 @@ class TestCalendarFetcher : public BirchCalendarFetcher {
 class CountingCalendarFetcher : public BirchCalendarFetcher {
  public:
   explicit CountingCalendarFetcher(Profile* profile)
-      : BirchCalendarFetcher(profile,
-                             IdentityManagerFactory::GetForProfile(profile)) {}
+      : BirchCalendarFetcher(profile) {}
   ~CountingCalendarFetcher() override = default;
 
   // BirchCalendarFetcher:
@@ -98,8 +95,7 @@ class BirchCalendarProviderTest : public BrowserWithTestWindowTest {
 };
 
 TEST_F(BirchCalendarProviderTest, GetCalendarEvents) {
-  BirchCalendarProvider provider(
-      profile(), IdentityManagerFactory::GetForProfile(profile()));
+  BirchCalendarProvider provider(profile());
 
   // Set up a custom fetcher with known events.
   auto fetcher = std::make_unique<TestCalendarFetcher>(profile());
@@ -127,8 +123,7 @@ TEST_F(BirchCalendarProviderTest, GetCalendarEvents) {
 }
 
 TEST_F(BirchCalendarProviderTest, GetCalendarEvents_WithNoSummary) {
-  BirchCalendarProvider provider(
-      profile(), IdentityManagerFactory::GetForProfile(profile()));
+  BirchCalendarProvider provider(profile());
 
   // Set up a custom fetcher with known events.
   auto fetcher = std::make_unique<TestCalendarFetcher>(profile());
@@ -150,8 +145,7 @@ TEST_F(BirchCalendarProviderTest, GetCalendarEvents_WithNoSummary) {
 }
 
 TEST_F(BirchCalendarProviderTest, GetCalendarEvents_WithAttachments) {
-  BirchCalendarProvider provider(
-      profile(), IdentityManagerFactory::GetForProfile(profile()));
+  BirchCalendarProvider provider(profile());
 
   // Set up a custom fetcher with an event with attachments.
   auto fetcher = std::make_unique<TestCalendarFetcher>(profile());
@@ -200,8 +194,7 @@ TEST_F(BirchCalendarProviderTest, GetCalendarEvents_WithAttachments) {
 }
 
 TEST_F(BirchCalendarProviderTest, GetCalendarEvents_DeclinedEventAttachment) {
-  BirchCalendarProvider provider(
-      profile(), IdentityManagerFactory::GetForProfile(profile()));
+  BirchCalendarProvider provider(profile());
 
   // Set up a custom fetcher with an event with attachments.
   auto fetcher = std::make_unique<TestCalendarFetcher>(profile());
@@ -238,8 +231,7 @@ TEST_F(BirchCalendarProviderTest, GetCalendarEvents_DeclinedEventAttachment) {
 }
 
 TEST_F(BirchCalendarProviderTest, GetCalendarEvents_HttpError) {
-  BirchCalendarProvider provider(
-      profile(), IdentityManagerFactory::GetForProfile(profile()));
+  BirchCalendarProvider provider(profile());
 
   // Populate the birch model with an event so the test can sense when the
   // model is cleared later.
@@ -263,8 +255,7 @@ TEST_F(BirchCalendarProviderTest, GetCalendarEvents_HttpError) {
 }
 
 TEST_F(BirchCalendarProviderTest, GetCalendarEvents_NullEventList) {
-  BirchCalendarProvider provider(
-      profile(), IdentityManagerFactory::GetForProfile(profile()));
+  BirchCalendarProvider provider(profile());
 
   // Populate the birch model with an event so the test can sense when the
   // model is cleared later.
@@ -288,8 +279,7 @@ TEST_F(BirchCalendarProviderTest, GetCalendarEvents_NullEventList) {
 }
 
 TEST_F(BirchCalendarProviderTest, GetCalendarEvents_MultipleRequests) {
-  BirchCalendarProvider provider(
-      profile(), IdentityManagerFactory::GetForProfile(profile()));
+  BirchCalendarProvider provider(profile());
 
   // Set up a customer fetcher.
   auto fetcher = std::make_unique<CountingCalendarFetcher>(profile());

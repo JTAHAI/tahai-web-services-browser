@@ -140,11 +140,11 @@ static_library("enterprise") {
     sources += [
       "browser/controller/chrome_browser_cloud_management_controller.cc",
       "browser/controller/chrome_browser_cloud_management_controller.h",
+      "browser/device_trust/device_trust_key_manager.h",
     ]
 
     deps += [
       "//components/enterprise/browser/groups",
-      "//components/enterprise/device_trust/core",
       "//third_party/abseil-cpp:absl",
     ]
   }
@@ -289,14 +289,10 @@ source_set("unit_tests") {
       "device_attestation/android/device_attestation_service_android_unittest.cc",
     ]
     deps += [
+      "//components/enterprise/device_attestation:test_support",
       "//components/enterprise/device_attestation/android",
       "//components/enterprise/device_attestation/android:jni_headers",
     ]
-  }
-
-  if (is_ios) {
-    sources +=
-        [ "device_attestation/ios/device_attestation_service_ios_unittest.mm" ]
   }
 
   if (is_win || is_linux || is_chromeos || is_mac) {
@@ -306,8 +302,5 @@ source_set("unit_tests") {
 
   if (enterprise_proxy) {
     deps += [ "//components/enterprise/net/core:unit_tests" ]
-    if (!is_ios) {
-      deps += [ "//components/enterprise/net/content:unit_tests" ]
-    }
   }
 }

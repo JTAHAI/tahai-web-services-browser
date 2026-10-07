@@ -64,7 +64,10 @@ std::string CalculateAlternativeFormSignatureBase(const FormData& form_data) {
   std::string form_signature_field_types;
   for (const FormFieldData& field : form_data.fields()) {
     switch (field.form_control_type()) {
+      case mojom::FormControlType::kInputCheckbox:
       case mojom::FormControlType::kInputDate:
+      case mojom::FormControlType::kInputRadio:
+      case mojom::FormControlType::kInputHiddenEmailVerification:
         break;
       case mojom::FormControlType::kContentEditable:
       case mojom::FormControlType::kInputEmail:
@@ -132,7 +135,10 @@ FormSignature CalculateFormSignature(const FormData& form_data) {
 
   for (const FormFieldData& field : form_data.fields()) {
     switch (field.form_control_type()) {
+      case mojom::FormControlType::kInputCheckbox:
       case mojom::FormControlType::kInputDate:
+      case mojom::FormControlType::kInputRadio:
+      case mojom::FormControlType::kInputHiddenEmailVerification:
         break;
       case mojom::FormControlType::kContentEditable:
       case mojom::FormControlType::kInputEmail:

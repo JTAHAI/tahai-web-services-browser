@@ -1,17 +1,11 @@
 //! Wasm-specific glue code
 //!
 //! This is a private module
-
-// `std` is only required to support a `panic_handler()` hook in debug builds:
-#[cfg(debug_assertions)]
-extern crate std;
-#[cfg(debug_assertions)]
-use alloc::{boxed::Box, string::String};
+use alloc::format;
 
 // https://blog.rust-lang.org/2026/04/04/changes-to-webassembly-targets-and-handling-undefined-symbols/#what-is-going-to-break-and-how-to-fix
 #[link(wasm_import_module = "env")]
 extern "C" {
-    #[cfg(debug_assertions)]
     fn diplomat_throw_error_js(ptr: *const u8, len: usize);
 
     #[cfg(feature = "log")]
@@ -32,14 +26,12 @@ extern "C" {
 unsafe extern "C" fn diplomat_init() {
     #[cfg(debug_assertions)]
     std::panic::set_hook(Box::new(panic_handler));
-
     #[cfg(feature = "log")]
     log::set_logger(&ConsoleLogger)
         .map(|()| log::set_max_level(log::LevelFilter::Debug))
         .unwrap();
 }
 
-#[cfg(debug_assertions)]
 fn panic_handler(info: &std::panic::PanicHookInfo) {
     let msg = match info.payload().downcast_ref::<&'static str>() {
         Some(&s) => s,
@@ -50,13 +42,13 @@ fn panic_handler(info: &std::panic::PanicHookInfo) {
     };
 
     let msg = match info.location() {
-        Some(l) => alloc::format!(
+        Some(l) => format!(
             "wasm panicked at {}:{}:{}:\n{msg}",
             l.file(),
             l.line(),
             l.column(),
         ),
-        None => alloc::format!("wasm panicked at <unknown location>:\n{msg}"),
+        None => format!("wasm panicked at <unknown location>:\n{msg}"),
     };
 
     unsafe { diplomat_throw_error_js(msg.as_ptr(), msg.len()) }

@@ -35,10 +35,10 @@ import java.util.List;
 public class ActionChipsProcessorUnitTest {
     private static final int MATCH_POS = 1234;
 
-    @Rule public final MockitoRule mMockitoRule = MockitoJUnit.rule();
+    public @Rule MockitoRule mMockitoRule = MockitoJUnit.rule();
 
-    @Mock private SuggestionHost mSuggestionHost;
-    @Mock private OmniboxActionDelegate mActionDelegate;
+    private @Mock SuggestionHost mSuggestionHost;
+    private @Mock OmniboxActionDelegate mActionDelegate;
 
     private ActionChipsProcessor mProcessor;
     private PropertyModel mModel;

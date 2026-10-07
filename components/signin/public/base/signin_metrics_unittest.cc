@@ -264,8 +264,6 @@ class SigninMetricsTest : public ::testing::Test {
         return "LevelUp";
       case AccessPoint::kSignoutUndoSnackbar:
         return "SignoutUndoSnackbar";
-      case AccessPoint::kComposeboxDriveContextMenuOptionBubble:
-        return "ComposeboxDriveContextMenuOptionBubble";
     }
   }
 };

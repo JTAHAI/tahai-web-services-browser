@@ -13,9 +13,8 @@
 #include "base/time/time.h"
 #include "ui/aura/window.h"
 #include "ui/base/dragdrop/mojom/drag_drop_types.mojom-shared.h"
+#include "ui/compositor/layer.h"
 #include "ui/compositor/layer_owner.h"
-#include "ui/compositor/layer_solid_color.h"
-#include "ui/compositor/layer_textured.h"
 #include "ui/compositor/scoped_layer_animation_settings.h"
 #include "ui/gfx/geometry/rect.h"
 #include "ui/gfx/geometry/rect_f.h"
@@ -85,9 +84,8 @@ AppDragIconProxy::AppDragIconProxy(
   const gfx::Point shadow_offset(
       (size.width() - scaled_shadow_size.width()) / 2,
       (size.height() - scaled_shadow_size.height()) / 2);
-  shadow_ = SystemShadow::CreateShadowOnNinePatchLayer(kShadowType);
-  shadow_->SetRoundedCorners(
-      gfx::RoundedCornersF(scaled_shadow_size.width() / 2.0f));
+  shadow_ = SystemShadow::CreateShadowOnTextureLayer(kShadowType);
+  shadow_->SetRoundedCornerRadius(scaled_shadow_size.width() / 2);
   drag_image->AddLayerToRegion(shadow_->GetLayer(), views::LayerRegion::kBelow);
 
   shadow_->SetContentBounds(gfx::Rect(shadow_offset, scaled_shadow_size));

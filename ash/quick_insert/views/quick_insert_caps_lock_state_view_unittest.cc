@@ -6,7 +6,6 @@
 
 #include "ash/resources/vector_icons/vector_icons.h"
 #include "base/i18n/rtl.h"
-#include "base/i18n/test/scoped_rtl_for_testing.h"
 #include "base/test/icu_test_util.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "ui/gfx/geometry/rect.h"
@@ -47,11 +46,12 @@ class QuickInsertCapsLockStateViewRTLTest
     : public QuickInsertCapsLockStateViewTest,
       public testing::WithParamInterface<bool> {
  public:
-  QuickInsertCapsLockStateViewRTLTest() : scoped_rtl_(GetParam()) {}
+  QuickInsertCapsLockStateViewRTLTest() {
+    base::i18n::SetRTLForTesting(GetParam());
+  }
 
  private:
   base::test::ScopedRestoreICUDefaultLocale restore_locale_;
-  base::i18n::ScopedRTLForTesting scoped_rtl_;
 };
 
 INSTANTIATE_TEST_SUITE_P(,

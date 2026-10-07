@@ -326,12 +326,6 @@ public final class FullscreenSigninAndHistorySyncCoordinator extends SigninAndHi
         return false;
     }
 
-    /** Implements {@link FullscreenSigninCoordinator.Delegate} */
-    @Override
-    public boolean canUsePreferredAccount() {
-        return true;
-    }
-
     @Override
     public OneshotSupplier<Boolean> getPolicyLoadListener() {
         return mDelegate.getPolicyLoadListener();
@@ -465,7 +459,6 @@ public final class FullscreenSigninAndHistorySyncCoordinator extends SigninAndHi
                         mSigninAccessPoint,
                         /* showEmailInFooter= */ !mDidShowSignin,
                         /* shouldSignOutOnDecline= */ shouldSignOutOnDecline,
-                        /* isFre= */ false,
                         null);
     }
 }

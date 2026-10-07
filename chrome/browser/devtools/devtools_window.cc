@@ -30,26 +30,22 @@
 #include "chrome/browser/devtools/aida_client.h"
 #include "chrome/browser/devtools/devtools_availability_checker.h"
 #include "chrome/browser/devtools/devtools_eye_dropper.h"
+#if !BUILDFLAG(IS_ANDROID)
+#include "chrome/browser/devtools/devtools_policy_dialog.h"
+#endif
 #include "chrome/browser/devtools/features.h"
-#include "chrome/browser/devtools/process_sharing_infobar.h"
 #include "chrome/browser/devtools/process_sharing_infobar_delegate.h"
 #include "chrome/browser/file_select_helper.h"
-#include "chrome/browser/infobars/browser_infobar_manager.h"
 #include "chrome/browser/infobars/confirm_infobar_creator.h"
-#include "chrome/browser/infobars/infobar_features.h"
 #include "chrome/browser/policy/chrome_policy_blocklist_service_factory.h"
 #include "chrome/browser/policy/developer_tools_policy_checker.h"
 #include "chrome/browser/policy/developer_tools_policy_checker_factory.h"
 #include "chrome/browser/profiles/keep_alive/profile_keep_alive_types.h"
 #include "chrome/browser/profiles/keep_alive/scoped_profile_keep_alive.h"
 #include "chrome/browser/profiles/profile.h"
-#if BUILDFLAG(IS_MAC)
-#include "chrome/browser/renderer_host/chrome_render_widget_host_view_mac_history_swiping_control.h"
-#endif
 #include "chrome/browser/search_engines/template_url_service_factory.h"
 #include "chrome/browser/tab_list/tab_list_interface.h"
 #include "chrome/browser/task_manager/web_contents_tags.h"
-#include "chrome/browser/ui/browser_window/public/create_browser_window.h"
 #include "chrome/browser/ui/dialogs/browser_dialogs.h"
 #include "chrome/browser/ui/prefs/prefs_tab_helper.h"
 #include "chrome/browser/ui/scoped_tabbed_browser_displayer.h"
@@ -115,13 +111,12 @@
 #if BUILDFLAG(IS_ANDROID)
 #include "chrome/android/chrome_jni_headers/DevToolsActivity_jni.h"
 #else
-#include "chrome/browser/devtools/devtools_policy_dialog.h"
 #include "chrome/browser/devtools/devtools_ui_controller.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_tabstrip.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"  // nogncheck crbug.com/40147906
 #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"  // nogncheck crbug.com/40147906
-#include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/web_modal/browser_window_modal_dialog_delegate.h"  // nogncheck crbug.com/40147906
 #include "components/keep_alive_registry/keep_alive_types.h"
 #include "components/keep_alive_registry/scoped_keep_alive.h"
@@ -519,7 +514,9 @@ DevToolsWindow::~DevToolsWindow() {
   UpdateBrowserWindow();
   UpdateBrowserToolbar();
 
-  RemoveSharingInfoBar();
+  if (sharing_infobar_) {
+    sharing_infobar_->RemoveSelf();
+  }
 
   capture_handle_.RunAndReset();
   owned_toolbox_web_contents_.reset();
@@ -1279,11 +1276,6 @@ DevToolsWindow::DevToolsWindow(
   // so that it shows up in the task manager.
   task_manager::WebContentsTags::CreateForDevToolsContents(main_web_contents_);
 
-#if BUILDFLAG(IS_MAC)
-  history_swiper::HistorySwipingControl::CreateForWebContents(
-      main_web_contents_, base::BindRepeating([] { return false; }));
-#endif
-
   std::vector<base::RepeatingCallback<void(DevToolsWindow*)>> copy(
       GetCreationCallbacks());
   for (const auto& callback : copy) {
@@ -1331,8 +1323,9 @@ void DevToolsWindow::OnPolicyUpdated(const policy::PolicyNamespace& ns,
   OnDevToolsPolicyChanged();
 }
 
-namespace {
-bool IsDevToolsAllowedForProfile(Profile* profile) {
+// static
+bool DevToolsWindow::AllowDevToolsFor(Profile* profile,
+                                      content::WebContents* web_contents) {
   // Don't allow DevTools UI in kiosk mode, because the DevTools UI would be
   // broken there. See https://crbug.com/41191065 for context.
   if (base::CommandLine::ForCurrentProcess()->HasSwitch(switches::kKioskMode)) {
@@ -1348,22 +1341,7 @@ bool IsDevToolsAllowedForProfile(Profile* profile) {
     return false;
   }
 
-  return true;
-}
-}  // namespace
-
-// static
-bool DevToolsWindow::AllowDevToolsFor(Profile* profile,
-                                      content::WebContents* web_contents) {
-  return IsDevToolsAllowedForProfile(profile) &&
-         IsInspectionAllowed(profile, web_contents);
-}
-
-// static
-bool DevToolsWindow::AllowDevToolsFor(Profile* profile,
-                                      content::DevToolsAgentHost* agent_host) {
-  return IsDevToolsAllowedForProfile(profile) &&
-         IsInspectionAllowed(profile, agent_host);
+  return IsInspectionAllowed(profile, web_contents);
 }
 
 // static
@@ -1629,11 +1607,6 @@ void DevToolsWindow::WebContentsCreated(
     task_manager::WebContentsTags::CreateForDevToolsContents(
         toolbox_web_contents_);
 
-#if BUILDFLAG(IS_MAC)
-    history_swiper::HistorySwipingControl::CreateForWebContents(
-        toolbox_web_contents_, base::BindRepeating([] { return false; }));
-#endif
-
     // The toolbox holds a placeholder for the inspected WebContents. When the
     // placeholder is resized, a frame is requested. The inspected WebContents
     // is resized when the frame is rendered. Force rendering of the toolbox at
@@ -1718,17 +1691,7 @@ void DevToolsWindow::ActivateWindow() {
 }
 
 void DevToolsWindow::CloseWindow() {
-  if (is_docked_) {
-    Close(DevToolsClosedByAction::kCloseButton);
-  } else {
-#if BUILDFLAG(IS_ANDROID)
-    main_web_contents_->Close();
-#else
-    if (browser_) {
-      browser_->GetWindow()->Close();
-    }
-#endif  // BUILDFLAG(IS_ANDROID)
-  }
+  Close(DevToolsClosedByAction::kCloseButton);
 }
 
 void DevToolsWindow::Close(DevToolsClosedByAction closed_by) {
@@ -1738,7 +1701,7 @@ void DevToolsWindow::Close(DevToolsClosedByAction closed_by) {
   closed_by_ = closed_by;
 
   if (sharing_infobar_) {
-    RemoveSharingInfoBar();
+    sharing_infobar_->RemoveSelf();
     checked_sharing_process_id_ = content::ChildProcessHost::kInvalidUniqueID;
   }
 }
@@ -2083,12 +2046,12 @@ void DevToolsWindow::CreateDevToolsBrowser() {
 #if BUILDFLAG(IS_ANDROID)
   NOTIMPLEMENTED();
 #else
-  if (GetBrowserWindowCreationStatusForProfile(*profile_) !=
-      BrowserWindowInterface::CreationStatus::kOk) {
+  if (Browser::GetCreationStatusForProfile(profile_) !=
+      Browser::CreationStatus::kOk) {
     return;
   }
-  browser_ = CreateBrowserWindow(
-      BrowserWindowCreateParams::CreateForDevTools(profile_));
+  browser_ =
+      Browser::Create(Browser::CreateParams::CreateForDevTools(profile_));
   browser_->GetTabStripModel()->AddWebContents(
       OwnedMainWebContents::TakeWebContents(
           std::move(owned_main_web_contents_)),
@@ -2218,52 +2181,21 @@ void DevToolsWindow::MaybeShowSharedProcessInfobar() {
           });
 
   // Dismiss old infobar.
-  RemoveSharingInfoBar();
+  if (sharing_infobar_) {
+    sharing_infobar_->RemoveSelf();
+  }
 
   if (primary_main_frame_count > 1) {
 #if !BUILDFLAG(IS_ANDROID)
-    tabs::TabInterface* tab = nullptr;
-    auto* browser_infobar_manager =
-        infobars::BrowserInfoBarManager::From(g_browser_process);
-    if (browser_infobar_manager &&
-        infobars::IsInfoBarMigrated(
-            infobars::InfoBarDelegate::DEV_TOOLS_SHARED_PROCESS_DELEGATE)) {
-      tab = tabs::TabInterface::MaybeGetFromContents(
-          is_docked_ ? inspected_web_contents : main_web_contents_.get());
-    }
-
-    if (tab) {
-      RegisterProcessSharingInfoBarSpec(*browser_infobar_manager);
-      sharing_infobar_ = browser_infobar_manager->Show(
-          tab, infobars::InfoBarDelegate::DEV_TOOLS_SHARED_PROCESS_DELEGATE);
-    } else {
-      sharing_infobar_ = GetInfoBarManager()->AddInfoBar(
-          CreateConfirmInfoBar(std::make_unique<ProcessSharingInfobarDelegate>(
-              inspected_web_contents)));
-    }
-    GetInfoBarManager()->AddObserver(this);
+    auto* info_bar_manager = GetInfoBarManager();
+    sharing_infobar_ = info_bar_manager->AddInfoBar(
+        CreateConfirmInfoBar(std::make_unique<ProcessSharingInfobarDelegate>(
+            inspected_web_contents)));
+    info_bar_manager->AddObserver(this);
 #else
     NOTIMPLEMENTED();
 #endif
   }
-}
-
-void DevToolsWindow::RemoveSharingInfoBar() {
-#if !BUILDFLAG(IS_ANDROID)
-  if (!sharing_infobar_) {
-    return;
-  }
-
-  auto* browser_infobar_manager =
-      infobars::BrowserInfoBarManager::From(g_browser_process);
-  if (browser_infobar_manager &&
-      infobars::IsInfoBarMigrated(
-          infobars::InfoBarDelegate::DEV_TOOLS_SHARED_PROCESS_DELEGATE)) {
-    browser_infobar_manager->Hide(sharing_infobar_.get());
-  } else {
-    sharing_infobar_->RemoveSelf();
-  }
-#endif
 }
 
 #if !BUILDFLAG(IS_ANDROID)
@@ -2295,7 +2227,7 @@ void DevToolsWindow::DidFinishNavigation(
     return;
   }
   if (!AllowDevToolsFor(profile_, web_contents())) {
-    CloseWindow();
+    main_web_contents_->ClosePage();
   }
 }
 

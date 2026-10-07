@@ -1,2 +1,4 @@
-rules:
-- background-color-*: [background-color]
+features:
+- name: background-color
+  files:
+  - background-color-*

@@ -66,16 +66,11 @@ CallStackProfileBuilder::CallStackProfileBuilder(
   // vector reallocations during collection.
   sample_timestamps_.reserve(
       base::StackSamplingProfiler::SamplingParams{}.samples_per_profile);
-  sampled_profile_.mutable_call_stack_profile()
-      ->mutable_stack_sample()
-      ->Reserve(
-          base::StackSamplingProfiler::SamplingParams{}.samples_per_profile);
   sampled_profile_.set_process(
       ToExecutionContextProcess(profile_params.process));
   sampled_profile_.set_thread(ToExecutionContextThread(profile_params.thread));
   sampled_profile_.set_trigger_event(
       ToSampledProfileTriggerEvent(profile_params.trigger));
-
   if (!profile_params.time_offset.is_zero()) {
     DCHECK(profile_params.time_offset.is_positive());
     CallStackProfile* call_stack_profile =
@@ -156,15 +151,14 @@ void CallStackProfileBuilder::AddProfileMetadata(
 void CallStackProfileBuilder::OnSampleCompleted(
     std::vector<base::Frame> frames,
     base::TimeTicks sample_timestamp) {
-  OnSampleCompleted(std::move(frames), sample_timestamp, 1, 1, std::nullopt);
+  OnSampleCompleted(std::move(frames), sample_timestamp, 1, 1);
 }
 
 void CallStackProfileBuilder::OnSampleCompleted(
     std::vector<base::Frame> frames,
     base::TimeTicks sample_timestamp,
     size_t weight,
-    size_t count,
-    std::optional<size_t> resident_bytes) {
+    size_t count) {
   // Write CallStackProfile::Stack protobuf message.
   CallStackProfile::Stack stack;
 
@@ -237,17 +231,6 @@ void CallStackProfileBuilder::OnSampleCompleted(
 
   *stack_sample_proto->mutable_metadata() = metadata_.CreateSampleMetadata(
       call_stack_profile->mutable_metadata_name_hash());
-
-  if (resident_bytes.has_value()) {
-    // Initialize on first call since HashMetricName isn't constexpr.
-    static const uint64_t kResidentBytesHash =
-        base::HashMetricName("resident_bytes");
-    metadata_.SetMetadata(base::MetadataRecorder::Item(
-                              kResidentBytesHash, std::nullopt, std::nullopt,
-                              static_cast<int64_t>(*resident_bytes)),
-                          stack_sample_proto->mutable_metadata()->Add(),
-                          call_stack_profile->mutable_metadata_name_hash());
-  }
 
   if (profile_start_time_.is_null())
     profile_start_time_ = sample_timestamp;

@@ -208,9 +208,6 @@ ContextualSearchboxHandlerTestHarness::GetTestingFactories() const {
                 /*template_url_service=*/nullptr,
                 /*variations_client=*/nullptr, version_info::Channel::UNKNOWN,
                 "en-US",
-                /*tab_validator=*/nullptr,
-                base::BindRepeating(
-                    [](std::optional<size_t>,
-                       base::OnceCallback<void(std::vector<std::string>)>) {}));
+                /*tab_validator=*/nullptr);
           })}};
 }

@@ -15,7 +15,6 @@
 #include <vector>
 
 #include "base/functional/callback.h"
-#include "base/memory/scoped_refptr.h"
 #include "base/task/thread_pool/thread_pool_instance.h"
 #include "ios/web/common/user_agent.h"
 #include "mojo/public/cpp/bindings/generic_pending_receiver.h"
@@ -127,8 +126,7 @@ class WebClient {
       ui::ResourceScaleFactor scale_factor) const;
 
   // Returns the raw bytes of a scale independent data resource.
-  virtual scoped_refptr<base::RefCountedMemory> GetDataResourceBytes(
-      int resource_id) const;
+  virtual base::RefCountedMemory* GetDataResourceBytes(int resource_id) const;
 
   // Returns a list of additional WebUI schemes, if any. These additional
   // schemes act as aliases to the about: scheme. The additional schemes may or

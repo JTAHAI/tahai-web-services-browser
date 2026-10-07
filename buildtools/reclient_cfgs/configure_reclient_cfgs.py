@@ -30,12 +30,9 @@ AUTO_AUTH_FLAGS = """
 # Googler auth flags
 credentials_helper={credshelper}
 credentials_helper_args={args}
-""".format(
-    credshelper=os.path.join(
-        CHROMIUM_SRC, "buildtools", "reclient", "credshelper"
-    ),
-    args="--auth_source=automaticAuth --gcert_refresh_timeout=20",
-)
+""".format(credshelper=os.path.join(CHROMIUM_SRC, "buildtools", "reclient",
+                                    "credshelper"),
+           args="--auth_source=automaticAuth --gcert_refresh_timeout=20")
 
 ADC_AUTH_FLAGS = """
 # ADC auth flags
@@ -46,34 +43,28 @@ GCLOUD_AUTH_FLAGS = """
 use_external_auth_token=true
 credentials_helper={credshelper}
 credentials_helper_args={args}
-""".format(
-    credshelper=os.path.join(
-        CHROMIUM_SRC, "buildtools", "reclient", "credshelper"
-    ),
-    args="--auth_source=gcloud",
-)
+""".format(credshelper=os.path.join(CHROMIUM_SRC, "buildtools", "reclient",
+                                    "credshelper"),
+           args="--auth_source=gcloud")
 
 LUCI_AUTH_CREDSHELPER_FLAGS = """
 credentials_helper={credshelper}
 credentials_helper_args={args}
 """.format(
     credshelper=os.path.join("luci-auth"),
-    args=" ".join(
-        [
-            "token",
-            "-scopes-context",
-            "-json-output=-",
-            "-json-format=reclient",
-            "-lifetime=5m",
-        ]
-    ),
+    args=" ".join([
+        "token",
+        "-scopes-context",
+        "-json-output=-",
+        "-json-format=reclient",
+        "-lifetime=5m",
+    ]),
 )
 
 
 def ClangRevision():
     sys.path.insert(0, os.path.join(CHROMIUM_SRC, "tools", "clang", "scripts"))
     import update
-
     sys.path.pop(0)
     return update.PACKAGE_VERSION
 
@@ -95,17 +86,10 @@ $ParanoidMode CheckIntegrity
 """.format(pkg=pkg_name, ref=ref)
     try:
         output = subprocess.check_output(
-            " ".join(
-                [
-                    "cipd",
-                    "ensure",
-                    "-log-level=" + log_level,
-                    "-root",
-                    directory,
-                    "-ensure-file",
-                    "-",
-                ]
-            ),
+            " ".join([
+                "cipd", "ensure", "-log-level=" + log_level, "-root",
+                directory, "-ensure-file", "-"
+            ]),
             shell=True,
             input=ensure_file,
             stderr=subprocess.STDOUT,
@@ -121,16 +105,13 @@ $ParanoidMode CheckIntegrity
 def IsCipdLoggedIn():
     ps = subprocess.run(
         ' '.join(['cipd', 'auth-info']),
-        shell=True,
-        capture_output=True,
-        text=True,
-    )
+        shell=True, capture_output=True, text=True)
     logging.warning(
-        "log for http://b/304677840: stdout from cipd auth-info: %s", ps.stdout
-    )
+        "log for http://b/304677840: stdout from cipd auth-info: %s",
+        ps.stdout)
     logging.warning(
-        "log for http://b/304677840: stderr from cipd auth-info: %s", ps.stderr
-    )
+        "log for http://b/304677840: stderr from cipd auth-info: %s",
+        ps.stderr)
     return ps.returncode == 0
 
 
@@ -141,12 +122,10 @@ def RbeProjectFromInstance(instance):
     return m.group(1)
 
 
-def GenerateReproxyCfg(
-    reproxy_cfg_template, rbe_instance, rbe_project, use_luci_auth
-):
-    tmpl_path = os.path.join(
-        THIS_DIR, "reproxy_cfg_templates", reproxy_cfg_template
-    )
+def GenerateReproxyCfg(reproxy_cfg_template, rbe_instance, rbe_project,
+                       use_luci_auth):
+    tmpl_path = os.path.join(THIS_DIR, "reproxy_cfg_templates",
+                             reproxy_cfg_template)
     logging.info(f"generate reproxy.cfg using {tmpl_path}")
     if not os.path.isfile(tmpl_path):
         logging.warning(f"{tmpl_path} does not exist")
@@ -154,8 +133,7 @@ def GenerateReproxyCfg(
     with open(tmpl_path) as f:
         reproxy_cfg_tmpl = string.Template(REPROXY_CFG_HEADER + f.read())
     depsscanner_address = "exec://" + os.path.join(
-        CHROMIUM_SRC, "buildtools", "reclient", "scandeps_server"
-    )
+        CHROMIUM_SRC, "buildtools", "reclient", "scandeps_server")
     auth_flags = AUTO_AUTH_FLAGS
     if sys.platform.startswith("win"):
         depsscanner_address += ".exe"
@@ -165,15 +143,13 @@ def GenerateReproxyCfg(
     if use_luci_auth:
         auth_flags = LUCI_AUTH_CREDSHELPER_FLAGS
 
-    reproxy_cfg = reproxy_cfg_tmpl.substitute(
-        {
-            "rbe_instance": rbe_instance,
-            "rbe_project": rbe_project,
-            "reproxy_cfg_template": reproxy_cfg_template,
-            "depsscanner_address": depsscanner_address,
-            "auth_flags": auth_flags,
-        }
-    )
+    reproxy_cfg = reproxy_cfg_tmpl.substitute({
+        "rbe_instance": rbe_instance,
+        "rbe_project": rbe_project,
+        "reproxy_cfg_template": reproxy_cfg_template,
+        "depsscanner_address": depsscanner_address,
+        "auth_flags": auth_flags,
+    })
     with open(REPROXY_CFG_PATH, "w") as f:
         f.write(reproxy_cfg)
     return True
@@ -251,14 +227,13 @@ def main():
         help="use luci_auth in credshelper mode for authentication",
         action="store_true",
     )
-    parser.add_argument(
-        "--quiet", help="Suppresses info logs", action="store_true"
-    )
-    parser.add_argument(
-        "--get-rbe-instance",
-        help="Print the currently configured rbe instance to stdout",
-        action="store_true",
-    )
+    parser.add_argument("--quiet",
+                        help="Suppresses info logs",
+                        action="store_true")
+    parser.add_argument("--get-rbe-instance",
+                        help="Print the currently configured rbe instance to "
+                        "stdout",
+                        action="store_true")
 
     args = parser.parse_args()
 
@@ -267,15 +242,12 @@ def main():
         format="%(message)s",
     )
 
-    if (
-        not args.rewrapper_cfg_project
-        and not args.rbe_instance
-        and not args.get_rbe_instance
-    ):
+    if not args.rewrapper_cfg_project and \
+       not args.rbe_instance and \
+       not args.get_rbe_instance:
         logging.error(
             "At least one of --rbe_instance, --rewrapper_cfg_project or "
-            "--get-rbe-instance must be provided"
-        )
+            "--get-rbe-instance must be provided")
         return 1
 
     if args.get_rbe_instance:
@@ -294,15 +266,10 @@ def main():
     if args.reproxy_cfg_template:
         if not args.rbe_instance:
             logging.error(
-                "--rbe_instance is required if --reproxy_cfg_template is set"
-            )
+                "--rbe_instance is required if --reproxy_cfg_template is set")
             return 1
-        if not GenerateReproxyCfg(
-            args.reproxy_cfg_template,
-            args.rbe_instance,
-            rbe_project,
-            args.use_luci_auth_credshelper,
-        ):
+        if not GenerateReproxyCfg(args.reproxy_cfg_template, args.rbe_instance,
+                                  rbe_project, args.use_luci_auth_credshelper):
             return 1
 
     if args.skip_remoteexec_cfg_fetch:
@@ -356,8 +323,7 @@ def main():
             # copy in win-cross/toolchain
             # as windows may not use symlinks.
             for cfg in glob.glob(
-                os.path.join(toolchain_root, win_cross_cfg_dir, "*.cfg")
-            ):
+                    os.path.join(toolchain_root, win_cross_cfg_dir, "*.cfg")):
                 fname = os.path.join(wcedir, os.path.basename(cfg))
                 if os.path.exists(fname):
                     os.chmod(fname, 0o777)

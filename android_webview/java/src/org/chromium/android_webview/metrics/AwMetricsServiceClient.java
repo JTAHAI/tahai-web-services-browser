@@ -79,7 +79,6 @@ public class AwMetricsServiceClient {
     }
 
     @CalledByNative
-    @JniType("std::string")
     private static String getAppPackageName() {
         // Return this unconditionally; let native code enforce whether or not it's OK to include
         // this in the logs.
@@ -122,7 +121,6 @@ public class AwMetricsServiceClient {
 
         void setUploadIntervalForTesting(long uploadIntervalMs);
 
-        void setOnFinalMetricsCollectedListenerForTesting(
-                @JniType("base::RepeatingClosure") Runnable listener);
+        void setOnFinalMetricsCollectedListenerForTesting(Runnable listener);
     }
 }

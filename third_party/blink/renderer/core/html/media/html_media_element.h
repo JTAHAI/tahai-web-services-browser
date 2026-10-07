@@ -32,7 +32,6 @@
 #include <optional>
 #include <variant>
 
-#include "base/memory/raw_ptr.h"
 #include "base/synchronization/lock.h"
 #include "base/thread_annotations.h"
 #include "base/time/time.h"
@@ -202,6 +201,9 @@ class CORE_EXPORT HTMLMediaElement
       std::variant<MediaStreamDescriptor*, MediaSourceHandle*>;
   void SetSrcObjectVariant(SrcObjectVariant src_object_variant);
   SrcObjectVariant GetSrcObjectVariant() const;
+  bool HasSrcObject() const {
+    return src_object_stream_descriptor_ || src_object_media_source_handle_;
+  }
 
   enum NetworkState {
     kNetworkEmpty,
@@ -357,9 +359,6 @@ class CORE_EXPORT HTMLMediaElement
   // Notifies the media element that the media controls became visible, so
   // that text track layout may be updated to avoid overlapping them.
   void MediaControlsDidBecomeVisible();
-  // Notifies the media element that the media controls became hidden, so
-  // that text track layout may be updated to reclaim the freed space.
-  void MediaControlsDidBecomeHidden();
 
   void SourceWasRemoved(HTMLSourceElement*);
   void SourceWasAdded(HTMLSourceElement*);
@@ -902,8 +901,7 @@ class CORE_EXPORT HTMLMediaElement
   LazyMediaLoadState lazy_media_load_state_ = LazyMediaLoadState::kNone;
 
   std::unique_ptr<WebMediaPlayer> web_media_player_;
-  raw_ptr<cc::Layer, UnprotectedInRelease | DanglingUntriaged> cc_layer_ =
-      nullptr;
+  cc::Layer* cc_layer_ = nullptr;
 
   // These two fields must be carefully set and reset: the actual derived type
   // of the attachment (same-thread vs cross-thread, for instance) must be the
@@ -1091,8 +1089,7 @@ class CORE_EXPORT HTMLMediaElement
 
   Member<AutoplayPolicy> autoplay_policy_;
 
-  raw_ptr<RemotePlaybackClient, UnprotectedInRelease | DanglingUntriaged>
-      remote_playback_client_ = nullptr;
+  RemotePlaybackClient* remote_playback_client_ = nullptr;
 
   Member<MediaControls> media_controls_;
   Member<HTMLMediaElementControlsList> controls_list_;

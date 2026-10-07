@@ -18,12 +18,10 @@ import org.chromium.build.annotations.Nullable;
 public interface PrintManagerDelegate {
 
     /**
-     * Same as {@link android.print.PrintManager#print}, except this doesn't return a {@link
-     * android.print.PrintJob} since the clients don't need it.
-     *
-     * @return true if the print job was successfully initiated, false otherwise.
+     * Same as {@link android.print.PrintManager#print}, except this doesn't return a
+     * {@link android.print.PrintJob} since the clients don't need it.
      */
-    boolean print(
+    void print(
             String printJobName,
             PrintDocumentAdapter documentAdapter,
             @Nullable PrintAttributes attributes);

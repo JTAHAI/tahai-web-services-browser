@@ -20,7 +20,6 @@ import android.view.View;
 import android.view.View.OnClickListener;
 import android.view.ViewGroup;
 import android.widget.FrameLayout;
-import android.widget.ImageView;
 import android.widget.TextView;
 
 import androidx.appcompat.content.res.AppCompatResources;
@@ -46,6 +45,7 @@ import org.chromium.ui.modelutil.PropertyModel;
 import org.chromium.ui.modelutil.PropertyModelChangeProcessor;
 import org.chromium.ui.test.util.BlankUiTestActivity;
 import org.chromium.ui.widget.ButtonCompat;
+import org.chromium.ui.widget.ChromeImageView;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -84,12 +84,12 @@ public class LargeMessageCardViewBinderTest {
     private final OnClickListener mSecondaryActionButtonClickListener =
             view -> mSecondaryActionButtonClicked.set(true);
 
-    private ImageView mIcon;
+    private ChromeImageView mIcon;
     private TextView mTitle;
     private TextView mDescription;
     private ButtonCompat mActionButton;
     private ButtonCompat mSecondaryActionButton;
-    private ImageView mCloseButton;
+    private ChromeImageView mCloseButton;
     private PriceCardView mPriceInfoBox;
     private LargeMessageCardView mItemView;
     private PropertyModel mItemViewModel;

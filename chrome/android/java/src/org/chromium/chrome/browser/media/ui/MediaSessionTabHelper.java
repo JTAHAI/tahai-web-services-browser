@@ -16,6 +16,7 @@ import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.IntentHandler;
+import org.chromium.chrome.browser.tab.EmptyTabObserver;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.TabObserver;
 import org.chromium.components.browser_ui.media.MediaNotificationInfo;
@@ -39,7 +40,7 @@ public class MediaSessionTabHelper implements MediaSessionHelper.Delegate, UserD
 
     @VisibleForTesting
     final TabObserver mTabObserver =
-            new TabObserver() {
+            new EmptyTabObserver() {
                 @Override
                 public void onContentChanged(Tab tab) {
                     assert tab == mTab;
@@ -149,10 +150,5 @@ public class MediaSessionTabHelper implements MediaSessionHelper.Delegate, UserD
 
         MediaNotificationManager.activateAndroidMediaSession(
                 mTab.getId(), R.id.media_playback_notification);
-    }
-
-    @VisibleForTesting
-    public @Nullable MediaSessionHelper getMediaSessionHelperForTesting() {
-        return mMediaSessionHelper;
     }
 }

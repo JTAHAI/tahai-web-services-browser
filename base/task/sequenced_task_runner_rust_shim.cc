@@ -35,8 +35,4 @@ void Release(const SequencedTaskRunner& runner) {
   runner.Release();
 }
 
-bool RunsTasksInCurrentSequence(const SequencedTaskRunner& runner) {
-  return runner.RunsTasksInCurrentSequence();
-}
-
 }  // namespace base

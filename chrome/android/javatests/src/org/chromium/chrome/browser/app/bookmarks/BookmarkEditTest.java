@@ -37,10 +37,7 @@ import org.chromium.base.test.util.Criteria;
 import org.chromium.base.test.util.CriteriaHelper;
 import org.chromium.base.test.util.DisabledTest;
 import org.chromium.base.test.util.Feature;
-import org.chromium.base.test.util.HistogramWatcher;
 import org.chromium.base.test.util.RequiresRestart;
-import org.chromium.base.test.util.UserActionTester;
-import org.chromium.chrome.browser.bookmarks.BookmarkEditMetrics.BookmarkEditOutcome;
 import org.chromium.chrome.browser.bookmarks.BookmarkManagerOpenerImpl;
 import org.chromium.chrome.browser.bookmarks.BookmarkModel;
 import org.chromium.chrome.browser.bookmarks.BookmarkModelObserver;
@@ -158,12 +155,6 @@ public class BookmarkEditTest {
     @MediumTest
     @Feature({"Bookmark"})
     public void testEditTitleAndUrl() throws ExecutionException, TimeoutException {
-        var histogramWatcher =
-                HistogramWatcher.newBuilder()
-                        .expectIntRecord(
-                                "Bookmarks.Edit.BookmarkItem.Outcome", BookmarkEditOutcome.SAVED)
-                        .build();
-
         Assert.assertEquals(
                 "Incorrect title.",
                 TITLE_A,
@@ -180,8 +171,6 @@ public class BookmarkEditTest {
                     sBookmarkEditActivity.onStop();
                 });
 
-        histogramWatcher.assertExpected();
-
         BookmarkItem bookmarkItem = getBookmarkItem(sBookmarkId);
         Assert.assertEquals("Incorrect title after edit.", TITLE_B, bookmarkItem.getTitle());
         Assert.assertEquals("Incorrect url after edit.", URL_B, bookmarkItem.getUrl().getSpec());
@@ -191,13 +180,6 @@ public class BookmarkEditTest {
     @MediumTest
     @Feature({"Bookmark"})
     public void testEditEmptyInputRejected() throws ExecutionException, TimeoutException {
-        var histogramWatcher =
-                HistogramWatcher.newBuilder()
-                        .expectIntRecord(
-                                "Bookmarks.Edit.BookmarkItem.Outcome",
-                                BookmarkEditOutcome.DISMISSED)
-                        .build();
-
         Assert.assertEquals(
                 "Incorrect title.",
                 TITLE_A,
@@ -213,8 +195,6 @@ public class BookmarkEditTest {
                     sBookmarkEditActivity.getUrlEditText().getEditText().setText("");
                     sBookmarkEditActivity.onStop();
                 });
-
-        histogramWatcher.assertExpected();
 
         BookmarkItem bookmarkItem = getBookmarkItem(sBookmarkId);
         Assert.assertEquals("Incorrect title after edit.", TITLE_A, bookmarkItem.getTitle());
@@ -248,19 +228,12 @@ public class BookmarkEditTest {
     @Feature({"Bookmark"})
     @RequiresRestart("tests destruction of BookmarkEditActivity")
     public void testEditActivityDeleteButton() throws ExecutionException, TimeoutException {
-        var histogramWatcher =
-                HistogramWatcher.newBuilder()
-                        .expectIntRecord(
-                                "Bookmarks.Edit.BookmarkItem.Outcome", BookmarkEditOutcome.DELETED)
-                        .build();
-
         ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     sBookmarkEditActivity.onOptionsItemSelected(
                             sBookmarkEditActivity.getDeleteButton());
                 });
         sDestroyedCallback.waitForCallback(0);
-        histogramWatcher.assertExpected();
 
         BookmarkItem bookmarkItem = getBookmarkItem(sBookmarkId);
         Assert.assertNull("Bookmark item should have been deleted.", bookmarkItem);
@@ -334,7 +307,6 @@ public class BookmarkEditTest {
     @Feature({"Bookmark"})
     public void testEditFolderLocation()
             throws ExecutionException, TimeoutException, InterruptedException {
-        var userActionTester = new UserActionTester();
         addFolder(sMobileNode, 0, FOLDER_A);
         ThreadUtils.runOnUiThreadBlocking(
                 () -> sBookmarkEditActivity.getFolderSelectRowForTesting().performClick());
@@ -344,9 +316,6 @@ public class BookmarkEditTest {
                             ApplicationStatus.getLastTrackedFocusedActivity(),
                             IsInstanceOf.instanceOf(BookmarkFolderPickerActivity.class));
                 });
-        Assert.assertTrue(
-                userActionTester.getActions().contains("BookmarkEdit.FolderPickerOpened"));
-        userActionTester.tearDown();
 
         // This sleep allows the espresso events to actually go through. Without them, the test is
         // very flaky.

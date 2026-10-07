@@ -43,7 +43,9 @@
                              URL:(const GURL&)URL
              passkeyCredentialId:(NSString*)passkeyCredentialId;
 
-// Unavailable. Use designated initializer instead.
+// Unavailable. Please use
+// `initWithUsername:password:displayName:siteName:host:URL:
+// isBackupCredential:`.
 - (instancetype)initWithSiteName:(NSString*)siteName
                             host:(NSString*)host
                              URL:(const GURL&)URL NS_UNAVAILABLE;

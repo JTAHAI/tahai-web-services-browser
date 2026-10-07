@@ -18,7 +18,6 @@
 
 class TabCollectionNode;
 class TabGroupHeaderView;
-class TabGroupLineView;
 
 namespace tabs {
 class TabGroupDataObserver;
@@ -42,11 +41,8 @@ class TabGroupView : public views::View,
   ~TabGroupView() override;
 
   // views::View:
-  void AddedToWidget() override;
-  void RemovedFromWidget() override;
   void OnThemeChanged() override;
   void OnGestureEvent(ui::GestureEvent* event) override;
-  views::View::Views GetChildrenInZOrder() override;
 
   // TabGroupHeaderView::Delegate:
   void ToggleCollapsedState(ToggleTabGroupCollapsedStateOrigin origin) override;
@@ -65,8 +61,6 @@ class TabGroupView : public views::View,
   std::unique_ptr<ExpandOnHoverLock> AcquireExpandOnHoverLock() override;
   void ShiftGroupUp() override;
   void ShiftGroupDown() override;
-  bool IsGroupFocused() const override;
-  HorizontalTabClosingHelper* GetTabClosingHelper() const override;
 
   // TabCollectionAnimatingLayoutManager::Delegate:
   bool IsDragging() const override;
@@ -74,8 +68,6 @@ class TabGroupView : public views::View,
   bool ShouldAnimateOpacityForAddAndRemove(
       const views::View& child_view) const override;
   bool ShouldSnapToTarget(const views::View& child_view) const override;
-  std::optional<views::SizeBound> GetAvailableMainAxisSpaceOverride()
-      const override;
   void OnAnimationEnded() override;
 
   bool IsCollapsed() const;
@@ -84,26 +76,9 @@ class TabGroupView : public views::View,
       const gfx::Point& point_in_local_coords);
 
   const TabCollectionNode* collection_node() const { return collection_node_; }
-  TabStripOrientation orientation() const { return orientation_; }
-  const tab_groups::TabGroupVisualData& tab_group_visual_data() const {
-    return tab_group_visual_data_;
-  }
 
   TabGroupHeaderView* group_header() { return group_header_; }
   const TabGroupHeaderView* group_header() const { return group_header_; }
-
-  TabGroupLineView* group_line() { return group_line_; }
-  const TabGroupLineView* group_line() const { return group_line_; }
-
-  // Sets the main-axis space allocated for this group during unpinned tab
-  // container layout passes.
-  void SetAvailableSpace(views::SizeBound space);
-  views::SizeBound available_space() const { return available_space_; }
-
-  // Returns the minimum width for the group in horizontal orientation where all
-  // child tabs have the same size. Below this width, an active tab has a larger
-  // size than inactive tabs before the container scrolls.
-  int GetCrossoverWidth() const;
 
  private:
   friend class TabGroupViewLayout;
@@ -120,34 +95,22 @@ class TabGroupView : public views::View,
                        const gfx::Rect& previous_bounds_in_screen);
   std::unique_ptr<views::View> DetachChildView(views::View* child_view);
 
-  bool is_collapsed() const { return is_collapsed_; }
-
-  void SetIsCollapsed(bool is_collapsed);
-
   void ResetCollectionNode();
   void OnDataChanged();
   void UpdateChildVisibilityForCollapseState(bool collapsed);
 
-  TabStripOrientation orientation_ = TabStripOrientation::kHorizontal;
   raw_ptr<TabCollectionNode> collection_node_ = nullptr;
+
+  base::CallbackListSubscription node_destroyed_subscription_;
+
   tab_groups::TabGroupVisualData tab_group_visual_data_;
   const raw_ptr<TabGroupHeaderView> group_header_ = nullptr;
-  const raw_ptr<TabGroupLineView> group_line_ = nullptr;
-
-  // The available main-axis space allocated by the parent unpinned container.
-  views::SizeBound available_space_;
-
-  // Tracked separately for layout purposes so child/underline visibility
-  // updates occur only when collapse/expand animations complete, rather than
-  // reacting immediately to visual data updates during animation.
-  bool is_collapsed_ = false;
+  const raw_ptr<views::View> group_line_ = nullptr;
 
   const raw_ref<TabCollectionAnimatingLayoutManager> layout_manager_;
 
   std::unique_ptr<tabs::TabGroupDataObserver> tab_group_data_observer_;
   base::CallbackListSubscription tab_group_data_changed_subscription_;
-  base::CallbackListSubscription node_destroyed_subscription_;
-  base::CallbackListSubscription paint_as_active_subscription_;
 };
 
 #endif  // CHROME_BROWSER_UI_VIEWS_TABS_COMMON_TAB_GROUP_VIEW_H_

@@ -114,6 +114,7 @@ class PasswordGenerationPopupViewBrowsertest
   PasswordGenerationPopupViewViews* CreateView(
       MockPasswordGenerationPopupController& controller) override {
     return new PasswordGenerationPopupViewViews(
+        views::Widget::InitParams::Activatable::kDefault,
         controller.GetWeakPtr(),
         views::Widget::GetWidgetForNativeWindow(
             browser()->GetWindow()->GetNativeWindow()));

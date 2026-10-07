@@ -8,7 +8,6 @@
 #include <utility>
 
 #include "base/memory/ptr_util.h"
-#include "base/memory/raw_ref.h"
 #include "base/memory/values_equivalent.h"
 #include "third_party/blink/renderer/core/animation/basic_shape_interpolation_functions.h"
 #include "third_party/blink/renderer/core/animation/shape_property_functions.h"
@@ -83,11 +82,10 @@ class InheritedShapeChecker
                const InterpolationValue&) const final {
     return base::ValuesEquivalent(
         inherited_shape_.Get(),
-        GetBasicShapeInfo(*property_, *state.ParentStyle()).shape);
+        GetBasicShapeInfo(property_, *state.ParentStyle()).shape);
   }
 
-  const raw_ref<const CSSProperty, UnprotectedInRelease | DanglingUntriaged>
-      property_;
+  const CSSProperty& property_;
   Member<const BasicShape> inherited_shape_;
 };
 
@@ -179,11 +177,14 @@ void CSSBasicShapeInterpolationType::ApplyStandardPropertyValue(
     const NonInterpolableValue* non_interpolable_value,
     StyleResolverState& state) const {
   CHECK(non_interpolable_value);
-  BasicShapeInfo info = basic_shape_interpolation_functions::CreateBasicShape(
+  BasicShape* shape = basic_shape_interpolation_functions::CreateBasicShape(
       interpolable_value, *non_interpolable_value,
       state.CssToLengthConversionData());
-  shape_property_functions::SetBasicShape(CssProperty(), info,
-                                          state.StyleBuilder());
+  CHECK(shape);
+  shape_property_functions::SetBasicShape(
+      CssProperty(), *shape,
+      basic_shape_interpolation_functions::GetBox(*non_interpolable_value),
+      state.StyleBuilder());
 }
 
 }  // namespace blink

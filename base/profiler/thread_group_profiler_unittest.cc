@@ -6,27 +6,29 @@
 
 #include <map>
 #include <memory>
-#include <set>
-#include <utility>
-#include <vector>
 
 #include "base/functional/bind.h"
-#include "base/functional/callback_helpers.h"
+#include "base/functional/function_ref.h"
 #include "base/memory/ptr_util.h"
 #include "base/memory/raw_ptr.h"
-#include "base/numerics/safe_conversions.h"
 #include "base/profiler/periodic_sampling_scheduler.h"
 #include "base/profiler/stack_sampling_profiler.h"
 #include "base/profiler/stack_sampling_profiler_test_util.h"
 #include "base/profiler/thread_group_profiler_client.h"
+#include "base/task/thread_pool.h"
 #include "base/test/bind.h"
 #include "base/test/gtest_util.h"
 #include "base/test/task_environment.h"
 #include "base/threading/platform_thread.h"
+#include "base/threading/thread.h"
 #include "base/time/time.h"
 #include "testing/gmock/include/gmock/gmock.h"
 
 namespace base {
+
+namespace internal {
+class WorkerThread;
+}
 
 namespace {
 constexpr int kSamplesPerProfile = 20;
@@ -85,11 +87,6 @@ class MockThreadGroupProfilerClient : public ThreadGroupProfilerClient {
   StackSamplingProfiler::UnwindersFactory GetUnwindersFactory() override {
     return CreateCoreUnwindersFactoryForTesting(nullptr);
   }
-  std::unique_ptr<PeriodicSamplingScheduler> CreatePeriodicSamplingScheduler()
-      override {
-    return std::make_unique<MockPeriodicSamplingScheduler>(
-        kTimeToNextCollection);
-  }
 };
 
 class MockProfiler : public ThreadGroupProfiler::Profiler {
@@ -104,11 +101,13 @@ class MockProfiler : public ThreadGroupProfiler::Profiler {
         target_thread_id_(target_thread_id),
         sampling_params_(params),
         profile_builder_(std::move(profile_builder)) {
-    EXPECT_EQ(sampling_profilers_->count(target_thread_id_), 0u);
+    EXPECT_EQ(sampling_profilers_->count(target_thread_id_), 0);
     (*sampling_profilers_)[target_thread_id_] = this;
     ++*sampling_profilers_created_;
     EXPECT_CALL(*this, Start());
   }
+
+  ~MockProfiler() override { sampling_profilers_->erase(target_thread_id_); }
 
   // ThreadGroupProfiler::Profiler:
   MOCK_METHOD(void, Start, (), (override));
@@ -121,12 +120,7 @@ class MockProfiler : public ThreadGroupProfiler::Profiler {
     profile_builder_->OnProfileCompleted(TimeDelta(), TimeDelta());
   }
 
- protected:
-  ~MockProfiler() override { sampling_profilers_->erase(target_thread_id_); }
-
  private:
-  friend class RefCountedThreadSafe<MockProfiler>;
-
   raw_ref<std::map<PlatformThreadId, MockProfiler*>> sampling_profilers_;
   raw_ref<int> sampling_profilers_created_;
   PlatformThreadId target_thread_id_;
@@ -139,117 +133,87 @@ ThreadGroupProfiler::ProfilerFactory GetMockProfilerFactory(
     int& sampling_profilers_created) {
   return BindRepeating(BindLambdaForTesting(
       [&sampling_profilers, &sampling_profilers_created](
-          int64_t thread_group_type, SamplingProfilerThreadToken thread_token,
+          SamplingProfilerThreadToken thread_token,
           const StackSamplingProfiler::SamplingParams& params,
           std::unique_ptr<ProfileBuilder> profile_builder,
           StackSamplingProfiler::UnwindersFactory unwinder_factory)
-          -> scoped_refptr<ThreadGroupProfiler::Profiler> {
-        return MakeRefCounted<MockProfiler>(
+          -> std::unique_ptr<ThreadGroupProfiler::Profiler> {
+        return std::make_unique<MockProfiler>(
             sampling_profilers, sampling_profilers_created, thread_token.id,
             params, std::move(profile_builder));
       }));
 }
 
-class ThreadGroupProfilerTest : public testing::Test,
-                                public ThreadGroupProfiler::Delegate {
+class ThreadGroupProfilerTest : public testing::Test {
  public:
   void SetUp() override {
     ThreadGroupProfiler::SetClient(
         std::make_unique<MockThreadGroupProfilerClient>());
     profiler_ = std::make_unique<ThreadGroupProfiler>(
-        /*thread_group_type=*/0, this,
+        ThreadPool::CreateSequencedTaskRunner({MayBlock()}),
+        /*thread_group_type=*/0,
         std::make_unique<MockPeriodicSamplingScheduler>(kTimeToNextCollection),
         GetMockProfilerFactory(sampling_profilers_,
                                sampling_profilers_created_));
-    profiler_->Start(task_environment_->GetMainThreadTaskRunner());
   }
 
   void TearDown() override {
     task_environment_.reset();
-    active_collection_.reset();
-    profiler_.reset();
+    if (!shutdown_started_) {
+      profiler_->Shutdown();
+    }
     ThreadGroupProfiler::SetClient(nullptr);
   }
 
-  // ThreadGroupProfiler::Delegate:
-  void OnStartProfilingSession(
-      ThreadGroupProfiler::ActiveCollection active_collection) override {
-    active_collection_.emplace(std::move(active_collection));
-    std::vector<scoped_refptr<ThreadGroupProfiler::Profiler>>
-        profilers_to_start;
-    for (FakeWorkerThread* worker : active_workers_) {
-      if (auto profiler = active_collection_->MaybeAddWorkerThread(
-              worker->fake_pointer(),
-              SamplingProfilerThreadToken{worker->GetThreadId()})) {
-        profilers_to_start.push_back(std::move(profiler));
-      }
-    }
-    for (auto& profiler : profilers_to_start) {
-      profiler->Start();
-    }
-  }
-
-  void OnEndProfilingSession() override { active_collection_.reset(); }
-
  protected:
-  class FakeWorkerThread {
+  class FakeWorkerThread : public Thread {
    public:
-    FakeWorkerThread(ThreadGroupProfilerTest* test,
-                     PlatformThreadId thread_id,
-                     internal::WorkerThread* fake_pointer)
-        : test_(test), thread_id_(thread_id), fake_pointer_(fake_pointer) {}
-
-    ~FakeWorkerThread() {
-      if (test_) {
-        test_->UnregisterWorker(this);
-      }
+    FakeWorkerThread(internal::WorkerThread* fake_pointer,
+                     test::TaskEnvironment& task_environment)
+        : Thread("FakeWorkerThread"),
+          fake_pointer_(fake_pointer),
+          task_environment_(task_environment) {
+      Start();
     }
 
-    PlatformThreadId GetThreadId() const { return thread_id_; }
-    internal::WorkerThread* fake_pointer() const { return fake_pointer_; }
+    ~FakeWorkerThread() override { Stop(); }
 
-    void SetActive() { test_->SetWorkerActive(this); }
-    void SetIdle() { test_->SetWorkerIdle(this); }
-    void Exit() {
-      test_->UnregisterWorker(this);
-      test_ = nullptr;
+    void RunOnThread(FunctionRef<void(internal::WorkerThread*)> callable) {
+      // First, synchronously execute the callable on the Thread's task runner.
+      WaitableEvent callable_completed{
+          WaitableEvent::ResetPolicy::MANUAL,
+          WaitableEvent::InitialState::NOT_SIGNALED};
+
+      RunOnThreadAsync(callable, callable_completed);
+
+      callable_completed.Wait();
+
+      // Then, ensure any thread pool tasks that the profiler posted run to
+      // completion. The thread pool is configured to run tasks eagerly via
+      // ThreadPoolExecutionMode::ASYNC, so tasks may already be executing. This
+      // call ensures they finish.
+      task_environment_->RunUntilIdle();
+    }
+
+    void RunOnThreadAsync(FunctionRef<void(internal::WorkerThread*)> callable,
+                          WaitableEvent& callable_completed) {
+      task_runner()->PostTask(
+          FROM_HERE, BindLambdaForTesting([callable, &callable_completed,
+                                           fake_pointer = fake_pointer_] {
+            callable(fake_pointer);
+            callable_completed.Signal();
+          }));
     }
 
    private:
-    raw_ptr<ThreadGroupProfilerTest> test_;
-    PlatformThreadId const thread_id_;
     raw_ptr<internal::WorkerThread> const fake_pointer_;
+    raw_ref<test::TaskEnvironment> task_environment_;
   };
 
-  void StopProfilingSession() { active_collection_.reset(); }
-
   std::unique_ptr<FakeWorkerThread> CreateFakeWorkerThread() {
-    PlatformThreadId id = PlatformThreadId::ForTest(next_worker_thread_id_++);
-    auto* fake_pointer =
-        reinterpret_cast<internal::WorkerThread*>(static_cast<uint64_t>(id));
-    return std::make_unique<FakeWorkerThread>(this, id, fake_pointer);
-  }
-
-  void UnregisterWorker(FakeWorkerThread* worker) {
-    active_workers_.erase(worker);
-    if (active_collection_) {
-      active_collection_->RemoveWorkerThread(worker->fake_pointer());
-    }
-  }
-
-  void SetWorkerActive(FakeWorkerThread* worker) {
-    active_workers_.insert(worker);
-    if (active_collection_) {
-      if (auto profiler = active_collection_->MaybeAddWorkerThread(
-              worker->fake_pointer(),
-              SamplingProfilerThreadToken{worker->GetThreadId()})) {
-        profiler->Start();
-      }
-    }
-  }
-
-  void SetWorkerIdle(FakeWorkerThread* worker) {
-    active_workers_.erase(worker);
+    return std::make_unique<FakeWorkerThread>(
+        reinterpret_cast<internal::WorkerThread*>(next_worker_thread_id_++),
+        *task_environment_);
   }
 
   void InitiateNextCollection() {
@@ -286,14 +250,13 @@ class ThreadGroupProfilerTest : public testing::Test,
   std::optional<test::TaskEnvironment> task_environment_{
       std::in_place, test::TaskEnvironment::TimeSource::MOCK_TIME,
       test::TaskEnvironment::ThreadPoolExecutionMode::ASYNC};
-  std::set<FakeWorkerThread*> active_workers_;
-  std::optional<ThreadGroupProfiler::ActiveCollection> active_collection_;
   std::map<PlatformThreadId, MockProfiler*> sampling_profilers_;
   int sampling_profilers_created_ = 0;
   std::unique_ptr<ThreadGroupProfiler> profiler_;
   ModuleCache module_cache_;
   int next_worker_thread_id_ = 1;
   TimeDelta time_to_next_collection_ = kTimeToNextCollection;
+  bool shutdown_started_ = false;
 };
 
 TEST_F(ThreadGroupProfilerTest, Construction) {
@@ -304,7 +267,14 @@ TEST_F(ThreadGroupProfilerTest, CollectionInactive_WorkerInactiveLifecycle) {
   std::unique_ptr<FakeWorkerThread> worker = CreateFakeWorkerThread();
   EXPECT_TRUE(sampling_profilers_.empty());
 
-  worker->Exit();
+  worker->RunOnThread([this](internal::WorkerThread* worker_thread) {
+    profiler_->OnWorkerThreadStarted(worker_thread);
+  });
+  EXPECT_TRUE(sampling_profilers_.empty());
+
+  worker->RunOnThread([this](internal::WorkerThread* worker_thread) {
+    profiler_->OnWorkerThreadExiting(worker_thread);
+  });
   EXPECT_TRUE(sampling_profilers_.empty());
 }
 
@@ -312,16 +282,29 @@ TEST_F(ThreadGroupProfilerTest, CollectionInactive_WorkerActiveLifecycle) {
   std::unique_ptr<FakeWorkerThread> worker = CreateFakeWorkerThread();
   EXPECT_TRUE(sampling_profilers_.empty());
 
-  worker->SetActive();
+  worker->RunOnThread([this](internal::WorkerThread* worker_thread) {
+    profiler_->OnWorkerThreadStarted(worker_thread);
+  });
   EXPECT_TRUE(sampling_profilers_.empty());
 
-  worker->SetIdle();
+  worker->RunOnThread([this](internal::WorkerThread* worker_thread) {
+    profiler_->OnWorkerThreadActive(worker_thread);
+  });
   EXPECT_TRUE(sampling_profilers_.empty());
 
-  worker->SetActive();
+  worker->RunOnThread([this](internal::WorkerThread* worker_thread) {
+    profiler_->OnWorkerThreadIdle(worker_thread);
+  });
   EXPECT_TRUE(sampling_profilers_.empty());
 
-  worker->Exit();
+  worker->RunOnThread([this](internal::WorkerThread* worker_thread) {
+    profiler_->OnWorkerThreadActive(worker_thread);
+  });
+  EXPECT_TRUE(sampling_profilers_.empty());
+
+  worker->RunOnThread([this](internal::WorkerThread* worker_thread) {
+    profiler_->OnWorkerThreadExiting(worker_thread);
+  });
   EXPECT_TRUE(sampling_profilers_.empty());
 }
 
@@ -335,8 +318,19 @@ TEST_F(ThreadGroupProfilerTest, CollectionBecomesActive_NoWorkers) {
 TEST_F(ThreadGroupProfilerTest, CollectionBecomesActive_WorkerExited) {
   std::unique_ptr<FakeWorkerThread> worker = CreateFakeWorkerThread();
 
-  worker->SetActive();
-  worker->Exit();
+  worker->RunOnThread([this](internal::WorkerThread* worker_thread) {
+    profiler_->OnWorkerThreadStarted(worker_thread);
+  });
+  EXPECT_TRUE(sampling_profilers_.empty());
+
+  worker->RunOnThread([this](internal::WorkerThread* worker_thread) {
+    profiler_->OnWorkerThreadActive(worker_thread);
+  });
+  EXPECT_TRUE(sampling_profilers_.empty());
+
+  worker->RunOnThread([this](internal::WorkerThread* worker_thread) {
+    profiler_->OnWorkerThreadExiting(worker_thread);
+  });
   EXPECT_TRUE(sampling_profilers_.empty());
 
   InitiateNextCollection();
@@ -346,6 +340,11 @@ TEST_F(ThreadGroupProfilerTest, CollectionBecomesActive_WorkerExited) {
 TEST_F(ThreadGroupProfilerTest, CollectionBecomesActive_InactiveWorker) {
   std::unique_ptr<FakeWorkerThread> worker = CreateFakeWorkerThread();
 
+  worker->RunOnThread([this](internal::WorkerThread* worker_thread) {
+    profiler_->OnWorkerThreadStarted(worker_thread);
+  });
+  EXPECT_TRUE(sampling_profilers_.empty());
+
   InitiateNextCollection();
   EXPECT_TRUE(sampling_profilers_.empty());
 }
@@ -353,8 +352,19 @@ TEST_F(ThreadGroupProfilerTest, CollectionBecomesActive_InactiveWorker) {
 TEST_F(ThreadGroupProfilerTest, CollectionBecomesActive_NewlyInactiveWorker) {
   std::unique_ptr<FakeWorkerThread> worker = CreateFakeWorkerThread();
 
-  worker->SetActive();
-  worker->SetIdle();
+  worker->RunOnThread([this](internal::WorkerThread* worker_thread) {
+    profiler_->OnWorkerThreadStarted(worker_thread);
+  });
+  EXPECT_TRUE(sampling_profilers_.empty());
+
+  worker->RunOnThread([this](internal::WorkerThread* worker_thread) {
+    profiler_->OnWorkerThreadActive(worker_thread);
+  });
+  EXPECT_TRUE(sampling_profilers_.empty());
+
+  worker->RunOnThread([this](internal::WorkerThread* worker_thread) {
+    profiler_->OnWorkerThreadIdle(worker_thread);
+  });
   EXPECT_TRUE(sampling_profilers_.empty());
 
   InitiateNextCollection();
@@ -364,11 +374,18 @@ TEST_F(ThreadGroupProfilerTest, CollectionBecomesActive_NewlyInactiveWorker) {
 TEST_F(ThreadGroupProfilerTest, CollectionBecomesActive_ActiveWorker) {
   std::unique_ptr<FakeWorkerThread> worker = CreateFakeWorkerThread();
 
-  worker->SetActive();
+  worker->RunOnThread([this](internal::WorkerThread* worker_thread) {
+    profiler_->OnWorkerThreadStarted(worker_thread);
+  });
+  EXPECT_TRUE(sampling_profilers_.empty());
+
+  worker->RunOnThread([this](internal::WorkerThread* worker_thread) {
+    profiler_->OnWorkerThreadActive(worker_thread);
+  });
   EXPECT_TRUE(sampling_profilers_.empty());
 
   InitiateNextCollection();
-  EXPECT_EQ(sampling_profilers_.size(), 1u);
+  EXPECT_EQ(sampling_profilers_.size(), 1);
   ASSERT_TRUE(sampling_profilers_.find(worker->GetThreadId()) !=
               sampling_profilers_.end());
   MockProfiler* const sampling_profiler =
@@ -382,13 +399,28 @@ TEST_F(ThreadGroupProfilerTest, CollectionBecomesActive_ActiveWorker) {
 TEST_F(ThreadGroupProfilerTest, CollectionBecomesActive_ReactivatedWorker) {
   std::unique_ptr<FakeWorkerThread> worker = CreateFakeWorkerThread();
 
-  worker->SetActive();
-  worker->SetIdle();
-  worker->SetActive();
+  worker->RunOnThread([this](internal::WorkerThread* worker_thread) {
+    profiler_->OnWorkerThreadStarted(worker_thread);
+  });
+  EXPECT_TRUE(sampling_profilers_.empty());
+
+  worker->RunOnThread([this](internal::WorkerThread* worker_thread) {
+    profiler_->OnWorkerThreadActive(worker_thread);
+  });
+  EXPECT_TRUE(sampling_profilers_.empty());
+
+  worker->RunOnThread([this](internal::WorkerThread* worker_thread) {
+    profiler_->OnWorkerThreadIdle(worker_thread);
+  });
+  EXPECT_TRUE(sampling_profilers_.empty());
+
+  worker->RunOnThread([this](internal::WorkerThread* worker_thread) {
+    profiler_->OnWorkerThreadActive(worker_thread);
+  });
   EXPECT_TRUE(sampling_profilers_.empty());
 
   InitiateNextCollection();
-  EXPECT_EQ(sampling_profilers_.size(), 1u);
+  EXPECT_EQ(sampling_profilers_.size(), 1);
   ASSERT_TRUE(sampling_profilers_.find(worker->GetThreadId()) !=
               sampling_profilers_.end());
   MockProfiler* const sampling_profiler =
@@ -400,24 +432,36 @@ TEST_F(ThreadGroupProfilerTest, CollectionBecomesActive_ReactivatedWorker) {
 }
 
 TEST_F(ThreadGroupProfilerTest, CollectionBecomesActive_MultipleWorkers) {
-  std::unique_ptr<FakeWorkerThread> worker1 = CreateFakeWorkerThread();
+  std::unique_ptr<FakeWorkerThread> worker = CreateFakeWorkerThread();
   std::unique_ptr<FakeWorkerThread> worker2 = CreateFakeWorkerThread();
 
-  worker1->SetActive();
-  worker2->SetActive();
+  worker->RunOnThread([this](internal::WorkerThread* worker_thread) {
+    profiler_->OnWorkerThreadStarted(worker_thread);
+  });
+  worker2->RunOnThread([this](internal::WorkerThread* worker_thread) {
+    profiler_->OnWorkerThreadStarted(worker_thread);
+  });
+  EXPECT_TRUE(sampling_profilers_.empty());
+
+  worker->RunOnThread([this](internal::WorkerThread* worker_thread) {
+    profiler_->OnWorkerThreadActive(worker_thread);
+  });
+  worker2->RunOnThread([this](internal::WorkerThread* worker_thread) {
+    profiler_->OnWorkerThreadActive(worker_thread);
+  });
   EXPECT_TRUE(sampling_profilers_.empty());
 
   InitiateNextCollection();
-  EXPECT_EQ(sampling_profilers_.size(), 2u);
-  ASSERT_TRUE(sampling_profilers_.find(worker1->GetThreadId()) !=
+  EXPECT_EQ(sampling_profilers_.size(), 2);
+  ASSERT_TRUE(sampling_profilers_.find(worker->GetThreadId()) !=
               sampling_profilers_.end());
   ASSERT_TRUE(sampling_profilers_.find(worker2->GetThreadId()) !=
               sampling_profilers_.end());
-  MockProfiler* const sampling_profiler1 =
-      sampling_profilers_[worker1->GetThreadId()];
-  EXPECT_EQ(sampling_profiler1->sampling_params().samples_per_profile,
+  MockProfiler* const sampling_profiler =
+      sampling_profilers_[worker->GetThreadId()];
+  EXPECT_EQ(sampling_profiler->sampling_params().samples_per_profile,
             kSamplesPerProfile);
-  EXPECT_EQ(sampling_profiler1->sampling_params().sampling_interval,
+  EXPECT_EQ(sampling_profiler->sampling_params().sampling_interval,
             kSamplingInterval);
   MockProfiler* const sampling_profiler2 =
       sampling_profilers_[worker2->GetThreadId()];
@@ -429,13 +473,20 @@ TEST_F(ThreadGroupProfilerTest, CollectionBecomesActive_MultipleWorkers) {
 
 TEST_F(ThreadGroupProfilerTest, CollectionBecomesActive_WorkerBecomesActive) {
   std::unique_ptr<FakeWorkerThread> worker = CreateFakeWorkerThread();
+
+  worker->RunOnThread([this](internal::WorkerThread* worker_thread) {
+    profiler_->OnWorkerThreadStarted(worker_thread);
+  });
   EXPECT_TRUE(sampling_profilers_.empty());
 
   InitiateNextCollection();
   EXPECT_TRUE(sampling_profilers_.empty());
 
-  worker->SetActive();
-  EXPECT_EQ(sampling_profilers_.size(), 1u);
+  worker->RunOnThread([this](internal::WorkerThread* worker_thread) {
+    profiler_->OnWorkerThreadActive(worker_thread);
+  });
+
+  EXPECT_EQ(sampling_profilers_.size(), 1);
   ASSERT_TRUE(sampling_profilers_.find(worker->GetThreadId()) !=
               sampling_profilers_.end());
   MockProfiler* const sampling_profiler =
@@ -452,7 +503,14 @@ TEST_F(ThreadGroupProfilerTest, CollectionActive_WorkerInactiveLifecycle) {
   InitiateNextCollection();
   EXPECT_TRUE(sampling_profilers_.empty());
 
-  worker->Exit();
+  worker->RunOnThread([this](internal::WorkerThread* worker_thread) {
+    profiler_->OnWorkerThreadStarted(worker_thread);
+  });
+  EXPECT_TRUE(sampling_profilers_.empty());
+
+  worker->RunOnThread([this](internal::WorkerThread* worker_thread) {
+    profiler_->OnWorkerThreadExiting(worker_thread);
+  });
   EXPECT_TRUE(sampling_profilers_.empty());
 }
 
@@ -462,8 +520,16 @@ TEST_F(ThreadGroupProfilerTest, CollectionActive_WorkerActiveStartsProfiling) {
   InitiateNextCollection();
   EXPECT_TRUE(sampling_profilers_.empty());
 
-  worker->SetActive();
-  EXPECT_EQ(sampling_profilers_.size(), 1u);
+  worker->RunOnThread([this](internal::WorkerThread* worker_thread) {
+    profiler_->OnWorkerThreadStarted(worker_thread);
+  });
+  EXPECT_TRUE(sampling_profilers_.empty());
+
+  worker->RunOnThread([this](internal::WorkerThread* worker_thread) {
+    profiler_->OnWorkerThreadActive(worker_thread);
+  });
+
+  EXPECT_EQ(sampling_profilers_.size(), 1);
   ASSERT_TRUE(sampling_profilers_.find(worker->GetThreadId()) !=
               sampling_profilers_.end());
   MockProfiler* const sampling_profiler =
@@ -481,14 +547,26 @@ TEST_F(ThreadGroupProfilerTest,
   InitiateNextCollection();
   EXPECT_TRUE(sampling_profilers_.empty());
 
-  worker->SetActive();
-  EXPECT_EQ(sampling_profilers_.size(), 1u);
+  worker->RunOnThread([this](internal::WorkerThread* worker_thread) {
+    profiler_->OnWorkerThreadStarted(worker_thread);
+  });
+  EXPECT_TRUE(sampling_profilers_.empty());
 
-  worker->SetIdle();
-  EXPECT_EQ(sampling_profilers_.size(), 1u);
+  worker->RunOnThread([this](internal::WorkerThread* worker_thread) {
+    profiler_->OnWorkerThreadActive(worker_thread);
+  });
+  EXPECT_EQ(sampling_profilers_.size(), 1);
 
-  worker->SetActive();
-  EXPECT_EQ(sampling_profilers_.size(), 1u);
+  worker->RunOnThread([this](internal::WorkerThread* worker_thread) {
+    profiler_->OnWorkerThreadIdle(worker_thread);
+  });
+  EXPECT_EQ(sampling_profilers_.size(), 1);
+
+  worker->RunOnThread([this](internal::WorkerThread* worker_thread) {
+    profiler_->OnWorkerThreadActive(worker_thread);
+  });
+
+  EXPECT_EQ(sampling_profilers_.size(), 1);
   EXPECT_EQ(sampling_profilers_created_, 1);
 }
 
@@ -499,12 +577,21 @@ TEST_F(ThreadGroupProfilerTest,
   InitiateNextCollection();
   EXPECT_TRUE(sampling_profilers_.empty());
 
-  worker->SetActive();
-  EXPECT_EQ(sampling_profilers_.size(), 1u);
+  worker->RunOnThread([this](internal::WorkerThread* worker_thread) {
+    profiler_->OnWorkerThreadStarted(worker_thread);
+  });
+  EXPECT_TRUE(sampling_profilers_.empty());
 
-  // Transitioning to idle does not interrupt the existing profiling.
-  worker->SetIdle();
-  EXPECT_EQ(sampling_profilers_.size(), 1u);
+  worker->RunOnThread([this](internal::WorkerThread* worker_thread) {
+    profiler_->OnWorkerThreadActive(worker_thread);
+  });
+  EXPECT_EQ(sampling_profilers_.size(), 1);
+
+  worker->RunOnThread([this](internal::WorkerThread* worker_thread) {
+    profiler_->OnWorkerThreadIdle(worker_thread);
+  });
+
+  EXPECT_EQ(sampling_profilers_.size(), 1);
   EXPECT_EQ(sampling_profilers_created_, 1);
   ASSERT_TRUE(sampling_profilers_.find(worker->GetThreadId()) !=
               sampling_profilers_.end());
@@ -517,10 +604,19 @@ TEST_F(ThreadGroupProfilerTest,
   InitiateNextCollection();
   EXPECT_TRUE(sampling_profilers_.empty());
 
-  worker->SetActive();
-  EXPECT_EQ(sampling_profilers_.size(), 1u);
+  worker->RunOnThread([this](internal::WorkerThread* worker_thread) {
+    profiler_->OnWorkerThreadStarted(worker_thread);
+  });
+  EXPECT_TRUE(sampling_profilers_.empty());
 
-  worker->Exit();
+  worker->RunOnThread([this](internal::WorkerThread* worker_thread) {
+    profiler_->OnWorkerThreadActive(worker_thread);
+  });
+  EXPECT_EQ(sampling_profilers_.size(), 1);
+
+  worker->RunOnThread([this](internal::WorkerThread* worker_thread) {
+    profiler_->OnWorkerThreadExiting(worker_thread);
+  });
   EXPECT_TRUE(sampling_profilers_.empty());
 }
 
@@ -534,16 +630,32 @@ TEST_F(ThreadGroupProfilerTest,
   InitiateNextCollection();
   EXPECT_TRUE(sampling_profilers_.empty());
 
-  worker_to_exit->SetActive();
-  EXPECT_EQ(sampling_profilers_.size(), 1u);
+  worker_to_exit->RunOnThread([this](internal::WorkerThread* worker_thread) {
+    profiler_->OnWorkerThreadStarted(worker_thread);
+  });
+  EXPECT_TRUE(sampling_profilers_.empty());
 
-  worker_to_exit->Exit();
+  worker_to_exit->RunOnThread([this](internal::WorkerThread* worker_thread) {
+    profiler_->OnWorkerThreadActive(worker_thread);
+  });
+  EXPECT_EQ(sampling_profilers_.size(), 1);
+
+  worker_to_exit->RunOnThread([this](internal::WorkerThread* worker_thread) {
+    profiler_->OnWorkerThreadExiting(worker_thread);
+  });
   EXPECT_TRUE(sampling_profilers_.empty());
 
   // Make a new worker thread active. It should start profiling as part of the
   // collection.
-  worker->SetActive();
-  EXPECT_EQ(sampling_profilers_.size(), 1u);
+  worker->RunOnThread([this](internal::WorkerThread* worker_thread) {
+    profiler_->OnWorkerThreadStarted(worker_thread);
+  });
+  EXPECT_TRUE(sampling_profilers_.empty());
+
+  worker->RunOnThread([this](internal::WorkerThread* worker_thread) {
+    profiler_->OnWorkerThreadActive(worker_thread);
+  });
+  EXPECT_EQ(sampling_profilers_.size(), 1);
 }
 
 TEST_F(ThreadGroupProfilerTest,
@@ -556,8 +668,16 @@ TEST_F(ThreadGroupProfilerTest,
   AdvanceBySamples(5);
   EXPECT_TRUE(sampling_profilers_.empty());
 
-  worker->SetActive();
-  EXPECT_EQ(sampling_profilers_.size(), 1u);
+  worker->RunOnThread([this](internal::WorkerThread* worker_thread) {
+    profiler_->OnWorkerThreadStarted(worker_thread);
+  });
+  EXPECT_TRUE(sampling_profilers_.empty());
+
+  worker->RunOnThread([this](internal::WorkerThread* worker_thread) {
+    profiler_->OnWorkerThreadActive(worker_thread);
+  });
+
+  EXPECT_EQ(sampling_profilers_.size(), 1);
   ASSERT_TRUE(sampling_profilers_.find(worker->GetThreadId()) !=
               sampling_profilers_.end());
   MockProfiler* const sampling_profiler =
@@ -575,32 +695,41 @@ TEST_F(ThreadGroupProfilerTest,
   InitiateNextCollection();
   EXPECT_TRUE(sampling_profilers_.empty());
 
-  AdvanceBySamples(kSamplesPerProfile - 2);
+  AdvanceBySamples(kSamplesPerProfile - 5);
   EXPECT_TRUE(sampling_profilers_.empty());
 
-  worker->SetActive();
+  worker->RunOnThread([this](internal::WorkerThread* worker_thread) {
+    profiler_->OnWorkerThreadStarted(worker_thread);
+  });
+  EXPECT_TRUE(sampling_profilers_.empty());
+
+  worker->RunOnThread([this](internal::WorkerThread* worker_thread) {
+    profiler_->OnWorkerThreadActive(worker_thread);
+  });
   EXPECT_TRUE(sampling_profilers_.empty());
 }
 
-// Ensure no profiling occurs if a worker thread is activated after the
-// collection ends.
 TEST_F(ThreadGroupProfilerTest, CollectionEnded_NoWorkers) {
   std::unique_ptr<FakeWorkerThread> worker = CreateFakeWorkerThread();
+
   InitiateNextCollection();
   EXPECT_TRUE(sampling_profilers_.empty());
 
-  StopProfilingSession();
+  AdvanceToEndOfCollection();
   EXPECT_TRUE(sampling_profilers_.empty());
 
-  // Making the worker active after session ends should not result in any new
-  // profiling.
-  worker->SetActive();
+  // Making the worker active should not result in any new profiling.
+  worker->RunOnThread([this](internal::WorkerThread* worker_thread) {
+    profiler_->OnWorkerThreadStarted(worker_thread);
+  });
+  EXPECT_TRUE(sampling_profilers_.empty());
+
+  worker->RunOnThread([this](internal::WorkerThread* worker_thread) {
+    profiler_->OnWorkerThreadActive(worker_thread);
+  });
   EXPECT_TRUE(sampling_profilers_.empty());
 }
 
-// Ensure that a worker whose profiling finishes before the collection session
-// ends is cleaned up properly, and doesn't profile again when reactivated after
-// session end.
 TEST_F(ThreadGroupProfilerTest,
        CollectionEnded_ActiveWorker_FinishesBeforeCollection) {
   std::unique_ptr<FakeWorkerThread> worker = CreateFakeWorkerThread();
@@ -609,133 +738,133 @@ TEST_F(ThreadGroupProfilerTest,
   InitiateNextCollection();
   EXPECT_TRUE(sampling_profilers_.empty());
 
-  worker->SetActive();
-  EXPECT_EQ(sampling_profilers_.size(), 1u);
+  worker->RunOnThread([this](internal::WorkerThread* worker_thread) {
+    profiler_->OnWorkerThreadStarted(worker_thread);
+  });
+  EXPECT_TRUE(sampling_profilers_.empty());
+
+  worker->RunOnThread([this](internal::WorkerThread* worker_thread) {
+    profiler_->OnWorkerThreadActive(worker_thread);
+  });
+  EXPECT_EQ(sampling_profilers_.size(), 1);
 
   // Advance to just before the end of the collection period, and have the
   // profiler complete.
   AdvanceBySamples(kSamplesPerProfile - 1);
-  EXPECT_EQ(sampling_profilers_.size(), 1u);
+
+  EXPECT_EQ(sampling_profilers_.size(), 1);
   ASSERT_TRUE(sampling_profilers_.find(worker->GetThreadId()) !=
               sampling_profilers_.end());
   CompleteProfiling(sampling_profilers_[worker->GetThreadId()]);
+  EXPECT_TRUE(sampling_profilers_.empty());
 
   // Complete the collection.
-  StopProfilingSession();
+  AdvanceToEndOfCollection();
   EXPECT_TRUE(sampling_profilers_.empty());
 
   // Make the thread idle then active again. This should not result in any new
   // profiling.
-  worker->SetIdle();
+  worker->RunOnThread([this](internal::WorkerThread* worker_thread) {
+    profiler_->OnWorkerThreadIdle(worker_thread);
+  });
   EXPECT_TRUE(sampling_profilers_.empty());
 
-  worker->SetActive();
+  worker->RunOnThread([this](internal::WorkerThread* worker_thread) {
+    profiler_->OnWorkerThreadActive(worker_thread);
+  });
   EXPECT_TRUE(sampling_profilers_.empty());
 }
 
-// Ensure that active worker profilers are cleanly destroyed when the
-// collection session ends.
 TEST_F(ThreadGroupProfilerTest,
-       CollectionEnded_ActiveWorker_DestroyedOnSessionEnd) {
+       CollectionEnded_ActiveWorker_FinishesAfterCollection) {
   std::unique_ptr<FakeWorkerThread> worker = CreateFakeWorkerThread();
 
   // Start a collection and make the worker thread active to start profiling.
   InitiateNextCollection();
   EXPECT_TRUE(sampling_profilers_.empty());
 
-  worker->SetActive();
-  EXPECT_EQ(sampling_profilers_.size(), 1u);
-
-  // Advance partway through the collection while worker is still profiling.
-  AdvanceBySamples(5);
-  EXPECT_EQ(sampling_profilers_.size(), 1u);
-
-  // Stop the profiling session. The active profiler should be destroyed.
-  StopProfilingSession();
+  worker->RunOnThread([this](internal::WorkerThread* worker_thread) {
+    profiler_->OnWorkerThreadStarted(worker_thread);
+  });
   EXPECT_TRUE(sampling_profilers_.empty());
 
-  // Reactivating the worker after session end does not start profiling.
-  worker->SetIdle();
+  worker->RunOnThread([this](internal::WorkerThread* worker_thread) {
+    profiler_->OnWorkerThreadActive(worker_thread);
+  });
+  EXPECT_EQ(sampling_profilers_.size(), 1);
+
+  // Advance to the end of the collection. The worker profiling should still be
+  // taking place since it hasn't completed yet.
+  AdvanceToEndOfCollection();
+  EXPECT_EQ(sampling_profilers_.size(), 1);
+
+  // Complete the worker profiling.
+  EXPECT_EQ(sampling_profilers_.size(), 1);
+  ASSERT_TRUE(sampling_profilers_.find(worker->GetThreadId()) !=
+              sampling_profilers_.end());
+  CompleteProfiling(sampling_profilers_[worker->GetThreadId()]);
   EXPECT_TRUE(sampling_profilers_.empty());
 
-  worker->SetActive();
+  // Make the thread idle then active again. This should not result in any new
+  // profiling.
+  worker->RunOnThread([this](internal::WorkerThread* worker_thread) {
+    profiler_->OnWorkerThreadIdle(worker_thread);
+  });
+  EXPECT_TRUE(sampling_profilers_.empty());
+
+  worker->RunOnThread([this](internal::WorkerThread* worker_thread) {
+    profiler_->OnWorkerThreadActive(worker_thread);
+  });
   EXPECT_TRUE(sampling_profilers_.empty());
 }
 
-// Ensure that worker thread calls after task runner shutdown have no effect or
-// crash.
+// Ensure that worker thread calls post task runner shutdown have no effect.
 TEST_F(ThreadGroupProfilerTest, PostTaskRunnerShutdown) {
   std::unique_ptr<FakeWorkerThread> worker = CreateFakeWorkerThread();
 
   // Shut down the task runner by destroying the TaskEnvironment.
   task_environment_.reset();
 
-  worker->SetActive();
+  WaitableEvent on_thread_call_completed{
+      WaitableEvent::ResetPolicy::AUTOMATIC,
+      WaitableEvent::InitialState::NOT_SIGNALED};
+
+  auto worker_started = [this](internal::WorkerThread* worker_thread) {
+    profiler_->OnWorkerThreadStarted(worker_thread);
+  };
+  worker->RunOnThreadAsync(worker_started, on_thread_call_completed);
+
+  on_thread_call_completed.Wait();
   EXPECT_TRUE(sampling_profilers_.empty());
 
-  worker->SetIdle();
+  auto worker_active = [this](internal::WorkerThread* worker_thread) {
+    profiler_->OnWorkerThreadActive(worker_thread);
+  };
+  worker->RunOnThreadAsync(worker_active, on_thread_call_completed);
+
+  on_thread_call_completed.Wait();
   EXPECT_TRUE(sampling_profilers_.empty());
 
-  StopProfilingSession();
-  worker->Exit();
+  auto worker_idle = [this](internal::WorkerThread* worker_thread) {
+    profiler_->OnWorkerThreadIdle(worker_thread);
+  };
+  worker->RunOnThreadAsync(worker_idle, on_thread_call_completed);
+
+  on_thread_call_completed.Wait();
   EXPECT_TRUE(sampling_profilers_.empty());
-}
 
-// Ensures that a worker thread holding a profiler reference can safely start
-// profiling even if the active collection session ends before Start() is
-// called.
-TEST_F(ThreadGroupProfilerTest, ActiveCollectionEndedBeforeProfilerStart) {
-  std::unique_ptr<FakeWorkerThread> worker = CreateFakeWorkerThread();
-  InitiateNextCollection();
+  // When the task runner has been shut down, OnWorkerThreadExiting depends on
+  // ThreadGroupProfiler::Shutdown() being invoked to know that the thread's
+  // profiling has ceased. Choreograph shutdown to mimic those steps.
+  auto worker_exit =
+      [profiler = profiler_.get()](internal::WorkerThread* worker_thread) {
+        profiler->OnWorkerThreadExiting(worker_thread);
+      };
+  worker->RunOnThreadAsync(worker_exit, on_thread_call_completed);
 
-  // Obtain a ref to the profiler from ActiveCollection as in
-  // WorkerDelegate::GetWork().
-  scoped_refptr<ThreadGroupProfiler::Profiler> profiler_to_start =
-      active_collection_->MaybeAddWorkerThread(
-          worker->fake_pointer(),
-          SamplingProfilerThreadToken{worker->GetThreadId()});
-  ASSERT_TRUE(profiler_to_start);
-  EXPECT_EQ(sampling_profilers_.size(), 1u);
-
-  // Stop the profiling session concurrently before Start() is called.
-  // ActiveCollection drops its ref, but profiler_to_start keeps the profiler
-  // alive.
-  StopProfilingSession();
-  EXPECT_EQ(sampling_profilers_.size(), 1u);
-
-  // Calling Start() on the retained ref must succeed safely.
-  profiler_to_start->Start();
-
-  // When the retained ref is released, the profiler is safely destroyed.
-  profiler_to_start.reset();
-  EXPECT_TRUE(sampling_profilers_.empty());
-}
-
-// Ensures that a profiler reference remains valid and can be started even if
-// the associated worker thread is removed from the active collection
-// concurrently.
-TEST_F(ThreadGroupProfilerTest, WorkerRemovedBeforeProfilerStart) {
-  std::unique_ptr<FakeWorkerThread> worker = CreateFakeWorkerThread();
-  InitiateNextCollection();
-
-  scoped_refptr<ThreadGroupProfiler::Profiler> profiler_to_start =
-      active_collection_->MaybeAddWorkerThread(
-          worker->fake_pointer(),
-          SamplingProfilerThreadToken{worker->GetThreadId()});
-  ASSERT_TRUE(profiler_to_start);
-  EXPECT_EQ(sampling_profilers_.size(), 1u);
-
-  // Worker cleans up / is removed from active collection.
-  // ActiveCollection drops its ref, but profiler_to_start keeps the profiler
-  // alive.
-  active_collection_->RemoveWorkerThread(worker->fake_pointer());
-  EXPECT_EQ(sampling_profilers_.size(), 1u);
-
-  // Start() on the staged ref succeeds without UAF.
-  profiler_to_start->Start();
-
-  // When the staged ref is released, the profiler is safely destroyed.
-  profiler_to_start.reset();
+  profiler_->Shutdown();
+  shutdown_started_ = true;
+  on_thread_call_completed.Wait();
   EXPECT_TRUE(sampling_profilers_.empty());
 }
 

@@ -444,8 +444,19 @@ TEST_F(SSLClientSessionCacheTest, LookupExpirationCheck) {
   EXPECT_EQ(0u, cache.size());
 }
 
-// Test that SSL cache is flushed on low memory notifications.
-TEST_F(SSLClientSessionCacheTest, TestFlushOnMemoryNotifications) {
+// Memory pressure listeners are disabled on Windows and Mac, so this test
+// is disabled on those platforms as it relies on receiving notifications.
+//
+// TODO(crbug.com/483018445): Check the kSuppressMemoryMonitor feature flag
+// instead of buildflags once the feature is exposed publicly or moved to base.
+// Currently, it is internal to components/memory_pressure.
+#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC)
+#define MAYBE_TestFlushOnMemoryNotifications \
+  DISABLED_TestFlushOnMemoryNotifications
+#else
+#define MAYBE_TestFlushOnMemoryNotifications TestFlushOnMemoryNotifications
+#endif  // Test that SSL cache is flushed on low memory notifications
+TEST_F(SSLClientSessionCacheTest, MAYBE_TestFlushOnMemoryNotifications) {
   base::test::ScopedFeatureList scoped_feature_list;
   scoped_feature_list.InitAndDisableFeature(base::kStatefulMemoryPressure);
   base::test::TaskEnvironment task_environment;
@@ -494,8 +505,19 @@ TEST_F(SSLClientSessionCacheTest, TestFlushOnMemoryNotifications) {
   EXPECT_EQ(0u, cache.size());
 }
 
+// Memory pressure listeners are disabled on Windows and Mac, so this test
+// is disabled on those platforms as it relies on receiving notifications.
+//
+// TODO(crbug.com/483018445): Check the kSuppressMemoryMonitor feature flag
+// instead of buildflags once the feature is exposed publicly or moved to base.
+// Currently, it is internal to components/memory_pressure.
+#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC)
+#define MAYBE_MemoryPressure DISABLED_MemoryPressure
+#else
+#define MAYBE_MemoryPressure MemoryPressure
+#endif
 // Tests that the session cache responds correctly to memory pressure events.
-TEST_F(SSLClientSessionCacheTest, MemoryPressure) {
+TEST_F(SSLClientSessionCacheTest, MAYBE_MemoryPressure) {
   base::test::ScopedFeatureList scoped_feature_list(
       base::kStatefulMemoryPressure);
   base::test::TaskEnvironment task_environment(

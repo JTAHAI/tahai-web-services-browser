@@ -110,24 +110,24 @@ export class CrToolbarSearchFieldElement extends
     this.showingSearch = this.hasSearchText || this.isSearchFocused();
   }
 
-  protected onSearchIconClicked_() {
+  private onSearchIconClicked_() {
     this.dispatchEvent(new CustomEvent(
         'search-icon-clicked', {bubbles: true, composed: true}));
   }
 
-  protected focus_() {
+  private focus_() {
     this.getSearchInput().focus();
   }
 
-  protected computeIconTabIndex_(narrow: boolean): number {
+  private computeIconTabIndex_(narrow: boolean): number {
     return narrow && !this.hasSearchText ? 0 : -1;
   }
 
-  protected computeIconAriaHidden_(narrow: boolean): string {
+  private computeIconAriaHidden_(narrow: boolean): string {
     return (!narrow || this.hasSearchText).toString();
   }
 
-  protected computeIsSpinnerShown_(): boolean {
+  private computeIsSpinnerShown_(): boolean {
     const showSpinner = this.spinnerActive && this.showingSearch;
     if (showSpinner) {
       this.$.spinnerTemplate.if = true;
@@ -135,36 +135,36 @@ export class CrToolbarSearchFieldElement extends
     return showSpinner;
   }
 
-  protected onInputFocus_() {
+  private onInputFocus_() {
     this.searchFocused_ = true;
   }
 
-  protected onInputBlur_() {
+  private onInputBlur_() {
     this.searchFocused_ = false;
     if (!this.hasSearchText) {
       this.showingSearch = false;
     }
   }
 
-  protected onSearchTermKeydown_(e: KeyboardEvent) {
+  private onSearchTermKeydown_(e: KeyboardEvent) {
     if (e.key === 'Escape') {
       this.showingSearch = false;
     }
   }
 
-  protected showSearch_(e: Event) {
+  private showSearch_(e: Event) {
     if (e.target !== this.shadowRoot!.querySelector('#clearSearch')) {
       this.showingSearch = true;
     }
   }
 
-  protected clearSearch_() {
+  private clearSearch_() {
     this.setValue('');
     this.focus_();
     this.spinnerActive = false;
   }
 
-  protected showingSearchChanged_(_current: boolean, previous?: boolean) {
+  private showingSearchChanged_(_current: boolean, previous?: boolean) {
     // Prevent unnecessary 'search-changed' event from firing on startup.
     if (previous === undefined) {
       return;

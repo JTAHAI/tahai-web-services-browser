@@ -5,7 +5,8 @@
 #ifndef CHROME_BROWSER_PASSWORD_MANAGER_ANDROID_MOCK_PASSWORD_MANAGER_ERROR_MESSAGE_HELPER_BRIDGE_H_
 #define CHROME_BROWSER_PASSWORD_MANAGER_ANDROID_MOCK_PASSWORD_MANAGER_ERROR_MESSAGE_HELPER_BRIDGE_H_
 
-#include "base/functional/callback.h"
+#include <jni.h>
+
 #include "chrome/browser/password_manager/android/password_manager_error_message_helper_bridge.h"
 #include "testing/gmock/include/gmock/gmock.h"
 
@@ -23,8 +24,7 @@ class MockPasswordManagerErrorMessageHelperBridge
       void,
       StartTrustedVaultKeyRetrievalFlow,
       (content::WebContents * web_contents,
-       trusted_vault::TrustedVaultUserActionTriggerForUMA user_action_trigger,
-       base::OnceClosure completion_callback),
+       trusted_vault::TrustedVaultUserActionTriggerForUMA user_action_trigger),
       (override));
   MOCK_METHOD(bool,
               ShouldShowSignInErrorUI,

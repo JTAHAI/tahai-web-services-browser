@@ -45,9 +45,7 @@ class OmniboxComposeboxHandler : public ComposeboxHandler {
 
  protected:
   // ComposeboxHandler:
-  void ProcessContextAndOpenUrl(
-      GURL url,
-      const WindowOpenDisposition disposition) override;
+  void OpenUrl(GURL url, const WindowOpenDisposition disposition) override;
 
  private:
   void OnAimEligibilityChanged();

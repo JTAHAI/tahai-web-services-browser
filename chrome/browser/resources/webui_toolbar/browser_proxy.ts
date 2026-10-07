@@ -102,8 +102,8 @@ export class BrowserProxyImpl implements BrowserProxy {
     this.toolbarUIHandler.onLhsChipPointerExited(id);
   }
 
-  onChipMousePressed(id: LhsChipIdentifier, isMiddleClick: boolean = false) {
-    this.toolbarUIHandler.onLhsChipMousePressed(id, isMiddleClick);
+  onChipMousePressed(id: LhsChipIdentifier) {
+    this.toolbarUIHandler.onLhsChipMousePressed(id);
   }
 
   onChipExpandAnimationEnded(id: LhsChipIdentifier) {

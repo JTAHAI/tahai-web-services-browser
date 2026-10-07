@@ -23,7 +23,7 @@ FieldTrialParamAssociator* FieldTrialParamAssociator::GetInstance() {
 bool FieldTrialParamAssociator::AssociateFieldTrialParams(
     const std::string& trial_name,
     const std::string& group_name,
-    FieldTrialParams params) {
+    const FieldTrialParams& params) {
   if (FieldTrialList::IsTrialActive(trial_name)) {
     DLOG(ERROR) << "Field trial " << trial_name << " is already active.";
     return false;
@@ -31,8 +31,7 @@ bool FieldTrialParamAssociator::AssociateFieldTrialParams(
 
   AutoLock scoped_lock(lock_);
   FieldTrialKey key(trial_name, group_name);
-  auto [it, inserted] =
-      field_trial_params_.try_emplace(std::move(key), std::move(params));
+  auto [it, inserted] = field_trial_params_.try_emplace(std::move(key), params);
   if (!inserted) {
     DLOG(ERROR) << "You can't override the existing params for field trial: "
                 << trial_name << "." << group_name;

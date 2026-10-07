@@ -32,8 +32,8 @@
 #include "chrome/browser/notifications/notification_display_service_factory.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profile_manager.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_tabstrip.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window/public/profile_browser_collection.h"
 #include "chrome/common/extensions/extension_constants.h"
 #include "chrome/common/pref_names.h"
@@ -48,7 +48,6 @@
 #include "extensions/browser/image_loader.h"
 #include "extensions/common/constants.h"
 #include "extensions/common/extension.h"
-#include "extensions/common/extension_features.h"
 #include "extensions/common/extension_id.h"
 #include "extensions/common/extension_set.h"
 #include "extensions/common/icons/extension_icon_set.h"
@@ -517,17 +516,7 @@ void BackgroundContentsService::LoadBackgroundContentsFromDictionary(
   std::string frame_name = maybe_frame_name ? *maybe_frame_name : std::string();
   std::string url = maybe_url ? *maybe_url : std::string();
 
-  GURL gurl(url);
-  const Extension* extension = extensions::ExtensionRegistry::Get(profile_)
-                                   ->enabled_extensions()
-                                   .GetByID(extension_id);
-  if (base::FeatureList::IsEnabled(
-          extensions_features::kBlockBackgroundContentsOffExtentNavigation) &&
-      extension && !extension->web_extent().MatchesURL(gurl)) {
-    return;
-  }
-
-  LoadBackgroundContents(gurl, frame_name, extension_id);
+  LoadBackgroundContents(GURL(url), frame_name, extension_id);
 }
 
 void BackgroundContentsService::LoadBackgroundContentsFromManifests() {
@@ -664,11 +653,6 @@ bool BackgroundContentsService::IsTracked(
   return !GetParentApplicationId(background_contents).empty();
 }
 
-bool BackgroundContentsService::IsTracked(
-    content::WebContents* web_contents) const {
-  return !GetParentApplicationId(web_contents).empty();
-}
-
 void BackgroundContentsService::AddObserver(
     BackgroundContentsServiceObserver* observer) {
   observers_.AddObserver(observer);
@@ -694,17 +678,6 @@ const std::string& BackgroundContentsService::GetParentApplicationId(
   return base::EmptyString();
 }
 
-const std::string& BackgroundContentsService::GetParentApplicationId(
-    content::WebContents* contents) const {
-  for (const auto& [id, background_contents_info] : contents_map_) {
-    if (background_contents_info.contents &&
-        background_contents_info.contents->web_contents() == contents) {
-      return id;
-    }
-  }
-  return base::EmptyString();
-}
-
 void BackgroundContentsService::AddWebContents(
     std::unique_ptr<WebContents> new_contents,
     const GURL& target_url,
@@ -716,8 +689,9 @@ void BackgroundContentsService::AddWebContents(
           Profile::FromBrowserContext(new_contents->GetBrowserContext()))
           ->GetLastActiveBrowser();
   if (browser) {
-    chrome::AddWebContents(browser, nullptr, std::move(new_contents),
-                           target_url, disposition, window_features);
+    chrome::AddWebContents(browser->GetBrowserForMigrationOnly(), nullptr,
+                           std::move(new_contents), target_url, disposition,
+                           window_features);
   }
 }
 
@@ -731,17 +705,8 @@ void BackgroundContentsService::OnBackgroundContentsNavigated(
       extensions::ExtensionRegistry::Get(profile_);
   const Extension* extension =
       extension_registry->enabled_extensions().GetByID(appid);
-  if (extension) {
-    if (BackgroundInfo::HasBackgroundPage(extension)) {
-      return;
-    }
-    if (base::FeatureList::IsEnabled(
-            extensions_features::kBlockBackgroundContentsOffExtentNavigation) &&
-        !extension->web_extent().MatchesURL(contents->GetURL())) {
-      UnregisterBackgroundContents(contents);
-      return;
-    }
-  }
+  if (extension && BackgroundInfo::HasBackgroundPage(extension))
+    return;
   RegisterBackgroundContents(contents);
 }
 

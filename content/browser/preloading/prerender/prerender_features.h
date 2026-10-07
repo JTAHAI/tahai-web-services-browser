@@ -51,6 +51,12 @@ CONTENT_EXPORT extern const base::FeatureParam<int>
 CONTENT_EXPORT extern const base::FeatureParam<int>
     kPrerender2NoVarySearchWaitForHeadersTimeoutForEmbedders;
 
+// If enabled, suppresses prerendering on slow network.
+CONTENT_EXPORT BASE_DECLARE_FEATURE(kSuppressesPrerenderingOnSlowNetwork);
+
+CONTENT_EXPORT extern const base::FeatureParam<base::TimeDelta>
+    kSuppressesPrerenderingOnSlowNetworkThreshold;
+
 CONTENT_EXPORT BASE_DECLARE_FEATURE(kPrerender2DisallowNonTrustworthyHttp);
 
 // If enabled, requests the compositor warm-up (crbug.com/41496019) for
@@ -62,10 +68,6 @@ CONTENT_EXPORT BASE_DECLARE_FEATURE(kPrerender2WarmUpCompositorForNonImmediate);
 // prerender when a matching prerender speculation rule is added.
 CONTENT_EXPORT BASE_DECLARE_FEATURE(kPrerenderUntilScriptUpgrade);
 
-// If enabled, allows prerender-until-script to reuse the initiator's process.
-// Enabled by default; acts as a killswitch.
-CONTENT_EXPORT BASE_DECLARE_FEATURE(kPrerenderUntilScriptProcessReuse);
-
 // If enabled, allows a prerender to reuse its initiator's process while
 // remaining in a dedicated BrowsingInstance.
 CONTENT_EXPORT BASE_DECLARE_FEATURE(kPrerender2ReuseInitiatorProcess);
@@ -75,9 +77,6 @@ CONTENT_EXPORT extern const base::FeatureParam<std::string>
     kPrerender2ReuseInitiatorProcessEagerness;
 CONTENT_EXPORT extern const base::FeatureParam<int>
     kPrerender2ReuseInitiatorProcessMaxReuseCount;
-
-CONTENT_EXPORT extern const base::FeatureParam<bool>
-    kPrerender2CrossOriginIframesNesting;
 
 CONTENT_EXPORT bool UsePrefetchPrerenderIntegration();
 }  // namespace features

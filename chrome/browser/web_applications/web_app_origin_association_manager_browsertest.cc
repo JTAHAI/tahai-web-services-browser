@@ -10,7 +10,6 @@
 #include "base/test/bind.h"
 #include "base/test/scoped_feature_list.h"
 #include "base/test/test_future.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/web_applications/test/web_app_browsertest_util.h"
 #include "chrome/browser/ui/web_applications/web_app_browsertest_base.h"
 #include "chrome/browser/web_applications/commands/update_validated_origin_associations_command.h"
@@ -496,7 +495,7 @@ IN_PROC_BROWSER_TEST_F(WebAppOriginAssociationManagerRevocationTest,
 
   // 5. Launch the web app in a window. This triggers the launch flow
   // (LaunchWebAppCommand), which in turn schedules the revalidation command.
-  BrowserWindowInterface* app_browser = LaunchWebAppBrowser(app_id);
+  Browser* app_browser = LaunchWebAppBrowser(app_id);
   ASSERT_TRUE(app_browser);
 
   // Await the completion of all scheduled commands.
@@ -554,7 +553,7 @@ IN_PROC_BROWSER_TEST_F(WebAppOriginAssociationManagerRevocationTest,
 
   // 5. Launch the web app in a window. This triggers the launch flow
   // (LaunchWebAppCommand), which in turn schedules the revalidation command.
-  BrowserWindowInterface* app_browser = LaunchWebAppBrowser(app_id);
+  Browser* app_browser = LaunchWebAppBrowser(app_id);
   ASSERT_TRUE(app_browser);
 
   // Await the completion of all scheduled commands.

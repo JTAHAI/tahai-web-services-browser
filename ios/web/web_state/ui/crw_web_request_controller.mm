@@ -29,7 +29,6 @@
 #import "ios/web/web_state/web_state_impl.h"
 #import "net/base/apple/url_conversions.h"
 #import "net/base/url_util.h"
-#import "url/origin.h"
 
 using web::wk_navigation_util::kReferrerHeaderName;
 using web::wk_navigation_util::URLNeedsUserAgentType;
@@ -270,8 +269,8 @@ using web::wk_navigation_util::URLNeedsUserAgentType;
     // pending navigation item.
     // Do not do it for localhost address as this is needed to have
     // pre-rendering in tests.
-    if (item->GetURL().SchemeIs(requestURL.scheme()) &&
-        url::IsSameOriginWith(item->GetURL(), requestURL) &&
+    if (item->GetURL().DeprecatedGetOriginAsURL() ==
+            requestURL.DeprecatedGetOriginAsURL() &&
         !net::IsLocalhost(requestURL)) {
       self.navigationManagerImpl->UpdatePendingItemUrl(requestURL);
     }

@@ -25,10 +25,10 @@ import org.chromium.base.test.BaseRobolectricTestRunner;
 public class AlignmentManagerUnitTest {
     private static final int TEXT_AREA_WIDTH = 100;
 
-    @Rule public final MockitoRule mockitoRule = MockitoJUnit.rule();
-    @Mock private TailSuggestionView mTailView1;
-    @Mock private TailSuggestionView mTailView2;
-    @Mock private TailSuggestionView mTailView3;
+    public @Rule MockitoRule mockitoRule = MockitoJUnit.rule();
+    private @Mock TailSuggestionView mTailView1;
+    private @Mock TailSuggestionView mTailView2;
+    private @Mock TailSuggestionView mTailView3;
     private AlignmentManager mManager;
 
     @Before
@@ -45,7 +45,6 @@ public class AlignmentManagerUnitTest {
      * @param view View requesting additional padding data.
      * @param queryWidth length of the tail query displayed in the suggestion.
      * @param fullWidth length of the full query that would be executed.
-     * @return The calculated start padding in pixels to align the tail suggestion.
      */
     private int paddingFor(TailSuggestionView view, int queryWidth, int fullWidth) {
         return mManager.requestStartPadding(view, queryWidth, fullWidth, TEXT_AREA_WIDTH);

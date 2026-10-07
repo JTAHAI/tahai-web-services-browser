@@ -9,7 +9,6 @@
 #include "base/scoped_multi_source_observation.h"
 #include "base/strings/utf_string_conversions.h"
 #include "build/build_config.h"
-#include "chrome/browser/ui/browser_init_state.h"
 #include "chrome/browser/ui/screen_capture_notification_ui.h"
 #include "chrome/browser/ui/views/chrome_views_export.h"
 #include "chrome/browser/ui/views/screen_sharing_util.h"
@@ -41,7 +40,7 @@
 #if BUILDFLAG(IS_WIN)
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/shell_integration_win.h"
-#include "chrome/browser/ui/browser_init_state.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "content/public/browser/web_contents.h"
@@ -343,10 +342,6 @@ class ScreenCaptureNotificationUIImpl : public ScreenCaptureNotificationUI {
   std::u16string text_;
   base::WeakPtr<content::WebContents> capturing_web_contents_;
   std::unique_ptr<views::Widget> widget_;
-#if BUILDFLAG(IS_MAC)
-  // Ensure the notification bar appears active without needing focus.
-  std::unique_ptr<views::Widget::PaintAsActiveLock> paint_as_active_lock_;
-#endif  // BUILDFLAG(IS_MAC)
 };
 
 ScreenCaptureNotificationUIImpl::ScreenCaptureNotificationUIImpl(
@@ -399,11 +394,6 @@ gfx::NativeViewId ScreenCaptureNotificationUIImpl::OnStarted(
   widget_->set_frame_type(views::Widget::FrameType::kForceCustom);
   widget_->Init(std::move(params));
 
-#if BUILDFLAG(IS_MAC)
-  // Prevents the notification bar from appearing inactive on macOS
-  paint_as_active_lock_ = widget_->LockPaintAsActive();
-#endif  // BUILDFLAG(IS_MAC)
-
   display::Screen* screen = display::Screen::Get();
   // TODO(sergeyu): Move the notification to the display being captured when
   // per-display screen capture is supported.
@@ -447,13 +437,12 @@ void ScreenCaptureNotificationUIImpl::SetWindowsAppId(views::Widget* widget) {
   if (!browser) {
     return;
   }
+  Browser* raw_browser = browser->GetBrowserForMigrationOnly();
   const base::FilePath profile_path = browser->GetProfile()->GetPath();
   std::wstring app_user_model_id =
       browser->GetType() == BrowserWindowInterface::Type::TYPE_APP
           ? shell_integration::win::GetAppUserModelIdForApp(
-                base::UTF8ToWide(
-                    BrowserInitState::From(browser)->create_params().app_name),
-                profile_path)
+                base::UTF8ToWide(raw_browser->app_name()), profile_path)
           : shell_integration::win::GetAppUserModelIdForBrowser(profile_path);
   if (!app_user_model_id.empty()) {
     ui::win::SetAppIdForWindow(app_user_model_id, views::HWNDForWidget(widget));

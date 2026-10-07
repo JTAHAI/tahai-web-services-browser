@@ -15,7 +15,7 @@ bool ReportUnsafeSiteDialog::IsEnabled(const Profile& profile) {
 }
 
 // static
-void ReportUnsafeSiteDialog::Show(BrowserWindowInterface* browser) {
+void ReportUnsafeSiteDialog::Show(Browser* browser) {
   NOTREACHED();
 }
 

@@ -33,9 +33,6 @@ class VIEWS_EXPORT FillLayout : public LayoutManagerBase {
   bool include_insets() const { return include_insets_; }
   FillLayout& SetIncludeInsets(bool include_insets);
 
-  bool include_hidden_views() const { return include_hidden_views_; }
-  FillLayout& SetIncludeHiddenViews(bool include_hidden_views);
-
   // LayoutManagerBase:
   ProposedLayout CalculateProposedLayout(
       const SizeBounds& size_bounds) const override;
@@ -60,11 +57,6 @@ class VIEWS_EXPORT FillLayout : public LayoutManagerBase {
   // Whether to include the host insets in the preferred size calculations.
   // Set to off for backwards-compatibility with View default fill layout.
   bool include_insets_ = true;
-
-  // Whether to include hidden views in layout calculations and proposed
-  // layouts. On by default for backwards-compatibility with legacy uses of
-  // FillLayout.
-  bool include_hidden_views_ = true;
 };
 
 }  // namespace views

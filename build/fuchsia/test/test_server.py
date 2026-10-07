@@ -16,9 +16,8 @@ from compatible_utils import get_ssh_prefix
 sys.path.append(os.path.join(DIR_SRC_ROOT, 'build', 'util', 'lib', 'common'))
 
 
-def _run_ssh_tunnel(
-    target_addr: str, command: str, port_maps: List[str]
-) -> subprocess.CompletedProcess:
+def _run_ssh_tunnel(target_addr: str, command: str,
+                    port_maps: List[str]) -> subprocess.CompletedProcess:
     assert port_maps
 
     ssh_prefix = get_ssh_prefix(target_addr)
@@ -29,23 +28,19 @@ def _run_ssh_tunnel(
     subprocess.run(ssh_prefix + ['echo', 'true'], check=True)
 
     forward_proc = subprocess.run(
-        ssh_prefix
-        + [
+        ssh_prefix + [
             '-O',
             command,  # Send SSH mux control signal.
-            '-NT',  # Don't execute command; don't allocate terminal.
-        ]
-        + port_maps,
+            '-NT'  # Don't execute command; don't allocate terminal.
+        ] + port_maps,
         capture_output=True,
         check=True,
-        text=True,
-    )
+        text=True)
     return forward_proc
 
 
-def _forward_command(
-    fuchsia_port: int, host_port: int, port_forwarding: bool
-) -> List[str]:
+def _forward_command(fuchsia_port: int, host_port: int,
+                     port_forwarding: bool) -> List[str]:
     max_port = 65535
     assert fuchsia_port is not None and 0 <= fuchsia_port <= max_port
     assert host_port is not None and 0 < host_port <= max_port
@@ -55,9 +50,8 @@ def _forward_command(
     return ['-L', f'{host_port}:localhost:{fuchsia_port}']
 
 
-def _forward_commands(
-    ports: List[Tuple[int, int]], port_forwarding: bool
-) -> List[str]:
+def _forward_commands(ports: List[Tuple[int, int]],
+                      port_forwarding: bool) -> List[str]:
     assert ports
     forward_cmd = []
     for port in ports:
@@ -66,9 +60,8 @@ def _forward_commands(
     return forward_cmd
 
 
-def ports_forward(
-    target_addr: str, ports: List[Tuple[int, int]]
-) -> subprocess.CompletedProcess:
+def ports_forward(target_addr: str,
+                  ports: List[Tuple[int, int]]) -> subprocess.CompletedProcess:
     """Establishes a port forwarding SSH task to forward ports from the host to
     the fuchsia endpoints specified by tuples of port numbers in format of
     [fuchsia-port, host-port]. Setting fuchsia-port to 0 would allow the fuchsia
@@ -77,14 +70,13 @@ def ports_forward(
     Blocks until port forwarding is established.
 
     Returns the CompletedProcess of the SSH task."""
-    return _run_ssh_tunnel(
-        target_addr, 'forward', _forward_commands(ports, True)
-    )
+    return _run_ssh_tunnel(target_addr, 'forward',
+                           _forward_commands(ports, True))
 
 
 def ports_backward(
-    target_addr: str, ports: List[Tuple[int, int]]
-) -> subprocess.CompletedProcess:
+        target_addr: str,
+        ports: List[Tuple[int, int]]) -> subprocess.CompletedProcess:
     """Establishes a reverse port forwarding SSH task to forward ports from the
     fuchsia to the host endpoints specified by tuples of port numbers in format
     of [fuchsia-port, host-port]. Both host-port and fuchsia-port shouldn't be
@@ -93,9 +85,8 @@ def ports_backward(
     Blocks until port forwarding is established.
 
     Returns the CompletedProcess of the SSH task."""
-    return _run_ssh_tunnel(
-        target_addr, 'forward', _forward_commands(ports, False)
-    )
+    return _run_ssh_tunnel(target_addr, 'forward',
+                           _forward_commands(ports, False))
 
 
 def port_forward(target_addr: str, host_port: int) -> int:
@@ -106,17 +97,14 @@ def port_forward(target_addr: str, host_port: int) -> int:
 
     forward_proc = ports_forward(target_addr, [(0, host_port)])
     parsed_port = int(forward_proc.stdout.splitlines()[0].strip())
-    logging.debug(
-        'Port forwarding established (local=%d, device=%d)',
-        host_port,
-        parsed_port,
-    )
+    logging.debug('Port forwarding established (local=%d, device=%d)',
+                  host_port, parsed_port)
     return parsed_port
 
 
-def port_backward(
-    target_addr: str, fuchsia_port: int, host_port: int = 0
-) -> int:
+def port_backward(target_addr: str,
+                  fuchsia_port: int,
+                  host_port: int = 0) -> int:
     """Establishes a reverse port forwarding SSH task to a fuchsia TCP endpoint
     at port |fuchsia_port| from the host at port |host_port|. If |host_port| is
     None or 0, a local free port will be selected.
@@ -127,25 +115,18 @@ def port_backward(
     if not host_port:
         host_port = get_free_local_port()
     ports_backward(target_addr, [(fuchsia_port, host_port)])
-    logging.debug(
-        'Reverse port forwarding established (local=%d, device=%d)',
-        host_port,
-        fuchsia_port,
-    )
+    logging.debug('Reverse port forwarding established (local=%d, device=%d)',
+                  host_port, fuchsia_port)
     return host_port
 
 
-def cancel_port_forwarding(
-    target_addr: str, fuchsia_port: int, host_port: int, port_forwarding: bool
-) -> None:
+def cancel_port_forwarding(target_addr: str, fuchsia_port: int, host_port: int,
+                           port_forwarding: bool) -> None:
     """Cancels an existing port forwarding, if port_forwarding is false, it will
     be treated as reverse port forwarding.
     Note, the ports passing in here need to exactly match the ports used to
     setup the port forwarding, i.e. if ports_forward([0, 8080]) was issued, even
     it returned an allocated port, cancel_port_forwarding(..., 0, 8080, ...)
     should still be used to cancel the port forwarding."""
-    _run_ssh_tunnel(
-        target_addr,
-        'cancel',
-        _forward_command(fuchsia_port, host_port, port_forwarding),
-    )
+    _run_ssh_tunnel(target_addr, 'cancel',
+                    _forward_command(fuchsia_port, host_port, port_forwarding))

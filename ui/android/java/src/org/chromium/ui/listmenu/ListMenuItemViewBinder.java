@@ -10,8 +10,6 @@ import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import android.text.TextUtils;
 import android.view.View;
-import android.view.ViewGroup.MarginLayoutParams;
-import android.view.accessibility.AccessibilityNodeInfo;
 import android.widget.ImageView;
 import android.widget.TextView;
 
@@ -143,13 +141,6 @@ public class ListMenuItemViewBinder {
                 layoutParams.width = width;
                 endIcon.setLayoutParams(layoutParams);
             }
-        } else if (propertyKey == ListMenuItemProperties.END_ICON_MARGIN_START) {
-            if (endIcon != null) {
-                int marginStart = model.get(ListMenuItemProperties.END_ICON_MARGIN_START);
-                var layoutParams = (MarginLayoutParams) endIcon.getLayoutParams();
-                layoutParams.setMarginStart(marginStart);
-                endIcon.setLayoutParams(layoutParams);
-            }
         } else if (propertyKey == ListMenuItemProperties.GROUP_ID) {
             // Not tracked intentionally because it's mainly for clients to know which group a
             // menu item belongs to.
@@ -204,12 +195,7 @@ public class ListMenuItemViewBinder {
                 }
             }
         } else if (propertyKey == ListMenuItemProperties.TEXT_APPEARANCE_ID) {
-            int textAppearanceId = model.get(ListMenuItemProperties.TEXT_APPEARANCE_ID);
-            if (textAppearanceId == Resources.ID_NULL) {
-                textView.setTextAppearance(R.style.TextAppearance_DensityAdaptive_ListMenuItem);
-            } else {
-                textView.setTextAppearance(textAppearanceId);
-            }
+            textView.setTextAppearance(model.get(ListMenuItemProperties.TEXT_APPEARANCE_ID));
         } else if (propertyKey == ListMenuItemProperties.IS_TEXT_ELLIPSIZED_AT_END) {
             if (model.get(ListMenuItemProperties.IS_TEXT_ELLIPSIZED_AT_END)) {
                 textView.setMaxLines(1);
@@ -221,28 +207,11 @@ public class ListMenuItemViewBinder {
             view.setOnKeyListener(model.get(ListMenuItemProperties.KEY_LISTENER));
         } else if (propertyKey == ListMenuItemProperties.TOUCH_LISTENER) {
             view.setOnTouchListener(model.get(ListMenuItemProperties.TOUCH_LISTENER));
-        } else if (propertyKey == ListMenuItemProperties.GENERIC_MOTION_LISTENER) {
-            view.setOnGenericMotionListener(
-                    model.get(ListMenuItemProperties.GENERIC_MOTION_LISTENER));
         } else if (propertyKey == ListMenuItemProperties.LONG_CLICK_LISTENER) {
             view.setOnLongClickListener(model.get(ListMenuItemProperties.LONG_CLICK_LISTENER));
         } else if (propertyKey == ListMenuItemProperties.ORDER) {
             // Not tracked intentionally because it's used by clients to keep track of items. The
             // order field is used to recreate a SelectionMenuItem when an item is clicked.
-        } else if (propertyKey == ListMenuItemProperties.CHECKABLE
-                || propertyKey == ListMenuItemProperties.CHECKED) {
-            view.setAccessibilityDelegate(
-                    new View.AccessibilityDelegate() {
-                        @Override
-                        public void onInitializeAccessibilityNodeInfo(
-                                View host, AccessibilityNodeInfo info) {
-                            super.onInitializeAccessibilityNodeInfo(host, info);
-                            info.setCheckable(true);
-                            info.setChecked(
-                                    model.containsKey(ListMenuItemProperties.CHECKED)
-                                            && model.get(ListMenuItemProperties.CHECKED));
-                        }
-                    });
         } else {
             assert false : "Supplied propertyKey not implemented in ListMenuItemProperties.";
         }

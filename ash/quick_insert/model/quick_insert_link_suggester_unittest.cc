@@ -11,6 +11,7 @@
 #include "base/test/task_environment.h"
 #include "base/test/test_future.h"
 #include "components/favicon/core/test/mock_favicon_service.h"
+#include "components/history/core/browser/features.h"
 #include "components/history/core/browser/history_service.h"
 #include "components/history/core/browser/history_types.h"
 #include "components/history/core/test/history_service_test_util.h"
@@ -120,6 +121,10 @@ TEST_F(QuickInsertLinkSuggesterTest,
 }
 
 TEST_F(QuickInsertLinkSuggesterTest, GetSuggestedLinkResultsExclude404s) {
+  // Allow saving 404 visits to History.
+  base::test::ScopedFeatureList scoped_feature_list;
+  scoped_feature_list.InitAndEnableFeature(history::kVisitedLinksOn404);
+
   const base::Time now = base::Time::Now();
   auto* history_service = GetHistoryService();
 

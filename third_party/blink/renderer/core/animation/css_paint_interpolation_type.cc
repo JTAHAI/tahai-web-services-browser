@@ -8,7 +8,6 @@
 #include <utility>
 
 #include "base/memory/ptr_util.h"
-#include "base/memory/raw_ref.h"
 #include "third_party/blink/renderer/core/animation/css_color_interpolation_type.h"
 #include "third_party/blink/renderer/core/css/css_property_names.h"
 #include "third_party/blink/renderer/core/css/resolver/style_resolver.h"
@@ -95,14 +94,12 @@ class InheritedPaintChecker
   bool IsValid(const StyleResolverState& state,
                const InterpolationValue& underlying) const final {
     StyleColor parent_color;
-    if (!GetColor(*property_, *state.ParentStyle(), parent_color)) {
+    if (!GetColor(property_, *state.ParentStyle(), parent_color))
       return !valid_color_;
-    }
     return valid_color_ && parent_color == color_;
   }
 
-  const raw_ref<const CSSProperty, UnprotectedInRelease | DanglingUntriaged>
-      property_;
+  const CSSProperty& property_;
   const bool valid_color_;
   const StyleColor color_;
 };

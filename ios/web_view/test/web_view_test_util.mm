@@ -5,7 +5,6 @@
 #import "ios/web_view/test/web_view_test_util.h"
 
 #import "base/test/ios/wait_util.h"
-#import "ios/web/common/uikit_ui_util.h"
 #import "ios/web_view/public/cwv_web_view.h"
 #import "ios/web_view/public/cwv_web_view_configuration.h"
 
@@ -18,10 +17,8 @@ namespace ios_web_view {
 namespace test {
 
 CWVWebView* CreateWebView() {
-  CGRect bounds = GetAnyKeyWindow().screen.bounds;
-  CHECK(!CGRectEqualToRect(bounds, CGRectZero));
   return [[CWVWebView alloc]
-      initWithFrame:bounds
+      initWithFrame:UIScreen.mainScreen.bounds
       configuration:[CWVWebViewConfiguration defaultConfiguration]];
 }
 

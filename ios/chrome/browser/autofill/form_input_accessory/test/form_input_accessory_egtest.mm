@@ -13,7 +13,7 @@
 #import "base/test/ios/wait_util.h"
 #import "base/time/time.h"
 #import "components/autofill/core/browser/field_types.h"
-#import "components/autofill/core/browser/test_utils/autofill_test_util.h"
+#import "components/autofill/core/browser/test_utils/autofill_test_utils.h"
 #import "components/autofill/core/common/autofill_debug_features.h"
 #import "components/autofill/core/common/autofill_features.h"
 #import "components/autofill/ios/common/features.h"
@@ -361,6 +361,7 @@ void SlowlyTypeText(NSString* text) {
   } else if ([self isRunningTest:@selector(testFillAndUndoVehicleForm)]) {
     [self configureAutofillAiWithConfig:config
                           overrideParam:kVehicleOverrideParam];
+    config.features_disabled.push_back(kAutofillUndoIos);
   } else {
     config.features_disabled.push_back(
         autofill::features::debug::kAutofillServerCommunication);
@@ -369,9 +370,23 @@ void SlowlyTypeText(NSString* text) {
     config.features_enabled.push_back(
         autofill::features::kAutofillAiReauthRequired);
   }
+  if ([self isRunningTest:@selector(testFillXframeCreditCardForm)] ||
+      [self isRunningTest:@selector(testFillXframeCreditCardFormThrottled)] ||
+      [self isRunningTest:@selector
+            (testFillXframeCreditCardForm_WithPaymentSheetFix)]) {
+    config.features_enabled.push_back(
+        autofill::features::kAutofillAcrossIframesIos);
+  }
   if ([self isRunningTest:@selector(testFillXframeCreditCardFormThrottled)]) {
     config.features_enabled.push_back(
         autofill::features::kAutofillAcrossIframesIosThrottling);
+  }
+  if ([self isRunningTest:@selector
+            (testFillCreditCardFieldsOnForm_WithUserEditedFix_UserEdited)] ||
+      [self isRunningTest:@selector
+            (testFillCreditCardFieldsOnForm_WithUserEditedFix_NotUserEdited)]) {
+    config.features_enabled.push_back(
+        kAutofillCorrectUserEditedBitInParsedField);
   }
   if ([self isRunningTest:@selector(testAddressHomeAndWorkIPH)]) {
     config.iph_feature_enabled =
@@ -383,14 +398,17 @@ void SlowlyTypeText(NSString* text) {
         feature_engagement::kIPHAutofillAccountNameEmailSuggestionFeature.name;
   }
 
+  if ([self isRunningTest:@selector(testReFillAddressFieldsOnForm)]) {
+    config.features_enabled.push_back(
+        autofill::features::kAutofillAcrossIframesIos);
+  }
+
   if ([self isRunningTest:@selector
             (testPasswordSuggestionsSubtext_ConditionalPasskeyLoginEnabled)]) {
     config.features_enabled.push_back(kIOSPasskeyShim);
     config.features_enabled.push_back(kIOSPasskeyConditionalLoginWithShim);
-  } else {
-    config.features_disabled.push_back(kIOSPasskeyConditionalLoginWithShim);
   }
-  config.features_disabled.push_back(kIOSPasskeyModalLoginWithShim);
+
 
   return config;
 }
@@ -732,9 +750,9 @@ id<GREYMatcher> PaymentsBottomSheetUseKeyboardButton() {
   CheckCardAutofillSuggestionAcceptedIndexMetricsCount(/*suggestion_index=*/1);
 }
 
-// Tests that the field is recognized as modified by the user in the parsed form
+// Tests that the fix on the is_user_edited_deprecated bit in the parsed form
 // fields is effective in the case the user has edited the input field for real.
-- (void)testFillCreditCardFieldsOnForm_UserEdited {
+- (void)testFillCreditCardFieldsOnForm_WithUserEditedFix_UserEdited {
   // Fill using another test. The CVC number won't be filled because a local
   // card is used.
   [self testFillCreditCardFieldsOnForm];
@@ -767,9 +785,10 @@ id<GREYMatcher> PaymentsBottomSheetUseKeyboardButton() {
       @"Autofill.PerfectFilling.CreditCards verification failed");
 }
 
-// Tests that the field is recognized as unmodified by the user in the parsed
-// form fields in the case the user didn't edit the fields that weren't filled.
-- (void)testFillCreditCardFieldsOnForm_NotUserEdited {
+// Tests that the fix on the is_user_edited_deprecated bit in the parsed form
+// fields is effective in the case the user didn't edit the fields that weren't
+// filled.
+- (void)testFillCreditCardFieldsOnForm_WithUserEditedFix_NotUserEdited {
   // Fill using another test. The CVC number won't be filled because a local
   // card is used.
   [self testFillCreditCardFieldsOnForm];
@@ -1304,11 +1323,11 @@ id<GREYMatcher> PaymentsBottomSheetUseKeyboardButton() {
   [[EarlGrey selectElementWithMatcher:chrome_test_util::WebViewMatcher()]
       performAction:chrome_test_util::TapWebElementWithId(kFormVehicleMake)];
 
+  // TODO(crbug.com/511251267): Update the test with kAutofillUndoIos enabled by
+  // default once undo autofill has been fixed.
   // Define the matcher for the undo autofill.
-  NSString* undoLabel = l10n_util::GetNSStringF(
-      IDS_IOS_AUTOFILL_ACCNAME_SUGGESTION,
-      l10n_util::GetStringUTF16(IDS_AUTOFILL_UNDO_MENU_ITEM), u"");
-  id<GREYMatcher> undoChipMatcher = grey_accessibilityLabel(undoLabel);
+  id<GREYMatcher> undoChipMatcher =
+      grey_text(l10n_util::GetNSString(IDS_AUTOFILL_UNDO_MENU_ITEM));
 
   // Wait for the chip to appear.
   [ChromeEarlGrey waitForUIElementToAppearWithMatcher:undoChipMatcher];

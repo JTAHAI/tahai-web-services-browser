@@ -136,7 +136,7 @@ public class DesktopPopupHeaderMediatorUnitTest {
         int expectedColor = ChromeColors.getDefaultBgColor(mContext, false);
         assertEquals(
                 expectedColor, (int) mModel.get(DesktopPopupHeaderProperties.BACKGROUND_COLOR));
-        verify(mDesktopWindowStateManager).onBackgroundColorChanged(expectedColor);
+        verify(mDesktopWindowStateManager).updateForegroundColor(expectedColor);
     }
 
     @Test
@@ -181,7 +181,7 @@ public class DesktopPopupHeaderMediatorUnitTest {
         org.mockito.Mockito.clearInvocations(mDesktopWindowStateManager);
 
         mMediator.onAppHeaderStateChanged(mAppHeaderState);
-        verify(mDesktopWindowStateManager, never()).onBackgroundColorChanged(anyInt());
+        verify(mDesktopWindowStateManager, never()).updateForegroundColor(anyInt());
     }
 
     @Test

@@ -67,9 +67,8 @@ class AuthorizationZonesManagerImpl
     : public AuthorizationZonesManager,
       private ProfileAuthServersSyncBridge::Observer {
  public:
-  // `local_state` must be non-null and must outlive `this`.
-  AuthorizationZonesManagerImpl(PrefService* local_state, Profile* profile)
-      : client_ids_database_(ClientIdsDatabase::Create(local_state)),
+  explicit AuthorizationZonesManagerImpl(Profile* profile)
+      : client_ids_database_(ClientIdsDatabase::Create()),
         sync_bridge_(ProfileAuthServersSyncBridge::Create(
             this,
             DataTypeStoreServiceFactory::GetForProfile(profile)
@@ -265,10 +264,9 @@ class AuthorizationZonesManagerImpl
 }  // namespace
 
 std::unique_ptr<AuthorizationZonesManager> AuthorizationZonesManager::Create(
-    PrefService* local_state,
     Profile* profile) {
   DCHECK(profile);
-  return std::make_unique<AuthorizationZonesManagerImpl>(local_state, profile);
+  return std::make_unique<AuthorizationZonesManagerImpl>(profile);
 }
 
 std::unique_ptr<AuthorizationZonesManager>

@@ -67,6 +67,7 @@ SendTabToSelfToolbarBubbleView::SendTabToSelfToolbarBubbleView(
       ->SetOrientation(views::LayoutOrientation::kVertical)
       .SetCrossAxisAlignment(views::LayoutAlignment::kStart);
 
+  // TODO(crbug.com/40180897): metrics.
   auto margin = views::LayoutProvider::Get()->GetDistanceMetric(
       views::DISTANCE_BUTTON_HORIZONTAL_PADDING);
 
@@ -122,8 +123,7 @@ SendTabToSelfToolbarBubbleView::SendTabToSelfToolbarBubbleView(
 
 void SendTabToSelfToolbarBubbleView::OpenInNewTab() {
   opened_ = true;
-  send_tab_to_self::RecordNotificationStatus(
-      send_tab_to_self::NotificationStatus::kOpened);
+  send_tab_to_self::RecordNotificationOpened();
   OpenEntryInNewForegroundTab(
       browser_->GetProfile(), entry_,
       send_tab_to_self::ShareActivatedEntryPoint::kDesktopToolbarBubble);
@@ -131,15 +131,13 @@ void SendTabToSelfToolbarBubbleView::OpenInNewTab() {
 }
 
 void SendTabToSelfToolbarBubbleView::Timeout() {
-  send_tab_to_self::RecordNotificationStatus(
-      send_tab_to_self::NotificationStatus::kTimedOut);
+  send_tab_to_self::RecordNotificationTimedOut();
   GetWidget()->Close();
 }
 
 void SendTabToSelfToolbarBubbleView::Hide() {
   if (!opened_) {
-    send_tab_to_self::RecordNotificationStatus(
-        send_tab_to_self::NotificationStatus::kDismissed);
+    send_tab_to_self::RecordNotificationDismissed();
   }
   SendTabToSelfClientServiceFactory::GetForProfile(browser_->GetProfile())
       ->GetReceivingUiHandler()

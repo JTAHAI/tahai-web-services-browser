@@ -273,8 +273,9 @@ bool CookieJar::IPCNeeded(bool should_apply_devtools_overrides) {
     return true;
   }
 
-  // Pending write commits: ensure all asynchronous cookie writes have been
-  // committed by the backend before trusting cached cookies.
+  // Pending write commits.
+  // When AsyncSetCookie is disabled, required_committed_writes_ always equals
+  // 0, then this check is never true.
   if (shared_memory_version_client_->CommittedWritesIsLessThan(
           required_committed_writes_)) {
     return true;

@@ -46,7 +46,7 @@ class CORE_EXPORT HTMLFencedFrameElement : public HTMLFrameOwnerElement {
     explicit FencedFrameDelegate(HTMLFencedFrameElement* outer_element);
     ~FencedFrameDelegate() = default;
 
-    void Navigate(const KURL&);
+    void Navigate(const KURL&, const String&);
     // This method is used to clean up all state in preparation for destruction,
     // even though the destruction may happen arbitrarily later during garbage
     // collection.
@@ -119,6 +119,12 @@ class CORE_EXPORT HTMLFencedFrameElement : public HTMLFrameOwnerElement {
   // frame to the config's URL. If `config` is null, navigates to about:blank.
   void setConfig(FencedFrameConfig* config);
 
+  // Web-exposed API that returns whether an opaque-ads fenced frame would be
+  // allowed to be created in the current active document of this node.
+  // Note: This function is deprecated. Please use
+  // `NavigatorAuction::canLoadAdAuctionFencedFrame` instead.
+  static bool canLoadOpaqueURL(ScriptState*);
+
  private:
   // This method will only navigate the underlying frame if the element
   // `isConnected()`. It will be deferred if the page is currently prerendering.
@@ -126,7 +132,8 @@ class CORE_EXPORT HTMLFencedFrameElement : public HTMLFrameOwnerElement {
       const KURL& url,
       std::optional<bool> deprecated_should_freeze_initial_size = std::nullopt,
       std::optional<gfx::Size> container_size = std::nullopt,
-      std::optional<gfx::Size> content_size = std::nullopt);
+      std::optional<gfx::Size> content_size = std::nullopt,
+      String embedder_shared_storage_context = String());
 
   // This method delegates to `Navigate()` above only if `this` has a non-null
   // `config_`. If that's the case, this method pulls the appropriate URL off of

@@ -41,8 +41,6 @@ class StubSendTabToSelfSyncService : public SendTabToSelfSyncService {
   FakeSendTabToSelfModel* GetFakeSendTabToSelfModel();
 
  private:
-  void UpdateTargetDevicesForDisplayReason();
-
   FakeSendTabToSelfModel model_;
   syncer::FakeDataTypeControllerDelegate fake_delegate_;
   std::optional<EntryPointDisplayReason> entry_point_display_reason_;

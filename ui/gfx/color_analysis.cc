@@ -565,10 +565,11 @@ SkColor CalculateKMeanColorOfBuffer(base::span<const uint8_t> decoded_data,
 
       // Calculate the new cluster centers and see if we've converged or not.
       convergence = true;
-      for (auto& cluster : clusters) {
-        convergence &= cluster.CompareCentroidWithAggregate();
+      for (auto cluster = clusters.begin(); cluster != clusters.end();
+           ++cluster) {
+        convergence &= cluster->CompareCentroidWithAggregate();
 
-        cluster.RecomputeCentroid();
+        cluster->RecomputeCentroid();
       }
     }
 

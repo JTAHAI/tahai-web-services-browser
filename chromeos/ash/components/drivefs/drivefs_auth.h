@@ -49,15 +49,14 @@ class COMPONENT_EXPORT(CHROMEOS_ASH_COMPONENTS_DRIVEFS) DriveFsAuth {
 
     virtual scoped_refptr<network::SharedURLLoaderFactory>
     GetURLLoaderFactory() = 0;
+    virtual signin::IdentityManager* GetIdentityManager() = 0;
     virtual const AccountId& GetAccountId() = 0;
     virtual std::string GetObfuscatedAccountId() = 0;
     virtual bool IsMetricsCollectionEnabled() = 0;
   };
 
-  // `identity_manager` must not be nullptr and must outlive this.
   DriveFsAuth(const base::Clock* clock,
               const base::FilePath& profile_path,
-              signin::IdentityManager* identity_manager,
               std::unique_ptr<base::OneShotTimer> timer,
               Delegate* delegate);
 
@@ -95,7 +94,6 @@ class COMPONENT_EXPORT(CHROMEOS_ASH_COMPONENTS_DRIVEFS) DriveFsAuth {
   SEQUENCE_CHECKER(sequence_checker_);
   const raw_ptr<const base::Clock> clock_;
   const base::FilePath profile_path_;
-  const raw_ref<signin::IdentityManager> identity_manager_;
   const std::unique_ptr<base::OneShotTimer> timer_;
   const raw_ptr<Delegate, DanglingUntriaged> delegate_;
 

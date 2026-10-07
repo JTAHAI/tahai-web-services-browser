@@ -184,7 +184,7 @@ DeclarativeNetRequestGetDynamicRulesFunction::Run() {
 
   auto read_dynamic_rules = base::BindOnce(
       [](const declarative_net_request::FileBackedRulesetSource& source) {
-        return source.ReadJSONRules();
+        return source.ReadJSONRulesUnsafe();
       },
       std::move(source));
 

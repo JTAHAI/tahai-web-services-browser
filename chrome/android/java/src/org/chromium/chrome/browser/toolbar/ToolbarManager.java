@@ -40,10 +40,8 @@ import androidx.coordinatorlayout.widget.CoordinatorLayout;
 
 import org.chromium.base.Callback;
 import org.chromium.base.CallbackController;
-import org.chromium.base.CallbackUtils;
 import org.chromium.base.ContextUtils;
 import org.chromium.base.JavaExceptionReporter;
-import org.chromium.base.ObserverList;
 import org.chromium.base.TimeUtils;
 import org.chromium.base.TraceEvent;
 import org.chromium.base.ValueChangedCallback;
@@ -64,7 +62,6 @@ import org.chromium.build.annotations.Nullable;
 import org.chromium.cc.input.BrowserControlsState;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.ActivityTabProvider;
-import org.chromium.chrome.browser.ActivityTabProvider.ActivityTabTabObserver;
 import org.chromium.chrome.browser.IntentHandler;
 import org.chromium.chrome.browser.app.tabwindow.TabWindowManagerSingleton;
 import org.chromium.chrome.browser.back_press.BackPressManager;
@@ -107,8 +104,6 @@ import org.chromium.chrome.browser.history.HistoryManagerUtils;
 import org.chromium.chrome.browser.homepage.HomepageManager;
 import org.chromium.chrome.browser.homepage.HomepageManager.HomepageStateListener;
 import org.chromium.chrome.browser.homepage.HomepagePolicyManager;
-import org.chromium.chrome.browser.hub.HubExitNavigationHelper;
-import org.chromium.chrome.browser.hub.HubManager;
 import org.chromium.chrome.browser.keyboard_accessory.ManualFillingComponent;
 import org.chromium.chrome.browser.keyboard_accessory.ManualFillingComponentSupplier;
 import org.chromium.chrome.browser.layouts.LayoutStateProvider;
@@ -126,7 +121,6 @@ import org.chromium.chrome.browser.offlinepages.OfflinePageTabData;
 import org.chromium.chrome.browser.omaha.UpdateMenuItemHelper;
 import org.chromium.chrome.browser.omnibox.LocationBar;
 import org.chromium.chrome.browser.omnibox.LocationBarCoordinator;
-import org.chromium.chrome.browser.omnibox.LocationBarDataProvider;
 import org.chromium.chrome.browser.omnibox.LocationBarEmbedderUiOverrides;
 import org.chromium.chrome.browser.omnibox.LocationBarFocusScrimHandler;
 import org.chromium.chrome.browser.omnibox.NewTabPageDelegate;
@@ -134,7 +128,6 @@ import org.chromium.chrome.browser.omnibox.OmniboxChipManager;
 import org.chromium.chrome.browser.omnibox.OmniboxStub;
 import org.chromium.chrome.browser.omnibox.OverrideUrlLoadingDelegateImpl;
 import org.chromium.chrome.browser.omnibox.UrlFocusChangeListener;
-import org.chromium.chrome.browser.omnibox.fusebox.FuseboxControls;
 import org.chromium.chrome.browser.omnibox.status.SiteControlsIphController;
 import org.chromium.chrome.browser.omnibox.suggestions.OmniboxSuggestionsDropdownScrollListener;
 import org.chromium.chrome.browser.omnibox.suggestions.action.OmniboxActionDelegateImpl;
@@ -162,13 +155,13 @@ import org.chromium.chrome.browser.tab_bottom_sheet.TabBottomSheetManager;
 import org.chromium.chrome.browser.tab_bottom_sheet.TabBottomSheetUtils;
 import org.chromium.chrome.browser.tab_ui.TabContentManager;
 import org.chromium.chrome.browser.tab_ui.TabModelDotInfo;
-import org.chromium.chrome.browser.tab_ui.TabSwitcherUtils;
 import org.chromium.chrome.browser.tabmodel.IncognitoStateProvider;
 import org.chromium.chrome.browser.tabmodel.OverridableTabCount;
 import org.chromium.chrome.browser.tabmodel.TabCreatorManager;
 import org.chromium.chrome.browser.tabmodel.TabCreatorUtil;
 import org.chromium.chrome.browser.tabmodel.TabModel;
 import org.chromium.chrome.browser.tabmodel.TabModelSelector;
+import org.chromium.chrome.browser.tabmodel.TabModelSelectorObserver;
 import org.chromium.chrome.browser.tabstrip.TabStripTopControlLayer;
 import org.chromium.chrome.browser.tasks.tab_management.TabGroupUi;
 import org.chromium.chrome.browser.tasks.tab_management.TabGroupUiOneshotSupplier;
@@ -228,8 +221,6 @@ import org.chromium.chrome.browser.ui.edge_to_edge.EdgeToEdgeController;
 import org.chromium.chrome.browser.ui.edge_to_edge.TopInsetProvider;
 import org.chromium.chrome.browser.ui.messages.snackbar.SnackbarManager;
 import org.chromium.chrome.browser.ui.native_page.NativePage;
-import org.chromium.chrome.browser.ui.side_ui.SideUiCoordinator.AnchorSide;
-import org.chromium.chrome.browser.ui.side_ui.SideUiCoordinator.HeightType;
 import org.chromium.chrome.browser.ui.side_ui.SideUiCoordinator.SideUiSpecs;
 import org.chromium.chrome.browser.ui.side_ui.SideUiObserver;
 import org.chromium.chrome.browser.ui.side_ui.SideUiStateProvider;
@@ -240,7 +231,6 @@ import org.chromium.chrome.browser.undo_tab_close_snackbar.UndoBarThrottle;
 import org.chromium.chrome.browser.user_education.UserEducationHelper;
 import org.chromium.chrome.browser.util.BrowserUiUtils;
 import org.chromium.chrome.browser.util.BrowserUiUtils.ModuleTypeOnStartAndNtp;
-import org.chromium.chrome.browser.webapps.WebappRegistry;
 import org.chromium.components.browser_ui.accessibility.PageZoomManager;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetControllerProvider;
@@ -253,7 +243,6 @@ import org.chromium.components.browser_ui.widget.gesture.BackPressHandler;
 import org.chromium.components.browser_ui.widget.gesture.BackPressHandler.BackPressResult;
 import org.chromium.components.browser_ui.widget.scrim.ScrimManager;
 import org.chromium.components.embedder_support.contextmenu.ContextMenuPopulatorFactory;
-import org.chromium.components.embedder_support.util.Origin;
 import org.chromium.components.embedder_support.util.UrlUtilities;
 import org.chromium.components.feature_engagement.EventConstants;
 import org.chromium.components.feature_engagement.Tracker;
@@ -276,7 +265,6 @@ import org.chromium.ui.base.ActivityResultTracker;
 import org.chromium.ui.base.ActivityWindowAndroid;
 import org.chromium.ui.base.BackGestureEventSwipeEdge;
 import org.chromium.ui.base.DeviceFormFactor;
-import org.chromium.ui.base.DeviceInput;
 import org.chromium.ui.base.WindowAndroid;
 import org.chromium.ui.display.DisplayUtil;
 import org.chromium.ui.modaldialog.ModalDialogManager;
@@ -305,8 +293,7 @@ public class ToolbarManager
                 ThemeColorObserver,
                 TintObserver,
                 MenuButtonDelegate,
-                TabObscuringHandler.Observer,
-                FuseboxControls {
+                TabObscuringHandler.Observer {
     private final LocationBarEmbedderUiOverrides mLocationBarEmbedderUiOverrides =
             new LocationBarEmbedderUiOverrides().setIsMainBrowserOmnibox();
     private final IncognitoStateProvider mIncognitoStateProvider;
@@ -363,13 +350,13 @@ public class ToolbarManager
             ObservableSuppliers.createMonotonic();
     private @MonotonicNonNull TabModelSelector mTabModelSelector;
     private final Callback<TabModel> mCurrentTabModelObserver;
+    private TabModelSelectorObserver mTabModelSelectorObserver;
     private MonotonicObservableSupplier<TabModelSelector> mTabModelSelectorSupplier;
     private ActivityTabProvider.ActivityTabTabObserver mActivityTabTabObserver;
     private final ActivityTabProvider mActivityTabProvider;
     private final ActivityResultTracker mActivityResultTracker;
     private final SnackbarManager mSnackbarManager;
     private final LocationBarModel mLocationBarModel;
-    private @Nullable WebappRegistryAppInstalledDelegate mAppInstalledDelegate;
     private NullableObservableSupplier<BookmarkModel> mBookmarkModelSupplier;
     private final ValueChangedCallback<@Nullable BookmarkModel> mBookmarkModelSupplierObserver =
             new ValueChangedCallback<>(this::setBookmarkModel);
@@ -516,7 +503,6 @@ public class ToolbarManager
     private @Nullable UndoBarThrottle mUndoBarThrottle;
     private final @Nullable BottomBarHostManager mBottomBarHostManager;
     private final @Nullable OneshotSupplier<String> mCountrySupplier;
-    private final @Nullable OneshotSupplier<HubManager> mHubManagerSupplier;
 
     private OverridableTabCount mOverridableTabCount;
     private int mIncognitoNtpViewIdForA11y = View.NO_ID;
@@ -526,7 +512,6 @@ public class ToolbarManager
     private final NonNullObservableSupplier<Boolean> mXrSpaceModeObservableSupplier;
     private final SettableNonNullObservableSupplier<Float>
             mNtpSearchBoxTransitionPercentageSupplier = ObservableSuppliers.createNonNull(0f);
-    private @Nullable HubExitNavigationHelper mHubExitNavigationHelper;
 
     private static class TabObscuringCallback implements Callback<Boolean> {
         private final TabObscuringHandler mTabObscuringHandler;
@@ -639,17 +624,13 @@ public class ToolbarManager
                 return;
             }
 
-            if (!mHandler.onBackProgressed(
+            mHandler.onBackProgressed(
                     backEvent.getProgress(),
                     backEvent.getSwipeEdge() == BackEventCompat.EDGE_LEFT
                             ? BackGestureEventSwipeEdge.LEFT
                             : BackGestureEventSwipeEdge.RIGHT,
                     isForward(),
-                    mIsGestureMode)) {
-                // The gesture is ours again, so handleBackPress() must fall back to the
-                // regular back handling instead of waiting for a transition.
-                mHandler = null;
-            }
+                    mIsGestureMode);
         }
 
         @Override
@@ -848,8 +829,7 @@ public class ToolbarManager
             @Nullable ActionRegistry actionRegistry,
             @Nullable OneshotSupplier<String> countrySupplier,
             GlicButtonDelegate toggleGlicCallback,
-            boolean suppressTabStripAtStart,
-            @Nullable OneshotSupplier<HubManager> hubManagerSupplier) {
+            boolean suppressTabStripAtStart) {
         TraceEvent.begin("ToolbarManager.ToolbarManager");
         mActionRegistry = actionRegistry;
         mCountrySupplier = countrySupplier;
@@ -894,7 +874,6 @@ public class ToolbarManager
         mProfileSupplier = profileSupplier;
         mChromeAndroidTaskSupplier = chromeAndroidTaskSupplier;
         mBottomBarHostManager = bottomBarHostManager;
-        mHubManagerSupplier = hubManagerSupplier;
 
         mToolbarLayout = mActivity.findViewById(R.id.toolbar);
         NewTabPageDelegate ntpDelegate = createNewTabPageDelegate();
@@ -923,8 +902,6 @@ public class ToolbarManager
                         /* matchTrustedCdnUrl= */ mIsCustomTab);
         mControlContainer = controlContainer;
         mControlContainer.setToolbarRightMarginCallback(this::onToolbarRightMarginChanged);
-        mLocationBarEmbedderUiOverrides.setIsFullWidthExpansionAllowedSupplier(
-                () -> !mControlContainer.isToolbarInAppHeader());
         mToolbarHairline = mControlContainer.findViewById(R.id.toolbar_hairline);
 
         mBookmarkModelSupplier = bookmarkModelSupplier;
@@ -1138,7 +1115,7 @@ public class ToolbarManager
                                     if (tabBottomSheetManager != null) {
                                         tabBottomSheetManager.setSheetExpanded(false);
                                     }
-                                    runOrDeferAfterHubExit(mToolbarTabController::openHomepage);
+                                    mToolbarTabController.openHomepage();
                                 }
 
                                 Tracker tracker =
@@ -1168,7 +1145,7 @@ public class ToolbarManager
                             mIncognitoStateProvider,
                             mActivityTabProvider.asObservable(),
                             mToolbarNavControlsEnabledSupplier,
-                            /* onNavigationPopupShown= */ CallbackUtils.emptyRunnable(),
+                            /* onNavigationPopupShown= */ () -> {},
                             historyDelegate,
                             /* isWebApp= */ false);
         }
@@ -1285,7 +1262,7 @@ public class ToolbarManager
 
         tabObscuringHandler.addObserver(this);
 
-        Runnable scrimClickAction = this::onScrimClicked;
+        Runnable scrimClickAction = this::endFuseboxInput;
         View scrimTarget = mCompositorViewHolder;
         mLocationBarFocusHandler =
                 new LocationBarFocusScrimHandler(
@@ -1389,8 +1366,6 @@ public class ToolbarManager
             mToolbarLayout.setBrowserControlsVisibilityDelegate(mControlsVisibilityDelegate);
             mToolbarLayout.setBrowserControlsStateProvider(mBrowserControlsSizer);
             mLocationBar = locationBarCoordinator;
-            mAppInstalledDelegate = new WebappRegistryAppInstalledDelegate();
-            mLocationBarModel.setAppInstalledDelegate(mAppInstalledDelegate);
             locationBarCoordinator.setOnStatusViewHiddenForPageInfoRemoval(
                     () -> {
                         if (mSiteControlsIphController == null) {
@@ -1612,10 +1587,9 @@ public class ToolbarManager
                             mBottomControlsStacker.notifyDidFinishNavigationInPrimaryMainFrame();
                         }
 
-                        // If the load failed due to a different navigation, or we navigated back to
-                        // the NTP, reset the location bar animations.
-                        if ((navigation.errorCode() != NetError.OK
-                                        || UrlUtilities.isNtpUrl(navigation.getUrl()))
+                        // If the load failed due to a different navigation, there is no need to
+                        // reset the location bar animations.
+                        if (navigation.errorCode() != NetError.OK
                                 && !hasPendingNonNtpNavigation(tab)) {
                             NewTabPage ntp = getNewTabPageForCurrentTab();
                             if (ntp == null) return;
@@ -1926,8 +1900,7 @@ public class ToolbarManager
         // after fixing the initialization order.
         var currentSideUiSpecs = sideUiStateProvider.getCurrentSideUiSpecs();
 
-        mControlContainerSideUiObserver =
-                new ToolbarMarginAdjusterForSideUi(mControlContainer, mToolbar);
+        mControlContainerSideUiObserver = new ToolbarMarginAdjusterForSideUi(mControlContainer);
         mControlContainerSideUiObserver.onSideUiSpecsChanged(currentSideUiSpecs);
         mSideUiStateProvider.addObserver(mControlContainerSideUiObserver);
 
@@ -1939,11 +1912,8 @@ public class ToolbarManager
     }
 
     private static class ToolbarMarginAdjusterForSideUi extends ViewMarginAdjusterForSideUi {
-        private final TopToolbarCoordinator mToolbar;
-
-        ToolbarMarginAdjusterForSideUi(View view, TopToolbarCoordinator toolbar) {
+        ToolbarMarginAdjusterForSideUi(View view) {
             super(view, /* forToolbarElement= */ true);
-            mToolbar = toolbar;
         }
 
         @Override
@@ -1960,16 +1930,6 @@ public class ToolbarManager
             Transition transition = super.onPreSideUiSpecsChange(sideUiSpecs);
             super.triggerSynchronousMeasureAndLayout();
             return transition;
-        }
-
-        @Override
-        public void onSideUiSpecsChanged(SideUiSpecs sideUiSpecs) {
-            super.onSideUiSpecsChanged(sideUiSpecs);
-            int xOffset = 0;
-            if (sideUiSpecs.getHeightType(AnchorSide.LEFT) == HeightType.TOOLBAR) {
-                xOffset = sideUiSpecs.getWidth(AnchorSide.LEFT);
-            }
-            mToolbar.setXOffset(xOffset);
         }
     }
 
@@ -2001,29 +1961,6 @@ public class ToolbarManager
         } else {
             final boolean isSuccess = mToolbarTabController.back();
             if (isSuccess) RecordUserAction.record("MobileToolbarBack");
-        }
-    }
-
-    private void runOrDeferAfterHubExit(Runnable action) {
-        Tab currentTab = mLocationBarModel.getTab();
-        HubManager hubManager = mHubManagerSupplier != null ? mHubManagerSupplier.get() : null;
-        if (mLayoutStateProvider != null
-                && mLayoutStateProvider.isLayoutVisible(LayoutType.HUB)
-                && hubManager != null) {
-            boolean isIncognito =
-                    mIncognitoStateProvider != null
-                            && mIncognitoStateProvider.isIncognitoSelected();
-            if (currentTab == null || currentTab.isClosing() || currentTab.isDestroyed()) {
-                HomepageManager.getInstance().openHomepage(null, mTabCreatorManager, isIncognito);
-                return;
-            }
-            if (mHubExitNavigationHelper == null) {
-                mHubExitNavigationHelper =
-                        new HubExitNavigationHelper(mLayoutStateProvider, hubManager);
-            }
-            mHubExitNavigationHelper.runOrDefer(currentTab, action);
-        } else {
-            action.run();
         }
     }
 
@@ -2651,6 +2588,14 @@ public class ToolbarManager
         mUndoBarThrottle = undoBarThrottle;
 
         mTabModelSelector = tabModelSelector;
+        mTabModelSelectorObserver =
+                new TabModelSelectorObserver() {
+                    @Override
+                    public void onTabHidden(Tab tab) {
+                        suspendFuseboxInput();
+                    }
+                };
+        mTabModelSelector.addObserver(mTabModelSelectorObserver);
         if (mActionRegistry != null) {
             PropertyModel newTabModel = mActionRegistry.get(ActionId.NEW_TAB).get();
             assert newTabModel != null : "NEW_TAB action should be registered";
@@ -2736,8 +2681,7 @@ public class ToolbarManager
                                                         selectionDropdownMenuDelegate,
                                                         mTabModelSelector,
                                                         mModalDialogManagerSupplier.get(),
-                                                        cleanup,
-                                                        /* isWebApp= */ false));
+                                                        cleanup));
                 if (mExtensionsToolbarCoordinator != null) {
                     mToolbar.setExtensionsToolbarCoordinator(mExtensionsToolbarCoordinator);
                 }
@@ -2775,11 +2719,7 @@ public class ToolbarManager
                             archivedTabCountSupplier,
                             mLayoutStateProviderSupplier,
                             () -> openGridTabSwitcherHandler.run(),
-                            v -> {
-                                if (tabSwitcherLongClickListener != null) {
-                                    tabSwitcherLongClickListener.onLongClick(v);
-                                }
-                            },
+                            v -> tabSwitcherLongClickListener.onLongClick(v),
                             () -> TabArchiveSettings.setIphShownThisSession(true),
                             () -> TabArchiveSettings.setIphShownThisSession(false));
         }
@@ -2959,11 +2899,6 @@ public class ToolbarManager
         if (mIsDestroyed) return;
         mIsDestroyed = true;
 
-        if (mAppInstalledDelegate != null) {
-            mAppInstalledDelegate.destroy();
-            mAppInstalledDelegate = null;
-        }
-
         var omnibox = mLocationBar.getOmniboxStub();
         if (omnibox != null) {
             omnibox.removeUrlFocusChangeListener(this);
@@ -2976,6 +2911,9 @@ public class ToolbarManager
         }
         if (mTabModelSelectorSupplier != null) {
             mTabModelSelectorSupplier = null;
+        }
+        if (mTabModelSelectorObserver != null) {
+            mTabModelSelector.removeObserver(mTabModelSelectorObserver);
         }
         if (mTabModelSelector != null) {
             mTabModelSelector.getCurrentTabModelSupplier().removeObserver(mCurrentTabModelObserver);
@@ -2994,10 +2932,6 @@ public class ToolbarManager
         if (mTemplateUrlObserver != null) {
             mTemplateUrlService.removeObserver(mTemplateUrlObserver);
             mTemplateUrlObserver = null;
-        }
-        if (mHubExitNavigationHelper != null) {
-            mHubExitNavigationHelper.destroy();
-            mHubExitNavigationHelper = null;
         }
         if (mLayoutStateProvider != null) {
             mLayoutStateProvider.removeObserver(mLayoutStateObserver);
@@ -3473,29 +3407,21 @@ public class ToolbarManager
      *
      * @param input The AutocompleteInput to start the session with.
      */
-    @Override
     public void beginFuseboxInput(AutocompleteInput input) {
         if (mIsDestroyed || mLocationBar == null || mLocationBar.getOmniboxStub() == null) return;
         assumeNonNull(mLocationBar.getOmniboxStub()).beginInput(input);
     }
 
     /** End the current fusebox input session. */
-    @Override
     public void endFuseboxInput() {
         if (mIsDestroyed || mLocationBar == null || mLocationBar.getOmniboxStub() == null) return;
         assumeNonNull(mLocationBar.getOmniboxStub()).endInput();
     }
 
     /** Suspend the current fusebox input session. */
-    @Override
     public void suspendFuseboxInput() {
         if (mIsDestroyed || mLocationBar == null || mLocationBar.getOmniboxStub() == null) return;
         assumeNonNull(mLocationBar.getOmniboxStub()).suspendInput();
-    }
-
-    private void onScrimClicked() {
-        if (mIsDestroyed || mLocationBar == null || mLocationBar.getOmniboxStub() == null) return;
-        assumeNonNull(mLocationBar.getOmniboxStub()).onScrimClicked();
     }
 
     /**
@@ -3761,7 +3687,7 @@ public class ToolbarManager
         if (!mIsTablet) return;
         if (!UrlUtilities.isNtpUrl(mLocationBarModel.getCurrentGurl())) return;
 
-        if (DeviceInput.supportsAlphabeticKeyboard()) {
+        if (mActivity.getResources().getConfiguration().keyboard == Configuration.KEYBOARD_QWERTY) {
             mLocationBar.showUrlBarCursorWithoutFocusAnimations();
         }
     }
@@ -3782,8 +3708,7 @@ public class ToolbarManager
         mControlContainer.setLayoutParams(layoutParams);
     }
 
-    @VisibleForTesting
-    boolean isSendTabToSelfAvailable(GURL url) {
+    private boolean isSendTabToSelfAvailable(GURL url) {
         Profile profile = mProfileSupplier.get();
         if (profile == null) {
             return false;
@@ -3792,17 +3717,9 @@ public class ToolbarManager
                 != null;
     }
 
-    @VisibleForTesting
-    void onSendTabToSelfClicked() {
+    private void onSendTabToSelfClicked() {
         GURL url = mLocationBarModel.getUrlBarData().url;
         if (url == null || url.isEmpty()) return;
-        Profile profile = mProfileSupplier.get();
-        assert profile != null;
-
-        // Mark the STTS entrypoint as known to the user to avoid showing an IPH.
-        TrackerFactory.getTrackerForProfile(profile)
-                .notifyEvent(EventConstants.SEND_TAB_TO_SELF_OMNIBOX_USED);
-
         Tab tab = mActivityTabProvider.get();
         String title = tab != null ? tab.getTitle() : "";
         SendTabToSelfCoordinator sttsCoordinator =
@@ -3812,7 +3729,7 @@ public class ToolbarManager
                         url.getSpec(),
                         title,
                         BottomSheetControllerProvider.from(mWindowAndroid),
-                        profile,
+                        mProfileSupplier.get(),
                         DeviceLockActivityLauncherSupplier.get(mWindowAndroid),
                         mActivityTabProvider,
                         mActivity,
@@ -3978,10 +3895,6 @@ public class ToolbarManager
         return mTabSwitcherButtonCoordinator;
     }
 
-    public @Nullable ActivityTabTabObserver getActivityTabTabObserverForTesting() {
-        return mActivityTabTabObserver;
-    }
-
     private boolean isForward() {
         // Gestural navigation navigates backwards from both edges since this is an OS-level
         // gesture; users expect both edges to take them back.
@@ -4079,59 +3992,13 @@ public class ToolbarManager
         return mIsTablet ? mAppThemeColorProvider : getAdjustedToolbarThemeColorProvider();
     }
 
-    private @Nullable OnLongClickListener createTabSwitcherLongClickListener(
+    private OnLongClickListener createTabSwitcherLongClickListener(
             Profile profile, Runnable openGridTabSwitcherHandler) {
-        if (TabSwitcherUtils.isGridTabSwitcherDisabled()) {
-            return null;
-        }
         assert openGridTabSwitcherHandler != null;
         return TabSwitcherActionMenuCoordinator.createOnLongClickListener(
                 menuItemId -> mAppMenuDelegate.onOptionsItemSelected(menuItemId, null),
                 profile,
                 mTabModelSelectorSupplier,
                 TabWindowManagerSingleton.getInstance());
-    }
-
-    @Nullable HubExitNavigationHelper getHubExitNavigationHelperForTesting() {
-        return mHubExitNavigationHelper;
-    }
-
-    private static class WebappRegistryAppInstalledDelegate
-            implements LocationBarDataProvider.AppInstalledDelegate, WebappRegistry.Observer {
-        private final ObserverList<Runnable> mObservers = new ObserverList<>();
-
-        public WebappRegistryAppInstalledDelegate() {
-            WebappRegistry.getInstance().registerObserver(this);
-        }
-
-        @Override
-        public boolean isAppInstalled(GURL url) {
-            Origin origin = Origin.create(url.getSpec());
-            return origin != null
-                    && WebappRegistry.getInstance()
-                            .getOriginsWithInstalledApp()
-                            .contains(origin.toString());
-        }
-
-        @Override
-        public void addObserver(Runnable observer) {
-            mObservers.addObserver(observer);
-        }
-
-        @Override
-        public void removeObserver(Runnable observer) {
-            mObservers.removeObserver(observer);
-        }
-
-        @Override
-        public void onOriginsWithInstalledAppChanged() {
-            for (Runnable observer : mObservers) {
-                observer.run();
-            }
-        }
-
-        public void destroy() {
-            WebappRegistry.getInstance().unregisterObserver(this);
-        }
     }
 }

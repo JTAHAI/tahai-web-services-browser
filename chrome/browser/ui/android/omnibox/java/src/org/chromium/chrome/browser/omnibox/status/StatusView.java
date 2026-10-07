@@ -78,7 +78,6 @@ public class StatusView extends LinearLayout {
     private boolean mAnimatingStatusIconShow;
     private boolean mAnimatingStatusIconHide;
     private boolean mIsAnimatingStatusIconChange;
-    private boolean mHoverEnabled;
 
     private @StringRes int mAccessibilityToast;
     private @StringRes int mAccessibilityDoubleTapDescription;
@@ -123,7 +122,6 @@ public class StatusView extends LinearLayout {
 
                     @Override
                     public boolean onHover(View v, MotionEvent event) {
-                        if (!mHoverEnabled) return true;
                         switch (event.getAction()) {
                             case MotionEvent.ACTION_HOVER_ENTER:
                                 mSeparatorVisibility = mSeparatorView.getVisibility();
@@ -450,11 +448,6 @@ public class StatusView extends LinearLayout {
     /** Toggle use of animations. */
     void setAnimationsEnabled(boolean enabled) {
         mAnimationsEnabled = enabled;
-    }
-
-    /** Toggle use of hover effects. */
-    void setHoverEnabled(boolean enabled) {
-        mHoverEnabled = enabled;
     }
 
     /**

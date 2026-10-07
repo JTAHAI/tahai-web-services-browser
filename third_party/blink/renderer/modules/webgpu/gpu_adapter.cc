@@ -25,7 +25,6 @@
 #include "third_party/blink/renderer/platform/graphics/gpu/webgpu_callback.h"
 #include "third_party/blink/renderer/platform/heap/garbage_collected.h"
 #include "third_party/blink/renderer/platform/runtime_enabled_features.h"
-#include "third_party/blink/renderer/platform/wtf/text/format.h"
 
 namespace blink {
 
@@ -98,9 +97,9 @@ GPUAdapter::GPUAdapter(
   vendor_ = String::FromUtf8(info.vendor);
   architecture_ = String::FromUtf8(info.architecture);
   if (info.deviceID <= 0xffff) {
-    device_ = Format("0x{:04x}", info.deviceID);
+    device_ = String::Format("0x%04x", info.deviceID);
   } else {
-    device_ = Format("0x{:08x}", info.deviceID);
+    device_ = String::Format("0x%08x", info.deviceID);
   }
   description_ = String::FromUtf8(info.device);
   driver_ = String::FromUtf8(info.description);
@@ -279,7 +278,7 @@ ScriptPromise<GPUDevice> GPUAdapter::requestDevice(
       // If the feature is not a valid feature reject with a type error.
       if (!features_->Has(f.AsEnum())) {
         resolver->RejectWithTypeError(
-            StrCat({"Unsupported feature: ", f.AsStringView()}));
+            UNSAFE_TODO(String::Format("Unsupported feature: %s", f.AsCStr())));
         return promise;
       }
       required_features_set.insert(AsDawnEnum(f));

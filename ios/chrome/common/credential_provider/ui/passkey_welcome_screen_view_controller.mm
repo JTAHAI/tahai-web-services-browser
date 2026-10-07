@@ -125,13 +125,15 @@ NSString* GetBannerName(PasskeyWelcomeScreenPurpose purpose) {
       [[InstructionView alloc] initWithList:_strings.instructions];
   instructionView.translatesAutoresizingMaskIntoConstraints = NO;
   [specificContentView addSubview:instructionView];
-  AddSameConstraintsToSides(instructionView, specificContentView,
-                            LayoutSides::kTop | LayoutSides::kHorizontal);
+  AddSameConstraintsToSides(
+      instructionView, specificContentView,
+      LayoutSides::kTop | LayoutSides::kLeading | LayoutSides::kTrailing);
 
   UILabel* footerMessage = [self createFooterMessage];
   [specificContentView addSubview:footerMessage];
-  AddSameConstraintsToSides(footerMessage, specificContentView,
-                            LayoutSides::kBottom | LayoutSides::kHorizontal);
+  AddSameConstraintsToSides(
+      footerMessage, specificContentView,
+      LayoutSides::kLeading | LayoutSides::kTrailing | LayoutSides::kBottom);
 
   [NSLayoutConstraint activateConstraints:@[
     [footerMessage.topAnchor

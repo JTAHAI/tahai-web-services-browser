@@ -6,7 +6,7 @@
 
 #include "base/functional/bind.h"
 #include "base/test/test_future.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "content/public/test/browser_test.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -41,36 +41,4 @@ IN_PROC_BROWSER_TEST_F(CreateBrowserWindowBrowserTest,
   ASSERT_NE(new_browser, browser());
   EXPECT_EQ(new_browser->GetProfile(), browser()->GetProfile());
   EXPECT_EQ(BrowserWindowInterface::TYPE_NORMAL, new_browser->GetType());
-}
-
-IN_PROC_BROWSER_TEST_F(CreateBrowserWindowBrowserTest,
-                       CreateAppBrowserWindowAndClone) {
-  BrowserWindowCreateParams create_params =
-      BrowserWindowCreateParams::CreateForApp(
-          "TestApp", /*trusted_source=*/true, gfx::Rect(0, 0, 800, 600),
-          browser()->GetProfile(), /*user_gesture=*/true);
-  create_params.omit_from_session_restore = true;
-
-  BrowserWindowCreateParams cloned_params = create_params.Clone();
-  EXPECT_EQ(create_params.app_name, cloned_params.app_name);
-  EXPECT_EQ(create_params.is_trusted_source, cloned_params.is_trusted_source);
-  EXPECT_EQ(create_params.initial_bounds, cloned_params.initial_bounds);
-  EXPECT_EQ(create_params.omit_from_session_restore,
-            cloned_params.omit_from_session_restore);
-
-  BrowserWindowInterface* app_browser =
-      CreateBrowserWindow(std::move(create_params));
-  ASSERT_TRUE(app_browser);
-  EXPECT_EQ(BrowserWindowInterface::TYPE_APP, app_browser->GetType());
-}
-
-IN_PROC_BROWSER_TEST_F(CreateBrowserWindowBrowserTest,
-                       CreateDevToolsBrowserWindow) {
-  BrowserWindowCreateParams create_params =
-      BrowserWindowCreateParams::CreateForDevTools(browser()->GetProfile());
-
-  BrowserWindowInterface* devtools_browser =
-      CreateBrowserWindow(std::move(create_params));
-  ASSERT_TRUE(devtools_browser);
-  EXPECT_EQ(BrowserWindowInterface::TYPE_DEVTOOLS, devtools_browser->GetType());
 }

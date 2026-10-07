@@ -19,11 +19,9 @@
 #include "base/strings/utf_string_conversions.h"
 #include "base/win/current_module.h"
 #include "base/win/scoped_gdi_object.h"
-#include "base/win/scoped_select_object.h"
 #include "chrome/updater/util/util.h"
 #include "chrome/updater/win/ui/l10n_util.h"
 #include "chrome/updater/win/ui/resources/updater_installer_strings.h"
-#include "chrome/updater/win/ui/ui_constants.h"
 #include "chrome/updater/win/ui/ui_util.h"
 #include "ui/gfx/geometry/rect.h"
 
@@ -80,22 +78,18 @@ void DrawParentBackground(HWND hwnd, HDC hdc, const RECT& rect) {
   ::SetWindowOrgEx(hdc, pt.x, pt.y, nullptr);
 }
 
-// Returns the system color corresponding to `high_contrast_color_index` if
-// `is_high_contrast` is true. Otherwise, it returns `normal_color`.
-COLORREF GetColor(bool is_high_contrast,
-                  COLORREF normal_color,
-                  int high_contrast_color_index) {
-  return is_high_contrast ? ::GetSysColor(high_contrast_color_index)
-                          : normal_color;
+// Returns the system color corresponding to `high_contrast_color_index` if the
+// system is in high contrast mode. Otherwise, it returns `normal_color`.
+COLORREF GetColor(COLORREF normal_color, int high_contrast_color_index) {
+  return IsHighContrastOn() ? ::GetSysColor(high_contrast_color_index)
+                            : normal_color;
 }
 
 // Returns the system color brush corresponding to `high_contrast_color_index`
-// if `is_high_contrast` is true. Otherwise, it returns `normal_brush`.
-HBRUSH GetColorBrush(bool is_high_contrast,
-                     HBRUSH normal_brush,
-                     int high_contrast_color_index) {
-  return is_high_contrast ? ::GetSysColorBrush(high_contrast_color_index)
-                          : normal_brush;
+// if the system is in high contrast mode. Otherwise, it returns `normal_brush`.
+HBRUSH GetColorBrush(HBRUSH normal_brush, int high_contrast_color_index) {
+  return IsHighContrastOn() ? ::GetSysColorBrush(high_contrast_color_index)
+                            : normal_brush;
 }
 
 gfx::Rect RectToGfx(const RECT& rc) {
@@ -105,9 +99,7 @@ gfx::Rect RectToGfx(const RECT& rc) {
 }  // namespace
 
 CaptionButton::CaptionButton()
-    : foreground_brush_(::CreateSolidBrush(kCaptionForegroundColor)) {
-  UpdateThemeState();
-}
+    : foreground_brush_(::CreateSolidBrush(kCaptionForegroundColor)) {}
 
 CaptionButton::~CaptionButton() {
   if (tool_tip_window_ && ::IsWindow(tool_tip_window_)) {
@@ -152,7 +144,7 @@ HWND CaptionButton::Create(HWND parent, const RECT& bounds, int control_id) {
       .uFlags = TTF_IDISHWND | TTF_SUBCLASS,
       .hwnd = hwnd(),
       .uId = reinterpret_cast<UINT_PTR>(hwnd()),
-      .lpszText = tool_tip_text_.data(),
+      .lpszText = const_cast<LPWSTR>(tool_tip_text_.c_str()),
   };
   ::SendMessageW(tool_tip_window_, TTM_ADDTOOLW, 0,
                  reinterpret_cast<LPARAM>(&ti));
@@ -215,21 +207,7 @@ LRESULT CaptionButton::OnMouseLeave(UINT, WPARAM, LPARAM) {
   return 0;
 }
 
-void CaptionButton::UpdateThemeState() {
-  is_high_contrast_ = IsHighContrastOn();
-}
-
-LRESULT CaptionButton::OnThemeChanged(UINT, WPARAM, LPARAM) {
-  UpdateThemeState();
-  if (IsWindow()) {
-    ::InvalidateRect(hwnd(), nullptr, FALSE);
-  }
-  SetMsgHandled(FALSE);
-  return 0;
-}
-
 void CaptionButton::DrawItem(LPDRAWITEMSTRUCT draw_item_struct) {
-  const bool is_high_contrast = is_high_contrast_;
   HDC dc = draw_item_struct->hDC;
 
   RECT button_rect = {};
@@ -237,8 +215,7 @@ void CaptionButton::DrawItem(LPDRAWITEMSTRUCT draw_item_struct) {
 
   if (is_mouse_hovering_) {
     // Keep the hover highlight solid.
-    FillSolidRect(dc, button_rect,
-                  GetColor(is_high_contrast, kCaptionBkHover, COLOR_HIGHLIGHT));
+    FillSolidRect(dc, button_rect, GetColor(kCaptionBkHover, COLOR_HIGHLIGHT));
   } else {
     // Draw the parent's gradient background.
     DrawParentBackground(hwnd(), dc, button_rect);
@@ -254,7 +231,7 @@ void CaptionButton::DrawItem(LPDRAWITEMSTRUCT draw_item_struct) {
 
   ::FillRgn(
       dc, rgn.get(),
-      GetColorBrush(is_high_contrast, foreground_brush_.get(),
+      GetColorBrush(foreground_brush_.get(),
                     is_mouse_hovering_ ? COLOR_HIGHLIGHTTEXT : COLOR_BTNTEXT));
 
   const UINT button_state = draw_item_struct->itemState;
@@ -263,12 +240,12 @@ void CaptionButton::DrawItem(LPDRAWITEMSTRUCT draw_item_struct) {
   }
 
   // Draw a scaled frame for the active/focused state.
-  base::win::ScopedGDIObject<HPEN> pen(::CreatePen(
-      PS_INSIDEFRAME,
-      /*thickness=*/
-      std::max(1, ::MulDiv(1, /*dpi=*/::GetDpiForWindow(hwnd()),
-                           USER_DEFAULT_SCREEN_DPI)),
-      GetColor(is_high_contrast, kCaptionFrameColor, COLOR_WINDOWFRAME)));
+  base::win::ScopedGDIObject<HPEN> pen(
+      ::CreatePen(PS_INSIDEFRAME,
+                  /*thickness=*/
+                  std::max(1, ::MulDiv(1, /*dpi=*/::GetDpiForWindow(hwnd()),
+                                       USER_DEFAULT_SCREEN_DPI)),
+                  GetColor(kCaptionFrameColor, COLOR_WINDOWFRAME)));
   const HPEN old_pen = static_cast<HPEN>(::SelectObject(dc, pen.get()));
   const HBRUSH old_brush =
       static_cast<HBRUSH>(::SelectObject(dc, ::GetStockObject(NULL_BRUSH)));
@@ -503,16 +480,6 @@ LRESULT OwnerDrawTitleBarWindow::OnDrawItem(UINT, WPARAM, LPARAM lparam) {
   return 0;
 }
 
-LRESULT OwnerDrawTitleBarWindow::OnSetCursor(UINT,
-                                             WPARAM wparam,
-                                             LPARAM lparam) {
-  if (MaybeSetArrowCursor(hwnd(), wparam, lparam)) {
-    return TRUE;
-  }
-  SetMsgHandled(FALSE);
-  return 0;
-}
-
 void OwnerDrawTitleBarWindow::OnClose(UINT, int, HWND) {
   ::PostMessage(::GetParent(hwnd()), WM_SYSCOMMAND, MAKEWPARAM(SC_CLOSE, 0), 0);
 }
@@ -669,22 +636,8 @@ RECT OwnerDrawTitleBar::ComputeTitleBarClientRect(HWND parent_hwnd,
   return title_bar_client_rect;
 }
 
-CustomDlgColors::CustomDlgColors() {
-  UpdateThemeState();
-}
+CustomDlgColors::CustomDlgColors() = default;
 CustomDlgColors::~CustomDlgColors() = default;
-
-void CustomDlgColors::UpdateThemeState() {
-  is_high_contrast_ = IsHighContrastOn();
-  is_dark_mode_ = !is_high_contrast_ && IsDarkModeOn();
-  if (is_dark_mode_) {
-    if (!dark_bk_brush_.is_valid()) {
-      dark_bk_brush_.reset(::CreateSolidBrush(kBgColorDark));
-    }
-  } else {
-    dark_bk_brush_.reset();
-  }
-}
 
 void CustomDlgColors::SetCustomDlgColors(COLORREF text_color,
                                          COLORREF bk_color) {
@@ -693,7 +646,6 @@ void CustomDlgColors::SetCustomDlgColors(COLORREF text_color,
   bk_brush_.reset(::CreateSolidBrush(bk_color_));
 }
 
-// Chained message handler for `CR_CHAIN_MSG_MAP(CustomDlgColors)`.
 BOOL CustomDlgColors::ProcessWindowMessage(HWND,
                                            UINT msg,
                                            WPARAM wparam,
@@ -706,7 +658,7 @@ BOOL CustomDlgColors::ProcessWindowMessage(HWND,
   }
   HDC dc = reinterpret_cast<HDC>(wparam);
 
-  if (is_high_contrast_) {
+  if (IsHighContrastOn()) {
     int text_color_idx =
         (msg == WM_CTLCOLORBTN) ? COLOR_BTNTEXT : COLOR_WINDOWTEXT;
     int bk_color_idx = (msg == WM_CTLCOLORBTN) ? COLOR_BTNFACE : COLOR_WINDOW;
@@ -716,13 +668,13 @@ BOOL CustomDlgColors::ProcessWindowMessage(HWND,
     return TRUE;
   }
 
-  if (is_dark_mode_) {
+  if (IsDarkModeOn()) {
     COLORREF text_color =
         (msg == WM_CTLCOLORBTN) ? RGB(0xA8, 0xC7, 0xFA) : RGB(0xFF, 0xFF, 0xFF);
     ::SetTextColor(dc, text_color);
-    ::SetBkColor(dc, kBgColorDark);
+    ::SetBkColor(dc, RGB(0x20, 0x20, 0x20));
     if (!dark_bk_brush_.is_valid()) {
-      dark_bk_brush_.reset(::CreateSolidBrush(kBgColorDark));
+      dark_bk_brush_.reset(::CreateSolidBrush(RGB(0x20, 0x20, 0x20)));
     }
     result = reinterpret_cast<LRESULT>(dark_bk_brush_.get());
     return TRUE;
@@ -730,28 +682,22 @@ BOOL CustomDlgColors::ProcessWindowMessage(HWND,
 
   // Light Mode
   if (msg == WM_CTLCOLORBTN) {
-    ::SetTextColor(dc, text_color_);
-    ::SetBkColor(dc, bk_color_);
+    ::SetTextColor(dc, GetColor(text_color_, COLOR_BTNTEXT));
+    ::SetBkColor(dc, GetColor(bk_color_, COLOR_BTNFACE));
     result = reinterpret_cast<LRESULT>(::GetStockObject(NULL_BRUSH));
     return TRUE;
   }
 
-  ::SetBkColor(dc, bk_color_);
-  ::SetTextColor(dc, text_color_);
-  result = reinterpret_cast<LRESULT>(bk_brush_.get());
+  ::SetBkColor(dc, GetColor(bk_color_, COLOR_WINDOW));
+  ::SetTextColor(dc, GetColor(text_color_, COLOR_WINDOWTEXT));
+  result =
+      reinterpret_cast<LRESULT>(GetColorBrush(bk_brush_.get(), COLOR_WINDOW));
   return TRUE;
 }
 
-CustomProgressBarCtrl::CustomProgressBarCtrl() {
-  UpdateThemeState();
-}
+CustomProgressBarCtrl::CustomProgressBarCtrl() = default;
 
 CustomProgressBarCtrl::~CustomProgressBarCtrl() = default;
-
-void CustomProgressBarCtrl::UpdateThemeState() {
-  is_high_contrast_ = IsHighContrastOn();
-  is_dark_mode_ = !is_high_contrast_ && IsDarkModeOn();
-}
 
 LRESULT CustomProgressBarCtrl::OnEraseBkgnd(UINT, WPARAM, LPARAM) {
   // The background and foreground are both rendered in OnPaint().
@@ -782,9 +728,6 @@ LRESULT CustomProgressBarCtrl::OnPaint(UINT, WPARAM, LPARAM) {
   HDC dc_paint = ::BeginPaint(hwnd(), &ps);
   RECT window_rect = {};
   ::GetClientRect(hwnd(), &window_rect);
-
-  const bool is_high_contrast = is_high_contrast_;
-  const bool is_dark_mode = is_dark_mode_;
 
   // Calculate a half-width rectangle.
   RECT client_rect = window_rect;
@@ -826,10 +769,8 @@ LRESULT CustomProgressBarCtrl::OnPaint(UINT, WPARAM, LPARAM) {
   // took visual effect in the legacy WTL build because the brush was
   // selected into the wrong DC; now that the selection is correct, the
   // intended dark track color renders.)
-  COLORREF track_color = empty_fill_color_;
-  if (is_high_contrast) {
-    track_color = ::GetSysColor(COLOR_WINDOW);
-  } else if (is_dark_mode) {
+  COLORREF track_color = GetColor(empty_fill_color_, COLOR_WINDOW);
+  if (!IsHighContrastOn() && IsDarkModeOn()) {
     track_color = RGB(0x44, 0x47, 0x46);
   }
 
@@ -838,9 +779,9 @@ LRESULT CustomProgressBarCtrl::OnPaint(UINT, WPARAM, LPARAM) {
   // corners expose this color, and it becomes the pill's visible frame
   // against the dialog background.
   COLORREF outside_pill_color = kProgressEmptyFrameColor;
-  if (is_high_contrast) {
+  if (IsHighContrastOn()) {
     outside_pill_color = ::GetSysColor(COLOR_WINDOW);
-  } else if (is_dark_mode) {
+  } else if (IsDarkModeOn()) {
     outside_pill_color = RGB(0x20, 0x20, 0x20);
   }
 
@@ -852,7 +793,7 @@ LRESULT CustomProgressBarCtrl::OnPaint(UINT, WPARAM, LPARAM) {
   // visible.
   base::win::ScopedGDIObject<HPEN> hc_pen;
   HGDIOBJ old_pen = nullptr;
-  if (is_high_contrast) {
+  if (IsHighContrastOn()) {
     hc_pen.reset(
         ::CreatePen(PS_SOLID, kScale, ::GetSysColor(COLOR_WINDOWTEXT)));
     old_pen = ::SelectObject(dc_hi_res, hc_pen.get());
@@ -891,23 +832,15 @@ LRESULT CustomProgressBarCtrl::OnPaint(UINT, WPARAM, LPARAM) {
     // Draw the fill.
     if (!IsRectEmpty(progress_rect) &&
         Width(progress_rect) > (corner_size / 2)) {
-      COLORREF fill_color = bar_color_;
-      if (is_high_contrast) {
-        fill_color = ::GetSysColor(COLOR_HIGHLIGHT);
-      } else if (is_dark_mode) {
-        fill_color = RGB(0xA8, 0xC7, 0xFA);
-      }
       base::win::ScopedGDIObject<HBRUSH> fill_brush(
-          ::CreateSolidBrush(fill_color));
-      {
-        // `select_brush` must be scoped inside or declared after `fill_brush`
-        // so that it is deselected from `dc_hi_res` before `fill_brush` is
-        // destroyed.
-        base::win::ScopedSelectObject select_brush(dc_hi_res, fill_brush.get());
-        ::RoundRect(dc_hi_res, progress_rect.left, progress_rect.top,
-                    progress_rect.right, progress_rect.bottom, corner_size,
-                    corner_size);
-      }
+          ::CreateSolidBrush((!IsHighContrastOn() && IsDarkModeOn())
+                                 ? RGB(0xA8, 0xC7, 0xFA)
+                                 : GetColor(bar_color_, COLOR_HIGHLIGHT)));
+      ::SelectObject(dc_hi_res, fill_brush.get());
+      ::RoundRect(dc_hi_res, progress_rect.left, progress_rect.top,
+                  progress_rect.right, progress_rect.bottom, corner_size,
+                  corner_size);
+      ::SelectObject(dc_hi_res, bg_brush.get());
     }
   }
 
@@ -950,12 +883,9 @@ LRESULT CustomProgressBarCtrl::OnTimer(UINT, WPARAM event_id, LPARAM) {
   return 0;
 }
 
-LRESULT CustomProgressBarCtrl::OnThemeChanged(UINT, WPARAM, LPARAM) {
-  UpdateThemeState();
-  if (IsWindow()) {
-    ::RedrawWindow(hwnd(), nullptr, nullptr,
-                   RDW_INVALIDATE | RDW_UPDATENOW | RDW_ERASE);
-  }
+LRESULT CustomProgressBarCtrl::OnSysColorChange(UINT, WPARAM, LPARAM) {
+  ::RedrawWindow(hwnd(), nullptr, nullptr,
+                 RDW_INVALIDATE | RDW_UPDATENOW | RDW_ERASE);
   SetMsgHandled(FALSE);
   return 0;
 }
@@ -1031,15 +961,8 @@ LRESULT CustomProgressBarCtrl::OnSetBkColor(UINT,
   return old_empty_fill_color;
 }
 
-FlatButton::FlatButton() {
-  UpdateThemeState();
-}
+FlatButton::FlatButton() = default;
 FlatButton::~FlatButton() = default;
-
-void FlatButton::UpdateThemeState() {
-  is_high_contrast_ = IsHighContrastOn();
-  is_dark_mode_ = !is_high_contrast_ && IsDarkModeOn();
-}
 
 void FlatButton::SetIsPrimary(bool is_primary) {
   is_primary_ = is_primary;
@@ -1094,10 +1017,13 @@ LRESULT FlatButton::OnMouseLeave(UINT, WPARAM, LPARAM) {
 }
 
 LRESULT FlatButton::OnThemeChanged(UINT, WPARAM, LPARAM) {
-  UpdateThemeState();
-  if (IsWindow()) {
-    ::InvalidateRect(hwnd(), nullptr, FALSE);
-  }
+  ::InvalidateRect(hwnd(), nullptr, FALSE);
+  SetMsgHandled(FALSE);
+  return 0;
+}
+
+LRESULT FlatButton::OnSysColorChange(UINT, WPARAM, LPARAM) {
+  ::InvalidateRect(hwnd(), nullptr, FALSE);
   SetMsgHandled(FALSE);
   return 0;
 }
@@ -1137,14 +1063,11 @@ LRESULT FlatButton::OnPaint(UINT, WPARAM, LPARAM) {
   const bool is_pressed =
       ((::SendMessageW(hwnd(), BM_GETSTATE, 0, 0) & BST_PUSHED) != 0);
 
-  const bool is_high_contrast = is_high_contrast_;
-  const bool is_dark_mode = is_dark_mode_;
-
   COLORREF bg = CLR_INVALID;
   COLORREF text = CLR_INVALID;
   COLORREF border = CLR_INVALID;
 
-  if (is_high_contrast) {
+  if (IsHighContrastOn()) {
     const bool is_focused =
         (::GetFocus() == hwnd()) ||
         ((::SendMessageW(hwnd(), BM_GETSTATE, 0, 0) & BST_FOCUS) != 0);
@@ -1156,7 +1079,7 @@ LRESULT FlatButton::OnPaint(UINT, WPARAM, LPARAM) {
     text = use_highlight ? ::GetSysColor(COLOR_HIGHLIGHTTEXT)
                          : ::GetSysColor(COLOR_BTNTEXT);
     border = ::GetSysColor(COLOR_WINDOWFRAME);
-  } else if (is_dark_mode) {
+  } else if (IsDarkModeOn()) {
     if (is_disabled) {
       bg = kButtonBgDisabledDark;
       text = kButtonFgDisabledDark;

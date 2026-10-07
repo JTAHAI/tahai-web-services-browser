@@ -8,7 +8,6 @@
 
 #include "base/i18n/break_iterator.h"
 #include "base/i18n/case_conversion.h"
-#include "base/i18n/legacy_language_tag_helpers.h"
 #include "base/no_destructor.h"
 #include "base/strings/string_split.h"
 #include "base/strings/utf_string_conversions.h"
@@ -105,10 +104,8 @@ bool IsPreferredLanguage(std::string_view detected_language) {
                         base::TRIM_WHITESPACE, base::SPLIT_WANT_NONEMPTY);
 
   for (const std::string& locale : preferred_languages_list) {
-    if (base::i18n::GetLanguageSubtagUsingLanguageTag(locale) ==
-        detected_language) {
+    if (l10n_util::GetLanguage(locale) == detected_language)
       return true;
-    }
   }
   return false;
 }
@@ -120,8 +117,8 @@ bool ShouldSkipDefinition(const std::string& text) {
   // Skip definition annotations if English is not device language or user
   // preferred language (Currently the text classifier only works with English
   // words).
-  auto device_language = base::i18n::GetLanguageSubtagUsingLanguageTag(
-      QuickAnswersState::Get()->application_locale());
+  auto device_language =
+      l10n_util::GetLanguage(QuickAnswersState::Get()->application_locale());
   if (device_language != kEnglishLanguage &&
       !IsPreferredLanguage(kEnglishLanguage))
     return true;
@@ -358,12 +355,11 @@ void IntentGenerator::LanguageDetectorCallback(
     std::optional<std::string> detected_locale) {
   language_detector_.reset();
 
-  auto device_language = base::i18n::GetLanguageSubtagUsingLanguageTag(
-      QuickAnswersState::Get()->application_locale());
+  auto device_language =
+      l10n_util::GetLanguage(QuickAnswersState::Get()->application_locale());
   auto detected_language = detected_locale.has_value()
-                               ? base::i18n::GetLanguageSubtagUsingLanguageTag(
-                                     detected_locale.value())
-                               : std::string();
+                               ? l10n_util::GetLanguage(detected_locale.value())
+                               : std::string_view();
 
   // Generate translation intent if the detected language is different to the
   // system language and is not one of the preferred languages.

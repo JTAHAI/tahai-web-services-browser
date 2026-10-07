@@ -12,7 +12,6 @@ from chrome_ent_test.infra.core import test
 from .. import ChromeReportingConnectorTestCase, VerifyContent
 from .pubsub_api_service import PubsubApiService
 
-
 @category("chrome_only")
 @environment(file="../connector_test.asset.textpb")
 class ReportingConnectorwithPubsubTest(ChromeReportingConnectorTestCase):
@@ -36,9 +35,7 @@ class ReportingConnectorwithPubsubTest(ChromeReportingConnectorTestCase):
 
     # read service account private key from gs-bucket & write into local
     apiService = PubsubApiService(
-      self.GetFileFromGCSBucket('secrets/pubsubCredentials.json')
-    )
+        self.GetFileFromGCSBucket('secrets/pubsubCredentials.json'))
     self.TryVerifyUntilTimeout(
-      verifyClass=apiService,
-      content=VerifyContent(deviceId=deviceId, timestamp=testStartTime),
-    )
+        verifyClass=apiService,
+        content=VerifyContent(deviceId=deviceId, timestamp=testStartTime))

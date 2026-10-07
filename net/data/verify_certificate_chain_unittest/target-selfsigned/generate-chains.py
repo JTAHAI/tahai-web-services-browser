@@ -5,7 +5,6 @@
 """Single certificate chain for serverAuth which is self-signed."""
 
 import sys
-
 sys.path += ['../..']
 
 import gencerts

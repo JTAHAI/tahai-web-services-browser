@@ -1,3 +1,5 @@
-rules:
-# Top-level only. Subdirectories have their own mapping.
-- "*": [streams]
+features:
+- name: streams
+  files:
+    # Top-level only. Subdirectories have their own mapping.
+    - "*"

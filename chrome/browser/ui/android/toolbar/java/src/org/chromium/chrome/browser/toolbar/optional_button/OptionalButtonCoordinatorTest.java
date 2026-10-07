@@ -50,7 +50,6 @@ import org.chromium.chrome.browser.user_education.IphCommandBuilder;
 import org.chromium.chrome.browser.user_education.UserEducationHelper;
 import org.chromium.components.feature_engagement.FeatureConstants;
 import org.chromium.components.feature_engagement.Tracker;
-import org.chromium.ui.base.ViewUtils;
 import org.chromium.ui.test.util.MockitoHelper;
 import org.chromium.ui.widget.ViewRectProvider;
 
@@ -194,8 +193,11 @@ public class OptionalButtonCoordinatorTest {
     @Test
     public void testUpdateButton_hasErrorBadge() {
         Drawable iconDrawable = mock(Drawable.class);
-        OnClickListener clickListener = ViewUtils.emptyClickListener();
-        OnLongClickListener longClickListener = ViewUtils.emptyLongClickListener();
+        OnClickListener clickListener = view -> {};
+        OnLongClickListener longClickListener =
+                view -> {
+                    return false;
+                };
         IphCommandBuilder mockIphCommandBuilder = mock(IphCommandBuilder.class);
         String contentDescription = "description";
         boolean isEnabled = true;
@@ -217,7 +219,7 @@ public class OptionalButtonCoordinatorTest {
     @Test
     public void testUpdateButton_backgroundVisible() {
         Drawable iconDrawable = mock(Drawable.class);
-        OnClickListener clickListener = ViewUtils.emptyClickListener();
+        OnClickListener clickListener = view -> {};
         IphCommandBuilder mockIphCommandBuilder = mock(IphCommandBuilder.class);
         String contentDescription = "description";
         boolean isEnabled = true;
@@ -250,7 +252,7 @@ public class OptionalButtonCoordinatorTest {
     @Test
     public void testUpdateButton_backgroundGone() {
         Drawable iconDrawable = mock(Drawable.class);
-        OnClickListener clickListener = ViewUtils.emptyClickListener();
+        OnClickListener clickListener = view -> {};
         IphCommandBuilder mockIphCommandBuilder = mock(IphCommandBuilder.class);
         String contentDescription = "description";
         boolean isEnabled = true;
@@ -284,7 +286,7 @@ public class OptionalButtonCoordinatorTest {
     @Test
     public void testUpdateButton_showingIphChangesBackgroundAlpha() {
         Drawable iconDrawable = mock(Drawable.class);
-        OnClickListener clickListener = ViewUtils.emptyClickListener();
+        OnClickListener clickListener = view -> {};
         IphCommandBuilder mockIphCommandBuilder = mock(IphCommandBuilder.class);
         String contentDescription = "description";
         boolean isEnabled = true;
@@ -323,7 +325,7 @@ public class OptionalButtonCoordinatorTest {
                 false);
 
         Drawable iconDrawable = mock(Drawable.class);
-        OnClickListener clickListener = ViewUtils.emptyClickListener();
+        OnClickListener clickListener = view -> {};
         IphCommandBuilder mockIphCommandBuilder = mock(IphCommandBuilder.class);
         String contentDescription = "description";
         int actionChipResourceId = 987654;
@@ -360,7 +362,7 @@ public class OptionalButtonCoordinatorTest {
                 .shouldTriggerHelpUi(FeatureConstants.CONTEXTUAL_PAGE_ACTIONS_ACTION_CHIP);
 
         Drawable iconDrawable = mock(Drawable.class);
-        OnClickListener clickListener = ViewUtils.emptyClickListener();
+        OnClickListener clickListener = view -> {};
         IphCommandBuilder mockIphCommandBuilder = mock(IphCommandBuilder.class);
         String contentDescription = "description";
         int actionChipResourceId = 987654;
@@ -397,7 +399,7 @@ public class OptionalButtonCoordinatorTest {
                 .shouldTriggerHelpUi(FeatureConstants.CONTEXTUAL_PAGE_ACTIONS_ACTION_CHIP);
 
         Drawable iconDrawable = mock(Drawable.class);
-        OnClickListener clickListener = ViewUtils.emptyClickListener();
+        OnClickListener clickListener = view -> {};
         IphCommandBuilder mockIphCommandBuilder = mock(IphCommandBuilder.class);
         String contentDescription = "description";
         int actionChipResourceId = 987654;
@@ -434,7 +436,7 @@ public class OptionalButtonCoordinatorTest {
                 .shouldTriggerHelpUi(FeatureConstants.CONTEXTUAL_PAGE_ACTIONS_ACTION_CHIP);
 
         Drawable iconDrawable = mock(Drawable.class);
-        OnClickListener clickListener = ViewUtils.emptyClickListener();
+        OnClickListener clickListener = view -> {};
         IphCommandBuilder mockIphCommandBuilder = mock(IphCommandBuilder.class);
         String contentDescription = "description";
         int actionChipResourceId = 987654;
@@ -462,7 +464,7 @@ public class OptionalButtonCoordinatorTest {
         when(mMockOptionalButtonView.getButtonView()).thenReturn(mockButtonView);
 
         Drawable iconDrawable = mock(Drawable.class);
-        OnClickListener clickListener = ViewUtils.emptyClickListener();
+        OnClickListener clickListener = view -> {};
         String contentDescription = "description";
         ButtonSpec buttonSpec =
                 new ButtonSpec.Builder(
@@ -492,8 +494,11 @@ public class OptionalButtonCoordinatorTest {
         Callback<Integer> transitionFinishedCallback = mCallbackArgumentCaptor.getValue();
 
         Drawable iconDrawable = mock(Drawable.class);
-        OnClickListener clickListener = ViewUtils.emptyClickListener();
-        OnLongClickListener longClickListener = ViewUtils.emptyLongClickListener();
+        OnClickListener clickListener = view -> {};
+        OnLongClickListener longClickListener =
+                view -> {
+                    return false;
+                };
         IphCommandBuilder mockIphCommandBuilder = mock(IphCommandBuilder.class);
         String contentDescription = "description";
         boolean isEnabled = true;

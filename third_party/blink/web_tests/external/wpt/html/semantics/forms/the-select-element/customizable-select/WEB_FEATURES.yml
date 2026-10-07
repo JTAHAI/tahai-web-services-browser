@@ -1,3 +1,8 @@
-rules:
-- select-pseudo-open.html: [open-pseudo]
-- "*": [customizable-select]
+features:
+- name: customizable-select
+  files:
+  - "*"
+  - "!select-pseudo-open.html"
+- name: open-pseudo
+  files:
+  - select-pseudo-open.html

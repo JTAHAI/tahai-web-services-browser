@@ -66,7 +66,6 @@ class SyncEngineImpl : public SyncEngine,
   void TriggerRefresh(const DataTypeSet& types) override;
   void UpdateCredentials(const SyncCredentials& credentials) override;
   void InvalidateCredentials() override;
-  void OnCredentialsChanged() override;
   std::string GetCacheGuid() const override;
   std::string GetBirthday() const override;
   base::Time GetLastSyncedTimeForDebugging() const override;
@@ -154,9 +153,6 @@ class SyncEngineImpl : public SyncEngine,
   void HandleConnectionStatusChangeOnFrontendLoop(ConnectionStatus status);
 
   void OnCookieJarChangedDoneOnFrontendLoop(base::OnceClosure callback);
-
-  void FetchAccessTokenOnFrontendLoop(
-      base::OnceCallback<void(signin::AccessTokenInfo)> callback);
 
   // Called on each device infos change and might be called more than once with
   // the same `active_devices`.

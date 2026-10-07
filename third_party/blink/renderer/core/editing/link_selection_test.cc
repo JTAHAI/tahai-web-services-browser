@@ -2,7 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "base/memory/raw_ptr.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/blink/public/common/input/web_coalesced_input_event.h"
@@ -32,7 +31,7 @@ namespace blink {
 class LinkSelectionTestBase : public testing::Test {
  protected:
   enum DragFlag { kSendDownEvent = 1, kSendUpEvent = 1 << 1 };
-  using DragFlags = uint8_t;
+  using DragFlags = unsigned;
 
   void EmulateMouseDrag(const gfx::Point& down_point,
                         const gfx::Point& up_point,
@@ -53,8 +52,7 @@ class LinkSelectionTestBase : public testing::Test {
   test::TaskEnvironment task_environment_;
 
   frame_test_helpers::WebViewHelper helper_;
-  raw_ptr<WebViewImpl, UnprotectedInRelease | DanglingUntriaged> web_view_ =
-      nullptr;
+  WebViewImpl* web_view_ = nullptr;
   Persistent<WebLocalFrameImpl> main_frame_ = nullptr;
 };
 

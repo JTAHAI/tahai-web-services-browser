@@ -13,7 +13,6 @@
 #include "base/feature_list.h"
 #include "base/files/file_path.h"
 #include "base/types/expected.h"
-#include "build/build_config.h"
 
 namespace enterprise_obfuscation {
 
@@ -156,13 +155,6 @@ inline base::expected<T, Error> RecordAndReturn(
                                              : result.error());
   return result;
 }
-
-#if BUILDFLAG(IS_CHROMEOS)
-// Returns true if `path` is on a virtual/cloud filesystem (e.g. under
-// /media/fuse).
-COMPONENT_EXPORT(ENTERPRISE_OBFUSCATION)
-bool IsVirtualFilesystem(const base::FilePath& path);
-#endif
 
 }  // namespace enterprise_obfuscation
 

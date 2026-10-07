@@ -1,2 +1,3 @@
-rules:
-- "**": [selectors]
+features:
+- name: selectors
+  files: '**'

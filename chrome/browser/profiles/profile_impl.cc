@@ -185,6 +185,7 @@
 #include "mojo/public/cpp/bindings/self_owned_receiver.h"
 #include "pdf/buildflags.h"
 #include "printing/buildflags/buildflags.h"
+#include "profile_load_tracker_win.h"
 #include "services/data_decoder/public/cpp/data_decoder.h"
 #include "services/preferences/public/mojom/preferences.mojom.h"
 #include "services/preferences/public/mojom/tracked_preference_validation_delegate.mojom.h"
@@ -257,10 +258,6 @@
 
 #if BUILDFLAG(ENABLE_SESSION_SERVICE)
 #include "chrome/browser/sessions/session_service_factory.h"
-#endif
-
-#if BUILDFLAG(IS_WIN)
-#include "chrome/browser/profiles/profile_load_tracker_win.h"
 #endif
 
 #if BUILDFLAG(IS_WIN) && BUILDFLAG(USE_BROWSER_SPELLCHECKER)
@@ -457,8 +454,6 @@ void ProfileImpl::RegisterProfilePrefs(
   registry->RegisterBooleanPref(prefs::kPdfAnnotationsEnabled, true);
 #endif
   registry->RegisterIntegerPref(prefs::kEnterpriseBadgingTemporarySetting, 0);
-
-  registry->RegisterUint64Pref(prefs::kLomProfileId, 0u);
 }
 
 #if !BUILDFLAG(IS_CHROMEOS)
@@ -1772,6 +1767,9 @@ void ProfileImpl::UpdateAiSubscriptionTierInStorage() {
                                       ->GetProfileAttributesStorage()
                                       .GetProfileAttributesWithPath(GetPath());
   if (entry) {
+    // TODO(crbug.com/522296672): Specify the right way to obtain this
+    // information as `GetAiSubscriptionTier` only works for certain groups of
+    // users.
     auto* subscription_service = subscription_eligibility::
         SubscriptionEligibilityServiceFactory::GetForProfile(this);
     entry->SetAiSubscriptionTier(

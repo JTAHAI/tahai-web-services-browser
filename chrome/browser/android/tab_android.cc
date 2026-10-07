@@ -20,7 +20,6 @@
 #include "base/memory/raw_ptr.h"
 #include "base/metrics/user_metrics.h"
 #include "base/notimplemented.h"
-#include "base/scoped_observation.h"
 #include "base/token.h"
 #include "base/trace_event/trace_event.h"
 #include "cc/slim/layer.h"
@@ -28,18 +27,16 @@
 #include "chrome/browser/android/compositor/tab_content_manager.h"
 #include "chrome/browser/android/media_state_observer.h"
 #include "chrome/browser/android/selection/chrome_selection_dropdown_menu_delegate.h"
+#include "chrome/browser/android/tab_android_conversions.h"
 #include "chrome/browser/android/tab_features.h"
 #include "chrome/browser/android/tab_web_contents_delegate_android.h"
 #include "chrome/browser/android/web_contents_theme_client.h"
 #include "chrome/browser/browser_about_handler.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/flags/android/chrome_feature_list.h"
-#include "chrome/browser/glic/browser_ui/glic_tab_indicator_helper.h"
-#include "chrome/browser/glic/public/glic_enabling.h"
 #include "chrome/browser/history/history_service_factory.h"
 #include "chrome/browser/notifications/notification_permission_context.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/profiles/profile_observer.h"
 #include "chrome/browser/renderer_preferences_util.h"
 #include "chrome/browser/resource_coordinator/tab_helper.h"
 #include "chrome/browser/resource_coordinator/tab_load_tracker.h"
@@ -54,7 +51,6 @@
 #include "chrome/browser/ui/navigator/browser_navigator_params.h"
 #include "chrome/browser/ui/startup/bad_flags_prompt.h"
 #include "chrome/browser/ui/tab_helpers.h"
-#include "chrome/browser/ui/tabs/alert/tab_alert_controller.h"
 #include "components/android_autofill/browser/android_autofill_client.h"
 #include "components/android_autofill/browser/android_autofill_manager.h"
 #include "components/android_autofill/browser/android_autofill_provider.h"
@@ -70,7 +66,6 @@
 #include "components/sessions/content/session_tab_helper.h"
 #include "components/tab_groups/tab_group_id.h"
 #include "components/tabs/public/supports_handles.h"
-#include "components/tabs/public/tab_alert.h"
 #include "components/tabs/public/tab_collection.h"
 #include "components/tabs/public/tab_group_tab_collection.h"
 #include "components/tabs/public/tab_interface.h"
@@ -95,6 +90,8 @@
 #include "chrome/android/chrome_jni_headers/TabImpl_jni.h"
 
 using base::android::AttachCurrentThread;
+using base::android::ConvertJavaStringToUTF8;
+using base::android::JavaLongArrayToLongVector;
 using base::android::JavaRef;
 using base::android::ScopedJavaLocalRef;
 
@@ -133,19 +130,8 @@ TabAndroid* TabAndroid::FromWebContents(content::WebContents* web_contents) {
 }
 
 // static
-TabAndroid* TabAndroid::FromTabInterface(tabs::TabInterface* tab_interface) {
-  return static_cast<TabAndroid*>(tab_interface);
-}
-
-// static
-const TabAndroid* TabAndroid::FromTabInterface(
-    const tabs::TabInterface* tab_interface) {
-  return static_cast<const TabAndroid*>(tab_interface);
-}
-
-// static
 TabAndroid* TabAndroid::FromTabHandle(tabs::TabHandle handle) {
-  return FromTabInterface(handle.Get());
+  return tabs::ToTabAndroidOrNull(handle.Get());
 }
 
 // static
@@ -165,17 +151,16 @@ TabAndroid::TabAndroid(JNIEnv* env,
                        int tab_id)
     : tab_id_(tab_id),
       session_window_id_(SessionID::InvalidValue()),
+      content_layer_(cc::slim::Layer::Create()),
+      synced_tab_delegate_(
+          std::make_unique<browser_sync::SyncedTabDelegateAndroid>(this)),
       profile_(profile->GetWeakPtr()) {
   Java_TabImpl_setNativePtr(env, obj, reinterpret_cast<intptr_t>(this));
 }
 
 TabAndroid::~TabAndroid() {
-  CHECK(!parent_collection_)
-      << "TabAndroid destroyed while still in a TabCollection!";
   JNIEnv* env = AttachCurrentThread();
-  if (content_layer_) {
-    content_layer_->RemoveAllChildren();
-  }
+  GetContentLayer()->RemoveAllChildren();
   const jni_zero::JavaRef<jobject>& obj = GetJavaObject(env);
   if (obj) {
     Java_TabImpl_clearNativePtr(env, obj);
@@ -187,10 +172,7 @@ std::unique_ptr<TabAndroid> TabAndroid::CreateForTesting(
     Profile* profile,
     int tab_id,
     std::unique_ptr<content::WebContents> web_contents) {
-  if (web_contents) {
-    night_mode::WebContentsThemeClient::CreateForWebContents(
-        web_contents.get());
-  }
+  night_mode::WebContentsThemeClient::CreateForWebContents(web_contents.get());
   auto tab = base::WrapUnique(new TabAndroid(profile, tab_id));
   tab->web_contents_ = std::move(web_contents);
   if (tab->web_contents_) {
@@ -233,14 +215,7 @@ base::android::ScopedJavaLocalRef<jobject> TabAndroid::GetJavaObject() const {
   return GetJavaObject(AttachCurrentThread());
 }
 
-scoped_refptr<cc::slim::Layer> TabAndroid::GetContentLayer() {
-  if (!content_layer_) {
-    content_layer_ = cc::slim::Layer::Create();
-    if (web_contents_) {
-      content_layer_->InsertChild(web_contents_->GetNativeView()->GetLayer(),
-                                  0);
-    }
-  }
+scoped_refptr<cc::slim::Layer> TabAndroid::GetContentLayer() const {
   return content_layer_;
 }
 
@@ -274,14 +249,7 @@ bool TabAndroid::IsOffscreenRendering() const {
   return Java_TabImpl_isOffscreenRendering(env, GetJavaObject(env));
 }
 
-sync_sessions::SyncedTabDelegate* TabAndroid::GetSyncedTabDelegate() {
-  if (!synced_tab_delegate_) {
-    synced_tab_delegate_ =
-        std::make_unique<browser_sync::SyncedTabDelegateAndroid>(this);
-    if (web_contents_) {
-      synced_tab_delegate_->SetWebContents(web_contents_.get());
-    }
-  }
+sync_sessions::SyncedTabDelegate* TabAndroid::GetSyncedTabDelegate() const {
   return synced_tab_delegate_.get();
 }
 
@@ -346,8 +314,18 @@ void TabAndroid::SetMediaState(int media_state) {
   Java_TabImpl_setMediaState(env, GetJavaObject(env), media_state);
 }
 
-void TabAndroid::DeleteSelf() {
-  // No-op: Java TabImpl owns the lifetime of TabAndroid.
+void TabAndroid::SetTabInterfaceAndroid(
+    TabInterfaceAndroid* tab_interface_android,
+    base::PassKey<TabInterfaceAndroid>) {
+  last_tab_interface_android_ = tab_interface_android;
+}
+
+void TabAndroid::ResetTabInterfaceAndroid(
+    TabInterfaceAndroid* tab_interface_android,
+    base::PassKey<TabInterfaceAndroid>) {
+  if (last_tab_interface_android_ == tab_interface_android) {
+    last_tab_interface_android_ = nullptr;
+  }
 }
 
 void TabAndroid::AddObserver(Observer* observer) {
@@ -363,8 +341,8 @@ void TabAndroid::Destroy() {
 }
 
 void TabAndroid::AttachWebContentsToContentLayer(
+    JNIEnv* env,
     content::WebContents* web_contents) {
-  CHECK(web_contents);
   GetContentLayer()->InsertChild(web_contents->GetNativeView()->GetLayer(), 0);
 }
 
@@ -376,10 +354,10 @@ void TabAndroid::InitWebContents(
     JNIEnv* env,
     bool incognito,
     bool is_background_tab,
-    content::WebContents* web_contents,
+    const JavaRef<jobject>& jweb_contents,
     const JavaRef<jobject>& jweb_contents_delegate,
     const JavaRef<jobject>& jcontext_menu_populator_factory) {
-  web_contents_.reset(web_contents);
+  web_contents_.reset(content::WebContents::FromJavaWebContents(jweb_contents));
   DCHECK(web_contents_.get());
 
   night_mode::WebContentsThemeClient::CreateForWebContents(web_contents_.get());
@@ -389,13 +367,12 @@ void TabAndroid::InitWebContents(
       Profile::FromBrowserContext(web_contents_->GetBrowserContext()));
   web_contents_->SetOwnerLocationForDebug(FROM_HERE);
 
-  tabs::TabLookupFromWebContents::CreateForWebContents(web_contents_.get(),
-                                                       this);
+  tabs::TabLookupFromWebContents::CreateForWebContents(web_contents(), this);
   web_contents_delegate_ =
       std::make_unique<android::TabWebContentsDelegateAndroid>(
           env, jweb_contents_delegate);
-  web_contents_->SetDelegate(web_contents_delegate_.get());
-  web_contents_->SetSelectionPopupDelegate(
+  web_contents()->SetDelegate(web_contents_delegate_.get());
+  web_contents()->SetSelectionPopupDelegate(
       std::make_unique<android::ChromeSelectionDropdownMenuDelegate>());
 
   AttachTabHelpers(web_contents_.get());
@@ -414,9 +391,7 @@ void TabAndroid::InitWebContents(
         base::TimeTicks::Now(),
         resource_coordinator::ResourceCoordinatorTabHelper::IsLoaded(
             web_contents_.get()),
-        /*had_saved_frame_at_start=*/false,
-        resource_coordinator::ResourceCoordinatorTabHelper::IsFrozen(
-            web_contents_.get()));
+        /*had_saved_frame_at_start=*/false);
   }
 
   const SessionID session_id =
@@ -425,55 +400,35 @@ void TabAndroid::InitWebContents(
   SetSessionId(session_id.id());
   SetWindowSessionID(session_window_id_);
 
-  ContextMenuHelper::FromWebContents(web_contents_.get())
+  ContextMenuHelper::FromWebContents(web_contents())
       ->SetPopulatorFactory(jcontext_menu_populator_factory);
 
-  if (synced_tab_delegate_) {
-    synced_tab_delegate_->SetWebContents(web_contents_.get());
-  }
+  synced_tab_delegate_->SetWebContents(web_contents());
 
   // Verify that the WebContents this tab represents matches the expected
   // off the record state.
   CHECK_EQ(profile()->IsOffTheRecord(), incognito);
 
   if (is_background_tab) {
-    BackgroundTabManager::CreateForWebContents(web_contents_.get(), profile());
+    BackgroundTabManager::CreateForWebContents(web_contents(), profile());
   }
-  if (content_layer_) {
-    content_layer_->InsertChild(web_contents_->GetNativeView()->GetLayer(), 0);
-  }
+  content_layer_->InsertChild(web_contents_->GetNativeView()->GetLayer(), 0);
 
   // Shows a warning notification for dangerous flags in about:flags.
-  ShowBadFlagsPrompt(web_contents_.get());
+  ShowBadFlagsPrompt(web_contents());
 
   MediaStateObserver::CreateForWebContents(web_contents_.get());
-  if (glic::GlicEnabling::IsProfileEligible(profile())) {
-    glic_tab_indicator_helper_ =
-        std::make_unique<glic::GlicTabIndicatorHelper>(this);
-  }
-  tab_alert_controller_ = std::make_unique<tabs::TabAlertController>(*this);
-  alert_to_show_subscription_ =
-      tab_alert_controller_->AddAlertToShowChangedCallback(base::BindRepeating(
-          &TabAndroid::OnAlertStateChanged, base::Unretained(this)));
-  OnAlertStateChanged(tab_alert_controller_->GetAlertToShow());
 
   for (Observer& observer : observers_) {
     observer.OnInitWebContents(this);
   }
 }
 
-void TabAndroid::OnAlertStateChanged(
-    std::optional<tabs::TabAlert> alert_state) {
-  JNIEnv* env = AttachCurrentThread();
-  int32_t alert_val =
-      std::to_underlying(alert_state.value_or(tabs::TabAlert::kNone));
-  Java_TabImpl_onAlertStateChanged(env, GetJavaObject(env), alert_val);
-}
-
 void TabAndroid::GetMemoryUsageBytes(
-    base::OnceCallback<void(int64_t)> callback) {
+    JNIEnv* env,
+    const base::android::JavaRef<jobject>& j_callback) {
   if (!web_contents_) {
-    std::move(callback).Run(0);
+    base::android::RunLongCallbackAndroid(j_callback, 0);
     return;
   }
 
@@ -481,15 +436,17 @@ void TabAndroid::GetMemoryUsageBytes(
       resource_attribution::PageContext::FromWebContents(web_contents_.get());
 
   if (!page_context.has_value()) {
-    std::move(callback).Run(0);
+    base::android::RunLongCallbackAndroid(j_callback, 0);
     return;
   }
+
+  base::android::ScopedJavaGlobalRef<jobject> global_callback(env, j_callback);
 
   resource_attribution::QueryBuilder()
       .AddResourceType(resource_attribution::ResourceType::kMemorySummary)
       .AddResourceContext(page_context.value())
       .QueryOnce(base::BindOnce(
-          [](base::OnceCallback<void(int64_t)> callback,
+          [](base::android::ScopedJavaGlobalRef<jobject> callback,
              const resource_attribution::QueryResultMap& results) {
             int64_t bytes_used = 0;
             for (const auto& [context, result] : results) {
@@ -499,9 +456,9 @@ void TabAndroid::GetMemoryUsageBytes(
                 break;
               }
             }
-            std::move(callback).Run(bytes_used);
+            base::android::RunLongCallbackAndroid(callback, bytes_used);
           },
-          std::move(callback)));
+          std::move(global_callback)));
 }
 
 void TabAndroid::InitializeAutofillIfNecessary() {
@@ -562,11 +519,11 @@ void TabAndroid::SendWillDetachUpdate(JNIEnv* env, int32_t detach_reason) {
 namespace {
 void WillRemoveWebContentsFromTab(content::WebContents* contents,
                                   bool clear_delegate) {
-  if (!contents) {
-    return;
-  }
+  DCHECK(contents);
 
-  contents->GetNativeView()->GetLayer()->RemoveFromParent();
+  if (contents->GetNativeView()) {
+    contents->GetNativeView()->GetLayer()->RemoveFromParent();
+  }
 
   if (clear_delegate) {
     contents->SetDelegate(nullptr);
@@ -575,19 +532,12 @@ void WillRemoveWebContentsFromTab(content::WebContents* contents,
 
 // TODO(crbug.com/542647852): Move this to its own file.
 class TabWebContentsDestroyer : public content::WebContentsDelegate,
-                                public content::WebContentsObserver,
-                                public ProfileObserver {
+                                public content::WebContentsObserver {
  public:
   explicit TabWebContentsDestroyer(
       std::unique_ptr<content::WebContents> web_contents)
       : content::WebContentsObserver(web_contents.get()),
         web_contents_(std::move(web_contents)) {
-    if (web_contents_) {
-      if (Profile* profile =
-              Profile::FromBrowserContext(web_contents_->GetBrowserContext())) {
-        profile_observation_.Observe(profile);
-      }
-    }
     web_contents_->SetDelegate(this);
     // Cancel any pre-existing in-flight navigations before ClosePage() cancels
     // NavigationRequests.
@@ -681,13 +631,6 @@ class TabWebContentsDestroyer : public content::WebContentsDelegate,
     Destroy();
   }
 
-  // ProfileObserver:
-  void OnProfileWillBeDestroyed(Profile* profile) override {
-    if (profile_observation_.GetSource() == profile) {
-      Destroy();
-    }
-  }
-
  private:
   void StopNavigation() {
     if (web_contents_) {
@@ -695,7 +638,6 @@ class TabWebContentsDestroyer : public content::WebContentsDelegate,
     }
   }
   void Destroy() {
-    profile_observation_.Reset();
     Observe(nullptr);
     if (web_contents_) {
       if (auto* dialog_manager =
@@ -709,7 +651,6 @@ class TabWebContentsDestroyer : public content::WebContentsDelegate,
   }
 
   std::unique_ptr<content::WebContents> web_contents_;
-  base::ScopedObservation<Profile, ProfileObserver> profile_observation_{this};
   base::WeakPtrFactory<TabWebContentsDestroyer> weak_ptr_factory_{this};
 };
 }  // namespace
@@ -729,15 +670,9 @@ tabs::TabDestroyStatus TabAndroid::DestroyWebContents() {
     return DestroyWebContentsSlowShutdown();
   }
 
-  glic_tab_indicator_helper_.reset();
-  alert_to_show_subscription_ = {};
-  tab_alert_controller_.reset();
   tab_features_.reset();
   web_contents_.reset();
-  if (synced_tab_delegate_) {
-    synced_tab_delegate_->ResetWebContents();
-  }
-  content_layer_.reset();
+  synced_tab_delegate_->ResetWebContents();
 
   return tabs::TabDestroyStatus::FAST_SHUTDOWN;
 }
@@ -761,20 +696,11 @@ void TabAndroid::ReleaseWebContents() {
       .release();
 }
 
-std::unique_ptr<content::WebContents>
-TabAndroid::ReleaseWebContentsForTesting() {
-  return ReleaseWebContentsInternal(/*keep_session_id=*/false,
-                                    /*clear_delegate=*/true);
-}
-
 std::unique_ptr<content::WebContents> TabAndroid::ReleaseWebContentsInternal(
     bool keep_session_id,
     bool clear_delegate) {
   WillRemoveWebContentsFromTab(web_contents(), clear_delegate);
 
-  glic_tab_indicator_helper_.reset();
-  alert_to_show_subscription_ = {};
-  tab_alert_controller_.reset();
   tab_features_.reset();
   std::unique_ptr<content::WebContents> released_contents =
       std::move(web_contents_);
@@ -788,10 +714,7 @@ std::unique_ptr<content::WebContents> TabAndroid::ReleaseWebContentsInternal(
     ClearSessionId();
   }
 
-  if (synced_tab_delegate_) {
-    synced_tab_delegate_->ResetWebContents();
-  }
-  content_layer_.reset();
+  synced_tab_delegate_->ResetWebContents();
   return released_contents;
 }
 
@@ -812,15 +735,19 @@ std::unique_ptr<content::WebContents> TabAndroid::TakeWebContentsAndDestroyTab(
 }
 
 bool TabAndroid::IsPhysicalBackingSizeEmpty(
-    content::WebContents* web_contents) {
+    const JavaRef<jobject>& jweb_contents) {
+  content::WebContents* web_contents =
+      content::WebContents::FromJavaWebContents(jweb_contents);
   auto size = web_contents->GetNativeView()->GetPhysicalBackingSize();
   return size.IsEmpty();
 }
 
 void TabAndroid::OnPhysicalBackingSizeChanged(
-    content::WebContents* web_contents,
+    const JavaRef<jobject>& jweb_contents,
     int32_t width,
     int32_t height) {
+  content::WebContents* web_contents =
+      content::WebContents::FromJavaWebContents(jweb_contents);
   gfx::Size size(width, height);
   web_contents->GetNativeView()->OnPhysicalBackingSizeChanged(size);
 }
@@ -866,10 +793,8 @@ void TabAndroid::OnShow() {
       !web_contents_->IsLoading();
   const content::RenderWidgetHostView* view =
       web_contents_->GetRenderWidgetHostView();
-  web_contents_->SetTabSwitchStartTime(
-      base::TimeTicks::Now(), loaded, view && view->HasSavedCompositorFrame(),
-      resource_coordinator::ResourceCoordinatorTabHelper::IsFrozen(
-          web_contents_.get()));
+  web_contents_->SetTabSwitchStartTime(base::TimeTicks::Now(), loaded,
+                                       view && view->HasSavedCompositorFrame());
 }
 
 void TabAndroid::NotifyPinnedStateChanged(bool is_pinned) {
@@ -894,6 +819,10 @@ void TabAndroid::OnDraggingStateChanged(bool is_dragging) {
 base::CallbackListSubscription TabAndroid::RegisterDraggingChanged(
     DraggingChangedCallback callback) {
   return dragging_changed_callback_list_.Add(std::move(callback));
+}
+
+bool TabAndroid::HasTabInterfaceAndroid() const {
+  return last_tab_interface_android_ != nullptr;
 }
 
 scoped_refptr<content::DevToolsAgentHost> TabAndroid::GetDevToolsAgentHost() {
@@ -968,12 +897,7 @@ base::CallbackListSubscription TabAndroid::RegisterWillDiscardContents(
 
 bool TabAndroid::IsActivated() const {
   JNIEnv* env = AttachCurrentThread();
-  auto j_obj = GetJavaObject(env);
-  // May be null in C++ unit tests.
-  if (!j_obj) {
-    return false;
-  }
-  return Java_TabImpl_isActivated(env, j_obj);
+  return Java_TabImpl_isActivated(env, GetJavaObject(env));
 }
 
 base::CallbackListSubscription TabAndroid::RegisterDidActivate(
@@ -1137,6 +1061,9 @@ const ui::UnownedUserDataHost& TabAndroid::GetUnownedUserDataHost() const {
 TabAndroid::TabAndroid(Profile* profile, int tab_id)
     : tab_id_(tab_id),
       session_window_id_(SessionID::InvalidValue()),
+      content_layer_(cc::slim::Layer::Create()),
+      synced_tab_delegate_(
+          std::make_unique<browser_sync::SyncedTabDelegateAndroid>(this)),
       profile_(profile->GetWeakPtr()) {
   CHECK_IS_TEST();
 }
@@ -1188,12 +1115,25 @@ ScopedJavaLocalRef<jobject> TabAndroid::GetJavaObject(JNIEnv* env) const {
   return Java_TabImpl_getJavaObject(env, reinterpret_cast<intptr_t>(this));
 }
 
-static TabAndroid* JNI_TabImpl_FromWebContents(
-    content::WebContents* web_contents) {
-  return web_contents ? TabAndroid::FromWebContents(web_contents) : nullptr;
+static ScopedJavaLocalRef<jobject> JNI_TabImpl_FromWebContents(
+    JNIEnv* env,
+    const JavaRef<jobject>& jweb_contents) {
+  ScopedJavaLocalRef<jobject> jtab;
+
+  content::WebContents* web_contents =
+      content::WebContents::FromJavaWebContents(jweb_contents);
+  TabAndroid* tab =
+      web_contents ? TabAndroid::FromWebContents(web_contents) : nullptr;
+  if (tab) {
+    jtab = tab->GetJavaObject();
+  }
+  return jtab;
 }
 
-static bool JNI_TabImpl_HandleNonNavigationAboutURL(const GURL& url) {
+static bool JNI_TabImpl_HandleNonNavigationAboutURL(
+    JNIEnv* env,
+    const JavaRef<jobject>& jurl) {
+  GURL url = url::GURLAndroid::ToNativeGURL(env, jurl);
   // TODO(crbug.com/418187845): Set browser context to support URL block policy.
   return HandleNonNavigationAboutURL(url, /*context=*/nullptr);
 }

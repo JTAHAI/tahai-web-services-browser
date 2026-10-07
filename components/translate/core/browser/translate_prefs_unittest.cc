@@ -10,8 +10,6 @@
 #include <utility>
 #include <vector>
 
-#include "base/i18n/language_tag.h"
-#include "base/i18n/tag_converters.h"
 #include "base/json/json_reader.h"
 #include "base/json/values_util.h"
 #include "base/strings/utf_string_conversions.h"
@@ -54,12 +52,6 @@ static void ExpectEqualLanguageLists(
     ASSERT_TRUE(pref_values[i].is_string());
     EXPECT_EQ(expected_languages[i], pref_values[i].GetString());
   }
-}
-
-base::i18n::LanguageTag ParseTag(std::string_view tag) {
-  return base::i18n::LanguageTagConverter::GetInstance()
-      .FromString(tag)
-      .value();
 }
 
 }  // namespace
@@ -401,8 +393,7 @@ TEST_F(TranslatePrefsTest, AddToLanguageList) {
   languages = {"en"};
   accept_languages_tester_->SetLanguagePrefs(languages);
   translate_prefs_->ResetBlockedLanguagesToDefault();
-  translate_prefs_->AddToLanguageList(ParseTag("it-IT"),
-                                      /*force_blocked=*/false);
+  translate_prefs_->AddToLanguageList("it-IT", /*force_blocked=*/false);
   accept_languages_tester_->ExpectAcceptLanguagePrefs("en,it-IT");
   ExpectBlockedLanguageListContent({"en", "it"});
 
@@ -410,8 +401,7 @@ TEST_F(TranslatePrefsTest, AddToLanguageList) {
   languages = {"en", "es-AR"};
   accept_languages_tester_->SetLanguagePrefs(languages);
   translate_prefs_->ResetBlockedLanguagesToDefault();
-  translate_prefs_->AddToLanguageList(ParseTag("es-ES"),
-                                      /*force_blocked=*/false);
+  translate_prefs_->AddToLanguageList("es-ES", /*force_blocked=*/false);
   accept_languages_tester_->ExpectAcceptLanguagePrefs("en,es-AR,es-ES");
   ExpectBlockedLanguageListContent({"en"});
 }
@@ -424,7 +414,7 @@ TEST_F(TranslatePrefsTest, RemoveFromLanguageList) {
   translate_prefs_->ResetBlockedLanguagesToDefault();
   translate_prefs_->BlockLanguage("en-US");
   translate_prefs_->BlockLanguage("es-AR");
-  translate_prefs_->RemoveFromLanguageList(ParseTag("es-AR"));
+  translate_prefs_->RemoveFromLanguageList("es-AR");
   accept_languages_tester_->ExpectAcceptLanguagePrefs("en-US");
   ExpectBlockedLanguageListContent({"en"});
 
@@ -434,7 +424,7 @@ TEST_F(TranslatePrefsTest, RemoveFromLanguageList) {
   translate_prefs_->ResetBlockedLanguagesToDefault();
   translate_prefs_->BlockLanguage("en-US");
   translate_prefs_->BlockLanguage("es-AR");
-  translate_prefs_->RemoveFromLanguageList(ParseTag("es-AR"));
+  translate_prefs_->RemoveFromLanguageList("es-AR");
   accept_languages_tester_->ExpectAcceptLanguagePrefs("en-US,es-ES");
   ExpectBlockedLanguageListContent({"en", "es"});
 }
@@ -447,9 +437,9 @@ TEST_F(TranslatePrefsTest, RemoveFromLanguageListRemovesRemainingUnsupported) {
   languages = {"en", "en-US", "en-FOO"};
   accept_languages_tester_->SetLanguagePrefs(languages);
   accept_languages_tester_->ExpectAcceptLanguagePrefs("en,en-US,en-FOO");
-  translate_prefs_->RemoveFromLanguageList(ParseTag("en-US"));
+  translate_prefs_->RemoveFromLanguageList("en-US");
   accept_languages_tester_->ExpectAcceptLanguagePrefs("en");
-  translate_prefs_->RemoveFromLanguageList(ParseTag("en"));
+  translate_prefs_->RemoveFromLanguageList("en");
   accept_languages_tester_->ExpectAcceptLanguagePrefs("");
 }
 
@@ -463,16 +453,16 @@ TEST_F(TranslatePrefsTest, RemoveFromLanguageListClearsRecentLanguage) {
   translate_prefs_->SetRecentTargetLanguage("es-AR");
   EXPECT_EQ("es", translate_prefs_->GetRecentTargetLanguage());
 
-  translate_prefs_->RemoveFromLanguageList(ParseTag("es-AR"));
+  translate_prefs_->RemoveFromLanguageList("es-AR");
   EXPECT_EQ("", translate_prefs_->GetRecentTargetLanguage());
 
   accept_languages_tester_->SetLanguagePrefs(languages);
   translate_prefs_->SetRecentTargetLanguage("en-US");
   EXPECT_EQ("en", translate_prefs_->GetRecentTargetLanguage());
 
-  translate_prefs_->RemoveFromLanguageList(ParseTag("en"));
+  translate_prefs_->RemoveFromLanguageList("en");
   EXPECT_EQ("en", translate_prefs_->GetRecentTargetLanguage());
-  translate_prefs_->RemoveFromLanguageList(ParseTag("en-US"));
+  translate_prefs_->RemoveFromLanguageList("en-US");
   EXPECT_EQ("", translate_prefs_->GetRecentTargetLanguage());
 }
 

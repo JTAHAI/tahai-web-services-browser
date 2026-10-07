@@ -14,7 +14,6 @@ import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.accessibility.AccessibilityEvent;
-import android.view.accessibility.AccessibilityNodeInfo;
 import android.widget.FrameLayout;
 
 import androidx.activity.ComponentDialog;
@@ -197,16 +196,13 @@ public abstract class TabModalPresenter extends ModalDialogManager.Presenter {
         }
         AccessibilityEvent event =
                 AccessibilityEvent.obtain(AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED);
-        event.setSource(mDialogView);
         if (toFront) {
             mDialogView.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_YES);
-            ViewCompat.setScreenReaderFocusable(mDialogView, true);
             event.setContentChangeTypes(AccessibilityEvent.CONTENT_CHANGE_TYPE_PANE_APPEARED);
         } else {
             event.setContentChangeTypes(AccessibilityEvent.CONTENT_CHANGE_TYPE_PANE_DISAPPEARED);
             mDialogView.setImportantForAccessibility(
                     View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);
-            ViewCompat.setScreenReaderFocusable(mDialogView, false);
         }
         AccessibilityState.sendAccessibilityEvent(event);
     }
@@ -267,20 +263,8 @@ public abstract class TabModalPresenter extends ModalDialogManager.Presenter {
                             }
 
                             @Override
-                            @SuppressWarnings("AccessibilityFocus")
                             public void onAnimationEnd(Animator animation) {
-                                if (mDialogView != null) {
-                                    updateContainerHierarchy(true);
-                                    mDialogView.post(
-                                            () -> {
-                                                if (mDialogView != null) {
-                                                    mDialogView.performAccessibilityAction(
-                                                            AccessibilityNodeInfo
-                                                                    .ACTION_ACCESSIBILITY_FOCUS,
-                                                            null);
-                                                }
-                                            });
-                                }
+                                updateContainerHierarchy(true);
                             }
                         })
                 .start();

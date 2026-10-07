@@ -95,9 +95,6 @@ interface TouchToFillPaymentMethodComponent {
 
         /** Called when the user clicks the "Continue" button on the BNPL ToS screen. */
         void onBnplTosAccepted();
-
-        /** Called when the user selects the Pay Now tab. */
-        void onUserDecisionToUseSavedCards();
     }
 
     /**

@@ -20,7 +20,6 @@
 
 namespace views {
 class Checkbox;
-class ImageView;
 class Textfield;
 class RadioButton;
 }  // namespace views

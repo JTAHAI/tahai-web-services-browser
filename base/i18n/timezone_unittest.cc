@@ -8,7 +8,6 @@
 
 #include "base/i18n/language_tag.h"
 #include "base/i18n/rtl.h"
-#include "base/i18n/test/scoped_icu_locale.h"
 #include "base/test/icu_test_util.h"
 #include "base/time/time.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -20,7 +19,8 @@
 namespace base::i18n {
 
 TEST(TimeZoneTest, Default) {
-  ScopedDefaultIcuLocale restore_locale(GetKnownLanguageTag("en-US"));
+  test::ScopedRestoreICUDefaultLocale restore_locale;
+  SetICUDefaultLocale("en_US");
   test::ScopedRestoreDefaultTimezone la_time("America/Los_Angeles");
 
   TimeZone tz = TimeZone::Default();
@@ -55,39 +55,16 @@ TEST(TimeZoneTest, CopyAndMove) {
 }
 
 TEST(TimeZoneTest, GetDisplayName) {
-  ScopedDefaultIcuLocale restore_locale(GetKnownLanguageTag("en-US"));
+  test::ScopedRestoreICUDefaultLocale restore_locale;
+  SetICUDefaultLocale("en_US");
 
   TimeZone tz = TimeZone::FromString("America/Los_Angeles");
   // Standard time display name.
-  EXPECT_EQ(tz.GetDisplayName({.style = TimeZone::kLong}),
-            u"Pacific Standard Time");
-  EXPECT_EQ(tz.GetDisplayName({.style = TimeZone::kShort}), u"PST");
+  EXPECT_EQ(tz.GetDisplayName(TimeZone::kLong), u"Pacific Standard Time");
+  EXPECT_EQ(tz.GetDisplayName(TimeZone::kShort), u"PST");
   constexpr auto fr = GetKnownLanguageTag("fr");
   // Locale specific.
-  EXPECT_EQ(tz.GetDisplayName(fr, {.style = TimeZone::kLong}),
-            u"heure normale du Pacifique nord-am\u00e9ricain");
-
-  base::Time winter_time;
-  ASSERT_TRUE(base::Time::FromUTCString("2026-01-15 12:00:00", &winter_time));
-  EXPECT_EQ(tz.GetDisplayName({.is_day_light = tz.InDaylightTime(winter_time),
-                               .style = TimeZone::kLong}),
-            u"Pacific Standard Time");
-
-  base::Time summer_time;
-  ASSERT_TRUE(base::Time::FromUTCString("2026-07-15 12:00:00", &summer_time));
-  EXPECT_EQ(tz.GetDisplayName({.is_day_light = tz.InDaylightTime(summer_time),
-                               .style = TimeZone::kLong}),
-            u"Pacific Daylight Time");
-
-  // Single-field designated initializer checks.
-  EXPECT_EQ(tz.GetDisplayName({.is_day_light = false}),
-            u"Pacific Standard Time");
-  EXPECT_EQ(tz.GetDisplayName({.is_day_light = true}),
-            u"Pacific Daylight Time");
-
-  // Default parameters check.
-  EXPECT_EQ(tz.GetDisplayName(), u"Pacific Standard Time");
-  EXPECT_EQ(tz.GetDisplayName(fr),
+  EXPECT_EQ(tz.GetDisplayName(fr, TimeZone::kLong),
             u"heure normale du Pacifique nord-am\u00e9ricain");
 }
 

@@ -23,6 +23,7 @@ namespace ash {
 FORWARD_DECLARE_TEST(DefaultFrameHeaderTest, BackButtonAlignment);
 FORWARD_DECLARE_TEST(DefaultFrameHeaderTest, TitleIconAlignment);
 FORWARD_DECLARE_TEST(DefaultFrameHeaderTest, FrameColors);
+class FramePaintWaiter;
 }  // namespace ash
 
 namespace gfx {
@@ -49,7 +50,8 @@ class FrameCenterButton;
 class FrameCaptionButtonContainerView;
 
 // Helper class for managing the window header.
-class COMPONENT_EXPORT(CHROMEOS_UI_FRAME) FrameHeader {
+class COMPONENT_EXPORT(CHROMEOS_UI_FRAME) FrameHeader
+    : public ui::LayerOwner::Observer {
  public:
   // An invisible view that drives the frame's animation. This holds the
   // animating layer as a layer beneath this view so that it's behind all other
@@ -99,7 +101,7 @@ class COMPONENT_EXPORT(CHROMEOS_UI_FRAME) FrameHeader {
   FrameHeader(const FrameHeader&) = delete;
   FrameHeader& operator=(const FrameHeader&) = delete;
 
-  virtual ~FrameHeader();
+  ~FrameHeader() override;
 
   const std::u16string& frame_text_override() const {
     return frame_text_override_;
@@ -125,8 +127,6 @@ class COMPONENT_EXPORT(CHROMEOS_UI_FRAME) FrameHeader {
   // non-painting sections. This height does not affect LayoutHeader().
   int GetHeaderHeightForPainting() const;
   void SetHeaderHeightForPainting(int height_for_painting);
-
-  virtual views::CaptionButtonLayoutSize GetButtonLayoutSize() const = 0;
 
   // Schedule a re-paint of the entire title.
   void SchedulePaintForTitle();
@@ -183,7 +183,9 @@ class COMPONENT_EXPORT(CHROMEOS_UI_FRAME) FrameHeader {
   }
 
   gfx::Rect GetTitleBoundsForTesting() const { return GetTitleBounds(); }
-  bool painted_for_testing() const { return painted_; }
+
+  // ui::LayerOwner::Observer overrides:
+  void OnLayerRecreated(ui::Layer* old_layer) override;
 
  protected:
   FrameHeader(views::Widget* target_widget, views::View* view);
@@ -206,6 +208,7 @@ class COMPONENT_EXPORT(CHROMEOS_UI_FRAME) FrameHeader {
   Mode mode() const { return mode_; }
 
   virtual void DoPaintHeader(gfx::Canvas* canvas) = 0;
+  virtual views::CaptionButtonLayoutSize GetButtonLayoutSize() const = 0;
   virtual SkColor GetTitleColor() const = 0;
   virtual SkColor GetCurrentFrameColor() const = 0;
 
@@ -218,6 +221,7 @@ class COMPONENT_EXPORT(CHROMEOS_UI_FRAME) FrameHeader {
   FRIEND_TEST_ALL_PREFIXES(ash::DefaultFrameHeaderTest, BackButtonAlignment);
   FRIEND_TEST_ALL_PREFIXES(ash::DefaultFrameHeaderTest, TitleIconAlignment);
   FRIEND_TEST_ALL_PREFIXES(ash::DefaultFrameHeaderTest, FrameColors);
+  friend class ash::FramePaintWaiter;
 
   void LayoutHeaderInternal();
 

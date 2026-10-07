@@ -2610,7 +2610,7 @@ std::pair<std::string, std::string> RewriteStdArrayWithInitList(
     const clang::ArrayType* array_type,
     const std::string& type,
     const std::string& var,
-    std::string size,
+    const std::string& size,
     const clang::InitListExpr* init_list_expr,
     const clang::SourceManager& source_manager,
     const clang::ASTContext& ast_context) {
@@ -2621,19 +2621,15 @@ std::pair<std::string, std::string> RewriteStdArrayWithInitList(
       init_list_expr->getSourceRange().getEnd(),
       init_list_expr->getSourceRange().getEnd().getLocWithOffset(1)};
 
-  // Implicitly sized arrays are rewritten to std::to_array for default
-  // projects.
-  if (size.empty() && !GetProject()->UseExplicitSizeForImplicitArrays()) {
+  // Implicitly sized arrays are rewritten to std::to_array. This is because the
+  // std::array constructor does not allow the size to be omitted.
+  if (size.empty()) {
     auto closing_brackets_replacement_directive = GetReplacementDirective(
         init_list_closing_brackets_range, needs_trailing_comma ? ",})" : "})",
         source_manager);
     return std::make_pair(
         llvm::formatv("auto {0} = std::to_array<{1}>(", var, type),
         closing_brackets_replacement_directive);
-  }
-
-  if (size.empty()) {
-    size = std::to_string(init_list_expr->getNumInits());
   }
 
   // Warn for array and initializer list size mismatch, except for empty lists.
@@ -3074,26 +3070,6 @@ void RewriteFunctionPointerType(const MatchFinder::MatchResult& result) {
   EmitEdge(rhs_key, lhs_key);
 }
 
-// Helper to check if a specific redeclaration's parameter/return type is in a
-// macro body.
-bool IsParamOrReturnInMacroBody(const clang::FunctionDecl* redecl,
-                                const clang::ParmVarDecl* parm_var_decl,
-                                const clang::SourceManager& source_manager) {
-  auto is_in_macro_body = [&](clang::SourceLocation loc) {
-    return loc.isMacroID() && source_manager.isMacroBodyExpansion(loc);
-  };
-
-  if (parm_var_decl) {
-    unsigned int param_index = parm_var_decl->getFunctionScopeIndex();
-    assert(param_index < redecl->getNumParams());
-    const clang::ParmVarDecl* param = redecl->getParamDecl(param_index);
-    return is_in_macro_body(param->getLocation()) ||
-           is_in_macro_body(param->getSourceRange().getBegin());
-  }
-  clang::SourceLocation loc = redecl->getReturnTypeSourceRange().getBegin();
-  return is_in_macro_body(loc);
-}
-
 // Spanifies the matched function parameter/return type, and connects relevant
 // function declarations (forward declarations and overridden methods) to each
 // other bidirectionally per the matched function parameter/return type. Note
@@ -3169,10 +3145,9 @@ void RewriteFunctionParamAndReturnType(const MatchFinder::MatchResult& result) {
   // `parm_or_return_id` than making a unique node key from the clang::Decl
   // that matches the function parameter/return type of each forward
   // declaration or overridden method.
-  const clang::ParmVarDecl* parm_var_decl =
-      result.Nodes.getNodeAs<clang::ParmVarDecl>("rhs_begin");
   std::string parm_or_return_id;
-  if (parm_var_decl) {
+  if (const clang::ParmVarDecl* parm_var_decl =
+          result.Nodes.getNodeAs<clang::ParmVarDecl>("rhs_begin")) {
     parm_or_return_id = llvm::formatv("{0}-th parm type",
                                       parm_var_decl->getFunctionScopeIndex());
   } else {
@@ -3195,8 +3170,7 @@ void RewriteFunctionParamAndReturnType(const MatchFinder::MatchResult& result) {
     }
     const std::string& redecl_key =
         NodeKey(redecl, source_manager, parm_or_return_id);
-    if (GetProject()->IsExcludedFromProject(*redecl) ||
-        IsParamOrReturnInMacroBody(redecl, parm_var_decl, source_manager)) {
+    if (GetProject()->IsExcludedFromProject(*redecl)) {
       // A declaration in third party codebase is found, so we do not want to
       // rewrite the parameter/return type in a third party function. This one-
       // way edge prevents making a flow from a source to a sink, hence the
@@ -3226,9 +3200,7 @@ void RewriteFunctionParamAndReturnType(const MatchFinder::MatchResult& result) {
          method_decl->getCanonicalDecl()->overridden_methods()) {
       const std::string& overridden_method_key =
           NodeKey(overridden_method_decl, source_manager, parm_or_return_id);
-      if (GetProject()->IsExcludedFromProject(*overridden_method_decl) ||
-          IsParamOrReturnInMacroBody(overridden_method_decl, parm_var_decl,
-                                     source_manager)) {
+      if (GetProject()->IsExcludedFromProject(*overridden_method_decl)) {
         // A declaration in third party codebase is found, so we do not want to
         // rewrite the parameter/return type in a third party function. This
         // one-way edge prevents making a flow from a source to a sink, hence
@@ -3530,11 +3502,8 @@ class Spanifier {
         varDecl(rhs_type_loc, unless(anyOf(exclusions, hasExternalStorage())))
             .bind("rhs_begin");
 
-    auto void_pointer_type = pointerType(pointee(voidType()));
     auto lhs_param =
-        parmVarDecl(anyOf(lhs_type_loc, hasType(void_pointer_type)),
-                    unless(exclusions))
-            .bind("lhs_begin");
+        parmVarDecl(lhs_type_loc, unless(exclusions)).bind("lhs_begin");
 
     auto rhs_param =
         parmVarDecl(rhs_type_loc, unless(exclusions)).bind("rhs_begin");

@@ -60,7 +60,7 @@ class WebAppHeaderLayoutMediator
 
     private final ThemeColorProvider mThemeColorProvider;
     private final int mWebAppMinHeaderHeight;
-    private final int mHeaderButtonSize;
+    private final int mHeaderButtonHeight;
     private @Nullable AppHeaderState mCurrentHeaderState;
     private final SettableMonotonicObservableSupplier<Integer> mAppHeaderUnoccludedWidthSupplier =
             ObservableSuppliers.createMonotonic();
@@ -101,7 +101,7 @@ class WebAppHeaderLayoutMediator
             Supplier<List<Rect>> headerControlPositionSupplier,
             ThemeColorProvider themeColorProvider,
             int webAppHeaderMinHeightFromResources,
-            int headerButtonSize,
+            int headerButtonHeight,
             int displayMode,
             Callback<Boolean> setHeaderAsOverlayCallback,
             @Nullable String clientPackageName) {
@@ -111,7 +111,7 @@ class WebAppHeaderLayoutMediator
         mDesktopWindowStateManager = desktopWindowStateManager;
         mTabSupplier = tabSupplier;
         mHeaderControlPositionSupplier = headerControlPositionSupplier;
-        mHeaderButtonSize = headerButtonSize;
+        mHeaderButtonHeight = headerButtonHeight;
         mDisplayMode = displayMode;
         mSetHeaderAsOverlayCallback = setHeaderAsOverlayCallback;
         mHeaderAsOverlay = mDisplayMode == DisplayMode.WINDOW_CONTROLS_OVERLAY;
@@ -256,7 +256,7 @@ class WebAppHeaderLayoutMediator
         }
 
         final int headerHeight =
-                Math.min(mCurrentHeaderState.getCaptionControlsHeight(), mHeaderButtonSize);
+                Math.min(mCurrentHeaderState.getCaptionControlsHeight(), mHeaderButtonHeight);
 
         Rect cutoutRect =
                 new Rect(
@@ -278,7 +278,7 @@ class WebAppHeaderLayoutMediator
 
     @Override
     public void onThemeColorChanged(int color, boolean shouldAnimate) {
-        mDesktopWindowStateManager.onBackgroundColorChanged(color);
+        mDesktopWindowStateManager.updateForegroundColor(color);
         mModel.set(WebAppHeaderLayoutProperties.BACKGROUND_COLOR, color);
     }
 
@@ -291,16 +291,14 @@ class WebAppHeaderLayoutMediator
 
         mAppHeaderUnoccludedWidthSupplier.set(mCurrentHeaderState.getUnoccludedRectWidth());
         mModel.set(
-                WebAppHeaderLayoutProperties.HEADER_HEIGHT,
+                WebAppHeaderLayoutProperties.MIN_HEIGHT,
                 Math.max(mCurrentHeaderState.getAppHeaderHeight(), getDefaultMinHeight()));
         mModel.set(
                 WebAppHeaderLayoutProperties.IS_VISIBLE, mCurrentHeaderState.isInDesktopWindow());
 
         if (mIsFirstAppHeaderStateUpdate && mCurrentHeaderState.isInDesktopWindow()) {
             RecordHistogram.recordEnumeratedHistogram(
-                    "CustomTabs.WebAppHeader.DisplayMode2",
-                    mDisplayMode,
-                    DisplayMode.MAX_VALUE + 1);
+                    "CustomTabs.WebAppHeader.DisplayMode2", mDisplayMode, DisplayMode.MAX_VALUE);
             mIsFirstAppHeaderStateUpdate = false;
         }
     }
@@ -322,8 +320,8 @@ class WebAppHeaderLayoutMediator
         int controlsTopOffset = mCurrentHeaderState.getCaptionControlsTopOffset();
         int captionControlsHeight = mCurrentHeaderState.getCaptionControlsHeight();
 
-        if (captionControlsHeight < mHeaderButtonSize) {
-            mButtonBottomInset = mHeaderButtonSize - captionControlsHeight;
+        if (captionControlsHeight < mHeaderButtonHeight) {
+            mButtonBottomInset = mHeaderButtonHeight - captionControlsHeight;
         } else {
             mButtonBottomInset = 0;
         }

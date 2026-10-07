@@ -17,6 +17,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mockito;
 import org.robolectric.RuntimeEnvironment;
+import org.robolectric.annotation.Config;
 
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.ui.base.WindowAndroid;
@@ -25,6 +26,7 @@ import java.lang.ref.WeakReference;
 
 /** Unit tests for SmsProviderGms. */
 @RunWith(BaseRobolectricTestRunner.class)
+@Config(manifest = Config.NONE)
 public class SmsProviderGmsTest {
     private Context mContext;
     private SmsProviderGms mProvider;

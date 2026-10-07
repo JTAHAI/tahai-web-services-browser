@@ -20,8 +20,6 @@
 #include "chrome/browser/extensions/window_controller_list.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
-#include "chrome/browser/ui/browser_init_state.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/web_applications/web_app_helpers.h"
 #include "chrome/test/base/ui_test_utils.h"
@@ -52,8 +50,7 @@ void CreateAndInitializeLocalCache() {
 }
 #endif
 
-BrowserWindowInterface* LaunchAppBrowser(Profile* profile,
-                                         const Extension* extension_app) {
+Browser* LaunchAppBrowser(Profile* profile, const Extension* extension_app) {
   ui_test_utils::BrowserCreatedObserver browser_created_observer;
 
   EXPECT_TRUE(apps::AppServiceProxyFactory::GetForProfile(profile)
@@ -64,22 +61,21 @@ BrowserWindowInterface* LaunchAppBrowser(Profile* profile,
                       WindowOpenDisposition::CURRENT_TAB,
                       apps::LaunchSource::kFromTest)));
 
-  BrowserWindowInterface* const browser = browser_created_observer.Wait();
+  Browser* const browser = browser_created_observer.Wait();
   DCHECK(browser);
-  EXPECT_EQ(web_app::GetAppIdFromApplicationName(
-                BrowserInitState::From(browser)->create_params().app_name),
+  EXPECT_EQ(web_app::GetAppIdFromApplicationName(browser->app_name()),
             extension_app->id());
   return browser;
 }
 
-content::WebContents* AddTab(BrowserWindowInterface* browser, const GURL& url) {
-  int starting_tab_count = browser->GetTabStripModel()->count();
+content::WebContents* AddTab(Browser* browser, const GURL& url) {
+  int starting_tab_count = browser->tab_strip_model()->count();
   ui_test_utils::NavigateToURLWithDisposition(
       browser, url, WindowOpenDisposition::NEW_FOREGROUND_TAB,
       ui_test_utils::BROWSER_TEST_WAIT_FOR_LOAD_STOP);
-  int tab_count = browser->GetTabStripModel()->count();
+  int tab_count = browser->tab_strip_model()->count();
   EXPECT_EQ(starting_tab_count + 1, tab_count);
-  return browser->GetTabStripModel()->GetActiveWebContents();
+  return browser->tab_strip_model()->GetActiveWebContents();
 }
 
 size_t GetWindowControllerCountInProfile(Profile* profile) {

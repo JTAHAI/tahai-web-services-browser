@@ -81,9 +81,6 @@ EXPORT_TEMPLATE void* PartitionRoot::Realloc<
 
 EXPORT_TEMPLATE void* PartitionRoot::AlignedAlloc<AllocFlags::kNone>(size_t,
                                                                      size_t);
-EXPORT_TEMPLATE void* PartitionRoot::AlignedAlloc<AllocFlags::kReturnNull>(
-    size_t,
-    size_t);
 EXPORT_TEMPLATE void* PartitionRoot::AlignedAlloc<
     AllocFlags::kReturnNull | AllocFlags::kZeroFill>(size_t, size_t);
 EXPORT_TEMPLATE void* PartitionRoot::AlignedAlloc<AllocFlags::kNoHooks>(size_t,

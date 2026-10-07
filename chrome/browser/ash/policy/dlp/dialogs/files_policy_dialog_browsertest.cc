@@ -77,14 +77,15 @@ class FilesPolicyDialogBrowserTest
   }
 
  protected:
-  BrowserWindowInterface* FindFilesApp() {
+  Browser* FindFilesApp() {
     ash::BrowserDelegate* delegate = FindSystemWebAppBrowser(
         browser()->GetProfile(), ash::SystemWebAppType::FILE_MANAGER,
         ash::BrowserType::kApp);
-    return delegate ? &delegate->GetBrowser() : nullptr;
+    return delegate ? delegate->GetBrowser().GetBrowserForMigrationOnly()
+                    : nullptr;
   }
 
-  BrowserWindowInterface* OpenFilesApp() {
+  Browser* OpenFilesApp() {
     base::RunLoop run_loop;
     file_manager::util::ShowItemInFolder(
         browser()->GetProfile(),
@@ -161,7 +162,7 @@ IN_PROC_BROWSER_TEST_P(WarningDialogBrowserTest, WithParent) {
   dlp::FileAction action = GetParam();
 
   ASSERT_FALSE(FindFilesApp());
-  BrowserWindowInterface* files_app = OpenFilesApp();
+  Browser* files_app = OpenFilesApp();
   ASSERT_TRUE(files_app);
   ASSERT_EQ(files_app, FindFilesApp());
 
@@ -359,7 +360,7 @@ IN_PROC_BROWSER_TEST_P(ErrorDialogBrowserTest, WithParent) {
   dlp::FileAction action = GetParam();
 
   ASSERT_FALSE(FindFilesApp());
-  BrowserWindowInterface* files_app = OpenFilesApp();
+  Browser* files_app = OpenFilesApp();
   ASSERT_TRUE(files_app);
   ASSERT_EQ(files_app, FindFilesApp());
 

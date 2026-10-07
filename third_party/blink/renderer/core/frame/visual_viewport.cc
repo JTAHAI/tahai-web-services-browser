@@ -41,7 +41,6 @@
 #include "third_party/blink/public/platform/platform.h"
 #include "third_party/blink/public/platform/task_type.h"
 #include "third_party/blink/renderer/core/accessibility/ax_object_cache.h"
-#include "third_party/blink/renderer/core/frame/browser_controls.h"
 #include "third_party/blink/renderer/core/frame/local_frame.h"
 #include "third_party/blink/renderer/core/frame/local_frame_client.h"
 #include "third_party/blink/renderer/core/frame/local_frame_view.h"
@@ -216,7 +215,7 @@ PaintPropertyChangeType VisualViewport::UpdatePaintPropertyNodesIfNeeded(
     if (scale_ != 1.f)
       state.transform_and_origin.matrix = gfx::Transform::MakeScale(scale_);
     state.in_subtree_of_page_scale = false;
-    state.direct_compositing_reasons = {CompositingReason::kViewport};
+    state.direct_compositing_reasons = CompositingReason::kViewport;
     state.compositor_element_id = page_scale_element_id_;
 
     if (!page_scale_node_) {
@@ -293,7 +292,7 @@ PaintPropertyChangeType VisualViewport::UpdatePaintPropertyNodesIfNeeded(
     TransformPaintPropertyNode::State state{
         {gfx::Transform::MakeTranslation(-offset_)}};
     state.scroll = scroll_node_;
-    state.direct_compositing_reasons = {CompositingReason::kViewport};
+    state.direct_compositing_reasons = CompositingReason::kViewport;
     if (!scroll_translation_node_) {
       scroll_translation_node_ = TransformPaintPropertyNode::Create(
           *page_scale_node_, std::move(state));
@@ -323,8 +322,8 @@ PaintPropertyChangeType VisualViewport::UpdatePaintPropertyNodesIfNeeded(
   if (scrollbar_layer_horizontal_) {
     EffectPaintPropertyNode::State state;
     state.local_transform_space = transform_parent;
-    state.direct_compositing_reasons = {
-        CompositingReason::kActiveOpacityAnimation};
+    state.direct_compositing_reasons =
+        CompositingReason::kActiveOpacityAnimation;
     state.compositor_element_id =
         GetScrollbarElementId(ScrollbarOrientation::kHorizontalScrollbar);
     if (!horizontal_scrollbar_effect_node_) {
@@ -340,8 +339,8 @@ PaintPropertyChangeType VisualViewport::UpdatePaintPropertyNodesIfNeeded(
   if (scrollbar_layer_vertical_) {
     EffectPaintPropertyNode::State state;
     state.local_transform_space = transform_parent;
-    state.direct_compositing_reasons = {
-        CompositingReason::kActiveOpacityAnimation};
+    state.direct_compositing_reasons =
+        CompositingReason::kActiveOpacityAnimation;
     state.compositor_element_id =
         GetScrollbarElementId(ScrollbarOrientation::kVerticalScrollbar);
     if (!vertical_scrollbar_effect_node_) {
@@ -866,26 +865,17 @@ ScrollOffset VisualViewport::MaximumScrollOffsetAtScale(float scale) const {
   // crbug.com/470718.
   gfx::SizeF frame_view_size(ContentsSize());
 
-  // Match the combined browser controls delta the compositor applies in
-  // LayerTreeImpl::UpdateViewportContainerSizes(). The top contribution
-  // arrives via SetBrowserControlsAdjustment() since it also affects
-  // VisibleRect(); bottom controls never affect VisibleRect(), so read
-  // their contribution directly.
-  const float scroll_bounds_adjustment =
-      browser_controls_adjustment_ +
-      GetPage().GetBrowserControls().UnreportedBottomSizeAdjustment();
-
-  if (scroll_bounds_adjustment) {
+  if (browser_controls_adjustment_) {
     float min_scale =
         GetPage().GetPageScaleConstraintsSet().FinalConstraints().minimum_scale;
-    frame_view_size.Enlarge(0, scroll_bounds_adjustment / min_scale);
+    frame_view_size.Enlarge(0, browser_controls_adjustment_ / min_scale);
   }
 
   frame_view_size.Scale(scale);
   frame_view_size = gfx::SizeF(ToFlooredSize(frame_view_size));
 
   gfx::SizeF viewport_size(size_);
-  viewport_size.Enlarge(0, ceilf(scroll_bounds_adjustment));
+  viewport_size.Enlarge(0, ceilf(browser_controls_adjustment_));
 
   gfx::SizeF max_position = frame_view_size - viewport_size;
   max_position.Scale(1 / scale);

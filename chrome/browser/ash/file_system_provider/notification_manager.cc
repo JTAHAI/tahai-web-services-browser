@@ -4,16 +4,15 @@
 
 #include "chrome/browser/ash/file_system_provider/notification_manager.h"
 
-#include <memory>
-
 #include "ash/constants/notifier_catalogs.h"
 #include "base/strings/utf_string_conversions.h"
 #include "chrome/browser/extensions/chrome_app_icon_loader.h"
+#include "chrome/browser/notifications/notification_display_service.h"
+#include "chrome/browser/notifications/notification_display_service_factory.h"
 #include "chrome/browser/ui/ash/multi_user/multi_user_util.h"
 #include "components/account_id/account_id.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/chromeos/strings/grit/ui_chromeos_strings.h"
-#include "ui/message_center/message_center.h"
 #include "ui/message_center/public/cpp/notification.h"
 #include "ui/message_center/public/cpp/notification_types.h"
 #include "ui/message_center/public/cpp/notifier_id.h"
@@ -36,7 +35,12 @@ NotificationManager::NotificationManager(
   DCHECK_EQ(ProviderId::EXTENSION, file_system_info.provider_id().GetType());
 }
 
-NotificationManager::~NotificationManager() = default;
+NotificationManager::~NotificationManager() {
+  if (callbacks_.size()) {
+    NotificationDisplayServiceFactory::GetForProfile(profile_)->Close(
+        NotificationHandler::Type::TRANSIENT, GetNotificationId());
+  }
+}
 
 void NotificationManager::ShowUnresponsiveNotification(
     int id,
@@ -51,8 +55,8 @@ void NotificationManager::HideUnresponsiveNotification(int id) {
   if (callbacks_.size()) {
     ShowNotification();
   } else {
-    message_center::MessageCenter::Get()->RemoveNotification(
-        GetNotificationId(), /*by_user=*/false);
+    NotificationDisplayServiceFactory::GetForProfile(profile_)->Close(
+        NotificationHandler::Type::TRANSIENT, GetNotificationId());
   }
 }
 
@@ -110,8 +114,8 @@ void NotificationManager::ShowNotification() {
           weak_factory_.GetWeakPtr()));
   notification.SetSystemPriority();
 
-  message_center::MessageCenter::Get()->AddNotification(
-      std::make_unique<message_center::Notification>(std::move(notification)));
+  NotificationDisplayServiceFactory::GetForProfile(profile_)->Display(
+      NotificationHandler::Type::TRANSIENT, notification, /*metadata=*/nullptr);
 }
 
 void NotificationManager::OnNotificationResult(NotificationResult result) {

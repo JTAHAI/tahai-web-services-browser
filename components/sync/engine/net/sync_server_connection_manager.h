@@ -35,10 +35,8 @@ class SyncServerConnectionManager : public ServerConnectionManager {
   ~SyncServerConnectionManager() override;
 
  protected:
-  HttpResponse PostBuffer(
-      const std::string& buffer_in,
-      std::string* buffer_out,
-      const signin::AccessTokenInfo& access_token_info) override;
+  HttpResponse PostBuffer(const std::string& buffer_in,
+                          std::string* buffer_out) override;
 
  private:
   // The full URL that requests will be made to.

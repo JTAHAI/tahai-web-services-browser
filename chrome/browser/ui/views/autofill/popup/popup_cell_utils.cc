@@ -21,7 +21,6 @@
 #include "build/branding_buildflags.h"
 #include "cc/paint/skia_paint_canvas.h"
 #include "chrome/app/vector_icons/vector_icons.h"
-#include "chrome/browser/ui/autofill/autofill_suggestion_controller_utils.h"
 #include "chrome/browser/ui/passwords/ui_utils.h"
 #include "chrome/browser/ui/views/autofill/payments/payments_view_util.h"
 #include "chrome/browser/ui/views/autofill/popup/popup_base_view.h"
@@ -36,7 +35,7 @@
 #include "components/autofill/core/browser/payments/bnpl_util.h"
 #include "components/autofill/core/browser/suggestions/suggestion.h"
 #include "components/autofill/core/browser/suggestions/suggestion_type.h"
-#include "components/autofill/core/browser/ui/autofill_resource_util.h"
+#include "components/autofill/core/browser/ui/autofill_resource_utils.h"
 #include "components/omnibox/browser/vector_icons.h"
 #include "components/qr_code_generator/bitmap_generator.h"
 #include "components/strings/grit/components_strings.h"
@@ -67,6 +66,10 @@
 #include "ui/views/metadata/view_factory.h"
 #include "ui/views/view.h"
 #include "ui/views/view_class_properties.h"
+
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)
+#include "components/plus_addresses/core/browser/resources/vector_icons.h"
+#endif
 
 namespace autofill::popup_cell_utils {
 
@@ -149,7 +152,7 @@ std::u16string GetIconAccessibleName(Suggestion::Icon icon) {
     // Generic icons start
     case Suggestion::Icon::kAccount:
     case Suggestion::Icon::kAndroidMessages:
-    case Suggestion::Icon::kClose:
+    case Suggestion::Icon::kClear:
     case Suggestion::Icon::kCode:
     case Suggestion::Icon::kDelete:
     case Suggestion::Icon::kDevice:
@@ -359,11 +362,9 @@ bool IsPaymentMethodSuggestion(const Suggestion& suggestion) {
     case SuggestionType::kAllLoyaltyCardsEntry:
     case SuggestionType::kAllSavedPasswordsEntry:
     case SuggestionType::kAtMemoryAiDisclosure:
-    case SuggestionType::kAtMemoryFetching:
     case SuggestionType::kAtMemoryGenericError:
     case SuggestionType::kAtMemoryInactivityNudge:
     case SuggestionType::kAtMemoryNoConnection:
-    case SuggestionType::kAtMemoryOpenGemini:
     case SuggestionType::kAtMemorySearchAffordance:
     case SuggestionType::kAtMemorySearchResult:
     case SuggestionType::kAtMemorySourceAttribution:
@@ -372,8 +373,6 @@ bool IsPaymentMethodSuggestion(const Suggestion& suggestion) {
     case SuggestionType::kAutofillAiOtherOrders:
     case SuggestionType::kAutofillAiOtherShipments:
     case SuggestionType::kAutofillAiPrivateInferenceNotice:
-    case SuggestionType::kAutofillAiSourceAttribution:
-    case SuggestionType::kRemoveAutofillAi:
     case SuggestionType::kBackupPasswordEntry:
     case SuggestionType::kBnplFootnote:
     case SuggestionType::kComposeDisable:
@@ -405,7 +404,9 @@ bool IsPaymentMethodSuggestion(const Suggestion& suggestion) {
     case SuggestionType::kManageLoyaltyCard:
     case SuggestionType::kManageEnhancedAutofill:
     case SuggestionType::kMerchantPromoCodeEntry:
+    case SuggestionType::kMixedFormMessage:
     case SuggestionType::kOneTimePasswordEntry:
+    case SuggestionType::kOpenGemini:
     case SuggestionType::kPasswordEntry:
     case SuggestionType::kPasswordFieldByFieldFilling:
     case SuggestionType::kPendingStateSignin:
@@ -415,7 +416,7 @@ bool IsPaymentMethodSuggestion(const Suggestion& suggestion) {
     case SuggestionType::kSeparator:
     case SuggestionType::kTitle:
     case SuggestionType::kTroubleSigningInEntry:
-    case SuggestionType::kUndo:
+    case SuggestionType::kUndoOrClear:
     case SuggestionType::kViewPasswordDetails:
     case SuggestionType::kWebauthnCredential:
     case SuggestionType::kWebauthnPasskeyQrCode:
@@ -457,9 +458,11 @@ std::optional<ui::ImageModel> GetIconImageModelFromIcon(Suggestion::Icon icon) {
                                           ? kCreditCardIcon
                                           : kCreditCardOldIcon,
                                       kIconSize);
-    case Suggestion::Icon::kClose:
-      return ImageModelFromVectorIcon(vector_icons::kCloseIcon,
-                                      kChromeRefreshIconSize);
+    case Suggestion::Icon::kClear:
+      return ImageModelFromVectorIcon(::features::IsRoundedIconsEnabled()
+                                          ? kBackspaceFilledIcon
+                                          : kBackspaceOldIcon,
+                                      kIconSize);
     case Suggestion::Icon::kCode:
       return ImageModelFromVectorIcon(::features::IsRoundedIconsEnabled()
                                           ? vector_icons::kCodeIcon
@@ -813,7 +816,7 @@ std::unique_ptr<views::ImageView> GetIconImageView(
     return ConvertModelToImageView(
         ImageModelFromImageSkia(
             gfx::Image::CreateFrom1xBitmap(bitmap).AsImageSkia()),
-        ShouldApplyDeactivatedStyle(suggestion));
+        suggestion.HasDeactivatedStyle());
   }
   if (auto* image = std::get_if<gfx::Image>(&suggestion.custom_icon);
       image && !image->IsEmpty()) {
@@ -824,11 +827,11 @@ std::unique_ptr<views::ImageView> GetIconImageView(
           image_skia, webid::kDesiredAvatarSizeInAutofillDropdown);
     }
     return ConvertModelToImageView(ImageModelFromImageSkia(image_skia),
-                                   ShouldApplyDeactivatedStyle(suggestion));
+                                   suggestion.HasDeactivatedStyle());
   }
   std::unique_ptr<views::ImageView> icon_image_view =
       ConvertModelToImageView(GetIconImageModelFromIcon(suggestion.icon),
-                              ShouldApplyDeactivatedStyle(suggestion));
+                              suggestion.HasDeactivatedStyle());
   base::UmaHistogramTimes(kHistogramGetImageViewByName,
                           base::TimeTicks::Now() - start_time);
 
@@ -852,8 +855,8 @@ std::unique_ptr<views::ImageView> GetTrailingIconImageView(
   base::TimeTicks start_time = base::TimeTicks::Now();
   std::optional<ui::ImageModel> image_model =
       GetIconImageModelFromIcon(suggestion.trailing_icon);
-  std::unique_ptr<views::ImageView> icon_image_view = ConvertModelToImageView(
-      image_model, ShouldApplyDeactivatedStyle(suggestion));
+  std::unique_ptr<views::ImageView> icon_image_view =
+      ConvertModelToImageView(image_model, suggestion.HasDeactivatedStyle());
   base::UmaHistogramTimes(kHistogramGetImageViewByName,
                           base::TimeTicks::Now() - start_time);
 

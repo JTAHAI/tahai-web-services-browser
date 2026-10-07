@@ -58,10 +58,6 @@ class ScopedTestRegistrationFetcher {
       std::string_view session_id,
       std::string_view refresh_url_string);
 
-  // Creates a `ScopedTestRegistrationFetcher` with a custom dynamic callback
-  static ScopedTestRegistrationFetcher CreateWithDynamicCallback(
-      RegistrationFetcher::FetcherType fetcher);
-
   explicit ScopedTestRegistrationFetcher(
       RegistrationFetcher::FetcherType fetcher);
   ~ScopedTestRegistrationFetcher();

@@ -1605,7 +1605,9 @@ std::pair<Position, Position> CompositeEditCommand::ComputeNormalizedMoveRange(
   // the end and before the start are treated as though they were rendered.
   Position start = MostForwardCaretPosition(start_of_paragraph);
   Position end = MostBackwardCaretPosition(end_of_paragraph);
-  if (start_of_paragraph == end_of_paragraph) {
+  if (RuntimeEnabledFeatures::
+          AvoidNormalizingVisiblePositionsWhenStartEqualsEndEnabled() &&
+      start_of_paragraph == end_of_paragraph) {
     start = start_of_paragraph;
     end = end_of_paragraph;
   }
@@ -1633,7 +1635,11 @@ void CompositeEditCommand::SetEndingSelectionToDelete(const Position& start,
   const SelectionInDomTree selection_to_delete =
       SelectionInDomTree::Builder().Collapse(start).Extend(end).Build();
   const SelectionForUndoStep undo_step =
-      SelectionForUndoStep::From(selection_to_delete);
+      RuntimeEnabledFeatures::
+              RemoveSelectionCanonicalizationInMoveParagraphEnabled()
+          ? SelectionForUndoStep::From(selection_to_delete)
+          : SelectionForUndoStep::From(
+                CreateVisibleSelection(selection_to_delete).AsSelection());
   SetEndingSelection(undo_step);
   if (RuntimeEnabledFeatures::EditingUseDomPositionApiEnabled()) {
     SetEndingDomSelection(undo_step);
@@ -1667,6 +1673,10 @@ void CompositeEditCommand::InsertPlaceholderBrIfPruningCollapsed(
 
 bool CompositeEditCommand::DestinationStillEditableForPaste(
     const VisiblePosition& destination) {
+  if (!RuntimeEnabledFeatures::
+          PartialCompletionNotAllowedInMoveParagraphsEnabled()) {
+    return true;
+  }
   const VisibleSelection& destination_selection =
       CreateVisibleSelection(SelectionInDomTree::Builder()
                                  .Collapse(destination.ToPositionWithAffinity())
@@ -1675,10 +1685,13 @@ bool CompositeEditCommand::DestinationStillEditableForPaste(
          EndingVisibleSelection().RootEditableElement();
 }
 
-wtf_size_t CompositeEditCommand::ComputeDestinationIndex(
+int CompositeEditCommand::ComputeDestinationIndex(
     const VisiblePosition& destination) {
-  const TextIteratorBehavior behavior = TextIteratorBehavior::
-      AllVisiblePositionsIncludingShadowRootRangeLengthBehavior();
+  const TextIteratorBehavior behavior =
+      RuntimeEnabledFeatures::EnterInOpenShadowRootsEnabled()
+          ? TextIteratorBehavior::
+                AllVisiblePositionsIncludingShadowRootRangeLengthBehavior()
+          : TextIteratorBehavior::AllVisiblePositionsRangeLengthBehavior();
   return TextIterator::RangeLength(
       Position::FirstPositionInNode(*GetDocument().documentElement()),
       destination.ToParentAnchoredPosition(), behavior);
@@ -1767,7 +1780,9 @@ CompositeEditCommand::ComputePreservedVisibleSelectionEndpoints(
 
   const VisiblePosition visible_start = EndingVisibleSelection().VisibleStart();
   const VisiblePosition visible_end = EndingVisibleSelection().VisibleEnd();
-  if (visible_start.IsNull() || visible_end.IsNull()) {
+  if (RuntimeEnabledFeatures::
+          HandleDisconnectedSelectionDuringDOMChangesEnabled() &&
+      (visible_start.IsNull() || visible_end.IsNull())) {
     // A synchronous DOM mutation may invalidate VP endpoints.
     return std::nullopt;
   }
@@ -1785,8 +1800,10 @@ CompositeEditCommand::ComputePreservedDomSelectionEndpoints(
 
   const Position selection_start = EndingDomSelection().Start();
   const Position selection_end = EndingDomSelection().End();
-  if (!IsPreservedSelectionEndpointUsable(selection_start) ||
-      !IsPreservedSelectionEndpointUsable(selection_end)) {
+  if (RuntimeEnabledFeatures::
+          HandleDisconnectedSelectionDuringDOMChangesEnabled() &&
+      (!IsPreservedSelectionEndpointUsable(selection_start) ||
+       !IsPreservedSelectionEndpointUsable(selection_end))) {
     // A synchronous DOM mutation may stale raw-DOM endpoints.
     return std::nullopt;
   }
@@ -1799,7 +1816,7 @@ bool CompositeEditCommand::IsPreservedSelectionEndpointUsable(
   return position.IsNotNull() && position.IsValidFor(GetDocument());
 }
 
-std::optional<std::pair<wtf_size_t, wtf_size_t>>
+std::optional<std::pair<int, int>>
 CompositeEditCommand::ComputePreservedSelectionIndices(
     const Position& start_of_paragraph,
     const Position& end_of_paragraph,
@@ -1817,17 +1834,20 @@ CompositeEditCommand::ComputePreservedSelectionIndices(
       ComparePositions(selection_start, start_of_paragraph) >= 0;
   bool end_in_paragraph =
       ComparePositions(selection_end, end_of_paragraph) <= 0;
-  const TextIteratorBehavior behavior = TextIteratorBehavior::
-      AllVisiblePositionsIncludingShadowRootRangeLengthBehavior();
+  const TextIteratorBehavior behavior =
+      RuntimeEnabledFeatures::EnterInOpenShadowRootsEnabled()
+          ? TextIteratorBehavior::
+                AllVisiblePositionsIncludingShadowRootRangeLengthBehavior()
+          : TextIteratorBehavior::AllVisiblePositionsRangeLengthBehavior();
 
-  wtf_size_t start_index = 0;
+  int start_index = 0;
   if (start_in_paragraph) {
     start_index = TextIterator::RangeLength(
         start_of_paragraph.ParentAnchoredEquivalent(),
         selection_start.ParentAnchoredEquivalent(), behavior);
   }
 
-  wtf_size_t end_index = 0;
+  int end_index = 0;
   if (end_in_paragraph) {
     end_index = TextIterator::RangeLength(
         start_of_paragraph.ParentAnchoredEquivalent(),
@@ -1866,7 +1886,8 @@ void CompositeEditCommand::MoveParagraphs(
     return;
   }
 
-  std::optional<std::pair<wtf_size_t, wtf_size_t>> preserved_selection_indices;
+  std::optional<std::pair<int, int>> preserved_selection_indices;
+  int destination_index = -1;
   // VP overload: preserve endpoints from the VP lane.
   if (const std::optional<std::pair<Position, Position>> selection_endpoints =
           ComputePreservedVisibleSelectionEndpoints(
@@ -1954,7 +1975,7 @@ void CompositeEditCommand::MoveParagraphs(
 
   // TextIterator::rangeLength requires clean layout.
   GetDocument().UpdateStyleAndLayout(DocumentUpdateReason::kEditing);
-  wtf_size_t destination_index = ComputeDestinationIndex(destination);
+  destination_index = ComputeDestinationIndex(destination);
 
   if (!SetDestinationSelectionAndPasteFragment(
           destination, fragment, should_preserve_style, editing_state)) {

@@ -43,13 +43,9 @@ void PageStabilityBrowserTestBase::SetUpOnMainThread() {
   PlatformBrowserTest::SetUpOnMainThread();
   fetch_response_ =
       std::make_unique<net::test_server::ControllableHttpResponse>(
-          &embedded_https_test_server(), kFetchPath);
+          embedded_test_server(), kFetchPath);
 
   host_resolver()->AddRule("*", "127.0.0.1");
-  embedded_test_server()->ServeFilesFromSourceDirectory(
-      "components/test/data");
-  embedded_https_test_server().ServeFilesFromSourceDirectory(
-      "components/test/data");
   ASSERT_TRUE(embedded_test_server()->Start());
   ASSERT_TRUE(embedded_https_test_server().Start());
 }
@@ -70,8 +66,8 @@ RenderFrameHost* PageStabilityBrowserTestBase::main_frame() {
 }
 
 GURL PageStabilityBrowserTestBase::GetPageStabilityTestURL() {
-  return embedded_https_test_server().GetURL(
-      "example.com", "/page_content_annotations/page_stability.html");
+  return embedded_test_server()->GetURL(
+      "/page_content_annotations/page_stability.html");
 }
 
 std::string PageStabilityBrowserTestBase::GetOutputText() {

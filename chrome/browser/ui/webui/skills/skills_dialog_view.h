@@ -10,7 +10,6 @@
 #include "ui/base/metadata/metadata_header_macros.h"
 #include "ui/views/controls/webview/unhandled_keyboard_event_handler.h"
 #include "ui/views/controls/webview/webview.h"
-#include "ui/web_dialogs/web_dialog_web_contents_delegate.h"
 #include "url/gurl.h"
 
 class Profile;
@@ -20,7 +19,7 @@ namespace skills {
 // The contents view for the Skills dialog. It hosts the WebView that renders
 // the Skills WebUI and manages the layout and dimensions of the dialog content.
 class SkillsDialogView : public views::View,
-                         public ui::WebDialogWebContentsDelegate {
+                         public content::WebContentsDelegate {
   METADATA_HEADER(SkillsDialogView, views::View)
  public:
   SkillsDialogView(Profile* profile, const GURL& url);

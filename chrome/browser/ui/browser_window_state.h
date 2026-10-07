@@ -14,7 +14,6 @@
 #include "ui/base/ui_base_types.h"
 
 class Browser;
-class BrowserWindowInterface;
 
 namespace base {
 class CommandLine;
@@ -28,7 +27,7 @@ class PrefService;
 
 namespace chrome {
 
-std::string GetWindowName(const BrowserWindowInterface* browser);
+std::string GetWindowName(const Browser* browser);
 // A "window placement dictionary" holds information about the size and location
 // of the window that is stored in the given PrefService. If the `window_name`
 // isn't the name of a registered preference it is assumed to be the name of an
@@ -48,26 +47,25 @@ const base::DictValue* GetWindowPlacementDictionaryReadOnly(
     const std::string& window_name,
     PrefService* prefs);
 
-bool ShouldSaveWindowPlacement(const BrowserWindowInterface* browser);
+bool ShouldSaveWindowPlacement(const Browser* browser);
 
 // Returns true if the saved bounds for this window should be treated as the
 // bounds of the content area, not the whole window.
-bool SavedBoundsAreContentBounds(const BrowserWindowInterface* browser);
+bool SavedBoundsAreContentBounds(const Browser* browser);
 
-void SaveWindowPlacement(BrowserWindowInterface* browser,
+void SaveWindowPlacement(Browser* browser,
                          const gfx::Rect& bounds,
                          ui::mojom::WindowShowState show_state);
 
-void SaveWindowWorkspace(BrowserWindowInterface* browser,
-                         const std::string& workspace);
+void SaveWindowWorkspace(Browser* browser, const std::string& workspace);
 
-void SaveWindowVisibleOnAllWorkspaces(BrowserWindowInterface* browser,
+void SaveWindowVisibleOnAllWorkspaces(Browser* browser,
                                       bool visible_on_all_workspaces);
 
 // Return the |bounds| for the browser window to be used upon creation.
 // The |show_state| variable will receive the desired initial show state for
 // the window.
-void GetSavedWindowBoundsAndShowState(BrowserWindowInterface* browser,
+void GetSavedWindowBoundsAndShowState(Browser* browser,
                                       gfx::Rect* bounds,
                                       ui::mojom::WindowShowState* show_state);
 

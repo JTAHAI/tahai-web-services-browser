@@ -7,24 +7,15 @@
 
 #include <map>
 
-#include "base/callback_list.h"
 #include "base/memory/raw_ptr.h"
-#include "base/memory/weak_ptr.h"
 #include "base/types/pass_key.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
-#include "components/user_education/common/feature_promo/feature_promo_precondition.h"
+#include "chrome/browser/ui/views/frame/browser_view.h"
 #include "components/user_education/common/user_education_context.h"
 #include "components/user_education/common/user_education_storage_service.h"
-#include "ui/base/interaction/element_identifier.h"
-#include "ui/base/interaction/element_tracker.h"
 #include "ui/base/interaction/safe_castable.h"
 
-namespace content {
-class BrowserContext;
-}
-
 class BrowserUserEducationInterfaceImpl;
-class BrowserView;
 
 // Specialization for UserEducationContext that is tied to a Browser window.
 class BrowserUserEducationContext
@@ -43,7 +34,6 @@ class BrowserUserEducationContext
   bool IsValid() const override;
   ui::ElementContext GetElementContext() const override;
   const ui::AcceleratorProvider* GetAcceleratorProvider() const override;
-  user_education::AnchorElementFilter GetDefaultElementFilter() const override;
 
   // Retrieves the browser window interface. Requires that `IsValid()` is true.
   BrowserWindowInterface* GetBrowser() const;
@@ -72,13 +62,6 @@ class BrowserUserEducationContext
   // Populates `shared_preconditions_`, but only in User Education 2.5.
   void CreateSharedPreconditions(
       const user_education::UserEducationTimeProvider& time_provider);
-
-  // Filters `candidates` for suitability; i.e. is the element in an active
-  // window within the same profile.
-  static ui::TrackedElement* Filter(
-      ui::ElementContext default_context,
-      base::WeakPtr<content::BrowserContext> profile,
-      const ui::ElementTracker::ElementList& candidates);
 
   raw_ptr<BrowserView> browser_view_ = nullptr;
 

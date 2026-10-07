@@ -28,9 +28,9 @@
 #include "chrome/browser/metrics/usertype_by_devicetype_metrics_provider.h"
 #include "chrome/browser/profiles/profile_manager.h"
 #include "chrome/browser/sync/sync_service_factory.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser.h"
+#include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
-#include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chromeos/ash/components/login/login_state/scoped_test_public_session_login_state.h"
 #include "components/app_constants/constants.h"
@@ -49,7 +49,6 @@
 #include "testing/gtest/include/gtest/gtest.h"
 #include "ui/aura/test/test_window_delegate.h"
 #include "ui/aura/window.h"
-#include "ui/base/base_window.h"
 #include "ui/events/event.h"
 #include "ui/gfx/geometry/point.h"
 
@@ -800,20 +799,20 @@ class AppPlatformMetricsServiceBrowserTest
     proxy->OnApps(std::move(apps), app_type, false);
   }
 
-  BrowserWindowInterface* CreateBrowserWithAuraWindow() {
-    BrowserWindowInterface* browser = CreateBrowser(profile());
+  Browser* CreateBrowserWithAuraWindow() {
+    Browser* browser = CreateBrowser(profile());
     content::WaitForLoadStop(
-        browser->GetTabStripModel()->GetActiveWebContents());
+        browser->tab_strip_model()->GetActiveWebContents());
     return browser;
   }
 
-  BrowserWindowInterface* CreateBrowserWindow(
+  Browser* CreateBrowserWindow(
       InstallReason install_reason = InstallReason::kUser) {
     InstallOneApp(app_constants::kChromeAppId, AppType::kChromeApp, "Chrome",
                   Readiness::kReady, InstallSource::kSystem,
                   /*is_platform_app=*/false, WindowMode::kUnknown,
                   install_reason);
-    BrowserWindowInterface* browser = CreateBrowserWithAuraWindow();
+    Browser* browser = CreateBrowserWithAuraWindow();
     SetBrowser(browser);
     EXPECT_EQ(1U, GlobalBrowserCollection::GetInstance()->GetSize());
     return browser;
@@ -1017,7 +1016,7 @@ IN_PROC_BROWSER_TEST_F(AppPlatformMetricsServiceBrowserTest, UsageTime) {
   FastForwardBy(base::Minutes(2));
   ModifyInstance(app_id, window.get(), kInactiveInstanceState);
 
-  BrowserWindowInterface* browser = CreateBrowserWindow();
+  Browser* browser = CreateBrowserWindow();
 
   // Set the browser window active.
   ModifyInstance(app_constants::kChromeAppId,
@@ -1062,7 +1061,7 @@ IN_PROC_BROWSER_TEST_F(AppPlatformMetricsServiceBrowserTest, UsageTime) {
 }
 
 IN_PROC_BROWSER_TEST_F(AppPlatformMetricsServiceBrowserTest, UsageTimeUkm) {
-  BrowserWindowInterface* browser = CreateBrowserWindow();
+  Browser* browser = CreateBrowserWindow();
 
   // Set the browser window active.
   ModifyInstance(app_constants::kChromeAppId,
@@ -1092,7 +1091,7 @@ IN_PROC_BROWSER_TEST_F(AppPlatformMetricsServiceBrowserTest, UsageTimeUkm) {
 
 IN_PROC_BROWSER_TEST_F(AppPlatformMetricsServiceBrowserTest,
                        UsageTimeUkmReportAfterReboot) {
-  BrowserWindowInterface* browser = CreateBrowserWindow();
+  Browser* browser = CreateBrowserWindow();
   InstallOneApp(kWebAppId1, AppType::kWeb, "https://foo.com/",
                 Readiness::kReady, InstallSource::kSystem);
 
@@ -1165,7 +1164,7 @@ IN_PROC_BROWSER_TEST_F(AppPlatformMetricsServiceBrowserTest,
 
 IN_PROC_BROWSER_TEST_F(AppPlatformMetricsServiceBrowserTest,
                        UsageTimeUkmWithMultipleWindows) {
-  BrowserWindowInterface* browser1 = CreateBrowserWithAuraWindow();
+  Browser* browser1 = CreateBrowserWithAuraWindow();
 
   // Set the browser window active.
   ModifyInstance(app_constants::kChromeAppId,
@@ -1179,7 +1178,7 @@ IN_PROC_BROWSER_TEST_F(AppPlatformMetricsServiceBrowserTest,
                  kInactiveInstanceState);
   FastForwardBy(base::Minutes(1));
 
-  BrowserWindowInterface* browser2 = CreateBrowserWithAuraWindow();
+  Browser* browser2 = CreateBrowserWithAuraWindow();
   ModifyInstance(app_constants::kChromeAppId,
                  browser2->GetWindow()->GetNativeWindow(),
                  kActiveInstanceState);
@@ -1199,7 +1198,7 @@ IN_PROC_BROWSER_TEST_F(AppPlatformMetricsServiceBrowserTest,
 
 IN_PROC_BROWSER_TEST_F(AppPlatformMetricsServiceBrowserTest,
                        UsageTimeUkmForWebAppOpenInTabWithInactivatedBrowser) {
-  BrowserWindowInterface* browser = CreateBrowserWindow();
+  Browser* browser = CreateBrowserWindow();
   InstallOneApp(kWebAppId1, AppType::kWeb, "https://foo.com/",
                 Readiness::kReady, InstallSource::kSystem);
 
@@ -1265,7 +1264,7 @@ IN_PROC_BROWSER_TEST_F(AppPlatformMetricsServiceBrowserTest,
 
 IN_PROC_BROWSER_TEST_F(AppPlatformMetricsServiceBrowserTest,
                        UsageTimeUkmForWebAppOpenInTabWithActivatedBrowser) {
-  BrowserWindowInterface* browser = CreateBrowserWindow();
+  Browser* browser = CreateBrowserWindow();
   InstallOneApp(kWebAppId1, AppType::kWeb, "https://foo.com/",
                 Readiness::kReady, InstallSource::kSystem);
 
@@ -1360,7 +1359,7 @@ IN_PROC_BROWSER_TEST_F(AppPlatformMetricsServiceBrowserTest,
 
 IN_PROC_BROWSER_TEST_F(AppPlatformMetricsServiceBrowserTest,
                        UsageTimeUkmForMultipleWebAppOpenInTab) {
-  BrowserWindowInterface* browser = CreateBrowserWindow();
+  Browser* browser = CreateBrowserWindow();
   InstallOneApp(kWebAppId1, AppType::kWeb, "https://foo.com/",
                 Readiness::kReady, InstallSource::kSystem);
   InstallOneApp(kWebAppId2, AppType::kWeb, "https://foo2.com/",
@@ -1434,7 +1433,7 @@ IN_PROC_BROWSER_TEST_F(AppPlatformMetricsServiceBrowserTest, BrowserWindow) {
 
   // Expect no Browsers at the beginning.
   EXPECT_EQ(0U, GlobalBrowserCollection::GetInstance()->GetSize());
-  BrowserWindowInterface* browser1 = CreateBrowserWithAuraWindow();
+  Browser* browser1 = CreateBrowserWithAuraWindow();
 
   EXPECT_EQ(1U, GlobalBrowserCollection::GetInstance()->GetSize());
 
@@ -1455,7 +1454,7 @@ IN_PROC_BROWSER_TEST_F(AppPlatformMetricsServiceBrowserTest, BrowserWindow) {
   VerifyAppRunningDuration(base::Minutes(30), AppTypeName::kChromeBrowser);
 
   // Test multiple browsers.
-  BrowserWindowInterface* browser2 = CreateBrowserWithAuraWindow();
+  Browser* browser2 = CreateBrowserWithAuraWindow();
   EXPECT_EQ(2U, GlobalBrowserCollection::GetInstance()->GetSize());
 
   // browser2 is active by default.
@@ -1493,7 +1492,7 @@ IN_PROC_BROWSER_TEST_F(AppPlatformMetricsServiceBrowserTest, BrowserWindow) {
 
 IN_PROC_BROWSER_TEST_F(AppPlatformMetricsServiceBrowserTest,
                        AppRunningPercentage) {
-  BrowserWindowInterface* browser = CreateBrowserWindow();
+  Browser* browser = CreateBrowserWindow();
 
   // Test one Chrome browser.
   // browser is active by default.

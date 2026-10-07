@@ -21,7 +21,6 @@
 #include "components/password_manager/core/browser/password_form.h"
 #include "components/password_manager/core/browser/password_manager_test_utils.h"
 #include "components/password_manager/core/browser/password_store/mock_password_store_interface.h"
-#include "components/password_manager/core/browser/password_string.h"
 #include "components/strings/grit/components_strings.h"
 #include "components/sync/test/test_sync_service.h"
 #include "content/public/test/navigation_simulator.h"
@@ -327,14 +326,13 @@ TEST_F(PasswordDropdownExperimentTest, DropdownMenuExperimentMorphing) {
   // Add an existing credential.
   password_manager::PasswordForm existing_form;
   existing_form.username_value = u"existing_user";
-  existing_form.password_value = password_manager::PasswordString(u"password");
+  existing_form.password_value = u"password";
   current_forms_.push_back(
       std::make_unique<password_manager::PasswordForm>(existing_form));
 
   // Set pending password to a NEW user.
   pending_password_.username_value = u"new_user";
-  pending_password_.password_value =
-      password_manager::PasswordString(u"password");
+  pending_password_.password_value = u"password";
 
   // Start in Save state.
   ON_CALL(*model_delegate_mock(), GetState)
@@ -399,8 +397,7 @@ TEST_F(PasswordDropdownExperimentTest,
 
 TEST_F(PasswordDropdownExperimentTest,
        DropdownMenuExperimentInteraction_SaveAndReplaceWithPromo) {
-  pending_password_.password_value =
-      password_manager::PasswordString(u"password");
+  pending_password_.password_value = u"password";
 
   CreateViewAndShow();
 
@@ -423,8 +420,7 @@ TEST_F(PasswordDropdownExperimentTest,
 }
 
 TEST_F(PasswordDropdownExperimentTest, DropdownMenuExperimentInteraction_Save) {
-  pending_password_.password_value =
-      password_manager::PasswordString(u"password");
+  pending_password_.password_value = u"password";
 
   CreateViewAndShow();
 
@@ -434,8 +430,7 @@ TEST_F(PasswordDropdownExperimentTest, DropdownMenuExperimentInteraction_Save) {
 
 TEST_F(PasswordDropdownExperimentTest,
        DropdownMenuExperimentInteraction_Never) {
-  pending_password_.password_value =
-      password_manager::PasswordString(u"password");
+  pending_password_.password_value = u"password";
   CreateViewAndShow();
 
   views::View* split_button =
@@ -462,7 +457,7 @@ TEST_F(PasswordDropdownExperimentTest,
   // Add an existing credential.
   password_manager::PasswordForm existing_form;
   existing_form.username_value = u"existing_user";
-  existing_form.password_value = password_manager::PasswordString(u"password");
+  existing_form.password_value = u"password";
   current_forms_.push_back(
       std::make_unique<password_manager::PasswordForm>(existing_form));
 
@@ -509,8 +504,7 @@ TEST_F(PasswordDropdownExperimentTest, OkButtonEnabledWhenPasswordIsNotEmpty) {
 }
 
 TEST_F(PasswordDropdownExperimentTest, DropdownMenuExperimentNonBlockingMenu) {
-  pending_password_.password_value =
-      password_manager::PasswordString(u"password");
+  pending_password_.password_value = u"password";
   CreateViewAndShow();
 
   views::View* split_button =

@@ -56,7 +56,7 @@
 #include "components/variations/pref_names.h"
 #include "components/variations/service/safe_seed_manager.h"
 #include "components/variations/service/variations_service.h"
-#include "components/variations/variations_safe_seed_store.h"
+#include "components/variations/variations_safe_seed_store_local_state.h"
 #include "components/variations/variations_switches.h"
 #include "content/public/common/content_switch_dependent_feature_overrides.h"
 #include "net/base/features.h"
@@ -69,7 +69,7 @@ namespace {
 bool g_signature_verification_enabled = true;
 
 // A list of Finch study names that should use the nonembedded low entropy
-// source. IMPORTANT: Any experiment listed here must not be part of a layer.
+// source.
 const char* const kNonembeddedLowEntropySourceAllowlist[] = {
     "DefaultPassthroughCommandDecoder",
     "WebViewFasterGetDefaultUserAgent",
@@ -265,12 +265,8 @@ void AwFeatureListCreator::SetUpFieldTrials() {
   client_ = std::make_unique<AwVariationsServiceClient>();
   auto seed_store = std::make_unique<variations::VariationsSeedStore>(
       local_state_.get(), /*initial_seed=*/std::move(seed),
-      /*signature_verification_enabled_on_load=*/
-      client_->EnableSignatureVerificationOnLoad() &&
-          g_signature_verification_enabled,
-      /*signature_verification_enabled_on_receive=*/
-      g_signature_verification_enabled,
-      std::make_unique<variations::VariationsSafeSeedStore>(
+      /*signature_verification_enabled=*/g_signature_verification_enabled,
+      std::make_unique<variations::VariationsSafeSeedStoreLocalState>(
           local_state_.get(), client_->GetVariationsSeedFileDir(),
           client_->GetChannelForVariations(), /*entropy_providers=*/nullptr),
       client_->GetChannelForVariations(), client_->GetVariationsSeedFileDir(),

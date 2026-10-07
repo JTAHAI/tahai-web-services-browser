@@ -46,7 +46,6 @@ import org.mockito.stubbing.Answer;
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.base.test.util.Features.DisableFeatures;
 import org.chromium.base.test.util.Features.EnableFeatures;
-import org.chromium.base.test.util.HistogramWatcher;
 import org.chromium.blink.mojom.EventType;
 import org.chromium.blink.mojom.InputCursorAnchorInfo;
 import org.chromium.blink_public.web.WebInputEventModifier;
@@ -70,8 +69,7 @@ import org.chromium.ui.test.util.TestViewAndroidDelegate;
     ContentFeatures.ANDROID_PK_AUTOCORRECT_UNDERLINE_V2,
     ContentFeatureList.ANDROID_BLOCK_GRAMMAR_SUGGESTION_SPAN_IN_COMPOSITION_MODE,
     ContentFeatureList.ANDROID_BLOCK_MISSPELLING_SUGGESTION_SPAN_IN_COMPOSITION_MODE,
-    ContentFeatureList.ANDROID_MEDIA_INSERTION,
-    ContentFeatures.ANDROID_REPLAY_DEL_KEY_EVENT
+    ContentFeatureList.ANDROID_MEDIA_INSERTION
 })
 public class ImeAdapterImplTest {
     @Rule public MockitoRule mMockitoRule = MockitoJUnit.rule();
@@ -158,16 +156,6 @@ public class ImeAdapterImplTest {
         adapter.onConnectedToRenderProcess();
 
         adapter.onViewFocusChanged(/* gainFocus= */ true, /* hideKeyboardOnBlur= */ true);
-        verify(mImeAdapterImplJni).requestTextInputStateUpdate(anyLong());
-    }
-
-    @Test
-    @EnableFeatures(ContentFeatureList.ANDROID_FORCE_TEXT_INPUT_STATE_UPDATE_UPON_FOCUS)
-    public void testOnWindowFocusChangedGainedCallsRequestTextInputStateUpdate() {
-        ImeAdapterImpl adapter = new ImeAdapterImpl(mWebContentsImpl);
-        adapter.onConnectedToRenderProcess();
-
-        adapter.onWindowFocusChanged(/* gainFocus= */ true);
         verify(mImeAdapterImplJni).requestTextInputStateUpdate(anyLong());
     }
 
@@ -303,174 +291,8 @@ public class ImeAdapterImplTest {
     }
 
     @Test
-    @EnableFeatures({
-        ContentFeatureList.ANDROID_CAPTURE_KEY_EVENTS,
-        ContentFeatures.ANDROID_REPLAY_DEL_KEY_EVENT
-    })
-    public void testDeleteSurroundingText_replayKeyDownBackspaceEvent() {
-        ImeAdapterImpl adapter = new ImeAdapterImpl(mWebContentsImpl);
-        adapter.onConnectedToRenderProcess();
-
-        // When no KEYCODE_DEL is captured, deleteSurroundingText sends placeholder key
-        // events and calls deleteSurroundingText.
-        adapter.deleteSurroundingText(1, 0);
-        verify(mImeAdapterImplJni)
-                .sendKeyEvent(
-                        anyLong(),
-                        isNull(),
-                        eq(EventType.RAW_KEY_DOWN),
-                        eq(0),
-                        anyLong(),
-                        eq(ImeAdapterImpl.COMPOSITION_KEY_CODE),
-                        eq(0),
-                        eq(false),
-                        eq(0));
-        verify(mImeAdapterImplJni).deleteSurroundingText(anyLong(), eq(1), eq(0));
-        reset(mImeAdapterImplJni);
-
-        // When KEYCODE_DEL is captured, deleteSurroundingText replays the
-        // KEY_DOWN event instead.
-        long time = SystemClock.uptimeMillis();
-        KeyEvent delEvent =
-                new KeyEvent(time, time, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DEL, 0, 0);
-        adapter.onKeyPreIme(delEvent.getKeyCode(), delEvent);
-        adapter.deleteSurroundingText(1, 0);
-        verify(mImeAdapterImplJni)
-                .sendKeyEvent(
-                        anyLong(),
-                        isNotNull(),
-                        eq(EventType.KEY_DOWN),
-                        eq(0),
-                        eq(time),
-                        eq(delEvent.getKeyCode()),
-                        eq(delEvent.getScanCode()),
-                        eq(false),
-                        eq(0));
-        verify(mImeAdapterImplJni, never()).deleteSurroundingText(anyLong(), anyInt(), anyInt());
-        reset(mImeAdapterImplJni);
-
-        // When beforeLength != 1 or afterLength != 0, it should not replay the DEL event.
-        adapter.onKeyPreIme(delEvent.getKeyCode(), delEvent);
-        adapter.deleteSurroundingText(2, 0);
-        verify(mImeAdapterImplJni).deleteSurroundingText(anyLong(), eq(2), eq(0));
-        verify(mImeAdapterImplJni, never())
-                .sendKeyEvent(
-                        anyLong(),
-                        isNotNull(),
-                        eq(EventType.KEY_DOWN),
-                        anyInt(),
-                        anyLong(),
-                        eq(delEvent.getKeyCode()),
-                        anyInt(),
-                        anyBoolean(),
-                        anyInt());
-        reset(mImeAdapterImplJni);
-
-        adapter.onKeyPreIme(delEvent.getKeyCode(), delEvent);
-        adapter.deleteSurroundingText(0, 1);
-        verify(mImeAdapterImplJni).deleteSurroundingText(anyLong(), eq(0), eq(1));
-        verify(mImeAdapterImplJni, never())
-                .sendKeyEvent(
-                        anyLong(),
-                        isNotNull(),
-                        eq(EventType.KEY_DOWN),
-                        anyInt(),
-                        anyLong(),
-                        eq(delEvent.getKeyCode()),
-                        anyInt(),
-                        anyBoolean(),
-                        anyInt());
-    }
-
-    @Test
-    @EnableFeatures({
-        ContentFeatureList.ANDROID_CAPTURE_KEY_EVENTS,
-        ContentFeatures.ANDROID_REPLAY_DEL_KEY_EVENT
-    })
-    public void testDeleteSurroundingTextInCodePoints_replayKeyDownBackspaceEvent() {
-        ImeAdapterImpl adapter = new ImeAdapterImpl(mWebContentsImpl);
-        adapter.onConnectedToRenderProcess();
-
-        // When no KEYCODE_DEL is captured, deleteSurroundingTextInCodePoints sends placeholder key
-        // events and calls deleteSurroundingTextInCodePoints.
-        adapter.deleteSurroundingTextInCodePoints(1, 0);
-        verify(mImeAdapterImplJni)
-                .sendKeyEvent(
-                        anyLong(),
-                        isNull(),
-                        eq(EventType.RAW_KEY_DOWN),
-                        eq(0),
-                        anyLong(),
-                        eq(ImeAdapterImpl.COMPOSITION_KEY_CODE),
-                        eq(0),
-                        eq(false),
-                        eq(0));
-        verify(mImeAdapterImplJni).deleteSurroundingTextInCodePoints(anyLong(), eq(1), eq(0));
-        reset(mImeAdapterImplJni);
-
-        // When KEYCODE_DEL is captured, deleteSurroundingTextInCodePoints replays the
-        // KEY_DOWN event instead.
-        long time = SystemClock.uptimeMillis();
-        KeyEvent delEvent =
-                new KeyEvent(time, time, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DEL, 0, 0);
-        adapter.onKeyPreIme(delEvent.getKeyCode(), delEvent);
-        adapter.deleteSurroundingTextInCodePoints(1, 0);
-        verify(mImeAdapterImplJni)
-                .sendKeyEvent(
-                        anyLong(),
-                        isNotNull(),
-                        eq(EventType.KEY_DOWN),
-                        eq(0),
-                        eq(time),
-                        eq(delEvent.getKeyCode()),
-                        eq(delEvent.getScanCode()),
-                        eq(false),
-                        eq(0));
-        verify(mImeAdapterImplJni, never())
-                .deleteSurroundingTextInCodePoints(anyLong(), anyInt(), anyInt());
-        reset(mImeAdapterImplJni);
-
-        // When beforeLength != 1 or afterLength != 0, it should not replay the DEL event.
-        adapter.onKeyPreIme(delEvent.getKeyCode(), delEvent);
-        adapter.deleteSurroundingTextInCodePoints(2, 0);
-        verify(mImeAdapterImplJni).deleteSurroundingTextInCodePoints(anyLong(), eq(2), eq(0));
-        verify(mImeAdapterImplJni, never())
-                .sendKeyEvent(
-                        anyLong(),
-                        isNotNull(),
-                        eq(EventType.KEY_DOWN),
-                        anyInt(),
-                        anyLong(),
-                        eq(delEvent.getKeyCode()),
-                        anyInt(),
-                        anyBoolean(),
-                        anyInt());
-        reset(mImeAdapterImplJni);
-
-        adapter.onKeyPreIme(delEvent.getKeyCode(), delEvent);
-        adapter.deleteSurroundingTextInCodePoints(0, 1);
-        verify(mImeAdapterImplJni).deleteSurroundingTextInCodePoints(anyLong(), eq(0), eq(1));
-        verify(mImeAdapterImplJni, never())
-                .sendKeyEvent(
-                        anyLong(),
-                        isNotNull(),
-                        eq(EventType.KEY_DOWN),
-                        anyInt(),
-                        anyLong(),
-                        eq(delEvent.getKeyCode()),
-                        anyInt(),
-                        anyBoolean(),
-                        anyInt());
-    }
-
-    @Test
     public void testCommitContent() {
         when(mImeAdapterImplJni.insertMediaFromBytes(anyLong(), any(), any())).thenReturn(true);
-        HistogramWatcher watcher =
-                HistogramWatcher.newBuilder()
-                        .expectIntRecord(
-                                "Input.CommitContent.Success", ImeMetricsUtils.ExtensionFormat.PNG)
-                        .build();
 
         ImeAdapterImpl adapter = new ImeAdapterImpl(mWebContentsImpl);
         adapter.onConnectedToRenderProcess();
@@ -480,24 +302,16 @@ public class ImeAdapterImplTest {
 
         verify(mImeAdapterImplJni)
                 .insertMediaFromBytes(anyLong(), eq(new byte[] {1, 2, 3}), eq("png"));
-        watcher.assertExpected();
     }
 
     @Test
     public void testCommitContent_Failure() {
         when(mImeAdapterImplJni.insertMediaFromBytes(anyLong(), any(), any())).thenReturn(false);
-        HistogramWatcher watcher =
-                HistogramWatcher.newBuilder()
-                        .expectIntRecord(
-                                "Input.CommitContent.Failure",
-                                ImeMetricsUtils.ExtensionFormat.OTHER)
-                        .build();
 
         ImeAdapterImpl adapter = new ImeAdapterImpl(mWebContentsImpl);
         adapter.onConnectedToRenderProcess();
 
-        Assert.assertFalse(adapter.commitContent(new byte[] {1, 2, 3}, "unknown_ext"));
-        watcher.assertExpected();
+        Assert.assertFalse(adapter.commitContent(new byte[] {1, 2, 3}, "png"));
     }
 
     @Test

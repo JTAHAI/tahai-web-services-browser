@@ -8,6 +8,7 @@
 #include <string>
 #include <vector>
 
+#include "base/memory/safe_ref.h"
 #include "build/build_config.h"
 #include "components/content_settings/core/common/content_settings.h"
 #include "components/content_settings/core/common/content_settings_types.h"
@@ -51,8 +52,17 @@ class PermissionUtil {
   static std::string GetPermissionString(ContentSettingsType);
 
   // Returns the request type uma value for the given permissions.
+  template <typename T>
+    requires std::is_same_v<std::unique_ptr<PermissionRequest>, T> ||
+             std::is_same_v<base::SafeRef<PermissionRequest>, T>
   static RequestTypeForUma GetUmaValueForRequests(
-      const std::vector<std::unique_ptr<PermissionRequest>>& requests);
+      const std::vector<T>& requests) {
+    CHECK(!requests.empty());
+    if (requests.size() == 1) {
+      return GetUmaValueForRequest(*requests[0]);
+    }
+    return GetUmaValueForMultipleRequests(requests[0]->request_type());
+  }
 
   // Returns the request type uma value for the given request.
   static RequestTypeForUma GetUmaValueForRequest(
@@ -96,7 +106,7 @@ class PermissionUtil {
   // - The request is initiated from a permission element.
   // - The request type is permission element supported type.
   static bool ShouldCurrentRequestUsePermissionElementSecondaryUI(
-      const PermissionPrompt::Delegate* delegate);
+      PermissionPrompt::Delegate* delegate);
 
   // Performs the same checks as
   // `ShouldCurrentRequestUsePermissionElementSecondaryUI(
@@ -104,7 +114,7 @@ class PermissionUtil {
   // is a trusted internal surface like omnibox popup, new tab page, contextual
   // tasks, AND the searchbox embedded permission prompt flag is be enabled.
   static bool ShouldCurrentRequestUsePermissionElementSecondaryUI(
-      const PermissionPrompt::Delegate* delegate,
+      PermissionPrompt::Delegate* delegate,
       content::WebContents* web_contents);
 
   // Checks whether the given ContentSettingsType is a guard content setting,

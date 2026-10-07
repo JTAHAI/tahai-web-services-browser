@@ -344,9 +344,16 @@ public class BundleUtils {
                 LOADED_SPLITS_KEY, new ArrayList<>(sInflationClassLoaders.keySet()));
     }
 
-    public static void restoreLoadedSplits(Bundle savedInstanceState) {
+    public static void restoreLoadedSplits(@Nullable Bundle savedInstanceState) {
+        if (savedInstanceState == null) {
+            return;
+        }
         sSplitsToRestore = savedInstanceState.getStringArrayList(LOADED_SPLITS_KEY);
-        Log.i(TAG, "Splits: %s", sSplitsToRestore);
+        // TODO(crbug.com/430099860): Delete after M141.
+        if (sSplitsToRestore != null && sSplitsToRestore.contains("google3")) {
+            sSplitsToRestore.add("on_demand");
+            sSplitsToRestore.remove("google3");
+        }
     }
 
     private static class SplitCompatClassLoader extends ClassLoader {
@@ -356,6 +363,7 @@ public class BundleUtils {
             // The chrome split classloader if the chrome split exists, otherwise
             // the base module class loader.
             super(ContextUtils.getApplicationContext().getClassLoader());
+            Log.i(TAG, "Splits: %s", sSplitsToRestore);
         }
 
         private @Nullable Class<?> checkSplitsClassLoaders(String className)

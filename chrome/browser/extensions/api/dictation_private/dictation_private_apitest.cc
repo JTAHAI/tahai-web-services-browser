@@ -81,7 +81,7 @@ class ExtensionApiTestStreamProvider : public dictation::StreamProvider {
         ->DispatchEventToExtension(extension_id_, std::move(event));
   }
 
-  void Stop(dictation::DictationStreamEndTrigger trigger) override {
+  void Stop() override {
     api::dictation_private::EndStreamDetails details;
     details.stream_id = stream_id_.value();
 
@@ -101,8 +101,8 @@ class ExtensionApiTestStreamProvider : public dictation::StreamProvider {
     transcription_updates_.push_back({data, is_final});
   }
 
-  void OnStreamStateChanged(dictation::StreamProvider::StreamState state,
-                            dictation::StreamErrorReason reason) override {
+  void OnStreamStateChanged(
+      dictation::StreamProvider::StreamState state) override {
     state_changes_.push_back(state);
   }
 

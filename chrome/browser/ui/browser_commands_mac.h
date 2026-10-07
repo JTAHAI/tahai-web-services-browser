@@ -5,24 +5,24 @@
 #ifndef CHROME_BROWSER_UI_BROWSER_COMMANDS_MAC_H_
 #define CHROME_BROWSER_UI_BROWSER_COMMANDS_MAC_H_
 
-class BrowserWindowInterface;
+class Browser;
 
 namespace chrome {
 
 // Toggles the "Always Show Toolbar in Full Screen".
-void ToggleAlwaysShowToolbarInFullscreen(BrowserWindowInterface* browser);
+void ToggleAlwaysShowToolbarInFullscreen(Browser* browser);
 
 // Sets the "Always Show Toolbar in Full Screen" in tests.
-void SetAlwaysShowToolbarInFullscreenForTesting(BrowserWindowInterface* browser,
+void SetAlwaysShowToolbarInFullscreenForTesting(Browser* browser,
                                                 bool always_show);
 
 // Toggles the "Allow JavaScript from AppleEvents" setting.
-void ToggleJavaScriptFromAppleEventsAllowed(BrowserWindowInterface* browser);
+void ToggleJavaScriptFromAppleEventsAllowed(Browser* browser);
 
 // This reveals the toolbar in immersive fullscreen mode using
 // 'setButtonRevealAmount', similar to moving the mouse to the top of the
 // screen. It does not use GetRevealedLock to lock the toolbar as visible.
-void RevealToolbarForTesting(BrowserWindowInterface* browser);
+void RevealToolbarForTesting(Browser* browser);
 
 }  // namespace chrome
 

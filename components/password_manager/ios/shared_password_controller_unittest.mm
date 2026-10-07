@@ -20,9 +20,9 @@
 #import "components/autofill/core/browser/foundations/test_autofill_client.h"
 #import "components/autofill/core/browser/foundations/test_browser_autofill_manager.h"
 #import "components/autofill/core/browser/suggestions/suggestion_type.h"
-#import "components/autofill/core/browser/test_utils/autofill_test_util.h"
+#import "components/autofill/core/browser/test_utils/autofill_test_utils.h"
 #import "components/autofill/core/common/autofill_features.h"
-#import "components/autofill/core/common/autofill_test_util.h"
+#import "components/autofill/core/common/autofill_test_utils.h"
 #import "components/autofill/core/common/form_data.h"
 #import "components/autofill/core/common/form_data_test_api.h"
 #import "components/autofill/core/common/form_field_data.h"
@@ -612,8 +612,8 @@ TEST_F(SharedPasswordControllerTest,
         formRendererID:autofill::FormRendererId(0)
        fieldIdentifier:@"field"
        fieldRendererID:autofill::FieldRendererId(1)
-             fieldType:FieldType::kText
-                  type:ActivityType::kFocus
+             fieldType:@"text"
+                  type:@"focus"
             typedValue:@""
                frameID:kTestFrameID
           onlyPassword:NO];
@@ -653,9 +653,8 @@ TEST_F(SharedPasswordControllerTest, ReturnsNoSuggestionsIfNoneAreAvailable) {
         formRendererID:autofill::FormRendererId(0)
        fieldIdentifier:@"field"
        fieldRendererID:autofill::FieldRendererId(1)
-             fieldType:FieldType::kObfuscated  // Ensures this is a password
-                                               // form.
-                  type:ActivityType::kFocus
+             fieldType:kObfuscatedFieldType  // Ensures this is a password form.
+                  type:@"focus"
             typedValue:@""
                frameID:kTestFrameID
           onlyPassword:NO];
@@ -695,9 +694,8 @@ TEST_F(SharedPasswordControllerTest, ReturnsNoSuggestionsIfFrameDestroyed) {
         formRendererID:autofill::FormRendererId(0)
        fieldIdentifier:@"field"
        fieldRendererID:autofill::FieldRendererId(1)
-             fieldType:FieldType::kObfuscated  // Ensures this is a password
-                                               // form.
-                  type:ActivityType::kFocus
+             fieldType:kObfuscatedFieldType  // Ensures this is a password form.
+                  type:@"focus"
             typedValue:@""
                frameID:kTestFrameID
           onlyPassword:NO];
@@ -724,9 +722,8 @@ TEST_F(SharedPasswordControllerTest, ReturnsSuggestionsIfAvailable) {
         formRendererID:autofill::FormRendererId(0)
        fieldIdentifier:@"field"
        fieldRendererID:autofill::FieldRendererId(1)
-             fieldType:FieldType::kObfuscated  // Ensures this is a password
-                                               // form.
-                  type:ActivityType::kFocus
+             fieldType:kObfuscatedFieldType  // Ensures this is a password form.
+                  type:@"focus"
             typedValue:@""
                frameID:kTestFrameID
           onlyPassword:NO];
@@ -793,8 +790,8 @@ TEST_F(SharedPasswordControllerTest,
         formRendererID:autofill::FormRendererId(1)
        fieldIdentifier:@"field"
        fieldRendererID:autofill::FieldRendererId(2)
-             fieldType:FieldType::kObfuscated
-                  type:ActivityType::kFocus
+             fieldType:kObfuscatedFieldType
+                  type:@"focus"
             typedValue:@""
                frameID:kTestFrameID
           onlyPassword:NO];
@@ -850,9 +847,8 @@ TEST_F(SharedPasswordControllerTest,
         formRendererID:autofill::FormRendererId(0)
        fieldIdentifier:@"field"
        fieldRendererID:autofill::FieldRendererId(1)
-             fieldType:FieldType::kObfuscated  // Ensures this is a password
-                                               // form.
-                  type:ActivityType::kFocus
+             fieldType:kObfuscatedFieldType  // Ensures this is a password form.
+                  type:@"focus"
             typedValue:@""
                frameID:kTestFrameID
           onlyPassword:NO];
@@ -1263,9 +1259,9 @@ TEST_F(SharedPasswordControllerTest, TriggerPasswordGeneration) {
   base::HistogramTester histogram_tester;
   autofill::FormActivityParams params;
   params.form_renderer_id = autofill::FormRendererId(0);
-  params.field_type = autofill::FormActivityParams::FieldType::kObfuscated;
+  params.field_type = "password";
   params.field_renderer_id = autofill::FieldRendererId(1);
-  params.type = ActivityType::kFocus;
+  params.type = "focus";
   params.input_missing = false;
 
   auto web_frame = web::FakeWebFrame::Create("frame-id", /*is_main_frame=*/true,
@@ -1384,9 +1380,9 @@ TEST_F(SharedPasswordControllerTest, TriggerPasswordGeneration_Proactively) {
 TEST_F(SharedPasswordControllerTest, LastFocusedFieldData) {
   autofill::FormActivityParams params;
   params.form_renderer_id = autofill::FormRendererId(0);
-  params.field_type = autofill::FormActivityParams::FieldType::kObfuscated;
+  params.field_type = "password";
   params.field_renderer_id = autofill::FieldRendererId(1);
-  params.type = ActivityType::kFocus;
+  params.type = "focus";
   params.input_missing = true;
 
   auto web_frame = web::FakeWebFrame::Create("frame-id", /*is_main_frame=*/true,
@@ -1431,7 +1427,7 @@ TEST_F(SharedPasswordControllerTest,
                                  completionHandler:mock_completion_handler]);
 
   autofill::FormActivityParams params;
-  params.type = ActivityType::kFormChanged;
+  params.type = "form_changed";
   [controller_ webState:&web_state_
       didRegisterFormActivity:params
                       inFrame:frame];
@@ -1545,8 +1541,8 @@ TEST_F(SharedPasswordControllerTestWithRealSuggestionHelper,
         formRendererID:form.renderer_id()
        fieldIdentifier:SysUTF16ToNSString(form.fields()[0].name())
        fieldRendererID:form.fields()[0].renderer_id()
-             fieldType:FieldType::kText
-                  type:ActivityType::kFocus
+             fieldType:@"text"
+                  type:@"focus"
             typedValue:@""
                frameID:kTestFrameID
           onlyPassword:NO];
@@ -1616,8 +1612,8 @@ TEST_F(SharedPasswordControllerTestWithRealSuggestionHelper,
             formRendererID:form.renderer_id()
            fieldIdentifier:SysUTF16ToNSString(form.fields()[0].name())
            fieldRendererID:form.fields()[0].renderer_id()
-                 fieldType:FieldType::kText
-                      type:ActivityType::kFocus
+                 fieldType:@"text"
+                      type:@"focus"
                 typedValue:@""
                    frameID:kTestFrameID
               onlyPassword:NO];
@@ -1644,8 +1640,8 @@ TEST_F(SharedPasswordControllerTestWithRealSuggestionHelper,
             formRendererID:form.renderer_id()
            fieldIdentifier:SysUTF16ToNSString(form.fields()[1].name())
            fieldRendererID:form.fields()[1].renderer_id()
-                 fieldType:FieldType::kObfuscated
-                      type:ActivityType::kFocus
+                 fieldType:kObfuscatedFieldType
+                      type:@"focus"
                 typedValue:@""
                    frameID:kTestFrameID
               onlyPassword:NO];
@@ -1723,8 +1719,8 @@ TEST_F(SharedPasswordControllerTestWithRealSuggestionHelper,
         formRendererID:autofill::FormRendererId(0)
        fieldIdentifier:@"field"
        fieldRendererID:autofill::FieldRendererId(1)
-             fieldType:FieldType::kObfuscated
-                  type:ActivityType::kFocus
+             fieldType:kObfuscatedFieldType
+                  type:@"focus"
             typedValue:@""
                frameID:kTestFrameID
           onlyPassword:NO];
@@ -1850,8 +1846,8 @@ TEST_F(SharedPasswordControllerTest,
         formRendererID:autofill::FormRendererId(0)
        fieldIdentifier:@"field"
        fieldRendererID:autofill::FieldRendererId(1)
-             fieldType:FieldType::kText
-                  type:ActivityType::kFocus
+             fieldType:@"text"
+                  type:@"focus"
             typedValue:@""
                frameID:kTestFrameID
           onlyPassword:NO];
@@ -1896,8 +1892,8 @@ TEST_F(SharedPasswordControllerTest,
         formRendererID:autofill::FormRendererId(0)
        fieldIdentifier:@"field"
        fieldRendererID:autofill::FieldRendererId(1)
-             fieldType:FieldType::kText
-                  type:ActivityType::kFocus
+             fieldType:@"text"
+                  type:@"focus"
             typedValue:@""
                frameID:kTestFrameID
           onlyPassword:NO];
@@ -1960,7 +1956,7 @@ TEST_F(SharedPasswordControllerTest,
   web_frames_manager_->AddWebFrame(std::move(web_frame));
 
   autofill::FormActivityParams params;
-  params.type = ActivityType::kFormChanged;
+  params.type = "form_changed";
 
   OCMExpect([form_helper_ findPasswordFormsInFrame:frame
                                   completionHandler:[OCMArg any]]);
@@ -2120,8 +2116,8 @@ TEST_F(SharedPasswordControllerTestWithRealSuggestionHelper,
         formRendererID:autofill::FormRendererId(1)
        fieldIdentifier:@"field"
        fieldRendererID:autofill::FieldRendererId(2)
-             fieldType:FieldType::kText
-                  type:ActivityType::kFocus
+             fieldType:@"text"
+                  type:@"focus"
             typedValue:@""
                frameID:base::SysUTF8ToNSString(frame_id)
           onlyPassword:NO];

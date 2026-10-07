@@ -235,7 +235,14 @@ public class ShareImageFileUtils {
                 }
                 final Bitmap result = bitmap;
                 // Run the callback on main thread.
-                new Handler(Looper.getMainLooper()).post(callback.bind(result));
+                new Handler(Looper.getMainLooper())
+                        .post(
+                                new Runnable() {
+                                    @Override
+                                    public void run() {
+                                        callback.onResult(result);
+                                    }
+                                });
                 return null;
             }
         }.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR);

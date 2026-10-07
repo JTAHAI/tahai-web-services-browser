@@ -27,10 +27,12 @@ import org.junit.runner.RunWith;
 import org.robolectric.annotation.Config;
 
 import org.chromium.base.test.BaseRobolectricTestRunner;
+import org.chromium.base.test.util.Batch;
 import org.chromium.components.browser_ui.styles.ChromeColors;
 import org.chromium.ui.base.TestActivity;
 
 @RunWith(BaseRobolectricTestRunner.class)
+@Batch(Batch.UNIT_TESTS)
 @Config(manifest = Config.NONE)
 public class AuthTabColorProviderUnitTest {
     @Rule
@@ -38,6 +40,7 @@ public class AuthTabColorProviderUnitTest {
             new ActivityScenarioRule<>(TestActivity.class);
 
     private Activity mActivity;
+    private AuthTabColorProvider mAuthTabColorProvider;
 
     @Before
     public void setUp() {

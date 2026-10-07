@@ -1,3 +1,6 @@
+
+
+
 CONTAINER1 --> CONTAINER1
 PASS internals.treeScopeRootNode(window.getSelection().anchorNode) is internals.treeScopeRootNode(window.getSelection().focusNode)
 CONTAINER1 --> CONTAINER2
@@ -110,6 +113,11 @@ SPAN 2 INOLDER: double click
 PASS internals.treeScopeRootNode(window.getSelection().anchorNode) is internals.treeScopeRootNode(window.getSelection().focusNode)
 SPAN 3 INOLDER: double click
 PASS internals.treeScopeRootNode(window.getSelection().anchorNode) is internals.treeScopeRootNode(window.getSelection().focusNode)
+
+
+
+
+
 PASS successfullyParsed is true
 
 TEST COMPLETE

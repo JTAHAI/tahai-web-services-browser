@@ -17,6 +17,7 @@
 #include "base/syslog_logging.h"
 #include "base/task/single_thread_task_runner.h"
 #include "base/time/time.h"
+#include "chrome/browser/notifications/system_notification_helper.h"
 #include "chromeos/ash/components/network/cellular_esim_uninstall_handler.h"
 #include "chromeos/ash/components/network/cellular_utils.h"
 #include "chromeos/ash/components/network/network_handler.h"
@@ -24,7 +25,6 @@
 #include "components/policy/proto/device_management_backend.pb.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/gfx/image/image.h"
-#include "ui/message_center/message_center.h"
 #include "ui/message_center/public/cpp/notification.h"
 
 namespace policy {
@@ -108,7 +108,7 @@ void DeviceCommandResetEuiccJob::RunResultCallback(CallbackWithResult callback,
 }
 
 void DeviceCommandResetEuiccJob::ShowResetEuiccNotification() {
-  auto notification = ash::CreateSystemNotificationPtr(
+  message_center::Notification notification = ash::CreateSystemNotification(
       message_center::NOTIFICATION_TYPE_SIMPLE, kResetEuiccNotificationId,
       l10n_util::GetStringUTF16(IDS_ASH_NETWORK_RESET_EUICC_NOTIFICATION_TITLE),
       l10n_util::GetStringUTF16(
@@ -122,8 +122,7 @@ void DeviceCommandResetEuiccJob::ShowResetEuiccNotification() {
           base::DoNothingAs<void()>()),
       /*small_image=*/gfx::VectorIcon::EmptyIcon(),
       message_center::SystemNotificationWarningLevel::NORMAL);
-  message_center::MessageCenter::Get()->AddNotification(
-      std::move(notification));
+  SystemNotificationHelper::GetInstance()->Display(notification);
 }
 
 }  // namespace policy

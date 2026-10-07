@@ -37,6 +37,11 @@ namespace content {
 
 namespace {
 
+// If disabled, the macOS sandbox for child processes will deny access to
+// distributed notifications (https://crbug.com/513454805).
+BASE_FEATURE(kMacSandboxDistributedNotifications,
+             base::FEATURE_DISABLED_BY_DEFAULT);
+
 // If enabled, the macOS sandbox for the Network process will allow read and
 // write file access to the user's cache and temp directory
 // (https://crbug.com/527885521).
@@ -118,6 +123,10 @@ void SetupCommonSandboxParameters(
   CHECK(serializer->SetBooleanParameter(
       sandbox::policy::kParamDisableSandboxDenialLogging, !enable_logging));
 
+  CHECK(serializer->SetBooleanParameter(
+      sandbox::policy::kParamEnableDistributedNotifications,
+      base::FeatureList::IsEnabled(kMacSandboxDistributedNotifications)));
+
   std::string bundle_path =
       sandbox::policy::GetCanonicalPath(base::apple::MainBundlePath()).value();
   CHECK(
@@ -158,6 +167,8 @@ void SetupCommonSandboxParameters(
 
 void SetupNetworkSandboxParameters(sandbox::SandboxSerializer* serializer,
                                    const base::CommandLine& command_line) {
+  SetupCommonSandboxParameters(serializer, command_line);
+
   std::vector<base::FilePath> storage_paths =
       GetContentClient()->browser()->GetNetworkContextsParentDirectory();
 
@@ -187,6 +198,7 @@ void SetupNetworkSandboxParameters(sandbox::SandboxSerializer* serializer,
 
 bool SetupGpuSandboxParameters(sandbox::SandboxSerializer* serializer,
                                const base::CommandLine& command_line) {
+  SetupCommonSandboxParameters(serializer, command_line);
   AddDarwinDirs(serializer);
   CHECK(serializer->SetBooleanParameter(
       sandbox::policy::kParamDisableMetalShaderCache,
@@ -222,6 +234,8 @@ bool SetupGpuSandboxParameters(sandbox::SandboxSerializer* serializer,
 void SetupProxyResolverSandboxParameters(
     sandbox::SandboxSerializer* serializer,
     const base::CommandLine& command_line) {
+  SetupCommonSandboxParameters(serializer, command_line);
+
   // Controls whether the sandbox allows the network access needed to fetch and
   // execute PAC/WPAD scripts.
   // TODO(crbug.com/442313607): Set this to true when PAC/WPAD is implemented.
@@ -229,19 +243,11 @@ void SetupProxyResolverSandboxParameters(
       sandbox::policy::kParamSystemProxyNetworkAccess, /*value=*/false));
 }
 
-void SetupWebNNModelCompilationSandboxParameters(
-    sandbox::SandboxSerializer* serializer) {
-  // CoreML requires access to user temporary directories to write intermediate
-  // artifacts and compiled models (.mlmodelc bundles).
-  AddDarwinDirs(serializer);
-}
-
 }  // namespace
 
 bool SetupSandboxParameters(sandbox::mojom::Sandbox sandbox_type,
                             const base::CommandLine& command_line,
                             sandbox::SandboxSerializer* serializer) {
-  SetupCommonSandboxParameters(serializer, command_line);
   switch (sandbox_type) {
     case sandbox::mojom::Sandbox::kAudio:
     case sandbox::mojom::Sandbox::kCdm:
@@ -252,13 +258,10 @@ bool SetupSandboxParameters(sandbox::mojom::Sandbox sandbox_type,
     case sandbox::mojom::Sandbox::kService:
     case sandbox::mojom::Sandbox::kServiceWithJit:
     case sandbox::mojom::Sandbox::kUtility:
-      // No specialized setup required.
+      SetupCommonSandboxParameters(serializer, command_line);
       break;
     case sandbox::mojom::Sandbox::kProxyResolver:
       SetupProxyResolverSandboxParameters(serializer, command_line);
-      break;
-    case sandbox::mojom::Sandbox::kWebNNModelCompilation:
-      SetupWebNNModelCompilationSandboxParameters(serializer);
       break;
     case sandbox::mojom::Sandbox::kOnDeviceModelExecution:
     case sandbox::mojom::Sandbox::kGpu:
@@ -273,6 +276,7 @@ bool SetupSandboxParameters(sandbox::mojom::Sandbox sandbox_type,
     case sandbox::mojom::Sandbox::kScreenAI:
     case sandbox::mojom::Sandbox::kSpeechRecognition:
     case sandbox::mojom::Sandbox::kOnDeviceTranslation:
+      SetupCommonSandboxParameters(serializer, command_line);
       CHECK(GetContentClient()->browser()->SetupEmbedderSandboxParameters(
           sandbox_type, serializer));
       break;

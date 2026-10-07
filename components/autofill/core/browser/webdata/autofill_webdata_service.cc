@@ -521,13 +521,4 @@ void AutofillWebDataService::AddServerCreditCardForTesting(
                      autofill_backend_, credit_card));
 }
 
-void AutofillWebDataService::MigrateDataFromLegacyTable(
-    WebDataServiceRequestCallback consumer) {
-  wdbs_->ScheduleDBTaskWithResult(
-      FROM_HERE,
-      base::BindOnce(&AutofillWebDataBackendImpl::MigrateDataFromLegacyTable,
-                     autofill_backend_),
-      std::move(consumer));
-}
-
 }  // namespace autofill

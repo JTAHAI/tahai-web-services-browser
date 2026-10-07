@@ -56,7 +56,7 @@ DisconnectRequest::DisconnectRequest(
       start_time_(base::TimeTicks::Now()),
       perfetto_track_(CreatePerfettoTrackForFedCM(this)) {
   RenderFrameHost* main_frame = render_frame_host->GetMainFrame();
-  CHECK(main_frame->IsInPrimaryMainFrame(), base::NotFatalUntil::M158);
+  DCHECK(main_frame->IsInPrimaryMainFrame());
   embedding_origin_ = main_frame->GetLastCommittedOrigin();
 }
 
@@ -126,7 +126,7 @@ void DisconnectRequest::SetCallbackAndStart(
 void DisconnectRequest::OnAllConfigAndWellKnownFetched(
     std::vector<ConfigFetcher::FetchResult> fetch_results) {
   config_fetcher_.reset();
-  CHECK_EQ(fetch_results.size(), 1u, base::NotFatalUntil::M158);
+  DCHECK_EQ(fetch_results.size(), 1u);
   const ConfigFetcher::FetchResult& fetch_result = fetch_results[0];
   if (fetch_result.error) {
     const ConfigFetcher::FetchError& fetch_error = *fetch_result.error;
@@ -144,10 +144,6 @@ void DisconnectRequest::OnAllConfigAndWellKnownFetched(
       }
       case FederatedRequestResult::kWellKnownNoResponse: {
         status = DisconnectStatus::kWellKnownNoResponse;
-        break;
-      }
-      case FederatedRequestResult::kWellKnownBlockedByConnectionAllowlist: {
-        status = DisconnectStatus::kWellKnownBlockedByConnectionAllowlist;
         break;
       }
       case FederatedRequestResult::kWellKnownInvalidResponse: {
@@ -168,10 +164,6 @@ void DisconnectRequest::OnAllConfigAndWellKnownFetched(
       }
       case FederatedRequestResult::kConfigNoResponse: {
         status = DisconnectStatus::kConfigNoResponse;
-        break;
-      }
-      case FederatedRequestResult::kConfigBlockedByConnectionAllowlist: {
-        status = DisconnectStatus::kConfigBlockedByConnectionAllowlist;
         break;
       }
       case FederatedRequestResult::kConfigInvalidResponse: {
@@ -232,11 +224,8 @@ void DisconnectRequest::OnDisconnectResponse(FetchStatus fetch_status,
     // (`origin_`, `embedding_origin`, `idp_origin`).
     permission_delegate_->RevokeSharingPermission(
         origin_, embedding_origin_, idp_origin, /*account_id=*/"");
-    DisconnectStatus status =
-        fetch_status.parse_status == ParseStatus::kBlockedByConnectionAllowlist
-            ? DisconnectStatus::kDisconnectBlockedByConnectionAllowlist
-            : DisconnectStatus::kDisconnectFailedOnServer;
-    Complete(blink::mojom::DisconnectStatus::kError, status);
+    Complete(blink::mojom::DisconnectStatus::kError,
+             DisconnectStatus::kDisconnectFailedOnServer);
     return;
   }
   permission_delegate_->RevokeSharingPermission(origin_, embedding_origin_,

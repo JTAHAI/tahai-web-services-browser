@@ -95,16 +95,8 @@ const int kCurrentAppShortcutsVersion = APP_SHIM_VERSION_NUMBER;
 std::string CurrentAppShortcutsArch() {
   return base::SysInfo::OperatingSystemArchitecture();
 }
-
-std::string CurrentAppShortcutsOsVersion() {
-  return base::SysInfo::OperatingSystemVersion();
-}
 #else
 std::string CurrentAppShortcutsArch() {
-  return "";
-}
-
-std::string CurrentAppShortcutsOsVersion() {
   return "";
 }
 #if BUILDFLAG(IS_WIN)
@@ -151,15 +143,14 @@ bool OsIntegrationManager::AreOsHooksSuppressedForTesting() {
 // static
 void OsIntegrationManager::RegisterProfilePrefs(
     user_prefs::PrefRegistrySyncable* registry) {
-  // LINT.IfChange(WebAppPrefs)
   // Indicates whether app shortcuts have been created.
   registry->RegisterIntegerPref(prefs::kAppShortcutsVersion,
                                 kCurrentAppShortcutsVersion);
   registry->RegisterStringPref(prefs::kAppShortcutsArch,
                                CurrentAppShortcutsArch());
-  registry->RegisterStringPref(prefs::kAppShortcutsOsVersion,
-                               CurrentAppShortcutsOsVersion());
-  // LINT.ThenChange(//chrome/browser/web_applications/web_app_utils.cc:WebAppPrefs)
+  // NOTE: If you add new prefs here that should be cleared during database
+  // corruption recovery, make sure to update
+  // `RemoveWebAppJob::RemoveForCorruptDatabase`.
 }
 
 // static
@@ -565,12 +556,9 @@ void OsIntegrationManager::UpdateShortcutsForAllAppsIfNeeded() {
       profile_->GetPrefs()->GetInteger(prefs::kAppShortcutsVersion);
   std::string last_arch =
       profile_->GetPrefs()->GetString(prefs::kAppShortcutsArch);
-  std::string last_os_version =
-      profile_->GetPrefs()->GetString(prefs::kAppShortcutsOsVersion);
 
   if (last_version == kCurrentAppShortcutsVersion &&
-      last_arch == CurrentAppShortcutsArch() &&
-      last_os_version == CurrentAppShortcutsOsVersion()) {
+      last_arch == CurrentAppShortcutsArch()) {
     // This either means this is a profile where installed shortcuts already
     // match the expected version and arch, or this could be a fresh profile.
     // For the latter, make sure to actually store version and arch in prefs,
@@ -616,8 +604,6 @@ void OsIntegrationManager::SetCurrentAppShortcutsVersion() {
                                    kCurrentAppShortcutsVersion);
   profile_->GetPrefs()->SetString(prefs::kAppShortcutsArch,
                                   CurrentAppShortcutsArch());
-  profile_->GetPrefs()->SetString(prefs::kAppShortcutsOsVersion,
-                                  CurrentAppShortcutsOsVersion());
 
   if (base::OnceClosure& callback =
           OnSetCurrentAppShortcutsVersionCallbackForTesting()) {

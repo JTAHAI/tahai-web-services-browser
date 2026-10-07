@@ -8,6 +8,7 @@ import static androidx.test.espresso.Espresso.onView;
 import static androidx.test.espresso.action.ViewActions.click;
 import static androidx.test.espresso.assertion.ViewAssertions.matches;
 import static androidx.test.espresso.matcher.ViewMatchers.isDisplayed;
+import static androidx.test.espresso.matcher.ViewMatchers.withChild;
 import static androidx.test.espresso.matcher.ViewMatchers.withId;
 
 import static org.hamcrest.CoreMatchers.is;
@@ -56,7 +57,6 @@ import org.chromium.base.test.util.DisableIf;
 import org.chromium.base.test.util.KeyUtils;
 import org.chromium.chrome.R;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
-import org.chromium.components.browser_ui.widget.search.SearchBoxProperties;
 import org.chromium.ui.modelutil.PropertyModel;
 import org.chromium.ui.modelutil.PropertyModel.WritableBooleanPropertyKey;
 import org.chromium.ui.modelutil.PropertyModel.WritableObjectPropertyKey;
@@ -66,10 +66,10 @@ import org.chromium.ui.test.util.BlankUiTestActivity;
 /** Non-render tests for {@link BookmarkSearchBoxRow}. */
 @RunWith(ChromeJUnit4ClassRunner.class)
 @Batch(Batch.PER_CLASS)
-// TODO(crbug.com/428281174): The top content is blocked by system UI on B+.
+// TODO(crbug.com/428056054): The top content is blocked by system UI on B+.
 @DisableIf.Build(
         sdk_is_greater_than = Build.VERSION_CODES.VANILLA_ICE_CREAM,
-        message = "crbug.com/428281174")
+        message = "crbug.com/428056054")
 public class BookmarkSearchBoxRowTest {
     /** Needed because CoreMatchers.equalTo does not correctly handle CharSequences. */
     private static Matcher<CharSequence> withText(CharSequence text) {
@@ -138,13 +138,15 @@ public class BookmarkSearchBoxRowTest {
                                             BookmarkSearchBoxRowProperties.SHOPPING_CHIP_VISIBILITY,
                                             true)
                                     .with(
-                                            SearchBoxProperties.TEXT_CHANGED_CALLBACK,
+                                            BookmarkSearchBoxRowProperties
+                                                    .SEARCH_TEXT_CHANGE_CALLBACK,
                                             mSearchTextChangeCallback)
                                     .with(
-                                            SearchBoxProperties.CLEAR_SEARCH_TEXT_RUNNABLE,
+                                            BookmarkSearchBoxRowProperties
+                                                    .CLEAR_SEARCH_TEXT_RUNNABLE,
                                             mClearSearchTextRunnable)
                                     .with(
-                                            SearchBoxProperties.FOCUS_CHANGED_CALLBACK,
+                                            BookmarkSearchBoxRowProperties.FOCUS_CHANGE_CALLBACK,
                                             mFocusChangeCallback)
                                     .with(
                                             BookmarkSearchBoxRowProperties
@@ -173,11 +175,12 @@ public class BookmarkSearchBoxRowTest {
         CriteriaHelper.pollUiThread(() -> checkThat(mEditText.hasFocus(), is(true)));
 
         ThreadUtils.runOnUiThreadBlocking(
-                () ->
-                        KeyUtils.singleKeyEventView(
-                                InstrumentationRegistry.getInstrumentation(),
-                                mEditText,
-                                KeyEvent.KEYCODE_ENTER));
+                () -> {
+                    KeyUtils.singleKeyEventView(
+                            InstrumentationRegistry.getInstrumentation(),
+                            mEditText,
+                            KeyEvent.KEYCODE_ENTER);
+                });
         CriteriaHelper.pollUiThread(() -> checkThat(mEditText.hasFocus(), is(false)));
     }
 
@@ -185,7 +188,7 @@ public class BookmarkSearchBoxRowTest {
     @MediumTest
     public void testSearchTextAndChangeCallback() {
         String barText = "bar";
-        setProperty(SearchBoxProperties.SEARCH_TEXT, barText);
+        setProperty(BookmarkSearchBoxRowProperties.SEARCH_TEXT, barText);
         CriteriaHelper.pollUiThread(() -> checkThat(mEditText.getText(), withText(barText)));
         verifyNoInteractions(mSearchTextChangeCallback);
 
@@ -197,15 +200,15 @@ public class BookmarkSearchBoxRowTest {
     @Test
     @MediumTest
     public void testFocusChangeCallback() {
-        setProperty(SearchBoxProperties.HAS_FOCUS, true);
+        setProperty(BookmarkSearchBoxRowProperties.HAS_FOCUS, true);
         CriteriaHelper.pollUiThread(() -> checkThat(mEditText.hasFocus(), is(true)));
         verifyNoInteractions(mFocusChangeCallback);
 
-        setProperty(SearchBoxProperties.HAS_FOCUS, false);
+        setProperty(BookmarkSearchBoxRowProperties.HAS_FOCUS, false);
         CriteriaHelper.pollUiThread(() -> checkThat(mEditText.hasFocus(), is(false)));
         verifyNoInteractions(mFocusChangeCallback);
 
-        ThreadUtils.runOnUiThreadBlocking(() -> mEditText.performClick());
+        ThreadUtils.runOnUiThreadBlocking(() -> mEditText.requestFocus());
         verify(mFocusChangeCallback).onResult(true);
 
         ThreadUtils.runOnUiThreadBlocking(() -> mEditText.clearFocus());
@@ -235,8 +238,18 @@ public class BookmarkSearchBoxRowTest {
 
     @Test
     @MediumTest
+    public void testTapSearchRowLayoutClearsSearchFocus() {
+        ThreadUtils.runOnUiThreadBlocking(() -> mEditText.requestFocus());
+        verify(mFocusChangeCallback).onResult(true);
+
+        onView(withId(R.id.bookmark_toolbar)).perform(click());
+        verify(mFocusChangeCallback).onResult(false);
+    }
+
+    @Test
+    @MediumTest
     public void testTogglingChipDoesNotClearSearchFocus() {
-        ThreadUtils.runOnUiThreadBlocking(() -> mEditText.performClick());
+        ThreadUtils.runOnUiThreadBlocking(() -> mEditText.requestFocus());
         verify(mFocusChangeCallback).onResult(true);
 
         onView(withId(R.id.shopping_filter_chip)).perform(click());
@@ -248,10 +261,20 @@ public class BookmarkSearchBoxRowTest {
 
     @Test
     @MediumTest
+    public void testTapFilterLayoutClearsSearchFocus() {
+        ThreadUtils.runOnUiThreadBlocking(() -> mEditText.requestFocus());
+        verify(mFocusChangeCallback).onResult(true);
+
+        onView(withChild(withId(R.id.shopping_filter_chip))).perform(click());
+        verify(mFocusChangeCallback).onResult(false);
+    }
+
+    @Test
+    @MediumTest
     public void testClearSearchTextButtonAndRunnable() {
         onView(withId(R.id.clear_text_button)).check(matches(not(isDisplayed())));
 
-        setProperty(SearchBoxProperties.CLEAR_BUTTON_VISIBILITY, true);
+        setProperty(BookmarkSearchBoxRowProperties.CLEAR_SEARCH_TEXT_BUTTON_VISIBILITY, true);
         onView(withId(R.id.clear_text_button)).check(matches(isDisplayed()));
 
         onView(withId(R.id.clear_text_button)).perform(click());
@@ -274,7 +297,7 @@ public class BookmarkSearchBoxRowTest {
                 });
 
         String searchText = "foo";
-        ThreadUtils.runOnUiThreadBlocking(() -> mEditText.setText(searchText));
+        setProperty(BookmarkSearchBoxRowProperties.SEARCH_TEXT, searchText);
         verify(mSearchTextChangeCallback, times(1)).onResult(eq(searchText));
     }
 }

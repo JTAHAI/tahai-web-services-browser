@@ -76,6 +76,7 @@ public class IncognitoReauthControllerImplTest {
     private OneshotSupplierImpl<LayoutStateProvider> mLayoutStateProviderOneshotSupplier;
     private OneshotSupplierImpl<TabSwitcherCustomViewManager>
             mTabSwitcherCustomViewManagerOneshotSupplier;
+    private boolean mCustomViewManagerHasValue;
     private SettableMonotonicObservableSupplier<Profile> mProfileObservableSupplier;
 
     private boolean mIsIncognitoReauthPendingOnRestore;

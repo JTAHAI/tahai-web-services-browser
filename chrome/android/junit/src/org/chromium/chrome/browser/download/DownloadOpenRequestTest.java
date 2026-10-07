@@ -13,6 +13,7 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.robolectric.RuntimeEnvironment;
+import org.robolectric.annotation.Config;
 
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.base.test.util.Feature;
@@ -20,6 +21,7 @@ import org.chromium.chrome.browser.profiles.OtrProfileId;
 
 /** Unit tests for {@link DownloadOpenRequest}. */
 @RunWith(BaseRobolectricTestRunner.class)
+@Config(manifest = Config.NONE)
 public class DownloadOpenRequestTest {
     private Context mContext;
 

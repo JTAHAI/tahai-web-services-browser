@@ -1,3 +1,8 @@
-rules:
-- img-sizes-auto.html: [sizes-auto]
-- img-*: [img]
+features:
+- name: img
+  files:
+  - "img-*"
+  - "!img-sizes-auto.html"
+- name: sizes-auto
+  files:
+  - img-sizes-auto.html

@@ -7,7 +7,6 @@
 
 #include <optional>
 
-#include "base/memory/raw_ptr.h"
 #include "base/task/single_thread_task_runner.h"
 #include "base/time/time.h"
 #include "third_party/blink/renderer/core/core_export.h"
@@ -129,8 +128,7 @@ class CORE_EXPORT InteractiveDetector
  private:
   friend class InteractiveDetectorTest;
 
-  raw_ptr<const base::TickClock, UnprotectedInRelease | DanglingUntriaged>
-      clock_;
+  const base::TickClock* clock_;
 
   base::TimeTicks interactive_time_;
   base::TimeTicks interactive_detection_time_;

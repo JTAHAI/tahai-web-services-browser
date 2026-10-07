@@ -27,44 +27,25 @@ chromium-metrics-reviews@google.com.
 <enums>
 
 <enum name="AccountCapabilitiesFetchResult">
-  <int value="0" label="Success">
-    All requested capabilities were successfully evaluated.
-  </int>
+  <int value="0" label="Success"/>
   <int value="1" label="Failed to get an access token"/>
   <int value="2" label="Failed to parse the response"/>
   <int value="3" label="OAuth error"/>
   <int value="4" label="Network error"/>
   <int value="5" label="Request was cancelled"/>
-  <int value="6" label="Partial success">
-    The overall request was successful, but one or more of the requested
-    capabilities were not successfully evaluated (and will reamin in
-    &quot;unknown&quot; state).
-  </int>
 </enum>
 
 <enum name="AccountCapabilitiesGetFromSystemLibraryResult">
-  <int value="0" label="Success">
-    All requested capabilities were successfully evaluated.
-  </int>
+  <int value="0" label="Success"/>
   <int value="1" label="Error (Generic)"/>
-<!-- Values 10-19 are reserved for Android. -->
-
   <int value="10" label="Error (Api Request Failed)"/>
   <int value="11" label="Error (Api Error)"/>
   <int value="12" label="Error (Api Not Permitted)"/>
   <int value="13" label="Error (Api Unknown Capability)"/>
   <int value="14" label="Error (Api Failed To Sync)"/>
   <int value="15" label="Error (Api Not Available)"/>
-<!-- Values 20+ are reserved for iOS. -->
-
   <int value="20" label="Error (Missing Capability)"/>
   <int value="21" label="Error (Unexpected Value)"/>
-  <int value="22" label="Partial success">
-    The overall request was successful, but one or more of the requested
-    capabilities were not successfully evaluated (and will reamin in
-    &quot;unknown&quot; state). Only output on iOS (since on Android Chrome
-    fetches one capability per request).
-  </int>
 </enum>
 
 <enum name="AccountConsistencyPromoAction">
@@ -238,22 +219,9 @@ chromium-metrics-reviews@google.com.
   <int value="0" label="PeriodicRefresh"/>
   <int value="1" label="RefreshTokenUpdated"/>
   <int value="2" label="RefreshTokenRemoved"/>
-  <int value="3" label="RefreshTokenInvalidated"/>
-  <int value="4" label="ExternalAppAccountUpdated"/>
 </enum>
 
 <!-- LINT.ThenChange(//components/signin/core/browser/account_preview_data_service_impl.h:FetchTriggerCause) -->
-
-<!-- LINT.IfChange(AccountPreviewSelectionReason) -->
-
-<enum name="AccountPreviewSelectionReason">
-  <int value="0" label="No Selection"/>
-  <int value="1" label="Non-regular Default Account (Priority 1)"/>
-  <int value="2" label="External App Primary Account (Priority 2)"/>
-  <int value="3" label="Sync Data Score (Priority 3)"/>
-</enum>
-
-<!-- LINT.ThenChange(//components/signin/core/browser/account_preview_heuristic.h:AccountPreviewSelectionReason) -->
 
 <!-- LINT.IfChange(AccountProfileStartupState) -->
 
@@ -775,17 +743,6 @@ chromium-metrics-reviews@google.com.
 
 <!-- LINT.ThenChange(//ios/chrome/browser/signin/model/authentication_service.h:IOSProfileInitializationOutcome) -->
 
-<!-- LINT.IfChange(IOSResizedAvatarCacheGetAvatarResult) -->
-
-<enum name="IOSResizedAvatarCacheGetAvatarResult">
-  <int value="0" label="Success"/>
-  <int value="1" label="Missing (Fetch triggered)"/>
-  <int value="2" label="Invalid dimensions (Fetch triggered)"/>
-  <int value="3" label="Resize failed"/>
-</enum>
-
-<!-- LINT.ThenChange(//ios/chrome/browser/signin/model/avatar/resized_avatar_cache.h:IOSResizedAvatarCacheGetAvatarResult) -->
-
 <!-- LINT.IfChange(LaunchWebAuthFlowResult) -->
 
 <enum name="LaunchWebAuthFlowResult">
@@ -909,7 +866,7 @@ chromium-metrics-reviews@google.com.
   <int value="55" label="Arc Background Auth Code Fetcher"/>
   <int value="56" label="GCM Account Tracker"/>
   <int value="57" label="Policy Token Forwarder"/>
-  <int value="58" label="Plugin Vm License Checker (deprecated 07/2026)"/>
+  <int value="58" label="Plugin Vm License Checker"/>
   <int value="59" label="Drivefs Auth"/>
   <int value="60" label="Nearby Presence Server Client"/>
   <int value="61" label="Crypt Auth Client"/>
@@ -930,7 +887,7 @@ chromium-metrics-reviews@google.com.
   <int value="76" label="Auth Service (Tasks Client)"/>
   <int value="77" label="YouTube Music"/>
   <int value="78" label="Contextual Tasks"/>
-  <int value="79" label="(Obsolete) Enterprise Plus Address"/>
+  <int value="79" label="Enterprise Plus Address"/>
   <int value="80" label="Glic User Status"/>
   <int value="81" label="Devtools Gdp"/>
   <int value="82" label="Ash Drive Integration"/>
@@ -942,7 +899,7 @@ chromium-metrics-reviews@google.com.
   <int value="88" label="Wallet Passes Service"/>
   <int value="89" label="Aim Eligibility Service"/>
   <int value="90" label="DevTools AiCode Client"/>
-  <int value="91" label="Accessibility Annotator (deprecated 08/2026)"/>
+  <int value="91" label="Accessibility Annotator"/>
   <int value="92" label="Actor Login Permission Service"/>
   <int value="93" label="Gapis Service"/>
   <int value="94" label="One Time Token Service"/>
@@ -959,8 +916,6 @@ chromium-metrics-reviews@google.com.
   <int value="105" label="Remote Actor Login Credentials Service"/>
   <int value="106" label="Browser Actuator"/>
   <int value="107" label="Tab Context Containers Service"/>
-  <int value="108" label="Site Token Provider"/>
-  <int value="109" label="Device Authorization Request"/>
 </enum>
 
 <!-- LINT.ThenChange(//components/signin/public/base/oauth_consumer_id.h:OAuthConsumerId) -->
@@ -1200,7 +1155,6 @@ chromium-metrics-reviews@google.com.
   <int value="106" label="Overflow Menu (iOS only)"/>
   <int value="107" label="Level Up (iOS only)"/>
   <int value="108" label="Undo button from the signout snackbar (iOS only)"/>
-  <int value="109" label="Composebox Drive context menu option (Desktop only)"/>
 </enum>
 
 <enum name="SigninAccountReconcilorState">
@@ -1609,11 +1563,6 @@ chromium-metrics-reviews@google.com.
     User tapped on the 'Undo' button in a snackbar shown right after signin
     through autofill and passwords promo. (Android only).
   </int>
-  <int value="47" label="User declined the enterprise signals disclaimer">
-    User tapped 'Sign out' on the enterprise signals disclaimer or dismissed it
-    by sliding down, using back press or by tapping outside of the dialog.
-    (Android only).
-  </int>
 </enum>
 
 <enum name="SigninSSOIdentityListRequestCacheState">
@@ -1825,23 +1774,6 @@ chromium-metrics-reviews@google.com.
 </enum>
 
 <!-- LINT.ThenChange(//chrome/android/java/src/org/chromium/chrome/browser/signin/WebSigninRedirectCoordinator.java:DialogState) -->
-
-<!-- LINT.IfChange(WebSigninWaitOutcome) -->
-
-<enum name="WebSigninWaitOutcome">
-  <int value="0" label="CompletedWithoutDialog"/>
-  <int value="1" label="CompletedWithDialog"/>
-  <int value="2" label="AbortedWithoutDialog"/>
-  <int value="3" label="AbortedWithDialogCancelButton"/>
-  <int value="4" label="AbortedWithDialogTouchOutside"/>
-  <int value="5" label="AbortedWithDialogOther"/>
-  <int value="6" label="AuthErrorWithoutDialog"/>
-  <int value="7" label="AuthErrorWithDialog"/>
-  <int value="8" label="OtherErrorWithoutDialog"/>
-  <int value="9" label="OtherErrorWithDialog"/>
-</enum>
-
-<!-- LINT.ThenChange(//chrome/android/java/src/org/chromium/chrome/browser/signin/WebSigninRedirectCoordinator.java:WaitOutcome) -->
 
 </enums>
 

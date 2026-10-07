@@ -22,6 +22,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
+import org.robolectric.annotation.Config;
 
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.base.test.util.CallbackHelper;
@@ -37,6 +38,7 @@ import java.util.concurrent.TimeoutException;
 
 /** Unit tests for {@link TipsPromoViewBinder}. */
 @RunWith(BaseRobolectricTestRunner.class)
+@Config(manifest = Config.NONE)
 public class TipsPromoViewBinderUnitTest {
     private static final String POSITIVE_BUTTON_TEXT = "button_text";
     private static final String PROMO_TITLE = "title";

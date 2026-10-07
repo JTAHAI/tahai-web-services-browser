@@ -15,7 +15,6 @@
 #include "base/test/metrics/histogram_tester.h"
 #include "base/test/scoped_feature_list.h"
 #include "base/test/simple_test_clock.h"
-#include "base/test/test_future.h"
 #include "build/build_config.h"
 #include "chrome/browser/history/history_service_factory.h"
 #include "chrome/browser/history/history_test_utils.h"
@@ -25,12 +24,10 @@
 #include "chrome/browser/lookalikes/lookalike_url_service_factory.h"
 #include "chrome/browser/preloading/scoped_prewarm_feature_list.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
-#include "chrome/browser/ui/navigator/browser_navigator_params.h"
 #include "chrome/browser/ui/omnibox/omnibox_next_features.h"
-#include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/common/webui_url_constants.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/ui_test_utils.h"
@@ -119,18 +116,12 @@ security_interstitials::SecurityInterstitialPage::TypeID GetInterstitialType(
 }
 
 // Sets the absolute Site Engagement |score| for the testing origin.
-void SetEngagementScore(BrowserWindowInterface* browser,
-                        const GURL& url,
-                        double score) {
+void SetEngagementScore(Browser* browser, const GURL& url, double score) {
   site_engagement::SiteEngagementService::Get(browser->GetProfile())
       ->ResetBaseScoreForURL(url, score);
-  base::test::TestFuture<const std::vector<lookalikes::DomainInfo>&> configured;
-  LookalikeUrlServiceFactory::GetForProfile(browser->GetProfile())
-      ->ForceUpdateEngagedSites(configured.GetCallback());
-  EXPECT_TRUE(configured.Wait());
 }
 
-bool IsUrlShowing(BrowserWindowInterface* browser) {
+bool IsUrlShowing(Browser* browser) {
   return !browser->GetFeatures()
               .location_bar_model()
               ->GetFormattedFullURL()
@@ -142,9 +133,9 @@ bool IsUrlShowing(BrowserWindowInterface* browser) {
 // ui_test_utils::NavigateToURL(const GURL&) because it simulates the user
 // typing the URL, causing the site to have a site engagement score of at
 // least LOW.
-void NavigateToURLSync(BrowserWindowInterface* browser, const GURL& url) {
+void NavigateToURLSync(Browser* browser, const GURL& url) {
   content::TestNavigationObserver navigation_observer(
-      browser->GetTabStripModel()->GetActiveWebContents(), 1);
+      browser->tab_strip_model()->GetActiveWebContents(), 1);
 
   NavigateParams params(browser, url, ui::PAGE_TRANSITION_LINK);
   params.initiator_origin = url::Origin::Create(GURL("about:blank"));
@@ -156,10 +147,9 @@ void NavigateToURLSync(BrowserWindowInterface* browser, const GURL& url) {
 }
 
 // Load given URL and verify that it loaded an interstitial and hid the URL.
-void LoadAndCheckInterstitialAt(BrowserWindowInterface* browser,
-                                const GURL& url) {
+void LoadAndCheckInterstitialAt(Browser* browser, const GURL& url) {
   content::WebContents* web_contents =
-      browser->GetTabStripModel()->GetActiveWebContents();
+      browser->tab_strip_model()->GetActiveWebContents();
   content::WebContentsConsoleObserver console_observer(web_contents);
   console_observer.SetPattern(kConsoleMessage);
 
@@ -181,11 +171,11 @@ void SendInterstitialCommand(content::WebContents* web_contents,
       ->CommandReceived(base::NumberToString(command));
 }
 
-void SendInterstitialCommandSync(BrowserWindowInterface* browser,
+void SendInterstitialCommandSync(Browser* browser,
                                  SecurityInterstitialCommand command,
                                  bool punycode_interstitial = false) {
   content::WebContents* web_contents =
-      browser->GetTabStripModel()->GetActiveWebContents();
+      browser->tab_strip_model()->GetActiveWebContents();
 
   EXPECT_EQ(LookalikeUrlBlockingPage::kTypeForTesting,
             GetInterstitialType(web_contents));
@@ -205,10 +195,9 @@ void SendInterstitialCommandSync(BrowserWindowInterface* browser,
 }
 
 // Verify that no interstitial is shown, regardless of feature state.
-void TestInterstitialNotShown(BrowserWindowInterface* browser,
-                              const GURL& navigated_url) {
+void TestInterstitialNotShown(Browser* browser, const GURL& navigated_url) {
   content::WebContents* web_contents =
-      browser->GetTabStripModel()->GetActiveWebContents();
+      browser->tab_strip_model()->GetActiveWebContents();
 
   NavigateToURLSync(browser, navigated_url);
   EXPECT_EQ(nullptr, GetCurrentInterstitial(web_contents));
@@ -346,7 +335,7 @@ class LookalikeUrlNavigationThrottleBrowserTest : public InProcessBrowserTest {
   // Tests that the histogram event |expected_event| is recorded, the
   // interstitial is displayed and clicking the link on the interstitial works.
   void TestMetricsRecordedAndInterstitialShown(
-      BrowserWindowInterface* browser,
+      Browser* browser,
       const base::HistogramTester& histograms,
       const GURL& navigated_url,
       const GURL& expected_suggested_url,
@@ -362,7 +351,7 @@ class LookalikeUrlNavigationThrottleBrowserTest : public InProcessBrowserTest {
     if (expect_signed_exchange) {
       LookalikeUrlBlockingPage* interstitial =
           static_cast<LookalikeUrlBlockingPage*>(GetCurrentInterstitial(
-              browser->GetTabStripModel()->GetActiveWebContents()));
+              browser->tab_strip_model()->GetActiveWebContents()));
       EXPECT_TRUE(interstitial->is_signed_exchange_for_testing());
     }
 
@@ -374,7 +363,7 @@ class LookalikeUrlNavigationThrottleBrowserTest : public InProcessBrowserTest {
 
     EXPECT_EQ(
         expected_suggested_url,
-        browser->GetTabStripModel()->GetActiveWebContents()->GetVisibleURL());
+        browser->tab_strip_model()->GetActiveWebContents()->GetVisibleURL());
 
     // Clicking the link in the interstitial should also remove the original
     // URL from history.
@@ -401,7 +390,7 @@ class LookalikeUrlNavigationThrottleBrowserTest : public InProcessBrowserTest {
   // Tests that the histogram event |expected_event| is recorded, the
   // interstitial is displayed and clicking "Back to safety" on the interstitial
   // works.
-  void TestPunycodeInterstitialShown(BrowserWindowInterface* browser,
+  void TestPunycodeInterstitialShown(Browser* browser,
                                      const GURL& navigated_url,
                                      NavigationSuggestionEvent expected_event) {
     base::HistogramTester histograms;
@@ -419,7 +408,7 @@ class LookalikeUrlNavigationThrottleBrowserTest : public InProcessBrowserTest {
                                 /*punycode_interstitial=*/true);
     EXPECT_EQ(
         chrome::ChromeUINewTabURLAsGURL(),
-        browser->GetTabStripModel()->GetActiveWebContents()->GetVisibleURL());
+        browser->tab_strip_model()->GetActiveWebContents()->GetVisibleURL());
 
     histograms.ExpectTotalCount(kInterstitialHistogramName, 1);
     histograms.ExpectBucketCount(kInterstitialHistogramName, expected_event, 1);
@@ -438,7 +427,7 @@ class LookalikeUrlNavigationThrottleBrowserTest : public InProcessBrowserTest {
   // Tests that the histogram event |expected_event| is recorded, the
   // interstitial is displayed and clicking through the interstitial works.
   void TestHistogramEventsRecordedWhenInterstitialIgnored(
-      BrowserWindowInterface* browser,
+      Browser* browser,
       base::HistogramTester* histograms,
       const GURL& navigated_url,
       NavigationSuggestionEvent expected_event) {
@@ -455,7 +444,7 @@ class LookalikeUrlNavigationThrottleBrowserTest : public InProcessBrowserTest {
                                 SecurityInterstitialCommand::CMD_PROCEED);
     EXPECT_EQ(
         navigated_url,
-        browser->GetTabStripModel()->GetActiveWebContents()->GetVisibleURL());
+        browser->tab_strip_model()->GetActiveWebContents()->GetVisibleURL());
 
     // Clicking the link should cause the original URL to appear in history.
     ui_test_utils::HistoryEnumerator enumerator(browser->GetProfile());
@@ -1238,7 +1227,7 @@ IN_PROC_BROWSER_TEST_F(LookalikeUrlNavigationThrottleBrowserTest,
 
   // Set high engagement scores in the main profile and low engagement scores
   // in incognito. Main profile should record metrics, incognito shouldn't.
-  BrowserWindowInterface* incognito = CreateIncognitoBrowser();
+  Browser* incognito = CreateIncognitoBrowser();
   LookalikeUrlServiceFactory::GetForProfile(incognito->GetProfile())
       ->SetClockForTesting(test_clock());
   SetEngagementScore(browser(), kEngagedUrl, kHighEngagement);
@@ -1524,7 +1513,7 @@ IN_PROC_BROWSER_TEST_F(LookalikeUrlNavigationThrottleBrowserTest,
   const GURL kNavigatedUrl = GetURL("googlé.com");
 
   // Set low engagement scores in the main profile and in incognito.
-  BrowserWindowInterface* incognito = CreateIncognitoBrowser();
+  Browser* incognito = CreateIncognitoBrowser();
   SetEngagementScore(browser(), kNavigatedUrl, kLowEngagement);
   SetEngagementScore(incognito, kNavigatedUrl, kLowEngagement);
 
@@ -1543,7 +1532,7 @@ IN_PROC_BROWSER_TEST_F(LookalikeUrlNavigationThrottleBrowserTest,
   const GURL kEngagedUrl = GetURL("site1.com");
 
   // Set engagement scores in the main profile and in incognito.
-  BrowserWindowInterface* incognito = CreateIncognitoBrowser();
+  Browser* incognito = CreateIncognitoBrowser();
   SetEngagementScore(browser(), kNavigatedUrl, kLowEngagement);
   SetEngagementScore(incognito, kNavigatedUrl, kLowEngagement);
   SetEngagementScore(browser(), kEngagedUrl, kHighEngagement);
@@ -1569,7 +1558,7 @@ IN_PROC_BROWSER_TEST_F(LookalikeUrlNavigationThrottleBrowserTest,
   LoadAndCheckInterstitialAt(browser(), kNavigatedUrl);
 
   content::WebContents* web_contents =
-      browser()->GetTabStripModel()->GetActiveWebContents();
+      browser()->tab_strip_model()->GetActiveWebContents();
 
   // Reload the interstitial twice. Should still work.
   for (size_t i = 0; i < 2; i++) {
@@ -1880,7 +1869,7 @@ class LookalikeUrlNavigationThrottlePrerenderBrowserTest
   }
 
   content::WebContents* web_contents() {
-    return browser()->GetTabStripModel()->GetActiveWebContents();
+    return browser()->tab_strip_model()->GetActiveWebContents();
   }
 
  protected:

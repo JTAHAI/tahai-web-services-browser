@@ -36,11 +36,19 @@ bool CommandUpdaterImpl::IsCommandEnabled(int id) const {
   return *command->second->enabled;
 }
 
-bool CommandUpdaterImpl::ExecuteCommandWithDispositionAndContext(
+bool CommandUpdaterImpl::ExecuteCommandImpl(
+    int id,
+    base::TimeTicks time_stamp,
+    std::optional<actions::ActionInvocationContext> context) {
+  return ExecuteCommandWithDispositionImpl(
+      id, WindowOpenDisposition::CURRENT_TAB, time_stamp, std::move(context));
+}
+
+bool CommandUpdaterImpl::ExecuteCommandWithDispositionImpl(
     int id,
     WindowOpenDisposition disposition,
-    std::optional<actions::ActionInvocationContext> context,
-    base::TimeTicks time_stamp) {
+    base::TimeTicks time_stamp,
+    std::optional<actions::ActionInvocationContext> context) {
   if (SupportsCommand(id) && IsCommandEnabled(id)) {
     delegate_->HandleCommandWithDisposition(id, disposition, time_stamp);
     return true;

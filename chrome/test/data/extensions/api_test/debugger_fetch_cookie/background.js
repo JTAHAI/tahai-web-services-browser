@@ -90,4 +90,3 @@ chrome.test.runTests([
     chrome.test.succeed();
   },
 ]);
-

@@ -1,96 +1,102 @@
-<!-- #html_wrapper_imports_start
-// <if expr="not is_chromeos">
-import {ChromeSigninUserChoice} from '/shared/settings/people_page/sync_browser_proxy.js';
-import {RestartType} from '../relaunch_mixin_lit.js';
-// </if>
-#html_wrapper_imports_end -->
+    <style include="settings-shared md-select">
+      :host(.list-frame) settings-toggle-button {
+        padding-inline-end: 0;
+        padding-inline-start: 0;
+      }
+
+      :host(.list-frame) cr-link-row {
+        padding-inline-end: 8px;
+        padding-inline-start: 0;
+      }
+
+      /* Removes the border of the first hr element.*/
+      .hr:not(.hr:not([hidden]) ~ *) {
+        border-top: 0;
+      }
+
+      #chromeSigninUserChoiceSetting {
+        padding: var(--settings-signin-choice-padding, 10px 0px 10px);
+      }
+
+      #labelWrapper {
+        margin-inline-end: 20px;
+      }
+
+    </style>
 
 <if expr="not is_chromeos">
     <div id="chromeSigninUserChoiceSetting" class="hr cr-row" role="group"
-        ?hidden="${!this.chromeSigninUserChoiceInfo_?.shouldShowSettings}"
+        hidden="[[!chromeSigninUserChoiceInfo_.shouldShowSettings]]"
         aria-label="$i18n{chromeSigninChoiceTitle}">
       <div id="labelWrapper" class="flex">
           <div>
             $i18n{chromeSigninChoiceTitle}
           </div>
           <div id="chromeSigninChoiceDescription" class="secondary">
-            ${this.i18n('chromeSigninChoiceDescription',
-                this.chromeSigninUserChoiceInfo_?.signedInEmail || '')}
+            [[i18n('chromeSigninChoiceDescription',
+                chromeSigninUserChoiceInfo_.signedInEmail)]]
           </div>
       </div>
       <select id="chromeSigninUserChoiceSelection" class="md-select"
-          @change="${this.onChromeSigninChoiceChange_}">
+          on-change="onChromeSigninChoiceSelectionChanged_">
           <option selected disabled hidden
-              value="${ChromeSigninUserChoice.NO_CHOICE}">
+              value="[[chromeSigninUserChoiceEnum_.NO_CHOICE]]">
             $i18n{chromeSigninChoiceSelectOptionPlaceholder}
           </option>
-          <option value="${ChromeSigninUserChoice.SIGNIN}">
+          <option value="[[chromeSigninUserChoiceEnum_.SIGNIN]]">
             $i18n{chromeSigninChoiceSignin}
           </option>
-          <option value="${ChromeSigninUserChoice.DO_NOT_SIGNIN}">
+          <option value="[[chromeSigninUserChoiceEnum_.DO_NOT_SIGNIN]]">
             $i18n{chromeSigninChoiceDoNotSignin}
           </option>
-          <option value="${ChromeSigninUserChoice.ALWAYS_ASK}">
+          <option value="[[chromeSigninUserChoiceEnum_.ALWAYS_ASK]]">
             $i18n{chromeSigninChoiceAlwaysAsk}
           </option>
       </select>
     </div>
     <settings-toggle-button id="signinAllowedToggle"
         class="hr"
-        ?hidden="${!this.signinAvailable_}"
-        ?disabled="${this.syncFirstSetupInProgress_}"
-        pref-key="signin.allowed_on_next_startup"
+        hidden="[[!signinAvailable_]]"
+        disabled="[[syncFirstSetupInProgress_]]"
+        pref="{{prefs.signin.allowed_on_next_startup}}"
         label="$i18n{signinAllowedTitle}"
         sub-label="$i18n{signinAllowedDescription}"
-        @settings-boolean-control-change="${
-            this.onSigninAllowedSettingsBooleanControlChange_}"
+        on-settings-boolean-control-change="onSigninAllowedChange_"
         no-set-pref>
     </settings-toggle-button>
 </if><!-- not chromeos -->
 <if expr="_google_chrome">
 <if expr="is_chromeos">
     <!-- Ash Browser settings show a link to the OS settings instead. -->
-    ${!this.shouldUseMetricsConsentRestructure_ ? html`
+    <template is="dom-if" if="[[!shouldUseMetricsConsentRestructure_]]">
       <cr-link-row id="metricsReportingLink" class="hr"
           label="$i18n{enablePersonalizationLogging}"
           sub-label="$i18n{enablePersonalizationLoggingDesc}"
-          @click="${this.onMetricsReportingLinkClick_}" external>
+          on-click="onMetricsReportingLinkClick_" external>
       </cr-link-row>
-    ` : ''}
+    </template>
 </if><!-- chromeos -->
 <if expr="not is_chromeos">
-    ${!this.shouldUseMetricsConsentRestructure_ ? html`
-      <div class="cr-row hr">
-        <div class="flex cr-padded-text">
-          <div id="metricsReportingLabel">
-            $i18n{enablePersonalizationLogging}
-          </div>
-          <div class="cr-secondary-text">
-            $i18n{enablePersonalizationLoggingDesc}
-          </div>
-        </div>
-        ${this.showRestart_ ? html`
-          <cr-button @click="${this.onRestartClick_}" id="restart">
+    <template is="dom-if" if="[[!shouldUseMetricsConsentRestructure_]]">
+      <settings-toggle-button id="metricsReportingControl"
+          class="hr"
+          pref="[[metricsReportingPref_]]"
+          label="$i18n{enablePersonalizationLogging}"
+          sub-label="$i18n{enablePersonalizationLoggingDesc}" no-set-pref
+          on-settings-boolean-control-change="onMetricsReportingChange_">
+        <template is="dom-if" if="[[showRestart_]]" restamp>
+          <cr-button on-click="onRestartClick_" id="restart"
+              slot="more-actions">
             $i18n{restart}
           </cr-button>
-        ` : ''}
-        ${this.metricsReporting_?.managed ? html`
-          <cr-policy-indicator indicator-type="userPolicy">
-          </cr-policy-indicator>
-        ` : ''}
-        <cr-toggle id="metricsReportingControl"
-            .checked="${!!this.metricsReporting_?.enabled}"
-            ?disabled="${!!this.metricsReporting_?.managed}"
-            @change="${this.onMetricsReportingChange_}"
-            aria-labelledby="metricsReportingLabel">
-        </cr-toggle>
-      </div>
-    ` : ''}
+        </template>
+      </settings-toggle-button>
+    </template>
 </if><!-- not chromeos -->
 </if><!-- _google_chrome -->
     <settings-toggle-button id="urlCollectionToggle"
         class="hr"
-        pref-key="url_keyed_anonymized_data_collection.enabled"
+        pref="{{prefs.url_keyed_anonymized_data_collection.enabled}}"
         label="$i18n{urlKeyedAnonymizedDataCollection}"
         sub-label="$i18n{urlKeyedAnonymizedDataCollectionDesc}">
     </settings-toggle-button>
@@ -98,12 +104,11 @@ import {RestartType} from '../relaunch_mixin_lit.js';
 <if expr="not is_chromeos">
     <settings-toggle-button id="spellCheckControl"
         class="hr"
-        pref-key="spellcheck.use_spelling_service"
-        @settings-boolean-control-change="${
-            this.onUseSpellingServiceSettingsBooleanControlChange_}"
+        pref="{{prefs.spellcheck.use_spelling_service}}"
+        on-settings-boolean-control-change="onUseSpellingServiceToggle_"
         label="$i18n{spellingPref}"
         sub-label="$i18n{spellingDescription}"
-        ?hidden="${!this.showSpellCheckControlToggle_()}">
+        hidden="[[!showSpellCheckControlToggle_(prefs.spellcheck.dictionaries)]]">
     </settings-toggle-button>
 </if>
 <if expr="is_chromeos">
@@ -113,58 +118,59 @@ import {RestartType} from '../relaunch_mixin_lit.js';
         class="hr"
         label="$i18n{spellingPref}"
         sub-label="$i18n{spellingDescription}"
-        ?hidden="${!this.showSpellCheckControlLink_()}"
-        @click="${this.onUseSpellingServiceLinkClick_}" external>
+        hidden="[[!showSpellCheckControlLink_(prefs.spellcheck.dictionaries)]]"
+        on-click="onUseSpellingServiceLinkClick_" external>
     </cr-link-row>
 </if><!-- chromeos -->
 </if><!-- _google_chrome -->
-    ${this.showSearchSuggestToggle_() ? html`
+    <template is="dom-if" if="[[showSearchSuggestToggle_()]]" restamp>
       <settings-toggle-button id="searchSuggestToggle"
           class="hr"
-          pref-key="search.suggest_enabled"
+          pref="{{prefs.search.suggest_enabled}}"
           label="$i18n{searchSuggestPref}"
           sub-label="$i18n{searchSuggestPrefDesc}">
       </settings-toggle-button>
-    ` : ''}
+    </template>
 
     <!-- This toggle is only shown for users with the appropriate enterprise
         policy enabled. The state is not changeable by the user, so when shown,
         it is alays selected but disabled. -->
-    ${this.showSearchAggregatorSuggest_ ? html`
+    <template is="dom-if" if="[[showSearchAggregatorSuggest_]]" restamp>
       <settings-toggle-button id="searchAggregatorSuggestToggle"
-          .pref="${this.searchAggregatorSuggestFakePref_}"
+          pref="[[searchAggregatorSuggestFakePref_]]"
           disabled
           class="hr"
           label="$i18n{searchAggregatorSuggestPref}"
           sub-label="$i18n{searchAggregatorSuggestPrefDesc}">
       </settings-toggle-button>
-    ` : ''}
+    </template>
 
-    ${this.showPriceEmailNotificationsToggle_() ? html`
+    <template is="dom-if" if="[[showPriceEmailNotificationsToggle_(
+        syncStatus, syncStatus.signedInState)]]" restamp>
       <settings-toggle-button id="priceEmailNotificationsToggle"
           class="hr"
           label="$i18n{priceEmailNotificationsPref}"
-          sub-label="${this.getPriceEmailNotificationsPrefDesc_()}"
-          pref-key="price_tracking.email_notifications_enabled">
+          sub-label="[[getPriceEmailNotificationsPrefDesc_(syncStatus)]]"
+          pref="{{prefs.price_tracking.email_notifications_enabled}}">
       </settings-toggle-button>
-    ` : ''}
+    </template>
 
-    ${this.showSignoutDialog_ ? html`
-      <settings-signout-dialog .syncStatus="${this.syncStatus}"
-          @close="${this.onSignoutDialogClose_}">
+    <template is="dom-if" if="[[showSignoutDialog_]]" restamp>
+      <settings-signout-dialog sync-status="[[syncStatus]]"
+          on-close="onSignoutDialogClosed_">
       </settings-signout-dialog>
-    ` : ''}
+    </template>
 
 <if expr="not is_chromeos">
     <cr-toast id="toast">
       <div>$i18n{restartToApplyChanges}</div>
-      <cr-button @click="${this.onRestartClick_}">$i18n{restart}</cr-button>
+      <cr-button on-click="onRestartClick_">$i18n{restart}</cr-button>
     </cr-toast>
 
-    ${this.shouldShowRelaunchDialog ? html`
-      <relaunch-confirmation-dialog .restartType="${RestartType.RESTART}"
-          @close="${this.onRelaunchDialogClose}"></relaunch-confirmation-dialog>
-    ` : ''}
+    <template is="dom-if" if="[[shouldShowRelaunchDialog]]" restamp>
+      <relaunch-confirmation-dialog restart-type="[[restartTypeEnum.RESTART]]"
+          on-close="onRelaunchDialogClose"></relaunch-confirmation-dialog>
+    </template>
     <cr-toast id="chromeSigninUserChoiceToast" duration="5000">
       <div>$i18n{chromeSigninChoiceToast}</div>
     </cr-toast>

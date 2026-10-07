@@ -45,7 +45,6 @@ import static com.google.protobuf.ArrayDecoders.decodeVarint64List;
 import static com.google.protobuf.ArrayDecoders.mergeGroupField;
 import static com.google.protobuf.ArrayDecoders.mergeMessageField;
 import static com.google.protobuf.ArrayDecoders.skipField;
-import static com.google.protobuf.Internal.checkNotNull;
 
 import com.google.protobuf.ArrayDecoders.Registers;
 import com.google.protobuf.ByteString.CodedBuilder;
@@ -55,17 +54,13 @@ import com.google.protobuf.Internal.ProtobufList;
 import com.google.protobuf.MapEntryLite.Metadata;
 import java.io.IOException;
 import java.lang.reflect.Field;
-import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 /** Schema used for standard messages. */
 @CheckReturnValue
-@SuppressWarnings({"unchecked", "rawtypes"})
 final class MessageSchema<T> implements Schema<T> {
   private static final int INTS_PER_FIELD = 3;
   private static final int OFFSET_BITS = 20;
@@ -160,10 +155,7 @@ final class MessageSchema<T> implements Schema<T> {
   // TODO: Make both full-runtime and lite-runtime support cached field size.
   private final boolean useCachedSizeField;
 
-  /**
-   * Represents [checkInitialized positions, map field positions, representative oneof field
-   * positions].
-   */
+  /** Represents [checkInitialized positions, map field positions, repeated field offsets]. */
   private final int[] intArray;
 
   /**
@@ -173,10 +165,10 @@ final class MessageSchema<T> implements Schema<T> {
   private final int checkInitializedCount;
 
   /**
-   * Values at indices checkInitializedCount -> oneofFieldPositionsStart are map positions.
-   * Everything after that are oneof field positions.
+   * Values at indices checkInitializedCount -> repeatedFieldOffsetStart are map positions.
+   * Everything after that are repeated field offsets.
    */
-  private final int oneofFieldPositionsStart;
+  private final int repeatedFieldOffsetStart;
 
   private final NewInstanceSchema newInstanceSchema;
   private final ListFieldSchema listFieldSchema;
@@ -192,8 +184,8 @@ final class MessageSchema<T> implements Schema<T> {
       MessageLite defaultInstance,
       boolean useCachedSizeField,
       int[] intArray,
-      int checkInitializedCount,
-      int oneofFieldPositionsStart,
+      int checkInitialized,
+      int mapFieldPositions,
       NewInstanceSchema newInstanceSchema,
       ListFieldSchema listFieldSchema,
       UnknownFieldSchema<?, ?> unknownFieldSchema,
@@ -209,8 +201,8 @@ final class MessageSchema<T> implements Schema<T> {
     this.useCachedSizeField = useCachedSizeField;
 
     this.intArray = intArray;
-    this.checkInitializedCount = checkInitializedCount;
-    this.oneofFieldPositionsStart = oneofFieldPositionsStart;
+    this.checkInitializedCount = checkInitialized;
+    this.repeatedFieldOffsetStart = mapFieldPositions;
 
     this.newInstanceSchema = newInstanceSchema;
     this.listFieldSchema = listFieldSchema;
@@ -289,6 +281,7 @@ final class MessageSchema<T> implements Schema<T> {
     final int maxFieldNumber;
     final int numEntries;
     final int mapFieldCount;
+    final int repeatedFieldCount;
     final int checkInitialized;
     final int[] intArray;
     int objectsPosition;
@@ -299,6 +292,7 @@ final class MessageSchema<T> implements Schema<T> {
       maxFieldNumber = 0;
       numEntries = 0;
       mapFieldCount = 0;
+      repeatedFieldCount = 0;
       checkInitialized = 0;
       intArray = EMPTY_INT_ARRAY;
       objectsPosition = 0;
@@ -385,8 +379,7 @@ final class MessageSchema<T> implements Schema<T> {
         }
         next = result | (next << shift);
       }
-      // TODO: Remove from RawMessageInfo *or* leverage to optimize makeImmutable.
-      // repeatedFieldCount = next;
+      repeatedFieldCount = next;
 
       next = info.charAt(i++);
       if (next >= 0xD800) {
@@ -399,7 +392,7 @@ final class MessageSchema<T> implements Schema<T> {
         next = result | (next << shift);
       }
       checkInitialized = next;
-      intArray = new int[checkInitialized + mapFieldCount + oneofCount];
+      intArray = new int[checkInitialized + mapFieldCount + repeatedFieldCount];
       // Field objects are after a list of (oneof, oneofCase) pairs  + a list of hasbits fields.
       objectsPosition = oneofCount * 2 + hasBitsCount;
     }
@@ -412,7 +405,7 @@ final class MessageSchema<T> implements Schema<T> {
     Object[] objects = new Object[numEntries * 2];
 
     int mapFieldIndex = checkInitialized;
-    int oneofFieldIndex = checkInitialized + mapFieldCount;
+    int repeatedFieldIndex = checkInitialized + mapFieldCount;
 
     int bufferIndex = 0;
     while (i < length) {
@@ -492,9 +485,6 @@ final class MessageSchema<T> implements Schema<T> {
           // Protobuf field to the Java Field for non-oneofs, there's no benefit for memoizing
           // those.
           messageInfoObjects[index] = oneofField;
-          // since it wasn't memoized before this, this is the first time we encounter this oneof so
-          // lets put it into the intArray once
-          intArray[oneofFieldIndex++] = bufferIndex;
         }
 
         fieldOffset = (int) unsafe.objectFieldOffset(oneofField);
@@ -565,6 +555,12 @@ final class MessageSchema<T> implements Schema<T> {
         } else {
           presenceFieldOffset = NO_PRESENCE_SENTINEL;
           presenceMaskShift = 0;
+        }
+
+        if (fieldType >= 18 && fieldType <= 49) {
+          // Field types of repeated fields are in a consecutive range from 18 (DOUBLE_LIST) to
+          // 49 (GROUP_LIST).
+          intArray[repeatedFieldIndex++] = fieldOffset;
         }
       }
 
@@ -647,23 +643,20 @@ final class MessageSchema<T> implements Schema<T> {
     Object[] objects = new Object[numEntries * 2];
 
     int mapFieldCount = 0;
-    int oneofCount = 0;
-    Set<Integer> oneofsSeen = new HashSet<>();
+    int repeatedFieldCount = 0;
     for (FieldInfo fi : fis) {
-      OneofInfo oneof;
       if (fi.getType() == FieldType.MAP) {
         mapFieldCount++;
-      } else if ((oneof = fi.getOneof()) != null) {
-        if (!oneofsSeen.add(oneof.getId())) {
-          oneofCount++;
-        }
+      } else if (fi.getType().id() >= 18 && fi.getType().id() <= 49) {
+        // Field types of repeated fields are in a consecutive range from 18 (DOUBLE_LIST) to
+        // 49 (GROUP_LIST).
+        repeatedFieldCount++;
       }
     }
-    int[] mapFieldPositions = mapFieldCount > 0 ? new int[mapFieldCount] : EMPTY_INT_ARRAY;
-    int[] oneofFieldPositions = oneofCount > 0 ? new int[oneofCount] : EMPTY_INT_ARRAY;
+    int[] mapFieldPositions = mapFieldCount > 0 ? new int[mapFieldCount] : null;
+    int[] repeatedFieldOffsets = repeatedFieldCount > 0 ? new int[repeatedFieldCount] : null;
     mapFieldCount = 0;
-    oneofCount = 0;
-    oneofsSeen.clear();
+    repeatedFieldCount = 0;
 
     int[] checkInitialized = messageInfo.getCheckInitialized();
     if (checkInitialized == null) {
@@ -686,20 +679,26 @@ final class MessageSchema<T> implements Schema<T> {
         checkInitialized[checkInitializedIndex++] = bufferIndex;
       }
 
-      OneofInfo oneof;
       if (fi.getType() == FieldType.MAP) {
         mapFieldPositions[mapFieldCount++] = bufferIndex;
-      } else if ((oneof = fi.getOneof()) != null) {
-        if (!oneofsSeen.add(oneof.getId())) {
-          oneofFieldPositions[oneofCount++] = bufferIndex;
-        }
+      } else if (fi.getType().id() >= 18 && fi.getType().id() <= 49) {
+        // Field types of repeated fields are in a consecutive range from 18 (DOUBLE_LIST) to
+        // 49 (GROUP_LIST).
+        repeatedFieldOffsets[repeatedFieldCount++] =
+            (int) UnsafeUtil.objectFieldOffset(fi.getField());
       }
 
       fieldIndex++;
     }
 
+    if (mapFieldPositions == null) {
+      mapFieldPositions = EMPTY_INT_ARRAY;
+    }
+    if (repeatedFieldOffsets == null) {
+      repeatedFieldOffsets = EMPTY_INT_ARRAY;
+    }
     int combinedLength =
-        checkInitialized.length + mapFieldPositions.length + oneofFieldPositions.length;
+        checkInitialized.length + mapFieldPositions.length + repeatedFieldOffsets.length;
     int[] combined;
     if (combinedLength > 0) {
       combined = new int[combinedLength];
@@ -707,11 +706,11 @@ final class MessageSchema<T> implements Schema<T> {
       System.arraycopy(
           mapFieldPositions, 0, combined, checkInitialized.length, mapFieldPositions.length);
       System.arraycopy(
-          oneofFieldPositions,
+          repeatedFieldOffsets,
           0,
           combined,
           checkInitialized.length + mapFieldPositions.length,
-          oneofFieldPositions.length);
+          repeatedFieldOffsets.length);
     } else {
       combined = EMPTY_INT_ARRAY;
     }
@@ -794,6 +793,7 @@ final class MessageSchema<T> implements Schema<T> {
     }
   }
 
+  @SuppressWarnings("unchecked")
   @Override
   public T newInstance() {
     return (T) newInstanceSchema.newInstance(defaultInstance);
@@ -803,38 +803,7 @@ final class MessageSchema<T> implements Schema<T> {
   public boolean equals(T message, T other) {
     final int bufferLength = buffer.length;
     for (int pos = 0; pos < bufferLength; pos += INTS_PER_FIELD) {
-      final int typeAndOffset = typeAndOffsetAt(pos);
-      final int type = type(typeAndOffset);
-      // skip all oneofs as we'll cover them separately to avoid pathological comparisons of unset
-      // fields. Without this we'd compare the set value of oneofs n times where n is the number of
-      // possible oneof values
-      if (type > 50 && type < 69) {
-        continue;
-      }
-      if (!equalsAtPosition(message, other, pos, type, offset(typeAndOffset))) {
-        return false;
-      }
-    }
-
-    // handle oneofs
-    for (int i = oneofFieldPositionsStart; i < intArray.length; i++) {
-      final int pos = intArray[i];
-      if (!isOneofCaseEqual(message, other, pos)) {
-        return false;
-      }
-      // this is an odd usage but isOneOfPresent compares the field number to the oneof case value;
-      // 0 is the sentinel value so when 0 is set, that means there is no oneof present and we can
-      // move on to the next
-      if (isOneofPresent(message, 0, pos)) {
-        continue;
-      }
-
-      // we now know that one of cases are equal and not sentinel values so we should actually
-      // compare the oneof fields
-      final int typeAndOffset = typeAndOffsetAt(pos);
-      final long offset = offset(typeAndOffset);
-      if (!SchemaUtil.safeEquals(
-          UnsafeUtil.getObject(message, offset), UnsafeUtil.getObject(other, offset))) {
+      if (!equals(message, other, pos)) {
         return false;
       }
     }
@@ -853,8 +822,11 @@ final class MessageSchema<T> implements Schema<T> {
     return true;
   }
 
-  private boolean equalsAtPosition(T message, T other, int pos, int type, long offset) {
-    switch (type) {
+  private boolean equals(T message, T other, int pos) {
+    final int typeAndOffset = typeAndOffsetAt(pos);
+    final long offset = offset(typeAndOffset);
+
+    switch (type(typeAndOffset)) {
       case 0: // DOUBLE:
         return arePresentForEquals(message, other, pos)
             && Double.doubleToLongBits(UnsafeUtil.getDouble(message, offset))
@@ -986,14 +958,11 @@ final class MessageSchema<T> implements Schema<T> {
     final int bufferLength = buffer.length;
     for (int pos = 0; pos < bufferLength; pos += INTS_PER_FIELD) {
       final int typeAndOffset = typeAndOffsetAt(pos);
-      final int type = type(typeAndOffset);
-      // skip all oneofs as we'll cover them separately to avoid duplicative hashing of oneof
-      // members
-      if (type > 50 && type < 69) {
-        continue;
-      }
+      final int entryNumber = numberAt(pos);
+
       final long offset = offset(typeAndOffset);
-      switch (type) {
+
+      switch (type(typeAndOffset)) {
         case 0: // DOUBLE:
           hashCode =
               (hashCode * 53)
@@ -1103,29 +1072,105 @@ final class MessageSchema<T> implements Schema<T> {
         case 50: // MAP:
           hashCode = (hashCode * 53) + UnsafeUtil.getObject(message, offset).hashCode();
           break;
-        // case 51 - 68 are intentionally omitted as we are skipping oneofs above in favor of the
-        // loop below
+        case 51: // ONEOF_DOUBLE:
+          if (isOneofPresent(message, entryNumber, pos)) {
+            hashCode =
+                (hashCode * 53)
+                    + Internal.hashLong(Double.doubleToLongBits(oneofDoubleAt(message, offset)));
+          }
+          break;
+        case 52: // ONEOF_FLOAT:
+          if (isOneofPresent(message, entryNumber, pos)) {
+            hashCode = (hashCode * 53) + Float.floatToIntBits(oneofFloatAt(message, offset));
+          }
+          break;
+        case 53: // ONEOF_INT64:
+          if (isOneofPresent(message, entryNumber, pos)) {
+            hashCode = (hashCode * 53) + Internal.hashLong(oneofLongAt(message, offset));
+          }
+          break;
+        case 54: // ONEOF_UINT64:
+          if (isOneofPresent(message, entryNumber, pos)) {
+            hashCode = (hashCode * 53) + Internal.hashLong(oneofLongAt(message, offset));
+          }
+          break;
+        case 55: // ONEOF_INT32:
+          if (isOneofPresent(message, entryNumber, pos)) {
+            hashCode = (hashCode * 53) + (oneofIntAt(message, offset));
+          }
+          break;
+        case 56: // ONEOF_FIXED64:
+          if (isOneofPresent(message, entryNumber, pos)) {
+            hashCode = (hashCode * 53) + Internal.hashLong(oneofLongAt(message, offset));
+          }
+          break;
+        case 57: // ONEOF_FIXED32:
+          if (isOneofPresent(message, entryNumber, pos)) {
+            hashCode = (hashCode * 53) + (oneofIntAt(message, offset));
+          }
+          break;
+        case 58: // ONEOF_BOOL:
+          if (isOneofPresent(message, entryNumber, pos)) {
+            hashCode = (hashCode * 53) + Internal.hashBoolean(oneofBooleanAt(message, offset));
+          }
+          break;
+        case 59: // ONEOF_STRING:
+          if (isOneofPresent(message, entryNumber, pos)) {
+            hashCode =
+                (hashCode * 53) + ((String) UnsafeUtil.getObject(message, offset)).hashCode();
+          }
+          break;
+        case 60: // ONEOF_MESSAGE:
+          if (isOneofPresent(message, entryNumber, pos)) {
+            Object submessage = UnsafeUtil.getObject(message, offset);
+            hashCode = (53 * hashCode) + submessage.hashCode();
+          }
+          break;
+        case 61: // ONEOF_BYTES:
+          if (isOneofPresent(message, entryNumber, pos)) {
+            hashCode = (hashCode * 53) + UnsafeUtil.getObject(message, offset).hashCode();
+          }
+          break;
+        case 62: // ONEOF_UINT32:
+          if (isOneofPresent(message, entryNumber, pos)) {
+            hashCode = (hashCode * 53) + (oneofIntAt(message, offset));
+          }
+          break;
+        case 63: // ONEOF_ENUM:
+          if (isOneofPresent(message, entryNumber, pos)) {
+            hashCode = (hashCode * 53) + (oneofIntAt(message, offset));
+          }
+          break;
+        case 64: // ONEOF_SFIXED32:
+          if (isOneofPresent(message, entryNumber, pos)) {
+            hashCode = (hashCode * 53) + (oneofIntAt(message, offset));
+          }
+          break;
+        case 65: // ONEOF_SFIXED64:
+          if (isOneofPresent(message, entryNumber, pos)) {
+            hashCode = (hashCode * 53) + Internal.hashLong(oneofLongAt(message, offset));
+          }
+          break;
+        case 66: // ONEOF_SINT32:
+          if (isOneofPresent(message, entryNumber, pos)) {
+            hashCode = (hashCode * 53) + (oneofIntAt(message, offset));
+          }
+          break;
+        case 67: // ONEOF_SINT64:
+          if (isOneofPresent(message, entryNumber, pos)) {
+            hashCode = (hashCode * 53) + Internal.hashLong(oneofLongAt(message, offset));
+          }
+          break;
+        case 68: // ONEOF_GROUP:
+          if (isOneofPresent(message, entryNumber, pos)) {
+            Object submessage = UnsafeUtil.getObject(message, offset);
+            hashCode = (53 * hashCode) + submessage.hashCode();
+          }
+          break;
         default:
           // Assume it's an empty entry - just go to the next entry.
           break;
       }
-    }
-
-    // handle oneofs
-    for (int i = oneofFieldPositionsStart; i < intArray.length; i++) {
-      final int pos = intArray[i];
-      // this is an odd usage but isOneofPresent compares 0 to the oneof case value;
-      // 0 is the sentinel value so when 0 is set, that means there is no oneof present and we can
-      // move on to the next
-      if (isOneofPresent(message, 0, pos)) {
-        continue;
-      }
-
-      // we now know that some oneof field is present so we should actually hash it.
-      // Since all oneof fields share the same offset (the Object field) and all are boxed,
-      // we can just hash the object.
-      hashCode =
-          (hashCode * 53) + UnsafeUtil.getObject(message, offset(typeAndOffsetAt(pos))).hashCode();
     }
 
     hashCode = (hashCode * 53) + unknownFieldSchema.getFromMessage(message).hashCode();
@@ -1140,7 +1185,9 @@ final class MessageSchema<T> implements Schema<T> {
   @Override
   public void mergeFrom(T message, T other) {
     checkMutable(message);
-    checkNotNull(other);
+    if (other == null) {
+      throw new NullPointerException();
+    }
     for (int i = 0; i < buffer.length; i += INTS_PER_FIELD) {
       // A separate method allows for better JIT optimizations
       mergeSingleField(message, other, i);
@@ -1416,6 +1463,7 @@ final class MessageSchema<T> implements Schema<T> {
   }
 
   @Override
+  @SuppressWarnings("unchecked") // Field type checks guarantee type casts from Unsafe.
   public int getSerializedSize(T message) {
     int size = 0;
 
@@ -2028,6 +2076,7 @@ final class MessageSchema<T> implements Schema<T> {
     }
   }
 
+  @SuppressWarnings("unchecked")
   private void writeFieldsInAscendingOrder(T message, Writer writer) throws IOException {
     Iterator<? extends Map.Entry<?, ?>> extensionIterator = null;
     Map.Entry nextExtension = null;
@@ -2430,6 +2479,7 @@ final class MessageSchema<T> implements Schema<T> {
     writeUnknownInMessageTo(unknownFieldSchema, message, writer);
   }
 
+  @SuppressWarnings("unchecked")
   private void writeFieldsInDescendingOrder(T message, Writer writer) throws IOException {
     writeUnknownInMessageTo(unknownFieldSchema, message, writer);
 
@@ -2879,6 +2929,7 @@ final class MessageSchema<T> implements Schema<T> {
     }
   }
 
+  @SuppressWarnings("unchecked")
   private <K, V> void writeMapHelper(Writer writer, int number, Object mapField, int pos)
       throws IOException {
     if (mapField != null) {
@@ -2897,7 +2948,9 @@ final class MessageSchema<T> implements Schema<T> {
   @Override
   public void mergeFrom(T message, Reader reader, ExtensionRegistryLite extensionRegistry)
       throws IOException {
-    checkNotNull(extensionRegistry);
+    if (extensionRegistry == null) {
+      throw new NullPointerException();
+    }
     checkMutable(message);
     mergeFromHelper(unknownFieldSchema, extensionSchema, message, reader, extensionRegistry);
   }
@@ -3354,7 +3407,7 @@ final class MessageSchema<T> implements Schema<T> {
         }
       }
     } finally {
-      for (int i = checkInitializedCount; i < oneofFieldPositionsStart; i++) {
+      for (int i = checkInitializedCount; i < repeatedFieldOffsetStart; i++) {
         unknownFields =
             filterMapUnknownEnumValues(
                 message, intArray[i], unknownFields, unknownFieldSchema, message);
@@ -3778,7 +3831,7 @@ final class MessageSchema<T> implements Schema<T> {
                 && !Utf8.isValidUtf8(data, position, position + length)) {
               throw InvalidProtocolBufferException.invalidUtf8();
             }
-            final String value = new String(data, position, length, StandardCharsets.UTF_8);
+            final String value = new String(data, position, length, Internal.UTF_8);
             unsafe.putObject(message, fieldOffset, value);
             position += length;
           }
@@ -4169,7 +4222,7 @@ final class MessageSchema<T> implements Schema<T> {
       unsafe.putInt(message, (long) currentPresenceFieldOffset, currentPresenceField);
     }
     UnknownFieldSetLite unknownFields = null;
-    for (int i = checkInitializedCount; i < oneofFieldPositionsStart; i++) {
+    for (int i = checkInitializedCount; i < repeatedFieldOffsetStart; i++) {
       unknownFields =
           filterMapUnknownEnumValues(
               message,
@@ -4337,6 +4390,7 @@ final class MessageSchema<T> implements Schema<T> {
     }
   }
 
+  @SuppressWarnings("unchecked")
   private final <K, V> void mergeMap(
       Object message,
       int pos,
@@ -4395,6 +4449,7 @@ final class MessageSchema<T> implements Schema<T> {
     return unknownFields;
   }
 
+  @SuppressWarnings("unchecked")
   private <K, V, UT, UB> UB filterUnknownEnumMap(
       int pos,
       int number,
@@ -4434,6 +4489,7 @@ final class MessageSchema<T> implements Schema<T> {
     int currentPresenceField = 0;
     for (int i = 0; i < checkInitializedCount; i++) {
       final int pos = intArray[i];
+      final int number = numberAt(pos);
       final int typeAndOffset = typeAndOffsetAt(pos);
 
       int presenceMaskAndOffset = buffer[pos + 2];
@@ -4473,7 +4529,7 @@ final class MessageSchema<T> implements Schema<T> {
           break;
         case 60: // ONEOF_MESSAGE
         case 68: // ONEOF_GROUP
-          if (isOneofPresent(message, numberAt(pos), pos)
+          if (isOneofPresent(message, number, pos)
               && !isInitialized(message, typeAndOffset, getMessageFieldSchema(pos))) {
             return false;
           }
@@ -4503,6 +4559,7 @@ final class MessageSchema<T> implements Schema<T> {
   }
 
   private <N> boolean isListInitialized(Object message, int typeAndOffset, int pos) {
+    @SuppressWarnings("unchecked")
     List<N> list = (List<N>) UnsafeUtil.getObject(message, offset(typeAndOffset));
     if (list.isEmpty()) {
       return true;
@@ -4734,7 +4791,7 @@ final class MessageSchema<T> implements Schema<T> {
           } else if (value instanceof ByteString) {
             return !ByteString.EMPTY.equals(value);
           } else {
-            return throwIllegalArgumentException();
+            throw new IllegalArgumentException();
           }
         case 9: // MESSAGE:
           return UnsafeUtil.getObject(message, offset) != null;
@@ -4755,11 +4812,11 @@ final class MessageSchema<T> implements Schema<T> {
         case 17: // GROUP:
           return UnsafeUtil.getObject(message, offset) != null;
         default:
-          return throwIllegalArgumentException();
+          throw new IllegalArgumentException();
       }
     } else {
       final int presenceMask = 1 << (presenceMaskAndOffset >>> OFFSET_BITS);
-      return (UnsafeUtil.getInt(message, presenceFieldOffset) & presenceMask) != 0;
+      return (UnsafeUtil.getInt(message, presenceMaskAndOffset & OFFSET_MASK) & presenceMask) != 0;
     }
   }
 
@@ -4782,13 +4839,14 @@ final class MessageSchema<T> implements Schema<T> {
   }
 
   private boolean isOneofCaseEqual(T message, T other, int pos) {
-    final long presenceFieldOffset = presenceMaskAndOffsetAt(pos) & OFFSET_MASK;
-    return UnsafeUtil.getInt(message, presenceFieldOffset)
-        == UnsafeUtil.getInt(other, presenceFieldOffset);
+    int presenceMaskAndOffset = presenceMaskAndOffsetAt(pos);
+    return UnsafeUtil.getInt(message, presenceMaskAndOffset & OFFSET_MASK)
+        == UnsafeUtil.getInt(other, presenceMaskAndOffset & OFFSET_MASK);
   }
 
   private void setOneofPresent(T message, int fieldNumber, int pos) {
-    UnsafeUtil.putInt(message, (long) (presenceMaskAndOffsetAt(pos) & OFFSET_MASK), fieldNumber);
+    int presenceMaskAndOffset = presenceMaskAndOffsetAt(pos);
+    UnsafeUtil.putInt(message, presenceMaskAndOffset & OFFSET_MASK, fieldNumber);
   }
 
   private int positionForFieldNumber(final int number) {
@@ -4829,10 +4887,5 @@ final class MessageSchema<T> implements Schema<T> {
 
   int getSchemaSize() {
     return buffer.length * 3;
-  }
-
-  @DoNotInline
-  private boolean throwIllegalArgumentException() {
-    throw new IllegalArgumentException();
   }
 }

@@ -39,10 +39,6 @@
 #include "chrome/browser/signin/bound_session_credentials/unexportable_key_service_factory.h"
 #endif
 
-#if BUILDFLAG(ENTERPRISE_PROXY)
-#include "chrome/browser/enterprise/net/enterprise_proxy_service_factory.h"
-#endif
-
 ProfileNetworkContextService*
 ProfileNetworkContextServiceFactory::GetForContext(
     content::BrowserContext* browser_context) {
@@ -97,10 +93,6 @@ ProfileNetworkContextServiceFactory::ProfileNetworkContextServiceFactory()
 
 #if BUILDFLAG(ENABLE_BOUND_SESSION_CREDENTIALS)
   DependsOn(UnexportableKeyServiceFactory::GetInstance());
-#endif
-
-#if BUILDFLAG(ENTERPRISE_PROXY)
-  DependsOn(EnterpriseProxyServiceFactory::GetInstance());
 #endif
 }
 

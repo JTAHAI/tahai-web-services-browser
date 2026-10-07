@@ -15,7 +15,6 @@
 #include "base/memory/raw_ptr.h"
 #include "base/observer_list.h"
 #include "base/path_service.h"
-#include "base/rand_util.h"
 #include "base/strings/string_util.h"
 #include "base/strings/stringprintf.h"
 #include "base/time/time.h"
@@ -433,15 +432,6 @@ bool Profile::IsIncognitoProfile() const {
          profile_metrics::BrowserProfileType::kIncognito;
 }
 
-bool Profile::IsEnterpriseIsolatedModeProfile() const {
-  return profile_metrics::GetBrowserProfileType(this) ==
-         profile_metrics::BrowserProfileType::kEnterpriseIsolated;
-}
-
-bool Profile::IsPrimaryOTRProfileWithRegularParent() const {
-  return IsIncognitoProfile() || IsEnterpriseIsolatedModeProfile();
-}
-
 bool Profile::IsGuestSession() const {
 #if BUILDFLAG(IS_CHROMEOS)
   if (!new_guest_profile_impl_) {
@@ -629,19 +619,6 @@ variations::VariationsClient* Profile::GetVariationsClient() {
 
 base::WeakPtr<Profile> Profile::GetWeakPtr() {
   return weak_factory_.GetWeakPtr();
-}
-
-uint64_t Profile::GetLomProfileId() {
-  PrefService* prefs = GetPrefs();
-  CHECK(prefs);
-  uint64_t id = prefs->GetUint64(prefs::kLomProfileId);
-  if (id == 0u) {
-    while (id == 0u) {
-      id = base::RandUint64();
-    }
-    prefs->SetUint64(prefs::kLomProfileId, id);
-  }
-  return id;
 }
 
 std::string Profile::ToDebugString() const {

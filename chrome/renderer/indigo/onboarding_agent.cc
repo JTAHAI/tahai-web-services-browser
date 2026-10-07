@@ -57,14 +57,13 @@ void OnboardingAgent::MaybeCreate(
     blink::AssociatedInterfaceRegistry* registry) {
   if (render_frame->IsMainFrame() && !render_frame->IsInFencedFrameTree() &&
       render_frame->GetBlinkPreferences().is_indigo_onboarding) {
-    base::MakeSelfDeleting<OnboardingAgent>(render_frame, registry);
+    new OnboardingAgent(render_frame, registry);
   }
 }
 
 OnboardingAgent::OnboardingAgent(content::RenderFrame* render_frame,
-                                 blink::AssociatedInterfaceRegistry* registry,
-                                 base::SelfDeletingPassKey key)
-    : content::RenderFrameObserver(render_frame), base::SelfDeleting(key) {
+                                 blink::AssociatedInterfaceRegistry* registry)
+    : content::RenderFrameObserver(render_frame) {
   render_frame->GetRemoteAssociatedInterfaces()->GetInterface(&host_);
 }
 

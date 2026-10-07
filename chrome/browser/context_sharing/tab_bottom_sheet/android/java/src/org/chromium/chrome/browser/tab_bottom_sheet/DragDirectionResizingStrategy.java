@@ -65,6 +65,11 @@ public class DragDirectionResizingStrategy implements ResizingStrategy {
         if (!isResizing) {
             mPreviousOffsetPx = INVALID_OFFSET;
             mHasDraggedDownward = false;
+            if (mResizeLock != null) {
+                mResizeLock.unlock();
+                mResizeLock = null;
+            }
+            return;
         }
         updateLockState();
     }

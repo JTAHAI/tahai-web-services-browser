@@ -111,13 +111,13 @@ AccountInfo SignInWithAccount(
       can_show_history_sync_opt_ins_without_minor_mode_restrictions));
 
   // Set account image
-  SimulateAccountImageFetch(identity_manager, base_account_info.GetAccountId(),
+  SimulateAccountImageFetch(identity_manager, base_account_info.account_id,
                             "GAIA_IMAGE_URL_WITH_SIZE",
                             gfx::Image(gfx::test::CreatePlatformImage()));
 
   AccountInfo account_info =
       identity_manager->FindExtendedAccountInfoByEmailAddress(email);
-  CHECK_EQ(account_info.GetAccountId(), base_account_info.GetAccountId());
+  CHECK_EQ(account_info.account_id, base_account_info.account_id);
   CHECK(account_info.IsValid());
 
   return account_info;

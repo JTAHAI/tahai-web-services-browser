@@ -22,7 +22,6 @@
 
 [
     V8EnableIndexOf,
-    V8EnableIterableToList,
     Exposed=Window
 ] interface NodeList {
     [Affects=Nothing] getter Node? item(unsigned long index);

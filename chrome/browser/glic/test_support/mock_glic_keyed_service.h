@@ -10,10 +10,9 @@
 #include "chrome/browser/glic/public/glic_invoke_options.h"
 #include "chrome/browser/glic/public/glic_keyed_service.h"
 #include "chrome/browser/glic/test_support/mock_glic_instance_coordinator.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "components/tabs/public/tab_interface.h"
 #include "testing/gmock/include/gmock/gmock.h"
-
-class BrowserWindowInterface;
 
 namespace glic {
 
@@ -32,10 +31,6 @@ class MockGlicKeyedService : public GlicKeyedService {
               (GlicInvokeOptions),
               (override));
   MOCK_METHOD(void, CloseFloatingPanel, (), (override));
-  MOCK_METHOD(void,
-              ShowUI,
-              (BrowserWindowInterface*, mojom::InvocationSource),
-              (override));
   MOCK_METHOD(void,
               ToggleUI,
               (BrowserWindowInterface*, bool, mojom::InvocationSource),

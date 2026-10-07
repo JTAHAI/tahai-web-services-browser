@@ -1,2 +1,4 @@
-rules:
-- "*": [font-display]
+features:
+- name: font-display
+  files:
+  - "*"

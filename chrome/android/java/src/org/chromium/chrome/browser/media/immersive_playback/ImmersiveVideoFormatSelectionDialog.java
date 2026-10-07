@@ -28,20 +28,10 @@ import org.chromium.ui.modelutil.PropertyModel;
 @NullMarked
 public class ImmersiveVideoFormatSelectionDialog {
 
-    /** Callback interface for format selection dialog results. */
-    @FunctionalInterface
-    public interface Callback {
-        void onResult(
-                @ImmersivePlaybackConfirmationStatus int status,
-                @ImmersiveStereoMode int stereoMode,
-                @ImmersiveProjectionType int projectionType,
-                boolean isRecommended);
-    }
-
     private final Context mContext;
     private final Resources mResources;
     private final ModalDialogManager mModalDialogManager;
-    private final Callback mCallback;
+    private final ImmersivePlaybackConfirmationCallback mCallback;
     private @Nullable PropertyModel mDialogModel;
     private @Nullable ImmersiveVideoFormatRadioGroup mRadioGroup;
 
@@ -64,7 +54,9 @@ public class ImmersiveVideoFormatSelectionDialog {
             };
 
     public ImmersiveVideoFormatSelectionDialog(
-            Context context, ModalDialogManager modalDialogManager, Callback callback) {
+            Context context,
+            ModalDialogManager modalDialogManager,
+            ImmersivePlaybackConfirmationCallback callback) {
         mContext = context;
         mResources = context.getResources();
         mModalDialogManager = modalDialogManager;
@@ -128,7 +120,7 @@ public class ImmersiveVideoFormatSelectionDialog {
         }
 
         mRadioGroup = null;
-        mCallback.onResult(status, stereoMode, projectionType, false);
+        mCallback.onResult(status, stereoMode, projectionType);
     }
 
     public void dismiss() {

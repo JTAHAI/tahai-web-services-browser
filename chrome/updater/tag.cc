@@ -600,12 +600,19 @@ std::string ParseTagBuffer(const std::vector<uint8_t>& tag_buffer) {
 }
 
 std::vector<uint8_t> ReadEntireFile(const base::FilePath& file) {
-  std::optional<std::vector<uint8_t>> contents = base::ReadFileToBytes(file);
-  if (!contents) {
+  std::optional<int64_t> file_size = base::GetFileSize(file);
+  if (!file_size.has_value()) {
+    PLOG(ERROR) << __func__ << ": Could not get file size: " << file;
+    return {};
+  }
+
+  std::vector<uint8_t> contents(file_size.value());
+  if (base::ReadFile(file, reinterpret_cast<char*>(&contents.front()),
+                     contents.size()) == -1) {
     PLOG(ERROR) << __func__ << ": Could not read file: " << file;
     return {};
   }
-  return std::move(*contents);
+  return contents;
 }
 
 }  // namespace
@@ -847,7 +854,8 @@ std::string BinaryReadTagString(const base::FilePath& file) {
     return {};
   }
 
-  const std::string tag_string = ReadTag(*tag);
+  const std::vector<uint8_t> tag_data = {tag->begin(), tag->end()};
+  const std::string tag_string = ReadTag(tag_data);
   if (tag_string.empty()) {
     LOG(ERROR) << __func__ << ": file is untagged: " << file;
   }

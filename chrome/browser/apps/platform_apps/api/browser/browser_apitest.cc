@@ -4,8 +4,7 @@
 
 #include "chrome/browser/apps/platform_apps/api/browser/browser_api.h"
 #include "chrome/browser/extensions/extension_apitest.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
-#include "chrome/browser/ui/tabs/tab_strip_model.h"
+#include "chrome/browser/ui/browser.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/test/browser_test.h"
 #include "content/public/test/browser_test_utils.h"
@@ -68,16 +67,16 @@ IN_PROC_BROWSER_TEST_F(AppsBrowserApiTest, OpenTab) {
          });)");
 
   extensions::ResultCatcher result_catcher;
-  EXPECT_EQ(1, browser()->GetTabStripModel()->count());
+  EXPECT_EQ(1, browser()->tab_strip_model()->count());
 
   ASSERT_TRUE(LoadExtension(test_dir.UnpackedPath()));
   EXPECT_TRUE(result_catcher.GetNextResult()) << result_catcher.message();
 
-  EXPECT_EQ(2, browser()->GetTabStripModel()->count());
-  EXPECT_EQ(1, browser()->GetTabStripModel()->active_index());
+  EXPECT_EQ(2, browser()->tab_strip_model()->count());
+  EXPECT_EQ(1, browser()->tab_strip_model()->active_index());
 
   content::WebContents* web_contents =
-      browser()->GetTabStripModel()->GetActiveWebContents();
+      browser()->tab_strip_model()->GetActiveWebContents();
   EXPECT_TRUE(content::WaitForLoadStop(web_contents));
   EXPECT_EQ(embedded_test_server()->GetURL("example.com", "/simple.html"),
             web_contents->GetLastCommittedURL());
@@ -125,7 +124,7 @@ IN_PROC_BROWSER_TEST_F(AppsBrowserApiTest,
   EXPECT_TRUE(listener.WaitUntilSatisfied());
 
   // Create an incognito browser window.
-  BrowserWindowInterface* incognito_browser = CreateIncognitoBrowser(profile());
+  Browser* incognito_browser = CreateIncognitoBrowser(profile());
   ASSERT_TRUE(incognito_browser);
 
   // Close the main browser window. This leaves the incognito window as the

@@ -58,7 +58,6 @@ scoped_refptr<PrefRegistrySyncable> PrefRegistrySyncable::ForkForIncognito() {
   scoped_refptr<PrefRegistrySyncable> registry(new PrefRegistrySyncable());
   registry->defaults_ = defaults_;
   registry->registration_flags_ = registration_flags_;
-  registry->registration_types_ = registration_types_;
   return registry;
 }
 

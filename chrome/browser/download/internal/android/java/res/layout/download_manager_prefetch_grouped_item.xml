@@ -60,7 +60,7 @@ found in the LICENSE file.
         android:textAppearance="@style/TextAppearance.TextSmall.Secondary"
         android:textAlignment="viewStart" />
 
-    <ImageView
+    <org.chromium.ui.widget.ChromeImageView
         android:id="@+id/media_button"
         style="@style/InlineOfflineIconStyle"
         android:layout_alignBottom="@id/timestamp"

@@ -87,7 +87,6 @@ suite('touchscreenTesterTestSuite', function() {
 
     // Mock drawTrailMark and drawTrail function.
     const drawingProvider = touchscreenTesterElement.getDrawingProvider();
-    assert(drawingProvider);
     const mockController = new MockController();
     const mockDrawTrailMark =
         mockController.createFunctionMock(drawingProvider, 'drawTrailMark');
@@ -128,7 +127,6 @@ suite('touchscreenTesterTestSuite', function() {
 
     // Mock drawTrailMark and drawTrail function.
     const drawingProvider = touchscreenTesterElement.getDrawingProvider();
-    assert(drawingProvider);
     const mockController = new MockController();
     const mockDrawTrail =
         mockController.createFunctionMock(drawingProvider, 'drawTrail');
@@ -174,7 +172,6 @@ suite('touchscreenTesterTestSuite', function() {
 
     // Mock drawTrailMark and drawTrail function.
     const drawingProvider = touchscreenTesterElement.getDrawingProvider();
-    assert(drawingProvider);
     const mockController = new MockController();
     const mockDrawTrailMark =
         mockController.createFunctionMock(drawingProvider, 'drawTrailMark');

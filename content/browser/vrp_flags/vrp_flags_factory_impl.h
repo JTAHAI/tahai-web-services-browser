@@ -7,13 +7,10 @@
 
 #include "components/vrp_flags/vrp_flags.mojom.h"
 #include "content/common/content_export.h"
-#include "content/public/browser/global_routing_id.h"
 #include "mojo/public/cpp/bindings/pending_receiver.h"
 #include "mojo/public/cpp/bindings/receiver_set.h"
 
 namespace content {
-
-class RenderFrameHost;
 
 class CONTENT_EXPORT VrpFlagsFactoryImpl
     : public vrp_flags::mojom::VrpFlagsFactory {
@@ -24,7 +21,6 @@ class CONTENT_EXPORT VrpFlagsFactoryImpl
   VrpFlagsFactoryImpl& operator=(const VrpFlagsFactoryImpl&) = delete;
 
   static void Bind(
-      RenderFrameHost* rfh,
       mojo::PendingReceiver<vrp_flags::mojom::VrpFlagsFactory> receiver);
 
   // mojom::VrpFlagsFactory:
@@ -34,14 +30,9 @@ class CONTENT_EXPORT VrpFlagsFactoryImpl
       mojo::PendingReceiver<vrp_flags::mojom::VrpFlags> receiver) override;
   void BindGpuVrpFlags(
       mojo::PendingReceiver<vrp_flags::mojom::VrpFlags> receiver) override;
-  void StartRendererForVrpFlags(
-      vrp_flags::mojom::VictimDisposition disposition,
-      mojo::PendingReceiver<vrp_flags::mojom::VrpFlags> receiver,
-      StartRendererForVrpFlagsCallback callback) override;
 
  private:
-  mojo::ReceiverSet<vrp_flags::mojom::VrpFlagsFactory, GlobalRenderFrameHostId>
-      receivers_;
+  mojo::ReceiverSet<vrp_flags::mojom::VrpFlagsFactory> receivers_;
 };
 
 }  // namespace content

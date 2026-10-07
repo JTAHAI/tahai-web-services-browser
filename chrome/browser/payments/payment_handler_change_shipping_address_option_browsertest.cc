@@ -56,9 +56,8 @@ class PaymentHandlerChangeShippingAddressOptionTest
     : public PaymentRequestPlatformBrowserTestBase,
       public testing::WithParamInterface<TestCase> {
  protected:
-  PaymentHandlerChangeShippingAddressOptionTest() {
-    SetBypassUserInteractionForTesting();
-  }
+  PaymentHandlerChangeShippingAddressOptionTest() = default;
+  ~PaymentHandlerChangeShippingAddressOptionTest() override = default;
 
   void SetUpOnMainThread() override {
     PaymentRequestPlatformBrowserTestBase::SetUpOnMainThread();

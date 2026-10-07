@@ -112,12 +112,3 @@ void IOSurfaceCaptureDeviceBase::ComputeFrameSizeAndDestRect(
 }
 
 }  // namespace content
-
-namespace content {
-void IOSurfaceCaptureDeviceBase::InvalidateBuffers() {
-  DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
-  CHECK(client_);
-  client_->InvalidateBuffers();
-}
-
-}  // namespace content

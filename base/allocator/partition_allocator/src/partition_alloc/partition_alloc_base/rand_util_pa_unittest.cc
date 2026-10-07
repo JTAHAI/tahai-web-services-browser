@@ -3,17 +3,16 @@
 // found in the LICENSE file.
 
 #include <algorithm>
-#include <array>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <limits>
+#include <memory>
 #include <vector>
 
 #include "partition_alloc/partition_alloc_base/check.h"
 #include "partition_alloc/partition_alloc_base/compiler_specific.h"
-#include "partition_alloc/partition_alloc_base/containers/span.h"
 #include "partition_alloc/partition_alloc_base/logging.h"
 #include "partition_alloc/partition_alloc_base/rand_util.h"
 #include "partition_alloc/partition_alloc_base/time/time.h"
@@ -23,13 +22,14 @@ namespace partition_alloc::internal::base {
 
 TEST(PartitionAllocBaseRandUtilTest, RandBytes) {
   const size_t buffer_size = 50;
-  std::array<char, buffer_size> buffer = {};
-  base::RandBytes(buffer.data(), buffer.size());
-  std::ranges::sort(buffer);
-  auto [it, _] = std::ranges::unique(buffer);
+  char buffer[buffer_size];
+  PA_UNSAFE_TODO(memset(buffer, 0, buffer_size));
+  base::RandBytes(buffer, buffer_size);
+  std::sort(buffer, PA_UNSAFE_TODO(buffer + buffer_size));
   // Probability of occurrence of less than 25 unique bytes in 50 random bytes
   // is below 10^-25.
-  EXPECT_GT(std::distance(buffer.begin(), it), 25);
+  PA_UNSAFE_TODO(
+      EXPECT_GT(std::unique(buffer, buffer + buffer_size) - buffer, 25));
 }
 
 // Verify that calling base::RandBytes with an empty buffer doesn't fail.
@@ -116,10 +116,10 @@ TEST(PartitionAllocBaseRandUtilTest, DISABLED_RandBytesPerf) {
   const int kTestIterations = 10;
   const size_t kTestBufferSize = 1 * 1024 * 1024;
 
-  std::vector<uint8_t> buffer(kTestBufferSize);
+  std::unique_ptr<uint8_t[]> buffer(new uint8_t[kTestBufferSize]);
   const TimeTicks now = TimeTicks::Now();
   for (int i = 0; i < kTestIterations; ++i) {
-    base::RandBytes(buffer.data(), buffer.size());
+    base::RandBytes(buffer.get(), kTestBufferSize);
   }
   const TimeTicks end = TimeTicks::Now();
 

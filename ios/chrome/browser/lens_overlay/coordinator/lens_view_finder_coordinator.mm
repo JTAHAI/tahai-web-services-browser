@@ -127,7 +127,6 @@ LensViewFinderTransition TransitionFromPresentationStyle(
       self.browser->GetCommandDispatcher(), LensOverlayCommands);
   [lensOverlayHandler
           searchImageWithLens:command.image
-                 rawImageData:command.rawImageData
                    entrypoint:LensOverlayEntrypoint::kSearchImageContextMenu
       initialPresentationBase:_baseViewController
       resultsPresenterFactory:nil

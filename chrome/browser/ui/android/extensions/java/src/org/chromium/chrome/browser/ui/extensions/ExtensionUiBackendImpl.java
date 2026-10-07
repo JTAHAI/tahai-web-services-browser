@@ -20,7 +20,7 @@ public class ExtensionUiBackendImpl implements ExtensionUiBackend {
 
     @Override
     public boolean isEnabled(Profile profile) {
-        return true;
+        return ExtensionActionsBridge.extensionsEnabled(profile);
     }
 
     @Override

@@ -99,11 +99,6 @@ class BluetoothChooserContext : public ObjectPermissionContextBase {
   // KeyedService:
   void Shutdown() override;
 
-  // ObjectPermissionContextBase:
-  std::vector<url::Origin> RevokeEphemeralPermissions(
-      const ContentSettingsPattern& primary_pattern,
-      bool unconditional) override;
-
  private:
   static bool IsValidDict(const base::DictValue& dict);
 

@@ -28,7 +28,7 @@ static_library("common") {
     "//url",
   ]
 
-  if (enable_extensions_core) {
+  if (enable_extensions) {
     deps += [ "//extensions/common:common_constants" ]
   }
 }

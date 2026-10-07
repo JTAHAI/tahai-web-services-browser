@@ -42,15 +42,13 @@ TEST_F(LayoutSVGForeignObjectTest, DivInForeignObject) {
 
   // LocalToAncestorPoint
   EXPECT_EQ(PhysicalOffset(150, 150),
-            div.LocalToAncestorPoint(
-                PhysicalOffset(), &GetLayoutView(),
-                {MapCoordinatesMode::kTraverseDocumentBoundaries}));
+            div.LocalToAncestorPoint(PhysicalOffset(), &GetLayoutView(),
+                                     kTraverseDocumentBoundaries));
 
   // MapAncestorToLocal
   EXPECT_EQ(PhysicalOffset(-150, -150),
-            div.AncestorToLocalPoint(
-                &GetLayoutView(), PhysicalOffset(),
-                {MapCoordinatesMode::kTraverseDocumentBoundaries}));
+            div.AncestorToLocalPoint(&GetLayoutView(), PhysicalOffset(),
+                                     kTraverseDocumentBoundaries));
 
   // Hit testing
   EXPECT_EQ(svg, HitTest(1, 1));
@@ -110,15 +108,13 @@ TEST_F(LayoutSVGForeignObjectTest, IframeInForeignObject) {
 
   // LocalToAncestorPoint
   EXPECT_EQ(PhysicalOffset(200, 200),
-            div.LocalToAncestorPoint(
-                PhysicalOffset(), &GetLayoutView(),
-                {MapCoordinatesMode::kTraverseDocumentBoundaries}));
+            div.LocalToAncestorPoint(PhysicalOffset(), &GetLayoutView(),
+                                     kTraverseDocumentBoundaries));
 
   // AncestorToLocalPoint
   EXPECT_EQ(PhysicalOffset(-200, -200),
-            div.AncestorToLocalPoint(
-                &GetLayoutView(), PhysicalOffset(),
-                {MapCoordinatesMode::kTraverseDocumentBoundaries}));
+            div.AncestorToLocalPoint(&GetLayoutView(), PhysicalOffset(),
+                                     kTraverseDocumentBoundaries));
 
   // Hit testing
   EXPECT_EQ(svg, HitTest(90, 90));
@@ -181,13 +177,12 @@ TEST_F(LayoutSVGForeignObjectTest, HitTestZoomedForeignObject) {
   // LocalToAncestorPoint
   EXPECT_EQ(div_offset, div.GetLayoutObject()->LocalToAncestorPoint(
                             PhysicalOffset(), &GetLayoutView(),
-                            {MapCoordinatesMode::kTraverseDocumentBoundaries}));
+                            kTraverseDocumentBoundaries));
 
   // AncestorToLocalPoint
   EXPECT_EQ(PhysicalOffset(),
             div.GetLayoutObject()->AncestorToLocalPoint(
-                &GetLayoutView(), div_offset,
-                {MapCoordinatesMode::kTraverseDocumentBoundaries}));
+                &GetLayoutView(), div_offset, kTraverseDocumentBoundaries));
 
   EXPECT_EQ(svg, HitTest(20, 20));
   EXPECT_EQ(foreign, HitTest(280, 280));
@@ -228,16 +223,15 @@ TEST_F(LayoutSVGForeignObjectTest, HitTestViewBoxForeignObject) {
   const auto& div = *GetElementById("div");
 
   // LocalToAncestorPoint
-  EXPECT_EQ(PhysicalOffset(128, 128),
-            div.GetLayoutObject()->LocalToAncestorPoint(
-                PhysicalOffset(), &GetLayoutView(),
-                {MapCoordinatesMode::kTraverseDocumentBoundaries}));
+  EXPECT_EQ(
+      PhysicalOffset(128, 128),
+      div.GetLayoutObject()->LocalToAncestorPoint(
+          PhysicalOffset(), &GetLayoutView(), kTraverseDocumentBoundaries));
 
   // AncestorToLocalPoint
-  EXPECT_EQ(PhysicalOffset(),
-            div.GetLayoutObject()->AncestorToLocalPoint(
-                &GetLayoutView(), PhysicalOffset(128, 128),
-                {MapCoordinatesMode::kTraverseDocumentBoundaries}));
+  EXPECT_EQ(PhysicalOffset(), div.GetLayoutObject()->AncestorToLocalPoint(
+                                  &GetLayoutView(), PhysicalOffset(128, 128),
+                                  kTraverseDocumentBoundaries));
 
   EXPECT_EQ(svg, HitTest(20, 20));
   EXPECT_EQ(foreign, HitTest(120, 110));

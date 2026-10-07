@@ -15,14 +15,6 @@
 #include "third_party/blink/renderer/platform/heap/heap_traits.h"
 #include "third_party/skia/include/core/SkRect.h"
 
-namespace cc {
-class Region;
-}
-
-namespace gfx {
-class QuadF;
-}
-
 namespace blink {
 
 class Document;
@@ -162,10 +154,7 @@ class CORE_EXPORT MediaVideoVisibilityTracker final
 
   ListBasedHitTestBehavior ComputeOcclusion(const ClientIdsSet& client_ids_set,
                                             Metrics& counts,
-                                            const Node& node,
-                                            const PhysicalRect*,
-                                            const gfx::QuadF*,
-                                            const cc::Region*);
+                                            const Node& node);
 
   bool MeetsVisibilityThreshold(Metrics& counts, const PhysicalRect& rect);
 

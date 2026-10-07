@@ -1,2 +1,4 @@
-rules:
-- focus-*: [focus-events]
+features:
+- name: focus-events
+  files:
+  - focus-*

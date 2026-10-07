@@ -9,7 +9,6 @@
 
 #include <iostream>
 #include <memory>
-#include <optional>
 #include <string>
 #include <utility>
 #include <variant>
@@ -34,7 +33,6 @@
 #include "base/strings/stringprintf.h"
 #include "base/system/sys_info.h"
 #include "base/task/current_thread.h"
-#include "base/task/execution_fence.h"
 #include "base/task/single_thread_task_runner.h"
 #include "base/task/thread_pool/thread_pool_instance.h"
 #include "base/test/bind.h"
@@ -639,10 +637,6 @@ void BrowserTestBase::SetUp() {
   std::optional<int> startup_error = delegate->BasicStartupComplete();
   ASSERT_FALSE(startup_error.has_value());
 
-  // Disables BEST_EFFORT tasks until shutdown if the command-line includes
-  // --disable-best-effort-tasks.
-  std::optional<base::ScopedBestEffortExecutionFence> best_effort_fence;
-
   {
     ContentClient::SetBrowserClientAlwaysAllowForTesting(
         delegate->CreateContentBrowserClient());
@@ -678,12 +672,6 @@ void BrowserTestBase::SetUp() {
     std::optional<int> post_early_initialization_exit_code =
         delegate->PostEarlyInitialization(invoked_in_browser);
     ASSERT_FALSE(post_early_initialization_exit_code.has_value());
-
-    // Must be called after PostEarlyInitialization because
-    // ScopedBestEffortExecutionFence requires the FeatureList.
-    if (command_line->HasSwitch(switches::kDisableBestEffortTasks)) {
-      best_effort_fence.emplace();
-    }
 
     // We can only setup startup tracing after feature list is initialized
     // above.
@@ -754,8 +742,6 @@ void BrowserTestBase::SetUp() {
     // running inside tests.
     std::move(content_main_params.ui_task).Run();
   }
-
-  best_effort_fence.reset();
 
   {
     // We need to finish the Activity before this function returns because

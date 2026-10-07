@@ -9,12 +9,14 @@ import android.content.Intent;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.robolectric.annotation.Config;
 
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.chrome.browser.webapps.WebappIntentDataProviderFactory;
 
 /** Tests the WebappInfo class's ability to parse various URLs. */
 @RunWith(BaseRobolectricTestRunner.class)
+@Config(manifest = Config.NONE)
 public class MergedWebappInfoTest {
     private static final String APP_ID = "webapp id";
     private static final String APP_URL = "about:blank";

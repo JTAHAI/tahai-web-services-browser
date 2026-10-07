@@ -41,7 +41,6 @@ class COMPONENT_EXPORT(RESOURCE_COORDINATOR_PUBLIC_MEMORY_INSTRUMENTATION)
  private:
   friend std::default_delete<ClientProcessImpl>;  // For testing
   friend class MemoryTracingIntegrationTest;
-  friend class ClientProcessImplTest;
 
   ClientProcessImpl(mojo::PendingReceiver<mojom::ClientProcess> receiver,
                     mojo::PendingRemote<mojom::Coordinator> coordinator,

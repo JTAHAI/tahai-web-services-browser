@@ -19,7 +19,6 @@
 #include "content/public/browser/web_contents_observer.h"
 #include "net/test/embedded_test_server/embedded_test_server.h"
 
-class BrowserWindowInterface;
 class ManagePasswordsUIController;
 
 // Checks the save password prompt for a specified WebContents and allows
@@ -123,7 +122,7 @@ class PasswordManagerBrowserTestBase : public CertVerifierBrowserTest {
 
   // Make sure that the password store associated with the given browser
   // processed all the previous calls, calls executed on another thread.
-  static void WaitForPasswordStore(BrowserWindowInterface* browser);
+  static void WaitForPasswordStore(Browser* browser);
 
  protected:
   // Wrapper around ui_test_utils::NavigateToURL that waits until

@@ -100,8 +100,7 @@ TEST_F(SigninReauthCoordinatorTest, ReauthCompletedSuccessfully) {
   __block SigninCompletionBlock completion_block = nil;
   OCMExpect([mock_interaction_manager_
       startAuthActivityWithViewController:OCMOCK_ANY
-                                userEmail:base::SysUTF8ToNSString(
-                                              account.GetEmail())
+                                userEmail:base::SysUTF8ToNSString(account.email)
                                completion:AssignValueToVariable(
                                               completion_block)]);
   [reauth_coordinator start];
@@ -142,8 +141,7 @@ TEST_F(SigninReauthCoordinatorTest, ReauthCancelledByUser) {
   __block SigninCompletionBlock completion_block = nil;
   OCMExpect([mock_interaction_manager_
       startAuthActivityWithViewController:OCMOCK_ANY
-                                userEmail:base::SysUTF8ToNSString(
-                                              account.GetEmail())
+                                userEmail:base::SysUTF8ToNSString(account.email)
                                completion:AssignValueToVariable(
                                               completion_block)]);
   [reauth_coordinator start];
@@ -185,8 +183,7 @@ TEST_F(SigninReauthCoordinatorTest, ReauthInterrupted) {
 
   OCMExpect([mock_interaction_manager_
       startAuthActivityWithViewController:OCMOCK_ANY
-                                userEmail:base::SysUTF8ToNSString(
-                                              account.GetEmail())
+                                userEmail:base::SysUTF8ToNSString(account.email)
                                completion:OCMOCK_ANY]);
   [reauth_coordinator start];
 
@@ -227,8 +224,7 @@ TEST_F(SigninReauthCoordinatorTest, ReauthCompletedSuccessfullyInExplicitFlow) {
   __block SigninCompletionBlock completion_block = nil;
   OCMExpect([mock_interaction_manager_
       startAuthActivityWithViewController:OCMOCK_ANY
-                                userEmail:base::SysUTF8ToNSString(
-                                              account.GetEmail())
+                                userEmail:base::SysUTF8ToNSString(account.email)
                                completion:AssignValueToVariable(
                                               completion_block)]);
   [reauth_coordinator start];

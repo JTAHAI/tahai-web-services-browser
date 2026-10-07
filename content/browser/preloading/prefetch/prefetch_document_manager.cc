@@ -34,21 +34,6 @@ namespace content {
 namespace {
 static PrefetchService* g_prefetch_service_for_testing = nullptr;
 
-// `SpeculationCandidate::tags` must never be empty: rules that specify no tags
-// carry a single null tag instead (see blink.mojom.SpeculationCandidate). Every
-// candidate reaching here has been through SpeculationHostImpl's
-// CandidatesAreValid(), which rejects an empty list as a bad message.
-//
-// This used to map an empty list to nullopt, which silently dropped the
-// Sec-Speculation-Tags header while the prerender path CHECK()ed on the very
-// same input, hiding half of crbug.com/550345163. Enforce the invariant so a
-// future regression is loud on both paths.
-SpeculationRulesTags TagsFromCandidate(
-    const blink::mojom::SpeculationCandidatePtr& candidate) {
-  CHECK(!candidate->tags.empty());
-  return SpeculationRulesTags(candidate->tags);
-}
-
 struct PrefetchUrlParams {
   explicit PrefetchUrlParams(
       const blink::mojom::SpeculationCandidatePtr& candidate)
@@ -60,7 +45,8 @@ struct PrefetchUrlParams {
                       candidate->eagerness),
         referrer(*candidate->referrer),
         no_vary_search_hint(candidate->no_vary_search_hint.Clone()),
-        tags(TagsFromCandidate(candidate)) {
+        tags(candidate->tags.empty() ? std::nullopt
+                                     : std::make_optional(candidate->tags)) {
     if (prefetch_type.IsProxyRequiredWhenCrossOrigin() &&
         ShouldPrefetchBypassProxyForTestHost(prefetch_url.GetHost())) {
       // TODO(crbug.com/40942006): Remove SetProxyBypassedForTest, since it is
@@ -73,7 +59,7 @@ struct PrefetchUrlParams {
   PrefetchType prefetch_type;
   blink::mojom::Referrer referrer;
   network::mojom::NoVarySearchPtr no_vary_search_hint;
-  SpeculationRulesTags tags;
+  std::optional<SpeculationRulesTags> tags;
 };
 
 }  // namespace
@@ -208,7 +194,7 @@ void PrefetchDocumentManager::PrefetchUrl(
     const PrefetchType& prefetch_type,
     const PreloadingPredictor& enacting_predictor,
     const blink::mojom::Referrer& referrer,
-    SpeculationRulesTags speculation_rules_tags,
+    std::optional<SpeculationRulesTags> speculation_rules_tags,
     const network::mojom::NoVarySearchPtr& mojo_no_vary_search_hint,
     scoped_refptr<PreloadPipelineInfo> preload_pipeline_info) {
   const std::pair<GURL, PreloadingType> all_prefetches_key =

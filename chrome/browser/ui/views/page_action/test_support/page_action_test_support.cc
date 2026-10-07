@@ -9,6 +9,7 @@
 #include "chrome/browser/ui/page_action/page_action_properties_provider.h"
 #include "chrome/browser/ui/ui_features.h"
 #include "chrome/browser/ui/views/location_bar/icon_label_bubble_view.h"
+#include "chrome/browser/ui/views/page_action/page_action_icon_view.h"
 #include "chrome/browser/ui/views/page_action/page_action_view.h"
 #include "chrome/browser/ui/views/page_action/page_action_view_interface.h"
 
@@ -17,14 +18,20 @@ namespace page_actions {
 IconLabelBubbleView* GetIconLabelBubbleViewForTesting(
     PageActionViewInterface* interface_ptr,
     actions::ActionId action_id) {
-  if (features::IsWebUILocationBarEnabled() || !interface_ptr) {
+  CHECK(!features::IsWebUILocationBarEnabled());
+  if (!interface_ptr) {
     return nullptr;
   }
   PageActionPropertiesProvider provider;
   if (!provider.Contains(action_id)) {
     return nullptr;
   }
-  return static_cast<PageActionView*>(interface_ptr);
+  const auto& properties = provider.GetProperties(action_id);
+  if (IsPageActionMigrated(properties.type)) {
+    return static_cast<PageActionView*>(interface_ptr);
+  } else {
+    return static_cast<PageActionIconView*>(interface_ptr);
+  }
 }
 
 }  // namespace page_actions

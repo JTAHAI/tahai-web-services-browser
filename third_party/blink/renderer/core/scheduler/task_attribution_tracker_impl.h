@@ -7,7 +7,6 @@
 
 #include <optional>
 
-#include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "third_party/blink/public/common/scheduler/task_attribution_id.h"
 #include "third_party/blink/renderer/core/core_export.h"
@@ -106,7 +105,7 @@ class CORE_EXPORT TaskAttributionTrackerImpl
   Vector<Persistent<TaskAttributionTaskState>> nested_event_loop_task_state_;
 
   // The lifetime of this class is tied to the `isolate_`.
-  raw_ptr<v8::Isolate, UnprotectedInRelease | DanglingUntriaged> isolate_;
+  v8::Isolate* isolate_;
 
   bool should_override_top_level_check_ = false;
 

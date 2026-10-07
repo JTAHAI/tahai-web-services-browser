@@ -26,7 +26,6 @@ import androidx.lifecycle.Lifecycle;
 import androidx.preference.Preference;
 import androidx.recyclerview.widget.RecyclerView.LayoutManager;
 
-import org.chromium.base.CallbackController;
 import org.chromium.base.ContextUtils;
 import org.chromium.base.DeviceInfo;
 import org.chromium.base.shared_preferences.SharedPreferencesManager;
@@ -117,7 +116,6 @@ public class MainSettings extends ChromeBaseSettingsFragment
                 SyncService.SyncStateChangedListener,
                 SigninManager.SignInStateObserver,
                 SettingsCustomTabLauncher.SettingsCustomTabLauncherClient {
-    private final CallbackController mCallbackController = new CallbackController();
     public static final String PREF_SETTINGS_PROMO_CARD = "settings_promo_card";
     public static final String PREF_ACCOUNT_AND_GOOGLE_SERVICES_SECTION =
             "account_and_google_services_section";
@@ -201,11 +199,6 @@ public class MainSettings extends ChromeBaseSettingsFragment
         mSnackbarManagerSupplier = snackbarManagerSupplier;
     }
 
-    public MonotonicObservableSupplier<ModalDialogManager>
-            getModalDialogManagerSupplierForTesting() {
-        return mModalDialogManagerSupplier;
-    }
-
     @Override
     public void onCreatePreferences(@Nullable Bundle savedInstanceState, @Nullable String rootKey) {
         createPreferences();
@@ -269,7 +262,6 @@ public class MainSettings extends ChromeBaseSettingsFragment
     public void onDestroy() {
         super.onDestroy();
         setMultiColumnSettings(null, null);
-        mCallbackController.destroy();
         SigninManager signinManager = IdentityServicesProvider.get().getSigninManager(getProfile());
         assumeNonNull(signinManager);
         if (signinManager.isSigninSupported(/* requireUpdatedPlayServices= */ false)) {
@@ -384,32 +376,30 @@ public class MainSettings extends ChromeBaseSettingsFragment
             // TODO(crbug.com/495349057): update this to use the new sign-in coordinator API with
             // suppliers.
             SupplierUtils.waitForAll(
-                    mCallbackController.makeCancelable(
-                            () -> {
-                                OneshotSupplierImpl<Profile> profileSupplier =
-                                        new OneshotSupplierImpl<>();
-                                profileSupplier.set(getProfile());
-                                var l = SigninAndHistorySyncActivityLauncherImpl.get();
-                                mSigninCoordinator =
-                                        l
-                                                .createBottomSheetSigninCoordinatorAndObserveAddAccountResult(
-                                                        SupplierUtils.asNonNull(
-                                                                        mWindowAndroidSupplier)
-                                                                .get(),
-                                                        getActivity(),
-                                                        mActivityResultTracker,
-                                                        signInPreference,
-                                                        DeviceLockActivityLauncherImpl.get(),
-                                                        profileSupplier,
-                                                        SupplierUtils.asNonNull(
-                                                                mBottomSheetControllerSupplier),
-                                                        SupplierUtils.asNonNull(
-                                                                mModalDialogManagerSupplier),
-                                                        mSnackbarManagerSupplier,
-                                                        SigninAccessPoint.SETTINGS);
-                                signinCoordinatorSupplier.set(mSigninCoordinator);
-                            }),
-                    mWindowAndroidSupplier);
+                    () -> {
+                        OneshotSupplierImpl<Profile> profileSupplier = new OneshotSupplierImpl<>();
+                        profileSupplier.set(getProfile());
+                        mSigninCoordinator =
+                                SigninAndHistorySyncActivityLauncherImpl.get()
+                                        .createBottomSheetSigninCoordinatorAndObserveAddAccountResult(
+                                                SupplierUtils.asNonNull(mWindowAndroidSupplier)
+                                                        .get(),
+                                                getActivity(),
+                                                mActivityResultTracker,
+                                                signInPreference,
+                                                DeviceLockActivityLauncherImpl.get(),
+                                                profileSupplier,
+                                                SupplierUtils.asNonNull(
+                                                        mBottomSheetControllerSupplier),
+                                                mModalDialogManagerSupplier.asNonNull().get(),
+                                                SupplierUtils.asNonNull(mSnackbarManagerSupplier)
+                                                        .get(),
+                                                SigninAccessPoint.SETTINGS);
+                        signinCoordinatorSupplier.set(mSigninCoordinator);
+                    },
+                    mWindowAndroidSupplier,
+                    mModalDialogManagerSupplier,
+                    mSnackbarManagerSupplier);
         }
         signInPreference.initialize(
                 getProfile(), profileDataCache, accountManagerFacade, signinCoordinatorSupplier);
@@ -516,26 +506,21 @@ public class MainSettings extends ChromeBaseSettingsFragment
         assert (multiColumnSettings == null) == (selectionDecoration == null);
         var view = getListView();
 
-        // Only update the observer list if there was a change.
-        if (mMultiColumnSettings != multiColumnSettings) {
-            if (mMultiColumnSettings != null) {
-                mMultiColumnSettings.removeObserver(this);
-            }
-            mMultiColumnSettings = multiColumnSettings;
-            if (mMultiColumnSettings != null) {
-                mMultiColumnSettings.addObserver(this);
-            }
+        if (mMultiColumnSettings != null) {
+            mMultiColumnSettings.removeObserver(this);
+        }
+        if (mSelectionDecoration != null && view != null) {
+            view.removeItemDecoration(mSelectionDecoration);
         }
 
-        // Only update item decorations if there was a change.
-        if (mSelectionDecoration != selectionDecoration) {
-            if (mSelectionDecoration != null && view != null) {
-                view.removeItemDecoration(mSelectionDecoration);
-            }
-            mSelectionDecoration = selectionDecoration;
-            if (mSelectionDecoration != null && view != null) {
-                view.addItemDecoration(mSelectionDecoration);
-            }
+        mMultiColumnSettings = multiColumnSettings;
+        mSelectionDecoration = selectionDecoration;
+
+        if (mMultiColumnSettings != null) {
+            mMultiColumnSettings.addObserver(this);
+        }
+        if (mSelectionDecoration != null && view != null) {
+            view.addItemDecoration(mSelectionDecoration);
         }
 
         // Reflect the title update immediately.
@@ -699,7 +684,12 @@ public class MainSettings extends ChromeBaseSettingsFragment
         autofillOptionsPreference.setOnPreferenceClickListener(
                 preference -> {
                     onPreferenceSelected(preference);
-                    openAutofillOptions(getContext());
+                    SettingsNavigationFactory.createSettingsNavigation()
+                            .startSettings(
+                                    getContext(),
+                                    AutofillOptionsFragment.class,
+                                    AutofillOptionsFragment.createRequiredArgs(
+                                            AutofillOptionsReferrer.SETTINGS));
                     return true; // Means event is consumed.
                 });
         findPreference(PREF_AUTOFILL_PAYMENTS)
@@ -727,15 +717,6 @@ public class MainSettings extends ChromeBaseSettingsFragment
                             mModalDialogManagerSupplier.asNonNull().get());
                     return true;
                 });
-    }
-
-    private static void openAutofillOptions(Context context) {
-        SettingsNavigationFactory.createSettingsNavigation()
-                .startSettings(
-                        context,
-                        AutofillOptionsFragment.class,
-                        AutofillOptionsFragment.createRequiredArgs(
-                                AutofillOptionsReferrer.SETTINGS));
     }
 
     private void maybeStartPasswordsExportFlow() {
@@ -836,8 +817,11 @@ public class MainSettings extends ChromeBaseSettingsFragment
     }
 
     private void updateAppearancePreference() {
-        Preference pref = findPreference(PREF_APPEARANCE);
-        pref.setTitle(AppearanceSettingsFragment.getTitle(getContext()));
+        updateNewPreferenceAndIncrementViewCount(
+                findPreference(PREF_APPEARANCE),
+                AppearanceSettingsFragment.getTitle(getContext()),
+                ChromePreferenceKeys.APPEARANCE_SETTINGS_CLICKED,
+                ChromePreferenceKeys.APPEARANCE_SETTINGS_VIEW_COUNT);
     }
 
     private void updateNewPreferenceAndIncrementViewCount(
@@ -1028,11 +1012,8 @@ public class MainSettings extends ChromeBaseSettingsFragment
                     if (!shouldShowSignInPref(profile) || !SignInPreference.isSignedIn(profile)) {
                         indexData.removeEntry(getUniqueId(PREF_SIGN_IN));
                     } else {
-                        indexData.updateEntryForKey(
-                                getPrefFragmentName(),
-                                PREF_SIGN_IN,
-                                R.string.prefs_section_account_and_google_services,
-                                ManageSyncSettings.class.getName());
+                        indexData.addChildParentLink(
+                                ManageSyncSettings.class.getName(), getUniqueId(PREF_SIGN_IN));
                     }
                     if (!shouldShowDeveloperSettings()) {
                         indexData.removeEntry(getUniqueId(PREF_DEVELOPER));
@@ -1056,27 +1037,6 @@ public class MainSettings extends ChromeBaseSettingsFragment
                         indexData.removeEntry(getUniqueId(PREF_AUTOFILL_OPTIONS));
                     } else {
                         indexData.removeEntry(getUniqueId(PREF_AUTOFILL_AND_PASSWORDS));
-
-                        String autofillOptionsEntryId = getUniqueId(PREF_AUTOFILL_OPTIONS);
-                        SettingsIndexData.Entry autofillOptionsEntry =
-                                indexData.getEntry(autofillOptionsEntryId);
-                        if (autofillOptionsEntry != null) {
-                            indexData.updateEntry(
-                                    autofillOptionsEntryId,
-                                    new SettingsIndexData.Entry.Builder(autofillOptionsEntry)
-                                            // TODO(crbug.com/440022435): Remove the
-                                            // PREF_AUTOFILL_OPTIONS title index update
-                                            // once Autofill AI is launched.
-                                            .setTitle(
-                                                    AutofillOptionsMediator.getFragmentTitle(
-                                                            context))
-                                            .setFragment(AutofillOptionsFragment.class.getName())
-                                            .setArguments(
-                                                    AutofillOptionsFragment.createRequiredArgs(
-                                                            AutofillOptionsReferrer
-                                                                    .SETTINGS_SEARCH))
-                                            .build());
-                        }
                     }
                 }
             };

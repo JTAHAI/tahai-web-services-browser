@@ -31,7 +31,6 @@ import org.mockito.junit.MockitoRule;
 import org.robolectric.Robolectric;
 
 import org.chromium.base.Callback;
-import org.chromium.base.TriState;
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.base.test.util.Features.DisableFeatures;
 import org.chromium.base.test.util.Features.EnableFeatures;
@@ -87,7 +86,7 @@ public class LinkToTextCoordinatorTest {
         verify(mShareCallback, times(1))
                 .showShareSheet(eq(shareParams), any(), eq(SHARE_START_TIME));
         Assert.assertEquals("", shareParams.getUrl());
-        Assert.assertEquals(TriState.FALSE, shareParams.getLinkToTextSuccessful());
+        Assert.assertEquals(false, shareParams.getLinkToTextSuccessful());
     }
 
     private void checkShowsShareSheetWithLink(String url) {
@@ -95,7 +94,7 @@ public class LinkToTextCoordinatorTest {
         verify(mShareCallback, times(1))
                 .showShareSheet(eq(shareParams), any(), eq(SHARE_START_TIME));
         Assert.assertEquals(url, shareParams.getUrl());
-        Assert.assertEquals(TriState.TRUE, shareParams.getLinkToTextSuccessful());
+        Assert.assertEquals(true, shareParams.getLinkToTextSuccessful());
     }
 
     private void setGenerationRemoteRequestResults(

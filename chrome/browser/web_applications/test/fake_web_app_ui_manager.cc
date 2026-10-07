@@ -74,10 +74,6 @@ size_t FakeWebAppUiManager::GetNumWindowsForApp(const webapps::AppId& app_id) {
   return app_id_to_num_windows_map_[app_id];
 }
 
-void FakeWebAppUiManager::CloseAppWindows(const webapps::AppId& app_id) {
-  SetNumWindowsForApp(app_id, 0);
-}
-
 void FakeWebAppUiManager::NotifyOnAllAppWindowsClosed(
     const webapps::AppId& app_id,
     base::OnceClosure callback) {
@@ -124,7 +120,7 @@ bool FakeWebAppUiManager::CanReparentAppTabToWindow(
   return true;
 }
 
-BrowserWindowInterface* FakeWebAppUiManager::ReparentAppTabToWindow(
+Browser* FakeWebAppUiManager::ReparentAppTabToWindow(
     content::WebContents* contents,
     const webapps::AppId& app_id,
     bool shortcut_created) {
@@ -132,7 +128,7 @@ BrowserWindowInterface* FakeWebAppUiManager::ReparentAppTabToWindow(
   return nullptr;
 }
 
-BrowserWindowInterface* FakeWebAppUiManager::ReparentAppTabToWindow(
+Browser* FakeWebAppUiManager::ReparentAppTabToWindow(
     content::WebContents* contents,
     const webapps::AppId& app_id,
     base::OnceCallback<void(content::WebContents*)> completion_callback) {
@@ -140,6 +136,7 @@ BrowserWindowInterface* FakeWebAppUiManager::ReparentAppTabToWindow(
   std::move(completion_callback).Run(contents);
   return nullptr;
 }
+
 
 void FakeWebAppUiManager::ShowSubAppsInstallDialog(
     content::WebContents* initiating_web_contents,
@@ -209,7 +206,18 @@ void FakeWebAppUiManager::TriggerInstallDialog(
     content::WebContents* web_contents,
     webapps::WebappInstallSource source,
     InstallCallback callback) {
-  std::move(callback).Run("", trigger_install_dialog_result_code_);
+  std::move(callback).Run("",
+                          webapps::InstallResultCode::kWebAppProviderNotReady);
+}
+
+void FakeWebAppUiManager::TriggerInstallDialogForBackgroundInstall(
+    content::WebContents* initiating_web_contents,
+    std::unique_ptr<webapps::MlInstallOperationTracker> tracker,
+    const GURL& install_url,
+    const std::optional<GURL>& manifest_id,
+    const GURL& last_committed_url,
+    InstallCallback callback) {
+  NOTIMPLEMENTED();
 }
 
 void FakeWebAppUiManager::TriggerInstallDialogForManifestInstall(
@@ -263,11 +271,6 @@ void FakeWebAppUiManager::SetProvider(WebAppProvider* provider) {
   provider_ = provider;
 }
 
-void FakeWebAppUiManager::SetTriggerInstallDialogResultCode(
-    webapps::InstallResultCode code) {
-  trigger_install_dialog_result_code_ = code;
-}
-
 void FakeWebAppUiManager::UninstallAppSilentlyForMigration(
     const webapps::AppId& app_id) {
   if (provider_) {
@@ -292,8 +295,7 @@ void FakeWebAppUiManager::ShowProfileErrorDialogForCorruptDB() {
 void FakeWebAppUiManager::ShowIntentPicker(
     const GURL& url,
     content::WebContents* web_contents,
-    ShowIntentPickerBubbleCallback callback,
-    std::optional<webapps::AppId> scoped_app_id) {}
+    ShowIntentPickerBubbleCallback callback) {}
 
 void FakeWebAppUiManager::LaunchOrFocusIsolatedWebAppInstaller(
     const base::FilePath& bundle_path) {}
@@ -310,7 +312,7 @@ void FakeWebAppUiManager::MaybeRemoveWebAppBlockedMigrationInfoBar(
     content::WebContents* web_contents) {}
 
 void FakeWebAppUiManager::MaybeShowIPHPromoForAppsLaunchedViaLinkCapturing(
-    BrowserWindowInterface* browser,
+    Browser* browser,
     Profile* profile,
     const std::string& app_id) {}
 

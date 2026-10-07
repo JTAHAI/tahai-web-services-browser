@@ -8,7 +8,6 @@
 
 #include "base/functional/bind.h"
 #include "base/memory/weak_ptr.h"
-#include "base/task/single_thread_task_runner.h"
 #include "content/browser/service_worker/service_worker_context_core.h"
 #include "content/browser/service_worker/service_worker_job_coordinator.h"
 #include "content/browser/service_worker/service_worker_registration.h"
@@ -36,14 +35,7 @@ ServiceWorkerUnregisterJob::ServiceWorkerUnregisterJob(
 ServiceWorkerUnregisterJob::~ServiceWorkerUnregisterJob() = default;
 
 void ServiceWorkerUnregisterJob::AddCallback(UnregistrationCallback callback) {
-  if (!is_promise_resolved_) {
-    callbacks_.emplace_back(std::move(callback));
-    return;
-  }
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
-      FROM_HERE,
-      base::BindOnce(std::move(callback), promise_resolved_registration_id_,
-                     promise_resolved_status_));
+  callbacks_.emplace_back(std::move(callback));
 }
 
 void ServiceWorkerUnregisterJob::Start() {
@@ -116,12 +108,9 @@ void ServiceWorkerUnregisterJob::ResolvePromise(
     blink::ServiceWorkerStatusCode status) {
   DCHECK(!is_promise_resolved_);
   is_promise_resolved_ = true;
-  promise_resolved_registration_id_ = registration_id;
-  promise_resolved_status_ = status;
-  std::vector<UnregistrationCallback> callbacks;
-  callbacks.swap(callbacks_);
-  for (UnregistrationCallback& callback : callbacks)
+  for (UnregistrationCallback& callback : callbacks_)
     std::move(callback).Run(registration_id, status);
+  callbacks_.clear();
 }
 
 }  // namespace content

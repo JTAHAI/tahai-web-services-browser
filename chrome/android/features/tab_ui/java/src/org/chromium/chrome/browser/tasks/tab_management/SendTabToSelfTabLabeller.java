@@ -31,7 +31,6 @@ public class SendTabToSelfTabLabeller implements SendTabToSelfAndroidBridge.Labe
     private final Callback<@Nullable TabModel> mOnTabModelChange = this::onTabModelChange;
     private final Set<Integer> mLabelledTabIds = new HashSet<>();
     private @Nullable TabModel mCurrentTabModel;
-    private boolean mIsDestroyed;
 
     /**
      * Constructs a new {@link SendTabToSelfTabLabeller}.
@@ -54,8 +53,6 @@ public class SendTabToSelfTabLabeller implements SendTabToSelfAndroidBridge.Labe
 
     /** Cleans up observers. */
     public void destroy() {
-        mIsDestroyed = true;
-        mLabelledTabIds.clear();
         mTabModelSupplier.removeObserver(mOnTabModelChange);
         SendTabToSelfAndroidBridge.removeLabelObserver(this);
     }
@@ -76,8 +73,6 @@ public class SendTabToSelfTabLabeller implements SendTabToSelfAndroidBridge.Labe
     }
 
     private void showAllInternal(@Nullable List<Tab> tabs) {
-        if (mIsDestroyed) return;
-
         if (tabs == null) {
             tabs = getTabsFromTabModel();
         }
@@ -101,8 +96,6 @@ public class SendTabToSelfTabLabeller implements SendTabToSelfAndroidBridge.Labe
                 SendTabToSelfTabCardLabelData.from(
                         tab,
                         loadedData -> {
-                            if (mIsDestroyed) return;
-
                             TabCardLabelData label = buildLabel(loadedData);
                             if (label != null) {
                                 mLabelledTabIds.add(tabId);

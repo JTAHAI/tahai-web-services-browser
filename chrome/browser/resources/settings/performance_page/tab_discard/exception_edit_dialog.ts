@@ -6,11 +6,13 @@ import 'chrome://resources/cr_elements/cr_button/cr_button.js';
 import 'chrome://resources/cr_elements/cr_dialog/cr_dialog.js';
 import './exception_edit_input.js';
 
+import type {PrefsMixinInterface} from '/shared/settings/prefs/prefs_mixin.js';
+import {PrefsMixin} from '/shared/settings/prefs/prefs_mixin.js';
 import type {CrButtonElement} from 'chrome://resources/cr_elements/cr_button/cr_button.js';
 import type {CrDialogElement} from 'chrome://resources/cr_elements/cr_dialog/cr_dialog.js';
-import {CrLitElement} from 'chrome://resources/lit/v3_0/lit.rollup.js';
+import {PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
-import {getHtml} from './exception_edit_dialog.html.js';
+import {getTemplate} from './exception_edit_dialog.html.js';
 import type {ExceptionEditInputElement} from './exception_edit_input.js';
 
 export interface ExceptionEditDialogElement {
@@ -22,34 +24,33 @@ export interface ExceptionEditDialogElement {
   };
 }
 
-export class ExceptionEditDialogElement extends CrLitElement {
+type Constructor<T> = new (...args: any[]) => T;
+const ExceptionEditDialogElementBase = PrefsMixin(PolymerElement) as
+    Constructor<PrefsMixinInterface&PolymerElement>;
+
+export class ExceptionEditDialogElement extends
+    ExceptionEditDialogElementBase {
   static get is() {
     return 'tab-discard-exception-edit-dialog';
   }
 
-  override render() {
-    return getHtml.bind(this)();
+  static get template() {
+    return getTemplate();
   }
 
-  static override get properties() {
+  static get properties() {
     return {
-      ruleToEdit: {type: String},
-      submitDisabled_: {type: Boolean},
+      ruleToEdit: {type: String, value: ''},
     };
   }
 
-  accessor ruleToEdit: string = '';
-  protected accessor submitDisabled_: boolean = true;
+  declare private ruleToEdit: string;
 
-  protected onSubmitDisabledChanged_(e: CustomEvent<{value: boolean}>) {
-    this.submitDisabled_ = e.detail.value;
-  }
-
-  protected onCancelClick_() {
+  private onCancelClick_() {
     this.$.dialog.cancel();
   }
 
-  protected onSubmitClick_() {
+  private onSubmitClick_() {
     this.$.dialog.close();
     this.$.input.submit();
   }

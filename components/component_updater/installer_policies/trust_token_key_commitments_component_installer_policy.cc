@@ -4,9 +4,7 @@
 
 #include "components/component_updater/installer_policies/trust_token_key_commitments_component_installer_policy.h"
 
-#include <cstdint>
 #include <memory>
-#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -150,7 +148,8 @@ TrustTokenKeyCommitmentsComponentInstallerPolicy::GetInstallerAttributes()
 void TrustTokenKeyCommitmentsComponentInstallerPolicy::GetPublicKeyHash(
     std::vector<uint8_t>* hash) {
   DCHECK(hash);
-  hash->assign_range(kTrustTokenKeyCommitmentsPublicKeySHA256);
+  hash->assign(std::begin(kTrustTokenKeyCommitmentsPublicKeySHA256),
+               std::end(kTrustTokenKeyCommitmentsPublicKeySHA256));
 }
 
 // static

@@ -634,8 +634,20 @@ const CGFloat kLeadingSeparatorSpace = 5.0;
     NSString* accessibilityLabel =
         base::SysUTF8ToNSString(config->accessibility_label);
 
-    UIImage* image =
-        SymbolWithPointSize(config->entrypoint_symbol, kBadgeSymbolPointSize);
+    UIImage* image;
+    CGFloat symbolPointSize = kBadgeSymbolPointSize;
+    switch (config->image_type) {
+      case ContextualPanelItemConfiguration::EntrypointImageType::SFSymbol:
+        image = DefaultSymbolWithPointSize(
+            base::SysUTF8ToNSString(config->entrypoint_image_name),
+            symbolPointSize);
+        break;
+      case ContextualPanelItemConfiguration::EntrypointImageType::Image:
+        image = CustomSymbolWithPointSize(
+            base::SysUTF8ToNSString(config->entrypoint_image_name),
+            symbolPointSize);
+        break;
+    }
 
     LocationBarBadgeConfiguration* badgeConfig =
         [[LocationBarBadgeConfiguration alloc]
@@ -670,8 +682,20 @@ const CGFloat kLeadingSeparatorSpace = 5.0;
 
     _label.text = base::SysUTF8ToNSString(config->entrypoint_message);
 
-    UIImage* image =
-        SymbolWithPointSize(config->entrypoint_symbol, kBadgeSymbolPointSize);
+    UIImage* image;
+    CGFloat symbolPointSize = kBadgeSymbolPointSize;
+    switch (config->image_type) {
+      case ContextualPanelItemConfiguration::EntrypointImageType::SFSymbol:
+        image = DefaultSymbolWithPointSize(
+            base::SysUTF8ToNSString(config->entrypoint_image_name),
+            symbolPointSize);
+        break;
+      case ContextualPanelItemConfiguration::EntrypointImageType::Image:
+        image = CustomSymbolWithPointSize(
+            base::SysUTF8ToNSString(config->entrypoint_image_name),
+            symbolPointSize);
+        break;
+    }
 
     _badgeIcon.image = image;
   }
@@ -959,7 +983,10 @@ const CGFloat kLeadingSeparatorSpace = 5.0;
 
 // Helper to refresh entrypoint visual elements for the single badge container.
 - (void)refreshBadgeForSingleBadgeContainer {
-  BOOL shouldShowMutedColors = _badgeTapped;
+  BOOL shouldAccountForVisibleInfobarBadges =
+      _infobarBadgesCurrentlyShown && !IsReaderModeAvailable();
+  BOOL shouldShowMutedColors =
+      shouldAccountForVisibleInfobarBadges || _badgeTapped;
 
   _badgeIcon.tintColor = shouldShowMutedColors
                              ? [UIColor colorNamed:kGrey600Color]
@@ -968,7 +995,10 @@ const CGFloat kLeadingSeparatorSpace = 5.0;
   _buttonContainer.layer.shadowOpacity =
       shouldShowMutedColors ? 0 : kBadgeContainerShadowOpacity;
 
-  UIColor* untappedBackgroundColor = [UIColor colorNamed:kBackgroundColor];
+  UIColor* untappedBackgroundColor =
+      shouldAccountForVisibleInfobarBadges
+          ? nil
+          : [UIColor colorNamed:kBackgroundColor];
   UIColor* buttonContainerBackgroundColor =
       _badgeTapped ? [UIColor colorNamed:kGrey100Color]
                    : untappedBackgroundColor;

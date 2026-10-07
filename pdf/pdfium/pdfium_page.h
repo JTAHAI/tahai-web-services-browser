@@ -18,7 +18,6 @@
 #include "base/functional/callback_forward.h"
 #include "base/gtest_prod_util.h"
 #include "base/memory/raw_ptr.h"
-#include "base/memory/weak_ptr.h"
 #include "pdf/buildflags.h"
 #include "pdf/page_orientation.h"
 #include "pdf/ui/thumbnail.h"
@@ -86,12 +85,8 @@ class PDFiumPage {
   PDFiumPage(PDFiumEngine* engine, uint32_t i);
   PDFiumPage(const PDFiumPage&) = delete;
   PDFiumPage& operator=(const PDFiumPage&) = delete;
-  PDFiumPage(PDFiumPage&& that) = delete;
-  PDFiumPage& operator=(PDFiumPage&& that) = delete;
+  PDFiumPage(PDFiumPage&& that);
   ~PDFiumPage();
-
-  base::WeakPtr<PDFiumPage> GetWeakPtr() { return weak_factory_.GetWeakPtr(); }
-  void InvalidateWeakPtrs() { weak_factory_.InvalidateWeakPtrs(); }
 
   // Unloads the PDFium data for this page from memory. Returns true if the
   // unload happened, or false if an unload preventer blocked it.
@@ -570,8 +565,6 @@ class PDFiumPage {
   // this page has never been Searchified, then this is null.
   std::optional<bool> has_searchify_added_text_;
 #endif
-
-  base::WeakPtrFactory<PDFiumPage> weak_factory_{this};
 };
 
 constexpr uint32_t MakeARGB(unsigned int a,

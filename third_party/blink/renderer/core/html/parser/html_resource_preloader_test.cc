@@ -6,8 +6,6 @@
 
 #include <memory>
 #include <utility>
-
-#include "base/memory/raw_ptr.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/blink/public/platform/web_prescient_networking.h"
 #include "third_party/blink/renderer/core/frame/local_frame.h"
@@ -74,8 +72,7 @@ class HTMLResourcePreloaderTest : public PageTestBase {
     ASSERT_EQ(test_case.is_https, mock_network_hints_->IsHTTPS());
   }
 
-  raw_ptr<PreloaderNetworkHintsMock, UnprotectedInRelease | DanglingUntriaged>
-      mock_network_hints_ = nullptr;
+  PreloaderNetworkHintsMock* mock_network_hints_ = nullptr;
 };
 
 TEST_F(HTMLResourcePreloaderTest, testPreconnect) {

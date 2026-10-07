@@ -14,7 +14,6 @@
 #include "base/test/metrics/histogram_tester.h"
 #include "base/test/task_environment.h"
 #include "base/time/time.h"
-#include "components/supervised_user/core/browser/family_link_settings_service.h"
 #include "components/supervised_user/core/browser/permission_request_creator.h"
 #include "components/supervised_user/core/browser/supervised_user_preferences.h"
 #include "components/supervised_user/core/browser/supervised_user_test_environment.h"
@@ -92,7 +91,7 @@ class MockPermissionRequestCreator : public PermissionRequestCreator {
 class RemoteWebApprovalsManagerTest : public ::testing::Test {
  protected:
   RemoteWebApprovalsManagerTest() {
-    supervised_user_test_environment_.EnableSupervisedAccount();
+    EnableParentalControls(*supervised_user_test_environment_.pref_service());
   }
 
   RemoteWebApprovalsManagerTest(const RemoteWebApprovalsManagerTest&) = delete;
@@ -109,7 +108,7 @@ class RemoteWebApprovalsManagerTest : public ::testing::Test {
   void RequestApproval(WebFilteringResult filtering_result,
                        AsyncResultHolder* result_holder) {
     remote_web_approvals_manager_.RequestApproval(
-        supervised_user_test_environment_.family_link_settings_service()
+        supervised_user_test_environment_.family_link_url_filter()
             ->GetEffectiveUrlToUnblock(filtering_result),
         base::BindOnce(&AsyncResultHolder::SetResult,
                        base::Unretained(result_holder)));

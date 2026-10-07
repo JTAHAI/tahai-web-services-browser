@@ -7,10 +7,7 @@
 #include "build/build_config.h"
 
 namespace prefs {
-// Profile and local state prefs.
-
-const char kRendererAccessibilityEnabled[] =
-    "settings.a11y.renderer_accessibility_enabled";
+// Local state prefs.
 
 #if BUILDFLAG(IS_ANDROID)
 // Whether different accessibility filtering modes for performance are allowed.

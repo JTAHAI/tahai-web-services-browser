@@ -13,7 +13,7 @@
 
 namespace web {
 
-class NavigationItemImpl;
+class NavigationItem;
 
 // Generates an NSData blob similar to what WKWebView uses in -interactionState.
 // This can be used to use native restore when the cached -interactionState is
@@ -24,7 +24,7 @@ class NavigationItemImpl;
 // for the basis of this implementation.
 NSData* SynthesizedSessionRestore(
     int last_committed_item_index,
-    const std::vector<std::unique_ptr<NavigationItemImpl>>& items,
+    const std::vector<std::unique_ptr<NavigationItem>>& items,
     bool off_the_record);
 
 }  // namespace web

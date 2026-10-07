@@ -119,7 +119,7 @@ import java.io.IOException;
 
 /** Unit tests for {@link NtpCustomizationUtils} */
 @RunWith(BaseRobolectricTestRunner.class)
-@Config(sdk = Build.VERSION_CODES.R)
+@Config(manifest = Config.NONE, sdk = Build.VERSION_CODES.R)
 public class NtpCustomizationUtilsUnitTest {
     private static final String TEST_FILE_NAME = "test_file.png";
     private static final String LARGE_FILE_NAME = "large_file.png";
@@ -1092,7 +1092,6 @@ public class NtpCustomizationUtilsUnitTest {
     }
 
     @Test
-    @EnableFeatures(ChromeFeatureList.NEW_TAB_PAGE_CUSTOMIZATION_V2)
     public void testShouldApplyWhiteBackgroundOnSearchBox_disabledByPolicy() {
         // TODO(crbug.com/525121661): Failing on Desktop Android.
         assumeFalse(BuildConfig.IS_DESKTOP_ANDROID);
@@ -1114,20 +1113,20 @@ public class NtpCustomizationUtilsUnitTest {
     @EnableFeatures(ChromeFeatureList.NEW_TAB_PAGE_CUSTOMIZATION_V2)
     public void testShouldApplyWhiteBackgroundOnSearchBox_withType() {
         assertFalse(
-                NtpCustomizationUtils.shouldApplyWhiteBackgroundForNtpBackgroundType(
+                NtpCustomizationUtils.shouldApplyWhiteBackgroundOnSearchBox(
                         NtpBackgroundType.DEFAULT));
         assertFalse(
-                NtpCustomizationUtils.shouldApplyWhiteBackgroundForNtpBackgroundType(
+                NtpCustomizationUtils.shouldApplyWhiteBackgroundOnSearchBox(
                         NtpBackgroundType.CHROME_COLOR));
         assertFalse(
-                NtpCustomizationUtils.shouldApplyWhiteBackgroundForNtpBackgroundType(
+                NtpCustomizationUtils.shouldApplyWhiteBackgroundOnSearchBox(
                         NtpBackgroundType.COLOR_FROM_HEX));
 
         assertTrue(
-                NtpCustomizationUtils.shouldApplyWhiteBackgroundForNtpBackgroundType(
+                NtpCustomizationUtils.shouldApplyWhiteBackgroundOnSearchBox(
                         NtpBackgroundType.IMAGE_FROM_DISK));
         assertTrue(
-                NtpCustomizationUtils.shouldApplyWhiteBackgroundForNtpBackgroundType(
+                NtpCustomizationUtils.shouldApplyWhiteBackgroundOnSearchBox(
                         NtpBackgroundType.THEME_COLLECTION));
     }
 
@@ -1329,22 +1328,18 @@ public class NtpCustomizationUtilsUnitTest {
     public void testSaveBackgroundInfo_withCustomBackgroundInfo() {
         CustomBackgroundInfo customBackgroundInfo =
                 new CustomBackgroundInfo(JUnitTestGURLs.URL_1, "id", false, true);
-        NtpBackgroundDataThemeCollection themeCollectionData =
-                new NtpBackgroundDataThemeCollection(
-                        PlatformType.ANDROID, customBackgroundInfo, /* previewBitmap= */ null);
-        testSaveBackgroundInfoImpl(/* skipSavingPrimaryColor= */ false, themeCollectionData);
+        testSaveBackgroundInfoImpl(
+                customBackgroundInfo,
+                /* skipSavingPrimaryColor= */ false,
+                /* ntpBackgroundImageData= */ null);
     }
 
     @Test
     public void testSaveBackgroundInfo_postponedColorPicking() {
-        NtpBackgroundDataUploadImage uploadImageData =
-                new NtpBackgroundDataUploadImage(
-                        PlatformType.ANDROID,
-                        /* backgroundImageInfo= */ null,
-                        /* bitmap= */ null,
-                        /* primaryColor= */ null,
-                        /* fileIdHash= */ null);
-        testSaveBackgroundInfoImpl(/* skipSavingPrimaryColor= */ true, uploadImageData);
+        testSaveBackgroundInfoImpl(
+                /* customBackgroundInfo= */ null,
+                /* skipSavingPrimaryColor= */ true,
+                /* ntpBackgroundImageData= */ null);
     }
 
     @Test
@@ -1357,7 +1352,10 @@ public class NtpCustomizationUtilsUnitTest {
                         bitmap,
                         /* primaryColor= */ null,
                         "uniqueHash");
-        testSaveBackgroundInfoImpl(/* skipSavingPrimaryColor= */ false, uploadImageData);
+        testSaveBackgroundInfoImpl(
+                /* customBackgroundInfo= */ null,
+                /* skipSavingPrimaryColor= */ false,
+                uploadImageData);
     }
 
     @Test
@@ -1371,11 +1369,16 @@ public class NtpCustomizationUtilsUnitTest {
                         bitmap,
                         /* primaryColor= */ null,
                         "themeHash");
-        testSaveBackgroundInfoImpl(/* skipSavingPrimaryColor= */ false, themeCollectionData);
+        testSaveBackgroundInfoImpl(
+                /* customBackgroundInfo= */ null,
+                /* skipSavingPrimaryColor= */ false,
+                themeCollectionData);
     }
 
     private void testSaveBackgroundInfoImpl(
-            boolean skipSavingPrimaryColor, NtpBackgroundDataImageBase ntpBackgroundImageData) {
+            @Nullable CustomBackgroundInfo customBackgroundInfo,
+            boolean skipSavingPrimaryColor,
+            @Nullable NtpBackgroundDataImageBase ntpBackgroundImageData) {
         Bitmap bitmap = Bitmap.createBitmap(100, 100, Bitmap.Config.ARGB_8888);
         Matrix portraitMatrix = new Matrix();
         Matrix landscapeMatrix = new Matrix();
@@ -1387,12 +1390,22 @@ public class NtpCustomizationUtilsUnitTest {
                         /* portraitWindowSize= */ null,
                         /* landscapeWindowSize= */ null);
 
+        String filePath =
+                ntpBackgroundImageData != null
+                        ? ntpBackgroundImageData.getLastUploadImageFilePath()
+                        : null;
+
         NtpCustomizationUtils.saveBackgroundInfo(
-                ntpBackgroundImageData, bitmap, backgroundImageInfo, skipSavingPrimaryColor);
+                customBackgroundInfo,
+                bitmap,
+                backgroundImageInfo,
+                skipSavingPrimaryColor,
+                /* primaryColor= */ null,
+                filePath);
         RobolectricUtil.runAllBackgroundAndUi(); // Wait for async file operations.
 
         File expectedSavedFile;
-        if (ntpBackgroundImageData.getFileIdHash() != null) {
+        if (ntpBackgroundImageData != null && ntpBackgroundImageData.getFileIdHash() != null) {
             expectedSavedFile =
                     NtpCustomizationUtils.createThemeImageFileInDir(
                             ntpBackgroundImageData.getFileIdHash(),
@@ -1402,8 +1415,6 @@ public class NtpCustomizationUtilsUnitTest {
         }
         assertTrue(expectedSavedFile.exists());
 
-        CustomBackgroundInfo customBackgroundInfo =
-                ntpBackgroundImageData.getCustomBackgroundInfo();
         if (customBackgroundInfo != null) {
             CustomBackgroundInfo restoredInfo =
                     NtpCustomizationUtils.getCustomBackgroundInfoFromSharedPreference();
@@ -1644,18 +1655,8 @@ public class NtpCustomizationUtilsUnitTest {
     }
 
     @Test
-    @EnableFeatures(ChromeFeatureList.NTP_AURORA)
-    public void testGetSearchBoxHeight_auroraEnabled() {
-        testGetSearchBoxHeightImpl(/* isAuroraEnabled= */ true);
-    }
-
-    @Test
-    @DisableFeatures(ChromeFeatureList.NTP_AURORA)
-    public void testGetSearchBoxHeight_auroraDisabled() {
-        testGetSearchBoxHeightImpl(/* isAuroraEnabled= */ false);
-    }
-
-    private void testGetSearchBoxHeightImpl(boolean isAuroraEnabled) {
+    public void testGetSearchBoxHeight() {
+        // Mock dimension values.
         int searchBoxHeightTall =
                 mResources.getDimensionPixelSize(R.dimen.ntp_search_box_height_tall);
         int searchBoxHeight = mResources.getDimensionPixelSize(R.dimen.ntp_search_box_height);
@@ -1667,7 +1668,7 @@ public class NtpCustomizationUtilsUnitTest {
         assertEquals(expectedHeight, actualHeight);
 
         // Test case 2: Regular search box.
-        expectedHeight = isAuroraEnabled ? searchBoxHeightTall : searchBoxHeight;
+        expectedHeight = searchBoxHeight;
         actualHeight =
                 NtpCustomizationUtils.getSearchBoxHeight(
                         mResources, /* showSearchBoxTall= */ false);
@@ -1996,21 +1997,5 @@ public class NtpCustomizationUtilsUnitTest {
         verify(contentResolver).openInputStream(uri);
         verify(mMockJni).decodeImage(eq(bitmapBytes), any());
         verify(callback).onImageLoaded(eq(mockBitmap), eq(expectedFileIdHash));
-    }
-
-    @Test
-    public void testGetFileName() {
-        String expectedFileName = TEST_FILE_NAME;
-        String directoryPath = "path" + File.separator + "to" + File.separator;
-        assertNull(NtpCustomizationUtils.getFileName(/* path= */ null));
-        assertNull(NtpCustomizationUtils.getFileName(""));
-        assertEquals(expectedFileName, NtpCustomizationUtils.getFileName(expectedFileName));
-        assertEquals(
-                expectedFileName,
-                NtpCustomizationUtils.getFileName(
-                        File.separator + directoryPath + expectedFileName));
-        assertEquals(
-                expectedFileName,
-                NtpCustomizationUtils.getFileName(directoryPath + expectedFileName));
     }
 }

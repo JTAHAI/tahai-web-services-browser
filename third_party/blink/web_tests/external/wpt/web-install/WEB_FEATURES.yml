@@ -1,2 +1,4 @@
-rules:
-- navigator-install-*: [navigator-install]
+features:
+- name: navigator-install
+  files:
+  - navigator-install-*

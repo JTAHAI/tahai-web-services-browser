@@ -4,7 +4,6 @@
 
 #import "ios/chrome/browser/shared/coordinator/scene/scene_controller.h"
 
-#import "base/check.h"
 #import "base/feature_list.h"
 #import "base/functional/callback_helpers.h"
 #import "base/i18n/message_formatter.h"
@@ -12,7 +11,9 @@
 #import "base/logging.h"
 #import "base/metrics/histogram_functions.h"
 #import "base/notreached.h"
+#import "base/strings/stringprintf.h"
 #import "base/strings/sys_string_conversions.h"
+#import "base/strings/utf_string_conversions.h"
 #import "base/time/time.h"
 #import "base/trace_event/trace_event.h"
 #import "components/breadcrumbs/core/breadcrumbs_status.h"
@@ -31,16 +32,15 @@
 #import "components/version_info/version_info.h"
 #import "components/web_resource/web_resource_pref_names.h"
 #import "google_apis/gaia/gaia_id.h"
-#import "ios/chrome/app/app_startup_parameters.h"
 #import "ios/chrome/app/application_delegate/app_state.h"
 #import "ios/chrome/app/application_delegate/startup_information.h"
 #import "ios/chrome/app/application_delegate/url_opener.h"
 #import "ios/chrome/app/application_delegate/url_opener_params.h"
 #import "ios/chrome/app/application_mode.h"
 #import "ios/chrome/app/change_profile_commands.h"
-#import "ios/chrome/app/change_profile_continuation.h"
 #import "ios/chrome/app/profile/profile_state.h"
 #import "ios/chrome/app/profile/profile_state_observer.h"
+#import "ios/chrome/app/startup/chrome_app_startup_parameters.h"
 #import "ios/chrome/app/tests_hook.h"
 #import "ios/chrome/browser/app_store_rating/model/app_store_rating_scene_agent.h"
 #import "ios/chrome/browser/app_store_rating/model/features.h"
@@ -48,6 +48,7 @@
 #import "ios/chrome/browser/authentication/signin/fullscreen_promo/model/fullscreen_signin_promo_scene_agent.h"
 #import "ios/chrome/browser/authentication/ui_bundled/change_profile/change_profile_authentication_continuation.h"
 #import "ios/chrome/browser/authentication/ui_bundled/change_profile/change_profile_signout_continuation.h"
+#import "ios/chrome/browser/authentication/ui_bundled/continuation.h"
 #import "ios/chrome/browser/authentication/ui_bundled/signin/deeplink_signin/cross_device_signin_scene_agent.h"
 #import "ios/chrome/browser/authentication/ui_bundled/signin/features.h"
 #import "ios/chrome/browser/authentication/ui_bundled/signin/signin_constants.h"
@@ -63,7 +64,8 @@
 #import "ios/chrome/browser/default_browser/model/promo_source.h"
 #import "ios/chrome/browser/default_browser/promo/public/features.h"
 #import "ios/chrome/browser/docking_promo/model/docking_promo_scene_agent.h"
-#import "ios/chrome/browser/enterprise/data_protection/coordinator/data_protection_scene_agent.h"
+#import "ios/chrome/browser/enterprise/data_protection/model/data_protection_scene_agent.h"
+#import "ios/chrome/browser/enterprise/data_protection/public/features.h"
 #import "ios/chrome/browser/enterprise/model/idle/idle_service.h"
 #import "ios/chrome/browser/enterprise/model/idle/idle_service_factory.h"
 #import "ios/chrome/browser/feature_engagement/model/tracker_factory.h"
@@ -98,6 +100,7 @@
 #import "ios/chrome/browser/promos_manager/model/promos_manager_scene_agent.h"
 #import "ios/chrome/browser/promos_manager/public/utils.h"
 #import "ios/chrome/browser/reading_list/model/reading_list_browser_agent.h"
+#import "ios/chrome/browser/safari_data_import/public/safari_data_import_entry_point.h"
 #import "ios/chrome/browser/scene/coordinator/scene_coordinator.h"
 #import "ios/chrome/browser/scoped_ui_blocker/ui_bundled/scoped_ui_blocker.h"
 #import "ios/chrome/browser/screenshot/model/screenshot_delegate.h"
@@ -106,9 +109,8 @@
 #import "ios/chrome/browser/shared/coordinator/default_browser_promo/non_modal_default_browser_promo_scheduler_scene_agent.h"
 #import "ios/chrome/browser/shared/coordinator/layout_guide/layout_guide_scene_agent.h"
 #import "ios/chrome/browser/shared/coordinator/scene/scene_controller+OTRProfileDeletion.h"
-#import "ios/chrome/browser/shared/coordinator/scene/scene_controller_testing.h"
 #import "ios/chrome/browser/shared/coordinator/scene/scene_state.h"
-#import "ios/chrome/browser/shared/coordinator/scene/scene_state_prefs.h"
+#import "ios/chrome/browser/shared/coordinator/scene/scene_state_options.h"
 #import "ios/chrome/browser/shared/coordinator/scene/scene_ui_provider.h"
 #import "ios/chrome/browser/shared/coordinator/scene/state/incognito_state.h"
 #import "ios/chrome/browser/shared/coordinator/scene/state/scene_ui_blocker_state.h"
@@ -117,6 +119,7 @@
 #import "ios/chrome/browser/shared/coordinator/scene/url_context.h"
 #import "ios/chrome/browser/shared/model/application_context/application_context.h"
 #import "ios/chrome/browser/shared/model/browser/browser.h"
+#import "ios/chrome/browser/shared/model/browser/browser_list.h"
 #import "ios/chrome/browser/shared/model/browser/browser_list_factory.h"
 #import "ios/chrome/browser/shared/model/browser/browser_provider_interface.h"
 #import "ios/chrome/browser/shared/model/prefs/pref_names.h"
@@ -145,6 +148,8 @@
 #import "ios/chrome/browser/shared/public/commands/show_signin_command.h"
 #import "ios/chrome/browser/shared/public/commands/snackbar_commands.h"
 #import "ios/chrome/browser/shared/public/features/features.h"
+#import "ios/chrome/browser/shared/public/snackbar/snackbar_message.h"
+#import "ios/chrome/browser/shared/public/snackbar/snackbar_message_action.h"
 #import "ios/chrome/browser/signin/model/authentication_service.h"
 #import "ios/chrome/browser/signin/model/authentication_service_factory.h"
 #import "ios/chrome/browser/signin/model/authentication_service_observer_bridge.h"
@@ -156,6 +161,7 @@
 #import "ios/chrome/browser/snapshots/model/snapshot_tab_helper.h"
 #import "ios/chrome/browser/start_surface/ui_bundled/start_surface_recent_tab_browser_agent.h"
 #import "ios/chrome/browser/start_surface/ui_bundled/start_surface_scene_agent.h"
+#import "ios/chrome/browser/start_surface/ui_bundled/start_surface_util.h"
 #import "ios/chrome/browser/sync/model/sync_service_factory.h"
 #import "ios/chrome/browser/tab_insertion/model/tab_insertion_browser_agent.h"
 #import "ios/chrome/browser/tab_switcher/ui_bundled/tab_grid/tab_grid_coordinator.h"
@@ -165,7 +171,6 @@
 #import "ios/chrome/browser/url_loading/model/url_loading_params.h"
 #import "ios/chrome/browser/web_state_list/model/web_usage_enabler/web_usage_enabler_browser_agent.h"
 #import "ios/chrome/browser/whats_new/coordinator/promo/whats_new_scene_agent.h"
-#import "ios/chrome/browser/window_activities/model/window_activity_helpers.h"
 #import "ios/chrome/common/app_group/app_group_constants.h"
 #import "ios/chrome/common/ui/reauthentication/reauthentication_module.h"
 #import "ios/chrome/grit/ios_strings.h"
@@ -176,6 +181,7 @@
 #import "ios/web/public/js_image_transcoder/java_script_image_transcoder.h"
 #import "ios/web/public/navigation/navigation_manager.h"
 #import "ios/web/public/web_state.h"
+#import "ios/web/public/web_state_id.h"
 #import "net/base/apple/url_conversions.h"
 #import "net/base/url_util.h"
 #import "services/network/public/cpp/shared_url_loader_factory.h"
@@ -297,6 +303,7 @@ UrlLoadParams UpdateParamsForDinoGame(UrlLoadParams params) {
                                ProfileStateObserver,
                                SceneUIBlockerStateObserver,
                                SceneUIHandler,
+                               SceneUIProvider,
                                SceneURLLoadingServiceDelegate,
                                TabGridCoordinatorDelegate> {
   std::unique_ptr<WebStateListObserverBridge> _webStateListForwardingObserver;
@@ -418,7 +425,7 @@ UrlLoadParams UpdateParamsForDinoGame(UrlLoadParams params) {
 
 #pragma mark - Setters and Getters
 
-- (BOOL)isIncognitoDisabled {
+    - (BOOL)isIncognitoDisabled {
   return IsIncognitoModeDisabled(
       self.mainInterface.browser->GetProfile()->GetPrefs());
 }
@@ -473,7 +480,7 @@ UrlLoadParams UpdateParamsForDinoGame(UrlLoadParams params) {
 #pragma mark - NSObject
 
 - (void)dealloc {
-  CHECK(!_authServiceObserverBridge);
+  CHECK(!_authServiceObserverBridge, base::NotFatalUntil::M145);
   CHECK(!self.browserLifecycleManager, base::NotFatalUntil::M152);
 }
 
@@ -874,17 +881,6 @@ UrlLoadParams UpdateParamsForDinoGame(UrlLoadParams params) {
 - (void)profileState:(ProfileState*)profileState
     didTransitionToInitStage:(ProfileInitStage)nextInitStage
                fromInitStage:(ProfileInitStage)fromInitStage {
-  if (nextInitStage >= ProfileInitStage::kProfileLoaded && !_sceneState.prefs) {
-    CHECK(profileState.profile);
-    ProfileManagerIOS* manager = GetApplicationContext()->GetProfileManager();
-    _sceneState.prefs = [[SceneStatePrefs alloc]
-        initWithProfileManager:manager
-                   profileName:profileState.profile->GetProfileName()
-             sessionIdentifier:_sceneState.sceneSessionID
-                  sceneSession:_sceneState.scene.session];
-    [_sceneState.incognitoState preferencesDidLoad];
-  }
-
   [self transitionToSceneActivationLevel:self.sceneState.activationLevel
                         profileInitStage:nextInitStage];
 }
@@ -1081,10 +1077,7 @@ UrlLoadParams UpdateParamsForDinoGame(UrlLoadParams params) {
   // Find the first context that requires an account change.
   URLContext* firstContextForAccountChange =
       [self findContextRequiringAccountChange:contexts];
-  // Perform profile switching if needed. `openURL` is NO because for
-  // multi-profile cold launches, external intent handling is done when the new
-  // profile scene connects. If the target profile matches the current one,
-  // `changeProfileForContext` will override `openURL` to YES.
+  // Perform profile switching if needed.
   if ([self changeProfileForContext:firstContextForAccountChange
                            contexts:contexts
                             openURL:NO]) {
@@ -1194,9 +1187,7 @@ UrlLoadParams UpdateParamsForDinoGame(UrlLoadParams params) {
 
   // Find the first context that requires an account change.
   URLContext* context = [self findContextRequiringAccountChange:contexts];
-  // Perform profile switching if needed. `openURL` is YES so that the URLs are
-  // scheduled to open in the target scene after the profile change continuation
-  // completes.
+  // Perform profile switching if needed.
   if ([self changeProfileForContext:context contexts:contexts openURL:YES]) {
     // Don't open the URLs if the profile was changed.
     return;
@@ -1289,10 +1280,6 @@ UrlLoadParams UpdateParamsForDinoGame(UrlLoadParams params) {
   }
 }
 
-// Changes profile to handle `context` if needed.
-// `context.context` must belong to `contexts`.
-// `openURL`: Whether the URLs in `contexts` should be scheduled to open in the
-// scene via `URLContextsToOpen` when the profile or account change completes.
 // Returns YES if a profile change was triggered.
 - (BOOL)changeProfileForContext:(URLContext*)context
                        contexts:(NSSet<UIOpenURLContext*>*)contexts
@@ -1300,7 +1287,6 @@ UrlLoadParams UpdateParamsForDinoGame(UrlLoadParams params) {
   if (!context) {
     return NO;
   }
-  DCHECK([contexts containsObject:context.context]);
 
   // Perform profile switching if needed.
   id<ChangeProfileCommands> changeProfileHandler = HandlerForProtocol(
@@ -1351,7 +1337,7 @@ UrlLoadParams UpdateParamsForDinoGame(UrlLoadParams params) {
            forScene:self.sceneState
              reason:reason
        continuation:CreateChangeProfileAuthenticationContinuation(
-                        context, openURL ? contexts : nil)];
+                        context, contexts, openURL)];
   return YES;
 }
 
@@ -1727,13 +1713,13 @@ UrlLoadParams UpdateParamsForDinoGame(UrlLoadParams params) {
   }
 }
 
-- (void)setProfileState:(ProfileState*)profileState {
+- (void)connectWithOptions:(SceneStateOptions)options {
   DCHECK(!_sceneState.profileState);
-  DCHECK(!_sceneState.sceneSessionID.empty());
-  DCHECK(profileState);
+  DCHECK(!options.identifier.empty());
 
   // Connect the ProfileState with the SceneState.
-  _sceneState.profileState = profileState;
+  ProfileState* profileState = options.profile_state;
+  [_sceneState connectWithOptions:std::move(options)];
   [profileState sceneStateConnected:_sceneState];
 
   // Add agents. They may depend on the ProfileState, so they need to be
@@ -1754,6 +1740,9 @@ UrlLoadParams UpdateParamsForDinoGame(UrlLoadParams params) {
 
   // The UI should be stopped before the models they observe are stopped.
   [_mainCoordinator stop];
+  if (IsAlertCrashFixKillSwitchEnabled()) {
+    _mainCoordinator = nil;
+  }
 
   _incognitoWebStateObserver.reset();
   _mainWebStateObserver.reset();
@@ -1768,9 +1757,11 @@ UrlLoadParams UpdateParamsForDinoGame(UrlLoadParams params) {
   [self.browserLifecycleManager shutdown];
   self.browserLifecycleManager = nil;
 
-  // Keep _mainCoordinator alive until shutdown completes so that any late
-  // command invocations during UI teardown do not hit a deallocated target.
-  _mainCoordinator = nil;
+  if (!IsAlertCrashFixKillSwitchEnabled()) {
+    // Keep _mainCoordinator alive until shutdown completes so that any late
+    // command invocations during UI teardown do not hit a deallocated target.
+    _mainCoordinator = nil;
+  }
 
   [self.sceneState.profileState removeObserver:self];
   [_sceneState.uiBlockerState removeObserver:self];
@@ -2124,7 +2115,9 @@ UrlLoadParams UpdateParamsForDinoGame(UrlLoadParams params) {
   [_sceneState addAgent:[[SessionSavingSceneAgent alloc] init]];
   [_sceneState addAgent:[[LayoutGuideSceneAgent alloc] init]];
   [_sceneState addAgent:[[ShareExtensionSceneAgent alloc] init]];
-  [_sceneState addAgent:[[DataProtectionSceneAgent alloc] init]];
+  if (IsEnableScreenshotProtectionIOSEnabled()) {
+    [_sceneState addAgent:[[DataProtectionSceneAgent alloc] init]];
+  }
 
   if (IsEnableNewStartupFlowEnabled()) {
     [_sceneState addAgent:[[TaskUpdaterSceneAgent alloc] init]];
@@ -2132,25 +2125,14 @@ UrlLoadParams UpdateParamsForDinoGame(UrlLoadParams params) {
 }
 
 // Dismisses modal dialogs via the scene handler and optionally dismisses the
-// omnibox and Gemini.
+// omnibox.
 - (void)dismissModalDialogsWithCompletion:(ProceduralBlock)completion
-                           dismissOmnibox:(BOOL)dismissOmnibox
-                            dismissGemini:(BOOL)dismissGemini {
+                           dismissOmnibox:(BOOL)dismissOmnibox {
   id<SceneCommands> sceneHandler = HandlerForProtocol(
       self.currentBrowserForURLLoading->GetCommandDispatcher(), SceneCommands);
   [sceneHandler dismissModalDialogsWithCompletion:completion
                                    dismissOmnibox:dismissOmnibox
-                                 dismissSnackbars:YES
-                                    dismissGemini:dismissGemini];
-}
-
-// Dismisses modal dialogs via the scene handler and optionally dismisses the
-// omnibox.
-- (void)dismissModalDialogsWithCompletion:(ProceduralBlock)completion
-                           dismissOmnibox:(BOOL)dismissOmnibox {
-  [self dismissModalDialogsWithCompletion:completion
-                           dismissOmnibox:dismissOmnibox
-                            dismissGemini:YES];
+                                 dismissSnackbars:YES];
 }
 
 // Begins the process of activating the given current model, switching which BVC
@@ -2221,8 +2203,6 @@ UrlLoadParams UpdateParamsForDinoGame(UrlLoadParams params) {
   }
   __weak __typeof(self) weakSelf = self;
 
-  // TODO(b/541315801): C2PA: Shared image could have C2PA metadata; candidate
-  // to pass raw bytes.
   _imageTranscoder->TranscodeImage(
       _imageSearchData, @"image/jpeg", nil, nil, nil,
       base::BindOnce(
@@ -2243,8 +2223,6 @@ UrlLoadParams UpdateParamsForDinoGame(UrlLoadParams params) {
 
   id<LensCommands> lensHandler = HandlerForProtocol(
       self.currentInterface.browser->GetCommandDispatcher(), LensCommands);
-  // TODO(b/541315801): C2PA: Shared image could have C2PA metadata; candidate
-  // to pass raw bytes.
   UIImage* image = [UIImage imageWithData:imageData];
   SearchImageWithLensCommand* command = [[SearchImageWithLensCommand alloc]
       initWithImage:image
@@ -2483,19 +2461,8 @@ UrlLoadParams UpdateParamsForDinoGame(UrlLoadParams params) {
     }
   }
 
-  BOOL dismissGemini = YES;
-  if (targetMode != ApplicationModeForTabOpening::INCOGNITO) {
-    TabOpeningPostOpeningAction postOpeningAction =
-        self.startupParameters.postOpeningAction;
-    if (postOpeningAction == START_GEMINI_AI_SUMMARIZATION ||
-        postOpeningAction == TRIGGER_GEMINI_PROMO) {
-      dismissGemini = NO;
-    }
-  }
-
   [self dismissModalDialogsWithCompletion:dismissModalsCompletion
-                           dismissOmnibox:dismissOmnibox
-                            dismissGemini:dismissGemini];
+                           dismissOmnibox:dismissOmnibox];
 }
 
 - (void)dismissModalsAndOpenMultipleTabsWithURLs:(const std::vector<GURL>&)URLs
@@ -2696,17 +2663,6 @@ UrlLoadParams UpdateParamsForDinoGame(UrlLoadParams params) {
       initWithEntryPoint:gemini::EntryPoint::AppSwitcherAISummarization];
   startupState.prepopulatedPrompt =
       l10n_util::GetNSString(IDS_IOS_GEMINI_SUMMARIZE_PAGE_PROMPT);
-
-  AuthenticationService* authService =
-      AuthenticationServiceFactory::GetForProfile(browser->GetProfile());
-  id<SystemIdentity> identity =
-      authService ? authService->GetPrimaryIdentity() : nil;
-  NSString* activeHashedGaiaID = identity ? identity.hashedGaiaID : nil;
-  NSString* targetHashedGaiaID = self.startupParameters.appSwitcherHashedUserID;
-  if (targetHashedGaiaID.length && activeHashedGaiaID.length &&
-      ![targetHashedGaiaID isEqualToString:activeHashedGaiaID]) {
-    startupState.isMismatchedAccount = YES;
-  }
 
   id<GeminiCommands> geminiHandler =
       HandlerForProtocol(browser->GetCommandDispatcher(), GeminiCommands);

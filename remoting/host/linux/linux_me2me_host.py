@@ -18,7 +18,6 @@ import abc
 import argparse
 import atexit
 import base64
-import datetime
 import dbus
 import errno
 import getpass
@@ -350,26 +349,16 @@ def terminate_process(pid, name):
 
   logging.info("Sending SIGTERM to %s proc (pid=%s)",
                name, pid)
-  psutil_proc = psutil.Process(pid)
   try:
+    psutil_proc = psutil.Process(pid)
     psutil_proc.terminate()
 
     # Use a short timeout, to avoid delaying service shutdown if the
     # process refuses to die for some reason.
     psutil_proc.wait(timeout=10)
   except psutil.TimeoutExpired:
-    logging.error("Timed out - sending SIGKILL to %s proc (pid=%s)",
-                  name, pid)
-    try:
-      psutil_proc.kill()
-      psutil_proc.wait(timeout=10)
-    except psutil.TimeoutExpired:
-      logging.error(
-          "Timed out - process did not die after SIGKILL: %s proc (pid=%s)",
-          name, pid)
-    except psutil.NoSuchProcess:
-      # The process exited before or while sending SIGKILL, which is harmless.
-      pass
+    logging.error("Timed out - sending SIGKILL")
+    psutil_proc.kill()
   except psutil.Error:
     logging.error("Error terminating process")
 
@@ -1244,7 +1233,7 @@ class WaylandDesktop(Desktop):
   """Manage a single virtual wayland based desktop"""
 
   WL_SERVER_CHECK_DELAY_SECONDS = 1
-  WL_SERVER_CHECK_TIMEOUT_SECONDS = 60
+  WL_SERVER_CHECK_TIMEOUT_SECONDS = 30
   WL_SERVER_REPLY_TIMEOUT_SECONDS = 1
 
   def __init__(self, sizes, host_config, wayland_session):
@@ -1423,7 +1412,19 @@ class WaylandDesktop(Desktop):
 
   def cleanup(self):
     if self.host_proc is not None:
-      terminate_process(self.host_proc.pid, "host")
+      logging.info("Sending SIGTERM to host proc (pid=%s)", self.host_proc.pid)
+      try:
+        psutil_proc = psutil.Process(self.host_proc.pid)
+        psutil_proc.terminate()
+
+        # Use a short timeout, to avoid delaying service shutdown if the
+        # process refuses to die for some reason.
+        psutil_proc.wait(timeout=10)
+      except psutil.TimeoutExpired:
+        logging.error("Timed out - sending SIGKILL")
+        psutil_proc.kill()
+      except psutil.Error:
+        logging.error("Error terminating process")
       self.host_proc = None
     self._wayland_session.cleanup()
 
@@ -2342,12 +2343,6 @@ def main():
   if not options.child_process:
     return run_command_as_root(["systemctl", "start",
                                 "chrome-remote-desktop@" + getpass.getuser()])
-
-  logging.info("CRD service is starting")
-  logging.info("Machine hostname: %s", socket.getfqdn())
-  uptime = datetime.timedelta(
-      seconds=int(time.clock_gettime(time.CLOCK_BOOTTIME)))
-  logging.info("Machine uptime: %s", uptime)
 
   if display_manager_is_gdm():
     # See https://gitlab.gnome.org/GNOME/gdm/-/issues/580 for details on the

@@ -11,7 +11,6 @@
 #include "base/not_fatal_until.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/time/time.h"
-#include "base/uuid.h"
 #include "base/values.h"
 #include "chrome/browser/bookmarks/bookmark_model_factory.h"
 #include "chrome/browser/bookmarks/managed_bookmark_service_factory.h"
@@ -21,8 +20,9 @@
 #include "chrome/browser/signin/identity_manager_factory.h"
 #include "chrome/browser/signin/signin_util.h"
 #include "chrome/browser/sync/sync_service_factory.h"
-#include "chrome/browser/ui/bookmarks/bookmark_utils_desktop.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "chrome/browser/ui/browser_window/public/profile_browser_collection.h"
 #include "chrome/browser/ui/views/bookmarks/bookmark_account_storage_move_dialog.h"
 #include "chrome/grit/generated_resources.h"
@@ -39,10 +39,8 @@
 #include "components/signin/public/identity_manager/identity_manager.h"
 #include "components/sync/base/data_type.h"
 #include "components/sync/service/sync_service.h"
-#include "components/tabs/public/tab_interface.h"
 #include "google_apis/gaia/gaia_id.h"
 #include "ui/base/l10n/l10n_util.h"
-#include "ui/base/window_open_disposition.h"
 
 namespace {
 
@@ -167,10 +165,6 @@ void BookmarksMessageHandler::RegisterMessages() {
       base::BindRepeating(
           &BookmarksMessageHandler::HandleOnBatchUploadPromoDismissed,
           base::Unretained(this)));
-  web_ui()->RegisterMessageCallback(
-      "openBookmarks",
-      base::BindRepeating(&BookmarksMessageHandler::HandleOpenBookmarks,
-                          base::Unretained(this)));
 }
 
 void BookmarksMessageHandler::OnJavascriptAllowed() {
@@ -346,7 +340,8 @@ void BookmarksMessageHandler::HandleSingleUploadClicked(
   BrowserWindowInterface* const browser =
       ProfileBrowserCollection::GetForProfile(profile)->GetLastActiveBrowser();
   ShowBookmarkAccountStorageUploadDialog(
-      browser, bookmarks::GetBookmarkNodeByID(model, id));
+      browser ? browser->GetBrowserForMigrationOnly() : nullptr,
+      bookmarks::GetBookmarkNodeByID(model, id));
 }
 
 void BookmarksMessageHandler::UpdateCanEditBookmarks() {
@@ -416,16 +411,11 @@ void BookmarksMessageHandler::HandleOnBatchUploadPromoClicked(
   BatchUploadService* service =
       BatchUploadServiceFactory::GetForProfile(profile);
   CHECK(service);
-  auto* tab = tabs::TabInterface::GetFromContents(web_ui()->GetWebContents());
-  if (!tab) {
-    return;
-  }
-  auto* browser_window = tab->GetBrowserWindowInterface();
-  if (!browser_window) {
-    return;
-  }
+  BrowserWindowInterface* browser =
+      GlobalBrowserCollection::GetInstance()->FindBrowserWithTab(
+          web_ui()->GetWebContents());
   service->OpenBatchUpload(
-      browser_window,
+      browser->GetBrowserForMigrationOnly(),
       BatchUploadService::EntryPoint::kBookmarksManagerPromoCard);
 }
 
@@ -467,7 +457,6 @@ void BookmarksMessageHandler::OnSyncShutdown(
 
 void BookmarksMessageHandler::ExtensiveBookmarkChangesBeginning() {
   batch_updates_ongoing_ = true;
-  FireWebUIListener("import-began");
 }
 
 void BookmarksMessageHandler::ExtensiveBookmarkChangesEnded() {
@@ -477,7 +466,6 @@ void BookmarksMessageHandler::ExtensiveBookmarkChangesEnded() {
     RequestLocalDataDescriptionsUpdate();
     need_local_count_update_ = false;
   }
-  FireWebUIListener("import-ended");
 }
 
 void BookmarksMessageHandler::BookmarkModelLoaded(bool ids_reassigned) {
@@ -530,51 +518,4 @@ void BookmarksMessageHandler::BookmarkNodeAdded(
   if (model->IsLocalOnlyNode(*parent->children()[index].get())) {
     RequestUpdateOrWaitForBatchUpdateEnd();
   }
-}
-
-void BookmarksMessageHandler::HandleOpenBookmarks(const base::ListValue& args) {
-  CHECK_GE(args.size(), 3U);
-  const base::ListValue& uuid_list = args[0].GetList();
-  WindowOpenDisposition disposition =
-      static_cast<WindowOpenDisposition>(args[1].GetInt());
-  bookmarks::OpenAllBookmarksContext context =
-      static_cast<bookmarks::OpenAllBookmarksContext>(args[2].GetInt());
-
-  Profile* profile = Profile::FromWebUI(web_ui());
-  bookmarks::BookmarkModel* model =
-      BookmarkModelFactory::GetForBrowserContext(profile);
-
-  std::vector<raw_ptr<const bookmarks::BookmarkNode, VectorExperimental>> nodes;
-  for (const auto& val : uuid_list) {
-    const std::string& uuid_str = val.GetString();
-    base::Uuid uuid = base::Uuid::ParseLowercase(uuid_str);
-    if (!uuid.is_valid()) {
-      continue;
-    }
-    const bookmarks::BookmarkNode* node = model->GetNodeByUuid(
-        uuid, bookmarks::BookmarkModel::NodeTypeForUuidLookup::kAccountNodes);
-    if (!node) {
-      node = model->GetNodeByUuid(
-          uuid, bookmarks::BookmarkModel::NodeTypeForUuidLookup::
-                    kLocalOrSyncableNodes);
-    }
-    if (node) {
-      nodes.push_back(node);
-    }
-  }
-
-  if (nodes.empty()) {
-    return;
-  }
-
-  auto* tab = tabs::TabInterface::GetFromContents(web_ui()->GetWebContents());
-  if (!tab) {
-    return;
-  }
-  auto* browser_window = tab->GetBrowserWindowInterface();
-  if (!browser_window) {
-    return;
-  }
-
-  bookmarks::OpenAllIfAllowed(browser_window, nodes, disposition, context);
 }

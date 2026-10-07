@@ -16,7 +16,6 @@
 #include "third_party/blink/renderer/core/html/time_ranges.h"
 #include "third_party/blink/renderer/platform/bindings/exception_state.h"
 #include "third_party/blink/renderer/platform/instrumentation/use_counter.h"
-#include "third_party/blink/renderer/platform/wtf/text/format.h"
 
 namespace {
 
@@ -119,7 +118,7 @@ String MediaControlsSharedHelpers::FormatTime(double time) {
   seconds %= 60;
   minutes %= 60;
 
-  StringView negative_sign = (time < 0 ? StringView("-") : StringView());
+  const char* negative_sign = (time < 0 ? "-" : "");
 
   // [0-10) minutes duration is m:ss
   // [10-60) minutes duration is mm:ss
@@ -129,10 +128,12 @@ String MediaControlsSharedHelpers::FormatTime(double time) {
   // etc.
 
   if (hours > 0) {
-    return Format("{}{}:{:02}:{:02}", negative_sign, hours, minutes, seconds);
+    return UNSAFE_TODO(String::Format("%s%d:%02d:%02d", negative_sign, hours,
+                                      minutes, seconds));
   }
 
-  return Format("{}{}:{:02}", negative_sign, minutes, seconds);
+  return UNSAFE_TODO(
+      String::Format("%s%d:%02d", negative_sign, minutes, seconds));
 }
 
 bool MediaControlsSharedHelpers::ShouldShowFullscreenButton(

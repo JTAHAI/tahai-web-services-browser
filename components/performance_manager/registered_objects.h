@@ -10,7 +10,6 @@
 #include "base/check_op.h"
 #include "base/containers/flat_set.h"
 #include "base/memory/raw_ptr.h"
-#include "base/sequence_checker.h"
 
 namespace performance_manager {
 
@@ -27,11 +26,7 @@ template <typename RegisteredType>
 class RegisteredObjects {
  public:
   RegisteredObjects() = default;
-
-  ~RegisteredObjects() {
-    DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-    CHECK(objects_.empty());
-  }
+  ~RegisteredObjects() { CHECK(objects_.empty()); }
 
   RegisteredObjects(const RegisteredObjects&) = delete;
   RegisteredObjects& operator=(const RegisteredObjects&) = delete;
@@ -39,14 +34,8 @@ class RegisteredObjects {
   // Registers an object with this container. No more than one object of a given
   // type may be registered at once.
   void RegisterObject(RegisteredType* object) {
-    DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-    CHECK(object);
-    uintptr_t type_id = object->GetTypeId();
-    // Find the location to insert the object before, and check if it already
-    // contains a `type_id` object.
-    auto it = objects_.lower_bound(type_id);
-    CHECK(it == objects_.end() || (*it)->GetTypeId() != type_id);
-    objects_.insert(it, object);
+    CHECK_EQ(nullptr, GetRegisteredObject(object->GetTypeId()));
+    objects_.insert(object);
     // If there are ever so many registered objects we should consider changing
     // data structures.
     CHECK_GT(100u, objects_.size());
@@ -55,17 +44,12 @@ class RegisteredObjects {
   // Unregisters an object from this container. The object must previously have
   // been registered.
   void UnregisterObject(RegisteredType* object) {
-    DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-    CHECK(object);
-    auto it = objects_.find(object->GetTypeId());
-    CHECK(it != objects_.end());
-    CHECK_EQ(object, *it);
-    objects_.erase(it);
+    CHECK_EQ(object, GetRegisteredObject(object->GetTypeId()));
+    objects_.erase(object);
   }
 
   // Returns the object with the registered type, nullptr if none exists.
   RegisteredType* GetRegisteredObject(uintptr_t type_id) {
-    DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
     auto it = objects_.find(type_id);
     if (it == objects_.end())
       return nullptr;
@@ -74,16 +58,10 @@ class RegisteredObjects {
   }
 
   // Returns the current size of this container.
-  size_t size() const {
-    DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-    return objects_.size();
-  }
+  size_t size() const { return objects_.size(); }
 
   // Returns true if this container is empty.
-  bool empty() const {
-    DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-    return objects_.empty();
-  }
+  bool empty() const { return objects_.empty(); }
 
  private:
   // Comparator for registered objects. They are stored by raw pointers but
@@ -102,9 +80,8 @@ class RegisteredObjects {
     }
   };
 
-  SEQUENCE_CHECKER(sequence_checker_);
   base::flat_set<raw_ptr<RegisteredType, CtnExperimental>, RegisteredComparator>
-      objects_ GUARDED_BY_CONTEXT(sequence_checker_);
+      objects_;
 };
 
 }  // namespace performance_manager

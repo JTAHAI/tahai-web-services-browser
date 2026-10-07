@@ -29,7 +29,6 @@ class BrowserWindowInterface;
 class WebUIToolbarControlDelegate;
 
 namespace page_actions {
-class AnchoredMessageBubbleView;
 class PageActionModelInterface;
 class PageActionViewInterface;
 class WebUIPageActionView;
@@ -54,18 +53,12 @@ class WebUIPageActionControl {
   // Updates the active controller based on the active tab of the browser.
   void UpdateController(content::WebContents* web_contents);
 
-  // Asks the active controller to update visibility of page actions.
-  void SetShouldHidePageActions(bool should_hide_page_actions);
-
   // Returns the current state of all visible page actions for WebUI.
   std::vector<toolbar_ui_api::mojom::PageActionStatePtr> GetPageActionStates();
 
   // Returns the PageActionViewInterface for the given action id.
   PageActionViewInterface* GetPageActionViewInterface(
       actions::ActionId action_id);
-
-  // Handles a pointer down on a page action from WebUI.
-  void OnPageActionPointerDown(toolbar_ui_api::mojom::PageActionId action_id);
 
   // Handles a click on a page action from WebUI.
   void OnPageActionClick(
@@ -80,22 +73,11 @@ class WebUIPageActionControl {
       toolbar_ui_api::mojom::ToolbarUIService::
           OnPageActionChipShowingChangedCallback callback);
 
-  void SetSuppressionThresholdForTesting(base::TimeDelta threshold);
-
   // Helpers accessed by WebUIPageActionView:
   BrowserWindowInterface* GetBrowser();
   const page_actions::PageActionModelInterface* GetObservedModel(
       actions::ActionId action_id) const;
   page_actions::PageActionController* GetController(
-      actions::ActionId action_id);
-
-  // Returns true if there is an anchored message currently showing for
-  // `action_id`.
-  bool IsAnchoredMessageShowing(actions::ActionId action_id) const;
-
-  // Returns the AnchoredMessageBubbleView currently showing for `action_id`,
-  // or nullptr if none is showing. For testing.
-  AnchoredMessageBubbleView* GetAnchoredMessageForTesting(
       actions::ActionId action_id);
 
  private:

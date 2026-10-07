@@ -19,7 +19,6 @@ import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.components.embedder_support.util.UrlConstants;
-import org.chromium.components.embedder_support.util.UrlUtilities;
 import org.chromium.components.url_formatter.SchemeDisplay;
 import org.chromium.components.url_formatter.UrlFormatter;
 import org.chromium.content_public.browser.RenderFrameHost;
@@ -296,17 +295,13 @@ public class PaymentRequestService
 
         /**
          * @param request The SecurePaymentConfirmationRequest to verify.
-         * @param initiatorOrigin The origin of the initiator frame.
-         * @param applicationLocale The current application locale.
          * @return The validation error result.
          */
         default @SecurePaymentConfirmationRequestValidationError int
                 validateSecurePaymentConfirmationRequest(
-                        SecurePaymentConfirmationRequest request,
-                        Origin initiatorOrigin,
-                        String applicationLocale) {
+                        SecurePaymentConfirmationRequest request, Origin initiatorOrigin) {
             return PaymentValidator.validateSecurePaymentConfirmationRequest(
-                    request, initiatorOrigin, applicationLocale);
+                    request, initiatorOrigin);
         }
 
         /**
@@ -514,16 +509,6 @@ public class PaymentRequestService
         mShippingType = mPaymentOptions.shippingType;
 
         mJourneyLogger.recordCheckoutStep(CheckoutFunnelStep.INITIATED);
-        if (!mRenderFrameHost.isOutermostMainFrame()
-                && mRenderFrameHost.getLastCommittedURL() != null
-                && mRenderFrameHost.getMainFrame() != null
-                && mRenderFrameHost.getMainFrame().getLastCommittedURL() != null
-                && !UrlUtilities.sameDomainOrHost(
-                        mRenderFrameHost.getLastCommittedURL().getSpec(),
-                        mRenderFrameHost.getMainFrame().getLastCommittedURL().getSpec(),
-                        true)) {
-            mJourneyLogger.setInitiatedInCrossSiteIframe();
-        }
 
         if (!mDelegate.isOriginAllowedToUseWebPaymentApis(mWebContents.getLastCommittedUrl())) {
             Log.d(TAG, ErrorStrings.PROHIBITED_ORIGIN);
@@ -565,11 +550,6 @@ public class PaymentRequestService
                 mJourneyLogger.setAborted(AbortReason.INVALID_DATA_FROM_RENDERER);
 
                 if (validationResult
-                        == SecurePaymentConfirmationRequestValidationError.LOCALE_DOES_NOT_MATCH) {
-                    disconnectFromClientWithDebugMessage(
-                            ErrorStrings.SPC_LOCALE_DOES_NOT_MATCH,
-                            PaymentErrorReason.NOT_SUPPORTED);
-                } else if (validationResult
                         == SecurePaymentConfirmationRequestValidationError
                                 .WEB_AUTHN_EXTENSIONS_NOT_SUPPORTED) {
                     disconnectFromClientWithDebugMessage(
@@ -661,9 +641,7 @@ public class PaymentRequestService
 
         // Delegate to the native implementation for final validation.
         return mDelegate.validateSecurePaymentConfirmationRequest(
-                spcMethodData.securePaymentConfirmation,
-                mPaymentRequestSecurityOrigin,
-                LocaleUtils.getDefaultLocaleString());
+                spcMethodData.securePaymentConfirmation, mPaymentRequestSecurityOrigin);
     }
 
     private void startPaymentAppService() {
@@ -1008,8 +986,7 @@ public class PaymentRequestService
             if (mBrowserPaymentRequest.showNoMatchingPaymentCredential()) {
                 if (sNativeObserverForTest != null) {
                     sNativeObserverForTest.onAppListReady(
-                            mBrowserPaymentRequest.getPaymentApps(),
-                            mBrowserPaymentRequest.getPaymentApps().get(0).getTotalForSpc());
+                            mBrowserPaymentRequest.getPaymentApps(), mSpec.getRawTotal());
                 }
                 return null;
             }
@@ -1592,7 +1569,6 @@ public class PaymentRequestService
         if (sNativeObserverForTest != null) {
             sNativeObserverForTest.onCanMakePaymentCalled();
         }
-        mJourneyLogger.setCanMakePaymentCalled();
 
         if (mIsFinishedQueryingPaymentApps) {
             respondCanMakePaymentQuery();
@@ -1607,7 +1583,6 @@ public class PaymentRequestService
         if (sNativeObserverForTest != null) {
             sNativeObserverForTest.onHasEnrolledInstrumentCalled();
         }
-        mJourneyLogger.setHasEnrolledInstrumentCalled();
 
         if (mIsFinishedQueryingPaymentApps) {
             respondHasEnrolledInstrumentQuery();

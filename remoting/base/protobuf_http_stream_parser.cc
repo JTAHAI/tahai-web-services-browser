@@ -4,7 +4,9 @@
 
 #include "remoting/base/protobuf_http_stream_parser.h"
 
-#include "base/containers/span.h"
+#include <string.h>
+
+#include "base/compiler_specific.h"
 #include "base/logging.h"
 #include "base/numerics/safe_conversions.h"
 #include "base/strings/stringprintf.h"
@@ -46,7 +48,7 @@ void ProtobufHttpStreamParser::Append(std::string_view data) {
   }
 
   DCHECK_GE(read_buffer_->RemainingCapacity(), static_cast<int>(data.size()));
-  read_buffer_->span().copy_prefix_from(base::as_byte_span(data));
+  UNSAFE_TODO(memcpy(read_buffer_->data(), data.data(), data.size()));
   read_buffer_->set_offset(read_buffer_->offset() + data.size());
 
   ParseStreamIfAvailable();

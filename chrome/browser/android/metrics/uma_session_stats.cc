@@ -5,6 +5,7 @@
 #include "chrome/browser/android/metrics/uma_session_stats.h"
 
 #include "base/android/application_status_listener.h"
+#include "base/android/jni_array.h"
 #include "base/android/jni_string.h"
 #include "base/command_line.h"
 #include "base/functional/bind.h"
@@ -32,12 +33,13 @@
 #include "components/ukm/ukm_service.h"
 #include "components/variations/synthetic_trial_registry.h"
 #include "content/public/browser/browser_thread.h"
-#include "third_party/jni_zero/default_conversions.h"
 
 // Must come after all headers that specialize FromJniType() / ToJniType().
 #include "chrome/android/chrome_jni_headers/UmaSessionStats_jni.h"
 
 using base::UserMetricsAction;
+using base::android::ConvertJavaStringToUTF8;
+using base::android::JavaRef;
 
 namespace {
 // Used to keep the state of whether we should consider metric consent enabled.
@@ -78,7 +80,7 @@ enum class ChromeActivityCounter : int32_t {
 class UmaSessionStatsExternalExperimentRegistrar {
  public:
   static void RegisterExternalExperiments(
-      const std::vector<int32_t>& experiment_ids,
+      const std::vector<int>& experiment_ids,
       variations::SyntheticTrialRegistry::OverrideMode override_mode) {
     g_browser_process->metrics_service()
         ->GetSyntheticTrialRegistry()
@@ -88,7 +90,7 @@ class UmaSessionStatsExternalExperimentRegistrar {
   }
 };
 
-void UmaSessionStats::UmaResumeSession() {
+void UmaSessionStats::UmaResumeSession(JNIEnv* env) {
   DCHECK(g_browser_process);
   if (++active_session_count_ == 1) {
     const bool had_background_session =
@@ -120,7 +122,7 @@ void UmaSessionStats::UmaResumeSession() {
   }
 }
 
-void UmaSessionStats::UmaEndSession() {
+void UmaSessionStats::UmaEndSession(JNIEnv* env) {
   // Only close the record if this is the last session.
   if (active_session_count_ == 1) {
     // closing_active_session_ maintains the previous (incorrect) behavior of
@@ -301,6 +303,7 @@ void UmaSessionStats::SessionTimeTracker::BeginBackgroundSession() {
 // needed. This is enforced by UmaSessionStats.changeMetricsReportingState on
 // the Java side.
 static void JNI_UmaSessionStats_ChangeMetricsReportingState(
+    JNIEnv*,
     bool enabled,
     int32_t called_from) {
   metrics::UpdateMetricsPrefsOnPermissionChange(
@@ -319,7 +322,8 @@ static void JNI_UmaSessionStats_ChangeMetricsReportingState(
 }
 
 // Initialize the local consent bool variable to false. Used only for testing.
-static void JNI_UmaSessionStats_InitMetricsAndCrashReportingForTesting() {
+static void JNI_UmaSessionStats_InitMetricsAndCrashReportingForTesting(
+    JNIEnv*) {
   DCHECK(g_browser_process);
 
   g_metrics_consent_for_testing = false;
@@ -329,7 +333,8 @@ static void JNI_UmaSessionStats_InitMetricsAndCrashReportingForTesting() {
 
 // Clears the boolean consent pointer for ChromeMetricsServiceAccessor to
 // original setting. Used only for testing.
-static void JNI_UmaSessionStats_UnsetMetricsAndCrashReportingForTesting() {
+static void JNI_UmaSessionStats_UnsetMetricsAndCrashReportingForTesting(
+    JNIEnv*) {
   DCHECK(g_browser_process);
 
   g_metrics_consent_for_testing = false;
@@ -340,6 +345,7 @@ static void JNI_UmaSessionStats_UnsetMetricsAndCrashReportingForTesting() {
 // InitMetricsAndCrashReportingForTesting as the Set isn't meant to be used
 // repeatedly. Used only for testing.
 static void JNI_UmaSessionStats_UpdateMetricsAndCrashReportingForTesting(
+    JNIEnv*,
     bool consent) {
   DCHECK(g_browser_process);
 
@@ -360,7 +366,8 @@ static void JNI_UmaSessionStats_UpdateMetricsAndCrashReportingForTesting(
 // This can be called at any time when consent hasn't changed, such as
 // connection type change, or start up. If consent has changed, then
 // ChangeMetricsReportingState() should be called first.
-static void JNI_UmaSessionStats_UpdateMetricsServiceState(bool may_upload) {
+static void JNI_UmaSessionStats_UpdateMetricsServiceState(JNIEnv*,
+                                                          bool may_upload) {
   // This will also apply the consent state, taken from Chrome Local State
   // prefs.
   g_browser_process->GetMetricsServicesManager()->UpdateUploadPermissions(
@@ -368,8 +375,16 @@ static void JNI_UmaSessionStats_UpdateMetricsServiceState(bool may_upload) {
 }
 
 static void JNI_UmaSessionStats_RegisterExternalExperiment(
-    const std::vector<int32_t>& experiment_ids,
+    JNIEnv* env,
+    const JavaRef<jintArray>& jexperiment_ids,
     bool override_existing_ids) {
+  std::vector<int> experiment_ids;
+  // A null |jexperiment_ids| is the same as an empty list.
+  if (jexperiment_ids) {
+    base::android::JavaIntArrayToIntVector(env, jexperiment_ids,
+                                           &experiment_ids);
+  }
+
   auto override_mode =
       override_existing_ids
           ? variations::SyntheticTrialRegistry::kOverrideExistingIds
@@ -380,20 +395,23 @@ static void JNI_UmaSessionStats_RegisterExternalExperiment(
 }
 
 static void JNI_UmaSessionStats_RegisterSyntheticFieldTrial(
+    JNIEnv* env,
     const std::string& trial_name,
     const std::string& group_name,
-    int32_t annotation_mode) {
+    int annotation_mode) {
   UmaSessionStats::RegisterSyntheticFieldTrial(
       trial_name, group_name,
       static_cast<variations::SyntheticTrialAnnotationMode>(annotation_mode));
 }
 
-static void JNI_UmaSessionStats_RecordTabCountPerLoad(int32_t num_tabs) {
+static void JNI_UmaSessionStats_RecordTabCountPerLoad(JNIEnv*,
+                                                      int32_t num_tabs) {
   // Record how many tabs total are open.
   UMA_HISTOGRAM_CUSTOM_COUNTS("Tabs.TabCountPerLoad", num_tabs, 1, 200, 50);
 }
 
-static void JNI_UmaSessionStats_RecordPageLoaded(bool is_desktop_user_agent) {
+static void JNI_UmaSessionStats_RecordPageLoaded(JNIEnv*,
+                                                 bool is_desktop_user_agent) {
   // Should be called whenever a page has been loaded.
   base::RecordAction(UserMetricsAction("MobilePageLoaded"));
   if (is_desktop_user_agent) {
@@ -401,23 +419,23 @@ static void JNI_UmaSessionStats_RecordPageLoaded(bool is_desktop_user_agent) {
   }
 }
 
-static void JNI_UmaSessionStats_RecordPageLoadedWithAccessory() {
+static void JNI_UmaSessionStats_RecordPageLoadedWithAccessory(JNIEnv*) {
   base::RecordAction(UserMetricsAction("MobilePageLoadedWithAccessory"));
 }
 
-static void JNI_UmaSessionStats_RecordPageLoadedWithKeyboard() {
+static void JNI_UmaSessionStats_RecordPageLoadedWithKeyboard(JNIEnv*) {
   base::RecordAction(UserMetricsAction("MobilePageLoadedWithKeyboard"));
 }
 
-static void JNI_UmaSessionStats_RecordPageLoadedWithMouse() {
+static void JNI_UmaSessionStats_RecordPageLoadedWithMouse(JNIEnv*) {
   base::RecordAction(UserMetricsAction("MobilePageLoadedWithMouse"));
 }
 
-static void JNI_UmaSessionStats_RecordPageLoadedWithToEdge() {
+static void JNI_UmaSessionStats_RecordPageLoadedWithToEdge(JNIEnv*) {
   base::RecordAction(UserMetricsAction("MobilePageLoadedWithToEdge"));
 }
 
-static int64_t JNI_UmaSessionStats_Init() {
+static int64_t JNI_UmaSessionStats_Init(JNIEnv* env) {
   // We should have only one UmaSessionStats instance.
   return reinterpret_cast<intptr_t>(UmaSessionStats::GetInstance());
 }

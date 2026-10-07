@@ -125,7 +125,7 @@ public class AsyncViewStub extends View {
             assert viewParent != null;
             AsyncLayoutInflater asyncLayoutInflater = new AsyncLayoutInflater(getContext());
             if (mOnBackground) {
-                asyncLayoutInflater.inflate(mLayoutResource, this::onInflateFinished);
+                asyncLayoutInflater.inflate(mLayoutResource, viewParent, this::onInflateFinished);
             } else {
                 View inflatedView = asyncLayoutInflater.inflateSync(mLayoutResource, viewParent);
                 onInflateFinished(inflatedView);

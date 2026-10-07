@@ -392,7 +392,8 @@ InterpolationValue CSSInterpolationType::MaybeConvertCustomPropertyDeclaration(
     DCHECK(
         !resolved_declaration->VariableDataValue()->NeedsVariableResolution());
     CSSParserLocalContext local_context(GetProperty().GetCSSPropertyName(),
-                                        CSSPropertyID::kInvalid);
+                                        CSSPropertyID::kInvalid,
+                                        /*custom_function_name=*/g_null_atom);
     value = resolved_declaration->VariableDataValue()->ParseForSyntax(
         registration_->Syntax(),
         state.GetDocument().GetExecutionContext()->GetSecureContextMode(),

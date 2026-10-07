@@ -47,7 +47,13 @@
 namespace blink {
 
 template <typename Strategy>
-VisiblePositionTemplate<Strategy>::VisiblePositionTemplate() = default;
+VisiblePositionTemplate<Strategy>::VisiblePositionTemplate()
+#if DCHECK_IS_ON()
+    : dom_tree_version_(0),
+      style_version_(0)
+#endif
+{
+}
 
 template <typename Strategy>
 VisiblePositionTemplate<Strategy>::VisiblePositionTemplate(

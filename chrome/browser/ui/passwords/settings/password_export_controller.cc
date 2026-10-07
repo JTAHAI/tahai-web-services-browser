@@ -20,7 +20,6 @@
 #include "chrome/common/chrome_paths.h"
 #include "chrome/grit/branded_strings.h"
 #include "components/password_manager/core/browser/export/password_manager_exporter.h"
-#include "components/password_manager/core/browser/ui/saved_passwords_presenter.h"
 #include "components/strings/grit/components_strings.h"
 #include "content/public/browser/web_contents.h"
 #include "ui/base/l10n/l10n_util.h"
@@ -52,7 +51,7 @@ ui::SelectFileDialog::FileTypeInfo FileTypeInfoForExport() {
 }  // namespace
 
 PasswordExportController::PasswordExportController(
-    password_manager::SavedPasswordsPresenter& presenter,
+    password_manager::SavedPasswordsPresenter* presenter,
     ExportProgressCallback on_export_progress_callback)
     : presenter_(presenter),
       on_export_progress_callback_(on_export_progress_callback) {}
@@ -74,7 +73,7 @@ bool PasswordExportController::Export(content::WebContents* web_contents) {
   if (!exporter_) {
     // Set a new exporter for this request.
     exporter_ = std::make_unique<password_manager::PasswordManagerExporter>(
-        presenter_.get(),
+        presenter_,
         base::BindRepeating(&PasswordExportController::OnExportProgress,
                             weak_ptr_factory_.GetWeakPtr()),
         base::BindOnce(&PasswordExportController::ExportDone,

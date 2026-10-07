@@ -14,16 +14,16 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import static org.chromium.ui.test.util.MockitoHelper.clearInvocations;
-
 import android.app.Activity;
 import android.content.pm.ApplicationInfo;
 import android.content.res.Configuration;
 import android.graphics.Rect;
+import android.os.Looper;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewConfiguration;
 import android.view.ViewGroup;
+import android.view.accessibility.AccessibilityEvent;
 import android.widget.PopupWindow.OnDismissListener;
 
 import androidx.core.graphics.Insets;
@@ -44,11 +44,11 @@ import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
 import org.robolectric.Robolectric;
 import org.robolectric.Shadows;
+import org.robolectric.annotation.Config;
 
 import org.chromium.base.ContextUtils;
 import org.chromium.base.ResettersForTesting;
 import org.chromium.base.test.BaseRobolectricTestRunner;
-import org.chromium.base.test.RobolectricUtil;
 import org.chromium.chrome.browser.omnibox.R;
 import org.chromium.chrome.browser.omnibox.fusebox.FuseboxCoordinator.PopupState;
 import org.chromium.components.omnibox.OmniboxCapabilities;
@@ -64,18 +64,20 @@ import java.util.Locale;
 
 /** Unit tests for FuseboxPopup. */
 @RunWith(BaseRobolectricTestRunner.class)
+@Config(manifest = Config.NONE)
 public class FuseboxPopupUnitTest {
-    @Rule public final MockitoRule mockitoRule = MockitoJUnit.rule();
+    public @Rule MockitoRule mockitoRule = MockitoJUnit.rule();
 
-    @Mock private AnchoredPopupWindow mPopupWindow;
-    @Mock private DynamicRectProvider mDynamicRectProvider;
-    @Mock private WindowAndroid mWindowAndroid;
-    @Mock private InsetObserver mInsetObserver;
-    @Mock private WindowInsetsCompat mWindowInsets;
-    @Mock private WindowMetricsCalculator mWindowMetricsCalculator;
+    private @Mock AnchoredPopupWindow mPopupWindow;
+    private @Mock View.AccessibilityDelegate mAccessibilityDelegate;
+    private @Mock DynamicRectProvider mDynamicRectProvider;
+    private @Mock WindowAndroid mWindowAndroid;
+    private @Mock InsetObserver mInsetObserver;
+    private @Mock WindowInsetsCompat mWindowInsets;
+    private @Mock WindowMetricsCalculator mWindowMetricsCalculator;
 
-    @Captor private ArgumentCaptor<RectProvider.Observer> mObserverCaptor;
-    @Captor private ArgumentCaptor<OnDismissListener> mDismissListenerCaptor;
+    private @Captor ArgumentCaptor<RectProvider.Observer> mObserverCaptor;
+    private @Captor ArgumentCaptor<OnDismissListener> mDismissListenerCaptor;
 
     private Activity mActivity;
     private FuseboxPopup mFuseboxPopup;
@@ -111,7 +113,6 @@ public class FuseboxPopupUnitTest {
 
     @After
     public void tearDown() {
-        RobolectricUtil.runAllBackgroundAndUi();
         WindowMetricsCalculator.overrideDecorator(
                 new WindowMetricsCalculatorDecorator() {
                     @Override
@@ -150,6 +151,70 @@ public class FuseboxPopupUnitTest {
     }
 
     @Test
+    public void testFocusFirstViewForAccessibility_traversalOrder_firstEligibleChildSelected() {
+        View attachmentContainer = mViewGroup.getChildAt(0);
+        View competingChild = mViewGroup.getChildAt(1);
+
+        attachmentContainer.setVisibility(View.VISIBLE);
+        competingChild.setVisibility(View.VISIBLE);
+        competingChild.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_YES);
+        competingChild.setAccessibilityDelegate(mAccessibilityDelegate);
+
+        View galleryButton = mContentView.findViewById(R.id.fusebox_pick_picture_button);
+        galleryButton.setVisibility(View.VISIBLE);
+        galleryButton.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_YES);
+        galleryButton.setAccessibilityDelegate(mAccessibilityDelegate);
+
+        mFuseboxPopup.focusFirstViewForAccessibility();
+
+        verify(mAccessibilityDelegate, atLeastOnce())
+                .sendAccessibilityEvent(galleryButton, AccessibilityEvent.TYPE_VIEW_FOCUSED);
+        verify(mAccessibilityDelegate, never())
+                .sendAccessibilityEvent(competingChild, AccessibilityEvent.TYPE_VIEW_FOCUSED);
+    }
+
+    @Test
+    public void testFocusFirstViewForAccessibility_traversalOrder_skipsHiddenContainers() {
+        View attachmentContainer = mViewGroup.getChildAt(0);
+        View fallbackChild = mViewGroup.getChildAt(1);
+
+        // Setting container to GONE causes recursive traversal to skip its entire subtree.
+        attachmentContainer.setVisibility(View.GONE);
+
+        fallbackChild.setVisibility(View.VISIBLE);
+        fallbackChild.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_YES);
+        fallbackChild.setAccessibilityDelegate(mAccessibilityDelegate);
+
+        mFuseboxPopup.focusFirstViewForAccessibility();
+
+        verify(mAccessibilityDelegate, atLeastOnce())
+                .sendAccessibilityEvent(fallbackChild, AccessibilityEvent.TYPE_VIEW_FOCUSED);
+    }
+
+    @Test
+    public void testFocusFirstViewForAccessibility_traversalOrder_skipsUnimportantViews() {
+        View attachmentContainer = mViewGroup.getChildAt(0);
+        View fallbackChild1 = mViewGroup.getChildAt(1);
+        View fallbackChild2 = mViewGroup.getChildAt(2);
+
+        // Setting container to GONE causes recursive traversal to skip its entire subtree.
+        attachmentContainer.setVisibility(View.GONE);
+
+        fallbackChild1.setVisibility(View.VISIBLE);
+        fallbackChild1.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        fallbackChild1.setAccessibilityDelegate(mAccessibilityDelegate);
+
+        fallbackChild2.setVisibility(View.VISIBLE);
+        fallbackChild2.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_YES);
+        fallbackChild2.setAccessibilityDelegate(mAccessibilityDelegate);
+
+        mFuseboxPopup.focusFirstViewForAccessibility();
+
+        verify(mAccessibilityDelegate, atLeastOnce())
+                .sendAccessibilityEvent(fallbackChild2, AccessibilityEvent.TYPE_VIEW_FOCUSED);
+    }
+
+    @Test
     public void testSetPopupState_Hidden() {
         mFuseboxPopup.setPopupState(PopupState.HIDDEN);
         verify(mDynamicRectProvider).setPopupState(PopupState.HIDDEN);
@@ -159,44 +224,15 @@ public class FuseboxPopupUnitTest {
     @Test
     public void testSetPopupState_Floating() {
         mFuseboxPopup.setPopupState(PopupState.FLOATING);
-        RobolectricUtil.runAllBackgroundAndUi();
+        Shadows.shadowOf(Looper.getMainLooper()).idle();
         verify(mDynamicRectProvider).setPopupState(PopupState.FLOATING);
-        verify(mPopupWindow).show();
-    }
-
-    @Test
-    public void testSetPopupState_firstShow_updatesDesiredWidthBeforeShowing() {
-        doReturn(250).when(mDynamicRectProvider).getPopupWidth(eq(PopupState.FLOATING), any());
-
-        mFuseboxPopup.setPopupState(PopupState.FLOATING);
-
-        // Desired width is updated synchronously on first show before the show task runs.
-        verify(mPopupWindow)
-                .updateDesiredContentSize(
-                        /* width= */ 250, /* height= */ 0, /* updateLayout= */ true);
-        verify(mPopupWindow, never()).show();
-
-        RobolectricUtil.runAllBackgroundAndUi();
-        verify(mPopupWindow).show();
-    }
-
-    @Test
-    public void testSetPopupState_subsequentShow_showsImmediately() {
-        mFuseboxPopup.setPopupState(PopupState.FLOATING);
-        RobolectricUtil.runAllBackgroundAndUi();
-
-        mFuseboxPopup.setPopupState(PopupState.HIDDEN);
-        clearInvocations(mPopupWindow);
-
-        mFuseboxPopup.setPopupState(PopupState.FLOATING);
-        // On subsequent show, show() is invoked immediately without needing task posting.
         verify(mPopupWindow).show();
     }
 
     @Test
     public void testSetPopupState_Bottom() {
         mFuseboxPopup.setPopupState(PopupState.BOTTOM);
-        RobolectricUtil.runAllBackgroundAndUi();
+        Shadows.shadowOf(Looper.getMainLooper()).idle();
         verify(mDynamicRectProvider).setPopupState(PopupState.BOTTOM);
         verify(mPopupWindow).show();
     }
@@ -290,7 +326,7 @@ public class FuseboxPopupUnitTest {
 
         mFuseboxPopup.setPopupState(PopupState.FLOATING);
 
-        RobolectricUtil.runAllBackgroundAndUi();
+        Shadows.shadowOf(Looper.getMainLooper()).idle();
 
         verify(mPopupWindow, atLeastOnce()).updateDesiredContentSize(100, 0, true);
     }
@@ -400,7 +436,7 @@ public class FuseboxPopupUnitTest {
 
         recreateFuseboxPopup(/* isBottomSheet= */ false);
 
-        RobolectricUtil.runAllBackgroundAndUi();
+        Shadows.shadowOf(Looper.getMainLooper()).idle();
         assertEquals(View.LAYOUT_DIRECTION_RTL, mFuseboxPopup.mScrollView.getLayoutDirection());
     }
 
@@ -417,7 +453,7 @@ public class FuseboxPopupUnitTest {
 
         recreateFuseboxPopup(/* isBottomSheet= */ false);
 
-        RobolectricUtil.runAllBackgroundAndUi();
+        Shadows.shadowOf(Looper.getMainLooper()).idle();
         assertEquals(View.LAYOUT_DIRECTION_LTR, mFuseboxPopup.mScrollView.getLayoutDirection());
     }
 

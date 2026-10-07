@@ -4,9 +4,7 @@
 
 #include "base/i18n/case_conversion.h"
 
-#include "base/i18n/language_tag.h"
 #include "base/i18n/rtl.h"
-#include "base/i18n/test/scoped_icu_locale.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/test/icu_test_util.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -61,28 +59,25 @@ TEST(CaseConversionTest, TurkishLocaleConversion) {
   const std::u16string expected_lower(u"\x69\x131");
   const std::u16string expected_upper(u"\x49\x49");
 
-  {
-    ScopedDefaultIcuLocale scoped_locale(GetKnownLanguageTag("en-US"));
+  test::ScopedRestoreICUDefaultLocale restore_locale;
+  i18n::SetICUDefaultLocale("en_US");
 
-    std::u16string result = ToLower(mixed);
-    EXPECT_EQ(expected_lower, result);
+  std::u16string result = ToLower(mixed);
+  EXPECT_EQ(expected_lower, result);
 
-    result = ToUpper(mixed);
-    EXPECT_EQ(expected_upper, result);
-  }
+  result = ToUpper(mixed);
+  EXPECT_EQ(expected_upper, result);
 
-  {
-    ScopedDefaultIcuLocale scoped_locale(GetKnownLanguageTag("tr"));
+  i18n::SetICUDefaultLocale("tr");
 
-    const std::u16string expected_lower_turkish(u"\x131\x131");
-    const std::u16string expected_upper_turkish(u"\x49\x49");
+  const std::u16string expected_lower_turkish(u"\x131\x131");
+  const std::u16string expected_upper_turkish(u"\x49\x49");
 
-    std::u16string result = ToLower(mixed);
-    EXPECT_EQ(expected_lower_turkish, result);
+  result = ToLower(mixed);
+  EXPECT_EQ(expected_lower_turkish, result);
 
-    result = ToUpper(mixed);
-    EXPECT_EQ(expected_upper_turkish, result);
-  }
+  result = ToUpper(mixed);
+  EXPECT_EQ(expected_upper_turkish, result);
 }
 
 TEST(CaseConversionTest, FoldCase) {
@@ -98,15 +93,12 @@ TEST(CaseConversionTest, FoldCase) {
   const std::u16string turkish(u"\x49\x131");
   const std::u16string turkish_expected(u"\x69\x131");
 
-  {
-    ScopedDefaultIcuLocale scoped_locale(GetKnownLanguageTag("en-US"));
-    EXPECT_EQ(turkish_expected, FoldCase(turkish));
-  }
+  test::ScopedRestoreICUDefaultLocale restore_locale;
+  i18n::SetICUDefaultLocale("en_US");
+  EXPECT_EQ(turkish_expected, FoldCase(turkish));
 
-  {
-    ScopedDefaultIcuLocale scoped_locale(GetKnownLanguageTag("tr"));
-    EXPECT_EQ(turkish_expected, FoldCase(turkish));
-  }
+  i18n::SetICUDefaultLocale("tr");
+  EXPECT_EQ(turkish_expected, FoldCase(turkish));
 
   // Test a case that gets bigger when processed.
   // U+130 = LATIN CAPITAL LETTER I WITH DOT ABOVE gets folded to a lower case

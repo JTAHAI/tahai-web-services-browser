@@ -13,6 +13,7 @@
 #include "ui/events/pointer_details.h"
 #include "ui/gfx/geometry/point_f.h"
 #include "ui/ozone/platform/wayland/common/wayland_object.h"
+#include "ui/ozone/platform/wayland/host/wayland_pointer.h"
 
 namespace ui {
 
@@ -28,7 +29,8 @@ class WaylandTabletTool {
   WaylandTabletTool(zwp_tablet_tool_v2* tool,
                     WaylandTabletSeat* seat,
                     WaylandConnection* connection,
-                    Delegate* delegate);
+                    Delegate* delegate,
+                    WaylandPointer::Delegate* pointer_delegate);
   WaylandTabletTool(const WaylandTabletTool&) = delete;
   WaylandTabletTool& operator=(const WaylandTabletTool&) = delete;
   ~WaylandTabletTool();
@@ -90,6 +92,7 @@ class WaylandTabletTool {
   const raw_ptr<WaylandConnection> connection_;
   const raw_ptr<WaylandTabletSeat> seat_;
   const raw_ptr<Delegate> delegate_;
+  const raw_ptr<WaylandPointer::Delegate> pointer_delegate_;
 
   wl::Object<zwp_tablet_tool_v2> tool_;
 
@@ -122,8 +125,7 @@ class WaylandTabletTool::Delegate {
                                        const gfx::PointF& location,
                                        const PointerDetails& details,
                                        base::TimeTicks time) = 0;
-  virtual void OnTabletToolProximityOut(const PointerDetails& details,
-                                        base::TimeTicks time) = 0;
+  virtual void OnTabletToolProximityOut(base::TimeTicks time) = 0;
   virtual void OnTabletToolMotion(const gfx::PointF& location,
                                   const PointerDetails& details,
                                   base::TimeTicks time) = 0;

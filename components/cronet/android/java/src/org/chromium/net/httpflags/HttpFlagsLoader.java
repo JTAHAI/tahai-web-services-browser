@@ -9,6 +9,7 @@ import android.content.Intent;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
+import android.os.Build;
 
 import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
@@ -158,6 +159,16 @@ public final class HttpFlagsLoader {
     private static ApplicationInfo getProviderApplicationInfo(Context context) {
         try (var traceEvent =
                 ScopedSysTraceEvent.scoped("HttpFlagsLoader#getProviderApplicationInfo")) {
+            // Android prior to N (API 24) will silently ignore MATCH_SYSTEM_ONLY, so we shouldn't
+            // try to resolve the service on these versions. See https://crbug.com/502024633.
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) {
+                Log.d(
+                        TAG,
+                        "Not resolving HTTP flags file provider package because Android version is"
+                                + " too old");
+                return null;
+            }
+
             ResolveInfo resolveInfo =
                     context.getPackageManager()
                             .resolveService(
@@ -182,7 +193,10 @@ public final class HttpFlagsLoader {
     private static File getFlagsFileFromProvider(ApplicationInfo providerApplicationInfo) {
         return new File(
                 new File(
-                        new File(providerApplicationInfo.deviceProtectedDataDir),
+                        new File(
+                                Build.VERSION.SDK_INT >= 24
+                                        ? providerApplicationInfo.deviceProtectedDataDir
+                                        : providerApplicationInfo.dataDir),
                         FLAGS_FILE_DIR_NAME),
                 FLAGS_FILE_NAME);
     }

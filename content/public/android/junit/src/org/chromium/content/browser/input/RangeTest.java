@@ -14,7 +14,7 @@ import org.junit.runners.BlockJUnit4ClassRunner;
 
 import org.chromium.base.test.util.Feature;
 
-/** Unit tests for {@link Range}. */
+/** Unit tests for {@Range}. */
 @RunWith(BlockJUnit4ClassRunner.class)
 public class RangeTest {
     @Test

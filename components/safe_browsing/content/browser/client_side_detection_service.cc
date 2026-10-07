@@ -76,10 +76,17 @@ ClientSideDetectionService::~ClientSideDetectionService() {
   weak_factory_.InvalidateWeakPtrs();
 }
 
-void ClientSideDetectionService::OnModelUpdated() {
+void ClientSideDetectionService::OnModelAndServiceStateChanged() {
   if (IsEnabled()) {
-    SendModelToRenderers();
+    if (!update_model_subscription_) {
+      update_model_subscription_ = RegisterCallbackForModelUpdates(
+          base::BindRepeating(&ClientSideDetectionService::SendModelToRenderers,
+                              weak_factory_.GetWeakPtr()));
+    }
+  } else {
+    update_model_subscription_ = base::CallbackListSubscription();
   }
+  SendModelToRenderers();
 }
 
 void ClientSideDetectionService::SendModelToRenderers() {

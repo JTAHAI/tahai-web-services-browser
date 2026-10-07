@@ -61,8 +61,7 @@ try_.builder(
     name = "3pp-mac-amd64-packager",
     executable = "recipe:chromium_3pp",
     builderless = True,
-    # TODO(crbug.com/543006750): Revert to MAC_DEFAULT after arm migration.
-    os = os.MAC_15,
+    os = os.MAC_DEFAULT,
     properties = {
         "$build/chromium_3pp": {
             "platform": "mac-amd64",

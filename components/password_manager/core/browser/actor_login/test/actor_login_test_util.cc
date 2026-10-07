@@ -5,12 +5,11 @@
 #include "components/password_manager/core/browser/actor_login/test/actor_login_test_util.h"
 
 #include "base/strings/utf_string_conversions.h"
-#include "components/autofill/core/common/autofill_test_util.h"
+#include "components/autofill/core/common/autofill_test_utils.h"
 #include "components/autofill/core/common/form_data.h"
 #include "components/autofill/core/common/form_field_data.h"
 #include "components/password_manager/core/browser/password_form.h"
 #include "components/password_manager/core/browser/password_manager_util.h"
-#include "components/password_manager/core/browser/password_string.h"
 #include "url/origin.h"
 
 namespace actor_login {
@@ -20,7 +19,6 @@ using autofill::FormFieldData;
 using autofill::test::CreateTestFormField;
 using autofill::test::MakeFormRendererId;
 using password_manager::PasswordForm;
-using password_manager::PasswordString;
 
 optimization_guide::proto::ActorLoginQuality_FormData CreateExpectedFormData(
     const PasswordForm& form) {
@@ -93,12 +91,12 @@ Credential CreateTestCredential(const std::u16string& username,
 
 PasswordForm CreateSavedPasswordForm(const GURL& url,
                                      const std::u16string& username,
-                                     std::u16string password) {
+                                     const std::u16string& password) {
   PasswordForm form;
   form.url = url;
   form.signon_realm = password_manager_util::GetSignonRealm(url);
   form.username_value = username;
-  form.password_value = PasswordString(std::move(password));
+  form.password_value = password;
   form.match_type = PasswordForm::MatchType::kExact;
   form.in_store = password_manager::PasswordForm::Store::kAccountStore;
   return form;

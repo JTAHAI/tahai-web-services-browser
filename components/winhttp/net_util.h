@@ -12,7 +12,6 @@
 
 #include <ostream>
 #include <string>
-#include <type_traits>
 
 #include "base/check_op.h"
 
@@ -54,16 +53,15 @@ HRESULT QueryOption(HINTERNET handle, uint32_t option, T* value) {
 // Sets WinHTTP options for the given |handle|. Returns S_OK if the call
 // is successful.
 template <typename T>
-HRESULT SetOption(HINTERNET handle, uint32_t option, const T* value) {
-  if (!::WinHttpSetOption(handle, option, const_cast<T*>(value), sizeof(T))) {
+HRESULT SetOption(HINTERNET handle, uint32_t option, T* value) {
+  if (!::WinHttpSetOption(handle, option, value, sizeof(T))) {
     return HRESULTFromLastError();
   }
   return S_OK;
 }
 
 template <typename T>
-  requires(!std::is_pointer_v<T>)
-HRESULT SetOption(HINTERNET handle, uint32_t option, const T& value) {
+HRESULT SetOption(HINTERNET handle, uint32_t option, T value) {
   return SetOption(handle, option, &value);
 }
 

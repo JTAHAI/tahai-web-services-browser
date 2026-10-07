@@ -266,11 +266,9 @@ export class ReadingListAppElement extends ReadingListAppElementBase {
   protected getExpandButtonIcon_(title: string): string {
     switch (title) {
       case this.unreadHeader_:
-        return this.unreadExpanded_ ? 'cr:keyboard-arrow-up' :
-                                      'cr:keyboard-arrow-down';
+        return this.unreadExpanded_ ? 'cr:expand-less' : 'cr:expand-more';
       case this.readHeader_:
-        return this.readExpanded_ ? 'cr:keyboard-arrow-up' :
-                                    'cr:keyboard-arrow-down';
+        return this.readExpanded_ ? 'cr:expand-less' : 'cr:expand-more';
       default:
         assertNotReached();
     }

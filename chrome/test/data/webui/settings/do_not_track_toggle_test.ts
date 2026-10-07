@@ -10,7 +10,6 @@ import type {SettingsDoNotTrackToggleElement} from 'chrome://settings/lazy_load.
 import type {SettingsToggleButtonElement} from 'chrome://settings/settings.js';
 import {loadTimeData, MetricsBrowserProxyImpl, PrivacyElementInteractions} from 'chrome://settings/settings.js';
 import {assertEquals, assertFalse, assertTrue} from 'chrome://webui-test/chai_assert.js';
-import {flushTasks} from 'chrome://webui-test/polymer_test_util.js';
 
 import {TestMetricsBrowserProxy} from './test_metrics_browser_proxy.js';
 
@@ -24,13 +23,9 @@ suite('CrSettingsDoNotTrackToggleTest', function() {
     return testElement.shadowRoot!.querySelector('#toggle')!;
   }
 
-  setup(async function() {
+  setup(function() {
     testMetricsBrowserProxy = new TestMetricsBrowserProxy();
     MetricsBrowserProxyImpl.setInstance(testMetricsBrowserProxy);
-    await createToggle();
-  });
-
-  async function createToggle() {
     document.body.innerHTML = window.trustedTypes!.emptyHTML;
     testElement = document.createElement('settings-do-not-track-toggle');
     testElement.prefs = {
@@ -41,8 +36,8 @@ suite('CrSettingsDoNotTrackToggleTest', function() {
       },
     };
     document.body.appendChild(testElement);
-    return flushTasks();
-  }
+    flush();
+  });
 
   teardown(function() {
     testElement.remove();
@@ -76,19 +71,5 @@ suite('CrSettingsDoNotTrackToggleTest', function() {
                                '.action-button')!.click();
     assertTrue(toggle().checked);
     assertTrue(testElement.prefs.enable_do_not_track.value);
-  });
-
-  test('sublabelWithAndWithoutUniversalOptOut', async function() {
-    assertEquals(
-        loadTimeData.getString('trackingProtectionDoNotTrackToggleSubLabel'),
-        toggle().subLabel);
-
-    loadTimeData.overrideValues({showUniversalOptOutSettings: true});
-    await createToggle();
-
-    assertEquals(
-        loadTimeData.getString(
-            'trackingProtectionDoNotTrackDisclaimerToggleSubLabel'),
-        toggle().subLabel);
   });
 });

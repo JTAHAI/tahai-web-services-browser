@@ -17,6 +17,8 @@ import org.chromium.chrome.browser.content.WebContentsFactory;
 import org.chromium.chrome.browser.payments.handler.toolbar.PaymentHandlerToolbarCoordinator;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.tab.Tab;
+import org.chromium.chrome.browser.tab.TabObscuringHandler;
+import org.chromium.chrome.browser.tab.TabObscuringHandlerSupplier;
 import org.chromium.chrome.browser.tabmodel.TabModelSelectorSupplier;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetControllerProvider;
@@ -119,7 +121,9 @@ public class PaymentHandlerCoordinator {
         BottomSheetController bottomSheetController =
                 BottomSheetControllerProvider.from(windowAndroid);
         Tab currentTab = TabModelSelectorSupplier.getCurrentTabFrom(windowAndroid);
-        if (bottomSheetController == null || currentTab == null) {
+        TabObscuringHandler tabObscuringHandler =
+                TabObscuringHandlerSupplier.getValueOrNullFrom(windowAndroid);
+        if (bottomSheetController == null || currentTab == null || tabObscuringHandler == null) {
             return null;
         }
 
@@ -136,6 +140,8 @@ public class PaymentHandlerCoordinator {
                         uiObserver,
                         tabView,
                         mToolbarCoordinator.getToolbarHeightPx(),
+                        bottomSheetController,
+                        tabObscuringHandler,
                         activity,
                         mInputProtector);
         activity.getWindow().getDecorView().addOnLayoutChangeListener(mediator);

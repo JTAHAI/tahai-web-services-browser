@@ -28,12 +28,12 @@ class NET_EXPORT WebSocketChunkAssembler final {
       std::unique_ptr<WebSocketFrameChunk> chunk);
 
  private:
-  // Enum representing the current state of frame chunk assembly.
+  // Enum representing the current state of the assembler.
   enum class AssemblyState {
-    kMessageFinished,    // Frame assembly complete, ready for next frame.
-    kInitialFrame,       // Processing the first chunk of a frame.
-    kContinuationFrame,  // Processing subsequent chunks of a data frame.
-    kControlFrame        // Buffering chunks of a control frame.
+    kMessageFinished,    // Message finished, ready for next frame.
+    kInitialFrame,       // Processing the first frame.
+    kContinuationFrame,  // Processing continuation frame.
+    kControlFrame        // Processing control frame.
   };
 
   // Current state of the assembler

@@ -23,6 +23,8 @@ std::string_view GetToastName(ToastId toast_id) {
       return "NonMilestoneUpdate";
     case ToastId::kClearBrowsingData:
       return "ClearBrowsingData";
+    case ToastId::kPlusAddressOverride:
+      return "PlusAddressOverride";
     case ToastId::kSyncEsbOn:
       return "SyncEsbOn";
     case ToastId::kSyncEsbOnWithoutActionButton:
@@ -105,8 +107,6 @@ std::string_view GetToastName(ToastId toast_id) {
       return "DictationError";
     case ToastId::kDictationStopped:
       return "DictationStopped";
-    case ToastId::kDictationNoMicrophoneError:
-      return "DictationNoMicrophoneError";
     case ToastId::kGlicSelectionHiddenForSite:
       return "GlicSelectionHiddenForSite";
     case ToastId::kEnterpriseCopyWarning:
@@ -117,8 +117,6 @@ std::string_view GetToastName(ToastId toast_id) {
       return "IndigoDeleteError";
     case ToastId::kIndigoDeleteSuccess:
       return "IndigoDeleteSuccess";
-    case ToastId::kAtMemorySpiiFetchErrorMessage:
-      return "AtMemorySpiiFetchErrorMessage";
   }
 
   NOTREACHED();

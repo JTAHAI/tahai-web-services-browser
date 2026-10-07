@@ -4,10 +4,6 @@
 
 #include "chrome/browser/component_updater/pki_metadata_component_installer_policy.h"
 
-#include <cstdint>
-#include <string>
-#include <vector>
-
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
 #include "chrome/browser/component_updater/pki_metadata_component_installer.h"
@@ -75,7 +71,8 @@ base::FilePath PKIMetadataComponentInstallerPolicy::GetRelativeInstallDir()
 
 void PKIMetadataComponentInstallerPolicy::GetHash(
     std::vector<uint8_t>* hash) const {
-  hash->assign_range(kPKIMetadataPublicKeySHA256);
+  hash->assign(std::begin(kPKIMetadataPublicKeySHA256),
+               std::end(kPKIMetadataPublicKeySHA256));
 }
 
 std::string PKIMetadataComponentInstallerPolicy::GetName() const {

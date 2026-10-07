@@ -795,6 +795,12 @@ int SSLClientSocketImpl::Init() {
   // TODO(crbug.com/boringssl/699): Once the default is flipped in BoringSSL, we
   // no longer need to override it.
   static const uint16_t kVerifyPrefs[] = {
+      SSL_SIGN_ECDSA_SECP256R1_SHA256, SSL_SIGN_RSA_PSS_RSAE_SHA256,
+      SSL_SIGN_RSA_PKCS1_SHA256,       SSL_SIGN_ECDSA_SECP384R1_SHA384,
+      SSL_SIGN_RSA_PSS_RSAE_SHA384,    SSL_SIGN_RSA_PKCS1_SHA384,
+      SSL_SIGN_RSA_PSS_RSAE_SHA512,    SSL_SIGN_RSA_PKCS1_SHA512,
+  };
+  static const uint16_t kVerifyPrefsWithMlDsa[] = {
       SSL_SIGN_ML_DSA_44,
       SSL_SIGN_ML_DSA_65,
       SSL_SIGN_ML_DSA_87,
@@ -807,9 +813,16 @@ int SSLClientSocketImpl::Init() {
       SSL_SIGN_RSA_PSS_RSAE_SHA512,
       SSL_SIGN_RSA_PKCS1_SHA512,
   };
-  if (!SSL_set_verify_algorithm_prefs(ssl_.get(), kVerifyPrefs,
-                                      std::size(kVerifyPrefs))) {
-    return ERR_UNEXPECTED;
+  if (base::FeatureList::IsEnabled(features::kTlsMldsaSignatures)) {
+    if (!SSL_set_verify_algorithm_prefs(ssl_.get(), kVerifyPrefsWithMlDsa,
+                                        std::size(kVerifyPrefsWithMlDsa))) {
+      return ERR_UNEXPECTED;
+    }
+  } else {
+    if (!SSL_set_verify_algorithm_prefs(ssl_.get(), kVerifyPrefs,
+                                        std::size(kVerifyPrefs))) {
+      return ERR_UNEXPECTED;
+    }
   }
 
   SSL_set_alps_use_new_codepoint(
@@ -1819,17 +1832,22 @@ int SSLClientSocketImpl::MapLastOpenSSLError(
 }
 
 int SSLClientSocketImpl::ConfigureEch() {
-  EchMode ech_mode = context_->GetEchMode(host_and_port_.host());
+  EchMode ech_mode = EchMode::kOpportunistic;
+  if (!context_->config().ech_enabled) {
+    DCHECK(ssl_config_.ech_config_list.empty());
+    ech_mode = EchMode::kDisabled;
+  } else if (context_->ssl_config_service()) {
+    ech_mode =
+        context_->ssl_config_service()->GetEchMode(host_and_port_.host());
+  }
 
   switch (ech_mode) {
     case EchMode::kDisabled:
-      DCHECK(ssl_config_.ech_config_list.empty());
       return OK;
     case EchMode::kStrict:
       if (ssl_config_.ech_config_list.empty()) {
         return ERR_STRICT_ECH_REQUIRED;
       }
-      SSL_set_reject_unusable_ech_config(ssl_.get(), 1);
       [[fallthrough]];
     case EchMode::kOpportunistic:
       // TODO(crbug.com/41482204): Enable this unconditionally.

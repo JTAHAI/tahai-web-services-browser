@@ -1,2 +1,3 @@
-rules:
-- "**": [text-decoration]
+features:
+- name: text-decoration
+  files: "**"

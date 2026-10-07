@@ -38,9 +38,7 @@ class BubbleViewError final : public GlobalErrorWithStandardBubble {
     ADD_FAILURE();
     return std::u16string();
   }
-  void ExecuteMenuItem(BrowserWindowInterface* browser) override {
-    ADD_FAILURE();
-  }
+  void ExecuteMenuItem(Browser* browser) override { ADD_FAILURE(); }
 
   bool HasBubbleView() override { return true; }
   std::u16string GetBubbleViewTitle() override { return std::u16string(); }
@@ -49,13 +47,11 @@ class BubbleViewError final : public GlobalErrorWithStandardBubble {
   }
   std::u16string GetBubbleViewAcceptButtonLabel() override { return u"OK"; }
   std::u16string GetBubbleViewCancelButtonLabel() override { return u"Cancel"; }
-  void OnBubbleViewDidClose(BrowserWindowInterface* browser) override {
+  void OnBubbleViewDidClose(Browser* browser) override {
     ++bubble_view_close_count_;
   }
-  void BubbleViewAcceptButtonPressed(BrowserWindowInterface* browser) override {
-  }
-  void BubbleViewCancelButtonPressed(BrowserWindowInterface* browser) override {
-  }
+  void BubbleViewAcceptButtonPressed(Browser* browser) override {}
+  void BubbleViewCancelButtonPressed(Browser* browser) override {}
   base::WeakPtr<GlobalErrorWithStandardBubble> AsWeakPtr() override {
     return weak_ptr_factory_.GetWeakPtr();
   }

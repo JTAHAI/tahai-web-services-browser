@@ -1,2 +1,3 @@
-rules:
-- "**": [magnetometer]
+features:
+- name: magnetometer
+  files: "**"

@@ -7,6 +7,7 @@ package org.chromium.chrome.browser;
 import org.jni_zero.JNINamespace;
 import org.jni_zero.NativeMethods;
 
+import org.chromium.base.library_loader.LibraryLoader;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.components.embedder_support.util.UrlConstants;
@@ -50,6 +51,9 @@ public class ExternalIntentUrlChecker {
 
         String urlString = url.getSpec();
 
+        // The native library may be uninitialized at this point. Ensure it's initialized before
+        // calling a native function validateUrl().
+        LibraryLoader.getInstance().ensureInitialized();
         if (!ExternalIntentUrlCheckerJni.get().validateUrl(url)) {
             // Check for safe internal exceptions.
             // Note: GURL spec is canonicalized and scheme/host are lowercase.

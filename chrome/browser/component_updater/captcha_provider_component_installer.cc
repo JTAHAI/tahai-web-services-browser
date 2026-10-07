@@ -117,7 +117,8 @@ base::FilePath CaptchaProviderComponentInstallerPolicy::GetRelativeInstallDir()
 
 void CaptchaProviderComponentInstallerPolicy::GetHash(
     std::vector<uint8_t>* hash) const {
-  hash->assign_range(kCaptchaProviderPublicKeySha256);
+  hash->assign(std::begin(kCaptchaProviderPublicKeySha256),
+               std::end(kCaptchaProviderPublicKeySha256));
 }
 
 std::string CaptchaProviderComponentInstallerPolicy::GetName() const {

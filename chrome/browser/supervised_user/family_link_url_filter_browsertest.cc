@@ -23,7 +23,7 @@
 #include "chrome/browser/supervised_user/supervised_user_service_factory.h"
 #include "chrome/browser/supervised_user/supervised_user_test_util.h"
 #include "chrome/browser/supervised_user/supervised_user_url_filtering_service_factory.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/tabs/tab_enums.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/tabs/tab_strip_model_observer.h"
@@ -73,7 +73,8 @@ namespace supervised_user {
 namespace {
 
 // Tests filtering for supervised users.
-class FamilyLinkUrlFilterTestBase : public MixinBasedInProcessBrowserTest {
+class FamilyLinkUrlFilterTestBase : public base::test::WithFeatureOverride,
+                                    public MixinBasedInProcessBrowserTest {
  protected:
   // Indicates whether the interstitial should proceed or not.
   enum InterstitialAction {
@@ -81,7 +82,10 @@ class FamilyLinkUrlFilterTestBase : public MixinBasedInProcessBrowserTest {
     INTERSTITIAL_DONTPROCEED,
   };
 
-  FamilyLinkUrlFilterTestBase() {
+  FamilyLinkUrlFilterTestBase()
+      : FamilyLinkUrlFilterTestBase(kSupervisedUserUseUrlFilteringService) {}
+  explicit FamilyLinkUrlFilterTestBase(const base::Feature& feature)
+      : base::test::WithFeatureOverride(feature) {
     // TODO(crbug.com/40248833): Use HTTPS URLs in tests to avoid having to
     // disable this feature.
     feature_list_.InitWithFeatures(
@@ -90,8 +94,8 @@ class FamilyLinkUrlFilterTestBase : public MixinBasedInProcessBrowserTest {
   }
   ~FamilyLinkUrlFilterTestBase() override { feature_list_.Reset(); }
 
-  bool ShownPageIsInterstitial(BrowserWindowInterface* browser) {
-    WebContents* tab = browser->GetTabStripModel()->GetActiveWebContents();
+  bool ShownPageIsInterstitial(Browser* browser) {
+    WebContents* tab = browser->tab_strip_model()->GetActiveWebContents();
     EXPECT_FALSE(tab->IsCrashed());
     std::u16string title;
     ui_test_utils::GetCurrentTabTitle(browser, &title);
@@ -213,7 +217,7 @@ using FamilyLinkUrlFilterTest = FamilyLinkUrlFilterTestBase;
 // interstitial page behave differently from the preceding test, where the
 // navigation is blocked before it commits). The expected behavior is the same
 // though: the tab should be closed when going back.
-IN_PROC_BROWSER_TEST_F(FamilyLinkUrlFilterTest, BlockNewTabAfterLoading) {
+IN_PROC_BROWSER_TEST_P(FamilyLinkUrlFilterTest, BlockNewTabAfterLoading) {
   TabStripModel* tab_strip = browser()->tab_strip_model();
   WebContents* prev_tab = tab_strip->GetActiveWebContents();
   ukm::TestAutoSetUkmRecorder ukm_recorder;
@@ -271,7 +275,7 @@ IN_PROC_BROWSER_TEST_F(FamilyLinkUrlFilterTest, BlockNewTabAfterLoading) {
 
 // Tests that we don't end up canceling an interstitial (thereby closing the
 // whole tab) by attempting to show a second one above it.
-IN_PROC_BROWSER_TEST_F(FamilyLinkUrlFilterTest, DontShowInterstitialTwice) {
+IN_PROC_BROWSER_TEST_P(FamilyLinkUrlFilterTest, DontShowInterstitialTwice) {
   TabStripModel* tab_strip = browser()->tab_strip_model();
 
   // Open URL in a new tab.
@@ -304,7 +308,7 @@ IN_PROC_BROWSER_TEST_F(FamilyLinkUrlFilterTest, DontShowInterstitialTwice) {
   EXPECT_EQ(tab, tab_strip->GetActiveWebContents());
 }
 
-IN_PROC_BROWSER_TEST_F(FamilyLinkUrlFilterTest, GoBackOnDontProceed) {
+IN_PROC_BROWSER_TEST_P(FamilyLinkUrlFilterTest, GoBackOnDontProceed) {
   WebContents* web_contents =
       browser()->tab_strip_model()->GetActiveWebContents();
   // Ensure navigation completes.
@@ -335,7 +339,7 @@ IN_PROC_BROWSER_TEST_F(FamilyLinkUrlFilterTest, GoBackOnDontProceed) {
   EXPECT_EQ(0, web_contents->GetController().GetCurrentEntryIndex());
 }
 
-IN_PROC_BROWSER_TEST_F(FamilyLinkUrlFilterTest, ClosingBlockedTabDoesNotCrash) {
+IN_PROC_BROWSER_TEST_P(FamilyLinkUrlFilterTest, ClosingBlockedTabDoesNotCrash) {
   WebContents* web_contents =
       browser()->tab_strip_model()->GetActiveWebContents();
   // Ensure navigation completes.
@@ -359,7 +363,7 @@ IN_PROC_BROWSER_TEST_F(FamilyLinkUrlFilterTest, ClosingBlockedTabDoesNotCrash) {
       0, TabCloseTypes::CLOSE_USER_GESTURE);
 }
 
-IN_PROC_BROWSER_TEST_F(FamilyLinkUrlFilterTest, BlockThenUnblock) {
+IN_PROC_BROWSER_TEST_P(FamilyLinkUrlFilterTest, BlockThenUnblock) {
   GURL test_url("http://www.example.com/simple.html");
   kids_management_api_mock().AllowSubsequentClassifyUrl();
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), test_url));
@@ -393,7 +397,7 @@ IN_PROC_BROWSER_TEST_F(FamilyLinkUrlFilterTest, BlockThenUnblock) {
   EXPECT_FALSE(ShownPageIsInterstitial(browser()));
 }
 
-IN_PROC_BROWSER_TEST_F(FamilyLinkUrlFilterTest, RecordBlockedContentUkm) {
+IN_PROC_BROWSER_TEST_P(FamilyLinkUrlFilterTest, RecordBlockedContentUkm) {
   ukm::TestAutoSetUkmRecorder ukm_recorder;
 
   // Open URL in a new tab, which is blocked by ClassifyUrl async checks.
@@ -416,10 +420,13 @@ IN_PROC_BROWSER_TEST_F(FamilyLinkUrlFilterTest, RecordBlockedContentUkm) {
       ukm_entries[0], kBlockedContentUkmIFrameMetricName, 0);
 }
 
+INSTANTIATE_FEATURE_OVERRIDE_TEST_SUITE(FamilyLinkUrlFilterTest);
+
 // Tests the filter mode in which all sites are blocked by default.
 class FamilyLinkBlockModeTest : public FamilyLinkUrlFilterTestBase {
  protected:
-  FamilyLinkBlockModeTest() = default;
+  FamilyLinkBlockModeTest()
+      : FamilyLinkUrlFilterTestBase(kSupervisedUserUseUrlFilteringService) {}
 
   void SetUpOnMainThread() override {
     FamilyLinkUrlFilterTestBase::SetUpOnMainThread();
@@ -430,7 +437,7 @@ class FamilyLinkBlockModeTest : public FamilyLinkUrlFilterTestBase {
 
 // Tests that it's possible to navigate from a blocked page to another blocked
 // page.
-IN_PROC_BROWSER_TEST_F(FamilyLinkBlockModeTest,
+IN_PROC_BROWSER_TEST_P(FamilyLinkBlockModeTest,
                        NavigateFromBlockedPageToBlockedPage) {
   ScopedAllowHttpForHostnamesForTesting allow_http(
       {"www.example.com", "www.a.com"}, browser()->GetProfile()->GetPrefs());
@@ -449,7 +456,7 @@ IN_PROC_BROWSER_TEST_F(FamilyLinkBlockModeTest,
 }
 
 // Tests whether a visit attempt adds a special history entry.
-IN_PROC_BROWSER_TEST_F(FamilyLinkBlockModeTest, HistoryVisitRecorded) {
+IN_PROC_BROWSER_TEST_P(FamilyLinkBlockModeTest, HistoryVisitRecorded) {
   ScopedAllowHttpForHostnamesForTesting allow_http(
       {"www.example.com", "www.new-example.com"},
       browser()->GetProfile()->GetPrefs());
@@ -511,7 +518,7 @@ IN_PROC_BROWSER_TEST_F(FamilyLinkBlockModeTest, HistoryVisitRecorded) {
 }
 
 // Navigates to a blocked URL.
-IN_PROC_BROWSER_TEST_F(FamilyLinkBlockModeTest, SendAccessRequestOnBlockedURL) {
+IN_PROC_BROWSER_TEST_P(FamilyLinkBlockModeTest, SendAccessRequestOnBlockedURL) {
   GURL test_url("http://www.example.com/simple.html");
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), test_url));
 
@@ -533,7 +540,7 @@ IN_PROC_BROWSER_TEST_F(FamilyLinkBlockModeTest, SendAccessRequestOnBlockedURL) {
 
 // Navigates to a blocked URL in a new tab. We expect the tab to be closed
 // automatically on pressing the "back" button on the interstitial.
-IN_PROC_BROWSER_TEST_F(FamilyLinkBlockModeTest, OpenBlockedURLInNewTab) {
+IN_PROC_BROWSER_TEST_P(FamilyLinkBlockModeTest, OpenBlockedURLInNewTab) {
   TabStripModel* tab_strip = browser()->tab_strip_model();
   WebContents* prev_tab = tab_strip->GetActiveWebContents();
 
@@ -556,7 +563,7 @@ IN_PROC_BROWSER_TEST_F(FamilyLinkBlockModeTest, OpenBlockedURLInNewTab) {
   EXPECT_EQ(prev_tab, tab_strip->GetActiveWebContents());
 }
 
-IN_PROC_BROWSER_TEST_F(FamilyLinkBlockModeTest, Unblock) {
+IN_PROC_BROWSER_TEST_P(FamilyLinkBlockModeTest, Unblock) {
   ScopedAllowHttpForHostnamesForTesting allow_http(
       {"www.example.com"}, browser()->GetProfile()->GetPrefs());
 
@@ -581,6 +588,8 @@ IN_PROC_BROWSER_TEST_F(FamilyLinkBlockModeTest, Unblock) {
   EXPECT_EQ(test_url, web_contents->GetLastCommittedURL());
 }
 
+INSTANTIATE_FEATURE_OVERRIDE_TEST_SUITE(FamilyLinkBlockModeTest);
+
 class UrlFilteringServiceObserver
     : public SupervisedUserUrlFilteringService::Observer {
  public:
@@ -604,7 +613,8 @@ class UrlFilteringServiceObserver
 class FamilyLinkUrlFilterPrerenderingTest : public FamilyLinkUrlFilterTest {
  public:
   FamilyLinkUrlFilterPrerenderingTest()
-      : prerender_test_helper_(base::BindRepeating(
+      : FamilyLinkUrlFilterTest(kSupervisedUserUseUrlFilteringService),
+        prerender_test_helper_(base::BindRepeating(
             &FamilyLinkUrlFilterPrerenderingTest::GetWebContents,
             base::Unretained(this))) {}
   ~FamilyLinkUrlFilterPrerenderingTest() override = default;
@@ -622,7 +632,7 @@ class FamilyLinkUrlFilterPrerenderingTest : public FamilyLinkUrlFilterTest {
 };
 
 // Tests that prerendering doesn't check FamilyLinkUrlFilter.
-IN_PROC_BROWSER_TEST_F(FamilyLinkUrlFilterPrerenderingTest, OnURLChecked) {
+IN_PROC_BROWSER_TEST_P(FamilyLinkUrlFilterPrerenderingTest, OnURLChecked) {
   ScopedAllowHttpForHostnamesForTesting allow_http(
       {"www.example.com"}, browser()->GetProfile()->GetPrefs());
 
@@ -659,5 +669,7 @@ IN_PROC_BROWSER_TEST_F(FamilyLinkUrlFilterPrerenderingTest, OnURLChecked) {
   EXPECT_CALL(observer, OnUrlChecked).Times(1);
   prerender_helper().NavigatePrimaryPage(prerender_url);
 }
+
+INSTANTIATE_FEATURE_OVERRIDE_TEST_SUITE(FamilyLinkUrlFilterPrerenderingTest);
 }  // namespace
 }  // namespace supervised_user

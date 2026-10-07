@@ -1,2 +1,4 @@
-rules:
-- "*": [page-setup]
+features:
+- name: page-setup
+  files:
+  - '*'

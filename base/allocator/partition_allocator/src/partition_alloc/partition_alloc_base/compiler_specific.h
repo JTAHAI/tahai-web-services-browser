@@ -8,8 +8,18 @@
 #include "partition_alloc/build_config.h"
 #include "partition_alloc/buildflags.h"
 
-#if PA_BUILDFLAG(PA_COMPILER_MSVC) && !defined(__clang__)
-#error "Only clang-cl is supported on Windows, see https://crbug.com/988071"
+#if defined(MEMORY_SANITIZER)
+#include <sanitizer/msan_interface.h>
+#endif
+
+// A wrapper around `__has_cpp_attribute()`, which is in C++20 and thus not yet
+// available for all targets PA supports (since PA's minimum C++ version is 17).
+// This works similarly to `PA_HAS_ATTRIBUTE()` below, in that where it's
+// unavailable it will map to `0`.
+#if defined(__has_cpp_attribute)
+#define PA_HAS_CPP_ATTRIBUTE(x) __has_cpp_attribute(x)
+#else
+#define PA_HAS_CPP_ATTRIBUTE(x) 0
 #endif
 
 // A wrapper around `__has_attribute()`, which is similar to the C++20-standard
@@ -47,8 +57,8 @@
 
 // Annotates a function indicating it should not be inlined.
 //
-// You may also want `PA_NOOPT` if your goal is to preserve a function call even
-// for the most trivial cases; see
+// Note that this may still fail to preserve function calls in the most trivial
+// cases, due to optimizations like constant folding; see
 // https://stackoverflow.com/questions/54481855/clang-ignoring-attribute-noinline/54482070#54482070.
 //
 // See also:
@@ -60,11 +70,9 @@
 //     // This body will not be inlined into callers.
 //   }
 // ```
-#if __has_cpp_attribute(clang::noinline)
-#define PA_NOINLINE [[clang::noinline]]
-#elif __has_cpp_attribute(gnu::noinline)
+#if PA_HAS_CPP_ATTRIBUTE(gnu::noinline)
 #define PA_NOINLINE [[gnu::noinline]]
-#elif __has_cpp_attribute(msvc::noinline)
+#elif PA_HAS_CPP_ATTRIBUTE(msvc::noinline)
 #define PA_NOINLINE [[msvc::noinline]]
 #else
 #define PA_NOINLINE
@@ -82,17 +90,17 @@
 //   }
 // ```
 //
-// Since `PA_ALWAYS_INLINE` is performance-oriented but can hamper debugging,
+// Since `ALWAYS_INLINE` is performance-oriented but can hamper debugging,
 // ignore it in debug mode.
 #if !PA_BUILDFLAG(IS_DEBUG)
-#if __has_cpp_attribute(clang::always_inline)
+#if PA_HAS_CPP_ATTRIBUTE(clang::always_inline)
 #define PA_ALWAYS_INLINE [[clang::always_inline]] inline
-#elif __has_cpp_attribute(gnu::always_inline)
+#elif PA_HAS_CPP_ATTRIBUTE(gnu::always_inline)
 #define PA_ALWAYS_INLINE [[gnu::always_inline]] inline
-#elif PA_BUILDFLAG(PA_COMPILER_MSVC)
+#elif defined(PA_COMPILER_MSVC)
 #define PA_ALWAYS_INLINE __forceinline
 #endif
-#endif
+#endif  // !PA_BUILDFLAG(IS_DEBUG)
 #if !defined(PA_ALWAYS_INLINE)
 #define PA_ALWAYS_INLINE inline
 #endif
@@ -107,7 +115,7 @@
 //     PA_EXCLUDE_FROM_EXPLICIT_INSTANTIATION void Func() requires ...;
 //   };
 // ```
-#if __has_cpp_attribute(clang::exclude_from_explicit_instantiation)
+#if PA_HAS_CPP_ATTRIBUTE(clang::exclude_from_explicit_instantiation)
 #define PA_EXCLUDE_FROM_EXPLICIT_INSTANTIATION \
   [[clang::exclude_from_explicit_instantiation]]
 #elif PA_HAS_ATTRIBUTE(exclude_from_explicit_instantiation)
@@ -124,17 +132,15 @@
 // of multiple identical callers into a single signature; to do that, see
 // `PA_NO_CODE_FOLDING()` in partition_alloc_base/debug/alias.h.
 //
-// For a caller-side version of this, see `PA_DISABLE_TAIL_CALLS`.
-//
 // See also:
 //   https://clang.llvm.org/docs/AttributeReference.html#not-tail-called
 //
 // Usage:
 // ```
-//   // Calls to this function will not be tail calls.
+//   // Calls to this method will not be tail calls.
 //   PA_NOT_TAIL_CALLED void Func();
 // ```
-#if __has_cpp_attribute(clang::not_tail_called)
+#if PA_HAS_CPP_ATTRIBUTE(clang::not_tail_called)
 #define PA_NOT_TAIL_CALLED [[clang::not_tail_called]]
 #else
 #define PA_NOT_TAIL_CALLED
@@ -157,7 +163,7 @@
 //     PA_MUSTTAIL return Func1(d + 1);  // `Func1()` will be tail-called.
 //   }
 // ```
-#if __has_cpp_attribute(clang::musttail)
+#if PA_HAS_CPP_ATTRIBUTE(clang::musttail)
 #define PA_MUSTTAIL [[clang::musttail]]
 #else
 #define PA_MUSTTAIL
@@ -185,9 +191,9 @@
 // https://devblogs.microsoft.com/cppblog/msvc-cpp20-and-the-std-cpp20-switch/#msvc-extensions-and-abi),
 // and clang-cl matches it for ABI compatibility reasons. We need to prefer
 // [[msvc::no_unique_address]] when available if we actually want any effect.
-#if __has_cpp_attribute(msvc::no_unique_address)
+#if PA_HAS_CPP_ATTRIBUTE(msvc::no_unique_address)
 #define PA_NO_UNIQUE_ADDRESS [[msvc::no_unique_address]]
-#elif __has_cpp_attribute(no_unique_address)
+#elif PA_HAS_CPP_ATTRIBUTE(no_unique_address)
 #define PA_NO_UNIQUE_ADDRESS [[no_unique_address]]
 #else
 #define PA_NO_UNIQUE_ADDRESS
@@ -216,7 +222,7 @@
 //     Print("%s", 1);
 //   }
 // ```
-#if __has_cpp_attribute(gnu::format)
+#if PA_HAS_CPP_ATTRIBUTE(gnu::format)
 #define PA_PRINTF_FORMAT(format_param, dots_param) \
   [[gnu::format(printf, format_param, dots_param)]]
 #else
@@ -235,7 +241,7 @@
 //     // CFI indirect call checks will not be performed in this body.
 //   }
 // ```
-#if __has_cpp_attribute(clang::no_sanitize)
+#if PA_HAS_CPP_ATTRIBUTE(clang::no_sanitize)
 #define PA_NO_SANITIZE(sanitizer) [[clang::no_sanitize(sanitizer)]]
 #else
 #define PA_NO_SANITIZE(sanitizer)
@@ -256,27 +262,21 @@
 //   PA_MSAN_UNPOISON(ptr, sizeof(T));
 // ```
 #if defined(MEMORY_SANITIZER)
-#include <sanitizer/msan_interface.h>
 #define PA_MSAN_UNPOISON(p, size) __msan_unpoison(p, size)
 #else
 #define PA_MSAN_UNPOISON(p, size)
 #endif
 
-// Annotates a pointer and size directing MSAN to check whether that memory
-// region is initialized, as if it was being read from. If any bits are
-// uninitialized, crashes with an MSAN report. Useful for e.g. sanitizing data
-// MSAN won't be able to track, such as data that is about to be passed to
-// another process via shared memory.
+// Checks if the pointer `p` and the `size` bytes after it are initialized or
+// not.
 //
 // See also:
-//   https://www.chromium.org/developers/testing/memorysanitizer/#debugging-msan-reports
+//   https://github.com/google/sanitizers/wiki/MemorySanitizer
 //
 // Usage:
+//   Currently used in raw_ptr destructor to catch use-after-destruct
 // ```
-//   T* ptr = ...;
-//   // The following line will crash at runtime in MSAN builds if `ptr` does
-//   // not point to an initialized `T`.
-//   PA_MSAN_CHECK_MEM_IS_INITIALIZED(ptr, sizeof(T));
+//   PA_MSAN_CHECK_MEM_IS_INITIALIZED(&ptr, sizeof(ptr));
 // ```
 #if defined(MEMORY_SANITIZER)
 #define PA_MSAN_CHECK_MEM_IS_INITIALIZED(p, size) \
@@ -354,7 +354,7 @@ inline constexpr bool AnalyzerAssumeTrue(bool arg) {
 //     // No calls in this block will be merged.
 //   }
 // ```
-#if __has_cpp_attribute(clang::nomerge)
+#if PA_HAS_CPP_ATTRIBUTE(clang::nomerge)
 #define PA_NOMERGE [[clang::nomerge]]
 #else
 #define PA_NOMERGE
@@ -368,7 +368,7 @@ inline constexpr bool AnalyzerAssumeTrue(bool arg) {
 // copy/move constructor(s) and destructor are unconditionally trivial; likely
 // ineffective if the type is too large to be passed in one or two registers
 // with the target ABI. However, annotating a type this way will also cause
-// `PA_IS_TRIVIALLY_RELOCATABLE()` to return true for that type, and so may be
+// `IS_TRIVIALLY_RELOCATABLE()` to return true for that type, and so may be
 // desirable even for large types, if they are placed in containers that
 // optimize based on that check.
 //
@@ -387,15 +387,46 @@ inline constexpr bool AnalyzerAssumeTrue(bool arg) {
 //   // `S`'s nontrivial destructor.
 //   struct PA_TRIVIAL_ABI S { ~S(); }
 // ```
-#if __has_cpp_attribute(clang::trivial_abi)
+#if PA_HAS_CPP_ATTRIBUTE(clang::trivial_abi)
 #define PA_TRIVIAL_ABI [[clang::trivial_abi]]
 #else
 #define PA_TRIVIAL_ABI
 #endif
 
+// Makes C++20's `constinit` functionality available even pre-C++20, by falling
+// back to a custom attribute.
+// TODO(crbug.com/365046216): Use `constinit` directly when C++20 is available
+// and all usage sites have been reordered to be compatible with doing so.
+//
+// See also:
+//   https://clang.llvm.org/docs/AttributeReference.html#require-constant-initialization-constinit-c-20
+//
+// Usage:
+// ```
+// struct S {
+//   constexpr S() = default;
+//   S(int) {}
+// };
+//
+// // Compiles (constant initialization via `constexpr` default constructor).
+// PA_CONSTINIT S s0;
+//
+// // Will not compile; diagnosed as usage of non-constexpr constructor in a
+// // constant expression.
+// PA_CONSTINIT S s1(1);
+//
+// // Compiles (non-constant initialization via non-`constexpr` constructor).
+// S s2(2);
+// ```
+#if PA_HAS_CPP_ATTRIBUTE(clang::require_constant_initialization)
+#define PA_CONSTINIT [[clang::require_constant_initialization]]
+#else
+#define PA_CONSTINIT
+#endif
+
 // Annotates a type as holding a pointer into an owner object (an appropriate
-// STL or `PA_GSL_OWNER`-annotated type). If an instance of the pointer type is
-// constructed from an instance of the owner type, and the owner instance is
+// STL or `[[gsl::Owner]]`-annotated type). If an instance of the pointer type
+// is constructed from an instance of the owner type, and the owner instance is
 // destroyed, the pointer instance is considered to be dangling. Useful to
 // diagnose some cases of lifetime errors.
 //
@@ -404,7 +435,7 @@ inline constexpr bool AnalyzerAssumeTrue(bool arg) {
 //
 // Usage:
 // ```
-//  struct PA_GSL_OWNER T {};
+//  struct [[gsl::Owner]] T {};
 //  struct PA_GSL_POINTER S {
 //    S(const T&);
 //  };
@@ -414,23 +445,38 @@ inline constexpr bool AnalyzerAssumeTrue(bool arg) {
 //    return S(T());
 //  }
 // ```
-#if __has_cpp_attribute(gsl::Pointer)
+#if PA_HAS_CPP_ATTRIBUTE(gsl::Pointer)
 #define PA_GSL_POINTER [[gsl::Pointer]]
 #else
 #define PA_GSL_POINTER
 #endif
 
+// Annotates a destructor marking it `constexpr` only if the language supports
+// it (C++20 and onward).
+//
+// Usage:
+// ```
+//  struct S {
+//    PA_CONSTEXPR_DTOR ~S() {}  // N.B.: Compiles even pre-C++20
+//  };
+//  // The following declaration will only compile in C++20; diagnosed as an
+//  // invalid constexpr variable of non-literal type otherwise.
+//  constexpr S s;
+// ```
+#if defined(__cpp_constexpr) && __cpp_constexpr >= 201907L
+#define PA_CONSTEXPR_DTOR constexpr
+#else
+#define PA_CONSTEXPR_DTOR
+#endif
+
 // Annotates a pointer or reference parameter or return value for a member
 // function as having lifetime intertwined with the instance on which the
-// function is called. For function parameters, the function is assumed to store
-// the reference into the return value, so if the referred-to object is later
-// destroyed, the returned value is also considered to be dangling. For
-// constructor parameters, the constructor is assumed to store the reference
-// into the object, so if the referred-to object is later destroyed, the object
-// is considered to be dangling. For return values, the value is assumed to
-// point into the called-on object, so if that object is destroyed, the returned
-// value is also considered to be dangling. Useful to diagnose some cases of
-// lifetime errors.
+// function is called. For parameters, the function is assumed to store the
+// value into the called-on object, so if the referred-to object is later
+// destroyed, the called-on object is also considered to be dangling. For return
+// values, the value is assumed to point into the called-on object, so if that
+// object is destroyed, the returned value is also considered to be dangling.
+// Useful to diagnose some cases of lifetime errors.
 //
 // See also:
 //   https://clang.llvm.org/docs/AttributeReference.html#lifetimebound
@@ -440,8 +486,6 @@ inline constexpr bool AnalyzerAssumeTrue(bool arg) {
 //   struct S {
 //      S(int* p PA_LIFETIME_BOUND);
 //      int* Get() PA_LIFETIME_BOUND;
-//      std::string_view GetSubstring(
-//          const std::string& s PA_LIFETIME_BOUND) const;
 //   };
 //   S Func1() {
 //     int i = 0;
@@ -454,13 +498,8 @@ inline constexpr bool AnalyzerAssumeTrue(bool arg) {
 //     // of a local temporary.
 //     return S(p).Get();
 //   }
-//   std::string_view Func3(const S& s) {
-//     // The following return will not compile; diagnosed as returning address
-//     // of a local temporary object.
-//     return s.GetSubstring(NumberToString(3));
-//   }
 // ```
-#if __has_cpp_attribute(clang::lifetimebound)
+#if PA_HAS_CPP_ATTRIBUTE(clang::lifetimebound)
 #define PA_LIFETIME_BOUND [[clang::lifetimebound]]
 #else
 #define PA_LIFETIME_BOUND
@@ -476,77 +515,15 @@ inline constexpr bool AnalyzerAssumeTrue(bool arg) {
 // Usage:
 // ```
 // ```
-#if __has_cpp_attribute(gnu::no_profile_instrument_function)
+#if PA_HAS_CPP_ATTRIBUTE(gnu::no_profile_instrument_function)
 #define PA_NOPROFILE [[gnu::no_profile_instrument_function]]
 #else
 #define PA_NOPROFILE
 #endif
 
-// Annotates a function indicating that the returned pointer will never be null.
-// This may allow the compiler to assume null checks on the caller side are
-// unnecessary.
-//
-// In practice, this is usually better-handled by returning a value or
-// reference, which enforce such guarantees at the type level.
-//
-// See also:
-//   https://gcc.gnu.org/onlinedocs/gcc/Common-Function-Attributes.html#index-returns_005fnonnull-function-attribute
-//   https://clang.llvm.org/docs/AttributeReference.html#nullability-attributes
-//
-// Usage:
-// ```
-//   // The following function will never return `nullptr`.
-//   PA_RETURNS_NONNULL int* Func();
-// ```
-#if __has_cpp_attribute(gnu::returns_nonnull)
-#define PA_RETURNS_NONNULL [[gnu::returns_nonnull]]
-#else
-#define PA_RETURNS_NONNULL
-#endif
-
 // Annotates a function or class data member indicating it can lead to
 // out-of-bounds accesses (OOB) if given incorrect inputs.
-//
-// For functions, this commonly includes functions which take pointers, sizes,
-// iterators, sentinels, etc. and cannot fully check their preconditions (e.g.
-// that the provided pointer actually points to an allocation of at least the
-// provided size). Useful to diagnose potential misuse via
-// `-Wunsafe-buffer-usage`, as well as to mark functions potentially in need of
-// safer alternatives.
-//
-// For fields, this would be used to annotate both pointer and size fields that
-// have not yet been converted to a span.
-//
-// All functions or fields annotated with this macro should come with a
-// `// PRECONDITIONS: ` comment that explains what the caller must guarantee
-// to ensure safe operation. Callers can then write `// SAFETY: ` comments
-// explaining why the specific preconditions have been met.
-//
-// Ideally, unsafe functions should also be paired with a safer version, e.g.
-// one that replaces pointer parameters with `span`s; otherwise, document safer
-// replacement coding patterns callers can migrate to.
-//
-// Annotating a function `PA_UNSAFE_BUFFER_USAGE` means all call sites (that do
-// not disable the warning) must wrap calls in `PA_UNSAFE_BUFFERS()`; see
-// documentation there. Annotating a field `PA_UNSAFE_BUFFER_USAGE` means that
-// `PA_UNSAFE_BUFFERS()` must wrap expressions that mutate of the field.
-//
-// See also:
-//   https://chromium.googlesource.com/chromium/src/+/main/docs/unsafe_buffers.md
-//   https://clang.llvm.org/docs/SafeBuffers.html
-//   https://clang.llvm.org/docs/DiagnosticsReference.html#wunsafe-buffer-usage
-//
-// Usage:
-// ```
-//   // Calls to this function must be wrapped in `PA_UNSAFE_BUFFERS()`.
-//   PA_UNSAFE_BUFFER_USAGE void Func(T* input, T* end);
-//
-//   struct S {
-//     // Changing this pointer requires `PA_UNSAFE_BUFFERS()`.
-//     PA_UNSAFE_BUFFER_USAGE int* p;
-//   };
-// ```
-#if __has_cpp_attribute(clang::unsafe_buffer_usage)
+#if PA_HAS_CPP_ATTRIBUTE(clang::unsafe_buffer_usage)
 #define PA_UNSAFE_BUFFER_USAGE [[clang::unsafe_buffer_usage]]
 #else
 #define PA_UNSAFE_BUFFER_USAGE
@@ -554,48 +531,12 @@ inline constexpr bool AnalyzerAssumeTrue(bool arg) {
 
 // Annotates code indicating that it should be permanently exempted from
 // `-Wunsafe-buffer-usage`. For temporary cases such as migrating callers to
-// safer patterns, use `PA_UNSAFE_TODO()` instead; see documentation there.
-//
-// All calls to functions annotated with `PA_UNSAFE_BUFFER_USAGE` must be marked
-// with one of these two macros; they can also be used around pointer
-// arithmetic, pointer subscripting, and the like.
-//
-// ** USE OF THIS MACRO SHOULD BE VERY RARE.** Using this macro indicates that
-// the compiler cannot verify that the code avoids OOB, and manual review is
-// required. Even with manual review, it's easy for assumptions to change and
-// security bugs to creep in over time. Prefer safer patterns instead.
-//
-// Usage should wrap the minimum necessary code, and *must* include a
-// `// SAFETY: ...` comment that explains how the code guarantees safety or
-// meets the requirements of called `PA_UNSAFE_BUFFER_USAGE` functions.
-// Guarantees must be manually verifiable by the Chrome security team using only
-// local invariants; contact security@chromium.org to schedule such a review.
-// Valid invariants include:
-// - Runtime conditions or `CHECK()`s nearby
-// - Invariants guaranteed by types in the surrounding code
-// - Invariants guaranteed by function calls in the surrounding code
-// - Caller requirements, if the containing function is itself annotated with
-//   `PA_UNSAFE_BUFFER_USAGE`; this is less safe and should be a last resort
-//
-// See also:
-//   https://chromium.googlesource.com/chromium/src/+/main/docs/unsafe_buffers.md
-//   https://clang.llvm.org/docs/SafeBuffers.html
-//   https://clang.llvm.org/docs/DiagnosticsReference.html#wunsafe-buffer-usage
-//
-// Usage:
-// ```
-//   // The following call will not trigger a compiler warning even if `Func()`
-//   // is annotated `PA_UNSAFE_BUFFER_USAGE`.
-//   return PA_UNSAFE_BUFFERS(Func(input, end));
-// ```
-//
-// Test for `__clang__` directly, as there's no `__has_pragma` or similar (see
-// https://github.com/llvm/llvm-project/issues/51887).
+// safer patterns, use `PA_UNSAFE_TODO()` instead;
 #if defined(__clang__)
 // Disabling `clang-format` allows each `_Pragma` to be on its own line, as
 // recommended by https://gcc.gnu.org/onlinedocs/cpp/Pragmas.html.
 // clang-format off
-#define PA_UNSAFE_BUFFERS(...)               \
+#define PA_UNSAFE_BUFFERS(...)                  \
   _Pragma("clang unsafe_buffer_usage begin") \
   __VA_ARGS__                                \
   _Pragma("clang unsafe_buffer_usage end")
@@ -605,67 +546,9 @@ inline constexpr bool AnalyzerAssumeTrue(bool arg) {
 #endif
 
 // Annotates code indicating that it should be temporarily exempted from
-// `-Wunsafe-buffer-usage`. While this is functionally the same as
-// `PA_UNSAFE_BUFFERS()`, semantically it indicates that this is for migration
-// purposes, and should be cleaned up as soon as possible.
-//
-// Usage:
-// ```
-//   // The following call will not trigger a compiler warning even if `Func()`
-//   // is annotated `PA_UNSAFE_BUFFER_USAGE`.
-//   return PA_UNSAFE_TODO(Func(input, end));
-// ```
+// `-Wunsafe-buffer-usage`.
 #define PA_UNSAFE_TODO(...) PA_UNSAFE_BUFFERS(__VA_ARGS__)
 
-// Annotates a function restricting its availability based on compile-time
-// information in the evaluated context. Useful to convert runtime errors to
-// compile-time errors if functions' arguments are always known at compile time.
-//
-// SFINAE and `requires` clauses can restrict function availability based on the
-// unevaluated context (type information and syntactic correctness). This
-// provides a similar capability based on the evaluated context (variable
-// values). If the condition fails, or cannot be determined at compile time, the
-// function is excluded from the overload set.
-//
-// Some use cases could be satisfied without this by marking the function
-// `consteval` and breaking compile when the condition fails (e.g. via
-// `CHECK()`/`assert()`). However, `PA_ENABLE_IF_ATTR()` is generally superior:
-//   - Not all desired functions can be made `consteval`; e.g. most
-//     constructors.
-//   - The error message in the macro case is clearer and more actionable.
-//   - `PA_ENABLE_IF_ATTR()` interacts better with template metaprogramming.
-//
-// See also:
-//   https://clang.llvm.org/docs/AttributeReference.html#enable-if
-//   https://github.com/chromium/subspace/issues/266
-//
-// Usage:
-// ```
-//   void NotConsteval(int a) {
-//     assert(a > 0);
-//   }
-//   consteval void WithoutEnableIf(int a) {
-//     assert(a > 0);
-//   }
-//   void WithEnableIf(int a) PA_ENABLE_IF_ATTR(a > 0, "arg must be positive")
-//   {}
-//   void Func(int i) {
-//     // Compiles; assertion fails at runtime.
-//     NotConsteval(-1);
-//
-//     // Will not compile; diagnosed as not a constant expression.
-//     WithoutEnableIf(-1);
-//
-//     // Will not compile; diagnosed as no matching function call with
-//     // "note: candidate disabled: arg must be positive".
-//     WithEnableIf(-1);
-//
-//     // Will not compile (same reason). Marking `Func()` as
-//     // `PA_ENABLE_IF_ATTR(i > 0, ...)` will not help; the compiler's analysis
-//     // is not sufficiently sophisticated to propagate this constraint.
-//     WithEnableIf(i);
-//   }
-// ```
 #if PA_HAS_ATTRIBUTE(enable_if)
 #define PA_ENABLE_IF_ATTR(cond, msg) __attribute__((enable_if(cond, msg)))
 #else

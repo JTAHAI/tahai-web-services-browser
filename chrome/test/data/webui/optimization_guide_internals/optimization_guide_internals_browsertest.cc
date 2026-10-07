@@ -17,6 +17,7 @@
 #include "chrome/browser/optimization_guide/optimization_guide_keyed_service.h"
 #include "chrome/browser/optimization_guide/optimization_guide_keyed_service_factory.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_tabstrip.h"
 #include "chrome/common/chrome_paths.h"
 #include "chrome/test/base/ui_test_utils.h"
@@ -25,6 +26,7 @@
 #include "components/optimization_guide/core/delivery/prediction_model_override.h"
 #include "components/optimization_guide/core/optimization_guide_features.h"
 #include "components/optimization_guide/core/optimization_guide_logger.h"
+#include "components/optimization_guide/core/optimization_guide_switches.h"
 #include "components/optimization_guide/optimization_guide_internals/webui/url_constants.h"
 #include "components/prefs/pref_service.h"
 #include "components/webui/chrome_urls/pref_names.h"
@@ -110,7 +112,7 @@ class OptimizationGuideInternalsModelsPageBrowserTest
     base::PathService::Get(chrome::DIR_TEST_DATA, &src_dir);
 
     base::CommandLine::ForCurrentProcess()->AppendSwitchASCII(
-        optimization_guide::kModelOverrideSwitch,
+        optimization_guide::switches::kModelOverride,
         base::StrCat({
             "OPTIMIZATION_TARGET_PAINFUL_PAGE_LOAD",
             optimization_guide::ModelOverrideSeparator(),

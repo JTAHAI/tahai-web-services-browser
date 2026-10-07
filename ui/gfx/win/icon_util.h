@@ -10,12 +10,10 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include <array>
 #include <memory>
 #include <vector>
 
 #include "base/component_export.h"
-#include "base/containers/span.h"
 #include "base/win/scoped_gdi_object.h"
 #include "ui/gfx/geometry/point.h"
 #include "ui/gfx/geometry/size.h"
@@ -75,7 +73,10 @@ class COMPONENT_EXPORT(GFX) IconUtil {
   // The dimensions for icon images in Windows icon files. All sizes are square;
   // that is, the value 48 means a 48x48 pixel image. Sizes are listed in
   // ascending order.
-  static const std::array<int, 13> kIconDimensions;
+  static const int kIconDimensions[];
+
+  // The number of elements in kIconDimensions.
+  static const size_t kNumIconDimensions;
   // The number of elements in kIconDimensions <= kMediumIconSize.
   static const size_t kNumIconDimensionsUpToMediumSize;
 
@@ -210,7 +211,7 @@ class COMPONENT_EXPORT(GFX) IconUtil {
   friend class IconUtilTest;
 
   // Returns true if any pixel in the given pixels buffer has an non-zero alpha.
-  static bool PixelsHaveAlpha(base::span<const uint32_t> pixels);
+  static bool PixelsHaveAlpha(const uint32_t* pixels, size_t num_pixels);
 
   // A helper function that initializes a BITMAPV5HEADER structure with a set
   // of values.
@@ -230,7 +231,8 @@ class COMPONENT_EXPORT(GFX) IconUtil {
   // includes only the image data written into the memory pointed to by
   // |icon_image|.
   static void SetSingleIconImageInformation(const SkBitmap& bitmap,
-                                            ICONDIRENTRY& entry,
+                                            size_t index,
+                                            ICONDIR* icon_dir,
                                             ICONIMAGE* icon_image,
                                             DWORD image_offset,
                                             size_t* image_byte_count);

@@ -4,8 +4,7 @@
 
 #include "chrome/browser/net/http_auth_cache_status.h"
 
-#include <memory>
-
+#include "base/memory/raw_ptr.h"
 #include "base/test/metrics/histogram_tester.h"
 #include "chrome/browser/page_load_metrics/page_load_metrics_initialize.h"
 #include "chrome/test/base/chrome_render_view_host_test_harness.h"
@@ -37,18 +36,19 @@ class HttpAuthCacheStatusTest : public ChromeRenderViewHostTestHarness {
   void SetUp() override {
     ChromeRenderViewHostTestHarness::SetUp();
     InitializePageLoadMetricsForWebContents(web_contents());
+    HttpAuthCacheStatus::CreateForWebContents(web_contents());
     http_auth_cache_status_ =
-        std::make_unique<HttpAuthCacheStatus>(web_contents());
+        HttpAuthCacheStatus::FromWebContents(web_contents());
   }
 
   void TearDown() override {
-    http_auth_cache_status_.reset();
+    http_auth_cache_status_ = nullptr;
     ChromeRenderViewHostTestHarness::TearDown();
   }
 
  protected:
   base::HistogramTester histogram_tester_;
-  std::unique_ptr<HttpAuthCacheStatus> http_auth_cache_status_;
+  raw_ptr<HttpAuthCacheStatus> http_auth_cache_status_;
 };
 
 // This test verifies that when a same-partition subresource load completes with

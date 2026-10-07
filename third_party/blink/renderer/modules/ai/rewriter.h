@@ -30,8 +30,7 @@ class Rewriter final : public ScriptWrappable,
   Rewriter(ScriptState* script_state,
            scoped_refptr<base::SequencedTaskRunner> task_runner,
            mojo::PendingRemote<mojom::blink::AIRewriter> pending_remote,
-           RewriterCreateOptions* options,
-           uint64_t context_window);
+           RewriterCreateOptions* options);
   void Trace(Visitor* visitor) const override;
 
   // AIWritingAssistanceBase:

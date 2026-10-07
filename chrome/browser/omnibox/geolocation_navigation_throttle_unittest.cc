@@ -16,7 +16,6 @@
 #include "components/content_settings/core/browser/host_content_settings_map.h"
 #include "components/content_settings/core/common/content_settings_types.h"
 #include "components/omnibox/browser/geolocation_header_service.h"
-#include "components/omnibox/browser/geolocation_header_service_test_api.h"
 #include "components/omnibox/common/omnibox_features.h"
 #include "components/search_engines/template_url.h"
 #include "components/search_engines/template_url_data.h"
@@ -146,7 +145,7 @@ TEST_F(GeolocationNavigationThrottleTest, RedirectFromNonDseToDse) {
   SetGeolocationPermission(CONTENT_SETTING_ALLOW);
 
   auto* service = GeolocationHeaderServiceFactory::GetForProfile(profile());
-  GeolocationHeaderServiceTestApi(service).SetLocationAge(base::Minutes(1));
+  service->SetLocationAgeForTesting(base::Minutes(1));
   service->PrimeLocation();
   ASSERT_TRUE(
       base::test::RunUntil([&]() { return service->HasCachedLocation(); }));
@@ -186,7 +185,7 @@ TEST_F(GeolocationNavigationThrottleTest, RedirectFromDseToNonDse) {
   SetGeolocationPermission(CONTENT_SETTING_ALLOW);
 
   auto* service = GeolocationHeaderServiceFactory::GetForProfile(profile());
-  GeolocationHeaderServiceTestApi(service).SetLocationAge(base::Minutes(1));
+  service->SetLocationAgeForTesting(base::Minutes(1));
   service->PrimeLocation();
   ASSERT_TRUE(
       base::test::RunUntil([&]() { return service->HasCachedLocation(); }));
@@ -230,7 +229,7 @@ TEST_F(GeolocationNavigationThrottleTest, HeaderSentForAllowedDse) {
   SetGeolocationPermission(CONTENT_SETTING_ALLOW);
 
   auto* service = GeolocationHeaderServiceFactory::GetForProfile(profile());
-  GeolocationHeaderServiceTestApi(service).SetLocationAge(base::Minutes(1));
+  service->SetLocationAgeForTesting(base::Minutes(1));
   service->PrimeLocation();
   ASSERT_TRUE(
       base::test::RunUntil([&]() { return service->HasCachedLocation(); }));
@@ -261,7 +260,7 @@ TEST_F(GeolocationNavigationThrottleTest, HeaderNotSentForDeniedDse) {
   SetGeolocationPermission(CONTENT_SETTING_BLOCK);
 
   auto* service = GeolocationHeaderServiceFactory::GetForProfile(profile());
-  GeolocationHeaderServiceTestApi(service).SetLocationAge(base::Minutes(1));
+  service->SetLocationAgeForTesting(base::Minutes(1));
   service->PrimeLocation();
   EXPECT_FALSE(service->HasCachedLocation());
 
@@ -290,7 +289,7 @@ TEST_F(GeolocationNavigationThrottleTest,
   SetGeolocationPermission(CONTENT_SETTING_ALLOW);
 
   auto* service = GeolocationHeaderServiceFactory::GetForProfile(profile());
-  GeolocationHeaderServiceTestApi(service).SetLocationAge(base::Minutes(1));
+  service->SetLocationAgeForTesting(base::Minutes(1));
   service->PrimeLocation();
   ASSERT_TRUE(
       base::test::RunUntil([&]() { return service->HasCachedLocation(); }));

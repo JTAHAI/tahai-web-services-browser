@@ -113,6 +113,8 @@ public class SecurePaymentConfirmationControllerTest {
     private String mPaymentInstrumentLabelSecondary;
     private PaymentItem mTotal;
     private Drawable mPaymentIcon;
+    private Drawable mIssuerIcon;
+    private Drawable mNetworkIcon;
     private String mRelyingPartyId;
     private SecurePaymentConfirmationController mController;
 

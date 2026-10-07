@@ -24,9 +24,6 @@ class CORE_EXPORT LayoutGridLanes : public LayoutBlock {
     return "LayoutGridLanes";
   }
 
-  bool HasTopOverflow() const override;
-  bool HasLeftOverflow() const override;
-
   bool HasCachedPlacementData() const;
   const GridPlacementData& CachedPlacementData() const;
   void SetCachedPlacementData(GridPlacementData&& placement_data);
@@ -35,7 +32,6 @@ class CORE_EXPORT LayoutGridLanes : public LayoutBlock {
   void RemoveChild(LayoutObject* child) override;
   void StyleDidChange(StyleDifference diff,
                       const ComputedStyle* old_style,
-                      const ComputedStyle& new_style,
                       const StyleChangeContext&) override;
 
   // TODO(almaher): We are missing subgrid methods, similar to LayoutGrid.

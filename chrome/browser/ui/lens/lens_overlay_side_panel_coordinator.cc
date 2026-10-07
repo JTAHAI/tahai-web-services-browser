@@ -19,7 +19,6 @@
 #include "chrome/browser/ui/lens/lens_help_menu_utils.h"
 #include "chrome/browser/ui/lens/lens_media_link_handler.h"
 #include "chrome/browser/ui/lens/lens_overlay_controller.h"
-#include "chrome/browser/ui/lens/lens_overlay_query_controller.h"
 #include "chrome/browser/ui/lens/lens_overlay_side_panel_web_view.h"
 #include "chrome/browser/ui/lens/lens_overlay_url_builder.h"
 #include "chrome/browser/ui/lens/lens_search_controller.h"
@@ -57,7 +56,6 @@
 #include "net/base/network_change_notifier.h"
 #include "net/base/registry_controlled_domains/registry_controlled_domain.h"
 #include "net/base/url_util.h"
-#include "third_party/lens_server_proto/lens_overlay_selection_type.pb.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/base/models/image_model.h"
@@ -551,7 +549,7 @@ void LensOverlaySidePanelCoordinator::OnScrollToMessage(
   // If a PDFDocumentHelper is found attached to the current web contents,
   // that means that the PDF viewer is currently loaded in it.
   auto* pdf_helper =
-      pdf::PDFDocumentHelper::MaybeGetForWebContents(*web_contents);
+      pdf::PDFDocumentHelper::MaybeGetForWebContents(web_contents);
   if (pdf_helper) {
     if (ShouldHandlePDFViewportChange(latest_page_url_with_viewport_params)) {
       pdf_extension_util::DispatchShouldUpdateViewportEvent(
@@ -905,7 +903,7 @@ void LensOverlaySidePanelCoordinator::DidStartNavigation(
     // that means that the PDF viewer is currently loaded in it.
     if (ShouldHandlePDFViewportChange(nav_url)) {
       auto* pdf_helper =
-          pdf::PDFDocumentHelper::MaybeGetForWebContents(*web_contents);
+          pdf::PDFDocumentHelper::MaybeGetForWebContents(web_contents);
       if (pdf_helper) {
         pdf_extension_util::DispatchShouldUpdateViewportEvent(
             web_contents->GetPrimaryMainFrame(), nav_url);
@@ -1000,6 +998,24 @@ void LensOverlaySidePanelCoordinator::DOMContentLoaded(
 
   SetSidePanelNewTabUrl(render_frame_host->GetLastCommittedURL());
   SetSidePanelIsLoadingResults(false);
+}
+
+void LensOverlaySidePanelCoordinator::DidFinishNavigation(
+    content::NavigationHandle* navigation_handle) {
+  // Ignore navigations that are not the final results frame navigation
+  // initiated by the user.
+  if (!IsIframesResultsNavigation(navigation_handle)) {
+    return;
+  }
+
+  // Ignore navigations that were aborted due to user input. I.e the user
+  // issued a new query.
+  if (navigation_handle->GetNetErrorCode() == net::ERR_ABORTED) {
+    return;
+  }
+
+  lens::RecordIframeLoadStatus(navigation_handle->IsErrorPage(),
+                               navigation_handle->GetNetErrorCode());
 }
 
 web_modal::WebContentsModalDialogHost*

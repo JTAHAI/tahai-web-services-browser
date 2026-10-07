@@ -26,6 +26,7 @@ class CORE_EXPORT HTMLMediaCaptureElementBase
   DOMException* error() const { return error_.Get(); }
   void SetError(DOMException* error) { error_ = error; }
 
+  DEFINE_ATTRIBUTE_EVENT_LISTENER(stream, kStream)
   DEFINE_ATTRIBUTE_EVENT_LISTENER(cancel, kCancel)
   DEFINE_ATTRIBUTE_EVENT_LISTENER(error, kError)
 
@@ -38,10 +39,14 @@ class CORE_EXPORT HTMLMediaCaptureElementBase
   void OnEmbeddedPermissionsDecided(
       mojom::blink::EmbeddedPermissionControlResult result) override;
 
+  Node::InsertionNotificationRequest InsertedInto(ContainerNode&) override;
+
   void DefaultEventHandler(Event& event) override;
   mojom::blink::EmbeddedPermissionRequestDescriptorPtr
   CreateEmbeddedPermissionRequestDescriptor() override;
   void OnActivationFailed(const String& error_message) override;
+
+  virtual void ApplyDefaultConstraints();
 
   void ResetMediaStreamRequestTime();
 

@@ -63,7 +63,7 @@ class ElementInnerTextCollector final {
     void EmitText(const StringView& text);
     String Finish();
 
-    wtf_size_t length() const { return builder_.length(); }
+    unsigned length() const { return builder_.length(); }
 
    private:
     void FlushRequiredLineBreak();
@@ -83,8 +83,8 @@ class ElementInnerTextCollector final {
       const Node& node,
       wtf_size_t required_line_break_count);
   void ProcessLayoutText(const LayoutText& layout_text,
-                         const wtf_size_t start_offset);
-  wtf_size_t ProcessFirstLineAndGetOffset(const LayoutText& layout_text);
+                         const unsigned start_offset);
+  unsigned ProcessFirstLineAndGetOffset(const LayoutText& layout_text);
   void ProcessNode(const Node& node);
   void ProcessOptionElement(const HTMLOptionElement& element);
   void ProcessOptGroupElement(const HTMLOptGroupElement& element);
@@ -220,9 +220,8 @@ void ElementInnerTextCollector::ProcessChildrenWithRequiredLineBreaks(
   result_.EmitRequiredLineBreak(required_line_break_count);
 }
 
-void ElementInnerTextCollector::ProcessLayoutText(
-    const LayoutText& layout_text,
-    const wtf_size_t start_offset) {
+void ElementInnerTextCollector::ProcessLayoutText(const LayoutText& layout_text,
+                                                  const unsigned start_offset) {
   if (layout_text.HasEmptyText()) {
     return;
   }
@@ -239,14 +238,14 @@ void ElementInnerTextCollector::ProcessLayoutText(
 
   // first_line_offset is the first character of the text that is not part of
   // ::first_line
-  wtf_size_t first_line_offset = 0;
+  unsigned first_line_offset = 0;
   if (block_style.TextTransform() != first_line_style.TextTransform()) {
     first_line_offset = ProcessFirstLineAndGetOffset(layout_text);
   }
-  const wtf_size_t adjusted_offset =
+  const unsigned adjusted_offset =
       first_line_offset ? first_line_offset : start_offset;
   const String plain_text = layout_text.PlainText();
-  const wtf_size_t text_length = plain_text.length();
+  const unsigned text_length = plain_text.length();
   if (adjusted_offset < text_length) {
     result_.EmitText(
         StringView(plain_text, adjusted_offset, text_length - adjusted_offset));
@@ -256,11 +255,11 @@ void ElementInnerTextCollector::ProcessLayoutText(
 // Offset mappings don't have text offsets for ::first-line. Get the rendered
 // text for ::first-line from FragmentItems and return the length of
 // the ::first-line part as offset
-wtf_size_t ElementInnerTextCollector::ProcessFirstLineAndGetOffset(
+unsigned ElementInnerTextCollector::ProcessFirstLineAndGetOffset(
     const LayoutText& layout_text) {
   LayoutBlockFlow* const block_flow = layout_text.FragmentItemsContainer();
   DCHECK(block_flow) << layout_text;
-  wtf_size_t first_line_length = 0;
+  unsigned first_line_length = 0;
   for (InlineCursor cursor(*block_flow);
        cursor && cursor.Current().UsesFirstLineStyle(); cursor.MoveToNext()) {
     if (!cursor.CurrentItem()->IsText()) {
@@ -441,7 +440,7 @@ void ElementInnerTextCollector::ProcessTextNode(const Text& node) {
             OffsetMapping::GetInlineFormattingContextOf(*first_letter_part)) {
       // "::first-letter" with "float" reach here.
       ProcessLayoutText(*first_letter_part, 0);
-      wtf_size_t first_letter_length = first_letter_part->PlainText().length();
+      unsigned first_letter_length = first_letter_part->PlainText().length();
       ProcessLayoutText(layout_text, first_letter_length);
       return;
     }

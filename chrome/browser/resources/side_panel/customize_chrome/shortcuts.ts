@@ -260,8 +260,6 @@ export class ShortcutsElement extends CrLitElement {
   protected showEnterprisePersonalMixedSidepanel_() {
     return !this.disabledShortcuts_.includes(TileType.kEnterpriseShortcuts);
   }
-
-
 }
 
 declare global {

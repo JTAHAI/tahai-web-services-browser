@@ -619,12 +619,9 @@ constexpr CGFloat kOverflowMenuButtonTopSpacing = 14;
   DCHECK(metricsAction);
   base::RecordAction(base::UserMetricsAction(metricsAction));
 
-  [self.contentInjector
-      userDidPickContent:sender.titleLabel.text
-           passwordField:NO
-           requiresHTTPS:NO
-         jumpToNextField:YES
-              actionType:autofill::mojom::FieldActionType::kReplaceAll];
+  [self.contentInjector userDidPickContent:sender.titleLabel.text
+                             passwordField:NO
+                             requiresHTTPS:NO];
 }
 
 // Called when the "Autofill Form" button is tapped. Fills the current form with

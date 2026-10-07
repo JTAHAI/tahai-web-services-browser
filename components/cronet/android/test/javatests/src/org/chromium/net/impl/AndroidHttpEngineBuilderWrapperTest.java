@@ -66,13 +66,13 @@ public class AndroidHttpEngineBuilderWrapperTest {
                         "{\"QUIC\":{\"migrate_sessions_on_network_change_v2\":true,"
                                 + " \"allow_port_migration\":false}}");
 
-        android.net.http.ConnectionMigrationOptions cmOptions =
+        android.net.http.ConnectionMigrationOptions CMOptions =
                 parseConnectionMigrationOptions(options);
-        assertThat(cmOptions.getDefaultNetworkMigration())
+        assertThat(CMOptions.getDefaultNetworkMigration())
                 .isEqualTo(android.net.http.ConnectionMigrationOptions.MIGRATION_OPTION_ENABLED);
-        assertThat(cmOptions.getPathDegradationMigration())
+        assertThat(CMOptions.getPathDegradationMigration())
                 .isEqualTo(android.net.http.ConnectionMigrationOptions.MIGRATION_OPTION_DISABLED);
-        assertThat(cmOptions.getAllowNonDefaultNetworkUsage())
+        assertThat(CMOptions.getAllowNonDefaultNetworkUsage())
                 .isEqualTo(
                         android.net.http.ConnectionMigrationOptions.MIGRATION_OPTION_UNSPECIFIED);
     }
@@ -196,19 +196,19 @@ public class AndroidHttpEngineBuilderWrapperTest {
     @Test
     @SmallTest
     public void testParseDnsOptions_allSet_returnsCorrectValues() {
-        long delayMs = 373740587;
-        long persistDelayMs = 737740529;
-        long maxExpiredTimeMs = 629397243;
+        long delay_ms = 373740587;
+        long persist_delay_ms = 737740529;
+        long max_expired_time_ms = 629397243;
         ExperimentalOptions options =
                 new ExperimentalOptions(
                         "{  \"AsyncDNS\": { \"enable\": true },  \"StaleDNS\": {    \"enable\":"
                                 + " true,  \"persist_to_disk\": false,    \"persist_delay_ms\": "
-                                + persistDelayMs
+                                + persist_delay_ms
                                 + ",\"allow_other_network\": true,    \"delay_ms\": "
-                                + delayMs
+                                + delay_ms
                                 + ",\"use_stale_on_name_not_resolved\": true,"
                                 + " \"max_expired_time_ms\":"
-                                + maxExpiredTimeMs
+                                + max_expired_time_ms
                                 + "  },  \"QUIC\": {    \"race_stale_dns_on_connection\": true }}");
 
         android.net.http.DnsOptions dnsOptions = parseDnsOptions(options);
@@ -219,7 +219,7 @@ public class AndroidHttpEngineBuilderWrapperTest {
         assertThat(dnsOptions.getPersistHostCache())
                 .isEqualTo(android.net.http.DnsOptions.DNS_OPTION_DISABLED);
         assertThat(dnsOptions.getPersistHostCachePeriod())
-                .isEqualTo(Duration.ofMillis(persistDelayMs));
+                .isEqualTo(Duration.ofMillis(persist_delay_ms));
         assertThat(dnsOptions.getStaleDns())
                 .isEqualTo(android.net.http.DnsOptions.DNS_OPTION_ENABLED);
         // race_stale_dns_on_connection
@@ -228,9 +228,9 @@ public class AndroidHttpEngineBuilderWrapperTest {
 
         android.net.http.DnsOptions.StaleDnsOptions staleDnsOptions =
                 dnsOptions.getStaleDnsOptions();
-        assertThat(staleDnsOptions.getFreshLookupTimeout()).isEqualTo(Duration.ofMillis(delayMs));
+        assertThat(staleDnsOptions.getFreshLookupTimeout()).isEqualTo(Duration.ofMillis(delay_ms));
         assertThat(staleDnsOptions.getMaxExpiredDelay())
-                .isEqualTo(Duration.ofMillis(maxExpiredTimeMs));
+                .isEqualTo(Duration.ofMillis(max_expired_time_ms));
         // allow_other_network
         assertThat(staleDnsOptions.getAllowCrossNetworkUsage())
                 .isEqualTo(android.net.http.DnsOptions.DNS_OPTION_ENABLED);
@@ -273,29 +273,29 @@ public class AndroidHttpEngineBuilderWrapperTest {
     @Test
     @SmallTest
     public void testParseQuicOptions_allSet_returnsCorrectValues() {
-        int maxServerConfig = 466360493;
-        int idleConnTimeout = 435320688;
-        String userAgentId = "handshakeUserAgent";
-        String hostWhitelist = "quicHost1.com,quicHost2.com";
+        int max_server_config = 466360493;
+        int idle_conn_timeout = 435320688;
+        String user_agent_id = "handshakeUserAgent";
+        String host_whitelist = "quicHost1.com,quicHost2.com";
         ExperimentalOptions options =
                 new ExperimentalOptions(
                         "{  \"QUIC\": {   \"host_whitelist\": \""
-                                + hostWhitelist
+                                + host_whitelist
                                 + "\",   \"max_server_configs_stored_in_properties\": "
-                                + maxServerConfig
+                                + max_server_config
                                 + ",  \"user_agent_id\": \""
-                                + userAgentId
+                                + user_agent_id
                                 + "\",   \"idle_connection_timeout_seconds\": "
-                                + idleConnTimeout
+                                + idle_conn_timeout
                                 + "   }}");
         android.net.http.QuicOptions quicOptions = parseQuicOptions(options);
 
         assertThat(quicOptions.getAllowedQuicHosts())
-                .containsExactlyElementsIn(hostWhitelist.split(","));
-        assertThat(quicOptions.getInMemoryServerConfigsCacheSize()).isEqualTo(maxServerConfig);
-        assertThat(quicOptions.getHandshakeUserAgent()).isEqualTo(userAgentId);
+                .containsExactlyElementsIn(host_whitelist.split(","));
+        assertThat(quicOptions.getInMemoryServerConfigsCacheSize()).isEqualTo(max_server_config);
+        assertThat(quicOptions.getHandshakeUserAgent()).isEqualTo(user_agent_id);
         assertThat(quicOptions.getIdleConnectionTimeout())
-                .isEqualTo(Duration.ofSeconds(idleConnTimeout));
+                .isEqualTo(Duration.ofSeconds(idle_conn_timeout));
     }
 
     @Test

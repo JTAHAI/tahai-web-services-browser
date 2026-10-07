@@ -25,7 +25,6 @@ import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
 import org.robolectric.annotation.Config;
 
-import org.chromium.base.ServiceLoaderUtil;
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.chrome.browser.auxiliary_search.AuxiliarySearchController.AuxiliarySearchHostType;
 import org.chromium.chrome.browser.profiles.Profile;
@@ -67,17 +66,17 @@ public class AuxiliarySearchControllerFactoryUnitTest {
         AuxiliarySearchDonor.setSkipInitializationForTesting(true);
 
         mFactory = AuxiliarySearchControllerFactory.getInstance();
-        ServiceLoaderUtil.setInstanceForTesting(AuxiliarySearchHooks.class, mHooks);
+        mFactory.setHooksForTesting(mHooks);
     }
 
     @Test
     @SmallTest
     public void testIsEnabled() {
-        ServiceLoaderUtil.setInstanceForTesting(AuxiliarySearchHooks.class, null);
+        mFactory.setHooksForTesting(null);
         assertFalse(mFactory.isEnabled());
 
         when(mHooks.isEnabled()).thenReturn(false);
-        ServiceLoaderUtil.setInstanceForTesting(AuxiliarySearchHooks.class, mHooks);
+        mFactory.setHooksForTesting(mHooks);
         assertFalse(mFactory.isEnabled());
 
         when(mHooks.isEnabled()).thenReturn(true);
@@ -156,7 +155,7 @@ public class AuxiliarySearchControllerFactoryUnitTest {
 
         assertEquals(packageName, mFactory.getSupportedPackageName());
 
-        ServiceLoaderUtil.setInstanceForTesting(AuxiliarySearchHooks.class, null);
+        mFactory.setHooksForTesting(null);
         assertNull(mFactory.getSupportedPackageName());
     }
 }

@@ -106,13 +106,11 @@ const NSTimeInterval kAnimationDuration = 0.3;
     [self addSubview:stackView];
     AddSameConstraints(stackView, self);
 
-    // Add icon if present.
-    if (row.icon) {
-      UIImageView* iconView = [[UIImageView alloc] initWithImage:row.icon];
-      iconView.contentMode = UIViewContentModeScaleAspectFit;
-      iconView.translatesAutoresizingMaskIntoConstraints = NO;
-      [stackView addArrangedSubview:[self createContainerForView:iconView]];
-    }
+    // Icon.
+    UIImageView* iconView = [[UIImageView alloc] initWithImage:row.icon];
+    iconView.contentMode = UIViewContentModeScaleAspectFit;
+    iconView.translatesAutoresizingMaskIntoConstraints = NO;
+    [stackView addArrangedSubview:[self createContainerForView:iconView]];
 
     // Content (Title + Body).
     UIView* contentStack = [self createContentStackWithRow:row];
@@ -197,9 +195,6 @@ const NSTimeInterval kAnimationDuration = 0.3;
   titleLabel.font =
       PreferredFontForTextStyle(UIFontTextStyleHeadline, UIFontWeightSemibold);
   titleLabel.numberOfLines = 0;
-  titleLabel.adjustsFontForContentSizeCategory = YES;
-  titleLabel.maximumContentSizeCategory =
-      UIContentSizeCategoryAccessibilityMedium;
   [titleLabel
       setContentCompressionResistancePriority:UILayoutPriorityRequired
                                       forAxis:UILayoutConstraintAxisHorizontal];
@@ -224,8 +219,6 @@ const NSTimeInterval kAnimationDuration = 0.3;
   bodyTextView.font = PreferredFontForTextStyle(UIFontTextStyleBody);
   bodyTextView.textColor = [UIColor colorNamed:kTextSecondaryColor];
   bodyTextView.adjustsFontForContentSizeCategory = YES;
-  bodyTextView.maximumContentSizeCategory =
-      UIContentSizeCategoryAccessibilityMedium;
   bodyTextView.linkTextAttributes =
       @{NSForegroundColorAttributeName : [UIColor colorNamed:kBlue600Color]};
   bodyTextView.attributedText = row.body;
@@ -235,10 +228,9 @@ const NSTimeInterval kAnimationDuration = 0.3;
 
   _bodyView = bodyTextView;
 
-  CGFloat leftMargin = row.icon ? 0 : kStackViewPadding;
   innerStackView.layoutMarginsRelativeArrangement = YES;
   innerStackView.layoutMargins = UIEdgeInsetsMake(
-      kStackViewPadding, leftMargin, kStackViewPadding, kStackViewPadding);
+      kStackViewPadding, 0, kStackViewPadding, kStackViewPadding);
 
   return innerStackView;
 }

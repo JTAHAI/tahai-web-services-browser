@@ -14,7 +14,7 @@ VideoEncoderBuffer::VideoEncoderBuffer(VideoEncoder* owner, size_t id)
     : id_(id), owner_(owner) {}
 
 String VideoEncoderBuffer::id() const {
-  return String::Number(id_);
+  return String::Format("%zu", id_);
 }
 
 void VideoEncoderBuffer::Trace(Visitor* visitor) const {

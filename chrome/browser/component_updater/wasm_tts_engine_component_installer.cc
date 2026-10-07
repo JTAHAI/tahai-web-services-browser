@@ -4,13 +4,6 @@
 
 #include "chrome/browser/component_updater/wasm_tts_engine_component_installer.h"
 
-#include <array>
-#include <cstdint>
-#include <memory>
-#include <string>
-#include <utility>
-#include <vector>
-
 #include "base/files/file_util.h"
 #include "base/functional/callback.h"
 #include "base/logging.h"
@@ -255,7 +248,8 @@ base::FilePath WasmTtsEngineComponentInstallerPolicy::GetRelativeInstallDir()
 
 void WasmTtsEngineComponentInstallerPolicy::GetHash(
     std::vector<uint8_t>* hash) const {
-  hash->assign_range(kWasmTtsEnginePublicKeySHA256);
+  hash->assign(std::begin(kWasmTtsEnginePublicKeySHA256),
+               std::end(kWasmTtsEnginePublicKeySHA256));
 }
 
 std::string WasmTtsEngineComponentInstallerPolicy::GetName() const {
@@ -282,7 +276,7 @@ void WasmTtsEngineComponentInstallerPolicy::UpdateWasmComponentOnDemand() {
           DLOG(ERROR)
               << "On demand update of the Wasm TTS Engine component failed "
                  "with error: "
-              << std::to_underlying(error);
+              << static_cast<int>(error);
         }
       }));
 }

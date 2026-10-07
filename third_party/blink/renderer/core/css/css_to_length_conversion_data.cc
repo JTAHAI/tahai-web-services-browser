@@ -53,17 +53,23 @@ std::optional<double> FindSizeForContainerAxis(
   DCHECK(requested_axis == kPhysicalAxesHorizontal ||
          requested_axis == kPhysicalAxesVertical);
 
-  ContainerSelector selector =
-      container_name ? ContainerSelector(container_name->GetName(),
-                                         requested_axis, kLogicalAxesNone,
-                                         /*scroll_state=*/false,
-                                         /*anchored_query=*/false)
-                     : ContainerSelector(requested_axis);
+  ContainerSelector selector;
+  const TreeScope* tree_scope = nullptr;
+  if (container_name) {
+    selector = ContainerSelector(container_name->GetName(), requested_axis,
+                                 kLogicalAxesNone, /*scroll_state=*/false,
+                                 /*anchored_query=*/false);
+    tree_scope = container_name->GetTreeScope();
+  } else {
+    selector = ContainerSelector(requested_axis);
+    tree_scope = context_element ? &context_element->GetTreeScope() : nullptr;
+  }
 
-  for (Element* container =
-           ContainerQueryEvaluator::FindContainer(context_element, selector);
+  for (Element* container = ContainerQueryEvaluator::FindContainer(
+           context_element, selector, tree_scope);
        container; container = ContainerQueryEvaluator::FindContainer(
-                      FlatTreeTraversal::ParentElement(*container), selector)) {
+                      FlatTreeTraversal::ParentElement(*container), selector,
+                      tree_scope)) {
     ContainerQueryEvaluator& evaluator =
         container->EnsureContainerQueryEvaluator();
     evaluator.SetReferencedByUnit();

@@ -7,17 +7,12 @@
 #include "third_party/blink/public/mojom/cpu_performance.mojom-blink.h"
 #include "third_party/blink/public/platform/platform.h"
 #include "third_party/blink/renderer/core/frame/navigator.h"
-#include "third_party/blink/renderer/core/probe/core_probes.h"
 
 namespace blink {
 
 // static
 uint16_t NavigatorCPUPerformance::cpuPerformance(Navigator& navigator) {
-  mojom::blink::PerformanceTier tier =
-      Platform::Current()->GetCpuPerformanceTier();
-  probe::ApplyCPUPerformanceOverride(
-      probe::ToCoreProbeSink(navigator.GetExecutionContext()), tier);
-  switch (tier) {
+  switch (Platform::Current()->GetCpuPerformanceTier()) {
     case mojom::blink::PerformanceTier::kLow:
       return 1;
     case mojom::blink::PerformanceTier::kMid:

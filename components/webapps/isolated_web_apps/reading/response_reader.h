@@ -7,7 +7,6 @@
 
 #include <memory>
 
-#include "base/component_export.h"
 #include "base/functional/callback.h"
 #include "base/memory/weak_ptr.h"
 #include "base/types/expected.h"
@@ -30,14 +29,14 @@ namespace web_app {
 // from Isolated Web Apps. Usually, the implementations of this interface
 // should be constructed via the `IsolatedWebAppResponseReaderFactory`, which
 // will take care of the necessary validation and verification steps.
-class COMPONENT_EXPORT(ISOLATED_WEB_APPS) IsolatedWebAppResponseReader {
+class IsolatedWebAppResponseReader {
  public:
   // A `Response` object contains the response head, as well as a `ReadBody`
   // function to read the response's body. It holds weakly onto a
   // `SignedWebBundleReader` for reading the response body. This reference will
   // remain valid until the reader is evicted from the cache of the
   // `IsolatedWebAppReaderRegistry`.
-  class COMPONENT_EXPORT(ISOLATED_WEB_APPS) Response {
+  class Response {
    public:
     Response(web_package::mojom::BundleResponsePtr head,
              base::WeakPtr<SignedWebBundleReader> reader);
@@ -66,7 +65,7 @@ class COMPONENT_EXPORT(ISOLATED_WEB_APPS) IsolatedWebAppResponseReader {
     base::WeakPtr<SignedWebBundleReader> reader_;
   };
 
-  struct COMPONENT_EXPORT(ISOLATED_WEB_APPS) Error {
+  struct Error {
     enum class Type {
       kParserInternalError,
       kFormatError,
@@ -99,8 +98,7 @@ class COMPONENT_EXPORT(ISOLATED_WEB_APPS) IsolatedWebAppResponseReader {
 // The implementation of the IWA response reader. It is constructed from
 // a `SignedWebBundleReader` instance, which must have already
 // read and validated integrity block and metadata.
-class COMPONENT_EXPORT(ISOLATED_WEB_APPS) IsolatedWebAppResponseReaderImpl
-    : public IsolatedWebAppResponseReader {
+class IsolatedWebAppResponseReaderImpl : public IsolatedWebAppResponseReader {
  public:
   explicit IsolatedWebAppResponseReaderImpl(
       std::unique_ptr<SignedWebBundleReader> reader,

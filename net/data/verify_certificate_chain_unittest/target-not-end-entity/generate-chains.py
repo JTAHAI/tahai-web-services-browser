@@ -7,7 +7,6 @@
 end-entity certificate (based on the basic constraints extension)."""
 
 import sys
-
 sys.path += ['../..']
 
 import gencerts

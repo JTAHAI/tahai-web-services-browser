@@ -9,18 +9,6 @@
 
 enum class FullscreenModeTransitionTrigger;
 
-// Features that can force fullscreen mode.
-enum class ForceFullscreenFeature {
-  // Lower boundary for base::EnumSet.
-  kMinValue = 0,
-  kHideToolbars = kMinValue,
-  kFindInPage,
-  kLensOverlay,
-  kAssistant,
-  // Upper boundary for base::EnumSet. Must be updated when adding new features.
-  kMaxValue = kAssistant,
-};
-
 // Protocol for commands that control the fullscreen state.
 @protocol FullscreenCommands
 
@@ -37,13 +25,6 @@ enum class ForceFullscreenFeature {
 
 // Re-enables fullscreen. Decrements the disabled counter.
 - (void)reenableFullscreen;
-
-// Forces fullscreen mode for `feature` when `enable` is YES, or removes
-// `feature` from the set of features forcing fullscreen when `enable` is NO.
-- (void)forceFullscreen:(BOOL)enable feature:(ForceFullscreenFeature)feature;
-
-// Exits forced fullscreen mode for all features immediately.
-- (void)exitForceFullscreen;
 
 @end
 

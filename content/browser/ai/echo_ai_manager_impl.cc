@@ -82,11 +82,17 @@ bool HasUnsupportedType(
             blink::mojom::AILanguageModelPromptType::kText) {
           continue;
         }
-        // Allow tool types when tool use is enabled.
-        if ((expected_input->type ==
-                 blink::mojom::AILanguageModelPromptType::kToolCall ||
-             expected_input->type ==
-                 blink::mojom::AILanguageModelPromptType::kToolResponse) &&
+        // Reject kToolCall in expectedInputs - tool calls are model outputs,
+        // not inputs. Tool responses should be used to send results back.
+        // TODO(crbug.com/422803232): Maybe allow kToolCall expectedInputs.
+        if (expected_input->type ==
+            blink::mojom::AILanguageModelPromptType::kToolCall) {
+          has_unsupported_type = true;
+          break;
+        }
+        // Allow kToolResponse when tool use is enabled.
+        if (expected_input->type ==
+                blink::mojom::AILanguageModelPromptType::kToolResponse &&
             base::FeatureList::IsEnabled(
                 blink::features::kAIPromptAPIToolUse)) {
           continue;
@@ -192,7 +198,9 @@ void EchoAIManagerImpl::CreateLanguageModel(
   }
   if (options && (!AreExpectedLanguagesSupported(options->expected_inputs) ||
                   !AreExpectedLanguagesSupported(options->expected_outputs))) {
-    receivers_.ReportBadMessage("Unsupported language options");
+    client_remote->OnError(
+        blink::mojom::AIManagerCreateClientError::kUnsupportedLanguage,
+        /*quota_error_info=*/nullptr);
     return;
   }
   base::flat_set<blink::mojom::AILanguageModelPromptType> enabled_input_types;
@@ -316,7 +324,9 @@ void EchoAIManagerImpl::CreateProofreader(
   if (options &&
       !SupportedLanguages(options->expected_input_languages, {},
                           options->correction_explanation_language)) {
-    receivers_.ReportBadMessage("Unsupported language options");
+    client_remote->OnError(
+        blink::mojom::AIManagerCreateClientError::kUnsupportedLanguage,
+        /*quota_error_info=*/nullptr);
     return;
   }
 
@@ -400,7 +410,9 @@ void EchoAIManagerImpl::CreateWritingAssistanceClient(
   if (options && !SupportedLanguages(options->expected_input_languages,
                                      options->expected_context_languages,
                                      options->output_language)) {
-    receivers_.ReportBadMessage("Unsupported language options");
+    client_remote->OnError(
+        blink::mojom::AIManagerCreateClientError::kUnsupportedLanguage,
+        /*quota_error_info=*/nullptr);
     return;
   }
 
@@ -416,12 +428,7 @@ void EchoAIManagerImpl::ReturnAIClientCreationResult(
   mojo::PendingRemote<AIPendingRemote> pending_remote;
   mojo::MakeSelfOwnedReceiver(std::make_unique<EchoAIClient>(),
                               pending_remote.InitWithNewPipeAndPassReceiver());
-  if constexpr (std::is_same_v<AIPendingRemote,
-                               blink::mojom::AISemanticEmbedder>) {
-    client_remote->OnResult(std::move(pending_remote));
-  } else {
-    client_remote->OnResult(std::move(pending_remote), kMaxContextSizeInTokens);
-  }
+  client_remote->OnResult(std::move(pending_remote));
 }
 
 void EchoAIManagerImpl::ReturnAILanguageModelCreationResult(

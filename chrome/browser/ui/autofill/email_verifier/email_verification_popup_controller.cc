@@ -14,27 +14,27 @@ namespace autofill {
 
 namespace {
 
-using EmailVerificationPermissionUiStatus =
-    AutofillClient::EmailVerificationPermissionUiStatus;
-
-EmailVerificationPermissionUiStatus MapReasonToStatus(
+EmailVerificationPopupController::EvpPermissionUiStatus MapReasonToStatus(
     SuggestionHidingReason reason) {
   switch (reason) {
     case SuggestionHidingReason::kUserAborted:
     case SuggestionHidingReason::kFocusChanged:
     case SuggestionHidingReason::kEndEditing:
-      return EmailVerificationPermissionUiStatus::kUserAborted;
+      return EmailVerificationPopupController::EvpPermissionUiStatus::
+          kUserAborted;
     case SuggestionHidingReason::kTabGone:
-      return EmailVerificationPermissionUiStatus::kTabGone;
+      return EmailVerificationPopupController::EvpPermissionUiStatus::kTabGone;
     case SuggestionHidingReason::kWidgetChanged:
-      return EmailVerificationPermissionUiStatus::kWidgetChanged;
+      return EmailVerificationPopupController::EvpPermissionUiStatus::
+          kWidgetChanged;
     case SuggestionHidingReason::kOverlappingWithAnotherPrompt:
     case SuggestionHidingReason::kOverlappingWithPictureInPictureWindow:
     case SuggestionHidingReason::kOverlappingWithPasswordGenerationPopup:
     case SuggestionHidingReason::kOverlappingWithTouchToFillSurface:
     case SuggestionHidingReason::kOverlappingWithAutofillContextMenu:
     case SuggestionHidingReason::kContextMenuOpened:
-      return EmailVerificationPermissionUiStatus::kOverlappingPrompt;
+      return EmailVerificationPopupController::EvpPermissionUiStatus::
+          kOverlappingPrompt;
     case SuggestionHidingReason::kAcceptSuggestion:
     case SuggestionHidingReason::kAttachInterstitialPage:
     case SuggestionHidingReason::kContentAreaMoved:
@@ -51,7 +51,7 @@ EmailVerificationPermissionUiStatus MapReasonToStatus(
     case SuggestionHidingReason::kFadeTimerExpired:
     case SuggestionHidingReason::kSearchBarFocusLost:
     case SuggestionHidingReason::kHiddenByCaller:
-      return EmailVerificationPermissionUiStatus::kOther;
+      return EmailVerificationPopupController::EvpPermissionUiStatus::kOther;
   }
 }
 
@@ -62,7 +62,8 @@ EmailVerificationPopupController::EmailVerificationPopupController(
     : content::WebContentsObserver(web_contents) {}
 
 EmailVerificationPopupController::~EmailVerificationPopupController() {
-  HideImpl(EmailVerificationPermissionUiStatus::kOther);
+  HideImpl(AutofillClient::EmailVerificationPermissionUiResult::kIgnored,
+           EvpPermissionUiStatus::kOther);
 }
 
 void EmailVerificationPopupController::Show(
@@ -70,14 +71,16 @@ void EmailVerificationPopupController::Show(
     const net::SchemefulSite& issuer,
     const std::u16string& email,
     base::OnceCallback<
-        void(AutofillClient::EmailVerificationPermissionUiStatus)> callback) {
+        void(AutofillClient::EmailVerificationPermissionUiResult)> callback) {
   if (!web_contents()) {
-    std::move(callback).Run(EmailVerificationPermissionUiStatus::kOther);
+    std::move(callback).Run(
+        AutofillClient::EmailVerificationPermissionUiResult::kIgnored);
     return;
   }
 
   if (view_) {
-    HideImpl(EmailVerificationPermissionUiStatus::kOther);
+    HideImpl(AutofillClient::EmailVerificationPermissionUiResult::kIgnored,
+             EvpPermissionUiStatus::kOther);
   }
 
   element_bounds_ = element_bounds;
@@ -108,7 +111,8 @@ void EmailVerificationPopupController::Show(
                                              std::move(on_view_decision));
 
   if (!view_) {
-    HideImpl(EmailVerificationPermissionUiStatus::kOther);
+    std::move(callback_).Run(
+        AutofillClient::EmailVerificationPermissionUiResult::kIgnored);
     return;
   }
 
@@ -129,14 +133,16 @@ void EmailVerificationPopupController::Show(
 }
 
 void EmailVerificationPopupController::Hide(SuggestionHidingReason reason) {
-  HideImpl(MapReasonToStatus(reason));
+  HideImpl(AutofillClient::EmailVerificationPermissionUiResult::kIgnored,
+           MapReasonToStatus(reason));
 }
 
 void EmailVerificationPopupController::ViewDestroyed() {
   view_ = nullptr;
   // If the view is destroyed directly without `Hide()` being called first (e.g.
   // under rare platform-specific native close flows), log it separately.
-  HideImpl(EmailVerificationPermissionUiStatus::kViewDestroyedDirectly);
+  HideImpl(AutofillClient::EmailVerificationPermissionUiResult::kIgnored,
+           EvpPermissionUiStatus::kViewDestroyedDirectly);
 }
 
 gfx::NativeView EmailVerificationPopupController::container_view() const {
@@ -163,11 +169,13 @@ EmailVerificationPopupController::GetElementTextDirection() const {
 
 void EmailVerificationPopupController::DidGetUserInteraction(
     const blink::WebInputEvent& event) {
-  HideImpl(EmailVerificationPermissionUiStatus::kUserAborted);
+  HideImpl(AutofillClient::EmailVerificationPermissionUiResult::kIgnored,
+           EvpPermissionUiStatus::kUserAborted);
 }
 
 void EmailVerificationPopupController::HideImpl(
-    AutofillClient::EmailVerificationPermissionUiStatus status) {
+    AutofillClient::EmailVerificationPermissionUiResult result,
+    EvpPermissionUiStatus status) {
   if (view_) {
     view_->Hide();
     view_ = nullptr;
@@ -177,7 +185,7 @@ void EmailVerificationPopupController::HideImpl(
 
   if (callback_) {
     base::UmaHistogramEnumeration("Blink.Evp.PermissionUi.Status", status);
-    std::move(callback_).Run(status);
+    std::move(callback_).Run(result);
   }
 }
 
@@ -187,11 +195,13 @@ bool EmailVerificationPopupController::OverlapsWithPictureInPictureWindow()
 }
 
 void EmailVerificationPopupController::OnConfirm() {
-  HideImpl(EmailVerificationPermissionUiStatus::kAllowed);
+  HideImpl(AutofillClient::EmailVerificationPermissionUiResult::kAccepted,
+           EvpPermissionUiStatus::kAllowed);
 }
 
 void EmailVerificationPopupController::OnCancel() {
-  HideImpl(EmailVerificationPermissionUiStatus::kDeclined);
+  HideImpl(AutofillClient::EmailVerificationPermissionUiResult::kDeclined,
+           EvpPermissionUiStatus::kDeclined);
 }
 
 }  // namespace autofill

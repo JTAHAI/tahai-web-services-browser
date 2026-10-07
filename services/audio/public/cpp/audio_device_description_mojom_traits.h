@@ -15,16 +15,13 @@ namespace mojo {
 template <>
 struct StructTraits<audio::mojom::AudioDeviceDescriptionDataView,
                     media::AudioDeviceDescription> {
-  static const std::string& device_name(
-      const media::AudioDeviceDescription& input) {
+  static std::string device_name(const media::AudioDeviceDescription& input) {
     return input.device_name;
   }
-  static const std::string& unique_id(
-      const media::AudioDeviceDescription& input) {
+  static std::string unique_id(const media::AudioDeviceDescription& input) {
     return input.unique_id;
   }
-  static const std::string& group_id(
-      const media::AudioDeviceDescription& input) {
+  static std::string group_id(const media::AudioDeviceDescription& input) {
     return input.group_id;
   }
   static bool is_system_default(const media::AudioDeviceDescription& input) {

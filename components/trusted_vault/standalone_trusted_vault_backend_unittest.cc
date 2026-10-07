@@ -153,50 +153,38 @@ class FakeLocalRecoveryFactor : public LocalRecoveryFactor {
   TrustedVaultRecoveryFactorRegistrationStateForUMA MaybeRegister(
       RegisterCallback callback) override {
     CHECK(connection_);
+    CHECK(register_callback_.is_null());
     maybe_register_was_called_ = true;
-
-    if (!register_callback_.is_null()) {
-      std::move(register_callback_)
-          .Run(TrustedVaultRegistrationStatus::kRegistrationCancelled, 0,
-               false);
-    }
 
     auto* per_user_vault = storage_->FindUserVault(account_.gaia);
     CHECK(per_user_vault);
 
     if (is_registered_) {
-      std::move(callback).Run(
-          TrustedVaultRegistrationStatus::kRegistrationNotAttempted, 0, false);
       return TrustedVaultRecoveryFactorRegistrationStateForUMA::
           kAlreadyRegisteredV1;
     }
     if (per_user_vault->last_registration_returned_local_data_obsolete()) {
-      std::move(callback).Run(
-          TrustedVaultRegistrationStatus::kRegistrationNotAttempted, 0, false);
       return TrustedVaultRecoveryFactorRegistrationStateForUMA::
           kLocalKeysAreStale;
     }
     if (connection_->AreRequestsThrottled(account_)) {
-      std::move(callback).Run(
-          TrustedVaultRegistrationStatus::kRegistrationNotAttempted, 0, false);
       return TrustedVaultRecoveryFactorRegistrationStateForUMA::
           kThrottledClientSide;
     }
 
     register_callback_ = base::BindOnce(
-        base::BindLambdaForTesting([this](RegisterCallback cb,
-                                          TrustedVaultRegistrationStatus status,
-                                          int key_version,
-                                          bool had_local_keys) {
+        base::BindLambdaForTesting([this, per_user_vault](
+                                       RegisterCallback cb,
+                                       TrustedVaultRegistrationStatus status,
+                                       int key_version, bool had_local_keys) {
           if (status == TrustedVaultRegistrationStatus::kSuccess ||
               status == TrustedVaultRegistrationStatus::kAlreadyRegistered) {
             is_registered_ = true;
           }
           if (status == TrustedVaultRegistrationStatus::kLocalDataObsolete) {
-            storage_->MutateUserVault(account_.gaia, [](UserVault& user_vault) {
-              user_vault.set_last_registration_returned_local_data_obsolete(
-                  true);
-            });
+            per_user_vault->set_last_registration_returned_local_data_obsolete(
+                true);
+            storage_->WriteDataToDisk();
           }
           std::move(cb).Run(status, key_version, had_local_keys);
         }),
@@ -629,8 +617,10 @@ TEST_F(StandaloneTrustedVaultBackendTest, ShouldReadAndFetchNonEmptyKeys) {
   const std::vector<uint8_t> kKey3 = {2, 3, 4};
 
   trusted_vault_pb::LocalTrustedVault initial_data;
-  UserVault* user_data1 = initial_data.add_user();
-  UserVault* user_data2 = initial_data.add_user();
+  trusted_vault_pb::LocalTrustedVaultPerUser* user_data1 =
+      initial_data.add_user();
+  trusted_vault_pb::LocalTrustedVaultPerUser* user_data2 =
+      initial_data.add_user();
   user_data1->set_gaia_id(kAccountInfo1.gaia.ToString());
   user_data2->set_gaia_id(kAccountInfo2.gaia.ToString());
   user_data1->add_vault_key()->set_key_material(kKey1.data(), kKey1.size());
@@ -654,7 +644,8 @@ TEST_F(StandaloneTrustedVaultBackendTest, ShouldFilterOutConstantKey) {
   const std::vector<uint8_t> kKey = {1, 2, 3, 4};
 
   trusted_vault_pb::LocalTrustedVault initial_data;
-  UserVault* user_data = initial_data.add_user();
+  trusted_vault_pb::LocalTrustedVaultPerUser* user_data =
+      initial_data.add_user();
   user_data->set_gaia_id(kAccountInfo.gaia.ToString());
   user_data->add_vault_key()->set_key_material(
       GetConstantTrustedVaultKey().data(), GetConstantTrustedVaultKey().size());
@@ -871,60 +862,6 @@ TEST_F(StandaloneTrustedVaultBackendTest, ShouldRegisterRecoveryFactors) {
 }
 
 TEST_F(StandaloneTrustedVaultBackendTest,
-       ShouldHandleRecoveryFactorRegistrationNotAttempted) {
-  const CoreAccountInfo kAccountInfo = MakeAccountInfoWithGaiaId("user");
-  const std::vector<uint8_t> kVaultKey = {1, 2, 3};
-  const int kLastKeyVersion = 1;
-
-  backend()->StoreKeys(kAccountInfo.gaia, {kVaultKey}, kLastKeyVersion);
-
-  SetPrimaryAccountWithUnknownAuthError(kAccountInfo);
-
-  base::HistogramTester histogram_tester;
-  base::MockCallback<base::OnceClosure> idle_callback;
-  EXPECT_CALL(idle_callback, Run);
-  backend()->WaitForIdleForTesting(idle_callback.Get());
-
-  GetOrCreateRecoveryFactor(kAccountInfo)
-      ->ExpectMaybeRegisterAndRunCallback(
-          TrustedVaultRegistrationStatus::kRegistrationNotAttempted, 0, false);
-
-  // Outcome histogram should NOT be recorded for kRegistrationNotAttempted.
-  histogram_tester.ExpectTotalCount(
-      "TrustedVault.RecoveryFactorRegistrationOutcome." +
-          GetRecoveryFactorTypeForUMA(GetOrCreateRecoveryFactor(kAccountInfo)) +
-          "." + security_domain_name_for_uma(),
-      /*expected_count=*/0);
-}
-
-TEST_F(StandaloneTrustedVaultBackendTest,
-       ShouldHandleRecoveryFactorRegistrationCancelled) {
-  const CoreAccountInfo kAccountInfo = MakeAccountInfoWithGaiaId("user");
-  const std::vector<uint8_t> kVaultKey = {1, 2, 3};
-  const int kLastKeyVersion = 1;
-
-  backend()->StoreKeys(kAccountInfo.gaia, {kVaultKey}, kLastKeyVersion);
-
-  SetPrimaryAccountWithUnknownAuthError(kAccountInfo);
-
-  base::HistogramTester histogram_tester;
-  base::MockCallback<base::OnceClosure> idle_callback;
-  EXPECT_CALL(idle_callback, Run);
-  backend()->WaitForIdleForTesting(idle_callback.Get());
-
-  GetOrCreateRecoveryFactor(kAccountInfo)
-      ->ExpectMaybeRegisterAndRunCallback(
-          TrustedVaultRegistrationStatus::kRegistrationCancelled, 0, false);
-
-  // Outcome histogram should NOT be recorded for kRegistrationCancelled.
-  histogram_tester.ExpectTotalCount(
-      "TrustedVault.RecoveryFactorRegistrationOutcome." +
-          GetRecoveryFactorTypeForUMA(GetOrCreateRecoveryFactor(kAccountInfo)) +
-          "." + security_domain_name_for_uma(),
-      /*expected_count=*/0);
-}
-
-TEST_F(StandaloneTrustedVaultBackendTest,
        ShouldClearDataAndAttemptRecoveryFactorRegistration) {
   const CoreAccountInfo kAccountInfo = MakeAccountInfoWithGaiaId("user");
   const std::vector<std::vector<uint8_t>> kInitialVaultKeys = {{1, 2, 3}};
@@ -1040,9 +977,9 @@ TEST_F(StandaloneTrustedVaultBackendTest, ShouldRecordLocalKeysAreStale) {
 
   backend()->StoreKeys(kAccountInfo.gaia, {kVaultKey}, kLastKeyVersion);
 
-  storage()->MutateUserVault(kAccountInfo.gaia, [](UserVault& user_vault) {
-    user_vault.set_last_registration_returned_local_data_obsolete(true);
-  });
+  auto* per_user_vault = storage()->FindUserVault(kAccountInfo.gaia);
+  per_user_vault->set_last_registration_returned_local_data_obsolete(true);
+  storage()->WriteDataToDisk();
 
   base::HistogramTester histogram_tester;
   SetPrimaryAccountWithUnknownAuthError(kAccountInfo);

@@ -474,11 +474,10 @@ std::optional<std::string_view> DataPack::GetStringView(
                                  data_source_->GetData());
 }
 
-scoped_refptr<base::RefCountedStaticMemory> DataPack::GetStaticMemory(
+base::RefCountedStaticMemory* DataPack::GetStaticMemory(
     uint16_t resource_id) const {
   if (auto view = GetStringView(resource_id); view.has_value()) {
-    return base::MakeRefCounted<base::RefCountedStaticMemory>(
-        base::as_byte_span(*view));
+    return new base::RefCountedStaticMemory(base::as_byte_span(*view));
   }
   return nullptr;
 }

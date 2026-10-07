@@ -26,9 +26,8 @@ enum class VariableDataFeature : uint8_t {
   kHasLineHeightUnits = 1 << 2,
   kHasDashedFunctions = 1 << 3,
   kHasReferences = 1 << 4,
-  kHasRandomFunctions = 1 << 5,
 };
-static constexpr size_t kVariableDataFeatureBits = 6;
+static constexpr size_t kVariableDataFeatureBits = 5;
 using VariableDataFeatures = unsigned;
 
 class CORE_EXPORT CSSVariableData : public GarbageCollected<CSSVariableData> {
@@ -136,11 +135,6 @@ class CORE_EXPORT CSSVariableData : public GarbageCollected<CSSVariableData> {
                            VariableDataFeature::kHasDashedFunctions);
   }
 
-  bool HasRandomFunctions() const {
-    return features_ & static_cast<VariableDataFeatures>(
-                           VariableDataFeature::kHasRandomFunctions);
-  }
-
   VariableDataFeatures GetVariableDataFeatures() const { return features_; }
 
   const CSSValue* ParseForSyntax(const CSSSyntaxDefinition&,
@@ -175,7 +169,7 @@ class CORE_EXPORT CSSVariableData : public GarbageCollected<CSSVariableData> {
   const unsigned is_animation_tainted_ : 1;       // bool.
   const unsigned is_attr_tainted_ : 1;            // bool.
   const unsigned is_8bit_ : 1;                    // bool.
-  unsigned /* unused_ */ : 1;
+  unsigned /* unused_ */ : 2;
 
   // The actual character data is stored after this.
 };

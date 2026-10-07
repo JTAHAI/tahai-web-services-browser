@@ -121,13 +121,14 @@ WebAppPrefGuardrails WebAppPrefGuardrails::GetForDefaultAppUpdateOnStartup(
 // static
 void WebAppPrefGuardrails::RegisterProfilePrefs(
     user_prefs::PrefRegistrySyncable* registry) {
-  // LINT.IfChange(WebAppPrefs)
   registry->RegisterDictionaryPref(prefs::kWebAppsPreferences);
   registry->RegisterDictionaryPref(prefs::kWebAppsAppAgnosticIphState);
   registry->RegisterDictionaryPref(prefs::kWebAppsAppAgnosticMlState);
   registry->RegisterDictionaryPref(
       prefs::kWebAppsAppAgnosticIPHLinkCapturingState);
-  // LINT.ThenChange(chrome/browser/web_applications/web_app_utils.cc:WebAppPrefs)
+  // NOTE: If you add new prefs here that should be cleared during database
+  // corruption recovery, make sure to update
+  // `RemoveWebAppJob::RemoveForCorruptDatabase`.
 }
 
 // static

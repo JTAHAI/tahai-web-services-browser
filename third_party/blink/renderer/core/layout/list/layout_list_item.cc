@@ -18,11 +18,11 @@ LayoutListItem::LayoutListItem(Element* element) : LayoutBlockFlow(element) {
   View()->AddLayoutListItem();
 }
 
-void LayoutListItem::WillBeDestroyed(const ComputedStyle* style) {
+void LayoutListItem::WillBeDestroyed() {
   NOT_DESTROYED();
   if (View())
     View()->RemoveLayoutListItem();
-  LayoutBlockFlow::WillBeDestroyed(style);
+  LayoutBlockFlow::WillBeDestroyed();
 }
 
 void LayoutListItem::InsertedIntoTree() {
@@ -40,10 +40,8 @@ void LayoutListItem::WillBeRemovedFromTree() {
 void LayoutListItem::StyleDidChange(
     StyleDifference diff,
     const ComputedStyle* old_style,
-    const ComputedStyle& new_style,
     const StyleChangeContext& style_change_context) {
-  LayoutBlockFlow::StyleDidChange(diff, old_style, new_style,
-                                  style_change_context);
+  LayoutBlockFlow::StyleDidChange(diff, old_style, style_change_context);
 
   LayoutObject* marker = Marker();
   ListMarker* list_marker = ListMarker::Get(marker);
@@ -54,7 +52,7 @@ void LayoutListItem::StyleDidChange(
 
   if (old_style) {
     const ListStyleTypeData* old_list_style_type = old_style->ListStyleType();
-    const ListStyleTypeData* new_list_style_type = new_style.ListStyleType();
+    const ListStyleTypeData* new_list_style_type = StyleRef().ListStyleType();
     if (old_list_style_type != new_list_style_type &&
         (!old_list_style_type || !new_list_style_type ||
          *old_list_style_type != *new_list_style_type))

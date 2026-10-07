@@ -53,20 +53,6 @@ class HostResolverInternalResult;
 // Cache used by HostResolver to map hostnames to their resolved result.
 class NET_EXPORT HostCache {
  public:
-  // The result of cache lookup.
-  //
-  // These values are persisted to logs. Entries should not be renumbered and
-  // numeric values should never be reused.
-  //
-  // LINT.IfChange(LookupOutcome)
-  enum class LookupOutcome {
-    kLookupMissAbsent = 0,
-    kLookupMissStale = 1,
-    kLookupHitValid = 2,
-    kLookupHitStale = 3,
-    kMaxValue = kLookupHitStale
-  };
-  // LINT.ThenChange(//tools/metrics/histograms/metadata/net/enums.xml:LookupOutcome)
   struct NET_EXPORT Key {
     // Hostnames in `host` must not be IP literals. IP literals should be
     // resolved directly to the IP address and not be stored/queried in
@@ -400,8 +386,7 @@ class NET_EXPORT HostCache {
   // looking for a match. If there is no matching entry, returns NULL.
   const std::pair<const Key, Entry>* Lookup(const Key& key,
                                             base::TimeTicks now,
-                                            bool ignore_secure = false,
-                                            bool record_metrics = true);
+                                            bool ignore_secure = false);
 
   // Returns a pointer to the matching (key, entry) pair, whether it is valid or
   // stale at time |now|. Fills in |stale_out| with information about how stale
@@ -410,8 +395,7 @@ class NET_EXPORT HostCache {
   const std::pair<const Key, Entry>* LookupStale(const Key& key,
                                                  base::TimeTicks now,
                                                  EntryStaleness* stale_out,
-                                                 bool ignore_secure = false,
-                                                 bool record_metrics = true);
+                                                 bool ignore_secure = false);
 
   // Overwrites or creates an entry for |key|.
   // |entry| is the value to set, |now| is the current time
@@ -475,6 +459,21 @@ class NET_EXPORT HostCache {
   FRIEND_TEST_ALL_PREFIXES(HostCacheTest, NoCache);
 
   enum SetOutcome : int;
+
+  // The result of cache lookup.
+  //
+  // These values are persisted to logs. Entries should not be renumbered and
+  // numeric values should never be reused.
+  //
+  // LINT.IfChange(LookupOutcome)
+  enum class LookupOutcome {
+    kLookupMissAbsent = 0,
+    kLookupMissStale = 1,
+    kLookupHitValid = 2,
+    kLookupHitStale = 3,
+    kMaxValue = kLookupHitStale
+  };
+  // LINT.ThenChange(//tools/metrics/histograms/metadata/net/enums.xml:LookupOutcome)
 
   // The reason why an entry was erased.
   //

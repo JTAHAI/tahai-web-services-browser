@@ -70,9 +70,7 @@ TEST_F(FragmentItemsTest, IsContainerForCulledInline) {
           xxxxxxxxxxxxxxxxxxx
           xxxxxxxxxxxxxxxxxxx
         </span>
-        <!-- <area> is display:none by default, but it may be shown by the
-             author, in which case it is a childless culled inline. -->
-        <area id="area" style="display:inline">
+        <area id="area">
         <br><br><br>
       </div>
     </div>

@@ -15,6 +15,7 @@ namespace content {
 class WebContents;
 }
 
+class Browser;
 class BrowserWindowInterface;
 
 namespace bubble_anchor_util {
@@ -42,8 +43,7 @@ AnchorConfiguration GetPermissionPromptBubbleAnchorConfiguration(
 
 // Returns the anchor configuration for bubbles that are aligned to the app menu
 // button.
-AnchorConfiguration GetAppMenuAnchorConfiguration(
-    BrowserWindowInterface* browser);
+AnchorConfiguration GetAppMenuAnchorConfiguration(Browser* browser);
 
 // Returns true if the given anchor can be used as a highlight.
 bool IsHighlightable(views::BubbleAnchor anchor);

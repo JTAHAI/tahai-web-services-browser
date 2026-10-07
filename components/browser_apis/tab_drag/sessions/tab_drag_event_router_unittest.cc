@@ -52,10 +52,7 @@ TEST_F(TabDragEventRouterTest, RouteMoveEvents) {
       registration.BindNewEndpointAndPassDedicatedReceiver());
 
   std::vector<NodeId> tabs = {NodeId(NodeId::Type::kContent, "tab1")};
-  router_.OnSessionStarted({.source_window_id = window.GetWindowId(),
-                            .source_tab_ids = tabs,
-                            .start_point = gfx::Point(50, 50),
-                            .mouse_to_tab_x_ratio = 0.5f});
+  router_.OnSessionStarted(tabs, window.GetWindowId(), gfx::Point(50, 50));
 
   ASSERT_TRUE(
       base::test::RunUntil([&]() { return target.events().size() == 1u; }));
@@ -103,10 +100,7 @@ TEST_F(TabDragEventRouterTest, MultiWindowRouting) {
       &window_b, gfx::NativeView(), remote_b.Unbind(),
       reg_b.BindNewEndpointAndPassDedicatedReceiver());
 
-  router_.OnSessionStarted({.source_window_id = window_a.GetWindowId(),
-                            .source_tab_ids = {},
-                            .start_point = gfx::Point(50, 50),
-                            .mouse_to_tab_x_ratio = 0.5f});
+  router_.OnSessionStarted({}, window_a.GetWindowId(), gfx::Point(50, 50));
 
   ASSERT_TRUE(
       base::test::RunUntil([&]() { return target_a.events().size() == 1u; }));
@@ -143,10 +137,7 @@ TEST_F(TabDragEventRouterTest, DropEvent) {
                                reg.BindNewEndpointAndPassDedicatedReceiver());
 
   std::vector<NodeId> tabs = {NodeId(NodeId::Type::kContent, "tab1")};
-  router_.OnSessionStarted({.source_window_id = window.GetWindowId(),
-                            .source_tab_ids = tabs,
-                            .start_point = gfx::Point(50, 50),
-                            .mouse_to_tab_x_ratio = 0.5f});
+  router_.OnSessionStarted(tabs, window.GetWindowId(), gfx::Point(50, 50));
   router_.OnSessionDropped(gfx::Point(60, 60));
 
   ASSERT_TRUE(
@@ -168,10 +159,7 @@ TEST_F(TabDragEventRouterTest, CancelEvent) {
   registry_.RegisterDropTarget(&window, gfx::NativeView(), remote.Unbind(),
                                reg.BindNewEndpointAndPassDedicatedReceiver());
 
-  router_.OnSessionStarted({.source_window_id = window.GetWindowId(),
-                            .source_tab_ids = {},
-                            .start_point = gfx::Point(50, 50),
-                            .mouse_to_tab_x_ratio = 0.5f});
+  router_.OnSessionStarted({}, window.GetWindowId(), gfx::Point(50, 50));
   router_.OnSessionCancelled();
 
   ASSERT_TRUE(

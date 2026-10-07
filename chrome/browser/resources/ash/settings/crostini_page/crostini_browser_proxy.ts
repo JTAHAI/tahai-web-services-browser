@@ -23,7 +23,7 @@ import type {GuestId} from '../guest_os/guest_os_browser_proxy.js';
  */
 export enum VmType {
   TERMINA = 0,
-  DEPRECATED_PLUGIN_VM = 1,
+  PLUGIN_VM = 1,
   BOREALIS = 2,
   BRUSCHETTA = 3,
   UNKNOWN = 4,

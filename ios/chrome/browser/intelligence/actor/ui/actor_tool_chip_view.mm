@@ -7,18 +7,15 @@
 #import <QuartzCore/QuartzCore.h>
 
 #import "base/check.h"
-#import "ios/chrome/browser/intelligence/actor/ui/actuation_worklog_constants.h"
 #import "ios/chrome/common/ui/colors/semantic_color_names.h"
 #import "ios/chrome/common/ui/util/constraints_ui_util.h"
 
 namespace {
 
-using intelligence::actor::kSpacingMedium;
-using intelligence::actor::kSpacingSmall;
-using intelligence::actor::kSpacingTiny;
-
-// Chip-specific custom layout overrides.
-const CGFloat kChipIconSize = 18.0;
+// Paddings and spacing
+const CGFloat kSpacingSmall = 6;
+const CGFloat kSpacingMedium = 12;
+const CGFloat kSpacingLarge = 18;
 
 }  // namespace
 
@@ -26,10 +23,6 @@ const CGFloat kChipIconSize = 18.0;
   UIImageView* _iconView;
   UILabel* _label;
   UIStackView* _stackView;
-}
-
-- (instancetype)init {
-  return [self initWithText:@"" icon:nil];
 }
 
 - (instancetype)initWithText:(NSString*)text icon:(UIImage*)icon {
@@ -92,16 +85,12 @@ const CGFloat kChipIconSize = 18.0;
 
 #pragma mark - Private
 
-// Initialize the constraints for the subviews
+// Intialize the constraints for the subviews
 - (void)setupConstraints {
   NSDirectionalEdgeInsets insets = NSDirectionalEdgeInsetsMake(
-      kSpacingTiny, kSpacingMedium, kSpacingTiny, kSpacingMedium);
+      kSpacingSmall, kSpacingMedium, kSpacingSmall, kSpacingMedium);
   AddSameConstraintsWithInsets(_stackView, self, insets);
-  AddSquareConstraints(_iconView, kChipIconSize);
-
-  [self.heightAnchor constraintGreaterThanOrEqualToConstant:
-                         intelligence::actor::kToolChipHeight]
-      .active = YES;
+  AddSquareConstraints(_iconView, kSpacingLarge);
 }
 
 @end

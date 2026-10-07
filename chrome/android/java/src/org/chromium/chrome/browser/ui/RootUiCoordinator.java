@@ -108,7 +108,6 @@ import org.chromium.chrome.browser.fullscreen.FullscreenOptions;
 import org.chromium.chrome.browser.glic.GlicKeyedService.GlicInvocationSource;
 import org.chromium.chrome.browser.handoff.HandoffController;
 import org.chromium.chrome.browser.host_zoom.HostZoomListenerFactory;
-import org.chromium.chrome.browser.hub.HubManager;
 import org.chromium.chrome.browser.image_descriptions.ImageDescriptionsController;
 import org.chromium.chrome.browser.incognito.reauth.IncognitoReauthController;
 import org.chromium.chrome.browser.incognito.reauth.IncognitoReauthControllerImpl;
@@ -123,7 +122,6 @@ import org.chromium.chrome.browser.lifecycle.DestroyObserver;
 import org.chromium.chrome.browser.lifecycle.InflationObserver;
 import org.chromium.chrome.browser.lifecycle.NativeInitObserver;
 import org.chromium.chrome.browser.lifecycle.WindowFocusChangedObserver;
-import org.chromium.chrome.browser.media.TabSharingToolbarUiCoordinator;
 import org.chromium.chrome.browser.merchant_viewer.MerchantTrustMetrics;
 import org.chromium.chrome.browser.merchant_viewer.MerchantTrustSignalsCoordinator;
 import org.chromium.chrome.browser.messages.ChromeMessageAutodismissDurationProvider;
@@ -162,12 +160,10 @@ import org.chromium.chrome.browser.signin.WebSigninRedirectCoordinatorSupplier;
 import org.chromium.chrome.browser.signin.services.WebSigninBridge;
 import org.chromium.chrome.browser.tab.AccessibilityVisibilityHandler;
 import org.chromium.chrome.browser.tab.AutofillSessionLifetimeController;
-import org.chromium.chrome.browser.tab.CurrentTabObserver;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.TabLaunchType;
 import org.chromium.chrome.browser.tab.TabObscuringHandler;
 import org.chromium.chrome.browser.tab.TabObscuringHandlerSupplier;
-import org.chromium.chrome.browser.tab.TabObserver;
 import org.chromium.chrome.browser.tab_ui.RecyclerViewPosition;
 import org.chromium.chrome.browser.tab_ui.TabContentManager;
 import org.chromium.chrome.browser.tab_ui.TabSwitcher;
@@ -228,6 +224,7 @@ import org.chromium.components.browser_ui.bottomsheet.BottomSheetController;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController.SheetState;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetControllerFactory;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetObserver;
+import org.chromium.components.browser_ui.bottomsheet.EmptyBottomSheetObserver;
 import org.chromium.components.browser_ui.bottomsheet.ExpandedSheetHelper;
 import org.chromium.components.browser_ui.bottomsheet.ManagedBottomSheetController;
 import org.chromium.components.browser_ui.desktop_windowing.DesktopWindowStateManager;
@@ -239,7 +236,6 @@ import org.chromium.components.browser_ui.widget.MenuOrKeyboardActionController;
 import org.chromium.components.browser_ui.widget.gesture.BackPressHandler;
 import org.chromium.components.browser_ui.widget.scrim.ScrimManager;
 import org.chromium.components.browser_ui.widget.scrim.ScrimManager.ScrimClient;
-import org.chromium.components.dom_distiller.core.DomDistillerUrlUtils;
 import org.chromium.components.embedder_support.contextmenu.ContextMenuPopulatorFactory;
 import org.chromium.components.feature_engagement.EventConstants;
 import org.chromium.components.feature_engagement.Tracker;
@@ -254,7 +250,6 @@ import org.chromium.components.signin.metrics.SigninAccessPoint;
 import org.chromium.components.ukm.UkmRecorder;
 import org.chromium.content_public.browser.BrowserContextHandle;
 import org.chromium.content_public.browser.LoadUrlParams;
-import org.chromium.content_public.browser.NavigationHandle;
 import org.chromium.content_public.browser.WebContents;
 import org.chromium.content_public.browser.WebContentsAccessibility;
 import org.chromium.ui.base.ActivityResultTracker;
@@ -445,18 +440,16 @@ public class RootUiCoordinator
     protected final NonNullObservableSupplier<Integer> mOverviewColorSupplier;
     private @Nullable ContextualSearchObserver mReadAloudContextualSearchObserver;
     private PageZoomBarCoordinator mPageZoomBarCoordinator;
-    private @Nullable CurrentTabObserver mReaderModeTabObserver;
     private @Nullable ReaderModeBottomSheetManager mReaderModeBottomSheetManager;
     private @Nullable AppMenuObserver mAppMenuObserver;
     private @Nullable LinkHoverStatusBarCoordinator mLinkHoverStatusBarCoordinator;
-    private @Nullable TabSharingToolbarUiCoordinator mTabSharingToolbarUiCoordinator;
     private @Nullable BookmarkAllTabsHandler mBookmarkAllTabsHandler;
 
     private final OneshotSupplierImpl<ToolbarManager> mToolbarManagerOneshotSupplier =
             new OneshotSupplierImpl<>();
     private ActivityRecreationController mActivityRecreationController;
     private @Nullable RestoreTabsFeatureHelper mRestoreTabsFeatureHelper;
-    protected @Nullable EdgeToEdgeController mEdgeToEdgeController;
+    private @Nullable EdgeToEdgeController mEdgeToEdgeController;
     private @Nullable ComposedBrowserControlsVisibilityDelegate
             mAppBrowserControlsVisibilityDelegate;
     protected final EdgeToEdgeManager mEdgeToEdgeManager;
@@ -498,7 +491,6 @@ public class RootUiCoordinator
      * @param layoutStateProviderOneshotSupplier Supplier of the {@link LayoutStateProvider}.
      * @param browserControlsManager Manages the browser controls.
      * @param windowAndroid The current {@link WindowAndroid}.
-     * @param activityResultTracker Tracker dispatching activity result callbacks.
      * @param chromeAndroidTaskSupplier Supplies an {@link ChromeAndroidTask}.
      * @param activityLifecycleDispatcher Allows observation of the activity lifecycle.
      * @param layoutManagerSupplier Supplies the {@link LayoutManager}.
@@ -510,7 +502,7 @@ public class RootUiCoordinator
      * @param tabCreatorManagerSupplier Supplies the {@link TabCreatorManager}.
      * @param fullscreenManager Manages the fullscreen state.
      * @param compositorViewHolderSupplier Supplies the {@link CompositorViewHolder}.
-     * @param tabContentManagerSupplier Supplier of the manager providing tab thumbnail snapshots.
+     * @param tabContentManagerSupplier Supplies the {@link TabContentManager}.
      * @param snackbarManagerSupplier Supplies the {@link SnackbarManager}.
      * @param edgeToEdgeControllerSupplier Supplies an {@link EdgeToEdgeController}.
      * @param topInsetProvider The {@link TopInsetProvider} instance.
@@ -529,7 +521,6 @@ public class RootUiCoordinator
      * @param xrSpaceModeObservableSupplier Supplies current XR space mode status. True for XR full
      *     space mode, false otherwise.
      * @param desktopWindowStateManager Tracks whether in desktop windowing mode
-     * @param bottomBarHostManager Manager hosting and sizing the bottom bar container.
      */
     public RootUiCoordinator(
             AppCompatActivity activity,
@@ -779,31 +770,9 @@ public class RootUiCoordinator
                             }
 
                             @Override
-                            public boolean isPageZoomSupported() {
-                                Tab tab = mActivityTabProvider.get();
-                                if (tab == null || tab.isNativePage()) {
-                                    return false;
-                                }
-                                return true;
-                            }
-
-                            @Override
-                            public boolean canShowPopupWindow() {
-                                if (ApplicationStatus.getLastTrackedFocusedActivity()
-                                        != mActivity) {
-                                    return false;
-                                }
-                                // The zoom indicator popup is only for web pages with zoomable
-                                // content. Native pages (such as SettingsPage) render native
-                                // Android UI and shouldn't display a zoom indicator popup.
-                                Tab tab = mActivityTabProvider.get();
-                                if (tab == null || tab.isNativePage()) {
-                                    return false;
-                                }
-                                return mAppMenuCoordinator == null
-                                        || !mAppMenuCoordinator
-                                                .getAppMenuHandler()
-                                                .isAppMenuShowing();
+                            public boolean isActivityFocused() {
+                                return ApplicationStatus.getLastTrackedFocusedActivity()
+                                        == mActivity;
                             }
                         });
 
@@ -1065,10 +1034,7 @@ public class RootUiCoordinator
             mIncognitoStateProvider = null;
         }
 
-        if (mFindToolbarManager != null) {
-            mFindToolbarManager.removeObserver(mFindToolbarObserver);
-            mFindToolbarManager.destroy();
-        }
+        if (mFindToolbarManager != null) mFindToolbarManager.removeObserver(mFindToolbarObserver);
 
         var modalDialogManager = mModalDialogManagerSupplier.get();
         if (mModalDialogManagerObserver != null && modalDialogManager != null) {
@@ -1180,11 +1146,6 @@ public class RootUiCoordinator
 
         mTopInsetProvider.destroy();
 
-        if (mReaderModeTabObserver != null) {
-            mReaderModeTabObserver.destroy();
-            mReaderModeTabObserver = null;
-        }
-
         if (mReaderModeBottomSheetManager != null) {
             mReaderModeBottomSheetManager.destroy();
             mReaderModeBottomSheetManager = null;
@@ -1199,11 +1160,6 @@ public class RootUiCoordinator
         if (mLinkHoverStatusBarCoordinator != null) {
             mLinkHoverStatusBarCoordinator.destroy();
             mLinkHoverStatusBarCoordinator = null;
-        }
-
-        if (mTabSharingToolbarUiCoordinator != null) {
-            mTabSharingToolbarUiCoordinator.destroy();
-            mTabSharingToolbarUiCoordinator = null;
         }
 
         if (mAutomotiveBackButtonToolbarCoordinator != null) {
@@ -1375,8 +1331,29 @@ public class RootUiCoordinator
             initializeEdgeToEdgeController();
         }
 
-        if (!ChromeFeatureList.sAndroidStartupImprovements.isEnabled()) {
-            initEphemeralTabCoordinator();
+        if (EphemeralTabCoordinator.isSupported()) {
+            Supplier<TabCreator> tabCreator =
+                    () ->
+                            mTabCreatorManagerSupplier
+                                    .asNonNull()
+                                    .get()
+                                    .getTabCreator(tabModelSelector.isIncognitoSelected());
+            ContextMenuPopulatorFactory contextMenuPopulatorFactory =
+                    new ChromeContextMenuPopulatorFactory(
+                            /* itemDelegate= */ null,
+                            mShareDelegateSupplier,
+                            ChromeContextMenuPopulator.ContextMenuMode.THIN_WEB_VIEW,
+                            /* customContentActions= */ Collections.emptyList(),
+                            getLeftSideUiWidthSupplier());
+            mEphemeralTabCoordinatorSupplier.set(
+                    new EphemeralTabCoordinator(
+                            mActivity,
+                            mWindowAndroid,
+                            mActivity.getWindow().getDecorView(),
+                            mActivityTabProvider,
+                            tabCreator,
+                            assertNonNull(getBottomSheetController()),
+                            contextMenuPopulatorFactory));
         }
         ReadAloudController controller =
                 new ReadAloudController(
@@ -1409,11 +1386,13 @@ public class RootUiCoordinator
         if (contextualSearchManager != null) {
             contextualSearchManager.addObserver(mReadAloudContextualSearchObserver);
         }
-        if (!ChromeFeatureList.sAndroidStartupImprovements.isEnabled()) {
-            initReaderModeBottomSheetManager();
-        } else {
-            initReaderModeBottomSheetLazyObserver();
-        }
+        mReaderModeBottomSheetManager =
+                new ReaderModeBottomSheetManager(
+                        mActivity,
+                        assertNonNull(getBottomSheetController()),
+                        mActivityTabProvider,
+                        mBrowserControlsManager,
+                        mToolbarThemeColorProvider);
 
         if (DeviceInfo.isAutomotive()) {
             mAutomotiveBackButtonToolbarCoordinator =
@@ -1425,11 +1404,7 @@ public class RootUiCoordinator
                             mBackPressManager);
         }
 
-        // TODO(crbug.com/498302496): Remove TopInsetCoordinator creation and
-        // TransitiveTopInsetProvider once sEdgelessTopInset is fully launched and
-        // TopInsetCoordinator is deleted.
-        if (!EdgeToEdgeUtils.isEdgelessTopInsetEnabled()
-                && mWindowAndroid.getInsetObserver() != null
+        if (mWindowAndroid.getInsetObserver() != null
                 && NtpCustomizationUtils.supportsEnableEdgeToEdgeOnTop(mWindowAndroid, mIsTablet)) {
             // Only create TopInsetCoordinator if there's a valid TransitiveTopInsetProvider
             // available. TopInsetCoordinator registers a listener with the singleton
@@ -1450,10 +1425,7 @@ public class RootUiCoordinator
                 transitiveTopInsetProvider.set(topInsetCoordinator);
             }
         }
-        // Temporarily disable LinkHoverStatusBar on non-desktop devices.
-        // TODO(b/542488395): Enable this on non-desktop devices.
-        if (DeviceInfo.isDesktop()
-                && ChromeFeatureList.isEnabled(ChromeFeatureList.LINK_HOVER_STATUS_BAR)) {
+        if (ChromeFeatureList.isEnabled(ChromeFeatureList.LINK_HOVER_STATUS_BAR)) {
             ViewStub statusBarStub = mActivity.findViewById(R.id.link_hover_status_bar_stub);
             mLinkHoverStatusBarCoordinator =
                     new LinkHoverStatusBarCoordinator(
@@ -1466,93 +1438,6 @@ public class RootUiCoordinator
                         mCompositorViewHolderSupplier.asNonNull().get(),
                         () -> mBrowserControlsManager.getContentOffset());
         AnchoredDialogCoordinatorProvider.attach(mWindowAndroid, mAnchoredDialogCoordinator);
-
-        ViewGroup controlContainer = (ViewGroup) mActivity.findViewById(R.id.control_container);
-        if (ChromeFeatureList.sTabSharingToolbarAndroid.isEnabled() && controlContainer != null) {
-            mTabSharingToolbarUiCoordinator =
-                    new TabSharingToolbarUiCoordinator(
-                            mActivity, controlContainer, mTopControlsStacker, mActivityTabProvider);
-        }
-    }
-
-    private void initReaderModeBottomSheetManager() {
-        if (mReaderModeBottomSheetManager != null) return;
-        mReaderModeBottomSheetManager =
-                new ReaderModeBottomSheetManager(
-                        mActivity,
-                        assertNonNull(getBottomSheetController()),
-                        mActivityTabProvider,
-                        mBrowserControlsManager,
-                        mToolbarThemeColorProvider);
-        if (mReaderModeTabObserver != null) {
-            mReaderModeTabObserver.destroy();
-            mReaderModeTabObserver = null;
-        }
-    }
-
-    private void initReaderModeBottomSheetLazyObserver() {
-        Tab currentTab = mActivityTabProvider.get();
-        if (currentTab != null && DomDistillerUrlUtils.isDistilledPage(currentTab.getUrl())) {
-            initReaderModeBottomSheetManager();
-            return;
-        }
-
-        CurrentTabObserver observer =
-                new CurrentTabObserver(
-                        mActivityTabProvider.asObservable(),
-                        new TabObserver() {
-                            @Override
-                            public void onDidFinishNavigationInPrimaryMainFrame(
-                                    Tab tab, NavigationHandle navigationHandle) {
-                                if (navigationHandle.hasCommitted()
-                                        && navigationHandle.isInPrimaryMainFrame()
-                                        && DomDistillerUrlUtils.isDistilledPage(tab.getUrl())) {
-                                    initReaderModeBottomSheetManager();
-                                }
-                            }
-                        },
-                        (@Nullable Tab tab) -> {
-                            if (tab != null && DomDistillerUrlUtils.isDistilledPage(tab.getUrl())) {
-                                initReaderModeBottomSheetManager();
-                            }
-                        });
-
-        if (mReaderModeBottomSheetManager != null) {
-            observer.destroy();
-        } else {
-            mReaderModeTabObserver = observer;
-        }
-    }
-
-    private void initEphemeralTabCoordinator() {
-        if (mEphemeralTabCoordinatorSupplier.get() != null) return;
-        if (EphemeralTabCoordinator.isSupported()) {
-            Supplier<TabCreator> tabCreator =
-                    () ->
-                            mTabCreatorManagerSupplier
-                                    .asNonNull()
-                                    .get()
-                                    .getTabCreator(
-                                            mTabModelSelectorSupplier
-                                                    .asNonNull()
-                                                    .get()
-                                                    .isIncognitoSelected());
-            ContextMenuPopulatorFactory contextMenuPopulatorFactory =
-                    new ChromeContextMenuPopulatorFactory(
-                            /* itemDelegate= */ null,
-                            mShareDelegateSupplier,
-                            ChromeContextMenuPopulator.ContextMenuMode.THIN_WEB_VIEW,
-                            /* customContentActions= */ Collections.emptyList());
-            mEphemeralTabCoordinatorSupplier.set(
-                    new EphemeralTabCoordinator(
-                            mActivity,
-                            mWindowAndroid,
-                            mActivity.getWindow().getDecorView(),
-                            mActivityTabProvider,
-                            tabCreator,
-                            assertNonNull(getBottomSheetController()),
-                            contextMenuPopulatorFactory));
-        }
     }
 
     protected boolean isContextualSearchEnabled() {
@@ -1789,8 +1674,8 @@ public class RootUiCoordinator
                                     assertNonNull(mDeviceLockActivityLauncherSupplier.get()),
                                     profileSupplier,
                                     getBottomSheetControllerSupplier().asNonNull(),
-                                    mModalDialogManagerSupplier,
-                                    mSnackbarManagerSupplier,
+                                    mModalDialogManagerSupplier.get(),
+                                    mSnackbarManagerSupplier.get(),
                                     SigninAccessPoint.WEB_SIGNIN));
         }
         if (SigninFeatureMap.isEnabled(SigninFeatures.ENABLE_SEAMLESS_SIGNIN)) {
@@ -1804,8 +1689,8 @@ public class RootUiCoordinator
                                     assertNonNull(mDeviceLockActivityLauncherSupplier.get()),
                                     profileSupplier,
                                     getBottomSheetControllerSupplier().asNonNull(),
-                                    mModalDialogManagerSupplier,
-                                    mSnackbarManagerSupplier,
+                                    mModalDialogManagerSupplier.get(),
+                                    mSnackbarManagerSupplier.get(),
                                     SigninAccessPoint.EXTENSIONS));
         }
     }
@@ -1839,7 +1724,6 @@ public class RootUiCoordinator
      * This method is meant to be overridden for sub-classes which needs to provide an incognito
      * re-auth view.
      *
-     * @param profile The current active profile.
      * @return {@link IncognitoReauthCoordinatorFactory} instance.
      */
     protected IncognitoReauthCoordinatorFactory getIncognitoReauthCoordinatorFactory(
@@ -2277,8 +2161,7 @@ public class RootUiCoordinator
                             mCountrySupplier,
                             (preventClose, invocationSource) ->
                                     toggleGlic(preventClose, invocationSource),
-                            shouldSuppressTabStripAtStart(),
-                            getHubManagerSupplier());
+                            shouldSuppressTabStripAtStart());
             if (!mSupportsAppMenuSupplier.getAsBoolean()) {
                 mToolbarManager.getToolbar().disableMenuButton();
             }
@@ -2322,9 +2205,6 @@ public class RootUiCoordinator
 
     protected void onScrimColorChanged(@ColorInt int scrimColor) {
         mStatusBarColorController.onScrimColorChanged(scrimColor);
-        if (mDesktopWindowStateManager != null) {
-            mDesktopWindowStateManager.onScrimColorChanged(scrimColor);
-        }
     }
 
     protected void setLayoutStateProvider(LayoutStateProvider layoutStateProvider) {
@@ -2472,7 +2352,6 @@ public class RootUiCoordinator
                         mActionModeControllerCallback,
                         mBackPressManager,
                         mActivity.findViewById(R.id.secondary_ui_container),
-                        mIsTablet ? mActivity.findViewById(R.id.control_container) : null,
                         mBrowserControlsManager);
 
         mFindToolbarObserver =
@@ -2656,14 +2535,6 @@ public class RootUiCoordinator
                             mLayoutManagerSupplier,
                             mFullscreenManager);
             mEdgeToEdgeControllerSupplier.set(mEdgeToEdgeController);
-            // TODO(crbug.com/498302496): Pass mEdgeToEdgeController directly to downstream
-            // consumers (e.g. ToolbarManager, NewTabAnimationLayout) instead of using
-            // TransitiveTopInsetProvider.
-            if (EdgeToEdgeUtils.isEdgelessTopInsetEnabled()
-                    && mTopInsetProvider
-                            instanceof TransitiveTopInsetProvider transitiveTopInsetProvider) {
-                transitiveTopInsetProvider.set(mEdgeToEdgeController);
-            }
             mEdgeToEdgeBottomChin = createEdgeToEdgeBottomChin();
 
             recordIfMissingNavigationBar();
@@ -2740,13 +2611,7 @@ public class RootUiCoordinator
      * @return Supplies the {@link EphemeralTabCoordinator}
      */
     public Supplier<@Nullable EphemeralTabCoordinator> getEphemeralTabCoordinatorSupplier() {
-        if (!ChromeFeatureList.sAndroidStartupImprovements.isEnabled()) {
-            return mEphemeralTabCoordinatorSupplier;
-        }
-        return () -> {
-            initEphemeralTabCoordinator();
-            return mEphemeralTabCoordinatorSupplier.get();
-        };
+        return mEphemeralTabCoordinatorSupplier;
     }
 
     /**
@@ -2807,7 +2672,7 @@ public class RootUiCoordinator
         if (bottomSheetController == null) return;
 
         mBottomSheetObserver =
-                new BottomSheetObserver() {
+                new EmptyBottomSheetObserver() {
                     private boolean mOpened;
 
                     @Override
@@ -3050,10 +2915,18 @@ public class RootUiCoordinator
     }
 
     /**
-     * Returns the {@link OneshotSupplier} for {@link HubManager}, if supported by the current
-     * activity.
+     * Returns the supplier for the left side UI width in px.
+     *
+     * <p>If the current Activity does not have left side UI, the supplier will always supply 0
+     *
+     * <p>NOTE: Always prefer {@link SideUiStateProvider} rather than this supplier. This supplier
+     * is created because some components can't depend on {@link SideUiStateProvider}, such as
+     * {@link ContextMenuPopulatorFactory}.
+     *
+     * <p>TOOD(crbug.com/543470110): Fix the dependency issue and remove this supplier.
      */
-    protected @Nullable OneshotSupplier<HubManager> getHubManagerSupplier() {
-        return null;
+    @Deprecated
+    public Supplier<Integer> getLeftSideUiWidthSupplier() {
+        return () -> 0;
     }
 }

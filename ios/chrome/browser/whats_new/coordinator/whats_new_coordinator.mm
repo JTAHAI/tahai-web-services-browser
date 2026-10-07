@@ -14,7 +14,6 @@
 #import "ios/chrome/browser/feature_engagement/model/tracker_factory.h"
 #import "ios/chrome/browser/promos_manager/coordinator/promos_manager_ui_handler.h"
 #import "ios/chrome/browser/shared/public/commands/command_dispatcher.h"
-#import "ios/chrome/browser/shared/public/commands/help_commands.h"
 #import "ios/chrome/browser/shared/public/commands/lens_commands.h"
 #import "ios/chrome/browser/shared/public/commands/scene_commands.h"
 #import "ios/chrome/browser/shared/public/commands/settings_commands.h"
@@ -25,11 +24,9 @@
 #import "ios/chrome/browser/whats_new/coordinator/whats_new_mediator.h"
 #import "ios/chrome/browser/whats_new/public/constants.h"
 #import "ios/chrome/browser/whats_new/ui/whats_new_table_view_controller.h"
-#import "ios/chrome/browser/whats_new/ui/whats_new_table_view_delegate.h"
 
 @interface WhatsNewCoordinator () <UIAdaptivePresentationControllerDelegate,
-                                   UINavigationControllerDelegate,
-                                   WhatsNewTableViewDelegate>
+                                   UINavigationControllerDelegate>
 
 // The mediator to display What's New data.
 @property(nonatomic, strong) WhatsNewMediator* mediator;
@@ -55,20 +52,7 @@
 
 @end
 
-@implementation WhatsNewCoordinator {
-  // Whether to show a promo bubble after dismissing What's New.
-  BOOL _shouldShowBubblePromoOnDismiss;
-
-  // The promos manager ui handler to alert for promo UI changes. Should only be
-  // set if this coordinator was a promo presented by the PromosManager.
-  __weak id<PromosManagerUIHandler> _promosUIHandler;
-}
-
-- (void)setShouldShowPromoOnDismissWithHandler:
-    (id<PromosManagerUIHandler>)promosUIHandler {
-  _shouldShowBubblePromoOnDismiss = YES;
-  _promosUIHandler = promosUIHandler;
-}
+@implementation WhatsNewCoordinator
 
 #pragma mark - ChromeCoordinator
 
@@ -130,11 +114,10 @@
   base::UmaHistogramCounts10000("IOS.WhatsNew.ItemsClickedCount",
                                 self.clicksOnWhatsNewItemsCount);
 
-  [_promosUIHandler promoWasDismissed];
+  [self.promosUIHandler promoWasDismissed];
 
-  if (_shouldShowBubblePromoOnDismiss) {
-    [HandlerForProtocol(self.browser->GetCommandDispatcher(), HelpCommands)
-        presentInProductHelpWithType:InProductHelpType::kWhatsNew];
+  if (self.shouldShowBubblePromoOnDismiss) {
+    [self.whatsNewHandler showWhatsNewIPH];
   }
 
   [super stop];

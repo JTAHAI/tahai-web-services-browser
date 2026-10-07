@@ -50,7 +50,6 @@
 #include "gin/try_catch.h"
 #include "gin/v8_initializer.h"
 #include "js_sandbox_isolate.h"
-#include "third_party/jni_zero/default_conversions.h"
 #include "v8/include/v8-array-buffer.h"
 #include "v8/include/v8-function.h"
 #include "v8/include/v8-inspector.h"
@@ -62,6 +61,8 @@
 // Must come after all headers that specialize FromJniType() / ToJniType().
 #include "android_webview/js_sandbox/js_sandbox_jni_headers/JsSandboxIsolate_jni.h"
 
+using base::android::ConvertJavaStringToUTF8;
+using base::android::ConvertUTF8ToJavaString;
 using base::android::JavaRef;
 
 namespace {
@@ -359,8 +360,10 @@ JsSandboxIsolate::~JsSandboxIsolate() {
 // for thread-affine v8 APIs. The callback is invoked from the
 // isolate_task_runner_.
 bool JsSandboxIsolate::EvaluateJavascript(
-    std::string&& code,
+    JNIEnv* env,
+    const base::android::JavaRef<jstring>& jcode,
     const base::android::JavaRef<jobject>& j_callback) {
+  std::string code = ConvertJavaStringToUTF8(env, jcode);
   scoped_refptr<JsSandboxIsolateCallback> callback =
       base::MakeRefCounted<JsSandboxIsolateCallback>(
           base::android::ScopedJavaGlobalRef<jobject>(j_callback), false);
@@ -376,6 +379,7 @@ bool JsSandboxIsolate::EvaluateJavascript(
 // Refer to comment above EvaluateJavascript method. In addition, this method
 // checks for streaming failures.
 bool JsSandboxIsolate::EvaluateJavascriptWithFd(
+    JNIEnv* env,
     const int32_t fd,
     const int64_t length,
     const int64_t offset,
@@ -396,16 +400,19 @@ bool JsSandboxIsolate::EvaluateJavascriptWithFd(
 }
 
 // Called from Binder thread.
-void JsSandboxIsolate::DestroyNative() {
+void JsSandboxIsolate::DestroyNative(JNIEnv* env) {
   control_task_runner_->PostTask(
       FROM_HERE, base::BindOnce(&JsSandboxIsolate::DestroyWhenPossible,
                                 base::Unretained(this)));
 }
 
 // Called from Binder thread.
-bool JsSandboxIsolate::ProvideNamedData(const std::string& name,
-                                        const int32_t fd,
-                                        const int32_t length) {
+bool JsSandboxIsolate::ProvideNamedData(
+    JNIEnv* env,
+    const base::android::JavaRef<jstring>& jname,
+    const int32_t fd,
+    const int32_t length) {
+  std::string name = ConvertJavaStringToUTF8(env, jname);
   base::AutoLock hold(named_fd_lock_);
   FdWithLength fd_with_length(fd, length);
   return named_fd_.insert(std::make_pair(name, std::move(fd_with_length)))
@@ -413,7 +420,7 @@ bool JsSandboxIsolate::ProvideNamedData(const std::string& name,
 }
 
 // Called from Binder thread.
-void JsSandboxIsolate::SetConsoleEnabled(const bool enable) {
+void JsSandboxIsolate::SetConsoleEnabled(JNIEnv* env, const bool enable) {
   control_task_runner_->PostTask(
       FROM_HERE,
       base::BindOnce(&JsSandboxIsolate::SetConsoleEnabledOnControlThread,
@@ -481,6 +488,8 @@ void JsSandboxIsolate::NotifyInitComplete() {
 // Called from isolate thread.
 v8::Local<v8::ObjectTemplate> JsSandboxIsolate::CreateAndroidNamespaceTemplate(
     v8::Isolate* isolate) {
+  v8::Local<v8::ObjectTemplate> android_namespace_template =
+      v8::ObjectTemplate::New(isolate);
   v8::Local<v8::ObjectTemplate> android_object_template =
       v8::ObjectTemplate::New(isolate);
   android_object_template->Set(
@@ -494,7 +503,8 @@ v8::Local<v8::ObjectTemplate> JsSandboxIsolate::CreateAndroidNamespaceTemplate(
       gin::CreateFunctionTemplate(
           isolate, base::BindRepeating(&JsSandboxIsolate::GetNamedPort,
                                        base::Unretained(this))));
-  return android_object_template;
+  android_namespace_template->Set(isolate, "android", android_object_template);
+  return android_namespace_template;
 }
 
 // Called from isolate thread.
@@ -549,13 +559,14 @@ void JsSandboxIsolate::ReadFileDescriptorOnThread(
   JNIEnv* env = base::android::AttachCurrentThread();
 
   // check for error on the client side irrespective of errorCode
-  std::string error =
+  base::android::ScopedJavaLocalRef<jstring> error =
       android_webview::Java_JsSandboxIsolate_checkStreamingErrorAndClosePfd(
           env, pfd);
 
-  if (!error.empty()) {
+  if (error) {
     callback->ReportFileDescriptorIOFailedError(
-        base::StrCat({"Failed to read data from file descriptor: ", error}));
+        base::StrCat({"Failed to read data from file descriptor: ",
+                      ConvertJavaStringToUTF8(env, error)}));
     return;
   }
 
@@ -570,12 +581,13 @@ void JsSandboxIsolate::ReportFileDescriptorIOError(
   JNIEnv* env = base::android::AttachCurrentThread();
 
   // check for error on the client side irrespective of errorCode
-  std::string error =
+  base::android::ScopedJavaLocalRef<jstring> error =
       android_webview::Java_JsSandboxIsolate_checkStreamingErrorAndClosePfd(
           env, pfd);
 
-  if (!error.empty()) {
-    errorMessage += base::StrCat({"; Application sent error: ", error});
+  if (error) {
+    errorMessage += base::StrCat(
+        {"; Application sent error: ", ConvertJavaStringToUTF8(env, error)});
   }
 
   callback->ReportFileDescriptorIOFailedError(errorMessage);
@@ -609,18 +621,13 @@ void JsSandboxIsolate::InitializeIsolateOnThread() {
   isolate->SetOOMErrorHandler(&OOMErrorCallback, this);
   v8::HandleScope handle_scope(isolate);
 
-  v8::Local<v8::Context> context = v8::Context::New(isolate);
+  v8::Local<v8::ObjectTemplate> android_template =
+      CreateAndroidNamespaceTemplate(isolate);
+  v8::Local<v8::Context> context =
+      v8::Context::New(isolate, nullptr, android_template);
 
   context_holder_ = std::make_unique<gin::ContextHolder>(isolate);
   context_holder_->SetContext(context);
-
-  v8::Context::Scope context_scope(context);
-  v8::Local<v8::ObjectTemplate> android_template =
-      CreateAndroidNamespaceTemplate(isolate);
-  context->Global()
-      ->Set(context, gin::StringToV8(isolate, "android"),
-            android_template->NewInstance(context).ToLocalChecked())
-      .Check();
 
   control_task_runner_->PostTask(
       FROM_HERE, base::BindOnce(&JsSandboxIsolate::NotifyInitComplete,
@@ -914,7 +921,7 @@ void JsSandboxIsolate::ReportOutOfMemory() {
       android_webview::Java_JsSandboxIsolate_sendTermination(
           env, j_isolate_,
           static_cast<int32_t>(TerminationStatus::kMemoryLimitExceeded),
-          details_str);
+          base::android::ConvertUTF8ToJavaString(env, details_str));
   if (client_got_termination) {
     // Don't send any evaluation errors - the client will deal with them itself.
     return;
@@ -1090,6 +1097,7 @@ void JsSandboxIsolate::ProvideMessagePortOnIsolateThread(
 
 // Called from binder thread
 void JsSandboxIsolate::ProvideMessagePort(
+    JNIEnv* env,
     std::string name,
     const base::android::JavaRef<jobject>& j_message_port) {
   isolate_task_runner_->PostTask(
@@ -1118,7 +1126,7 @@ JsSandboxMemoryBudget* JsSandboxIsolate::GetMemoryBudget() {
   return memory_budget_.get();
 }
 
-static void JNI_JsSandboxIsolate_InitializeEnvironment() {
+static void JNI_JsSandboxIsolate_InitializeEnvironment(JNIEnv* env) {
   base::ThreadPoolInstance::CreateAndStartWithDefaultParams("JsSandboxIsolate");
 #if ICU_UTIL_DATA_IMPL == ICU_UTIL_DATA_FILE
   // Since we don't go through ContentMain, and we aren't a "browser" process,
@@ -1133,6 +1141,7 @@ static void JNI_JsSandboxIsolate_InitializeEnvironment() {
 }
 
 static int64_t JNI_JsSandboxIsolate_CreateNativeJsSandboxIsolateWrapper(
+    JNIEnv* env,
     const base::android::JavaRef<jobject>& j_sandbox_isolate,
     int64_t max_heap_size_bytes) {
   CHECK_GE(max_heap_size_bytes, 0);

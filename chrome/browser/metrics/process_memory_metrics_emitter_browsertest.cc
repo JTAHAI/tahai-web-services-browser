@@ -24,14 +24,13 @@
 #include "build/build_config.h"
 #include "chrome/browser/extensions/extension_browsertest.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/tracing.h"
 #include "chrome/test/base/ui_test_utils.h"
 #include "components/ukm/test_ukm_recorder.h"
 #include "content/public/browser/network_service_util.h"
 #include "content/public/browser/render_process_host.h"
-#include "content/public/browser/site_instance.h"
 #include "content/public/test/browser_test.h"
 #include "content/public/test/scoped_accessibility_mode_override.h"
 #include "content/public/test/test_utils.h"
@@ -81,12 +80,12 @@ enum class ValueRestriction { NONE, ABOVE_ZERO };
 
 // Returns the number of renderers associated with top-level frames in
 // |browser|. There can be other renderers in the process (e.g. spare renderer).
-int GetNumRenderers(BrowserWindowInterface* browser) {
+int GetNumRenderers(Browser* browser) {
   // Since multiple tabs can be hosted in the same process, RenderProcessHosts
   // need to be deduped.
   std::set<content::RenderProcessHost*> render_process_hosts;
-  for (int i = 0; i < browser->GetTabStripModel()->count(); ++i) {
-    render_process_hosts.insert(browser->GetTabStripModel()
+  for (int i = 0; i < browser->tab_strip_model()->count(); ++i) {
+    render_process_hosts.insert(browser->tab_strip_model()
                                     ->GetWebContentsAt(i)
                                     ->GetSiteInstance()
                                     ->GetProcess());
@@ -905,8 +904,7 @@ IN_PROC_BROWSER_TEST_F(ProcessMemoryMetricsEmitterTest,
 
   // Hold a reference to an accessibility node so that there's one live node.
   Microsoft::WRL::ComPtr<IAccessible> root(
-      BrowserView::GetBrowserViewForBrowser(browser())
-          ->GetNativeViewAccessible());
+      browser()->GetBrowserView().GetNativeViewAccessible());
   ASSERT_TRUE(root);
 
   // Check for a live node.

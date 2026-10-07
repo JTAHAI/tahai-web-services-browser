@@ -35,19 +35,17 @@ def __step_config(ctx, step_config):
         if runtime.os == "windows":
             remote_run = False
 
-    use_ts_go = gn.args(ctx).get("use_typescript_go") != "false"
-    ts_compiler_deps = [
-        "third_party/node/node_modules:node_modules",
-    ] if use_ts_go else [
-        "third_party/node/linux/node-linux-x64/bin/node",
-        "third_party/node/node.py",
-        "third_party/node/node_modules:node_modules",
-    ]
-
     # TODO: crbug.com/1478909 - Specify typescript inputs in GN config.
     step_config["input_deps"].update({
-        "tools/typescript/ts_definitions.py": ts_compiler_deps,
-        "tools/typescript/ts_library.py": ts_compiler_deps,
+        "tools/typescript/ts_definitions.py": [
+            "third_party/node/linux/node-linux-x64/bin/node",
+            "third_party/node/node_modules:node_modules",
+        ],
+        "tools/typescript/ts_library.py": [
+            "third_party/node/linux/node-linux-x64/bin/node",
+            "third_party/node/node.py",
+            "third_party/node/node_modules:node_modules",
+        ],
         "ui/webui/resources/tools/minify_js.py": [
             "third_party/node/node_modules:node_modules",
         ],
@@ -74,13 +72,12 @@ def __step_config(ctx, step_config):
                 ],
             },
             "remote": remote_run,
-            "platform_ref": "large",
             "timeout": "2m",
             "handler": "typescript_ts_library" if remote_run else None,
             "output_local": True,
             "input_root_absolute_path": use_input_root_absolute_path,
             # Only runs on Linux workers.
-            "remote_command": platform.remote_python_bin,
+            "remote_command": "python3",
         },
         {
             "name": "typescript/ts_definitions",
@@ -92,12 +89,11 @@ def __step_config(ctx, step_config):
                 ],
             },
             "remote": remote_run,
-            "platform_ref": "large",
             "timeout": "2m",
             "handler": "typescript_ts_definitions" if remote_run else None,
             "input_root_absolute_path": use_input_root_absolute_path,
             # Only runs on Linux workers.
-            "remote_command": platform.remote_python_bin,
+            "remote_command": "python3",
         },
         {
             "name": "webui/minify_js",
@@ -105,7 +101,7 @@ def __step_config(ctx, step_config):
             "remote": remote_run,
             "timeout": "2m",
             # Only runs on Linux workers.
-            "remote_command": platform.remote_python_bin,
+            "remote_command": "python3",
         },
         {
             "name": "webui/stylelint",
@@ -113,7 +109,7 @@ def __step_config(ctx, step_config):
             "remote": remote_run,
             "timeout": "2m",
             # Only runs on Linux workers.
-            "remote_command": platform.remote_python_bin,
+            "remote_command": "python3",
         },
         {
             "name": "webui/eslint_ts",
@@ -127,7 +123,7 @@ def __step_config(ctx, step_config):
             "timeout": "2m",
             "handler": "webui_eslint_ts" if remote_run else None,
             # Only runs on Linux workers.
-            "remote_command": platform.remote_python_bin,
+            "remote_command": "python3",
         },
     ])
     return step_config

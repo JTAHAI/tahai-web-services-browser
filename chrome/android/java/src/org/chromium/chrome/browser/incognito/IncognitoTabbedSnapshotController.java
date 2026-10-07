@@ -49,8 +49,10 @@ public class IncognitoTabbedSnapshotController extends IncognitoSnapshotControll
             LayoutManagerChrome layoutManager,
             TabModelSelector tabModelSelector,
             ActivityLifecycleDispatcher activityLifecycleDispatcher) {
+        Supplier<Boolean> isOverviewModeSupplier =
+                () -> layoutManager.getActiveLayoutType() == LayoutType.HUB;
         Supplier<Boolean> isShowingIncognitoSupplier =
-                getIsShowingIncognitoSupplier(tabModelSelector);
+                getIsShowingIncognitoSupplier(tabModelSelector, isOverviewModeSupplier);
 
         new IncognitoTabbedSnapshotController(
                 activity,
@@ -63,12 +65,17 @@ public class IncognitoTabbedSnapshotController extends IncognitoSnapshotControll
     /**
      * @param tabModelSelector The {@link TabModelSelector} from where tab information will be
      *     fetched.
+     * @param isInOverviewModeSupplier The {@link Supplier<Boolean>} to supply with the information
+     *     whether overview mode is shown or not.
      * @return A {@link Supplier<Boolean>} to supply information about whether incognito is showing
      *     or not.
      */
     @VisibleForTesting
-    static Supplier<Boolean> getIsShowingIncognitoSupplier(TabModelSelector tabModelSelector) {
-        return () -> tabModelSelector.getCurrentModel().isIncognito();
+    static Supplier<Boolean> getIsShowingIncognitoSupplier(
+            TabModelSelector tabModelSelector, Supplier<Boolean> isInOverviewModeSupplier) {
+        return () -> {
+            return tabModelSelector.getCurrentModel().isIncognito();
+        };
     }
 
     /**
@@ -112,7 +119,7 @@ public class IncognitoTabbedSnapshotController extends IncognitoSnapshotControll
                         });
 
         mLayoutManager.addObserver(mLayoutStateObserver);
-        mCurrentTabModelObserver = _ -> updateIncognitoTabSnapshotState();
+        mCurrentTabModelObserver = (tabModel) -> updateIncognitoTabSnapshotState();
         mTabModelSelector
                 .getCurrentTabModelSupplier()
                 .addSyncObserverAndPostIfNonNull(mCurrentTabModelObserver);

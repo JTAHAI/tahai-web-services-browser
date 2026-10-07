@@ -136,26 +136,10 @@ bool BrowserAccessibility::IsValid() const {
 
 void BrowserAccessibility::OnDataChanged() {
   DCHECK(IsValid()) << "Invalid node: " << *this;
-  // See `ShouldHavePlatformNode` for an explanation on why it must be ignored
-  // if false.
-  DCHECK(ShouldHavePlatformNode() || node()->IsIgnored())
-      << "Only an ignored node may go without a platform node: " << *this;
-  UpdatePlatformNode();
-}
-
-bool BrowserAccessibility::ShouldHavePlatformNode() const {
-  // A hosted tree takes the place of its host, thus no platform API can reach
-  // that host. Whether the tree is connected does not matter here: the host is
-  // ignored either way, and a platform node that came and went with another
-  // tree would make an event fire on a node that no client can reach.
-  return !(node()->IsIgnored() && node()->data().HasChildTreeID());
 }
 
 bool BrowserAccessibility::CanFireEvents() const {
-  // A platform event names a platform node, thus a BrowserAccessibility that
-  // owns none can fire no event. Each platform gives the node of an event to
-  // its own API, and it has no result to give for a node that is not there.
-  return ShouldHavePlatformNode() && node()->CanFireEvents();
+  return node()->CanFireEvents();
 }
 
 AXPlatformNode* BrowserAccessibility::GetAXPlatformNode() const {
@@ -222,12 +206,10 @@ BrowserAccessibility* BrowserAccessibility::PlatformGetNextSibling() const {
   // On some platforms, we rely on extra announcement nodes to support aria
   // notify.
   BrowserAccessibility* parent = PlatformGetParent();
-  size_t next_child_index =
-      node()->GetUnignoredIndexInParentCrossingTreeBoundary() + 1;
+  size_t next_child_index = node()->GetUnignoredIndexInParent() + 1;
   if (!manager()->TreeHasExtraAnnouncementNodes() || !parent ||
       next_child_index < parent->InternalChildCount()) {
-    return manager()->GetFromAXNode(
-        node()->GetNextUnignoredSiblingCrossingTreeBoundary());
+    return InternalGetNextSibling();
   }
 
   // The InternalChildCount() will not include extra announcement nodes, but
@@ -244,11 +226,10 @@ BrowserAccessibility* BrowserAccessibility::PlatformGetPreviousSibling() const {
   // On some platforms, we rely on extra announcement nodes to support aria
   // notify.
   BrowserAccessibility* parent = PlatformGetParent();
-  size_t child_index = node()->GetUnignoredIndexInParentCrossingTreeBoundary();
+  size_t child_index = node()->GetUnignoredIndexInParent();
   if (!manager()->TreeHasExtraAnnouncementNodes() || !parent ||
       child_index < parent->InternalChildCount()) {
-    return manager()->GetFromAXNode(
-        node()->GetPreviousUnignoredSiblingCrossingTreeBoundary());
+    return InternalGetPreviousSibling();
   }
 
   // The InternalChildCount() will not include extra announcement nodes, but
@@ -889,10 +870,7 @@ gfx::Rect BrowserAccessibility::RelativeToAbsoluteBounds(
       }
     }
 
-    // Only child web frames compose bounds across tree boundaries. Root web
-    // frames and other sources are anchored by their own native view.
-    if (coordinate_system == AXCoordinateSystem::kFrame ||
-        manager->IsRootFrameManager() || !manager->IsWebContentSource()) {
+    if (coordinate_system == AXCoordinateSystem::kFrame) {
       break;
     }
 
@@ -1288,7 +1266,7 @@ std::optional<size_t> BrowserAccessibility::GetIndexInParent() const {
     // index at AXPlatformNodeBase.
     return std::nullopt;
   }
-  return node()->GetUnignoredIndexInParentCrossingTreeBoundary();
+  return node()->GetUnignoredIndexInParent();
 }
 
 gfx::AcceleratedWidget
@@ -2189,7 +2167,7 @@ TextAttributeMap BrowserAccessibility::ComputeTextAttributeMap(
     return attributes_map;
   }
 
-  DCHECK(PlatformChildCount()) << GetData().ToString();
+  DCHECK(PlatformChildCount());
 
   int start_offset = 0;
   for (const auto& child : PlatformChildren()) {

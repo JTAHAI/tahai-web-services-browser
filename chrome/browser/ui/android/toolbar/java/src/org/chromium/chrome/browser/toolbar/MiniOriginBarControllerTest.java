@@ -40,6 +40,7 @@ import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
+import org.robolectric.annotation.Config;
 
 import org.chromium.base.ContextUtils;
 import org.chromium.base.supplier.ObservableSuppliers;
@@ -64,6 +65,7 @@ import java.util.Collections;
 import java.util.function.BooleanSupplier;
 
 @RunWith(BaseRobolectricTestRunner.class)
+@Config(manifest = Config.NONE)
 public class MiniOriginBarControllerTest {
 
     private static final int CONTROL_CONTAINER_WIDTH = 400;

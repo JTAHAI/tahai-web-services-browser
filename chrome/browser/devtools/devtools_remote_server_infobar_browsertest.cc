@@ -4,7 +4,7 @@
 
 #include "base/command_line.h"
 #include "chrome/browser/devtools/chrome_devtools_manager_delegate.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "components/infobars/content/content_infobar_manager.h"
@@ -25,10 +25,9 @@ class DevToolsRemoteServerInfobarBrowserTest : public InProcessBrowserTest {
     command_line->AppendSwitchASCII(switches::kRemoteDebuggingPort, "0");
   }
 
-  infobars::ContentInfoBarManager* GetInfoBarManager(
-      BrowserWindowInterface* browser) {
+  infobars::ContentInfoBarManager* GetInfoBarManager(Browser* browser) {
     return infobars::ContentInfoBarManager::FromWebContents(
-        browser->GetTabStripModel()->GetActiveWebContents());
+        browser->tab_strip_model()->GetActiveWebContents());
   }
 };
 
@@ -54,8 +53,7 @@ IN_PROC_BROWSER_TEST_F(DevToolsRemoteServerInfobarBrowserTest,
 
   delegate->SetActiveWebSocketConnections(1);
 
-  BrowserWindowInterface* second_browser =
-      CreateBrowser(browser()->GetProfile());
+  Browser* second_browser = CreateBrowser(browser()->GetProfile());
   ASSERT_TRUE(second_browser);
 
   CloseBrowserSynchronously(browser());
@@ -75,9 +73,9 @@ IN_PROC_BROWSER_TEST_F(DevToolsRemoteServerInfobarBrowserTest,
   EXPECT_TRUE(confirm->Accept());
 
   navigation_observer.Wait();
-  EXPECT_EQ(2, second_browser->GetTabStripModel()->count());
+  EXPECT_EQ(2, second_browser->tab_strip_model()->count());
   EXPECT_EQ(GURL("chrome://inspect#remote-debugging"),
-            second_browser->GetTabStripModel()
+            second_browser->tab_strip_model()
                 ->GetActiveWebContents()
                 ->GetVisibleURL());
 }

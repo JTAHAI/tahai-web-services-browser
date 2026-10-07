@@ -12,6 +12,7 @@
 
 namespace optimization_guide {
 
+
 PageContextEligibility::PageContextEligibility(
     const PageContextEligibilityAPI* api)
     : api_(api) {}
@@ -40,8 +41,13 @@ void PageContextEligibility::SetForTesting(PageContextEligibility* api_holder) {
 // static
 DISABLE_CFI_DLSYM
 std::unique_ptr<PageContextEligibility> PageContextEligibility::Create() {
-  OptimizationGuideLibraryHolder* holder_ptr =
-      OptimizationGuideLibraryHolder::GetInstance();
+  // TODO(crbug.com/414828945): Move this creation out of this file if multiple
+  // use cases for it in browser.
+  static base::NoDestructor<std::unique_ptr<OptimizationGuideLibraryHolder>>
+      holder{OptimizationGuideLibraryHolder::Create()};
+
+  // Pointer will be null if the library was not created.
+  OptimizationGuideLibraryHolder* holder_ptr = holder->get();
   if (!holder_ptr) {
     return {};
   }

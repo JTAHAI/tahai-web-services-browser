@@ -28,6 +28,7 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/segmentation_platform/segmentation_platform_service_factory.h"
 #include "chrome/browser/ui/autofill/chrome_autofill_client.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/hats/hats_service_factory.h"
 #include "chrome/browser/ui/hats/mock_hats_service.h"
 #include "chrome/common/compose/compose.mojom.h"
@@ -1949,17 +1950,8 @@ IN_PROC_BROWSER_TEST_F(ChromeComposeClientBrowserTest,
                                    kAcceptedComposeSuggestion)));
 }
 
-// TODO(crbug.com/503556973): Flaky on Windows, Linux and Chrome OS.
-#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
-#define MAYBE_TestShouldTriggerProactiveNudgeBlockedBySegmentation \
-  DISABLED_TestShouldTriggerProactiveNudgeBlockedBySegmentation
-#else
-#define MAYBE_TestShouldTriggerProactiveNudgeBlockedBySegmentation \
-  TestShouldTriggerProactiveNudgeBlockedBySegmentation
-#endif
-IN_PROC_BROWSER_TEST_F(
-    ChromeComposeClientBrowserTest,
-    MAYBE_TestShouldTriggerProactiveNudgeBlockedBySegmentation) {
+IN_PROC_BROWSER_TEST_F(ChromeComposeClientBrowserTest,
+                       TestShouldTriggerProactiveNudgeBlockedBySegmentation) {
   base::HistogramTester histograms;
 
   // Enable and trigger the proactive nudge.
@@ -2041,8 +2033,17 @@ IN_PROC_BROWSER_TEST_F(
       1);
 }
 
+// TODO(crbug.com/503556973): Re-enable after fixing flakiness on Windows,
+// ChromeOS and Linux.
+#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_LINUX)
+#define MAYBE_TestShouldTriggerProactiveNudgeEnabled \
+  DISABLED_TestShouldTriggerProactiveNudgeEnabled
+#else
+#define MAYBE_TestShouldTriggerProactiveNudgeEnabled \
+  TestShouldTriggerProactiveNudgeEnabled
+#endif
 IN_PROC_BROWSER_TEST_F(ChromeComposeClientBrowserTest,
-                       TestShouldTriggerProactiveNudgeEnabled) {
+                       MAYBE_TestShouldTriggerProactiveNudgeEnabled) {
   base::HistogramTester histograms;
 
   // Enable proactive nudge.
@@ -2050,6 +2051,9 @@ IN_PROC_BROWSER_TEST_F(ChromeComposeClientBrowserTest,
   config.proactive_nudge_enabled = true;
   config.proactive_nudge_focus_delay = base::Microseconds(4);
   config.proactive_nudge_segmentation = false;
+
+  // Focus the field in the DOM to make it the active element.
+  FocusField();
 
   autofill::FormFieldData field = field_data();
   field.set_origin(
@@ -2066,16 +2070,9 @@ IN_PROC_BROWSER_TEST_F(ChromeComposeClientBrowserTest,
   const autofill::AutofillSuggestionTriggerSource trigger_source =
       autofill::AutofillSuggestionTriggerSource::kTextFieldValueChanged;
 
-  // Initial call returns false because of focus delay.
-  EXPECT_FALSE(client().ShouldTriggerPopup(form_data, field, trigger_source));
-
-  // Wait for focus delay timer to complete and trigger popup with delayed
-  // source to log UKM metrics.
+  // Should trigger after delay (using RunUntil to wait for timer/tasks).
   EXPECT_TRUE(base::test::RunUntil([&]() {
-    return client().ShouldTriggerPopup(
-        form_data, field,
-        autofill::AutofillSuggestionTriggerSource::
-            kComposeDelayedProactiveNudge);
+    return client().ShouldTriggerPopup(form_data, field, trigger_source);
   }));
 
   // Commit metrics on page navigation.

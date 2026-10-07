@@ -10,8 +10,6 @@ import org.jni_zero.JniType;
 import org.jni_zero.NativeMethods;
 
 import org.chromium.base.ObserverList;
-import org.chromium.base.TriState;
-import org.chromium.base.TriStateUtils;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.content_public.browser.MediaSession;
@@ -40,7 +38,7 @@ public class MediaSessionImpl extends MediaSession {
     private final ObserverList.RewindableIterator<MediaSessionObserver> mObserversIterator;
 
     private boolean mIsControllable;
-    private @TriState int mIsSuspended;
+    private @Nullable Boolean mIsSuspended;
     private @Nullable MediaMetadata mMetadata;
     private @Nullable List<MediaImage> mImagesList;
     private @Nullable HashSet<Integer> mActionSet;
@@ -53,8 +51,8 @@ public class MediaSessionImpl extends MediaSession {
     @Override
     public void addObserver(MediaSessionObserver observer) {
         mObservers.addObserver(observer);
-        if (mIsSuspended != TriState.NOT_SET) {
-            observer.mediaSessionStateChanged(mIsControllable, mIsSuspended == TriState.TRUE);
+        if (mIsSuspended != null) {
+            observer.mediaSessionStateChanged(mIsControllable, mIsSuspended);
         }
         if (mMetadata != null) {
             observer.mediaSessionMetadataChanged(mMetadata);
@@ -142,7 +140,7 @@ public class MediaSessionImpl extends MediaSession {
     @CalledByNative
     private void mediaSessionStateChanged(boolean isControllable, boolean isSuspended) {
         mIsControllable = isControllable;
-        mIsSuspended = TriStateUtils.from(isSuspended);
+        mIsSuspended = isSuspended;
 
         for (mObserversIterator.rewind(); mObserversIterator.hasNext(); ) {
             mObserversIterator.next().mediaSessionStateChanged(isControllable, isSuspended);

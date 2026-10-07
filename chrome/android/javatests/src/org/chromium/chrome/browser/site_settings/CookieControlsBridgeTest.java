@@ -67,6 +67,7 @@ public class CookieControlsBridgeTest {
             mCookieControlsVisible = controlsState != CookieControlsState.HIDDEN;
             mThirdPartyCookiesBlocked = controlsState == CookieControlsState.BLOCKED3PC;
             mEnforcement = enforcement;
+            mExpiration = expiration;
             mHelper.notifyCalled();
         }
     }
@@ -82,6 +83,7 @@ public class CookieControlsBridgeTest {
     private boolean mCookieControlsVisible;
     private boolean mThirdPartyCookiesBlocked;
     private int mEnforcement;
+    private long mExpiration;
 
     @Before
     public void setUp() throws Exception {
@@ -92,6 +94,7 @@ public class CookieControlsBridgeTest {
         mTestServer = mActivityTestRule.getTestServer();
         mCookieControlsVisible = false;
         mThirdPartyCookiesBlocked = false;
+        mExpiration = -1;
     }
 
     @After

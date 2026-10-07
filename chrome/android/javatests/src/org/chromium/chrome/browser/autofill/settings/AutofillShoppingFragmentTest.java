@@ -52,7 +52,6 @@ import org.chromium.base.test.util.Criteria;
 import org.chromium.base.test.util.CriteriaHelper;
 import org.chromium.base.test.util.Features.DisableFeatures;
 import org.chromium.base.test.util.Features.EnableFeatures;
-import org.chromium.base.test.util.Restriction;
 import org.chromium.base.test.util.UserActionTester;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.autofill.autofill_ai.EntityDataManager;
@@ -65,8 +64,9 @@ import org.chromium.chrome.browser.feedback.HelpAndFeedbackLauncherFactory;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.browser.preferences.Pref;
+import org.chromium.chrome.browser.settings.SettingsActivity;
+import org.chromium.chrome.browser.settings.SettingsActivityTestRule;
 import org.chromium.chrome.browser.settings.SettingsNavigationFactory;
-import org.chromium.chrome.browser.settings.SettingsTestRule;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.components.autofill.autofill_ai.EntityInstance;
 import org.chromium.components.autofill.autofill_ai.EntityInstanceWithLabels;
@@ -77,7 +77,6 @@ import org.chromium.components.browser_ui.settings.ChromeSwitchPreference;
 import org.chromium.components.browser_ui.settings.SettingsNavigation;
 import org.chromium.components.browser_ui.settings.search.SettingsIndexData;
 import org.chromium.components.user_prefs.UserPrefs;
-import org.chromium.ui.base.DeviceFormFactor;
 import org.chromium.ui.test.util.MockitoHelper;
 
 import java.util.Arrays;
@@ -97,8 +96,8 @@ import java.util.List;
 })
 public class AutofillShoppingFragmentTest {
     @Rule
-    public SettingsTestRule<AutofillShoppingFragment> mSettingsTestRule =
-            new SettingsTestRule<>(AutofillShoppingFragment.class);
+    public SettingsActivityTestRule<AutofillShoppingFragment> mSettingsActivityTestRule =
+            new SettingsActivityTestRule<>(AutofillShoppingFragment.class);
 
     @Rule public MockitoRule mMockitoRule = MockitoJUnit.rule();
 
@@ -136,15 +135,14 @@ public class AutofillShoppingFragmentTest {
 
     @Test
     @SmallTest
-    @Restriction(DeviceFormFactor.PHONE) // Tablets and desktops don't have a help button or menu.
     public void testHelpMenuTriggersAutofillHelp() {
-        mSettingsTestRule.startSettingsActivity();
+        SettingsActivity settingsActivity = mSettingsActivityTestRule.startSettingsActivity();
 
         onView(withId(R.id.menu_id_targeted_help)).perform(click());
 
         verify(mHelpAndFeedbackLauncher)
                 .show(
-                        mSettingsTestRule.getActivity(),
+                        settingsActivity,
                         ContextUtils.getApplicationContext()
                                 .getString(R.string.help_context_autofill),
                         /* url= */ null);
@@ -153,14 +151,14 @@ public class AutofillShoppingFragmentTest {
     @Test
     @SmallTest
     public void testSearchIndexWhenAllEnabled() {
-        mSettingsTestRule.startSettingsActivity();
+        mSettingsActivityTestRule.startSettingsActivity();
 
         ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     AutofillShoppingFragment.SEARCH_INDEX_DATA_PROVIDER.updateDynamicPreferences(
-                            mSettingsTestRule.getActivity(),
+                            mSettingsActivityTestRule.getActivity(),
                             mSearchIndexDataMock,
-                            mSettingsTestRule.getFragment().getProfile());
+                            mSettingsActivityTestRule.getFragment().getProfile());
                 });
 
         verify(mSearchIndexDataMock, atLeastOnce())
@@ -175,14 +173,14 @@ public class AutofillShoppingFragmentTest {
     @SmallTest
     @DisableFeatures(ChromeFeatureList.AUTOFILL_AI_WITH_DATA_SCHEMA)
     public void testSearchIndexEmptyWhenFeatureDisabled() {
-        mSettingsTestRule.startSettingsActivity();
+        mSettingsActivityTestRule.startSettingsActivity();
 
         ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     AutofillShoppingFragment.SEARCH_INDEX_DATA_PROVIDER.updateDynamicPreferences(
-                            mSettingsTestRule.getActivity(),
+                            mSettingsActivityTestRule.getActivity(),
                             mSearchIndexDataMock,
-                            mSettingsTestRule.getFragment().getProfile());
+                            mSettingsActivityTestRule.getFragment().getProfile());
                 });
 
         verify(mSearchIndexDataMock, never())
@@ -224,11 +222,11 @@ public class AutofillShoppingFragmentTest {
 
         when(mEntityDataManager.getInstancesToList()).thenReturn(instancesMap);
 
-        mSettingsTestRule.startSettingsActivity();
+        mSettingsActivityTestRule.startSettingsActivity();
 
         ThreadUtils.runOnUiThreadBlocking(
                 () -> {
-                    AutofillShoppingFragment fragment = mSettingsTestRule.getFragment();
+                    AutofillShoppingFragment fragment = mSettingsActivityTestRule.getFragment();
                     assertNotNull(fragment.findPreference("guid1"));
                     assertNull(
                             "Vehicle entity should NOT be visible in Shopping",
@@ -267,11 +265,11 @@ public class AutofillShoppingFragmentTest {
 
         when(mEntityDataManager.getInstancesToList()).thenReturn(instancesMap);
 
-        mSettingsTestRule.startSettingsActivity();
+        mSettingsActivityTestRule.startSettingsActivity();
 
         CriteriaHelper.pollUiThread(
                 () -> {
-                    AutofillShoppingFragment fragment = mSettingsTestRule.getFragment();
+                    AutofillShoppingFragment fragment = mSettingsActivityTestRule.getFragment();
                     Preference orderCategory = fragment.findPreference("Order");
                     Criteria.checkThat(
                             "Order entity category should exist",
@@ -317,12 +315,12 @@ public class AutofillShoppingFragmentTest {
     @Test
     @MediumTest
     public void testScreenSetup() {
-        mSettingsTestRule.startSettingsActivity();
+        mSettingsActivityTestRule.startSettingsActivity();
 
-        AutofillShoppingFragment fragment = mSettingsTestRule.getFragment();
+        AutofillShoppingFragment fragment = mSettingsActivityTestRule.getFragment();
         assertThat(fragment.getPageTitle().get())
                 .isEqualTo(
-                        mSettingsTestRule
+                        mSettingsActivityTestRule
                                 .getActivity()
                                 .getString(R.string.autofill_shopping_title));
         ThreadUtils.runOnUiThreadBlocking(
@@ -358,11 +356,11 @@ public class AutofillShoppingFragmentTest {
 
         when(mEntityDataManager.getEntityInstance("guid1")).thenReturn(entityInstance);
 
-        mSettingsTestRule.startSettingsActivity();
+        mSettingsActivityTestRule.startSettingsActivity();
 
         Preference orderEntity =
                 ThreadUtils.runOnUiThreadBlocking(
-                        () -> mSettingsTestRule.getFragment().findPreference("guid1"));
+                        () -> mSettingsActivityTestRule.getFragment().findPreference("guid1"));
 
         ThreadUtils.runOnUiThreadBlocking(orderEntity::performClick);
         ArgumentCaptor<Callback<Boolean>> callbackCaptor = MockitoHelper.callbackCaptor();
@@ -376,13 +374,13 @@ public class AutofillShoppingFragmentTest {
     @Test
     @MediumTest
     public void testToggle_correctStateWhenTurnedOff() {
-        mSettingsTestRule.startSettingsActivity();
+        mSettingsActivityTestRule.startSettingsActivity();
         setShoppingTogglePreference(false);
 
         ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     ChromeSwitchPreference toggle =
-                            mSettingsTestRule
+                            mSettingsActivityTestRule
                                     .getFragment()
                                     .findPreference(AutofillShoppingFragment.PREF_OPT_IN_TOGGLE);
                     assertNotNull(toggle);
@@ -396,13 +394,13 @@ public class AutofillShoppingFragmentTest {
     @Test
     @MediumTest
     public void testToggle_correctStateWhenTurnedOn() {
-        mSettingsTestRule.startSettingsActivity();
+        mSettingsActivityTestRule.startSettingsActivity();
         setShoppingTogglePreference(true);
 
         ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     ChromeSwitchPreference toggle =
-                            mSettingsTestRule
+                            mSettingsActivityTestRule
                                     .getFragment()
                                     .findPreference(AutofillShoppingFragment.PREF_OPT_IN_TOGGLE);
                     assertNotNull(toggle);
@@ -416,11 +414,11 @@ public class AutofillShoppingFragmentTest {
     @MediumTest
     public void testToggleDisabled_whenAutofillAiSettingsDisabled() {
         when(mEntityDataManager.canEnableOrDisableAutofillAiForType(anyInt())).thenReturn(false);
-        mSettingsTestRule.startSettingsActivity();
+        mSettingsActivityTestRule.startSettingsActivity();
 
         ThreadUtils.runOnUiThreadBlocking(
                 () -> {
-                    AutofillShoppingFragment fragment = mSettingsTestRule.getFragment();
+                    AutofillShoppingFragment fragment = mSettingsActivityTestRule.getFragment();
                     ChromeSwitchPreference toggle =
                             fragment.findPreference(AutofillShoppingFragment.PREF_OPT_IN_TOGGLE);
                     assertNotNull(toggle);
@@ -434,7 +432,7 @@ public class AutofillShoppingFragmentTest {
     @MediumTest
     public void testClickPersonalContextLaunchesPersonalContext() {
         when(mEntityDataManager.isPersonalContextPreferenceVisible()).thenReturn(true);
-        mSettingsTestRule.startSettingsActivity();
+        mSettingsActivityTestRule.startSettingsActivity();
 
         var userActionTester = new UserActionTester();
         try {
@@ -456,7 +454,7 @@ public class AutofillShoppingFragmentTest {
     private void setShoppingTogglePreference(boolean value) {
         ThreadUtils.runOnUiThreadBlocking(
                 () ->
-                        UserPrefs.get(mSettingsTestRule.getFragment().getProfile())
+                        UserPrefs.get(mSettingsActivityTestRule.getFragment().getProfile())
                                 .setBoolean(Pref.AUTOFILL_AI_SHOPPING_ENTITIES_ENABLED, value));
     }
 }

@@ -1128,13 +1128,23 @@ static bool ColorGamutMediaFeatureEval(const MediaQueryExpValue& value,
   ColorSpaceGamut gamut = media_values.ColorGamut();
 
   switch (gamut) {
+    case ColorSpaceGamut::kUnknown:
+    case ColorSpaceGamut::kLessThanNTSC:
+    case ColorSpaceGamut::NTSC:
     case ColorSpaceGamut::SRGB:
       return value.Id() == CSSValueID::kSRGB;
+    case ColorSpaceGamut::kAlmostP3:
     case ColorSpaceGamut::P3:
+    case ColorSpaceGamut::kAdobeRGB:
+    case ColorSpaceGamut::kWide:
       return value.Id() == CSSValueID::kSRGB || value.Id() == CSSValueID::kP3;
     case ColorSpaceGamut::BT2020:
+    case ColorSpaceGamut::kProPhoto:
+    case ColorSpaceGamut::kUltraWide:
       return value.Id() == CSSValueID::kSRGB || value.Id() == CSSValueID::kP3 ||
              value.Id() == CSSValueID::kRec2020;
+    case ColorSpaceGamut::kEnd:
+      NOTREACHED();
   }
 
   NOTREACHED();
@@ -1804,9 +1814,6 @@ KleeneValue MediaQueryEvaluator::EvalStyleFeature(
     state.UpdateLineHeight();
     const auto* context = MakeGarbageCollected<CSSParserContext>(*document);
 
-    if (feature.ReferenceValue().HasRandomFunctions()) {
-      return KleeneValue::kUnknown;
-    }
     const CSSValue* reference = StyleCascade::CoerceIntoNumericValue(
         state, feature.ReferenceValue(), document, *context);
     if (!reference) {
@@ -1818,9 +1825,6 @@ KleeneValue MediaQueryEvaluator::EvalStyleFeature(
           DynamicTo<CSSUnparsedDeclarationValue>(
               bounds.left.value.GetCSSValue());
       DCHECK(left);
-      if (left->HasRandomFunctions()) {
-        return KleeneValue::kUnknown;
-      }
       const CSSValue* left_resolved = StyleCascade::CoerceIntoNumericValue(
           state, *left, document, *context);
       if (!left_resolved) {
@@ -1836,9 +1840,6 @@ KleeneValue MediaQueryEvaluator::EvalStyleFeature(
           DynamicTo<CSSUnparsedDeclarationValue>(
               bounds.right.value.GetCSSValue());
       DCHECK(right);
-      if (right->HasRandomFunctions()) {
-        return KleeneValue::kUnknown;
-      }
       const CSSValue* right_resolved = StyleCascade::CoerceIntoNumericValue(
           state, *right, document, *context);
       if (!right_resolved) {
@@ -1872,10 +1873,6 @@ KleeneValue MediaQueryEvaluator::EvalStyleFeature(
                                         ? bounds.right.value.GetCSSValue()
                                         : *CSSInitialValue::Create();
 
-  if (query_specified.HasRandomFunctions()) {
-    return KleeneValue::kUnknown;
-  }
-
   // https://drafts.csswg.org/css-conditional-5/#style-container
   // https://drafts.csswg.org/css-cascade-5/#cascade-dependent-keyword
   if (query_specified.IsCascadeDependentKeyword()) {
@@ -1883,14 +1880,9 @@ KleeneValue MediaQueryEvaluator::EvalStyleFeature(
   }
 
   CSSToLengthConversionData::Flags conversion_flags = 0;
-  bool has_random = false;
-  const CSSValue* query_value = StyleResolver::ComputeValue(
-      container, CSSPropertyName(property_name), query_specified,
-      conversion_flags, has_random);
-
-  if (has_random) {
-    return KleeneValue::kUnknown;
-  }
+  const CSSValue* query_value =
+      StyleResolver::ComputeValue(container, CSSPropertyName(property_name),
+                                  query_specified, conversion_flags);
 
   if (const auto* decl_value =
           DynamicTo<CSSUnparsedDeclarationValue>(query_value)) {
@@ -1898,9 +1890,6 @@ KleeneValue MediaQueryEvaluator::EvalStyleFeature(
         decl_value ? decl_value->VariableDataValue() : nullptr;
     CSSVariableData* computed =
         container->ComputedStyleRef().GetVariableData(property_name);
-    if (computed && computed->HasRandomFunctions()) {
-      return KleeneValue::kUnknown;
-    }
 
     if (computed == query_computed ||
         (computed && query_computed &&

@@ -42,7 +42,6 @@ import org.mockito.junit.MockitoRule;
 import org.mockito.quality.Strictness;
 
 import org.chromium.base.ThreadUtils;
-import org.chromium.base.supplier.SupplierUtils;
 import org.chromium.base.test.util.CriteriaHelper;
 import org.chromium.base.test.util.DisableIf;
 import org.chromium.base.test.util.DisabledTest;
@@ -128,7 +127,7 @@ public class ArchivedTabModelOrchestratorTest {
     private TabArchiveSettings mTabArchiveSettings;
     private WebPageStation mPage;
     private final TabPersistencePolicy mTabPersistencePolicy =
-            new TabbedModeTabPersistencePolicy(0, false, false, SupplierUtils.alwaysFalse());
+            new TabbedModeTabPersistencePolicy(0, false, false, () -> false);
 
     @Before
     public void setUp() throws Exception {

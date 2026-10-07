@@ -55,8 +55,8 @@ public final class AutofillProfileTest {
     @Test
     @SmallTest
     public void verifyAutofillProfile_missingFileFails() {
-        String url = "nowhere.profile";
-        assertThrows(IOException.class, () -> new AutofillProfile(url));
+        String mUrl = "nowhere.profile";
+        assertThrows(IOException.class, () -> new AutofillProfile(mUrl));
     }
 
     // We can't test the loading of the url due to the way file structure works so, all we can do is

@@ -212,21 +212,16 @@ class TestSkottieFrameDataProvider : public cc::SkottieFrameDataProvider {
 
 class ScopedPrefersReducedMotion {
  public:
-  explicit ScopedPrefersReducedMotion(bool prefers_reduced_motion = true)
-      : previous_(gfx::Animation::PrefersReducedMotion()) {
-    gfx::Animation::SetPrefersReducedMotionForTesting(prefers_reduced_motion);
+  ScopedPrefersReducedMotion() {
+    gfx::Animation::SetPrefersReducedMotionForTesting(true);
   }
-
-  ScopedPrefersReducedMotion(const ScopedPrefersReducedMotion&) = delete;
-  ScopedPrefersReducedMotion& operator=(const ScopedPrefersReducedMotion&) =
-      delete;
 
   ~ScopedPrefersReducedMotion() {
     gfx::Animation::SetPrefersReducedMotionForTesting(previous_);
   }
 
  private:
-  const bool previous_;
+  bool previous_ = gfx::Animation::PrefersReducedMotion();
 };
 
 }  // namespace
@@ -326,8 +321,6 @@ class AnimationTest : public testing::Test {
   scoped_refptr<cc::SkottieWrapper> skottie_;
 
  private:
-  // This will allow the tests to pass on Remote Desktops.
-  ScopedPrefersReducedMotion prefers_reduced_motion_{false};
   base::SimpleTestTickClock test_clock_;
 };
 

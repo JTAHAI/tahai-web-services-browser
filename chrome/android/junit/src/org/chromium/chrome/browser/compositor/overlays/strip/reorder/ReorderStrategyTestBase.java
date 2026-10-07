@@ -35,12 +35,12 @@ import org.chromium.chrome.browser.compositor.overlays.strip.StripLayoutView;
 import org.chromium.chrome.browser.compositor.overlays.strip.reorder.ReorderDelegate.StripUpdateDelegate;
 import org.chromium.chrome.browser.layouts.animation.CompositorAnimationHandler;
 import org.chromium.chrome.browser.profiles.Profile;
+import org.chromium.chrome.browser.tab.MediaState;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.TabSelectionType;
 import org.chromium.chrome.browser.tab_ui.ActionConfirmationManager;
 import org.chromium.chrome.browser.tabmodel.TabUngrouper;
 import org.chromium.chrome.test.util.browser.tabmodel.MockTabModel;
-import org.chromium.components.tabs.TabAlert;
 
 import java.util.List;
 import java.util.function.Supplier;
@@ -132,7 +132,7 @@ public abstract class ReorderStrategyTestBase {
                         null,
                         false,
                         false,
-                        /* alertState= */ TabAlert.NONE);
+                        MediaState.NONE);
         setDrawProperties(tab, x);
         return tab;
     }

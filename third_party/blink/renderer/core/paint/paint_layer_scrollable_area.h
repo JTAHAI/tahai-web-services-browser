@@ -306,6 +306,12 @@ class CORE_EXPORT PaintLayerScrollableArea final
   bool IsScrollCornerVisible() const override;
   gfx::Rect ScrollCornerRect() const override;
   void SetScrollCornerNeedsPaintInvalidation() override;
+  gfx::Rect ConvertFromScrollbarToContainingEmbeddedContentView(
+      const Scrollbar&,
+      const gfx::Rect&) const override;
+  gfx::Point ConvertFromScrollbarToContainingEmbeddedContentView(
+      const Scrollbar&,
+      const gfx::Point&) const override;
   gfx::Point ConvertFromContainingEmbeddedContentViewToScrollbar(
       const Scrollbar&,
       const gfx::Point&) const override;
@@ -498,7 +504,7 @@ class CORE_EXPORT PaintLayerScrollableArea final
 
   gfx::QuadF LocalToVisibleContentQuad(const gfx::QuadF&,
                                        const LayoutObject*,
-                                       MapCoordinatesFlags = {}) const final;
+                                       unsigned = 0) const final;
 
   scoped_refptr<base::SingleThreadTaskRunner> GetTimerTaskRunner() const final;
 

@@ -10,9 +10,11 @@
 #include <vector>
 
 #include "base/memory/ref_counted.h"
-#include "base/memory/scoped_refptr.h"
 #include "base/time/time.h"
-#include "media/base/audio_buffer.h"
+
+namespace media {
+class AudioBus;
+}
 
 namespace readaloud {
 
@@ -37,13 +39,15 @@ class DecodedAudioSegment
   // Constructs an empty audio segment with zero duration.
   DecodedAudioSegment();
 
-  // Constructs a dummy audio segment with specified duration but no audio
-  // buffer.
+  // Constructs a dummy audio segment with specified duration but no audio bus.
   explicit DecodedAudioSegment(base::TimeDelta duration);
 
-  // Constructs a complete audio segment with audio data and word timings.
-  explicit DecodedAudioSegment(scoped_refptr<media::AudioBuffer> audio_buffer,
-                               std::vector<WordTiming> word_timings = {});
+  // Constructs a complete audio segment with audio data, sample rate, duration,
+  // and word timings.
+  DecodedAudioSegment(std::unique_ptr<media::AudioBus> audio_bus,
+                      int sample_rate,
+                      base::TimeDelta duration,
+                      std::vector<WordTiming> word_timings = {});
 
   // DecodedAudioSegment is ref-counted and its ownership is shared. To prevent
   // accidental expensive copies of the underlying audio buffer, it is not
@@ -51,20 +55,16 @@ class DecodedAudioSegment
   DecodedAudioSegment(const DecodedAudioSegment&) = delete;
   DecodedAudioSegment& operator=(const DecodedAudioSegment&) = delete;
 
-  // Returns the underlying AudioBuffer, or nullptr if none.
-  [[nodiscard]] scoped_refptr<media::AudioBuffer> audio_buffer() const {
-    return audio_buffer_;
+  // Returns pointer to the underlying AudioBus, or nullptr if none.
+  [[nodiscard]] const media::AudioBus* audio_bus() const {
+    return audio_bus_.get();
   }
 
   // Returns sample rate in Hz.
-  [[nodiscard]] int sample_rate() const {
-    return audio_buffer_ ? audio_buffer_->sample_rate() : sample_rate_;
-  }
+  [[nodiscard]] int sample_rate() const { return sample_rate_; }
 
   // Returns total duration of this audio segment.
-  [[nodiscard]] base::TimeDelta duration() const {
-    return audio_buffer_ ? audio_buffer_->duration() : duration_;
-  }
+  [[nodiscard]] base::TimeDelta duration() const { return duration_; }
 
   // Returns list of word timing markers for sync highlighting.
   [[nodiscard]] const std::vector<WordTiming>& word_timings() const {
@@ -76,7 +76,7 @@ class DecodedAudioSegment
   virtual ~DecodedAudioSegment();
 
  private:
-  scoped_refptr<media::AudioBuffer> audio_buffer_;
+  std::unique_ptr<media::AudioBus> audio_bus_;
   int sample_rate_ = 0;
   base::TimeDelta duration_;
   std::vector<WordTiming> word_timings_;

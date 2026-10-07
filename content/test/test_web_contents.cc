@@ -157,12 +157,10 @@ int TestWebContents::GetCurrentlyPlayingVideoCount() const {
 
 void TestWebContents::SetTabSwitchStartTime(base::TimeTicks start_time,
                                             bool destination_is_loaded,
-                                            bool had_saved_frame_at_start,
-                                            bool destination_is_frozen) {
+                                            bool had_saved_frame_at_start) {
   tab_switch_start_time_ = start_time;
   WebContentsImpl::SetTabSwitchStartTime(start_time, destination_is_loaded,
-                                         had_saved_frame_at_start,
-                                         destination_is_frozen);
+                                         had_saved_frame_at_start);
 }
 
 const std::string& TestWebContents::GetSaveFrameHeaders() {

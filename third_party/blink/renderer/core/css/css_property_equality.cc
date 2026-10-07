@@ -277,7 +277,12 @@ bool CSSPropertyEquality::PropertiesEqual(const PropertyHandle& property,
     case CSSPropertyID::kBorderBottomStyle:
       return a.BorderBottomStyle() == b.BorderBottomStyle();
     case CSSPropertyID::kBorderBottomWidth:
-      return a.SpecifiedBorderBottomWidth() == b.SpecifiedBorderBottomWidth();
+      if (RuntimeEnabledFeatures::
+              DecoupleComputedBorderWidthFromStyleEnabled()) {
+        return a.BorderBottomWidthInternal() ==
+               b.BorderBottomWidthInternal();
+      }
+      return a.BorderBottomWidth() == b.BorderBottomWidth();
     case CSSPropertyID::kBorderCollapse:
       return a.BorderCollapse() == b.BorderCollapse();
     case CSSPropertyID::kBorderImageOutset:
@@ -300,7 +305,11 @@ bool CSSPropertyEquality::PropertiesEqual(const PropertyHandle& property,
     case CSSPropertyID::kBorderLeftStyle:
       return a.BorderLeftStyle() == b.BorderLeftStyle();
     case CSSPropertyID::kBorderLeftWidth:
-      return a.SpecifiedBorderLeftWidth() == b.SpecifiedBorderLeftWidth();
+      if (RuntimeEnabledFeatures::
+              DecoupleComputedBorderWidthFromStyleEnabled()) {
+        return a.BorderLeftWidthInternal() == b.BorderLeftWidthInternal();
+      }
+      return a.BorderLeftWidth() == b.BorderLeftWidth();
     case CSSPropertyID::kBorderRightColor:
       return a.BorderRightColor() == b.BorderRightColor() &&
              a.InternalVisitedBorderRightColor() ==
@@ -308,7 +317,12 @@ bool CSSPropertyEquality::PropertiesEqual(const PropertyHandle& property,
     case CSSPropertyID::kBorderRightStyle:
       return a.BorderRightStyle() == b.BorderRightStyle();
     case CSSPropertyID::kBorderRightWidth:
-      return a.SpecifiedBorderRightWidth() == b.SpecifiedBorderRightWidth();
+      if (RuntimeEnabledFeatures::
+              DecoupleComputedBorderWidthFromStyleEnabled()) {
+        return a.BorderRightWidthInternal() ==
+               b.BorderRightWidthInternal();
+      }
+      return a.BorderRightWidth() == b.BorderRightWidth();
     case CSSPropertyID::kBorderTopColor:
       return a.BorderTopColor() == b.BorderTopColor() &&
              a.InternalVisitedBorderTopColor() ==
@@ -320,7 +334,11 @@ bool CSSPropertyEquality::PropertiesEqual(const PropertyHandle& property,
     case CSSPropertyID::kBorderTopStyle:
       return a.BorderTopStyle() == b.BorderTopStyle();
     case CSSPropertyID::kBorderTopWidth:
-      return a.SpecifiedBorderTopWidth() == b.SpecifiedBorderTopWidth();
+      if (RuntimeEnabledFeatures::
+              DecoupleComputedBorderWidthFromStyleEnabled()) {
+        return a.BorderTopWidthInternal() == b.BorderTopWidthInternal();
+      }
+      return a.BorderTopWidth() == b.BorderTopWidth();
     case CSSPropertyID::kBorderShape:
       return base::ValuesEquivalent(a.BorderShape(), b.BorderShape());
     case CSSPropertyID::kBottom:
@@ -638,8 +656,6 @@ bool CSSPropertyEquality::PropertiesEqual(const PropertyHandle& property,
       return a.MathShift() == b.MathShift();
     case CSSPropertyID::kMathStyle:
       return a.MathStyle() == b.MathStyle();
-    case CSSPropertyID::kMaxContentSizing:
-      return a.MaxContentSizing() == b.MaxContentSizing();
     case CSSPropertyID::kMaxHeight:
       return a.MaxHeight() == b.MaxHeight();
     case CSSPropertyID::kMaxWidth:
@@ -697,8 +713,6 @@ bool CSSPropertyEquality::PropertiesEqual(const PropertyHandle& property,
       return a.OverscrollBehaviorX() == b.OverscrollBehaviorX();
     case CSSPropertyID::kOverscrollBehaviorY:
       return a.OverscrollBehaviorY() == b.OverscrollBehaviorY();
-    case CSSPropertyID::kOverscrollContainerType:
-      return a.OverscrollContainerType() == b.OverscrollContainerType();
     case CSSPropertyID::kPaddingBottom:
       return a.PaddingBottom() == b.PaddingBottom();
     case CSSPropertyID::kPaddingLeft:
@@ -827,8 +841,6 @@ bool CSSPropertyEquality::PropertiesEqual(const PropertyHandle& property,
       return a.TextDecorationColor() == b.TextDecorationColor() &&
              a.InternalVisitedTextDecorationColor() ==
                  b.InternalVisitedTextDecorationColor();
-    case CSSPropertyID::kTextDecorationInset:
-      return a.GetTextDecorationInset() == b.GetTextDecorationInset();
     case CSSPropertyID::kTextDecorationLine:
       return a.GetTextDecorationLine() == b.GetTextDecorationLine();
     case CSSPropertyID::kTextDecorationSkipInk:
@@ -1352,9 +1364,8 @@ bool CSSPropertyEquality::PropertiesEqual(const PropertyHandle& property,
     case CSSPropertyID::kInternalForcedColor:
     case CSSPropertyID::kInternalForcedOutlineColor:
     case CSSPropertyID::kInternalForcedVisitedColor:
-    case CSSPropertyID::kInternalOverscrollContainer:
+    case CSSPropertyID::kInternalOverscrollArea:
     case CSSPropertyID::kInternalOverscrollPosition:
-    case CSSPropertyID::kInternalUnbounded:
     case CSSPropertyID::kInternalVisitedBackgroundColor:
     case CSSPropertyID::kInternalVisitedBorderBlockEndColor:
     case CSSPropertyID::kInternalVisitedBorderBlockStartColor:

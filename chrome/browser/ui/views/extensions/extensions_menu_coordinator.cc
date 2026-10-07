@@ -8,6 +8,7 @@
 
 #include "base/check_deref.h"
 #include "base/feature_list.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/extensions/extensions_menu_view_model.h"
 #include "chrome/browser/ui/views/chrome_layout_provider.h"

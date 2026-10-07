@@ -6,7 +6,6 @@
 #define UI_ANDROID_UI_ANDROID_FEATURES_H_
 
 #include "base/feature_list.h"
-#include "base/metrics/field_trial_params.h"
 #include "ui/android/ui_android_export.h"
 
 namespace ui {
@@ -17,9 +16,6 @@ namespace ui {
 // TODO(crbug.com/40263227): Leave this as a kill switch until Android U
 // ships.
 UI_ANDROID_EXPORT BASE_DECLARE_FEATURE(kAndroidHDR);
-
-// Drops the cached bitmap in SoftwareDraw immediately after capture.
-UI_ANDROID_EXPORT BASE_DECLARE_FEATURE(kAndroidResourceMemoryOptimization);
 
 // Feature controlling how to compute work area on Android.
 // TODO(crbug.com/372385871): Cleanup flag after investigating nothing is broken
@@ -41,9 +37,6 @@ UI_ANDROID_EXPORT BASE_DECLARE_FEATURE(kAndroidWindowOcclusion);
 // Guard changes to block mouse events on views.
 UI_ANDROID_EXPORT BASE_DECLARE_FEATURE(kBlockMouseEventsOnView);
 
-// Kill switch for redundant remeasuring in BottomSheetListViewBase.
-UI_ANDROID_EXPORT BASE_DECLARE_FEATURE(kBottomSheetRemeasureFix);
-
 // Guard the caching of WindowMetrics for gesture navigation detection.
 UI_ANDROID_EXPORT BASE_DECLARE_FEATURE(kCachedGestureNavMetrics);
 
@@ -56,10 +49,6 @@ UI_ANDROID_EXPORT BASE_DECLARE_FEATURE(kClipboardConfusedDeputyDefenseText);
 UI_ANDROID_EXPORT BASE_DECLARE_FEATURE(kClipboardConfusedDeputyDefenseImages);
 UI_ANDROID_EXPORT BASE_DECLARE_FEATURE(kClipboardConfusedDeputyDefenseFiles);
 
-// Controls whether oversized text and HTML clipboard payloads are streamed
-// across processes via ClipboardTextDataProvider on Android.
-UI_ANDROID_EXPORT BASE_DECLARE_FEATURE(kClipboardOversizedPayloadProvider);
-
 // Use the old-style opening of an External Picker when uploading files.
 UI_ANDROID_EXPORT BASE_DECLARE_FEATURE(kDeprecatedExternalPickerFunction);
 
@@ -68,12 +57,6 @@ UI_ANDROID_EXPORT BASE_DECLARE_FEATURE(kDisablePhotoPickerForVideoCapture);
 
 // Guard changes to use maximum window metrics for gesture navigation detection.
 UI_ANDROID_EXPORT BASE_DECLARE_FEATURE(kMaximumWindowForGestureNavDetection);
-
-// Scaling multiplier for captured physical mouse movement
-// (crbug.com/490206349).
-UI_ANDROID_EXPORT BASE_DECLARE_FEATURE(kPointerLockMouseScaling);
-inline constexpr base::FeatureParam<double> kPointerLockMouseScalingFactor{
-    &kPointerLockMouseScaling, "factor", 2.4};
 
 // Whether to enable the refactor of the smallestScreenWidthDp override.
 UI_ANDROID_EXPORT BASE_DECLARE_FEATURE(kRefactorMinWidthContextOverride);
@@ -84,6 +67,15 @@ UI_ANDROID_EXPORT BASE_DECLARE_FEATURE(kReportBottomOverscrolls);
 // Kill switch to turn off validation in TextViewWithLeading that requires a
 // leading value to be configured.
 UI_ANDROID_EXPORT BASE_DECLARE_FEATURE(kRequireLeadingInTextViewWithLeading);
+
+// Use ACTION_OPEN_DOCUMENT rather than ACTION_GET_CONTENT when selecting a
+// file.
+UI_ANDROID_EXPORT BASE_DECLARE_FEATURE(kSelectFileOpenDocument);
+
+// TODO(crbug.com/328601354): Cleanup flag after investigating nothing is broken
+// after changing the default behavior for EventForwarder observers.
+UI_ANDROID_EXPORT BASE_DECLARE_FEATURE(
+    kSendTouchMovesToEventForwarderObservers);
 
 // Update display for context on configuration changed and activity resumed.
 UI_ANDROID_EXPORT BASE_DECLARE_FEATURE(kAndroidUpdateDisplayForContext);

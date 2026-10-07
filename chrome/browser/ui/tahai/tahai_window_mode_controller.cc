@@ -16,7 +16,7 @@
 #include "chrome/browser/sessions/session_service_factory.h"
 #include "chrome/browser/tahai_skins/skin_profile_service.h"
 #include "chrome/browser/tahai_skins/skin_profile_service_factory.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/frame/contents_container_view.h"
 #include "chrome/browser/ui/views/frame/contents_web_view.h"
@@ -38,7 +38,7 @@ bool IsOperationalRailModule(std::string_view module_id) {
 
 }  // namespace
 
-WindowModeController::WindowModeController(BrowserWindowInterface* browser)
+WindowModeController::WindowModeController(Browser* browser)
     : browser_(browser),
       mode_service_(ModeServiceFactory::GetForProfile(browser->GetProfile())) {
   CHECK(browser_);
@@ -252,7 +252,7 @@ std::optional<std::string> WindowModeController::SerializePresentation() const {
 
 bool WindowModeController::RestorePresentation(
     const WindowPresentation& presentation) {
-  if (!(browser_->GetType() == BrowserWindowInterface::Type::TYPE_NORMAL) ||
+  if (!(browser_->is_type_normal()) ||
       !browser_->GetProfile()->IsRegularProfile() ||
       browser_->GetProfile()->IsOffTheRecord() ||
       !ValidateWindowPresentation(presentation)) {
@@ -370,8 +370,7 @@ std::string_view WindowModeController::RailStateForCommandId(int command_id) {
 }
 
 // static
-WindowModeController* WindowModeController::GetForBrowser(
-    BrowserWindowInterface* browser) {
+WindowModeController* WindowModeController::GetForBrowser(Browser* browser) {
   if (!browser) {
     return nullptr;
   }
@@ -519,8 +518,7 @@ bool WindowModeController::SetSurfaceDesign(std::optional<SurfaceDesign> design)
 
 std::optional<base::UnguessableToken> WindowModeController::BeginSurfacePreview(
     SurfaceDesign design) {
-  if (!ValidateSurfaceDesign(design) ||
-      !(browser_->GetType() == BrowserWindowInterface::Type::TYPE_NORMAL) ||
+  if (!ValidateSurfaceDesign(design) || !(browser_->is_type_normal()) ||
       !browser_->GetProfile()->IsRegularProfile() ||
       browser_->GetProfile()->IsOffTheRecord()) {
     return std::nullopt;
@@ -824,13 +822,13 @@ void WindowModeController::NotifyModeChanged(bool preserve_surface_resize) {
   if (!weak_this) {
     return;
   }
-  if ((browser_->GetType() == BrowserWindowInterface::Type::TYPE_NORMAL) &&
+  if ((browser_->is_type_normal()) &&
       browser_->GetProfile()->IsRegularProfile() &&
       !browser_->GetProfile()->IsOffTheRecord()) {
     if (auto* session = SessionServiceFactory::GetForProfileIfExisting(
             browser_->GetProfile())) {
       if (auto json = SerializePresentation()) {
-        session->AddWindowExtraData(browser_->GetSessionID(),
+        session->AddWindowExtraData(browser_->session_id(),
                                     kWindowPresentationSessionKey, *json);
       }
     }

@@ -2,8 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {VisualBrowserProxyImpl} from '../app/visual_browser_proxy.js';
-
 // The percent of a view that must be visible to be considered "mostly visible"
 // for the purpose of determining what's likely being actually read in the
 // reading mode panel.
@@ -32,7 +30,10 @@ export function isRectVisible(rect: DOMRect): boolean {
 }
 
 function isPointVisible(point: number) {
-  return (point >= 0) && (point <= window.innerHeight);
+  return (
+      (point >= 0) &&
+      ((point <= window.innerHeight) ||
+       (point <= document.documentElement.clientHeight)));
 }
 
 // Recalculates line positions based on the container and height.
@@ -56,11 +57,10 @@ function combineIntersectingRects(unsortedRects: DOMRect[]): DOMRect[] {
   // The smaller the line spacing, the larger the threshold needs to be, since
   // it is more likely for lines to have overlapping bounds. Thus, invert the
   // line spacing value and multiply by 10 to ensure it is above 1.
-  const visualBrowserProxy = VisualBrowserProxyImpl.getInstance();
-  const lineHeight = visualBrowserProxy.getLineSpacingValue(
-      visualBrowserProxy.getLineSpacing());
+  const lineHeight =
+      chrome.readingMode.getLineSpacingValue(chrome.readingMode.lineSpacing);
   const threshold =
-      Math.max(1, visualBrowserProxy.getFontSize()) * (1 / lineHeight) * 10;
+      Math.max(1, chrome.readingMode.fontSize) * (1 / lineHeight) * 10;
 
   for (let i = 1; i < sortedRects.length; i++) {
     const currentRect = sortedRects[i]!;

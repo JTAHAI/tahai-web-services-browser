@@ -32,7 +32,6 @@
 #include <thread>
 #include <utility>
 
-#include "base/memory/raw_ptr.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/synchronization/lock.h"
 #include "base/synchronization/waitable_event.h"
@@ -150,8 +149,7 @@ class WorkerThread::InterruptData {
   bool is_in_back_forward_cache() const { return is_in_back_forward_cache_; }
 
  private:
-  raw_ptr<WorkerThread, UnprotectedInRelease | DanglingUntriaged>
-      worker_thread_;
+  WorkerThread* worker_thread_;
   mojom::blink::FrameLifecycleState state_;
   bool is_in_back_forward_cache_;
   bool seen_interrupt_ = false;
@@ -647,7 +645,7 @@ void WorkerThread::InitializeOnWorkerThread(
   base::ElapsedTimer timer;
   DCHECK(IsCurrentThread());
   backing_thread_weak_factory_.emplace(this);
-  worker_reporting_proxy_->WillInitializeWorkerContext();
+  worker_reporting_proxy_.WillInitializeWorkerContext();
   {
     TRACE_EVENT0("blink.worker", "WorkerThread::InitializeWorkerContext");
     base::AutoLock locker(lock_);
@@ -677,7 +675,7 @@ void WorkerThread::InitializeOnWorkerThread(
     global_scope_ =
         CreateWorkerGlobalScope(std::move(global_scope_creation_params));
     worker_scheduler_->InitializeOnWorkerThread(global_scope_);
-    worker_reporting_proxy_->DidCreateWorkerGlobalScope(GlobalScope());
+    worker_reporting_proxy_.DidCreateWorkerGlobalScope(GlobalScope());
 
     worker_inspector_controller_ = WorkerInspectorController::Create(
         this, url_for_debugger, inspector_task_runner_,
@@ -822,8 +820,7 @@ void WorkerThread::PrepareForShutdownOnWorkerThread() {
   // are observer of the |GlobalScope()| (see the DedicatedWorker class) and
   // they initiate thread termination on destruction of the parent context.
   GlobalScope()->NotifyContextDestroyed();
-  GetIsolate()->ContextDisposedNotification(
-      v8::ContextDependants::kNoDependants);
+  GetIsolate()->ContextDisposedNotification(/*dependant_context=*/false);
 
   worker_scheduler_->Dispose();
 

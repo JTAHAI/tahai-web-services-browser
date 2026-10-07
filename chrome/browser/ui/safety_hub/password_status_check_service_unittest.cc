@@ -633,10 +633,8 @@ TEST_F(PasswordStatusCheckServiceBaseTest, ScheduledCheckRunsRepeatedly) {
       .Times(runs);
 
   for (int i = 0; i < runs; ++i) {
-    // Advance slightly past the interval to avoid timer boundary rounding
-    // flakes.
     task_environment()->AdvanceClock(
-        service()->GetScheduledPasswordCheckInterval() + base::Microseconds(1));
+        service()->GetScheduledPasswordCheckInterval());
     RunUntilIdle();
   }
 }

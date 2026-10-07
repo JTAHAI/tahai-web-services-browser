@@ -105,13 +105,13 @@ export class TraceReportListElement extends CrLitElement {
   protected getNotificationIcon_(): string {
     switch (this.getNotificationType_()) {
       case NotificationType.ANNOUNCEMENT:
-        return 'cr:info';
+        return 'cr:info-outline';
       case NotificationType.ERROR:
-        return 'cr:error';
+        return 'cr:error-outline';
       case NotificationType.UPDATE:
         return 'cr:sync';
       default:
-        return 'cr:warning-filled';
+        return 'cr:warning';
     }
   }
 

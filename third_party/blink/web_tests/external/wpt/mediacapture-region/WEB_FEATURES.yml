@@ -1,2 +1,3 @@
-rules:
-- "**": [region-capture]
+features:
+- name: region-capture
+  files: "**"

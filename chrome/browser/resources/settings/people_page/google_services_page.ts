@@ -11,21 +11,20 @@ import '../settings_page/settings_subpage.js';
 import '../privacy_page/personalization_options.js';
 
 import type {SyncStatus} from '/shared/settings/people_page/sync_browser_proxy.js';
-import {SignedInState, StatusAction, SyncBrowserProxyImpl} from '/shared/settings/people_page/sync_browser_proxy.js';
-import {WebUiListenerMixinLit} from 'chrome://resources/cr_elements/web_ui_listener_mixin_lit.js';
+import {SignedInState, SyncBrowserProxyImpl} from '/shared/settings/people_page/sync_browser_proxy.js';
+import {WebUiListenerMixin} from 'chrome://resources/cr_elements/web_ui_listener_mixin.js';
 import {assert} from 'chrome://resources/js/assert.js';
-import {CrLitElement} from 'chrome://resources/lit/v3_0/lit.rollup.js';
+import {PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
 import {loadTimeData} from '../i18n_setup.js';
 import {routes} from '../route.js';
 import {Router} from '../router.js';
-import {SettingsViewMixinLit} from '../settings_page/settings_view_mixin_lit.js';
+import {SettingsViewMixin} from '../settings_page/settings_view_mixin.js';
 
-import {getCss} from './google_services_page.css.js';
-import {getHtml} from './google_services_page.html.js';
+import {getTemplate} from './google_services_page.html.js';
 
 const SettingsGoogleServicesPageElementBase =
-    SettingsViewMixinLit(WebUiListenerMixinLit(CrLitElement));
+    SettingsViewMixin(WebUiListenerMixin(PolymerElement));
 
 export class SettingsGoogleServicesPageElement extends
     SettingsGoogleServicesPageElementBase {
@@ -33,15 +32,11 @@ export class SettingsGoogleServicesPageElement extends
     return 'settings-google-services-page';
   }
 
-  static override get styles() {
-    return getCss();
+  static get template() {
+    return getTemplate();
   }
 
-  override render() {
-    return getHtml.bind(this)();
-  }
-
-  static override get properties() {
+  static get properties() {
     return {
       /**
        * The current sync status.
@@ -50,16 +45,12 @@ export class SettingsGoogleServicesPageElement extends
     };
   }
 
-  protected accessor syncStatus_: SyncStatus = {
-    statusAction: StatusAction.NO_ACTION,
-  };
+  declare private syncStatus_: SyncStatus|null;
 
   override connectedCallback() {
     super.connectedCallback();
 
-    // <if expr="is_chromeos">
     assert(loadTimeData.getBoolean('replaceSyncPromosWithSignInPromos'));
-    // </if>
 
     SyncBrowserProxyImpl.getInstance().getSyncStatus().then(
         this.onSyncStatusChanged_.bind(this));
@@ -80,14 +71,14 @@ export class SettingsGoogleServicesPageElement extends
     }
   }
 
-  protected shouldShowPageContents_() {
-    return this.syncStatus_.signedInState !== undefined &&
+  private shouldShowPageContents_() {
+    return this.syncStatus_ &&
         this.syncStatus_.signedInState !== SignedInState.SYNCING;
   }
 
   // SettingsViewMixin implementation.
   override focusBackButton() {
-    this.shadowRoot.querySelector('settings-subpage')!.focusBackButton();
+    this.shadowRoot!.querySelector('settings-subpage')!.focusBackButton();
   }
 }
 

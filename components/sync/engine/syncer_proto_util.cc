@@ -7,7 +7,6 @@
 #include <map>
 #include <optional>
 
-#include "base/feature_list.h"
 #include "base/format_macros.h"
 #include "base/logging.h"
 #include "base/metrics/histogram_functions.h"
@@ -17,7 +16,6 @@
 #include "base/strings/stringprintf.h"
 #include "base/time/time.h"
 #include "components/sync/base/data_type.h"
-#include "components/sync/base/features.h"
 #include "components/sync/base/time.h"
 #include "components/sync/engine/cycle/sync_cycle_context.h"
 #include "components/sync/engine/net/server_connection_manager.h"
@@ -397,11 +395,9 @@ void SyncerProtoUtil::SetProtocolVersion(ClientToServerMessage* msg) {
 }
 
 // static
-bool SyncerProtoUtil::PostAndProcessHeaders(
-    ServerConnectionManager* scm,
-    const ClientToServerMessage& msg,
-    ClientToServerResponse* response,
-    const signin::AccessTokenInfo& access_token_info) {
+bool SyncerProtoUtil::PostAndProcessHeaders(ServerConnectionManager* scm,
+                                            const ClientToServerMessage& msg,
+                                            ClientToServerResponse* response) {
   DCHECK(msg.has_protocol_version());
   DCHECK_EQ(msg.protocol_version(),
             ClientToServerMessage::default_instance().protocol_version());
@@ -431,10 +427,7 @@ bool SyncerProtoUtil::PostAndProcessHeaders(
   // Fills in buffer_out.
   std::string buffer_out;
   HttpResponse http_response =
-      base::FeatureList::IsEnabled(kSyncUsePropagatedAccessToken)
-          ? scm->PostBufferWithAccessToken(buffer_in, &buffer_out,
-                                           access_token_info)
-          : scm->PostBufferWithCachedAuth(buffer_in, &buffer_out);
+      scm->PostBufferWithCachedAuth(buffer_in, &buffer_out);
   if (http_response.server_status != HttpResponse::SERVER_CONNECTION_OK) {
     LOG(WARNING) << "Error posting from syncer:" << http_response;
     return false;
@@ -515,7 +508,7 @@ SyncerError SyncerProtoUtil::PostClientToServerMessage(
 
   LogClientToServerMessage(msg);
   if (!PostAndProcessHeaders(cycle->context()->connection_manager(), msg,
-                             response, cycle->access_token_info())) {
+                             response)) {
     // There was an error establishing communication with the server.
     // We can not proceed beyond this point.
     const HttpResponse::ServerConnectionCode server_status =

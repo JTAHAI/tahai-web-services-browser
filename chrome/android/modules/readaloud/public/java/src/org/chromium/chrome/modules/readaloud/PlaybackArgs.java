@@ -15,6 +15,7 @@ import org.chromium.build.annotations.Nullable;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.util.List;
+import java.util.Locale;
 
 /** Encapsulates information about the playback being requested. */
 @NullMarked
@@ -55,6 +56,11 @@ public class PlaybackArgs {
             }
             throw new IllegalArgumentException("Unknown value: " + value);
         }
+
+        @Override
+        public String toString() {
+            return String.format(Locale.US, "%s (%d)", this.name(), this.getValue());
+        }
     }
 
     // The status of the playback mode selection feature.
@@ -89,6 +95,11 @@ public class PlaybackArgs {
                 }
             }
             throw new IllegalArgumentException("Unknown value: " + value);
+        }
+
+        @Override
+        public String toString() {
+            return String.format(Locale.US, "%s (%d)", this.name(), this.getValue());
         }
     }
 
@@ -258,6 +269,24 @@ public class PlaybackArgs {
         public @Tone int getTone() {
             return mTone;
         }
+
+        @Override
+        public String toString() {
+            return "PlaybackVoice{"
+                    + "language="
+                    + mLanguage
+                    + " accent="
+                    + mAccentRegionCode
+                    + " id="
+                    + mVoiceId
+                    + " displayName="
+                    + mDisplayName
+                    + " pitch="
+                    + mPitch
+                    + " tone="
+                    + mTone
+                    + "}";
+        }
     }
 
     public PlaybackArgs(
@@ -331,5 +360,33 @@ public class PlaybackArgs {
     /** Returns the requested playback modes. */
     public List<PlaybackMode> getPlaybackModes() {
         return mPlaybackModes;
+    }
+
+    // Override toString() to help with debug logging.
+    @Override
+    public String toString() {
+        String voicesString = "";
+        for (PlaybackVoice voice : mVoices) {
+            voicesString += "\t\t" + voice + "\n";
+        }
+
+        return "PlaybackArgs{\n"
+                + "\t"
+                + (mIsSourceUrl ? "url=" : "text=")
+                + mSource
+                + "\n"
+                + "\tlanguage="
+                + mLanguage
+                + "\n"
+                + "\tvoices={\n"
+                + voicesString
+                + "\t}\n"
+                + "\tdateModifiedMs="
+                + mDateModifiedMsSinceEpoch
+                + "\n"
+                + "\tplaybackModes="
+                + mPlaybackModes
+                + "\n"
+                + "}";
     }
 }

@@ -38,7 +38,7 @@ std::string MediaLogPropertyKeyToString(MediaLogProperty property) {
     STRINGIFY(kVideoTracks);
     STRINGIFY(kFramerate);
     STRINGIFY(kVideoPlaybackRoughness);
-    STRINGIFY(kVideoPlaybackFreezingRatio);
+    STRINGIFY(kVideoPlaybackFreezing);
     STRINGIFY(kHlsBufferedRanges);
   }
 #undef STRINGIFY

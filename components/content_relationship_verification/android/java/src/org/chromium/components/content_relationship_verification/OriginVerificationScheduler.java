@@ -7,7 +7,6 @@ package org.chromium.components.content_relationship_verification;
 import static org.chromium.build.NullUtil.assumeNonNull;
 
 import org.chromium.base.Callback;
-import org.chromium.base.CallbackUtils;
 import org.chromium.base.ThreadUtils;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
@@ -80,7 +79,7 @@ public class OriginVerificationScheduler {
     public void scheduleAllPendingVerifications(@Nullable Callback<Boolean> callback) {
         ThreadUtils.assertOnUiThread();
         if (callback == null) {
-            callback = CallbackUtils.emptyCallback();
+            callback = (res) -> {};
         }
         for (Origin origin : mPendingOrigins) {
             verify(origin, callback);

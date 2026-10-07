@@ -39,8 +39,6 @@ class AccountInfoFetcherGaia : public AccountInfoFetcher,
 
   ~AccountInfoFetcherGaia() override;
 
-  void Start() override;
-
   // OAuth2AccessTokenManager::Consumer implementation.
   void OnGetTokenSuccess(
       const OAuth2AccessTokenManager::Request* request,
@@ -54,6 +52,9 @@ class AccountInfoFetcherGaia : public AccountInfoFetcher,
   void OnNetworkError(int response_code) override;
 
  private:
+  // Start fetching the account information.
+  void Start();
+
   raw_ref<ProfileOAuth2TokenService> token_service_;
   scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory_;
   const CoreAccountId account_id_;

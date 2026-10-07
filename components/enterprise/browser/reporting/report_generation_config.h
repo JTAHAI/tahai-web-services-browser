@@ -65,8 +65,7 @@ struct ReportGenerationConfig {
                          SecuritySignalsMode security_signals_mode,
                          bool use_cookies,
                          std::optional<std::string> challenge = std::nullopt,
-                         base::ListValue client_certificates_selectors = {},
-                         bool is_retrying = false);
+                         base::ListValue client_certificates_selectors = {});
   explicit ReportGenerationConfig(ReportTrigger report_trigger);
   ReportGenerationConfig();
   ReportGenerationConfig(const ReportGenerationConfig&);
@@ -89,11 +88,7 @@ struct ReportGenerationConfig {
   bool use_cookies;
   std::optional<std::string> challenge;
   base::ListValue client_certificates_selectors;
-  bool is_retrying = false;
 };
-
-std::ostream& operator<<(std::ostream& os,
-                         const ReportGenerationConfig& config);
 
 }  // namespace enterprise_reporting
 

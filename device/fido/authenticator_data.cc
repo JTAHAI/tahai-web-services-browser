@@ -6,14 +6,13 @@
 
 #include <utility>
 
-#include "base/containers/extend.h"
-#include "base/containers/to_array.h"
 #include "base/strings/string_number_conversions.h"
 #include "components/cbor/diagnostic_writer.h"
 #include "components/cbor/reader.h"
 #include "components/cbor/writer.h"
 #include "components/device_event_log/device_event_log.h"
 #include "device/fido/attested_credential_data.h"
+#include "device/fido/fido_parsing_utils.h"
 
 namespace device {
 
@@ -107,8 +106,8 @@ AuthenticatorData::AuthenticatorData(
     std::optional<AttestedCredentialData> data,
     std::optional<cbor::Value> extensions)
     : flags_(flags),
-      application_parameter_(base::ToArray(rp_id_hash)),
-      counter_(base::ToArray(counter)),
+      application_parameter_(fido_parsing_utils::Materialize(rp_id_hash)),
+      counter_(fido_parsing_utils::Materialize(counter)),
       attested_data_(std::move(data)),
       extensions_(std::move(extensions)) {
   ValidateAuthenticatorDataStateOrCrash();
@@ -129,7 +128,7 @@ AuthenticatorData::AuthenticatorData(
                                     backup_state,
                                     attested_credential_data.has_value(),
                                     extensions.has_value())),
-      application_parameter_(base::ToArray(rp_id_hash)),
+      application_parameter_(fido_parsing_utils::Materialize(rp_id_hash)),
       counter_(std::array<uint8_t, kSignCounterLength>{
           static_cast<uint8_t>(sign_counter >> 24),
           static_cast<uint8_t>(sign_counter >> 16),
@@ -181,20 +180,21 @@ bool AuthenticatorData::EraseExtension(std::string_view name) {
 
 std::vector<uint8_t> AuthenticatorData::SerializeToByteArray() const {
   std::vector<uint8_t> authenticator_data;
-  base::Extend(authenticator_data, application_parameter_);
+  fido_parsing_utils::Append(&authenticator_data, application_parameter_);
   authenticator_data.insert(authenticator_data.end(), flags_);
-  base::Extend(authenticator_data, counter_);
+  fido_parsing_utils::Append(&authenticator_data, counter_);
 
   if (attested_data_) {
     // Attestations are returned in registration responses but not in assertion
     // responses.
-    base::Extend(authenticator_data, attested_data_->SerializeAsBytes());
+    fido_parsing_utils::Append(&authenticator_data,
+                               attested_data_->SerializeAsBytes());
   }
 
   if (extensions_) {
     const auto maybe_extensions = cbor::Writer::Write(*extensions_);
     if (maybe_extensions) {
-      base::Extend(authenticator_data, *maybe_extensions);
+      fido_parsing_utils::Append(&authenticator_data, *maybe_extensions);
     }
   }
 

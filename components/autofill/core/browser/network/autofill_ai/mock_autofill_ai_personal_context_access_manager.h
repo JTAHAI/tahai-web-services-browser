@@ -21,7 +21,7 @@ class MockAutofillAiPersonalContextAccessManager
 
   MOCK_METHOD(void,
               PrefetchContext,
-              (DenseSet<EntityType> requested_types),
+              (base::span<const EntityType> requested_types),
               (override));
   MOCK_METHOD(void,
               GetUnmaskedSpiiEntity,

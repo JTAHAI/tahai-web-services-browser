@@ -33,8 +33,20 @@ namespace {
 BASE_FEATURE(kSkipModerateMemoryPressureLevelMac,
              base::FEATURE_DISABLED_BY_DEFAULT);
 
-// The threshold for the critical disk space pressure signal.
-constexpr base::ByteSize kCriticalDiskSpaceThreshold = base::MiB(250);
+// This feature controls the critical memory pressure signal based on low disk
+// space. Disabling this feature turns off the disk space check entirely.
+BASE_FEATURE(kMacCriticalDiskSpacePressure, base::FEATURE_ENABLED_BY_DEFAULT);
+
+// The default threshold for the critical disk space pressure
+// signal.
+constexpr base::ByteSize kDefaultCriticalDiskSpace = base::MiBU(250);
+
+// Defines the threshold for the critical disk space pressure
+// signal. This is a parameter for the kMacCriticalDiskSpacePressure feature.
+BASE_FEATURE_PARAM(size_t,
+                   kMacCriticalDiskSpacePressureThresholdMB,
+                   &kMacCriticalDiskSpacePressure,
+                   kDefaultCriticalDiskSpace.InMiB());
 
 // How often to check for free disk space.
 constexpr base::TimeDelta kDiskSpaceCheckPeriod = base::Seconds(5);
@@ -105,12 +117,14 @@ SystemMemoryPressureEvaluator::SystemMemoryPressureEvaluator(
     dispatch_resume(memory_level_event_source_.get());
   }
 
-  disk_space_check_timer_.Start(
-      FROM_HERE, kDiskSpaceCheckPeriod,
-      base::BindRepeating(&SystemMemoryPressureEvaluator::CheckDiskSpace,
-                          weak_this));
-  // Perform an initial check on startup.
-  CheckDiskSpace();
+  if (base::FeatureList::IsEnabled(kMacCriticalDiskSpacePressure)) {
+    disk_space_check_timer_.Start(
+        FROM_HERE, kDiskSpaceCheckPeriod,
+        base::BindRepeating(&SystemMemoryPressureEvaluator::CheckDiskSpace,
+                            weak_this));
+    // Perform an initial check on startup.
+    CheckDiskSpace();
+  }
 
   // Only update initialization vote, without triggering notifications, to
   // prevent unexpected results from event listeners during initialization
@@ -180,8 +194,12 @@ void SystemMemoryPressureEvaluator::OnDiskSpaceCheckComplete(
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   base::MemoryPressureLevel new_disk_vote = base::MEMORY_PRESSURE_LEVEL_NONE;
 
-  if (disk_space_info.has_value() &&
-      disk_space_info->available < kCriticalDiskSpaceThreshold) {
+  // The minimum free disk space before dispatching a critical memory pressure
+  // signal.
+  const base::ByteSize threshold =
+      base::MiBU(kMacCriticalDiskSpacePressureThresholdMB.Get());
+
+  if (disk_space_info.has_value() && disk_space_info->available < threshold) {
     new_disk_vote = base::MEMORY_PRESSURE_LEVEL_CRITICAL;
   }
 

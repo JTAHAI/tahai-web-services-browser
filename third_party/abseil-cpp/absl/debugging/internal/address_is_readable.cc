@@ -17,8 +17,6 @@
 
 #include "absl/debugging/internal/address_is_readable.h"
 
-#include <cerrno>
-
 #if !defined(__linux__) || defined(__ANDROID__)
 
 namespace absl {

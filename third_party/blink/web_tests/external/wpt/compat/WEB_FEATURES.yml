@@ -1,3 +1,7 @@
-rules:
-- webkit-text-fill-color-*: [text-stroke-fill]
-- webkit-*-gradient*: [gradients]
+features:
+- name: text-stroke-fill
+  files:
+  - webkit-text-fill-color-*
+- name: gradients
+  files:
+  - webkit-*-gradient*

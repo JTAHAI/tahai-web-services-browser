@@ -9,9 +9,9 @@
 
 #include "base/check.h"
 #include "base/containers/span.h"
+#include "base/memory/raw_ptr_exclusion.h"
 #include "base/memory/stack_allocated.h"
 #include "base/notreached.h"
-#include "base/types/expected.h"
 #include "base/unguessable_token.h"
 #include "cc/mojom/paint_flags_mojom_traits.h"
 #include "components/viz/common/quads/compositor_render_pass_draw_quad.h"
@@ -25,8 +25,6 @@
 #include "components/viz/common/quads/video_hole_draw_quad.h"
 #include "components/viz/common/resources/resource_id.h"
 #include "components/viz/common/view_transition_element_resource_id.h"
-#include "mojo/public/cpp/bindings/deserialization_error.h"
-#include "mojo/public/cpp/bindings/optional_as_pointer.h"
 #include "services/viz/public/cpp/compositing/filter_operation_mojom_traits.h"
 #include "services/viz/public/cpp/compositing/filter_operations_mojom_traits.h"
 #include "services/viz/public/cpp/compositing/shared_quad_state_mojom_traits.h"
@@ -80,8 +78,8 @@ template <>
 struct EnumTraits<viz::mojom::OverlayPriority, viz::OverlayPriority> {
   static viz::mojom::OverlayPriority ToMojom(viz::OverlayPriority input) {
     switch (input) {
-      case viz::OverlayPriority::kNone:
-        return viz::mojom::OverlayPriority::kNone;
+      case viz::OverlayPriority::kLow:
+        return viz::mojom::OverlayPriority::kLow;
       case viz::OverlayPriority::kRegular:
         return viz::mojom::OverlayPriority::kRegular;
       case viz::OverlayPriority::kRequired:
@@ -92,8 +90,8 @@ struct EnumTraits<viz::mojom::OverlayPriority, viz::OverlayPriority> {
 
   static viz::OverlayPriority FromMojom(viz::mojom::OverlayPriority input) {
     switch (input) {
-      case viz::mojom::OverlayPriority::kNone:
-        return viz::OverlayPriority::kNone;
+      case viz::mojom::OverlayPriority::kLow:
+        return viz::OverlayPriority::kLow;
       case viz::mojom::OverlayPriority::kRegular:
         return viz::OverlayPriority::kRegular;
       case viz::mojom::OverlayPriority::kRequired:
@@ -116,9 +114,8 @@ struct StructTraits<viz::mojom::RoundedDisplayMasksInfoDataView,
     return input.radii;
   }
 
-  static base::expected<void, DeserializationError> Read(
-      viz::mojom::RoundedDisplayMasksInfoDataView data,
-      viz::TextureDrawQuad::RoundedDisplayMasksInfo* out);
+  static bool Read(viz::mojom::RoundedDisplayMasksInfoDataView data,
+                   viz::TextureDrawQuad::RoundedDisplayMasksInfo* out);
 };
 
 template <>
@@ -193,50 +190,24 @@ struct UnionTraits<viz::mojom::DrawQuadStateDataView, viz::DrawQuad> {
     return quad;
   }
 
-  static base::expected<void, DeserializationError> Read(
-      viz::mojom::DrawQuadStateDataView data,
-      viz::DrawQuad* out) {
+  static bool Read(viz::mojom::DrawQuadStateDataView data, viz::DrawQuad* out) {
     switch (data.tag()) {
       case viz::mojom::DrawQuadStateDataView::Tag::kDebugBorderQuadState:
-        if (!data.ReadDebugBorderQuadState(out)) {
-          return base::unexpected(DeserializationError());
-        }
-        return base::ok();
+        return data.ReadDebugBorderQuadState(out);
       case viz::mojom::DrawQuadStateDataView::Tag::kRenderPassQuadState:
-        if (!data.ReadRenderPassQuadState(out)) {
-          return base::unexpected(DeserializationError());
-        }
-        return base::ok();
+        return data.ReadRenderPassQuadState(out);
       case viz::mojom::DrawQuadStateDataView::Tag::kSolidColorQuadState:
-        if (!data.ReadSolidColorQuadState(out)) {
-          return base::unexpected(DeserializationError());
-        }
-        return base::ok();
+        return data.ReadSolidColorQuadState(out);
       case viz::mojom::DrawQuadStateDataView::Tag::kSurfaceQuadState:
-        if (!data.ReadSurfaceQuadState(out)) {
-          return base::unexpected(DeserializationError());
-        }
-        return base::ok();
+        return data.ReadSurfaceQuadState(out);
       case viz::mojom::DrawQuadStateDataView::Tag::kTextureQuadState:
-        if (!data.ReadTextureQuadState(out)) {
-          return base::unexpected(DeserializationError());
-        }
-        return base::ok();
+        return data.ReadTextureQuadState(out);
       case viz::mojom::DrawQuadStateDataView::Tag::kTileQuadState:
-        if (!data.ReadTileQuadState(out)) {
-          return base::unexpected(DeserializationError());
-        }
-        return base::ok();
+        return data.ReadTileQuadState(out);
       case viz::mojom::DrawQuadStateDataView::Tag::kVideoHoleQuadState:
-        if (!data.ReadVideoHoleQuadState(out)) {
-          return base::unexpected(DeserializationError());
-        }
-        return base::ok();
+        return data.ReadVideoHoleQuadState(out);
       case viz::mojom::DrawQuadStateDataView::Tag::kSharedElementQuadState:
-        if (!data.ReadSharedElementQuadState(out)) {
-          return base::unexpected(DeserializationError());
-        }
-        return base::ok();
+        return data.ReadSharedElementQuadState(out);
     }
     NOTREACHED();
   }
@@ -251,9 +222,8 @@ struct StructTraits<viz::mojom::SharedElementQuadStateDataView, viz::DrawQuad> {
     return quad->element_resource_id;
   }
 
-  static base::expected<void, DeserializationError> Read(
-      viz::mojom::SharedElementQuadStateDataView data,
-      viz::DrawQuad* out);
+  static bool Read(viz::mojom::SharedElementQuadStateDataView data,
+                   viz::DrawQuad* out);
 };
 
 template <>
@@ -265,9 +235,8 @@ struct StructTraits<viz::mojom::VideoHoleQuadStateDataView, viz::DrawQuad> {
     return quad->overlay_plane_id;
   }
 
-  static base::expected<void, DeserializationError> Read(
-      viz::mojom::VideoHoleQuadStateDataView data,
-      viz::DrawQuad* out);
+  static bool Read(viz::mojom::VideoHoleQuadStateDataView data,
+                   viz::DrawQuad* out);
 };
 
 template <>
@@ -284,9 +253,8 @@ struct StructTraits<viz::mojom::DebugBorderQuadStateDataView, viz::DrawQuad> {
     return quad->width;
   }
 
-  static base::expected<void, DeserializationError> Read(
-      viz::mojom::DebugBorderQuadStateDataView data,
-      viz::DrawQuad* out);
+  static bool Read(viz::mojom::DebugBorderQuadStateDataView data,
+                   viz::DrawQuad* out);
 };
 
 template <>
@@ -348,9 +316,8 @@ struct StructTraits<viz::mojom::CompositorRenderPassQuadStateDataView,
     return quad->intersects_damage_under;
   }
 
-  static base::expected<void, DeserializationError> Read(
-      viz::mojom::CompositorRenderPassQuadStateDataView data,
-      viz::DrawQuad* out);
+  static bool Read(viz::mojom::CompositorRenderPassQuadStateDataView data,
+                   viz::DrawQuad* out);
 };
 
 template <>
@@ -367,9 +334,8 @@ struct StructTraits<viz::mojom::SolidColorQuadStateDataView, viz::DrawQuad> {
     return quad->force_anti_aliasing_off;
   }
 
-  static base::expected<void, DeserializationError> Read(
-      viz::mojom::SolidColorQuadStateDataView data,
-      viz::DrawQuad* out);
+  static bool Read(viz::mojom::SolidColorQuadStateDataView data,
+                   viz::DrawQuad* out);
 };
 
 template <>
@@ -418,9 +384,8 @@ struct StructTraits<viz::mojom::SurfaceQuadStateDataView, viz::DrawQuad> {
     return quad->override_child_dynamic_range_limit;
   }
 
-  static base::expected<void, DeserializationError> Read(
-      viz::mojom::SurfaceQuadStateDataView data,
-      viz::DrawQuad* out);
+  static bool Read(viz::mojom::SurfaceQuadStateDataView data,
+                   viz::DrawQuad* out);
 };
 
 template <>
@@ -508,9 +473,8 @@ struct StructTraits<viz::mojom::TextureQuadStateDataView, viz::DrawQuad> {
     return quad->damage_rect;
   }
 
-  static base::expected<void, DeserializationError> Read(
-      viz::mojom::TextureQuadStateDataView data,
-      viz::DrawQuad* out);
+  static bool Read(viz::mojom::TextureQuadStateDataView data,
+                   viz::DrawQuad* out);
 };
 
 template <>
@@ -535,21 +499,13 @@ struct StructTraits<viz::mojom::TileQuadStateDataView, viz::DrawQuad> {
     return quad->force_anti_aliasing_off;
   }
 
-  static base::expected<void, DeserializationError> Read(
-      viz::mojom::TileQuadStateDataView data,
-      viz::DrawQuad* out);
+  static bool Read(viz::mojom::TileQuadStateDataView data, viz::DrawQuad* out);
 };
 
-// Wrapper to optimize serialization/deserialization of viz::QuadList.
 struct DrawQuadWithSharedQuadState {
-  STACK_ALLOCATED();
-
- public:
-  const viz::DrawQuad* quad = nullptr;
-  // If null, indicates that the current quad should reuse the last-seen
-  // `SharedQuadState`, so only the first `SharedQuadState` in a run needs to
-  // be serialized/deserialized.
-  const viz::SharedQuadState* shared_quad_state = nullptr;
+  // RAW_PTR_EXCLUSION: Performance reasons (based on analysis of speedometer3).
+  RAW_PTR_EXCLUSION const viz::DrawQuad* quad = nullptr;
+  RAW_PTR_EXCLUSION const viz::SharedQuadState* shared_quad_state = nullptr;
 };
 
 template <>
@@ -567,9 +523,8 @@ struct StructTraits<viz::mojom::DrawQuadDataView, DrawQuadWithSharedQuadState> {
     return input.quad->needs_blending;
   }
 
-  static mojo::OptionalAsPointer<const viz::SharedQuadState> sqs(
-      const DrawQuadWithSharedQuadState& input) {
-    return mojo::OptionalAsPointer(input.shared_quad_state);
+  static OptSharedQuadState sqs(const DrawQuadWithSharedQuadState& input) {
+    return {input.shared_quad_state};
   }
 
   static const viz::DrawQuad& draw_quad_state(
@@ -582,9 +537,7 @@ struct StructTraits<viz::mojom::DrawQuadDataView, DrawQuadWithSharedQuadState> {
 // CompositorRenderPasses.
 template <>
 struct StructTraits<viz::mojom::DrawQuadDataView, viz::DrawQuad> {
-  static base::expected<void, DeserializationError> Read(
-      viz::mojom::DrawQuadDataView data,
-      viz::DrawQuad* out);
+  static bool Read(viz::mojom::DrawQuadDataView data, viz::DrawQuad* out);
 };
 
 template <>

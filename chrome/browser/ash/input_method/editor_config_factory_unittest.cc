@@ -14,17 +14,14 @@
 namespace ash::input_method {
 namespace {
 
-constexpr char kDefaultLocale[] = "en-US";
-
 using base::test::ScopedFeatureList;
 using orca::mojom::PresetTextQueryType;
 using testing::UnorderedElementsAre;
 
 TEST(EditorConfigFactoryTest, BuildsCorrectlyForEnglish) {
   orca::mojom::EditorConfigPtr config =
-      BuildConfigFor(LanguageCategory::kEnglish, kDefaultLocale);
+      BuildConfigFor(LanguageCategory::kEnglish);
 
-  EXPECT_EQ(config->language_code, kDefaultLocale);
   EXPECT_THAT(
       config->allowed_query_types,
       UnorderedElementsAre(orca::mojom::PresetTextQueryType::kShorten,
@@ -40,7 +37,7 @@ TEST(EditorConfigFactoryTest, EnglishWithShortenDisabled) {
   feature_list.InitWithFeatures({}, {features::kOrcaShorten});
 
   orca::mojom::EditorConfigPtr config =
-      BuildConfigFor(LanguageCategory::kEnglish, kDefaultLocale);
+      BuildConfigFor(LanguageCategory::kEnglish);
 
   EXPECT_THAT(
       config->allowed_query_types,
@@ -56,7 +53,7 @@ TEST(EditorConfigFactoryTest, EnglishWithElaborateDisabled) {
   feature_list.InitWithFeatures({}, {features::kOrcaElaborate});
 
   orca::mojom::EditorConfigPtr config =
-      BuildConfigFor(LanguageCategory::kEnglish, kDefaultLocale);
+      BuildConfigFor(LanguageCategory::kEnglish);
 
   EXPECT_THAT(
       config->allowed_query_types,
@@ -72,7 +69,7 @@ TEST(EditorConfigFactoryTest, EnglishWithRephraseDisabled) {
   feature_list.InitWithFeatures({}, {features::kOrcaRephrase});
 
   orca::mojom::EditorConfigPtr config =
-      BuildConfigFor(LanguageCategory::kEnglish, kDefaultLocale);
+      BuildConfigFor(LanguageCategory::kEnglish);
 
   EXPECT_THAT(
       config->allowed_query_types,
@@ -88,7 +85,7 @@ TEST(EditorConfigFactoryTest, EnglishWithFormalizeDisabled) {
   feature_list.InitWithFeatures({}, {features::kOrcaFormalize});
 
   orca::mojom::EditorConfigPtr config =
-      BuildConfigFor(LanguageCategory::kEnglish, kDefaultLocale);
+      BuildConfigFor(LanguageCategory::kEnglish);
 
   EXPECT_THAT(
       config->allowed_query_types,
@@ -104,7 +101,7 @@ TEST(EditorConfigFactoryTest, EnglishWithEmojifyDisabled) {
   feature_list.InitWithFeatures({}, {features::kOrcaEmojify});
 
   orca::mojom::EditorConfigPtr config =
-      BuildConfigFor(LanguageCategory::kEnglish, kDefaultLocale);
+      BuildConfigFor(LanguageCategory::kEnglish);
 
   EXPECT_THAT(
       config->allowed_query_types,
@@ -120,7 +117,7 @@ TEST(EditorConfigFactoryTest, EnglishWithProofreadDisabled) {
   feature_list.InitWithFeatures({}, {features::kOrcaProofread});
 
   orca::mojom::EditorConfigPtr config =
-      BuildConfigFor(LanguageCategory::kEnglish, kDefaultLocale);
+      BuildConfigFor(LanguageCategory::kEnglish);
 
   EXPECT_THAT(config->allowed_query_types,
               UnorderedElementsAre(orca::mojom::PresetTextQueryType::kShorten,
@@ -132,9 +129,8 @@ TEST(EditorConfigFactoryTest, EnglishWithProofreadDisabled) {
 
 TEST(EditorConfigFactoryTest, BuildsCorrectlyForFrench) {
   orca::mojom::EditorConfigPtr config =
-      BuildConfigFor(LanguageCategory::kFrench, "fr");
+      BuildConfigFor(LanguageCategory::kFrench);
 
-  EXPECT_EQ(config->language_code, "fr");
   EXPECT_THAT(
       config->allowed_query_types,
       UnorderedElementsAre(orca::mojom::PresetTextQueryType::kShorten,
@@ -168,8 +164,7 @@ INSTANTIATE_TEST_SUITE_P(EditorConfigFactoryTest,
 TEST_P(InternationalizedCases, WithNothingDisabled) {
   const LanguageCategory& language_category = GetParam();
 
-  orca::mojom::EditorConfigPtr config =
-      BuildConfigFor(language_category, kDefaultLocale);
+  orca::mojom::EditorConfigPtr config = BuildConfigFor(language_category);
 
   EXPECT_THAT(
       config->allowed_query_types,
@@ -186,8 +181,7 @@ TEST_P(InternationalizedCases, WithShortenDisabled) {
   ScopedFeatureList feature_list;
   feature_list.InitWithFeatures({}, {features::kOrcaInternationalizeShorten});
 
-  orca::mojom::EditorConfigPtr config =
-      BuildConfigFor(language_category, kDefaultLocale);
+  orca::mojom::EditorConfigPtr config = BuildConfigFor(language_category);
 
   EXPECT_THAT(
       config->allowed_query_types,
@@ -203,8 +197,7 @@ TEST_P(InternationalizedCases, WithElaborateDisabled) {
   ScopedFeatureList feature_list;
   feature_list.InitWithFeatures({}, {features::kOrcaInternationalizeElaborate});
 
-  orca::mojom::EditorConfigPtr config =
-      BuildConfigFor(language_category, kDefaultLocale);
+  orca::mojom::EditorConfigPtr config = BuildConfigFor(language_category);
 
   EXPECT_THAT(
       config->allowed_query_types,
@@ -220,8 +213,7 @@ TEST_P(InternationalizedCases, WithRephraseDisabled) {
   ScopedFeatureList feature_list;
   feature_list.InitWithFeatures({}, {features::kOrcaInternationalizeRephrase});
 
-  orca::mojom::EditorConfigPtr config =
-      BuildConfigFor(language_category, kDefaultLocale);
+  orca::mojom::EditorConfigPtr config = BuildConfigFor(language_category);
 
   EXPECT_THAT(
       config->allowed_query_types,
@@ -237,8 +229,7 @@ TEST_P(InternationalizedCases, WithFormalizeDisabled) {
   ScopedFeatureList feature_list;
   feature_list.InitWithFeatures({}, {features::kOrcaInternationalizeFormalize});
 
-  orca::mojom::EditorConfigPtr config =
-      BuildConfigFor(language_category, kDefaultLocale);
+  orca::mojom::EditorConfigPtr config = BuildConfigFor(language_category);
 
   EXPECT_THAT(
       config->allowed_query_types,
@@ -254,8 +245,7 @@ TEST_P(InternationalizedCases, WithEmojifyDisabled) {
   ScopedFeatureList feature_list;
   feature_list.InitWithFeatures({}, {features::kOrcaInternationalizeEmojify});
 
-  orca::mojom::EditorConfigPtr config =
-      BuildConfigFor(language_category, kDefaultLocale);
+  orca::mojom::EditorConfigPtr config = BuildConfigFor(language_category);
 
   EXPECT_THAT(
       config->allowed_query_types,
@@ -271,8 +261,7 @@ TEST_P(InternationalizedCases, WithProofreadDisabled) {
   ScopedFeatureList feature_list;
   feature_list.InitWithFeatures({}, {features::kOrcaInternationalizeProofread});
 
-  orca::mojom::EditorConfigPtr config =
-      BuildConfigFor(language_category, kDefaultLocale);
+  orca::mojom::EditorConfigPtr config = BuildConfigFor(language_category);
 
   EXPECT_THAT(config->allowed_query_types,
               UnorderedElementsAre(orca::mojom::PresetTextQueryType::kShorten,

@@ -79,17 +79,19 @@ class BookmarkBarButton extends LinearLayout {
             mLastEventButtonState = event.getButtonState();
         }
 
-        // Consume middle/right-click touch events to prevent accidental primary triggers.
-        // Execution of these actions is safely deferred to onGenericMotionEvent.
-        int targetButtons = MotionEvent.BUTTON_TERTIARY | MotionEvent.BUTTON_SECONDARY;
-        boolean isMiddleOrRightClick = (mLastEventButtonState & targetButtons) != 0;
-
-        if (isMiddleOrRightClick) {
-            boolean isEndOfGesture =
-                    action == MotionEvent.ACTION_UP
-                            || action == MotionEvent.ACTION_BUTTON_RELEASE
-                            || action == MotionEvent.ACTION_CANCEL;
-            if (isEndOfGesture) {
+        // Consume events for the middle and secondary buttons. Since we consume ACTION_DOWN, the
+        // standard OnClickListener (which only handles primary clicks) will not be triggered.
+        if ((mLastEventButtonState & MotionEvent.BUTTON_TERTIARY) != 0
+                || (mLastEventButtonState & MotionEvent.BUTTON_SECONDARY) != 0) {
+            if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_BUTTON_RELEASE) {
+                int buttonToFire = mLastEventButtonState;
+                if (action == MotionEvent.ACTION_BUTTON_RELEASE && event.getActionButton() != 0) {
+                    buttonToFire = event.getActionButton();
+                }
+                mLastEventButtonState = buttonToFire;
+                onClick(this);
+                mLastEventButtonState = 0;
+            } else if (action == MotionEvent.ACTION_CANCEL) {
                 mLastEventButtonState = 0;
             }
             return true;
@@ -164,26 +166,12 @@ class BookmarkBarButton extends LinearLayout {
         mClickCallback = callback;
         if (callback == null) {
             setOnClickListener(null);
+            setOnLongClickListener(null);
             return;
         }
 
         setOnClickListener(this::onClick);
-    }
-
-    @Override
-    public void setOnLongClickListener(@Nullable OnLongClickListener listener) {
-        if (listener == null) {
-            super.setOnLongClickListener(null);
-            return;
-        }
-
-        super.setOnLongClickListener(
-                view -> {
-                    if (mPointCallback != null) {
-                        mPointCallback.onResult(new Point((int) mLastEventX, (int) mLastEventY));
-                    }
-                    return listener.onLongClick(view);
-                });
+        setOnLongClickListener(this::onLongClick);
     }
 
     private void onClick(View view) {
@@ -193,6 +181,16 @@ class BookmarkBarButton extends LinearLayout {
         if (mClickCallback != null) {
             mClickCallback.onClickWithMeta(mLastEventMetaState, mLastEventButtonState);
         }
+    }
+
+    private boolean onLongClick(View view) {
+        if (mPointCallback != null) {
+            mPointCallback.onResult(new Point((int) mLastEventX, (int) mLastEventY));
+        }
+        if (mClickCallback != null) {
+            mClickCallback.onClickWithMeta(mLastEventMetaState, MotionEvent.BUTTON_SECONDARY);
+        }
+        return true;
     }
 
     /**

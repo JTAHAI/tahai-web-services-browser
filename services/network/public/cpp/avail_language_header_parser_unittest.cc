@@ -4,11 +4,15 @@
 
 #include "services/network/public/cpp/avail_language_header_parser.h"
 
+#include <iostream>
 #include <optional>
 #include <string>
 #include <vector>
 
+#include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
+
+using testing::UnorderedElementsAre;
 
 namespace network {
 
@@ -29,10 +33,6 @@ TEST(AvailLanguageTest, ParseAvailLanguage) {
   result = ParseAvailLanguage("\"en\", \"zh\"");
   EXPECT_FALSE(result.has_value());
 
-  // Must not be a single-element inner list of tokens either.
-  result = ParseAvailLanguage("(en)");
-  EXPECT_FALSE(result.has_value());
-
   // Parameters to the tokens are ignored.
   result = ParseAvailLanguage("en;q=1.0, zh");
   ASSERT_TRUE(result.has_value());
@@ -42,30 +42,30 @@ TEST(AvailLanguageTest, ParseAvailLanguage) {
   result = ParseAvailLanguage("(en jp), (zh es)");
   EXPECT_FALSE(result.has_value());
 
-  // Parameters with default.
+  // Parameters to with default.
   result = ParseAvailLanguage("en, zh;d");
   ASSERT_TRUE(result.has_value());
   EXPECT_EQ(result.value(), std::vector<std::string>({"zh", "en"}));
 
-  // Parameters with two defaults.
+  // Parameters to with two defaults.
   result = ParseAvailLanguage("en, zh;d, ja;d");
   ASSERT_TRUE(result.has_value());
   EXPECT_EQ(result.value(), std::vector<std::string>({"zh", "ja", "en"}));
 
-  // Parameters with other pattern are ignored.
+  // Parameters to with other pattern are ignored.
   result = ParseAvailLanguage("en, zh;d=1");
   ASSERT_TRUE(result.has_value());
   EXPECT_EQ(result.value(), std::vector<std::string>({"en", "zh"}));
 
-  // Parameters with other boolean value are ignored.
+  // Parameters to with other boolean value are ignored.
   result = ParseAvailLanguage("en, zh;d=?0");
   ASSERT_TRUE(result.has_value());
   EXPECT_EQ(result.value(), std::vector<std::string>({"en", "zh"}));
 
-  // Case is retained; users must match case-insensitively.
+  // Matching is case-insensitive.
   result = ParseAvailLanguage("de-DE, en-CA ");
   ASSERT_TRUE(result.has_value());
-  EXPECT_EQ(result.value(), std::vector<std::string>({"de-DE", "en-CA"}));
+  EXPECT_EQ(result.value(), std::vector<std::string>({"de-de", "en-ca"}));
 
   result = ParseAvailLanguage("en, fr (This is a dictionary)");
   ASSERT_FALSE(result.has_value());

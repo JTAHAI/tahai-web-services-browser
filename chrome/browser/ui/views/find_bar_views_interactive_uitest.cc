@@ -9,6 +9,7 @@
 #include "chrome/app/chrome_command_ids.h"
 #include "chrome/browser/bookmarks/bookmark_model_factory.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_element_identifiers.h"
 #include "chrome/browser/ui/browser_tabstrip.h"
@@ -200,7 +201,7 @@ class LegacyFindInPageTest : public InProcessBrowserTest {
 
   find_in_page::FindNotificationDetails WaitForFindResult() {
     WebContents* web_contents =
-        browser()->GetTabStripModel()->GetActiveWebContents();
+        browser()->tab_strip_model()->GetActiveWebContents();
     ui_test_utils::FindResultWaiter(web_contents).Wait();
     return find_in_page::FindTabHelper::FromWebContents(web_contents)
         ->find_result();
@@ -344,7 +345,7 @@ IN_PROC_BROWSER_TEST_F(FindBarViewsUiTest, CrashEscHandlers) {
       SelectTab(kTabStripElementId, 0),
       // Close tab B.
       Do([this]() {
-        browser()->GetTabStripModel()->CloseWebContentsAt(
+        browser()->tab_strip_model()->CloseWebContentsAt(
             1, TabCloseTypes::CLOSE_NONE);
       }),
       // Set focus to the omnibox.
@@ -363,7 +364,7 @@ IN_PROC_BROWSER_TEST_F(FindBarViewsUiTest, NavigationByKeyEvent) {
       ObserveState(kFindResultState,
                    [this]() {
                      return find_in_page::FindTabHelper::FromWebContents(
-                         browser()->GetTabStripModel()->GetActiveWebContents());
+                         browser()->tab_strip_model()->GetActiveWebContents());
                    }),
       // Search for 'a'.
       EnterText(FindBarView::kTextField, kSearchThis),
@@ -448,7 +449,7 @@ IN_PROC_BROWSER_TEST_F(LegacyFindInPageTest, ButtonsDoNotAlterFocus) {
   browser()->GetFeatures().GetFindBarController()->Show();
   EXPECT_TRUE(IsViewFocused(browser(), VIEW_ID_FIND_IN_PAGE_TEXT_FIELD));
   const int match_count = ui_test_utils::FindInPage(
-      browser()->GetTabStripModel()->GetActiveWebContents(), u"e", true, false,
+      browser()->tab_strip_model()->GetActiveWebContents(), u"e", true, false,
       nullptr, nullptr);
   EXPECT_TRUE(IsViewFocused(browser(), VIEW_ID_FIND_IN_PAGE_TEXT_FIELD));
 
@@ -535,7 +536,7 @@ IN_PROC_BROWSER_TEST_F(FindBarViewsUiTest, MAYBE_FocusRestore) {
       ObserveState(kFindResultState,
                    [this]() {
                      return find_in_page::FindTabHelper::FromWebContents(
-                         browser()->GetTabStripModel()->GetActiveWebContents());
+                         browser()->tab_strip_model()->GetActiveWebContents());
                    }),
       CheckHasFocus(FindBarView::kTextField),
       EnterText(FindBarView::kTextField, kSearchA),
@@ -757,13 +758,7 @@ IN_PROC_BROWSER_TEST_F(LegacyFindInPageTest, PrepopulateRespectBlank) {
 }
 #endif
 
-// TODO(crbug.com/540863131): Flaky on Linux ARM64.
-#if BUILDFLAG(IS_LINUX) && defined(ARCH_CPU_ARM64)
-#define MAYBE_PasteWithoutTextChange DISABLED_PasteWithoutTextChange
-#else
-#define MAYBE_PasteWithoutTextChange PasteWithoutTextChange
-#endif
-IN_PROC_BROWSER_TEST_F(FindBarViewsUiTest, MAYBE_PasteWithoutTextChange) {
+IN_PROC_BROWSER_TEST_F(FindBarViewsUiTest, PasteWithoutTextChange) {
   constexpr char16_t kSearchA[] = u"a";
   const GURL page_a = embedded_test_server()->GetURL("/a.html");
 
@@ -771,7 +766,7 @@ IN_PROC_BROWSER_TEST_F(FindBarViewsUiTest, MAYBE_PasteWithoutTextChange) {
       ObserveState(kFindResultState,
                    [this]() {
                      return find_in_page::FindTabHelper::FromWebContents(
-                         browser()->GetTabStripModel()->GetActiveWebContents());
+                         browser()->tab_strip_model()->GetActiveWebContents());
                    }),
       // Load page + open find bar.
       Init(page_a), ShowFindBar(),
@@ -782,8 +777,7 @@ IN_PROC_BROWSER_TEST_F(FindBarViewsUiTest, MAYBE_PasteWithoutTextChange) {
       CheckViewProperty(FindBarView::kElementId, &FindBarView::GetFindText,
                         kSearchA),
       // Reload the page to clear the matching result.
-      // TODO(crbug.com/479732140): improve the test method to simplify the
-      // call.
+      // TODO(crbug.com/479732140): improve the test method to simplify the call.
       MoveMouseTo(kReloadButtonElementId,
 #if !BUILDFLAG(IS_ANDROID)
                   features::IsWebUIReloadButtonEnabled()
@@ -839,7 +833,7 @@ IN_PROC_BROWSER_TEST_F(LegacyFindInPageTest, MAYBE_CtrlEnter) {
       browser(), GURL("data:text/html,This is some text with a "
                       "<a href=\"about:blank\">link</a>.")));
 
-  auto* web_contents = browser()->GetTabStripModel()->GetActiveWebContents();
+  auto* web_contents = browser()->tab_strip_model()->GetActiveWebContents();
   auto* host = web_contents->GetRenderWidgetHostView()->GetRenderWidgetHost();
 
   browser()->GetFeatures().GetFindBarController()->Show();
@@ -924,7 +918,7 @@ IN_PROC_BROWSER_TEST_F(LegacyFindInPageTest, DISABLED_SelectionDuringFind) {
                      "/find_in_page/find_from_selection.html")));
 
   WebContents* web_contents =
-      browser()->GetTabStripModel()->GetActiveWebContents();
+      browser()->tab_strip_model()->GetActiveWebContents();
   auto* host_view = web_contents->GetRenderWidgetHostView();
   auto* host = host_view->GetRenderWidgetHost();
 
@@ -1055,7 +1049,7 @@ IN_PROC_BROWSER_TEST_F(FindBarViewsUiTest, MatchOrdinalStableWhileTyping) {
       ObserveState(kFindResultState,
                    [this]() {
                      return find_in_page::FindTabHelper::FromWebContents(
-                         browser()->GetTabStripModel()->GetActiveWebContents());
+                         browser()->tab_strip_model()->GetActiveWebContents());
                    }),
       EnterText(FindBarView::kTextField, u"f"),
       WaitForState(kFindResultState, []() { return FindResultState(1, 3); }),
@@ -1096,7 +1090,7 @@ IN_PROC_BROWSER_TEST_P(FindBarViewsUiTest, SelectionDuringFindPolicy) {
 
       // Select all text.
       Do([this]() {
-        browser()->GetTabStripModel()->GetActiveWebContents()->SelectAll();
+        browser()->tab_strip_model()->GetActiveWebContents()->SelectAll();
       }),
 
       // Verify the selection in the renderer.
@@ -1107,7 +1101,7 @@ IN_PROC_BROWSER_TEST_P(FindBarViewsUiTest, SelectionDuringFindPolicy) {
       PollState(kTextSelectedState,
                 [this, kExpectedText]() {
                   WebContents* web_contents =
-                      browser()->GetTabStripModel()->GetActiveWebContents();
+                      browser()->tab_strip_model()->GetActiveWebContents();
                   if (!web_contents) {
                     return false;
                   }
@@ -1183,7 +1177,7 @@ IN_PROC_BROWSER_TEST_F(FindBarViewsUiTest,
   }
 #endif
   // Browser A: The browser window that comes with the test fixture.
-  BrowserWindowInterface* browser_a = browser();
+  Browser* browser_a = browser();
   ASSERT_TRUE(ui_test_utils::BringBrowserWindowToFront(browser_a));
 
   ASSERT_TRUE(ui_test_utils::NavigateToURL(
@@ -1201,7 +1195,7 @@ IN_PROC_BROWSER_TEST_F(FindBarViewsUiTest,
   ASSERT_TRUE(textfield->GetText().empty());
 
   // Create browser B and make it active with focus in the omnibox.
-  BrowserWindowInterface* browser_b = CreateBrowser(browser_a->GetProfile());
+  Browser* browser_b = CreateBrowser(browser_a->GetProfile());
   ASSERT_NE(nullptr, browser_b);
 
   views::Widget* browser_a_widget =

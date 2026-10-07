@@ -10,6 +10,7 @@ import android.util.AttributeSet;
 import android.view.MotionEvent;
 import android.view.View;
 
+import androidx.annotation.NonNull;
 import androidx.viewpager.widget.ViewPager;
 
 import org.chromium.build.annotations.NullMarked;
@@ -21,7 +22,7 @@ import org.chromium.chrome.browser.keyboard_accessory.R;
 @NullMarked
 class NoSwipeViewPager extends ViewPager {
     /** Constructor for inflating from XML which is why it must be public. */
-    public NoSwipeViewPager(Context context, @Nullable AttributeSet attrs) {
+    public NoSwipeViewPager(@NonNull Context context, @Nullable AttributeSet attrs) {
         super(context, attrs);
     }
 

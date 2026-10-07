@@ -7,7 +7,6 @@ package org.chromium.chrome.browser.tab_ui;
 import static org.chromium.build.NullUtil.assertNonNull;
 
 import android.content.Context;
-import android.content.res.Resources;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
@@ -276,8 +275,7 @@ public class TabListFaviconProvider {
     private final @ColorInt int mSelectedIconColor;
     private final @ColorInt int mIncognitoSelectedIconColor;
     private final int mStripFaviconSize;
-    private final int mGridFaviconSize;
-    private final int mVerticalFaviconSize;
+    private final int mDefaultFaviconSize;
     private final int mFaviconSize;
     private final int mFaviconInset;
     private final Context mContext;
@@ -304,22 +302,18 @@ public class TabListFaviconProvider {
             int faviconCornerRadiusId,
             @Nullable TabWebContentsFaviconDelegate tabWebContentsFaviconDelegate) {
         mContext = context;
-        Resources resources = context.getResources();
-        mGridFaviconSize = resources.getDimensionPixelSize(R.dimen.tab_grid_favicon_size);
-        mStripFaviconSize = resources.getDimensionPixelSize(R.dimen.tab_strip_favicon_size);
-        mVerticalFaviconSize = resources.getDimensionPixelSize(R.dimen.default_favicon_size);
+        mDefaultFaviconSize =
+                context.getResources().getDimensionPixelSize(R.dimen.tab_grid_favicon_size);
+        mStripFaviconSize =
+                context.getResources().getDimensionPixelSize(R.dimen.tab_strip_favicon_size);
         mTabListMode = tabListMode;
-        if (isBottomTabStrip()) {
-            mFaviconSize = mStripFaviconSize;
-        } else if (isVerticalTabList()) {
-            mFaviconSize = mVerticalFaviconSize;
-        } else {
-            mFaviconSize = mGridFaviconSize;
-        }
+        mFaviconSize = isBottomTabStrip() ? mStripFaviconSize : mDefaultFaviconSize;
         mFaviconInset =
                 ViewUtils.dpToPx(
-                        context, resources.getDimensionPixelSize(R.dimen.tab_strip_favicon_inset));
-        mFaviconCornerRadius = resources.getDimensionPixelSize(faviconCornerRadiusId);
+                        context,
+                        context.getResources()
+                                .getDimensionPixelSize(R.dimen.tab_strip_favicon_inset));
+        mFaviconCornerRadius = context.getResources().getDimensionPixelSize(faviconCornerRadiusId);
         mTabWebContentsFaviconDelegate = tabWebContentsFaviconDelegate;
 
         @ColorInt
@@ -336,9 +330,8 @@ public class TabListFaviconProvider {
                 mSelectedIconColor,
                 incognitoIconColor,
                 mIncognitoSelectedIconColor,
-                mGridFaviconSize,
+                mDefaultFaviconSize,
                 mStripFaviconSize,
-                mVerticalFaviconSize,
                 mFaviconCornerRadius,
                 mFaviconInset);
     }
@@ -545,7 +538,7 @@ public class TabListFaviconProvider {
                             && !isVerticalTabList()) {
                         Bitmap resizedFavicon =
                                 getResizedBitmapFromDrawable(
-                                        processBitmap(image), mGridFaviconSize);
+                                        processBitmap(image), mDefaultFaviconSize);
                         @ColorInt
                         int iconColor =
                                 isIncognito ? mIncognitoSelectedIconColor : mSelectedIconColor;
@@ -623,7 +616,7 @@ public class TabListFaviconProvider {
                 processBitmapMaybeColor(
                         mContext,
                         bitmap,
-                        mGridFaviconSize,
+                        mDefaultFaviconSize,
                         mFaviconCornerRadius,
                         /* shouldSetColor= */ false,
                         /* color= */ 0);
@@ -631,7 +624,7 @@ public class TabListFaviconProvider {
                 processBitmapMaybeColor(
                         mContext,
                         bitmap,
-                        mGridFaviconSize,
+                        mDefaultFaviconSize,
                         mFaviconCornerRadius,
                         true,
                         colorSelected);
@@ -717,12 +710,9 @@ public class TabListFaviconProvider {
         if (isBottomTabStrip()) {
             return processBitmapWithBackground(
                     mContext, bitmap, mStripFaviconSize, mFaviconCornerRadius, mFaviconInset);
-        } else if (isVerticalTabList()) {
-            return processBitmapNoBackground(
-                    mContext, bitmap, mVerticalFaviconSize, mFaviconCornerRadius);
         } else {
             return processBitmapNoBackground(
-                    mContext, bitmap, mGridFaviconSize, mFaviconCornerRadius);
+                    mContext, bitmap, mDefaultFaviconSize, mFaviconCornerRadius);
         }
     }
 
@@ -751,9 +741,8 @@ public class TabListFaviconProvider {
             @ColorInt int selectedIconColor,
             @ColorInt int incognitoIconColor,
             @ColorInt int incognitoSelectedIconColor,
-            int gridFaviconSize,
+            int defaultFaviconSize,
             int stripFaviconSize,
-            int verticalFaviconSize,
             int cornerRadius,
             int inset) {
         if (sRoundedGlobeFavicon == null) {
@@ -766,11 +755,11 @@ public class TabListFaviconProvider {
                                         getResizedBitmapFromDrawable(
                                                 AppCompatResources.getDrawable(
                                                         context, R.drawable.ic_globe_24dp),
-                                                gridFaviconSize);
+                                                defaultFaviconSize);
                                 return createChromeOwnedResourceTabFavicon(
                                         context,
                                         globeBitmap,
-                                        gridFaviconSize,
+                                        defaultFaviconSize,
                                         cornerRadius,
                                         defaultIconColor,
                                         selectedIconColor,
@@ -787,7 +776,7 @@ public class TabListFaviconProvider {
                                 return createChromeOwnedResourceTabFavicon(
                                         context,
                                         chromeBitmap,
-                                        gridFaviconSize,
+                                        defaultFaviconSize,
                                         cornerRadius,
                                         defaultIconColor,
                                         selectedIconColor,
@@ -802,11 +791,11 @@ public class TabListFaviconProvider {
                                         getResizedBitmapFromDrawable(
                                                 AppCompatResources.getDrawable(
                                                         context, R.drawable.ic_globe_24dp),
-                                                gridFaviconSize);
+                                                defaultFaviconSize);
                                 return createChromeOwnedResourceTabFavicon(
                                         context,
                                         globeBitmap,
-                                        gridFaviconSize,
+                                        defaultFaviconSize,
                                         cornerRadius,
                                         incognitoIconColor,
                                         incognitoSelectedIconColor,
@@ -823,7 +812,7 @@ public class TabListFaviconProvider {
                                 return createChromeOwnedResourceTabFavicon(
                                         context,
                                         chromeBitmap,
-                                        gridFaviconSize,
+                                        defaultFaviconSize,
                                         cornerRadius,
                                         incognitoIconColor,
                                         incognitoSelectedIconColor,
@@ -878,11 +867,11 @@ public class TabListFaviconProvider {
                                         getResizedBitmapFromDrawable(
                                                 AppCompatResources.getDrawable(
                                                         context, R.drawable.ic_globe_24dp),
-                                                verticalFaviconSize);
+                                                defaultFaviconSize);
                                 return createChromeOwnedResourceTabFavicon(
                                         context,
                                         globeBitmap,
-                                        verticalFaviconSize,
+                                        defaultFaviconSize,
                                         cornerRadius,
                                         defaultIconColor,
                                         defaultIconColor,
@@ -899,7 +888,7 @@ public class TabListFaviconProvider {
                                 return createChromeOwnedResourceTabFavicon(
                                         context,
                                         chromeBitmap,
-                                        verticalFaviconSize,
+                                        defaultFaviconSize,
                                         cornerRadius,
                                         defaultIconColor,
                                         defaultIconColor,
@@ -914,11 +903,11 @@ public class TabListFaviconProvider {
                                         getResizedBitmapFromDrawable(
                                                 AppCompatResources.getDrawable(
                                                         context, R.drawable.ic_globe_24dp),
-                                                verticalFaviconSize);
+                                                defaultFaviconSize);
                                 return createChromeOwnedResourceTabFavicon(
                                         context,
                                         globeBitmap,
-                                        verticalFaviconSize,
+                                        defaultFaviconSize,
                                         cornerRadius,
                                         incognitoIconColor,
                                         incognitoIconColor,
@@ -933,11 +922,11 @@ public class TabListFaviconProvider {
                                         getResizedBitmapFromDrawable(
                                                 AppCompatResources.getDrawable(
                                                         context, R.drawable.ic_incognito_24dp),
-                                                verticalFaviconSize);
+                                                defaultFaviconSize);
                                 return createChromeOwnedResourceTabFavicon(
                                         context,
                                         chromeBitmap,
-                                        verticalFaviconSize,
+                                        defaultFaviconSize,
                                         cornerRadius,
                                         incognitoIconColor,
                                         incognitoIconColor,

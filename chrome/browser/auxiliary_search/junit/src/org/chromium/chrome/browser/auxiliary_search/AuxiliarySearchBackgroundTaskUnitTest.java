@@ -54,7 +54,9 @@ import org.chromium.url.JUnitTestGURLs;
 import java.util.List;
 
 /** Unit tests for AuxiliarySearchBackgroundTask. */
-@Config(shadows = {ShadowSystemClock.class})
+@Config(
+        manifest = Config.NONE,
+        shadows = {ShadowSystemClock.class})
 @RunWith(BaseRobolectricTestRunner.class)
 public class AuxiliarySearchBackgroundTaskUnitTest {
     private static final long FAKE_NATIVE_PTR = 1L;
@@ -62,7 +64,11 @@ public class AuxiliarySearchBackgroundTaskUnitTest {
     @Rule public MockitoRule mMockitoRule = MockitoJUnit.rule();
     @Rule public FakeTimeTestRule mFakeTime = new FakeTimeTestRule();
 
+    private static final int TAB_ID_1 = 1;
+    private static final int TAB_ID_2 = 2;
     private static final int START_TIME = 1000;
+    private static final String TITLE_1 = "Title 1";
+    private static final String TITLE_2 = "Title 2";
     private static final GURL URL_1 = JUnitTestGURLs.URL_1;
     private static final GURL URL_2 = JUnitTestGURLs.URL_2;
 

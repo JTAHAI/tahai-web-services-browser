@@ -17,6 +17,7 @@
 #include "chrome/browser/apps/app_service/app_service_proxy_factory.h"
 #include "chrome/browser/apps/intent_helper/intent_chip_display_prefs.h"
 #include "chrome/browser/apps/link_capturing/apps_intent_picker_delegate.h"
+#include "chrome/browser/apps/link_capturing/intent_picker_info.h"
 #include "chrome/browser/content_settings/host_content_settings_map_factory.h"
 #include "chrome/browser/preloading/prefetch/no_state_prefetch/chrome_no_state_prefetch_contents_delegate.h"
 #include "chrome/browser/profiles/profile.h"
@@ -33,13 +34,11 @@
 #include "chrome/browser/web_applications/proto/web_app_install_state.pb.h"
 #include "chrome/browser/web_applications/web_app_provider.h"
 #include "chrome/browser/web_applications/web_app_utils.h"
-#include "components/apps/link_capturing/intent_picker_info.h"
 #include "components/password_manager/content/common/web_ui_constants.h"
 #include "components/services/app_service/public/cpp/app_types.h"
 #include "components/services/app_service/public/cpp/icon_types.h"
 #include "content/public/browser/navigation_handle.h"
 #include "content/public/common/url_constants.h"
-#include "mojo/public/cpp/bindings/callback_helpers.h"
 #include "ui/base/models/image_model.h"
 #include "ui/gfx/favicon_size.h"
 #include "ui/gfx/image/image.h"
@@ -142,13 +141,6 @@ bool IsShuttingDown(content::WebContents* web_contents) {
 
 IntentPickerTabHelper::~IntentPickerTabHelper() = default;
 
-DEFINE_USER_DATA(IntentPickerTabHelper);
-
-// static
-IntentPickerTabHelper* IntentPickerTabHelper::From(tabs::TabInterface* tab) {
-  return Get(tab->GetUnownedUserDataHost());
-}
-
 void IntentPickerTabHelper::MaybeShowIntentPickerIcon() {
   // Setting icon_resolved_ to false ensures testing callbacks can accurately
   // wait for the entire async process to finish.
@@ -169,15 +161,8 @@ void IntentPickerTabHelper::MaybeShowIntentPickerIcon() {
 void IntentPickerTabHelper::ShowIntentPickerBubbleOrLaunchApp(
     const GURL& url,
     bool always_show,
-    ShowIntentPickerBubbleCallback callback,
-    std::optional<webapps::AppId> scoped_app_id) {
+    ShowIntentPickerBubbleCallback callback) {
   CHECK(web_contents());
-  // The helper can be destroyed with the tab while a lookup or launch is in
-  // flight (e.g. launching the app closes the source tab), which would drop
-  // the weakly-bound continuation. Guarantee the documented contract that
-  // `callback` always runs by reporting no launch in that case.
-  callback = mojo::WrapCallbackWithDefaultInvokeIfNotRun(std::move(callback),
-                                                         /*launched=*/false);
   if (!intent_picker_delegate_->ShouldShowIntentPickerWithApps() ||
       !IsValidWebContentsForIntentPicker(web_contents())) {
     base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
@@ -185,35 +170,17 @@ void IntentPickerTabHelper::ShowIntentPickerBubbleOrLaunchApp(
     return;
   }
 
-  // When the caller has already resolved the exact target app (e.g. the Web
-  // Install API confirming an already-installed app), build the single picker
-  // entry from that identity directly instead of rediscovering by the document
-  // URL. URL scope discovery can miss the app when the document is outside the
-  // app's scope, and can over-return under nested scopes.
-  if (scoped_app_id.has_value()) {
-    std::vector<apps::IntentPickerAppInfo> apps;
-    if (std::optional<apps::IntentPickerAppInfo> info =
-            intent_picker_delegate_->GetAppInfoForId(*scoped_app_id)) {
-      apps.push_back(std::move(*info));
-    }
-    ShowIntentPickerOrLaunchAppImpl(url, always_show, std::move(callback),
-                                    std::move(scoped_app_id), std::move(apps));
-    return;
-  }
-
   intent_picker_delegate_->FindAllAppsForUrl(
-      url, base::BindOnce(
-               &IntentPickerTabHelper::ShowIntentPickerOrLaunchAppImpl,
-               per_navigation_weak_factory_.GetWeakPtr(), url, always_show,
-               std::move(callback), std::move(scoped_app_id)));
+      url,
+      base::BindOnce(&IntentPickerTabHelper::ShowIntentPickerOrLaunchAppImpl,
+                     per_navigation_weak_factory_.GetWeakPtr(), url,
+                     always_show, std::move(callback)));
 }
 
 // static
 void IntentPickerTabHelper::ShowOrHideIcon(content::WebContents* web_contents,
                                            bool should_show_icon) {
-  tabs::TabInterface* tab =
-      tabs::TabInterface::MaybeGetFromContents(web_contents);
-  IntentPickerTabHelper* tab_helper = tab ? From(tab) : nullptr;
+  IntentPickerTabHelper* tab_helper = FromWebContents(web_contents);
   if (!tab_helper) {
     return;
   }
@@ -281,12 +248,11 @@ void IntentPickerTabHelper::MaybeShowIconForApps(
   ShowIconForLinkIntent(!apps.empty());
 }
 
-IntentPickerTabHelper::IntentPickerTabHelper(tabs::TabInterface& tab,
-                                             content::WebContents* web_contents)
+IntentPickerTabHelper::IntentPickerTabHelper(content::WebContents* web_contents)
     : content::WebContentsObserver(web_contents),
+      content::WebContentsUserData<IntentPickerTabHelper>(*web_contents),
       registrar_(MaybeGetWebAppRegistrar(web_contents)),
-      install_manager_(MaybeGetWebAppInstallManager(web_contents)),
-      scoped_unowned_user_data_(tab.GetUnownedUserDataHost(), *this) {
+      install_manager_(MaybeGetWebAppInstallManager(web_contents)) {
   if (install_manager_) {
     install_manager_observation_.Observe(install_manager_.get());
   }
@@ -397,7 +363,7 @@ void IntentPickerTabHelper::ShowOrHideIconInternal(bool should_show_icon) {
   }
 
   tabs::TabInterface* tab_interface =
-      tabs::TabInterface::GetFromContents(web_contents());
+      tabs::TabInterface::GetFromContents(&GetWebContents());
   UpdatePageAction(tab_interface, should_show_icon);
 
   icon_resolved_ = true;
@@ -410,19 +376,8 @@ void IntentPickerTabHelper::ShowIntentPickerOrLaunchAppImpl(
     const GURL& url,
     bool always_show,
     ShowIntentPickerBubbleCallback callback,
-    std::optional<webapps::AppId> scoped_app_id,
     std::vector<apps::IntentPickerAppInfo> apps) {
-  // When `scoped_app_id` is set, callers pre-narrow `apps` to that app.
-  CHECK(!scoped_app_id.has_value() || apps.empty() ||
-        (apps.size() == 1 && apps[0].launch_name == *scoped_app_id));
-
   if (apps.empty() || IsShuttingDown(web_contents())) {
-    base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
-        FROM_HERE, base::BindOnce(std::move(callback), /*launched=*/false));
-    return;
-  }
-
-  if (!IsValidWebContentsForIntentPicker(web_contents())) {
     base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
         FROM_HERE, base::BindOnce(std::move(callback), /*launched=*/false));
     return;
@@ -479,12 +434,6 @@ void IntentPickerTabHelper::OnIntentPickerClosedMaybeLaunch(
     apps::IntentPickerCloseReason close_reason,
     bool should_persist) {
   if (IsShuttingDown(web_contents())) {
-    base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
-        FROM_HERE, base::BindOnce(std::move(callback), /*launched=*/false));
-    return;
-  }
-
-  if (!IsValidWebContentsForIntentPicker(web_contents())) {
     base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
         FROM_HERE, base::BindOnce(std::move(callback), /*launched=*/false));
     return;
@@ -602,3 +551,5 @@ void IntentPickerTabHelper::UpdatePageAction(tabs::TabInterface* tab_interface,
     }
   }
 }
+
+WEB_CONTENTS_USER_DATA_KEY_IMPL(IntentPickerTabHelper);

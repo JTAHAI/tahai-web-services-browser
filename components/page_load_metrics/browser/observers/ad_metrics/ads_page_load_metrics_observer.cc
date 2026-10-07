@@ -1288,14 +1288,9 @@ void AdsPageLoadMetricsObserver::RecordPerFrameHistogramsForHeavyAds(
 
 void AdsPageLoadMetricsObserver::ProcessOngoingNavigationResource(
     content::NavigationHandle* navigation_handle) {
-  // Extract the entry up front so the resource is owned locally for the rest
-  // of this call. Processing it can synchronously re-enter this method: the
-  // heavy ad intervention destroys the frame's in-flight NavigationRequest,
-  // which dispatches DidFinishNavigation. The re-entrant call must not observe
-  // or remove this entry again.
-  auto request_node = ongoing_navigation_resources_.extract(
+  const auto& frame_id_and_request = ongoing_navigation_resources_.find(
       navigation_handle->GetFrameTreeNodeId());
-  if (request_node.empty()) {
+  if (frame_id_and_request == ongoing_navigation_resources_.end()) {
     return;
   }
 
@@ -1307,7 +1302,8 @@ void AdsPageLoadMetricsObserver::ProcessOngoingNavigationResource(
           : content::RenderFrameHost::FromID(
                 navigation_handle->GetPreviousRenderFrameHostId());
 
-  ProcessResourceForFrame(rfh, request_node.mapped());
+  ProcessResourceForFrame(rfh, frame_id_and_request->second);
+  ongoing_navigation_resources_.erase(frame_id_and_request);
 }
 
 FrameTreeData* AdsPageLoadMetricsObserver::FindFrameData(

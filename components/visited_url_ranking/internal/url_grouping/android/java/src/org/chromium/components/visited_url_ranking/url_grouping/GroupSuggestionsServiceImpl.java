@@ -8,7 +8,6 @@ import org.jni_zero.CalledByNative;
 import org.jni_zero.JNINamespace;
 import org.jni_zero.NativeMethods;
 
-import org.chromium.base.CallbackUtils;
 import org.chromium.base.JniOnceCallback;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
@@ -111,7 +110,7 @@ public class GroupSuggestionsServiceImpl implements GroupSuggestionsService {
 
             @Override
             public Runnable bind(UserResponseMetadata result) {
-                return CallbackUtils.emptyRunnable();
+                return () -> {};
             }
         };
     }

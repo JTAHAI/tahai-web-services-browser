@@ -7,7 +7,6 @@
 
 #include "base/containers/flat_set.h"
 #include "base/memory/raw_ptr.h"
-#include "content/common/content_export.h"
 #include "content/public/browser/frame_tree_node_id.h"
 #include "net/http/http_request_headers.h"
 #include "services/network/public/mojom/url_response_head.mojom.h"
@@ -31,8 +30,7 @@ namespace content {
 class BrowserContext;
 class ClientHintsControllerDelegate;
 
-class CONTENT_EXPORT CriticalClientHintsThrottle
-    : public blink::URLLoaderThrottle {
+class CriticalClientHintsThrottle : public blink::URLLoaderThrottle {
  public:
   CriticalClientHintsThrottle(
       BrowserContext* context,

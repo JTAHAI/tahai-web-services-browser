@@ -196,10 +196,7 @@ void OmniboxAutofillBubbleView::OnSuggestionAccepted(
     size_t row_index) {
   if (controller_) {
     controller_->OnSuggestionAccepted(suggestion, row_index);
-    if (views::Widget* widget = GetWidget()) {
-      widget->CloseWithReason(
-          views::Widget::ClosedReason::kAcceptButtonClicked);
-    }
+    CloseBubble();
   }
 }
 

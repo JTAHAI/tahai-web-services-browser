@@ -4,10 +4,10 @@
 
 #include "content/browser/preloading/prerender/prerender_features.h"
 
+#include "build/build_config.h"
 #include "content/public/browser/content_browser_client.h"
 #include "content/public/common/content_client.h"
 #include "content/public/common/content_features.h"
-#include "third_party/blink/public/common/features.h"
 
 namespace features {
 
@@ -26,7 +26,12 @@ const base::FeatureParam<Prerender2FallbackPrefetchSchedulerPolicy>
     kPrerender2FallbackPrefetchSchedulerPolicy{
         &kPrerender2FallbackPrefetchSpecRules,
         "kPrerender2FallbackPrefetchSchedulerPolicy",
+// TODO(crbug.com/342089123): Use consistent policy if possible.
+#if BUILDFLAG(IS_ANDROID)
+        Prerender2FallbackPrefetchSchedulerPolicy::kNotUse,
+#else
         Prerender2FallbackPrefetchSchedulerPolicy::kBurst,
+#endif
         &kPrerender2FallbackPrefetchSchedulerPolicyOptios};
 
 BASE_FEATURE(kPrerender2NoVarySearch, base::FEATURE_ENABLED_BY_DEFAULT);
@@ -50,6 +55,17 @@ const base::FeatureParam<int>
     kPrerender2NoVarySearchWaitForHeadersTimeoutForEmbedders{
         &kPrerender2NoVarySearch, "wait_for_headers_timeout_embedders", 1000};
 
+// If enabled, suppresses prerendering on slow network.
+BASE_FEATURE(kSuppressesPrerenderingOnSlowNetwork,
+             base::FEATURE_DISABLED_BY_DEFAULT);
+
+// Regarding how this number was chosen, see the design doc linked from
+// crbug.com/350519234.
+const base::FeatureParam<base::TimeDelta>
+    kSuppressesPrerenderingOnSlowNetworkThreshold{
+        &kSuppressesPrerenderingOnSlowNetwork,
+        "slow_network_threshold_for_prerendering", base::Milliseconds(208)};
+
 // If enabled, disallows non-trustworthy plaintext HTTP prerendering.
 // See https://crbug.com/340895233 for more details.
 BASE_FEATURE(kPrerender2DisallowNonTrustworthyHttp,
@@ -61,9 +77,6 @@ BASE_FEATURE(kPrerender2WarmUpCompositorForNonImmediate,
              base::FEATURE_DISABLED_BY_DEFAULT);
 
 BASE_FEATURE(kPrerenderUntilScriptUpgrade, base::FEATURE_DISABLED_BY_DEFAULT);
-
-BASE_FEATURE(kPrerenderUntilScriptProcessReuse,
-             base::FEATURE_ENABLED_BY_DEFAULT);
 
 BASE_FEATURE(kPrerender2ReuseInitiatorProcess,
              base::FEATURE_DISABLED_BY_DEFAULT);
@@ -77,9 +90,6 @@ const base::FeatureParam<std::string> kPrerender2ReuseInitiatorProcessEagerness{
 
 const base::FeatureParam<int> kPrerender2ReuseInitiatorProcessMaxReuseCount{
     &kPrerender2ReuseInitiatorProcess, "max_reuse_count", 2};
-
-const base::FeatureParam<bool> kPrerender2CrossOriginIframesNesting{
-    &blink::features::kPrerender2CrossOriginIframes, "nesting", true};
 
 bool UsePrefetchPrerenderIntegration() {
   return base::FeatureList::IsEnabled(

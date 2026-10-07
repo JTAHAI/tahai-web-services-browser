@@ -32,8 +32,7 @@ class SqlSharedCacheIsolatedDatabaseQueriesTest : public testing::Test {
 
   void CreateDatabaseInTempDir() {
     disk_cache::SqlSharedCacheIsolatedDatabase db(
-        "test_nik", temp_dir_.GetPath(), disk_cache::SqlSharedCacheDbId(1),
-        base::SequencedTaskRunner::GetCurrentDefault());
+        "test_nik", temp_dir_.GetPath(), disk_cache::SqlSharedCacheDbId(1));
     EXPECT_TRUE(db.Init().has_value());
   }
 
@@ -63,10 +62,6 @@ TEST_F(SqlSharedCacheIsolatedDatabaseQueriesTest, AllQueriesHaveValidPlan) {
            "`--SEARCH resources USING INDEX index_resources_hash (hash=?)"},
           {SharedCacheIsolatedDatabaseQuery::kDeleteResourceByRowId,
            "`--SEARCH resources USING INTEGER PRIMARY KEY (rowid=?)"},
-          {SharedCacheIsolatedDatabaseQuery::kSelectRowidLimit1,
-           "`--SCAN resources"},
-          {SharedCacheIsolatedDatabaseQuery::kSelectHashes,
-           "`--SCAN resources USING COVERING INDEX index_resources_hash"},
       });
 
   static_assert(kAllQueriesAndPlans.size() + kSchemaAndIndexQueries.size() ==

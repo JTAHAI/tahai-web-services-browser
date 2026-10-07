@@ -15,6 +15,7 @@
 #include "base/memory/free_deleter.h"
 #include "base/memory/ref_counted.h"
 #include "base/test/run_until.h"
+#include "base/test/scoped_feature_list.h"
 #include "base/test/task_environment.h"
 #include "base/test/test_future.h"
 #include "testing/platform_test.h"
@@ -24,6 +25,7 @@
 #include "ui/base/clipboard/clipboard_observer.h"
 #include "ui/base/clipboard/clipboard_util_mac.h"
 #include "ui/base/clipboard/scoped_clipboard_writer.h"
+#include "ui/base/ui_base_features.h"
 #include "ui/gfx/codec/png_codec.h"
 #include "ui/gfx/skia_util.h"
 
@@ -264,6 +266,10 @@ TEST_F(ClipboardMacTest, SourceTracking) {
 }
 
 TEST_F(ClipboardMacTest, ClipboardChangeAPI_BrowserTriggered) {
+  base::test::ScopedFeatureList scoped_feature_list_;
+  scoped_feature_list_.InitAndEnableFeature(
+      features::kPlatformClipboardMonitor);
+
   TestClipboardObserver observer;
 
   // Note that general pasteboard is used since the clipboard monitoring
@@ -286,6 +292,10 @@ TEST_F(ClipboardMacTest, ClipboardChangeAPI_BrowserTriggered) {
 }
 
 TEST_F(ClipboardMacTest, ClipboardChangeAPI_ExternallyTriggered) {
+  base::test::ScopedFeatureList scoped_feature_list_;
+  scoped_feature_list_.InitAndEnableFeature(
+      features::kPlatformClipboardMonitor);
+
   TestClipboardObserver observer;
 
   Clipboard* clipboard = Clipboard::GetForCurrentThread();

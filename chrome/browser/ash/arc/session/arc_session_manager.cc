@@ -9,7 +9,6 @@
 
 #include "ash/constants/ash_switches.h"
 #include "base/check_deref.h"
-#include "base/check_is_test.h"
 #include "base/command_line.h"
 #include "base/debug/dump_without_crashing.h"
 #include "base/feature_list.h"
@@ -19,7 +18,6 @@
 #include "base/metrics/histogram_functions.h"
 #include "base/run_loop.h"
 #include "base/strings/string_split.h"
-#include "base/system/sys_info.h"
 #include "base/task/task_runner.h"
 #include "base/task/task_traits.h"
 #include "base/task/thread_pool.h"
@@ -52,7 +50,6 @@
 #include "chrome/browser/ui/ash/multi_user/multi_user_util.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/webui/ash/diagnostics_dialog/diagnostics_dialog.h"
-#include "chromeos/ash/components/browser_context_helper/browser_context_helper.h"
 #include "chromeos/ash/components/cryptohome/cryptohome_parameters.h"
 #include "chromeos/ash/components/dbus/dlcservice/dlcservice_client.h"
 #include "chromeos/ash/components/dbus/session_manager/session_manager_client.h"
@@ -507,14 +504,12 @@ class ArcSessionManager::ScopedOptInFlowTracker {
 ArcSessionManager::ArcSessionManager(
     PrefService* local_state,
     const ApplicationLocaleStorage* application_locale_storage,
-    metrics::MetricsService* metrics_service,
     std::unique_ptr<ArcSessionRunner> arc_session_runner,
     std::unique_ptr<AdbSideloadingAvailabilityDelegateImpl>
         adb_sideloading_availability_delegate,
     ArcDlcInstaller* arc_dlc_installer)
     : local_state_(CHECK_DEREF(local_state)),
       application_locale_storage_(CHECK_DEREF(application_locale_storage)),
-      metrics_service_(metrics_service),
       arc_session_runner_(std::move(arc_session_runner)),
       adb_sideloading_availability_delegate_(
           std::move(adb_sideloading_availability_delegate)),
@@ -523,10 +518,6 @@ ArcSessionManager::ArcSessionManager(
       arc_dlc_installer_(arc_dlc_installer),
       attempt_restart_callback_(base::BindRepeating(
           []() { session_manager::SessionManager::Get()->RequestRestart(); })) {
-  if (!metrics_service_) {
-    CHECK_IS_TEST();
-  }
-
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
   DCHECK(!g_arc_session_manager);
   g_arc_session_manager = this;
@@ -716,11 +707,9 @@ void ArcSessionManager::OnProvisioningFinished(
 
     prefs->SetBoolean(prefs::kArcSignedIn, true);
 
-    const bool was_provisioning_initiated_from_oobe =
-        prefs->GetBoolean(prefs::kArcProvisioningInitiatedFromOobe);
-
-    if (ShouldLaunchPlayStoreApp(profile_,
-                                 was_provisioning_initiated_from_oobe)) {
+    if (ShouldLaunchPlayStoreApp(
+            profile_,
+            prefs->GetBoolean(prefs::kArcProvisioningInitiatedFromOobe))) {
       playstore_launcher_ = std::make_unique<ArcAppLauncher>(
           profile_, kPlayStoreAppId,
           apps_util::MakeIntentForActivity(
@@ -734,24 +723,6 @@ void ArcSessionManager::OnProvisioningFinished(
     for (auto& observer : observer_list_) {
       observer.OnArcInitialStart();
     }
-
-    // On low-end (4GB RAM) devices, shut down ARCVM after post-OOBE
-    // provisioning to free system resources. ARCVM will be re-activated
-    // on-demand when the user launches an ARC app.
-    if (base::FeatureList::IsEnabled(arc::kShutDownArcPostOobeProvisioning) &&
-        was_provisioning_initiated_from_oobe && IsArcVmEnabled() &&
-        base::SysInfo::Is4GbDevice()) {
-      VLOG(1) << "Shutting down ARCVM post-OOBE provisioning on 4GB device.";
-      activation_is_allowed_ = false;
-      // Set is_activation_delayed_ so that even when ArcSessionManager is
-      // notified on completion of OOBE (e.g.
-      // OnUserSessionStartUpTaskCompleted), ARC won't run immediately at that
-      // time.
-      is_activation_delayed_ = true;
-      is_post_oobe_shutdown_4gb_device_ = true;
-      ShutdownSession();
-    }
-
     return;
   }
 
@@ -977,7 +948,6 @@ void ArcSessionManager::Shutdown() {
   fast_app_reinstall_starter_.reset();
   arc_ui_availability_reporter_.reset();
   profile_ = nullptr;
-  metrics_service_ = nullptr;
   state_ = State::NOT_INITIALIZED;
   if (scoped_opt_in_tracker_) {
     scoped_opt_in_tracker_->TrackShutdown();
@@ -1033,7 +1003,6 @@ void ArcSessionManager::ResetArcState() {
   arc_sign_in_timer_.Stop();
   playstore_launcher_.reset();
   requirement_checker_.reset();
-  activation_necessity_checker_.reset();
 }
 
 void ArcSessionManager::AddObserver(ArcSessionManagerObserver* observer) {
@@ -1183,9 +1152,6 @@ void ArcSessionManager::AllowActivation(AllowActivationReason reason) {
   }
 
   activation_is_allowed_ = true;
-  // Cancel any pending necessity check since activation is now explicitly
-  // allowed.
-  activation_necessity_checker_.reset();
   if (state_ == State::READY) {
     StartArcForRegularBoot();
   }
@@ -1286,8 +1252,7 @@ void ArcSessionManager::RequestEnableImpl() {
     // If the next step was the ToS negotiation, show a notification instead.
     // Otherwise, be silent now. Users are notified when clicking ARC app icons.
     if (!skip_terms_of_service_negotiation && g_ui_enabled) {
-      arc::ShowArcMigrationGuideNotification(CHECK_DEREF(
-          ash::BrowserContextHelper::Get()->GetUserByBrowserContext(profile_)));
+      arc::ShowArcMigrationGuideNotification(profile_);
     }
     return;
   }
@@ -1518,8 +1483,7 @@ void ArcSessionManager::MaybeStartTermsOfServiceNegotiation() {
   skipped_terms_of_service_negotiation_ =
       !is_terms_of_service_negotiation_needed;
   requirement_checker_ = std::make_unique<ArcRequirementChecker>(
-      metrics_service_, profile_, support_host_.get(),
-      android_management_checker_factory_);
+      profile_, support_host_.get(), android_management_checker_factory_);
   requirement_checker_->AddObserver(this);
   requirement_checker_->StartRequirementChecks(
       is_terms_of_service_negotiation_needed,
@@ -1605,8 +1569,7 @@ void ArcSessionManager::StartBackgroundRequirementChecks() {
   }
 
   requirement_checker_ = std::make_unique<ArcRequirementChecker>(
-      metrics_service_, profile_, support_host_.get(),
-      android_management_checker_factory_);
+      profile_, support_host_.get(), android_management_checker_factory_);
   requirement_checker_->StartBackgroundChecks(
       base::BindOnce(&ArcSessionManager::OnBackgroundRequirementChecksDone,
                      weak_ptr_factory_.GetWeakPtr()));
@@ -1771,17 +1734,6 @@ void ArcSessionManager::OnArcDataRemoved(std::optional<bool> result) {
 
     // Note: Currently, we may re-enable ARC even if data removal fails.
     // We may have to avoid it.
-  }
-
-  // If ARCVM was shut down post-OOBE provisioning on low-end devices,
-  // transition the state to READY so that subsequent app launches
-  // (or AllowActivation calls) can re-activate ARCVM on demand.
-  if (is_post_oobe_shutdown_4gb_device_) {
-    is_post_oobe_shutdown_4gb_device_ = false;
-    if (enable_requested_ && profile_ && IsArcProvisioned(profile_)) {
-      state_ = State::READY;
-    }
-    return;
   }
 
   MaybeReenableArc();

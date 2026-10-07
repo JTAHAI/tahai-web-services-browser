@@ -14,7 +14,8 @@
     <script>
       async_test((t) => {
         const parent = document.createElement("div");
-        const element = document.createElement("geolocation");
+        const element = document.createElement("usermedia");
+        element.setAttribute("type", "camera");
         parent.appendChild(element);
 
         parent.style.maskImage = "url(mask.png)";

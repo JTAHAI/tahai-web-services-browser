@@ -1,2 +1,3 @@
-rules:
-- "**": [viewport-segments]
+features:
+- name: viewport-segments
+  files: "**"

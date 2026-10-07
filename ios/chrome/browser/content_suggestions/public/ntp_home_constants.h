@@ -35,7 +35,7 @@ extern const CGFloat kMostVisitedBottomMarginIPhone;
 extern const CGFloat kSuggestionPeekingHeight;
 
 // Dimension of user's identity avatar as a square image.
-extern const CGFloat kIdentityAvatarDiameter;
+extern const CGFloat kIdentityAvatarDimension;
 // Margin around identity avatar and customization menu.
 extern const CGFloat kHeaderIconMargin;
 // Padding around user's identity avatar and its margin.

@@ -31,7 +31,7 @@ export function getHtml(this: SignInPromoElement) {
         ?hidden="${!this.isDeviceManaged_}"
         class="${this.getDisclaimerVisibilityClass_()}">
       <div id="icon-container">
-        <cr-icon icon="cr:domain" aria-hidden="true"></cr-icon>
+        <cr-icon icon="cr:domain" alt=""></cr-icon>
       </div>
       <p id="disclaimerText">${this.managedDeviceDisclaimer_}</p>
     </div>
@@ -41,7 +41,7 @@ export function getHtml(this: SignInPromoElement) {
 <div id="buttonRow" class="fade-in tangible-sync-style">
   <div id="buttonContainer">
     <cr-button id="declineSignInButton"
-        class="tonal-button"
+        class="${this.getDeclineButtonClass_()}"
         ?disabled="${this.areButtonsDisabled_()}"
         @click="${this.onContinueWithoutAccountClick_}">
       $i18n{declineSignInButtonTitle}

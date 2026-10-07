@@ -29,6 +29,7 @@
 #include "device/vr/openxr/openxr_view_configuration.h"
 #include "device/vr/public/cpp/features.h"
 #include "device/vr/public/mojom/xr_session.mojom.h"
+#include "device/vr/test/test_hook.h"
 #include "gpu/GLES2/gl2extchromium.h"
 #include "gpu/command_buffer/client/shared_image_interface.h"
 #include "gpu/command_buffer/common/shared_image_usage.h"
@@ -134,6 +135,11 @@ std::vector<XrEnvironmentBlendMode> OpenXrApiWrapper::GetSupportedBlendModes(
   return environment_blend_modes;
 }
 
+// static
+bool OpenXrApiWrapper::NeedsSeparateActivity() {
+  return test_hook_ == nullptr;
+}
+
 OpenXrApiWrapper::OpenXrApiWrapper() = default;
 
 OpenXrApiWrapper::~OpenXrApiWrapper() {
@@ -199,6 +205,16 @@ bool OpenXrApiWrapper::Initialize(XrInstance instance,
 
   DCHECK(IsInitialized());
 
+  if (test_hook_) {
+    // Allow our mock implementation of OpenXr to be controlled by tests.
+    // The mock implementation of xrCreateInstance returns a pointer to the
+    // service test hook (g_test_helper) as the instance.
+    service_test_hook_ = reinterpret_cast<ServiceTestHook*>(instance_);
+    service_test_hook_->SetTestHook(test_hook_);
+
+    test_hook_->AttachCurrentThread();
+  }
+
   return true;
 }
 
@@ -240,6 +256,9 @@ void OpenXrApiWrapper::Uninitialize() {
                           : nullptr);
     xrDestroySession(session_);
   }
+
+  if (test_hook_)
+    test_hook_->DetachCurrentThread();
 
   if (on_session_ended_callback_) {
     on_session_ended_callback_.Run(ExitXrPresentReason::kOpenXrUninitialize);
@@ -1090,29 +1109,21 @@ XrResult OpenXrApiWrapper::BeginFrame() {
   RETURN_IF_XR_FAILED(xrBeginFrame(session_, &begin_frame_info));
   pending_frame_ = true;
 
-  // On context loss a binding that requires shared images (the Linux Vulkan
-  // path) has none until the replacement context provider arrives; skip the
-  // acquisition in that window rather than dereference a null pointer.
-  const bool acquire_swapchain_images =
-      !graphics_binding_->RequiresSharedImages() || !!context_provider_;
+  RETURN_IF_XR_FAILED(graphics_binding_->AcquireSwapchainImages(
+      context_provider_->SharedImageInterface()));
 
-  if (acquire_swapchain_images) {
-    RETURN_IF_XR_FAILED(graphics_binding_->AcquireSwapchainImages(
-        context_provider_->SharedImageInterface()));
-
-    XrResult wait_result = XR_TIMEOUT_EXPIRED;
-    while (wait_result == XR_TIMEOUT_EXPIRED) {
-      wait_result = graphics_binding_->WaitSwapchainImages(
-          context_provider_->SharedImageInterface());
-      if (wait_result == XR_TIMEOUT_EXPIRED) {
-        if (UpdateAndGetSessionEnded()) {
-          return XR_ERROR_SESSION_LOST;
-        }
+  XrResult wait_result = XR_TIMEOUT_EXPIRED;
+  while (wait_result == XR_TIMEOUT_EXPIRED) {
+    wait_result = graphics_binding_->WaitSwapchainImages(
+        context_provider_->SharedImageInterface());
+    if (wait_result == XR_TIMEOUT_EXPIRED) {
+      if (UpdateAndGetSessionEnded()) {
+        return XR_ERROR_SESSION_LOST;
       }
     }
-
-    RETURN_IF_XR_FAILED(wait_result);
   }
+
+  RETURN_IF_XR_FAILED(wait_result);
 
   RETURN_IF_XR_FAILED(UpdateViewConfigurations());
 
@@ -1815,6 +1826,18 @@ void OpenXrApiWrapper::SetXrSessionState(XrSessionState new_state) {
   }
 
   session_state_ = new_state;
+}
+
+VRTestHook* OpenXrApiWrapper::test_hook_ = nullptr;
+ServiceTestHook* OpenXrApiWrapper::service_test_hook_ = nullptr;
+void OpenXrApiWrapper::SetTestHook(VRTestHook* hook) {
+  // This may be called from any thread - tests are responsible for
+  // maintaining thread safety, typically by not changing the test hook
+  // while presenting.
+  test_hook_ = hook;
+  if (service_test_hook_) {
+    service_test_hook_->SetTestHook(test_hook_);
+  }
 }
 
 }  // namespace device

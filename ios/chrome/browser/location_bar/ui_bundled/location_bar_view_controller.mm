@@ -65,7 +65,6 @@
 #import "ios/chrome/common/ui/colors/semantic_color_names.h"
 #import "ios/chrome/common/ui/util/constraints_ui_util.h"
 #import "ios/chrome/common/ui/util/pointer_interaction_util.h"
-#import "ios/chrome/common/ui/util/ui_util.h"
 #import "ios/chrome/grit/ios_strings.h"
 #import "ios/public/provider/chrome/browser/lens/lens_api.h"
 #import "ui/base/l10n/l10n_util.h"
@@ -183,7 +182,6 @@ const CGFloat kGeminiLiveCircleSize = 20.0;
 @implementation LocationBarViewController {
   BOOL _isNTP;
   BOOL _active;
-  BOOL _textOnly;
   // Stores a snapshot of the fakebox buttons that is overlaid on the Location
   // Bar and anchored to the trailing edge during focus transitions (when it is
   // faded out) and defocus transitions (when it is faded in).
@@ -211,23 +209,14 @@ const CGFloat kGeminiLiveCircleSize = 20.0;
 
 #pragma mark - public
 
-- (instancetype)initWithTextOnly:(BOOL)textOnly {
-  self = [super initWithNibName:nil bundle:nil];
+- (instancetype)init {
+  self = [super init];
   if (self) {
-    _textOnly = textOnly;
-    _locationBarSteadyView =
-        [[LocationBarSteadyView alloc] initWithTextOnly:textOnly];
-    if (!_textOnly && IsGlassToolbarEnabled()) {
-      _steadyViewLayoutGuide = [[UILayoutGuide alloc] init];
-    }
+    _locationBarSteadyView = [[LocationBarSteadyView alloc] init];
     _fullscreenProgress = 1.0;
     _customLeadingViewType = CustomLeadingViewType::kNone;
   }
   return self;
-}
-
-- (instancetype)init {
-  return [self initWithTextOnly:NO];
 }
 
 - (void)setEditView:(UIView<TextFieldViewContaining>*)editView {
@@ -300,12 +289,8 @@ const CGFloat kGeminiLiveCircleSize = 20.0;
 }
 
 - (void)updateTrailingButtonState {
-  if (IsChromeNextIaEnabled()) {
-    BOOL shouldShowVoiceSearch = self.traitCollection.verticalSizeClass ==
-                                 UIUserInterfaceSizeClassCompact;
-
-    self.trailingButtonState =
-        shouldShowVoiceSearch ? kVoiceSearchButton : kShareButton;
+  if (IsNextOldDesignEnabled()) {
+    self.trailingButtonState = kShareButton;
     return;
   }
 
@@ -408,11 +393,6 @@ const CGFloat kGeminiLiveCircleSize = 20.0;
   self.locationBarSteadyView.translatesAutoresizingMaskIntoConstraints = NO;
   AddSameConstraints(self.locationBarSteadyView, self.view);
 
-  if (self.steadyViewLayoutGuide) {
-    [self.view addLayoutGuide:self.steadyViewLayoutGuide];
-    AddSameConstraints(self.steadyViewLayoutGuide, self.locationBarSteadyView);
-  }
-
   if (IsGeminiLiveEnabled()) {
     // Use the Gemini Live symbol.
 #if BUILDFLAG(IOS_USE_BRANDED_ASSETS)
@@ -508,6 +488,10 @@ const CGFloat kGeminiLiveCircleSize = 20.0;
 - (void)updateForFullscreenProgress:(CGFloat)progress {
   _fullscreenProgress = progress;
   CGFloat alphaValue = fmax((progress - 0.85) / 0.15, 0);
+  CGFloat scaleValue =
+      IsChromeNextIaEnabled()
+          ? kFullscreenScaleFactor + (1 - kFullscreenScaleFactor) * progress
+          : 0.79 + 0.21 * progress;
   self.locationBarSteadyView.trailingButton.alpha = alphaValue;
   self.locationBarSteadyView.badgesContainerView.placeholderView.alpha =
       alphaValue;
@@ -518,14 +502,8 @@ const CGFloat kGeminiLiveCircleSize = 20.0;
   BOOL badgeViewShouldCollapse = progress <= kFullscreenProgressThreshold;
   [self.locationBarSteadyView
       setFullScreenCollapsedMode:badgeViewShouldCollapse];
-  if (!IsGlassToolbarEnabled()) {
-    CGFloat scaleValue =
-        IsChromeNextIaEnabled()
-            ? kFullscreenScaleFactor + (1 - kFullscreenScaleFactor) * progress
-            : (0.79 + 0.21 * progress);
-    self.locationBarSteadyView.transform =
-        CGAffineTransformMakeScale(scaleValue, scaleValue);
-  }
+  self.locationBarSteadyView.transform =
+      CGAffineTransformMakeScale(scaleValue, scaleValue);
   [self updateCustomLeadingViewVisibilityAnimated:YES];
 }
 
@@ -903,6 +881,13 @@ const CGFloat kGeminiLiveCircleSize = 20.0;
 }
 
 - (void)setTrailingButtonState:(TrailingButtonState)state {
+  // This is dirty, but this is experiment-only and will be removed in one
+  // milestone.
+  if (base::FeatureList::IsEnabled(kDisableShareButton) &&
+      state == kShareButton) {
+    state = kNoButton;
+  }
+
   if (IsChromeNextIaEnabled() && !IsChromeNextIaShareIconVisible() &&
       state == kShareButton) {
     state = kNoButton;
@@ -975,10 +960,7 @@ const CGFloat kGeminiLiveCircleSize = 20.0;
   if (!self.isViewLoaded) {
     return;
   }
-  // The _active flag is only used when NextIA is enabled. When it is disabled,
-  // the location bar should always be treated as active for layout guides.
-  BOOL isActive = _active || !IsChromeNextIaEnabled();
-  if (isActive) {
+  if (_active) {
     if (self.readerModeChipView) {
       [self.layoutGuideCenter referenceView:self.readerModeChipView
                                   underName:kReaderModeOptionsEntrypointGuide];
@@ -1022,7 +1004,8 @@ const CGFloat kGeminiLiveCircleSize = 20.0;
   NSMutableArray<UIMenuElement*>* menuElements = [[NSMutableArray alloc] init];
   __weak __typeof__(self) weakSelf = self;
 
-  if (IsChromeNextIaEnabled() && !IsChromeNextIaShareIconVisible() &&
+  if ((base::FeatureList::IsEnabled(kShareInOmniboxLongPress) ||
+       (IsChromeNextIaEnabled() && !IsChromeNextIaShareIconVisible())) &&
       self.shareButtonEnabled) {
     base::UmaHistogramEnumeration("Mobile.ShareThisPage.Shown",
                                   ShareThisPageLocation::kOmniboxLongPress);
@@ -1391,12 +1374,9 @@ const CGFloat kGeminiLiveCircleSize = 20.0;
   }
   if (IsDirectBWGEntryPoint()) {
     [self.geminiHandler
-        startGeminiEntryFlowWithStartupState:
+        startGeminiFlowWithStartupState:
             [[GeminiStartupState alloc]
-                initWithEntryPoint:gemini::EntryPoint::DirectOmniboxBadge]
-                          baseViewController:self
-                    showSnackbarOnCompletion:YES
-                                  completion:nil];
+                initWithEntryPoint:gemini::EntryPoint::DirectOmniboxBadge]];
   } else {
     RecordAIHubIconTapped();
     [self.pageActionMenuHandler showPageActionMenu];

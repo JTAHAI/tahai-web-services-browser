@@ -8,7 +8,6 @@
 #include <utility>
 
 #include "base/functional/callback_helpers.h"
-#include "build/build_config.h"
 #include "ui/base/interaction/element_identifier.h"
 #include "ui/views/controls/button/button.h"
 #include "ui/views/controls/button/label_button.h"

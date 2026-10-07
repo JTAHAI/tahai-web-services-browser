@@ -59,9 +59,4 @@ public interface BrowserControlsVisibilityManager extends BrowserControlsStatePr
 
     /** Release a hiding token returned from {@link #hideAndroidControlsAndClearOldToken(int)}. */
     void releaseAndroidControlsHidingToken(int token);
-
-    /** Returns whether any hiding tokens are currently held. */
-    default boolean hasHidingTokens() {
-        return false;
-    }
 }

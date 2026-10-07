@@ -53,12 +53,7 @@ class FakeDeviceAccountsProvider : public DeviceAccountsProvider {
   void FireOnAccountsOnDeviceChanged();
   void FireAccountOnDeviceUpdated(const DeviceAccountInfo& account);
 
-  // TODO(crbug.com/484371187): Investigate if reentrancy can be removed.
-  base::ObserverList<
-      Observer,
-      true,
-      base::ObserverListReentrancyPolicy::kAllowReentrancyUntriaged>
-      observer_list_;
+  base::ObserverList<Observer, true> observer_list_;
   std::vector<DeviceAccountInfo> accounts_;
   std::vector<AccessTokenRequest> requests_;
 };

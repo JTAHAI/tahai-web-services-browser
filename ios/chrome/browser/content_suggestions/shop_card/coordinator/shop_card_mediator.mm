@@ -312,7 +312,8 @@ std::u16string GetHostnameFromGURL(const GURL& url) {
 
 - (void)openShopCardItem:(ShopCardConfig*)config {
   [self.NTPActionsDelegate shopCardOpened];
-  [ContentSuggestionsMetricsRecorder recordShopCardOpened:config.shopCardData];
+  [self.contentSuggestionsMetricsRecorder
+      recordShopCardOpened:config.shopCardData];
   [self.shopCardActionDelegate openURL:config.shopCardData.productURL];
   [self.delegate removeShopCard];
   [self logEngagementForItem:config];
@@ -328,7 +329,7 @@ std::u16string GetHostnameFromGURL(const GURL& url) {
     DCHECK(magicStackModule);
     [self logImpressionForItem:static_cast<ShopCardConfig*>(magicStackModule)];
   }
-  [ContentSuggestionsMetricsRecorder
+  [self.contentSuggestionsMetricsRecorder
       recordShopCardImpression:static_cast<ShopCardConfig*>(magicStackModule)
                                    .shopCardData
                        atIndex:index];

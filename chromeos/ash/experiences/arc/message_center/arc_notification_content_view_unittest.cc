@@ -19,8 +19,6 @@
 #include "ash/system/status_area_widget_test_helper.h"
 #include "ash/system/unified/unified_system_tray.h"
 #include "ash/test/ash_test_base.h"
-#include "base/i18n/rtl.h"
-#include "base/i18n/test/scoped_rtl_for_testing.h"
 #include "base/memory/raw_ptr.h"
 #include "base/run_loop.h"
 #include "base/strings/utf_string_conversions.h"
@@ -447,61 +445,58 @@ TEST_F(ArcNotificationContentViewTest, CloseButtonPosition) {
   Notification notification = CreateNotification(notification_item.get());
   PrepareSurface(notification_key);
 
-  {
-    base::i18n::ScopedRTLForTesting scoped_rtl(false);
-    CreateAndShowNotificationView(notification);
-
-    {
-      // Focus the close button to make it visible.
-      auto* control_buttons_view = GetControlButtonsView();
-      ASSERT_TRUE(control_buttons_view);
-      views::Button* close_button = control_buttons_view->close_button();
-      ASSERT_TRUE(close_button);
-      close_button->RequestFocus();
-
-      // In LTR layout, the control buttons should be near top-right.
-      auto* notification_content_view = GetArcNotificationContentView();
-      ASSERT_TRUE(notification_content_view);
-      auto* control_buttons_widget = GetControlButtonsWidget();
-      ASSERT_TRUE(control_buttons_widget);
-      EXPECT_EQ(
-          message_center::kControlButtonPadding *
-              2 /* padding for each x and y */,
-          control_buttons_widget->GetWindowBoundsInScreen()
-              .ManhattanDistanceToPoint(
-                  notification_content_view->GetBoundsInScreen().top_right()));
-    }
-    CloseNotificationView();
-  }
+  base::i18n::SetRTLForTesting(false);
+  CreateAndShowNotificationView(notification);
 
   {
-    // Switch to RTL mode.
-    base::i18n::ScopedRTLForTesting scoped_rtl(true);
-    CreateAndShowNotificationView(notification);
+    // Focus the close button to make it visible.
+    auto* control_buttons_view = GetControlButtonsView();
+    ASSERT_TRUE(control_buttons_view);
+    views::Button* close_button = control_buttons_view->close_button();
+    ASSERT_TRUE(close_button);
+    close_button->RequestFocus();
 
-    {
-      // Focus the close button to make it visible.
-      auto* control_buttons_view = GetControlButtonsView();
-      ASSERT_TRUE(control_buttons_view);
-      views::Button* close_button = control_buttons_view->close_button();
-      ASSERT_TRUE(close_button);
-      close_button->RequestFocus();
-
-      // In RTL layout, The control buttons should be near top-left.
-      auto* notification_content_view = GetArcNotificationContentView();
-      ASSERT_TRUE(notification_content_view);
-      auto* control_buttons_widget = GetControlButtonsWidget();
-      ASSERT_TRUE(control_buttons_widget);
-      EXPECT_EQ(
-          message_center::kControlButtonPadding *
-              2 /* padding for each x and y */,
-          control_buttons_widget->GetWindowBoundsInScreen()
-              .ManhattanDistanceToPoint(
-                  notification_content_view->GetBoundsInScreen().origin()));
-    }
-
-    CloseNotificationView();
+    // In LTR layout, the control buttons should be near top-right.
+    auto* notification_content_view = GetArcNotificationContentView();
+    ASSERT_TRUE(notification_content_view);
+    auto* control_buttons_widget = GetControlButtonsWidget();
+    ASSERT_TRUE(control_buttons_widget);
+    EXPECT_EQ(
+        message_center::kControlButtonPadding *
+            2 /* padding for each x and y */,
+        control_buttons_widget->GetWindowBoundsInScreen()
+            .ManhattanDistanceToPoint(
+                notification_content_view->GetBoundsInScreen().top_right()));
   }
+
+  CloseNotificationView();
+
+  // Switch to RTL mode.
+  base::i18n::SetRTLForTesting(true);
+
+  CreateAndShowNotificationView(notification);
+
+  {
+    // Focus the close button to make it visible.
+    auto* control_buttons_view = GetControlButtonsView();
+    ASSERT_TRUE(control_buttons_view);
+    views::Button* close_button = control_buttons_view->close_button();
+    ASSERT_TRUE(close_button);
+    close_button->RequestFocus();
+
+    // In RTL layout, The control buttons should be near top-left.
+    auto* notification_content_view = GetArcNotificationContentView();
+    ASSERT_TRUE(notification_content_view);
+    auto* control_buttons_widget = GetControlButtonsWidget();
+    ASSERT_TRUE(control_buttons_widget);
+    EXPECT_EQ(message_center::kControlButtonPadding *
+                  2 /* padding for each x and y */,
+              control_buttons_widget->GetWindowBoundsInScreen()
+                  .ManhattanDistanceToPoint(
+                      notification_content_view->GetBoundsInScreen().origin()));
+  }
+
+  CloseNotificationView();
 }
 
 TEST_F(ArcNotificationContentViewTest, ReuseSurfaceAfterClosing) {

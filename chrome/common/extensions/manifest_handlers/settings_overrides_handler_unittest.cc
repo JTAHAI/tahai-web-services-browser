@@ -158,7 +158,8 @@ TEST(OverrideSettingsTest, ParseManifest) {
       extension->manifest()->FindPath(manifest_keys::kSettingsOverride));
 
   const SettingsOverrides* settings_override =
-      extension->GetManifestData<SettingsOverrides>();
+      static_cast<const SettingsOverrides*>(
+          extension->GetManifestData(manifest_keys::kSettingsOverride));
   ASSERT_TRUE(settings_override);
   ASSERT_TRUE(settings_override->search_engine);
   EXPECT_TRUE(settings_override->search_engine->is_default);
@@ -192,7 +193,8 @@ TEST(OverrideSettingsTest, ParsePrepopulatedId) {
       extension->manifest()->FindPath(manifest_keys::kSettingsOverride));
 
   const SettingsOverrides* settings_override =
-      extension->GetManifestData<SettingsOverrides>();
+      static_cast<const SettingsOverrides*>(
+          extension->GetManifestData(manifest_keys::kSettingsOverride));
   ASSERT_TRUE(settings_override);
   ASSERT_TRUE(settings_override->search_engine);
   EXPECT_TRUE(settings_override->search_engine->is_default);
@@ -216,7 +218,8 @@ TEST(OverrideSettingsTest, ParseManifestBrokenHomepageButCorrectStartupPages) {
       extension->manifest()->FindPath(manifest_keys::kSettingsOverride));
 
   const SettingsOverrides* settings_override =
-      extension->GetManifestData<SettingsOverrides>();
+      static_cast<const SettingsOverrides*>(
+          extension->GetManifestData(manifest_keys::kSettingsOverride));
   ASSERT_TRUE(settings_override);
   EXPECT_EQ(std::vector<GURL>(1, GURL("http://www.startup.com")),
             settings_override->startup_pages);
@@ -235,7 +238,8 @@ TEST(OverrideSettingsTest, ParseManifestBrokenStartupPagesButCorrectHomepage) {
   ASSERT_TRUE(
       extension->manifest()->FindPath(manifest_keys::kSettingsOverride));
   const SettingsOverrides* settings_override =
-      extension->GetManifestData<SettingsOverrides>();
+      static_cast<const SettingsOverrides*>(
+          extension->GetManifestData(manifest_keys::kSettingsOverride));
   ASSERT_TRUE(settings_override);
   EXPECT_TRUE(settings_override->startup_pages.empty());
   EXPECT_EQ(GURL("http://www.homepage.com"), *settings_override->homepage);

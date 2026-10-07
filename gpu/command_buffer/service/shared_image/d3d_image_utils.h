@@ -40,7 +40,7 @@ wgpu::SharedTextureMemory CreateDawnSharedTextureMemory(
     bool use_keyed_mutex,
     HANDLE handle);
 
-GPU_GLES2_EXPORT wgpu::SharedTextureMemory CreateDawnSharedTextureMemory(
+wgpu::SharedTextureMemory CreateDawnSharedTextureMemory(
     const wgpu::Device& device,
     Microsoft::WRL::ComPtr<ID3D11Texture2D> texture);
 

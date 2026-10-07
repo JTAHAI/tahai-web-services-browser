@@ -179,12 +179,12 @@ enum class SigninScreenState {
 }
 
 - (void)dealloc {
-  CHECK(!_accountManagerService);
-  CHECK(!_authenticationService);
-  CHECK(!_identityManager);
-  CHECK(!self.localPrefService);
-  CHECK(!self.prefService);
-  CHECK(!self.syncService);
+  CHECK(!_accountManagerService, base::NotFatalUntil::M145);
+  CHECK(!_authenticationService, base::NotFatalUntil::M145);
+  CHECK(!_identityManager, base::NotFatalUntil::M145);
+  CHECK(!self.localPrefService, base::NotFatalUntil::M145);
+  CHECK(!self.prefService, base::NotFatalUntil::M145);
+  CHECK(!self.syncService, base::NotFatalUntil::M145);
 }
 
 - (void)disconnect {
@@ -202,7 +202,7 @@ enum class SigninScreenState {
 
 - (void)startSignInWithAuthenticationFlow:
     (AuthenticationFlow*)authenticationFlow {
-  CHECK(!self.signinInProgress);
+  CHECK(!self.signinInProgress, base::NotFatalUntil::M145);
   self.signinInProgress = YES;
   [self userAttemptedToSignin];
   RecordMetricsReportingDefaultState();
@@ -210,7 +210,8 @@ enum class SigninScreenState {
   // The sign-in screen should not be displayed if the user is already
   // signed-in for non-deeplink flows.
   CHECK(_screenState == SigninScreenState::kDeeplink ||
-        !_authenticationService->HasPrimaryIdentity());
+            !_authenticationService->HasPrimaryIdentity(),
+        base::NotFatalUntil::M145);
   [self.consumer setUIEnabled:NO];
   authenticationFlow.delegate = self;
   [authenticationFlow startSignIn];
@@ -220,7 +221,8 @@ enum class SigninScreenState {
   // The sign-in screen should not be displayed if the user is already
   // signed-in for non-deeplink flows.
   CHECK(_screenState == SigninScreenState::kDeeplink ||
-        !_authenticationService->HasPrimaryIdentity());
+            !_authenticationService->HasPrimaryIdentity(),
+        base::NotFatalUntil::M140);
   if (completion) {
     completion();
   }
@@ -381,7 +383,7 @@ enum class SigninScreenState {
     GaiaId gaia(self.selectedIdentity.gaiaId);
     return std::ranges::contains(
         _identityManager->GetAccountsOnDevice(), gaia,
-        [](const AccountInfo& info) { return info.GetGaiaId(); });
+        [](const AccountInfo& info) { return info.gaia; });
   }
   return false;
 }
@@ -420,7 +422,7 @@ enum class SigninScreenState {
 // asynchronously when the management status if retrieved and the identity is
 // managed.
 - (BOOL)isIdentityKnownToBeManaged:(id<SystemIdentity>)identity {
-  CHECK(identity);
+  CHECK(identity, base::NotFatalUntil::M147);
   if (std::optional<BOOL> managed = IsIdentityManaged(identity);
       managed.has_value()) {
     return managed.value();
@@ -446,7 +448,7 @@ enum class SigninScreenState {
 
 - (void)extendedAccountInfoDidUpdate:(const AccountInfo&)info {
   id<SystemIdentity> identity =
-      _accountManagerService->GetIdentityOnDeviceWithGaiaID(info.GetGaiaId());
+      _accountManagerService->GetIdentityOnDeviceWithGaiaID(info.gaia);
   [self handleIdentityUpdated:identity];
 }
 

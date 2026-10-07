@@ -3,8 +3,6 @@
 # found in the LICENSE file.
 
 source_set("url_loading") {
-  defines = [ "IS_ISOLATED_WEB_APPS_IMPL" ]
-  visibility = [ "//components/webapps/isolated_web_apps/*" ]
   sources = [
     "url_loader.cc",
     "url_loader.h",
@@ -28,7 +26,6 @@ source_set("url_loading") {
   public_deps = [
     "//base",
     "//components/web_package",
-    "//components/webapps/isolated_web_apps/public",
     "//components/webapps/isolated_web_apps/reading",
     "//content/public/browser",
     "//mojo/public/cpp/bindings",

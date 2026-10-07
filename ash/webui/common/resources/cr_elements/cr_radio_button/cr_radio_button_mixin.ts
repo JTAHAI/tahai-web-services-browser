@@ -78,13 +78,13 @@ export const CrRadioButtonMixin = dedupingMixin(
           };
         }
 
-        declare checked: boolean;
-        declare disabled: boolean;
-        declare focusable: boolean;
-        declare hideLabelText: boolean;
-        declare label: string;
-        declare name: string;
-        declare protected buttonTabIndex_: number;
+        checked: boolean;
+        disabled: boolean;
+        focusable: boolean;
+        hideLabelText: boolean;
+        label: string;
+        name: string;
+        private buttonTabIndex_: number;
 
         override connectedCallback() {
           super.connectedCallback();
@@ -105,15 +105,15 @@ export const CrRadioButtonMixin = dedupingMixin(
           assertNotReached();
         }
 
-        protected onFocus_() {
+        private onFocus_() {
           this.getPaperRipple().showAndHoldDown();
         }
 
-        protected hideRipple_() {
+        private hideRipple_() {
           this.getPaperRipple().clear();
         }
 
-        protected onFocusableChanged_() {
+        private onFocusableChanged_() {
           const links = this.querySelectorAll('a');
           links.forEach((link) => {
             // Remove the tab stop on any links when the row is unchecked.
@@ -123,15 +123,15 @@ export const CrRadioButtonMixin = dedupingMixin(
           });
         }
 
-        protected getAriaChecked_(): string {
+        private getAriaChecked_(): string {
           return this.checked ? 'true' : 'false';
         }
 
-        protected getAriaDisabled_(): string {
+        private getAriaDisabled_(): string {
           return this.disabled ? 'true' : 'false';
         }
 
-        protected getTabIndex_(): number {
+        private getTabIndex_(): number {
           return this.focusable ? 0 : -1;
         }
 
@@ -144,7 +144,7 @@ export const CrRadioButtonMixin = dedupingMixin(
          *    it'll correctly obey non-zero tabindex ordering of the
          *    containing document.
          */
-        protected onInputKeydown_(e: KeyboardEvent) {
+        private onInputKeydown_(e: KeyboardEvent) {
           if (e.shiftKey && e.key === 'Tab') {
             this.focus();
           }

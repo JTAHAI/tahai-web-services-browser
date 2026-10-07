@@ -8,7 +8,6 @@
 
 #import <string_view>
 
-#import "base/memory/ref_counted_memory.h"
 #import "base/notimplemented.h"
 #import "ios/web/common/features.h"
 #import "ios/web/public/init/web_main_parts.h"
@@ -63,8 +62,7 @@ std::string_view WebClient::GetDataResource(
   return std::string_view();
 }
 
-scoped_refptr<base::RefCountedMemory> WebClient::GetDataResourceBytes(
-    int resource_id) const {
+base::RefCountedMemory* WebClient::GetDataResourceBytes(int resource_id) const {
   return nullptr;
 }
 

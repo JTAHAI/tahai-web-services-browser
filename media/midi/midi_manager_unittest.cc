@@ -412,7 +412,13 @@ class PlatformMidiManagerTest : public ::testing::Test {
   std::unique_ptr<MidiService> service_;
 };
 
-TEST_F(PlatformMidiManagerTest, CreatePlatformMidiManager) {
+#if BUILDFLAG(IS_ANDROID)
+// The test sometimes fails on Android. https://crbug.com/844027
+#define MAYBE_CreatePlatformMidiManager DISABLED_CreatePlatformMidiManager
+#else
+#define MAYBE_CreatePlatformMidiManager CreatePlatformMidiManager
+#endif
+TEST_F(PlatformMidiManagerTest, MAYBE_CreatePlatformMidiManager) {
   StartSession();
   ASSERT_TRUE(future()->Wait());
   Result result = client()->result();

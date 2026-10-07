@@ -9,7 +9,6 @@
 #include <memory>
 #include <optional>
 #include <string>
-#include <string_view>
 #include <vector>
 
 #include "base/cancelable_callback.h"
@@ -191,32 +190,9 @@ class EnclaveManager : public EnclaveManagerInterface {
     kUploadVaultAndMemberFromResponseFailedResponseWasNotMap = 42,
     kUploadVaultAndMemberFromResponseFailedToParseResponse = 43,
     kDoNextActionFailedAccountMismatch = 44,
-    // Indicates that the action was not started because the wrapped PIN could
-    // not be parsed or failed invariants check in `AddDeviceToAccount`.
-    kAddDeviceToAccountNotStartedWrappedPinParsingError = 45,
-    // Indicates that the action was not started because the wrapped PIN from
-    // security domain update could not be parsed or failed invariants check in
-    // `ConsiderSecurityDomainState`.
-    kConsiderSecurityDomainStateNotStartedWrappedPinParsingError = 46,
-    kMaxValue = kConsiderSecurityDomainStateNotStartedWrappedPinParsingError,
+    kMaxValue = kDoNextActionFailedAccountMismatch,
   };
   // LINT.ThenChange(//tools/metrics/histograms/metadata/webauthn/enums.xml:EnclaveManagerActionOutcome)
-
-  // LINT.IfChange(EnclaveManagerActionForUMA)
-  enum class ActionForUMA {
-    kRegisterIfNeeded,
-    kSetupWithPIN,
-    kAddDeviceToAccount,
-    kAddDeviceAndPINToAccount,
-    kSetPIN,
-    kChangePIN,
-#if BUILDFLAG(IS_MAC)
-    kAddICloudRecoveryKey,
-#endif  // BUILDFLAG(IS_MAC)
-    kUnenroll,
-    kConsiderSecurityDomainState,
-  };
-  // LINT.ThenChange(//tools/metrics/histograms/metadata/webauthn/histograms.xml:EnclaveManagerActionForUMA)
 
   class UvKeyCreationLock {
    public:
@@ -609,12 +585,8 @@ class EnclaveManager : public EnclaveManagerInterface {
 
   void RemoveGaiaIdsFromLocalState(base::flat_set<GaiaId> gaia_ids_to_remove);
 
-  // Returns a callback that records the `ActionOutcome` metric to
-  // the histogram corresponding to `action` and then invokes `callback` with a
-  // boolean indicating whether the outcome was successful.
   base::OnceCallback<void(EnclaveManager::ActionOutcome)>
-  ToActionOutcomeCallback(EnclaveManager::Callback callback,
-                          ActionForUMA action);
+  ToActionOutcomeCallback(EnclaveManager::Callback callback);
 
   const base::FilePath file_path_;
   const raw_ptr<signin::IdentityManager> identity_manager_;

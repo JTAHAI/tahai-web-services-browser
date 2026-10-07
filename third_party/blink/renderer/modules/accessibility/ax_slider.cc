@@ -49,15 +49,17 @@ AccessibilityOrientation AXSlider::Orientation() const {
     return kAccessibilityOrientationHorizontal;
   }
 
-  const ComputedStyle& style = GetLayoutObject()->StyleRef();
+  const ComputedStyle* style = GetLayoutObject()->Style();
+  if (!style)
+    return kAccessibilityOrientationHorizontal;
 
   // If CSS writing-mode is vertical, return kAccessibilityOrientationVertical.
-  if (!style.IsHorizontalWritingMode()) {
+  if (!style->IsHorizontalWritingMode()) {
     return kAccessibilityOrientationVertical;
   }
 
   // Else, look at the CSS appearance property for slider orientation.
-  switch (style.EffectiveAppearance()) {
+  switch (style->EffectiveAppearance()) {
     case AppearanceValue::kSliderThumbHorizontal:
     case AppearanceValue::kSliderHorizontal:
     case AppearanceValue::kMediaSlider:

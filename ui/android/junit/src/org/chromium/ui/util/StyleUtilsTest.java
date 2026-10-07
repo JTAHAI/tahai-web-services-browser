@@ -15,6 +15,7 @@ import androidx.test.core.app.ApplicationProvider;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.robolectric.annotation.Config;
 
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.base.test.util.DisabledTest;
@@ -22,6 +23,7 @@ import org.chromium.ui.R;
 
 /** Tests for {@link StyleUtils} class. */
 @RunWith(BaseRobolectricTestRunner.class)
+@Config(manifest = Config.NONE)
 public class StyleUtilsTest {
     private Context mContext;
 

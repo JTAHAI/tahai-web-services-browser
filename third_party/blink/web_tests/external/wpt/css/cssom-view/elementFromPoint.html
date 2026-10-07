@@ -189,7 +189,6 @@
 
       test(function(){
           var fieldsetDiv = document.getElementById("fieldset-div");
-          fieldsetDiv.scrollIntoView();
           var divRect = fieldsetDiv.getBoundingClientRect();
           assert_equals(document.elementFromPoint(divRect.left + divRect.width/2,
                                                   divRect.top + divRect.height/2),

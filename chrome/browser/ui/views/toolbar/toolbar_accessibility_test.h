@@ -20,8 +20,6 @@ namespace ui {
 class TrackedElement;
 }
 
-class BrowserWindowInterface;
-
 // This inherits from WebUIAndViewsToolbarInteractiveUiTestBase not because it
 // depends on that parent class, but because some of its subclasses do, and
 // WebUIAndViewsToolbarInteractiveUiTestBase has no effect unless the methods it
@@ -37,7 +35,7 @@ class ToolbarAccessibilityTest
 
  protected:
   // Waits for the initial WebUI to be ready to show if it's enabled.
-  void WaitForInitialWebUI(BrowserWindowInterface* browser = nullptr);
+  void WaitForInitialWebUI(Browser* browser = nullptr);
 
   // Sets up accessibility for a test and waits for the WebUI renderer to
   // populate accessibility data if |use_webui| is true.

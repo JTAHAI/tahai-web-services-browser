@@ -4,7 +4,6 @@
 
 #include "third_party/blink/renderer/core/html/media/html_media_element.h"
 
-#include "base/memory/raw_ptr.h"
 #include "base/run_loop.h"
 #include "base/test/gtest_util.h"
 #include "base/time/time_override.h"
@@ -43,6 +42,7 @@
 #include "third_party/blink/renderer/platform/bindings/exception_state.h"
 #include "third_party/blink/renderer/platform/heap/garbage_collected.h"
 #include "third_party/blink/renderer/platform/heap/thread_state_scopes.h"
+#include "third_party/blink/renderer/platform/mediastream/media_stream_descriptor.h"
 #include "third_party/blink/renderer/platform/network/network_state_notifier.h"
 #include "third_party/blink/renderer/platform/testing/empty_web_media_player.h"
 #include "third_party/blink/renderer/platform/testing/runtime_enabled_features_test_helpers.h"
@@ -839,8 +839,7 @@ class HTMLMediaElementTest : public testing::TestWithParam<MediaTestParam> {
   Persistent<FullscreenMockChromeClient> chrome_client_;
 
   // Owned by WebMediaStubLocalFrameClient.
-  raw_ptr<MockWebMediaPlayer, UnprotectedInRelease | DanglingUntriaged>
-      media_player_;
+  MockWebMediaPlayer* media_player_;
   base::WeakPtr<WebMediaPlayer> media_player_weak_;
 
   TestMediaPlayerHost media_player_host_;
@@ -3434,6 +3433,46 @@ TEST_P(HTMLMediaElementTest, MediaShouldBeOpaque_NetworkState) {
   // opaque.
   SetNetworkState(WebMediaPlayer::kNetworkStateIdle);
   EXPECT_TRUE(MediaShouldBeOpaque());
+}
+
+TEST_P(HTMLMediaElementTest, SourceWasAddedIgnoredWithSrcObject) {
+  MediaStreamComponentVector audio_components;
+  MediaStreamComponentVector video_components;
+  auto* descriptor = MakeGarbageCollected<MediaStreamDescriptor>(
+      audio_components, video_components);
+  Media()->SetSrcObjectVariant(descriptor);
+  EXPECT_TRUE(Media()->HasSrcObject());
+
+  // With srcObject set, appending a <source> child element must be ignored.
+  auto* source =
+      Media()->GetDocument().CreateRawElement(html_names::kSourceTag);
+  source->setAttribute(html_names::kSrcAttr,
+                       AtomicString("http://example.com/test.mp4"));
+  Media()->appendChild(source);
+
+  test::RunPendingTasks();
+
+  EXPECT_TRUE(Media()->HasSrcObject());
+}
+
+TEST_P(HTMLMediaElementTest, SourceWasAddedIgnoredWhenNetworkStateNotNoSource) {
+  Media()->SetSrc(SrcSchemeToURL(TestURLScheme::kHttp));
+  test::RunPendingTasks();
+  ASSERT_TRUE(Media()->GetWebMediaPlayer());
+
+  SetReadyState(HTMLMediaElement::kHaveMetadata);
+  SetNetworkState(WebMediaPlayer::kNetworkStateDecodeError);
+  EXPECT_EQ(Media()->getNetworkState(), HTMLMediaElement::kNetworkIdle);
+
+  auto* source =
+      Media()->GetDocument().CreateRawElement(html_names::kSourceTag);
+  source->setAttribute(html_names::kSrcAttr,
+                       AtomicString("http://example.com/test.mp4"));
+  Media()->appendChild(source);
+
+  test::RunPendingTasks();
+
+  EXPECT_EQ(Media()->getNetworkState(), HTMLMediaElement::kNetworkIdle);
 }
 
 }  // namespace blink

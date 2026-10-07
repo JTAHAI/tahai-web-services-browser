@@ -1,2 +1,4 @@
-rules:
-- signature-invalid.html: [webvtt]
+features:
+- name: webvtt
+  files:
+  - signature-invalid.html

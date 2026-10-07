@@ -4,8 +4,6 @@
 
 #include "net/dns/record_rdata.h"
 
-#include <stdint.h>
-
 #include <algorithm>
 #include <array>
 #include <memory>
@@ -13,6 +11,7 @@
 #include <string_view>
 #include <utility>
 
+#include "base/big_endian.h"
 #include "base/compiler_specific.h"
 #include "base/containers/span.h"
 #include "net/dns/dns_response.h"

@@ -11,9 +11,6 @@ import android.content.IntentFilter;
 
 import androidx.annotation.VisibleForTesting;
 
-import org.jni_zero.CalledByNative;
-import org.jni_zero.NativeMethods;
-
 import org.chromium.base.task.PostTask;
 import org.chromium.base.task.TaskRunner;
 import org.chromium.base.task.TaskTraits;
@@ -119,31 +116,5 @@ public class ScreenStateReceiver extends BroadcastReceiver {
 
         sInstance.unregister();
         sInstance = null;
-    }
-
-    @CalledByNative
-    private static void registerThreadSafeNativeScreenStateObserver() {
-        ThreadUtils.runOnUiThread(
-                () -> {
-                    addObserver(
-                            new ScreenStateObserver() {
-                                @Override
-                                public void onScreenOff(Context context, Intent intent) {
-                                    ScreenStateReceiverJni.get().onScreenOff();
-                                }
-
-                                @Override
-                                public void onScreenOn(Context context, Intent intent) {
-                                    ScreenStateReceiverJni.get().onScreenOn();
-                                }
-                            });
-                });
-    }
-
-    @NativeMethods
-    interface Natives {
-        void onScreenOff();
-
-        void onScreenOn();
     }
 }

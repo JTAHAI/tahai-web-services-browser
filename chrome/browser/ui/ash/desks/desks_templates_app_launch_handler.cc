@@ -17,15 +17,16 @@
 #include "chrome/browser/ash/app_restore/app_restore_arc_task_handler_factory.h"
 #include "chrome/browser/ash/app_restore/arc_app_queue_restore_handler.h"
 #include "chrome/browser/ash/browser_delegate/browser_controller.h"
-#include "chrome/browser/ash/browser_delegate/browser_delegate.h"
 #include "chrome/browser/ash/system_web_apps/system_web_app_manager.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/ash/desks/chrome_desks_util.h"
 #include "chrome/browser/ui/ash/desks/desks_client.h"
 #include "chrome/browser/ui/ash/shelf/chrome_shelf_controller_util.h"
 #include "chrome/browser/ui/ash/system_web_apps/system_web_app_ui_utils.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
-#include "chrome/browser/ui/browser_window/public/create_browser_window.h"
+#include "chrome/browser/ui/browser.h"
+#include "chrome/browser/ui/browser_tabstrip.h"
+#include "chrome/browser/ui/browser_window.h"
+#include "chrome/browser/ui/tabs/tab_group_model.h"
 #include "components/app_constants/constants.h"
 #include "components/app_restore/app_restore_data.h"
 #include "components/app_restore/app_restore_utils.h"
@@ -237,19 +238,17 @@ void DesksTemplatesAppLaunchHandler::LaunchBrowsers() {
         continue;
       }
 
-      BrowserWindowCreateParams create_params =
+      Browser::CreateParams create_params =
           !app_name.empty()
-              ? BrowserWindowCreateParams::CreateForApp(
-                    app_name, /*trusted_source=*/true, current_bounds,
-                    profile(),
-                    /*user_gesture=*/false)
-              : BrowserWindowCreateParams(BrowserWindowInterface::TYPE_NORMAL,
-                                          profile(),
-                                          /*from_user_gesture=*/false);
+              ? Browser::CreateParams::CreateForApp(app_name,
+                                                    /*trusted_source=*/true,
+                                                    current_bounds, profile(),
+                                                    /*user_gesture=*/false)
+              : Browser::CreateParams(Browser::TYPE_NORMAL, profile(),
+                                      /*user_gesture=*/false);
 
       create_params.restore_id = window_iter.first;
-      create_params.creation_source =
-          BrowserWindowCreateParams::CreationSource::kDeskTemplate;
+      create_params.creation_source = Browser::CreationSource::kDeskTemplate;
 
       const std::optional<chromeos::WindowStateType>& window_state_type =
           app_restore_data->window_info.window_state_type;
@@ -266,42 +265,40 @@ void DesksTemplatesAppLaunchHandler::LaunchBrowsers() {
         create_params.should_trigger_session_restore = false;
       }
 
-      ash::BrowserDelegate* browser =
-          ash::BrowserController::GetInstance()->GetDelegate(
-              CreateBrowserWindow(std::move(create_params)));
+      Browser* browser = Browser::Create(create_params);
 
       std::optional<int32_t> active_tab_index =
           browser_extra_info.active_tab_index;
       for (size_t i = 0; i < urls.size(); i++) {
-        browser->AddTab(
-            urls[i], /*index=*/std::nullopt,
-            (active_tab_index &&
-             base::checked_cast<int32_t>(i) == *active_tab_index)
-                ? ash::BrowserDelegate::TabDisposition::kForeground
-                : ash::BrowserDelegate::TabDisposition::kBackground);
+        chrome::AddTabAt(browser, urls[i], /*index=*/-1,
+                         /*foreground=*/
+                         (active_tab_index &&
+                          base::checked_cast<int32_t>(i) == *active_tab_index));
       }
 
       if (!browser_extra_info.tab_group_infos.empty()) {
         chrome_desks_util::AttachTabGroupsToBrowserInstance(
-            browser_extra_info.tab_group_infos, browser);
+            browser_extra_info.tab_group_infos,
+            ash::BrowserController::GetInstance()->GetDelegate(browser));
       }
 
       if (browser_extra_info.first_non_pinned_tab_index.has_value() &&
           browser_extra_info.first_non_pinned_tab_index.value() <=
               static_cast<int>(urls.size())) {
         chrome_desks_util::SetBrowserPinnedTabs(
-            browser_extra_info.first_non_pinned_tab_index.value(), browser);
+            browser_extra_info.first_non_pinned_tab_index.value(),
+            ash::BrowserController::GetInstance()->GetDelegate(browser));
       }
 
       // We need to handle minimized windows separately since unlike other
       // window types, it's not shown.
       if (window_state_type &&
           *window_state_type == chromeos::WindowStateType::kMinimized) {
-        browser->Minimize();
+        browser->GetWindow()->Minimize();
         continue;
       }
 
-      browser->ShowInactive();
+      browser->GetWindow()->ShowInactive();
     }
   }
   restore_data()->RemoveApp(app_constants::kChromeAppId);

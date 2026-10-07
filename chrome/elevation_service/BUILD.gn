@@ -14,9 +14,8 @@ midl("elevation_service_idl") {
 
   writes_tlb = true
   if (is_tahai_branded) {
-    # Keep the generated interface and typelib aligned with TAHAI's existing
-    # installation IID. Only the IID source is compiled; COM uses the typelib
-    # marshaler, not the unused custom proxy (as in the upstream updater).
+    # Bind the exact generated interface/typelib to TAHAI's installation IID.
+    # COM uses typelib marshaling; the custom proxy is not compiled.
     dynamic_guids = "ignore_proxy_stub," +
                     "BB19A0E5-00C6-4966-94B2-5AFEC6FED93A=" +
                     "8D296EFE-0DBF-5BC7-9A25-55823F186D24"

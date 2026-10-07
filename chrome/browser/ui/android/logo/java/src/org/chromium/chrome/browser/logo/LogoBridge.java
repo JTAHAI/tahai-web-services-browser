@@ -38,23 +38,14 @@ public class LogoBridge {
          */
         public final @Nullable String animatedLogoUrl;
 
+        /** The URL to ping when the logo is shown. */
+        public final @Nullable String logUrl;
+
         /**
          * The URL to download dark mode animated GIF logo. If null, there is no dark animated logo
          * to download.
          */
         public final @Nullable String darkAnimatedLogoUrl;
-
-        /** The URL to ping when the logo is shown. */
-        public final @Nullable String logUrl;
-
-        /** The URL to ping when the dark mode logo is shown. */
-        public final @Nullable String darkLogUrl;
-
-        /** The URL to ping when the CTA image is shown. */
-        public final @Nullable String ctaLogUrl;
-
-        /** The URL to ping when the dark mode CTA image is shown. */
-        public final @Nullable String darkCtaLogUrl;
 
         @VisibleForTesting(otherwise = VisibleForTesting.PACKAGE_PRIVATE)
         public Logo(
@@ -64,10 +55,7 @@ public class LogoBridge {
                 @Nullable String altText,
                 @Nullable String animatedLogoUrl,
                 @Nullable String darkAnimatedLogoUrl,
-                @Nullable String logUrl,
-                @Nullable String darkLogUrl,
-                @Nullable String ctaLogUrl,
-                @Nullable String darkCtaLogUrl) {
+                @Nullable String logUrl) {
             this.image = image;
             this.darkImage = darkImage;
             this.onClickUrl = onClickUrl;
@@ -75,9 +63,6 @@ public class LogoBridge {
             this.animatedLogoUrl = animatedLogoUrl;
             this.darkAnimatedLogoUrl = darkAnimatedLogoUrl;
             this.logUrl = logUrl;
-            this.darkLogUrl = darkLogUrl;
-            this.ctaLogUrl = ctaLogUrl;
-            this.darkCtaLogUrl = darkCtaLogUrl;
         }
     }
 
@@ -145,21 +130,8 @@ public class LogoBridge {
             @Nullable String altText,
             @Nullable String gifUrl,
             @Nullable String darkGifUrl,
-            @Nullable String logUrl,
-            @Nullable String darkLogUrl,
-            @Nullable String ctaLogUrl,
-            @Nullable String darkCtaLogUrl) {
-        return new Logo(
-                image,
-                darkImage,
-                onClickUrl,
-                altText,
-                gifUrl,
-                darkGifUrl,
-                logUrl,
-                darkLogUrl,
-                ctaLogUrl,
-                darkCtaLogUrl);
+            @Nullable String logUrl) {
+        return new Logo(image, darkImage, onClickUrl, altText, gifUrl, darkGifUrl, logUrl);
     }
 
     @NativeMethods

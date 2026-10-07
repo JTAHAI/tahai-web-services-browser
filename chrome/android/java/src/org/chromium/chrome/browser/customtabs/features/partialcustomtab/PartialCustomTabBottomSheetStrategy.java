@@ -718,7 +718,7 @@ public class PartialCustomTabBottomSheetStrategy extends PartialCustomTabBaseStr
                             SPINNER_TIMEOUT_MS);
         }
         if (isSpinnerVisible()) {
-            centerSpinnerVertically(mSpinnerView.getLayoutParams());
+            centerSpinnerVertically((ViewGroup.LayoutParams) mSpinnerView.getLayoutParams());
         }
     }
 
@@ -801,7 +801,7 @@ public class PartialCustomTabBottomSheetStrategy extends PartialCustomTabBaseStr
 
     private void showSpinnerView() {
         if (mSpinnerView != null) {
-            centerSpinnerVertically(mSpinnerView.getLayoutParams());
+            centerSpinnerVertically((ViewGroup.LayoutParams) mSpinnerView.getLayoutParams());
         } else {
             mSpinnerView = new ImageView(mActivity);
             mSpinnerView.setElevation(
@@ -864,7 +864,9 @@ public class PartialCustomTabBottomSheetStrategy extends PartialCustomTabBaseStr
             changeVisibilityNavbarButtons(false);
             new Handler()
                     .postDelayed(
-                            () -> changeVisibilityNavbarButtons(true),
+                            () -> {
+                                changeVisibilityNavbarButtons(true);
+                            },
                             NAVBAR_BUTTON_HIDE_SHOW_DELAY_MS);
         }
     }

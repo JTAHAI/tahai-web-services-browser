@@ -1,2 +1,3 @@
-rules:
-- "**": [table]
+features:
+- name: table
+  files: "**"

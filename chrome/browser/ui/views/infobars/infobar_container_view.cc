@@ -5,7 +5,6 @@
 #include "chrome/browser/ui/views/infobars/infobar_container_view.h"
 
 #include <algorithm>
-#include <memory>
 #include <numeric>
 
 #include "chrome/browser/ui/browser_element_identifiers.h"
@@ -19,8 +18,6 @@
 #include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/compositor/layer.h"
 #include "ui/gfx/canvas.h"
-#include "ui/gfx/geometry/insets_f.h"
-#include "ui/gfx/geometry/rect_f.h"
 #include "ui/views/accessibility/view_accessibility.h"
 #include "ui/views/bubble/bubble_border.h"
 #include "ui/views/cascading_property.h"
@@ -79,16 +76,11 @@ END_METADATA
 constexpr int kSeparatorHeightDip = 1;
 
 InfoBarContainerView::InfoBarContainerView(Delegate* delegate)
-    : infobars::InfoBarContainerWithPriority(delegate) {
-  // Views default to visible. InfoBarContainerView previously relied on its
-  // initial layout pass to discover that it had no infobars and hide itself.
-  // When startup layout is deferred while invisible, relying on layout causes
-  // queries like UpdateWindowControlsOverlayAvailable() to see an empty
-  // container as visible. Start hidden by default until infobars are added.
-  SetVisible(false);
+    : infobars::InfoBarContainerWithPriority(delegate),
+      content_shadow_(new ContentShadow()) {
   SetID(VIEW_ID_INFO_BAR_CONTAINER);
   SetProperty(views::kElementIdentifierKey, kInfoBarContainerElementId);
-  content_shadow_ = AddChildView(std::make_unique<ContentShadow>());
+  AddChildViewRaw(content_shadow_.get());
   views::SetCascadingColorProviderColor(this, views::kCascadingBackgroundColor,
                                         kColorToolbar);
   SetBackground(

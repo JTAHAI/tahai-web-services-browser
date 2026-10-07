@@ -1,7 +1,8 @@
 # Copyright 2021 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
-"""Utilities for invoking executables."""
+"""Utilities for invoking executables.
+"""
 
 import subprocess
 import re
@@ -26,9 +27,7 @@ _ANSI_ESCAPE_8BIT_REGEX = re.compile(
         [ -/]*  # Intermediate bytes
         [@-~]   # Final byte
     )
-""",
-    re.VERBOSE,
-)
+""", re.VERBOSE)
 
 
 def run_and_tee_output(args):
@@ -49,7 +48,6 @@ def run_and_tee_output(args):
         captured_output += buf
 
     captured_output = _ANSI_ESCAPE_8BIT_REGEX.sub(
-        '', captured_output.decode('utf-8')
-    )
+        '', captured_output.decode('utf-8'))
 
     return captured_output

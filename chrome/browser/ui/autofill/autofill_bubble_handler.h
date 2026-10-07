@@ -29,7 +29,6 @@ class VirtualCardEnrollBubbleController;
 class MandatoryReauthBubbleController;
 class OmniboxAutofillBubbleController;
 class PaymentsChurnedUsersBubbleController;
-class WalletReminderNoticeBubbleController;
 enum class IbanBubbleType;
 enum class MandatoryReauthBubbleType;
 
@@ -136,15 +135,6 @@ class AutofillBubbleHandler {
   virtual AutofillBubbleBase* ShowPaymentsChurnedUsersBubble(
       content::WebContents* web_contents,
       PaymentsChurnedUsersBubbleController* controller,
-      bool is_user_gesture) = 0;
-
-  virtual AutofillBubbleBase* ShowPaymentsChurnedUsersConfirmationBubble(
-      content::WebContents* web_contents,
-      PaymentsChurnedUsersBubbleController* controller) = 0;
-
-  virtual AutofillBubbleBase* ShowWalletReminderNoticeBubble(
-      content::WebContents* web_contents,
-      WalletReminderNoticeBubbleController* controller,
       bool is_user_gesture) = 0;
 };
 

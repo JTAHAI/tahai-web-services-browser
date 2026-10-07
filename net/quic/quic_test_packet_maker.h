@@ -177,8 +177,7 @@ class QuicTestPacketMaker {
       const std::vector<uint64_t>& original_packet_numbers,
       uint64_t new_packet_number);
 
-  std::unique_ptr<quic::QuicEncryptedPacket> MakeStatelessResetPacket(
-      quic::QuicConnectionId& connection_id);
+  std::unique_ptr<quic::QuicEncryptedPacket> MakeStatelessResetPacket();
 
   // Removes all stream frames associated with |stream_id|.
   void RemoveSavedStreamFrames(quic::QuicStreamId stream_id);

@@ -1,2 +1,3 @@
-rules:
-- "**": [scroll-snap]
+features:
+- name: scroll-snap
+  files: "**"

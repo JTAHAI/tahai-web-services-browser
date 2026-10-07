@@ -21,19 +21,16 @@
 #include "components/prefs/testing_pref_service.h"
 #include "components/sync/base/features.h"
 #include "components/sync/service/sync_service_utils.h"
-#include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "ui/base/l10n/l10n_util.h"
 
+using testing::Return;
+
 namespace {
-
-using ::testing::Return;
-
 constexpr char kErrorMessageDismissalReasonHistogramName[] =
     "PasswordManager.ErrorMessageDismissalReason.";
 constexpr char kErrorMessageDisplayReasonHistogramName[] =
     "PasswordManager.ErrorMessageDisplayReason";
-
 }  // namespace
 
 class PasswordManagerErrorMessageDelegateTest
@@ -290,12 +287,11 @@ TEST_F(PasswordManagerErrorMessageDelegateTest,
       password_manager::PasswordStoreBackendErrorType::kKeyRetrievalRequired);
   EXPECT_NE(nullptr, GetMessageWrapper());
 
-  EXPECT_CALL(*helper_bridge(),
-              StartTrustedVaultKeyRetrievalFlow(
-                  web_contents(),
-                  trusted_vault::TrustedVaultUserActionTriggerForUMA::
-                      kPasswordManagerErrorMessage,
-                  testing::_));
+  EXPECT_CALL(
+      *helper_bridge(),
+      StartTrustedVaultKeyRetrievalFlow(
+          web_contents(), trusted_vault::TrustedVaultUserActionTriggerForUMA::
+                              kPasswordManagerErrorMessage));
   GetMessageWrapper()->HandleActionClick(base::android::AttachCurrentThread());
 
   // The message needs to be dismissed manually in tests. In production code
@@ -318,12 +314,11 @@ TEST_F(PasswordManagerErrorMessageDelegateTest,
       password_manager::PasswordStoreBackendErrorType::kEmptySecurityDomain);
   EXPECT_NE(nullptr, GetMessageWrapper());
 
-  EXPECT_CALL(*helper_bridge(),
-              StartTrustedVaultKeyRetrievalFlow(
-                  web_contents(),
-                  trusted_vault::TrustedVaultUserActionTriggerForUMA::
-                      kPasswordManagerErrorMessage,
-                  testing::_));
+  EXPECT_CALL(
+      *helper_bridge(),
+      StartTrustedVaultKeyRetrievalFlow(
+          web_contents(), trusted_vault::TrustedVaultUserActionTriggerForUMA::
+                              kPasswordManagerErrorMessage));
   GetMessageWrapper()->HandleActionClick(base::android::AttachCurrentThread());
 
   // The message needs to be dismissed manually in tests. In production code
@@ -347,12 +342,11 @@ TEST_F(PasswordManagerErrorMessageDelegateTest,
           kIrretrievableSecurityDomain);
   EXPECT_NE(nullptr, GetMessageWrapper());
 
-  EXPECT_CALL(*helper_bridge(),
-              StartTrustedVaultKeyRetrievalFlow(
-                  web_contents(),
-                  trusted_vault::TrustedVaultUserActionTriggerForUMA::
-                      kPasswordManagerErrorMessage,
-                  testing::_));
+  EXPECT_CALL(
+      *helper_bridge(),
+      StartTrustedVaultKeyRetrievalFlow(
+          web_contents(), trusted_vault::TrustedVaultUserActionTriggerForUMA::
+                              kPasswordManagerErrorMessage));
   GetMessageWrapper()->HandleActionClick(base::android::AttachCurrentThread());
 
   // The message needs to be dismissed manually in tests. In production code
@@ -366,7 +360,7 @@ TEST_F(PasswordManagerErrorMessageDelegateTest,
 
 // Test that SaveErrorUIShownTimestamp is NOT called on display for
 // KeyRetrievalRequired when the feature is enabled. It IS called when the
-// is dismissed by user gesture.
+// is dismissed by guesture.
 TEST_F(PasswordManagerErrorMessageDelegateTest,
        TrustedVaultMessageSavesTimestampOnUserDismissal) {
   scoped_feature_list_.InitAndEnableFeature(

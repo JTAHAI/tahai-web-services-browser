@@ -53,4 +53,4 @@ private:
 
 }
 
-#endif  // CYCLE_PTRS_H_
+#endif

@@ -1645,9 +1645,4 @@ void FrameSinkVideoCapturerImpl::MaybeInformConsumerOfEmptyRegion() {
   consumer_informed_of_empty_region_ = true;
 }
 
-void FrameSinkVideoCapturerImpl::InvalidateBuffers() {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  frame_pool_->InvalidateBuffers();
-}
-
 }  // namespace viz

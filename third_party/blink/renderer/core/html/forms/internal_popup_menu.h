@@ -6,7 +6,6 @@
 #define THIRD_PARTY_BLINK_RENDERER_CORE_HTML_FORMS_INTERNAL_POPUP_MENU_H_
 
 #include "base/gtest_prod_util.h"
-#include "base/memory/raw_ptr.h"
 #include "third_party/blink/renderer/core/core_export.h"
 #include "third_party/blink/renderer/core/html/forms/popup_menu.h"
 #include "third_party/blink/renderer/core/page/page_popup_client.h"
@@ -77,7 +76,7 @@ class CORE_EXPORT InternalPopupMenu final : public PopupMenu,
 
   Member<ChromeClient> chrome_client_;
   Member<HTMLSelectElement> owner_element_;
-  raw_ptr<PagePopup, UnprotectedInRelease | DanglingUntriaged> popup_;
+  PagePopup* popup_;
   bool needs_update_;
 };
 

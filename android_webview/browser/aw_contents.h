@@ -121,11 +121,13 @@ class AwContents : public FindHelper::Listener,
   void DocumentHasImages(JNIEnv* env,
                          const base::android::JavaRef<jobject>& message);
   void GenerateMHTML(JNIEnv* env,
-                     const std::string& path,
+                     const base::android::JavaRef<jstring>& jpath,
                      const base::android::JavaRef<jobject>& callback);
   void CreatePdfExporter(JNIEnv* env,
                          const base::android::JavaRef<jobject>& pdfExporter);
-  void AddVisitedLinks(const std::vector<std::string>& visited_links);
+  void AddVisitedLinks(
+      JNIEnv* env,
+      const base::android::JavaRef<jobjectArray>& jvisited_links);
   base::android::ScopedJavaLocalRef<jbyteArray> GetCertificate(JNIEnv* env);
   void UpdateLastHitTestData(JNIEnv* env);
   void OnSizeChanged(JNIEnv* env, int w, int h, int ow, int oh);
@@ -163,10 +165,14 @@ class AwContents : public FindHelper::Listener,
       int64_t request_id,
       const base::android::JavaRef<jobject>& callback);
   void ClearView(JNIEnv* env);
-  void SetExtraHeadersForUrl(const std::string& url,
-                             const std::string& extra_headers);
+  void SetExtraHeadersForUrl(
+      JNIEnv* env,
+      const base::android::JavaRef<jstring>& url,
+      const base::android::JavaRef<jstring>& extra_headers);
 
-  void InvokeGeolocationCallback(bool value, const std::string& origin);
+  void InvokeGeolocationCallback(JNIEnv* env,
+                                 bool value,
+                                 const base::android::JavaRef<jstring>& origin);
 
   int32_t GetEffectivePriority(JNIEnv* env);
 
@@ -181,7 +187,8 @@ class AwContents : public FindHelper::Listener,
 
   void RemovePersistentJavaScript(JNIEnv* env, int32_t script_id);
 
-  std::u16string AddWebMessageListener(
+  base::android::ScopedJavaLocalRef<jstring> AddWebMessageListener(
+      JNIEnv* env,
       const base::android::JavaRef<jobject>& listener,
       const std::u16string& js_object_name,
       const std::vector<std::string>& allowed_origin_rules,
@@ -229,7 +236,9 @@ class AwContents : public FindHelper::Listener,
     return permission_request_handler_.get();
   }
 
-  void PreauthorizePermission(const std::string& origin, int64_t resources);
+  void PreauthorizePermission(JNIEnv* env,
+                              const base::android::JavaRef<jstring>& origin,
+                              int64_t resources);
 
   // AwBrowserPermissionRequestDelegate implementation.
   void RequestProtectedMediaIdentifierPermission(
@@ -245,7 +254,8 @@ class AwContents : public FindHelper::Listener,
   void CancelMIDISysexPermissionRequests(const GURL& origin) override;
 
   // Find-in-page API and related methods.
-  void FindAllAsync(const std::u16string& search_string);
+  void FindAllAsync(JNIEnv* env,
+                    const base::android::JavaRef<jstring>& search_string);
   void FindNext(JNIEnv* env, bool forward);
   void ClearMatches(JNIEnv* env);
   FindHelper* GetFindHelper();
@@ -306,7 +316,7 @@ class AwContents : public FindHelper::Listener,
                     int32_t target_y,
                     int64_t duration_ms);
   void SetDipScale(JNIEnv* env, float dip_scale);
-  std::string GetScheme();
+  base::android::ScopedJavaLocalRef<jstring> GetScheme(JNIEnv* env);
   void OnInputEvent(JNIEnv* env);
 
   void SetJsOnlineProperty(JNIEnv* env, bool network_up);

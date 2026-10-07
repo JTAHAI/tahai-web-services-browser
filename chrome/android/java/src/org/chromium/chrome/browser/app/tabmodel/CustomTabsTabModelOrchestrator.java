@@ -30,9 +30,9 @@ import org.chromium.chrome.browser.tabmodel.SupportedProfileType;
 import org.chromium.chrome.browser.tabmodel.TabCreatorManager;
 import org.chromium.chrome.browser.tabmodel.TabModelSelectorImpl;
 import org.chromium.chrome.browser.tabmodel.TabModelType;
-import org.chromium.chrome.browser.tabmodel.TabOrchestratorType;
 import org.chromium.chrome.browser.tabmodel.TabPersistencePolicy;
 import org.chromium.chrome.browser.tabmodel.TabPersistentStore;
+import org.chromium.chrome.browser.tabmodel.TabPersistentStoreImpl;
 import org.chromium.chrome.browser.tabwindow.TabWindowManager;
 
 /**
@@ -43,7 +43,8 @@ import org.chromium.chrome.browser.tabwindow.TabWindowManager;
 public class CustomTabsTabModelOrchestrator extends TabModelOrchestrator {
     public CustomTabsTabModelOrchestrator() {}
 
-    private static final String CUSTOM_WINDOW_PREFIX = "Custom_";
+    private static final String CUSTOM_WINDOW_PREFIX =
+            TabPersistentStoreImpl.CLIENT_TAG_CUSTOM + "_";
 
     private final AccumulatingTabCreator mRegularShadowTabCreator = new AccumulatingTabCreator();
     private final AccumulatingTabCreator mIncognitoShadowTabCreator = new AccumulatingTabCreator();
@@ -91,7 +92,7 @@ public class CustomTabsTabModelOrchestrator extends TabModelOrchestrator {
         mTabPersistencePolicy = persistencePolicy;
         mTabPersistentStore =
                 buildAuthoritativeStore(
-                        TabOrchestratorType.CUSTOM,
+                        TabPersistentStoreImpl.CLIENT_TAG_CUSTOM,
                         /* migrationManager= */ null,
                         mTabPersistencePolicy,
                         mTabModelSelector,
@@ -131,7 +132,7 @@ public class CustomTabsTabModelOrchestrator extends TabModelOrchestrator {
                             mTabPersistentStore,
                             getCustomTabsWindowTag(mActivity.getTaskId()),
                             mCipherFactory,
-                            TabOrchestratorType.CUSTOM,
+                            TabPersistentStoreImpl.CLIENT_TAG_CUSTOM,
                             /* isNonOtrOnly= */ false,
                             /* isFromRecreating= */ false);
             if (mShadowTabPersistentStore != null) {

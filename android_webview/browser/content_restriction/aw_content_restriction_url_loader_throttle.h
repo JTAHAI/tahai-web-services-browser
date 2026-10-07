@@ -38,11 +38,6 @@ class AwContentRestrictionURLLoaderThrottle : public blink::URLLoaderThrottle {
   // blink::URLLoaderThrottle:
   void WillStartRequest(network::ResourceRequest* request,
                         bool* defer) override;
-  void WillRedirectRequest(
-      net::RedirectInfo* redirect_info,
-      const network::mojom::URLResponseHead& response_head,
-      bool* defer,
-      network::HttpRequestHeadersUpdateParams* headers_update_params) override;
 
  private:
   // Asynchronous bridge used to stream chunked and non-chunked data from

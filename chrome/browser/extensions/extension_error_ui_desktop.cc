@@ -11,7 +11,7 @@
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_window/public/profile_browser_collection.h"
 #include "chrome/browser/ui/chrome_pages.h"
 #include "chrome/browser/ui/global_error/global_error_bubble_view_base.h"
@@ -153,9 +153,7 @@ class ExtensionGlobalError : public GlobalErrorWithStandardBubble {
 
   std::u16string MenuItemLabel() override { NOTREACHED(); }
 
-  void ExecuteMenuItem(BrowserWindowInterface* browser) override {
-    NOTREACHED();
-  }
+  void ExecuteMenuItem(Browser* browser) override { NOTREACHED(); }
 
   std::u16string GetBubbleViewTitle() override {
     return GenerateTitle(delegate_->GetBlocklistedExtensions(),
@@ -178,15 +176,15 @@ class ExtensionGlobalError : public GlobalErrorWithStandardBubble {
     return l10n_util::GetStringUTF16(IDS_EXTENSION_ALERT_ITEM_DETAILS);
   }
 
-  void OnBubbleViewDidClose(BrowserWindowInterface* browser) override {
+  void OnBubbleViewDidClose(Browser* browser) override {
     delegate_->OnAlertClosed();
   }
 
-  void BubbleViewAcceptButtonPressed(BrowserWindowInterface* browser) override {
+  void BubbleViewAcceptButtonPressed(Browser* browser) override {
     delegate_->OnAlertAccept();
   }
 
-  void BubbleViewCancelButtonPressed(BrowserWindowInterface* browser) override {
+  void BubbleViewCancelButtonPressed(Browser* browser) override {
     // Even though there is no cancel button, users can still cancel the dialog
     // by pressing escape.
     delegate_->OnAlertClosed();
@@ -196,8 +194,7 @@ class ExtensionGlobalError : public GlobalErrorWithStandardBubble {
     return weak_ptr_factory_.GetWeakPtr();
   }
 
-  void BubbleViewDetailsButtonPressed(
-      BrowserWindowInterface* browser) override {
+  void BubbleViewDetailsButtonPressed(Browser* browser) override {
     delegate_->OnAlertDetails();
   }
 
@@ -225,7 +222,7 @@ bool ExtensionErrorUIDesktop::ShowErrorInBubbleView() {
   if (!browser)
     return false;
 
-  browser_ = browser;
+  browser_ = browser->GetBrowserForMigrationOnly();
   global_error_->ShowBubbleView(browser_);
   return true;
 }

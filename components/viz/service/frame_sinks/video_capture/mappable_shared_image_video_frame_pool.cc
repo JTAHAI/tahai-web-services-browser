@@ -102,9 +102,4 @@ void MappableSharedImageVideoFramePool::OnVideoFrameDestroyed(
   }
 }
 
-void MappableSharedImageVideoFramePool::InvalidateBuffers() {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  RecreateVideoFramePool();
-}
-
 }  // namespace viz

@@ -1,2 +1,3 @@
-rules:
-- "**": [observable]
+features:
+- name: observable
+  files: "**"

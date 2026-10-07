@@ -5,8 +5,6 @@
 #ifndef CHROME_BROWSER_CONTEXTUAL_TASKS_CONTEXTUAL_TASKS_UTILS_H_
 #define CHROME_BROWSER_CONTEXTUAL_TASKS_CONTEXTUAL_TASKS_UTILS_H_
 
-#include <vector>
-
 #include "base/unguessable_token.h"
 #include "build/build_config.h"
 #include "components/contextual_search/contextual_search_context_controller.h"
@@ -25,10 +23,6 @@ namespace contextual_search {
 enum class ContextualSearchSource;
 class ContextualSearchSessionHandle;
 }  // namespace contextual_search
-
-namespace lens {
-class ClientToAimMessage;
-}  // namespace lens
 
 namespace contextual_tasks {
 namespace mojom {
@@ -125,27 +119,9 @@ bool GetEffectivePinState(Profile* profile);
 
 #if !BUILDFLAG(IS_ANDROID)
 // Updates the visibility of the contextual tasks pinned toolbar ActionItem.
-void UpdatePinButtonVisibilityState(BrowserWindowInterface* browser_window);
+void UpdatePinButtonVisibilityState(BrowserWindowInterface* browser_window,
+                                    bool eligible);
 #endif
-
-// Returns whether dark mode should be used for the given profile and URL.
-// If the URL contains a 'cs' parameter, that takes precedence. Otherwise,
-// returns true if ThemeService uses dark colors or if the profile is
-// off-the-record (Incognito).
-bool ShouldUseDarkMode(Profile* profile, const GURL& url);
-
-// Returns whether dark mode should be used for the given profile. Returns true
-// if ThemeService uses dark colors or if the profile is off-the-record
-// (Incognito).
-bool ShouldUseDarkMode(Profile* profile);
-
-// Returns the ClientToAimMessage containing the HandshakePing
-// with supported capabilities.
-lens::ClientToAimMessage GetHandshakeMessageProto();
-
-// Returns the serialized ClientToAimMessage containing the HandshakePing
-// with supported capabilities.
-std::vector<uint8_t> GetSerializedHandshakeMessage();
 
 }  // namespace contextual_tasks
 

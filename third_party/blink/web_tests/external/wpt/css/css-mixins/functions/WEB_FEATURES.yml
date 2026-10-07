@@ -1,2 +1,4 @@
-rules:
-- "*": [function]
+features:
+- name: function
+  files:
+  - "*"

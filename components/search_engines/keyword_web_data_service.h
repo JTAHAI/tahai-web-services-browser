@@ -43,8 +43,7 @@ struct WDKeywordsResult {
     std::optional<regional_capabilities::CountryIdHolder>
         builtin_keyword_country;
 
-    KeywordTable::PrepopulatedEngineMigrationSet
-        prepopulated_engines_migration_state;
+    bool prepopulated_engines_migration_enabled = false;
 
     // Version number of the most recent starter pack data that has been merged
     // into the current keyword data.
@@ -59,7 +58,7 @@ struct WDKeywordsResult {
     bool HasBuiltinKeywordData() const {
       return builtin_keyword_data_version != 0 ||
              builtin_keyword_country.has_value() ||
-             !prepopulated_engines_migration_state.empty();
+             prepopulated_engines_migration_enabled;
     }
 
     // Whether any metadata associated with the starter pack bundle is set.
@@ -131,8 +130,7 @@ class KeywordWebDataService : public WebDataServiceBase {
   // Sets the version of the starter pack keywords.
   void SetStarterPackKeywordVersion(int version);
 
-  void SetPrepopulatedEnginesMigrationState(
-      KeywordTable::PrepopulatedEngineMigrationSet migration_state);
+  void SetPrepopulatedEnginesMigrationEnabled(bool is_migration_enabled);
 
   // WebDataServiceBase:
   void ShutdownOnUISequence() override;

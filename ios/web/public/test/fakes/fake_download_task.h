@@ -77,12 +77,7 @@ class FakeDownloadTask final : public DownloadTask {
 
   SEQUENCE_CHECKER(sequence_checker_);
 
-  // TODO(crbug.com/484371187): Investigate if reentrancy can be removed.
-  base::ObserverList<
-      DownloadTaskObserver,
-      true,
-      base::ObserverListReentrancyPolicy::kAllowReentrancyUntriaged>
-      observers_;
+  base::ObserverList<DownloadTaskObserver, true> observers_;
   raw_ptr<WebState> web_state_ = nullptr;
   State state_ = State::kNotStarted;
   GURL original_url_;

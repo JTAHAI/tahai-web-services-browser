@@ -31,6 +31,7 @@ import org.mockito.Mockito;
 import org.mockito.Spy;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
+import org.robolectric.annotation.Config;
 
 import org.chromium.base.Callback;
 import org.chromium.base.test.BaseRobolectricTestRunner;
@@ -44,6 +45,7 @@ import java.util.List;
 
 /** Tests to validate actions within {@link ModalDialogManager}. */
 @RunWith(BaseRobolectricTestRunner.class)
+@Config(manifest = Config.NONE)
 public class ModalDialogManagerTest {
     @Rule public MockitoRule mMockitoRule = MockitoJUnit.rule();
     private static final int MAX_DIALOGS = 4;

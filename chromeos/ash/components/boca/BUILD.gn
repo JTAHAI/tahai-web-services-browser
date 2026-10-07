@@ -84,7 +84,6 @@ static_library("invalidations") {
   ]
   deps = [
     ":boca",
-    ":boca_request",
     ":invalidation_delegate",
     "//base",
     "//components/account_id",

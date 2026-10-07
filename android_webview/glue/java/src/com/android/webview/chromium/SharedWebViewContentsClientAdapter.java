@@ -76,10 +76,6 @@ abstract class SharedWebViewContentsClientAdapter extends AwContentsClient {
         mSupportLibClient.setWebViewClient(client);
     }
 
-    WebViewClient getWebViewClient() {
-        return mWebViewClient;
-    }
-
     /** @see AwContentsClient#hasWebViewClient. */
     @Override
     public final boolean hasWebViewClient() {

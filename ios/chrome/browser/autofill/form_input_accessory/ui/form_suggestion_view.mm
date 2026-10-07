@@ -180,9 +180,12 @@ NSString* DisplayDescriptionForSuggestion(FormSuggestion* suggestion,
     return;
   }
 
+  for (UIView* view in [self.stackView.arrangedSubviews copy]) {
+    [self.stackView removeArrangedSubview:view];
+    [view removeFromSuperview];
+  }
   self.contentInset = UIEdgeInsetsZero;
   self.accessoryTrailingView = accessoryTrailingView;
-  [self removeArrangedSubviews];
   [self createAndInsertArrangedSubviews];
   [self setContentOffset:CGPointZero];
   if (showScrollHint) {
@@ -202,16 +205,6 @@ NSString* DisplayDescriptionForSuggestion(FormSuggestion* suggestion,
   if (self.window) {
     [self layoutIfNeeded];
   }
-}
-
-- (void)setIsContextMenuEnabled:(BOOL)isContextMenuEnabled {
-  if (_isContextMenuEnabled == isContextMenuEnabled) {
-    return;
-  }
-
-  _isContextMenuEnabled = isContextMenuEnabled;
-  [self removeArrangedSubviews];
-  [self createAndInsertArrangedSubviews];
 }
 
 - (void)resetContentInsetAndDelegateAnimated:(BOOL)animated {
@@ -272,24 +265,6 @@ NSString* DisplayDescriptionForSuggestion(FormSuggestion* suggestion,
   [self.formSuggestionViewDelegate openEditForSuggestion:suggestion];
 }
 
-- (void)openSourcesForSuggestion:(FormSuggestion*)suggestion {
-  [self.formSuggestionViewDelegate openSourcesForSuggestion:suggestion];
-}
-
-- (void)suppressPersonalContextSuggestion:(FormSuggestion*)suggestion {
-  [self.formSuggestionViewDelegate
-      suppressPersonalContextSuggestion:suggestion];
-}
-
-- (BOOL)hasSourcesForSuggestion:(FormSuggestion*)suggestion {
-  return [self.formSuggestionViewDelegate hasSourcesForSuggestion:suggestion];
-}
-
-- (BOOL)canSuppressPersonalContextSuggestion:(FormSuggestion*)suggestion {
-  return [self.formSuggestionViewDelegate
-      canSuppressPersonalContextSuggestion:suggestion];
-}
-
 - (BOOL)isPersonalContextSuggestion:(FormSuggestion*)suggestion {
   return
       [self.formSuggestionViewDelegate isPersonalContextSuggestion:suggestion];
@@ -312,8 +287,9 @@ NSString* DisplayDescriptionForSuggestion(FormSuggestion* suggestion,
   stackView.translatesAutoresizingMaskIntoConstraints = NO;
   [self addSubview:stackView];
   if (IsLiquidGlassEffectEnabled()) {
-    AddSameConstraintsToSides(stackView, self,
-                              LayoutSides::kTop | LayoutSides::kHorizontal);
+    AddSameConstraintsToSides(
+        stackView, self,
+        LayoutSides::kTop | LayoutSides::kLeading | LayoutSides::kTrailing);
   } else {
     AddSameConstraints(stackView, self);
   }
@@ -398,7 +374,6 @@ NSString* DisplayDescriptionForSuggestion(FormSuggestion* suggestion,
                         index:idx
           numberOfSuggestions:[self.suggestions count]
         accessoryTrailingView:self.accessoryTrailingView
-         isContextMenuEnabled:self.isContextMenuEnabled
                      delegate:self];
     [self addFormSuggestionLabel:label atIndex:idx];
     if (idx == 0 &&
@@ -411,18 +386,6 @@ NSString* DisplayDescriptionForSuggestion(FormSuggestion* suggestion,
   [self.suggestions enumerateObjectsUsingBlock:setupBlock];
   if (self.trailingView) {
     [self.stackView addArrangedSubview:self.trailingView];
-  }
-}
-
-// Removes all arranged subviews from `stackView`.
-- (void)removeArrangedSubviews {
-  if (!self.stackView) {
-    return;
-  }
-
-  for (UIView* view in [self.stackView.arrangedSubviews copy]) {
-    [self.stackView removeArrangedSubview:view];
-    [view removeFromSuperview];
   }
 }
 

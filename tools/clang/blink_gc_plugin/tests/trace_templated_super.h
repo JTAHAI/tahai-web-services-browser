@@ -46,4 +46,4 @@ private:
 
 }
 
-#endif  // TRACE_TEMPLATED_SUPER_H_
+#endif

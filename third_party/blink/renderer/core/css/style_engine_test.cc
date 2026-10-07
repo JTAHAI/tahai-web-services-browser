@@ -82,7 +82,6 @@
 #include "third_party/blink/renderer/platform/testing/runtime_enabled_features_test_helpers.h"
 #include "third_party/blink/renderer/platform/testing/testing_platform_support.h"
 #include "third_party/blink/renderer/platform/testing/unit_test_helpers.h"
-#include "third_party/blink/renderer/platform/wtf/text/format.h"
 #include "ui/base/mojom/window_show_state.mojom-blink.h"
 #include "ui/gfx/geometry/size_f.h"
 
@@ -3112,6 +3111,73 @@ TEST_F(StyleEngineTest, RecalcPropagatedWritingMode) {
   EXPECT_FALSE(GetDocument().View()->NeedsLayout());
 }
 
+TEST_F(StyleEngineTest, GetComputedStyleOutsideFlatTree) {
+  ScopedGetComputedStyleOutsideFlatTreeForTest scoped_feature(true);
+
+  GetDocument().body()->SetInnerHTMLWithoutTrustedTypes(
+      R"HTML(<div id="host"><div id="outer"><div id="inner"><div id="innermost"></div></div></div></div>)HTML");
+
+  auto* host = GetDocument().getElementById(AtomicString("host"));
+  auto* outer = GetDocument().getElementById(AtomicString("outer"));
+  auto* inner = GetDocument().getElementById(AtomicString("inner"));
+  auto* innermost = GetDocument().getElementById(AtomicString("innermost"));
+
+  host->AttachShadowRootForTesting(ShadowRootMode::kOpen);
+  UpdateAllLifecyclePhases();
+
+  EXPECT_TRUE(host->GetComputedStyle());
+  // ComputedStyle is not generated outside the flat tree.
+  EXPECT_FALSE(outer->GetComputedStyle());
+  EXPECT_FALSE(inner->GetComputedStyle());
+  EXPECT_FALSE(innermost->GetComputedStyle());
+
+  inner->EnsureComputedStyle();
+  const ComputedStyle* outer_style = outer->GetComputedStyle();
+  const ComputedStyle* inner_style = inner->GetComputedStyle();
+
+  ASSERT_TRUE(outer_style);
+  ASSERT_TRUE(inner_style);
+  EXPECT_FALSE(innermost->GetComputedStyle());
+  EXPECT_TRUE(outer_style->IsEnsuredOutsideFlatTree());
+  EXPECT_TRUE(inner_style->IsEnsuredOutsideFlatTree());
+  EXPECT_EQ(Color::kTransparent, inner_style->VisitedDependentColor(
+                                     GetCSSPropertyBackgroundColor()));
+
+  inner->SetInlineStyleProperty(CSSPropertyID::kBackgroundColor, "green");
+  UpdateAllLifecyclePhases();
+
+  // Old ensured style is not cleared before we re-ensure it.
+  EXPECT_TRUE(inner->NeedsStyleRecalc());
+  EXPECT_EQ(inner_style, inner->GetComputedStyle());
+
+  inner->EnsureComputedStyle();
+
+  // Outer style was not dirty - we still have the same ComputedStyle object.
+  EXPECT_EQ(outer_style, outer->GetComputedStyle());
+  EXPECT_NE(inner_style, inner->GetComputedStyle());
+
+  inner_style = inner->GetComputedStyle();
+  EXPECT_EQ(Color(0, 128, 0), inner_style->VisitedDependentColor(
+                                  GetCSSPropertyBackgroundColor()));
+
+  // Making outer dirty will require that we clear ComputedStyles all the way up
+  // ensuring the style for innermost later because of inheritance.
+  outer->SetInlineStyleProperty(CSSPropertyID::kColor, "green");
+  UpdateAllLifecyclePhases();
+
+  EXPECT_EQ(outer_style, outer->GetComputedStyle());
+  EXPECT_EQ(inner_style, inner->GetComputedStyle());
+  EXPECT_FALSE(innermost->GetComputedStyle());
+
+  auto* innermost_style = innermost->EnsureComputedStyle();
+
+  EXPECT_NE(outer_style, outer->GetComputedStyle());
+  EXPECT_NE(inner_style, inner->GetComputedStyle());
+  ASSERT_TRUE(innermost_style);
+  EXPECT_EQ(Color(0, 128, 0),
+            innermost_style->VisitedDependentColor(GetCSSPropertyColor()));
+}
+
 TEST_F(StyleEngineTest, MoveSlottedOutsideFlatTree) {
   GetDocument().body()->SetInnerHTMLWithoutTrustedTypes(R"HTML(
     <div id="parent">
@@ -3218,6 +3284,35 @@ TEST_F(StyleEngineTest, RemoveStyleRecalcRootFromFlatTree) {
   EXPECT_FALSE(slot->ChildNeedsStyleRecalc());
   EXPECT_FALSE(span->NeedsStyleRecalc());
   EXPECT_FALSE(GetStyleRecalcRoot());
+}
+
+TEST_F(StyleEngineTest, SlottedWithEnsuredStyleOutsideFlatTree) {
+  ScopedGetComputedStyleOutsideFlatTreeForTest scoped_feature(true);
+
+  GetDocument().body()->SetInnerHTMLWithoutTrustedTypes(R"HTML(
+    <div id="host"><span></span></div>
+  )HTML");
+
+  auto* host = GetDocument().getElementById(AtomicString("host"));
+  auto* span = To<Element>(host->firstChild());
+
+  ShadowRoot& shadow_root =
+      host->AttachShadowRootForTesting(ShadowRootMode::kOpen);
+  shadow_root.SetInnerHTMLWithoutTrustedTypes(R"HTML(
+    <div><slot name="default"></slot></div>
+  )HTML");
+
+  UpdateAllLifecyclePhases();
+
+  // Ensure style outside the flat tree.
+  const ComputedStyle* style = span->EnsureComputedStyle();
+  ASSERT_TRUE(style);
+  EXPECT_TRUE(style->IsEnsuredOutsideFlatTree());
+
+  span->setAttribute(html_names::kSlotAttr, AtomicString("default"));
+  GetDocument().GetSlotAssignmentEngine().RecalcSlotAssignments();
+  EXPECT_EQ(span, GetStyleRecalcRoot());
+  EXPECT_FALSE(span->GetComputedStyle());
 }
 
 TEST_F(StyleEngineTest, ForceReattachRecalcRootAttachShadow) {
@@ -4038,13 +4133,14 @@ TEST_F(StyleEngineTest, HasViewportUnitFlags) {
     SCOPED_TRACE(data.value);
     auto holder = std::make_unique<DummyPageHolder>(gfx::Size(800, 600));
     Document& document = holder->GetDocument();
-    document.body()->SetInnerHTMLWithoutTrustedTypes(Format(R"HTML(
+    document.body()->SetInnerHTMLWithoutTrustedTypes(
+        UNSAFE_TODO(String::Format(R"HTML(
       <style>
-        div {{ width: {}; }}
+        div { width: %s; }
       </style>
       <div id=target></div>
     )HTML",
-                                                            data.value));
+                                   data.value)));
     document.View()->UpdateAllLifecyclePhasesForTest();
 
     Element* target = document.getElementById(AtomicString("target"));
@@ -5856,6 +5952,53 @@ TEST_F(StyleEngineTest, CascadeLayersSheetsRemoved) {
   ASSERT_FALSE(shadow->GetScopedStyleResolver());
 }
 
+TEST_F(StyleEngineTest, NonSlottedStyleDirty) {
+  ScopedGetComputedStyleOutsideFlatTreeForTest scoped_feature(true);
+
+  GetDocument().body()->SetInnerHTMLWithoutTrustedTypes("<div id=host></div>");
+  auto* host = GetDocument().getElementById(AtomicString("host"));
+  ASSERT_TRUE(host);
+  host->AttachShadowRootForTesting(ShadowRootMode::kOpen);
+  UpdateAllLifecyclePhases();
+
+  // Add a child element to a shadow host with no slots. The inserted element is
+  // not marked for style recalc because the GetStyleRecalcParent() returns
+  // nullptr.
+  auto* span = MakeGarbageCollected<HTMLSpanElement>(GetDocument());
+  host->appendChild(span);
+  EXPECT_FALSE(host->ChildNeedsStyleRecalc());
+  EXPECT_FALSE(span->NeedsStyleRecalc());
+
+  UpdateAllLifecyclePhases();
+
+  // Set a style on the inserted child outside the flat tree.
+  // GetStyleRecalcParent() still returns nullptr, and the ComputedStyle of the
+  // child outside the flat tree is still null. No need to mark dirty.
+  span->SetInlineStyleProperty(CSSPropertyID::kColor, "red");
+  EXPECT_FALSE(host->ChildNeedsStyleRecalc());
+  EXPECT_FALSE(span->NeedsStyleRecalc());
+
+  // Ensure the ComputedStyle for the child and then change the style.
+  // GetStyleRecalcParent() is still null, which means the host is not marked
+  // with ChildNeedsStyleRecalc(), but the child needs to be marked dirty to
+  // make sure the next EnsureComputedStyle updates the style to reflect the
+  // changes.
+  const ComputedStyle* old_style = span->EnsureComputedStyle();
+  span->SetInlineStyleProperty(CSSPropertyID::kColor, "green");
+  EXPECT_FALSE(host->ChildNeedsStyleRecalc());
+  EXPECT_TRUE(span->NeedsStyleRecalc());
+  UpdateAllLifecyclePhases();
+
+  EXPECT_EQ(span->GetComputedStyle(), old_style);
+  const ComputedStyle* new_style = span->EnsureComputedStyle();
+  EXPECT_NE(new_style, old_style);
+
+  EXPECT_EQ(Color::FromRGB(255, 0, 0),
+            old_style->VisitedDependentColor(GetCSSPropertyColor()));
+  EXPECT_EQ(Color::FromRGB(0, 128, 0),
+            new_style->VisitedDependentColor(GetCSSPropertyColor()));
+}
+
 TEST_F(StyleEngineTest, CascadeLayerUseCount) {
   {
     ASSERT_FALSE(IsUseCounted(WebFeature::kCSSCascadeLayers));
@@ -6643,7 +6786,7 @@ TEST_F(StyleEngineTest, CSSComparisonFunctionsUseCount) {
 TEST_F(StyleEngineTest, MathDepthOverflow) {
   css_test_helpers::RegisterProperty(
       GetDocument(), "--int16-max", "<integer>",
-      String::Number(std::numeric_limits<int16_t>::max()), false);
+      String::Format("%i", std::numeric_limits<int16_t>::max()), false);
 
   GetDocument().body()->SetInnerHTMLWithoutTrustedTypes(R"HTML(
     <style>
@@ -6933,99 +7076,6 @@ TEST_F(StyleEngineSimTest,
   EXPECT_EQ(
       Color::FromRGB(0, 0, 0),
       fourth->GetComputedStyle()->VisitedDependentColor(GetCSSPropertyColor()));
-}
-
-TEST_F(StyleEngineTest, HasPseudoClassInvalidationForInsertionWithAttribute) {
-  GetDocument().body()->SetInnerHTMLWithoutTrustedTypes(R"HTML(
-    <style>
-      .a:has([any]) .d { background-color: lime; }
-    </style>
-    <div class='a'>
-      <div class="d"></div><div class="d"></div><div class="d"></div>
-      <div id="parent"></div>
-    </div>
-  )HTML");
-
-  UpdateAllLifecyclePhases();
-
-  unsigned start_count = GetStyleEngine().StyleForElementCount();
-  auto* div = MakeGarbageCollected<HTMLDivElement>(GetDocument());
-  GetDocument().getElementById(AtomicString("parent"))->AppendChild(div);
-  UpdateAllLifecyclePhases();
-  unsigned element_count =
-      GetStyleEngine().StyleForElementCount() - start_count;
-  ASSERT_EQ(1U, element_count);
-
-  start_count = GetStyleEngine().StyleForElementCount();
-  div = MakeGarbageCollected<HTMLDivElement>(GetDocument());
-  div->setAttribute(
-      QualifiedName(g_empty_atom, AtomicString("attr1"), g_empty_atom),
-      AtomicString("value1"));
-  GetDocument().getElementById(AtomicString("parent"))->AppendChild(div);
-  UpdateAllLifecyclePhases();
-  element_count = GetStyleEngine().StyleForElementCount() - start_count;
-  ASSERT_EQ(4U, element_count);
-}
-
-TEST_F(StyleEngineTest, HasPseudoClassInvalidationForInsertionWithIdAttribute) {
-  GetDocument().body()->SetInnerHTMLWithoutTrustedTypes(R"HTML(
-    <style>
-      .a:has([id="b"]) .c { background-color: lime; }
-    </style>
-    <div class='a'>
-      <div class="c"></div><div class="c"></div><div class="c"></div>
-      <div id="parent"></div>
-    </div>
-  )HTML");
-
-  UpdateAllLifecyclePhases();
-
-  unsigned start_count = GetStyleEngine().StyleForElementCount();
-  auto* div = MakeGarbageCollected<HTMLDivElement>(GetDocument());
-  GetDocument().getElementById(AtomicString("parent"))->AppendChild(div);
-  UpdateAllLifecyclePhases();
-  unsigned element_count =
-      GetStyleEngine().StyleForElementCount() - start_count;
-  ASSERT_EQ(1U, element_count);
-
-  start_count = GetStyleEngine().StyleForElementCount();
-  div = MakeGarbageCollected<HTMLDivElement>(GetDocument());
-  div->setAttribute(html_names::kIdAttr, AtomicString("b"));
-  GetDocument().getElementById(AtomicString("parent"))->AppendChild(div);
-  UpdateAllLifecyclePhases();
-  element_count = GetStyleEngine().StyleForElementCount() - start_count;
-  ASSERT_EQ(4U, element_count);
-}
-
-TEST_F(StyleEngineTest,
-       HasPseudoClassInvalidationForInsertionWithClassAttribute) {
-  GetDocument().body()->SetInnerHTMLWithoutTrustedTypes(R"HTML(
-    <style>
-      .a:has([class="b"]) .c { background-color: lime; }
-    </style>
-    <div class='a'>
-      <div class="c"></div><div class="c"></div><div class="c"></div>
-      <div id="parent"></div>
-    </div>
-  )HTML");
-
-  UpdateAllLifecyclePhases();
-
-  unsigned start_count = GetStyleEngine().StyleForElementCount();
-  auto* div = MakeGarbageCollected<HTMLDivElement>(GetDocument());
-  GetDocument().getElementById(AtomicString("parent"))->AppendChild(div);
-  UpdateAllLifecyclePhases();
-  unsigned element_count =
-      GetStyleEngine().StyleForElementCount() - start_count;
-  ASSERT_EQ(1U, element_count);
-
-  start_count = GetStyleEngine().StyleForElementCount();
-  div = MakeGarbageCollected<HTMLDivElement>(GetDocument());
-  div->setAttribute(html_names::kClassAttr, AtomicString("b"));
-  GetDocument().getElementById(AtomicString("parent"))->AppendChild(div);
-  UpdateAllLifecyclePhases();
-  element_count = GetStyleEngine().StyleForElementCount() - start_count;
-  ASSERT_EQ(4U, element_count);
 }
 
 TEST_F(StyleEngineTest, StyleElementTypeAttrChange) {
@@ -7802,164 +7852,6 @@ TEST_F(StyleEngineTest, DisplayContentsSetActiveWithActiveRules) {
       GetStyleEngine().StyleForElementCount() - start_count;
   // :active rule matches container, so style resolution should happen.
   EXPECT_GT(element_count, 0U);
-}
-
-TEST_F(StyleEngineTest, StyleSheetCacheShortAndLongText) {
-  StyleEngine& engine = GetStyleEngine();
-  const CSSParserContext* context =
-      MakeGarbageCollected<CSSParserContext>(GetDocument());
-
-  // 1. Short text (< 1024 chars).
-  String short_text = "div { color: red; }";
-  EXPECT_EQ(nullptr, engine.FindStyleSheetContents(short_text, context));
-
-  auto* short_contents =
-      MakeGarbageCollected<StyleSheetContents>(context, NullUrl());
-  short_contents->ParseString(short_text, /*allow_import_rules=*/false);
-  engine.AddStyleSheetContents(short_text, short_contents);
-
-  StyleSheetContents* found_short =
-      engine.FindStyleSheetContents(short_text, context);
-  EXPECT_EQ(short_contents, found_short);
-  EXPECT_TRUE(found_short->IsUsedFromTextCache());
-
-  // 2. Long text (>= 1024 chars, exercising FastHash).
-  StringBuilder sb;
-  for (int i = 0; i < 60; ++i) {
-    sb.Append(".class_");
-    sb.AppendNumber(i);
-    sb.Append(" { margin: 10px; padding: 5px; color: blue; }\n");
-  }
-  String long_text = sb.ToString();
-  ASSERT_GE(long_text.length(), 1024u);
-
-  EXPECT_EQ(nullptr, engine.FindStyleSheetContents(long_text, context));
-
-  auto* long_contents =
-      MakeGarbageCollected<StyleSheetContents>(context, NullUrl());
-  long_contents->ParseString(long_text, /*allow_import_rules=*/false);
-  engine.AddStyleSheetContents(long_text, long_contents);
-
-  StyleSheetContents* found_long =
-      engine.FindStyleSheetContents(long_text, context);
-  EXPECT_EQ(long_contents, found_long);
-  EXPECT_TRUE(found_long->IsUsedFromTextCache());
-}
-
-TEST_F(StyleEngineTest, StyleSheetCacheRejectsInvalidAndMismatchedBaseURL) {
-  StyleEngine& engine = GetStyleEngine();
-  const CSSParserContext* context =
-      MakeGarbageCollected<CSSParserContext>(GetDocument());
-
-  // 1. Add null contents or uncacheable contents (e.g. with import rule).
-  String text_with_import = "@import url('test.css'); div { color: green; }";
-  auto* import_contents =
-      MakeGarbageCollected<StyleSheetContents>(context, NullUrl());
-  import_contents->ParseString(text_with_import, /*allow_import_rules=*/true);
-  engine.AddStyleSheetContents(text_with_import, import_contents);
-  EXPECT_EQ(nullptr, engine.FindStyleSheetContents(text_with_import, context));
-
-  // 2. Mismatched BaseURL / parser context.
-  KURL other_base("https://other-domain.example.com/");
-  auto* other_context =
-      MakeGarbageCollected<CSSParserContext>(GetDocument(), other_base);
-  auto* other_contents =
-      MakeGarbageCollected<StyleSheetContents>(other_context, other_base);
-  String text = "p { color: yellow; }";
-  other_contents->ParseString(text, /*allow_import_rules=*/false);
-
-  // Storing with other_context.
-  engine.AddStyleSheetContents(text, other_contents);
-
-  // Querying with document context should not find it.
-  EXPECT_EQ(nullptr, engine.FindStyleSheetContents(text, context));
-  // Querying with other_context should find it.
-  EXPECT_EQ(other_contents, engine.FindStyleSheetContents(text, other_context));
-}
-
-TEST_F(StyleEngineTest, StyleSheetCacheNullAndInvalidContexts) {
-  StyleEngine& engine = GetStyleEngine();
-  const CSSParserContext* context =
-      MakeGarbageCollected<CSSParserContext>(GetDocument());
-  String text = "span { color: green; }";
-
-  // 1. Find with null parser_context returns nullptr.
-  EXPECT_EQ(nullptr, engine.FindStyleSheetContents(text, nullptr));
-
-  // 2. Add with null contents or null parser_context does nothing.
-  engine.AddStyleSheetContents(text, nullptr);
-  EXPECT_EQ(nullptr, engine.FindStyleSheetContents(text, context));
-
-  // 3. Add valid contents.
-  auto* contents = MakeGarbageCollected<StyleSheetContents>(context, NullUrl());
-  contents->ParseString(text, /*allow_import_rules=*/false);
-  engine.AddStyleSheetContents(text, contents);
-  EXPECT_EQ(contents, engine.FindStyleSheetContents(text, context));
-
-  // 4. Invalidate cacheability (e.g. SetHasSyntacticallyValidCSSHeader(false)),
-  // verify FindStyleSheetContents erases the entry and returns nullptr.
-  contents->SetHasSyntacticallyValidCSSHeader(false);
-  EXPECT_FALSE(contents->IsCacheableForStyleElement());
-  EXPECT_EQ(nullptr, engine.FindStyleSheetContents(text, context));
-  // Subsequent find confirms entry was erased from the cache.
-  EXPECT_EQ(nullptr, engine.FindStyleSheetContents(text, context));
-}
-
-TEST_F(StyleEngineTest, NoThrowawayMarkerStyleForListStyleNone) {
-  SetBodyInnerHTML(R"HTML(
-    <style>
-      ul { list-style: none; }
-      .green { color: green; }
-      .with-content::marker { content: "+"; }
-      #str { list-style-type: "*"; }
-    </style>
-    <ul>
-      <li id="none"><span id="child"></span></li>
-      <li id="str"></li>
-      <li id="content" class="with-content"></li>
-    </ul>
-  )HTML");
-  UpdateAllLifecyclePhasesForTest();
-
-  Element* none = GetDocument().getElementById(AtomicString("none"));
-  Element* child = GetDocument().getElementById(AtomicString("child"));
-  Element* str = GetDocument().getElementById(AtomicString("str"));
-  Element* content = GetDocument().getElementById(AtomicString("content"));
-
-  // A list item with neither a list-style nor ::marker rules has no marker;
-  // a list-style-type or ::marker 'content' alone is enough to generate one.
-  EXPECT_FALSE(none->GetPseudoElement(kPseudoIdMarker));
-  EXPECT_TRUE(str->GetPseudoElement(kPseudoIdMarker));
-  EXPECT_TRUE(content->GetPseudoElement(kPseudoIdMarker));
-
-  // Restyling a descendant of the markerless list item must not compute (and
-  // throw away) a ::marker style for the list item; only #child is resolved.
-  unsigned start_count = GetStyleEngine().StyleForElementCount();
-  child->classList().Add(AtomicString("green"));
-  UpdateAllLifecyclePhasesForTest();
-  EXPECT_EQ(1u, GetStyleEngine().StyleForElementCount() - start_count);
-  EXPECT_FALSE(none->GetPseudoElement(kPseudoIdMarker));
-
-  // A (non-independent) inherited change on the list item recalculates the
-  // list item and its child, but still no ::marker.
-  start_count = GetStyleEngine().StyleForElementCount();
-  none->SetInlineStyleProperty(CSSPropertyID::kFontSize, "20px");
-  UpdateAllLifecyclePhasesForTest();
-  EXPECT_EQ(2u, GetStyleEngine().StyleForElementCount() - start_count);
-  EXPECT_FALSE(none->GetPseudoElement(kPseudoIdMarker));
-
-  // Giving it a list-style-type generates the marker as usual ...
-  none->SetInlineStyleProperty(CSSPropertyID::kListStyleType, "disc");
-  UpdateAllLifecyclePhasesForTest();
-  ASSERT_TRUE(none->GetPseudoElement(kPseudoIdMarker));
-  EXPECT_TRUE(none->GetPseudoElement(kPseudoIdMarker)->GetLayoutObject());
-
-  // ... and so does a ::marker rule with 'content', even with no list-style.
-  none->RemoveInlineStyleProperty(CSSPropertyID::kListStyleType);
-  none->classList().Add(AtomicString("with-content"));
-  UpdateAllLifecyclePhasesForTest();
-  ASSERT_TRUE(none->GetPseudoElement(kPseudoIdMarker));
-  EXPECT_TRUE(none->GetPseudoElement(kPseudoIdMarker)->GetLayoutObject());
 }
 
 }  // namespace blink

@@ -4,7 +4,6 @@
 
 package org.chromium.chrome.browser.ui.signin;
 
-import org.chromium.base.CallbackUtils;
 import org.chromium.base.ResettersForTesting;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
@@ -23,8 +22,7 @@ public class ForcedSigninStatusProvider {
             new ProfileKeyedMap<>(ProfileKeyedMap.noRequiredCleanupAction());
 
     @Nullable private static ForcedSigninStatusProvider sInstanceForTesting;
-    private final TokenHolder mShownForcedSigninScreens =
-            new TokenHolder(CallbackUtils.emptyRunnable());
+    private final TokenHolder mShownForcedSigninScreens = new TokenHolder(() -> {});
 
     /**
      * Returns the {@link ForcedSigninStatusProvider} for the provided profile and creates a new

@@ -19,10 +19,6 @@
 - (void)shoppingTableViewControllerDidRemove:
     (ShoppingTableViewController*)controller;
 
-// Called when the Suggestions from Gemini cell is selected.
-- (void)shoppingTableViewControllerDidSelectSuggestionsFromGemini:
-    (ShoppingTableViewController*)controller;
-
 @end
 
 // The TableView for Shopping settings page.

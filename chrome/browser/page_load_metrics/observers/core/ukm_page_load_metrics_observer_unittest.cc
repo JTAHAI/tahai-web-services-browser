@@ -1306,13 +1306,13 @@ TEST_F(UkmPageLoadMetricsObserverTest, NormalizedUserInteractionLatencies) {
   base::TimeTicks current_time = base::TimeTicks::Now();
   event_timings.emplace_back(page_load_metrics::mojom::EventTiming::New(
       base::Milliseconds(50), 1, current_time + base::Milliseconds(1000),
-      current_time + base::Milliseconds(1030), /*navigation_id=*/1u));
+      current_time + base::Milliseconds(1030)));
   event_timings.emplace_back(page_load_metrics::mojom::EventTiming::New(
       base::Milliseconds(100), 2, current_time + base::Milliseconds(2000),
-      current_time + base::Milliseconds(2044), /*navigation_id=*/1u));
+      current_time + base::Milliseconds(2044)));
   event_timings.emplace_back(page_load_metrics::mojom::EventTiming::New(
       base::Milliseconds(150), 3, current_time + base::Milliseconds(3000),
-      current_time + base::Milliseconds(3050), /*navigation_id=*/1u));
+      current_time + base::Milliseconds(3050)));
 
   tester()->SimulateEventTimingUpdate(event_timings);
 
@@ -1351,8 +1351,8 @@ TEST_F(UkmPageLoadMetricsObserverTest,
   std::vector<page_load_metrics::mojom::EventTimingPtr> event_timings;
 
   event_timings.emplace_back(page_load_metrics::mojom::EventTiming::New(
-      base::Milliseconds(50), 1, base::TimeTicks::Now(), base::TimeTicks::Now(),
-      /*navigation_id=*/1u));
+      base::Milliseconds(50), 1, base::TimeTicks::Now(),
+      base::TimeTicks::Now()));
 
   tester()->SimulateEventTimingUpdate(event_timings);
 
@@ -1571,14 +1571,14 @@ TEST_F(UkmPageLoadMetricsObserverTest, PageSizeMetrics) {
   // Cached resource.
   resources.push_back(CreateResource(/*was_cached=*/true,
                                      /*delta_bytes=*/base::ByteSize(0),
-                                     /*encoded_body_length=*/base::KiB(20),
-                                     /*decoded_body_length=*/base::KiB(30),
+                                     /*encoded_body_length=*/base::KiBU(20),
+                                     /*decoded_body_length=*/base::KiBU(30),
                                      /*is_complete=*/true));
   // Uncached resource.
   resources.push_back(CreateResource(
-      /*was_cached=*/false, /*delta_bytes=*/base::KiB(40),
-      /*encoded_body_length=*/base::KiB(40),
-      /*decoded_body_length=*/base::KiB(50),
+      /*was_cached=*/false, /*delta_bytes=*/base::KiBU(40),
+      /*encoded_body_length=*/base::KiBU(40),
+      /*decoded_body_length=*/base::KiBU(50),
       /*is_complete=*/true));
   tester()->SimulateResourceDataUseUpdate(resources);
 
@@ -1623,22 +1623,22 @@ TEST_F(UkmPageLoadMetricsObserverTest, JSSizeMetrics) {
   // 30 kilobytes after decoding.
   resources.push_back(CreateResource(/*was_cached=*/true,
                                      /*delta_bytes=*/base::ByteSize(0),
-                                     /*encoded_body_length=*/base::KiB(20),
-                                     /*decoded_body_length=*/base::KiB(30),
+                                     /*encoded_body_length=*/base::KiBU(20),
+                                     /*decoded_body_length=*/base::KiBU(30),
                                      /*is_complete=*/true));
 
   // 50 kilobytes after decoding.
   resources.push_back(CreateResource(
-      /*was_cached=*/false, /*delta_bytes=*/base::KiB(40),
-      /*encoded_body_length=*/base::KiB(40),
-      /*decoded_body_length=*/base::KiB(50),
+      /*was_cached=*/false, /*delta_bytes=*/base::KiBU(40),
+      /*encoded_body_length=*/base::KiBU(40),
+      /*decoded_body_length=*/base::KiBU(50),
       /*is_complete=*/true));
 
   // 120 kilobytes after decoding, not JS.
   resources.push_back(CreateResource(
-      /*was_cached=*/false, /*delta_bytes=*/base::KiB(40),
-      /*encoded_body_length=*/base::KiB(100),
-      /*decoded_body_length=*/base::KiB(120), /*is_complete=*/true));
+      /*was_cached=*/false, /*delta_bytes=*/base::KiBU(40),
+      /*encoded_body_length=*/base::KiBU(100),
+      /*decoded_body_length=*/base::KiBU(120), /*is_complete=*/true));
 
   resources[0]->mime_type = "application/javascript";
   resources[1]->mime_type = "application/javascript";
@@ -1652,7 +1652,7 @@ TEST_F(UkmPageLoadMetricsObserverTest, JSSizeMetrics) {
   // Metrics look at decoded body length.
   // 30 + 50 = 80 kilobytes.
   int64_t bucketed_network_js_bytes =
-      ukm::GetExponentialBucketMinForBytes(base::KiB(80).InBytes());
+      ukm::GetExponentialBucketMinForBytes(base::KiBU(80).InBytes());
 
   std::map<ukm::SourceId, ukm::mojom::UkmEntryPtr> merged_entries =
       tester()->test_ukm_recorder().GetMergedEntriesByName(
@@ -1675,21 +1675,21 @@ TEST_F(UkmPageLoadMetricsObserverTest, JSMaxSizeMetrics) {
   // 30 kilobytes after decoding.
   resources.push_back(CreateResource(/*was_cached=*/true,
                                      /*delta_bytes=*/base::ByteSize(0),
-                                     /*encoded_body_length=*/base::KiB(20),
-                                     /*decoded_body_length=*/base::KiB(30),
+                                     /*encoded_body_length=*/base::KiBU(20),
+                                     /*decoded_body_length=*/base::KiBU(30),
                                      /*is_complete=*/true));
 
   // 500 kilobytes after decoding.
   resources.push_back(CreateResource(
-      /*was_cached=*/false, /*delta_bytes=*/base::KiB(400),
-      /*encoded_body_length=*/base::KiB(400),
-      /*decoded_body_length=*/base::KiB(500), /*is_complete=*/true));
+      /*was_cached=*/false, /*delta_bytes=*/base::KiBU(400),
+      /*encoded_body_length=*/base::KiBU(400),
+      /*decoded_body_length=*/base::KiBU(500), /*is_complete=*/true));
 
   // 120 kilobytes after decoding, not JS.
   resources.push_back(CreateResource(
-      /*was_cached=*/false, /*delta_bytes=*/base::KiB(40),
-      /*encoded_body_length=*/base::KiB(100),
-      /*decoded_body_length=*/base::KiB(120), /*is_complete=*/true));
+      /*was_cached=*/false, /*delta_bytes=*/base::KiBU(40),
+      /*encoded_body_length=*/base::KiBU(100),
+      /*decoded_body_length=*/base::KiBU(120), /*is_complete=*/true));
 
   resources[0]->mime_type = "application/javascript";
   resources[1]->mime_type = "application/javascript";
@@ -1724,19 +1724,19 @@ TEST_F(UkmPageLoadMetricsObserverTest, ImageMediaSizeMetrics) {
 
   std::vector<page_load_metrics::mojom::ResourceDataUpdatePtr> resources;
   resources.push_back(CreateResource(
-      /*was_cached=*/false, /*delta_bytes=*/base::KiB(10),
-      /*encoded_body_length=*/base::KiB(10),
-      /*decoded_body_length=*/base::KiB(10),
+      /*was_cached=*/false, /*delta_bytes=*/base::KiBU(10),
+      /*encoded_body_length=*/base::KiBU(10),
+      /*decoded_body_length=*/base::KiBU(10),
       /*is_complete=*/true));
   resources.push_back(CreateResource(
-      /*was_cached=*/false, /*delta_bytes=*/base::KiB(20),
-      /*encoded_body_length=*/base::KiB(20),
-      /*decoded_body_length=*/base::KiB(20),
+      /*was_cached=*/false, /*delta_bytes=*/base::KiBU(20),
+      /*encoded_body_length=*/base::KiBU(20),
+      /*decoded_body_length=*/base::KiBU(20),
       /*is_complete=*/true));
   resources.push_back(CreateResource(
-      /*was_cached=*/false, /*delta_bytes=*/base::KiB(50),
-      /*encoded_body_length=*/base::KiB(50),
-      /*decoded_body_length=*/base::KiB(50),
+      /*was_cached=*/false, /*delta_bytes=*/base::KiBU(50),
+      /*encoded_body_length=*/base::KiBU(50),
+      /*decoded_body_length=*/base::KiBU(50),
       /*is_complete=*/true));
 
   resources[0]->mime_type = "image/png";
@@ -1800,12 +1800,10 @@ TEST_F(UkmPageLoadMetricsObserverTest, LayoutInstability) {
   page_load_metrics::mojom::FrameRenderDataUpdate render_data;
   render_data.new_layout_shifts.emplace_back(
       page_load_metrics::mojom::LayoutShift::New(
-          current_time - base::Milliseconds(4000), 0.5, false,
-          /*navigation_id=*/1u));
+          current_time - base::Milliseconds(4000), 0.5, false));
   render_data.new_layout_shifts.emplace_back(
       page_load_metrics::mojom::LayoutShift::New(
-          current_time - base::Milliseconds(3500), 0.5, false,
-          /*navigation_id=*/1u));
+          current_time - base::Milliseconds(3500), 0.5, false));
 
   tester()->SimulateRenderDataUpdate(render_data);
 
@@ -1815,8 +1813,7 @@ TEST_F(UkmPageLoadMetricsObserverTest, LayoutInstability) {
   page_load_metrics::mojom::FrameRenderDataUpdate render_data_2;
   render_data_2.new_layout_shifts.emplace_back(
       page_load_metrics::mojom::LayoutShift::New(
-          current_time - base::Milliseconds(2500), 1.5, true,
-          /*navigation_id=*/1u));
+          current_time - base::Milliseconds(2500), 1.5, true));
   tester()->SimulateRenderDataUpdate(render_data_2);
 
   // Simulate closing the tab.
@@ -1859,19 +1856,18 @@ TEST_F(UkmPageLoadMetricsObserverTest, SoftNavigationCount) {
   auto url = GURL(kTestUrl1);
   NavigateAndCommit(url);
 
-  base::UnguessableToken same_doc_token = base::UnguessableToken::Create();
-  page_load_metrics::mojom::SoftNavigationMetrics soft_navigation_metrics(
-      2,
-      page_load_metrics::mojom::SoftNavigationCommit::New(
-          base::Milliseconds(12), base::TimeTicks::Now(),
-          blink::mojom::NavigationTypeForNavigationApi::kPush, same_doc_token),
-      base::Milliseconds(20));
+  auto soft_navigation_metrics =
+      page_load_metrics::mojom::SoftNavigationMetrics(
+          1, base::Milliseconds(12), base::TimeTicks() + base::Milliseconds(12),
+          blink::mojom::NavigationTypeForNavigationApi::kPush,
+          base::UnguessableToken::Create());
 
   content::MockNavigationHandle navigation_handle;
   navigation_handle.set_has_committed(true);
   navigation_handle.set_is_in_primary_main_frame(true);
   navigation_handle.set_is_same_document(true);
-  navigation_handle.set_same_document_metrics_token(same_doc_token);
+  navigation_handle.set_same_document_metrics_token(
+      base::UnguessableToken::Create());
 
   // Simulate the detection of soft navigation so that the ukm source id for
   // soft navigation is initialized.
@@ -1905,12 +1901,10 @@ TEST_F(UkmPageLoadMetricsObserverTest,
   page_load_metrics::mojom::FrameRenderDataUpdate render_data;
   render_data.new_layout_shifts.emplace_back(
       page_load_metrics::mojom::LayoutShift::New(
-          current_time - base::Milliseconds(4000), 0.5, false,
-          /*navigation_id=*/1u));
+          current_time - base::Milliseconds(4000), 0.5, false));
   render_data.new_layout_shifts.emplace_back(
       page_load_metrics::mojom::LayoutShift::New(
-          current_time - base::Milliseconds(3500), 0.5, false,
-          /*navigation_id=*/1u));
+          current_time - base::Milliseconds(3500), 0.5, false));
 
   tester()->SimulateRenderDataUpdate(render_data);
 
@@ -1941,8 +1935,7 @@ TEST_F(UkmPageLoadMetricsObserverTest,
   page_load_metrics::mojom::FrameRenderDataUpdate render_data_2;
   render_data_2.new_layout_shifts.emplace_back(
       page_load_metrics::mojom::LayoutShift::New(
-          current_time - base::Milliseconds(2500), 1.5, true,
-          /*navigation_id=*/1u));
+          current_time - base::Milliseconds(2500), 1.5, true));
   tester()->SimulateRenderDataUpdate(render_data_2);
 
   // Simulate closing the tab (the CLS metrics should include all the shifts
@@ -2016,12 +2009,10 @@ TEST_F(UkmPageLoadMetricsObserverTest,
   page_load_metrics::mojom::FrameRenderDataUpdate render_data;
   render_data.new_layout_shifts.emplace_back(
       page_load_metrics::mojom::LayoutShift::New(
-          current_time - base::Milliseconds(4000), 0.5, false,
-          /*navigation_id=*/1u));
+          current_time - base::Milliseconds(4000), 0.5, false));
   render_data.new_layout_shifts.emplace_back(
       page_load_metrics::mojom::LayoutShift::New(
-          current_time - base::Milliseconds(3500), 0.5, false,
-          /*navigation_id=*/1u));
+          current_time - base::Milliseconds(3500), 0.5, false));
 
   tester()->SimulateRenderDataUpdate(render_data);
 
@@ -2181,7 +2172,7 @@ TEST_F(UkmPageLoadMetricsObserverTest, LayoutInstabilitySubframeAggregation) {
   page_load_metrics::mojom::FrameRenderDataUpdate render_data;
   render_data.new_layout_shifts.push_back(
       page_load_metrics::mojom::LayoutShift::New(base::TimeTicks::Now(), 1.0,
-                                                 false, /*navigation_id=*/1u));
+                                                 false));
 
   tester()->SimulateRenderDataUpdate(render_data);
 
@@ -2195,7 +2186,7 @@ TEST_F(UkmPageLoadMetricsObserverTest, LayoutInstabilitySubframeAggregation) {
   render_data.new_layout_shifts.clear();
   render_data.new_layout_shifts.push_back(
       page_load_metrics::mojom::LayoutShift::New(base::TimeTicks::Now(), 1.5,
-                                                 false, /*navigation_id=*/1u));
+                                                 false));
   tester()->SimulateRenderDataUpdate(render_data, subframe);
 
   // Simulate closing the tab.
@@ -2939,7 +2930,7 @@ void CLSUkmPageLoadMetricsObserverTest::SimulateShiftDelta(
   page_load_metrics::mojom::FrameRenderDataUpdate render_data;
   render_data.new_layout_shifts.push_back(
       page_load_metrics::mojom::LayoutShift::New(base::TimeTicks::Now(), delta,
-                                                 false, /*navigation_id=*/1u));
+                                                 false));
   tester()->SimulateRenderDataUpdate(render_data, frame);
 }
 

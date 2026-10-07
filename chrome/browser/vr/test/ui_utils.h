@@ -8,7 +8,6 @@
 #include "base/run_loop.h"
 #include "base/task/single_thread_task_runner.h"
 #include "base/threading/thread.h"
-#include "base/time/time.h"
 #include "chrome/browser/vr/ui_test_input.h"
 
 namespace vr {
@@ -21,8 +20,7 @@ class VRBrowserRendererThread;
 // shown in the headset.
 class UiUtils {
  public:
-  static constexpr base::TimeDelta kDefaultUiQuiescenceTimeout =
-      base::Seconds(2);
+  static constexpr int kDefaultUiQuiescenceTimeout = 2000;
 
   // Ensures that the renderer thread and BrowserRenderer instance exist before
   // creating a UiUtils.
@@ -41,10 +39,8 @@ class UiUtils {
   // Waits until the native UI reports that |element_name|'s visibility matches
   // |visible|. Fails if the visibility is not matched in an allotted amount of
   // time.
-  void WaitForVisibilityStatus(
-      const UserFriendlyElementName& element_name,
-      const bool& visible,
-      base::TimeDelta timeout = kDefaultUiQuiescenceTimeout);
+  void WaitForVisibilityStatus(const UserFriendlyElementName& element_name,
+                               const bool& visible);
 
   static void DisableOverlayForTesting();
 

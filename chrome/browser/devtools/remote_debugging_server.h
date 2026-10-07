@@ -60,8 +60,6 @@ class RemoteDebuggingServer {
 
   void StartHttpServerInApprovalModeIfEnabled(PrefService* local_state);
 
-  void StopServer();
-
  protected:
   RemoteDebuggingServer();
 

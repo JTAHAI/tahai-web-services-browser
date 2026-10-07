@@ -15,10 +15,6 @@ namespace content {
 class WebContents;
 }  // namespace content
 
-namespace tabs {
-class TabInterface;
-}
-
 namespace infobars {
 class ContentInfoBarManager;
 }
@@ -43,8 +39,6 @@ class TestInfoBar : public UiBrowserTest {
   // Returns the active tab.
   content::WebContents* GetWebContents();
   const content::WebContents* GetWebContents() const;
-  tabs::TabInterface* GetTab();
-  const tabs::TabInterface* GetTab() const;
 
   // Returns the infobars::ContentInfoBarManager associated with the active tab.
   infobars::ContentInfoBarManager* GetInfoBarManager();

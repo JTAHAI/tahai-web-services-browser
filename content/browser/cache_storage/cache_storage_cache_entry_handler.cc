@@ -328,8 +328,7 @@ CacheStorageCacheEntryHandler::CreateDiskCacheBlobEntry(
       base::MakeRefCounted<CacheStorageCacheEntryHandler::DiskCacheBlobEntry>(
           base::PassKey<CacheStorageCacheEntryHandler>(), GetWeakPtr(),
           std::move(cache_handle), std::move(disk_cache_entry));
-  CHECK_EQ(blob_entries_.count(blob_entry.get()), 0u,
-           base::NotFatalUntil::M158);
+  DCHECK_EQ(blob_entries_.count(blob_entry.get()), 0u);
   blob_entries_.insert(blob_entry.get());
   return blob_entry;
 }
@@ -350,7 +349,7 @@ void CacheStorageCacheEntryHandler::InvalidateDiskCacheBlobEntrys() {
 void CacheStorageCacheEntryHandler::EraseDiskCacheBlobEntry(
     DiskCacheBlobEntry* blob_entry) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  CHECK_NE(blob_entries_.count(blob_entry), 0u, base::NotFatalUntil::M158);
+  DCHECK_NE(blob_entries_.count(blob_entry), 0u);
   blob_entries_.erase(blob_entry);
 }
 

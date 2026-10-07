@@ -1,18 +1,10 @@
 [MESSAGES CONTROL]
 
-disable=
-  broad-exception-raised,
-  consider-using-f-string,
-  consider-using-from-import,
-  consider-using-with,
-  duplicate-code,
-  fixme,
-  missing-function-docstring,
-  superfluous-parens,
-  unnecessary-dunder-call,
-  unspecified-encoding,
-  useless-option-value,
-  wrong-import-order,
+# Disable the message, report, category or checker with the given id(s).
+disable=fixme,
+
+# fixme
+# This complains about TODOs, which are perfectly valid to have.
 
 # Suppression for invalid-name error for PRESUBMIT.py file.
 good-names=i,j,k,f,PRESUBMIT
@@ -20,7 +12,6 @@ good-names=i,j,k,f,PRESUBMIT
 [REPORTS]
 
 reports=no
-score=no
 
 [DESIGN]
 

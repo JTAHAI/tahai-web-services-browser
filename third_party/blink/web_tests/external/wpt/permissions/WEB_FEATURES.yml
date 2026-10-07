@@ -1,2 +1,3 @@
-rules:
-- "**": [permissions]
+features:
+- name: permissions
+  files: "**"

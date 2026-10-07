@@ -39,7 +39,10 @@ void JsSandboxIsolateCallback::ReportResult(const std::string& result) {
     // reading from it. That is not an error for our use case.
     base::WriteFileDescriptor(write_fd.get(), std::move(result));
   } else {
-    Java_JsSandboxIsolateCallback_onResult(env, UseCallback(), result);
+    base::android::ScopedJavaLocalRef<jstring> java_string_result =
+        base::android::ConvertUTF8ToJavaString(env, result);
+    Java_JsSandboxIsolateCallback_onResult(env, UseCallback(),
+                                           java_string_result);
   }
 }
 
@@ -83,8 +86,11 @@ void JsSandboxIsolateCallback::ReportError(const ErrorType error_type,
     // reading from it. That is not an error for our use case.
     base::WriteFileDescriptor(write_fd.get(), std::move(error));
   } else {
-    Java_JsSandboxIsolateCallback_onError(
-        env, UseCallback(), static_cast<int32_t>(error_type), error);
+    base::android::ScopedJavaLocalRef<jstring> java_string_error =
+        base::android::ConvertUTF8ToJavaString(env, error);
+    Java_JsSandboxIsolateCallback_onError(env, UseCallback(),
+                                          static_cast<int32_t>(error_type),
+                                          java_string_error);
   }
 }
 

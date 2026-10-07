@@ -7,7 +7,6 @@
 #include <map>
 #include <memory>
 #include <string>
-#include <utility>
 
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
@@ -29,7 +28,7 @@ namespace {
 auto ExpectPathExists() {
   return base::BindOnce(
       [](base::expected<base::FilePath, UnpackerError> result) {
-        ASSERT_TRUE(result.has_value()) << std::to_underlying(result.error());
+        ASSERT_TRUE(result.has_value()) << static_cast<int>(result.error());
         EXPECT_TRUE(base::PathExists(result.value())) << result.value().value();
       });
 }
@@ -123,8 +122,7 @@ TEST_F(CrxCacheTest, PutAlreadyCached) {
             if (!result.has_value()) {
               Quit().Run();
             }
-            ASSERT_TRUE(result.has_value())
-                << std::to_underlying(result.error());
+            ASSERT_TRUE(result.has_value()) << static_cast<int>(result.error());
             cache->Put(
                 result.value(), "appid", "hash",
                 base::BindLambdaForTesting(
@@ -133,7 +131,7 @@ TEST_F(CrxCacheTest, PutAlreadyCached) {
                         Quit().Run();
                       }
                       ASSERT_TRUE(result2.has_value())
-                          << std::to_underlying(result2.error());
+                          << static_cast<int>(result2.error());
                       cache->GetByHash("hash", ExpectPathExists().Then(Quit()));
                     }));
           }));

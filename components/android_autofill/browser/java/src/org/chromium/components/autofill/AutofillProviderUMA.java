@@ -13,8 +13,6 @@ import androidx.annotation.IntDef;
 import org.chromium.autofill.mojom.SubmissionSource;
 import org.chromium.base.ContextUtils;
 import org.chromium.base.Log;
-import org.chromium.base.TriState;
-import org.chromium.base.TriStateUtils;
 import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
@@ -409,7 +407,7 @@ public class AutofillProviderUMA {
     }
 
     private @Nullable SessionRecorder mRecorder;
-    private @TriState int mAutofillDisabledOnSessionStart;
+    private @Nullable Boolean mAutofillDisabledOnSessionStart;
 
     private final boolean mIsAwGCurrentAutofillService;
     private @Nullable ServerPredictionRecorder mServerPredictionRecorder;
@@ -438,10 +436,10 @@ public class AutofillProviderUMA {
 
     public void onSessionStarted(boolean autofillDisabled) {
         // Record autofill status once per instance and only if user triggers the autofill.
-        @TriState int disabledState = TriStateUtils.from(autofillDisabled);
-        if (mAutofillDisabledOnSessionStart != disabledState) {
+        if (mAutofillDisabledOnSessionStart == null
+                || mAutofillDisabledOnSessionStart.booleanValue() != autofillDisabled) {
             RecordHistogram.recordBooleanHistogram(UMA_AUTOFILL_ENABLED, !autofillDisabled);
-            mAutofillDisabledOnSessionStart = disabledState;
+            mAutofillDisabledOnSessionStart = autofillDisabled;
         }
 
         if (mRecorder != null) recordSession();
@@ -541,7 +539,9 @@ public class AutofillProviderUMA {
      * session has been started.
      */
     public void recordSession() {
-        if (mAutofillDisabledOnSessionStart == TriState.FALSE && mRecorder != null) {
+        if (mAutofillDisabledOnSessionStart != null
+                && !mAutofillDisabledOnSessionStart.booleanValue()
+                && mRecorder != null) {
             mRecorder.recordHistogram(mCurrentProvider);
         }
         mRecorder = null;
@@ -558,13 +558,13 @@ public class AutofillProviderUMA {
      */
     static void recordException(Exception e, @AutofillManagerMethod int calledMethod) {
         RecordHistogram.recordEnumeratedHistogram(
-                UMA_AUTOFILL_MANAGER_ERROR, calledMethod, AutofillManagerMethod.MAX_VALUE + 1);
+                UMA_AUTOFILL_MANAGER_ERROR, calledMethod, AutofillManagerMethod.MAX_VALUE);
         Log.e(TAG, "Calling AutofillManager#mAutofillManager failed: " + e.getMessage());
     }
 
     private static void recordUmaAutofillProvider(@Provider int autofillProvider) {
         RecordHistogram.recordEnumeratedHistogram(
-                UMA_AUTOFILL_PROVIDER, autofillProvider, Provider.MAX_VALUE + 1);
+                UMA_AUTOFILL_PROVIDER, autofillProvider, Provider.MAX_VALUE);
     }
 
     private int toUMASubmissionSource(int source) {
@@ -596,7 +596,7 @@ public class AutofillProviderUMA {
         RecordHistogram.recordEnumeratedHistogram(
                 UMA_AUTOFILL_CREATION_CONTEXT,
                 toCreationContext(creationContext),
-                AutofillManagerCreationContext.MAX_VALUE + 1);
+                AutofillManagerCreationContext.MAX_VALUE);
     }
 
     static @AutofillManagerCreationContext int toCreationContext(@Nullable Context context) {

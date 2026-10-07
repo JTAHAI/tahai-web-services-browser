@@ -78,11 +78,8 @@ class MidiManagerAndroid {
      * @param nativeManagerPointer The native pointer to a midi::MidiManagerAndroid object.
      */
     private MidiManagerAndroid(long nativeManagerPointer) {
-        // In production this constructor is invoked from the MIDI IO thread, but the
-        // media/midi native unit tests share a single thread that Chromium considers
-        // the UI thread. Since this constructor only stashes references, and later
-        // handler and JNI calls are thread-safe, it is safe to call from either
-        // thread.
+        assert !ThreadUtils.runningOnUiThread();
+
         mManager =
                 (MidiManager)
                         ContextUtils.getApplicationContext().getSystemService(Context.MIDI_SERVICE);
@@ -116,67 +113,52 @@ class MidiManagerAndroid {
             postOnInitializationFailed();
             return;
         }
-        MidiDeviceInfo[] infos;
         try {
-            synchronized (this) {
-                mManager.registerDeviceCallback(
-                        new MidiManager.DeviceCallback() {
-                            @Override
-                            public void onDeviceAdded(MidiDeviceInfo device) {
-                                MidiManagerAndroid.this.onDeviceAdded(device);
-                            }
+            mManager.registerDeviceCallback(
+                new MidiManager.DeviceCallback() {
+                    @Override
+                    public void onDeviceAdded(MidiDeviceInfo device) {
+                        MidiManagerAndroid.this.onDeviceAdded(device);
+                    }
 
-                            @Override
-                            public void onDeviceRemoved(MidiDeviceInfo device) {
-                                MidiManagerAndroid.this.onDeviceRemoved(device);
+                    @Override
+                    public void onDeviceRemoved(MidiDeviceInfo device) {
+                        MidiManagerAndroid.this.onDeviceRemoved(device);
+                    }
+                },
+                mHandler);
+        } catch (Throwable t) {
+            // android.media.midi.MidiManager.registerDeviceCallback
+            // may throw RemoteException caused by
+            // SecurityException("too many MIDI listeners ... ")
+            Log.e(TAG, "registerDeviceCallback error", t);
+            postOnInitializationFailed();
+            return;
+        }
+        MidiDeviceInfo[] infos = mManager.getDevices();
+
+        for (final MidiDeviceInfo info : infos) {
+            mPendingDevices.add(info);
+            openDevice(info);
+        }
+        mHandler.post(
+                new Runnable() {
+                    @Override
+                    public void run() {
+                        synchronized (MidiManagerAndroid.this) {
+                            if (mStopped) {
+                                return;
                             }
-                        },
-                        mHandler);
-                infos = mManager.getDevices();
-                for (final MidiDeviceInfo info : infos) {
-                    mPendingDevices.add(info);
-                }
-            }
-        } catch (Throwable t) {
-            // android.media.midi.MidiManager.registerDeviceCallback may throw
-            // RemoteException caused by SecurityException("too many MIDI
-            // listeners ... "), and getDevices() can throw SecurityException
-            // or other RuntimeExceptions if the MIDI service is in an
-            // unexpected state (crbug.com/41389563). Report all of them as
-            // initialization failures.
-            Log.e(TAG, "MIDI initialization error", t);
-            postOnInitializationFailed();
-            return;
-        }
-        try {
-            for (final MidiDeviceInfo info : infos) {
-                openDevice(info);
-            }
-        } catch (Throwable t) {
-            // openDevice() can throw SecurityException or other
-            // RuntimeExceptions if the MIDI service is in an unexpected state.
-            Log.e(TAG, "MIDI initialization error", t);
-            postOnInitializationFailed();
-            return;
-        }
-        // If getDevices() returned no devices, no onDeviceOpened callback will
-        // fire to complete initialization, so report OK synchronously. Reporting
-        // via mHandler.post() here would require the Android Looper to be
-        // running, which is not the case in native unit-test binaries where the
-        // main thread is owned by C++ (crbug.com/41389563). Doing this inline
-        // is safe because callers already invoke initialize() while holding a
-        // consistent view of `mPendingDevices`.
-        synchronized (this) {
-            if (mStopped) {
-                return;
-            }
-            if (mPendingDevices.isEmpty() && !mIsInitialized) {
-                MidiManagerAndroidJni.get()
-                        .onInitialized(
-                                mNativeManagerPointer, mDevices.toArray(new MidiDeviceAndroid[0]));
-                mIsInitialized = true;
-            }
-        }
+                            if (mPendingDevices.isEmpty() && !mIsInitialized) {
+                                MidiManagerAndroidJni.get()
+                                        .onInitialized(
+                                                mNativeManagerPointer,
+                                                mDevices.toArray(new MidiDeviceAndroid[0]));
+                                mIsInitialized = true;
+                            }
+                        }
+                    }
+                });
     }
 
     /** Marks this object as stopped. */
@@ -199,14 +181,11 @@ class MidiManagerAndroid {
 
     /**
      * Called when a midi device is attached.
-     *
      * @param info the attached device information.
      */
     private void onDeviceAdded(final MidiDeviceInfo info) {
-        synchronized (this) {
-            if (!mIsInitialized) {
-                mPendingDevices.add(info);
-            }
+        if (!mIsInitialized) {
+            mPendingDevices.add(info);
         }
         openDevice(info);
     }

@@ -41,7 +41,7 @@ GURL TestLocationBarModel::GetURL() const {
 }
 
 bool TestLocationBarModel::IsContextualTasksPage() const {
-  return is_contextual_tasks_page_;
+  return false;
 }
 
 GURL TestLocationBarModel::GetContextualTasksInnerFrameURL() const {

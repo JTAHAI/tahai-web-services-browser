@@ -15,13 +15,16 @@
 #include "components/tabs/public/tab_collection.h"
 #include "components/tabs/public/tab_interface.h"
 #include "testing/gmock/include/gmock/gmock.h"
-#include "ui/base/unowned_user_data/unowned_user_data_host.h"
 
 class BrowserWindowInterface;
 class Profile;
 
 namespace content {
 class WebContents;
+}
+
+namespace ui {
+class UnownedUserDataHost;
 }
 
 namespace tabs {
@@ -130,11 +133,6 @@ class MockTabInterface : public testing::NiceMock<TabInterface> {
               GetUnownedUserDataHost,
               (),
               (const, override));
-
- private:
-  // Returned by GetUnownedUserDataHost() by default so that tests exercising
-  // UnownedUserData-based lookups do not need to stub the method themselves.
-  ui::UnownedUserDataHost default_unowned_user_data_host_;
 };
 
 }  // namespace tabs

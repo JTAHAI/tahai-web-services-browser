@@ -9,8 +9,9 @@ import {webUIListenerCallback} from 'chrome://resources/js/cr.js';
 import type {CategorizedTemplateUrls, FeatureShortcutsPageElement} from 'chrome://settings/settings.js';
 import {SearchEnginesBrowserProxyImpl, SearchEnginesInteractions} from 'chrome://settings/settings.js';
 import {assertEquals, assertFalse, assertTrue} from 'chrome://webui-test/chai_assert.js';
+import {flushTasks} from 'chrome://webui-test/polymer_test_util.js';
 import {loadTimeData} from 'chrome://settings/settings.js';
-import {isVisible, microtasksFinished} from 'chrome://webui-test/test_util.js';
+import {isVisible} from 'chrome://webui-test/test_util.js';
 
 import {createSampleSearchEngine, TestSearchEnginesBrowserProxy} from './test_search_engines_browser_proxy.js';
 
@@ -46,7 +47,7 @@ suite('FeatureShortcutsPageTest', function() {
   let page: FeatureShortcutsPageElement;
   let browserProxy: TestSearchEnginesBrowserProxy;
 
-  setup(async function() {
+  setup(function() {
     document.body.innerHTML = window.trustedTypes!.emptyHTML;
     browserProxy = new TestSearchEnginesBrowserProxy();
     const categorizedData = generateCategorizedTemplateUrls();
@@ -59,8 +60,8 @@ suite('FeatureShortcutsPageTest', function() {
 
     page = document.createElement('settings-feature-shortcuts-page');
     document.body.appendChild(page);
-    await browserProxy.whenCalled('getCategorizedTemplateUrls');
-    await microtasksFinished();
+
+    return flushTasks();
   });
 
   test('SectionsVisibleAndInitialState', async function() {
@@ -72,7 +73,7 @@ suite('FeatureShortcutsPageTest', function() {
     // Expand the sections, which should show the lists.
     page.$.activeShortcutsRow.click();
     page.$.inactiveShortcutsRow.click();
-    await microtasksFinished();
+    await flushTasks();
 
     assertTrue(page.$.activeShortcutsRow.expanded);
     assertTrue(page.$.inactiveShortcutsRow.expanded);
@@ -92,7 +93,7 @@ suite('FeatureShortcutsPageTest', function() {
     categorizedData.inactiveFeatureShortcuts = [];
     browserProxy.setCategorizedTemplateUrls(categorizedData);
     webUIListenerCallback('search-engines-changed', categorizedData);
-    await microtasksFinished();
+    await flushTasks();
 
     // Updated state
     assertEquals(2, page.$.activeShortcutsList.engines.length);
@@ -110,7 +111,7 @@ suite('FeatureShortcutsPageTest', function() {
     };
     browserProxy.setCategorizedTemplateUrls(emptyCategorizedData);
     webUIListenerCallback('search-engines-changed', emptyCategorizedData);
-    await microtasksFinished();
+    await flushTasks();
 
     assertFalse(isVisible(page.$.noActiveShortcutsFound));
     assertFalse(isVisible(page.$.noInactiveShortcutsFound));
@@ -119,7 +120,7 @@ suite('FeatureShortcutsPageTest', function() {
     // extension shortcuts messages.
     page.$.activeShortcutsRow.click();
     page.$.inactiveShortcutsRow.click();
-    await microtasksFinished();
+    await flushTasks();
 
     assertTrue(isVisible(page.$.noActiveShortcutsFound));
     assertTrue(isVisible(page.$.noInactiveShortcutsFound));

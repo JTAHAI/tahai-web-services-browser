@@ -11,7 +11,6 @@
 #include "chrome/grit/generated_resources.h"
 #include "components/send_tab_to_self/features.h"
 #include "components/send_tab_to_self/target_device_info.h"
-#include "ui/accessibility/ax_enums.mojom.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/base/mojom/dialog_button.mojom.h"
@@ -251,21 +250,15 @@ void SendTabToSelfDevicePickerBubbleView::CreateHintTextLabel() {
 }
 
 void SendTabToSelfDevicePickerBubbleView::CreateDevicesScrollView() {
-  const bool is_enhanced_ui_enabled =
-      base::FeatureList::IsEnabled(kSendTabToSelfEnhancedDesktopUI);
   scroll_view_ = AddChildView(std::make_unique<views::ScrollView>());
-  const int button_height = is_enhanced_ui_enabled
-                                ? kDeviceSelectionButtonHeight
-                                : kDeviceButtonHeight;
+  const int button_height =
+      base::FeatureList::IsEnabled(kSendTabToSelfEnhancedDesktopUI)
+          ? kDeviceSelectionButtonHeight
+          : kDeviceButtonHeight;
   scroll_view_->ClipHeightTo(0, button_height * kMaximumButtons);
 
   auto* device_list_view =
       scroll_view_->SetContents(std::make_unique<views::View>());
-  if (is_enhanced_ui_enabled) {
-    device_list_view->GetViewAccessibility().SetRole(ax::mojom::Role::kListBox);
-    device_list_view->GetViewAccessibility().SetName(
-        l10n_util::GetStringUTF16(IDS_SEND_TAB_TO_SELF_DEVICE_PICKER_TITLE));
-  }
   auto* list_layout =
       device_list_view->SetLayoutManager(std::make_unique<views::BoxLayout>(
           views::BoxLayout::Orientation::kVertical));
@@ -283,7 +276,7 @@ void SendTabToSelfDevicePickerBubbleView::CreateDevicesScrollView() {
   }
 
   if (first_device) {
-    if (is_enhanced_ui_enabled) {
+    if (base::FeatureList::IsEnabled(kSendTabToSelfEnhancedDesktopUI)) {
       // Auto-select the first device on launch.
       SelectTargetDevice(first_device);
     }

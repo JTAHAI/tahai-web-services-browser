@@ -174,10 +174,7 @@ class PreferencesTest : public testing::Test {
         TestingBrowserProcess::GetGlobal()->shared_url_loader_factory(),
         TestingBrowserProcess::GetGlobal()
             ->platform_part()
-            ->browser_policy_connector_ash(),
-        TestingBrowserProcess::GetGlobal()
-            ->platform_part()
-            ->component_manager_ash());
+            ->browser_policy_connector_ash());
 
     const char test_user_email[] = "test_user@example.com";
     const AccountId test_account_id(AccountId::FromUserEmail(test_user_email));

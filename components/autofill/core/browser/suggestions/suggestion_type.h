@@ -149,8 +149,10 @@ enum class SuggestionType {
   // Other suggestions.
   kTitle = 45,
   kSeparator = 46,
-  kUndo = 47,
-  // kMixedFormMessage = 48, // DEPRECATED
+  // TODO(crbug.com/40266549): Rename to Undo once iOS implements it - it still
+  // works as clear form there.
+  kUndoOrClear = 47,
+  kMixedFormMessage = 48,
 
   // Top level suggestion rendered when test addresses are available. Shown only
   // when DevTools is open.
@@ -193,7 +195,7 @@ enum class SuggestionType {
   kAutocompleteAtMemoryButton = 81,
 
   // Suggestion to open Gemini in the sidebar.
-  kAtMemoryOpenGemini = 82,
+  kOpenGemini = 82,
 
   // Suggestion to display when AtMemory search fails to connect to the server.
   kAtMemoryNoConnection = 83,
@@ -235,20 +237,9 @@ enum class SuggestionType {
   // Suggestion displaying source attribution for AtMemory search results.
   kAtMemorySourceAttribution = 96,
 
-  // Suggestion shown in the fetching state of AtMemory.
-  kAtMemoryFetching = 97,
+  // Next ID: 97
 
-  // Option in the child submenu of an Autofill AI suggestion to remove this
-  // info.
-  kRemoveAutofillAi = 98,
-
-  // Option in the child submenu of an Autofill AI suggestion showing specific
-  // entity source info.
-  kAutofillAiSourceAttribution = 99,
-
-  // Next ID: 100
-
-  kMaxValue = kAutofillAiSourceAttribution
+  kMaxValue = kAtMemorySourceAttribution
 };
 // LINT.ThenChange(/tools/metrics/histograms/metadata/autofill/enums.xml:SuggestionType)
 

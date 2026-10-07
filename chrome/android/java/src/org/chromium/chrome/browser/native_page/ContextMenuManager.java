@@ -147,12 +147,12 @@ public class ContextMenuManager {
         @Nullable String getContextMenuTitle();
 
         /**
-         * @return Whether the given menu item is supported.
+         * @returns Whether the given menu item is supported.
          */
         boolean isItemSupported(@ContextMenuItemId int menuItemId);
 
         /**
-         * @return Whether there exists enough space for pinned shortcut addition.
+         * @returns Whether there exists enough space for pinned shortcut addition.
          */
         boolean hasSpaceForPinnedShortcut();
 
@@ -281,19 +281,12 @@ public class ContextMenuManager {
                 BrowserUiListMenuUtils.getBasicListMenu(
                         mAnchorView.getContext(),
                         menuModel,
-                        (model, _) ->
+                        (model, view) ->
                                 handleMenuItemClick(
                                         model.get(ListMenuItemProperties.MENU_ITEM_ID), delegate));
         mListContextMenu = new ListMenuHost(mAnchorView, null);
         mListContextMenu.setMenuMaxWidth(
                 mAnchorView.getResources().getDimensionPixelSize(R.dimen.menu_width));
-        // Ensure that the context menu does not occupy the entire screen and leaves space to click
-        // outside to dismiss the menu.
-        mListContextMenu.setMenuMaxHeight(
-                mAnchorView.getRootView().getHeight()
-                        - mAnchorView
-                                .getResources()
-                                .getDimensionPixelSize(R.dimen.min_touch_target_size));
         mListContextMenu.tryToFitLargestItem(true);
         mListContextMenu.setDelegate(
                 new ListMenuDelegate() {

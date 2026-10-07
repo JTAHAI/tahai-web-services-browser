@@ -4,27 +4,44 @@
 
 package org.chromium.chrome.browser.messages;
 
+import android.accessibilityservice.AccessibilityServiceInfo;
+import android.content.Context;
+
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.robolectric.RuntimeEnvironment;
+import org.robolectric.annotation.Config;
 
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.components.messages.MessageIdentifier;
+import org.chromium.ui.accessibility.AccessibilityState;
 import org.chromium.ui.accessibility.AccessibilityStateTestHelper;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /** Unit tests for {@link ChromeMessageAutodismissDurationProvider}. */
+@Config(shadows = {AccessibilityStateTestHelper.ShadowAccessibilityServiceInfo.class})
 @RunWith(BaseRobolectricTestRunner.class)
 public class ChromeMessageAutodismissDurationProviderTest {
+    private Context mContext;
+
     @Before
-    public void setUp() {
-        AccessibilityStateTestHelper.setIsPerformGesturesEnabledForTesting(false);
+    public void setUp() throws Exception {
+        AccessibilityStateTestHelper.mockAccessibilityStateJni();
+        mContext = RuntimeEnvironment.getApplication();
+
+        AccessibilityStateTestHelper.setEnabledAccessibilityServiceList(
+                mContext, new ArrayList<>());
+        AccessibilityStateTestHelper.updateAccessibilityServices();
     }
 
     @After
     public void tearDown() {
-        AccessibilityStateTestHelper.uninitializeForTesting();
+        AccessibilityState.uninitializeForTesting();
     }
 
     @Test
@@ -42,7 +59,13 @@ public class ChromeMessageAutodismissDurationProviderTest {
 
     @Test
     public void testA11yDuration() {
-        AccessibilityStateTestHelper.setIsPerformGesturesEnabledForTesting(true);
+        AccessibilityServiceInfo service =
+                new AccessibilityStateTestHelper.BuilderForTests()
+                        .setCapabilities(AccessibilityServiceInfo.CAPABILITY_CAN_PERFORM_GESTURES)
+                        .build();
+        AccessibilityStateTestHelper.setEnabledAccessibilityServiceList(mContext, List.of(service));
+        AccessibilityStateTestHelper.updateAccessibilityServices();
+
         ChromeMessageAutodismissDurationProvider provider =
                 new ChromeMessageAutodismissDurationProvider();
         provider.setDefaultAutodismissDurationMsForTesting(500);
@@ -69,7 +92,7 @@ public class ChromeMessageAutodismissDurationProviderTest {
                 "Provider should return default non-a11y duration if custom duration is too short",
                 500,
                 provider.get(MessageIdentifier.TEST_MESSAGE, 250));
-        AccessibilityStateTestHelper.setIsPerformGesturesEnabledForTesting(true);
+        AccessibilityState.setIsPerformGesturesEnabledForTesting(true);
         Assert.assertEquals(
                 "Provider should return custom a11y duration if any gesture performing "
                         + "a11y services are running.",

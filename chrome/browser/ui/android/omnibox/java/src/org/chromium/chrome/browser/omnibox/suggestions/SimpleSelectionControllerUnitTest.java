@@ -18,15 +18,15 @@ import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
 
 import org.chromium.base.test.BaseRobolectricTestRunner;
-import org.chromium.chrome.browser.omnibox.suggestions.SelectionController.TraversalMode;
+import org.chromium.chrome.browser.omnibox.suggestions.SelectionController.Mode;
 
 /** Robolectric unit tests for {@link SimpleSelectionController}. */
 @RunWith(BaseRobolectricTestRunner.class)
 public class SimpleSelectionControllerUnitTest {
     private static final int MAX_POSITION = 3; // Items 0‒2 inclusive.
 
-    @Rule public final MockitoRule mMockitoRule = MockitoJUnit.rule();
-    @Mock private SimpleSelectionController.OnSelectionChangedListener mListener;
+    public @Rule MockitoRule mMockitoRule = MockitoJUnit.rule();
+    private @Mock SimpleSelectionController.OnSelectionChangedListener mListener;
 
     private void verifyPositionSet(SelectionController c, int position) {
         verify(mListener).onSelectionChanged(position, true);
@@ -43,7 +43,7 @@ public class SimpleSelectionControllerUnitTest {
     @Test
     public void setItemCount() {
         SimpleSelectionController c =
-                new SimpleSelectionController(mListener, MAX_POSITION, TraversalMode.SATURATING);
+                new SimpleSelectionController(mListener, MAX_POSITION, Mode.SATURATING);
         verifyPositionSet(c, 0);
 
         // Grow list of items

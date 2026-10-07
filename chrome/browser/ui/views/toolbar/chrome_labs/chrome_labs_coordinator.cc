@@ -9,6 +9,7 @@
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/actions/chrome_action_id.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_actions.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
@@ -38,14 +39,14 @@ ChromeLabsCoordinator* ChromeLabsCoordinator::From(
                  : nullptr;
 }
 
-ChromeLabsCoordinator::ChromeLabsCoordinator(BrowserWindowInterface* browser)
+ChromeLabsCoordinator::ChromeLabsCoordinator(Browser* browser)
     : browser_(browser),
       scoped_unowned_user_data_(browser->GetUnownedUserDataHost(), *this) {
   pinned_actions_observation_.Observe(
       PinnedToolbarActionsModel::Get(browser->GetProfile()));
 
   chrome_labs_action_item_ = actions::ActionManager::Get().FindAction(
-      kActionShowChromeLabs, BrowserActions::From(browser)->root_action_item());
+      kActionShowChromeLabs, browser->browser_actions()->root_action_item());
   CHECK(chrome_labs_action_item_);
 
   MaybeInstallDotIndicator();
@@ -61,9 +62,6 @@ void ChromeLabsCoordinator::TearDown() {
         views::Widget::ClosedReason::kUnspecified);
     chrome_labs_bubble_view_tracker_.SetView(nullptr);
   }
-  controller_.reset();
-  flags_storage_.reset();
-  flags_state_ = nullptr;
   pinned_actions_observation_.Reset();
   chrome_labs_action_item_ = nullptr;
 }
@@ -190,9 +188,6 @@ ChromeLabsBubbleView* ChromeLabsCoordinator::GetChromeLabsBubbleView() {
 }
 
 void ChromeLabsCoordinator::OnChromeLabsBubbleClosing() {
-  controller_.reset();
-  flags_storage_.reset();
-  flags_state_ = nullptr;
   chrome_labs_action_item_->SetIsShowingBubble(false);
 
   browser_->GetFeatures()

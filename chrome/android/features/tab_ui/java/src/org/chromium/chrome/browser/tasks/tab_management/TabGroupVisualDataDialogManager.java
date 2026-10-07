@@ -177,6 +177,7 @@ public class TabGroupVisualDataDialogManager {
         TabGroupColorPickerContainer container = root.findViewById(R.id.color_picker_container);
         mTabGroupColorPickerCoordinator =
                 new TabGroupColorPickerCoordinator(
+                        mContext,
                         colors,
                         container,
                         TabGroupColorPickerType.TAB_GROUP,

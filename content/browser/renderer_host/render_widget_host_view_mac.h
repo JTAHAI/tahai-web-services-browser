@@ -31,7 +31,6 @@
 #include "third_party/blink/public/common/page/content_to_visible_time_request.h"
 #include "third_party/blink/public/mojom/webshare/webshare.mojom.h"
 #include "ui/accelerated_widget_mac/accelerated_widget_mac.h"
-#include "ui/accessibility/ax_tree_id.h"
 #include "ui/base/cocoa/accessibility_focus_overrider.h"
 #include "ui/base/cocoa/remote_layer_api.h"
 #include "ui/base/mojom/attributed_string.mojom-forward.h"
@@ -190,11 +189,9 @@ class CONTENT_EXPORT RenderWidgetHostViewMac
   gfx::NativeViewAccessible AccessibilityGetNativeViewAccessible() override;
   gfx::NativeViewAccessible AccessibilityGetNativeViewAccessibleForWindow()
       override;
-  ui::AXTreeID AccessibilityGetParentAXTreeID() override;
   std::optional<SkColor> GetBackgroundColor() override;
   viz::SurfaceId GetFallbackSurfaceIdForTesting() const override;
   bool HasSavedCompositorFrame() const override;
-  void SetEvictOnHide(bool evict_on_hide) override;
 
   void TransformPointToRootSurface(gfx::PointF* point) override;
   gfx::Rect GetBoundsInScreen() override;
@@ -574,7 +571,6 @@ class CONTENT_EXPORT RenderWidgetHostViewMac
   // RenderWidgetHostViewBase:
   void UpdateBackgroundColor() override;
   bool HasFallbackSurface() const override;
-  void OptOutFrameEviction() override;
   std::optional<DisplayFeature> GetDisplayFeature() override;
   void DisableDisplayFeatureOverrideForEmulation() override;
   void OverrideDisplayFeatureForEmulation(
@@ -727,8 +723,6 @@ class CONTENT_EXPORT RenderWidgetHostViewMac
   // Remote accessibility objects corresponding to the NSWindow that this is
   // displayed to the user in.
   NSAccessibilityRemoteUIElement* __strong remote_window_accessible_;
-
-  ui::AXTreeID parent_ax_tree_id_ = ui::AXTreeIDUnknown();
 
   // Used to force the NSApplication's focused accessibility element to be the
   // content::BrowserAccessibilityCocoa accessibility tree when the NSView for

@@ -5,8 +5,5 @@
 group("browser_tests") {
   testonly = true
 
-  deps = [
-    "locked_state:browser_tests",
-    "screen_orientation:browser_tests",
-  ]
+  deps = [ "screen_orientation:browser_tests" ]
 }

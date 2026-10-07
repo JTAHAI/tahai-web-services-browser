@@ -45,7 +45,6 @@ import org.chromium.chrome.browser.download.DownloadManagerBridge.DownloadEnqueu
 import org.chromium.chrome.browser.feature_engagement.TrackerFactory;
 import org.chromium.chrome.browser.incognito.IncognitoUtils;
 import org.chromium.chrome.browser.media.MediaViewerUtils;
-import org.chromium.chrome.browser.pdf.PdfUtils;
 import org.chromium.chrome.browser.preferences.Pref;
 import org.chromium.chrome.browser.profiles.OtrProfileId;
 import org.chromium.chrome.browser.profiles.Profile;
@@ -63,7 +62,6 @@ import org.chromium.components.offline_items_collection.PendingState;
 import org.chromium.components.prefs.PrefService;
 import org.chromium.components.user_prefs.UserPrefs;
 import org.chromium.content_public.browser.BrowserStartupController;
-import org.chromium.ui.base.MimeTypeUtils;
 import org.chromium.ui.widget.Toast;
 
 import java.io.File;
@@ -406,7 +404,8 @@ public class DownloadManagerService implements DownloadServiceDelegate, ProfileM
                 new AsyncTask<>() {
                     @Override
                     public Boolean doInBackground() {
-                        return canResolveDownloadItem(item, isSupportedMimeType);
+                        boolean canResolve = canResolveDownloadItem(item, isSupportedMimeType);
+                        return canResolve;
                     }
 
                     @Override
@@ -553,7 +552,10 @@ public class DownloadManagerService implements DownloadServiceDelegate, ProfileM
         request.userAgent = item.getDownloadInfo().getUserAgent();
         request.notifyCompleted = notifyCompleted;
         DownloadManagerBridge.enqueueNewDownload(
-                request, response -> onDownloadEnqueued(item, response));
+                request,
+                response -> {
+                    onDownloadEnqueued(item, response);
+                });
     }
 
     public void onDownloadEnqueued(DownloadItem downloadItem, DownloadEnqueueResponse response) {
@@ -937,15 +939,10 @@ public class DownloadManagerService implements DownloadServiceDelegate, ProfileM
 
     /**
      * Checks whether the download can be opened by the browser.
-     *
      * @param mimeType MIME type of the file.
-     * @param isIncognito Whether the download is in incognito mode.
      * @return Whether the download is openable by the browser.
      */
-    public boolean isDownloadOpenableInBrowser(@Nullable String mimeType, boolean isIncognito) {
-        if (MimeTypeUtils.PDF_MIME_TYPE.equalsIgnoreCase(mimeType)) {
-            return PdfUtils.shouldOpenPdfInline(isIncognito);
-        }
+    public boolean isDownloadOpenableInBrowser(@Nullable String mimeType) {
         // TODO(qinmin): for audio and video, check if the codec is supported by Chrome.
         return isSupportedMimeType(mimeType);
     }
@@ -1226,8 +1223,11 @@ public class DownloadManagerService implements DownloadServiceDelegate, ProfileM
                                         externalStorageDir,
                                         dirs);
                         if (!isUnresumableOrCancelled(item) && missingOnSDCard) {
-                            // TODO(shaktisahu): Show it on infobar in the right way.
-                            mHandler.post(mDownloadSnackbarController::onDownloadDirectoryNotFound);
+                            mHandler.post(
+                                    () -> {
+                                        // TODO(shaktisahu): Show it on infobar in the right way.
+                                        mDownloadSnackbarController.onDownloadDirectoryNotFound();
+                                    });
                             prefService.setBoolean(Pref.SHOW_MISSING_SD_CARD_ERROR_ANDROID, false);
                             break;
                         }

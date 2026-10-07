@@ -14,15 +14,13 @@
 #include "base/threading/thread_restrictions.h"
 #include "chrome/app/chrome_command_ids.h"
 #include "chrome/browser/ui/actions/chrome_action_id.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/intent_picker_tab_helper.h"
-#include "chrome/browser/ui/ui_features.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/frame/toolbar_button_provider.h"
 #include "chrome/browser/ui/views/location_bar/icon_label_bubble_view.h"
-#include "chrome/browser/ui/views/page_action/page_action_view_interface.h"
-#include "chrome/browser/ui/views/page_action/test_support/page_action_test_accessor.h"
+#include "chrome/browser/ui/views/page_action/page_action_icon_view.h"
 #include "chrome/browser/ui/views/page_action/test_support/page_action_test_support.h"
 #include "chrome/browser/ui/views/web_apps/progress_delay.h"
 #include "chrome/browser/ui/views/web_apps/web_app_install_dialog_delegate.h"
@@ -128,14 +126,16 @@ class WebAppInstallFlowBrowserTest : public WebAppBrowserTestBase {
         .AwaitAllCommandsCompleteForTesting();
   }
 
-  page_actions::PageActionViewInterface* GetPwaInstallIconView() {
+  IconLabelBubbleView* GetPwaInstallIconView() {
     BrowserView* browser_view =
         BrowserView::GetBrowserViewForBrowser(browser());
     if (!browser_view || !browser_view->toolbar_button_provider()) {
       return nullptr;
     }
     auto* provider = browser_view->toolbar_button_provider();
-    return provider->GetPageActionViewInterface(kActionInstallPwa);
+    return page_actions::GetIconLabelBubbleViewForTesting(
+        provider->GetPageActionViewInterface(kActionInstallPwa),
+        kActionInstallPwa);
   }
 
   void AcceptWidgetAndMoveForward(views::Widget* widget) {
@@ -154,8 +154,8 @@ IN_PROC_BROWSER_TEST_F(WebAppInstallFlowBrowserTest, SimpleInstallFlow) {
 
   // Wait for the omnibox icon to become visible.
   ASSERT_TRUE(base::test::RunUntil([&]() {
-    return page_actions::PageActionTestAccessor(browser(), kActionInstallPwa)
-        .GetVisible();
+    auto* icon = GetPwaInstallIconView();
+    return icon && icon->GetVisible();
   }));
 
   views::NamedWidgetShownWaiter waiter(views::test::AnyWidgetTestPasskey{},
@@ -174,37 +174,6 @@ IN_PROC_BROWSER_TEST_F(WebAppInstallFlowBrowserTest, SimpleInstallFlow) {
   EXPECT_EQ(1, action_tester.GetActionCount("WebAppSimpleDialogAccepted"));
 }
 
-IN_PROC_BROWSER_TEST_F(WebAppInstallFlowBrowserTest, FocusRestoredOnCancel) {
-  if (features::IsWebUILocationBarEnabled()) {
-    // TODO(crbug.com/545160323): Support focus restoration in WebUI location
-    // bar.
-    GTEST_SKIP() << "Focus restoration not tested on WebUI location bar";
-  }
-  const GURL app_url =
-      embedded_https_test_server().GetURL("/banners/manifest_test_page.html");
-  ASSERT_TRUE(NavigateAndAwaitInstallabilityCheck(browser(), app_url));
-  ASSERT_TRUE(base::test::RunUntil([&]() {
-    return page_actions::PageActionTestAccessor(browser(), kActionInstallPwa)
-        .GetVisible();
-  }));
-
-  auto* icon = page_actions::GetIconLabelBubbleViewForTesting(
-      GetPwaInstallIconView(), kActionInstallPwa);
-  ASSERT_NE(icon, nullptr);
-  icon->RequestFocus();
-  EXPECT_TRUE(icon->HasFocus());
-
-  views::NamedWidgetShownWaiter waiter(views::test::AnyWidgetTestPasskey{},
-                                       "WebAppInstallFlowDialog");
-  chrome::ExecuteCommand(browser(), IDC_INSTALL_PWA);
-  views::Widget* widget = waiter.WaitIfNeededAndGet();
-  ASSERT_NE(widget, nullptr);
-
-  widget->CloseWithReason(views::Widget::ClosedReason::kCancelButtonClicked);
-  ASSERT_TRUE(base::test::RunUntil([&]() { return icon->HasFocus(); }));
-  EXPECT_TRUE(icon->HasFocus());
-}
-
 IN_PROC_BROWSER_TEST_F(WebAppInstallFlowBrowserTest, DetailedInstallFlow) {
   base::UserActionTester action_tester;
   // Detailed install flow is triggered when screenshots are available.
@@ -214,8 +183,8 @@ IN_PROC_BROWSER_TEST_F(WebAppInstallFlowBrowserTest, DetailedInstallFlow) {
   ASSERT_TRUE(NavigateAndAwaitInstallabilityCheck(browser(), app_url));
 
   ASSERT_TRUE(base::test::RunUntil([&]() {
-    return page_actions::PageActionTestAccessor(browser(), kActionInstallPwa)
-        .GetVisible();
+    auto* icon = GetPwaInstallIconView();
+    return icon && icon->GetVisible();
   }));
 
   views::NamedWidgetShownWaiter waiter(views::test::AnyWidgetTestPasskey{},
@@ -269,8 +238,8 @@ IN_PROC_BROWSER_TEST_F(WebAppInstallFlowBrowserTest,
   ASSERT_TRUE(NavigateAndAwaitInstallabilityCheck(browser(), app_url));
 
   ASSERT_TRUE(base::test::RunUntil([&]() {
-    return page_actions::PageActionTestAccessor(browser(), kActionInstallPwa)
-        .GetVisible();
+    auto* icon = GetPwaInstallIconView();
+    return icon && icon->GetVisible();
   }));
 
   views::NamedWidgetShownWaiter waiter(views::test::AnyWidgetTestPasskey{},
@@ -296,7 +265,9 @@ IN_PROC_BROWSER_TEST_F(WebAppInstallFlowBrowserTest,
 
   dialog_delegate->CancelDialog();
   ASSERT_TRUE(web_app::WaitForIntentPickerToShow(browser()));
-  EXPECT_TRUE(web_app::GetIntentPickerButton(browser()).GetVisible());
+  EXPECT_TRUE(
+      web_app::GetIntentPickerButton(browser()->GetBrowserForMigrationOnly())
+          ->GetVisible());
 }
 
 IN_PROC_BROWSER_TEST_F(WebAppInstallFlowBrowserTest,
@@ -308,8 +279,8 @@ IN_PROC_BROWSER_TEST_F(WebAppInstallFlowBrowserTest,
   ASSERT_TRUE(NavigateAndAwaitInstallabilityCheck(browser(), app_url));
 
   ASSERT_TRUE(base::test::RunUntil([&]() {
-    return page_actions::PageActionTestAccessor(browser(), kActionInstallPwa)
-        .GetVisible();
+    auto* icon = GetPwaInstallIconView();
+    return icon && icon->GetVisible();
   }));
 
   views::NamedWidgetShownWaiter waiter(views::test::AnyWidgetTestPasskey{},
@@ -341,8 +312,8 @@ IN_PROC_BROWSER_TEST_F(WebAppInstallFlowBrowserTest,
   ASSERT_TRUE(NavigateAndAwaitInstallabilityCheck(browser(), app_url));
 
   ASSERT_TRUE(base::test::RunUntil([&]() {
-    return page_actions::PageActionTestAccessor(browser(), kActionInstallPwa)
-        .GetVisible();
+    auto* icon = GetPwaInstallIconView();
+    return icon && icon->GetVisible();
   }));
 
   views::NamedWidgetShownWaiter waiter(views::test::AnyWidgetTestPasskey{},
@@ -471,8 +442,8 @@ IN_PROC_BROWSER_TEST_P(WebAppInstallFlowOptionsViewTest, OptionsParameters) {
     ASSERT_TRUE(NavigateAndAwaitInstallabilityCheck(browser(),
                                                     GetCurrentAppUrlForFlow()));
     ASSERT_TRUE(base::test::RunUntil([&]() {
-      return page_actions::PageActionTestAccessor(browser(), kActionInstallPwa)
-          .GetVisible();
+      auto* icon = GetPwaInstallIconView();
+      return icon && icon->GetVisible();
     }));
   }
 

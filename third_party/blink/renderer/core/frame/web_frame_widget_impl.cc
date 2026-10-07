@@ -32,7 +32,6 @@
 
 #include <algorithm>
 #include <memory>
-#include <optional>
 #include <utility>
 
 #include "base/auto_reset.h"
@@ -98,7 +97,6 @@
 #include "third_party/blink/renderer/core/editing/ime/input_method_controller.h"
 #include "third_party/blink/renderer/core/editing/ime/stylus_writing_gesture.h"
 #include "third_party/blink/renderer/core/editing/position_with_affinity.h"
-#include "third_party/blink/renderer/core/editing/reveal_selection_scope.h"
 #include "third_party/blink/renderer/core/editing/selection_template.h"
 #include "third_party/blink/renderer/core/editing/visible_selection.h"
 #include "third_party/blink/renderer/core/events/clipboard_event.h"
@@ -153,14 +151,13 @@
 #include "third_party/blink/renderer/core/page/validation_message_client.h"
 #include "third_party/blink/renderer/core/page/viewport_description.h"
 #include "third_party/blink/renderer/core/paint/timing/first_meaningful_paint_detector.h"
-#include "third_party/blink/renderer/core/paint/timing/paint_timing.h"
+#include "third_party/blink/renderer/core/paint/timing/paint_timing_detector.h"
 #include "third_party/blink/renderer/core/probe/core_probes.h"
 #include "third_party/blink/renderer/core/scroll/scroll_into_view_util.h"
 #include "third_party/blink/renderer/core/scroll/scrollbar_theme.h"
 #include "third_party/blink/renderer/core/timing/dom_window_performance.h"
 #include "third_party/blink/renderer/core/timing/window_performance.h"
 #include "third_party/blink/renderer/core/view_transition/view_transition.h"
-#include "third_party/blink/renderer/core/view_transition/view_transition_skip_reason.h"
 #include "third_party/blink/renderer/core/view_transition/view_transition_utils.h"
 #include "third_party/blink/renderer/platform/graphics/animation_worklet_mutator_dispatcher_impl.h"
 #include "third_party/blink/renderer/platform/graphics/color_space_gamut.h"
@@ -890,9 +887,7 @@ void WebFrameWidgetImpl::NotifyClearedDisplayedGraphics() {
   // Skip any incoming cross document transitions here.
   if (ViewTransition* transition =
           ViewTransitionUtils::GetIncomingCrossDocumentTransition(document)) {
-    transition->SkipTransition(
-        ViewTransition::PromiseResponse::kRejectInvalidState,
-        ViewTransitionSkipReason::kPageAlreadyRevealed);
+    transition->SkipTransition();
   }
 }
 
@@ -930,10 +925,7 @@ void WebFrameWidgetImpl::UpdateRenderThrottlingStatusForSubFrame(
     bool is_throttled,
     bool subtree_throttled,
     bool display_locked) {
-  // Note: This Mojo message is received by OOPIF subframes as well as
-  // embedded main frames (GuestView, SurfaceEmbed) via
-  // RenderWidgetHostViewChildFrame.
-  DCHECK(LocalRootImpl() && LocalRootImpl()->GetFrameView());
+  DCHECK(ForSubframe());
   // TODO(szager,vmpstr): The parent render process currently rolls up
   // display_locked into the value of subtree throttled here; display_locked
   // should be maintained as a separate bit and transmitted between render
@@ -1305,6 +1297,7 @@ WebInputEventResult WebFrameWidgetImpl::HandleGestureEvent(
         }
       }
       event_result = WebInputEventResult::kHandledSystem;
+      DidHandleGestureEvent(event);
       return event_result;
     default:
       break;
@@ -1406,6 +1399,7 @@ WebInputEventResult WebFrameWidgetImpl::HandleGestureEvent(
     default:
       NOTREACHED();
   }
+  DidHandleGestureEvent(event);
   return event_result;
 }
 
@@ -1820,17 +1814,6 @@ void WebFrameWidgetImpl::MarkConditional(const AtomicString& name,
   animation_frame_timing_monitor_->MarkConditional(name, start_time);
 }
 
-void WebFrameWidgetImpl::MeasureConditional(const AtomicString& name,
-                                            const AtomicString& start_mark,
-                                            const AtomicString& end_mark,
-                                            base::TimeTicks end_time) {
-  if (!animation_frame_timing_monitor_) {
-    return;
-  }
-  animation_frame_timing_monitor_->MeasureConditional(name, start_mark,
-                                                      end_mark, end_time);
-}
-
 void WebFrameWidgetImpl::DidBeginMainFrame() {
   LocalFrame* local_root_frame = LocalRootImpl()->GetFrame();
   CHECK(local_root_frame);
@@ -1989,9 +1972,6 @@ void WebFrameWidgetImpl::UpdateVisualProperties(
         visual_properties.min_size_for_auto_resize,
         visual_properties.max_size_for_auto_resize,
         visual_properties.screen_infos.current().device_scale_factor);
-    if (View() && View()->GetPage()) {
-      View()->GetPage()->SetAlwaysOnTop(visual_properties.always_on_top);
-    }
   }
 
   if (!View()->AutoResizeMode()) {
@@ -2085,23 +2065,11 @@ void WebFrameWidgetImpl::UpdateVisualProperties(
           active_element, DocumentUpdateReason::kJavaScript);
       gfx::Rect bounds;
       if (auto* layout_object = active_element->GetLayoutObject()) {
-        bounds = layout_object->AbsoluteBoundingBoxRectForUnboundedElement();
-        if (auto* frame = active_element->GetDocument().GetFrame()) {
-          if (auto* view = frame->View()) {
-            bounds = view->FrameToViewport(bounds);
-            if (auto* widget = frame->GetWidgetForLocalRoot()) {
-              bounds = gfx::ToRoundedRect(
-                  widget->BlinkSpaceToDIPs(gfx::RectF(bounds)));
-            }
-          }
-        }
+        bounds = layout_object->AbsoluteBoundingBoxRect();
       }
-      // Unbounded elements must have a minimum size of 1x1 to prevent
-      // empty-bounds compositor and platform window issues.
-      bounds.set_width(std::max(1, bounds.width()));
-      bounds.set_height(std::max(1, bounds.height()));
-      active_element->SetLastSentUnboundedBounds(bounds);
-      unbounded_surface_state_->host_->UpdateBounds(bounds);
+      if (!bounds.IsEmpty()) {
+        unbounded_surface_state_->host_->UpdateBounds(bounds);
+      }
     }
   }
 }
@@ -2833,78 +2801,36 @@ WebFrameWidgetImpl::GetOrCreateUnboundedSurfaceState(
   return unbounded_surface_state_.Get();
 }
 
-void WebFrameWidgetImpl::DismissUnboundedSurfaceState(
-    UnboundedDismissReason reason) {
+void WebFrameWidgetImpl::UnboundedContextDestroyed() {
   CHECK(RuntimeEnabledFeatures::UnboundedElementEnabled());
   if (!unbounded_surface_state_) {
     return;
   }
-  auto state = unbounded_surface_state_;
-
-  if (state->active_element_) {
-    UnboundedEvents events =
-        (reason == UnboundedDismissReason::kTeardown)
-            ? UnboundedEvents::kSuppress
-            : ((reason == UnboundedDismissReason::kInteractive)
-                   ? UnboundedEvents::kFireCancelable
-                   : UnboundedEvents::kFireNonCancelable);
-    if (!state->active_element_->SetUnboundedElementActive(false, events)) {
-      // beforetoggle was canceled - notify host and do not dismiss.
-      if (state->host_.is_bound()) {
-        state->host_->DidCancelDismissal();
-      }
-      return;
-    }
-  }
-
-  unbounded_surface_state_ = nullptr;
-
-  if (auto* resolver = state->unbounded_element_resolver_.Get()) {
-    auto reject_promise = [](ScriptPromiseResolver<IDLUndefined>* resolver) {
-      resolver->Reject(MakeGarbageCollected<DOMException>(
-          DOMExceptionCode::kAbortError,
-          "The unbounded element was dismissed."));
-    };
-    if (reason != UnboundedDismissReason::kTeardown) {
-      reject_promise(resolver);
-    } else if (auto* context = resolver->GetExecutionContext()) {
+  if (auto* resolver =
+          unbounded_surface_state_->unbounded_element_resolver_.Get()) {
+    if (auto* context = resolver->GetExecutionContext()) {
       context->GetTaskRunner(TaskType::kInternalDefault)
           ->PostTask(FROM_HERE,
-                     BindOnce(reject_promise, WrapPersistent(resolver)));
+                     BindOnce(
+                         [](ScriptPromiseResolver<IDLUndefined>* resolver) {
+                           resolver->Reject(MakeGarbageCollected<DOMException>(
+                               DOMExceptionCode::kAbortError,
+                               "The unbounded element context was destroyed."));
+                         },
+                         WrapPersistent(resolver)));
     }
-    state->unbounded_element_resolver_ = nullptr;
+    unbounded_surface_state_->unbounded_element_resolver_ = nullptr;
   }
-
+  if (unbounded_surface_state_->active_element_) {
+    // The context is being destroyed, so we should suppress event dispatch
+    // to avoid executing script during teardown.
+    unbounded_surface_state_->active_element_->SetUnboundedElementActive(
+        false, UnboundedEvents::kSuppress);
+  }
+  unbounded_surface_state_ = nullptr;
   if (auto* host = LayerTreeHost()) {
     host->DismissUnboundedFrameSink();
   }
-
-  if (reason == UnboundedDismissReason::kTeardown) {
-    state->host_.reset();
-    state->client_receiver_.reset();
-  } else {
-    if (auto* host = LayerTreeHost()) {
-      host->SetNeedsCommitWithForcedRedraw();
-    }
-    if (state->host_.is_bound()) {
-      NotifyPresentationTime(BindOnce(
-          [](mojo::PendingAssociatedRemote<mojom::blink::UnboundedSurfaceHost>
-                 pending_host,
-             const viz::FrameTimingDetails&) {
-            if (pending_host.is_valid()) {
-              mojo::AssociatedRemote<mojom::blink::UnboundedSurfaceHost> host(
-                  std::move(pending_host));
-              host->DidPresentFrameAfterDismissal();
-            }
-          },
-          state->host_.Unbind()));
-    }
-    state->client_receiver_.reset();
-  }
-}
-
-void WebFrameWidgetImpl::UnboundedContextDestroyed() {
-  DismissUnboundedSurfaceState(UnboundedDismissReason::kTeardown);
 }
 
 HTMLElement* WebFrameWidgetImpl::GetActiveUnboundedElement() const {
@@ -2922,6 +2848,9 @@ void WebFrameWidgetImpl::RegisterActiveUnboundedElement(
         host_remote,
     ScriptPromiseResolver<IDLUndefined>* resolver) {
   CHECK(RuntimeEnabledFeatures::UnboundedElementEnabled());
+  // TODO(crbug.com/508672616): Add support for unbounded element when
+  // TreesInViz is enabled.
+  CHECK(!base::FeatureList::IsEnabled(::features::kTreesInViz));
   // Dismiss any existing active unbounded element to ensure only one is
   // active at a time.
   if (unbounded_surface_state_) {
@@ -2961,59 +2890,43 @@ void WebFrameWidgetImpl::OnSurfaceAllocated(
     state->frame_sink_id_ = frame_sink_id;
     state->local_surface_id_ = local_surface_id;
 
-    if (base::FeatureList::IsEnabled(::features::kTreesInViz)) {
-      if (auto* host = LayerTreeHost()) {
-        host->SetUnboundedFrameSinkId(frame_sink_id, local_surface_id);
+    mojo::PendingRemote<viz::mojom::blink::CompositorFrameSink>
+        blink_sink_remote;
+    auto blink_sink_receiver =
+        blink_sink_remote.InitWithNewPipeAndPassReceiver();
+
+    mojo::PendingReceiver<viz::mojom::blink::CompositorFrameSinkClient>
+        blink_client_receiver;
+    auto blink_client_remote =
+        blink_client_receiver.InitWithNewPipeAndPassRemote();
+
+    if (state->host_.is_bound()) {
+      state->host_->GetCompositorFrameSink(std::move(blink_sink_receiver),
+                                           std::move(blink_client_remote));
+    }
+
+    bool success = false;
+    if (auto* host = LayerTreeHost()) {
+      std::unique_ptr<cc::LayerTreeFrameSink> unbounded_frame_sink =
+          widget_base_->CreateUnboundedFrameSink(
+              std::move(blink_sink_remote), std::move(blink_client_receiver));
+      if (unbounded_frame_sink) {
+        host->SetUnboundedFrameSink(std::move(unbounded_frame_sink),
+                                    local_surface_id);
         host->SetNeedsCommitWithForcedRedraw();
         if (state->unbounded_element_resolver_) {
           state->unbounded_element_resolver_->Resolve();
           state->unbounded_element_resolver_ = nullptr;
         }
-      } else if (state->unbounded_element_resolver_) {
-        state->unbounded_element_resolver_->Reject(
-            MakeGarbageCollected<DOMException>(
-                DOMExceptionCode::kInvalidStateError,
-                "Failed to initialize unbounded element frame sink."));
-        state->unbounded_element_resolver_ = nullptr;
+        success = true;
       }
-    } else {
-      mojo::PendingRemote<viz::mojom::blink::CompositorFrameSink>
-          blink_sink_remote;
-      auto blink_sink_receiver =
-          blink_sink_remote.InitWithNewPipeAndPassReceiver();
-
-      mojo::PendingReceiver<viz::mojom::blink::CompositorFrameSinkClient>
-          blink_client_receiver;
-      auto blink_client_remote =
-          blink_client_receiver.InitWithNewPipeAndPassRemote();
-
-      if (state->host_.is_bound()) {
-        state->host_->GetCompositorFrameSink(std::move(blink_sink_receiver),
-                                             std::move(blink_client_remote));
-      }
-
-      bool success = false;
-      if (auto* host = LayerTreeHost()) {
-        auto unbounded_frame_sink = widget_base_->CreateUnboundedFrameSink(
-            std::move(blink_sink_remote), std::move(blink_client_receiver));
-        if (unbounded_frame_sink) {
-          host->SetUnboundedFrameSink(std::move(unbounded_frame_sink),
-                                      local_surface_id);
-          host->SetNeedsCommitWithForcedRedraw();
-          if (state->unbounded_element_resolver_) {
-            state->unbounded_element_resolver_->Resolve();
-            state->unbounded_element_resolver_ = nullptr;
-          }
-          success = true;
-        }
-      }
-      if (!success && state->unbounded_element_resolver_) {
-        state->unbounded_element_resolver_->Reject(
-            MakeGarbageCollected<DOMException>(
-                DOMExceptionCode::kInvalidStateError,
-                "Failed to initialize unbounded element frame sink."));
-        state->unbounded_element_resolver_ = nullptr;
-      }
+    }
+    if (!success && state->unbounded_element_resolver_) {
+      state->unbounded_element_resolver_->Reject(
+          MakeGarbageCollected<DOMException>(
+              DOMExceptionCode::kInvalidStateError,
+              "Failed to initialize unbounded element frame sink."));
+      state->unbounded_element_resolver_ = nullptr;
     }
   } else if (state->local_surface_id_ != local_surface_id) {
     state->local_surface_id_ = local_surface_id;
@@ -3025,7 +2938,23 @@ void WebFrameWidgetImpl::OnSurfaceAllocated(
 }
 
 void WebFrameWidgetImpl::OnDismissed() {
-  DismissUnboundedSurfaceState(UnboundedDismissReason::kInteractive);
+  CHECK(RuntimeEnabledFeatures::UnboundedElementEnabled());
+  if (!unbounded_surface_state_) {
+    return;
+  }
+  if (unbounded_surface_state_->unbounded_element_resolver_) {
+    unbounded_surface_state_->unbounded_element_resolver_->Reject(
+        MakeGarbageCollected<DOMException>(
+            DOMExceptionCode::kAbortError,
+            "The unbounded element was dismissed."));
+  }
+  if (unbounded_surface_state_->active_element_) {
+    unbounded_surface_state_->active_element_->SetUnboundedElementActive(false);
+  }
+  unbounded_surface_state_ = nullptr;
+  if (auto* host = LayerTreeHost()) {
+    host->DismissUnboundedFrameSink();
+  }
 }
 
 void WebFrameWidgetImpl::UpdateUnboundedElementBounds(const gfx::Rect& bounds) {
@@ -3034,9 +2963,6 @@ void WebFrameWidgetImpl::UpdateUnboundedElementBounds(const gfx::Rect& bounds) {
     return;
   }
   unbounded_surface_state_->host_->UpdateBounds(bounds);
-  if (auto* host = LayerTreeHost()) {
-    host->SetNeedsCommitWithForcedRedraw();
-  }
 }
 
 void WebFrameWidgetImpl::BeginMainFrame(const viz::BeginFrameArgs& args) {
@@ -4343,9 +4269,7 @@ void WebFrameWidgetImpl::InjectScrollbarGestureScroll(
     gesture_event->data.scroll_begin.scrollable_area_element_id =
         scrollable_area_element_id.GetInternalValue();
     gesture_event->data.scroll_begin.main_thread_hit_tested_reasons =
-        cc::MainThreadHitTestReasons{
-            cc::MainThreadHitTestReason::kScrollbarScrolling}
-            .ToEnumBitmask();
+        cc::MainThreadScrollingReason::kScrollbarScrolling;
   }
 
   // Notifies TestWebFrameWidget of the injected event. Does nothing outside
@@ -4394,14 +4318,6 @@ void WebFrameWidgetImpl::CommitText(
     DOMNodeIdType target_dom_node_id) {
   TargetImeNodeFocusChangeScope focus_scope(target_dom_node_id);
 
-  std::optional<RevealSelectionScope> reveal_selection_scope;
-  if (LocalFrame* target_frame = !target_dom_node_id.is_null()
-                                     ? FocusedLocalFrameInWidget()
-                                     : nullptr) {
-    // If given a target node, keep the selection in view.
-    reveal_selection_scope.emplace(*target_frame);
-  }
-
   WebInputMethodController* controller = GetActiveWebInputMethodController();
   if (!controller) {
     return;
@@ -4426,8 +4342,7 @@ void WebFrameWidgetImpl::PasteIntoNode(const String& text,
     return;
   }
 
-  WebElement(target_element)
-      .PasteText(text, /*replace_all=*/false, /*smart_replace=*/true);
+  WebElement(target_element).PasteText(text, /*replace_all=*/false);
 }
 
 void WebFrameWidgetImpl::FinishComposingText(bool keep_selection) {
@@ -4613,8 +4528,8 @@ void GetLineBounds(Vector<gfx::QuadF>& line_quads, Node* editor_node) {
     if (!node.GetLayoutObject() || !node.GetLayoutObject()->IsText()) {
       continue;
     }
-    node.GetLayoutObject()->AbsoluteQuads(
-        line_quads, {MapCoordinatesMode::kApplyRemoteMainFrameTransform});
+    node.GetLayoutObject()->AbsoluteQuads(line_quads,
+                                          kApplyRemoteMainFrameTransform);
   }
 }
 
@@ -5632,7 +5547,7 @@ void WebFrameWidgetImpl::NotifyInputObservers(
   }
 
   const WebInputEvent& input_event = coalesced_event.Event();
-  PaintTiming::From(*document).NotifyInputEvent(input_event.GetType());
+  PaintTimingDetector::From(*document).NotifyInputEvent(input_event.GetType());
 }
 
 Frame* WebFrameWidgetImpl::FocusedCoreFrame() const {
@@ -6085,8 +6000,14 @@ bool WebFrameWidgetImpl::SetResizableRequested(
 void WebFrameWidgetImpl::OnWindowShowStateChanged(
     ui::mojom::blink::WindowShowState old_state,
     ui::mojom::blink::WindowShowState new_state) {
-  if (!RuntimeEnabledFeatures::
-          DesktopPWAsAdditionalWindowingControlsEnabled()) {
+  LocalFrame* frame = local_root_ ? local_root_->GetFrame() : nullptr;
+  Document* document = frame ? frame->GetDocument() : nullptr;
+  ExecutionContext* execution_context =
+      document ? document->GetExecutionContext() : nullptr;
+
+  if (!execution_context ||
+      !RuntimeEnabledFeatures::DesktopPWAsAdditionalWindowingControlsEnabled(
+          execution_context)) {
     return;
   }
 
@@ -6115,8 +6036,14 @@ void WebFrameWidgetImpl::OnWindowShowStateChanged(
 }
 
 void WebFrameWidgetImpl::OnResizableChanged(bool new_resizable) {
-  if (!RuntimeEnabledFeatures::
-          DesktopPWAsAdditionalWindowingControlsEnabled() ||
+  LocalFrame* frame = local_root_ ? local_root_->GetFrame() : nullptr;
+  Document* document = frame ? frame->GetDocument() : nullptr;
+  ExecutionContext* execution_context =
+      document ? document->GetExecutionContext() : nullptr;
+
+  if (!execution_context ||
+      !RuntimeEnabledFeatures::DesktopPWAsAdditionalWindowingControlsEnabled(
+          execution_context) ||
       !ForMainFrame()) {
     return;
   }

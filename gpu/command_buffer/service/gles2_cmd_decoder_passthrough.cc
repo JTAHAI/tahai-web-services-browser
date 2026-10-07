@@ -18,7 +18,6 @@
 #include "base/memory/raw_ptr.h"
 #include "base/notimplemented.h"
 #include "base/strings/string_split.h"
-#include "base/strings/string_view_util.h"
 #include "base/trace_event/trace_event.h"
 #include "build/build_config.h"
 #include "gpu/command_buffer/service/command_buffer_service.h"
@@ -851,6 +850,8 @@ GLES2DecoderPassthroughImpl::GLES2DecoderPassthroughImpl(
       emulated_back_buffer_(nullptr),
       bound_draw_framebuffer_(0),
       bound_read_framebuffer_(0),
+      gpu_decoder_category_(TRACE_EVENT_API_GET_CATEGORY_GROUP_ENABLED(
+          TRACE_DISABLED_BY_DEFAULT("gpu.decoder"))),
       gpu_trace_level_(2),
       gpu_trace_commands_(false),
       gpu_debug_commands_(false),
@@ -1729,9 +1730,7 @@ void GLES2DecoderPassthroughImpl::OnGpuSwitched() {
 
 void GLES2DecoderPassthroughImpl::BeginDecoding() {
   gpu_tracer_->BeginDecoding();
-  gpu_trace_commands_ =
-      gpu_tracer_->IsTracing() &&
-      TRACE_EVENT_CATEGORY_ENABLED(TRACE_DISABLED_BY_DEFAULT("gpu.decoder"));
+  gpu_trace_commands_ = gpu_tracer_->IsTracing() && *gpu_decoder_category_;
   gpu_debug_commands_ = log_commands() || debug() || gpu_trace_commands_;
 
 #if BUILDFLAG(IS_WIN)
@@ -2206,10 +2205,6 @@ bool GLES2DecoderPassthroughImpl::IsIgnoredCap(GLenum cap) const {
     case GL_PRIMITIVE_RESTART_FIXED_INDEX:
       // Disable setting primitive restart at the command decoder level until
       // it's blocked in ANGLE for WebGL contexts.
-      return feature_info_->IsWebGLContext();
-
-    case GL_TEXTURE_RECTANGLE_ANGLE:
-      // Used internally, not exposed to WebGL contexts.
       return feature_info_->IsWebGLContext();
 
     default:
@@ -2768,12 +2763,11 @@ error::Error GLES2DecoderPassthroughImpl::HandleSetActiveURLCHROMIUM(
   }
 
   size_t size = url_bucket->size() - 1;
-  base::span<const uint8_t> url_bytes = url_bucket->GetDataAsByteSpan(0, size);
-  if (url_bytes.empty()) {
+  const char* url_str = url_bucket->GetDataAs<const char*>(0, size);
+  if (!url_str)
     return error::kInvalidArguments;
-  }
 
-  GURL url(base::as_string_view(url_bytes));
+  GURL url(std::string_view(url_str, size));
   client()->SetActiveURL(std::move(url));
   return error::kNoError;
 }

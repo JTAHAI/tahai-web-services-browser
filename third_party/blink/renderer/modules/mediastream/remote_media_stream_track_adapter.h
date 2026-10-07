@@ -14,13 +14,11 @@
 #include "third_party/blink/renderer/core/frame/local_dom_window.h"
 #include "third_party/blink/renderer/modules/modules_export.h"
 #include "third_party/blink/renderer/modules/peerconnection/peer_connection_dependency_factory.h"
-#include "third_party/blink/renderer/modules/peerconnection/peer_connection_features.h"
 #include "third_party/blink/renderer/platform/mediastream/media_stream_component_impl.h"
 #include "third_party/blink/renderer/platform/mediastream/media_stream_source.h"
 #include "third_party/blink/renderer/platform/wtf/casting.h"
 #include "third_party/blink/renderer/platform/wtf/functional.h"
 #include "third_party/blink/renderer/platform/wtf/thread_safe_ref_counted.h"
-#include "third_party/blink/renderer/platform/wtf/uuid.h"
 #include "third_party/webrtc/api/media_stream_interface.h"
 
 namespace base {
@@ -28,6 +26,12 @@ class SingleThreadTaskRunner;
 }
 
 namespace blink {
+
+// Killswitch for setting the remote MediaStreamTrack label to "remote <kind>"
+// per https://w3c.github.io/webrtc-pc/#rtcrtpreceiver-interface. When disabled,
+// the label falls back to the track id.
+// TODO(crbug.com/40684245): Remove after the new behavior has rolled out.
+MODULES_EXPORT BASE_DECLARE_FEATURE(kWebRtcRemoteTrackLabel);
 
 class TrackObserver;
 
@@ -46,9 +50,7 @@ class MODULES_EXPORT RemoteMediaStreamTrackAdapter
       : main_thread_(main_thread),
         webrtc_track_(webrtc_track),
         track_execution_context_(track_execution_context),
-        id_(base::FeatureList::IsEnabled(kWebRtcGenerateRemoteTrackIds)
-                ? CreateCanonicalUuidString()
-                : String::FromUtf8(webrtc_track->id())) {}
+        id_(String::FromUtf8(webrtc_track->id())) {}
 
   RemoteMediaStreamTrackAdapter(const RemoteMediaStreamTrackAdapter&) = delete;
   RemoteMediaStreamTrackAdapter& operator=(
@@ -93,10 +95,11 @@ class MODULES_EXPORT RemoteMediaStreamTrackAdapter
     DCHECK(main_thread_->BelongsToCurrentThread());
     DCHECK(!component_);
 
-    // https://w3c.github.io/webrtc-pc/#rtcrtpreceiver-interface
-    String label = (type == MediaStreamSource::kTypeAudio)
-                       ? String("remote audio")
-                       : String("remote video");
+    String label = id_;
+    if (base::FeatureList::IsEnabled(kWebRtcRemoteTrackLabel)) {
+      label = (type == MediaStreamSource::kTypeAudio) ? String("remote audio")
+                                                      : String("remote video");
+    }
     auto* source = MakeGarbageCollected<MediaStreamSource>(
         id_, type, label, /*remote=*/true, std::move(platform_source));
     component_ = MakeGarbageCollected<MediaStreamComponentImpl>(
@@ -131,10 +134,8 @@ class MODULES_EXPORT RemoteMediaStreamTrackAdapter
   const scoped_refptr<WebRtcMediaStreamTrackType> webrtc_track_;
   CrossThreadPersistent<MediaStreamComponent> component_;
   CrossThreadWeakPersistent<ExecutionContext> track_execution_context_;
-  // A const copy of the web-exposed ID allows access from both the main and
-  // signaling threads without a synchronous thread hop. It is generated
-  // independently of the remote sender's ID, as required when creating an
-  // RTCRtpReceiver track.
+  // const copy of the webrtc track id that allows us to check it from both the
+  // main and signaling threads without incurring a synchronous thread hop.
   const String id_;
 };
 

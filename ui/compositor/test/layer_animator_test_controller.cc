@@ -35,9 +35,9 @@ void LayerAnimatorTestController::StartThreadedAnimationsIfNeeded(
   threaded_properties.push_back(cc::TargetProperty::OPACITY);
   threaded_properties.push_back(cc::TargetProperty::TRANSFORM);
 
-  for (auto& threaded_propertie : threaded_properties) {
+  for (size_t i = 0; i < threaded_properties.size(); i++) {
     LayerAnimationElement::AnimatableProperty animatable_property =
-        LayerAnimationElement::ToAnimatableProperty(threaded_propertie);
+        LayerAnimationElement::ToAnimatableProperty(threaded_properties[i]);
     LayerAnimationSequence* sequence = GetRunningSequence(animatable_property);
     if (!sequence)
       continue;
@@ -50,7 +50,7 @@ void LayerAnimatorTestController::StartThreadedAnimationsIfNeeded(
         element->effective_start_time() != base::TimeTicks())
       continue;
 
-    animator_->OnThreadedAnimationStarted(started_time, threaded_propertie,
+    animator_->OnThreadedAnimationStarted(started_time, threaded_properties[i],
                                           element->animation_group_id());
   }
 }

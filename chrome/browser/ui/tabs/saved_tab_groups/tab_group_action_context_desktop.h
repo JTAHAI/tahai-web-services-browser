@@ -8,18 +8,17 @@
 #include "base/memory/raw_ptr.h"
 #include "components/saved_tab_groups/public/types.h"
 
-class BrowserWindowInterface;
+class Browser;
 
 namespace tab_groups {
 
 // Desktop implementation of TabGroupActionContext used to help with opening
 // saved tab groups in the browser.
 struct TabGroupActionContextDesktop : public TabGroupActionContext {
-  TabGroupActionContextDesktop(BrowserWindowInterface* browser,
-                               OpeningSource opening_source);
+  TabGroupActionContextDesktop(Browser* browser, OpeningSource opening_source);
   ~TabGroupActionContextDesktop() override = default;
 
-  raw_ptr<BrowserWindowInterface> browser;
+  raw_ptr<Browser> browser;
   OpeningSource opening_source;
 };
 

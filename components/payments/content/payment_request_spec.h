@@ -195,8 +195,6 @@ class PaymentRequestSpec : public PaymentOptionsProvider,
   // billing method, such as "https://play.google.com/billing".
   bool IsAppStoreBillingAlsoRequested() const;
 
-  const std::string& app_locale() const { return app_locale_; }
-
   base::WeakPtr<PaymentRequestSpec> AsWeakPtr();
 
  private:

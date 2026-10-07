@@ -108,10 +108,6 @@
 [ Mac ] fast/forms/calendar-picker/month-open-picker-with-f4-key.html [ Skip ]
 [ Mac ] fast/forms/calendar-picker/week-open-picker-with-f4-key.html [ Skip ]
 
-# Date/time input subfields are not focusable without a fine pointer, and
-# on fuchsia there is only a coarse pointer set in pointer_device_web_engine.cc
-[ Fuchsia ] fast/forms/date-multiple-fields/date-multiple-fields-ax-value-changed-notification.html [ Skip ]
-
 # Mac does not have menu key.
 [ Mac ] editing/spelling/spelling-on-context-menu-key.html [ Skip ]
 [ Mac ] fast/events/context-menu-key-shift-f10-modifiers.html [ Skip ]
@@ -240,11 +236,16 @@ external/wpt/html/the-xhtml-syntax/parsing-xhtml-documents/support/xhtml-mathml-
 
 # CSS2 tests that rely on undefined behaviors (height of line-height: normal).
 external/wpt/css/CSS2/linebox/inline-formatting-context-002.xht [ Skip ]
-external/wpt/css/CSS2/linebox/inline-formatting-context-003.xht [ Skip ]
-external/wpt/css/CSS2/linebox/inline-formatting-context-004.xht [ Skip ]
-external/wpt/css/CSS2/linebox/inline-formatting-context-005.xht [ Skip ]
-external/wpt/css/CSS2/linebox/inline-formatting-context-006.xht [ Skip ]
-external/wpt/css/CSS2/linebox/inline-formatting-context-007.xht [ Skip ]
+[ Linux ] external/wpt/css/CSS2/linebox/inline-formatting-context-003.xht [ Skip ]
+[ Win ] external/wpt/css/CSS2/linebox/inline-formatting-context-003.xht [ Skip ]
+[ Linux ] external/wpt/css/CSS2/linebox/inline-formatting-context-004.xht [ Skip ]
+[ Win ] external/wpt/css/CSS2/linebox/inline-formatting-context-004.xht [ Skip ]
+[ Linux ] external/wpt/css/CSS2/linebox/inline-formatting-context-005.xht [ Skip ]
+[ Win ] external/wpt/css/CSS2/linebox/inline-formatting-context-005.xht [ Skip ]
+[ Linux ] external/wpt/css/CSS2/linebox/inline-formatting-context-006.xht [ Skip ]
+[ Win ] external/wpt/css/CSS2/linebox/inline-formatting-context-006.xht [ Skip ]
+[ Linux ] external/wpt/css/CSS2/linebox/inline-formatting-context-007.xht [ Skip ]
+[ Win ] external/wpt/css/CSS2/linebox/inline-formatting-context-007.xht [ Skip ]
 
 # CSS2 tests that require files in different directories.
 external/wpt/css/CSS2/normal-flow/blocks-017.xht [ Skip ]
@@ -1645,6 +1646,8 @@ crbug.com/1449469 [ Win ] wpt_internal/css/css-fonts/default-monospace-family-ma
 crbug.com/1449469 [ Fuchsia ] wpt_internal/css/css-fonts/default-monospace-family-mac.html [ Skip ]
 crbug.com/1449469 [ Android ] wpt_internal/css/css-fonts/default-monospace-family-mac.html [ Skip ]
 
+# Subapps are part of IWA and WPT does not support IWAs
+crbug.com/1476305 external/wpt/subapps/* [ Skip ]
 
 # Web-animations tests that use short-lived animations for performance reasons
 # can be problematic on debug builds.
@@ -1851,7 +1854,6 @@ crbug.com/40550039 svg/W3C-SVG-1.1-SE/struct-use-11-f.svg [ Skip ]
 # (See also `TestExpectations`)
 # ServiceWorkers are not supported in off-the-main-thread prefetch.
 crbug.com/452389538 virtual/prefetch-force-off-the-main-thread/external/wpt/speculation-rules/prefetch/tentative/service-worker/* [ Skip ]
-crbug.com/452389538 virtual/prefetch-force-off-the-main-thread-wculf/external/wpt/speculation-rules/prefetch/tentative/service-worker/* [ Skip ]
 
 # Device Bound Session Credentials is not supported on Android.
 [ Android ] external/wpt/device-bound-session-credentials/* [ Skip ]
@@ -1864,7 +1866,3 @@ crbug.com/452389538 virtual/prefetch-force-off-the-main-thread-wculf/external/wp
 
 # OOM crash on Windows, marked as WontFix
 crbug.com/379516106 [ Win ] external/wpt/css/css-overflow/scrollbar-large-scale-in-iframe.html [ Skip ]
-
-# requestStorageAccessFor is disabled and will be removed.
-external/wpt/top-level-storage-access-api/* [ Skip ]
-external/wpt/html/anonymous-iframe/requestStorageAccessFor.tentative.https.window.html [ Skip ]

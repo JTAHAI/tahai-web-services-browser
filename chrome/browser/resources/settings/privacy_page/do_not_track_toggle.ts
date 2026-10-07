@@ -8,12 +8,10 @@ import '../controls/settings_toggle_button.js';
 import '../icons.html.js';
 import '../settings_shared.css.js';
 
-import {I18nMixin} from 'chrome://resources/cr_elements/i18n_mixin.js';
 import {focusWithoutInk} from 'chrome://resources/js/focus_without_ink.js';
 import {PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
 import type {SettingsToggleButtonElement} from '../controls/settings_toggle_button.js';
-import {loadTimeData} from '../i18n_setup.js';
 import {MetricsBrowserProxyImpl, PrivacyElementInteractions} from '../metrics_browser_proxy.js';
 
 import {getTemplate} from './do_not_track_toggle.html.js';
@@ -24,10 +22,7 @@ export interface SettingsDoNotTrackToggleElement {
   };
 }
 
-const SettingsDoNotTrackToggleElementBase = I18nMixin(PolymerElement);
-
-export class SettingsDoNotTrackToggleElement extends
-    SettingsDoNotTrackToggleElementBase {
+export class SettingsDoNotTrackToggleElement extends PolymerElement {
   static get is() {
     return 'settings-do-not-track-toggle';
   }
@@ -50,24 +45,11 @@ export class SettingsDoNotTrackToggleElement extends
         type: Boolean,
         value: false,
       },
-
-      showUniversalOptOutSettings_: {
-        type: Boolean,
-        value: () => loadTimeData.getBoolean('showUniversalOptOutSettings'),
-      },
-
-      doNotTrackSublabel_: {
-        type: String,
-        computed:
-            'computeDoNotTrackToggleSubLabel_(showUniversalOptOutSettings_)',
-      },
     };
   }
 
   declare prefs: {enable_do_not_track: chrome.settingsPrivate.PrefObject};
   declare private showDialog_: boolean;
-  declare private showUniversalOptOutSettings_: boolean;
-  declare private doNotTrackSublabel_: string;
 
   private onDomChange_() {
     if (this.showDialog_) {
@@ -116,13 +98,6 @@ export class SettingsDoNotTrackToggleElement extends
   private onDialogCancel_() {
     this.toggle_.resetToPrefValue();
     this.closeDialog_();
-  }
-
-  private computeDoNotTrackToggleSubLabel_(): string {
-    return this.i18n(
-        this.showUniversalOptOutSettings_ ?
-            'trackingProtectionDoNotTrackDisclaimerToggleSubLabel' :
-            'trackingProtectionDoNotTrackToggleSubLabel');
   }
 
   private get toggle_(): SettingsToggleButtonElement {

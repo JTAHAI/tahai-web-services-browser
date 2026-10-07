@@ -49,10 +49,8 @@ class AutofillManagerTestApi {
   void OnLoadedServerPredictions(
       AutofillCrowdsourcingManager::QueryResponse response,
       const std::vector<FormData>& forms) {
-    std::vector<FormGlobalId> form_ids =
-        base::ToVector(forms, &FormData::global_id);
     manager_->NotifyObservers(
-        &AutofillManager::Observer::OnBeforeLoadedServerPredictions, form_ids);
+        &AutofillManager::Observer::OnBeforeLoadedServerPredictions);
     manager_->OnLoadedServerPredictions(forms, base::TimeTicks(),
                                         std::move(response));
   }

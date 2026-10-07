@@ -32,7 +32,6 @@
 #include "build/build_config.h"
 #include "build/buildflag.h"
 #include "components/unexportable_keys/background_task_origin.h"
-#include "components/unexportable_keys/background_task_type.h"
 #include "components/unexportable_keys/features.h"
 #include "components/unexportable_keys/service_error.h"
 #include "components/unexportable_keys/unexportable_key_id.h"
@@ -186,13 +185,7 @@ template <typename KeyIdType>
   requires SparePoolKeyIdType<KeyIdType>
 base::OnceCallback<void(ServiceErrorOr<KeyIdType>)>
 WrapCallbackWithSpareKeyLatencyHistogram(
-    base::OnceCallback<void(ServiceErrorOr<KeyIdType>)> callback,
-    BackgroundTaskOrigin task_origin) {
-  if (task_origin != BackgroundTaskOrigin::kDeviceBoundSessionCredentials) {
-    // Only record spare key metrics for `kDeviceBoundSessionCredentials`
-    // origin.
-    return callback;
-  }
+    base::OnceCallback<void(ServiceErrorOr<KeyIdType>)> callback) {
   using KeyType =
       std::conditional_t<std::same_as<KeyIdType, UnexportableSigningKeyId>,
                          RefCountedUnexportableSigningKey,
@@ -676,8 +669,7 @@ UnexportableKeyServiceImpl::UnexportableKeyServiceImpl(
       config_(config),
       signing_keys_(std::make_unique<SigningKeyRepository>()),
       attestation_keys_(std::make_unique<AttestationKeyRepository>()) {
-  if (base::FeatureList::IsEnabled(kEnableUnexportableKeysSpareKeyPool) &&
-      task_origin_ == BackgroundTaskOrigin::kDeviceBoundSessionCredentials) {
+  if (base::FeatureList::IsEnabled(kEnableUnexportableKeysSpareKeyPool)) {
     spare_signing_key_pool_ = std::make_unique<SpareSigningKeyPool>(
         config_,
         CreateGenerateKeyCallbackForSparePool<RefCountedUnexportableSigningKey>(
@@ -714,17 +706,14 @@ void UnexportableKeyServiceImpl::GenerateSigningKeySlowlyAsync(
     BackgroundTaskPriority priority,
     base::OnceCallback<void(ServiceErrorOr<UnexportableSigningKeyId>)>
         callback) {
-  auto wrapped_callback = WrapCallbackWithSpareKeyLatencyHistogram(
-      std::move(callback), task_origin_);
+  auto wrapped_callback =
+      WrapCallbackWithSpareKeyLatencyHistogram(std::move(callback));
 
-  if (spare_signing_key_pool_) {
-    if (scoped_refptr<RefCountedUnexportableSigningKey> spare_key =
-            spare_signing_key_pool_->PopSpareKey(acceptable_algorithms)) {
-      // We never replenish if there was a failure during the initial pool
-      // filling. This is acceptable because hardware key generation failures
-      // are expected to be sticky.
-      spare_signing_key_pool_->ReplenishSpareKeyPoolAsync(
-          acceptable_algorithms);
+  if (base::FeatureList::IsEnabled(kEnableUnexportableKeysSpareKeyPool)) {
+    scoped_refptr<RefCountedUnexportableSigningKey> spare_key =
+        spare_signing_key_pool_->PopSpareKey(acceptable_algorithms);
+    spare_signing_key_pool_->ReplenishSpareKeyPoolAsync(acceptable_algorithms);
+    if (spare_key) {
       std::move(wrapped_callback)
           .Run(signing_keys_->OnKeyGenerated(std::move(spare_key)));
       return;
@@ -766,17 +755,15 @@ void UnexportableKeyServiceImpl::GenerateAttestationKeySlowlyAsync(
     BackgroundTaskPriority priority,
     base::OnceCallback<void(ServiceErrorOr<UnexportableAttestationKeyId>)>
         callback) {
-  auto wrapped_callback = WrapCallbackWithSpareKeyLatencyHistogram(
-      std::move(callback), task_origin_);
+  auto wrapped_callback =
+      WrapCallbackWithSpareKeyLatencyHistogram(std::move(callback));
 
-  if (spare_attestation_key_pool_) {
-    if (scoped_refptr<RefCountedUnexportableAttestationKey> spare_key =
-            spare_attestation_key_pool_->PopSpareKey(acceptable_algorithms)) {
-      // We never replenish if there was a failure during the initial pool
-      // filling. This is acceptable because hardware key generation failures
-      // are expected to be sticky.
-      spare_attestation_key_pool_->ReplenishSpareKeyPoolAsync(
-          acceptable_algorithms);
+  if (base::FeatureList::IsEnabled(kEnableUnexportableKeysSpareKeyPool)) {
+    scoped_refptr<RefCountedUnexportableAttestationKey> spare_key =
+        spare_attestation_key_pool_->PopSpareKey(acceptable_algorithms);
+    spare_attestation_key_pool_->ReplenishSpareKeyPoolAsync(
+        acceptable_algorithms);
+    if (spare_key) {
       std::move(wrapped_callback)
           .Run(attestation_keys_->OnKeyGenerated(std::move(spare_key)));
       return;
@@ -832,17 +819,9 @@ void UnexportableKeyServiceImpl::SignSlowlyAsync(
     base::span<const uint8_t> data,
     BackgroundTaskPriority priority,
     base::OnceCallback<void(ServiceErrorOr<std::vector<uint8_t>>)> callback) {
-  if (auto* key = signing_keys_->GetKey(key_id)) {
+  if (auto* key = GetKey(kSigningAndAttestationKeyMaps, key_id)) {
     task_manager_->SignSlowlyAsync(
-        BackgroundTaskType::kSign, task_origin_, base::WrapRefCounted(key),
-        data, priority, WrapCallbackWithErrorIfCancelled(std::move(callback)));
-    return;
-  }
-  if (auto* key =
-          attestation_keys_->GetKey(UnexportableAttestationKeyId(key_id))) {
-    task_manager_->SignSlowlyAsync(
-        BackgroundTaskType::kSignWithAttestationKey, task_origin_,
-        base::WrapRefCounted(key), data, priority,
+        task_origin_, base::WrapRefCounted(key), data, priority,
         WrapCallbackWithErrorIfCancelled(std::move(callback)));
     return;
   }

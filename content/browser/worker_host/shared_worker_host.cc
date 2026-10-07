@@ -23,7 +23,6 @@
 #include "content/browser/renderer_host/code_cache_host_impl.h"
 #include "content/browser/renderer_host/local_network_access_util.h"
 #include "content/browser/renderer_host/render_frame_host_impl.h"
-#include "content/browser/renderer_preferences_util.h"
 #include "content/browser/security/dip/document_isolation_policy_reporter.h"
 #include "content/browser/service_worker/service_worker_client.h"
 #include "content/browser/service_worker/service_worker_context_core.h"
@@ -326,6 +325,10 @@ void SharedWorkerHost::Start(
     if (!creator_policy_container_host_->policies().is_web_secure_context) {
       policies.is_web_secure_context = false;
     }
+    // Allow LNA access on non secure contexts if the creator did as well.
+    policies.allow_non_secure_local_network_access =
+        creator_policy_container_host_->policies()
+            .allow_non_secure_local_network_access;
 
     policies.ip_address_space = CalculateIPAddressSpace(
         result.final_response_url,
@@ -400,7 +403,7 @@ void SharedWorkerHost::Start(
       instance_.same_site_cookies(), instance_.extended_lifetime()));
 
   auto renderer_preferences = blink::RendererPreferences();
-  UpdateRendererPreferencesForWorkerHelper(
+  GetContentClient()->browser()->UpdateRendererPreferencesForWorker(
       GetProcessHost()->GetBrowserContext(), &renderer_preferences);
 
   // Create a RendererPreferenceWatcher to observe updates in the preferences.

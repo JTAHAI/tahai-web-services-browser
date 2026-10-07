@@ -36,7 +36,6 @@ import org.mockito.junit.MockitoRule;
 
 import org.chromium.base.Callback;
 import org.chromium.base.FakeTimeTestRule;
-import org.chromium.base.ServiceLoaderUtil;
 import org.chromium.base.TimeUtils;
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.base.test.util.Features.EnableFeatures;
@@ -96,7 +95,7 @@ public class AuxiliarySearchControllerImplUnitTest {
     public void setUp() {
         when(mContext.getResources()).thenReturn(mResources);
 
-        ServiceLoaderUtil.setInstanceForTesting(AuxiliarySearchHooks.class, mHooks);
+        AuxiliarySearchControllerFactory.getInstance().setHooksForTesting(mHooks);
         createController();
     }
 

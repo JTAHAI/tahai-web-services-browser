@@ -74,6 +74,7 @@
 #import "ios/chrome/browser/composebox/shared/metrics/composebox_metrics_recorder.h"
 #import "ios/chrome/browser/composebox/ui/composebox_input_item.h"
 #import "ios/chrome/browser/composebox/ui/composebox_input_item_collection.h"
+#import "ios/chrome/browser/composebox/ui/composebox_strings.h"
 #import "ios/chrome/browser/composebox/ui/composebox_ui_input_state.h"
 #import "ios/chrome/browser/favicon/model/favicon_loader.h"
 #import "ios/chrome/browser/intelligence/persist_tab_context/model/persist_tab_context_browser_agent.h"
@@ -90,7 +91,6 @@
 #import "ios/chrome/browser/shared/model/utils/mime_type_util.h"
 #import "ios/chrome/browser/shared/model/utils/web_state_deferred_executor.h"
 #import "ios/chrome/browser/shared/model/web_state_list/web_state_list.h"
-#import "ios/chrome/browser/shared/model/web_state_list/web_state_list_observer_bridge.h"
 #import "ios/chrome/browser/shared/public/commands/browser_coordinator_commands.h"
 #import "ios/chrome/browser/shared/public/commands/scene_commands.h"
 #import "ios/chrome/browser/shared/public/features/features.h"
@@ -109,7 +109,6 @@
 #import "mojo/public/cpp/base/big_buffer.h"
 #import "net/base/apple/url_conversions.h"
 #import "net/base/url_util.h"
-#import "third_party/lens_server_proto/aim_communication.pb.h"
 #import "third_party/omnibox_proto/chrome_aim_entry_point.pb.h"
 #import "third_party/omnibox_proto/model_config.pb.h"
 #import "third_party/omnibox_proto/model_mode.pb.h"
@@ -170,9 +169,6 @@ CreateInputDataFromAnnotatedPageContent(
 
   input_data->page_url = web_state->GetVisibleURL();
   input_data->page_title = base::UTF16ToUTF8(web_state->GetTitle());
-  if (web_state->GetUniqueIdentifier().valid()) {
-    input_data->tab_session_id = web_state->GetUniqueIdentifier().ToSessionID();
-  }
   return input_data;
 }
 
@@ -213,8 +209,7 @@ lens::ImageEncodingOptions GetDefaultImageEncodingOptions() {
     ComposeboxInputItemCollectionDelegate,
     ComposeboxQueryContextualizerDelegate,
     SearchEngineObserving,
-    WebStateDeferredExecutorDelegate,
-    WebStateListObserving>
+    WebStateDeferredExecutorDelegate>
 
 @end
 
@@ -236,8 +231,6 @@ lens::ImageEncodingOptions GetDefaultImageEncodingOptions() {
   ComposeboxModeHolder* _modeHolder;
   // The web state list.
   raw_ptr<WebStateList> _webStateList;
-  // The observer bridge for the WebStateList.
-  std::unique_ptr<WebStateListObserverBridge> _webStateListObserver;
   // The favicon loader.
   raw_ptr<FaviconLoader> _faviconLoader;
   // A browser agent for retrieving APC from the cache.
@@ -363,11 +356,6 @@ lens::ImageEncodingOptions GetDefaultImageEncodingOptions() {
                object:nil];
     }
     _webStateList = webStateList;
-    if (_entrypoint == ComposeboxEntrypoint::kCobrowse && _webStateList) {
-      _webStateListObserver =
-          std::make_unique<WebStateListObserverBridge>(self);
-      _webStateList->AddObserver(_webStateListObserver.get());
-    }
     _faviconLoader = faviconLoader;
     _webStateDeferredExecutor = [[WebStateDeferredExecutor alloc] init];
     _webStateDeferredExecutor.delegate = self;
@@ -442,11 +430,7 @@ lens::ImageEncodingOptions GetDefaultImageEncodingOptions() {
     _contextualSearchSession.reset();
   }
   _inNavigation = NO;
-  if (_webStateList && _webStateListObserver) {
-    _webStateList->RemoveObserver(_webStateListObserver.get());
-    _webStateListObserver.reset();
-  }
-  _webStateList = nullptr;
+  _webStateList = nil;
   _items = nil;
   _URLLoader = nil;
   _consumer = nil;
@@ -1099,9 +1083,12 @@ lens::ImageEncodingOptions GetDefaultImageEncodingOptions() {
   }
 
   bool use_apc_v2 = IsComposeboxAimRichAPCExtractionEnabled();
-  PageContextWrapperConfig config = PageContextWrapperConfigBuilder()
-                                        .SetDefaultRichExtraction(use_apc_v2)
-                                        .Build();
+  PageContextWrapperConfig config =
+      PageContextWrapperConfigBuilder()
+          .SetGraftCrossOriginFrameContent(use_apc_v2)
+          .SetUseRichExtraction(use_apc_v2)
+          .SetExtractPaidContent(use_apc_v2)
+          .Build();
 
   PageContextWrapper* pageContextWrapper = [[PageContextWrapper alloc]
         initWithWebState:webState
@@ -1648,10 +1635,6 @@ lens::ImageEncodingOptions GetDefaultImageEncodingOptions() {
 
 // Reloads the displayed suggestions based on the attachments/modeHolder.
 - (void)reloadSuggestions {
-  if (_entrypoint == ComposeboxEntrypoint::kCobrowse) {
-    return;
-  }
-
   [self updateAwaitingAttachmentSignalsState];
 
   BOOL shouldRestartAutocomplete = _items.count <= 1;
@@ -2109,10 +2092,7 @@ lens::ImageEncodingOptions GetDefaultImageEncodingOptions() {
   BOOL forceDisableShortcuts =
       base::FeatureList::IsEnabled(kHideFuseboxVoiceLensActions);
   BOOL hasVisibleContent = compactMode ? _hasText : hasContent;
-  // Note: Temporarily disable shortcuts for cobrowse.
-  // See http://crbug.com/539904096 for more details.
-  BOOL showShortcuts = !hasVisibleContent && !canSend &&
-                       !forceDisableShortcuts && !self.isCobrowse;
+  BOOL showShortcuts = !hasVisibleContent && !canSend && !forceDisableShortcuts;
   // Hide the plus button is different from !allowsMultimodalActions. When the
   // plus button is hidden, the user can still use multimodal actions from other
   // sources such as drag and drop.
@@ -2184,8 +2164,6 @@ lens::ImageEncodingOptions GetDefaultImageEncodingOptions() {
        trailingAction);
 
   [self.consumer updateVisibleControls:visibleControls];
-  BOOL shouldDisableSending = !_modeHolder.isRegularSearch && !canSend;
-  [self.consumer disableSending:shouldDisableSending];
 }
 
 /// Updates the consumer whether to show in compact mode.
@@ -2384,41 +2362,6 @@ lens::ImageEncodingOptions GetDefaultImageEncodingOptions() {
       withTitle:base::SysUTF16ToNSString(webState->GetTitle())
           tabID:webState->GetUniqueIdentifier().identifier()];
   [self.debugLogger logEvent:event];
-}
-
-#pragma mark - WebStateListObserving
-
-- (void)didChangeWebStateList:(WebStateList*)webStateList
-                       change:(const WebStateListChange&)change
-                       status:(const WebStateListStatus&)status {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(_sequenceChecker);
-  if (_entrypoint != ComposeboxEntrypoint::kCobrowse) {
-    return;
-  }
-
-  switch (change.type()) {
-    case WebStateListChange::Type::kDetach: {
-      const WebStateListChangeDetach& detachChange =
-          change.As<WebStateListChangeDetach>();
-      web::WebState* detachedWebState = detachChange.detached_web_state();
-      if (!detachedWebState) {
-        return;
-      }
-      [self removeDeselectedIDs:{detachedWebState->GetUniqueIdentifier()}];
-      break;
-    }
-    default:
-      break;
-  }
-}
-
-- (void)webStateListDestroyed:(WebStateList*)webStateList {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(_sequenceChecker);
-  if (_webStateList && _webStateListObserver) {
-    _webStateList->RemoveObserver(_webStateListObserver.get());
-    _webStateListObserver.reset();
-  }
-  _webStateList = nullptr;
 }
 
 @end

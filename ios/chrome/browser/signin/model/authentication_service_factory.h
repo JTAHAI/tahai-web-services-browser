@@ -24,17 +24,23 @@ class AuthenticationServiceDelegate;
 // the associated `AuthenticationService`.
 class AuthenticationServiceFactory : public ProfileKeyedServiceFactoryIOS {
  public:
+  // Factory for AuthenticationServiceDelegate.
+  using AuthenticationServiceDelegateFactory =
+      base::OnceCallback<std::unique_ptr<AuthenticationServiceDelegate>(
+          ProfileIOS*)>;
+
   static AuthenticationService* GetForProfile(ProfileIOS* profile);
   static AuthenticationServiceFactory* GetInstance();
 
-  // TODO(crbug.com/449708427): Remove after migrating internal usage.
+  // Returns a factory that builds an AuthenticationService using a custom
+  // delegate instance (needs to be constructible before the profile).
   static TestingFactory GetFactoryWithDelegate(
       std::unique_ptr<AuthenticationServiceDelegate> delegate);
 
   // Returns a factory that builds an AuthenticationService using a custom
-  // delegate instance (needs to be constructible before the profile).
-  static TestingFactory GetFactoryWithDelegateForTesting(
-      std::unique_ptr<AuthenticationServiceDelegate> delegate);
+  // delegate factory.
+  static TestingFactory GetFactoryWithDelegateFactory(
+      AuthenticationServiceDelegateFactory delegate_factory);
 
  private:
   friend class base::NoDestructor<AuthenticationServiceFactory>;

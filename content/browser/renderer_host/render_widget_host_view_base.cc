@@ -45,7 +45,6 @@
 #include "third_party/blink/public/common/features.h"
 #include "third_party/blink/public/mojom/frame/intrinsic_sizing_info.mojom.h"
 #include "third_party/blink/public/mojom/unbounded_element/unbounded_element.mojom.h"
-#include "ui/accessibility/ax_tree_id.h"
 #include "ui/base/ui_base_types.h"
 #include "ui/display/display_util.h"
 #include "ui/display/screen.h"
@@ -247,8 +246,7 @@ void RenderWidgetHostViewBase::CopyMainAndPopupFromSurface(
   if (popup_host && popup_frame_host) {
     secondary_location = popup_host->GetView()->GetViewBounds().origin();
   } else if (unbounded_window) {
-    CHECK(base::FeatureList::IsEnabled(blink::features::kUnboundedElement),
-          base::NotFatalUntil::M158);
+    DCHECK(base::FeatureList::IsEnabled(blink::features::kUnboundedElement));
     secondary_location = unbounded_window->GetBounds().origin();
   }
 
@@ -324,9 +322,8 @@ void RenderWidgetHostViewBase::CopyMainAndPopupFromSurface(
           return;
         } else {
           CHECK(unbounded_window);
-          CHECK(
-              base::FeatureList::IsEnabled(blink::features::kUnboundedElement),
-              base::NotFatalUntil::M158);
+          DCHECK(
+              base::FeatureList::IsEnabled(blink::features::kUnboundedElement));
           gfx::Rect popup_subrect(src_subrect - offset);
           unbounded_window->CopyFromSurface(popup_subrect, dst_size, timeout,
                                             std::move(popup_done_callback));
@@ -352,10 +349,31 @@ void RenderWidgetHostViewBase::CopyFromSurface(
       content::CopyFromSurfaceError::kNotImplemented));
 }
 
+void RenderWidgetHostViewBase::CopyFromExactSurface(
+    const gfx::Rect& src_rect,
+    const gfx::Size& output_size,
+    base::OnceCallback<void(const content::CopyFromSurfaceResult&)> callback) {
+  NOTIMPLEMENTED_LOG_ONCE();
+  std::move(callback).Run(base::unexpected<content::CopyFromSurfaceError>(
+      content::CopyFromSurfaceError::kNotImplemented));
+}
+
 ui::FilteredGestureProvider*
 RenderWidgetHostViewBase::GetFilteredGestureProviderForTesting() {
   return nullptr;
 }
+
+#if BUILDFLAG(IS_ANDROID)
+void RenderWidgetHostViewBase::CopyFromExactSurfaceWithIpcDelay(
+    const gfx::Rect& src_rect,
+    const gfx::Size& output_size,
+    base::OnceCallback<void(const content::CopyFromSurfaceResult&)> callback,
+    base::TimeDelta ipc_delay) {
+  NOTIMPLEMENTED_LOG_ONCE();
+  std::move(callback).Run(base::unexpected<content::CopyFromSurfaceError>(
+      content::CopyFromSurfaceError::kNotImplemented));
+}
+#endif
 
 std::unique_ptr<viz::ClientFrameSinkVideoCapturer>
 RenderWidgetHostViewBase::CreateVideoCapturer() {
@@ -507,10 +525,6 @@ gfx::NativeViewAccessible
 gfx::NativeViewAccessible
 RenderWidgetHostViewBase::AccessibilityGetNativeViewAccessibleForWindow() {
   return gfx::NativeViewAccessible();
-}
-
-ui::AXTreeID RenderWidgetHostViewBase::AccessibilityGetParentAXTreeID() {
-  return ui::AXTreeIDUnknown();
 }
 
 bool RenderWidgetHostViewBase::ShouldInitiateStylusWriting() {
@@ -1025,9 +1039,8 @@ void RenderWidgetHostViewBase::GetUnboundedSurfaceCompositorFrameSink(
 
 UnboundedSurfaceWindow* RenderWidgetHostViewBase::GetUnboundedSurfaceWindow()
     const {
-  CHECK(!unbounded_surface_window_ ||
-            base::FeatureList::IsEnabled(blink::features::kUnboundedElement),
-        base::NotFatalUntil::M158);
+  DCHECK(!unbounded_surface_window_ ||
+         base::FeatureList::IsEnabled(blink::features::kUnboundedElement));
   return unbounded_surface_window_.get();
 }
 

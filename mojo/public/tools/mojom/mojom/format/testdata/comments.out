@@ -1,6 +1,5 @@
 module foo.bar;
 
-// This is an import statement.
 import "foo/bar/baz.mojom";  // Import EOL comment.
 
 enum Value {

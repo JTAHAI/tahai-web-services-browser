@@ -390,7 +390,8 @@ void RemoveShareMenu(NSMutableArray* menu) {
 
 - (UIMenu*)editMenuInteraction:(UIEditMenuInteraction*)interaction
           menuForConfiguration:(UIEditMenuConfiguration*)configuration
-              suggestedActions:(NSArray<UIMenuElement*>*)suggestedActions {
+              suggestedActions:(NSArray<UIMenuElement*>*)suggestedActions
+    API_AVAILABLE(ios(16.0)) {
   NSMutableArray* descriptions = [NSMutableArray array];
   for (UIMenuElement* element in suggestedActions) {
     [descriptions addObjectsFromArray:MenuDescription(element, 0)];
@@ -441,7 +442,7 @@ class BrowserEditMenuHandlerTest : public PlatformTest {
     ios::provider::test::SetPartialTranslateControllerFactory(factory);
   }
 
-  NSArray* GetMenuDescription() {
+  NSArray* GetMenuDescription() API_AVAILABLE(ios(16.0)) {
     EditMenuInteractionDelegate* delegate =
         [[EditMenuInteractionDelegate alloc] init];
     UIEditMenuInteraction* interaction =

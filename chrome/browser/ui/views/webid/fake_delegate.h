@@ -29,8 +29,6 @@ class FakeDelegate : public AccountSelectionView::Delegate {
                     const GURL& idp_login_url) override {}
   void OnMoreDetails() override {}
   void OnAccountsDisplayed() override {}
-  void OnNativeAppResult(const std::string& token) override {}
-  void OnNativeAppLoginFinished() override {}
 
   using AccountSelectedCallback = base::OnceClosure;
   void SetAccountSelectedCallback(AccountSelectedCallback cb) {

@@ -29,6 +29,7 @@
 
 #include "base/check_op.h"
 #include "base/functional/callback_helpers.h"
+#include "base/strings/to_string.h"
 #include "build/build_config.h"
 #include "media/base/media_switches.h"
 #include "third_party/blink/public/common/features.h"
@@ -75,7 +76,6 @@
 #include "third_party/blink/renderer/platform/runtime_enabled_features.h"
 #include "third_party/blink/renderer/platform/scheduler/public/thread.h"
 #include "third_party/blink/renderer/platform/webrtc/peer_connection_remote_audio_source.h"
-#include "third_party/blink/renderer/platform/wtf/text/format.h"
 #include "third_party/blink/renderer/platform/wtf/vector.h"
 
 namespace blink {
@@ -281,7 +281,7 @@ MediaStreamTrackImpl::MediaStreamTrackImpl(
   // been called. Update the muted state manually.
   muted_ = ready_state_ == MediaStreamSource::kReadyStateMuted;
 
-  SendLogMessage(StrCat({__func__, "()"}));
+  SendLogMessage(String::Format("%s()", __func__));
 
   MediaStreamVideoTrack* const video_track =
       MediaStreamVideoTrack::From(Component());
@@ -356,7 +356,8 @@ void MediaStreamTrackImpl::setEnabled(bool enabled) {
     PropagateTrackEnabled(enabled);
   }
 
-  SendLogMessage(Format("{}({{enabled={}}})", __func__, enabled));
+  SendLogMessage(String::Format("%s({enabled=%s})", __func__,
+                                base::ToString(enabled).c_str()));
 }
 
 bool MediaStreamTrackImpl::muted() const {
@@ -368,7 +369,8 @@ String MediaStreamTrackImpl::ContentHint() const {
 }
 
 void MediaStreamTrackImpl::SetContentHint(const String& hint) {
-  SendLogMessage(StrCat({__func__, "({hint=", hint, "})"}));
+  SendLogMessage(
+      String::Format("%s({hint=%s})", __func__, hint.Utf8().c_str()));
   WebMediaStreamTrack::ContentHintType translated_hint =
       WebMediaStreamTrack::ContentHintType::kNone;
   switch (component_->GetSourceType()) {
@@ -418,8 +420,8 @@ void MediaStreamTrackImpl::setReadyState(
   if (ready_state_ != MediaStreamSource::kReadyStateEnded &&
       ready_state_ != ready_state) {
     ready_state_ = ready_state;
-    SendLogMessage(
-        StrCat({__func__, "({ready_state=", readyState().AsCStr(), "})"}));
+    SendLogMessage(UNSAFE_TODO(String::Format("%s({ready_state=%s})", __func__,
+                                              readyState().AsCStr())));
 
     // Observers may dispatch events which create and add new Observers;
     // take a snapshot so as to safely iterate.
@@ -431,7 +433,7 @@ void MediaStreamTrackImpl::setReadyState(
 }
 
 void MediaStreamTrackImpl::stopTrack(ExecutionContext* execution_context) {
-  SendLogMessage(StrCat({__func__, "()"}));
+  SendLogMessage(String::Format("%s()", __func__));
   if (Ended()) {
     return;
   }
@@ -457,7 +459,7 @@ void MediaStreamTrackImpl::stopTrack(ExecutionContext* execution_context) {
 
 MediaStreamTrack* MediaStreamTrackImpl::clone(
     ExecutionContext* execution_context) {
-  SendLogMessage(StrCat({__func__, "()"}));
+  SendLogMessage(String::Format("%s()", __func__));
 
   // Instantiate the clone.
   MediaStreamTrackImpl* cloned_track =
@@ -962,7 +964,7 @@ void MediaStreamTrackImpl::SourceChangedState() {
 
       break;
   }
-  SendLogMessage(StrCat({__func__, "()"}));
+  SendLogMessage(String::Format("%s()", __func__));
 }
 
 void MediaStreamTrackImpl::SourceChangedCaptureConfiguration() {
@@ -1239,10 +1241,14 @@ void MediaStreamTrackImpl::AddObserver(MediaStreamTrack::Observer* observer) {
 
 void MediaStreamTrackImpl::SendLogMessage(const String& message) {
   WebRtcLogMessage(
-      Format("MST::{} [kind: {}, id: {}, label: {}, enabled: {}, muted: {}, "
-             "readyState: {}, remote={}]",
-             message, kind(), id(), label(), enabled(), muted(),
-             readyState().AsCStr(), component_->Remote())
+      UNSAFE_TODO(
+          String::Format(
+              "MST::%s [kind: %s, id: %s, label: %s, enabled: %s, muted: %s, "
+              "readyState: %s, remote=%s]",
+              message.Utf8().c_str(), kind().Utf8().c_str(),
+              id().Utf8().c_str(), label().Utf8().c_str(),
+              enabled() ? "true" : "false", muted() ? "true" : "false",
+              readyState().AsCStr(), component_->Remote() ? "true" : "false"))
           .Utf8());
 }
 

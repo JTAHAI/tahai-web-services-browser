@@ -12,7 +12,7 @@ namespace content {
 class WebContents;
 }
 
-// Interface for the AtMemory action in the keyboard accessory.
+// Interface for the @memory action in the keyboard accessory.
 class AtMemoryAccessoryController : public AccessoryController {
  public:
   AtMemoryAccessoryController() = default;
@@ -26,10 +26,6 @@ class AtMemoryAccessoryController : public AccessoryController {
   // is called.
   static AtMemoryAccessoryController* GetOrCreate(
       content::WebContents* web_contents);
-
-  // Returns whether AtMemory is enabled and available for the current
-  // WebContents.
-  virtual bool IsAtMemoryAvailable() const = 0;
 
   virtual base::WeakPtr<AtMemoryAccessoryController> AsWeakPtr() = 0;
 };

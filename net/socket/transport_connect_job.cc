@@ -550,8 +550,10 @@ bool TransportConnectJob::IsSvcbOptional(
 
   SSLClientContext* ssl_client_context =
       common_connect_job_params()->ssl_client_context;
-  if (!ssl_client_context ||
-      !ssl_client_context->IsEchEnabled(scheme_host_port->host())) {
+  if (!ssl_client_context || !ssl_client_context->config().ech_enabled ||
+      (ssl_client_context->ssl_config_service() &&
+       ssl_client_context->ssl_config_service()->GetEchMode(
+           scheme_host_port->host()) == EchMode::kDisabled)) {
     return true;  // ECH is not supported for this request.
   }
 

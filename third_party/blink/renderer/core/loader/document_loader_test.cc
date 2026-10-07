@@ -9,7 +9,6 @@
 
 #include "base/auto_reset.h"
 #include "base/containers/span.h"
-#include "base/memory/raw_ptr.h"
 #include "base/rand_util.h"
 #include "base/test/metrics/histogram_tester.h"
 #include "base/test/scoped_feature_list.h"
@@ -87,7 +86,7 @@ class DecodedBodyLoader : public StaticDataNavigationBodyLoader {
     }
 
    private:
-    raw_ptr<Client, UnprotectedInRelease | DanglingUntriaged> client_;
+    Client* client_;
   };
 
   std::unique_ptr<DecodedDataPassthroughClient> client_;
@@ -117,9 +116,7 @@ class BodyLoaderTestDelegate : public URLLoaderTestDelegate {
 
  private:
   std::unique_ptr<StaticDataNavigationBodyLoader> body_loader_;
-  raw_ptr<StaticDataNavigationBodyLoader,
-          UnprotectedInRelease | DanglingUntriaged>
-      body_loader_raw_;
+  StaticDataNavigationBodyLoader* body_loader_raw_;
 };
 
 // This struct contains the three elements of the :visited links

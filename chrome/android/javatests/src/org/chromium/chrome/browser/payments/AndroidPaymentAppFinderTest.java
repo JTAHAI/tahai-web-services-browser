@@ -1868,7 +1868,6 @@ public class AndroidPaymentAppFinderTest
      */
     @Test
     @EnableFeatures({PaymentFeatureList.DEDUPLICATE_NATIVE_PAYMENT_APPS})
-    @DisableFeatures({PaymentFeatureList.GOOGLE_PAY_VIA_ANDROID_INTENTS})
     @Feature({"Payments"})
     public void testSkipsGooglePayWithInternalFactory() throws Throwable {
         Set<String> methods = new HashSet<>();

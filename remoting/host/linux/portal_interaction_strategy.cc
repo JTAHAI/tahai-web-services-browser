@@ -17,7 +17,6 @@
 #include "remoting/host/linux/clipboard_portal.h"
 #include "remoting/host/linux/ei_input_injector.h"
 #include "remoting/host/linux/ei_keyboard_layout_monitor.h"
-#include "remoting/host/linux/lock_state_tracker.h"
 #include "remoting/host/linux/pipewire_desktop_capturer.h"
 #include "remoting/host/linux/pipewire_local_input_monitor.h"
 #include "remoting/host/linux/pipewire_mouse_cursor_monitor.h"
@@ -53,8 +52,7 @@ PortalInteractionStrategy::CreateInputInjector() {
   auto result = std::make_unique<EiInputInjector>(
       remote_desktop_->ei_session(),
       remote_desktop_->capture_stream_manager()->GetWeakPtr(),
-      std::make_unique<ClipboardPortal>(),
-      /*lock_state_tracker=*/nullptr);
+      std::make_unique<ClipboardPortal>());
   remote_desktop_->ei_session()->SetInputInjector(result->GetWeakPtr());
   return result;
 }

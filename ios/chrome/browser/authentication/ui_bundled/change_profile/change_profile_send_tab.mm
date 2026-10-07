@@ -11,7 +11,6 @@
 #import "ios/chrome/browser/shared/model/browser/browser_provider_interface.h"
 #import "ios/chrome/browser/shared/public/commands/browser_coordinator_commands.h"
 #import "ios/chrome/browser/shared/public/commands/command_dispatcher.h"
-#import "ios/chrome/browser/shared/public/commands/send_tab_to_self_commands.h"
 #import "ios/chrome/browser/url_loading/model/url_loading_browser_agent.h"
 #import "ios/chrome/browser/url_loading/model/url_loading_params.h"
 #import "url/gurl.h"
@@ -33,12 +32,12 @@ void ChangeProfileSendTabToOtherDevice(
   UrlLoadingBrowserAgent::FromBrowser(browser)->Load(
       UrlLoadParams::InCurrentTab(url));
   CommandDispatcher* dispatcher = browser->GetCommandDispatcher();
-  id<SendTabToSelfCommands> sendTabToSelfHandler =
-      HandlerForProtocol(dispatcher, SendTabToSelfCommands);
+  id<BrowserCoordinatorCommands> browserCoordinatorHandler =
+      HandlerForProtocol(dispatcher, BrowserCoordinatorCommands);
 
-  [sendTabToSelfHandler showSendTabToSelfUI:url
-                                      title:title
-                                 entryPoint:entry_point];
+  [browserCoordinatorHandler showSendTabToSelfUI:url
+                                           title:title
+                                      entryPoint:entry_point];
 
   std::move(closure).Run();
 }

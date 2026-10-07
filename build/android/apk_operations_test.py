@@ -14,141 +14,139 @@ import apk_operations
 # Testing internal members of apk_operations.
 # pylint: disable=protected-access
 class LogcatProcessorTest(unittest.TestCase):
-    def setUp(self):
-        self.device = mock.Mock()
-        self.package_name = 'com.example.app'
 
-        # Mock _GetPackageProcesses to avoid device interaction
-        self.get_package_processes_patcher = mock.patch(
-            'apk_operations._GetPackageProcesses', return_value=[]
-        )
-        self.get_package_processes_patcher.start()
+  def setUp(self):
+    self.device = mock.Mock()
+    self.package_name = 'com.example.app'
 
-    def tearDown(self):
-        self.get_package_processes_patcher.stop()
+    # Mock _GetPackageProcesses to avoid device interaction
+    self.get_package_processes_patcher = mock.patch(
+        'apk_operations._GetPackageProcesses', return_value=[])
+    self.get_package_processes_patcher.start()
 
-    def create_processor(self, log_level='V', filter_regex=None):
-        return apk_operations._LogcatProcessor(
-            self.device,
-            self.package_name,
-            stack_script_context=None,
-            log_level=log_level,
-            filter_regex=filter_regex,
-        )
+  def tearDown(self):
+    self.get_package_processes_patcher.stop()
 
-    def testFilterLogLevel(self):
-        processor = self.create_processor(log_level='W')
+  def create_processor(self, log_level='V', filter_regex=None):
+    return apk_operations._LogcatProcessor(self.device,
+                                           self.package_name,
+                                           stack_script_context=None,
+                                           log_level=log_level,
+                                           filter_regex=filter_regex)
 
-        # Capture stdout
-        captured_output = io.StringIO()
-        sys.stdout = captured_output
+  def testFilterLogLevel(self):
+    processor = self.create_processor(log_level='W')
 
-        try:
-            # Verbose log - should be filtered out
-            line = '01-01 00:00:00.000 1000 1000 V Tag : Message'
-            parsed = processor._ParseLine(line)
-            processor._PrintParsedLine(parsed)
-            self.assertEqual(captured_output.getvalue(), '')
+    # Capture stdout
+    captured_output = io.StringIO()
+    sys.stdout = captured_output
 
-            # Debug log - should be filtered out
-            line = '01-01 00:00:00.000 1000 1000 D Tag : Message'
-            parsed = processor._ParseLine(line)
-            processor._PrintParsedLine(parsed)
-            self.assertEqual(captured_output.getvalue(), '')
+    try:
+      # Verbose log - should be filtered out
+      line = '01-01 00:00:00.000 1000 1000 V Tag : Message'
+      parsed = processor._ParseLine(line)
+      processor._PrintParsedLine(parsed)
+      self.assertEqual(captured_output.getvalue(), '')
 
-            # Warning log - should be printed
-            line = '01-01 00:00:00.000 1000 1000 W Tag : Message'
-            parsed = processor._ParseLine(line)
-            processor._PrintParsedLine(parsed)
-            self.assertNotEqual(captured_output.getvalue(), '')
-            # Reset buffer
-            captured_output.truncate(0)
-            captured_output.seek(0)
+      # Debug log - should be filtered out
+      line = '01-01 00:00:00.000 1000 1000 D Tag : Message'
+      parsed = processor._ParseLine(line)
+      processor._PrintParsedLine(parsed)
+      self.assertEqual(captured_output.getvalue(), '')
 
-            # Error log - should be printed
-            line = '01-01 00:00:00.000 1000 1000 E Tag : Message'
-            parsed = processor._ParseLine(line)
-            processor._PrintParsedLine(parsed)
-            self.assertNotEqual(captured_output.getvalue(), '')
-        finally:
-            sys.stdout = sys.__stdout__
+      # Warning log - should be printed
+      line = '01-01 00:00:00.000 1000 1000 W Tag : Message'
+      parsed = processor._ParseLine(line)
+      processor._PrintParsedLine(parsed)
+      self.assertNotEqual(captured_output.getvalue(), '')
+      # Reset buffer
+      captured_output.truncate(0)
+      captured_output.seek(0)
 
-    def testFilterRegex(self):
-        processor = self.create_processor(filter_regex='MyTag|Important')
+      # Error log - should be printed
+      line = '01-01 00:00:00.000 1000 1000 E Tag : Message'
+      parsed = processor._ParseLine(line)
+      processor._PrintParsedLine(parsed)
+      self.assertNotEqual(captured_output.getvalue(), '')
+    finally:
+      sys.stdout = sys.__stdout__
 
-        captured_output = io.StringIO()
-        sys.stdout = captured_output
+  def testFilterRegex(self):
+    processor = self.create_processor(filter_regex='MyTag|Important')
 
-        try:
-            # Matching tag - should be printed
-            line = '01-01 00:00:00.000 1000 1000 I MyTag : Message'
-            parsed = processor._ParseLine(line)
-            processor._PrintParsedLine(parsed)
-            self.assertNotEqual(captured_output.getvalue(), '')
-            captured_output.truncate(0)
-            captured_output.seek(0)
+    captured_output = io.StringIO()
+    sys.stdout = captured_output
 
-            # Matching message - should be printed
-            line = '01-01 00:00:00.000 1000 1000 I OtherTag : Important message'
-            parsed = processor._ParseLine(line)
-            processor._PrintParsedLine(parsed)
-            self.assertNotEqual(captured_output.getvalue(), '')
-            captured_output.truncate(0)
-            captured_output.seek(0)
+    try:
+      # Matching tag - should be printed
+      line = '01-01 00:00:00.000 1000 1000 I MyTag : Message'
+      parsed = processor._ParseLine(line)
+      processor._PrintParsedLine(parsed)
+      self.assertNotEqual(captured_output.getvalue(), '')
+      captured_output.truncate(0)
+      captured_output.seek(0)
 
-            # No match - should be filtered out
-            line = '01-01 00:00:00.000 1000 1000 I OtherTag : Boring message'
-            parsed = processor._ParseLine(line)
-            processor._PrintParsedLine(parsed)
-            self.assertEqual(captured_output.getvalue(), '')
-        finally:
-            sys.stdout = sys.__stdout__
+      # Matching message - should be printed
+      line = '01-01 00:00:00.000 1000 1000 I OtherTag : Important message'
+      parsed = processor._ParseLine(line)
+      processor._PrintParsedLine(parsed)
+      self.assertNotEqual(captured_output.getvalue(), '')
+      captured_output.truncate(0)
+      captured_output.seek(0)
 
-    def testFilterBoth(self):
-        processor = self.create_processor(log_level='W', filter_regex='MyTag')
+      # No match - should be filtered out
+      line = '01-01 00:00:00.000 1000 1000 I OtherTag : Boring message'
+      parsed = processor._ParseLine(line)
+      processor._PrintParsedLine(parsed)
+      self.assertEqual(captured_output.getvalue(), '')
+    finally:
+      sys.stdout = sys.__stdout__
 
-        captured_output = io.StringIO()
-        sys.stdout = captured_output
+  def testFilterBoth(self):
+    processor = self.create_processor(log_level='W', filter_regex='MyTag')
 
-        try:
-            # Matching tag but low priority - should be filtered
-            line = '01-01 00:00:00.000 1000 1000 D MyTag : Message'
-            parsed = processor._ParseLine(line)
-            processor._PrintParsedLine(parsed)
-            self.assertEqual(captured_output.getvalue(), '')
+    captured_output = io.StringIO()
+    sys.stdout = captured_output
 
-            # High priority but no match - should be filtered
-            line = '01-01 00:00:00.000 1000 1000 W OtherTag : Message'
-            parsed = processor._ParseLine(line)
-            processor._PrintParsedLine(parsed)
-            self.assertEqual(captured_output.getvalue(), '')
+    try:
+      # Matching tag but low priority - should be filtered
+      line = '01-01 00:00:00.000 1000 1000 D MyTag : Message'
+      parsed = processor._ParseLine(line)
+      processor._PrintParsedLine(parsed)
+      self.assertEqual(captured_output.getvalue(), '')
 
-            # High priority and matching tag - should be printed
-            line = '01-01 00:00:00.000 1000 1000 W MyTag : Message'
-            parsed = processor._ParseLine(line)
-            processor._PrintParsedLine(parsed)
-            self.assertNotEqual(captured_output.getvalue(), '')
-        finally:
-            sys.stdout = sys.__stdout__
+      # High priority but no match - should be filtered
+      line = '01-01 00:00:00.000 1000 1000 W OtherTag : Message'
+      parsed = processor._ParseLine(line)
+      processor._PrintParsedLine(parsed)
+      self.assertEqual(captured_output.getvalue(), '')
 
-    def testRealisticLogFormat(self):
-        processor = self.create_processor()
+      # High priority and matching tag - should be printed
+      line = '01-01 00:00:00.000 1000 1000 W MyTag : Message'
+      parsed = processor._ParseLine(line)
+      processor._PrintParsedLine(parsed)
+      self.assertNotEqual(captured_output.getvalue(), '')
+    finally:
+      sys.stdout = sys.__stdout__
 
-        # "Command line" tag test
-        line = '09-29 18:38:30.064     0     0 I Command line: 8250.nr_uarts=1'
-        parsed = processor._ParseLine(line)
+  def testRealisticLogFormat(self):
+    processor = self.create_processor()
 
-        self.assertEqual(parsed.tag, 'Command line')
-        self.assertEqual(parsed.message, '8250.nr_uarts=1')
+    # "Command line" tag test
+    line = '09-29 18:38:30.064     0     0 I Command line: 8250.nr_uarts=1'
+    parsed = processor._ParseLine(line)
 
-    def testRealisticLogFormatWithSpaces(self):
-        processor = self.create_processor()
-        # Case with empty tag (just whitespace before :)
-        line = '09-29 18:38:30.064     0     0 I         : Linux version'
-        parsed = processor._ParseLine(line)
-        self.assertEqual(parsed.tag, '')
-        self.assertEqual(parsed.message, 'Linux version')
+    self.assertEqual(parsed.tag, 'Command line')
+    self.assertEqual(parsed.message, '8250.nr_uarts=1')
+
+  def testRealisticLogFormatWithSpaces(self):
+    processor = self.create_processor()
+    # Case with empty tag (just whitespace before :)
+    line = '09-29 18:38:30.064     0     0 I         : Linux version'
+    parsed = processor._ParseLine(line)
+    self.assertEqual(parsed.tag, '')
+    self.assertEqual(parsed.message, 'Linux version')
 
 
 if __name__ == '__main__':
-    unittest.main()
+  unittest.main()

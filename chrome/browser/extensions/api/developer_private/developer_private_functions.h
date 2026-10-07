@@ -247,17 +247,6 @@ class DeveloperPrivateUpdateExtensionConfigurationFunction
   ResponseAction Run() override;
 };
 
-class DeveloperPrivateOpenReviewPageFunction
-    : public DeveloperPrivateAPIFunction {
- public:
-  DECLARE_EXTENSION_FUNCTION("developerPrivate.openReviewPage",
-                             DEVELOPERPRIVATE_OPENREVIEWPAGE)
-
- protected:
-  ~DeveloperPrivateOpenReviewPageFunction() override;
-  ResponseAction Run() override;
-};
-
 class DeveloperPrivateReloadFunction : public DeveloperPrivateAPIFunction,
                                        public ExtensionRegistryObserver,
                                        public LoadErrorReporter::Observer {

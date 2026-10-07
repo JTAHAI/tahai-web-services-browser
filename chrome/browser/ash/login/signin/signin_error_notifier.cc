@@ -30,6 +30,9 @@
 #include "chrome/browser/signin/identity_manager_factory.h"
 #include "chrome/browser/supervised_user/supervised_user_service_factory.h"
 #include "chrome/browser/ui/ash/multi_user/multi_user_util.h"
+#include "chrome/browser/ui/browser_tabstrip.h"
+#include "chrome/browser/ui/browser_window.h"
+#include "chrome/browser/ui/chrome_pages.h"
 #include "chrome/grit/branded_strings.h"
 #include "chrome/grit/generated_resources.h"
 #include "chrome/grit/theme_resources.h"
@@ -46,14 +49,12 @@
 #include "components/signin/public/identity_manager/identity_manager.h"
 #include "components/supervised_user/core/browser/supervised_user_service.h"
 #include "components/sync/base/features.h"
-#include "components/user_manager/user.h"
 #include "components/user_manager/user_manager.h"
 #include "components/vector_icons/vector_icons.h"
 #include "google_apis/gaia/google_service_auth_error.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/resource/resource_bundle.h"
 #include "ui/base/ui_base_features.h"
-#include "ui/message_center/message_center.h"
 #include "ui/message_center/public/cpp/notification.h"
 #include "ui/message_center/public/cpp/notification_delegate.h"
 
@@ -284,12 +285,8 @@ void SigninErrorNotifier::OnErrorChanged() {
     return;
 
   if (!error_controller_->HasError()) {
-    const user_manager::User& user = CHECK_DEREF(
-        BrowserContextHelper::Get()->GetUserByBrowserContext(profile_));
-    message_center::MessageCenter::Get()->RemoveNotification(
-        CreateUserScopedNotificationId(device_account_notification_id_,
-                                       user.username_hash()),
-        /*by_user=*/false);
+    NotificationDisplayServiceFactory::GetForProfile(profile_)->Close(
+        NotificationHandler::Type::TRANSIENT, device_account_notification_id_);
     NotificationDisplayServiceFactory::GetForProfile(profile_)->Close(
         NotificationHandler::Type::TRANSIENT,
         secondary_account_notification_id_);
@@ -344,14 +341,10 @@ void SigninErrorNotifier::HandleDeviceAccountError(
               .GetUserEmail(),
           device_account_notification_id_, error_message);
 
-  const user_manager::User& user = CHECK_DEREF(
-      BrowserContextHelper::Get()->GetUserByBrowserContext(profile_));
-
-  notification = std::make_unique<message_center::Notification>(
-      CreateUserScopedNotificationId(notification->id(), user.username_hash()),
-      *notification);
-  message_center::MessageCenter::Get()->AddNotification(
-      std::move(notification));
+  // Update or add the notification.
+  NotificationDisplayServiceFactory::GetForProfile(profile_)->Display(
+      NotificationHandler::Type::TRANSIENT, *notification,
+      /*metadata=*/nullptr);
 }
 
 void SigninErrorNotifier::HandleSecondaryAccountError(

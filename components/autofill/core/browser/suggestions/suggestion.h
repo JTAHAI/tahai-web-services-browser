@@ -29,12 +29,12 @@
 #include "components/autofill/core/browser/data_model/payments/iban.h"
 #include "components/autofill/core/browser/field_types.h"
 #include "components/autofill/core/browser/integrators/at_memory/memory_data_type.h"
+#include "components/autofill/core/browser/integrators/at_memory/memory_search_result.h"
 #include "components/autofill/core/browser/suggestions/suggestion_type.h"
 #include "components/autofill/core/browser/webdata/autocomplete/autocomplete_entry.h"
 #include "components/autofill/core/browser/webdata/autocomplete/autocomplete_table_label_sensitive.h"
 #include "components/autofill/core/common/autofill_payments_features.h"
 #include "ui/gfx/image/image.h"
-#include "ui/gfx/range/range.h"
 #include "url/gurl.h"
 
 #if BUILDFLAG(IS_ANDROID)
@@ -96,35 +96,10 @@ struct Suggestion {
                            const PasswordSuggestionDetails&) = default;
   };
 
-  // Citation linking a substring range of a suggestion's main text to a source
-  // URL.
-  struct PersonalContextSourceCitation final {
-    PersonalContextSourceCitation();
-    PersonalContextSourceCitation(GURL url, gfx::Range range);
-    PersonalContextSourceCitation(const PersonalContextSourceCitation&);
-    PersonalContextSourceCitation(PersonalContextSourceCitation&&);
-    PersonalContextSourceCitation& operator=(
-        const PersonalContextSourceCitation&);
-    PersonalContextSourceCitation& operator=(PersonalContextSourceCitation&&);
-    ~PersonalContextSourceCitation();
-
-    friend bool operator==(const PersonalContextSourceCitation&,
-                           const PersonalContextSourceCitation&) = default;
-
-    // Destination URL to navigate to when the citation link is clicked.
-    GURL url;
-    // Character range in `Suggestion::main_text.value` corresponding to the
-    // citation badge link.
-    gfx::Range range;
-  };
-
   struct AutofillAiPayload final {
     AutofillAiPayload();
     explicit AutofillAiPayload(EntityInstance::EntityId guid,
                                bool requires_server_fetch = false);
-    AutofillAiPayload(EntityInstance::EntityId guid,
-                      std::vector<PersonalContextSourceCitation> citations,
-                      bool requires_server_fetch = false);
     AutofillAiPayload(const AutofillAiPayload&);
     AutofillAiPayload(AutofillAiPayload&&);
     AutofillAiPayload& operator=(const AutofillAiPayload&);
@@ -139,9 +114,6 @@ struct Suggestion {
                            const AutofillAiPayload&) = default;
 
     EntityInstance::EntityId guid;
-
-    // Citations to sources from which the entity was extracted.
-    std::vector<PersonalContextSourceCitation> citations;
 
     // Whether selecting this suggestion requires fetching data from a server.
     // E.g. retrieving masked credentials.
@@ -391,6 +363,7 @@ struct Suggestion {
     ShouldTruncate should_truncate = ShouldTruncate(false);
   };
 
+  // GENERATED_JAVA_ENUM_PACKAGE: org.chromium.chrome.browser.ui.suggestion
   enum class Icon {
     // kNoIcon is kept at the top of the list.
     kNoIcon,
@@ -409,7 +382,8 @@ struct Suggestion {
     // Generic icons start
     kAccount,
     kAndroidMessages,
-    kClose,
+    // TODO(crbug.com/40266549): Rename to Undo.
+    kClear,
     kCode,
     kDelete,
     kDevice,
@@ -503,18 +477,17 @@ struct Suggestion {
     kStatic,
   };
 
-  // Describes the behavioral interaction contract of a suggestion: whether it
-  // can be selected/focused and whether it can be accepted (clicked/filled).
-  //
-  // GENERATED_JAVA_ENUM_PACKAGE: org.chromium.components.autofill
+  // Describes whether a suggestion can be accepted and how it should be styled
+  // when it cannot be.
   enum class Acceptability {
-    // The suggestion can be selected and accepted.
-    kSelectableAndAcceptable,
-    // The suggestion can be selected, but cannot be accepted (i.e. trying to
-    // accept it is ignored by the UI controller).
-    kSelectableButUnacceptable,
-    // The suggestion cannot be selected/focused and cannot be accepted.
-    kUnselectableAndUnacceptable,
+    // The suggestion can be accepted.
+    kAcceptable,
+    // The suggestion cannot be accepted (i.e. trying to accept it is ignored by
+    // the UI controller).
+    kUnacceptable,
+    // The suggestion cannot be accepted and is displayed in a
+    // disabled/grayed-out form.
+    kUnacceptableWithDeactivatedStyle,
   };
 
   explicit Suggestion(SuggestionType type);
@@ -571,8 +544,6 @@ struct Suggestion {
         return std::holds_alternative<Guid>(payload) ||
                std::holds_alternative<InstrumentId>(payload);
       case SuggestionType::kFillAutofillAi:
-      case SuggestionType::kRemoveAutofillAi:
-      case SuggestionType::kAutofillAiSourceAttribution:
         return std::holds_alternative<AutofillAiPayload>(payload);
       case SuggestionType::kCreditCardEntry:
       case SuggestionType::kVirtualCreditCardEntry:
@@ -590,7 +561,7 @@ struct Suggestion {
         return std::holds_alternative<PaymentsPayload>(payload);
       case SuggestionType::kAtMemorySearchResult:
         return std::holds_alternative<AtMemoryPayload>(payload);
-      case SuggestionType::kAtMemoryOpenGemini:
+      case SuggestionType::kOpenGemini:
         return std::holds_alternative<OpenGeminiPayload>(payload);
       case SuggestionType::kDevtoolsTestAddressEntry:
       default:
@@ -712,19 +683,19 @@ struct Suggestion {
   FiltrationPolicy filtration_policy = FiltrationPolicy::kFilterable;
 
   // The acceptability of the suggestion, see the enum values doc for details.
-  // Note that even if `acceptability` is `kSelectableAndAcceptable`, some
-  // `SuggestionType` are still not acceptable. See `IsAcceptable()` for
-  // details.
-  Acceptability acceptability = Acceptability::kSelectableAndAcceptable;
+  // Note that even if `acceptability` is `kAcceptable`, some `SuggestionType`
+  // are still not acceptable. See `IsAcceptable()` for details.
+  Acceptability acceptability = Acceptability::kAcceptable;
 
   // Returns whether the user is able to preview the suggestion by hovering on
   // it or accept it by clicking on it. Checks both whether the suggestion type
   // is acceptable (i.e. not a separator, title, etc.) and whether
-  // `acceptability == Acceptability::kSelectableAndAcceptable`.
+  // `acceptability == Acceptability::kAcceptable`.
   bool IsAcceptable() const;
 
-  // Returns whether the user is able to focus or select the suggestion.
-  bool IsSelectable() const;
+  // Returns whether the user will see the suggestion in
+  // a "disabled and grayed-out" form.
+  bool HasDeactivatedStyle() const;
 };
 
 void PrintTo(const Suggestion& suggestion, std::ostream* os);

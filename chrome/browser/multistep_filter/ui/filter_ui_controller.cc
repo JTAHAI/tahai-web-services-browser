@@ -12,6 +12,7 @@
 #include "base/notreached.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/time/time.h"
+#include "chrome/browser/contextual_cueing/prefs.h"
 #include "chrome/browser/favicon/favicon_service_factory.h"
 #include "chrome/browser/multistep_filter/core/multistep_filter_log_router_factory.h"
 #include "chrome/browser/profiles/profile.h"
@@ -29,11 +30,14 @@
 #include "components/multistep_filter/core/features.h"
 #include "components/multistep_filter/core/logging/log_entry.h"
 #include "components/multistep_filter/core/logging/multistep_filter_logger.h"
+#include "components/optimization_guide/core/feature_registry/feature_registration.h"
+#include "components/optimization_guide/core/model_execution/feature_keys.h"
+#include "components/optimization_guide/core/optimization_guide_prefs.h"
+#include "components/prefs/pref_service.h"
 #include "components/tabs/public/tab_interface.h"
 #include "components/vector_icons/vector_icons.h"
 #include "content/public/browser/navigation_handle.h"
 #include "content/public/browser/page_navigator.h"
-#include "content/public/browser/visibility.h"
 #include "content/public/browser/web_contents.h"
 #include "ui/actions/actions.h"
 #include "ui/base/l10n/l10n_util.h"
@@ -49,9 +53,6 @@ namespace {
 
 using SuggestionViewState = FilterUiController::SuggestionViewState;
 
-constexpr page_actions::PageActionPriorityCategory kMultistepFilterPriority =
-    page_actions::PageActionPriorityCategory::kContextualCue;
-
 constexpr std::string_view ViewStateToString(SuggestionViewState state) {
   switch (state) {
     case SuggestionViewState::kInactive:
@@ -64,8 +65,6 @@ constexpr std::string_view ViewStateToString(SuggestionViewState state) {
       return "reopened_from_omnibox";
     case SuggestionViewState::kCollapsedInOmniboxAfterReopen:
       return "collapsed_in_omnibox_after_reopen";
-    case SuggestionViewState::kTabHidden:
-      return "tab_hidden";
   }
 }
 
@@ -148,6 +147,7 @@ FilterUiController::FilterUiController(tabs::TabInterface& tab)
     log_router_ = MultistepFilterLogRouterFactory::GetForProfile(profile);
     favicon_service_ = FaviconServiceFactory::GetForProfile(
         profile, ServiceAccessType::EXPLICIT_ACCESS);
+    pref_service_ = profile->GetPrefs();
   }
   if (tab.GetTabFeatures()) {
     page_action_controller_ = tab.GetTabFeatures()->page_action_controller();
@@ -158,18 +158,34 @@ FilterUiController::FilterUiController(tabs::TabInterface& tab)
 }
 
 FilterUiController::~FilterUiController() {
-  ClearSuggestion(SuggestionUserDecision::kIgnored);
+  if (!suggestion_state_ ||
+      suggestion_state_->view_state == SuggestionViewState::kInactive) {
+    return;
+  }
+  constexpr SuggestionUserDecision kDecision = SuggestionUserDecision::kIgnored;
+  LogSuggestionUiDecision(log_router_, *suggestion_state_, kDecision);
+  if (suggestion_state_->callbacks.on_user_interaction) {
+    std::move(suggestion_state_->callbacks.on_user_interaction).Run(kDecision);
+  }
+  ClosePromo(kDecision);
+  favicon_task_tracker_.TryCancelAll();
 }
 
-void FilterUiController::ShowSuggestion(
+void FilterUiController::OnSuggestionGenerated(
     std::optional<UrlFilterSuggestion> suggestion,
     MultistepFilterUiDelegate::SuggestionUiCallbacks callbacks) {
   if (!suggestion) {
     return;
   }
-  if (!tab().GetContents() || !page_action_controller_ || !favicon_service_) {
+  if (!tab().GetContents() || !page_action_controller_ || !favicon_service_ ||
+      !pref_service_) {
     LogSuggestionUiShown(log_router_, *suggestion, false,
                          "missing_dependencies");
+    return;
+  }
+  if (!ShouldShowCue()) {
+    LogSuggestionUiShown(log_router_, *suggestion, false,
+                         "smart_suggestions_disabled");
     return;
   }
 
@@ -220,7 +236,6 @@ void FilterUiController::OnActionInvoked() {
       ApplySuggestion();
       break;
     case SuggestionViewState::kInactive:
-    case SuggestionViewState::kTabHidden:
       NOTREACHED();
     case SuggestionViewState::kCollapsedInOmnibox:
     case SuggestionViewState::kCollapsedInOmniboxAfterReopen:
@@ -305,7 +320,28 @@ void FilterUiController::OpenFeedback() {
   }
 }
 
+bool FilterUiController::ShouldShowCue() const {
+  // TODO(b/522733094): Clean this up once proper eligibility integration is
+  // complete.
+  int opt_in_state = pref_service_->GetInteger(
+      optimization_guide::prefs::GetSettingEnabledPrefName(
+          optimization_guide::UserVisibleFeatureKey::kContextualCueing));
+  if (opt_in_state ==
+      std::to_underlying(
+          optimization_guide::prefs::FeatureOptInState::kDisabled)) {
+    return false;
+  }
 
+  // Check enterprise policy.
+  if (pref_service_->GetInteger(
+          optimization_guide::prefs::kChromeSuggestionsSettings) ==
+      std::to_underlying(
+          contextual_cueing::ChromeSuggestionsSettingsValue::kDisabled)) {
+    return false;
+  }
+
+  return true;
+}
 
 void FilterUiController::ShowCue(const UrlFilterSuggestion& suggestion) {
   // Fetch favicon for the suggestion source host.
@@ -386,7 +422,8 @@ void FilterUiController::ShowCueWithFavicon() {
   page_action_controller_->Show(kActionMultistepFilter);
 
   page_action_controller_->ShowAnchoredMessage(
-      kActionMultistepFilter, {.priority = kMultistepFilterPriority});
+      kActionMultistepFilter,
+      {.priority = page_actions::PageActionPriorityCategory::kContextualCue});
 }
 
 void FilterUiController::ClearCue() {
@@ -396,17 +433,6 @@ void FilterUiController::ClearCue() {
   page_action_controller_->HideAnchoredMessage(kActionMultistepFilter);
   page_action_controller_->Hide(kActionMultistepFilter);
   page_action_controller_->ClearOverrideText(kActionMultistepFilter);
-}
-
-void FilterUiController::ShowSuggestionChip() {
-  if (!page_action_controller_ || !suggestion_state_) {
-    return;
-  }
-  page_action_controller_->OverrideText(
-      kActionMultistepFilter,
-      suggestion_state_->suggestion.short_suggestion_message);
-  page_action_controller_->ShowSuggestionChip(
-      kActionMultistepFilter, {.priority = kMultistepFilterPriority});
 }
 
 void FilterUiController::OnPageActionAnchoredMessageShown(
@@ -438,19 +464,9 @@ void FilterUiController::OnPageActionAnchoredMessageShown(
             l10n_util::GetStringUTF16(IDS_MULTISTEP_FILTER_CUE_ACTION_TEXT));
       }
       suggestion_state_->view_state = SuggestionViewState::kReopenedFromOmnibox;
-      LogSuggestionUiShown(log_router_, suggestion_state_->suggestion,
-                           /*ui_shown=*/true, /*reason=*/"reopened");
       if (suggestion_state_->callbacks.on_suggestion_reopened) {
         std::move(suggestion_state_->callbacks.on_suggestion_reopened).Run();
       }
-      break;
-    case SuggestionViewState::kTabHidden:
-      suggestion_state_->view_state =
-          suggestion_state_->state_before_tab_hide.value_or(
-              SuggestionViewState::kShowingInitialCue);
-      suggestion_state_->state_before_tab_hide.reset();
-      LogSuggestionUiShown(log_router_, suggestion_state_->suggestion,
-                           /*ui_shown=*/true, /*reason=*/"tab_restored");
       break;
     case SuggestionViewState::kShowingInitialCue:
     case SuggestionViewState::kReopenedFromOmnibox:
@@ -465,37 +481,31 @@ void FilterUiController::OnPageActionAnchoredMessageHidden(
     return;
   }
 
-  const bool is_tab_visible =
-      tab().IsActivated() && tab().GetContents() &&
-      tab().GetContents()->GetVisibility() == content::Visibility::VISIBLE;
-  if (!is_tab_visible) {
-    if (suggestion_state_->view_state != SuggestionViewState::kTabHidden) {
-      suggestion_state_->state_before_tab_hide = suggestion_state_->view_state;
-      suggestion_state_->view_state = SuggestionViewState::kTabHidden;
-    }
-    return;
-  }
-
   constexpr SuggestionUserDecision kDecision = SuggestionUserDecision::kIgnored;
   switch (suggestion_state_->view_state) {
     case SuggestionViewState::kShowingInitialCue:
-      LogSuggestionUiShown(log_router_, suggestion_state_->suggestion,
-                           /*ui_shown=*/false, /*reason=*/"collapsed");
+      LogSuggestionUiDecision(log_router_, *suggestion_state_, kDecision);
       suggestion_state_->view_state = SuggestionViewState::kCollapsedInOmnibox;
       ClosePromo(kDecision);
-      ShowSuggestionChip();
+      if (page_action_controller_) {
+        page_action_controller_->OverrideText(
+            kActionMultistepFilter,
+            suggestion_state_->suggestion.short_suggestion_message);
+      }
       break;
     case SuggestionViewState::kReopenedFromOmnibox:
-      LogSuggestionUiShown(log_router_, suggestion_state_->suggestion,
-                           /*ui_shown=*/false, /*reason=*/"collapsed");
+      LogSuggestionUiDecision(log_router_, *suggestion_state_, kDecision);
       suggestion_state_->view_state =
           SuggestionViewState::kCollapsedInOmniboxAfterReopen;
-      ShowSuggestionChip();
+      if (page_action_controller_) {
+        page_action_controller_->OverrideText(
+            kActionMultistepFilter,
+            suggestion_state_->suggestion.short_suggestion_message);
+      }
       break;
     case SuggestionViewState::kInactive:
     case SuggestionViewState::kCollapsedInOmnibox:
     case SuggestionViewState::kCollapsedInOmniboxAfterReopen:
-    case SuggestionViewState::kTabHidden:
       NOTREACHED();
   }
 }

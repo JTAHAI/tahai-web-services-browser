@@ -62,14 +62,13 @@
   min-height: 1.25em;
 }
 
-.config-controls-container {
+.buffer-config-container {
   display: flex;
   flex-direction: row;
-  gap: 16px;
   margin: 8px 12px;
 }
 
-.config-control-container {
+.buffer-row-container {
   display: flex;
   flex-direction: column;
 }

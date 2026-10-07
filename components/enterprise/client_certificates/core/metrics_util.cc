@@ -154,16 +154,6 @@ void RecordKcerKeyTaggingError(kcer::Error error) {
       "Enterprise.ClientCertificate.Ash.KeyTaggingError", error);
 }
 
-void RecordKcerGeneratedKeyInfoError(kcer::Error error) {
-  base::UmaHistogramEnumeration(
-      "Enterprise.ClientCertificate.Ash.GeneratedKeyInfoError", error);
-}
-
-void RecordKcerSoftwareKeyGenerationError(kcer::Error error) {
-  base::UmaHistogramEnumeration(
-      "Enterprise.ClientCertificate.Ash.SoftwareKeyGenerationError", error);
-}
-
 void RecordKcerCertificateImportError(kcer::Error error) {
   base::UmaHistogramEnumeration(
       "Enterprise.ClientCertificate.Ash.CertificateImportError", error);

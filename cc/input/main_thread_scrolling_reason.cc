@@ -11,12 +11,9 @@
 
 namespace cc {
 
-namespace {
-
-template <typename Reasons>
-std::string AsTextImpl(Reasons reasons) {
+std::string MainThreadScrollingReason::AsText(uint32_t reasons) {
   base::trace_event::TracedValueJSON traced_value;
-  MainThreadScrollingReason::AddToTracedValue(reasons, traced_value);
+  AddToTracedValue(reasons, traced_value);
   std::string result = traced_value.ToJSON();
   // Remove '{main_thread_scrolling_reasons:[', ']}', and any '"' chars.
   size_t array_start_pos = result.find('[');
@@ -29,72 +26,50 @@ std::string AsTextImpl(Reasons reasons) {
   return result;
 }
 
-}  // namespace
-
-std::string MainThreadScrollingReason::AsText(
-    MainThreadRepaintReasons reasons) {
-  return AsTextImpl(reasons);
-}
-
-std::string MainThreadScrollingReason::AsText(
-    MainThreadHitTestReasons reasons) {
-  return AsTextImpl(reasons);
-}
-
-std::string MainThreadScrollingReason::AsText(
-    MainThreadScrollingOtherReasons reasons) {
-  return AsTextImpl(reasons);
-}
+void MainThreadScrollingReason::AddToTracedValue(
+    uint32_t reasons,
+    base::trace_event::TracedValue& traced_value) {
+  traced_value.BeginArray("main_thread_scrolling_reasons");
 
 #define ADD_REASON(reason, string)       \
   do                                     \
-    if (reasons.Has(reason)) {           \
+    if (reasons & reason) {              \
       traced_value.AppendString(string); \
-      reasons.Remove(reason);            \
+      reasons &= ~reason;                \
     }                                    \
   while (false)
 
-void MainThreadScrollingReason::AddToTracedValue(
-    MainThreadRepaintReasons reasons,
-    base::trace_event::TracedValue& traced_value) {
-  traced_value.BeginArray("main_thread_scrolling_reasons");
-  ADD_REASON(MainThreadRepaintReason::kHasBackgroundAttachmentFixedObjects,
+  ADD_REASON(kHasBackgroundAttachmentFixedObjects,
              "Has background-attachment:fixed");
-  ADD_REASON(MainThreadRepaintReason::kNotOpaqueForTextAndLCDText,
-             "Not opaque for text and LCD text");
-  ADD_REASON(MainThreadRepaintReason::kPreferNonCompositedScrolling,
-             "Prefer non-composited scrolling");
-  ADD_REASON(MainThreadRepaintReason::kBackgroundNeedsRepaintOnScroll,
+  ADD_REASON(kNotOpaqueForTextAndLCDText, "Not opaque for text and LCD text");
+  ADD_REASON(kPreferNonCompositedScrolling, "Prefer non-composited scrolling");
+  ADD_REASON(kBackgroundNeedsRepaintOnScroll,
              "Background needs repaint on scroll");
-  DCHECK(reasons.empty());
-  traced_value.EndArray();
-}
-
-void MainThreadScrollingReason::AddToTracedValue(
-    MainThreadHitTestReasons reasons,
-    base::trace_event::TracedValue& traced_value) {
-  traced_value.BeginArray("main_thread_scrolling_reasons");
-  ADD_REASON(MainThreadHitTestReason::kScrollbarScrolling,
-             "Scrollbar scrolling");
-  ADD_REASON(MainThreadHitTestReason::kMainThreadScrollHitTestRegion,
+  ADD_REASON(kScrollbarScrolling, "Scrollbar scrolling");
+  ADD_REASON(kMainThreadScrollHitTestRegion,
              "Main thread scroll hit test region");
-  ADD_REASON(MainThreadHitTestReason::kFailedHitTest, "Failed hit test");
-  DCHECK(reasons.empty());
+  ADD_REASON(kFailedHitTest, "Failed hit test");
+  ADD_REASON(kPopupNoThreadedInput,
+             "Popup scrolling (no threaded input handler)");
+  ADD_REASON(kWheelEventHandlerRegion, "Wheel event handler region");
+  ADD_REASON(kTouchEventHandlerRegion, "Touch event handler region");
+
+#undef ADD_REASON
+
+  DCHECK_EQ(reasons, kNotScrollingOnMain);
   traced_value.EndArray();
 }
 
-void MainThreadScrollingReason::AddToTracedValue(
-    MainThreadScrollingOtherReasons reasons,
-    base::trace_event::TracedValue& traced_value) {
-  traced_value.BeginArray("main_thread_scrolling_reasons");
-  ADD_REASON(MainThreadScrollingOtherReason::kPopupNoThreadedInput,
-             "Popup scrolling (no threaded input handler)");
-  ADD_REASON(MainThreadScrollingOtherReason::kWheelEventHandlerRegion,
-             "Wheel event handler region");
-  ADD_REASON(MainThreadScrollingOtherReason::kTouchEventHandlerRegion,
-             "Touch event handler region");
-  DCHECK(reasons.empty());
-  traced_value.EndArray();
+int MainThreadScrollingReason::BucketIndexForTesting(uint32_t reason) {
+  // These two values are already bucket indices.
+  DCHECK_NE(reason, kNotScrollingOnMain);
+  DCHECK_NE(reason, kScrollingOnMainForAnyReason);
+
+  int index = 0;
+  while (reason >>= 1)
+    ++index;
+  DCHECK_NE(index, 0);
+  return index;
 }
 
 }  // namespace cc

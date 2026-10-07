@@ -44,9 +44,10 @@ class SessionTest : public ::testing::Test, public WithTaskEnvironment {
   SessionTest()
       : WithTaskEnvironment(base::test::TaskEnvironment::TimeSource::MOCK_TIME),
         context_(CreateTestURLRequestContextBuilder()->Build()) {
-    AddScopedFeatureList().InitAndEnableFeature(features::kDeviceBoundSessions);
+    feature_list_.InitAndEnableFeature(features::kDeviceBoundSessions);
   }
 
+  base::test::ScopedFeatureList feature_list_;
   std::unique_ptr<URLRequestContext> context_;
 };
 
@@ -277,15 +278,13 @@ TEST_F(SessionTest, ToFromProto) {
 
   // Convert to proto and validate contents.
   proto::Session sproto = session->ToProto();
-  sproto.set_wrapped_key("mock_wrapped_key");
   EXPECT_EQ(Session::Id(sproto.id()), session->id());
   EXPECT_EQ(sproto.refresh_url(), session->refresh_url().spec());
   EXPECT_EQ(sproto.should_defer_when_expired(),
             session->should_defer_when_expired());
 
   // Restore session from proto and validate contents.
-  ASSERT_OK_AND_ASSIGN(std::unique_ptr<Session> restored,
-                       Session::CreateFromProto(sproto));
+  std::unique_ptr<Session> restored = Session::CreateFromProto(sproto);
   ASSERT_TRUE(restored);
   // Simulate unwrapping successfully.
   restored->set_unexportable_key_id(session->unexportable_key_id());
@@ -300,11 +299,9 @@ TEST_F(SessionTest, CreateFromProtoWithAttestationKey) {
   // Proto has wrapped_attestation_key -> restored session has key ID as
   // kKeyNotReady.
   proto::Session sproto = session->ToProto();
-  sproto.set_wrapped_key("mock_wrapped_key");
   sproto.set_wrapped_attestation_key("mock_wrapped_attestation_key");
 
-  ASSERT_OK_AND_ASSIGN(std::unique_ptr<Session> restored,
-                       Session::CreateFromProto(sproto));
+  std::unique_ptr<Session> restored = Session::CreateFromProto(sproto);
   ASSERT_TRUE(restored);
   EXPECT_THAT(restored->maybe_unexportable_attestation_key_id(),
               ErrorIs(unexportable_keys::ServiceError::kKeyNotReady));
@@ -318,11 +315,9 @@ TEST_F(SessionTest, CreateFromProtoWithoutAttestationKey) {
   // Proto lacks wrapped_attestation_key -> restored session has key ID as
   // std::nullopt.
   proto::Session sproto = session->ToProto();
-  sproto.set_wrapped_key("mock_wrapped_key");
   sproto.clear_wrapped_attestation_key();
 
-  ASSERT_OK_AND_ASSIGN(std::unique_ptr<Session> restored,
-                       Session::CreateFromProto(sproto));
+  std::unique_ptr<Session> restored = Session::CreateFromProto(sproto);
   ASSERT_TRUE(restored);
   EXPECT_THAT(restored->maybe_unexportable_attestation_key_id(),
               ValueIs(std::nullopt));
@@ -332,8 +327,7 @@ TEST_F(SessionTest, FailCreateFromInvalidProto) {
   // Empty proto.
   {
     proto::Session sproto;
-    EXPECT_THAT(Session::CreateFromProto(sproto),
-                ErrorIs(DeletionReason::kInvalidSessionParams));
+    EXPECT_FALSE(Session::CreateFromProto(sproto));
   }
 
   // Create a fully populated proto.
@@ -341,59 +335,45 @@ TEST_F(SessionTest, FailCreateFromInvalidProto) {
                        Session::CreateIfValid(CreateValidParams()));
   ASSERT_TRUE(session);
   proto::Session sproto = session->ToProto();
-  sproto.set_wrapped_key("mock_wrapped_key");
 
   // Missing fields.
   {
     proto::Session s(sproto);
     s.clear_id();
-    EXPECT_THAT(Session::CreateFromProto(s),
-                ErrorIs(DeletionReason::kInvalidSessionParams));
+    EXPECT_FALSE(Session::CreateFromProto(s));
   }
   {
     proto::Session s(sproto);
     s.clear_refresh_url();
-    EXPECT_THAT(Session::CreateFromProto(s),
-                ErrorIs(DeletionReason::kInvalidSessionParams));
+    EXPECT_FALSE(Session::CreateFromProto(s));
   }
   {
     proto::Session s(sproto);
     s.clear_should_defer_when_expired();
-    EXPECT_THAT(Session::CreateFromProto(s),
-                ErrorIs(DeletionReason::kInvalidSessionParams));
+    EXPECT_FALSE(Session::CreateFromProto(s));
   }
   {
     proto::Session s(sproto);
     s.clear_expiry_time();
-    EXPECT_THAT(Session::CreateFromProto(s),
-                ErrorIs(DeletionReason::kInvalidSessionParams));
+    EXPECT_FALSE(Session::CreateFromProto(s));
   }
   {
     proto::Session s(sproto);
     s.clear_session_inclusion_rules();
-    EXPECT_THAT(Session::CreateFromProto(s),
-                ErrorIs(DeletionReason::kInvalidSessionParams));
-  }
-  {
-    proto::Session s(sproto);
-    s.clear_wrapped_key();
-    EXPECT_THAT(Session::CreateFromProto(s),
-                ErrorIs(DeletionReason::kInvalidSessionParams));
+    EXPECT_FALSE(Session::CreateFromProto(s));
   }
 
   // Empty id.
   {
     proto::Session s(sproto);
     s.set_id("");
-    EXPECT_THAT(Session::CreateFromProto(s),
-                ErrorIs(DeletionReason::kInvalidSessionParams));
+    EXPECT_FALSE(Session::CreateFromProto(s));
   }
   // Invalid refresh URL.
   {
     proto::Session s(sproto);
     s.set_refresh_url("blank");
-    EXPECT_THAT(Session::CreateFromProto(s),
-                ErrorIs(DeletionReason::kInvalidSessionParams));
+    EXPECT_FALSE(Session::CreateFromProto(s));
   }
 
   // Expired
@@ -401,41 +381,15 @@ TEST_F(SessionTest, FailCreateFromInvalidProto) {
     proto::Session s(sproto);
     base::Time expiry_date = base::Time::Now() - base::Days(1);
     s.set_expiry_time(expiry_date.ToDeltaSinceWindowsEpoch().InMicroseconds());
-    EXPECT_THAT(Session::CreateFromProto(s), ErrorIs(DeletionReason::kExpired));
+    EXPECT_FALSE(Session::CreateFromProto(s));
   }
 
   // Invalid refresh initiator
   {
     proto::Session s(sproto);
     s.add_allowed_refresh_initiators("a.*.example.test");
-    EXPECT_THAT(Session::CreateFromProto(s),
-                ErrorIs(DeletionReason::kInvalidSessionParams));
+    EXPECT_FALSE(Session::CreateFromProto(s));
   }
-}
-
-TEST_F(SessionTest, CreateFromProtoExpired) {
-  ASSERT_OK_AND_ASSIGN(std::unique_ptr<Session> session,
-                       Session::CreateIfValid(CreateValidParams()));
-  ASSERT_TRUE(session);
-  proto::Session sproto = session->ToProto();
-  sproto.set_wrapped_key("mock_wrapped_key");
-
-  base::Time expiry_date = base::Time::Now() - base::Days(1);
-  sproto.set_expiry_time(
-      expiry_date.ToDeltaSinceWindowsEpoch().InMicroseconds());
-
-  // By default (check_expiry = true), expired session proto returns kExpired
-  // error.
-  EXPECT_THAT(Session::CreateFromProto(sproto),
-              ErrorIs(DeletionReason::kExpired));
-
-  // When check_expiry = false, expired session proto is deserialized
-  // successfully.
-  ASSERT_OK_AND_ASSIGN(
-      std::unique_ptr<Session> restored,
-      Session::CreateFromProto(sproto, /*check_expiry=*/false));
-  ASSERT_TRUE(restored);
-  EXPECT_EQ(restored->expiry_date(), expiry_date);
 }
 
 TEST_F(SessionTest, ToDisplay) {
@@ -1288,139 +1242,6 @@ TEST_F(SessionTest, InvalidRefreshInitiators) {
   EXPECT_THAT(Session::CreateIfValid(params),
               ErrorIs(MatchesErrorType(
                   SessionError::kRefreshInitiatorInvalidHostPattern)));
-}
-
-TEST_F(SessionTest, MinimumBoundCookieLifetime_CookieList_NoCravings) {
-  auto params = CreateValidParams();
-  params.credentials.clear();
-  ASSERT_OK_AND_ASSIGN(std::unique_ptr<Session> session,
-                       Session::CreateIfValid(params));
-  ASSERT_TRUE(session);
-
-  CookieAccessResultList cookies;
-  EXPECT_EQ(session->MinimumBoundCookieLifetime(cookies),
-            base::TimeDelta::Max());
-}
-
-TEST_F(SessionTest, MinimumBoundCookieLifetime_CookieList_MissingCookie) {
-  auto params = CreateValidParams();
-  ASSERT_OK_AND_ASSIGN(std::unique_ptr<Session> session,
-                       Session::CreateIfValid(params));
-  ASSERT_TRUE(session);
-
-  CookieAccessResultList cookies;
-  EXPECT_TRUE(session->MinimumBoundCookieLifetime(cookies).is_zero());
-}
-
-TEST_F(SessionTest, MinimumBoundCookieLifetime_CookieList_SatisfiedNullExpiry) {
-  auto params = CreateValidParams();
-  ASSERT_OK_AND_ASSIGN(std::unique_ptr<Session> session,
-                       Session::CreateIfValid(params));
-  ASSERT_TRUE(session);
-
-  CookieInclusionStatus status;
-  auto cookie = CanonicalCookie::Create(
-      kTestUrl, "test_cookie=v; Secure; Domain=example.test", base::Time::Now(),
-      std::nullopt, std::nullopt, CookieSourceType::kHTTP, &status);
-  ASSERT_TRUE(cookie);
-
-  CookieAccessResultList cookies;
-  cookies.emplace_back(*cookie, CookieAccessResult());
-  EXPECT_EQ(session->MinimumBoundCookieLifetime(cookies),
-            base::TimeDelta::Max());
-}
-
-TEST_F(SessionTest, MinimumBoundCookieLifetime_CookieList_SatisfiedWithExpiry) {
-  auto params = CreateValidParams();
-  ASSERT_OK_AND_ASSIGN(std::unique_ptr<Session> session,
-                       Session::CreateIfValid(params));
-  ASSERT_TRUE(session);
-
-  CookieInclusionStatus status;
-  auto cookie = CanonicalCookie::Create(
-      kTestUrl, "test_cookie=v; Secure; Domain=example.test; Max-Age=500",
-      base::Time::Now(), std::nullopt, std::nullopt, CookieSourceType::kHTTP,
-      &status);
-  ASSERT_TRUE(cookie);
-
-  CookieAccessResultList cookies;
-  cookies.emplace_back(*cookie, CookieAccessResult());
-  base::TimeDelta lifetime = session->MinimumBoundCookieLifetime(cookies);
-  EXPECT_NEAR(lifetime.InSecondsF(), 500.0, 5.0);
-}
-
-TEST_F(SessionTest,
-       MinimumBoundCookieLifetime_CookieList_MultipleCravingsAndCookies) {
-  SessionParams params = CreateValidParams();
-  params.credentials = {
-      {
-          .name = "cookie1",
-          .attributes = "Secure; Domain=example.test",
-      },
-      {
-          .name = "cookie2",
-          .attributes = "Secure; Domain=example.test",
-      },
-  };
-
-  ASSERT_OK_AND_ASSIGN(std::unique_ptr<Session> session,
-                       Session::CreateIfValid(params));
-  ASSERT_TRUE(session);
-
-  CookieInclusionStatus status;
-  auto unmatching_cookie = CanonicalCookie::Create(
-      kTestUrl, "other_cookie=v; Secure; Domain=example.test; Max-Age=100",
-      base::Time::Now(), std::nullopt, std::nullopt, CookieSourceType::kHTTP,
-      &status);
-  auto cookie1 = CanonicalCookie::Create(
-      kTestUrl, "cookie1=v; Secure; Domain=example.test; Max-Age=500",
-      base::Time::Now(), std::nullopt, std::nullopt, CookieSourceType::kHTTP,
-      &status);
-  auto cookie2 = CanonicalCookie::Create(
-      kTestUrl, "cookie2=v; Secure; Domain=example.test; Max-Age=300",
-      base::Time::Now(), std::nullopt, std::nullopt, CookieSourceType::kHTTP,
-      &status);
-  ASSERT_TRUE(unmatching_cookie);
-  ASSERT_TRUE(cookie1);
-  ASSERT_TRUE(cookie2);
-
-  CookieAccessResultList cookies;
-  cookies.emplace_back(*unmatching_cookie, CookieAccessResult());
-  cookies.emplace_back(*cookie1, CookieAccessResult());
-  cookies.emplace_back(*cookie2, CookieAccessResult());
-
-  base::TimeDelta lifetime = session->MinimumBoundCookieLifetime(cookies);
-  EXPECT_NEAR(lifetime.InSecondsF(), 300.0, 5.0);
-}
-
-TEST_F(SessionTest,
-       MinimumBoundCookieLifetime_CookieList_MultipleCookiesSameName) {
-  auto params = CreateValidParams();
-  ASSERT_OK_AND_ASSIGN(std::unique_ptr<Session> session,
-                       Session::CreateIfValid(params));
-  ASSERT_TRUE(session);
-
-  CookieInclusionStatus status;
-  // Same name "test_cookie", but different domain so it doesn't satisfy
-  // craving.
-  GURL other_url("https://other.test/");
-  auto wrong_domain_cookie = CanonicalCookie::Create(
-      other_url, "test_cookie=v; Secure; Domain=other.test; Max-Age=100",
-      base::Time::Now(), std::nullopt, std::nullopt, CookieSourceType::kHTTP,
-      &status);
-  auto matching_cookie = CanonicalCookie::Create(
-      kTestUrl, "test_cookie=v; Secure; Domain=example.test; Max-Age=400",
-      base::Time::Now(), std::nullopt, std::nullopt, CookieSourceType::kHTTP,
-      &status);
-  ASSERT_TRUE(wrong_domain_cookie);
-  ASSERT_TRUE(matching_cookie);
-
-  CookieAccessResultList cookies;
-  cookies.emplace_back(*wrong_domain_cookie, CookieAccessResult());
-  cookies.emplace_back(*matching_cookie, CookieAccessResult());
-
-  base::TimeDelta lifetime = session->MinimumBoundCookieLifetime(cookies);
-  EXPECT_NEAR(lifetime.InSecondsF(), 400.0, 5.0);
 }
 
 }  // namespace

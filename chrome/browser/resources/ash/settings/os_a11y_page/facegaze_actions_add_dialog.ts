@@ -65,8 +65,8 @@ export class PageNavigation {
 }
 
 export class FaceGazeGestureConfidence {
-  gesture: FacialGesture|null = null;
-  confidence: number = 0;
+  gesture: FacialGesture;
+  confidence: number;
 }
 
 export const FACEGAZE_DEFINED_MACRO_FLOW:
@@ -126,19 +126,16 @@ export class FaceGazeAddActionDialogElement extends
     return {
       currentPage_: {
         type: Number,
-        value: AddDialogPage.SELECT_ACTION,
         observer: 'currentPageChanged_',
       },
 
       initialPage: {
         type: Object,
-        value: AddDialogPage.SELECT_ACTION,
         observer: 'initialPageChanged_',
       },
 
       commandPairToConfigure: {
         type: Object,
-        value: null,
         observer: 'commandPairToConfigureChanged_',
       },
 
@@ -169,7 +166,7 @@ export class FaceGazeAddActionDialogElement extends
 
       displayedActions_: {
         type: Array,
-        value: () => FaceGazeActions,
+        value: () => [],
       },
 
       selectedAction_: {
@@ -180,7 +177,6 @@ export class FaceGazeAddActionDialogElement extends
 
       keyCombination_: {
         type: Object,
-        value: null,
       },
 
       shortcutInputLabel_: {
@@ -226,7 +222,6 @@ export class FaceGazeAddActionDialogElement extends
 
       detectedGestureCount_: {
         type: Number,
-        value: 0,
       },
 
       disableActionNextButton_: {
@@ -259,7 +254,7 @@ export class FaceGazeAddActionDialogElement extends
   declare initialPage: AddDialogPage;
   declare commandPairToConfigure: FaceGazeCommandPair|null;
   declare leftClickGestures: FacialGesture[];
-  shortcutInput: ShortcutInputElement|null = null;
+  shortcutInput: ShortcutInputElement|null;
 
   // Internal state.
   declare private selectedAction_: MacroName;
@@ -287,16 +282,25 @@ export class FaceGazeAddActionDialogElement extends
   declare private showGestureThreshold_: boolean;
   declare private showSelectAction_: boolean;
   declare private showSelectGesture_: boolean;
-  private stream_: MediaStream|null = null;
-  private streamTrack_: MediaStreamTrack|null = null;
+  private stream_: MediaStream|null;
+  private streamTrack_: MediaStreamTrack|null;
 
   declare private displayedActions_: MacroName[];
 
-  private faceGazeSubpageBrowserProxy_: FaceGazeSubpageBrowserProxy =
-      FaceGazeSubpageBrowserProxyImpl.getInstance();
+  private faceGazeSubpageBrowserProxy_: FaceGazeSubpageBrowserProxy;
 
   constructor() {
     super();
+    this.initialPage = AddDialogPage.SELECT_ACTION;
+    this.commandPairToConfigure = null;
+    this.leftClickGestures = [];
+    this.keyCombination_ = null;
+    this.selectedGesture_ = null;
+    this.currentPage_ = AddDialogPage.SELECT_ACTION;
+    this.detectedGestureCount_ = 0;
+    this.displayedActions_ = FaceGazeActions;
+    this.faceGazeSubpageBrowserProxy_ =
+        FaceGazeSubpageBrowserProxyImpl.getInstance();
     this.addWebUiListener(
         'settings.sendGestureInfoToSettings',
         (gestureConfidences: FaceGazeGestureConfidence[]) =>

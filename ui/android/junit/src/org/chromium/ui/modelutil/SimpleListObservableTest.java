@@ -19,6 +19,7 @@ import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
+import org.robolectric.annotation.Config;
 
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.ui.modelutil.ListObservable.ListObserver;
@@ -27,6 +28,7 @@ import java.util.Arrays;
 
 /** Basic test ensuring the {@link ListModelBase} notifies listeners properly. */
 @RunWith(BaseRobolectricTestRunner.class)
+@Config(manifest = Config.NONE)
 public class SimpleListObservableTest {
     @Rule public MockitoRule mMockitoRule = MockitoJUnit.rule();
     @Mock private ListObserver<Integer> mObserver;

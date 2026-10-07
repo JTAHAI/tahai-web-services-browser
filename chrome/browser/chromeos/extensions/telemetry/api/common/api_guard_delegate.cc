@@ -23,7 +23,6 @@
 #include "chrome/browser/extensions/extension_management.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/common/chromeos/extensions/chromeos_system_extension_info.h"
-#include "chromeos/ash/components/browser_context_helper/browser_context_helper.h"
 #include "chromeos/ash/components/browser_context_helper/browser_context_types.h"
 #include "components/account_id/account_id.h"
 #include "components/user_manager/user.h"
@@ -159,26 +158,24 @@ bool IsExtensionUsedByShimlessRMA(content::BrowserContext* context) {
   return ::ash::IsShimlessRmaAppBrowserContext(context);
 }
 
-bool IsContextUserAffiliated(content::BrowserContext* context) {
-  const user_manager::User* context_user =
-      ash::BrowserContextHelper::Get()->GetUserByBrowserContext(context);
-  return context_user && context_user->IsAffiliated();
+bool IsCurrentUserAffiliated() {
+  auto* active_user = user_manager::UserManager::Get()->GetActiveUser();
+  CHECK(active_user);
+  return active_user->IsAffiliated();
 }
 
-void IsContextUserOwner(content::BrowserContext* context,
+void IsCurrentUserOwnerOnOwnerFetched(CheckCallback callback) {
+  std::move(callback).Run(
+      user_manager::UserManager::Get()->IsCurrentUserOwner());
+}
+
+void IsCurrentUserOwner(content::BrowserContext* context,
                         CheckCallback callback) {
-  const user_manager::User* context_user =
-      ash::BrowserContextHelper::Get()->GetUserByBrowserContext(context);
-  if (!context_user) {
-    std::move(callback).Run(false);
-    return;
-  }
-  user_manager::UserManager::Get()->GetOwnerAccountIdAsync(base::BindOnce(
-      [](const AccountId& context_account_id, CheckCallback callback,
-         const AccountId& owner_account_id) {
-        std::move(callback).Run(context_account_id == owner_account_id);
-      },
-      context_user->GetAccountId(), std::move(callback)));
+  auto on_owner_fetched = base::IgnoreArgs<const AccountId&>(
+      base::BindOnce(&IsCurrentUserOwnerOnOwnerFetched, std::move(callback)));
+
+  user_manager::UserManager::Get()->GetOwnerAccountIdAsync(
+      std::move(on_owner_fetched));
 }
 
 class ApiGuardDelegateImpl : public ApiGuardDelegate {
@@ -224,14 +221,14 @@ void ApiGuardDelegateImpl::CanAccessApi(content::BrowserContext* context,
   if (IsExtensionUsedByShimlessRMA(context)) {
     // No user to check for the Shimless RMA flow. Note that in this
     // case there is no active user in UserManager.
-  } else if (IsContextUserAffiliated(context)) {
+  } else if (IsCurrentUserAffiliated()) {
     condition_checker_->AppendChecker(
         base::BindOnce(&IsExtensionForceInstalled, base::Unretained(context),
                        extension->id()),
         "This extension is not installed by the admin");
   } else {
     condition_checker_->AppendChecker(
-        base::BindOnce(&IsContextUserOwner, base::Unretained(context)),
+        base::BindOnce(&IsCurrentUserOwner, base::Unretained(context)),
         "This extension is not run by the device owner");
   }
 

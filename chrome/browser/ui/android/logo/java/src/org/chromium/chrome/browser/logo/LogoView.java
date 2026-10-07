@@ -43,16 +43,6 @@ import org.chromium.chrome.browser.logo.LogoBridge.Logo;
  */
 @NullMarked
 public class LogoView extends ImageView implements OnClickListener {
-    /** Handles tasks for the {@link LogoView} shown on an NTP. */
-    public interface ClickHandler {
-        /**
-         * Called when the user clicks on the logo.
-         *
-         * @param isAnimatedLogoShowing Whether the animated GIF logo is playing.
-         */
-        void onLogoClicked(boolean isAnimatedLogoShowing);
-    }
-
     // Number of milliseconds for a new logo to fade in.
     private static final int LOGO_TRANSITION_TIME_MS = 400;
 
@@ -74,7 +64,7 @@ public class LogoView extends ImageView implements OnClickListener {
      */
     private float mTransitionAmount;
 
-    private @Nullable ClickHandler mClickHandler;
+    private LogoProperties.@Nullable ClickHandler mClickHandler;
     private @Nullable Callback<LogoBridge.Logo> mOnLogoAvailableCallback;
     private int mDoodleSize;
     private boolean mIsNightMode;
@@ -134,8 +124,8 @@ public class LogoView extends ImageView implements OnClickListener {
         setImageDrawable(null);
     }
 
-    /** Sets the {@link ClickHandler} to notify when the logo is pressed. */
-    void setClickHandler(ClickHandler clickHandler) {
+    /** Sets the {@link LogoProperties.ClickHandler} to notify when the logo is pressed. */
+    void setClickHandler(LogoProperties.ClickHandler clickHandler) {
         mClickHandler = clickHandler;
     }
 
@@ -419,7 +409,7 @@ public class LogoView extends ImageView implements OnClickListener {
         return mAnimationEnabled;
     }
 
-    @Nullable ClickHandler getClickHandlerForTesting() {
+    LogoProperties.@Nullable ClickHandler getClickHandlerForTesting() {
         return mClickHandler;
     }
 

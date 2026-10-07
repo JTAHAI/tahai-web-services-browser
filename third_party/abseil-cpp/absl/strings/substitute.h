@@ -73,7 +73,6 @@
 #define ABSL_STRINGS_SUBSTITUTE_H_
 
 #include <cstring>
-#include <iterator>
 #include <string>
 #include <type_traits>
 #include <vector>
@@ -83,7 +82,6 @@
 #include "absl/base/port.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/escaping.h"
-#include "absl/strings/has_absl_stringify.h"
 #include "absl/strings/internal/stringify_sink.h"
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
@@ -285,7 +283,7 @@ inline void SubstituteAndAppend(std::string* absl_nonnull output,
                                 const substitute_internal::Arg& a0) {
   const absl::string_view args[] = {a0.piece()};
   substitute_internal::SubstituteAndAppendArray(output, format, args,
-                                                std::size(args));
+                                                ABSL_ARRAYSIZE(args));
 }
 
 inline void SubstituteAndAppend(std::string* absl_nonnull output,
@@ -294,7 +292,7 @@ inline void SubstituteAndAppend(std::string* absl_nonnull output,
                                 const substitute_internal::Arg& a1) {
   const absl::string_view args[] = {a0.piece(), a1.piece()};
   substitute_internal::SubstituteAndAppendArray(output, format, args,
-                                                std::size(args));
+                                                ABSL_ARRAYSIZE(args));
 }
 
 inline void SubstituteAndAppend(std::string* absl_nonnull output,
@@ -304,7 +302,7 @@ inline void SubstituteAndAppend(std::string* absl_nonnull output,
                                 const substitute_internal::Arg& a2) {
   const absl::string_view args[] = {a0.piece(), a1.piece(), a2.piece()};
   substitute_internal::SubstituteAndAppendArray(output, format, args,
-                                                std::size(args));
+                                                ABSL_ARRAYSIZE(args));
 }
 
 inline void SubstituteAndAppend(std::string* absl_nonnull output,
@@ -316,7 +314,7 @@ inline void SubstituteAndAppend(std::string* absl_nonnull output,
   const absl::string_view args[] = {a0.piece(), a1.piece(), a2.piece(),
                                     a3.piece()};
   substitute_internal::SubstituteAndAppendArray(output, format, args,
-                                                std::size(args));
+                                                ABSL_ARRAYSIZE(args));
 }
 
 inline void SubstituteAndAppend(std::string* absl_nonnull output,
@@ -329,7 +327,7 @@ inline void SubstituteAndAppend(std::string* absl_nonnull output,
   const absl::string_view args[] = {a0.piece(), a1.piece(), a2.piece(),
                                     a3.piece(), a4.piece()};
   substitute_internal::SubstituteAndAppendArray(output, format, args,
-                                                std::size(args));
+                                                ABSL_ARRAYSIZE(args));
 }
 
 inline void SubstituteAndAppend(
@@ -340,7 +338,7 @@ inline void SubstituteAndAppend(
   const absl::string_view args[] = {a0.piece(), a1.piece(), a2.piece(),
                                     a3.piece(), a4.piece(), a5.piece()};
   substitute_internal::SubstituteAndAppendArray(output, format, args,
-                                                std::size(args));
+                                                ABSL_ARRAYSIZE(args));
 }
 
 inline void SubstituteAndAppend(
@@ -353,7 +351,7 @@ inline void SubstituteAndAppend(
                                     a3.piece(), a4.piece(), a5.piece(),
                                     a6.piece()};
   substitute_internal::SubstituteAndAppendArray(output, format, args,
-                                                std::size(args));
+                                                ABSL_ARRAYSIZE(args));
 }
 
 inline void SubstituteAndAppend(
@@ -366,7 +364,7 @@ inline void SubstituteAndAppend(
                                     a3.piece(), a4.piece(), a5.piece(),
                                     a6.piece(), a7.piece()};
   substitute_internal::SubstituteAndAppendArray(output, format, args,
-                                                std::size(args));
+                                                ABSL_ARRAYSIZE(args));
 }
 
 inline void SubstituteAndAppend(
@@ -380,7 +378,7 @@ inline void SubstituteAndAppend(
                                     a3.piece(), a4.piece(), a5.piece(),
                                     a6.piece(), a7.piece(), a8.piece()};
   substitute_internal::SubstituteAndAppendArray(output, format, args,
-                                                std::size(args));
+                                                ABSL_ARRAYSIZE(args));
 }
 
 inline void SubstituteAndAppend(
@@ -394,7 +392,7 @@ inline void SubstituteAndAppend(
       a0.piece(), a1.piece(), a2.piece(), a3.piece(), a4.piece(),
       a5.piece(), a6.piece(), a7.piece(), a8.piece(), a9.piece()};
   substitute_internal::SubstituteAndAppendArray(output, format, args,
-                                                std::size(args));
+                                                ABSL_ARRAYSIZE(args));
 }
 
 #if defined(ABSL_BAD_CALL_IF)

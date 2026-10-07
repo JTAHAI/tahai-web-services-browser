@@ -9,6 +9,7 @@ import android.os.SystemClock;
 import android.util.Pair;
 
 import androidx.annotation.IntDef;
+import androidx.annotation.VisibleForTesting;
 
 import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.build.annotations.NullMarked;
@@ -312,10 +313,12 @@ public class ActorMetrics implements ActorKeyedService.Observer {
         }
     }
 
+    @VisibleForTesting
     public static void resetForTesting() {
         sInstance = null;
     }
 
+    @VisibleForTesting
     public void onTaskStateChangedForTesting(
             @ActorTaskId int taskId, @ActorTaskState int newState) {
         onTaskStateChanged(taskId, newState);

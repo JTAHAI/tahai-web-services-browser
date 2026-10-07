@@ -23,19 +23,20 @@ public interface PdfToolbarActionsDelegate {
      */
     void changeZoomLevel(float zoomLevel);
 
-    /** Enters edit mode. */
-    void enterEditMode();
-
-    /** Exits edit mode and applies any draft edits. */
-    void exitEditMode();
+    /**
+     * Sets the edit mode of the PDF toolbar.
+     *
+     * @param editMode Whether to enable edit mode.
+     */
+    void setEditMode(boolean editMode);
 
     /**
-     * Toggles between "fit to page" and "fit to page width" modes.
+     * Toggles between "fit to page height" and "fit to page width" modes.
      *
-     * @param fitToPage Whether to fit to page or fit to page width.
+     * @param fitToPageHeight Whether to fit to page height or fit to page width.
      * @param pageIndex The 0-based index of the page to navigate to.
      */
-    void toggleFitToPage(boolean fitToPage, int pageIndex);
+    void toggleFitToPage(boolean fitToPageHeight, int pageIndex);
 
     /**
      * Toggles whether the PDF viewer should display two pages per row.

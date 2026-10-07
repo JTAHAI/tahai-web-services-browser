@@ -156,11 +156,12 @@ targets.legacy_basic_suite(
             skylab = targets.skylab(
                 timeout_sec = 7200,
                 cros_test_names_from_file = ["chromeos/tast_control_flaky_tests.txt"],
-                shard_level_retries_on_ctp = 2,
+                # TODO(yoshiki): set shard_level_retries_on_ctp when ready.
             ),
             args = [
                 "-retries=2",
             ],
+            experiment_percentage = 100,
         ),
     },
 )
@@ -367,6 +368,11 @@ targets.legacy_basic_suite(
                 "--test-launcher-jobs=1",
             ],
         ),
+        "rust_gtest_interop_unittests": targets.legacy_test_config(
+            skylab = targets.skylab(
+                autotest_name = "chromium",
+            ),
+        ),
         "sql_unittests": targets.legacy_test_config(
             skylab = targets.skylab(
                 autotest_name = "chromium",
@@ -523,6 +529,12 @@ targets.legacy_basic_suite(
             ),
             experiment_percentage = 100,
         ),
+        "rust_gtest_interop_unittests": targets.legacy_test_config(
+            skylab = targets.skylab(
+                autotest_name = "chromium",
+                timeout_sec = 5400,
+            ),
+        ),
         "sql_unittests": targets.legacy_test_config(
             skylab = targets.skylab(
                 autotest_name = "chromium",
@@ -659,6 +671,8 @@ targets.legacy_basic_suite(
         ),
         "perfetto_unittests": targets.legacy_test_config(),
         "puffin_unittests": targets.legacy_test_config(),
+        # TODO(crbug.com/40274401): Enable this.
+        # "rust_gtest_interop_unittests": None,
         "services_unittests": targets.legacy_test_config(),
         "shell_dialogs_unittests": targets.legacy_test_config(),
         "skia_unittests": targets.legacy_test_config(),
@@ -906,8 +920,16 @@ targets.legacy_basic_suite(
     tests = {
         "context_lost_metal_passthrough_graphite_tests": targets.legacy_test_config(),
         "expected_color_pixel_metal_passthrough_graphite_test": targets.legacy_test_config(),
-        "gpu_process_launch_tests": targets.legacy_test_config(),
-        "hardware_accelerated_feature_tests": targets.legacy_test_config(),
+        "gpu_process_launch_tests": targets.legacy_test_config(
+            mixins = [
+                "gpu_integration_test_common_args",
+            ],
+        ),
+        "hardware_accelerated_feature_tests": targets.legacy_test_config(
+            mixins = [
+                "gpu_integration_test_common_args",
+            ],
+        ),
         "pixel_skia_gold_metal_passthrough_graphite_test": targets.legacy_test_config(),
         "screenshot_sync_metal_passthrough_graphite_tests": targets.legacy_test_config(),
     },
@@ -942,15 +964,21 @@ targets.legacy_basic_suite(
     },
 )
 
-# TODO(crbug.com/541312843): Migrate non-GPU uses of this to include tests
-# directly and remove this.
 targets.legacy_basic_suite(
     name = "gpu_passthrough_telemetry_tests",
     tests = {
         "context_lost_passthrough_tests": targets.legacy_test_config(),
         "expected_color_pixel_passthrough_test": targets.legacy_test_config(),
-        "gpu_process_launch_tests": targets.legacy_test_config(),
-        "hardware_accelerated_feature_tests": targets.legacy_test_config(),
+        "gpu_process_launch_tests": targets.legacy_test_config(
+            mixins = [
+                "gpu_integration_test_common_args",
+            ],
+        ),
+        "hardware_accelerated_feature_tests": targets.legacy_test_config(
+            mixins = [
+                "gpu_integration_test_common_args",
+            ],
+        ),
         "pixel_skia_gold_passthrough_test": targets.legacy_test_config(),
         "screenshot_sync_passthrough_tests": targets.legacy_test_config(),
     },
@@ -960,7 +988,6 @@ targets.legacy_basic_suite(
     name = "gpu_skia_renderer_vulkan_passthrough_telemetry_tests",
     tests = {
         "vulkan_pixel_skia_gold_test": targets.legacy_test_config(
-            ci_only = True,
             mixins = [
                 "gpu_integration_test_common_args",
             ],
@@ -983,8 +1010,16 @@ targets.legacy_basic_suite(
     tests = {
         "context_lost_validating_tests": targets.legacy_test_config(),
         "expected_color_pixel_validating_test": targets.legacy_test_config(),
-        "gpu_process_launch_tests": targets.legacy_test_config(),
-        "hardware_accelerated_feature_tests": targets.legacy_test_config(),
+        "gpu_process_launch_tests": targets.legacy_test_config(
+            mixins = [
+                "gpu_integration_test_common_args",
+            ],
+        ),
+        "hardware_accelerated_feature_tests": targets.legacy_test_config(
+            mixins = [
+                "gpu_integration_test_common_args",
+            ],
+        ),
         "pixel_skia_gold_validating_test": targets.legacy_test_config(),
         "screenshot_sync_validating_tests": targets.legacy_test_config(),
     },
@@ -1047,14 +1082,8 @@ targets.legacy_basic_suite(
     tests = {
         "webgl2_conformance_gles_passthrough_tests": targets.legacy_test_config(
             swarming = targets.swarming(
-                shards = 5,
-            ),
-            android_swarming = targets.swarming(
                 # These tests currently take about an hour and fifteen minutes
                 # to run. Split them into roughly 5-minute shards.
-                shards = 20,
-            ),
-            chromeos_swarming = targets.swarming(
                 shards = 20,
             ),
             skylab = targets.skylab(
@@ -1102,12 +1131,6 @@ targets.legacy_basic_suite(
     tests = {
         "webgl_conformance_gles_passthrough_tests": targets.legacy_test_config(
             swarming = targets.swarming(
-                shards = 2,
-            ),
-            android_swarming = targets.swarming(
-                shards = 6,
-            ),
-            chromeos_swarming = targets.swarming(
                 shards = 6,
             ),
             skylab = targets.skylab(
@@ -1193,8 +1216,6 @@ targets.legacy_basic_suite(
         "exo_unittests": targets.legacy_test_config(),
         "gl_unittests_ozone": targets.legacy_test_config(),
         "keyboard_unittests": targets.legacy_test_config(),
-        "mojo_legacy_unittests": targets.legacy_test_config(),
-        "mojo_proxy_unittests": targets.legacy_test_config(),
         "ozone_gl_unittests": targets.legacy_test_config(
             args = [
                 "--ozone-platform=headless",
@@ -1428,6 +1449,20 @@ targets.legacy_basic_suite(
 #     },
 # )
 
+targets.legacy_basic_suite(
+    name = "opt_target_coverage_test_suite",
+    tests = {
+        "opt_target_coverage_test": targets.legacy_test_config(
+            mixins = [
+                "has_native_resultdb_integration",
+            ],
+            linux_args = [
+                "--no-xvfb",
+            ],
+        ),
+    },
+)
+
 _CHROME_AI_WPT_TEST_CONFIG = targets.legacy_test_config(
     mixins = [
         "has_native_resultdb_integration",
@@ -1469,7 +1504,6 @@ _CHROME_AI_WPT_GPU_HIGH_TIER_TEST_CONFIG = targets.legacy_test_config(
     # equipped with NVIDIA GeForce GTX 1660 GPUs (which report 5981 MB VRAM,
     # slightly below the default 6000 MB threshold).
     win_args = [
-        "--exit-after-n-crashes-or-timeouts=2",
         "--additional-driver-flag=--enable-features=OnDeviceModelGpuAudioInput:on_device_model_audio_input_vram_min/5000",
     ],
     mac_args = [
@@ -1491,59 +1525,12 @@ targets.legacy_basic_suite(
 )
 
 targets.legacy_basic_suite(
-    name = "chrome_ai_wpt_tests_manifest_gemma4_suite",
-    tests = {
-        "chrome_ai_wpt_tests_manifest_cpu_gemma4": _CHROME_AI_WPT_TEST_CONFIG,
-        "chrome_ai_wpt_tests_manifest_gpu_high_tier_gemma4": _CHROME_AI_WPT_GPU_HIGH_TIER_TEST_CONFIG,
-        "chrome_ai_wpt_tests_manifest_gpu_low_tier_gemma4": _CHROME_AI_WPT_TEST_CONFIG,
-    },
-)
-
-targets.legacy_basic_suite(
-    name = "chrome_ai_wpt_tests_manifest_cpu_suite",
-    tests = {
-        "chrome_ai_wpt_tests_manifest_cpu": _CHROME_AI_WPT_TEST_CONFIG,
-    },
-)
-
-targets.legacy_basic_suite(
-    name = "chrome_ai_wpt_tests_manifest_cpu_gemma4_suite",
-    tests = {
-        "chrome_ai_wpt_tests_manifest_cpu_gemma4": _CHROME_AI_WPT_TEST_CONFIG,
-    },
-)
-
-targets.legacy_basic_suite(
-    name = "chrome_ai_wpt_tests_manifest_gpu_high_tier_suite",
-    tests = {
-        "chrome_ai_wpt_tests_manifest_gpu_high_tier": _CHROME_AI_WPT_GPU_HIGH_TIER_TEST_CONFIG,
-    },
-)
-
-targets.legacy_basic_suite(
-    name = "chrome_ai_wpt_tests_manifest_gpu_high_tier_gemma4_suite",
-    tests = {
-        "chrome_ai_wpt_tests_manifest_gpu_high_tier_gemma4": _CHROME_AI_WPT_GPU_HIGH_TIER_TEST_CONFIG,
-    },
-)
-
-targets.legacy_basic_suite(
-    name = "chrome_ai_wpt_tests_manifest_gpu_low_tier_suite",
-    tests = {
-        "chrome_ai_wpt_tests_manifest_gpu_low_tier": _CHROME_AI_WPT_TEST_CONFIG,
-    },
-)
-
-targets.legacy_basic_suite(
-    name = "chrome_ai_wpt_tests_manifest_gpu_low_tier_gemma4_suite",
-    tests = {
-        "chrome_ai_wpt_tests_manifest_gpu_low_tier_gemma4": _CHROME_AI_WPT_TEST_CONFIG,
-    },
-)
-
-targets.legacy_basic_suite(
     name = "chrome_ai_wpt_tests_suite",
     tests = {
+        "chrome_ai_wpt_tests_gpu": _CHROME_AI_WPT_TEST_CONFIG,
+        "chrome_ai_wpt_tests_cpu": _CHROME_AI_WPT_TEST_CONFIG,
+        "chrome_ai_wpt_tests_litert_cpu": _CHROME_AI_WPT_TEST_CONFIG,
+        "chrome_ai_wpt_tests_litert_gpu": _CHROME_AI_WPT_TEST_CONFIG,
         "chrome_ai_wpt_tests_manifest_gpu_high_tier": _CHROME_AI_WPT_GPU_HIGH_TIER_TEST_CONFIG,
         "chrome_ai_wpt_tests_manifest_gpu_low_tier": _CHROME_AI_WPT_TEST_CONFIG,
         "chrome_ai_wpt_tests_manifest_cpu": _CHROME_AI_WPT_TEST_CONFIG,

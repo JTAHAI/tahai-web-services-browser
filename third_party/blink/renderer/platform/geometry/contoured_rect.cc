@@ -7,8 +7,8 @@
 #include <numbers>
 
 #include "third_party/blink/renderer/platform/geometry/path.h"
+#include "third_party/blink/renderer/platform/runtime_enabled_features.h"
 #include "third_party/blink/renderer/platform/wtf/math_extras.h"
-#include "third_party/blink/renderer/platform/wtf/text/format.h"
 #include "third_party/blink/renderer/platform/wtf/text/strcat.h"
 #include "ui/gfx/geometry/outsets_f.h"
 #include "ui/gfx/geometry/point_f.h"
@@ -45,11 +45,33 @@ float CornerRectIntercept(float y,
          std::pow(1 - std::pow(y / corner_rect.height(), curvature),
                   1 / curvature);
 }
+
+void ApplyOutsetAsTransform(FloatRoundedRect& rect,
+                            const gfx::OutsetsF& outsets) {
+  if (rect.IsEmpty()) {
+    return;
+  }
+
+  // For anything else, keep the same proportions between the original radii and
+  // the original rect.
+  gfx::RectF new_rect = rect.Rect();
+  FloatRoundedRect::Radii radii = rect.GetRadii();
+  new_rect.Outset(outsets);
+
+  float scale_x = new_rect.width() / rect.Rect().width();
+  float scale_y = new_rect.height() / rect.Rect().height();
+  radii.SetTopLeft(gfx::ScaleSize(radii.TopLeft(), scale_x, scale_y));
+  radii.SetTopRight(gfx::ScaleSize(radii.TopRight(), scale_x, scale_y));
+  radii.SetBottomRight(gfx::ScaleSize(radii.BottomRight(), scale_x, scale_y));
+  radii.SetBottomLeft(gfx::ScaleSize(radii.BottomLeft(), scale_x, scale_y));
+  rect.SetRadii(radii);
+  rect.SetRect(new_rect);
+}
 }  // namespace
 
 String ContouredRect::CornerCurvature::ToString() const {
-  return Format("tl:{:.2f}; tr:{:.2f}; bl:{:.2f}; br:{:.2f}", TopLeft(),
-                TopRight(), BottomLeft(), BottomRight());
+  return String::Format("tl:%.2f; tr:%.2f; bl:%.2f; br:%.2f", TopLeft(),
+                        TopRight(), BottomLeft(), BottomRight());
 }
 
 String ContouredRect::ToString() const {
@@ -69,7 +91,20 @@ bool ContouredRect::IntersectsQuad(const gfx::QuadF& quad) const {
 }
 
 void ContouredRect::OutsetWithCornerCorrection(const gfx::OutsetsF& outsets) {
-  rect_.OutsetWithCornerCorrection(outsets);
+  if (RuntimeEnabledFeatures::ShadowContourFollowsBorderEnabled()) {
+    rect_.OutsetWithCornerCorrection(outsets);
+    return;
+  }
+
+  if (HasRoundCurvature()) {
+    rect_.OutsetWithCornerCorrection(outsets);
+    return;
+  }
+
+  ApplyOutsetAsTransform(rect_, outsets);
+  if (origin_rect_) {
+    ApplyOutsetAsTransform(*origin_rect_, outsets);
+  }
 }
 
 bool ContouredRect::XInterceptsAtY(float y,
@@ -131,9 +166,10 @@ Path ContouredRect::GetPath() const {
 }
 
 String ContouredRect::Corner::ToString() const {
-  return Format("Corner {{{}|{}|{}|{}}} k={:.2f}", Start().ToString().c_str(),
-                Outer().ToString().c_str(), End().ToString().c_str(),
-                Center().ToString().c_str(), curvature_);
+  return String::Format("Corner {%s|%s|%s|%s} k=%.2f",
+                        Start().ToString().c_str(), Outer().ToString().c_str(),
+                        End().ToString().c_str(), Center().ToString().c_str(),
+                        curvature_);
 }
 
 gfx::PointF ContouredRect::Corner::QuadraticControlPoint() const {

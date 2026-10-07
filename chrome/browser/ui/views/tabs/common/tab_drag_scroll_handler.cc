@@ -70,7 +70,15 @@ void TabDragScrollHandler::StartOrContinueScrolling(
     views::ScrollView& scroll_view,
     float scroll_increment) {
   scroll_increment_ = scroll_increment;
-  if (IsVerticalScrollEnabled(scroll_view)) {
+  if (IsHorizontalScrollEnabled(scroll_view)) {
+    if (scroll_increment_ > 0) {
+      scroll_view.SetOverflowGradientMask(
+          views::ScrollView::GradientDirection::kHorizontalTrailing);
+    } else if (scroll_increment_ < 0) {
+      scroll_view.SetOverflowGradientMask(
+          views::ScrollView::GradientDirection::kHorizontalLeading);
+    }
+  } else if (IsVerticalScrollEnabled(scroll_view)) {
     if (scroll_increment_ > 0) {
       scroll_view.SetOverflowGradientMask(
           views::ScrollView::GradientDirection::kVerticalTrailing);
@@ -93,7 +101,10 @@ void TabDragScrollHandler::StartOrContinueScrolling(
 
 void TabDragScrollHandler::StopScrolling(views::ScrollView& scroll_view) {
   scroll_timer_.Stop();
-  if (IsVerticalScrollEnabled(scroll_view)) {
+  if (IsHorizontalScrollEnabled(scroll_view)) {
+    scroll_view.SetOverflowGradientMask(
+        views::ScrollView::GradientDirection::kHorizontal);
+  } else if (IsVerticalScrollEnabled(scroll_view)) {
     scroll_view.SetOverflowGradientMask(
         views::ScrollView::GradientDirection::kVertical);
   }

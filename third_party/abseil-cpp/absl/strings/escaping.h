@@ -23,7 +23,6 @@
 #ifndef ABSL_STRINGS_ESCAPING_H_
 #define ABSL_STRINGS_ESCAPING_H_
 
-#include <cassert>
 #include <cstddef>
 #include <optional>
 #include <string>

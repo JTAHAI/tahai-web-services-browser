@@ -4,12 +4,6 @@
 
 #include "chrome/browser/component_updater/hyphenation_component_installer.h"
 
-#include <cstdint>
-#include <memory>
-#include <string>
-#include <utility>
-#include <vector>
-
 #include "base/logging.h"
 #include "base/no_destructor.h"
 #include "base/task/sequenced_task_runner.h"
@@ -130,7 +124,8 @@ base::FilePath HyphenationComponentInstallerPolicy::GetRelativeInstallDir()
 
 void HyphenationComponentInstallerPolicy::GetHash(
     std::vector<uint8_t>* hash) const {
-  hash->assign_range(kHyphenationPublicKeySHA256);
+  hash->assign(std::begin(kHyphenationPublicKeySHA256),
+               std::end(kHyphenationPublicKeySHA256));
 }
 
 std::string HyphenationComponentInstallerPolicy::GetName() const {

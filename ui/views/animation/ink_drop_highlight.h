@@ -8,13 +8,10 @@
 #include <iosfwd>
 #include <memory>
 #include <string>
-#include <variant>
 
 #include "base/memory/raw_ptr.h"
 #include "base/time/time.h"
 #include "third_party/skia/include/core/SkColor.h"
-#include "ui/compositor/layer_solid_color.h"
-#include "ui/compositor/layer_textured.h"
 #include "ui/gfx/geometry/point.h"
 #include "ui/gfx/geometry/point_f.h"
 #include "ui/gfx/geometry/size.h"
@@ -23,6 +20,10 @@
 #include "ui/views/animation/animation_abort_handle.h"
 #include "ui/views/animation/ink_drop_animation_ended_reason.h"
 #include "ui/views/views_export.h"
+
+namespace ui {
+class Layer;
+}  // namespace ui
 
 namespace views {
 namespace test {
@@ -87,13 +88,7 @@ class VIEWS_EXPORT InkDropHighlight {
   void FadeOut(const base::TimeDelta& duration);
 
   // The root Layer that can be added in to a Layer tree.
-  ui::Layer* layer() {
-    return std::visit([](auto& layer) -> ui::Layer* { return &layer; }, layer_);
-  }
-  const ui::Layer* layer() const {
-    return std::visit(
-        [](const auto& layer) -> const ui::Layer* { return &layer; }, layer_);
-  }
+  ui::Layer* layer() { return layer_.get(); }
 
   // Returns a test api to access internals of this. Default implmentations
   // should return nullptr and test specific subclasses can override to return
@@ -108,7 +103,7 @@ class VIEWS_EXPORT InkDropHighlight {
   void AnimateFade(AnimationType animation_type,
                    const base::TimeDelta& duration);
 
-  // Calculates the Transform to apply to |layer()|.
+  // Calculates the Transform to apply to |layer_|.
   gfx::Transform CalculateTransform() const;
 
   // The callback that will be invoked when a fade in/out animation is started.
@@ -137,7 +132,8 @@ class VIEWS_EXPORT InkDropHighlight {
   std::unique_ptr<BasePaintedLayerDelegate> layer_delegate_;
 
   // The visual highlight layer.
-  std::variant<ui::LayerTextured, ui::LayerSolidColor> layer_;
+  // TODO(b:522627357): Use std::variant here.
+  std::unique_ptr<ui::Layer> layer_;
 
   std::unique_ptr<AnimationAbortHandle> animation_abort_handle_;
 

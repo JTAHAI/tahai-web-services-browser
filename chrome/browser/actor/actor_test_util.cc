@@ -23,18 +23,15 @@
 #include "chrome/browser/actor/tools/attempt_login_tool_request.h"
 #include "chrome/browser/actor/tools/click_tool_request.h"
 #include "chrome/browser/actor/tools/drag_and_release_tool_request.h"
-#include "chrome/browser/actor/tools/find_and_highlight_tool_request.h"
 #include "chrome/browser/actor/tools/history_tool_request.h"
 #include "chrome/browser/actor/tools/move_mouse_tool_request.h"
 #include "chrome/browser/actor/tools/navigate_tool_request.h"
 #include "chrome/browser/actor/tools/page_tool_request.h"
-#include "chrome/browser/actor/tools/perform_search_tool_request.h"
 #include "chrome/browser/actor/tools/script_tool_request.h"
 #include "chrome/browser/actor/tools/scroll_to_tool_request.h"
 #include "chrome/browser/actor/tools/scroll_tool_request.h"
 #include "chrome/browser/actor/tools/select_tool_request.h"
 #include "chrome/browser/actor/tools/tab_management_tool_request.h"
-#include "chrome/browser/actor/tools/translate_page_tool_request.h"
 #include "chrome/browser/actor/tools/type_tool_request.h"
 #include "chrome/browser/actor/tools/wait_tool_request.h"
 #include "chrome/common/actor.mojom.h"
@@ -46,7 +43,7 @@
 #include "components/actor/public/mojom/actor_types.mojom.h"
 #include "components/optimization_guide/content/browser/page_content_proto_provider.h"
 #include "components/optimization_guide/core/filters/bloom_filter.h"
-#include "components/optimization_guide/core/hints/hints_manager.h"
+#include "components/optimization_guide/core/optimization_guide_switches.h"
 #include "components/optimization_guide/proto/features/actions_data.pb.h"
 #include "components/optimization_guide/proto/hints.pb.h"
 #include "components/tabs/public/tab_interface.h"
@@ -555,11 +552,10 @@ PageTarget MakeTarget(const gfx::Point& point) {
 }
 
 std::unique_ptr<ToolRequest> MakeClickRequest(content::RenderFrameHost& rfh,
-                                              int content_node_id,
-                                              mojom::ClickType type,
-                                              mojom::ClickCount count) {
+                                              int content_node_id) {
   return std::make_unique<ClickToolRequest>(
-      GetTabHandleForFrame(rfh), MakeTarget(rfh, content_node_id), type, count);
+      GetTabHandleForFrame(rfh), MakeTarget(rfh, content_node_id),
+      mojom::ClickType::kLeft, mojom::ClickCount::kSingle);
 }
 
 std::unique_ptr<ToolRequest> MakeDirectElementActivationClickRequest(
@@ -571,11 +567,10 @@ std::unique_ptr<ToolRequest> MakeDirectElementActivationClickRequest(
 }
 
 std::unique_ptr<ToolRequest> MakeClickRequest(TabInterface& tab,
-                                              const gfx::Point& click_point,
-                                              mojom::ClickType type,
-                                              mojom::ClickCount count) {
+                                              const gfx::Point& click_point) {
   return std::make_unique<ClickToolRequest>(
-      tab.GetHandle(), MakeTarget(click_point), type, count);
+      tab.GetHandle(), MakeTarget(click_point), mojom::ClickType::kLeft,
+      mojom::ClickCount::kSingle);
 }
 
 std::unique_ptr<ToolRequest> MakeHistoryBackRequest(TabInterface& tab) {
@@ -586,14 +581,6 @@ std::unique_ptr<ToolRequest> MakeHistoryBackRequest(TabInterface& tab) {
 std::unique_ptr<ToolRequest> MakeHistoryForwardRequest(TabInterface& tab) {
   return std::make_unique<HistoryToolRequest>(
       tab.GetHandle(), HistoryToolRequest::Direction::kForward);
-}
-
-std::unique_ptr<ToolRequest> MakeHistoryReloadRequest(TabInterface& tab,
-                                                      bool bypass_cache) {
-  HistoryToolRequest::Direction direction =
-      bypass_cache ? HistoryToolRequest::Direction::kReloadBypassingCache
-                   : HistoryToolRequest::Direction::kReload;
-  return std::make_unique<HistoryToolRequest>(tab.GetHandle(), direction);
 }
 
 std::unique_ptr<ToolRequest> MakeMouseMoveRequest(content::RenderFrameHost& rfh,
@@ -612,11 +599,6 @@ std::unique_ptr<ToolRequest> MakeNavigateRequest(TabInterface& tab,
                                                  std::string_view target_url) {
   return std::make_unique<NavigateToolRequest>(tab.GetHandle(),
                                                GURL(target_url));
-}
-std::unique_ptr<ToolRequest> MakePerformSearchRequest(TabInterface& tab,
-                                                      std::string_view query) {
-  return std::make_unique<PerformSearchToolRequest>(tab.GetHandle(),
-                                                    std::string(query));
 }
 std::unique_ptr<ToolRequest> MakeTypeRequest(content::RenderFrameHost& rfh,
                                              int content_node_id,
@@ -753,23 +735,6 @@ std::unique_ptr<ToolRequest> MakeMediaControlRequest(
                                                    media_control);
 }
 
-std::unique_ptr<ToolRequest> MakeTranslatePageRequest(tabs::TabInterface& tab) {
-  return std::make_unique<TranslatePageToolRequest>(tab.GetHandle());
-}
-
-std::unique_ptr<ToolRequest> MakeTranslatePageRequest(
-    tabs::TabInterface& tab,
-    std::string_view target_language) {
-  return std::make_unique<TranslatePageToolRequest>(
-      tab.GetHandle(), std::string(target_language));
-}
-
-std::unique_ptr<ToolRequest> MakeFindAndHighlightRequest(
-    tabs::TabInterface& tab,
-    const std::string& query) {
-  return std::make_unique<FindAndHighlightToolRequest>(tab.GetHandle(), query);
-}
-
 std::vector<std::unique_ptr<ToolRequest>> ToRequestList(
     std::unique_ptr<ToolRequest> request) {
   std::vector<std::unique_ptr<ToolRequest>> vec;
@@ -797,14 +762,15 @@ void ExpectOkResult(ActResultFuture& future) {
 void ExpectErrorResult(ActResultFuture& future,
                        mojom::ActionResultCode expected_code) {
   const auto& action_results = future.Get();
+  bool found_error = false;
   for (const auto& action_result : action_results) {
     if (!IsOk(*action_result.result)) {
-      EXPECT_EQ(action_result.result->code, expected_code);
-      return;
+      found_error = action_result.result->code == expected_code;
+      break;
     }
   }
-  ADD_FAILURE() << "Expected error code " << expected_code
-                << " not found in action results.";
+  EXPECT_TRUE(found_error) << "Expected error code " << expected_code
+                           << " not found in action results.";
 }
 
 void ExpectElementDisabledResultWithReason(ActResultFuture& future,
@@ -834,7 +800,7 @@ bool SetUpOptimizationGuideComponentBlocklist(const base::FilePath& path,
 void SetUpBlocklist(base::CommandLine* command_line,
                     const std::string& blocked_host) {
   command_line->AppendSwitchASCII(
-      optimization_guide::kHintsProtoOverrideSwitch,
+      optimization_guide::switches::kHintsProtoOverride,
       base::Base64Encode(CreateOptimizationGuideConfig(blocked_host)));
 }
 

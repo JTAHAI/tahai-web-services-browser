@@ -130,8 +130,8 @@ void SVGResources::UpdateEffects(LayoutObject& object,
     old_style->Filter().RemoveClient(*client);
 }
 
-void SVGResources::ClearEffects(const LayoutObject& object,
-                                const ComputedStyle* style) {
+void SVGResources::ClearEffects(const LayoutObject& object) {
+  const ComputedStyle* style = object.Style();
   if (!style)
     return;
   SVGElementResourceClient* client = GetClient(object);
@@ -256,7 +256,7 @@ class SVGElementResourceClient::FilterData final
 };
 
 SVGElementResourceClient::SVGElementResourceClient(SVGElement* element)
-    : element_(element) {}
+    : element_(element), filter_data_dirty_(false) {}
 
 namespace {
 

@@ -1,2 +1,3 @@
-rules:
-- "**": [wasm-multi-memory]
+features:
+  - name: wasm-multi-memory
+    files: "**"

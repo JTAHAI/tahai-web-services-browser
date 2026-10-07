@@ -5,13 +5,12 @@
 #ifndef COMPONENTS_AUTOFILL_CORE_BROWSER_METRICS_AUTOFILL_METRICS_TEST_BASE_H_
 #define COMPONENTS_AUTOFILL_CORE_BROWSER_METRICS_AUTOFILL_METRICS_TEST_BASE_H_
 
-#include <ranges>
-
 #include "base/check_deref.h"
 #include "base/metrics/metrics_hashes.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/test/scoped_feature_list.h"
 #include "base/test/task_environment.h"
+#include "base/types/zip.h"
 #include "components/autofill/core/browser/autofill_field.h"
 #include "components/autofill/core/browser/autofill_field_test_api.h"
 #include "components/autofill/core/browser/data_manager/addresses/address_data_manager.h"
@@ -28,8 +27,8 @@
 #include "components/autofill/core/browser/payments/test_credit_card_save_manager.h"
 #include "components/autofill/core/browser/payments/test_payments_autofill_client.h"
 #include "components/autofill/core/browser/suggestions/suggestion.h"
-#include "components/autofill/core/browser/test_utils/autofill_form_test_util.h"
-#include "components/autofill/core/browser/test_utils/autofill_test_util.h"
+#include "components/autofill/core/browser/test_utils/autofill_form_test_utils.h"
+#include "components/autofill/core/browser/test_utils/autofill_test_utils.h"
 #include "components/autofill/core/browser/ui/test_autofill_external_delegate.h"
 #include "components/autofill/core/browser/webdata/autofill_webdata_service_test_helper.h"
 #include "components/autofill/core/common/mojom/autofill_types.mojom-shared.h"
@@ -89,7 +88,8 @@ class MockAutofillDriver : public TestAutofillDriver {
                const FillId& fill_id,
                bool supports_refill,
                const url::Origin& triggered_origin,
-               (const absl::flat_hash_map<FieldGlobalId, FieldType>&)),
+               (const absl::flat_hash_map<FieldGlobalId, FieldType>&),
+               (const Section&)),
               (override));
 };
 
@@ -241,7 +241,7 @@ class AutofillMetricsBaseTest : public WithTestAutofillClientDriverManager<
     if (FormStructure* form_structure =
             test_api(autofill_manager()).FindCachedFormById(form.global_id())) {
       for (auto [field, field_description] :
-           std::views::zip(form_structure->fields(), form_description.fields)) {
+           base::zip(form_structure->fields(), form_description.fields)) {
         test_api(*field).set_initial_value(u"");
         if (field_description.is_autofilled_according_to_renderer) {
           field->set_autofilled_type(field_description.role);

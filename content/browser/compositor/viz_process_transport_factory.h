@@ -122,6 +122,10 @@ class VizProcessTransportFactory : public ui::ContextFactory,
   void CreateDisplayLinkMacMojoIfNeeded(
       base::WeakPtr<ui::Compositor> compositor);
 
+  // Whether a delayedTask that creates DisplayLinkMacMojo and launches
+  // VSyncThread has been posted.
+  bool vsync_thread_task_posted_ = false;
+
   std::unique_ptr<ui::DisplayLinkMacMojo> display_link_mac_mojo_{nullptr};
 #endif
 

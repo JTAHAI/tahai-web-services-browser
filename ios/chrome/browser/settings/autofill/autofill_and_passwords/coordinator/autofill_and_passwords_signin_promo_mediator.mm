@@ -107,7 +107,8 @@
   if (_signinPromoViewMediator.showSpinner) {
     SigninPromoViewConfigurator* promoConfigurator =
         [_signinPromoViewMediator createConfigurator];
-    [_consumer configureSigninPromoWithConfigurator:promoConfigurator];
+    [_consumer configureSigninPromoWithConfigurator:promoConfigurator
+                                    identityChanged:NO];
     return;
   }
 

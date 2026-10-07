@@ -12,7 +12,6 @@
 #include "base/memory/weak_ptr.h"
 #include "components/password_manager/core/browser/password_form.h"
 #include "components/password_manager/core/browser/password_save_manager_impl.h"
-#include "components/password_manager/core/browser/password_string.h"
 
 namespace password_manager {
 
@@ -48,7 +47,7 @@ class PasswordGenerationManager {
   // Returns true iff the generated password was presaved.
   bool HasGeneratedPassword() const { return presaved_.has_value(); }
 
-  const PasswordString& generated_password() const {
+  const std::u16string& generated_password() const {
     return presaved_->password_value;
   }
 
@@ -102,7 +101,7 @@ class PasswordGenerationManager {
   // Stores the pre-saved credential.
   std::optional<PasswordForm> presaved_;
   // Stores the initially generated password, i.e. before any user edits.
-  PasswordString initial_generated_password_;
+  std::u16string initial_generated_password_;
   // Used to produce callbacks.
   base::WeakPtrFactory<PasswordGenerationManager> weak_factory_{this};
 };

@@ -46,7 +46,7 @@ enum class ProtoParseResult {
   kInvalidFileHandlerNoActionOrLaunchType = 20,
   kInvalidFileHandlerAction = 21,
   kInvalidFileHandlerAcceptEntry = 22,
-  kObsolete_InvalidIconsInFileHandler = 23,
+  kInvalidIconsInFileHandler = 23,
   kInvalidShareTarget = 24,
   kInvalidShareTargetAction = 25,
   kInvalidShareTargetFile = 26,

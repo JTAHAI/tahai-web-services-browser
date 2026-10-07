@@ -14,7 +14,7 @@
 #import "ios/chrome/browser/composebox/public/composebox_model_option.h"
 
 @class ComposeboxMenuSharedTab;
-@class ComposeboxUIConfig;
+@class ComposeboxStrings;
 
 // State object containing all UI input state for the composebox.
 @interface ComposeboxUIInputState : NSObject
@@ -47,8 +47,8 @@
 @property(nonatomic, assign) std::unordered_set<ComposeboxModelOption>
     disabledModels;
 
-/// The composebox UI config (strings, headers, and icons).
-@property(nonatomic, strong) ComposeboxUIConfig* uiConfig;
+/// The localized composebox strings.
+@property(nonatomic, strong) ComposeboxStrings* strings;
 
 /// The remaining capacity for attachments.
 @property(nonatomic, assign) NSUInteger remainingAttachmentCapacity;

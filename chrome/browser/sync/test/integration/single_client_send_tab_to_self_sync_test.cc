@@ -28,10 +28,10 @@
 #include "chrome/browser/sync/test/integration/user_events_helper.h"
 #include "chrome/browser/sync/user_event_service_factory.h"
 #include "chrome/browser/ui/actions/chrome_action_id.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_tabstrip.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/send_tab_to_self/send_tab_to_self_toolbar_icon_controller.h"
 #include "chrome/browser/ui/views/send_tab_to_self/send_tab_to_self_bubble_controller.h"
 #include "chrome/browser/ui/views/send_tab_to_self/send_tab_to_self_toolbar_bubble_controller.h"
@@ -71,7 +71,6 @@ namespace {
 using send_tab_to_self_helper::GetFormFieldValueById;
 using send_tab_to_self_helper::PopulateFormField;
 using testing::AllOf;
-using testing::AnyOf;
 using testing::Eq;
 using testing::Field;
 using testing::HasSubstr;
@@ -469,14 +468,14 @@ INSTANTIATE_TEST_SUITE_P(,
                          testing::PrintToStringParamName());
 
 void SimulateOpeningReceivedTab(
-    BrowserWindowInterface* browser,
+    Browser* browser,
     const send_tab_to_self::SendTabToSelfEntry& entry) {
   send_tab_to_self::SendTabToSelfToolbarBubbleController* controller =
       send_tab_to_self::SendTabToSelfToolbarBubbleController::From(browser);
 
   if (!controller->IsBubbleShowing()) {
     PinnedToolbarActions* pinned_controller =
-        browser->GetFeatures().pinned_toolbar_actions();
+        browser->browser_window_features()->pinned_toolbar_actions();
     pinned_controller->ShowActionEphemerallyInToolbar(kActionSendTabToSelf,
                                                       true);
     auto anchor = pinned_controller->GetBubbleAnchor(kActionSendTabToSelf);
@@ -571,15 +570,14 @@ IN_PROC_BROWSER_TEST_P(SingleClientSendTabToSelfTextFragmentSyncTest,
       chrome::AddAndReturnTabAt(GetBrowser(0), test_url, -1, true);
   ASSERT_TRUE(content::WaitForLoadStop(web_contents));
 
-  // Scroll the page so the target element's vertical midpoint moves to 35% of
-  // the viewport height, where the reading position hit-test occurs.
+  // Scroll to the content so it's precisely in the center of the viewport.
   EXPECT_TRUE(content::ExecJs(web_contents, R"(
       new Promise(r => {
-        const target = document.getElementById('target');
-        const rect = target.getBoundingClientRect();
-        const currentMidpointY = rect.top + rect.height / 2;
-        const desiredMidpointY = window.innerHeight * 0.35;
-        window.scrollBy(0, currentMidpointY - desiredMidpointY);
+        document.getElementById('target').scrollIntoView({
+          behavior: 'instant',
+          block: 'center',
+          inline: 'center'
+        });
         requestAnimationFrame(() => requestAnimationFrame(r));
       });
     )"));
@@ -621,8 +619,9 @@ IN_PROC_BROWSER_TEST_P(SingleClientSendTabToSelfTextFragmentSyncTest,
   // viewport size and layout on different platforms/bots.
   const sync_pb::TextFragmentData& tf =
       decrypted_context.scroll_position().text_fragment();
-  EXPECT_THAT(tf.text_start(),
-              AnyOf(HasSubstr("fox"), HasSubstr("jumps"), HasSubstr("dog")));
+  EXPECT_THAT(tf.text_start(), testing::AnyOf(testing::HasSubstr("fox"),
+                                              testing::HasSubstr("jumps"),
+                                              testing::HasSubstr("dog")));
 }
 
 IN_PROC_BROWSER_TEST_P(SingleClientSendTabToSelfTextFragmentSyncTest,

@@ -30,7 +30,7 @@
 }
 
 - (NSDate*)validExpiry {
-  base::Time valid_expiry = _internalCertificate->valid_expiry();
+  const base::Time& valid_expiry = _internalCertificate->valid_expiry();
   return valid_expiry.ToNSDate();
 }
 

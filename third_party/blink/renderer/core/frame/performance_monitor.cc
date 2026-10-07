@@ -303,10 +303,8 @@ void PerformanceMonitor::WillProcessTask(base::TimeTicks start_time) {
   user_callback_ = nullptr;
 }
 
-void PerformanceMonitor::DidProcessTask(
-    base::TimeTicks start_time,
-    base::TimeTicks end_time,
-    base::TimeTicks /*desired_execution_time*/) {
+void PerformanceMonitor::DidProcessTask(base::TimeTicks start_time,
+                                        base::TimeTicks end_time) {
   if (!task_should_be_reported_)
     return;
 

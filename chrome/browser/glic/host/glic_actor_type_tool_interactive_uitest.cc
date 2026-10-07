@@ -91,8 +91,7 @@ GlicActorUiTest::MultiStep GlicActorTypeToolUiTest::TypeAction(
 // implemented. Currently uses DELETE_EXISTING behavior in all cases.
 IN_PROC_BROWSER_TEST_F(GlicActorTypeToolUiTest, BasicTypeActionSucceeds) {
   DEFINE_LOCAL_ELEMENT_IDENTIFIER_VALUE(kTypingTestTabId);
-  const GURL task_url =
-      embedded_https_test_server().GetURL("example.com", "/actor/input.html");
+  const GURL task_url = embedded_test_server()->GetURL("/actor/input.html");
   const std::string kExpectedText = "Hello Standard Input";
   const std::string kElementLabel = "test-input";
 
@@ -113,8 +112,7 @@ IN_PROC_BROWSER_TEST_F(GlicActorTypeToolUiTest, BasicTypeActionSucceeds) {
 IN_PROC_BROWSER_TEST_F(GlicActorTypeToolUiTest,
                        TypeActionDeleteExistingSucceeds) {
   DEFINE_LOCAL_ELEMENT_IDENTIFIER_VALUE(kTypingTestTabId);
-  const GURL task_url =
-      embedded_https_test_server().GetURL("example.com", "/actor/input.html");
+  const GURL task_url = embedded_test_server()->GetURL("/actor/input.html");
   const std::string kExpectedText = "This Should Be The Only Text";
   const std::string kElementLabel = "test-input";
   const std::string kInitialText = "This Should Not Appear";
@@ -148,8 +146,7 @@ IN_PROC_BROWSER_TEST_F(GlicActorTypeToolUiTest,
 IN_PROC_BROWSER_TEST_F(GlicActorTypeToolUiTest,
                        MAYBE_TypeActionOnDisabledInputFails) {
   DEFINE_LOCAL_ELEMENT_IDENTIFIER_VALUE(kTypingTestTabId);
-  const GURL task_url =
-      embedded_https_test_server().GetURL("example.com", "/actor/input.html");
+  const GURL task_url = embedded_test_server()->GetURL("/actor/input.html");
   const std::string kElementLabel = "disabled-input";
 
   RunTestSequence(InitializeWithOpenGlicWindow(),
@@ -166,8 +163,7 @@ IN_PROC_BROWSER_TEST_F(GlicActorTypeToolUiTest,
 IN_PROC_BROWSER_TEST_F(GlicActorTypeToolUiTest,
                        TypeActionOnNonExistentNodeFails) {
   DEFINE_LOCAL_ELEMENT_IDENTIFIER_VALUE(kTypingTestTabId);
-  const GURL task_url =
-      embedded_https_test_server().GetURL("example.com", "/actor/input.html");
+  const GURL task_url = embedded_test_server()->GetURL("/actor/input.html");
 
   auto type_provider = base::BindLambdaForTesting([this]() {
     content::RenderFrameHost* frame =
@@ -197,8 +193,7 @@ IN_PROC_BROWSER_TEST_F(GlicActorTypeToolUiTest,
 IN_PROC_BROWSER_TEST_F(GlicActorTypeToolUiTest,
                        TypeActionOnFocusRedirectSucceeds) {
   DEFINE_LOCAL_ELEMENT_IDENTIFIER_VALUE(kTypingTestTabId);
-  const GURL task_url =
-      embedded_https_test_server().GetURL("example.com", "/actor/input.html");
+  const GURL task_url = embedded_test_server()->GetURL("/actor/input.html");
   const std::string kExpectedText = "Should be typed in input2";
   const std::string kElementLabel = "test-input";
 
@@ -232,8 +227,8 @@ IN_PROC_BROWSER_TEST_F(GlicActorTypeToolUiTest,
 // Tests that typing at coordinates succeed
 IN_PROC_BROWSER_TEST_F(GlicActorTypeToolUiTest, TypeActionCoordinatesSucceeds) {
   DEFINE_LOCAL_ELEMENT_IDENTIFIER_VALUE(kTypingTestTabId);
-  const GURL task_url = embedded_https_test_server().GetURL(
-      "example.com", "/actor/type_input_coordinate.html");
+  const GURL task_url =
+      embedded_test_server()->GetURL("/actor/type_input_coordinate.html");
 
   const std::string_view kTypedString = "test";
 
@@ -281,8 +276,7 @@ IN_PROC_BROWSER_TEST_F(GlicActorTypeToolUiTest, TypeActionCoordinatesSucceeds) {
 IN_PROC_BROWSER_TEST_F(GlicActorTypeToolUiTest,
                        TypeActionOffScreenCoordinateFails) {
   DEFINE_LOCAL_ELEMENT_IDENTIFIER_VALUE(kTypingTestTabId);
-  const GURL task_url =
-      embedded_https_test_server().GetURL("example.com", "/actor/input.html");
+  const GURL task_url = embedded_test_server()->GetURL("/actor/input.html");
 
   RunTestSequence(
       InitializeWithOpenGlicWindow(),
@@ -301,8 +295,8 @@ IN_PROC_BROWSER_TEST_F(GlicActorTypeToolUiTest,
 IN_PROC_BROWSER_TEST_F(GlicActorTypeToolUiTest,
                        TypeActionOnDynamicNodeSucceeds) {
   DEFINE_LOCAL_ELEMENT_IDENTIFIER_VALUE(kTypingTestTabId);
-  const GURL task_url = embedded_https_test_server().GetURL(
-      "example.com", "/actor/type_dynamic_input.html");
+  const GURL task_url =
+      embedded_test_server()->GetURL("/actor/type_dynamic_input.html");
   const std::string kExpectedText = "abc";
   const std::string kElementLabel = "dynamic-input";
 
@@ -330,8 +324,7 @@ IN_PROC_BROWSER_TEST_F(GlicActorTypeToolUiTest,
 IN_PROC_BROWSER_TEST_F(GlicActorTypeToolUiTest,
                        TypeActionWithPageKeyHandlerSucceeds) {
   DEFINE_LOCAL_ELEMENT_IDENTIFIER_VALUE(kTypingTestTabId);
-  const GURL task_url =
-      embedded_https_test_server().GetURL("example.com", "/actor/input.html");
+  const GURL task_url = embedded_test_server()->GetURL("/actor/input.html");
   const std::string kExpectedText = "Hello Key Handler";
   const std::string kElementLabel = "key-handling-input";
 
@@ -357,8 +350,7 @@ IN_PROC_BROWSER_TEST_F(GlicActorTypeToolUiTest,
 IN_PROC_BROWSER_TEST_F(GlicActorTypeToolUiTest,
                        TypeActionByCoordinateWithPageKeyHandlerSucceeds) {
   DEFINE_LOCAL_ELEMENT_IDENTIFIER_VALUE(kTypingTestTabId);
-  const GURL task_url =
-      embedded_https_test_server().GetURL("example.com", "/actor/input.html");
+  const GURL task_url = embedded_test_server()->GetURL("/actor/input.html");
   const std::string kExpectedText = "Hello Coordinate";
 
   // Declare a variable to hold the element's coordinates.

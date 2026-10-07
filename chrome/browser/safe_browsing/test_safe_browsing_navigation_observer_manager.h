@@ -9,7 +9,7 @@
 #include "components/safe_browsing/content/browser/safe_browsing_navigation_observer.h"
 #include "components/safe_browsing/content/browser/safe_browsing_navigation_observer_manager.h"
 
-class BrowserWindowInterface;
+class Browser;
 
 namespace safe_browsing {
 
@@ -37,8 +37,7 @@ class TestSafeBrowsingNavigationObserverManager
     : public SafeBrowsingNavigationObserverManager,
       public TabStripModelObserver {
  public:
-  explicit TestSafeBrowsingNavigationObserverManager(
-      BrowserWindowInterface* browser);
+  explicit TestSafeBrowsingNavigationObserverManager(Browser* browser);
   TestSafeBrowsingNavigationObserverManager(
       const TestSafeBrowsingNavigationObserverManager&) = delete;
   TestSafeBrowsingNavigationObserverManager& operator=(

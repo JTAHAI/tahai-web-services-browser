@@ -74,7 +74,8 @@ void KioskWebAppLauncherBase::OnAppLaunched(bool success) {
 }
 
 void KioskWebAppLauncherBase::OnAppBecomesVisible() {
-  observers().NotifyAppWindowCreated(GetInstalledWebAppId());
+  observers().NotifyAppWindowCreated(
+      web_app::GenerateApplicationNameFromAppId(GetInstalledWebAppId()));
 }
 
 void KioskWebAppLauncherBase::InitAppServiceLauncher() {

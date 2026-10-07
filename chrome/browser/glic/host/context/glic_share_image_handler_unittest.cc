@@ -49,9 +49,13 @@ class GlicShareImageHandlerTest : public testing::Test {
  public:
   GlicShareImageHandlerTest()
       : task_environment_(base::test::TaskEnvironment::TimeSource::MOCK_TIME),
-        profile_manager_(TestingBrowserProcess::GetGlobal()) {}
+        profile_manager_(TestingBrowserProcess::GetGlobal()) {
+    GlicEnabling::SetBypassEnablementChecksForTesting(true);
+  }
 
-  ~GlicShareImageHandlerTest() override = default;
+  ~GlicShareImageHandlerTest() override {
+    GlicEnabling::SetBypassEnablementChecksForTesting(false);
+  }
 
   std::unique_ptr<KeyedService> CreateService(
       content::BrowserContext* context) {
@@ -140,7 +144,6 @@ class GlicShareImageHandlerTest : public testing::Test {
   }
 
  protected:
-  GlicEnabling::ScopedBypassEnablementChecksForTesting scoped_glic_bypass_;
   content::BrowserTaskEnvironment task_environment_;
   content::RenderViewHostTestEnabler enabler_;
   TestingProfileManager profile_manager_;

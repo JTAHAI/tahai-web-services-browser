@@ -13,7 +13,6 @@ import static androidx.test.espresso.matcher.ViewMatchers.withId;
 import static androidx.test.espresso.matcher.ViewMatchers.withText;
 
 import static org.hamcrest.Matchers.allOf;
-import static org.hamcrest.Matchers.startsWith;
 
 import androidx.recyclerview.widget.RecyclerView;
 import androidx.test.espresso.ViewInteraction;
@@ -81,7 +80,7 @@ public class BookmarkTestUtil {
             BookmarkModel bookmarkModel) {
         openRootFolder(recyclerView, bookmarkDelegate, bookmarkModel);
 
-        onView(withText(startsWith("Mobile bookmarks"))).perform(click());
+        onView(withText("Mobile bookmarks")).perform(click());
         InstrumentationRegistry.getInstrumentation().waitForIdleSync();
     }
 
@@ -93,7 +92,7 @@ public class BookmarkTestUtil {
             BookmarkModel bookmarkModel) {
         openRootFolder(recyclerView, bookmarkDelegate, bookmarkModel);
 
-        onView(withText(startsWith("Reading list"))).perform(click());
+        onView(withText("Reading list")).perform(click());
         InstrumentationRegistry.getInstrumentation().waitForIdleSync();
     }
 
@@ -164,8 +163,10 @@ public class BookmarkTestUtil {
         return onView(
                 allOf(
                         withId(R.id.search_text),
-                        isDescendantOfA(withId(R.id.search_box)),
-                        isDescendantOfA(withId(R.id.bookmark_toolbar))));
+                        isDescendantOfA(
+                                allOf(
+                                        withId(R.id.search_view),
+                                        isDescendantOfA(withId(R.id.bookmark_toolbar))))));
     }
 
     public static ChromeTabbedActivity waitForTabbedActivity() {
@@ -237,7 +238,7 @@ public class BookmarkTestUtil {
         return onView(
                 allOf(
                         withId(R.id.container),
-                        hasDescendant(withText(startsWith(text))),
+                        hasDescendant(withText(text)),
                         hasDescendant(
                                 allOf(
                                         withId(R.id.local_bookmark_image),

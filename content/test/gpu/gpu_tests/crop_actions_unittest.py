@@ -15,6 +15,7 @@ GREEN = (0, 255, 0)
 
 
 class FixedRectCropActionUnittest(unittest.TestCase):
+
   def testInit(self):
     """Tests constructor checks."""
     with self.assertRaises(AssertionError):
@@ -39,10 +40,10 @@ class FixedRectCropActionUnittest(unittest.TestCase):
     cropped_image = action.CropScreenshot(image, 1, '', '')
     expected_image = image_util.FromRGBPixels(1, 1, [*RED], bpp=3)
     self.assertTrue(
-      image_util.AreEqual(
-        cropped_image, expected_image, tolerance=0, likely_equal=True
-      )
-    )
+        image_util.AreEqual(cropped_image,
+                            expected_image,
+                            tolerance=0,
+                            likely_equal=True))
 
   def testCropCenter(self):
     """Tests that cropping works properly when not along any bounds."""
@@ -59,10 +60,10 @@ class FixedRectCropActionUnittest(unittest.TestCase):
     cropped_image = action.CropScreenshot(image, 1, '', '')
     expected_image = image_util.FromRGBPixels(1, 1, [*RED], bpp=3)
     self.assertTrue(
-      image_util.AreEqual(
-        cropped_image, expected_image, tolerance=0, likely_equal=True
-      )
-    )
+        image_util.AreEqual(cropped_image,
+                            expected_image,
+                            tolerance=0,
+                            likely_equal=True))
 
   def testCropScrollbarRemoved(self):
     """Tests that right columns are auto-removed to avoid scrollbars."""
@@ -74,14 +75,15 @@ class FixedRectCropActionUnittest(unittest.TestCase):
     cropped_image = action.CropScreenshot(image, 1, '', '')
     expected_width = image_width - ca.FixedRectCropAction.SCROLLBAR_WIDTH
     expected_pixels = [*(GREEN * expected_width)]
-    expected_image = image_util.FromRGBPixels(
-      expected_width, 1, expected_pixels, bpp=3
-    )
+    expected_image = image_util.FromRGBPixels(expected_width,
+                                              1,
+                                              expected_pixels,
+                                              bpp=3)
     self.assertTrue(
-      image_util.AreEqual(
-        cropped_image, expected_image, tolerance=0, likely_equal=True
-      )
-    )
+        image_util.AreEqual(cropped_image,
+                            expected_image,
+                            tolerance=0,
+                            likely_equal=True))
 
   def testBoundsClamping(self):
     """Tests that the bottom right coordinates are automatically clamped."""
@@ -93,14 +95,15 @@ class FixedRectCropActionUnittest(unittest.TestCase):
     cropped_image = action.CropScreenshot(image, 1, '', '')
     expected_width = image_width - ca.FixedRectCropAction.SCROLLBAR_WIDTH
     expected_pixels = [*(GREEN * expected_width)]
-    expected_image = image_util.FromRGBPixels(
-      expected_width, 1, expected_pixels, bpp=3
-    )
+    expected_image = image_util.FromRGBPixels(expected_width,
+                                              1,
+                                              expected_pixels,
+                                              bpp=3)
     self.assertTrue(
-      image_util.AreEqual(
-        cropped_image, expected_image, tolerance=0, likely_equal=True
-      )
-    )
+        image_util.AreEqual(cropped_image,
+                            expected_image,
+                            tolerance=0,
+                            likely_equal=True))
 
   def testNoneBounds(self):
     """Tests that None can be used to specify the bottom right coordinates."""
@@ -112,14 +115,15 @@ class FixedRectCropActionUnittest(unittest.TestCase):
     cropped_image = action.CropScreenshot(image, 1, '', '')
     expected_width = image_width - ca.FixedRectCropAction.SCROLLBAR_WIDTH
     expected_pixels = [*(GREEN * expected_width)]
-    expected_image = image_util.FromRGBPixels(
-      expected_width, 1, expected_pixels, bpp=3
-    )
+    expected_image = image_util.FromRGBPixels(expected_width,
+                                              1,
+                                              expected_pixels,
+                                              bpp=3)
     self.assertTrue(
-      image_util.AreEqual(
-        cropped_image, expected_image, tolerance=0, likely_equal=True
-      )
-    )
+        image_util.AreEqual(cropped_image,
+                            expected_image,
+                            tolerance=0,
+                            likely_equal=True))
 
   def testDprScaling(self):
     """Tests that crop bounds are scaled by DPR."""
@@ -140,10 +144,10 @@ class FixedRectCropActionUnittest(unittest.TestCase):
     expected_pixels = [*(RED * 4)]
     expected_image = image_util.FromRGBPixels(2, 2, expected_pixels, bpp=3)
     self.assertTrue(
-      image_util.AreEqual(
-        cropped_image, expected_image, tolerance=0, likely_equal=True
-      )
-    )
+        image_util.AreEqual(cropped_image,
+                            expected_image,
+                            tolerance=0,
+                            likely_equal=True))
 
   def testNegativeBounds(self):
     """Tests that negative numbers can be used to specify offsets."""
@@ -164,13 +168,14 @@ class FixedRectCropActionUnittest(unittest.TestCase):
     expected_pixels = [*(RED * 4)]
     expected_image = image_util.FromRGBPixels(2, 2, expected_pixels, bpp=3)
     self.assertTrue(
-      image_util.AreEqual(
-        cropped_image, expected_image, tolerance=0, likely_equal=True
-      )
-    )
+        image_util.AreEqual(cropped_image,
+                            expected_image,
+                            tolerance=0,
+                            likely_equal=True))
 
 
 class NonWhiteContentCropAction(unittest.TestCase):
+
   def testNoWhiteContent(self):
     """Tests behavior when there is no white content to remove."""
     # 3 x 3 green image.
@@ -180,10 +185,10 @@ class NonWhiteContentCropAction(unittest.TestCase):
     cropped_image = action.CropScreenshot(image, 1, '', '')
     expected_image = image_util.FromRGBPixels(3, 3, pixels, bpp=3)
     self.assertTrue(
-      image_util.AreEqual(
-        cropped_image, expected_image, tolerance=0, likely_equal=True
-      )
-    )
+        image_util.AreEqual(cropped_image,
+                            expected_image,
+                            tolerance=0,
+                            likely_equal=True))
 
   def testSomeWhiteContent(self):
     """Tests behavior when there is some white content to remove."""
@@ -199,10 +204,10 @@ class NonWhiteContentCropAction(unittest.TestCase):
     cropped_image = action.CropScreenshot(image, 1, '', '')
     expected_image = image_util.FromRGBPixels(2, 2, [*(RED * 4)], bpp=3)
     self.assertTrue(
-      image_util.AreEqual(
-        cropped_image, expected_image, tolerance=0, likely_equal=True
-      )
-    )
+        image_util.AreEqual(cropped_image,
+                            expected_image,
+                            tolerance=0,
+                            likely_equal=True))
 
   def testSomeWhiteContentSinglePixel(self):
     """Checks for off-by-one errors when only a single pixel isn't white."""
@@ -217,10 +222,10 @@ class NonWhiteContentCropAction(unittest.TestCase):
     cropped_image = action.CropScreenshot(image, 1, '', '')
     expected_image = image_util.FromRGBPixels(1, 1, [*RED], bpp=3)
     self.assertTrue(
-      image_util.AreEqual(
-        cropped_image, expected_image, tolerance=0, likely_equal=True
-      )
-    )
+        image_util.AreEqual(cropped_image,
+                            expected_image,
+                            tolerance=0,
+                            likely_equal=True))
 
   def testAllWhiteContent(self):
     """Tests that trying to crop all white content is an error."""
@@ -228,9 +233,8 @@ class NonWhiteContentCropAction(unittest.TestCase):
     image = image_util.FromRGBPixels(1, 1, pixels, bpp=3)
     action = ca.NonWhiteContentCropAction()
     with self.assertRaisesRegex(
-      RuntimeError,
-      'Attempted to crop to non-white content in an all white image',
-    ):
+        RuntimeError,
+        'Attempted to crop to non-white content in an all white image'):
       action.CropScreenshot(image, 1, '', '')
 
   def testInitialCrop(self):
@@ -251,10 +255,10 @@ class NonWhiteContentCropAction(unittest.TestCase):
     cropped_image = action.CropScreenshot(image, 1, '', '')
     expected_image = image_util.FromRGBPixels(1, 1, [*RED], bpp=3)
     self.assertTrue(
-      image_util.AreEqual(
-        cropped_image, expected_image, tolerance=0, likely_equal=True
-      )
-    )
+        image_util.AreEqual(cropped_image,
+                            expected_image,
+                            tolerance=0,
+                            likely_equal=True))
 
   def testMacCrop(self):
     """Tests that some bottom rows are cropped on Mac due to rounded corners."""
@@ -263,14 +267,15 @@ class NonWhiteContentCropAction(unittest.TestCase):
     image = image_util.FromRGBPixels(1, image_height, pixels, bpp=3)
     action = ca.NonWhiteContentCropAction()
     cropped_image = action.CropScreenshot(image, 1, '', 'mac')
-    expected_image = image_util.FromRGBPixels(
-      1, 10, [*(RED * (image_height - 20))], bpp=3
-    )
+    expected_image = image_util.FromRGBPixels(1,
+                                              10,
+                                              [*(RED * (image_height - 20))],
+                                              bpp=3)
     self.assertTrue(
-      image_util.AreEqual(
-        cropped_image, expected_image, tolerance=0, likely_equal=True
-      )
-    )
+        image_util.AreEqual(cropped_image,
+                            expected_image,
+                            tolerance=0,
+                            likely_equal=True))
 
   def testOffWhiteCrop(self):
     """Tests cropping of the first row on devices that produce off-white."""
@@ -280,10 +285,10 @@ class NonWhiteContentCropAction(unittest.TestCase):
     cropped_image = action.CropScreenshot(image, 1, 'SM-A236B', '')
     expected_image = image_util.FromRGBPixels(3, 2, [*(RED * 6)], bpp=3)
     self.assertTrue(
-      image_util.AreEqual(
-        cropped_image, expected_image, tolerance=0, likely_equal=True
-      )
-    )
+        image_util.AreEqual(cropped_image,
+                            expected_image,
+                            tolerance=0,
+                            likely_equal=True))
 
   def testCropWithAlpha(self):
     """Tests that cropping works when an alpha channel is provided."""
@@ -302,7 +307,7 @@ class NonWhiteContentCropAction(unittest.TestCase):
     cropped_image = action.CropScreenshot(image, 1, '', '')
     expected_image = image_util.FromRGBPixels(2, 2, [*(red * 4)], bpp=4)
     self.assertTrue(
-      image_util.AreEqual(
-        cropped_image, expected_image, tolerance=0, likely_equal=True
-      )
-    )
+        image_util.AreEqual(cropped_image,
+                            expected_image,
+                            tolerance=0,
+                            likely_equal=True))

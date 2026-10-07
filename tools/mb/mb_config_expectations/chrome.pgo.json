@@ -14,7 +14,8 @@
       "target_cpu": "arm",
       "target_os": "android",
       "use_reclient": false,
-      "use_remoteexec": true
+      "use_remoteexec": true,
+      "v8_is_on_release_branch": true
     }
   },
   "android-arm64-pgo": {
@@ -32,7 +33,8 @@
       "target_cpu": "arm64",
       "target_os": "android",
       "use_reclient": false,
-      "use_remoteexec": true
+      "use_remoteexec": true,
+      "v8_is_on_release_branch": true
     }
   },
   "linux-pgo": {
@@ -44,7 +46,8 @@
       "is_official_build": true,
       "symbol_level": 0,
       "use_reclient": false,
-      "use_remoteexec": true
+      "use_remoteexec": true,
+      "v8_is_on_release_branch": true
     }
   },
   "mac-arm-pgo": {
@@ -52,6 +55,7 @@
       "chrome_pgo_phase": 1,
       "dcheck_always_on": false,
       "enable_stripping": false,
+      "enable_widevine_cdm_host_verification": false,
       "ignore_missing_widevine_signing_cert": true,
       "is_chrome_branded": true,
       "is_debug": false,
@@ -59,7 +63,8 @@
       "symbol_level": 1,
       "target_cpu": "arm64",
       "use_reclient": false,
-      "use_remoteexec": true
+      "use_remoteexec": true,
+      "v8_is_on_release_branch": true
     }
   },
   "mac-pgo": {
@@ -67,6 +72,7 @@
       "chrome_pgo_phase": 1,
       "dcheck_always_on": false,
       "enable_stripping": false,
+      "enable_widevine_cdm_host_verification": false,
       "ignore_missing_widevine_signing_cert": true,
       "is_chrome_branded": true,
       "is_debug": false,
@@ -74,7 +80,8 @@
       "symbol_level": 1,
       "target_cpu": "x64",
       "use_reclient": false,
-      "use_remoteexec": true
+      "use_remoteexec": true,
+      "v8_is_on_release_branch": true
     }
   },
   "webview-arm64-pgo": {
@@ -91,7 +98,8 @@
       "target_cpu": "arm64",
       "target_os": "android",
       "use_reclient": false,
-      "use_remoteexec": true
+      "use_remoteexec": true,
+      "v8_is_on_release_branch": true
     }
   },
   "win-arm64-pgo": {
@@ -104,7 +112,8 @@
       "symbol_level": 0,
       "target_cpu": "arm64",
       "use_reclient": false,
-      "use_remoteexec": true
+      "use_remoteexec": true,
+      "v8_is_on_release_branch": true
     }
   },
   "win32-pgo": {
@@ -117,7 +126,8 @@
       "symbol_level": 0,
       "target_cpu": "x86",
       "use_reclient": false,
-      "use_remoteexec": true
+      "use_remoteexec": true,
+      "v8_is_on_release_branch": true
     }
   },
   "win64-pgo": {
@@ -130,7 +140,8 @@
       "symbol_level": 0,
       "target_cpu": "x64",
       "use_reclient": false,
-      "use_remoteexec": true
+      "use_remoteexec": true,
+      "v8_is_on_release_branch": true
     }
   }
 }

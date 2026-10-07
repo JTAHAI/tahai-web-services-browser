@@ -33,7 +33,7 @@ namespace {
 
 blink::mojom::SerializedBlobPtr MakeBlob(
     scoped_refptr<BackgroundFetchRequestInfo> info) {
-  CHECK_CURRENTLY_ON(BrowserThread::IO, base::NotFatalUntil::M158);
+  DCHECK_CURRENTLY_ON(BrowserThread::IO);
 
   std::unique_ptr<storage::BlobDataHandle> response_blob_handle =
       info->TakeResponseBlobDataHandleOnIO();
@@ -73,7 +73,7 @@ MarkRequestCompleteTask::MarkRequestCompleteTask(
 MarkRequestCompleteTask::~MarkRequestCompleteTask() = default;
 
 void MarkRequestCompleteTask::Start() {
-  CHECK(blob_storage_context(), base::NotFatalUntil::M158);
+  DCHECK(blob_storage_context());
   request_info_->CreateResponseBlobDataHandle(blob_storage_context());
 
   base::RepeatingClosure barrier_closure = base::BarrierClosure(
@@ -93,7 +93,7 @@ void MarkRequestCompleteTask::StoreResponse(base::OnceClosure done_closure) {
 
   if (request_info_->GetURLChain().empty()) {
     // The URL chain was not provided, so this is a failed response.
-    CHECK(!request_info_->IsResultSuccess(), base::NotFatalUntil::M158);
+    DCHECK(!request_info_->IsResultSuccess());
     failure_reason_ = proto::BackgroundFetchRegistration::FETCH_ERROR;
     CreateAndStoreCompletedRequest(std::move(done_closure));
     return;

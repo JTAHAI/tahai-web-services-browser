@@ -24,7 +24,7 @@ class CORE_EXPORT TrustedParserOptions final : public ScriptWrappable {
   }
 
   Sanitizer* sanitizer() const {
-    return sanitizer_ ? sanitizer_->Clone() : nullptr;
+    return sanitizer_ ? sanitizer_->Clone() : Sanitizer::CreateEmpty();
   }
 
   Sanitizer* EffectiveSanitizer() const { return sanitizer_; }

@@ -12,13 +12,13 @@ export class FakeShortcutInputProvider implements
   private observables: FakeObservables = new FakeObservables();
   // TODO(jimmyxgong): Remove this when prerewrittenKeyEvent is displayed as
   // an element in `shortcut_input.html`.
-  private prerewrittenKeyEvent: KeyEvent|null = null;
+  private prerewrittenKeyEvent: KeyEvent;
 
   constructor() {
     this.registerObservables();
   }
 
-  getPrerewrittenKeyEvent(): KeyEvent|null {
+  getPrerewrittenKeyEvent(): KeyEvent {
     return this.prerewrittenKeyEvent;
   }
 

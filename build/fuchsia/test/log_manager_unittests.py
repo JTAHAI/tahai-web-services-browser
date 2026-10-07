@@ -60,9 +60,8 @@ class LogManagerTest(unittest.TestCase):
 
         log = log_manager.LogManager(_LOGS_DIR)
         log_manager.start_system_log(log, False)
-        self.assertEqual(
-            mock_ffx.call_args_list[0][1]['stdout'], mock_open.return_value
-        )
+        self.assertEqual(mock_ffx.call_args_list[0][1]['stdout'],
+                         mock_open.return_value)
         self.assertEqual(mock_ffx.call_count, 1)
 
     @mock.patch('log_manager.run_continuous_ffx_command')
@@ -73,25 +72,21 @@ class LogManagerTest(unittest.TestCase):
         log_manager.start_system_log(log, True, log_args=['test_log_args'])
         self.assertEqual(
             mock_ffx.call_args_list[0][0][0],
-            ['log', '--symbolize', 'off', '--no-color', 'test_log_args'],
-        )
+            ['log', '--symbolize', 'off', '--no-color', 'test_log_args'])
         self.assertEqual(mock_ffx.call_count, 1)
 
     @mock.patch('log_manager.run_continuous_ffx_command')
     def test_log_with_symbols(self, mock_ffx) -> None:
         """Test symbols are used when pkg_paths are set."""
 
-        with mock.patch('os.path.isfile', return_value=True), mock.patch(
-            'builtins.open'
-        ), mock.patch('log_manager.run_symbolizer'), log_manager.LogManager(
-            _LOGS_DIR
-        ) as log:
+        with mock.patch('os.path.isfile', return_value=True), \
+             mock.patch('builtins.open'), \
+             mock.patch('log_manager.run_symbolizer'), \
+             log_manager.LogManager(_LOGS_DIR) as log:
             log_manager.start_system_log(log, False, pkg_paths=['test_pkg'])
         self.assertEqual(mock_ffx.call_count, 1)
-        self.assertEqual(
-            mock_ffx.call_args_list[0][0][0],
-            ['log', '--symbolize', 'off', '--no-color'],
-        )
+        self.assertEqual(mock_ffx.call_args_list[0][0][0],
+                         ['log', '--symbolize', 'off', '--no-color'])
 
     def test_no_logging_dir_exception(self) -> None:
         """Tests empty LogManager throws an exception on |open_log_file|."""
@@ -109,9 +104,8 @@ class LogManagerTest(unittest.TestCase):
 
     def test_wait_for_pattern_no_file(self) -> None:
         """Test _wait_for_pattern returns immediately if file doesn't exist."""
-        log = log_manager.LogManager(
-            'some_non_existent_dir', wait_for_pattern="some pattern"
-        )
+        log = log_manager.LogManager('some_non_existent_dir',
+                                     wait_for_pattern="some pattern")
         # pylint: disable=protected-access
         log._wait_for_pattern()
         self.assertIsNotNone(log)
@@ -127,9 +121,8 @@ class LogManagerTest(unittest.TestCase):
         """Test LogManager calls _wait_for_pattern on exit if pattern is set."""
         tmp_dir = tempfile.mkdtemp()
         try:
-            log = log_manager.LogManager(
-                tmp_dir, wait_for_pattern="some pattern"
-            )
+            log = log_manager.LogManager(tmp_dir,
+                                         wait_for_pattern="some pattern")
             with mock.patch.object(log, '_wait_for_pattern') as mock_wait:
                 with log:
                     pass
@@ -142,17 +135,14 @@ class LogManagerTest(unittest.TestCase):
         still runs."""
         tmp_dir = tempfile.mkdtemp()
         try:
-            log = log_manager.LogManager(
-                tmp_dir, wait_for_pattern="some pattern"
-            )
+            log = log_manager.LogManager(tmp_dir,
+                                         wait_for_pattern="some pattern")
             mock_proc = mock.Mock()
             log.add_log_process(mock_proc)
 
-            with mock.patch.object(
-                log,
-                '_wait_for_pattern',
-                side_effect=RuntimeError('Wait failed'),
-            ):
+            with mock.patch.object(log,
+                                   '_wait_for_pattern',
+                                   side_effect=RuntimeError('Wait failed')):
                 with self.assertRaises(RuntimeError):
                     with log:
                         pass
@@ -165,9 +155,8 @@ class LogManagerTest(unittest.TestCase):
         # pylint: disable=protected-access
         tmp_dir = tempfile.mkdtemp()
         try:
-            log = log_manager.LogManager(
-                tmp_dir, wait_for_pattern="target pattern"
-            )
+            log = log_manager.LogManager(tmp_dir,
+                                         wait_for_pattern="target pattern")
             system_log_path = os.path.join(tmp_dir, 'system_log')
 
             with open(system_log_path, 'w', encoding='utf-8') as f:
@@ -205,8 +194,7 @@ class LogManagerTest(unittest.TestCase):
         tmp_dir = tempfile.mkdtemp()
         try:
             log = log_manager.LogManager(
-                tmp_dir, wait_for_pattern="partial line target"
-            )
+                tmp_dir, wait_for_pattern="partial line target")
             system_log_path = os.path.join(tmp_dir, 'system_log')
 
             with open(system_log_path, 'w', encoding='utf-8') as f:
@@ -246,8 +234,7 @@ class LogManagerTest(unittest.TestCase):
         tmp_dir = tempfile.mkdtemp()
         try:
             log = log_manager.LogManager(
-                tmp_dir, wait_for_pattern="non existent pattern"
-            )
+                tmp_dir, wait_for_pattern="non existent pattern")
             system_log_path = os.path.join(tmp_dir, 'system_log')
 
             with open(system_log_path, 'w', encoding='utf-8') as f:
@@ -256,9 +243,8 @@ class LogManagerTest(unittest.TestCase):
 
             fake_clock = FakeClock()
             start_time = fake_clock.time()
-            with mock.patch(
-                'time.time', side_effect=fake_clock.time
-            ), mock.patch('time.sleep', side_effect=fake_clock.sleep):
+            with mock.patch('time.time', side_effect=fake_clock.time), \
+                 mock.patch('time.sleep', side_effect=fake_clock.sleep):
                 log._wait_for_pattern()
 
             duration = fake_clock.time() - start_time

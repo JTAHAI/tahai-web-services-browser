@@ -51,7 +51,7 @@ class PostRestoreProfileAgentTest : public PlatformTest {
     TestProfileIOS::Builder builder;
     builder.AddTestingFactory(
         AuthenticationServiceFactory::GetInstance(),
-        AuthenticationServiceFactory::GetFactoryWithDelegateForTesting(
+        AuthenticationServiceFactory::GetFactoryWithDelegate(
             std::make_unique<FakeAuthenticationServiceDelegate>()));
     builder.AddTestingFactory(SyncServiceFactory::GetInstance(),
                               base::BindRepeating(&CreateTestSyncService));
@@ -83,9 +83,8 @@ class PostRestoreProfileAgentTest : public PlatformTest {
   }
 
   void SetFakePreRestoreAccountInfo() {
-    AccountInfo accountInfo =
-        AccountInfo::Builder(GaiaId("gaia"), kFakePreRestoreAccountEmail)
-            .Build();
+    AccountInfo accountInfo;
+    accountInfo.email = kFakePreRestoreAccountEmail;
     StorePreRestoreIdentity(pref_service(), accountInfo,
                             /*history_sync_enabled=*/false);
   }

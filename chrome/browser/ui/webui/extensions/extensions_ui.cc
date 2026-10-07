@@ -184,7 +184,6 @@ content::WebUIDataSource* CreateAndAddExtensionsSource(Profile* profile,
       {"itemDependencies", IDS_EXTENSIONS_ITEM_DEPENDENCIES},
       {"itemDependentEntry", IDS_EXTENSIONS_DEPENDENT_ENTRY},
       {"itemDetails", IDS_EXTENSIONS_ITEM_DETAILS},
-      {"itemRateExtension", IDS_EXTENSIONS_ITEM_RATE_IT},
       {"itemDetailsBackButtonAriaLabel",
        IDS_EXTENSIONS_DETAILS_BACK_BUTTON_ARIA_LABEL},
       {"itemDetailsBackButtonRoleDescription",
@@ -372,8 +371,6 @@ content::WebUIDataSource* CreateAndAddExtensionsSource(Profile* profile,
       {"setShortcutInSystemSettings",
        IDS_EXTENSIONS_SET_SHORTCUT_IN_SYSTEM_SETTINGS},
       {"shortcutNotSet", IDS_SHORTCUT_NOT_SET},
-      {"shortcutInputLabel", IDS_EXTENSIONS_SHORTCUT_INPUT_LABEL},
-      {"shortcutScope", IDS_EXTENSIONS_SHORTCUT_SCOPE},
       {"shortcutClear", IDS_SHORTCUT_CLEAR},
       {"shortcutScopeGlobal", IDS_EXTENSIONS_SHORTCUT_SCOPE_GLOBAL},
       {"shortcutScopeLabel", IDS_EXTENSIONS_SHORTCUT_SCOPE_LABEL},
@@ -475,16 +472,6 @@ content::WebUIDataSource* CreateAndAddExtensionsSource(Profile* profile,
   source->AddBoolean(
       "enableExtensionsPinnedByDefault",
       base::FeatureList::IsEnabled(features::kExtensionsPinnedByDefault));
-  // `prefs::kExtensionReviewPromptsAllowed` is a dynamic preference that can
-  // change at runtime. We evaluate it statically at page load as a tradeoff:
-  // stale values will be updated the next time the page loads, and backend
-  // checks prevent execution if disabled mid-session.
-  source->AddBoolean("cwsReviewPromptingEnabled",
-                     base::FeatureList::IsEnabled(
-                         extensions_features::kCWSReviewPromptingNativeUI) &&
-                         profile->IsRegularProfile() &&
-                         profile->GetPrefs()->GetBoolean(
-                             prefs::kExtensionReviewPromptsAllowed));
   source->AddBoolean(kShowActivityLogKey,
                      base::CommandLine::ForCurrentProcess()->HasSwitch(
                          ::switches::kEnableExtensionActivityLogging));
@@ -598,7 +585,7 @@ ExtensionsUI::ExtensionsUI(content::WebUI* web_ui)
 ExtensionsUI::~ExtensionsUI() = default;
 
 // static
-scoped_refptr<base::RefCountedMemory> ExtensionsUI::GetFaviconResourceBytes(
+base::RefCountedMemory* ExtensionsUI::GetFaviconResourceBytes(
     ui::ResourceScaleFactor scale_factor) {
   ui::ResourceBundle& rb = ui::ResourceBundle::GetSharedInstance();
   return rb.LoadDataResourceBytesForScale(IDR_EXTENSIONS_FAVICON, scale_factor);

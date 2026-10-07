@@ -4,14 +4,12 @@
 
 #include "third_party/blink/renderer/core/page/focusgroup_controller.h"
 
-#include "third_party/blink/public/common/metrics/document_update_reason.h"
 #include "third_party/blink/public/mojom/input/focus_type.mojom-blink.h"
 #include "third_party/blink/renderer/core/dom/document.h"
 #include "third_party/blink/renderer/core/dom/element.h"
 #include "third_party/blink/renderer/core/dom/flat_tree_traversal.h"
 #include "third_party/blink/renderer/core/dom/focus_params.h"
 #include "third_party/blink/renderer/core/dom/focusgroup_flags.h"
-#include "third_party/blink/renderer/core/editing/editing_utilities.h"
 #include "third_party/blink/renderer/core/events/keyboard_event.h"
 #include "third_party/blink/renderer/core/execution_context/execution_context.h"
 #include "third_party/blink/renderer/core/frame/local_dom_window.h"
@@ -31,9 +29,6 @@ bool FocusgroupController::HandleKeyboardEvent(KeyboardEvent* event,
                                                const LocalFrame* frame) {
   CHECK(frame);
   CHECK(frame->DomWindow());
-  if (!event->isTrusted()) {
-    return false;
-  }
   ExecutionContext* context = frame->DomWindow()->GetExecutionContext();
   if (!RuntimeEnabledFeatures::FocusgroupEnabled(context)) {
     return false;
@@ -93,12 +88,11 @@ bool FocusgroupController::HandleHomeEndKeyboardEvent(KeyboardEvent* event,
   ExecutionContext* context = frame->DomWindow()->GetExecutionContext();
   CHECK(RuntimeEnabledFeatures::FocusgroupEnabled(context));
 
-  Document* document = frame->GetDocument();
-  if (!document) {
+  if (!frame->GetDocument()) {
     return false;
   }
 
-  Element* focused = document->FocusedElement();
+  Element* focused = frame->GetDocument()->FocusedElement();
   if (!focused || focused != event->RawTarget()) {
     return false;
   }
@@ -110,11 +104,6 @@ bool FocusgroupController::HandleHomeEndKeyboardEvent(KeyboardEvent* event,
     return false;
   }
 
-  // Caret browsing handles Home/End in the editor.
-  if (frame->IsCaretBrowsingEnabled()) {
-    return false;
-  }
-
   // Home/End with modifier keys should not trigger focusgroup navigation
   // (e.g., Ctrl+Home scrolls to the document start).
   if (event->ctrlKey() || event->metaKey() || event->shiftKey() ||
@@ -122,31 +111,18 @@ bool FocusgroupController::HandleHomeEndKeyboardEvent(KeyboardEvent* event,
     return false;
   }
 
-  if (focused->editContext()) {
+  // If the focused element is inside a directional key handler (e.g., text
+  // input), do not intercept Home/End — those keys have native behavior there.
+  if (utils::IsInDirectionalKeyHandler(focused)) {
     return false;
   }
 
   Element* owner =
       utils::FindNearestFocusgroupAncestor(focused, FocusgroupType::kLinear);
-  if (!owner || !utils::IsFocusgroupItemWithOwner(focused, owner)) {
-    return false;
-  }
-
-  // A keydown listener can change editable style before default handling.
-  document->UpdateStyleAndLayoutTreeForElement(
-      focused, DocumentUpdateReason::kFocusgroup);
-  focused = document->FocusedElement();
-  if (!focused || focused != event->RawTarget()) {
+  if (!owner) {
     return false;
   }
   if (!utils::IsFocusgroupItemWithOwner(focused, owner)) {
-    return false;
-  }
-
-  // Do not intercept Home/End for editable elements or controls with native
-  // directional-key behavior.
-  if (IsEditable(*focused) ||
-      utils::IsInDirectionalKeyHandlerForAnyAxis(*focused, *owner)) {
     return false;
   }
 
@@ -169,7 +145,7 @@ bool FocusgroupController::HandleHomeEndKeyboardEvent(KeyboardEvent* event,
 // static
 bool FocusgroupController::Advance(Element* initial_element,
                                    FocusgroupDirection direction) {
-  if (RuntimeEnabledFeatures::FocusgroupV2Enabled(
+  if (RuntimeEnabledFeatures::FocusgroupGridEnabled(
           initial_element->GetExecutionContext())) {
     Element* grid_root = utils::FindNearestFocusgroupAncestor(
         initial_element, FocusgroupType::kGrid);

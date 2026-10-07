@@ -35,10 +35,8 @@ const NSUInteger kSearchCharacterLimit = 1000;
 
 }  // namespace
 
-@interface ExtendedShareViewController () <
-    NSURLSessionDelegate,
-    ShareExtensionDelegate,
-    UIAdaptivePresentationControllerDelegate>
+@interface ExtendedShareViewController () <NSURLSessionDelegate,
+                                           ShareExtensionDelegate>
 
 // The sheet to display when an item is shared.
 @property(nonatomic, strong) ShareExtensionSheet* shareSheet;
@@ -118,7 +116,6 @@ const NSUInteger kSearchCharacterLimit = 1000;
   _navigationController = [[UINavigationController alloc]
       initWithRootViewController:self.shareSheet];
   _navigationController.modalPresentationStyle = UIModalPresentationFormSheet;
-  _navigationController.presentationController.delegate = self;
   if (@available(iOS 26, *)) {
     [self addChildViewController:_navigationController];
   }
@@ -332,17 +329,6 @@ const NSUInteger kSearchCharacterLimit = 1000;
       [self handleURL:task.originalRequest.URL forItem:nil];
     });
   }
-}
-
-#pragma mark - UIAdaptivePresentationControllerDelegate
-
-- (void)presentationControllerDidDismiss:
-    (UIPresentationController*)presentationController {
-  [self
-      handleSheetDismissalForItem:nil
-                            error:[NSError errorWithDomain:NSCocoaErrorDomain
-                                                      code:NSUserCancelledError
-                                                  userInfo:nil]];
 }
 
 #pragma mark - Private methods

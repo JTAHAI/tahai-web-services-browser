@@ -32,6 +32,7 @@
 #include "content/public/browser/web_contents.h"
 #include "ui/gfx/native_ui_types.h"
 
+class Browser;
 class BrowserWindow;
 class Profile;
 class GlobalBrowserCollection;
@@ -92,11 +93,10 @@ class WebAppUiManagerImpl : public BrowserCollectionObserver,
       const webapps::AppId& app_id,
       bool shortcut_created,
       content::WebContents* web_contents) const override;
-  BrowserWindowInterface* ReparentAppTabToWindow(
-      content::WebContents* contents,
-      const webapps::AppId& app_id,
-      bool shortcut_created) override;
-  BrowserWindowInterface* ReparentAppTabToWindow(
+  Browser* ReparentAppTabToWindow(content::WebContents* contents,
+                                  const webapps::AppId& app_id,
+                                  bool shortcut_created) override;
+  Browser* ReparentAppTabToWindow(
       content::WebContents* contents,
       const webapps::AppId& app_id,
       base::OnceCallback<void(content::WebContents*)> completion_callback)
@@ -142,6 +142,14 @@ class WebAppUiManagerImpl : public BrowserCollectionObserver,
   void TriggerInstallDialog(content::WebContents* web_contents,
                             webapps::WebappInstallSource source,
                             InstallCallback callback) override;
+  // TODO(crbug.com/520025525): Remove install_url code.
+  void TriggerInstallDialogForBackgroundInstall(
+      content::WebContents* initiating_web_contents,
+      std::unique_ptr<webapps::MlInstallOperationTracker> tracker,
+      const GURL& install_url,
+      const std::optional<GURL>& manifest_id,
+      const GURL& last_committed_url,
+      InstallCallback callback) override;
   void TriggerInstallDialogForManifestInstall(
       content::WebContents* initiating_web_contents,
       base::WeakPtr<content::Page> initiating_page,
@@ -183,8 +191,7 @@ class WebAppUiManagerImpl : public BrowserCollectionObserver,
 
   void ShowIntentPicker(const GURL& url,
                         content::WebContents* web_contents,
-                        ShowIntentPickerBubbleCallback callback,
-                        std::optional<webapps::AppId> scoped_app_id) override;
+                        ShowIntentPickerBubbleCallback callback) override;
 
   void LaunchOrFocusIsolatedWebAppInstaller(
       const base::FilePath& bundle_path) override;
@@ -204,7 +211,7 @@ class WebAppUiManagerImpl : public BrowserCollectionObserver,
       content::NavigationHandle* navigation_handle) override;
 
   void MaybeShowIPHPromoForAppsLaunchedViaLinkCapturing(
-      BrowserWindowInterface* browser,
+      Browser* browser,
       Profile* profile,
       const std::string& app_id) override;
 
@@ -264,10 +271,9 @@ class WebAppUiManagerImpl : public BrowserCollectionObserver,
 
 #if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX) || \
     BUILDFLAG(IS_CHROMEOS)
-  void ShowIPHPromoForAppsLaunchedViaLinkCapturing(
-      BrowserWindowInterface* browser,
-      const webapps::AppId& app_id,
-      bool is_activated);
+  void ShowIPHPromoForAppsLaunchedViaLinkCapturing(Browser* browser,
+                                                   const webapps::AppId& app_id,
+                                                   bool is_activated);
   void OnIPHPromoResponseForLinkCapturing(BrowserWindowInterface* browser,
                                           const webapps::AppId& app_id);
 

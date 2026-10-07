@@ -10,7 +10,6 @@
 #include <iterator>
 #include <memory>
 #include <optional>
-#include <ranges>
 #include <string>
 #include <utility>
 #include <vector>
@@ -33,10 +32,11 @@
 #include "base/strings/to_string.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/task/single_thread_task_runner.h"
+#include "base/types/zip.h"
 #include "build/build_config.h"
 #include "components/autofill/content/common/mojom/autofill_driver.mojom.h"
 #include "components/autofill/content/renderer/form_autofill_util.h"
-#include "components/autofill/content/renderer/password_form_conversion_util.h"
+#include "components/autofill/content/renderer/password_form_conversion_utils.h"
 #include "components/autofill/content/renderer/password_generation_agent.h"
 #include "components/autofill/content/renderer/prefilled_values_detector.h"
 #include "components/autofill/content/renderer/renderer_save_password_progress_logger.h"
@@ -357,7 +357,7 @@ bool HasPasswordField(const WebLocalFrame& frame) {
   };
 
   WebDocument doc = frame.GetDocument();
-  return std::ranges::any_of(doc.GetOutermostForms(), ContainsPasswordField,
+  return std::ranges::any_of(doc.GetTopLevelForms(), ContainsPasswordField,
                              &WebFormElement::GetFormControlElements) ||
          ContainsPasswordField(doc.UnassociatedFormControls());
 }
@@ -622,28 +622,14 @@ void PasswordAutofillAgent::FocusStateNotifier::FocusedElementChanged(
 std::pair<mojom::FocusedFieldType, FieldRendererId>
 PasswordAutofillAgent::FocusStateNotifier::GetFocusedFieldInfo(
     const WebElement& element) {
+  mojom::FocusedFieldType new_focused_field_type =
+      mojom::FocusedFieldType::kUnknown;
+  FieldRendererId new_focused_field_id = FieldRendererId();
   if (auto form_control_element = element.DynamicTo<WebFormControlElement>()) {
-    return {GetFieldType(form_control_element),
-            form_util::GetFieldRendererId(form_control_element)};
+    new_focused_field_type = GetFieldType(form_control_element);
+    new_focused_field_id = form_util::GetFieldRendererId(form_control_element);
   }
-  // Contenteditable focus notifications are only needed on Android to show
-  // the Keyboard Accessory via `ManualFillingController` and
-  // `ChromePasswordManagerClient::FocusedInputChanged`.
-  // On Desktop, contenteditable focus and suggestions are driven entirely by
-  // `AutofillAgent`.
-#if BUILDFLAG(IS_ANDROID)
-  if (base::FeatureList::IsEnabled(
-          features::kAutofillAtMemorySupportContenteditableOnAndroid) &&
-      element && element.IsContentEditable()) {
-    if (std::optional<FormData> form =
-            form_util::FindFormForContentEditable(element)) {
-      CHECK_EQ(form->fields().size(), 1u);
-      return {mojom::FocusedFieldType::kContenteditableField,
-              form->fields().front().renderer_id()};
-    }
-  }
-#endif
-  return {mojom::FocusedFieldType::kUnknown, FieldRendererId()};
+  return {new_focused_field_type, new_focused_field_id};
 }
 
 mojom::FocusedFieldType PasswordAutofillAgent::FocusStateNotifier::GetFieldType(
@@ -1184,8 +1170,8 @@ PasswordAutofillAgent::CreateSuggestionRequest(
                                 trigger_source);
   // TODO(crbug.com/408843433): Don't extract the data here but pass it in from
   // the caller who needs it anyways for autofill requests.
-  std::optional<form_util::FormAndField> form_and_field =
-      form_util::FindFormAndFieldForFormControlElement(
+  std::optional<std::pair<FormData, raw_ref<const FormFieldData>>>
+      form_and_field = form_util::FindFormAndFieldForFormControlElement(
           user_input, field_data_manager(),
           autofill_agent_->GetCallTimerState(
               CallTimerState::CallSite::kShowSuggestionPopup),
@@ -1205,10 +1191,10 @@ PasswordAutofillAgent::CreateSuggestionRequest(
                              &password_info);
 
   return PasswordSuggestionRequest(
-      TriggeringField(form_and_field->field, trigger_source, typed_username,
+      TriggeringField(*form_and_field->second, trigger_source, typed_username,
                       gfx::RectF(unsafe_render_frame()->ConvertViewportToWindow(
                           user_input.BoundsInWidget()))),
-      std::move(form_and_field->form),
+      std::move(form_and_field->first),
       {.frame_token = {},
        .renderer_id = username_element ? GetFieldRendererId(username_element)
                                        : FieldRendererId()},
@@ -1456,7 +1442,7 @@ void PasswordAutofillAgent::SendPasswordForms(
     return;
   }
 
-  std::vector<WebFormElement> forms = doc.GetOutermostForms();
+  std::vector<WebFormElement> forms = doc.GetTopLevelForms();
 
   if (IsShowAutofillSignaturesEnabled())
     AnnotateFormsAndFieldsWithSignatures(forms, form_cache);
@@ -2298,7 +2284,7 @@ PasswordAutofillAgent::ExtractFormStructureInfo(const FormData& form_data) {
   result.fields.resize(form_data.fields().size());
 
   for (auto [form_field, field_info] :
-       std::views::zip(form_data.fields(), result.fields)) {
+       base::zip(form_data.fields(), result.fields)) {
     field_info.renderer_id = form_field.renderer_id();
     field_info.form_control_type = form_field.form_control_type();
     field_info.autocomplete_attribute = form_field.autocomplete_attribute();
@@ -2324,7 +2310,7 @@ bool PasswordAutofillAgent::WasFormStructureChanged(
     return true;
 
   for (auto [form_field, cached_form_field] :
-       std::views::zip(form_info.fields, cached_form_info.fields)) {
+       base::zip(form_info.fields, cached_form_info.fields)) {
     if (form_field.renderer_id != cached_form_field.renderer_id) {
       return true;
     }

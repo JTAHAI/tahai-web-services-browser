@@ -4,10 +4,10 @@
 
 #include "chrome/updater/mac/keystone/ksadmin.h"
 
+#include <stdio.h>
 #include <sys/stat.h>
 
 #include <algorithm>
-#include <iostream>
 #include <map>
 #include <optional>
 #include <string>
@@ -446,7 +446,7 @@ bool KSAdminApp::MatchesXCPath(NSString* ticket_path) const {
     NSString* xcpath = base::SysUTF8ToNSString(xcpath_raw);
     xcpath = [xcpath stringByStandardizingPath];
     ticket_path = [ticket_path stringByStandardizingPath];
-    return [xcpath isEqual:ticket_path];
+    return static_cast<bool>([xcpath isEqual:ticket_path]);
   }
 }
 
@@ -585,7 +585,7 @@ void KSAdminApp::PrintUsage(const std::string& error_message) {
       "If neither -S nor -U are provided, ksadmin will try to deduce the\n"
       "correct store, but may return a ticket with a mismatching xcpath if\n"
       "tickets are present in both stores.\n";
-  std::cout << usage_message << "\n";
+  printf("%s\n", usage_message.c_str());
   Shutdown(error_message.empty() ? 0 : 1);
 }
 
@@ -742,13 +742,13 @@ void KSAdminApp::DoUpdateApp(UpdaterScope scope) {
       UpdateService::PolicySameVersionUpdate::kNotAllowed, /*language=*/{},
       base::BindRepeating([](const UpdateService::UpdateState& update_state) {
         if (update_state.state == UpdateService::UpdateState::State::kUpdated) {
-          std::cout << "Finished updating (errors=0 reboot=YES)\n";
+          printf("Finished updating (errors=%d reboot=%s)\n", 0, "YES");
         }
       }),
       base::BindOnce(
           [](base::OnceCallback<void(int)> cb, UpdateService::Result result) {
             if (result == UpdateService::Result::kSuccess) {
-              std::cout << "Available updates: (\n)\n";
+              printf("Available updates: (\n)\n");
               std::move(cb).Run(0);
             } else {
               LOG(ERROR) << "Error code: " << result;
@@ -790,18 +790,18 @@ void KSAdminApp::DoListAppUpdate(UpdaterScope scope) {
             if (result == UpdateService::Result::kSuccess) {
               // This output format must not be changed, because the Keystone
               // Registration Framework is expecting the exact format.
-              std::cout << "Available updates: (\n";
+              printf("Available updates: (\n");
               if (!update_check_result->next_version().empty()) {
-                std::cout << "\t{\n"
-                          << "\tkServerProductID = \""
-                          << update_check_result->app_id() << "\";\n"
-                          << "\tkServerDisplayVersion = \""
-                          << update_check_result->next_version() << "\";\n"
-                          << "\tkServerVersion = \""
-                          << update_check_result->next_version() << "\";\n"
-                          << "\t}\n";
+                printf("\t{\n"
+                       "\tkServerProductID = \"%s\";\n"
+                       "\tkServerDisplayVersion = \"%s\";\n"
+                       "\tkServerVersion = \"%s\";\n"
+                       "\t}\n",
+                       update_check_result->app_id().c_str(),
+                       update_check_result->next_version().c_str(),
+                       update_check_result->next_version().c_str());
               }
-              std::cout << ")\n";
+              printf(")\n");
               std::move(cb).Run(0);
             } else {
               LOG(ERROR) << "Error code: " << result;
@@ -849,9 +849,9 @@ int KSAdminApp::PrintKeystoneTag(UpdaterScope scope,
     KSTicket* ticket =
         [store objectForKey:[base::SysUTF8ToNSString(app_id) lowercaseString]];
     if (ticket) {
-      std::cout << base::SysNSStringToUTF8([ticket determineTag]) << "\n";
+      printf("%s\n", base::SysNSStringToUTF8([ticket determineTag]).c_str());
     } else {
-      std::cout << "No ticket for " << app_id << "\n";
+      printf("No ticket for %s\n", app_id.c_str());
       return 1;
     }
   }
@@ -884,7 +884,8 @@ void KSAdminApp::DoPrintTag(UpdaterScope scope) {
                 });
         if (it != std::end(states)) {
           KSTicket* ticket = TicketFromAppState(*it);
-          std::cout << base::SysNSStringToUTF8([ticket determineTag]) << "\n";
+          printf("%s\n",
+                 base::SysNSStringToUTF8([ticket determineTag]).c_str());
 
         } else {
           // Fallback to print tag from legacy Keystone tickets if there's no
@@ -899,7 +900,7 @@ void KSAdminApp::DoPrintTag(UpdaterScope scope) {
 }
 
 void KSAdminApp::PrintVersion() {
-  std::cout << kUpdaterVersion << "\n";
+  UNSAFE_TODO(printf("%s\n", kUpdaterVersion));
   Shutdown(0);
 }
 
@@ -912,8 +913,8 @@ bool KSAdminApp::PrintKeystoneTickets(UpdaterScope scope,
     if (app_id.empty()) {
       if (store.count > 0) {
         for (NSString* key in store) {
-          std::cout << base::SysNSStringToUTF8([store[key] description])
-                    << "\n";
+          printf("%s\n",
+                 base::SysNSStringToUTF8([store[key] description]).c_str());
         }
         return true;
       }
@@ -921,12 +922,12 @@ bool KSAdminApp::PrintKeystoneTickets(UpdaterScope scope,
       KSTicket* ticket = [store
           objectForKey:[base::SysUTF8ToNSString(app_id) lowercaseString]];
       if (ticket) {
-        std::cout << base::SysNSStringToUTF8([ticket description]) << "\n";
+        printf("%s\n", base::SysNSStringToUTF8([ticket description]).c_str());
         return true;
       }
     }
 
-    std::cout << "No tickets.\n";
+    printf("No tickets.\n");
     return false;
   }
 }
@@ -948,7 +949,7 @@ void KSAdminApp::DoPrintTickets(UpdaterScope scope) {
             continue;
           }
           KSTicket* ticket = TicketFromAppState(state);
-          std::cout << base::SysNSStringToUTF8([ticket description]) << "\n";
+          printf("%s\n", base::SysNSStringToUTF8([ticket description]).c_str());
           ticket_printed = true;
         }
 
@@ -981,7 +982,7 @@ void KSAdminApp::PrintXattrTagBrand() {
   }
 
   // Empty brand code is not an error.
-  std::cout << tag_result->brand_code << "\n";
+  printf("%s\n", tag_result->brand_code.c_str());
   Shutdown(0);
 }
 
@@ -1014,7 +1015,7 @@ void KSAdminApp::OnReadPkgTagContent(const std::string& tag_string) {
     return;
   }
 
-  std::cout << tag_args.brand_code << "\n";
+  printf("%s\n", tag_args.brand_code.c_str());
   Shutdown(0);
 }
 

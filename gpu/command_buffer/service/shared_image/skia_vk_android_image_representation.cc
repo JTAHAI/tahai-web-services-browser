@@ -72,14 +72,14 @@ SkiaVkAndroidImageRepresentation::BeginWriteAccess(
   DCHECK_EQ(mode_, RepresentationAccessMode::kNone);
   DCHECK(promise_texture_);
 
-  auto* gr_context = context_state_->gr_context();
-  if (gr_context->abandoned()) {
-    LOG(ERROR) << "GrContext is abandoned.";
+  if (!BeginAccess(/*readonly=*/false, begin_semaphores, end_semaphores,
+                   base::ScopedFD())) {
     return {};
   }
 
-  if (!BeginAccess(/*readonly=*/false, begin_semaphores, end_semaphores,
-                   base::ScopedFD())) {
+  auto* gr_context = context_state_->gr_context();
+  if (gr_context->abandoned()) {
+    LOG(ERROR) << "GrContext is abandoned.";
     return {};
   }
 
@@ -92,13 +92,15 @@ SkiaVkAndroidImageRepresentation::BeginWriteAccess(
         &surface_props);
     if (!surface_) {
       LOG(ERROR) << "MakeFromBackendTexture() failed.";
-      EndAccess(/*readonly=*/false);
       return {};
     }
     surface_msaa_count_ = final_msaa_count;
   }
 
   *end_state = GetEndAccessState();
+
+  if (!surface_)
+    return {};
   return {surface_};
 }
 
@@ -117,10 +119,8 @@ SkiaVkAndroidImageRepresentation::BeginWriteAccess(
 
   *end_state = GetEndAccessState();
 
-  if (!promise_texture_) {
-    EndAccess(/*readonly=*/false);
+  if (!promise_texture_)
     return {};
-  }
   return {promise_texture_};
 }
 
@@ -154,10 +154,8 @@ SkiaVkAndroidImageRepresentation::BeginReadAccess(
 
   *end_state = GetEndAccessState();
 
-  if (!promise_texture_) {
-    EndAccess(/*readonly=*/true);
+  if (!promise_texture_)
     return {};
-  }
   return {promise_texture_};
 }
 
@@ -266,7 +264,7 @@ void SkiaVkAndroidImageRepresentation::EndAccess(bool readonly) {
     android_backing()->EndWrite(std::move(sync_fd));
   }
 
-  std::vector<base::RawPtrIfPtrT<VkSemaphore, DanglingUntriaged>> semaphores;
+  std::vector<VkSemaphore> semaphores;
   semaphores.reserve(2);
   if (begin_access_semaphore_ != VK_NULL_HANDLE) {
     semaphores.emplace_back(begin_access_semaphore_);

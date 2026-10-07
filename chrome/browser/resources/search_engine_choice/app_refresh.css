@@ -48,10 +48,11 @@
 #content-div {
   align-items: flex-start;
   display: flex;
+  flex: 1;
   flex-direction: row;
   gap: var(--content-gap);
   justify-content: center;
-  margin: auto 3rem;
+  margin: 0 3rem 0;
 }
 
 @media screen and ((max-width: 780px) or (max-height: 600px)) {
@@ -69,6 +70,7 @@
   max-height: var(--child-max-height);
   max-width: var(--child-max-width);
   width: 60%;
+  margin: 20vh 0 0 0;
 }
 
 #showcase-illustration {
@@ -175,7 +177,7 @@ cr-checkbox {
 
 .cr-icon {
   --cr-icon-color: currentColor;
-  --cr-icon-image: url(images/arrow_downward_old.svg);
+  --cr-icon-image: url(images/arrow_downward.svg);
   --cr-icon-ripple-size: 18px;
   --cr-icon-size: 18px;
   margin: 0;
@@ -371,7 +373,9 @@ control the pointer location causes some flakiness. */
 }
 
 :host(:not([use-horizontal-mode_])) #choiceList.overlap-mitigation {
-  padding-bottom: 0;
+  #choiceList.overlap-mitigation {
+    padding-bottom: 0;
+  }
 }
 
 @media screen and (max-width: 548px) {
@@ -398,8 +402,4 @@ control the pointer location causes some flakiness. */
   cr-checkbox {
     --cr-checkbox-label-color: var(--google-grey-500);
   }
-}
-
-:host-context([webui-rounded-icons]) .cr-icon {
-  --cr-icon-image: url(images/arrow_downward.svg);
 }

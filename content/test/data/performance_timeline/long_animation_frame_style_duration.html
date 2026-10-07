@@ -106,7 +106,6 @@
         // Wait for next frame to ensure styles are flushed
         requestAnimationFrame(() => {
           requestAnimationFrame(() => {
-            resizeObserverTestState.prepEndTime = performance.now();
             resolve({ ready: true, elementCount: elements.length, baselineStyleTime: baselineStyleTime });
           });
         });
@@ -121,16 +120,13 @@
           return;
         }
 
-        const { container, elements, baselineStyleTime, prepEndTime } = resizeObserverTestState;
+        const { container, elements, baselineStyleTime } = resizeObserverTestState;
         let loafEntry = null;
         let resizeObserverFired = false;
 
         // Helper to process LoAF entries
         function processEntries(entries) {
           for (const entry of entries) {
-            if (entry.startTime < prepEndTime) {
-              continue;
-            }
             if (entry.entryType === 'long-animation-frame' && entry.duration > 50) {
               // Keep the entry with the highest styleDuration, as that's the one
               // with the actual style work we're measuring.
@@ -255,7 +251,6 @@
 
         requestAnimationFrame(() => {
           requestAnimationFrame(() => {
-            multipleIterationsTestState.prepEndTime = performance.now();
             resolve({ ready: true, elementCount: elements.length, singleIterationBaseline });
           });
         });
@@ -270,16 +265,13 @@
           return;
         }
 
-        const { elements, observedElements, singleIterationBaseline, prepEndTime } = multipleIterationsTestState;
+        const { elements, observedElements, singleIterationBaseline } = multipleIterationsTestState;
         let loafEntry = null;
         let iterationCount = 0;
 
         // Helper to process LoAF entries
         function processEntries(entries) {
           for (const entry of entries) {
-            if (entry.startTime < prepEndTime) {
-              continue;
-            }
             if (entry.entryType === 'long-animation-frame' && entry.duration > 50) {
               // Keep the entry with the highest styleDuration, as that's the one
               // with the actual style work we're measuring.
@@ -525,7 +517,6 @@
         // Wait for next frame to ensure layout is done
         requestAnimationFrame(() => {
           requestAnimationFrame(() => {
-            resizeObserverLayoutTestState.prepEndTime = performance.now();
             resolve({ ready: true, elementCount: elements.length });
           });
         });
@@ -540,16 +531,13 @@
           return;
         }
 
-        const { container, elements, prepEndTime } = resizeObserverLayoutTestState;
+        const { container, elements } = resizeObserverLayoutTestState;
         let loafEntry = null;
         let resizeObserverFired = false;
 
         // Helper to process LoAF entries
         function processEntries(entries) {
           for (const entry of entries) {
-            if (entry.startTime < prepEndTime) {
-              continue;
-            }
             if (entry.entryType === 'long-animation-frame' && entry.duration > 50) {
               // Keep the entry with the highest layoutDuration, as that's the one
               // with the actual layout work we're measuring.
@@ -827,7 +815,6 @@
 
         requestAnimationFrame(() => {
           requestAnimationFrame(() => {
-            containerQueryTestState.prepEndTime = performance.now();
             resolve({ ready: true, containerCount: containers.length });
           });
         });
@@ -841,14 +828,11 @@
           return;
         }
 
-        const { style, containers, prepEndTime } = containerQueryTestState;
+        const { style, containers } = containerQueryTestState;
         let loafEntry = null;
 
         function processEntries(entries) {
           for (const entry of entries) {
-            if (entry.startTime < prepEndTime) {
-              continue;
-            }
             if (entry.entryType === 'long-animation-frame' && entry.duration > 50) {
               // Keep the entry with the highest combined style+layout duration
               const entryTotal = (entry.styleDuration || 0) + (entry.layoutDuration || 0);

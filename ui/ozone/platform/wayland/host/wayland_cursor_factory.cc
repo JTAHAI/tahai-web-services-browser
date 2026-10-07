@@ -202,7 +202,7 @@ void WaylandCursorFactory::OnCursorThemeNameChanged(
 }
 
 void WaylandCursorFactory::OnCursorThemeSizeChanged(int cursor_theme_size) {
-  if (!IsValidCursorThemeSize(cursor_theme_size) || cursor_theme_size == 0) {
+  if (!IsValidCursorThemeSize(cursor_theme_size)) {
     return;
   }
   size_ = cursor_theme_size;

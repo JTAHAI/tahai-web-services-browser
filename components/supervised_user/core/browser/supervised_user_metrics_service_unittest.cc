@@ -94,7 +94,7 @@ TEST_F(SupervisedUserMetricsServiceTest, NewDayAfterSupervisedUserDetected) {
   task_environment_.FastForwardBy(base::Days(1) + base::Hours(1));
   EXPECT_EQ(0, GetDayIdPref());
 
-  supervised_user_test_environment_->EnableSupervisedAccount();
+  EnableParentalControls(*supervised_user_test_environment_->pref_service());
   EXPECT_EQ(SupervisedUserMetricsService::GetDayIdForTesting(base::Time::Now()),
             GetDayIdPref());
 }
@@ -131,7 +131,7 @@ TEST_F(SupervisedUserMetricsServiceTest,
   histogram_tester_.ExpectUniqueSample(
       kManagedSiteListHistogramName,
       /*sample=*/
-      SupervisedUserMetricsService::ManagedSiteList::kEmpty,
+      FamilyLinkUrlFilter::ManagedSiteList::kEmpty,
       /*expected_bucket_count=*/1);
   histogram_tester_.ExpectUniqueSample(kApprovedSitesCountHistogramName,
                                        /*sample=*/0,

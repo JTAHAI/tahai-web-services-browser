@@ -158,8 +158,6 @@ class FakeURLLoaderFactory final : public URLLoaderFactory {
 class FakeWebServiceWorkerFetchContext final
     : public WebServiceWorkerFetchContext {
  public:
-  explicit FakeWebServiceWorkerFetchContext()
-      : WebServiceWorkerFetchContext(RendererPreferences()) {}
   void SetTerminateSyncLoadEvent(base::WaitableEvent*) override {}
   void InitializeOnWorkerThread(AcceptLanguagesWatcher*) override {}
   URLLoaderFactory* GetURLLoaderFactory() override {

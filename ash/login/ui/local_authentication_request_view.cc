@@ -176,11 +176,11 @@ LocalAuthenticationRequestView::LocalAuthenticationRequestView(
   // Set Border and shadow.
   SetBorder(std::make_unique<views::HighlightBorder>(
       kLocalAuthenticationRequestViewRoundedCornerRadiusDp,
-      views::HighlightBorder::Type::kHighlightBorderOnShadow));
+      views::HighlightBorder::Type::kHighlightBorder1));
   shadow_ = SystemShadow::CreateShadowOnNinePatchLayerForView(
       this, SystemShadow::Type::kElevation12);
-  shadow_->SetRoundedCorners(gfx::RoundedCornersF(
-      kLocalAuthenticationRequestViewRoundedCornerRadiusDp));
+  shadow_->SetRoundedCornerRadius(
+      kLocalAuthenticationRequestViewRoundedCornerRadiusDp);
 
   // Header view which contains the back button that is aligned top right and
   // the lock icon which is in the bottom center.

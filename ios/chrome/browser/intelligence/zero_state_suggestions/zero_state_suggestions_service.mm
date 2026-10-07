@@ -47,10 +47,9 @@ ZeroStateSuggestionsService::ZeroStateSuggestionsService(
 ZeroStateSuggestionsService::~ZeroStateSuggestionsService() = default;
 
 void ZeroStateSuggestionsService::FetchZeroStateSuggestions(
-    base::OnceCallback<void(NSArray<ZeroStateSuggestion*>*)> callback,
-    bool is_model_led_eligible) {
-  if (!web_state_ || !is_model_led_eligible) {
-    std::move(callback).Run(BuildStaticAndModelLedSuggestions({}));
+    base::OnceCallback<void(NSArray<ZeroStateSuggestion*>*)> callback) {
+  if (!web_state_) {
+    std::move(callback).Run(BuildSuggestions({}));
     return;
   }
 
@@ -59,17 +58,16 @@ void ZeroStateSuggestionsService::FetchZeroStateSuggestions(
   if (suggestions_.has_value()) {
     // Ensure the cached suggestions are for the current URL.
     if (suggestions_url_ == request_url.GetWithoutRef()) {
-      std::move(callback).Run(
-          BuildStaticAndModelLedSuggestions(suggestions_.value()));
+      std::move(callback).Run(BuildSuggestions(suggestions_.value()));
     } else {
       // The cached suggestions are stale and thus obsolete.
-      std::move(callback).Run(BuildStaticAndModelLedSuggestions({}));
+      std::move(callback).Run(BuildSuggestions({}));
     }
     return;
   }
 
   if (!service_) {
-    std::move(callback).Run(BuildStaticAndModelLedSuggestions({}));
+    std::move(callback).Run(BuildSuggestions({}));
     return;
   }
 
@@ -91,7 +89,7 @@ void ZeroStateSuggestionsService::ParseSuggestionsResponse(
     GURL request_url,
     ai::mojom::ModelLedSuggestionsResponseResultPtr result) {
   if (!result || result->is_error()) {
-    std::move(callback).Run(BuildStaticAndModelLedSuggestions({}));
+    std::move(callback).Run(nil);
     return;
   }
 
@@ -100,7 +98,7 @@ void ZeroStateSuggestionsService::ParseSuggestionsResponse(
           result->get_response()
               .As<optimization_guide::proto::ZeroStateSuggestionsResponse>();
   if (!response_proto_optional.has_value()) {
-    std::move(callback).Run(BuildStaticAndModelLedSuggestions({}));
+    std::move(callback).Run(nil);
     return;
   }
   optimization_guide::proto::ZeroStateSuggestionsResponse response_proto =
@@ -112,12 +110,10 @@ void ZeroStateSuggestionsService::ParseSuggestionsResponse(
   }
   suggestions_url_ = request_url.GetWithoutRef();
 
-  std::move(callback).Run(
-      BuildStaticAndModelLedSuggestions(suggestions_.value()));
+  std::move(callback).Run(BuildSuggestions(suggestions_.value()));
 }
 
-NSArray<ZeroStateSuggestion*>*
-ZeroStateSuggestionsService::BuildStaticAndModelLedSuggestions(
+NSArray<ZeroStateSuggestion*>* ZeroStateSuggestionsService::BuildSuggestions(
     const std::vector<std::string>& model_led_suggestions) {
   NSMutableArray<ZeroStateSuggestion*>* actions = [NSMutableArray array];
   if (IsZeroStateSuggestionsCentralizationEnabled()) {

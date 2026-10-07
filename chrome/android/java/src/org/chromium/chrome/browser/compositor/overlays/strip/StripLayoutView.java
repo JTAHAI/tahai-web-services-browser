@@ -46,7 +46,7 @@ public abstract class StripLayoutView implements VirtualView {
     /** Handler for long click actions on VirtualViews. */
     public interface StripLayoutViewOnLongClickHandler {
         /**
-         * Handles the long click action on {@code view}.
+         * Handles the long click action on {@param view}.
          *
          * @param view The {@link StripLayoutView} receiving the long click.
          */
@@ -56,9 +56,9 @@ public abstract class StripLayoutView implements VirtualView {
     /** Handler for keyboard focus on VirtualViews. */
     public interface StripLayoutViewOnKeyboardFocusHandler {
         /**
-         * Handles keyboard focus change on this {@code view}.
+         * Handles keyboard focus change on this {@param view}.
          *
-         * @param isFocused Whether {@code view} is now focused.
+         * @param isFocused Whether {@param view} is now focused.
          * @param view The {@link StripLayoutView} in question.
          */
         void onKeyboardFocus(boolean isFocused, StripLayoutView view);
@@ -67,7 +67,7 @@ public abstract class StripLayoutView implements VirtualView {
     /** Handler for accessibility focus on VirtualViews. */
     public interface StripLayoutViewOnAccessibilityFocusHandler {
         /**
-         * Handles accessibility focus on this {@code view}.
+         * Handles accessibility focus on this {@param view}.
          *
          * @param view The {@link StripLayoutView} in question.
          */
@@ -558,7 +558,7 @@ public abstract class StripLayoutView implements VirtualView {
         return mKeyboardFocused;
     }
 
-    /** Returns the {@link ColorInt} of the keyboard focus ring color. */
+    /** {@return The {@link ColorInt} of the keyboard focus ring color} */
     public @ColorInt int getKeyboardFocusRingColor() {
         return ChromeColors.getKeyboardFocusRingColor(mContext, isIncognito());
     }

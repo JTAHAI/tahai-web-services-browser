@@ -1,6 +1,8 @@
 // Copyright 2026 TAHAI Web Services
 // SPDX-License-Identifier: Apache-2.0
 
+#include <windows.h>
+
 #include <algorithm>
 #include <memory>
 #include <optional>
@@ -8,13 +10,19 @@
 #include <utility>
 #include <vector>
 
+#include "base/command_line.h"
+#include "base/process/process.h"
 #include "base/test/bind.h"
 #include "base/test/run_until.h"
 #include "base/test/test_future.h"
+#include "base/win/access_token.h"
 #include "chrome/browser/tahai_guard/guard_engine_session.h"
 #include "chrome/test/base/in_process_browser_test.h"
+#include "content/public/browser/service_process_host.h"
+#include "content/public/browser/service_process_info.h"
 #include "content/public/test/browser_test.h"
 #include "mojo/public/cpp/bindings/receiver.h"
+#include "sandbox/policy/mojom/sandbox.mojom.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
 namespace tahai::guard {
@@ -92,6 +100,101 @@ class FakeEngine final : public mojom::GuardEngine {
 };
 
 class TahaiGuardEngineBrowserTest : public InProcessBrowserTest {};
+
+struct GuardProcessSnapshot {
+  base::Process process;
+  content::ServiceProcessId id;
+};
+
+std::optional<GuardProcessSnapshot> FindRunningGuardService() {
+  for (const auto& info :
+       content::ServiceProcessHost::GetRunningProcessInfo()) {
+    if (!info.IsService<mojom::GuardEngine>()) {
+      continue;
+    }
+    base::Process process = info.GetProcess().Duplicate();
+    if (process.IsValid() && process.IsRunning()) {
+      return GuardProcessSnapshot{std::move(process),
+                                  info.service_process_id()};
+    }
+  }
+  return std::nullopt;
+}
+
+IN_PROC_BROWSER_TEST_F(TahaiGuardEngineBrowserTest,
+                       TahaiServiceSandboxRuntimeBoundary) {
+  ASSERT_FALSE(
+      base::CommandLine::ForCurrentProcess()->HasSwitch("single-process"));
+  ASSERT_EQ(sandbox::mojom::Sandbox::kService,
+            content::GetServiceSandboxType<mojom::GuardEngine>());
+
+  GuardEngineSession session;
+  auto configured = Compile(session, "||ads.example^\n");
+  ASSERT_TRUE(configured);
+  ASSERT_EQ(Status::kReady, configured->status);
+
+  std::optional<base::Process> service;
+  ASSERT_TRUE(base::test::RunUntil([&] {
+    service = FindRunningGuardService();
+    return service.has_value();
+  }));
+  ASSERT_TRUE(service->process.IsValid());
+  ASSERT_TRUE(service->process.IsRunning());
+  EXPECT_NE(base::Process::Current().Pid(), service->process.Pid());
+
+  auto token = base::win::AccessToken::FromProcess(service->process.Handle());
+  ASSERT_TRUE(token);
+  EXPECT_TRUE(token->IsRestricted());
+  EXPECT_EQ(SECURITY_MANDATORY_LOW_RID, token->IntegrityLevel());
+  EXPECT_FALSE(token->IsAppContainer());
+
+  BOOL in_job = FALSE;
+  ASSERT_TRUE(::IsProcessInJob(service->process.Handle(), nullptr, &in_job));
+  EXPECT_TRUE(in_job);
+
+  PROCESS_MITIGATION_SYSTEM_CALL_DISABLE_POLICY win32k_policy = {};
+  ASSERT_TRUE(::GetProcessMitigationPolicy(
+      service->process.Handle(), ProcessSystemCallDisablePolicy, &win32k_policy,
+      sizeof(win32k_policy)));
+  EXPECT_TRUE(win32k_policy.DisallowWin32kSystemCalls);
+
+  PROCESS_MITIGATION_DYNAMIC_CODE_POLICY dynamic_code_policy = {};
+  ASSERT_TRUE(::GetProcessMitigationPolicy(
+      service->process.Handle(), ProcessDynamicCodePolicy, &dynamic_code_policy,
+      sizeof(dynamic_code_policy)));
+  EXPECT_TRUE(dynamic_code_policy.ProhibitDynamicCode);
+}
+
+IN_PROC_BROWSER_TEST_F(TahaiGuardEngineBrowserTest,
+                       TahaiServiceCrashFailsClosedAndCanRestart) {
+  GuardEngineSession session;
+  base::test::TestFuture<void> failed;
+  session.SetFailureCallback(failed.GetCallback());
+  auto configured = Compile(session, "||crash.example^\n");
+  ASSERT_TRUE(configured);
+  ASSERT_EQ(Status::kReady, configured->status);
+
+  auto service = FindRunningGuardService();
+  ASSERT_TRUE(service);
+  const base::ProcessId crashed_pid = service->process.Pid();
+  const content::ServiceProcessId crashed_service_id = service->id;
+  ASSERT_TRUE(service->process.Terminate(1, /*wait=*/true));
+  ASSERT_TRUE(failed.Wait());
+  EXPECT_FALSE(session.ready());
+  EXPECT_FALSE(
+      Check(session, "https://crash.example/ad.js", "https://shop.example/"));
+
+  GuardEngineSession replacement;
+  auto restarted = Compile(replacement, "||crash.example^\n");
+  ASSERT_TRUE(restarted);
+  ASSERT_EQ(Status::kReady, restarted->status);
+  auto replacement_service = FindRunningGuardService();
+  ASSERT_TRUE(replacement_service);
+  EXPECT_NE(crashed_pid, replacement_service->process.Pid());
+  EXPECT_NE(crashed_service_id, replacement_service->id);
+  EXPECT_EQ(Decision::kBlock, Check(replacement, "https://crash.example/ad.js",
+                                    "https://shop.example/"));
+}
 
 IN_PROC_BROWSER_TEST_F(TahaiGuardEngineBrowserTest,
                        TahaiOpaqueSourceStillChecksGeneralNetworkRules) {

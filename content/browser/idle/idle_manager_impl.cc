@@ -96,7 +96,7 @@ void IdleManagerImpl::AddMonitor(
 bool IdleManagerImpl::HasPermission() {
   PermissionController* permission_controller =
       render_frame_host_->GetBrowserContext()->GetPermissionController();
-  CHECK(permission_controller, base::NotFatalUntil::M159);
+  DCHECK(permission_controller);
   PermissionStatus status =
       permission_controller->GetPermissionStatusForCurrentDocument(
           content::PermissionDescriptorUtil::

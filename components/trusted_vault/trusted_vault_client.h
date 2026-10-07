@@ -41,7 +41,7 @@ enum class TrustedVaultUserActionTriggerForUMA {
   kPasswordManagerErrorMessage = 4,
   // Used on iOS only, from the account menu.
   kAccountMenu = 5,
-  // From the Password Manager Settings (used on iOS and Desktop).
+  // From the Password Manager Settings (currently used only on iOS).
   kPasswordManagerSettings = 6,
   // From the passwords keyboard accessory (only used on Android).
   kPasswordManagerKeyboardAccessory = 7,
@@ -51,9 +51,7 @@ enum class TrustedVaultUserActionTriggerForUMA {
   kPasskeyBootstrappingFlow = 9,
   // From the password save prompt (used on iOS and Desktop).
   kPasswordSavePrompt = 10,
-  // From the passkey unlock promo card in Password Manager (Desktop).
-  kGpmSettingsPasskeyPromoCard = 11,
-  kMaxValue = kGpmSettingsPasskeyPromoCard
+  kMaxValue = kPasswordSavePrompt
 };
 // LINT.ThenChange(/tools/metrics/histograms/metadata/sync/enums.xml:TrustedVaultUserActionTrigger)
 

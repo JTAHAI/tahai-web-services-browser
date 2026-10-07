@@ -3,6 +3,7 @@
 // found in the LICENSE file.
 
 #include "build/build_config.h"
+#include "chromeos/ash/components/mojo_proxy/mojo_core/core/embedder/embedder.h"
 #include "chromeos/ash/components/mojo_proxy/mojo_core/core/test/mojo_test_base.h"
 #include "chromeos/ash/components/mojo_proxy/mojo_core/public/c/system/buffer.h"
 #include "chromeos/ash/components/mojo_proxy/mojo_core/public/c/system/data_pipe.h"
@@ -152,6 +153,10 @@ TEST_F(SignalsTest, LocalPeers) {
 #if !BUILDFLAG(IS_IOS)
 
 TEST_F(SignalsTest, RemotePeers) {
+  if (IsMojoIpczEnabled()) {
+    GTEST_SKIP() << "Peer remoteness tracking is not implemented by MojoIpcz.";
+  }
+
   MojoHandleSignalsState state = {0, 0};
   MojoHandle a, b;
   CreateMessagePipe(&a, &b);

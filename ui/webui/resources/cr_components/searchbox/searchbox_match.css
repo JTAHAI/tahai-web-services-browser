@@ -219,27 +219,27 @@
   padding-inline-end: 4px;
 }
 
-:host([is-two-row-suggestion]) #text-container {
+:host([is-rich-suggestion]) #text-container {
   align-items: flex-start;
   flex-direction: column;
 }
 
-:host([is-two-row-suggestion]) #separator {
+:host([is-rich-suggestion]) #separator {
   display: none;
 }
 
-:host([is-two-row-suggestion]) #contents,
-:host([is-two-row-suggestion]) #description {
+:host([is-rich-suggestion]) #contents,
+:host([is-rich-suggestion]) #description {
   width: 100%;
 }
 
-/* Deemphasizes description for two-row suggestions. */
-:host([is-two-row-suggestion]) #description {
+/* Deemphasizes description for rich suggestions. */
+:host([is-rich-suggestion]) #description {
   font-size: .875em;
 }
 
-:host([is-contextual-suggestion_]:not([show-contextual-description])) #description,
-:host([is-contextual-suggestion_]:not([show-contextual-description])) #separator {
+:host([is-contextual-suggestion_]) #description,
+:host([is-contextual-suggestion_]) #separator {
   display: none;
 }
 
@@ -304,10 +304,8 @@
       var(--color-searchbox-results-button-selected-hover);
 }
 
-:host-context(.vertical) .container:hover #remove:not([hidden]),
-:host-context(cr-searchbox-match[selected]):host-context(.vertical) #remove:not([hidden]),
-#remove:focus-visible:not([hidden]),
-#remove.selected:not([hidden]) {
+:host-context(.vertical) .container:hover #remove,
+:host-context(cr-searchbox-match:-webkit-any(:focus-within, [selected])):host-context(.vertical) #remove {
   display: inline-flex;
 }
 

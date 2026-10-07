@@ -39,9 +39,9 @@ export const SelectMixin = dedupingMixin(
           return ['optionsChanged(options.*)'];
         }
 
-        declare disabled: boolean;
-        declare options: U[];
-        declare selectedOption: string;
+        disabled: boolean;
+        options: U[];
+        selectedOption: string;
 
         abstract getOptionAtIndex(index: number): string;
         abstract isDefaultOption(option: U): boolean;

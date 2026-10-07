@@ -1165,6 +1165,7 @@ absl_cc_test(
     absl::endian
     absl::fixed_array
     absl::function_ref
+    absl::hardening
     absl::hash
     absl::hash_testing
     absl::no_destructor

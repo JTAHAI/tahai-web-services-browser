@@ -48,10 +48,7 @@ enum class AutofillOptionsReferrer {
   // Personal context ambient autofill notice.
   kPersonalContextAmbientAutofillNotice = 10,
 
-  // Settings search in Chrome settings.
-  kSettingsSearch = 11,
-
-  kMaxValue = kSettingsSearch,
+  kMaxValue = kPersonalContextAmbientAutofillNotice,
 };
 // LINT.ThenChange(//tools/metrics/histograms/metadata/autofill/enums.xml:AutofillOptionsReferrer)
 
@@ -75,7 +72,7 @@ void ShowAutofillPersonalContextSettings(content::WebContents* web_contents,
                                          AutofillOptionsReferrer referrer);
 
 // Open the autofill settings page.
-void ShowAutofillSettingsPage(content::WebContents* web_contents);
+void ShowAutofillSettings(content::WebContents* web_contents);
 
 }  // namespace autofill
 

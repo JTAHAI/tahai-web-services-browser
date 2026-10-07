@@ -46,10 +46,8 @@ export function getHtml(this: WebuiBrowserSearchboxElement) {
         <cr-searchbox-dropdown id="matches" part="searchbox-dropdown"
             exportparts="dropdown-content"
             role="listbox" .result="${this.result}"
-            .selection="${this.selection}"
-            @selection-changed="${this.onSelectionChanged}"
-        selected-match-index="${this.selectedMatchIndex}"
-        @selected-match-index-changed="${this.onSelectedMatchIndexChanged}"
+            .selectedMatchIndex="${this.selectedMatchIndex}"
+            @selected-match-index-changed="${this.onSelectedMatchIndexChanged}"
             @match-focusin="${this.onMatchFocusin}"
             @match-click="${this.onMatchClick}"
             ?hidden="${!this.dropdownIsVisible}">

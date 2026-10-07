@@ -395,9 +395,9 @@ public class AutofillProvider {
         // Check index inside short value?
         if (mRequest == null) return;
 
-        short shortIndex = (short) index;
+        short sIndex = (short) index;
         FocusField focusField = mRequest.getFocusField();
-        if (focusField == null || shortIndex != focusField.fieldIndex) {
+        if (focusField == null || sIndex != focusField.fieldIndex) {
             onFocusChangedImpl(true, index, x, y, width, height, /* causedByValueChange= */ true);
         } else {
             // Currently there is no api to notify both value and position
@@ -413,8 +413,7 @@ public class AutofillProvider {
             }
         }
         notifyVirtualValueChanged(index, /* forceNotify= */ false);
-        mAutofillUMA.onUserChangeFieldValue(
-                mRequest.getField(shortIndex).hasPreviouslyAutofilled());
+        mAutofillUMA.onUserChangeFieldValue(mRequest.getField(sIndex).hasPreviouslyAutofilled());
     }
 
     /**
@@ -449,8 +448,8 @@ public class AutofillProvider {
     public void onTextFieldDidScroll(int index, float x, float y, float width, float height) {
         if (mRequest == null) return;
 
-        short shortIndex = (short) index;
-        FormFieldData fieldData = mRequest.getField(shortIndex);
+        short sIndex = (short) index;
+        FormFieldData fieldData = mRequest.getField(sIndex);
         if (fieldData != null) fieldData.updateBounds(new RectF(x, y, x + width, y + height));
     }
 
@@ -695,8 +694,8 @@ public class AutofillProvider {
                                     }
 
                                     @Override
-                                    public void suggestionAccepted(int listIndex) {
-                                        onSuggestionAccepted(
+                                    public void suggestionSelected(int listIndex) {
+                                        onSuggestionSelected(
                                                 mDatalistSuggestions[listIndex].getLabel());
                                     }
 
@@ -728,7 +727,7 @@ public class AutofillProvider {
         mAnchorView = null;
     }
 
-    private void onSuggestionAccepted(String value) {
+    private void onSuggestionSelected(String value) {
         if (mNativeAutofillProvider != 0) {
             acceptDataListSuggestion(mNativeAutofillProvider, value);
         }
@@ -954,8 +953,7 @@ public class AutofillProvider {
     }
 
     @NativeMethods
-    @VisibleForTesting
-    public interface Natives {
+    interface Natives {
         void init(AutofillProvider caller, WebContents webContents);
 
         void detachFromJavaAutofillProvider(long nativeAndroidAutofillProviderBridgeImpl);

@@ -404,9 +404,8 @@ class DropShadowSource : public ImageSkiaSource {
       return image_rep;
 
     ShadowValues shadows_in_pixel;
-    for (const auto& i : shadows_in_dip_) {
-      shadows_in_pixel.push_back(i.Scale(scale));
-    }
+    for (size_t i = 0; i < shadows_in_dip_.size(); ++i)
+      shadows_in_pixel.push_back(shadows_in_dip_[i].Scale(scale));
 
     const SkBitmap shadow_bitmap = SkBitmapOperations::CreateDropShadow(
         image_rep.GetBitmap(), shadows_in_pixel);

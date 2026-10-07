@@ -18,7 +18,6 @@
 #include <vector>
 
 #include "base/compiler_specific.h"
-#include "base/containers/flat_map.h"
 #include "base/containers/span.h"
 #include "base/i18n/internal/bcp47_known_subtags.h"
 #include "base/strings/string_split.h"
@@ -117,16 +116,21 @@ constexpr bool IsPrivateUseSubtag(std::string_view subtag) {
 // singleton, this is not allowed by the BCP47 standard.
 // - Empty extension: if the singleton is not followed by any valid extension
 // subtag. This is also not allowed by the standard.
-constexpr std::optional<base::flat_map<char, std::vector<std::string_view>>>
+constexpr std::optional<
+    std::vector<std::pair<char, std::vector<std::string_view>>>>
 ParseBcp47Extensions(base::span<const std::string_view>& subtags) {
-  base::flat_map<char, std::vector<std::string_view>> result;
+  std::vector<std::pair<char, std::vector<std::string_view>>> result;
+  std::vector<char> seen_singletons;
   while (!subtags.empty() && IsExtensionSingleton(subtags.front())) {
     char singleton = base::ToLowerASCII(subtags.take_first_elem().front());
     // There cannot be two extensions with the same singleton in a language tag.
-    if (result.contains(singleton)) {
+    if (std::ranges::find(seen_singletons, singleton) !=
+        seen_singletons.end()) {
       return std::nullopt;
     }
 
+    // Takes only the first char in `singleton` with .front().
+    seen_singletons.push_back(singleton);
     std::vector<std::string_view> extension_subtags;
     while (!subtags.empty() && IsExtensionSubtag(subtags.front())) {
       extension_subtags.push_back(subtags.take_first_elem());
@@ -137,7 +141,7 @@ ParseBcp47Extensions(base::span<const std::string_view>& subtags) {
     if (extension_subtags.empty()) {
       return std::nullopt;
     }
-    result[singleton] = std::move(extension_subtags);
+    result.emplace_back(singleton, std::move(extension_subtags));
   }
 
   return result;
@@ -180,16 +184,13 @@ struct ParsedBcp47Tag {
   // See the comments in `IsVariantSubtag`.
   std::vector<std::string_view> variants;
   // See the comments in `IsExtensionSingleton` and `IsExtensionSubtag`.
-  base::flat_map<char, std::vector<std::string_view>> extensions;
+  std::vector<std::pair<char, std::vector<std::string_view>>> extensions;
   // See the comments in `IsPrivateUseSubtag`.
   std::vector<std::string_view> private_use;
 };
 
 // Returns true if all subtags in `parsed_tag` are known in Chromium.
 constexpr bool AreSubtagsKnown(const ParsedBcp47Tag& parsed_tag) {
-  if (!parsed_tag.extensions.empty()) {
-    return false;
-  }
   if (!IsKnownLanguageSubtag(parsed_tag.language)) {
     return false;
   }
@@ -226,7 +227,7 @@ constexpr std::optional<ParsedBcp47Tag> ParseBcp47Tag(
     parsed_tag.variants.push_back(subtags.take_first_elem());
   }
 
-  std::optional<base::flat_map<char, std::vector<std::string_view>>>
+  std::optional<std::vector<std::pair<char, std::vector<std::string_view>>>>
       extensions = ParseBcp47Extensions(subtags);
   if (!extensions.has_value()) {
     return std::nullopt;

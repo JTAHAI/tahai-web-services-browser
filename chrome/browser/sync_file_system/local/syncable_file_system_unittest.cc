@@ -40,7 +40,7 @@ class SyncableFileSystemTest : public testing::Test {
  public:
   SyncableFileSystemTest()
       : in_memory_env_(leveldb_chrome::NewMemEnv("SyncableFileSystemTest")),
-        file_system_(GURL("chrome-extension://example/"),
+        file_system_(GURL("http://example.com/"),
                      in_memory_env_.get(),
                      base::SingleThreadTaskRunner::GetCurrentDefault().get(),
                      base::SingleThreadTaskRunner::GetCurrentDefault().get()) {}

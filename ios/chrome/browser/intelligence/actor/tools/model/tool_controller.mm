@@ -13,7 +13,6 @@
 #import "base/not_fatal_until.h"
 #import "base/state_transitions.h"
 #import "base/strings/stringprintf.h"
-#import "base/task/bind_post_task.h"
 #import "base/task/sequenced_task_runner.h"
 #import "components/actor/core/aggregated_journal.h"
 #import "components/actor/core/journal_details_builder.h"
@@ -159,13 +158,8 @@ void ToolController::CreateToolAndValidate(const ActorToolRequest& request,
                         std::move(journal_entry));
 
   SetState(State::kValidating);
-  // Wrap the callback in base::BindPostTaskToCurrentDefault to execute it
-  // asynchronously. This prevents a Use-After-Free (UAF) crash on the active
-  // tool's call stack if executing the callback synchronously destroys this
-  // controller (and the tool).
-  active_state_->tool->Validate(
-      base::BindPostTaskToCurrentDefault(base::BindOnce(
-          &ToolController::PostValidate, weak_ptr_factory_.GetWeakPtr())));
+  active_state_->tool->Validate(base::BindOnce(&ToolController::PostValidate,
+                                               weak_ptr_factory_.GetWeakPtr()));
 }
 
 void ToolController::PostValidate(ToolExecutionResult result) {
@@ -187,9 +181,7 @@ void ToolController::PostUpdateTask(ToolExecutionResult result) {
     return;
   }
   SetState(State::kInvokable);
-  ResultCallback completion_callback =
-      std::move(active_state_->completion_callback);
-  std::move(completion_callback).Run(ToolExecutionResult::Ok());
+  std::move(active_state_->completion_callback).Run(ToolExecutionResult::Ok());
 }
 
 void ToolController::Invoke(ResultCallback result_callback) {
@@ -200,13 +192,8 @@ void ToolController::Invoke(ResultCallback result_callback) {
   // TODO(crbug.com/520098751): Call ActorTool::TimeOfUseValidation here.
 
   SetState(State::kInvoking);
-  // Wrap the callback in base::BindPostTaskToCurrentDefault to execute it
-  // asynchronously. This prevents a Use-After-Free (UAF) crash on the active
-  // tool's call stack if executing the callback synchronously destroys this
-  // controller (and the tool).
-  active_state_->tool->Execute(base::BindPostTaskToCurrentDefault(
-      base::BindOnce(&ToolController::DidFinishToolExecution,
-                     weak_ptr_factory_.GetWeakPtr())));
+  active_state_->tool->Execute(base::BindOnce(
+      &ToolController::DidFinishToolExecution, weak_ptr_factory_.GetWeakPtr()));
 }
 
 void ToolController::Cancel() {

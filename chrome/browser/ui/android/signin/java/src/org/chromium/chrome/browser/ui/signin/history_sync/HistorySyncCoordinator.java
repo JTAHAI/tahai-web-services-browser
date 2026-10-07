@@ -46,7 +46,6 @@ public class HistorySyncCoordinator {
     private @Nullable HistorySyncView mView;
     private final HistorySyncMediator mMediator;
     private boolean mUseLandscapeLayout;
-    private final boolean mIsFre;
     private @Nullable PropertyModelChangeProcessor mPropertyModelChangeProcessor;
 
     /**
@@ -60,7 +59,6 @@ public class HistorySyncCoordinator {
      *     email is non-displayable, it won't be shown regardless of this value.
      * @param shouldSignOutOnDecline Whether the user should be signed out if they decline history
      *     sync.
-     * @param isFre Whether the UI is shown in the First Run Experience.
      * @param view The view that will be controlled by the coordinator. If null, the coordinator
      *     will inflate its own view.
      */
@@ -72,12 +70,10 @@ public class HistorySyncCoordinator {
             @SigninAccessPoint int accessPoint,
             boolean showEmailInFooter,
             boolean shouldSignOutOnDecline,
-            boolean isFre,
             @Nullable HistorySyncView view) {
         mActivity = activity;
         mProfile = profile;
         mView = view;
-        mIsFre = isFre;
 
         mUseLandscapeLayout = SigninUtils.shouldShowDualPanesHorizontalLayout(activity);
         mMediator =
@@ -93,7 +89,7 @@ public class HistorySyncCoordinator {
 
         setView(view, mUseLandscapeLayout);
         RecordHistogram.recordEnumeratedHistogram(
-                "Signin.HistorySyncOptIn.Started", accessPoint, SigninAccessPoint.MAX_VALUE + 1);
+                "Signin.HistorySyncOptIn.Started", accessPoint, SigninAccessPoint.MAX_VALUE);
         SigninManager signinManager = IdentityServicesProvider.get().getSigninManager(mProfile);
         assumeNonNull(signinManager);
         IdentityManager identityManager = signinManager.getIdentityManager();
@@ -152,37 +148,28 @@ public class HistorySyncCoordinator {
         }
     }
 
-    /** Creates a view if needed and sets the view that is controlled by the coordinator. */
+    /** Creates a view if needed and and sets the view that is controlled by the coordinator. */
     public @Nullable HistorySyncView maybeRecreateView() {
         HistorySyncView view = null;
         boolean useLandscapeLayout = SigninUtils.shouldShowDualPanesHorizontalLayout(mActivity);
 
         if (getView() == null || mUseLandscapeLayout != useLandscapeLayout) {
             mUseLandscapeLayout = useLandscapeLayout;
-            view = inflateView(mActivity, mUseLandscapeLayout, mIsFre);
+            view = inflateView(mActivity, mUseLandscapeLayout);
             setView(view, mUseLandscapeLayout);
         }
 
         return view;
     }
 
-    private static HistorySyncView inflateView(
-            Activity activity, boolean useLandscapeLayout, boolean isFre) {
+    private static HistorySyncView inflateView(Activity activity, boolean useLandscapeLayout) {
         LayoutInflater inflater = LayoutInflater.from(activity);
-        boolean useCentered =
-                isFre && ChromeFeatureList.isEnabled(ChromeFeatureList.ANDROID_FRE_LAYOUT_UPDATE);
-        int layoutId;
-        if (useLandscapeLayout) {
-            layoutId =
-                    useCentered
-                            ? R.layout.history_sync_landscape_centered_view
-                            : R.layout.history_sync_landscape_view;
-        } else {
-            layoutId =
-                    useCentered
-                            ? R.layout.history_sync_portrait_centered_view
-                            : R.layout.history_sync_portrait_view;
-        }
-        return (HistorySyncView) inflater.inflate(layoutId, null, false);
+        return (HistorySyncView)
+                inflater.inflate(
+                        useLandscapeLayout
+                                ? R.layout.history_sync_landscape_view
+                                : R.layout.history_sync_portrait_view,
+                        null,
+                        false);
     }
 }

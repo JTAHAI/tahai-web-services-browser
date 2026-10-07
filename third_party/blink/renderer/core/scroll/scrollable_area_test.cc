@@ -362,7 +362,6 @@ TEST_F(ScrollableAreaOverscrollTest, ScrollableAreaTraversalVisitsContainer) {
       <div id="menu" overscrollarea></div>
       <div id="content"></div>
     </div>
-    <button command="toggle-overscroll" commandfor="menu"></button>
   )HTML");
   UpdateAllLifecyclePhasesForTest();
 

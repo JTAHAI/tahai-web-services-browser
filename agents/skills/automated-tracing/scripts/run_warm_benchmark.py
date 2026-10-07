@@ -29,9 +29,8 @@ def run_cmd(cmd):
 
 def is_package_installed(device, package):
     cmd = ["adb", "-s", device, "shell", "pm", "list", "packages", package]
-    output = subprocess.run(
-        cmd, capture_output=True, text=True, check=False
-    ).stdout
+    output = subprocess.run(cmd, capture_output=True, text=True,
+                            check=False).stdout
     for line in output.splitlines():
         if line.strip() == f"package:{package}":
             return True
@@ -61,8 +60,7 @@ def infer_package_name(browser_executable):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Run warm Telemetry benchmark."
-    )
+        description="Run warm Telemetry benchmark.")
     parser.add_argument("--benchmark", required=True, help="Benchmark name.")
     parser.add_argument("--story", required=True, help="Story name.")
     parser.add_argument(
@@ -71,9 +69,9 @@ def main():
         help="Path to browser APK or desktop binary.",
     )
     parser.add_argument("--device", help="Device serial (Android only).")
-    parser.add_argument(
-        "--output-dir", required=True, help="Final benchmark output directory."
-    )
+    parser.add_argument("--output-dir",
+                        required=True,
+                        help="Final benchmark output directory.")
     parser.add_argument(
         "--delete-state",
         action="store_true",
@@ -91,9 +89,8 @@ def main():
     # Define temporary paths in out/ directory
     temp_raw_dir = f"out/warmup_raw_profile_{profile_suffix}"
     temp_warmed_dir = f"out/warmed_profile_{profile_suffix}"
-    temp_output_dir = os.path.join(
-        os.path.dirname(args.output_dir), f"warmup_output_{profile_suffix}"
-    )
+    temp_output_dir = os.path.join(os.path.dirname(args.output_dir),
+                                   f"warmup_output_{profile_suffix}")
 
     # Find path to migrate_profile.py relative to this script
     script_dir = os.path.dirname(os.path.realpath(__file__))
@@ -172,7 +169,8 @@ def main():
                 f"--output-dir={temp_output_dir}",
                 "--pageset-repeat=1",
             ] + extra_args
-            if sys.platform.startswith("linux") and "DISPLAY" not in os.environ:
+            if sys.platform.startswith(
+                    "linux") and "DISPLAY" not in os.environ:
                 print("DISPLAY not set, wrapping with xvfb.py...")
                 warmup_cmd = ["python3", "testing/xvfb.py"] + warmup_cmd
             run_cmd(warmup_cmd)
@@ -205,15 +203,14 @@ def main():
                 "--pageset-repeat=1",
             ]
             run_cmd_args.extend(extra_args)
-            if sys.platform.startswith("linux") and "DISPLAY" not in os.environ:
+            if sys.platform.startswith(
+                    "linux") and "DISPLAY" not in os.environ:
                 print("DISPLAY not set, wrapping with xvfb.py...")
                 run_cmd_args = ["python3", "testing/xvfb.py"] + run_cmd_args
             run_cmd(run_cmd_args)
 
-        print(
-            "Warm benchmark execution completed! Results saved to"
-            f" {args.output_dir}"
-        )
+        print("Warm benchmark execution completed! Results saved to"
+              f" {args.output_dir}")
 
     # Cleanup temporary directories
     finally:

@@ -27,7 +27,6 @@ namespace tahai { class SurfaceResizeArea; }
 #include "components/split_tabs/split_tab_visual_data.h"
 #include "ui/base/interaction/element_identifier.h"
 #include "ui/base/metadata/metadata_header_macros.h"
-#include "ui/gfx/geometry/rounded_corners_f.h"
 #include "ui/views/controls/resize_area_delegate.h"
 #include "ui/views/layout/proposed_layout.h"
 #include "ui/views/view.h"
@@ -77,9 +76,6 @@ class MultiContentsView
 
   static constexpr int kSplitViewContentInset = 8;
   static constexpr int kMaxContentsViews = 4;
-  static constexpr float kSplitViewContentCornerRadius = 6;
-  static constexpr gfx::RoundedCornersF kSplitViewContentRoundedCorners{
-      kSplitViewContentCornerRadius};
 
   MultiContentsView(BrowserView* browser_view,
                     std::unique_ptr<MultiContentsViewDelegate> delegate);

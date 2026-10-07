@@ -60,6 +60,10 @@ class MockCampaignsManagerClient : public CampaignsManagerClient {
               WouldTriggerHelpUI,
               ((const std::map<std::string, std::string>& params)),
               (override));
+  MOCK_METHOD(signin::IdentityManager*,
+              GetIdentityManager,
+              (),
+              (const, override));
   MOCK_METHOD(void,
               RecordImpressionEvents,
               (int campaign_id, std::optional<int> group_id),

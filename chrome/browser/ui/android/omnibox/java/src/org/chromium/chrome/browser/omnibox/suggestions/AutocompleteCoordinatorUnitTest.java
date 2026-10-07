@@ -41,7 +41,7 @@ import java.util.function.Supplier;
 /** Unit tests for {@link AutocompleteCoordinator}. */
 @RunWith(BaseRobolectricTestRunner.class)
 public class AutocompleteCoordinatorUnitTest {
-    @Rule public final MockitoRule mMockitoRule = MockitoJUnit.rule();
+    public @Rule MockitoRule mMockitoRule = MockitoJUnit.rule();
 
     private AutocompleteCoordinator mAutocompleteCoordinator;
     private final MonotonicObservableSupplier<Profile> mProfileObservableSupplier =
@@ -79,9 +79,6 @@ public class AutocompleteCoordinatorUnitTest {
     public void testHandleKeyEvent() {
         // Suggestions are shown.
         doReturn(true).when(mSuggestionsContainer).isShown();
-        doReturn(true)
-                .when(mSuggestionsContainer)
-                .onKeyDown(eq(KeyEvent.KEYCODE_TAB), any(KeyEvent.class));
 
         // Tab navigation is handled.
         assertTrue(sendKeyDownEvent(KeyEvent.KEYCODE_TAB, 0));

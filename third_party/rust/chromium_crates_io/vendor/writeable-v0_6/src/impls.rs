@@ -113,7 +113,22 @@ impl Writeable for str {
 }
 
 #[cfg(feature = "alloc")]
-crate::impl_writeable_delegate!(String, |&self| self.as_str());
+impl Writeable for String {
+    #[inline]
+    fn write_to<W: fmt::Write + ?Sized>(&self, sink: &mut W) -> fmt::Result {
+        sink.write_str(self)
+    }
+
+    #[inline]
+    fn writeable_length_hint(&self) -> LengthHint {
+        LengthHint::exact(self.len())
+    }
+
+    #[inline]
+    fn writeable_borrow(&self) -> Option<&str> {
+        Some(self)
+    }
+}
 
 impl Writeable for char {
     #[inline]
@@ -135,7 +150,33 @@ impl Writeable for char {
     }
 }
 
-crate::impl_writeable_delegate!(&T, |&self| *self, #[cfg(feature = "alloc")] fn write_to_string, where T: Writeable + ?Sized);
+impl<T: Writeable + ?Sized> Writeable for &T {
+    #[inline]
+    fn write_to<W: fmt::Write + ?Sized>(&self, sink: &mut W) -> fmt::Result {
+        (*self).write_to(sink)
+    }
+
+    #[inline]
+    fn write_to_parts<W: PartsWrite + ?Sized>(&self, sink: &mut W) -> fmt::Result {
+        (*self).write_to_parts(sink)
+    }
+
+    #[inline]
+    fn writeable_length_hint(&self) -> LengthHint {
+        (*self).writeable_length_hint()
+    }
+
+    #[inline]
+    fn writeable_borrow(&self) -> Option<&str> {
+        (*self).writeable_borrow()
+    }
+
+    #[inline]
+    #[cfg(feature = "alloc")]
+    fn write_to_string(&self) -> Cow<'_, str> {
+        (*self).write_to_string()
+    }
+}
 
 #[cfg(feature = "alloc")]
 macro_rules! impl_write_smart_pointer {

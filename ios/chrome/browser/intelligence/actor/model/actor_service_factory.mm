@@ -6,7 +6,6 @@
 
 #import "ios/chrome/browser/intelligence/actor/model/actor_service.h"
 #import "ios/chrome/browser/intelligence/features/features.h"
-#import "ios/chrome/browser/shared/model/browser/browser_list_factory.h"
 #import "ios/chrome/browser/shared/model/profile/profile_ios.h"
 
 namespace actor {
@@ -25,9 +24,7 @@ ActorServiceFactory* ActorServiceFactory::GetInstance() {
 
 ActorServiceFactory::ActorServiceFactory()
     : ProfileKeyedServiceFactoryIOS("ActorService",
-                                    ProfileSelection::kNoInstanceInIncognito) {
-  DependsOn(BrowserListFactory::GetInstance());
-}
+                                    ProfileSelection::kNoInstanceInIncognito) {}
 
 ActorServiceFactory::~ActorServiceFactory() {}
 

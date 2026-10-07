@@ -23,6 +23,9 @@ class OnDeviceInternalsUIConfig
  public:
   OnDeviceInternalsUIConfig()
       : DefaultInternalWebUIConfig(chrome::kChromeUIOnDeviceInternalsHost) {}
+
+  // content::WebUIConfig:
+  bool IsWebUIEnabled(content::BrowserContext* browser_context) override;
 };
 
 // A dev UI for testing the OnDeviceModelService.

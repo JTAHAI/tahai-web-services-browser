@@ -43,7 +43,7 @@ const GetPropertyResponse& PropertyCache::Get(Atom atom) {
   CHECK(it != properties_.end());
 
   if (!it->second.response.has_value()) {
-    it->second.response = it->second.future.Peek();
+    it->second.future.DispatchNow();
   }
   CHECK(it->second.response.has_value());
 

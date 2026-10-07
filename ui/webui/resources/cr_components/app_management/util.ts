@@ -142,8 +142,9 @@ function getUserActionHistogramNameForAppType(appType: AppType): string {
 export function recordAppManagementUserAction(
     appType: AppType, userAction: AppManagementUserAction) {
   const histogram = getUserActionHistogramNameForAppType(appType);
+  const enumLength = Object.keys(AppManagementUserAction).length;
   MetricsBrowserProxy.getInstance().recordEnumerationValue(
-      histogram, userAction, AppManagementUserAction.COUNT);
+      histogram, userAction, enumLength);
 }
 
 /**

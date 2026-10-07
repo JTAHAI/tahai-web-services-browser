@@ -6,8 +6,8 @@
 #include <memory>
 
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/chrome_pages.h"
 #include "chrome/browser/ui/side_panel/side_panel_entry_key.h"
 #include "chrome/browser/ui/side_panel/side_panel_ui.h"
@@ -33,7 +33,7 @@ class AppearanceHandlerTest : public InProcessBrowserTest {
     EXPECT_TRUE(ui_test_utils::NavigateToURL(
         browser(), GURL(chrome::GetSettingsUrl(chrome::kAppearanceSubPage))));
     EXPECT_TRUE(content::WaitForLoadStop(
-        browser()->GetTabStripModel()->GetActiveWebContents()));
+        browser()->tab_strip_model()->GetActiveWebContents()));
   }
 };
 
@@ -41,13 +41,13 @@ IN_PROC_BROWSER_TEST_F(AppearanceHandlerTest,
                        OpenCustomizeChromeToolbarSection) {
   base::ListValue args;
   browser()
-      ->GetTabStripModel()
+      ->tab_strip_model()
       ->GetActiveWebContents()
       ->GetWebUI()
       ->ProcessWebUIMessage(GURL(), "openCustomizeChromeToolbarSection",
                             std::move(args));
   EXPECT_TRUE(content::WaitForLoadStop(
-      browser()->GetTabStripModel()->GetActiveWebContents()));
+      browser()->tab_strip_model()->GetActiveWebContents()));
   EXPECT_TRUE(browser()->GetFeatures().side_panel_ui()->IsSidePanelEntryShowing(
       SidePanelEntryKey(SidePanelEntryId::kCustomizeChrome)));
 }
@@ -67,7 +67,7 @@ IN_PROC_BROWSER_TEST_F(AppearanceHandlerTest, ResetPinnedToolbarActions) {
 
   base::ListValue args;
   browser()
-      ->GetTabStripModel()
+      ->tab_strip_model()
       ->GetActiveWebContents()
       ->GetWebUI()
       ->ProcessWebUIMessage(GURL(), "resetPinnedToolbarActions",

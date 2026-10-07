@@ -4,8 +4,7 @@
 
 #include "chrome/browser/ui/views/toolbar/pinned_toolbar_actions_container_layout.h"
 
-#include <ranges>
-
+#include "base/containers/adapters.h"
 #include "chrome/browser/ui/layout_constants.h"
 #include "chrome/browser/ui/views/toolbar/pinned_action_toolbar_button.h"
 #include "ui/gfx/geometry/rect.h"
@@ -79,7 +78,7 @@ PinnedToolbarActionsContainerLayout::CalculateProposedLayout(
   size_t index = host_view()->children().size() - 1;
   size_t divider_index = 0;
   int divider_width = 0;
-  for (const auto& i : std::views::reverse(host_view()->children())) {
+  for (const auto& i : base::Reversed(host_view()->children())) {
     if (!IsChildIncludedInLayout(i)) {
       index--;
       continue;

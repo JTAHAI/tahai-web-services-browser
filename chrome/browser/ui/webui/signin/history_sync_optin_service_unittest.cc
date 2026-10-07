@@ -177,7 +177,7 @@ class HistorySyncOptinServiceTestBase : public testing::Test {
   }
 
   AccountInfo MakePrimaryAccountAvailable(
-      std::string_view email,
+      std::string email,
       IdentityTestEnvironmentProfileAdaptor* identity_test_env_adaptor,
       bool with_managed_account_info_available,
       std::optional<signin_metrics::AccessPoint> access_point = std::nullopt) {
@@ -386,18 +386,17 @@ TEST_P(HistorySyncOptinServiceTest,
       .WillOnce([&](const CoreAccountId&, signin_metrics::AccessPoint,
                     base::OnceCallback<void(Profile*, bool)> callback) {
         // Sign the user in to the new managed profile.
-        MakePrimaryAccountAvailable(original_managed_account_info.GetEmail(),
+        MakePrimaryAccountAvailable(original_managed_account_info.email,
                                     &new_profile_adaptor,
                                     IsManagedAccountInfoAvailableInAdvance());
         signin::AccountsMutator* account_mutator =
             identity_test_env_adaptor_->identity_test_env()
                 ->identity_manager()
                 ->GetAccountsMutator();
-        account_mutator->MoveAccount(
-            new_profile_adaptor.identity_test_env()
-                ->identity_manager()
-                ->GetAccountsMutator(),
-            original_managed_account_info.GetAccountId());
+        account_mutator->MoveAccount(new_profile_adaptor.identity_test_env()
+                                         ->identity_manager()
+                                         ->GetAccountsMutator(),
+                                     original_managed_account_info.account_id);
 
         CHECK(!identity_test_env_adaptor_->identity_test_env()
                    ->identity_manager()
@@ -654,10 +653,10 @@ TEST_P(HistorySyncOptinServiceTest,
   AccountInfo original_managed_account_info = MakePrimaryAccountAvailable(
       kManagedEmail, &new_profile_adaptor, with_managed_account_info_available);
   disclaimer_service->EnsureManagedProfileForAccount(
-      original_managed_account_info.GetAccountId(),
+      original_managed_account_info.account_id,
       signin_metrics::AccessPoint::kSettings, base::DoNothing());
   ASSERT_EQ(disclaimer_service->GetAccountBeingConsideredForManagementIfAny(),
-            original_managed_account_info.GetAccountId());
+            original_managed_account_info.account_id);
 
   // Make the second managed account available.
   AccountInfo other_account_info =
@@ -672,7 +671,7 @@ TEST_P(HistorySyncOptinServiceTest,
   // The disclaimer service still sees the first account as the candidate for
   // management.
   ASSERT_EQ(disclaimer_service->GetAccountBeingConsideredForManagementIfAny(),
-            original_managed_account_info.GetAccountId());
+            original_managed_account_info.account_id);
 
   auto* history_sync_optin_service =
       HistorySyncOptinServiceFactory::GetForProfile(new_managed_profile);

@@ -25,7 +25,10 @@ class AISearchTaskInfo : public TaskInfo {
   std::string GetTaskDescription() const override {
     return "Ask anything and get the best of the web";
   }
-  Symbol GetIconSymbol() const override { return SymbolMagnifyingglassSpark; }
+  std::string GetIconSymbolName() const override {
+    return base::SysNSStringToUTF8(kMagnifyingglassSparkSymbol);
+  }
+  bool IsCustomSymbol() const override { return true; }
   LevelUpTaskCategory GetCategory() const override {
     return LevelUpTaskCategory::kSearch;
   }
@@ -36,12 +39,11 @@ class AISearchTaskInfo : public TaskInfo {
     return l10n_util::GetStringUTF8(IDS_IOS_LEVEL_UP_TASK_COMPLETED_AI_SEARCH);
   }
   TaskInfo::NavigationAction GetNavigationAction() const override {
-    return base::BindRepeating(
-        ^(CommandDispatcher* dispatcher, Browser* browser) {
-          id<NewTabPageCommands> handler =
-              HandlerForProtocol(dispatcher, NewTabPageCommands);
-          [handler presentAIModeBubble];
-        });
+    return base::BindRepeating(^(CommandDispatcher* dispatcher) {
+      id<NewTabPageCommands> handler =
+          HandlerForProtocol(dispatcher, NewTabPageCommands);
+      [handler presentAIModeBubble];
+    });
   }
 };
 

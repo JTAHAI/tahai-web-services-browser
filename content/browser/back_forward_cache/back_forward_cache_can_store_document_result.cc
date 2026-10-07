@@ -210,15 +210,6 @@ ProtoEnum::BackForwardCacheNotRestoredReason NotRestoredReasonToTraceEnum(
       return ProtoEnum::WEB_LOCKS_CONTENTION;
     case Reason::kForwardCacheDisabled:
       return ProtoEnum::FORWARD_CACHE_DISABLED;
-    case Reason::kRfhEnforceInsecureNavigationsSet:
-      return ProtoEnum::RFH_ENFORCE_INSECURE_NAVIGATIONS_SET;
-    case Reason::kRfhEnforceInsecureRequestPolicy:
-      return ProtoEnum::RFH_ENFORCE_INSECURE_REQUEST_POLICY;
-    case Reason::kRfhHadStickyUserActivationBeforeNavigationChanged:
-      return ProtoEnum::
-          RFH_HAD_STICKY_USER_ACTIVATION_BEFORE_NAVIGATION_CHANGED;
-    case Reason::kRfhUpdateIsAdFrame:
-      return ProtoEnum::RFH_UPDATE_IS_AD_FRAME;
   }
   NOTREACHED();
 }
@@ -485,14 +476,6 @@ std::string BackForwardCacheCanStoreDocumentResult::NotRestoredReasonToString(
       return "Pages with web locks in bfcache encountered a lock contention";
     case Reason::kForwardCacheDisabled:
       return "Forward cache is disabled";
-    case Reason::kRfhEnforceInsecureNavigationsSet:
-      return "Rfh: EnforceInsecureNavigationsSet";
-    case Reason::kRfhEnforceInsecureRequestPolicy:
-      return "Rfh: EnforceInsecureRequestPolicy";
-    case Reason::kRfhHadStickyUserActivationBeforeNavigationChanged:
-      return "Rfh: HadStickyUserActivationBeforeNavigationChanged";
-    case Reason::kRfhUpdateIsAdFrame:
-      return "Rfh: UpdateIsAdFrame";
   }
 }
 
@@ -620,10 +603,6 @@ BackForwardCacheCanStoreDocumentResult::NotRestoredReasonToReportString(
     case Reason::kWebViewSafeBrowsingAllowlistChanged:
     case Reason::kWebViewDocumentStartJavascriptChanged:
     case Reason::kForwardCacheDisabled:
-    case Reason::kRfhEnforceInsecureNavigationsSet:
-    case Reason::kRfhEnforceInsecureRequestPolicy:
-    case Reason::kRfhHadStickyUserActivationBeforeNavigationChanged:
-    case Reason::kRfhUpdateIsAdFrame:
     case Reason::kUnknown:
       return "masked";
   }

@@ -20,6 +20,12 @@
   --immersive-menu-font-weight: 400;
 }
 
+:host #appFlexParent {
+  flex: 1;
+  height: auto;
+  min-height: 0;
+}
+
 #lineFocus {
   position: absolute;
   top: var(--line-focus-y);
@@ -56,6 +62,7 @@
   height: 100%;
   margin: 0 8px;
   margin-bottom: var(--sp-card-block-padding);
+  min-width: var(--container-min-width);
   overflow: auto;
   padding: 20px;
 }
@@ -81,11 +88,9 @@
 
 #appFlexParent {
   display: flex;
-  flex: 1;
   flex-direction: column;
-  height: auto;
-  min-height: 0;
-  overflow-x: hidden;
+  height: 100%;
+  overflow-x: var(--app-overflow-x);
   width: 100%;
 }
 
@@ -100,6 +105,7 @@
   height: 100%;
   margin-bottom: var(--sp-card-block-padding);
   min-height: 0;
+  min-width: var(--container-min-width);
   padding-top: 2px;
   padding-left: var(--sp-card-block-padding);
   padding-right: var(--sp-card-block-padding);
@@ -325,22 +331,6 @@
 /* Remove the starting border from the first column of each row. */
 #appFlexParent tr > :is(th, td):first-child {
   border-inline-start: none;
-}
-
-/* Ensure text in <pre> preformatted tags (which can be distilled with
- * Readability) wraps to fill the reading mode panel, instead of extending
- * through a horizontal scrollbar. Also extend the font-family to ensure
- * the reading mode preferred font is honored, even if the text
- * was preformatted.
- * The use of <pre> tags in this way is technically invalid HTML, but it does
- * exist on some sites where people might want to use reading mode (such as
- * Wattpad).
- * In the future, this may need to be adjusted to support both incorrect <pre>
- * tag usage and code blocks / math. */
-#appFlexParent pre {
-  white-space: pre-wrap;
-  overflow-wrap: break-word;
-  font-family: inherit;
 }
 
 #docs-load-more-button {

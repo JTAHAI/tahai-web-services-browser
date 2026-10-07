@@ -46,7 +46,6 @@ struct WebWindowFeatures {
   bool height_set = false;
 
   bool is_popup = false;
-  bool always_on_top = false;
 
   // The members above this line are transferred through mojo
   // in the form of |struct WindowFeatures| defined in window_features.mojom,

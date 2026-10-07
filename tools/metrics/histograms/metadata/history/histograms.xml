@@ -41,15 +41,6 @@ chromium-metrics-reviews@google.com.
                and on scroll"/>
 </variants>
 
-<variants name="HasCriticalActions">
-  <variant name="WithCriticalActions"
-      summary="results contained agent visits and critical actions were
-               queried from the database"/>
-  <variant name="WithoutCriticalActions"
-      summary="results contained no agent visits or the critical actions
-               feature is disabled"/>
-</variants>
-
 <variants name="PassagePriority">
   <variant name="" summary="aggregated across all priorities"/>
   <variant name=".Latent" summary="Latent priority"/>
@@ -151,7 +142,7 @@ chromium-metrics-reviews@google.com.
 </histogram>
 
 <histogram name="History.ClearBrowsingData.Duration.ChromeTask.{Task}"
-    units="ms" expires_after="2027-02-07">
+    units="ms" expires_after="2026-11-29">
   <owner>dullweber@chromium.org</owner>
   <owner>msramek@chromium.org</owner>
   <component>1456716</component>
@@ -278,7 +269,7 @@ chromium-metrics-reviews@google.com.
 </histogram>
 
 <histogram name="History.ClearBrowsingData.Duration.Task.{Task}" units="ms"
-    expires_after="2027-02-07">
+    expires_after="2026-11-29">
   <owner>dullweber@chromium.org</owner>
   <owner>msramek@chromium.org</owner>
   <component>1456716</component>
@@ -291,7 +282,6 @@ chromium-metrics-reviews@google.com.
     <variant name="AuthCache" summary="AuthCache"/>
     <variant name="ChannelIds" summary="ChannelIds"/>
     <variant name="CodeCaches" summary="CodeCaches"/>
-    <variant name="Downloads" summary="Downloads"/>
     <variant name="EmbedderData" summary="EmbedderData"/>
     <variant name="HttpAndMediaCaches" summary="HttpAndMediaCaches"/>
     <variant name="HttpCache" summary="HttpCache"/>
@@ -322,6 +312,18 @@ chromium-metrics-reviews@google.com.
     The time that passed while performing a browsing data deletion for a
     restricted amount of time (e.g. &quot;Last hour&quot;) without an origin
     filter.
+  </summary>
+</histogram>
+
+<histogram name="History.ClearBrowsingData.FailedTasksChrome"
+    enum="ChromeBrowsingDataRemoverTasks" expires_after="2022-09-25">
+  <owner>dullweber@chromium.org</owner>
+  <owner>msramek@chromium.org</owner>
+  <component>1456716</component>
+  <summary>
+    Records tasks from ChromeBrowsingDataRemoverDelegate that did not complete
+    successfully, i.e. where some data that was supposed to be deleted was left
+    behind.
   </summary>
 </histogram>
 
@@ -1362,7 +1364,7 @@ chromium-metrics-reviews@google.com.
 </histogram>
 
 <histogram name="History.DomainCount28Day_V3" units="domains"
-    expires_after="2027-02-07">
+    expires_after="2026-11-29">
   <owner>mpearson@chromium.org</owner>
   <owner>mjzhang@chromium.org</owner>
   <owner>chrome-analysis-team@google.com</owner>
@@ -1403,7 +1405,7 @@ chromium-metrics-reviews@google.com.
 </histogram>
 
 <histogram name="History.DomainCount28Day_V4" units="domains"
-    expires_after="2027-02-07">
+    expires_after="2026-11-29">
   <owner>mpearson@chromium.org</owner>
   <owner>mjzhang@chromium.org</owner>
   <owner>chrome-analysis-team@google.com</owner>
@@ -1440,7 +1442,7 @@ chromium-metrics-reviews@google.com.
 </histogram>
 
 <histogram name="History.DomainCount7Day_V3" units="domains"
-    expires_after="2027-02-07">
+    expires_after="2026-11-29">
   <owner>mpearson@chromium.org</owner>
   <owner>mjzhang@chromium.org</owner>
   <owner>chrome-analysis-team@google.com</owner>
@@ -1481,7 +1483,7 @@ chromium-metrics-reviews@google.com.
 </histogram>
 
 <histogram name="History.DomainCount7Day_V4" units="domains"
-    expires_after="2027-02-07">
+    expires_after="2026-11-29">
   <owner>mpearson@chromium.org</owner>
   <owner>mjzhang@chromium.org</owner>
   <owner>chrome-analysis-team@google.com</owner>
@@ -1741,7 +1743,7 @@ chromium-metrics-reviews@google.com.
 </histogram>
 
 <histogram name="History.Embeddings.Embedder.EmbeddingsGenerationSucceeded"
-    enum="Boolean" expires_after="2027-02-14">
+    enum="Boolean" expires_after="2026-12-16">
   <owner>sophiechang@chromium.org</owner>
   <owner>zekunjiang@google.com</owner>
   <summary>
@@ -2361,7 +2363,7 @@ chromium-metrics-reviews@google.com.
 </histogram>
 
 <histogram name="History.ForeignVisitsTotal" units="visits"
-    expires_after="2027-02-07">
+    expires_after="2026-11-29">
   <owner>treib@chromium.org</owner>
   <component>1456716</component>
   <summary>
@@ -2372,7 +2374,7 @@ chromium-metrics-reviews@google.com.
 </histogram>
 
 <histogram name="History.HistoryPageView" enum="HistoryPageView"
-    expires_after="2027-02-07">
+    expires_after="2026-11-29">
   <owner>calamity@chromium.org</owner>
   <owner>src/chrome/browser/resources/history/OWNERS</owner>
   <component>1456716</component>
@@ -2413,7 +2415,7 @@ chromium-metrics-reviews@google.com.
 </histogram>
 
 <histogram name="History.InMemoryURLHistoryItems" units="items"
-    expires_after="2027-02-07">
+    expires_after="2026-11-29">
   <owner>mpearson@chromium.org</owner>
   <owner>chrome-omnibox-team@google.com</owner>
   <component>1456716</component>
@@ -2463,7 +2465,7 @@ chromium-metrics-reviews@google.com.
 </histogram>
 
 <histogram name="History.MonthlyHostCount" units="hosts"
-    expires_after="2027-02-07">
+    expires_after="2026-12-06">
   <owner>mpearson@chromium.org</owner>
   <owner>sky@chromium.org</owner>
   <component>1456716</component>
@@ -2475,7 +2477,7 @@ chromium-metrics-reviews@google.com.
 </histogram>
 
 <histogram name="History.MonthlyURLCount" units="urls"
-    expires_after="2027-02-07">
+    expires_after="2026-12-06">
   <owner>mpearson@chromium.org</owner>
   <owner>sky@chromium.org</owner>
   <component>1456716</component>
@@ -2531,7 +2533,7 @@ chromium-metrics-reviews@google.com.
 </histogram>
 
 <histogram name="History.QueryMostVisitedURLsTime" units="ms"
-    expires_after="2027-02-07">
+    expires_after="2026-11-29">
   <owner>mahmadi@chromium.org</owner>
   <owner>chrome-desktop-search@google.com</owner>
   <summary>
@@ -2624,7 +2626,7 @@ chromium-metrics-reviews@google.com.
 </histogram>
 
 <histogram name="History.URLRowAddedAsHidden" enum="Boolean"
-    expires_after="2027-01-24">
+    expires_after="2026-11-22">
   <owner>svend@chromium.org</owner>
   <owner>kyraseevers@chromium.org</owner>
   <summary>
@@ -2646,7 +2648,7 @@ chromium-metrics-reviews@google.com.
 </histogram>
 
 <histogram name="History.VisitAddedDueTo404" enum="Boolean"
-    expires_after="2027-01-31">
+    expires_after="2026-11-29">
   <owner>svend@chromium.org</owner>
   <owner>kyraseevers@chromium.org</owner>
   <summary>
@@ -2663,7 +2665,7 @@ chromium-metrics-reviews@google.com.
 </histogram>
 
 <histogram name="History.VisitedLinks.AdditionCausedBy404" enum="Boolean"
-    expires_after="2027-01-24">
+    expires_after="2026-11-22">
   <owner>svend@chromium.org</owner>
   <owner>kyraseevers@chromium.org</owner>
   <summary>
@@ -2762,7 +2764,7 @@ chromium-metrics-reviews@google.com.
   </summary>
 </histogram>
 
-<histogram name="History.VisitedLinks.WebView.LookupCollisionCount2"
+<histogram name="History.VisitedLinks.WebView.LookupCollisionCount"
     units="collisions" expires_after="2027-07-21">
   <owner>tiffanysong@google.com</owner>
   <owner>kyraseevers@chromium.org</owner>
@@ -2771,7 +2773,8 @@ chromium-metrics-reviews@google.com.
     using a static constant salt, meaning the database loses the natural entropy
     of Chrome's randomized salt scheme. This metric monitors if the static salt
     causes hash clustering by recording the collision count for each visited
-    link lookup. Recorded on every visited link lookup in Android WebView.
+    link lookup. Recorded on every visited link lookup in Android WebView when
+    the pseudo-partitioned database is enabled.
   </summary>
 </histogram>
 
@@ -2787,7 +2790,7 @@ chromium-metrics-reviews@google.com.
 </histogram>
 
 <histogram name="History.VisitTableCount" units="visits"
-    expires_after="2027-02-07">
+    expires_after="2026-11-29">
   <owner>mpearson@chromium.org</owner>
   <owner>sky@chromium.org</owner>
   <component>1456716</component>
@@ -2821,7 +2824,7 @@ chromium-metrics-reviews@google.com.
 </histogram>
 
 <histogram name="History.WebHistoryRequestOutcome.{RequestType}"
-    enum="WebHistoryRequestOutcome" expires_after="2027-02-07">
+    enum="WebHistoryRequestOutcome" expires_after="2026-11-29">
   <owner>treib@chromium.org</owner>
   <owner>src/components/history/OWNERS</owner>
   <component>1456716</component>
@@ -2849,7 +2852,7 @@ chromium-metrics-reviews@google.com.
 </histogram>
 
 <histogram name="History.WeeklyURLCount" units="URLs"
-    expires_after="2027-02-14">
+    expires_after="2026-12-16">
   <owner>mpearson@chromium.org</owner>
   <owner>sky@chromium.org</owner>
   <component>1456716</component>
@@ -2881,43 +2884,6 @@ chromium-metrics-reviews@google.com.
   </summary>
 </histogram>
 
-<histogram name="HistoryPage.CriticalAction.Click" enum="CriticalActionType"
-    expires_after="2026-11-01">
-  <owner>kalinino@google.com</owner>
-  <owner>polonium@google.com</owner>
-  <summary>
-    Records the category of critical action (e.g. form fill, password manager
-    login, federated login, download, or OTP) opened from the chrome://history
-    page. Recorded in WebUI when the user clicks an action linkout row under an
-    agent-annotated visit to navigate to its external management surface.
-  </summary>
-</histogram>
-
-<histogram name="HistoryPage.CriticalActionsPerVisitCount" units="actions"
-    expires_after="2026-11-01">
-  <owner>kalinino@google.com</owner>
-  <owner>polonium@google.com</owner>
-  <summary>
-    Records the total number of critical actions attached to a single
-    agent-annotated browsing history visit item on the chrome://history page.
-    Recorded for each agent-annotated visit whenever browsing history entries
-    are retrieved and prepared for display (on initial page load, search, or
-    infinite scroll).
-  </summary>
-</histogram>
-
-<histogram name="HistoryPage.CriticalActionsQueryTime" units="ms"
-    expires_after="2026-11-01">
-  <owner>kalinino@google.com</owner>
-  <owner>polonium@google.com</owner>
-  <summary>
-    Records the time (in milliseconds) taken to query and retrieve critical
-    actions from the local database for agent-annotated history visits. Recorded
-    each time chrome://history receives a batch of history results containing
-    agent visits and completes fetching their corresponding critical actions.
-  </summary>
-</histogram>
-
 <histogram name="HistoryPage.NonActorContextMenuActions"
     enum="VisitContextMenuAction" expires_after="2027-01-31">
   <owner>zalmashni@google.com</owner>
@@ -2944,20 +2910,6 @@ chromium-metrics-reviews@google.com.
     This histogram is of special interest to the chrome-analysis-team@. Do not
     change its semantics or retire it without talking to them first.
   </summary>
-</histogram>
-
-<histogram name="HistoryPage.QueryHistoryTotalTime.{HasCriticalActions}"
-    units="ms" expires_after="2026-11-01">
-  <owner>kalinino@google.com</owner>
-  <owner>polonium@google.com</owner>
-  <summary>
-    Records the total round-trip time (in milliseconds) taken to query,
-    assemble, and deliver browsing history results to the chrome://history page.
-    Recorded each time the history page requests history data (on initial page
-    load, when performing a search, or when scrolling down to load more items).
-    Recorded for queries where {HasCriticalActions}.
-  </summary>
-  <token key="HasCriticalActions" variants="HasCriticalActions"/>
 </histogram>
 
 </histograms>

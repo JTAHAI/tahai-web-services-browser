@@ -28,8 +28,7 @@
 #include "extensions/common/user_script.h"
 
 #if !BUILDFLAG(IS_ANDROID)
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
-#include "chrome/browser/ui/browser_window/public/create_browser_window.h"
+#include "chrome/browser/ui/browser.h"
 #endif
 
 static_assert(BUILDFLAG(ENABLE_EXTENSIONS_CORE));
@@ -76,8 +75,8 @@ std::unique_ptr<ExtensionInstallPrompt> CreateExtensionInstallPrompt(
       // handles having an empty ExtensionInstallPrompt.
       return nullptr;
 #else
-      browser = CreateBrowserWindow(BrowserWindowCreateParams(
-          BrowserWindowInterface::TYPE_NORMAL, profile, true));
+      browser = Browser::Create(
+          Browser::CreateParams(Browser::TYPE_NORMAL, profile, true));
 #endif
     }
     TabListInterface* tab_list = TabListInterface::From(browser);

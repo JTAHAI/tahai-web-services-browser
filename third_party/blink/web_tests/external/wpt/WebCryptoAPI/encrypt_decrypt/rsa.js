@@ -23,7 +23,7 @@ function run_test() {
             promise_test(function(test) {
                 return subtle.decrypt(vector.algorithm, vector.privateKey, vector.ciphertext)
                 .then(function(plaintext) {
-                    assert_true(equalBuffers(plaintext, vector.plaintext), "Decryption works");
+                    assert_true(equalBuffers(plaintext, vector.plaintext, "Decryption works"));
                 }, function(err) {
                     assert_unreached("Decryption should not throw error " + vector.name + ": '" + err.message + "'");
                 });
@@ -60,7 +60,7 @@ function run_test() {
                     }
                 }, vector.privateKey, ciphertext)
                 .then(function(plaintext) {
-                    assert_true(equalBuffers(plaintext, vector.plaintext), "Decryption works");
+                    assert_true(equalBuffers(plaintext, vector.plaintext, "Decryption works"));
                 }, function(err) {
                     assert_unreached("Decryption should not throw error " + vector.name + ": '" + err.message + "'");
                 });
@@ -91,7 +91,7 @@ function run_test() {
                 var ciphertext = copyBuffer(vector.ciphertext);
                 var operation = subtle.decrypt(vector.algorithm, vector.privateKey, ciphertext)
                 .then(function(plaintext) {
-                    assert_true(equalBuffers(plaintext, vector.plaintext), "Decryption works");
+                    assert_true(equalBuffers(plaintext, vector.plaintext, "Decryption works"));
                 }, function(err) {
                     assert_unreached("Decryption should not throw error " + vector.name + ": '" + err.message + "'");
                 });
@@ -160,7 +160,7 @@ function run_test() {
                 var ciphertext = copyBuffer(vector.ciphertext);
                 var operation = subtle.decrypt(vector.algorithm, vector.privateKey, ciphertext)
                 .then(function(plaintext) {
-                    assert_true(equalBuffers(plaintext, vector.plaintext), "Decryption works");
+                    assert_true(equalBuffers(plaintext, vector.plaintext, "Decryption works"));
                 }, function(err) {
                     assert_unreached("Decryption should not throw error " + vector.name + ": '" + err.message + "'");
                 });
@@ -538,7 +538,9 @@ function run_test() {
     });
 
     promise_test(function() {
-        return Promise.all(all_promises).finally(done);
+        return Promise.all(all_promises)
+            .then(function() {done();})
+            .catch(function() {done();})
     }, "setup");
 
     // A test vector has all needed fields for encryption, EXCEPT that the
@@ -550,7 +552,9 @@ function run_test() {
         var publicPromise, privatePromise;
 
         if (vector.publicKey !== null) {
-            publicPromise = Promise.resolve(vector);
+            publicPromise = new Promise(function(resolve, reject) {
+                resolve(vector);
+            });
         } else {
             publicPromise = subtle.importKey(vector.publicKeyFormat, vector.publicKeyBuffer, {name: vector.algorithm.name, hash: vector.hash}, false, publicKeyUsages)
             .then(function(key) {
@@ -560,7 +564,9 @@ function run_test() {
         }
 
         if (vector.privateKey !== null) {
-            privatePromise = Promise.resolve(vector);
+            privatePromise = new Promise(function(resolve, reject) {
+                resolve(vector);
+            });
         } else {
             privatePromise = subtle.importKey(vector.privateKeyFormat, vector.privateKeyBuffer, {name: vector.algorithm.name, hash: vector.hash}, false, privateKeyUsages)
             .then(function(key) {

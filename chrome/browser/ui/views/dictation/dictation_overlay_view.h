@@ -32,8 +32,8 @@ class Widget;
 
 namespace dictation {
 
-// Small overlay view containing a teardrop-shaped button that follows the
-// caret during an active dictation stream.
+// Small overlay view containing a rounded button that follows the caret during
+// an active dictation stream.
 class DictationOverlayView : public views::BubbleDialogDelegate {
  public:
   DictationOverlayView(gfx::NativeView parent_window,
@@ -42,9 +42,6 @@ class DictationOverlayView : public views::BubbleDialogDelegate {
 
   DictationOverlayView(const DictationOverlayView&) = delete;
   DictationOverlayView& operator=(const DictationOverlayView&) = delete;
-
-  // views::BubbleDialogDelegate:
-  void OnWidgetInitialized() override;
 
   void Show();
   void UpdatePosition(const gfx::Point& focus_selection_point);
@@ -62,12 +59,10 @@ class DictationOverlayView : public views::BubbleDialogDelegate {
  private:
   void OnFocusSelectionBoundsChanged(
       content::RenderWidgetHostView* render_widget_host_view);
-  void OnFullscreenStateChanged();
   void UpdatePosition(content::RenderFrameHost* target_rfh);
 
   base::CallbackListSubscription focus_selection_bounds_changed_subscription_;
-  base::CallbackListSubscription fullscreen_subscription_;
-  content::GlobalDOMNodeId last_target_node_id_;
+  content::WeakDocumentPtr last_target_document_;
 
   std::unique_ptr<views::Widget> widget_;
   UiState state_ = UiState::kInactive;

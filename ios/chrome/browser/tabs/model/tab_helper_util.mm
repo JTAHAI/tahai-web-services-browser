@@ -54,6 +54,7 @@
 #import "ios/chrome/browser/enterprise/connectors/device_trust/features.h"
 #import "ios/chrome/browser/enterprise/data_controls/model/data_controls_tab_helper.h"
 #import "ios/chrome/browser/enterprise/data_protection/model/data_protection_tab_helper.h"
+#import "ios/chrome/browser/enterprise/data_protection/public/features.h"
 #import "ios/chrome/browser/favicon/model/favicon_service_factory.h"
 #import "ios/chrome/browser/find_in_page/model/find_tab_helper.h"
 #import "ios/chrome/browser/history/model/history_service_factory.h"
@@ -70,8 +71,8 @@
 #import "ios/chrome/browser/infobars/model/overlays/translate_overlay_tab_helper.h"
 #import "ios/chrome/browser/intelligence/actor/model/actor_tab_helper.h"
 #import "ios/chrome/browser/intelligence/bwg/model/gemini_tab_helper.h"
-#import "ios/chrome/browser/intelligence/contextual_cueing/contextual_cueing_tab_helper.h"
 #import "ios/chrome/browser/intelligence/features/features.h"
+#import "ios/chrome/browser/intelligence/on_device_category_classifier/on_device_category_classifier_tab_helper.h"
 #import "ios/chrome/browser/itunes_urls/model/itunes_urls_handler_tab_helper.h"
 #import "ios/chrome/browser/lens/model/lens_tab_helper.h"
 #import "ios/chrome/browser/lens_overlay/model/lens_overlay_tab_helper.h"
@@ -208,7 +209,7 @@ void AttachTabHelpers(web::WebState* web_state, TabHelperFilter filter_flags) {
             [&]() { return attacher.IsOffTheRecord(); });
   attacher
       .CreateDeferredWhen<ReaderModeTabHelper>(
-          attacher.IsNotInTabHelperFilter())
+          attacher.IsNotInTabHelperFilter() && IsReaderModeAvailable())
       .WithFactory<DistillerServiceFactory>(profile);
 
   attacher.Create<security_interstitials::IOSBlockingPageTabHelper>();
@@ -232,6 +233,22 @@ void AttachTabHelpers(web::WebState* web_state, TabHelperFilter filter_flags) {
           send_tab_to_self::kSendTabToSelfPropagateScrollPosition) ||
       base::FeatureList::IsEnabled(
           send_tab_to_self::kSendTabToSelfPropagateFormFields));
+
+  SafeBrowsingClient* client =
+      SafeBrowsingClientFactory::GetForProfile(profile);
+  attacher.Create<SafeBrowsingQueryManager>(client);
+  attacher.Create<SafeBrowsingTabHelper>(client);
+  attacher.Create<SafeBrowsingUrlAllowList>();
+  attacher.Create<SafeBrowsingUnsafeResourceContainer>();
+
+  attacher.Create<TailoredSecurityTabHelper>(
+      TailoredSecurityServiceFactory::GetForProfile(profile));
+  attacher.Create<PolicyUrlBlockingTabHelper>();
+
+  // Supervised user services are not supported for off-the-record.
+  attacher.CreateWhen<SupervisedUserURLFilterTabHelper>(
+      !attacher.IsOffTheRecord());
+  attacher.CreateWhen<SupervisedUserErrorContainer>(!attacher.IsOffTheRecord());
 
   attacher.Create<ImageFetchTabHelper>();
   attacher.Create<NewTabPageTabHelper>();
@@ -278,34 +295,6 @@ void AttachTabHelpers(web::WebState* web_state, TabHelperFilter filter_flags) {
                                                !attacher.IsForPrerender());
   attacher.CreateWhen<PagePlaceholderTabHelper>(!attacher.IsForLensOverlay() &&
                                                 !attacher.IsForPrerender());
-
-  // Must be attached after `SnapshotTabHelper` because `SafeBrowsingTabHelper`
-  // instantiates `ClientSideDetectionHostIOS` during construction, which
-  // requires `SnapshotTabHelper` to already be attached to `web_state`.
-  SafeBrowsingClient* client =
-      SafeBrowsingClientFactory::GetForProfile(profile);
-  attacher.Create<SafeBrowsingQueryManager>(client);
-  attacher.Create<SafeBrowsingTabHelper>(client);
-  attacher.Create<SafeBrowsingUrlAllowList>();
-  attacher.Create<SafeBrowsingUnsafeResourceContainer>();
-
-  attacher.Create<TailoredSecurityTabHelper>(
-      TailoredSecurityServiceFactory::GetForProfile(profile));
-  attacher.Create<PolicyUrlBlockingTabHelper>();
-
-  // Supervised user services are not supported for off-the-record.
-  attacher.CreateWhen<SupervisedUserURLFilterTabHelper>(
-      !attacher.IsOffTheRecord());
-  attacher.CreateWhen<SupervisedUserErrorContainer>(!attacher.IsOffTheRecord());
-
-  // Must be attached before `AutofillTabHelper` so `ChromeAutofillClientIOS`
-  // can observe `ActorTabHelper` upon construction.
-  const bool is_actor_tab_helper_enabled =
-      IsActorEnabled() && !attacher.IsForPrerender();
-  attacher.CreateWhen<ActorTabHelper>(is_actor_tab_helper_enabled);
-  attacher.CreateWhen<IOSChromeActorLoginDelegateClient>(
-      is_actor_tab_helper_enabled);
-
   attacher.CreateWhen<PasswordTabHelper>(attacher.IsNotInTabHelperFilter());
   attacher.CreateWhen<AutofillBottomSheetTabHelper>(
       attacher.IsNotInTabHelperFilter());
@@ -377,7 +366,7 @@ void AttachTabHelpers(web::WebState* web_state, TabHelperFilter filter_flags) {
   attacher.Create<EditMenuTabHelper>();
 
   attacher.CreateWhen<MiniMapTabHelper>(
-      (IsMiniMapUniversalLinkEnabled() ||
+      (base::FeatureList::IsEnabled(kIOSMiniMapUniversalLink) ||
        base::FeatureList::IsEnabled(kIOSMiniMapUniversalLinkCounterfactual)) &&
       attacher.IsNotInTabHelperFilter());
 
@@ -397,23 +386,37 @@ void AttachTabHelpers(web::WebState* web_state, TabHelperFilter filter_flags) {
                                        !attacher.IsForPrerender() &&
                                        IsPageActionMenuEnabled());
 
+  const bool is_actor_tab_helper_enabled =
+      IsActorEnabled() && !attacher.IsForPrerender();
+  attacher.CreateWhen<ActorTabHelper>(is_actor_tab_helper_enabled);
+  attacher.CreateWhen<IOSChromeActorLoginDelegateClient>(
+      is_actor_tab_helper_enabled);
+
   attacher.Create<WebViewProxyTabHelper>();
 
-  attacher.CreateWhen<ChooseFileTabHelper>(attacher.IsNotInTabHelperFilter());
+  attacher.CreateWhen<ChooseFileTabHelper>(
+      attacher.IsNotInTabHelperFilter() &&
+      (base::FeatureList::IsEnabled(kIOSChooseFromDrive) ||
+       base::FeatureList::IsEnabled(kIOSCustomFileUploadMenu)));
   attacher.CreateWhen<LastTapLocationTabHelper>(
-      attacher.IsNotInTabHelperFilter());
+      attacher.IsNotInTabHelperFilter() &&
+      base::FeatureList::IsEnabled(kIOSCustomFileUploadMenu));
 
   if (!attacher.IsOffTheRecord() && !attacher.IsForPrerender()) {
     if (IsModelBasedPageClassificationEnabled()) {
       ios::provider::AttachClassificationMetricsTabHelper(web_state);
     }
-    attacher.CreateWhen<contextual_cueing::ContextualCueingTabHelper>(
-        IsGeminiContextualSuggestionsCuesEnabled() ||
-        IsGeminiContextualSuggestionsCuesOnDeviceClassifierEnabled());
+    // TODO(crbug.com/526992227): Add feature param to
+    // IsGeminiContextualSuggestionsCuesEnabled for on-device classifier.
+    attacher.CreateWhen<OnDeviceCategoryClassifierTabHelper>(
+        /*enabled=*/false);
   }
 
   attacher.Create<data_controls::DataControlsTabHelper>();
-  attacher.Create<DataProtectionTabHelper>();
+  if (IsEnableScreenshotProtectionIOSEnabled() ||
+      IsEnableEnterpriseWatermarkingIOS()) {
+    attacher.Create<DataProtectionTabHelper>();
+  }
   attacher.Create<CaptivePortalTabHelper>();
   attacher.Create<PrintTabHelper>();
   attacher.Create<BlockedPopupTabHelper>();

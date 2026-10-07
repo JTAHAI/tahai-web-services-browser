@@ -6,7 +6,6 @@
 #define CHROME_BROWSER_UI_WEBUI_OMNIBOX_POPUP_OMNIBOX_POPUP_UI_H_
 
 #include <memory>
-#include <utility>
 
 #include "base/memory/raw_ptr.h"
 #include "build/build_config.h"
@@ -77,14 +76,7 @@ class OmniboxPopupUI : public TopChromeWebUIController,
       mojo::PendingRemote<omnibox_popup::mojom::Page> page,
       mojo::PendingReceiver<omnibox_popup::mojom::PageHandler> receiver)
       override;
-
-  OmniboxPopupHandler* popup_handler() {
-    return const_cast<OmniboxPopupHandler*>(
-        std::as_const(*this).popup_handler());
-  }
-  const OmniboxPopupHandler* popup_handler() const {
-    return popup_handler_.get();
-  }
+  OmniboxPopupHandler* popup_handler() { return popup_handler_.get(); }
 
   // omnibox_popup_aim::mojom::PageHandlerFactory:
   void BindInterface(
@@ -108,10 +100,6 @@ class OmniboxPopupUI : public TopChromeWebUIController,
       mojo::PendingReceiver<searchbox::mojom::PageHandler>
           pending_searchbox_handler) override;
   ComposeboxHandler* composebox_handler() { return composebox_handler_.get(); }
-
-  // Returns the active ContextualSearchboxHandler (either composebox_handler_
-  // or omnibox_handler_).
-  ContextualSearchboxHandler* GetContextualSearchboxHandler();
 
   // searchbox::mojom::PageHandlerFactory:
   void CreatePageHandler(

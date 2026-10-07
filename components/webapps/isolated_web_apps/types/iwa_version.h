@@ -12,13 +12,12 @@
 #include <string_view>
 #include <vector>
 
-#include "base/component_export.h"
 #include "base/types/expected.h"
 #include "base/version.h"
 
 namespace web_app {
 
-class COMPONENT_EXPORT(ISOLATED_WEB_APPS) IwaVersion {
+class IwaVersion {
  public:
   // Enum for parsing errors
   enum class IwaVersionParseError {
@@ -58,7 +57,6 @@ class COMPONENT_EXPORT(ISOLATED_WEB_APPS) IwaVersion {
   base::Version version_;
 };
 
-COMPONENT_EXPORT(ISOLATED_WEB_APPS)
 std::ostream& operator<<(std::ostream& stream, const IwaVersion& v);
 
 }  // namespace web_app

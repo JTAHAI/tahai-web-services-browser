@@ -71,7 +71,7 @@
 #include "chrome/browser/ui/android/tab_model/tab_model_list.h"
 #else
 #include "chrome/browser/resource_coordinator/tab_lifecycle_unit_external.h"
-// nogncheck
+#include "chrome/browser/ui/browser.h"                             // nogncheck
 #include "chrome/browser/ui/navigator/browser_navigator_params.h"  // nogncheck
 #include "chrome/browser/ui/recently_audible_helper.h"             // nogncheck
 #include "chrome/browser/ui/tabs/tab_enums.h"                      // nogncheck
@@ -157,25 +157,19 @@ ExtensionTabUtil::ScrubTabBehaviorType GetScrubTabBehaviorImpl(
   bool has_permission = false;
 
   if (extension) {
-    const PermissionsData* permissions = extension->permissions_data();
-    if (extension->origin().IsSameOriginWith(url)) {
-      // Extensions always have permission to access their own origin URLs.
-      has_permission = true;
-    } else if (permissions->HasAPIPermission(APIPermissionID::kTab)) {
-      // Global "tabs" permission allows access to any URL.
-      has_permission = true;
-    } else if (tab_id != api::tabs::TAB_ID_NONE &&
-               permissions->HasAPIPermissionForTab(tab_id,
-                                                   APIPermissionID::kTab) &&
-               permissions->HasTabPermissionsForSecurityOrigin(tab_id, url)) {
-      // Tab-specific permission (e.g. activeTab) allowed, and the origin
-      // matches.
-      has_permission = true;
-    } else if (permissions->active_permissions().HasExplicitAccessToOrigin(
-                   url)) {
-      // Explicit host permission allows access.
-      has_permission = true;
+    bool api_permission = false;
+    if (tab_id == api::tabs::TAB_ID_NONE) {
+      api_permission = extension->permissions_data()->HasAPIPermission(
+          APIPermissionID::kTab);
+    } else {
+      api_permission = extension->permissions_data()->HasAPIPermissionForTab(
+          tab_id, APIPermissionID::kTab);
     }
+
+    bool host_permission = extension->permissions_data()
+                               ->active_permissions()
+                               .HasExplicitAccessToOrigin(url);
+    has_permission = api_permission || host_permission;
   }
 
   if (!has_permission) {

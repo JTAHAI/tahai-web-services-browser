@@ -16,7 +16,6 @@ import org.chromium.chrome.browser.tabmodel.TabCreator;
 import org.chromium.chrome.browser.tabmodel.TabCreator.NeedsTabModel;
 import org.chromium.chrome.browser.tabmodel.TabCreatorUtil;
 import org.chromium.chrome.browser.tabmodel.TabModel;
-import org.chromium.chrome.browser.tabmodel.TabModelType;
 import org.chromium.content_public.browser.LoadUrlParams;
 import org.chromium.content_public.browser.WebContents;
 import org.chromium.url.GURL;
@@ -69,7 +68,7 @@ public class HeadlessTabCreator implements TabCreator, NeedsTabModel {
         Tab tab =
                 TabBuilder.createForLazyLoad(mProfile, loadUrlParams, title)
                         .setLaunchType(type)
-                        .setDelegateFactory(new HeadlessTabDelegateFactory(TabModelType.HEADLESS))
+                        .setDelegateFactory(new HeadlessTabDelegateFactory())
                         .setParent(parent)
                         .build();
         mTabModel.addTab(tab, position, type, TabCreationState.FROZEN_FOR_LAZY_LOAD);
@@ -82,7 +81,7 @@ public class HeadlessTabCreator implements TabCreator, NeedsTabModel {
         Tab tab =
                 TabBuilder.createFromFrozenState(mProfile)
                         .setId(id)
-                        .setDelegateFactory(new HeadlessTabDelegateFactory(TabModelType.HEADLESS))
+                        .setDelegateFactory(new HeadlessTabDelegateFactory())
                         .setTabState(state)
                         .build();
         mTabModel.addTab(
@@ -110,12 +109,12 @@ public class HeadlessTabCreator implements TabCreator, NeedsTabModel {
             GURL url,
             int index,
             CompletableFuture<Boolean> addTabToModel) {
-        throw new UnsupportedOperationException("Headless does not support live web contents.");
+        throw new RuntimeException("Headless does not support live web contents.");
     }
 
     @Override
     public @Nullable Tab createTabWithHistory(@Nullable Tab parent, int type) {
-        throw new UnsupportedOperationException("Headless does not support live web contents.");
+        throw new RuntimeException("Headless does not support live web contents.");
     }
 
     @Override

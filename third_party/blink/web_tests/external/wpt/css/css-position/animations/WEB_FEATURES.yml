@@ -1,2 +1,4 @@
-rules:
-- position-interpolation.html: [position]
+features:
+- name: position
+  files:
+  - position-interpolation.html

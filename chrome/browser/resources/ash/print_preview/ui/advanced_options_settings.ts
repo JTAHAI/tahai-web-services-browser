@@ -44,10 +44,10 @@ class PrintPreviewAdvancedOptionsSettingsElement extends PolymerElement {
     };
   }
 
-  declare disabled: boolean;
-  declare destination: Destination;
-  declare settings: Settings;
-  declare private showAdvancedDialog_: boolean;
+  disabled: boolean;
+  destination: Destination;
+  settings: Settings;
+  private showAdvancedDialog_: boolean;
 
   private onButtonClick_() {
     this.showAdvancedDialog_ = true;

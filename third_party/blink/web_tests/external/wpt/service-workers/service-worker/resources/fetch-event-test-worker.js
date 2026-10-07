@@ -162,25 +162,7 @@ function handleUseAndIgnore(event) {
 
 function handleCloneAndIgnore(event) {
   const request = event.request;
-  request.clone().text().then(t => {
-    if (self.port)
-      self.port.postMessage(t);
-  });
-  return;
-}
-
-function handleCloneAfterIgnore(event) {
-  const request = event.request;
-  setTimeout(() => {
-    try {
-      request.clone();
-      if (self.port)
-        self.port.postMessage('no error');
-    } catch (e) {
-      if (self.port)
-        self.port.postMessage(e.name);
-    }
-  }, 0);
+  request.clone().text();
   return;
 }
 
@@ -194,13 +176,6 @@ function handleStatus(event) {
       {"status": new URL(event.request.url).searchParams.get("status")});
   }());
 }
-
-self.addEventListener('message', function(event) {
-  if (event.data.port) {
-    self.port = event.data.port;
-    self.port.postMessage("ok");
-  }
-});
 
 self.addEventListener('fetch', function(event) {
     var url = event.request.url;
@@ -229,7 +204,6 @@ self.addEventListener('fetch', function(event) {
       { pattern: '?isHistoryNavigation', fn: handleIsHistoryNavigation },
       { pattern: '?use-and-ignore', fn: handleUseAndIgnore },
       { pattern: '?clone-and-ignore', fn: handleCloneAndIgnore },
-      { pattern: '?clone-after-ignore', fn: handleCloneAfterIgnore },
       { pattern: '?status', fn: handleStatus },
     ];
 

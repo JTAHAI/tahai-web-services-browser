@@ -62,7 +62,7 @@ by a child template that "extends" this file.
     <uses-permission-sdk-23 android:name="android.permission.BLUETOOTH_SCAN"
                             android:usesPermissionFlags="neverForLocation"/>
 
-    <uses-permission-sdk-23 android:name="android.permission.READ_CONTACTS" android:maxSdkVersion="36"/>
+    <uses-permission-sdk-23 android:name="android.permission.READ_CONTACTS"/>
     <uses-permission-sdk-23 android:name="android.permission.REORDER_TASKS"/>
 
     <!--  Needed for allowing downloaded APKs to be installed. -->
@@ -89,8 +89,6 @@ by a child template that "extends" this file.
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS"/>
     <uses-permission android:name="android.permission.NFC"/>
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <!-- Permission to request promoted ongoing status (Live Updates) for Actor task notifications on Android 16+. -->
-    <uses-permission android:name="android.permission.POST_PROMOTED_NOTIFICATIONS" />
 
     <!-- Needed to determine whether an app installed on the device should handle a web navigation.  -->
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
@@ -120,17 +118,8 @@ by a child template that "extends" this file.
     <!-- Permission for reading the Advanced Protection Mode status. -->
     <uses-permission android:name="android.permission.QUERY_ADVANCED_PROTECTION_MODE"/>
 
-    <!-- Permission for using android.hardware.hid.HidManager on Android 17+ -->
-    <uses-permission android:name="android.permission.ACCESS_HID"/>
-
     <!-- Needed for allowing cross-app and cross-profile communication over the loopback interface. -->
     <uses-permission android:name="android.permission.USE_LOOPBACK_INTERFACE"/>
-
-    {% set target_sdk_version = target_sdk_version|default(0)|int %}
-    {% if target_sdk_version >= 37 %}
-    <!-- Needed for checking local network connections on Android 17+. -->
-    <uses-permission android:name="android.permission.ACCESS_LOCAL_NETWORK"/>
-    {% endif %}
 
     {% set enable_vr = enable_vr|default(0) %}
     {% if enable_vr == "true" %}
@@ -265,16 +254,6 @@ by a child template that "extends" this file.
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.NOTIFICATION_PREFERENCES" />
             </intent-filter>
-            <!-- TODO(b/548888503): Remove after approval.-->
-            {% if channel in ['canary', 'default'] %}
-            <!-- This starts FGS and finishes, does not show anything to the
-                 user. Caller needs to be a trusted google app and need to use
-                 startActivityForResult. -->
-            <intent-filter>
-                <action android:name="org.chromium.chrome.browser.actor.START_ACTOR_FOREGROUND_SERVICE" />
-                <category android:name="android.intent.category.DEFAULT" />
-            </intent-filter>
-            {% endif %}
             <!-- Matches the common case of intents with no MIME type.
                  Make sure to keep in sync with the next filter.  -->
             <intent-filter>
@@ -710,7 +689,6 @@ by a child template that "extends" this file.
             android:launchMode="singleTop"
             {% block first_run_activity_common %}
             android:label="@string/fre_activity_label"
-            android:resizeableActivity="true"
             android:excludeFromRecents="true"
             android:autoRemoveFromRecents="true"
             android:windowSoftInputMode="stateHidden|adjustPan"
@@ -1303,16 +1281,6 @@ by a child template that "extends" this file.
         <property android:name="android.adservices.AD_SERVICES_CONFIG"
             android:resource="@xml/ad_services_config" />
 
-        <!-- MlKitInitProvider runs MLKit initialization synchronously on the main
-             thread during ContentProvider install, before Application.onCreate(),
-             on every cold start regardless of whether an AICore-backed feature is
-             ever used. Remove it and initialize MLKit lazily on first use instead
-             (see MlKitAiCoreFactoryImpl). -->
-        <provider
-            android:name="com.google.mlkit.common.internal.MlKitInitProvider"
-            tools:node="remove">
-        </provider>
-
         {% set enable_openxr = enable_openxr|default(0) %}
         {% if enable_openxr == "true" %}
           <!-- launchMode is set to singleTask because there should never be multiple copies of the app running. -->
@@ -1468,13 +1436,6 @@ by a child template that "extends" this file.
       <!-- Provider for image data from Drag and Drop. -->
       <provider android:name="org.chromium.ui.dragdrop.DropDataContentProvider"
           android:authorities="{{ manifest_package }}.DropDataProvider"
-          android:exported="false"
-          android:grantUriPermissions="true">
-      </provider>
-
-      <!-- Provider for oversized clipboard payloads, e.g. large HTML or text. -->
-      <provider android:name="org.chromium.ui.base.ClipboardTextDataProvider"
-          android:authorities="{{ manifest_package }}.ClipboardTextDataProvider"
           android:exported="false"
           android:grantUriPermissions="true">
       </provider>

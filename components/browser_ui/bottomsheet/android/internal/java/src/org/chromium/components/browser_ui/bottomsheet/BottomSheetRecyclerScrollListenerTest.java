@@ -26,11 +26,13 @@ import org.robolectric.Robolectric;
 import org.robolectric.annotation.Config;
 
 import org.chromium.base.test.BaseRobolectricTestRunner;
+import org.chromium.base.test.util.Batch;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController.SheetState;
 
 /** Robolectric unit tests for {@link BottomSheetRecyclerScrollListener}. */
 @RunWith(BaseRobolectricTestRunner.class)
 @Config(manifest = Config.NONE)
+@Batch(Batch.PER_CLASS)
 public class BottomSheetRecyclerScrollListenerTest {
     @Rule public MockitoRule mMockitoRule = MockitoJUnit.rule();
 
@@ -119,36 +121,5 @@ public class BottomSheetRecyclerScrollListenerTest {
         mScrollListener.onScrolled(recyclerView, 0, 0);
 
         assertTrue(mScrollListener.isScrolledToTop());
-        assertFalse(recyclerView.isLayoutSuppressed());
-    }
-
-    /** Tests that layout suppression is applied in standard mode at half state and top position. */
-    @Test
-    @SmallTest
-    public void testSuppressLayout_StandardMode() {
-        RecyclerView recyclerView = createRecyclerViewWithOffset(0);
-
-        when(mMockBottomSheetController.getSheetState()).thenReturn(SheetState.HALF);
-        when(mMockBottomSheetController.isLargeFormFactorUiEnabled(null)).thenReturn(false);
-
-        mScrollListener.onScrolled(recyclerView, 0, 0);
-
-        assertTrue(mScrollListener.isScrolledToTop());
-        assertTrue(recyclerView.isLayoutSuppressed());
-    }
-
-    /** Tests that layout suppression is NOT applied on desktop. */
-    @Test
-    @SmallTest
-    public void testNoSuppressLayout_Desktop() {
-        RecyclerView recyclerView = createRecyclerViewWithOffset(0);
-
-        when(mMockBottomSheetController.getSheetState()).thenReturn(SheetState.HALF);
-        when(mMockBottomSheetController.isLargeFormFactorUiEnabled(null)).thenReturn(true);
-
-        mScrollListener.onScrolled(recyclerView, 0, 0);
-
-        assertTrue(mScrollListener.isScrolledToTop());
-        assertFalse(recyclerView.isLayoutSuppressed());
     }
 }

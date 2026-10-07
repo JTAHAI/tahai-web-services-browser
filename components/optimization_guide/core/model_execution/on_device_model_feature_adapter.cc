@@ -19,6 +19,7 @@
 #include "components/optimization_guide/core/model_execution/response_parser.h"
 #include "components/optimization_guide/core/model_execution/response_parser_factory.h"
 #include "components/optimization_guide/core/model_execution/simple_response_parser.h"
+#include "components/optimization_guide/core/optimization_guide_constants.h"
 #include "components/optimization_guide/core/optimization_guide_features.h"
 #include "components/optimization_guide/core/optimization_guide_util.h"
 

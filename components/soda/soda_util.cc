@@ -7,7 +7,6 @@
 #include <string>
 
 #include "base/feature_list.h"
-#include "base/i18n/legacy_language_tag_helpers.h"
 #include "build/build_config.h"
 #include "components/soda/constants.h"
 #include "components/soda/soda_installer.h"
@@ -94,8 +93,8 @@ media::mojom::AvailabilityStatus GetSodaAvailabilityStatus(
   bool is_language_supported = false;
   speech::LanguageCode lang_code = speech::LanguageCode::kNone;
   for (auto const& available_lang : soda_installer->GetAvailableLanguages()) {
-    if (base::i18n::GetLanguageSubtagUsingLanguageTag(available_lang) ==
-        base::i18n::GetLanguageSubtagUsingLanguageTag(language)) {
+    if (l10n_util::GetLanguage(available_lang) ==
+        l10n_util::GetLanguage(language)) {
       is_language_supported = true;
       lang_code = speech::GetLanguageCode(available_lang);
       break;

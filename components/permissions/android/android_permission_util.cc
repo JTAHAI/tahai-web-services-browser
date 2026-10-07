@@ -34,7 +34,6 @@ namespace permissions {
 namespace {
 
 bool g_is_system_location_setting_enabled_for_test = false;
-bool g_are_all_android_permissions_enabled_for_test = false;
 
 // Returns whether the Android location setting is enabled/disabled.
 bool IsSystemLocationSettingEnabled() {
@@ -72,9 +71,6 @@ void AppendOptionalAndroidPermissionsForContentSetting(
 bool HasRequiredAndroidPermissionsForContentSetting(
     ui::WindowAndroid* window_android,
     ContentSettingsType content_settings_type) {
-  if (!window_android) {
-    return false;
-  }
   JNIEnv* env = base::android::AttachCurrentThread();
   return Java_AndroidPermissionRequester_hasRequiredAndroidPermissionsForContentSetting(
       env, window_android, static_cast<int>(content_settings_type));
@@ -175,10 +171,6 @@ bool CanRequestSystemPermissionsForBluetooth(
 
 bool HasSystemPermission(ContentSettingsType type,
                          content::WebContents* web_contents) {
-  if (g_are_all_android_permissions_enabled_for_test) {
-    return true;
-  }
-
   if (!web_contents || !web_contents->GetNativeView()) {
     return false;
   }
@@ -187,9 +179,7 @@ bool HasSystemPermission(ContentSettingsType type,
     return false;
   }
   auto* window_android = web_contents->GetNativeView()->GetWindowAndroid();
-  if (!window_android) {
-    return false;
-  }
+  DCHECK(window_android);
 
   return HasRequiredAndroidPermissionsForContentSetting(window_android, type);
 }
@@ -203,11 +193,9 @@ bool CanRequestSystemPermission(ContentSettingsType type,
       !IsSystemLocationSettingEnabled()) {
     return false;
   }
-  auto* window_android = web_contents->GetNativeView()->GetWindowAndroid();
-  if (!window_android) {
-    return false;
-  }
   JNIEnv* env = base::android::AttachCurrentThread();
+  auto* window_android = web_contents->GetNativeView()->GetWindowAndroid();
+  DCHECK(window_android);
   return Java_PermissionUtil_canRequestSystemPermission(
       env, static_cast<int>(type), window_android);
 }
@@ -230,11 +218,6 @@ void RequestLocationServices(content::WebContents* web_contents) {
 
 base::AutoReset<bool> EnableSystemLocationSettingForTesting() {
   return base::AutoReset<bool>(&g_is_system_location_setting_enabled_for_test,
-                               true);
-}
-
-base::AutoReset<bool> EnableAllAndroidPermissionsForTesting() {
-  return base::AutoReset<bool>(&g_are_all_android_permissions_enabled_for_test,
                                true);
 }
 

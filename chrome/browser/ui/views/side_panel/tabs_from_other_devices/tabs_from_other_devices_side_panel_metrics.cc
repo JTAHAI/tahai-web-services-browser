@@ -8,15 +8,22 @@
 #include "base/strings/strcat.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/side_panel/side_panel_entry.h"
+#include "components/sync_sessions/features.h"
 
 namespace {
 
-constexpr char kHistogramPrefix[] = "Sync.TabsFromOtherDevicesSidePanel.List.";
+std::string BuildHistogramPrefix() {
+  const bool show_screenshots =
+      base::FeatureList::IsEnabled(sync_sessions::kSyncTabScreenshots);
+  return base::StrCat({"Sync.TabsFromOtherDevicesSidePanel.",
+                       show_screenshots ? "Screenshot." : "List."});
+}
 
 }  // namespace
 
-TabsFromOtherDevicesSidePanelMetrics::TabsFromOtherDevicesSidePanelMetrics() {
-  base::UmaHistogramEnumeration(base::StrCat({kHistogramPrefix, "Events"}),
+TabsFromOtherDevicesSidePanelMetrics::TabsFromOtherDevicesSidePanelMetrics()
+    : histogram_prefix_(BuildHistogramPrefix()) {
+  base::UmaHistogramEnumeration(base::StrCat({histogram_prefix_, "Events"}),
                                 Event::kStartup);
 }
 
@@ -28,7 +35,7 @@ void TabsFromOtherDevicesSidePanelMetrics::Observe(SidePanelEntry* entry) {
 }
 
 void TabsFromOtherDevicesSidePanelMetrics::OnEntryShown(SidePanelEntry* entry) {
-  base::UmaHistogramEnumeration(base::StrCat({kHistogramPrefix, "Events"}),
+  base::UmaHistogramEnumeration(base::StrCat({histogram_prefix_, "Events"}),
                                 Event::kOpened);
   opened_timestamp_ = base::TimeTicks::Now();
   tab_opened_ = false;
@@ -37,12 +44,12 @@ void TabsFromOtherDevicesSidePanelMetrics::OnEntryShown(SidePanelEntry* entry) {
 
 void TabsFromOtherDevicesSidePanelMetrics::OnEntryHidden(
     SidePanelEntry* entry) {
-  base::UmaHistogramEnumeration(base::StrCat({kHistogramPrefix, "Events"}),
+  base::UmaHistogramEnumeration(base::StrCat({histogram_prefix_, "Events"}),
                                 Event::kClosed);
 
   if (!opened_timestamp_.is_null()) {
     base::UmaHistogramLongTimes(
-        base::StrCat({kHistogramPrefix, "TimeSpentOpen"}),
+        base::StrCat({histogram_prefix_, "TimeSpentOpen"}),
         base::TimeTicks::Now() - opened_timestamp_);
   }
 }
@@ -56,12 +63,12 @@ void TabsFromOtherDevicesSidePanelMetrics::RecordTabCountOnOpen(
     size_t total_tab_count,
     size_t active_device_tab_count) {
   base::UmaHistogramCounts100(
-      base::StrCat({kHistogramPrefix, "DeviceCountOnOpen"}), device_count);
+      base::StrCat({histogram_prefix_, "DeviceCountOnOpen"}), device_count);
   base::UmaHistogramCounts1000(
-      base::StrCat({kHistogramPrefix, "TabCountOnOpen.Total"}),
+      base::StrCat({histogram_prefix_, "TabCountOnOpen.Total"}),
       total_tab_count);
   base::UmaHistogramCounts1000(
-      base::StrCat({kHistogramPrefix, "TabCountOnOpen.ActiveDevice"}),
+      base::StrCat({histogram_prefix_, "TabCountOnOpen.ActiveDevice"}),
       active_device_tab_count);
   has_recorded_tab_count_ = true;
 }
@@ -69,19 +76,19 @@ void TabsFromOtherDevicesSidePanelMetrics::RecordTabCountOnOpen(
 void TabsFromOtherDevicesSidePanelMetrics::RecordTabOpened(
     size_t device_index,
     size_t tab_recency_index) {
-  base::UmaHistogramEnumeration(base::StrCat({kHistogramPrefix, "Events"}),
+  base::UmaHistogramEnumeration(base::StrCat({histogram_prefix_, "Events"}),
                                 Event::kTabOpened);
 
   base::UmaHistogramExactLinear(
-      base::StrCat({kHistogramPrefix, "OpenedTabDeviceIndex"}), device_index,
+      base::StrCat({histogram_prefix_, "OpenedTabDeviceIndex"}), device_index,
       10);
 
   base::UmaHistogramCounts1000(
-      base::StrCat({kHistogramPrefix, "OpenedTabRecencyIndex"}),
+      base::StrCat({histogram_prefix_, "OpenedTabRecencyIndex"}),
       tab_recency_index);
 
   if (!tab_opened_ && !opened_timestamp_.is_null()) {
-    base::UmaHistogramTimes(base::StrCat({kHistogramPrefix, "TimeToFirstTab"}),
+    base::UmaHistogramTimes(base::StrCat({histogram_prefix_, "TimeToFirstTab"}),
                             base::TimeTicks::Now() - opened_timestamp_);
     tab_opened_ = true;
   }

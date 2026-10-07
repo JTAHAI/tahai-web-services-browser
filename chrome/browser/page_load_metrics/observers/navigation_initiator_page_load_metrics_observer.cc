@@ -21,21 +21,6 @@ void RecordInitiatorMetrics(content::NavigationHandle& navigation_handle) {
       page_load_metrics::NavigationHandleUserData::GetForNavigationHandle(
           navigation_handle);
   const ChromeInitiatorLocation initiator_location = [&]() {
-    if (ui::PageTransitionCoreTypeIs(navigation_handle.GetPageTransition(),
-                                     ui::PAGE_TRANSITION_RELOAD)) {
-      return ChromeInitiatorLocation::kReload;
-    }
-    if ((navigation_handle.GetPageTransition() &
-         ui::PAGE_TRANSITION_FORWARD_BACK) ||
-        navigation_handle.IsServedFromBackForwardCache()) {
-      int history_offset = navigation_handle.GetNavigationEntryOffset();
-      CHECK_NE(history_offset, 0);
-      if (history_offset < 0) {
-        return ChromeInitiatorLocation::kBackward;
-      } else if (history_offset > 0) {
-        return ChromeInitiatorLocation::kForward;
-      }
-    }
     if (navigation_handle_user_data) {
       return GetChromeInitiatorLocation(
           navigation_handle_user_data->navigation_type());
@@ -58,18 +43,6 @@ void RecordInitiatorMetrics(content::NavigationHandle& navigation_handle) {
 }
 
 }  // namespace
-
-page_load_metrics::PageLoadMetricsObserver::ObservePolicy
-NavigationInitiatorPageLoadMetricsObserver::OnEnterBackForwardCache(
-    const page_load_metrics::mojom::PageLoadTiming& timing) {
-  return CONTINUE_OBSERVING;
-}
-
-void NavigationInitiatorPageLoadMetricsObserver::OnRestoreFromBackForwardCache(
-    const page_load_metrics::mojom::PageLoadTiming& timing,
-    content::NavigationHandle* navigation_handle) {
-  RecordInitiatorMetrics(*navigation_handle);
-}
 
 page_load_metrics::PageLoadMetricsObserver::ObservePolicy
 NavigationInitiatorPageLoadMetricsObserver::OnFencedFramesStart(
@@ -103,5 +76,5 @@ NavigationInitiatorPageLoadMetricsObserver::OnCommit(
 
   RecordInitiatorMetrics(*navigation_handle);
 
-  return CONTINUE_OBSERVING;
+  return STOP_OBSERVING;
 }

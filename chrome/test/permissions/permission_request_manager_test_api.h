@@ -10,7 +10,7 @@
 #include "components/permissions/permission_request_manager.h"
 #include "components/permissions/request_type.h"
 
-class BrowserWindowInterface;
+class Browser;
 
 namespace content {
 class RenderFrameHost;
@@ -28,7 +28,7 @@ class PermissionRequestManagerTestApi {
       permissions::PermissionRequestManager* manager);
 
   // Wraps the PermissionRequestManager for the active tab in |browser|.
-  explicit PermissionRequestManagerTestApi(BrowserWindowInterface* browser);
+  explicit PermissionRequestManagerTestApi(Browser* browser);
 
   PermissionRequestManagerTestApi(const PermissionRequestManagerTestApi&) =
       delete;

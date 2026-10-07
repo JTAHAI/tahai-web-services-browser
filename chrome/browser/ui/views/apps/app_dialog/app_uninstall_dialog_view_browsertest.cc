@@ -24,7 +24,7 @@
 #include "chrome/browser/ash/arc/arc_util.h"
 #include "chrome/browser/ash/arc/session/arc_session_manager.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/test/test_browser_dialog.h"
 #include "chrome/browser/ui/web_applications/test/isolated_web_app_test_utils.h"
 #include "chrome/browser/ui/web_applications/test/web_app_browsertest_util.h"
@@ -36,7 +36,6 @@
 #include "chrome/browser/web_applications/web_app_provider.h"
 #include "chrome/browser/web_applications/web_app_registrar.h"
 #include "chrome/common/chrome_features.h"
-#include "chrome/grit/generated_resources.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chromeos/ash/experiences/arc/test/arc_util_test_support.h"
 #include "chromeos/ash/experiences/arc/test/connection_holder_util.h"
@@ -448,11 +447,11 @@ IN_PROC_BROWSER_TEST_F(IsolatedWebAppsUninstallDialogViewBrowserTest,
 }
 
 IN_PROC_BROWSER_TEST_F(IsolatedWebAppsUninstallDialogViewBrowserTest,
-                       SubAppUninstallShowsParentAppInfoSubtitle) {
+                       SubAppUninstallShowsParentAppNameSubtitle) {
   std::unique_ptr<web_app::ScopedBundledIsolatedWebApp> app =
       web_app::IsolatedWebAppBuilder(
           web_app::ManifestBuilder()
-              .SetName("Parent IWA")
+              .SetName("Parent IWA Name")
               .AddPermissionsPolicyWildcard(
                   network::mojom::PermissionsPolicyFeature::kSubApps))
           .BuildBundle();
@@ -481,11 +480,8 @@ IN_PROC_BROWSER_TEST_F(IsolatedWebAppsUninstallDialogViewBrowserTest,
   waiter.WaitIfNeededAndGet();
   ASSERT_NE(nullptr, ActiveView());
 
-  std::u16string expected_subtitle = l10n_util::GetStringFUTF16(
-      IDS_IWA_SUB_APPS_UNINSTALL_INFO, u"Parent IWA", u"Sub App One");
-
   EXPECT_TRUE(web_app::test::HasChildLabelWithSubstring(ActiveView(),
-                                                        expected_subtitle));
+                                                        u"Parent IWA Name"));
 
   ActiveView()->CancelDialog();
 }

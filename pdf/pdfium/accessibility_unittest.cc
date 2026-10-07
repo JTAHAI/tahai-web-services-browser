@@ -5,7 +5,6 @@
 #include "pdf/accessibility.h"
 
 #include <array>
-#include <ranges>
 #include <string>
 
 #include "base/compiler_specific.h"
@@ -15,6 +14,7 @@
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
 #include "base/test/scoped_feature_list.h"
+#include "base/types/zip.h"
 #include "pdf/accessibility_structs.h"
 #include "pdf/pdf_accessibility_constants_helper.h"
 #include "pdf/pdf_features.h"
@@ -356,12 +356,12 @@ TEST_P(AccessibilityTest, GetAccessibilityPageWithTags) {
 
   ASSERT_EQ(kExpectedTextRunLens.size(), text_runs.size());
   for (const auto [expected_len, actual] :
-       std::views::zip(kExpectedTextRunLens, text_runs)) {
+       base::zip(kExpectedTextRunLens, text_runs)) {
     EXPECT_EQ(expected_len, actual.len);
   }
 
   ASSERT_EQ(std::size(kExpectedChars) - 1, chars.size());
-  for (const auto [expected, actual] : std::views::zip(kExpectedChars, chars)) {
+  for (const auto [expected, actual] : base::zip(kExpectedChars, chars)) {
     EXPECT_EQ(static_cast<uint32_t>(expected), actual.unicode_character);
   }
 }

@@ -44,11 +44,8 @@ def test_atspi_readonly(atspi, session, inline):
 #     # Role: ROLE_SYSTEM_TEXT
 #     # State: IA2_STATE_SINGLE_LINE
 
-def test_uia(uia, session, inline):
-    session.url = inline(TEST_HTML)
-
-    # Spec:
-    # Control Type: Edit
-
-    node = uia.find_node("test", session.url)
-    assert node.CurrentControlType == uia.ControlType.Edit
+# def test_uia(uia, session, inline):
+#     session.url = inline(TEST_HTML)
+#
+#     # Spec:
+#     # Control Type: Edit

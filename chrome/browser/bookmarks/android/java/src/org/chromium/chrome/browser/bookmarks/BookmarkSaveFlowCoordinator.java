@@ -32,7 +32,7 @@ import org.chromium.chrome.browser.user_education.UserEducationHelper;
 import org.chromium.components.bookmarks.BookmarkId;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetContent;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController;
-import org.chromium.components.browser_ui.bottomsheet.BottomSheetObserver;
+import org.chromium.components.browser_ui.bottomsheet.EmptyBottomSheetObserver;
 import org.chromium.components.commerce.core.CommerceFeatureUtils;
 import org.chromium.components.commerce.core.ShoppingService;
 import org.chromium.components.feature_engagement.FeatureConstants;
@@ -171,13 +171,14 @@ public class BookmarkSaveFlowCoordinator implements ActivityStateListener {
             boolean wasBookmarkMoved,
             boolean isNewBookmark) {
         mBookmarkModel.finishLoadingBookmarkModel(
-                () ->
-                        show(
-                                bookmarkId,
-                                fromExplicitTrackUi,
-                                wasBookmarkMoved,
-                                isNewBookmark,
-                                mBookmarkModel.getPowerBookmarkMeta(bookmarkId)));
+                () -> {
+                    show(
+                            bookmarkId,
+                            fromExplicitTrackUi,
+                            wasBookmarkMoved,
+                            isNewBookmark,
+                            mBookmarkModel.getPowerBookmarkMeta(bookmarkId));
+                });
     }
 
     void show(
@@ -210,7 +211,7 @@ public class BookmarkSaveFlowCoordinator implements ActivityStateListener {
                             showShoppingSaveFlowIph();
                         } else {
                             mBottomSheetController.addObserver(
-                                    new BottomSheetObserver() {
+                                    new EmptyBottomSheetObserver() {
                                         @Override
                                         public void onSheetContentChanged(
                                                 @Nullable BottomSheetContent newContent) {

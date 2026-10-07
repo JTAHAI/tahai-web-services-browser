@@ -1,4 +1,12 @@
-rules:
-- text-decoration-*: [text-decoration]
-- text-underline-position-*: [text-underline-position]
-- "*": [text-emphasis]
+features:
+- name: text-emphasis
+  files:
+  - "*"
+  - "!text-decoration-*"
+  - "!text-underline-position-*"
+- name: text-decoration
+  files:
+  - "text-decoration-*"
+- name: text-underline-position
+  files:
+  - text-underline-position-*

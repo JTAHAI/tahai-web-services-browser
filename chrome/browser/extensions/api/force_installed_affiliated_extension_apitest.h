@@ -19,7 +19,7 @@
 #include "extensions/common/extension_id.h"
 #include "url/gurl.h"
 
-class BrowserWindowInterface;
+class Browser;
 
 namespace base {
 class CommandLine;
@@ -49,7 +49,7 @@ class ForceInstalledAffiliatedExtensionApiTest
 
   // Sets `custom_arg_value`, loads `page_url` and waits for an extension API
   // test pass/fail notification.
-  void TestExtension(BrowserWindowInterface* browser,
+  void TestExtension(Browser* browser,
                      const GURL& page_url,
                      const base::DictValue& custom_arg_value);
 

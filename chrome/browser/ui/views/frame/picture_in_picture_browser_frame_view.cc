@@ -71,9 +71,9 @@
 #include "ui/aura/window.h"
 #endif
 
-#if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
+#if BUILDFLAG(ENABLE_EXTENSIONS)
 #include "extensions/common/constants.h"
-#endif  // BUILDFLAG(ENABLE_EXTENSIONS_CORE)
+#endif  // BUILDFLAG(ENABLE_EXTENSIONS)
 namespace {
 
 constexpr int kWindowIconImageSize = 16;
@@ -231,12 +231,12 @@ PictureInPictureBrowserFrameView::PictureInPictureBrowserFrameView(
 
   // Similarly for extension URLs and isolated-app URLs, the tail is more
   // important to elide.
-#if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
+#if BUILDFLAG(ENABLE_EXTENSIONS)
   if (location_bar_model_->GetURL().SchemeIs(extensions::kExtensionScheme) ||
       location_bar_model_->GetURL().SchemeIs(webapps::kIsolatedAppScheme)) {
     elide_behavior = gfx::ELIDE_TAIL;
   }
-#endif  // BUILDFLAG(ENABLE_EXTENSIONS_CORE)
+#endif  // BUILDFLAG(ENABLE_EXTENSIONS)
 
   // TODO(crbug.com/424715850): use IWA app name in title (plus why registrar
   // based on browser_view->GetProfile doesn't know about the app).
@@ -814,7 +814,7 @@ PictureInPictureBrowserFrameView::GetContentSettingBubbleModelDelegate() {
   BrowserWindowInterface* browser =
       GlobalBrowserCollection::GetInstance()->FindBrowserWithTab(
           GetWebContents());
-  return BrowserContentSettingBubbleModelDelegate::From(browser);
+  return browser->GetFeatures().content_setting_bubble_model_delegate();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -843,19 +843,12 @@ void PictureInPictureBrowserFrameView::OnWidgetVisibilityChanged(
   }
 }
 
-void PictureInPictureBrowserFrameView::OnUserDesiredBoundsChanged(
-    const gfx::Rect& bounds) {
-  CHECK(GetWidget());
+void PictureInPictureBrowserFrameView::OnWidgetBoundsChanged(
+    views::Widget* widget,
+    const gfx::Rect& new_bounds) {
   const auto pip_display = display::Screen::Get()->GetDisplayNearestWindow(
-      GetWidget()->GetNativeWindow());
-
-  // The cached bounds update is driven by the `PipChildDialogObserverHelper`
-  // helper, because it is the only place where we track the user-desired bounds
-  // (filtering out dialog resizes and rounding noise). In the future, we might
-  // want to split the PiP window bounds tracking into a separate component to
-  // decouple it from child dialog observation (or generalize the child dialog
-  // observation).
-  PictureInPictureWindowManager::GetInstance()->UpdateCachedBounds(bounds,
+      widget->GetNativeWindow());
+  PictureInPictureWindowManager::GetInstance()->UpdateCachedBounds(new_bounds,
                                                                    pip_display);
 }
 

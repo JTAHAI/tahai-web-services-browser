@@ -1,3 +1,2 @@
-LayoutInvalidated on role=document
 StructureChanged/ChildRemoved on role=button
 StructureChanged/ChildrenReordered on role=button

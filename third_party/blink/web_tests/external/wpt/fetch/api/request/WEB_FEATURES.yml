@@ -1,3 +1,8 @@
-rules:
-- request-init-priority.any.js: [fetch-priority]
-- "*": [fetch]
+features:
+- name: fetch
+  files:
+  - "*"
+  - "!request-init-priority.any.js"
+- name: fetch-priority
+  files:
+  - request-init-priority.any.js

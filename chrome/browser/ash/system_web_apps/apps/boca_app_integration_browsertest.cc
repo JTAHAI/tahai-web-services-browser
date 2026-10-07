@@ -19,7 +19,7 @@
 #include "chrome/browser/ash/system_web_apps/test_support/system_web_app_integration_test.h"
 #include "chrome/browser/extensions/chrome_test_extension_loader.h"
 #include "chrome/browser/ui/ash/system_web_apps/system_web_app_ui_utils.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/views/extensions/extensions_toolbar_desktop.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/web_apps/frame_toolbar/web_app_frame_toolbar_view.h"
@@ -168,9 +168,10 @@ IN_PROC_BROWSER_TEST_P(BocaAppProviderIntegrationTest,
   ash::BrowserDelegate* boca_app_browser_delegate =
       ash::FindSystemWebAppBrowser(profile(), ash::SystemWebAppType::BOCA,
                                    ash::BrowserType::kApp);
-  BrowserWindowInterface* boca_app_browser =
-      boca_app_browser_delegate ? &boca_app_browser_delegate->GetBrowser()
-                                : nullptr;
+  Browser* boca_app_browser =
+      boca_app_browser_delegate
+          ? boca_app_browser_delegate->GetBrowser().GetBrowserForMigrationOnly()
+          : nullptr;
 
   // Trigger reload which will cause page handler to be recreated.
   ui_test_utils::NavigateToURLWithDisposition(
@@ -201,9 +202,10 @@ IN_PROC_BROWSER_TEST_P(BocaAppProviderIntegrationTest,
   ash::BrowserDelegate* boca_app_browser_delegate =
       ash::FindSystemWebAppBrowser(profile(), ash::SystemWebAppType::BOCA,
                                    ash::BrowserType::kApp);
-  BrowserWindowInterface* boca_app_browser =
-      boca_app_browser_delegate ? &boca_app_browser_delegate->GetBrowser()
-                                : nullptr;
+  Browser* boca_app_browser =
+      boca_app_browser_delegate
+          ? boca_app_browser_delegate->GetBrowser().GetBrowserForMigrationOnly()
+          : nullptr;
   ASSERT_THAT(boca_app_browser, NotNull());
   auto* const web_app_frame_toolbar_view =
       BrowserView::GetBrowserViewForBrowser(boca_app_browser)
@@ -271,9 +273,10 @@ IN_PROC_BROWSER_TEST_P(BocaAppConsumerIntegrationTest,
   ash::BrowserDelegate* boca_app_browser_delegate =
       ash::FindSystemWebAppBrowser(profile(), ash::SystemWebAppType::BOCA,
                                    ash::BrowserType::kApp);
-  BrowserWindowInterface* boca_app_browser =
-      boca_app_browser_delegate ? &boca_app_browser_delegate->GetBrowser()
-                                : nullptr;
+  Browser* boca_app_browser =
+      boca_app_browser_delegate
+          ? boca_app_browser_delegate->GetBrowser().GetBrowserForMigrationOnly()
+          : nullptr;
   ASSERT_THAT(boca_app_browser, NotNull());
   auto* const web_app_frame_toolbar_view =
       BrowserView::GetBrowserViewForBrowser(boca_app_browser)

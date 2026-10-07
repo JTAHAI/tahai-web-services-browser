@@ -448,7 +448,6 @@ class Linker {
                             mRemoteLibInfo.mLoadAddress,
                             newRemote.mLoadAddress);
                 }
-                newRemote.close();
                 return;
             }
             mRemoteLibInfo = newRemote;

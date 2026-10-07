@@ -1,2 +1,3 @@
-rules:
-- "**": [animations-css]
+features:
+- name: animations-css
+  files: "**"

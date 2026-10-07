@@ -4,7 +4,6 @@
 
 #include <algorithm>
 #include <memory>
-#include <string_view>
 #include <utility>
 
 #include "base/barrier_closure.h"
@@ -61,7 +60,7 @@ class TestPolicy : public MemoryCoordinatorPolicy {
   // MemoryCoordinatorPolicy:
   void OnConsumerGroupAdded(uint32_t consumer_id,
                             std::string_view consumer_name,
-                            base::MemoryConsumerTraits traits,
+                            std::optional<base::MemoryConsumerTraits> traits,
                             ProcessType process_type,
                             ChildProcessId child_process_id) override {
     auto [it, inserted] =
@@ -170,11 +169,12 @@ IN_PROC_BROWSER_TEST_F(MemoryCoordinatorBrowserTest, ChildProcessRegistration) {
     EXPECT_CALL(*consumer_b, OnReleaseMemory()).Times(0);
 
     policy.UpdateConsumersWithFilter(
-        [](uint32_t consumer_id, std::string_view consumer_name,
-           base::MemoryConsumerTraits traits, ProcessType process_type,
-           ChildProcessId child_process_id) {
-          return traits.estimated_memory_usage ==
-                 base::MemoryConsumerTraits::EstimatedMemoryUsage::kSmall;
+        [](uint32_t consumer_id,
+           std::optional<base::MemoryConsumerTraits> traits,
+           ProcessType process_type, ChildProcessId child_process_id) {
+          return traits &&
+                 traits->estimated_memory_usage ==
+                     base::MemoryConsumerTraits::EstimatedMemoryUsage::kSmall;
         },
         /*percentage=*/50, /*release_memory=*/true);
     run_loop.Run();
@@ -192,11 +192,12 @@ IN_PROC_BROWSER_TEST_F(MemoryCoordinatorBrowserTest, ChildProcessRegistration) {
         .WillOnce(base::test::RunOnceClosure(barrier));
 
     policy.UpdateConsumersWithFilter(
-        [](uint32_t consumer_id, std::string_view consumer_name,
-           base::MemoryConsumerTraits traits, ProcessType process_type,
-           ChildProcessId child_process_id) {
-          return traits.release_gc_references ==
-                 base::MemoryConsumerTraits::ReleaseGCReferences::kYes;
+        [](uint32_t consumer_id,
+           std::optional<base::MemoryConsumerTraits> traits,
+           ProcessType process_type, ChildProcessId child_process_id) {
+          return traits &&
+                 traits->release_gc_references ==
+                     base::MemoryConsumerTraits::ReleaseGCReferences::kYes;
         },
         /*percentage=*/25, /*release_memory=*/false);
     run_loop.Run();
@@ -223,8 +224,9 @@ IN_PROC_BROWSER_TEST_F(MemoryCoordinatorBrowserTest,
   {
     EXPECT_CALL(consumer, OnUpdateMemoryLimit());
     policy.UpdateConsumersWithFilter(
-        [](uint32_t consumer_id, std::string_view consumer_name,
-           base::MemoryConsumerTraits traits, ProcessType process_type,
+        [](uint32_t consumer_id,
+           std::optional<base::MemoryConsumerTraits> traits,
+           ProcessType process_type,
            ChildProcessId child_process_id) { return true; },
         /*percentage=*/50, /*release_memory=*/false);
     EXPECT_EQ(consumer.memory_limit(), 50);
@@ -306,8 +308,9 @@ IN_PROC_BROWSER_TEST_F(MemoryCoordinatorBrowserTest,
     EXPECT_CALL(consumer1, OnUpdateMemoryLimit());
     EXPECT_CALL(consumer2, OnUpdateMemoryLimit());
     policy.UpdateConsumersWithFilter(
-        [](uint32_t consumer_id, std::string_view consumer_name,
-           base::MemoryConsumerTraits traits, ProcessType process_type,
+        [](uint32_t consumer_id,
+           std::optional<base::MemoryConsumerTraits> traits,
+           ProcessType process_type,
            ChildProcessId child_process_id) { return true; },
         /*percentage=*/50, /*release_memory=*/false);
     EXPECT_EQ(consumer1.memory_limit(), 50);

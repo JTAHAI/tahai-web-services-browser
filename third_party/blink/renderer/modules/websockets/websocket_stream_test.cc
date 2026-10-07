@@ -142,7 +142,7 @@ TEST_F(WebSocketStreamTest, Connect) {
   {
     InSequence s;
     EXPECT_CALL(Channel(), ApplyBackpressure());
-    EXPECT_CALL(Channel(), Connect(KURL("ws://example.com/hoge"), _, _))
+    EXPECT_CALL(Channel(), Connect(KURL("ws://example.com/hoge"), String()))
         .WillOnce(Return(true));
   }
 
@@ -159,8 +159,8 @@ TEST_F(WebSocketStreamTest, ConnectWithProtocols) {
   {
     InSequence s;
     EXPECT_CALL(Channel(), ApplyBackpressure());
-    EXPECT_CALL(Channel(), Connect(KURL("ws://example.com/chat"),
-                                   String("chat0, chat1"), _))
+    EXPECT_CALL(Channel(),
+                Connect(KURL("ws://example.com/chat"), String("chat0, chat1")))
         .WillOnce(Return(true));
   }
 
@@ -179,7 +179,7 @@ TEST_F(WebSocketStreamTest, ConnectWithFailedHandshake) {
   {
     InSequence s;
     EXPECT_CALL(Channel(), ApplyBackpressure());
-    EXPECT_CALL(Channel(), Connect(KURL("ws://example.com/chat"), _, _))
+    EXPECT_CALL(Channel(), Connect(KURL("ws://example.com/chat"), String()))
         .WillOnce(Return(true));
     EXPECT_CALL(Channel(), Disconnect());
   }
@@ -215,7 +215,7 @@ TEST_F(WebSocketStreamTest, ConnectWithSuccessfulHandshake) {
     InSequence s;
     EXPECT_CALL(Channel(), ApplyBackpressure());
     EXPECT_CALL(Channel(),
-                Connect(KURL("ws://example.com/chat"), String("chat"), _))
+                Connect(KURL("ws://example.com/chat"), String("chat")))
         .WillOnce(Return(true));
   }
 
@@ -253,7 +253,7 @@ TEST_F(WebSocketStreamTest, ConnectThenCloseCleanly) {
   {
     InSequence s;
     EXPECT_CALL(Channel(), ApplyBackpressure());
-    EXPECT_CALL(Channel(), Connect(KURL("ws://example.com/echo"), _, _))
+    EXPECT_CALL(Channel(), Connect(KURL("ws://example.com/echo"), String()))
         .WillOnce(Return(true));
     EXPECT_CALL(Channel(), Close(-1, String("")));
     EXPECT_CALL(Channel(), Disconnect());
@@ -290,7 +290,7 @@ TEST_F(WebSocketStreamTest, CloseDuringHandshake) {
   {
     InSequence s;
     EXPECT_CALL(Channel(), ApplyBackpressure());
-    EXPECT_CALL(Channel(), Connect(KURL("ws://example.com/echo"), _, _))
+    EXPECT_CALL(Channel(), Connect(KURL("ws://example.com/echo"), String()))
         .WillOnce(Return(true));
     EXPECT_CALL(
         Channel(),
@@ -360,7 +360,7 @@ TEST_F(WebSocketStreamTest, AbortDuringHandshake) {
   {
     InSequence s;
     EXPECT_CALL(Channel(), ApplyBackpressure());
-    EXPECT_CALL(Channel(), Connect(KURL("ws://example.com/echo"), _, _))
+    EXPECT_CALL(Channel(), Connect(KURL("ws://example.com/echo"), String()))
         .WillOnce(Return(true));
     EXPECT_CALL(Channel(), CancelHandshake());
   }
@@ -399,7 +399,7 @@ TEST_F(WebSocketStreamTest, AbortAfterHandshake) {
   {
     InSequence s;
     EXPECT_CALL(Channel(), ApplyBackpressure());
-    EXPECT_CALL(Channel(), Connect(KURL("ws://example.com/echo"), _, _))
+    EXPECT_CALL(Channel(), Connect(KURL("ws://example.com/echo"), String()))
         .WillOnce(Return(true));
   }
 

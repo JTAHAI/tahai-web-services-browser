@@ -34,8 +34,6 @@
   raw_ptr<LevelUpService> _levelUpService;
   // Map from user action to task type for fast lookup.
   std::map<std::string, TaskType> _actionToTaskMap;
-  // Map from user action to stat type for fast lookup.
-  std::map<std::string, LevelUpTaskStatType> _actionToStatMap;
 }
 
 - (void)setSceneState:(SceneState*)sceneState {
@@ -69,7 +67,6 @@
   for (const auto& [type, info] : _levelUpService->GetTasks()) {
     _actionToTaskMap[info->GetTriggerUserAction()] = type;
   }
-  _actionToStatMap = _levelUpService->GetStatTriggerUserActions();
 
   __weak LevelUpSceneAgent* weakSelf = self;
   _actionCallback = base::BindRepeating(
@@ -87,7 +84,6 @@
   _actionCallback.Reset();
   _levelUpService = nullptr;
   _actionToTaskMap.clear();
-  _actionToStatMap.clear();
 }
 
 - (void)dealloc {
@@ -99,19 +95,12 @@
     return;
   }
 
-  auto statIt = _actionToStatMap.find(action);
-  if (statIt != _actionToStatMap.end()) {
-    _levelUpService->IncrementStatValue(statIt->second, 1);
-  }
-
   auto it = _actionToTaskMap.find(action);
   if (it != _actionToTaskMap.end()) {
     TaskType taskType = it->second;
     if (!_levelUpService->IsTaskCompleted(taskType)) {
       _levelUpService->MarkTaskCompleted(taskType);
-      if (_levelUpService->IsUIEnabled()) {
-        [self showCompletionSnackbarForTask:taskType];
-      }
+      [self showCompletionSnackbarForTask:taskType];
     }
   }
 }

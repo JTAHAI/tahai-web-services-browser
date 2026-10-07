@@ -103,12 +103,11 @@ class ExtensionSettingsOverriddenDialog
   // SettingsOverriddenDialogController:
   bool ShouldShow() override;
   ShowParams GetShowParams() override;
-  void OnDialogWillBeShown() override;
+  void OnDialogShown() override;
   void HandleDialogResult(DialogResult result) override;
 
   // Sets a callback to be invoked when the dialog result is handled.
-  using DialogResultCallback =
-      base::OnceCallback<void(std::optional<DialogResult> result)>;
+  using DialogResultCallback = base::OnceCallback<void(DialogResult result)>;
   void SetDialogResultCallback(DialogResultCallback callback);
 
   // Potentially triggers a HaTS survey, for the trigger value supplied in

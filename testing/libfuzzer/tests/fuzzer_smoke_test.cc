@@ -1,14 +1,9 @@
-// Copyright 2026 The Chromium Authors
+// Copyright 2025 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include <signal.h>
 
-#include <ostream>
-#include <string_view>
-
-#include "base/command_line.h"
-#include "base/files/file_path.h"
 #include "base/files/file_util.h"
 #include "base/path_service.h"
 #include "base/process/kill.h"
@@ -18,182 +13,83 @@
 #include "base/sanitizer_buildflags.h"
 #include "base/test/spin_wait.h"
 #include "base/test/test_timeouts.h"
+#include "base/threading/platform_thread.h"
 #include "build/build_config.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
-#include "testing/libfuzzer/buildflags.h"
 #include "testing/libfuzzer/tests/fuzz_target.h"
 
 namespace fuzzing {
 namespace {
 
+using testing::ContainsRegex;
+using testing::ElementsAre;
 using testing::IsEmpty;
-using testing::Not;
 
-enum class FuzzExpectation {
-  kSuccess,
-  kCrash,
-  kExecutionFailure,
-};
-
-struct FuzzerTestCase {
-  std::string_view fuzzer;
-  FuzzExpectation expectation;
-};
-
-void PrintTo(const FuzzerTestCase& test_case, std::ostream* os) {
-  *os << test_case.fuzzer << " (expectation=";
-  switch (test_case.expectation) {
-    case FuzzExpectation::kSuccess:
-      *os << "kSuccess";
-      break;
-    case FuzzExpectation::kCrash:
-      *os << "kCrash";
-      break;
-    case FuzzExpectation::kExecutionFailure:
-      *os << "kExecutionFailure";
-      break;
-  }
-  *os << ")";
-}
-
-constexpr FuzzerTestCase kFuzzerTestCases[] = {
-    // LLVM-style Fuzzers
-    {
-        .fuzzer = "llvm_stub_fuzzer",
-#if defined(MEMORY_SANITIZER)
-        // TODO(https://crbug.com/536875721): Expect kSuccess when MSAN is
-        // fixed.
-        .expectation = FuzzExpectation::kExecutionFailure,
-#else
-        .expectation = FuzzExpectation::kSuccess,
-#endif
-    },
-    {
-        .fuzzer = "llvm_crashing_fuzzer",
-#if defined(MEMORY_SANITIZER)
-        // TODO(https://crbug.com/536875721): Expect kCrash when MSAN is fixed.
-        .expectation = FuzzExpectation::kExecutionFailure,
-#else
-        .expectation = FuzzExpectation::kCrash,
-#endif
-    },
-    {
-        .fuzzer = "lpm_stub_fuzzer",
-#if defined(MEMORY_SANITIZER)
-        // TODO(https://crbug.com/526656114): Expect kSuccess when MSAN is
-        // fixed.
-        .expectation = FuzzExpectation::kExecutionFailure,
-#else
-        .expectation = FuzzExpectation::kSuccess,
-#endif
-    },
-
-// Native FuzzTest Wrappers
-// FuzzTest wrapper executables (*_fuzzer) are only generated on Linux, Mac,
-// and Windows (see _building_fuzztest_fuzzer in testing/test.gni).
-#if BUILDFLAG(USE_FUZZTEST_WRAPPER) && \
-    (BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_WIN))
-    {
-        .fuzzer = "fuzztest_stub_fuzzer_FuzzTestStub_Stub_fuzzer",
-#if defined(MEMORY_SANITIZER)
-        // TODO(https://crbug.com/536875721): Expect kSuccess when MSAN is
-        // fixed.
-        .expectation = FuzzExpectation::kExecutionFailure,
-#else
-        .expectation = FuzzExpectation::kSuccess,
-#endif
-    },
-    {
-        .fuzzer = "fuzztest_crashing_fuzzer_FuzzTestCrashing_FastCrash_fuzzer",
-#if defined(MEMORY_SANITIZER)
-        // TODO(https://crbug.com/536875721): Expect kCrash when MSAN is fixed.
-        .expectation = FuzzExpectation::kExecutionFailure,
-#else
-        .expectation = FuzzExpectation::kCrash,
-#endif
-    },
-    {
-        .fuzzer = "fuzztest_proto_stub_fuzzer_FuzzTestProtoStub_Stub_fuzzer",
-#if defined(MEMORY_SANITIZER)
-        // TODO(https://crbug.com/536875721): Expect kSuccess when MSAN is
-        // fixed.
-        .expectation = FuzzExpectation::kExecutionFailure,
-#else
-        .expectation = FuzzExpectation::kSuccess,
-#endif
-    },
-    {
-        .fuzzer =
-            "fuzztest_proto_crashing_fuzzer_FuzzTestProtoCrashing_FastCrash_"
-            "fuzzer",
-#if defined(MEMORY_SANITIZER)
-        // TODO(https://crbug.com/536875721): Expect kCrash when MSAN is fixed.
-        .expectation = FuzzExpectation::kExecutionFailure,
-#else
-        .expectation = FuzzExpectation::kCrash,
-#endif
-    },
-#endif
-
-// Wrapped LLVM Fuzzers
-#if BUILDFLAG(USE_CENTIPEDE) && BUILDFLAG(USE_FUZZTEST_WRAPPER) && \
-    (BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_WIN))
-    {
-        .fuzzer = "wrapped_llvm_stub_fuzzer_LLVMFuzzer_TestOneInput_fuzzer",
-        .expectation = FuzzExpectation::kSuccess,
-    },
-    {
-        .fuzzer = "wrapped_llvm_crashing_fuzzer_LLVMFuzzer_TestOneInput_fuzzer",
-        .expectation = FuzzExpectation::kCrash,
-    },
-#endif
-};
-
-class FuzzerSmokeTest : public testing::TestWithParam<FuzzerTestCase> {};
-
-TEST_P(FuzzerSmokeTest, Fuzz) {
-  const FuzzerTestCase& test_case = GetParam();
-  auto target = FuzzTarget::Make(test_case.fuzzer);
+TEST(FuzzerSmokeTest, EmptyFuzzerFindsNoCrashes) {
+  auto target = FuzzTarget::Make("empty_fuzzer");
   ASSERT_TRUE(target);
 
-  switch (test_case.expectation) {
-    case FuzzExpectation::kSuccess:
-      EXPECT_TRUE(target->Fuzz());
-      EXPECT_THAT(target->GetCrashingInputs(), IsEmpty());
-      break;
+  EXPECT_TRUE(target->Fuzz({.timeout_secs = 5})) << target->output();
 
-    case FuzzExpectation::kCrash:
-#if BUILDFLAG(USE_CENTIPEDE)
-      EXPECT_TRUE(target->Fuzz());
-#else
-      EXPECT_FALSE(target->Fuzz());
-#endif
-      EXPECT_THAT(target->GetCrashingInputs(), Not(IsEmpty()));
-      break;
-
-    case FuzzExpectation::kExecutionFailure:
-      EXPECT_FALSE(target->Fuzz());
-      EXPECT_THAT(target->GetCrashingInputs(), IsEmpty());
-      break;
-  }
+  EXPECT_THAT(target->GetCrashingInputs(), IsEmpty());
 }
 
-INSTANTIATE_TEST_SUITE_P(
-    ,
-    FuzzerSmokeTest,
-    testing::ValuesIn(kFuzzerTestCases),
-    [](const testing::TestParamInfo<FuzzerTestCase>& info) {
-      std::string name(info.param.fuzzer);
-      std::replace(name.begin(), name.end(), '.', '_');
-      return name;
-    });
+// TODO(https://crbug.com/445826636): Fix and re-enable.
+#if BUILDFLAG(IS_MAC) || BUILDFLAG(IS_UBSAN) || BUILDFLAG(IS_UBSAN_SECURITY)
+#define MAYBE_FuzzerSolvesStringComparison DISABLED_FuzzerSolvesStringComparison
+#else
+#define MAYBE_FuzzerSolvesStringComparison FuzzerSolvesStringComparison
+#endif
+TEST(FuzzerSmokeTest, MAYBE_FuzzerSolvesStringComparison) {
+  auto target = FuzzTarget::Make("string_compare_fuzzer");
+  ASSERT_TRUE(target);
 
-// This test is limited to POSIX because the process leak bug only affects POSIX
+  target->Fuzz({.timeout_secs = 5});
+
+  EXPECT_THAT(target->GetCrashingInputs(), ElementsAre("fish"))
+      << target->output();
+}
+
+// TODO(https://crbug.com/445826636): Fix and re-enable.
+#if BUILDFLAG(IS_MAC) || BUILDFLAG(IS_UBSAN) || BUILDFLAG(IS_UBSAN_SECURITY)
+#define MAYBE_FuzzerSolvesProtoStringComparison \
+  DISABLED_FuzzerSolvesProtoStringComparison
+#else
+#define MAYBE_FuzzerSolvesProtoStringComparison \
+  FuzzerSolvesProtoStringComparison
+#endif
+TEST(FuzzerSmokeTest, MAYBE_FuzzerSolvesProtoStringComparison) {
+  auto target = FuzzTarget::Make("string_compare_proto_fuzzer");
+  ASSERT_TRUE(target);
+
+  target->Fuzz({.timeout_secs = 5});
+
+  EXPECT_THAT(target->GetCrashingInputs(), ElementsAre("\012\004fish"))
+      << target->output();
+}
+
+#if defined(BUILD_LPM_EMPTY_FUZZER)
+// TODO(https://crbug.com/526656114): Fix when MSAN builds are fixed.
+#if defined(MEMORY_SANITIZER)
+#define MAYBE_LpmEmptyFuzzerDoesNotCrashOnStartup \
+  DISABLED_LpmEmptyFuzzerDoesNotCrashOnStartup
+#else
+#define MAYBE_LpmEmptyFuzzerDoesNotCrashOnStartup \
+  LpmEmptyFuzzerDoesNotCrashOnStartup
+#endif
+TEST(FuzzerSmokeTest, MAYBE_LpmEmptyFuzzerDoesNotCrashOnStartup) {
+  auto target = FuzzTarget::Make("lpm_empty_fuzzer");
+  ASSERT_TRUE(target);
+
+  EXPECT_TRUE(target->Fuzz({.timeout_secs = 2})) << target->output();
+}
+#endif  // defined(BUILD_LPM_EMPTY_FUZZER)
+
+// This test is limited to POSIX the process leak bug only affects POSIX
 // platforms where ClusterFuzz runs with terminate_before_kill=True
 // (which uses SIGTERM first).
-#if BUILDFLAG(USE_FUZZTEST_WRAPPER) && \
-    (BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_MAC))
+#if !BUILDFLAG(IS_WIN) && defined(USING_FUZZTEST_WRAPPER)
 // TODO(https://crbug.com/536875721): Re-enable when MSAN builds are fixed.
 #if defined(MEMORY_SANITIZER)
 #define MAYBE_WrapperDoesNotLeakChildOnSIGTERM \
@@ -201,12 +97,12 @@ INSTANTIATE_TEST_SUITE_P(
 #else
 #define MAYBE_WrapperDoesNotLeakChildOnSIGTERM WrapperDoesNotLeakChildOnSIGTERM
 #endif
-TEST(FuzzTestWrapperSmokeTest, MAYBE_WrapperDoesNotLeakChildOnSIGTERM) {
+TEST(FuzzerSmokeTest, MAYBE_WrapperDoesNotLeakChildOnSIGTERM) {
   base::FilePath exe_path;
   ASSERT_TRUE(base::PathService::Get(base::DIR_EXE, &exe_path));
 
   base::FilePath wrapper_path =
-      exe_path.AppendASCII("fuzztest_stub_fuzzer_FuzzTestStub_Stub_fuzzer");
+      exe_path.AppendASCII("stub_fuzztest_StubFuzzer_Stub_fuzzer");
   ASSERT_TRUE(base::PathExists(wrapper_path))
       << "Wrapper binary missing: " << wrapper_path.value();
 
@@ -247,8 +143,7 @@ TEST(FuzzTestWrapperSmokeTest, MAYBE_WrapperDoesNotLeakChildOnSIGTERM) {
       ::TestTimeouts::action_timeout(),
       kill(-wrapper_pid, 0) != 0 && errno == ESRCH);
 }
-#endif  // BUILDFLAG(USE_FUZZTEST_WRAPPER) && (BUILDFLAG(IS_LINUX) ||
-        // BUILDFLAG(IS_MAC))
+#endif  // !BUILDFLAG(IS_WIN)
 
 }  // namespace
 }  // namespace fuzzing

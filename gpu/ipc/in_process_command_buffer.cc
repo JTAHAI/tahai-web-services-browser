@@ -210,8 +210,9 @@ gpu::ContextResult InProcessCommandBuffer::Initialize(
       base::BindOnce(&InProcessCommandBuffer::InitializeOnGpuThread,
                      base::Unretained(this), std::move(params));
 
-  auto task_sequence = task_executor_->CreateSequence();
-  task_sequence_ = task_sequence.get();
+  task_scheduler_holder_ =
+      std::make_unique<gpu::GpuTaskSchedulerHelper>(task_executor_);
+  task_sequence_ = task_scheduler_holder_->GetTaskSequence();
 
   // Here we block by using a WaitableEvent to make sure InitializeOnGpuThread
   // is finished as part of Initialize function. This also makes sure we won't
@@ -229,13 +230,11 @@ gpu::ContextResult InProcessCommandBuffer::Initialize(
     capabilities_ = capabilities;
     gl_capabilities_ = gl_capabilities;
     shared_image_interface_ = SharedImageInterfaceInProcess::Create(
-        std::move(task_sequence), task_executor_->gpu_preferences(),
+        task_sequence_, task_executor_->gpu_preferences(),
         context_group_->feature_info()->workarounds(),
         task_executor_->gpu_feature_info(), context_state_.get(),
         task_executor_->shared_image_manager(),
         /*is_for_display_compositor=*/false, task_executor_->GetTaskRunner());
-  } else {
-    task_sequence_ = nullptr;
   }
 
   return result;
@@ -499,6 +498,7 @@ void InProcessCommandBuffer::Destroy() {
 
   client_thread_weak_ptr_factory_.InvalidateWeakPtrs();
   gpu_control_client_ = nullptr;
+  shared_image_interface_ = nullptr;
   // Here we block by using a WaitableEvent to make sure DestroyOnGpuThread is
   // finished as part of Destroy.
   base::WaitableEvent completion(
@@ -513,7 +513,6 @@ void InProcessCommandBuffer::Destroy() {
 
   completion.Wait();
   task_sequence_ = nullptr;
-  shared_image_interface_ = nullptr;
 }
 
 bool InProcessCommandBuffer::DestroyOnGpuThread() {

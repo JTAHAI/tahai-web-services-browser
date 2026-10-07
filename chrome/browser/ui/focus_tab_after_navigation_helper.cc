@@ -17,7 +17,8 @@
 
 FocusTabAfterNavigationHelper::FocusTabAfterNavigationHelper(
     content::WebContents* contents)
-    : content::WebContentsObserver(contents) {}
+    : content::WebContentsObserver(contents),
+      content::WebContentsUserData<FocusTabAfterNavigationHelper>(*contents) {}
 
 FocusTabAfterNavigationHelper::~FocusTabAfterNavigationHelper() = default;
 
@@ -101,3 +102,5 @@ bool FocusTabAfterNavigationHelper::IsNtpURL(const GURL& url) {
       Profile::FromBrowserContext(web_contents()->GetBrowserContext());
   return search::IsNTPOrRelatedURL(url, profile);
 }
+
+WEB_CONTENTS_USER_DATA_KEY_IMPL(FocusTabAfterNavigationHelper);

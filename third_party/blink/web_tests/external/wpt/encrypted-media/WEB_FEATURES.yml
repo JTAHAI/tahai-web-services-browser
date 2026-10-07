@@ -1,2 +1,3 @@
-rules:
-- "**": [encrypted-media-extensions]
+features:
+- name: encrypted-media-extensions
+  files: "**"

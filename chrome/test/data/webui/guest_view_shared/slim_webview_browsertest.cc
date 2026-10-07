@@ -2,9 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include <memory>
-#include <vector>
-
 #include "base/json/json_writer.h"
 #include "base/values.h"
 #include "chrome/browser/chrome_content_browser_client.h"
@@ -17,8 +14,6 @@
 #include "components/content_settings/core/common/content_settings_utils.h"
 #include "components/permissions/contexts/geolocation_permission_context_android.h"
 #include "components/permissions/permission_manager.h"
-#include "content/public/browser/navigation_handle.h"
-#include "content/public/browser/web_contents_observer.h"
 #include "content/public/browser/web_ui_data_source.h"
 #include "content/public/test/browser_test.h"
 #include "content/public/test/browser_test_utils.h"
@@ -32,24 +27,9 @@
 namespace {
 constexpr char kCrossOrigin[] = "cross.origin";
 constexpr char kSubCrossOrigin[] = "sub.cross.origin";
+}
 
-class GuestWebContentsObserver : public content::WebContentsObserver {
- public:
-  explicit GuestWebContentsObserver(content::WebContents* web_contents)
-      : content::WebContentsObserver(web_contents) {}
-
-  void DidFinishNavigation(
-      content::NavigationHandle* navigation_handle) override {
-    if (navigation_handle->HasCommitted()) {
-      web_contents()->WasShown();
-    }
-  }
-};
-
-}  // namespace
-
-class SlimWebviewBrowserTest : public WebUIMochaBrowserTest,
-                               public content::WebContentsObserver {
+class SlimWebviewBrowserTest : public WebUIMochaBrowserTest {
  public:
   // While these tests are independent of Glic, we use the Glic host as a
   // convenient way to get a WebUI instance that has all the sources and
@@ -80,7 +60,6 @@ class SlimWebviewBrowserTest : public WebUIMochaBrowserTest,
 
  protected:
   void OnWebContentsAvailable(content::WebContents* web_contents) override {
-    content::WebContentsObserver::Observe(web_contents);
     auto* profile =
         Profile::FromBrowserContext(web_contents->GetBrowserContext());
     auto* permission_manager = PermissionManagerFactory::GetForProfile(profile);
@@ -101,13 +80,6 @@ class SlimWebviewBrowserTest : public WebUIMochaBrowserTest,
         can_get_location, embedded_test_server()->base_url().spec(),
         embedded_test_server()->GetURL(kCrossOrigin, "/").spec());
     ASSERT_TRUE(ExecJs(web_contents, script));
-  }
-
-  void InnerWebContentsAttached(
-      content::WebContents* inner_web_contents,
-      content::RenderFrameHost* render_frame_host) override {
-    guest_observers_.push_back(
-        std::make_unique<GuestWebContentsObserver>(inner_web_contents));
   }
 
  private:
@@ -152,7 +124,6 @@ class SlimWebviewBrowserTest : public WebUIMochaBrowserTest,
     return nullptr;
   }
 
-  std::vector<std::unique_ptr<GuestWebContentsObserver>> guest_observers_;
   std::map<std::string, net::test_server::HttpRequest::HeaderMap>
       captured_headers_;
   base::test::ScopedFeatureList scoped_feature_list_{features::kGlic};

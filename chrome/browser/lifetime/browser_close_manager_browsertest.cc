@@ -39,6 +39,7 @@
 #include "chrome/browser/profiles/profile_manager.h"
 #include "chrome/browser/sessions/tab_restore_service_factory.h"
 #include "chrome/browser/sessions/tab_restore_service_load_waiter.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
@@ -296,7 +297,7 @@ class BrowserCloseManagerBrowserTest : public InProcessBrowserTest {
 #endif
   }
 
-  void CreateStalledDownload(BrowserWindowInterface* browser) {
+  void CreateStalledDownload(Browser* browser) {
     ASSERT_TRUE(embedded_test_server()->Started());
 
     GURL slow_download_url = embedded_test_server()->GetURL(
@@ -332,7 +333,7 @@ class BrowserCloseManagerBrowserTest : public InProcessBrowserTest {
     }));
   }
 
-  std::vector<raw_ptr<BrowserWindowInterface, VectorExperimental>> browsers_;
+  std::vector<raw_ptr<Browser, VectorExperimental>> browsers_;
 };
 
 IN_PROC_BROWSER_TEST_F(BrowserCloseManagerBrowserTest, TestSingleTabShutdown) {
@@ -1072,7 +1073,7 @@ IN_PROC_BROWSER_TEST_F(BrowserCloseManagerBrowserTest,
                        TestWithOffTheRecordDownloads) {
   Profile* otr_profile =
       browser()->GetProfile()->GetPrimaryOTRProfile(/*create_if_needed=*/true);
-  BrowserWindowInterface* otr_browser = CreateBrowser(otr_profile);
+  Browser* otr_browser = CreateBrowser(otr_profile);
   {
     ui_test_utils::BrowserDestroyedObserver observer(browser());
     browser()->GetWindow()->Close();
@@ -1107,7 +1108,7 @@ IN_PROC_BROWSER_TEST_F(BrowserCloseManagerBrowserTest,
                        DISABLED_TestWithOffTheRecordWindowAndRegularDownload) {
   Profile* otr_profile =
       browser()->GetProfile()->GetPrimaryOTRProfile(/*create_if_needed=*/true);
-  BrowserWindowInterface* otr_browser = CreateBrowser(otr_profile);
+  Browser* otr_browser = CreateBrowser(otr_profile);
   ASSERT_NO_FATAL_FAILURE(CreateStalledDownload(browser()));
 
   content::TestNavigationObserver navigation_observer(
@@ -1166,8 +1167,7 @@ IN_PROC_BROWSER_TEST_F(BrowserCloseManagerBrowserTest,
   }
   Profile* other_profile_ptr = other_profile.get();
   profile_manager->RegisterTestingProfile(std::move(other_profile), true);
-  BrowserWindowInterface* other_profile_browser =
-      CreateBrowser(other_profile_ptr);
+  Browser* other_profile_browser = CreateBrowser(other_profile_ptr);
   ui_test_utils::WaitUntilBrowserBecomeActive(other_profile_browser);
 
   ASSERT_NO_FATAL_FAILURE(CreateStalledDownload(browser()));
@@ -1183,7 +1183,7 @@ IN_PROC_BROWSER_TEST_F(BrowserCloseManagerBrowserTest,
   ui_test_utils::BrowserCreatedObserver browser_created_observer;
   TestBrowserCloseManager::AttemptClose(
       TestBrowserCloseManager::USER_CHOICE_USER_CANCELS_CLOSE);
-  BrowserWindowInterface* opened_browser = browser_created_observer.Wait();
+  Browser* opened_browser = browser_created_observer.Wait();
   ASSERT_TRUE(opened_browser);
   ui_test_utils::WaitUntilBrowserBecomeActive(opened_browser);
   EXPECT_FALSE(browser_shutdown::IsTryingToQuit());

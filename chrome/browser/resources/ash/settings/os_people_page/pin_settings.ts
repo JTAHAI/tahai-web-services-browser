@@ -70,7 +70,7 @@ export class SettingsPinSettingsElement extends SettingsPinSettingsElementBase {
   declare private showSetPinDialog_: boolean;
   declare private showPinAutosubmitDialog_: boolean;
   declare private quickUnlockDisabledByPolicy_: boolean;
-  private hasPassword_: boolean = false;
+  private hasPassword_: boolean;
 
   override ready(): void {
     super.ready();

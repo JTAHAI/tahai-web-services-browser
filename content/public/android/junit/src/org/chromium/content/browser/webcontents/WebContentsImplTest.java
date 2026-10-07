@@ -21,6 +21,7 @@ import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
+import org.robolectric.annotation.Config;
 
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.base.test.util.Feature;
@@ -30,6 +31,7 @@ import org.chromium.ui.base.EventForwarder;
 
 /** Unit tests for {@link WebContentsImpl}. */
 @RunWith(BaseRobolectricTestRunner.class)
+@Config(manifest = Config.NONE)
 public class WebContentsImplTest {
     @Rule public MockitoRule mMockitoRule = MockitoJUnit.rule();
     @Mock private NavigationController mNavigationController;

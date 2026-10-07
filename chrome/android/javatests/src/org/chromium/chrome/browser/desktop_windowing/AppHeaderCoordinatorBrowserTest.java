@@ -162,7 +162,6 @@ public class AppHeaderCoordinatorBrowserTest {
 
     @Test
     @MediumTest
-    @DisabledTest(message = "crbug.com/540949052")
     public void testToggleTabStripVisibilityInDesktopWindow() {
         ChromeTabbedActivity activity = mActivityTestRule.getActivity();
         triggerDesktopWindowingModeChange(activity, true);

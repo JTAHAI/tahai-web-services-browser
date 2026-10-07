@@ -355,7 +355,7 @@ void ElementInternals::DidUpgrade() {
         lists->InvalidateCaches(nullptr);
     }
   }
-  Target().GetDocument().EnsureFormController().RestoreControlStateOnUpgrade(
+  Target().GetDocument().GetFormController().RestoreControlStateOnUpgrade(
       *this);
 }
 

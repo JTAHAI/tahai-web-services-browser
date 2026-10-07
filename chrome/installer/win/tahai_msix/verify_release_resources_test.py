@@ -16,13 +16,9 @@ class ResourceChecks(unittest.TestCase):
         branded = build.split('grit_strings("components_branded_strings") {', 1)[1].split(
             'grit_strings("components_locale_settings") {', 1)[0]
         self.assertIn('source = "../components_${branding_path_product}_strings.grd"', branded)
-        self.assertIn('_translation_product = branding_path_product', branded)
-        self.assertRegex(branded, r'if \(is_tahai_branded\)\s*\{\s*'
-                                 r'_translation_product = "chromium"\s*\}')
-        self.assertIn('components_${_translation_product}_strings_{{source_name_part}}.xtb',
-                      branded)
-        self.assertNotIn('components_${branding_path_product}_strings_{{source_name_part}}.xtb',
-                         branded)
+        # Chromium 152 derives translation dependencies from each GRD.
+        # Its grit_strings target has no separate 154 explicit inputs list.
+        self.assertNotIn('inputs = process_file_template(', branded)
         for product, translations in (('tahai', 'chromium'), ('chromium', 'chromium'),
                                       ('google_chrome', 'google_chrome')):
             with self.subTest(product=product):

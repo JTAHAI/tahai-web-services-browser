@@ -1034,12 +1034,15 @@ Resource* ResourceFetcher::CreateResourceForStaticData(
   // Most off-main-thread resource fetches use Resource::kRaw and don't reach
   // this point, but off-main-thread module fetches might.
   if (IsMainThread()) {
-    Resource* old_resource =
-        MemoryCache::Get()->ResourceForURL(url, cache_identifier);
-    if (old_resource) {
+    if (Resource* old_resource =
+            MemoryCache::Get()->ResourceForURL(url, cache_identifier)) {
       // There's no reason to re-parse if we saved the data from the previous
       // parse.
       if (params.Options().data_buffering_policy != kDoNotBufferData) {
+        if (url.ProtocolIsData()) {
+          // Touch the strong reference to update LRU on cache hit.
+          MemoryCache::Get()->SaveDataURIStrongReference(old_resource);
+        }
         return old_resource;
       }
       MemoryCache::Get()->Remove(old_resource);
@@ -1138,6 +1141,13 @@ Resource* ResourceFetcher::CreateResourceForStaticData(
   }
 
   AddToMemoryCacheIfNeeded(params, resource);
+  if (url.ProtocolIsData()) {
+    // Keep a strong reference to data URI resources so they survive GC across
+    // navigations. Data URIs are immutable, so caching is always safe.
+    if (IsMainThread()) {
+      MemoryCache::Get()->SaveDataURIStrongReference(resource);
+    }
+  }
   return resource;
 }
 
@@ -1687,27 +1697,16 @@ void ResourceFetcher::InitializeRevalidation(
               revalidating_request.GetCacheMode());
     if (revalidating_request.GetCacheMode() ==
         mojom::blink::FetchCacheMode::kValidateCache) {
-      if (!base::FeatureList::IsEnabled(network::features::kSafeRevalidation)) {
-        revalidating_request.SetHttpHeaderField(http_names::kCacheControl,
-                                                AtomicString("max-age=0"));
-      }
+      revalidating_request.SetHttpHeaderField(http_names::kCacheControl,
+                                              AtomicString("max-age=0"));
     }
   }
-  if (base::FeatureList::IsEnabled(network::features::kSafeRevalidation)) {
-    if (!last_modified.empty()) {
-      revalidating_request.SetRevalidationLastModified(last_modified);
-    }
-    if (!e_tag.empty()) {
-      revalidating_request.SetRevalidationEtag(e_tag);
-    }
-  } else {
-    if (!last_modified.empty()) {
-      revalidating_request.SetHttpHeaderField(http_names::kIfModifiedSince,
-                                              last_modified);
-    }
-    if (!e_tag.empty()) {
-      revalidating_request.SetHttpHeaderField(http_names::kIfNoneMatch, e_tag);
-    }
+  if (!last_modified.empty()) {
+    revalidating_request.SetHttpHeaderField(http_names::kIfModifiedSince,
+                                            last_modified);
+  }
+  if (!e_tag.empty()) {
+    revalidating_request.SetHttpHeaderField(http_names::kIfNoneMatch, e_tag);
   }
 
   resource->SetRevalidatingRequest(revalidating_request);
@@ -2460,7 +2459,7 @@ void ResourceFetcher::RecordPreconnect(const KURL& url,
   // Preconnects with distinct crossorigin values to the same origin are
   // reported separately.
   const String key =
-      StrCat({origin, "|", String::Number(static_cast<int>(crossorigin))});
+      origin + "|" + String::Number(static_cast<int>(crossorigin));
   auto it = preconnect_records_.find(key);
   if (it == preconnect_records_.end()) {
     PreconnectInfo info;
@@ -3217,9 +3216,10 @@ void ResourceFetcher::RevalidateStaleResource(Resource* stale_resource) {
   // requests.
   ResourceRequest request;
   request.CopyHeadFrom(stale_resource->GetResourceRequest());
-  FetchParameters params(
-      std::move(request),
-      ResourceLoaderOptions(stale_resource->Options().world_for_csp.Get()));
+  // TODO(https://crbug.com/1405800): investigate whether it's correct to use a
+  // null `world` in the ResourceLoaderOptions below.
+  FetchParameters params(std::move(request),
+                         ResourceLoaderOptions(/*world=*/nullptr));
   params.SetStaleRevalidation(true);
   params.MutableResourceRequest().SetSkipServiceWorker(true);
   // Stale revalidation resource requests should be very low regardless of

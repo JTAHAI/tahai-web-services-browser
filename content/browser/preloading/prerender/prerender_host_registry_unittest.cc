@@ -7,7 +7,6 @@
 #include <cstdint>
 
 #include "base/memory_coordinator/memory_coordinator_features.h"
-#include "base/memory_coordinator/memory_limit.h"
 #include "base/memory_coordinator/test_memory_consumer_registry.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/test/bind.h"
@@ -970,11 +969,10 @@ TEST_F(PrerenderHostRegistryLegacyMemoryControlsTest,
 
   // Under the legacy memory pressure system (when kStatefulMemoryPressure is
   // disabled), critical memory pressure notifications are dispatched with a
-  // simulated memory limit of 0% (<= CriticalPressureThreshold()).
+  // simulated memory limit of 0% (<= kCriticalMemoryPressureThreshold).
   {
     base::RunLoop run_loop;
-    test_registry_.NotifyUpdateMemoryLimitAsync(
-        base::MemoryLimit::CriticalPressureThreshold(), base::DoNothing());
+    test_registry_.NotifyUpdateMemoryLimitAsync(0, base::DoNothing());
     test_registry_.NotifyReleaseMemoryAsync(run_loop.QuitClosure());
     run_loop.Run();
   }
@@ -1796,6 +1794,19 @@ TEST_F(PrerenderHostRegistryTest,
                 ->current_replication_state()
                 .insecure_navigations_set,
             insecure_navigations);
+}
+
+TEST_F(PrerenderHostRegistryTest,
+       HasPotentiallyTrustworthyUniqueOriginIsSetWhilePrerendering) {
+  SetupPrerenderAndCommit(
+      base::BindLambdaForTesting([](NavigationSimulatorImpl* navigation) {
+        navigation->set_has_potentially_trustworthy_unique_origin(true);
+      }));
+  EXPECT_TRUE(contents()
+                  ->GetPrimaryMainFrame()
+                  ->frame_tree_node()
+                  ->current_replication_state()
+                  .has_potentially_trustworthy_unique_origin);
 }
 
 // End replication state matching tests ------------

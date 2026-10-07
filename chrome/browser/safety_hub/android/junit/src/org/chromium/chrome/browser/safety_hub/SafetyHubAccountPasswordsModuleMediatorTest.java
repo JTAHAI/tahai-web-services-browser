@@ -26,6 +26,7 @@ import org.mockito.junit.MockitoRule;
 import org.robolectric.Robolectric;
 
 import org.chromium.base.test.BaseRobolectricTestRunner;
+import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.Features;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.safety_hub.SafetyHubAccountPasswordsDataSource.ModuleType;
@@ -33,6 +34,7 @@ import org.chromium.ui.base.TestActivity;
 
 /** Robolectric tests for {@link SafetyHubAccountPasswordsModuleMediator}. */
 @RunWith(BaseRobolectricTestRunner.class)
+@Batch(Batch.UNIT_TESTS)
 public class SafetyHubAccountPasswordsModuleMediatorTest {
     private static final @DrawableRes int SAFE_ICON = R.drawable.material_ic_check_24dp;
     private static final @DrawableRes int INFO_ICON = R.drawable.btn_info;

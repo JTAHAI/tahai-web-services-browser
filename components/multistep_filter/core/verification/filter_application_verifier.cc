@@ -8,7 +8,6 @@
 #include <string>
 #include <vector>
 
-#include "base/containers/to_vector.h"
 #include "base/strings/utf_string_conversions.h"
 
 namespace multistep_filter {
@@ -18,10 +17,8 @@ FilterApplicationVerifier::Result FilterApplicationVerifier::Verify(
     const UrlFilterSuggestion& suggested_filters,
     const std::optional<FilterAnnotation>& extracted_annotation) {
   if (!extracted_annotation || extracted_annotation->attributes.empty()) {
-    return {
-        .outcome = SuggestionApplicationResult::kFailedNoExtractedAnnotations,
-        .missing_keys = base::ToVector(suggested_filters.attribute_ui_labels,
-                                       &FilterAttributeUiLabel::key)};
+    return {.outcome =
+                SuggestionApplicationResult::kFailedNoExtractedAnnotations};
   }
 
   std::vector<std::string> missing_keys;

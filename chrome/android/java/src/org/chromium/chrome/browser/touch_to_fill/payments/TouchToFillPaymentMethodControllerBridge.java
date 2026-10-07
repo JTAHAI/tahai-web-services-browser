@@ -154,14 +154,6 @@ class TouchToFillPaymentMethodControllerBridge
         }
     }
 
-    @Override
-    public void onUserDecisionToUseSavedCards() {
-        if (mNativeTouchToFillPaymentMethodViewController != 0) {
-            TouchToFillPaymentMethodControllerBridgeJni.get()
-                    .onUserDecisionToUseSavedCards(mNativeTouchToFillPaymentMethodViewController);
-        }
-    }
-
     @NativeMethods
     interface Natives {
         void onDismissed(
@@ -198,7 +190,5 @@ class TouchToFillPaymentMethodControllerBridge
                 @JniType("std::string") String issuerId);
 
         void onBnplTosAccepted(long nativeTouchToFillPaymentMethodViewController);
-
-        void onUserDecisionToUseSavedCards(long nativeTouchToFillPaymentMethodViewController);
     }
 }

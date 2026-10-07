@@ -4,7 +4,6 @@
 
 import("//build/config/android/config.gni")
 import("//build/config/android/rules.gni")
-import("//components/lens/features.gni")
 import("//third_party/jni_zero/jni_zero.gni")
 
 generate_jni("jni_headers") {
@@ -17,24 +16,15 @@ source_set("lens") {
   sources = [
     "lens_overlay_controller_android.cc",
     "lens_overlay_controller_android.h",
-    "lens_overlay_untrusted_ui_android.cc",
-    "lens_overlay_untrusted_ui_android.h",
   ]
   deps = [
     ":jni_headers",
     "//base",
-    "//chrome/browser/profiles:profile",
-    "//chrome/browser/signin",
-    "//chrome/common",
     "//components/lens",
     "//content/public/browser",
     "//third_party/jni_zero",
     "//ui/gfx",
   ]
-
-  if (enable_lens_overlay_backend) {
-    deps += [ "//chrome/browser/ui/lens:backend_logic_impl" ]
-  }
 }
 
 android_library("java") {

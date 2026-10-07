@@ -22,6 +22,7 @@ import org.chromium.components.browser_ui.bottomsheet.BottomSheetContent;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController.StateChangeReason;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetObserver;
+import org.chromium.components.browser_ui.bottomsheet.EmptyBottomSheetObserver;
 import org.chromium.ui.widget.ButtonCompat;
 
 import java.lang.annotation.Retention;
@@ -125,14 +126,16 @@ public class GlicPromoCoordinator {
             mController = controller;
             mScrollView = mContentView.findViewById(R.id.glic_promo_scrollview);
             mBottomSheetOpenedObserver =
-                    new BottomSheetObserver() {
+                    new EmptyBottomSheetObserver() {
                         @Override
                         public void onSheetOpened(@StateChangeReason int reason) {
+                            super.onSheetOpened(reason);
                             mBackPressStateChangedSupplier.set(true);
                         }
 
                         @Override
                         public void onSheetClosed(@StateChangeReason int reason) {
+                            super.onSheetClosed(reason);
                             mBackPressStateChangedSupplier.set(false);
                             recordDismissReason(DismissReason.DISMISS);
                             onDismissed.run();

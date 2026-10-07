@@ -63,9 +63,8 @@ import java.util.WeakHashMap;
 @NullMarked
 public final class UnownedUserDataKey<T> {
     private final @Nullable UnownedUserDataListener<T> mListener;
-    // Default capacity (16) is oversized for typical 1-2 entries.
     private final Set<UnownedUserDataHost> mWeakHostAttachments =
-            Collections.newSetFromMap(new WeakHashMap<>(4));
+            Collections.newSetFromMap(new WeakHashMap<>());
 
     /** Constructs a key to use for attaching to a particular {@link UnownedUserDataHost}. */
     public UnownedUserDataKey() {

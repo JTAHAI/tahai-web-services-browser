@@ -4,7 +4,6 @@
 
 #include "components/optimization_guide/core/model_execution/test/fake_model_broker_android.h"
 
-#include "components/optimization_guide/core/model_execution/model_execution_prefs.h"
 #include "components/optimization_guide/core/model_execution/on_device_features.h"
 #include "components/optimization_guide/core/optimization_guide_features.h"
 #include "services/on_device_model/android/model_downloader_android.h"
@@ -15,6 +14,7 @@ ScopedModelBrokerAndroidFeatureList::ScopedModelBrokerAndroidFeatureList() {
   feature_list_.InitWithFeaturesAndParameters(
       {
           {features::kOptimizationGuideModelExecution, {}},
+          {features::kOptimizationGuideOnDeviceModel, {}},
           {features::kAICorePrompt, {}},
           {features::kAICoreScamDetection, {}},
           {features::kAICoreTest, {}},
@@ -27,7 +27,6 @@ ScopedModelBrokerAndroidFeatureList::~ScopedModelBrokerAndroidFeatureList() =
 
 FakeModelBrokerAndroid::FakeModelBrokerAndroid(const Options& options)
     : options_(options) {
-  model_execution::prefs::RegisterLocalStatePrefs(local_state_.registry());
   java_helper_.SetMockAiCoreFactory();
   java_helper_.settings().SetDefaultStatusCheckResult(
       on_device_model::ModelDownloaderAndroid::ModelStatus::kAvailable);
@@ -64,7 +63,7 @@ void FakeModelBrokerAndroid::UpdateModelAdaptation(
 
 ModelBrokerAndroid& FakeModelBrokerAndroid::EnsureBroker() {
   if (!broker_) {
-    broker_.emplace(local_state_, model_provider_);
+    broker_.emplace(local_state_.local_state(), model_provider_);
   }
   return *broker_;
 }

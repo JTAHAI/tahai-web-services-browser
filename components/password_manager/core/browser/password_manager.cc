@@ -514,16 +514,6 @@ bool HasManuallyFilledPassword(const PasswordForm& form) {
       });
 }
 
-bool HasActorFilledPassword(const PasswordForm& form) {
-  return std::ranges::any_of(
-      form.form_data.fields(),
-      [&](const autofill::FormFieldData& field_data) -> bool {
-        return field_data.IsPasswordInputElement() &&
-               (field_data.properties_mask() &
-                autofill::FieldPropertiesFlags::kAutofilledActorLogin);
-      });
-}
-
 PasswordForm CreateFormForLeakCheck(const PasswordForm& pending_credentials,
                                     const PasswordForm& submitted_credentials) {
   PasswordForm form = pending_credentials;
@@ -574,9 +564,6 @@ void PasswordManager::RegisterProfilePrefs(
                              base::Time());
   registry->RegisterBooleanPref(prefs::kWereOldGoogleLoginsRemoved, false);
   registry->RegisterBooleanPref(prefs::kCredentialsEnablePasskeys, true);
-  registry->RegisterBooleanPref(prefs::kAutomatedPasswordChangeEnabled, true);
-  registry->RegisterBooleanPref(
-      prefs::kPasswordChangeWithPrivateInferenceNoticeAgreement, false);
 
 #if BUILDFLAG(IS_APPLE)
   registry->RegisterIntegerPref(prefs::kKeychainMigrationStatus,
@@ -741,11 +728,7 @@ void PasswordManager::OnPresaveGeneratedPassword(
   UMA_HISTOGRAM_BOOLEAN("PasswordManager.GeneratedFormHasNoFormManager",
                         !form_manager);
   if (form_manager) {
-    // TODO(crbug.com/513276101): Explicit construction of std::u16string
-    // R-Value to be removed once OnPresaveGeneratedPassword converted to take
-    // PasswordString
-    form_manager->PresaveGeneratedPassword(
-        form_data, PasswordString(std::u16string(generated_password)));
+    form_manager->PresaveGeneratedPassword(form_data, generated_password);
 #if BUILDFLAG(IS_IOS)
     // On iOS some field values are not propagated to PasswordManager timely.
     // Provisionally save entire |form_data| to make sure the form is parsed
@@ -1034,21 +1017,12 @@ void PasswordManager::OnInformAboutUserInput(PasswordManagerDriver* driver,
       manager && manager->GetSubmittedForm() &&
       HasManuallyFilledPassword(*(manager->GetSubmittedForm()));
 
-  const bool had_actor_filled_password_before =
-      manager && manager->GetSubmittedForm() &&
-      HasActorFilledPassword(*(manager->GetSubmittedForm()));
-
   manager = ProvisionallySaveForm(form_data, driver, true);
 
-  if (manager) {
-    if (const PasswordForm* form = manager->GetSubmittedForm(); form) {
-      if (!had_manually_filled_password_before &&
-          HasManuallyFilledPassword(*form)) {
-        manager->OnPasswordFilledManually();
-      }
-      if (!had_actor_filled_password_before && HasActorFilledPassword(*form)) {
-        client_->OnPasswordFilled(driver, form->url);
-      }
+  if (manager && !had_manually_filled_password_before) {
+    if (const PasswordForm* form = manager->GetSubmittedForm();
+        form && HasManuallyFilledPassword(*form)) {
+      manager->OnPasswordFilledManually();
     }
   }
 
@@ -1687,8 +1661,7 @@ void PasswordManager::OnLoginSuccessful() {
       password_manager_util::IsSavingBlockedByTrustedVaultError(
           client_, submitted_manager);
   bool able_to_save_passwords_after_fixing_recoverable_error =
-      password_manager_util::IsSavingBlockedByRecoverableError(
-          client_, submitted_manager);
+      password_manager_util::IsSavingBlockedByRecoverableError(client_);
   base::UmaHistogramBoolean(
       "PasswordManager.AbleToSavePasswordsOnSuccessfulLogin",
       able_to_save_passwords);

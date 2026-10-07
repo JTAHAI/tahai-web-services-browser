@@ -341,7 +341,7 @@ template <typename ItemsBuilder>
 void CollectInlinesInternal(ItemsBuilder* builder,
                             const InlineNodeData* previous_data) {
   LayoutBlockFlow* const block = builder->GetLayoutBlockFlow();
-  builder->EnterBlock(&block->StyleRef());
+  builder->EnterBlock(block->Style());
   LayoutObject* node = block->FirstChild();
 
   const LayoutObject* symbol =
@@ -1992,16 +1992,8 @@ static LayoutUnit ComputeContentSize(InlineNode node,
                                      std::optional<LayoutUnit>* max_size_out,
                                      bool* depends_on_block_constraints_out) {
   const ComputedStyle& style = node.Style();
-  const LayoutUnit available_inline_size = ([&]() {
-    switch (mode) {
-      case LineBreakerMode::kMinContent:
-        return LayoutUnit();
-      case LineBreakerMode::kContent:
-        return float_input.constrained_inline_size;
-      case LineBreakerMode::kMaxContent:
-        return LayoutUnit::Max();
-    }
-  })();
+  LayoutUnit available_inline_size =
+      mode == LineBreakerMode::kMaxContent ? LayoutUnit::Max() : LayoutUnit();
 
   ExclusionSpace empty_exclusion_space;
   LeadingFloats empty_leading_floats;
@@ -2011,10 +2003,8 @@ static LayoutUnit ComputeContentSize(InlineNode node,
       node, mode, space, line_opportunity, empty_leading_floats,
       /* break_token */ nullptr,
       /* column_spanner_path */ nullptr, &empty_exclusion_space);
-  if (mode != LineBreakerMode::kContent) {
-    line_breaker.SetIntrinsicSizeOutputs(max_size_cache,
-                                         depends_on_block_constraints_out);
-  }
+  line_breaker.SetIntrinsicSizeOutputs(max_size_cache,
+                                       depends_on_block_constraints_out);
   const InlineItemsData& items_data = line_breaker.ItemsData();
 
   // Computes max-size for floats in inline formatting context.
@@ -2353,14 +2343,7 @@ MinMaxSizesResult InlineNode::ComputeMinMaxSizes(
       ComputeContentSize(*this, container_writing_mode, space, float_input,
                          LineBreakerMode::kMinContent, &max_size_cache,
                          &max_size, &depends_on_block_constraints);
-  if (Style().IsInShrinkToFitSubtree()) {
-    sizes.max_size =
-        float_input.constrained_inline_size <= sizes.min_size
-            ? sizes.min_size
-            : ComputeContentSize(*this, container_writing_mode, space,
-                                 float_input, LineBreakerMode::kContent,
-                                 nullptr, nullptr, nullptr);
-  } else if (max_size) {
+  if (max_size) {
     sizes.max_size = *max_size;
   } else {
     sizes.max_size = ComputeContentSize(
@@ -2386,7 +2369,7 @@ void InlineNode::CheckConsistency() const {
   for (const Member<InlineItem>& item_ptr : items) {
     const InlineItem& item = *item_ptr;
     DCHECK(!item.GetLayoutObject() || !item.Style() ||
-           item.Style() == &item.GetLayoutObject()->StyleRef());
+           item.Style() == item.GetLayoutObject()->Style());
   }
 #endif
 }

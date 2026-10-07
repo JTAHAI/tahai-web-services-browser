@@ -33,10 +33,7 @@ export function getHtml(this: SettingsMenuElement) {
             <cr-icon class="start-icon" icon="${item.icon}"></cr-icon>
           ` : ''}
 
-          <div class="label">
-            ${item.title}
-            ${item.showBadge ? html`<new-badge></new-badge>` : ''}
-          </div>
+          <div class="label">${item.title}</div>
         </div>
 
         ${item.itemType === SettingsItemType.TOGGLE ? html`

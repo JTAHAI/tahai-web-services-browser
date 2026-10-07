@@ -153,9 +153,6 @@ public class TabGridItemLongPressOrchestrator {
         }
 
         MVCListAdapter.ListItem listItem = mModel.get(selectedTabIndex);
-        if (listItem == null || listItem.model == null) {
-            return;
-        }
         @TabId int tabId = listItem.model.get(TabProperties.TAB_ID);
 
         mTimer.cancelTimer();

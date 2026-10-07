@@ -4,7 +4,9 @@
 
 #include "chrome/browser/ash/system_web_apps/test_support/system_web_app_browsertest_base.h"
 #include "chrome/browser/ash/system_web_apps/test_support/system_web_app_integration_test.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
+#include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/test/base/ui_test_utils.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/test/browser_test.h"
@@ -48,7 +50,7 @@ IN_PROC_BROWSER_TEST_P(CameraAppIntegrationTest, OtherPageUrlNavigation) {
   EXPECT_EQ(1u, GlobalBrowserCollection::GetInstance()->GetSize());
   EXPECT_EQ(
       other_page_camera_app_url,
-      browser()->GetTabStripModel()->GetActiveWebContents()->GetVisibleURL());
+      browser()->tab_strip_model()->GetActiveWebContents()->GetVisibleURL());
 }
 
 // CCAAPI verifies whether the private JavaScript APIs CCA (Chrome camera app)
@@ -67,7 +69,7 @@ IN_PROC_BROWSER_TEST_P(CameraAppIntegrationTest, CCAAPI) {
       browser(), GURL("chrome://camera-app/test/test.html")));
   EXPECT_EQ(1u, GlobalBrowserCollection::GetInstance()->GetSize());
   content::WebContents* web_contents =
-      browser()->GetTabStripModel()->GetActiveWebContents();
+      browser()->tab_strip_model()->GetActiveWebContents();
   ASSERT_TRUE(web_contents);
 
   // Assert that the window.FileSystemHandle API exists.
@@ -81,7 +83,7 @@ IN_PROC_BROWSER_TEST_P(CameraAppIntegrationTest, CCAAPI) {
       browser(),
       GURL("chrome://camera-app/views/untrusted_script_loader.html")));
   EXPECT_EQ(1u, GlobalBrowserCollection::GetInstance()->GetSize());
-  web_contents = browser()->GetTabStripModel()->GetActiveWebContents();
+  web_contents = browser()->tab_strip_model()->GetActiveWebContents();
 
   // Assert that the window.launchQueue API exists.
   auto result2 =

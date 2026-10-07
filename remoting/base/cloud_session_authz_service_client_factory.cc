@@ -229,17 +229,20 @@ void CloudSessionAuthzServiceClient::OnVerifySessionTokenResponse(
           proto_port_range.has_start() ? proto_port_range.start() : 1;
       int max_port =
           proto_port_range.has_end() ? proto_port_range.end() : USHRT_MAX;
-      auto port_range = PortRange::Create(min_port, max_port);
-      if (!port_range) {
+      if (min_port < 1 || min_port > max_port || max_port > USHRT_MAX) {
         LOG(ERROR) << "Invalid port range: [" << min_port << ", " << max_port
                    << "]";
       } else {
-        session_policies.host_udp_port_range = *std::move(port_range);
+        session_policies.host_udp_port_range.min_port = min_port;
+        session_policies.host_udp_port_range.max_port = max_port;
       }
     }
     if (response->session_policies().has_maximum_session_duration()) {
-      session_policies.maximum_session_duration = base::Seconds(
+      auto maximum_session_duration = base::Seconds(
           response->session_policies().maximum_session_duration().seconds());
+      session_policies.maximum_session_duration =
+          std::max(maximum_session_duration,
+                   SessionPolicies::kMinMaximumSessionDuration);
     }
     response_struct->session_policies.emplace(std::move(session_policies));
   }

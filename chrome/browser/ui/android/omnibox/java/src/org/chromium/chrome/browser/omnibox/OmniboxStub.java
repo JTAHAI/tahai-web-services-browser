@@ -8,7 +8,6 @@ import org.chromium.base.Callback;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.lens.LensEntryPoint;
-import org.chromium.chrome.browser.omnibox.suggestions.OmniboxLoadUrlParams;
 import org.chromium.chrome.browser.omnibox.voice.VoiceRecognitionHandler;
 import org.chromium.components.omnibox.AutocompleteInput;
 
@@ -33,9 +32,6 @@ public interface OmniboxStub {
 
     /** Suspends the current Omnibox input session. */
     void suspendInput();
-
-    /** Handler for scrim clicks. */
-    void onScrimClicked();
 
     /**
      * @return Whether the URL bar is currently focused.
@@ -98,13 +94,6 @@ public interface OmniboxStub {
     // TODO(b/519232041): Expand loadUrl() to take the "ActivationType" param to differentiate
     // various ways of resolving user input and migrate this call to loadUrl().
     void loadUrlFromVoice(String query);
-
-    /**
-     * Requests that the given URL be loaded.
-     *
-     * @param omniboxLoadUrlParams parameters describing the url load.
-     */
-    void loadUrl(OmniboxLoadUrlParams omniboxLoadUrlParams);
 
     /** Returns the active AutocompleteInput, if any. */
     default @Nullable AutocompleteInput getAutocompleteInputForTesting() {

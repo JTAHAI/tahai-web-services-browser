@@ -26,7 +26,6 @@
 #define ABSL_SYNCHRONIZATION_INTERNAL_CREATE_THREAD_IDENTITY_H_
 
 #include "absl/base/internal/thread_identity.h"
-#include "absl/base/optimization.h"
 #include "absl/base/port.h"
 
 namespace absl {

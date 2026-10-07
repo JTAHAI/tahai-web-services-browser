@@ -95,6 +95,13 @@ TODO(http://crbug.com/485940935): Delete this.
             android:inflatedId="@+id/bookmark_bar"
             android:layout="@layout/bookmark_bar" />
 
+        <ViewStub
+            android:id="@+id/actor_overlay_stub"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:inflatedId="@+id/actor_overlay"
+            android:layout="@layout/actor_overlay" />
+
         <org.chromium.ui.AsyncViewStub
             android:id="@+id/omnibox_suggestions_container_stub"
             android:layout_width="match_parent"
@@ -126,6 +133,11 @@ TODO(http://crbug.com/485940935): Delete this.
             android:layout="@layout/bottom_control_container" />
 
         <ViewStub
+            android:id="@+id/control_container_stub"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content" />
+
+        <ViewStub
             android:inflatedId="@+id/toolbar_progress_bar_container"
             android:id="@+id/progress_bar_stub"
             android:layout="@layout/toolbar_progress_bar"
@@ -134,21 +146,6 @@ TODO(http://crbug.com/485940935): Delete this.
             android:layout_gravity="center"
             app:layout_anchor="@id/control_container"
             app:layout_anchorGravity="bottom"/>
-
-        <ViewStub
-            android:id="@+id/control_container_stub"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content" />
-
-        <!-- Must stay after control_container_stub so the Actor handoff button can straddle the
-             line of death, and before bottom_app_bar_container_stub so the overlay does not cover
-             the bottom bar, tab switcher, messages, or bottom sheet. -->
-        <ViewStub
-            android:id="@+id/actor_overlay_stub"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:inflatedId="@+id/actor_overlay"
-            android:layout="@layout/actor_overlay" />
 
         <ViewStub
             android:id="@+id/bottom_app_bar_container_stub"
@@ -171,13 +168,6 @@ TODO(http://crbug.com/485940935): Delete this.
             android:layout_height="wrap_content"
             android:inflatedId="@+id/vertical_tab_hover_card_holder"
             android:layout="@layout/tab_hover_card_holder" />
-
-        <ViewStub
-            android:id="@+id/vertical_tab_group_hover_card_holder_stub"
-            android:layout_width="@dimen/tab_hover_card_width"
-            android:layout_height="wrap_content"
-            android:inflatedId="@+id/vertical_tab_group_hover_card_holder"
-            android:layout="@layout/tab_group_hover_card_holder" />
 
         <ViewStub
             android:id="@+id/side_ui_web_content_hairline_container_stub"
@@ -254,6 +244,14 @@ TODO(http://crbug.com/485940935): Delete this.
             <!-- Some Views need to show over Side UI, but behind Secondary UI,
                 such as the GTS, so they can be placed in this ConstraintLayout,
                 while effectively being unconstrained. -->
+            <ViewStub
+                android:id="@+id/contextual_tasks_fusebox_stub"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_gravity="bottom"
+                android:layout="@layout/search_activity"
+                app:layout_constraintBottom_toBottomOf="parent" />
+
             <ViewStub
                 android:id="@+id/tab_switcher_view_holder_stub"
                 android:layout_width="0dp"

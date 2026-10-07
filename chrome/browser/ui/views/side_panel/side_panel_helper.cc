@@ -44,15 +44,17 @@ void SidePanelHelper::PopulateGlobalEntries(
   // Add tabs from other devices.
   if (TabsFromOtherDevicesSidePanelCoordinator::IsSupported(
           browser->GetProfile())) {
-    TabsFromOtherDevicesSidePanelCoordinator::From(browser)
+    browser->GetFeatures()
+        .tabs_from_other_devices_side_panel_coordinator()
         ->CreateAndRegisterEntry(window_registry);
   }
 
   // Add history clusters.
   if (HistoryClustersSidePanelCoordinator::IsSupported(browser->GetProfile()) &&
       !HistorySidePanelCoordinator::IsSupported()) {
-    HistoryClustersSidePanelCoordinator::From(browser)->CreateAndRegisterEntry(
-        window_registry);
+    browser->GetFeatures()
+        .history_clusters_side_panel_coordinator()
+        ->CreateAndRegisterEntry(window_registry);
   }
 
   // Add history.
@@ -72,7 +74,8 @@ void SidePanelHelper::PopulateGlobalEntries(
 actions::ActionItem* SidePanelHelper::GetActionItem(
     BrowserWindowInterface* browser,
     SidePanelEntryKey entry_key) {
-  BrowserActions* const browser_actions = BrowserActions::From(browser);
+  BrowserActions* const browser_actions =
+      browser->GetFeatures().browser_actions();
   if (entry_key.id() == SidePanelEntryId::kExtension) {
     std::optional<actions::ActionId> extension_action_id =
         actions::ActionIdMap::StringToActionId(entry_key.ToString());

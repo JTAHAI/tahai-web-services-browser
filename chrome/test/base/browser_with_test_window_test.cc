@@ -15,7 +15,6 @@
 #include "chrome/browser/profiles/profile_destroyer.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
-#include "chrome/browser/ui/browser_window/public/create_browser_window.h"
 #include "chrome/browser/ui/navigator/browser_navigator.h"
 #include "chrome/browser/ui/navigator/browser_navigator_params.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
@@ -84,9 +83,10 @@ void BrowserWithTestWindowTest::SetUp() {
 
   ash_test_helper_.emplace();
 
-  CHECK(!user_manager::UserManager::IsInitialized());
-  user_manager_.Reset(std::make_unique<user_manager::FakeUserManager>(
-      g_browser_process->local_state()));
+  if (!user_manager::UserManager::IsInitialized()) {
+    user_manager_.Reset(std::make_unique<user_manager::FakeUserManager>(
+        g_browser_process->local_state()));
+  }
   session_manager::SessionManager::Get()->OnUserManagerCreated(
       user_manager::UserManager::Get());
 
@@ -233,8 +233,7 @@ gfx::NativeWindow BrowserWithTestWindowTest::GetContext() {
 #endif
 }
 
-void BrowserWithTestWindowTest::AddTab(BrowserWindowInterface* browser,
-                                       const GURL& url) {
+void BrowserWithTestWindowTest::AddTab(Browser* browser, const GURL& url) {
   NavigateParams params(browser, url, ui::PAGE_TRANSITION_TYPED);
   params.tabstrip_index = 0;
   params.disposition = WindowOpenDisposition::NEW_FOREGROUND_TAB;
@@ -263,15 +262,15 @@ void BrowserWithTestWindowTest::NavigateAndCommit(WebContents* web_contents,
 }
 
 void BrowserWithTestWindowTest::NavigateAndCommitActiveTab(const GURL& url) {
-  NavigateAndCommit(browser()->GetTabStripModel()->GetActiveWebContents(), url);
+  NavigateAndCommit(browser()->tab_strip_model()->GetActiveWebContents(), url);
 }
 
 void BrowserWithTestWindowTest::NavigateAndCommitActiveTabWithTitle(
-    BrowserWindowInterface* navigating_browser,
+    Browser* navigating_browser,
     const GURL& url,
     const std::u16string& title) {
   WebContents* contents =
-      navigating_browser->GetTabStripModel()->GetActiveWebContents();
+      navigating_browser->tab_strip_model()->GetActiveWebContents();
   NavigateAndCommit(contents, url);
   contents->UpdateTitleForEntry(contents->GetController().GetActiveEntry(),
                                 title);
@@ -320,20 +319,18 @@ std::unique_ptr<Browser> BrowserWithTestWindowTest::CreateBrowser(
     Browser::Type browser_type,
     bool hosted_app,
     BrowserWindow* browser_window) {
-  BrowserWindowCreateParams params(profile, true);
+  Browser::CreateParams params(profile, true);
   if (hosted_app) {
-    params = BrowserWindowCreateParams::CreateForApp(
+    params = Browser::CreateParams::CreateForApp(
         "Test", /*trusted_source=*/true, /*window_bounds=*/gfx::Rect(), profile,
         /*user_gesture=*/true);
-  } else if (browser_type == BrowserWindowInterface::Type::TYPE_DEVTOOLS) {
-    params = BrowserWindowCreateParams::CreateForDevTools(profile);
+  } else if (browser_type == Browser::TYPE_DEVTOOLS) {
+    params = Browser::CreateParams::CreateForDevTools(profile);
   } else {
     params.type = browser_type;
   }
   params.window = browser_window;
-  return base::WrapUnique(static_cast<Browser*>(
-      DeprecatedCreateOwnedBrowserWindowForTesting(std::move(params))
-          .release()));
+  return Browser::DeprecatedCreateOwnedForTesting(params);
 }
 
 std::unique_ptr<Browser> BrowserWithTestWindowTest::CreateBrowser(

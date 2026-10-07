@@ -390,7 +390,6 @@ NetworkService::NetworkService(
     : net_log_(net::NetLog::Get()),
       registry_(std::move(registry)),
       time_to_first_context_timer_(base::ElapsedTimer()) {
-  TRACE_EVENT0("loading", "NetworkService::NetworkService");
   DCHECK(!g_network_service);
   g_network_service = this;
 
@@ -405,8 +404,11 @@ NetworkService::NetworkService(
   if (registry_) {
     mojo::SetDefaultProcessErrorHandler(base::BindRepeating(&HandleBadMessage));
 #if BUILDFLAG(IS_LINUX)
-    net::NetworkChangeNotifier::SetFactory(
-        new network::NetworkChangeNotifierPassiveFactory());
+    if (base::FeatureList::IsEnabled(
+            net::features::kAddressTrackerLinuxIsProxied)) {
+      net::NetworkChangeNotifier::SetFactory(
+          new network::NetworkChangeNotifierPassiveFactory());
+    }
 #endif
   }
 
@@ -457,6 +459,8 @@ void NetworkService::Initialize(mojom::NetworkServiceParamsPtr params,
     // The NetworkChangeNotifierPassive should only be included if it's
     // necessary to instantiate an AddressMapCacheLinux rather than an
     // AddressTrackerLinux.
+    DCHECK(base::FeatureList::IsEnabled(
+        net::features::kAddressTrackerLinuxIsProxied));
     // There should be a factory that creates NetworkChangeNotifierPassives.
     DCHECK(net::NetworkChangeNotifier::GetFactory());
     // Network service should be out of process or it's unsandboxed and can just
@@ -511,6 +515,7 @@ void NetworkService::Initialize(mojom::NetworkServiceParamsPtr params,
       std::make_unique<SCTAuditingCache>(kMaxSCTAuditingCacheEntries);
 #endif
 
+  metrics_updater_ = std::make_unique<RestrictedCookieManagerMetrics>();
 }
 
 NetworkService::~NetworkService() {
@@ -756,16 +761,26 @@ void NetworkService::CreateNetworkContext(
 }
 
 void NetworkService::ConfigureStubHostResolver(
-    net::InsecureDnsMode insecure_dns_mode,
+    bool insecure_dns_client_enabled,
     bool happy_eyeballs_v3_enabled,
     net::SecureDnsMode secure_dns_mode,
     const net::DnsOverHttpsConfig& dns_over_https_config,
     bool additional_dns_types_enabled,
-    const std::vector<net::IPEndPoint>& fallback_doh_nameservers) {
+    const std::vector<net::IPEndPoint>& fallback_doh_nameservers,
+    bool insecure_dns_via_platform_apis_enabled) {
   // Enable or disable the insecure part of DnsClient. "DnsClient" is the class
   // that implements the stub resolver.
+  net::InsecureDnsMode mode;
+  if (insecure_dns_client_enabled && insecure_dns_via_platform_apis_enabled) {
+    mode = net::InsecureDnsMode::kEnabledPlatform;
+  } else if (insecure_dns_client_enabled) {
+    mode = net::InsecureDnsMode::kEnabledBuiltIn;
+  } else {
+    mode = net::InsecureDnsMode::kDisabled;
+  }
+
   host_resolver_manager_->SetInsecureDnsClientEnabled(
-      insecure_dns_mode, additional_dns_types_enabled);
+      mode, additional_dns_types_enabled);
 
   // Configure DNS over HTTPS.
   DCHECK(dns_config_overrides_set_by_ == FunctionTag::None ||
@@ -1294,14 +1309,6 @@ NetworkService::GetDefaultURLLoaderNetworkServiceObserver() {
     return default_url_loader_network_service_observer_.get();
   }
   return nullptr;
-}
-
-RestrictedCookieManager::UmaMetricsUpdater*
-NetworkService::GetMetricsUpdater() {
-  if (!metrics_updater_) {
-    metrics_updater_ = std::make_unique<RestrictedCookieManagerMetrics>();
-  }
-  return metrics_updater_.get();
 }
 
 void NetworkService::ResetMetricsUpdaterForTesting() {

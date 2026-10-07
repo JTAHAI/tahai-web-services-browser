@@ -64,10 +64,6 @@ StatusOr<DomStorageDatabase::MapMetadata> ParseMapMetadata(
   };
 }
 
-void OnSqlError(int error, sql::Statement*) {
-  base::UmaHistogramSparse("Storage.SessionStorage.Database.Error", error);
-}
-
 }  // namespace
 
 SessionStorageSqlite::SessionStorageSqlite(PassKey) {}
@@ -93,14 +89,15 @@ DbStatus SessionStorageSqlite::Open(
 
   memory_dump_id_ = memory_dump_id;
 
-  ASSIGN_OR_RETURN(
-      std::tie(database_, meta_table_),
-      sqlite::OpenDatabase(database_path,
-                           database_path.empty() ? kSessionStorageTag
-                                                 : kSessionStorageTagInMemory,
-                           kCurrentSchemaVersion, kCompatibleSchemaVersion,
-                           base::BindOnce(&CreateSchema),
-                           base::BindRepeating(&OnSqlError)));
+  ASSIGN_OR_RETURN(std::tie(database_, meta_table_),
+                   sqlite::OpenDatabase(
+                       database_path,
+                       database_path.empty() ? kSessionStorageTag
+                                             : kSessionStorageTagInMemory,
+                       kCurrentSchemaVersion, kCompatibleSchemaVersion,
+                       base::BindOnce(&CreateSchema),
+                       base::BindRepeating(&SessionStorageSqlite::OnSqlError,
+                                           base::Unretained(this))));
 
   map_entries_table_ = std::make_unique<MapEntriesTable>(*database_);
 
@@ -370,6 +367,10 @@ bool SessionStorageSqlite::OnMemoryDump(
       base::StringPrintf("site_storage/sessionstorage/sqlite/db_0x%" PRIXPTR,
                          reinterpret_cast<uintptr_t>(this)));
   return true;
+}
+
+void SessionStorageSqlite::OnSqlError(int error, sql::Statement* statement) {
+  base::UmaHistogramSparse("Storage.SessionStorage.Database.Error", error);
 }
 
 }  // namespace storage

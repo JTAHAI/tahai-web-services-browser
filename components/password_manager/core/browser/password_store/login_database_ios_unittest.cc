@@ -13,6 +13,7 @@
 
 #include "base/apple/foundation_util.h"
 #include "base/apple/scoped_cftyperef.h"
+#include "base/compiler_specific.h"
 #include "base/files/scoped_temp_dir.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/path_service.h"
@@ -80,15 +81,16 @@ TEST_F(LoginDatabaseIOSTest, KeychainStorage) {
       std::u16string(),
   };
 
-  for (const std::u16string& test_password : test_passwords) {
+  for (unsigned int i = 0; i < std::size(test_passwords); i++) {
     EncryptDecryptInterface* encryptor_decryptor = login_db_.get();
     std::string encrypted;
     EXPECT_EQ(EncryptionResult::kSuccess,
-              encryptor_decryptor->EncryptedString(test_password, &encrypted));
+              encryptor_decryptor->EncryptedString(
+                  UNSAFE_TODO(test_passwords[i]), &encrypted));
     std::u16string decrypted;
     EXPECT_EQ(EncryptionResult::kSuccess,
               encryptor_decryptor->DecryptedString(encrypted, &decrypted));
-    EXPECT_STREQ(UTF16ToUTF8(test_password).c_str(),
+    EXPECT_STREQ(UTF16ToUTF8(UNSAFE_TODO(test_passwords[i])).c_str(),
                  UTF16ToUTF8(decrypted).c_str());
   }
 }
@@ -99,9 +101,9 @@ TEST_F(LoginDatabaseIOSTest, AddLogin) {
   cred.signon_realm = "http://www.example.com/";
   cred.action = GURL("http://www.example.com/action");
   cred.password_element = u"pwd";
-  cred.password_value = password_manager::PasswordString(u"example");
+  cred.password_value = u"example";
 
-  std::u16string expected_password = cred.password_value.value();
+  std::u16string expected_password = cred.password_value;
   password_manager::PasswordStoreChangeList changes =
       login_db_->AddLogin(std::move(cred));
   std::string keychain_identifier = changes[0].credential().keychain_identifier;
@@ -123,14 +125,14 @@ TEST_F(LoginDatabaseIOSTest, UpdateLogin) {
   cred.signon_realm = "http://www.example.com";
   cred.action = GURL("http://www.example.com/action");
   cred.password_element = u"pwd";
-  cred.password_value = password_manager::PasswordString(u"example");
+  cred.password_value = u"example";
 
   password_manager::PasswordStoreChangeList changes =
       login_db_->AddLogin(FromPasswordForm(ToPasswordForm(cred)));
   std::string old_keychain_identifier =
       changes[0].credential().keychain_identifier;
 
-  cred.password_value = password_manager::PasswordString(u"secret");
+  cred.password_value = u"secret";
 
   ASSERT_THAT(login_db_->UpdateLogin(cred), testing::SizeIs(1));
 
@@ -161,7 +163,7 @@ TEST_F(LoginDatabaseIOSTest, RemoveLogin) {
   cred.signon_realm = "http://www.example.com";
   cred.url = GURL("http://www.example.com/action");
   cred.password_element = u"pwd";
-  cred.password_value = password_manager::PasswordString(u"example");
+  cred.password_value = u"example";
 
   password_manager::PasswordStoreChangeList changes =
       login_db_->AddLogin(FromPasswordForm(ToPasswordForm(cred)));
@@ -180,21 +182,21 @@ TEST_F(LoginDatabaseIOSTest, RemoveLoginsCreatedBetween) {
   creds[0].signon_realm = "http://www.example.com";
   creds[0].username_element = u"login0";
   creds[0].date_created = base::Time::FromSecondsSinceUnixEpoch(100);
-  creds[0].password_value = password_manager::PasswordString(u"pass0");
+  creds[0].password_value = u"pass0";
   creds[0].in_store = PasswordForm::Store::kProfileStore;
 
   creds[1].url = GURL("http://1.com");
   creds[1].signon_realm = "http://www.example.com";
   creds[1].username_element = u"login1";
   creds[1].date_created = base::Time::FromSecondsSinceUnixEpoch(200);
-  creds[1].password_value = password_manager::PasswordString(u"pass1");
+  creds[1].password_value = u"pass1";
   creds[1].in_store = PasswordForm::Store::kProfileStore;
 
   creds[2].url = GURL("http://2.com");
   creds[2].signon_realm = "http://www.example.com";
   creds[2].username_element = u"login2";
   creds[2].date_created = base::Time::FromSecondsSinceUnixEpoch(300);
-  creds[2].password_value = password_manager::PasswordString(u"pass2");
+  creds[2].password_value = u"pass2";
   creds[2].in_store = PasswordForm::Store::kProfileStore;
 
   PasswordForm expected_form_0 = ToPasswordForm(creds[0]);
@@ -255,21 +257,21 @@ TEST_F(LoginDatabaseIOSTest, DeleteAndRecreateDatabaseFile) {
   creds[0].signon_realm = "http://www.example.com";
   creds[0].username_element = u"login0";
   creds[0].date_created = base::Time::FromSecondsSinceUnixEpoch(100);
-  creds[0].password_value = password_manager::PasswordString(u"pass0");
+  creds[0].password_value = u"pass0";
   creds[0].in_store = PasswordForm::Store::kProfileStore;
 
   creds[1].url = GURL("http://1.com");
   creds[1].signon_realm = "http://www.example.com";
   creds[1].username_element = u"login1";
   creds[1].date_created = base::Time::FromSecondsSinceUnixEpoch(200);
-  creds[1].password_value = password_manager::PasswordString(u"pass1");
+  creds[1].password_value = u"pass1";
   creds[1].in_store = PasswordForm::Store::kProfileStore;
 
   creds[2].url = GURL("http://2.com");
   creds[2].signon_realm = "http://www.example.com";
   creds[2].username_element = u"login2";
   creds[2].date_created = base::Time::FromSecondsSinceUnixEpoch(300);
-  creds[2].password_value = password_manager::PasswordString(u"pass2");
+  creds[2].password_value = u"pass2";
   creds[2].in_store = PasswordForm::Store::kProfileStore;
 
   for (auto& c : creds) {
@@ -442,7 +444,7 @@ TEST_F(LoginDatabaseMigrationToOSCryptTest,
     // Verify that |encrypted_password| is still corresponding to keychain
     // identifier.
     EXPECT_EQ(credentials[0].keychain_identifier, password_keychain_identifier);
-    EXPECT_EQ(credentials[0].password_value.value(), u"test1");
+    EXPECT_EQ(credentials[0].password_value, u"test1");
     // Verify that the password note is still readable.
     ASSERT_EQ(credentials[0].notes.size(), 1u);
     EXPECT_EQ(credentials[0].notes[0].value, u"password note");
@@ -529,7 +531,7 @@ TEST_F(LoginDatabaseMigrationToOSCryptTest,
   std::vector<StoredCredential> credentials;
   EXPECT_EQ(login_db.GetAllLogins(&credentials), FormRetrievalResult::kSuccess);
   ASSERT_EQ(1u, credentials.size());
-  EXPECT_EQ(u"password", credentials[0].password_value.value());
+  EXPECT_EQ(u"password", credentials[0].password_value);
 
   // Clear item from the keychain to ensure this test doesn't affect other
   // tests.

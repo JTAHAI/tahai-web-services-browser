@@ -45,11 +45,11 @@ public class ComposeplateView extends LinearLayout {
     void applyWhiteBackground(boolean apply) {
         Context context = getContext();
         if (mComposeplateButton != null) {
-            ComposeplateUtils.applyComposeplateBackground(context, mComposeplateButton, apply);
+            ComposeplateUtils.applyWhiteBackground(context, mComposeplateButton, apply);
         }
 
         if (mIncognitoButton != null) {
-            ComposeplateUtils.applyComposeplateBackground(context, mIncognitoButton, apply);
+            ComposeplateUtils.applyWhiteBackground(context, mIncognitoButton, apply);
         }
     }
 

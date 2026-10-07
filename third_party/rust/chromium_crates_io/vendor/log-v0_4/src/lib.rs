@@ -230,12 +230,12 @@
 //! Implementations that adjust their configurations at runtime should take care
 //! to adjust the maximum log level as well.
 //!
-//! # Use with `alloc`
+//! # Use with `std`
 //!
 //! `set_logger` requires you to provide a `&'static Log`, which can be hard to
 //! obtain if your logger depends on some runtime configuration. The
-//! `set_boxed_logger` function is available with the `alloc` Cargo feature. It
-//! is identical to `set_logger` except that it takes a `Box<Log>` rather than a
+//! `set_boxed_logger` function is available with the `std` Cargo feature. It is
+//! identical to `set_logger` except that it takes a `Box<Log>` rather than a
 //! `&'static Log`:
 //!
 //! ```
@@ -247,11 +247,7 @@
 //! #   fn flush(&self) {}
 //! # }
 //! # fn main() {}
-//! # #[cfg(feature = "alloc")]
-//! # extern crate alloc;
-//! # #[cfg(feature = "alloc")]
-//! # use alloc::boxed::Box;
-//! # #[cfg(feature = "alloc")]
+//! # #[cfg(feature = "std")]
 //! pub fn init() -> Result<(), SetLoggerError> {
 //!     log::set_boxed_logger(Box::new(SimpleLogger))
 //!         .map(|()| log::set_max_level(LevelFilter::Info))
@@ -297,9 +293,8 @@
 //! The following crate feature flags are available in addition to the filters. They are
 //! configured in your `Cargo.toml`.
 //!
-//! * `alloc` enables using `alloc::boxed::Box` and `set_boxed_logger`.
-//! * `std` enables `alloc` and allows use of the `std` crate instead of the default `core`.
-//!   It also enables using `std::error`.
+//! * `std` allows use of `std` crate instead of the default `core`. Enables using `std::error` and
+//!   `set_boxed_logger` functionality.
 //! * `serde` enables support for serialization and deserialization of `Level` and `LevelFilter`.
 //!
 //! ```toml
@@ -353,7 +348,7 @@
 #![doc(
     html_logo_url = "https://prev.rust-lang.org/logos/rust-logo-128x128-blk-v2.png",
     html_favicon_url = "https://prev.rust-lang.org/favicon.ico",
-    html_root_url = "https://docs.rs/log/0.4.34"
+    html_root_url = "https://docs.rs/log/0.4.33"
 )]
 #![warn(missing_docs)]
 #![deny(missing_debug_implementations, unconditional_recursion)]
@@ -398,13 +393,9 @@ compile_error!("multiple max_level_* features set");
 ))]
 compile_error!("multiple release_max_level_* features set");
 
-#[cfg(feature = "alloc")]
-extern crate alloc;
 #[cfg(all(not(feature = "std"), not(test)))]
 extern crate core as std;
 
-#[cfg(feature = "alloc")]
-use alloc::boxed::Box;
 use std::cfg;
 #[cfg(feature = "std")]
 use std::error;
@@ -1342,8 +1333,8 @@ where
     }
 }
 
-#[cfg(feature = "alloc")]
-impl<T> Log for Box<T>
+#[cfg(feature = "std")]
+impl<T> Log for std::boxed::Box<T>
 where
     T: ?Sized + Log,
 {
@@ -1444,14 +1435,14 @@ pub fn max_level() -> LevelFilter {
 /// `Box<Log>` rather than a `&'static Log`. See the documentation for
 /// [`set_logger`] for more details.
 ///
-/// Requires the `alloc` feature.
+/// Requires the `std` feature.
 ///
 /// # Errors
 ///
 /// An error is returned if a logger has already been set.
 ///
 /// [`set_logger`]: fn.set_logger.html
-#[cfg(all(feature = "alloc", target_has_atomic = "ptr"))]
+#[cfg(all(feature = "std", target_has_atomic = "ptr"))]
 pub fn set_boxed_logger(logger: Box<dyn Log>) -> Result<(), SetLoggerError> {
     set_logger_inner(|| Box::leak(logger))
 }
@@ -2024,7 +2015,7 @@ mod tests {
 
         assert_is_log::<&dyn Log>();
 
-        #[cfg(feature = "alloc")]
+        #[cfg(feature = "std")]
         assert_is_log::<Box<dyn Log>>();
 
         #[cfg(feature = "std")]
@@ -2033,7 +2024,7 @@ mod tests {
         // Assert these statements for all T: Log + ?Sized
         #[allow(unused)]
         fn forall<T: Log + ?Sized>() {
-            #[cfg(feature = "alloc")]
+            #[cfg(feature = "std")]
             assert_is_log::<Box<T>>();
 
             assert_is_log::<&T>();

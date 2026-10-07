@@ -44,7 +44,6 @@ class LayoutCustom final : public LayoutBlockFlow {
 
   void StyleDidChange(StyleDifference,
                       const ComputedStyle* old_style,
-                      const ComputedStyle& new_style,
                       const StyleChangeContext&) override;
 
   bool IsMonolithic() const final {

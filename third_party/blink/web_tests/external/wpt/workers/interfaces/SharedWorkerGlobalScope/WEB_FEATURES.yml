@@ -1,2 +1,3 @@
-rules:
-- "**": [shared-workers]
+features:
+- name: shared-workers
+  files: "**"

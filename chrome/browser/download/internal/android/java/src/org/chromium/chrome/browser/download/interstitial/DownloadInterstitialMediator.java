@@ -115,7 +115,7 @@ class DownloadInterstitialMediator {
         mModel.set(ListProperties.CALLBACK_REMOVE, this::onDeleteItem);
         mModel.set(ListProperties.PROVIDER_VISUALS, (i, w, h, c) -> CallbackUtils.emptyRunnable());
         mModel.set(ListProperties.CALLBACK_RENAME, this::onRenameItem);
-        mModel.set(ListProperties.CALLBACK_SELECTION, CallbackUtils.emptyCallback());
+        mModel.set(ListProperties.CALLBACK_SELECTION, (item) -> {});
 
         mObserver = getOfflineContentProviderObserver();
         mProvider.addObserver(mObserver);

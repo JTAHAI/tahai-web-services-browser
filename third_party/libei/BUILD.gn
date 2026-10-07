@@ -22,7 +22,6 @@ config("libei_config") {
   ]
 
   cflags = [
-    "-UNDEBUG",
     "-fvisibility=hidden",
     "-Wno-unused-parameter",
     "-Wno-missing-field-initializers",

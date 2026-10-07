@@ -8,8 +8,6 @@
 #include <vector>
 
 #include "base/memory/raw_ptr.h"
-#include "ui/base/metadata/metadata_header_macros.h"
-#include "ui/base/metadata/metadata_types.h"
 #include "ui/views/layout/layout_types.h"
 #include "ui/views/views_export.h"
 
@@ -33,12 +31,9 @@ class View;
 // minimum and preferred size of the children of the View. That is, they
 // make use of View::GetMinimumSize(), View::CalculatePreferredSize() and/or
 // View::GetHeightForWidth().
-class VIEWS_EXPORT LayoutManager : public ui::metadata::MetaDataProvider {
+class VIEWS_EXPORT LayoutManager {
  public:
-  METADATA_HEADER_BASE(LayoutManager);
-
- public:
-  ~LayoutManager() override;
+  virtual ~LayoutManager();
 
   // Notification that this LayoutManager has been installed on |host|.
   virtual void Installed(View* host);

@@ -26,6 +26,7 @@ import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
 import org.robolectric.RuntimeEnvironment;
+import org.robolectric.annotation.Config;
 
 import org.chromium.base.Callback;
 import org.chromium.base.test.BaseRobolectricTestRunner;
@@ -36,6 +37,7 @@ import org.chromium.chrome.browser.customtabs.TranslucentCustomTabActivity;
 
 /** Unit tests for {@link SessionDataHolder}. */
 @RunWith(BaseRobolectricTestRunner.class)
+@Config(manifest = Config.NONE)
 public class SessionDataHolderTest {
 
     private static final int TASK_ID_1 = 10;

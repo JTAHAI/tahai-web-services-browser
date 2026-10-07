@@ -6,7 +6,6 @@
 #define CHROME_BROWSER_UI_VIEWS_SIDE_PANEL_TABS_FROM_OTHER_DEVICES_TABS_FROM_OTHER_DEVICES_SIDE_PANEL_COORDINATOR_H_
 
 #include "base/memory/raw_ref.h"
-#include "ui/base/unowned_user_data/scoped_unowned_user_data.h"
 
 class BrowserWindowInterface;
 class Profile;
@@ -17,16 +16,9 @@ class TabsFromOtherDevicesSidePanelMetrics;
 // registration of the "Tabs from other devices" SidePanelEntry.
 class TabsFromOtherDevicesSidePanelCoordinator {
  public:
-  DECLARE_USER_DATA(TabsFromOtherDevicesSidePanelCoordinator);
-
   explicit TabsFromOtherDevicesSidePanelCoordinator(
       BrowserWindowInterface* browser,
       Profile* profile);
-
-  // Returns the coordinator for `browser`, or null if it does not have one
-  // (e.g. unsupported for the profile).
-  static TabsFromOtherDevicesSidePanelCoordinator* From(
-      BrowserWindowInterface* browser);
   TabsFromOtherDevicesSidePanelCoordinator(
       const TabsFromOtherDevicesSidePanelCoordinator&) = delete;
   TabsFromOtherDevicesSidePanelCoordinator& operator=(
@@ -38,9 +30,6 @@ class TabsFromOtherDevicesSidePanelCoordinator {
   void CreateAndRegisterEntry(SidePanelRegistry* global_registry);
 
  private:
-  ui::ScopedUnownedUserData<TabsFromOtherDevicesSidePanelCoordinator>
-      scoped_unowned_user_data_;
-
   const raw_ref<BrowserWindowInterface> browser_;
   const raw_ref<Profile> profile_;
   std::unique_ptr<TabsFromOtherDevicesSidePanelMetrics> metrics_recorder_;

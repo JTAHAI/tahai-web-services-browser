@@ -15,7 +15,6 @@
 #include "base/test/run_until.h"
 #include "base/test/test_future.h"
 #include "base/win/windows_handle_util.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "content/public/browser/browser_accessibility_state.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -74,8 +73,7 @@ void BrowserTestWithAxClient::TearDownOnMainThread() {
   InProcessBrowserTest::TearDownOnMainThread();
 }
 
-HRESULT BrowserTestWithAxClient::InitializeClient(
-    BrowserWindowInterface* browser) {
+HRESULT BrowserTestWithAxClient::InitializeClient(Browser* browser) {
   // Get the HWND of `browser`.
   const HWND browser_hwnd = BrowserView::GetBrowserViewForBrowser(browser)
                                 ->GetNativeWindow()

@@ -79,12 +79,6 @@
   }
 }
 
-@media screen and ((max-width: 1000px) or (max-height: 750px)) {
-  :host([is-pre-first-run-desktop-refresh-enabled_]) .animation {
-    display: none;
-  }
-}
-
 @keyframes fade-in-animation {
   0% {
     opacity: 0;
@@ -118,10 +112,6 @@ p {
   aspect-ratio: 288 / 620; /* To prevent cr-lottie from adding white padding. */
 }
 
-:host([is-pre-first-run-desktop-refresh-enabled_]) #leftAnimation {
-  height: 75vh;
-}
-
 #rightAnimation {
   top: 50%;
   /* First push the animation by 70%  (arbitrary value) of its size and check
@@ -139,10 +129,6 @@ p {
   aspect-ratio: 311 / 657;
 }
 
-:host([is-pre-first-run-desktop-refresh-enabled_]) #rightAnimation {
-  height: 80vh;
-}
-
 #bottomAnimation {
   bottom: -5px;
   left: 20%;
@@ -157,10 +143,6 @@ p {
   width: 40vw;
   height: auto;
   aspect-ratio: 600 / 215;
-}
-
-:host([is-pre-first-run-desktop-refresh-enabled_]) #bottomAnimation {
-  transform: translate(-50%, max(0px, calc(35% - (50vh - 300px) / 2)));
 }
 
 /* For RTL languages, flip the direction */
@@ -184,10 +166,6 @@ p {
   left: auto;
   right: 20%;
   transform: scaleX(-1) translate(-50%, max(0px, calc(50% - (50vh - 300px) / 2)));
-}
-
-:host-context([dir=rtl]):host([is-pre-first-run-desktop-refresh-enabled_]) #bottom-animation {
-  transform: scaleX(-1) translate(-50%, max(0px, calc(35% - (50vh - 300px) / 2)));
 }
 
 .title {
@@ -336,7 +314,7 @@ h2 {
 
 #security {
   <if expr="not _google_chrome">
-  --cr-icon-image: url(images/security_old.svg);
+  --cr-icon-image: url(images/security.svg);
   </if>
   <if expr="_google_chrome">
   --cr-icon-image: url(images/gshield.svg);
@@ -344,11 +322,11 @@ h2 {
 }
 
 #devices {
-  --cr-icon-image: url(images/devices_old.svg);
+  --cr-icon-image: url(images/devices.svg);
 }
 
 #cloud-upload {
-  --cr-icon-image: url(images/cloud_upload_old.svg);
+  --cr-icon-image: url(images/cloud_upload.svg);
 }
 
 .cr-icon {
@@ -404,20 +382,4 @@ h2 {
   color: var(--cr-secondary-text-color);
   font-size: var(--card-description-font-size);
   margin-bottom: 1rem;
-}
-
-:host-context([webui-rounded-icons]) {
-  #devices {
-    --cr-icon-image: url(images/devices.svg);
-  }
-
-  #cloud-upload {
-    --cr-icon-image: url(images/cloud_upload.svg);
-  }
-
-  <if expr="not _google_chrome">
-  #security {
-    --cr-icon-image: url(images/security.svg);
-  }
-  </if>
 }

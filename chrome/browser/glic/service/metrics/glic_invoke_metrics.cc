@@ -14,44 +14,28 @@ namespace {
 
 constexpr char kInvokeResultHistogramName[] = "Glic.InvokeResult";
 constexpr char kInvokeSourceHistogramName[] = "Glic.Invoke.InvocationSource";
-constexpr char kInvokeDurationHistogramName[] = "Glic.Invoke.Duration";
 
 }  // namespace
 
-GlicInvokeMetrics::GlicInvokeMetrics(mojom::InvocationSource source)
-    : source_(source), invoke_start_time_(base::TimeTicks::Now()) {
-  base::UmaHistogramEnumeration(kInvokeSourceHistogramName, source_);
+void RecordInvokeSource(mojom::InvocationSource source) {
+  base::UmaHistogramEnumeration(kInvokeSourceHistogramName, source);
 }
 
-void GlicInvokeMetrics::RecordSuccess() const {
+void RecordInvokeSuccess(mojom::InvocationSource source) {
   base::UmaHistogramEnumeration(kInvokeResultHistogramName,
                                 GlicInvokeResult::kSuccess);
   base::UmaHistogramEnumeration(
       base::StringPrintf("%s.%s", kInvokeResultHistogramName,
-                         GetInvocationSourceString(source_)),
+                         GetInvocationSourceString(source)),
       GlicInvokeResult::kSuccess);
-
-  base::TimeDelta duration = base::TimeTicks::Now() - invoke_start_time_;
-  base::UmaHistogramLongTimes100(kInvokeDurationHistogramName, duration);
-  base::UmaHistogramLongTimes100(
-      base::StringPrintf("%s.%s", kInvokeDurationHistogramName,
-                         GetInvocationSourceString(source_)),
-      duration);
 }
 
-void GlicInvokeMetrics::RecordError(GlicInvokeError result) const {
+void RecordInvokeError(mojom::InvocationSource source, GlicInvokeError result) {
   base::UmaHistogramEnumeration(kInvokeResultHistogramName, result);
   base::UmaHistogramEnumeration(
       base::StringPrintf("%s.%s", kInvokeResultHistogramName,
-                         GetInvocationSourceString(source_)),
+                         GetInvocationSourceString(source)),
       result);
-
-  base::TimeDelta duration = base::TimeTicks::Now() - invoke_start_time_;
-  base::UmaHistogramLongTimes100(kInvokeDurationHistogramName, duration);
-  base::UmaHistogramLongTimes100(
-      base::StringPrintf("%s.%s", kInvokeDurationHistogramName,
-                         GetInvocationSourceString(source_)),
-      duration);
 }
 
 }  // namespace glic

@@ -63,7 +63,12 @@ public class ServiceWorkerPaymentAppBridge {
         if (!PaymentFeatureList.isEnabled(PaymentFeatureList.SERVICE_WORKER_PAYMENT_APPS)) {
             PostTask.postTask(
                     TaskTraits.UI_DEFAULT,
-                    () -> callback.onHasServiceWorkerPaymentAppsResponse(false));
+                    new Runnable() {
+                        @Override
+                        public void run() {
+                            callback.onHasServiceWorkerPaymentAppsResponse(false);
+                        }
+                    });
             return;
         }
         ServiceWorkerPaymentAppBridgeJni.get().hasServiceWorkerPaymentApps(profile, callback);
@@ -82,7 +87,12 @@ public class ServiceWorkerPaymentAppBridge {
         if (!PaymentFeatureList.isEnabled(PaymentFeatureList.SERVICE_WORKER_PAYMENT_APPS)) {
             PostTask.postTask(
                     TaskTraits.UI_DEFAULT,
-                    () -> callback.onGetServiceWorkerPaymentAppsInfo(new HashMap<>()));
+                    new Runnable() {
+                        @Override
+                        public void run() {
+                            callback.onGetServiceWorkerPaymentAppsInfo(new HashMap<>());
+                        }
+                    });
             return;
         }
         ServiceWorkerPaymentAppBridgeJni.get().getServiceWorkerPaymentAppsInfo(profile, callback);

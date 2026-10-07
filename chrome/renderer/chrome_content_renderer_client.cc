@@ -45,7 +45,6 @@
 #include "chrome/common/profiler/chrome_thread_profiler_client.h"
 #include "chrome/common/profiler/core_unwinders.h"
 #include "chrome/common/profiler/thread_profiler_configuration.h"
-#include "chrome/common/request_header_integrity/buildflags.h"
 #include "chrome/common/secure_origin_allowlist.h"
 #include "chrome/common/url_constants.h"
 #include "chrome/common/webui_url_constants.h"
@@ -179,6 +178,7 @@
 #include "third_party/blink/public/web/web_plugin.h"
 #include "third_party/blink/public/web/web_plugin_container.h"
 #include "third_party/blink/public/web/web_plugin_params.h"
+#include "third_party/blink/public/web/web_script_controller.h"
 #include "third_party/blink/public/web/web_security_policy.h"
 #include "third_party/blink/public/web/web_view.h"
 #include "ui/base/l10n/l10n_util.h"
@@ -263,12 +263,6 @@
 #include "components/spellcheck/renderer/spellcheck_panel.h"
 #endif  // BUILDFLAG(HAS_SPELLCHECK_PANEL)
 #endif  // BUILDFLAG(ENABLE_SPELLCHECK)
-
-#if BUILDFLAG(ENABLE_REQUEST_HEADER_INTEGRITY)
-#include "chrome/common/request_header_integrity/chrome_companero.mojom.h"  // nogncheck
-#include "chrome/common/request_header_integrity/chrome_companero_loader.h"  // nogncheck
-#include "chrome/common/request_header_integrity/request_header_integrity_url_loader_throttle.h"  // nogncheck
-#endif
 
 #if BUILDFLAG(ENABLE_LIBRARY_CDMS) || BUILDFLAG(IS_WIN) || BUILDFLAG(IS_ANDROID)
 #include "chrome/renderer/media/chrome_key_systems.h"
@@ -425,18 +419,6 @@ void ChromeContentRendererClient::RenderThreadStarted() {
 
   chrome_observer_ = std::make_unique<ChromeRenderThreadObserver>();
   web_cache_impl_ = std::make_unique<web_cache::WebCacheImpl>();
-
-#if BUILDFLAG(ENABLE_REQUEST_HEADER_INTEGRITY)
-  if (request_header_integrity::RequestHeaderIntegrityURLLoaderThrottle::
-          IsFeatureEnabled()) {
-    mojo::PendingRemote<request_header_integrity::mojom::ChromeCompanero>
-        remote;
-    browser_interface_broker_->GetInterface(
-        remote.InitWithNewPipeAndPassReceiver());
-    request_header_integrity::ChromeCompaneroLoader::GetInstance()
-        .SetMojoRemote(std::move(remote));
-  }
-#endif
 
 #if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
   auto* extensions_renderer_client =
@@ -603,9 +585,6 @@ void ChromeContentRendererClient::RenderThreadStarted() {
     WebSecurityPolicy::AddSchemeToSecureContextSafelist(
         WebString::FromAscii(scheme));
   }
-
-  WebSecurityPolicy::RegisterURLSchemeAsSupportingFetchAPI(
-      WebString::FromAscii(chrome::kChromeExperimentalSiteTokenProviderScheme));
 
   // This doesn't work in single-process mode.
   if (!base::CommandLine::ForCurrentProcess()->HasSwitch(
@@ -1506,6 +1485,14 @@ void ChromeContentRendererClient::
   }
 }
 
+bool ChromeContentRendererClient::AllowScriptExtensionForServiceWorker(
+    const url::Origin& script_origin) {
+#if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
+  return script_origin.scheme() == extensions::kExtensionScheme;
+#else
+  return false;
+#endif
+}
 
 void ChromeContentRendererClient::
     WillInitializeServiceWorkerContextOnWorkerThread() {
@@ -1540,12 +1527,11 @@ void ChromeContentRendererClient::WillEvaluateServiceWorkerOnWorkerThread(
       ->WillEvaluateServiceWorkerOnWorkerThread(
           context_proxy, v8_context, service_worker_version_id,
           service_worker_scope, script_url, service_worker_token);
-  if (url::Origin::Create(script_url).scheme() ==
-      extensions::kExtensionScheme) {
+#endif
+  if (AllowScriptExtensionForServiceWorker(url::Origin::Create(script_url))) {
     BenchmarkingBindings::InstallConditionally(v8_context);
     LoadTimesBindings::Install(v8_context);
   }
-#endif
 }
 
 void ChromeContentRendererClient::DidStartServiceWorkerContextOnWorkerThread(

@@ -13,26 +13,26 @@ import 'chrome://resources/cr_elements/icons.html.js';
 import 'chrome://resources/cr_elements/policy/cr_policy_indicator.js';
 import '/shared/settings/controls/extension_controlled_indicator.js';
 import 'chrome://resources/cr_elements/cr_icon/cr_icon.js';
+import './search_engine_entry.css.js';
+import '../settings_shared.css.js';
 import './search_engine_icon.js';
 
 import {ExtensionControlBrowserProxyImpl} from '/shared/settings/extension_control_browser_proxy.js';
 import type {ExtensionControlBrowserProxy} from '/shared/settings/extension_control_browser_proxy.js';
-import {PrefServiceObserverMixinLit} from '/shared/settings/prefs2/pref_service_observer_mixin_lit.js';
+import {PrefsMixin} from '/shared/settings/prefs/prefs_mixin.js';
 import {AnchorAlignment} from 'chrome://resources/cr_elements/cr_action_menu/cr_action_menu.js';
-import {I18nMixinLit} from 'chrome://resources/cr_elements/i18n_mixin_lit.js';
+import {I18nMixin} from 'chrome://resources/cr_elements/i18n_mixin.js';
 import {assert} from 'chrome://resources/js/assert.js';
-import type {PropertyValues} from 'chrome://resources/lit/v3_0/lit.rollup.js';
-import {CrLitElement} from 'chrome://resources/lit/v3_0/lit.rollup.js';
+import {PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
 import {loadTimeData} from '../i18n_setup.js';
 
-import {getCss} from './search_engine_entry.css.js';
-import {getHtml} from './search_engine_entry.html.js';
+import {getTemplate} from './search_engine_entry.html.js';
 import type {SearchEngine, SearchEnginesBrowserProxy} from './search_engines_browser_proxy.js';
 import {ChoiceMadeLocation, SearchEnginesBrowserProxyImpl, SearchEnginesInteractions} from './search_engines_browser_proxy.js';
 
 const SettingsSearchEngineEntryElementBase =
-    PrefServiceObserverMixinLit(I18nMixinLit(CrLitElement));
+    I18nMixin(PrefsMixin(PolymerElement));
 
 export class SettingsSearchEngineEntryElement extends
     SettingsSearchEngineEntryElementBase {
@@ -40,76 +40,75 @@ export class SettingsSearchEngineEntryElement extends
     return 'settings-search-engine-entry';
   }
 
-  static override get styles() {
-    return getCss();
+  static get template() {
+    return getTemplate();
   }
 
-  override render() {
-    return getHtml.bind(this)();
-  }
-
-  static override get properties() {
+  static get properties() {
     return {
-      engine: {type: Object},
-      defaultSearchProviderDataPref_: {type: Object},
-      showShortcut: {type: Boolean, reflect: true},
-      showQueryUrl: {type: Boolean, reflect: true},
-      isDefault: {type: Boolean, reflect: true},
-      searchSettingsUpdateEnabled_: {type: Boolean},
+      engine: Object,
+
+      showShortcut: {type: Boolean, value: false, reflectToAttribute: true},
+
+      showQueryUrl: {type: Boolean, value: false, reflectToAttribute: true},
+
+      isDefault: {
+        reflectToAttribute: true,
+        type: Boolean,
+        computed: 'computeIsDefault_(engine)',
+      },
+
+      showEditIcon_: {
+        type: Boolean,
+        computed: 'computeShowEditIcon_(engine)',
+      },
+
+      showSecondaryButton_: {
+        type: Boolean,
+        computed: 'computeShowSecondaryButton_(engine)',
+      },
+
+      disableDots_: {
+        type: Boolean,
+        computed: 'computeDisableDots_(engine,' +
+            'prefs.default_search_provider_data.template_url_data.value)',
+      },
+
+      turnOnLabel: {
+        type: String,
+        computed: 'computeTurnOnLabel_(engine)',
+      },
+
+      turnOffLabel: {
+        type: String,
+        computed: 'computeTurnOffLabel_(engine)',
+      },
+
+      searchSettingsUpdateEnabled_: {
+        type: Boolean,
+        value: () => loadTimeData.getBoolean('searchSettingsUpdate'),
+      },
     };
   }
 
-  accessor engine: SearchEngine = {
-    canBeDefault: false,
-    canBeEdited: false,
-    canBeRemoved: false,
-    canBeActivated: false,
-    canBeDeactivated: false,
-    default: false,
-    displayName: '',
-    iconPath: '',
-    id: -1,
-    isManaged: false,
-    isRecommendedFromPolicy: false,
-    isOmniboxExtension: false,
-    isPrepopulated: false,
-    isStarterPack: false,
-    keyword: '',
-    name: '',
-    shouldConfirmRemoval: false,
-    url: '',
-    urlLocked: false,
-  };
-  accessor showShortcut: boolean = false;
-  accessor showQueryUrl: boolean = false;
-  accessor isDefault: boolean = false;
-  protected accessor defaultSearchProviderDataPref_:
-      chrome.settingsPrivate.PrefObject|undefined = undefined;
-  protected accessor searchSettingsUpdateEnabled_: boolean =
-      loadTimeData.getBoolean('searchSettingsUpdate');
-
+  declare engine: SearchEngine;
+  declare showShortcut: boolean;
+  declare showQueryUrl: boolean;
+  declare isDefault: boolean;
   private browserProxy_: SearchEnginesBrowserProxy =
       SearchEnginesBrowserProxyImpl.getInstance();
   private extensionBrowserProxy_: ExtensionControlBrowserProxy =
       ExtensionControlBrowserProxyImpl.getInstance();
+  declare private showEditIcon_: boolean;
+  declare private showSecondaryButton_: boolean;
+  declare private disableDots_: boolean;
+  declare turnOnLabel: string;
+  declare turnOffLabel: string;
 
-  override connectedCallback() {
-    super.connectedCallback();
-    this.mirrorPref(
-        'default_search_provider_data.template_url_data',
-        'defaultSearchProviderDataPref_');
-  }
-
-  override willUpdate(changedProperties: PropertyValues<this>) {
-    super.willUpdate(changedProperties);
-
-    if (changedProperties.has('engine')) {
-      this.isDefault = this.engine.default;
-    }
-  }
+  declare private searchSettingsUpdateEnabled_: boolean;
 
   private closePopupMenu_() {
-    this.shadowRoot.querySelector('cr-action-menu')!.close();
+    this.shadowRoot!.querySelector('cr-action-menu')!.close();
   }
 
   private isDefaultEngineManagedByExtension_(): boolean {
@@ -117,11 +116,13 @@ export class SettingsSearchEngineEntryElement extends
       return false;
     }
 
-    const extensionId = this.defaultSearchProviderDataPref_?.extensionId;
+    const extensionId =
+        this.getPref('default_search_provider_data.template_url_data')
+            .extensionId;
     return !!extensionId && extensionId === this.engine.extension.id;
   }
 
-  protected showEditOption_(): boolean {
+  private showEditOption_(): boolean {
     // Hide the edit option for extension shortcuts except if they are the
     // current default (e.g. by policy).
     if (this.searchSettingsUpdateEnabled_ && this.engine.extension &&
@@ -140,17 +141,21 @@ export class SettingsSearchEngineEntryElement extends
     return !this.engine.isManaged;
   }
 
-  protected shouldShowEditIcon_(): boolean {
+  private computeIsDefault_(): boolean {
+    return this.engine.default;
+  }
+
+  private computeShowEditIcon_(): boolean {
     return !this.searchSettingsUpdateEnabled_ && this.showEditOption_() &&
         !this.engine.canBeActivated;
   }
 
-  protected shouldShowSecondaryButton_(): boolean {
+  private computeShowSecondaryButton_(): boolean {
     return !this.engine.canBeActivated &&
         (this.engine.isManaged && !this.engine.canBeEdited);
   }
 
-  protected shouldDisableDots_(): boolean {
+  private computeDisableDots_(): boolean {
     // Disable the dots if none of the options are available for the engine.
     if (this.searchSettingsUpdateEnabled_) {
       if (this.isDefaultEngineManagedByExtension_()) {
@@ -167,18 +172,19 @@ export class SettingsSearchEngineEntryElement extends
          !this.engine.canBeDeactivated && !this.engine.canBeRemoved);
   }
 
-  protected turnOnLabel_(): string {
+  private computeTurnOnLabel_(): string {
     return this.engine.extension ? this.i18n('searchActivateShortcut') :
                                    this.i18n('searchActivate');
   }
 
-  protected turnOffLabel_(): string {
+  private computeTurnOffLabel_(): string {
     return this.engine.extension ? this.i18n('searchDeactivateShortcut') :
                                    this.i18n('searchDeactivate');
   }
 
-  protected showDeactivateOption_(): boolean {
+  private showDeactivateOption_(): boolean {
     assert(this.searchSettingsUpdateEnabled_);
+
     // `canBeDeactivated` is always false if the engine is the current default,
     // but it should be shown (and disabled) anyway. Hide the deactivate option
     // if the engine is prepopulated, as the user should not be able to turn it
@@ -187,32 +193,34 @@ export class SettingsSearchEngineEntryElement extends
         (this.engine.default && !this.engine.isPrepopulated);
   }
 
-  protected showDeleteOption_(): boolean {
+  private showDeleteOption_(): boolean {
     assert(this.searchSettingsUpdateEnabled_);
+
     // `canBeRemoved` is always false if the engine is the current default,
     // but it should be shown (and disabled) anyway.
     return this.engine.canBeRemoved || this.engine.default;
   }
 
-  protected showMakeDefaultOption_(): boolean {
+  private showMakeDefaultOption_(): boolean {
     assert(this.searchSettingsUpdateEnabled_);
+
     // Hide the make default option for starter pack and extension shortcuts,
     // except if they are the current default (e.g. by policy).
     return !this.engine.isStarterPack &&
         (!this.engine.extension || this.engine.default);
   }
 
-  protected showDisableExtensionOption_(): boolean {
+  private showDisableExtensionOption_(): boolean {
     assert(this.searchSettingsUpdateEnabled_);
     return this.engine.isOmniboxExtension && !!this.engine.extension &&
-        this.engine.extension?.canBeDisabled;
+        this.engine.extension.canBeDisabled;
   }
 
-  protected showControlledIndicator_(): boolean {
+  private showControlledIndicator_(): boolean {
     return !this.searchSettingsUpdateEnabled_ && !!this.engine.extension;
   }
 
-  protected onManageClick_() {
+  private onManageClick_() {
     assert(this.engine.extension);
     this.closePopupMenu_();
     this.browserProxy_.recordSearchEnginesPageHistogram(
@@ -220,7 +228,7 @@ export class SettingsSearchEngineEntryElement extends
     this.extensionBrowserProxy_.manageExtension(this.engine.extension.id);
   }
 
-  protected onDisableClick_() {
+  private onDisableClick_() {
     assert(this.engine.extension);
     assert(this.engine.extension.canBeDisabled);
     this.browserProxy_.recordSearchEnginesPageHistogram(
@@ -228,7 +236,7 @@ export class SettingsSearchEngineEntryElement extends
     this.extensionBrowserProxy_.disableExtension(this.engine.extension.id);
   }
 
-  protected onDeleteClick_(e: Event) {
+  private onDeleteClick_(e: Event) {
     e.preventDefault();
     this.closePopupMenu_();
 
@@ -237,79 +245,88 @@ export class SettingsSearchEngineEntryElement extends
       return;
     }
 
-    const dots = this.shadowRoot.querySelector('cr-icon-button.icon-more-vert');
+    const dots =
+        this.shadowRoot!.querySelector('cr-icon-button.icon-more-vert');
     assert(dots);
 
-    this.fire('delete-search-engine', {
-      engine: this.engine,
-      anchorElement: dots,
-    });
+    this.dispatchEvent(new CustomEvent('delete-search-engine', {
+      bubbles: true,
+      composed: true,
+      detail: {
+        engine: this.engine,
+        anchorElement: dots,
+      },
+    }));
   }
 
-  protected onDotsClick_() {
+  private onDotsClick_() {
     this.browserProxy_.recordSearchEnginesPageHistogram(
         SearchEnginesInteractions.MORE_ACTIONS);
-    const dots = this.shadowRoot.querySelector<HTMLElement>(
+    const dots = this.shadowRoot!.querySelector<HTMLElement>(
         'cr-icon-button.icon-more-vert');
     assert(dots);
-    this.shadowRoot.querySelector('cr-action-menu')!.showAt(dots, {
+    this.shadowRoot!.querySelector('cr-action-menu')!.showAt(dots, {
       anchorAlignmentY: AnchorAlignment.AFTER_END,
     });
   }
 
-  protected onViewOrEditClick_(e: Event) {
+  private onViewOrEditClick_(e: Event) {
     e.preventDefault();
     this.closePopupMenu_();
 
     // Only record an edit event if the engine is modifiable.
-    if (!this.shouldShowSecondaryButton_()) {
+    if (!this.showSecondaryButton_) {
       this.browserProxy_.recordSearchEnginesPageHistogram(
           SearchEnginesInteractions.EDIT_SEARCH_ENGINE);
     }
 
     const anchorToActionMenu =
-        this.searchSettingsUpdateEnabled_ && !this.shouldShowSecondaryButton_();
-    const anchor = this.shadowRoot.querySelector(
+        this.searchSettingsUpdateEnabled_ && !this.showSecondaryButton_;
+    const anchor = this.shadowRoot!.querySelector(
         anchorToActionMenu ? 'cr-icon-button.icon-more-vert' :
                              'cr-icon-button');
     assert(anchor);
 
-    this.fire('view-or-edit-search-engine', {
-      engine: this.engine,
-      anchorElement: anchor,
-    });
+    this.dispatchEvent(new CustomEvent('view-or-edit-search-engine', {
+      bubbles: true,
+      composed: true,
+      detail: {
+        engine: this.engine,
+        anchorElement: anchor,
+      },
+    }));
   }
 
-  protected onMakeDefaultClick_() {
+  private onMakeDefaultClick_() {
     this.closePopupMenu_();
     this.browserProxy_.setDefaultSearchEngine(
         this.engine.id, ChoiceMadeLocation.SEARCH_ENGINE_SETTINGS,
         /*saveGuestChoice=*/ null);
   }
 
-  protected onActivateClick_() {
+  private onActivateClick_() {
     this.closePopupMenu_();
     this.browserProxy_.setIsActiveSearchEngine(
         this.engine.id, /*is_active=*/ true);
   }
 
-  protected onDeactivateClick_() {
+  private onDeactivateClick_() {
     this.closePopupMenu_();
     this.browserProxy_.setIsActiveSearchEngine(
         this.engine.id, /*is_active=*/ false);
   }
 
-  protected getMoreActionsAriaLabel_(): string {
+  private getMoreActionsAriaLabel_(): string {
     return this.i18n(
         'searchEnginesMoreActionsAriaLabel', this.engine.displayName);
   }
 
-  protected getActivateButtonAriaLabel_(): string {
+  private getActivateButtonAriaLabel_(): string {
     return this.i18n(
         'searchEnginesActivateButtonAriaLabel', this.engine.displayName);
   }
 
-  protected getEditButtonAriaLabel_(): string {
+  private getEditButtonAriaLabel_(): string {
     return this.i18n(
         'searchEnginesEditButtonAriaLabel', this.engine.displayName);
   }

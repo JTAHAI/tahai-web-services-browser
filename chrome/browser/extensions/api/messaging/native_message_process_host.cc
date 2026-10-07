@@ -15,7 +15,6 @@
 #include "base/files/file_path.h"
 #include "base/functional/bind.h"
 #include "base/logging.h"
-#include "base/metrics/histogram_functions.h"
 #include "base/numerics/safe_conversions.h"
 #include "base/process/kill.h"
 #include "base/task/single_thread_task_runner.h"
@@ -42,13 +41,13 @@ namespace {
 // Maximum message size in bytes for messages received from Native Messaging
 // hosts. Message size is limited mainly to prevent Chrome from crashing when
 // native application misbehaves (e.g. starts writing garbage to the pipe).
-constexpr size_t kMaximumNativeMessageSize = 1024 * 1024;
+const size_t kMaximumNativeMessageSize = 1024 * 1024;
 
 // Message header contains 4-byte integer size of the message.
-constexpr size_t kMessageHeaderSize = 4;
+const size_t kMessageHeaderSize = 4;
 
 // Size of the buffer to be allocated for each read.
-constexpr size_t kReadBufferSize = 4096;
+const size_t kReadBufferSize = 4096;
 
 base::FilePath GetProfilePathIfEnabled(
     Profile* profile,
@@ -187,12 +186,6 @@ void NativeMessageProcessHost::OnMessage(const std::string& json) {
     return;
   }
 
-  // Set the max value to the 64MB message size limit.
-  constexpr size_t kMaxSizeToRecord = 1024 * 1024 * 64;
-  base::UmaHistogramCustomCounts(
-      "Extensions.NativeMessaging.MessageSize.Extension", json.size(), 1,
-      kMaxSizeToRecord, 50);
-
   // Allocate new buffer for the message.
   scoped_refptr<net::IOBufferWithSize> buffer =
       base::MakeRefCounted<net::IOBufferWithSize>(json.size() +
@@ -330,10 +323,6 @@ void NativeMessageProcessHost::ProcessIncomingData(
     if (incoming_data_.size() < message_size + kMessageHeaderSize) {
       return;
     }
-
-    base::UmaHistogramCustomCounts(
-        "Extensions.NativeMessaging.MessageSize.NativeApp", message_size, 1,
-        kMaximumNativeMessageSize, 50);
 
     client_->PostMessageFromNativeHost(
         incoming_data_.substr(kMessageHeaderSize, message_size));

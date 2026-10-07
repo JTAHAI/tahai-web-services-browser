@@ -21,7 +21,7 @@ InkDropHighlightTestApi::~InkDropHighlightTestApi() = default;
 
 std::vector<ui::LayerAnimator*> InkDropHighlightTestApi::GetLayerAnimators() {
   std::vector<ui::LayerAnimator*> animators;
-  animators.push_back(ink_drop_highlight_->layer()->GetAnimator());
+  animators.push_back(ink_drop_highlight_->layer_->GetAnimator());
   return animators;
 }
 

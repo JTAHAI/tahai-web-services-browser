@@ -109,7 +109,14 @@ TEST_F(PrefsUtilTest, SetPref_FixesUpInvalidUrl) {
 TEST_F(PrefsUtilTest, GlicPrefsAllowlisted) {
   base::test::ScopedFeatureList feature_list;
   feature_list.InitAndEnableFeature(features::kGlic);
-  glic::GlicEnabling::ScopedBypassEnablementChecksForTesting scoped_glic_bypass;
+  struct ScopedBypass {
+    ScopedBypass() {
+      glic::GlicEnabling::SetBypassEnablementChecksForTesting(true);
+    }
+    ~ScopedBypass() {
+      glic::GlicEnabling::SetBypassEnablementChecksForTesting(false);
+    }
+  } bypass;
 
   std::optional<api::settings_private::PrefObject> pref =
       prefs_util_->GetPref(glic::prefs::kGlicHotkeyGlobalScopeEnabled);

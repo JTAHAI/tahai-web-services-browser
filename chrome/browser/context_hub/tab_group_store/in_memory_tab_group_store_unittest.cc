@@ -65,11 +65,11 @@ TEST_F(InMemoryTabGroupStoreTest, AddAndGetAllGroups) {
       UnorderedElementsAre(
           FieldsAre("group_custom", "Shopping", ElementsAre(2, 3), _,
                     testing::Ne(base::Time()), testing::Ne(base::Time())),
-          FieldsAre(testing::Ne(""), "Work", ElementsAre(1), _,
+          FieldsAre("group_1", "Work", ElementsAre(1), _,
                     testing::Ne(base::Time()), testing::Ne(base::Time()))));
 }
 
-TEST_F(InMemoryTabGroupStoreTest, DeleteAllGroups) {
+TEST_F(InMemoryTabGroupStoreTest, DeleteAllGroupsResetsCounter) {
   std::vector<TabGroupEntry> groups;
   TabGroupEntry group;
   group.label = "Initial";
@@ -82,6 +82,7 @@ TEST_F(InMemoryTabGroupStoreTest, DeleteAllGroups) {
   store_.DeleteAllGroups(base::DoNothing());
   EXPECT_THAT(GetAllGroupsSync(), IsEmpty());
 
+  // Verify counter reset to 1
   groups.clear();
   group.label = "New Group";
   groups.push_back(group);
@@ -89,7 +90,7 @@ TEST_F(InMemoryTabGroupStoreTest, DeleteAllGroups) {
 
   EXPECT_THAT(
       GetAllGroupsSync(),
-      ElementsAre(FieldsAre(testing::Ne(""), "New Group", ElementsAre(1), _,
+      ElementsAre(FieldsAre("group_1", "New Group", ElementsAre(1), _,
                             testing::Ne(base::Time()),
                             testing::Ne(base::Time()))));
 }
@@ -107,10 +108,10 @@ TEST_F(InMemoryTabGroupStoreTest, MaxCapacityEviction) {
 
   std::vector<TabGroupEntry> fetched_groups = GetAllGroupsSync();
 
-  // Capped at 50 max groups (Group 0 evicted)
+  // Capped at 50 max groups (group_1 evicted)
   EXPECT_THAT(fetched_groups, SizeIs(50u));
-  EXPECT_THAT(fetched_groups[0].label, testing::Eq("Group 1"));
-  EXPECT_THAT(fetched_groups.back().label, testing::Eq("Group 50"));
+  EXPECT_THAT(fetched_groups[0].id, testing::Eq("group_2"));
+  EXPECT_THAT(fetched_groups.back().id, testing::Eq("group_51"));
 }
 
 TEST_F(InMemoryTabGroupStoreTest, AddOrUpdateGroup) {
@@ -122,7 +123,7 @@ TEST_F(InMemoryTabGroupStoreTest, AddOrUpdateGroup) {
 
   EXPECT_THAT(
       GetAllGroupsSync(),
-      ElementsAre(FieldsAre(testing::Ne(""), "Initial", ElementsAre(1, 2), _,
+      ElementsAre(FieldsAre("group_1", "Initial", ElementsAre(1, 2), _,
                             testing::Ne(base::Time()),
                             testing::Ne(base::Time()))));
 
@@ -130,10 +131,9 @@ TEST_F(InMemoryTabGroupStoreTest, AddOrUpdateGroup) {
   std::vector<TabGroupEntry> fetched_before = GetAllGroupsSync();
   ASSERT_THAT(fetched_before, SizeIs(1));
   base::Time original_created = fetched_before[0].created_timestamp;
-  std::string assigned_id = fetched_before[0].id;
 
   TabGroupEntry updated;
-  updated.id = assigned_id;
+  updated.id = "group_1";
   updated.label = "Updated";
   updated.tab_ids = {1, 3};
   store_.AddOrUpdateGroup(updated, base::DoNothing());
@@ -145,7 +145,7 @@ TEST_F(InMemoryTabGroupStoreTest, AddOrUpdateGroup) {
 
   // Test empty group rejection
   TabGroupEntry empty_group;
-  empty_group.id = assigned_id;
+  empty_group.id = "group_1";
   empty_group.label = "Empty";
   empty_group.tab_ids = {};
   store_.AddOrUpdateGroup(empty_group, base::DoNothing());
@@ -159,15 +159,13 @@ TEST_F(InMemoryTabGroupStoreTest, DeleteGroup) {
   group.tab_ids = {1};
   store_.AddOrUpdateGroup(group, base::DoNothing());
 
-  std::vector<TabGroupEntry> fetched = GetAllGroupsSync();
-  ASSERT_THAT(fetched, SizeIs(1));
-  std::string assigned_id = fetched[0].id;
+  EXPECT_THAT(GetAllGroupsSync(), SizeIs(1));
 
   // Non-existent ID deletion is a no-op
   store_.DeleteGroup("non_existent_id", base::DoNothing());
   EXPECT_THAT(GetAllGroupsSync(), SizeIs(1));
 
-  store_.DeleteGroup(assigned_id, base::DoNothing());
+  store_.DeleteGroup("group_1", base::DoNothing());
   EXPECT_THAT(GetAllGroupsSync(), IsEmpty());
 }
 
@@ -187,7 +185,7 @@ TEST_F(InMemoryTabGroupStoreTest, PruneTabFromAllGroups) {
 
   EXPECT_THAT(
       GetAllGroupsSync(),
-      ElementsAre(FieldsAre(testing::Ne(""), "Group 1", ElementsAre(1, 2), _,
+      ElementsAre(FieldsAre("group_1", "Group 1", ElementsAre(1, 2), _,
                             testing::Ne(base::Time()),
                             testing::Ne(base::Time()))));
 }
@@ -198,23 +196,19 @@ TEST_F(InMemoryTabGroupStoreTest, AddTabToGroup) {
   group.tab_ids = {1};
   store_.AddOrUpdateGroup(group, base::DoNothing());
 
-  std::vector<TabGroupEntry> fetched = GetAllGroupsSync();
-  ASSERT_THAT(fetched, SizeIs(1));
-  std::string assigned_id = fetched[0].id;
-
   // Adding new tab
-  store_.AddTabToGroup(assigned_id, 2, base::DoNothing());
+  store_.AddTabToGroup("group_1", 2, base::DoNothing());
   EXPECT_THAT(
       GetAllGroupsSync(),
-      ElementsAre(FieldsAre(assigned_id, "Group", ElementsAre(1, 2), _,
+      ElementsAre(FieldsAre("group_1", "Group", ElementsAre(1, 2), _,
                             testing::Ne(base::Time()),
                             testing::Ne(base::Time()))));
 
   // Adding duplicate tab (no-op)
-  store_.AddTabToGroup(assigned_id, 1, base::DoNothing());
+  store_.AddTabToGroup("group_1", 1, base::DoNothing());
   EXPECT_THAT(
       GetAllGroupsSync(),
-      ElementsAre(FieldsAre(assigned_id, "Group", ElementsAre(1, 2), _,
+      ElementsAre(FieldsAre("group_1", "Group", ElementsAre(1, 2), _,
                             testing::Ne(base::Time()),
                             testing::Ne(base::Time()))));
 }
@@ -246,30 +240,25 @@ TEST_F(InMemoryTabGroupStoreTest, EnforcesSingleGroupPerTab) {
   group2.tab_ids = {3};
   store_.AddOrUpdateGroup(group2, base::DoNothing());
 
-  std::vector<TabGroupEntry> fetched = GetAllGroupsSync();
-  ASSERT_THAT(fetched, SizeIs(2));
-  std::string group1_id = fetched[0].label == "Group 1" ? fetched[0].id : fetched[1].id;
-  std::string group2_id = fetched[0].label == "Group 2" ? fetched[0].id : fetched[1].id;
-
   // Moving tab 1 from Group 1 to Group 2 via AddTabToGroup
-  store_.AddTabToGroup(group2_id, 1, base::DoNothing());
+  store_.AddTabToGroup("group_2", 1, base::DoNothing());
 
   // Verify tab 1 is removed from Group 1, and now in Group 2
   EXPECT_THAT(
       GetAllGroupsSync(),
       UnorderedElementsAre(
-          FieldsAre(group2_id, "Group 2", ElementsAre(3, 1), _,
+          FieldsAre("group_2", "Group 2", ElementsAre(3, 1), _,
                     testing::Ne(base::Time()), testing::Ne(base::Time())),
-          FieldsAre(group1_id, "Group 1", ElementsAre(2), _,
+          FieldsAre("group_1", "Group 1", ElementsAre(2), _,
                     testing::Ne(base::Time()), testing::Ne(base::Time()))));
 
   // Moving tab 2 to Group 2 via AddTabToGroup (Group 1 becomes empty and is pruned)
-  store_.AddTabToGroup(group2_id, 2, base::DoNothing());
+  store_.AddTabToGroup("group_2", 2, base::DoNothing());
 
   // Verify Group 1 is auto-deleted since it has 0 tabs left
   EXPECT_THAT(
       GetAllGroupsSync(),
-      ElementsAre(FieldsAre(group2_id, "Group 2", ElementsAre(3, 1, 2), _,
+      ElementsAre(FieldsAre("group_2", "Group 2", ElementsAre(3, 1, 2), _,
                             testing::Ne(base::Time()),
                             testing::Ne(base::Time()))));
 }

@@ -26,9 +26,8 @@ namespace {
 
 gfx::ImageSkia GetWindowIcon(aura::Window* window) {
   gfx::ImageSkia* image = window->GetProperty(aura::client::kWindowIconKey);
-  if (!image) {
+  if (!image)
     image = window->GetProperty(aura::client::kAppIconKey);
-  }
   return image ? *image : gfx::ImageSkia();
 }
 
@@ -88,9 +87,8 @@ DlpConfidentialContents::DlpConfidentialContents() = default;
 
 DlpConfidentialContents::DlpConfidentialContents(
     const std::vector<content::WebContents*>& web_contents) {
-  for (auto* content : web_contents) {
+  for (auto* content : web_contents)
     Add(content);
-  }
 }
 
 DlpConfidentialContents::DlpConfidentialContents(
@@ -173,12 +171,9 @@ void DlpConfidentialContentsCache::Cache(
       std::make_unique<Entry>(content, restriction, base::TimeTicks::Now());
   StartEvictionTimer(entry.get());
   entries_.push_front(std::move(entry));
-  const bool evicted = entries_.size() > cache_size_limit_;
-  if (evicted) {
+  if (entries_.size() > cache_size_limit_) {
     entries_.pop_back();
   }
-  data_controls::DlpBooleanHistogram(
-      data_controls::dlp::kConfidentialContentsCacheEvictedOnFull, evicted);
   data_controls::DlpCountHistogram(
       data_controls::dlp::kConfidentialContentsCount, entries_.size(),
       cache_size_limit_);
@@ -188,11 +183,11 @@ bool DlpConfidentialContentsCache::Contains(
     content::WebContents* web_contents,
     DlpRulesManager::Restriction restriction) const {
   const GURL url = web_contents->GetLastCommittedURL();
-  return std::ranges::any_of(entries_,
-                             [&](const std::unique_ptr<Entry>& entry) {
-                               return entry->restriction == restriction &&
-                                      entry->content.url.EqualsIgnoringRef(url);
-                             });
+  return std::ranges::any_of(
+      entries_, [&](const std::unique_ptr<Entry>& entry) {
+        return entry->restriction == restriction &&
+               entry->content.url.EqualsIgnoringRef(url);
+      });
 }
 
 bool DlpConfidentialContentsCache::Contains(

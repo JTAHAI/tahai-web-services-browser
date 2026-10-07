@@ -4,7 +4,6 @@
 
 #include "third_party/blink/renderer/core/streams/transferable_streams.h"
 
-#include "base/memory/raw_ptr.h"
 #include "base/types/strong_alias.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/blink/renderer/bindings/core/v8/iterable.h"
@@ -195,7 +194,7 @@ TEST(TransferableStreamsTest, SmokeTest) {
       EXPECT_TRUE(result->value().IsNull());
     }
 
-    raw_ptr<bool, UnprotectedInRelease | DanglingUntriaged> got_response_;
+    bool* got_response_;
   };
 
   // TODO(ricea): This is copy-and-pasted from transform_stream_test.cc. Put it

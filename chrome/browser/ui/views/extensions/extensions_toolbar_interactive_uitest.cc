@@ -11,7 +11,7 @@
 #include "chrome/browser/extensions/chrome_test_extension_loader.h"
 #include "chrome/browser/extensions/extension_tab_util.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/views/extensions/extensions_toolbar_desktop.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/toolbar/toolbar_view.h"
@@ -148,10 +148,8 @@ ExtensionsToolbarDesktop* ExtensionsToolbarUITest::GetExtensionsToolbarDesktop()
 
 ExtensionsToolbarDesktop*
 ExtensionsToolbarUITest::GetExtensionsToolbarDesktopForBrowser(
-    BrowserWindowInterface* browser) const {
-  return BrowserView::GetBrowserViewForBrowser(browser)
-      ->toolbar()
-      ->extensions_container();
+    Browser* browser) const {
+  return browser->GetBrowserView().toolbar()->extensions_container();
 }
 
 std::vector<ToolbarActionView*> ExtensionsToolbarUITest::GetToolbarActionViews()
@@ -161,7 +159,7 @@ std::vector<ToolbarActionView*> ExtensionsToolbarUITest::GetToolbarActionViews()
 
 std::vector<ToolbarActionView*>
 ExtensionsToolbarUITest::GetToolbarActionViewsForBrowser(
-    BrowserWindowInterface* browser) const {
+    Browser* browser) const {
   std::vector<ToolbarActionView*> views;
   for (views::View* view :
        GetExtensionsToolbarDesktopForBrowser(browser)->children()) {
@@ -197,7 +195,7 @@ bool ExtensionsToolbarUITest::DidInjectScript(
 
 void ExtensionsToolbarUITest::NavigateTo(const GURL& url) {
   content::TestNavigationObserver observer(
-      browser()->GetTabStripModel()->GetActiveWebContents());
+      browser()->tab_strip_model()->GetActiveWebContents());
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), url));
   EXPECT_TRUE(observer.last_navigation_succeeded());
 }

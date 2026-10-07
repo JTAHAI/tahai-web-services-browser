@@ -163,7 +163,6 @@ class ConsumerHost : public perfetto::Consumer, public mojom::ConsumerHost {
       mojo::PendingRemote<mojom::TracingSessionClient> tracing_session_client,
       const base::UnguessableToken& uuid,
       CloneSessionCallback callback) override;
-  void QueryServiceState(QueryServiceStateCallback callback) override;
 
   // perfetto::Consumer implementation.
   // This gets called by the Perfetto service as control signals,

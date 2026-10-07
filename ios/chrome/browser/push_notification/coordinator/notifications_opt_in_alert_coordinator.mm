@@ -148,7 +148,8 @@ GaiaId GetGaiaIdForProfile(ProfileIOS* profile) {
     // Check notification permission settings in case user doesn't have lock
     // screen or alert notifications enabled to show an alert. The alert has an
     // impression limit so don't try if the limit has already been met.
-    if (impressionCount < kProminenceAlertImpressionLimit) {
+    if (IsProvisionalNotificationAlertEnabled() &&
+        impressionCount < kProminenceAlertImpressionLimit) {
       __weak __typeof(self) weakSelf = self;
       [PushNotificationUtil
           getPermissionSettings:^(UNNotificationSettings* settings) {

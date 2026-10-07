@@ -106,11 +106,10 @@ contents of the document will be replaced with the string, similar to a
 though, while document.write does not.)
 
 
-## Error page internal URL
+## `chrome-error://chromewebdata`
 
 When Chromium navigates to an error page, it commits as
 `chrome-error://chromewebdata`. This URL is not displayed to the user (in favor
 of the URL that failed or was blocked). Note that this error URL is not stored
 in the NavigationEntry, but error pages can also be detected using the
-`url_is_unreachable` bit on the commit params or via
-`NavigationHandle::IsErrorPage`.
+`url_is_unreachable` bit on the commit params.

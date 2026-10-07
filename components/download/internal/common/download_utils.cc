@@ -68,7 +68,7 @@ const int kDefaultOverwrittenDownloadExpiredTimeInDays = 90;
 const int kDefaultDownloadFileBufferSize = 524288;
 
 // Maximum size of a data URL. URLs larger than this will be truncated.
-const size_t kMaxDataURLSize = 8192u;
+const size_t kMaxDataURLSize = 1024u;
 
 #if BUILDFLAG(IS_ANDROID)
 // Default maximum length of a downloaded file name on Android.
@@ -181,14 +181,14 @@ void OnInterMediateUriCreated(LocalPathCallback callback,
 
 const uint32_t DownloadItem::kInvalidId = 0;
 
-bool TruncateDataUrlAtTheEndIfNeeded(GURL& url) {
+void TruncateDataUrlAtTheEndIfNeeded(GURL& url) {
   constexpr std::string_view kBase64Substr = "base64,";
   if (!url.SchemeIs(url::kDataScheme)) {
-    return false;
+    return;
   }
   const std::string& data_url = url.spec();
   if (data_url.size() <= kMaxDataURLSize) {
-    return false;
+    return;
   }
   size_t data_url_end = kMaxDataURLSize;
   // If there is a base64 substr, trim the following data only if it is within
@@ -205,15 +205,12 @@ bool TruncateDataUrlAtTheEndIfNeeded(GURL& url) {
 
   GURL truncated_url(data_url.substr(0, data_url_end));
   url.Swap(&truncated_url);
-  return true;
 }
 
-bool TruncateDataUrlAtTheEndIfNeeded(std::vector<GURL>* url_chain) {
-  bool truncated = false;
+void TruncateDataUrlAtTheEndIfNeeded(std::vector<GURL>* url_chain) {
   for (GURL& url : *url_chain) {
-    truncated |= TruncateDataUrlAtTheEndIfNeeded(url);
+    TruncateDataUrlAtTheEndIfNeeded(url);
   }
-  return truncated;
 }
 
 DownloadInterruptReason HandleRequestCompletionStatus(

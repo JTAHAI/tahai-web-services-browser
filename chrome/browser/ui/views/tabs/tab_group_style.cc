@@ -46,10 +46,6 @@ TabGroupStyle::TabGroupStyle(const TabGroupViews& tab_group_views)
 TabGroupStyle::~TabGroupStyle() = default;
 
 bool TabGroupStyle::TabGroupUnderlineShouldBeHidden() const {
-  if (tab_group_views_->IsFocusModeActive()) {
-    return true;
-  }
-
   const auto [leading_group_view, trailing_group_view] =
       tab_group_views_->GetLeadingTrailingGroupViews();
 
@@ -60,10 +56,6 @@ bool TabGroupStyle::TabGroupUnderlineShouldBeHidden() const {
 bool TabGroupStyle::TabGroupUnderlineShouldBeHidden(
     const views::View* const leading_view,
     const views::View* const trailing_view) const {
-  if (tab_group_views_->IsFocusModeActive()) {
-    return true;
-  }
-
   const TabGroupHeader* const leading_view_group_header =
       views::AsViewClass<TabGroupHeader>(leading_view);
   const TabGroupHeader* const trailing_view_group_header =

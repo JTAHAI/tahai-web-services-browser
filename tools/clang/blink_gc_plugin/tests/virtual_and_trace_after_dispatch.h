@@ -33,4 +33,4 @@ private:
 
 }
 
-#endif  // VIRTUAL_AND_TRACE_AFTER_DISPATCH_H_
+#endif

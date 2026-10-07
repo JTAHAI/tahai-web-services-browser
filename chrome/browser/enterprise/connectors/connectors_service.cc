@@ -443,14 +443,11 @@ ConnectorsServiceFactory::BuildServiceInstanceForBrowserContext(
 
 content::BrowserContext* ConnectorsServiceFactory::GetBrowserContextToUse(
     content::BrowserContext* context) const {
-  Profile* profile = Profile::FromBrowserContext(context);
-  if (!profile) {
-    return nullptr;
-  }
-
 #if BUILDFLAG(ENTERPRISE_CONTENT_ANALYSIS)
-  // Do not construct the connectors service for the system profile.
-  if (profile->IsSystemProfile()) {
+  // Do not construct the connectors service if the extensions are disabled for
+  // the given context.
+  if (extensions::ChromeContentBrowserClientExtensionsPart::
+          AreExtensionsDisabledForProfile(context)) {
     return nullptr;
   }
 #endif
@@ -459,9 +456,9 @@ content::BrowserContext* ConnectorsServiceFactory::GetBrowserContextToUse(
   // profiles, besides incognito.
   // However, the primary/main profile might not exist in tests - then the
   // provided |context| is still used.
-  if (!profile->IsOffTheRecord() &&
-      !profile->AsTestingProfile() &&
-      !profile->ShutdownStarted()) {
+  if (context && !context->IsOffTheRecord() &&
+      !Profile::FromBrowserContext(context)->AsTestingProfile() &&
+      !context->ShutdownStarted()) {
 #if BUILDFLAG(IS_CHROMEOS)
     auto* user_manager = user_manager::UserManager::Get();
     if (auto* primary_user = user_manager->GetPrimaryUser()) {
@@ -473,7 +470,7 @@ content::BrowserContext* ConnectorsServiceFactory::GetBrowserContextToUse(
     }
 #endif
   }
-  return profile;
+  return context;
 }
 
 }  // namespace enterprise_connectors

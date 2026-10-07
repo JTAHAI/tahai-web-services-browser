@@ -57,7 +57,6 @@ import org.chromium.chrome.browser.ui.actions.ActionId;
 import org.chromium.chrome.browser.ui.actions.ActionProperties;
 import org.chromium.chrome.browser.ui.actions.ActionRegistry;
 import org.chromium.chrome.browser.ui.actions.glic.GlicActionProperties;
-import org.chromium.chrome.browser.ui.bottombar.BottomBarHostManager.Host;
 import org.chromium.chrome.browser.ui.theme.BrandedColorScheme;
 import org.chromium.components.feature_engagement.FeatureConstants;
 import org.chromium.components.feature_engagement.Tracker;
@@ -340,17 +339,6 @@ public class BottomBarCoordinatorUnitTest {
     }
 
     @Test
-    public void testSetParent_UpdatesHost() {
-        assertEquals(Host.TABBED, mCoordinator.getMediatorForTesting().getHostForTesting());
-
-        mCoordinator.setParent(Host.HUB);
-        assertEquals(Host.HUB, mCoordinator.getMediatorForTesting().getHostForTesting());
-
-        mCoordinator.setParent(Host.TABBED);
-        assertEquals(Host.TABBED, mCoordinator.getMediatorForTesting().getHostForTesting());
-    }
-
-    @Test
     public void testOmniboxFocusHidesBottomBar() {
         // Initially not focused, should be visible.
         verify(mVisibilityDelegate).onVisibilityChanged(true);
@@ -457,10 +445,7 @@ public class BottomBarCoordinatorUnitTest {
     }
 
     @Test
-    @EnableFeatures({
-        ChromeFeatureList.ANDROID_BOTTOM_BAR_AIM,
-        ChromeFeatureList.ANDROID_BOTTOM_BAR + ":bypass_aim_geofencing/true"
-    })
+    @EnableFeatures(ChromeFeatureList.ANDROID_BOTTOM_BAR_AIM)
     public void testExtraButton_WhenAiModeEligible_ShowsAiModeContentDescriptionAndTooltip() {
         GlicEnabling.setEnabledForTesting(false);
         when(mProfile.getOriginalProfile()).thenReturn(mProfile);
@@ -738,8 +723,7 @@ public class BottomBarCoordinatorUnitTest {
     @Test
     @EnableFeatures({
         ChromeFeatureList.ANDROID_BOTTOM_BAR,
-        ChromeFeatureList.ANDROID_BOTTOM_BAR_AIM,
-        ChromeFeatureList.ANDROID_BOTTOM_BAR + ":bypass_aim_geofencing/true"
+        ChromeFeatureList.ANDROID_BOTTOM_BAR_AIM
     })
     public void testCountrySupplier_DelayedSupply_AuCountry_BindsAiMode() {
         GlicEnabling.setEnabledForTesting(/* isEnabled= */ true);

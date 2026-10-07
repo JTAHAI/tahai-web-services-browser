@@ -70,7 +70,8 @@ ConvertLaunchResultToTaskResult(apps::LaunchResult result, TaskType task_type) {
         return fmp::TaskResult::kMessageSent;
       }
     case apps::LaunchResult::kFailedDirectoryNotShared:
-      return fmp::TaskResult::kFailed;
+      DCHECK(task_type == TASK_TYPE_PLUGIN_VM_APP);
+      return fmp::TaskResult::kFailedPluginVmDirectoryNotShared;
     case apps::LaunchResult::kFailed:
       return fmp::TaskResult::kFailed;
   }
@@ -96,10 +97,11 @@ TaskType GetTaskType(apps::AppType app_type) {
       return TASK_TYPE_BRUSCHETTA_APP;
     case apps::AppType::kCrostini:
       return TASK_TYPE_CROSTINI_APP;
+    case apps::AppType::kPluginVm:
+      return TASK_TYPE_PLUGIN_VM_APP;
     case apps::AppType::kUnknown:
     case apps::AppType::kRemote:
     case apps::AppType::kBorealis:
-    case apps::AppType::kPluginVm:
       return TASK_TYPE_UNKNOWN;
   }
 }
@@ -244,7 +246,7 @@ void FindAppServiceTasks(Profile* profile,
       apps::AppType::kArc,       apps::AppType::kWeb,
       apps::AppType::kSystemWeb, apps::AppType::kChromeApp,
       apps::AppType::kExtension, apps::AppType::kBruschetta,
-      apps::AppType::kCrostini,
+      apps::AppType::kCrostini,  apps::AppType::kPluginVm,
   };
   for (auto& launch_entry : intent_launch_info) {
     auto app_type = proxy->AppRegistryCache().GetAppType(launch_entry.app_id);
@@ -261,7 +263,8 @@ void FindAppServiceTasks(Profile* profile,
     }
 
     if ((app_type == apps::AppType::kBruschetta ||
-         app_type == apps::AppType::kCrostini) &&
+         app_type == apps::AppType::kCrostini ||
+         app_type == apps::AppType::kPluginVm) &&
         !files_shareable_to_vm) {
       continue;
     }
@@ -342,6 +345,7 @@ void ExecuteAppServiceTask(
          task.task_type == TASK_TYPE_FILE_HANDLER ||
          task.task_type == TASK_TYPE_BRUSCHETTA_APP ||
          task.task_type == TASK_TYPE_CROSTINI_APP ||
+         task.task_type == TASK_TYPE_PLUGIN_VM_APP ||
          task.task_type == TASK_TYPE_ARC_APP);
 
   apps::IntentPtr intent = std::make_unique<apps::Intent>(

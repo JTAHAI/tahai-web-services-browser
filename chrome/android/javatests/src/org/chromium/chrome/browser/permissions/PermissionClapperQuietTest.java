@@ -32,7 +32,6 @@ import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.Criteria;
 import org.chromium.base.test.util.CriteriaHelper;
 import org.chromium.base.test.util.CriteriaNotSatisfiedException;
-import org.chromium.base.test.util.DisabledTest;
 import org.chromium.base.test.util.Feature;
 import org.chromium.base.test.util.Features.DisableFeatures;
 import org.chromium.base.test.util.Features.EnableFeatures;
@@ -62,6 +61,7 @@ import org.chromium.content_public.common.ContentSwitches;
 })
 @DisableFeatures({ChromeFeatureList.SETTINGS_MULTI_COLUMN})
 @EnableFeatures({
+    PermissionsAndroidFeatureList.PERMISSIONS_ANDROID_CLAPPER_QUIET,
     PermissionsAndroidFeatureList.PERMISSIONS_ANDROID_CLAPPER_LOUD
 })
 @Batch(Batch.PER_CLASS)
@@ -149,8 +149,17 @@ public class PermissionClapperQuietTest {
         // Wait for the security state to stabilize before triggering the permission.
         waitForSecurityIcon();
 
+        // Inject a click handler to satisfy the User Gesture (Transient Activation) requirement.
+        // Notification.requestPermission() must be called from a user interaction.
+        // PermissionTestRule.runJavaScriptCodeInCurrentTabWithGesture() simulates a tap,
+        // but permission_navigation.html is a generic page without an onclick listener.
+        // This injection ensures the tap executes the function stored in 'window.functionToRun'.
+        mPermissionRule.runJavaScriptCodeInCurrentTab(
+                "window.onclick = function() { if (window.functionToRun) {"
+                        + " eval(window.functionToRun); } };");
+
         // Trigger notification permission with a gesture.
-        mPermissionRule.runJavaScriptCodeWithUserGestureInCurrentTab(
+        mPermissionRule.runJavaScriptCodeInCurrentTabWithGesture(
                 "Notification.requestPermission()");
     }
 
@@ -260,7 +269,7 @@ public class PermissionClapperQuietTest {
 
         // We trigger the notification and immediately update window.promiseResolved when it
         // resolves/rejects
-        mPermissionRule.runJavaScriptCodeWithUserGestureInCurrentTab(
+        mPermissionRule.runJavaScriptCodeInCurrentTabWithGesture(
                 "Notification.requestPermission().then(() => { window.promiseResolved = true;"
                         + " }).catch(() => { window.promiseResolved = true; })");
 
@@ -301,6 +310,17 @@ public class PermissionClapperQuietTest {
                 ContentSettingsType.NOTIFICATIONS, ContentSetting.ASK, PAGE_URL);
     }
 
+    @Test
+    @MediumTest
+    @Feature({"Permissions"})
+    @DisableFeatures({PermissionsAndroidFeatureList.PERMISSIONS_ANDROID_CLAPPER_QUIET})
+    public void testStandardQuietUiShowsMessage() throws Exception {
+
+        mPermissionRule.setupPageAndTriggerNotificationPermissionRequest(PAGE_URL);
+
+        // With Clapper disabled, the standard Quiet UI (Message) should be shown.
+        mPermissionRule.waitForMessageShownState(true);
+    }
 
     @Test
     @MediumTest
@@ -633,7 +653,7 @@ public class PermissionClapperQuietTest {
         waitForQuietIcon();
 
         // Trigger a high-priority permission request (Microphone) to preempt the quiet one.
-        mPermissionRule.runJavaScriptCodeWithUserGestureInCurrentTab(
+        mPermissionRule.runJavaScriptCodeInCurrentTabWithGesture(
                 "navigator.mediaDevices.getUserMedia({audio: true})");
 
         // The Microphone prompt (Loud UI) should be shown.
@@ -660,7 +680,7 @@ public class PermissionClapperQuietTest {
         mPermissionRule.waitForPageInfoOpen();
 
         // Trigger a high-priority permission request (Microphone) to preempt the quiet one.
-        mPermissionRule.runJavaScriptCodeWithUserGestureInCurrentTab(
+        mPermissionRule.runJavaScriptCodeInCurrentTabWithGesture(
                 "navigator.mediaDevices.getUserMedia({audio: true})");
         // The Microphone prompt (Loud UI) should be shown.
         mPermissionRule.waitForDialogShownState(true);
@@ -690,7 +710,6 @@ public class PermissionClapperQuietTest {
     @Test
     @MediumTest
     @Feature({"Permissions"})
-    @DisabledTest(message = "crbug.com/550361665")
     public void testQuietClapperPreemptionWhilePageInfoOpenReset() throws Exception {
         HistogramWatcher histogramWatcher = expectAction(PermissionTestRule.PromptAction.IGNORED);
 
@@ -700,7 +719,7 @@ public class PermissionClapperQuietTest {
         mPermissionRule.waitForPageInfoOpen();
 
         // Trigger preemption.
-        mPermissionRule.runJavaScriptCodeWithUserGestureInCurrentTab(
+        mPermissionRule.runJavaScriptCodeInCurrentTabWithGesture(
                 "navigator.mediaDevices.getUserMedia({audio: true})");
         mPermissionRule.waitForDialogShownState(true);
 
@@ -738,7 +757,7 @@ public class PermissionClapperQuietTest {
         mPermissionRule.waitForPageInfoOpen();
 
         // Trigger preemption.
-        mPermissionRule.runJavaScriptCodeWithUserGestureInCurrentTab(
+        mPermissionRule.runJavaScriptCodeInCurrentTabWithGesture(
                 "navigator.mediaDevices.getUserMedia({audio: true})");
         mPermissionRule.waitForDialogShownState(true);
 

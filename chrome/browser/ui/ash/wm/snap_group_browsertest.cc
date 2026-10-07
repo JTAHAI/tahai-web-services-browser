@@ -44,7 +44,6 @@
 #include "chrome/test/base/ui_test_utils.h"
 #include "content/public/test/browser_test.h"
 #include "content/public/test/test_navigation_observer.h"
-#include "ui/base/base_window.h"
 #include "ui/display/manager/display_manager.h"
 #include "ui/display/test/display_manager_test_api.h"
 #include "ui/events/test/event_generator.h"
@@ -71,15 +70,14 @@ void ClickButton(const views::Button* button) {
 // by releasing the left mouse button when a tab strip is removed from a window.
 class TabRemoveObserver : public TabStripModelObserver {
  public:
-  TabRemoveObserver(BrowserWindowInterface* browser,
-                    ui::test::EventGenerator* event_generator)
+  TabRemoveObserver(Browser* browser, ui::test::EventGenerator* event_generator)
       : browser_(browser), event_generator_(event_generator) {
-    browser_->GetTabStripModel()->AddObserver(this);
+    browser_->tab_strip_model()->AddObserver(this);
   }
   TabRemoveObserver(const TabRemoveObserver&) = delete;
   TabRemoveObserver& operator=(const TabRemoveObserver&) = delete;
   ~TabRemoveObserver() override {
-    browser_->GetTabStripModel()->RemoveObserver(this);
+    browser_->tab_strip_model()->RemoveObserver(this);
   }
 
   // TabStripModelObserver:
@@ -90,7 +88,7 @@ class TabRemoveObserver : public TabStripModelObserver {
   }
 
  private:
-  raw_ptr<BrowserWindowInterface> browser_;
+  raw_ptr<Browser> browser_;
   raw_ptr<ui::test::EventGenerator> event_generator_;
 };
 
@@ -118,7 +116,7 @@ IN_PROC_BROWSER_TEST_F(FasterSplitScreenBrowserTest,
   ASSERT_TRUE(ash::OverviewController::Get()->InOverviewSession());
 
   // Open a new browser window. Test it gets auto-snapped.
-  BrowserWindowInterface* browser3 = CreateBrowser(browser()->GetProfile());
+  Browser* browser3 = CreateBrowser(browser()->GetProfile());
   aura::Window* window3 = browser3->GetWindow()->GetNativeWindow();
   EXPECT_TRUE(ash::WindowState::Get(window3)->IsSnapped());
   EXPECT_FALSE(ash::OverviewController::Get()->InOverviewSession());
@@ -293,17 +291,9 @@ IN_PROC_BROWSER_TEST_F(SnapGroupBrowserTest, DoNotBreakGroupOnTabDragging) {
   TabStripRegionView* tab_strip_view =
       BrowserView::GetBrowserViewForBrowser(browser())->tab_strip_view();
   const auto start_point =
-      tab_strip_view
-          ->GetTabAnchorView(
-              browser()->tab_strip_model()->GetTabAtIndex(1)->GetHandle())
-          ->GetBoundsInScreen()
-          .CenterPoint();
+      tab_strip_view->GetTabAnchorViewAt(1)->GetBoundsInScreen().CenterPoint();
   const auto end_point =
-      tab_strip_view
-          ->GetTabAnchorView(
-              browser()->tab_strip_model()->GetTabAtIndex(0)->GetHandle())
-          ->GetBoundsInScreen()
-          .left_center();
+      tab_strip_view->GetTabAnchorViewAt(0)->GetBoundsInScreen().left_center();
   event_generator.MoveMouseTo(start_point);
   event_generator.PressLeftButton();
   event_generator.MoveMouseTo(end_point);
@@ -335,11 +325,7 @@ IN_PROC_BROWSER_TEST_F(SnapGroupBrowserTest, DoNotBreakGroupOnTabDetaching) {
   TabStripRegionView* tab_strip_view =
       BrowserView::GetBrowserViewForBrowser(browser())->tab_strip_view();
   const gfx::Point start_point =
-      tab_strip_view
-          ->GetTabAnchorView(
-              browser()->tab_strip_model()->GetTabAtIndex(1)->GetHandle())
-          ->GetBoundsInScreen()
-          .CenterPoint();
+      tab_strip_view->GetTabAnchorViewAt(1)->GetBoundsInScreen().CenterPoint();
   const gfx::Point end_point = window2->GetBoundsInScreen().CenterPoint();
   event_generator.MoveMouseTo(start_point);
 
@@ -375,9 +361,9 @@ IN_PROC_BROWSER_TEST_F(SnapGroupBrowserTest,
       ash::DesksMoveWindowFromActiveDeskSource::kShortcut);
 
   // Create a Snap Group with two incognito browser windows.
-  BrowserWindowInterface* incognito_browser1 = CreateIncognitoBrowser();
+  Browser* incognito_browser1 = CreateIncognitoBrowser();
   aura::Window* window1 = incognito_browser1->GetWindow()->GetNativeWindow();
-  BrowserWindowInterface* incognito_browser2 = CreateIncognitoBrowser();
+  Browser* incognito_browser2 = CreateIncognitoBrowser();
   aura::Window* window2 = incognito_browser2->GetWindow()->GetNativeWindow();
 
   ui::test::EventGenerator event_generator(root_window);

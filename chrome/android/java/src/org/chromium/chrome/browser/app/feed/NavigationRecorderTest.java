@@ -25,9 +25,9 @@ import org.chromium.base.test.util.CallbackHelper;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.browser.profiles.Profile;
+import org.chromium.chrome.browser.tab.EmptyTabObserver;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.Tab.LoadUrlResult;
-import org.chromium.chrome.browser.tab.TabObserver;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.chrome.test.transit.AutoResetCtaTransitTestRule;
 import org.chromium.chrome.test.transit.ChromeTransitTestRules;
@@ -65,7 +65,7 @@ public class NavigationRecorderTest {
         mReportCompleteCallback = new CallbackHelper();
 
         doAnswer(
-                        _ -> {
+                        invocation -> {
                             mReportCompleteCallback.notifyCalled();
                             return null;
                         })
@@ -77,7 +77,7 @@ public class NavigationRecorderTest {
                     mInitialTab = mActivityTestRule.getActivity().getActivityTab();
                     // Add logging to debug flaky test: crbug.com/40822096.
                     mInitialTab.addObserver(
-                            new TabObserver() {
+                            new EmptyTabObserver() {
                                 @Override
                                 public void onPageLoadStarted(Tab tab, GURL url) {
                                     Log.e(TAG, "onPageLoadStarted " + url.getSpec());
@@ -103,8 +103,11 @@ public class NavigationRecorderTest {
     public void testRecordVisitInCurrentTabEndsWithBack() throws Exception {
         loadUrlAndRecordVisit(mNavUrl, mProfile, mSurfaceId);
 
-        ChromeTabUtils.waitForTabPageLoaded(mInitialTab, null);
-        ThreadUtils.runOnUiThreadBlocking(() -> mInitialTab.goBack());
+        ChromeTabUtils.waitForTabPageLoaded(mInitialTab, (String) null);
+        ThreadUtils.runOnUiThreadBlocking(
+                () -> {
+                    mInitialTab.goBack();
+                });
         mReportCompleteCallback.waitForCallback(0);
     }
 

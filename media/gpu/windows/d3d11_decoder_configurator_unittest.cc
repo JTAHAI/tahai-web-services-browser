@@ -23,13 +23,15 @@ namespace media {
 class D3D11DecoderConfiguratorUnittest : public ::testing::Test {
  public:
   VideoDecoderConfig CreateDecoderConfig(VideoCodecProfile profile,
-                                         gfx::Size size) {
+                                         gfx::Size size,
+                                         bool encrypted) {
     VideoDecoderConfig result;
-    result.Initialize(VideoCodec::kUnknown,  // It doesn't matter because it
-                                             // won't be used.
-                      profile, VideoDecoderConfig::AlphaMode::kIsOpaque,
-                      VideoColorSpace(), kNoTransformation, size, {}, {}, {},
-                      EncryptionScheme::kUnencrypted);
+    result.Initialize(
+        VideoCodec::kUnknown,  // It doesn't matter because it won't
+                               // be used.
+        profile, VideoDecoderConfig::AlphaMode::kIsOpaque, VideoColorSpace(),
+        kNoTransformation, size, {}, {}, {},
+        encrypted ? EncryptionScheme::kCenc : EncryptionScheme::kUnencrypted);
     return result;
   }
 
@@ -51,7 +53,7 @@ class D3D11DecoderConfiguratorUnittest : public ::testing::Test {
 
 TEST_F(D3D11DecoderConfiguratorUnittest, VP9Profile0RightFormats) {
   auto configurator = CreateWithDefaultGPUInfo(
-      CreateDecoderConfig(VP9PROFILE_PROFILE0, {0, 0}));
+      CreateDecoderConfig(VP9PROFILE_PROFILE0, {0, 0}, false));
 
   EXPECT_EQ(configurator->DecoderGuid(),
             D3D11_DECODER_PROFILE_VP9_VLD_PROFILE0);
@@ -60,7 +62,7 @@ TEST_F(D3D11DecoderConfiguratorUnittest, VP9Profile0RightFormats) {
 
 TEST_F(D3D11DecoderConfiguratorUnittest, VP9Profile2RightFormats) {
   auto configurator = CreateWithDefaultGPUInfo(
-      CreateDecoderConfig(VP9PROFILE_PROFILE2, {0, 0}), false, 10);
+      CreateDecoderConfig(VP9PROFILE_PROFILE2, {0, 0}, false), false, 10);
 
   EXPECT_EQ(configurator->DecoderGuid(),
             D3D11_DECODER_PROFILE_VP9_VLD_10BIT_PROFILE2);
@@ -69,19 +71,19 @@ TEST_F(D3D11DecoderConfiguratorUnittest, VP9Profile2RightFormats) {
 
 TEST_F(D3D11DecoderConfiguratorUnittest, AV1ProfileRightFormats) {
   auto configurator = CreateWithDefaultGPUInfo(
-      CreateDecoderConfig(AV1PROFILE_PROFILE_MAIN, {0, 0}), false, 8);
+      CreateDecoderConfig(AV1PROFILE_PROFILE_MAIN, {0, 0}, false), false, 8);
   EXPECT_EQ(configurator->DecoderGuid(), DXVA_ModeAV1_VLD_Profile0);
   EXPECT_EQ(configurator->DecoderDescriptor()->OutputFormat, DXGI_FORMAT_NV12);
 
   configurator = CreateWithDefaultGPUInfo(
-      CreateDecoderConfig(AV1PROFILE_PROFILE_MAIN, {0, 0}), false, 10);
+      CreateDecoderConfig(AV1PROFILE_PROFILE_MAIN, {0, 0}, false), false, 10);
   EXPECT_EQ(configurator->DecoderGuid(), DXVA_ModeAV1_VLD_Profile0);
   EXPECT_EQ(configurator->DecoderDescriptor()->OutputFormat, DXGI_FORMAT_P010);
 }
 
 TEST_F(D3D11DecoderConfiguratorUnittest, SupportsDeviceNoProfiles) {
   auto configurator = CreateWithDefaultGPUInfo(
-      CreateDecoderConfig(VP9PROFILE_PROFILE0, {0, 0}));
+      CreateDecoderConfig(VP9PROFILE_PROFILE0, {0, 0}, false));
 
   auto vd_mock = MakeComPtr<D3D11VideoDeviceMock>();
   EXPECT_CALL(*vd_mock.Get(), GetVideoDecoderProfileCount())
@@ -93,7 +95,7 @@ TEST_F(D3D11DecoderConfiguratorUnittest, SupportsDeviceNoProfiles) {
 
 TEST_F(D3D11DecoderConfiguratorUnittest, SupportsDeviceWrongProfiles) {
   auto configurator = CreateWithDefaultGPUInfo(
-      CreateDecoderConfig(VP9PROFILE_PROFILE0, {0, 0}));
+      CreateDecoderConfig(VP9PROFILE_PROFILE0, {0, 0}, false));
 
   auto vd_mock = MakeComPtr<D3D11VideoDeviceMock>();
   EXPECT_CALL(*vd_mock.Get(), GetVideoDecoderProfileCount())
@@ -113,7 +115,7 @@ TEST_F(D3D11DecoderConfiguratorUnittest, SupportsDeviceWrongProfiles) {
 
 TEST_F(D3D11DecoderConfiguratorUnittest, SupportsDeviceCorrectProfile) {
   auto configurator = CreateWithDefaultGPUInfo(
-      CreateDecoderConfig(VP9PROFILE_PROFILE0, {0, 0}));
+      CreateDecoderConfig(VP9PROFILE_PROFILE0, {0, 0}, false));
 
   auto vd_mock = MakeComPtr<D3D11VideoDeviceMock>();
   EXPECT_CALL(*vd_mock.Get(), GetVideoDecoderProfileCount())

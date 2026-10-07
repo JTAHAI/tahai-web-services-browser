@@ -6,8 +6,7 @@
 
 #include "base/containers/flat_map.h"
 #include "base/test/gmock_expected_support.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
-#include "chrome/browser/ui/tabs/tab_strip_model.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/web_applications/test/isolated_web_app_test_utils.h"
 #include "chrome/browser/ui/web_applications/test/web_app_browsertest_util.h"
 #include "chrome/browser/web_applications/isolated_web_apps/isolated_web_app_url_info.h"
@@ -40,10 +39,9 @@ namespace web_app {
 class IsolatedWebAppErrorPageTest : public IsolatedWebAppBrowserTestHarness {
  protected:
   // Navigates IWA and fails with error
-  BrowserWindowInterface* LaunchIwaAndFailWithError(
-      const webapps::AppId& app_id,
-      const url::Origin& iwa_origin,
-      net::Error error_code) {
+  Browser* LaunchIwaAndFailWithError(const webapps::AppId& app_id,
+                                     const url::Origin& iwa_origin,
+                                     net::Error error_code) {
     GURL starting_url = iwa_origin.GetURL().Resolve("/");
 
     std::unique_ptr<content::URLLoaderInterceptor> interceptor =
@@ -58,10 +56,10 @@ IN_PROC_BROWSER_TEST_F(IsolatedWebAppErrorPageTest, UsesWebAppErrorPage) {
       IsolatedWebAppBuilder(ManifestBuilder()).BuildBundle();
   ASSERT_OK_AND_ASSIGN(IsolatedWebAppUrlInfo url_info, app->Install(profile()));
 
-  BrowserWindowInterface* browser = LaunchIwaAndFailWithError(
+  Browser* browser = LaunchIwaAndFailWithError(
       url_info.app_id(), url_info.origin(), net::ERR_INTERNET_DISCONNECTED);
   content::WebContents* web_contents =
-      browser->GetTabStripModel()->GetActiveWebContents();
+      browser->tab_strip_model()->GetActiveWebContents();
 
   // Expect that the error page is showing.
   EXPECT_TRUE(EvalJs(web_contents,
@@ -85,10 +83,10 @@ IN_PROC_BROWSER_TEST_F(IsolatedWebAppErrorPageTest,
                  << "error_code: " << error_code
                  << ", expected_message: " << expected_message);
 
-    BrowserWindowInterface* browser = LaunchIwaAndFailWithError(
-        url_info.app_id(), url_info.origin(), error_code);
+    Browser* browser = LaunchIwaAndFailWithError(url_info.app_id(),
+                                                 url_info.origin(), error_code);
     content::WebContents* web_contents =
-        browser->GetTabStripModel()->GetActiveWebContents();
+        browser->tab_strip_model()->GetActiveWebContents();
 
     EXPECT_EQ(
         expected_message,

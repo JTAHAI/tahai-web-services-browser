@@ -12,8 +12,7 @@ import common
 
 def main_run(args):
   with common.temporary_file() as tempfile_path:
-    rc = common.run_command(
-      [
+    rc = common.run_command([
         sys.executable,
         os.path.join(common.SRC_DIR, 'build', 'check_gn_headers.py'),
         '--out-dir',
@@ -23,20 +22,16 @@ def main_run(args):
         '--json',
         tempfile_path,
         '--verbose',
-      ],
-      cwd=common.SRC_DIR,
-    )
+    ],
+                            cwd=common.SRC_DIR)
 
     with open(tempfile_path) as f:
       failures = json.load(f)
 
-  json.dump(
-    {
+  json.dump({
       'valid': True,
       'failures': failures,
-    },
-    args.output,
-  )
+  }, args.output)
 
   return rc
 
@@ -47,7 +42,7 @@ def main_compile_targets(args):
 
 if __name__ == '__main__':
   funcs = {
-    'run': main_run,
-    'compile_targets': main_compile_targets,
+      'run': main_run,
+      'compile_targets': main_compile_targets,
   }
   common.run_script(sys.argv[1:], funcs)

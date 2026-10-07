@@ -155,8 +155,7 @@ class CONTENT_EXPORT SiteInstanceGroup
   }
 
   AgentSchedulingGroupHost& agent_scheduling_group() {
-    CHECK_EQ(agent_scheduling_group_->GetProcess(), &*process_,
-             base::NotFatalUntil::M159);
+    DCHECK_EQ(agent_scheduling_group_->GetProcess(), &*process_);
     return *agent_scheduling_group_;
   }
 

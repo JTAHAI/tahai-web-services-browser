@@ -254,8 +254,7 @@ base::File CreateLockFileWithTimeout(const base::FilePath& lock_file_path,
       UMA_HISTOGRAM_COUNTS_100(
           "Chrome.ProcessSingleton.CreateLockFileWithTimeout.RetryCount",
           retries);
-      lock_file = base::File(lock_file_handle);
-      return lock_file;
+      return base::File(lock_file_handle);
     }
 
     if (error != ERROR_SHARING_VIOLATION) {
@@ -283,8 +282,7 @@ base::File CreateLockFileWithTimeout(const base::FilePath& lock_file_path,
 
   // Timeout or fatal error.
   PLOG(ERROR) << "Lock file can not be created";
-  lock_file = base::File(base::File::OSErrorToFileError(error));
-  return lock_file;
+  return base::File(base::File::OSErrorToFileError(error));
 }
 
 }  // namespace

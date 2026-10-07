@@ -6,7 +6,6 @@ package org.chromium.chrome.browser.tab;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNotSame;
 import static org.junit.Assert.assertNull;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
@@ -20,6 +19,7 @@ import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
+import org.robolectric.annotation.Config;
 
 import org.chromium.base.UserDataHost;
 import org.chromium.base.test.BaseRobolectricTestRunner;
@@ -33,6 +33,7 @@ import java.nio.ByteBuffer;
 
 /** Tests for {@link TabStateExtractor}. */
 @RunWith(BaseRobolectricTestRunner.class)
+@Config(manifest = Config.NONE)
 public class TabStateExtractorTest {
     private static final int REFERRER_POLICY = 123;
     private static final String TITLE = "test_title";
@@ -109,11 +110,7 @@ public class TabStateExtractorTest {
 
         WebContentsState result = TabStateExtractor.getWebContentsState(mTabMock);
 
-        assertNotNull(result);
-        assertNotSame(webContentsState, result);
-        assertEquals(webContentsState.buffer(), result.buffer());
-        assertEquals(webContentsState.version(), result.version());
-        assertEquals(2, result.getRefCountForTesting());
+        assertEquals(webContentsState, result);
     }
 
     @Test

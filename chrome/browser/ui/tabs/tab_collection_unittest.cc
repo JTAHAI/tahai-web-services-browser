@@ -32,6 +32,10 @@
 #include "content/public/test/test_renderer_host.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
+// TODO(crbug.com/392950857): Refactor tests so that things that are shared
+// between all tab collections are tested once at the TabCollectionBaseTest
+// level. Then only things specific to individual collections will be tested in
+// their respective test suites.
 class TabCollectionBaseTest : public ::testing::Test {
  public:
   TabCollectionBaseTest() {
@@ -50,7 +54,8 @@ class TabCollectionBaseTest : public ::testing::Test {
       tabs::TabCollectionStorage* storage,
       size_t index) {
     const auto& child = storage->GetChildren().at(index);
-    const auto tab_ptr = std::get_if<tabs::ScopedTab>(&child);
+    const auto tab_ptr =
+        std::get_if<std::unique_ptr<tabs::TabInterface>>(&child);
     return tab_ptr ? tab_ptr->get() : nullptr;
   }
 
@@ -70,14 +75,7 @@ class TabCollectionBaseTest : public ::testing::Test {
 
   // Adds a tab to the end of a collection.
   tabs::TabInterface* AppendTab(tabs::TabCollection* collection,
-                                tabs::ScopedTab tab) {
-    return collection->AddTab(std::move(tab), collection->ChildCount());
-  }
-
-  template <typename T>
-    requires std::derived_from<T, tabs::TabInterface>
-  tabs::TabInterface* AppendTab(tabs::TabCollection* collection,
-                                std::unique_ptr<T> tab) {
+                                std::unique_ptr<tabs::TabInterface> tab) {
     return collection->AddTab(std::move(tab), collection->ChildCount());
   }
 
@@ -600,7 +598,7 @@ TEST_F(UnpinnedTabCollectionTest, RemoveOperation) {
 
   // Remove the tab
   tab_model_one_ptr->set_will_be_detaching_for_testing(true);
-  tabs::ScopedTab removed_tab =
+  std::unique_ptr<tabs::TabInterface> removed_tab =
       unpinned_collection->MaybeRemoveTab(tab_model_one_ptr);
   EXPECT_EQ(removed_tab.get(), tab_model_one_ptr);
   EXPECT_EQ(unpinned_collection->ChildCount(), 6ul);

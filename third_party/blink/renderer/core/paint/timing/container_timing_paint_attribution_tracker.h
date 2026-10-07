@@ -23,7 +23,8 @@ class Node;
 // element) and the GetParentContainerRoot() DOM walk (called on first paint per
 // root).
 //
-// Only available when the ContainerTiming runtime feature is enabled.
+// Only available when ContainerTimingPrepaintTraversal runtime feature is
+// enabled.
 //
 class CORE_EXPORT ContainerTimingPaintAttributionTracker
     : public GarbageCollected<ContainerTimingPaintAttributionTracker> {

@@ -25,7 +25,6 @@ public class FuseboxFeatureUtils {
      * @param context The current context.
      * @param profile The active profile.
      * @param templateUrlService The template URL service.
-     * @return Whether the NTP plus button should be displayed.
      */
     public static boolean shouldShowNtpPlusButton(
             Context context,

@@ -25,7 +25,6 @@
 #import "components/password_manager/core/browser/password_store/password_form_converters.h"
 #import "components/password_manager/core/browser/password_store/password_store_change.h"
 #import "components/password_manager/core/browser/password_store/test_password_store.h"
-#import "components/password_manager/core/browser/password_string.h"
 #import "components/password_manager/core/common/password_manager_pref_names.h"
 #import "components/prefs/pref_registry_simple.h"
 #import "components/prefs/pref_service.h"
@@ -214,7 +213,8 @@ class CredentialProviderServiceTest : public PlatformTest {
         });
   }
 
-  bool WaitForCredentialTimestamp(base::Time timestamp, NSUInteger index) {
+  bool WaitForCredentialTimestamp(const base::Time& timestamp,
+                                  NSUInteger index) {
     // For add and remove operations to propagate to the credential store, both
     // the message loop and the NSRunLoop need to spin.
     const int64_t lastUsedTime =
@@ -257,7 +257,7 @@ TEST_F(CredentialProviderServiceTest, FirstSync) {
   password_manager::PasswordForm form;
   form.url = GURL(kTestUrl1);
   form.username_value = kTestUsername1;
-  form.password_value = password_manager::PasswordString(kTestPassword1);
+  form.password_value = kTestPassword1;
   password_store_->AddLogin(password_manager::FromPasswordForm(form));
   base::RunLoop().RunUntilIdle();
 
@@ -337,13 +337,13 @@ TEST_F(CredentialProviderServiceTest, PasswordChanges) {
   form.signon_realm = kTestUrl2;
   form.action = GURL(kTestUrl2);
   form.password_element = kTestPassword1;
-  form.password_value = password_manager::PasswordString(kTestPassword1);
+  form.password_value = kTestPassword1;
   password_store_->AddLogin(password_manager::FromPasswordForm(form));
   task_environment_.RunUntilIdle();
 
   ASSERT_TRUE(WaitForCredentialCount(1u));
 
-  form.password_value = password_manager::PasswordString(kTestPassword2);
+  form.password_value = kTestPassword2;
   password_store_->UpdateLogin(password_manager::FromPasswordForm(form));
 
   // Expect that the credential in the store now has the same password.
@@ -414,7 +414,7 @@ TEST_F(CredentialProviderServiceTest, AndroidCredential) {
   form.url = GURL(form.signon_realm);
   form.signon_realm = kAndroidRealm;
   form.password_element = kTestPassword1;
-  form.password_value = password_manager::PasswordString(kTestPassword2);
+  form.password_value = kTestPassword2;
   password_store_->AddLogin(password_manager::FromPasswordForm(form));
   task_environment_.RunUntilIdle();
 
@@ -515,8 +515,7 @@ TEST_F(CredentialProviderServiceTest, AddCredentialsWithValidURL) {
   password_manager::PasswordForm valid_password_form;
   valid_password_form.url = GURL(kTestUrl1);
   valid_password_form.username_value = kTestUsername1;
-  valid_password_form.password_value =
-      password_manager::PasswordString(kTestPassword1);
+  valid_password_form.password_value = kTestPassword1;
   password_store_->AddLogin(
       password_manager::FromPasswordForm(valid_password_form));
   task_environment_.RunUntilIdle();
@@ -529,8 +528,7 @@ TEST_F(CredentialProviderServiceTest, AddCredentialsWithValidURL) {
   password_manager::PasswordForm invalid_password_form;
   invalid_password_form.url = GURL("");
   invalid_password_form.username_value = kTestUsername2;
-  invalid_password_form.password_value =
-      password_manager::PasswordString(kTestPassword2);
+  invalid_password_form.password_value = kTestPassword2;
   password_store_->AddLogin(
       password_manager::FromPasswordForm(invalid_password_form));
   task_environment_.RunUntilIdle();
@@ -544,8 +542,7 @@ TEST_F(CredentialProviderServiceTest, AddCredentialsWithValidURL) {
   android_password_form.url = GURL(android_password_form.signon_realm);
   android_password_form.signon_realm = kAndroidRealm;
   android_password_form.password_element = kTestPassword1;
-  android_password_form.password_value =
-      password_manager::PasswordString(kTestPassword2);
+  android_password_form.password_value = kTestPassword2;
   password_store_->AddLogin(
       password_manager::FromPasswordForm(android_password_form));
   task_environment_.RunUntilIdle();
@@ -566,8 +563,7 @@ TEST_F(CredentialProviderServiceTest, AddCredentialsRefactored) {
   password_manager::PasswordForm valid_password_form;
   valid_password_form.url = GURL(kTestUrl1);
   valid_password_form.username_value = kTestUsername1;
-  valid_password_form.password_value =
-      password_manager::PasswordString(kTestPassword1);
+  valid_password_form.password_value = kTestPassword1;
   password_store_->AddLogin(
       password_manager::FromPasswordForm(valid_password_form));
   task_environment_.RunUntilIdle();
@@ -580,8 +576,7 @@ TEST_F(CredentialProviderServiceTest, AddCredentialsRefactored) {
   password_manager::PasswordForm invalid_password_form;
   invalid_password_form.url = GURL("");
   invalid_password_form.username_value = kTestUsername2;
-  invalid_password_form.password_value =
-      password_manager::PasswordString(kTestPassword2);
+  invalid_password_form.password_value = kTestPassword2;
   password_store_->AddLogin(
       password_manager::FromPasswordForm(invalid_password_form));
   task_environment_.RunUntilIdle();
@@ -595,8 +590,7 @@ TEST_F(CredentialProviderServiceTest, AddCredentialsRefactored) {
   android_password_form.url = GURL(android_password_form.signon_realm);
   android_password_form.signon_realm = kAndroidRealm;
   android_password_form.password_element = kTestPassword1;
-  android_password_form.password_value =
-      password_manager::PasswordString(kTestPassword2);
+  android_password_form.password_value = kTestPassword2;
   password_store_->AddLogin(
       password_manager::FromPasswordForm(android_password_form));
   task_environment_.RunUntilIdle();
@@ -632,8 +626,7 @@ TEST_F(CredentialProviderServiceTest, AddCredentialsRefactored_CachedFavicon) {
   password_manager::PasswordForm valid_password_form;
   valid_password_form.url = url;
   valid_password_form.username_value = u"user1";
-  valid_password_form.password_value =
-      password_manager::PasswordString(u"pwd1");
+  valid_password_form.password_value = u"pwd1";
   password_store_->AddLogin(
       password_manager::FromPasswordForm(valid_password_form));
 
@@ -660,7 +653,7 @@ TEST_F(CredentialProviderServiceTest, AddCredentialsRefactored_SingleFormSkip) {
   password_manager::PasswordForm form;
   form.url = GURL("http://g.com");
   form.username_value = u"user1";
-  form.password_value = password_manager::PasswordString(u"pwd1");
+  form.password_value = u"pwd1";
 
   password_manager::PasswordStoreChangeList change_list;
   change_list.push_back(password_manager::PasswordStoreChange(
@@ -690,12 +683,12 @@ TEST_F(CredentialProviderServiceTest,
   password_manager::PasswordForm form1;
   form1.url = GURL("http://g.com");
   form1.username_value = u"user1";
-  form1.password_value = password_manager::PasswordString(u"pwd1");
+  form1.password_value = u"pwd1";
 
   password_manager::PasswordForm form2;
   form2.url = GURL("http://g.com");
   form2.username_value = u"user2";
-  form2.password_value = password_manager::PasswordString(u"pwd2");
+  form2.password_value = u"pwd2";
 
   password_manager::PasswordStoreChangeList change_list;
   change_list.emplace_back(password_manager::PasswordStoreChange::ADD,
@@ -736,12 +729,12 @@ TEST_F(CredentialProviderServiceTest,
   password_manager::PasswordForm form1;
   form1.url = GURL("http://g1.com");
   form1.username_value = u"user1";
-  form1.password_value = password_manager::PasswordString(u"pwd1");
+  form1.password_value = u"pwd1";
 
   password_manager::PasswordForm form2;
   form2.url = GURL("http://g2.com");
   form2.username_value = u"user2";
-  form2.password_value = password_manager::PasswordString(u"pwd2");
+  form2.password_value = u"pwd2";
 
   password_manager::PasswordStoreChangeList change_list;
   change_list.push_back(password_manager::PasswordStoreChange(
@@ -775,7 +768,7 @@ TEST_F(CredentialProviderServiceTest,
   password_manager::PasswordForm form;
   form.url = GURL("http://g.com");
   form.username_value = u"user1";
-  form.password_value = password_manager::PasswordString(u"pwd1");
+  form.password_value = u"pwd1";
 
   password_manager::PasswordStoreChangeList change_list;
   change_list.push_back(password_manager::PasswordStoreChange(
@@ -840,7 +833,7 @@ TEST_F(CredentialProviderServiceTest, OnLoginsChanged_SingleOperation) {
   password_manager::PasswordForm test_form;
   test_form.url = GURL("http://example.com/login");
   test_form.username_value = u"username";
-  test_form.password_value = password_manager::PasswordString(u"12345");
+  test_form.password_value = u"12345";
 
   password_manager::PasswordStoreChangeList change_list;
   change_list.emplace_back(password_manager::PasswordStoreChange(
@@ -857,7 +850,7 @@ TEST_F(CredentialProviderServiceTest, OnLoginsChanged_SingleOperation) {
   histogram_tester.ExpectTotalCount(kSyncStoreHistogramName, 1);
 
   // Test updating a password.
-  test_form.password_value = password_manager::PasswordString(u"54321");
+  test_form.password_value = u"54321";
   change_list.clear();
   password_manager::PasswordStoreChange change(
       password_manager::PasswordStoreChange::UPDATE,

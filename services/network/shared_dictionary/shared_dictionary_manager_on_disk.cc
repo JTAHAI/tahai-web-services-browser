@@ -4,7 +4,6 @@
 
 #include "services/network/shared_dictionary/shared_dictionary_manager_on_disk.h"
 
-#include "base/byte_size.h"
 #include "base/command_line.h"
 #include "base/functional/callback_helpers.h"
 #include "base/memory/raw_ptr.h"
@@ -21,7 +20,6 @@
 #include "components/url_pattern/simple_url_pattern_matcher.h"
 #include "net/base/net_errors.h"
 #include "net/disk_cache/disk_cache.h"
-#include "net/shared_dictionary/shared_dictionary_isolation_key.h"
 #include "services/network/public/cpp/network_switches.h"
 #include "services/network/public/cpp/request_destination.h"
 #include "services/network/shared_dictionary/shared_dictionary_cache.h"
@@ -353,7 +351,7 @@ class SharedDictionaryManagerOnDisk::CacheEvictionTask
     : public SharedDictionaryManagerOnDisk::SerializedTask {
  public:
   CacheEvictionTask(raw_ptr<SharedDictionaryManagerOnDisk> manager,
-                    std::optional<base::ByteSize> cache_max_size,
+                    uint64_t cache_max_size,
                     uint64_t cache_max_count)
       : manager_(manager),
         cache_max_size_(cache_max_size),
@@ -365,10 +363,8 @@ class SharedDictionaryManagerOnDisk::CacheEvictionTask
 
   void Start() override {
     manager_->metadata_store().ProcessEviction(
-        cache_max_size_, cache_max_size_.transform([](base::ByteSize size) {
-          return size * 0.9;
-        }),
-        cache_max_count_, cache_max_count_ * 0.9,
+        cache_max_size_, cache_max_size_ * 0.9, cache_max_count_,
+        cache_max_count_ * 0.9,
         base::BindOnce(&CacheEvictionTask::OnProcessEvictionFinished,
                        weak_factory_.GetWeakPtr()));
   }
@@ -402,7 +398,7 @@ class SharedDictionaryManagerOnDisk::CacheEvictionTask
   }
 
   raw_ptr<SharedDictionaryManagerOnDisk> manager_;
-  const std::optional<base::ByteSize> cache_max_size_;
+  const uint64_t cache_max_size_;
   const uint64_t cache_max_count_;
   base::WeakPtrFactory<CacheEvictionTask> weak_factory_{this};
 };
@@ -487,7 +483,7 @@ class SharedDictionaryManagerOnDisk::ExpiredDictionaryDeletionTaskInfo
 SharedDictionaryManagerOnDisk::SharedDictionaryManagerOnDisk(
     const base::FilePath& database_path,
     const base::FilePath& cache_directory_path,
-    std::optional<base::ByteSize> cache_max_size,
+    uint64_t cache_max_size,
     uint64_t cache_max_count,
 #if BUILDFLAG(IS_ANDROID)
     disk_cache::ApplicationStatusListenerGetter app_status_listener_getter,
@@ -514,12 +510,10 @@ SharedDictionaryManagerOnDisk::SharedDictionaryManagerOnDisk(
 #endif  // BUILDFLAG(IS_ANDROID)
                          std::move(file_operations_factory));
   MaybePostExpiredDictionaryDeletionTask();
-  if (cache_max_size_.has_value()) {
-    // Convert to decimal MB to maintain historical metric continuity with
-    // existing dashboards (rather than binary MiB via base::ByteSize).
+  if (cache_max_size_ != 0u) {
     base::UmaHistogramMemoryMB(
         "Net.SharedDictionaryManagerOnDisk.PolicySpecifiedCacheMaxSize",
-        static_cast<int>(cache_max_size_->InBytes() / (1000 * 1000)));
+        cache_max_size_ / (1000 * 1000));
     MaybePostCacheEvictionTask();
   }
 }
@@ -538,15 +532,9 @@ SharedDictionaryManagerOnDisk::CreateStorage(
       dictionary_cache_, previous_eviction_reason);
 }
 
-void SharedDictionaryManagerOnDisk::SetCacheMaxSize(
-    std::optional<base::ByteSize> cache_max_size) {
-  if (cache_max_size.has_value()) {
-    // Convert to decimal MB to maintain historical metric continuity with
-    // existing dashboards (rather than binary MiB via base::ByteSize).
-    base::UmaHistogramMemoryMB(
-        "Net.SharedDictionaryManagerOnDisk.CacheMaxSize2",
-        static_cast<int>(cache_max_size->InBytes() / (1000 * 1000)));
-  }
+void SharedDictionaryManagerOnDisk::SetCacheMaxSize(uint64_t cache_max_size) {
+  base::UmaHistogramMemoryMB("Net.SharedDictionaryManagerOnDisk.CacheMaxSize2",
+                             cache_max_size / (1000 * 1000));
   cache_max_size_ = cache_max_size;
   MaybePostExpiredDictionaryDeletionTask();
   MaybePostCacheEvictionTask();
@@ -560,16 +548,7 @@ void SharedDictionaryManagerOnDisk::GetUsageInfo(
              const std::vector<net::SharedDictionaryUsageInfo>&)> callback,
          net::SQLitePersistentSharedDictionaryStore::UsageInfoOrError result) {
         if (result.has_value()) {
-          const net::SharedDictionaryIsolationKey& pervasive_key =
-              net::SharedDictionaryIsolationKey::GetPervasiveIsolationKey();
-          std::vector<net::SharedDictionaryUsageInfo> filtered;
-          for (auto& info : result.value()) {
-            // Skip reporting on the shared pervasive dictionary partition
-            if (info.isolation_key != pervasive_key) {
-              filtered.push_back(std::move(info));
-            }
-          }
-          std::move(callback).Run(std::move(filtered));
+          std::move(callback).Run(std::move(result.value()));
         } else {
           std::move(callback).Run({});
         }
@@ -614,19 +593,8 @@ void SharedDictionaryManagerOnDisk::GetOriginsBetween(
           [](base::OnceCallback<void(const std::vector<url::Origin>&)> callback,
              net::SQLitePersistentSharedDictionaryStore::OriginListOrError
                  result) {
-            std::vector<url::Origin> origins;
-            if (result.has_value()) {
-              const url::Origin& pervasive_origin =
-                  net::SharedDictionaryIsolationKey::GetPervasiveIsolationKey()
-                      .frame_origin();
-              for (auto& origin : result.value()) {
-                // Skip reporting on the shared pervasive dictionary partition
-                if (origin != pervasive_origin) {
-                  origins.push_back(std::move(origin));
-                }
-              }
-            }
-            std::move(callback).Run(std::move(origins));
+            std::move(callback).Run(
+                result.value_or(std::vector<url::Origin>()));
           },
           std::move(callback)));
 }
@@ -688,8 +656,8 @@ void SharedDictionaryManagerOnDisk::OnDictionaryWrittenInDiskCache(
       /*primary_key_in_database=*/std::nullopt);
   metadata_store_.RegisterDictionary(
       isolation_key, info,
-      /*max_size_per_site=*/cache_max_size_per_site(),
-      /*max_count_per_site=*/cache_max_count_per_site(),
+      /*max_size_per_site*/ cache_max_size_ / 2,
+      /*max_count_per_site*/ cache_max_count_ / 2,
       base::BindOnce(
           &SharedDictionaryManagerOnDisk::OnDictionaryWrittenInDatabase,
           weak_factory_.GetWeakPtr(), info, std::move(callback)));
@@ -712,8 +680,6 @@ void SharedDictionaryManagerOnDisk::OnDictionaryWrittenInDatabase(
 
   base::UmaHistogramEnumeration("Net.SharedDictionaryOnDisk.StorageResult",
                                 SharedDictionaryStorageResult::kSuccess);
-  // Historical note: `info.size()` is in bytes, but `UmaHistogramMemoryKB`
-  // expects KB (or `base::ByteSize`).
   base::UmaHistogramMemoryKB("Net.SharedDictionaryManagerOnDisk.DictionarySize",
                              info.size());
   base::UmaHistogramMemoryMB(
@@ -737,9 +703,8 @@ void SharedDictionaryManagerOnDisk::OnDictionaryWrittenInDatabase(
 
   MaybePostExpiredDictionaryDeletionTask();
 
-  if ((!cache_max_size_.has_value() ||
-       base::ByteSize(result.value().total_dictionary_size()) <=
-           *cache_max_size_) &&
+  if ((cache_max_size_ == 0 ||
+       result.value().total_dictionary_size() <= cache_max_size_) &&
       result.value().total_dictionary_count() <= cache_max_count_) {
     return;
   }
@@ -825,9 +790,6 @@ void SharedDictionaryManagerOnDisk::MaybeStartSerializedTask() {
 void SharedDictionaryManagerOnDisk::OnDictionaryDeleted(
     const std::set<base::UnguessableToken>& disk_cache_key_tokens,
     bool need_to_doom_disk_cache_entries) {
-  if (disk_cache_key_tokens.empty()) {
-    return;
-  }
   if (need_to_doom_disk_cache_entries) {
     for (const base::UnguessableToken& token : disk_cache_key_tokens) {
       disk_cache().DoomEntry(token.ToString(), base::DoNothing());
@@ -835,10 +797,6 @@ void SharedDictionaryManagerOnDisk::OnDictionaryDeleted(
   }
   for (auto& it : storages()) {
     reinterpret_cast<SharedDictionaryStorageOnDisk*>(it.second.get())
-        ->OnDictionaryDeleted(disk_cache_key_tokens);
-  }
-  if (pervasive_storage()) {
-    reinterpret_cast<SharedDictionaryStorageOnDisk*>(pervasive_storage())
         ->OnDictionaryDeleted(disk_cache_key_tokens);
   }
 }

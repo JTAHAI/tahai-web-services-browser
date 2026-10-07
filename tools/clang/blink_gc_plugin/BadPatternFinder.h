@@ -2,9 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef TOOLS_BLINK_GC_PLUGIN_BAD_PATTERN_FINDER_H_
-#define TOOLS_BLINK_GC_PLUGIN_BAD_PATTERN_FINDER_H_
-
 struct BlinkGCPluginOptions;
 class DiagnosticsReporter;
 class RecordCache;
@@ -19,5 +16,3 @@ void FindBadPatterns(clang::ASTContext& ast_context,
                      DiagnosticsReporter&,
                      RecordCache& record_cache,
                      const BlinkGCPluginOptions&);
-
-#endif  // TOOLS_BLINK_GC_PLUGIN_BAD_PATTERN_FINDER_H_

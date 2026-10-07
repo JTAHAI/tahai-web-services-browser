@@ -1,4 +1,10 @@
-rules:
-- load-from-mem-cache-transfer-size*: [resource-size]
-- resource_timing_content_length*: [resource-size]
-- "*": [resource-timing]
+features:
+- name: resource-timing
+  files:
+  - "*"
+  - "!load-from-mem-cache-transfer-size*"
+  - "!resource_timing_content_length*"
+- name: resource-size
+  files:
+  - "load-from-mem-cache-transfer-size*"
+  - "resource_timing_content_length*"

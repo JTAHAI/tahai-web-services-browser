@@ -8,10 +8,9 @@ import static com.google.common.truth.Truth.assertThat;
 
 import android.accessibilityservice.AccessibilityServiceInfo;
 import android.app.Activity;
+import android.app.Application;
 import android.content.ContentResolver;
 import android.content.Context;
-import android.content.res.Configuration;
-import android.os.Build;
 import android.provider.Settings;
 import android.view.accessibility.AccessibilityEvent;
 
@@ -40,7 +39,7 @@ import org.chromium.base.ApplicationState;
 import org.chromium.base.ApplicationStatus;
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.base.test.RobolectricUtil;
-import org.chromium.ui.accessibility.AccessibilityStateJUnitTestHelper.BuilderForTests;
+import org.chromium.ui.accessibility.AccessibilityStateTestHelper.BuilderForTests;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -49,7 +48,7 @@ import java.util.List;
 import java.util.Set;
 
 @RunWith(BaseRobolectricTestRunner.class)
-@Config(shadows = {AccessibilityStateJUnitTestHelper.ShadowAccessibilityServiceInfo.class})
+@Config(shadows = {AccessibilityStateTestHelper.ShadowAccessibilityServiceInfo.class})
 public class AccessibilityStateTest {
     private static final String EVENT_TYPE_MASK_ERROR =
             "Conversion of event masks to event types not correct.";
@@ -80,19 +79,16 @@ public class AccessibilityStateTest {
         mCloseableMocks = MockitoAnnotations.openMocks(this);
         AccessibilityStateJni.setInstanceForTesting(mAccessibilityStateNatives);
         mContext = RuntimeEnvironment.getApplication();
-        mDelegate = (AccessibilityStateDelegateImpl) AccessibilityState.getDelegate();
+        mDelegate = AccessibilityState.getDelegate();
 
         // Reset all flags to empty/default state.
-        AccessibilityStateJUnitTestHelper.setEnabledAccessibilityServiceList(
-                mContext, new ArrayList<>());
+        AccessibilityStateTestHelper.setEnabledAccessibilityServiceList(mContext, new ArrayList<>());
         mDelegate.updateAccessibilityServices();
-        Mockito.clearInvocations(mAccessibilityStateNatives);
     }
 
     @After
     public void tearDown() throws Exception {
         mCloseableMocks.close();
-        AccessibilityState.setDelegateForTesting(null);
     }
 
     private AccessibilityServiceInfo createPasswordManagerServiceInfoWithFlags(int flags) {
@@ -211,7 +207,7 @@ public class AccessibilityStateTest {
         String enabledServices = "placeholder:services";
         AccessibilityServiceInfo service1 = new BuilderForTests().setId("placeholder").build();
         AccessibilityServiceInfo service2 = new BuilderForTests().setId("services").build();
-        AccessibilityStateJUnitTestHelper.setEnabledAccessibilityServiceList(
+        AccessibilityStateTestHelper.setEnabledAccessibilityServiceList(
                 mContext, List.of(service1, service2));
 
         Assert.assertEquals(enabledServices, mDelegate.getEnabledServiceString(mContext));
@@ -225,8 +221,7 @@ public class AccessibilityStateTest {
         List<AccessibilityServiceInfo> serviceInfoList = new ArrayList<>();
         serviceInfoList.add(service1);
         serviceInfoList.add(service2);
-        AccessibilityStateJUnitTestHelper.setEnabledAccessibilityServiceList(
-                mContext, serviceInfoList);
+        AccessibilityStateTestHelper.setEnabledAccessibilityServiceList(mContext, serviceInfoList);
 
         List<AccessibilityServiceInfo> runningServices = mDelegate.getRunningServiceInfoList();
         Assert.assertNotNull(runningServices);
@@ -241,9 +236,9 @@ public class AccessibilityStateTest {
     @SmallTest
     public void testMaskToEventTypeConversion() {
         // Create some event masks with known outcomes.
-        int serviceEventMaskEmpty = 0;
-        int serviceEventMaskFull = Integer.MAX_VALUE;
-        int serviceEventMaskTest =
+        int serviceEventMask_empty = 0;
+        int serviceEventMask_full = Integer.MAX_VALUE;
+        int serviceEventMask_test =
                 AccessibilityEvent.TYPE_VIEW_CLICKED
                         | AccessibilityEvent.TYPE_VIEW_LONG_CLICKED
                         | AccessibilityEvent.TYPE_VIEW_FOCUSED
@@ -253,34 +248,31 @@ public class AccessibilityStateTest {
 
         // Convert each mask to a set of eventTypes.
         AccessibilityServiceInfo serviceEmpty =
-                new BuilderForTests().setEventTypes(serviceEventMaskEmpty).build();
-        AccessibilityStateJUnitTestHelper.setEnabledAccessibilityServiceList(
-                mContext, List.of(serviceEmpty));
+                new BuilderForTests().setEventTypes(serviceEventMask_empty).build();
+        AccessibilityStateTestHelper.setEnabledAccessibilityServiceList(mContext, List.of(serviceEmpty));
         mDelegate.updateAccessibilityServices();
-        Set<Integer> outcomeEmpty = AccessibilityState.relevantEventTypesForCurrentServices();
+        Set<Integer> outcome_empty = AccessibilityState.relevantEventTypesForCurrentServices();
 
         AccessibilityServiceInfo serviceFull =
-                new BuilderForTests().setEventTypes(serviceEventMaskFull).build();
-        AccessibilityStateJUnitTestHelper.setEnabledAccessibilityServiceList(
-                mContext, List.of(serviceFull));
+                new BuilderForTests().setEventTypes(serviceEventMask_full).build();
+        AccessibilityStateTestHelper.setEnabledAccessibilityServiceList(mContext, List.of(serviceFull));
         mDelegate.updateAccessibilityServices();
-        Set<Integer> outcomeFull = AccessibilityState.relevantEventTypesForCurrentServices();
+        Set<Integer> outcome_full = AccessibilityState.relevantEventTypesForCurrentServices();
 
         AccessibilityServiceInfo serviceTest =
-                new BuilderForTests().setEventTypes(serviceEventMaskTest).build();
-        AccessibilityStateJUnitTestHelper.setEnabledAccessibilityServiceList(
-                mContext, List.of(serviceTest));
+                new BuilderForTests().setEventTypes(serviceEventMask_test).build();
+        AccessibilityStateTestHelper.setEnabledAccessibilityServiceList(mContext, List.of(serviceTest));
         mDelegate.updateAccessibilityServices();
-        Set<Integer> outcomeTest = AccessibilityState.relevantEventTypesForCurrentServices();
+        Set<Integer> outcome_test = AccessibilityState.relevantEventTypesForCurrentServices();
 
         // Verify results.
-        Assert.assertNotNull(EVENT_TYPE_MASK_ERROR, outcomeEmpty);
-        Assert.assertTrue(EVENT_TYPE_MASK_ERROR, outcomeEmpty.isEmpty());
+        Assert.assertNotNull(EVENT_TYPE_MASK_ERROR, outcome_empty);
+        Assert.assertTrue(EVENT_TYPE_MASK_ERROR, outcome_empty.isEmpty());
 
-        Assert.assertNotNull(EVENT_TYPE_MASK_ERROR, outcomeFull);
-        Assert.assertEquals(EVENT_TYPE_MASK_ERROR, 31, outcomeFull.size());
+        Assert.assertNotNull(EVENT_TYPE_MASK_ERROR, outcome_full);
+        Assert.assertEquals(EVENT_TYPE_MASK_ERROR, 31, outcome_full.size());
 
-        Set<Integer> expectedTest =
+        Set<Integer> expected_test =
                 new HashSet<>(
                         Arrays.asList(
                                 AccessibilityEvent.TYPE_VIEW_CLICKED,
@@ -290,8 +282,8 @@ public class AccessibilityStateTest {
                                 AccessibilityEvent.TYPE_VIEW_SELECTED,
                                 AccessibilityEvent.TYPE_TOUCH_EXPLORATION_GESTURE_END));
 
-        Assert.assertNotNull(EVENT_TYPE_MASK_ERROR, outcomeTest);
-        Assert.assertEquals(EVENT_TYPE_MASK_ERROR, expectedTest, outcomeTest);
+        Assert.assertNotNull(EVENT_TYPE_MASK_ERROR, outcome_test);
+        Assert.assertEquals(EVENT_TYPE_MASK_ERROR, expected_test, outcome_test);
     }
 
     @Test
@@ -306,7 +298,7 @@ public class AccessibilityStateTest {
         AccessibilityServiceInfo passwordManagerService =
                 createPasswordManagerServiceInfoWithFlags(
                         AccessibilityStateDelegateImpl.PASSWORD_MANAGER_FLAG_TYPE_MASK);
-        AccessibilityStateJUnitTestHelper.setEnabledAccessibilityServiceList(
+        AccessibilityStateTestHelper.setEnabledAccessibilityServiceList(
                 mContext, List.of(passwordManagerService));
         mDelegate.updateAccessibilityServices();
 
@@ -316,7 +308,7 @@ public class AccessibilityStateTest {
     @Test
     @SmallTest
     public void testAreOnlyPasswordManagerFlagsRequested_missingFlags() {
-        int flagsMask =
+        int flags_mask =
                 AccessibilityServiceInfo.DEFAULT
                         | AccessibilityServiceInfo.FLAG_INCLUDE_NOT_IMPORTANT_VIEWS
                         | AccessibilityServiceInfo.FLAG_REQUEST_TOUCH_EXPLORATION_MODE;
@@ -326,8 +318,8 @@ public class AccessibilityStateTest {
         // | AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS;
 
         AccessibilityServiceInfo passwordManagerService =
-                createPasswordManagerServiceInfoWithFlags(flagsMask);
-        AccessibilityStateJUnitTestHelper.setEnabledAccessibilityServiceList(
+                createPasswordManagerServiceInfoWithFlags(flags_mask);
+        AccessibilityStateTestHelper.setEnabledAccessibilityServiceList(
                 mContext, List.of(passwordManagerService));
         mDelegate.updateAccessibilityServices();
 
@@ -337,7 +329,7 @@ public class AccessibilityStateTest {
     @Test
     @SmallTest
     public void testAreOnlyPasswordManagerFlagsRequested_extraFlags() {
-        int flagsMask =
+        int flags_mask =
                 AccessibilityServiceInfo.DEFAULT
                         | AccessibilityServiceInfo.FLAG_INCLUDE_NOT_IMPORTANT_VIEWS
                         | AccessibilityServiceInfo.FLAG_REQUEST_TOUCH_EXPLORATION_MODE
@@ -348,8 +340,8 @@ public class AccessibilityStateTest {
                         | AccessibilityServiceInfo.FLAG_ENABLE_ACCESSIBILITY_VOLUME;
 
         AccessibilityServiceInfo passwordManagerService =
-                createPasswordManagerServiceInfoWithFlags(flagsMask);
-        AccessibilityStateJUnitTestHelper.setEnabledAccessibilityServiceList(
+                createPasswordManagerServiceInfoWithFlags(flags_mask);
+        AccessibilityStateTestHelper.setEnabledAccessibilityServiceList(
                 mContext, List.of(passwordManagerService));
         mDelegate.updateAccessibilityServices();
 
@@ -437,7 +429,7 @@ public class AccessibilityStateTest {
 
         // Now enable the proper config, and ensure we do not enter an infinite loop and that
         // we now show touch exploration as being enabled.
-        AccessibilityStateJUnitTestHelper.setEnabledAccessibilityServiceList(
+        AccessibilityStateTestHelper.setEnabledAccessibilityServiceList(
                 mContext, List.of(properConfigService));
 
         mDelegate.updateAccessibilityServices();
@@ -497,11 +489,12 @@ public class AccessibilityStateTest {
     public void testApplicationStateChange() {
         Activity mockActivity = Robolectric.buildActivity(Activity.class).setup().get();
 
+        Application application = (Application) mContext.getApplicationContext();
+
         // App starts out in foreground.
         simulateActivityStateChange(
                 mockActivity, ActivityState.STARTED, ApplicationState.HAS_RUNNING_ACTIVITIES);
-        AccessibilityState.initializeOnStartup(
-                new ApplicationStatusAccessibilityStateVisibilityManager());
+        AccessibilityState.initializeOnStartup();
         AccessibilityState.registerObservers();
 
         // Verify initial call from initializeOnStartup().
@@ -535,284 +528,13 @@ public class AccessibilityStateTest {
 
         ApplicationStatus.onStateChangeForTesting(mockActivity, ActivityState.STOPPED);
         ApplicationStatus.destroyForJUnitTests();
-    }
-
-    /**
-     * Test that Chromium updates the font weight setting when it is changed by the user when
-     * Chromium is running. The font weight setting is special in that an observer is not registered
-     * to observe changes.
-     */
-    @Config(sdk = Build.VERSION_CODES.S)
-    @Test
-    @SmallTest
-    public void testApplicationStateChangeFontWeightAdjustment() {
-        Activity mockActivity = Robolectric.buildActivity(Activity.class).setup().get();
-        Configuration config = mContext.getResources().getConfiguration();
-
-        // Set the initial state.
-        Configuration configDelta = new Configuration();
-        configDelta.fontWeightAdjustment = 0;
-        config.updateFrom(configDelta);
-        mDelegate.updateAccessibilityServices();
-
-        AccessibilityState.initializeOnStartup(
-                new ApplicationStatusAccessibilityStateVisibilityManager());
-        AccessibilityState.registerObservers();
-        simulateActivityStateChange(
-                mockActivity, ActivityState.STARTED, ApplicationState.HAS_RUNNING_ACTIVITIES);
-
-        // Check initial font weight.
-        assertThat(AccessibilityState.getFontWeightAdjustment()).isEqualTo(0);
-
-        // Simulate updating the font weight in Android settings while the app is in the background.
-        simulateActivityStateChange(
-                mockActivity, ActivityState.STOPPED, ApplicationState.HAS_STOPPED_ACTIVITIES);
-        configDelta = new Configuration();
-        configDelta.fontWeightAdjustment = 300;
-        config.updateFrom(configDelta);
-
-        // Move app to foreground.
-        simulateActivityStateChange(
-                mockActivity, ActivityState.RESUMED, ApplicationState.HAS_RUNNING_ACTIVITIES);
-        assertThat(AccessibilityState.getFontWeightAdjustment()).isEqualTo(300);
-
-        ApplicationStatus.onStateChangeForTesting(mockActivity, ActivityState.STOPPED);
-        ApplicationStatus.destroyForJUnitTests();
-    }
-
-    @Test
-    @SmallTest
-    public void testUninitialize() {
-        Activity mockActivity = Robolectric.buildActivity(Activity.class).setup().get();
-
-        // Initialize and register observers.
-        AccessibilityState.initializeOnStartup(
-                new ApplicationStatusAccessibilityStateVisibilityManager());
-        AccessibilityState.registerObservers();
-
-        // Verify initial call from initializeOnStartup().
-        Mockito.verify(mAccessibilityStateNatives, Mockito.times(1))
-                .onAnimatorDurationScaleChanged();
-
-        // Verify observer is notified when activity is resumed.
-        ApplicationStatus.onStateChangeForTesting(mockActivity, ActivityState.PAUSED);
-        ApplicationStatus.onStateChangeForTesting(mockActivity, ActivityState.RESUMED);
-        ShadowLooper.runUiThreadTasksIncludingDelayedTasks();
-        Mockito.verify(mAccessibilityStateNatives, Mockito.times(2))
-                .onAnimatorDurationScaleChanged();
-
-        // Verify that observer is not notified when activity is resumed after uninitialization.
-        AccessibilityState.setDelegateForTesting(null);
-        ApplicationStatus.onStateChangeForTesting(mockActivity, ActivityState.PAUSED);
-        ApplicationStatus.onStateChangeForTesting(mockActivity, ActivityState.RESUMED);
-        ShadowLooper.runUiThreadTasksIncludingDelayedTasks();
-        Mockito.verify(mAccessibilityStateNatives, Mockito.times(2))
-                .onAnimatorDurationScaleChanged();
-
-        ApplicationStatus.onStateChangeForTesting(mockActivity, ActivityState.STOPPED);
-        ApplicationStatus.destroyForJUnitTests();
-    }
-
-    @Test
-    @SmallTest
-    public void testIsSamsungTalkBackEnabled_true() {
-        AccessibilityServiceInfo samsungService =
-                new BuilderForTests()
-                        .setId(
-                                "com.samsung.android.accessibility.talkback/"
-                                        + "com.samsung.android.marvin.talkback.TalkBackService")
-                        .build();
-        startTestWithService(samsungService);
-
-        mDelegate.updateAccessibilityServices();
-
-        Assert.assertTrue(AccessibilityState.isAnyAccessibilityServiceEnabled());
-        Assert.assertTrue(AccessibilityState.isSamsungTalkBackEnabled());
-        Assert.assertTrue(AccessibilityState.isKnownScreenReaderEnabled());
-    }
-
-    @Test
-    @SmallTest
-    public void testIsSamsungTalkBackEnabled_shortId_true() {
-        AccessibilityServiceInfo samsungService =
-                new BuilderForTests()
-                        .setId("com.samsung.android.accessibility.talkback/.TalkBackService")
-                        .build();
-        startTestWithService(samsungService);
-
-        mDelegate.updateAccessibilityServices();
-
-        Assert.assertTrue(AccessibilityState.isAnyAccessibilityServiceEnabled());
-        Assert.assertTrue(AccessibilityState.isSamsungTalkBackEnabled());
-        Assert.assertTrue(AccessibilityState.isKnownScreenReaderEnabled());
-    }
-
-    @Test
-    @SmallTest
-    public void testIsSamsungTalkBackEnabled_false() {
-        AccessibilityServiceInfo googleTalkBack =
-                new BuilderForTests()
-                        .setId(AccessibilityState.KNOWN_SCREEN_READER_SERVICE_IDS)
-                        .build();
-        startTestWithService(googleTalkBack);
-
-        mDelegate.updateAccessibilityServices();
-
-        Assert.assertTrue(AccessibilityState.isAnyAccessibilityServiceEnabled());
-        Assert.assertFalse(AccessibilityState.isSamsungTalkBackEnabled());
-        Assert.assertTrue(AccessibilityState.isKnownScreenReaderEnabled());
-    }
-
-    @Test
-    @SmallTest
-    public void testIsSamsungTalkBackEnabled_noServices() {
-        Assert.assertFalse(AccessibilityState.isAnyAccessibilityServiceEnabled());
-        Assert.assertFalse(AccessibilityState.isSamsungTalkBackEnabled());
-        Assert.assertFalse(AccessibilityState.isKnownScreenReaderEnabled());
-    }
-
-    @Test
-    @SmallTest
-    public void testIsSamsungTalkBackEnabled_transitionsNotifyNative() {
-        Activity mockActivity = Robolectric.buildActivity(Activity.class).setup().get();
-        AccessibilityServiceInfo samsungService =
-                new BuilderForTests()
-                        .setId("com.samsung.android.accessibility.talkback/.TalkBackService")
-                        .build();
-
-        simulateActivityStateChange(
-                mockActivity, ActivityState.STARTED, ApplicationState.HAS_RUNNING_ACTIVITIES);
-        AccessibilityState.initializeOnStartup(
-                new ApplicationStatusAccessibilityStateVisibilityManager());
-        AccessibilityState.registerObservers();
-
-        Assert.assertFalse(AccessibilityState.isSamsungTalkBackEnabled());
-        Mockito.verify(mAccessibilityStateNatives).onSamsungTalkBackStateChanged(false);
-
-        // Enabling Samsung TalkBack should transition state and push `true` to native via observer.
-        AccessibilityStateJUnitTestHelper.setEnabledAccessibilityServiceList(
-                mContext, List.of(samsungService));
-        ShadowLooper.runUiThreadTasksIncludingDelayedTasks();
-
-        Assert.assertTrue(AccessibilityState.isSamsungTalkBackEnabled());
-        Mockito.verify(mAccessibilityStateNatives).onSamsungTalkBackStateChanged(true);
-
-        // Disabling Samsung TalkBack should transition state and push `false` to native via observer.
-        AccessibilityStateJUnitTestHelper.setEnabledAccessibilityServiceList(
-                mContext, new ArrayList<>());
-        ShadowLooper.runUiThreadTasksIncludingDelayedTasks();
-
-        Assert.assertFalse(AccessibilityState.isSamsungTalkBackEnabled());
-        Mockito.verify(mAccessibilityStateNatives, Mockito.times(2))
-                .onSamsungTalkBackStateChanged(false);
-
-        ApplicationStatus.onStateChangeForTesting(mockActivity, ActivityState.STOPPED);
-        ApplicationStatus.destroyForJUnitTests();
-    }
-
-    @Test
-    @SmallTest
-    public void testIsSamsungTalkBackEnabled_resumedUpdatesNative() {
-        Activity mockActivity = Robolectric.buildActivity(Activity.class).setup().get();
-        AccessibilityServiceInfo samsungService =
-                new BuilderForTests()
-                        .setId("com.samsung.android.accessibility.talkback/.TalkBackService")
-                        .build();
-
-        // Start with Samsung TalkBack enabled.
-        AccessibilityStateJUnitTestHelper.setEnabledAccessibilityServiceList(
-                mContext, List.of(samsungService));
-        mDelegate.updateAccessibilityServices();
-        simulateActivityStateChange(
-                mockActivity, ActivityState.STARTED, ApplicationState.HAS_RUNNING_ACTIVITIES);
-        AccessibilityState.initializeOnStartup(
-                new ApplicationStatusAccessibilityStateVisibilityManager());
-        AccessibilityState.registerObservers();
-
-        Assert.assertTrue(AccessibilityState.isSamsungTalkBackEnabled());
-        Mockito.verify(mAccessibilityStateNatives).onSamsungTalkBackStateChanged(true);
-
-        // Move app to background.
-        simulateActivityStateChange(
-                mockActivity, ActivityState.STOPPED, ApplicationState.HAS_STOPPED_ACTIVITIES);
-
-        // While in background, disable Samsung TalkBack.
-        AccessibilityStateJUnitTestHelper.setEnabledAccessibilityServiceList(
-                mContext, new ArrayList<>());
-        Mockito.clearInvocations(mAccessibilityStateNatives);
-
-        // Resume app. Native should be notified of current (disabled) state on resume.
-        simulateActivityStateChange(
-                mockActivity, ActivityState.RESUMED, ApplicationState.HAS_RUNNING_ACTIVITIES);
-        ShadowLooper.runUiThreadTasksIncludingDelayedTasks();
-
-        Assert.assertFalse(AccessibilityState.isSamsungTalkBackEnabled());
-        Mockito.verify(mAccessibilityStateNatives, Mockito.atLeastOnce())
-                .onSamsungTalkBackStateChanged(false);
-
-        ApplicationStatus.onStateChangeForTesting(mockActivity, ActivityState.STOPPED);
-        ApplicationStatus.destroyForJUnitTests();
-    }
-
-    @Test
-    @SmallTest
-    public void testIsSamsungTalkBackEnabled_resumedWithPollingUpdatesNative() {
-        Activity mockActivity = Robolectric.buildActivity(Activity.class).setup().get();
-        AccessibilityServiceInfo samsungService =
-                new BuilderForTests()
-                        .setId("com.samsung.android.accessibility.talkback/.TalkBackService")
-                        .build();
-
-        // Start with Samsung TalkBack enabled.
-        AccessibilityStateJUnitTestHelper.setEnabledAccessibilityServiceList(
-                mContext, List.of(samsungService));
-        mDelegate.updateAccessibilityServices();
-        simulateActivityStateChange(
-                mockActivity, ActivityState.STARTED, ApplicationState.HAS_RUNNING_ACTIVITIES);
-        AccessibilityState.initializeOnStartup(
-                new ApplicationStatusAccessibilityStateVisibilityManager());
-        AccessibilityState.registerObservers();
-
-        Assert.assertTrue(AccessibilityState.isSamsungTalkBackEnabled());
-        Mockito.verify(mAccessibilityStateNatives).onSamsungTalkBackStateChanged(true);
-
-        // Move app to background.
-        simulateActivityStateChange(
-                mockActivity, ActivityState.STOPPED, ApplicationState.HAS_STOPPED_ACTIVITIES);
-
-        // While in background, disable Samsung TalkBack, but set mismatched settings string so polling occurs.
-        AccessibilityStateJUnitTestHelper.setEnabledAccessibilityServiceList(
-                mContext, new ArrayList<>());
-        Settings.Secure.putString(
-                mContext.getContentResolver(),
-                Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES,
-                "com.samsung.android.accessibility.talkback/.TalkBackService");
-        Mockito.clearInvocations(mAccessibilityStateNatives);
-
-        // Resume app. Polling will be scheduled because running services disagree with enabled services.
-        simulateActivityStateChange(
-                mockActivity, ActivityState.RESUMED, ApplicationState.HAS_RUNNING_ACTIVITIES);
-
-        // Resolve the discrepancy so the subsequent poll succeeds.
-        Settings.Secure.putString(
-                mContext.getContentResolver(),
-                Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES,
-                "");
-        ShadowLooper.runUiThreadTasksIncludingDelayedTasks();
-
-        Assert.assertFalse(AccessibilityState.isSamsungTalkBackEnabled());
-        Mockito.verify(mAccessibilityStateNatives, Mockito.atLeastOnce())
-                .onSamsungTalkBackStateChanged(false);
-
-        ApplicationStatus.onStateChangeForTesting(mockActivity, ActivityState.STOPPED);
-        ApplicationStatus.destroyForJUnitTests();
+        AccessibilityState.uninitializeForTesting();
     }
 
     private void startTestWithService(AccessibilityServiceInfo newService) {
         Assert.assertNotNull(newService);
         Assert.assertFalse(AccessibilityState.isAnyAccessibilityServiceEnabled());
-        AccessibilityStateJUnitTestHelper.setEnabledAccessibilityServiceList(
-                mContext, List.of(newService));
+        AccessibilityStateTestHelper.setEnabledAccessibilityServiceList(mContext, List.of(newService));
     }
 
     @Implements(Settings.Global.class)

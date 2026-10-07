@@ -25,7 +25,7 @@ UIImage* GetBrandedGoogleShieldSymbol() {
 #if BUILDFLAG(IOS_USE_BRANDED_ASSETS)
   return SymbolWithPointSize(SymbolGoogleShield, kSymbolImagePointSize);
 #else
-  return SymbolWithPointSize(SymbolCustomShield, kSymbolImagePointSize);
+  return SymbolWithPointSize(SymbolShield, kSymbolImagePointSize);
 #endif
 }
 
@@ -92,7 +92,7 @@ TEST_F(TailoredSecurityInfobarBannerOverlayMediatorTest,
   InitInfobar(TailoredSecurityServiceMessageState::kConsentedAndFlowDisabled);
 
   // Verify that the infobar was set up properly.
-  EXPECT_NSEQ(SymbolWithPointSize(SymbolCustomShield, kSymbolImagePointSize),
+  EXPECT_NSEQ(SymbolWithPointSize(SymbolShield, kSymbolImagePointSize),
               consumer_.iconImage);
   EXPECT_TRUE(TailoredSecurityServiceMessageState::kConsentedAndFlowDisabled ==
               delegate_->message_state());

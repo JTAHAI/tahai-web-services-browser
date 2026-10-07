@@ -18,13 +18,17 @@
 #include "partition_alloc/build_config.h"
 #include "partition_alloc/buildflags.h"
 #include "partition_alloc/flags.h"
+#include "partition_alloc/partition_alloc_base/augmentations/compiler_specific.h"
 #include "partition_alloc/partition_alloc_base/compiler_specific.h"
 #include "partition_alloc/partition_alloc_base/component_export.h"
 #include "partition_alloc/partition_alloc_base/types/same_as_any.h"
 #include "partition_alloc/partition_alloc_config.h"
 #include "partition_alloc/partition_alloc_forward.h"
 #include "partition_alloc/pointers/instance_tracer.h"
-#include "partition_alloc/pointers/raw_ptr_noop_impl.h"
+
+#if PA_HAVE_SPACESHIP_OPERATOR
+#include <compare>
+#endif
 
 #if PA_BUILDFLAG(IS_WIN)
 #include "partition_alloc/partition_alloc_base/win/win_handle_types.h"
@@ -48,6 +52,8 @@
 // available.
 #define PA_RAW_PTR_CHECK(condition)
 #endif  // PA_BUILDFLAG(USE_PARTITION_ALLOC)
+
+#include "partition_alloc/pointers/raw_ptr_noop_impl.h"
 
 #if PA_BUILDFLAG(USE_RAW_PTR_BACKUP_REF_IMPL)
 #include "partition_alloc/pointers/raw_ptr_backup_ref_impl.h"
@@ -207,7 +213,7 @@ struct IsSupportedType {
 #endif  // __OBJC__
 
       // Specific disallowed types.
-      !partition_alloc::internal::base::SameAsAny<
+      !partition_alloc::internal::base::kSameAsAny<
           T,
 #if PA_BUILDFLAG(IS_WIN)
 // raw_ptr<HWND__> is unsafe at runtime - if the handle happens to also
@@ -467,7 +473,7 @@ class PA_TRIVIAL_ABI PA_GSL_POINTER raw_ptr {
     PA_BUILDFLAG(USE_RAW_PTR_ASAN_UNOWNED_IMPL) || \
     PA_BUILDFLAG(USE_RAW_PTR_HOOKABLE_IMPL) ||     \
     PA_BUILDFLAG(RAW_PTR_ZERO_ON_DESTRUCT)
-  PA_ALWAYS_INLINE constexpr ~raw_ptr() noexcept {
+  PA_ALWAYS_INLINE PA_CONSTEXPR_DTOR ~raw_ptr() noexcept {
     Impl::ReleaseWrappedPtr(wrapped_ptr_);
     Impl::Untrace(tracer_.owner_id());
     // Work around external issues where raw_ptr is used after destruction.
@@ -476,7 +482,7 @@ class PA_TRIVIAL_ABI PA_GSL_POINTER raw_ptr {
     }
   }
 #else
-  PA_ALWAYS_INLINE constexpr ~raw_ptr() noexcept {
+  PA_ALWAYS_INLINE PA_CONSTEXPR_DTOR ~raw_ptr() noexcept {
     // Not =default because we want MSan use-after-dtor instrumentation.
   }
   static_assert(!kZeroOnDestruct);
@@ -654,7 +660,7 @@ class PA_TRIVIAL_ABI PA_GSL_POINTER raw_ptr {
     EphemeralRawAddr& operator=(const EphemeralRawAddr&) = delete;
     void* operator new(size_t) = delete;
     void* operator new(size_t, void*) = delete;
-    PA_ALWAYS_INLINE constexpr ~EphemeralRawAddr() { original = copy; }
+    PA_ALWAYS_INLINE PA_CONSTEXPR_DTOR ~EphemeralRawAddr() { original = copy; }
 
     PA_ALWAYS_INLINE constexpr T** operator&() && PA_LIFETIME_BOUND {
       return &copy;
@@ -671,7 +677,7 @@ class PA_TRIVIAL_ABI PA_GSL_POINTER raw_ptr {
     T* copy;
     raw_ptr& original;  // Original pointer.
   };
-  PA_ALWAYS_INLINE constexpr EphemeralRawAddr AsEphemeralRawAddr() & {
+  PA_ALWAYS_INLINE PA_CONSTEXPR_DTOR EphemeralRawAddr AsEphemeralRawAddr() & {
     return EphemeralRawAddr(*this);
   }
 
@@ -913,9 +919,24 @@ class PA_TRIVIAL_ABI PA_GSL_POINTER raw_ptr {
   template <typename U, typename V, RawPtrTraits R1, RawPtrTraits R2>
   friend constexpr bool operator!=(const raw_ptr<U, R1>& lhs,
                                    const raw_ptr<V, R2>& rhs);
+#if PA_HAVE_SPACESHIP_OPERATOR
   template <typename U, typename V, RawPtrTraits R1, RawPtrTraits R2>
   friend constexpr auto operator<=>(const raw_ptr<U, R1>& lhs,
                                     const raw_ptr<V, R2>& rhs);
+#else
+  template <typename U, typename V, RawPtrTraits R1, RawPtrTraits R2>
+  friend constexpr bool operator<(const raw_ptr<U, R1>& lhs,
+                                  const raw_ptr<V, R2>& rhs);
+  template <typename U, typename V, RawPtrTraits R1, RawPtrTraits R2>
+  friend constexpr bool operator>(const raw_ptr<U, R1>& lhs,
+                                  const raw_ptr<V, R2>& rhs);
+  template <typename U, typename V, RawPtrTraits R1, RawPtrTraits R2>
+  friend constexpr bool operator<=(const raw_ptr<U, R1>& lhs,
+                                   const raw_ptr<V, R2>& rhs);
+  template <typename U, typename V, RawPtrTraits R1, RawPtrTraits R2>
+  friend constexpr bool operator>=(const raw_ptr<U, R1>& lhs,
+                                   const raw_ptr<V, R2>& rhs);
+#endif
 
   // Comparisons with U*. These operators also handle the case where the RHS is
   // T*. Because these only call `raw_ptr::GetForComparison()`, they can be
@@ -940,6 +961,7 @@ class PA_TRIVIAL_ABI PA_GSL_POINTER raw_ptr {
                                                     const raw_ptr& rhs) {
     return rhs != lhs;  // Reverse order to call the operator above.
   }
+#if PA_HAVE_SPACESHIP_OPERATOR
   template <typename U>
   PA_ALWAYS_INLINE friend constexpr auto operator<=>(const raw_ptr& lhs,
                                                      U* rhs) {
@@ -950,6 +972,44 @@ class PA_TRIVIAL_ABI PA_GSL_POINTER raw_ptr {
                                                      const raw_ptr& rhs) {
     return lhs <=> rhs.GetForComparison();
   }
+#else
+  template <typename U>
+  PA_ALWAYS_INLINE friend constexpr bool operator<(const raw_ptr& lhs, U* rhs) {
+    return lhs.GetForComparison() < rhs;
+  }
+  template <typename U>
+  PA_ALWAYS_INLINE friend constexpr bool operator<=(const raw_ptr& lhs,
+                                                    U* rhs) {
+    return lhs.GetForComparison() <= rhs;
+  }
+  template <typename U>
+  PA_ALWAYS_INLINE friend constexpr bool operator>(const raw_ptr& lhs, U* rhs) {
+    return lhs.GetForComparison() > rhs;
+  }
+  template <typename U>
+  PA_ALWAYS_INLINE friend constexpr bool operator>=(const raw_ptr& lhs,
+                                                    U* rhs) {
+    return lhs.GetForComparison() >= rhs;
+  }
+  template <typename U>
+  PA_ALWAYS_INLINE friend constexpr bool operator<(U* lhs, const raw_ptr& rhs) {
+    return lhs < rhs.GetForComparison();
+  }
+  template <typename U>
+  PA_ALWAYS_INLINE friend constexpr bool operator<=(U* lhs,
+                                                    const raw_ptr& rhs) {
+    return lhs <= rhs.GetForComparison();
+  }
+  template <typename U>
+  PA_ALWAYS_INLINE friend constexpr bool operator>(U* lhs, const raw_ptr& rhs) {
+    return lhs > rhs.GetForComparison();
+  }
+  template <typename U>
+  PA_ALWAYS_INLINE friend constexpr bool operator>=(U* lhs,
+                                                    const raw_ptr& rhs) {
+    return lhs >= rhs.GetForComparison();
+  }
+#endif
 
   // Comparisons with `std::nullptr_t`.
   PA_ALWAYS_INLINE friend constexpr bool operator==(const raw_ptr& lhs,
@@ -1026,11 +1086,37 @@ PA_ALWAYS_INLINE constexpr bool operator!=(const raw_ptr<U, Traits1>& lhs,
   return !(lhs == rhs);
 }
 
+#if PA_HAVE_SPACESHIP_OPERATOR
 template <typename U, typename V, RawPtrTraits Traits1, RawPtrTraits Traits2>
 PA_ALWAYS_INLINE constexpr auto operator<=>(const raw_ptr<U, Traits1>& lhs,
                                             const raw_ptr<V, Traits2>& rhs) {
   return lhs.GetForComparison() <=> rhs.GetForComparison();
 }
+#else
+template <typename U, typename V, RawPtrTraits Traits1, RawPtrTraits Traits2>
+PA_ALWAYS_INLINE constexpr bool operator<(const raw_ptr<U, Traits1>& lhs,
+                                          const raw_ptr<V, Traits2>& rhs) {
+  return lhs.GetForComparison() < rhs.GetForComparison();
+}
+
+template <typename U, typename V, RawPtrTraits Traits1, RawPtrTraits Traits2>
+PA_ALWAYS_INLINE constexpr bool operator>(const raw_ptr<U, Traits1>& lhs,
+                                          const raw_ptr<V, Traits2>& rhs) {
+  return lhs.GetForComparison() > rhs.GetForComparison();
+}
+
+template <typename U, typename V, RawPtrTraits Traits1, RawPtrTraits Traits2>
+PA_ALWAYS_INLINE constexpr bool operator<=(const raw_ptr<U, Traits1>& lhs,
+                                           const raw_ptr<V, Traits2>& rhs) {
+  return lhs.GetForComparison() <= rhs.GetForComparison();
+}
+
+template <typename U, typename V, RawPtrTraits Traits1, RawPtrTraits Traits2>
+PA_ALWAYS_INLINE constexpr bool operator>=(const raw_ptr<U, Traits1>& lhs,
+                                           const raw_ptr<V, Traits2>& rhs) {
+  return lhs.GetForComparison() >= rhs.GetForComparison();
+}
+#endif
 
 template <typename T>
 inline constexpr bool IsRawPtr = false;

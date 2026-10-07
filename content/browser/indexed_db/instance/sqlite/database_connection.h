@@ -65,11 +65,17 @@ class CONTENT_EXPORT DatabaseConnection {
   // Opens a connection to the specified database. When `name` is present, it
   // will create a new DB if one does not exist. When `name` is null and a DB
   // does not exist or is not already initialized, returns an error. When `path`
-  // is empty, the database will be opened in-memory.
+  // is empty, the database will be opened in-memory. If `erase_if_zygotic` is
+  // true, then the database will be wiped from disk if opening it reveals it to
+  // be in a zygotic state, which could be the result of a previous problem; no
+  // `DatabaseConnection` object will be returned. This is not true when opening
+  // a database connection for normal use because in that case it will simply be
+  // reused.
   static StatusOr<std::unique_ptr<DatabaseConnection>> Open(
       std::optional<std::u16string_view> name,
       base::FilePath path,
-      BackingStoreImpl& backing_store);
+      BackingStoreImpl& backing_store,
+      bool erase_if_zygotic = false);
 
   // Called by the `BackingStoreDatabaseImpl` to release its reference. This may
   // allow `this` to close ("self-destruct") if there are no active blobs. Note
@@ -115,9 +121,9 @@ class CONTENT_EXPORT DatabaseConnection {
 
   // Creates a memory dump for this connection at `dump_name`, suballocated to
   // the canonical `sqlite/IndexedDB_connection/0x?` dump owned by the
-  // underlying `sql::Database`. Returns whether the dump was created.
-  bool ReportMemoryUsage(base::trace_event::ProcessMemoryDump* pmd,
-                         const std::string& dump_name);
+  // underlying `sql::Database`.
+  void ReportMemoryUsage(base::trace_event::ProcessMemoryDump* pmd,
+                         const std::string& dump_name) const;
 
   // Called when `BucketContext` is not currently serving requests. `long_idle`
   // is true if the `BucketContext` has been idle for a relatively long time,
@@ -429,9 +435,7 @@ class CONTENT_EXPORT DatabaseConnection {
     // a file that looks like a valid database.
     kMissingMetaTable = 19,
 
-    kDatabaseIdbVersionInvalid = 20,
-
-    kMaxValue = kDatabaseIdbVersionInvalid,
+    kMaxValue = kMissingMetaTable,
   };
   // LINT.ThenChange(//tools/metrics/histograms/metadata/storage/enums.xml:IndexedDbSqliteSpecificEvent)
 
@@ -451,9 +455,6 @@ class CONTENT_EXPORT DatabaseConnection {
 
   // Makes sure the given IDs exist in `metadata_`.
   void ValidateInputs(int64_t object_store_id, int64_t index_id);
-
-  // Returns true if there's a row in the `blobs` table with the given row id.
-  bool RowExistsInBlobTable(int64_t blob_row_id) const;
 
   // Creates a snapshot of the current legacy blob files stored in the database.
   std::set<int64_t> SnapshotLegacyBlobFiles();
@@ -505,25 +506,15 @@ class CONTENT_EXPORT DatabaseConnection {
   // Only set while a version change transaction is active.
   std::optional<blink::IndexedDBDatabaseMetadata> metadata_snapshot_;
 
-  // blob_row_id to blob metadata. For normal, persisted databases, these are
-  // collected over the lifetime of a single transaction as records with
-  // associated blobs are inserted into the database. The contents of the blobs
-  // are not written until commit time. The objects in this map are also used to
-  // vend bytes (via their connected mojo remote) if the client reads a value
-  // after writing but before committing. ("Pending" blobs.) Note that some of
-  // these blobs may be associated with records that were added and later
-  // deleted (or replaced) in the same commit. A check to verify the blobs are
-  // still needed is performed at commit time.
+  // blob_row_id to blob metadata. These are collected over the lifetime of a
+  // single transaction as records with associated blobs are inserted into the
+  // database. The contents of the blobs are not written until commit time. The
+  // objects in this map are also used to vend bytes (via their connected mojo
+  // remote) if the client reads a value after writing but before committing.
+  // ("Pending" blobs.) Note that some of these blobs may be associated with
+  // records that were added and later deleted (or replaced) in the same commit.
+  // A check to verify the blobs are still needed is performed at commit time.
   std::map<int64_t, IndexedDBExternalObject> blobs_staged_for_commit_;
-
-  // For in-memory databases, `blobs_staged_for_commit_` are moved to this map
-  // instead of being copied into the database. In this way, the blob doesn't
-  // need to be stored in memory twice (once in the database, and once in Blob
-  // storage). They will be deleted from this map if they are obsolete following
-  // any successful write commit, which is controlled by
-  // `sweep_unused_in_memory_blobs_`.
-  std::map<int64_t, IndexedDBExternalObject> in_memory_blob_references_;
-  bool sweep_unused_in_memory_blobs_ = false;
 
   // This map will be empty until `CommitTransactionPhaseOne()` is called, at
   // which point it will be populated with helper objects that feed the blob

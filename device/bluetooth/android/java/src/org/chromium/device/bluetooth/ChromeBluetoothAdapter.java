@@ -335,15 +335,15 @@ final class ChromeBluetoothAdapter extends BroadcastReceiver {
                     result.getDevice().getAddress(),
                     result.getDevice().getName());
 
-            String[] uuidStrings;
+            String[] uuid_strings;
             List<ParcelUuid> uuids = result.getScanRecord_getServiceUuids();
 
             if (uuids == null) {
-                uuidStrings = new String[] {};
+                uuid_strings = new String[] {};
             } else {
-                uuidStrings = new String[uuids.size()];
+                uuid_strings = new String[uuids.size()];
                 for (int i = 0; i < uuids.size(); i++) {
-                    uuidStrings[i] = uuids.get(i).toString();
+                    uuid_strings[i] = uuids.get(i).toString();
                 }
             }
 
@@ -388,7 +388,7 @@ final class ChromeBluetoothAdapter extends BroadcastReceiver {
                                 result.getDevice(),
                                 result.getScanRecord_getDeviceName(),
                                 result.getRssi(),
-                                uuidStrings,
+                                uuid_strings,
                                 result.getScanRecord_getTxPowerLevel(),
                                 serviceDataKeys,
                                 serviceDataValues,

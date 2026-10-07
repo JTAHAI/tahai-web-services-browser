@@ -30,7 +30,6 @@
 #include "chrome/browser/feature_engagement/tracker_factory.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/actions/chrome_action_id.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/intent_picker_tab_helper.h"
 #include "chrome/browser/ui/page_action/page_action_controller.h"
 #include "chrome/browser/ui/page_action/page_action_icon_type.h"
@@ -64,7 +63,6 @@
 #include "components/feature_engagement/public/tracker.h"
 #include "components/prefs/pref_service.h"
 #include "components/strings/grit/components_strings.h"
-#include "components/tabs/public/tab_interface.h"
 #include "components/url_formatter/elide_url.h"
 #include "components/webapps/browser/installable/ml_install_operation_tracker.h"
 #include "components/webapps/common/constants.h"
@@ -193,10 +191,41 @@ NewPageActionHighlight(content::WebContents& web_contents) {
     return std::nullopt;
   }
 
-  tabs::TabFeatures* tab_features = tab->GetTabFeatures();
-  CHECK(tab_features);
+  if (IsPageActionMigrated(PageActionIconType::kPwaInstall)) {
+    tabs::TabFeatures* tab_features = tab->GetTabFeatures();
+    CHECK(tab_features);
 
-  return tab_features->page_action_controller()->AddActivity(kActionInstallPwa);
+    return tab_features->page_action_controller()->AddActivity(
+        kActionInstallPwa);
+  }
+
+  // TODO(crbug.com/425953501): We shouldn't be using this. Once
+  // `ToolbarButtonProvider` is migrated to `BrowserWindowInterface`, we can
+  // use that directly.
+  Browser* browser =
+      tab->GetBrowserWindowInterface()->GetBrowserForMigrationOnly();
+
+  BrowserView* browser_view = BrowserView::GetBrowserViewForBrowser(browser);
+  if (!browser_view) {
+    return std::nullopt;
+  }
+
+  ToolbarButtonProvider* toolbar_button_provider =
+      browser_view->toolbar_button_provider();
+  if (!toolbar_button_provider) {
+    return std::nullopt;
+  }
+
+  views::Button* install_icon =
+      toolbar_button_provider->GetPageActionViewInterface(kActionInstallPwa)
+          ->GetIconLabelBubbleViewNotMigrated();
+
+  if (install_icon) {
+    // TODO(crbug.com/40841129): move this to dialog->SetHighlightedElement.
+    return install_icon->AddAnchorHighlight();
+  }
+
+  return std::nullopt;
 }
 
 }  // namespace
@@ -230,9 +259,7 @@ WebAppInstallFlowDialogDelegate::WebAppInstallFlowDialogDelegate(
   CHECK(progress_delay_);
 }
 
-WebAppInstallFlowDialogDelegate::~WebAppInstallFlowDialogDelegate() {
-  MaybeRestoreFocusToInstallPageAction();
-}
+WebAppInstallFlowDialogDelegate::~WebAppInstallFlowDialogDelegate() = default;
 
 bool WebAppInstallFlowDialogDelegate::AdvanceToNextStepOrClose() {
   CHECK(dialog_model());
@@ -574,10 +601,8 @@ void WebAppInstallFlowDialogDelegate::
 // reveal the app bundle, then closes the dialog.
 void WebAppInstallFlowDialogDelegate::OnCancelOrCloseClicked() {
   if (current_step_ == InstallDialogStep::kSuccessful) {
-    tabs::TabInterface* tab =
-        tabs::TabInterface::MaybeGetFromContents(web_contents());
     IntentPickerTabHelper* helper =
-        tab ? IntentPickerTabHelper::From(tab) : nullptr;
+        IntentPickerTabHelper::FromWebContents(web_contents());
     if (helper) {
       helper->MaybeShowIntentPickerIcon();
     }

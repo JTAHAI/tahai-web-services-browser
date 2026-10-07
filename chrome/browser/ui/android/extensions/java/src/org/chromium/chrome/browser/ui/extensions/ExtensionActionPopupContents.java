@@ -50,6 +50,11 @@ public class ExtensionActionPopupContents implements Destroyable {
         mWebContents = webContents;
     }
 
+    /** Creates an {@link ExtensionActionPopupContents} instance. */
+    public static ExtensionActionPopupContents create(long extensionViewHostPtr) {
+        return ExtensionActionPopupContentsJni.get().create(extensionViewHostPtr);
+    }
+
     /**
      * Cleans up the resources associated with this popup.
      *
@@ -112,12 +117,9 @@ public class ExtensionActionPopupContents implements Destroyable {
     }
 
     @CalledByNative
-    private boolean handleKeyboardEvent(@Nullable KeyEvent event) {
-        if (event == null) {
-            return false;
-        }
+    private boolean handleKeyboardEvent(WebContents webContents, KeyEvent event) {
         if (mDelegate != null) {
-            return mDelegate.handleKeyboardEvent(event);
+            return mDelegate.handleKeyboardEvent(webContents, event);
         }
         return false;
     }
@@ -136,7 +138,7 @@ public class ExtensionActionPopupContents implements Destroyable {
          *
          * @return True if the event was handled, otherwise false.
          */
-        boolean handleKeyboardEvent(@Nullable KeyEvent event);
+        boolean handleKeyboardEvent(WebContents webContents, KeyEvent event);
 
         /** Called when it finished loading the initial page. */
         void onLoaded();
@@ -149,6 +151,14 @@ public class ExtensionActionPopupContents implements Destroyable {
 
     @NativeMethods
     public interface Natives {
+        /**
+         * Creates the native ExtensionActionPopupContents object and returns its Java peer.
+         *
+         * @param extensionViewHostPtr The address of a native {@code ExtensionViewHost}.
+         * @return The Java {@link ExtensionActionPopupContents} object, or {@code null} on failure.
+         */
+        ExtensionActionPopupContents create(long extensionViewHostPtr);
+
         /**
          * Destroys the native ExtensionActionPopupContents object.
          *

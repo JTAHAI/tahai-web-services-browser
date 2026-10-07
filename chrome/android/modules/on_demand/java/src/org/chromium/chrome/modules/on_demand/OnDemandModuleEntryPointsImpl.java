@@ -12,10 +12,8 @@ import org.chromium.build.annotations.Nullable;
 import org.chromium.build.annotations.UsedByReflection;
 import org.chromium.chrome.browser.bricks.BricksCoordinator;
 import org.chromium.chrome.browser.bricks.BricksCoordinatorInterface;
-import org.chromium.chrome.browser.bricks.BricksJavaCoordinator;
 import org.chromium.chrome.browser.pdf.PdfEntryPoint;
 import org.chromium.chrome.browser.pdf.PdfEntryPointImpl;
-import org.chromium.components.embedder_support.util.UrlConstants;
 
 /** Entry points implementation that lives inside the apk split. */
 @NullMarked
@@ -33,14 +31,6 @@ public class OnDemandModuleEntryPointsImpl implements OnDemandModuleEntryPoints 
 
     @Override
     public BricksCoordinatorInterface createBricksCoordinator(Context context) {
-        return new BricksCoordinator(context);
-    }
-
-    @Override
-    public BricksCoordinatorInterface createBricksCoordinator(Context context, String url) {
-        if (url != null && url.contains(UrlConstants.BRICKS_JAVA_HOST)) {
-            return new BricksJavaCoordinator(context);
-        }
         return new BricksCoordinator(context);
     }
 }

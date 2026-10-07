@@ -82,7 +82,7 @@ class OmniboxPopupComposeboxClient : public ContextualOmniboxClient {
 
 }  // namespace
 
-void OmniboxComposeboxHandler::ProcessContextAndOpenUrl(
+void OmniboxComposeboxHandler::OpenUrl(
     GURL url,
     const WindowOpenDisposition disposition) {
   // The voice permission dialog dirties the OS focus history, especially in
@@ -100,7 +100,7 @@ void OmniboxComposeboxHandler::ProcessContextAndOpenUrl(
     }
   }
 
-  ComposeboxHandler::ProcessContextAndOpenUrl(url, disposition);
+  ComposeboxHandler::OpenUrl(url, disposition);
 }
 
 OmniboxComposeboxHandler::OmniboxComposeboxHandler(

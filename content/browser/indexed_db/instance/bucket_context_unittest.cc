@@ -314,14 +314,4 @@ TEST_F(BucketContextTest, OverrideShouldUseSqliteForTesting) {
   }
 }
 
-TEST_F(BucketContextTest, InMemoryContextUsesSqliteByDefault) {
-  {
-    // Toss out the override from the test fixture.
-    auto release = std::move(sqlite_override_);
-  }
-  SetUpInMemoryContext();
-
-  EXPECT_TRUE(InitBucketContext()->IsUsingSqlite());
-}
-
 }  // namespace content::indexed_db

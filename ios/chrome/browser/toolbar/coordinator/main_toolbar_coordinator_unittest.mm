@@ -20,8 +20,7 @@
 #import "ios/chrome/browser/segmentation_platform/model/segmentation_platform_service_factory.h"
 #import "ios/chrome/browser/shared/coordinator/layout_guide/layout_guide_scene_agent.h"
 #import "ios/chrome/browser/shared/coordinator/scene/scene_state.h"
-#import "ios/chrome/browser/shared/coordinator/scene/state/browser_layout_state.h"
-#import "ios/chrome/browser/shared/coordinator/scene/state/scene_layout_state.h"
+#import "ios/chrome/browser/shared/coordinator/scene/state/layout_state.h"
 #import "ios/chrome/browser/shared/coordinator/scene/test/fake_scene_state.h"
 #import "ios/chrome/browser/shared/model/application_context/application_context.h"
 #import "ios/chrome/browser/shared/model/browser/browser_provider.h"
@@ -70,14 +69,13 @@
     LegacyToolbarMediator* legacyToolbarMediator;
 @end
 
-@interface TestBrowserLayoutStateObserver
-    : NSObject <BrowserLayoutStateObserver>
+@interface TestLayoutStateObserver : NSObject <LayoutStateObserver>
 @property(nonatomic, assign) ToolbarPosition toolbarPosition;
 @property(nonatomic, assign) BOOL positionChangedCalled;
 @end
 
-@implementation TestBrowserLayoutStateObserver
-- (void)browserLayoutState:(BrowserLayoutState*)layoutState
+@implementation TestLayoutStateObserver
+- (void)layoutState:(LayoutState*)layoutState
     didChangeToolbarPosition:(ToolbarPosition)toolbarPosition {
   _toolbarPosition = toolbarPosition;
   _positionChangedCalled = YES;
@@ -203,6 +201,7 @@ class MainToolbarCoordinatorTest : public PlatformTest {
     OmniboxFocusBrowserAgent::CreateForBrowser(browser);
     AutocompleteBrowserAgent::CreateForBrowser(browser);
     // FullscreenController depends on ToolbarsSizeBrowserAgent, so the agent
+    // must be created first. Please maintain this order.
     ToolbarsSizeBrowserAgent::CreateForBrowser(browser);
     FullscreenController::CreateForBrowser(browser);
     FullscreenBrowserAgent::CreateForBrowser(browser);
@@ -215,13 +214,12 @@ class MainToolbarCoordinatorTest : public PlatformTest {
     [scene_state_ shutdown];
   }
 
-  // Verifies that observing `BrowserLayoutState` correctly detects when the
-  // omnibox position transitions from top to bottom.
+  // Verifies that observing `LayoutState` correctly detects when the omnibox
+  // position transitions from top to bottom.
   void VerifyOmniboxPositionObservation() {
-    TestBrowserLayoutStateObserver* observer =
-        [[TestBrowserLayoutStateObserver alloc] init];
-    BrowserLayoutState* browserLayoutState = browser()->GetBrowserLayoutState();
-    [browserLayoutState addObserver:observer];
+    TestLayoutStateObserver* observer = [[TestLayoutStateObserver alloc] init];
+    LayoutState* layoutState = scene_state_.layoutState;
+    [layoutState addObserver:observer];
 
     coordinator_ = [[MainToolbarCoordinator alloc] initWithBrowser:browser()];
     [coordinator_ start];
@@ -236,7 +234,7 @@ class MainToolbarCoordinatorTest : public PlatformTest {
     [coordinator_.legacyToolbarMediator
         toolbarTraitCollectionChangedTo:compact_regular_traits];
     EXPECT_FALSE(observer.positionChangedCalled);
-    EXPECT_EQ(browserLayoutState.toolbarPosition, ToolbarPosition::kTop);
+    EXPECT_EQ(layoutState.toolbarPosition, ToolbarPosition::kTop);
 
     // Change bottom omnibox pref.
     GetApplicationContext()->GetLocalState()->SetBoolean(
@@ -245,7 +243,7 @@ class MainToolbarCoordinatorTest : public PlatformTest {
     EXPECT_TRUE(observer.positionChangedCalled);
     EXPECT_EQ(observer.toolbarPosition, ToolbarPosition::kBottom);
 
-    [browserLayoutState removeObserver:observer];
+    [layoutState removeObserver:observer];
   }
 
   Browser* browser() {
@@ -260,7 +258,7 @@ class MainToolbarCoordinatorTest : public PlatformTest {
   base::test::ScopedFeatureList feature_list_;
 };
 
-// Test that the BrowserLayoutState can be observed to tell when the
+// Test that the LayoutState can be observed to tell when the
 // bottom omnibox position changes.
 TEST_F(MainToolbarCoordinatorTest, TestLayoutStateToolbarPositionObservation) {
   // Bottom omnibox is not supported on all devices (e.g. iPad).
@@ -270,7 +268,7 @@ TEST_F(MainToolbarCoordinatorTest, TestLayoutStateToolbarPositionObservation) {
   VerifyOmniboxPositionObservation();
 }
 
-// Test that the BrowserLayoutState can be observed to tell when the
+// Test that the LayoutState can be observed to tell when the
 // bottom omnibox position changes when ChromeNextIa is enabled.
 TEST_F(MainToolbarCoordinatorTest,
        TestLayoutStateToolbarPositionObservation_ChromeNextIa) {
@@ -283,22 +281,44 @@ TEST_F(MainToolbarCoordinatorTest,
 }
 
 // Tests that during early app launch when activeBrowser is nil, transitioning
-// the omnibox position to bottom updates the shared BrowserLayoutState.
+// the omnibox position to bottom updates the shared LayoutState.
 TEST_F(MainToolbarCoordinatorTest,
        TransitionOmniboxToToolbarTypeDuringEarlyStartup) {
   if (!IsBottomOmniboxAvailable()) {
     return;
   }
-  Browser* targetBrowser = browser();
-  coordinator_ = [[MainToolbarCoordinator alloc] initWithBrowser:targetBrowser];
+  coordinator_ = [[MainToolbarCoordinator alloc] initWithBrowser:browser()];
   [coordinator_ start];
 
   // Simulate early startup where currentBrowserProvider.browser is nil.
   [scene_state_ setCurrentBrowserProvider:nil];
 
   [coordinator_ transitionOmniboxToToolbarType:ToolbarType::kSecondary];
-  EXPECT_EQ(targetBrowser->GetBrowserLayoutState().toolbarPosition,
-            ToolbarPosition::kBottom);
+  EXPECT_EQ(scene_state_.layoutState.toolbarPosition, ToolbarPosition::kBottom);
+}
+
+// Tests that for an inactive browser (when activeBrowser is not nil and not
+// equal to this coordinator's browser), transitioning the omnibox position does
+// not update the shared LayoutState.
+TEST_F(MainToolbarCoordinatorTest,
+       TransitionOmniboxToToolbarTypeWithInactiveBrowser) {
+  if (!IsBottomOmniboxAvailable()) {
+    return;
+  }
+  coordinator_ = [[MainToolbarCoordinator alloc] initWithBrowser:browser()];
+  [coordinator_ start];
+
+  // Reset toolbarPosition to top before transitioning to an inactive browser.
+  [coordinator_ transitionOmniboxToToolbarType:ToolbarType::kPrimary];
+  EXPECT_EQ(scene_state_.layoutState.toolbarPosition, ToolbarPosition::kTop);
+
+  // Simulate an inactive browser where currentBrowserProvider.browser is
+  // another browser instance.
+  [scene_state_ setCurrentBrowserProvider:scene_state_.browserProviderInterface
+                                              .incognitoBrowserProvider];
+
+  [coordinator_ transitionOmniboxToToolbarType:ToolbarType::kSecondary];
+  EXPECT_EQ(scene_state_.layoutState.toolbarPosition, ToolbarPosition::kTop);
 }
 
 // Tests that taking a side swipe snapshot of a toolbar that is not in the

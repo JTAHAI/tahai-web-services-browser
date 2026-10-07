@@ -63,7 +63,8 @@ TEST(QuatTest, AxisAngleWithZeroLengthAxis) {
 
 TEST(QuatTest, Addition) {
   auto values = std::to_array<double>({0, 1, 100});
-  for (float t : values) {
+  for (size_t i = 0; i < std::size(values); ++i) {
+    float t = values[i];
     Quaternion a(t, 2 * t, 3 * t, 4 * t);
     Quaternion b(5 * t, 4 * t, 3 * t, 2 * t);
     Quaternion sum = a + b;
@@ -88,15 +89,16 @@ TEST(QuatTest, Multiplication) {
        Quaternion(32, 32, 56, -6)},
   });
 
-  for (auto& c : cases) {
-    Quaternion product = c.a * c.b;
-    CompareQuaternions(c.expected, product);
+  for (size_t i = 0; i < std::size(cases); ++i) {
+    Quaternion product = cases[i].a * cases[i].b;
+    CompareQuaternions(cases[i].expected, product);
   }
 }
 
 TEST(QuatTest, Scaling) {
   auto values = std::to_array<double>({0, 10, 100});
-  for (double s : values) {
+  for (size_t i = 0; i < std::size(values); ++i) {
+    double s = values[i];
     Quaternion q(1, 2, 3, 4);
     Quaternion expected(s, 2 * s, 3 * s, 4 * s);
     CompareQuaternions(expected, q * s);

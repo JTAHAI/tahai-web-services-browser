@@ -12,7 +12,7 @@
 #include "base/logging.h"
 #include "base/types/optional_ref.h"
 #include "components/autofill/core/browser/data_model/autofill_ai/entity_instance.h"
-#include "components/autofill/core/browser/integrators/autofill_ai/autofill_ai_import_util.h"
+#include "components/autofill/core/browser/integrators/autofill_ai/autofill_ai_import_utils.h"
 #include "components/autofill/core/common/autofill_features.h"
 
 namespace autofill {
@@ -66,15 +66,6 @@ EntityAttributeUpdateDetails::GetUpdatedAttributesDetails(
     const std::string& app_locale) {
   std::vector<EntityAttributeUpdateDetails> details;
 
-  auto get_attribute_value = [](const AttributeInstance& attribute,
-                                const std::string& app_locale) {
-    if (std::optional<std::u16string> date = MaybeGetLocalizedDate(attribute)) {
-      return *date;
-    } else {
-      return attribute.GetCompleteInfo(app_locale);
-    }
-  };
-
   auto get_attribute_update_type =
       [&](const AttributeInstance& new_entity_attribute) {
         if (!old_entity) {
@@ -83,8 +74,7 @@ EntityAttributeUpdateDetails::GetUpdatedAttributesDetails(
 
         base::optional_ref<const AttributeInstance> old_entity_attribute =
             old_entity->attribute(new_entity_attribute.type());
-        if (!old_entity_attribute ||
-            get_attribute_value(*old_entity_attribute, app_locale).empty()) {
+        if (!old_entity_attribute) {
           return EntityAttributeUpdateType::kNewEntityAttributeAdded;
         }
 
@@ -116,6 +106,15 @@ EntityAttributeUpdateDetails::GetUpdatedAttributesDetails(
                    ? EntityAttributeUpdateType::kNewEntityAttributeUnchanged
                    : EntityAttributeUpdateType::kNewEntityAttributeUpdated;
       };
+
+  auto get_attribute_value = [](const AttributeInstance& attribute,
+                                const std::string& app_locale) {
+    if (std::optional<std::u16string> date = MaybeGetLocalizedDate(attribute)) {
+      return *date;
+    } else {
+      return attribute.GetCompleteInfo(app_locale);
+    }
+  };
 
   for (const AttributeInstance& attribute : new_entity.attributes()) {
     EntityAttributeUpdateType update_type =

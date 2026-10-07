@@ -1,2 +1,3 @@
-rules:
-- "**": [fieldset]
+features:
+- name: fieldset
+  files: '**'

@@ -5,7 +5,6 @@
 #import "ios/chrome/browser/authentication/ui_bundled/change_profile/change_profile_autofill_and_passwords_continuation.h"
 
 #import "base/functional/callback_helpers.h"
-#import "components/autofill/core/browser/metrics/autofill_settings_metrics.h"
 #import "ios/chrome/browser/shared/coordinator/scene/scene_state.h"
 #import "ios/chrome/browser/shared/model/browser/browser.h"
 #import "ios/chrome/browser/shared/model/browser/browser_provider.h"
@@ -25,9 +24,7 @@ void ChangeProfileAutofillAndPasswordsContinuation(SceneState* scene_state,
 
   id<SettingsCommands> settingsHandler =
       HandlerForProtocol(browser->GetCommandDispatcher(), SettingsCommands);
-  [settingsHandler
-      showAutofillAndPasswordsSettingsWithReferrer:
-          autofill::autofill_metrics::AutofillSettingsReferrer::kProfileMenu];
+  [settingsHandler showAutofillAndPasswordsSettings];
 
   std::move(closure).Run();
 }

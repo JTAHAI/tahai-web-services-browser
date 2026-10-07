@@ -18,6 +18,8 @@ const char* GetEnumStringValue(SharingFeatureName feature) {
   switch (feature) {
     case SharingFeatureName::kUnknown:
       return "Unknown";
+    case SharingFeatureName::kSharedClipboard:
+      return "SharedClipboard";
     case SharingFeatureName::kSmsRemoteFetcher:
       return "SmsRemoteFetcher";
   }
@@ -120,6 +122,8 @@ sharing_message::MessageType SharingPayloadCaseToMessageType(
       return sharing_message::PING_MESSAGE;
     case components_sharing_message::SharingMessage::kAckMessage:
       return sharing_message::ACK_MESSAGE;
+    case components_sharing_message::SharingMessage::kSharedClipboardMessage:
+      return sharing_message::SHARED_CLIPBOARD_MESSAGE;
     case components_sharing_message::SharingMessage::kSmsFetchRequest:
       return sharing_message::SMS_FETCH_REQUEST;
     case components_sharing_message::SharingMessage::kRemoteCopyMessage:

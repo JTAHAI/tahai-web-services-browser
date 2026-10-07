@@ -4,9 +4,7 @@
 
 #include "net/reporting/reporting_header_parser.h"
 
-#include <optional>
 #include <string>
-#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -173,10 +171,10 @@ bool ProcessEndpointGroup(
   std::optional<bool> subdomains_bool = dict->FindBool(kIncludeSubdomainsKey);
   if (subdomains_bool && subdomains_bool.value()) {
     // Disallow eTLDs from setting include_subdomains endpoint groups.
-    GURL gurl = origin.GetURL();
-    if (registry_controlled_domains::GetRegistry(
-            gurl, registry_controlled_domains::INCLUDE_UNKNOWN_REGISTRIES,
-            registry_controlled_domains::INCLUDE_PRIVATE_REGISTRIES) == "") {
+    if (registry_controlled_domains::GetRegistryLength(
+            origin.GetURL(),
+            registry_controlled_domains::INCLUDE_UNKNOWN_REGISTRIES,
+            registry_controlled_domains::INCLUDE_PRIVATE_REGISTRIES) == 0) {
       return false;
     }
 
@@ -281,17 +279,16 @@ std::optional<base::flat_map<std::string, std::string>> ParseReportingEndpoints(
   }
   base::flat_map<std::string, std::string> parsed_header;
   for (const structured_headers::DictionaryMember& entry : *header_dict) {
-    const std::string* endpoint_url_string =
-        entry.second.member_is_inner_list
-            ? nullptr
-            : entry.second.member.front().item.GetIfString();
-    if (!endpoint_url_string) {
+    if (entry.second.member_is_inner_list ||
+        !entry.second.member.front().item.is_string()) {
       ReportingHeaderParser::RecordReportingHeaderType(
           ReportingHeaderParser::ReportingHeaderType::
               kReportingEndpointsInvalid);
       return std::nullopt;
     }
-    parsed_header[entry.first] = *endpoint_url_string;
+    const std::string& endpoint_url_string =
+        entry.second.member.front().item.GetString();
+    parsed_header[entry.first] = endpoint_url_string;
   }
   return parsed_header;
 }

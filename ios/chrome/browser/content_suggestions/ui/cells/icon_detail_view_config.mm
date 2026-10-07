@@ -14,12 +14,13 @@
 
 - (IconViewConfiguration*)iconViewConfiguration:(BOOL)inSquare {
   _iconViewConfiguration =
-      [IconViewConfiguration configurationWithSymbol:self.symbol];
+      [IconViewConfiguration configurationWithSymbolNamed:self.iconName];
   _iconViewConfiguration.iconName = self.iconName;
   _iconViewConfiguration.iconSource = self.iconSource;
   _iconViewConfiguration.symbolColorPalette = self.symbolColorPalette;
   _iconViewConfiguration.symbolBackgroundColor = self.symbolBackgroundColor;
   _iconViewConfiguration.iconWidth = self.iconWidth;
+  _iconViewConfiguration.defaultSymbol = self.usesDefaultSymbol;
   _iconViewConfiguration.compactLayout =
       (self.layoutType != IconDetailViewLayoutType::kHero);
   _iconViewConfiguration.inSquare = inSquare;
@@ -36,18 +37,19 @@
   viewConfig.descriptionText = [self.descriptionText copy];
   viewConfig.layoutType = self.layoutType;
   viewConfig.backgroundImage = self.backgroundImage;
-  viewConfig.iconSource = self.iconSource;
   viewConfig.iconName = [self.iconName copy];
-  viewConfig.symbol = self.symbol;
+  viewConfig.iconSource = self.iconSource;
   viewConfig.symbolColorPalette = [self.symbolColorPalette copy];
   viewConfig.symbolBackgroundColor = self.symbolBackgroundColor;
+  viewConfig.usesDefaultSymbol = self.usesDefaultSymbol;
   viewConfig.iconWidth = self.iconWidth;
   viewConfig.showCheckmark = self.showCheckmark;
   viewConfig.ntpBackgroundColorPalette = self.ntpBackgroundColorPalette;
-  viewConfig.badgeSymbol = self.badgeSymbol;
+  viewConfig.badgeSymbolName = [self.badgeSymbolName copy];
   viewConfig.badgeColorPalette = [self.badgeColorPalette copy];
   viewConfig.badgeShapeConfig = self.badgeShapeConfig;
   viewConfig.badgeBackgroundColor = self.badgeBackgroundColor;
+  viewConfig.badgeUsesDefaultSymbol = self.badgeUsesDefaultSymbol;
   viewConfig.accessibilityIdentifier = [self.accessibilityIdentifier copy];
   // LINT.ThenChange(icon_detail_view_config.h:Copy)
   return viewConfig;

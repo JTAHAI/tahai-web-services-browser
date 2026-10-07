@@ -18,7 +18,6 @@
 #include "mojo/public/cpp/bindings/message.h"
 #include "net/base/load_timing_info.h"
 #include "net/base/net_errors.h"
-#include "services/network/public/cpp/url_util.h"
 #include "services/network/public/mojom/network_context.mojom.h"
 #include "third_party/blink/public/common/features.h"
 #include "third_party/blink/public/mojom/use_counter/metrics/web_feature.mojom.h"
@@ -52,8 +51,7 @@ DeclarativePerformanceObserver::DeclarativePerformanceObserver(
   }
 
   navigation_start_ = navigation_handle->NavigationStart();
-  committed_url_ =
-      network::SerializeResponseUrlForReporting(navigation_handle->GetURL());
+  committed_url_ = navigation_handle->GetURL();
 
   network_anonymization_key_ =
       rfh->GetIsolationInfoForSubresources().network_anonymization_key();
@@ -153,8 +151,6 @@ void DeclarativePerformanceObserver::OnDidFinishNavigation(
   DCHECK(navigation_handle->IsServedFromBackForwardCache());
 
   navigation_start_ = navigation_handle->NavigationStart();
-  committed_url_ =
-      network::SerializeResponseUrlForReporting(navigation_handle->GetURL());
   buffered_entries_.clear();
   current_buffer_bytes_ = 0;
 
@@ -233,30 +229,11 @@ void DeclarativePerformanceObserver::OnFrameDeleted() {
 
 void DeclarativePerformanceObserver::OnEnterBFCache() {
   EndSessionAndFlush();
-  // When a document enters the BackForwardCache, its execution is suspended
-  // while its document-associated data and Reporting API endpoint configuration
-  // remain intact for potential restoration. Because the document is not
-  // destroyed, SendReportsAndRemoveSource is not invoked. To prevent reports
-  // from waiting on the Network Service's default delivery timer (and risking
-  // data loss if the browser is closed), immediately dispatch any queued
-  // reports for this source via SendReportsForSource while preserving the
-  // endpoint configuration in memory.
-  StoragePartition* storage_partition = GetStoragePartition();
-  if (storage_partition) {
-    storage_partition->GetNetworkContext()->SendReportsForSource(
-        reporting_source_);
-  }
 }
 
 void DeclarativePerformanceObserver::SetStoragePartitionForTesting(  // IN-TEST
     StoragePartition* storage_partition) {
   storage_partition_for_testing_ = storage_partition;
-}
-
-StoragePartition* DeclarativePerformanceObserver::GetStoragePartition() const {
-  return storage_partition_for_testing_
-             ? storage_partition_for_testing_.get()
-             : render_frame_host().GetStoragePartition();
 }
 
 void DeclarativePerformanceObserver::FlushMetrics() {
@@ -269,7 +246,10 @@ void DeclarativePerformanceObserver::FlushMetrics() {
   buffered_entries_.clear();
   current_buffer_bytes_ = 0;
 
-  StoragePartition* storage_partition = GetStoragePartition();
+  StoragePartition* storage_partition =
+      storage_partition_for_testing_
+          ? storage_partition_for_testing_.get()
+          : render_frame_host().GetStoragePartition();
 
   if (storage_partition) {
     storage_partition->GetNetworkContext()->QueueReport(
@@ -389,16 +369,7 @@ void DeclarativePerformanceObserver::DidObservePerformanceEntries(
         dict.Set("renderTime", lcp->render_time.InMillisecondsF());
         dict.Set("loadTime", lcp->load_time.InMillisecondsF());
         dict.Set("id", lcp->id.value_or(""));
-        std::string lcp_url = "";
-        if (lcp->url.has_value() && !lcp->url->empty()) {
-          GURL url(lcp->url.value());
-          if (url.is_valid()) {
-            lcp_url = network::SerializeResponseUrlForReporting(url).spec();
-          } else {
-            lcp_url = lcp->url.value();
-          }
-        }
-        dict.Set("url", lcp_url);
+        dict.Set("url", lcp->url.value_or(""));
         dict.Set("element", lcp->element.value_or(""));
 
         AddEntryToBuffer(std::move(dict));
@@ -504,7 +475,10 @@ void DeclarativePerformanceObserver::RecordEarlyNavigationFailure(
 
 void DeclarativePerformanceObserver::OnEarlyFailureReportsTaken(
     base::ListValue reports) {
-  StoragePartition* storage_partition = GetStoragePartition();
+  StoragePartition* storage_partition =
+      storage_partition_for_testing_
+          ? storage_partition_for_testing_.get()
+          : render_frame_host().GetStoragePartition();
   if (!storage_partition) {
     return;
   }

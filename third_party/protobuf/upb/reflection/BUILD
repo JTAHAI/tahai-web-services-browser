@@ -5,14 +5,14 @@
 # license that can be found in the LICENSE file or at
 # https://developers.google.com/open-source/licenses/bsd
 
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
-load("@rules_cc//cc:defs.bzl", "cc_library")
 load(
     "//editions:defaults.bzl",
     "compile_edition_defaults",
     "embed_edition_defaults",
 )
-load("//upb/bazel:copts.bzl", "UPB_DEFAULT_COPTS", "UPB_DEFAULT_FEATURES")
+load("//upb/bazel:build_defs.bzl", "UPB_DEFAULT_COPTS")
 load(
     "//upb/cmake:build_defs.bzl",
     "staleness_test",
@@ -42,12 +42,8 @@ bootstrap_cc_library(
         "message.h",
         "message.hpp",
     ],
-    bootstrap_deps = [
-        ":internal",
-        ":descriptor_upb_proto",
-    ],
+    bootstrap_deps = [":internal"],
     copts = UPB_DEFAULT_COPTS,
-    features = UPB_DEFAULT_FEATURES,
     visibility = ["//visibility:public"],
     deps = [
         "//upb/base",
@@ -119,7 +115,6 @@ bootstrap_cc_library(
     ],
     bootstrap_deps = [":descriptor_upb_proto"],
     copts = UPB_DEFAULT_COPTS,
-    features = UPB_DEFAULT_FEATURES,
     visibility = ["//visibility:public"],
     deps = [
         "//upb/base",
@@ -145,15 +140,17 @@ cc_library(
         "internal/def_pool.h",
     ],
     copts = UPB_DEFAULT_COPTS,
-    features = UPB_DEFAULT_FEATURES,
     textual_hdrs = [
         "//upb/port:inc",
     ],
-    visibility = ["//upb:friends"],
+    visibility = [
+        "//upb:__pkg__",
+        "//upb:friends",
+    ],
     deps = [
         ":internal",
+        "//upb/mem",
         "//upb/mini_descriptor",
-        "//upb/mini_table",
     ],
 )
 
@@ -176,31 +173,6 @@ cc_test(
         "//upb/mini_table",
         "//upb/port",
         "@abseil-cpp//absl/strings",
-        "@googletest//:gtest",
-        "@googletest//:gtest_main",
-    ],
-)
-
-cc_test(
-    name = "reflection_test",
-    srcs = [
-        "reflection_test.cc",
-    ],
-    deps = [
-        ":internal",
-        ":reflection",
-        "//src/google/protobuf",
-        "//src/google/protobuf:descriptor_upb_c_proto",
-        "//src/google/protobuf:unittest_upb_reflection_proto",
-        "//upb/base",
-        "//upb/mem",
-        "//upb/test:parse_text_proto",
-        "@abseil-cpp//absl/log:absl_check",
-        "@abseil-cpp//absl/log:check",
-        "@abseil-cpp//absl/status",
-        "@abseil-cpp//absl/status:statusor",
-        "@abseil-cpp//absl/strings",
-        "@abseil-cpp//absl/strings:str_format",
         "@googletest//:gtest",
         "@googletest//:gtest_main",
     ],

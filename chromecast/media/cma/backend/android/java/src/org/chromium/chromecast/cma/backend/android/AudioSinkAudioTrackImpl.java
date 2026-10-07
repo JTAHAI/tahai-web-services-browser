@@ -443,9 +443,9 @@ class AudioSinkAudioTrackImpl {
             playtimeLeftNsecs = lastPlayoutTimeNsecs - now;
         } else {
             // We have no timestamp to estimate how much is left to play, so assume the worst case.
-            long mostFramesLeft =
+            long most_frames_left =
                     Math.min(mTotalFramesWritten, mAudioTrack.getBufferSizeInFrames());
-            playtimeLeftNsecs = convertFramesToNanoTime(mostFramesLeft);
+            playtimeLeftNsecs = convertFramesToNanoTime(most_frames_left);
         }
         return (playtimeLeftNsecs < 0) ? 0 : playtimeLeftNsecs / 1000; // return usecs
     }

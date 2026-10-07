@@ -19,6 +19,7 @@
 #include "base/functional/callback.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/memory/weak_ptr.h"
+#include "base/task/single_thread_task_runner.h"
 #include "base/values.h"
 #include "chrome/browser/ash/kcer/kcer_factory_ash.h"
 #include "chrome/browser/ash/profiles/profile_helper.h"
@@ -34,6 +35,7 @@
 #include "components/prefs/pref_service.h"
 #include "components/user_manager/user.h"
 #include "components/user_manager/user_type.h"
+#include "content/public/browser/browser_thread.h"
 #include "net/cert/x509_certificate.h"
 
 namespace client_certificates {
@@ -63,16 +65,21 @@ std::unique_ptr<CertificateStore> KcerCertificateStore::CreateForProfile(
   if (!kcer) {
     return nullptr;
   }
-  return std::make_unique<KcerCertificateStore>(profile->GetPrefs(),
-                                                std::move(kcer));
+  return std::make_unique<KcerCertificateStore>(
+      profile->GetPrefs(), std::move(kcer), content::GetUIThreadTaskRunner({}));
 }
 
-KcerCertificateStore::KcerCertificateStore(PrefService* pref_service,
-                                           base::WeakPtr<kcer::Kcer> kcer)
+KcerCertificateStore::KcerCertificateStore(
+    PrefService* pref_service,
+    base::WeakPtr<kcer::Kcer> kcer,
+    scoped_refptr<base::SequencedTaskRunner> kcer_task_runner)
     : pref_service_(pref_service),
       kcer_(std::move(kcer)),
-      key_factory_(std::make_unique<KcerPrivateKeyFactory>(kcer_)) {
+      kcer_task_runner_(std::move(kcer_task_runner)),
+      key_factory_(
+          std::make_unique<KcerPrivateKeyFactory>(kcer_, kcer_task_runner_)) {
   CHECK(pref_service_);
+  CHECK(kcer_task_runner_);
 }
 
 KcerCertificateStore::~KcerCertificateStore() = default;

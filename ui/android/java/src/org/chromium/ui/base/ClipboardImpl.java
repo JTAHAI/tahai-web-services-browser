@@ -14,7 +14,6 @@ import android.graphics.Bitmap;
 import android.net.Uri;
 import android.os.Build;
 import android.os.PersistableBundle;
-import android.os.TransactionTooLargeException;
 import android.text.Html;
 import android.text.Spanned;
 import android.text.TextUtils;
@@ -43,7 +42,6 @@ import org.chromium.build.annotations.NullUnmarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.components.url_formatter.UrlFormatter;
 import org.chromium.ui.R;
-import org.chromium.ui.base.Clipboard.ClipboardUriMetadata;
 import org.chromium.ui.widget.Toast;
 import org.chromium.url.GURL;
 
@@ -55,7 +53,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 
 /** Simple proxy that provides C++ code with an access pathway to the Android clipboard. */
 @JNINamespace("ui")
@@ -92,7 +89,7 @@ public class ClipboardImpl extends Clipboard
 
     private @Nullable ImageFileProvider mImageFileProvider;
 
-    private @Nullable ClipboardUriMetadata mPendingCopiedImageMetadata;
+    private ImageFileProvider.@Nullable ClipboardFileMetadata mPendingCopiedImageMetadata;
 
     public ClipboardImpl(ClipboardManager clipboardManager) {
         mContext = ContextUtils.getApplicationContext();
@@ -101,9 +98,7 @@ public class ClipboardImpl extends Clipboard
     }
 
     @Override
-    public @Nullable String getCoercedText() {
-        if (!hasCoercedText()) return null;
-
+    protected @Nullable String getCoercedText() {
         // getPrimaryClip() has been observed to throw unexpected exceptions for some devices (see
         // crbug.com/654802 and b/31501780)
         try {
@@ -114,8 +109,11 @@ public class ClipboardImpl extends Clipboard
             if (UiAndroidFeatureMap.isEnabled(
                     UiAndroidFeatures.CLIPBOARD_CONFUSED_DEPUTY_DEFENSE_TEXT)) {
                 Uri uri = item.getUri();
-                if (item.getText() == null && uri != null && !isTextUriSafeForRead(uri)) {
-                    return null;
+                if (item.getText() == null && uri != null) {
+                    if (!ContentResolver.SCHEME_CONTENT.equals(uri.getScheme())
+                            || ContentUriUtils.isUriFromThisApp(uri)) {
+                        return null;
+                    }
                 }
             }
 
@@ -157,10 +155,6 @@ public class ClipboardImpl extends Clipboard
             }
             Uri uri = clipData.getItemAt(0).getUri();
             if (uri != null && !ContentUriUtils.isOpenableFile(uri)) {
-                if (UiAndroidFeatureMap.isEnabled(
-                        UiAndroidFeatures.CLIPBOARD_CONFUSED_DEPUTY_DEFENSE_TEXT)) {
-                    if (!isTextUriSafeForRead(uri)) return null;
-                }
                 return ContentUriUtils.readTextFromUri(uri, ClipDescription.MIMETYPE_TEXT_HTML);
             }
         }
@@ -286,73 +280,24 @@ public class ClipboardImpl extends Clipboard
     @Override
     public @Nullable Uri getImageUriIfSharedByThisApp() {
         if (mImageFileProvider == null) return null;
-        return getUriIfSharedByThisApp(
-                mImageFileProvider.getLastCopiedImageMetadata(),
-                getImageTimestamp(),
-                mImageFileProvider::clearLastCopiedImageMetadata);
-    }
 
-    private @Nullable Uri getTextUriIfSharedByThisApp() {
-        return getUriIfSharedByThisApp(
-                ClipboardTextDataProvider.getLastCopiedMetadata(),
-                getTextTimestamp(),
-                ClipboardTextDataProvider::clearLastCopiedMetadata);
-    }
+        ImageFileProvider.ClipboardFileMetadata imageMetadata =
+                mImageFileProvider.getLastCopiedImageMetadata();
+        if (imageMetadata == null || imageMetadata.uri == null) return null;
 
-    private @Nullable Uri getUriIfSharedByThisApp(
-            @Nullable ClipboardUriMetadata metadata,
-            long clipboardTimestamp,
-            Runnable onTimestampMismatch) {
-        if (metadata == null || metadata.uri == null) return null;
-        if (clipboardTimestamp == ClipboardUriMetadata.INVALID_TIMESTAMP) {
+        long clipboardTimeStamp = getImageTimestamp();
+        if (clipboardTimeStamp == ImageFileProvider.ClipboardFileMetadata.INVALID_TIMESTAMP
+                || mImageFileProvider == null) {
             return null;
         }
 
-        if (clipboardTimestamp != metadata.timestamp) {
-            // The system clipboard does not contain URI from us.
-            onTimestampMismatch.run();
+        if (clipboardTimeStamp != imageMetadata.timestamp) {
+            // The system clipboard does not contain uri from us, we can clean up the data.
+            mImageFileProvider.clearLastCopiedImageMetadata();
             return null;
         }
 
-        return metadata.uri;
-    }
-
-    private long getTextTimestamp() {
-        ClipDescription description = mClipboardManager.getPrimaryClipDescription();
-        if (description == null || !description.hasMimeType("text/*")) {
-            return ClipboardUriMetadata.INVALID_TIMESTAMP;
-        }
-
-        return description.getTimestamp();
-    }
-
-    /**
-     * Checks if a content URI is safe to access under the confused deputy defense.
-     *
-     * @param uri The URI to validate.
-     * @param expectedOwnAppUri The URI previously shared by this app for the current clip, or null.
-     * @return true if the URI is a content URI and does not represent an untrusted own-app URI.
-     */
-    private static boolean isUriSafeForRead(Uri uri, @Nullable Uri expectedOwnAppUri) {
-        if (!ContentResolver.SCHEME_CONTENT.equals(uri.getScheme())) {
-            return false;
-        }
-        if (ContentUriUtils.isUriFromThisApp(uri) && !uri.equals(expectedOwnAppUri)) {
-            return false;
-        }
-        return true;
-    }
-
-    private boolean isTextUriSafeForRead(Uri uri) {
-        return isUriSafeForRead(uri, getTextUriIfSharedByThisApp());
-    }
-
-    private boolean isImageUriSafeForRead(Uri uri) {
-        return isUriSafeForRead(uri, getImageUriIfSharedByThisApp());
-    }
-
-    private static boolean isFileUriSafeForRead(Uri uri) {
-        return isUriSafeForRead(uri, /* expectedOwnAppUri= */ null);
+        return imageMetadata.uri;
     }
 
     @Override
@@ -372,7 +317,13 @@ public class ClipboardImpl extends Clipboard
         // copy operation. Other apps' URIs are bounded by the OS grant model.
         if (UiAndroidFeatureMap.isEnabled(
                 UiAndroidFeatures.CLIPBOARD_CONFUSED_DEPUTY_DEFENSE_IMAGES)) {
-            if (!isImageUriSafeForRead(uri)) return null;
+            if (!ContentResolver.SCHEME_CONTENT.equals(uri.getScheme())) {
+                return null;
+            }
+            if (ContentUriUtils.isUriFromThisApp(uri)
+                    && !uri.equals(getImageUriIfSharedByThisApp())) {
+                return null;
+            }
         }
 
         ContentResolver cr = ContextUtils.getApplicationContext().getContentResolver();
@@ -433,7 +384,7 @@ public class ClipboardImpl extends Clipboard
     private long getImageTimestamp() {
         ClipDescription description = mClipboardManager.getPrimaryClipDescription();
         if (description == null || !description.hasMimeType("image/*")) {
-            return ClipboardUriMetadata.INVALID_TIMESTAMP;
+            return ImageFileProvider.ClipboardFileMetadata.INVALID_TIMESTAMP;
         }
 
         return description.getTimestamp();
@@ -453,9 +404,11 @@ public class ClipboardImpl extends Clipboard
                     // browser from opening private files on behalf of an untrusted paste request.
                     if (UiAndroidFeatureMap.isEnabled(
                             UiAndroidFeatures.CLIPBOARD_CONFUSED_DEPUTY_DEFENSE_FILES)) {
-                        if (!isFileUriSafeForRead(uri)) continue;
+                        if (!ContentResolver.SCHEME_CONTENT.equals(uri.getScheme())
+                                || ContentUriUtils.isUriFromThisApp(uri)) {
+                            continue;
+                        }
                     }
-
                     String uriString = uri.toString();
                     String displayName = ContentUriUtils.maybeGetDisplayName(uriString);
                     if (displayName == null) {
@@ -480,10 +433,13 @@ public class ClipboardImpl extends Clipboard
                 Uri uri = clipData.getItemAt(i).getUri();
                 if (ContentUriUtils.isOpenableFile(uri)) {
                     // Reject non-URIs or URIs originating from this app to prevent the browser from
-                    // opening private files on behalf of an untrusted paste request.
+                    // opening private iles on behalf of an untrusted paste request.
                     if (UiAndroidFeatureMap.isEnabled(
                             UiAndroidFeatures.CLIPBOARD_CONFUSED_DEPUTY_DEFENSE_FILES)) {
-                        if (!isFileUriSafeForRead(uri)) continue;
+                        if (!ContentResolver.SCHEME_CONTENT.equals(uri.getScheme())
+                                || ContentUriUtils.isUriFromThisApp(uri)) {
+                            continue;
+                        }
                     }
                     return true;
                 }
@@ -506,20 +462,14 @@ public class ClipboardImpl extends Clipboard
 
     @Override
     public void setText(final String label, final String text, boolean notifyOnSuccess) {
-        if (setPrimaryClipNoException(ClipData.newPlainText(label, text))) {
-            if (notifyOnSuccess) {
-                showToastIfNeeded(R.string.copied);
-            }
-        } else {
-            showCopyToClipboardFailureMessage();
+        if (setPrimaryClipNoException(ClipData.newPlainText(label, text)) && notifyOnSuccess) {
+            showToastIfNeeded(R.string.copied);
         }
     }
 
     @Override
     void setHTMLText(final String html, final String text) {
-        if (!setPrimaryClipNoException(ClipData.newHtmlText("html", text, html))) {
-            showCopyToClipboardFailureMessage();
-        }
+        setPrimaryClipNoException(ClipData.newHtmlText("html", text, html));
     }
 
     @Override
@@ -528,10 +478,6 @@ public class ClipboardImpl extends Clipboard
         String html = textData.get(ClipDescription.MIMETYPE_TEXT_HTML);
         String text = textData.get(ClipDescription.MIMETYPE_TEXT_PLAIN);
         String webCustomData = textData.get(CHROME_WEB_CUSTOM_DATA_MIME_TYPE);
-
-        if (html != null && TextUtils.isEmpty(text)) {
-            text = Html.fromHtml(html, Html.FROM_HTML_MODE_LEGACY).toString();
-        }
 
         ArrayList<String> mimeTypes = new ArrayList<>();
         ClipData.Item item = null;
@@ -564,9 +510,7 @@ public class ClipboardImpl extends Clipboard
         }
 
         ClipData clip = new ClipData(description, item);
-        if (!setPrimaryClipNoException(clip)) {
-            showCopyToClipboardFailureMessage();
-        }
+        setPrimaryClipNoException(clip);
     }
 
     @Override
@@ -596,9 +540,7 @@ public class ClipboardImpl extends Clipboard
         PersistableBundle extras = new PersistableBundle();
         extras.putBoolean(ClipDescription.EXTRA_IS_SENSITIVE, true);
         clipData.getDescription().setExtras(extras);
-        if (!setPrimaryClipNoException(clipData)) {
-            showCopyToClipboardFailureMessage();
-        }
+        setPrimaryClipNoException(clipData);
     }
 
     @Override
@@ -631,12 +573,8 @@ public class ClipboardImpl extends Clipboard
 
     @Override
     public void setImageUri(Uri uri, ClipData clipData, boolean notifyOnSuccess) {
-        if (setPrimaryClipNoException(clipData)) {
-            if (notifyOnSuccess) {
-                showToastIfNeeded(R.string.image_copied);
-            }
-        } else {
-            showCopyToClipboardFailureMessage();
+        if (setPrimaryClipNoException(clipData) && notifyOnSuccess) {
+            showToastIfNeeded(R.string.image_copied);
         }
 
         // Storing timestamp is for avoiding accessing the system clipboard data, which may
@@ -649,10 +587,11 @@ public class ClipboardImpl extends Clipboard
         long imageTimestamp = getImageTimestamp();
 
         if (mImageFileProvider == null) {
-            mPendingCopiedImageMetadata = new ClipboardUriMetadata(uri, imageTimestamp);
+            mPendingCopiedImageMetadata =
+                    new ImageFileProvider.ClipboardFileMetadata(uri, imageTimestamp);
         } else {
             mImageFileProvider.storeLastCopiedImageMetadata(
-                    new ClipboardUriMetadata(uri, imageTimestamp));
+                    new ImageFileProvider.ClipboardFileMetadata(uri, imageTimestamp));
         }
     }
 
@@ -712,68 +651,17 @@ public class ClipboardImpl extends Clipboard
 
     @VisibleForTesting
     boolean setPrimaryClipNoException(@Nullable ClipData clip) {
-        // Attempt to set the payload to clipboard directly.
-        try {
-            setPrimaryClip(clip);
-            return true;
-        } catch (Exception ex) {
-            // If setting inline throws TransactionTooLargeException, fall back to
-            // offloading oversized payload to ClipboardTextDataProvider.
-            if (ex instanceof RuntimeException
-                    && ex.getCause() instanceof TransactionTooLargeException
-                    && UiAndroidFeatureMap.isEnabled(
-                            UiAndroidFeatures.CLIPBOARD_OVERSIZED_PAYLOAD_PROVIDER)) {
-                return setOversizedTextPrimaryClip(clip);
-            }
-            return false;
-        }
-    }
-
-    private boolean setOversizedTextPrimaryClip(ClipData clip) {
-        ClipData.Item item = clip.getItemAt(0);
-        String text = Objects.toString(item.getText(), null);
-        String html = item.getHtmlText();
-
-        // Offload HTML to provider URI while keeping text inline.
-        if (html != null) {
-            Uri uri = ClipboardTextDataProvider.store(/* text= */ null, html);
-            if (uri != null) {
-                try {
-                    setPrimaryClip(
-                            new ClipData(
-                                    clip.getDescription(),
-                                    new ClipData.Item(text, null, null, uri)));
-                    ClipboardTextDataProvider.storeLastCopiedMetadata(
-                            new ClipboardUriMetadata(uri, getTextTimestamp()));
-                    return true;
-                } catch (Exception ignored) {
-                }
-            }
-        }
-
-        // Offload both text and HTML to provider URI.
-        Uri uri = ClipboardTextDataProvider.store(text, html);
-        if (uri != null) {
-            try {
-                setPrimaryClip(
-                        new ClipData(
-                                clip.getDescription(), new ClipData.Item(null, null, null, uri)));
-                ClipboardTextDataProvider.storeLastCopiedMetadata(
-                        new ClipboardUriMetadata(uri, getTextTimestamp()));
-                return true;
-            } catch (Exception ignored) {
-            }
-        }
-        return false;
-    }
-
-    private void setPrimaryClip(@Nullable ClipData clip) {
         final String manufacturer = Build.MANUFACTURER.toLowerCase(Locale.US);
         // See crbug.com/1123727, there are OEM devices having strict mode violations in their
         // Android framework code. Disabling strict mode for non-google devices.
         try (StrictModeContext ignored =
                 manufacturer.equals("google") ? null : StrictModeContext.allowAllThreadPolicies()) {
             mClipboardManager.setPrimaryClip(clip);
+            return true;
+        } catch (Exception ex) {
+            // Ignore any exceptions here as certain devices have bugs and will fail.
+            showCopyToClipboardFailureMessage();
+            return false;
         }
     }
 
@@ -812,8 +700,6 @@ public class ClipboardImpl extends Clipboard
                         new ClipData.Item(url.getSpec()));
         if (setPrimaryClipNoException(clip)) {
             showToastIfNeeded(R.string.link_copied);
-        } else {
-            showCopyToClipboardFailureMessage();
         }
     }
 

@@ -7,6 +7,7 @@
 #include <stdint.h>
 #include <vector>
 
+#include "ash/constants/ash_features.h"
 #include "ash/ime/ime_controller_impl.h"
 #include "ash/rgb_keyboard/histogram_util.h"
 #include "ash/rgb_keyboard/rgb_keyboard_manager_observer.h"
@@ -152,6 +153,10 @@ void RgbKeyboardManager::SetRainbowMode() {
 }
 
 void RgbKeyboardManager::SetAnimationMode(rgbkbd::RgbAnimationMode mode) {
+  if (!features::IsExperimentalRgbKeyboardPatternsEnabled()) {
+    LOG(ERROR) << "Attempted to set RGB animation mode, but flag is disabled.";
+    return;
+  }
 
   DCHECK(RgbkbdClient::Get());
   VLOG(1) << "Setting RGB keyboard animation mode to "

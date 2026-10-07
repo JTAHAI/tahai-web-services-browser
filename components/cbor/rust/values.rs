@@ -7,6 +7,8 @@
 // `MapKey`), remove all manual inspection (`kind()`) and payload extraction
 // (`as_int()`, `as_string()`, `as_array()`, etc.) methods below, as well as the
 // `MapKeyKind` and `ValueKind` proxy enums.
+use alloc::collections::BTreeMap;
+use alloc::string::String;
 use alloc::vec::Vec;
 use core::cmp::Ordering;
 
@@ -22,7 +24,7 @@ pub enum ValueKind {
     Array = 3,
     Map = 4,
     Boolean = 5,
-    // Obsolete: Float = 6,
+    Float = 6,
     Null = 7,
     Undefined = 8,
     InvalidUtf8 = 9,
@@ -34,22 +36,25 @@ pub enum ValueKind {
 /// integers outside the range of an `i64` result in an error during parsing.
 /// Byte strings are returned as `Bytes`s in order to avoid copies.
 #[derive(Debug, PartialEq, Clone)]
-pub enum Value<'a> {
+pub enum Value {
     Int(i64),
-    Bytestring(&'a [u8]),
-    String(&'a str),
-    Array(Vec<Value<'a>>),
-    Map(Map<'a>),
+    Bytestring(Vec<u8>),
+    String(String),
+    Array(Vec<Value>),
+    Map(BTreeMap<MapKey, Value>),
     Boolean(bool),
+    Float(f64),
     Null,
     Undefined,
-    InvalidUtf8(&'a [u8]),
+    InvalidUtf8(Vec<u8>),
 }
 
-impl<'a> Value<'a> {
+impl Value {
     // to_bytes serialises `self` to CBOR and returns the result.
     pub fn to_bytes(&self) -> Vec<u8> {
-        writer::write(self)
+        let mut ret = Vec::new();
+        self.append_bytes(&mut ret);
+        ret
     }
 
     // append_bytes appends a serialisation of `self` to `out`.
@@ -59,151 +64,93 @@ impl<'a> Value<'a> {
 
     pub fn kind(&self) -> ValueKind {
         match self {
-            Self::Int(_) => ValueKind::Int,
-            Self::Bytestring(_) => ValueKind::Bytestring,
-            Self::String(_) => ValueKind::String,
-            Self::Array(_) => ValueKind::Array,
-            Self::Map(_) => ValueKind::Map,
-            Self::Boolean(_) => ValueKind::Boolean,
-            Self::Null => ValueKind::Null,
-            Self::Undefined => ValueKind::Undefined,
-            Self::InvalidUtf8(_) => ValueKind::InvalidUtf8,
+            Value::Int(_) => ValueKind::Int,
+            Value::Bytestring(_) => ValueKind::Bytestring,
+            Value::String(_) => ValueKind::String,
+            Value::Array(_) => ValueKind::Array,
+            Value::Map(_) => ValueKind::Map,
+            Value::Boolean(_) => ValueKind::Boolean,
+            Value::Float(_) => ValueKind::Float,
+            Value::Null => ValueKind::Null,
+            Value::Undefined => ValueKind::Undefined,
+            Value::InvalidUtf8(_) => ValueKind::InvalidUtf8,
         }
     }
 
     pub fn as_int(&self) -> Option<i64> {
         match self {
-            Self::Int(v) => Some(*v),
+            Value::Int(v) => Some(*v),
             _ => None,
         }
     }
 
     pub fn as_bool(&self) -> Option<bool> {
         match self {
-            Self::Boolean(v) => Some(*v),
+            Value::Boolean(v) => Some(*v),
             _ => None,
         }
     }
 
-    pub fn as_bytestring(&self) -> Option<&'a [u8]> {
+    pub fn as_float(&self) -> Option<f64> {
         match self {
-            Self::Bytestring(v) => Some(v),
+            Value::Float(v) => Some(*v),
             _ => None,
         }
     }
 
-    pub fn as_string(&self) -> Option<&'a str> {
+    pub fn as_bytestring(&self) -> Option<&[u8]> {
         match self {
-            Self::String(s) => Some(s),
+            Value::Bytestring(v) => Some(v.as_slice()),
             _ => None,
         }
     }
 
-    pub fn as_invalid_utf8(&self) -> Option<&'a [u8]> {
+    pub fn as_string(&self) -> Option<&str> {
         match self {
-            Self::InvalidUtf8(v) => Some(v),
+            Value::String(s) => Some(s.as_str()),
             _ => None,
         }
     }
 
-    pub fn as_array(&self) -> Option<&[Value<'a>]> {
+    pub fn as_invalid_utf8(&self) -> Option<&[u8]> {
         match self {
-            Self::Array(v) => Some(v),
+            Value::InvalidUtf8(v) => Some(v.as_slice()),
             _ => None,
         }
     }
 
-    pub fn map_entries(&self) -> Option<&[MapEntry<'a>]> {
+    pub fn as_array(&self) -> Option<&[Value]> {
         match self {
-            Self::Map(m) => Some(m),
+            Value::Array(v) => Some(v.as_slice()),
+            _ => None,
+        }
+    }
+
+    pub fn map_entries(&self) -> Option<Vec<MapEntryRef<'_>>> {
+        match self {
+            Value::Map(m) => {
+                Some(m.iter().map(|(k, v)| MapEntryRef { key: k, value: v }).collect())
+            }
             _ => None,
         }
     }
 }
 
-impl<'a> From<MapKey<'a>> for Value<'a> {
-    fn from(key: MapKey<'a>) -> Self {
+impl From<MapKey> for Value {
+    fn from(key: MapKey) -> Self {
         match key {
-            MapKey::Int(val) => Self::Int(val),
-            MapKey::Bytestring(bytes) => Self::Bytestring(bytes),
-            MapKey::String(text) => Self::String(text),
+            MapKey::Int(val) => Value::Int(val),
+            MapKey::Bytestring(bytes) => Value::Bytestring(bytes),
+            MapKey::String(text) => Value::String(text),
         }
     }
 }
 
 #[repr(C)]
 #[derive(Debug, PartialEq, Clone)]
-pub struct MapEntry<'a> {
-    pub key: MapKey<'a>,
-    pub value: Value<'a>,
-}
-
-impl<'a> From<(MapKey<'a>, Value<'a>)> for MapEntry<'a> {
-    fn from((key, value): (MapKey<'a>, Value<'a>)) -> Self {
-        Self { key, value }
-    }
-}
-
-/// A wrapper around `Vec<MapEntry<'a>>` that represents a collection whose
-/// elements are guaranteed to be sorted by key and unique.
-#[derive(Debug, PartialEq, Clone, Default)]
-pub struct Map<'a>(Vec<MapEntry<'a>>);
-
-impl<'a> Map<'a> {
-    pub fn new() -> Self {
-        Self(Vec::new())
-    }
-
-    /// Creates a new `Map` from a `Vec` without checking if the elements
-    /// are sorted or unique in release builds.
-    ///
-    /// Caller must ensure that `vec` is sorted by key and unique.
-    pub fn from_sorted_vec_unchecked(vec: Vec<MapEntry<'a>>) -> Self {
-        debug_assert!(
-            vec.is_sorted_by(|a, b| a.key < b.key),
-            "CBOR map entries must be sorted by key and unique"
-        );
-        Self(vec)
-    }
-
-    /// Looks up a value by its `MapKey` using binary search.
-    pub fn get(&self, key: &MapKey<'_>) -> Option<&Value<'a>> {
-        let index = self.0.binary_search_by_key(&key, |entry| &entry.key).ok()?;
-        Some(&self.0[index].value)
-    }
-}
-
-impl<'a> From<Vec<MapEntry<'a>>> for Map<'a> {
-    fn from(mut vec: Vec<MapEntry<'a>>) -> Self {
-        vec.sort_by(|a, b| a.key.cmp(&b.key));
-        Self(vec)
-    }
-}
-
-impl<'a> core::ops::Deref for Map<'a> {
-    type Target = [MapEntry<'a>];
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl<'a> IntoIterator for Map<'a> {
-    type Item = MapEntry<'a>;
-    type IntoIter = alloc::vec::IntoIter<MapEntry<'a>>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.0.into_iter()
-    }
-}
-
-impl<'a, 'b> IntoIterator for &'b Map<'a> {
-    type Item = &'b MapEntry<'a>;
-    type IntoIter = core::slice::Iter<'b, MapEntry<'a>>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.0.iter()
-    }
+pub struct MapEntryRef<'a> {
+    pub key: &'a MapKey,
+    pub value: &'a Value,
 }
 
 #[repr(C)]
@@ -215,8 +162,8 @@ pub enum MapKeyKind {
 }
 
 /// A MapKey is the type of values that can key a CBOR map.
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
-pub enum MapKey<'a> {
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub enum MapKey {
     // A separate `MapKey` type is used because we want to exclude things like
     // maps keyed by arrays or other maps. Such structures never appear in
     // CTAP and so we don't need to support them.
@@ -227,70 +174,70 @@ pub enum MapKey<'a> {
     // know what the key type should be, yet calling code will want to expect
     // the right type of map. Thus we end up supporting heterogeneous maps.
     Int(i64),
-    Bytestring(&'a [u8]),
-    String(&'a str),
+    Bytestring(Vec<u8>),
+    String(String),
 }
 
-impl<'a> MapKey<'a> {
-    pub(crate) fn type_arg_and_payload(&self) -> (u8, u64, Option<&'a [u8]>) {
+impl MapKey {
+    pub(crate) fn type_arg_and_payload(&self) -> (u8, u64, Option<&[u8]>) {
         match self {
-            Self::Int(v) if *v >= 0 => (MAJOR_TYPE_UNSIGNED_INT, *v as u64, None),
-            Self::Int(v) => (MAJOR_TYPE_NEGATIVE_INT, !*v as u64, None),
-            Self::Bytestring(b) => (MAJOR_TYPE_BYTE_STRING, b.len() as u64, Some(b)),
-            Self::String(s) => (MAJOR_TYPE_TEXT_STRING, s.len() as u64, Some(s.as_bytes())),
+            MapKey::Int(v) if *v >= 0 => (MAJOR_TYPE_UNSIGNED_INT, *v as u64, None),
+            MapKey::Int(v) => (MAJOR_TYPE_NEGATIVE_INT, !*v as u64, None),
+            MapKey::Bytestring(b) => (MAJOR_TYPE_BYTE_STRING, b.len() as u64, Some(b)),
+            MapKey::String(s) => (MAJOR_TYPE_TEXT_STRING, s.len() as u64, Some(s.as_bytes())),
         }
     }
 
     pub fn kind(&self) -> MapKeyKind {
         match self {
-            Self::Int(_) => MapKeyKind::Int,
-            Self::Bytestring(_) => MapKeyKind::Bytestring,
-            Self::String(_) => MapKeyKind::String,
+            MapKey::Int(_) => MapKeyKind::Int,
+            MapKey::Bytestring(_) => MapKeyKind::Bytestring,
+            MapKey::String(_) => MapKeyKind::String,
         }
     }
 
     pub fn as_int(&self) -> Option<i64> {
         match self {
-            Self::Int(v) => Some(*v),
+            MapKey::Int(v) => Some(*v),
             _ => None,
         }
     }
 
-    pub fn as_bytestring(&self) -> Option<&'a [u8]> {
+    pub fn as_bytestring(&self) -> Option<&[u8]> {
         match self {
-            Self::Bytestring(v) => Some(v),
+            MapKey::Bytestring(v) => Some(v.as_slice()),
             _ => None,
         }
     }
 
-    pub fn as_string(&self) -> Option<&'a str> {
+    pub fn as_string(&self) -> Option<&str> {
         match self {
-            Self::String(s) => Some(s),
+            MapKey::String(s) => Some(s.as_str()),
             _ => None,
         }
     }
 }
 
-impl<'a> TryFrom<Value<'a>> for MapKey<'a> {
-    type Error = Value<'a>;
+impl TryFrom<Value> for MapKey {
+    type Error = Value;
 
-    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
+    fn try_from(value: Value) -> Result<Self, Value> {
         match value {
-            Value::Int(val) => Ok(Self::Int(val)),
-            Value::Bytestring(bytes) => Ok(Self::Bytestring(bytes)),
-            Value::String(text) => Ok(Self::String(text)),
+            Value::Int(val) => Ok(MapKey::Int(val)),
+            Value::Bytestring(bytes) => Ok(MapKey::Bytestring(bytes)),
+            Value::String(text) => Ok(MapKey::String(text)),
             _ => Err(value),
         }
     }
 }
 
-impl PartialOrd for MapKey<'_> {
+impl PartialOrd for MapKey {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl Ord for MapKey<'_> {
+impl Ord for MapKey {
     fn cmp(&self, other: &Self) -> Ordering {
         self.type_arg_and_payload().cmp(&other.type_arg_and_payload())
     }

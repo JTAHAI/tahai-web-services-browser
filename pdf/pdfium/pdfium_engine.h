@@ -20,8 +20,6 @@
 #include "base/containers/span.h"
 #include "base/functional/callback.h"
 #include "base/functional/callback_helpers.h"
-#include "base/functional/function_ref.h"
-#include "base/i18n/rtl.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/time/time.h"
@@ -123,9 +121,9 @@ enum class FontMappingMode {
 };
 
 enum class DocumentPermission {
-  kPrintLowQuality,
   kCopy,
   kCopyAccessible,
+  kPrintLowQuality,
   kPrintHighQuality,
 };
 
@@ -192,11 +190,6 @@ class PDFiumEngine : public DocumentLoader::Client,
     PDFLoadedWithInkTextAnnotations ink_text_annotations;
     PDFLoadedWithV2InkAnnotations v2_ink_path;
   };
-  using InkModeledShapeMap =
-      std::map<InkModeledShapeId,
-               base::RawPtrIfPtrT<FPDF_PAGEOBJECT, DanglingUntriaged>>;
-  using PageObjectVector =
-      std::vector<base::RawPtrIfPtrT<FPDF_PAGEOBJECT, DanglingUntriaged>>;
 #endif
 
   // NOTE: `script_option` is ignored when PDF_ENABLE_V8 is not defined.
@@ -279,19 +272,6 @@ class PDFiumEngine : public DocumentLoader::Client,
   void Undo();
   void Redo();
 
-  // Sets the text direction for the currently focused form field. Returns false
-  // if there is no focused form field, or if the focused form field is of a
-  // type that does not support text direction (e.g. buttons).
-  // Virtual to support testing.
-  virtual bool SetFocusedFormTextDirection(base::i18n::TextDirection direction);
-
-  // Gets the text direction for the currently focused form field. Returns
-  // std::nullopt if there is no focused form field, or if the focused form
-  // field is of a type that does not support text direction.
-  // Virtual to support testing.
-  virtual std::optional<base::i18n::TextDirection> GetFocusedFormTextDirection()
-      const;
-
   // Handles actions invoked by Accessibility clients.
   void HandleAccessibilityAction(const AccessibilityActionData& action_data);
 
@@ -317,9 +297,6 @@ class PDFiumEngine : public DocumentLoader::Client,
 
   // Gets metadata about the document.
   virtual const DocumentMetadata& GetDocumentMetadata() const;
-
-  // Gets the filename from the response Content-Disposition header, if any.
-  virtual std::string GetFileNameFromContentDisposition() const;
 
   // Gets the number of pages in the document.
   virtual int GetNumberOfPages() const;
@@ -385,7 +362,7 @@ class PDFiumEngine : public DocumentLoader::Client,
 
   void MoveRangeSelectionExtent(const gfx::Point& extent);
 
-  void SetSelectionBase(const gfx::Point& base);
+  void SetSelectionBounds(const gfx::Point& base, const gfx::Point& extent);
 
   std::optional<Selection> GetSelection() const;
 
@@ -412,7 +389,7 @@ class PDFiumEngine : public DocumentLoader::Client,
   // exceeds a threshold. This method should be called after making sure the
   // document is loaded to ensure the pages are available for checking;
   // otherwise, it may return false if pages are not yet available.
-  virtual bool HasMeaningfulText();
+  virtual bool HasMeaningfulText() const;
 
   // Returns true if the PDF contains JavaScript actions. This method should be
   // called after the document is loaded; otherwise, it returns false if the
@@ -426,7 +403,7 @@ class PDFiumEngine : public DocumentLoader::Client,
 
   // Returns a copy of the structure tree which describes the logical
   // organization of the PDF, if present.
-  std::unique_ptr<AccessibilityStructureElement> GetStructureTree();
+  std::unique_ptr<AccessibilityStructureElement> GetStructureTree() const;
 
   virtual uint32_t GetLoadedByteSize();
 
@@ -501,7 +478,7 @@ class PDFiumEngine : public DocumentLoader::Client,
   // Scans the document to detect the presence of Ink annotations (Ink text
   // annotations and "V2" Ink paths) within `timeout`. Virtual to support
   // testing.
-  virtual InkIdentifiers ScanForInkAnnotations(base::TimeDelta timeout);
+  virtual InkIdentifiers ScanForInkAnnotations(base::TimeDelta timeout) const;
 
   // Loads "V2" Ink paths from a page in the PDF identified by `page_index`. The
   // `page_index` must be in bounds.
@@ -566,7 +543,8 @@ class PDFiumEngine : public DocumentLoader::Client,
   // device coordinates. Virtual to support testing.
   virtual void OnTextOrLinkAreaClick(const gfx::PointF& point, int click_count);
 
-  const InkModeledShapeMap& ink_modeled_shape_map_for_testing() const {
+  const std::map<InkModeledShapeId, FPDF_PAGEOBJECT>&
+  ink_modeled_shape_map_for_testing() const {
     return ink_modeled_shape_map_;
   }
 
@@ -801,14 +779,6 @@ class PDFiumEngine : public DocumentLoader::Client,
   friend class SelectionChangeInvalidator;
 
   gfx::Size plugin_size() const;
-
-  // Iterates through all pages in the document safely. Takes a snapshot of page
-  // weak pointers to protect against re-entrant container modifications.
-  void ForEachPage(base::FunctionRef<void(PDFiumPage*)> callback);
-
-  // Same as ForEachPage(), but iterates through all pages or until `callback`
-  // returns true. Returns whether early exit occurred.
-  bool ForEachPageUntilTrue(base::FunctionRef<bool(PDFiumPage*)> callback);
 
   // We finished getting the pdf file, so load it. This will complete
   // asynchronously (due to password fetching) and may be run multiple times.
@@ -1216,7 +1186,7 @@ class PDFiumEngine : public DocumentLoader::Client,
 
 #if BUILDFLAG(ENABLE_PDF_INK2)
   struct InkTextData {
-    InkTextData(int page_index, PageObjectVector page_objects);
+    InkTextData(int page_index, std::vector<FPDF_PAGEOBJECT> page_objects);
     InkTextData(InkTextData&&) noexcept;
     InkTextData& operator=(InkTextData&&) noexcept;
     ~InkTextData();
@@ -1226,7 +1196,7 @@ class PDFiumEngine : public DocumentLoader::Client,
     // The handles for text page objects within the PDF document.
     // `edited_pages_unload_preventers_` protects these handles from going
     // stale.
-    PageObjectVector page_objects;
+    std::vector<FPDF_PAGEOBJECT> page_objects;
   };
 
   // Returns the next available textbox ID, avoiding collisions with
@@ -1475,7 +1445,11 @@ class PDFiumEngine : public DocumentLoader::Client,
   // downloading.
   bool process_when_pending_request_complete_ = true;
 
-  std::optional<PageCharacterIndex> range_selection_base_;
+  enum class RangeSelectionDirection { Left, Right };
+  RangeSelectionDirection range_selection_direction_ =
+      RangeSelectionDirection::Right;
+
+  gfx::Point range_selection_base_;
 
   bool edit_mode_ = false;
 
@@ -1503,7 +1477,7 @@ class PDFiumEngine : public DocumentLoader::Client,
       edited_pages_unload_preventers_;
 
   struct InkStrokeData {
-    InkStrokeData(int page_index, PageObjectVector page_objects);
+    InkStrokeData(int page_index, std::vector<FPDF_PAGEOBJECT> page_objects);
     InkStrokeData(InkStrokeData&&) noexcept;
     InkStrokeData& operator=(InkStrokeData&&) noexcept;
     ~InkStrokeData();
@@ -1513,7 +1487,7 @@ class PDFiumEngine : public DocumentLoader::Client,
     // The handles for stroke path page objects within the PDF document.
     // `edited_pages_unload_preventers_` protects these handles from going
     // stale.
-    PageObjectVector page_objects;
+    std::vector<FPDF_PAGEOBJECT> page_objects;
   };
 
   // Data associated for Ink strokes, keyed by stroke IDs.
@@ -1536,7 +1510,7 @@ class PDFiumEngine : public DocumentLoader::Client,
 
   // Key: ID to identify a shape.
   // Value: The PDFium page object associated with the shape.
-  InkModeledShapeMap ink_modeled_shape_map_;
+  std::map<InkModeledShapeId, FPDF_PAGEOBJECT> ink_modeled_shape_map_;
 
   // Key: ID to identify the font.
   // Value: The associated PDFium font objects.

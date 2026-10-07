@@ -5,19 +5,17 @@
 #ifndef CHROME_BROWSER_UI_TABS_SHARED_TAB_GROUP_VERSION_UPGRADE_MODAL_H_
 #define CHROME_BROWSER_UI_TABS_SHARED_TAB_GROUP_VERSION_UPGRADE_MODAL_H_
 
-class BrowserWindowInterface;
+class Browser;
 
 namespace tab_groups {
 
 // Displays a modal dialog prompting the user to update Chrome when their client
 // is too old to open a shared tab group.
-void MaybeShowSharedTabGroupVersionOutOfDateModal(
-    BrowserWindowInterface* browser);
+void MaybeShowSharedTabGroupVersionOutOfDateModal(Browser* browser);
 
 // Displays a toast notification after a successful Chrome update, indicating
 // that the user can now see and use shared tab groups.
-void MaybeShowSharedTabGroupVersionUpToDateToast(
-    BrowserWindowInterface* browser);
+void MaybeShowSharedTabGroupVersionUpToDateToast(Browser* browser);
 
 }  // namespace tab_groups
 

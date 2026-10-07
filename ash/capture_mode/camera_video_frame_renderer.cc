@@ -21,7 +21,7 @@
 #include "ui/aura/env.h"
 #include "ui/aura/window_tree_host.h"
 #include "ui/compositor/compositor.h"
-#include "ui/compositor/layer_surface.h"
+#include "ui/compositor/layer.h"
 #include "ui/gfx/geometry/dip_util.h"
 #include "ui/gfx/geometry/size_conversions.h"
 
@@ -47,9 +47,8 @@ CameraVideoFrameRenderer::CameraVideoFrameRenderer(
           GetContextFactory()->SharedMainThreadRasterContextProvider()),
       should_flip_frames_horizontally_(should_flip_frames_horizontally) {
   host_window_.set_owned_by_parent(false);
-  host_window_.Init(ui::LAYER_SURFACE);
-  host_window_.layer()->AsSurface()->SetFallbackBackgroundColor(
-      SkColors::kDkGray);
+  host_window_.Init(ui::LAYER_SOLID_COLOR);
+  host_window_.layer()->AsSolidColor()->SetColor(SkColors::kDkGray);
   host_window_.SetName("CameraVideoFramesHost");
 }
 

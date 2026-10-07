@@ -78,7 +78,7 @@ base::DictValue SampleTextBoxRectDict();
 
 InkTextBoxAttributes SampleInkTextBoxAttributes();
 
-InkTextBoxAttributes SampleInkTextBoxAttributesWithText(std::string text);
+InkTextBoxAttributes SampleInkTextBoxAttributesWithText(std::string_view text);
 
 // Matches `SampleTextAttributesDict()`, `SampleTextBoxRectDict()`, and
 // `SampleFinishTextAnnotationData()`.
@@ -112,21 +112,50 @@ base::DictValue SampleFinishTextAnnotationDataWithSource(
     std::string_view source);
 
 MATCHER_P6(InkAffineTransformEq,
-           expected_m00,
-           expected_m10,
-           expected_m20,
-           expected_m01,
-           expected_m11,
-           expected_m21,
+           expected_a,
+           expected_b,
+           expected_c,
+           expected_d,
+           expected_e,
+           expected_f,
            "") {
   using testing::FloatEq;
   using testing::Matches;
-  return Matches(FloatEq(expected_m00))(arg.M00()) &&
-         Matches(FloatEq(expected_m10))(arg.M10()) &&
-         Matches(FloatEq(expected_m20))(arg.M20()) &&
-         Matches(FloatEq(expected_m01))(arg.M01()) &&
-         Matches(FloatEq(expected_m11))(arg.M11()) &&
-         Matches(FloatEq(expected_m21))(arg.M21());
+  return Matches(FloatEq(expected_a))(arg.A()) &&
+         Matches(FloatEq(expected_b))(arg.B()) &&
+         Matches(FloatEq(expected_c))(arg.C()) &&
+         Matches(FloatEq(expected_d))(arg.D()) &&
+         Matches(FloatEq(expected_e))(arg.E()) &&
+         Matches(FloatEq(expected_f))(arg.F());
+}
+
+MATCHER_P10(InkTextBoxAttributesEq,
+            rect,
+            color,
+            css_font_size,
+            typeface,
+            alignment,
+            orientation,
+            viewport_orientation,
+            is_bold,
+            is_italic,
+            text,
+            testing::PrintToString(InkTextBoxAttributes(rect,
+                                                        color,
+                                                        css_font_size,
+                                                        typeface,
+                                                        alignment,
+                                                        orientation,
+                                                        viewport_orientation,
+                                                        /*is_bold=*/is_bold,
+                                                        /*is_italic=*/is_italic,
+                                                        text))) {
+  return arg.rect == rect && arg.color == color &&
+         arg.css_font_size == css_font_size && arg.typeface == typeface &&
+         arg.alignment == alignment && arg.orientation == orientation &&
+         arg.viewport_orientation == viewport_orientation &&
+         arg.is_bold == is_bold && arg.is_italic == is_italic &&
+         arg.text == text;
 }
 
 bool InkTextInfoEquals(const InkTextInfo& lhs, const InkTextInfo& rhs);

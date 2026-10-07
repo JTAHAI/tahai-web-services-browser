@@ -36,7 +36,6 @@ import org.chromium.ui.base.ActivityWindowAndroid;
 import org.chromium.ui.base.ViewAndroidDelegate;
 import org.chromium.ui.base.ViewUtils;
 import org.chromium.ui.base.WindowAndroid;
-import org.chromium.ui.base.WindowAndroid.KeyboardShortcutsDelegate;
 import org.chromium.ui.modaldialog.ModalDialogManager;
 import org.chromium.ui.widget.AnchoredPopupWindow;
 import org.chromium.ui.widget.ViewRectProvider;
@@ -102,8 +101,7 @@ class ExtensionActionPopup implements Destroyable {
             ExtensionActionPopupContents contents,
             @Nullable ContextMenuPopulatorFactory contextMenuPopulatorFactory,
             @Nullable SelectionDropdownMenuDelegate selectionDropdownMenuDelegate,
-            TabModelSelector tabModelSelector,
-            boolean inspectWithDevTools) {
+            TabModelSelector tabModelSelector) {
         mActivity = activity;
         mActionId = actionId;
         mContents = contents;
@@ -159,11 +157,7 @@ class ExtensionActionPopup implements Destroyable {
                         new ViewRectProvider(anchorView));
 
         mPopupWindow.setHorizontalOverlapAnchor(true);
-
-        // The popup should close on focus loss only if it's not being inspected. Otherwise,
-        // opening the devtools window would automatically close the popup.
-        mPopupWindow.setOutsideTouchable(!inspectWithDevTools);
-        mPopupWindow.setDismissOnScreenSizeChange(!inspectWithDevTools);
+        mPopupWindow.setOutsideTouchable(true);
         mPopupWindow.setAllowNonTouchableSize(true);
 
         Resources resources = mActivity.getResources();
@@ -174,15 +168,16 @@ class ExtensionActionPopup implements Destroyable {
         mPopupWindow.setDesiredContentSize(
                 resources.getDimensionPixelSize(R.dimen.extension_action_popup_min_width),
                 resources.getDimensionPixelSize(R.dimen.extension_action_popup_min_height));
-        mPopupWindow.setFocusable(!inspectWithDevTools);
+        mPopupWindow.setFocusable(true);
 
         mTabModelSelector = tabModelSelector;
         mCurrentTabObserver =
                 tab -> {
                     if (mPopupWindow.isShowing()) {
                         // Due to inherent differences between platforms on focus handling, we
-                        // explicitly observe tab changes and dismiss, matching Desktop's
-                        // OnTabStripModelChanged behavior.
+                        // explicitly observe tab changes and dismiss, unlike on Desktop where
+                        // the popup is automatically dismissed as it loses focus due to the tab
+                        // change.
                         mPopupWindow.dismiss();
                     }
                 };
@@ -229,26 +224,15 @@ class ExtensionActionPopup implements Destroyable {
                         .setCanPlayMoveAnimation(false);
             }
 
-            int targetWidthPx = ViewUtils.dpToPx(mActivity, width);
-            int targetHeightPx = ViewUtils.dpToPx(mActivity, height);
-
-            View decorView = mActivity.getWindow().getDecorView();
-            int maxAvailableWidthPx = decorView.getWidth();
-            int maxAvailableHeightPx = decorView.getHeight();
-
-            if (maxAvailableWidthPx > 0) {
-                targetWidthPx = Math.min(targetWidthPx, maxAvailableWidthPx);
-            }
-            if (maxAvailableHeightPx > 0) {
-                targetHeightPx = Math.min(targetHeightPx, maxAvailableHeightPx);
-            }
-
-            mPopupWindow.setDesiredContentSize(targetWidthPx, targetHeightPx);
+            mPopupWindow.setDesiredContentSize(
+                    ViewUtils.dpToPx(mActivity, width), ViewUtils.dpToPx(mActivity, height));
         }
 
         @Override
-        public boolean handleKeyboardEvent(@Nullable KeyEvent event) {
-            return ExtensionActionPopup.handleKeyboardEvent(mActivity, event);
+        public boolean handleKeyboardEvent(WebContents webContents, KeyEvent event) {
+            // We send unhandled keyboard events to the main {@link Activity} so that unconsumed
+            // keybindings pass through to the application window.
+            return mActivity.dispatchKeyEvent(event);
         }
 
         @Override
@@ -261,26 +245,5 @@ class ExtensionActionPopup implements Destroyable {
         public void onClose() {
             mPopupWindow.dismiss();
         }
-    }
-
-    static boolean handleKeyboardEvent(@Nullable Activity activity, @Nullable KeyEvent event) {
-        if (activity == null || event == null) return false;
-
-        if (activity instanceof KeyboardShortcutsDelegate) {
-            KeyboardShortcutsDelegate delegate = (KeyboardShortcutsDelegate) activity;
-            if (delegate.handleKeyboardEvent(event)) {
-                return true;
-            }
-        }
-
-        // If the delegate didn't consume the event (e.g., if the Universal Keyboard
-        // Handling feature flag is disabled), we need to prevent the dispatchKeyEvent
-        // infinite loop. We prevent space and backspace events from being dispatched
-        // to the Activity.
-        if (event.getAction() == KeyEvent.ACTION_DOWN) {
-            return activity.onKeyDown(event.getKeyCode(), event);
-        }
-
-        return false;
     }
 }

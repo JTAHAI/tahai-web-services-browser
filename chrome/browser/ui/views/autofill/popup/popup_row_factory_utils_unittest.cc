@@ -8,10 +8,6 @@
 #include <utility>
 #include <vector>
 
-#include "base/command_line.h"
-#include "base/i18n/base_i18n_switches.h"
-#include "base/i18n/rtl.h"
-#include "base/test/icu_test_util.h"
 #include "base/test/scoped_feature_list.h"
 #include "chrome/browser/ui/autofill/mock_autofill_popup_controller.h"
 #include "chrome/browser/ui/views/autofill/payments/bnpl_issuer_linked_pill.h"
@@ -21,8 +17,6 @@
 #include "chrome/browser/ui/views/autofill/popup/popup_row_view.h"
 #include "chrome/browser/ui/views/autofill/popup/popup_row_with_button_view.h"
 #include "chrome/test/views/chrome_views_test_base.h"
-#include "components/autofill/core/browser/at_memory/at_memory_manager.h"
-#include "components/autofill/core/browser/data_model/autofill_ai/entity_instance.h"
 #include "components/autofill/core/browser/metrics/autofill_metrics.h"
 #include "components/autofill/core/browser/suggestions/suggestion.h"
 #include "components/autofill/core/browser/suggestions/suggestion_type.h"
@@ -32,16 +26,12 @@
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/compositor/layer.h"
 #include "ui/events/test/event_generator.h"
-#include "ui/gfx/range/range.h"
 #include "ui/views/accessibility/view_accessibility.h"
 #include "ui/views/controls/button/image_button.h"
 #include "ui/views/controls/image_view.h"
-#include "ui/views/controls/link.h"
-#include "ui/views/controls/styled_label.h"
 #include "ui/views/controls/throbber.h"
 #include "ui/views/view_utils.h"
 #include "ui/views/widget/widget_utils.h"
-#include "url/gurl.h"
 
 using ::testing::IsNull;
 using ::testing::NotNull;
@@ -51,23 +41,7 @@ namespace autofill {
 
 namespace {
 constexpr float kDisabledBnplOpacity = 0.38f;
-
-// Helper function to recursively find a `views::Label` with matching text
-// inside `view`.
-views::Label* FindLabelWithText(views::View* view, const std::u16string& text) {
-  for (views::View* child : view->children()) {
-    if (auto* label = views::AsViewClass<views::Label>(child)) {
-      if (label->GetText() == text) {
-        return label;
-      }
-    }
-    if (auto* found = FindLabelWithText(child, text)) {
-      return found;
-    }
-  }
-  return nullptr;
 }
-}  // namespace
 
 class PopupRowFactoryUtilsTest : public ChromeViewsTestBase {
  public:
@@ -233,7 +207,7 @@ TEST_F(BnplPopupRowViewTest, LinkedPill_Deactivated) {
                            BnplIssuer::IssuerId::kBnplZip, {});
   suggestion.payload = Suggestion::BnplIssuer(linked_issuer);
   suggestion.acceptability =
-      Suggestion::Acceptability::kUnselectableAndUnacceptable;
+      Suggestion::Acceptability::kUnacceptableWithDeactivatedStyle;
 
   ShowSuggestion(suggestion);
 
@@ -248,7 +222,7 @@ TEST_F(BnplPopupRowViewTest, Deactivated_IconOpacity) {
   Suggestion suggestion(u"Bnpl", SuggestionType::kBnplEntry);
   suggestion.icon = Suggestion::Icon::kBnplGeneric;
   suggestion.acceptability =
-      Suggestion::Acceptability::kUnselectableAndUnacceptable;
+      Suggestion::Acceptability::kUnacceptableWithDeactivatedStyle;
 
   ShowSuggestion(suggestion);
 
@@ -286,13 +260,27 @@ TEST_F(PopupRowFactoryUtilsTest, AtMemorySuggestionIgnoresFilterMatchBolding) {
   AutofillPopupController::SuggestionFilterMatch filter_match{
       .main_text_match = gfx::Range(0, 25)};
 
+  // Helper lambda to recursively find the main text Label view.
+  auto find_main_text_label = [](auto& self,
+                                 views::View* view) -> views::Label* {
+    for (views::View* child : view->children()) {
+      if (auto* label = views::AsViewClass<views::Label>(child)) {
+        return label;
+      }
+      if (auto* found = self(self, child)) {
+        return found;
+      }
+    }
+    return nullptr;
+  };
+
   // Create content view directly WITH filter_match applied (bolded).
   std::unique_ptr<PopupRowContentView> content_view_with_bolding =
       CreatePopupRowContentView(atmemory_suggestion,
                                 /*show_new_badge=*/std::nullopt,
                                 FillingProduct::kAtMemory, filter_match);
-  views::Label* bolded_label = FindLabelWithText(
-      content_view_with_bolding.get(), u"@memory query text search");
+  views::Label* bolded_label = find_main_text_label(
+      find_main_text_label, content_view_with_bolding.get());
   ASSERT_THAT(bolded_label, NotNull());
   int bolded_width = bolded_label->GetPreferredSize().width();
 
@@ -302,404 +290,14 @@ TEST_F(PopupRowFactoryUtilsTest, AtMemorySuggestionIgnoresFilterMatchBolding) {
   auto row_view =
       CreatePopupRowView(controller().GetWeakPtr(), a11y_selection_delegate(),
                          selection_delegate(), 0, filter_match);
-  views::Label* atmemory_label = FindLabelWithText(
-      &row_view->GetContentView(), u"@memory query text search");
+  views::Label* atmemory_label =
+      find_main_text_label(find_main_text_label, &row_view->GetContentView());
   ASSERT_THAT(atmemory_label, NotNull());
   int atmemory_label_width = atmemory_label->GetPreferredSize().width();
 
   // Verify that AtMemory main text label is narrower than the bolded version
   // because filter_match bolding was ignored.
   EXPECT_LT(atmemory_label_width, bolded_width);
-}
-
-// Tests that kAtMemorySourceAttribution uses Body 4 text style and
-// onSurfaceSubtle text color.
-TEST_F(PopupRowFactoryUtilsTest, AtMemorySourceAttributionStyle) {
-  Suggestion suggestion = AtMemoryManager::CreateSourceAttributionSuggestion();
-  ShowSuggestion(suggestion);
-
-  std::u16string expected_text = l10n_util::GetStringUTF16(
-      IDS_AUTOFILL_AT_MEMORY_SOURCE_ATTRIBUTION_PERSONAL_INTELLIGENCE);
-  views::Label* label =
-      FindLabelWithText(&row_view().GetContentView(), expected_text);
-  ASSERT_THAT(label, NotNull());
-  EXPECT_EQ(label->GetTextStyle(), views::style::STYLE_BODY_4);
-  EXPECT_EQ(label->GetEnabledColor(), row_view().GetColorProvider()->GetColor(
-                                          ui::kColorSysOnSurfaceSubtle));
-}
-
-TEST_F(PopupRowFactoryUtilsTest, RemoveAutofillAiRowView) {
-  Suggestion suggestion(u"Remove this info", SuggestionType::kRemoveAutofillAi);
-  suggestion.icon = Suggestion::Icon::kClose;
-  ShowSuggestion(suggestion);
-
-  views::Label* label =
-      FindLabelWithText(&row_view().GetContentView(), u"Remove this info");
-  ASSERT_THAT(label, NotNull());
-  EXPECT_EQ(label->GetHorizontalAlignment(), gfx::ALIGN_TO_HEAD);
-
-  ASSERT_FALSE(row_view().GetContentView().children().empty());
-  EXPECT_TRUE(views::IsViewClass<views::ImageView>(
-      row_view().GetContentView().children().front()));
-}
-
-// Tests that when a `Suggestion` has `kAtMemorySearchResult` type, the
-// custom horizontal spacing between labels in the same row is applied.
-TEST_F(PopupRowFactoryUtilsTest, AtMemorySearchResultLabelsHorizontalSpacing) {
-  Suggestion suggestion(u"Main", SuggestionType::kAtMemorySearchResult);
-  suggestion.labels = {
-      {Suggestion::Text(u"Part1"), Suggestion::Text(u"Part2")}};
-  ShowSuggestion(suggestion);
-
-  views::Label* label1 =
-      FindLabelWithText(&row_view().GetContentView(), u"Part1");
-  ASSERT_THAT(label1, NotNull());
-
-  auto* container = views::AsViewClass<views::BoxLayoutView>(label1->parent());
-  ASSERT_THAT(container, NotNull());
-  EXPECT_EQ(container->GetBetweenChildSpacing(), 4);
-}
-
-// Tests that the labels of a `kAtMemorySearchResult` suggestion are truncated
-// to ensure the total width of the label row does not exceed the maximum
-// allowed AtMemory suggestion width.
-TEST_F(PopupRowFactoryUtilsTest,
-       AtMemorySearchResultLongLabelsConstrainedWidth) {
-  ON_CALL(controller(), GetMainFillingProduct())
-      .WillByDefault(testing::Return(FillingProduct::kAtMemory));
-
-  Suggestion suggestion(u"Main", SuggestionType::kAtMemorySearchResult);
-  suggestion.labels = {
-      {Suggestion::Text(u"Address"), Suggestion::Text(u"\u2022"),
-       Suggestion::Text(u"John Doe"), Suggestion::Text(u"\u2022"),
-       Suggestion::Text(u"123 Very Long Street Name, Suite "
-                        u"100, Building A, San Francisco, "
-                        u"California 94107")}};
-  ShowSuggestion(suggestion);
-
-  views::Label* label = FindLabelWithText(
-      &row_view().GetContentView(),
-      u"123 Very Long Street Name, Suite 100, Building A, San Francisco, "
-      u"California 94107");
-  ASSERT_THAT(label, NotNull());
-
-  views::Label* address_label =
-      FindLabelWithText(&row_view().GetContentView(), u"Address");
-  ASSERT_THAT(address_label, NotNull());
-
-  auto* container =
-      views::AsViewClass<views::BoxLayoutView>(address_label->parent());
-  ASSERT_THAT(container, NotNull());
-  EXPECT_LE(container->GetPreferredSize().width(), 236);
-}
-
-// Tests that when an early label of a `kAtMemorySearchResult` suggestion is
-// very long and exhausts available width, subsequent labels that do not fit
-// are not added and the total width does not exceed the maximum allowed width.
-TEST_F(PopupRowFactoryUtilsTest,
-       AtMemorySearchResultFirstLabelLongConstrainedWidth) {
-  ON_CALL(controller(), GetMainFillingProduct())
-      .WillByDefault(testing::Return(FillingProduct::kAtMemory));
-
-  const std::u16string long_label(1000, 'W');
-  Suggestion suggestion(u"Main", SuggestionType::kAtMemorySearchResult);
-  suggestion.labels = {
-      {Suggestion::Text(long_label), Suggestion::Text(u"\u2022"),
-       Suggestion::Text(u"Address"), Suggestion::Text(u"\u2022"),
-       Suggestion::Text(u"John Doe")}};
-  ShowSuggestion(suggestion);
-
-  views::Label* label =
-      FindLabelWithText(&row_view().GetContentView(), long_label);
-  ASSERT_THAT(label, NotNull());
-
-  auto* container = views::AsViewClass<views::BoxLayoutView>(label->parent());
-  ASSERT_THAT(container, NotNull());
-  EXPECT_LE(container->GetPreferredSize().width(), 236);
-  EXPECT_THAT(FindLabelWithText(&row_view().GetContentView(), u"Address"),
-              IsNull());
-  EXPECT_THAT(FindLabelWithText(&row_view().GetContentView(), u"John Doe"),
-              IsNull());
-}
-
-// Tests that `kAtMemorySearchResult` suggestions have a multiline main text
-// label with max 2 lines and extra vertical padding when labels are present so
-// the row height isn't crammed.
-TEST_F(PopupRowFactoryUtilsTest, AtMemorySearchResultMultiLineAndHeight) {
-  EXPECT_CALL(controller(), GetMainFillingProduct())
-      .WillRepeatedly(testing::Return(FillingProduct::kAddress));
-
-  Suggestion suggestion(
-      u"Very long search result text that spans multiple lines",
-      SuggestionType::kAtMemorySearchResult);
-  suggestion.labels = {{Suggestion::Text(u"Label text")}};
-  ShowSuggestion(suggestion);
-
-  views::Label* label = FindLabelWithText(
-      &row_view().GetContentView(),
-      u"Very long search result text that spans multiple lines");
-  ASSERT_THAT(label, NotNull());
-  EXPECT_TRUE(label->GetMultiLine());
-  EXPECT_EQ(label->GetMaxLines(), 2u);
-  EXPECT_EQ(label->GetMaximumWidth(), 236);
-  EXPECT_EQ(label->GetHorizontalAlignment(), gfx::ALIGN_TO_HEAD);
-
-  gfx::Insets insets = row_view().GetContentView().GetInsideBorderInsets();
-  EXPECT_EQ(insets.top(), 8);
-  EXPECT_EQ(insets.bottom(), 8);
-}
-
-// Tests that `kAtMemorySearchResult` suggestions with short main text do not
-// get extra vertical padding.
-TEST_F(PopupRowFactoryUtilsTest, AtMemorySearchResultShortTextNoExtraPadding) {
-  EXPECT_CALL(controller(), GetMainFillingProduct())
-      .WillRepeatedly(testing::Return(FillingProduct::kAddress));
-
-  Suggestion suggestion(u"Paris", SuggestionType::kAtMemorySearchResult);
-  suggestion.labels = {{Suggestion::Text(u"Label text")}};
-  ShowSuggestion(suggestion);
-
-  views::Label* label =
-      FindLabelWithText(&row_view().GetContentView(), u"Paris");
-  ASSERT_THAT(label, NotNull());
-  EXPECT_TRUE(label->GetMultiLine());
-  EXPECT_EQ(label->GetMaxLines(), 2u);
-
-  gfx::Insets insets = row_view().GetContentView().GetInsideBorderInsets();
-  EXPECT_EQ(insets.top(), 0);
-  EXPECT_EQ(insets.bottom(), 0);
-}
-
-TEST_F(PopupRowFactoryUtilsTest, AutofillAiSourceAttributionRowView) {
-  Suggestion suggestion(u"Suggested by Gemini · Photos\u00A0[1]",
-                        SuggestionType::kAutofillAiSourceAttribution);
-  suggestion.icon = Suggestion::Icon::kSpark;
-  suggestion.payload = Suggestion::AutofillAiPayload(
-      autofill::EntityInstance::EntityId("test-guid"),
-      {Suggestion::PersonalContextSourceCitation(
-          GURL("https://photos.google.com/test"), gfx::Range(29, 32))});
-  ShowSuggestion(suggestion);
-
-  // Verify leading icon is present.
-  ASSERT_FALSE(row_view().GetContentView().children().empty());
-  EXPECT_TRUE(views::IsViewClass<views::ImageView>(
-      row_view().GetContentView().children().front()));
-
-  // Verify StyledLabel is created with the citation link.
-  views::StyledLabel* styled_label = nullptr;
-  for (views::View* child : row_view().GetContentView().children()) {
-    if (views::StyledLabel* sl =
-            views::AsViewClass<views::StyledLabel>(child)) {
-      styled_label = sl;
-      break;
-    }
-  }
-  ASSERT_THAT(styled_label, NotNull());
-  EXPECT_EQ(styled_label->GetText(), u"Suggested by Gemini · Photos\u00A0[1]");
-  EXPECT_THAT(styled_label->GetFirstLinkForTesting(), NotNull());
-}
-
-TEST_F(PopupRowFactoryUtilsTest,
-       AutofillAiSourceAttributionRowView_InvalidCitationRangesIgnored) {
-  Suggestion suggestion(u"Suggested by Gemini · Photos\u00A0[1]",
-                        SuggestionType::kAutofillAiSourceAttribution);
-  suggestion.icon = Suggestion::Icon::kSpark;
-  // Out-of-bounds, invalid, empty, and reversed ranges should be safely
-  // ignored.
-  suggestion.payload = Suggestion::AutofillAiPayload(
-      autofill::EntityInstance::EntityId("test-guid"),
-      {Suggestion::PersonalContextSourceCitation(
-           GURL("https://photos.google.com/test"), gfx::Range(100, 150)),
-       Suggestion::PersonalContextSourceCitation(
-           GURL("https://photos.google.com/test2"), gfx::Range::InvalidRange()),
-       Suggestion::PersonalContextSourceCitation(
-           GURL("https://photos.google.com/test3"), gfx::Range(5, 5)),
-       Suggestion::PersonalContextSourceCitation(
-           GURL("https://photos.google.com/test4"), gfx::Range(32, 29))});
-  ShowSuggestion(suggestion);
-
-  views::StyledLabel* styled_label = nullptr;
-  for (views::View* child : row_view().GetContentView().children()) {
-    if (views::StyledLabel* sl =
-            views::AsViewClass<views::StyledLabel>(child)) {
-      styled_label = sl;
-      break;
-    }
-  }
-  ASSERT_THAT(styled_label, NotNull());
-  EXPECT_EQ(styled_label->GetText(), u"Suggested by Gemini · Photos\u00A0[1]");
-  EXPECT_THAT(styled_label->GetFirstLinkForTesting(), IsNull());
-}
-
-TEST_F(PopupRowFactoryUtilsTest, AutofillAiSourceAttributionRowView_RtlLayout) {
-  base::test::ScopedRestoreICUDefaultLocale scoped_locale("ar");
-  base::CommandLine::ForCurrentProcess()->AppendSwitchASCII(
-      switches::kForceUIDirection, switches::kForceDirectionRTL);
-
-  Suggestion suggestion(u"Suggested by Gemini · Photos\u00A0[1]",
-                        SuggestionType::kAutofillAiSourceAttribution);
-  suggestion.icon = Suggestion::Icon::kSpark;
-  suggestion.payload = Suggestion::AutofillAiPayload(
-      autofill::EntityInstance::EntityId("test-guid"),
-      {Suggestion::PersonalContextSourceCitation(
-          GURL("https://photos.google.com/test"), gfx::Range(29, 32))});
-  ShowSuggestion(suggestion);
-
-  views::StyledLabel* styled_label = nullptr;
-  for (views::View* child : row_view().GetContentView().children()) {
-    if (views::StyledLabel* sl =
-            views::AsViewClass<views::StyledLabel>(child)) {
-      styled_label = sl;
-      break;
-    }
-  }
-  ASSERT_THAT(styled_label, NotNull());
-  styled_label->SizeToFit(1000);
-
-  // In RTL, child views are ordered from right to left (origin 0 on right).
-  // The citation link [1] (child 4) is separated from "Photos" (child 2) by
-  // a whitespace view (child 3), and positioned after it in RTL x-coordinates,
-  // not adjacent to "Suggested by Gemini" (child 0).
-  ASSERT_EQ(styled_label->children().size(), 5u);
-  const views::View* prefix_view = styled_label->children()[0];
-  const views::View* app_view = styled_label->children()[2];
-  const views::View* space_view = styled_label->children()[3];
-  const views::View* link_view = styled_label->children()[4];
-
-  EXPECT_EQ(prefix_view->bounds().x(), 0);
-  EXPECT_GT(space_view->bounds().width(), 0);
-  EXPECT_EQ(space_view->bounds().x(), app_view->bounds().right());
-  EXPECT_EQ(link_view->bounds().x(), space_view->bounds().right());
-}
-
-TEST_F(
-    PopupRowFactoryUtilsTest,
-    AutofillAiSourceAttributionRowView_AppAndBadgeWrapTogetherOnNarrowWidth) {
-  Suggestion suggestion(u"Suggested by Gemini · Photos\u00A0[1]",
-                        SuggestionType::kAutofillAiSourceAttribution);
-  suggestion.icon = Suggestion::Icon::kSpark;
-  suggestion.payload = Suggestion::AutofillAiPayload(
-      autofill::EntityInstance::EntityId("test-guid"),
-      {Suggestion::PersonalContextSourceCitation(
-          GURL("https://photos.google.com/test"), gfx::Range(29, 32))});
-  ShowSuggestion(suggestion);
-
-  views::StyledLabel* styled_label = nullptr;
-  for (views::View* child : row_view().GetContentView().children()) {
-    if (views::StyledLabel* sl =
-            views::AsViewClass<views::StyledLabel>(child)) {
-      styled_label = sl;
-      break;
-    }
-  }
-  ASSERT_THAT(styled_label, NotNull());
-
-  // Size to fit a width where "Suggested by Gemini ·" fits on line 1, but
-  // "Photos [1]" does not fit on line 1.
-  // With non-breaking space, "Photos [1]" wraps together to line 2, so the
-  // app name and citation link share the same y-offset on line 2.
-  styled_label->SizeToFit(1000);
-  int prefix_and_sep_width = styled_label->children()[0]->bounds().width() +
-                             styled_label->children()[1]->bounds().width();
-  int app_width = styled_label->children()[2]->bounds().width();
-
-  // Set width just wide enough for line 1 prefix + separator + half of app,
-  // so "Photos [1]" cannot fit on line 1 and must wrap together to line 2.
-  styled_label->SizeToFit(prefix_and_sep_width + app_width / 2);
-
-  const views::View* prefix_view = nullptr;
-  const views::View* app_view = nullptr;
-  const views::View* link_view = nullptr;
-  for (views::View* child : styled_label->children()) {
-    if (const auto* label = views::AsViewClass<views::Label>(child)) {
-      if (label->GetText() == u"Suggested by Gemini") {
-        prefix_view = label;
-      } else if (label->GetText() == u"Photos") {
-        app_view = label;
-      } else if (label->GetText() == u"[1]") {
-        link_view = label;
-      }
-    }
-  }
-
-  ASSERT_THAT(prefix_view, NotNull());
-  ASSERT_THAT(app_view, NotNull());
-  ASSERT_THAT(link_view, NotNull());
-
-  // Both app_view and link_view must be on line 2 (below prefix_view on line 1,
-  // and sharing the line 2 vertical position).
-  EXPECT_GT(app_view->bounds().y(), prefix_view->bounds().y());
-  EXPECT_GE(app_view->bounds().y(), prefix_view->bounds().bottom());
-  EXPECT_GE(link_view->bounds().y(), prefix_view->bounds().bottom());
-  EXPECT_LE(std::abs(app_view->bounds().y() - link_view->bounds().y()), 1);
-}
-
-TEST_F(PopupRowFactoryUtilsTest,
-       AutofillAiSourceAttributionRowView_MultiSourceMultiCitation) {
-  Suggestion suggestion(
-      u"Suggested by Gemini · Gmail\u00A0[1]\u00A0[2] · Photos\u00A0[1]",
-      SuggestionType::kAutofillAiSourceAttribution);
-  suggestion.icon = Suggestion::Icon::kSpark;
-  suggestion.payload = Suggestion::AutofillAiPayload(
-      autofill::EntityInstance::EntityId("test-guid"),
-      {Suggestion::PersonalContextSourceCitation(
-           GURL("https://mail.google.com/1"), gfx::Range(28, 31)),
-       Suggestion::PersonalContextSourceCitation(
-           GURL("https://mail.google.com/2"), gfx::Range(32, 35)),
-       Suggestion::PersonalContextSourceCitation(
-           GURL("https://photos.google.com/1"), gfx::Range(45, 48))});
-  ShowSuggestion(suggestion);
-
-  views::StyledLabel* styled_label = nullptr;
-  for (views::View* child : row_view().GetContentView().children()) {
-    if (views::StyledLabel* sl =
-            views::AsViewClass<views::StyledLabel>(child)) {
-      styled_label = sl;
-      break;
-    }
-  }
-  ASSERT_THAT(styled_label, NotNull());
-  styled_label->SizeToFit(1000);
-
-  EXPECT_EQ(styled_label->GetText(),
-            u"Suggested by Gemini · Gmail\u00A0[1]\u00A0[2] · Photos\u00A0[1]");
-
-  std::vector<const views::Link*> link_views;
-  for (views::View* child : styled_label->children()) {
-    if (const auto* link = views::AsViewClass<views::Link>(child)) {
-      link_views.push_back(link);
-    }
-  }
-  ASSERT_EQ(link_views.size(), 3u);
-  EXPECT_EQ(link_views[0]->GetText(), u"[1]");
-  EXPECT_EQ(link_views[1]->GetText(), u"[2]");
-  EXPECT_EQ(link_views[2]->GetText(), u"[1]");
-}
-
-TEST_F(PopupRowFactoryUtilsTest,
-       AutofillAiSourceAttributionRowView_ClickLinkHandlesNullWebContents) {
-  Suggestion suggestion(u"Suggested by Gemini · Photos\u00A0[1]",
-                        SuggestionType::kAutofillAiSourceAttribution);
-  suggestion.icon = Suggestion::Icon::kSpark;
-  suggestion.payload = Suggestion::AutofillAiPayload(
-      autofill::EntityInstance::EntityId("test-guid"),
-      {Suggestion::PersonalContextSourceCitation(
-          GURL("https://photos.google.com/test"), gfx::Range(29, 32))});
-  ShowSuggestion(suggestion);
-
-  views::StyledLabel* styled_label = nullptr;
-  for (views::View* child : row_view().GetContentView().children()) {
-    if (views::StyledLabel* sl =
-            views::AsViewClass<views::StyledLabel>(child)) {
-      styled_label = sl;
-      break;
-    }
-  }
-  ASSERT_THAT(styled_label, NotNull());
-  ASSERT_THAT(styled_label->GetFirstLinkForTesting(), NotNull());
-
-  EXPECT_CALL(controller(), GetWebContents()).WillRepeatedly(Return(nullptr));
-  styled_label->ClickFirstLinkForTesting();
 }
 
 }  // namespace autofill

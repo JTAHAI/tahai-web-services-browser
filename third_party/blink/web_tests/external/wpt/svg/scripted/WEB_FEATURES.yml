@@ -1,2 +1,4 @@
-rules:
-- attr-script-fetchpriority.optional.html: [fetch-priority]
+features:
+- name: fetch-priority
+  files:
+  - attr-script-fetchpriority.optional.html

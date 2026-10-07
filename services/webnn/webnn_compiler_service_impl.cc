@@ -51,8 +51,7 @@ void WebNNCompilerServiceImpl::CreateCompilerContext(
     mojom::CreateContextOptionsPtr context_options,
     const ContextProperties& context_properties,
     mojo::PendingRemote<mojom::WebNNModelLoader> model_loader,
-    mojo::PendingReceiver<mojom::WebNNCompilerContext> receiver,
-    CreateCompilerContextCallback callback) {
+    mojo::PendingReceiver<mojom::WebNNCompilerContext> receiver) {
   // A new context is being added — cancel any pending idle shutdown.
   idle_timer_.Stop();
   // WebNNCompilerContext instances should be created based on the context
@@ -62,7 +61,6 @@ void WebNNCompilerServiceImpl::CreateCompilerContext(
                              target_device_, std::move(context_options),
                              context_properties, std::move(model_loader)),
                          std::move(receiver));
-  std::move(callback).Run(true);
 }
 
 void WebNNCompilerServiceImpl::OnCompilerContextDisconnected() {

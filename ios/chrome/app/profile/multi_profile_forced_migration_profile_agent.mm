@@ -79,7 +79,7 @@
           .currentBrowserProvider;
   Browser* browser = presentingInterface.browser;
   // Sign-in related work should be done on regular browser.
-  CHECK_EQ(browser->type(), Browser::Type::kRegular);
+  CHECK_EQ(browser->type(), Browser::Type::kRegular, base::NotFatalUntil::M145);
 
   ProfileIOS* profile = browser->GetProfile();
   AuthenticationService* authenticationService =
@@ -92,7 +92,8 @@
     return;
   }
 
-  CHECK(AreSeparateProfilesForManagedAccountsEnabled());
+  CHECK(AreSeparateProfilesForManagedAccountsEnabled(),
+        base::NotFatalUntil::M148);
 
   localState->SetBoolean(prefs::kMultiProfileForcedMigrationDone, false);
   id<SystemIdentity> systemIdentity =

@@ -41,11 +41,8 @@
 #include "components/messages/android/mock_message_dispatcher_bridge.h"
 #else
 #include "chrome/browser/ui/blocked_content/framebust_block_tab_helper.h"
-#include "components/tabs/public/mock_tab_interface.h"
-#include "components/tabs/public/tab_interface.h"
-#include "testing/gmock/include/gmock/gmock.h"
-#include "ui/base/unowned_user_data/unowned_user_data_host.h"
 #endif
+
 
 class PopupOpenerTabHelperTest : public ChromeRenderViewHostTestHarness {
  public:
@@ -77,13 +74,7 @@ class PopupOpenerTabHelperTest : public ChromeRenderViewHostTestHarness {
             web_contents());
 #endif
 #if !BUILDFLAG(IS_ANDROID)
-    // Associate the contents with the tab so that framebust lookups can find
-    // the helper. In production this association is maintained by TabModel.
-    tabs::TabLookupFromWebContents::CreateForWebContents(web_contents(), &tab_);
-    ON_CALL(tab_, GetUnownedUserDataHost())
-        .WillByDefault(::testing::ReturnRef(user_data_host_));
-    framebust_block_tab_helper_ =
-        std::make_unique<FramebustBlockTabHelper>(tab_, web_contents());
+    FramebustBlockTabHelper::CreateForWebContents(web_contents());
 #endif
 
     // The tick clock needs to be advanced manually so it isn't set to null,
@@ -94,9 +85,6 @@ class PopupOpenerTabHelperTest : public ChromeRenderViewHostTestHarness {
   }
 
   void TearDown() override {
-#if !BUILDFLAG(IS_ANDROID)
-    framebust_block_tab_helper_.reset();
-#endif
     popups_.clear();
 #if BUILDFLAG(IS_ANDROID)
     messages::MessageDispatcherBridge::SetInstanceForTesting(nullptr);
@@ -153,10 +141,6 @@ class PopupOpenerTabHelperTest : public ChromeRenderViewHostTestHarness {
   messages::MockMessageDispatcherBridge message_dispatcher_bridge_;
   raw_ptr<blocked_content::FramebustBlockedMessageDelegate>
       framebust_blocked_message_delegate_;
-#else
-  ui::UnownedUserDataHost user_data_host_;
-  tabs::MockTabInterface tab_;
-  std::unique_ptr<FramebustBlockTabHelper> framebust_block_tab_helper_;
 #endif
 };
 
@@ -232,8 +216,7 @@ class BlockTabUnderDisabledTest : public PopupOpenerTabHelperTest {
 #if BUILDFLAG(IS_ANDROID)
     EXPECT_EQ(shown, !!message_wrapper());
 #else
-    EXPECT_EQ(shown, FramebustBlockTabHelper::From(
-                         tabs::TabInterface::GetFromContents(web_contents()))
+    EXPECT_EQ(shown, FramebustBlockTabHelper::FromWebContents(web_contents())
                          ->HasBlockedUrls());
 #endif
   }

@@ -39,7 +39,6 @@
 
 #include "base/functional/callback_helpers.h"
 #include "base/functional/function_ref.h"
-#include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/task/single_thread_task_runner.h"
 #include "cc/test/fake_layer_tree_frame_sink.h"
@@ -302,8 +301,7 @@ class TestWebFrameWidget : public WebFrameWidgetImpl {
   bool AllowsScrollResampling() override { return false; }
 
  private:
-  raw_ptr<cc::FakeLayerTreeFrameSink, UnprotectedInRelease | DanglingUntriaged>
-      last_created_frame_sink_ = nullptr;
+  cc::FakeLayerTreeFrameSink* last_created_frame_sink_ = nullptr;
   Vector<std::unique_ptr<blink::WebCoalescedInputEvent>>
       injected_scroll_events_;
   std::unique_ptr<TestWidgetInputHandlerHost> widget_input_handler_host_;
@@ -500,7 +498,7 @@ class WebViewHelper : public ScopedMockOverlayScrollbars {
 
   bool viewport_enabled_ = false;
 
-  raw_ptr<WebViewImpl, UnprotectedInRelease | DanglingUntriaged> web_view_;
+  WebViewImpl* web_view_;
 
   std::unique_ptr<WebViewClient> owned_web_view_client_;
 
@@ -509,7 +507,7 @@ class WebViewHelper : public ScopedMockOverlayScrollbars {
   CreateWebFrameWidgetCallback create_widget_callback_wrapper_;
 
   // The Platform should not change during the lifetime of the test!
-  const raw_ptr<Platform, UnprotectedInRelease | DanglingUntriaged> platform_;
+  Platform* const platform_;
 };
 
 // Minimal implementation of WebLocalFrameClient needed for unit tests that load
@@ -606,8 +604,7 @@ class TestWebFrameClient : public WebLocalFrameClient {
 
   // This is null from when the client is created until it is initialized with
   // Bind().
-  raw_ptr<WebNavigationControl, UnprotectedInRelease | DanglingUntriaged>
-      frame_ = nullptr;
+  WebNavigationControl* frame_ = nullptr;
 
   base::CancelableOnceCallback<void()> navigation_callback_;
   WebEffectiveConnectionType effective_connection_type_;

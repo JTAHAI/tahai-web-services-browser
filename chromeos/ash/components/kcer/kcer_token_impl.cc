@@ -537,10 +537,14 @@ void KcerTokenImpl::GenerateEcKeyImpl(GenerateEcKeyTask task) {
   }
 
   bssl::ScopedCBB cbb;
+  uint8_t* ec_params_der = nullptr;
+  size_t ec_params_der_len = 0;
   if (!CBB_init(cbb.get(), 0) ||
-      !EC_KEY_marshal_curve_name(cbb.get(), EC_group_p256())) {
+      !EC_KEY_marshal_curve_name(cbb.get(), EC_group_p256()) ||
+      !CBB_finish(cbb.get(), &ec_params_der, &ec_params_der_len)) {
     return std::move(task.callback).Run(base::unexpected(Error::kBadKeyParams));
   }
+  bssl::UniquePtr<uint8_t> der_deleter(ec_params_der);
 
   chromeos::PKCS11_CK_BBOOL kTrue = chromeos::PKCS11_CK_TRUE;
 
@@ -550,7 +554,7 @@ void KcerTokenImpl::GenerateEcKeyImpl(GenerateEcKeyTask task) {
   AddAttribute(public_key_attrs, chromeos::PKCS11_CKA_VERIFY, MakeSpan(&kTrue));
   AddAttribute(public_key_attrs, chromeos::PKCS11_CKA_WRAP, MakeSpan(&kTrue));
   AddAttribute(public_key_attrs, chromeos::PKCS11_CKA_EC_PARAMS,
-               crypto::CbbAsSpan(cbb.get()));
+               UNSAFE_TODO(base::span(ec_params_der, ec_params_der_len)));
 
   chaps::AttributeList private_key_attrs;
   AddAttribute(private_key_attrs, chromeos::PKCS11_CKA_TOKEN, MakeSpan(&kTrue));

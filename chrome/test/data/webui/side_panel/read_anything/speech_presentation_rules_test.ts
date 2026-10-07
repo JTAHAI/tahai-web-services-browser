@@ -5,63 +5,60 @@
 import {getCurrentSpeechRate, isInvalidHighlightForWordHighlighting, textEndsWithOpeningPunctuation} from 'chrome-untrusted://read-anything-side-panel.top-chrome/read_anything.js';
 import {assertEquals, assertFalse, assertNull, assertTrue} from 'chrome-untrusted://webui-test/chai_assert.js';
 
-import {setupTestEnvironment} from './common.js';
-import type {TestAudioBrowserProxy} from './test_audio_browser_proxy.js';
+import {FakeReadingMode} from './fake_reading_mode.js';
 
 suite('SpeechPresentationRules', () => {
-  let audioProxy: TestAudioBrowserProxy;
-
   setup(() => {
-    const result = setupTestEnvironment();
-    audioProxy = result.audioBrowserProxy;
+    const readingMode = new FakeReadingMode();
+    chrome.readingMode = readingMode as unknown as typeof chrome.readingMode;
   });
 
   test('getCurrentSpeechRate rounds value to 1 decimal', () => {
-    audioProxy.speechRate = 1.1234567890;
+    chrome.readingMode.speechRate = 1.1234567890;
     assertEquals(1.1, getCurrentSpeechRate());
 
-    audioProxy.speechRate = 0.912345678;
+    chrome.readingMode.speechRate = 0.912345678;
     assertEquals(0.9, getCurrentSpeechRate());
 
-    audioProxy.speechRate = 1.199999999;
+    chrome.readingMode.speechRate = 1.199999999;
     assertEquals(1.2, getCurrentSpeechRate());
   });
 
   // <if expr="not is_chromeos">
   test('getCurrentSpeechRate caps at value to 2.0 on Desktop', () => {
-    audioProxy.speechRate = 4.0;
+    chrome.readingMode.speechRate = 4.0;
     assertEquals(2.0, getCurrentSpeechRate());
 
-    audioProxy.speechRate = 3.0;
+    chrome.readingMode.speechRate = 3.0;
     assertEquals(2.0, getCurrentSpeechRate());
 
-    audioProxy.speechRate = 2.1;
+    chrome.readingMode.speechRate = 2.1;
     assertEquals(2.0, getCurrentSpeechRate());
 
-    audioProxy.speechRate = 2.0;
+    chrome.readingMode.speechRate = 2.0;
     assertEquals(2.0, getCurrentSpeechRate());
 
     // Values below 2.0 aren't impacted.
-    audioProxy.speechRate = 1.199999;
+    chrome.readingMode.speechRate = 1.199999;
     assertEquals(1.2, getCurrentSpeechRate());
 
-    audioProxy.speechRate = .53333;
+    chrome.readingMode.speechRate = .53333;
     assertEquals(.5, getCurrentSpeechRate());
   });
   // </if>
 
   // <if expr="is_chromeos">
   test('getCurrentSpeechRate does not cap value on ChromeOS', () => {
-    audioProxy.speechRate = 4.0;
+    chrome.readingMode.speechRate = 4.0;
     assertEquals(4.0, getCurrentSpeechRate());
 
-    audioProxy.speechRate = 3.0;
+    chrome.readingMode.speechRate = 3.0;
     assertEquals(3.0, getCurrentSpeechRate());
 
-    audioProxy.speechRate = 2.1;
+    chrome.readingMode.speechRate = 2.1;
     assertEquals(2.1, getCurrentSpeechRate());
 
-    audioProxy.speechRate = 2.0;
+    chrome.readingMode.speechRate = 2.0;
     assertEquals(2.0, getCurrentSpeechRate());
   });
   // </if>

@@ -135,9 +135,8 @@ void LocalCredentialManagementWin::HasCredentials(
   auto cacher = std::make_unique<CredentialPresenceCacher>(
       profile_, base::BindOnce(EnumerateResultToBool, std::move(callback)));
   device::WinWebAuthnApiAuthenticator::EnumeratePlatformCredentials(
-      api_, /*rp_id=*/std::nullopt,
-      base::BindOnce(&CredentialPresenceCacher::OnEnumerateResult,
-                     std::move(cacher)));
+      api_, base::BindOnce(&CredentialPresenceCacher::OnEnumerateResult,
+                           std::move(cacher)));
 }
 
 void LocalCredentialManagementWin::Enumerate(
@@ -153,9 +152,8 @@ void LocalCredentialManagementWin::Enumerate(
   auto cacher =
       std::make_unique<CredentialPresenceCacher>(profile_, std::move(callback));
   device::WinWebAuthnApiAuthenticator::EnumeratePlatformCredentials(
-      api_, /*rp_id=*/std::nullopt,
-      base::BindOnce(&CredentialPresenceCacher::OnEnumerateResult,
-                     std::move(cacher)));
+      api_, base::BindOnce(&CredentialPresenceCacher::OnEnumerateResult,
+                           std::move(cacher)));
 }
 
 void LocalCredentialManagementWin::Delete(

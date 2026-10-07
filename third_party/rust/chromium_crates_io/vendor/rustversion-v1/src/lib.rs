@@ -175,13 +175,14 @@
 //!
 //! <br>
 
-#![doc(html_root_url = "https://docs.rs/rustversion/1.0.23")]
+#![doc(html_root_url = "https://docs.rs/rustversion/1.0.22")]
 #![allow(
     clippy::cast_lossless,
     clippy::cast_possible_truncation,
     clippy::derive_partial_eq_without_eq,
     clippy::doc_markdown,
     clippy::enum_glob_use,
+    clippy::from_iter_instead_of_collect,
     // https://github.com/rust-lang/rust-clippy/issues/8539
     clippy::iter_with_drain,
     clippy::module_name_repetitions,

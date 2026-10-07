@@ -65,8 +65,7 @@ class CORE_EXPORT InspectorPerformanceAgent final
   // TaskTimeObserver implementation.
   void WillProcessTask(base::TimeTicks start_time) override;
   void DidProcessTask(base::TimeTicks start_time,
-                      base::TimeTicks end_time,
-                      base::TimeTicks desired_execution_time) override;
+                      base::TimeTicks end_time) override;
 
  private:
   void ScriptStarts();

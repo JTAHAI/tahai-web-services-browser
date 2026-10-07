@@ -13,10 +13,9 @@
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/call_to_action/call_to_action_lock.h"
-#include "chrome/browser/ui/lens/lens_overlay_edu_utils.h"
 #include "chrome/browser/ui/lens/lens_overlay_entry_point_controller.h"
 #include "chrome/browser/ui/lens/lens_search_controller.h"
-#include "chrome/browser/ui/location_bar/location_bar.h"
+#include "chrome/browser/ui/lens/lens_search_feature_flag_utils.h"
 #include "chrome/browser/ui/ui_features.h"
 #include "chrome/browser/ui/views/interaction/browser_elements_views.h"
 #include "chrome/browser/ui/views/location_bar/location_bar_view.h"
@@ -26,6 +25,7 @@
 #include "content/public/browser/navigation_controller.h"
 #include "content/public/browser/navigation_entry.h"
 #include "content/public/browser/web_contents.h"
+#include "ui/views/focus/focus_manager.h"
 
 DEFINE_USER_DATA(LensOverlayHomeworkPageActionController);
 
@@ -42,11 +42,6 @@ LensOverlayHomeworkPageActionController::
       tab_interface.RegisterWillDetach(base::BindRepeating(
           &LensOverlayHomeworkPageActionController::OnTabWillDetach,
           base::Unretained(this)));
-  tab_will_discard_contents_subscription_ =
-      tab_interface.RegisterWillDiscardContents(base::BindRepeating(
-          &LensOverlayHomeworkPageActionController::OnTabWillDiscardContents,
-          base::Unretained(this)));
-  Observe(tab_->GetContents());
 }
 
 LensOverlayHomeworkPageActionController::
@@ -83,7 +78,9 @@ void LensOverlayHomeworkPageActionController::HandlePageActionEvent(
   // enabled, we want to open Lens Web in a new tab.
   if (is_from_keyboard &&
       !lens::features::IsLensOverlayKeyboardSelectionEnabled()) {
-    lens::LensRegionSearchController::From(tab_->GetBrowserWindowInterface())
+    tab_->GetBrowserWindowInterface()
+        ->GetFeatures()
+        .lens_region_search_controller()
         ->Start(tab_->GetContents(), /*use_fullscreen_capture=*/true,
                 /*is_google_default_search_provider=*/true,
                 lens::AmbientSearchEntryPoint::
@@ -128,25 +125,25 @@ bool LensOverlayHomeworkPageActionController::ShouldShow() {
     return false;
   }
 
-  const LocationBar* location_bar = nullptr;
-  // Legacy lookup path; only still around for performance experiment reasons.
-  if (!base::FeatureList::IsEnabled(
-          features::kLensOverlayHomeworkPageActionFocusOptimization)) {
-    location_bar = static_cast<LocationBarView*>(
+  views::View* location_bar_view = location_bar_view_tracker_.view();
+  if (!location_bar_view) {
+    location_bar_view =
         BrowserElementsViews::From(tab_->GetBrowserWindowInterface())
-            ->GetView(kLocationBarElementId));
+            ->GetView(kLocationBarElementId);
+    if (base::FeatureList::IsEnabled(
+            features::kLensOverlayHomeworkPageActionFocusOptimization)) {
+      location_bar_view_tracker_.SetView(location_bar_view);
+    }
   }
-
-  if (!location_bar) {
-    location_bar = lens_overlay_entry_point_controller->location_bar();
-  }
-
-  if (!location_bar) {
+  if (!location_bar_view) {
     return false;
   }
 
   // Hide the homework chip if the location bar is focused.
-  if (location_bar->IsFocusWithin()) {
+  const views::FocusManager* const focus_manager =
+      location_bar_view->GetFocusManager();
+  if (!focus_manager ||
+      location_bar_view->Contains(focus_manager->GetFocusedView())) {
     return false;
   }
 
@@ -169,22 +166,11 @@ bool LensOverlayHomeworkPageActionController::ShouldShow() {
   return lens_overlay_entry_point_controller->IsUrlEduEligible(entry->GetURL());
 }
 
-void LensOverlayHomeworkPageActionController::DidFinishNavigation(
-    content::NavigationHandle* navigation_handle) {
-  // Since ShouldShow cares about the current URL, we need to update after
-  // navigations.
-  UpdatePageActionIcon();
-}
-
 void LensOverlayHomeworkPageActionController::OnTabWillDetach(
     tabs::TabInterface* tab,
     tabs::TabInterface::DetachReason reason) {
   scoped_call_to_action_lock_.reset();
-}
-
-void LensOverlayHomeworkPageActionController::OnTabWillDiscardContents(
-    tabs::TabInterface* tab,
-    content::WebContents* discarded,
-    content::WebContents* replacement) {
-  Observe(replacement);
+  // Reset the cached location bar view. If this tab is moved to a new
+  // window, the pointer will be re-evaluated on the next active window.
+  location_bar_view_tracker_.SetView(nullptr);
 }

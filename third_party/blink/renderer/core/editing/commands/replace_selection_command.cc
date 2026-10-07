@@ -128,8 +128,8 @@ class ReplacementFragment final {
   Document* document_;
   DocumentFragment* fragment_;
   String trivial_text_;
-  bool has_interchange_newline_at_start_ = false;
-  bool has_interchange_newline_at_end_ = false;
+  bool has_interchange_newline_at_start_;
+  bool has_interchange_newline_at_end_;
 };
 
 static bool IsInterchangeHTMLBRElement(const Node* node) {
@@ -179,7 +179,10 @@ static Position PositionAvoidingPrecedingNodes(Position pos) {
 ReplacementFragment::ReplacementFragment(Document* document,
                                          DocumentFragment* fragment,
                                          const VisibleSelection& selection)
-    : document_(document), fragment_(fragment) {
+    : document_(document),
+      fragment_(fragment),
+      has_interchange_newline_at_start_(false),
+      has_interchange_newline_at_end_(false) {
   if (!document_)
     return;
   if (!fragment_ || !fragment_->HasChildren())
@@ -277,7 +280,10 @@ ReplacementFragment::ReplacementFragment(Document* document,
                                        evt->GetText());
 
     // Fragment may have become trivial after recreation from text
-    UpdateTrivialReplacementText();
+    if (RuntimeEnabledFeatures::
+            UpdateTrivalTextAfterFragmentCreationFromTextEnabled()) {
+      UpdateTrivialReplacementText();
+    }
 
     if (!fragment_->HasChildren())
       return;
@@ -516,7 +522,8 @@ ReplaceSelectionCommand::ReplaceSelectionCommand(
       moving_paragraph_(options & kMovingParagraph),
       password_echo_behavior_(password_echo_behavior),
       input_type_(input_type),
-      sanitize_fragment_(options & kSanitizeFragment) {}
+      sanitize_fragment_(options & kSanitizeFragment),
+      should_merge_end_(false) {}
 
 String ReplaceSelectionCommand::TextDataForInputEvent() const {
   // As per spec https://www.w3.org/TR/input-events-1/#overview
@@ -1271,11 +1278,16 @@ void ReplaceSelectionCommand::MergeEndIfNeeded(EditingState* editing_state) {
     start_of_paragraph_to_move = CreateVisiblePosition(
         start_of_paragraph_to_move.ToPositionWithAffinity());
   }
-  MoveParagraph(
-      start_of_paragraph_to_move,
-      EndOfParagraph(start_of_paragraph_to_move, kCanSkipOverEditingBoundary),
-      destination, editing_state);
-
+  if (RuntimeEnabledFeatures::AllowSkippingEditingBoundaryToMergeEndEnabled()) {
+    MoveParagraph(
+        start_of_paragraph_to_move,
+        EndOfParagraph(start_of_paragraph_to_move, kCanSkipOverEditingBoundary),
+        destination, editing_state);
+  } else {
+    MoveParagraph(start_of_paragraph_to_move,
+                  EndOfParagraph(start_of_paragraph_to_move), destination,
+                  editing_state);
+  }
   if (editing_state->IsAborted())
     return;
 
@@ -1469,16 +1481,19 @@ void ReplaceSelectionCommand::InsertParagraphSeparatorIfNeeds(
     //   <div>xbar<div>bar</div><div>bazx</div></div>
     // Don't do this if the selection started in a Mail blockquote.
     //
-    // Skip the paragraph split for insertHTML commands (InputType::kNone)
-    // whose fragment contains only inline content, since splitting
-    // incorrectly pushes inline elements outside their containing block.
+    // When SkipParagraphSplitForInlineInsertHTML is enabled, skip the
+    // paragraph split for insertHTML commands (InputType::kNone) whose
+    // fragment contains only inline content, since splitting incorrectly
+    // pushes inline elements outside their containing block.
     // See https://crbug.com/41024699.
     const VisiblePosition visible_start_position =
         EndingVisibleSelection().VisibleStart();
     if (prevent_nesting_ && !start_is_inside_mail_blockquote &&
         !IsEndOfParagraph(visible_start_position) &&
         !IsStartOfParagraph(visible_start_position) &&
-        (fragment.HasBlockLevelContent() ||
+        (!RuntimeEnabledFeatures::
+             SkipParagraphSplitForInlineInsertHTMLEnabled() ||
+         fragment.HasBlockLevelContent() ||
          input_type_ == InputEvent::InputType::kInsertFromPaste ||
          input_type_ == InputEvent::InputType::kInsertFromDrop ||
          input_type_ == InputEvent::InputType::kInsertReplacementText)) {

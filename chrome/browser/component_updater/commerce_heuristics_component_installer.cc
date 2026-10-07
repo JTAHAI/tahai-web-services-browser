@@ -4,10 +4,10 @@
 
 #include "chrome/browser/component_updater/commerce_heuristics_component_installer.h"
 
-#include <cstdint>
+#include <stdint.h>
+
 #include <memory>
 #include <string>
-#include <utility>
 #include <vector>
 
 #include "base/feature_list.h"
@@ -173,7 +173,8 @@ base::FilePath CommerceHeuristicsInstallerPolicy::GetRelativeInstallDir()
 
 void CommerceHeuristicsInstallerPolicy::GetHash(
     std::vector<uint8_t>* hash) const {
-  hash->assign_range(kCommerceHeuristicsPublicKeySHA256);
+  hash->assign(std::begin(kCommerceHeuristicsPublicKeySHA256),
+               std::end(kCommerceHeuristicsPublicKeySHA256));
 }
 
 std::string CommerceHeuristicsInstallerPolicy::GetName() const {

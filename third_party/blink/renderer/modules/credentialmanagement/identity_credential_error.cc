@@ -25,7 +25,9 @@ IdentityCredentialError::IdentityCredentialError(
     const String& message,
     const IdentityCredentialErrorInit* options)
     : DOMException(DOMExceptionCode::kIdentityCredentialError, message),
-      error_code_(options->hasError() ? options->error() : ""),
+      error_code_(RuntimeEnabledFeatures::FedCmErrorAttributeEnabled()
+                      ? (options->hasError() ? options->error() : "")
+                      : (options->hasCode() ? options->code() : "")),
       url_(options->hasUrl() ? options->url() : "") {}
 
 IdentityCredentialError::IdentityCredentialError(const String& message,

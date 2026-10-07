@@ -5,7 +5,6 @@
 #import "ios/chrome/browser/settings/ui_bundled/password/password_issues/password_issue.h"
 
 #import "components/password_manager/core/browser/password_form.h"
-#import "components/password_manager/core/browser/password_string.h"
 #import "components/password_manager/core/browser/ui/credential_ui_entry.h"
 #import "testing/gtest/include/gtest/gtest.h"
 #import "testing/gtest_mac.h"
@@ -17,7 +16,6 @@ using password_manager::CredentialUIEntry;
 using password_manager::InsecureType;
 using password_manager::InsecurityMetadata;
 using password_manager::PasswordForm;
-using password_manager::PasswordString;
 
 namespace {
 
@@ -30,7 +28,7 @@ PasswordIssue* MakeTestPasswordIssue(
   PasswordForm form;
   form.signon_realm = "https://example.com";
   form.username_value = u"user";
-  form.password_value = PasswordString(u"password");
+  form.password_value = u"password";
   form.url = GURL(form.signon_realm);
   form.password_issues = base::flat_map<InsecureType, InsecurityMetadata>();
 

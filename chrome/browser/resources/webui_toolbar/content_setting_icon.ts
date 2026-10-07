@@ -5,8 +5,8 @@
 import './toolbar_chip_button.js';
 
 import {assertNotReachedCase} from '//resources/js/assert.js';
-import type {PropertyValues} from '//resources/lit/v3_0/lit.rollup.js';
 import {CrLitElement} from '//resources/lit/v3_0/lit.rollup.js';
+import type {PropertyValues} from '//resources/lit/v3_0/lit.rollup.js';
 import type {ContentSettingImageState} from '/shared/toolbar_ui_api_data_model.mojom-webui.js';
 import {ContentSettingImageType} from '/shared/toolbar_ui_api_data_model.mojom-webui.js';
 
@@ -14,7 +14,6 @@ import {BrowserProxyImpl} from './browser_proxy.js';
 import type {BrowserProxy} from './browser_proxy.js';
 import {getCss} from './content_setting_icon.css.js';
 import {getHtml} from './content_setting_icon.html.js';
-import {HelpBubbleAnchorMixin, setHasHelpBubble} from './toolbar_button.js';
 import type {ToolbarChipButtonElement} from './toolbar_chip_button.js';
 
 export interface ContentSettingIconElement {
@@ -24,9 +23,7 @@ export interface ContentSettingIconElement {
   };
 }
 
-const ContentSettingIconElementBase = HelpBubbleAnchorMixin(CrLitElement);
-
-export class ContentSettingIconElement extends ContentSettingIconElementBase {
+export class ContentSettingIconElement extends CrLitElement {
   static get is() {
     return 'content-setting-icon';
   }
@@ -42,12 +39,10 @@ export class ContentSettingIconElement extends ContentSettingIconElementBase {
   static override get properties() {
     return {
       state: {type: Object},
-      shouldRunAnimation: {
+      animating: {
         type: Boolean,
         reflect: true,
-        attribute: 'should-run-animation',
       },
-      trackedHighlighted: {type: Boolean},
     };
   }
 
@@ -59,105 +54,21 @@ export class ContentSettingIconElement extends ContentSettingIconElementBase {
     isBubbleVisible: false,
     shouldRunAnimation: false,
     explanatoryString: '',
-    identifier: {
-      nativeIdentifier: '',
-      secondaryIdentifier: '',
-    },
   };
 
-  protected accessor shouldRunAnimation: boolean = false;
-
-  protected accessor trackedHighlighted: boolean = false;
+  protected accessor animating: boolean = false;
 
   private browserProxy_: BrowserProxy = BrowserProxyImpl.getInstance();
-  private registerHelpBubbleController_: AbortController|null = null;
-
-  override disconnectedCallback() {
-    super.disconnectedCallback();
-    if (this.registerHelpBubbleController_) {
-      this.registerHelpBubbleController_.abort();
-      this.registerHelpBubbleController_ = null;
-    }
-  }
 
   override willUpdate(changedProperties: PropertyValues<this>) {
     super.willUpdate(changedProperties);
-    if (changedProperties.has('state') &&
-        this.shouldRunAnimation !== this.state.shouldRunAnimation) {
-      this.shouldRunAnimation = this.state.shouldRunAnimation;
-    }
-  }
-
-  override updated(changedProperties: PropertyValues<this>) {
-    super.updated(changedProperties);
-
     if (changedProperties.has('state')) {
-      const oldState = changedProperties.get('state');
-      const oldId = oldState?.identifier?.nativeIdentifier;
-      const newId = this.state.identifier?.nativeIdentifier;
-
-      // Only change registration when we see a new ID (like the initial state
-      // message), not on ordinary state messages.
-      if (oldId !== newId) {
-        if (this.registerHelpBubbleController_) {
-          this.registerHelpBubbleController_.abort();
-          this.registerHelpBubbleController_ = null;
-        }
-        if (oldId) {
-          this.unregisterHelpBubble(oldId);
-        }
-        if (newId) {
-          this.registerHelpBubble_(newId);
-        }
-      }
+      this.animating = this.state.shouldRunAnimation;
     }
-  }
-
-  // TODO(crbug.com/489109708): Deduplicate help bubble tracking logic across
-  // toolbar elements.
-  private async registerHelpBubble_(newId: string) {
-    this.registerHelpBubbleController_ = new AbortController();
-    const signal = this.registerHelpBubbleController_.signal;
-
-    const animations = this.getAnimations().filter(anim => {
-      const timing = anim.effect?.getTiming();
-      // Ignore infinite animations (e.g. pulsing for IPH).
-      return timing?.iterations !== Infinity && timing?.duration !== Infinity;
-    });
-
-    // Wait for any animations to complete, so button is in final location.
-    if (animations.length > 0) {
-      try {
-        await Promise.all(animations.map(a => a.finished));
-      } catch (e) {
-        // Ignore animation cancellation.
-      }
-    }
-
-    if (!signal.aborted) {
-      this.registerHelpBubble(newId, this.$.chip, {
-        secondaryId: this.state.identifier?.secondaryIdentifier || undefined,
-        onHighlightChanged: (highlighted: boolean) => {
-          this.trackedHighlighted = highlighted;
-        },
-        onHelpBubbleShown: () => setHasHelpBubble(this, true),
-        onHelpBubbleHidden: () => setHasHelpBubble(this, false),
-      });
-      this.registerHelpBubbleController_ = null;
-    }
-  }
-
-  protected getTooltip_(): string {
-    return this.adjustTooltipForHelpBubble(this.state.tooltip);
-  }
-
-  override focus() {
-    this.$.chip.focus();
   }
 
   protected onLabelAnimationend_() {
-    this.browserProxy_.toolbarUIHandler.onContentSettingImageAnimationEnded(
-        this.state.type);
+    this.animating = false;
   }
 
   protected getIconUrl_(): string {
@@ -249,22 +160,18 @@ export class ContentSettingIconElement extends ContentSettingIconElementBase {
     return this.state.accessibilityString || this.state.tooltip;
   }
 
-  protected showContentSettingsBubble_(e: PointerEvent) {
-    // Keyboard synthetic clicks generate PointerEvents with an empty
-    // pointerType in WebUI, whereas natural pointer clicks have a valid
-    // pointerType (e.g., 'mouse', 'touch', 'pen').
-    const isPointerInteraction = !!e.pointerType;
+  protected showContentSettingsBubble_() {
     this.browserProxy_.toolbarUIHandler.showContentSettingsBubble(
-        this.state.type, isPointerInteraction);
+        this.state.type);
   }
 
-  protected onClick_(e: PointerEvent) {
-    this.showContentSettingsBubble_(e);
+  protected onClick_() {
+    this.showContentSettingsBubble_();
   }
 
-  protected onAuxclick_(e: PointerEvent) {
+  protected onAuxclick_() {
     // Handles both middle and right clicks.
-    this.showContentSettingsBubble_(e);
+    this.showContentSettingsBubble_();
   }
 
   protected onContextmenu_(e: PointerEvent) {
@@ -272,11 +179,6 @@ export class ContentSettingIconElement extends ContentSettingIconElementBase {
     // action is natively handled as opening the bubble, which we process in
     // onAuxclick_ instead to avoid double-triggering.
     e.preventDefault();
-  }
-
-  protected onPointerdown_() {
-    this.browserProxy_.toolbarUIHandler.onContentSettingImagePointerDown(
-        this.state.type);
   }
 
   protected onPointerenter_() {

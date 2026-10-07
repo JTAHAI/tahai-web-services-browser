@@ -123,10 +123,9 @@ public class AwContextMenuCoordinator {
         mParams.destroy();
     }
 
-    boolean displayMenu() {
+    void displayMenu() {
         if (mItems.isEmpty()) {
-            dismiss();
-            return false;
+            return;
         }
 
         View layout =
@@ -182,7 +181,6 @@ public class AwContextMenuCoordinator {
         } else {
             showAsDialog(layout);
         }
-        return true;
     }
 
     /**
@@ -216,6 +214,7 @@ public class AwContextMenuCoordinator {
                         mWindowAndroid.getWindow(),
                         mWebContents,
                         mParams,
+                        /* leftContentOffsetPx= */ 0,
                         /* topContentOffsetPx= */ 0,
                         /* usePopupWindow= */ true,
                         dragDispatchingTargetView);

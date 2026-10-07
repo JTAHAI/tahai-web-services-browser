@@ -22,8 +22,6 @@ enum class AccountErrorUserActionableType {
   kReauthForDegradedRecoverability,
   // User needs to acknowledge their bookmark error.
   kAcknowledgeBookmarkError,
-  // User needs to resolve MDM error.
-  kResolveMdmError,
 };
 
 // Contains the information of the account error UI item.

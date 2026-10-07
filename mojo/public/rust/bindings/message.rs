@@ -13,7 +13,7 @@ chromium::import! {
 }
 
 use crate::message_header::*;
-pub use system::message::{
+use system::message::{
     BadMessageError, ReadableBytesOnlyMessage, ReadableWithHandlesMessage, SendableMessage,
     WritableMessage,
 };

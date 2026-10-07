@@ -7,12 +7,12 @@
 </head>
 <body>
 <script type="module">
-import {GeolocationMock, GeolocationPermissionStatus} from './resources/geolocation-mock.js';
+import {GeolocationMock} from './resources/geolocation-mock.js';
 
 description("This tests removing the watcher from an error callback does not causes assertions.");
 
 const mock = new GeolocationMock();
-mock.setGeolocationPermission(GeolocationPermissionStatus.GRANTED_PRECISE);
+mock.setGeolocationPermission(true);
 mock.setGeolocationPositionUnavailableError("debug");
 
 const watchId = navigator.geolocation.watchPosition(function() {

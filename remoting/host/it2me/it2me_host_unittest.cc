@@ -862,14 +862,14 @@ TEST_F(It2MeHostTest, UnauthorizedHelperIsRejected) {
 }
 
 TEST_F(It2MeHostTest, HostUdpPortRangePolicyValidRange) {
-  auto port_range_actual = PortRange::Parse(kPortRange);
-  ASSERT_TRUE(port_range_actual.has_value());
+  PortRange port_range_actual;
+  ASSERT_TRUE(PortRange::Parse(kPortRange, &port_range_actual));
   SetPolicies(
       {{policy::key::kRemoteAccessHostUdpPortRange, base::Value(kPortRange)}});
   StartHost();
   PortRange port_range = get_local_session_policies().host_udp_port_range;
-  ASSERT_EQ(port_range_actual->min_port(), port_range.min_port());
-  ASSERT_EQ(port_range_actual->max_port(), port_range.max_port());
+  ASSERT_EQ(port_range_actual.min_port, port_range.min_port);
+  ASSERT_EQ(port_range_actual.max_port, port_range.max_port);
 }
 
 TEST_F(It2MeHostTest, HostUdpPortRangePolicyNoRange) {
@@ -940,12 +940,6 @@ TEST_F(It2MeHostTest, UriForwardingDisallowedByDefault) {
   StartHost();
 
   EXPECT_FALSE(*get_local_session_policies().allow_uri_forwarding);
-}
-
-TEST_F(It2MeHostTest, TerminalModeDisallowedByDefault) {
-  StartHost();
-
-  EXPECT_FALSE(*get_local_session_policies().allow_terminal_mode);
 }
 
 TEST_F(It2MeHostTest, StartHost_CorpUser_UseCorpSessionAuthz) {

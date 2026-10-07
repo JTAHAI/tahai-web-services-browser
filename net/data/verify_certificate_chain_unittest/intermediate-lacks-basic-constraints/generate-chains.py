@@ -7,7 +7,6 @@
 extension (yet is used to issue another certificate)."""
 
 import sys
-
 sys.path += ['../..']
 
 import gencerts

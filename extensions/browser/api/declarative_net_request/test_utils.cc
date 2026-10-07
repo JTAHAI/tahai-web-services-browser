@@ -443,7 +443,7 @@ bool CreateVerifiedMatcher(const std::vector<TestRule>& rules,
   auto parse_flags = FileBackedRulesetSource::kRaiseErrorOnInvalidRules |
                      FileBackedRulesetSource::kRaiseWarningOnLargeRegexRules;
   IndexAndPersistJSONRulesetResult result =
-      source.IndexAndPersistJSONRuleset(parse_flags);
+      source.IndexAndPersistJSONRulesetUnsafe(parse_flags);
   if (result.status == IndexStatus::kError) {
     DCHECK(result.error.empty()) << result.error;
     return false;

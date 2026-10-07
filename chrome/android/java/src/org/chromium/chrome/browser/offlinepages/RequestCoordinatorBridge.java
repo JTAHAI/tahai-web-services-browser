@@ -16,7 +16,6 @@ import org.chromium.base.ThreadUtils;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.profiles.Profile;
-import org.chromium.components.offlinepages.background.UpdateRequestResult;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -75,9 +74,9 @@ public class RequestCoordinatorBridge {
     /** Contains a result for a remove page request. */
     public static class RequestRemovedResult {
         private final long mRequestId;
-        private final @UpdateRequestResult int mUpdateRequestResult;
+        private final int mUpdateRequestResult;
 
-        public RequestRemovedResult(long requestId, @UpdateRequestResult int requestResult) {
+        public RequestRemovedResult(long requestId, int requestResult) {
             mRequestId = requestId;
             mUpdateRequestResult = requestResult;
         }
@@ -87,8 +86,8 @@ public class RequestCoordinatorBridge {
             return mRequestId;
         }
 
-        /** {@link UpdateRequestResult} enum. */
-        public @UpdateRequestResult int getUpdateRequestResult() {
+        /** {@see org.chromium.components.offlinepages.background.UpdateRequestResult} enum. */
+        public int getUpdateRequestResult() {
             return mUpdateRequestResult;
         }
     }
@@ -178,9 +177,12 @@ public class RequestCoordinatorBridge {
             OfflinePageOrigin origin,
             @Nullable Callback<Integer> callback) {
         Callback<Integer> wrapper =
-                i -> {
-                    if (callback != null) {
-                        callback.onResult(i);
+                new Callback<>() {
+                    @Override
+                    public void onResult(Integer i) {
+                        if (callback != null) {
+                            callback.onResult(i);
+                        }
                     }
                 };
         RequestCoordinatorBridgeJni.get()

@@ -26,7 +26,6 @@
 class BrowserWindowInterface;
 class ExtensionsMenuCoordinator;
 class WebUIToolbarWebViewBrowserTest;
-class WebUIToolbarWebViewInteractiveUiTest;
 
 namespace webui_toolbar {
 class IconTable;
@@ -124,7 +123,7 @@ class WebUIToolbarExtensionsContainer
   void OnWidgetDestroying(views::Widget* widget) override;
 
  private:
-  FRIEND_TEST_ALL_PREFIXES(WebUIToolbarWebViewInteractiveUiTest,
+  FRIEND_TEST_ALL_PREFIXES(WebUIToolbarWebViewBrowserTest,
                            ExtensionUserActionsPlumbing);
   FRIEND_TEST_ALL_PREFIXES(WebUIToolbarWebViewBrowserTest, ExtensionAnchoring);
   FRIEND_TEST_ALL_PREFIXES(WebUIToolbarWebViewBrowserTest,

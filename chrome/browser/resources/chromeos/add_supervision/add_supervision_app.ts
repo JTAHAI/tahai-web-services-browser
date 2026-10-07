@@ -38,7 +38,7 @@ class AddSupervisionApp extends PolymerElement {
     return getTemplate();
   }
 
-  private currentScreen: Screens|null = null;
+  private currentScreen: Screens;
 
   override ready() {
     super.ready();

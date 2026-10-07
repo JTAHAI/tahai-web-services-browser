@@ -2,10 +2,10 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {ConsoleTestRunner} from 'console_test_runner';
-import * as Console from 'devtools/panels/console/console.js';
-import * as UI from 'devtools/ui/legacy/legacy.js';
 import {TestRunner} from 'test_runner';
+import {ConsoleTestRunner} from 'console_test_runner';
+
+import * as Console from 'devtools/panels/console/console.js';
 
 (async function() {
   TestRunner.addResult(`Tests that property values can be edited inline in the console via double click.\n`);
@@ -51,30 +51,28 @@ import {TestRunner} from 'test_runner';
   }
 
   async function step6() {
-    await UI.Widget.Widget.allUpdatesComplete;
+    await new Promise(requestAnimationFrame);
     await ConsoleTestRunner.dumpConsoleMessagesIgnoreErrorStackFrames();
     TestRunner.completeTest();
   }
 
   async function getValueElements() {
-    await UI.Widget.Widget.allUpdatesComplete;
+    await new Promise(requestAnimationFrame);
     var messageElement = Console.ConsoleView.ConsoleView.instance().visibleViewMessages[1].element();
-    return messageElement.querySelector('.console-message-text devtools-tree')
-        .shadowRoot.querySelectorAll('.value');
+    return messageElement.querySelector('.console-message-text *').shadowRoot.querySelectorAll('.value');
   }
 
   async function doubleClickTypeAndEnter(node, text) {
     var event = document.createEvent('MouseEvent');
     event.initMouseEvent('dblclick', true, true, null, 2);
     node.dispatchEvent(event);
-    await UI.Widget.Widget.allUpdatesComplete;
+    await new Promise(requestAnimationFrame);
     var messageElement = Console.ConsoleView.ConsoleView.instance().visibleViewMessages[1].element();
-    var editPrompt =
-        messageElement.querySelector('.console-message-text devtools-tree')
-            .shadowRoot.querySelector('devtools-prompt[editing]')
-            .shadowRoot.querySelector('.text-prompt');
+    var editPrompt = messageElement.querySelector('.console-message-text *').shadowRoot.
+      querySelector('devtools-prompt[editing]').shadowRoot.
+      querySelector('.text-prompt');
     editPrompt.textContent = text;
     editPrompt.dispatchEvent(TestRunner.createKeyEvent('Enter'));
-    await UI.Widget.Widget.allUpdatesComplete;
+    await new Promise(requestAnimationFrame);
   }
 })();

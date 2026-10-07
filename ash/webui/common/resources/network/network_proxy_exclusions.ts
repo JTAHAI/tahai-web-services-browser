@@ -49,8 +49,8 @@ export class NetworkProxyExclusionsElement extends
     };
   }
 
-  declare editable: boolean;
-  declare exclusions: string[];
+  editable: boolean;
+  exclusions: string[];
 
   private onRemoveTap_(event: {model: {index: number}}): void {
     const index = event.model.index;

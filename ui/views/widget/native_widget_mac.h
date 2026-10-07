@@ -76,10 +76,10 @@ class VIEWS_EXPORT NativeWidgetMac : public internal::NativeWidgetPrivate,
   void OnWindowDidEndMove();
 
   // Called when the user will start resizing the window.
-  virtual void OnWindowWillStartLiveResize();
+  void OnWindowWillStartLiveResize();
 
   // Called when the user ends resizing the window.
-  virtual void OnWindowDidEndLiveResize();
+  void OnWindowDidEndLiveResize();
 
   // The vertical position from which sheets should be anchored, from the top
   // of the content view.

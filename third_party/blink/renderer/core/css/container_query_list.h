@@ -13,7 +13,7 @@
 namespace blink {
 class ExecutionContext;
 class Element;
-class ContainerQuerySet;
+class ContainerQuery;
 
 class CORE_EXPORT ContainerQueryList final
     : public EventTarget,
@@ -22,15 +22,12 @@ class CORE_EXPORT ContainerQueryList final
   DEFINE_WRAPPERTYPEINFO();
 
  public:
-  ContainerQueryList(ExecutionContext*,
-                     const ContainerQuerySet*,
-                     Element* element);
+  ContainerQueryList(ExecutionContext*, ContainerQuery*, Element* element);
   ContainerQueryList(const ContainerQueryList&) = delete;
   ContainerQueryList& operator=(const ContainerQueryList&) = delete;
   ~ContainerQueryList() override;
 
   bool matches();
-  String query() const;
 
   void Trace(Visitor*) const override;
 
@@ -43,10 +40,12 @@ class CORE_EXPORT ContainerQueryList final
 
  private:
   void UpdateMatches();
+  Element* ResolveContainer();
 
   bool matches_ = false;
-  Member<const ContainerQuerySet> container_query_set_;
+  Member<ContainerQuery> container_query_;
   Member<Element> element_;
+  WeakMember<Element> container_;
 };
 
 }  // namespace blink

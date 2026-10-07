@@ -32,15 +32,10 @@ import org.chromium.base.supplier.ObservableSuppliers;
 import org.chromium.base.supplier.SettableMonotonicObservableSupplier;
 import org.chromium.base.supplier.SettableNullableObservableSupplier;
 import org.chromium.base.test.BaseRobolectricTestRunner;
-import org.chromium.base.test.util.Features.DisableFeatures;
-import org.chromium.base.test.util.Features.EnableFeatures;
-import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.price_tracking.PriceTrackingFeatures;
 import org.chromium.chrome.browser.price_tracking.PriceTrackingUtilities;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.tab.MockTab;
-
-import java.util.List;
 import org.chromium.chrome.browser.tabmodel.TabModel;
 import org.chromium.chrome.browser.tabmodel.TabModelObserver;
 import org.chromium.chrome.browser.tasks.tab_management.PriceMessageService.PriceWelcomeMessageReviewActionProvider;
@@ -188,7 +183,6 @@ public class PriceWelcomeMessageControllerUnitTest {
     }
 
     @Test
-    @DisableFeatures(ChromeFeatureList.TAB_CLOSURE_METHOD_REFACTOR)
     public void testTabModelObserver_willCloseTab() {
         TabModelObserver observer = mTabModelObserverCaptor.getValue();
 
@@ -199,23 +193,6 @@ public class PriceWelcomeMessageControllerUnitTest {
         when(mPriceMessageService.getBindingTabId()).thenReturn(TAB_ID);
 
         observer.willCloseTab(mTab, false);
-        verify(mPriceMessageUpdateObserver).onRemovePriceWelcomeMessage();
-    }
-
-    @Test
-    @EnableFeatures(ChromeFeatureList.TAB_CLOSURE_METHOD_REFACTOR)
-    public void testTabModelObserver_willCloseTab_WillCloseTabs() {
-        TabModelObserver observer = mTabModelObserverCaptor.getValue();
-
-        when(mPriceMessageService.getBindingTabId()).thenReturn(OTHER_TAB_ID);
-        observer.willCloseTabs(
-                List.of(mTab), /* isAllTabs= */ false, /* allowUndo= */ false);
-
-        verify(mPriceMessageUpdateObserver, never()).onRemovePriceWelcomeMessage();
-        when(mPriceMessageService.getBindingTabId()).thenReturn(TAB_ID);
-
-        observer.willCloseTabs(
-                List.of(mTab), /* isAllTabs= */ false, /* allowUndo= */ false);
         verify(mPriceMessageUpdateObserver).onRemovePriceWelcomeMessage();
     }
 

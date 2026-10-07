@@ -59,7 +59,7 @@ export function getHtml(this: OmniboxComposeboxElement) {
     ${this.errorMessage ?
       html`<ntp-error-scrim id="errorScrim" part="error-scrim"
           ?compact-mode="${this.searchboxLayoutMode === 'Compact' &&
-                          this.attachedContext.size === 0}"
+                          this.files.size === 0}"
           .errorMessage="${this.errorMessage}"
           @dismiss-error-scrim="${this.onDismissErrorScrim}">
       </ntp-error-scrim>`
@@ -161,7 +161,7 @@ export function getHtml(this: OmniboxComposeboxElement) {
           ` : ''}
           ${this.shouldShowVoiceSearchAtBottom() ? html`
             <cr-icon-button id="voiceSearchButton" class="voice-icon" part="voice-icon"
-                iron-icon="cr:mic-filled" @click="${this.onVoiceSearchButtonClick}"
+                iron-icon="cr:mic" @click="${this.onVoiceSearchButtonClick}"
                 title="${this.i18n('voiceSearchButtonLabel')}">
             </cr-icon-button>
           ` : ''}

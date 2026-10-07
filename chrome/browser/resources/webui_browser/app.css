@@ -117,19 +117,14 @@ webui-browser-searchbox[dropdown-is-visible] {
 .tabstripDiv {
   app-region: no-drag;
   -webkit-app-region: no-drag;
-  flex: 1;
-  min-width: 0;
+  float: left;
   overflow: hidden;
   text-align: left;
 }
 
-.tabstripDiv:has(webui-browser-tab-strip[drag-in-progress]) {
-  overflow: visible;
-}
-
 .captionButtonsDiv {
   float: right;
-  flex: none;
+  flex: 1;
   text-align: right;
   white-space: nowrap;
 }

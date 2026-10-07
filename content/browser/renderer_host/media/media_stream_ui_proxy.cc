@@ -95,7 +95,7 @@ class MediaStreamUIProxy::Core {
       std::unique_ptr<MediaStreamUI> stream_ui);
 
   base::WeakPtr<Core> GetWeakPtr() {
-    CHECK_CURRENTLY_ON(BrowserThread::IO, base::NotFatalUntil::M155);
+    DCHECK_CURRENTLY_ON(BrowserThread::IO);
     // This weak pointer is created in the ctor, which runs on the IO thread.
     // This pointer is always posted from the IO thread to the UI thread,
     // meaning reading |weak_this_| happens on the IO thead, but dereferencing
@@ -135,17 +135,17 @@ MediaStreamUIProxy::Core::Core(const base::WeakPtr<MediaStreamUIProxy>& proxy,
     : proxy_(proxy),
       tests_use_fake_render_frame_hosts_(test_render_delegate != nullptr),
       test_render_delegate_(test_render_delegate) {
-  CHECK_CURRENTLY_ON(BrowserThread::IO, base::NotFatalUntil::M155);
+  DCHECK_CURRENTLY_ON(BrowserThread::IO);
   weak_this_ = weak_factory_.GetWeakPtr();
 }
 
 MediaStreamUIProxy::Core::~Core() {
-  CHECK_CURRENTLY_ON(BrowserThread::UI, base::NotFatalUntil::M155);
+  DCHECK_CURRENTLY_ON(BrowserThread::UI);
 }
 
 void MediaStreamUIProxy::Core::RequestAccess(
     std::unique_ptr<MediaStreamRequest> request) {
-  CHECK_CURRENTLY_ON(BrowserThread::UI, base::NotFatalUntil::M155);
+  DCHECK_CURRENTLY_ON(BrowserThread::UI);
 
   // TODO(crbug.com/379869738) Remove FromUnsafeValue.
   RenderFrameHostDelegate* render_delegate = GetRenderFrameHostDelegate(
@@ -176,7 +176,7 @@ void MediaStreamUIProxy::Core::RequestAccess(
 void MediaStreamUIProxy::Core::RequestSelectAudioOutput(
     std::unique_ptr<SelectAudioOutputRequest> request,
     SelectAudioOutputCallback callback) {
-  CHECK_CURRENTLY_ON(BrowserThread::UI, base::NotFatalUntil::M155);
+  DCHECK_CURRENTLY_ON(BrowserThread::UI);
 
   RenderFrameHostDelegate* render_delegate = GetRenderFrameHostDelegate(
       request->render_frame_host_id().child_id,
@@ -197,7 +197,7 @@ void MediaStreamUIProxy::Core::OnStarted(
     bool has_source_callback,
     const std::string& label,
     std::vector<DesktopMediaID> screen_share_ids) {
-  CHECK_CURRENTLY_ON(BrowserThread::UI, base::NotFatalUntil::M155);
+  DCHECK_CURRENTLY_ON(BrowserThread::UI);
 
   if (!ui_)
     return;
@@ -219,7 +219,7 @@ void MediaStreamUIProxy::Core::OnStarted(
 
 void MediaStreamUIProxy::Core::OnDeviceStopped(const std::string& label,
                                                const DesktopMediaID& media_id) {
-  CHECK_CURRENTLY_ON(BrowserThread::UI, base::NotFatalUntil::M155);
+  DCHECK_CURRENTLY_ON(BrowserThread::UI);
   if (ui_) {
     ui_->OnDeviceStopped(label, media_id);
   }
@@ -230,7 +230,7 @@ void MediaStreamUIProxy::Core::OnDeviceStoppedForSourceChange(
     const DesktopMediaID& old_media_id,
     const DesktopMediaID& new_media_id,
     bool captured_surface_control_active) {
-  CHECK_CURRENTLY_ON(BrowserThread::UI, base::NotFatalUntil::M155);
+  DCHECK_CURRENTLY_ON(BrowserThread::UI);
   if (ui_) {
     ui_->OnDeviceStoppedForSourceChange(label, old_media_id, new_media_id,
                                         captured_surface_control_active);
@@ -240,7 +240,7 @@ void MediaStreamUIProxy::Core::OnDeviceStoppedForSourceChange(
 
 void MediaStreamUIProxy::Core::OnRegionCaptureRectChanged(
     const std::optional<gfx::Rect>& region_capture_rec) {
-  CHECK_CURRENTLY_ON(BrowserThread::UI, base::NotFatalUntil::M155);
+  DCHECK_CURRENTLY_ON(BrowserThread::UI);
   if (ui_) {
     ui_->OnRegionCaptureRectChanged(region_capture_rec);
   }
@@ -250,7 +250,7 @@ void MediaStreamUIProxy::Core::SetFocus(const DesktopMediaID& media_id,
                                         bool focus,
                                         bool is_from_microtask,
                                         bool is_from_timer) {
-  CHECK_CURRENTLY_ON(BrowserThread::UI, base::NotFatalUntil::M155);
+  DCHECK_CURRENTLY_ON(BrowserThread::UI);
   if (ui_) {
     ui_->SetFocus(media_id, focus, is_from_microtask, is_from_timer);
   }
@@ -263,8 +263,8 @@ void MediaStreamUIProxy::Core::ProcessAccessRequestResponseForPostTask(
     blink::mojom::StreamDevicesSetPtr stream_devices_set_ptr,
     blink::mojom::MediaStreamRequestResult result,
     std::unique_ptr<MediaStreamUI> stream_ui) {
-  CHECK_CURRENTLY_ON(BrowserThread::UI, base::NotFatalUntil::M155);
-  CHECK(stream_devices_set_ptr, base::NotFatalUntil::M155);
+  DCHECK_CURRENTLY_ON(BrowserThread::UI);
+  DCHECK(stream_devices_set_ptr);
   ProcessAccessRequestResponse(render_process_id, render_frame_id,
                                request_origin, *stream_devices_set_ptr, result,
                                std::move(stream_ui));
@@ -277,12 +277,11 @@ void MediaStreamUIProxy::Core::ProcessAccessRequestResponse(
     const blink::mojom::StreamDevicesSet& stream_devices_set,
     blink::mojom::MediaStreamRequestResult result,
     std::unique_ptr<MediaStreamUI> stream_ui) {
-  CHECK_CURRENTLY_ON(BrowserThread::UI, base::NotFatalUntil::M155);
-  CHECK((result != blink::mojom::MediaStreamRequestResult::OK &&
-         stream_devices_set.stream_devices.empty()) ||
-            (result == blink::mojom::MediaStreamRequestResult::OK &&
-             stream_devices_set.stream_devices.size() == 1u),
-        base::NotFatalUntil::M155);
+  DCHECK_CURRENTLY_ON(BrowserThread::UI);
+  DCHECK((result != blink::mojom::MediaStreamRequestResult::OK &&
+          stream_devices_set.stream_devices.empty()) ||
+         (result == blink::mojom::MediaStreamRequestResult::OK &&
+          stream_devices_set.stream_devices.size() == 1u));
 
   blink::mojom::StreamDevicesSetPtr filtered_devices_set =
       blink::mojom::StreamDevicesSet::New();
@@ -351,7 +350,7 @@ void MediaStreamUIProxy::Core::ProcessAccessRequestResponse(
 }
 
 void MediaStreamUIProxy::Core::ProcessStopRequestFromUI() {
-  CHECK_CURRENTLY_ON(BrowserThread::UI, base::NotFatalUntil::M155);
+  DCHECK_CURRENTLY_ON(BrowserThread::UI);
 
   GetIOThreadTaskRunner({})->PostTask(
       FROM_HERE,
@@ -361,7 +360,7 @@ void MediaStreamUIProxy::Core::ProcessStopRequestFromUI() {
 void MediaStreamUIProxy::Core::ProcessChangeSourceRequestFromUI(
     const DesktopMediaID& media_id,
     bool captured_surface_control_active) {
-  CHECK_CURRENTLY_ON(BrowserThread::UI, base::NotFatalUntil::M155);
+  DCHECK_CURRENTLY_ON(BrowserThread::UI);
 
   GetIOThreadTaskRunner({})->PostTask(
       FROM_HERE,
@@ -372,7 +371,7 @@ void MediaStreamUIProxy::Core::ProcessChangeSourceRequestFromUI(
 void MediaStreamUIProxy::Core::ProcessStateChangeFromUI(
     const DesktopMediaID& media_id,
     blink::mojom::MediaStreamStateChange new_state) {
-  CHECK_CURRENTLY_ON(BrowserThread::UI, base::NotFatalUntil::M155);
+  DCHECK_CURRENTLY_ON(BrowserThread::UI);
   GetIOThreadTaskRunner({})->PostTask(
       FROM_HERE, base::BindOnce(&MediaStreamUIProxy::ProcessStateChangeFromUI,
                                 proxy_, media_id, new_state));
@@ -381,7 +380,7 @@ void MediaStreamUIProxy::Core::ProcessStateChangeFromUI(
 RenderFrameHostDelegate* MediaStreamUIProxy::Core::GetRenderFrameHostDelegate(
     ChildProcessId render_process_id,
     int render_frame_id) {
-  CHECK_CURRENTLY_ON(BrowserThread::UI, base::NotFatalUntil::M155);
+  DCHECK_CURRENTLY_ON(BrowserThread::UI);
   if (test_render_delegate_)
     return test_render_delegate_;
   RenderFrameHostImpl* host =
@@ -403,18 +402,18 @@ std::unique_ptr<MediaStreamUIProxy> MediaStreamUIProxy::CreateForTests(
 
 MediaStreamUIProxy::MediaStreamUIProxy(
     RenderFrameHostDelegate* test_render_delegate) {
-  CHECK_CURRENTLY_ON(BrowserThread::IO, base::NotFatalUntil::M155);
+  DCHECK_CURRENTLY_ON(BrowserThread::IO);
   core_.reset(new Core(weak_factory_.GetWeakPtr(), test_render_delegate));
 }
 
 MediaStreamUIProxy::~MediaStreamUIProxy() {
-  CHECK_CURRENTLY_ON(BrowserThread::IO, base::NotFatalUntil::M155);
+  DCHECK_CURRENTLY_ON(BrowserThread::IO);
 }
 
 void MediaStreamUIProxy::RequestAccess(
     std::unique_ptr<MediaStreamRequest> request,
     ResponseCallback response_callback) {
-  CHECK_CURRENTLY_ON(BrowserThread::IO, base::NotFatalUntil::M155);
+  DCHECK_CURRENTLY_ON(BrowserThread::IO);
 
   response_callback_ = std::move(response_callback);
   GetUIThreadTaskRunner({})->PostTask(
@@ -425,7 +424,7 @@ void MediaStreamUIProxy::RequestAccess(
 void MediaStreamUIProxy::RequestSelectAudioOutput(
     std::unique_ptr<SelectAudioOutputRequest> request,
     SelectAudioOutputCallback callback) {
-  CHECK_CURRENTLY_ON(BrowserThread::IO, base::NotFatalUntil::M155);
+  DCHECK_CURRENTLY_ON(BrowserThread::IO);
 
   GetUIThreadTaskRunner({})->PostTask(
       FROM_HERE,
@@ -440,7 +439,7 @@ void MediaStreamUIProxy::OnStarted(
     const std::string& label,
     std::vector<DesktopMediaID> screen_share_ids,
     MediaStreamUI::StateChangeCallback state_change_callback) {
-  CHECK_CURRENTLY_ON(BrowserThread::IO, base::NotFatalUntil::M155);
+  DCHECK_CURRENTLY_ON(BrowserThread::IO);
 
   stop_callback_ = std::move(stop_callback);
   source_callback_ = std::move(source_callback);
@@ -460,7 +459,7 @@ void MediaStreamUIProxy::OnStarted(
 
 void MediaStreamUIProxy::OnDeviceStopped(const std::string& label,
                                          const DesktopMediaID& media_id) {
-  CHECK_CURRENTLY_ON(BrowserThread::IO, base::NotFatalUntil::M155);
+  DCHECK_CURRENTLY_ON(BrowserThread::IO);
 
   GetUIThreadTaskRunner({})->PostTask(
       FROM_HERE, base::BindOnce(&Core::OnDeviceStopped, core_->GetWeakPtr(),
@@ -472,7 +471,7 @@ void MediaStreamUIProxy::OnDeviceStoppedForSourceChange(
     const DesktopMediaID& old_media_id,
     const DesktopMediaID& new_media_id,
     bool captured_surface_control_active) {
-  CHECK_CURRENTLY_ON(BrowserThread::IO, base::NotFatalUntil::M155);
+  DCHECK_CURRENTLY_ON(BrowserThread::IO);
 
   GetUIThreadTaskRunner({})->PostTask(
       FROM_HERE, base::BindOnce(&Core::OnDeviceStoppedForSourceChange,
@@ -482,7 +481,7 @@ void MediaStreamUIProxy::OnDeviceStoppedForSourceChange(
 
 void MediaStreamUIProxy::OnRegionCaptureRectChanged(
     const std::optional<gfx::Rect>& region_capture_rec) {
-  CHECK_CURRENTLY_ON(BrowserThread::IO, base::NotFatalUntil::M155);
+  DCHECK_CURRENTLY_ON(BrowserThread::IO);
 
   GetUIThreadTaskRunner({})->PostTask(
       FROM_HERE, base::BindOnce(&Core::OnRegionCaptureRectChanged,
@@ -493,7 +492,7 @@ void MediaStreamUIProxy::SetFocus(const DesktopMediaID& media_id,
                                   bool focus,
                                   bool is_from_microtask,
                                   bool is_from_timer) {
-  CHECK_CURRENTLY_ON(BrowserThread::IO, base::NotFatalUntil::M155);
+  DCHECK_CURRENTLY_ON(BrowserThread::IO);
 
   GetUIThreadTaskRunner({})->PostTask(
       FROM_HERE, base::BindOnce(&Core::SetFocus, core_->GetWeakPtr(), media_id,
@@ -504,7 +503,7 @@ void MediaStreamUIProxy::ProcessAccessRequestResponse(
     blink::mojom::StreamDevicesSetPtr stream_devices_set,
     blink::mojom::MediaStreamRequestResult result,
     bool is_allowed_while_screen_locked) {
-  CHECK_CURRENTLY_ON(BrowserThread::IO, base::NotFatalUntil::M155);
+  DCHECK_CURRENTLY_ON(BrowserThread::IO);
 
   if (response_callback_) {
     std::move(response_callback_)
@@ -513,7 +512,7 @@ void MediaStreamUIProxy::ProcessAccessRequestResponse(
 }
 
 void MediaStreamUIProxy::ProcessStopRequestFromUI() {
-  CHECK_CURRENTLY_ON(BrowserThread::IO, base::NotFatalUntil::M155);
+  DCHECK_CURRENTLY_ON(BrowserThread::IO);
   // Careful when changing the following lines: upstream, this function is
   // wrapped into a RepeatingClosure, which allows duplicating it and enabling
   // multiple potentital sources to stop the stream; however only the first
@@ -525,7 +524,7 @@ void MediaStreamUIProxy::ProcessStopRequestFromUI() {
 void MediaStreamUIProxy::ProcessChangeSourceRequestFromUI(
     const DesktopMediaID& media_id,
     bool captured_surface_control_active) {
-  CHECK_CURRENTLY_ON(BrowserThread::IO, base::NotFatalUntil::M155);
+  DCHECK_CURRENTLY_ON(BrowserThread::IO);
 
   if (source_callback_)
     source_callback_.Run(media_id, captured_surface_control_active);
@@ -534,7 +533,7 @@ void MediaStreamUIProxy::ProcessChangeSourceRequestFromUI(
 void MediaStreamUIProxy::ProcessStateChangeFromUI(
     const DesktopMediaID& media_id,
     blink::mojom::MediaStreamStateChange new_state) {
-  CHECK_CURRENTLY_ON(BrowserThread::IO, base::NotFatalUntil::M155);
+  DCHECK_CURRENTLY_ON(BrowserThread::IO);
 
   if (state_change_callback_)
     state_change_callback_.Run(media_id, new_state);
@@ -542,7 +541,7 @@ void MediaStreamUIProxy::ProcessStateChangeFromUI(
 
 void MediaStreamUIProxy::OnWindowId(WindowIdCallback window_id_callback,
                                     gfx::NativeViewId* window_id) {
-  CHECK_CURRENTLY_ON(BrowserThread::IO, base::NotFatalUntil::M155);
+  DCHECK_CURRENTLY_ON(BrowserThread::IO);
   if (!window_id_callback.is_null())
     std::move(window_id_callback).Run(*window_id);
 }
@@ -575,7 +574,7 @@ void FakeMediaStreamUIProxy::SetAudioShare(bool audio_share) {
 void FakeMediaStreamUIProxy::RequestAccess(
     std::unique_ptr<MediaStreamRequest> request,
     ResponseCallback response_callback) {
-  CHECK_CURRENTLY_ON(BrowserThread::IO, base::NotFatalUntil::M155);
+  DCHECK_CURRENTLY_ON(BrowserThread::IO);
 
   response_callback_ = std::move(response_callback);
 

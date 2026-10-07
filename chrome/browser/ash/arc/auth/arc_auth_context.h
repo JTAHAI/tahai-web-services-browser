@@ -9,10 +9,11 @@
 #include <string>
 
 #include "base/functional/callback.h"
-#include "base/memory/raw_ref.h"
+#include "base/memory/raw_ptr.h"
 #include "base/timer/timer.h"
-#include "components/account_id/account_id.h"
 #include "components/signin/public/identity_manager/identity_manager.h"
+
+class Profile;
 
 namespace arc {
 
@@ -22,9 +23,7 @@ class ArcAuthContext : public signin::IdentityManager::Observer {
   // must be the |account_id| used by the OAuth Token Service chain.
   // Note: |account_id| can be the Device Account or a Secondary Account stored
   // in Chrome OS Account Manager.
-  // `identity_manager` must not be nullptr and must outlive this instance
-  ArcAuthContext(signin::IdentityManager* identity_manager,
-                 const CoreAccountId& account_id);
+  ArcAuthContext(Profile* profile, const CoreAccountId& account_id);
 
   ArcAuthContext(const ArcAuthContext&) = delete;
   ArcAuthContext& operator=(const ArcAuthContext&) = delete;
@@ -56,8 +55,8 @@ class ArcAuthContext : public signin::IdentityManager::Observer {
  private:
   void OnRefreshTokenTimeout();
 
-  const raw_ref<signin::IdentityManager> identity_manager_;
   const CoreAccountId account_id_;
+  const raw_ptr<signin::IdentityManager> identity_manager_;
 
   PrepareCallback callback_;
   bool context_prepared_ = false;

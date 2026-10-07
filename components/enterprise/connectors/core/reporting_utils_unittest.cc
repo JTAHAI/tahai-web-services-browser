@@ -195,7 +195,6 @@ TEST(ReportingUtilsTest, GetUrlFilteringInterstitialEvent) {
   matched_url_navigation_rule->set_rule_id("123");
   matched_url_navigation_rule->set_rule_name("test rule name");
   matched_url_navigation_rule->set_matched_url_category("test rule category");
-  matched_url_navigation_rule->set_block_screenshot(true);
 
   auto event = GetUrlFilteringInterstitialEvent(
       /*url=*/GURL("https://filteredurl.com"),
@@ -203,10 +202,8 @@ TEST(ReportingUtilsTest, GetUrlFilteringInterstitialEvent) {
       /*profile_identifier=*/"identifier",
       /*profile_username=*/"profile_username",
       /*active_user=*/"active_user@example.com",
-      /*referrer_chain=*/referrer_chain,
-      /*tab_title=*/"My Test Tab Title");
+      /*referrer_chain=*/referrer_chain);
 
-  ASSERT_EQ(event.tab_title(), "My Test Tab Title");
   ASSERT_EQ(event.url(), "https://filteredurl.com/");
   ASSERT_FALSE(event.clicked_through());
   ASSERT_EQ(event.threat_type(),
@@ -224,7 +221,6 @@ TEST(ReportingUtilsTest, GetUrlFilteringInterstitialEvent) {
   ASSERT_EQ(triggered_rule_info.action(),
             chrome::cros::reporting::proto::TriggeredRuleInfo::BLOCK);
   ASSERT_FALSE(triggered_rule_info.has_watermarking());
-  ASSERT_TRUE(triggered_rule_info.has_screenshot_protection());
   ASSERT_EQ(event.profile_identifier(), "identifier");
   ASSERT_EQ(event.profile_user_name(), "profile_username");
   ASSERT_EQ(event.web_app_signed_in_account(), "active_user@example.com");
@@ -548,6 +544,41 @@ TEST(ReportingUtilsTest, TestUrlMatchingForOptInEventReturnsFalse) {
   auto url_matcher = CreateURLMatcherForOptInEvent(std::move(settings),
                                                    kKeyPasswordBreachEvent);
   EXPECT_FALSE(IsUrlMatched(url_matcher.get(), GURL("gmail.com")));
+}
+
+TEST(ReportingUtilsTest, TestAddReferrerChainToEvent) {
+  google::protobuf::RepeatedPtrField<safe_browsing::ReferrerChainEntry>
+      referrer_chain;
+  referrer_chain.Add(test::MakeReferrerChainEntry());
+  base::DictValue event;
+  AddReferrerChainToEvent(referrer_chain, event);
+  EXPECT_EQ(event.size(), 1u);
+  EXPECT_EQ(event.FindList(kKeyReferrers)->size(), 1u);
+}
+
+TEST(ReportingUtilsTest, TestEmptyReferrerChainAdded) {
+  google::protobuf::RepeatedPtrField<safe_browsing::ReferrerChainEntry>
+      referrer_chain;
+  base::DictValue event;
+  AddReferrerChainToEvent(referrer_chain, event);
+  EXPECT_EQ(event.size(), 1u);
+  EXPECT_TRUE(event.contains(kKeyReferrers));
+  EXPECT_TRUE(event.FindList(kKeyReferrers)->empty());
+}
+
+TEST(ReportingUtilsTest, TestAddFrameUrlChainToEvent) {
+  google::protobuf::RepeatedPtrField<std::string> frame_url_chain;
+  *frame_url_chain.Add() = "https://frame1.com/";
+  *frame_url_chain.Add() = "https://frame2.com/";
+
+  base::DictValue event;
+  AddFrameUrlChainToEvent(frame_url_chain, event);
+
+  const base::ListValue* iframe_urls = event.FindList(kKeyIframeUrls);
+  ASSERT_TRUE(iframe_urls);
+  ASSERT_EQ(iframe_urls->size(), 2u);
+  EXPECT_EQ((*iframe_urls)[0].GetString(), "https://frame1.com/");
+  EXPECT_EQ((*iframe_urls)[1].GetString(), "https://frame2.com/");
 }
 
 }  // namespace enterprise_connectors

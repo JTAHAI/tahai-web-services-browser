@@ -40,7 +40,7 @@ mojom::OnNodeMovedEventPtr ToEvent(
 
 mojom::OnDataChangedEventPtr ToEvent(
     const tabs_api::TabStripModelAdapter& adapter,
-    tabs::TabInterface* tab,
+    size_t index,
     TabChangeType change_type);
 
 mojom::OnDataChangedEventPtr ToEvent(

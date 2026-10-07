@@ -160,7 +160,13 @@ public class WebApkUpdateManager implements WebApkUpdateDataFetcher.Observer, De
         mFetcher.start(tab, mInfo, this);
         mUpdateFailureHandler = new Handler();
         mUpdateFailureHandler.postDelayed(
-                () -> onGotManifestData(null, null, null), updateTimeoutMilliseconds());
+                new Runnable() {
+                    @Override
+                    public void run() {
+                        onGotManifestData(null, null, null);
+                    }
+                },
+                updateTimeoutMilliseconds());
     }
 
     @Override

@@ -79,4 +79,4 @@ class ResourceCoordinatorParts {
 
 }  // namespace resource_coordinator
 
-#endif  // CHROME_BROWSER_RESOURCE_COORDINATOR_RESOURCE_COORDINATOR_PARTS_H_
+#endif  // CHROME_BROWSER_RESOURCE_COORDINATOR_RESOURCE_COORDINATOR_PARTS_H__

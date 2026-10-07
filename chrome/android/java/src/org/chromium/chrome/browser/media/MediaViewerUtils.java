@@ -236,7 +236,9 @@ public class MediaViewerUtils {
     public static void updateMediaLauncherActivityEnabled() {
         PostTask.postTask(
                 TaskTraits.BEST_EFFORT_MAY_BLOCK,
-                MediaViewerUtils::synchronousUpdateMediaLauncherActivityEnabled);
+                () -> {
+                    synchronousUpdateMediaLauncherActivityEnabled();
+                });
     }
 
     static void synchronousUpdateMediaLauncherActivityEnabled() {

@@ -9,38 +9,34 @@
 #include "base/files/file.h"
 #include "base/files/file_path.h"
 #include "base/files/memory_mapped_file.h"
-#include "base/i18n/icubridge/default_icu_locale.h"
-#include "base/i18n/language_tag.h"
-#include "base/i18n/tag_converters.h"
+#include "base/i18n/rtl.h"
 #include "base/logging.h"
+#include "base/path_service.h"
 #include "base/posix/global_descriptors.h"
 #include "base/trace_event/trace_event.h"
 #include "ui/base/resource/resource_bundle.h"
 #include "ui/base/resource/resource_bundle_android.h"
+#include "ui/base/ui_base_paths.h"
 
 namespace android_webview {
-
-using ::base::i18n::GetKnownLanguageTag;
-using ::base::i18n::GetLanguageTagFromString;
-using ::base::i18n::LanguageTag;
-using ::base::i18n::SetDefaultIcuLocale;
 
 void InitIcuAndResourceBundleBrowserSide() {
   TRACE_EVENT0("startup", "InitIcuAndResourceBundleBrowserSide");
   ui::SetLocalePaksStoredInApk(true);
-  std::string locale_string = ui::ResourceBundle::InitSharedInstanceWithLocale(
-      base::android::GetDefaultLocaleString(), nullptr,
+  std::string locale = ui::ResourceBundle::InitSharedInstanceWithLocale(
+      base::android::GetDefaultLocaleString(), NULL,
       ui::ResourceBundle::LOAD_COMMON_RESOURCES);
-  std::optional<LanguageTag> locale_tag =
-      GetLanguageTagFromString(locale_string);
-  if (!locale_tag) {
+  if (locale.empty()) {
     LOG(WARNING) << "Failed to load locale .pak from apk.";
   }
-  SetDefaultIcuLocale(base::i18n::DefaultIcuLocaleSetterKey(),
-                      locale_tag.value_or(GetKnownLanguageTag("en-US")));
+  base::i18n::SetICUDefaultLocale(locale);
 
-  // We only load the resources.pak from the apk.
-  ui::LoadMainAndroidPackFile("assets/resources.pak", base::FilePath());
+  // Try to directly mmap the resources.pak from the apk. Fall back to load
+  // from file, using PATH_SERVICE, otherwise.
+  base::FilePath pak_file_path;
+  base::PathService::Get(ui::DIR_RESOURCE_PAKS_ANDROID, &pak_file_path);
+  pak_file_path = pak_file_path.AppendASCII("resources.pak");
+  ui::LoadMainAndroidPackFile("assets/resources.pak", pak_file_path);
 }
 
 void InitResourceBundleRendererSide() {

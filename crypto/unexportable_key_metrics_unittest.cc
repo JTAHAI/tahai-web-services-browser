@@ -157,8 +157,6 @@ TEST_F(UnexportableKeyMetricTest, GatherAllMetrics) {
   histogram_tester.ExpectTotalCount("Crypto.TPMDuration.MessageSigningECDSA",
                                     0);
   histogram_tester.ExpectTotalCount(
-      "Crypto.TPMDuration.RestrictedMessageSigningECDSA", 0);
-  histogram_tester.ExpectTotalCount(
       "Crypto.TPMDuration.NewAttestationKeyCreationECDSA", 0);
   histogram_tester.ExpectTotalCount(
       "Crypto.TPMDuration.WrappedAttestationKeyCreationECDSA", 0);
@@ -171,10 +169,6 @@ TEST_F(UnexportableKeyMetricTest, GatherAllMetrics) {
                                     0);
   histogram_tester.ExpectTotalCount("Crypto.TPMOperation.KeyCertification", 0);
   histogram_tester.ExpectTotalCount("Crypto.TPMOperation.MessageSigning", 0);
-  histogram_tester.ExpectTotalCount(
-      "Crypto.TPMOperation.RestrictedMessageSigning", 0);
-  histogram_tester.ExpectTotalCount(
-      "Crypto.TPMOperation.RestrictedMessageVerify", 0);
   histogram_tester.ExpectTotalCount("Crypto.TPMOperation.MessageVerify", 0);
 
   internal::MeasureTpmOperationsInternalForTesting();
@@ -189,8 +183,6 @@ TEST_F(UnexportableKeyMetricTest, GatherAllMetrics) {
                                     1);
   histogram_tester.ExpectTotalCount("Crypto.TPMDuration.MessageSigningECDSA",
                                     1);
-  histogram_tester.ExpectTotalCount(
-      "Crypto.TPMDuration.RestrictedMessageSigningECDSA", 1);
   EXPECT_THAT(
       histogram_tester.GetAllSamples("Crypto.TPMOperation.NewKeyCreationECDSA"),
       BucketsAre(base::Bucket(true, 1)));
@@ -203,12 +195,6 @@ TEST_F(UnexportableKeyMetricTest, GatherAllMetrics) {
   EXPECT_THAT(
       histogram_tester.GetAllSamples("Crypto.TPMOperation.MessageSigningECDSA"),
       BucketsAre(base::Bucket(true, 1)));
-  EXPECT_THAT(histogram_tester.GetAllSamples(
-                  "Crypto.TPMOperation.RestrictedMessageSigningECDSA"),
-              BucketsAre(base::Bucket(true, 1)));
-  EXPECT_THAT(histogram_tester.GetAllSamples(
-                  "Crypto.TPMOperation.RestrictedMessageVerifyECDSA"),
-              BucketsAre(base::Bucket(true, 1)));
   EXPECT_THAT(
       histogram_tester.GetAllSamples("Crypto.TPMOperation.MessageVerifyECDSA"),
       BucketsAre(base::Bucket(true, 1)));

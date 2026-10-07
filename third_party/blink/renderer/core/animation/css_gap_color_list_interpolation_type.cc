@@ -4,7 +4,7 @@
 
 #include "third_party/blink/renderer/core/animation/css_gap_color_list_interpolation_type.h"
 
-#include "base/memory/raw_ref.h"
+#include "third_party/blink/renderer/core/animation/color_property_functions.h"
 #include "third_party/blink/renderer/core/animation/css_color_interpolation_type.h"
 #include "third_party/blink/renderer/core/animation/gap_data_list_interpolation_functions.h"
 #include "third_party/blink/renderer/core/animation/interpolable_color.h"
@@ -14,8 +14,7 @@
 #include "third_party/blink/renderer/core/css/css_gap_decoration_property_utils.h"
 #include "third_party/blink/renderer/core/css/css_repeat_value.h"
 #include "third_party/blink/renderer/core/css/resolver/style_builder_converter.h"
-#include "third_party/blink/renderer/core/style/computed_style.h"
-#include "third_party/blink/renderer/core/style/computed_style_initial_values.h"
+#include "third_party/blink/renderer/core/css/resolver/style_resolver.h"
 #include "third_party/blink/renderer/core/style/gap_data_list.h"
 
 namespace blink {
@@ -253,12 +252,10 @@ InterpolationValue CSSGapColorListInterpolationType::MaybeConvertNeutral(
 InterpolationValue CSSGapColorListInterpolationType::MaybeConvertInitial(
     const StyleResolverState& state,
     ConversionCheckers& conversion_checkers) const {
-  GapDataList<StyleColor> initial_list =
-      property_id_ == CSSPropertyID::kColumnRuleColor
-          ? ComputedStyleInitialValues::InitialColumnRuleColor()
-          : ComputedStyleInitialValues::InitialRowRuleColor();
-  CHECK(initial_list.HasSingleValue());
-  const StyleColor initial_color = initial_list.GetSingleValue();
+  HeapVector<StyleColor, 1> initial_list;
+  GetInitialStyleColorList(
+      CssProperty(), state.GetDocument().GetStyleResolver().InitialStyle(),
+      initial_list);
 
   mojom::blink::ColorScheme color_scheme =
       state.StyleBuilder().UsedColorScheme();
@@ -266,10 +263,11 @@ InterpolationValue CSSGapColorListInterpolationType::MaybeConvertInitial(
       state.GetDocument().GetColorProviderForPainting(color_scheme);
 
   return ListInterpolationFunctions::CreateList(
-      1, [&initial_color, &color_scheme, &color_provider](wtf_size_t) {
+      initial_list.size(),
+      [&initial_list, &color_scheme, &color_provider](wtf_size_t index) {
         return InterpolationValue(
             CSSColorInterpolationType::CreateBaseInterpolableColor(
-                initial_color, color_scheme, color_provider));
+                initial_list[index], color_scheme, color_provider));
       });
 }
 
@@ -290,13 +288,12 @@ class InheritedGapColorListChecker final
   bool IsValid(const StyleResolverState& state,
                const InterpolationValue& underlying) const final {
     GapDataList<StyleColor> inherited_list =
-        CSSGapColorListInterpolationType::GetList(*property_,
+        CSSGapColorListInterpolationType::GetList(property_,
                                                   *state.ParentStyle());
     return inherited_list_ == inherited_list;
   }
 
-  const raw_ref<const CSSProperty, UnprotectedInRelease | DanglingUntriaged>
-      property_;
+  const CSSProperty& property_;
   GapDataList<StyleColor> inherited_list_;
 };
 
@@ -339,9 +336,11 @@ InterpolationValue CSSGapColorListInterpolationType::MaybeConvertValue(
     const CSSValue& value,
     const StyleResolverState& state,
     ConversionCheckers& conversion_checkers) const {
-  // The `color` property might still be represented as a single CSSValue when
-  // parsed via the fast path rather than the standard `ParseSingleValue()`
-  // method. Wrap single values for consistent handling.
+  // When CSSGapDecorations feature is enabled, the `color` property might still
+  // be represented as a single CSSValue instead of a CSSValueList. This can
+  // happen when the properties are parsed via the fast parsing path rather than
+  // the standard `ParseSingleValue()` method. In such cases, wrap the single
+  // value in a list to ensure consistent handling.
   auto getValueAsList = [&](const CSSValue* value) -> const CSSValueList* {
     if (const CSSValueList* value_list = DynamicTo<CSSValueList>(value)) {
       return value_list;
@@ -482,6 +481,20 @@ GapDataList<StyleColor> CSSGapColorListInterpolationType::GetProperty(
   }
   CHECK(property_id_ == CSSPropertyID::kRowRuleColor);
   return style.RowRuleColor();
+}
+
+void CSSGapColorListInterpolationType::GetInitialStyleColorList(
+    const CSSProperty& property,
+    const ComputedStyle& style,
+    HeapVector<StyleColor, 1>& result) const {
+  CHECK(property_id_ == CSSPropertyID::kColumnRuleColor ||
+        property_id_ == CSSPropertyID::kRowRuleColor);
+  OptionalStyleColor initial_color =
+      ColorPropertyFunctions::GetInitialColor(CssProperty(), style);
+  if (!initial_color.has_value()) {
+    return;
+  }
+  result.push_back(initial_color.value());
 }
 
 }  // namespace blink

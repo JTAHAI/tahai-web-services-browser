@@ -10,7 +10,6 @@
 #include <optional>
 
 #include "base/containers/span.h"
-#include "base/feature_list.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/raw_span.h"
 #include "components/cbor/cbor_buildflags.h"
@@ -35,7 +34,7 @@
 //  - 3: UTF-8 strings.
 //  - 4: Definite-length arrays.
 //  - 5: Definite-length maps.
-//  - 7: Simple values.
+//  - 7: Simple values or floating point values.
 //
 //  * Note: For simplicity, this implementation represents both signed and
 //    unsigned integers with signed int64_t. This reduces the effective range
@@ -66,8 +65,6 @@
 
 namespace cbor {
 
-CBOR_EXPORT BASE_DECLARE_FEATURE(kUseRustCborParser);
-
 // TODO(crbug.com/535682335): Remove `#if BUILDFLAG(USE_CBOR_RUST)` macros and
 // unconditionally use rust types once Cronet supports Crubit dependencies.
 #if BUILDFLAG(USE_CBOR_RUST)
@@ -81,8 +78,6 @@ class CBOR_EXPORT Reader {
   // TODO(crbug.com/536539387): Once Crubit fixes -Wnullability-completeness, we
   // can include cbor_rust.h in reader.h and assign the values of DecoderError
   // directly from the Rust Tag enum.
-  // These values are persisted to logs. Entries should not be renumbered and
-  // numeric values should never be reused.
   enum class DecoderError {
     // LINT.IfChange(DecoderError)
     CBOR_NO_ERROR = 0,
@@ -100,8 +95,7 @@ class CBOR_EXPORT Reader {
     OUT_OF_RANGE_INTEGER_VALUE = 12,
     DUPLICATE_KEY = 13,
     UNKNOWN_ERROR = 14,
-    // LINT.ThenChange(//components/cbor/rust/reader.rs:ErrorCode,//components/cbor/reader.cc:DecoderErrorAsserts,//tools/metrics/histograms/metadata/cbor/enums.xml:CBORDecoderError)
-    kMaxValue = UNKNOWN_ERROR,
+    // LINT.ThenChange(//components/cbor/rust/reader.rs:ErrorCode,//components/cbor/reader.cc:DecoderErrorAsserts)
   };
 
   // CBOR nested depth sufficient for most use cases.
@@ -139,8 +133,15 @@ class CBOR_EXPORT Reader {
     // correctly.)
     bool allow_invalid_utf8 = false;
 
+    // Causes floating point in CBOR to be decoded. This is an option as
+    // several users of this library do not want to accept floats in CBOR. When
+    // this option is set to `false` any floating point values encountered
+    // during decoding will set raise the `UNSUPPORTED_FLOATING_POINT_VALUE`
+    // error.
+    bool allow_floating_point = false;
+
     // Uses the rust parser instead of the C++ parser.
-    bool use_rust;
+    bool use_rust = false;
   };
 
   Reader(const Reader&) = delete;
@@ -202,8 +203,10 @@ class CBOR_EXPORT Reader {
                                               int max_nesting_level);
   std::optional<Value> DecodeValueToNegative(uint64_t value);
   std::optional<Value> DecodeValueToUnsigned(uint64_t value);
-  std::optional<Value> DecodeToSimpleValue(const DataItemHeader& header);
-  std::optional<uint64_t> ReadVariadicLengthInteger(uint8_t additional_info);
+  std::optional<Value> DecodeToSimpleValueOrFloat(const DataItemHeader& header,
+                                                  const Config& config);
+  std::optional<uint64_t> ReadVariadicLengthInteger(Value::Type type,
+                                                    uint8_t additional_info);
   std::optional<Value> ReadByteStringContent(const DataItemHeader& header);
   std::optional<Value> ReadStringContent(const DataItemHeader& header,
                                          const Config& config);

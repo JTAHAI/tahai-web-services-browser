@@ -43,7 +43,8 @@ struct TextCheckingResult;
 
 // A checked entry of text checking.
 struct WebTextCheckingResult {
-  WebTextCheckingResult() = default;
+  WebTextCheckingResult()
+      : decoration(kWebTextDecorationTypeSpelling), location(0), length(0) {}
 
   WebTextCheckingResult(
       WebTextDecorationType decoration,
@@ -61,11 +62,11 @@ struct WebTextCheckingResult {
   operator TextCheckingResult() const;
 #endif
 
-  WebTextDecorationType decoration = kWebTextDecorationTypeSpelling;
-  int location = 0;
-  int length = 0;
+  WebTextDecorationType decoration;
+  int location;
+  int length;
   std::vector<WebString> replacements;
-  bool should_hide_suggestion_menu = false;
+  bool should_hide_suggestion_menu;
 };
 
 }  // namespace blink

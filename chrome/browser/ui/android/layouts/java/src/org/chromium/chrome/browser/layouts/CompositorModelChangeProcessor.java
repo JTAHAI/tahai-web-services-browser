@@ -8,6 +8,7 @@ import org.chromium.base.Callback;
 import org.chromium.base.supplier.NonNullObservableSupplier;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
+import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.layouts.scene_layer.SceneLayer;
 import org.chromium.ui.modelutil.PropertyKey;
 import org.chromium.ui.modelutil.PropertyModel;
@@ -58,7 +59,10 @@ public class CompositorModelChangeProcessor<V extends SceneLayer> {
         mViewBinder = viewBinder;
         mFrameSupplier = frameSupplier;
         mRequestFrameRunnable = requestFrameRunnable;
-        mNewFrameCallback = this::onNewFrame;
+        mNewFrameCallback =
+                ChromeFeatureList.sMvcUpdateViewWhenModelChanged.isEnabled()
+                        ? this::onNewFrameUpdateWhenOutdated
+                        : this::onNewFrame;
         mFrameSupplier.addSyncObserverAndPostIfNonNull(mNewFrameCallback);
         mExclusions = exclusions;
 
@@ -152,6 +156,10 @@ public class CompositorModelChangeProcessor<V extends SceneLayer> {
     }
 
     private void onNewFrame(Long time) {
+        pushUpdate();
+    }
+
+    private void onNewFrameUpdateWhenOutdated(Long time) {
         if (mViewOutdated) {
             pushUpdate();
             mViewOutdated = false;

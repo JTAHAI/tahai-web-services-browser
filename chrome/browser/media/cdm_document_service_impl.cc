@@ -37,15 +37,10 @@
 
 #include <aclapi.h>
 
-#include "base/containers/flat_set.h"
 #include "base/files/file_enumerator.h"
 #include "base/files/file_util.h"
 #include "base/metrics/histogram_functions.h"
-#include "base/no_destructor.h"
-#include "base/synchronization/lock.h"
 #include "base/system/sys_info.h"
-#include "base/task/lazy_thread_pool_task_runner.h"
-#include "base/task/sequenced_task_runner.h"
 #include "base/task/task_traits.h"
 #include "base/task/thread_pool.h"
 #include "base/win/security_util.h"
@@ -132,17 +127,6 @@ bool RevokeAccess(const base::FilePath& path,
   return success;
 }
 
-// Get a dedicated SequencedTaskRunner for CDM directory operations to prevent
-// race conditions when multiple frames or profiles request CDMs concurrently.
-base::LazyThreadPoolSequencedTaskRunner g_cdm_data_task_runner =
-    LAZY_THREAD_POOL_SEQUENCED_TASK_RUNNER_INITIALIZER(
-        base::TaskTraits({base::MayBlock(), base::TaskPriority::USER_VISIBLE,
-                          base::TaskShutdownBehavior::SKIP_ON_SHUTDOWN}));
-
-scoped_refptr<base::SequencedTaskRunner> GetCdmDataTaskRunner() {
-  return g_cdm_data_task_runner.Get();
-}
-
 bool CreateCdmStorePathRootAndGrantAccessIfNeeded(
     const base::FilePath& cdm_store_path_root) {
   if (!media::MediaFoundationCdm::IsAvailable()) {
@@ -150,15 +134,6 @@ bool CreateCdmStorePathRootAndGrantAccessIfNeeded(
                    "Windows 10.";
     return false;
   }
-
-  // To avoid revoking and regranting ACLs on every CDM request (which locks
-  // out asynchronous utility processes), only perform the ACL fix once per
-  // session per directory.
-  if (CdmDocumentServiceImpl::GetCdmStoreProcessedPaths().contains(
-          cdm_store_path_root)) {
-    return true;
-  }
-
   auto sids = base::win::Sid::FromNamedCapabilityVector(
       {sandbox::policy::kMediaFoundationCdmData});
 
@@ -193,17 +168,11 @@ bool CreateCdmStorePathRootAndGrantAccessIfNeeded(
   // propagate to existing children, leaving them inaccessible to the LPAC.
   // The ACE applied to the root itself is identical in either case; only the
   // propagation to existing children differs.
-  if (!base::win::GrantAccessToPath(
-          cdm_store_path_root, sids,
-          FILE_GENERIC_READ | FILE_GENERIC_WRITE | DELETE,
-          CONTAINER_INHERIT_ACE | OBJECT_INHERIT_ACE | INHERIT_ONLY_ACE,
-          /*recursive=*/true)) {
-    return false;
-  }
-
-  CdmDocumentServiceImpl::GetCdmStoreProcessedPaths().insert(
-      cdm_store_path_root);
-  return true;
+  return base::win::GrantAccessToPath(
+      cdm_store_path_root, sids,
+      FILE_GENERIC_READ | FILE_GENERIC_WRITE | DELETE,
+      CONTAINER_INHERIT_ACE | OBJECT_INHERIT_ACE | INHERIT_ONLY_ACE,
+      /*recursive=*/true);
 }
 
 std::unique_ptr<media::MediaFoundationCdmData>
@@ -396,10 +365,9 @@ void CdmDocumentServiceImpl::GetMediaFoundationCdmData(
     return;
   }
 
-  // PostTask to the dedicated SequencedTaskRunner to prevent concurrent
-  // directory operations from racing and corrupting the ACLs or failing.
-  GetCdmDataTaskRunner()->PostTaskAndReplyWithResult(
-      FROM_HERE,
+  // PostTask because the task is doing IO operation that can block.
+  base::ThreadPool::PostTaskAndReplyWithResult(
+      FROM_HERE, {base::TaskPriority::USER_VISIBLE, base::MayBlock()},
       base::BindOnce(&GetMediaFoundationCdmDataInternal, profile->GetPath(),
                      std::move(pref_data)),
       std::move(callback));
@@ -568,24 +536,11 @@ void CdmDocumentServiceImpl::ClearCdmData(
   // from the UI thread.
   auto origin_id_mapping = CdmPrefServiceHelper::GetOriginIdMapping(user_prefs);
 
-  // PostTask to the dedicated SequencedTaskRunner because it does IO
-  // operations and to prevent racing with directory creations.
-  GetCdmDataTaskRunner()->PostTaskAndReply(
-      FROM_HERE,
+  // PostTask because is doing IO operation that can block.
+  base::ThreadPool::PostTaskAndReply(
+      FROM_HERE, {base::TaskPriority::USER_VISIBLE, base::MayBlock()},
       base::BindOnce(&DeleteMediaFoundationCdmData, profile->GetPath(),
                      std::move(origin_id_mapping), start, end, filter),
       std::move(complete_cb));
-}
-
-// static
-base::flat_set<base::FilePath>&
-CdmDocumentServiceImpl::GetCdmStoreProcessedPaths() {
-  static base::NoDestructor<base::flat_set<base::FilePath>> processed_paths;
-  return *processed_paths;
-}
-
-// static
-void CdmDocumentServiceImpl::ClearCdmStoreProcessedPathsForTesting() {
-  GetCdmStoreProcessedPaths().clear();
 }
 #endif  // BUILDFLAG(IS_WIN)

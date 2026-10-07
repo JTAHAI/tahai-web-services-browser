@@ -1,5 +1,3 @@
-#![deny(clippy::let_underscore_must_use)]
-
 #[forbid(unsafe_code)]
 mod forbid_unsafe {
     use ref_cast::{ref_cast_custom, RefCastCustom};

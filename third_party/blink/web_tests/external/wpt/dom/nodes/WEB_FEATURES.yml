@@ -1,3 +1,7 @@
-rules:
-- MutationObserver-*: [mutationobserver]
-- Document-createEvent.https.html: [events]
+features:
+- name: mutationobserver
+  files:
+  - MutationObserver-*
+- name: events
+  files:
+  - Document-createEvent.https.html

@@ -49,7 +49,7 @@ import org.chromium.components.browser_ui.styles.ChromeColors;
 import org.chromium.components.dom_distiller.core.DomDistillerUrlUtils;
 import org.chromium.components.embedder_support.util.UrlConstants;
 import org.chromium.components.embedder_support.util.UrlUtilities;
-import org.chromium.components.metrics.OmniboxEventProtosIntDef.PageClassification;
+import org.chromium.components.metrics.OmniboxEventProtos.OmniboxEventProto.PageClassification;
 import org.chromium.components.omnibox.AutocompleteSchemeClassifier;
 import org.chromium.components.omnibox.OmniboxUrlEmphasizer;
 import org.chromium.components.omnibox.SecurityStatusIcon;
@@ -63,24 +63,7 @@ import org.chromium.url.GURL;
 import java.util.Objects;
 import java.util.function.Supplier;
 
-/**
- * Primary concrete implementation of {@link LocationBarDataProvider} and {@link
- * ToolbarDataProvider} used by Chrome browser to manage and expose toolbar and location bar state.
- *
- * <p><b>State Mutation:</b> While {@link LocationBarDataProvider} is strictly read-only and
- * immutable, all mutators and state modifiers (such as {@link #setTab(Tab, Profile)}, {@link
- * #setPrimaryColor(int)}, navigation lifecycle callbacks, and observer dispatch methods) are hosted
- * here (or in other concrete embedders/implementations).
- *
- * <p><b>Native Integration:</b> Acts as the JNI bridge to native C++ ({@code
- * LocationBarModelAndroid}) for compute-intensive operations such as URL formatting and display
- * string computation, URL scheme emphasis ({@link OmniboxUrlEmphasizer}), security status
- * evaluation, and page classification.
- *
- * <p><b>Caching & Optimization:</b> Manages LRU caching for styled spannable display text and
- * deduplicates redundant notifications (such as short-circuiting spurious duplicate events during
- * same-document navigations).
- */
+/** Provides a way of accessing toolbar data and state. */
 @NullMarked
 public class LocationBarModel implements ToolbarDataProvider, LocationBarDataProvider {
     private static final int LRU_CACHE_SIZE = 10;
@@ -192,8 +175,6 @@ public class LocationBarModel implements ToolbarDataProvider, LocationBarDataPro
     protected GURL mVisibleGurl = GURL.emptyGURL();
     protected String mFormattedFullUrl;
     protected String mUrlForDisplay;
-    private LocationBarDataProvider.@Nullable AppInstalledDelegate mAppInstalledDelegate;
-    private final Runnable mAppInstallationObserver = this::notifyAppInstallationStateChanged;
 
     // notifyUrlChanged and notifySecurityStateChanged are usually called 3 times across a same
     // document navigation. The first call is usually necessary, which updates the UrlBar to reflect
@@ -276,8 +257,6 @@ public class LocationBarModel implements ToolbarDataProvider, LocationBarDataPro
             mChromeAutocompleteSchemeClassifier.destroy();
             mChromeAutocompleteSchemeClassifier = null;
         }
-
-        setAppInstalledDelegate(null);
 
         if (mNativeLocationBarModelAndroid == 0) return;
         LocationBarModelJni.get().destroy(mNativeLocationBarModelAndroid);
@@ -765,8 +744,8 @@ public class LocationBarModel implements ToolbarDataProvider, LocationBarDataPro
     }
 
     @Override
-    public @PageClassification int getPageClassification(boolean prefetch) {
-        if (mNativeLocationBarModelAndroid == 0) return PageClassification.INVALID_SPEC;
+    public int getPageClassification(boolean prefetch) {
+        if (mNativeLocationBarModelAndroid == 0) return PageClassification.INVALID_SPEC_VALUE;
 
         return LocationBarModelJni.get()
                 .getPageClassification(mNativeLocationBarModelAndroid, prefetch);
@@ -860,16 +839,11 @@ public class LocationBarModel implements ToolbarDataProvider, LocationBarDataPro
                     : R.drawable.omnibox_info;
         }
 
-        // Suppress neutral/info icon during page load to avoid transition jank before
-        // SSL state is resolved for HTTP/HTTPS URLs if the toolbar refactor is enabled.
-        // Non-HTTP(S) schemes (e.g. chrome://, file://) never transition to SECURE and
-        // should show their neutral icon immediately.
-        // TODO(crbug.com/553488661): We are now doing suppression by default in
-        // LocationBarMediator#updateLocationBarIcon. See about removing suppression here then.
+        // Suppress neutral/info icon during page load to avoid transition jank if the toolbar
+        // refactor is enabled.
         if (ToolbarVariationUtils.isToolbarUiRefactorEnabled(mContext)
                 && securityLevel == ConnectionSecurityLevel.NONE
-                && isLoading()
-                && UrlUtilities.isHttpOrHttps(getCurrentGurl())) {
+                && isLoading()) {
             return Resources.ID_NULL;
         }
 
@@ -1052,7 +1026,6 @@ public class LocationBarModel implements ToolbarDataProvider, LocationBarDataPro
 
         GURL getUrlOfVisibleNavigationEntry(long nativeLocationBarModelAndroid);
 
-        @PageClassification
         int getPageClassification(long nativeLocationBarModelAndroid, boolean isPrefetch);
     }
 
@@ -1070,27 +1043,5 @@ public class LocationBarModel implements ToolbarDataProvider, LocationBarDataPro
     @Override
     public NonNullObservableSupplier<@ControlsPosition Integer> getToolbarPositionSupplier() {
         return mToolbarPositionSupplier;
-    }
-
-    public void setAppInstalledDelegate(LocationBarDataProvider.AppInstalledDelegate delegate) {
-        if (mAppInstalledDelegate != null) {
-            mAppInstalledDelegate.removeObserver(mAppInstallationObserver);
-        }
-        mAppInstalledDelegate = delegate;
-        if (mAppInstalledDelegate != null) {
-            mAppInstalledDelegate.addObserver(mAppInstallationObserver);
-        }
-    }
-
-    public void notifyAppInstallationStateChanged() {
-        for (LocationBarDataProvider.Observer observer : mLocationBarDataObservers) {
-            observer.onAppInstallationStateChanged();
-        }
-    }
-
-    @Override
-    public boolean currentUrlHasInstalledApp() {
-        GURL url = getCurrentGurl();
-        return mAppInstalledDelegate != null && mAppInstalledDelegate.isAppInstalled(url);
     }
 }

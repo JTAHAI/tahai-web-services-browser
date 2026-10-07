@@ -9,10 +9,7 @@
 
 #include "base/compiler_specific.h"
 #include "base/logging.h"
-#include "base/native_library.h"
-#include "base/no_destructor.h"
 #include "base/numerics/safe_conversions.h"
-#include "base/synchronization/lock.h"
 #include "build/build_config.h"
 #include "gpu/vulkan/vulkan_crash_keys.h"
 #include "gpu/vulkan/vulkan_device_queue.h"
@@ -73,16 +70,12 @@ VulkanWarningCallback(VkDebugReportFlagsEXT flags,
 
 }  // namespace
 
-VulkanInstance::VulkanInstance(bool force_native)
-    : force_native_(force_native) {}
+VulkanInstance::VulkanInstance()
+    : is_from_angle_(base::FeatureList::IsEnabled(features::kVulkanFromANGLE)) {
+}
 
 VulkanInstance::~VulkanInstance() {
   Destroy();
-}
-
-bool VulkanInstance::is_from_angle() const {
-  return !force_native_ &&
-         base::FeatureList::IsEnabled(features::kVulkanFromANGLE);
 }
 
 bool VulkanInstance::Initialize(
@@ -96,46 +89,40 @@ bool VulkanInstance::Initialize(
 
 bool VulkanInstance::BindUnassignedFunctionPointers(
     const base::FilePath& vulkan_loader_library_path) {
-  static base::NoDestructor<base::Lock> lock;
-  base::AutoLock auto_lock(*lock);
-
   VulkanFunctionPointers* vulkan_function_pointers =
       gpu::GetVulkanFunctionPointers();
-  if (vulkan_function_pointers->vkGetInstanceProcAddr) {
-    return true;
-  }
-
-  if (is_from_angle()) {
+  if (is_from_angle_) {
     PFN_vkGetInstanceProcAddr proc = gl::QueryVkGetInstanceProcAddrFromANGLE();
     if (!proc) {
       LOG(ERROR) << "Failed to get vkGetInstanceProcAddr pointer from ANGLE.";
       return false;
     }
-    return vulkan_function_pointers
-        ->BindUnassociatedFunctionPointersFromGetProcAddr(proc);
-  }
-
-  // Native path
-  static base::NativeLibrary library = nullptr;
-  if (!library) {
+    if (!vulkan_function_pointers
+             ->BindUnassociatedFunctionPointersFromGetProcAddr(proc)) {
+      return false;
+    }
+  } else {
     base::NativeLibraryLoadError error;
-    library = base::LoadNativeLibrary(vulkan_loader_library_path, &error);
-    if (!library) {
+    loader_library_ =
+        base::LoadNativeLibrary(vulkan_loader_library_path, &error);
+    if (!loader_library_) {
       LOG(ERROR) << "Failed to load '" << vulkan_loader_library_path
                  << "': " << error.ToString();
       return false;
     }
+    if (!vulkan_function_pointers
+             ->BindUnassociatedFunctionPointersFromLoaderLib(loader_library_)) {
+      return false;
+    }
   }
-  return vulkan_function_pointers
-      ->BindUnassociatedFunctionPointersFromLoaderLib(library);
+  return true;
 }
 
 bool VulkanInstance::InitializeInstance(
     const std::vector<const char*>& required_extensions,
     const std::vector<const char*>& required_layers) {
-  if (is_from_angle()) {
+  if (is_from_angle_)
     return InitializeFromANGLE(required_extensions, required_layers);
-  }
   return CreateInstance(required_extensions, required_layers);
 }
 
@@ -533,6 +520,11 @@ void VulkanInstance::Destroy() {
     owned_vk_instance_ = VK_NULL_HANDLE;
   }
   vk_instance_ = VK_NULL_HANDLE;
+
+  if (loader_library_) {
+    base::UnloadNativeLibrary(loader_library_);
+    loader_library_ = nullptr;
+  }
 }
 
 }  // namespace gpu

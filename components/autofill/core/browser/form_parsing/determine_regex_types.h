@@ -6,7 +6,6 @@
 #define COMPONENTS_AUTOFILL_CORE_BROWSER_FORM_PARSING_DETERMINE_REGEX_TYPES_H_
 
 #include <memory>
-#include <optional>
 
 #include "base/containers/flat_map.h"
 #include "base/containers/span.h"
@@ -42,9 +41,7 @@ class RegexPredictions {
 
  private:
   HeuristicSource source_ = internal::IsRequired();
-
-  // Keeps the predictions mapping.
-  base::flat_map<FieldGlobalId, FieldCandidate> predictions_;
+  base::flat_map<FieldGlobalId, FieldType> predictions_;
 };
 
 // Evaluates regular expressions against the form fields to determine their

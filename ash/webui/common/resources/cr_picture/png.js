@@ -123,9 +123,10 @@
    *   width: number,
    *   height: number,
    *   colour: number,
-   *   chunks: Array<Uint8Array>
-   * }} CrPngState
+   *   chunks: !Array<Uint8Array>
+   * }}
    */
+  let CrPngState;
 
   /**
    * Construct an internal representation of the png.

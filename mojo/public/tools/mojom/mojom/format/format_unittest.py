@@ -10,6 +10,7 @@ import mojom.format.format as mojofmt
 
 
 class MojomFormatTest(unittest.TestCase):
+
     def setUp(self):
         self.maxDiff = None
         self.test_dir = os.path.join(os.path.dirname(__file__), 'testdata')
@@ -54,6 +55,7 @@ class MojomFormatTest(unittest.TestCase):
 
 
 class LineWrapperTest(unittest.TestCase):
+
     def testFineOneLine(self):
         lw = mojofmt.LineWrapper()
         data = 'const uint32 kFoo = 32;'
@@ -76,15 +78,12 @@ class LineWrapperTest(unittest.TestCase):
 
     def testWrapWithIndent(self):
         lw = mojofmt.LineWrapper(base_indent=2)
-        data = (
-            'array<network.mojom.ParsedPermissionsPolicyDeclaration> '
-            + 'permissions_policy_header;'
-        )
+        data = ('array<network.mojom.ParsedPermissionsPolicyDeclaration> ' +
+                'permissions_policy_header;')
         lw.write(data)
         expected = (
-            '  array<network.mojom.ParsedPermissionsPolicyDeclaration>'
-            + '\n      permissions_policy_header;'
-        )
+            '  array<network.mojom.ParsedPermissionsPolicyDeclaration>' +
+            '\n      permissions_policy_header;')
         self.assertEqual(expected, lw.finish())
 
     def testAlreadyIndented(self):

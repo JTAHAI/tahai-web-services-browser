@@ -21,7 +21,7 @@ bool TestAXPlatformTreeManagerDelegate::AccessibilityViewHasFocus() {
 void TestAXPlatformTreeManagerDelegate::AccessibilityViewSetFocus() {}
 
 gfx::Rect TestAXPlatformTreeManagerDelegate::AccessibilityGetViewBounds() {
-  return view_bounds_;
+  return gfx::Rect();
 }
 
 float TestAXPlatformTreeManagerDelegate::AccessibilityGetDeviceScaleFactor() {

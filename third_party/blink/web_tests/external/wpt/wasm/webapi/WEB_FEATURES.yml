@@ -1,2 +1,4 @@
-rules:
-- "*": [wasm]
+features:
+- name: wasm
+  files:
+  - "*"

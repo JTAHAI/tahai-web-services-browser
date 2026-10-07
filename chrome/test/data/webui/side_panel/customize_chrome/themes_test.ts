@@ -339,27 +339,6 @@ suite('ThemesTest', () => {
             CustomizeChromeAction.FIRST_PARTY_COLLECTION_THEME_SELECTED));
   });
 
-  test('focusing theme tile shows tooltip and blur hides it', async () => {
-    await setCollection('test', 2);
-
-    const tile = themesElement.shadowRoot.querySelector<HTMLElement>('.theme');
-    const tooltip = themesElement.$.themeTooltip;
-    assertTrue(!!tile);
-    assertTrue(!!tooltip);
-    assertTrue(tooltip.$.tooltip.hidden);
-
-    tile.dispatchEvent(new Event('focus'));
-    assertTrue(tooltip.$.tooltip.hidden);
-
-    tile.matches = (selector: string): this is HTMLElement =>
-        selector === ':focus-visible';
-    tile.dispatchEvent(new Event('focus'));
-    assertFalse(tooltip.$.tooltip.hidden);
-
-    tile.dispatchEvent(new Event('blur'));
-    assertTrue(tooltip.$.tooltip.hidden);
-  });
-
   [true, false].forEach((errorDetectionEnabled) => {
     suite(`ImageErrorDetectionEnabled_${errorDetectionEnabled}`, () => {
       suiteSetup(() => {

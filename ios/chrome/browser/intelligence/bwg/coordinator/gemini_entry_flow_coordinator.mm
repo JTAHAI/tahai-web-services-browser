@@ -5,10 +5,7 @@
 #import "ios/chrome/browser/intelligence/bwg/coordinator/gemini_entry_flow_coordinator.h"
 
 #import "base/notreached.h"
-#import "base/task/sequenced_task_runner.h"
-#import "base/time/time.h"
 #import "components/signin/public/base/signin_metrics.h"
-#import "components/signin/public/identity_manager/identity_manager.h"
 #import "ios/chrome/browser/authentication/account_menu/coordinator/account_menu_coordinator.h"
 #import "ios/chrome/browser/authentication/account_menu/public/account_menu_constants.h"
 #import "ios/chrome/browser/authentication/ui_bundled/continuation.h"
@@ -16,7 +13,6 @@
 #import "ios/chrome/browser/intelligence/bwg/metrics/gemini_metrics.h"
 #import "ios/chrome/browser/intelligence/bwg/model/gemini_service.h"
 #import "ios/chrome/browser/intelligence/bwg/model/gemini_service_factory.h"
-#import "ios/chrome/browser/intelligence/bwg/model/gemini_service_observer_bridge.h"
 #import "ios/chrome/browser/intelligence/bwg/model/gemini_tab_helper.h"
 #import "ios/chrome/browser/intelligence/bwg/utils/gemini_availability.h"
 #import "ios/chrome/browser/intelligence/bwg/utils/gemini_constants.h"
@@ -28,7 +24,6 @@
 #import "ios/chrome/browser/shared/public/snackbar/snackbar_message.h"
 #import "ios/chrome/browser/signin/model/authentication_service.h"
 #import "ios/chrome/browser/signin/model/authentication_service_factory.h"
-#import "ios/chrome/browser/signin/model/identity_manager_factory.h"
 #import "ios/chrome/grit/ios_strings.h"
 #import "ios/web/public/web_state.h"
 #import "ui/base/l10n/l10n_util.h"
@@ -50,10 +45,7 @@ signin_metrics::AccessPoint AccessPointFromGeminiEntryPoint(
       return signin_metrics::AccessPoint::kIosAppBar;
     case gemini::EntryPoint::Toolbar:
       return signin_metrics::AccessPoint::kIosGeminiButtonToolbar;
-    case gemini::EntryPoint::AIHub:
     case gemini::EntryPoint::AIHubSignInSheet:
-    case gemini::EntryPoint::OmniboxChip:
-    case gemini::EntryPoint::DirectOmniboxBadge:
       return signin_metrics::AccessPoint::kIosPageActionMenu;
     case gemini::EntryPoint::ExternalAppStoreEvent:
     case gemini::EntryPoint::AppSwitcherAISummarization:
@@ -64,9 +56,6 @@ signin_metrics::AccessPoint AccessPointFromGeminiEntryPoint(
 }
 
 }  // namespace
-
-@interface GeminiEntryFlowCoordinator () <GeminiServiceObserving>
-@end
 
 @implementation GeminiEntryFlowCoordinator {
   // The sign-in coordinator presented when the user is signed out.
@@ -80,20 +69,16 @@ signin_metrics::AccessPoint AccessPointFromGeminiEntryPoint(
   // The account menu coordinator for switching accounts when the current
   // account is ineligible due to Gemini policy restriction.
   AccountMenuCoordinator* _accountMenuCoordinator;
-  // Bridge to observe GeminiService for enterprise policy updates.
-  std::unique_ptr<GeminiServiceObserverBridge> _geminiServiceObserverBridge;
-  // Whether the pending policy check timed out.
-  BOOL _policyCheckTimedOut;
 }
 
 #pragma mark - ChromeCoordinator
 
-- (instancetype)initWithBaseViewController:(UIViewController*)baseViewController
-                                   browser:(Browser*)browser
-                              startupState:(GeminiStartupState*)startupState
-                  showSnackbarOnCompletion:(BOOL)showSnackbarOnCompletion
-                                completion:
-                                    (GeminiEntryFlowCompletion)completion {
+- (instancetype)
+    initWithBaseViewController:(UIViewController*)baseViewController
+                       browser:(Browser*)browser
+                  startupState:(GeminiStartupState*)startupState
+      showSnackbarOnCompletion:(BOOL)showSnackbarOnCompletion
+                    completion:(GeminiEntryFlowCompletion)completion {
   self = [super initWithBaseViewController:baseViewController browser:browser];
   if (self) {
     _startupState = startupState;
@@ -109,27 +94,8 @@ signin_metrics::AccessPoint AccessPointFromGeminiEntryPoint(
   AuthenticationService* authService =
       AuthenticationServiceFactory::GetForProfile(self.browser->GetProfile());
 
-  if (!authService) {
-    [self finishWithResult:kGeminiEntryFlowResultUnknown];
-    return;
-  }
-
-  signin::IdentityManager* identityManager =
-      IdentityManagerFactory::GetForProfile(self.browser->GetProfile());
-
-  BOOL isUnverified = NO;
-  if (authService && authService->HasPrimaryIdentity() && identityManager) {
-    CoreAccountId accountId =
-        identityManager->GetPrimaryAccountId(signin::ConsentLevel::kSignin);
-    if (!accountId.empty() &&
-        identityManager->HasAccountWithRefreshTokenInPersistentErrorState(
-            accountId)) {
-      isUnverified = YES;
-    }
-  }
-
-  // If the user is signed in and verified, proceed to the next step.
-  if (authService->HasPrimaryIdentity() && !isUnverified) {
+  // If the user is already signed in, proceed to the next step.
+  if (authService->HasPrimaryIdentity()) {
     [self evaluateEligibilityAndRoute];
     return;
   }
@@ -147,12 +113,11 @@ signin_metrics::AccessPoint AccessPointFromGeminiEntryPoint(
     return;
   }
 
-  // User is signed out or unverified, present sign-in.
+  // User is signed out, present sign-in.
   [self presentSignIn];
 }
 
 - (void)stop {
-  _geminiServiceObserverBridge.reset();
   [_signinCoordinator stop];
   _signinCoordinator = nil;
   [self stopAccountMenu];
@@ -178,61 +143,26 @@ signin_metrics::AccessPoint AccessPointFromGeminiEntryPoint(
   [self finishWithResult:kGeminiEntryFlowResultAccountIneligibleByGemini];
 }
 
-#pragma mark - GeminiServiceObserving
-
-- (void)geminiEligibilityDidChange {
-  _geminiServiceObserverBridge.reset();
-  [self evaluateEligibilityAndRoute];
-}
-
-- (void)policyCheckDidTimeout {
-  if (!_geminiServiceObserverBridge) {
-    return;
-  }
-  _policyCheckTimedOut = YES;
-  _geminiServiceObserverBridge.reset();
-  [self evaluateEligibilityAndRoute];
-}
-
 #pragma mark - Private
 
 // Presents the sign-in sheet.
 - (void)presentSignIn {
   signin_metrics::AccessPoint accessPoint =
       AccessPointFromGeminiEntryPoint(_startupState.entryPoint);
-
-  AuthenticationService* authService =
-      AuthenticationServiceFactory::GetForProfile(self.browser->GetProfile());
-
-  signin_metrics::PromoAction promoAction =
-      signin_metrics::PromoAction::PROMO_ACTION_NO_SIGNIN_PROMO;
-  if (authService && authService->HasPrimaryIdentity()) {
-    _signinCoordinator = [SigninCoordinator
-        primaryAccountReauthCoordinatorWithBaseViewController:
-            self.baseViewController
-                                                      browser:self.browser
-                                                 contextStyle:
-                                                     SigninContextStyle::
-                                                         kDefault
-                                                  accessPoint:accessPoint
-                                                  promoAction:promoAction
-                                         continuationProvider:
-                                             DoNothingContinuationProvider()];
-  } else {
-    _signinCoordinator = [SigninCoordinator
-        signinAndHistorySyncCoordinatorWithBaseViewController:
-            self.baseViewController
-                                                      browser:self.browser
-                                                 contextStyle:
-                                                     SigninContextStyle::
-                                                         kDefault
-                                                  accessPoint:accessPoint
-                                                  promoAction:promoAction
-                                          optionalHistorySync:YES
-                                              fullscreenPromo:NO
-                                         continuationProvider:
-                                             DoNothingContinuationProvider()];
-  }
+  _signinCoordinator = [SigninCoordinator
+      signinAndHistorySyncCoordinatorWithBaseViewController:
+          self.baseViewController
+                                                    browser:self.browser
+                                               contextStyle:SigninContextStyle::
+                                                                kDefault
+                                                accessPoint:accessPoint
+                                                promoAction:
+                                                    signin_metrics::PromoAction::
+                                                        PROMO_ACTION_NO_SIGNIN_PROMO
+                                        optionalHistorySync:YES
+                                            fullscreenPromo:NO
+                                       continuationProvider:
+                                           DoNothingContinuationProvider()];
   __weak __typeof(self) weakSelf = self;
   _signinCoordinator.signinCompletion =
       ^(SigninCoordinator* coordinator, SigninCoordinatorResult result,
@@ -264,9 +194,9 @@ signin_metrics::AccessPoint AccessPointFromGeminiEntryPoint(
 }
 
 // Evaluates profile eligibility and routes to the appropriate outcome.
-// If the workspace policy check is pending (e.g. during cold start),
-// observes the GeminiService until the check finishes before evaluating
-// eligibility, falling back to conservative defaults if the check times out.
+// Uses the currently available eligibility data. If the workspace policy
+// check hasn't completed yet, the service returns conservative defaults
+// (personal accounts treated as eligible, managed accounts as ineligible).
 - (void)evaluateEligibilityAndRoute {
   GeminiService* geminiService =
       GeminiServiceFactory::GetForProfile(self.browser->GetProfile());
@@ -278,25 +208,6 @@ signin_metrics::AccessPoint AccessPointFromGeminiEntryPoint(
 
   // Trigger the workspace policy check if it hasn't started yet.
   geminiService->CheckGeminiEnterpriseEligibilityIfNeeded();
-
-  // If the workspace policy check is still pending, wait for it to complete
-  // before evaluating eligibility. This prevents showing a false ineligibility
-  // snackbar for eligible managed accounts during cold start.
-  if (!_policyCheckTimedOut && geminiService->IsWorkspacePolicyCheckPending()) {
-    if (!_geminiServiceObserverBridge) {
-      _geminiServiceObserverBridge =
-          std::make_unique<GeminiServiceObserverBridge>(self, geminiService);
-      __weak __typeof(self) weakSelf = self;
-      base::SequencedTaskRunner::GetCurrentDefault()->PostDelayedTask(
-          FROM_HERE, base::BindOnce(^{
-            [weakSelf policyCheckDidTimeout];
-          }),
-          base::Seconds(3));
-    }
-    return;
-  }
-
-  _geminiServiceObserverBridge.reset();
 
   web::WebState* activeWebState =
       self.browser->GetWebStateList()->GetActiveWebState();

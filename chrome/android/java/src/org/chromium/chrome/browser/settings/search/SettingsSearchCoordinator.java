@@ -9,7 +9,6 @@ import static androidx.annotation.VisibleForTesting.PRIVATE;
 import static org.chromium.base.CallbackUtils.emptyRunnable;
 import static org.chromium.build.NullUtil.assumeNonNull;
 
-import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.res.Configuration;
 import android.graphics.drawable.Drawable;
@@ -31,7 +30,6 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewGroup.LayoutParams;
 import android.view.ViewTreeObserver.OnGlobalLayoutListener;
-import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
 import android.view.inputmethod.EditorInfo;
 import android.widget.EditText;
@@ -71,7 +69,6 @@ import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.settings.MainSettings;
 import org.chromium.chrome.browser.settings.MultiColumnSettings;
 import org.chromium.chrome.browser.settings.SettingsActivity;
-import org.chromium.chrome.browser.settings.SettingsInTab;
 import org.chromium.chrome.browser.settings.SettingsMenuHelper;
 import org.chromium.chrome.browser.site_settings.ChromeSiteSettingsDelegate;
 import org.chromium.components.browser_ui.accessibility.AccessibilitySettings;
@@ -84,13 +81,13 @@ import org.chromium.components.browser_ui.util.ToolbarUtils;
 import org.chromium.components.browser_ui.widget.containment.ContainmentItemController;
 import org.chromium.components.browser_ui.widget.containment.ContainmentItemDecoration;
 import org.chromium.components.browser_ui.widget.containment.ContainmentViewStyler;
-import org.chromium.components.browser_ui.widget.displaystyle.UiConfig;
+import org.chromium.components.browser_ui.widget.displaystyle.ViewResizerUtil;
 import org.chromium.components.browser_ui.widget.highlight.ViewHighlighter;
 import org.chromium.components.browser_ui.widget.highlight.ViewHighlighter.HighlightParams;
 import org.chromium.components.browser_ui.widget.highlight.ViewHighlighter.HighlightShape;
 import org.chromium.ui.UiUtils;
 import org.chromium.ui.accessibility.AccessibilityState;
-import org.chromium.ui.base.ViewUtils;
+import org.chromium.ui.base.DeviceFormFactor;
 import org.chromium.ui.modaldialog.ModalDialogManager;
 
 import java.lang.reflect.Constructor;
@@ -144,14 +141,9 @@ public class SettingsSearchCoordinator
     // FS_SETTINGS: Basic state browsing through setting fragments/preferences
     // FS_SEARCH: In search UI, entering queries and performing search
     // FS_RESULTS: After tapping one of the search results, navigating through them
-    @VisibleForTesting(otherwise = PRIVATE)
-    static final int FS_SETTINGS = 0;
-
-    @VisibleForTesting(otherwise = PRIVATE)
-    static final int FS_SEARCH = 1;
-
-    @VisibleForTesting(otherwise = PRIVATE)
-    static final int FS_RESULTS = 2;
+    private static final int FS_SETTINGS = 0;
+    private static final int FS_SEARCH = 1;
+    private static final int FS_RESULTS = 2;
 
     private int mFragmentState;
 
@@ -176,9 +168,6 @@ public class SettingsSearchCoordinator
 
     // Whether destroy() has been called on this object.
     private boolean mIsDestroyed;
-
-    // True once the search box margins in single-column layout are initialized.
-    private boolean mSingleColumnWidthInitialized;
 
     // Used for histogram that logs the user behavior for search.
     // LINT.IfChange(ExitReason)
@@ -280,12 +269,6 @@ public class SettingsSearchCoordinator
     @SuppressWarnings("unchecked")
     @VisibleForTesting(otherwise = PRIVATE)
     @Nullable <T extends View> T findViewById(int id) {
-        // Preference header and detail panes (e.g. R.id.preferences_header) are hosted
-        // inside MultiColumnSettings, which is not in mActionBar's direct ancestor tree.
-        if (mMultiColumnSettings != null && mMultiColumnSettings.getView() != null) {
-            T view = (T) mMultiColumnSettings.getView().findViewById(id);
-            if (view != null) return view;
-        }
         if (mActionBar.getRootView() != null) {
             View parent = mActionBar;
             while (parent.getParent() != null && parent.getParent() instanceof View p) {
@@ -315,27 +298,6 @@ public class SettingsSearchCoordinator
         //         |                  +------ help/menuButton
         //         +--- searchBox (single-column)
         ViewGroup appBar = requireViewById(R.id.app_bar_layout);
-        // Update the search bar width whenever the app bar layout width changes (e.g. when the
-        // side panel is opened/closed).
-        appBar.addOnLayoutChangeListener(
-                (view, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom) -> {
-                    int currentWidth = right - left;
-                    if (currentWidth <= 0) return;
-                    boolean useMultiColumn = mUseMultiColumnSupplier.getAsBoolean();
-                    // If the column mode changed (e.g. switching between single and multi-column
-                    // layouts), notify configuration change to perform layout transfers.
-                    if (useMultiColumn != mUseMultiColumn) {
-                        onConfigurationChangedInternal();
-                    } else if (mUseMultiColumn) {
-                        if (currentWidth != oldRight - oldLeft) {
-                            updateSearchUiWidth();
-                        }
-                    } else {
-                        // In single-column mode, ensure search box margins match the new
-                        // container width.
-                        updateSingleColumnSearchUiWidth(currentWidth);
-                    }
-                });
         ViewGroup searchBoxParent = mUseMultiColumn ? mActionBar : appBar;
         LayoutInflater.from(mActivity).inflate(R.layout.settings_search_box, searchBoxParent, true);
         LayoutInflater.from(mActivity).inflate(R.layout.settings_search_query, mActionBar, true);
@@ -345,20 +307,6 @@ public class SettingsSearchCoordinator
         TooltipCompat.setTooltipText(
                 searchBox.requireViewById(R.id.search_icon),
                 mActivity.getString(R.string.search_in_settings_hint));
-        if (shouldAutoFocusSearchBox()) {
-            searchBox.setFocusable(true);
-            searchBox.setFocusableInTouchMode(true);
-            searchBox.addOnAttachStateChangeListener(
-                    new View.OnAttachStateChangeListener() {
-                        @Override
-                        public void onViewAttachedToWindow(View v) {
-                            requestAccessibilityFocus(v);
-                        }
-
-                        @Override
-                        public void onViewDetachedFromWindow(View v) {}
-                    });
-        }
 
         View query = requireViewById(R.id.search_query_container);
         Drawable bg = ContextCompat.getDrawable(mActivity, R.drawable.pill_background);
@@ -450,37 +398,8 @@ public class SettingsSearchCoordinator
     public void onTitleUpdated() {
         boolean reset = (assumeNonNull(getSettingsFragmentManager()).getBackStackEntryCount() == 0);
         if (reset && (mFragmentState == FS_SEARCH || mFragmentState == FS_RESULTS)) {
-            exitSearchState();
+            exitSearchState(/* clearFragment= */ false);
         }
-    }
-
-    @Override
-    public void onHeaderLayoutUpdated() {
-        if (findViewById(R.id.search_box) == null) return;
-
-        // When SlidingPaneLayout finishes its initial layout or switches between single and
-        // two-column mode, re-evaluate whether search should be in single or multi-column layout.
-        onConfigurationChangedInternal();
-        updateSingleColumnSearchBoxVisibility();
-    }
-
-    @Override
-    public void onSlideStateUpdated(@MultiColumnSettings.SlideState int state) {
-        updateSingleColumnSearchBoxVisibility();
-    }
-
-    private void updateSingleColumnSearchBoxVisibility() {
-        if (mUseMultiColumn || mFragmentState != FS_SETTINGS) return;
-
-        View searchBox = findViewById(R.id.search_box);
-        if (searchBox == null) return;
-
-        searchBox.setVisibility(isShowingMainSettings() ? View.VISIBLE : View.GONE);
-    }
-
-    @Override
-    public void onDetailLayoutUpdated() {
-        updateSearchUiWidth();
     }
 
     @Override
@@ -562,11 +481,7 @@ public class SettingsSearchCoordinator
         mHandler.post(
                 () -> {
                     if (mFragmentState != FS_SETTINGS) return;
-                    boolean showingMain = isShowingMainSettings();
-                    searchBox.setVisibility(showingMain ? View.VISIBLE : View.GONE);
-                    if (showingMain && shouldAutoFocusSearchBox()) {
-                        requestAccessibilityFocus(searchBox);
-                    }
+                    searchBox.setVisibility(isShowingMainSettings() ? View.VISIBLE : View.GONE);
                 });
 
         // Controls search UI visibility in single-column mode.
@@ -599,7 +514,7 @@ public class SettingsSearchCoordinator
                                 // a closed state. We cancel the operation, and revert the state
                                 // back to FS_SETTINGS. See https://crbug.com/482946558.
                                 if (mFragmentState == FS_SEARCH) {
-                                    exitSearchState();
+                                    exitSearchState(/* clearFragment= */ false);
                                 }
                                 showUiInSingleColumn(searchBox, /* show= */ true);
                                 disableBackgroundTalkbackNavigation();
@@ -630,8 +545,7 @@ public class SettingsSearchCoordinator
     }
 
     // Prevent TalkBack from navigating background fragments.
-    @VisibleForTesting
-    void disableBackgroundTalkbackNavigation() {
+    private void disableBackgroundTalkbackNavigation() {
         // When a new Fragment is added to (as opposed to replaces) the existing Fragment, it makes
         // the existing one still technically "active" and "visible" in the view hierarchy, which is
         // why TalkBack navigates through it. Same applies when the detail pane slides in and sits
@@ -640,9 +554,7 @@ public class SettingsSearchCoordinator
         // fragments should be disabled.
         // Note that MainSettings in multi-column mode, or single-column mode with the detail pane
         // out of the screen, should be enabled since it is visible.
-        FragmentManager fm = getSettingsFragmentManager();
-        if (fm == null) return;
-        List<Fragment> fragments = fm.getFragments();
+        List<Fragment> fragments = assumeNonNull(getSettingsFragmentManager()).getFragments();
         boolean isHeaderPaneVisible = isShowingMainSettings();
         for (int i = 0; i <= fragments.size() - 2; i++) {
             Fragment f = fragments.get(i);
@@ -668,8 +580,7 @@ public class SettingsSearchCoordinator
         if (toolbarTitle == null) return;
 
         if (toolbarTitle.getId() == View.NO_ID) toolbarTitle.setId(View.generateViewId());
-        View headerPane = findViewById(R.id.preferences_header);
-        if (headerPane == null) return;
+        View headerPane = requireViewById(R.id.preferences_header);
 
         // Multi-column mode adjusts the traversal order:
         // Before: Toolbar(icon > title > search UI > menu) > header pane > detail pane.
@@ -689,9 +600,6 @@ public class SettingsSearchCoordinator
     private void observeFragmentForVisibilityChange() {
         View searchBox = requireViewById(R.id.search_box);
         searchBox.setVisibility(View.VISIBLE);
-        if (shouldAutoFocusSearchBox()) {
-            requestAccessibilityFocus(searchBox);
-        }
         assumeNonNull(getSettingsFragmentManager())
                 .registerFragmentLifecycleCallbacks(
                         new FragmentManager.FragmentLifecycleCallbacks() {
@@ -714,12 +622,11 @@ public class SettingsSearchCoordinator
     private void showUiInSingleColumn(View searchBox, boolean show) {
         // Delay showing the UI until its width gets set. This mitigates the UI being seen
         // with a wrong width initially.
-        if (show && !mSingleColumnWidthInitialized) {
+        if (show && searchBox.getLayoutParams().width == LayoutParams.MATCH_PARENT) {
             mHandler.post(() -> showUiInSingleColumn(searchBox, show));
             return;
         }
-        searchBox.setOnClickListener(
-                ViewUtils.emptyClickListener()); // Temporary disables search during the animation
+        searchBox.setOnClickListener(v -> {}); // Temporary disables search during the animation
         Transition transition =
                 new TransitionSet()
                         .addTransition(new Fade(show ? Fade.IN : Fade.OUT))
@@ -736,30 +643,6 @@ public class SettingsSearchCoordinator
         var parentView = (ViewGroup) findViewById(R.id.settings_activity);
         TransitionManager.beginDelayedTransition(parentView, transition);
         searchBox.setVisibility(show ? View.VISIBLE : View.GONE);
-        if (show && shouldAutoFocusSearchBox()) {
-            requestAccessibilityFocus(searchBox);
-        }
-    }
-
-    /**
-     * Requests view focus and notifies the accessibility framework to move screen reader (TalkBack)
-     * accessibility focus to the search box. Accessibility QA specifically requested this behavior,
-     * see https://crbug.com/547995740.
-     */
-    @SuppressLint("AccessibilityFocus")
-    private void requestAccessibilityFocus(View searchBox) {
-        searchBox.requestFocus();
-        searchBox.performAccessibilityAction(
-                AccessibilityNodeInfo.ACTION_ACCESSIBILITY_FOCUS, null);
-        searchBox.sendAccessibilityEvent(AccessibilityEvent.TYPE_VIEW_FOCUSED);
-    }
-
-    /**
-     * Whether the search box should automatically receive accessibility focus on page load or tab
-     * switch. Anchors TalkBack focus to the search box when Settings is opened in a tab.
-     */
-    private boolean shouldAutoFocusSearchBox() {
-        return SettingsInTab.isEnabled();
     }
 
     private boolean isShowingMainSettings() {
@@ -786,7 +669,7 @@ public class SettingsSearchCoordinator
             // Do nothing. Let the default back action handler take care of it.
             return false;
         } else if (mFragmentState == FS_SEARCH) {
-            exitSearchState();
+            exitSearchState(/* clearFragment= */ true);
         } else if (mFragmentState == FS_RESULTS) {
             stepBackInResultState();
         } else {
@@ -939,8 +822,7 @@ public class SettingsSearchCoordinator
         adjustTalkbackTraversalOrder(queryContainer);
     }
 
-    @VisibleForTesting(otherwise = PRIVATE)
-    void setFragmentState(int state) {
+    private void setFragmentState(int state) {
         mFragmentState = state;
         if (!mUseMultiColumn) showTitleTextView(state != FS_SEARCH);
     }
@@ -952,7 +834,7 @@ public class SettingsSearchCoordinator
     }
 
     @VisibleForTesting(otherwise = PRIVATE)
-    void exitSearchState() {
+    void exitSearchState(boolean clearFragment) {
         // Back action in search state. Restore the settings fragment and search UI.
         View searchBox = requireViewById(R.id.search_box);
         View queryContainer = requireViewById(R.id.search_query_container);
@@ -962,30 +844,18 @@ public class SettingsSearchCoordinator
         // SlidingPaneLayout#SimplePanelSlideListener set up in initializeMultiColumnSearchUi
         // for mutli-column settings, and by FragmentManager.FragmentLifecycleCallbacks set up
         // in observeFragmentForVisibilityChange for single-column settings.
-        if (mUseMultiColumn) {
-            searchBox.setVisibility(View.VISIBLE);
-            if (shouldAutoFocusSearchBox()) {
-                requestAccessibilityFocus(searchBox);
-            }
-        }
+        if (mUseMultiColumn) searchBox.setVisibility(View.VISIBLE);
 
         showBackArrowInSingleColumnMode(true);
         EditText queryEdit = requireViewById(R.id.search_query);
         KeyboardUtils.hideAndroidSoftKeyboard(queryEdit);
 
-        // Remove search fragments before popping the back stack. Otherwise, un-backstacked
-        // search results or empty fragments would remain visible in the container behind the
-        // restored detail fragment.
-        FragmentManager fragmentManager = assumeNonNull(getSettingsFragmentManager());
-        Fragment resultFragment = fragmentManager.findFragmentByTag(RESULT_FRAGMENT);
-        Fragment emptyFragment = fragmentManager.findFragmentByTag(EMPTY_FRAGMENT);
-        if (resultFragment != null || emptyFragment != null) {
-            var transaction = fragmentManager.beginTransaction();
-            if (resultFragment != null) transaction.remove(resultFragment);
-            if (emptyFragment != null) transaction.remove(emptyFragment);
-            transaction.setReorderingAllowed(true).commitNowAllowingStateLoss();
+        // Clearing the fragment before popping the back stack. Otherwise the existing
+        // fragment is visible behind the popped one through the transparent background.
+        if (clearFragment) {
+            clearFragment(/* imageId= */ 0, /* addToBackStack= */ false, emptyRunnable());
         }
-        fragmentManager.popBackStack();
+        assumeNonNull(getSettingsFragmentManager()).popBackStack();
         if (mMultiColumnSettings != null
                 && !mUseMultiColumn
                 && mMultiColumnSettings.isLayoutOpen()
@@ -1002,7 +872,6 @@ public class SettingsSearchCoordinator
         updateHelpMenuVisibility();
         adjustTalkbackTraversalOrder(searchBox);
         logExitReason();
-        RecentSearchQueue.getInstance().flushIfDirty();
     }
 
     private void logExitReason() {
@@ -1020,16 +889,6 @@ public class SettingsSearchCoordinator
 
     /** Update the visibility of the help menu on the toolbar. */
     public void updateHelpMenuVisibility() {
-        // SettingsInTab does not show a help icon / options menu.
-        if (SettingsInTab.isEnabled()) {
-            ViewGroup menuView = (ViewGroup) getHelpMenuView();
-            if (menuView != null) {
-                menuView.setVisibility(View.GONE);
-            }
-            updateSearchUiWidth();
-            return;
-        }
-
         ViewGroup menuView = (ViewGroup) getHelpMenuView();
         if (menuView == null) {
             mHandler.post(this::updateHelpMenuVisibility);
@@ -1038,10 +897,6 @@ public class SettingsSearchCoordinator
 
         menuView.post(
                 () -> {
-                    // The task may run after the Activity has been destroyed, for example, during
-                    // theme switch. https://crbug.com/545872336
-                    if (mActivity.isFinishing() || mActivity.isDestroyed() || mIsDestroyed) return;
-
                     boolean show = shouldShowHelpMenu();
                     if (!show) {
                         // Should show menu if we have the search view.
@@ -1079,6 +934,9 @@ public class SettingsSearchCoordinator
                 showBackArrowInSingleColumnMode(false);
             }
         }
+        // Clearing the fragment before popping the back stack. Otherwise the existing
+        // fragment is visible behind the popped one through the transparent background.
+        clearFragment(/* imageId= */ 0, /* addToBackStack= */ false, emptyRunnable());
         fragmentManager.popBackStack();
     }
 
@@ -1088,7 +946,13 @@ public class SettingsSearchCoordinator
      */
     private @Nullable FragmentManager getSettingsFragmentManager() {
         if (mMultiColumnSettings != null) {
-            return mMultiColumnSettings.getChildFragmentManagerOrNull();
+            // Check that the fragment is attached before retrieving its child fragment manager,
+            // otherwise getChildFragmentManager() throws an IllegalStateException.
+            // We check getContext() != null instead of isAdded() because getContext() is not final
+            // and can be mocked in unit tests.
+            return mMultiColumnSettings.getContext() != null
+                    ? mMultiColumnSettings.getChildFragmentManager()
+                    : null;
         } else {
             return mActivity.getSupportFragmentManager();
         }
@@ -1170,7 +1034,7 @@ public class SettingsSearchCoordinator
     }
 
     public void deleteRecentSearches() {
-        RecentSearchQueue.getInstance().clearAndPersist();
+        RecentSearchQueue.getInstance().clear();
         clearFragment(R.drawable.settings_zero_state, /* addToBackStack= */ false, emptyRunnable());
     }
 
@@ -1183,17 +1047,9 @@ public class SettingsSearchCoordinator
         return mMultiColumnSettings != null ? R.id.preferences_detail : R.id.settings_content;
     }
 
-    /**
-     * Returns whether the navigation icon should be shown on the toolbar. In single-column mode,
-     * the navigation icon is hidden while in search state (FS_SEARCH) because the search query UI
-     * is placed inside the toolbar with its own back button.
-     */
-    public boolean shouldShowNavigationIcon() {
-        return mUseMultiColumn || mFragmentState != FS_SEARCH;
-    }
-
     // Update search UI width/location when multi-column settings fragment is enabled.
     private void updateSearchUiWidth() {
+        boolean showBackIcon = mFragmentState != FS_SEARCH;
         if (mUseMultiColumn) {
             View searchBox = findViewById(R.id.search_box);
             View query = findViewById(R.id.search_query_container);
@@ -1202,30 +1058,24 @@ public class SettingsSearchCoordinator
 
             int detailPaneWidth = detailPane.getWidth();
             if (detailPaneWidth == 0) {
-                // If the detail pane is not laid out yet, defer until onDetailLayoutUpdated()
-                // is called by MultiColumnSettings. Don't post to mHandler to prevent a busy loop.
+                mHandler.post(this::updateSearchUiWidth);
                 return;
             }
             int maxDetailWidthPx = getPixelSize(R.dimen.settings_min_multi_column_screen_width);
             int minGapPx = getPixelSize(R.dimen.settings_multi_column_pane_gap);
             int excessPx = detailPaneWidth - maxDetailWidthPx - minGapPx * 2;
             int gapPx = (excessPx > 0 ? excessPx / 2 : 0) + minGapPx;
-            Toolbar actionBar = requireViewById(R.id.action_bar);
-            // SettingsInTab does not have a menu icon, but Toolbar has an internal
-            // contentInsetEnd and padding that must be accounted for so the search box aligns
-            // with the preference items in the detail pane.
-            int actionBarEndMargin =
-                    SettingsInTab.isEnabled()
-                            ? gapPx - actionBar.getContentInsetEnd() - actionBar.getPaddingEnd()
-                            : gapPx - getPixelSize(R.dimen.settings_menu_icon_margin);
+            View actionBar = requireViewById(R.id.action_bar);
+            int actionBarEndMargin = gapPx - getPixelSize(R.dimen.settings_menu_icon_margin);
             updateView(actionBar, 0, actionBarEndMargin, LayoutParams.MATCH_PARENT);
             int searchUiWidth = detailPaneWidth - gapPx * 2 - getMenuWidth();
             updateView(searchBox, 0, 0, searchUiWidth);
             updateView(query, 0, 0, searchUiWidth);
+            showBackIcon = true;
         } else {
             updateSingleColumnSearchUiWidth();
         }
-        setDisplayHomeAsUpEnabled(shouldShowNavigationIcon());
+        setDisplayHomeAsUpEnabled(showBackIcon);
     }
 
     private void setDisplayHomeAsUpEnabled(boolean show) {
@@ -1238,9 +1088,7 @@ public class SettingsSearchCoordinator
         }
         // Case for settings in tab.
         if (mActionBar != null) {
-            boolean isMainSettings = mMultiColumnSettings != null && isShowingMainSettings();
-            SettingsMenuHelper.updateNavigationIcon(
-                    mActionBar, mActivity, show, mUseMultiColumn, isMainSettings);
+            SettingsMenuHelper.updateNavigationIcon(mActionBar, mActivity, show, mUseMultiColumn);
         }
     }
 
@@ -1259,81 +1107,49 @@ public class SettingsSearchCoordinator
         view.setLayoutParams(lp);
     }
 
-    /*
-     * Returns the root settings width if available, or falls back to app_bar_layout width.
-     * This provides the current tab/window container width even when child layout passes are
-     * mid-transition.
-     */
-    private int getContainerWidth() {
-        View settingsActivity = findViewById(R.id.settings_activity);
-        if (settingsActivity != null && settingsActivity.getWidth() > 0) {
-            return settingsActivity.getWidth();
-        }
-        View appBar = findViewById(R.id.app_bar_layout);
-        return appBar != null ? appBar.getWidth() : 0;
-    }
-
     public void updateSingleColumnSearchUiWidth() {
-        updateSingleColumnSearchUiWidth(getContainerWidth());
-    }
-
-    private void updateSingleColumnSearchUiWidth(int appBarWidth) {
-        // If the available width is unknown, defer until the layout pass completes (via the
-        // existing onLayoutChangeListener).
-        if (appBarWidth == 0) return;
-
-        View searchBox = findViewById(R.id.search_box);
-        View query = findViewById(R.id.search_query_container);
-
-        int minWidePadding = getPixelSize(R.dimen.settings_wide_display_min_padding);
-        int wideMinWidthPx =
-                ViewUtils.dpToPx(
-                        mActivity.getResources().getDisplayMetrics(),
-                        UiConfig.WIDE_DISPLAY_STYLE_MIN_WIDTH_DP);
-        int margin = Math.max(minWidePadding, (appBarWidth - wideMinWidthPx) / 2);
-        boolean isOnWideScreen = margin > minWidePadding;
-        int menuWidth = getMenuWidth();
-        int startMargin = margin;
-        int endMargin = margin;
-        if (isOnWideScreen) {
-            int itemMargin = getPixelSize(R.dimen.settings_item_margin);
-            margin += itemMargin;
-            if (menuWidth > 0) {
-                // The menu icon on the right pushes the UI to left. Adjust the margin.
-                startMargin = margin + menuWidth - itemMargin;
-                endMargin = margin - (menuWidth - itemMargin);
-            } else {
-                // SettingsInTab does not have a menu icon, so don't adjust the margin.
-                startMargin = margin;
-                endMargin = margin;
-            }
-        } else {
-            // On narrow screens (e.g. phone portrait mode), the search query container is
-            // placed inside the toolbar (mActionBar) and requires extra end margin to avoid
-            // overlapping the menu icon on the right.
-            endMargin = margin + menuWidth;
+        var menuView = getHelpMenuView();
+        if (menuView == null) {
+            mHandler.post(this::updateSingleColumnSearchUiWidth);
+            return;
         }
 
-        // Use LayoutParams.MATCH_PARENT so the search views scale continuously with the parent
-        // container (AppBarLayout or Toolbar) during window resizes and side panel transitions,
-        // without setting fixed pixel widths that could cause layout overflow.
-        if (searchBox != null) {
-            var lp = (ViewGroup.MarginLayoutParams) searchBox.getLayoutParams();
-            if (lp.getMarginStart() != margin
-                    || lp.getMarginEnd() != margin
-                    || lp.width != LayoutParams.MATCH_PARENT) {
-                updateView(searchBox, margin, margin, LayoutParams.MATCH_PARENT);
-            }
-        }
-        if (query != null) {
-            var lp = (ViewGroup.MarginLayoutParams) query.getLayoutParams();
-            if (lp.getMarginStart() != startMargin
-                    || lp.getMarginEnd() != endMargin
-                    || lp.width != LayoutParams.MATCH_PARENT) {
-                updateView(query, startMargin, endMargin, LayoutParams.MATCH_PARENT);
-            }
-        }
-        mSingleColumnWidthInitialized = true;
+        View appBar = requireViewById(R.id.app_bar_layout);
+        appBar.post(
+                () -> {
+                    int appBarWidth = appBar.getWidth();
+                    View searchBox = findViewById(R.id.search_box);
+                    View query = findViewById(R.id.search_query_container);
+
+                    int minWidePadding = getPixelSize(R.dimen.settings_wide_display_min_padding);
+                    int margin =
+                            ViewResizerUtil.computePaddingForWideDisplay(
+                                    mActivity, /* view= */ null, minWidePadding);
+                    boolean isOnWideScreen =
+                            margin > minWidePadding
+                                    || DeviceFormFactor.isNonMultiDisplayContextOnTablet(mActivity);
+                    int menuWidth = getMenuWidth();
+                    int searchBoxWidth;
+                    int queryWidth;
+                    int startMargin = margin;
+                    int endMargin = margin;
+                    if (isOnWideScreen) {
+                        int itemMargin = getPixelSize(R.dimen.settings_item_margin);
+                        margin += itemMargin;
+                        searchBoxWidth = appBarWidth - margin * 2;
+                        queryWidth = searchBoxWidth;
+                        // The menu icon on the right pushes the UI to left. Adjust the margin.
+                        startMargin += menuWidth - itemMargin;
+                        endMargin -= menuWidth - itemMargin;
+                    } else {
+                        searchBoxWidth = appBarWidth - margin * 2;
+                        // Only on narrow screens, query UI needs shrinking to avoid overlapping
+                        // with menu icon on the right side.
+                        queryWidth = searchBoxWidth - menuWidth;
+                    }
+                    if (searchBox != null) updateView(searchBox, margin, margin, searchBoxWidth);
+                    if (query != null) updateView(query, startMargin, endMargin, queryWidth);
+                });
     }
 
     /** Show/hide search bar UI. */
@@ -1382,8 +1198,7 @@ public class SettingsSearchCoordinator
         targetView.getViewTreeObserver().addOnGlobalLayoutListener(listener);
     }
 
-    @VisibleForTesting(otherwise = PRIVATE)
-    void onConfigurationChangedInternal() {
+    private void onConfigurationChangedInternal() {
         boolean useMultiColumn = mUseMultiColumnSupplier.getAsBoolean();
 
         // Changing the layout restarts the activity, and in which case the help icon should remain
@@ -1405,11 +1220,6 @@ public class SettingsSearchCoordinator
             // |mMultiColumnSettings.isLayoutOpen()| returns the right result.
             mHandler.post(
                     () -> {
-                        // The task may run after the Activity has been destroyed, for example,
-                        // during language switch. https://crbug.com/545872336
-                        if (mActivity.isFinishing() || mActivity.isDestroyed() || mIsDestroyed) {
-                            return;
-                        }
                         switchSearchUiLayout();
                         updateSearchUiWidth();
                     });
@@ -1469,9 +1279,6 @@ public class SettingsSearchCoordinator
             ViewGroup appBarLayout = requireViewById(R.id.app_bar_layout);
             setSearchBoxVerticalMargin(searchBox, false);
             appBarLayout.addView(searchBox);
-            var lp = (ViewGroup.MarginLayoutParams) searchBox.getLayoutParams();
-            lp.width = LayoutParams.MATCH_PARENT;
-            searchBox.setLayoutParams(lp);
             boolean showingMain = isShowingMainSettings();
             if (showingMain) {
                 // No need to check against |mSuppressUi| here since in single-column mode
@@ -1495,7 +1302,7 @@ public class SettingsSearchCoordinator
             // For UI consistency, we revert to default state (FS_SETTINGS) after clearing
             // the fragment to prevent fragments overlapping crbug.com/511065590.
             if (mFragmentState == FS_SEARCH && !showingMain) {
-                exitSearchState();
+                exitSearchState(/* clearFragment= */ true);
                 mUpdateFirstVisibleTitle.onResult(0);
                 return;
             }
@@ -1520,8 +1327,6 @@ public class SettingsSearchCoordinator
      * only when we are in the main Settings state, not during Search or Results.
      */
     private boolean shouldShowHelpMenu() {
-        if (SettingsInTab.isEnabled()) return false;
-
         return mFragmentState == FS_SETTINGS;
     }
 
@@ -1896,10 +1701,6 @@ public class SettingsSearchCoordinator
         }
     }
 
-    public void onStop() {
-        RecentSearchQueue.getInstance().flushIfDirty();
-    }
-
     public void onSaveInstanceState(Bundle outState) {
         outState.putInt(KEY_FRAGMENT_STATE, mFragmentState);
         outState.putBoolean(KEY_PANE_OPENED_BY_SEARCH, mPaneOpenedBySearch);
@@ -1946,9 +1747,5 @@ public class SettingsSearchCoordinator
 
     boolean hasRecentSearchEntriesForTesting() {
         return !RecentSearchQueue.getInstance().isEmpty();
-    }
-
-    void setUseMultiColumnForTesting(boolean useMultiColumn) {
-        mUseMultiColumn = useMultiColumn;
     }
 }

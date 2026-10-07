@@ -98,9 +98,8 @@ struct BnplTosModel {
 // Return all BNPL Issuer contexts including eligibility in order of:
 // eligible + linked, eligible + unlinked, uneligible + linked,
 // uneligible + unlinked.
-// If `enforced_order` is provided and non-empty, the initial order of issuers
-// is taken from `enforced_order` instead of being randomly shuffled, while
-// still respecting eligibility and linked status sorting.
+// If `enforced_order` is provided and non-empty, the BNPL issuer contexts
+// will be ordered according to the issuers in `enforced_order`.
 std::vector<BnplIssuerContext> GetSortedBnplIssuerContext(
     const AutofillClient& client,
     std::optional<int64_t> checkout_amount,

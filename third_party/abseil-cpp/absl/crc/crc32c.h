@@ -25,7 +25,6 @@
 #ifndef ABSL_CRC_CRC32C_H_
 #define ABSL_CRC_CRC32C_H_
 
-#include <cstddef>
 #include <cstdint>
 #include <ostream>
 

@@ -9,12 +9,9 @@
 
 #include "base/check_op.h"
 #include "third_party/blink/renderer/platform/text/writing_direction_mode.h"
-#include "third_party/blink/renderer/platform/text/writing_mode_utils.h"
 #include "third_party/blink/renderer/platform/wtf/allocator/allocator.h"
 
 namespace blink {
-
-struct PhysicalBoxSides;
 
 // Presence of something pertaining to box sides (e.g. borders, padding or
 // insets), in the logical coordinate space. Note that all sides are set to true
@@ -37,8 +34,6 @@ struct LogicalBoxSides {
         inline_end(inline_end),
         block_start(block_start),
         block_end(block_end) {}
-
-  PhysicalBoxSides ToPhysical(WritingDirectionMode writing_direction) const;
 
   bool operator==(const LogicalBoxSides& other) const {
     return block_start == other.block_start && inline_end == other.inline_end &&
@@ -128,9 +123,26 @@ struct PhysicalBoxSides {
   }
 
   LogicalBoxSides ToLogical(WritingDirectionMode writing_direction) const {
-    PhysicalToLogical converter(writing_direction, top, right, bottom, left);
-    return {converter.InlineStart(), converter.InlineEnd(),
-            converter.BlockStart(), converter.BlockEnd()};
+    LogicalBoxSides logical;
+    switch (writing_direction.GetWritingMode()) {
+      case WritingMode::kHorizontalTb:
+        logical = LogicalBoxSides(left, right, top, bottom);
+        break;
+      case WritingMode::kVerticalRl:
+      case WritingMode::kSidewaysRl:
+        logical = LogicalBoxSides(top, bottom, right, left);
+        break;
+      case WritingMode::kVerticalLr:
+        logical = LogicalBoxSides(top, bottom, left, right);
+        break;
+      case WritingMode::kSidewaysLr:
+        logical = LogicalBoxSides(bottom, top, left, right);
+        break;
+    }
+    if (writing_direction.IsRtl()) {
+      std::swap(logical.inline_start, logical.inline_end);
+    }
+    return logical;
   }
 
   bool operator==(const PhysicalBoxSides& other) const {
@@ -141,14 +153,6 @@ struct PhysicalBoxSides {
   bool IsEmpty() const { return !top && !right && !bottom && !left; }
   bool HasAllSides() const { return top && right && bottom && left; }
 };
-
-inline PhysicalBoxSides LogicalBoxSides::ToPhysical(
-    WritingDirectionMode writing_direction) const {
-  LogicalToPhysical converter(writing_direction, inline_start, inline_end,
-                              block_start, block_end);
-  return {converter.Top(), converter.Right(), converter.Bottom(),
-          converter.Left()};
-}
 
 }  // namespace blink
 

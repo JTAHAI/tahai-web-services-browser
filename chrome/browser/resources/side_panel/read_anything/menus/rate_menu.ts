@@ -10,8 +10,6 @@ import {CrLitElement} from '//resources/lit/v3_0/lit.rollup.js';
 
 import type {SettingsPrefs} from '../content/read_anything_types.js';
 import {DEFAULT_SETTINGS} from '../content/read_anything_types.js';
-import type {AudioBrowserProxy} from '../read_aloud/audio_browser_proxy.js';
-import {AudioBrowserProxyImpl} from '../read_aloud/audio_browser_proxy.js';
 import {ReadAloudSettingsChange} from '../shared/metrics_browser_proxy.js';
 import {ReadAnythingLogger} from '../shared/read_anything_logger.js';
 
@@ -28,18 +26,9 @@ export interface RateMenuElement {
 
 // 3x and 4x speeds are hidden on non-ChromeOS because natural voices on
 // non-ChromeOS do not currently support 3x and 4x speeds.
-export const RATE_OPTIONS: number[] = [
-  0.5,
-  0.8,
-  1,
-  1.2,
-  1.5,
-  2,
-  // <if expr="is_chromeos">
-  3,
-  4,
-  // </if>
-];
+export const RATE_OPTIONS: number[] = chrome.readingMode.isChromeOsAsh ?
+    [0.5, 0.8, 1, 1.2, 1.5, 2, 3, 4] :
+    [0.5, 0.8, 1, 1.2, 1.5, 2];
 
 const RateMenuElementBase = WebUiListenerMixinLit(CrLitElement);
 
@@ -57,13 +46,14 @@ export class RateMenuElement extends RateMenuElementBase {
     return {
       settingsPrefs: {type: Object},
       options_: {type: Array},
+      isImmersiveEnabled_: {type: Boolean},
     };
   }
 
   accessor settingsPrefs: SettingsPrefs = DEFAULT_SETTINGS;
 
-  private audioBrowserProxy_: AudioBrowserProxy =
-      AudioBrowserProxyImpl.getInstance();
+  protected accessor isImmersiveEnabled_: boolean =
+      chrome.readingMode.isImmersiveEnabled;
 
   protected accessor options_: Array<MenuStateItem<number>> =
       RATE_OPTIONS.map(rate => {
@@ -84,7 +74,7 @@ export class RateMenuElement extends RateMenuElementBase {
   }
 
   protected onRateChange_(event: CustomEvent<{data: number}>) {
-    this.audioBrowserProxy_.onSpeechRateChange(event.detail.data);
+    chrome.readingMode.onSpeechRateChange(event.detail.data);
     this.logger_.logSpeechSettingsChange(
         ReadAloudSettingsChange.VOICE_SPEED_CHANGE);
     // Log which rate is chosen by index rather than the rate value itself.

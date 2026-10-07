@@ -166,7 +166,8 @@ class ModeService : public KeyedService {
   bool persistence_enabled() const;
 
   base::WeakPtr<ModeService> GetWeakPtr() {
-    return shutdown_ ? base::WeakPtr<ModeService>() : weak_factory_.GetWeakPtr();
+    return shutdown_ ? base::WeakPtr<ModeService>()
+                     : weak_factory_.GetWeakPtr();
   }
 
   void AddObserver(Observer* observer);

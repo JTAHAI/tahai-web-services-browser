@@ -6,8 +6,8 @@
 #define UI_VIEWS_ANIMATION_INK_DROP_MASK_H_
 
 #include "base/gtest_prod_util.h"
+#include "ui/compositor/layer.h"
 #include "ui/compositor/layer_delegate.h"
-#include "ui/compositor/layer_textured.h"
 #include "ui/views/views_export.h"
 
 class SkPath;
@@ -25,8 +25,7 @@ class VIEWS_EXPORT InkDropMask : public ui::LayerDelegate {
 
   ~InkDropMask() override;
 
-  ui::LayerTextured* layer() { return &layer_; }
-  const ui::LayerTextured* layer() const { return &layer_; }
+  ui::Layer* layer() { return &layer_; }
 
  protected:
   explicit InkDropMask(const gfx::Size& layer_size);

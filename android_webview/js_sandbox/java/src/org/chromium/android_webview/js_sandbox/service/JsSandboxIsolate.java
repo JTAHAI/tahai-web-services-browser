@@ -204,8 +204,7 @@ public class JsSandboxIsolate extends IJsSandboxIsolate.Stub {
 
     // Checks for errors thrown by client side while reading the stream and closes the Pfd.
     @CalledByNative
-    private static @JniType("std::string") @Nullable String checkStreamingErrorAndClosePfd(
-            ParcelFileDescriptor pfd) {
+    private static @Nullable String checkStreamingErrorAndClosePfd(ParcelFileDescriptor pfd) {
         try {
             if (pfd.canDetectErrors()) {
                 try {
@@ -264,7 +263,7 @@ public class JsSandboxIsolate extends IJsSandboxIsolate.Stub {
     // The service must ensure no other Binder calls (related to this isolate) are made back to the
     // client if this method returns true.
     @CalledByNative
-    public boolean sendTermination(int status, @JniType("std::string") String message) {
+    public boolean sendTermination(int status, String message) {
         if (mIsolateClient == null) {
             return false;
         }
@@ -295,9 +294,7 @@ public class JsSandboxIsolate extends IJsSandboxIsolate.Stub {
         void destroyNative(long nativeJsSandboxIsolate);
 
         boolean evaluateJavascript(
-                long nativeJsSandboxIsolate,
-                @JniType("std::string") String script,
-                JsSandboxIsolateCallback callback);
+                long nativeJsSandboxIsolate, String script, JsSandboxIsolateCallback callback);
 
         boolean evaluateJavascriptWithFd(
                 long nativeJsSandboxIsolate,
@@ -307,11 +304,7 @@ public class JsSandboxIsolate extends IJsSandboxIsolate.Stub {
                 JsSandboxIsolateFdCallback callback,
                 ParcelFileDescriptor pfd);
 
-        boolean provideNamedData(
-                long nativeJsSandboxIsolate,
-                @JniType("std::string") String name,
-                int fd,
-                int length);
+        boolean provideNamedData(long nativeJsSandboxIsolate, String name, int fd, int length);
 
         void setConsoleEnabled(long nativeJsSandboxIsolate, boolean enable);
 

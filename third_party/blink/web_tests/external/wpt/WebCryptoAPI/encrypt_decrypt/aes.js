@@ -458,7 +458,9 @@ function run_test() {
     });
 
     promise_test(function() {
-        return Promise.all(all_promises).finally(done);
+        return Promise.all(all_promises)
+            .then(function() {done();})
+            .catch(function() {done();})
     }, "setup");
 
     // A test vector has all needed fields for encryption, EXCEPT that the
@@ -468,7 +470,9 @@ function run_test() {
     // Returns a Promise that yields an updated vector on success.
     function importVectorKey(vector, usages) {
         if (vector.key !== null) {
-            return Promise.resolve(vector);
+            return new Promise(function(resolve, reject) {
+                resolve(vector);
+            });
         } else {
             return subtle.importKey(vector.algorithm.name.toUpperCase() === "AES-OCB" ? "raw-secret" : "raw", vector.keyBuffer, {name: vector.algorithm.name}, false, usages)
             .then(function(key) {

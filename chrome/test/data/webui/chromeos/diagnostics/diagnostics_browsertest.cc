@@ -153,8 +153,7 @@ IN_PROC_BROWSER_TEST_F(DiagnosticsAppBrowserTest, RoutineResultList) {
   RunTestAtPath("routine_result_list_test.js");
 }
 
-// TODO(crbug.com/542782875): This test is flaky.
-IN_PROC_BROWSER_TEST_F(DiagnosticsAppBrowserTest, DISABLED_RoutineSection) {
+IN_PROC_BROWSER_TEST_F(DiagnosticsAppBrowserTest, RoutineSection) {
   RunTestAtPath("routine_section_test.js");
 }
 

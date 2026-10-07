@@ -120,7 +120,8 @@ TEST_F(MaybeFromGWSNavigationAndKeepAliveRequestObserverForWebContentsTest,
        FeatureDisabled) {
   disable_feature();
   EXPECT_THAT(
-      FromGWSNavigationAndKeepAliveRequestObserver::MaybeCreate(web_contents()),
+      FromGWSNavigationAndKeepAliveRequestObserver::MaybeCreateForWebContents(
+          web_contents()),
       IsNull());
 }
 
@@ -129,7 +130,8 @@ TEST_F(MaybeFromGWSNavigationAndKeepAliveRequestObserverForWebContentsTest,
   enable_feature();
 
   EXPECT_THAT(
-      FromGWSNavigationAndKeepAliveRequestObserver::MaybeCreate(web_contents()),
+      FromGWSNavigationAndKeepAliveRequestObserver::MaybeCreateForWebContents(
+          web_contents()),
       NotNull());
 }
 
@@ -137,9 +139,10 @@ TEST_F(MaybeFromGWSNavigationAndKeepAliveRequestObserverForWebContentsTest,
        NullWebContents) {
   enable_feature();
 
-  EXPECT_THAT(FromGWSNavigationAndKeepAliveRequestObserver::MaybeCreate(
-                  /*web_contents=*/nullptr),
-              IsNull());
+  EXPECT_THAT(
+      FromGWSNavigationAndKeepAliveRequestObserver::MaybeCreateForWebContents(
+          /*web_contents=*/nullptr),
+      IsNull());
 }
 
 class FromGWSNavigationAndKeepAliveRequestObserverTest
@@ -166,8 +169,8 @@ class FromGWSNavigationAndKeepAliveRequestObserverTest
 
   std::unique_ptr<FromGWSNavigationAndKeepAliveRequestObserver> CreateObserver()
       const {
-    return FromGWSNavigationAndKeepAliveRequestObserver::MaybeCreate(
-        web_contents());
+    return FromGWSNavigationAndKeepAliveRequestObserver::
+        MaybeCreateForWebContents(web_contents());
   }
 
   network::ResourceRequest CreateRequest(const GURL& url) {

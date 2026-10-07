@@ -107,12 +107,6 @@ export class OffscreenBridge {
         OffscreenTarget, OffscreenAction.TENJI_BACK_TRANSLATE, tenjiString);
   }
 
-  static tenjiConvert(reading: string, maxCandidates: number):
-      Promise<string[]> {
-    return BridgeHelper.sendMessage(
-        OffscreenTarget, OffscreenAction.TENJI_CONVERT, reading, maxCandidates);
-  }
-
   static tenjiStartWorker(tenjiData: object): Promise<void> {
     return BridgeHelper.sendMessage(
         OffscreenTarget, OffscreenAction.TENJI_START_WORKER, tenjiData);

@@ -17,7 +17,6 @@ import type {CrLinkRowElement} from 'chrome://resources/cr_elements/cr_link_row/
 import {I18nMixin} from 'chrome://resources/cr_elements/i18n_mixin.js';
 import {assert, assertNotReached} from 'chrome://resources/js/assert.js';
 import {focusWithoutInk} from 'chrome://resources/js/focus_without_ink.js';
-import {sanitizeInnerHtml} from 'chrome://resources/js/parse_html_subset.js';
 import {PluralStringProxyImpl} from 'chrome://resources/js/plural_string_proxy.js';
 import {PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
@@ -27,7 +26,6 @@ import type {CredentialsChangedListener, PasswordCheckStatusChangedListener} fro
 import {PasswordCheckInteraction, PasswordManagerImpl} from './password_manager_proxy.js';
 import type {Route} from './router.js';
 import {CheckupSubpage, Page, RouteObserverMixin, Router, UrlParam} from './router.js';
-import {UserUtilMixin} from './user_utils_mixin.js';
 
 const CheckState = chrome.passwordsPrivate.PasswordCheckState;
 
@@ -45,8 +43,7 @@ export interface CheckupSectionElement {
   };
 }
 
-const CheckupSectionElementBase =
-    UserUtilMixin(RouteObserverMixin(I18nMixin(PolymerElement)));
+const CheckupSectionElementBase = RouteObserverMixin(I18nMixin(PolymerElement));
 
 export class CheckupSectionElement extends CheckupSectionElementBase {
   static get is() {
@@ -393,9 +390,9 @@ export class CheckupSectionElement extends CheckupSectionElementBase {
       issues: chrome.passwordsPrivate.PasswordUiEntry[],
       checkForError: boolean): string {
     if (checkForError && this.status_ && this.didCompromiseCheckFail_()) {
-      return 'cr:error-filled';
+      return 'cr:error';
     }
-    return !!issues && issues.length ? 'cr:error-filled' : 'cr:check-circle';
+    return !!issues && issues.length ? 'cr:error' : 'cr:check-circle';
   }
 
   private hasAnyIssues_(): boolean {
@@ -490,37 +487,17 @@ export class CheckupSectionElement extends CheckupSectionElementBase {
     return this.computeIsCheckRunning_();
   }
 
-  private getCheckupSublabelValue_(): TrustedHTML {
-    if (!this.status_ || this.actionableError === null) {
-      return sanitizeInnerHtml('');
+  private getCheckupSublabelValue_(): string {
+    assert(this.status_);
+    if (!this.computeIsCheckRunning_()) {
+      return this.status_.state === CheckState.NO_PASSWORDS ?
+          this.i18n(
+              'checkupErrorNoPasswords', this.i18n('localPasswordManager')) :
+          this.status_.elapsedTimeSinceLastCheck || '';
     }
-    if (this.computeIsCheckRunning_()) {
-      return sanitizeInnerHtml(this.i18n(
-          'checkupProgress', this.status_.alreadyProcessed || 0,
-          this.status_.totalNumberOfPasswords || 0));
-    }
-
-    if (this.status_.state !== CheckState.NO_PASSWORDS) {
-      return sanitizeInnerHtml(this.status_.elapsedTimeSinceLastCheck || '');
-    }
-
-    if (this.isTrustedVaultKeyNeeded()) {
-      return this.i18nAdvanced('checkupEmptyStateTrustedVaultKeyNeeded');
-    }
-
-    return this.i18nAdvanced(
-        'checkupErrorNoPasswords',
-        {substitutions: [this.i18n('localPasswordManager')]});
-  }
-
-  private onCheckupStatusSubLabelClick_(e: Event) {
-    const target = e.target as HTMLElement;
-    if (target.tagName === 'A') {
-      e.preventDefault();
-      if (this.isTrustedVaultKeyNeeded()) {
-        PasswordManagerImpl.getInstance().startTrustedVaultUnlock();
-      }
-    }
+    return this.i18n(
+        'checkupProgress', this.status_.alreadyProcessed || 0,
+        this.status_.totalNumberOfPasswords || 0);
   }
 
   private showCheckupResult_(): boolean {

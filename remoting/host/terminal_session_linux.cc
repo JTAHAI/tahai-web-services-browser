@@ -6,17 +6,13 @@
 
 #include <fcntl.h>
 #include <limits.h>
+#include <memory>
 #include <stdlib.h>
+#include <string_view>
 #include <sys/ioctl.h>
 #include <termios.h>
 #include <unistd.h>
 
-#include <cstdint>
-#include <memory>
-#include <optional>
-#include <string_view>
-
-#include "base/base_paths.h"
 #include "base/check.h"
 #include "base/containers/span.h"
 #include "base/files/file_descriptor_watcher_posix.h"
@@ -27,7 +23,6 @@
 #include "base/location.h"
 #include "base/logging.h"
 #include "base/memory/weak_ptr.h"
-#include "base/path_service.h"
 #include "base/posix/eintr_wrapper.h"
 #include "base/process/kill.h"
 #include "base/process/launch.h"
@@ -35,18 +30,17 @@
 #include "base/strings/strcat.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_split.h"
-#include "base/strings/string_util.h"
 #include "base/task/thread_pool.h"
 #include "base/thread_annotations.h"
 #include "remoting/base/logging.h"
-#include "remoting/host/terminal_process_monitor_linux.h"
 #include "remoting/host/terminal_session_manager.h"
 
 namespace remoting {
 
 namespace {
 
-constexpr std::string_view kTmx2Path = "/usr/bin/tmx2";
+constexpr std::string_view kTmux2Path = "/usr/bin/tmx2";
+constexpr std::string_view kTmuxPath = "/usr/bin/tmux";
 constexpr std::string_view kTmuxSessionPrefix = "chrome-remote-desktop-";
 constexpr std::string_view kTmuxSocketName = "chrome-remote-desktop";
 
@@ -54,21 +48,26 @@ std::string GetTmuxSessionName(int32_t id) {
   return base::StrCat({kTmuxSessionPrefix, base::NumberToString(id)});
 }
 
-base::FilePath FindTmx2Path() {
-  // Only tmx2 is supported for terminal sessions. It's impossible to have tmx2
-  // installed without tmux also being installed.
-  base::FilePath tmx2_path(kTmx2Path);
+base::FilePath FindTmuxOrTmx2Path() {
+  // Prefer tmx2 over tmux. It is impossible to have tmx2 installed without
+  // tmux also being installed.
+  base::FilePath tmx2_path(kTmux2Path);
   if (base::PathExists(tmx2_path)) {
     return tmx2_path;
+  }
+
+  base::FilePath tmx_path(kTmuxPath);
+  if (base::PathExists(tmx_path)) {
+    return tmx_path;
   }
   return base::FilePath();
 }
 
 void KillTmuxSession(int32_t id) {
-  base::FilePath tmx2_path = FindTmx2Path();
-  if (!tmx2_path.empty()) {
+  base::FilePath path = FindTmuxOrTmx2Path();
+  if (!path.empty()) {
     std::vector<std::string> tmux_args = {
-        tmx2_path.value(), "-L", std::string(kTmuxSocketName),
+        path.value(), "-L", std::string(kTmuxSocketName),
         "kill-session", "-t", GetTmuxSessionName(id)};
     base::Process process =
         base::LaunchProcess(tmux_args, base::LaunchOptions());
@@ -81,30 +80,6 @@ void KillTmuxSession(int32_t id) {
 void TerminateProcessInBackground(base::Process process) {
   process.Terminate(0, false);
   base::EnsureProcessTerminated(std::move(process));
-}
-
-std::optional<pid_t> GetTmuxPaneShellPid(int32_t id) {
-  base::FilePath tmx2_path = FindTmx2Path();
-  if (tmx2_path.empty()) {
-    return std::nullopt;
-  }
-
-  std::string output;
-  std::vector<std::string> args = {
-      tmx2_path.value(), "-L", std::string(kTmuxSocketName),
-      "display-message", "-p", "-t",
-      GetTmuxSessionName(id), "-F", "#{pane_pid}"};
-
-  if (!base::GetAppOutput(args, &output)) {
-    return std::nullopt;
-  }
-
-  output = base::TrimWhitespaceASCII(output, base::TRIM_ALL);
-  int int_pid;
-  if (base::StringToInt(output, &int_pid) && int_pid > 0) {
-    return static_cast<pid_t>(int_pid);
-  }
-  return std::nullopt;
 }
 
 // PreExecDelegate to set up the PTY session in the child process. It creates
@@ -121,31 +96,23 @@ class TerminalPreExecDelegate : public base::LaunchOptions::PreExecDelegate {
 };
 
 base::Process LaunchShellProcess(int32_t id, base::ScopedFD subsidiary_fd) {
-  base::FilePath tmx2_path = FindTmx2Path();
-  // If tmx2 is not available, then we cannot launch the terminal session.
-  if (tmx2_path.empty()) {
+  base::FilePath tmux_path = FindTmuxOrTmx2Path();
+  // If tmux is not available, then we cannot launch the terminal session.
+  if (tmux_path.empty()) {
     LOG(ERROR)
-        << "tmx2 binary not found. Cannot launch terminal session.";
+        << "tmux / tmx2 binary not found. Cannot launch terminal session.";
     return base::Process();
   }
 
   std::vector<std::string> tmux_cmd = {
-    tmx2_path.value(),
+    tmux_path.value(),
     "-L", std::string(kTmuxSocketName),
-    "set-option", "-s", "terminal-overrides", "xterm*:smcup@:rmcup@", ";",
     "new-session", "-A", "-s", GetTmuxSessionName(id), ";",
     "set-option", "set-titles", "on", ";",
-    "set-option", "set-titles-string", "#T", ";",
-    "set-option", "-g", "status", "off", ";",
-    "set-option", "-g", "mouse", "off"
+    "set-option", "set-titles-string", "#T"
   };
 
   base::LaunchOptions options;
-  base::FilePath home_dir;
-  if (base::PathService::Get(base::DIR_HOME, &home_dir)) {
-    options.current_directory = std::move(home_dir);
-  }
-  options.allow_new_privs = true;
   options.fds_to_remap.emplace_back(subsidiary_fd.get(), STDIN_FILENO);
   options.fds_to_remap.emplace_back(subsidiary_fd.get(), STDOUT_FILENO);
   options.fds_to_remap.emplace_back(subsidiary_fd.get(), STDERR_FILENO);
@@ -159,14 +126,11 @@ base::Process LaunchShellProcess(int32_t id, base::ScopedFD subsidiary_fd) {
 
 class TerminalSessionLinux : public TerminalSession {
  public:
-  TerminalSessionLinux(
-      TerminalSessionManager::OutputCallback output_cb,
-      TerminalSessionManager::ExitCallback exit_cb,
-      TerminalSessionManager::ProcessInfoCallback process_info_cb,
-      int32_t id)
+  TerminalSessionLinux(TerminalSessionManager::OutputCallback output_cb,
+                       TerminalSessionManager::ExitCallback exit_cb,
+                       int32_t id)
       : output_callback_(std::move(output_cb)),
         exit_callback_(std::move(exit_cb)),
-        process_info_callback_(std::move(process_info_cb)),
         id_(id),
         writer_task_runner_(base::ThreadPool::CreateSequencedTaskRunner(
             {base::MayBlock(), base::TaskPriority::USER_VISIBLE,
@@ -337,7 +301,6 @@ class TerminalSessionLinux : public TerminalSession {
     }
     detached_ = true;
     output_watcher_.reset();
-    process_monitor_.reset();
     if (process_.IsValid() && writer_task_runner_) {
       writer_task_runner_->PostTask(
           FROM_HERE, base::BindOnce(&TerminateProcessInBackground,
@@ -383,19 +346,6 @@ class TerminalSessionLinux : public TerminalSession {
     ssize_t bytes_read =
         HANDLE_EINTR(read(pty_fd_.get(), buffer, sizeof(buffer)));
     if (bytes_read > 0) {
-      // Retrieve the shell PID if it hasn't been retrieved yet.
-      // This is done once when output is first received since that means that
-      // the tmux pane has been successfully created.
-      if (!shell_pid_retrieval_started_) {
-        shell_pid_retrieval_started_ = true;
-        base::ThreadPool::PostTaskAndReplyWithResult(
-            FROM_HERE,
-            {base::MayBlock(), base::TaskPriority::USER_VISIBLE,
-             base::TaskShutdownBehavior::SKIP_ON_SHUTDOWN},
-            base::BindOnce(&GetTmuxPaneShellPid, id_),
-            base::BindOnce(&TerminalSessionLinux::OnShellPidRetrieved,
-                           weak_factory_.GetWeakPtr()));
-      }
       output_callback_.Run(id_, std::string(buffer, bytes_read));
     } else {
       if (bytes_read < 0) {
@@ -410,65 +360,17 @@ class TerminalSessionLinux : public TerminalSession {
     }
   }
 
-  void OnShellPidRetrieved(std::optional<pid_t> pid) {
-    DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-    if (detached_ || terminated_) {
-      HOST_LOG << "OnShellPidRetrieved called after detach or terminate, "
-                  "ignoring";
-      return;
-    }
-    if (pid) {
-      shell_pid_ = *pid;
-      HOST_LOG << "Retrieved shell PID " << *pid
-               << " for terminal session " << id_;
-      if (process_info_callback_) {
-        process_monitor_ = std::make_unique<TerminalProcessMonitorLinux>(
-            *pid,
-            base::BindRepeating(&TerminalSessionLinux::OnProcessInfoChanged,
-                                weak_factory_.GetWeakPtr()));
-        process_monitor_->StartPolling();
-      }
-    } else {
-      LOG(WARNING) << "Failed to retrieve shell PID for tmux terminal " << id_;
-    }
-  }
-
-  void OnProcessInfoChanged(
-      bool is_active,
-      const std::optional<std::string>& process_name) {
-    DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-    if (detached_ || terminated_) {
-      HOST_LOG << "OnProcessInfoChanged called after detach or terminate, "
-                  "ignoring";
-      return;
-    }
-    if (process_info_callback_) {
-      std::string_view process_name_view = "";
-      if (process_name) {
-        process_name_view = *process_name;
-      }
-      process_info_callback_.Run(id_, is_active, process_name_view);
-    }
-  }
-
   base::ScopedFD pty_fd_ GUARDED_BY_CONTEXT(sequence_checker_);
   base::Process process_ GUARDED_BY_CONTEXT(sequence_checker_);
   std::unique_ptr<base::FileDescriptorWatcher::Controller> output_watcher_
       GUARDED_BY_CONTEXT(sequence_checker_);
-  std::unique_ptr<TerminalProcessMonitorLinux> process_monitor_
-      GUARDED_BY_CONTEXT(sequence_checker_);
   TerminalSessionManager::OutputCallback output_callback_;
   TerminalSessionManager::ExitCallback exit_callback_
-      GUARDED_BY_CONTEXT(sequence_checker_);
-  TerminalSessionManager::ProcessInfoCallback process_info_callback_
       GUARDED_BY_CONTEXT(sequence_checker_);
   int32_t id_;
   bool detached_ = false;
   bool terminated_ = false;
   scoped_refptr<base::SequencedTaskRunner> writer_task_runner_;
-  std::optional<pid_t> shell_pid_ GUARDED_BY_CONTEXT(sequence_checker_);
-  bool shell_pid_retrieval_started_
-      GUARDED_BY_CONTEXT(sequence_checker_) = false;
 
   SEQUENCE_CHECKER(sequence_checker_);
 
@@ -481,24 +383,22 @@ class TerminalSessionLinux : public TerminalSession {
 std::unique_ptr<TerminalSession> TerminalSession::Create(
     TerminalSessionManager::OutputCallback output_cb,
     TerminalSessionManager::ExitCallback exit_cb,
-    TerminalSessionManager::ProcessInfoCallback process_info_cb,
     int32_t id) {
-  return std::make_unique<TerminalSessionLinux>(
-      std::move(output_cb), std::move(exit_cb), std::move(process_info_cb),
-      id);
+  return std::make_unique<TerminalSessionLinux>(std::move(output_cb),
+                                                std::move(exit_cb), id);
 }
 
 // static
 std::vector<int32_t> TerminalSession::GetPersistentTerminalIds() {
   // This is a blocking call (uses PathExists and GetAppOutput).
-  base::FilePath tmx2_path = FindTmx2Path();
-  if (tmx2_path.empty()) {
+  base::FilePath tmux_path = FindTmuxOrTmx2Path();
+  if (tmux_path.empty()) {
     return {};
   }
 
   std::string output;
   std::vector<std::string> args = {
-      tmx2_path.value(), "-L", std::string(kTmuxSocketName),
+      tmux_path.value(), "-L", std::string(kTmuxSocketName),
       "list-sessions",   "-F", "#{session_name}"};
   if (!base::GetAppOutput(args, &output)) {
     return {};

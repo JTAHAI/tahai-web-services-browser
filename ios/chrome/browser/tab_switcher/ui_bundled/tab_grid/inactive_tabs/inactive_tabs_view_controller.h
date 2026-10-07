@@ -9,7 +9,7 @@
 
 @class InactiveGridViewController;
 @class InactiveTabsViewController;
-@class SceneLayoutState;
+@class LayoutState;
 
 // Protocol used to relay relevant user interactions from the
 // InactiveTabsViewController.
@@ -22,7 +22,7 @@
 // Invoked when the button to close all inactive tabs is tapped.
 - (void)inactiveTabsViewController:
             (InactiveTabsViewController*)inactiveTabsViewController
-    didTapCloseAllInactiveFromSourceView:(UIView*)sourceView;
+    didTapCloseAllInactiveBarButtonItem:(UIBarButtonItem*)barButtonItem;
 
 @end
 
@@ -30,7 +30,7 @@
 @interface InactiveTabsViewController : UIViewController
 
 // The layout state of the scene.
-@property(nonatomic, weak) SceneLayoutState* layoutState;
+@property(nonatomic, weak) LayoutState* layoutState;
 
 // The embedded grid view controller.
 @property(nonatomic, readonly) InactiveGridViewController* gridViewController;

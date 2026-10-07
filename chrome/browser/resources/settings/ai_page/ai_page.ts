@@ -65,11 +65,6 @@ export class SettingsAiPageElement extends SettingsAiPageElementBase {
         value: () => loadTimeData.getBoolean('showAiSuggestionsControl'),
       },
 
-      showInlineCueMenuControl_: {
-        type: Boolean,
-        value: () => loadTimeData.getBoolean('showInlineCueMenuControl'),
-      },
-
       showSkillsSettingPage_: {
         type: Boolean,
         value: () => loadTimeData.getBoolean('showSkillsSettingPage'),
@@ -113,7 +108,6 @@ export class SettingsAiPageElement extends SettingsAiPageElementBase {
   declare private showHistorySearchControl_: boolean;
   declare private showPasswordChangeControl_: boolean;
   declare private showAiSuggestionsControl_: boolean;
-  declare private showInlineCueMenuControl_: boolean;
   declare private showSkillsSettingPage_: boolean;
   declare private showIndigoControl_: boolean;
   declare private showGoogleSearchAiModeWorkspaceControl_: boolean;
@@ -200,15 +194,6 @@ export class SettingsAiPageElement extends SettingsAiPageElementBase {
 
     const router = Router.getInstance();
     router.navigateTo(router.getRoutes().AI_SUGGESTIONS);
-  }
-
-  private onInlineCueMenuRowClick_() {
-    this.recordInteractionMetrics_(
-        AiPageInteractions.INLINE_CUE_MENU_CLICK,
-        'Settings.AiPage.InlineCueMenuEntryPointClick');
-
-    const router = Router.getInstance();
-    router.navigateTo(router.getRoutes().INLINE_CUE_MENU);
   }
 
   private onSkillsRowClick_() {
@@ -332,10 +317,6 @@ export class SettingsAiPageElement extends SettingsAiPageElementBase {
       map.set(routes.AI_SUGGESTIONS.path, '#aiSuggestionsRow');
     }
 
-    if (routes.INLINE_CUE_MENU) {
-      map.set(routes.INLINE_CUE_MENU.path, '#inlineCueMenuRow');
-    }
-
     if (routes.SKILLS) {
       map.set(routes.SKILLS.path, '#skillsRow');
     }
@@ -354,7 +335,6 @@ export class SettingsAiPageElement extends SettingsAiPageElementBase {
       'dictation',
       'historySearch',
       'aiSuggestions',
-      'inlineCueMenu',
       'skills',
     ];
     assert(ids.includes(childViewId));
@@ -372,10 +352,6 @@ export class SettingsAiPageElement extends SettingsAiPageElementBase {
       case 'aiSuggestions':
         assert(this.showAiSuggestionsControl_);
         triggerId = 'aiSuggestionsRow';
-        break;
-      case 'inlineCueMenu':
-        assert(this.showInlineCueMenuControl_);
-        triggerId = 'inlineCueMenuRow';
         break;
       case 'skills':
         assert(this.showSkillsSettingPage_);

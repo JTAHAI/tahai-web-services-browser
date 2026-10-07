@@ -5,7 +5,7 @@
 #import "ios/chrome/browser/ai_prototyping/ui/ai_prototyping_worklog_compact_view_controller.h"
 
 #import "ios/chrome/browser/intelligence/actor/ui/actuation_worklog_compact_view.h"
-#import "ios/chrome/browser/intelligence/actor/ui/actuation_worklog_view_data.h"
+#import "ios/chrome/browser/intelligence/actor/ui/actuation_worklog_item.h"
 #import "ios/chrome/browser/shared/ui/symbols/symbols.h"
 #import "ios/chrome/common/ui/colors/semantic_color_names.h"
 #import "ios/chrome/common/ui/util/constraints_ui_util.h"
@@ -17,7 +17,6 @@ const CGFloat kWidgetCornerRadius = 12.0;
 const CGFloat kWidgetBorderWidth = 1.0;
 
 const CGFloat kLayoutSpacing = 16.0;
-const CGFloat kLayoutSpacingSmall = 8.0;
 const CGFloat kIconSize = 16.0;
 
 const CGFloat kButtonFontSize = 16.0;
@@ -26,10 +25,8 @@ const CGFloat kButtonFontSize = 16.0;
 struct MockStepConfig {
   NSString* title;
   NSString* subtitle = nil;
-  Symbol iconSymbol = SymbolNone;
+  NSString* iconName = nil;
   ActuationWorklogItemStyle style;
-  NSString* chipText = nil;
-  Symbol chipIconSymbol = SymbolNone;
 };
 
 }  // namespace
@@ -41,7 +38,6 @@ struct MockStepConfig {
 @implementation AIPrototypingWorklogCompactViewController {
   ActuationWorklogCompactView* _worklogView;
   NSArray<ActuationWorklogItem*>* _mockSteps;
-  NSArray<ActuationWorklogChip*>* _mockChips;
   NSUInteger _currentMockIndex;
   NSLayoutConstraint* _widgetHeightConstraint;
 
@@ -83,91 +79,55 @@ struct MockStepConfig {
 // Pre-populates the mock steps array with predefined ActuationWorklogItems.
 - (void)setupMockSteps {
   const MockStepConfig kMockStepConfigs[] = {
-      // 1. No chip -> No chip (Labeled -> Simple)
-      {.title = @"Finding theaters near D.C.",
-       .subtitle = @"Finding best matches for AMC theaters within 10 miles.",
-       .iconSymbol = SymbolMapPinAndEllipse,
+      {.title = @"Task started",
+       .subtitle = @"Use Gemini carefully and take control if needed. You "
+                   @"are responsible for Gemini's actions.",
+       .iconName = @"play.fill",
        .style = ActuationWorklogItemStyle::kLabeled},
-      {.title = @"Opening amctheatres.com",
+      {.title = @"Opening a new Tab.",
        .style = ActuationWorklogItemStyle::kSimple},
-
-      // 2. No chip -> chip (Simple -> Simple)
       {.title = @"Searching for AMC theaters.",
-       .style = ActuationWorklogItemStyle::kSimple,
-       .chipText = @"Google Search",
-       .chipIconSymbol = SymbolMagnifyingglass},
-
-      // 3. Chip -> Same chip (Simple -> Labeled)
+       .style = ActuationWorklogItemStyle::kSimple},
+      {.title = @"Searching for film showtimes.",
+       .style = ActuationWorklogItemStyle::kSimple},
+      {.title = @"Finding theaters near Washington, D.C.",
+       .subtitle = @"Finding best matches for AMC theaters within 10 miles.",
+       .iconName = @"mappin.and.ellipse",
+       .style = ActuationWorklogItemStyle::kLabeled},
       {.title = @"Checking seats availability.",
        .subtitle = @"Checking 7:30 PM showtimes for AMC Georgetown 14.",
-       .iconSymbol = SymbolPersonTwoFill,
-       .style = ActuationWorklogItemStyle::kLabeled,
-       .chipText = @"Google Search",
-       .chipIconSymbol = SymbolMagnifyingglass},
-
-      // 4. Chip -> different chip (Labeled -> Card)
+       .iconName = @"person.2.fill",
+       .style = ActuationWorklogItemStyle::kLabeled},
       {.title = @"Sign in to amctheatres.com",
        .subtitle =
            @"Gemini can use your saved info in Chrome to sign in for you.",
-       .iconSymbol = SymbolKeyFill,
-       .style = ActuationWorklogItemStyle::kCard,
-       .chipText = @"Chrome Autofill",
-       .chipIconSymbol = SymbolKeyFill},
-
-      // 5. Chip -> no chip (Card -> Card)
-      {.title = @"Calendar: Movie Showtime added",
-       .subtitle = @"Sun, June 16 - 3:00 - 5:00 PM at 320 Bowling Dr.",
-       .iconSymbol = SymbolCalendar,
+       .iconName = @"key.fill",
        .style = ActuationWorklogItemStyle::kCard},
-
-      // 6. Card (chip) -> Simple (no chip)
       {.title = @"Filling payment info",
        .subtitle = @"To continue the task, Gemini can ask Google Wallet to "
                    @"fill out credit card info.",
-       .iconSymbol = SymbolCreditCardFill,
-       .style = ActuationWorklogItemStyle::kCard,
-       .chipText = @"Google Wallet",
-       .chipIconSymbol = SymbolCreditCardFill},
-      {.title = @"Verifying seat selection.",
-       .style = ActuationWorklogItemStyle::kSimple},
-
-      // 7. Labeled (chip) -> Simple (no chip)
-      {.title = @"Sending ticket receipt.",
-       .subtitle = @"Mailing confirmation ticket to your inbox.",
-       .iconSymbol = SymbolMailFill,
-       .style = ActuationWorklogItemStyle::kLabeled,
-       .chipText = @"Google Wallet",
-       .chipIconSymbol = SymbolCreditCardFill},
-      {.title = @"Done.", .style = ActuationWorklogItemStyle::kSimple},
+       .iconName = @"creditcard.fill",
+       .style = ActuationWorklogItemStyle::kCard},
+      {.title = @"Calendar: Golden Gate Tea party",
+       .subtitle = @"Sun, June 16 - 3:00 - 5:00 PM at 320 Bowling Dr.",
+       .iconName = @"calendar",
+       .style = ActuationWorklogItemStyle::kCard},
   };
 
   NSMutableArray<ActuationWorklogItem*>* steps = [NSMutableArray array];
-  NSMutableArray<ActuationWorklogChip*>* chips = [NSMutableArray array];
   for (const MockStepConfig& config : kMockStepConfigs) {
-    UIImage* icon = config.iconSymbol != SymbolNone
-                        ? SymbolWithPointSize(config.iconSymbol, kIconSize)
+    UIImage* icon = config.iconName
+                        ? DefaultSymbolWithPointSize(config.iconName, kIconSize)
                         : nil;
     ActuationWorklogItem* item =
         [[ActuationWorklogItem alloc] initWithTitle:config.title
                                            subtitle:config.subtitle
                                                icon:icon
                                               style:config.style
-                                             active:YES];
+                                             active:NO];
     [steps addObject:item];
-
-    ActuationWorklogChip* chip = nil;
-    if (config.chipText) {
-      UIImage* chipIcon =
-          config.chipIconSymbol != SymbolNone
-              ? SymbolWithPointSize(config.chipIconSymbol, kIconSize)
-              : nil;
-      chip = [[ActuationWorklogChip alloc] initWithText:config.chipText
-                                                   icon:chipIcon];
-    }
-    [chips addObject:chip ?: (id)[NSNull null]];
   }
   _mockSteps = [steps copy];
-  _mockChips = [chips copy];
 }
 
 // Instantiates and adds the subviews to the view hierarchy.
@@ -224,42 +184,45 @@ struct MockStepConfig {
       [_widgetContainer.heightAnchor constraintEqualToConstant:0.0];
   AddSameConstraintsToSidesWithInsets(
       _descriptionLabel, self.view.safeAreaLayoutGuide,
-      LayoutSides::kTop | LayoutSides::kHorizontal,
-      NSDirectionalEdgeInsetsMake(kLayoutSpacingSmall, kLayoutSpacing, 0.0,
+      LayoutSides::kTop | LayoutSides::kLeading | LayoutSides::kTrailing,
+      NSDirectionalEdgeInsetsMake(kLayoutSpacing, kLayoutSpacing, 0.0,
                                   kLayoutSpacing));
 
   AddSameConstraintsToSidesWithInsets(
-      _widgetContainer, self.view.safeAreaLayoutGuide, LayoutSides::kHorizontal,
+      _widgetContainer, self.view.safeAreaLayoutGuide,
+      LayoutSides::kLeading | LayoutSides::kTrailing,
       NSDirectionalEdgeInsetsMake(0.0, kLayoutSpacing, 0.0, kLayoutSpacing));
 
   [NSLayoutConstraint activateConstraints:@[
     _widgetHeightConstraint,
     [_widgetContainer.topAnchor
         constraintEqualToAnchor:_descriptionLabel.bottomAnchor
-                       constant:kLayoutSpacing],
+                       constant:2.0 * kLayoutSpacing],
     [_nextButton.bottomAnchor
         constraintEqualToAnchor:self.view.safeAreaLayoutGuide.bottomAnchor
-                       constant:-kLayoutSpacingSmall],
+                       constant:-3.0 * kLayoutSpacing],
     [_nextButton.centerXAnchor constraintEqualToAnchor:self.view.centerXAnchor],
   ]];
 }
 
-// Advances the compact log simulation to the next step, triggering the
-// sliding transition if `animated` is `YES`.
+// Advances the compact log simulation to the next step, managing the active
+// state of items and triggering the sliding transition if `animated` is `YES`.
 - (void)appendNextMockStepAnimated:(BOOL)animated {
+  // Deactivate the previous step.
+  if (_currentMockIndex > 0) {
+    _mockSteps[_currentMockIndex - 1].active = NO;
+  }
+
   // Reset showcase cycle.
   if (_currentMockIndex >= _mockSteps.count) {
     _currentMockIndex = 0;
   }
 
   ActuationWorklogItem* item = _mockSteps[_currentMockIndex];
-  id chipObj = _mockChips[_currentMockIndex];
-  ActuationWorklogChip* chip =
-      [chipObj isKindOfClass:[ActuationWorklogChip class]] ? chipObj : nil;
-
+  item.active = YES;
   _currentMockIndex++;
 
-  [_worklogView transitionToItem:item chip:chip animated:animated];
+  [_worklogView transitionToItem:item animated:animated];
 }
 
 @end

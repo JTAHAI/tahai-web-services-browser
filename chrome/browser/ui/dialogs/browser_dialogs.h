@@ -25,6 +25,7 @@
 #include "ui/gfx/geometry/rect_f.h"
 #include "ui/gfx/native_ui_types.h"
 
+class Browser;
 class BrowserWindowInterface;
 class Profile;
 
@@ -72,7 +73,7 @@ namespace chrome {
 // Returns a pointer to the underlying TableModel, which can be ignored, or used
 // for testing.
 task_manager::TaskManagerTableModel* ShowTaskManager(
-    BrowserWindowInterface* browser,
+    Browser* browser,
     task_manager::StartAction start_action = task_manager::StartAction::kOther);
 void HideTaskManager();
 
@@ -127,7 +128,7 @@ gfx::NativeWindow ShowWebDialog(gfx::NativeView parent,
 
 // Bridging methods that show/hide the toolkit-views based Task Manager on Mac.
 task_manager::TaskManagerTableModel* ShowTaskManagerViews(
-    BrowserWindowInterface* browser,
+    Browser* browser,
     task_manager::StartAction start_action = task_manager::StartAction::kOther);
 void HideTaskManagerViews();
 
@@ -140,14 +141,14 @@ void HideTaskManagerViews();
 base::OnceClosure ShowDeviceChooserDialog(
     content::RenderFrameHost* owner,
     std::unique_ptr<permissions::ChooserController> controller);
-bool IsDeviceChooserShowingForTesting(BrowserWindowInterface* browser);
+bool IsDeviceChooserShowingForTesting(Browser* browser);
 #endif
 
 // Show the prompt to set a window name for browser's window, optionally with
 // the given context.
-void ShowWindowNamePrompt(BrowserWindowInterface* browser);
+void ShowWindowNamePrompt(Browser* browser);
 std::unique_ptr<ui::DialogModel> CreateWindowNamePromptDialogModelForTesting(
-    BrowserWindowInterface* browser);
+    Browser* browser);
 
 #if BUILDFLAG(ENABLE_COMPOSE)
 std::unique_ptr<compose::ComposeDialogController> ShowComposeDialog(
@@ -160,7 +161,7 @@ std::unique_ptr<compose::ComposeDialogController> ShowComposeDialog(
 // desktop of the OS. Before the dialog is shown, the necessary metadata is
 // gathered from the browser's active WebContents.
 // Triggered from the three-dot menu on Chrome, Save & Share > Create Shortcut.
-void CreateDesktopShortcutForActiveWebContents(BrowserWindowInterface* browser);
+void CreateDesktopShortcutForActiveWebContents(Browser* browser);
 
 }  // namespace chrome
 

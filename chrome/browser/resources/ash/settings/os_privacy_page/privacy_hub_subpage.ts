@@ -39,16 +39,10 @@ import {getTemplate} from './privacy_hub_subpage.html.js';
  * tools/metrics/histograms/enums.xml and
  * ash/system/privacy_hub/privacy_hub_metrics.h.
  */
-// LINT.IfChange(PrivacyHubNavigationOrigin)
-export enum PrivacyHubNavigationOrigin {
-  SYSTEM_SETTINGS = 0,
-  NOTIFICATION = 1,
-  COUNT = NOTIFICATION + 1,
-}
-// LINT.ThenChange(
-//   //ash/system/privacy_hub/privacy_hub_metrics.h:PrivacyHubNavigationOrigin,
-//   //tools/metrics/histograms/metadata/chromeos/enums.xml:PrivacyHubNavigationOrigin
-// )
+export const PrivacyHubNavigationOrigin = {
+  SYSTEM_SETTINGS: 0,
+  NOTIFICATION: 1,
+};
 
 const SettingsPrivacyHubSubpageBase = PrefsMixin(DeepLinkingMixin(
     RouteObserverMixin(WebUiListenerMixin(I18nMixin(PolymerElement)))));

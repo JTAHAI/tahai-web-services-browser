@@ -156,16 +156,8 @@ void BluetoothLocalGattCharacteristicFloss::GattServerCharacteristicReadRequest(
     return;
   }
 
-  auto* device = service_->GetAdapter()->GetDevice(address);
-  if (!device) {
-    LOG(WARNING) << __func__ << ": Device not found: " << address;
-    FlossDBusManager::Get()->GetGattManagerClient()->SendResponse(
-        base::DoNothing(), address, request_id, GattStatus::kError, offset,
-        std::vector<uint8_t>());
-    return;
-  }
-
   pending_request_.emplace(GattRequest{address, request_id, offset});
+  auto* device = service_->GetAdapter()->GetDevice(address);
   BluetoothLocalGattCharacteristic* characteristic =
       static_cast<BluetoothLocalGattCharacteristic*>(this);
 
@@ -249,18 +241,8 @@ void BluetoothLocalGattCharacteristicFloss::
     return;
   }
 
-  auto* device = service_->GetAdapter()->GetDevice(address);
-  if (!device) {
-    LOG(WARNING) << __func__ << ": Device not found: " << address;
-    if (needs_response) {
-      FlossDBusManager::Get()->GetGattManagerClient()->SendResponse(
-          base::DoNothing(), address, request_id, GattStatus::kError, offset,
-          value);
-    }
-    return;
-  }
-
   pending_request_.emplace(GattRequest{address, request_id, offset});
+  auto* device = service_->GetAdapter()->GetDevice(address);
   BluetoothLocalGattCharacteristic* characteristic =
       static_cast<BluetoothLocalGattCharacteristic*>(this);
 
@@ -271,7 +253,7 @@ void BluetoothLocalGattCharacteristicFloss::
       base::BindOnce(
           &BluetoothLocalGattCharacteristicFloss::OnWriteRequestCallback,
           weak_ptr_factory_.GetWeakPtr(), request_id, base::OwnedRef(value),
-          needs_response, is_prepared_write, /*success=*/false));
+          needs_response, /*success=*/false));
 
   if (is_prepared_write) {
     delegate->OnCharacteristicPrepareWriteRequest(
@@ -279,12 +261,12 @@ void BluetoothLocalGattCharacteristicFloss::
         base::BindOnce(
             &BluetoothLocalGattCharacteristicFloss::OnWriteRequestCallback,
             weak_ptr_factory_.GetWeakPtr(), request_id, base::OwnedRef(value),
-            needs_response, /*is_prepared_write=*/true,
+            needs_response,
             /*success=*/true),
         base::BindOnce(
             &BluetoothLocalGattCharacteristicFloss::OnWriteRequestCallback,
             weak_ptr_factory_.GetWeakPtr(), request_id, base::OwnedRef(value),
-            needs_response, /*is_prepared_write=*/true,
+            needs_response,
             /*success=*/false));
   } else {
     delegate->OnCharacteristicWriteRequest(
@@ -292,12 +274,12 @@ void BluetoothLocalGattCharacteristicFloss::
         base::BindOnce(
             &BluetoothLocalGattCharacteristicFloss::OnWriteRequestCallback,
             weak_ptr_factory_.GetWeakPtr(), request_id, base::OwnedRef(value),
-            needs_response, /*is_prepared_write=*/false,
+            needs_response,
             /*success=*/true),
         base::BindOnce(
             &BluetoothLocalGattCharacteristicFloss::OnWriteRequestCallback,
             weak_ptr_factory_.GetWeakPtr(), request_id, base::OwnedRef(value),
-            needs_response, /*is_prepared_write=*/false,
+            needs_response,
             /*success=*/false));
   }
 }
@@ -306,7 +288,6 @@ void BluetoothLocalGattCharacteristicFloss::OnWriteRequestCallback(
     int32_t request_id,
     std::vector<uint8_t>& value,
     bool needs_response,
-    bool is_prepared_write,
     bool success) {
   if (!pending_request_.has_value()) {
     // If this check trips, we have already handled the request response.
@@ -324,10 +305,6 @@ void BluetoothLocalGattCharacteristicFloss::OnWriteRequestCallback(
   }
   response_timer_.Stop();
 
-  if (success && is_prepared_write) {
-    devices_with_pending_prepared_writes_.insert(write_request.address);
-  }
-
   if (!needs_response) {
     pending_request_.reset();
     return;
@@ -343,18 +320,9 @@ void BluetoothLocalGattCharacteristicFloss::GattServerExecuteWrite(
     std::string address,
     int32_t request_id,
     bool execute_write) {
-  if (!devices_with_pending_prepared_writes_.contains(address)) {
-    return;
-  }
-
-  devices_with_pending_prepared_writes_.erase(address);
-
   if (!execute_write) {
-    // Abort request: clear state and respond with success.
-    FlossDBusManager::Get()->GetGattManagerClient()->SendResponse(
-        base::DoNothing(), address, request_id, GattStatus::kSuccess,
-        /*offset=*/0, std::vector<uint8_t>());
-    return;
+    // TODO(b/329667574) - Support aborted prepared writes
+    LOG(ERROR) << __func__ << ": Aborting prepared writes is not supported";
   }
 
   if (pending_request_.has_value()) {
@@ -375,16 +343,8 @@ void BluetoothLocalGattCharacteristicFloss::GattServerExecuteWrite(
     return;
   }
 
-  auto* device = service_->GetAdapter()->GetDevice(address);
-  if (!device) {
-    LOG(WARNING) << __func__ << ": Device not found: " << address;
-    FlossDBusManager::Get()->GetGattManagerClient()->SendResponse(
-        base::DoNothing(), address, request_id, GattStatus::kError,
-        /*offset=*/0, std::vector<uint8_t>());
-    return;
-  }
-
   pending_request_.emplace(GattRequest{address, request_id, /*offset=*/0});
+  auto* device = service_->GetAdapter()->GetDevice(address);
   BluetoothLocalGattCharacteristic* characteristic =
       static_cast<BluetoothLocalGattCharacteristic*>(this);
 
@@ -396,8 +356,7 @@ void BluetoothLocalGattCharacteristicFloss::GattServerExecuteWrite(
           &BluetoothLocalGattCharacteristicFloss::OnWriteRequestCallback,
           weak_ptr_factory_.GetWeakPtr(), request_id,
           base::OwnedRef(std::vector<uint8_t>()),
-          /*needs_response=*/true, /*is_prepared_write=*/false,
-          /*success=*/false));
+          /*needs_response=*/true, /*success=*/false));
 
   delegate->OnCharacteristicPrepareWriteRequest(
       device, characteristic, std::vector<uint8_t>(), /*offset=*/0,
@@ -406,25 +365,12 @@ void BluetoothLocalGattCharacteristicFloss::GattServerExecuteWrite(
           &BluetoothLocalGattCharacteristicFloss::OnWriteRequestCallback,
           weak_ptr_factory_.GetWeakPtr(), request_id,
           base::OwnedRef(std::vector<uint8_t>()),
-          /*needs_response=*/true, /*is_prepared_write=*/false,
-          /*success=*/true),
+          /*needs_response=*/true, /*success=*/true),
       base::BindOnce(
           &BluetoothLocalGattCharacteristicFloss::OnWriteRequestCallback,
           weak_ptr_factory_.GetWeakPtr(), request_id,
           base::OwnedRef(std::vector<uint8_t>()),
-          /*needs_response=*/true, /*is_prepared_write=*/false,
-          /*success=*/false));
-}
-
-void BluetoothLocalGattCharacteristicFloss::GattServerConnectionState(
-    int32_t server_id,
-    bool connected,
-    std::string address) {
-  // Clear the device from the prepared writes set to prevent a memory leak
-  // if the device disconnects before executing or aborting the write.
-  if (!connected) {
-    devices_with_pending_prepared_writes_.erase(address);
-  }
+          /*needs_response=*/true, /*success=*/false));
 }
 
 int32_t BluetoothLocalGattCharacteristicFloss::AddDescriptor(

@@ -33,14 +33,10 @@ bool IsValidAvailabilityInt(int in_value) {
 // invalid.
 // It is a common mistake that admins allow sites with * as a wildcard
 // in the hostname although it has no effect on the domain and subdomains. Two
-// examples for such a common mistake are: 1- *.android.com 2- developer.*.com
+// example for such a common mistake are: 1- *.android.com 2- developer.*.com
 // which allow neither android.com nor developer.android.com
 bool ValidateHost(const std::string& host) {
   return host == "*" || host.find('*') == std::string::npos;
-}
-
-bool IsAllowlistPolicy(std::string_view policy_name) {
-  return policy_name == policy::key::kIncognitoModeUrlAllowlist;
 }
 
 }  // namespace
@@ -177,7 +173,6 @@ bool IncognitoModePolicyHandler::CheckUrlListPolicySettings(
   bool type_error = false;
   std::string policy;
   std::vector<std::string> invalid_patterns;
-  const bool is_allowlist = IsAllowlistPolicy(policy_name);
   for (const auto& policy_iter : value->GetList()) {
     if (!policy_iter.is_string()) {
       type_error = true;
@@ -185,7 +180,7 @@ bool IncognitoModePolicyHandler::CheckUrlListPolicySettings(
     }
 
     policy = policy_iter.GetString();
-    if (!ValidatePolicy(policy, is_allowlist)) {
+    if (!ValidatePolicy(policy)) {
       invalid_patterns.push_back(policy);
     }
   }
@@ -203,22 +198,14 @@ bool IncognitoModePolicyHandler::CheckUrlListPolicySettings(
   return true;
 }
 
-bool IncognitoModePolicyHandler::ValidatePolicy(const std::string& url_pattern,
-                                                bool is_allowlist) {
+bool IncognitoModePolicyHandler::ValidatePolicy(
+    const std::string& url_pattern) {
   url_matcher::util::FilterComponents components;
-  if (!url_matcher::util::FilterToComponents(
-          url_pattern, &components.scheme, &components.host,
-          &components.match_subdomains, &components.port, &components.path,
-          &components.query) ||
-      !ValidateHost(components.host)) {
-    return false;
-  }
-
-  if (is_allowlist && components.IsWildcard()) {
-    return false;
-  }
-
-  return true;
+  return url_matcher::util::FilterToComponents(
+             url_pattern, &components.scheme, &components.host,
+             &components.match_subdomains, &components.port, &components.path,
+             &components.query) &&
+         ValidateHost(components.host);
 }
 
 std::optional<base::ListValue>
@@ -231,10 +218,9 @@ IncognitoModePolicyHandler::GetFilteredUrlListPolicyValue(
     return std::nullopt;
   }
 
-  const bool is_allowlist = IsAllowlistPolicy(policy_name);
   base::ListValue filtered_list;
   for (const auto& entry : value->GetList()) {
-    if (entry.is_string() && ValidatePolicy(entry.GetString(), is_allowlist)) {
+    if (entry.is_string() && ValidatePolicy(entry.GetString())) {
       filtered_list.Append(entry.Clone());
     }
   }

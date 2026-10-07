@@ -435,7 +435,7 @@ const NSInteger kAboutThisSiteDetailTextNumberOfLines = 2;
 
       cell.accessoryView = [[UIImageView alloc]
           initWithImage:DefaultAccessorySymbolConfigurationWithRegularWeight(
-                            SymbolExternalLink)];
+                            kExternalLinkSymbol)];
       cell.accessoryView.tintColor = [UIColor colorNamed:kTextQuaternaryColor];
       return cell;
     }

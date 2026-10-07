@@ -37,11 +37,8 @@
 namespace subresource_filter {
 
 class SubresourceFilterSettingsBrowserTest
-    : public SubresourceFilterBrowserTest,
-      public ::testing::WithParamInterface<bool> {
+    : public SubresourceFilterBrowserTest {
  public:
-  std::optional<bool> UseV5() const override { return GetParam(); }
-
   void SetUp() override {
     provider_.SetDefaultReturns(
         /*is_initialization_complete_return=*/true,
@@ -59,7 +56,7 @@ class SubresourceFilterSettingsBrowserTest
   ::testing::NiceMock<policy::MockConfigurationPolicyProvider> provider_;
 };
 
-IN_PROC_BROWSER_TEST_P(SubresourceFilterSettingsBrowserTest,
+IN_PROC_BROWSER_TEST_F(SubresourceFilterSettingsBrowserTest,
                        ContentSettingsAllowlist_DoNotActivate) {
   ASSERT_NO_FATAL_FAILURE(
       SetRulesetToDisallowURLsWithPathSuffix("included_script.js"));
@@ -87,7 +84,7 @@ IN_PROC_BROWSER_TEST_P(SubresourceFilterSettingsBrowserTest,
   EXPECT_TRUE(console_observer.messages().empty());
 }
 
-IN_PROC_BROWSER_TEST_P(SubresourceFilterSettingsBrowserTest,
+IN_PROC_BROWSER_TEST_F(SubresourceFilterSettingsBrowserTest,
                        ContentSettingsAllowlistGlobal_DoNotActivate) {
   ASSERT_NO_FATAL_FAILURE(
       SetRulesetToDisallowURLsWithPathSuffix("included_script.js"));
@@ -115,7 +112,7 @@ IN_PROC_BROWSER_TEST_P(SubresourceFilterSettingsBrowserTest,
   EXPECT_TRUE(console_observer.messages().empty());
 }
 
-IN_PROC_BROWSER_TEST_P(SubresourceFilterSettingsBrowserTest,
+IN_PROC_BROWSER_TEST_F(SubresourceFilterSettingsBrowserTest,
                        DrivenByEnterprisePolicy) {
   ASSERT_NO_FATAL_FAILURE(
       SetRulesetToDisallowURLsWithPathSuffix("included_script.js"));
@@ -157,7 +154,7 @@ IN_PROC_BROWSER_TEST_P(SubresourceFilterSettingsBrowserTest,
       WasParsedScriptElementLoaded(web_contents()->GetPrimaryMainFrame()));
 }
 
-IN_PROC_BROWSER_TEST_P(SubresourceFilterSettingsBrowserTest,
+IN_PROC_BROWSER_TEST_F(SubresourceFilterSettingsBrowserTest,
                        ContentSettingsAllowWithNoPageActivation_DoNotActivate) {
   ASSERT_NO_FATAL_FAILURE(
       SetRulesetToDisallowURLsWithPathSuffix("included_script.js"));
@@ -181,7 +178,7 @@ IN_PROC_BROWSER_TEST_P(SubresourceFilterSettingsBrowserTest,
       WasParsedScriptElementLoaded(web_contents()->GetPrimaryMainFrame()));
 }
 
-IN_PROC_BROWSER_TEST_P(SubresourceFilterSettingsBrowserTest,
+IN_PROC_BROWSER_TEST_F(SubresourceFilterSettingsBrowserTest,
                        ContentSettingsAllowlistViaReload_DoNotActivate) {
   ASSERT_NO_FATAL_FAILURE(
       SetRulesetToDisallowURLsWithPathSuffix("included_script.js"));
@@ -203,7 +200,7 @@ IN_PROC_BROWSER_TEST_P(SubresourceFilterSettingsBrowserTest,
       WasParsedScriptElementLoaded(web_contents()->GetPrimaryMainFrame()));
 }
 
-IN_PROC_BROWSER_TEST_P(SubresourceFilterSettingsBrowserTest,
+IN_PROC_BROWSER_TEST_F(SubresourceFilterSettingsBrowserTest,
                        ContentSettingsAllowlistViaReload_AllowlistIsByDomain) {
   ASSERT_NO_FATAL_FAILURE(
       SetRulesetToDisallowURLsWithPathSuffix("included_script.js"));
@@ -243,7 +240,7 @@ IN_PROC_BROWSER_TEST_P(SubresourceFilterSettingsBrowserTest,
 // Test the "smart" UI, aka the logic to hide the UI on subsequent same-domain
 // navigations, until a certain time threshold has been reached. This is an
 // android-only feature.
-IN_PROC_BROWSER_TEST_P(SubresourceFilterSettingsBrowserTest,
+IN_PROC_BROWSER_TEST_F(SubresourceFilterSettingsBrowserTest,
                        DoNotShowUIUntilThresholdReached) {
   settings_manager()->set_should_use_smart_ui_for_testing(true);
   ASSERT_NO_FATAL_FAILURE(
@@ -314,9 +311,5 @@ IN_PROC_BROWSER_TEST_P(SubresourceFilterSettingsBrowserTest,
       kSubresourceFilterActionsHistogram,
       subresource_filter::SubresourceFilterAction::kUISuppressed, 1);
 }
-
-INSTANTIATE_TEST_SUITE_P(All,
-                         SubresourceFilterSettingsBrowserTest,
-                         ::testing::Bool());
 
 }  // namespace subresource_filter

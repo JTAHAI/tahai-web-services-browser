@@ -5,15 +5,13 @@
 #ifndef THIRD_PARTY_BLINK_RENDERER_CORE_HTML_CANVAS_UKM_PARAMETERS_H_
 #define THIRD_PARTY_BLINK_RENDERER_CORE_HTML_CANVAS_UKM_PARAMETERS_H_
 
-#include "base/memory/raw_ptr.h"
 #include "services/metrics/public/cpp/ukm_recorder.h"
 #include "services/metrics/public/cpp/ukm_source_id.h"
 
 namespace blink {
 
 struct UkmParameters {
-  raw_ptr<ukm::UkmRecorder, UnprotectedInRelease | DanglingUntriaged>
-      ukm_recorder;
+  ukm::UkmRecorder* ukm_recorder;
   ukm::SourceId source_id;
 };
 

@@ -177,6 +177,7 @@
 #include "gpu/config/gpu_finch_features.h"
 #include "gpu/config/gpu_switches.h"
 #include "ipc/constants.mojom.h"
+#include "ipc/ipc_channel_factory.h"
 #include "ipc/ipc_channel_proxy.h"
 #include "media/base/media_switches.h"
 #include "media/capture/capture_switches.h"
@@ -301,6 +302,17 @@
 #define MAYBEVLOG DVLOG
 #endif
 
+namespace features {
+
+#if BUILDFLAG(IS_ANDROID)
+// The feature flag is added for a holdback experiment to estimate
+// the performance impace of the first spare renderer not using the warm-up
+// process in webview.
+BASE_FEATURE(kSpareRendererUseWarmupConnection,
+             base::FEATURE_ENABLED_BY_DEFAULT);
+#endif
+
+}  // namespace features
 
 namespace content {
 
@@ -486,19 +498,8 @@ class RenderProcessHostIsReadyObserver : public RenderProcessHostObserver {
   base::WeakPtrFactory<RenderProcessHostIsReadyObserver> weak_factory_{this};
 };
 
-// Context in which process reuse eligibility is being checked.
-enum class ProcessReuseContext {
-  // Evaluated during actual process allocation/reuse for navigation.
-  kProcessAllocation,
-  // Evaluated during warm process queries (e.g., checking if a warm process
-  // exists for SiteInstance swap decisions) where side-effects like UMA logging
-  // should be avoided.
-  kWarmProcessQuery,
-};
-
 bool HasEnoughMemoryForAnotherMainFrame(RenderProcessHost* host,
-                                        size_t main_frame_count,
-                                        ProcessReuseContext context) {
+                                        size_t main_frame_count) {
   // Grab the current memory footprint and determine if we can fit the size
   // of another main frame into the memory space that is set as an upper limit.
   //
@@ -555,10 +556,11 @@ bool HasEnoughMemoryForAnotherMainFrame(RenderProcessHost* host,
     return true;
   }
 
-  // Only log the histogram once per RenderProcessHost during actual allocation.
-  // Speculative queries should not trigger UMA side-effects.
-  if (context == ProcessReuseContext::kProcessAllocation &&
-      !host->GetUserData(kProcessPerSiteUmaLoggedKey)) {
+  // Only log the histogram once per RenderProcessHost. Since the
+  // RenderProcessHost can enter and exit this condition because of the dynamic
+  // nature of memory allocation we don't want to over-record it so we only
+  // record it on the first time we determine we are over the limit.
+  if (!host->GetUserData(kProcessPerSiteUmaLoggedKey)) {
     base::UmaHistogramCounts1000(
         "BrowserRenderProcessHost.ProcessPerSiteMainFrameLimit",
         main_frame_count);
@@ -569,8 +571,7 @@ bool HasEnoughMemoryForAnotherMainFrame(RenderProcessHost* host,
 }
 
 bool IsBelowReuseResourceThresholds(RenderProcessHost* host,
-                                    ProcessReusePolicy process_reuse_policy,
-                                    ProcessReuseContext context) {
+                                    ProcessReusePolicy process_reuse_policy) {
   if (process_reuse_policy !=
           ProcessReusePolicy::
               kReusePendingOrCommittedSiteWithMainFrameThreshold &&
@@ -617,7 +618,7 @@ bool IsBelowReuseResourceThresholds(RenderProcessHost* host,
       return false;
     }
 
-    return HasEnoughMemoryForAnotherMainFrame(host, main_frame_count, context);
+    return HasEnoughMemoryForAnotherMainFrame(host, main_frame_count);
   }
 
   CHECK_EQ(process_reuse_policy,
@@ -781,8 +782,7 @@ class SiteProcessCountTracker : public base::SupportsUserData::Data,
 
       if (!IsEligibleForProcessReuse(host, site_instance->GetIsolationContext(),
                                      site_instance->GetSiteInfo(),
-                                     process_reuse_policy,
-                                     ProcessReuseContext::kProcessAllocation)) {
+                                     process_reuse_policy)) {
         continue;
       }
 
@@ -819,8 +819,7 @@ class SiteProcessCountTracker : public base::SupportsUserData::Data,
       if (host->GetProcessLock().IsLockedToSite() &&
           host->GetProcessLock() == ProcessLock::FromSiteInfo(site_info) &&
           IsEligibleForProcessReuse(host, isolation_context, site_info,
-                                    process_reuse_policy,
-                                    ProcessReuseContext::kWarmProcessQuery)) {
+                                    process_reuse_policy)) {
         return true;
       }
     }
@@ -925,8 +924,7 @@ class SiteProcessCountTracker : public base::SupportsUserData::Data,
       RenderProcessHost* host,
       const IsolationContext& isolation_context,
       const SiteInfo& site_info,
-      ProcessReusePolicy process_reuse_policy,
-      ProcessReuseContext context) {
+      ProcessReusePolicy process_reuse_policy) {
     // It's possible that |host| has become unsuitable for hosting
     // |site_info|, for example if it was reused by a navigation to a
     // different site, and |site_info| requires a dedicated process. Do
@@ -937,7 +935,7 @@ class SiteProcessCountTracker : public base::SupportsUserData::Data,
     }
 
     // Don't reuse processes that have high resource usage already.
-    if (!IsBelowReuseResourceThresholds(host, process_reuse_policy, context)) {
+    if (!IsBelowReuseResourceThresholds(host, process_reuse_policy)) {
       return false;
     }
 
@@ -1515,15 +1513,6 @@ size_t RenderProcessHost::GetMaxRendererProcessCount() {
   // This has shown to have adversarial effects, so we fall back to desktop
   // behavior for desktop-like form factors.
   if (base::FeatureList::IsEnabled(features::kRendererProcessLimitOnAndroid)) {
-    if (base::SysInfo::HasLargeProcessCountSupport() &&
-        base::FeatureList::IsEnabled(
-            features::kHigherRendererProcessLimitOnAndroid)) {
-      size_t memory_mib = base::SysInfo::AmountOfTotalPhysicalMemory().InMiB();
-      // Arbitrary, 200 for a 16GiB machine is not implausible for actual
-      // workloads.
-      return std::max(memory_mib / 80,
-                      features::kRendererProcessLimitOnAndroidCount.Get());
-    }
     return features::kRendererProcessLimitOnAndroidCount.Get();
   } else {
     return std::numeric_limits<size_t>::max();
@@ -1639,9 +1628,6 @@ RenderProcessHost* RenderProcessHostImpl::CreateRenderProcessHost(
     }
     if (site_instance->IsPdf()) {
       flags |= RenderProcessFlags::kPdf;
-    }
-    if (site_instance->IsPrivileged()) {
-      flags |= RenderProcessFlags::kPrivileged;
     }
     if (site_instance->AreV8OptimizationsDisabled()) {
       flags |= RenderProcessFlags::kV8OptimizationsDisabled;
@@ -1870,8 +1856,6 @@ RenderProcessHostImpl::~RenderProcessHostImpl() {
   // "Browser.RenderProcessHostImpl"
   TRACE_EVENT_END("shutdown", tracing_track_,
                   ChromeTrackEvent::kRenderProcessHost, *this);
-
-  ClearAllUserData();
 }
 
 bool RenderProcessHostImpl::Init() {
@@ -2018,8 +2002,7 @@ bool RenderProcessHostImpl::Init() {
   if (std::optional<int> override =
           GetContentClient()->browser()->GetCpuPerformanceTierOverride(
               GetBrowserContext())) {
-    cpu_tier = content::cpu_performance::TierFromInt(*override).value_or(
-        content::cpu_performance::Tier::kUnknown);
+    cpu_tier = content::cpu_performance::TierFromInt(*override);
   } else {
     cpu_tier = content::cpu_performance::GetTier();
   }
@@ -2225,12 +2208,16 @@ void RenderProcessHostImpl::InitializeChannelProxy() {
   // Bootstrap the IPC Channel.
   mojo::ScopedMessagePipeHandle bootstrap =
       mojo_invitation_.AttachMessagePipe(kLegacyIpcBootstrapAttachmentName);
+  std::unique_ptr<IPC::ChannelFactory> channel_factory =
+      IPC::ChannelFactory::CreateServerFactory(
+          std::move(bootstrap), io_task_runner,
+          base::SingleThreadTaskRunner::GetCurrentDefault());
 
   ResetChannelProxy();
 
   CHECK(!channel_, base::NotFatalUntil::M152);
   channel_ = IPC::ChannelProxy::Create(
-      std::move(bootstrap), IPC::Channel::MODE_SERVER, this,
+      std::move(channel_factory), this,
       /*ipc_task_runner=*/io_task_runner.get(),
       /*listener_task_runner=*/
       base::SingleThreadTaskRunner::GetCurrentDefault());
@@ -2307,7 +2294,7 @@ void RenderProcessHostImpl::CreateMessageFilters() {
   // TODO(crbug.com/40169214): Move this initialization out of
   // CreateMessageFilters().
   p2p_socket_dispatcher_host_ =
-      std::make_unique<P2PSocketDispatcherHost>(GetID());
+      std::make_unique<P2PSocketDispatcherHost>(GetDeprecatedID());
 #endif  // BUILDFLAG(IS_P2P_ENABLED)
 }
 
@@ -2451,7 +2438,6 @@ void RenderProcessHostImpl::BindRestrictedCookieManagerForServiceWorker(
       network::mojom::RestrictedCookieManagerRole::SCRIPT, storage_key.origin(),
       storage_key.ToPartialNetIsolationInfo(),
       /*is_service_worker=*/true, GetDeprecatedID(), IPC::mojom::kRoutingIdNone,
-      /*prefer_bound_cookie_context=*/false,
       /*cookie_setting_overrides=*/net::CookieSettingOverrides(),
       /*devtools_cookie_setting_overrides=*/net::CookieSettingOverrides(),
       std::move(receiver),
@@ -2566,15 +2552,17 @@ void RenderProcessHostImpl::CreateOOPVideoDecoder(
     auto creation_cb = GetVideoDecoderFactoryCreationCB();
     if (creation_cb.is_null()) {
       mojo::PendingRemote<viz::mojom::Gpu> gpu_remote;
-      if (!oop_video_decoder_gpu_client_) {
-        mojo::PendingReceiver<viz::mojom::Gpu> gpu_receiver =
-            gpu_remote.InitWithNewPipeAndPassReceiver();
-        oop_video_decoder_gpu_client_ =
-            content::CreateGpuClient(std::move(gpu_receiver),
-                                     /*enable_extra_handles_validation=*/true);
-      } else {
-        oop_video_decoder_gpu_client_->Add(
-            gpu_remote.InitWithNewPipeAndPassReceiver());
+      if (base::FeatureList::IsEnabled(media::kUseSharedImageInOOPVDProcess)) {
+        if (!oop_video_decoder_gpu_client_) {
+          mojo::PendingReceiver<viz::mojom::Gpu> gpu_receiver =
+              gpu_remote.InitWithNewPipeAndPassReceiver();
+          oop_video_decoder_gpu_client_ = content::CreateGpuClient(
+              std::move(gpu_receiver),
+              /*enable_extra_handles_validation=*/true);
+        } else {
+          oop_video_decoder_gpu_client_->Add(
+              gpu_remote.InitWithNewPipeAndPassReceiver());
+        }
       }
       LaunchOOPVideoDecoderFactory(
           video_decoder_factory_remote_.BindNewPipeAndPassReceiver(),
@@ -3314,8 +3302,6 @@ void RenderProcessHostImpl::ShutdownForBadMessage(
 void RenderProcessHostImpl::UpdateClientPriority(
     RenderProcessHostPriorityClient* client) {
   CHECK(client, base::NotFatalUntil::M152);
-  // CHECK-exclusion: This DCHECK has non-negligible performance impact in
-  // production and better to not convert to a CHECK.
   DCHECK_EQ(1u, priority_clients_.count(client));
   UpdateProcessPriorityInputs();
 }
@@ -3552,7 +3538,7 @@ bool RenderProcessHostImpl::IsSpareProcessKeptAtAllTimes() {
   // ensure that devices with exactly 1GB of RAM won't get included because of
   // inaccuracies or off-by-one errors.
   if (base::SysInfo::AmountOfTotalPhysicalMemory() <=
-      base::MiB(base::saturated_cast<uint64_t>(
+      base::MiBU(base::saturated_cast<uint64_t>(
           features::kAndroidSpareRendererMemoryThreshold.Get()))) {
     return false;
   }
@@ -3657,15 +3643,6 @@ void RenderProcessHostImpl::NotifyRendererOfLockedStateUpdate() {
 
 bool RenderProcessHostImpl::IsForGuestsOnly() {
   return !!(flags_ & RenderProcessFlags::kForGuestsOnly);
-}
-
-bool RenderProcessHostImpl::IsPrivileged() {
-  // The flag is set at process creation (before the process lock is applied),
-  // so that this returns true even before LockProcessIfNeeded() runs. The lock
-  // is also checked as a fallback for processes that become privileged without
-  // going through CreateRenderProcessHost() (e.g. in tests).
-  return !!(flags_ & RenderProcessFlags::kPrivileged) ||
-         GetProcessLock().is_privileged();
 }
 
 bool RenderProcessHostImpl::IsForTopChromeWebUI() const {
@@ -3899,7 +3876,6 @@ void RenderProcessHostImpl::PropagateBrowserCommandLineToRenderer(
       switches::kEnableExperimentalAccessibilityLabelsDebugging,
       switches::kEnableExperimentalWebPlatformFeatures,
       switches::kEnableBlinkTestFeatures,
-      switches::kExposeInternalsForTesting,
       switches::kEnableGPUClientLogging,
       switches::kEnableGpuClientTracing,
       switches::kEnableGpuMemoryBufferVideoFrames,
@@ -4349,6 +4325,13 @@ void RenderProcessHostImpl::OnChannelError() {
   ProcessDied(info);
 }
 
+void RenderProcessHostImpl::OnBadMessageReceived() {
+  // Message de-serialization failed. We consider this a capital crime. Kill
+  // the renderer if we have one.
+  LOG(ERROR) << "bad message, terminating renderer.";
+  bad_message::ReceivedBadMessage(this,
+                                  bad_message::RPH_DESERIALIZATION_FAILED);
+}
 
 BrowserContext* RenderProcessHostImpl::GetBrowserContext() {
   return browser_context_;
@@ -4690,15 +4673,15 @@ void RenderProcessHostImpl::RemovePendingView() {
 
 void RenderProcessHostImpl::AddPriorityClient(
     RenderProcessHostPriorityClient* priority_client) {
-  const auto [_, inserted] = priority_clients_.insert(priority_client);
-  CHECK(inserted, base::NotFatalUntil::M155);
+  DCHECK(!priority_clients_.contains(priority_client));
+  priority_clients_.insert(priority_client);
   UpdateProcessPriorityInputs();
 }
 
 void RenderProcessHostImpl::RemovePriorityClient(
     RenderProcessHostPriorityClient* priority_client) {
-  const size_t count = priority_clients_.erase(priority_client);
-  CHECK_NE(count, 0u, base::NotFatalUntil::M152);
+  CHECK(priority_clients_.contains(priority_client), base::NotFatalUntil::M152);
+  priority_clients_.erase(priority_client);
   UpdateProcessPriorityInputs();
 }
 
@@ -4958,15 +4941,6 @@ bool RenderProcessHostImpl::IsSuitableHost(
   // PDF and non-PDF content cannot share processes.
   if (host->IsPdf() != site_info.is_pdf())
     return false;
-
-  // Privileged and non-privileged content cannot share processes. This also
-  // ensures a privileged SiteInstance always gets a freshly created process
-  // (which carries the kPrivileged flag) rather than reusing a spare or
-  // existing process.
-  if (host->IsPrivileged() !=
-      site_info.embedder_isolation_info().is_privileged()) {
-    return false;
-  }
 
   ProcessLock process_lock = host->GetProcessLock();
 
@@ -6031,7 +6005,14 @@ void RenderProcessHostImpl::UpdateProcessPriority() {
         process_priority == base::Process::Priority::kUserVisible) {
       process_priority = base::Process::Priority::kUserBlocking;
     }
+#if BUILDFLAG(IS_MAC)
+    if (base::FeatureList::IsEnabled(
+            features::kMacAllowBackgroundingRenderProcesses)) {
+      child_process_launcher_->SetProcessPriority(process_priority);
+    }
+#else   // !BUILDFLAG(IS_MAC)
     child_process_launcher_->SetProcessPriority(process_priority);
+#endif  // BUILDFLAG(IS_MAC)
 #endif  // BUILDFLAG(IS_ANDROID)
   }
 
@@ -6249,6 +6230,14 @@ void RenderProcessHostImpl::OnProcessLaunchFailed(int error_code) {
 }
 
 #if BUILDFLAG(IS_ANDROID)
+bool RenderProcessHostImpl::CanUseWarmUpConnection() {
+  // TODO(crbug.com/455620851): Remove the function after finishing the
+  // holdback experiment.
+  return base::FeatureList::IsEnabled(
+             features::kSpareRendererUseWarmupConnection) ||
+         !HasSpareRendererPriority();
+}
+
 bool RenderProcessHostImpl::HasSpareRendererPriority() {
   return spare_renderer_priority_status_ !=
          SpareRendererPriorityStatus::kNormal;

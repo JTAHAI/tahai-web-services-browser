@@ -1,2 +1,3 @@
-rules:
-- "**": [web-otp]
+features:
+- name: web-otp
+  files: "**"

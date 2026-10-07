@@ -1,9 +1,7 @@
 //! Integration tests for `zeroize_derive` proc macros
 
 #![cfg(feature = "zeroize_derive")]
-#![allow(clippy::undocumented_unsafe_blocks)]
 
-use core::ptr;
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
 #[test]
@@ -13,7 +11,7 @@ fn derive_tuple_struct_test() {
 
     let mut value = Z([1, 2, 3]);
     value.zeroize();
-    assert_eq!(&value.0, &[0, 0, 0]);
+    assert_eq!(&value.0, &[0, 0, 0])
 }
 
 #[test]
@@ -67,7 +65,7 @@ fn derive_struct_drop() {
     #[derive(Zeroize, ZeroizeOnDrop)]
     struct Z([u8; 3]);
 
-    assert!(core::mem::needs_drop::<Z>());
+    assert!(std::mem::needs_drop::<Z>());
 }
 
 /// Test that the custom macro actually derived `Drop` for `Z`
@@ -80,7 +78,7 @@ fn derive_enum_drop() {
         Variant2(usize),
     }
 
-    assert!(core::mem::needs_drop::<Z>());
+    assert!(std::mem::needs_drop::<Z>());
 }
 
 /// Test that the custom macro actually derived `Drop` for `Z`
@@ -89,7 +87,7 @@ fn derive_struct_only_drop() {
     #[derive(ZeroizeOnDrop)]
     struct Z([u8; 3]);
 
-    assert!(core::mem::needs_drop::<Z>());
+    assert!(std::mem::needs_drop::<Z>());
 }
 
 /// Test that the custom macro actually derived `Drop` for `Z`
@@ -102,7 +100,7 @@ fn derive_enum_only_drop() {
         Variant2(usize),
     }
 
-    assert!(core::mem::needs_drop::<Z>());
+    assert!(std::mem::needs_drop::<Z>());
 }
 
 /// Test that `Drop` is not derived in the following case by defining a
@@ -165,13 +163,7 @@ fn derive_enum_skip() {
         #[zeroize(skip)]
         Variant2([u8; 3]),
         #[zeroize(skip)]
-        Variant3 {
-            string: String,
-            vec: Vec<u8>,
-            bytearray: [u8; 3],
-            number: usize,
-            boolean: bool,
-        },
+        Variant3 { string: String, vec: Vec<u8>, bytearray: [u8; 3], number: usize, boolean: bool },
         Variant4 {
             string: String,
             vec: Vec<u8>,
@@ -256,9 +248,9 @@ fn derive_inherit_zeroize_on_drop() {
 
     let mut value = Z(X([1, 2, 3]));
     unsafe {
-        ptr::drop_in_place(&raw mut value);
+        std::ptr::drop_in_place(&mut value);
     }
-    assert_eq!(&value.0.0, &[0, 0, 0]);
+    assert_eq!(&value.0 .0, &[0, 0, 0])
 }
 
 #[test]
@@ -271,9 +263,9 @@ fn derive_inherit_from_both() {
 
     let mut value = Z(X([1, 2, 3]));
     unsafe {
-        ptr::drop_in_place(&raw mut value);
+        std::ptr::drop_in_place(&mut value);
     }
-    assert_eq!(&value.0.0, &[0, 0, 0]);
+    assert_eq!(&value.0 .0, &[0, 0, 0])
 }
 
 #[test]
@@ -286,16 +278,16 @@ fn derive_inherit_both() {
 
     let mut value = Z(X([1, 2, 3]));
     unsafe {
-        ptr::drop_in_place(&raw mut value);
+        std::ptr::drop_in_place(&mut value);
     }
-    assert_eq!(&value.0.0, &[0, 0, 0]);
+    assert_eq!(&value.0 .0, &[0, 0, 0])
 }
 
 #[test]
 fn derive_deref() {
     struct X([u8; 3]);
 
-    impl core::ops::Deref for X {
+    impl std::ops::Deref for X {
         type Target = [u8];
 
         fn deref(&self) -> &Self::Target {
@@ -303,7 +295,7 @@ fn derive_deref() {
         }
     }
 
-    impl core::ops::DerefMut for X {
+    impl std::ops::DerefMut for X {
         fn deref_mut(&mut self) -> &mut Self::Target {
             &mut self.0
         }
@@ -314,9 +306,9 @@ fn derive_deref() {
 
     let mut value = Z(X([1, 2, 3]));
     unsafe {
-        ptr::drop_in_place(&raw mut value);
+        std::ptr::drop_in_place(&mut value);
     }
-    assert_eq!(&value.0.0, &[0, 0, 0]);
+    assert_eq!(&value.0 .0, &[0, 0, 0])
 }
 
 #[test]
@@ -332,7 +324,6 @@ fn derive_zeroize_on_drop_generic() {
 
 #[test]
 #[allow(dead_code)]
-#[allow(unused_assignments)]
 fn derive_zeroize_unused_param() {
     #[derive(Zeroize)]
     struct Z<T> {
@@ -344,8 +335,7 @@ fn derive_zeroize_unused_param() {
 
 #[test]
 #[allow(dead_code)]
-#[allow(unused_assignments)]
-// Issue https://github.com/RustCrypto/utils/issues/878
+// Issue #878
 fn derive_zeroize_with_marker() {
     #[derive(ZeroizeOnDrop, Zeroize)]
     struct Test<A: Marker> {
@@ -363,7 +353,7 @@ fn derive_zeroize_with_marker() {
 
 #[test]
 #[allow(dead_code)]
-// Issue https://github.com/RustCrypto/utils/issues/878
+// Issue #878
 fn derive_zeroize_used_param() {
     #[derive(Zeroize)]
     struct Z<T> {

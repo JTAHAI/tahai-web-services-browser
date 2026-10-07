@@ -10,13 +10,13 @@
 #include "base/scoped_observation.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/signin/identity_manager_factory.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/signin/cross_device_signin_qr_bubble.h"
 #include "chrome/browser/ui/signin/signin_view_controller.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/frame/toolbar_button_provider.h"
-#include "chrome/browser/ui/views/profiles/avatar_toolbar_button.h"
 #include "chrome/browser/ui/views/toolbar/avatar_toolbar_button_interface.h"
 #include "chrome/browser/ui/views/toolbar/toolbar_view.h"
 #include "chrome/common/webui_url_constants.h"
@@ -63,36 +63,11 @@ class CrossDeviceSigninQrWebView : public views::WebView,
 
   ~CrossDeviceSigninQrWebView() override = default;
 
-  // content::WebContentsDelegate:
-  bool HandleContextMenu(content::RenderFrameHost& render_frame_host,
-                         const content::ContextMenuParams& params) override {
-    // Suppresses the context menu because some features, such as inspecting
-    // elements, are not appropriate in a bubble.
-    return true;
-  }
-
   bool HandleKeyboardEvent(
       content::WebContents* source,
       const input::NativeWebKeyboardEvent& event) override {
     return unhandled_keyboard_event_handler_.HandleKeyboardEvent(
         event, GetFocusManager());
-  }
-
-  void ResizeDueToAutoResize(content::WebContents* source,
-                             const gfx::Size& new_size) override {
-    views::WebView::ResizeDueToAutoResize(source, new_size);
-    views::Widget* widget = GetWidget();
-    if (!widget) {
-      return;
-    }
-    if (auto* bubble_delegate =
-            widget->widget_delegate()->AsBubbleDialogDelegate()) {
-      bubble_delegate->SizeToContents();
-    }
-
-    if (!widget->IsVisible()) {
-      widget->Show();
-    }
   }
 
   // signin::IdentityManager::Observer:
@@ -134,12 +109,20 @@ class CrossDeviceSigninQrWebView : public views::WebView,
     }
   }
 
-  void DidStopLoading() override {
+  // content::WebContentsDelegate:
+  void ResizeDueToAutoResize(content::WebContents* source,
+                             const gfx::Size& new_size) override {
+    views::WebView::ResizeDueToAutoResize(source, new_size);
     views::Widget* widget = GetWidget();
-    // Fallback: If auto-resize didn't fire (e.g. because the size matched
-    // the placeholder or due to Wayland hidden state issues), ensure the
-    // widget is shown to avoid deadlocks.
-    if (widget && !widget->IsVisible()) {
+    if (!widget) {
+      return;
+    }
+    if (auto* bubble_delegate =
+            widget->widget_delegate()->AsBubbleDialogDelegate()) {
+      bubble_delegate->SizeToContents();
+    }
+
+    if (!widget->IsVisible()) {
       widget->Show();
     }
   }
@@ -163,7 +146,8 @@ class CrossDeviceSigninQrWebView : public views::WebView,
 std::unique_ptr<views::BubbleDialogDelegate> CreateCrossDeviceSigninQrBubble(
     BrowserWindowInterface* browser,
     base::OnceClosure closing_callback) {
-  BrowserView* browser_view = BrowserView::GetBrowserViewForBrowser(browser);
+  BrowserView* browser_view = BrowserView::GetBrowserViewForBrowser(
+      browser->GetBrowserForMigrationOnly());
 
   views::View* anchor_view = nullptr;
   if (browser_view && browser_view->toolbar()) {
@@ -182,7 +166,7 @@ std::unique_ptr<views::BubbleDialogDelegate> CreateCrossDeviceSigninQrBubble(
               /*accessibility_label=*/std::nullopt,
               /*explicit_action=*/
               base::BindRepeating(
-                  [](base::WeakPtr<BrowserWindowInterface> weak_browser,
+                  [](base::WeakPtr<Browser> weak_browser,
                      bool is_source_accelerator) {
                     if (weak_browser) {
                       weak_browser->GetFeatures()
@@ -190,7 +174,7 @@ std::unique_ptr<views::BubbleDialogDelegate> CreateCrossDeviceSigninQrBubble(
                           ->CloseBubbleSignin();
                     }
                   },
-                  browser->GetWeakPtr()));
+                  browser->GetBrowserForMigrationOnly()->AsWeakPtr()));
     }
   }
 
@@ -240,6 +224,10 @@ std::unique_ptr<views::BubbleDialogDelegate> CreateCrossDeviceSigninQrBubble(
       std::move(dialog_model), anchor_view, arrow);
   bubble->set_margins(gfx::Insets());
   bubble->set_fixed_width(kDialogWidth);
+
+  if (browser_view && browser_view->GetWidget()) {
+    bubble->set_parent_window(browser_view->GetWidget()->GetNativeView());
+  }
 
   return bubble;
 }

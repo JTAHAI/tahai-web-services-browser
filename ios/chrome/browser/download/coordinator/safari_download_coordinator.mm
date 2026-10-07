@@ -277,10 +277,6 @@ const char kUmaDownloadAppleWalletOrderFileUI[] =
                                       completion:nil];
 }
 
-- (void)dismissDownloadAlert {
-  [self dismissAlert];
-}
-
 #pragma mark - SFSafariViewControllerDelegate
 
 - (void)safariViewControllerDidFinish:(SFSafariViewController*)controller {

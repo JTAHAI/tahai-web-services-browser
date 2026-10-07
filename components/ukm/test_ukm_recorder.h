@@ -129,9 +129,6 @@ class TestUkmRecorder : public UkmRecorderImpl {
       const std::string& metric_name) const;
 
  private:
-  // UkmRecorderImpl:
-  bool ShouldUseMetricsConsentRestructure() const override;
-
   uint64_t entry_hash_to_wait_for_ = 0;
   base::RepeatingClosure on_add_entry_;
 };

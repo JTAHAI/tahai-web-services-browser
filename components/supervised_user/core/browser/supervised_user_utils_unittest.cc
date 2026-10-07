@@ -19,7 +19,7 @@ namespace {
 class SupervisedUserUtilsTest : public ::testing::Test {
  protected:
   SupervisedUserUtilsTest() {
-    supervised_user_test_environment_.EnableSupervisedAccount();
+    EnableParentalControls(*supervised_user_test_environment_.pref_service());
   }
   ~SupervisedUserUtilsTest() override {
     supervised_user_test_environment_.Shutdown();

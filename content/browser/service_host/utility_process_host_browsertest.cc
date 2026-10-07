@@ -4,11 +4,10 @@
 
 #include "content/browser/service_host/utility_process_host.h"
 
-#include <array>
 #include <string_view>
 
 #include "base/command_line.h"
-#include "base/containers/span.h"
+#include "base/compiler_specific.h"
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
 #include "base/functional/bind.h"
@@ -18,7 +17,6 @@
 #include "base/memory/writable_shared_memory_region.h"
 #include "base/notreached.h"
 #include "base/run_loop.h"
-#include "base/strings/string_view_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/test/scoped_feature_list.h"
 #include "build/build_config.h"
@@ -38,6 +36,7 @@
 #include "content/public/test/content_browser_test.h"
 #include "content/public/test/content_browser_test_utils.h"
 #include "content/public/test/test_service.mojom.h"
+#include "mojo/core/embedder/embedder.h"
 #include "mojo/public/cpp/bindings/remote.h"
 
 #if BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
@@ -153,10 +152,12 @@ class UtilityProcessHostBrowserTest : public BrowserChildProcessObserver,
   void RunSharedMemoryHandleTest() {
     DCHECK_CURRENTLY_ON(BrowserThread::UI);
     // Verify that shared memory handles can be transferred to and from the
-    // elevated process.
+    // elevated process. This is only supported with MojoIpcz enabled.
+    DCHECK(mojo::core::IsMojoIpczEnabled());
     auto region = base::WritableSharedMemoryRegion::Create(kTestMessage.size());
     auto mapping = region.Map();
-    mapping.GetMemoryAsSpan<char>().copy_from(kTestMessage);
+    UNSAFE_TODO(
+        memcpy(mapping.memory(), kTestMessage.data(), kTestMessage.size()));
     service_->CloneSharedMemoryContents(
         base::WritableSharedMemoryRegion::ConvertToReadOnly(std::move(region)),
         base::BindOnce(&UtilityProcessHostBrowserTest::OnMemoryCloneReceived,
@@ -173,9 +174,9 @@ class UtilityProcessHostBrowserTest : public BrowserChildProcessObserver,
   void RunFileDescriptorStoreTest(base::ScopedFD read_fd) {
     DCHECK_CURRENTLY_ON(BrowserThread::UI);
     service_->WriteToPreloadedPipe();
-    std::array<char, 4> buf;
+    char buf[4];
     ASSERT_TRUE(base::ReadFromFD(read_fd.get(), buf));
-    std::string_view msg = base::as_string_view(buf);
+    std::string_view msg(buf, sizeof(buf));
     ASSERT_EQ(msg, "test");
     OnSomething();
   }
@@ -223,7 +224,8 @@ class UtilityProcessHostBrowserTest : public BrowserChildProcessObserver,
     auto mapping = region.Map();
     ASSERT_EQ(kTestMessage.size(), mapping.size());
     EXPECT_EQ(kTestMessage,
-              base::as_string_view(mapping.GetMemoryAsSpan<const char>()));
+              std::string_view(static_cast<const char*>(mapping.memory()),
+                               kTestMessage.size()));
     ResetService();
     GetUIThreadTaskRunner({})->PostTask(FROM_HERE, std::move(done_closure_));
   }
@@ -489,8 +491,12 @@ IN_PROC_BROWSER_TEST_F(UtilityProcessHostBrowserTest, LaunchElevatedProcess) {
           .WithSandboxType(
               sandbox::mojom::Sandbox::kNoSandboxAndElevatedPrivileges)
           .Pass(),
-      base::BindOnce(&UtilityProcessHostBrowserTest::RunSharedMemoryHandleTest,
-                     base::Unretained(this)));
+      mojo::core::IsMojoIpczEnabled()
+          ? base::BindOnce(
+                &UtilityProcessHostBrowserTest::RunSharedMemoryHandleTest,
+                base::Unretained(this))
+          : base::BindOnce(&UtilityProcessHostBrowserTest::RunBasicPingPongTest,
+                           base::Unretained(this)));
 }
 
 // Disabled because currently this causes a WER dialog to appear.

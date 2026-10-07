@@ -351,15 +351,12 @@ bool PopupRowView::GetNeedsNotificationWhenVisibleBoundsChange() const {
 }
 
 void PopupRowView::OnVisibleBoundsChanged() {
-  if (GetVisibleBounds().size().GetArea() <
+  if (GetVisibleBounds().size().GetArea() >=
       size().GetArea() * kAcceptingGuardVisibleAreaPortion) {
-    // Row is not visible enough, do not allow user to accept the suggestion.
-    barrier_for_accepting_.reset();
-  } else if (!barrier_for_accepting_) {
-    // If the row was out of sight before, start timer to only accept
-    // suggestions after predefined delay has passed.
     barrier_for_accepting_ = NextIdleBarrier::CreateNextIdleBarrierWithDelay(
         AutofillSuggestionController::kIgnoreEarlyClicksOnSuggestionsDuration);
+  } else {
+    barrier_for_accepting_.reset();
   }
 }
 
@@ -383,7 +380,7 @@ void PopupRowView::SetSelectedCell(std::optional<CellType> new_cell) {
     return;
   }
 
-  if (new_cell == selected_cell_ || (new_cell && !IsSelectable())) {
+  if (new_cell == selected_cell_) {
     return;
   }
 
@@ -497,7 +494,7 @@ bool PopupRowView::HandleKeyPressEvent(
 
 bool PopupRowView::IsSelectable() const {
   return controller_ && line_number_ < controller_->GetLineCount() &&
-         controller_->GetSuggestionAt(line_number_).IsSelectable();
+         !controller_->GetSuggestionAt(line_number_).HasDeactivatedStyle();
 }
 
 bool PopupRowView::Accept(

@@ -26,7 +26,6 @@
 #include "components/password_manager/core/browser/password_form.h"
 #include "components/password_manager/core/browser/password_store/password_form_converters.h"
 #include "components/password_manager/core/browser/password_store/test_password_store.h"
-#include "components/password_manager/core/browser/password_string.h"
 #include "components/prefs/pref_service.h"
 #include "components/signin/public/identity_manager/accounts_mutator.h"
 #include "components/signin/public/identity_manager/identity_manager.h"
@@ -74,7 +73,7 @@ void PasswordManagerSigninInterceptTestHelper::StoreGaiaCredentials(
   password_manager::PasswordForm signin_form;
   signin_form.signon_realm = GaiaUrls::GetInstance()->gaia_url().spec();
   signin_form.username_value = kGaiaUsername16;
-  signin_form.password_value = password_manager::PasswordString(u"pw");
+  signin_form.password_value = u"pw";
   password_store->AddLogin(password_manager::FromPasswordForm(signin_form));
 }
 

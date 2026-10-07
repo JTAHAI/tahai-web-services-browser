@@ -8,7 +8,6 @@
 #include <memory>
 
 #include "base/memory/scoped_refptr.h"
-#include "third_party/blink/renderer/modules/modules_export.h"
 #include "third_party/blink/renderer/modules/webaudio/audio_handler.h"
 #include "third_party/blink/renderer/modules/webaudio/audio_node.h"
 
@@ -18,7 +17,7 @@ class AudioParamHandler;
 class AudioNodeInput;
 class Delay;
 
-class MODULES_EXPORT DelayHandler final : public AudioHandler {
+class DelayHandler final : public AudioHandler {
  public:
   static scoped_refptr<DelayHandler> Create(AudioNode&,
                                             float sample_rate,
@@ -28,8 +27,6 @@ class MODULES_EXPORT DelayHandler final : public AudioHandler {
   ~DelayHandler() override;
 
  private:
-  friend class DelayHandlerTest;
-
   DelayHandler(AudioNode&,
                float sample_rate,
                AudioParamHandler& delay_time,
@@ -42,8 +39,6 @@ class MODULES_EXPORT DelayHandler final : public AudioHandler {
   void Uninitialize() override;
 
   void CheckNumberOfChannelsForInput(AudioNodeInput*) override;
-
-  Vector<Delay*> KernelsForTesting() const;
 
   bool RequiresTailProcessing() const override;
   double TailTime() const override;

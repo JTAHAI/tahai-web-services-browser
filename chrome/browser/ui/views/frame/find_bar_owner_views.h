@@ -21,7 +21,7 @@ class Widget;
 // This class exposes a subset of BrowserView's functionality to FindBarHost.
 class FindBarOwnerViews : public FindBarOwner {
  public:
-  FindBarOwnerViews(BrowserView* browser_view, ui::UnownedUserDataHost& host);
+  explicit FindBarOwnerViews(BrowserView* browser_view);
   ~FindBarOwnerViews() override;
 
  private:

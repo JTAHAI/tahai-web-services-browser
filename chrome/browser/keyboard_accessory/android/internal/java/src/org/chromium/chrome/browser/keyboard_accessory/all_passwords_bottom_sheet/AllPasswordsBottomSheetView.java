@@ -12,6 +12,7 @@ import android.widget.SearchView;
 import android.widget.SearchView.OnQueryTextListener;
 import android.widget.TextView;
 
+import androidx.annotation.NonNull;
 import androidx.annotation.StringRes;
 import androidx.annotation.VisibleForTesting;
 import androidx.recyclerview.widget.LinearLayoutManager;
@@ -24,6 +25,7 @@ import org.chromium.chrome.browser.keyboard_accessory.R;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetContent;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetObserver;
+import org.chromium.components.browser_ui.bottomsheet.EmptyBottomSheetObserver;
 import org.chromium.ui.base.LocalizationUtils;
 
 /**
@@ -39,9 +41,10 @@ class AllPasswordsBottomSheetView implements BottomSheetContent {
     private final LinearLayout mContentView;
 
     private final BottomSheetObserver mBottomSheetObserver =
-            new BottomSheetObserver() {
+            new EmptyBottomSheetObserver() {
                 @Override
                 public void onSheetClosed(@BottomSheetController.StateChangeReason int reason) {
+                    super.onSheetClosed(reason);
                     assert mDismissHandler != null;
                     mDismissHandler.onResult(reason);
                     mBottomSheetController.removeObserver(mBottomSheetObserver);
@@ -49,6 +52,7 @@ class AllPasswordsBottomSheetView implements BottomSheetContent {
 
                 @Override
                 public void onSheetStateChanged(int newState, int reason) {
+                    super.onSheetStateChanged(newState, reason);
                     assert mDismissHandler != null;
                     if (newState != BottomSheetController.SheetState.HIDDEN) return;
                     // This is a fail-safe for cases where onSheetClosed isn't triggered.
@@ -190,7 +194,12 @@ class AllPasswordsBottomSheetView implements BottomSheetContent {
     }
 
     @Override
-    public String getSheetContentDescription(Context context) {
+    public boolean hideOnScroll() {
+        return false;
+    }
+
+    @Override
+    public @NonNull String getSheetContentDescription(Context context) {
         return context.getString(R.string.all_passwords_bottom_sheet_content_description);
     }
 

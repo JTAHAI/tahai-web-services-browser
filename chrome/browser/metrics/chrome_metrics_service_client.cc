@@ -14,7 +14,6 @@
 #include <vector>
 
 #include "base/base64.h"
-#include "base/check_is_test.h"
 #include "base/check_op.h"
 #include "base/files/file_path.h"
 #include "base/functional/bind.h"
@@ -34,13 +33,13 @@
 #include "chrome/browser/glic/glic_metrics_provider.h"
 #include "chrome/browser/google/google_brand.h"
 #include "chrome/browser/history/history_service_factory.h"
+#include "chrome/browser/policy/profile_policy_connector.h"
 #include "chrome/browser/metrics/accessibility_state_provider.h"
 #include "chrome/browser/metrics/cached_metrics_profile.h"
 #include "chrome/browser/metrics/chrome_browser_main_extra_parts_metrics.h"
 #include "chrome/browser/metrics/chrome_metrics_extensions_helper.h"
 #include "chrome/browser/metrics/chrome_metrics_service_accessor.h"
 #include "chrome/browser/metrics/chrome_metrics_services_manager_client.h"
-#include "chrome/browser/metrics/cpu_performance_metrics_provider.h"
 #include "chrome/browser/metrics/desktop_platform_features_metrics_provider.h"
 #include "chrome/browser/metrics/desktop_session_duration/desktop_profile_session_durations_service_factory.h"
 #include "chrome/browser/metrics/desktop_session_duration/desktop_session_metrics_provider.h"
@@ -49,7 +48,6 @@
 #include "chrome/browser/metrics/network_quality_estimator_provider_impl.h"
 #include "chrome/browser/metrics/usertype_by_devicetype_metrics_provider.h"
 #include "chrome/browser/performance_manager/metrics/metrics_provider_common.h"
-#include "chrome/browser/policy/profile_policy_connector.h"
 #include "chrome/browser/profiles/profile_manager.h"
 #include "chrome/browser/profiles/profile_selections.h"
 #include "chrome/browser/profiles/profiles_state.h"
@@ -101,7 +99,6 @@
 #include "components/metrics/stability_metrics_helper.h"
 #include "components/metrics/structured/structured_metrics_features.h"  // nogncheck
 #include "components/metrics/structured/structured_metrics_service.h"  // nogncheck
-#include "components/metrics/system_profile_user_stream.h"
 #include "components/metrics/ui/form_factor_metrics_provider.h"
 #include "components/metrics/ui/screen_info_metrics_provider.h"
 #include "components/metrics/version_utils.h"
@@ -205,7 +202,6 @@
 #if BUILDFLAG(IS_MAC)
 #include "chrome/browser/metrics/google_update_metrics_provider_mac.h"
 #include "chrome/browser/metrics/power/power_metrics_provider_mac.h"
-#include "chrome/browser/metrics/task_info_metrics_provider_mac.h"
 #endif
 
 #if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_LINUX)
@@ -469,11 +465,6 @@ class ChromeComponentMetricsProviderDelegate
   ~ChromeComponentMetricsProviderDelegate() override = default;
 
   std::vector<component_updater::ComponentInfo> GetComponents() override {
-    if (!component_updater_service_) {
-      // `component_updater_service_` can be null in tests.
-      CHECK_IS_TEST();
-      return {};
-    }
     return component_updater_service_->GetComponents();
   }
 
@@ -671,19 +662,12 @@ std::string ChromeMetricsServiceClient::GetVersionString() {
 }
 
 void ChromeMetricsServiceClient::OnEnvironmentUpdate(std::string* environment) {
-  // Updates the environment (system profile) for the crash reporter. Note that
-  // there is a window from startup to this point during which crash reports
-  // will not have an environment set.
-  if (base::FeatureList::IsEnabled(
-          metrics::features::kSharedMemorySystemProfileMinidump)) {
-    metrics::SystemProfileUserStream::Get().WritePayload(*environment);
-    return;
-  }
-
-  // TODO(crbug.com/514425492): The old SystemProfile to crashpad sharing
-  // flow is deprecated and will be removed once
-  // `kSharedMemorySystemProfileMinidump` is fully launched.
+  // TODO(https://bugs.chromium.org/p/crashpad/issues/detail?id=135): call this
+  // on Mac when the Crashpad API supports it.
 #if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_LINUX)
+  // Register the environment with the crash reporter. Note that there is a
+  // window from startup to this point during which crash reports will not have
+  // an environment set.
   GetCrashReporter().OnEnvironmentUpdate(*environment);
 #endif  // BUILDFLAG(IS_WIN) || BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_LINUX)
 }
@@ -918,9 +902,6 @@ void ChromeMetricsServiceClient::RegisterMetricsServiceProviders() {
   metrics_service_->RegisterMetricsProvider(
       std::make_unique<performance_manager::MetricsProviderCommon>());
 
-  metrics_service_->RegisterMetricsProvider(
-      std::make_unique<metrics::CpuPerformanceMetricsProvider>());
-
 #if BUILDFLAG(IS_WIN)
   metrics_service_->RegisterMetricsProvider(
       std::make_unique<GoogleUpdateMetricsProviderWin>());
@@ -941,10 +922,6 @@ void ChromeMetricsServiceClient::RegisterMetricsServiceProviders() {
 #if BUILDFLAG(IS_MAC)
   metrics_service_->RegisterMetricsProvider(
       std::make_unique<GoogleUpdateMetricsProviderMac>());
-  if (base::FeatureList::IsEnabled(features::kTaskInfoMetricsMac)) {
-    metrics_service_->RegisterMetricsProvider(
-        std::make_unique<TaskInfoMetricsProviderMac>());
-  }
 #endif
 
 #if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX)
@@ -1263,9 +1240,7 @@ bool ChromeMetricsServiceClient::RegisterForProfileEvents(Profile* profile) {
     if (!sync) {
       return false;
     }
-    profile_observations_.AddObservation(profile);
     StartObserving(sync, profile->GetPrefs());
-    MonitorAdvancedReportingPref(profile->GetPrefs());
     return true;
   }
 #endif
@@ -1290,9 +1265,7 @@ bool ChromeMetricsServiceClient::RegisterForProfileEvents(Profile* profile) {
   if (!sync) {
     return false;
   }
-  profile_observations_.AddObservation(profile);
   StartObserving(sync, profile->GetPrefs());
-  MonitorAdvancedReportingPref(profile->GetPrefs());
   return true;
 }
 
@@ -1304,36 +1277,6 @@ void ChromeMetricsServiceClient::OnProfileAdded(Profile* profile) {
     observers_active_ = false;
     UpdateRunningServices();
   }
-}
-
-void ChromeMetricsServiceClient::OnProfileWillBeDestroyed(Profile* profile) {
-  profile_observations_.RemoveObservation(profile);
-  StopMonitoringAdvancedReportingPref(profile->GetPrefs());
-}
-
-void ChromeMetricsServiceClient::
-    OnAdvancedReportingEnabledForAllProfilesChanged(bool enabled,
-                                                    bool reset_client_state) {
-  if (!metrics::MetricsReportingChoiceService::
-          ShouldUseMetricsConsentRestructure()) {
-    return;
-  }
-
-  if (ukm_service_) {
-    if (reset_client_state) {
-      ukm_service_->Purge();
-      ukm_service_->ResetClientState(
-          ukm::ResetReason::kOnUkmAllowedStateChanged);
-    }
-
-    ukm_service_->OnUkmAllowedStateChanged(enabled);
-  }
-
-  if (dwa_service_ && reset_client_state) {
-    dwa_service_->Purge();
-  }
-
-  UpdateRunningServices();
 }
 
 void ChromeMetricsServiceClient::OnProfileManagerDestroying() {
@@ -1368,10 +1311,6 @@ void ChromeMetricsServiceClient::OnHistoryDeleted() {
 void ChromeMetricsServiceClient::OnUkmAllowedStateChanged(
     bool total_purge,
     ukm::UkmConsentState previous_consent_state) {
-  if (metrics::MetricsReportingChoiceService::
-          ShouldUseMetricsConsentRestructure()) {
-    return;
-  }
   const ukm::UkmConsentState consent_state = GetUkmConsentState();
   // Apply UKM consent changes to UKM service.
   if (ukm_service_) {
@@ -1520,18 +1459,10 @@ void ChromeMetricsServiceClient::SetIsProcessRunningForTesting(
 }
 
 bool ChromeMetricsServiceClient::IsUkmAllowedForAllProfiles() {
-  if (metrics::MetricsReportingChoiceService::
-          ShouldUseMetricsConsentRestructure()) {
-    return IsAdvancedReportingEnabledForAllProfiles();
-  }
   return UkmConsentStateObserver::IsUkmAllowedForAllProfiles();
 }
 
 bool ChromeMetricsServiceClient::IsDwaAllowedForAllProfiles() {
-  if (metrics::MetricsReportingChoiceService::
-          ShouldUseMetricsConsentRestructure()) {
-    return IsAdvancedReportingEnabledForAllProfiles();
-  }
   return UkmConsentStateObserver::IsDwaAllowedForAllProfiles();
 }
 

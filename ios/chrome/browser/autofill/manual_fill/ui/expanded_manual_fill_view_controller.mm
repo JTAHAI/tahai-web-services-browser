@@ -387,8 +387,9 @@ CGFloat GetTableViewCellHorizontalInset(UITableView* tableView) {
       constraintEqualToAnchor:_headerView.bottomAnchor
                      constant:kHeaderViewBottomPadding]
       .active = YES;
-  AddSameConstraintsToSides(_childViewController.view, self.view,
-                            LayoutSides::kBottom | LayoutSides::kHorizontal);
+  AddSameConstraintsToSides(
+      _childViewController.view, self.view,
+      LayoutSides::kBottom | LayoutSides::kTrailing | LayoutSides::kLeading);
 }
 
 #pragma mark - Private

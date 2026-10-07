@@ -20,7 +20,6 @@
 #include "ui/views/focus/focus_manager.h"
 #include "ui/views/layout/flex_layout_view.h"
 
-class HorizontalTabClosingHelper;
 class TabGroup;
 
 namespace tabs {
@@ -65,9 +64,6 @@ class TabGroupHeaderView : public views::FlexLayoutView,
 
     virtual void ShiftGroupUp() = 0;
     virtual void ShiftGroupDown() = 0;
-
-    virtual bool IsGroupFocused() const = 0;
-    virtual HorizontalTabClosingHelper* GetTabClosingHelper() const = 0;
   };
 
   TabGroupHeaderView(

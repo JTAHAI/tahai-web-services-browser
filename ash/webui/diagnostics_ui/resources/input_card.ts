@@ -83,7 +83,7 @@ export class InputCardElement extends InputCardElementBase {
   declare hostDeviceStatus: HostDeviceStatus;
 
   declare private deviceIcon: string;
-  private readonly inputDataProvider: InputDataProviderInterface =
+  private inputDataProvider: InputDataProviderInterface =
       getInputDataProvider();
 
   private computeDeviceIcon(deviceType: InputCardType): string {

@@ -19,8 +19,7 @@ class StubPermissionPromptDelegate : public PermissionPrompt::Delegate {
   ~StubPermissionPromptDelegate() override;
 
   // PermissionPrompt::Delegate:
-  const std::vector<std::unique_ptr<PermissionRequest>>& Requests()
-      const override;
+  const std::vector<std::unique_ptr<PermissionRequest>>& Requests() override;
 
   GURL GetRequestingOrigin() const override;
 
@@ -61,11 +60,6 @@ class StubPermissionPromptDelegate : public PermissionPrompt::Delegate {
   bool RecreateView() override;
 
   const PermissionPrompt* GetCurrentPrompt() const override;
-
-  EmbeddedPermissionPromptFlowModel* GetEmbeddedPromptFlowModel()
-      const override;
-  void CalculateCurrentVariantForEmbeddedPrompt() override;
-  void AdvanceOrFinalizeEmbeddedPromptFlow() override;
 
   void AddRequest(std::unique_ptr<PermissionRequest> request);
 

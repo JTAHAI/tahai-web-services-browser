@@ -148,13 +148,7 @@ pub enum ColorCharacteristics {
     /// IEC 61966 Transfer function
     Iec61966,
     /// Linear transfer function
-    Linear,
-    /// Perceptual Quantizer (SMPTE ST 2084) - standard for HDR10
-    PQ,
-    /// Hybrid Log-Gamma (ARIB STD-B67) - broadcast HDR
-    HLG,
-    /// Fallback for unknown cICP transfer functions
-    Unknown(u8),
+    Linear
 }
 /// Represents a single channel color primary.
 ///
@@ -175,9 +169,7 @@ pub struct ColorPrimaries {
     /// Green color primaries
     pub green: SingleColorPrimary,
     /// Blue color primaries
-    pub blue:  SingleColorPrimary,
-    
-    pub white_point: SingleColorPrimary
+    pub blue:  SingleColorPrimary
 }
 
 /// Rendering intents indicate what one may want to do with colors outside of it's gamut
@@ -193,4 +185,3 @@ pub enum RenderingIntent {
     RelativeColorimetric,
     Perceptual
 }
-

@@ -19,6 +19,7 @@ fuzzable_proto_library("record_constants") {
 proto_extras("record_constants_extras") {
   sources = [ "synced/record_constants.proto" ]
   deps = [ ":record_constants" ]
+  protobuf_full_support = true
 }
 
 # Record definitions for reporting.
@@ -47,6 +48,7 @@ proto_extras("record_proto_extras") {
     ":health_proto_extras",
     ":record_constants_extras",
   ]
+  protobuf_full_support = true
 }
 
 proto_library("interface_proto") {
@@ -89,6 +91,7 @@ proto_extras("health_proto_extras") {
     ":record_constants_extras",
     ":status_proto_extras",
   ]
+  protobuf_full_support = true
 }
 
 proto_library("session_affiliated_user_proto") {
@@ -132,6 +135,7 @@ fuzzable_proto_library("status_proto") {
 proto_extras("status_proto_extras") {
   sources = [ "synced/status.proto" ]
   deps = [ ":status_proto" ]
+  protobuf_full_support = true
 }
 
 fuzzable_proto_library("upload_tracker_proto") {

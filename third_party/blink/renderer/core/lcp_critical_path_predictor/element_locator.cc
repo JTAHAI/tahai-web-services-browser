@@ -282,7 +282,7 @@ void TokenStreamMatcher::DumpHTMLStack() {
   StringBuilder dump;
   for (const HTMLStackItem& item : html_stack_) {
     dump.Append("/");
-    dump.Append(item.tag_name.get());
+    dump.Append(item.tag_name);
     if (!item.id_attr.empty()) {
       dump.Append("#");
       dump.Append(item.id_attr);

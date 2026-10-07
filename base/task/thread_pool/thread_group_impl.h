@@ -37,8 +37,7 @@ class TaskTracker;
 // posted at any time but will not run until after Start() is called.
 //
 // This class is thread-safe.
-class BASE_EXPORT ThreadGroupImpl : public ThreadGroup,
-                                    public ThreadGroupProfiler::Delegate {
+class BASE_EXPORT ThreadGroupImpl : public ThreadGroup {
  public:
   // Constructs a group without workers.
   //
@@ -55,7 +54,7 @@ class BASE_EXPORT ThreadGroupImpl : public ThreadGroup,
       ThreadType thread_type_hint,
       int64_t thread_group_type,
       TrackedRef<TaskTracker> task_tracker,
-      TrackedRef<ThreadGroup::Delegate> delegate,
+      TrackedRef<Delegate> delegate,
       bool monitor_worker_thread_priorities = false,
       ThreadPoolInstance::RecordLockContention record_lock_contention =
           ThreadPoolInstance::RecordLockContention::kDisabled);
@@ -90,7 +89,6 @@ class BASE_EXPORT ThreadGroupImpl : public ThreadGroup,
   void JoinForTesting() override;
   void DidUpdateCanRunPolicy() override;
   void OnShutdownStarted() override;
-  void CleanUpFailedWorker(const WorkerThread* worker) override;
   // Returns the number of workers that are idle (i.e. not running tasks).
   size_t NumberOfIdleWorkersLockRequiredForTesting() const
       EXCLUSIVE_LOCKS_REQUIRED(lock_) override;
@@ -104,7 +102,6 @@ class BASE_EXPORT ThreadGroupImpl : public ThreadGroup,
   // may_block_threshold(), both in ThreadGroup.
   friend class ThreadGroupImplBlockingTest;
   friend class ThreadGroupImplMayBlockTest;
-  friend class ThreadGroupImplProfilingTest;
   FRIEND_TEST_ALL_PREFIXES(ThreadGroupImplBlockingTest,
                            ThreadBlockUnblockPremature);
   FRIEND_TEST_ALL_PREFIXES(ThreadGroupImplBlockingTest,
@@ -132,11 +129,6 @@ class BASE_EXPORT ThreadGroupImpl : public ThreadGroup,
   // Returns the number of workers that are awake (i.e. not on the idle set).
   size_t GetNumAwakeWorkersLockRequired() const EXCLUSIVE_LOCKS_REQUIRED(lock_);
 
-  // ThreadGroupProfiler::Delegate:
-  void OnStartProfilingSession(
-      ThreadGroupProfiler::ActiveCollection active_collection) override;
-  void OnEndProfilingSession() override;
-
   bool IsOnIdleSetLockRequired(WorkerThread* worker) const
       EXCLUSIVE_LOCKS_REQUIRED(lock_);
 
@@ -156,13 +148,9 @@ class BASE_EXPORT ThreadGroupImpl : public ThreadGroup,
 
   // This is set in Start() if profiling is enabled, before any worker thread is
   // created. If profiling is not enabled, this will remain std::nullopt. If
-  // created, the ThreadGroupProfiler instance will exist until ThreadGroupImpl
-  // destruction or JoinForTesting().
+  // created the ThreadGroupProfiler instance will exist until ThreadGroupImpl
+  // destruction.
   std::optional<ThreadGroupProfiler> thread_group_profiler_;
-
-  // Active collection session when profiling is running.
-  std::optional<ThreadGroupProfiler::ActiveCollection> active_collection_
-      GUARDED_BY(lock_);
 
   // Ensures recently cleaned up workers (ref.
   // WorkerDelegate::CleanupLockRequired()) had time to exit as

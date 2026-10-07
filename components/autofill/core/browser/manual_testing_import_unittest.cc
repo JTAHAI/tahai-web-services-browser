@@ -27,7 +27,7 @@
 #include "components/autofill/core/browser/data_model/autofill_ai/entity_type_names.h"
 #include "components/autofill/core/browser/data_model/payments/credit_card.h"
 #include "components/autofill/core/browser/field_types.h"
-#include "components/autofill/core/browser/test_utils/autofill_test_util.h"
+#include "components/autofill/core/browser/test_utils/autofill_test_utils.h"
 #include "components/autofill/core/browser/webdata/autofill_webdata_service_test_helper.h"
 #include "components/autofill/core/browser/webdata/payments/payments_autofill_table.h"
 #include "components/autofill/core/common/autofill_features.h"
@@ -242,7 +242,7 @@ TEST_F(ManualTestingImportTest, LoadEntitiesFromFile_Valid) {
        CreateAttribute(AttributeTypeName::kPassportName, "John Doe")},
       EntityInstance::EntityId(base::Uuid::GenerateRandomV4()),
       /*nickname=*/"", base::Time::Now(), /*use_count=*/0,
-      /*use_date=*/base::Time(), EntityInstance::LocalRecordTypePayload{},
+      /*use_date=*/base::Time(), EntityInstance::RecordType::kLocal,
       EntityInstance::AreAttributesReadOnly(false),
       /*frecency_override=*/"");
 
@@ -256,7 +256,7 @@ TEST_F(ManualTestingImportTest, LoadEntitiesFromFile_Valid) {
        CreateAttribute(AttributeTypeName::kVehicleVin, "1ABCD2EF3GHI45678")},
       EntityInstance::EntityId(base::Uuid::GenerateRandomV4()),
       /*nickname=*/"", base::Time::Now(), /*use_count=*/0,
-      /*use_date=*/base::Time(), EntityInstance::LocalRecordTypePayload{},
+      /*use_date=*/base::Time(), EntityInstance::RecordType::kLocal,
       EntityInstance::AreAttributesReadOnly(false),
       /*frecency_override=*/"");
 
@@ -279,7 +279,7 @@ TEST_F(ManualTestingImportTest, LoadEntitiesFromFile_Valid) {
                        "2024-12-25")},
       EntityInstance::EntityId(base::Uuid::GenerateRandomV4()),
       /*nickname=*/"", base::Time::Now(), /*use_count=*/0,
-      /*use_date=*/base::Time(), EntityInstance::LocalRecordTypePayload{},
+      /*use_date=*/base::Time(), EntityInstance::RecordType::kLocal,
       EntityInstance::AreAttributesReadOnly(true),
       /*frecency_override=*/"");
 
@@ -378,53 +378,6 @@ TEST_F(ManualTestingImportTest, LoadEntitiesFromFile_RecordType) {
             EntityInstance::RecordType::kPersonalContext);
 }
 
-// Tests that personalContext sources are parsed correctly.
-TEST_F(ManualTestingImportTest, LoadEntitiesFromFile_PersonalContext_Sources) {
-  base::FilePath file_path = GetFilePath();
-  base::WriteFile(file_path, R"({
-    "entities" : [
-      {
-        "entity_type" : "Passport",
-        "record_type" : "personalContext",
-        "sources" : [
-          {
-            "type" : "photos",
-            "url" : "https://photos.google.com/sample"
-          },
-          {
-            "type" : "gmail",
-            "url" : "https://mail.google.com/sample"
-          }
-        ],
-        "attributes" : {
-          "Number" : "12345"
-        }
-      }
-    ]
-  })");
-
-  std::optional<std::vector<EntityInstance>> entities =
-      LoadEntitiesFromFile(file_path);
-  ASSERT_TRUE(entities.has_value());
-  ASSERT_EQ(entities->size(), 1u);
-
-  using Source = EntityInstance::PersonalContextRecordTypePayload::Source;
-  using PersonalContextRecordTypePayload =
-      EntityInstance::PersonalContextRecordTypePayload;
-  const EntityInstance& entity = entities->front();
-  ASSERT_EQ(entity.record_type(), EntityInstance::RecordType::kPersonalContext);
-  const auto* payload =
-      std::get_if<PersonalContextRecordTypePayload>(&entity.record_type_data());
-  ASSERT_TRUE(payload);
-  EXPECT_EQ(*payload, (PersonalContextRecordTypePayload{
-                          .sources = {
-                              {.type = Source::Type::kPhotos,
-                               .url = "https://photos.google.com/sample"},
-                              {.type = Source::Type::kGmail,
-                               .url = "https://mail.google.com/sample"},
-                          }}));
-}
-
 // Tests that invalid entity record_type fails import.
 TEST_F(ManualTestingImportTest, LoadEntitiesFromFile_InvalidRecordType) {
   base::FilePath file_path = GetFilePath();
@@ -469,6 +422,8 @@ TEST_F(ManualTestingImportTest, LoadEntitiesFromFile_OrderAndShipment) {
           "Carrier name": "Carrier X",
           "Carrier domain": "carrierx.com",
           "Shipped date": "2025-05-15",
+          "Order ids": "12345",
+          "Order dates": "2025-05-12",
           "Merchant name": "Example Store",
           "Product names": "Widget, Gadget"
         }
@@ -488,7 +443,7 @@ TEST_F(ManualTestingImportTest, LoadEntitiesFromFile_OrderAndShipment) {
                        "Widget, Gadget")},
       EntityInstance::EntityId(base::Uuid::GenerateRandomV4()),
       /*nickname=*/"", base::Time::Now(), /*use_count=*/0,
-      /*use_date=*/base::Time(), EntityInstance::WalletRecordTypePayload{},
+      /*use_date=*/base::Time(), EntityInstance::RecordType::kServerWallet,
       EntityInstance::AreAttributesReadOnly(false),
       /*frecency_override=*/"");
 
@@ -501,13 +456,15 @@ TEST_F(ManualTestingImportTest, LoadEntitiesFromFile_OrderAndShipment) {
        CreateAttribute(AttributeTypeName::kShipmentCarrierDomain,
                        "carrierx.com"),
        CreateAttribute(AttributeTypeName::kShipmentShippedDate, "2025-05-15"),
+       CreateAttribute(AttributeTypeName::kShipmentOrderIds, "12345"),
+       CreateAttribute(AttributeTypeName::kShipmentOrderDates, "2025-05-12"),
        CreateAttribute(AttributeTypeName::kShipmentMerchantName,
                        "Example Store"),
        CreateAttribute(AttributeTypeName::kShipmentProductNames,
                        "Widget, Gadget")},
       EntityInstance::EntityId(base::Uuid::GenerateRandomV4()),
       /*nickname=*/"", base::Time::Now(), /*use_count=*/0,
-      /*use_date=*/base::Time(), EntityInstance::WalletRecordTypePayload{},
+      /*use_date=*/base::Time(), EntityInstance::RecordType::kServerWallet,
       EntityInstance::AreAttributesReadOnly(false),
       /*frecency_override=*/"");
 

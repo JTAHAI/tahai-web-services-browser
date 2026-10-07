@@ -148,13 +148,12 @@ mojom::URLResponseHeadPtr BuildResponseHead(
     const std::string& devtools_request_id);
 
 // Returns true if the site for cookies should be ignored to allow cookies to
-// be sent. This applies the origin access and same-site checks to every URL in
-// `url_chain` using one consistent authorization path, typically allowing
-// extensions to send cookies to cross-origin targets. Returns false for an
-// empty chain.
+// be sent. This checks if the request initiator is granted access to the
+// target URL by the CORS origin access list, typically allowing extensions
+// to send cookies to cross-origin targets.
 COMPONENT_EXPORT(NETWORK_SERVICE)
 bool ShouldForceIgnoreSiteForCookies(
-    const std::vector<GURL>& url_chain,
+    const GURL& url,
     const std::optional<url::Origin>& request_initiator,
     const net::SiteForCookies& site_for_cookies,
     const cors::OriginAccessList& origin_access_list);

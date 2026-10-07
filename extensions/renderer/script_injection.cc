@@ -323,8 +323,7 @@ void ScriptInjection::InjectJs(std::set<std::string>* executing_scripts,
       base::BindOnce(&ScriptInjection::OnJsInjectionCompleted,
                      weak_ptr_factory_.GetWeakPtr()),
       blink::BackForwardCacheAware::kPossiblyDisallow,
-      injector_->ExpectsResults(), injector_->ShouldWaitForPromise(),
-      /*is_injected_extension_script=*/true);
+      injector_->ExpectsResults(), injector_->ShouldWaitForPromise());
 }
 
 void ScriptInjection::OnJsInjectionCompleted(std::optional<base::Value> value,

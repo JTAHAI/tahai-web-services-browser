@@ -6,6 +6,9 @@ import '//resources/cr_elements/cr_button/cr_button.js';
 import '//resources/cr_elements/cr_input/cr_input.js';
 import '//resources/cr_elements/cr_radio_button/cr_radio_button.js';
 import '//resources/cr_elements/cr_radio_group/cr_radio_group.js';
+import '//resources/cr_elements/cr_shared_style.css.js';
+import '../settings_shared.css.js';
+import '../settings_vars.css.js';
 
 import type {CrInputElement} from '//resources/cr_elements/cr_input/cr_input.js';
 // <if expr="is_chromeos">
@@ -13,13 +16,11 @@ import type {CrRadioGroupElement} from '//resources/cr_elements/cr_radio_group/c
 // </if>
 
 import {assert} from '//resources/js/assert.js';
-import {CrLitElement} from '//resources/lit/v3_0/lit.rollup.js';
-import type {PropertyValues} from '//resources/lit/v3_0/lit.rollup.js';
+import {PolymerElement} from '//resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 import type {SyncPrefs, SyncStatus} from '/shared/settings/people_page/sync_browser_proxy.js';
 import {SyncBrowserProxyImpl} from '/shared/settings/people_page/sync_browser_proxy.js';
 
-import {getCss} from './sync_encryption_options.css.js';
-import {getHtml} from './sync_encryption_options.html.js';
+import {getTemplate} from './sync_encryption_options.html.js';
 
 /**
  * Names of the radio buttons which allow the user to choose their encryption
@@ -30,69 +31,80 @@ enum RadioButtonNames {
   ENCRYPT_WITH_PASSPHRASE = 'encrypt-with-passphrase',
 }
 
-export class SettingsSyncEncryptionOptionsElement extends CrLitElement {
+export class SettingsSyncEncryptionOptionsElement extends PolymerElement {
   static get is() {
     return 'settings-sync-encryption-options';
   }
 
-  static override get styles() {
-    return getCss();
+  static get template() {
+    return getTemplate();
   }
 
-  override render() {
-    return getHtml.bind(this)();
-  }
-
-  static override get properties() {
+  static get properties() {
     return {
-      syncPrefs: {type: Object},
-      syncStatus: {type: Object},
-      existingPassphraseLabel: {type: String},
+      syncPrefs: {
+        type: Object,
+        notify: true,
+      },
+
+      syncStatus: Object,
+
+      existingPassphraseLabel: {
+        type: String,
+      },
 
       /**
        * Whether the "create passphrase" inputs should be shown. These inputs
        * give the user the opportunity to use a custom passphrase instead of
        * authenticating with their Google credentials.
        */
-      creatingNewPassphrase_: {type: Boolean},
+      creatingNewPassphrase_: {
+        type: Boolean,
+        value: false,
+      },
 
       /**
        * The passphrase input field value.
        */
-      passphrase_: {type: String},
+      passphrase_: {
+        type: String,
+        value: '',
+      },
 
       /**
        * The passphrase confirmation input field value.
        */
-      confirmation_: {type: String},
+      confirmation_: {
+        type: String,
+        value: '',
+      },
 
-      disableEncryptionOptions_: {type: Boolean},
+      disableEncryptionOptions_: {
+        type: Boolean,
+        computed: 'computeDisableEncryptionOptions_(' +
+            'syncPrefs, syncStatus)',
+        observer: 'disableEncryptionOptionsChanged_',
+      },
     };
   }
 
-  accessor syncPrefs: SyncPrefs|null = null;
-  accessor syncStatus: SyncStatus|null = null;
-  accessor existingPassphraseLabel: string = '';
-  protected accessor creatingNewPassphrase_: boolean = false;
-  protected accessor passphrase_: string = '';
-  protected accessor confirmation_: string = '';
-  protected accessor disableEncryptionOptions_: boolean = false;
-  /**
-   * Whether there's a setEncryptionPassphrase() call pending response, in
-   * which case the component should wait before making a new call.
-   */
-  private isSettingEncryptionPassphrase_: boolean = false;
+  declare syncPrefs: SyncPrefs|null;
+  declare syncStatus: SyncStatus|null;
+  declare existingPassphraseLabel: string;
+  declare private creatingNewPassphrase_: boolean;
+  declare private passphrase_: string;
+  declare private confirmation_: string;
+  declare private disableEncryptionOptions_: boolean;
+  private isSettingEncryptionPassphrase_: boolean;
 
-  override willUpdate(changedProperties: PropertyValues<this>) {
-    super.willUpdate(changedProperties);
+  constructor() {
+    super();
 
-    if (changedProperties.has('syncPrefs') ||
-        changedProperties.has('syncStatus')) {
-      this.disableEncryptionOptions_ = this.computeDisableEncryptionOptions_();
-      if (this.disableEncryptionOptions_) {
-        this.creatingNewPassphrase_ = false;
-      }
-    }
+    /**
+     * Whether there's a setEncryptionPassphrase() call pending response, in
+     * which case the component should wait before making a new call.
+     */
+    this.isSettingEncryptionPassphrase_ = false;
   }
 
   // <if expr="is_chromeos">
@@ -100,7 +112,7 @@ export class SettingsSyncEncryptionOptionsElement extends CrLitElement {
    * Returns the encryption options CrRadioGroupElement.
    */
   getEncryptionsRadioButtons(): CrRadioGroupElement|null {
-    return this.shadowRoot.querySelector('cr-radio-group');
+    return this.shadowRoot!.querySelector('cr-radio-group');
   }
   // </if>
 
@@ -123,29 +135,30 @@ export class SettingsSyncEncryptionOptionsElement extends CrLitElement {
         (this.syncStatus && this.syncStatus.supervisedUser));
   }
 
-  protected onPassphraseValueChanged_(e: CustomEvent<{value: string}>) {
-    this.passphrase_ = e.detail.value;
-  }
-
-  protected onConfirmationValueChanged_(e: CustomEvent<{value: string}>) {
-    this.confirmation_ = e.detail.value;
+  private disableEncryptionOptionsChanged_() {
+    if (this.disableEncryptionOptions_) {
+      this.creatingNewPassphrase_ = false;
+    }
   }
 
   /**
+   * @param passphrase The passphrase input field value
+   * @param confirmation The passphrase confirmation input field value.
    * @return Whether the passphrase save button should be enabled.
    */
-  protected isSaveNewPassphraseEnabled_(): boolean {
-    return this.passphrase_ !== '' && this.confirmation_ !== '';
+  private isSaveNewPassphraseEnabled_(passphrase: string, confirmation: string):
+      boolean {
+    return passphrase !== '' && confirmation !== '';
   }
 
-  protected onNewPassphraseInputKeypress_(e: KeyboardEvent) {
+  private onNewPassphraseInputKeypress_(e: KeyboardEvent) {
     if (e.type === 'keypress' && e.key !== 'Enter') {
       return;
     }
     this.saveNewPassphrase_();
   }
 
-  protected onSaveNewPassphraseClick_() {
+  private onSaveNewPassphraseClick_() {
     this.saveNewPassphrase_();
   }
 
@@ -173,13 +186,17 @@ export class SettingsSyncEncryptionOptionsElement extends CrLitElement {
           // TODO(crbug.com/40725814): Rename the event, there is no change if
           // |successfullySet| is false. It should also mention 'encryption
           // passphrase' in its name.
-          this.fire('passphrase-changed', {didChange: successfullySet});
+          this.dispatchEvent(new CustomEvent('passphrase-changed', {
+            bubbles: true,
+            composed: true,
+            detail: {didChange: successfullySet},
+          }));
           this.isSettingEncryptionPassphrase_ = false;
         });
   }
 
-  protected onEncryptionRadioSelectedChanged_(
-      event: CustomEvent<{value: string}>) {
+  private onEncryptionRadioSelectionChanged_(event:
+                                                 CustomEvent<{value: string}>) {
     this.creatingNewPassphrase_ =
         event.detail.value === RadioButtonNames.ENCRYPT_WITH_PASSPHRASE;
   }
@@ -187,8 +204,8 @@ export class SettingsSyncEncryptionOptionsElement extends CrLitElement {
   /**
    * Computed binding returning the selected encryption radio button.
    */
-  protected selectedEncryptionRadio_() {
-    return this.syncPrefs?.encryptAllData || this.creatingNewPassphrase_ ?
+  private selectedEncryptionRadio_() {
+    return this.syncPrefs!.encryptAllData || this.creatingNewPassphrase_ ?
         RadioButtonNames.ENCRYPT_WITH_PASSPHRASE :
         RadioButtonNames.ENCRYPT_WITH_GOOGLE;
   }
@@ -203,23 +220,17 @@ export class SettingsSyncEncryptionOptionsElement extends CrLitElement {
     const emptyPassphrase = !this.passphrase_;
     const mismatchedPassphrase = this.passphrase_ !== this.confirmation_;
 
-    const passphraseInput =
-        this.shadowRoot.querySelector<CrInputElement>('#passphraseInput');
-    if (passphraseInput) {
-      passphraseInput.invalid = emptyPassphrase;
-    }
-    const passphraseConfirmationInput =
-        this.shadowRoot.querySelector<CrInputElement>(
-            '#passphraseConfirmationInput');
-    if (passphraseConfirmationInput) {
-      passphraseConfirmationInput.invalid =
-          !emptyPassphrase && mismatchedPassphrase;
-    }
+    this.shadowRoot!.querySelector<CrInputElement>(
+                        '#passphraseInput')!.invalid = emptyPassphrase;
+    this.shadowRoot!
+        .querySelector<CrInputElement>(
+            '#passphraseConfirmationInput')!.invalid =
+        !emptyPassphrase && mismatchedPassphrase;
 
     return !emptyPassphrase && !mismatchedPassphrase;
   }
 
-  protected onLearnMoreClick_(event: Event) {
+  private onLearnMoreClick_(event: Event) {
     if ((event.target as HTMLElement).tagName === 'A') {
       // Stop the propagation of events, so that clicking on links inside
       // checkboxes or radio buttons won't change the value.

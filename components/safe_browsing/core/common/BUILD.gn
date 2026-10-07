@@ -85,14 +85,12 @@ source_set("visual_utils") {
     "//components/safe_browsing/core/common/proto:client_model_proto",
     "//components/safe_browsing/core/common/proto:csd_proto",
     "//skia",
-    "//ui/gfx",
     "//ui/gfx:color_utils",
   ]
 }
 
 source_set("common") {
   sources = [
-    "client_side_detection_enums.h",
     "safe_browsing_settings_metrics.cc",
     "safe_browsing_settings_metrics.h",
     "safebrowsing_constants.cc",

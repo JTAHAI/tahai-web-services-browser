@@ -5,8 +5,6 @@
 #ifndef COMPONENTS_SYNC_ENGINE_SYNC_ENGINE_HOST_H_
 #define COMPONENTS_SYNC_ENGINE_SYNC_ENGINE_HOST_H_
 
-#include "base/functional/callback_forward.h"
-#include "components/signin/public/identity_manager/access_token_info.h"
 #include "components/sync/base/data_type.h"
 #include "components/sync/engine/sync_manager.h"
 #include "components/sync/engine/sync_protocol_error.h"
@@ -60,10 +58,6 @@ class SyncEngineHost {
 
   // Called when there are new data types with pending invalidations.
   virtual void OnNewInvalidatedDataTypes() = 0;
-
-  // Called to get an access token from the host.
-  virtual void FetchAccessToken(
-      base::OnceCallback<void(signin::AccessTokenInfo)> callback) = 0;
 };
 
 }  // namespace syncer

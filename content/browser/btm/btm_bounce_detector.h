@@ -508,7 +508,7 @@ class CONTENT_EXPORT BtmWebContentsObserver
 
   // TODO(rtarpine): make this take a Clock&.
   void SetClockForTesting(base::Clock* clock) {
-    CHECK(btm_service_, base::NotFatalUntil::M158);
+    DCHECK(btm_service_);
     btm_service_->storage()
         ->AsyncCall(&BtmStorage::SetClockForTesting)
         .WithArgs(clock);

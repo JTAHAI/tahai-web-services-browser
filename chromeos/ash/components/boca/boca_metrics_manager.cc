@@ -6,7 +6,6 @@
 
 #include <algorithm>
 
-#include "base/check_deref.h"
 #include "chromeos/ash/components/boca/boca_app_client.h"
 #include "chromeos/ash/components/boca/boca_metrics_util.h"
 
@@ -25,34 +24,31 @@ int CalculateNumOfActiveStudents(const ::boca::Session* session) {
   return num_of_active_students;
 }
 
-void RecordStudentGeminiStatus(::boca::Session* boca_session) {
-  if (!boca_session || boca_session->student_statuses().empty()) {
-    return;
-  }
-
-  auto state = boca_session->student_statuses()
-                   .begin()
-                   ->second.gemini_enablement_state();
-  switch (state) {
-    case ::boca::GeminiEnablementState::GEMINI_ENABLEMENT_STATE_ENABLED:
-      RecordStudentGeminiStatusEnabled(true);
-      break;
-    case ::boca::GeminiEnablementState::GEMINI_ENABLEMENT_STATE_DISABLED:
-      RecordStudentGeminiStatusEnabled(false);
-      break;
-    default:
-      LOG(ERROR) << "[Boca] Unexpected Gemini state " << state;
-      break;
+void RecordStudentGeminiStatus() {
+  auto* session_manager = BocaAppClient::Get()->GetSessionManager();
+  auto* session =
+      session_manager ? session_manager->GetCurrentSession() : nullptr;
+  if (session && !session->student_statuses().empty()) {
+    auto state =
+        session->student_statuses().begin()->second.gemini_enablement_state();
+    switch (state) {
+      case ::boca::GeminiEnablementState::GEMINI_ENABLEMENT_STATE_ENABLED:
+        RecordStudentGeminiStatusEnabled(true);
+        break;
+      case ::boca::GeminiEnablementState::GEMINI_ENABLEMENT_STATE_DISABLED:
+        RecordStudentGeminiStatusEnabled(false);
+        break;
+      default:
+        LOG(ERROR) << "[Boca] Unexpected Gemini state " << state;
+        break;
+    }
   }
 }
 
 }  // namespace
 
-BocaMetricsManager::BocaMetricsManager(BocaSessionManager* boca_session_manager,
-                                       bool is_producer)
-    : boca_session_manager_(CHECK_DEREF(boca_session_manager)),
-      is_producer_(is_producer) {}
-
+BocaMetricsManager::BocaMetricsManager(bool is_producer)
+    : is_producer_(is_producer) {}
 BocaMetricsManager::~BocaMetricsManager() = default;
 
 void BocaMetricsManager::OnSessionStarted(
@@ -60,7 +56,7 @@ void BocaMetricsManager::OnSessionStarted(
     const ::boca::UserIdentity& producer) {
   if (!is_producer_) {
     RecordStudentJoinedSession();
-    RecordStudentGeminiStatus(boca_session_manager_->GetCurrentSession());
+    RecordStudentGeminiStatus();
   }
   // Set the times for when session started along with the initial set time
   // for the content locked state.
@@ -79,7 +75,7 @@ void BocaMetricsManager::OnSessionEnded(const std::string& session_id) {
     RecordNumOfStudentsJoinedViaCodeDuringSession(
         students_join_via_code_.size());
     const ::boca::Session* const session =
-        boca_session_manager_->GetPreviousSession();
+        BocaAppClient::Get()->GetSessionManager()->GetPreviousSession();
     RecordNumOfActiveStudentsWhenSessionEnded(
         CalculateNumOfActiveStudents(session));
     RecordOnTaskNumOfTabsWhenSessionEnded(num_of_tabs_);

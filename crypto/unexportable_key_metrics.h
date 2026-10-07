@@ -38,13 +38,6 @@ enum class TPMOperation {
   kWrappedAttestationKeyCreation,
   // An operation to export a wrapped attestation key.
   kWrappedAttestationKeyExport,
-  // An operation to hash data using the TPM.
-  kMessageHashing,
-  // An operation to sign data with a restricted signing key (such as a TPM 2.0
-  // Attestation Identity Key) using restricted credentials.
-  kRestrictedMessageSigning,
-  // An operation to verify the signature of a restricted signing key.
-  kRestrictedMessageVerify,
 };
 // LINT.ThenChange(//tools/metrics/histograms/metadata/net/histograms.xml:TpmOperation)
 

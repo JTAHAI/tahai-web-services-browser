@@ -10,7 +10,6 @@ import android.app.NotificationChannel;
 import android.app.NotificationChannelGroup;
 import android.app.NotificationManager;
 
-import androidx.annotation.IntDef;
 import androidx.annotation.VisibleForTesting;
 
 import org.chromium.base.Callback;
@@ -25,8 +24,6 @@ import org.chromium.components.browser_ui.notifications.BaseNotificationManagerP
 import org.chromium.components.browser_ui.notifications.BaseNotificationManagerProxyFactory;
 import org.chromium.components.browser_ui.site_settings.WebsiteAddress;
 
-import java.lang.annotation.Retention;
-import java.lang.annotation.RetentionPolicy;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -34,27 +31,7 @@ import java.util.List;
 @NullMarked
 public class SiteChannelsManager {
     private static final String CHANNEL_ID_PREFIX_SITES = "web:";
-    private static final String CHANNEL_ID_PREFIX_SITES_HIGH = "web_high:";
     private static final String CHANNEL_ID_SEPARATOR = ";";
-
-    // These values are persisted to logs. Entries should not be renumbered and numeric values
-    // should never be reused.
-    //
-    // LINT.IfChange(ChannelMigrationResult)
-    @IntDef({
-        ChannelMigrationResult.MIGRATED_TO_HIGH_PRIORITY,
-        ChannelMigrationResult.MIGRATED_TO_DEFAULT_PRIORITY,
-        ChannelMigrationResult.NO_MIGRATION_NEEDED,
-    })
-    @Retention(RetentionPolicy.SOURCE)
-    public @interface ChannelMigrationResult {
-        int MIGRATED_TO_HIGH_PRIORITY = 0;
-        int MIGRATED_TO_DEFAULT_PRIORITY = 1;
-        int NO_MIGRATION_NEEDED = 2;
-        int NUM_ENTRIES = 3;
-    }
-
-    // LINT.ThenChange(//tools/metrics/histograms/metadata/notifications/enums.xml:ChannelMigrationResult)
 
     private static @Nullable SiteChannelsManager sInstance;
 
@@ -176,11 +153,7 @@ public class SiteChannelsManager {
     }
 
     private static SiteChannel toSiteChannel(NotificationChannel channel) {
-        String prefix =
-                channel.getId().startsWith(CHANNEL_ID_PREFIX_SITES_HIGH)
-                        ? CHANNEL_ID_PREFIX_SITES_HIGH
-                        : CHANNEL_ID_PREFIX_SITES;
-        String originAndTimestamp = channel.getId().substring(prefix.length());
+        String originAndTimestamp = channel.getId().substring(CHANNEL_ID_PREFIX_SITES.length());
         String[] parts = originAndTimestamp.split(CHANNEL_ID_SEPARATOR);
         assert parts.length == 2;
         return new SiteChannel(
@@ -191,11 +164,6 @@ public class SiteChannelsManager {
     }
 
     public static boolean isValidSiteChannelId(String channelId) {
-        if (channelId.startsWith(CHANNEL_ID_PREFIX_SITES_HIGH)) {
-            return channelId
-                    .substring(CHANNEL_ID_PREFIX_SITES_HIGH.length())
-                    .contains(CHANNEL_ID_SEPARATOR);
-        }
         return channelId.startsWith(CHANNEL_ID_PREFIX_SITES)
                 && channelId
                         .substring(CHANNEL_ID_PREFIX_SITES.length())
@@ -205,11 +173,7 @@ public class SiteChannelsManager {
     /** Converts a site's origin and creation timestamp to a canonical channel id. */
     @VisibleForTesting
     public static String createChannelId(String origin, long creationTime) {
-        String prefix =
-                ChromeChannelDefinitions.isHighPrioritySiteNotificationsEnabled()
-                        ? CHANNEL_ID_PREFIX_SITES_HIGH
-                        : CHANNEL_ID_PREFIX_SITES;
-        return prefix
+        return CHANNEL_ID_PREFIX_SITES
                 + assumeNonNull(WebsiteAddress.create(origin)).getOrigin()
                 + CHANNEL_ID_SEPARATOR
                 + creationTime;
@@ -218,15 +182,11 @@ public class SiteChannelsManager {
     /**
      * Converts the channel id of a notification channel to a site origin. This is only valid for
      * site notification channels, i.e. channels with ids beginning with {@link
-     * CHANNEL_ID_PREFIX_SITES} or {@link CHANNEL_ID_PREFIX_SITES_HIGH}.
+     * CHANNEL_ID_PREFIX_SITES}.
      */
     public static String toSiteOrigin(String channelId) {
-        assert isValidSiteChannelId(channelId);
-        String prefix =
-                channelId.startsWith(CHANNEL_ID_PREFIX_SITES_HIGH)
-                        ? CHANNEL_ID_PREFIX_SITES_HIGH
-                        : CHANNEL_ID_PREFIX_SITES;
-        return channelId.substring(prefix.length()).split(CHANNEL_ID_SEPARATOR)[0];
+        assert channelId.startsWith(CHANNEL_ID_PREFIX_SITES);
+        return channelId.substring(CHANNEL_ID_PREFIX_SITES.length()).split(CHANNEL_ID_SEPARATOR)[0];
     }
 
     /** Converts a notification channel's importance to ENABLED or BLOCKED. */
@@ -240,10 +200,7 @@ public class SiteChannelsManager {
     }
 
     /**
-     * Retrieves the notification channel ID for a given origin. Do note that while this is
-     * performing the migration from one channel to another, any custom notification settings set by
-     * the user on the OS will be reset to default for that specific origin. This is an inherent
-     * limitation starting Android 26 onwards.
+     * Retrieves the notification channel ID for a given origin.
      *
      * @param origin The origin to be queried.
      * @param callback A callback to return the channel ID once the call completes.
@@ -257,45 +214,7 @@ public class SiteChannelsManager {
                     // TODO(crbug.com/40558363) Stop using this channel as a fallback and fully
                     // deprecate it.
                     if (channel != null) {
-                        boolean shouldBeHighPriority =
-                                ChromeChannelDefinitions.isHighPrioritySiteNotificationsEnabled();
-                        if (shouldBeHighPriority
-                                && channel.getId().startsWith(CHANNEL_ID_PREFIX_SITES)) {
-                            // Migrate channel to high importance channel ID
-                            deleteSiteChannel(channel.getId());
-                            SiteChannel newChannel =
-                                    createSiteChannel(
-                                            channel.getOrigin(),
-                                            channel.getTimestamp(),
-                                            channel.getStatus()
-                                                    == NotificationChannelStatus.ENABLED);
-                            RecordHistogram.recordEnumeratedHistogram(
-                                    "Notifications.Android.ChannelMigration.Result",
-                                    ChannelMigrationResult.MIGRATED_TO_HIGH_PRIORITY,
-                                    ChannelMigrationResult.NUM_ENTRIES);
-                            callback.onResult(newChannel.getId());
-                        } else if (!shouldBeHighPriority
-                                && channel.getId().startsWith(CHANNEL_ID_PREFIX_SITES_HIGH)) {
-                            // Downgrade channel back to default importance channel ID
-                            deleteSiteChannel(channel.getId());
-                            SiteChannel newChannel =
-                                    createSiteChannel(
-                                            channel.getOrigin(),
-                                            channel.getTimestamp(),
-                                            channel.getStatus()
-                                                    == NotificationChannelStatus.ENABLED);
-                            RecordHistogram.recordEnumeratedHistogram(
-                                    "Notifications.Android.ChannelMigration.Result",
-                                    ChannelMigrationResult.MIGRATED_TO_DEFAULT_PRIORITY,
-                                    ChannelMigrationResult.NUM_ENTRIES);
-                            callback.onResult(newChannel.getId());
-                        } else {
-                            RecordHistogram.recordEnumeratedHistogram(
-                                    "Notifications.Android.ChannelMigration.Result",
-                                    ChannelMigrationResult.NO_MIGRATION_NEEDED,
-                                    ChannelMigrationResult.NUM_ENTRIES);
-                            callback.onResult(channel.getId());
-                        }
+                        callback.onResult(channel.getId());
                     } else {
                         RecordHistogram.recordBooleanHistogram(
                                 "Notifications.Android.SitesChannel", true);

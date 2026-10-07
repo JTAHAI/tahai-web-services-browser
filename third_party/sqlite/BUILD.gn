@@ -479,7 +479,6 @@ fuzzer_test("sqlite3_lpm_fuzzer") {
   ]
   deps = [
     ":sqlite3_lpm_fuzzer_core",
-    ":sqlite3_lpm_fuzzer_input_fuzzable",
     "//base",
     "//third_party/libprotobuf-mutator",
   ]
@@ -503,7 +502,6 @@ fuzzer_test("sqlite3_fts3_lpm_fuzzer") {
   ]
   deps = [
     ":sqlite3_lpm_fuzzer_core",
-    ":sqlite3_lpm_fuzzer_input_fuzzable",
     "//base",
     "//third_party/libprotobuf-mutator",
   ]
@@ -534,7 +532,6 @@ fuzzer_test("sqlite3_select_printf_lpm_fuzzer") {
   ]
   deps = [
     ":sqlite3_lpm_fuzzer_core",
-    ":sqlite3_lpm_fuzzer_input_fuzzable",
     "//base",
     "//third_party/libprotobuf-mutator",
   ]
@@ -552,7 +549,6 @@ fuzzer_test("sqlite3_select_strftime_lpm_fuzzer") {
   ]
   deps = [
     ":sqlite3_lpm_fuzzer_core",
-    ":sqlite3_lpm_fuzzer_input_fuzzable",
     "//base",
     "//third_party/libprotobuf-mutator",
   ]
@@ -570,7 +566,6 @@ fuzzer_test("sqlite3_select_expr_lpm_fuzzer") {
   ]
   deps = [
     ":sqlite3_lpm_fuzzer_core",
-    ":sqlite3_lpm_fuzzer_input_fuzzable",
     "//base",
     "//third_party/libprotobuf-mutator",
   ]

@@ -34,11 +34,11 @@ export class FakeShortcutProvider implements ShortcutProviderInterface {
   private preventProcessingAcceleratorsCallCount: number = 0;
   private addAcceleratorCallCount: number = 0;
   private removeAcceleratorCallCount: number = 0;
-  private lastRecordedUserAction: UserAction|null = null;
-  private lastRecordedMainCategory: AcceleratorCategory|null = null;
-  private lastRecordedEditDialogActions: EditDialogCompletedActions|null = null;
+  private lastRecordedUserAction: UserAction;
+  private lastRecordedMainCategory: AcceleratorCategory;
+  private lastRecoredEditDialogActions: EditDialogCompletedActions;
   private lastRecordedIsAdd: boolean = false;
-  private lastRecordedSubactions: Subactions|null = null;
+  private lastRecorededSubactions: Subactions;
 
   constructor() {
     this.methods = new FakeMethodResolver();
@@ -192,14 +192,14 @@ export class FakeShortcutProvider implements ShortcutProviderInterface {
 
   recordEditDialogCompletedActions(completed_actions:
                                        EditDialogCompletedActions): void {
-    this.lastRecordedEditDialogActions = completed_actions;
+    this.lastRecoredEditDialogActions = completed_actions;
   }
 
-  getLastEditDialogCompletedActions(): EditDialogCompletedActions|null {
-    return this.lastRecordedEditDialogActions;
+  getLastEditDialogCompletedActions(): EditDialogCompletedActions {
+    return this.lastRecoredEditDialogActions;
   }
 
-  getLatestRecordedAction(): UserAction|null {
+  getLatestRecordedAction(): UserAction {
     return this.lastRecordedUserAction;
   }
 
@@ -207,21 +207,21 @@ export class FakeShortcutProvider implements ShortcutProviderInterface {
     this.lastRecordedMainCategory = category;
   }
 
-  getLatestMainCategoryNavigated(): AcceleratorCategory|null {
+  getLatestMainCategoryNavigated(): AcceleratorCategory {
     return this.lastRecordedMainCategory;
   }
 
   recordAddOrEditSubactions(isAdd: boolean, subactions: Subactions): void {
     this.lastRecordedIsAdd = isAdd;
-    this.lastRecordedSubactions = subactions;
+    this.lastRecorededSubactions = subactions;
   }
 
   getLastRecordedIsAdd(): boolean {
     return this.lastRecordedIsAdd;
   }
 
-  getLastRecordedSubactions(): Subactions|null {
-    return this.lastRecordedSubactions;
+  getLastRecordedSubactions(): Subactions {
+    return this.lastRecorededSubactions;
   }
 
   preventProcessingAccelerators(_preventProcessingAccelerators: boolean):

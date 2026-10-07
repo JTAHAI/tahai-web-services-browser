@@ -19,15 +19,12 @@
 #include "content/browser/renderer_host/render_widget_host_view_base.h"
 #include "content/public/common/content_switches.h"
 #include "third_party/blink/public/common/input/web_mouse_event.h"
-#include "third_party/blink/public/common/input/web_mouse_wheel_event.h"
 #include "third_party/blink/public/common/input/web_touch_event.h"
-#include "third_party/skia/include/core/SkColor.h"
 #include "ui/aura/client/screen_position_client.h"
 #include "ui/aura/client/transient_window_client.h"
 #include "ui/aura/client/window_parenting_client.h"
 #include "ui/compositor/compositor.h"
-#include "ui/compositor/layer_surface.h"
-#include "ui/compositor/layer_textured.h"
+#include "ui/compositor/layer.h"
 #include "ui/compositor/paint_recorder.h"
 #include "ui/display/display.h"
 #include "ui/display/screen.h"
@@ -144,7 +141,7 @@ base::WeakPtr<UnboundedSurfaceWindow> UnboundedSurfaceWindowAura::GetWeakPtr() {
   return weak_ptr_factory_.GetWeakPtr();
 }
 
-bool UnboundedSurfaceWindowAura::IsValid() const {
+bool UnboundedSurfaceWindowAura::is_valid() const {
   return window_ != nullptr;
 }
 
@@ -161,7 +158,7 @@ viz::LocalSurfaceId UnboundedSurfaceWindowAura::GetLocalSurfaceId() const {
 }
 
 gfx::Rect UnboundedSurfaceWindowAura::GetBounds() const {
-  return window_ ? window_->GetBoundsInScreenWithoutTransform() : gfx::Rect();
+  return window_ ? window_->GetBoundsInScreen() : gfx::Rect();
 }
 
 void UnboundedSurfaceWindowAura::CopyFromSurface(
@@ -196,9 +193,9 @@ void UnboundedSurfaceWindowAura::CopyFromSurface(
 
 void UnboundedSurfaceWindowAura::EnsureSurfaceSynchronizedForWebTest() {
   if (window_ && window_->layer()) {
-    window_->layer()->AsSurface()->SetShowSurface(
+    window_->layer()->SetShowSurface(
         viz::SurfaceId(frame_sink_id_, GetLocalSurfaceId()),
-        window_->GetBoundsInScreen().size(),
+        window_->GetBoundsInScreen().size(), SkColors::kTransparent,
         cc::DeadlinePolicy::UseInfiniteDeadline(),
         /*stretch_content_to_fill_bounds=*/false);
   }
@@ -271,14 +268,13 @@ bool UnboundedSurfaceWindowAura::InitWindow(const gfx::Rect& bounds_in_screen) {
 
   window_ =
       std::make_unique<aura::Window>(this, aura::client::WINDOW_TYPE_MENU);
-  window_->Init(ui::LayerType::LAYER_SURFACE);
+  window_->Init(ui::LayerType::LAYER_SOLID_COLOR);
   window_->SetTransparent(true);
   // TODO(crbug.com/508672616): Note that we may need to change this to a non-
   // transparent background later, if security issues arise. For example, this
   // allows content to put up a fully transparent (invisible) overlay over site
   // content and steal clicks/events.
-  window_->layer()->AsSurface()->SetFallbackBackgroundColor(
-      SkColors::kTransparent);
+  window_->layer()->AsSolidColor()->SetColor(SkColors::kTransparent);
   window_->SetEmbedFrameSinkId(frame_sink_id_);
 
   GetHostFrameSinkManager()->RegisterFrameSinkId(
@@ -308,9 +304,10 @@ bool UnboundedSurfaceWindowAura::InitWindow(const gfx::Rect& bounds_in_screen) {
       ConvertRectFromScreen(window_.get(), bounds_in_screen);
   window_->SetBounds(relative_bounds);
   // TODO(crbug.com/508672616): See the note above about transparent background.
-  window_->layer()->AsSurface()->SetShowSurface(
+  window_->layer()->SetShowSurface(
       viz::SurfaceId(frame_sink_id_, GetLocalSurfaceId()),
-      bounds_in_screen.size(), cc::DeadlinePolicy::UseDefaultDeadline(),
+      bounds_in_screen.size(), SkColors::kTransparent,
+      cc::DeadlinePolicy::UseDefaultDeadline(),
       /*stretch_content_to_fill_bounds=*/false);
 
   if (base::CommandLine::ForCurrentProcess()->HasSwitch(
@@ -341,9 +338,10 @@ void UnboundedSurfaceWindowAura::SetBounds(const gfx::Rect& bounds_in_screen) {
       ConvertRectFromScreen(window_.get(), bounds_in_screen);
   window_->SetBounds(relative_bounds);
   local_surface_id_allocator_.GenerateId();
-  window_->layer()->AsSurface()->SetShowSurface(
+  window_->layer()->SetShowSurface(
       viz::SurfaceId(frame_sink_id_, GetLocalSurfaceId()),
-      bounds_in_screen.size(), cc::DeadlinePolicy::UseDefaultDeadline(),
+      bounds_in_screen.size(), SkColors::kTransparent,
+      cc::DeadlinePolicy::UseDefaultDeadline(),
       /*stretch_content_to_fill_bounds=*/false);
   if (debug_border_layer_) {
     debug_border_layer_->SetBounds(gfx::Rect(window_->layer()->size()));
@@ -361,15 +359,21 @@ void UnboundedSurfaceWindowAura::UpdateBounds(const gfx::Rect& bounds) {
   }
 }
 
-void UnboundedSurfaceWindowAura::TeardownAndDestroy() {
+void UnboundedSurfaceWindowAura::Dismiss() {
+  if (client_remote_.is_bound()) {
+    client_remote_->OnDismissed();
+    client_remote_.reset();
+  }
   if (parent_view_) {
-    parent_view_->DestroyUnboundedSurface(GetWeakPtr());
+    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+        FROM_HERE,
+        base::BindOnce(&RenderWidgetHostViewBase::DestroyUnboundedSurface,
+                       parent_view_->GetWeakPtr(), GetWeakPtr()));
   }
 }
 
 void UnboundedSurfaceWindowAura::OnConnectionError() {
-  dismiss_pending_ = true;
-  ScheduleDeferredDestroy();
+  Dismiss();
 }
 
 void UnboundedSurfaceWindowAura::GetCompositorFrameSink(
@@ -380,8 +384,35 @@ void UnboundedSurfaceWindowAura::GetCompositorFrameSink(
       /*render_input_router_config=*/nullptr);
 }
 
-RenderWidgetHostViewBase* UnboundedSurfaceWindowAura::GetParentView() const {
-  return parent_view_;
+void UnboundedSurfaceWindowAura::RouteMouseEvent(
+    const blink::WebMouseEvent& event) {
+  if (!parent_view_ || !parent_view_->host() ||
+      !parent_view_->host()->delegate() ||
+      !parent_view_->host()->delegate()->GetInputEventRouter()) {
+    return;
+  }
+  input::RenderWidgetHostInputEventRouter* router =
+      parent_view_->host()->delegate()->GetInputEventRouter();
+
+  aura::Window* parent_window = parent_view_->GetNativeView();
+  if (!parent_window || !parent_window->GetRootWindow()) {
+    return;
+  }
+
+  blink::WebMouseEvent web_event = event;
+  gfx::PointF parent_local_point = web_event.PositionInScreen();
+  if (auto* screen_position_client = aura::client::GetScreenPositionClient(
+          parent_window->GetRootWindow())) {
+    // Since the input coordinate is in screen space and both windows share a
+    // root, ConvertPointToTarget would bypass the ScreenPositionClient and fail
+    // to apply the screen-to-root offset. We must explicitly use
+    // ConvertPointFromScreen to convert from screen coordinates.
+    screen_position_client->ConvertPointFromScreen(parent_window,
+                                                   &parent_local_point);
+  }
+  web_event.SetPositionInWidget(parent_local_point.x(), parent_local_point.y());
+
+  router->RouteMouseEvent(parent_view_, &web_event, ui::LatencyInfo());
 }
 
 void UnboundedSurfaceWindowAura::OnKeyEvent(ui::KeyEvent* event) {
@@ -410,26 +441,9 @@ void UnboundedSurfaceWindowAura::OnMouseEvent(ui::MouseEvent* event) {
 
   if (window_ &&
       window_->Contains(static_cast<aura::Window*>(event->target()))) {
-    if (event->type() == ui::EventType::kMousewheel) {
-      blink::WebMouseWheelEvent web_event =
-          ui::MakeWebMouseWheelEvent(*event->AsMouseWheelEvent());
-      RouteMouseWheelEvent(web_event);
-    } else {
-      blink::WebMouseEvent web_event = ui::MakeWebMouseEvent(*event);
-      RouteMouseEvent(web_event);
-    }
+    blink::WebMouseEvent web_event = ui::MakeWebMouseEvent(*event);
+    RouteMouseEvent(web_event);
     event->SetHandled();
-  }
-}
-
-void UnboundedSurfaceWindowAura::OnScrollEvent(ui::ScrollEvent* event) {
-  if (window_ &&
-      window_->Contains(static_cast<aura::Window*>(event->target()))) {
-    if (event->type() == ui::EventType::kScroll) {
-      blink::WebMouseWheelEvent web_event = ui::MakeWebMouseWheelEvent(*event);
-      RouteMouseWheelEvent(web_event);
-      event->SetHandled();
-    }
   }
 }
 

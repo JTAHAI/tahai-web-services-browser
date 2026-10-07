@@ -81,30 +81,27 @@ BasicShapeInfo shape_property_functions::GetBasicShape(
 }
 
 void shape_property_functions::SetBasicShape(const CSSProperty& property,
-                                             const BasicShapeInfo& info,
+                                             BasicShape& shape,
+                                             ShapeReferenceBox box,
                                              ComputedStyleBuilder& builder) {
-  CHECK(info.shape);
   switch (property.PropertyID()) {
     case CSSPropertyID::kClipPath:
       builder.SetClipPath(MakeGarbageCollected<ShapeClipPathOperation>(
-          *info.shape, std::get<GeometryBox>(info.box)));
+          shape, std::get<GeometryBox>(box)));
       break;
     case CSSPropertyID::kD:
-      // We use const_cast<> here because ComputedStyleBuilder only accepts a
-      // non-const pointer.
-      builder.SetD(To<StylePath>(const_cast<BasicShape*>(info.shape)));
+      builder.SetD(&To<StylePath>(shape));
       break;
     case CSSPropertyID::kObjectViewBox:
-      // See the 'd' property.
-      builder.SetObjectViewBox(const_cast<BasicShape*>(info.shape));
+      builder.SetObjectViewBox(&shape);
       break;
     case CSSPropertyID::kOffsetPath:
       builder.SetOffsetPath(MakeGarbageCollected<ShapeOffsetPathOperation>(
-          *info.shape, std::get<CoordBox>(info.box)));
+          shape, std::get<CoordBox>(box)));
       break;
     case CSSPropertyID::kShapeOutside:
-      builder.SetShapeOutside(MakeGarbageCollected<ShapeValue>(
-          *info.shape, std::get<ShapeBox>(info.box)));
+      builder.SetShapeOutside(
+          MakeGarbageCollected<ShapeValue>(shape, std::get<ShapeBox>(box)));
       break;
     default:
       NOTREACHED();

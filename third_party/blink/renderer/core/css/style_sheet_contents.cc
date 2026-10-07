@@ -663,12 +663,11 @@ static bool ChildRulesHaveFailedOrCanceledSubresources(
       case StyleRuleBase::kFunction:
       case StyleRuleBase::kPositionTry:
       case StyleRuleBase::kCustomMedia:
-      case StyleRuleBase::kLocation:
+      case StyleRuleBase::kRoute:
         break;
       case StyleRuleBase::kResult:
       case StyleRuleBase::kApplyMixin:
       case StyleRuleBase::kContents:
-      case StyleRuleBase::kPrivate:
         // TODO(sesse): Should we go down into the rules here?
         // Do we need to do a new name lookup then?
         break;
@@ -864,21 +863,28 @@ static bool ExtractMixinsFromSheet(const StyleSheetContents& contents,
   return found;
 }
 
-MixinMap& StyleSheetContents::ExtractMixins(const MediaQueryEvaluator& medium) {
+MixinMap& StyleSheetContents::ExtractMixins(const MediaQueryEvaluator& medium,
+                                            uint64_t& mixin_generation) {
   if (has_cached_mixins_ &&
       !medium.DidResultsChange(mixins_.media_query_set_results)) {
     return mixins_;
   }
+  const bool used_to_have_at_least_one_mixin = !mixins_.mixins.empty();
   mixins_ = MixinMap();
   has_cached_mixins_ = true;
-  ExtractMixinsFromSheet(*this, medium, mixins_);
+  if (ExtractMixinsFromSheet(*this, medium, mixins_)) {
+    // We have at least one mixin.
+    ++mixin_generation;
+  } else if (used_to_have_at_least_one_mixin) {
+    // The last mixin was deleted, which is a change in itself.
+    ++mixin_generation;
+  }
   return mixins_;
 }
 
 RuleSet& StyleSheetContents::EnsureRuleSet(const MediaQueryEvaluator& medium,
                                            const MixinMap& mixins) {
-  if (rule_set_ &&
-      rule_set_->DependingOnOutdatedMixins(mixins.map_identifier)) {
+  if (rule_set_ && rule_set_->DependingOnOutdatedMixins(mixins.generation)) {
     rule_set_ = nullptr;
     if (rule_set_diff_) {
       rule_set_diff_->MarkUnrepresentable();

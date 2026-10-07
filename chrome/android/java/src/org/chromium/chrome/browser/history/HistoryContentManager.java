@@ -547,14 +547,13 @@ public class HistoryContentManager implements SignInStateObserver, PrefObserver 
     }
 
     /**
-     * Check if we want to enable the scrolling to load for recycled view. Noting this function will
-     * be called during testing with RecycledView == null. Will return False in such case.
-     *
+     * Check if we want to enable the scrolling to load for recycled view. Noting this function
+     * will be called during testing with RecycledView == null. Will return False in such case.
      * @return True if accessibility is enabled or a hardware keyboard is attached.
      */
     boolean isScrollToLoadDisabled() {
         if (sIsScrollToLoadDisabledForTests != null) {
-            return sIsScrollToLoadDisabledForTests;
+            return sIsScrollToLoadDisabledForTests.booleanValue();
         }
 
         return mIsScrollToLoadDisabled;

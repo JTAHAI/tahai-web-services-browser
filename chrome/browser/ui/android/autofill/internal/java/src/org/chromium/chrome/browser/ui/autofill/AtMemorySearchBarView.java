@@ -50,11 +50,7 @@ public class AtMemorySearchBarView extends LinearLayout {
         mSearchSpinner = findViewById(R.id.search_spinner);
         mClearButton = findViewById(R.id.search_clear_button);
 
-        mClearButton.setOnClickListener(
-                v -> {
-                    clearSearchText();
-                    focusSearchArea();
-                });
+        mClearButton.setOnClickListener(v -> clearSearchText());
 
         mSearchEditText.addTextChangedListener(
                 new EmptyTextWatcher() {

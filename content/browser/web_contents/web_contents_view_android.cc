@@ -13,10 +13,8 @@
 #include "base/check.h"
 #include "base/feature_list.h"
 #include "base/files/file_path.h"
-#include "base/json/json_reader.h"
 #include "base/notimplemented.h"
 #include "base/rand_util.h"
-#include "base/values.h"
 #include "cc/layers/layer.h"
 #include "cc/slim/layer.h"
 #include "components/input/features.h"
@@ -107,11 +105,11 @@ bool IsDragEnabledForDropData(const DropData& drop_data) {
 void SynchronousCompositor::SetClientForWebContents(
     WebContents* contents,
     SynchronousCompositorClient* client) {
-  CHECK(contents, base::NotFatalUntil::M158);
-  CHECK(client, base::NotFatalUntil::M158);
+  DCHECK(contents);
+  DCHECK(client);
   WebContentsViewAndroid* wcva = static_cast<WebContentsViewAndroid*>(
       static_cast<WebContentsImpl*>(contents)->GetView());
-  CHECK(!wcva->synchronous_compositor_client(), base::NotFatalUntil::M158);
+  DCHECK(!wcva->synchronous_compositor_client());
   wcva->set_synchronous_compositor_client(client);
   RenderWidgetHostViewAndroid* rwhv = static_cast<RenderWidgetHostViewAndroid*>(
       contents->GetRenderWidgetHostView());
@@ -293,7 +291,7 @@ RenderWidgetHostViewBase* WebContentsViewAndroid::CreateViewForWidget(
     // this actually is happening (and somebody isn't accidentally creating the
     // view twice), we check for the RVH Factory, which will be set when we're
     // making special ones (which go along with the special views).
-    CHECK(RenderViewHostFactory::has_factory(), base::NotFatalUntil::M158);
+    DCHECK(RenderViewHostFactory::has_factory());
     return static_cast<RenderWidgetHostViewBase*>(
         render_widget_host->GetView());
   }
@@ -531,7 +529,8 @@ void WebContentsViewAndroid::StartDragging(
 void WebContentsViewAndroid::UpdateDragOperation(
     ui::mojom::DragOperation op,
     bool document_is_handling_drag) {
-  drag_operation_ = op;
+  // Intentional not storing `op` because Android does not support drag and
+  // drop cursor yet.
   document_is_handling_drag_ = document_is_handling_drag;
 }
 
@@ -558,9 +557,6 @@ bool WebContentsViewAndroid::OnDragEvent(const ui::DragEventAndroid& event) {
             mime_type == kMimeTypeIntent || mime_type == kMimeTypeChromeLink) {
           drag_metadata_.push_back(DropData::Metadata::CreateForMimeType(
               DropData::Kind::STRING, mime_type));
-        } else if (mime_type == ui::kMimeTypeDataTransferCustomData16) {
-          // Ignore, we will unpack custom data from the event.
-          continue;
         } else {
           // Create a file extension from the mime type.
           std::string ext = base::UTF16ToUTF8(mime_type);
@@ -572,16 +568,6 @@ bool WebContentsViewAndroid::OnDragEvent(const ui::DragEventAndroid& event) {
               base::FilePath("file." + ext)));
         }
       }
-      std::optional<base::Value> custom_data = ParseCustomDataFromEvent(event);
-      if (custom_data) {
-        for (auto item : custom_data->GetDict()) {
-          if (!item.second.is_string()) {
-            continue;
-          }
-          drag_metadata_.push_back(DropData::Metadata::CreateForMimeType(
-              DropData::Kind::STRING, base::UTF8ToUTF16(item.first)));
-        }
-      }
       OnDragEntered(event.location(), event.screen_location());
       break;
     }
@@ -589,7 +575,6 @@ bool WebContentsViewAndroid::OnDragEvent(const ui::DragEventAndroid& event) {
       OnDragUpdated(event.location(), event.screen_location());
       break;
     case DragEventJni::ACTION_DROP: {
-      drag_dropped_ = true;
       drop_data_ = std::make_unique<DropData>();
       drop_data_->did_originate_from_renderer = false;
       drop_data_->document_is_handling_drag = document_is_handling_drag_;
@@ -790,18 +775,14 @@ void WebContentsViewAndroid::ClearDragStateOnStartFailure(
   OnSystemDragEnded(source_rwh);
   current_source_rwh_for_drag_.reset();
   drag_security_info_.OnDragEnded();
-  drag_dropped_ = false;
-  drag_operation_ = ui::mojom::DragOperation::kNone;
 }
 
 void WebContentsViewAndroid::OnDragEnded() {
   if (current_source_rwh_for_drag_) {
-    ui::mojom::DragOperation operation =
-        drag_dropped_ ? drag_operation_ : ui::mojom::DragOperation::kNone;
-    web_contents_->DragSourceEndedAt(drag_location_.x(), drag_location_.y(),
-                                     drag_screen_location_.x(),
-                                     drag_screen_location_.y(), operation,
-                                     current_source_rwh_for_drag_.get());
+    web_contents_->DragSourceEndedAt(
+        drag_location_.x(), drag_location_.y(), drag_screen_location_.x(),
+        drag_screen_location_.y(), ui::mojom::DragOperation::kNone,
+        current_source_rwh_for_drag_.get());
     OnSystemDragEnded(current_source_rwh_for_drag_.get());
   }
   drag_security_info_.OnDragEnded();
@@ -811,8 +792,6 @@ void WebContentsViewAndroid::OnDragEnded() {
   current_target_rwh_for_drag_.reset();
   is_active_drag_ = false;
   drag_exceeded_movement_threshold_ = false;
-  drag_dropped_ = false;
-  drag_operation_ = ui::mojom::DragOperation::kNone;
   drag_entered_location_ = gfx::PointF();
   drag_location_ = gfx::PointF();
   drag_screen_location_ = gfx::PointF();
@@ -940,9 +919,8 @@ void WebContentsViewAndroid::OnSizeChanged() {
   auto* rwhv = GetRenderWidgetHostViewAndroid();
   if (rwhv) {
     web_contents_->SendScreenRects();
-    auto deadline_policy = cc::DeadlinePolicy::UseSpecifiedDeadline(
-        ui::DelegatedFrameHostAndroid::ResizeTimeoutFrames());
-    rwhv->SynchronizeVisualProperties(deadline_policy, std::nullopt);
+    rwhv->SynchronizeVisualProperties(cc::DeadlinePolicy::UseDefaultDeadline(),
+                                      std::nullopt);
   }
 }
 

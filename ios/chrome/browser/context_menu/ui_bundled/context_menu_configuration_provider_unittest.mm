@@ -602,7 +602,10 @@ TEST_F(ContextMenuConfigurationProviderTest,
 // menu if the page URL is protected.
 TEST_F(ContextMenuConfigurationProviderTest, GeminiImageRemix_ProtectedURL) {
   base::test::ScopedFeatureList scoped_feature_list;
-  scoped_feature_list.InitWithFeatures({kPageActionMenu}, {});
+  scoped_feature_list.InitWithFeaturesAndParameters(
+      {{kPageActionMenu, {}},
+       {kGeminiImageRemixTool, {{"GeminiImageRemixToolPosition", "0"}}}},
+      {});
 
   SignIn();
 

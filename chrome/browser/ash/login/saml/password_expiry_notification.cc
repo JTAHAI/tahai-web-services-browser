@@ -15,14 +15,17 @@
 #include "base/no_destructor.h"
 #include "base/time/time.h"
 #include "chrome/browser/ash/login/saml/in_session_password_change_manager.h"
+#include "chrome/browser/notifications/notification_common.h"
+#include "chrome/browser/notifications/notification_display_service.h"
+#include "chrome/browser/notifications/notification_display_service_factory.h"
+#include "chrome/browser/notifications/notification_handler.h"
+#include "chrome/browser/profiles/profile.h"
 #include "chromeos/strings/grit/chromeos_strings.h"
-#include "components/user_manager/user.h"
 #include "components/vector_icons/vector_icons.h"
 #include "content/public/browser/browser_thread.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/l10n/time_format.h"
 #include "ui/base/ui_base_features.h"
-#include "ui/message_center/message_center.h"
 #include "ui/message_center/public/cpp/notification.h"
 #include "ui/message_center/public/cpp/notification_delegate.h"
 #include "ui/message_center/public/cpp/notification_types.h"
@@ -32,6 +35,7 @@ namespace ash {
 namespace {
 
 using ::message_center::ButtonInfo;
+using ::message_center::Notification;
 using ::message_center::NotificationDelegate;
 using ::message_center::NotificationType;
 using ::message_center::NotifierId;
@@ -45,6 +49,10 @@ const char kNotificationId[] = "saml.password-expiry-notification";
 // Simplest type of notification UI - no progress bars, images etc.
 const NotificationType kNotificationType =
     message_center::NOTIFICATION_TYPE_SIMPLE;
+
+// Generic type for notifications that are not from web pages etc.
+const NotificationHandler::Type kNotificationHandlerType =
+    NotificationHandler::Type::TRANSIENT;
 
 // The icon to use for this notification - looks like an office building.
 const gfx::VectorIcon& GetIcon() {
@@ -108,16 +116,14 @@ void PasswordExpiryNotificationDelegate::Click(
 }  // namespace
 
 // static
-void PasswordExpiryNotification::Show(const user_manager::User& user,
+void PasswordExpiryNotification::Show(Profile* profile,
                                       base::TimeDelta time_until_expiry) {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
 
   // NotifierId for histogram reporting.
-  NotifierId notifier_id(NotifierType::SYSTEM_COMPONENT, kNotificationId,
-                         NotificationCatalogName::kPasswordExpiry);
-  notifier_id.profile_id = user.GetAccountId().GetUserEmail();
-  const std::string notification_id =
-      CreateUserScopedNotificationId(kNotificationId, user.username_hash());
+  static const base::NoDestructor<NotifierId> kNotifierId(
+      NotifierType::SYSTEM_COMPONENT, kNotificationId,
+      NotificationCatalogName::kPasswordExpiry);
 
   // Leaving this empty means the notification is attributed to the system -
   // ie "Chromium OS" or similar.
@@ -132,17 +138,17 @@ void PasswordExpiryNotification::Show(const user_manager::User& user,
   const scoped_refptr<PasswordExpiryNotificationDelegate> delegate =
       base::MakeRefCounted<PasswordExpiryNotificationDelegate>();
 
-  auto notification = CreateSystemNotificationPtr(
-      kNotificationType, notification_id, title, body, *kEmptyDisplaySource,
-      *kEmptyOriginUrl, notifier_id, rich_notification_data, delegate,
+  Notification notification = CreateSystemNotification(
+      kNotificationType, kNotificationId, title, body, *kEmptyDisplaySource,
+      *kEmptyOriginUrl, *kNotifierId, rich_notification_data, delegate,
       GetIcon(), kWarningLevel);
 
-  // Calling remove before add ensures that the notification pops up again
+  NotificationDisplayService* nds =
+      NotificationDisplayServiceFactory::GetForProfile(profile);
+  // Calling close before display ensures that the notification pops up again
   // even if it is already shown.
-  message_center::MessageCenter::Get()->RemoveNotification(notification_id,
-                                                           /*by_user=*/false);
-  message_center::MessageCenter::Get()->AddNotification(
-      std::move(notification));
+  nds->Close(kNotificationHandlerType, kNotificationId);
+  nds->Display(kNotificationHandlerType, notification, /*metadata=*/nullptr);
 }
 
 // static
@@ -159,11 +165,10 @@ std::u16string PasswordExpiryNotification::GetTitleText(
 }
 
 // static
-void PasswordExpiryNotification::Dismiss(const user_manager::User& user) {
+void PasswordExpiryNotification::Dismiss(Profile* profile) {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
-  message_center::MessageCenter::Get()->RemoveNotification(
-      CreateUserScopedNotificationId(kNotificationId, user.username_hash()),
-      /*by_user=*/false);
+  NotificationDisplayServiceFactory::GetForProfile(profile)->Close(
+      kNotificationHandlerType, kNotificationId);
 }
 
 }  // namespace ash

@@ -12,7 +12,6 @@
 #include "build/build_config.h"
 #include "build/buildflag.h"
 #include "media/gpu/buildflags.h"
-#include "media/gpu/media_gpu_export.h"
 #include "media/media_buildflags.h"
 
 namespace media {
@@ -26,8 +25,8 @@ BASE_DECLARE_FEATURE(kMediaFoundationAV1L1T2Support);
 BASE_DECLARE_FEATURE(kMediaFoundationAV1L1T3Support);
 #endif  // !defined(ARCH_CPU_X86)
 
-MEDIA_GPU_EXPORT BASE_DECLARE_FEATURE(kMediaFoundationUseSWBRCForH264Camera);
-MEDIA_GPU_EXPORT BASE_DECLARE_FEATURE(kMediaFoundationUseSWBRCForH264Desktop);
+BASE_DECLARE_FEATURE(kMediaFoundationUseSWBRCForH264Camera);
+BASE_DECLARE_FEATURE(kMediaFoundationUseSWBRCForH264Desktop);
 
 BASE_DECLARE_FEATURE(kMediaFoundationSWBRCForH264ForceARMGPU);
 BASE_DECLARE_FEATURE(kMediaFoundationSWBRCForH264ForceAMDGPU);

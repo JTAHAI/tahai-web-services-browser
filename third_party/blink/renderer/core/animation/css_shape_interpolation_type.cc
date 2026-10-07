@@ -9,7 +9,6 @@
 #include <utility>
 
 #include "base/memory/ptr_util.h"
-#include "base/memory/raw_ref.h"
 #include "base/memory/stack_allocated.h"
 #include "base/notreached.h"
 #include "third_party/blink/renderer/core/animation/css_position_axis_list_interpolation_type.h"
@@ -470,12 +469,11 @@ class InheritedShapeChecker
  private:
   bool IsValid(const StyleResolverState& state,
                const InterpolationValue& underlying) const final {
-    auto info = GetShapeOrPath(*property_, *state.ParentStyle());
+    auto info = GetShapeOrPath(property_, *state.ParentStyle());
     return info.shape == shape_.Get() && info.box == box_;
   }
 
-  const raw_ref<const CSSProperty, UnprotectedInRelease | DanglingUntriaged>
-      property_;
+  const CSSProperty& property_;
   const Member<const BasicShape> shape_;
   const ShapeReferenceBox box_;
 };
@@ -505,7 +503,7 @@ bool CSSShapeInterpolationType::HasArcSegments(
 }
 
 // static
-BasicShapeInfo CSSShapeInterpolationType::CreateShape(
+BasicShape* CSSShapeInterpolationType::CreateShape(
     const InterpolableValue& interpolable_value,
     const NonInterpolableValue& non_interpolable_value,
     const CSSToLengthConversionData& conversion_data) {
@@ -571,10 +569,9 @@ BasicShapeInfo CSSShapeInterpolationType::CreateShape(
             NOTREACHED();
         }
       });
-  return {MakeGarbageCollected<StyleShape>(
-              shape_non_interpolable_value.GetWindRule(), reader.Origin(),
-              std::move(segments)),
-          shape_non_interpolable_value.GetBox()};
+  return MakeGarbageCollected<StyleShape>(
+      shape_non_interpolable_value.GetWindRule(), reader.Origin(),
+      std::move(segments));
 }
 
 DEFINE_NON_INTERPOLABLE_VALUE_TYPE(ShapeNonInterpolableValue);
@@ -593,10 +590,13 @@ void CSSShapeInterpolationType::ApplyStandardPropertyValue(
     const NonInterpolableValue* non_interpolable_value,
     StyleResolverState& state) const {
   CHECK(non_interpolable_value);
-  BasicShapeInfo info = CreateShape(interpolable_value, *non_interpolable_value,
-                                    state.CssToLengthConversionData());
-  shape_property_functions::SetBasicShape(CssProperty(), info,
-                                          state.StyleBuilder());
+  BasicShape* shape = CreateShape(interpolable_value, *non_interpolable_value,
+                                  state.CssToLengthConversionData());
+  CHECK(shape);
+  shape_property_functions::SetBasicShape(
+      CssProperty(), *shape,
+      To<ShapeNonInterpolableValue>(*non_interpolable_value).GetBox(),
+      state.StyleBuilder());
 }
 
 void CSSShapeInterpolationType::Composite(

@@ -73,10 +73,9 @@ export class SignInPromoRefreshElement extends SignInPromoRefreshElementBase {
       managedDeviceDisclaimer_: {type: String},
       isDeviceManaged_: {type: Boolean},
       anyButtonClicked_: {type: Boolean},
+      usePrimaryAndTonalButtonsForPromos_: {type: Boolean},
       shouldDisableAnimations_: {type: Boolean},
       isFirstRunDesktopRevampEnabled_: {type: Boolean},
-      // Exposed to CSS as 'is-pre-first-run-desktop-refresh-enabled_'.
-      isPreFirstRunDesktopRefreshEnabled_: {type: Boolean, reflect: true},
       isDarkMode_: {type: Boolean},
     };
   }
@@ -87,8 +86,8 @@ export class SignInPromoRefreshElement extends SignInPromoRefreshElementBase {
       loadTimeData.getBoolean('isDeviceManaged');
   protected accessor isFirstRunDesktopRevampEnabled_: boolean =
       loadTimeData.getBoolean('isFirstRunDesktopRevampEnabled');
-  protected accessor isPreFirstRunDesktopRefreshEnabled_: boolean =
-      loadTimeData.getBoolean('isPreFirstRunDesktopRefreshEnabled');
+  protected accessor usePrimaryAndTonalButtonsForPromos_: boolean =
+      loadTimeData.getBoolean('usePrimaryAndTonalButtonsForPromos');
   // Animations are disabled if the feature is disabled (there is no mechanism
   // to stop animations) or if we are using "disable animations" test flag.
   protected accessor shouldDisableAnimations_: boolean =

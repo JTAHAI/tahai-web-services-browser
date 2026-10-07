@@ -3,6 +3,7 @@
 # found in the LICENSE file.
 """Asserts for checking tool calls."""
 
+
 import re
 
 
@@ -22,10 +23,8 @@ def check_tool_used_with_args_match(_: str, context: dict) -> dict:
     if not args_regexes:
         return {
             'pass': False,
-            'reason': (
-                'No regexes specified in the `args_regexes` field of '
-                'the assertion config.'
-            ),
+            'reason': ('No regexes specified in the `args_regexes` field of '
+                       'the assertion config.'),
             'score': 0,
         }
     if isinstance(args_regexes, str):
@@ -34,10 +33,8 @@ def check_tool_used_with_args_match(_: str, context: dict) -> dict:
     if not tool_names:
         return {
             'pass': False,
-            'reason': (
-                'No tools specified in the `tool_names` field of the '
-                'assertion config.'
-            ),
+            'reason': ('No tools specified in the `tool_names` field of the '
+                       'assertion config.'),
             'score': 0,
         }
     if isinstance(tool_names, str):
@@ -60,10 +57,8 @@ def check_tool_used_with_args_match(_: str, context: dict) -> dict:
             if all(re.search(regex, args_str) for regex in args_regexes):
                 return {
                     'pass': True,
-                    'reason': (
-                        f'Tool "{function_name}" was used with '
-                        'arguments matching all regexes.'
-                    ),
+                    'reason': (f'Tool "{function_name}" was used with '
+                               'arguments matching all regexes.'),
                     'score': 1,
                 }
 
@@ -71,19 +66,15 @@ def check_tool_used_with_args_match(_: str, context: dict) -> dict:
         used_tool_names = {c.get('function_name') for c in tool_calls}
         return {
             'pass': False,
-            'reason': (
-                f'None of the tools {sorted(tool_names)} were used. '
-                f'Used tools: {sorted(list(used_tool_names))}'
-            ),
+            'reason': (f'None of the tools {sorted(tool_names)} were used. '
+                       f'Used tools: {sorted(list(used_tool_names))}'),
             'score': 0,
         }
 
     # A tool was used, but no arguments matched the regex.
     return {
         'pass': False,
-        'reason': (
-            f'Tool "{tool_used}" was used, but its arguments did not '
-            f'match all of the regexes: "{args_regexes}".'
-        ),
+        'reason': (f'Tool "{tool_used}" was used, but its arguments did not '
+                   f'match all of the regexes: "{args_regexes}".'),
         'score': 0,
     }

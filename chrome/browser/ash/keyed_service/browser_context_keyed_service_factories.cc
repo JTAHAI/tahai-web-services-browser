@@ -90,6 +90,8 @@
 #include "chrome/browser/ash/platform_keys/key_permissions/key_permissions_service_factory.h"
 #include "chrome/browser/ash/platform_keys/key_permissions/user_private_token_kpm_service_factory.h"
 #include "chrome/browser/ash/platform_keys/keystore_service_factory.h"
+#include "chrome/browser/ash/plugin_vm/plugin_vm_installer_factory.h"
+#include "chrome/browser/ash/plugin_vm/plugin_vm_manager_factory.h"
 #include "chrome/browser/ash/policy/core/user_cloud_policy_manager_ash.h"
 #include "chrome/browser/ash/policy/core/user_cloud_policy_token_forwarder_factory.h"
 #include "chrome/browser/ash/printing/cups_print_job_manager_factory.h"
@@ -212,6 +214,8 @@ void EnsureBrowserContextKeyedServiceFactoriesBuilt() {
   platform_keys::KeyPermissionsServiceFactory::GetInstance();
   platform_keys::UserPrivateTokenKeyPermissionsManagerServiceFactory::
       GetInstance();
+  plugin_vm::PluginVmInstallerFactory::GetInstance();
+  plugin_vm::PluginVmManagerFactory::GetInstance();
   policy::UserCloudPolicyManagerAsh::EnsureFactoryBuilt();
   policy::UserCloudPolicyTokenForwarderFactory::GetInstance();
   printing::print_management::PrintingManagerFactory::GetInstance();

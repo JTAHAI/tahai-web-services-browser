@@ -22,7 +22,6 @@
 #include "chrome/browser/ash/app_mode/kiosk_chrome_app_manager.h"
 #include "chrome/browser/ash/app_mode/kiosk_cryptohome_remover.h"
 #include "chrome/browser/ash/browser_delegate/browser_controller_impl.h"
-#include "chrome/browser/ash/customization/customization_document.h"
 #include "chrome/browser/ash/input_method/input_method_configuration.h"
 #include "chrome/browser/ash/login/enrollment/mock_enrollment_launcher.h"
 #include "chrome/browser/ash/login/quick_unlock/pin_backend.h"
@@ -259,14 +258,6 @@ class WizardControllerTestBase : public ::testing::Test {
         TestingBrowserProcess::GetGlobal());
     CHECK(profile_manager_->SetUp());
 
-    services_customization_document_ =
-        std::make_unique<ServicesCustomizationDocument>(
-            TestingBrowserProcess::GetGlobal()->local_state(),
-            TestingBrowserProcess::GetGlobal()
-                ->GetFeatures()
-                ->application_locale_storage(),
-            TestingBrowserProcess::GetGlobal()->shared_url_loader_factory());
-
     input_method::Initialize(TestingBrowserProcess::GetGlobal()->local_state(),
                              TestingBrowserProcess::GetGlobal()
                                  ->GetFeatures()
@@ -356,7 +347,6 @@ class WizardControllerTestBase : public ::testing::Test {
     input_method::Shutdown();
     profile_ = nullptr;
     profile_manager_.reset();
-    services_customization_document_.reset();
     session_manager_.reset();
     fake_user_manager_.Reset();
 
@@ -419,8 +409,6 @@ class WizardControllerTestBase : public ::testing::Test {
 
   std::unique_ptr<base::test::TaskEnvironment> task_environment_;
   network::TestURLLoaderFactory test_url_loader_factory_;
-  std::unique_ptr<ServicesCustomizationDocument>
-      services_customization_document_;
 
   std::unique_ptr<ScopedTestingCrosSettings> cros_settings_;
   std::unique_ptr<ash::SessionTerminationManager> session_termination_manager_;

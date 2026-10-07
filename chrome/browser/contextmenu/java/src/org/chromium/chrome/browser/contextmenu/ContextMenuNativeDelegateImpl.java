@@ -71,9 +71,10 @@ class ContextMenuNativeDelegateImpl implements ContextMenuNativeDelegate {
         if (mNativePtr == 0) return;
 
         Callback<ImageCallbackResult> imageRetrieveCallback =
-                (ImageCallbackResult result) ->
-                        ShareImageFileUtils.generateTemporaryUriFromData(
-                                result.imageData, result.extension, callback);
+                (result) -> {
+                    ShareImageFileUtils.generateTemporaryUriFromData(
+                            result.imageData, result.extension, callback);
+                };
 
         if (sHardcodedImageBytesForTesting != null) {
             imageRetrieveCallback.onResult(createImageCallbackResultForTesting());

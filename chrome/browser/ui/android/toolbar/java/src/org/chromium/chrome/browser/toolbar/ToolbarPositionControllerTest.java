@@ -96,6 +96,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 /** Unit tests for {@link ToolbarPositionController}. */
 @RunWith(BaseRobolectricTestRunner.class)
+@Config(manifest = Config.NONE)
 @DisableFeatures(ChromeFeatureList.CROSS_DEVICE_PREF_TRACKER_EXTRA_LOGS)
 public class ToolbarPositionControllerTest {
 
@@ -104,6 +105,7 @@ public class ToolbarPositionControllerTest {
 
     private static final int TOOLBAR_HEIGHT = 56;
     private static final int CONTROL_CONTAINER_ID = 12356;
+    private static final int STATUS_BAR_HEIGHT = 10;
 
     private BrowserControlsStateProvider.Observer mBrowserControlsObserver;
 

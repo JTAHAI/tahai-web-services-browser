@@ -9,7 +9,6 @@
 #include <iterator>
 #include <utility>
 
-#include "base/memory/raw_ptr_exclusion.h"
 #include "third_party/blink/renderer/core/layout/svg/svg_character_data.h"
 #include "third_party/blink/renderer/platform/wtf/vector.h"
 
@@ -63,10 +62,7 @@ class ResolvedTextLayoutAttributesIterator final {
 
  private:
   const SvgCharacterData default_data_;
-  // Excluded for performance reasons: this iterator is short-lived, so BRP
-  // ref-count churn would cost more than the protection is worth.
-  RAW_PTR_EXCLUSION const Vector<std::pair<unsigned, SvgCharacterData>>&
-      resolved_;
+  const Vector<std::pair<unsigned, SvgCharacterData>>& resolved_;
   wtf_size_t index_ = 0u;
 };
 

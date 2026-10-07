@@ -23,7 +23,6 @@ def __step_config(ctx, step_config):
             "command_prefix": platform.python_bin + " ../../v8/tools/run.py ./torque",
             "remote": remote_run,
             "timeout": "2m",
-            "remote_command": platform.remote_python_bin,
         },
         {
             "name": "v8/mksnapshot",
@@ -36,7 +35,6 @@ def __step_config(ctx, step_config):
             # The outputs of mksnapshot are often required for running the
             # following steps.
             "output_local": True,
-            "remote_command": platform.remote_python_bin,
         },
     ])
     return step_config

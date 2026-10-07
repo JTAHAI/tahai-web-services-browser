@@ -25,9 +25,8 @@ class PasswordManagerEnabledTest(ChromeEnterpriseTestCase):
   def isPasswordManagerEnabled(self):
     dir = os.path.dirname(os.path.abspath(__file__))
     output = self.RunWebDriverTest(
-      self.win_config['client'],
-      os.path.join(dir, 'password_manager_enabled_webdriver_test.py'),
-    )
+        self.win_config['client'],
+        os.path.join(dir, 'password_manager_enabled_webdriver_test.py'))
     return "TRUE" in output
 
   @test

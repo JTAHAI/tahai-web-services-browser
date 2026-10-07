@@ -46,8 +46,8 @@
                                    browser:browser
                                       type:InfobarType::kInfobarTypeConfirm];
   if (self) {
-    CHECK(viewController);
-    CHECK(browser);
+    CHECK(viewController, base::NotFatalUntil::M145);
+    CHECK(browser, base::NotFatalUntil::M145);
     self.shouldUseDefaultDismissal = NO;
     _promoReason = promoReason;
   }
@@ -160,10 +160,8 @@
 - (NSString*)defaultBrowserNonModalSubtitleForPromoReason {
   switch (_promoReason) {
     case NonModalDefaultBrowserPromoReason::PromoReasonOmniboxPaste:
-      return l10n_util::GetNSString([self
-          stringIdForOmniboxPasteExperimentWithDefaultId:
-              IDS_IOS_DEFAULT_BROWSER_NON_MODAL_OMNIBOX_NAVIGATION_DESCRIPTION
-                                                 isTitle:NO]);
+      return l10n_util::GetNSString(
+          IDS_IOS_DEFAULT_BROWSER_NON_MODAL_OMNIBOX_NAVIGATION_DESCRIPTION);
     case NonModalDefaultBrowserPromoReason::PromoReasonAppSwitcher:
       return l10n_util::GetNSString(
           IDS_IOS_DEFAULT_BROWSER_NON_MODAL_1P_APP_DESCRIPTION);
@@ -180,10 +178,8 @@
 - (NSString*)defaultBrowserNonModalTitleForPromoReason {
   switch (_promoReason) {
     case NonModalDefaultBrowserPromoReason::PromoReasonOmniboxPaste:
-      return l10n_util::GetNSString([self
-          stringIdForOmniboxPasteExperimentWithDefaultId:
-              IDS_IOS_DEFAULT_BROWSER_NON_MODAL_OMNIBOX_NAVIGATION_TITLE
-                                                 isTitle:YES]);
+      return l10n_util::GetNSString(
+          IDS_IOS_DEFAULT_BROWSER_NON_MODAL_OMNIBOX_NAVIGATION_TITLE);
     case NonModalDefaultBrowserPromoReason::PromoReasonAppSwitcher:
       return l10n_util::GetNSString(
           IDS_IOS_DEFAULT_BROWSER_NON_MODAL_1P_APP_TITLE);
@@ -192,58 +188,6 @@
           IDS_IOS_DEFAULT_BROWSER_NON_MODAL_SHARE_TITLE);
     default:
       NOTREACHED();
-  }
-}
-
-// Returns the string resource ID for the active Omnibox Paste experiment arm.
-- (int)stringIdForOmniboxPasteExperimentWithDefaultId:(int)defaultId
-                                              isTitle:(BOOL)isTitle {
-  if (!base::FeatureList::IsEnabled(kOmniboxPastePromoExperiment)) {
-    return defaultId;
-  }
-  switch (GetOmniboxPastePromoExperimentType()) {
-    case 1:
-      return isTitle
-                 ? IDS_IOS_DEFAULT_BROWSER_NON_MODAL_OMNIBOX_NAVIGATION_TITLE_EXP1
-                 : IDS_IOS_DEFAULT_BROWSER_NON_MODAL_OMNIBOX_NAVIGATION_DESCRIPTION_EXP1;
-    case 2:
-      return isTitle
-                 ? IDS_IOS_DEFAULT_BROWSER_NON_MODAL_OMNIBOX_NAVIGATION_TITLE_EXP2
-                 : IDS_IOS_DEFAULT_BROWSER_NON_MODAL_OMNIBOX_NAVIGATION_DESCRIPTION_EXP2;
-    case 3:
-      return isTitle
-                 ? IDS_IOS_DEFAULT_BROWSER_NON_MODAL_OMNIBOX_NAVIGATION_TITLE_EXP3
-                 : IDS_IOS_DEFAULT_BROWSER_NON_MODAL_OMNIBOX_NAVIGATION_DESCRIPTION_EXP3;
-    case 4:
-      return isTitle
-                 ? IDS_IOS_DEFAULT_BROWSER_NON_MODAL_OMNIBOX_NAVIGATION_TITLE_EXP4
-                 : IDS_IOS_DEFAULT_BROWSER_NON_MODAL_OMNIBOX_NAVIGATION_DESCRIPTION_EXP4;
-    case 5:
-      return isTitle
-                 ? IDS_IOS_DEFAULT_BROWSER_NON_MODAL_OMNIBOX_NAVIGATION_TITLE_EXP5
-                 : IDS_IOS_DEFAULT_BROWSER_NON_MODAL_OMNIBOX_NAVIGATION_DESCRIPTION_EXP5;
-    case 6:
-      return isTitle
-                 ? IDS_IOS_DEFAULT_BROWSER_NON_MODAL_OMNIBOX_NAVIGATION_TITLE_EXP6
-                 : IDS_IOS_DEFAULT_BROWSER_NON_MODAL_OMNIBOX_NAVIGATION_DESCRIPTION_EXP6;
-    case 7:
-      return isTitle
-                 ? IDS_IOS_DEFAULT_BROWSER_NON_MODAL_OMNIBOX_NAVIGATION_TITLE_EXP7
-                 : IDS_IOS_DEFAULT_BROWSER_NON_MODAL_OMNIBOX_NAVIGATION_DESCRIPTION_EXP7;
-    case 8:
-      return isTitle
-                 ? IDS_IOS_DEFAULT_BROWSER_NON_MODAL_OMNIBOX_NAVIGATION_TITLE_EXP8
-                 : IDS_IOS_DEFAULT_BROWSER_NON_MODAL_OMNIBOX_NAVIGATION_DESCRIPTION_EXP8;
-    case 9:
-      return isTitle
-                 ? IDS_IOS_DEFAULT_BROWSER_NON_MODAL_OMNIBOX_NAVIGATION_TITLE_EXP9
-                 : IDS_IOS_DEFAULT_BROWSER_NON_MODAL_OMNIBOX_NAVIGATION_DESCRIPTION_EXP9;
-    case 10:
-      return isTitle
-                 ? IDS_IOS_DEFAULT_BROWSER_NON_MODAL_OMNIBOX_NAVIGATION_TITLE_EXP10
-                 : IDS_IOS_DEFAULT_BROWSER_NON_MODAL_OMNIBOX_NAVIGATION_DESCRIPTION_EXP10;
-    default:
-      return defaultId;
   }
 }
 

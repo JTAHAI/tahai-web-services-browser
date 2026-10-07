@@ -18,10 +18,6 @@ namespace blink {
 
 class CSSValue;
 
-namespace cssvalue {
-class CSSSymbolsValue;
-}  // namespace cssvalue
-
 enum class CounterStyleSystem {
   kCyclic,
   kFixed,
@@ -62,13 +58,6 @@ class CORE_EXPORT CounterStyle final : public GarbageCollected<CounterStyle> {
   static CounterStyle* Create(
       const CascadeLayered<const StyleRuleCounterStyle>&);
 
-  // Creates the anonymous counter style described by a symbols() function
-  // value, applying the implied descriptor values from the spec, along with any
-  // fallback behavior.
-  // https://drafts.csswg.org/css-counter-styles-3/#symbols-function
-  static CounterStyle* CreateAnonymousCounterStyle(
-      const cssvalue::CSSSymbolsValue&);
-
   const StyleRuleCounterStyle& GetStyleRule() const { return *style_rule_; }
   CascadeLayered<const StyleRuleCounterStyle> GetLayeredStyleRule() const {
     return CascadeLayered<const StyleRuleCounterStyle>(style_rule_,
@@ -77,11 +66,6 @@ class CORE_EXPORT CounterStyle final : public GarbageCollected<CounterStyle> {
 
   AtomicString GetName() const;
   CounterStyleSystem GetSystem() const { return system_; }
-
-  // Compares the declared descriptors and the resolved `extends`, `fallback`
-  // and `speak-as` targets by identity, so two styles that resolve differently
-  // are not equal.
-  bool operator==(const CounterStyle& other) const;
 
   bool IsPredefined() const { return is_predefined_; }
   void SetIsPredefined() { is_predefined_ = true; }

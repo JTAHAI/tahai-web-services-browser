@@ -1,2 +1,3 @@
-rules:
-- "**": [event-timing]
+features:
+- name: event-timing
+  files: "**"

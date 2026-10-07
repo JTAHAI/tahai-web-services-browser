@@ -7,7 +7,6 @@
 #include <memory>
 
 #include "base/test/task_environment.h"
-#include "base/uuid.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
 namespace notebooks {
@@ -27,15 +26,10 @@ TEST_F(EmptyNotebooksServiceTest, ConstructionAndInitialization) {
   EXPECT_TRUE(service->IsEmptyForTesting());
 }
 
-TEST_F(EmptyNotebooksServiceTest, GetNotebookReturnsNullopt) {
+TEST_F(EmptyNotebooksServiceTest, IsUserEligibleReturnsFalse) {
   auto service = std::make_unique<EmptyNotebooksService>();
-  EXPECT_EQ(service->GetNotebook(NotebookId(base::Uuid::GenerateRandomV4())),
-            std::nullopt);
-}
-
-TEST_F(EmptyNotebooksServiceTest, GetAllNotebooksReturnsEmpty) {
-  auto service = std::make_unique<EmptyNotebooksService>();
-  EXPECT_TRUE(service->GetAllNotebooks().empty());
+  EXPECT_FALSE(service->IsUserEligible());
+  EXPECT_FALSE(service->IsEligibilityLoading());
 }
 
 }  // namespace notebooks

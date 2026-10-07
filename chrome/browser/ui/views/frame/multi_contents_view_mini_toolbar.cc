@@ -17,7 +17,6 @@
 #include "chrome/browser/ui/tabs/alert/tab_alert_controller.h"
 #include "chrome/browser/ui/tabs/alert/tab_alert_icon.h"
 #include "chrome/browser/ui/tabs/public/tab_features.h"
-#include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/frame/contents_container_outline.h"
 #include "chrome/browser/ui/views/frame/contents_web_view.h"
@@ -112,7 +111,7 @@ MultiContentsViewMiniToolbar::MultiContentsViewMiniToolbar(
   close_button_ = AddChildView(views::CreateVectorImageButtonWithNativeTheme(
       base::BindRepeating(&MultiContentsViewMiniToolbar::CloseCurrentView,
                           base::Unretained(this)),
-      features::IsRoundedIconsEnabled() ? kCloseWeight500CustomIcon
+      features::IsRoundedIconsEnabled() ? kCloseWeight500Icon
                                         : kCloseTabChromeRefreshOldIcon,
       features::IsRoundedIconsEnabled() ? 14 : 16,
       kColorMultiContentsViewMiniToolbarForeground));
@@ -300,15 +299,17 @@ void MultiContentsViewMiniToolbar::CloseCurrentView() {
   base::RecordAction(
       base::UserMetricsAction("DesktopSplitView_MiniToolbarCloseView"));
 
-  TabStripModel* const model = browser_view_->browser()->GetTabStripModel();
-  if (model->GetIndexOfWebContents(web_contents_) == TabStripModel::kNoTab) {
+  TabStripModel* const model = browser_view_->browser()->tab_strip_model();
+  const int index = model->GetIndexOfWebContents(web_contents_);
+
+  if (index == TabStripModel::kNoTab) {
     // Only close the WebContents if it exists. crbug.com/459828484
     return;
   }
 
-  model->CloseWebContents(web_contents_,
-                          TabCloseTypes::CLOSE_USER_GESTURE |
-                              TabCloseTypes::CLOSE_CREATE_HISTORICAL_TAB);
+  model->CloseWebContentsAt(index,
+                            TabCloseTypes::CLOSE_USER_GESTURE |
+                                TabCloseTypes::CLOSE_CREATE_HISTORICAL_TAB);
 }
 
 BEGIN_METADATA(MultiContentsViewMiniToolbar)

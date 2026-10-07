@@ -71,7 +71,9 @@ public class DuplicateDownloadDialogBridge {
                         totalBytes,
                         duplicateExists,
                         otrProfileId,
-                        (Boolean accepted) -> onConfirmed(callbackId, accepted));
+                        (accepted) -> {
+                            onConfirmed(callbackId, accepted);
+                        });
     }
 
     @CalledByNative

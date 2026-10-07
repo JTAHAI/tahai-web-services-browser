@@ -329,6 +329,14 @@ export class SettingsPerDeviceKeyboardRemapKeysElement extends
         readOnly: true,
       },
 
+      areF11andF12KeyShortcutsEnabled: {
+        type: Boolean,
+        value() {
+          return loadTimeData.getBoolean('enableF11AndF12KeyShortcuts');
+        },
+        readOnly: true,
+      },
+
       keyboardPolicies: {
         type: Object,
       },
@@ -381,6 +389,7 @@ export class SettingsPerDeviceKeyboardRemapKeysElement extends
   declare keyboard: Keyboard;
   declare protected keyboardPolicies: KeyboardPolicies;
   declare isAltClickAndSixPackCustomizationEnabled: boolean;
+  declare areF11andF12KeyShortcutsEnabled: boolean;
   declare private keyboards: Keyboard[];
   declare protected keyboardId: number;
   declare protected defaultRemappings: {[key: number]: ModifierKey};
@@ -549,7 +558,9 @@ export class SettingsPerDeviceKeyboardRemapKeysElement extends
     this.set('fakeCapsLockPref.value', ModifierKey.kCapsLock);
     this.set('fakeEscPref.value', ModifierKey.kEscape);
     this.set('fakeMetaPref.value', ModifierKey.kMeta);
-    this.set('fakeQuickInsertPref.value', ModifierKey.kQuickInsert);
+    if (loadTimeData.getBoolean('enableModifierSplit')) {
+      this.set('fakeQuickInsertPref.value', ModifierKey.kQuickInsert);
+    }
     if (this.hasFunctionKey) {
       this.set('fakeFunctionPref.value', ModifierKey.kFunction);
     }
@@ -664,9 +675,11 @@ export class SettingsPerDeviceKeyboardRemapKeysElement extends
       updatedRemappings[ModifierKey.kMeta] = this.fakeMetaPref.value;
     }
 
-    if (ModifierKey.kQuickInsert !== this.fakeQuickInsertPref.value) {
-      updatedRemappings[ModifierKey.kQuickInsert] =
-          this.fakeQuickInsertPref.value;
+    if (loadTimeData.getBoolean('enableModifierSplit')) {
+      if (ModifierKey.kQuickInsert !== this.fakeQuickInsertPref.value) {
+        updatedRemappings[ModifierKey.kQuickInsert] =
+            this.fakeQuickInsertPref.value;
+      }
     }
 
     if (this.hasFunctionKey) {
@@ -757,8 +770,10 @@ export class SettingsPerDeviceKeyboardRemapKeysElement extends
   }
 
   protected shouldShowFkeys(): boolean {
-    return this.keyboard?.settings?.f11 != null &&
-        this.keyboard?.settings?.f12 != null && !this.hasFunctionKey;
+    return this.areF11andF12KeyShortcutsEnabled &&
+        (this.keyboard?.settings?.f11 != null &&
+         this.keyboard?.settings?.f12 != null) &&
+        !this.hasFunctionKey;
   }
 
   private getShortcutRowLabel(name: string): string {

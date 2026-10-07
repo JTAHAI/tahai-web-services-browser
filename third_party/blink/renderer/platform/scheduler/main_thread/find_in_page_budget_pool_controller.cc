@@ -33,8 +33,7 @@ FindInPageBudgetPoolController::FindInPageBudgetPoolController(
     : scheduler_(scheduler) {
   base::TimeTicks now = scheduler_->GetTickClock()->NowTicks();
   find_in_page_budget_pool_ = std::make_unique<CPUTimeBudgetPool>(
-      "FindInPageBudgetPool", &scheduler_->tracing_controller_, now,
-      "Scheduler.FindInPageBudgetMs", scheduler_->TracingTrack());
+      "FindInPageBudgetPool", &scheduler_->tracing_controller_, now);
   find_in_page_budget_pool_->SetMaxBudgetLevel(now, kFindInPageMaxBudget);
   find_in_page_budget_pool_->SetTimeBudgetRecoveryRate(
       now, kFindInPageBudgetRecoveryRate);

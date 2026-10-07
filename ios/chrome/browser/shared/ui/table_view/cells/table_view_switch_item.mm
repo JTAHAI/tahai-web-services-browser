@@ -51,6 +51,7 @@
 
   cell.contentConfiguration = contentConfiguration;
   cell.accessibilityLabel = contentConfiguration.accessibilityLabel;
+  cell.accessibilityValue = contentConfiguration.accessibilityValue;
   cell.accessibilityHint = contentConfiguration.accessibilityHint;
   cell.selectionStyle = UITableViewCellSelectionStyleNone;
 }

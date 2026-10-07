@@ -43,7 +43,7 @@ void CobrowseTabHelper::WasShown(web::WebState* web_state) {
   }
 
   GURL url = web_state->GetVisibleURL();
-  if (ShouldHideAssistant(web_state, url)) {
+  if (ShouldHideAssistant(url)) {
     [scene_handler_ hideAssistant];
     return;
   }
@@ -60,12 +60,6 @@ void CobrowseTabHelper::WasShown(web::WebState* web_state) {
 
 void CobrowseTabHelper::WasHidden(web::WebState* web_state) {
   if (!scene_handler_) {
-    return;
-  }
-
-  if (delegate_ && !delegate_->IsWebStateActive(web_state)) {
-    // If the web state is no longer active, do not hide the global
-    // assistant.
     return;
   }
 
@@ -105,7 +99,7 @@ void CobrowseTabHelper::DidStartNavigation(
     delegate_->SetCobrowseContext([[CobrowseContext alloc] initWithURL:url]);
   }
 
-  if (ShouldHideAssistant(web_state, url)) {
+  if (ShouldHideAssistant(url)) {
     [scene_handler_ hideAssistant];
     return;
   }
@@ -124,25 +118,11 @@ void CobrowseTabHelper::WebStateDestroyed(web::WebState* web_state) {
 #pragma mark - Private helpers
 
 void CobrowseTabHelper::ShowAssistant() {
-  web::WebState* web_state = observation_.GetSource();
-  if (!web_state) {
-    return;
-  }
-
-  if (!web_state->IsVisible()) {
-    return;
-  }
-
-  if (ShouldHideAssistant(web_state, web_state->GetVisibleURL())) {
-    return;
-  }
-
   [scene_handler_ showAssistant];
 }
 
-bool CobrowseTabHelper::ShouldHideAssistant(web::WebState* web_state,
-                                            const GURL& url) {
-  if (delegate_ && delegate_->ShouldHideAssistantForWebState(web_state)) {
+bool CobrowseTabHelper::ShouldHideAssistant(const GURL& url) {
+  if (delegate_ && delegate_->IsTabGridVisible()) {
     return true;
   }
 
@@ -150,7 +130,7 @@ bool CobrowseTabHelper::ShouldHideAssistant(web::WebState* web_state,
     return true;
   }
 
-  if (!url.is_valid() || url.IsAboutBlank() || IsUrlNtp(url)) {
+  if (IsUrlNtp(url)) {
     return true;
   }
 

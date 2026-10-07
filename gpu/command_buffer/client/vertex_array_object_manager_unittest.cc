@@ -71,8 +71,8 @@ TEST_F(VertexArrayObjectManagerTest, UnbindBuffer) {
   GLuint ids[2] = { 1, 3, };
   manager_->GenVertexArrays(std::size(ids), ids);
   // Bind buffers to attribs on 2 vaos.
-  for (GLuint id : ids) {
-    EXPECT_TRUE(manager_->BindVertexArray(id, &changed));
+  for (size_t ii = 0; ii < std::size(ids); ++ii) {
+    UNSAFE_TODO(EXPECT_TRUE(manager_->BindVertexArray(ids[ii], &changed)));
     EXPECT_TRUE(manager_->SetAttribPointer(
         kBufferToUnbind, 0, 4, GL_FLOAT, false, 0, 0, GL_FALSE));
     EXPECT_TRUE(manager_->SetAttribPointer(

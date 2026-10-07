@@ -125,6 +125,7 @@
 #include "services/network/shared_dictionary/shared_dictionary_access_checker.h"
 #include "services/network/shared_dictionary/shared_dictionary_manager.h"
 #include "services/network/shared_dictionary/shared_dictionary_storage.h"
+#include "services/network/shared_storage/shared_storage_request_helper.h"
 #include "services/network/slop_bucket.h"
 #include "services/network/ssl_private_key_proxy.h"
 #include "services/network/throttling/scoped_throttling_token.h"
@@ -254,8 +255,7 @@ bool IncludesValidLoadField(const net::HttpResponseHeaders* headers) {
   if (!item.has_value()) {
     return false;
   }
-  const std::string* token = item->item.GetIfToken();
-  return token && *token == "load";
+  return item->item.is_token() && item->item.GetString() == "load";
 }
 
 int32_t PopulateOptions(int32_t initial_options,
@@ -342,6 +342,7 @@ URLLoader::URLLoader(
     ObserverWrapper<mojom::DeviceBoundSessionAccessObserver>
         device_bound_session_observer,
     mojo::PendingRemote<mojom::AcceptCHFrameObserver> accept_ch_frame_observer,
+    bool shared_storage_writable_eligible,
     SharedResourceChecker& shared_resource_checker,
     std::unique_ptr<DevtoolsDurableMessageWriter> maybe_durable_message_writer,
     mojo::ScopedDataPipeProducerHandle response_body_stream)
@@ -400,6 +401,10 @@ URLLoader::URLLoader(
           InitializeDeviceBoundSessionAccessObserverSharedRemote(
               std::move(device_bound_session_observer),
               context)),
+      shared_storage_request_helper_(
+          std::make_unique<SharedStorageRequestHelper>(
+              shared_storage_writable_eligible,
+              url_loader_network_observer_.get())),
       has_fetch_streaming_upload_body_(
           url_loader_util::HasFetchStreamingUploadBody(request)),
       accept_ch_frame_interceptor_(AcceptCHFrameInterceptor::MaybeCreate(
@@ -465,8 +470,7 @@ URLLoader::URLLoader(
 
   url_request_ = url_request_context_->CreateRequest(
       request.url, request.priority, this, traffic_annotation,
-      factory_params_->target_network.value_or(
-          net::handles::kInvalidNetworkHandle),
+      net::handles::kInvalidNetworkHandle,
       /*is_for_websockets=*/false, request.net_log_create_info);
 
   // If the request is to a URL that we can determine is an LNA request from
@@ -669,7 +673,7 @@ void URLLoader::ProcessOutboundTrustTokenInterceptor(
   // If no Trust Token parameters are specified, proceed to the next
   // interceptor.
   if (!request.trust_token_params) {
-    ScheduleStart();
+    ProcessOutboundSharedStorageInterceptor();
     return;
   }
   // If trust_token_params exist, the interceptor MUST have been created in the
@@ -734,7 +738,13 @@ void URLLoader::OnDoneBeginningTrustTokenOperation(
     url_request_->SetExtraRequestHeaderByName(
         header_pair.key, header_pair.value, /*overwrite=*/true);
   }
-  // Trust Token outbound processing is done, proceed to ScheduleStart.
+  // Trust Token outbound processing is done, proceed to the next interceptor.
+  ProcessOutboundSharedStorageInterceptor();
+}
+
+void URLLoader::ProcessOutboundSharedStorageInterceptor() {
+  DCHECK(shared_storage_request_helper_);
+  shared_storage_request_helper_->ProcessOutgoingRequest(*url_request_);
   ScheduleStart();
 }
 
@@ -826,15 +836,16 @@ void URLLoader::FollowRedirect(
   local_network_access_interceptor_.ResetForRedirect(
       new_url ? *new_url : *deferred_redirect_url_);
 
+  // Propagate removal or restoration of shared storage eligiblity to the helper
+  // if the "Sec-Shared-Storage-Writable" request header has been removed or
+  // restored.
+  DCHECK(shared_storage_request_helper_);
+  shared_storage_request_helper_->UpdateSharedStorageWritableEligible(
+      headers_update_params.removed_headers,
+      headers_update_params.modified_headers);
+
   deferred_redirect_url_.reset();
   new_redirect_url_ = new_url;
-  pvt_token_removed_due_to_cookies_ = false;
-
-  if (base::FeatureList::IsEnabled(
-          net::features::kEnablePrivateVerificationTokens)) {
-    url_request_->RemoveRequestHeaderByName(
-        net::HttpRequestHeaders::kSecPrivateVerificationToken);
-  }
 
   net::HttpRequestHeaders merged_modified_headers =
       std::move(headers_update_params.modified_headers);
@@ -952,8 +963,6 @@ mojom::URLResponseHeadPtr URLLoader::BuildResponseHead() const {
       include_load_timing_internal_info_with_response_,
       /*response_start=*/base::TimeTicks::Now(), devtools_observer_.get(),
       devtools_request_id().value_or(""));
-  response->pvt_token_removed_due_to_cookies =
-      pvt_token_removed_due_to_cookies_;
   if (response->load_timing_internal_info) {
     response->load_timing_internal_info->accept_ch_frame_received =
         accept_ch_frame_received_;
@@ -1048,6 +1057,27 @@ void URLLoader::OnReceivedRedirect(net::URLRequest* url_request,
     return;
   }
 
+  ProcessInboundSharedStorageInterceptorOnReceivedRedirect(redirect_info,
+                                                           std::move(response));
+}
+
+void URLLoader::ProcessInboundSharedStorageInterceptorOnReceivedRedirect(
+    const net::RedirectInfo& redirect_info,
+    mojom::URLResponseHeadPtr response) {
+  DCHECK(shared_storage_request_helper_);
+
+  auto split = base::SplitOnceCallback(base::BindOnce(
+      &URLLoader::ContinueOnReceiveRedirect, weak_ptr_factory_.GetWeakPtr(),
+      redirect_info, std::move(response)));
+  if (!shared_storage_request_helper_->ProcessIncomingResponse(
+          *url_request_, std::move(split.first))) {
+    std::move(split.second).Run();
+  }
+}
+
+void URLLoader::ContinueOnReceiveRedirect(
+    const net::RedirectInfo& redirect_info,
+    mojom::URLResponseHeadPtr response) {
   DCHECK(response);
   url_loader_client_.Get()->OnReceiveRedirect(redirect_info,
                                               std::move(response));
@@ -1139,6 +1169,14 @@ void URLLoader::OnSSLCertificateError(net::URLRequest* request,
                      weak_ptr_factory_.GetWeakPtr(), ssl_info));
 }
 
+void URLLoader::ProcessInboundSharedStorageInterceptorOnResponseStarted() {
+  DCHECK(shared_storage_request_helper_);
+  if (!shared_storage_request_helper_->ProcessIncomingResponse(
+          *url_request_, base::BindOnce(&URLLoader::ContinueOnResponseStarted,
+                                        weak_ptr_factory_.GetWeakPtr()))) {
+    ContinueOnResponseStarted();
+  }
+}
 
 void URLLoader::OnResponseStarted(net::URLRequest* url_request, int net_error) {
   DCHECK(url_request == url_request_.get());
@@ -1191,7 +1229,7 @@ void URLLoader::OnResponseStarted(net::URLRequest* url_request, int net_error) {
     return;
   }
 
-  ContinueOnResponseStarted();
+  ProcessInboundSharedStorageInterceptorOnResponseStarted();
 }
 
 void URLLoader::OnDoneFinalizingTrustTokenOperation(net::Error error) {
@@ -1200,7 +1238,7 @@ void URLLoader::OnDoneFinalizingTrustTokenOperation(net::Error error) {
     // |this| may have been deleted.
     return;
   }
-  ContinueOnResponseStarted();
+  ProcessInboundSharedStorageInterceptorOnResponseStarted();
 }
 
 void URLLoader::ContinueOnResponseStarted() {
@@ -1802,27 +1840,9 @@ int URLLoader::OnBeforeStartTransaction(
     net::NetworkDelegate::OnBeforeStartTransactionCallback callback) {
   const net::HttpRequestHeaders* used_headers = &headers;
   net::HttpRequestHeaders headers_with_bonus_cookies;
-  bool headers_modified = false;
   if (!cookies_from_browser_.empty()) {
     headers_with_bonus_cookies = AttachCookies(headers, cookies_from_browser_);
     used_headers = &headers_with_bonus_cookies;
-    headers_modified = true;
-  }
-
-  net::HttpRequestHeaders modified_headers_removed_pvt;
-
-  if (base::FeatureList::IsEnabled(
-          net::features::kEnablePrivateVerificationTokens)) {
-    if (used_headers->HasHeader(
-            net::HttpRequestHeaders::kSecPrivateVerificationToken) &&
-        used_headers->HasHeader(net::HttpRequestHeaders::kCookie)) {
-      modified_headers_removed_pvt = *used_headers;
-      modified_headers_removed_pvt.RemoveHeader(
-          net::HttpRequestHeaders::kSecPrivateVerificationToken);
-      used_headers = &modified_headers_removed_pvt;
-      pvt_token_removed_due_to_cookies_ = true;
-      headers_modified = true;
-    }
   }
 
   if (include_request_cookies_with_response_) {
@@ -1843,13 +1863,14 @@ int URLLoader::OnBeforeStartTransaction(
     return net::ERR_IO_PENDING;
   }
 
-  // If headers were modified (e.g. bonus cookies added or PVT token stripped
-  // due to cookies), `callback` must be invoked to ensure that the updated
-  // headers are used for the transaction.
-  if (headers_modified) {
+  // Additional cookies were added to the existing headers, so `callback` must
+  // be invoked to ensure that the cookies are included in the request.
+  if (!cookies_from_browser_.empty()) {
+    CHECK_EQ(used_headers, &headers_with_bonus_cookies);
     TaskRunner(url_request_->priority())
         ->PostTask(FROM_HERE,
-                   base::BindOnce(std::move(callback), net::OK, *used_headers));
+                   base::BindOnce(std::move(callback), net::OK,
+                                  std::move(headers_with_bonus_cookies)));
     return net::ERR_IO_PENDING;
   }
 

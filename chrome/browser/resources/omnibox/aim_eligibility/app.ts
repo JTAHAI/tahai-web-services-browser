@@ -56,14 +56,13 @@ export class AimEligibilityAppElement extends CrLitElement {
     isEligibleByDse: false,
     isEligibleByPolicy: false,
     isThirdPartyEligibleByPolicy: false,
-    isAimEligibleByServer: false,
-    isFuseboxEligibleByServer: false,
-    isCobrowseEligibleByServer: false,
+    isEligibleByServer: false,
     isServerEligibilityEnabled: false,
     lastUpdated: new Date(0),
     eligibilityResponseBase64Encoded: '',
     eligibilityResponseSource: '',
     eligibilityResponseAuthType: null,
+    searchboxConfigBase64UrlEncoded: '',
     driveStatus: null,
   };
   protected accessor inputState_: InputState = InputState.NONE;
@@ -123,6 +122,11 @@ export class AimEligibilityAppElement extends CrLitElement {
     this.openWindowProxy_.openUrl(this.getProtoshopUrl_(''));
   }
 
+  protected onViewSearchboxConfigClick_() {
+    this.openWindowProxy_.openUrl(`http://go/aim-pec-api-demo?config=${
+        this.eligibilityState_.searchboxConfigBase64UrlEncoded}`);
+  }
+
   protected async onSaveResponseClick_() {
     const result = await this.pageHandler_.setEligibilityResponseForDebugging(
         this.eligibilityState_.eligibilityResponseBase64Encoded);
@@ -151,19 +155,9 @@ export class AimEligibilityAppElement extends CrLitElement {
     return this.eligibilityState_.isEligibleByDse ? '✓ Google' : '✗ Not Google';
   }
 
-  protected getAimEligibilityText_(): string {
-    return this.eligibilityState_.isAimEligibleByServer ? '✓ Eligible' :
-                                                          '✗ Not Eligible';
-  }
-
-  protected getFuseboxEligibilityText_(): string {
-    return this.eligibilityState_.isFuseboxEligibleByServer ? '✓ Eligible' :
-                                                              '✗ Not Eligible';
-  }
-
-  protected getCobrowseEligibilityText_(): string {
-    return this.eligibilityState_.isCobrowseEligibleByServer ? '✓ Eligible' :
-                                                               '✗ Not Eligible';
+  protected getServerEligibilityText_(): string {
+    return this.eligibilityState_.isEligibleByServer ? '✓ Eligible' :
+                                                       '✗ Not Eligible';
   }
 
   protected getDriveSupportedText_(): string {

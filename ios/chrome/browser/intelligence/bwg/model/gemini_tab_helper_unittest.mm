@@ -22,6 +22,9 @@
 #import "components/optimization_guide/proto/contextual_cueing_metadata.pb.h"
 #import "components/optimization_guide/proto/hints.pb.h"
 #import "components/prefs/testing_pref_service.h"
+#import "components/signin/public/base/consent_level.h"
+#import "components/signin/public/identity_manager/account_capabilities_test_mutator.h"
+#import "components/signin/public/identity_manager/identity_test_utils.h"
 #import "components/sync/test/test_sync_service.h"
 #import "components/unified_consent/pref_names.h"
 #import "ios/chrome/browser/feature_engagement/model/tracker_factory.h"
@@ -29,7 +32,6 @@
 #import "ios/chrome/browser/intelligence/bwg/model/gemini_page_context.h"
 #import "ios/chrome/browser/intelligence/bwg/model/gemini_service_factory.h"
 #import "ios/chrome/browser/intelligence/bwg/utils/gemini_prefs.h"
-#import "ios/chrome/browser/intelligence/bwg/utils/gemini_test_utils.h"
 #import "ios/chrome/browser/intelligence/features/features.h"
 #import "ios/chrome/browser/intelligence/proto_wrappers/page_context_wrapper.h"
 #import "ios/chrome/browser/intelligence/zero_state_suggestions/zero_state_suggestions_service.h"
@@ -82,7 +84,7 @@ class GeminiTabHelperTest : public PlatformTest {
         feature_engagement::TrackerFactory::GetDefaultFactory());
     builder.AddTestingFactory(
         AuthenticationServiceFactory::GetInstance(),
-        AuthenticationServiceFactory::GetFactoryWithDelegateForTesting(
+        AuthenticationServiceFactory::GetFactoryWithDelegate(
             std::make_unique<FakeAuthenticationServiceDelegate>()));
     builder.AddTestingFactory(SyncServiceFactory::GetInstance(),
                               base::BindRepeating(&CreateTestSyncService));
@@ -94,7 +96,15 @@ class GeminiTabHelperTest : public PlatformTest {
                               GeminiServiceFactory::GetDefaultFactory());
     profile_ = std::move(builder).Build();
 
-    gemini::test::SetUpEligibleAccount(profile_.get());
+    // Set up a signed in user with the capability to enable Gemini.
+    signin::IdentityManager* identity_manager =
+        IdentityManagerFactory::GetForProfile(profile_.get());
+    AccountInfo account = signin::MakePrimaryAccountAvailable(
+        identity_manager, "test@example.com", signin::ConsentLevel::kSignin);
+    // Grant the user the capability to use Gemini.
+    AccountCapabilitiesTestMutator mutator(&account);
+    mutator.set_can_use_model_execution_features(true);
+    signin::UpdateAccountInfoForAccount(identity_manager, account);
     profile_->GetPrefs()->SetInteger(prefs::kGeminiEnabledByPolicy, 0);
 
     web_state_ = std::make_unique<web::FakeWebState>();
@@ -326,7 +336,7 @@ TEST_F(GeminiTabHelperTest, TestDidStartNavigation_ShowsImageRemixTooltip) {
   feature_engagement::test::ScopedIphFeatureList iph_feature_list;
   iph_feature_list.InitAndEnableFeatures(
       {feature_engagement::kIPHiOSGeminiImageRemixFeature, kPageActionMenu,
-       kZeroStateSuggestions});
+       kGeminiImageRemixTool, kZeroStateSuggestions});
 
   web_state_ = std::make_unique<web::FakeWebState>();
   web_state_->SetBrowserState(profile_.get());
@@ -361,7 +371,7 @@ TEST_F(GeminiTabHelperTest,
   feature_engagement::test::ScopedIphFeatureList iph_feature_list;
   iph_feature_list.InitAndEnableFeatures(
       {feature_engagement::kIPHiOSGeminiImageRemixFeature, kPageActionMenu,
-       kZeroStateSuggestions});
+       kGeminiImageRemixTool, kZeroStateSuggestions});
 
   web_state_ = std::make_unique<web::FakeWebState>();
   web_state_->SetBrowserState(profile_.get());
@@ -396,7 +406,7 @@ TEST_F(GeminiTabHelperTest,
   feature_engagement::test::ScopedIphFeatureList iph_feature_list;
   iph_feature_list.InitAndEnableFeatures(
       {feature_engagement::kIPHiOSGeminiImageRemixFeature, kPageActionMenu,
-       kZeroStateSuggestions});
+       kGeminiImageRemixTool, kZeroStateSuggestions});
 
   web_state_ = std::make_unique<web::FakeWebState>();
   web_state_->SetBrowserState(profile_.get());
@@ -708,7 +718,7 @@ TEST_F(
   feature_engagement::test::ScopedIphFeatureList iph_feature_list;
   iph_feature_list.InitAndEnableFeatures(
       {feature_engagement::kIPHiOSGeminiImageRemixFeature, kPageActionMenu,
-       kZeroStateSuggestions});
+       kGeminiImageRemixTool, kZeroStateSuggestions});
 
   web_state_ = std::make_unique<web::FakeWebState>();
   web_state_->SetBrowserState(profile_.get());

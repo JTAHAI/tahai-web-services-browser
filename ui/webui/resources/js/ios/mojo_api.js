@@ -7,7 +7,6 @@
 
 // eslint-disable-next-line no-var
 var Mojo = Mojo || {};
-Mojo.nextAvailableHandleId = Mojo.nextAvailableHandleId || 1;
 
 /**
  * MojoResult {number}: Result codes for Mojo operations.
@@ -38,22 +37,12 @@ Mojo.RESULT_SHOULD_WAIT = 17;
  *     Result code and (on success) the two message pipe handles.
  */
 Mojo.createMessagePipe = function() {
-  const handle0Id = Mojo.nextAvailableHandleId++;
-  const handle1Id = Mojo.nextAvailableHandleId++;
-
-  Mojo.internal.sendMessage({
-    name: 'Mojo.createMessagePipe',
-    args: {
-      handle0Id: handle0Id,
-      handle1Id: handle1Id,
-    },
-  });
-
-  const result = {
-    handle0: new MojoHandle(handle0Id),
-    handle1: new MojoHandle(handle1Id),
-    result: Mojo.RESULT_OK,
-  };
+  const result =
+      Mojo.internal.sendMessage({name: 'Mojo.createMessagePipe', args: {}});
+  if (result.result === Mojo.RESULT_OK) {
+    result.handle0 = new MojoHandle(result.handle0);
+    result.handle1 = new MojoHandle(result.handle1);
+  }
   return result;
 };
 
@@ -136,29 +125,21 @@ class MojoHandle {
     if (signals.writable) {
       signalsValue |= HANDLE_SIGNAL_WRITABLE;
     }
-    if (signals.peerClosed) {
+    if (signalsValue.peerClosed) {
       signalsValue |= HANDLE_SIGNAL_PEER_CLOSED;
     }
 
-    const callbackId =
-        Mojo.internal.watchCallbacksHolder.registerCallback(callback);
-    const watchIdPromise =
-        Mojo.internal
-            .sendMessage({
-              name: 'MojoHandle.watch',
-              args: {
-                handle: this.nativeHandle_,
-                signals: signalsValue,
-                callbackId: callbackId,
-              },
-            })
-            .then(watchId => {
-              Mojo.internal.watchCallbacksHolder.associateWatchId(
-                  watchId, callbackId);
-              return watchId;
-            });
+    const watchId = Mojo.internal.sendMessage({
+      name: 'MojoHandle.watch',
+      args: {
+        handle: this.nativeHandle_,
+        signals: signalsValue,
+        callbackId: Mojo.internal.watchCallbacksHolder.getNextCallbackId(),
+      },
+    });
+    Mojo.internal.watchCallbacksHolder.addWatchCallback(watchId, callback);
 
-    return new MojoWatcher(watchIdPromise, callbackId);
+    return new MojoWatcher(watchId);
   }
 
   /**
@@ -170,10 +151,6 @@ class MojoHandle {
    * @return {!MojoResult} Result code.
    */
   writeMessage(buffer, handles) {
-    const nativeHandle = this.nativeHandle_;
-    const nativeHandles = handles.map(function(handle) {
-      return handle.takeNativeHandle_();
-    });
     let base64EncodedBuffer;
     if (buffer instanceof Uint8Array) {
       // calls from mojo_bindings.js
@@ -182,15 +159,17 @@ class MojoHandle {
       // calls from mojo/public/js/bindings.js
       base64EncodedBuffer = _arrayBufferToBase64(buffer);
     }
-    Mojo.internal.sendMessage({
+    const nativeHandles = handles.map(function(handle) {
+      return handle.takeNativeHandle_();
+    });
+    return Mojo.internal.sendMessage({
       name: 'MojoHandle.writeMessage',
       args: {
-        handle: nativeHandle,
+        handle: this.nativeHandle_,
         buffer: base64EncodedBuffer,
         handles: nativeHandles,
       },
     });
-    return Mojo.RESULT_OK;
   }
 
   /**
@@ -202,46 +181,38 @@ class MojoHandle {
    *     Result code and (on success) the data and handles received.
    */
   readMessage() {
-    const handleId = this.nativeHandle_;
-    const queue = Mojo.internal.receivedMessagesByHandle[handleId];
-    if (queue && queue.length > 0) {
-      const result = queue.shift();
-      if (result.result === Mojo.RESULT_OK) {
-        result.buffer = new Uint8Array(result.buffer).buffer;
-        result.handles = (result.handles || []).map(function(handle) {
-          return new MojoHandle(handle);
-        });
-      }
-      return result;
+    const result = Mojo.internal.sendMessage(
+        {name: 'MojoHandle.readMessage', args: {handle: this.nativeHandle_}});
+
+    if (result.result === Mojo.RESULT_OK) {
+      result.buffer = new Uint8Array(result.buffer).buffer;
+      result.handles = result.handles.map(function(handle) {
+        return new MojoHandle(handle);
+      });
     }
-    return {result: Mojo.RESULT_SHOULD_WAIT};
+    return result;
   }
 }
+
 
 /**
  * MojoWatcher identifies a watch on a MojoHandle and can be used to cancel the
  * watch.
  */
 class MojoWatcher {
-  /**
-   * @param {!Promise<number>} watchIdPromise
-   * @param {number} callbackId
-   */
-  constructor(watchIdPromise, callbackId) {
-    this.watchIdPromise_ = watchIdPromise;
-    this.callbackId_ = callbackId;
+  /** @param {number} An opaque id representing the watch. */
+  constructor(watchId) {
+    this.watchId_ = watchId;
   }
 
-  /**
+  /*
    * Cancels a handle watch.
-   * @return {!Promise<Object>} Response from Mojo backend.
+   * @return {Object=} Response from Mojo backend.
    */
-  async cancel() {
-    Mojo.internal.watchCallbacksHolder.removeCallbackById(this.callbackId_);
-    const watchId = await this.watchIdPromise_;
-    const result = await Mojo.internal.sendMessage(
-        {name: 'MojoWatcher.cancel', args: {watchId: watchId}});
-    Mojo.internal.watchCallbacksHolder.removeWatchCallback(watchId);
+  cancel() {
+    const result = Mojo.internal.sendMessage(
+        {name: 'MojoWatcher.cancel', args: {watchId: this.watchId_}});
+    Mojo.internal.watchCallbacksHolder.removeWatchCallback(this.watchId_);
     return result;
   }
 }
@@ -292,7 +263,7 @@ Mojo.internal.fetchNextMessageFromNative = function(handleId, result) {
  * @return {!Promise<Object>}
  */
 
-Mojo.internal.sendMessage = async function(message) {
+Mojo.internal.sendMessageAsync = async function(message) {
   const messageId = Mojo.internal.nextAvailableMessageId++;
   const wrappedMessage = {message_id: messageId, message: message};
 
@@ -308,7 +279,7 @@ Mojo.internal.sendMessage = async function(message) {
   });
 };
 
-// Resolves a waiting promise created in sendMessage for `messageId` with
+// Resolves a waiting promise created in sendMessageAsync for `messageId` with
 // `result`.
 Mojo.internal.messageReceived = function(messageId, result) {
   const resolver = Mojo.internal.sendMessageResultPromises[messageId];
@@ -322,7 +293,7 @@ Mojo.internal.messageReceived = function(messageId, result) {
 /**
  * Called by the native iOS bridge to retrieve the next outgoing message from
  * JS. If the outgoing queue is empty, returns a Promise that resolves as soon
- * as sendMessage() is next called.
+ * as sendMessageAsync() is next called.
  * @return {!Promise<Object>}
  */
 
@@ -335,6 +306,16 @@ Mojo.internal.fetchNextMessageFromJS = async function() {
   return new Promise((resolve) => {
     Mojo.internal.sendNextMessagePromiseResolver = resolve;
   });
+};
+
+/**
+ * Synchronously sends a message to Mojo backend.
+ * @param {!Object} message The message to send.
+ * @return {Object=} Response from Mojo backend.
+ */
+Mojo.internal.sendMessage = function(message) {
+  const response = window.prompt(JSON.stringify(message));
+  return response ? JSON.parse(response) : undefined;
 };
 
 /**
@@ -377,34 +358,26 @@ Mojo.internal.watchCallbacksHolder = (function() {
   };
 
   /**
-   * Registers watch callback and returns next callback id.
+   * Returns next callback id to be used for watch (idempotent).
    *
-   * @param {!function(!MojoResult)} callback
    * @return {number} callback id.
    */
-  const registerCallback = function(callback) {
-    const callbackId = nextCallbackId++;
-    callbacks.set(callbackId, callback);
-    return callbackId;
+  const getNextCallbackId = function() {
+    return nextCallbackId;
   };
 
   /**
-   * Associates watchId with callbackId.
+   * Adds callback which must be executed when the watch fires.
    *
-   * @param {number} watchId
-   * @param {number} callbackId
+   * @param {number} watchId The value returned from "MojoHandle.watch" Mojo
+   *     backend.
+   * @param {!function(!MojoResult)} callback The callback which should be
+   *     executed when the watch fires.
    */
-  const associateWatchId = function(watchId, callbackId) {
-    callbackIds.set(watchId, callbackId);
-  };
-
-  /**
-   * Removes callback directly by callbackId.
-   *
-   * @param {number} callbackId
-   */
-  const removeCallbackById = function(callbackId) {
-    callbacks.delete(callbackId);
+  const addWatchCallback = function(watchId, callback) {
+    callbackIds.set(watchId, nextCallbackId);
+    callbacks.set(nextCallbackId, callback);
+    ++nextCallbackId;
   };
 
   /**
@@ -413,16 +386,14 @@ Mojo.internal.watchCallbacksHolder = (function() {
    * @param {!number} watchId The id to remove callback for.
    */
   const removeWatchCallback = function(watchId) {
-    const callbackId = callbackIds.get(watchId);
-    callbacks.delete(callbackId);
+    callbacks.delete(callbackIds.get(watchId));
     callbackIds.delete(watchId);
   };
 
   return {
     callCallback: callCallback,
-    registerCallback: registerCallback,
-    associateWatchId: associateWatchId,
-    removeCallbackById: removeCallbackById,
+    getNextCallbackId: getNextCallbackId,
+    addWatchCallback: addWatchCallback,
     removeWatchCallback: removeWatchCallback,
   };
 })();

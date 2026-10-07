@@ -28,7 +28,6 @@ class COMPONENT_EXPORT(AX_PLATFORM) BrowserAccessibilityWin : public BrowserAcce
   // a node needs to be updated for some other reason other than via
   // OnAtomicUpdateFinished.
   void UpdatePlatformAttributes() override;
-  void UpdatePlatformNode() override;
 
   //
   // AXPlatformNodeDelegate overrides.

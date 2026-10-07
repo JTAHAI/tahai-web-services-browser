@@ -140,9 +140,7 @@ class AuthenticationService : public KeyedService,
 
   // Shows the MDM Error dialog for `identity` if it has an associated MDM
   // error. Returns true if `identity` had an associated error, false otherwise.
-  bool ShowMDMErrorDialogForIdentity(
-      id<SystemIdentity> identity,
-      base::OnceCallback<void(bool)> callback = base::NullCallback());
+  bool ShowMDMErrorDialogForIdentity(id<SystemIdentity> identity);
 
   // Returns a weak pointer of this.
   base::WeakPtr<AuthenticationService> GetWeakPtr();
@@ -287,12 +285,7 @@ class AuthenticationService : public KeyedService,
   raw_ptr<ChromeAccountManagerService> account_manager_service_ = nullptr;
   raw_ptr<signin::IdentityManager> identity_manager_ = nullptr;
   raw_ptr<syncer::SyncService> sync_service_ = nullptr;
-  // TODO(crbug.com/484371187): Investigate if reentrancy can be removed.
-  base::ObserverList<
-      AuthenticationServiceObserver,
-      true,
-      base::ObserverListReentrancyPolicy::kAllowReentrancyUntriaged>
-      observer_list_;
+  base::ObserverList<AuthenticationServiceObserver, true> observer_list_;
   // Whether Initialize() has been called.
   bool initialized_ = false;
 

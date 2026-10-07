@@ -10,6 +10,7 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.robolectric.annotation.Config;
 
 import org.chromium.base.ContextUtils;
 import org.chromium.base.test.BaseRobolectricTestRunner;
@@ -22,6 +23,7 @@ import java.util.Map;
 
 /** Unit tests for {@link UploadedCrashIdsFeedbackSource}. */
 @RunWith(BaseRobolectricTestRunner.class)
+@Config(manifest = Config.NONE)
 public class UploadedCrashIdsFeedbackSourceTest {
     private Context mContext;
     private File mLogFile;

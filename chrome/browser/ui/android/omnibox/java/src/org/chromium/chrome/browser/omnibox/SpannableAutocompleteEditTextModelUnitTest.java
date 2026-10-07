@@ -44,14 +44,14 @@ import java.util.concurrent.atomic.AtomicInteger;
 /** Unit tests for {@link SpannableAutocompleteEditTextModel}. */
 @RunWith(BaseRobolectricTestRunner.class)
 public class SpannableAutocompleteEditTextModelUnitTest {
-    @Rule public final MockitoRule mockitoRule = MockitoJUnit.rule();
-    @Mock private AutocompleteInputConnection mConnection;
-    @Mock private AutocompleteEditTextModelBase.Delegate mDelegate;
-    @Mock private OmniboxWordBoundary.Natives mWordBoundaryNatives;
+    public @Rule MockitoRule mockitoRule = MockitoJUnit.rule();
+    private @Mock AutocompleteInputConnection mConnection;
+    private @Mock AutocompleteEditTextModelBase.Delegate mDelegate;
+    private @Mock OmniboxWordBoundary.Natives mWordBoundaryNatives;
     private SpannableAutocompleteEditTextModel mModel;
     private AutocompleteState mCurrentState;
     private AtomicInteger mImeCommandNestLevel;
-    @Captor private ArgumentCaptor<KeyEvent> mKeyEventCaptor;
+    private @Captor ArgumentCaptor<KeyEvent> mKeyEventCaptor;
 
     @Before
     public void setUp() {

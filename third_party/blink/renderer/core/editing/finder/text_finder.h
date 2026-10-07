@@ -65,8 +65,7 @@ class CORE_EXPORT TextFinder final : public GarbageCollected<TextFinder> {
 #if BUILDFLAG(IS_ANDROID)
   gfx::RectF ActiveFindMatchRect();
   Vector<gfx::RectF> FindMatchRects();
-  std::optional<wtf_size_t> SelectNearestFindMatch(const gfx::PointF&,
-                                                   gfx::Rect* selection_rect);
+  int SelectNearestFindMatch(const gfx::PointF&, gfx::Rect* selection_rect);
 #endif
 
   // Starts brand new scoping request: resets the scoping state and
@@ -84,11 +83,10 @@ class CORE_EXPORT TextFinder final : public GarbageCollected<TextFinder> {
 
 #if BUILDFLAG(IS_ANDROID)
   // Return the index in the find-in-page cache of the match closest to the
-  // provided point in find-in-page coordinates, or std::nullopt in case of
-  // error. The squared distance to the closest match is returned in the
+  // provided point in find-in-page coordinates, or -1 in case of error.
+  // The squared distance to the closest match is returned in the
   // |distanceSquared| parameter.
-  std::optional<wtf_size_t> NearestFindMatch(const gfx::PointF&,
-                                             float* distance_squared);
+  int NearestFindMatch(const gfx::PointF&, float* distance_squared);
 #endif
 
   // Returns whether this frame has the active match.
@@ -193,10 +191,9 @@ class CORE_EXPORT TextFinder final : public GarbageCollected<TextFinder> {
 #if BUILDFLAG(IS_ANDROID)
   // Select a find-in-page match marker in the current frame using a cache
   // match index returned by nearestFindMatch. Returns the ordinal of the new
-  // selected match or std::nullopt in case of error. Also provides the bounding
-  // box of the marker in window coordinates if selectionRect is not null.
-  std::optional<wtf_size_t> SelectFindMatch(wtf_size_t index,
-                                            gfx::Rect* selection_rect);
+  // selected match or -1 in case of error. Also provides the bounding box of
+  // the marker in window coordinates if selectionRect is not null.
+  int SelectFindMatch(unsigned index, gfx::Rect* selection_rect);
 #endif
 
   // Compute and cache the rects for FindMatches if required.
@@ -236,33 +233,33 @@ class CORE_EXPORT TextFinder final : public GarbageCollected<TextFinder> {
   Member<FindTaskController> find_task_controller_;
 
   // Indicates whether this frame currently has the active match.
-  bool current_active_match_frame_ = false;
+  bool current_active_match_frame_;
 
   // The range of the active match for the current frame.
   Member<Range> active_match_;
 
   // The index of the active match for the current frame.
-  int active_match_index_ = -1;
+  int active_match_index_;
 
   // This variable keeps a cumulative total of matches found so far in this
   // frame, and is only incremented by calling IncreaseMatchCount.
-  int total_match_count_ = -1;
+  int total_match_count_;
 
   // Keeps track of whether the frame is currently scoping (being searched for
   // matches).
-  bool frame_scoping_ = false;
+  bool frame_scoping_;
 
   // Identifier of the latest find-in-page request. Required to be stored in
   // the frame in order to reply if required in case the frame is detached.
-  int find_request_identifier_ = -1;
+  int find_request_identifier_;
 
   // Keeps track of when the scoping effort should next invalidate the scrollbar
   // and the frame area.
-  int next_invalidate_after_ = 0;
+  int next_invalidate_after_;
 
   // Version number incremented whenever this frame's find-in-page match
   // markers change.
-  int find_match_markers_version_ = 0;
+  int find_match_markers_version_;
 
   // Local cache of the find match markers currently displayed for this frame.
   HeapVector<FindMatch> find_matches_cache_;
@@ -274,14 +271,14 @@ class CORE_EXPORT TextFinder final : public GarbageCollected<TextFinder> {
   // This flag is used by the scoping effort to determine if we need to figure
   // out which rectangle is the active match. Once we find the active
   // rectangle we clear this flag.
-  bool should_locate_active_rect_ = false;
+  bool should_locate_active_rect_;
 
   // Keeps track of whether there is an scoping effort ongoing in the frame.
-  bool scoping_in_progress_ = false;
+  bool scoping_in_progress_;
 
   // Determines if the rects in the find-in-page matches cache of this frame
   // are invalid and should be recomputed.
-  bool find_match_rects_are_valid_ = false;
+  bool find_match_rects_are_valid_;
 
   base::CancelableOnceClosure scroll_task_;
 };

@@ -38,7 +38,7 @@ constexpr NSInteger kTrailingSymbolImagePointSize = 22;
   TableViewCellContentConfiguration* configuration =
       [[TableViewCellContentConfiguration alloc] init];
   configuration.title = self.text;
-  configuration.titleNumberOfLines = 2;
+  configuration.titleNumberOfLines = 1;
   configuration.subtitle = self.detailText;
   configuration.textDisabled = !self.enabled;
 
@@ -119,31 +119,25 @@ constexpr NSInteger kTrailingSymbolImagePointSize = 22;
 // Sets up the trailing image and its tint color depending on the item's warning
 // state.
 - (void)setUpWarningTrailingImage {
-  Symbol trailingSymbol = SymbolNone;
+  NSString* trailingImageName;
   NSString* trailingImageTintColorName;
   switch (self.warningState) {
     case WarningState::kSafe:
-      trailingSymbol = SymbolCheckmarkCircleFill;
+      trailingImageName = kCheckmarkCircleFillSymbol;
       trailingImageTintColorName = kGreen500Color;
       break;
     case WarningState::kWarning:
-      trailingSymbol = SymbolErrorCircleFill;
+      trailingImageName = kErrorCircleFillSymbol;
       trailingImageTintColorName = kYellow500Color;
       break;
     case WarningState::kSevereWarning:
-      trailingSymbol = SymbolErrorCircleFill;
+      trailingImageName = kErrorCircleFillSymbol;
       trailingImageTintColorName = kRed500Color;
       break;
   }
-  if (trailingSymbol == SymbolNone) {
-    self.trailingImage = nil;
-    self.trailingImageTintColor = nil;
-  } else {
-    self.trailingImage = SymbolTemplateWithPointSize(
-        trailingSymbol, kTrailingSymbolImagePointSize);
-    self.trailingImageTintColor =
-        [UIColor colorNamed:trailingImageTintColorName];
-  }
+  self.trailingImage = DefaultSymbolTemplateWithPointSize(
+      trailingImageName, kTrailingSymbolImagePointSize);
+  self.trailingImageTintColor = [UIColor colorNamed:trailingImageTintColorName];
 }
 
 @end

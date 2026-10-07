@@ -30,13 +30,6 @@
 #include "third_party/perfetto/include/perfetto/tracing/track_event_args.h"
 
 namespace content {
-
-// (crbug.com/340949948): When enabled, deprecates TwoPhaseWrite in
-// ServiceWorkerRaceNetworkRequestURLLoaderClient when the fetch handler
-// responds first for Static Routing race requests.
-BASE_FEATURE(kServiceWorkerRaceNetworkRequestDeprecateTwoPhaseWrite,
-             base::FEATURE_DISABLED_BY_DEFAULT);
-
 namespace {
 const char kMainResourceHistogramLoadTiming[] =
     "ServiceWorker.LoadTiming.MainFrame.MainResource";
@@ -77,19 +70,6 @@ enum class DataTransferCompletionResult {
   kMaxValue = kBothNotCompleted
 };
 // LINT.ThenChange(//tools/metrics/histograms/metadata/service/enums.xml:RaceNetworkRequestDataTransferResult)
-
-// Omit navigation-only fields before forwarding the response head to the fetch
-// handler. The fetch handler observes the response as a subresource fetch and
-// does not require internal timing or SSL info.
-void SanitizeResponseHeadForFetchHandler(
-    network::mojom::URLResponseHeadPtr& head) {
-  if (!head) {
-    return;
-  }
-  head->load_timing_internal_info.reset();
-  head->ssl_info.reset();
-}
-
 }  // namespace
 
 ServiceWorkerRaceNetworkRequestURLLoaderClient::
@@ -205,35 +185,15 @@ void ServiceWorkerRaceNetworkRequestURLLoaderClient::OnReceiveResponse(
       // blink::ServiceWorkerLoaderHelpers::SaveResponseInfo(). But currently
       // this is called only when the response is returned from the fetch event.
       head_->was_fetched_via_service_worker = true;
-      if (base::FeatureList::IsEnabled(
-              kServiceWorkerRaceNetworkRequestDeprecateTwoPhaseWrite) &&
-          owner_->dispatched_preload_type() ==
-              ServiceWorkerResourceLoader::DispatchedPreloadType::
-                  kRaceNetworkRequest) {
+      if (owner_->commit_responsibility() ==
+          FetchResponseFrom::kNoResponseYet) {
         simple_buffer_manager_.emplace(std::move(body));
-        switch (owner_->commit_responsibility()) {
-          case FetchResponseFrom::kNoResponseYet:
-          case FetchResponseFrom::kWithoutServiceWorker:
-          case FetchResponseFrom::kSubresourceLoaderIsHandlingRedirect:
-            CloneResponse();
-            break;
-          case FetchResponseFrom::kServiceWorker:
-            CloneResponseForFetchHandler();
-            break;
-          case FetchResponseFrom::kAutoPreloadHandlingFallback:
-            NOTREACHED();
-        }
+        CloneResponse();
       } else {
-        if (owner_->commit_responsibility() ==
-            FetchResponseFrom::kNoResponseYet) {
-          simple_buffer_manager_.emplace(std::move(body));
-          CloneResponse();
-        } else {
-          // TODO(crbug.com/523017337): Remove the else block and the related
-          // code once we confirmed this is not needed anymore.
-          read_buffer_manager_.emplace(std::move(body));
-          WatchDataUpdate();
-        }
+        // TODO(crbug.com/523017337): Remove the else block and the related code
+        // once we confirmed this is not needed anymore.
+        read_buffer_manager_.emplace(std::move(body));
+        WatchDataUpdate();
       }
       break;
     case DataConsumePolicy::kForwardingOnly:
@@ -289,7 +249,6 @@ void ServiceWorkerRaceNetworkRequestURLLoaderClient::OnReceiveRedirect(
     case FetchResponseFrom::kSubresourceLoaderIsHandlingRedirect:
       // This happens when the response is faster than the fetch handler.
       owner_->SetCommitResponsibility(FetchResponseFrom::kServiceWorker);
-      SanitizeResponseHeadForFetchHandler(head);
       forwarding_client_->OnReceiveRedirect(forwarding_redirect_info,
                                             std::move(head));
       MaybeCompleteRedirectResponse(/*run_completion_callback=*/false);
@@ -300,7 +259,6 @@ void ServiceWorkerRaceNetworkRequestURLLoaderClient::OnReceiveRedirect(
       // handler is already executed but in rare case in-flight request may be
       // used. Let the fetch handler side client to handle the rest. The fetch
       // handler side close the connection if it's not needed anyway.
-      SanitizeResponseHeadForFetchHandler(head);
       forwarding_client_->OnReceiveRedirect(forwarding_redirect_info,
                                             std::move(head));
       MaybeCompleteRedirectResponse(/*run_completion_callback=*/true);
@@ -805,7 +763,6 @@ void ServiceWorkerRaceNetworkRequestURLLoaderClient::ForwardResponseToClient(
   // debug crbug.com/463388771.
   CHECK(!has_forwarded_response_);
   has_forwarded_response_ = true;
-  SanitizeResponseHeadForFetchHandler(head);
   forwarding_client_->OnReceiveResponse(std::move(head), std::move(body),
                                         std::move(cached_metadata));
 }

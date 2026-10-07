@@ -21,6 +21,12 @@ suite('cr-textarea-focus-test', function() {
     flush();
   });
 
+  test('propertyBindings', function() {
+    assertFalse(textarea.autofocus);
+    crTextarea.setAttribute('autofocus', 'autofocus');
+    assertTrue(textarea.autofocus);
+  });
+
   test('valueSetCorrectly', function() {
     crTextarea.value = 'hello';
     assertEquals(crTextarea.value, textarea.value);

@@ -39,7 +39,6 @@ export class ZeroStatePromoAppElement extends CrLitElement {
       showChipsV1_: {type: Boolean},
       showChipsV2_: {type: Boolean},
       showChipsV3_: {type: Boolean},
-      webuiRoundedIconsEnabled_: {type: Boolean},
     };
   }
 
@@ -58,9 +57,6 @@ export class ZeroStatePromoAppElement extends CrLitElement {
 
   protected accessor showChipsV3_: boolean =
       loadTimeData.getBoolean('showChipsUiV3');
-
-  protected accessor webuiRoundedIconsEnabled_: boolean =
-      loadTimeData.getBoolean('webuiRoundedIconsEnabled');
 
   protected onChromeWebStoreButtonClick_() {
     this.apiProxy_.handler.launchWebStoreLink(

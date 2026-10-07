@@ -6,7 +6,6 @@
 
 #include <limits>
 
-#include "partition_alloc/buildflags.h"
 #include "partition_alloc/random.h"
 
 namespace partition_alloc {

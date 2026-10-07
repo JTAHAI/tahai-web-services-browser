@@ -22,8 +22,6 @@ namespace webxr {
 // Android specific implementation of the OpenXrPlatformHelper.
 class OpenXrPlatformHelperAndroid : public device::OpenXrPlatformHelper {
  public:
-  static void SetXrHostActivityDisabledForTesting(bool disabled);
-
   OpenXrPlatformHelperAndroid();
   ~OpenXrPlatformHelperAndroid() override;
 

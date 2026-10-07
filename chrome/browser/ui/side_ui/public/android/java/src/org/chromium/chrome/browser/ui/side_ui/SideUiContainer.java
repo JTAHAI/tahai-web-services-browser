@@ -10,7 +10,6 @@ import android.view.ViewGroup;
 import androidx.annotation.Px;
 
 import org.chromium.build.annotations.NullMarked;
-import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.ui.side_ui.SideUiCoordinator.AnchorSide;
 import org.chromium.chrome.browser.ui.side_ui.SideUiCoordinator.HeightType;
 import org.chromium.chrome.browser.ui.side_ui.SideUiCoordinator.SideUiId;
@@ -70,7 +69,7 @@ public interface SideUiContainer {
             @Px int availableWidth, @Px int windowWidth, boolean isFullscreen);
 
     /**
-     * Returns whether the container has content to show for a specific {@link Tab}.
+     * Returns whether the container has content to show.
      *
      * <p>Note: This is not the same as whether the container is currently shown.
      *
@@ -81,10 +80,8 @@ public interface SideUiContainer {
      *       window real estate. This method should return true in this case to remind {@link
      *       SideUiCoordinator} to restore the container when the window becomes large enough.
      * </ul>
-     *
-     * @param tab The {@link Tab} to check.
      */
-    boolean hasContentToShow(Tab tab);
+    boolean hasContentToShow();
 
     /**
      * Sets the new width. <strong>Important:</strong> this should only be called by the {@link
@@ -93,12 +90,6 @@ public interface SideUiContainer {
      * @param width The new width in px.
      */
     void setWidth(@Px int width);
-
-    /**
-     * Returns whether browser top controls should remain locked (i.e. prevented from scrolling off)
-     * while this container is showing.
-     */
-    boolean shouldLockTopControls();
 
     /**
      * Called after {@link SideUiCoordinator} completes a UI update <i>and</i> that update changed

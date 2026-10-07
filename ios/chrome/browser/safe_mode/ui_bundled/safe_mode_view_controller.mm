@@ -20,6 +20,7 @@
 #import "ios/chrome/common/ui/colors/semantic_color_names.h"
 #import "ios/chrome/grit/ios_branded_strings.h"
 #import "ui/base/device_form_factor.h"
+#import "ui/gfx/ios/NSString+CrStringDrawing.h"
 
 namespace {
 const CGFloat kButtonCornerRadius = 15;
@@ -226,13 +227,16 @@ constexpr std::string_view kThirdPartyModsDirectory =
   [description setTextAlignment:NSTextAlignmentCenter];
   [description setNumberOfLines:0];
   [description setLineBreakMode:NSLineBreakByWordWrapping];
-  const CGFloat width =
+  CGRect frame = [description frame];
+  frame.size.width =
       (ui::GetDeviceFormFactor() == ui::DEVICE_FORM_FACTOR_TABLET)
           ? kIPadWidth
           : kIPhoneWidth;
-  const CGSize size = [description sizeThatFits:CGSizeMake(width, CGFLOAT_MAX)];
-  CGRect frame = [description frame];
-  frame.size = size;
+  CGSize maxSize = CGSizeMake(frame.size.width, 999999.0f);
+  frame.size.height =
+      [[description text] cr_boundingSizeWithSize:maxSize
+                                             font:[description font]]
+          .height;
   [description setFrame:frame];
   [self centerView:description afterView:awSnap];
   [_innerView addSubview:description];

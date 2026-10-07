@@ -9,7 +9,6 @@
 
 #include "base/android/application_status_listener.h"
 #include "base/functional/bind.h"
-#include "base/memory/raw_ptr.h"
 #include "base/test/run_until.h"
 #include "base/test/scoped_feature_list.h"
 #include "base/test/test_timeouts.h"
@@ -19,7 +18,6 @@
 #include "chrome/browser/send_tab_to_self/send_tab_to_self_client_service_factory.h"
 #include "chrome/browser/sync/send_tab_to_self_sync_service_factory.h"
 #include "chrome/browser/tab_list/tab_list_interface.h"
-#include "chrome/browser/ui/android/tab_model/tab_model.h"
 #include "chrome/browser/ui/android/tab_model/tab_model_list.h"
 #include "chrome/test/base/android/android_browser_test.h"
 #include "components/keyed_service/core/keyed_service.h"
@@ -57,10 +55,7 @@ class AndroidNotificationHandlerBrowserTest : public AndroidBrowserTest {
       return GetTabListInterface() && GetTabListInterface()->GetActiveTab() &&
              GetTabListInterface()->GetActiveTab()->GetContents();
     }));
-    model_ = static_cast<StubSendTabToSelfSyncService*>(
-                 SendTabToSelfSyncServiceFactory::GetForProfile(GetProfile()))
-                 ->GetFakeSendTabToSelfModel();
-    model_->SetLocalCacheGuid(kDeviceId);
+    model()->SetLocalCacheGuid(kDeviceId);
   }
 
   void SetUpBrowserContextKeyedServices(
@@ -69,7 +64,11 @@ class AndroidNotificationHandlerBrowserTest : public AndroidBrowserTest {
         context, base::BindRepeating(&BuildStubSendTabToSelfSyncService));
   }
 
-  FakeSendTabToSelfModel* model() { return model_; }
+  FakeSendTabToSelfModel* model() {
+    return static_cast<StubSendTabToSelfSyncService*>(
+               SendTabToSelfSyncServiceFactory::GetForProfile(GetProfile()))
+        ->GetFakeSendTabToSelfModel();
+  }
 
   void WaitForTabCount(int expected_count) {
     ASSERT_TRUE(base::test::RunUntil([&]() {
@@ -78,37 +77,27 @@ class AndroidNotificationHandlerBrowserTest : public AndroidBrowserTest {
   }
 
  private:
-  raw_ptr<FakeSendTabToSelfModel> model_ = nullptr;
   base::test::ScopedFeatureList feature_list_{kSendTabToSelfAutoOpen};
 };
 
 IN_PROC_BROWSER_TEST_F(AndroidNotificationHandlerBrowserTest,
                        AutoOpenWhenBroughtToForeground) {
-  TabModel* tab_model = static_cast<TabModel*>(GetTabListInterface());
-  const int initial_tab_count = tab_model->GetTabCount();
-
   // Simulating application running in background (e.g. user is in another app).
-  // In a C++ AndroidBrowserTest, calling NotifyApplicationStateChange only
-  // notifies native C++ observers and does not change the Java-side
-  // ApplicationStatus.hasVisibleActivities() state. Removing the TabModel
-  // ensures GetActiveWebContents() returns nullptr during the background state.
-  TabModelList::RemoveTabModel(tab_model);
   base::android::ApplicationStatusListener::NotifyApplicationStateChange(
       base::android::APPLICATION_STATE_HAS_STOPPED_ACTIVITIES);
+  GetTabListInterface()->GetTab(0)->GetContents()->WasHidden();
+
+  const int initial_tab_count = GetTabListInterface()->GetTabCount();
 
   const SendTabToSelfEntry* entry =
-      model()->AddEntryRemotely({.url = GURL(kExampleUrl),
-                                 .title = "Title",
-                                 .target_device_cache_guid = kDeviceId});
+      model()->AddEntryRemotely(GURL(kExampleUrl), "Title", kDeviceId,
+                                PageContext(), NavigationHistory());
   const std::string guid = entry->GetGUID();
 
   EXPECT_FALSE(model()->GetEntryByGUID(guid)->IsOpened());
 
-  // Simulate application coming to foreground. Adding back the TabModel makes
-  // an active window available, and notifying the application state change
-  // triggers AndroidNotificationHandler::HandleApplicationStateChange() to
-  // auto-open pending entries.
-  TabModelList::AddTabModel(tab_model);
+  // Simulate application coming to foreground.
+  GetTabListInterface()->GetTab(0)->GetContents()->WasShown();
   base::android::ApplicationStatusListener::NotifyApplicationStateChange(
       base::android::APPLICATION_STATE_HAS_RUNNING_ACTIVITIES);
 
@@ -137,9 +126,8 @@ IN_PROC_BROWSER_TEST_F(AndroidNotificationHandlerBrowserTest,
   const int initial_tab_count = GetTabListInterface()->GetTabCount();
 
   const SendTabToSelfEntry* entry =
-      model()->AddEntryRemotely({.url = GURL(kExampleUrl),
-                                 .title = "Title",
-                                 .target_device_cache_guid = kDeviceId});
+      model()->AddEntryRemotely(GURL(kExampleUrl), "Title", kDeviceId,
+                                PageContext(), NavigationHistory());
   const std::string guid = entry->GetGUID();
 
   WaitForTabCount(initial_tab_count + 1);
@@ -179,9 +167,8 @@ IN_PROC_BROWSER_TEST_F(AndroidNotificationHandlerModelNotReadyBrowserTest,
 
   // Add entry while model is not ready.
   const SendTabToSelfEntry* entry =
-      model()->AddEntryRemotely({.url = GURL(kExampleUrl),
-                                 .title = "Title",
-                                 .target_device_cache_guid = kDeviceId});
+      model()->AddEntryRemotely(GURL(kExampleUrl), "Title", kDeviceId,
+                                PageContext(), NavigationHistory());
   const std::string guid = entry->GetGUID();
 
   const int initial_tab_count = GetTabListInterface()->GetTabCount();
@@ -228,9 +215,8 @@ IN_PROC_BROWSER_TEST_F(
   const int initial_tab_count = GetTabListInterface()->GetTabCount();
 
   const SendTabToSelfEntry* entry =
-      model()->AddEntryRemotely({.url = GURL(kExampleUrl),
-                                 .title = "Title",
-                                 .target_device_cache_guid = kDeviceId});
+      model()->AddEntryRemotely(GURL(kExampleUrl), "Title", kDeviceId,
+                                PageContext(), NavigationHistory());
   const std::string guid = entry->GetGUID();
 
   // Since there is no active visible web contents and flag is disabled, it
@@ -261,9 +247,8 @@ IN_PROC_BROWSER_TEST_F(
   const int initial_tab_count = GetTabListInterface()->GetTabCount();
 
   const SendTabToSelfEntry* entry =
-      model()->AddEntryRemotely({.url = GURL(kExampleUrl),
-                                 .title = "Title",
-                                 .target_device_cache_guid = kDeviceId});
+      model()->AddEntryRemotely(GURL(kExampleUrl), "Title", kDeviceId,
+                                PageContext(), NavigationHistory());
   const std::string guid = entry->GetGUID();
 
   WaitForTabCount(initial_tab_count + 1);

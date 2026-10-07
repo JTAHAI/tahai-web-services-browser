@@ -274,20 +274,6 @@ public class MockTabModel extends EmptyTabModel {
     }
 
     @Override
-    public void notifyWillActiveStateChange(boolean active) {
-        for (TabModelObserver observer : mObservers) {
-            observer.onWillActiveStateChange(this, active);
-        }
-    }
-
-    @Override
-    public void notifyDidActiveStateChange(boolean active) {
-        for (TabModelObserver observer : mObservers) {
-            observer.onDidActiveStateChange(this, active);
-        }
-    }
-
-    @Override
     public boolean isActiveModel() {
         return mIsActiveModel;
     }
@@ -307,26 +293,5 @@ public class MockTabModel extends EmptyTabModel {
 
     public void setTabRemoverForTesting(TabRemover tabRemover) {
         mTabRemover = tabRemover;
-    }
-
-    @Override
-    public int findFirstNonPinnedTabIndex() {
-        for (int i = 0; i < mTabs.size(); i++) {
-            if (!mTabs.get(i).getIsPinned()) {
-                return i;
-            }
-        }
-        return mTabs.size();
-    }
-
-    @Override
-    public int getPinnedTabsCount() {
-        int count = 0;
-        for (Tab tab : mTabs) {
-            if (tab.getIsPinned()) {
-                count++;
-            }
-        }
-        return count;
     }
 }

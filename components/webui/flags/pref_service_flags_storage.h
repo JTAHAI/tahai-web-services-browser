@@ -50,8 +50,7 @@ class PrefServiceFlagsStorage : public FlagsStorage {
 #endif  // BUILDFLAG(IS_CHROMEOS)
 
  private:
-  // Pointed-to PrefService outlives PrefServiceFlagsStorage instances.
-  raw_ptr<PrefService> prefs_;
+  raw_ptr<PrefService, DanglingUntriaged> prefs_;
 };
 
 }  // namespace flags_ui

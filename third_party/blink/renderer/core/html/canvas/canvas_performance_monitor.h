@@ -52,8 +52,7 @@ class CORE_EXPORT CanvasPerformanceMonitor
   // TaskTimeObserver:
   void WillProcessTask(base::TimeTicks start_time) final;
   void DidProcessTask(base::TimeTicks start_time,
-                      base::TimeTicks end_time,
-                      base::TimeTicks desired_execution_time) final;
+                      base::TimeTicks end_time) final;
 
  private:
   void RecordMetrics(base::TimeTicks start_time, base::TimeTicks end_time);

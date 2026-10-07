@@ -51,7 +51,7 @@ void BackingStorePreCloseTaskQueue::Stop() {
   if (!started_ || done_) {
     return;
   }
-  CHECK(!tasks_.empty(), base::NotFatalUntil::M158);
+  DCHECK(!tasks_.empty());
   while (!tasks_.empty()) {
     tasks_.pop_front();
   }
@@ -59,7 +59,7 @@ void BackingStorePreCloseTaskQueue::Stop() {
 }
 
 void BackingStorePreCloseTaskQueue::Start() {
-  CHECK(!started_, base::NotFatalUntil::M158);
+  DCHECK(!started_);
   started_ = true;
   if (tasks_.empty()) {
     OnComplete();
@@ -75,8 +75,8 @@ void BackingStorePreCloseTaskQueue::Start() {
 }
 
 void BackingStorePreCloseTaskQueue::OnComplete() {
-  CHECK(started_, base::NotFatalUntil::M158);
-  CHECK(!done_, base::NotFatalUntil::M158);
+  DCHECK(started_);
+  DCHECK(!done_);
   ptr_factory_.InvalidateWeakPtrs();
   timeout_timer_.Stop();
   done_ = true;
@@ -85,7 +85,7 @@ void BackingStorePreCloseTaskQueue::OnComplete() {
 }
 
 void BackingStorePreCloseTaskQueue::StopForTimeout() {
-  CHECK(started_, base::NotFatalUntil::M158);
+  DCHECK(started_);
   if (done_) {
     return;
   }

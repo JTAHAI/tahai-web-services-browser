@@ -17,7 +17,6 @@ import android.content.res.Configuration;
 import android.graphics.Point;
 import android.os.Build;
 
-import androidx.annotation.StringDef;
 import androidx.test.core.app.ApplicationProvider;
 import androidx.test.platform.app.InstrumentationRegistry;
 import androidx.test.uiautomator.UiDevice;
@@ -34,8 +33,6 @@ import org.chromium.base.version_info.VersionInfo;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.lang.annotation.Retention;
-import java.lang.annotation.RetentionPolicy;
 import java.text.DateFormat;
 import java.util.ArrayList;
 import java.util.Date;
@@ -146,13 +143,11 @@ public class ScreenShooter extends TestWatcher {
     private String[] mFeatures;
 
     /**
-     * This interface defines the allowed tags. Please add to it if you need a new tag for your
-     * screenshots.
+     * This Enum is a central list of all allowed tags. Please add to it if you need a new tag for
+     * your screenshots.
      */
-    @StringDef({Tags.UI_CATALOGUE_EXAMPLE})
-    @Retention(RetentionPolicy.SOURCE)
-    public @interface Tags {
-        String UI_CATALOGUE_EXAMPLE = "UiCatalogueExample";
+    public enum TagsEnum {
+        UiCatalogueExample,
     }
 
     public ScreenShooter() {
@@ -179,9 +174,9 @@ public class ScreenShooter extends TestWatcher {
      * Take a screenshot and save it to a file, with tags and metadata in a JSON file
      *
      * @param shotName The name of this particular screenshot within this test.
-     * @param tags User selected tags from {@link Tags}.
+     * @param tags User selected tags from {@link TagsEnum}.
      */
-    public void shoot(String shotName, @Tags String... tags) {
+    public void shoot(String shotName, TagsEnum... tags) {
         assertNotNull("ScreenShooter rule initialized", mTestClassName);
         Map<String, String> filters = new HashMap<>();
         setFilterValue(filters, TEST_CLASS_FILTER, mTestClassName);
@@ -251,14 +246,14 @@ public class ScreenShooter extends TestWatcher {
     private void writeImageDescription(
             File shotFile,
             Map<String, String> filters,
-            @Tags String[] tags,
+            TagsEnum[] tags,
             Map<String, String> metadata)
             throws IOException {
         JSONObject imageDescription = new JSONObject();
         String shotFileName = shotFile.getName();
         List<String> tagStrings = new ArrayList<>();
-        for (String tag : tags) {
-            tagStrings.add(tag);
+        for (TagsEnum tag : tags) {
+            tagStrings.add(tag.toString());
         }
         for (String feature : mFeatures) {
             tagStrings.add(feature + " Feature");

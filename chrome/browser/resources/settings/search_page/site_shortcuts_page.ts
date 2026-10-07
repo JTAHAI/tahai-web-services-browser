@@ -10,23 +10,22 @@
 import 'chrome://resources/cr_elements/cr_button/cr_button.js';
 import 'chrome://resources/cr_elements/cr_collapse/cr_collapse.js';
 import 'chrome://resources/cr_elements/cr_expand_button/cr_expand_button.js';
+import 'chrome://resources/cr_elements/cr_shared_style.css.js';
 import './search_engine_edit_dialog.js';
 import './search_engines_list.js';
 import '../settings_page/settings_section.js';
-import '../simple_confirmation_dialog.js';
+import '../settings_shared.css.js';
 
 import type {CrExpandButtonElement} from 'chrome://resources/cr_elements/cr_expand_button/cr_expand_button.js';
-import {WebUiListenerMixinLit} from 'chrome://resources/cr_elements/web_ui_listener_mixin_lit.js';
+import {WebUiListenerMixin} from 'chrome://resources/cr_elements/web_ui_listener_mixin.js';
 import {assert} from 'chrome://resources/js/assert.js';
 import {focusWithoutInk} from 'chrome://resources/js/focus_without_ink.js';
-import type {PropertyValues} from 'chrome://resources/lit/v3_0/lit.rollup.js';
-import {CrLitElement} from 'chrome://resources/lit/v3_0/lit.rollup.js';
+import {PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
 import type {CategorizedTemplateUrls, SearchEngine, SearchEnginesBrowserProxy} from './search_engines_browser_proxy.js';
 import {SearchEnginesBrowserProxyImpl, SearchEnginesInteractions} from './search_engines_browser_proxy.js';
 import type {SettingsSearchEnginesListElement} from './search_engines_list.js';
-import {getCss} from './site_shortcuts_page.css.js';
-import {getHtml} from './site_shortcuts_page.html.js';
+import {getTemplate} from './site_shortcuts_page.html.js';
 
 type SearchEngineEditEvent = CustomEvent<{
   engine: SearchEngine,
@@ -50,47 +49,58 @@ export interface SiteShortcutsPageElement {
   };
 }
 
-const SiteShortcutsPageElementBase = WebUiListenerMixinLit(CrLitElement);
+const SiteShortcutsPageElementBase = WebUiListenerMixin(PolymerElement);
 
 export class SiteShortcutsPageElement extends SiteShortcutsPageElementBase {
   static get is() {
     return 'settings-site-shortcuts-page';
   }
 
-  static override get styles() {
-    return getCss();
+  static get template() {
+    return getTemplate();
   }
 
-  override render() {
-    return getHtml.bind(this)();
-  }
-
-  static override get properties() {
+  static get properties() {
     return {
-      activeShortcuts: {type: Array},
-      inactiveShortcuts: {type: Array},
+      activeShortcuts: {type: Array, value: []},
+      inactiveShortcuts: {type: Array, value: []},
 
       // Whether the corresponding subsection is expanded.
-      activeShortcutsExpanded_: {type: Boolean},
-      inactiveShortcutsExpanded_: {type: Boolean},
+      activeShortcutsExpanded_: {type: Boolean, value: false},
+      inactiveShortcutsExpanded_: {type: Boolean, value: false},
 
-      dialogModel_: {type: Object},
-      dialogAnchorElement_: {type: Object},
-      showEditDialog_: {type: Boolean},
-      showDeleteConfirmationDialog_: {type: Boolean},
+      dialogModel_: {
+        type: Object,
+        value: null,
+      },
+
+      dialogAnchorElement_: {
+        type: Object,
+        value: null,
+      },
+
+      showEditDialog_: {
+        type: Boolean,
+        value: false,
+      },
+
+      showDeleteConfirmationDialog_: {
+        type: Boolean,
+        value: false,
+      },
     };
   }
 
-  accessor activeShortcuts: SearchEngine[] = [];
-  accessor inactiveShortcuts: SearchEngine[] = [];
+  declare activeShortcuts: SearchEngine[];
+  declare inactiveShortcuts: SearchEngine[];
 
-  protected accessor activeShortcutsExpanded_: boolean = false;
-  protected accessor inactiveShortcutsExpanded_: boolean = false;
+  declare private activeShortcutsExpanded_: boolean;
+  declare private inactiveShortcutsExpanded_: boolean;
 
-  protected accessor dialogModel_: SearchEngine|null = null;
-  protected accessor dialogAnchorElement_: HTMLElement|null = null;
-  protected accessor showEditDialog_: boolean = false;
-  protected accessor showDeleteConfirmationDialog_: boolean = false;
+  declare private dialogModel_: SearchEngine|null;
+  declare private dialogAnchorElement_: HTMLElement|null;
+  declare private showEditDialog_: boolean;
+  declare private showDeleteConfirmationDialog_: boolean;
 
   private browserProxy_: SearchEnginesBrowserProxy =
       SearchEnginesBrowserProxyImpl.getInstance();
@@ -124,7 +134,7 @@ export class SiteShortcutsPageElement extends SiteShortcutsPageElementBase {
     this.showEditDialog_ = true;
   }
 
-  protected onEditDialogClose_() {
+  private onCloseEditDialog_() {
     this.showEditDialog_ = false;
     focusWithoutInk(this.dialogAnchorElement_ as HTMLElement);
     this.dialogModel_ = null;
@@ -142,9 +152,9 @@ export class SiteShortcutsPageElement extends SiteShortcutsPageElementBase {
     this.showDeleteConfirmationDialog_ = true;
   }
 
-  protected onDeleteConfirmationDialogClose_() {
+  private onCloseDeleteConfirmationDialog_() {
     const dialog =
-        this.shadowRoot.querySelector('settings-simple-confirmation-dialog');
+        this.shadowRoot!.querySelector('settings-simple-confirmation-dialog');
     assert(dialog);
     const confirmed = dialog.wasConfirmed();
     this.showDeleteConfirmationDialog_ = false;
@@ -171,44 +181,15 @@ export class SiteShortcutsPageElement extends SiteShortcutsPageElementBase {
     this.openDeleteConfirmationDialog_(e.detail.engine, e.detail.anchorElement);
   }
 
-  protected onAddSearchEngineClick_(e: Event) {
+  private onAddSearchEngineClick_(e: Event) {
     e.stopPropagation();
     this.browserProxy_.recordSearchEnginesPageHistogram(
         SearchEnginesInteractions.ADD_SEARCH_ENGINE);
     this.openEditDialog_(null, this.$.addSearchEngine);
   }
 
-  override willUpdate(changedProperties: PropertyValues<this>) {
-    super.willUpdate(changedProperties);
-
-    const changedPrivateProperties =
-        changedProperties as Map<PropertyKey, unknown>;
-
-    if (changedPrivateProperties.has('activeShortcutsExpanded_') &&
-        changedPrivateProperties.get('activeShortcutsExpanded_') !==
-            undefined) {
-      this.onSectionExpandedChanged_(this.activeShortcutsExpanded_);
-    }
-
-    if (changedPrivateProperties.has('inactiveShortcutsExpanded_') &&
-        changedPrivateProperties.get('inactiveShortcutsExpanded_') !==
-            undefined) {
-      this.onSectionExpandedChanged_(this.inactiveShortcutsExpanded_);
-    }
-  }
-
-  protected onActiveShortcutsExpandedChanged_(
-      e: CustomEvent<{value: boolean}>) {
-    this.activeShortcutsExpanded_ = e.detail.value;
-  }
-
-  protected onInactiveShortcutsExpandedChanged_(
-      e: CustomEvent<{value: boolean}>) {
-    this.inactiveShortcutsExpanded_ = e.detail.value;
-  }
-
-  private onSectionExpandedChanged_(expanded: boolean) {
-    const interaction = expanded ?
+  private onSectionExpandedChanged_(e: CustomEvent<{value: boolean}>) {
+    const interaction = e.detail.value ?
         SearchEnginesInteractions.SITE_SHORTCUTS_SECTION_EXPANDED :
         SearchEnginesInteractions.SITE_SHORTCUTS_SECTION_COLLAPSED;
     this.browserProxy_.recordSearchEnginesPageHistogram(interaction);

@@ -32,6 +32,8 @@ build_webui("build") {
     "broker_state.ts",
     "event_log.html.ts",
     "event_log.ts",
+    "model_status.html.ts",
+    "model_status.ts",
     "tools.html.ts",
     "tools.ts",
   ]
@@ -40,6 +42,7 @@ build_webui("build") {
     "app.css",
     "broker_state.css",
     "event_log.css",
+    "model_status.css",
     "tools.css",
   ]
 

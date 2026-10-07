@@ -23,8 +23,7 @@
 #include "chrome/browser/hid/hid_chooser_context_factory.h"
 #include "chrome/browser/hid/hid_connection_tracker.h"
 #include "chrome/browser/notifications/notification_display_service_tester.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
-#include "chrome/browser/ui/tabs/tab_strip_model.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/common/pref_names.h"
 #include "chrome/common/webui_url_constants.h"
 #include "chrome/test/base/in_process_browser_test.h"
@@ -323,7 +322,7 @@ class WebHidExtensionBrowserTest : public InProcessBrowserTestMixinHostSupport<
 
   device::FakeHidManager* hid_manager() { return &hid_manager_; }
 
-  void SimulateClickOnSystemTrayIconButton(BrowserWindowInterface* browser,
+  void SimulateClickOnSystemTrayIconButton(Browser* browser,
                                            const Extension* extension) {
 #if BUILDFLAG(IS_CHROMEOS)
     auto* hid_pinned_notification = static_cast<HidPinnedNotification*>(
@@ -344,7 +343,7 @@ class WebHidExtensionBrowserTest : public InProcessBrowserTestMixinHostSupport<
     display_service_for_system_notification_->SimulateClick(
         NotificationHandler::Type::TRANSIENT, expected_pinned_notification_id,
         /*action_index=*/0, /*reply=*/std::nullopt);
-    auto* web_contents = browser->GetTabStripModel()->GetActiveWebContents();
+    auto* web_contents = browser->tab_strip_model()->GetActiveWebContents();
     EXPECT_EQ(web_contents->GetURL(), "chrome://settings/content/hidDevices");
 #else
     // On non-ChromeOS platforms, as they use status icon and there isn't good
@@ -358,21 +357,21 @@ class WebHidExtensionBrowserTest : public InProcessBrowserTestMixinHostSupport<
 
     status_icon_renderer->ExecuteCommandForTesting(
         IDC_DEVICE_SYSTEM_TRAY_ICON_FIRST, 0);
-    EXPECT_EQ(browser->GetTabStripModel()->GetActiveWebContents()->GetURL(),
+    EXPECT_EQ(browser->tab_strip_model()->GetActiveWebContents()->GetURL(),
               "https://support.google.com/chrome?p=webhid");
 
     status_icon_renderer->ExecuteCommandForTesting(
         IDC_DEVICE_SYSTEM_TRAY_ICON_FIRST + 1, 0);
-    EXPECT_EQ(browser->GetTabStripModel()->GetActiveWebContents()->GetURL(),
+    EXPECT_EQ(browser->tab_strip_model()->GetActiveWebContents()->GetURL(),
               "chrome://settings/content/hidDevices");
 
     status_icon_renderer->ExecuteCommandForTesting(
         IDC_DEVICE_SYSTEM_TRAY_ICON_FIRST + 2, 0);
     EXPECT_EQ(
-        browser->GetTabStripModel()->GetActiveWebContents()->GetURL(),
+        browser->tab_strip_model()->GetActiveWebContents()->GetURL(),
         "chrome://settings/content/siteDetails?site=chrome-extension%3A%2F%2F" +
             extension->id());
-#endif  // BUILDFLAG(IS_CHROMEOS)
+#endif
   }
 
  private:

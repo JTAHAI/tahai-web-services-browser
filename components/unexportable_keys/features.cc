@@ -4,20 +4,12 @@
 
 #include "components/unexportable_keys/features.h"
 
-#include "build/build_config.h"
-
 namespace unexportable_keys {
 
 BASE_FEATURE(kEnableBoundSessionCredentialsSoftwareKeysForManualTesting,
              base::FEATURE_DISABLED_BY_DEFAULT);
 
-BASE_FEATURE(kUnexportableKeyDeletion,
-#if BUILDFLAG(IS_MAC)
-             base::FEATURE_ENABLED_BY_DEFAULT
-#else
-             base::FEATURE_DISABLED_BY_DEFAULT
-#endif
-);
+BASE_FEATURE(kUnexportableKeyDeletion, base::FEATURE_DISABLED_BY_DEFAULT);
 
 BASE_FEATURE(kEnableUnexportableKeysSpareKeyPool,
              base::FEATURE_DISABLED_BY_DEFAULT);

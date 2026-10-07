@@ -7,6 +7,7 @@ package org.chromium.chrome.browser.omnibox.suggestions.tail;
 import androidx.annotation.ColorInt;
 
 import org.chromium.build.annotations.NullMarked;
+import org.chromium.chrome.browser.omnibox.styles.OmniboxResourceProvider;
 import org.chromium.chrome.browser.omnibox.suggestions.SuggestionCommonProperties;
 import org.chromium.chrome.browser.omnibox.suggestions.base.BaseSuggestionViewBinder;
 import org.chromium.ui.modelutil.PropertyKey;
@@ -15,6 +16,12 @@ import org.chromium.ui.modelutil.PropertyModel;
 /** Properties associated with the tail suggestion view. */
 @NullMarked
 public class TailSuggestionViewBinder extends BaseSuggestionViewBinder<TailSuggestionView> {
+    private final OmniboxResourceProvider mResourceProvider;
+
+    public TailSuggestionViewBinder(OmniboxResourceProvider resourceProvider) {
+        super(resourceProvider);
+        mResourceProvider = resourceProvider;
+    }
 
     /**
      * @see PropertyModelChangeProcessor.ViewBinder#bind(Object, Object, Object)
@@ -29,7 +36,7 @@ public class TailSuggestionViewBinder extends BaseSuggestionViewBinder<TailSugge
         } else if (propertyKey == TailSuggestionViewProperties.FILL_INTO_EDIT) {
             view.setFullText(model.get(TailSuggestionViewProperties.FILL_INTO_EDIT));
         } else if (propertyKey == SuggestionCommonProperties.COLOR_SCHEME) {
-            final @ColorInt int color = getResourceProvider(model).getSuggestionPrimaryTextColor();
+            final @ColorInt int color = mResourceProvider.getSuggestionPrimaryTextColor();
             view.setTextColor(color);
         }
     }

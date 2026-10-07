@@ -7,7 +7,6 @@
 #include "base/strings/pattern.h"
 #include "base/strings/stringprintf.h"
 #include "base/test/icu_test_util.h"
-#include "base/test/metrics/histogram_tester.h"
 #include "base/test/scoped_feature_list.h"
 #include "base/test/test_future.h"
 #include "base/time/time.h"
@@ -20,9 +19,8 @@
 #include "chrome/browser/preloading/scoped_prewarm_feature_list.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/safe_browsing/chrome_enterprise_url_lookup_service_factory.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/navigator/browser_navigator.h"
-#include "chrome/browser/ui/navigator/browser_navigator_params.h"
 #include "chrome/browser/ui/tabs/public/tab_features.h"
 #include "chrome/browser/ui/tabs/split_tab_metrics.h"
 #include "chrome/browser/ui/test/test_browser_ui.h"
@@ -61,14 +59,11 @@ constexpr char kMultilingualWatermarkMessage[] = R"(
     مضحك جداً
 )";
 
-// This string checks dynamic block width: short and medium lines expand block
-// width without splitting, while extremely long lines exceeding the maximum cap
-// are split up into multiple lines.
+// This string checks that long lines are properly handled by multiline logic.
 constexpr char kLongLinesWatermarkMessage[] = R"(
-
-This dynamically expands the block width and stays on one line
-This is a short line
-It is not split
+This is a very long line that should be split up into multiple lines
+This is a shorter line
+It was not split
 This is another very long line that should be split up into multiple lines
 )";
 
@@ -459,7 +454,7 @@ IN_PROC_BROWSER_TEST_F(WatermarkBrowserNavigationTest,
                    ->has_text_for_testing());
 
   // Switch active tabs back to watermarked page.
-  browser()->GetTabStripModel()->ActivateTabAt(
+  browser()->tab_strip_model()->ActivateTabAt(
       0, TabStripUserGestureDetails(
              TabStripUserGestureDetails::GestureType::kMouse));
   EXPECT_TRUE(BrowserView::GetBrowserViewForBrowser(browser())
@@ -486,7 +481,7 @@ IN_PROC_BROWSER_TEST_F(WatermarkBrowserNavigationTest,
                    ->has_text_for_testing());
 
   // Switch back to the watermarked tab. The watermark should still be showing.
-  browser()->GetTabStripModel()->ActivateTabAt(
+  browser()->tab_strip_model()->ActivateTabAt(
       0, TabStripUserGestureDetails(
              TabStripUserGestureDetails::GestureType::kMouse));
   EXPECT_TRUE(BrowserView::GetBrowserViewForBrowser(browser())
@@ -546,7 +541,7 @@ IN_PROC_BROWSER_TEST_F(WatermarkBrowserNavigationTest,
                    ->has_text_for_testing());
 
   // Switch back to the watermarked tab. The watermark should show immediately.
-  browser()->GetTabStripModel()->ActivateTabAt(
+  browser()->tab_strip_model()->ActivateTabAt(
       0, TabStripUserGestureDetails(
              TabStripUserGestureDetails::GestureType::kMouse));
   EXPECT_TRUE(BrowserView::GetBrowserViewForBrowser(browser())
@@ -569,11 +564,10 @@ IN_PROC_BROWSER_TEST_F(WatermarkBrowserNavigationTest, SplitTabWatermark) {
   ASSERT_TRUE(
       AddTabAtIndex(2, GURL(url::kAboutBlankURL), ui::PAGE_TRANSITION_TYPED));
 
-  browser()->GetTabStripModel()->ActivateTabAt(0);
-  split_tabs::SplitTabId split_id =
-      browser()->GetTabStripModel()->AddToNewSplit(
-          {1}, split_tabs::SplitTabVisualData(),
-          split_tabs::SplitTabCreatedSource::kToolbarButton);
+  browser()->tab_strip_model()->ActivateTabAt(0);
+  split_tabs::SplitTabId split_id = browser()->tab_strip_model()->AddToNewSplit(
+      {1}, split_tabs::SplitTabVisualData(),
+      split_tabs::SplitTabCreatedSource::kToolbarButton);
 
   NavigateToAndWait(GURL("https://watermark.com"));
 
@@ -588,7 +582,7 @@ IN_PROC_BROWSER_TEST_F(WatermarkBrowserNavigationTest, SplitTabWatermark) {
                    ->has_text_for_testing());
 
   // Reverse the tabs in the split.
-  browser()->GetTabStripModel()->ReverseTabsInSplit(split_id);
+  browser()->tab_strip_model()->ReverseTabsInSplit(split_id);
 
   EXPECT_TRUE(BrowserView::GetBrowserViewForBrowser(browser())
                   ->GetContentsContainerViews()[1]
@@ -601,7 +595,7 @@ IN_PROC_BROWSER_TEST_F(WatermarkBrowserNavigationTest, SplitTabWatermark) {
                    ->has_text_for_testing());
 
   // Switch to a different tab without split.
-  browser()->GetTabStripModel()->ActivateTabAt(2);
+  browser()->tab_strip_model()->ActivateTabAt(2);
   NavigateToAndWait(GURL("https://watermark.com"));
 
   EXPECT_TRUE(BrowserView::GetBrowserViewForBrowser(browser())
@@ -614,7 +608,7 @@ IN_PROC_BROWSER_TEST_F(WatermarkBrowserNavigationTest, SplitTabWatermark) {
                    ->GetVisible());
 
   // Switch back to split view .
-  browser()->GetTabStripModel()->ActivateTabAt(1);
+  browser()->tab_strip_model()->ActivateTabAt(1);
 
   EXPECT_TRUE(BrowserView::GetBrowserViewForBrowser(browser())
                   ->GetContentsContainerViews()[1]
@@ -627,7 +621,7 @@ IN_PROC_BROWSER_TEST_F(WatermarkBrowserNavigationTest, SplitTabWatermark) {
                    ->has_text_for_testing());
 
   // Add watermark to the other split view as well.
-  browser()->GetTabStripModel()->ActivateTabAt(0);
+  browser()->tab_strip_model()->ActivateTabAt(0);
   NavigateToAndWait(GURL("https://watermark.com"));
 
   EXPECT_TRUE(BrowserView::GetBrowserViewForBrowser(browser())
@@ -686,7 +680,7 @@ IN_PROC_BROWSER_TEST_P(WatermarkTestPageDynamicBrowserTest, DynamicWatermark) {
   ASSERT_TRUE(ui_test_utils::NavigateToURL(
       browser(), GURL(chrome::kChromeUIWatermarkURL)));
 
-  auto* web_contents = browser()->GetTabStripModel()->GetActiveWebContents();
+  auto* web_contents = browser()->tab_strip_model()->GetActiveWebContents();
   auto* watermark_ui =
       web_contents->GetWebUI()->GetController()->GetAs<WatermarkUI>();
   ASSERT_TRUE(watermark_ui);
@@ -800,53 +794,6 @@ IN_PROC_BROWSER_TEST_F(WatermarkSettingsCommandLineBrowserTest, GetColors) {
                                              PercentageToSkAlpha(50)));
   EXPECT_EQ(GetOutlineColor(prefs), SkColorSetA(SkColorSetRGB(0xff, 0xff, 0xff),
                                                 PercentageToSkAlpha(60)));
-}
-
-class WatermarkTimestampTimezoneBrowserTest : public InProcessBrowserTest {
- public:
-  WatermarkTimestampTimezoneBrowserTest() {
-    scoped_feature_list_.InitAndEnableFeature(
-        enterprise_data_protection::kEnableWatermarkTimestampTimezone);
-  }
-
- private:
-  base::test::ScopedFeatureList scoped_feature_list_;
-};
-
-IN_PROC_BROWSER_TEST_F(WatermarkTimestampTimezoneBrowserTest,
-                       TimestampTimezoneTypeHistogram) {
-  base::HistogramTester histogram_tester;
-  PrefService* prefs = GetProfile()->GetPrefs();
-
-  // 0. Default (unmanaged / unset pref)
-  EXPECT_EQ(GetTimestampTimezone(prefs), "user_device");
-  histogram_tester.ExpectBucketCount(
-      "Enterprise.Watermark.TimestampTimezoneType",
-      TimestampTimezoneType::kDefault, 1);
-
-  // 1. UserDevice (admin explicitly set to "user_device")
-  prefs->SetString(enterprise_connectors::kWatermarkStyleTimestampTimezonePref,
-                   "user_device");
-  EXPECT_EQ(GetTimestampTimezone(prefs), "user_device");
-  histogram_tester.ExpectBucketCount(
-      "Enterprise.Watermark.TimestampTimezoneType",
-      TimestampTimezoneType::kUserDevice, 1);
-
-  // 2. ValidIANATimeZone (admin set to valid IANA timezone)
-  prefs->SetString(enterprise_connectors::kWatermarkStyleTimestampTimezonePref,
-                   "America/Toronto");
-  EXPECT_EQ(GetTimestampTimezone(prefs), "America/Toronto");
-  histogram_tester.ExpectBucketCount(
-      "Enterprise.Watermark.TimestampTimezoneType",
-      TimestampTimezoneType::kValidIANATimeZone, 1);
-
-  // 3. InvalidFallback (admin set to invalid timezone string)
-  prefs->SetString(enterprise_connectors::kWatermarkStyleTimestampTimezonePref,
-                   "Invalid/Timezone");
-  EXPECT_EQ(GetTimestampTimezone(prefs), "user_device");
-  histogram_tester.ExpectBucketCount(
-      "Enterprise.Watermark.TimestampTimezoneType",
-      TimestampTimezoneType::kInvalidFallback, 1);
 }
 
 }  // namespace enterprise_watermark

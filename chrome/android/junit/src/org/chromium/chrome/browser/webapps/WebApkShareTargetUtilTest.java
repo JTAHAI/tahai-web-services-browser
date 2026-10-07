@@ -13,6 +13,7 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.robolectric.annotation.Config;
 
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.chrome.browser.browserservices.intents.WebApkShareTarget;
@@ -22,6 +23,7 @@ import java.util.List;
 
 /** Tests WebApkShareTargetUtil. */
 @RunWith(BaseRobolectricTestRunner.class)
+@Config(manifest = Config.NONE)
 public class WebApkShareTargetUtilTest {
     @Before
     public void setUp() {

@@ -6,7 +6,6 @@
 
 #include <algorithm>
 #include <limits>
-#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -40,17 +39,12 @@ DEFINE_UI_CLASS_PROPERTY_KEY(std::underlying_type_t<ActionPinnableState>,
                              std::underlying_type_t<ActionPinnableState>(
                                  ActionPinnableState::kNotPinnable))
 
-DEFINE_OWNED_UI_CLASS_PROPERTY_KEY(std::u16string, kShortTitleTextKeyInternal)
-
-const ui::ClassProperty<std::u16string*>* const kShortTitleTextKey =
-    kShortTitleTextKeyInternal;
-
 ActionList::ActionList(Delegate* delegate) : delegate_(delegate) {}
 
 ActionList::~ActionList() = default;
 
-BaseAction* ActionList::AddAction(std::unique_ptr<BaseAction> action_item) {
-  BaseAction* result = action_item.get();
+ActionItem* ActionList::AddAction(std::unique_ptr<ActionItem> action_item) {
+  ActionItem* result = action_item.get();
   children_.push_back(std::move(action_item));
   if (delegate_) {
     delegate_->ActionListChanged();
@@ -58,7 +52,7 @@ BaseAction* ActionList::AddAction(std::unique_ptr<BaseAction> action_item) {
   return result;
 }
 
-std::unique_ptr<BaseAction> ActionList::RemoveAction(BaseAction* action_item) {
+std::unique_ptr<ActionItem> ActionList::RemoveAction(ActionItem* action_item) {
   auto result = std::find_if(
       children_.begin(), children_.end(),
       [action_item](auto& item) { return item.get() == action_item; });
@@ -88,6 +82,19 @@ BaseAction* BaseAction::GetParent() const {
   return parent_;
 }
 
+ActionItem* BaseAction::AddChild(std::unique_ptr<ActionItem> action_item) {
+  DCHECK(!action_item->GetParent());
+  action_item->parent_ = this;
+  return children_.AddAction(std::move(action_item));
+}
+
+std::unique_ptr<ActionItem> BaseAction::RemoveChild(ActionItem* action_item) {
+  DCHECK(action_item);
+  DCHECK_EQ(action_item->GetParent(), this);
+  action_item->parent_ = nullptr;
+  return children_.RemoveAction(action_item);
+}
+
 void BaseAction::ActionListChanged() {}
 
 void BaseAction::ResetActionList() {
@@ -112,10 +119,6 @@ void BaseAction::PopulateChildItems() {
   if (populate_child_callback_) {
     populate_child_callback_.Run(this);
   }
-}
-
-void BaseAction::AddChildInternal(std::unique_ptr<BaseAction> action_item) {
-  children_.AddAction(std::move(action_item));
 }
 
 BEGIN_METADATA_BASE(BaseAction)
@@ -175,10 +178,6 @@ ActionItem::ActionItem(InvokeActionCallback callback)
 
 ActionItem::~ActionItem() = default;
 
-ActionItem* ActionItem::GetActionItem() {
-  return this;
-}
-
 std::u16string_view ActionItem::GetAccessibleName() const {
   return accessible_name_;
 }
@@ -234,10 +233,9 @@ void ActionItem::SetChecked(bool checked) {
       if (child.get() == this) {
         continue;
       }
-      auto& child_action_item = *child->GetActionItem();
-      auto child_id = child_action_item.GetGroupId();
+      auto child_id = child->GetGroupId();
       if (child_id.has_value() && group_id_ == child_id) {
-        child_action_item.SetChecked(false);
+        child->SetChecked(false);
       }
     }
   }
@@ -586,15 +584,8 @@ std::pair<ActionId, bool> ActionIdMap::CreateActionId(
   return {new_action_id--, true};
 }
 
-ActionItem* IndirectActionItem::GetActionItem() {
-  return delegate_.get();
-}
-
-BEGIN_METADATA(IndirectActionItem)
-END_METADATA
-
 void ActionManager::IndexActions() {
-  if (root_action_parent_->GetChildren().children().empty() &&
+  if (root_action_parent_.GetChildren().children().empty() &&
       !initializer_list_->empty()) {
     initializer_list_->Notify(this);
   }
@@ -614,7 +605,7 @@ ActionItem* ActionManager::FindAction(ActionId action_id, ActionItem* scope) {
     }
   }
   const ActionList& action_list =
-      scope ? scope->GetChildren() : root_action_parent_->GetChildren();
+      scope ? scope->GetChildren() : root_action_parent_.GetChildren();
   return FindActionImpl(action_id, action_list);
 }
 
@@ -627,23 +618,23 @@ ActionItem* ActionManager::FindAction(const ui::KeyEvent& key_event,
 void ActionManager::GetActions(ActionItemVector& items, ActionItem* scope) {
   IndexActions();
   const ActionList& action_list =
-      scope ? scope->GetChildren() : root_action_parent_->GetChildren();
+      scope ? scope->GetChildren() : root_action_parent_.GetChildren();
   for (auto& child : action_list.children()) {
-    GetActionsImpl(child->GetActionItem(), items);
+    GetActionsImpl(child.get(), items);
   }
 }
 
 ActionItem* ActionManager::AddAction(std::unique_ptr<ActionItem> action_item) {
-  return root_action_parent_->AddChild(std::move(action_item));
+  return root_action_parent_.AddChild(std::move(action_item));
 }
 
 std::unique_ptr<ActionItem> ActionManager::RemoveAction(
     ActionItem* action_item) {
-  return root_action_parent_->RemoveChild(action_item);
+  return root_action_parent_.RemoveChild(action_item);
 }
 
 void ActionManager::ResetActions() {
-  root_action_parent_->ResetActionList();
+  root_action_parent_.ResetActionList();
 }
 
 void ActionManager::ResetActionItemInitializerList() {
@@ -656,7 +647,7 @@ base::CallbackListSubscription ActionManager::AppendActionItemInitializer(
   DCHECK(initializer_list_);
   // If an initializer is added after items have already been added, just run
   // the initializer immediately.
-  if (!root_action_parent_->GetChildren().children().empty()) {
+  if (!root_action_parent_.GetChildren().children().empty()) {
     initializer.Run(this);
   }
 
@@ -666,10 +657,9 @@ base::CallbackListSubscription ActionManager::AppendActionItemInitializer(
 ActionItem* ActionManager::FindActionImpl(ActionId action_id,
                                           const ActionList& list) {
   for (const auto& item : list.children()) {
-    auto* action_item = item->GetActionItem();
-    auto id = action_item->GetActionId();
+    auto id = item->GetActionId();
     if (id && id == action_id) {
-      return action_item;
+      return item.get();
     }
     if (!item->GetChildren().empty()) {
       ActionItem* result = FindActionImpl(action_id, item->GetChildren());
@@ -684,8 +674,7 @@ ActionItem* ActionManager::FindActionImpl(ActionId action_id,
 void ActionManager::GetActionsImpl(ActionItem* item, ActionItemVector& items) {
   items.push_back(item);
   for (auto& child : item->GetChildren().children()) {
-    auto* child_action_item = child->GetActionItem();
-    GetActionsImpl(child_action_item, items);
+    GetActionsImpl(child.get(), items);
   }
 }
 

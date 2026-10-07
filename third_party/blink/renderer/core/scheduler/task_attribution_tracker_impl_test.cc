@@ -6,7 +6,6 @@
 
 #include <optional>
 
-#include "base/memory/raw_ptr.h"
 #include "base/run_loop.h"
 #include "third_party/blink/renderer/core/dom/document.h"
 #include "third_party/blink/renderer/core/execution_context/execution_context.h"
@@ -83,8 +82,7 @@ class TaskAttributionTrackerImplTest : public PageTestBase {
   }
 
  protected:
-  raw_ptr<TaskAttributionTracker, UnprotectedInRelease | DanglingUntriaged>
-      tracker_ = nullptr;
+  TaskAttributionTracker* tracker_ = nullptr;
 };
 
 TEST_F(TaskAttributionTrackerImplTest, TaskStateClearedOnNestedRunLoop) {

@@ -13,8 +13,8 @@
 #include "base/test/with_feature_override.h"
 #include "chrome/browser/banners/test_app_banner_manager_desktop.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/tabs/tab_enums.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/views/intent_picker_bubble_view.h"
@@ -25,11 +25,8 @@
 #include "chrome/browser/web_applications/test/command_metrics_test_helper.h"
 #include "chrome/browser/web_applications/test/web_app_test_utils.h"
 #include "chrome/browser/web_applications/web_app_command_manager.h"
-#include "chrome/browser/web_applications/web_app_filter.h"
 #include "chrome/browser/web_applications/web_app_helpers.h"
 #include "chrome/browser/web_applications/web_app_provider.h"
-#include "chrome/browser/web_applications/web_app_registrar.h"
-#include "chrome/browser/web_applications/web_app_tab_helper.h"
 #include "chrome/browser/web_applications/web_contents/web_app_data_retriever.h"
 #include "chrome/browser/web_applications/web_install_service_impl.h"
 #include "chrome/common/chrome_features.h"
@@ -78,17 +75,8 @@ constexpr char kVariantedInstallTypeUma[] =
     "WebApp.WebInstallService.Api.InstallType";
 constexpr char kVariantedInstallResultUma[] =
     "WebApp.WebInstallService.Api.Result";
-constexpr char kTestPageWithId[] = "/banners/manifest_with_id_test_page.html";
-constexpr char kNestedScopeCurrentDocument[] =
-    "/web_apps/nesting/nested/parent_manifest_page.html";
-constexpr char kNestedScopeChildApp[] = "/web_apps/nesting/nested/index.html";
-constexpr char kNestedScopeParentManifestId[] =
-    "/web_apps/nesting/parent-app-id";
-constexpr char kScopedAppInScopePage[] =
-    "/web_apps/scoped_install/in_scope/index.html";
-constexpr char kScopedAppOutOfScopePage[] =
-    "/web_apps/scoped_install/out_of_scope.html";
-constexpr char kScopedAppManifestId[] = "/web_apps/scoped_install/app";
+constexpr char kRequestingPageUkm[] = "ResultByRequestingPage";
+constexpr char kInstalledAppUkm[] = "ResultByInstalledApp";
 }  // namespace
 
 namespace web_app {
@@ -149,6 +137,14 @@ class WebInstallCurrentDocumentBrowserTestBase : public WebAppBrowserTestBase {
     return ExecJs(contents, "webInstallError");
   }
 
+  const std::string GetManifestIdResult(
+      content::WebContents* contents = nullptr) {
+    if (!contents) {
+      contents = web_contents();
+    }
+    return EvalJs(contents, "webInstallResult.manifestId").ExtractString();
+  }
+
   const std::string GetErrorName(content::WebContents* contents = nullptr) {
     if (!contents) {
       contents = web_contents();
@@ -172,8 +168,12 @@ class WebInstallCurrentDocumentBrowserTest
 };
 
 IN_PROC_BROWSER_TEST_P(WebInstallCurrentDocumentBrowserTest, Install_NoParams) {
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(
-      browser(), embedded_https_test_server().GetURL(kTestPageWithId)));
+  GURL current_doc_url = embedded_https_test_server().GetURL(
+      "/banners/manifest_with_id_test_page.html");
+  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), current_doc_url));
+
+  const std::string manifest_id =
+      GenerateManifestId("some_id", current_doc_url).spec();
 
   base::AutoReset<web_app::InstallDialogTestResponse> auto_accept_pwa =
       web_app::SetPwaInstallationAutoRespondForTesting(
@@ -261,8 +261,9 @@ IN_PROC_BROWSER_TEST_P(WebInstallCurrentDocumentBrowserTest, Install_NoParams) {
 
 IN_PROC_BROWSER_TEST_P(WebInstallCurrentDocumentBrowserTest,
                        UserDeclinesInstallDialog) {
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(
-      browser(), embedded_https_test_server().GetURL(kTestPageWithId)));
+  GURL current_doc_url = embedded_https_test_server().GetURL(
+      "/banners/manifest_with_id_test_page.html");
+  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), current_doc_url));
 
   // Simulate the user declining the install dialog.
   base::AutoReset<web_app::InstallDialogTestResponse> auto_decline =
@@ -293,123 +294,10 @@ IN_PROC_BROWSER_TEST_P(WebInstallCurrentDocumentBrowserTest,
                                1);
 }
 
-// A narrower-scope installed app may control the current URL, but the current
-// document's manifest identifies the broader-scope parent app. Ensure the
-// manifest app is installed rather than launching the child app selected by
-// URL-scope matching.
-IN_PROC_BROWSER_TEST_P(WebInstallCurrentDocumentBrowserTest,
-                       NestedScopeInstallsManifestApp) {
-  const GURL current_document_url =
-      embedded_https_test_server().GetURL(kNestedScopeCurrentDocument);
-  const webapps::ManifestId parent_manifest_id(
-      embedded_https_test_server().GetURL(kNestedScopeParentManifestId));
-  const webapps::AppId parent_app_id =
-      GenerateAppIdFromManifestId(parent_manifest_id);
-
-  const webapps::AppId child_app_id = InstallWebAppInNewTabAndClose(
-      browser(), embedded_https_test_server().GetURL(kNestedScopeChildApp));
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), current_document_url));
-
-  auto* tab_helper = WebAppTabHelper::FromWebContents(web_contents());
-  ASSERT_TRUE(tab_helper);
-  ASSERT_EQ(tab_helper->app_id(), child_app_id);
-  ASSERT_NE(parent_app_id, child_app_id);
-
-  base::AutoReset<web_app::InstallDialogTestResponse> auto_accept_pwa =
-      web_app::SetPwaInstallationAutoRespondForTesting(
-          web_app::InstallDialogTestResponse::kAcceptAndLaunch);
-  auto auto_accept_intent_picker =
-      IntentPickerBubbleView::SetAutoAcceptIntentPickerBubbleForTesting();
-
-  ASSERT_TRUE(TryInstallApp());
-
-  EXPECT_TRUE(provider().registrar_unsafe().AppMatches(
-      parent_app_id, WebAppFilter::LaunchableFromInstallApi()));
-}
-
-// When both nested-scope apps are installed, launch the app identified by the
-// current document's manifest rather than the narrower-scope child selected by
-// URL-scope matching.
-IN_PROC_BROWSER_TEST_P(WebInstallCurrentDocumentBrowserTest,
-                       NestedScopeLaunchesManifestApp) {
-  const GURL current_document_url =
-      embedded_https_test_server().GetURL(kNestedScopeCurrentDocument);
-  const webapps::ManifestId parent_manifest_id(
-      embedded_https_test_server().GetURL(kNestedScopeParentManifestId));
-  const webapps::AppId expected_parent_app_id =
-      GenerateAppIdFromManifestId(parent_manifest_id);
-
-  const webapps::AppId parent_app_id =
-      InstallWebAppInNewTabAndClose(browser(), current_document_url);
-  ASSERT_EQ(parent_app_id, expected_parent_app_id);
-  const webapps::AppId child_app_id = InstallWebAppInNewTabAndClose(
-      browser(), embedded_https_test_server().GetURL(kNestedScopeChildApp));
-
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), current_document_url));
-  auto* tab_helper = WebAppTabHelper::FromWebContents(web_contents());
-  ASSERT_TRUE(tab_helper);
-  ASSERT_EQ(tab_helper->app_id(), child_app_id);
-  ASSERT_NE(parent_app_id, child_app_id);
-
-  auto auto_accept_intent_picker =
-      IntentPickerBubbleView::SetAutoAcceptIntentPickerBubbleForTesting();
-  ui_test_utils::BrowserCreatedObserver browser_created_observer;
-
-  ASSERT_TRUE(TryInstallApp());
-
-  BrowserWindowInterface* launched_app_browser =
-      browser_created_observer.Wait();
-  ASSERT_TRUE(AppBrowserController::IsWebApp(launched_app_browser));
-  EXPECT_EQ(AppBrowserController::From(launched_app_browser)->app_id(),
-            parent_app_id);
-}
-
-// Out-of-scope current document: discovering apps by the document URL yields
-// zero matches, so the picker is seeded with the installed_app_id resolved
-// from the manifest id, launching the app rather than an AbortError.
-IN_PROC_BROWSER_TEST_P(WebInstallCurrentDocumentBrowserTest,
-                       OutOfScopeLinkingPageLaunchesInstalledApp) {
-  const webapps::ManifestId manifest_id(
-      embedded_https_test_server().GetURL(kScopedAppManifestId));
-  const webapps::AppId expected_app_id =
-      GenerateAppIdFromManifestId(manifest_id);
-
-  // Install from an in-scope page (scope "/web_apps/scoped_install/in_scope/").
-  const webapps::AppId app_id = InstallWebAppInNewTabAndClose(
-      browser(), embedded_https_test_server().GetURL(kScopedAppInScopePage));
-  ASSERT_EQ(app_id, expected_app_id);
-
-  // Navigate to a page OUTSIDE that scope that links the same manifest.
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(
-      browser(),
-      embedded_https_test_server().GetURL(kScopedAppOutOfScopePage)));
-  auto* tab_helper = WebAppTabHelper::FromWebContents(web_contents());
-  ASSERT_TRUE(tab_helper);
-  ASSERT_NE(tab_helper->app_id(), app_id);  // No app controls this document.
-
-  auto auto_accept_intent_picker =
-      IntentPickerBubbleView::SetAutoAcceptIntentPickerBubbleForTesting();
-  base::HistogramTester histograms;
-  ui_test_utils::BrowserCreatedObserver browser_created_observer;
-
-  ASSERT_TRUE(TryInstallApp());
-
-  BrowserWindowInterface* launched_app_browser =
-      browser_created_observer.Wait();
-  ASSERT_TRUE(AppBrowserController::IsWebApp(launched_app_browser));
-  EXPECT_EQ(AppBrowserController::From(launched_app_browser)->app_id(), app_id);
-
-  histograms.ExpectBucketCount(
-      kInstallResultUma,
-      web_app::WebInstallServiceResult::kSuccessAlreadyInstalled, 1);
-  histograms.ExpectBucketCount(
-      kVariantedInstallResultUma,
-      web_app::WebInstallServiceResult::kSuccessAlreadyInstalled, 1);
-}
-
 IN_PROC_BROWSER_TEST_P(WebInstallCurrentDocumentBrowserTest,
                        UserAcceptsOpenDialog) {
-  GURL current_doc_url = embedded_https_test_server().GetURL(kTestPageWithId);
+  GURL current_doc_url = embedded_https_test_server().GetURL(
+      "/banners/manifest_with_id_test_page.html");
   const std::string manifest_id =
       GenerateManifestId("some_id", current_doc_url).spec();
 
@@ -461,7 +349,8 @@ IN_PROC_BROWSER_TEST_P(WebInstallCurrentDocumentBrowserTest,
 
 IN_PROC_BROWSER_TEST_P(WebInstallCurrentDocumentBrowserTest,
                        UserCancelsOpenDialog) {
-  GURL current_doc_url = embedded_https_test_server().GetURL(kTestPageWithId);
+  GURL current_doc_url = embedded_https_test_server().GetURL(
+      "/banners/manifest_with_id_test_page.html");
   const std::string manifest_id =
       GenerateManifestId("some_id", current_doc_url).spec();
 
@@ -502,7 +391,8 @@ IN_PROC_BROWSER_TEST_P(WebInstallCurrentDocumentBrowserTest,
 
 IN_PROC_BROWSER_TEST_P(WebInstallCurrentDocumentBrowserTest,
                        IntentPickerAfterTabSwitching) {
-  GURL current_doc_url = embedded_https_test_server().GetURL(kTestPageWithId);
+  GURL current_doc_url = embedded_https_test_server().GetURL(
+      "/banners/manifest_with_id_test_page.html");
 
   base::AutoReset<web_app::InstallDialogTestResponse> auto_accept_pwa =
       web_app::SetPwaInstallationAutoRespondForTesting(
@@ -568,10 +458,10 @@ using WebInstallNotSupportedDialogBrowserTest =
 
 IN_PROC_BROWSER_TEST_P(WebInstallNotSupportedDialogBrowserTest,
                        NotSupportedDialogInIncognito_CurrentDocument) {
-  // Open incognito window and navigate to a page with a valid manifest.
-  BrowserWindowInterface* incognito_browser = CreateIncognitoBrowser();
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(
-      incognito_browser, embedded_https_test_server().GetURL(kTestPageWithId)));
+  // Open incognito window and navigate to a valid URL.
+  GURL test_url = embedded_https_test_server().GetURL("/simple.html");
+  Browser* incognito_browser = CreateIncognitoBrowser();
+  ASSERT_TRUE(ui_test_utils::NavigateToURL(incognito_browser, test_url));
 
   views::NamedWidgetShownWaiter widget_waiter(
       views::test::AnyWidgetTestPasskey{}, "WebAppInstallNotSupportedDialog");
@@ -623,11 +513,89 @@ IN_PROC_BROWSER_TEST_P(WebInstallNotSupportedDialogBrowserTest,
 }
 
 IN_PROC_BROWSER_TEST_P(WebInstallNotSupportedDialogBrowserTest,
+                       NotSupportedDialogInIncognito_BackgroundDocument) {
+  // Open incognito window and navigate to a valid URL.
+  GURL test_url = embedded_https_test_server().GetURL("/simple.html");
+  Browser* incognito_browser = CreateIncognitoBrowser();
+  ASSERT_TRUE(ui_test_utils::NavigateToURL(incognito_browser, test_url));
+
+  const GURL background_doc_install_url = embedded_https_test_server().GetURL(
+      "/banners/manifest_with_id_test_page.html");
+
+  views::NamedWidgetShownWaiter widget_waiter(
+      views::test::AnyWidgetTestPasskey{}, "WebAppInstallNotSupportedDialog");
+  content::WebContents* incognito_web_contents =
+      incognito_browser->tab_strip_model()->GetActiveWebContents();
+
+  base::HistogramTester histograms;
+  ukm::TestAutoSetUkmRecorder ukm_recorder;
+
+  // Trigger the Install Not Supported dialog by initiating an install request.
+  ExecuteScriptAsync(incognito_web_contents,
+                     "navigator.install('" + background_doc_install_url.spec() +
+                         "')"
+                         ".then(result => {"
+                         "  webInstallResult = result;"
+                         "}).catch(error => {"
+                         "  webInstallError = error;"
+                         "});");
+
+  // Wait for the dialog to show.
+  views::Widget* widget = widget_waiter.WaitIfNeededAndGet();
+  ASSERT_NE(widget, nullptr);
+  views::test::WidgetDestroyedWaiter destroyed(widget);
+
+  // Verify dialog title for Incognito mode.
+  EXPECT_EQ(
+      widget->widget_delegate()->AsBubbleDialogDelegate()->GetWindowTitle(),
+      u"Web app installs aren't supported in Incognito mode");
+
+  // Simulate the user accepting the dialog.
+  views::test::AcceptDialog(widget);
+  destroyed.Wait();
+
+  // Validate JS results.
+  EXPECT_FALSE(ResultExists(incognito_web_contents));
+  EXPECT_TRUE(ErrorExists(incognito_web_contents));
+  EXPECT_EQ(GetErrorName(incognito_web_contents), kAbortError);
+
+  histograms.ExpectBucketCount(
+      kInstallResultUma, web_app::WebInstallServiceResult::kUnsupportedProfile,
+      1);
+  histograms.ExpectBucketCount(
+      kInstallTypeUma, web_app::WebInstallServiceType::kBackgroundDocument, 1);
+  // Check the varianted UMAs.
+  histograms.ExpectBucketCount(
+      kVariantedInstallResultUma,
+      web_app::WebInstallServiceResult::kUnsupportedProfile, 1);
+  histograms.ExpectBucketCount(
+      kVariantedInstallTypeUma,
+      web_app::WebInstallServiceType::kBackgroundDocument, 1);
+
+  // Verify UKM entries.
+  auto ukm_entries = ukm_recorder.GetEntriesByName(
+      ukm::builders::WebApp_WebInstall::kEntryName);
+  ASSERT_EQ(2u, ukm_entries.size());
+  ukm_recorder.ExpectEntryMetric(
+      ukm_entries[0], kRequestingPageUkm,
+      static_cast<int>(web_app::WebInstallServiceResult::kUnsupportedProfile));
+  // First entry should be of source type, NAVIGATION_ID.
+  EXPECT_EQ(ukm::GetSourceIdType(ukm_entries[0]->source_id),
+            ukm::SourceIdType::NAVIGATION_ID);
+  ukm_recorder.ExpectEntryMetric(
+      ukm_entries[1], kInstalledAppUkm,
+      static_cast<int>(web_app::WebInstallServiceResult::kUnsupportedProfile));
+  // Second entry should be of source type, APP_ID.
+  EXPECT_EQ(ukm::GetSourceIdType(ukm_entries[1]->source_id),
+            ukm::SourceIdType::APP_ID);
+}
+
+IN_PROC_BROWSER_TEST_P(WebInstallNotSupportedDialogBrowserTest,
                        NotSupportedDialogAfterTabSwitching) {
-  // Open incognito window and navigate to a page with a valid manifest.
-  BrowserWindowInterface* incognito_browser = CreateIncognitoBrowser();
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(
-      incognito_browser, embedded_https_test_server().GetURL(kTestPageWithId)));
+  // Open incognito window and navigate to a valid URL.
+  GURL test_url = embedded_https_test_server().GetURL("/simple.html");
+  Browser* incognito_browser = CreateIncognitoBrowser();
+  ASSERT_TRUE(ui_test_utils::NavigateToURL(incognito_browser, test_url));
 
   views::NamedWidgetShownWaiter widget_waiter(
       views::test::AnyWidgetTestPasskey{}, "WebAppInstallNotSupportedDialog");
@@ -694,15 +662,15 @@ IN_PROC_BROWSER_TEST_P(WebInstallGuestModeTest,
                        NotSupportedDialogInGuestMode_CurrentDocument) {
   // Open a new guest mode window.
 #if BUILDFLAG(IS_CHROMEOS)
-  BrowserWindowInterface* guest_browser = browser();
+  Browser* guest_browser = browser();
 #else
-  BrowserWindowInterface* guest_browser = CreateGuestBrowser();
+  Browser* guest_browser = CreateGuestBrowser();
 #endif  // BUILDFLAG(IS_CHROMEOS)
   ASSERT_TRUE(guest_browser->GetProfile()->IsGuestSession());
 
-  // Navigate to a page with a valid manifest in the guest browser.
+  // Navigate to a valid URL in the guest browser.
   ASSERT_TRUE(ui_test_utils::NavigateToURL(
-      guest_browser, embedded_https_test_server().GetURL(kTestPageWithId)));
+      guest_browser, embedded_https_test_server().GetURL("/simple.html")));
 
   views::NamedWidgetShownWaiter widget_waiter(
       views::test::AnyWidgetTestPasskey{}, "WebAppInstallNotSupportedDialog");
@@ -753,6 +721,91 @@ IN_PROC_BROWSER_TEST_P(WebInstallGuestModeTest,
                                1);
 }
 
+IN_PROC_BROWSER_TEST_P(WebInstallGuestModeTest,
+                       NotSupportedDialogInGuestMode_BackgroundDocument) {
+  // Open a new guest mode window.
+#if BUILDFLAG(IS_CHROMEOS)
+  Browser* guest_browser = browser();
+#else
+  Browser* guest_browser = CreateGuestBrowser();
+#endif  // BUILDFLAG(IS_CHROMEOS)
+  ASSERT_TRUE(guest_browser->GetProfile()->IsGuestSession());
+
+  // Navigate to a valid URL in the guest browser.
+  ASSERT_TRUE(ui_test_utils::NavigateToURL(
+      guest_browser, embedded_https_test_server().GetURL("/simple.html")));
+
+  views::NamedWidgetShownWaiter widget_waiter(
+      views::test::AnyWidgetTestPasskey{}, "WebAppInstallNotSupportedDialog");
+  content::WebContents* guest_web_contents =
+      guest_browser->tab_strip_model()->GetActiveWebContents();
+
+  const GURL background_doc_install_url = embedded_https_test_server().GetURL(
+      "/banners/manifest_with_id_test_page.html");
+
+  base::HistogramTester histograms;
+  ukm::TestAutoSetUkmRecorder ukm_recorder;
+
+  // Trigger the Install Not Supported dialog by initiating an install request.
+  ExecuteScriptAsync(guest_web_contents, "navigator.install('" +
+                                             background_doc_install_url.spec() +
+                                             "')"
+                                             ".then(result => {"
+                                             "  webInstallResult = result;"
+                                             "}).catch(error => {"
+                                             "  webInstallError = error;"
+                                             "});");
+
+  // Confirm Install Not Supported Dialog shows.
+  views::Widget* widget = widget_waiter.WaitIfNeededAndGet();
+  ASSERT_NE(widget, nullptr);
+  views::test::WidgetDestroyedWaiter destroyed(widget);
+
+  // Verify dialog title for Guest mode.
+  EXPECT_EQ(
+      widget->widget_delegate()->AsBubbleDialogDelegate()->GetWindowTitle(),
+      u"Web app installs aren't supported in Guest mode");
+
+  // Simulate the user accepting the dialog.
+  views::test::AcceptDialog(widget);
+  destroyed.Wait();
+
+  // Validate JS results.
+  EXPECT_FALSE(ResultExists(guest_web_contents));
+  EXPECT_TRUE(ErrorExists(guest_web_contents));
+  EXPECT_EQ(GetErrorName(guest_web_contents), kAbortError);
+
+  histograms.ExpectBucketCount(
+      kInstallResultUma, web_app::WebInstallServiceResult::kUnsupportedProfile,
+      1);
+  histograms.ExpectBucketCount(
+      kInstallTypeUma, web_app::WebInstallServiceType::kBackgroundDocument, 1);
+  // Check the varianted UMAs.
+  histograms.ExpectBucketCount(
+      kVariantedInstallResultUma,
+      web_app::WebInstallServiceResult::kUnsupportedProfile, 1);
+  histograms.ExpectBucketCount(
+      kVariantedInstallTypeUma,
+      web_app::WebInstallServiceType::kBackgroundDocument, 1);
+
+  // Verify UKM entries.
+  auto ukm_entries = ukm_recorder.GetEntriesByName(
+      ukm::builders::WebApp_WebInstall::kEntryName);
+  ASSERT_EQ(2u, ukm_entries.size());
+  ukm_recorder.ExpectEntryMetric(
+      ukm_entries[0], kRequestingPageUkm,
+      static_cast<int>(web_app::WebInstallServiceResult::kUnsupportedProfile));
+  // First entry should be of source type, NAVIGATION_ID.
+  EXPECT_EQ(ukm::GetSourceIdType(ukm_entries[0]->source_id),
+            ukm::SourceIdType::NAVIGATION_ID);
+  ukm_recorder.ExpectEntryMetric(
+      ukm_entries[1], kInstalledAppUkm,
+      static_cast<int>(web_app::WebInstallServiceResult::kUnsupportedProfile));
+  // Second entry should be of source type, APP_ID.
+  EXPECT_EQ(ukm::GetSourceIdType(ukm_entries[1]->source_id),
+            ukm::SourceIdType::APP_ID);
+}
+
 #if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX)
 class WebInstallPolicyDisabledTest
     : public WebInstallCurrentDocumentBrowserTest {
@@ -789,9 +842,9 @@ IN_PROC_BROWSER_TEST_P(WebInstallPolicyDisabledTest,
   ASSERT_FALSE(
       web_app::IsWebAppInstallByUserPolicyEnabled(browser()->GetProfile()));
 
-  // Navigate to a page with a valid manifest in the browser.
+  // Navigate to a valid URL in the browser.
   ASSERT_TRUE(ui_test_utils::NavigateToURL(
-      browser(), embedded_https_test_server().GetURL(kTestPageWithId)));
+      browser(), embedded_https_test_server().GetURL("/simple.html")));
 
   views::NamedWidgetShownWaiter widget_waiter(
       views::test::AnyWidgetTestPasskey{}, "WebAppInstallNotSupportedDialog");
@@ -854,8 +907,9 @@ using WebInstallCurrentDocumentBrowserTestManifestErrors =
 // be cleaned up gracefully.
 IN_PROC_BROWSER_TEST_P(WebInstallCurrentDocumentBrowserTestManifestErrors,
                        WebContentsClosedDuringManifestRetrieval) {
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(
-      browser(), embedded_https_test_server().GetURL(kTestPageWithId)));
+  GURL current_doc_url = embedded_https_test_server().GetURL(
+      "/banners/manifest_with_id_test_page.html");
+  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), current_doc_url));
 
   // Execute the install async so we can close the tab while it's in progress.
   content::ExecuteScriptAsync(web_contents(),
@@ -1050,24 +1104,18 @@ IN_PROC_BROWSER_TEST_P(WebInstallOriginTrialBrowserTest, WithOriginTrialToken) {
   }
 }
 
-// Spam-calling navigator.install() while dynamically adding/removing the
-// manifest link tag must not crash or hang: every call settles cleanly with a
-// well-defined outcome.
+// Test that spam-calling navigator.install() while dynamically adding/removing
+// the manifest link tag doesn't cause crashes or unexpected behavior.
+// TODO(crbug.com/479729304): disabled due to flakiness.
 IN_PROC_BROWSER_TEST_P(WebInstallCurrentDocumentBrowserTest,
-                       SpamInstallWithDynamicManifest) {
+                       DISABLED_SpamInstallWithDynamicManifest) {
   // Start on a page without a manifest.
   GURL test_url = embedded_https_test_server().GetURL("/simple.html");
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), test_url));
 
-  // Shorten the manifest wait timeout to avoid waiting the full 30 seconds for
-  // calls made when no manifest is present, which would time out the test under
-  // parallel test-launcher runs.
-  base::AutoReset<int> manifest_wait_timeout =
-      web_app::WebAppDataRetriever::SetManifestWaitTimeoutForTesting(3);
-
   base::AutoReset<web_app::InstallDialogTestResponse> auto_accept_pwa =
       web_app::SetPwaInstallationAutoRespondForTesting(
-          web_app::InstallDialogTestResponse::kAcceptNoLaunch);
+          web_app::InstallDialogTestResponse::kAcceptAndLaunch);
 
   const int kTotalInstallCalls = 15;
   const int kAddManifestAfterCalls = 5;
@@ -1096,33 +1144,21 @@ IN_PROC_BROWSER_TEST_P(WebInstallCurrentDocumentBrowserTest,
           "if (link) link.remove();"));
     }
 
-    // Record each call's settled outcome. Resolving (instead of rethrowing)
-    // keeps Promise.all from rejecting early so we can inspect every result.
+    // Add install call to array. Each promise is caught to prevent
+    // Promise.all from rejecting early.
     ASSERT_TRUE(content::ExecJs(
         web_contents(),
-        "all_install_calls.push(navigator.install().then("
-        "() => ({status: 'fulfilled', name: ''}),"
-        "error => ({status: 'rejected', name: error.name})));"));
+        "all_install_calls.push(navigator.install().then(result => {"
+        "console.log('Install succeeded');"
+        "}).catch(error => {"
+        "console.log('Install failed');"
+        "}));"));
   }
 
-  // Every call must settle (no hang) with a well-defined outcome: a success or
-  // a recognized DOMException. The check runs in JS so any unexpected outcome
-  // (signaling a crash or unhandled path) surfaces in the message.
-  EXPECT_EQ(
-      "ok",
-      content::EvalJs(
-          web_contents(),
-          "Promise.all(all_install_calls).then(results => {"
-          "  if (results.length !== 15)"
-          "    return 'wrong count: ' + results.length;"
-          "  const known = new Set(['AbortError', 'DataError']);"
-          "  for (const r of results) {"
-          "    if (r.status === 'fulfilled') continue;"
-          "    if (r.status === 'rejected' && known.has(r.name)) continue;"
-          "    return 'unexpected: ' + JSON.stringify(r);"
-          "  }"
-          "  return 'ok';"
-          "})"));
+  // Wait for all promises to settle.
+  EXPECT_TRUE(content::EvalJs(web_contents(),
+                              "Promise.all(all_install_calls).then(() => true)")
+                  .ExtractBool());
 }
 
 // Test that spam-calling navigator.install() while navigating between pages
@@ -1137,8 +1173,8 @@ IN_PROC_BROWSER_TEST_P(WebInstallCurrentDocumentBrowserTest,
   const int kNavigateToNoManifestAfterCalls = 5;
   const int kNavigateBackToManifestAfterCalls = 10;
 
-  GURL page_with_manifest =
-      embedded_https_test_server().GetURL(kTestPageWithId);
+  GURL page_with_manifest = embedded_https_test_server().GetURL(
+      "/banners/manifest_with_id_test_page.html");
   GURL page_without_manifest =
       embedded_https_test_server().GetURL("/simple.html");
 
@@ -1185,8 +1221,9 @@ IN_PROC_BROWSER_TEST_P(WebInstallCurrentDocumentBrowserTest,
 // hits the early-return guard and rejects with AbortError.
 IN_PROC_BROWSER_TEST_P(WebInstallCurrentDocumentBrowserTest,
                        ConcurrentInstallsRejected) {
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(
-      browser(), embedded_https_test_server().GetURL(kTestPageWithId)));
+  GURL current_doc_url = embedded_https_test_server().GetURL(
+      "/banners/manifest_with_id_test_page.html");
+  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), current_doc_url));
 
   base::HistogramTester histograms;
 
@@ -1218,12 +1255,16 @@ IN_PROC_BROWSER_TEST_P(WebInstallCurrentDocumentBrowserTest,
 }
 
 // Verifies the install_in_progress_ guard resets after install #1 finishes,
-// letting a second install on the same document proceed past the guard. A
-// kInstallInProgress count on install #2 would mean the flag never reset.
+// allowing a second install on the same document to proceed past the guard.
+// Both installs are declined so their callbacks fire, exercising the
+// ScopedClosureRunner reset path. If the guard reset, install #2 should be
+// counted as kCanceledByUser; a kInstallInProgress count would indicate the
+// flag was not reset.
 IN_PROC_BROWSER_TEST_P(WebInstallCurrentDocumentBrowserTest,
                        InstallInProgressResets) {
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(
-      browser(), embedded_https_test_server().GetURL(kTestPageWithId)));
+  GURL current_doc_url = embedded_https_test_server().GetURL(
+      "/banners/manifest_with_id_test_page.html");
+  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), current_doc_url));
 
   base::HistogramTester histograms;
 
@@ -1279,6 +1320,8 @@ IN_PROC_BROWSER_TEST_P(WebInstallCurrentDocumentBrowserTest,
     // Validate JS results.
     EXPECT_TRUE(ResultExists(app_web_contents));
     EXPECT_FALSE(ErrorExists(app_web_contents));
+    EXPECT_EQ(GetManifestIdResult(app_web_contents),
+              GenerateManifestId("some_id", current_doc_url).spec());
   }
 
   // One user cancellation and one successful install, and crucially zero

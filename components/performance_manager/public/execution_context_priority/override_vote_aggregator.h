@@ -36,9 +36,14 @@ class OverrideVoteAggregator : public VoteObserver {
 
  protected:
   // VoteObserver implementation:
-  void OnVoteSet(VoterId voter_id,
-                 const ExecutionContext* execution_context,
-                 const std::optional<Vote>& vote) override;
+  void OnVoteSubmitted(VoterId voter_id,
+                       const ExecutionContext* execution_context,
+                       const Vote& vote) override;
+  void OnVoteChanged(VoterId voter_id,
+                     const ExecutionContext* execution_context,
+                     const Vote& new_vote) override;
+  void OnVoteInvalidated(VoterId voter_id,
+                         const ExecutionContext* execution_context) override;
 
  private:
   // This is move-only because all of its members are move-only.
@@ -56,10 +61,13 @@ class OverrideVoteAggregator : public VoteObserver {
     VoteData& operator=(VoteData&& rhs) = default;
     ~VoteData();
 
-    void SetVote(VoterType voter_type, const std::optional<Vote>& vote);
+    void AddVote(VoterType voter_type, const Vote& vote);
+    void ChangeVote(VoterType voter_type, const Vote& new_vote);
+    void RemoveVote(VoterType voter_type);
 
-    // Returns the chosen vote, or nullopt if no vote exists.
-    std::optional<Vote> GetChosenVote() const;
+    bool HasChosenVote() const;
+
+    const Vote& GetChosenVote() const;
 
    private:
     // At least one of these is not null if a vote has been emitted for this
@@ -69,6 +77,10 @@ class OverrideVoteAggregator : public VoteObserver {
   };
 
   using VoteDataMap = std::map<const ExecutionContext*, VoteData>;
+
+  // Looks up the VoteData associated with the provided |vote|. The data is
+  // expected to already exist (enforced by a DCHECK).
+  VoteDataMap::iterator GetVoteData(const ExecutionContext* execution_context);
 
   // Returns the VoterType associated with |voter_id|.
   VoteData::VoterType GetVoterType(VoterId voter_id) const;

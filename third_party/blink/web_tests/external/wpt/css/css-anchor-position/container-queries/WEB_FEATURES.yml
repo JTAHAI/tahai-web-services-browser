@@ -1,2 +1,3 @@
-rules:
-- "**": [container-anchor-position-queries]
+features:
+- name: container-anchor-position-queries
+  files: "**"

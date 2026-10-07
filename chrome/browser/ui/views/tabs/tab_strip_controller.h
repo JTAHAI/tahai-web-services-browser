@@ -97,6 +97,10 @@ class TabStripController {
       int index,
       CloseTabSource source,
       base::OnceCallback<void(CloseTabSource)> callback) = 0;
+
+  // Closes the tab at the specified index in the model.
+  virtual void CloseTab(int index) = 0;
+
   // Toggles audio muting for the tab at the specified index in the model.
   virtual void ToggleTabAudioMute(int index) = 0;
 

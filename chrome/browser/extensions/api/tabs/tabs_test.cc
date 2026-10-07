@@ -23,7 +23,6 @@
 #include "base/strings/stringprintf.h"
 #include "base/strings/to_string.h"
 #include "base/test/gmock_expected_support.h"
-#include "base/test/run_until.h"
 #include "base/test/scoped_feature_list.h"
 #include "base/test/simple_test_tick_clock.h"
 #include "base/test/test_future.h"
@@ -50,7 +49,6 @@
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
-#include "chrome/browser/ui/browser_window/public/create_browser_window.h"
 #include "chrome/browser/ui/tabs/saved_tab_groups/saved_tab_group_utils.h"
 #include "chrome/browser/ui/ui_features.h"
 #include "chrome/browser/ui/zoom/chrome_zoom_level_prefs.h"
@@ -90,7 +88,6 @@
 #include "third_party/abseil-cpp/absl/strings/str_format.h"
 #include "third_party/blink/public/common/page/page_zoom.h"
 #include "ui/base/base_window.h"
-#include "ui/base/device_form_factor.h"
 #include "ui/base/ozone_buildflags.h"
 #include "ui/base/window_open_disposition.h"
 #include "ui/display/display.h"
@@ -108,10 +105,10 @@
 #include "chrome/browser/resource_coordinator/tab_manager.h"
 #include "chrome/browser/resource_coordinator/time.h"
 #include "chrome/browser/resource_coordinator/utils.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_tabstrip.h"
 #include "chrome/browser/ui/browser_window.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "chrome/browser/ui/tabs/saved_tab_groups/tab_group_sync_service_initialized_observer.h"
 #include "chrome/browser/ui/tabs/split_tab_metrics.h"
@@ -397,9 +394,8 @@ IN_PROC_BROWSER_TEST_F(ExtensionTabsTest, GetWindow) {
 
   // Check window type.
   EXPECT_EQ("normal", GetWindowType(browser_window_interface(), extension));
-  BrowserWindowInterface* test_browser = CreateBrowserWindow(
-      BrowserWindowCreateParams(BrowserWindowInterface::TYPE_POPUP, profile(),
-                                /*from_user_gesture=*/true));
+  Browser* test_browser = Browser::Create(
+      Browser::CreateParams(Browser::TYPE_POPUP, profile(), true));
   EXPECT_EQ("popup", GetWindowType(test_browser, extension));
   DevToolsWindow* devtools = DevToolsWindowTesting::OpenDevToolsWindowSync(
       GetTabListInterface()->GetTab(0)->GetContents(), false /* is_docked */);
@@ -407,18 +403,15 @@ IN_PROC_BROWSER_TEST_F(ExtensionTabsTest, GetWindow) {
             GetWindowType(DevToolsWindowTesting::Get(devtools)->browser(),
                           extension));
   DevToolsWindowTesting::CloseDevToolsWindowSync(devtools);
-  test_browser = CreateBrowserWindow(BrowserWindowCreateParams::CreateForApp(
-      "test-app", /*trusted_source=*/true, gfx::Rect(), profile(),
-      /*user_gesture=*/true));
+  test_browser = Browser::Create(Browser::CreateParams::CreateForApp(
+      "test-app", true, gfx::Rect(), profile(), true));
   EXPECT_EQ("app", GetWindowType(test_browser, extension));
-  test_browser =
-      CreateBrowserWindow(BrowserWindowCreateParams::CreateForAppPopup(
-          "test-app-popup", /*trusted_source=*/true, gfx::Rect(), profile(),
-          /*user_gesture=*/true));
+  test_browser = Browser::Create(Browser::CreateParams::CreateForAppPopup(
+      "test-app-popup", true, gfx::Rect(), profile(), true));
   EXPECT_EQ("popup", GetWindowType(test_browser, extension));
 
   // Incognito.
-  BrowserWindowInterface* incognito_browser = CreateIncognitoBrowser();
+  Browser* incognito_browser = CreateIncognitoBrowser();
   int incognito_window_id = ExtensionTabUtil::GetWindowId(incognito_browser);
 
   // Without "include_incognito".
@@ -441,7 +434,7 @@ IN_PROC_BROWSER_TEST_F(ExtensionTabsTest, GetWindow) {
 
 IN_PROC_BROWSER_TEST_F(ExtensionTabsTest, GetCurrentWindow) {
   int window_id = ExtensionTabUtil::GetWindowId(browser_window_interface());
-  BrowserWindowInterface* new_browser = CreateBrowser(profile());
+  Browser* new_browser = CreateBrowser(profile());
   int new_id = ExtensionTabUtil::GetWindowId(new_browser);
 
   // Get the current window using new_browser.
@@ -491,7 +484,7 @@ IN_PROC_BROWSER_TEST_F(ExtensionTabsTestWithApps, MAYBE_GetAllWindows) {
   window_ids.insert(ExtensionTabUtil::GetWindowId(browser_window_interface()));
 
   for (size_t i = 0; i < NUM_WINDOWS - 1; ++i) {
-    BrowserWindowInterface* new_browser = CreateBrowser(profile());
+    Browser* new_browser = CreateBrowser(profile());
     window_ids.insert(ExtensionTabUtil::GetWindowId(new_browser));
   }
 
@@ -558,7 +551,7 @@ IN_PROC_BROWSER_TEST_F(ExtensionTabsTestWithApps, GetAllWindowsAllTypes) {
   window_ids.insert(ExtensionTabUtil::GetWindowId(browser_window_interface()));
 
   for (size_t i = 0; i < NUM_WINDOWS - 1; ++i) {
-    BrowserWindowInterface* new_browser = CreateBrowser(profile());
+    Browser* new_browser = CreateBrowser(profile());
     window_ids.insert(ExtensionTabUtil::GetWindowId(new_browser));
   }
 
@@ -648,7 +641,7 @@ IN_PROC_BROWSER_TEST_F(ExtensionTabsTest, UpdateNoPermissions) {
 
 IN_PROC_BROWSER_TEST_F(ExtensionTabsTest,
                        DisallowNonIncognitoUrlInIncognitoWindow) {
-  BrowserWindowInterface* incognito = CreateIncognitoBrowser();
+  Browser* incognito = CreateIncognitoBrowser();
 
   auto update_tab_function = base::MakeRefCounted<TabsUpdateFunction>();
   scoped_refptr<const Extension> extension(ExtensionBuilder("Test").Build());
@@ -700,7 +693,7 @@ IN_PROC_BROWSER_TEST_F(ExtensionTabsTest, DefaultToIncognitoWhenItIsForced) {
   EXPECT_TRUE(api_test_utils::GetBoolean(result, "incognito"));
 
   // Now try creating a window from incognito window.
-  BrowserWindowInterface* incognito_browser = CreateIncognitoBrowser();
+  Browser* incognito_browser = CreateIncognitoBrowser();
   // Run without an explicit "incognito" param.
   function = base::MakeRefCounted<WindowsCreateFunction>();
   function->SetRenderFrameHost(GetTabListInterface()
@@ -752,6 +745,84 @@ IN_PROC_BROWSER_TEST_F(ExtensionTabsTest,
             extension_url);
 }
 
+namespace {
+
+// Simulates the browser immediately closing upon activation. This can
+// potentially happen synchronously as part of showing a window on some
+// platforms, but that's difficult to reproduce in a test directly.
+class CloseOnBrowserCreatedObserver : public BrowserCollectionObserver {
+ public:
+  explicit CloseOnBrowserCreatedObserver(BrowserWindowInterface* ignore_browser)
+      : ignore_browser_(ignore_browser) {
+    observation_.Observe(GlobalBrowserCollection::GetInstance());
+  }
+
+  void OnBrowserActivated(BrowserWindowInterface* browser) override {
+    if (browser != ignore_browser_ && !closed_new_window_) {
+      closed_new_window_ = true;
+      browser->GetWindow()->Close();
+    }
+  }
+
+ private:
+  bool closed_new_window_ = false;
+  raw_ptr<BrowserWindowInterface> ignore_browser_;
+  base::ScopedObservation<GlobalBrowserCollection, BrowserCollectionObserver>
+      observation_{this};
+};
+
+}  // namespace
+
+// Tests that a browser window that's closed as soon as it's shown is
+// gracefully handled (in windows.create). Regression test for
+// https://crbug.com/537109028.
+IN_PROC_BROWSER_TEST_F(ExtensionTabsTest,
+                       WindowsCreateFunctionWindowClosedOnShow) {
+  CloseOnBrowserCreatedObserver observer(browser_window_interface());
+
+  auto function = base::MakeRefCounted<WindowsCreateFunction>();
+  function->SetRenderFrameHost(GetTabListInterface()
+                                   ->GetActiveTab()
+                                   ->GetContents()
+                                   ->GetPrimaryMainFrame());
+  scoped_refptr<const Extension> extension(ExtensionBuilder("Test").Build());
+  function->set_extension(extension.get());
+
+  static const char kArgs[] = R"([{"url": "about:blank"}])";
+  std::string error = api_test_utils::RunFunctionAndReturnError(
+      function.get(), kArgs, profile());
+  EXPECT_EQ(ExtensionTabUtil::kBrowserWindowNotAllowed, error);
+}
+
+// Tests that a browser window that's closed as soon as it's shown is
+// gracefully handled (in tabs.create). Regression test for
+// https://crbug.com/537109028.
+IN_PROC_BROWSER_TEST_F(ExtensionTabsTest,
+                       TabsCreateFunctionWindowClosedOnShow) {
+  Browser* incognito_browser = CreateIncognitoBrowser();
+  CloseBrowserSynchronously(browser());
+
+  auto observer =
+      std::make_unique<CloseOnBrowserCreatedObserver>(incognito_browser);
+
+  scoped_refptr<const Extension> extension(ExtensionBuilder("Test").Build());
+  auto function = base::MakeRefCounted<TabsCreateFunction>();
+  function->SetRenderFrameHost(TabListInterface::From(incognito_browser)
+                                   ->GetActiveTab()
+                                   ->GetContents()
+                                   ->GetPrimaryMainFrame());
+  function->set_extension(extension.get());
+
+  const std::string args = base::StringPrintf(
+      R"([{"url": "%s"}])", extension->GetResourceURL("page.html").spec());
+  std::string error = api_test_utils::RunFunctionAndReturnError(
+      function.get(), args, incognito_browser->GetProfile());
+  EXPECT_EQ(ExtensionTabUtil::kBrowserWindowNotAllowed, error);
+  observer.reset();  // Reset the observer to avoid any dangling pointer issues.
+  // Close the incognito browser to clean up.
+  CloseBrowserSynchronously(incognito_browser);
+}
+
 IN_PROC_BROWSER_TEST_F(ExtensionTabsTest,
                        DefaultToIncognitoWhenItIsForcedAndNoArgs) {
   static const char kEmptyArgs[] = "[]";
@@ -774,7 +845,7 @@ IN_PROC_BROWSER_TEST_F(ExtensionTabsTest,
   EXPECT_TRUE(api_test_utils::GetBoolean(result, "incognito"));
 
   // Now try creating a window from incognito window.
-  BrowserWindowInterface* incognito_browser = CreateIncognitoBrowser();
+  Browser* incognito_browser = CreateIncognitoBrowser();
   // Run without an explicit "incognito" param.
   function = base::MakeRefCounted<WindowsCreateFunction>();
   function->set_extension(extension.get());
@@ -806,7 +877,7 @@ IN_PROC_BROWSER_TEST_F(ExtensionTabsTest,
       keys::kIncognitoModeIsForced));
 
   // Now try opening a normal window from incognito window.
-  BrowserWindowInterface* incognito_browser = CreateIncognitoBrowser();
+  Browser* incognito_browser = CreateIncognitoBrowser();
   // Run with an explicit "incognito" param.
   function = base::MakeRefCounted<WindowsCreateFunction>();
   function->set_extension(extension.get());
@@ -822,7 +893,7 @@ IN_PROC_BROWSER_TEST_F(ExtensionTabsTest,
   static const char kArgs[] =
       "[{\"url\": \"about:blank\", \"incognito\": true }]";
 
-  BrowserWindowInterface* incognito_browser = CreateIncognitoBrowser();
+  Browser* incognito_browser = CreateIncognitoBrowser();
   // Disable Incognito mode.
   IncognitoModePrefs::SetAvailability(
       profile()->GetPrefs(), policy::IncognitoModeAvailability::kDisabled);
@@ -887,7 +958,7 @@ IN_PROC_BROWSER_TEST_F(ExtensionTabsTest, QueryAllTabsWithDevTools) {
   std::set<int> window_ids;
   window_ids.insert(ExtensionTabUtil::GetWindowId(browser_window_interface()));
   for (size_t i = 0; i < kNumWindows - 1; ++i) {
-    BrowserWindowInterface* new_browser = CreateBrowser(profile());
+    Browser* new_browser = CreateBrowser(profile());
     window_ids.insert(ExtensionTabUtil::GetWindowId(new_browser));
   }
 
@@ -938,9 +1009,8 @@ IN_PROC_BROWSER_TEST_F(ExtensionTabsTest, DontCreateTabInClosingPopupWindow) {
   // Test creates new popup window, closes it right away and then tries to open
   // a new tab in it. Tab should not be opened in the popup window, but in a
   // tabbed browser window.
-  BrowserWindowInterface* popup_browser = CreateBrowserWindow(
-      BrowserWindowCreateParams(BrowserWindowInterface::TYPE_POPUP, profile(),
-                                /*from_user_gesture=*/true));
+  Browser* popup_browser = Browser::Create(
+      Browser::CreateParams(Browser::TYPE_POPUP, profile(), true));
   int window_id = ExtensionTabUtil::GetWindowId(popup_browser);
   chrome::CloseWindow(popup_browser);
 
@@ -1243,7 +1313,7 @@ IN_PROC_BROWSER_TEST_F(ExtensionWindowCreateTest, MAYBE_AcceptState) {
           ChromeExtensionFunctionDetails(function.get()), window_id, &error);
   ASSERT_TRUE(new_controller);
   EXPECT_TRUE(error.empty());
-  BrowserWindowInterface* new_browser = new_controller->GetBrowser();
+  Browser* new_browser = new_controller->GetBrowser();
   ASSERT_TRUE(new_browser);
 
 // TODO(crbug.com/40254339): Remove this workaround if this wait is no longer
@@ -1684,7 +1754,7 @@ IN_PROC_BROWSER_TEST_F(ExtensionApiTabsIwaMoveTest, CannotMoveIwaTab) {
   int iwa_tab_id =
       ExtensionTabUtil::GetTabId(iwa_tab_list->GetTab(0)->GetContents());
 
-  BrowserWindowInterface* normal_browser = CreateBrowser(profile());
+  Browser* normal_browser = CreateBrowser(profile());
   int target_window_id = ExtensionTabUtil::GetWindowId(normal_browser);
 
   auto function = base::MakeRefCounted<TabsMoveFunction>();
@@ -1708,7 +1778,7 @@ IN_PROC_BROWSER_TEST_F(ExtensionApiTabsIwaMoveTest,
   int iwa_tab_id =
       ExtensionTabUtil::GetTabId(iwa_tab_list->GetTab(0)->GetContents());
 
-  BrowserWindowInterface* normal_browser = CreateBrowser(profile());
+  Browser* normal_browser = CreateBrowser(profile());
   int target_window_id = ExtensionTabUtil::GetWindowId(normal_browser);
 
   auto function = base::MakeRefCounted<TabsGroupFunction>();
@@ -1884,8 +1954,8 @@ IN_PROC_BROWSER_TEST_F(ExtensionTabsTestWithApps, MAYBE_FilteredEvents) {
       " \"minWidth\": 200, \"minHeight\": 200,"
       " \"maxWidth\": 400, \"maxHeight\": 400}}");
 
-  BrowserWindowInterface* browser_window = CreateBrowserWindow(
-      BrowserWindowCreateParams(profile(), /*from_user_gesture=*/true));
+  Browser* browser_window =
+      Browser::Create(Browser::CreateParams(profile(), true));
   AddBlankTabAndShow(browser_window);
 
   DevToolsWindow* devtools_window =
@@ -2554,9 +2624,6 @@ IN_PROC_BROWSER_TEST_F(ExtensionTabsTest, TestGroupDetachedAndReInserted) {
   ASSERT_TRUE(destination_tab_list);
   destination_tab_list->OpenTab(about_blank, -1);
 
-  int initial_source_count = tab_list->GetTabCount();
-  int initial_dest_count = destination_tab_list->GetTabCount();
-
   TestEventRouterObserver event_observer(EventRouter::Get(profile()));
 
   tab_list->MoveTabGroupToWindow(*group, second_browser->GetSessionID(), 0);
@@ -2568,11 +2635,6 @@ IN_PROC_BROWSER_TEST_F(ExtensionTabsTest, TestGroupDetachedAndReInserted) {
   event_observer.WaitForEventWithName(api::tabs::OnUpdated::kEventName);
   EXPECT_TRUE(
       event_observer.events().contains(api::tabs::OnUpdated::kEventName));
-
-  ASSERT_TRUE(base::test::RunUntil([&] {
-    return tab_list->GetTabCount() == initial_source_count - 2 &&
-           destination_tab_list->GetTabCount() == initial_dest_count + 2;
-  })) << "Timed out waiting for tab group to transfer to destination window.";
 }
 
 #if BUILDFLAG(ENABLE_EXTENSIONS)
@@ -2779,9 +2841,10 @@ IN_PROC_BROWSER_TEST_F(ExtensionTabsTest, AutoDiscardableProperty) {
   EXPECT_EQ(1u, query_result.size());
 }
 
-#endif  // BUILDFLAG(ENABLE_EXTENSIONS)
-
 // Tester class for the tabs.zoom* api functions.
+// TODO(https://crbug.com/505313377): Port these to desktop android. Currently,
+// zoom controllers are not created for tabs, so the functions always return
+// an error.
 class ExtensionTabsZoomTest : public ExtensionTabsTest {
  public:
   void SetUpOnMainThread() override;
@@ -2968,10 +3031,6 @@ double GetZoomLevel(const content::WebContents* web_contents) {
   return zoom::ZoomController::FromWebContents(web_contents)->GetZoomLevel();
 }
 
-double GetZoomFactor(const content::WebContents* web_contents) {
-  return blink::ZoomLevelToZoomFactor(GetZoomLevel(web_contents));
-}
-
 content::OpenURLParams GetOpenParams(const char* url) {
   return content::OpenURLParams(GURL(url), content::Referrer(),
                                 WindowOpenDisposition::NEW_FOREGROUND_TAB,
@@ -2985,23 +3044,21 @@ IN_PROC_BROWSER_TEST_F(ExtensionTabsZoomTest, SetAndGetZoom) {
   content::WebContents* web_contents = OpenUrlAndWaitForLoad(params.url);
   int tab_id = ExtensionTabUtil::GetTabId(web_contents);
 
-  const double default_zoom_factor = GetZoomFactor(web_contents);
-
   // Test default values before we set anything.
   double zoom_factor = -1;
   EXPECT_TRUE(RunGetZoom(tab_id, &zoom_factor));
-  EXPECT_FLOAT_EQ(default_zoom_factor, zoom_factor);
+  EXPECT_EQ(1.0, zoom_factor);
 
   // Test chrome.tabs.setZoom().
   const double kZoomLevel = 0.8;
   EXPECT_TRUE(RunSetZoom(tab_id, kZoomLevel));
-  EXPECT_FLOAT_EQ(kZoomLevel * default_zoom_factor,
-                  GetZoomFactor(web_contents));
+  EXPECT_EQ(kZoomLevel,
+            blink::ZoomLevelToZoomFactor(GetZoomLevel(web_contents)));
 
   // Test chrome.tabs.getZoom().
   zoom_factor = -1;
   EXPECT_TRUE(RunGetZoom(tab_id, &zoom_factor));
-  EXPECT_FLOAT_EQ(kZoomLevel * default_zoom_factor, zoom_factor);
+  EXPECT_EQ(kZoomLevel, zoom_factor);
 }
 
 IN_PROC_BROWSER_TEST_F(ExtensionTabsZoomTest, GetDefaultZoom) {
@@ -3056,7 +3113,7 @@ IN_PROC_BROWSER_TEST_F(ExtensionTabsZoomTest, SetToDefaultZoom) {
   EXPECT_TRUE(RunSetZoom(tab_id, 0.0));
   EXPECT_TRUE(RunGetZoom(tab_id, &observed_zoom_factor));
   EXPECT_TRUE(blink::ZoomValuesEqual(
-      GetZoomLevel(web_contents),
+      new_default_zoom_level,
       blink::ZoomFactorToZoomLevel(observed_zoom_factor)));
 }
 
@@ -3084,44 +3141,49 @@ IN_PROC_BROWSER_TEST_F(ExtensionTabsZoomTest, ZoomSettings) {
   int tab_id_A2 = ExtensionTabUtil::GetTabId(web_contents_A2);
   int tab_id_B = ExtensionTabUtil::GetTabId(web_contents_B);
 
-  const double default_zoom_factor = GetZoomFactor(web_contents_A1);
-
-  ASSERT_FLOAT_EQ(default_zoom_factor, GetZoomFactor(web_contents_A1));
-  ASSERT_FLOAT_EQ(default_zoom_factor, GetZoomFactor(web_contents_A2));
-  ASSERT_FLOAT_EQ(default_zoom_factor, GetZoomFactor(web_contents_B));
+  ASSERT_FLOAT_EQ(1.f,
+                  blink::ZoomLevelToZoomFactor(GetZoomLevel(web_contents_A1)));
+  ASSERT_FLOAT_EQ(1.f,
+                  blink::ZoomLevelToZoomFactor(GetZoomLevel(web_contents_A2)));
+  ASSERT_FLOAT_EQ(1.f,
+                  blink::ZoomLevelToZoomFactor(GetZoomLevel(web_contents_B)));
 
   // Test per-origin automatic zoom settings.
   EXPECT_TRUE(RunSetZoom(tab_id_B, 1.f));
   EXPECT_TRUE(RunSetZoom(tab_id_A2, 1.1f));
-  EXPECT_FLOAT_EQ(1.1f * default_zoom_factor, GetZoomFactor(web_contents_A1));
-  EXPECT_FLOAT_EQ(1.1f * default_zoom_factor, GetZoomFactor(web_contents_A2));
-  EXPECT_FLOAT_EQ(1.f * default_zoom_factor, GetZoomFactor(web_contents_B));
+  EXPECT_FLOAT_EQ(1.1f,
+                  blink::ZoomLevelToZoomFactor(GetZoomLevel(web_contents_A1)));
+  EXPECT_FLOAT_EQ(1.1f,
+                  blink::ZoomLevelToZoomFactor(GetZoomLevel(web_contents_A2)));
+  EXPECT_FLOAT_EQ(1.f,
+                  blink::ZoomLevelToZoomFactor(GetZoomLevel(web_contents_B)));
 
   // Test per-tab automatic zoom settings.
-  // Per-tab zoom uses temporary zoom levels in HostZoomMap, which are stored
-  // and retrieved as exact zoom levels without applying Android's OS-level
-  // per-origin font scale adjustments.
   EXPECT_TRUE(RunSetZoomSettings(tab_id_A1, "automatic", "per-tab"));
   EXPECT_TRUE(RunSetZoom(tab_id_A1, 1.2f));
-  EXPECT_FLOAT_EQ(1.2f, GetZoomFactor(web_contents_A1));
-  EXPECT_FLOAT_EQ(1.1f * default_zoom_factor, GetZoomFactor(web_contents_A2));
+  EXPECT_FLOAT_EQ(1.2f,
+                  blink::ZoomLevelToZoomFactor(GetZoomLevel(web_contents_A1)));
+  EXPECT_FLOAT_EQ(1.1f,
+                  blink::ZoomLevelToZoomFactor(GetZoomLevel(web_contents_A2)));
 
   // Test 'manual' mode.
-  // Manual mode stores zoom levels directly on the ZoomController without
-  // routing through HostZoomMap, so no OS-level font scale adjustments apply.
   EXPECT_TRUE(RunSetZoomSettings(tab_id_A1, "manual", nullptr));
   EXPECT_TRUE(RunSetZoom(tab_id_A1, 1.3f));
-  EXPECT_FLOAT_EQ(1.3f, GetZoomFactor(web_contents_A1));
-  EXPECT_FLOAT_EQ(1.1f * default_zoom_factor, GetZoomFactor(web_contents_A2));
+  EXPECT_FLOAT_EQ(1.3f,
+                  blink::ZoomLevelToZoomFactor(GetZoomLevel(web_contents_A1)));
+  EXPECT_FLOAT_EQ(1.1f,
+                  blink::ZoomLevelToZoomFactor(GetZoomLevel(web_contents_A2)));
 
-  // Test 'disabled' mode, which will reset A1's zoom to 1.f (unscaled).
+  // Test 'disabled' mode, which will reset A1's zoom to 1.f.
   EXPECT_TRUE(RunSetZoomSettings(tab_id_A1, "disabled", nullptr));
   std::string error = RunSetZoomExpectError(tab_id_A1, 1.4f);
   EXPECT_TRUE(base::MatchPattern(error, keys::kCannotZoomDisabledTabError));
-  EXPECT_FLOAT_EQ(1.f, GetZoomFactor(web_contents_A1));
+  EXPECT_FLOAT_EQ(1.f,
+                  blink::ZoomLevelToZoomFactor(GetZoomLevel(web_contents_A1)));
   // We should still be able to zoom A2 though.
   EXPECT_TRUE(RunSetZoom(tab_id_A2, 1.4f));
-  EXPECT_FLOAT_EQ(1.4f * default_zoom_factor, GetZoomFactor(web_contents_A2));
+  EXPECT_FLOAT_EQ(1.4f,
+                  blink::ZoomLevelToZoomFactor(GetZoomLevel(web_contents_A2)));
 }
 
 IN_PROC_BROWSER_TEST_F(ExtensionTabsZoomTest, PerTabResetsOnNavigation) {
@@ -3143,7 +3205,8 @@ IN_PROC_BROWSER_TEST_F(ExtensionTabsZoomTest, PerTabResetsOnNavigation) {
   EXPECT_EQ("per-tab", scope);
 
   // Navigation of tab should reset mode to per-origin.
-  ASSERT_TRUE(NavigateToURL(web_contents, url_B));
+  ui_test_utils::NavigateToURLBlockUntilNavigationsComplete(browser(), url_B,
+                                                            1);
   EXPECT_TRUE(RunGetZoomSettings(tab_id, &mode, &scope));
   EXPECT_EQ("automatic", mode);
   EXPECT_EQ("per-origin", scope);
@@ -3238,8 +3301,6 @@ IN_PROC_BROWSER_TEST_F(ExtensionTabsZoomTest,
   EXPECT_TRUE(
       base::MatchPattern(error, manifest_errors::kCannotAccessChromeUrl));
 }
-
-#if BUILDFLAG(ENABLE_EXTENSIONS)
 
 #if BUILDFLAG(ENABLE_PDF)
 class ExtensionApiPdfTest : public base::test::WithFeatureOverride,
@@ -3862,14 +3923,11 @@ IN_PROC_BROWSER_TEST_F(ExtensionTabsTest, TabsUpdate_WebToAboutNewTab) {
   // definitely undesirable for http-initiated navigations (see r818969), but
   // it is less clear what should happen in extension-initiated navigations.
   GURL about_newtab_url = GURL("about:newtab");
-
-  // The expected URL depends on the device form factor and not on platform,
-  // as Desktop Android now points to chrome://new-tab-page/.
-  GURL chrome_newtab_url =
-      (ui::GetDeviceFormFactor() == ui::DEVICE_FORM_FACTOR_DESKTOP)
-          ? GURL("chrome://new-tab-page/")
-          : GURL("chrome-native://newtab/");
-
+#if BUILDFLAG(IS_ANDROID)
+  GURL chrome_newtab_url = GURL("chrome-native://newtab/");
+#else
+  GURL chrome_newtab_url = GURL("chrome://new-tab-page/");
+#endif
   // Navigate a tab to an extension page.
   content::WebContents* extension_contents = GetActiveWebContents();
   ASSERT_TRUE(NavigateToURL(extension_contents, extension_url));
@@ -3904,14 +3962,13 @@ IN_PROC_BROWSER_TEST_F(ExtensionTabsTest, TabsUpdate_WebToAboutNewTab) {
   content::RenderFrameHost* test_frame = test_contents->GetPrimaryMainFrame();
   EXPECT_EQ(chrome_newtab_url, test_frame->GetLastCommittedURL());
 
-  if (ui::GetDeviceFormFactor() == ui::DEVICE_FORM_FACTOR_DESKTOP) {
-    EXPECT_EQ(url::Origin::Create(chrome_newtab_url),
-              test_frame->GetLastCommittedOrigin());
-  } else {
-    // "chrome-native://newtab/" has an opaque origin.
-    EXPECT_TRUE(test_frame->GetLastCommittedOrigin().opaque());
-  }
-
+#if BUILDFLAG(IS_ANDROID)
+  // "chrome-native://newtab/" has an opaque origin.
+  EXPECT_TRUE(test_frame->GetLastCommittedOrigin().opaque());
+#else
+  EXPECT_EQ(url::Origin::Create(chrome_newtab_url),
+            test_frame->GetLastCommittedOrigin());
+#endif
   EXPECT_NE(extension_contents->GetPrimaryMainFrame()->GetProcess(),
             test_contents->GetPrimaryMainFrame()->GetProcess());
 }
@@ -4321,16 +4378,6 @@ IN_PROC_BROWSER_TEST_F(ExtensionTabsTest, PDFExtensionNavigation) {
   EXPECT_EQ(kGoogle, raw_web_contents->GetVisibleURL());
 }
 #endif  // BUILDFLAG(ENABLE_PDF)
-
-IN_PROC_BROWSER_TEST_F(ExtensionTabsTest, TabsMoveNonExistentTab) {
-  constexpr int kNonExistentTabId = 999999;
-  auto function = base::MakeRefCounted<TabsMoveFunction>();
-  EXPECT_EQ(utils::RunFunctionAndReturnError(
-                function.get(),
-                base::StringPrintf(R"([%d, {"index": 0}])", kNonExistentTabId),
-                profile()),
-            base::StringPrintf("No tab with id: %d.", kNonExistentTabId));
-}
 
 // Test that the tabs.move() function correctly rearranges sets of tabs within a
 // single window.

@@ -53,12 +53,6 @@ namespace {
 static NetErrorTabHelper::TestingState testing_state_ =
     NetErrorTabHelper::TESTING_DEFAULT;
 
-bool IsValidEasterEggTarget(content::RenderFrameHost& target_frame) {
-  // Only the primary main-frame error document lives in the isolated
-  // error-page process; subframe error documents can be attacker-controlled.
-  return target_frame.IsErrorDocument() && target_frame.IsInPrimaryMainFrame();
-}
-
 }  // namespace
 
 NetErrorTabHelper::~NetErrorTabHelper() = default;
@@ -319,9 +313,7 @@ void NetErrorTabHelper::DownloadPageLaterHelper(const GURL& page_url) {
 #endif  // BUILDFLAG(ENABLE_OFFLINE_PAGES)
 
 void NetErrorTabHelper::GetHighScore(GetHighScoreCallback callback) {
-  content::RenderFrameHost& target_frame =
-      network_easter_egg_receivers_.CurrentTargetFrame();
-  if (!IsValidEasterEggTarget(target_frame)) {
+  if (!network_easter_egg_receivers_.CurrentTargetFrame().IsErrorDocument()) {
     // IsInMessageDispatch() is checked to avoid calling ReportBadMessage()
     // and crashing when unit tests invoke these methods directly.
     if (mojo::IsInMessageDispatch()) {
@@ -336,9 +328,7 @@ void NetErrorTabHelper::GetHighScore(GetHighScoreCallback callback) {
 }
 
 void NetErrorTabHelper::UpdateHighScore(uint32_t high_score) {
-  content::RenderFrameHost& target_frame =
-      network_easter_egg_receivers_.CurrentTargetFrame();
-  if (!IsValidEasterEggTarget(target_frame)) {
+  if (!network_easter_egg_receivers_.CurrentTargetFrame().IsErrorDocument()) {
     // IsInMessageDispatch() is checked to avoid calling ReportBadMessage()
     // and crashing when unit tests invoke these methods directly.
     if (mojo::IsInMessageDispatch()) {
@@ -353,9 +343,7 @@ void NetErrorTabHelper::UpdateHighScore(uint32_t high_score) {
 }
 
 void NetErrorTabHelper::ResetHighScore() {
-  content::RenderFrameHost& target_frame =
-      network_easter_egg_receivers_.CurrentTargetFrame();
-  if (!IsValidEasterEggTarget(target_frame)) {
+  if (!network_easter_egg_receivers_.CurrentTargetFrame().IsErrorDocument()) {
     // IsInMessageDispatch() is checked to avoid calling ReportBadMessage()
     // and crashing when unit tests invoke these methods directly.
     if (mojo::IsInMessageDispatch()) {

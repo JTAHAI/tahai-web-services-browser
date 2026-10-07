@@ -11,7 +11,6 @@
 #include "base/notimplemented.h"
 #include "base/strings/utf_string_conversions.h"
 #include "chrome/browser/actor/actor_task.h"
-#include "chrome/browser/actor/tools/attempt_login_tool_request.h"
 #include "chrome/browser/actor/tools/click_tool_request.h"
 #include "chrome/browser/actor/tools/observation_delay_controller.h"
 #include "chrome/browser/actor/tools/tool_callbacks.h"
@@ -24,7 +23,6 @@
 #include "chrome/browser/password_manager/actor_login/chrome_actor_login_delegate_client.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/common/actor.mojom-shared.h"
-#include "chrome/common/actor.mojom.h"
 #include "chrome/common/actor/action_result.h"
 #include "chrome/common/actor_webui.mojom.h"
 #include "components/actor/core/actor_features.h"
@@ -47,7 +45,6 @@
 // TODO(crbug.com/482430429): Reconsider the use of BrowserWindowInterface on
 // Android.
 #if !BUILDFLAG(IS_ANDROID)
-#include "chrome/browser/password_manager/password_change/features.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #endif
 
@@ -131,12 +128,8 @@ AttemptLoginTool::~AttemptLoginTool() {
   // avoid uploading incorrect logs.
   // TODO(crbug.com/485620841): Remove this check once the prototyping is
   // complete for Automated Password Change.
-#if BUILDFLAG(IS_ANDROID)
-  bool prototype_features_enabled = false;
-#else
   bool prototype_features_enabled = base::FeatureList::IsEnabled(
-      password_change::features::kPasswordChangeWithGlic);
-#endif
+      password_manager::features::kPasswordCheckupPrototype);
 
   if (opt_guide_service &&
       base::FeatureList::IsEnabled(
@@ -514,12 +507,9 @@ void AttemptLoginTool::OnAttemptLogin(
       sign_in_with_google_button_.has_value()) {
     tool_delegate().EnqueueFollowupAction(std::make_unique<ClickToolRequest>(
         tab_handle_, *sign_in_with_google_button_, mojom::ClickType::kLeft,
-        mojom::ClickCount::kSingle, requires_opening_web_contents_,
-        AttemptLoginToolRequest::GetLoginObservationPageStabilityConfig()));
-    mojom::ActionResultPtr result =
-        MakeOkResult(/*requires_page_stabilization=*/false);
-    result->attempt_login_status = mojom::AttemptLoginStatus::kFederated;
-    PostResponseTask(std::move(invoke_callback_), std::move(result));
+        mojom::ClickCount::kSingle, requires_opening_web_contents_));
+    PostResponseTask(std::move(invoke_callback_),
+                     MakeOkResult(/*requires_page_stabilization=*/false));
     return;
   }
 
@@ -531,27 +521,16 @@ void AttemptLoginTool::OnAttemptLogin(
     CHECK_EQ(selected_credential.type, actor_login::CredentialType::kPassword);
     tool_delegate().EnqueueFollowupAction(std::make_unique<ClickToolRequest>(
         tab_handle_, *password_button_, mojom::ClickType::kLeft,
-        mojom::ClickCount::kSingle, requires_opening_web_contents_,
-        AttemptLoginToolRequest::GetLoginObservationPageStabilityConfig()));
-    mojom::ActionResultPtr result =
-        MakeOkResult(/*requires_page_stabilization=*/false);
-    result->attempt_login_status = mojom::AttemptLoginStatus::kPasswordManager;
-    PostResponseTask(std::move(invoke_callback_), std::move(result));
+        mojom::ClickCount::kSingle, requires_opening_web_contents_));
+    PostResponseTask(std::move(invoke_callback_),
+                     MakeOkResult(/*requires_page_stabilization=*/false));
     return;
   }
 
   mojom::ActionResultCode code =
       actor_login::LoginResultToActorResult(login_status.value());
-  mojom::ActionResultPtr result =
-      IsOk(code) ? MakeOkResult() : MakeResult(code);
-  if (IsOk(code)) {
-    result->attempt_login_status =
-        login_status.value() ==
-                actor_login::LoginStatusResult::kSuccessFederated
-            ? mojom::AttemptLoginStatus::kFederated
-            : mojom::AttemptLoginStatus::kPasswordManager;
-  }
-  PostResponseTask(std::move(invoke_callback_), std::move(result));
+  PostResponseTask(std::move(invoke_callback_),
+                   IsOk(code) ? MakeOkResult() : MakeResult(code));
 }
 
 void AttemptLoginTool::OnWillDetach(tabs::TabInterface* tab,

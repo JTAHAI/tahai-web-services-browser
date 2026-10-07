@@ -18,7 +18,6 @@ struct MEDIA_GPU_EXPORT DeviceInfo {
   static DeviceInfo* GetInstance();
 
   virtual int SdkVersion();
-  virtual int SdkVersionFull();
   virtual bool IsVp8DecoderAvailable();
   virtual bool IsDecoderKnownUnaccelerated(VideoCodec codec);
   virtual void AddSupportedCodecProfileLevels(

@@ -11,8 +11,6 @@ namespace policy {
 
 POLICY_EXPORT extern const char kPolicyIdsKey[];
 POLICY_EXPORT extern const char kPolicyValuesKey[];
-POLICY_EXPORT extern const char kHasCustomCommandLineArguments[];
-POLICY_EXPORT extern const char kCustomCommandLineArguments[];
 
 }  // namespace policy
 

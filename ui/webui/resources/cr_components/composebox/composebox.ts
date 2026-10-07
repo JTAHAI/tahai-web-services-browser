@@ -170,10 +170,18 @@ export class ComposeboxElement extends ComposeboxEmbedderMixin
   protected accessor isOmniboxInCompactMode_: boolean = false;
   protected accessor searchboxCallbackRouter_: SearchboxPageCallbackRouter;
 
+  // Synchronous immediate guard used to deduplicate processing
+  // autochips being added, not fully processed chips.
+  protected pendingAutomaticActiveTabUrl_: string = '';
+
+  // Retains the latest version of the pending automatic active tab's title.
+  protected pendingAutomaticActiveTabTitle_: string = '';
+
   private get webUIOmniboxAskGAboutThisPageEnabled_(): boolean {
     return loadTimeData.valueExists('webUIOmniboxAskGAboutThisPageEnabled') &&
         loadTimeData.getBoolean('webUIOmniboxAskGAboutThisPageEnabled');
   }
+  private automaticActiveTab_: ComposeboxFile|null = null;
   private pageHandler_: PageHandlerRemote;
   private searchboxHandler_: SearchboxPageHandlerRemote;
   private resizeObservers_: ResizeObserver[] = [];
@@ -189,8 +197,9 @@ export class ComposeboxElement extends ComposeboxEmbedderMixin
     // TODO(crbug.com/486707841): Move to the NTP embedder.
     // Retain the divider for NTP when only tab favicons are present.
     // Omnibox is excluded as it does not need this divider.
+    const hasNonTabFiles = Array.from(this.files.values()).some(f => !f.url);
     if (this.entrypointName !== 'Omnibox' && this.hasTabs() &&
-        !this.hasNonTabFiles()) {
+        !hasNonTabFiles) {
       return this.showDropdown;
     }
     return super.shouldShowDivider();
@@ -226,10 +235,6 @@ export class ComposeboxElement extends ComposeboxEmbedderMixin
 
   override getLensButtonElement(): HTMLElement|null {
     return this.shadowRoot?.querySelector('#lensIcon') || null;
-  }
-
-  override getFileInputsElement(): ComposeboxFileInputsElement|null {
-    return this.shouldDisableFileInputs() ? null : this.$.fileInputs;
   }
 
   constructor() {
@@ -302,6 +307,9 @@ export class ComposeboxElement extends ComposeboxEmbedderMixin
 
   override willUpdate(changedProperties: PropertyValues<this>) {
     super.willUpdate(changedProperties);
+    if (changedProperties.has('smartTabSharingActive')) {
+      this.clearContextForSmartTabSharingActive_();
+    }
     if (changedProperties.has('entrypointName') ||
         changedProperties.has('searchboxLayoutMode')) {
       this.isOmniboxInCompactMode_ = this.entrypointName === 'Omnibox' &&
@@ -357,11 +365,11 @@ export class ComposeboxElement extends ComposeboxEmbedderMixin
   }
 
   getHasAutomaticActiveTabChipToken() {
-    return this.automaticActiveTab !== null;
+    return this.automaticActiveTab_ !== null;
   }
 
   getAutomaticActiveTabChipElement(): HTMLElement|null {
-    if (!this.automaticActiveTab) {
+    if (!this.automaticActiveTab_) {
       return null;
     }
     const carousel =
@@ -371,7 +379,7 @@ export class ComposeboxElement extends ComposeboxEmbedderMixin
       return null;
     }
 
-    return carousel.getThumbnailElementByUuid(this.automaticActiveTab.uuid);
+    return carousel.getThumbnailElementByUuid(this.automaticActiveTab_.uuid);
   }
 
   isExpanded(): boolean {
@@ -386,7 +394,7 @@ export class ComposeboxElement extends ComposeboxEmbedderMixin
   override hasValidQuery(): boolean {
     // If there is at least one file that supports unimodal search, query is
     // valid.
-    if (this.attachedContext.values().find(
+    if (this.files.values().find(
             (file: ComposeboxFile) => file.supportsUnimodal)) {
       return true;
     }
@@ -416,7 +424,7 @@ export class ComposeboxElement extends ComposeboxEmbedderMixin
   override deleteFile(uuidToDelete: UnguessableToken, fromUserAction?: boolean):
       ComposeboxFile|null {
     const fromAutoSuggestedChip =
-        uuidToDelete === this.automaticActiveTab?.uuid &&
+        uuidToDelete === this.automaticActiveTab_?.uuid &&
         (fromUserAction === true);
     const file =
         super.deleteFile(uuidToDelete, fromUserAction, fromAutoSuggestedChip);
@@ -432,9 +440,7 @@ export class ComposeboxElement extends ComposeboxEmbedderMixin
           this.composeboxSource;
       recordUserAction(metricName);
       recordBoolean(metricName, true);
-      this.automaticActiveTab = null;
-      this.pendingAutomaticActiveTabUrl = '';
-      this.pendingAutomaticActiveTabTitle = '';
+      this.automaticActiveTab_ = null;
     }
     // We should not be querying autocomplete in the presence of a tab
     // with delayed upload until URL suggestions are implemented.
@@ -499,9 +505,9 @@ export class ComposeboxElement extends ComposeboxEmbedderMixin
   private async updateAutoSuggestedTabContext_(
       tab: TabInfo|null, invocationSource: string|null) {
     if (this.smartTabSharingActive) {
-      if (this.automaticActiveTab) {
-        this.deleteFile(this.automaticActiveTab.uuid);
-        this.automaticActiveTab = null;
+      if (this.automaticActiveTab_) {
+        this.deleteFile(this.automaticActiveTab_.uuid);
+        this.automaticActiveTab_ = null;
       }
       return;
     }
@@ -515,17 +521,15 @@ export class ComposeboxElement extends ComposeboxEmbedderMixin
     // We should delete the automatic active tab if it is different from the
     // current tab when webUIOmniboxAskGAboutThisPageEnabled_ is true. Make sure
     // to keep the existing tab if we are returning from another tab.
-    const hasTabMismatch = !!this.automaticActiveTab && !!tab &&
-        this.automaticActiveTab.url !== tab.url;
+    const hasTabMismatch = !!this.automaticActiveTab_ && !!tab &&
+        this.automaticActiveTab_.url !== tab.url;
     const shouldDeleteAutomaticActiveTab = askGAndPageAction ?
         hasTabMismatch :
-        this.automaticActiveTab && (!tab || hasTabMismatch);
+        this.automaticActiveTab_ && (!tab || hasTabMismatch);
 
     if (shouldDeleteAutomaticActiveTab) {
-      this.deleteFile(this.automaticActiveTab!.uuid);
-      this.automaticActiveTab = null;
-      this.pendingAutomaticActiveTabUrl = '';
-      this.pendingAutomaticActiveTabTitle = '';
+      this.deleteFile(this.automaticActiveTab_!.uuid);
+      this.automaticActiveTab_ = null;
 
       // TODO(crbug.com/482150500): Correctly query for url based suggestions
       // when delayed tab is present. Right now, while url-based suggestions are
@@ -536,26 +540,21 @@ export class ComposeboxElement extends ComposeboxEmbedderMixin
       return;
     }
 
-    if (!tab) {
-      this.pendingAutomaticActiveTabUrl = '';
-      this.pendingAutomaticActiveTabTitle = '';
-      return;
-    }
-
     if (tab) {
       // Ignore the `TabInfo` update if there is a matching
-      // `automaticActiveTab`, unless the title has changed.
-      if (this.automaticActiveTab && tab.url === this.automaticActiveTab.url &&
-          tab.tabId === this.automaticActiveTab.tabId) {
-        if (this.automaticActiveTab.name !== tab.title) {
+      // `automaticActiveTab_`, unless the title has changed.
+      if (this.automaticActiveTab_ &&
+          tab.url === this.automaticActiveTab_.url &&
+          tab.tabId === this.automaticActiveTab_.tabId) {
+        if (this.automaticActiveTab_.name !== tab.title) {
           const updatedFile = new ComposeboxFile(
-              this.automaticActiveTab.uuid, tab.title,
-              this.automaticActiveTab.type, this.automaticActiveTab.inputType,
-              this.automaticActiveTab);
-          this.automaticActiveTab = updatedFile;
-          const fileMap = new Map(this.attachedContext);
+              this.automaticActiveTab_.uuid, tab.title,
+              this.automaticActiveTab_.type, this.automaticActiveTab_.inputType,
+              this.automaticActiveTab_);
+          this.automaticActiveTab_ = updatedFile;
+          const fileMap = new Map(this.files);
           fileMap.set(updatedFile.uuid, updatedFile);
-          this.attachedContext = fileMap;
+          this.files = fileMap;
         }
         return;
       }
@@ -566,13 +565,13 @@ export class ComposeboxElement extends ComposeboxEmbedderMixin
       // If the url is the same, this is an update for the same tab so just
       // allow updates to the uploading tab's title from this update,
       // but do not upload it again.
-      if (this.pendingAutomaticActiveTabUrl === tab.url) {
-        this.pendingAutomaticActiveTabTitle = tab.title;
+      if (this.pendingAutomaticActiveTabUrl_ === tab.url) {
+        this.pendingAutomaticActiveTabTitle_ = tab.title;
         return;
       }
       // Otherwise, prepare to replace the auto chip:
-      this.pendingAutomaticActiveTabUrl = tab.url;
-      this.pendingAutomaticActiveTabTitle = tab.title;
+      this.pendingAutomaticActiveTabUrl_ = tab.url;
+      this.pendingAutomaticActiveTabTitle_ = tab.title;
 
 
       // Do not reset above pending states in this async callback since
@@ -603,7 +602,7 @@ export class ComposeboxElement extends ComposeboxEmbedderMixin
           // synchronous "pending statuses" that are queued (since this
           // function is asynchronous and can run much later).
           if (replaceAutoActiveTabToken) {
-            this.automaticActiveTab =
+            this.automaticActiveTab_ =
                 Object.assign(attachment, {uuid: attachment.uuid});
           }
         });
@@ -616,17 +615,19 @@ export class ComposeboxElement extends ComposeboxEmbedderMixin
     // to prevent adding duplicate chips from this update, simply update the
     // title of the initial upload instead based on whatever the latest
     // title update received is.
-    if (replaceAutoActiveTabToken && this.automaticActiveTab) {
-      if (this.automaticActiveTab.name !==
-          this.pendingAutomaticActiveTabTitle) {
+    if (replaceAutoActiveTabToken && this.automaticActiveTab_) {
+      if (this.automaticActiveTab_.name !==
+          this.pendingAutomaticActiveTabTitle_) {
         const updatedFile = new ComposeboxFile(
-            this.automaticActiveTab.uuid, this.pendingAutomaticActiveTabTitle,
-            this.automaticActiveTab.type, this.automaticActiveTab.inputType,
-            this.automaticActiveTab);
-        this.automaticActiveTab = updatedFile;
-        const fileMap = new Map(this.attachedContext);
+            this.automaticActiveTab_.uuid,
+            this.pendingAutomaticActiveTabTitle_,
+            this.automaticActiveTab_.type,
+            this.automaticActiveTab_.inputType,
+            this.automaticActiveTab_);
+        this.automaticActiveTab_ = updatedFile;
+        const fileMap = new Map(this.files);
         fileMap.set(updatedFile.uuid, updatedFile);
-        this.attachedContext = fileMap;
+        this.files = fileMap;
       }
     }
     return attachment;
@@ -658,16 +659,15 @@ export class ComposeboxElement extends ComposeboxEmbedderMixin
 
     // The file hint should only be shown when there is context that was
     // deliberately added by the user (i.e. not the automatic active tab).
-    const isOnlyAutoTab = this.attachedContext.size === 1
-        && !!this.automaticActiveTab;
+    const isOnlyAutoTab = this.files.size === 1 && !!this.automaticActiveTab_;
     const shouldUseFileHint = this.enableFileHint && this.hasFiles() &&
         !isOnlyAutoTab && this.inputState?.activeTool === ToolMode.kUnspecified;
     if (shouldUseFileHint) {
-      if (this.attachedContext.size > 1) {
+      if (this.files.size > 1) {
         this.inputPlaceholder = this.i18n('composeboxHintTextAskAboutThese');
         return;
       }
-      const file = this.attachedContext.values().next().value!;
+      const file = this.files.values().next().value!;
       if (file.type === 'tab') {
         this.inputPlaceholder = this.i18n('composeboxHintTextAskAboutThisTab');
         return;
@@ -848,9 +848,9 @@ export class ComposeboxElement extends ComposeboxEmbedderMixin
   override clearAllInputs(
       querySubmitted: boolean, shouldBlockAutoSuggestedTabs: boolean) {
     // Reset side-panel specific suggested tab context URL/Title pointers
-    this.automaticActiveTab = null;
-    this.pendingAutomaticActiveTabUrl = '';
-    this.pendingAutomaticActiveTabTitle = '';
+    this.automaticActiveTab_ = null;
+    this.pendingAutomaticActiveTabUrl_ = '';
+    this.pendingAutomaticActiveTabTitle_ = '';
     this.$.composeboxInput.resetHeight();
     super.clearAllInputs(querySubmitted, shouldBlockAutoSuggestedTabs);
   }
@@ -873,7 +873,7 @@ export class ComposeboxElement extends ComposeboxEmbedderMixin
       }
     }
 
-    const pendingStatus = this.attachedContext.get(fileAttachment.uuid)?.status;
+    const pendingStatus = this.files.get(fileAttachment.uuid)?.status;
     const composeboxFile = ComposeboxFile.createFromFile(
         fileAttachment.uuid as unknown as UnguessableToken,
         {name: fileAttachment.name, type: fileAttachment.mimeType},
@@ -898,13 +898,35 @@ export class ComposeboxElement extends ComposeboxEmbedderMixin
 
   // TODO(crbug.com/486707842): Move this to contextual tasks composebox.
   setAutomaticActiveTabForTesting(file: ComposeboxFile) {
-    this.automaticActiveTab = file;
+    this.automaticActiveTab_ = file;
   }
 
   // TODO(crbug.com/486707842): Move this to contextual tasks composebox.
   updateAutoSuggestedTabContextForTesting(
-    tab: TabInfo|null, invocationSource: string|null = null) {
+      tab: TabInfo|null, invocationSource: string|null = null) {
     this.updateAutoSuggestedTabContext_(tab, invocationSource);
+  }
+
+
+  private clearContextForSmartTabSharingActive_() {
+    this.clearManualTabs_();
+    if (this.automaticActiveTab_) {
+      const uuid = this.automaticActiveTab_.uuid;
+      this.automaticActiveTab_ = null;
+      this.deleteFile(uuid, /*fromUserAction=*/ false);
+    }
+  }
+
+  // TODO: crbug.com/486707842 - Move to the Contextual Tasks embedder
+  private clearManualTabs_() {
+    const fileMap = new Map(this.files);
+    for (const [uuid, file] of fileMap.entries()) {
+      if ((file.type === 'tab' || !!file.tabId) &&
+          (!this.automaticActiveTab_ ||
+           file.uuid !== this.automaticActiveTab_.uuid)) {
+        this.deleteFile(uuid, /*fromUserAction=*/ false);
+      }
+    }
   }
 }
 // LINT.ThenChange(//ui/webui/resources/cr_components/composebox/Componentization.md)

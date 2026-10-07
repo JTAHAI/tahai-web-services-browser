@@ -33,6 +33,7 @@
 #include "chrome/common/chrome_features.h"
 #include "chrome/common/mac/app_shim.mojom.h"
 #include "chrome/services/mac_notifications/public/mojom/mac_notifications.mojom.h"
+#include "chrome/test/base/test_browser_window.h"
 #include "chrome/test/base/testing_profile.h"
 #include "components/prefs/testing_pref_service.h"
 #include "content/public/test/browser_task_environment.h"
@@ -41,10 +42,6 @@
 #include "mojo/public/cpp/bindings/remote.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
-#include "ui/base/base_window.h"
-#include "ui/base/mojom/window_show_state.mojom.h"
-#include "ui/gfx/geometry/rect.h"
-#include "ui/gfx/native_ui_types.h"
 
 namespace apps {
 
@@ -1536,40 +1533,11 @@ TEST_F(AppShimManagerTest, MultiProfileSelectMenu) {
 }
 
 namespace {
-// A helper that records when Show is called on a BaseWindow to verify
+// A helper that records when Show is called on a BrowserWindow to verify
 // activation of existing browser windows.
-class TestBaseWindowShow final : public ui::BaseWindow {
+class TestBrowserWindowShow : public TestBrowserWindow {
  public:
-  ~TestBaseWindowShow() = default;
-
-  bool IsActive() const override { return false; }
-  bool IsMaximized() const override { return false; }
-  bool IsMinimized() const override { return false; }
-  bool IsFullscreen() const override { return false; }
-  gfx::NativeWindow GetNativeWindow() const override {
-    return gfx::NativeWindow();
-  }
-  gfx::Rect GetRestoredBounds() const override { return gfx::Rect(); }
-  ui::mojom::WindowShowState GetRestoredState() const override {
-    return ui::mojom::WindowShowState::kDefault;
-  }
-  gfx::Rect GetBounds() const override { return gfx::Rect(); }
   void Show() override { did_show = true; }
-  void Hide() override {}
-  bool IsVisible() const override { return false; }
-  void ShowInactive() override {}
-  void Close() override {}
-  void Activate() override {}
-  void Deactivate() override {}
-  void Maximize() override {}
-  void Minimize() override {}
-  void Restore() override {}
-  void SetBounds(const gfx::Rect& bounds) override {}
-  void FlashFrame(bool flash) override {}
-  ui::ZOrderLevel GetZOrderLevel() const override {
-    return ui::ZOrderLevel::kNormal;
-  }
-  void SetZOrderLevel(ui::ZOrderLevel order) override {}
 
   bool did_show = false;
 };
@@ -1601,8 +1569,8 @@ TEST_F(AppShimManagerTest, MultiProfileSelectMenu_ShowsBrowser) {
   EXPECT_TRUE(terminated_callback);
 
   // Notify manager that a new browser has been associated with the app.
-  auto browser_window_a = std::make_unique<TestBaseWindowShow>();
-  TestBaseWindowShow* browser_window_a_ptr = browser_window_a.get();
+  auto browser_window_a = std::make_unique<TestBrowserWindowShow>();
+  TestBrowserWindowShow* browser_window_a_ptr = browser_window_a.get();
   auto mock_browser_a = std::make_unique<MockBrowserWindowInterface>();
   EXPECT_CALL(*mock_browser_a, GetProfile())
       .WillRepeatedly(Return(&profile_a_));
@@ -1624,8 +1592,8 @@ TEST_F(AppShimManagerTest, MultiProfileSelectMenu_ShowsBrowser) {
   manager_->OnAppActivated(&profile_b_, kTestAppIdA);
 
   // Notify manager that a new browser has been associated with the app.
-  auto browser_window_b = std::make_unique<TestBaseWindowShow>();
-  TestBaseWindowShow* browser_window_b_ptr = browser_window_b.get();
+  auto browser_window_b = std::make_unique<TestBrowserWindowShow>();
+  TestBrowserWindowShow* browser_window_b_ptr = browser_window_b.get();
   auto mock_browser_b = std::make_unique<MockBrowserWindowInterface>();
   EXPECT_CALL(*mock_browser_b, GetProfile())
       .WillRepeatedly(Return(&profile_b_));

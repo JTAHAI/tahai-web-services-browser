@@ -16,8 +16,8 @@ namespace optimization_guide {
 
 base::FilePath GetSharedLibraryPath();
 
-// An OptimizationGuideLibraryHolder object encapsulates a reference to the
-// Optimization Guide internal shared library, exposing the library's API
+// A OptimizationGuideLibraryHolder object encapsulates a reference to the
+// PageContextEligibilityAPI shared library, exposing the library's API
 // functions to callers and ensuring that the library remains loaded and usable
 // throughout the object's lifetime.
 class OptimizationGuideLibraryHolder {
@@ -36,12 +36,8 @@ class OptimizationGuideLibraryHolder {
   OptimizationGuideLibraryHolder& operator=(
       OptimizationGuideLibraryHolder&& other) = default;
 
-  // Returns a shared singleton instance of OptimizationGuideLibraryHolder.
-  // Returns nullptr if the underlying library could not be loaded.
-  static OptimizationGuideLibraryHolder* GetInstance();
-
-  // Creates an instance of OptimizationGuideLibraryHolder. Returns nullptr if
-  // the underlying library could not be loaded.
+  // Creates an instance of OptimizationGuideLibraryHolder. May return nullopt
+  // if the underlying library could not be loaded.
   static std::unique_ptr<OptimizationGuideLibraryHolder> Create();
 
   void* GetFunctionPointer(const char* function_name);

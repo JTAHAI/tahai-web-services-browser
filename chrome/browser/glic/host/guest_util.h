@@ -7,8 +7,6 @@
 
 #include "base/feature_list.h"
 #include "chrome/browser/glic/host/glic.mojom.h"
-#include "content/public/browser/storage_partition_config.h"
-#include "mojo/public/cpp/bindings/pending_receiver.h"
 #include "ui/base/device_form_factor.h"
 #include "url/gurl.h"
 #include "url/origin.h"
@@ -25,7 +23,6 @@ namespace ui {
 struct ClipboardMetadata;
 }  // namespace ui
 
-class PrefService;
 class Profile;
 
 namespace tabs {
@@ -34,18 +31,11 @@ class TabInterface;
 
 namespace glic {
 
+BASE_DECLARE_FEATURE(kGlicGuestUrlMultiInstanceParam);
+
 // Returns the URL/origin from where the guest web client will be loaded from.
 GURL GetGuestURL();
 url::Origin GetGuestOrigin();
-std::string GetGlicAllowedOrigins(bool is_internal_google_account = false);
-bool IsOriginAllowedGlicApi(const url::Origin& origin);
-bool IsGuestOriginAllowed(const url::Origin& origin);
-bool IsAdminBlockedUrl(const GURL& url);
-bool IsFrameAllowedGlicApi(content::RenderFrameHost& frame_host);
-
-// Returns the StoragePartitionConfig for the Glic webview storage partition.
-content::StoragePartitionConfig GetGlicStoragePartitionConfig(
-    content::BrowserContext* browser_context);
 
 // Checks if a preset url is enabled and returns it if so. Otherwise, returns
 // `guest_url`.
@@ -56,6 +46,10 @@ GURL MaybeApplyPresetGuestUrl(GURL guest_url);
 // will not be changed.
 GURL GetLocalizedGuestURL(const GURL& guest_url);
 
+// If multi-instance is enabled return the guest_url with the multi-instance
+// parameter added. Otherwise return the guest_url unchanged.
+GURL MaybeAddMultiInstanceParameter(const GURL& guest_url);
+
 // Returns true if `web_contents` contains the Glic WebUI application.
 bool IsGlicWebUI(const content::WebContents* web_contents);
 
@@ -65,10 +59,6 @@ bool IsGlicOwnedTab(tabs::TabInterface* tab);
 // Returns true if `web_contents` is the Glic guest WebContents.
 bool IsGlicGuest(content::WebContents* web_contents);
 
-// Binds WebClientHandler for guest frame.
-void BindGlicWebClientHandler(
-    content::RenderFrameHost* rfh,
-    mojo::PendingReceiver<glic::mojom::WebClientHandler> receiver);
 // Returns true if `process_host` is either the Glic FRE WebUI or the Glic
 // main WebUI.
 bool IsProcessHostForGlic(content::RenderProcessHost* process_host);
@@ -102,8 +92,7 @@ mojom::Platform GetGlicPlatform();
 void PopulateGlobalClientInitialState(mojom::WebClientInitialState* state,
                                       Profile* profile);
 
-// Returns the Glic zoom factor calculated from the zoom level pref.
-double GetZoomFactor(PrefService* pref_service);
+#if !BUILDFLAG(IS_ANDROID)
 
 // Called before the OS clipboard writes the sequence number. Checks and stashes
 // the eligibility for the upcoming copy event.
@@ -124,6 +113,7 @@ bool IsClipboardPasteAllowed(const content::ClipboardEndpoint& source,
 // Logs the format of the clipboard data being pasted into Glic.
 void LogPasteAttempt(const content::ClipboardEndpoint& source,
                      const ui::ClipboardMetadata& metadata);
+#endif
 }  // namespace glic
 
 #endif  // CHROME_BROWSER_GLIC_HOST_GUEST_UTIL_H_

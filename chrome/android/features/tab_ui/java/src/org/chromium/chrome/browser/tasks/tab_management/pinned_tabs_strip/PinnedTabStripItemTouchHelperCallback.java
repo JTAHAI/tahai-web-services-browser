@@ -4,6 +4,8 @@
 
 package org.chromium.chrome.browser.tasks.tab_management.pinned_tabs_strip;
 
+import static org.chromium.build.NullUtil.assumeNonNull;
+
 import android.content.Context;
 import android.content.res.Resources;
 import android.graphics.Canvas;
@@ -22,7 +24,6 @@ import org.chromium.chrome.browser.tasks.tab_management.TabGridItemLongPressOrch
 import org.chromium.chrome.browser.tasks.tab_management.TabGridItemLongPressOrchestrator.OnLongPressTabItemEventListener;
 import org.chromium.chrome.browser.tasks.tab_management.TabListModel;
 import org.chromium.chrome.browser.tasks.tab_management.TabProperties;
-import org.chromium.ui.modelutil.PropertyModel;
 import org.chromium.ui.modelutil.SimpleRecyclerViewAdapter;
 import org.chromium.ui.recyclerview.widget.ItemTouchHelper2;
 
@@ -107,31 +108,18 @@ public class PinnedTabStripItemTouchHelperCallback extends ItemTouchHelper2.Simp
             RecyclerView recyclerView,
             RecyclerView.ViewHolder fromViewHolder,
             RecyclerView.ViewHolder toViewHolder) {
-        int fromPosition = fromViewHolder.getBindingAdapterPosition();
+        mSelectedTabIndex = toViewHolder.getBindingAdapterPosition();
+        @TabId
+        int currentTabId =
+                assumeNonNull(((SimpleRecyclerViewAdapter.ViewHolder) fromViewHolder).model)
+                        .get(TabProperties.TAB_ID);
+
         int destinationIndex = toViewHolder.getBindingAdapterPosition();
-        if (fromPosition == RecyclerView.NO_POSITION
-                || destinationIndex == RecyclerView.NO_POSITION
-                || fromPosition < 0
-                || destinationIndex < 0
-                || fromPosition >= mModel.size()
-                || destinationIndex >= mModel.size()
-                || fromPosition == destinationIndex) {
-            return false;
-        }
-
-        PropertyModel model =
-                fromViewHolder instanceof SimpleRecyclerViewAdapter.ViewHolder holder
-                        ? holder.model
-                        : null;
-        if (model == null) return false;
-
         TabModel tabModel = mCurrentTabModelSupplier.get();
         if (tabModel == null) return false;
 
-        mSelectedTabIndex = destinationIndex;
-        @TabId int currentTabId = model.get(TabProperties.TAB_ID);
         tabModel.moveRelatedTabs(currentTabId, destinationIndex);
-        mModel.move(fromPosition, destinationIndex);
+        mModel.move(fromViewHolder.getBindingAdapterPosition(), destinationIndex);
         return true;
     }
 
@@ -142,27 +130,18 @@ public class PinnedTabStripItemTouchHelperCallback extends ItemTouchHelper2.Simp
     public void onSelectedChanged(RecyclerView.@Nullable ViewHolder viewHolder, int actionState) {
         super.onSelectedChanged(viewHolder, actionState);
 
-        int position =
-                viewHolder != null
-                        ? viewHolder.getBindingAdapterPosition()
-                        : RecyclerView.NO_POSITION;
-
-        if (position != RecyclerView.NO_POSITION && position < mModel.size()) {
-            mTabGridItemLongPressOrchestrator.onSelectedChanged(position, actionState);
+        if (viewHolder != null) {
+            mTabGridItemLongPressOrchestrator.onSelectedChanged(
+                    viewHolder.getBindingAdapterPosition(), actionState);
         }
 
         if (actionState == ItemTouchHelper.ACTION_STATE_DRAG) {
-            if (position != RecyclerView.NO_POSITION && position < mModel.size()) {
-                mSelectedTabIndex = position;
-                mModel.updateSelectedCardForSelection(mSelectedTabIndex, true);
-            }
+            assumeNonNull(viewHolder);
+            mSelectedTabIndex = viewHolder.getBindingAdapterPosition();
+            mModel.updateSelectedCardForSelection(mSelectedTabIndex, true);
         } else if (actionState == ItemTouchHelper.ACTION_STATE_IDLE) {
-            if (mSelectedTabIndex != TabModel.INVALID_TAB_INDEX) {
-                if (mSelectedTabIndex < mModel.size()) {
-                    mModel.updateSelectedCardForSelection(mSelectedTabIndex, false);
-                }
-                mSelectedTabIndex = TabModel.INVALID_TAB_INDEX;
-            }
+            mModel.updateSelectedCardForSelection(mSelectedTabIndex, false);
+            mSelectedTabIndex = TabModel.INVALID_TAB_INDEX;
         }
     }
 

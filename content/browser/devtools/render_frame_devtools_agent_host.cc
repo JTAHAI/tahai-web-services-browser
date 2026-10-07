@@ -436,6 +436,9 @@ bool RenderFrameDevToolsAgentHost::AttachSession(DevToolsSession* session) {
       frame_host_ ? frame_host_->devtools_frame_token()
                   : base::UnguessableToken(),
       GetIOContext(), session, /*maybe_storage_partition=*/nullptr,
+      base::BindRepeating(
+          &RenderFrameDevToolsAgentHost::UpdateResourceLoaderFactories,
+          base::Unretained(this)),
       session->GetClient());
   session->CreateAndAddHandler<protocol::FetchHandler>(
       GetIOContext(), session->GetRootSession()->GetClient(),
@@ -460,7 +463,7 @@ bool RenderFrameDevToolsAgentHost::AttachSession(DevToolsSession* session) {
       GetId(), auto_attacher_.get(), session);
   session->CreateAndAddHandler<protocol::PreloadHandler>();
   session->CreateAndAddHandler<protocol::PageHandler>(
-      GetIOContext(), emulation_handler, browser_handler,
+      emulation_handler, browser_handler,
       session->GetClient()->AllowUnsafeOperations(),
       session->GetClient()->IsTrusted(),
       session->GetClient()->GetNavigationInitiatorOrigin(),
@@ -470,8 +473,8 @@ bool RenderFrameDevToolsAgentHost::AttachSession(DevToolsSession* session) {
   if (is_main_frame) {
     DevToolsSession* root_session = session->GetRootSession();
     CHECK(root_session);
-    session->CreateAndAddHandler<protocol::TracingHandler>(
-        this, GetIOContext(), root_session, session->GetClient()->IsTrusted());
+    session->CreateAndAddHandler<protocol::TracingHandler>(this, GetIOContext(),
+                                                           root_session);
   }
   if (base::FeatureList::IsEnabled(blink::features::kDevToolsWebMCPSupport)) {
     session->CreateAndAddHandler<protocol::WebMCPHandler>();

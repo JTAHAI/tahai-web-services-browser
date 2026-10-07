@@ -4,13 +4,13 @@
 
 #include "ash/webui/diagnostics_ui/backend/common/routine_properties.h"
 
-namespace ash::diagnostics {
+#include "base/compiler_specific.h"
 
-namespace {
+namespace ash::diagnostics {
 
 namespace healthd = cros_healthd::mojom;
 
-constexpr RoutineProperties kRoutinePropertiesArray[] = {
+const RoutineProperties kRoutineProperties[] = {
     {mojom::RoutineType::kBatteryCharge, "BatteryChargeResult",
      /*duration_seconds=*/30, healthd::DiagnosticRoutineEnum::kBatteryCharge},
     {mojom::RoutineType::kBatteryDischarge, "BatteryDischargeResult",
@@ -67,10 +67,6 @@ constexpr RoutineProperties kRoutinePropertiesArray[] = {
      /*duration_seconds=*/0, healthd::DiagnosticRoutineEnum::kUnknown},
 };
 
-}  // namespace
-
-constexpr base::span<const RoutineProperties> kRoutineProperties =
-    kRoutinePropertiesArray;
 const size_t kRoutinePropertiesLength = std::size(kRoutineProperties);
 
 static_assert(kRoutinePropertiesLength ==
@@ -86,7 +82,7 @@ uint32_t GetExpectedRoutineDurationInSeconds(mojom::RoutineType routine_type) {
 }
 
 const RoutineProperties& GetRoutineProperties(mojom::RoutineType routine_type) {
-  return kRoutineProperties[static_cast<size_t>(routine_type)];
+  return UNSAFE_TODO(kRoutineProperties[static_cast<size_t>(routine_type)]);
 }
 
 }  // namespace ash::diagnostics

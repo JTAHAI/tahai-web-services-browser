@@ -5,7 +5,6 @@
 #ifndef THIRD_PARTY_BLINK_RENDERER_CORE_FRAME_FIND_IN_PAGE_H_
 #define THIRD_PARTY_BLINK_RENDERER_CORE_FRAME_FIND_IN_PAGE_H_
 
-#include "base/memory/raw_ptr.h"
 #include "build/build_config.h"
 #include "mojo/public/cpp/bindings/pending_associated_receiver.h"
 #include "mojo/public/cpp/bindings/pending_remote.h"
@@ -107,8 +106,7 @@ class CORE_EXPORT FindInPage final : public GarbageCollected<FindInPage>,
   // Will be initialized after first call to ensureTextFinder().
   Member<TextFinder> text_finder_;
 
-  raw_ptr<WebPluginContainer, UnprotectedInRelease | DanglingUntriaged>
-      plugin_find_handler_;
+  WebPluginContainer* plugin_find_handler_;
 
   const Member<WebLocalFrameImpl> frame_;
 

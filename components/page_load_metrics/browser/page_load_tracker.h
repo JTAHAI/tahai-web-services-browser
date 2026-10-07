@@ -230,10 +230,7 @@ class PageLoadTracker : public PageLoadMetricsUpdateDispatcher::Client,
   void OnMainFrameMetadataChanged() override;
   void OnSubframeMetadataChanged(content::RenderFrameHost* rfh,
                                  const mojom::FrameMetadata& metadata) override;
-  void OnSoftNavigationFirstContentfulPaint(
-      const mojom::SoftNavigationMetrics& soft_navigation_metrics) override;
-  void OnSoftNavigationCompleted(
-      const SoftNavigationData& soft_navigation_data) override;
+  void OnSoftNavigation() override;
   void OnSoftNavigationLargestContentfulPaint(uint64_t num_soft_lcps) override;
   void UpdateFeaturesUsage(
       content::RenderFrameHost* rfh,
@@ -276,7 +273,13 @@ class PageLoadTracker : public PageLoadMetricsUpdateDispatcher::Client,
   const PageRenderData& GetPageRenderData() const override;
   const NormalizedCLSData& GetNormalizedCLSData(
       BfcacheStrategy bfcache_strategy) const override;
+  const NormalizedCLSData& GetSoftNavigationIntervalNormalizedCLSData()
+      const override;
   const InteractionToNextPaintCalculator& GetInteractionToNextPaintCalculator()
+      const override;
+  const InteractionToNextPaintCalculator&
+  GetSoftNavigationIntervalInteractionToNextPaintCalculator() const override;
+  const ContentfulPaintTimingInfo& GetSoftNavigationLargestContentfulPaint()
       const override;
   const std::optional<blink::SubresourceLoadMetrics>&
   GetSubresourceLoadMetrics() const override;
@@ -289,6 +292,8 @@ class PageLoadTracker : public PageLoadMetricsUpdateDispatcher::Client,
   const LargestContentfulPaintHandler&
   GetExperimentalLargestContentfulPaintHandler() const override;
   ukm::SourceId GetPageUkmSourceId() const override;
+  const mojom::SoftNavigationMetrics& GetSoftNavigationMetrics() const override;
+  uint64_t GetSoftNavigationCount() const override;
   // Maps main-frame same-document navigation identified
   // by |same_document_metrics_token| to its UKM source id.
   ukm::SourceId GetUkmSourceIdForSameDocumentNavigation(
@@ -340,8 +345,6 @@ class PageLoadTracker : public PageLoadMetricsUpdateDispatcher::Client,
 
   void OnLoadedResource(
       const ExtraRequestCompleteInfo& extra_request_complete_info);
-  void DidLoadResourceFromMemoryCache(
-      const MemoryResourceLoadInfo& memory_resource_load_info);
 
   void FrameReceivedUserActivation(content::RenderFrameHost* rfh);
   void FrameDisplayStateChanged(content::RenderFrameHost* render_frame_host,
@@ -426,6 +429,8 @@ class PageLoadTracker : public PageLoadMetricsUpdateDispatcher::Client,
   void MediaStartedPlaying(
       const content::WebContentsObserver::MediaPlayerInfo& video_type,
       content::RenderFrameHost* render_frame_host);
+
+  void OnPrefetchLikely();
 
   void OnEnterBackForwardCache();
   void OnRestoreFromBackForwardCache(

@@ -38,11 +38,9 @@ enum class SearchPreloadSignalResult {
   kNotTriggeredOnPressNoSearchProviderOptIn = 8,
   // Preloads are throttled during prewarm requests.
   kNotTriggeredThrottledByPrewarm = 9,
-  // Search mode is unsupported (e.g. udm=50 or AIM suggestion).
-  kNotTriggeredUnsupportedSearchMode = 10,
 
   // The max value of the PrefetchStatus. Update this when new enums are added.
-  kMaxValue = kNotTriggeredUnsupportedSearchMode,
+  kMaxValue = kNotTriggeredThrottledByPrewarm,
 };
 // LINT.ThenChange(/tools/metrics/histograms/metadata/omnibox/enums.xml:SearchPreloadSignalResult)
 

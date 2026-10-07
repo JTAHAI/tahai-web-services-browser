@@ -46,6 +46,7 @@ using DeviceType = VmCameraMicManager::DeviceType;
 using NotificationType = VmCameraMicManager::NotificationType;
 
 constexpr VmType kCrostiniVm = VmType::kCrostiniVm;
+constexpr VmType kPluginVm = VmType::kPluginVm;
 constexpr VmType kBorealis = VmType::kBorealis;
 
 constexpr DeviceType kCamera = DeviceType::kCamera;
@@ -259,28 +260,28 @@ class VmCameraMicManagerTest : public testing::Test {
 };
 
 TEST_F(VmCameraMicManagerTest, CameraPrivacy) {
-  SetCameraAccessing(kCrostiniVm, false);
+  SetCameraAccessing(kPluginVm, false);
   SetCameraPrivacyIsOn(false);
   ForwardToStable();
   EXPECT_FALSE(vm_camera_mic_manager_->IsDeviceActive(kCamera));
   EXPECT_FALSE(
       vm_camera_mic_manager_->IsNotificationActive(kCameraNotification));
 
-  SetCameraAccessing(kCrostiniVm, true);
+  SetCameraAccessing(kPluginVm, true);
   SetCameraPrivacyIsOn(false);
   ForwardToStable();
   EXPECT_TRUE(vm_camera_mic_manager_->IsDeviceActive(kCamera));
   EXPECT_TRUE(
       vm_camera_mic_manager_->IsNotificationActive(kCameraNotification));
 
-  SetCameraAccessing(kCrostiniVm, false);
+  SetCameraAccessing(kPluginVm, false);
   SetCameraPrivacyIsOn(true);
   ForwardToStable();
   EXPECT_FALSE(vm_camera_mic_manager_->IsDeviceActive(kCamera));
   EXPECT_FALSE(
       vm_camera_mic_manager_->IsNotificationActive(kCameraNotification));
 
-  SetCameraAccessing(kCrostiniVm, true);
+  SetCameraAccessing(kPluginVm, true);
   SetCameraPrivacyIsOn(true);
   ForwardToStable();
   EXPECT_FALSE(vm_camera_mic_manager_->IsDeviceActive(kCamera));
@@ -289,7 +290,7 @@ TEST_F(VmCameraMicManagerTest, CameraPrivacy) {
 }
 
 TEST_F(VmCameraMicManagerTest, PrivacyIndicatorsNotification) {
-  SetCameraAccessing(kCrostiniVm, false);
+  SetCameraAccessing(kPluginVm, false);
   SetCameraPrivacyIsOn(false);
   ForwardToStable();
   EXPECT_FALSE(vm_camera_mic_manager_->IsDeviceActive(kCamera));
@@ -297,14 +298,14 @@ TEST_F(VmCameraMicManagerTest, PrivacyIndicatorsNotification) {
       vm_camera_mic_manager_->IsNotificationActive(kCameraNotification));
   ExpectNotificationsExist(std::set<std::string>{});
 
-  SetCameraAccessing(kCrostiniVm, true);
+  SetCameraAccessing(kPluginVm, true);
   SetCameraPrivacyIsOn(false);
   ForwardToStable();
   EXPECT_TRUE(vm_camera_mic_manager_->IsDeviceActive(kCamera));
   EXPECT_TRUE(
       vm_camera_mic_manager_->IsNotificationActive(kCameraNotification));
   ExpectNotificationsExist(std::set<std::string>{
-      GetNotificationId(VmType::kCrostiniVm, kCameraNotification)});
+      GetNotificationId(VmType::kPluginVm, kCameraNotification)});
 }
 
 TEST_F(VmCameraMicManagerTest, PrivacyIndicatorsView) {
@@ -312,18 +313,18 @@ TEST_F(VmCameraMicManagerTest, PrivacyIndicatorsView) {
   display::test::DisplayManagerTestApi(Shell::Get()->display_manager())
       .UpdateDisplay("800x700,801+0-800x700");
 
-  SetCameraAccessing(kCrostiniVm, false);
+  SetCameraAccessing(kPluginVm, false);
   SetCameraPrivacyIsOn(false);
   ForwardToStable();
   ExpectPrivacyIndicatorsVisible(/*visible=*/false);
 
-  SetCameraAccessing(kCrostiniVm, true);
+  SetCameraAccessing(kPluginVm, true);
   SetCameraPrivacyIsOn(false);
   ForwardToStable();
   ExpectPrivacyIndicatorsVisible(/*visible=*/true);
 
   // Switch back to not accessing, the indicator should not be visible.
-  SetCameraAccessing(kCrostiniVm, false);
+  SetCameraAccessing(kPluginVm, false);
   SetCameraPrivacyIsOn(false);
   ForwardToStable();
   // Fast forward by the minimum duration the privacy indicator should be held.
@@ -360,6 +361,7 @@ INSTANTIATE_TEST_SUITE_P(
         IsActiveTestParam{
             /*active_map=*/{
                 {kCrostiniVm, {{kCamera, 0}, {kMic, 0}}},
+                {kPluginVm, {{kCamera, 0}, {kMic, 0}}},
                 {kBorealis, {{kCamera, 0}, {kMic, 0}}},
             },
             /*device_expectations=*/{},
@@ -367,7 +369,17 @@ INSTANTIATE_TEST_SUITE_P(
         },
         IsActiveTestParam{
             /*active_map=*/{
+                {kCrostiniVm, {{kCamera, 0}, {kMic, 0}}},
+                {kPluginVm, {{kCamera, 1}, {kMic, 0}}},
+                {kBorealis, {{kCamera, 0}, {kMic, 0}}},
+            },
+            /*device_expectations=*/{kCamera},
+            /*notification_expectations=*/{kCameraNotification},
+        },
+        IsActiveTestParam{
+            /*active_map=*/{
                 {kCrostiniVm, {{kCamera, 1}, {kMic, 0}}},
+                {kPluginVm, {{kCamera, 0}, {kMic, 0}}},
                 {kBorealis, {{kCamera, 0}, {kMic, 0}}},
             },
             /*device_expectations=*/{kCamera},
@@ -376,6 +388,7 @@ INSTANTIATE_TEST_SUITE_P(
         IsActiveTestParam{
             /*active_map=*/{
                 {kCrostiniVm, {{kCamera, 0}, {kMic, 1}}},
+                {kPluginVm, {{kCamera, 0}, {kMic, 0}}},
                 {kBorealis, {{kCamera, 0}, {kMic, 0}}},
             },
             /*device_expectations=*/{kMic},
@@ -384,27 +397,80 @@ INSTANTIATE_TEST_SUITE_P(
         IsActiveTestParam{
             /*active_map=*/{
                 {kCrostiniVm, {{kCamera, 0}, {kMic, 0}}},
+                {kPluginVm, {{kCamera, 0}, {kMic, 0}}},
                 {kBorealis, {{kCamera, 0}, {kMic, 1}}},
             },
             /*device_expectations=*/{kMic},
             /*notification_expectations=*/{kMicNotification},
         },
+        // Only a crostini "camera icon" notification is displayed.
         IsActiveTestParam{
             /*active_map=*/{
                 {kCrostiniVm, {{kCamera, 1}, {kMic, 1}}},
+                {kPluginVm, {{kCamera, 0}, {kMic, 0}}},
                 {kBorealis, {{kCamera, 0}, {kMic, 0}}},
             },
             /*device_expectations=*/{kCamera, kMic},
             /*notification_expectations=*/{kCameraAndMicNotification},
         },
+        // Crostini "camera icon" notification and pluginvm mic notification are
+        // displayed.
+        IsActiveTestParam{
+            /*active_map=*/{
+                {kCrostiniVm, {{kCamera, 1}, {kMic, 1}}},
+                {kPluginVm, {{kCamera, 0}, {kMic, 1}}},
+                {kBorealis, {{kCamera, 0}, {kMic, 0}}},
+            },
+            /*device_expectations=*/{kCamera, kMic},
+            /*notification_expectations=*/
+            {kCameraAndMicNotification, kMicNotification},
+        },
+        // Crostini "camera icon" notification and pluginvm camera notification
+        // are displayed.
+        IsActiveTestParam{
+            /*active_map=*/{
+                {kCrostiniVm, {{kCamera, 1}, {kMic, 1}}},
+                {kPluginVm, {{kCamera, 1}, {kMic, 0}}},
+                {kBorealis, {{kCamera, 0}, {kMic, 0}}},
+            },
+            /*device_expectations=*/{kCamera, kMic},
+            /*notification_expectations=*/
+            {kCameraAndMicNotification, kCameraNotification},
+        },
+        // Crostini camera notification and pluginvm mic notification are
+        // displayed.
         IsActiveTestParam{
             /*active_map=*/{
                 {kCrostiniVm, {{kCamera, 1}, {kMic, 0}}},
+                {kPluginVm, {{kCamera, 0}, {kMic, 1}}},
+                {kBorealis, {{kCamera, 0}, {kMic, 0}}},
+            },
+            /*device_expectations=*/{kCamera, kMic},
+            /*notification_expectations=*/
+            {kCameraNotification, kMicNotification},
+        },
+        // Crostini camera notification and borealis mic notification are
+        // displayed.
+        IsActiveTestParam{
+            /*active_map=*/{
+                {kCrostiniVm, {{kCamera, 1}, {kMic, 0}}},
+                {kPluginVm, {{kCamera, 0}, {kMic, 0}}},
                 {kBorealis, {{kCamera, 0}, {kMic, 1}}},
             },
             /*device_expectations=*/{kCamera, kMic},
             /*notification_expectations=*/
             {kCameraNotification, kMicNotification},
+        },
+        // Crostini and pluginvm "camera icon" notifications are displayed.
+        IsActiveTestParam{
+            /*active_map=*/{
+                {kCrostiniVm, {{kCamera, 1}, {kMic, 1}}},
+                {kPluginVm, {{kCamera, 1}, {kMic, 1}}},
+                {kBorealis, {{kCamera, 0}, {kMic, 1}}},
+            },
+            /*device_expectations=*/{kCamera, kMic},
+            /*notification_expectations=*/
+            {kCameraAndMicNotification, kMicNotification},
         }));
 
 class VmCameraMicManagerNotificationTest
@@ -417,6 +483,7 @@ class VmCameraMicManagerNotificationTest
         {
             /*active_map=*/{
                 {kCrostiniVm, {{kCamera, 0}, {kMic, 0}}},
+                {kPluginVm, {{kCamera, 0}, {kMic, 0}}},
                 {kBorealis, {{kCamera, 0}, {kMic, 0}}},
             },
             /*expected_notifications=*/{},
@@ -424,6 +491,7 @@ class VmCameraMicManagerNotificationTest
         {
             /*active_map=*/{
                 {kCrostiniVm, {{kCamera, 1}, {kMic, 0}}},
+                {kPluginVm, {{kCamera, 0}, {kMic, 0}}},
                 {kBorealis, {{kCamera, 0}, {kMic, 0}}},
             },
             /*expected_notifications=*/{{kCrostiniVm, kCameraNotification}},
@@ -431,34 +499,38 @@ class VmCameraMicManagerNotificationTest
         {
             /*active_map=*/{
                 {kCrostiniVm, {{kCamera, 1}, {kMic, 0}}},
-                {kBorealis, {{kCamera, 0}, {kMic, 1}}},
+                {kPluginVm, {{kCamera, 0}, {kMic, 1}}},
+                {kBorealis, {{kCamera, 0}, {kMic, 0}}},
             },
             /*expected_notifications=*/
             {
                 {kCrostiniVm, kCameraNotification},
-                {kBorealis, kMicNotification},
+                {kPluginVm, kMicNotification},
             },
         },
         {
             /*active_map=*/{
                 {kCrostiniVm, {{kCamera, 1}, {kMic, 0}}},
-                {kBorealis, {{kCamera, 1}, {kMic, 1}}},
+                {kPluginVm, {{kCamera, 1}, {kMic, 1}}},
+                {kBorealis, {{kCamera, 0}, {kMic, 0}}},
             },
             /*expected_notifications=*/
             {
                 {kCrostiniVm, kCameraNotification},
-                {kBorealis, kCameraAndMicNotification},
+                {kPluginVm, kCameraAndMicNotification},
             },
         },
         {
             /*active_map=*/{
                 {kCrostiniVm, {{kCamera, 1}, {kMic, 1}}},
-                {kBorealis, {{kCamera, 1}, {kMic, 0}}},
+                {kPluginVm, {{kCamera, 1}, {kMic, 0}}},
+                {kBorealis, {{kCamera, 0}, {kMic, 1}}},
             },
             /*expected_notifications=*/
             {
                 {kCrostiniVm, kCameraAndMicNotification},
-                {kBorealis, kCameraNotification},
+                {kPluginVm, kCameraNotification},
+                {kBorealis, kMicNotification},
             },
         },
     };
@@ -493,48 +565,48 @@ class VmCameraMicManagerDebounceTest : public VmCameraMicManagerTest {
 };
 
 TEST_F(VmCameraMicManagerDebounceTest, Simple) {
-  SetMicActive(kCrostiniVm, true);
+  SetMicActive(kPluginVm, true);
   ForwardDebounceTime();
   ExpectNotificationsExist(
-      std::set<std::string>{GetNotificationId(kCrostiniVm, kMicNotification)});
+      std::set<std::string>{GetNotificationId(kPluginVm, kMicNotification)});
 
   ForwardToStable();
   ExpectNotificationsExist(
-      std::set<std::string>{GetNotificationId(kCrostiniVm, kMicNotification)});
+      std::set<std::string>{GetNotificationId(kPluginVm, kMicNotification)});
 }
 
 TEST_F(VmCameraMicManagerDebounceTest, CombineCameraAndMic) {
-  SetMicActive(kCrostiniVm, true);
+  SetMicActive(kPluginVm, true);
   ForwardDebounceTime(/*factor=*/0.51);
   // Within debounce time, so no notification.
   ExpectNotificationsExist(std::set<std::string>{});
 
-  SetCameraAccessing(kCrostiniVm, true);
+  SetCameraAccessing(kPluginVm, true);
   ForwardDebounceTime(/*factor=*/0.51);
   ExpectNotificationsExist(std::set<std::string>{
-      GetNotificationId(kCrostiniVm, kCameraAndMicNotification)});
+      GetNotificationId(kPluginVm, kCameraAndMicNotification)});
 
   ForwardToStable();
   ExpectNotificationsExist(std::set<std::string>{
-      GetNotificationId(kCrostiniVm, kCameraAndMicNotification)});
+      GetNotificationId(kPluginVm, kCameraAndMicNotification)});
 }
 
 // This test that if the devices are turned on and then immediately turned off,
 // we will still show notifications for at least kDebounceTime.
 TEST_F(VmCameraMicManagerDebounceTest, DisplayStageBeforeTarget) {
-  SetMicActive(kCrostiniVm, true);
-  SetMicActive(kCrostiniVm, false);
-  SetCameraAccessing(kCrostiniVm, true);
-  SetCameraAccessing(kCrostiniVm, false);
+  SetMicActive(kPluginVm, true);
+  SetMicActive(kPluginVm, false);
+  SetCameraAccessing(kPluginVm, true);
+  SetCameraAccessing(kPluginVm, false);
 
   ForwardDebounceTime();
   ExpectNotificationsExist(std::set<std::string>{
-      GetNotificationId(kCrostiniVm, kCameraAndMicNotification)});
+      GetNotificationId(kPluginVm, kCameraAndMicNotification)});
 
   // Will continue displaying for roughly kDebounceTime.
   ForwardDebounceTime(/*factor=*/0.9);
   ExpectNotificationsExist(std::set<std::string>{
-      GetNotificationId(kCrostiniVm, kCameraAndMicNotification)});
+      GetNotificationId(kPluginVm, kCameraAndMicNotification)});
 
   // Eventually display the "target" notification, which is no notification at
   // all.
@@ -551,67 +623,71 @@ TEST_F(VmCameraMicManagerDebounceTest, DisplayStageBeforeTarget) {
 // This test that within debounce time, if the state is reverted back to the
 // stable status, then nothing will change.
 TEST_F(VmCameraMicManagerDebounceTest, RevertBackToStable) {
-  SetMicActive(kCrostiniVm, true);
-  SetCameraAccessing(kCrostiniVm, true);
+  SetMicActive(kPluginVm, true);
+  SetCameraAccessing(kPluginVm, true);
   ForwardToStable();
   ExpectNotificationsExist(std::set<std::string>{
-      GetNotificationId(kCrostiniVm, kCameraAndMicNotification)});
+      GetNotificationId(kPluginVm, kCameraAndMicNotification)});
 
   // First turn both devices off, and then turn them back up. The state should
   // become stable again so nothing should changed.
-  SetMicActive(kCrostiniVm, false);
-  SetCameraAccessing(kCrostiniVm, false);
+  SetMicActive(kPluginVm, false);
+  SetCameraAccessing(kPluginVm, false);
   ForwardDebounceTime(/*factor=*/0.5);
-  SetMicActive(kCrostiniVm, true);
-  SetCameraAccessing(kCrostiniVm, true);
+  SetMicActive(kPluginVm, true);
+  SetCameraAccessing(kPluginVm, true);
 
   // Nothing changed.
   ForwardDebounceTime();
   ExpectNotificationsExist(std::set<std::string>{
-      GetNotificationId(kCrostiniVm, kCameraAndMicNotification)});
+      GetNotificationId(kPluginVm, kCameraAndMicNotification)});
 
   ForwardToStable();
   ExpectNotificationsExist(std::set<std::string>{
-      GetNotificationId(kCrostiniVm, kCameraAndMicNotification)});
+      GetNotificationId(kPluginVm, kCameraAndMicNotification)});
 }
 
-TEST_F(VmCameraMicManagerDebounceTest, RepeatedDeviceChanges) {
-  SetCameraAccessing(kCrostiniVm, true);
+// Simulate one of the more complicated case.
+TEST_F(VmCameraMicManagerDebounceTest, SimulateSkypeStartingMeeting) {
+  // Simulate the waiting to start screen, in which only the camera is active.
+  SetCameraAccessing(kPluginVm, true);
   ForwardToStable();
   // Fast forward by the minimum duration the privacy indicator should be held.
   task_environment_.FastForwardBy(
       ash::PrivacyIndicatorsController::kPrivacyIndicatorsMinimumHoldDuration);
-  ExpectNotificationsExist(std::set<std::string>{
-      GetNotificationId(kCrostiniVm, kCameraNotification)});
+  ExpectNotificationsExist(
+      std::set<std::string>{GetNotificationId(kPluginVm, kCameraNotification)});
 
-  // Repeated device changes should update the notification only once.
-  SetCameraAccessing(kCrostiniVm, false);
+  // Simulate what happens after clicking the starting button. Skype will turn
+  // on and off the devices multiple time. We should expect the notification
+  // only changes to "camera and mic" once.
+  SetCameraAccessing(kPluginVm, false);
   ForwardDebounceTime(0.2);
   // Fast forward by the minimum duration the privacy indicator should be held.
   task_environment_.FastForwardBy(
       ash::PrivacyIndicatorsController::kPrivacyIndicatorsMinimumHoldDuration);
-  SetMicActive(kCrostiniVm, true);
+  SetMicActive(kPluginVm, true);
   ForwardDebounceTime(0.2);
-  SetCameraAccessing(kCrostiniVm, true);
+  SetCameraAccessing(kPluginVm, true);
   ForwardDebounceTime(0.7);
   // Fast forward by the minimum duration the privacy indicator should be held.
   task_environment_.FastForwardBy(
       ash::PrivacyIndicatorsController::kPrivacyIndicatorsMinimumHoldDuration);
   ExpectNotificationsExist(std::set<std::string>{
-      GetNotificationId(kCrostiniVm, kCameraAndMicNotification)});
+      GetNotificationId(kPluginVm, kCameraAndMicNotification)});
   ForwardToStable();
   ExpectNotificationsExist(std::set<std::string>{
-      GetNotificationId(kCrostiniVm, kCameraAndMicNotification)});
+      GetNotificationId(kPluginVm, kCameraAndMicNotification)});
 
-  SetCameraAccessing(kCrostiniVm, false);
+  SetCameraAccessing(kPluginVm, false);
   ForwardDebounceTime(0.2);
-  SetCameraAccessing(kCrostiniVm, true);
+  SetCameraAccessing(kPluginVm, true);
   ForwardDebounceTime(0.9);
   ExpectNotificationsExist(std::set<std::string>{
-      GetNotificationId(kCrostiniVm, kCameraAndMicNotification)});
+      GetNotificationId(kPluginVm, kCameraAndMicNotification)});
   ForwardToStable();
   ExpectNotificationsExist(std::set<std::string>{
-      GetNotificationId(kCrostiniVm, kCameraAndMicNotification)});
+      GetNotificationId(kPluginVm, kCameraAndMicNotification)});
 }
 
 }  // namespace ash

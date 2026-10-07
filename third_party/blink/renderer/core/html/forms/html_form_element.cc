@@ -221,13 +221,6 @@ void HTMLFormElement::HTMLFormMcpTool::ExecuteTool(
   }
 }
 
-void HTMLFormElement::HTMLFormMcpTool::CancelTool() {
-  CHECK(is_currently_running_);
-  CallDoneCallback(base::unexpected(
-      ScriptToolError(ScriptToolErrorCode::kToolCancelled,
-                      "Tool execution cancelled by abort signal")));
-}
-
 std::optional<ScriptToolError>
 HTMLFormElement::HTMLFormMcpTool::FillFormControls(
     const String& input_arguments,
@@ -298,18 +291,11 @@ void HTMLFormElement::HandleWebMcpToolResponse(HTMLFormMcpTool* tool,
   if (resolved) {
     String result;
     if (value.IsObject()) {
-      v8::TryCatch try_catch(script_state->GetIsolate());
       v8::Local<v8::String> json_string;
       if (v8::JSON::Stringify(script_state->GetContext(), value.V8Value())
               .ToLocal(&json_string)) {
         result = ToBlinkString<String>(script_state->GetIsolate(), json_string,
                                        kDoNotExternalize);
-      } else {
-        tool->CallDoneCallback(base::unexpected(
-            ScriptToolError(ScriptToolErrorCode::kToolInvocationFailed,
-                            "respondWith promise resolved with an object that "
-                            "could not be serialized to JSON")));
-        return;
       }
     }
 
@@ -352,11 +338,6 @@ void HTMLFormElement::ReportInvalidMCPFormIssueIfNeeded(
 // changed, and when the children of `this` are changed.
 void HTMLFormElement::ScheduleDeclarativeWebMCPToolRegistration() {
   if (!RuntimeEnabledFeatures::WebMCPEnabled(GetExecutionContext())) {
-    return;
-  }
-  // Declarative WebMCP tools require an active frame to bind to the browser
-  // process. If the document has no frame, there is nothing to schedule.
-  if (!GetDocument().GetFrame()) {
     return;
   }
   // The `<form>` must have *both* the `toolname` and `tooldescription`
@@ -469,7 +450,7 @@ Node::InsertionNotificationRequest HTMLFormElement::InsertedInto(
                                             html_names::kActionAttr);
   if (insertion_point.isConnected()) {
     InvalidateAncestorFormsForAutofill(ParentElementOrShadowRoot());
-    GetDocument().MarkOutermostFormsDirty();
+    GetDocument().MarkTopLevelFormsDirty();
     GetDocument().DidChangeFormRelatedElementDynamically(
         this, WebFormRelatedChangeType::kAdd);
     ScheduleDeclarativeWebMCPToolRegistration();
@@ -512,12 +493,12 @@ void HTMLFormElement::RemovedFrom(ContainerNode& insertion_point) {
       NotifyFormRemovedFromTree(images, root);
     }
   }
-  GetDocument().EnsureFormController().WillDeleteForm(this);
+  GetDocument().GetFormController().WillDeleteForm(this);
   HTMLElement::RemovedFrom(insertion_point);
 
   if (insertion_point.isConnected()) {
     InvalidateAncestorFormsForAutofill(&insertion_point);
-    GetDocument().MarkOutermostFormsDirty();
+    GetDocument().MarkTopLevelFormsDirty();
     GetDocument().DidChangeFormRelatedElementDynamically(
         this, WebFormRelatedChangeType::kRemove);
     ScheduleDeclarativeWebMCPToolRegistration();
@@ -1337,7 +1318,7 @@ void HTMLFormElement::CollectListedElements(
 
   for (HTMLElement& element : Traversal<HTMLElement>::DescendantsOf(*root)) {
     if (ListedElement* listed_element = ListedElement::From(element)) {
-      // Autofill only considers outermost forms. We therefore include all form
+      // Autofill only considers top level forms. We therefore include all form
       // control descendants of the form whose elements we collect in
       // `elements_for_autofill`, even if their closest ancestor is a
       // different form.
@@ -1615,7 +1596,7 @@ bool HTMLFormElement::HasRel(RelAttribute relation) const {
 
 void HTMLFormElement::FinishParsingChildren() {
   HTMLElement::FinishParsingChildren();
-  GetDocument().EnsureFormController().RestoreControlStateIn(*this);
+  GetDocument().GetFormController().RestoreControlStateIn(*this);
   did_finish_parsing_children_ = true;
 }
 

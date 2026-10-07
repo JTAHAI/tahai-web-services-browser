@@ -1,2 +1,3 @@
-rules:
-- "**": [websockets]
+features:
+- name: websockets
+  files: "**"

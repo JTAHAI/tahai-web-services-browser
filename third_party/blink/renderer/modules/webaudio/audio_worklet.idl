@@ -8,5 +8,4 @@
     Exposed=Window,
     SecureContext
 ] interface AudioWorklet : Worklet {
-    [RuntimeEnabled=AudioWorkletSharedPort] readonly attribute MessagePort port;
 };

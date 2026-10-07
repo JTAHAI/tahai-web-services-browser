@@ -71,7 +71,7 @@ class BnplTosViewDesktopInteractiveUiTest : public InteractiveBrowserTest {
   }
 
   content::WebContents* web_contents() {
-    return browser()->GetTabStripModel()->GetActiveWebContents();
+    return browser()->tab_strip_model()->GetActiveWebContents();
   }
 
   base::MockOnceClosure accept_callback_;
@@ -261,8 +261,8 @@ IN_PROC_BROWSER_TEST_F(BnplTosViewDesktopInteractiveUiTest,
 
                   // Close the active tab.
                   Do([this]() {
-                    browser()->GetTabStripModel()->CloseWebContentsAt(
-                        browser()->GetTabStripModel()->active_index(),
+                    browser()->tab_strip_model()->CloseWebContentsAt(
+                        browser()->tab_strip_model()->active_index(),
                         TabCloseTypes::CLOSE_USER_GESTURE);
                   }),
 

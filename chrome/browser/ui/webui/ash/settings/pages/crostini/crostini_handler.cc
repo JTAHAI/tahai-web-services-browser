@@ -20,6 +20,8 @@
 #include "chrome/browser/ash/crostini/crostini_export_import.h"
 #include "chrome/browser/ash/crostini/crostini_export_import_factory.h"
 #include "chrome/browser/ash/crostini/crostini_features.h"
+#include "chrome/browser/ash/crostini/crostini_installer.h"
+#include "chrome/browser/ash/crostini/crostini_installer_factory.h"
 #include "chrome/browser/ash/crostini/crostini_port_forwarder.h"
 #include "chrome/browser/ash/crostini/crostini_port_forwarder_factory.h"
 #include "chrome/browser/ash/crostini/crostini_pref_names.h"
@@ -37,7 +39,6 @@
 #include "chrome/browser/ui/views/bruschetta/bruschetta_installer_view.h"
 #include "chrome/browser/ui/views/bruschetta/bruschetta_uninstaller_view.h"
 #include "chrome/browser/ui/views/crostini/crostini_uninstaller_view.h"
-#include "chrome/browser/ui/webui/ash/crostini_installer/crostini_installer_dialog.h"
 #include "chromeos/ash/components/login/session/session_termination_manager.h"
 #include "chromeos/ash/components/network/network_handler.h"
 #include "chromeos/ash/experiences/arc/arc_prefs.h"
@@ -243,8 +244,9 @@ void CrostiniHandler::OnJavascriptDisallowed() {
 void CrostiniHandler::HandleRequestCrostiniInstallerView(
     const base::ListValue& args) {
   AllowJavascript();
-  ash::CrostiniInstallerDialog::Show(Profile::FromWebUI(web_ui()),
-                                     crostini::CrostiniUISurface::kSettings);
+  crostini::CrostiniInstallerFactory::GetForProfile(
+      Profile::FromWebUI(web_ui()))
+      ->ShowDialog(crostini::CrostiniUISurface::kSettings);
 }
 
 void CrostiniHandler::HandleRequestRemoveCrostini(const base::ListValue& args) {

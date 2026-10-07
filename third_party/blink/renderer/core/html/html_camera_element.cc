@@ -14,11 +14,17 @@ namespace blink {
 using mojom::blink::PermissionName;
 
 HTMLCameraElement::HTMLCameraElement(Document& document)
-    : HTMLMediaTrackElementBase(document, html_names::kCameraTag) {
+    : HTMLMediaCaptureElementBase(document, html_names::kCameraTag) {
   CHECK(RuntimeEnabledFeatures::CameraAndMicrophoneElementsEnabled(
       document.GetExecutionContext()));
-  permission_descriptors_.push_back(
-      CreatePermissionDescriptor(PermissionName::VIDEO_CAPTURE));
+}
+
+void HTMLCameraElement::ApplyDefaultConstraints() {
+  if (permission_descriptors_.empty()) {
+    permission_descriptors_.push_back(
+        CreatePermissionDescriptor(PermissionName::VIDEO_CAPTURE));
+  }
+  HTMLMediaCaptureElementBase::ApplyDefaultConstraints();
 }
 
 }  // namespace blink

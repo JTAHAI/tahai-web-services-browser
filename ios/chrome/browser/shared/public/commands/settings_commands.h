@@ -15,9 +15,6 @@ namespace autofill {
 class AutofillProfile;
 class CreditCard;
 }  // namespace autofill
-namespace autofill::autofill_metrics {
-enum class AutofillSettingsReferrer;
-}  // namespace autofill::autofill_metrics
 enum class DefaultBrowserSettingsPageSource;
 namespace password_manager {
 struct CredentialUIEntry;
@@ -38,9 +35,6 @@ enum class PushNotificationClientId;
 
 // Shows the Gemini settings UI.
 - (void)showGeminiSettings;
-
-// Shows the Suggestions from Gemini Help Improve settings UI.
-- (void)showSuggestionsFromGeminiHelpImprove;
 
 // TODO(crbug.com/41352590) : Do not pass baseViewController through dispatcher.
 // Shows the Google services settings UI, presenting from `baseViewController`.
@@ -83,20 +77,7 @@ enum class PushNotificationClientId;
                          (BOOL)shouldShowLevelUpWalkthroughIPH;
 
 // Shows the Autofill and Passwords settings page.
-- (void)showAutofillAndPasswordsSettingsWithReferrer:
-    (autofill::autofill_metrics::AutofillSettingsReferrer)referrer;
-
-// Shows the Identity Docs settings page.
-- (void)showIdentityDocsWithReferrer:
-    (autofill::autofill_metrics::AutofillSettingsReferrer)referrer;
-
-// Shows the Travel Info settings page.
-- (void)showTravelWithReferrer:
-    (autofill::autofill_metrics::AutofillSettingsReferrer)referrer;
-
-// Shows the Shopping settings page.
-- (void)showShoppingWithReferrer:
-    (autofill::autofill_metrics::AutofillSettingsReferrer)referrer;
+- (void)showAutofillAndPasswordsSettings;
 
 // Shows password manager on main page with a purpose to run the credential
 // exchange import flow. `UUID` is a token received from the OS during app
@@ -168,13 +149,6 @@ enum class PushNotificationClientId;
 
 // Shows the Autofill settings UI.
 - (void)showAutofillSettings;
-
-// Shows the Autofill settings UI from an Autofill notice (no back button).
-- (void)showAutofillSettingsFromNotice;
-
-// Shows the Enhanced Autofill settings UI (no back button). `completion` is
-// executed after the UI is dismissed.
-- (void)showEnhancedAutofillSettingsWithCompletion:(ProceduralBlock)completion;
 
 @end
 

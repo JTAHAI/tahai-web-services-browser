@@ -308,6 +308,13 @@ class DeviceSettingsProviderTest : public DeviceSettingsTestBase {
     BuildAndInstallDevicePolicy();
   }
 
+  void SetPluginVmAllowedSetting(bool plugin_vm_allowed) {
+    em::PluginVmAllowedProto* proto =
+        device_policy_->payload().mutable_plugin_vm_allowed();
+    proto->set_plugin_vm_allowed(plugin_vm_allowed);
+    BuildAndInstallDevicePolicy();
+  }
+
   void SetDeviceRebootOnUserSignout(
       em::DeviceRebootOnUserSignoutProto::RebootOnSignoutMode value) {
     EXPECT_CALL(*this, SettingChanged(_)).Times(AtLeast(1));
@@ -1000,6 +1007,14 @@ TEST_F(DeviceSettingsProviderTest, DeviceScheduledUpdateCheckTests) {
   base::Value expected_value(std::move(expected_dict));
   SetDeviceScheduledUpdateCheck(json_string);
   VerifyPolicyValue(kDeviceScheduledUpdateCheck, &expected_value);
+}
+
+TEST_F(DeviceSettingsProviderTest, DecodePluginVmAllowedSetting) {
+  SetPluginVmAllowedSetting(true);
+  EXPECT_EQ(base::Value(true), *provider_->Get(kPluginVmAllowed));
+
+  SetPluginVmAllowedSetting(false);
+  EXPECT_EQ(base::Value(false), *provider_->Get(kPluginVmAllowed));
 }
 
 TEST_F(DeviceSettingsProviderTest, DeviceRebootAfterUserSignout) {

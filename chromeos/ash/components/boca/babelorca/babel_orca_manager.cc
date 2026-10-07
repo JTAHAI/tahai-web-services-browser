@@ -10,7 +10,6 @@
 
 #include "base/functional/bind.h"
 #include "base/functional/callback.h"
-#include "base/i18n/language_tag.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/uuid.h"
 #include "chromeos/ash/components/boca/babelorca/babel_orca_caption_translator.h"
@@ -39,11 +38,8 @@ void BabelOrcaManager::RegisterProfilePrefs(
     user_prefs::PrefRegistrySyncable* registry) {
   registry->RegisterBooleanPref(babelorca::prefs::kCaptionBubbleExpanded,
                                 false);
-  // "und" is the BCP 47 language tag for an
-  // undetermined language, indicating no target language is set yet.
-  registry->RegisterLanguageTagPref(
-      babelorca::prefs::kTranslateTargetLanguageCode,
-      base::i18n::GetKnownLanguageTag("und"));
+  registry->RegisterStringPref(babelorca::prefs::kTranslateTargetLanguageCode,
+                               "");
   registry->RegisterStringPref(babelorca::prefs::kTachyonClientUuid, "");
 }
 

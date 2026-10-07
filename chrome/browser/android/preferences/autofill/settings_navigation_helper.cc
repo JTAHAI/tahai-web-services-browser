@@ -46,7 +46,7 @@ void ShowAutofillPersonalContextSettings(content::WebContents* web_contents,
       std::to_underlying(referrer));
 }
 
-void ShowAutofillSettingsPage(content::WebContents* web_contents) {
+void ShowAutofillSettings(content::WebContents* web_contents) {
   Java_SettingsNavigationHelper_showAutofillSettings(
       base::android::AttachCurrentThread(), web_contents->GetJavaWebContents());
 }

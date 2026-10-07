@@ -90,7 +90,13 @@ public class DownloadBroadcastManagerImpl extends SplitCompatService.Impl {
 
     private final DownloadNotificationService mDownloadNotificationService;
     private final Handler mHandler = new Handler();
-    private final Runnable mStopSelfRunnable = () -> getService().stopSelf();
+    private final Runnable mStopSelfRunnable =
+            new Runnable() {
+                @Override
+                public void run() {
+                    getService().stopSelf();
+                }
+            };
 
     public DownloadBroadcastManagerImpl() {
         mDownloadNotificationService = DownloadNotificationService.getInstance();

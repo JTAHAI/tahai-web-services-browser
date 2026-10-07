@@ -6,12 +6,11 @@
 import 'chrome://history/history.js';
 
 import type {HistoryAppElement} from 'chrome://history/history.js';
-import {BrowserProxyImpl, CrRouter, historyEmbeddingsBrowserProxyFactory, HistoryEmbeddingsPageHandlerRemote, userEducationProxyFactory} from 'chrome://history/history.js';
+import {BrowserProxyImpl, CrRouter, historyEmbeddingsBrowserProxyFactory, HistoryEmbeddingsPageHandlerRemote} from 'chrome://history/history.js';
 import {loadTimeData} from 'chrome://resources/js/load_time_data.js';
 import {assertDeepEquals, assertEquals, assertFalse, assertNotEquals, assertTrue} from 'chrome://webui-test/chai_assert.js';
 import {TestMock} from 'chrome://webui-test/test_mock.js';
 import {eventToPromise, isChildVisible, microtasksFinished} from 'chrome://webui-test/test_util.js';
-import {TestUserEducationMixedTrustHandler} from 'chrome://webui-test/test_user_education_mixed_trust_handler.js';
 import {COLORS_CSS_SELECTOR} from 'chrome://resources/cr_components/color_change_listener/colors_css_updater.js';
 // <if expr="not is_chromeos">
 import {webUIListenerCallback} from 'chrome://resources/js/cr.js';
@@ -20,7 +19,6 @@ import {HistorySignInState, SyncState} from 'chrome://history/history.js';
 // </if>
 
 import {TestHistoryBrowserProxy} from './test_browser_proxy.js';
-
 // clang-format on
 
 suite('HistoryAppTest', function() {
@@ -28,7 +26,6 @@ suite('HistoryAppTest', function() {
   let browserProxy: TestHistoryBrowserProxy;
   let embeddingsHandler: TestMock<HistoryEmbeddingsPageHandlerRemote>&
       HistoryEmbeddingsPageHandlerRemote;
-  let userEducationHandler: TestUserEducationMixedTrustHandler;
 
   // Force cr-history-embeddings to be in the DOM for testing.
   function forceHistoryEmbeddingsElement() {
@@ -50,9 +47,6 @@ suite('HistoryAppTest', function() {
 
     browserProxy = new TestHistoryBrowserProxy();
     BrowserProxyImpl.setInstance(browserProxy);
-    userEducationHandler = new TestUserEducationMixedTrustHandler();
-    userEducationProxyFactory.setInstance({handler: userEducationHandler});
-
     embeddingsHandler = TestMock.fromClass(HistoryEmbeddingsPageHandlerRemote);
     const {instance} =
         historyEmbeddingsBrowserProxyFactory.createForTest(embeddingsHandler);
@@ -329,7 +323,7 @@ suite('HistoryAppTest', function() {
 
   test('RegistersAndMaybeShowsPromo', async () => {
     assertEquals(
-        0, userEducationHandler.getCallCount('maybeShowFeaturePromo'),
+        0, embeddingsHandler.getCallCount('maybeShowFeaturePromo'),
         'promo is disabled in setup');
 
     // Recreate the app with the promo enabled.
@@ -344,9 +338,9 @@ suite('HistoryAppTest', function() {
           ['kHistorySearchInputElementId', true],
         ],
     );
-    await userEducationHandler.whenCalled('maybeShowFeaturePromo');
+    await embeddingsHandler.whenCalled('maybeShowFeaturePromo');
     assertEquals(
-        1, userEducationHandler.getCallCount('maybeShowFeaturePromo'),
+        1, embeddingsHandler.getCallCount('maybeShowFeaturePromo'),
         'promo is disabled in setup');
   });
 

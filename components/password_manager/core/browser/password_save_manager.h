@@ -7,7 +7,6 @@
 
 #include "components/password_manager/core/browser/password_store/password_store.h"
 #include "components/password_manager/core/browser/password_store/password_store_interface.h"
-#include "components/password_manager/core/browser/password_string.h"
 
 namespace autofill {
 class FormData;
@@ -52,7 +51,7 @@ class PasswordSaveManager {
 
   virtual const PasswordForm& GetPendingCredentials() const = 0;
 
-  virtual const PasswordString& GetGeneratedPassword() const = 0;
+  virtual const std::u16string& GetGeneratedPassword() const = 0;
 
   virtual FormSaver* GetProfileStoreFormSaverForTesting() const = 0;
 

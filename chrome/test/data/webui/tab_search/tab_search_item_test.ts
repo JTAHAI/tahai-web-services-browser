@@ -49,12 +49,10 @@ suite('TabSearchItemTest', () => {
   }
 
   function assertHighlight(node: HTMLElement, expected: string[]) {
-    const hits =
-        Array.from(node.querySelectorAll<HTMLElement>('.search-highlight-hit'));
-    assertDeepEquals(expected, hits.map(e => e ? e.textContent : ''));
-    for (const hit of hits) {
-      assertEquals('700', getComputedStyle(hit).fontWeight);
-    }
+    assertDeepEquals(
+        expected,
+        Array.from(node.querySelectorAll('.search-highlight-hit'))
+            .map(e => e ? e.textContent : ''));
   }
 
   test('Highlight', () => {

@@ -18,7 +18,6 @@
 #include "base/memory/weak_ptr.h"
 #include "base/observer_list.h"
 #include "base/scoped_observation.h"
-#include "base/types/pass_key.h"
 #include "build/build_config.h"
 #include "ui/accessibility/platform/ax_mode_observer.h"
 #include "ui/base/class_property.h"
@@ -63,7 +62,6 @@ class Rect;
 namespace ui {
 class Accelerator;
 class ColorProvider;
-class ColorProviderSourceObserver;
 class Compositor;
 class GestureRecognizer;
 class InputMethod;
@@ -80,7 +78,6 @@ class BubbleLocking;
 namespace views {
 
 class DesktopWindowTreeHost;
-class InputProtectionEventHandler;
 class NativeWidget;
 class SublevelManager;
 class TooltipManager;
@@ -840,16 +837,6 @@ class VIEWS_EXPORT Widget : public internal::NativeWidgetDelegate,
   // Whether calling RunMoveLoop() is supported for the widget.
   bool IsMoveLoopSupported() const;
 
-  // Prepares the widget for an upcoming move loop. On Wayland, this initiates
-  // a drag-and-drop session for window dragging. On other platforms it is a
-  // no-op.
-  void PrepareForMoveLoop(MoveLoopSource source);
-
-  // Sets whether the window should bypass the window manager (e.g. override
-  // redirect on X11). This is used to prevent tiling during dragging.
-  // The bypass state will be automatically restored when the move loop exits.
-  void SetBypassWindowManager(bool bypass);
-
   // Returns true if a mouse button is currently down.
   bool IsMouseButtonDown() const;
 
@@ -1397,14 +1384,8 @@ class VIEWS_EXPORT Widget : public internal::NativeWidgetDelegate,
   // Returns true if input event activation protection is enabled.
   bool IsInputEventActivationProtectionEnabled() const;
 
-  // Returns the input event activation protector if it exists, nullptr
-  // otherwise.
-  InputEventActivationProtector* GetInputEventActivationProtector() const {
+  InputEventActivationProtector* input_protector_for_testing() {
     return input_protector_.get();
-  }
-
-  InputProtectionEventHandler* input_protection_event_handler_for_testing() {
-    return input_protection_event_handler_.get();
   }
 
   base::WeakPtr<Widget> GetWeakPtr();
@@ -1503,15 +1484,6 @@ class VIEWS_EXPORT Widget : public internal::NativeWidgetDelegate,
       ui::ColorProviderKey::ForcedColors forced_colors) const override;
 
   ui::ColorProviderKey GetColorProviderKeyForTesting() const;
-
-  // Schedules an asynchronous theme changed update. Multiple calls within the
-  // same task or event loop turn are coalesced into a single ThemeChanged()
-  // run.
-  void ScheduleThemeChanged();
-
-  // Resets the cached ColorProviderKey, ensuring the next call to
-  // ThemeChanged() does not short-circuit.
-  void ResetLastColorProviderKey();
 
   // Causes IsFullscreen() to also check parent state, since this widget is
   // logically part of the same window as the parent.
@@ -1674,6 +1646,10 @@ class VIEWS_EXPORT Widget : public internal::NativeWidgetDelegate,
   void SetClientContentsViewInternal(std::unique_ptr<View> view);
 
   ui::ColorId GetBackgroundColorId() const;
+
+  // Returns true if the event is a possibly unintended interaction.
+  bool IsPossiblyUnintendedInteraction(const ui::Event& event,
+                                       const View* target);
 
   static DisableActivationChangeHandlingType
       g_disable_activation_change_handling_;
@@ -1873,25 +1849,8 @@ class VIEWS_EXPORT Widget : public internal::NativeWidgetDelegate,
   // Handles input protection for this widget.
   std::unique_ptr<InputEventActivationProtector> input_protector_;
 
-  // Pre-target handler that intercepts input events on `root_view_` for input
-  // protection.
-  std::unique_ptr<InputProtectionEventHandler> input_protection_event_handler_;
-
   // True if input protection is enabled for this widget.
   bool input_event_activation_protection_enabled_ = false;
-
-  // The last ColorProviderKey used to update the widget's theme. Used to
-  // short-circuit redundant ThemeChanged() calls.
-  std::optional<ui::ColorProviderKey> last_color_provider_key_;
-
-  // Observes the parent widget's ColorProviderSource to propagate theme
-  // changes.
-  std::unique_ptr<ui::ColorProviderSourceObserver> parent_theme_observer_;
-
-  void ProcessScheduledThemeChanged();
-
-  // True if a ThemeChanged() run has been scheduled and is pending.
-  bool theme_update_scheduled_ = false;
 
   // Indicates whether there is an autosize task in the task queue. Also used to
   // cancel the autosize task in testing.

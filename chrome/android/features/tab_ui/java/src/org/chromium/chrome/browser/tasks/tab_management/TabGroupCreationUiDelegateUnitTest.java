@@ -21,6 +21,7 @@ import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
+import org.robolectric.annotation.Config;
 
 import org.chromium.base.Token;
 import org.chromium.base.test.BaseRobolectricTestRunner;
@@ -37,6 +38,7 @@ import java.util.function.Supplier;
 
 /** Unit tests for {@link TabGroupCreationUiDelegate}. */
 @RunWith(BaseRobolectricTestRunner.class)
+@Config(manifest = Config.NONE)
 public class TabGroupCreationUiDelegateUnitTest {
     @Rule public MockitoRule mMockitoRule = MockitoJUnit.rule();
 

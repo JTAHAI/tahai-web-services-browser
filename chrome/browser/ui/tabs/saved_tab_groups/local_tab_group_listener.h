@@ -12,7 +12,7 @@
 #include "components/tab_groups/tab_group_id.h"
 
 class TabStripModel;
-class BrowserWindowInterface;
+class Browser;
 
 namespace content {
 class WebContents;
@@ -89,7 +89,7 @@ class LocalTabGroupListener {
                                TabStripModel* tab_strip_model,
                                int target_index_in_tab_strip);
   void OpenWebContentsFromSync(SavedTabGroupTab tab,
-                               BrowserWindowInterface* browser,
+                               Browser* browser,
                                int index_in_tabstrip);
 
   // Removes any tabs in the local group that aren't in the saved group.

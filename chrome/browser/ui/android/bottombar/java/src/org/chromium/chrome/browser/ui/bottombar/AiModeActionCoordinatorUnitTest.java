@@ -7,7 +7,6 @@ package org.chromium.chrome.browser.ui.bottombar;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -33,19 +32,13 @@ import org.chromium.base.Callback;
 import org.chromium.base.supplier.ObservableSuppliers;
 import org.chromium.base.supplier.SettableNullableObservableSupplier;
 import org.chromium.base.test.BaseRobolectricTestRunner;
-import org.chromium.base.test.util.HistogramWatcher;
-import org.chromium.base.test.util.UserActionTester;
-import org.chromium.chrome.browser.feature_engagement.TrackerFactory;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.search_engines.TemplateUrlServiceFactory;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.ui.actions.ActionId;
 import org.chromium.chrome.browser.ui.actions.ActionProperties;
 import org.chromium.chrome.browser.ui.actions.ActionRegistry;
-import org.chromium.chrome.browser.ui.bottombar.BottomBarMetrics.AimLaunchResult;
 import org.chromium.chrome.browser.user_education.UserEducationHelper;
-import org.chromium.components.feature_engagement.EventConstants;
-import org.chromium.components.feature_engagement.Tracker;
 import org.chromium.components.search_engines.TemplateUrlService;
 import org.chromium.content_public.browser.LoadUrlParams;
 import org.chromium.ui.base.TestActivity;
@@ -68,7 +61,6 @@ public class AiModeActionCoordinatorUnitTest {
     @Mock private TemplateUrlService mTemplateUrlService;
     @Mock private View mView;
     @Mock private UserEducationHelper mUserEducationHelper;
-    @Mock private Tracker mTracker;
 
     @Captor private ArgumentCaptor<LoadUrlParams> mLoadUrlParamsCaptor;
 
@@ -80,14 +72,11 @@ public class AiModeActionCoordinatorUnitTest {
     private Activity mActivity;
     private AiModeActionCoordinator mCoordinator;
     private PropertyModel mAiModeActionModel;
-    private UserActionTester mUserActionTester;
 
     @Before
     public void setUp() {
         mActivityScenarioRule.getScenario().onActivity(activity -> mActivity = activity);
         TemplateUrlServiceFactory.setInstanceForTesting(mTemplateUrlService);
-        TrackerFactory.setTrackerForTests(mTracker);
-        mUserActionTester = new UserActionTester();
 
         mAiModeActionModel = new PropertyModel.Builder(ActionProperties.ALL_KEYS).build();
         when(mActionRegistry.get(ActionId.AI_MODE)).thenReturn(mAiModeActionModelSupplier);
@@ -102,9 +91,6 @@ public class AiModeActionCoordinatorUnitTest {
     @After
     public void tearDown() {
         TemplateUrlServiceFactory.setInstanceForTesting(null);
-        if (mUserActionTester != null) {
-            mUserActionTester.tearDown();
-        }
         if (mCoordinator != null) {
             mCoordinator.destroy();
         }
@@ -128,14 +114,9 @@ public class AiModeActionCoordinatorUnitTest {
     }
 
     @Test
-    public void testOnAiModePressed_loadsComposeUrl_recordsSuccess() {
+    public void testOnAiModePressed_loadsComposeUrl() {
         GURL composeUrl = JUnitTestGURLs.EXAMPLE_URL;
         when(mTemplateUrlService.getComposeplateUrl()).thenReturn(composeUrl);
-
-        var histogramWatcher =
-                HistogramWatcher.newSingleRecordWatcher(
-                        "Android.BottomBar.Aim.LaunchResult",
-                        BottomBarMetrics.AimLaunchResult.SUCCESS);
 
         // Bind model.
         mAiModeActionModelSupplier.set(mAiModeActionModel);
@@ -147,21 +128,11 @@ public class AiModeActionCoordinatorUnitTest {
         // Verify URL is loaded in the tab.
         verify(mTab).loadUrl(mLoadUrlParamsCaptor.capture());
         assertEquals(composeUrl.getSpec(), mLoadUrlParamsCaptor.getValue().getUrl());
-
-        // Verify tracker event and user action.
-        verify(mTracker).notifyEvent(EventConstants.ANDROID_BOTTOM_BAR_AIM_USED);
-        assertTrue(mUserActionTester.getActions().contains("MobileBottomBar.Aim.Clicked"));
-        histogramWatcher.assertExpected();
     }
 
     @Test
-    public void testOnAiModePressed_noopWhenUrlInvalid_recordsMissingOrInvalidUrl() {
+    public void testOnAiModePressed_noopWhenUrlInvalid() {
         when(mTemplateUrlService.getComposeplateUrl()).thenReturn(GURL.emptyGURL());
-
-        var histogramWatcher =
-                HistogramWatcher.newSingleRecordWatcher(
-                        "Android.BottomBar.Aim.LaunchResult",
-                        AimLaunchResult.MISSING_OR_INVALID_URL);
 
         // Bind model.
         mAiModeActionModelSupplier.set(mAiModeActionModel);
@@ -172,28 +143,6 @@ public class AiModeActionCoordinatorUnitTest {
 
         // Verify no URL is loaded.
         verify(mTab, never()).loadUrl(any());
-        verify(mTracker).notifyEvent(EventConstants.ANDROID_BOTTOM_BAR_AIM_USED);
-        assertTrue(mUserActionTester.getActions().contains("MobileBottomBar.Aim.Clicked"));
-        histogramWatcher.assertExpected();
-    }
-
-    @Test
-    public void testOnAiModePressed_nullTab_recordsTabNull() {
-        mTabSupplier.set(null);
-
-        var histogramWatcher =
-                HistogramWatcher.newSingleRecordWatcher(
-                        "Android.BottomBar.Aim.LaunchResult", AimLaunchResult.TAB_NULL);
-
-        // Bind model.
-        mAiModeActionModelSupplier.set(mAiModeActionModel);
-        Callback<View> onPressCallback = mAiModeActionModel.get(ActionProperties.ON_PRESS_CALLBACK);
-
-        // Trigger press.
-        onPressCallback.onResult(mView);
-
-        verify(mTab, never()).loadUrl(any());
-        histogramWatcher.assertExpected();
     }
 
     @Test

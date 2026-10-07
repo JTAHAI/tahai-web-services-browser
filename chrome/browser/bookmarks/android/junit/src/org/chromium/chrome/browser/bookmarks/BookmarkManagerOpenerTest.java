@@ -21,6 +21,7 @@ import org.mockito.junit.MockitoRule;
 import org.robolectric.annotation.Config;
 
 import org.chromium.base.test.BaseRobolectricTestRunner;
+import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.UserActionTester;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.profiles.ProfileResolver;
@@ -29,6 +30,7 @@ import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.ui.base.TestActivity;
 
 /** Unit tests for {@link BookmarkManagerOpener}. */
+@Batch(Batch.UNIT_TESTS)
 @RunWith(BaseRobolectricTestRunner.class)
 @Config(manifest = Config.NONE)
 public class BookmarkManagerOpenerTest {

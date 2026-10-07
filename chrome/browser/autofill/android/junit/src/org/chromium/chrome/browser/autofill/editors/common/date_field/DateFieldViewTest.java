@@ -9,11 +9,9 @@ import static org.hamcrest.Matchers.isEmptyString;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.robolectric.Shadows.shadowOf;
 
 import static org.chromium.chrome.browser.autofill.editors.common.date_field.DateFieldProperties.DATE_ALL_KEYS;
 import static org.chromium.chrome.browser.autofill.editors.common.date_field.DateFieldProperties.DATE_VALID;
@@ -25,12 +23,10 @@ import static org.chromium.chrome.browser.autofill.editors.common.field.FieldPro
 import static org.chromium.chrome.browser.autofill.editors.utils.TestUtils.setDropdownDate;
 import static org.chromium.chrome.browser.autofill.editors.utils.TestUtils.setDropdownValue;
 
-import android.text.InputType;
+import android.app.Activity;
 import android.text.TextUtils;
 import android.view.View;
 import android.widget.TextView;
-
-import com.google.android.material.textfield.TextInputLayout;
 
 import org.junit.Before;
 import org.junit.Rule;
@@ -43,22 +39,17 @@ import org.robolectric.Robolectric;
 
 import org.chromium.base.Callback;
 import org.chromium.base.test.BaseRobolectricTestRunner;
-import org.chromium.base.test.util.Features.DisableFeatures;
-import org.chromium.base.test.util.Features.EnableFeatures;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.autofill.R;
 import org.chromium.chrome.browser.autofill.editors.common.field.FieldView;
-import org.chromium.chrome.browser.flags.ChromeFeatureList;
-import org.chromium.ui.base.TestActivity;
 import org.chromium.ui.modelutil.PropertyModel;
 
 import java.time.LocalDate;
 
 /** Unit test for {@link DateFieldView}. */
 @RunWith(BaseRobolectricTestRunner.class)
-@EnableFeatures(ChromeFeatureList.AUTOFILL_AI_USE_MATERIAL_DATE_PICKER_IN_ENTITY_EDITOR)
 public class DateFieldViewTest {
-    private TestActivity mActivity;
+    private Activity mActivity;
     private DateFieldView mDateFieldView;
 
     @Rule public MockitoRule mMockitoRule = MockitoJUnit.rule();
@@ -67,7 +58,7 @@ public class DateFieldViewTest {
 
     @Before
     public void setUp() {
-        mActivity = Robolectric.setupActivity(TestActivity.class);
+        mActivity = Robolectric.setupActivity(Activity.class);
     }
 
     private PropertyModel getDateFieldModel(@Nullable LocalDate date) {
@@ -92,11 +83,8 @@ public class DateFieldViewTest {
     }
 
     @Test
-    @DisableFeatures(ChromeFeatureList.AUTOFILL_AI_USE_MATERIAL_DATE_PICKER_IN_ENTITY_EDITOR)
     public void testSetLabel() {
-        mDateFieldView =
-                new DateFieldView(
-                        mActivity, mActivity.getSupportFragmentManager(), getDateFieldModel(null));
+        mDateFieldView = new DateFieldView(mActivity, getDateFieldModel(null));
         mDateFieldView.setLabel("Test Label", /* isRequired= */ false);
         TextView labelView = mDateFieldView.findViewById(R.id.date_field_label);
         assertNotNull(labelView);
@@ -112,7 +100,7 @@ public class DateFieldViewTest {
                         .with(LABEL, "Date field label")
                         .with(VALUE, "")
                         .build();
-        mDateFieldView = new DateFieldView(mActivity, mActivity.getSupportFragmentManager(), model);
+        mDateFieldView = new DateFieldView(mActivity, model);
         assertFalse(mDateFieldView.isRequired());
     }
 
@@ -124,16 +112,13 @@ public class DateFieldViewTest {
                         .with(LABEL, "Date field label")
                         .with(VALUE, "")
                         .build();
-        mDateFieldView = new DateFieldView(mActivity, mActivity.getSupportFragmentManager(), model);
+        mDateFieldView = new DateFieldView(mActivity, model);
         assertTrue(mDateFieldView.isRequired());
     }
 
     @Test
-    @DisableFeatures(ChromeFeatureList.AUTOFILL_AI_USE_MATERIAL_DATE_PICKER_IN_ENTITY_EDITOR)
     public void testSetLabel_Required() {
-        mDateFieldView =
-                new DateFieldView(
-                        mActivity, mActivity.getSupportFragmentManager(), getDateFieldModel(null));
+        mDateFieldView = new DateFieldView(mActivity, getDateFieldModel(null));
         mDateFieldView.setLabel("Test Label", /* isRequired= */ true);
         TextView labelView = mDateFieldView.findViewById(R.id.date_field_label);
         assertNotNull(labelView);
@@ -142,22 +127,16 @@ public class DateFieldViewTest {
     }
 
     @Test
-    @DisableFeatures(ChromeFeatureList.AUTOFILL_AI_USE_MATERIAL_DATE_PICKER_IN_ENTITY_EDITOR)
     public void testDropdownsExistence() {
-        mDateFieldView =
-                new DateFieldView(
-                        mActivity, mActivity.getSupportFragmentManager(), getDateFieldModel(null));
+        mDateFieldView = new DateFieldView(mActivity, getDateFieldModel(null));
         assertNotNull(mDateFieldView.findViewById(R.id.date_field_month_dropdown));
         assertNotNull(mDateFieldView.findViewById(R.id.date_field_day_dropdown));
         assertNotNull(mDateFieldView.findViewById(R.id.date_field_year_dropdown));
     }
 
     @Test
-    @DisableFeatures(ChromeFeatureList.AUTOFILL_AI_USE_MATERIAL_DATE_PICKER_IN_ENTITY_EDITOR)
     public void testEmptyInitialValue() {
-        mDateFieldView =
-                new DateFieldView(
-                        mActivity, mActivity.getSupportFragmentManager(), getDateFieldModel(null));
+        mDateFieldView = new DateFieldView(mActivity, getDateFieldModel(null));
         assertTrue(mDateFieldView.getFieldModel().get(DATE_VALID));
         assertEquals(
                 getMonthLabel(),
@@ -180,13 +159,8 @@ public class DateFieldViewTest {
     }
 
     @Test
-    @DisableFeatures(ChromeFeatureList.AUTOFILL_AI_USE_MATERIAL_DATE_PICKER_IN_ENTITY_EDITOR)
     public void testNonEmptyInitialValue() {
-        mDateFieldView =
-                new DateFieldView(
-                        mActivity,
-                        mActivity.getSupportFragmentManager(),
-                        getDateFieldModel(LocalDate.of(2026, 2, 15)));
+        mDateFieldView = new DateFieldView(mActivity, getDateFieldModel(LocalDate.of(2026, 2, 15)));
         assertTrue(mDateFieldView.getFieldModel().get(DATE_VALID));
         assertEquals(
                 DateFieldView.getMonthName(mActivity, /* month= */ 2),
@@ -205,13 +179,8 @@ public class DateFieldViewTest {
     }
 
     @Test
-    @DisableFeatures(ChromeFeatureList.AUTOFILL_AI_USE_MATERIAL_DATE_PICKER_IN_ENTITY_EDITOR)
     public void testInitialValueNotInRange() {
-        mDateFieldView =
-                new DateFieldView(
-                        mActivity,
-                        mActivity.getSupportFragmentManager(),
-                        getDateFieldModel(LocalDate.of(1800, 1, 1)));
+        mDateFieldView = new DateFieldView(mActivity, getDateFieldModel(LocalDate.of(1800, 1, 1)));
         assertTrue(mDateFieldView.getFieldModel().get(DATE_VALID));
         assertEquals(
                 DateFieldView.getMonthName(mActivity, /* month= */ 1),
@@ -224,11 +193,8 @@ public class DateFieldViewTest {
     }
 
     @Test
-    @DisableFeatures(ChromeFeatureList.AUTOFILL_AI_USE_MATERIAL_DATE_PICKER_IN_ENTITY_EDITOR)
     public void testSetValue() {
-        mDateFieldView =
-                new DateFieldView(
-                        mActivity, mActivity.getSupportFragmentManager(), getDateFieldModel(null));
+        mDateFieldView = new DateFieldView(mActivity, getDateFieldModel(null));
         assertTrue(mDateFieldView.getFieldModel().get(DATE_VALID));
 
         mDateFieldView.setValue(LocalDate.of(2026, 3, 16).toString());
@@ -250,13 +216,8 @@ public class DateFieldViewTest {
     }
 
     @Test
-    @DisableFeatures(ChromeFeatureList.AUTOFILL_AI_USE_MATERIAL_DATE_PICKER_IN_ENTITY_EDITOR)
     public void testSetValueNotInRange() {
-        mDateFieldView =
-                new DateFieldView(
-                        mActivity,
-                        mActivity.getSupportFragmentManager(),
-                        getDateFieldModel(LocalDate.of(2026, 2, 15)));
+        mDateFieldView = new DateFieldView(mActivity, getDateFieldModel(LocalDate.of(2026, 2, 15)));
         assertTrue(mDateFieldView.getFieldModel().get(DATE_VALID));
 
         mDateFieldView.setValue(LocalDate.of(1810, 12, 12).toString());
@@ -275,13 +236,8 @@ public class DateFieldViewTest {
     }
 
     @Test
-    @DisableFeatures(ChromeFeatureList.AUTOFILL_AI_USE_MATERIAL_DATE_PICKER_IN_ENTITY_EDITOR)
     public void testInitialAndUpdatedValuesNotInRange() {
-        mDateFieldView =
-                new DateFieldView(
-                        mActivity,
-                        mActivity.getSupportFragmentManager(),
-                        getDateFieldModel(LocalDate.of(1800, 2, 15)));
+        mDateFieldView = new DateFieldView(mActivity, getDateFieldModel(LocalDate.of(1800, 2, 15)));
         assertTrue(mDateFieldView.getFieldModel().get(DATE_VALID));
 
         mDateFieldView.setValue(LocalDate.of(1810, 11, 11).toString());
@@ -302,13 +258,8 @@ public class DateFieldViewTest {
     }
 
     @Test
-    @DisableFeatures(ChromeFeatureList.AUTOFILL_AI_USE_MATERIAL_DATE_PICKER_IN_ENTITY_EDITOR)
     public void testSetErrorMessage() {
-        mDateFieldView =
-                new DateFieldView(
-                        mActivity,
-                        mActivity.getSupportFragmentManager(),
-                        getDateFieldModel(LocalDate.of(2026, 2, 15)));
+        mDateFieldView = new DateFieldView(mActivity, getDateFieldModel(LocalDate.of(2026, 2, 15)));
         assertTrue(mDateFieldView.getFieldModel().get(DATE_VALID));
 
         TextView errorMessage = mDateFieldView.findViewById(R.id.date_field_error_message);
@@ -323,11 +274,8 @@ public class DateFieldViewTest {
     }
 
     @Test
-    @DisableFeatures(ChromeFeatureList.AUTOFILL_AI_USE_MATERIAL_DATE_PICKER_IN_ENTITY_EDITOR)
     public void testSetValidDate() {
-        mDateFieldView =
-                new DateFieldView(
-                        mActivity, mActivity.getSupportFragmentManager(), getDateFieldModel(null));
+        mDateFieldView = new DateFieldView(mActivity, getDateFieldModel(null));
         assertTrue(mDateFieldView.getFieldModel().get(DATE_VALID));
 
         LocalDate currentDate = LocalDate.of(2026, 8, 31);
@@ -354,11 +302,8 @@ public class DateFieldViewTest {
     }
 
     @Test
-    @DisableFeatures(ChromeFeatureList.AUTOFILL_AI_USE_MATERIAL_DATE_PICKER_IN_ENTITY_EDITOR)
     public void testSetInvalidDate() {
-        mDateFieldView =
-                new DateFieldView(
-                        mActivity, mActivity.getSupportFragmentManager(), getDateFieldModel(null));
+        mDateFieldView = new DateFieldView(mActivity, getDateFieldModel(null));
         assertTrue(mDateFieldView.getFieldModel().get(DATE_VALID));
 
         // Set the date to February 31st, which is always invalid.
@@ -382,14 +327,9 @@ public class DateFieldViewTest {
     }
 
     @Test
-    @DisableFeatures(ChromeFeatureList.AUTOFILL_AI_USE_MATERIAL_DATE_PICKER_IN_ENTITY_EDITOR)
     public void testChangeValidToInvalidDate() {
         LocalDate currentDate = LocalDate.of(2026, 8, 31);
-        mDateFieldView =
-                new DateFieldView(
-                        mActivity,
-                        mActivity.getSupportFragmentManager(),
-                        getDateFieldModel(currentDate));
+        mDateFieldView = new DateFieldView(mActivity, getDateFieldModel(currentDate));
         assertTrue(mDateFieldView.getFieldModel().get(DATE_VALID));
         assertEquals(currentDate.toString(), mDateFieldView.getFieldModel().get(VALUE));
 
@@ -403,11 +343,8 @@ public class DateFieldViewTest {
     }
 
     @Test
-    @DisableFeatures(ChromeFeatureList.AUTOFILL_AI_USE_MATERIAL_DATE_PICKER_IN_ENTITY_EDITOR)
     public void testChangeInvalidToValidDate() {
-        mDateFieldView =
-                new DateFieldView(
-                        mActivity, mActivity.getSupportFragmentManager(), getDateFieldModel(null));
+        mDateFieldView = new DateFieldView(mActivity, getDateFieldModel(null));
         assertTrue(mDateFieldView.getFieldModel().get(DATE_VALID));
 
         // Set the date to February 31st, which is always invalid.
@@ -429,14 +366,9 @@ public class DateFieldViewTest {
     }
 
     @Test
-    @DisableFeatures(ChromeFeatureList.AUTOFILL_AI_USE_MATERIAL_DATE_PICKER_IN_ENTITY_EDITOR)
     public void testResetToEmptyDate() {
         LocalDate currentDate = LocalDate.of(2026, 8, 31);
-        mDateFieldView =
-                new DateFieldView(
-                        mActivity,
-                        mActivity.getSupportFragmentManager(),
-                        getDateFieldModel(currentDate));
+        mDateFieldView = new DateFieldView(mActivity, getDateFieldModel(currentDate));
         assertTrue(mDateFieldView.getFieldModel().get(DATE_VALID));
         assertEquals(currentDate.toString(), mDateFieldView.getFieldModel().get(VALUE));
 
@@ -462,14 +394,9 @@ public class DateFieldViewTest {
     }
 
     @Test
-    @DisableFeatures(ChromeFeatureList.AUTOFILL_AI_USE_MATERIAL_DATE_PICKER_IN_ENTITY_EDITOR)
     public void testResetsTheErrorMessageAfterSelection() {
         LocalDate currentDate = LocalDate.of(2026, 8, 31);
-        mDateFieldView =
-                new DateFieldView(
-                        mActivity,
-                        mActivity.getSupportFragmentManager(),
-                        getDateFieldModel(currentDate));
+        mDateFieldView = new DateFieldView(mActivity, getDateFieldModel(currentDate));
         assertTrue(mDateFieldView.getFieldModel().get(DATE_VALID));
 
         // Set the hint and check that date is invalid.
@@ -486,11 +413,8 @@ public class DateFieldViewTest {
     }
 
     @Test
-    @DisableFeatures(ChromeFeatureList.AUTOFILL_AI_USE_MATERIAL_DATE_PICKER_IN_ENTITY_EDITOR)
     public void testDateFieldValidator() {
-        mDateFieldView =
-                new DateFieldView(
-                        mActivity, mActivity.getSupportFragmentManager(), getDateFieldModel(null));
+        mDateFieldView = new DateFieldView(mActivity, getDateFieldModel(null));
         mDateFieldView.setValidator(new DateFieldValidator("Error message"));
         assertTrue(mDateFieldView.validate());
         assertTrue(TextUtils.isEmpty(mDateFieldView.getFieldModel().get(ERROR_MESSAGE)));
@@ -525,49 +449,5 @@ public class DateFieldViewTest {
         assertTrue(TextUtils.isEmpty(mDateFieldView.getFieldModel().get(ERROR_MESSAGE)));
         assertFalse(mDateFieldView.validate());
         assertEquals("Error message", mDateFieldView.getFieldModel().get(ERROR_MESSAGE));
-    }
-
-    @Test
-    public void testMaterialDatePickerVisibleWhenFeatureEnabled() {
-        mDateFieldView =
-                new DateFieldView(
-                        mActivity, mActivity.getSupportFragmentManager(), getDateFieldModel(null));
-
-        assertNull(mDateFieldView.findViewById(R.id.date_field_label));
-        assertNull(mDateFieldView.getDayPickerForTest());
-        assertNull(mDateFieldView.getMonthPickerForTest());
-        assertNull(mDateFieldView.getYearPickerForTest());
-        assertNull(mDateFieldView.findViewById(R.id.date_field_error_message));
-
-        TextInputLayout layout = mDateFieldView.findViewById(R.id.text_input_layout);
-        assertNotNull(layout);
-        // Make sure the correct icon is displayed at the end.
-        assertEquals(TextInputLayout.END_ICON_CUSTOM, layout.getEndIconMode());
-        assertNotNull(layout.getEndIconDrawable());
-        assertEquals(
-                R.drawable.calendar_month_24dp,
-                shadowOf(layout.getEndIconDrawable()).getCreatedFromResId());
-
-        TextView textView = mDateFieldView.findViewById(R.id.text_view);
-        assertTrue(textView.isFocusable());
-        assertFalse(textView.isFocusableInTouchMode());
-        assertEquals(InputType.TYPE_NULL, textView.getInputType());
-        assertTrue(textView.isClickable());
-    }
-
-    @Test
-    public void testMaterialDatePickerOpensOnClick() {
-        mDateFieldView =
-                new DateFieldView(
-                        mActivity, mActivity.getSupportFragmentManager(), getDateFieldModel(null));
-
-        TextView textView = mDateFieldView.findViewById(R.id.text_view);
-        textView.performClick();
-
-        // Make sure the MaterialDatePicker transaction is executed.
-        mActivity.getSupportFragmentManager().executePendingTransactions();
-
-        assertNotNull(
-                mActivity.getSupportFragmentManager().findFragmentByTag("MaterialDatePicker"));
     }
 }

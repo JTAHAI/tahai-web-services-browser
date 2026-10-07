@@ -35,7 +35,10 @@
 
 namespace blink {
 
-LayoutSVGBlock::LayoutSVGBlock(ContainerNode* node) : LayoutBlockFlow(node) {
+LayoutSVGBlock::LayoutSVGBlock(ContainerNode* node)
+    : LayoutBlockFlow(node),
+      needs_transform_update_(true),
+      transform_uses_reference_box_(false) {
   DCHECK(IsA<SVGElement>(node));
 }
 
@@ -44,10 +47,10 @@ SVGElement* LayoutSVGBlock::GetElement() const {
   return To<SVGElement>(LayoutObject::GetNode());
 }
 
-void LayoutSVGBlock::WillBeDestroyed(const ComputedStyle* style) {
+void LayoutSVGBlock::WillBeDestroyed() {
   NOT_DESTROYED();
-  SVGResources::ClearEffects(*this, style);
-  LayoutBlockFlow::WillBeDestroyed(style);
+  SVGResources::ClearEffects(*this);
+  LayoutBlockFlow::WillBeDestroyed();
 }
 
 void LayoutSVGBlock::InsertedIntoTree() {
@@ -118,20 +121,19 @@ bool LayoutSVGBlock::UpdateTransformAfterLayout(
 void LayoutSVGBlock::StyleDidChange(
     StyleDifference diff,
     const ComputedStyle* old_style,
-    const ComputedStyle& new_style,
     const StyleChangeContext& style_change_context) {
   NOT_DESTROYED();
-  LayoutBlockFlow::StyleDidChange(diff, old_style, new_style,
-                                  style_change_context);
+  LayoutBlockFlow::StyleDidChange(diff, old_style, style_change_context);
+
+  const ComputedStyle& style = StyleRef();
 
   // |HasTransformRelatedProperty| is used for compositing so ensure it was
   // correctly set by the call to |StyleDidChange|.
   DCHECK_EQ(HasTransformRelatedProperty(),
-            new_style.HasTransformRelatedPropertyForSVG());
+            style.HasTransformRelatedPropertyForSVG());
 
   TransformHelper::UpdateOffsetPath(*GetElement(), old_style);
-  transform_uses_reference_box_ =
-      TransformHelper::DependsOnReferenceBox(new_style);
+  transform_uses_reference_box_ = TransformHelper::DependsOnReferenceBox(style);
 
   if (diff.NeedsFullLayout()) {
     if (diff.transform_changed) {
@@ -147,13 +149,13 @@ void LayoutSVGBlock::StyleDidChange(
   if (diff.blend_mode_changed) {
     DCHECK(IsBlendingAllowed());
     Parent()->DescendantIsolationRequirementsChanged(
-        new_style.HasBlendMode() ? kDescendantIsolationRequired
-                                 : kDescendantIsolationNeedsUpdate);
+        style.HasBlendMode() ? kDescendantIsolationRequired
+                             : kDescendantIsolationNeedsUpdate);
   }
 
-  if ((new_style.HasCurrentTransformRelatedAnimation() &&
+  if ((style.HasCurrentTransformRelatedAnimation() &&
        !old_style->HasCurrentTransformRelatedAnimation()) ||
-      (new_style.HasNonIdentityTransformOperation() &&
+      (style.HasNonIdentityTransformOperation() &&
        !old_style->HasNonIdentityTransformOperation())) {
     Parent()->SetSVGDescendantMayHaveTransformRelatedOperations();
   }

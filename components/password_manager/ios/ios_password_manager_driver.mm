@@ -219,8 +219,6 @@ const url::Origin& IOSPasswordManagerDriver::GetLastCommittedOrigin() const {
 }
 
 bool IOSPasswordManagerDriver::HasCrossOriginAncestor() const {
-  // TODO(crbug.com/539923959): Implement once child frame registration is done,
-  // and the ancestors of a web frame could be tracked.
   NOTREACHED();
 }
 

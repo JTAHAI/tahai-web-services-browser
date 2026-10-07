@@ -175,6 +175,7 @@ void DnsConfigService::InvalidateHosts() {
 
 void DnsConfigService::OnConfigRead(DnsConfig config) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  DCHECK(config.IsValid());
 
   if (!config.EqualsIgnoreHosts(dns_config_)) {
     dns_config_.CopyIgnoreHosts(config);

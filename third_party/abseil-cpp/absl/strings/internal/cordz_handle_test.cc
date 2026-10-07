@@ -13,9 +13,7 @@
 // limitations under the License.
 #include "absl/strings/internal/cordz_handle.h"
 
-#include <atomic>
 #include <random>
-#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"

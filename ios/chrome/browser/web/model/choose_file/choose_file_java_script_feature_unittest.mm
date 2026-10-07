@@ -8,7 +8,9 @@
 #import "base/test/metrics/histogram_tester.h"
 #import "base/test/scoped_feature_list.h"
 #import "ios/chrome/browser/shared/model/profile/test/test_profile_ios.h"
+#import "ios/chrome/browser/shared/public/features/features.h"
 #import "ios/chrome/browser/web/model/choose_file/choose_file_event.h"
+#import "ios/chrome/browser/web/model/choose_file/choose_file_event_holder.h"
 #import "ios/chrome/browser/web/model/choose_file/choose_file_tab_helper.h"
 #import "ios/web/public/test/fakes/fake_web_client.h"
 #import "ios/web/public/test/js_test_util.h"
@@ -173,9 +175,12 @@ class ChooseFileJavaScriptFeatureTest
   }
 
   std::optional<ChooseFileEvent> ResetLastChooseFileEvent() {
-    ChooseFileTabHelper* tab_helper =
-        ChooseFileTabHelper::FromWebState(web_state());
-    return tab_helper ? tab_helper->ResetLastChooseFileEvent() : std::nullopt;
+    if (base::FeatureList::IsEnabled(kIOSCustomFileUploadMenu)) {
+      ChooseFileTabHelper* tab_helper =
+          ChooseFileTabHelper::FromWebState(web_state());
+      return tab_helper ? tab_helper->ResetLastChooseFileEvent() : std::nullopt;
+    }
+    return ChooseFileEventHolder::GetInstance()->ResetLastChooseFileEvent();
   }
 
   base::test::ScopedFeatureList feature_list_;
@@ -423,6 +428,7 @@ TEST_P(ChooseFileJavaScriptFeatureTest, TestInvalidPayload) {
 // and resets the last event.
 TEST_P(ChooseFileJavaScriptFeatureTest,
        TestResetLastChooseFileEventFileExtensions) {
+  base::test::ScopedFeatureList feature_list(kIOSChooseFromDrive);
   const std::map<std::string, std::vector<std::string>>
       accept_attributes_file_extensions = {
           {"", {}},
@@ -468,6 +474,7 @@ TEST_P(ChooseFileJavaScriptFeatureTest,
 // Tests that `ResetLastChooseFileEvent()` returns the expected MIME types and
 // resets the last event.
 TEST_P(ChooseFileJavaScriptFeatureTest, TestResetLastChooseFileEventMimeTypes) {
+  base::test::ScopedFeatureList feature_list(kIOSChooseFromDrive);
   const std::map<std::string, std::vector<std::string>>
       accept_attributes_mime_types = {
           {"", {}},
@@ -514,9 +521,10 @@ TEST_P(ChooseFileJavaScriptFeatureTest, TestResetLastChooseFileEventMimeTypes) {
 }
 
 // Tests that `ResetLastChooseFileEvent()` returns the expected event and resets
-// it.
+// it when `kIOSCustomFileUploadMenu` is enabled.
 TEST_P(ChooseFileJavaScriptFeatureTest,
        TestResetLastChooseFileEventCustomMenu) {
+  base::test::ScopedFeatureList feature_list(kIOSCustomFileUploadMenu);
   ChooseFileTabHelper* tab_helper =
       ChooseFileTabHelper::FromWebState(web_state());
 
@@ -525,6 +533,8 @@ TEST_P(ChooseFileJavaScriptFeatureTest,
              /*already_has_file=*/true, only_allow_directory);
     ASSERT_TRUE(web::test::TapWebViewElementWithId(web_state(), "choose_file"));
 
+    EXPECT_FALSE(
+        ChooseFileEventHolder::GetInstance()->HasLastChooseFileEvent());
     EXPECT_TRUE(tab_helper->HasLastChooseFileEvent());
     const std::optional<ChooseFileEvent> event =
         tab_helper->ResetLastChooseFileEvent();
@@ -540,6 +550,7 @@ TEST_P(ChooseFileJavaScriptFeatureTest,
 // Tests that `ResetLastChooseFileEvent()` returns the expected capture type and
 // resets the last event.
 TEST_P(ChooseFileJavaScriptFeatureTest, TestResetLastChooseFileEventCapture) {
+  base::test::ScopedFeatureList feature_list(kIOSChooseFromDrive);
   const std::map<std::optional<std::string>, ChooseFileCaptureType>
       capture_attributes_capture_types = {
           {std::nullopt, ChooseFileCaptureType::kNone},

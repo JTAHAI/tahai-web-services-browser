@@ -145,7 +145,9 @@ public class DownloadPage extends BasicNativePage implements DownloadManagerCoor
                 ObservableSuppliers.createNonNull(false);
 
         final Callback<Boolean> recalculateState =
-                _ -> combinedSupplier.set(getActiveHandler.get() != null);
+                (ignored) -> {
+                    combinedSupplier.set(getActiveHandler.get() != null);
+                };
 
         BackPressHandler adapterHandler =
                 new BackPressHandler() {

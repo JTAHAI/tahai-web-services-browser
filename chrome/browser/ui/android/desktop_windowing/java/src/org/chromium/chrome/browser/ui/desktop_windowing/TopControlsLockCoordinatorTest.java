@@ -42,7 +42,7 @@ import org.chromium.ui.base.TestActivity;
 
 /** Unit tests for {@link TopControlsLockCoordinator}. */
 @RunWith(BaseRobolectricTestRunner.class)
-@Config(qualifiers = "sw320dp")
+@Config(manifest = Config.NONE, qualifiers = "sw320dp")
 public class TopControlsLockCoordinatorTest {
     @Rule public MockitoRule mockitoRule = MockitoJUnit.rule();
 
@@ -234,7 +234,7 @@ public class TopControlsLockCoordinatorTest {
         when(mSideUiStateProvider.getCurrentSideUiSpecs()).thenReturn(specs);
         coordinator.setSideUiStateProvider(mSideUiStateProvider);
 
-        verify(mTopControlsStacker).setScrollingDisabled(false);
-        verify(mTopControlsStacker, never()).requestLayerUpdatePost(anyBoolean());
+        verify(mTopControlsStacker).setScrollingDisabled(true);
+        verify(mTopControlsStacker).requestLayerUpdatePost(false);
     }
 }

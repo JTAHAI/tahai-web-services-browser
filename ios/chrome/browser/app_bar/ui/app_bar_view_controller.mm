@@ -6,7 +6,6 @@
 
 #import <CoreGraphics/CoreGraphics.h>
 
-#import <algorithm>
 #import <optional>
 
 #import "base/metrics/user_metrics.h"
@@ -22,7 +21,7 @@
 #import "ios/chrome/browser/intelligence/features/features.h"
 #import "ios/chrome/browser/intents/model/intents_donation_helper.h"
 #import "ios/chrome/browser/ntp/shared/metrics/home_metrics.h"
-#import "ios/chrome/browser/shared/coordinator/scene/state/scene_layout_state.h"
+#import "ios/chrome/browser/shared/coordinator/scene/state/layout_state.h"
 #import "ios/chrome/browser/shared/public/commands/gemini_commands.h"
 #import "ios/chrome/browser/shared/public/commands/scene_commands.h"
 #import "ios/chrome/browser/shared/public/commands/tab_grid_commands.h"
@@ -56,12 +55,6 @@ constexpr CGFloat kButtonShadowOpacity = 0.2;
 constexpr CGFloat kButtonShadowOffset = 1;
 // The duration of animations in the App Bar.
 constexpr CGFloat kAppBarAnimationDuration = 0.25;
-// The progress value at which the buttons should be completely faded out
-// during the fullscreen transition with Glass Toolbar.
-constexpr CGFloat kButtonsFadeEndProgress = 0.5;
-// The distance the buttons should appear to move down during the fullscreen
-// transition with Glass Toolbar.
-constexpr CGFloat kButtonsFullscreenMoveDistance = 8;
 // Spacing between tab grid button and the tab grid spotlight view anchor.
 constexpr CGFloat kSpotlightViewHorizontalInset = 12;
 constexpr CGFloat kSpotlightViewVerticalInset = 2;
@@ -134,7 +127,7 @@ UIColor* AssistantHighlightBackgroundColor() {
 }  // namespace
 
 @interface AppBarViewController () <AppBarViewDelegate,
-                                    SceneLayoutStateObserver,
+                                    LayoutStateObserver,
                                     UIContextMenuInteractionDelegate>
 @end
 
@@ -203,8 +196,6 @@ UIColor* AssistantHighlightBackgroundColor() {
   // Constraints to make buttons square in landscape so that long press
   // animation does not leak beyond bounds of app bar.
   NSArray<NSLayoutConstraint*>* _buttonWidthConstraints;
-  // Container view for buttons that clips contents to the top of the app bar.
-  UIView* _buttonsContainerView;
   // Stack view for buttons.
   UIStackView* _stackView;
   // Constraint for height of the app bar view.
@@ -222,7 +213,7 @@ UIColor* AssistantHighlightBackgroundColor() {
   BOOL _geminiFloatyInvoked;
 }
 
-- (void)setLayoutState:(SceneLayoutState*)layoutState {
+- (void)setLayoutState:(LayoutState*)layoutState {
   if (_layoutState == layoutState) {
     return;
   }
@@ -232,56 +223,28 @@ UIColor* AssistantHighlightBackgroundColor() {
   _geminiFloatyInvoked = layoutState ? layoutState.geminiFloatyInvoked : NO;
 }
 
-#pragma mark - SceneLayoutStateObserver
+#pragma mark - LayoutStateObserver
 
-- (void)layoutState:(SceneLayoutState*)layoutState
+- (void)layoutState:(LayoutState*)layoutState
     didChangeAppBarPosition:(AppBarPosition)appBarPosition {
   // Update the alpha with a duration of 0 as it is already in an animation
   // block.
-  [self setButtonsTitleAlpha:_fullscreenProgress animationDuration:0];
-  if (IsGlassToolbarEnabled()) {
-    [self
-        updateButtonsVerticalPositionForFullscreenProgress:_fullscreenProgress];
-  }
+  CGFloat targetAlpha =
+      self.layoutState.appBarLockedInFullscreen ? 0.0 : _fullscreenProgress;
+  [self setButtonsTitleAlpha:targetAlpha animationDuration:0];
   [self updateTabSwitcherGuide];
-  [self updateAssistantButtonGuide];
   if (appBarPosition != AppBarPosition::kBottom) {
     _backgroundView.cornerRadius = kAppBarCornerRadius;
   }
 }
 
-- (void)layoutState:(SceneLayoutState*)layoutState
-    didChangeAssistantContainerInvoked:(BOOL)assistantContainerInvoked {
-  // Synchronize titles (which may set them to nil when labels are hidden).
-  // This replicates the behavior previously handled by
-  // didChangeGeminiFloatyInvoked:.
-  if (IsAppBarHiddenInFullscreen()) {
-    [self updateAssistantButtonTitleIfNeeded];
-    [self updateOpenNewTabButtonTitleIfNeeded];
-    [self updateTabGridButtonTitleIfNeeded];
-
-    // Trigger configurations update for all buttons so that vertical insets
-    // recalculate.
-    [_assistantButton setNeedsUpdateConfiguration];
-    [_openNewTabButton setNeedsUpdateConfiguration];
-    [_tabGridButton setNeedsUpdateConfiguration];
-  }
-
-  [self setButtonsTitleAlpha:_fullscreenProgress animationDuration:0];
-
-  if (IsAppBarHiddenInFullscreen()) {
-    __weak __typeof(self) weakSelf = self;
-    [UIView animateWithDuration:kAppBarAnimationDuration
-                     animations:^{
-                       [weakSelf updateHeightConstraintForCurrentOrientation];
-                     }];
-
-    [self.view setNeedsLayout];
-    [self.view layoutIfNeeded];
-  }
+- (void)layoutState:(LayoutState*)layoutState
+    didChangeAppBarLockedInFullscreen:(BOOL)appBarLockedInFullscreen {
+  CGFloat targetAlpha = appBarLockedInFullscreen ? 0.0 : _fullscreenProgress;
+  [self setButtonsTitleAlpha:targetAlpha animationDuration:0];
 }
 
-- (void)layoutState:(SceneLayoutState*)layoutState
+- (void)layoutState:(LayoutState*)layoutState
     didChangeGeminiFloatyInvoked:(BOOL)geminiFloatyInvoked {
   if (_geminiFloatyInvoked == geminiFloatyInvoked) {
     return;
@@ -323,7 +286,7 @@ UIColor* AssistantHighlightBackgroundColor() {
   if ([self shouldHideButtonLabels]) {
     targetAlpha = 0;
   } else if (appBarPosition == AppBarPosition::kBottom) {
-    targetAlpha = IsGlassToolbarEnabled() ? 1.0 : buttonsTitleAlpha;
+    targetAlpha = buttonsTitleAlpha;
   } else if (appBarPosition == AppBarPosition::kLeft ||
              appBarPosition == AppBarPosition::kRight) {
     targetAlpha = 0;
@@ -358,8 +321,6 @@ UIColor* AssistantHighlightBackgroundColor() {
   _tabGridButton.transform = transform;
 
   if (_isRotated) {
-    _stackView.transform = CGAffineTransformIdentity;
-    _stackView.alpha = 1.0;
     _stackView.distribution = UIStackViewDistributionEqualSpacing;
     [NSLayoutConstraint activateConstraints:_buttonWidthConstraints];
     _leadingSpacer.hidden = NO;
@@ -377,10 +338,6 @@ UIColor* AssistantHighlightBackgroundColor() {
     _stackViewBottomConstraint.constant = 0;
     _stackViewLeadingConstraint.constant = kStackViewHorizontalMargin;
     _stackViewTrailingConstraint.constant = -kStackViewHorizontalMargin;
-    if (IsGlassToolbarEnabled()) {
-      [self updateButtonsVerticalPositionForFullscreenProgress:
-                _fullscreenProgress];
-    }
   }
   [self.view setNeedsLayout];
   [self.view layoutIfNeeded];
@@ -495,22 +452,15 @@ UIColor* AssistantHighlightBackgroundColor() {
   ];
 
   UIView* view = self.view;
+  [view addSubview:_stackView];
 
-  _buttonsContainerView = [[UIView alloc] init];
-  _buttonsContainerView.translatesAutoresizingMaskIntoConstraints = NO;
-  _buttonsContainerView.clipsToBounds = YES;
-  [view addSubview:_buttonsContainerView];
-  AddSameConstraints(_buttonsContainerView, view);
-
-  [_buttonsContainerView addSubview:_stackView];
-
-  _stackViewBottomConstraint = [_stackView.bottomAnchor
-      constraintEqualToAnchor:_buttonsContainerView.bottomAnchor];
+  _stackViewBottomConstraint =
+      [_stackView.bottomAnchor constraintEqualToAnchor:view.bottomAnchor];
   _stackViewLeadingConstraint = [_stackView.leadingAnchor
-      constraintEqualToAnchor:_buttonsContainerView.leadingAnchor
+      constraintEqualToAnchor:view.leadingAnchor
                      constant:kStackViewHorizontalMargin];
   _stackViewTrailingConstraint = [_stackView.trailingAnchor
-      constraintEqualToAnchor:_buttonsContainerView.trailingAnchor
+      constraintEqualToAnchor:view.trailingAnchor
                      constant:-kStackViewHorizontalMargin];
 
   _heightConstraint = [view.heightAnchor
@@ -525,15 +475,15 @@ UIColor* AssistantHighlightBackgroundColor() {
     [_backgroundView.topAnchor constraintEqualToAnchor:view.topAnchor
                                               constant:-kAppBarCornerRadiusMax],
     _stackViewLeadingConstraint,
-    [_stackView.topAnchor
-        constraintEqualToAnchor:_buttonsContainerView.topAnchor],
+    [_stackView.topAnchor constraintEqualToAnchor:view.topAnchor],
     _stackViewTrailingConstraint,
     _stackViewBottomConstraint,
     _heightConstraint,
   ]];
 
   [self.layoutGuideCenter referenceView:_stackView underName:kAppBarGuide];
-  [self updateAssistantButtonGuide];
+  [self.layoutGuideCenter referenceView:_assistantButton
+                              underName:kAppBarAssistantButtonGuide];
 }
 
 - (void)viewWillLayoutSubviews {
@@ -662,70 +612,38 @@ UIColor* AssistantHighlightBackgroundColor() {
 
 - (void)appBarViewDidMoveToWindow:(AppBarView*)view {
   [self updateTabSwitcherGuide];
-  [self updateAssistantButtonGuide];
 }
 
 #pragma mark - FullscreenUIElement
 
 - (void)updateForFullscreenProgress:(CGFloat)progress {
   _fullscreenProgress = progress;
-  if (!IsGlassToolbarEnabled()) {
-    [self setButtonsTitleAlpha:_fullscreenProgress animationDuration:0];
+  if (self.layoutState.appBarLockedInFullscreen) {
+    return;
   }
+  [self setButtonsTitleAlpha:_fullscreenProgress animationDuration:0];
 }
 
 - (void)animateFullscreenWithAnimator:(FullscreenAnimator*)animator {
-  if (!IsGlassToolbarEnabled()) {
-    [self setButtonsTitleAlpha:animator.finalProgress
-             animationDuration:animator.duration];
+  if (self.layoutState.appBarLockedInFullscreen) {
+    return;
   }
+  [self setButtonsTitleAlpha:animator.finalProgress
+           animationDuration:animator.duration];
 }
 
 #pragma mark - FullscreenBrowserAgentObserving
 
 - (void)fullscreenWillUpdateState:(FullscreenBrowserAgent*)agent {
   _fullscreenProgress = agent->bottom_progress();
-  if (IsGlassToolbarEnabled()) {
-    [self
-        updateButtonsVerticalPositionForFullscreenProgress:_fullscreenProgress];
-    if (!agent->animation_duration().is_zero()) {
-      [self.view layoutIfNeeded];
-    }
-  } else {
-    [self setButtonsTitleAlpha:_fullscreenProgress
-             animationDuration:agent->animation_duration().InSecondsF()];
+  if (self.layoutState.appBarLockedInFullscreen) {
+    return;
   }
+  [self setButtonsTitleAlpha:_fullscreenProgress
+           animationDuration:agent->animation_duration().InSecondsF()];
 }
 
 #pragma mark - Private
-
-// Updates the vertical position of the buttons according to the fullscreen
-// `progress`.
-- (void)updateButtonsVerticalPositionForFullscreenProgress:(CGFloat)progress {
-  CHECK(IsGlassToolbarEnabled());
-  if (self.layoutState.appBarPosition != AppBarPosition::kBottom) {
-    _stackView.transform = CGAffineTransformIdentity;
-    _stackView.alpha = 1.0;
-    return;
-  }
-
-  CGFloat minHeight =
-      IsAppBarHiddenInFullscreen() ? 0 : kAppBarHeightFullscreen;
-  CGFloat totalMove = [self currentAppBarHeightPortrait] - minHeight;
-  if (totalMove <= 0) {
-    _stackView.transform = CGAffineTransformIdentity;
-    _stackView.alpha = 1.0;
-    return;
-  }
-
-  CGFloat moveProgress = 1.0 - progress;
-  CGFloat translationY =
-      -moveProgress * (totalMove - kButtonsFullscreenMoveDistance);
-  _stackView.transform = CGAffineTransformMakeTranslation(0, translationY);
-  _stackView.alpha = std::clamp(
-      (progress - kButtonsFadeEndProgress) / (1.0 - kButtonsFadeEndProgress),
-      0.0, 1.0);
-}
 
 // Updates the height constraint based on the orientation and triggers layout.
 - (void)updateHeightConstraintForCurrentOrientation {
@@ -756,25 +674,6 @@ UIColor* AssistantHighlightBackgroundColor() {
   } else {
     [self.layoutGuideCenter referenceView:_tabGridButton
                                 underName:kTabSwitcherGuide];
-  }
-}
-
-// Conditionally registers the Assistant Button layout guide.
-// It should only be registered to the App Bar if the App Bar is visible.
-- (void)updateAssistantButtonGuide {
-  if (!self.view.window) {
-    return;
-  }
-  if (self.layoutState.appBarPosition == AppBarPosition::kNone) {
-    if ([self.layoutGuideCenter
-            referencedViewUnderName:kAppBarAssistantButtonGuide] ==
-        _assistantButton) {
-      [self.layoutGuideCenter referenceView:nil
-                                  underName:kAppBarAssistantButtonGuide];
-    }
-  } else {
-    [self.layoutGuideCenter referenceView:_assistantButton
-                                underName:kAppBarAssistantButtonGuide];
   }
 }
 
@@ -1236,8 +1135,10 @@ UIColor* AssistantHighlightBackgroundColor() {
     _spotlightView.translatesAutoresizingMaskIntoConstraints = NO;
     _spotlightView.userInteractionEnabled = NO;
     [button addSubview:_spotlightView];
-    AddSameConstraintsWithInsets(
+    AddSameConstraintsToSidesWithInsets(
         _spotlightView, button,
+        LayoutSides::kTop | LayoutSides::kTrailing | LayoutSides::kLeading |
+            LayoutSides::kBottom,
         NSDirectionalEdgeInsetsMake(
             kSpotlightViewVerticalInset, kSpotlightViewHorizontalInset,
             kSpotlightViewVerticalInset, kSpotlightViewHorizontalInset));
@@ -1465,12 +1366,8 @@ UIColor* AssistantHighlightBackgroundColor() {
       base::RecordAction(
           base::UserMetricsAction("MobileToolbarNewTabShortcutOnNTP"));
     }
-    const char* action = _incognito ? "MobileToolbarNewIncognitoTabShortcut"
-                                    : "MobileToolbarNewTabShortcut";
-    const char* fullscreenAction =
-        _incognito ? "MobileToolbarNewIncognitoTabShortcutFullscreen"
-                   : "MobileToolbarNewTabShortcutFullscreen";
-    [self recordAction:action withFullscreenAction:fullscreenAction];
+    [self recordAction:"MobileToolbarNewTabShortcut"
+        withFullscreenAction:"MobileToolbarNewTabShortcutFullscreen"];
     base::RecordAction(base::UserMetricsAction("MobileTabNewTab"));
   }
   [self.mutator createNewTabFromView:sender];
@@ -1598,14 +1495,13 @@ UIColor* AssistantHighlightBackgroundColor() {
 }
 
 - (CGFloat)currentAppBarHeightPortrait {
-  return CurrentAppBarHeightPortrait(
-      _geminiFloatyInvoked, self.layoutState.assistantContainerInvoked);
+  return CurrentAppBarHeightPortrait(_geminiFloatyInvoked);
 }
 
 - (BOOL)shouldHideButtonLabels {
   return IsAppBarLabelsHidden() ||
          (_geminiFloatyInvoked && IsAppBarHiddenInFullscreen()) ||
-         self.layoutState.assistantContainerInvoked;
+         self.layoutState.appBarLockedInFullscreen;
 }
 
 @end

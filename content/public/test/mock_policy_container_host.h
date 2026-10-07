@@ -17,12 +17,11 @@ class MockPolicyContainerHost final : public blink::mojom::PolicyContainerHost {
  public:
   MOCK_METHOD(void,
               SetReferrerPolicy,
-              (network::mojom::ReferrerPolicy, const base::UnguessableToken&),
+              (network::mojom::ReferrerPolicy),
               (override));
   MOCK_METHOD(void,
               AddContentSecurityPolicies,
-              (std::vector<network::mojom::ContentSecurityPolicyPtr>,
-               const base::UnguessableToken&),
+              (std::vector<network::mojom::ContentSecurityPolicyPtr>),
               (override));
   MockPolicyContainerHost();
   ~MockPolicyContainerHost() override;

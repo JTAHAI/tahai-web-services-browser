@@ -4,11 +4,9 @@
 
 #include "base/strings/utf_string_conversions.h"
 #include "base/test/metrics/histogram_tester.h"
-#include "base/test/scoped_feature_list.h"
 #include "chrome/browser/ui/views/payments/payment_request_browsertest_base.h"
 #include "chrome/browser/ui/views/payments/payment_request_dialog_view_ids.h"
-#include "components/autofill/core/browser/test_utils/autofill_test_util.h"
-#include "components/payments/core/features.h"
+#include "components/autofill/core/browser/test_utils/autofill_test_utils.h"
 #include "components/web_modal/web_contents_modal_dialog_manager.h"
 #include "content/public/test/browser_test.h"
 #include "content/public/test/browser_test_utils.h"
@@ -26,7 +24,7 @@ class PaymentRequestShowPromiseTest : public PaymentRequestBrowserTestBase {
       const PaymentRequestShowPromiseTest&) = delete;
 
  protected:
-  PaymentRequestShowPromiseTest() { SetBypassUserInteractionForTesting(); }
+  PaymentRequestShowPromiseTest() = default;
   ~PaymentRequestShowPromiseTest() override = default;
 
   // Installs the payment handler for window.location.origin payment method that
@@ -115,15 +113,11 @@ class PaymentRequestShowPromiseTest : public PaymentRequestBrowserTestBase {
   // Clicks the "Pay" button and waits for the dialog to close.
   void Pay() {
     ResetEventWaiterForSequence(
-        {DialogEvent::LOADING_VIEW_SHOWN, DialogEvent::DIALOG_CLOSED});
+        {DialogEvent::PROCESSING_SPINNER_SHOWN, DialogEvent::DIALOG_CLOSED});
     ClickOnDialogViewAndWait(DialogViewID::PAY_BUTTON, dialog_view());
   }
 
   std::string payment_method_;
-
- private:
-  base::test::ScopedFeatureList feature_list_{
-      features::kPaymentRequestMandatoryPaymentAppUi};
 };
 
 IN_PROC_BROWSER_TEST_F(PaymentRequestShowPromiseTest, SingleOptionShipping) {
@@ -239,7 +233,7 @@ IN_PROC_BROWSER_TEST_F(PaymentRequestShowPromiseTest, SkipUI) {
       {DialogEvent::PROCESSING_SPINNER_SHOWN,
        DialogEvent::PROCESSING_SPINNER_HIDDEN, DialogEvent::SPEC_DONE_UPDATING,
        DialogEvent::PROCESSING_SPINNER_HIDDEN, DialogEvent::DIALOG_OPENED,
-       DialogEvent::LOADING_VIEW_SHOWN, DialogEvent::DIALOG_CLOSED});
+       DialogEvent::PROCESSING_SPINNER_SHOWN, DialogEvent::DIALOG_CLOSED});
   ASSERT_TRUE(content::ExecJs(GetActiveWebContents(), "buy();"));
   ASSERT_TRUE(WaitForObservedEvent());
 

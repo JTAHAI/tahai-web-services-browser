@@ -146,7 +146,7 @@ UIView* CreateIconView(UIImage* icon) {
     [separator.topAnchor constraintEqualToAnchor:liner.topAnchor],
     [separator.bottomAnchor constraintEqualToAnchor:liner.bottomAnchor],
     [liner.heightAnchor
-        constraintEqualToConstant:AlignValueToLowerPixel(kSeparatorHeight)],
+        constraintEqualToConstant:AlignValueToPixel(kSeparatorHeight)],
   ]];
 
   return liner;

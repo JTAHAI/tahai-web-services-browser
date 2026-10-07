@@ -115,20 +115,19 @@ bool IsHostValidForScopeExtension(String host) {
     return true;
   }
 
-  const std::optional<size_t> registry_length =
-      net::registry_controlled_domains::PermissiveGetHostRegistry(
+  const size_t registry_length =
+      net::registry_controlled_domains::PermissiveGetHostRegistryLength(
           host.Utf8(),
           // Reject unknown registries (registries that don't have any matches
           // in effective TLD names).
           net::registry_controlled_domains::EXCLUDE_UNKNOWN_REGISTRIES,
           // Skip matching private registries that allow external users to
           // specify sub-domains, e.g. glitch.me, as this is allowed.
-          net::registry_controlled_domains::EXCLUDE_PRIVATE_REGISTRIES)
-          .transform(&std::string_view::size);
+          net::registry_controlled_domains::EXCLUDE_PRIVATE_REGISTRIES);
 
   // Host cannot be a TLD or invalid.
-  if (!registry_length || *registry_length == 0 ||
-      *registry_length >= host.length()) {
+  if (registry_length == 0 || registry_length == std::string::npos ||
+      registry_length >= host.length()) {
     return false;
   }
 
@@ -1702,6 +1701,13 @@ ManifestParser::ParseFileHandler(const JSONObject* file_handler) {
   }
 
   entry->name = ParseString(file_handler, "name", Trim(true)).value_or("");
+  const bool feature_enabled =
+      base::FeatureList::IsEnabled(blink::features::kFileHandlingIcons) ||
+      RuntimeEnabledFeatures::FileHandlingIconsEnabled(execution_context_);
+  if (feature_enabled) {
+    entry->icons = ParseIcons(file_handler);
+  }
+
   entry->accept = ParseFileHandlerAccept(file_handler->GetJSONObject("accept"));
   if (entry->accept.empty()) {
     AddErrorInfo("FileHandler ignored. Property 'accept' is invalid.");
@@ -1905,7 +1911,7 @@ ManifestParser::ParseProtocolHandler(const JSONObject* object) {
     const char kToken[] = "%s";
     String user_url = protocol_handler->url.GetString();
     String tokenless_url = protocol_handler->url.GetString();
-    wtf_size_t token_position = user_url.find(kToken);
+    string_size_t token_position = user_url.find(kToken);
     if (token_position != String::npos) {
       tokenless_url.erase(token_position, std::size(kToken) - 1);
     }
@@ -2379,9 +2385,8 @@ void ManifestParser::CheckIsolatedAppPermissions(const JSONObject* object) {
   JSONObject* permissions_dict = JSONObject::Cast(json_value);
   if (!permissions_dict) {
     AddErrorInfo(
-        StrCat(
-            {"property 'permissions_policy' invalid: object expected, found: ",
-             json_value->ToJSONString()}),
+        "property 'permissions_policy' invalid: object expected, found: " +
+            json_value->ToJSONString(),
         /*critical=*/true);
     failed_ = true;
     return;
@@ -2394,9 +2399,8 @@ void ManifestParser::CheckIsolatedAppPermissions(const JSONObject* object) {
     JSONArray* origin_allowlist = JSONArray::Cast(entry.second);
     if (!origin_allowlist) {
       AddErrorInfo(
-          StrCat({"property 'permissions_policy' invalid: allowlist for '",
-                  feature,
-                  "': array expected, found: ", entry.second->ToJSONString()}),
+          "property 'permissions_policy' invalid: allowlist for '" + feature +
+              "': array expected, found: " + entry.second->ToJSONString(),
           /*critical=*/true);
       failed_ = true;
       return;
@@ -2405,11 +2409,11 @@ void ManifestParser::CheckIsolatedAppPermissions(const JSONObject* object) {
     for (const JSONValue& origin_value : *origin_allowlist) {
       String origin_string;
       if (!origin_value.AsString(&origin_string)) {
-        AddErrorInfo(
-            StrCat({"property 'permissions_policy' invalid: allowlist for '",
-                    feature, "': invalid element: string expected, found: ",
-                    origin_value.ToJSONString()}),
-            /*critical=*/true);
+        AddErrorInfo("property 'permissions_policy' invalid: allowlist for '" +
+                         feature +
+                         "': invalid element: string expected, found: " +
+                         origin_value.ToJSONString(),
+                     /*critical=*/true);
         failed_ = true;
         return;
       }

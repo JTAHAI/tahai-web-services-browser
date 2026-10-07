@@ -4,7 +4,6 @@
 
 #include "chrome/browser/component_updater/indigo_component_installer.h"
 
-#include <cstdint>
 #include <memory>
 #include <optional>
 #include <string>
@@ -106,7 +105,8 @@ base::FilePath IndigoComponentInstallerPolicy::GetRelativeInstallDir() const {
 }
 
 void IndigoComponentInstallerPolicy::GetHash(std::vector<uint8_t>* hash) const {
-  hash->assign_range(kIndigoPublicKeySHA256);
+  hash->assign(std::begin(kIndigoPublicKeySHA256),
+               std::end(kIndigoPublicKeySHA256));
 }
 
 std::string IndigoComponentInstallerPolicy::GetName() const {

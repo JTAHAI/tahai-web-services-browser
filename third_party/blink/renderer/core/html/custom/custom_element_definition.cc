@@ -169,7 +169,8 @@ HTMLElement* CustomElementDefinition::CreateElement(
     // We push the construction stack while creating element from scoped
     // custom element registry as we don't have access to scoped registry
     // in HTMLConstructor
-    if (!registry_->IsGlobalRegistry()) {
+    if (RuntimeEnabledFeatures::ScopedCustomElementRegistryEnabled() &&
+        !registry_->IsGlobalRegistry()) {
       Element* element = CreateElementForConstructor(document);
       // Set the registry for the element before running the constructor,
       // to ensure user gets the correct registry in constructor if need.
@@ -191,8 +192,10 @@ HTMLElement* CustomElementDefinition::CreateElement(
   // element state set to "undefined", and node document set to document.
   auto* element = MakeGarbageCollected<HTMLElement>(tag_name, document);
   element->SetCustomElementState(CustomElementState::kUndefined);
-  element->SetCustomElementRegistry(
-      CustomElementRegistryAssignment::Explicit(registry_.Get()));
+  if (RuntimeEnabledFeatures::ScopedCustomElementRegistryEnabled()) {
+    element->SetCustomElementRegistry(
+        CustomElementRegistryAssignment::Explicit(registry_.Get()));
+  }
   // 5.2.2. Enqueue a custom element upgrade reaction given result and
   // definition.
   EnqueueUpgradeReaction(*element);

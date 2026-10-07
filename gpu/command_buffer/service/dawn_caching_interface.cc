@@ -139,7 +139,6 @@ scoped_refptr<MemoryCache> DawnCachingInterfaceFactory::GetOrCreateMemoryCache(
 
   scoped_refptr<MemoryCache> backend = backend_factory_.Run();
   if (backend != nullptr) {
-    backend->OnUpdateMemoryLimit(current_memory_limit_);
     backends_[handle] = backend;
   }
 
@@ -154,19 +153,12 @@ void DawnCachingInterfaceFactory::ReleaseHandle(
   backends_.erase(handle);
 }
 
-void DawnCachingInterfaceFactory::OnUpdateMemoryLimit(int memory_limit) {
-  current_memory_limit_ = memory_limit;
-  for (auto& [key, backend] : backends_) {
-    backend->OnUpdateMemoryLimit(memory_limit);
-  }
-}
-
-void DawnCachingInterfaceFactory::OnReleaseMemory(int memory_limit) {
-  current_memory_limit_ = memory_limit;
+void DawnCachingInterfaceFactory::PurgeMemory(
+    base::MemoryPressureLevel memory_pressure_level) {
   for (auto& [key, backend] : backends_) {
     CHECK(std::holds_alternative<GpuDiskCacheDawnGraphiteHandle>(key) ||
           std::holds_alternative<GpuDiskCacheDawnWebGPUHandle>(key));
-    backend->OnReleaseMemory(memory_limit);
+    backend->PurgeMemory(memory_pressure_level);
   }
 }
 

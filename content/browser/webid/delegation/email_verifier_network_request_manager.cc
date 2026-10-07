@@ -194,20 +194,16 @@ void EmailVerifierNetworkRequestManager::FetchWellKnown(
 
 void EmailVerifierNetworkRequestManager::SendTokenRequest(
     const GURL& token_url,
-    const std::string& post_data,
-    const net::HttpRequestHeaders& extra_headers,
+    const std::string& url_encoded_post_data,
     TokenRequestCallback callback) {
   std::unique_ptr<network::ResourceRequest> resource_request =
       CreateCredentialedResourceRequest(
           token_url, CredentialedResourceRequestType::kNoOrigin);
   resource_request->request_initiator = url::Origin();
-  resource_request->headers.MergeFrom(extra_headers);
 
   DownloadJsonAndParse(
-      std::move(resource_request), post_data,
-      base::BindOnce(&OnTokenRequestParsed, std::move(callback)),
-      /*allow_http_error_results=*/false,
-      /*content_type=*/"application/json");
+      std::move(resource_request), url_encoded_post_data,
+      base::BindOnce(&OnTokenRequestParsed, std::move(callback)));
 }
 
 void EmailVerifierNetworkRequestManager::DownloadAndParseUncredentialedUrl(
@@ -218,7 +214,8 @@ void EmailVerifierNetworkRequestManager::DownloadAndParseUncredentialedUrl(
                                           /*send_origin=*/false,
                                           /*follow_redirects=*/true);
   DownloadJsonAndParse(std::move(resource_request),
-                       /*post_data=*/std::nullopt, std::move(callback));
+                       /*url_encoded_post_data=*/std::nullopt,
+                       std::move(callback));
 }
 
 }  // namespace content::webid

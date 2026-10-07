@@ -44,30 +44,24 @@ const SEARCH_REQUEST_METRIC_NAME = 'ChromeOS.Settings.SearchRequests';
 const USER_ACTION_ON_SEARCH_RESULTS_SHOWN_METRIC_NAME =
     'ChromeOS.Settings.UserActionOnSearchResultsShown';
 
-// LINT.IfChange(OsSettingSearchRequestTypes)
 /**
  * These values are persisted to logs and should not be renumbered or reused.
- * See tools/metrics/histograms/metadata/chromeos_settings/enums.xml.
+ * See tools/metrics/histograms/enums.xml.
  */
 enum OsSettingSearchRequestTypes {
   ANY_SEARCH_REQUEST = 0,
   DISCARED_RESULTS_SEARCH_REQUEST = 1,
   SHOWN_RESULTS_SEARCH_REQUEST = 2,
-  COUNT = SHOWN_RESULTS_SEARCH_REQUEST + 1,
 }
-// LINT.ThenChange(//tools/metrics/histograms/metadata/chromeos_settings/enums.xml:OsSettingSearchRequestTypes)
 
-// LINT.IfChange(OsSettingSearchBoxUserAction)
 /**
  * These values are persisted to logs and should not be renumbered or reused.
- * See tools/metrics/histograms/metadata/chromeos_settings/enums.xml.
+ * See tools/metrics/histograms/enums.xml.
  */
 enum OsSettingSearchBoxUserAction {
   SEARCH_RESULT_CLICKED = 0,
   CLICKED_OUT_OF_SEARCH_BOX = 1,
-  COUNT = CLICKED_OUT_OF_SEARCH_BOX + 1,
 }
-// LINT.ThenChange(//tools/metrics/histograms/metadata/chromeos_settings/enums.xml:OsSettingSearchBoxUserAction)
 
 export interface OsSettingsSearchBoxElement {
   $: {
@@ -347,7 +341,7 @@ export class OsSettingsSearchBoxElement extends OsSettingsSearchBoxElementBase
     chrome.metricsPrivate.recordEnumerationValue(
         SEARCH_REQUEST_METRIC_NAME,
         OsSettingSearchRequestTypes.ANY_SEARCH_REQUEST,
-        OsSettingSearchRequestTypes.COUNT);
+        Object.keys(OsSettingSearchRequestTypes).length);
     chrome.metricsPrivate.recordSparseValue(
         'ChromeOS.Settings.NumCharsOfQueries', query.length);
   }
@@ -369,7 +363,7 @@ export class OsSettingsSearchBoxElement extends OsSettingsSearchBoxElementBase
         shouldDiscardResults ?
             OsSettingSearchRequestTypes.DISCARED_RESULTS_SEARCH_REQUEST :
             OsSettingSearchRequestTypes.SHOWN_RESULTS_SEARCH_REQUEST,
-        OsSettingSearchRequestTypes.COUNT);
+        Object.keys(OsSettingSearchRequestTypes).length);
 
     if (shouldDiscardResults) {
       // Received search results are invalid as the query has since changed.
@@ -395,7 +389,7 @@ export class OsSettingsSearchBoxElement extends OsSettingsSearchBoxElementBase
     chrome.metricsPrivate.recordEnumerationValue(
         USER_ACTION_ON_SEARCH_RESULTS_SHOWN_METRIC_NAME,
         OsSettingSearchBoxUserAction.SEARCH_RESULT_CLICKED,
-        OsSettingSearchBoxUserAction.COUNT);
+        Object.keys(OsSettingSearchBoxUserAction).length);
   }
 
   private onBlur_(event: UIEvent): void {
@@ -411,7 +405,7 @@ export class OsSettingsSearchBoxElement extends OsSettingsSearchBoxElementBase
       chrome.metricsPrivate.recordEnumerationValue(
           USER_ACTION_ON_SEARCH_RESULTS_SHOWN_METRIC_NAME,
           OsSettingSearchBoxUserAction.CLICKED_OUT_OF_SEARCH_BOX,
-          OsSettingSearchBoxUserAction.COUNT);
+          Object.keys(OsSettingSearchBoxUserAction).length);
     }
 
     // Close the dropdown because  a region outside the search box was clicked.

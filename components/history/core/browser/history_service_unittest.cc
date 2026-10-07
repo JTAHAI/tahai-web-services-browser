@@ -1154,6 +1154,10 @@ TEST_F(HistoryServiceTest, GetDomainDiversityBitmaskTest) {
 }
 
 TEST_F(HistoryServiceTest, GetDomainDiversity404sTest) {
+  // Allow 404 visits to be saved to History.
+  base::test::ScopedFeatureList scoped_feature_list;
+  scoped_feature_list.InitAndEnableFeature(history::kVisitedLinksOn404);
+
   HistoryService* history = history_service_.get();
   ASSERT_TRUE(history);
 
@@ -1210,6 +1214,10 @@ TEST_F(HistoryServiceTest, GetDomainDiversity404sTest) {
 // Gets unique local and synced domains visited and the last visited domain
 // within a time range.
 TEST_F(HistoryServiceTest, GetUniqueDomainsVisited) {
+  // Allow 404 visits to be saved to History.
+  base::test::ScopedFeatureList scoped_feature_list;
+  scoped_feature_list.InitAndEnableFeature(history::kVisitedLinksOn404);
+
   base::Time base_time = base::Time::Now();
   HistoryService* history = history_service_.get();
   ASSERT_TRUE(history);
@@ -1419,6 +1427,10 @@ TEST_F(HistoryServiceTest, GetDomainDiversityLocalVsSynced) {
 }
 
 TEST_F(HistoryServiceTest, GetMostRecentVisitsForGurl) {
+  // Allow 404s to be saved to history.
+  base::test::ScopedFeatureList scoped_feature_list;
+  scoped_feature_list.InitAndEnableFeature(history::kVisitedLinksOn404);
+
   HistoryService* history = history_service_.get();
   ASSERT_TRUE(history);
 

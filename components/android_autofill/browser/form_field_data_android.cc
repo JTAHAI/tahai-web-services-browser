@@ -86,7 +86,8 @@ bool FormFieldDataAndroid::SimilarFieldAs(const FormFieldData& field) const {
     return std::tuple_cat(
         std::tie(f.host_frame(), f.name(), f.name_attribute(),
                  f.id_attribute()),
-        std::make_tuple(f.renderer_id(), f.form_control_type()));
+        std::make_tuple(f.renderer_id(), f.form_control_type(),
+                        IsCheckable(f.check_status())));
   };
 
   // For Android Autofill, labels are considered similar if they meet one of the

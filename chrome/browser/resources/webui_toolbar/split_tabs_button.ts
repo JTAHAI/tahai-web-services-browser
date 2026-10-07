@@ -14,13 +14,11 @@ import type {SplitTabsControlState} from '/shared/toolbar_ui_api_data_model.mojo
 
 import {BrowserProxyImpl} from './browser_proxy.js';
 import type {BrowserProxy} from './browser_proxy.js';
-import {OverflowableButtonMixin} from './overflowable_button.js';
 import {getHtml} from './split_tabs_button.html.js';
 import {getCss} from './toolbar_button.css.js';
 import {BUTTON_LEFT, getClickSourceType, getContextMenuPosition, getContextMenuSourceType, HelpBubbleAnchorMixin, roundedIconsEnabled} from './toolbar_button.js';
 
-const SplitTabsButtonElementBase =
-    HelpBubbleAnchorMixin(OverflowableButtonMixin(CrLitElement));
+const SplitTabsButtonElementBase = HelpBubbleAnchorMixin(CrLitElement);
 
 export class SplitTabsButtonElement extends SplitTabsButtonElementBase {
   static get is() {
@@ -42,7 +40,7 @@ export class SplitTabsButtonElement extends SplitTabsButtonElementBase {
     };
   }
 
-  override accessor state: SplitTabsControlState = {
+  protected accessor state: SplitTabsControlState = {
     isCurrentTabSplit: false,
     location: SplitTabActiveLocation.kStart,
     shouldBeShown: false,

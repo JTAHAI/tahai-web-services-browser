@@ -5,11 +5,10 @@
 #ifndef CHROME_BROWSER_ACTOR_TOOLS_ACTOR_LOGIN_FLOW_VERIFIER_H_
 #define CHROME_BROWSER_ACTOR_TOOLS_ACTOR_LOGIN_FLOW_VERIFIER_H_
 
-#include <iosfwd>
+#include <memory>
 #include <optional>
 
 #include "base/functional/callback.h"
-#include "base/memory/weak_ptr.h"
 #include "chrome/browser/autofill/actor/one_time_tokens/actor_login_context.h"
 #include "components/affiliations/core/browser/domain_matching/domain_relation_checker.h"
 #include "content/public/browser/frame_tree_node_id.h"
@@ -25,43 +24,6 @@ namespace actor {
 // flow.
 class ActorLoginFlowVerifier {
  public:
-  // LINT.IfChange(ActorLoginFlowVerificationResult)
-
-  // Possible outcomes of VerifyIsActorLoginFlow.
-  // These values are persisted to logs. Entries should not be renumbered and
-  // numeric values should never be reused.
-  enum class Result {
-    kNoActorLoginContext = 1,
-    kFrameNotInLoginContext = 2,
-    kAllFramesHaveTooManyNavigations = 3,
-    kNoMatch = 4,
-    kPslMatchAllowed = 5,
-    kPslMatchDisallowed = 6,
-    kGroupedOrOtherMismatch = 7,
-    kExactMatchAllowed = 8,
-    kAffiliatedMatchAllowed = 9,
-    kMainFrameOriginMismatch = 10,
-    kMaxValue = kMainFrameOriginMismatch,
-  };
-  // LINT.ThenChange(//tools/metrics/histograms/metadata/one_time_tokens/enums.xml:ActorLoginFlowVerificationResult)
-
-  static constexpr bool IsSuccess(Result result) {
-    switch (result) {
-      case Result::kExactMatchAllowed:
-      case Result::kAffiliatedMatchAllowed:
-      case Result::kPslMatchAllowed:
-        return true;
-      case Result::kNoActorLoginContext:
-      case Result::kFrameNotInLoginContext:
-      case Result::kAllFramesHaveTooManyNavigations:
-      case Result::kNoMatch:
-      case Result::kPslMatchDisallowed:
-      case Result::kGroupedOrOtherMismatch:
-      case Result::kMainFrameOriginMismatch:
-        return false;
-    }
-  }
-
   explicit ActorLoginFlowVerifier(
       affiliations::AffiliationService& affiliation_service);
 
@@ -86,38 +48,12 @@ class ActorLoginFlowVerifier {
   virtual void VerifyIsActorLoginFlow(
       content::FrameTreeNodeId otp_frame_id,
       const url::Origin& otp_frame_origin,
-      const url::Origin& main_frame_origin,
-      std::optional<url::Origin> context_origin,
-      bool should_use_strong_matching,
-      base::OnceCallback<std::optional<autofill::ActorLoginContext>()>
-          consume_context_callback,
-      base::OnceCallback<void(Result)> callback);
+      const std::optional<autofill::ActorLoginContext>& context,
+      base::OnceCallback<void(bool)> callback);
 
  private:
-  void OnMainFrameOriginMatchEvaluated(
-      content::FrameTreeNodeId otp_frame_id,
-      const url::Origin& otp_frame_origin,
-      const url::Origin& context_origin,
-      bool should_use_strong_matching,
-      base::OnceCallback<std::optional<autofill::ActorLoginContext>()>
-          consume_context_callback,
-      base::OnceCallback<void(Result)> callback,
-      std::optional<affiliations::MatchType> match_type);
-
-  void OnOtpFrameOriginMatchEvaluated(
-      content::FrameTreeNodeId otp_frame_id,
-      bool should_use_strong_matching,
-      base::OnceCallback<std::optional<autofill::ActorLoginContext>()>
-          consume_context_callback,
-      base::OnceCallback<void(Result)> callback,
-      std::optional<affiliations::MatchType> match_type);
-
   affiliations::DomainRelationChecker domain_relation_checker_;
-  base::WeakPtrFactory<ActorLoginFlowVerifier> weak_ptr_factory_{this};
 };
-
-std::ostream& operator<<(std::ostream& os,
-                         ActorLoginFlowVerifier::Result result);
 
 }  // namespace actor
 

@@ -36,7 +36,7 @@ class ReportGenerator;
 // administrative policy. If either of these triggers fires while a report is
 // being generated, processing is deferred until the existing processing
 // completes.
-class ReportScheduler : public ReportUploader::Listener {
+class ReportScheduler {
  public:
   using ReportTriggerCallback = base::RepeatingCallback<void(ReportTrigger)>;
 
@@ -98,7 +98,7 @@ class ReportScheduler : public ReportUploader::Listener {
   ReportScheduler(const ReportScheduler&) = delete;
   ReportScheduler& operator=(const ReportScheduler&) = delete;
 
-  ~ReportScheduler() override;
+  ~ReportScheduler();
 
   // Returns true if cloud reporting is enabled.
   bool IsReportingEnabled() const;
@@ -150,9 +150,6 @@ class ReportScheduler : public ReportUploader::Listener {
   // Starts report generation in response to |trigger|.
   void GenerateAndUploadReport(ReportTrigger trigger);
 
-  // Starts report generation workflow.
-  void StartReportGeneration(ReportTrigger trigger, bool is_retrying);
-
   // Returns true if we need to fetch a challenge before generating the report.
   bool NeedChallenge(ReportTrigger trigger,
                      SecuritySignalsMode signals_mode) const;
@@ -172,9 +169,6 @@ class ReportScheduler : public ReportUploader::Listener {
       SecuritySignalsMode signals_mode,
       const std::optional<std::string>& challenge);
 
-  // ReportUploader::Listener implementation:
-  void OnReportWillRetry(const ReportGenerationConfig& config) override;
-
   // Continues processing a report (contained in the |result| collection) by
   // sending it to the uploader.
   void OnReportGenerated(
@@ -190,10 +184,6 @@ class ReportScheduler : public ReportUploader::Listener {
 
   // Records that `active_trigger_` was responsible for an upload attempt.
   void RecordUploadTrigger();
-
-  // Updates kLastUploadTimestamp pref to now and restarts the periodic report
-  // timer if cloud reporting is enabled.
-  void UpdateLastUploadTimestampAndStartNextReport();
 
   ReportType TriggerToReportType(ReportTrigger trigger);
   bool IsTriggerEnabled(ReportTrigger trigger) const;

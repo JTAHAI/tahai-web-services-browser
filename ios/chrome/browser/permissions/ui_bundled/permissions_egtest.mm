@@ -121,6 +121,14 @@ void TapDoneButtonOnInfobarModal() {
 
 @implementation PermissionsTestCase
 
+- (AppLaunchConfiguration)appConfigurationForTestCase {
+  AppLaunchConfiguration config = [super appConfigurationForTestCase];
+  if ([self isRunningTest:@selector(testPermissionsWithReaderMode)]) {
+    config.features_enabled.push_back(kEnableReaderModeInUS);
+  }
+  return config;
+}
+
 - (void)setUp {
   [super setUp];
   // Disable translate to avoid the translate badge showing automatically.
@@ -514,7 +522,7 @@ void TapDoneButtonOnInfobarModal() {
 - (void)testPermissionsAfterTabSwitch {
   // TODO(crbug.com/40921852): Failing on iOS17.
   if (@available(iOS 17.0, *)) {
-    EARL_GREY_TEST_DISABLED(@"Failing on iOS17.");
+    XCTSkip(@"Failing on iOS17");
   }
 
   GREYAssertTrue(self.testServer->Start(), @"Test server failed to start.");

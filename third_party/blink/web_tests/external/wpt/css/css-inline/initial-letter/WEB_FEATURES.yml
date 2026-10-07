@@ -1,2 +1,3 @@
-rules:
-- "**": [initial-letter]
+features:
+- name: initial-letter
+  files: "**"

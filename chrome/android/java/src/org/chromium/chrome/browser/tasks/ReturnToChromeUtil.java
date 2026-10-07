@@ -38,6 +38,8 @@ import org.chromium.chrome.browser.tabmodel.TabModelUtils;
 import org.chromium.chrome.browser.ui.native_page.NativePage;
 import org.chromium.chrome.browser.url_constants.UrlConstantResolver;
 import org.chromium.chrome.browser.url_constants.UrlConstantResolverFactory;
+import org.chromium.chrome.browser.util.BrowserUiUtils;
+import org.chromium.chrome.browser.util.BrowserUiUtils.ModuleTypeOnStartAndNtp;
 import org.chromium.components.cached_flags.IntCachedFeatureParam;
 import org.chromium.components.embedder_support.util.UrlUtilities;
 import org.chromium.content_public.browser.LoadUrlParams;
@@ -115,7 +117,6 @@ public final class ReturnToChromeUtil {
      * Gets the return time interval. The return time is in the unit of milliseconds.
      *
      * @param returnTime The return time parameter based on form factor, either phones or tablets.
-     * @return The return time threshold in milliseconds.
      */
     private static long getReturnTime(IntCachedFeatureParam returnTime) {
         return returnTime.getValue() * DateUtils.SECOND_IN_MILLIS;
@@ -159,13 +160,12 @@ public final class ReturnToChromeUtil {
      * Tab).
      *
      * @param tabCreator The {@link TabCreator} object.
-     * @param homeSurfaceTracker Tracker recording whether a tab acts as the home surface.
      * @param tabModelSelector The {@link TabModelSelector} object.
+     * @param homeSurfaceTracker The {@link HomeSurfaceTracker} object.
      * @param lastActiveTabUrl The URL of the last active Tab. It is non-null in cold startup before
      *     the Tab is restored.
      * @param lastActiveTab The object of the last active Tab. It is non-null after TabModel is
      *     initialized, e.g., in warm startup.
-     * @return The newly created NTP tab, or {@code null} if creation failed.
      */
     public static @Nullable Tab createNewTabAndShowHomeSurfaceUi(
             TabCreator tabCreator,
@@ -237,7 +237,7 @@ public final class ReturnToChromeUtil {
      * @param shouldShowNtpHomeSurfaceOnStartup Whether to show a NTP as home surface on startup.
      * @param currentTabModel The object of the current {@link TabModel}.
      * @param tabCreator The {@link TabCreator} object.
-     * @param homeSurfaceTracker Tracker recording whether a tab acts as the home surface.
+     * @param homeSurfaceTracker The {@link HomeSurfaceTracker} object.
      * @return whether an NTP was shown.
      */
     public static boolean setInitialOverviewStateOnResumeWithNtp(
@@ -293,6 +293,19 @@ public final class ReturnToChromeUtil {
         return true;
     }
 
+    /**
+     * Records user clicks on the tab switcher button in New tab page.
+     *
+     * @param currentTab Current tab or null if none exists.
+     */
+    public static void recordClickTabSwitcher(@Nullable Tab currentTab) {
+        if (currentTab != null
+                && !currentTab.isIncognito()
+                && UrlUtilities.isNtpUrl(currentTab.getUrl())) {
+            BrowserUiUtils.recordModuleClickHistogram(ModuleTypeOnStartAndNtp.TAB_SWITCHER_BUTTON);
+        }
+    }
+
     /** Recorded when the home surface NTP is shown at startup. */
     public static void recordHomeSurfaceShownAtStartup() {
         RecordHistogram.recordBooleanHistogram(HOME_SURFACE_SHOWN_AT_STARTUP_UMA, true);
@@ -307,7 +320,6 @@ public final class ReturnToChromeUtil {
      * Returns the start position of the context menu of a home module.
      *
      * @param resources The {@link Resources} instance to load Android resources from.
-     * @return The calculated start position point for the context menu.
      */
     public static Point calculateContextMenuStartPosition(Resources resources) {
         // On the single tab module, the x starts from the right of the tab thumbnail.

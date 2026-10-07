@@ -19,9 +19,9 @@
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profile_manager.h"
-#include "chrome/browser/signin/account_preview_data_service_factory.h"
 #include "chrome/browser/signin/identity_manager_factory.h"
 #include "chrome/browser/signin/signin_ui_util.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/dialogs/browser_dialogs.h"
@@ -206,7 +206,8 @@ WEB_CONTENTS_USER_DATA_KEY_IMPL(SigninQRCodeInfoBarLoader);
 void ShowTabOverwritingNTP(BrowserWindowInterface* browser,
                            TabStripModel* tab_strip_model,
                            const GURL& url) {
-  NavigateParams params(browser, url, ui::PAGE_TRANSITION_AUTO_BOOKMARK);
+  NavigateParams params(browser->GetBrowserForMigrationOnly(), url,
+                        ui::PAGE_TRANSITION_AUTO_BOOKMARK);
   params.disposition = WindowOpenDisposition::NEW_FOREGROUND_TAB;
   params.window_action = NavigateParams::WindowAction::kShowWindow;
   params.user_gesture = false;
@@ -424,7 +425,7 @@ void SigninViewController::ShowModalInterceptFirstRunExperienceDialog(
     bool is_forced_intercept) {
   CloseModalSignin();
   auto fre_dialog = std::make_unique<SigninInterceptFirstRunExperienceDialog>(
-      &browser_.get(), account_id, is_forced_intercept,
+      browser_->GetBrowserForMigrationOnly(), account_id, is_forced_intercept,
       GetOnModalDialogClosedCallback());
   SigninInterceptFirstRunExperienceDialog* raw_dialog = fre_dialog.get();
   // Casts pointer to a base class.
@@ -471,8 +472,7 @@ void SigninViewController::MaybeShowChromeSigninDialogForExtensions(
 
   AccountInfo account_info_for_promos =
       signin_ui_util::GetSingleAccountForPromos(
-          IdentityManagerFactory::GetForProfile(GetProfile()),
-          AccountPreviewDataServiceFactory::GetForProfile(GetProfile()));
+          IdentityManagerFactory::GetForProfile(GetProfile()));
   if (account_info_for_promos.IsEmpty()) {
     DVLOG(1) << "The user is not signed in on the web.";
     std::move(on_complete).Run();
@@ -507,7 +507,8 @@ void SigninViewController::MaybeShowChromeSigninDialogForExtensions(
   }
 
   // Create a new tab page and wait for the navigation to complete.
-  NavigateParams params(&browser_.get(), chrome::ChromeUINewTabURLAsGURL(),
+  NavigateParams params(browser_->GetBrowserForMigrationOnly(),
+                        chrome::ChromeUINewTabURLAsGURL(),
                         ui::PAGE_TRANSITION_AUTO_BOOKMARK);
   params.disposition = WindowOpenDisposition::NEW_FOREGROUND_TAB;
   params.window_action = NavigateParams::WindowAction::kShowWindow;
@@ -531,7 +532,7 @@ void SigninViewController::ShowModalProfileCustomizationDialog(
   CloseModalSignin();
   dialog_ = std::make_unique<SigninModalDialogImpl>(
       SigninViewControllerDelegate::CreateProfileCustomizationDelegate(
-          &browser_.get(), is_local_profile_creation,
+          browser_->GetBrowserForMigrationOnly(), is_local_profile_creation,
           /*show_profile_switch_iph=*/true, /*show_supervised_user_iph=*/true),
       GetOnModalDialogClosedCallback());
 }
@@ -576,7 +577,7 @@ void SigninViewController::ShowModalSyncConfirmationDialog(
   CloseModalSignin();
   dialog_ = std::make_unique<SigninModalDialogImpl>(
       SigninViewControllerDelegate::CreateSyncConfirmationDelegate(
-          &browser_.get(),
+          browser_->GetBrowserForMigrationOnly(),
           is_signin_intercept ? SyncConfirmationStyle::kSigninInterceptModal
                               : SyncConfirmationStyle::kDefaultModal,
           is_sync_promo),
@@ -591,7 +592,7 @@ void SigninViewController::ShowModalHistorySyncOptInDialog(
   CloseModalSignin();
   dialog_ = std::make_unique<SigninModalDialogImpl>(
       SigninViewControllerDelegate::CreateSyncHistoryOptInDelegate(
-          &browser_.get(), should_close_modal_dialog,
+          browser_->GetBrowserForMigrationOnly(), should_close_modal_dialog,
           HistorySyncOptinLaunchContext::kModal, std::move(callback)),
       GetOnModalDialogClosedCallback());
 }
@@ -614,7 +615,8 @@ void SigninViewController::ShowModalManagedUserNoticeDialog(
 void SigninViewController::ShowModalSigninErrorDialog() {
   CloseModalSignin();
   dialog_ = std::make_unique<SigninModalDialogImpl>(
-      SigninViewControllerDelegate::CreateSigninErrorDelegate(&browser_.get()),
+      SigninViewControllerDelegate::CreateSigninErrorDelegate(
+          browser_->GetBrowserForMigrationOnly()),
       GetOnModalDialogClosedCallback());
 }
 
@@ -938,7 +940,7 @@ void SigninViewController::ShowChromeSigninDialogForExtensions(
               signin_metrics::AccessPoint::kExtensions);
         }
       },
-      profile_->GetWeakPtr(), account_info_for_promos.GetAccountId());
+      profile_->GetWeakPtr(), account_info_for_promos.account_id);
 
   std::u16string title =
       extension_name_for_display.empty()
@@ -980,8 +982,8 @@ void SigninViewController::ShowSignoutConfirmationPrompt(
   CloseModalSignin();
   dialog_ = std::make_unique<SigninModalDialogImpl>(
       SigninViewControllerDelegate::CreateSignoutConfirmationDelegate(
-          &browser_.get(), prompt_variant, unsynced_data_count,
-          std::move(callback)),
+          browser_->GetBrowserForMigrationOnly(), prompt_variant,
+          unsynced_data_count, std::move(callback)),
       GetOnModalDialogClosedCallback());
 }
 

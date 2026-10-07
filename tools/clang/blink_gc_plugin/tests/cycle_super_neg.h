@@ -42,4 +42,4 @@ private:
 
 }
 
-#endif  // CYCLE_SUPER_NEG_H_
+#endif

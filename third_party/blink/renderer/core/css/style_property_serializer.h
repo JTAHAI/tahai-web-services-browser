@@ -88,6 +88,7 @@ class CORE_EXPORT StylePropertySerializer {
       bool is_cap) const;
   String GetShorthandValueForGapDecorationsRuleInsetStartEnd(
       const StylePropertyShorthand&) const;
+  String GetShorthandValueForColumnRule(const StylePropertyShorthand&) const;
   String GetShorthandValueForColumns(const StylePropertyShorthand&) const;
   // foo || bar || ... || baz
   // https://drafts.csswg.org/css-values-4/#component-combinators

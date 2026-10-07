@@ -1,2 +1,3 @@
-rules:
-- "**": [grid]
+features:
+- name: grid
+  files: "**"

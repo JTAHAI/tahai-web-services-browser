@@ -6,7 +6,6 @@
 
 #include <algorithm>
 #include <memory>
-#include <ranges>
 #include <string>
 #include <utility>
 #include <vector>
@@ -84,7 +83,10 @@
 #include "ash/wm/workspace/backdrop_controller.h"
 #include "ash/wm/workspace/workspace_layout_manager.h"
 #include "ash/wm/workspace_controller.h"
+#include "base/containers/adapters.h"
 #include "base/containers/unique_ptr_adapters.h"
+#include "base/debug/crash_logging.h"
+#include "base/debug/dump_without_crashing.h"
 #include "base/functional/bind.h"
 #include "base/functional/callback_helpers.h"
 #include "base/memory/raw_ptr.h"
@@ -92,7 +94,9 @@
 #include "base/numerics/safe_conversions.h"
 #include "base/trace_event/trace_event.h"
 #include "chromeos/constants/chromeos_features.h"
+#include "chromeos/ui/base/window_properties.h"
 #include "chromeos/ui/wm/window_util.h"
+#include "components/app_restore/full_restore_utils.h"
 #include "third_party/abseil-cpp/absl/cleanup/cleanup.h"
 #include "ui/aura/client/aura_constants.h"
 #include "ui/base/l10n/l10n_util.h"
@@ -533,7 +537,7 @@ OverviewGrid::OverviewGrid(
     aura::Window* root_window,
     const std::vector<raw_ptr<aura::Window, VectorExperimental>>& windows,
     OverviewSession* overview_session,
-    base::WeakPtr<DesksWindowOcclusionCalculator> window_occlusion_calculator)
+    base::WeakPtr<WindowOcclusionCalculator> window_occlusion_calculator)
     : root_window_(root_window),
       overview_session_(overview_session),
       split_view_drag_indicators_(
@@ -1012,7 +1016,7 @@ void OverviewGrid::RemoveItem(OverviewItemBase* overview_item,
   EndNudge();
 
   // Use reverse iterator to be efficient when removing all.
-  auto iter = std::ranges::find(std::views::reverse(item_list_), overview_item,
+  auto iter = std::ranges::find(base::Reversed(item_list_), overview_item,
                                 &std::unique_ptr<OverviewItemBase>::get);
   CHECK(iter != item_list_.rend());
   CHECK_EQ(iter->get(), overview_item);
@@ -3288,10 +3292,24 @@ void OverviewGrid::UpdateNumSavedDeskUnsupportedWindows(
       num_incognito_windows_ += addend;
     }
 
+    // TODO(b/319904368): Clean this up after we figure out which app changes
+    // its supported/incognito type and a proper fix is made.
     if (num_unsupported_windows_ < 0) {
       num_unsupported_windows_ = 0;
+      SCOPED_CRASH_KEY_NUMBER(
+          "OG_UNSDUW", "unsupported_app_type",
+          static_cast<int>(window->GetProperty(chromeos::kAppTypeKey)));
+      SCOPED_CRASH_KEY_STRING32("OG_UNSDUW", "unsupported_app_id",
+                                ::full_restore::GetAppId(window));
+      base::debug::DumpWithoutCrashing();
     } else if (num_incognito_windows_ < 0) {
       num_incognito_windows_ = 0;
+      SCOPED_CRASH_KEY_NUMBER(
+          "OG_UNSDUW", "incognito_app_type",
+          static_cast<int>(window->GetProperty(chromeos::kAppTypeKey)));
+      SCOPED_CRASH_KEY_STRING32("OG_UNSDUW", "incognito_app_id",
+                                ::full_restore::GetAppId(window));
+      base::debug::DumpWithoutCrashing();
     }
   }
 }

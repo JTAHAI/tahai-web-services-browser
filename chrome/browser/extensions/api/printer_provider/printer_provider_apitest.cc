@@ -113,8 +113,7 @@ class PrinterProviderApiTest : public ExtensionApiTest {
     job.job_title = u"Print job";
     job.content_type = "application/pdf";
     const unsigned char kDocumentBytes[] = {'b', 'y', 't', 'e', 's'};
-    job.document_bytes =
-        base::MakeRefCounted<base::RefCountedBytes>(kDocumentBytes);
+    job.document_bytes = new base::RefCountedBytes(kDocumentBytes);
 
     PrinterProviderAPIFactory::GetInstance()
         ->GetForBrowserContext(profile())

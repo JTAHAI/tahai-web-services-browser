@@ -13,7 +13,6 @@
 #include "base/task/cancelable_task_tracker.h"
 #include "chrome/browser/ui/exclusive_access/exclusive_access_context.h"
 #include "chrome/browser/ui/views/exclusive_access/exclusive_access_bubble_views_context.h"
-#include "ui/base/unowned_user_data/scoped_unowned_user_data.h"
 
 class BrowserWindowInterface;
 class ExclusiveAccessBubbleViews;
@@ -30,13 +29,6 @@ class WebUIBrowserExclusiveAccessContext
     : public ExclusiveAccessContext,
       public ExclusiveAccessBubbleViewsContext {
  public:
-  DECLARE_USER_DATA(WebUIBrowserExclusiveAccessContext);
-
-  // Returns the context for `browser`, or null if it does not have one
-  // (i.e. `browser` is not a WebUI browser window).
-  static WebUIBrowserExclusiveAccessContext* From(
-      BrowserWindowInterface* browser);
-
   WebUIBrowserExclusiveAccessContext(
       Profile* profile,
       BrowserWindowInterface* browser,
@@ -91,9 +83,6 @@ class WebUIBrowserExclusiveAccessContext
   base::CancelableTaskTracker exclusive_access_bubble_cancelable_task_tracker_;
   std::optional<base::CancelableTaskTracker::TaskId>
       exclusive_access_bubble_destruction_task_id_;
-
-  ui::ScopedUnownedUserData<WebUIBrowserExclusiveAccessContext>
-      scoped_unowned_user_data_;
 
   base::WeakPtrFactory<WebUIBrowserExclusiveAccessContext> weak_ptr_factory_{
       this};

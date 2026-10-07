@@ -227,16 +227,11 @@ public class BasicListMenu implements ListMenu {
                 UiUtils.computeListAdapterContentDimensions(mHeaderAdapter, mHeaderListView);
         int[] contentDimensions =
                 UiUtils.computeListAdapterContentDimensions(mContentAdapter, mContentListView);
-        int dividerHeight = 0;
-        View hairline = mListMenuLayout.findViewById(R.id.menu_header_bottom_hairline);
-        if (hairline != null && hairline.getVisibility() != View.GONE) {
-            dividerHeight = Math.max(0, hairline.getHeight());
-        }
         // The header is above the content, so the result width is the max of the 2 widths and the
-        // result height is the addition of the 2 heights and divider height.
+        // result height is the addition of the 2 heights.
         int[] result = {
             Math.max(headerDimensions[0], contentDimensions[0]),
-            headerDimensions[1] + contentDimensions[1] + dividerHeight
+            headerDimensions[1] + contentDimensions[1]
         };
         // Now add padding from the listMenuLayout (which contains the header and content -- note
         // that the header and content don't have padding individually).
@@ -253,7 +248,7 @@ public class BasicListMenu implements ListMenu {
     }
 
     /**
-     * Runs {@code dismissDialog} at the end of each callback, recursively (through submenu items).
+     * Runs {@param dismissDialog} at the end of each callback, recursively (through submenu items).
      * If an item doesn't already have a click callback in its model, no click callback is added.
      *
      * @param dismissDialog The {@link Runnable} to run.

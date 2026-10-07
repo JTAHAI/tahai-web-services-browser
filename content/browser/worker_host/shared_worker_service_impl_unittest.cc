@@ -1738,8 +1738,7 @@ TEST_P(SharedWorkerServiceImplCreationContextTest,
       auto policies = rfh->policy_container_host()->policies().Clone();
       policies.is_web_secure_context = false;
       rfh->SetPolicyContainerHost(
-          base::MakeRefCounted<PolicyContainerHost>(std::move(policies)),
-          base::UnguessableToken::Create());
+          base::MakeRefCounted<PolicyContainerHost>(std::move(policies)));
     }
       renderer_type = blink::mojom::SharedWorkerCreationContextType::kSecure;
       expected_uma_bucket =
@@ -1811,8 +1810,7 @@ TEST_P(SharedWorkerServiceImplCreationContextTest, SpoofingProtection) {
     auto policies = rfh_a->policy_container_host()->policies().Clone();
     policies.is_web_secure_context = false;
     rfh_a->SetPolicyContainerHost(
-        base::MakeRefCounted<PolicyContainerHost>(std::move(policies)),
-        base::UnguessableToken::Create());
+        base::MakeRefCounted<PolicyContainerHost>(std::move(policies)));
   }
 
   MockSharedWorkerClient client_a;

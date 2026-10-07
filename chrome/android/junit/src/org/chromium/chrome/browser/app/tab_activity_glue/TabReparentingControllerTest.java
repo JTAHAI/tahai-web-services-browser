@@ -21,6 +21,7 @@ import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
+import org.robolectric.annotation.Config;
 
 import org.chromium.base.UserDataHost;
 import org.chromium.base.test.BaseRobolectricTestRunner;
@@ -45,6 +46,7 @@ import java.util.Map;
 
 /** Unit tests for {@link TabReparentingControllerTest}. */
 @RunWith(BaseRobolectricTestRunner.class)
+@Config(manifest = Config.NONE)
 public class TabReparentingControllerTest {
     class FakeNightModeReparentingDelegate implements Delegate {
         TabModelSelector mTabModelSelector;

@@ -26,9 +26,8 @@ std::unique_ptr<BrowserAccessibility> BrowserAccessibility::Create(
 BrowserAccessibilityAuraLinux::BrowserAccessibilityAuraLinux(
     BrowserAccessibilityManager* manager,
     AXNode* node)
-    : BrowserAccessibility(manager, node) {
-  UpdatePlatformNode();
-}
+    : BrowserAccessibility(manager, node),
+      platform_node_(AXPlatformNode::Create(*this)) {}
 
 BrowserAccessibilityAuraLinux::~BrowserAccessibilityAuraLinux() = default;
 
@@ -38,34 +37,19 @@ AXPlatformNodeAuraLinux* BrowserAccessibilityAuraLinux::GetNode() const {
 
 gfx::NativeViewAccessible
 BrowserAccessibilityAuraLinux::GetNativeViewAccessible() {
-  return platform_node_ ? platform_node_->GetNativeViewAccessible()
-                        : gfx::NativeViewAccessible();
+  DCHECK(platform_node_);
+  return platform_node_->GetNativeViewAccessible();
 }
 
 void BrowserAccessibilityAuraLinux::UpdatePlatformAttributes() {
-  if (GetNode()) {
-    GetNode()->UpdateHypertext();
-  }
-}
-
-void BrowserAccessibilityAuraLinux::UpdatePlatformNode() {
-  if (!ShouldHavePlatformNode()) {
-    platform_node_.reset();
-    return;
-  }
-  if (!platform_node_) {
-    platform_node_ = AXPlatformNode::Create(*this);
-    // ATK gives an object only after this call, and a new platform node has
-    // none yet.
-    GetNode()->EnsureAtkObjectIsValid();
-  }
+  GetNode()->UpdateHypertext();
 }
 
 void BrowserAccessibilityAuraLinux::OnDataChanged() {
   BrowserAccessibility::OnDataChanged();
-  if (GetNode()) {
-    GetNode()->EnsureAtkObjectIsValid();
-  }
+  DCHECK(platform_node_);
+  static_cast<AXPlatformNodeAuraLinux*>(platform_node_.get())
+      ->EnsureAtkObjectIsValid();
 }
 
 AXPlatformNode* BrowserAccessibilityAuraLinux::GetAXPlatformNode() const {
@@ -73,16 +57,10 @@ AXPlatformNode* BrowserAccessibilityAuraLinux::GetAXPlatformNode() const {
 }
 
 std::u16string BrowserAccessibilityAuraLinux::GetHypertext() const {
-  if (!GetNode()) {
-    return std::u16string();
-  }
   return GetNode()->AXPlatformNodeAuraLinux::GetHypertext();
 }
 
 TextAttributeList BrowserAccessibilityAuraLinux::ComputeTextAttributes() const {
-  if (!GetNode()) {
-    return TextAttributeList();
-  }
   return GetNode()->ComputeTextAttributes();
 }
 

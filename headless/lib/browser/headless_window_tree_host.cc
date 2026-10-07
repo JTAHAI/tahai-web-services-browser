@@ -13,6 +13,7 @@
 #include "headless/lib/browser/headless_window_parenting_client.h"
 #include "ui/aura/window.h"
 #include "ui/events/keycodes/dom/dom_code.h"
+#include "ui/gfx/icc_profile.h"
 
 namespace headless {
 

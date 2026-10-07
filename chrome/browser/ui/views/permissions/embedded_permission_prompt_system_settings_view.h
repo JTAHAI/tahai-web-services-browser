@@ -10,6 +10,7 @@
 
 #include "base/memory/weak_ptr.h"
 #include "base/scoped_observation.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/views/permissions/embedded_permission_prompt_base_view.h"
 
 namespace content {

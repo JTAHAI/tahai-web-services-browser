@@ -36,26 +36,23 @@ AutofillAiAccessManager::~AutofillAiAccessManager() = default;
 bool AutofillAiAccessManager::FetchEntityInstance(
     EntityInstance entity,
     bool will_fill_sensitive_info,
-    const url::Origin& origin,
-    OnAuthenticationCompleteCallback on_auth_complete_callback,
-    OnEntityInstanceFetchedCallback on_fetched_callback) {
+    OnEntityInstanceFetchedCallback callback) {
   // Invalidate any pending operations from prior flows, ensuring that only one
   // flow is active at a time.
   Reset();
 
   // This ensures that if the manager is reset during any asynchronous phase,
   // the final callback is safely ignored and never executed.
-  on_fetched_callback = base::BindOnce(
+  callback = base::BindOnce(
       [](base::WeakPtr<AutofillAiAccessManager> self,
-         OnEntityInstanceFetchedCallback on_fetched_callback,
+         OnEntityInstanceFetchedCallback callback,
          base::expected<EntityInstance, FailureReason> result,
-         bool reauth_attempted, bool did_fetch_from_server) {
+         bool reauth_attempted) {
         if (self) {
-          std::move(on_fetched_callback)
-              .Run(std::move(result), reauth_attempted, did_fetch_from_server);
+          std::move(callback).Run(std::move(result), reauth_attempted);
         }
       },
-      weak_ptr_factory_.GetWeakPtr(), std::move(on_fetched_callback));
+      weak_ptr_factory_.GetWeakPtr(), std::move(callback));
 
   const bool should_fetch = entity.IsMaskedEntity() &&
                             entity.IsServerInstance() &&
@@ -64,14 +61,13 @@ bool AutofillAiAccessManager::FetchEntityInstance(
       will_fill_sensitive_info && prefs::IsAutofillAiReauthBeforeFillingEnabled(
                                       manager_->client().GetPrefs());
 
-  OnUnmaskCallback on_unmask_callback =
-      base::BindOnce(&AutofillAiAccessManager::MaybeUnmaskServerEntity,
-                     weak_ptr_factory_.GetWeakPtr(),
-                     std::move(on_fetched_callback), should_fetch);
+  if (should_fetch) {
+    callback =
+        base::BindOnce(&AutofillAiAccessManager::MaybeUnmaskServerEntity,
+                       weak_ptr_factory_.GetWeakPtr(), std::move(callback));
+  }
 
-  MaybeAuthenticate(std::move(entity), should_reauth, should_fetch, origin,
-                    std::move(on_auth_complete_callback),
-                    std::move(on_unmask_callback));
+  MaybeAuthenticate(std::move(entity), should_reauth, std::move(callback));
   return should_fetch || should_reauth;
 }
 
@@ -87,18 +83,38 @@ void AutofillAiAccessManager::Reset() {
 void AutofillAiAccessManager::MaybeAuthenticate(
     EntityInstance entity,
     bool should_reauth,
-    bool should_fetch_from_server,
-    const url::Origin& origin,
-    OnAuthenticationCompleteCallback on_auth_complete_callback,
-    OnUnmaskCallback on_unmask_callback) {
+    OnEntityInstanceFetchedCallback callback) {
   if (!should_reauth) {
-    std::move(on_auth_complete_callback)
-        .Run(/*reauth_attempted=*/false, should_fetch_from_server);
-    std::move(on_unmask_callback)
-        .Run(std::move(entity), /*reauth_attempted=*/false);
+    std::move(callback).Run(std::move(entity), /*reauth_attempted=*/false);
     return;
   }
 
+  base::OnceCallback<void(bool)> on_auth_complete = base::BindOnce(
+      [](EntityInstance entity, OnEntityInstanceFetchedCallback callback,
+         bool auth_succeeded) {
+        if (auth_succeeded) {
+          std::move(callback).Run(std::move(entity), /*reauth_attempted=*/true);
+        } else {
+          // TODO(b/489690454): Emit this metric for Wallet entities.
+          if (entity.record_type() ==
+              EntityInstance::RecordType::kPersonalContext) {
+            LogUnmaskResult(entity.record_type(),
+                            AutofillAiUnmaskResult::kReauthFailed);
+          }
+          std::move(callback).Run(
+              base::unexpected(FailureReason::kReauthFailed),
+              /*reauth_attempted=*/true);
+        }
+      },
+      std::move(entity), std::move(callback));
+
+  Authenticate(manager_->client().GetLastCommittedPrimaryMainFrameOrigin(),
+               std::move(on_auth_complete));
+}
+
+void AutofillAiAccessManager::Authenticate(
+    const url::Origin& origin,
+    base::OnceCallback<void(bool)> callback) {
   if (!authenticator_) {
     authenticator_ =
         manager_->client().GetDeviceAuthenticator("Autofill.Ai.ReauthToFill");
@@ -107,45 +123,10 @@ void AutofillAiAccessManager::MaybeAuthenticate(
       !authenticator_->CanAuthenticateWithBiometricOrScreenLock()) {
     // If the device is not capable of reauth or not set up, we assume success
     // to avoid blocking the user. Reauth is a best-effort security measure.
-    std::move(on_auth_complete_callback)
-        .Run(/*reauth_attempted=*/false, should_fetch_from_server);
-    std::move(on_unmask_callback)
-        .Run(std::move(entity), /*reauth_attempted=*/false);
+    std::move(callback).Run(/*auth_succeeded=*/true);
     return;
   }
 
-  base::OnceCallback<void(bool)> on_auth_complete = base::BindOnce(
-      [](EntityInstance entity, bool should_fetch_from_server,
-         OnAuthenticationCompleteCallback on_auth_complete_callback,
-         OnUnmaskCallback on_unmask_callback, bool auth_succeeded) {
-        std::move(on_auth_complete_callback)
-            .Run(/*reauth_attempted=*/true,
-                 should_fetch_from_server && auth_succeeded);
-        if (auth_succeeded) {
-          std::move(on_unmask_callback)
-              .Run(std::move(entity), /*reauth_attempted=*/true);
-        } else {
-          // TODO(b/489690454): Emit this metric for Wallet entities.
-          if (entity.record_type() ==
-              EntityInstance::RecordType::kPersonalContext) {
-            LogUnmaskResult(entity.record_type(),
-                            AutofillAiUnmaskResult::kReauthFailed);
-          }
-          std::move(on_unmask_callback)
-              .Run(base::unexpected(FailureReason::kReauthFailed),
-                   /*reauth_attempted=*/true);
-        }
-      },
-      std::move(entity), should_fetch_from_server,
-      std::move(on_auth_complete_callback), std::move(on_unmask_callback));
-
-  Authenticate(origin, std::move(on_auth_complete));
-}
-
-void AutofillAiAccessManager::Authenticate(
-    const url::Origin& origin,
-    base::OnceCallback<void(bool)> callback) {
-  CHECK(authenticator_);
   is_authentication_in_progress_ = true;
   authenticator_->AuthenticateWithMessage(
       GetAuthenticationMessage(origin),
@@ -167,14 +148,11 @@ void AutofillAiAccessManager::Authenticate(
 }
 
 void AutofillAiAccessManager::MaybeUnmaskServerEntity(
-    OnEntityInstanceFetchedCallback on_fetched_callback,
-    bool should_fetch,
+    OnEntityInstanceFetchedCallback callback,
     base::expected<EntityInstance, FailureReason> result,
     bool reauth_attempted) {
-  if (!should_fetch || !result.has_value()) {
-    std::move(on_fetched_callback)
-        .Run(std::move(result), reauth_attempted,
-             /*did_fetch_from_server=*/false);
+  if (!result.has_value()) {
+    std::move(callback).Run(std::move(result), reauth_attempted);
     return;
   }
 
@@ -183,8 +161,8 @@ void AutofillAiAccessManager::MaybeUnmaskServerEntity(
 
   auto on_unmasked_entity_fetched = base::BindOnce(
       [](base::WeakPtr<AutofillAiAccessManager> self,
-         OnEntityInstanceFetchedCallback on_fetched_callback,
-         bool reauth_attempted, std::optional<EntityInstance> fetched_entity) {
+         OnEntityInstanceFetchedCallback callback, bool reauth_attempted,
+         std::optional<EntityInstance> fetched_entity) {
         // Passing a weak pointer to `AutofillAiAccessManager` is
         // needed to ensure that the callback is cancelled if
         // `Reset()` was called during the fetching.
@@ -192,17 +170,13 @@ void AutofillAiAccessManager::MaybeUnmaskServerEntity(
           return;
         }
         if (fetched_entity) {
-          std::move(on_fetched_callback)
-              .Run(std::move(*fetched_entity), reauth_attempted,
-                   /*did_fetch_from_server=*/true);
+          std::move(callback).Run(std::move(*fetched_entity), reauth_attempted);
         } else {
-          std::move(on_fetched_callback)
-              .Run(base::unexpected(FailureReason::kFetchFailed),
-                   reauth_attempted, /*did_fetch_from_server=*/true);
+          std::move(callback).Run(base::unexpected(FailureReason::kFetchFailed),
+                                  reauth_attempted);
         }
       },
-      weak_ptr_factory_.GetWeakPtr(), std::move(on_fetched_callback),
-      reauth_attempted);
+      weak_ptr_factory_.GetWeakPtr(), std::move(callback), reauth_attempted);
 
   switch (entity.record_type()) {
     case EntityInstance::RecordType::kServerWallet: {

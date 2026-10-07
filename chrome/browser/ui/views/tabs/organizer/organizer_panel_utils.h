@@ -5,19 +5,13 @@
 #ifndef CHROME_BROWSER_UI_VIEWS_TABS_ORGANIZER_ORGANIZER_PANEL_UTILS_H_
 #define CHROME_BROWSER_UI_VIEWS_TABS_ORGANIZER_ORGANIZER_PANEL_UTILS_H_
 
-#include "base/feature_list.h"
+class Profile;
 
 namespace organizer_panel {
 
-BASE_DECLARE_FEATURE(kOrganizerPanel);
-BASE_DECLARE_FEATURE(kShowExtensionsSidePanelUiInOrganizerPanel);
-
-// Returns whether the Organizer Panel feature is enabled.
-bool IsOrganizerPanelFeatureEnabled();
-
-// Returns whether the Show Extensions Side Panel UI In Organizer Panel feature
-// is enabled.
-bool IsShowExtensionsSidePanelUiInOrganizerPanelEnabled();
+// Returns whether the Organizer Panel and its entrypoints should be visible in
+// the UI for the profile.
+bool IsOrganizerPanelVisibleForProfile(Profile* profile);
 
 }  // namespace organizer_panel
 

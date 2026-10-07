@@ -10,7 +10,6 @@ import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.download.home.DownloadManagerUiConfig;
 import org.chromium.chrome.browser.download.home.filter.Filters.FilterType;
-import org.chromium.chrome.browser.download.home.list.ListItem.CardDividerListItem.Position;
 import org.chromium.chrome.browser.download.home.list.ListItem.OfflineItemListItem;
 import org.chromium.chrome.browser.download.home.list.ListItem.ViewListItem;
 import org.chromium.components.browser_ui.util.DownloadUtils;
@@ -126,11 +125,11 @@ public class ListUtils {
 
         if (item instanceof ListItem.CardDividerListItem) {
             switch (((ListItem.CardDividerListItem) item).position) {
-                case Position.TOP:
+                case TOP:
                     return ViewType.GROUP_CARD_DIVIDER_TOP;
-                case Position.MIDDLE:
+                case MIDDLE:
                     return ViewType.GROUP_CARD_DIVIDER_MIDDLE;
-                case Position.BOTTOM:
+                case BOTTOM:
                     return ViewType.GROUP_CARD_DIVIDER_BOTTOM;
             }
         }

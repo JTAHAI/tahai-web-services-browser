@@ -5,7 +5,6 @@
 #include "ui/accessibility/platform/browser_accessibility_win.h"
 
 #include "base/memory/ptr_util.h"
-#include "ui/accessibility/accessibility_features.h"
 #include "ui/accessibility/platform/ax_platform.h"
 #include "ui/accessibility/platform/browser_accessibility_manager.h"
 #include "ui/accessibility/platform/browser_accessibility_manager_win.h"
@@ -22,31 +21,14 @@ std::unique_ptr<BrowserAccessibility> BrowserAccessibility::Create(
 BrowserAccessibilityWin::BrowserAccessibilityWin(
     BrowserAccessibilityManager* manager,
     AXNode* node)
-    : BrowserAccessibility(manager, node) {
-  UpdatePlatformNode();
+    : BrowserAccessibility(manager, node),
+      browser_accessibility_com_(new BrowserAccessibilityComWin()) {
+  GetCOM()->Init(*this);
 }
 
 BrowserAccessibilityWin::~BrowserAccessibilityWin() = default;
 
-void BrowserAccessibilityWin::UpdatePlatformNode() {
-  if (!ShouldHavePlatformNode()) {
-    browser_accessibility_com_.reset();
-    return;
-  }
-
-  if (browser_accessibility_com_) {
-    return;
-  }
-
-  browser_accessibility_com_ =
-      AXPlatformNode::Pointer(new BrowserAccessibilityComWin());
-  GetCOM()->Init(*this);
-}
-
 void BrowserAccessibilityWin::UpdatePlatformAttributes() {
-  if (!GetCOM()) {
-    return;
-  }
   BrowserAccessibilityComWin::UpdateState update_state;
   GetCOM()->UpdateStep1ComputeWinAttributes(&update_state);
   GetCOM()->UpdateStep2ComputeHypertext();
@@ -78,13 +60,6 @@ std::wstring BrowserAccessibilityWin::ComputeListItemNameFromContent() const {
 }
 
 bool BrowserAccessibilityWin::CanFireEvents() const {
-  // The cases below give an event to a node that is ignored, or that is inside
-  // a leaf. Neither can give one to a node that owns no platform node, because
-  // an event names that node.
-  if (!ShouldHavePlatformNode()) {
-    return false;
-  }
-
   // On Windows, we want to hide the subtree of a collapsed <select> element but
   // we still need to fire events on those hidden nodes.
   if (!IsIgnored() && GetCollapsedMenuListSelectAncestor())
@@ -105,24 +80,10 @@ AXPlatformNode* BrowserAccessibilityWin::GetAXPlatformNode() const {
 }
 
 void BrowserAccessibilityWin::OnLocationChanged() {
-  if (!GetCOM()) {
-    return;
-  }
   GetCOM()->FireNativeEvent(EVENT_OBJECT_LOCATIONCHANGE);
-
-  if (features::IsAccessibilityGroupLocationChangeByCommonAncestorEnabled()) {
-    auto* manager_win = manager()->ToBrowserAccessibilityManagerWin();
-    if (!manager_win) {
-      return;
-    }
-    manager_win->FireUiaAccessibilityEvent(UIA_LayoutInvalidatedEventId, this);
-  }
 }
 
 std::u16string BrowserAccessibilityWin::GetHypertext() const {
-  if (!GetCOM()) {
-    return std::u16string();
-  }
   return GetCOM()->AXPlatformNodeWin::GetHypertext();
 }
 
@@ -185,9 +146,7 @@ gfx::NativeViewAccessible BrowserAccessibilityWin::GetNativeViewAccessible() {
 }
 
 BrowserAccessibilityComWin* BrowserAccessibilityWin::GetCOM() const {
-  // It's OK to not have a browser_accessibility_com_ if this shouldn't
-  // expose a platform node.
-  DCHECK(!ShouldHavePlatformNode() || browser_accessibility_com_);
+  DCHECK(browser_accessibility_com_);
   return static_cast<BrowserAccessibilityComWin*>(
       browser_accessibility_com_.get());
 }
@@ -202,18 +161,11 @@ const BrowserAccessibilityWin* ToBrowserAccessibilityWin(
 }
 
 TextAttributeList BrowserAccessibilityWin::ComputeTextAttributes() const {
-  if (!GetCOM()) {
-    return TextAttributeList();
-  }
   return GetCOM()->AXPlatformNodeWin::ComputeTextAttributes();
 }
 
 bool BrowserAccessibilityWin::ShouldHideChildrenForUIA() const {
-  // In the case where this BrowserAccessibility instance doesn't have an
-  // associated platform node, it is necessarily ignored by definition. See the
-  // declaration of ShouldHavePlatformNode. Returning false, and therefore not
-  // hiding the children, is the right behavior.
-  return GetCOM() && GetCOM()->AXPlatformNodeWin::ShouldHideChildrenForUIA();
+  return GetCOM()->AXPlatformNodeWin::ShouldHideChildrenForUIA();
 }
 
 }  // namespace ui

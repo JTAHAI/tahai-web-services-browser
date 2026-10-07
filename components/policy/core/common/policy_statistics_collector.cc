@@ -15,8 +15,6 @@
 #include "base/task/task_runner.h"
 #include "base/time/time.h"
 #include "components/policy/core/common/cloud/enterprise_metrics.h"
-#include "components/policy/core/common/policy_details.h"
-#include "components/policy/core/common/policy_logger.h"
 #include "components/policy/core/common/policy_map.h"
 #include "components/policy/core/common/policy_pref_names.h"
 #include "components/policy/core/common/policy_service.h"
@@ -164,8 +162,6 @@ void PolicyStatisticsCollector::CollectStatistics() {
   }
 
   RecordPoliciesSources(static_cast<SimplePolicySource>(source));
-
-  PolicyLogger::GetInstance()->RecordPerformanceMetrics();
 
   // Take care of next update.
   prefs_->SetTime(policy_prefs::kLastPolicyStatisticsUpdate, base::Time::Now());

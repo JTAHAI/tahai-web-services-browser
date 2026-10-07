@@ -13,7 +13,6 @@
 #include "chrome/browser/page_info/page_info_features.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/search_engines/template_url_service_factory.h"
-#include "chrome/common/chrome_features.h"
 #include "components/page_info/core/about_this_site_service.h"
 #include "components/page_info/core/features.h"
 
@@ -70,11 +69,6 @@ AboutThisSiteServiceFactory::BuildServiceInstanceForBrowserContext(
 }
 
 bool AboutThisSiteServiceFactory::ServiceIsCreatedWithBrowserContext() const {
-  if (base::FeatureList::IsEnabled(
-          ::features::kLazyKeyedServiceInstantiation) &&
-      ::features::kLazyKeyedServiceInstantiationOptimizationGuide.Get()) {
-    return false;
-  }
   // This service needs to be created at startup in order to register its
   // OptimizationType with OptimizationGuideDecider.
   return true;

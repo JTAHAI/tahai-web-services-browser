@@ -21,8 +21,6 @@ import org.chromium.base.IntentUtils;
 import org.chromium.base.Log;
 import org.chromium.base.ResettersForTesting;
 import org.chromium.base.TimeUtils;
-import org.chromium.base.TriState;
-import org.chromium.base.TriStateUtils;
 import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.base.supplier.OneshotSupplier;
 import org.chromium.build.annotations.NullMarked;
@@ -122,7 +120,7 @@ public abstract class FirstRunFlowSequencer {
 
     private boolean mIsFlowKnown;
     private boolean mAccountsAvailable;
-    private @TriState int mIsChild;
+    private @Nullable Boolean mIsChild;
 
     /**
      * Callback that is called once the flow is determined. If the properties is null, the First Run
@@ -171,23 +169,22 @@ public abstract class FirstRunFlowSequencer {
     }
 
     private boolean shouldShowHistorySyncOptIn() {
-        assert mIsChild != TriState.NOT_SET;
-        return mDelegate.shouldShowHistorySyncOptIn(mIsChild == TriState.TRUE);
+        return mDelegate.shouldShowHistorySyncOptIn(assumeNonNull(mIsChild));
     }
 
     private void setChildAccountStatus(boolean isChild) {
-        assert mIsChild == TriState.NOT_SET;
-        mIsChild = TriStateUtils.from(isChild);
+        assert mIsChild == null;
+        mIsChild = isChild;
         maybeProcessFreEnvironmentPreNative();
     }
 
     private void maybeProcessFreEnvironmentPreNative() {
         // Wait till both child account status and the list of accounts are available.
-        if (mIsChild == TriState.NOT_SET || !mAccountsAvailable) return;
+        if (mIsChild == null || !mAccountsAvailable) return;
 
         if (mIsFlowKnown) return;
         mIsFlowKnown = true;
-        onFlowIsKnown(mIsChild == TriState.TRUE);
+        onFlowIsKnown(mIsChild);
     }
 
     /**
@@ -236,18 +233,14 @@ public abstract class FirstRunFlowSequencer {
 
     /**
      * Checks if the First Run Experience needs to be launched.
-     *
      * @param preferLightweightFre Whether to prefer the Lightweight First Run Experience.
      * @param isCct Whether this check is being made in the context of a CCT.
      * @return Whether the First Run Experience needs to be launched.
      */
     public static boolean checkIfFirstRunIsNecessary(boolean preferLightweightFre, boolean isCct) {
         // If FRE is disabled (e.g. in tests), proceed directly to the intent handling.
-        // Retail demo mode suppresses the FRE, except on desktop devices where the signed-in
-        // experience needs to be showcased. Account visibility controls whether sign-in is
-        // actually available on those devices.
         if (CommandLine.getInstance().hasSwitch(ChromeSwitches.DISABLE_FIRST_RUN_EXPERIENCE)
-                || (DeviceInfo.isRetailDemoMode() && !DeviceInfo.isDesktop())
+                || DeviceInfo.isRetailDemoMode()
                 || ApiCompatibilityUtils.isRunningInUserTestHarness()) {
             return false;
         }
@@ -319,8 +312,9 @@ public abstract class FirstRunFlowSequencer {
         CrashKeys.getInstance().set(CrashKeyIndex.FIRST_RUN, "yes");
 
         if (inSameTask) {
+            FreIntentCreator intentCreator = new FreIntentCreator();
             Intent freIntent =
-                    FreIntentCreator.create(
+                    intentCreator.create(
                             caller,
                             fromIntent,
                             preferLightweightFre,
@@ -331,8 +325,9 @@ public abstract class FirstRunFlowSequencer {
         }
 
         if ((fromIntent.getFlags() & Intent.FLAG_ACTIVITY_NEW_TASK) != 0) {
+            FreIntentCreator intentCreator = new FreIntentCreator();
             Intent freIntent =
-                    FreIntentCreator.create(
+                    intentCreator.create(
                             caller, fromIntent, preferLightweightFre, /* usePendingIntent= */ true);
 
             // Although the FRE tries to run in the same task now, this is still needed for

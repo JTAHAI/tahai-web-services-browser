@@ -124,9 +124,7 @@ public class SettingsActivity extends ChromeBaseAppCompatActivity
                 AppHeaderObserver,
                 PreferenceUpdateObserver,
                 SettingsMenuHelper.Delegate,
-                SettingsContainmentHelper.Delegate,
-                MultiColumnSettings.Observer,
-                SettingsActivityInterface {
+                SettingsContainmentHelper.Delegate {
     private static final String TAG = "SettingsActivity";
 
     // Key used to store activity start time in the Bundle to have it survive activity re-creation.
@@ -178,7 +176,7 @@ public class SettingsActivity extends ChromeBaseAppCompatActivity
     private static final String MAIN_FRAGMENT_TAG = "settings_main";
     public static final String MULTI_COLUMN_FRAGMENT_TAG = "multi_column_settings";
 
-    private SettingsContainmentHelper mContainmentHelper =
+    private final SettingsContainmentHelper mContainmentHelper =
             new SettingsContainmentHelper(this, this);
 
     private @Nullable SettingsSearchCoordinator mSearchCoordinator;
@@ -304,7 +302,6 @@ public class SettingsActivity extends ChromeBaseAppCompatActivity
         if (!mStandalone) {
             if (isMultiColumnSettingEnabled()) {
                 assert mMultiColumnSettings != null;
-                mMultiColumnSettings.addObserver(this);
                 createMultiColumnTitleUpdater(savedInstanceState);
                 createSearchCoordinator(savedInstanceState);
             } else {
@@ -383,7 +380,7 @@ public class SettingsActivity extends ChromeBaseAppCompatActivity
     public void onAppHeaderStateChanged(AppHeaderState newState) {
         setCaptionBarHeight(newState.getAppHeaderHeight());
         assumeNonNull(mAppHeaderCoordinator)
-                .onBackgroundColorChanged(SemanticColorUtils.getSettingsBackgroundColor(this));
+                .updateForegroundColor(SemanticColorUtils.getSettingsBackgroundColor(this));
     }
 
     private void setCaptionBarHeight(int height) {
@@ -403,14 +400,15 @@ public class SettingsActivity extends ChromeBaseAppCompatActivity
     public void onConfigurationChanged(Configuration newConfig) {
         super.onConfigurationChanged(newConfig);
         if (mMultiColumnSettings != null) {
-            mContainmentHelper.updateContainmentForAttachedFragments(getSupportFragmentManager());
+            for (Fragment fragment :
+                    mMultiColumnSettings.getChildFragmentManager().getFragments()) {
+                if (fragment.isAdded()
+                        && fragment instanceof PreferenceFragmentCompat preferenceFragmentCompat) {
+                    mContainmentHelper.postUpdateContainmentOnLayout(preferenceFragmentCompat);
+                }
+            }
         }
         if (mSearchCoordinator != null) mSearchCoordinator.onConfigurationChanged(newConfig);
-    }
-
-    @Override
-    public void onHeaderLayoutUpdated() {
-        mContainmentHelper.updateContainmentForAttachedFragments(getSupportFragmentManager());
     }
 
     @Override
@@ -748,7 +746,6 @@ public class SettingsActivity extends ChromeBaseAppCompatActivity
     protected void onStop() {
         super.onStop();
         if (sResumedInstance == this) sResumedInstance = null;
-        if (mSearchCoordinator != null) mSearchCoordinator.onStop();
     }
 
     @Override
@@ -770,9 +767,6 @@ public class SettingsActivity extends ChromeBaseAppCompatActivity
                 mMultiColumnSettings.removeObserver(mSearchCoordinator);
             }
             mSearchCoordinator.destroy();
-        }
-        if (mMultiColumnSettings != null) {
-            mMultiColumnSettings.removeObserver(this);
         }
 
         WindowAndroid windowAndroid = mWindowAndroidSupplier.get();
@@ -1103,13 +1097,5 @@ public class SettingsActivity extends ChromeBaseAppCompatActivity
 
     public @Nullable SettingsSearchCoordinator getSearchCoordinatorForTesting() {
         return mSearchCoordinator;
-    }
-
-    void setContainmentHelperForTesting(SettingsContainmentHelper containmentHelper) {
-        mContainmentHelper = containmentHelper;
-    }
-
-    void setMultiColumnSettingsForTesting(@Nullable MultiColumnSettings multiColumnSettings) {
-        mMultiColumnSettings = multiColumnSettings;
     }
 }

@@ -35,6 +35,9 @@ class WebState;
 // Fullscreen controller used to exit find in page.
 @property(nonatomic, assign) FullscreenController* fullscreenController;
 
+// Fullscreen handler used to exit find in page (refactored).
+@property(nonatomic, weak) id<FullscreenCommands> fullscreenHandler;
+
 #pragma mark - Initialization/deinitialization
 
 - (instancetype)init NS_UNAVAILABLE;

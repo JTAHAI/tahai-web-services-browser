@@ -22,6 +22,7 @@
 #include "base/no_destructor.h"
 #include "base/notreached.h"
 #include "base/rand_util.h"
+#include "base/strings/string_util.h"
 #include "components/dbus/thread_linux/dbus_thread_linux.h"
 #include "components/dbus/utils/call_method.h"
 #include "components/dbus/utils/connect_to_signal.h"
@@ -37,6 +38,8 @@ namespace {
 
 constexpr char kUmaInitStatus[] =
     "OSCrypt.FreedesktopSecretKeyProvider.InitStatus";
+constexpr char kUmaErrorDetail[] =
+    "OSCrypt.FreedesktopSecretKeyProvider.$1.ErrorDetail";
 
 // These constants are duplicated from the sync backend.
 constexpr char kEncryptionTag[] = "v11";
@@ -44,6 +47,72 @@ constexpr char kSalt[] = "saltysalt";
 constexpr size_t kDerivedKeySizeInBits = 128;
 constexpr size_t kEncryptionIterations = 1;
 constexpr size_t kSecretLengthBytes = 16;
+
+FreedesktopSecretKeyProvider::ErrorDetail DbusErrorToErrorDetail(
+    const dbus_utils::CallMethodError& error) {
+  switch (error.status) {
+    case dbus_utils::CallMethodErrorStatus::kNoResponse:
+      return FreedesktopSecretKeyProvider::ErrorDetail::kNoResponse;
+    case dbus_utils::CallMethodErrorStatus::kInvalidResponseFormat:
+      return FreedesktopSecretKeyProvider::ErrorDetail::kInvalidReplyFormat;
+    case dbus_utils::CallMethodErrorStatus::kExtraDataInResponse:
+      return FreedesktopSecretKeyProvider::ErrorDetail::kExtraDataInResponse;
+    case dbus_utils::CallMethodErrorStatus::kErrorResponse:
+      return FreedesktopSecretKeyProvider::ErrorDetail::kErrorResponse;
+  }
+  NOTREACHED();
+}
+
+const char* InitStatusToString(
+    FreedesktopSecretKeyProvider::InitStatus status) {
+  switch (status) {
+    case FreedesktopSecretKeyProvider::InitStatus::kSuccess:
+      return "Success";
+    case FreedesktopSecretKeyProvider::InitStatus::kCreateCollectionFailed:
+      return "CreateCollectionFailed";
+    case FreedesktopSecretKeyProvider::InitStatus::kCreateItemFailed:
+      return "CreateItemFailed";
+    case FreedesktopSecretKeyProvider::InitStatus::kEmptySecret:
+      return "EmptySecret";
+    case FreedesktopSecretKeyProvider::InitStatus::kGetSecretFailed:
+      return "GetSecretFailed";
+    case FreedesktopSecretKeyProvider::InitStatus::kGnomeKeyringDeadlock:
+      return "GnomeKeyringDeadlock";
+    case FreedesktopSecretKeyProvider::InitStatus::kNoService:
+      return "NoService";
+    case FreedesktopSecretKeyProvider::InitStatus::kReadAliasFailed:
+      return "ReadAliasFailed";
+    case FreedesktopSecretKeyProvider::InitStatus::kSearchItemsFailed:
+      return "SearchItemsFailed";
+    case FreedesktopSecretKeyProvider::InitStatus::kSessionFailure:
+      return "SessionFailure";
+    case FreedesktopSecretKeyProvider::InitStatus::kUnlockFailed:
+      return "UnlockFailed";
+    case FreedesktopSecretKeyProvider::InitStatus::kDisabled:
+      return "Disabled";
+    case FreedesktopSecretKeyProvider::InitStatus::kKWalletNoService:
+      return "KWalletNoService";
+    case FreedesktopSecretKeyProvider::InitStatus::kKWalletDisabled:
+      return "KWalletDisabled";
+    case FreedesktopSecretKeyProvider::InitStatus::kKWalletNoNetworkWallet:
+      return "KWalletNoNetworkWallet";
+    case FreedesktopSecretKeyProvider::InitStatus::kKWalletOpenFailed:
+      return "KWalletOpenFailed";
+    case FreedesktopSecretKeyProvider::InitStatus::kKWalletNoSecret:
+      return "KWalletNoSecret";
+    case FreedesktopSecretKeyProvider::InitStatus::kKWalletFolderCheckFailed:
+      return "KWalletFolderCheckFailed";
+    case FreedesktopSecretKeyProvider::InitStatus::kKWalletFolderCreationFailed:
+      return "KWalletFolderCreationFailed";
+    case FreedesktopSecretKeyProvider::InitStatus::kKWalletEntryCheckFailed:
+      return "KWalletEntryCheckFailed";
+    case FreedesktopSecretKeyProvider::InitStatus::kKWalletReadFailed:
+      return "KWalletReadFailed";
+    case FreedesktopSecretKeyProvider::InitStatus::kKWalletWriteFailed:
+      return "KWalletWriteFailed";
+  }
+  NOTREACHED();
+}
 
 }  // namespace
 
@@ -53,7 +122,8 @@ template <typename T>
 class FreedesktopSecretKeyProvider::Prompter
     : public base::RefCountedThreadSafe<Prompter<T>> {
  public:
-  using PromptCallback = base::OnceCallback<void(std::optional<T>)>;
+  using PromptCallback = base::OnceCallback<void(
+      base::expected<T, FreedesktopSecretKeyProvider::ErrorDetail>)>;
 
   template <dbus_utils::SignatureLiteral ArgsSig,
             dbus_utils::SignatureLiteral RetsSig,
@@ -79,13 +149,16 @@ class FreedesktopSecretKeyProvider::Prompter
 
  private:
   friend class base::RefCountedThreadSafe<Prompter<T>>;
+  using ErrorDetail = FreedesktopSecretKeyProvider::ErrorDetail;
 
-  ~Prompter() { Finish(std::nullopt); }
+  ~Prompter() {
+    Finish(base::unexpected(ErrorDetail::kDestructedBeforeComplete));
+  }
 
   void OnReply(base::expected<std::tuple<T, dbus::ObjectPath>,
                               dbus_utils::CallMethodError> reply) {
     if (!reply.has_value()) {
-      Finish(std::nullopt);
+      Finish(base::unexpected(DbusErrorToErrorDetail(reply.error())));
       return;
     }
     auto& [value, prompt] = reply.value();
@@ -114,7 +187,7 @@ class FreedesktopSecretKeyProvider::Prompter
   void OnPromptResponse(dbus_utils::CallMethodResult<> response) {
     if (!response.has_value()) {
       LOG(ERROR) << "Prompt call returned no response.";
-      Finish(std::nullopt);
+      Finish(base::unexpected(DbusErrorToErrorDetail(response.error())));
     }
   }
 
@@ -123,7 +196,7 @@ class FreedesktopSecretKeyProvider::Prompter
                          bool connected) {
     if (!connected) {
       LOG(ERROR) << "Failed to connect to Prompt.Completed signal.";
-      Finish(std::nullopt);
+      Finish(base::unexpected(ErrorDetail::kPromptFailedSignalConnection));
     }
   }
 
@@ -131,28 +204,28 @@ class FreedesktopSecretKeyProvider::Prompter
       dbus_utils::ConnectToSignalResultSig<"bv"> result) {
     if (!result.has_value()) {
       LOG(ERROR) << "Failed to read Prompt.Completed signal args.";
-      Finish(std::nullopt);
+      Finish(base::unexpected(ErrorDetail::kInvalidSignalFormat));
       return;
     }
 
     auto& [dismissed, variant] = result.value();
 
     if (dismissed) {
-      Finish(std::nullopt);
+      Finish(base::unexpected(ErrorDetail::kPromptDismissed));
       return;
     }
 
     auto value = std::move(variant).Take<T>();
     if (!value) {
       LOG(ERROR) << "Failed to parse prompt result.";
-      Finish(std::nullopt);
+      Finish(base::unexpected(ErrorDetail::kInvalidVariantFormat));
       return;
     }
 
-    Finish(std::move(*value));
+    Finish(base::ok(std::move(*value)));
   }
 
-  void Finish(std::optional<T> result) {
+  void Finish(base::expected<T, ErrorDetail> result) {
     if (!prompt_path_.value().empty()) {
       bus_->RemoveObjectProxy(FreedesktopSecretKeyProvider::kSecretServiceName,
                               prompt_path_, base::DoNothing());
@@ -205,7 +278,7 @@ void FreedesktopSecretKeyProvider::GetKey(KeyCallback callback) {
 
   if (password_store_ == "basic") {
     // Use PosixKeyProvider.
-    FinalizeFailure(InitStatus::kDisabled);
+    FinalizeFailure(InitStatus::kDisabled, ErrorDetail::kNone);
   } else if (password_store_ == "gnome-libsecret") {
     InitializeFreedesktopSecretService();
   } else if (password_store_ == "kwallet") {
@@ -261,7 +334,7 @@ void FreedesktopSecretKeyProvider::OnServiceStarted(
     std::optional<bool> service_started) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   if (!service_started.value_or(false)) {
-    FinalizeFailure(InitStatus::kNoService);
+    FinalizeFailure(InitStatus::kNoService, ErrorDetail::kNone);
     return;
   }
 
@@ -278,7 +351,8 @@ void FreedesktopSecretKeyProvider::OnReadAliasDefault(
     dbus_utils::CallMethodResultSig<"o"> collection_path_result) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   if (!collection_path_result.has_value()) {
-    FinalizeFailure(InitStatus::kReadAliasFailed);
+    FinalizeFailure(InitStatus::kReadAliasFailed,
+                    DbusErrorToErrorDetail(collection_path_result.error()));
     return;
   }
 
@@ -313,7 +387,8 @@ void FreedesktopSecretKeyProvider::OnGetCollectionLabelResponse(
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   if (!variant_result.has_value()) {
     LOG(ERROR) << "Get(Label) failed.";
-    FinalizeFailure(InitStatus::kGnomeKeyringDeadlock);
+    FinalizeFailure(InitStatus::kGnomeKeyringDeadlock,
+                    DbusErrorToErrorDetail(variant_result.error()));
     return;
   }
 
@@ -321,7 +396,8 @@ void FreedesktopSecretKeyProvider::OnGetCollectionLabelResponse(
       std::move(std::get<0>(variant_result.value())).Take<std::string>();
   if (!label_variant) {
     LOG(ERROR) << "Label property missing or invalid.";
-    FinalizeFailure(InitStatus::kGnomeKeyringDeadlock);
+    FinalizeFailure(InitStatus::kGnomeKeyringDeadlock,
+                    ErrorDetail::kInvalidVariantFormat);
     return;
   }
 
@@ -330,11 +406,16 @@ void FreedesktopSecretKeyProvider::OnGetCollectionLabelResponse(
 }
 
 void FreedesktopSecretKeyProvider::OnCreateCollection(
-    std::optional<dbus::ObjectPath> create_collection_reply) {
+    base::expected<dbus::ObjectPath, ErrorDetail> create_collection_reply) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  if (!create_collection_reply.has_value() ||
-      create_collection_reply->value() == "/") {
-    FinalizeFailure(InitStatus::kCreateCollectionFailed);
+  if (!create_collection_reply.has_value()) {
+    FinalizeFailure(InitStatus::kCreateCollectionFailed,
+                    create_collection_reply.error());
+    return;
+  }
+  if (create_collection_reply->value() == "/") {
+    FinalizeFailure(InitStatus::kCreateCollectionFailed,
+                    ErrorDetail::kEmptyObjectPaths);
     return;
   }
   default_collection_proxy_ =
@@ -356,10 +437,15 @@ void FreedesktopSecretKeyProvider::UnlockDefaultCollection() {
 }
 
 void FreedesktopSecretKeyProvider::OnUnlock(
-    std::optional<std::vector<dbus::ObjectPath>> unlocked_collection) {
+    base::expected<std::vector<dbus::ObjectPath>, ErrorDetail>
+        unlocked_collection) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  if (!unlocked_collection.has_value() || unlocked_collection->empty()) {
-    FinalizeFailure(InitStatus::kUnlockFailed);
+  if (!unlocked_collection.has_value()) {
+    FinalizeFailure(InitStatus::kUnlockFailed, unlocked_collection.error());
+    return;
+  }
+  if (unlocked_collection->empty()) {
+    FinalizeFailure(InitStatus::kUnlockFailed, ErrorDetail::kEmptyObjectPaths);
     return;
   }
   // Unlocked now
@@ -380,7 +466,8 @@ void FreedesktopSecretKeyProvider::OnOpenSession(
     dbus_utils::CallMethodResultSig<"vo"> session_reply) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   if (!session_reply.has_value()) {
-    FinalizeFailure(InitStatus::kSessionFailure);
+    FinalizeFailure(InitStatus::kSessionFailure,
+                    DbusErrorToErrorDetail(session_reply.error()));
     return;
   }
   const auto& [_, result] = session_reply.value();
@@ -401,7 +488,8 @@ void FreedesktopSecretKeyProvider::OnSearchItems(
     dbus_utils::CallMethodResultSig<"ao"> results) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   if (!results.has_value()) {
-    FinalizeFailure(InitStatus::kSearchItemsFailed);
+    FinalizeFailure(InitStatus::kSearchItemsFailed,
+                    DbusErrorToErrorDetail(results.error()));
     return;
   }
 
@@ -426,10 +514,14 @@ void FreedesktopSecretKeyProvider::OnSearchItems(
 
 void FreedesktopSecretKeyProvider::OnUnlockItems(
     const dbus::ObjectPath& item_path,
-    std::optional<std::vector<dbus::ObjectPath>> unlocked_items) {
+    base::expected<std::vector<dbus::ObjectPath>, ErrorDetail> unlocked_items) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  if (!unlocked_items.has_value() || unlocked_items->empty()) {
-    FinalizeFailure(InitStatus::kUnlockFailed);
+  if (!unlocked_items.has_value()) {
+    FinalizeFailure(InitStatus::kUnlockFailed, unlocked_items.error());
+    return;
+  }
+  if (unlocked_items->empty()) {
+    FinalizeFailure(InitStatus::kUnlockFailed, ErrorDetail::kEmptyObjectPaths);
     return;
   }
 
@@ -448,7 +540,8 @@ void FreedesktopSecretKeyProvider::OnGetSecrets(
     dbus_utils::CallMethodResultSig<"a{o(oayays)}"> secrets_reply) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   if (!secrets_reply.has_value()) {
-    FinalizeFailure(InitStatus::kGetSecretFailed);
+    FinalizeFailure(InitStatus::kGetSecretFailed,
+                    DbusErrorToErrorDetail(secrets_reply.error()));
     return;
   }
 
@@ -456,7 +549,7 @@ void FreedesktopSecretKeyProvider::OnGetSecrets(
   auto it = secrets_map.find(expected_item_path);
   if (it == secrets_map.end()) {
     LOG(ERROR) << "GetSecrets reply did not contain the expected item.";
-    FinalizeFailure(InitStatus::kGetSecretFailed);
+    FinalizeFailure(InitStatus::kGetSecretFailed, ErrorDetail::kNone);
     return;
   }
 
@@ -464,7 +557,7 @@ void FreedesktopSecretKeyProvider::OnGetSecrets(
 
   if (value.empty()) {
     LOG(ERROR) << "GetSecrets returned an empty secret.";
-    FinalizeFailure(InitStatus::kEmptySecret);
+    FinalizeFailure(InitStatus::kEmptySecret, ErrorDetail::kNone);
     return;
   }
 
@@ -486,7 +579,7 @@ void FreedesktopSecretKeyProvider::OnKWalletServiceStarted(
     std::optional<bool> service_started) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   if (!service_started.value_or(false)) {
-    FinalizeFailure(InitStatus::kKWalletNoService);
+    FinalizeFailure(InitStatus::kKWalletNoService, ErrorDetail::kNone);
     return;
   }
 
@@ -500,7 +593,10 @@ void FreedesktopSecretKeyProvider::OnKWalletIsEnabled(
     dbus_utils::CallMethodResultSig<"b"> is_enabled) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   if (!is_enabled.has_value() || !std::get<0>(is_enabled.value())) {
-    FinalizeFailure(InitStatus::kKWalletDisabled);
+    FinalizeFailure(InitStatus::kKWalletDisabled,
+                    is_enabled.has_value()
+                        ? ErrorDetail::kNone
+                        : DbusErrorToErrorDetail(is_enabled.error()));
     return;
   }
   dbus_utils::CallMethod<"", "s">(
@@ -513,7 +609,8 @@ void FreedesktopSecretKeyProvider::OnKWalletNetworkWallet(
     dbus_utils::CallMethodResultSig<"s"> wallet_name) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   if (!wallet_name.has_value()) {
-    FinalizeFailure(InitStatus::kKWalletNoNetworkWallet);
+    FinalizeFailure(InitStatus::kKWalletNoNetworkWallet,
+                    DbusErrorToErrorDetail(wallet_name.error()));
     return;
   }
 
@@ -539,7 +636,8 @@ void FreedesktopSecretKeyProvider::OnKWalletOpenAsync(
     dbus_utils::CallMethodResultSig<"i"> t_id) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   if (!t_id.has_value()) {
-    FinalizeFailure(InitStatus::kKWalletOpenFailed);
+    FinalizeFailure(InitStatus::kKWalletOpenFailed,
+                    DbusErrorToErrorDetail(t_id.error()));
     return;
   }
 
@@ -553,7 +651,8 @@ void FreedesktopSecretKeyProvider::OnSignalConnected(
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   if (!connected) {
     LOG(ERROR) << "Failed to connect to " << signal_name << " signal.";
-    FinalizeFailure(InitStatus::kKWalletOpenFailed);
+    FinalizeFailure(InitStatus::kKWalletOpenFailed,
+                    ErrorDetail::kPromptFailedSignalConnection);
   }
 }
 
@@ -567,7 +666,8 @@ void FreedesktopSecretKeyProvider::OnKWalletWalletAsyncOpened(
 
   if (!result.has_value()) {
     LOG(ERROR) << "Failed to read walletAsyncOpened signal args.";
-    FinalizeFailure(InitStatus::kKWalletOpenFailed);
+    FinalizeFailure(InitStatus::kKWalletOpenFailed,
+                    ErrorDetail::kInvalidSignalFormat);
     return;
   }
 
@@ -588,7 +688,8 @@ void FreedesktopSecretKeyProvider::OnKWalletOpen(int32_t handle) {
 
   kwallet_handle_ = handle;
   if (kwallet_handle_ == kKWalletInvalidHandle) {
-    FinalizeFailure(InitStatus::kKWalletOpenFailed);
+    FinalizeFailure(InitStatus::kKWalletOpenFailed,
+                    ErrorDetail::kKWalletApiReturnedError);
     return;
   }
 
@@ -603,7 +704,8 @@ void FreedesktopSecretKeyProvider::OnKWalletHasFolder(
     dbus_utils::CallMethodResultSig<"b"> has_folder) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   if (!has_folder.has_value()) {
-    FinalizeFailure(InitStatus::kKWalletFolderCheckFailed);
+    FinalizeFailure(InitStatus::kKWalletFolderCheckFailed,
+                    DbusErrorToErrorDetail(has_folder.error()));
     return;
   }
 
@@ -625,8 +727,14 @@ void FreedesktopSecretKeyProvider::OnKWalletHasFolder(
 void FreedesktopSecretKeyProvider::OnKWalletCreateFolder(
     dbus_utils::CallMethodResultSig<"b"> success) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  if (!success.has_value() || !std::get<0>(success.value())) {
-    FinalizeFailure(InitStatus::kKWalletFolderCreationFailed);
+  if (!success.has_value()) {
+    FinalizeFailure(InitStatus::kKWalletFolderCreationFailed,
+                    DbusErrorToErrorDetail(success.error()));
+    return;
+  }
+  if (!std::get<0>(success.value())) {
+    FinalizeFailure(InitStatus::kKWalletFolderCreationFailed,
+                    ErrorDetail::kKWalletApiReturnedFalse);
     return;
   }
   GenerateAndWriteKWalletPassword();
@@ -636,7 +744,8 @@ void FreedesktopSecretKeyProvider::OnKWalletHasEntry(
     dbus_utils::CallMethodResultSig<"b"> has_entry) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   if (!has_entry.has_value()) {
-    FinalizeFailure(InitStatus::kKWalletEntryCheckFailed);
+    FinalizeFailure(InitStatus::kKWalletEntryCheckFailed,
+                    DbusErrorToErrorDetail(has_entry.error()));
     return;
   }
 
@@ -656,7 +765,8 @@ void FreedesktopSecretKeyProvider::OnKWalletReadPassword(
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
   if (!secret_reply.has_value()) {
-    FinalizeFailure(InitStatus::kKWalletReadFailed);
+    FinalizeFailure(InitStatus::kKWalletReadFailed,
+                    DbusErrorToErrorDetail(secret_reply.error()));
     return;
   }
 
@@ -689,14 +799,16 @@ void FreedesktopSecretKeyProvider::OnKWalletWritePassword(
     dbus_utils::CallMethodResultSig<"i"> return_code) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   if (!return_code.has_value()) {
-    FinalizeFailure(InitStatus::kKWalletWriteFailed);
+    FinalizeFailure(InitStatus::kKWalletWriteFailed,
+                    DbusErrorToErrorDetail(return_code.error()));
     return;
   }
 
   int32_t kwallet_code = std::get<0>(return_code.value());
   if (kwallet_code != 0) {
     LOG(ERROR) << "KWallet writePassword failed with code: " << kwallet_code;
-    FinalizeFailure(InitStatus::kKWalletWriteFailed);
+    FinalizeFailure(InitStatus::kKWalletWriteFailed,
+                    ErrorDetail::kKWalletApiReturnedError);
     return;
   }
 
@@ -731,10 +843,15 @@ void FreedesktopSecretKeyProvider::CreateItem(
 
 void FreedesktopSecretKeyProvider::OnCreateItem(
     scoped_refptr<base::RefCountedMemory> secret,
-    std::optional<dbus::ObjectPath> created_item) {
+    base::expected<dbus::ObjectPath, ErrorDetail> created_item) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  if (!created_item.has_value() || created_item->value().empty()) {
-    FinalizeFailure(InitStatus::kCreateItemFailed);
+  if (!created_item.has_value()) {
+    FinalizeFailure(InitStatus::kCreateItemFailed, created_item.error());
+    return;
+  }
+  if (created_item->value().empty()) {
+    FinalizeFailure(InitStatus::kCreateItemFailed,
+                    ErrorDetail::kEmptyObjectPaths);
     return;
   }
   DeriveKeyFromSecret(*secret);
@@ -754,21 +871,36 @@ void FreedesktopSecretKeyProvider::DeriveKeyFromSecret(
 
 void FreedesktopSecretKeyProvider::FinalizeSuccess(Encryptor::Key key) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  base::UmaHistogramEnumeration(kUmaInitStatus, InitStatus::kSuccess);
+  RecordInitStatus(InitStatus::kSuccess, ErrorDetail::kNone);
   std::move(key_callback_).Run(kEncryptionTag, std::move(key));
   CloseSession();
 }
 
-void FreedesktopSecretKeyProvider::FinalizeFailure(InitStatus status) {
+void FreedesktopSecretKeyProvider::FinalizeFailure(InitStatus status,
+                                                   ErrorDetail detail) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   if (!key_callback_) {
     return;
   }
-  base::UmaHistogramEnumeration(kUmaInitStatus, status);
+  RecordInitStatus(status, detail);
   std::move(key_callback_)
       .Run(kEncryptionTag,
            base::unexpected(KeyProvider::KeyError::kPermanentlyUnavailable));
   CloseSession();
+}
+
+void FreedesktopSecretKeyProvider::RecordInitStatus(InitStatus status,
+                                                    ErrorDetail detail) {
+  // Log the high-level InitStatus.
+  base::UmaHistogramEnumeration(kUmaInitStatus, status);
+
+  // If there was an error, also log the error detail.
+  if (status != InitStatus::kSuccess) {
+    auto histogram_name = base::ReplaceStringPlaceholders(
+        kUmaErrorDetail, std::vector<std::string>{InitStatusToString(status)},
+        nullptr);
+    base::UmaHistogramEnumeration(histogram_name, detail);
+  }
 }
 
 void FreedesktopSecretKeyProvider::CloseSession() {

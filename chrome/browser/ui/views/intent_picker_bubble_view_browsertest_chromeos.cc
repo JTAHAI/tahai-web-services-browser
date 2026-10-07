@@ -24,6 +24,7 @@
 #include "chrome/browser/ash/arc/arc_util.h"
 #include "chrome/browser/ash/arc/session/arc_session_manager.h"
 #include "chrome/browser/ui/actions/chrome_action_id.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
@@ -57,7 +58,6 @@
 #include "components/services/app_service/public/cpp/intent_filter_util.h"
 #include "components/services/app_service/public/cpp/intent_test_util.h"
 #include "components/services/app_service/public/cpp/intent_util.h"
-#include "components/tabs/public/tab_interface.h"
 #include "content/public/test/browser_test.h"
 #include "content/public/test/browser_test_utils.h"
 #include "content/public/test/test_navigation_observer.h"
@@ -80,6 +80,7 @@
 namespace {
 
 const char kTestAppActivity[] = "abcdefg";
+
 
 class FakeIconLoader : public apps::IconLoader {
  public:
@@ -342,14 +343,13 @@ class IntentPickerBubbleViewBrowserTestChromeOSBase
   }
 
   content::WebContents* GetWebContents() {
-    return browser()->GetTabStripModel()->GetActiveWebContents();
+    return browser()->tab_strip_model()->GetActiveWebContents();
   }
 
   template <typename Action>
   void DoAndWaitForIntentPickerIconUpdate(Action action) {
     base::RunLoop run_loop;
-    auto* tab_helper = IntentPickerTabHelper::From(
-        tabs::TabInterface::GetFromContents(GetWebContents()));
+    auto* tab_helper = IntentPickerTabHelper::FromWebContents(GetWebContents());
     tab_helper->SetIconUpdateCallbackForTesting(run_loop.QuitClosure());
     action();
     run_loop.Run();
@@ -374,7 +374,15 @@ class IntentPickerBubbleViewBrowserTestChromeOSBase
 };
 
 class IntentPickerBubbleViewBrowserTestChromeOS
-    : public IntentPickerBubbleViewBrowserTestChromeOSBase {};
+    : public IntentPickerBubbleViewBrowserTestChromeOSBase {
+ public:
+  IntentPickerBubbleViewBrowserTestChromeOS() {
+    feature_list_.InitAndEnableFeature(features::kPageActionsMigration);
+  }
+
+ private:
+  base::test::ScopedFeatureList feature_list_;
+};
 
 // Test that the intent picker bubble will show for ARC apps.
 //
@@ -725,6 +733,7 @@ class IntentPickerBubbleViewBrowserTestChromeOSParameterized
     std::vector<base::test::FeatureRefAndParams> features_to_enable =
         apps::test::GetFeaturesToEnableLinkCapturingUX(GetParam());
     std::vector<base::test::FeatureRef> features_to_disable;
+    features_to_enable.push_back({features::kPageActionsMigration, {}});
     feature_list_.InitWithFeaturesAndParameters(features_to_enable,
                                                 features_to_disable);
   }

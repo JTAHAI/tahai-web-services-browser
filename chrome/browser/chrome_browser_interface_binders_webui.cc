@@ -17,8 +17,6 @@
 #include "chrome/browser/ui/webui/chrome_finds_internals/chrome_finds_internals_ui.h"
 #include "chrome/browser/ui/webui/chrome_urls/chrome_urls_ui.h"
 #include "chrome/browser/ui/webui/connectors_internals/connectors_internals_ui.h"
-#include "chrome/browser/ui/webui/content_settings/content_settings_internals.mojom.h"
-#include "chrome/browser/ui/webui/content_settings/content_settings_ui.h"
 #include "chrome/browser/ui/webui/context_hub/context_hub.mojom.h"
 #include "chrome/browser/ui/webui/context_hub/context_hub_ui.h"
 #include "chrome/browser/ui/webui/data_sharing_internals/data_sharing_internals_ui.h"
@@ -29,11 +27,11 @@
 #include "chrome/browser/ui/webui/omnibox/aim_eligibility/aim_eligibility.mojom.h"
 #include "chrome/browser/ui/webui/omnibox/omnibox_internals.mojom.h"
 #include "chrome/browser/ui/webui/omnibox/omnibox_ui.h"
+#include "chrome/browser/ui/webui/personal_context_internals/personal_context_internals.mojom.h"
+#include "chrome/browser/ui/webui/personal_context_internals/personal_context_internals_ui.h"
 #include "chrome/browser/ui/webui/policy/policy_ui.h"
 #include "chrome/browser/ui/webui/segmentation_internals/segmentation_internals_ui.h"
 #include "chrome/browser/ui/webui/subresource_filter/subresource_filter_internals_ui.h"
-#include "chrome/browser/ui/webui/suggest_internals/suggest_internals.mojom.h"
-#include "chrome/browser/ui/webui/suggest_internals/suggest_internals_ui.h"
 #include "chrome/browser/ui/webui/usb_internals/usb_internals.mojom.h"
 #include "chrome/browser/ui/webui/usb_internals/usb_internals_ui.h"
 #include "chrome/common/webui_url_constants.h"
@@ -61,7 +59,6 @@
 #include "chrome/browser/ui/webui/omnibox_popup/mojom/omnibox_popup.mojom.h"
 #include "chrome/browser/ui/webui/omnibox_popup/mojom/omnibox_popup_aim.mojom.h"
 #include "chrome/browser/ui/webui/omnibox_popup/omnibox_popup_ui.h"
-#include "chrome/browser/ui/webui/omnibox_everywhere/omnibox_everywhere_ui.h"
 #include "chrome/browser/ui/webui/password_manager/password_manager_ui.h"
 #include "chrome/browser/ui/webui/side_panel/customize_chrome/customize_chrome_ui.h"
 #include "chrome/browser/ui/webui/side_panel/reading_list/reading_list_ui.h"
@@ -159,7 +156,6 @@ void BindTrackedElementHandlerRestricted(
       controller->GetAs<CustomizeChromeUI>() ||
       controller->GetAs<PasswordManagerUI>() ||
       controller->GetAs<HistoryUI>() ||
-      controller->GetAs<OmniboxEverywhereUI>() ||
 #if !BUILDFLAG(IS_CHROMEOS)
       controller->GetAs<ProfilePickerUI>() ||
 #endif  // !BUILDFLAG(IS_CHROMEOS)
@@ -264,27 +260,18 @@ void PopulateChromeWebUIFrameBindersPartsAllPlatforms(
       subresource_filter::mojom::SubresourceFilterInternalsHandler,
       subresource_filter::SubresourceFilterInternalsUI>(map);
 
-  RegisterWebUIControllerInterfaceBinder<suggest_internals::mojom::PageHandler,
-                                         SuggestInternalsUI>(map);
-
   RegisterWebUIControllerInterfaceBinder<
       browser::context_hub::mojom::PageHandlerFactory, ContextHubUI>(map);
 
   RegisterWebUIControllerInterfaceBinder<
-      content_settings_internals::mojom::PageHandlerFactory,
-      content_settings_internals::ContentSettingsUI>(map);
+      browser::personal_context_internals::mojom::PageHandlerFactory,
+      PersonalContextInternalsUI>(map);
 
 #if BUILDFLAG(ENABLE_WEBUI_NTP)
   content::RegisterWebUIControllerInterfaceBinder<
       new_tab_page::mojom::PageHandlerFactory, NewTabPageUI>(map);
-#if BUILDFLAG(IS_ANDROID)
   content::RegisterWebUIControllerInterfaceBinder<
       most_visited::mojom::MostVisitedPageHandlerFactory, NewTabPageUI>(map);
-#else
-  content::RegisterWebUIControllerInterfaceBinder<
-      most_visited::mojom::MostVisitedPageHandlerFactory, NewTabPageUI,
-      OmniboxEverywhereUI>(map);
-#endif  // BUILDFLAG(IS_ANDROID)
   content::RegisterWebUIControllerInterfaceBinder<
       customize_buttons::mojom::CustomizeButtonsHandlerFactory, NewTabPageUI>(
       map);

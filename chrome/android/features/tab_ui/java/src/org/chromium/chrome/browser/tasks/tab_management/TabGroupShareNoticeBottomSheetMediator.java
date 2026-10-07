@@ -11,6 +11,7 @@ import org.chromium.chrome.browser.tasks.tab_management.TabGroupShareNoticeBotto
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController.StateChangeReason;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetObserver;
+import org.chromium.components.browser_ui.bottomsheet.EmptyBottomSheetObserver;
 import org.chromium.ui.modelutil.PropertyModel;
 
 /**
@@ -24,7 +25,7 @@ public class TabGroupShareNoticeBottomSheetMediator {
     private final PropertyModel mModel;
 
     private final BottomSheetObserver mBottomSheetObserver =
-            new BottomSheetObserver() {
+            new EmptyBottomSheetObserver() {
                 @Override
                 public void onSheetClosed(@StateChangeReason int reason) {
                     mBottomSheetController.removeObserver(mBottomSheetObserver);

@@ -3,7 +3,6 @@
 // found in the LICENSE file.
 
 #include "partition_alloc/build_config.h"
-#include "partition_alloc/buildflags.h"
 #include "partition_alloc/partition_alloc_base/cpu.h"
 #include "testing/gtest/include/gtest/gtest.h"
 

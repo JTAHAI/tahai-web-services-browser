@@ -250,7 +250,7 @@ bool GeometryMapper::LocalToAncestorVisualRectInternal(
     return true;
   }
 
-  if (!flags.Has(VisualRectFlag::kIgnoreFilters) &&
+  if (!(flags & kIgnoreFilters) &&
       &local_state.Clip() != &ancestor_state.Clip() &&
       local_state.Clip().NearestPixelMovingFilterClip() !=
           ancestor_state.Clip().NearestPixelMovingFilterClip()) {
@@ -293,7 +293,7 @@ bool GeometryMapper::LocalToAncestorVisualRectInternal(
     rect_to_map.Map(projection);
   }
 
-  if (flags.Has(VisualRectFlag::kSkipAncestorAndViewportClips)) {
+  if (flags & VisualRectFlags::kSkipAncestorAndViewportClips) {
     return true;
   }
 
@@ -303,7 +303,7 @@ bool GeometryMapper::LocalToAncestorVisualRectInternal(
           clip_behavior, flags);
   // This is where we propagate the roundedness and tightness of |clip_rect|
   // to |rect_to_map|.
-  if (flags.Has(VisualRectFlag::kEdgeInclusive)) {
+  if (flags & kEdgeInclusive) {
     return rect_to_map.InclusiveIntersect(clip_rect);
   }
   rect_to_map.Intersect(clip_rect);
@@ -317,7 +317,7 @@ bool GeometryMapper::SlowLocalToAncestorVisualRectWithPixelMovingFilters(
     FloatClipRect& rect_to_map,
     OverlayScrollbarClipBehavior clip_behavior,
     VisualRectFlags flags) {
-  DCHECK(!flags.Has(VisualRectFlag::kIgnoreFilters));
+  DCHECK(!(flags & kIgnoreFilters));
 
   PropertyTreeState last_state = local_state;
   last_state.SetEffect(ancestor_state.Effect());
@@ -421,9 +421,8 @@ FloatClipRect GeometryMapper::LocalToAncestorClipRectInternal(
   if (descendant_clip.UnaliasedParent() == &ancestor_clip &&
       &descendant_clip.LocalTransformSpace() == &ancestor_transform) {
     return GetClipRect(descendant_clip, clip_behavior,
-                       flags.Has(VisualRectFlag::kUsePreciseClipPath)
-                           ? ClipRectType::kPrecise
-                           : ClipRectType::kPaint);
+                       (flags & kUsePreciseClipPath) ? ClipRectType::kPrecise
+                                                     : ClipRectType::kPaint);
   }
 
   FloatClipRect clip;
@@ -441,8 +440,8 @@ FloatClipRect GeometryMapper::LocalToAncestorClipRectInternal(
     const GeometryMapperClipCache::ClipCacheEntry* cached_clip = nullptr;
     // Inclusive intersected clips are not cached at present.
     // Precise clips for cc clip path animations are also not cached.
-    if (!flags.Has(VisualRectFlag::kEdgeInclusive) &&
-        !(flags.Has(VisualRectFlag::kUsePreciseClipPath) &&
+    if (!(flags & kEdgeInclusive) &&
+        !((flags & kUsePreciseClipPath) &&
           clip_node->IsForCompositeClipPathAnimation())) {
       cached_clip = clip_node->GetClipCache().GetCachedClip(clip_and_transform);
     }
@@ -486,18 +485,18 @@ FloatClipRect GeometryMapper::LocalToAncestorClipRectInternal(
 
     // This is where we generate the roundedness and tightness of clip rect
     // from clip and transform properties, and propagate them to |clip|.
-    FloatClipRect mapped_rect(GetClipRect(
-        *node, clip_behavior,
-        flags.Has(VisualRectFlag::kUsePreciseClipPath) ? ClipRectType::kPrecise
-                                                       : ClipRectType::kPaint));
+    FloatClipRect mapped_rect(GetClipRect(*node, clip_behavior,
+                                          (flags & kUsePreciseClipPath)
+                                              ? ClipRectType::kPrecise
+                                              : ClipRectType::kPaint));
     mapped_rect.Map(projection);
-    if (flags.Has(VisualRectFlag::kEdgeInclusive)) {
+    if (flags & kEdgeInclusive) {
       clip.InclusiveIntersect(mapped_rect);
     } else {
       clip.Intersect(mapped_rect);
       // Inclusive intersected clips are not cached at present.
       // Neither are precise clips for cc clip path animations
-      if (!(flags.Has(VisualRectFlag::kUsePreciseClipPath) &&
+      if (!((flags & kUsePreciseClipPath) &&
             node->IsForCompositeClipPathAnimation())) {
         node->GetClipCache().SetCachedClip(
             GeometryMapperClipCache::ClipCacheEntry{
@@ -508,8 +507,8 @@ FloatClipRect GeometryMapper::LocalToAncestorClipRectInternal(
   }
   // Clips that are inclusive intersected or expanded for animation are not
   // cached at present.
-  DCHECK(flags.Has(VisualRectFlag::kEdgeInclusive) ||
-         (flags.Has(VisualRectFlag::kUsePreciseClipPath) &&
+  DCHECK(flags & kEdgeInclusive ||
+         ((flags & kUsePreciseClipPath) &&
           descendant_clip.IsForCompositeClipPathAnimation()) ||
          for_compositing_overlap == ForCompositingOverlap::kYes ||
          descendant_clip.GetClipCache()

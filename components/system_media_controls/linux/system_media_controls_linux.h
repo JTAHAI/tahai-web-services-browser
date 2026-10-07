@@ -82,7 +82,6 @@ class COMPONENT_EXPORT(SYSTEM_MEDIA_CONTROLS) SystemMediaControlsLinux
   void SetAlbum(const std::u16string& value) override;
   void SetThumbnail(const SkBitmap& bitmap) override;
   void SetPosition(const media_session::MediaPosition& position) override;
-  void ClearPosition() override;
   void ClearThumbnail() override {}
   void ClearMetadata() override;
   void UpdateDisplay() override {}
@@ -143,6 +142,8 @@ class COMPONENT_EXPORT(SYSTEM_MEDIA_CONTROLS) SystemMediaControlsLinux
   void UpdateMetadata();
 
   void ClearTrackId();
+
+  void ClearPosition();
 
   // Updates MPRIS with our current position.
   void UpdatePosition(bool emit_signal);

@@ -74,7 +74,7 @@ NSAttributedString* AttributedSubstringFromRange(LocalFrame* frame,
   size_t length = range.EndPosition().ComputeOffsetInContainerNode() -
                   range.StartPosition().ComputeOffsetInContainerNode();
 
-  wtf_size_t position = 0;
+  unsigned position = 0;
 
   // TODO(editing-dev): The use of updateStyleAndLayout
   // needs to be audited.  see http://crbug.com/590369 for more details.
@@ -83,7 +83,7 @@ NSAttributedString* AttributedSubstringFromRange(LocalFrame* frame,
 
   for (TextIterator it(range.StartPosition(), range.EndPosition());
        !it.AtEnd() && [string length] < length; it.Advance()) {
-    wtf_size_t num_characters = it.length();
+    unsigned num_characters = it.length();
     if (!num_characters) {
       continue;
     }

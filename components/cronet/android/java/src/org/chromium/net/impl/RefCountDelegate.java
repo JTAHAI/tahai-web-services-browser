@@ -19,14 +19,14 @@ public final class RefCountDelegate {
     }
 
     public void increment() {
-        int updatedCount = mCount.incrementAndGet();
-        assert updatedCount > 1 : "increment() called on a RefCountDelegate with count < 1";
+        int updated_count = mCount.incrementAndGet();
+        assert updated_count > 1 : "increment() called on a RefCountDelegate with count < 1";
     }
 
     public void decrement() {
-        int updatedCount = mCount.decrementAndGet();
-        assert updatedCount >= 0 : "decrement() called on a RefCountDelegate with count < 1";
-        if (updatedCount == 0) {
+        int updated_count = mCount.decrementAndGet();
+        assert updated_count >= 0 : "decrement() called on a RefCountDelegate with count < 1";
+        if (updated_count == 0) {
             mDelegate.run();
         }
     }

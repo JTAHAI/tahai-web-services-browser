@@ -4,10 +4,8 @@
 
 #import "ios/chrome/browser/settings/ui_bundled/bwg/coordinator/gemini_settings_coordinator.h"
 
-#import "base/apple/foundation_util.h"
 #import "ios/chrome/browser/settings/ui_bundled/bwg/coordinator/gemini_settings_mediator.h"
 #import "ios/chrome/browser/settings/ui_bundled/bwg/ui/gemini_settings_view_controller.h"
-#import "ios/chrome/browser/settings/ui_bundled/settings_navigation_controller.h"
 #import "ios/chrome/browser/shared/model/browser/browser.h"
 #import "ios/chrome/browser/shared/model/profile/profile_ios.h"
 #import "ios/chrome/browser/shared/public/commands/command_dispatcher.h"
@@ -16,9 +14,6 @@
 #import "ios/chrome/browser/signin/model/authentication_service.h"
 #import "ios/chrome/browser/signin/model/authentication_service_factory.h"
 #import "ios/chrome/browser/signin/model/identity_manager_factory.h"
-
-@interface GeminiSettingsCoordinator () <GeminiSettingsDismissalDelegate>
-@end
 
 @implementation GeminiSettingsCoordinator {
   // View controller presented by this coordinator.
@@ -52,7 +47,6 @@
   _viewController = [[GeminiSettingsViewController alloc]
       initWithStyle:ChromeTableViewStyle()];
   _viewController.mutator = _mediator;
-  _viewController.geminiSettingsDismissalDelegate = self;
   _mediator.consumer = _viewController;
 
   [self.baseNavigationController pushViewController:_viewController
@@ -63,16 +57,6 @@
   [_mediator disconnect];
   _mediator = nil;
   _viewController = nil;
-}
-
-#pragma mark - GeminiSettingsDismissalDelegate
-
-- (void)settingsViewControllerDidRequestDismissal:
-    (UIViewController*)viewController {
-  SettingsNavigationController* settingsNav =
-      base::apple::ObjCCast<SettingsNavigationController>(
-          self.baseNavigationController);
-  [settingsNav closeSettings];
 }
 
 @end

@@ -17,7 +17,6 @@
 #include "chrome/browser/content_settings/host_content_settings_map_factory.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/web_applications/test/isolated_web_app_test_utils.h"
 #include "chrome/browser/ui/web_applications/test/web_app_browsertest_util.h"
@@ -1042,12 +1041,12 @@ IN_PROC_BROWSER_TEST_F(ChromeDirectSocketsTcpIsolatedWebAppTest,
   navigation_observer.StartWatchingNewWebContents();
   web_app::BrowserWaiter browser_waiter(nullptr);
   ASSERT_TRUE(content::ExecJs(app_frame, "window.open('/')"));
-  BrowserWindowInterface* popup = browser_waiter.AwaitAdded(FROM_HERE);
+  Browser* popup = browser_waiter.AwaitAdded(FROM_HERE);
   navigation_observer.WaitForNavigationFinished();
 
   ASSERT_NE(popup, nullptr);
   content::RenderFrameHost* popup_frame =
-      popup->GetTabStripModel()->GetActiveWebContents()->GetPrimaryMainFrame();
+      popup->tab_strip_model()->GetActiveWebContents()->GetPrimaryMainFrame();
 
   EXPECT_EQ(content::EvalJs(popup_frame, "window.opener !== null"), true);
   EXPECT_EQ(content::EvalJs(popup_frame, "typeof TCPSocket !== 'undefined'"),
@@ -1065,12 +1064,12 @@ IN_PROC_BROWSER_TEST_F(ChromeDirectSocketsTcpIsolatedWebAppTest,
   web_app::BrowserWaiter browser_waiter(nullptr);
   ASSERT_TRUE(
       content::ExecJs(app_frame, "window.open('/', '_blank', 'noopener')"));
-  BrowserWindowInterface* popup = browser_waiter.AwaitAdded(FROM_HERE);
+  Browser* popup = browser_waiter.AwaitAdded(FROM_HERE);
   navigation_observer.WaitForNavigationFinished();
 
   ASSERT_NE(popup, nullptr);
   content::RenderFrameHost* popup_frame =
-      popup->GetTabStripModel()->GetActiveWebContents()->GetPrimaryMainFrame();
+      popup->tab_strip_model()->GetActiveWebContents()->GetPrimaryMainFrame();
 
   EXPECT_EQ(content::EvalJs(popup_frame, "window.opener === null"), true);
   EXPECT_EQ(content::EvalJs(popup_frame, "typeof TCPSocket !== 'undefined'"),

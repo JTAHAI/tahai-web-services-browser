@@ -5,8 +5,6 @@
 #include "components/translate/core/language_detection/language_detection_model.h"
 
 #include "base/functional/callback.h"
-#include "base/i18n/language_tag.h"
-#include "base/i18n/tag_converters.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/metrics/histogram_macros.h"
 #include "base/metrics/histogram_macros_local.h"
@@ -14,9 +12,9 @@
 #include "base/timer/elapsed_timer.h"
 #include "base/trace_event/trace_event.h"
 #include "build/build_config.h"
+#include "components/language/core/common/language_util.h"
 #include "components/language_detection/core/constants.h"
 #include "components/language_detection/core/language_detection_model.h"
-#include "components/translate/core/common/translate_language_matcher.h"
 #include "components/translate/core/common/translate_util.h"
 #include "components/translate/core/language_detection/language_detection_util.h"
 
@@ -92,22 +90,15 @@ std::string LanguageDetectionModel::DeterminePageLanguage(
   // by the model itself. Not needed until threshold is finalized.
   bool is_reliable = prediction_reliability_score > kTFLiteReliabilityThreshold;
 
-  std::optional<base::i18n::LanguageTag> final_prediction =
-      translate::FilterDetectedLanguage(utf8_contents, prediction.language,
-                                        is_reliable);
+  std::string final_prediction = translate::FilterDetectedLanguage(
+      utf8_contents, prediction.language, is_reliable);
+  *predicted_language = final_prediction;
   *is_prediction_reliable = is_reliable;
-
-  base::i18n::LanguageTag translate_final_prediction =
-      base::i18n::GetKnownLanguageTag("und");
-  if (final_prediction) {
-    *predicted_language = std::string(final_prediction->tag_string());
-    translate_final_prediction =
-        GetTranslateLanguageMatcher().MatchOrDefault(*final_prediction);
-  }
+  language::ToTranslateLanguageSynonym(&final_prediction);
 
   LOCAL_HISTOGRAM_BOOLEAN("LanguageDetection.TFLite.DidAttemptDetection", true);
-  return translate::DeterminePageLanguage(
-      code, html_lang, translate_final_prediction.tag_string(), is_reliable);
+  return translate::DeterminePageLanguage(code, html_lang, final_prediction,
+                                          is_reliable);
 }
 
 language_detection::Prediction LanguageDetectionModel::DetectLanguage(

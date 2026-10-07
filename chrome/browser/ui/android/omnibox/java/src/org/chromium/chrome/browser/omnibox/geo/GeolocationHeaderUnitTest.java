@@ -58,6 +58,7 @@ import org.chromium.content_public.browser.BrowserContextHandle;
 /** Robolectric tests for {@link GeolocationHeader}. */
 @RunWith(BaseRobolectricTestRunner.class)
 @DisableFeatures({OmniboxFeatureList.PLATFORM_AGNOSTIC_X_GEO})
+@Config(manifest = Config.NONE)
 @EnableFeatures(PermissionsAndroidFeatureList.APPROXIMATE_GEOLOCATION_PERMISSION)
 public class GeolocationHeaderUnitTest {
     private static final String SEARCH_URL = "https://www.google.com/search?q=potatoes";
@@ -97,12 +98,12 @@ public class GeolocationHeaderUnitTest {
             "CAEQDBiAtRgqCg3AiBkMFYAx3Vw9AECcRsgBAQ==";
     private int mRefreshLastKnownLocationCount;
 
-    @Rule public final MockitoRule mMockitoRule = MockitoJUnit.rule();
+    public @Rule MockitoRule mMockitoRule = MockitoJUnit.rule();
 
-    @Mock private WebsitePreferenceBridge.Natives mWebsitePreferenceBridgeJniMock;
-    @Mock private Profile mProfileMock;
-    @Mock private TemplateUrlService mTemplateUrlServiceMock;
-    @Mock private FusedLocationProviderClient mLocationProviderClient;
+    @Mock WebsitePreferenceBridge.Natives mWebsitePreferenceBridgeJniMock;
+    @Mock Profile mProfileMock;
+    @Mock TemplateUrlService mTemplateUrlServiceMock;
+    @Mock FusedLocationProviderClient mLocationProviderClient;
     @Captor private ArgumentCaptor<LocationListener> mLocationListenerCaptor;
     @Captor private ArgumentCaptor<LocationRequest> mLocationRequestCaptor;
 

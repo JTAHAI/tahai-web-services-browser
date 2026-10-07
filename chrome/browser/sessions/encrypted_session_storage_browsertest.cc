@@ -28,6 +28,7 @@
 #include "chrome/browser/sessions/session_service_test_helper.h"
 #include "chrome/browser/sessions/tab_restore_service_factory.h"
 #include "chrome/browser/sessions/tab_restore_service_load_waiter.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_live_tab_context.h"
 #include "chrome/browser/ui/browser_tabstrip.h"
@@ -45,8 +46,9 @@
 #include "chrome/browser/ui/waap/initial_web_ui_manager.h"
 #include "chrome/common/chrome_features.h"
 #include "chrome/common/chrome_paths.h"
+#include "chrome/common/chrome_switches.h"
 #include "chrome/common/url_constants.h"
-#include "chrome/test/base/chrome_test_path_utils.h"
+#include "chrome/test/base/chrome_test_utils.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/ui_test_utils.h"
 #include "components/collaboration/public/messaging/empty_messaging_backend_service.h"
@@ -78,10 +80,6 @@
 
 #if BUILDFLAG(IS_OZONE)
 #include "ui/ozone/public/ozone_platform.h"
-#endif
-
-#if BUILDFLAG(IS_CHROMEOS)
-#include "ash/constants/ash_switches.h"
 #endif
 
 namespace sessions {
@@ -225,7 +223,7 @@ class EncryptedSessionStorageBrowserTestBase : public InProcessBrowserTest {
   }
 #if BUILDFLAG(IS_CHROMEOS)
   void SetUpCommandLine(base::CommandLine* command_line) override {
-    command_line->AppendSwitch(ash::switches::kCreateBrowserOnStartupForTests);
+    command_line->AppendSwitch(switches::kCreateBrowserOnStartupForTests);
   }
 #endif
 
@@ -261,7 +259,7 @@ class EncryptedSessionStorageBrowserTestBase : public InProcessBrowserTest {
   // `url` and waits for all restored tabs to finish loading if
   // `no_memory_pressure` is true.
   BrowserWindowInterface* QuitBrowserAndRestore(
-      BrowserWindowInterface* browser,
+      Browser* browser,
       const GURL& url = GURL(),
       bool no_memory_pressure = true) {
     Profile* profile = browser->GetProfile();
@@ -336,9 +334,9 @@ class EncryptedSessionStorageBrowserTestBase : public InProcessBrowserTest {
         }
       }
       if (target_id.is_valid()) {
-        service->RestoreEntryById(BrowserLiveTabContext::From(target_browser),
-                                  target_id,
-                                  WindowOpenDisposition::NEW_FOREGROUND_TAB);
+        service->RestoreEntryById(
+            target_browser->GetFeatures().live_tab_context(), target_id,
+            WindowOpenDisposition::NEW_FOREGROUND_TAB);
       } else {
         chrome::RestoreTab(target_browser);
       }
@@ -595,7 +593,7 @@ IN_PROC_BROWSER_TEST_P(TabRestoreWithEncryptionTest, LargeSessionRestore) {
       ui_test_utils::BROWSER_TEST_WAIT_FOR_BROWSER);
   EXPECT_EQ(2u, GlobalBrowserCollection::GetInstance()->GetSize());
 
-  BrowserWindowInterface* browser1 = browser();
+  Browser* browser1 = browser();
   CloseBrowserSynchronously(browser1);
   EXPECT_EQ(1u, GlobalBrowserCollection::GetInstance()->GetSize());
 
@@ -607,14 +605,14 @@ IN_PROC_BROWSER_TEST_P(TabRestoreWithEncryptionTest, LargeSessionRestore) {
   ui_test_utils::BrowserCreatedObserver observer;
   TabRestoreService* service =
       TabRestoreServiceFactory::GetForProfile(browser2->GetProfile());
-  service->RestoreMostRecentEntry(BrowserLiveTabContext::From(browser2));
-  BrowserWindowInterface* restored_browser = observer.Wait();
+  service->RestoreMostRecentEntry(browser2->GetFeatures().live_tab_context());
+  Browser* restored_browser = observer.Wait();
 
-  EXPECT_EQ(starting_tab_count, restored_browser->GetTabStripModel()->count());
+  EXPECT_EQ(starting_tab_count, restored_browser->tab_strip_model()->count());
   for (int i = 1; i < starting_tab_count; ++i) {
     EXPECT_EQ(
         GetUrl(i),
-        restored_browser->GetTabStripModel()->GetWebContentsAt(i)->GetURL());
+        restored_browser->tab_strip_model()->GetWebContentsAt(i)->GetURL());
   }
 }
 
@@ -778,13 +776,13 @@ class SessionRestoreAcrossStagesTest : public RestoreAcrossStagesTestBase {
     browser()->tab_strip_model()->ActivateTabAt(0);
 
     // Window 2 on the right side of the screen
-    BrowserWindowInterface* window2 = CreateBrowser(browser()->GetProfile());
+    Browser* window2 = CreateBrowser(browser()->GetProfile());
     window2->GetWindow()->SetBounds(kWindowBounds2);
 
     // Window 2 Tab 1 should be pinned and shows GetUrl(1)
     ui_test_utils::NavigateToURLBlockUntilNavigationsComplete(window2,
                                                               GetUrl(1), 1);
-    window2->GetTabStripModel()->SetTabPinned(0, true);
+    window2->tab_strip_model()->SetTabPinned(0, true);
 
     // Window 2 Tab 2 should show GetUrl(2)
     chrome::AddSelectedTabWithURL(window2, GetUrl(2),

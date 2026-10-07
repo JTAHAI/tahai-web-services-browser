@@ -3,17 +3,13 @@
 // found in the LICENSE file.
 
 #include "base/strings/string_util.h"
-#include "base/test/scoped_feature_list.h"
 #include "build/build_config.h"
-#include "chrome/browser/ui/views/payments/payment_handler_web_flow_view_controller.h"
 #include "chrome/browser/ui/views/payments/payment_request_browsertest_base.h"
 #include "chrome/browser/ui/views/payments/payment_request_dialog_view_ids.h"
 #include "chrome/browser/ui/views/payments/payment_request_dialog_view_test_api.h"
 #include "chrome/test/payments/payment_app_install_util.h"
 #include "components/omnibox/browser/buildflags.h"
 #include "components/payments/content/icon/icon_size.h"
-#include "components/payments/core/features.h"
-#include "content/public/browser/web_contents.h"
 #include "content/public/test/browser_test.h"
 #include "content/public/test/browser_test_utils.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -26,21 +22,13 @@ using IconInstall = test::PaymentAppInstallUtil::IconInstall;
 
 class PaymentHandlerHeaderViewUITest : public PaymentRequestBrowserTestBase {
  public:
-  PaymentHandlerHeaderViewUITest() {
-    feature_list_.InitWithFeatures(
-        {features::kPaymentRequestMandatoryPaymentAppUi,
-         features::kPaymentHandlerHtmlHeadThemeColor},
-        {});
-  }
+  PaymentHandlerHeaderViewUITest() = default;
   ~PaymentHandlerHeaderViewUITest() override = default;
 
   void SetUpOnMainThread() override {
     PaymentRequestBrowserTestBase::SetUpOnMainThread();
     NavigateTo("/payment_handler.html");
   }
-
- private:
-  base::test::ScopedFeatureList feature_list_;
 };
 
 IN_PROC_BROWSER_TEST_F(PaymentHandlerHeaderViewUITest,
@@ -53,9 +41,9 @@ IN_PROC_BROWSER_TEST_F(PaymentHandlerHeaderViewUITest,
   ResetEventWaiterForSequence({DialogEvent::PROCESSING_SPINNER_SHOWN,
                                DialogEvent::PROCESSING_SPINNER_HIDDEN,
                                DialogEvent::DIALOG_OPENED,
-                               DialogEvent::LOADING_VIEW_SHOWN,
+                               DialogEvent::PROCESSING_SPINNER_SHOWN,
+                               DialogEvent::PROCESSING_SPINNER_HIDDEN,
                                DialogEvent::PAYMENT_HANDLER_WINDOW_OPENED,
-                               DialogEvent::LOADING_VIEW_HIDDEN,
                                DialogEvent::PAYMENT_HANDLER_TITLE_SET});
   ASSERT_EQ(
       "success",
@@ -112,9 +100,9 @@ IN_PROC_BROWSER_TEST_F(PaymentHandlerHeaderViewUITest, HeaderWithoutIcon) {
 
   // The pay button should be enabled now.
   ASSERT_TRUE(IsPayButtonEnabled());
-  ResetEventWaiterForSequence({DialogEvent::LOADING_VIEW_SHOWN,
+  ResetEventWaiterForSequence({DialogEvent::PROCESSING_SPINNER_SHOWN,
+                               DialogEvent::PROCESSING_SPINNER_HIDDEN,
                                DialogEvent::PAYMENT_HANDLER_WINDOW_OPENED,
-                               DialogEvent::LOADING_VIEW_HIDDEN,
                                DialogEvent::PAYMENT_HANDLER_TITLE_SET});
   ClickOnDialogViewAndWait(DialogViewID::PAY_BUTTON);
 
@@ -155,9 +143,9 @@ IN_PROC_BROWSER_TEST_F(PaymentHandlerHeaderViewUITest, CloseButtonPressed) {
 
   // The pay button should be enabled now.
   ASSERT_TRUE(IsPayButtonEnabled());
-  ResetEventWaiterForSequence({DialogEvent::LOADING_VIEW_SHOWN,
+  ResetEventWaiterForSequence({DialogEvent::PROCESSING_SPINNER_SHOWN,
+                               DialogEvent::PROCESSING_SPINNER_HIDDEN,
                                DialogEvent::PAYMENT_HANDLER_WINDOW_OPENED,
-                               DialogEvent::LOADING_VIEW_HIDDEN,
                                DialogEvent::PAYMENT_HANDLER_TITLE_SET});
   ClickOnDialogViewAndWait(DialogViewID::PAY_BUTTON);
 
@@ -180,9 +168,9 @@ IN_PROC_BROWSER_TEST_F(PaymentHandlerHeaderViewUITest,
   ResetEventWaiterForSequence({DialogEvent::PROCESSING_SPINNER_SHOWN,
                                DialogEvent::PROCESSING_SPINNER_HIDDEN,
                                DialogEvent::DIALOG_OPENED,
-                               DialogEvent::LOADING_VIEW_SHOWN,
+                               DialogEvent::PROCESSING_SPINNER_SHOWN,
+                               DialogEvent::PROCESSING_SPINNER_HIDDEN,
                                DialogEvent::PAYMENT_HANDLER_WINDOW_OPENED,
-                               DialogEvent::LOADING_VIEW_HIDDEN,
                                DialogEvent::PAYMENT_HANDLER_TITLE_SET});
   ASSERT_EQ(
       "success",
@@ -206,9 +194,9 @@ IN_PROC_BROWSER_TEST_F(PaymentHandlerHeaderViewUITest,
   ResetEventWaiterForSequence({DialogEvent::PROCESSING_SPINNER_SHOWN,
                                DialogEvent::PROCESSING_SPINNER_HIDDEN,
                                DialogEvent::DIALOG_OPENED,
-                               DialogEvent::LOADING_VIEW_SHOWN,
-                               DialogEvent::PAYMENT_HANDLER_WINDOW_OPENED,
-                               DialogEvent::LOADING_VIEW_HIDDEN});
+                               DialogEvent::PROCESSING_SPINNER_SHOWN,
+                               DialogEvent::PROCESSING_SPINNER_HIDDEN,
+                               DialogEvent::PAYMENT_HANDLER_WINDOW_OPENED});
   ASSERT_EQ("success",
             content::EvalJs(
                 GetActiveWebContents(),
@@ -240,9 +228,9 @@ IN_PROC_BROWSER_TEST_F(PaymentHandlerHeaderViewUITest, LargeIcon) {
   ResetEventWaiterForSequence({DialogEvent::PROCESSING_SPINNER_SHOWN,
                                DialogEvent::PROCESSING_SPINNER_HIDDEN,
                                DialogEvent::DIALOG_OPENED,
-                               DialogEvent::LOADING_VIEW_SHOWN,
+                               DialogEvent::PROCESSING_SPINNER_SHOWN,
+                               DialogEvent::PROCESSING_SPINNER_HIDDEN,
                                DialogEvent::PAYMENT_HANDLER_WINDOW_OPENED,
-                               DialogEvent::LOADING_VIEW_HIDDEN,
                                DialogEvent::PAYMENT_HANDLER_TITLE_SET});
   ASSERT_EQ(
       "success",
@@ -266,57 +254,6 @@ IN_PROC_BROWSER_TEST_F(PaymentHandlerHeaderViewUITest, LargeIcon) {
                                  DialogViewID::PAYMENT_APP_HEADER_ICON))
           ->GetImageBounds()
           .size());
-}
-
-IN_PROC_BROWSER_TEST_F(PaymentHandlerHeaderViewUITest, HtmlHeadThemeColor) {
-  std::string method_name;
-  InstallPaymentApp("a.com", "/payment_handler_sw.js", &method_name);
-
-  // Trigger PaymentRequest, and wait until the PaymentHandler has loaded a
-  // web-contents that has set a title.
-  ResetEventWaiterForSequence({DialogEvent::PROCESSING_SPINNER_SHOWN,
-                               DialogEvent::PROCESSING_SPINNER_HIDDEN,
-                               DialogEvent::DIALOG_OPENED,
-                               DialogEvent::LOADING_VIEW_SHOWN,
-                               DialogEvent::PAYMENT_HANDLER_WINDOW_OPENED,
-                               DialogEvent::LOADING_VIEW_HIDDEN,
-                               DialogEvent::PAYMENT_HANDLER_TITLE_SET});
-  ASSERT_EQ(
-      "success",
-      content::EvalJs(
-          GetActiveWebContents(),
-          content::JsReplace("launchWithoutWaitForResponse($1)", method_name)));
-  ASSERT_TRUE(WaitForObservedEvent());
-
-  ViewStack* view_stack = test_api(dialog_view()).view_stack();
-  views::View* header_view = view_stack->top()->GetViewByID(
-      static_cast<int>(DialogViewID::PAYMENT_APP_HEADER));
-  ASSERT_TRUE(header_view);
-
-  auto* controller_map = test_api(dialog_view()).controller_map();
-  auto it = controller_map->find(view_stack->top());
-  ASSERT_NE(it, controller_map->end());
-  auto* controller =
-      static_cast<PaymentHandlerWebFlowViewController*>(it->second.get());
-  content::WebContents* payment_handler_web_contents =
-      controller->web_contents();
-  ASSERT_NE(nullptr, payment_handler_web_contents);
-
-  // Verify red color is not set yet.
-  EXPECT_NE(SK_ColorRED, header_view->background()->color().ResolveToSkColor(
-                             header_view->GetColorProvider()));
-
-  // Inject meta theme-color tag via JavaScript and verify event, header
-  // background color (#FF0000 -> SK_ColorRED)
-  ResetEventWaiter(DialogEvent::PAYMENT_HANDLER_THEME_COLOR_SET);
-  ASSERT_TRUE(content::ExecJs(
-      payment_handler_web_contents,
-      "const meta = document.createElement('meta'); meta.name = 'theme-color';"
-      "meta.content = '#FF0000'; document.head.appendChild(meta);"));
-  ASSERT_TRUE(WaitForObservedEvent());
-
-  EXPECT_EQ(SK_ColorRED, header_view->background()->color().ResolveToSkColor(
-                             header_view->GetColorProvider()));
 }
 
 }  // namespace

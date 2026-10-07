@@ -14,7 +14,6 @@
 #include "third_party/blink/renderer/platform/heap/garbage_collected.h"
 #include "third_party/blink/renderer/platform/heap/member.h"
 #include "third_party/blink/renderer/platform/heap/visitor.h"
-#include "third_party/blink/renderer/platform/wtf/text/string_view.h"
 
 namespace blink {
 
@@ -267,9 +266,9 @@ void RTCRtpTransceiver::setCodecPreferences(
       return;
     }
     auto type = codec->mimeType().subview(0, slash_position);
-    if (EqualIgnoringAsciiCase(type, "video")) {
+    if (type == "video") {
       webrtc_codec.kind = webrtc::MediaType::VIDEO;
-    } else if (EqualIgnoringAsciiCase(type, "audio")) {
+    } else if (type == "audio") {
       webrtc_codec.kind = webrtc::MediaType::AUDIO;
     } else {
       exception_state.ThrowDOMException(
@@ -358,7 +357,7 @@ RTCRtpTransceiver::getHeaderExtensionsToNegotiate() const {
   for (const auto& webrtc_ext : webrtc_exts) {
     auto* ext = MakeGarbageCollected<RTCRtpHeaderExtensionCapability>();
     ext->setDirection(TransceiverDirectionToEnum(webrtc_ext.direction));
-    ext->setUri(String(webrtc_ext.uri));
+    ext->setUri(webrtc_ext.uri.c_str());
     exts.push_back(ext);
   }
   return exts;
@@ -371,7 +370,7 @@ RTCRtpTransceiver::getNegotiatedHeaderExtensions() const {
   for (const auto& webrtc_ext : webrtc_exts) {
     auto* ext = MakeGarbageCollected<RTCRtpHeaderExtensionCapability>();
     ext->setDirection(TransceiverDirectionToEnum(webrtc_ext.direction));
-    ext->setUri(String(webrtc_ext.uri));
+    ext->setUri(webrtc_ext.uri.c_str());
     exts.push_back(ext);
   }
   return exts;

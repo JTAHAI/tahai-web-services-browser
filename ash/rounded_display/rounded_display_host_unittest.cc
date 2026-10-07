@@ -10,9 +10,6 @@
 
 #include "ash/test/ash_test_base.h"
 #include "ash/test/ash_test_helper.h"
-#include "base/task/single_thread_task_runner.h"
-#include "cc/resources/resource_pool.h"
-#include "components/viz/client/client_resource_provider.h"
 #include "components/viz/common/frame_sinks/begin_frame_args.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "ui/aura/window_tree_host.h"
@@ -37,21 +34,13 @@ class TestRoundedDisplayHost : public RoundedDisplayHost {
       const gfx::Size& last_submitted_frame_size,
       float last_submitted_frame_dsf) {
     return RoundedDisplayHost::CreateCompositorFrame(
-        viz::BeginFrameAck::CreateManualAckWithDamage(),
-        client_resource_provider_, *resource_pool_,
+        viz::BeginFrameAck::CreateManualAckWithDamage(), resource_manager_,
         /*auto_update=*/false, last_submitted_frame_size,
         last_submitted_frame_dsf);
   }
 
  private:
-  viz::ClientResourceProvider client_resource_provider_;
-  std::unique_ptr<cc::ResourcePool> resource_pool_ =
-      std::make_unique<cc::ResourcePool>(
-          &client_resource_provider_,
-          nullptr,
-          base::SingleThreadTaskRunner::GetCurrentDefault(),
-          cc::ResourcePool::kDefaultExpirationDelay,
-          false);
+  UiResourceManager resource_manager_;
 };
 
 class RoundedDisplayHostTest : public AshTestBase {

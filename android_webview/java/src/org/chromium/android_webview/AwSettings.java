@@ -9,16 +9,17 @@ import static java.lang.annotation.ElementType.TYPE_USE;
 import android.annotation.SuppressLint;
 import android.content.pm.PackageManager;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Handler;
 import android.os.Message;
 import android.webkit.WebSettings;
 
 import androidx.annotation.IntDef;
+import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 
 import org.jni_zero.CalledByNative;
 import org.jni_zero.JNINamespace;
-import org.jni_zero.JniType;
 import org.jni_zero.NativeMethods;
 
 import org.chromium.android_webview.client_hints.AwUserAgentMetadata;
@@ -37,7 +38,6 @@ import org.chromium.base.ContextUtils;
 import org.chromium.base.Log;
 import org.chromium.base.ThreadUtils;
 import org.chromium.base.metrics.RecordHistogram;
-import org.chromium.build.annotations.Nullable;
 import org.chromium.components.embedder_support.util.PasswordEchoSettingState;
 import org.chromium.components.webauthn.WebauthnMode;
 import org.chromium.components.webauthn.WebauthnModeProvider;
@@ -149,7 +149,6 @@ public class AwSettings {
 
     @LayoutAlgorithm private int mLayoutAlgorithm = LAYOUT_ALGORITHM_NARROW_COLUMNS;
     private int mTextSizePercent = 100;
-    private boolean mTextZoomSetByEmbedder;
     private String mStandardFontFamily = "sans-serif";
     private String mFixedFontFamily = "monospace";
     private String mSansSerifFontFamily = "sans-serif";
@@ -416,7 +415,14 @@ public class AwSettings {
 
             // By default, scale the text size by the system font scale factor. Embedders
             // may override this by invoking setTextZoom().
-            updateFontScaleLocked();
+            mTextSizePercent =
+                    (int)
+                            (mTextSizePercent
+                                    * mAwContents
+                                            .getProvidedContext()
+                                            .getResources()
+                                            .getConfiguration()
+                                            .fontScale);
 
             mSupportLegacyQuirks = supportsLegacyQuirks;
             mAllowEmptyDocumentPersistence = allowEmptyDocumentPersistence;
@@ -432,7 +438,8 @@ public class AwSettings {
             mBlockSpecialFileUrls = ContextUtils.isSdkSandboxProcess();
 
             mAllowFileUrlAccess =
-                    CompatQuirks.isEnabled(CompatQuirks.Quirk.ALLOW_FILE_URL_ACCESS_BY_DEFAULT);
+                    ContextUtils.getApplicationContext().getApplicationInfo().targetSdkVersion
+                            < Build.VERSION_CODES.R;
             mIntegrityApiStatusConfig = new AwMediaIntegrityApiStatusConfig();
             mSpeculativeLoadingAllowedFlags =
                     SpeculativeLoadingAllowedFlags.SPECULATIVE_LOADING_DISABLED;
@@ -841,7 +848,8 @@ public class AwSettings {
     @CalledByNative
     private static boolean getAllowSniffingFileUrls() {
         // Don't allow sniffing file:// URLs for MIME type if the application targets P or later.
-        return CompatQuirks.isEnabled(CompatQuirks.Quirk.ALLOW_SNIFFING_FILE_URLS);
+        return ContextUtils.getApplicationContext().getApplicationInfo().targetSdkVersion
+                < Build.VERSION_CODES.P;
     }
 
     /** See {@link android.webkit.WebSettings#setUserAgentString}. */
@@ -870,7 +878,7 @@ public class AwSettings {
     }
 
     @CalledByNative
-    private @JniType("std::optional<std::string>") @Nullable String getUserAgentLocked() {
+    private String getUserAgentLocked() {
         assert Thread.holdsLock(mAwSettingsLock);
         return mUserAgent;
     }
@@ -955,7 +963,6 @@ public class AwSettings {
     public void setTextZoom(final int textZoom) {
         if (TRACE) Log.i(TAG, "setTextZoom=" + textZoom);
         synchronized (mAwSettingsLock) {
-            mTextZoomSetByEmbedder = true;
             if (mTextSizePercent != textZoom) {
                 mTextSizePercent = textZoom;
                 mEventHandler.updateWebkitPreferencesLocked();
@@ -995,7 +1002,7 @@ public class AwSettings {
     }
 
     @CalledByNative
-    private @JniType("std::u16string") String getStandardFontFamilyLocked() {
+    private String getStandardFontFamilyLocked() {
         assert Thread.holdsLock(mAwSettingsLock);
         return mStandardFontFamily;
     }
@@ -1019,7 +1026,7 @@ public class AwSettings {
     }
 
     @CalledByNative
-    private @JniType("std::u16string") String getFixedFontFamilyLocked() {
+    private String getFixedFontFamilyLocked() {
         assert Thread.holdsLock(mAwSettingsLock);
         return mFixedFontFamily;
     }
@@ -1043,7 +1050,7 @@ public class AwSettings {
     }
 
     @CalledByNative
-    private @JniType("std::u16string") String getSansSerifFontFamilyLocked() {
+    private String getSansSerifFontFamilyLocked() {
         assert Thread.holdsLock(mAwSettingsLock);
         return mSansSerifFontFamily;
     }
@@ -1067,7 +1074,7 @@ public class AwSettings {
     }
 
     @CalledByNative
-    private @JniType("std::u16string") String getSerifFontFamilyLocked() {
+    private String getSerifFontFamilyLocked() {
         assert Thread.holdsLock(mAwSettingsLock);
         return mSerifFontFamily;
     }
@@ -1091,7 +1098,7 @@ public class AwSettings {
     }
 
     @CalledByNative
-    private @JniType("std::u16string") String getCursiveFontFamilyLocked() {
+    private String getCursiveFontFamilyLocked() {
         assert Thread.holdsLock(mAwSettingsLock);
         return mCursiveFontFamily;
     }
@@ -1115,7 +1122,7 @@ public class AwSettings {
     }
 
     @CalledByNative
-    private @JniType("std::u16string") String getFantasyFontFamilyLocked() {
+    private String getFantasyFontFamilyLocked() {
         assert Thread.holdsLock(mAwSettingsLock);
         return mFantasyFontFamily;
     }
@@ -1651,7 +1658,7 @@ public class AwSettings {
     }
 
     @CalledByNative
-    private @JniType("std::string") String getDefaultTextEncodingLocked() {
+    private String getDefaultTextEncodingLocked() {
         assert Thread.holdsLock(mAwSettingsLock);
         return mDefaultTextEncoding;
     }
@@ -1699,8 +1706,7 @@ public class AwSettings {
     }
 
     @CalledByNative
-    private @JniType("std::optional<std::string>") @Nullable String
-            getDefaultVideoPosterUrlLocked() {
+    private String getDefaultVideoPosterUrlLocked() {
         assert Thread.holdsLock(mAwSettingsLock);
         return mDefaultVideoPosterUrl;
     }
@@ -2420,26 +2426,6 @@ public class AwSettings {
         }
     }
 
-    private void updateFontScaleLocked() {
-        if (mTextZoomSetByEmbedder) {
-            return;
-        }
-
-        float newFontScale =
-                mAwContents.getProvidedContext().getResources().getConfiguration().fontScale;
-        int newTextSizePercent = (int) (newFontScale * 100);
-        if (mTextSizePercent != newTextSizePercent) {
-            mTextSizePercent = newTextSizePercent;
-            mEventHandler.updateWebkitPreferencesLocked();
-        }
-    }
-
-    public void updateContext() {
-        synchronized (mAwSettingsLock) {
-            updateFontScaleLocked();
-        }
-    }
-
     @NativeMethods
     interface Natives {
         long init(AwSettings caller, WebContents webContents);
@@ -2461,7 +2447,6 @@ public class AwSettings {
 
         void updateWebkitPreferencesLocked(long nativeAwSettings, AwSettings caller);
 
-        @JniType("std::string")
         String getDefaultUserAgent();
 
         AwUserAgentMetadata getDefaultUserAgentMetadata();

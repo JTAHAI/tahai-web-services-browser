@@ -58,6 +58,7 @@
 #include "content/browser/broadcast_channel/broadcast_channel_service.h"
 #include "content/browser/browsing_data/clear_site_data_handler.h"
 #include "content/browser/browsing_data/storage_partition_code_cache_data_remover.h"
+#include "content/browser/browsing_topics/browsing_topics_site_data_manager_impl.h"
 #include "content/browser/buckets/bucket_manager.h"
 #include "content/browser/cache_storage/cache_storage_control_wrapper.h"
 #include "content/browser/code_cache/generated_code_cache.h"
@@ -337,7 +338,8 @@ void OnLocalStorageUsageInfo(
 
 void OnSessionStorageUsageInfo(
     const scoped_refptr<DOMStorageContextWrapper>& dom_storage_context,
-    StoragePartition::StorageKeyMatcherFunction storage_key_matcher,
+    const scoped_refptr<storage::SpecialStoragePolicy>& special_storage_policy,
+    StoragePartition::StorageKeyPolicyMatcherFunction storage_key_matcher,
     bool perform_storage_cleanup,
     base::OnceClosure callback,
     const std::vector<SessionStorageUsageInfo>& infos) {
@@ -352,7 +354,9 @@ void OnSessionStorageUsageInfo(
 
   base::ConcurrentClosures concurrent;
   for (const SessionStorageUsageInfo& info : infos) {
-    if (storage_key_matcher && !storage_key_matcher.Run(info.storage_key)) {
+    if (storage_key_matcher &&
+        !storage_key_matcher.Run(info.storage_key,
+                                 special_storage_policy.get())) {
       continue;
     }
     dom_storage_context->DeleteSessionStorage(info, concurrent.CreateClosure());
@@ -463,15 +467,16 @@ void ClearLocalStorage(
 
 void ClearSessionStorage(
     const scoped_refptr<DOMStorageContextWrapper>& dom_storage_context,
-    StoragePartition::StorageKeyMatcherFunction storage_key_matcher,
+    const scoped_refptr<storage::SpecialStoragePolicy>& special_storage_policy,
+    StoragePartition::StorageKeyPolicyMatcherFunction storage_key_matcher,
     bool perform_storage_cleanup,
     base::OnceClosure callback) {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
 
   dom_storage_context->GetSessionStorageUsage(
       base::BindOnce(&OnSessionStorageUsageInfo, dom_storage_context,
-                     std::move(storage_key_matcher), perform_storage_cleanup,
-                     std::move(callback)));
+                     special_storage_policy, std::move(storage_key_matcher),
+                     perform_storage_cleanup, std::move(callback)));
 }
 
 // LoginHandlerDelegate manages HTTP auth. It is self-owning and deletes itself
@@ -1554,6 +1559,12 @@ void StoragePartitionImpl::Initialize(
 
   bucket_manager_ = std::make_unique<BucketManager>(this);
 
+  // The Topics API is not available in Incognito mode.
+  if (!is_in_memory() &&
+      base::FeatureList::IsEnabled(network::features::kBrowsingTopics)) {
+    browsing_topics_site_data_manager_ =
+        std::make_unique<BrowsingTopicsSiteDataManagerImpl>(path);
+  }
   base::UmaHistogramTimes(
       "Storage.StoragePartition.InitializeDuration.BackgroundTasks",
       step_timer.Elapsed());
@@ -1642,10 +1653,6 @@ network::mojom::NetworkContext* StoragePartitionImpl::GetNetworkContext() {
   return network_context_owner_->network_context.get();
 }
 
-bool StoragePartitionImpl::IsNetworkContextInitialized() {
-  return network_context_owner_->network_context.is_bound();
-}
-
 cert_verifier::mojom::CertVerifierServiceUpdater*
 StoragePartitionImpl::GetCertVerifierServiceUpdater() {
   DCHECK(initialized_);
@@ -1689,7 +1696,6 @@ void StoragePartitionImpl::CreateRestrictedCookieManager(
     bool is_service_worker,
     int process_id,
     int routing_id,
-    bool prefer_bound_cookie_context,
     net::CookieSettingOverrides cookie_setting_overrides,
     net::CookieSettingOverrides devtools_cookie_setting_overrides,
     mojo::PendingReceiver<network::mojom::RestrictedCookieManager> receiver,
@@ -1697,11 +1703,11 @@ void StoragePartitionImpl::CreateRestrictedCookieManager(
   DCHECK(initialized_);
   if (!GetContentClient()->browser()->WillCreateRestrictedCookieManager(
           role, browser_context_, origin, isolation_info, is_service_worker,
-          process_id, routing_id, prefer_bound_cookie_context, &receiver)) {
+          process_id, routing_id, &receiver)) {
     GetNetworkContext()->GetRestrictedCookieManager(
         std::move(receiver), role, origin, isolation_info,
         cookie_setting_overrides, devtools_cookie_setting_overrides,
-        prefer_bound_cookie_context, std::move(cookie_observer));
+        std::move(cookie_observer));
   }
 }
 
@@ -1916,6 +1922,12 @@ StoragePartitionImpl::GetDeviceBoundSessionManager() {
 #else
   return nullptr;
 #endif  // BUILDFLAG(ENABLE_DEVICE_BOUND_SESSIONS)
+}
+
+BrowsingTopicsSiteDataManager*
+StoragePartitionImpl::GetBrowsingTopicsSiteDataManager() {
+  DCHECK(initialized_);
+  return browsing_topics_site_data_manager_.get();
 }
 
 ContentIndexContextImpl* StoragePartitionImpl::GetContentIndexContext() {
@@ -2574,6 +2586,14 @@ void StoragePartitionImpl::OnDataUseUpdate(
       sent_bytes);
 }
 
+void StoragePartitionImpl::OnSharedStorageHeaderReceived(
+    const url::Origin& request_origin,
+    std::vector<network::mojom::SharedStorageModifierMethodWithOptionsPtr>
+        methods_with_options,
+    const std::optional<std::string>& with_lock,
+    OnSharedStorageHeaderReceivedCallback callback) {
+  std::move(callback).Run();
+}
 
 void StoragePartitionImpl::Clone(
     mojo::PendingReceiver<network::mojom::URLLoaderNetworkServiceObserver>
@@ -3094,13 +3114,18 @@ void StoragePartitionImpl::DataDeletionHelper::ClearData(
         mojo::WrapCallbackWithDefaultInvokeIfNotRun(
             CreateTaskCompletionClosure(TracingDataType::kLocalStorage)));
 
-    // TODO(crbug.com/41457196): Sometimes SessionStorage fails to call its
-    // callback. Figure out why.
-    ClearSessionStorage(
-        base::WrapRefCounted(dom_storage_context), generic_filter,
-        perform_storage_cleanup,
-        mojo::WrapCallbackWithDefaultInvokeIfNotRun(
-            CreateTaskCompletionClosure(TracingDataType::kSessionStorage)));
+    // ClearDataImpl cannot clear session storage data when a particular origin
+    // is specified. Therefore we ignore clearing session storage in this case.
+    // TODO(lazyboy): Fix.
+    if (storage_key_origin_empty) {
+      // TODO(crbug.com/41457196): Sometimes SessionStorage fails to call its
+      // callback. Figure out why.
+      ClearSessionStorage(
+          base::WrapRefCounted(dom_storage_context), storage_policy_ref,
+          combined_storage_key_matcher, perform_storage_cleanup,
+          mojo::WrapCallbackWithDefaultInvokeIfNotRun(
+              CreateTaskCompletionClosure(TracingDataType::kSessionStorage)));
+    }
   }
 
   if ((remove_mask_ & REMOVE_DATA_MASK_SHADER_CACHE) &&
@@ -3275,9 +3300,8 @@ void StoragePartitionImpl::ResetURLLoaderFactories() {
       ->Reset();
 }
 
-void StoragePartitionImpl::ClearBluetoothAllowedDevicesMap() {
-  DCHECK_CURRENTLY_ON(BrowserThread::UI);
-  CHECK(initialized_);
+void StoragePartitionImpl::ClearBluetoothAllowedDevicesMapForTesting() {
+  DCHECK(initialized_);
   bluetooth_allowed_devices_map_->Clear();
 }
 
@@ -3455,13 +3479,9 @@ void StoragePartitionImpl::OverrideDeviceBoundSessionManagerForTesting(
     std::unique_ptr<network::mojom::DeviceBoundSessionManager>
         device_bound_session_manager) {
   DCHECK(initialized_);
-  device_bound_session_manager_.reset();
-
-  if (device_bound_session_manager) {
-    mojo::MakeSelfOwnedReceiver(
-        std::move(device_bound_session_manager),
-        device_bound_session_manager_.BindNewPipeAndPassReceiver());
-  }
+  mojo::MakeSelfOwnedReceiver(
+      std::move(device_bound_session_manager),
+      device_bound_session_manager_.BindNewPipeAndPassReceiver());
 }
 
 void StoragePartitionImpl::GetQuotaSettings(
@@ -3530,7 +3550,7 @@ void StoragePartitionImpl::InitNetworkContext() {
       context_params->file_paths->shared_dictionary_directory =
           partition_path_.Append(FILE_PATH_LITERAL("Shared Dictionary"));
     }
-    if (!context_params->shared_dictionary_cache_max_size.has_value()) {
+    if (context_params->shared_dictionary_cache_max_size == 0u) {
       CalculateAndSetSharedDictionaryCacheMaxSize(
           GetWeakPtr(), is_in_memory() ? base::FilePath() : partition_path_);
     }

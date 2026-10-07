@@ -1,5 +1,4 @@
 // META: global=window,dedicatedworker,sharedworker
-// META: timeout=long
 
 const content_types = [
   "",

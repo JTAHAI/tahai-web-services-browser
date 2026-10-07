@@ -104,14 +104,6 @@ public class LogoContainerView extends FrameLayout {
         mLogoView.setLogoTopMargin(topMargin);
     }
 
-    void setLogoTopPadding(int topPadding) {
-        mLogoView.setPaddingRelative(
-                mLogoView.getPaddingStart(),
-                topPadding,
-                mLogoView.getPaddingEnd(),
-                mLogoView.getPaddingBottom());
-    }
-
     void setLogoBottomMargin(int bottomMargin) {
         MarginLayoutParams marginLayoutParams = (MarginLayoutParams) getLayoutParams();
         marginLayoutParams.bottomMargin = bottomMargin;
@@ -130,7 +122,7 @@ public class LogoContainerView extends FrameLayout {
         mLogoView.setAnimationEnabled(enabled);
     }
 
-    void setClickHandler(LogoView.ClickHandler handler) {
+    void setClickHandler(LogoProperties.ClickHandler handler) {
         mLogoView.setClickHandler(handler);
     }
 
@@ -163,7 +155,7 @@ public class LogoContainerView extends FrameLayout {
         return mLogoView.getAnimationEnabledForTesting(); // IN-TEST
     }
 
-    LogoView.@Nullable ClickHandler getClickHandlerForTesting() {
+    LogoProperties.@Nullable ClickHandler getClickHandlerForTesting() {
         return mLogoView.getClickHandlerForTesting(); // IN-TEST
     }
 

@@ -16,7 +16,6 @@
 #include "chrome/browser/ui/views/event_utils.h"
 #include "chrome/browser/ui/views/tabs/groups/tab_group_accessibility.h"
 #include "chrome/browser/ui/views/tabs/groups/tab_group_editor_bubble_tracker.h"
-#include "chrome/browser/ui/views/tabs/horizontal/horizontal_tab_closing_helper.h"
 #include "chrome/browser/ui/views/tabs/hovercard/tab_hover_card_controller.h"
 #include "chrome/grit/generated_resources.h"
 #include "components/data_sharing/public/features.h"
@@ -161,7 +160,6 @@ TabGroupHeaderView::TabGroupHeaderView(
 
   if (editor_bubble_button_) {
     ConfigureEditorBubbleButton(editor_bubble_button_);
-    editor_bubble_button_->SetVisible(delegate_->IsGroupFocused());
   }
   editor_bubble_opened_subscription_ =
       editor_bubble_tracker_.RegisterOnBubbleOpened(base::BindRepeating(
@@ -190,7 +188,7 @@ TabGroupHeaderView::TabGroupHeaderView(
           /*adjust_height_for_width=*/false,
           views::MinimumFlexSizeRule::kScaleToZero)
           .WithOrder(2));
-  // The collapse icon should be seen when not in focus mode.
+  // The collapse icon should always be seen.
   // Let the collapse icon grow to fill the remaining available space while
   // keeping the icon trailing aligned.
   if (collapse_icon_) {
@@ -200,7 +198,6 @@ TabGroupHeaderView::TabGroupHeaderView(
         views::kFlexBehaviorKey,
         views::FlexSpecification(views::MinimumFlexSizeRule::kPreferred,
                                  views::MaximumFlexSizeRule::kPreferred));
-    collapse_icon_->SetVisible(!delegate_->IsGroupFocused());
   }
 
   sync_icon_->SetProperty(views::kMarginsKey,
@@ -266,9 +263,8 @@ gfx::Size TabGroupHeaderView::CalculatePreferredSize(
 }
 
 bool TabGroupHeaderView::OnKeyPressed(const ui::KeyEvent& event) {
-  if ((event.key_code() == ui::VKEY_SPACE ||
-       event.key_code() == ui::VKEY_RETURN) &&
-      !delegate_->IsGroupFocused()) {
+  if (event.key_code() == ui::VKEY_SPACE ||
+      event.key_code() == ui::VKEY_RETURN) {
     delegate_->ToggleCollapsedState(
         ToggleTabGroupCollapsedStateOrigin::kKeyboard);
     views::ElementTrackerViews::GetInstance()->NotifyViewActivated(
@@ -330,8 +326,7 @@ void TabGroupHeaderView::OnMouseReleased(const ui::MouseEvent& event) {
 
   bool open_editor_bubble =
       event.IsRightMouseButton() && !editor_bubble_tracker_.is_open();
-  bool toggle_collapse =
-      event.IsLeftMouseButton() && !delegate_->IsGroupFocused();
+  bool toggle_collapse = event.IsLeftMouseButton();
   if (open_editor_bubble) {
     ShowEditorBubble();
   } else if (toggle_collapse) {
@@ -352,12 +347,10 @@ void TabGroupHeaderView::OnGestureEvent(ui::GestureEvent* event) {
       break;
 
     case ui::EventType::kGestureTap:
-      if (!delegate_->IsGroupFocused()) {
-        delegate_->ToggleCollapsedState(
-            ToggleTabGroupCollapsedStateOrigin::kGesture);
-        views::ElementTrackerViews::GetInstance()->NotifyViewActivated(
-            kTabGroupHeaderElementId, this);
-      }
+      delegate_->ToggleCollapsedState(
+          ToggleTabGroupCollapsedStateOrigin::kGesture);
+      views::ElementTrackerViews::GetInstance()->NotifyViewActivated(
+          kTabGroupHeaderElementId, this);
       event->SetHandled();
       break;
 
@@ -553,12 +546,10 @@ void TabGroupHeaderView::OnDataChanged(
     // Update editor bubble button.
     if (editor_bubble_button_) {
       UpdateEditorButtonColors(editor_bubble_button_, foreground_color);
-      UpdateEditorBubbleButtonVisibility();
     }
 
     // Update collapse icon.
     if (collapse_icon_) {
-      collapse_icon_->SetVisible(!delegate_->IsGroupFocused());
       collapse_icon_->SetImage(ui::ImageModel::FromVectorIcon(
           tab_group_visual_data_.is_collapsed()
               ? features::IsRoundedIconsEnabled()
@@ -700,18 +691,12 @@ void TabGroupHeaderView::OnBubbleOpened() {
   if (!expand_on_hover_lock_) {
     expand_on_hover_lock_ = delegate_->AcquireExpandOnHoverLock();
   }
-  if (auto* closing_helper = delegate_->GetTabClosingHelper()) {
-    closing_helper->PauseMouseWatcher();
-  }
 
   UpdateEditorBubbleButtonVisibility();
 }
 
 void TabGroupHeaderView::OnBubbleClosed() {
   expand_on_hover_lock_.reset();
-  if (auto* closing_helper = delegate_->GetTabClosingHelper()) {
-    closing_helper->ResumeMouseWatcher();
-  }
   UpdateEditorBubbleButtonVisibility();
 }
 
@@ -720,9 +705,10 @@ void TabGroupHeaderView::SetEditorBubbleButtonVisibilityOnHover(
   if (!editor_bubble_button_) {
     return;
   }
-  editor_bubble_button_->SetVisible(delegate_->IsGroupFocused() ||
-                                    editor_bubble_tracker_.is_open() ||
-                                    is_hovered);
+  if (editor_bubble_button_) {
+    editor_bubble_button_->SetVisible(editor_bubble_tracker_.is_open() ||
+                                      is_hovered);
+  }
 }
 
 void TabGroupHeaderView::ShowEditorBubble() {

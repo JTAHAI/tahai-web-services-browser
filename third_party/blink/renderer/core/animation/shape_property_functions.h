@@ -41,7 +41,8 @@ namespace shape_property_functions {
 
 BasicShapeInfo GetBasicShape(const CSSProperty&, const ComputedStyle&);
 void SetBasicShape(const CSSProperty&,
-                   const BasicShapeInfo&,
+                   BasicShape&,
+                   ShapeReferenceBox,
                    ComputedStyleBuilder&);
 
 BasicShapeCssInfo GetCssBasicShape(const CSSProperty&, const CSSValue&);

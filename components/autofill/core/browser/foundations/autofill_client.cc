@@ -54,8 +54,7 @@ AutofillClient::PopupOpenArgs::PopupOpenArgs(
     int32_t form_control_ax_id,
     PopupAnchorType anchor_type,
     bool show_tabbed_popup,
-    bool prefer_prev_arrow_side_on_suggestions_update,
-    std::u16string search_bar_initial_value)
+    bool prefer_prev_arrow_side_on_suggestions_update)
     : frame_token(std::move(frame_token)),
       element_bounds(element_bounds),
       text_direction(text_direction),
@@ -65,8 +64,7 @@ AutofillClient::PopupOpenArgs::PopupOpenArgs(
       anchor_type(anchor_type),
       show_tabbed_popup(show_tabbed_popup),
       prefer_prev_arrow_side_on_suggestions_update(
-          prefer_prev_arrow_side_on_suggestions_update),
-      search_bar_initial_value(std::move(search_bar_initial_value)) {}
+          prefer_prev_arrow_side_on_suggestions_update) {}
 AutofillClient::PopupOpenArgs::PopupOpenArgs(
     const AutofillClient::PopupOpenArgs&) = default;
 AutofillClient::PopupOpenArgs::PopupOpenArgs(AutofillClient::PopupOpenArgs&&) =
@@ -125,10 +123,17 @@ AutofillClient::GetPasswordManagerFieldClassificationModelHandler() {
   return nullptr;
 }
 
-personal_context::PersonalContextFirstRunService*
-AutofillClient::GetPersonalContextFirstRunService() {
-  return nullptr;
+bool AutofillClient::ShouldShowPersonalContextAmbientAutofillNotice() const {
+  return false;
 }
+
+void AutofillClient::MarkPersonalContextAmbientAutofillNoticeAsAcknowledged() {}
+
+bool AutofillClient::ShouldShowPersonalContextAtMemoryNotice() const {
+  return false;
+}
+
+void AutofillClient::MarkPersonalContextAtMemoryNoticeAsAcknowledged() {}
 
 AutofillComposeDelegate* AutofillClient::GetComposeDelegate() {
   return nullptr;
@@ -139,14 +144,6 @@ const AutofillComposeDelegate* AutofillClient::GetComposeDelegate() const {
 
 AtMemoryQueryService* AutofillClient::GetAtMemoryQueryService() {
   return nullptr;
-}
-
-AtMemoryManager* AutofillClient::GetAtMemoryManager() {
-  return nullptr;
-}
-
-const AtMemoryManager* AutofillClient::GetAtMemoryManager() const {
-  return const_cast<AutofillClient*>(this)->GetAtMemoryManager();
 }
 
 personal_context::PersonalContextEligibilityState
@@ -188,15 +185,6 @@ const AutofillAiPersonalContextAccessManager*
 AutofillClient::GetAutofillAiPersonalContextAccessManager() const {
   return const_cast<AutofillClient*>(this)
       ->GetAutofillAiPersonalContextAccessManager();
-}
-
-EntitySuppressionManager* AutofillClient::GetEntitySuppressionManager() {
-  return nullptr;
-}
-
-const EntitySuppressionManager* AutofillClient::GetEntitySuppressionManager()
-    const {
-  return const_cast<AutofillClient*>(this)->GetEntitySuppressionManager();
 }
 
 AutofillAiModelCache* AutofillClient::GetAutofillAiModelCache() {
@@ -267,7 +255,15 @@ const AutofillAblationStudy& AutofillClient::GetAblationStudy() const {
   return AutofillAblationStudy::disabled_study();
 }
 
+bool AutofillClient::IsAndroidLargeFormFactor() const {
+  return false;
+}
+
 #if BUILDFLAG(IS_ANDROID)
+void AutofillClient::ShowAtMemoryBottomSheet(
+    base::span<const Suggestion> suggestions,
+    base::WeakPtr<AutofillSuggestionDelegate> delegate) {}
+
 bool AutofillClient::ShowAmbientAutoFillNotice(
     base::WeakPtr<TouchToFillAutofillDelegate> delegate) {
   return false;
@@ -278,14 +274,6 @@ void AutofillClient::HideAmbientAutoFillNotice() {}
 AutofillSnackbarControllerImpl*
 AutofillClient::GetAutofillSnackbarController() {
   return nullptr;
-}
-
-void AutofillClient::ShowAutofillAiLoadingDialog() {
-  NOTIMPLEMENTED();
-}
-
-void AutofillClient::DismissAutofillAiLoadingDialog() {
-  NOTIMPLEMENTED();
 }
 #endif
 
@@ -312,12 +300,8 @@ bool AutofillClient::IsTabInActorMode() const {
   return false;
 }
 
-ActorAutofillManager* AutofillClient::GetActorAutofillManager() {
+ActorKeyMetricsRecorder* AutofillClient::GetActorKeyMetricsRecorder() {
   return nullptr;
-}
-
-int64_t AutofillClient::GetNavigationId() const {
-  return 0;
 }
 
 std::unique_ptr<device_reauth::DeviceAuthenticator>
@@ -427,11 +411,6 @@ void AutofillClient::ShowAutofillAiFetchEntityFailureNotification() {
   NOTIMPLEMENTED();
 }
 
-void AutofillClient::ShowAtMemoryFetchFailureNotification(
-    std::optional<std::u16string> message_override) {
-  NOTIMPLEMENTED();
-}
-
 void AutofillClient::ShowAutofillAiPreFetchFailureNotification() {
   NOTIMPLEMENTED();
 }
@@ -448,15 +427,11 @@ void AutofillClient::ShowEmailVerificationPopup(
     const gfx::RectF& element_bounds,
     const net::SchemefulSite& issuer_site,
     const std::u16string& email,
-    base::OnceCallback<void(EmailVerificationPermissionUiStatus)> callback) {
-  std::move(callback).Run(EmailVerificationPermissionUiStatus::kOther);
+    base::OnceCallback<void(EmailVerificationPermissionUiResult)> callback) {
+  std::move(callback).Run(EmailVerificationPermissionUiResult::kIgnored);
 }
 
 OtpFieldDetector* AutofillClient::GetOtpFieldDetector() {
-  return nullptr;
-}
-
-OtpMetricsTracker* AutofillClient::GetOtpMetricsTracker() {
   return nullptr;
 }
 

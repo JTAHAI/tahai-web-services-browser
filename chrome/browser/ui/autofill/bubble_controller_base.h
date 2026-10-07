@@ -39,9 +39,7 @@ enum class BubbleType {
   kOmniboxAutofill = 11,
   // Denotes bubble for payments churned users.
   kPaymentsChurnedUsers = 12,
-  // Denotes bubble for the Wallet reminder notice.
-  kWalletReminderNotice = 13,
-  kMaxValue = kWalletReminderNotice
+  kMaxValue = kPaymentsChurnedUsers
 };
 // LINT.ThenChange(/tools/metrics/histograms/metadata/autofill/enums.xml:AutofillBubbleType)
 

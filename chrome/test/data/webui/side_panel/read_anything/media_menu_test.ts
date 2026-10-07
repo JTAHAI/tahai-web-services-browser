@@ -10,23 +10,23 @@ import {DEFAULT_SETTINGS, ReadAnythingSettingsChange, ToolbarEvent} from 'chrome
 import {assertEquals, assertFalse, assertTrue} from 'chrome-untrusted://webui-test/chai_assert.js';
 import {microtasksFinished} from 'chrome-untrusted://webui-test/test_util.js';
 
-import {assertTestSettingsAreNotDefaultSettings, setupTestEnvironment, stubAnimationFrame} from './common.js';
+import {assertTestSettingsAreNotDefaultSettings, mockMetrics, stubAnimationFrame} from './common.js';
+import {FakeReadingMode} from './fake_reading_mode.js';
 import type {TestMetricsBrowserProxy} from './test_metrics_browser_proxy.js';
-import type {TestVisualBrowserProxy} from './test_visual_browser_proxy.js';
 
 suite('MediaMenuElement', () => {
   let mediaMenu: MediaMenuElement;
   let metrics: TestMetricsBrowserProxy;
-  let visualBrowserProxy: TestVisualBrowserProxy;
 
   suiteSetup(() => {
     assertTestSettingsAreNotDefaultSettings();
   });
 
   setup(() => {
-    const result = setupTestEnvironment();
-    visualBrowserProxy = result.visualBrowserProxy;
-    metrics = result.metrics;
+    document.body.innerHTML = window.trustedTypes!.emptyHTML;
+    const readingMode = new FakeReadingMode();
+    chrome.readingMode = readingMode as unknown as typeof chrome.readingMode;
+    metrics = mockMetrics();
 
     mediaMenu = document.createElement('media-menu');
     document.body.appendChild(mediaMenu);
@@ -90,7 +90,12 @@ suite('MediaMenuElement', () => {
   });
 
   test('on images row click toggles images exactly once', async () => {
-    visualBrowserProxy.imagesEnabled = false;
+    let imagesToggledCount = 0;
+    chrome.readingMode.onImagesEnabledToggled = () => {
+      imagesToggledCount++;
+      chrome.readingMode.imagesEnabled = !chrome.readingMode.imagesEnabled;
+    };
+    chrome.readingMode.imagesEnabled = false;
     mediaMenu.settingsPrefs = {
       ...DEFAULT_SETTINGS,
       imagesEnabled: false,
@@ -100,8 +105,8 @@ suite('MediaMenuElement', () => {
     getImagesButton().click();
     await microtasksFinished();
 
-    assertEquals(1, visualBrowserProxy.getCallCount('onImagesEnabledToggled'));
-    assertTrue(visualBrowserProxy.imagesEnabled);
+    assertEquals(1, imagesToggledCount);
+    assertTrue(chrome.readingMode.imagesEnabled);
     assertTrue(
         getImagesButton().querySelector<CrToggleElement>('cr-toggle')!.checked);
     assertEquals(
@@ -115,13 +120,18 @@ suite('MediaMenuElement', () => {
     imagesToggle.click();
     await microtasksFinished();
 
-    assertEquals(2, visualBrowserProxy.getCallCount('onImagesEnabledToggled'));
-    assertFalse(visualBrowserProxy.imagesEnabled);
+    assertEquals(2, imagesToggledCount);
+    assertFalse(chrome.readingMode.imagesEnabled);
     assertFalse(imagesToggle.checked);
   });
 
   test('on links row click toggles links exactly once', async () => {
-    visualBrowserProxy.linksEnabled = false;
+    let linksToggledCount = 0;
+    chrome.readingMode.onLinksEnabledToggled = () => {
+      linksToggledCount++;
+      chrome.readingMode.linksEnabled = !chrome.readingMode.linksEnabled;
+    };
+    chrome.readingMode.linksEnabled = false;
     mediaMenu.settingsPrefs = {
       ...DEFAULT_SETTINGS,
       linksEnabled: false,
@@ -131,8 +141,8 @@ suite('MediaMenuElement', () => {
     getLinksButton().click();
     await microtasksFinished();
 
-    assertEquals(1, visualBrowserProxy.getCallCount('onLinksEnabledToggled'));
-    assertTrue(visualBrowserProxy.linksEnabled);
+    assertEquals(1, linksToggledCount);
+    assertTrue(chrome.readingMode.linksEnabled);
     assertTrue(
         getLinksButton().querySelector<CrToggleElement>('cr-toggle')!.checked);
     assertEquals(
@@ -144,8 +154,8 @@ suite('MediaMenuElement', () => {
     linksToggle.click();
     await microtasksFinished();
 
-    assertEquals(2, visualBrowserProxy.getCallCount('onLinksEnabledToggled'));
-    assertFalse(visualBrowserProxy.linksEnabled);
+    assertEquals(2, linksToggledCount);
+    assertFalse(chrome.readingMode.linksEnabled);
     assertFalse(linksToggle.checked);
   });
 

@@ -33,7 +33,6 @@
 
 #include <memory>
 
-#include "base/memory/raw_ptr.h"
 #include "cc/trees/layer_tree_host.h"
 #include "third_party/blink/renderer/core/core_export.h"
 #include "third_party/blink/renderer/platform/graphics/color.h"
@@ -91,7 +90,7 @@ class CORE_EXPORT FullscreenController {
 
   void EnterFullscreenCallback(bool granted);
 
-  raw_ptr<WebViewImpl, UnprotectedInRelease | DanglingUntriaged> web_view_base_;
+  WebViewImpl* web_view_base_;
 
   // State is used to avoid unnecessary enter/exit requests.
   enum class State {

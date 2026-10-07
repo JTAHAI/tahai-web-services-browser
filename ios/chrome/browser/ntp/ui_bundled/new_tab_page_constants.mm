@@ -43,5 +43,3 @@ const CGFloat kHomeModuleMinimumPadding = 4;
 const NSInteger kCustomizationNewBadgeMaxImpressionCount = 3;
 
 const float kBottomMagicStackPadding = 14.0f;
-
-const CGFloat kNewTabPageHorizontalMargin = 16.0;

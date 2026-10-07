@@ -5,13 +5,13 @@
 #ifndef CHROME_BROWSER_SESSIONS_SESSION_SERVICE_UTILS_H_
 #define CHROME_BROWSER_SESSIONS_SESSION_SERVICE_UTILS_H_
 
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser.h"
 #include "components/sessions/core/session_types.h"
 
 // Convert back/forward between the Browser and SessionService window types.
 sessions::SessionWindow::WindowType WindowTypeForBrowserType(
-    BrowserWindowInterface::Type type);
-BrowserWindowInterface::Type BrowserTypeForWindowType(
+    Browser::Type type);
+Browser::Type BrowserTypeForWindowType(
     sessions::SessionWindow::WindowType type);
 
 #endif  // CHROME_BROWSER_SESSIONS_SESSION_SERVICE_UTILS_H_

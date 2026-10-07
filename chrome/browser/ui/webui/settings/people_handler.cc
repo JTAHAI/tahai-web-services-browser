@@ -31,7 +31,6 @@
 #include "chrome/browser/profiles/profile_avatar_icon_util.h"
 #include "chrome/browser/profiles/profile_manager.h"
 #include "chrome/browser/profiles/profile_metrics.h"
-#include "chrome/browser/signin/account_preview_data_service_factory.h"
 #include "chrome/browser/signin/chrome_signin_client_factory.h"
 #include "chrome/browser/signin/chrome_signin_pref_names.h"
 #include "chrome/browser/signin/identity_manager_factory.h"
@@ -671,8 +670,7 @@ base::ListValue PeopleHandler::GetStoredAccountsList() {
     // If dice is enabled, show all the accounts.
     for (const auto& account : signin_ui_util::GetOrderedAccountsForDisplay(
              identity_manager,
-             AccountPreviewDataServiceFactory::GetForProfile(profile_),
-             /*restrict_to_accounts_eligible_for_signin=*/true)) {
+             /*restrict_to_accounts_eligible_for_sync=*/true)) {
       accounts.Append(GetAccountValue(identity_manager, account));
     }
     return accounts;
@@ -971,7 +969,8 @@ void PeopleHandler::HandleShowSyncPassphraseDialog(
     return;
   }
 
-  ShowSyncPassphraseDialogAndDecryptData(*browser);
+  ShowSyncPassphraseDialogAndDecryptData(
+      *browser->GetBrowserForMigrationOnly());
 }
 
 void PeopleHandler::HandleShowAccountSettingsUI(const base::ListValue& args) {
@@ -1437,16 +1436,15 @@ base::DictValue PeopleHandler::GetChromeSigninUserChoiceInfo() {
       IdentityManagerFactory::GetForProfile(profile_);
   // Gets the Chrome signed in account or the first signed in account in the
   // cooke jar, refresh token should be available too.
-  AccountInfo account = signin_ui_util::GetSingleAccountForPromos(
-      identity_manager,
-      AccountPreviewDataServiceFactory::GetForProfile(profile_));
+  AccountInfo account =
+      signin_ui_util::GetSingleAccountForPromos(identity_manager);
 
   bool should_show_settings = !account.IsEmpty();
 
   ChromeSigninUserChoice choice =
       should_show_settings
           ? SigninPrefs(*profile_->GetPrefs())
-                .GetChromeSigninInterceptionUserChoice(account.GetGaiaId())
+                .GetChromeSigninInterceptionUserChoice(account.gaia)
           : ChromeSigninUserChoice::kNoChoice;
 
   // Set for metrics purposes.
@@ -1456,7 +1454,7 @@ base::DictValue PeopleHandler::GetChromeSigninUserChoiceInfo() {
   chrome_signin_user_choice_info.Set("shouldShowSettings",
                                      should_show_settings);
   chrome_signin_user_choice_info.Set("choice", static_cast<int>(choice));
-  chrome_signin_user_choice_info.Set("signedInEmail", account.GetEmail());
+  chrome_signin_user_choice_info.Set("signedInEmail", account.email);
 
   return chrome_signin_user_choice_info;
 }
@@ -1490,18 +1488,17 @@ void PeopleHandler::HandleSetChromeSigninUserChoice(
   // guarantees that the `user_choice` is from a user modification through the
   // UI since the `SigninPrefs` is not aware of it yet.
   if (user_choice ==
-      signin_prefs.GetChromeSigninInterceptionUserChoice(account.GetGaiaId())) {
+      signin_prefs.GetChromeSigninInterceptionUserChoice(account.gaia)) {
     return;
   }
 
-  signin_prefs.SetChromeSigninInterceptionUserChoice(account.GetGaiaId(),
-                                                     user_choice);
+  signin_prefs.SetChromeSigninInterceptionUserChoice(account.gaia, user_choice);
   // If the user explicitly set the `kDoNotSignin` choice from the settings,
   // suppress any bubble interaction time that could lead to re-prompts.
   if (user_choice == ChromeSigninUserChoice::kDoNotSignin) {
     signin_prefs.ClearChromeSigninInterceptionLastBubbleDeclineTime(
-        account.GetGaiaId());
-    signin_prefs.ClearChromeSigninBubbleRepromptCount(account.GetGaiaId());
+        account.gaia);
+    signin_prefs.ClearChromeSigninBubbleRepromptCount(account.gaia);
   }
 
   // Set for metrics purposes.
@@ -1517,7 +1514,7 @@ void PeopleHandler::UpdateChromeSigninUserChoiceInfo() {
 }
 
 void PeopleHandler::HandleSetChromeSigninUserChoiceForTesting(
-    std::string_view email,
+    const std::string& email,
     ChromeSigninUserChoice choice) {
   base::ListValue args;
   args.Append(static_cast<int>(choice));
@@ -1538,10 +1535,7 @@ void PeopleHandler::HandleRecordSigninOffered(const base::ListValue& args) {
 
   auto* identity_manager = IdentityManagerFactory::GetForProfile(profile_);
   signin_metrics::PromoAction promo_action =
-      signin_ui_util::GetSingleAccountForPromos(
-          identity_manager,
-          AccountPreviewDataServiceFactory::GetForProfile(profile_))
-              .IsEmpty()
+      signin_ui_util::GetSingleAccountForPromos(identity_manager).IsEmpty()
           ? signin_metrics::PromoAction::
                 PROMO_ACTION_NEW_ACCOUNT_NO_EXISTING_ACCOUNT
           : signin_metrics::PromoAction::PROMO_ACTION_WITH_DEFAULT;

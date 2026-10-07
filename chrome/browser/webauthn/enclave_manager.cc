@@ -89,7 +89,6 @@
 #include "crypto/hash.h"
 #include "crypto/kdf.h"
 #include "crypto/keypair.h"
-#include "crypto/openssl_util.h"
 #include "crypto/random.h"
 #include "crypto/sha2.h"
 #include "crypto/subtle_passkey.h"
@@ -128,47 +127,6 @@ namespace enclave = device::enclave;
 using trusted_vault::TrustedVaultKeyAndVersion;
 using webauthn_pb::EnclaveLocalState;
 
-namespace {
-
-std::string ToString(EnclaveManager::ActionForUMA action) {
-  std::string_view action_string;
-  switch (action) {
-    case EnclaveManager::ActionForUMA::kRegisterIfNeeded:
-      action_string = "RegisterIfNeeded";
-      break;
-    case EnclaveManager::ActionForUMA::kSetupWithPIN:
-      action_string = "SetupWithPIN";
-      break;
-    case EnclaveManager::ActionForUMA::kAddDeviceToAccount:
-      action_string = "AddDeviceToAccount";
-      break;
-    case EnclaveManager::ActionForUMA::kAddDeviceAndPINToAccount:
-      action_string = "AddDeviceAndPINToAccount";
-      break;
-    case EnclaveManager::ActionForUMA::kSetPIN:
-      action_string = "SetPIN";
-      break;
-    case EnclaveManager::ActionForUMA::kChangePIN:
-      action_string = "ChangePIN";
-      break;
-#if BUILDFLAG(IS_MAC)
-    case EnclaveManager::ActionForUMA::kAddICloudRecoveryKey:
-      action_string = "AddICloudRecoveryKey";
-      break;
-#endif  // BUILDFLAG(IS_MAC)
-    case EnclaveManager::ActionForUMA::kUnenroll:
-      action_string = "Unenroll";
-      break;
-    case EnclaveManager::ActionForUMA::kConsiderSecurityDomainState:
-      action_string = "ConsiderSecurityDomainState";
-      break;
-  }
-  return base::StrCat(
-      {"WebAuthentication.Enclave.ActionOutcome.", action_string});
-}
-
-}  // namespace
-
 // Holds the arguments to `StoreKeys` so that they can be processed when the
 // state machine is ready for them.
 struct EnclaveManager::StoreKeysArgs {
@@ -198,15 +156,12 @@ struct EnclaveManager::PendingAction {
 };
 
 base::OnceCallback<void(EnclaveManager::ActionOutcome)>
-EnclaveManager::ToActionOutcomeCallback(EnclaveManager::Callback callback,
-                                        ActionForUMA action) {
+EnclaveManager::ToActionOutcomeCallback(EnclaveManager::Callback callback) {
   return base::BindOnce(
-      [](ActionForUMA action, EnclaveManager::Callback callback,
-         ActionOutcome outcome) {
-        base::UmaHistogramEnumeration(ToString(action), outcome);
+      [](EnclaveManager::Callback callback, ActionOutcome outcome) {
         std::move(callback).Run(outcome == ActionOutcome::kSuccess);
       },
-      action, std::move(callback));
+      std::move(callback));
 }
 
 EnclaveManager::StoreKeysLock::StoreKeysLock(
@@ -719,11 +674,6 @@ bool StoreWrappedSecrets(EnclaveLocalState::User* user,
 const char* TrustedVaultRegistrationStatusToString(
     trusted_vault::TrustedVaultRegistrationStatus status) {
   switch (status) {
-    case trusted_vault::TrustedVaultRegistrationStatus::
-        kRegistrationNotAttempted:
-      return "RegistrationNotAttempted";
-    case trusted_vault::TrustedVaultRegistrationStatus::kRegistrationCancelled:
-      return "RegistrationCancelled";
     case trusted_vault::TrustedVaultRegistrationStatus::kSuccess:
       return "Success";
     case trusted_vault::TrustedVaultRegistrationStatus::kAlreadyRegistered:
@@ -876,22 +826,21 @@ std::optional<std::string> CBORListOfBytestringToASN1Sequence(
   std::string cert_path;
   cert_path.resize(total_bytes);
   bssl::ScopedCBB cbb;
-  CBB_init_fixed(cbb.get(), reinterpret_cast<uint8_t*>(cert_path.data()),
+  CBB_init_fixed(cbb.get(), reinterpret_cast<uint8_t*>(&cert_path[0]),
                  cert_path.size());
   CBB inner;
-  if (!CBB_add_asn1(cbb.get(), &inner, CBS_ASN1_SEQUENCE)) {
-    return std::nullopt;
-  }
+  CBB_add_asn1(cbb.get(), &inner, CBS_ASN1_SEQUENCE);
   for (const auto& bytestring : bytestrings) {
     const std::vector<uint8_t>& bytes = bytestring.GetBytestring();
     if (!CBB_add_bytes(&inner, bytes.data(), bytes.size())) {
       return std::nullopt;
     }
   }
-  if (!CBB_flush(cbb.get())) {
+  size_t final_len;
+  if (!CBB_finish(cbb.get(), nullptr, &final_len)) {
     return std::nullopt;
   }
-  cert_path.resize(CBB_len(cbb.get()));
+  cert_path.resize(final_len);
   return cert_path;
 }
 
@@ -1350,11 +1299,6 @@ class EnclaveManager::StateMachine {
         return "UploadVaultAndMemberFromResponseFailedToParseResponse";
       case ActionOutcome::kDoNextActionFailedAccountMismatch:
         return "DoNextActionFailedAccountMismatch";
-      case ActionOutcome::kAddDeviceToAccountNotStartedWrappedPinParsingError:
-        return "AddDeviceToAccountNotStartedWrappedPinParsingError";
-      case ActionOutcome::
-          kConsiderSecurityDomainStateNotStartedWrappedPinParsingError:
-        return "ConsiderSecurityDomainStateNotStartedWrappedPinParsingError";
     }
   }
 
@@ -3253,18 +3197,14 @@ void EnclaveManager::Load(base::OnceClosure closure) {
 void EnclaveManager::RegisterIfNeeded(EnclaveManager::Callback callback) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
-  auto action_callback = ToActionOutcomeCallback(
-      std::move(callback), ActionForUMA::kRegisterIfNeeded);
-
   if (user_ && user_->registered()) {
     base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
-        FROM_HERE,
-        base::BindOnce(std::move(action_callback), ActionOutcome::kSuccess));
+        FROM_HERE, base::BindOnce(std::move(callback), true));
     return;
   }
 
   auto action = std::make_unique<PendingAction>();
-  action->callback = std::move(action_callback);
+  action->callback = ToActionOutcomeCallback(std::move(callback));
   action->want_registration = true;
   pending_actions_.emplace_back(std::move(action));
   Act();
@@ -3275,8 +3215,7 @@ void EnclaveManager::SetupWithPIN(std::string pin,
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
   auto action = std::make_unique<PendingAction>();
-  action->callback =
-      ToActionOutcomeCallback(std::move(callback), ActionForUMA::kSetupWithPIN);
+  action->callback = ToActionOutcomeCallback(std::move(callback));
   action->pin = std::move(pin);
   action->setup_account = true;
   pending_actions_.emplace_back(std::move(action));
@@ -3301,16 +3240,12 @@ bool EnclaveManager::AddDeviceToAccount(
     if (!wrapped_pin->ParseFromString(
             pin_metadata->usable_pin_metadata->wrapped_pin) ||
         CheckPINInvariants(*wrapped_pin).has_value()) {
-      base::UmaHistogramEnumeration(
-          ToString(ActionForUMA::kAddDeviceToAccount),
-          ActionOutcome::kAddDeviceToAccountNotStartedWrappedPinParsingError);
       return false;
     }
   }
 
   auto action = std::make_unique<PendingAction>();
-  action->callback = ToActionOutcomeCallback(std::move(callback),
-                                             ActionForUMA::kAddDeviceToAccount);
+  action->callback = ToActionOutcomeCallback(std::move(callback));
   action->store_keys_args = std::move(pending_keys_);
   action->wrapped_pin = std::move(wrapped_pin);
   if (pin_metadata) {
@@ -3330,8 +3265,7 @@ void EnclaveManager::AddDeviceAndPINToAccount(
 
   auto action = std::make_unique<PendingAction>();
   action->pin_public_key = std::move(previous_pin_public_key);
-  action->callback = ToActionOutcomeCallback(
-      std::move(callback), ActionForUMA::kAddDeviceAndPINToAccount);
+  action->callback = ToActionOutcomeCallback(std::move(callback));
   action->store_keys_args = std::move(pending_keys_);
   action->pin = std::move(pin);
   pending_actions_.emplace_back(std::move(action));
@@ -3345,8 +3279,7 @@ void EnclaveManager::SetPIN(std::string pin,
   CHECK(user_->registered());
 
   auto action = std::make_unique<PendingAction>();
-  action->callback =
-      ToActionOutcomeCallback(std::move(callback), ActionForUMA::kSetPIN);
+  action->callback = ToActionOutcomeCallback(std::move(callback));
   action->set_pin = std::move(pin);
   action->rapt = std::move(rapt);
   pending_actions_.emplace_back(std::move(action));
@@ -3360,8 +3293,7 @@ void EnclaveManager::ChangePIN(std::string updated_pin,
   CHECK(user_->registered());
 
   auto action = std::make_unique<PendingAction>();
-  action->callback =
-      ToActionOutcomeCallback(std::move(callback), ActionForUMA::kChangePIN);
+  action->callback = ToActionOutcomeCallback(std::move(callback));
   action->updated_pin = std::move(updated_pin);
   action->rapt = std::move(rapt);
   pending_actions_.emplace_back(std::move(action));
@@ -3374,9 +3306,6 @@ void EnclaveManager::RenewPIN(EnclaveManager::Callback callback) {
   CHECK(user_->has_wrapped_pin());
 
   auto action = std::make_unique<PendingAction>();
-  // TODO(crbug.com/542277412): Use `ToActionOutcomeCallback` and migrate to
-  // `WebAuthentication.Enclave.ActionOutcome.RenewPIN` for consistency with
-  // other action outcome metrics.
   action->callback = base::BindOnce(
       [](EnclaveManager::Callback callback, ActionOutcome action_outcome) {
         base::UmaHistogramEnumeration(
@@ -3400,8 +3329,7 @@ void EnclaveManager::AddICloudRecoveryKey(
       << "AddICloudRecoveryKey must be called immediately after registration "
          "and before discarding the security domain secret";
   auto action = std::make_unique<PendingAction>();
-  action->callback = ToActionOutcomeCallback(
-      std::move(callback), ActionForUMA::kAddICloudRecoveryKey);
+  action->callback = ToActionOutcomeCallback(std::move(callback));
   action->icloud_recovery_key = std::move(icloud_recovery_key);
   pending_actions_.emplace_back(std::move(action));
   Act();
@@ -3414,8 +3342,7 @@ void EnclaveManager::Unenroll(EnclaveManager::Callback callback) {
   auto action = std::make_unique<PendingAction>();
   action->callback = ToActionOutcomeCallback(
       base::BindOnce(&EnclaveManager::UnregisterComplete,
-                     weak_ptr_factory_.GetWeakPtr(), std::move(callback)),
-      ActionForUMA::kUnenroll);
+                     weak_ptr_factory_.GetWeakPtr(), std::move(callback)));
 
   action->unregister = true;
 
@@ -3438,15 +3365,11 @@ bool EnclaveManager::ConsiderSecurityDomainState(
   CHECK(user_);
   bool ret = IsReady();
 
-  auto action_callback = ToActionOutcomeCallback(
-      std::move(callback), ActionForUMA::kConsiderSecurityDomainState);
-
   if (IsSecurityDomainReset(state)) {
     ClearRegistration();
     FIDO_LOG(EVENT) << "The security domain has been reset.";
     base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
-        FROM_HERE,
-        base::BindOnce(std::move(action_callback), ActionOutcome::kSuccess));
+        FROM_HERE, base::BindOnce(std::move(callback), true));
     return false;
   }
 
@@ -3462,7 +3385,7 @@ bool EnclaveManager::ConsiderSecurityDomainState(
            user_->wrapped_pin().wrapped_pin() != wrapped_pin->wrapped_pin())) {
         std::unique_ptr<PendingAction> action =
             std::make_unique<PendingAction>();
-        action->callback = std::move(action_callback);
+        action->callback = ToActionOutcomeCallback(std::move(callback));
         action->update_wrapped_pin = true;
         action->wrapped_pin = std::move(wrapped_pin);
         action->pin_public_key = *metadata.public_key;
@@ -3474,10 +3397,6 @@ bool EnclaveManager::ConsiderSecurityDomainState(
       FIDO_LOG(ERROR) << "Wrapped PIN from security domain update is invalid: "
                       << base::HexEncode(base::as_byte_span(
                              metadata.usable_pin_metadata->wrapped_pin));
-      base::UmaHistogramEnumeration(
-          ToString(ActionForUMA::kConsiderSecurityDomainState),
-          ActionOutcome::
-              kConsiderSecurityDomainStateNotStartedWrappedPinParsingError);
     }
   }
 
@@ -3992,19 +3911,10 @@ EnclaveManager::CheckGpmPinAvailability(GpmPinAvailabilityCallback callback) {
               std::move(callback).Run(GpmPinAvailability::kGpmPinUnset);
               return;
             }
-            if (!result.gpm_pin_metadata->usable_pin_metadata) {
-              std::move(callback).Run(
-                  GpmPinAvailability::kGpmPinSetButNotUsable);
-              return;
-            }
-            EnclaveLocalState::WrappedPIN wrapped_pin;
-            bool pin_is_usable = wrapped_pin.ParseFromString(
-                                     result.gpm_pin_metadata
-                                         ->usable_pin_metadata->wrapped_pin) &&
-                                 !CheckPINInvariants(wrapped_pin).has_value();
             std::move(callback).Run(
-                pin_is_usable ? GpmPinAvailability::kGpmPinSetAndUsable
-                              : GpmPinAvailability::kGpmPinSetButNotUsable);
+                result.gpm_pin_metadata->usable_pin_metadata
+                    ? GpmPinAvailability::kGpmPinSetAndUsable
+                    : GpmPinAvailability::kGpmPinSetButNotUsable);
           },
           std::move(callback)),
       base::DoNothing());
@@ -4837,9 +4747,6 @@ void EnclaveManager::OnOsCryptReady(
 
 void EnclaveManager::OpportunisticStoreKeysAddComplete(
     ActionOutcome action_outcome) {
-  // TODO(crbug.com/542277412): Migrate to
-  // `WebAuthentication.Enclave.ActionOutcome.OpportunisticStoreKeys` for
-  // consistency with other action outcome metrics.
   base::UmaHistogramEnumeration(
       "WebAuthentication.Enclave.OpportunisticStoreKeysOutcome",
       action_outcome);

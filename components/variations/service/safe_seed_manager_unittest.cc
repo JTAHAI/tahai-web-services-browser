@@ -19,7 +19,7 @@
 #include "components/variations/client_filterable_state.h"
 #include "components/variations/pref_names.h"
 #include "components/variations/service/safe_seed_manager.h"
-#include "components/variations/variations_safe_seed_store.h"
+#include "components/variations/variations_safe_seed_store_local_state.h"
 #include "components/variations/variations_seed_store.h"
 #include "components/variations/variations_switches.h"
 #include "components/variations/variations_test_utils.h"
@@ -46,9 +46,8 @@ class FakeSeedStore : public VariationsSeedStore {
   explicit FakeSeedStore(TestingPrefServiceSimple* local_state)
       : VariationsSeedStore(local_state,
                             /*initial_seed=*/nullptr,
-                            /*signature_verification_enabled_on_load=*/true,
-                            /*signature_verification_enabled_on_receive=*/true,
-                            std::make_unique<VariationsSafeSeedStore>(
+                            /*signature_verification_enabled=*/true,
+                            std::make_unique<VariationsSafeSeedStoreLocalState>(
                                 local_state,
                                 /*seed_file_dir=*/base::FilePath(),
                                 version_info::Channel::UNKNOWN,

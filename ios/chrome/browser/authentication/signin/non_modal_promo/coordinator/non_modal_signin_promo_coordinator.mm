@@ -60,21 +60,16 @@ constexpr CGFloat kLogoSize = 22;
                                    browser:browser
                                       type:InfobarType::kInfobarTypeSignin];
   if (self) {
-    CHECK(viewController);
-    CHECK(browser);
-    CHECK_EQ(browser->type(), Browser::Type::kRegular);
+    CHECK(viewController, base::NotFatalUntil::M145);
+    CHECK(browser, base::NotFatalUntil::M145);
+    CHECK_EQ(browser->type(), Browser::Type::kRegular,
+             base::NotFatalUntil::M145);
     self.shouldUseDefaultDismissal = NO;
     _promoType = promoType;
     _tracker = feature_engagement::TrackerFactory::GetForProfile(self.profile);
   }
   return self;
 }
-
-- (void)dealloc {
-  CHECK(!_mediator, base::NotFatalUntil::M156);
-}
-
-#pragma mark - ChromeCoordinator
 
 - (void)start {
   self.started = YES;

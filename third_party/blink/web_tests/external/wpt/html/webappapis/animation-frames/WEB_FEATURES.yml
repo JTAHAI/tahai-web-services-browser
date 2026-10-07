@@ -1,2 +1,3 @@
-rules:
-- "**": [request-animation-frame]
+features:
+- name: request-animation-frame
+  files: "**"

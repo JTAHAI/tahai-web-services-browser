@@ -37,8 +37,8 @@ FrameTreeNode* CreateDelegateFrameTreeNode(
       /*associated_interface_provider_receiver=*/mojo::NullAssociatedReceiver(),
       blink::mojom::TreeScopeType::kDocument, "", "", true,
       blink::LocalFrameToken(), base::UnguessableToken::Create(),
-      blink::DocumentToken(), base::UnguessableToken::Create(),
-      blink::FramePolicy(), blink::mojom::FrameOwnerProperties(), false,
+      blink::DocumentToken(), blink::FramePolicy(),
+      blink::mojom::FrameOwnerProperties(), false,
       blink::FrameOwnerElementType::kFencedframe,
       /*is_dummy_frame_for_inner_tree=*/true);
 }
@@ -75,8 +75,10 @@ FencedFrame::~FencedFrame() {
   frame_tree_.reset();
 }
 
-void FencedFrame::Navigate(const GURL& url,
-                           base::TimeTicks navigation_start_time) {
+void FencedFrame::Navigate(
+    const GURL& url,
+    base::TimeTicks navigation_start_time,
+    const std::optional<std::u16string>& embedder_shared_storage_context) {
   // We don't need guard against a bad message in the case of prerendering since
   // we wouldn't even establish the mojo connection in that case.
   DCHECK_NE(RenderFrameHost::LifecycleState::kPrerendering,
@@ -160,7 +162,7 @@ void FencedFrame::Navigate(const GURL& url,
       /*is_embedder_initiated_fenced_frame_navigation=*/true,
       /*is_unfenced_top_navigation=*/false,
       /*force_new_browsing_instance=*/true, /*is_container_initiated=*/false,
-      /*has_rel_opener=*/false);
+      /*has_rel_opener=*/false, embedder_shared_storage_context);
 }
 
 bool FencedFrame::IsHidden() {

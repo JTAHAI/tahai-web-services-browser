@@ -12,7 +12,6 @@
 #include "base/dcheck_is_on.h"
 #include "base/memory/raw_ptr_exclusion.h"
 #include "base/memory/stack_allocated.h"
-#include "base/synchronization/lock_metrics_recorder_tags.h"
 #include "base/synchronization/lock_subtle.h"
 #include "base/synchronization/synchronization_buildflags.h"
 #include "base/thread_annotations.h"
@@ -29,7 +28,6 @@
 namespace base {
 class Lock;
 class ConditionVariable;
-class LockMetricTag;
 
 namespace win {
 namespace internal {
@@ -71,11 +69,8 @@ class BASE_EXPORT LockImpl {
   // held by something else, immediately return false.
   inline bool Try();
 
-  // Default lock acquisition with `BaseLock` tag.
+  // Take the lock, blocking until it is available if necessary.
   inline void Lock();
-
-  // Takes `LockMetricTagList` for recording lock acquisition times.
-  inline void Lock(const LockMetricTagList& tags);
 
   // Release the lock.  This must only be called by the lock's holder: after
   // a successful call to Try, or a call to Lock.
@@ -98,13 +93,11 @@ class BASE_EXPORT LockImpl {
   bool TrySpin();
 #endif
 
-  // Must only be called after an initial `Try()` has failed under contention.
-  void LockInternal(const LockMetricTagList& tags);
+  void LockInternal();
   NativeHandle native_handle_;
 };
 
-// Takes `LockMetricTagList` for recording lock acquisition times.
-inline void LockImpl::Lock(const LockMetricTagList& tags) {
+void LockImpl::Lock() {
   // Try the lock first to acquire it cheaply if it's not contended. Try() is
   // cheap on platforms with futex-type locks, as it doesn't call into the
   // kernel. Not marked `[[likely]]`, as:
@@ -115,7 +108,7 @@ inline void LockImpl::Lock(const LockMetricTagList& tags) {
     return;
   }
 
-  LockInternal(tags);
+  LockInternal();
 }
 
 #if BUILDFLAG(IS_WIN)

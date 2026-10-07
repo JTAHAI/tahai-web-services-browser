@@ -6,7 +6,6 @@
 #define THIRD_PARTY_BLINK_RENDERER_CORE_TYPED_ARRAYS_DOM_ARRAY_PIECE_H_
 
 #include "base/containers/span.h"
-#include "base/memory/raw_span.h"
 #include "third_party/blink/renderer/core/core_export.h"
 #include "third_party/blink/renderer/core/typed_arrays/dom_array_buffer.h"
 
@@ -55,7 +54,7 @@ class CORE_EXPORT DOMArrayPiece {
 
   void InitNull();
 
-  base::raw_span<uint8_t, UnprotectedInRelease | DanglingUntriaged> data_;
+  base::span<uint8_t> data_;
   bool is_null_;
   bool is_detached_;
 };

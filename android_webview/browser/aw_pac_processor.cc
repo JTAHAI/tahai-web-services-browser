@@ -31,10 +31,16 @@
 #include "net/base/network_isolation_key.h"
 #include "net/proxy_resolution/pac_file_data.h"
 #include "net/proxy_resolution/proxy_info.h"
-#include "third_party/jni_zero/default_conversions.h"
 
 // Must come after all headers that specialize FromJniType() / ToJniType().
 #include "android_webview/browser_jni_headers/AwPacProcessor_jni.h"
+
+using base::android::AttachCurrentThread;
+using base::android::ConvertJavaStringToUTF8;
+using base::android::ConvertUTF8ToJavaString;
+using base::android::JavaRef;
+using base::android::ScopedJavaGlobalRef;
+using base::android::ScopedJavaLocalRef;
 
 namespace android_webview {
 
@@ -159,7 +165,6 @@ class HostResolver : public proxy_resolver::ProxyHostResolver {
       // NetworkCallback#onLinkPropertiesChanged.
       // See SetNetworkAndLinkAddresses.
       if (IsNetworkSpecified()) {
-        CHECK(!link_addresses_.empty());
         results_.push_back(link_addresses_.front());
         return true;
       }
@@ -172,7 +177,6 @@ class HostResolver : public proxy_resolver::ProxyHostResolver {
 
     bool MyIpAddressExImpl() {
       if (IsNetworkSpecified()) {
-        CHECK(!link_addresses_.empty());
         results_ = link_addresses_;
         return true;
       }
@@ -393,7 +397,7 @@ void AwPacProcessor::Destroy(base::WaitableEvent* event) {
   event->Signal();
 }
 
-void AwPacProcessor::DestroyNative() {
+void AwPacProcessor::DestroyNative(JNIEnv* env) {
   delete this;
 }
 
@@ -425,9 +429,13 @@ void AwPacProcessor::MakeProxyRequestNative(
   }
 }
 
-bool AwPacProcessor::SetProxyScript(const std::string& script) {
+bool AwPacProcessor::SetProxyScript(std::string script) {
   SetProxyScriptJob job(this, script);
   return job.ExecSync();
+}
+
+bool AwPacProcessor::SetProxyScript(JNIEnv* env, const std::string& script) {
+  return SetProxyScript(script);
 }
 
 bool AwPacProcessor::MakeProxyRequest(std::string url, std::string* result) {
@@ -444,16 +452,20 @@ bool AwPacProcessor::MakeProxyRequest(std::string url, std::string* result) {
   }
 }
 
-std::optional<std::string> AwPacProcessor::MakeProxyRequest(
-    const std::string& url) {
+ScopedJavaLocalRef<jstring> AwPacProcessor::MakeProxyRequest(
+    JNIEnv* env,
+    const JavaRef<jstring>& jurl) {
+  std::string url = ConvertJavaStringToUTF8(env, jurl);
   std::string result;
   if (MakeProxyRequest(url, &result)) {
-    return result;
+    return ConvertUTF8ToJavaString(env, result);
+  } else {
+    return nullptr;
   }
-  return std::nullopt;
 }
 
 void AwPacProcessor::SetNetworkAndLinkAddresses(
+    JNIEnv* env,
     net_handle_t net_handle,
     const std::vector<std::string>& string_link_addresses) {
   std::vector<net::IPAddress> link_addresses;
@@ -472,12 +484,12 @@ void AwPacProcessor::SetNetworkAndLinkAddresses(
                                 net_handle, std::move(link_addresses)));
 }
 
-static int64_t JNI_AwPacProcessor_CreateNativePacProcessor() {
+static int64_t JNI_AwPacProcessor_CreateNativePacProcessor(JNIEnv* env) {
   AwPacProcessor* processor = new AwPacProcessor();
   return reinterpret_cast<intptr_t>(processor);
 }
 
-static void JNI_AwPacProcessor_InitializeEnvironment() {
+static void JNI_AwPacProcessor_InitializeEnvironment(JNIEnv* env) {
   base::ThreadPoolInstance::CreateAndStartWithDefaultParams("AwPacProcessor");
 }
 

@@ -148,24 +148,17 @@ void ConfigureImageColor(UIButtonConfiguration* button_configuration,
   BOOL _initialConfigurationDone;
 }
 
-- (instancetype)initWithStyle:(ChromeButtonStyle)style
-                   buttonSize:(ChromeButtonSize)buttonSize {
+- (instancetype)initWithStyle:(ChromeButtonStyle)style {
   self = [super initWithFrame:CGRectZero];
   if (self) {
-    _style = style;
-    _buttonSize = buttonSize;
     [self setupInitialConfiguration];
-    [self updateButtonToMatchStyleAndSize];
+    self.style = style;
     self.translatesAutoresizingMaskIntoConstraints = NO;
     self.pointerInteractionEnabled = YES;
     self.pointerStyleProvider = CreateOpaqueButtonPointerStyleProvider();
     _initialConfigurationDone = YES;
   }
   return self;
-}
-
-- (instancetype)initWithStyle:(ChromeButtonStyle)style {
-  return [self initWithStyle:style buttonSize:ChromeButtonSizeRegular];
 }
 
 #pragma mark - Properties
@@ -175,15 +168,23 @@ void ConfigureImageColor(UIButtonConfiguration* button_configuration,
     return;
   }
   _style = style;
-  [self updateButtonToMatchStyleAndSize];
-}
-
-- (void)setButtonSize:(ChromeButtonSize)buttonSize {
-  if (_initialConfigurationDone && _buttonSize == buttonSize) {
-    return;
+  switch (_style) {
+    case ChromeButtonStylePrimary:
+      [self updateButtonToMatchPrimaryAction];
+      break;
+    case ChromeButtonStylePrimaryDestructive:
+      [self updateButtonToMatchPrimaryDestructiveAction];
+      break;
+    case ChromeButtonStyleSecondary:
+      [self updateButtonToMatchSecondaryAction];
+      break;
+    case ChromeButtonStyleSecondaryDestructive:
+      [self updateButtonToMatchSecondaryDestructiveAction];
+      break;
+    case ChromeButtonStyleTertiary:
+      [self updateButtonToMatchTertiaryAction];
+      break;
   }
-  _buttonSize = buttonSize;
-  [self updateButtonToMatchStyleAndSize];
 }
 
 - (void)setTunedDownStyle:(BOOL)tunedDownStyle {
@@ -310,16 +311,24 @@ void ConfigureImageColor(UIButtonConfiguration* button_configuration,
       self.configuration =
           [UIButtonConfiguration prominentGlassButtonConfiguration];
     }
-    return;
+  } else {
+    self.configuration = [UIButtonConfiguration plainButtonConfiguration];
   }
 
-  self.configuration = [UIButtonConfiguration plainButtonConfiguration];
+  UIButtonConfiguration* configuration = self.configuration;
+  configuration.contentInsets = NSDirectionalEdgeInsetsMake(
+      kButtonVerticalInsets, 0, kButtonVerticalInsets, 0);
+  if (@available(iOS 26, *)) {
+    configuration.cornerStyle = UIButtonConfigurationCornerStyleCapsule;
+  } else {
+    configuration.background.cornerRadius = kPrimaryButtonCornerRadius;
+  }
+  self.configuration = configuration;
 }
 
 // Updates `button` to match a primary action style.
 - (void)updateButtonToMatchPrimaryAction {
   UIButtonConfiguration* configuration = self.configuration;
-  [self applySizeToConfiguration:configuration];
   UIFont* font = [UIFont preferredFontForTextStyle:UIFontTextStyleHeadline];
   UIColor* enabledTextColor = [UIColor colorNamed:kSolidButtonTextColor];
   UIColor* disabledTextColor = [UIColor colorNamed:kSolidBlackColor];
@@ -336,12 +345,11 @@ void ConfigureImageColor(UIButtonConfiguration* button_configuration,
 // Updates `button` to match a primary destruction action style.
 - (void)updateButtonToMatchPrimaryDestructiveAction {
   UIButtonConfiguration* configuration = self.configuration;
-  [self applySizeToConfiguration:configuration];
-  UIFont* font = [UIFont preferredFontForTextStyle:UIFontTextStyleHeadline];
   UIColor* enabledTextColor = [UIColor colorNamed:kSolidButtonTextColor];
   UIColor* disabledTextColor = [UIColor colorNamed:kSolidBlackColor];
-  SetButtonTitleTextAttributes(configuration, font, enabledTextColor, self,
-                               disabledTextColor);
+  SetButtonTitleTextAttributes(
+      configuration, [UIFont preferredFontForTextStyle:UIFontTextStyleHeadline],
+      enabledTextColor, self, disabledTextColor);
   configuration.baseForegroundColor = enabledTextColor;
   UpdatePrimaryButtonBackgroundColor(self, /*destructive*/ true, configuration);
   self.configuration = configuration;
@@ -352,7 +360,6 @@ void ConfigureImageColor(UIButtonConfiguration* button_configuration,
 // Updates `button` to match a secondary action style.
 - (void)updateButtonToMatchSecondaryAction {
   UIButtonConfiguration* configuration = self.configuration;
-  [self applySizeToConfiguration:configuration];
   UIColor* enabledTextColor;
   UIFont* font;
   if (@available(iOS 26, *)) {
@@ -375,7 +382,6 @@ void ConfigureImageColor(UIButtonConfiguration* button_configuration,
 // Updates `button` to match a secondary destructive action style.
 - (void)updateButtonToMatchSecondaryDestructiveAction {
   UIButtonConfiguration* configuration = self.configuration;
-  [self applySizeToConfiguration:configuration];
   configuration.background.backgroundColor = UIColor.clearColor;
   UIColor* enabledTextColor = [UIColor colorNamed:kRed600Color];
   UIFont* font;
@@ -395,7 +401,6 @@ void ConfigureImageColor(UIButtonConfiguration* button_configuration,
 // Updates `button` to match a tertiary action style.
 - (void)updateButtonToMatchTertiaryAction {
   UIButtonConfiguration* configuration = self.configuration;
-  [self applySizeToConfiguration:configuration];
   UIColor* enabledTextColor = [UIColor colorNamed:kBlueColor];
   UIFont* font = [UIFont preferredFontForTextStyle:UIFontTextStyleHeadline];
   SetButtonTitleTextAttributes(configuration, font, enabledTextColor);
@@ -415,45 +420,6 @@ void ConfigureImageColor(UIButtonConfiguration* button_configuration,
   self.configuration = configuration;
   self.configurationUpdateHandler =
       NonPrimaryActionConfigurationUpdateHandler();
-}
-
-// Helper to apply size-specific layout attributes to the configuration.
-- (void)applySizeToConfiguration:(UIButtonConfiguration*)configuration {
-  if (self.buttonSize == ChromeButtonSizeSmall) {
-    configuration.contentInsets = NSDirectionalEdgeInsetsMake(
-        kButtonVerticalInsets, kButtonHorizontalInsetsSmall,
-        kButtonVerticalInsets, kButtonHorizontalInsetsSmall);
-  } else {
-    configuration.contentInsets = NSDirectionalEdgeInsetsMake(
-        kButtonVerticalInsets, 0, kButtonVerticalInsets, 0);
-  }
-
-  if (@available(iOS 26, *)) {
-    configuration.cornerStyle = UIButtonConfigurationCornerStyleCapsule;
-  } else {
-    configuration.background.cornerRadius = kPrimaryButtonCornerRadius;
-  }
-}
-
-// Updates the button to match the current style and buttonSize.
-- (void)updateButtonToMatchStyleAndSize {
-  switch (_style) {
-    case ChromeButtonStylePrimary:
-      [self updateButtonToMatchPrimaryAction];
-      break;
-    case ChromeButtonStylePrimaryDestructive:
-      [self updateButtonToMatchPrimaryDestructiveAction];
-      break;
-    case ChromeButtonStyleSecondary:
-      [self updateButtonToMatchSecondaryAction];
-      break;
-    case ChromeButtonStyleSecondaryDestructive:
-      [self updateButtonToMatchSecondaryDestructiveAction];
-      break;
-    case ChromeButtonStyleTertiary:
-      [self updateButtonToMatchTertiaryAction];
-      break;
-  }
 }
 
 @end

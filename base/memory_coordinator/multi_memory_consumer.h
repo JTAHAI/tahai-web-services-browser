@@ -6,13 +6,13 @@
 #define BASE_MEMORY_COORDINATOR_MULTI_MEMORY_CONSUMER_H_
 
 #include <memory>
+#include <optional>
 #include <string_view>
 
 #include "base/base_export.h"
 #include "base/containers/flat_map.h"
 #include "base/containers/span.h"
 #include "base/memory_coordinator/memory_consumer.h"
-#include "base/memory_coordinator/memory_limit.h"
 #include "base/memory_coordinator/traits.h"
 #include "base/sequence_checker.h"
 
@@ -38,8 +38,7 @@ class BASE_EXPORT MultiMemoryConsumer {
   virtual void OnReleaseMemory(std::string_view name) = 0;
 
   // Invoked when the memory limit for the intervention with `name` is updated.
-  virtual void OnUpdateMemoryLimit(std::string_view name,
-                                   MemoryLimit memory_limit) = 0;
+  virtual void OnUpdateMemoryLimit(std::string_view name, int limit) = 0;
 };
 
 // MultiMemoryConsumerRegistration handles synchronous registration of multiple
@@ -48,7 +47,7 @@ class BASE_EXPORT MultiMemoryConsumerRegistration {
  public:
   struct Intervention {
     std::string_view name;
-    MemoryConsumerTraits traits;
+    std::optional<MemoryConsumerTraits> traits = std::nullopt;
   };
 
   using CheckUnregister = MemoryConsumerRegistration::CheckUnregister;
@@ -66,7 +65,7 @@ class BASE_EXPORT MultiMemoryConsumerRegistration {
   ~MultiMemoryConsumerRegistration();
 
   // Returns the current memory limit for the specified intervention name.
-  MemoryLimit GetMemoryLimit(std::string_view name) const;
+  int GetMemoryLimit(std::string_view name) const;
 
   // Returns the current memory limit ratio for the specified intervention name.
   double GetMemoryLimitRatio(std::string_view name) const;
@@ -95,7 +94,7 @@ class BASE_EXPORT AsyncMultiMemoryConsumerRegistration {
   ~AsyncMultiMemoryConsumerRegistration();
 
   // Returns the current memory limit for the specified intervention name.
-  MemoryLimit GetMemoryLimit(std::string_view name) const;
+  int GetMemoryLimit(std::string_view name) const;
 
   // Returns the current memory limit ratio for the specified intervention name.
   double GetMemoryLimitRatio(std::string_view name) const;

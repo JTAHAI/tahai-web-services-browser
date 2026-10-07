@@ -1,2 +1,4 @@
-rules:
-- "*": [webxr-device]
+features:
+- name: webxr-device
+  files:
+  - '*'

@@ -28,6 +28,8 @@ import org.chromium.base.test.util.Feature;
 @RunWith(Parameterized.class)
 @UseParametersRunnerFactory(AwJUnit4ClassRunnerWithParameters.Factory.class)
 public class AndroidAutofillSafeModeTest extends AwParameterizedTest {
+    public static final String TAG = "AndroidAutofillTest";
+
     @Rule public AwActivityTestRule mRule;
 
     public AndroidAutofillSafeModeTest(AwSettingsMutation param) {
@@ -50,12 +52,12 @@ public class AndroidAutofillSafeModeTest extends AwParameterizedTest {
         safeModeController.enableAllRegisteredActionsForTesting();
 
         // When
-        AwTestContainerView testContainerView =
+        AwTestContainerView mTestContainerView =
                 mRule.createAwTestContainerViewOnMainSync(
                         new TestAwContentsClient(), false, new TestDependencyFactory());
 
         // Then
-        assertNull(testContainerView.getAwContents().getAutofillProviderForTesting());
+        assertNull(mTestContainerView.getAwContents().getAutofillProviderForTesting());
     }
 
     @Test

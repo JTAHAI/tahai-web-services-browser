@@ -24,10 +24,6 @@
 #include "testing/gtest/include/gtest/gtest.h"
 #include "testing/multiprocess_func_list.h"
 
-#if BUILDFLAG(IS_WIN)
-#include <shlobj.h>
-#endif
-
 namespace tracing {
 namespace {
 
@@ -126,9 +122,6 @@ TEST_P(TraceStartupSharedMemoryTest, PassSharedMemoryRegion) {
 #if BUILDFLAG(IS_WIN)
   launch_options.start_hidden = true;
   launch_options.elevated = GetParam();
-  if (launch_options.elevated && !::IsUserAnAdmin()) {
-    GTEST_SKIP() << "This test must be run by an admin user";
-  }
 #endif
 
   // Update the launch parameters.

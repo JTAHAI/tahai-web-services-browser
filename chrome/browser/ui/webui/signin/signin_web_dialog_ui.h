@@ -7,15 +7,14 @@
 
 #include "ui/web_dialogs/web_dialog_ui.h"
 
-class BrowserWindowInterface;
+class Browser;
 
 // Base class for web UI dialogs used for sign-in, which must be Browser-aware.
 class SigninWebDialogUI : public ui::WebDialogUI {
  public:
   // Creates a WebUI message handler with the specified browser and adds it to
   // the web UI.
-  virtual void InitializeMessageHandlerWithBrowser(
-      BrowserWindowInterface* browser) = 0;
+  virtual void InitializeMessageHandlerWithBrowser(Browser* browser) = 0;
 
  protected:
   explicit SigninWebDialogUI(content::WebUI* web_ui);

@@ -305,6 +305,8 @@ ScopedRlzValueStoreLock::ScopedRlzValueStoreLock() {
 
   NSMutableDictionary* dict =
       [NSMutableDictionary dictionaryWithContentsOfURL:plist];
+  VERIFY(dict);
+
   if (dict) {
     store_.reset(new RlzValueStoreMac(dict, plist.path));
     g_store_object = (RlzValueStoreMac*)store_.get();

@@ -72,7 +72,6 @@ public class PageZoomMenuItemMediatorUnitTest {
         when(mPageZoomManagerDelegateMock.getWebContents()).thenReturn(mWebContentsMock);
         when(mPageZoomManagerDelegateMock.getBrowserContextHandle())
                 .thenReturn(mBrowserContextHandleMock);
-        when(mPageZoomManagerDelegateMock.isPageZoomSupported()).thenReturn(true);
 
         mModel = new PropertyModel.Builder(PageZoomProperties.ALL_KEYS_FOR_MENU_ITEM).build();
         mManager = new PageZoomManager(mPageZoomManagerDelegateMock);

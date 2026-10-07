@@ -9,7 +9,6 @@
 #import "ios/chrome/browser/content_suggestions/ui/cells/standalone_module_view_config.h"
 #import "ios/chrome/browser/ntp/ui_bundled/new_tab_page_color_palette.h"
 #import "ios/chrome/browser/ntp/ui_bundled/new_tab_page_color_updating.h"
-#import "ios/chrome/browser/ntp/ui_bundled/new_tab_page_feature.h"
 #import "ios/chrome/browser/ntp/ui_bundled/new_tab_page_trait.h"
 #import "ios/chrome/browser/shared/public/features/features.h"
 #import "ios/chrome/browser/shared/ui/elements/gradient/gradient_view.h"
@@ -109,7 +108,7 @@ const CGFloat kSeparatorHeight = 0.5;
 
   [NSLayoutConstraint activateConstraints:@[
     [separator.heightAnchor
-        constraintEqualToConstant:AlignValueToLowerPixel(kSeparatorHeight)],
+        constraintEqualToConstant:AlignValueToPixel(kSeparatorHeight)],
     [separator.leadingAnchor constraintEqualToAnchor:textStack.leadingAnchor],
     [separator.trailingAnchor constraintEqualToAnchor:textStack.trailingAnchor],
   ]];
@@ -133,20 +132,14 @@ const CGFloat kSeparatorHeight = 0.5;
 - (void)applyBackgroundColors {
   NewTabPageColorPalette* colorPalette =
       [self.traitCollection objectForNewTabPageTrait];
-
   if (colorPalette) {
     [_button setTitleColor:colorPalette.tintColor
                   forState:UIControlStateNormal];
-    _iconContainerView.backgroundColor = IsNewTabPageUICleanupEnabled()
-                                             ? colorPalette.primaryColor
-                                             : colorPalette.tertiaryColor;
+    _iconContainerView.backgroundColor = colorPalette.tertiaryColor;
   } else {
     [_button setTitleColor:[UIColor colorNamed:kBlueColor]
                   forState:UIControlStateNormal];
-    _iconContainerView.backgroundColor =
-        [UIColor colorNamed:IsNewTabPageUICleanupEnabled()
-                                ? kNTPRedesignTileBackgroundColor
-                                : kGrey100Color];
+    _iconContainerView.backgroundColor = [UIColor colorNamed:kGrey100Color];
   }
 }
 

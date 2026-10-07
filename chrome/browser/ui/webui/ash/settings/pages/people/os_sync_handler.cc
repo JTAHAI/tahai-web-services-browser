@@ -4,7 +4,6 @@
 
 #include "chrome/browser/ui/webui/ash/settings/pages/people/os_sync_handler.h"
 
-#include "ash/constants/ash_pref_names.h"
 #include "ash/constants/chrome_webui_url_constants.h"
 #include "ash/public/cpp/new_window_delegate.h"
 #include "base/auto_reset.h"
@@ -129,7 +128,7 @@ void OSSyncHandler::HandleSetOsSyncDatatypes(const base::ListValue& args) {
 
   // Wallpaper sync status is stored directly to the profile's prefs.
   bool wallpaper_synced = result.FindBool(kWallpaperEnabledKey).value();
-  profile_->GetPrefs()->SetBoolean(ash::prefs::kSyncOsWallpaper,
+  profile_->GetPrefs()->SetBoolean(settings::prefs::kSyncOsWallpaper,
                                    wallpaper_synced);
 
   // Start configuring the SyncService using the configuration passed to us from
@@ -187,9 +186,9 @@ void OSSyncHandler::PushSyncPrefs() {
 
   // Wallpaper sync status is fetched from prefs and is considered enabled if
   // all OS types are enabled; this mimics behavior of GetSelectedOsTypes().
-  args.Set(kWallpaperEnabledKey,
-           user_settings->IsSyncAllOsTypesEnabled() ||
-               profile_->GetPrefs()->GetBoolean(ash::prefs::kSyncOsWallpaper));
+  args.Set(kWallpaperEnabledKey, user_settings->IsSyncAllOsTypesEnabled() ||
+                                     profile_->GetPrefs()->GetBoolean(
+                                         settings::prefs::kSyncOsWallpaper));
 
   FireWebUIListener("os-sync-prefs-changed", args);
 }

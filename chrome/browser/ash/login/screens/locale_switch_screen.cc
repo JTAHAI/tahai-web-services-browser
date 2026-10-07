@@ -16,15 +16,14 @@
 #include "base/values.h"
 #include "chrome/browser/ash/base/locale_util.h"
 #include "chrome/browser/ash/login/screens/locale_switch_notification.h"
-#include "chrome/browser/ash/login/screens/sync_consent_screen.h"
 #include "chrome/browser/ash/login/users/chrome_user_manager_util.h"
 #include "chrome/browser/ash/login/wizard_context.h"
 #include "chrome/browser/ash/profiles/profile_helper.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profile_manager.h"
+#include "chrome/browser/signin/identity_manager_factory.h"
 #include "chrome/browser/ui/webui/ash/login/locale_switch_screen_handler.h"
 #include "chromeos/ash/components/osauth/public/auth_session_storage.h"
-#include "chromeos/ash/components/signin/identity_manager_provider.h"
 #include "components/application_locale_storage/application_locale_storage.h"
 #include "components/language/core/browser/pref_names.h"
 #include "components/language/core/common/locale_util.h"
@@ -229,17 +228,17 @@ void LocaleSwitchScreen::ShowImpl() {
 
   user_manager::User* user = user_manager::UserManager::Get()->GetActiveUser();
   DCHECK(user->is_profile_created());
+  Profile* profile = ProfileHelper::Get()->GetProfileByUser(user);
   if (user->GetType() == user_manager::UserType::kPublicAccount) {
     locale_ =
-        user->GetProfilePrefs()->GetString(language::prefs::kApplicationLocale);
+        profile->GetPrefs()->GetString(language::prefs::kApplicationLocale);
     SwitchLocale();
     return;
   }
 
   DCHECK(user->HasGaiaAccount());
 
-  identity_manager_ =
-      ash::IdentityManagerProvider::Get().Find(user->GetAccountId());
+  identity_manager_ = IdentityManagerFactory::GetForProfile(profile);
   if (!identity_manager_) {
     NOTREACHED();
   }
@@ -260,8 +259,7 @@ void LocaleSwitchScreen::ShowImpl() {
       identity_manager_->FindExtendedAccountInfoByGaiaId(gaia_id_);
   account_capabilities_loaded_ =
       refresh_token_loaded_ &&
-      SyncConsentScreen::AreCapabilitiesLoaded(
-          account_info.GetAccountCapabilities());
+      account_info.GetAccountCapabilities().AreAllCapabilitiesKnown();
   if (!account_capabilities_loaded_) {
     identity_manager_observer_.Observe(identity_manager_.get());
   }
@@ -297,8 +295,7 @@ void LocaleSwitchScreen::OnExtendedAccountInfoUpdated(
   }
   account_capabilities_loaded_ =
       refresh_token_loaded_ &&
-      SyncConsentScreen::AreCapabilitiesLoaded(
-          account_info.GetAccountCapabilities());
+      account_info.GetAccountCapabilities().AreAllCapabilitiesKnown();
   if (!account_capabilities_loaded_) {
     return;
   }

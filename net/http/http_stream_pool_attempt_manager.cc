@@ -1257,9 +1257,7 @@ QuicChromiumClientSession* HttpStreamPool::AttemptManager::
     QuicChromiumClientSession* quic_session =
         quic_session_pool()->HasMatchingIpSessionForServiceEndpoint(
             quic_session_alias_key(), endpoint,
-            service_endpoint_request_->GetDnsAliasResults(),
-            /*use_dns_aliases=*/true,
-            /*log_negative_result=*/true);
+            service_endpoint_request_->GetDnsAliasResults(), true);
     if (quic_session) {
       return quic_session;
     }
@@ -2184,8 +2182,14 @@ bool HttpStreamPool::AttemptManager::CanUseExistingQuicSession() const {
 bool HttpStreamPool::AttemptManager::IsEchEnabled() const {
   SSLClientContext* ssl_client_context =
       pool()->stream_attempt_params()->ssl_client_context;
-  return ssl_client_context &&
-         ssl_client_context->IsEchEnabled(stream_key().destination().host());
+  if (!ssl_client_context->config().ech_enabled) {
+    return false;
+  }
+  if (!ssl_client_context->ssl_config_service()) {
+    return true;
+  }
+  return ssl_client_context->ssl_config_service()->GetEchMode(
+             stream_key().destination().host()) != EchMode::kDisabled;
 }
 
 void HttpStreamPool::AttemptManager::MaybeMarkQuicBroken() {

@@ -7,8 +7,7 @@ context state after creation: suspended
     [2] : contextState
     [3] : contextType
     [4] : maxOutputChannelCount
-    [5] : renderQuantumSize
-    [6] : sampleRate
+    [5] : sampleRate
 ]
 context state after suspension: running
 [
@@ -17,8 +16,7 @@ context state after suspension: running
     [2] : contextState
     [3] : contextType
     [4] : maxOutputChannelCount
-    [5] : renderQuantumSize
-    [6] : sampleRate
+    [5] : sampleRate
 ]
 got context realtime data: false
 [

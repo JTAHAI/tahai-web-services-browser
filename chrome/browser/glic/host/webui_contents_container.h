@@ -10,6 +10,7 @@
 #include "base/functional/callback_helpers.h"
 #include "base/memory/raw_ptr.h"
 #include "base/time/time.h"
+#include "chrome/browser/profiles/keep_alive/scoped_profile_keep_alive.h"
 #include "content/public/browser/visibility.h"
 #include "content/public/browser/web_contents_observer.h"
 
@@ -74,6 +75,7 @@ class WebUIContentsContainerImpl : public content::WebContentsObserver,
   void UpdateActuationTracker();
 
   base::TimeTicks navigation_commit_time_;
+  ScopedProfileKeepAlive profile_keep_alive_;
   std::unique_ptr<content::WebContents> web_contents_;
   raw_ptr<content::WebContents> web_contents_ptr_ = nullptr;
   const raw_ptr<Profile> profile_;

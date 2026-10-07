@@ -72,6 +72,68 @@ class RunnerRejectionTest(unittest.TestCase):
         self.assertIn("designated isolated Windows session",
                       (runs[0] / "runner-error.log").read_text(encoding="utf-8-sig"))
 
+    def run_sequence_fixture(self, failed_target):
+        # Execute the runner's build block with a process fixture. No GN,
+        # compiler or Ninja executable is launched by these tests.
+        source = (ROOT / "tools/tahai/verify_upgrade.ps1").read_text()
+        block = source.split(
+            "  $buildStarted = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()", 1)[1]
+        block = "$buildStarted = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()" + block
+        block = block.split(
+            "  if ($buildExit -ne 0) { Write-UpgradeStatus 'failed'", 1)[0]
+        fixture = self.build / "sequence-fixture.ps1"
+        fixture.write_text("""
+param([string]$RunDirectory, [string]$FailedTarget)
+$ErrorActionPreference = 'Stop'
+$nativeSource = $RunDirectory
+$BuildDirectory = $RunDirectory
+$Jobs = 2
+$python = 'Invoke-FixtureProcess'
+$logged = 'fixture-only'
+$calls = [Collections.Generic.List[string]]::new()
+function Write-UpgradeStatus { }
+function Invoke-FixtureProcess {
+  $target = $args[-1]
+  $calls.Add($target)
+  if ($target -ceq $FailedTarget) {
+    'FAILED: fixture process' | Set-Content -LiteralPath $args[2]
+    $global:LASTEXITCODE = 7
+  } else {
+    ('Built fixture ' + $target) | Set-Content -LiteralPath $args[2]
+    $global:LASTEXITCODE = 0
+  }
+}
+""" + block + """
+$calls.ToArray() | ConvertTo-Json | Set-Content (Join-Path $RunDirectory 'calls.json')
+""", encoding="utf-8")
+        result = subprocess.run(
+            [POWERSHELL, "-NoProfile", "-File", str(fixture),
+             "-RunDirectory", str(self.build), "-FailedTarget", failed_target],
+            capture_output=True, text=True, timeout=30)
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+        calls = json.loads((self.build / "calls.json").read_text(encoding="utf-8-sig"))
+        record = json.loads((self.build / "build-result.json").read_text(encoding="utf-8-sig"))
+        return calls, record, (self.build / "build.log").read_text(encoding="utf-8-sig")
+
+    def test_release_targets_are_sequential_and_all_exits_recorded(self):
+        calls, record, log = self.run_sequence_fixture("")
+        self.assertEqual(['chrome', 'tahai_mission_service_tests',
+                          'elevation_service', 'elevated_tracing_service',
+                          'elevation_service_unittests',
+                          'elevated_tracing_service_unittests', 'browser_tests'], calls)
+        self.assertEqual(calls, [entry['target'] for entry in record['targets']])
+        self.assertEqual(0, record['buildExitCode'])
+        self.assertTrue(all(entry['exitCode'] == 0 for entry in record['targets']))
+        self.assertEqual(7, log.count('Built fixture '))
+
+    def test_failed_target_stops_before_later_targets_without_retry(self):
+        calls, record, log = self.run_sequence_fixture('elevation_service')
+        self.assertEqual(['chrome', 'tahai_mission_service_tests', 'elevation_service'], calls)
+        self.assertEqual(7, record['buildExitCode'])
+        self.assertEqual([0, 0, 7], [entry['exitCode'] for entry in record['targets']])
+        self.assertIn('FAILED: fixture process', log)
+        self.assertNotIn('browser_tests', log)
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)

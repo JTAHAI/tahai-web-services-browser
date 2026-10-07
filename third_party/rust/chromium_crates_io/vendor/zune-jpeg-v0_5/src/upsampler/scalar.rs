@@ -123,7 +123,7 @@ pub fn upsample_generic(
     if difference > 0 {
         // nearest neighbour
         for (input, chunk_output) in input.iter().zip(output.chunks_exact_mut(difference)) {
-            for x in chunk_output.iter_mut() { *x = *input; }
+            chunk_output.iter_mut().for_each(|x| *x = *input);
         }
     }
 }

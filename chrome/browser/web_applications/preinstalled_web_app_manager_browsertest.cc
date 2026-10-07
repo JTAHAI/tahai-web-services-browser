@@ -34,7 +34,7 @@
 #include "chrome/browser/extensions/extension_browsertest.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/signin/identity_manager_factory.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/web_applications/test/ssl_test_utils.h"
 #include "chrome/browser/ui/web_applications/test/web_app_browsertest_util.h"
 #include "chrome/browser/ui/web_applications/web_app_browsertest_base.h"
@@ -374,8 +374,7 @@ IN_PROC_BROWSER_TEST_F(PreinstalledWebAppManagerBrowserTest,
   // This is required to allow launching to work.
   provider().scheduler().SynchronizeOsIntegration(app_id, base::DoNothing());
 
-  BrowserWindowInterface* app_browser =
-      LaunchWebAppBrowserAndWait(profile(), app_id);
+  Browser* app_browser = LaunchWebAppBrowserAndWait(profile(), app_id);
   EXPECT_EQ(
       app_browser->tab_strip_model()->GetActiveWebContents()->GetVisibleURL(),
       launch_url);
@@ -422,8 +421,7 @@ IN_PROC_BROWSER_TEST_F(PreinstalledWebAppManagerBrowserTest,
   // This is required to allow launching to work.
   provider().scheduler().SynchronizeOsIntegration(app_id, base::DoNothing());
 
-  BrowserWindowInterface* app_browser =
-      LaunchWebAppBrowserAndWait(profile(), app_id);
+  Browser* app_browser = LaunchWebAppBrowserAndWait(profile(), app_id);
   EXPECT_EQ(
       app_browser->tab_strip_model()->GetActiveWebContents()->GetVisibleURL(),
       start_url);
@@ -467,8 +465,7 @@ IN_PROC_BROWSER_TEST_F(PreinstalledWebAppManagerBrowserTest,
   // This is required to allow launching to work.
   provider().scheduler().SynchronizeOsIntegration(app_id, base::DoNothing());
 
-  BrowserWindowInterface* app_browser =
-      LaunchWebAppBrowserAndWait(profile(), app_id);
+  Browser* app_browser = LaunchWebAppBrowserAndWait(profile(), app_id);
   EXPECT_EQ(
       app_browser->tab_strip_model()->GetActiveWebContents()->GetVisibleURL(),
       launch_url);
@@ -516,8 +513,7 @@ IN_PROC_BROWSER_TEST_F(PreinstalledWebAppManagerBrowserTest,
 
   provider().scheduler().SynchronizeOsIntegration(app_id, base::DoNothing());
 
-  BrowserWindowInterface* app_browser =
-      LaunchWebAppBrowserAndWait(profile(), app_id);
+  Browser* app_browser = LaunchWebAppBrowserAndWait(profile(), app_id);
   EXPECT_EQ(
       app_browser->tab_strip_model()->GetActiveWebContents()->GetVisibleURL(),
       launch_url);

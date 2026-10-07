@@ -204,12 +204,9 @@ class MockSafeBrowsingUIManager : public SafeBrowsingUIManager {
             std::make_unique<ChromeSafeBrowsingBlockingPageFactory>(),
             chrome::ChromeUINewTabURLAsGURL()),
         report_sent_(false) {}
-  MOCK_METHOD(void,
-              AttachThreatDetailsAndLaunchSurvey,
-              (content::BrowserContext * browser_context,
-               std::unique_ptr<ClientSafeBrowsingReportRequest> report,
-               bool is_tab_closed),
-              (override));
+  MOCK_METHOD2(AttachThreatDetailsAndLaunchSurvey,
+               void(content::BrowserContext* browser_context,
+                    std::unique_ptr<ClientSafeBrowsingReportRequest> report));
 
   MockSafeBrowsingUIManager(const MockSafeBrowsingUIManager&) = delete;
   MockSafeBrowsingUIManager& operator=(const MockSafeBrowsingUIManager&) =

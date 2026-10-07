@@ -565,8 +565,7 @@ class BidirectionalStreamQuicImplTest
         /*socket_performance_watcher=*/nullptr, ConnectionEndpointMetadata(),
         /*enable_origin_frame=*/true, /*server_preferred_address=*/true,
         MultiplexedSessionCreationInitiator::kUnknown,
-        NetLogWithSource::Make(NetLogSourceType::NONE),
-        QuicConnectionReuseDetails());
+        NetLogWithSource::Make(NetLogSourceType::NONE));
     session_->Initialize();
 
     // Blackhole QPACK decoder stream instead of constructing mock writes.

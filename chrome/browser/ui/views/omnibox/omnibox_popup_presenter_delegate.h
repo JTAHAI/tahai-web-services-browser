@@ -6,7 +6,6 @@
 #define CHROME_BROWSER_UI_VIEWS_OMNIBOX_OMNIBOX_POPUP_PRESENTER_DELEGATE_H_
 
 namespace views {
-class View;
 class Widget;
 }  // namespace views
 
@@ -19,10 +18,6 @@ class OmniboxPopupPresenterDelegate {
   virtual views::Widget* GetLocationBarWidget() = 0;
   virtual OmniboxPopupFileSelector* GetOmniboxPopupFileSelector() const = 0;
   virtual OmniboxPopupAimPresenter* GetOmniboxPopupAimPresenter() const = 0;
-
-  // This returns the view that will be given focus when the focus is given
-  // back to the location bar.
-  virtual views::View* GetLocationBarFocusRestoreView() = 0;
 };
 
 #endif  // CHROME_BROWSER_UI_VIEWS_OMNIBOX_OMNIBOX_POPUP_PRESENTER_DELEGATE_H_

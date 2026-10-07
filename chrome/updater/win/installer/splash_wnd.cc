@@ -126,12 +126,4 @@ LRESULT SplashWnd::OnDestroy(UINT, WPARAM, LPARAM) {
   return 0;
 }
 
-LRESULT SplashWnd::OnSetCursor(UINT, WPARAM wparam, LPARAM lparam) {
-  if (MaybeSetArrowCursor(hwnd(), wparam, lparam)) {
-    return TRUE;
-  }
-  SetMsgHandled(FALSE);
-  return 0;
-}
-
 }  // namespace updater::ui

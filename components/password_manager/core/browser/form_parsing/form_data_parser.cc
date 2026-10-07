@@ -34,7 +34,6 @@
 #include "components/autofill/core/common/unique_ids.h"
 #include "components/password_manager/core/browser/features/password_features.h"
 #include "components/password_manager/core/browser/password_form.h"
-#include "components/password_manager/core/browser/password_string.h"
 #include "components/password_manager/core/common/password_manager_constants.h"
 #include "components/password_manager/core/common/password_manager_features.h"
 #include "components/password_manager/core/common/password_manager_util.h"
@@ -1074,11 +1073,7 @@ void SetFields(const SignificantFields& significant_fields,
 
   if (significant_fields.password) {
     password_form->password_element = significant_fields.password->name();
-    // TODO(crbug.com/513276101): Explore adding a move friendly variant of
-    // GetFieldValue as part of remaining work to convert password to use
-    // PasswordString.
-    password_form->password_value = PasswordString(
-        std::u16string(GetFieldValue(*significant_fields.password)));
+    password_form->password_value = GetFieldValue(*significant_fields.password);
     password_form->password_element_renderer_id =
         significant_fields.password->renderer_id();
   }
@@ -1086,11 +1081,8 @@ void SetFields(const SignificantFields& significant_fields,
   if (significant_fields.new_password) {
     password_form->new_password_element =
         significant_fields.new_password->name();
-    // TODO(crbug.com/513276101): Explore adding a move friendly variant of
-    // GetFieldValue as part of remaining work to convert password to use
-    // PasswordString.
-    password_form->new_password_value = PasswordString(
-        std::u16string(GetFieldValue(*significant_fields.new_password)));
+    password_form->new_password_value =
+        GetFieldValue(*significant_fields.new_password);
     password_form->new_password_element_renderer_id =
         significant_fields.new_password->renderer_id();
   }

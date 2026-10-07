@@ -7,11 +7,8 @@
 #include <optional>
 #include <string>
 
-#include "base/i18n/language_tag.h"
 #include "base/i18n/number_formatting.h"
 #include "base/i18n/rtl.h"
-#include "base/i18n/tag_converters.h"
-#include "base/i18n/test/scoped_icu_locale.h"
 #include "pdf/document_metadata.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -28,21 +25,20 @@ class FormatPageSizeTest : public testing::Test {
   void SetUp() override {
     const std::string locale(GetLocale());
     if (!locale.empty()) {
-      icu_locale_override_.emplace(
-          base::i18n::GetLanguageTagFromString(locale).value());
+      base::i18n::SetICUDefaultLocale(locale);
       base::ResetFormattersForTesting();
     }
   }
 
   void TearDown() override {
-    icu_locale_override_.reset();
+    base::i18n::SetICUDefaultLocale(default_locale_);
     base::ResetFormattersForTesting();
   }
 
   virtual std::string GetLocale() const { return std::string(); }
 
  private:
-  std::optional<base::i18n::ScopedDefaultIcuLocale> icu_locale_override_;
+  std::string default_locale_{base::i18n::GetConfiguredLocale()};
 };
 
 }  // namespace

@@ -37,7 +37,7 @@
 #include "media/base/media_switches.h"
 #include "media/base/sample_format.h"
 #include "media/base/timestamp_constants.h"
-#include "media/filters/symphonia_decoder_bridge.rs.h"
+#include "media/filters/symphonia_glue.rs.h"
 
 namespace media {
 
@@ -136,7 +136,28 @@ SymphoniaDecoderConfig ToSymphoniaConfig(const AudioDecoderConfig& config) {
   return out;
 }
 
+// Helper to create a SymphoniaPacket from a DecoderBuffer.
+SymphoniaPacket ToSymphoniaPacket(
+    const DecoderBuffer& buffer,
+    std::optional<base::TimeDelta> first_frame_timestamp) {
+  SymphoniaPacket packet;
+  if (buffer.end_of_stream()) {
+    // Represent EOS as an empty data vector.
+    packet.data = rust::Slice<const uint8_t>();
 
+    // EOS buffers do not have a valid timestamp or duration.
+    packet.timestamp_us = 0;
+    packet.duration_us = 0;
+  } else {
+    packet.data = rust::Slice<const uint8_t>(
+        buffer.empty() ? nullptr : base::to_address(buffer.begin()),
+        buffer.size());
+    packet.timestamp_us =
+        (buffer.timestamp() - first_frame_timestamp.value()).InMicroseconds();
+    packet.duration_us = buffer.duration().InMicroseconds();
+  }
+  return packet;
+}
 
 SampleFormat ToSampleFormat(SymphoniaSampleFormat value) {
   switch (value) {
@@ -229,30 +250,6 @@ std::unique_ptr<BoxedMemory<T>> WrapBoxedMemory(rust::Box<T> box) {
 }
 
 }  // namespace
-
-SymphoniaPacket ToSymphoniaPacket(
-    const DecoderBuffer& buffer,
-    std::optional<base::TimeDelta> first_frame_timestamp) {
-  SymphoniaPacket packet;
-  if (buffer.end_of_stream()) {
-    // Represent EOS as an empty data vector.
-    packet.data = rust::Slice<const uint8_t>();
-
-    // EOS buffers do not have a valid timestamp or duration.
-    packet.timestamp_us = 0;
-    packet.duration_us = 0;
-  } else {
-    packet.data = rust::Slice<const uint8_t>(
-        buffer.empty() ? nullptr : base::to_address(buffer.begin()),
-        buffer.size());
-    const base::TimeDelta first_timestamp =
-        first_frame_timestamp.value_or(buffer.timestamp());
-    packet.timestamp_us =
-        (buffer.timestamp() - first_timestamp).InMicroseconds();
-    packet.duration_us = buffer.duration().InMicroseconds();
-  }
-  return packet;
-}
 
 SymphoniaAudioDecoder::SymphoniaAudioDecoder(
     scoped_refptr<base::SequencedTaskRunner> task_runner,
@@ -406,7 +403,6 @@ void SymphoniaAudioDecoder::Reset(base::OnceClosure closure) {
   ConfigureDecoder(config_);  // Re-create the decoder instance.
 
   state_ = DecoderState::kNormal;
-  consecutive_error_count_ = 0;
   ResetTimestampState(config_);
 
   if (mode_ == ExecutionMode::kAsynchronous) {
@@ -437,70 +433,48 @@ DecoderStatus SymphoniaAudioDecoder::SymphoniaDecode(
     const DecoderBuffer& buffer) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
-  // EOS buffers are markers and contain no audio payload to decode.
-  if (buffer.end_of_stream()) {
-    return DecoderStatus::Codes::kOk;
-  }
-
-  // An empty buffer has no payload to decode.
-  if (buffer.empty()) {
-    const bool processed = discard_helper_->ProcessBuffers(
-        AudioDiscardHelper::TimeInfo::FromBuffer(buffer), nullptr);
-    DCHECK(!processed);
-    return DecoderStatus::Codes::kOk;
-  }
-
   // The first frame only has a valid timestamp if it is not EOS.
-  if (!first_frame_timestamp_.has_value()) {
+  if (!first_frame_timestamp_.has_value() && !buffer.end_of_stream()) {
     first_frame_timestamp_ = buffer.timestamp();
   }
 
   SymphoniaDecodeResult result = symphonia_decoder_.value()->decode(
       ToSymphoniaPacket(buffer, first_frame_timestamp_));
 
+  // Record status for every decode attempt.
   if (result.status != SymphoniaDecodeStatus::Ok) {
     base::UmaHistogramEnumeration("Media.Audio.Symphonia.DecodeError",
                                   result.status);
-    switch (result.status) {
-      case SymphoniaDecodeStatus::DecodeError:
-      case SymphoniaDecodeStatus::UnexpectedEndOfStream:
-        // Forbid back-to-back decode errors to prevent runaway packet drops and
-        // excessive A/V desync.
-        if (++consecutive_error_count_ > 1) {
-          MEDIA_LOG(ERROR, media_log_)
-              << "Stopping playback due to consecutive audio buffer decoding "
-                 "failures: "
-              << result.error_str.c_str() << ", at "
-              << buffer.AsHumanReadableString();
-          return ToDecoderStatus(result);
-        }
-        LIMITED_MEDIA_LOG(DEBUG, media_log_, num_decode_errors_, 5)
-            << "Dropping audio buffer which failed decoding: "
-            << result.error_str.c_str() << ", at "
-            << buffer.AsHumanReadableString();
-        break;
-      default:
-        MEDIA_LOG(ERROR, media_log_)
-            << "Symphonia error occurred: " << result.error_str.c_str();
-        return ToDecoderStatus(result);
-    }
-  } else {
-    consecutive_error_count_ = 0;
   }
 
-  // If 0 frames were decoded (either due to a non-fatal decode error or an
-  // empty frame), forward the buffer metadata to the discard helper for
-  // caching.
+  // The Symphonia glue will return an empty buffer if end of stream is reached.
   if (result.buffer->data.empty()) {
-    const bool processed = discard_helper_->ProcessBuffers(
-        AudioDiscardHelper::TimeInfo::FromBuffer(buffer), nullptr);
-    DCHECK(!processed);
+    // The stream end was unexpected, which is not as severe of an error as the
+    // other potential cases logged below.
+    if (result.status == SymphoniaDecodeStatus::UnexpectedEndOfStream) {
+      MEDIA_LOG(WARNING, media_log_) << "Reached an unexpected end of stream.";
+    }
+
+    // Even if we didn't decode a frame, we should still send the packet
+    // to the discard helper for caching.
+    if (!buffer.end_of_stream()) {
+      const bool processed = discard_helper_->ProcessBuffers(
+          AudioDiscardHelper::TimeInfo::FromBuffer(buffer), nullptr);
+      DCHECK(!processed);
+    }
+
     return DecoderStatus::Codes::kOk;
   }
   // Sanity check: if Symphonia thinks things are OK and returned a valid
   // buffer, then the input buffer should definitely not have been end of
   // stream.
   CHECK(!buffer.end_of_stream());
+
+  if (result.status != SymphoniaDecodeStatus::Ok) {
+    MEDIA_LOG(ERROR, media_log_)
+        << "Symphonia error occurred: " << result.error_str.c_str();
+    return ToDecoderStatus(result);
+  }
 
   // TODO(crbug.com/40074653): similar to FFMPEG audio decoder, add support
   // for midstream channel and sample rate changes.
@@ -593,7 +567,6 @@ void SymphoniaAudioDecoder::ResetTimestampState(
       config.samples_per_second(), config.codec_delay(),
       /*delayed_discard=*/false);
   discard_helper_->Reset(config.codec_delay());
-  first_frame_timestamp_.reset();
 }
 
 }  // namespace media

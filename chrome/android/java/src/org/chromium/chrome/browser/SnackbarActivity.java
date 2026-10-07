@@ -14,7 +14,6 @@ import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.glic.GlicHelper;
-import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.ui.messages.snackbar.SnackbarManager;
 import org.chromium.chrome.browser.ui.messages.snackbar.SnackbarManager.ParentOverrideSlot;
 import org.chromium.chrome.browser.ui.messages.snackbar.SnackbarManager.SnackbarManageable;
@@ -47,12 +46,10 @@ public abstract class SnackbarActivity extends SynchronousInitializationActivity
         if (ChromeFeatureList.sGlicShowTaskInProgressSnackbar.getValue()) {
             getProfileSupplier()
                     .runSyncOrOnAvailable(
-                            (Profile profile) ->
-                                    GlicHelper.maybeShowGlicTaskInProgressSnackbar(
-                                            this,
-                                            profile,
-                                            this,
-                                            GlicHelper.Caller.SNACKBAR_ACTIVITY));
+                            (profile) -> {
+                                GlicHelper.maybeShowGlicTaskInProgressSnackbar(
+                                        this, profile, this, GlicHelper.Caller.SNACKBAR_ACTIVITY);
+                            });
         }
     }
 

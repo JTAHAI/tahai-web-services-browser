@@ -61,14 +61,8 @@
                                                      serializedTabObservations))
                                            completionBlock;
 
-// Request to pause the task, cancelling in-progress actions and returning
-// WebState control to the user.
+// Request to pause the task.
 - (void)pauseTaskWithID:(actor::ActorTaskId)taskID;
-
-// Request to interrupt the task to wait for user input, suspending ongoing
-// actions without cancelling them.
-- (void)interruptTaskWithID:(actor::ActorTaskId)taskID
-                     reason:(actor::ActorTaskInterruptReason)reason;
 
 // Request to stop the task.
 - (void)stopTaskWithID:(actor::ActorTaskId)taskID

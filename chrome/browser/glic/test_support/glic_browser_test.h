@@ -16,11 +16,7 @@
 #include "base/command_line.h"
 #include "base/functional/function_ref.h"
 #include "base/path_service.h"
-#include "base/run_loop.h"
-#include "base/strings/strcat.h"
-#include "base/task/single_thread_task_runner.h"
 #include "base/test/gmock_expected_support.h"
-#include "base/test/metrics/user_action_tester.h"
 #include "base/test/run_until.h"
 #include "base/test/scoped_feature_list.h"
 #include "base/test/test_future.h"
@@ -30,7 +26,7 @@
 #include "build/build_config.h"
 #include "chrome/browser/glic/common/local_hotkey_manager.h"
 #include "chrome/browser/glic/host/glic.mojom-shared.h"
-#include "chrome/browser/glic/host/glic_web_contents_warming_pool.h"
+#include "chrome/browser/glic/host/guest_util.h"
 #include "chrome/browser/glic/public/features.h"
 #include "chrome/browser/glic/public/glic_enabling.h"
 #include "chrome/browser/glic/public/glic_instance.h"
@@ -43,11 +39,8 @@
 #include "chrome/browser/glic/test_support/glic_test_tab_added_waiter.h"
 #include "chrome/browser/glic/test_support/glic_test_util.h"
 #include "chrome/browser/glic/test_support/test_result.h"
-#include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/tab_list/tab_list_interface.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
-#include "chrome/browser/ui/browser_window/public/create_browser_window.h"
 #include "chrome/browser/ui/side_panel/side_panel_ui.h"
 #include "chrome/browser/ui/side_panel/side_panel_ui_provider.h"
 #include "chrome/common/chrome_switches.h"
@@ -55,7 +48,6 @@
 #include "components/feature_engagement/test/scoped_iph_feature_list.h"
 #include "components/tabs/public/tab_interface.h"
 #include "content/public/browser/host_zoom_map.h"
-#include "content/public/browser/navigation_controller.h"
 #include "content/public/test/browser_test_utils.h"
 #include "content/public/test/test_utils.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -88,11 +80,6 @@
 #endif
 
 namespace glic {
-
-#if BUILDFLAG(IS_ANDROID)
-void SetActivityOrientationForTesting(content::WebContents* web_contents,
-                                      int orientation);
-#endif
 
 #if BUILDFLAG(IS_ANDROID)
 #define SKIP_TEST_FOR_NON_DESKTOP_ANDROID()            \
@@ -160,37 +147,6 @@ template <typename T>
 }
 
 template <typename T>
-[[nodiscard]] TestResult<> RunUntilNotEqual(
-    base::FunctionRef<std::type_identity_t<T>()> get_value,
-    const T& unexpected_value,
-    std::string_view message = std::string_view()) {
-  return RunUntilComparisonPasses<T>(get_value, unexpected_value,
-                                     std::not_equal_to<T>(), "!=", message);
-}
-
-template <typename Callable>
-[[nodiscard]] TestResult<> RunUntilNull(
-    Callable&& get_value,
-    std::string_view message = std::string_view()) {
-  using ReturnType = std::invoke_result_t<Callable>;
-  static_assert(std::is_pointer_v<ReturnType>, "ReturnType must be a pointer");
-  return RunUntilComparisonPasses<ReturnType>(
-      std::forward<Callable>(get_value), nullptr, std::equal_to<ReturnType>(),
-      "==", message);
-}
-
-template <typename Callable>
-[[nodiscard]] TestResult<> RunUntilNotNull(
-    Callable&& get_value,
-    std::string_view message = std::string_view()) {
-  using ReturnType = std::invoke_result_t<Callable>;
-  static_assert(std::is_pointer_v<ReturnType>, "ReturnType must be a pointer");
-  return RunUntilComparisonPasses<ReturnType>(
-      std::forward<Callable>(get_value), nullptr,
-      std::not_equal_to<ReturnType>(), "!=", message);
-}
-
-template <typename T>
 [[nodiscard]] TestResult<> RunUntilGreaterThan(
     base::FunctionRef<std::type_identity_t<T>()> get_value,
     const T& threshold,
@@ -215,24 +171,6 @@ template <typename Trigger>
   }
   LOG(ERROR) << message;
   return false;
-}
-
-[[nodiscard]] inline TestResult<> WaitForUserActionCount(
-    const base::UserActionTester& user_action_tester,
-    std::string_view action,
-    int expected_count) {
-  return RunUntilEqual<int>(
-      [&]() { return user_action_tester.GetActionCount(action); },
-      expected_count,
-      base::StrCat({"User action ", action,
-                    " count != ", base::NumberToString(expected_count)}));
-}
-
-[[nodiscard]] inline TestResult<> WaitForWindowActive(
-    BrowserWindowInterface* browser) {
-  return RunUntilEqual(
-      [&]() { return GetLastActiveBrowserWindowInterfaceWithAnyProfile(); },
-      browser, "Window did not become active");
 }
 
 [[nodiscard]] inline TestResult<> WaitForSidePanelState(
@@ -306,33 +244,15 @@ class GlicBrowserTestMixin : public T {
     if (!glic::GlicEnabling::IsOsVersionSupported()) {
       GTEST_SKIP() << "OS version not supported by Glic";
     }
-#if defined(USE_MOCK_ACTIVATION_CONTROLLER)
-    // Instantiate the MockActivationController early before calling T::SetUp().
-    // During T::SetUp(), InProcessBrowserTest creates and shows the default
-    // startup browser window. If the mock controller is already active at that
-    // time, DesktopWindowTreeHostPlatform skips acquiring its native
-    // paint-as-active lock. This prevents the default window from being
-    // permanently locked active, allowing mock deactivation to work correctly
-    // during the test.
-    if (!ui_controls::IsUIControlsEnabled()) {
-      activation_controller_ =
-          std::make_unique<views::test::MockActivationController>();
-    }
-#endif
     T::SetUp();
   }
 
   void SetUpOnMainThread() override {
     T::SetUpOnMainThread();
-
-    // Cache a weak pointer to the test profile. Tests may close all browser
-    // windows during the test body, causing `T::GetProfile()` (which relies on
-    // `browser()`) to return nullptr during teardown or later helper calls,
-    // while the Profile itself remains alive. Using a WeakPtr ensures safe
-    // access and auto-invalidates if the Profile is destroyed.
-    Profile* profile = T::GetProfile();
-    CHECK(profile);
-    weak_profile_ = profile->GetWeakPtr();
+#if defined(USE_MOCK_ACTIVATION_CONTROLLER)
+    activation_controller_ =
+        std::make_unique<views::test::MockActivationController>();
+#endif
 
     // Disable side panel animations on supported platforms.
     if (IsSidePanelEnabled()) {
@@ -349,18 +269,13 @@ class GlicBrowserTestMixin : public T {
         ->GetBrowserWindowInterface()
         ->GetWindow()
         ->Activate();
+    LOG(INFO) << "GlicBrowserTest: done setting up";
   }
 
   void TearDownOnMainThread() override {
 #if defined(USE_MOCK_ACTIVATION_CONTROLLER)
     activation_controller_.reset();
 #endif
-    // Explicitly shut down the warming pool to destroy any active warmed
-    // WebContents before GlicBrowserTest drains pending UI/Mojo tasks and
-    // the fixture's ScopedFeatureList destructor runs.
-    if (weak_profile_ && GlicKeyedService::Get(weak_profile_.get())) {
-      coordinator().GetWebContentsWarmingPoolForTesting().Shutdown();
-    }
     T::TearDownOnMainThread();
     // Ensure all pending UI thread tasks (such as Mojo disconnects or Android
     // JNI cleanup tasks) have finished running before the test fixture is
@@ -373,44 +288,15 @@ class GlicBrowserTestMixin : public T {
   // closing on deactivation (if applicable).
   void ToggleGlicForActiveTab(bool prevent_close = false) {
     auto* service = GlicKeyedService::Get(T::GetProfile());
-    auto* bwi =
-        T::GetTabListInterface()->GetActiveTab()->GetBrowserWindowInterface();
-    if (prevent_close) {
-      service->ShowUI(bwi, mojom::InvocationSource::kTopChromeButton);
-    } else {
-      service->ToggleUI(bwi, false, mojom::InvocationSource::kTopChromeButton);
-    }
+    service->ToggleUI(
+        T::GetTabListInterface()->GetActiveTab()->GetBrowserWindowInterface(),
+        prevent_close, mojom::InvocationSource::kTopChromeButton);
   }
 
   // Opens the Glic UI on the active tab and returns it.
   [[nodiscard]] TestResult<GlicInstanceImpl*> OpenGlicForActiveTab() {
     ToggleGlicForActiveTab(/*prevent_close=*/true);
     return WaitForGlicOpen(T::GetTabListInterface()->GetActiveTab());
-  }
-
-  // Opens the Glic UI on the given tab and returns the instance.
-  [[nodiscard]] TestResult<GlicInstanceImpl*> OpenGlicForTab(
-      tabs::TabInterface* tab) {
-    auto* service = GlicKeyedService::Get(T::GetProfile());
-    service->ShowUI(tab->GetBrowserWindowInterface(),
-                    mojom::InvocationSource::kTopChromeButton);
-    return WaitForGlicOpen(tab);
-  }
-
-  // Simulates a user input submission, triggering OnUserInputSubmitted on the
-  // client handler.
-  void SimulateUserInputSubmitted(
-      GlicInstanceImpl* instance = nullptr,
-      mojom::WebClientMode mode = mojom::WebClientMode::kText,
-      mojom::PromptType prompt_type = mojom::PromptType::kUnspecified) {
-    if (!instance) {
-      instance = GetOnlyGlicInstance();
-    }
-    CHECK(instance);
-    ASSERT_OK(WaitForGlicClient(instance));
-    GlicWebClientAccess* client = instance->host().GetPrimaryWebClient();
-    CHECK(client);
-    client->OnUserInputSubmittedForTesting(mode, prompt_type);
   }
 
   [[nodiscard]] TestResult<> WaitForInstanceDeletion(
@@ -425,37 +311,6 @@ class GlicBrowserTestMixin : public T {
     return RunUntilEqual<bool>(
         [&]() { return instance_impl->IsHibernated(); }, false,
         "WaitForInstanceAwakened: instance did not wake up");
-  }
-
-  [[nodiscard]] TestResult<> WaitForInstanceActive(
-      GlicInstance* instance = nullptr) {
-    auto* instance_impl = GetInstanceImpl(instance);
-    if (!instance_impl) {
-      return base::unexpected("WaitForInstanceActive: instance is null");
-    }
-    return RunUntilEqual<bool>(
-        [&]() { return instance_impl->IsActive(); }, true,
-        "WaitForInstanceActive: instance did not become active");
-  }
-
-  [[nodiscard]] TestResult<GlicInstanceImpl*> WaitForInstanceWithConversationId(
-      tabs::TabInterface* tab,
-      const std::string& expected_conversation_id) {
-    auto result = RunUntilEqual<std::string>(
-        [&]() {
-          auto* instance = GetInstanceForTab(tab);
-          if (!instance) {
-            return std::string("no instance bound to tab");
-          }
-          return instance->conversation_id().value_or("");
-        },
-        expected_conversation_id,
-        "WaitForInstanceWithConversationId: timeout waiting for conversation "
-        "ID");
-    if (!result) {
-      return base::unexpected(result.error());
-    }
-    return GetInstanceForTab(tab);
   }
 
   void RegisterConversation(GlicInstance* instance,
@@ -479,8 +334,7 @@ class GlicBrowserTestMixin : public T {
     if (!instance->conversation_id().has_value()) {
       RegisterConversation(instance, conversation_id);
     }
-    instance->OnUserInputSubmitted(mojom::WebClientMode::kText,
-                                   mojom::PromptType::kUnspecified);
+    instance->OnUserInputSubmitted(mojom::WebClientMode::kText);
   }
 
   // Keeps a blank instance alive on close without registering a conversation.
@@ -489,8 +343,7 @@ class GlicBrowserTestMixin : public T {
       instance = GetOnlyGlicInstance();
     }
     CHECK(instance);
-    instance->OnUserInputSubmitted(mojom::WebClientMode::kText,
-                                   mojom::PromptType::kUnspecified);
+    instance->OnUserInputSubmitted(mojom::WebClientMode::kText);
   }
 
   void CloseAllEmbeddersAndPreventDeletion(
@@ -501,12 +354,6 @@ class GlicBrowserTestMixin : public T {
     CHECK(instance);
     PreventDeletionOnClose(instance);
     instance->CloseAllEmbedders();
-  }
-
-  [[nodiscard]] TestResult<> CloseAllEmbeddersAndWait(
-      GlicInstanceImpl* instance = nullptr) {
-    CloseAllEmbeddersAndPreventDeletion(instance);
-    return WaitForGlicClose(instance);
   }
 
   // Opens the Glic UI on the active tab and detaches it.
@@ -570,33 +417,20 @@ class GlicBrowserTestMixin : public T {
 
   // Waits for the Glic UI to be closed. Defaults to the only glic instance,
   // but can be specified.
-  TestResult<> WaitForGlicClose(GlicInstanceImpl* instance = nullptr) {
+  TestResult<> WaitForGlicClose(GlicInstance* instance = nullptr) {
     std::optional<InstanceId> id =
         instance ? std::make_optional(instance->id()) : std::nullopt;
     bool success = RunUntil(
         [this, id]() {
-          GlicInstanceImpl* target =
+          GlicInstance* target =
               id ? GetInstanceById(*id) : GetOnlyGlicInstance();
-          if (!target) {
-            return true;
-          }
-          return !target->HasActiveEmbedder() && !target->IsShowing();
+          return !target || !target->IsShowing();
         },
         "Failed to close Glic UI");
     if (!success) {
       return base::unexpected("Failed to close Glic UI");
     }
     return base::ok();
-  }
-
-  // Waits for the Glic instance to reach the expected hibernation state.
-  [[nodiscard]] TestResult<> WaitForGlicHibernated(
-      GlicInstanceImpl* instance,
-      bool expected_hibernated = true) {
-    return RunUntilEqual<bool>(
-        [instance]() { return instance->IsHibernated(); }, expected_hibernated,
-        base::StrCat({"Instance hibernation state != ",
-                      expected_hibernated ? "true" : "false"}));
   }
 
   // Closes Glic for a given tab and waits for it to close.
@@ -631,47 +465,17 @@ class GlicBrowserTestMixin : public T {
   }
 
   double GetZoomLevel(GlicInstanceImpl* instance) {
+    content::WebContents* webui_contents = instance->host().webui_contents();
+    if (!webui_contents) {
+      return 1.0;
+    }
     content::WebContents* guest_contents =
-        instance->host().web_client_contents();
+        GetGlicGuestWebContents(webui_contents);
     if (!guest_contents) {
       return 1.0;
     }
     double zoom_level = content::HostZoomMap::GetZoomLevel(guest_contents);
     return blink::ZoomLevelToZoomFactor(zoom_level);
-  }
-
-  [[nodiscard]] TestResult<> WaitForPanelWillOpenComplete(
-      GlicInstanceImpl* instance) {
-    if (base::test::RunUntil(
-            [&]() { return instance->host().IsPrimaryClientOpen(); })) {
-      return base::ok();
-    }
-    return base::unexpected("Timeout waiting for PanelWillOpen to complete");
-  }
-
-  [[nodiscard]] TestResult<> WaitForGuestFrameSubmission(
-      GlicInstanceImpl* instance = nullptr) {
-    if (!instance) {
-      instance = GetOnlyGlicInstance();
-    }
-    if (!instance) {
-      return base::unexpected("No Glic instance available");
-    }
-    content::RenderFrameHost* guest_frame =
-        instance->host().GetGuestMainFrame();
-    if (!guest_frame) {
-      return base::unexpected("No Guest frame available");
-    }
-    content::RenderFrameSubmissionObserver frame_observer(guest_frame);
-    frame_observer.WaitForAnyFrameSubmission();
-    return base::ok();
-  }
-
-  void WaitForDuration(base::TimeDelta duration) {
-    base::RunLoop run_loop;
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
-        FROM_HERE, run_loop.QuitClosure(), duration);
-    run_loop.Run();
   }
 
   [[nodiscard]] TestResult<GlicInstanceImpl*> WaitForGlicInstanceBoundToTab(
@@ -688,96 +492,33 @@ class GlicBrowserTestMixin : public T {
   // Returns the only glic instance. CHECK fails if there is ever more than one.
   GlicInstanceImpl* GetOnlyGlicInstance() {
     return static_cast<GlicInstanceImpl*>(
-        ::glic::GetOnlyGlicInstance(weak_profile_.get()));
+        ::glic::GetOnlyGlicInstance(T::GetProfile()));
   }
 
   // Returns the glic instance bound to the given tab. Returns nullptr if not
   // found.
   GlicInstanceImpl* GetInstanceForTab(tabs::TabInterface* tab) {
     return static_cast<GlicInstanceImpl*>(
-        ::glic::GetInstanceForTab(weak_profile_.get(), tab));
+        ::glic::GetInstanceForTab(T::GetProfile(), tab));
   }
 
   // Returns the glic instance with the given id. Returns nullptr if not found.
   GlicInstanceImpl* GetInstanceById(InstanceId id) {
     return static_cast<GlicInstanceImpl*>(
-        ::glic::GetInstanceById(weak_profile_.get(), id));
+        ::glic::GetInstanceById(T::GetProfile(), id));
   }
 
   GlicInstanceCoordinatorImpl& coordinator() {
     return static_cast<GlicInstanceCoordinatorImpl&>(
-        service()->instance_coordinator());
+        GlicKeyedService::Get(T::GetProfile())->instance_coordinator());
   }
 
   // Opens a new tab with the given URL and wait for load to complete.
-  tabs::TabInterface* CreateAndActivateTab(TabListInterface* tab_list,
-                                           const GURL& url) {
-    CHECK(tab_list);
-    tabs::TabInterface* new_tab = tab_list->OpenTab(url, -1);
-    tab_list->ActivateTab(new_tab->GetHandle());
-    CHECK(content::WaitForLoadStop(new_tab->GetContents()));
-    return new_tab;
-  }
-
   tabs::TabInterface* CreateAndActivateTab(const GURL& url) {
-    return CreateAndActivateTab(T::GetTabListInterface(), url);
-  }
-
-  tabs::TabInterface* CreateAndActivateTab(BrowserWindowInterface* browser,
-                                           const GURL& url) {
-    return CreateAndActivateTab(TabListInterface::From(browser), url);
-  }
-
-  // Opens a new background tab with the given URL and waits for load to
-  // complete.
-  tabs::TabInterface* CreateBackgroundTab(TabListInterface* tab_list,
-                                          const GURL& url) {
-    CHECK(tab_list);
-    tabs::TabInterface* new_tab =
-        tab_list->OpenTab(url, -1, /*foreground=*/false);
-    CHECK(new_tab);
+    tabs::TabInterface* new_tab = T::GetTabListInterface()->OpenTab(url, -1);
+    T::GetTabListInterface()->ActivateTab(new_tab->GetHandle());
     CHECK(content::WaitForLoadStop(new_tab->GetContents()));
     return new_tab;
-  }
-
-  tabs::TabInterface* CreateBackgroundTab(const GURL& url) {
-    return CreateBackgroundTab(T::GetTabListInterface(), url);
-  }
-
-  tabs::TabInterface* CreateBackgroundTab(BrowserWindowInterface* browser,
-                                          const GURL& url) {
-    return CreateBackgroundTab(TabListInterface::From(browser), url);
-  }
-
-  // Navigates an existing tab to the given URL and waits for load to complete.
-  void NavigateTab(tabs::TabInterface& tab, const GURL& url) {
-    content::NavigationController::LoadURLParams params(url);
-    params.transition_type = ui::PageTransition::PAGE_TRANSITION_LINK;
-    tab.GetContents()->GetController().LoadURLWithParams(params);
-    CHECK(content::WaitForLoadStop(tab.GetContents()));
-  }
-
-  // Creates a new browser window and returns it. On Desktop, it will also
-  // automatically create a blank tab.
-  // TODO(crbug.com/530318599): CreateBrowserWindow() does not create a tab on
-  // Desktop. Fix the Desktop implementation of CreateBrowserWindow() to match
-  // Android, then remove the #if/#else and just use the #if part.
-  [[nodiscard]] BrowserWindowInterface* CreateAdditionalBrowserWindow() {
-    BrowserWindowInterface* browser = nullptr;
-#if BUILDFLAG(IS_ANDROID)
-    BrowserWindowCreateParams create_params = BrowserWindowCreateParams(
-        BrowserWindowInterface::Type::TYPE_NORMAL, *T::GetProfile(),
-        /*from_user_gesture=*/false);
-    base::test::TestFuture<BrowserWindowInterface*> future;
-    CreateBrowserWindow(std::move(create_params), future.GetCallback());
-    browser = future.Get();
-#else
-    browser = T::CreateBrowser(T::GetProfile());
-#endif
-    CHECK(browser);
-    CHECK(WaitForWindowActive(browser).has_value());
-    CHECK(TabListInterface::From(browser)->GetActiveTab());
-    return browser;
   }
 
   content::Visibility GetContentsVisibility(GlicInstanceImpl* instance) {
@@ -811,9 +552,7 @@ class GlicBrowserTestMixin : public T {
 
   void ActivateTab(tabs::TabInterface* tab) {
     CHECK(tab);
-    auto* tab_list = TabListInterface::From(tab->GetBrowserWindowInterface());
-    CHECK(tab_list);
-    tab_list->ActivateTab(tab->GetHandle());
+    tab->GetContents()->GetDelegate()->ActivateContents(tab->GetContents());
   }
 
   tabs::TabInterface* CreateUserInitiatedTab(const GURL& url) {
@@ -956,11 +695,7 @@ class GlicBrowserTestMixin : public T {
         state_to_string(state));
   }
 
-  GlicKeyedService* service() {
-    GlicKeyedService* service = GlicKeyedService::Get(weak_profile_.get());
-    CHECK(service);
-    return service;
-  }
+  GlicKeyedService* service() { return GlicKeyedService::Get(T::GetProfile()); }
   BrowserWindowInterface* GetBrowser() {
     return T::GetTabListInterface()
         ->GetActiveTab()
@@ -988,6 +723,7 @@ class GlicBrowserTestMixin : public T {
   }
 
   GURL GetGuestURL() { return glic_test_environment_.GetGuestURL(); }
+
 
   [[nodiscard]] TestResult<void> WaitForGlicClient(
       GlicInstance* instance = nullptr) {
@@ -1045,7 +781,6 @@ class GlicBrowserTestMixin : public T {
   void TriggerHotkey(ui::Accelerator accelerator) {
 #if BUILDFLAG(IS_ANDROID)
     gfx::NativeWindow window = GetBrowser()->GetWindow()->GetNativeWindow();
-    CHECK(window);
     int accelerator_state = ui_controls::kNoAccelerator;
     if (accelerator.IsCtrlDown()) {
       accelerator_state |= ui_controls::kControl;
@@ -1098,10 +833,6 @@ class GlicBrowserTestMixin : public T {
 #if defined(USE_MOCK_ACTIVATION_CONTROLLER)
   std::unique_ptr<views::test::MockActivationController> activation_controller_;
 #endif
-  // Weak reference to the main test profile initialized during setup, allowing
-  // safe profile access during teardown even if all browser windows were
-  // closed.
-  base::WeakPtr<Profile> weak_profile_;
 };
 
 using GlicBrowserTest = GlicBrowserTestMixin<PlatformBrowserTest>;

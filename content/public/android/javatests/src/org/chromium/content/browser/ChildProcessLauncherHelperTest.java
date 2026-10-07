@@ -31,7 +31,6 @@ import org.chromium.base.process_launcher.IFileDescriptorInfo;
 import org.chromium.base.test.util.Criteria;
 import org.chromium.base.test.util.CriteriaHelper;
 import org.chromium.base.test.util.Feature;
-import org.chromium.base.test.util.Features.DisableFeatures;
 import org.chromium.base.test.util.Features.EnableFeatures;
 import org.chromium.content.common.ContentInternalFeatures;
 import org.chromium.content_public.browser.ChildProcessImportance;
@@ -262,7 +261,6 @@ public class ChildProcessLauncherHelperTest {
     @Test
     @MediumTest
     @Feature({"ProcessManagement"})
-    @DisableFeatures({ContentInternalFeatures.EARLY_TOP_APP_FOR_SANDBOXED_RENDERER})
     public void testNotPerceptiveBindingForSpareRenderer() {
         FeatureOverrides.overrideParam(
                 ContentFeatureList.sSpareRendererAddNotPerceptibleBinding.getFeatureName(),

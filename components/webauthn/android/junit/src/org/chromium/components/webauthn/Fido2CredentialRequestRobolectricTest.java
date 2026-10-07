@@ -54,7 +54,6 @@ import org.robolectric.shadow.api.Shadow;
 import org.robolectric.shadows.ShadowApplication;
 
 import org.chromium.base.Callback;
-import org.chromium.base.TriState;
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.base.test.util.Features.DisableFeatures;
 import org.chromium.blink.mojom.AuthenticatorStatus;
@@ -203,7 +202,7 @@ public class Fido2CredentialRequestRobolectricTest {
 
         CredManSupportProvider.setupForTesting(
                 /* overrideAndroidVersion= */ Build.VERSION_CODES.UPSIDE_DOWN_CAKE,
-                /* overrideForcesGpm= */ TriState.TRUE);
+                /* overrideForcesGpm= */ true);
         mRequest.overrideBrowserBridgeForTesting(mBrowserBridgeMock);
         Mockito.when(mBrowserBridgeMock.isInitialized()).thenReturn(true);
         mRequest.setCredManHelperForTesting(mCredManHelperMock);
@@ -302,7 +301,7 @@ public class Fido2CredentialRequestRobolectricTest {
         Mockito.when(mModeProviderMock.getGlobalWebauthnMode()).thenReturn(WebauthnMode.NONE);
         CredManSupportProvider.setupForTesting(
                 /* overrideAndroidVersion= */ Build.VERSION_CODES.TIRAMISU,
-                /* overrideForcesGpm= */ TriState.FALSE);
+                /* overrideForcesGpm= */ false);
 
         handleMakeCredentialRequest(mBrowserOptions);
 
@@ -528,7 +527,7 @@ public class Fido2CredentialRequestRobolectricTest {
         setGetCredentialRequestOptions(/* hasAllowList= */ false);
         CredManSupportProvider.setupForTesting(
                 /* overrideAndroidVersion= */ Build.VERSION_CODES.UPSIDE_DOWN_CAKE,
-                /* overrideForcesGpm= */ TriState.FALSE);
+                /* overrideForcesGpm= */ false);
 
         handleGetCredentialRequest();
 
@@ -565,7 +564,7 @@ public class Fido2CredentialRequestRobolectricTest {
         setGetCredentialRequestOptions(/* hasAllowList= */ false);
         CredManSupportProvider.setupForTesting(
                 /* overrideAndroidVersion= */ Build.VERSION_CODES.UPSIDE_DOWN_CAKE,
-                /* overrideForcesGpm= */ TriState.FALSE);
+                /* overrideForcesGpm= */ false);
 
         handleGetCredentialRequest();
 
@@ -696,7 +695,7 @@ public class Fido2CredentialRequestRobolectricTest {
     public void testGetCredential_allowListNoMatchAndGpmNotInCredMan_goesToCredMan() {
         CredManSupportProvider.setupForTesting(
                 /* overrideAndroidVersion= */ Build.VERSION_CODES.UPSIDE_DOWN_CAKE,
-                /* overrideForcesGpm= */ TriState.FALSE);
+                /* overrideForcesGpm= */ false);
         setGetCredentialRequestOptions(/* hasAllowList= */ true);
 
         handleGetCredentialRequest();
@@ -716,7 +715,7 @@ public class Fido2CredentialRequestRobolectricTest {
         setGetCredentialRequestOptions(/* hasAllowList= */ false);
         CredManSupportProvider.setupForTesting(
                 /* overrideAndroidVersion= */ Build.VERSION_CODES.TIRAMISU,
-                /* overrideForcesGpm= */ TriState.FALSE);
+                /* overrideForcesGpm= */ false);
 
         Mockito.when(mModeProviderMock.getWebauthnMode(any())).thenReturn(WebauthnMode.APP);
         Mockito.when(mModeProviderMock.getGlobalWebauthnMode()).thenReturn(WebauthnMode.NONE);
@@ -733,7 +732,7 @@ public class Fido2CredentialRequestRobolectricTest {
         setGetCredentialRequestOptions(/* hasAllowList= */ false);
         CredManSupportProvider.setupForTesting(
                 /* overrideAndroidVersion= */ Build.VERSION_CODES.TIRAMISU,
-                /* overrideForcesGpm= */ TriState.FALSE);
+                /* overrideForcesGpm= */ false);
 
         Mockito.when(mModeProviderMock.getWebauthnMode(any())).thenReturn(WebauthnMode.APP);
         Mockito.when(mModeProviderMock.getGlobalWebauthnMode()).thenReturn(WebauthnMode.NONE);
@@ -778,7 +777,7 @@ public class Fido2CredentialRequestRobolectricTest {
         mRequestOptions.mediation = Mediation.CONDITIONAL;
         CredManSupportProvider.setupForTesting(
                 /* overrideAndroidVersion= */ Build.VERSION_CODES.UPSIDE_DOWN_CAKE,
-                /* overrideForcesGpm= */ TriState.FALSE);
+                /* overrideForcesGpm= */ false);
 
         handleGetCredentialRequest();
 
@@ -841,7 +840,7 @@ public class Fido2CredentialRequestRobolectricTest {
         mRequestOptions.mediation = Mediation.CONDITIONAL;
         CredManSupportProvider.setupForTesting(
                 /* overrideAndroidVersion= */ Build.VERSION_CODES.UPSIDE_DOWN_CAKE,
-                /* overrideForcesGpm= */ TriState.FALSE);
+                /* overrideForcesGpm= */ false);
 
         handleGetCredentialRequest();
 
@@ -972,7 +971,7 @@ public class Fido2CredentialRequestRobolectricTest {
     public void testImmediateGetCredential_timeout_notAllowed() {
         CredManSupportProvider.setupForTesting(
                 /* overrideAndroidVersion= */ Build.VERSION_CODES.UPSIDE_DOWN_CAKE,
-                /* overrideForcesGpm= */ TriState.FALSE);
+                /* overrideForcesGpm= */ false);
         setGetCredentialRequestOptions(/* hasAllowList= */ false);
         mRequestOptions.mediation = Mediation.IMMEDIATE;
         RunnableTimer timer = Mockito.mock(RunnableTimer.class);
@@ -1042,7 +1041,7 @@ public class Fido2CredentialRequestRobolectricTest {
                 .performGetAssertionWebAuthSecurityChecks(
                         any(), any(), anyBoolean(), any(), any(), any());
 
-        CredManSupportProvider.setupForTesting(Build.VERSION_CODES.UPSIDE_DOWN_CAKE, TriState.TRUE);
+        CredManSupportProvider.setupForTesting(Build.VERSION_CODES.UPSIDE_DOWN_CAKE, true);
 
         setUpGetCredentialCallback();
         mRequest.handleGetCredentialRequest(mRequestOptions, mOrigin, mOrigin, /* payment= */ null);

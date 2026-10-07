@@ -27,19 +27,17 @@ import androidx.constraintlayout.widget.ConstraintLayout.LayoutParams;
 import androidx.test.filters.SmallTest;
 
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.mockito.Mock;
-import org.mockito.junit.MockitoJUnit;
-import org.mockito.junit.MockitoRule;
 import org.robolectric.Robolectric;
 
 import org.chromium.base.ContextUtils;
 import org.chromium.base.test.BaseRobolectricTestRunner;
+import org.chromium.base.test.util.Features.EnableFeatures;
 import org.chromium.chrome.browser.omnibox.UrlBar.ScrollType;
 import org.chromium.chrome.browser.omnibox.UrlBarProperties.UrlBarTextState;
 import org.chromium.chrome.browser.omnibox.styles.OmniboxResourceProvider;
+import org.chromium.components.omnibox.OmniboxFeatureList;
 import org.chromium.components.omnibox.TextSelection;
 import org.chromium.ui.modelutil.PropertyModel;
 import org.chromium.ui.modelutil.PropertyModelChangeProcessor;
@@ -47,10 +45,6 @@ import org.chromium.ui.modelutil.PropertyModelChangeProcessor;
 /** Unit tests for {@link UrlBarViewBinder}. */
 @RunWith(BaseRobolectricTestRunner.class)
 public class UrlBarViewBinderUnitTest {
-    @Rule public final MockitoRule mMockitoRule = MockitoJUnit.rule();
-    @Mock private OnLongClickListener mOnLongClickListener;
-    @Mock private Runnable mRunnable;
-    @Mock private UrlBar mMockView;
     private Activity mActivity;
     PropertyModel mModel;
     UrlBarMediator mMediator;
@@ -102,11 +96,12 @@ public class UrlBarViewBinderUnitTest {
     @Test
     @SmallTest
     public void testOnLongClick() {
-        doReturn(true).when(mOnLongClickListener).onLongClick(any());
+        OnLongClickListener longClickListener = mock(OnLongClickListener.class);
+        doReturn(true).when(longClickListener).onLongClick(any());
 
-        mModel.set(UrlBarProperties.LONG_CLICK_LISTENER, mOnLongClickListener);
+        mModel.set(UrlBarProperties.LONG_CLICK_LISTENER, longClickListener);
         mUrlBar.performLongClick();
-        verify(mOnLongClickListener).onLongClick(any());
+        verify(longClickListener).onLongClick(any());
     }
 
     @Test
@@ -153,6 +148,7 @@ public class UrlBarViewBinderUnitTest {
 
     @Test
     @SmallTest
+    @EnableFeatures(OmniboxFeatureList.MULTILINE_EDIT_FIELD)
     public void testSetAllowMultilineInput() {
         mModel.set(UrlBarProperties.ALLOW_MULTILINE_INPUT, true);
         mUrlBar.onFocusChanged(true, View.FOCUS_DOWN, null);
@@ -161,25 +157,24 @@ public class UrlBarViewBinderUnitTest {
 
         mModel.set(UrlBarProperties.ALLOW_MULTILINE_INPUT, false);
         assertTrue(mUrlBar.isHorizontallyScrollable());
-
-        mModel.set(UrlBarProperties.ALLOW_MULTILINE_INPUT, true);
-        assertFalse(mUrlBar.isHorizontallyScrollable());
     }
 
     @Test
     @SmallTest
     public void testSetManageSearchEnginesCallback() {
-        mModel.set(UrlBarProperties.MANAGE_SEARCH_ENGINES_CALLBACK, mRunnable);
-        assertEquals(mRunnable, mUrlBar.getManageSearchEnginesCallback());
+        Runnable mockCallback = mock(Runnable.class);
+        mModel.set(UrlBarProperties.MANAGE_SEARCH_ENGINES_CALLBACK, mockCallback);
+        assertEquals(mockCallback, mUrlBar.getManageSearchEnginesCallback());
     }
 
     @Test
     @SmallTest
     public void testTextState_reverseSelection() {
+        UrlBar mockView = mock(UrlBar.class);
         android.text.Editable editable = mock(android.text.Editable.class);
         doReturn(10).when(editable).length();
-        doReturn(editable).when(mMockView).getText();
-        doReturn(true).when(mMockView).hasFocus();
+        doReturn(editable).when(mockView).getText();
+        doReturn(true).when(mockView).hasFocus();
 
         UrlBarTextState state =
                 new UrlBarTextState(
@@ -191,8 +186,8 @@ public class UrlBarViewBinderUnitTest {
                         false);
 
         mModel.set(UrlBarProperties.TEXT_STATE, state);
-        UrlBarViewBinder.bind(mModel, mMockView, UrlBarProperties.TEXT_STATE);
+        UrlBarViewBinder.bind(mModel, mockView, UrlBarProperties.TEXT_STATE);
 
-        verify(mMockView).setSelection(10, 0);
+        verify(mockView).setSelection(10, 0);
     }
 }

@@ -549,10 +549,9 @@ TEST_F(PhoneHubTrayTest, DismissOnboardingFlowByRightClickIcon) {
   GetOnboardingUiTracker()->SetShouldShowOnboardingUi(true);
 
   RightClickOn(phone_hub_tray_);
-  ASSERT_TRUE(
-      views::MenuController::GetForOwnerWidget(phone_hub_tray_->GetWidget()));
+  EXPECT_TRUE(views::MenuController::GetActiveInstance());
   views::MenuItemView* menu_item_view =
-      views::MenuController::GetForOwnerWidget(phone_hub_tray_->GetWidget())
+      views::MenuController::GetActiveInstance()
           ->GetSelectedMenuItem()
           ->GetMenuItemByID(/*kHidePhoneHubIconCommandId*/ 1);
   LeftClickOn(menu_item_view);

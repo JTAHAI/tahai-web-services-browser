@@ -14,8 +14,11 @@
 #include "base/functional/callback_forward.h"
 #include "build/build_config.h"
 #include "chrome/browser/password_manager/web_app_profile_switcher.h"
+#include "chrome/browser/profiles/avatar_menu.h"
+#include "chrome/browser/profiles/avatar_menu_observer.h"
 #include "chrome/browser/signin/signin_promo_util.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/sync/sync_ui_util.h"
+#include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/views/profiles/profile_menu_view_base.h"
 #include "components/signin/core/browser/signin_header_helper.h"
 #include "components/signin/public/base/signin_buildflags.h"
@@ -30,7 +33,7 @@ enum class AccessPoint;
 }
 
 struct CoreAccountInfo;
-class BrowserWindowInterface;
+class Browser;
 
 // This bubble view is displayed when the user clicks on the avatar button.
 // It displays a list of profiles and allows users to switch between profiles.
@@ -45,7 +48,7 @@ class ProfileMenuView : public ProfileMenuViewBase {
  public:
   // `browser` must not be nullptr.
   ProfileMenuView(views::BubbleAnchor anchor_element,
-                  BrowserWindowInterface* browser,
+                  Browser* browser,
                   signin::ProfileMenuAvatarButtonPromoInfo promo_info,
                   bool from_avatar_promo);
   ~ProfileMenuView() override;
@@ -67,7 +70,7 @@ class ProfileMenuView : public ProfileMenuViewBase {
   friend class ProfileMenuViewSyncErrorButtonTest;
   friend class ProfileMenuInteractiveUiTest;
 
-  BrowserWindowInterface& browser() const { return *browser_; }
+  Browser& browser() const { return *browser_; }
 
   // views::BubbleDialogDelegateView:
   std::u16string GetAccessibleWindowTitle() const override;
@@ -93,6 +96,7 @@ class ProfileMenuView : public ProfileMenuViewBase {
   void OnAddNewProfileButtonClicked();
   void OnManageProfilesButtonClicked();
   void OnEditProfileButtonClicked();
+  void OnAutofillSettingsButtonClicked();
   void OnYourSavedInfoSettingsButtonClicked();
   void OnBatchUploadButtonClicked(ActionableItem button_type);
 #if BUILDFLAG(ENABLE_DICE_SUPPORT)
@@ -138,7 +142,7 @@ class ProfileMenuView : public ProfileMenuViewBase {
 
   void BuildProfileManagementFeatureButtons();
 
-  const raw_ref<BrowserWindowInterface> browser_;
+  const raw_ref<Browser> browser_;
   signin::ProfileMenuAvatarButtonPromoInfo promo_info_;
   // If the profile menu opening originated from a Promo on the AvatarButton.
   bool from_avatar_promo_;

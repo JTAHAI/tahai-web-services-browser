@@ -8,7 +8,8 @@ embedder.baseGuestURL = '';
 embedder.guestURL = '';
 
 embedder.failTest = function(msg) {
-  chrome.test.sendMessage(`TEST_FAILED: ${msg}`);
+  window.console.warn(`test failure, reason: ${msg}`);
+  chrome.test.sendMessage('TEST_FAILED');
 };
 
 embedder.maybePassTest = function() {

@@ -22,6 +22,8 @@ namespace features {
 #if BUILDFLAG(IS_ANDROID)
 VIZ_COMMON_EXPORT BASE_DECLARE_FEATURE(kAndroidDumpForBadCompositedUiState);
 #endif  // BUILDFLAG(IS_ANDROID)
+VIZ_COMMON_EXPORT BASE_DECLARE_FEATURE(
+    kBackForwardTransitionsSameDocSharedImage);
 VIZ_COMMON_EXPORT BASE_DECLARE_FEATURE(kBufferQueuePerRenderPass);
 
 // On Windows, this may interact badly with partial delegation and kBufferQueue,
@@ -70,9 +72,6 @@ VIZ_COMMON_EXPORT BASE_DECLARE_FEATURE(kUseDrmBlackFullscreenOptimization);
 #if BUILDFLAG(IS_ANDROID)
 VIZ_COMMON_EXPORT BASE_DECLARE_FEATURE(
     kUseFrameIntervalDeciderAdaptiveFrameRate);
-VIZ_COMMON_EXPORT BASE_DECLARE_FEATURE(kCalculateDeadlineDerivedInterval);
-VIZ_COMMON_EXPORT extern const base::FeatureParam<double>
-    kCalculateDeadlineDerivedIntervalSnapToleranceParam;
 #endif
 VIZ_COMMON_EXPORT BASE_DECLARE_FEATURE(kUseMultipleOverlays);
 VIZ_COMMON_EXPORT extern const char kMaxOverlaysParam[];
@@ -97,7 +96,6 @@ VIZ_COMMON_EXPORT extern const base::FeatureParam<int>
 #if BUILDFLAG(IS_MAC)
 VIZ_COMMON_EXPORT BASE_DECLARE_FEATURE(kVSyncAlignedPresentationForScrolling);
 VIZ_COMMON_EXPORT BASE_DECLARE_FEATURE(kVSyncAlignedPresentation);
-VIZ_COMMON_EXPORT BASE_DECLARE_FEATURE(kUseDisplayRefreshRateForTimer);
 VIZ_COMMON_EXPORT extern const base::FeatureParam<std::string> kTargetForVSync;
 VIZ_COMMON_EXPORT extern const char kTargetForVSyncAllFrames[];
 VIZ_COMMON_EXPORT extern const char kTargetForVSyncAnimation[];
@@ -117,18 +115,8 @@ VIZ_COMMON_EXPORT BASE_DECLARE_FEATURE(kEnableADPFScrollNoRendererMain);
 VIZ_COMMON_EXPORT BASE_DECLARE_FEATURE(kEnableADPFAsyncSetThreads);
 VIZ_COMMON_EXPORT BASE_DECLARE_FEATURE(kSelectFutureFrameDeadline);
 VIZ_COMMON_EXPORT BASE_DECLARE_FEATURE(kAllowMultipleSwapsPerVsync);
-
-enum class FrameDeadlineDeciderSequenceStrategy {
-  kPresentationDeltaLocking = 0,
-  kOsPreferredDeltaLocking = 1,
-  kMaxValue = kOsPreferredDeltaLocking,
-};
-
 #if BUILDFLAG(IS_ANDROID)
 VIZ_COMMON_EXPORT BASE_DECLARE_FEATURE(kUseAndroidCustomFrameDeadlines);
-VIZ_COMMON_EXPORT extern const base::FeatureParam<
-    FrameDeadlineDeciderSequenceStrategy>
-    kAndroidCustomFrameDeadlineSequenceStrategy;
 VIZ_COMMON_EXPORT extern const base::FeatureParam<int>
     kAndroidCustomFrameDeadlinePresentationOffset;
 VIZ_COMMON_EXPORT extern const base::FeatureParam<base::TimeDelta>
@@ -140,7 +128,6 @@ VIZ_COMMON_EXPORT BASE_DECLARE_FEATURE(kUseDisplaySDRMaxLuminanceNits);
 VIZ_COMMON_EXPORT BASE_DECLARE_FEATURE(kHideDelegatedFrameHostMac);
 VIZ_COMMON_EXPORT BASE_DECLARE_FEATURE(kEvictionUnlocksResources);
 VIZ_COMMON_EXPORT BASE_DECLARE_FEATURE(kSingleVideoFrameRateThrottling);
-VIZ_COMMON_EXPORT BASE_DECLARE_FEATURE(kMixedFixedIntervalMatcher);
 
 // If enabled, the FrameEvictionManager scales its limit of max number of saved
 // frames dynamically based on available memory.
@@ -174,6 +161,7 @@ VIZ_COMMON_EXPORT BASE_DECLARE_FEATURE(kNoCompositorFrameAcks);
 VIZ_COMMON_EXPORT extern const base::FeatureParam<int>
     kNumberPendingFramesUntilThrottle;
 VIZ_COMMON_EXPORT BASE_DECLARE_FEATURE(kDisplaySchedulerAsClient);
+VIZ_COMMON_EXPORT BASE_DECLARE_FEATURE(kFlingSchedulingImprovements);
 
 VIZ_COMMON_EXPORT BASE_DECLARE_FEATURE(kRpdqFilterLookupOptimizations);
 
@@ -181,6 +169,7 @@ VIZ_COMMON_EXPORT BASE_DECLARE_FEATURE(kBypassOutdatedSurfaceActivation);
 
 VIZ_COMMON_EXPORT int DrawQuadSplitLimit();
 VIZ_COMMON_EXPORT bool IsRenderPassDrawQuadCullingOptimizationEnabled();
+VIZ_COMMON_EXPORT bool IsBackForwardTransitionsSameDocSharedImageEnabled();
 VIZ_COMMON_EXPORT bool IsDelegatedCompositingEnabled();
 VIZ_COMMON_EXPORT bool IsVizDirectCompositorThreadIpcNonRootEnabled();
 VIZ_COMMON_EXPORT bool IsVizDirectCompositorThreadIpcFrameSinkManagerEnabled();
@@ -190,7 +179,6 @@ VIZ_COMMON_EXPORT bool ShouldRemoveRedirectionBitmap();
 #endif
 VIZ_COMMON_EXPORT bool IsUsingVizFrameSubmissionForWebView();
 VIZ_COMMON_EXPORT bool IsUsingPreferredIntervalForVideo();
-VIZ_COMMON_EXPORT bool IsMixedFixedIntervalMatcherEnabled();
 VIZ_COMMON_EXPORT bool ShouldWebRtcLogCapturePipeline();
 VIZ_COMMON_EXPORT int MaxOverlaysConsidered();
 VIZ_COMMON_EXPORT bool ShouldOnBeginFrameThrottleVideo();
@@ -214,9 +202,6 @@ VIZ_COMMON_EXPORT bool ShouldUseAdpfForSoc(std::string_view soc_allowlist,
                                            std::string_view soc);
 
 #endif  // BUILDFLAG(IS_ANDROID)
-
-VIZ_COMMON_EXPORT BASE_DECLARE_FEATURE(kPerDependencyDeadlines);
-VIZ_COMMON_EXPORT bool UsePerDependencyDeadlines();
 
 }  // namespace features
 

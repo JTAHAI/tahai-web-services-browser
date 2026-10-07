@@ -18,7 +18,9 @@
 #include "chrome/browser/profiles/profile_manager.h"
 #include "chrome/browser/signin/signin_promo.h"
 #include "chrome/browser/sync/sync_service_factory.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_tabstrip.h"
+#include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/color/chrome_color_id.h"
@@ -85,7 +87,7 @@ int GetSyncConfirmationDialogPreferredHeight(Profile* profile) {
 
 #if BUILDFLAG(ENABLE_DICE_SUPPORT)
 void CloseModalSigninInBrowser(
-    base::WeakPtr<BrowserWindowInterface> browser,
+    base::WeakPtr<Browser> browser,
     bool show_profile_switch_iph,
     bool show_supervised_user_iph,
     ProfileCustomizationHandler::CustomizationResult result) {
@@ -94,15 +96,12 @@ void CloseModalSigninInBrowser(
   }
 
   browser->GetFeatures().signin_view_controller()->CloseModalSignin();
-  BrowserView* browser_view =
-      BrowserView::GetBrowserViewForBrowser(browser.get());
-  if (browser_view) {
-    if (show_supervised_user_iph) {
-      browser_view->MaybeShowSupervisedUserProfileSignInIPH();
-    }
-    if (show_profile_switch_iph) {
-      browser_view->MaybeShowProfileSwitchIPH();
-    }
+  if (show_supervised_user_iph) {
+    BrowserWindow::FromBrowser(browser.get())
+        ->MaybeShowSupervisedUserProfileSignInIPH();
+  }
+  if (show_profile_switch_iph) {
+    BrowserWindow::FromBrowser(browser.get())->MaybeShowProfileSwitchIPH();
   }
 }
 #endif  // BUILDFLAG(ENABLE_DICE_SUPPORT)
@@ -128,7 +127,7 @@ class WidgetAutoResizingLayout : public views::FillLayout {
 // static
 std::unique_ptr<views::WebView>
 SigninViewControllerDelegateViews::CreateSyncConfirmationWebView(
-    BrowserWindowInterface* browser,
+    Browser* browser,
     SyncConfirmationStyle style,
     bool is_sync_promo) {
   GURL url = GURL(chrome::kChromeUISyncConfirmationURL);
@@ -141,7 +140,7 @@ SigninViewControllerDelegateViews::CreateSyncConfirmationWebView(
 #if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_WIN)
 std::unique_ptr<views::WebView>
 SigninViewControllerDelegateViews::CreateHistorySyncOptInWebView(
-    BrowserWindowInterface* browser,
+    Browser* browser,
     bool should_close_modal_dialog,
     HistorySyncOptinLaunchContext launch_context,
     HistorySyncOptinHelper::FlowCompletedCallback callback) {
@@ -174,8 +173,7 @@ SigninViewControllerDelegateViews::CreateHistorySyncOptInWebView(
 
 // static
 std::unique_ptr<views::WebView>
-SigninViewControllerDelegateViews::CreateSigninErrorWebView(
-    BrowserWindowInterface* browser) {
+SigninViewControllerDelegateViews::CreateSigninErrorWebView(Browser* browser) {
   auto web_view = CreateDialogWebView(
       browser, GURL(chrome::kChromeUISigninErrorURL), kSigninErrorDialogHeight,
       std::nullopt, InitializeSigninWebDialogUI(true));
@@ -189,7 +187,7 @@ SigninViewControllerDelegateViews::CreateSigninErrorWebView(
 // static
 std::unique_ptr<views::WebView>
 SigninViewControllerDelegateViews::CreateProfileCustomizationWebView(
-    BrowserWindowInterface* browser,
+    Browser* browser,
     bool is_local_profile_creation,
     bool show_profile_switch_iph,
     bool show_supervised_user_iph) {
@@ -209,7 +207,7 @@ SigninViewControllerDelegateViews::CreateProfileCustomizationWebView(
                                        ->GetAs<ProfileCustomizationUI>();
   DCHECK(web_ui);
   web_ui->Initialize(
-      base::BindOnce(&CloseModalSigninInBrowser, browser->GetWeakPtr(),
+      base::BindOnce(&CloseModalSigninInBrowser, browser->AsWeakPtr(),
                      show_profile_switch_iph, show_supervised_user_iph));
   return web_view;
 }
@@ -217,7 +215,7 @@ SigninViewControllerDelegateViews::CreateProfileCustomizationWebView(
 // static
 std::unique_ptr<views::WebView>
 SigninViewControllerDelegateViews::CreateSignoutConfirmationWebView(
-    BrowserWindowInterface* browser,
+    Browser* browser,
     ChromeSignoutConfirmationPromptVariant variant,
     size_t unsynced_data_count,
     SignoutConfirmationCallback callback) {
@@ -259,12 +257,17 @@ SigninViewControllerDelegateViews::CreateManagedUserNoticeConfirmationWebView(
       create_param->is_device_signals_disclaimer;
   auto width = kManagedUserNoticeConfirmationDialogWidth;
   auto height = kManagedUserNoticeConfirmationDialogHeight;
-  // WebView here is created manually instead of using CreateDialogWebView(),
-  // because the params need to be attached to the WebContents before loading
-  // the URL (to avoid a race condition between initialization and navigation).
-  std::unique_ptr<views::WebView> web_view =
-      std::make_unique<views::WebView>(browser.GetProfile());
-  web_view->SetPreferredSize(gfx::Size(width, height));
+  std::unique_ptr<views::WebView> web_view = CreateDialogWebView(
+      browser.GetBrowserForMigrationOnly(),
+      GURL(chrome::kChromeUIManagedUserProfileNoticeUrl), height, width,
+      InitializeSigninWebDialogUI(false));
+
+  ManagedUserProfileNoticeUI* web_dialog_ui =
+      web_view->GetWebContents()
+          ->GetWebUI()
+          ->GetController()
+          ->GetAs<ManagedUserProfileNoticeUI>();
+  DCHECK(web_dialog_ui);
 
   ManagedUserProfileNoticeUI::ScreenType screen_type =
       ManagedUserProfileNoticeUI::ScreenType::kEnterpriseAccountCreation;
@@ -277,11 +280,8 @@ SigninViewControllerDelegateViews::CreateManagedUserNoticeConfirmationWebView(
   } else if (is_oidc_account) {
     screen_type = ManagedUserProfileNoticeUI::ScreenType::kEnterpriseOIDC;
   }
+  web_dialog_ui->Initialize(&browser, screen_type, std::move(create_param));
 
-  ManagedUserProfileNoticeParams::CreateForWebContents(
-      web_view->GetWebContents(), &browser, screen_type,
-      std::move(create_param));
-  web_view->LoadInitialURL(GURL(chrome::kChromeUIManagedUserProfileNoticeUrl));
   return web_view;
 }
 #endif
@@ -365,7 +365,7 @@ content::WebContents* SigninViewControllerDelegateViews::AddNewContents(
 web_modal::WebContentsModalDialogHost*
 SigninViewControllerDelegateViews::GetWebContentsModalDialogHost(
     content::WebContents* web_contents) {
-  return browser_->GetWebContentsModalDialogHostForWindow();
+  return BrowserWindow::FromBrowser(browser_)->GetWebContentsModalDialogHost();
 }
 
 void SigninViewControllerDelegateViews::OnViewAddedToWidget(
@@ -389,7 +389,7 @@ void SigninViewControllerDelegateViews::OnViewIsDeleting(View* observed_view) {
 
 SigninViewControllerDelegateViews::SigninViewControllerDelegateViews(
     std::unique_ptr<views::WebView> content_view,
-    BrowserWindowInterface* browser,
+    Browser* browser,
     ui::mojom::ModalType dialog_modal_type,
     bool wait_for_size,
     bool should_show_close_button,
@@ -404,7 +404,7 @@ SigninViewControllerDelegateViews::SigninViewControllerDelegateViews(
       allow_closing_by_pressing_escape_(allow_closing_by_pressing_escape) {
   DCHECK(content_view_->GetWebContents());
   DCHECK(browser_);
-  DCHECK(browser_->GetTabStripModel()->GetActiveWebContents())
+  DCHECK(browser_->tab_strip_model()->GetActiveWebContents())
       << "A tab must be active to present the sign-in modal dialog.";
   DCHECK(content_view_);
   content_view_observation_.Observe(content_view_);
@@ -470,7 +470,7 @@ SigninViewControllerDelegateViews::~SigninViewControllerDelegateViews() {
 
 std::unique_ptr<views::WebView>
 SigninViewControllerDelegateViews::CreateDialogWebView(
-    BrowserWindowInterface* browser,
+    Browser* browser,
     const GURL& url,
     int dialog_height,
     std::optional<int> opt_width,
@@ -493,7 +493,7 @@ SigninViewControllerDelegateViews::CreateDialogWebView(
 void SigninViewControllerDelegateViews::DisplayModal() {
   DCHECK(!modal_signin_widget_);
   content::WebContents* host_web_contents =
-      browser_->GetTabStripModel()->GetActiveWebContents();
+      browser_->tab_strip_model()->GetActiveWebContents();
 
   // Avoid displaying the sign-in modal view if there are no active web
   // contents. This happens if the user closes the browser window before this
@@ -583,7 +583,7 @@ END_METADATA
 // static
 SigninViewControllerDelegate*
 SigninViewControllerDelegate::CreateSyncConfirmationDelegate(
-    BrowserWindowInterface* browser,
+    Browser* browser,
     SyncConfirmationStyle style,
     bool is_sync_promo) {
   return new SigninViewControllerDelegateViews(
@@ -597,7 +597,7 @@ SigninViewControllerDelegate::CreateSyncConfirmationDelegate(
 // static
 SigninViewControllerDelegate*
 SigninViewControllerDelegate::CreateSyncHistoryOptInDelegate(
-    BrowserWindowInterface* browser,
+    Browser* browser,
     bool should_close_modal_dialog,
     HistorySyncOptinLaunchContext launch_context,
     HistorySyncOptinHelper::FlowCompletedCallback
@@ -615,8 +615,7 @@ SigninViewControllerDelegate::CreateSyncHistoryOptInDelegate(
 
 // static
 SigninViewControllerDelegate*
-SigninViewControllerDelegate::CreateSigninErrorDelegate(
-    BrowserWindowInterface* browser) {
+SigninViewControllerDelegate::CreateSigninErrorDelegate(Browser* browser) {
   return new SigninViewControllerDelegateViews(
       SigninViewControllerDelegateViews::CreateSigninErrorWebView(browser),
       browser, ui::mojom::ModalType::kWindow, true, false,
@@ -627,7 +626,7 @@ SigninViewControllerDelegate::CreateSigninErrorDelegate(
 // static
 SigninViewControllerDelegate*
 SigninViewControllerDelegate::CreateProfileCustomizationDelegate(
-    BrowserWindowInterface* browser,
+    Browser* browser,
     bool is_local_profile_creation,
     bool show_profile_switch_iph,
     bool show_supervised_user_iph) {
@@ -642,7 +641,7 @@ SigninViewControllerDelegate::CreateProfileCustomizationDelegate(
 // static
 SigninViewControllerDelegate*
 SigninViewControllerDelegate::CreateSignoutConfirmationDelegate(
-    BrowserWindowInterface* browser,
+    Browser* browser,
     ChromeSignoutConfirmationPromptVariant variant,
     size_t unsynced_data_count,
     SignoutConfirmationCallback callback) {
@@ -719,8 +718,7 @@ SigninViewControllerDelegate::CreateManagedUserNoticeDelegate(
   bool allow_closing_by_pressing_escape =
       !create_param->is_device_signals_disclaimer;
 
-  std::u16string email =
-      base::UTF8ToUTF16(create_param->account_info.GetEmail());
+  std::u16string email = base::UTF8ToUTF16(create_param->account_info.email);
   auto web_view = SigninViewControllerDelegateViews::
       CreateManagedUserNoticeConfirmationWebView(browser,
                                                  std::move(create_param));
@@ -757,7 +755,8 @@ SigninViewControllerDelegate::CreateManagedUserNoticeDelegate(
   }
 
   return new SigninViewControllerDelegateViews(
-      std::move(web_view), &browser, ui::mojom::ModalType::kWindow, true, false,
+      std::move(web_view), browser.GetBrowserForMigrationOnly(),
+      ui::mojom::ModalType::kWindow, true, false,
       /*animate_on_resize=*/true, false, std::move(on_closed_callback),
       allow_closing_by_pressing_escape);
 }

@@ -4,7 +4,6 @@
 
 #include "third_party/blink/renderer/core/animation/css_percentage_interpolation_type.h"
 
-#include "base/memory/raw_ref.h"
 #include "third_party/blink/renderer/core/animation/length_units_checker.h"
 #include "third_party/blink/renderer/core/animation/number_property_functions.h"
 #include "third_party/blink/renderer/core/animation/tree_counting_checker.h"
@@ -26,13 +25,11 @@ class InheritedPercentageChecker
   bool IsValid(const StyleResolverState& state,
                const InterpolationValue& underlying) const final {
     std::optional<double> parent_percent =
-        NumberPropertyFunctions::GetPercentage(*property_,
-                                               *state.ParentStyle());
+        NumberPropertyFunctions::GetPercentage(property_, *state.ParentStyle());
     return percent_ == parent_percent;
   }
 
-  const raw_ref<const CSSProperty, UnprotectedInRelease | DanglingUntriaged>
-      property_;
+  const CSSProperty& property_;
   const std::optional<double> percent_;
 };
 

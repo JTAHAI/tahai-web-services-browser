@@ -33,6 +33,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
+import org.robolectric.annotation.Config;
 
 import org.chromium.base.Callback;
 import org.chromium.base.ContextUtils;
@@ -51,12 +52,11 @@ import org.chromium.chrome.browser.omnibox.suggestions.action.OmniboxActionInSug
 import org.chromium.chrome.browser.omnibox.suggestions.base.BaseSuggestionViewProperties;
 import org.chromium.chrome.browser.share.ShareDelegate;
 import org.chromium.chrome.browser.tab.Tab;
-import org.chromium.components.metrics.OmniboxEventProtosIntDef.PageClassification;
+import org.chromium.components.metrics.OmniboxEventProtos.OmniboxEventProto.PageClassification;
 import org.chromium.components.omnibox.AutocompleteInput;
 import org.chromium.components.omnibox.AutocompleteMatch;
 import org.chromium.components.omnibox.AutocompleteMatchBuilder;
 import org.chromium.components.omnibox.DocumentType;
-import org.chromium.components.omnibox.OmniboxCapabilities;
 import org.chromium.components.omnibox.OmniboxSuggestionType;
 import org.chromium.components.omnibox.SuggestTemplateInfoProto.SuggestTemplateInfo;
 import org.chromium.components.omnibox.action.ActionPresentationMode;
@@ -74,6 +74,7 @@ import java.util.function.Supplier;
 
 /** Tests for {@link BasicSuggestionProcessor}. */
 @RunWith(BaseRobolectricTestRunner.class)
+@Config(manifest = Config.NONE)
 public class BasicSuggestionProcessorUnitTest {
     private static final @DrawableRes int ICON_BOOKMARK = R.drawable.ic_star_24dp;
     private static final @DrawableRes int ICON_GLOBE = R.drawable.ic_globe_24dp;
@@ -124,17 +125,16 @@ public class BasicSuggestionProcessorUnitTest {
         SUGGESTION_TYPE_NAMES = map;
     }
 
-    @Rule public final MockitoRule mMockitoRule = MockitoJUnit.rule();
+    public @Rule MockitoRule mMockitoRule = MockitoJUnit.rule();
 
-    @Mock private SuggestionHost mSuggestionHost;
-    @Mock private Bitmap mBitmap;
-    @Mock private OmniboxImageSupplier mImageSupplier;
-    @Mock private Supplier<Tab> mTabSupplier;
-    @Mock private Supplier<ShareDelegate> mShareDelegateSupplier;
-    @Mock private OmniboxActionDelegate mActionDelegate;
+    private @Mock SuggestionHost mSuggestionHost;
+    private @Mock Bitmap mBitmap;
+    private @Mock OmniboxImageSupplier mImageSupplier;
+    private @Mock Supplier<Tab> mTabSupplier;
+    private @Mock Supplier<ShareDelegate> mShareDelegateSupplier;
+    private @Mock OmniboxActionDelegate mActionDelegate;
 
     private BasicSuggestionProcessor mProcessor;
-    private AutocompleteUIContext mUiContext;
     private AutocompleteMatch mSuggestion;
     private PropertyModel mModel;
     private AutocompleteInput mInput;
@@ -155,7 +155,7 @@ public class BasicSuggestionProcessorUnitTest {
         var context =
                 new ContextThemeWrapper(
                         ContextUtils.getApplicationContext(), R.style.Theme_BrowserUI_DayNight);
-        mUiContext =
+        AutocompleteUIContext uiContext =
                 new AutocompleteUIContext(
                         context,
                         mSuggestionHost,
@@ -166,7 +166,7 @@ public class BasicSuggestionProcessorUnitTest {
                         mShareDelegateSupplier,
                         ObservableSuppliers.createNonNull(ControlsPosition.TOP),
                         mActionDelegate);
-        mProcessor = new BasicSuggestionProcessor(mUiContext);
+        mProcessor = new BasicSuggestionProcessor(uiContext);
         mInput = new AutocompleteInput();
         OmniboxResourceProvider.disableCachesForTesting();
     }
@@ -231,15 +231,15 @@ public class BasicSuggestionProcessorUnitTest {
     private void assertSuggestionTypeAndIcon(
             @OmniboxSuggestionType int expectedType, @DrawableRes int expectedIconRes) {
         OmniboxDrawableState sds = mModel.get(BaseSuggestionViewProperties.ICON);
-        assertNotNull(sds);
+        @DrawableRes int actualIconRes = shadowOf(sds.drawable).getCreatedFromResId();
         assertEquals(
                 String.format(
                         "%s: Want Icon %s, Got %s",
                         SUGGESTION_TYPE_NAMES.get(expectedType),
                         ICON_TYPE_NAMES.get(expectedIconRes),
-                        ICON_TYPE_NAMES.get(sds.resourceIdForTesting)),
+                        ICON_TYPE_NAMES.get(actualIconRes)),
                 expectedIconRes,
-                sds.resourceIdForTesting);
+                actualIconRes);
     }
 
     @Test
@@ -360,54 +360,13 @@ public class BasicSuggestionProcessorUnitTest {
     }
 
     @Test
-    @SmallTest
     public void getFallbackIconFromIconType_validIconForEachType() {
-        var resourceMap =
-                Map.ofEntries(
-                        Map.entry(SuggestTemplateInfo.IconType.ICON_TYPE_UNSPECIFIED, 0),
-                        Map.entry(SuggestTemplateInfo.IconType.HISTORY, R.drawable.ic_history_24dp),
-                        Map.entry(
-                                SuggestTemplateInfo.IconType.SEARCH_LOOP,
-                                R.drawable.ic_suggestion_magnifier),
-                        Map.entry(
-                                SuggestTemplateInfo.IconType.SEARCH_LOOP_WITH_SPARKLE,
-                                R.drawable.search_spark_black_24dp),
-                        Map.entry(
-                                SuggestTemplateInfo.IconType.TRENDING,
-                                R.drawable.trending_up_black_24dp),
-                        Map.entry(
-                                SuggestTemplateInfo.IconType.SUB_ARROW_RIGHT,
-                                R.drawable.ic_suggestion_magnifier),
-                        Map.entry(
-                                SuggestTemplateInfo.IconType.GLOBE_WITH_SEARCH_LOOP,
-                                R.drawable.travel_explore_24dp),
-                        Map.entry(
-                                SuggestTemplateInfo.IconType.BANANA, R.drawable.create_image_24dp),
-                        Map.entry(SuggestTemplateInfo.IconType.FAVICON, R.drawable.ic_globe_24dp),
-                        Map.entry(SuggestTemplateInfo.IconType.NOTES_SPARK, R.drawable.notes_spark),
-                        Map.entry(
-                                SuggestTemplateInfo.IconType.DRAFT_SPARK,
-                                R.drawable.draft_spark_24dp),
-                        Map.entry(
-                                SuggestTemplateInfo.IconType.LIGHTBULB,
-                                R.drawable.ic_lightbulb_24dp),
-                        Map.entry(
-                                SuggestTemplateInfo.IconType.ATTACH_FILE,
-                                R.drawable.ic_attach_file_24dp),
-                        Map.entry(SuggestTemplateInfo.IconType.SCHOOL, R.drawable.ic_school_24dp),
-                        Map.entry(SuggestTemplateInfo.IconType.INK_PEN, R.drawable.ic_ink_pen_24dp),
-                        Map.entry(SuggestTemplateInfo.IconType.TAB, R.drawable.tab),
-                        Map.entry(
-                                SuggestTemplateInfo.IconType.PHOTO_SPARK,
-                                R.drawable.ic_photo_spark_24dp),
-                        Map.entry(SuggestTemplateInfo.IconType.BOLT, R.drawable.bolt_24dp));
-
         for (var iconType : SuggestTemplateInfo.IconType.values()) {
-            assertTrue(iconType.toString(), resourceMap.containsKey(iconType));
-            assertEquals(
-                    iconType.toString(),
-                    (int) resourceMap.get(iconType),
-                    mProcessor.getFallbackIconFromIconType(iconType.getNumber()));
+            if (iconType == SuggestTemplateInfo.IconType.ICON_TYPE_UNSPECIFIED) {
+                assertEquals(0, mProcessor.getFallbackIconFromIconType(iconType.getNumber()));
+            } else {
+                assertNotEquals(0, mProcessor.getFallbackIconFromIconType(iconType.getNumber()));
+            }
         }
     }
 
@@ -430,16 +389,21 @@ public class BasicSuggestionProcessorUnitTest {
     public void refineIconShownForRefineSuggestions() {
         final String typed = "Typed content";
         createSearchSuggestion(OmniboxSuggestionType.SEARCH_SUGGEST, typed);
+        PropertyModel model = mProcessor.createModel();
+        mProcessor.populateModel(mInput, mSuggestion, model, 0);
         assertNotNull(mModel.get(BaseSuggestionViewProperties.ACTION_BUTTONS));
 
         createUrlSuggestion(OmniboxSuggestionType.HISTORY_URL, typed);
+        mProcessor.populateModel(mInput, mSuggestion, model, 0);
         assertNotNull(mModel.get(BaseSuggestionViewProperties.ACTION_BUTTONS));
 
         final List<BaseSuggestionViewProperties.Action> actions =
                 mModel.get(BaseSuggestionViewProperties.ACTION_BUTTONS);
         assertEquals(1, actions.size());
         final OmniboxDrawableState iconState = actions.get(0).icon;
-        assertEquals(R.drawable.btn_suggestion_refine_up, iconState.resourceIdForTesting);
+        assertEquals(
+                R.drawable.btn_suggestion_refine_up,
+                shadowOf(iconState.drawable).getCreatedFromResId());
     }
 
     @Test
@@ -454,7 +418,8 @@ public class BasicSuggestionProcessorUnitTest {
     @Test
     @SmallTest
     public void switchTabIcon_shownForSwitchToTabSuggestions() {
-        mInput.setPageClassification(PageClassification.INSTANT_NTP_WITH_OMNIBOX_AS_STARTING_FOCUS);
+        mInput.setPageClassification(
+                PageClassification.INSTANT_NTP_WITH_OMNIBOX_AS_STARTING_FOCUS_VALUE);
 
         createSwitchToTabSuggestion(OmniboxSuggestionType.URL_WHAT_YOU_TYPED);
         PropertyModel model = mProcessor.createModel();
@@ -535,8 +500,8 @@ public class BasicSuggestionProcessorUnitTest {
             mProcessor.populateModel(mInput, mSuggestion, mModel, 0);
 
             OmniboxDrawableState sds = mModel.get(BaseSuggestionViewProperties.ICON);
-            assertNotNull(sds);
-            assertEquals(testCase[1], sds.resourceIdForTesting);
+            @DrawableRes int actualIconRes = shadowOf(sds.drawable).getCreatedFromResId();
+            assertEquals(testCase[1], actualIconRes);
             assertFalse(sds.allowTint);
         }
     }
@@ -680,42 +645,5 @@ public class BasicSuggestionProcessorUnitTest {
                 "Gemini, AI Mode. Conversation. 3 of 4 in the group AI Suggestions.";
         assertEquals(
                 expectedAnnouncement, mModel.get(SuggestionViewProperties.CONTENT_DESCRIPTION));
-    }
-
-    @Test
-    @SmallTest
-    public void desktopLayoutExemption_TabSearch() {
-        OmniboxCapabilities.setIsDesktopPlatformForTesting(true);
-
-        mProcessor.onNativeInitialized();
-        mSuggestion =
-                createSuggestionBuilder(OmniboxSuggestionType.HISTORY_URL, "Google")
-                        .setIsSearch(false)
-                        .setUrl(new GURL("https://www.google.com/search?q=test"))
-                        .setDisplayText("google.com/search?q=test")
-                        .build();
-
-        // 1. For a standard URL suggestion, desktop platform forces a single-line layout.
-        mInput.setPageClassification(PageClassification.ANDROID_SEARCH_WIDGET);
-        mModel = mProcessor.createModel();
-        mProcessor.populateModel(mInput, mSuggestion, mModel, 0);
-
-        // TEXT_LINE_2_TEXT should be null as it got concatenated into TEXT_LINE_1_TEXT.
-        assertNull(mModel.get(SuggestionViewProperties.TEXT_LINE_2_TEXT));
-        assertTrue(
-                mModel.get(SuggestionViewProperties.TEXT_LINE_1_TEXT)
-                        .toString()
-                        .contains("google.com/search?q=test"));
-
-        // 2. For Tab Search suggestion, it is exempt and maintains a 2-line layout.
-        mInput.setPageClassification(PageClassification.ANDROID_TAB_SEARCH_OVERLAY);
-        mModel = mProcessor.createModel();
-        mProcessor.populateModel(mInput, mSuggestion, mModel, 0);
-
-        // TEXT_LINE_2_TEXT is NOT null and matches the URL text.
-        assertNotNull(mModel.get(SuggestionViewProperties.TEXT_LINE_2_TEXT));
-        assertEquals(
-                "google.com/search?q=test",
-                mModel.get(SuggestionViewProperties.TEXT_LINE_2_TEXT).toString());
     }
 }

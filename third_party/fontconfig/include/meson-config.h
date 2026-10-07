@@ -28,7 +28,7 @@
 
 #define FC_VERSION_MAJOR 2
 
-#define FC_VERSION_MICRO 3
+#define FC_VERSION_MICRO 1
 
 #define FC_VERSION_MINOR 18
 
@@ -71,8 +71,6 @@
 #define HAVE_GETPID 1
 
 #define HAVE_GETTEXT 1
-
-#define HAVE_GNU_STRERROR_R 1
 
 #define HAVE_INTEL_ATOMIC_PRIMITIVES 1
 
@@ -144,8 +142,6 @@
 
 #define HAVE_UNISTD_H 1
 
-#define HAVE_USELOCALE 1
-
 #define HAVE_VASPRINTF 1
 
 #define HAVE_VPRINTF 1
@@ -160,13 +156,13 @@
 
 #define PACKAGE_NAME "fontconfig"
 
-#define PACKAGE_STRING "fontconfig 2.18.3"
+#define PACKAGE_STRING "fontconfig 2.18.1"
 
 #define PACKAGE_TARNAME "fontconfig"
 
 #define PACKAGE_URL ""
 
-#define PACKAGE_VERSION "2.18.3"
+#define PACKAGE_VERSION "2.18.1"
 
 #define SIZEOF_VOID_P 8
 
@@ -174,9 +170,5 @@
 
 #define WORDS_BIGENDIAN 0
 
-#define _FILE_OFFSET_BITS 64
-
 #define _GNU_SOURCE 1
-
-#define _TIME_BITS 64
 

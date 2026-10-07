@@ -1,2 +1,3 @@
-rules:
-- "**": [sticky-positioning]
+features:
+- name: sticky-positioning
+  files: "**"

@@ -11,8 +11,6 @@ import android.util.AttributeSet;
 import android.view.View;
 import android.widget.LinearLayout;
 
-import androidx.annotation.StringRes;
-
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.ui.autofill.internal.R;
@@ -20,7 +18,7 @@ import org.chromium.ui.text.ChromeClickableSpan;
 import org.chromium.ui.text.SpanApplier;
 import org.chromium.ui.widget.TextViewWithClickableSpans;
 
-/** View for rendering personal context onboarding notice item in AtMemory bottom sheet list. */
+/** View for rendering personal context onboarding notice item in @memory bottom sheet list. */
 @NullMarked
 public class AtMemoryBottomSheetNoticeView extends LinearLayout {
     private TextViewWithClickableSpans mNoticeTextView;
@@ -41,16 +39,9 @@ public class AtMemoryBottomSheetNoticeView extends LinearLayout {
         mNoticeOkButton.setOnClickListener(v -> listener.run());
     }
 
-    public void setNoticeTextAndSettingsClickListener(Runnable listener, boolean isLoggingAllowed) {
+    public void setSettingsClickListener(Runnable listener) {
         Context context = getContext();
-        // TODO(b/524157152): Implement solution to the corner case when user accepted the no
-        // logging variant and admin has changed the policy to allow logging afterwards.
-        @StringRes
-        int textResId =
-                isLoggingAllowed
-                        ? R.string.at_memory_notice_text
-                        : R.string.at_memory_notice_text_no_logging;
-        String rawText = context.getString(textResId);
+        String rawText = context.getString(R.string.at_memory_notice_text);
         ChromeClickableSpan settingsSpan =
                 new ChromeClickableSpan(context, (widget) -> listener.run());
 

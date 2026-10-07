@@ -88,10 +88,7 @@ suite('CupsAddPrinterDialogTests', () => {
       dialog: AddPrinterManuallyDialogElement, name: string, address: string) {
     dialog.newPrinter.printerName = name;
     dialog.newPrinter.printerAddress = address;
-    return (dialog as unknown as {
-             canAddPrinter_: () => boolean,
-           })
-        .canAddPrinter_();
+    return dialog['canAddPrinter_']();
   }
 
   function mockAddPrinterInputKeyboardPress(crInputId: string) {

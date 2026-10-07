@@ -91,6 +91,7 @@ source_set("browser_tests") {
     "//components/policy/core/common",
     "//components/sync_preferences:test_support",
     "//content/test:test_support",
+    "//content/public/browser",
     "//mojo/public/cpp/bindings",
     "//net:test_support",
     "//services/network:test_support",

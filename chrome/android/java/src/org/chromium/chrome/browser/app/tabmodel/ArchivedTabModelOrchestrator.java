@@ -6,6 +6,7 @@ package org.chromium.chrome.browser.app.tabmodel;
 
 import static org.chromium.build.NullUtil.assertNonNull;
 import static org.chromium.build.NullUtil.assumeNonNull;
+import static org.chromium.chrome.browser.app.tabmodel.ShadowTabStoreValidator.ARCHIVED_TAG;
 import static org.chromium.chrome.browser.app.tabmodel.TabPersistentStoreFactory.buildAuthoritativeStore;
 import static org.chromium.chrome.browser.app.tabmodel.TabPersistentStoreFactory.buildShadowStore;
 import static org.chromium.chrome.browser.tabwindow.TabWindowManager.ARCHIVED_WINDOW_TAG;
@@ -14,7 +15,9 @@ import android.content.Context;
 
 import androidx.annotation.VisibleForTesting;
 
+import org.chromium.base.ApplicationState;
 import org.chromium.base.ApplicationStatus;
+import org.chromium.base.ApplicationStatus.ApplicationStateListener;
 import org.chromium.base.Callback;
 import org.chromium.base.CallbackController;
 import org.chromium.base.ContextUtils;
@@ -55,8 +58,8 @@ import org.chromium.chrome.browser.tabmodel.TabModel;
 import org.chromium.chrome.browser.tabmodel.TabModelSelector;
 import org.chromium.chrome.browser.tabmodel.TabModelSelectorBase;
 import org.chromium.chrome.browser.tabmodel.TabModelUtils;
-import org.chromium.chrome.browser.tabmodel.TabOrchestratorType;
 import org.chromium.chrome.browser.tabmodel.TabPersistentStore;
+import org.chromium.chrome.browser.tabmodel.TabPersistentStoreImpl;
 import org.chromium.chrome.browser.tabmodel.TabbedModeTabPersistencePolicy;
 import org.chromium.chrome.browser.tabpersistence.TabMetadataFileManager;
 import org.chromium.chrome.browser.tabwindow.TabWindowManager;
@@ -94,9 +97,12 @@ public class ArchivedTabModelOrchestrator extends TabModelOrchestrator {
     // TODO(crbug.com/333572160): Rely on PKM destroy infra when it's working.
     @VisibleForTesting
     static final ApplicationStatus.ApplicationStateListener sApplicationStateListener =
-            _ -> {
-                if (ApplicationStatus.isEveryActivityDestroyed()) {
-                    destroyProfileKeyedMap();
+            new ApplicationStateListener() {
+                @Override
+                public void onApplicationStateChange(@ApplicationState int newState) {
+                    if (ApplicationStatus.isEveryActivityDestroyed()) {
+                        destroyProfileKeyedMap();
+                    }
                 }
             };
 
@@ -179,11 +185,12 @@ public class ArchivedTabModelOrchestrator extends TabModelOrchestrator {
             sProfileMap =
                     new ProfileKeyedMap<>(
                             ProfileKeyedMap.ProfileSelection.REDIRECTED_TO_ORIGINAL,
-                            ArchivedTabModelOrchestrator::destroy);
+                            (orchestrator) -> orchestrator.destroy());
             ApplicationStatus.registerApplicationStateListener(sApplicationStateListener);
         }
 
-        return sProfileMap.getForProfile(profile, ArchivedTabModelOrchestrator::new);
+        return sProfileMap.getForProfile(
+                profile, (originalProfile) -> new ArchivedTabModelOrchestrator(originalProfile));
     }
 
     /** Destroys the singleton profile keyed map. */
@@ -203,10 +210,13 @@ public class ArchivedTabModelOrchestrator extends TabModelOrchestrator {
     ArchivedTabModelOrchestrator(Profile profile) {
         mProfile = profile;
         mArchivedTabCreatorManager =
-                (boolean incognito) -> {
-                    assert !incognito : "Archived tab model does not support incognito.";
-                    assert mArchivedTabCreator != null;
-                    return mArchivedTabCreator;
+                new TabCreatorManager() {
+                    @Override
+                    public TabCreator getTabCreator(boolean incognito) {
+                        assert !incognito : "Archived tab model does not support incognito.";
+                        assert mArchivedTabCreator != null;
+                        return mArchivedTabCreator;
+                    }
                 };
         mRecordingTabCreatorManager = new RecordingTabCreatorManager(mArchivedTabCreatorManager);
         mAsyncTabParamsManager = AsyncTabParamsManagerSingleton.getInstance();
@@ -408,7 +418,7 @@ public class ArchivedTabModelOrchestrator extends TabModelOrchestrator {
         mMigrationManager = new PersistentStoreMigrationManagerImpl(ARCHIVED_WINDOW_TAG);
         mTabPersistentStore =
                 buildAuthoritativeStore(
-                        TabOrchestratorType.ARCHIVED,
+                        TabPersistentStoreImpl.CLIENT_TAG_ARCHIVED,
                         mMigrationManager,
                         mTabPersistencePolicy,
                         mTabModelSelector,
@@ -571,7 +581,7 @@ public class ArchivedTabModelOrchestrator extends TabModelOrchestrator {
                             mTabPersistentStore,
                             ARCHIVED_WINDOW_TAG,
                             mCipherFactory,
-                            TabOrchestratorType.ARCHIVED,
+                            ARCHIVED_TAG,
                             /* isNonOtrOnly= */ true,
                             /* isFromRecreating= */ false);
             if (mShadowTabPersistentStore != null) {

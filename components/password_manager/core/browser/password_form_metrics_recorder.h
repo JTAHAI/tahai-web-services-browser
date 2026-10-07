@@ -137,26 +137,19 @@ class PasswordFormMetricsRecorder
   };
 
   // Indicator whether the user has seen a password generation popup and why.
+  //
   // These values are persisted to logs. Entries should not be renumbered and
   // numeric values should never be reused.
   //
   // Needs to stay in sync with PasswordGenerationPopupShown in enums.xml.
-  //
-  // LINT.IfChange(PasswordGenerationPopupShown)
   enum class PasswordGenerationPopupShown {
     kNotShown = 0,
     kShownAutomatically = 1,
     kShownManually = 2,
     kMaxValue = kShownManually,
   };
-  // LINT.ThenChange(//tools/metrics/histograms/metadata/password/enums.xml:PasswordGenerationPopupShown)
 
-  // These values are persisted to logs. Entries should not be renumbered and
-  // numeric values should never be reused.
-  //
   // Metric: PasswordGeneration.UserDecision
-  //
-  // LINT.IfChange(GeneratedPasswordStatus)
   enum class GeneratedPasswordStatus {
     // The generated password was accepted by the user.
     kPasswordAccepted = 0,
@@ -169,7 +162,6 @@ class PasswordFormMetricsRecorder
     // Deprecated: kPasswordRejectedInDialog = 3,
     kMaxValue = kPasswordDeleted
   };
-  // LINT.ThenChange(//tools/metrics/histograms/metadata/password/enums.xml:PasswordGenerationUserEvent)
 
   // Represents form differences.
   // 1.This is a bit mask, so new values must be powers of 2.

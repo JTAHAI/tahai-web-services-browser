@@ -128,14 +128,20 @@ class CookieManager {
   void SetWorkaroundHttpSecureCookiesForTesting(JNIEnv* env, bool allow);
   void SetShouldAcceptCookies(JNIEnv* env, bool accept);
   bool GetShouldAcceptCookies(JNIEnv* env);
-  void SetCookie(const std::string& url,
+  void SetCookie(JNIEnv* env,
+                 const base::android::JavaRef<jstring>& url,
                  const std::string& value,
                  base::OnceCallback<void(bool)> callback);
-  void SetCookieSync(const std::string& url, const std::string& value);
+  void SetCookieSync(JNIEnv* env,
+                     const base::android::JavaRef<jstring>& url,
+                     const std::string& value);
 
-  std::string GetCookie(const std::string& url);
+  std::string GetCookie(JNIEnv* env,
+                        const base::android::JavaRef<jstring>& url);
 
-  std::vector<std::string> GetCookieInfo(const std::string& url);
+  base::android::ScopedJavaLocalRef<jobjectArray> GetCookieInfo(
+      JNIEnv* env,
+      const base::android::JavaRef<jstring>& url);
 
   void RemoveAllCookies(JNIEnv* env, base::OnceCallback<void(bool)> callback);
   void RemoveSessionCookies(JNIEnv* env,

@@ -442,23 +442,19 @@ class MockDnsClient : public DnsClient {
 
   // DnsClient interface:
   bool CanUseSecureDnsTransactions() const override;
-  bool CanUseInsecureDnsTransactions(
-      std::optional<EchMode> ech_mode) const override;
-  bool CanQueryAdditionalTypesViaInsecureDns(
-      std::optional<EchMode> ech_mode) const override;
+  bool CanUseInsecureDnsTransactions() const override;
+  bool CanQueryAdditionalTypesViaInsecureDns() const override;
   void SetInsecureEnabled(InsecureDnsMode mode,
                           bool additional_types_enabled) override;
-  InsecureDnsMode GetInsecureDnsMode(
-      std::optional<EchMode> ech_mode) const override;
+  InsecureDnsMode GetInsecureDnsMode() const override;
   bool FallbackFromSecureTransactionPreferred(
       ResolveContext* resolve_context) const override;
-  bool FallbackFromInsecureTransactionPreferred(
-      std::optional<EchMode> ech_mode) const override;
+  bool FallbackFromInsecureTransactionPreferred() const override;
   bool SetSystemConfig(std::optional<DnsConfig> system_config) override;
   bool SetConfigOverrides(DnsConfigOverrides config_overrides) override;
   void ReplaceCurrentSession() override;
   DnsSession* GetCurrentSession() override;
-  const DnsConfig& GetEffectiveConfig() const override;
+  const DnsConfig* GetEffectiveConfig() const override;
   const DnsHosts* GetHosts() const override;
   DnsTransactionFactory* GetTransactionFactory() override;
   AddressSorter* GetAddressSorter() override;
@@ -501,7 +497,7 @@ class MockDnsClient : public DnsClient {
   MockDnsTransactionFactory* factory() { return factory_.get(); }
 
  private:
-  DnsConfig BuildEffectiveConfig();
+  std::optional<DnsConfig> BuildEffectiveConfig();
   scoped_refptr<DnsSession> BuildSession();
 
   InsecureDnsMode insecure_dns_mode_ = InsecureDnsMode::kDisabled;
@@ -520,7 +516,7 @@ class MockDnsClient : public DnsClient {
   std::optional<DnsConfig> config_;
   scoped_refptr<DnsSession> session_;
   DnsConfigOverrides overrides_;
-  DnsConfig effective_config_;
+  std::optional<DnsConfig> effective_config_;
   std::unique_ptr<MockDnsTransactionFactory> factory_;
   std::unique_ptr<AddressSorter> address_sorter_;
   std::optional<url::SchemeHostPort> preset_endpoint_;

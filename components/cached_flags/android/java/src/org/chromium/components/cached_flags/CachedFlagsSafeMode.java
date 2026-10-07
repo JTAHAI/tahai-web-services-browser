@@ -15,7 +15,6 @@ import org.chromium.base.ContextUtils;
 import org.chromium.base.Log;
 import org.chromium.base.ResettersForTesting;
 import org.chromium.base.TraceEvent;
-import org.chromium.base.TriState;
 import org.chromium.base.cached_flags.ValuesReturned;
 import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.base.task.AsyncTask;
@@ -46,7 +45,7 @@ public class CachedFlagsSafeMode {
     @VisibleForTesting
     static final String PREF_SAFE_VALUES_VERSION = "Chrome.Flags.SafeValuesVersion";
 
-    private @TriState int mSafeModeExperimentForcedForTesting;
+    private @Nullable Boolean mSafeModeExperimentForcedForTesting;
 
     // These values are persisted to logs. Entries should not be renumbered and numeric values
     // should never be reused.
@@ -216,7 +215,9 @@ public class CachedFlagsSafeMode {
     }
 
     private boolean shouldEnterSafeMode() {
-        if (BuildConfig.IS_FOR_TEST && mSafeModeExperimentForcedForTesting != TriState.TRUE) {
+        if (BuildConfig.IS_FOR_TEST
+                && (mSafeModeExperimentForcedForTesting == null
+                        || !mSafeModeExperimentForcedForTesting)) {
             return false;
         }
 
@@ -382,7 +383,7 @@ public class CachedFlagsSafeMode {
     }
 
     void enableForTesting() {
-        mSafeModeExperimentForcedForTesting = TriState.TRUE;
-        ResettersForTesting.register(() -> mSafeModeExperimentForcedForTesting = TriState.NOT_SET);
+        mSafeModeExperimentForcedForTesting = true;
+        ResettersForTesting.register(() -> mSafeModeExperimentForcedForTesting = null);
     }
 }

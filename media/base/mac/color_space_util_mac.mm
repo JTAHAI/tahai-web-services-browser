@@ -7,7 +7,6 @@
 #include <CoreFoundation/CoreFoundation.h>
 #include <CoreVideo/CoreVideo.h>
 #include <simd/simd.h>
-
 #include <vector>
 
 #include "base/apple/foundation_util.h"
@@ -18,24 +17,6 @@
 #include "ui/gfx/mac/color_space_util.h"
 
 namespace media {
-
-namespace {
-
-base::apple::ScopedCFTypeRef<CFDictionaryRef>
-GetImageBufferPixelFormatDescription(CVImageBufferRef image_buffer) {
-  // CoreVideo does not expose the YUV range as a separate image-buffer
-  // attachment. For CVPixelBuffers, the range is described by the pixel
-  // format.
-  if (!image_buffer || CFGetTypeID(image_buffer) != CVPixelBufferGetTypeID()) {
-    return base::apple::ScopedCFTypeRef<CFDictionaryRef>();
-  }
-
-  return base::apple::ScopedCFTypeRef<CFDictionaryRef>(
-      CVPixelFormatDescriptionCreateWithPixelFormatType(
-          nullptr, CVPixelBufferGetPixelFormatType(image_buffer)));
-}
-
-}  // namespace
 
 gfx::ColorSpace GetImageBufferColorSpace(CVImageBufferRef image_buffer) {
   base::apple::ScopedCFTypeRef<CFTypeRef> color_primaries(
@@ -48,16 +29,10 @@ gfx::ColorSpace GetImageBufferColorSpace(CVImageBufferRef image_buffer) {
       image_buffer, kCVImageBufferGammaLevelKey, /*attachmentMode=*/nullptr));
   base::apple::ScopedCFTypeRef<CFTypeRef> ycbcr_matrix(CVBufferCopyAttachment(
       image_buffer, kCVImageBufferYCbCrMatrixKey, /*attachmentMode=*/nullptr));
-  const auto pixel_format_description =
-      GetImageBufferPixelFormatDescription(image_buffer);
-  const CFTypeRef component_range =
-      pixel_format_description
-          ? CFDictionaryGetValue(pixel_format_description.get(),
-                                 kCVPixelFormatComponentRange)
-          : nullptr;
+
   return gfx::ColorSpaceFromCVImageBufferKeys(
       color_primaries.get(), transfer_function.get(), gamma_level.get(),
-      ycbcr_matrix.get(), component_range);
+      ycbcr_matrix.get());
 }
 
 gfx::ColorSpace GetFormatDescriptionColorSpace(
@@ -70,9 +45,7 @@ gfx::ColorSpace GetFormatDescriptionColorSpace(
       CMFormatDescriptionGetExtension(format_description,
                                       kCMFormatDescriptionExtension_GammaLevel),
       CMFormatDescriptionGetExtension(
-          format_description, kCMFormatDescriptionExtension_YCbCrMatrix),
-      CMFormatDescriptionGetExtension(
-          format_description, kCMFormatDescriptionExtension_FullRangeVideo));
+          format_description, kCMFormatDescriptionExtension_YCbCrMatrix));
 }
 
 // Converts a gfx::ColorSpace to individual kCVImageBuffer* keys.

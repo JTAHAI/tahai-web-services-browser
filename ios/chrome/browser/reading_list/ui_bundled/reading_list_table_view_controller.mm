@@ -482,7 +482,7 @@ BOOL IsAllSelected(NSUInteger selected_unread_count,
 }
 
 - (void)keyCommand_close {
-  CHECK(self.delegate.canDismiss);
+  CHECK(self.delegate.canDismiss, base::NotFatalUntil::M145);
   base::RecordAction(base::UserMetricsAction(kMobileKeyCommandClose));
   [self.delegate dismissReadingListListViewController:self];
 }
@@ -843,7 +843,8 @@ BOOL IsAllSelected(NSUInteger selected_unread_count,
 }
 
 - (void)configureSigninPromoWithConfigurator:
-    (SigninPromoViewConfigurator*)promoConfigurator {
+            (SigninPromoViewConfigurator*)promoConfigurator
+                             identityChanged:(BOOL)identityChanged {
   if (![self.tableViewModel
           hasSectionForSectionIdentifier:kSectionIdentifierSignInPromo]) {
     return;

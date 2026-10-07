@@ -7,10 +7,8 @@ package org.chromium.chrome.browser.contextual_tasks;
 import org.jni_zero.JniType;
 import org.jni_zero.NativeMethods;
 
-import org.chromium.base.FeatureList;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
-import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.components.embedder_support.util.UrlConstants;
 import org.chromium.content_public.browser.WebContents;
 import org.chromium.url.GURL;
@@ -64,28 +62,12 @@ public final class ContextualTasksUtils {
      */
     public static @Nullable String getReplacementUrl(
             String currentText, int selectionStart, int selectionEnd, GURL functionalGurl) {
-        String ret = ContextualTasksUtilsJni.get()
+        return ContextualTasksUtilsJni.get()
                 .getReplacementUrl(currentText, selectionStart, selectionEnd, functionalGurl);
-        return ret.isEmpty() ? null : ret;
-    }
-
-    /**
-     * Returns whether the Contextual Tasks UI is enabled. If called before native init, it will
-     * look at the values of cached flags from earlier session.
-     *
-     * @return True if Contextual Tasks UI is enabled.
-     */
-    public static boolean isContextualTasksUiEnabled() {
-        if (!FeatureList.isNativeInitialized()) {
-            return ChromeFeatureList.sContextualTasksSidePanel.isEnabled();
-        }
-        return ContextualTasksUtilsJni.get().isContextualTasksUiEnabled();
     }
 
     @NativeMethods
     public interface Natives {
-        boolean isContextualTasksUiEnabled();
-
         @JniType("GURL")
         GURL getContextualTasksDisplayUrl(
                 @JniType("content::WebContents*") WebContents webContents);
@@ -94,7 +76,6 @@ public final class ContextualTasksUtils {
         GURL getContextualTasksFunctionalURL(
                 @JniType("content::WebContents*") WebContents webContents);
 
-        @JniType("std::string")
         String getReplacementUrl(
                 @JniType("std::u16string") String currentText,
                 int selectionStart,

@@ -26,6 +26,7 @@ import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
+import org.robolectric.annotation.Config;
 
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.base.test.RobolectricUtil;
@@ -37,6 +38,7 @@ import org.chromium.ui.modelutil.PropertyModel;
 
 /** Unit tests for {@link MiniPlayerMediator}. */
 @RunWith(BaseRobolectricTestRunner.class)
+@Config(manifest = Config.NONE)
 public class MiniPlayerMediatorUnitTest {
     private static final int HEIGHT_PX = 187;
 
@@ -104,7 +106,7 @@ public class MiniPlayerMediatorUnitTest {
         assertEquals(HEIGHT_PX, mModel.get(Properties.HEIGHT));
 
         // Simulate the bottom controls being resized instantly.
-        onControlsOffsetChanged(0, HEIGHT_PX, /* layerYOffset= */ 0);
+        onControlsOffsetChanged(0, HEIGHT_PX, false, /* layerYOffset= */ 0);
 
         // Layout should become opaque.
         assertTrue(mModel.get(Properties.CONTENTS_OPAQUE));
@@ -135,17 +137,17 @@ public class MiniPlayerMediatorUnitTest {
         // Simulate the bottom controls being resized over a few externally driven
         // animation steps.
         // yOffset: HEIGHT -> 0, as layer moving upwards.
-        onControlsOffsetChanged(-HEIGHT_PX, 0, /* layerYOffset= */ HEIGHT_PX);
+        onControlsOffsetChanged(-HEIGHT_PX, 0, true, /* layerYOffset= */ HEIGHT_PX);
         onControlsOffsetChanged(
-                -2 * HEIGHT_PX / 3, HEIGHT_PX / 3, /* layerYOffset= */ 2 * HEIGHT_PX / 3);
+                -2 * HEIGHT_PX / 3, HEIGHT_PX / 3, true, /* layerYOffset= */ 2 * HEIGHT_PX / 3);
         onControlsOffsetChanged(
-                -HEIGHT_PX / 3, 2 * HEIGHT_PX / 3, /* layerYOffset= */ HEIGHT_PX / 3);
+                -HEIGHT_PX / 3, 2 * HEIGHT_PX / 3, true, /* layerYOffset= */ HEIGHT_PX / 3);
 
         // Make sure the next step doesn't start until resizing finishes.
         assertFalse(mModel.get(Properties.CONTENTS_OPAQUE));
 
         // Browser controls reach their final height.
-        onControlsOffsetChanged(0, HEIGHT_PX, /* layerYOffset= */ 0);
+        onControlsOffsetChanged(0, HEIGHT_PX, true, /* layerYOffset= */ 0);
 
         // Layout should become opaque.
         assertTrue(mModel.get(Properties.CONTENTS_OPAQUE));
@@ -236,8 +238,8 @@ public class MiniPlayerMediatorUnitTest {
 
         // Simulate the bottom controls being resized with an animation
         onBottomControlsHeightChanged(HEIGHT_PX, HEIGHT_PX);
-        onControlsOffsetChanged(-HEIGHT_PX, 0, HEIGHT_PX);
-        onControlsOffsetChanged(0, HEIGHT_PX, HEIGHT_PX);
+        onControlsOffsetChanged(-HEIGHT_PX, 0, true, HEIGHT_PX);
+        onControlsOffsetChanged(0, HEIGHT_PX, false, HEIGHT_PX);
         assertTrue(mModel.get(Properties.CONTENTS_OPAQUE));
 
         RobolectricUtil.runAllBackgroundAndUiIncludingDelayed();
@@ -251,7 +253,7 @@ public class MiniPlayerMediatorUnitTest {
         // Show once.
         mMediator.show(/* animate= */ true);
         mMediator.onHeightKnown(HEIGHT_PX);
-        onControlsOffsetChanged(0, HEIGHT_PX, /* layerYOffset= */ 0);
+        onControlsOffsetChanged(0, HEIGHT_PX, true, /* layerYOffset= */ 0);
         mMediator.onFullOpacityReached(null);
         assertEquals(VisibilityState.VISIBLE, mMediator.getVisibility());
 
@@ -288,7 +290,7 @@ public class MiniPlayerMediatorUnitTest {
         // Show once.
         mMediator.show(/* animate= */ true);
         mMediator.onHeightKnown(HEIGHT_PX);
-        onControlsOffsetChanged(0, HEIGHT_PX, /* layerYOffset= */ 0);
+        onControlsOffsetChanged(0, HEIGHT_PX, true, /* layerYOffset= */ 0);
         mMediator.onFullOpacityReached(null);
         assertEquals(VisibilityState.VISIBLE, mMediator.getVisibility());
 
@@ -314,7 +316,7 @@ public class MiniPlayerMediatorUnitTest {
         doReturn(0).when(mBrowserControlsStateProvider).getBottomControlsMinHeight();
 
         // Simulate the bottom controls being resized instantly.
-        onControlsOffsetChanged(0, 0, /* layerYOffset= */ 0);
+        onControlsOffsetChanged(0, 0, false, /* layerYOffset= */ 0);
 
         // Transition is complete.
         assertFalse(mModel.get(Properties.COMPOSITED_VIEW_VISIBLE));
@@ -326,7 +328,7 @@ public class MiniPlayerMediatorUnitTest {
         // Show once.
         mMediator.show(/* animate= */ true);
         mMediator.onHeightKnown(HEIGHT_PX);
-        onControlsOffsetChanged(0, HEIGHT_PX, /* layerYOffset= */ 0);
+        onControlsOffsetChanged(0, HEIGHT_PX, true, /* layerYOffset= */ 0);
         mMediator.onFullOpacityReached(null);
         assertEquals(VisibilityState.VISIBLE, mMediator.getVisibility());
 
@@ -353,17 +355,17 @@ public class MiniPlayerMediatorUnitTest {
 
         // Simulate the bottom controls being resized over a few externally driven
         // animation steps.
-        onControlsOffsetChanged(0, HEIGHT_PX, /* layerYOffset= */ 0);
+        onControlsOffsetChanged(0, HEIGHT_PX, true, /* layerYOffset= */ 0);
         onControlsOffsetChanged(
-                -HEIGHT_PX / 3, 2 * HEIGHT_PX / 3, /* layerYOffset= */ HEIGHT_PX / 3);
+                -HEIGHT_PX / 3, 2 * HEIGHT_PX / 3, true, /* layerYOffset= */ HEIGHT_PX / 3);
         onControlsOffsetChanged(
-                -2 * HEIGHT_PX / 3, HEIGHT_PX / 3, /* layerYOffset= */ 2 * HEIGHT_PX / 3);
+                -2 * HEIGHT_PX / 3, HEIGHT_PX / 3, true, /* layerYOffset= */ 2 * HEIGHT_PX / 3);
 
         // Make sure the next step doesn't start until resizing finishes.
         assertTrue(mModel.get(Properties.COMPOSITED_VIEW_VISIBLE));
 
         // Browser controls reach their final height.
-        onControlsOffsetChanged(-HEIGHT_PX, 0, /* layerYOffset= */ HEIGHT_PX);
+        onControlsOffsetChanged(-HEIGHT_PX, 0, true, /* layerYOffset= */ HEIGHT_PX);
 
         // Transition is complete.
         assertFalse(mModel.get(Properties.COMPOSITED_VIEW_VISIBLE));
@@ -375,7 +377,7 @@ public class MiniPlayerMediatorUnitTest {
         // Show once.
         mMediator.show(/* animate= */ true);
         mMediator.onHeightKnown(HEIGHT_PX);
-        onControlsOffsetChanged(0, HEIGHT_PX, /* layerYOffset= */ 0);
+        onControlsOffsetChanged(0, HEIGHT_PX, true, /* layerYOffset= */ 0);
         mMediator.onFullOpacityReached(null);
         assertEquals(VisibilityState.VISIBLE, mMediator.getVisibility());
 
@@ -411,12 +413,12 @@ public class MiniPlayerMediatorUnitTest {
         verify(mBottomControlsStacker).requestLayerUpdate(eq(true));
 
         // Simulate the animated resize.
-        onControlsOffsetChanged(-HEIGHT_PX, 0, /* layerYOffset= */ 0);
+        onControlsOffsetChanged(-HEIGHT_PX, 0, true, /* layerYOffset= */ 0);
         onControlsOffsetChanged(
-                -2 * HEIGHT_PX / 3, HEIGHT_PX / 3, /* layerYOffset= */ 2 * HEIGHT_PX / 3);
+                -2 * HEIGHT_PX / 3, HEIGHT_PX / 3, true, /* layerYOffset= */ 2 * HEIGHT_PX / 3);
         onControlsOffsetChanged(
-                -HEIGHT_PX / 3, 2 * HEIGHT_PX / 3, /* layerYOffset= */ HEIGHT_PX / 3);
-        onControlsOffsetChanged(0, HEIGHT_PX, /* layerYOffset= */ 0);
+                -HEIGHT_PX / 3, 2 * HEIGHT_PX / 3, true, /* layerYOffset= */ HEIGHT_PX / 3);
+        onControlsOffsetChanged(0, HEIGHT_PX, true, /* layerYOffset= */ 0);
         assertTrue(mModel.get(Properties.CONTENTS_OPAQUE));
     }
 
@@ -443,12 +445,14 @@ public class MiniPlayerMediatorUnitTest {
         onControlsOffsetChanged(
                 -HEIGHT_PX,
                 otherBottomControlsMinHeight,
+                true,
                 /* layerYOffset= */ otherBottomControlsMinHeight);
         onControlsOffsetChanged(
                 -HEIGHT_PX / 3,
                 totalHeight - HEIGHT_PX / 3,
+                true,
                 /* layerYOffset= */ otherBottomControlsMinHeight - HEIGHT_PX / 3);
-        onControlsOffsetChanged(0, totalHeight, /* layerYOffset= */ 0);
+        onControlsOffsetChanged(0, totalHeight, true, /* layerYOffset= */ 0);
         assertTrue(mModel.get(Properties.CONTENTS_OPAQUE));
     }
 
@@ -467,7 +471,8 @@ public class MiniPlayerMediatorUnitTest {
         // Show once.
         mMediator.show(/* animate= */ true);
         mMediator.onHeightKnown(HEIGHT_PX);
-        onControlsOffsetChanged(0, totalHeight, /* layerYOffset= */ -otherBottomControlsMinHeight);
+        onControlsOffsetChanged(
+                0, totalHeight, true, /* layerYOffset= */ -otherBottomControlsMinHeight);
         mMediator.onFullOpacityReached(null);
         assertEquals(VisibilityState.VISIBLE, mMediator.getVisibility());
 
@@ -496,14 +501,17 @@ public class MiniPlayerMediatorUnitTest {
 
         // Simulate the bottom controls being resized over a few externally driven
         // animation steps.
-        onControlsOffsetChanged(0, totalHeight, /* layerYOffset= */ -otherBottomControlsMinHeight);
+        onControlsOffsetChanged(
+                0, totalHeight, true, /* layerYOffset= */ -otherBottomControlsMinHeight);
         onControlsOffsetChanged(
                 totalHeight - HEIGHT_PX / 3,
                 totalHeight - HEIGHT_PX / 3,
+                true,
                 /* layerYOffset= */ -otherBottomControlsMinHeight + HEIGHT_PX / 3);
         onControlsOffsetChanged(
                 totalHeight - 2 * HEIGHT_PX / 3,
                 totalHeight - 2 * HEIGHT_PX / 3,
+                true,
                 /* layerYOffset= */ -otherBottomControlsMinHeight + 2 * HEIGHT_PX / 3);
 
         // Make sure the next step doesn't start until resizing finishes.
@@ -513,6 +521,7 @@ public class MiniPlayerMediatorUnitTest {
         onControlsOffsetChanged(
                 otherBottomControlsMinHeight,
                 otherBottomControlsMinHeight,
+                true,
                 /* layerYOffset= */ HEIGHT_PX);
 
         // Transition is complete.
@@ -525,7 +534,7 @@ public class MiniPlayerMediatorUnitTest {
         // Show once to store height.
         mMediator.show(/* animate= */ true);
         mMediator.onHeightKnown(HEIGHT_PX);
-        onControlsOffsetChanged(0, HEIGHT_PX, /* layerYOffset= */ 0);
+        onControlsOffsetChanged(0, HEIGHT_PX, false, /* layerYOffset= */ 0);
         mMediator.onFullOpacityReached(mView);
         verify(mCoordinator).onShown(mView);
     }
@@ -539,7 +548,10 @@ public class MiniPlayerMediatorUnitTest {
     }
 
     private void onControlsOffsetChanged(
-            int bottomOffset, int bottomControlsMinHeightOffset, int layerYOffset) {
+            int bottomOffset,
+            int bottomControlsMinHeightOffset,
+            boolean requestNewFrame,
+            int layerYOffset) {
         doReturn(bottomOffset).when(mBrowserControlsStateProvider).getBottomControlOffset();
         doReturn(bottomControlsMinHeightOffset)
                 .when(mBrowserControlsStateProvider)

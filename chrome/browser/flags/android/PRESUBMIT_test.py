@@ -48,7 +48,7 @@ class CheckCheckChromeFeatureListIsSorted(unittest.TestCase):
             'autofill::features::kAutofillEnableSupportForHomeAndWork',
             'commerce::kCommerceMerchantViewer',
             'features::kAndroidBrowserControlsInViz',
-            'kAccountForSuppressedKeyboardInsets',
+            'kAdaptiveButtonInTopToolbarCustomizationV2',
         ]
         content = self._generate_file_content(features)
 
@@ -68,7 +68,7 @@ class CheckCheckChromeFeatureListIsSorted(unittest.TestCase):
             'autofill::features::kAutofillEnableSupportForHomeAndWork',
             'features::kAndroidBrowser',  # Out of order
             'commerce::kCommerceMerchantViewer',
-            'kAccountForSuppressedKeyboardInsets',
+            'kAdaptiveButtonInTopToolbarCustomizationV2',
         ]
         content = self._generate_file_content(features)
 
@@ -250,7 +250,7 @@ class CheckChromeFeatureDeclarationsHeaderIsSortedTest(unittest.TestCase):
         Tests that a correctly sorted list of BASE_DECLARE_FEATUREs passes.
         """
         declare_names = [
-            'kAccountForSuppressedKeyboardInsets',
+            'kAdaptiveButtonInTopToolbarCustomizationV2',
             'kAndroidBrowserControlsInViz',
             'kCommerceMerchantViewer',
             'kSomeOtherFeature',
@@ -271,7 +271,7 @@ class CheckChromeFeatureDeclarationsHeaderIsSortedTest(unittest.TestCase):
         """
         # kCommerce comes alphabetically after kAndroid
         declare_names = [
-            'kAccountForSuppressedKeyboardInsets',
+            'kAdaptiveButtonInTopToolbarCustomizationV2',
             'kCommerce',  # Out of order
             'kAndroid',
             'kSomeOtherFeature',

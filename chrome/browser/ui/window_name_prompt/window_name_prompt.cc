@@ -6,7 +6,6 @@
 #include "base/metrics/user_metrics.h"
 #include "base/strings/utf_string_conversions.h"
 #include "chrome/browser/ui/browser.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/dialogs/browser_dialogs.h"
 #include "chrome/browser/ui/window_metadata/window_metadata_controller.h"
 #include "chrome/grit/generated_resources.h"
@@ -19,7 +18,7 @@ namespace {
 
 DEFINE_LOCAL_ELEMENT_IDENTIFIER_VALUE(kWindowNameFieldId);
 
-void SetBrowserTitleFromTextfield(BrowserWindowInterface* browser,
+void SetBrowserTitleFromTextfield(Browser* browser,
                                   ui::DialogModel* dialog_model) {
   std::string text = base::UTF16ToUTF8(
       dialog_model->GetTextfieldByUniqueId(kWindowNameFieldId)->text());
@@ -32,7 +31,7 @@ void SetBrowserTitleFromTextfield(BrowserWindowInterface* browser,
 }
 
 std::unique_ptr<ui::DialogModel> CreateWindowNamePromptDialogModel(
-    BrowserWindowInterface* browser) {
+    Browser* browser) {
   ui::DialogModel::Builder dialog_builder;
   return dialog_builder.SetInternalName("WindowNamePrompt")
       .SetTitle(l10n_util::GetStringUTF16(IDS_NAME_WINDOW_PROMPT_TITLE))
@@ -57,14 +56,14 @@ std::unique_ptr<ui::DialogModel> CreateWindowNamePromptDialogModel(
 
 }  // namespace
 
-void ShowWindowNamePrompt(BrowserWindowInterface* browser) {
+void ShowWindowNamePrompt(Browser* browser) {
   base::RecordAction(base::UserMetricsAction("WindowNaming_DialogShown"));
 
   ShowBrowserModal(browser, CreateWindowNamePromptDialogModel(browser));
 }
 
 std::unique_ptr<ui::DialogModel> CreateWindowNamePromptDialogModelForTesting(
-    BrowserWindowInterface* browser) {
+    Browser* browser) {
   return CreateWindowNamePromptDialogModel(browser);
 }
 

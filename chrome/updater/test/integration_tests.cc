@@ -28,7 +28,6 @@
 #include "base/numerics/checked_math.h"
 #include "base/path_service.h"
 #include "base/run_loop.h"
-#include "base/strings/escape.h"
 #include "base/strings/strcat.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
@@ -83,7 +82,6 @@
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/abseil-cpp/absl/cleanup/cleanup.h"
 #include "third_party/abseil-cpp/absl/strings/str_format.h"
-#include "third_party/re2/src/re2/re2.h"
 #include "url/gurl.h"
 
 #if BUILDFLAG(IS_LINUX)
@@ -2875,27 +2873,6 @@ TEST_F(IntegrationTest, RecoveryNoUpdater) {
   ASSERT_NO_FATAL_FAILURE(Uninstall());
 }
 
-TEST_F(IntegrationTest, RecoveryWithUpdater) {
-  ASSERT_NO_FATAL_FAILURE(Install());
-  ASSERT_TRUE(WaitForUpdaterExit());
-  ASSERT_NO_FATAL_FAILURE(ExpectInstalled());
-
-  const std::string appid = "test1";
-  const base::Version version("0.1");
-  ASSERT_NO_FATAL_FAILURE(RunRecoveryComponent(appid, version));
-  ASSERT_TRUE(WaitForUpdaterExit());
-  ASSERT_NO_FATAL_FAILURE(ExpectInstalled());
-  ASSERT_NO_FATAL_FAILURE(ExpectAppVersion(appid, version));
-  ASSERT_NO_FATAL_FAILURE(Uninstall());
-}
-
-TEST_F(IntegrationTest, RecoveryNoAppId) {
-  ASSERT_NO_FATAL_FAILURE(RunRecoveryComponent("", {}));
-  ASSERT_TRUE(WaitForUpdaterExit());
-  ASSERT_NO_FATAL_FAILURE(ExpectInstalled());
-  ASSERT_NO_FATAL_FAILURE(Uninstall());
-}
-
 TEST_F(IntegrationTest, RegisterApp) {
   ASSERT_NO_FATAL_FAILURE(Install());
   ASSERT_NO_FATAL_FAILURE(ExpectInstalled());
@@ -5307,26 +5284,10 @@ TEST_F(IntegrationTest, AppLogoUrl) {
       base::ReadFileToString(test::GetTestFilePath("app_logos")
                                  .AppendUTF8(absl::StrFormat("%s.bmp", kAppId)),
                              &app_logo_bytes));
-
-  // The updater initially requests a theme-specific logo (`_dark` or `_light`).
-  // Returning HTTP 404 triggers the fallback mechanism to request the legacy
-  // logo without a theme suffix.
   test_logo_server.ExpectOnce(
       {
           request::GetPathMatcher(absl::StrFormat(
-              "%s%s(_dark|_light)\\.bmp\\?lang=%s",
-              test_logo_server.app_logo_path(),
-              re2::RE2::QuoteMeta(base::EscapeUrlEncodedData(kAppId, false)),
-              base::WideToUTF8(GetPreferredLanguage()))),
-      },
-      "", net::HTTP_NOT_FOUND);
-
-  // Expect the fallback request for the legacy `{app_id}.bmp` logo.
-  test_logo_server.ExpectOnce(
-      {
-          request::GetPathMatcher(absl::StrFormat(
-              "%s%s\\.bmp\\?lang=%s", test_logo_server.app_logo_path(),
-              re2::RE2::QuoteMeta(base::EscapeUrlEncodedData(kAppId, false)),
+              "%s%s.bmp\\?lang=%s", test_logo_server.app_logo_path(), kAppId,
               base::WideToUTF8(GetPreferredLanguage()))),
       },
       app_logo_bytes);

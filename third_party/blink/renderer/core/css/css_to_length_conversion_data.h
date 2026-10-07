@@ -43,7 +43,6 @@
 #include "third_party/blink/renderer/platform/wtf/allocator/allocator.h"
 #include "third_party/blink/renderer/platform/wtf/gc_plugin.h"
 #include "third_party/blink/renderer/platform/wtf/math_extras.h"
-#include "third_party/blink/renderer/platform/wtf/text/format.h"
 
 namespace blink {
 
@@ -202,9 +201,9 @@ class CORE_EXPORT CSSToLengthConversionData : public CSSLengthResolver {
     double DynamicHeight() const { return dynamic_height_; }
 
     String ToString() const {
-      return Format(
-          "large_width: {:f}, large_height: {:f}, small_width: {:f}, "
-          "small_height: {:f}, dynamic_width: {:f}, dynamic_height: {:f}",
+      return String::Format(
+          "large_width: %f, large_height: %f, small_width: %f, small_height: "
+          "%f, dynamic_width: %f, dynamic_height: %f",
           large_width_, large_height_, small_width_, small_height_,
           dynamic_width_, dynamic_height_);
     }

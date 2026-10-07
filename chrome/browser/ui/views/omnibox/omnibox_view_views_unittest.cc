@@ -7,17 +7,15 @@
 #include <stddef.h>
 
 #include <memory>
-#include <optional>
-#include <ranges>
 #include <string>
 #include <string_view>
 #include <tuple>
 #include <utility>
 #include <vector>
 
+#include "base/containers/adapters.h"
 #include "base/functional/bind.h"
 #include "base/i18n/rtl.h"
-#include "base/i18n/test/scoped_rtl_for_testing.h"
 #include "base/memory/raw_ptr.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/test/scoped_feature_list.h"
@@ -31,14 +29,14 @@
 #include "chrome/browser/search_engines/template_url_service_factory_test_util.h"
 #include "chrome/browser/signin/chrome_signin_client_factory.h"
 #include "chrome/browser/signin/chrome_signin_client_test_util.h"
-#include "chrome/browser/ui/location_bar/location_bar.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/omnibox/chrome_omnibox_client.h"
 #include "chrome/browser/ui/omnibox/omnibox_controller.h"
 #include "chrome/browser/ui/omnibox/omnibox_edit_model.h"
 #include "chrome/browser/ui/omnibox/omnibox_next_features.h"
 #include "chrome/browser/ui/omnibox/omnibox_tab_helper.h"
 #include "chrome/browser/ui/views/bubble_anchor_util_views.h"
-#include "chrome/browser/ui/views/omnibox/test_location_bar.h"
+#include "chrome/test/base/test_browser_window.h"
 #include "chrome/test/base/testing_profile.h"
 #include "chrome/test/views/chrome_views_test_base.h"
 #include "components/omnibox/browser/test_location_bar_model.h"
@@ -193,7 +191,7 @@ void TestingOmniboxView::CheckUpdatePopupNotCalled() {
 std::optional<SkColor> TestingOmniboxView::GetLatestColorForRange(
     const gfx::Range& range) {
   // Iterate backwards to get the most recently applied color for |range|.
-  for (const auto& [color, other_range] : std::views::reverse(range_colors_)) {
+  for (const auto& [color, other_range] : base::Reversed(range_colors_)) {
     if (range == other_range) {
       return color;
     }
@@ -205,7 +203,7 @@ std::optional<std::pair<gfx::TextStyle, bool>>
 TestingOmniboxView::GetLatestStyleForRange(const gfx::Range& range) const {
   // Iterate backwards to get the most recently applied style for |range|.
   for (const auto& [style, value, other_range] :
-       std::views::reverse(range_styles_)) {
+       base::Reversed(range_styles_)) {
     if (range == other_range) {
       return std::make_pair(style, value);
     }
@@ -263,6 +261,74 @@ void TestingOmniboxView::ApplyStyle(gfx::TextStyle style,
   OmniboxViewViews::ApplyStyle(style, value, range);
 }
 
+// TestLocationBar -------------------------------------------------------------
+
+class TestLocationBar : public LocationBar {
+ public:
+  TestLocationBar(CommandUpdater* command_updater,
+                  LocationBarModel* location_bar_model)
+      : LocationBar(command_updater), location_bar_model_(location_bar_model) {}
+  TestLocationBar(const TestLocationBar&) = delete;
+  TestLocationBar& operator=(const TestLocationBar&) = delete;
+  ~TestLocationBar() override = default;
+
+  void set_omnibox_view(OmniboxViewViews* view) { omnibox_view_ = view; }
+  void set_profile(Profile* profile) { profile_ = profile; }
+
+  // LocationBar:
+  void FocusLocation(bool select_all, bool clear_focus_if_failed) override {}
+  void FocusSearch() override {}
+  void UpdateFocusBehavior(bool toolbar_visible) override {}
+  void UpdateContentSettingsIcons() override {}
+  void SaveStateToContents(content::WebContents* contents) override {}
+  void Revert() override {}
+  OmniboxView* GetOmniboxView() override { return nullptr; }
+  OmniboxPopupView* GetOmniboxPopupView() override { return nullptr; }
+  OmniboxController* GetOmniboxController() override { return nullptr; }
+  bool ShouldCloseOmniboxPopup(ui::MouseEvent* event) override { return false; }
+  ChipController* GetChipController() override { return nullptr; }
+  LocationBarTesting* GetLocationBarForTesting() override { return nullptr; }
+  LocationBarModel* GetLocationBarModel() override {
+    return location_bar_model_;
+  }
+  content::WebContents* GetWebContents() override { return nullptr; }
+  std::optional<bubble_anchor_util::AnchorConfiguration> GetChipAnchor()
+      override {
+    return {};
+  }
+  void OnChanged() override {}
+  void UpdateWithoutTabRestore() override {
+    // This is a minimal amount of what LocationBarView does. Not all tests
+    // set |omnibox_view_|.
+    if (omnibox_view_) {
+      omnibox_view_->Update();
+    }
+  }
+
+  ui::TrackedElement* GetAnchorOrNull() override { return nullptr; }
+  BrowserWindowInterface* GetBrowser() override { return nullptr; }
+  Profile* GetProfile() override { return profile_; }
+  bool IsInitialized() const override { return true; }
+  bool IsVisible() const override { return true; }
+  bool IsDrawn() const override { return true; }
+  bool IsFullscreen() const override { return false; }
+  bool IsEditingOrEmpty() const override { return false; }
+  bool IsMouseHovered() const override { return false; }
+  bool IsFocusWithin() const override { return false; }
+  void InvalidateLayout() override {}
+  gfx::Rect Bounds() const override { return gfx::Rect(); }
+  gfx::Rect BoundsInScreen() const override { return gfx::Rect(); }
+  gfx::Size MinimumSize() const override { return gfx::Size(); }
+  gfx::Size PreferredSize() const override { return gfx::Size(); }
+  void Update(content::WebContents* contents) override {}
+  void ResetTabState(content::WebContents* contents) override {}
+  bool HasSecurityStateChanged() override { return false; }
+
+  raw_ptr<LocationBarModel> location_bar_model_;
+  raw_ptr<OmniboxViewViews> omnibox_view_ = nullptr;
+  raw_ptr<Profile> profile_ = nullptr;
+};
+
 // OmniboxViewViewsTest -------------------------------------------------------
 
 // Base class that ensures ScopedFeatureList is initialized first.
@@ -274,12 +340,11 @@ class OmniboxViewViewsTestBase : public ChromeViewsTestBase {
       bool is_rtl_ui_test = false) {
     scoped_feature_list_.InitWithFeaturesAndParameters(enabled_features,
                                                        disabled_features);
-    scoped_rtl_.emplace(is_rtl_ui_test);
+    base::i18n::SetRTLForTesting(is_rtl_ui_test);
   }
 
  protected:
   base::test::ScopedFeatureList scoped_feature_list_;
-  std::optional<base::i18n::ScopedRTLForTesting> scoped_rtl_;
 };
 
 class OmniboxViewViewsTest : public OmniboxViewViewsTestBase {
@@ -341,6 +406,7 @@ class OmniboxViewViewsTest : public OmniboxViewViewsTestBase {
   }
 
  protected:
+  Browser* browser() { return browser_.get(); }
   Profile* profile() { return profile_.get(); }
   TestLocationBar* location_bar() { return &location_bar_; }
 
@@ -366,6 +432,7 @@ class OmniboxViewViewsTest : public OmniboxViewViewsTestBase {
  private:
   network::TestURLLoaderFactory test_url_loader_factory_;
   std::unique_ptr<TestingProfile> profile_;
+  std::unique_ptr<Browser> browser_;
   std::unique_ptr<TemplateURLServiceFactoryTestUtil> util_;
   CommandUpdaterImpl command_updater_;
   TestLocationBarModel location_bar_model_;
@@ -417,6 +484,11 @@ void OmniboxViewViewsTest::SetUp() {
                           &test_url_loader_factory_));
   profile_ = profile_builder.Build();
   location_bar_.set_profile(profile_.get());
+  auto browser_window = std::make_unique<TestBrowserWindow>();
+  Browser::CreateParams params(profile(), /*user_gesture*/ true);
+  params.type = Browser::TYPE_NORMAL;
+  params.window = browser_window.release();
+  browser_ = Browser::DeprecatedCreateOwnedForTesting(params);
 
   util_ = std::make_unique<TemplateURLServiceFactoryTestUtil>(profile_.get());
 
@@ -430,7 +502,7 @@ void OmniboxViewViewsTest::SetUp() {
 
   // Create the controller and the view and wire them together.
   auto omnibox_client = std::make_unique<ChromeOmniboxClient>(
-      &location_bar_, nullptr, profile());
+      &location_bar_, browser(), profile());
   omnibox_controller_ =
       std::make_unique<OmniboxController>(std::move(omnibox_client));
   auto omnibox_view = std::make_unique<TestingOmniboxView>(
@@ -454,6 +526,9 @@ void OmniboxViewViewsTest::TearDown() {
   omnibox_view_ = nullptr;
   widget_.reset();
   omnibox_controller_.reset();
+
+  browser_->tab_strip_model()->CloseAllTabs();
+  browser_ = nullptr;
 
   util_.reset();
   location_bar()->set_profile(nullptr);
@@ -1072,8 +1147,16 @@ TEST_F(OmniboxViewViewsTest, SchemeStrikethrough) {
 }
 
 #if BUILDFLAG(SUPPORTS_AX_TEXT_OFFSETS)
+#if BUILDFLAG(IS_WIN) && defined(ARCH_CPU_ARM64)
+// TODO(crbug.com/533683545): Fix this test on Win ARM64.
+#define MAYBE_AccessibleTextOffsetsUpdatesAfterElideBehaviorChange \
+  DISABLED_AccessibleTextOffsetsUpdatesAfterElideBehaviorChange
+#else
+#define MAYBE_AccessibleTextOffsetsUpdatesAfterElideBehaviorChange \
+  AccessibleTextOffsetsUpdatesAfterElideBehaviorChange
+#endif
 TEST_F(OmniboxViewViewsTest,
-       AccessibleTextOffsetsUpdatesAfterElideBehaviorChange) {
+       MAYBE_AccessibleTextOffsetsUpdatesAfterElideBehaviorChange) {
   EnableDeferredLoadingAccessibility();
   CHECK(omnibox_view()->GetViewAccessibility().is_initialized());
 
@@ -1778,159 +1861,6 @@ TEST_F(OmniboxViewViewsTest, SetUserTextForTab) {
   ASSERT_TRUE(state2);
   EXPECT_EQ(injected_text, state2->model_state.user_text);
   EXPECT_TRUE(state2->model_state.user_input_in_progress);
-}
-
-TEST_F(OmniboxViewViewsTest, SetUserTextForTab_NoExistingState) {
-  auto web_contents =
-      content::WebContentsTester::CreateTestWebContents(profile(), nullptr);
-
-  // Calling SetUserTextForTab on a WebContents without existing OmniboxState
-  // should create a new state with expected default metadata.
-  const std::u16string text = u"brand new query";
-  OmniboxViewViews::SetUserTextForTab(web_contents.get(), text);
-
-  auto* state = static_cast<OmniboxState*>(
-      web_contents->GetUserData(OmniboxTabHelper::kOmniboxStateKey));
-  ASSERT_TRUE(state);
-  EXPECT_EQ(text, state->model_state.user_text);
-  EXPECT_TRUE(state->model_state.user_input_in_progress);
-  EXPECT_EQ(text, state->model_state.autocomplete_input.text());
-  EXPECT_EQ(text.length(),
-            state->model_state.autocomplete_input.cursor_position());
-  EXPECT_EQ(gfx::Range(text.length(), text.length()), state->selection);
-  EXPECT_EQ(gfx::Range::InvalidRange(),
-            state->saved_selection_for_focus_change);
-  EXPECT_FALSE(state->show_full_url);
-  EXPECT_EQ(OmniboxFocusState::OMNIBOX_FOCUS_NONE,
-            state->model_state.focus_state);
-  EXPECT_EQ(KeywordState::kNone, state->model_state.keyword_state);
-}
-
-TEST_F(OmniboxViewViewsTest, SetUserTextForTab_CustomCursorPosition) {
-  auto web_contents =
-      content::WebContentsTester::CreateTestWebContents(profile(), nullptr);
-
-  const std::u16string text = u"hello world";
-  const size_t custom_cursor = 5;
-  OmniboxViewViews::SetUserTextForTab(web_contents.get(), text, custom_cursor);
-
-  auto* state = static_cast<OmniboxState*>(
-      web_contents->GetUserData(OmniboxTabHelper::kOmniboxStateKey));
-  ASSERT_TRUE(state);
-  EXPECT_EQ(text, state->model_state.user_text);
-  EXPECT_EQ(custom_cursor,
-            state->model_state.autocomplete_input.cursor_position());
-  EXPECT_EQ(gfx::Range(custom_cursor, custom_cursor), state->selection);
-}
-
-TEST_F(OmniboxViewViewsTest, SetUserTextForTab_ClampsCursorPosition) {
-  auto web_contents =
-      content::WebContentsTester::CreateTestWebContents(profile(), nullptr);
-
-  const std::u16string text = u"hello";
-  const size_t out_of_bounds_cursor = 100;
-  OmniboxViewViews::SetUserTextForTab(web_contents.get(), text,
-                                      out_of_bounds_cursor);
-
-  auto* state = static_cast<OmniboxState*>(
-      web_contents->GetUserData(OmniboxTabHelper::kOmniboxStateKey));
-  ASSERT_TRUE(state);
-  EXPECT_EQ(text, state->model_state.user_text);
-  EXPECT_EQ(text.length(),
-            state->model_state.autocomplete_input.cursor_position());
-  EXPECT_EQ(gfx::Range(text.length(), text.length()), state->selection);
-}
-
-TEST_F(OmniboxViewViewsTest, SetUserTextForTab_PreservesExistingStateMetadata) {
-  auto web_contents =
-      content::WebContentsTester::CreateTestWebContents(profile(), nullptr);
-
-  // Set up an initial state with non-default metadata.
-  AutocompleteInput initial_input;
-  url::Parsed parts;
-  initial_input.UpdateText(u"initial", 7, parts);
-  OmniboxEditModel::State initial_model_state(
-      /*user_input_in_progress=*/true,
-      /*user_text=*/u"initial",
-      /*keyword=*/u"google.com",
-      /*keyword_placeholder=*/u"Search Google",
-      /*keyword_state=*/KeywordState::kKeyword,
-      /*keyword_mode_entry_method=*/
-      metrics::OmniboxEventProto::KEYBOARD_SHORTCUT,
-      /*focus_state=*/OmniboxFocusState::OMNIBOX_FOCUS_VISIBLE, initial_input);
-
-  const gfx::Range saved_selection(1, 3);
-  web_contents->SetUserData(
-      OmniboxTabHelper::kOmniboxStateKey,
-      std::make_unique<OmniboxState>(initial_model_state, gfx::Range(2, 2),
-                                     saved_selection,
-                                     /*show_full_url=*/true));
-
-  // Act: Update user text in the background tab.
-  const std::u16string new_text = u"updated query";
-  OmniboxViewViews::SetUserTextForTab(web_contents.get(), new_text);
-
-  // Verify: New text & autocomplete input are updated, while keyword,
-  // focus state, full URL flag, and saved selection are preserved.
-  auto* state = static_cast<OmniboxState*>(
-      web_contents->GetUserData(OmniboxTabHelper::kOmniboxStateKey));
-  ASSERT_TRUE(state);
-  EXPECT_EQ(new_text, state->model_state.user_text);
-  EXPECT_TRUE(state->model_state.user_input_in_progress);
-  EXPECT_EQ(u"google.com", state->model_state.keyword);
-  EXPECT_EQ(u"Search Google", state->model_state.keyword_placeholder);
-  EXPECT_EQ(KeywordState::kKeyword, state->model_state.keyword_state);
-  EXPECT_EQ(metrics::OmniboxEventProto::KEYBOARD_SHORTCUT,
-            state->model_state.keyword_mode_entry_method);
-  EXPECT_EQ(OmniboxFocusState::OMNIBOX_FOCUS_VISIBLE,
-            state->model_state.focus_state);
-  EXPECT_TRUE(state->show_full_url);
-  EXPECT_EQ(metrics::OmniboxInputType::EMPTY,
-            state->model_state.autocomplete_input.type());
-  EXPECT_EQ(saved_selection, state->saved_selection_for_focus_change);
-}
-
-TEST_F(OmniboxViewViewsTest,
-       SetUserTextForTab_UnchangedTextPreservesAutocompleteInput) {
-  auto web_contents =
-      content::WebContentsTester::CreateTestWebContents(profile(), nullptr);
-
-  // Set up an initial state with a non-empty AutocompleteInput and custom
-  // selection.
-  const std::u16string text = u"https://google.com";
-  url::Parsed parts;
-  parts.scheme = url::Component(0, 5);
-  parts.host = url::Component(8, 10);
-  AutocompleteInput initial_input;
-  initial_input.UpdateText(text, text.length(), parts);
-
-  OmniboxEditModel::State initial_model_state(
-      /*user_input_in_progress=*/true, text, /*keyword=*/u"",
-      /*keyword_placeholder=*/u"", KeywordState::kNone,
-      metrics::OmniboxEventProto_KeywordModeEntryMethod_INVALID,
-      OmniboxFocusState::OMNIBOX_FOCUS_NONE, initial_input);
-
-  const gfx::Range initial_selection(0, 5);
-  web_contents->SetUserData(
-      OmniboxTabHelper::kOmniboxStateKey,
-      std::make_unique<OmniboxState>(
-          initial_model_state, initial_selection,
-          /*saved_selection_for_focus_change=*/gfx::Range::InvalidRange()));
-
-  // Call SetUserTextForTab with the identical text and no cursor specified.
-  OmniboxViewViews::SetUserTextForTab(web_contents.get(), text);
-
-  // Verify the existing selection and parsed AutocompleteInput (including
-  // parts) are preserved.
-  auto* state = static_cast<OmniboxState*>(
-      web_contents->GetUserData(OmniboxTabHelper::kOmniboxStateKey));
-  ASSERT_TRUE(state);
-  EXPECT_EQ(text, state->model_state.user_text);
-  EXPECT_EQ(initial_selection, state->selection);
-  EXPECT_EQ(parts.host.begin,
-            state->model_state.autocomplete_input.parts().host.begin);
-  EXPECT_EQ(parts.host.len,
-            state->model_state.autocomplete_input.parts().host.len);
 }
 
 TEST_F(OmniboxViewViewsTest, DragAndDropTextWithinOmnibox) {

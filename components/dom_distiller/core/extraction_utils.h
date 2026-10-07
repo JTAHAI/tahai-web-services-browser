@@ -7,7 +7,6 @@
 
 #include <string>
 
-#include "components/dom_distiller/core/readability_options.h"
 #include "third_party/dom_distiller_js/dom_distiller.pb.h"
 
 namespace base {
@@ -30,9 +29,8 @@ bool ReadabilityDistillerResultToDomDistillerResult(
 std::string GetDistillerScriptWithOptions(
     const dom_distiller::proto::DomDistillerOptions& options);
 
-// Returns the Readability JavaScript web page distillation script with the
-// given options.
-std::string GetReadabilityDistillerScript(const ReadabilityOptions& options);
+// Returns the Readability JavaScript web page distillation script.
+std::string GetReadabilityDistillerScript();
 
 // Returns the Javascript heuristic to determine if web pages are suitable for
 // reader mode.

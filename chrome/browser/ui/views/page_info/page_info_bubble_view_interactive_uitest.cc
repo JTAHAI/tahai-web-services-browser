@@ -2,21 +2,17 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "chrome/browser/ui/views/page_info/page_info_bubble_view.h"
-
 #include "build/build_config.h"
 #include "chrome/browser/content_settings/host_content_settings_map_factory.h"
 #include "chrome/browser/permissions/system/system_permission_settings.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser_element_identifiers.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
-#include "chrome/browser/ui/location_bar/location_bar.h"
-#include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
-#include "chrome/browser/ui/views/location_bar/location_icon_test_accessor.h"
+#include "chrome/browser/ui/views/location_bar/location_bar_view.h"
 #include "chrome/browser/ui/views/location_bar/location_icon_view.h"
 #include "chrome/browser/ui/views/page_info/chosen_object_view.h"
+#include "chrome/browser/ui/views/page_info/page_info_bubble_view.h"
 #include "chrome/browser/ui/views/page_info/page_info_main_view.h"
 #include "chrome/browser/ui/views/page_info/page_info_permission_content_view.h"
 #include "chrome/browser/ui/views/page_info/page_info_view_factory.h"
@@ -57,8 +53,13 @@ const char kSecondPermissionRow[] = "SecondPermissionRow";
 #endif
 
 // Clicks the location icon to open the page info bubble.
-void OpenPageInfoBubble(BrowserWindowInterface* browser) {
-  LocationIconTestAccessor(browser).ShowBubble();
+void OpenPageInfoBubble(Browser* browser) {
+  BrowserView* browser_view = BrowserView::GetBrowserViewForBrowser(browser);
+  LocationIconView* location_icon_view =
+      browser_view->toolbar()->location_bar_view()->location_icon_view();
+  ASSERT_TRUE(location_icon_view);
+  ui::test::TestEvent event;
+  location_icon_view->ShowBubble(event);
   views::BubbleDialogDelegateView* page_info =
       PageInfoBubbleView::GetPageInfoBubbleForTesting();
   EXPECT_NE(nullptr, page_info);
@@ -147,26 +148,21 @@ class WebContentsFocusTracker : public FocusTracker,
   }
 };
 
-// Watches a LocationBar for focus changes.
-class LocationBarFocusTracker : public FocusTracker,
-                                public LocationBar::Observer {
+// Watches a View for focus changes.
+class ViewFocusTracker : public FocusTracker, public views::ViewObserver {
  public:
-  explicit LocationBarFocusTracker(LocationBar* location_bar)
-      : FocusTracker(location_bar->IsFocusWithin()) {
-    scoped_observation_.Observe(location_bar);
+  explicit ViewFocusTracker(views::View* view)
+      : FocusTracker(view->HasFocus()) {
+    scoped_observation_.Observe(view);
   }
 
-  void OnLocationBarFocusChanged() override {
-    if (scoped_observation_.GetSource()->IsFocusWithin()) {
-      OnFocused();
-    } else {
-      OnBlurred();
-    }
-  }
+  void OnViewFocused(views::View* observed_view) override { OnFocused(); }
+
+  void OnViewBlurred(views::View* observed_view) override { OnBlurred(); }
 
  private:
-  base::ScopedObservation<LocationBar, LocationBar::Observer>
-      scoped_observation_{this};
+  base::ScopedObservation<views::View, views::ViewObserver> scoped_observation_{
+      this};
 };
 
 }  // namespace
@@ -180,7 +176,7 @@ class PageInfoBubbleViewFocusInteractiveUiTest : public InProcessBrowserTest {
       const PageInfoBubbleViewFocusInteractiveUiTest& test) = delete;
 
   content::WebContents* web_contents() {
-    return browser()->GetTabStripModel()->GetActiveWebContents();
+    return browser()->tab_strip_model()->GetActiveWebContents();
   }
 
   void TriggerReloadPromptOnClose() const {
@@ -245,8 +241,8 @@ IN_PROC_BROWSER_TEST_F(PageInfoBubbleViewFocusInteractiveUiTest,
 IN_PROC_BROWSER_TEST_F(PageInfoBubbleViewFocusInteractiveUiTest,
                        MAYBE_FocusDoesNotReturnToContentsOnReloadPrompt) {
   WebContentsFocusTracker web_contents_focus_tracker(web_contents());
-  LocationBarFocusTracker location_bar_focus_tracker(
-      BrowserView::GetBrowserViewForBrowser(browser())->GetLocationBar());
+  ViewFocusTracker location_bar_focus_tracker(
+      BrowserView::GetBrowserViewForBrowser(browser())->GetLocationBarView());
   web_contents()->Focus();
   web_contents_focus_tracker.WaitForFocus(true);
 

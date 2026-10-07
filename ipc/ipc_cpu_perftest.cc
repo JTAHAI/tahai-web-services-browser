@@ -21,6 +21,7 @@
 #include "base/types/expected.h"
 #include "ipc/ipc_channel_proxy.h"
 #include "ipc/ipc_perftest_util.h"
+#include "ipc/ipc_sync_channel.h"
 #include "ipc/ipc_test.test-mojom.h"
 #include "mojo/core/test/mojo_test_base.h"
 #include "mojo/core/test/multiprocess_test_helper.h"

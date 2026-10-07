@@ -10,6 +10,8 @@
 #include "base/scoped_observation.h"
 #include "components/signin/public/identity_manager/identity_manager.h"
 
+class Profile;
+
 namespace ash {
 
 // Waits for refresh tokens to be loaded for the primary account. These tokens
@@ -19,7 +21,7 @@ namespace ash {
 // class.
 class RefreshTokenWaiter : public signin::IdentityManager::Observer {
  public:
-  explicit RefreshTokenWaiter(signin::IdentityManager* identity_manager);
+  explicit RefreshTokenWaiter(Profile* profile);
   RefreshTokenWaiter(const RefreshTokenWaiter&) = delete;
   RefreshTokenWaiter& operator=(const RefreshTokenWaiter&) = delete;
   ~RefreshTokenWaiter() override;

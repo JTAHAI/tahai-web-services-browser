@@ -7,7 +7,6 @@
 extension."""
 
 import sys
-
 sys.path += ['../..']
 
 import gencerts

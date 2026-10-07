@@ -1,2 +1,3 @@
-rules:
-- "**": [layout-instability]
+features:
+- name: layout-instability
+  files: "**"

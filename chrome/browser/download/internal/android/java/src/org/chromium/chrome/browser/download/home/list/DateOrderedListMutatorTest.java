@@ -26,7 +26,6 @@ import org.chromium.chrome.browser.download.home.StableIds;
 import org.chromium.chrome.browser.download.home.filter.Filters;
 import org.chromium.chrome.browser.download.home.filter.OfflineItemFilterSource;
 import org.chromium.chrome.browser.download.home.filter.TypeOfflineItemFilter;
-import org.chromium.chrome.browser.download.home.list.ListItem.CardDividerListItem.Position;
 import org.chromium.chrome.browser.download.home.list.ListItem.OfflineItemListItem;
 import org.chromium.chrome.browser.download.home.list.ListItem.SectionHeaderListItem;
 import org.chromium.chrome.browser.download.home.list.ListItem.SectionHeaderType;
@@ -898,20 +897,20 @@ public class DateOrderedListMutatorTest {
         mutator.reload();
 
         Assert.assertEquals(10, mModel.size());
-        assertDivider(mModel.get(0), Position.TOP);
+        assertDivider(mModel.get(0), ListItem.CardDividerListItem.Position.TOP);
         assertCardHeader(
                 mModel.get(1),
                 buildCalendar(2018, 1, 4, 0),
                 UrlFormatter.formatUrlForSecurityDisplay(
                         JUnitTestGURLs.EXAMPLE_URL, SchemeDisplay.OMIT_HTTP_AND_HTTPS));
         assertOfflineItem(mModel.get(2), buildCalendar(2018, 1, 4, 4), item4);
-        assertDivider(mModel.get(3), Position.MIDDLE);
+        assertDivider(mModel.get(3), ListItem.CardDividerListItem.Position.MIDDLE);
         assertOfflineItem(mModel.get(4), buildCalendar(2018, 1, 4, 3), item3);
-        assertDivider(mModel.get(5), Position.MIDDLE);
+        assertDivider(mModel.get(5), ListItem.CardDividerListItem.Position.MIDDLE);
         assertOfflineItem(mModel.get(6), buildCalendar(2018, 1, 4, 2), item2);
-        assertDivider(mModel.get(7), Position.MIDDLE);
+        assertDivider(mModel.get(7), ListItem.CardDividerListItem.Position.MIDDLE);
         assertCardFooter(mModel.get(8));
-        assertDivider(mModel.get(9), Position.BOTTOM);
+        assertDivider(mModel.get(9), ListItem.CardDividerListItem.Position.BOTTOM);
 
         // Remove one item. Now there should be only 3 items. The footer should be gone and get
         // replaced by bottom curve.
@@ -920,7 +919,7 @@ public class DateOrderedListMutatorTest {
 
         Assert.assertEquals(8, mModel.size());
         assertOfflineItem(mModel.get(6), buildCalendar(2018, 1, 4, 2), item2);
-        assertDivider(mModel.get(7), Position.BOTTOM);
+        assertDivider(mModel.get(7), ListItem.CardDividerListItem.Position.BOTTOM);
 
         // Remove one more item. Now there should be only 2 items. Now they shouldn't be grouped at
         // all.
@@ -1103,7 +1102,7 @@ public class DateOrderedListMutatorTest {
     }
 
     private static void assertDivider(
-            ListItem item, @Position int position) {
+            ListItem item, ListItem.CardDividerListItem.Position position) {
         Assert.assertTrue(item instanceof ListItem.CardDividerListItem);
         Assert.assertEquals(((ListItem.CardDividerListItem) item).position, position);
     }

@@ -84,15 +84,33 @@ suite('AutofillAiEntriesListUiReflectsEligibilityStatus', function() {
     CrSettingsPrefs.resetForTesting();
   });
 
+  interface EligibilityParamsInterface {
+    // Whether the user is opted into Autofill with Ai.
+    optedIn: boolean;
+    // Whether the user is eligible for Autofill with Ai.
+    ineligibleUser: boolean;
+    // The title of the test.
+    title: string;
+  }
+
+  const eligibilityParams: EligibilityParamsInterface[] = [
+    {optedIn: true, ineligibleUser: true, title: 'OptedInIneligibleUser'},
+    {optedIn: true, ineligibleUser: false, title: 'OptedInEligibleUser'},
+    {optedIn: false, ineligibleUser: true, title: 'OptedOutIneligibleUser'},
+    {optedIn: false, ineligibleUser: false, title: 'OptedOutEligibleUser'},
+  ];
+
   async function createEntriesList(
       eligibleUser: boolean = true,
       autofillSettingsEnterprisePolicyEnabled: boolean = false,
+      autofillAiAvailableByDefault: boolean = false,
       canEnableOrDisableAutofillAi: boolean =
-          true): Promise<SettingsAutofillAiEntriesListElement> {
+          false): Promise<SettingsAutofillAiEntriesListElement> {
     loadTimeData.overrideValues({
       userEligibleForAutofillAi: eligibleUser,
       AutofillSettingsEnterprisePolicyEnabled:
           autofillSettingsEnterprisePolicyEnabled,
+      autofillAiAvailableByDefault: autofillAiAvailableByDefault,
       canEnableOrDisableAutofillAi: canEnableOrDisableAutofillAi,
     });
     const entriesList: SettingsAutofillAiEntriesListElement =
@@ -107,26 +125,65 @@ suite('AutofillAiEntriesListUiReflectsEligibilityStatus', function() {
   // `prefs.autofill.autofill_ai.opt_in_status.value changes`. However, the new
   // status's actual value is sourced from
   // `entityDataManager.getOptInStatusResponse`. To force an opt-in status
-  test('AddButtonEnabledByDefault', async function() {
-    const entriesList = await createEntriesList();
-    await flushTasks();
+  // update, you must change the value returned by `entityDataManager` and then
+  // trigger a refresh by modifying the aforementioned preference.
+  function updateOptInStatus(
+      newValue: boolean, entriesList: SettingsAutofillAiEntriesListElement) {
+    entityDataManager.setGetOptInStatusResponse(newValue);
+    entriesList.setPrefValue('autofill.autofill_ai.opt_in_status', {});
+  }
 
-    const addButton = entriesList.shadowRoot!.querySelector<CrButtonElement>(
-        '#addEntityInstance');
-    assertTrue(!!addButton);
-    assertFalse(addButton.disabled);
+  eligibilityParams.forEach(
+      (params) => test(params.title, async function() {
+        const entriesList = await createEntriesList(!params.ineligibleUser);
+        updateOptInStatus(params.optedIn, entriesList);
+        await flushTasks();
 
-    assertTrue(isVisible(entriesList.shadowRoot!.querySelector('#entries')));
-  });
+        const addButton =
+            entriesList.shadowRoot!.querySelector<CrButtonElement>(
+                '#addEntityInstance');
+        assertTrue(!!addButton);
+        assertEquals(
+            addButton.disabled, params.ineligibleUser || !params.optedIn);
+
+        assertTrue(
+            isVisible(entriesList.shadowRoot!.querySelector('#entries')));
+      }));
+
+  test(
+      'AddButtonEnabledByDefaultWhenAutofillAiIsAvailableByDefault',
+      async function() {
+        const entriesList = await createEntriesList(
+            /*eligibleUser=*/ false,
+            /*autofillSettingsEnterprisePolicyEnabled=*/ false,
+            /*autofillAiAvailableByDefault=*/ true,
+            /*canEnableOrDisableAutofillAi=*/ true);
+
+        // The user is not opted-in to enhanced Autofill (model calls and mqls
+        // logging), yet they can still add entities.
+        updateOptInStatus(false, entriesList);
+        await flushTasks();
+
+        const addButton =
+            entriesList.shadowRoot!.querySelector<CrButtonElement>(
+                '#addEntityInstance');
+        assertTrue(!!addButton);
+        assertFalse(addButton.disabled);
+
+        assertTrue(
+            isVisible(entriesList.shadowRoot!.querySelector('#entries')));
+      });
 
   // canEnableOrDisableAutofillAi can be false in the case where
-  // the extensions API disables the feature. In this scenario the feature will
-  // still be disabled.
+  // the extensions API disables the feature. In this scenario even if
+  // autofillAiAvailableByDefault is true the feature will still disabled.
   test('CannotUseAutofillAiDisablesTheFeature', async function() {
     const entriesList = await createEntriesList(
-        /*eligibleUser=*/ true,
+        /*eligibleUser=*/ false,
         /*autofillSettingsEnterprisePolicyEnabled=*/ false,
+        /*autofillAiAvailableByDefault=*/ true,
         /*canEnableOrDisableAutofillAi=*/ false);
+    updateOptInStatus(false, entriesList);
     await flushTasks();
     const addButton = entriesList.shadowRoot!.querySelector<CrButtonElement>(
         '#addEntityInstance');
@@ -136,6 +193,7 @@ suite('AutofillAiEntriesListUiReflectsEligibilityStatus', function() {
 
   test('DisablingClassicAutofillPrefDisablesTheFeature', async function() {
     const entriesList = await createEntriesList();
+    updateOptInStatus(true, entriesList);
     await flushTasks();
 
     const addButton = entriesList.shadowRoot!.querySelector<CrButtonElement>(
@@ -147,9 +205,33 @@ suite('AutofillAiEntriesListUiReflectsEligibilityStatus', function() {
     // disabled, which essentially means the feature is off.
     entriesList.setPrefValue('autofill.profile_enabled', false);
     await flushTasks();
-
     assertTrue(addButton.disabled);
   });
+
+  // TODO(crbug.com/440488776): Rename this test once feature is launched.
+  test(
+      'DisablingClassicAutofillPrefDisablesTheFeatureEvenWhenAvailableByDefault',
+      async function() {
+        const entriesList = await createEntriesList(
+            /*eligibleUser=*/ false,
+            /*autofillSettingsEnterprisePolicyEnabled=*/ false,
+            /*autofillAiAvailableByDefault=*/ true,
+            /*canEnableOrDisableAutofillAi=*/ true);
+        await flushTasks();
+
+        const addButton =
+            entriesList.shadowRoot!.querySelector<CrButtonElement>(
+                '#addEntityInstance');
+        assertTrue(!!addButton);
+        assertFalse(addButton.disabled);
+
+        // Check that when the autofill pref is off, the add button becomes
+        // disabled, which essentially means the feature is off.
+        entriesList.setPrefValue('autofill.profile_enabled', false);
+        await flushTasks();
+
+        assertTrue(addButton.disabled);
+      });
 
   test(
       'DisablingClassicAutofillPrefDoesNotDisabledTheFeatureIfOverrideBehaviourIsEnabled',
@@ -157,6 +239,7 @@ suite('AutofillAiEntriesListUiReflectsEligibilityStatus', function() {
         const entriesList = await createEntriesList(
             /*userEligible=*/ true,
             /*autofillSettingsEnterprisePolicyEnabled=*/ true);
+        updateOptInStatus(true, entriesList);
         await flushTasks();
 
         const addButton =
@@ -170,9 +253,10 @@ suite('AutofillAiEntriesListUiReflectsEligibilityStatus', function() {
         assertFalse(addButton.disabled);
       });
 
-  test('AddButtonEnabledByDefaultWhenAllowNewEntitiesAdditionPrefUnset', async function() {
+  test('AddButtonEnabledByDefaultWhenAllowEditingPrefUnset', async function() {
     const entriesList = await createEntriesList();
-    entriesList.allowNewEntitiesAdditionPref = null; // Explicitly unset
+    entriesList.allowEditingPref = null; // Explicitly unset
+    updateOptInStatus(true, entriesList);
     await flushTasks();
 
     const addButton = entriesList.shadowRoot!.querySelector<CrButtonElement>(
@@ -181,13 +265,14 @@ suite('AutofillAiEntriesListUiReflectsEligibilityStatus', function() {
     assertFalse(addButton.disabled);
   });
 
-  test('DisableAddButtonBasedOnAllowNewEntitiesAdditionPrefValue', async function() {
+  test('DisableAddButtotBasedOnAllowEditingPrefValue', async function() {
     const entriesList = await createEntriesList();
-    entriesList.allowNewEntitiesAdditionPref = {
+    entriesList.allowEditingPref = {
       key: '',
       type: chrome.settingsPrivate.PrefType.BOOLEAN,
       value: true,
     };
+    updateOptInStatus(true, entriesList);
     await flushTasks();
 
     const addButton = entriesList.shadowRoot!.querySelector<CrButtonElement>(
@@ -195,19 +280,20 @@ suite('AutofillAiEntriesListUiReflectsEligibilityStatus', function() {
     assertTrue(!!addButton);
     assertFalse(addButton.disabled);
 
-    entriesList.set('allowNewEntitiesAdditionPref.value', false);
+    entriesList.set('allowEditingPref.value', false);
     await flushTasks();
 
     assertTrue(addButton.disabled);
   });
 
-  test('DisableAddButtonWhenAddressAutofillDisabled', async function() {
+  test('DisableAddButtotWhenAddressAutofillDisabled', async function() {
     const entriesList = await createEntriesList();
-    entriesList.allowNewEntitiesAdditionPref = {
+    entriesList.allowEditingPref = {
       key: '',
       type: chrome.settingsPrivate.PrefType.BOOLEAN,
       value: true,
     };
+    updateOptInStatus(true, entriesList);
     entriesList.setPrefValue('autofill.profile_enabled', true);
     await flushTasks();
 
@@ -224,11 +310,12 @@ suite('AutofillAiEntriesListUiReflectsEligibilityStatus', function() {
 
   test('DisableAddButtonWhenAiPredictionsDisabled', async function() {
     const entriesList = await createEntriesList();
-    entriesList.allowNewEntitiesAdditionPref = {
+    entriesList.allowEditingPref = {
       key: '',
       type: chrome.settingsPrivate.PrefType.BOOLEAN,
       value: true,
     };
+    updateOptInStatus(true, entriesList);
     entriesList.setPrefValue(
         AiEnterpriseFeaturePrefName.AUTOFILL_AI,
         ModelExecutionEnterprisePolicyValue.ALLOW);
@@ -248,14 +335,15 @@ suite('AutofillAiEntriesListUiReflectsEligibilityStatus', function() {
   });
 
   test(
-      'AddressAutofillForcedTrueValueShouldNotOverrideAllowNewEntitiesAdditionPrefValue',
+      'AddressAutofillForcedTrueValueShouldNotOverrideAllowEditingPrefValue',
       async function() {
         const entriesList = await createEntriesList();
-        entriesList.allowNewEntitiesAdditionPref = {
+        entriesList.allowEditingPref = {
           key: '',
           type: chrome.settingsPrivate.PrefType.BOOLEAN,
           value: false,  // Editing is disabled
         };
+        updateOptInStatus(true, entriesList);
         entriesList.setPrefValue('autofill.profile_enabled', true);
         await flushTasks();
 
@@ -792,7 +880,28 @@ suite('AutofillAiEntriesListUiTest', function() {
         assertFalse(isVisible(listItems[1]!));
       });
 
+  test('EntriesDoNotDisappearAfterOptInStatusChange', async function() {
+    await createEntriesList();
 
+    const addButton = entriesList.shadowRoot!.querySelector<CrButtonElement>(
+        '#addEntityInstance');
+    assertTrue(!!addButton);
+
+    // Verify that we start in enabled state
+    assertFalse(addButton.disabled);
+
+    // Change opt-in status
+    entityDataManager.setGetOptInStatusResponse(false);
+
+    // Force opt-in status refresh
+    entriesList.setPrefValue('autofill.autofill_ai.opt_in_status', {});
+    await flushTasks();
+
+    assertTrue(addButton.disabled);
+    assertTrue(
+        isVisible(entriesList.shadowRoot!.querySelector('#entries')),
+        'With false opt-in status, the entries should be visible');
+  });
 
   test('EntityTypesAreFilteredOnPersonalDataChangeCallback', async function() {
     await createEntriesList(new Set([

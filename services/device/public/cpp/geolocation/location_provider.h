@@ -50,9 +50,6 @@ class LocationProvider {
   // infobar prompt) or inferred from a persisted site permission.
   // Note: See |StartProvider()| for more information.
   virtual void OnPermissionGranted() = 0;
-
-  // Called when GeolocationSystemPermissionManager is shutting down.
-  virtual void OnPermissionManagerShuttingDown() {}
 };
 
 }  // namespace device

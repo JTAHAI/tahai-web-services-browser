@@ -23,7 +23,6 @@ class GeolocationObservation
   // device::GeolocationSystemPermissionManager::PermissionObserver:
   void OnSystemPermissionUpdated(
       device::LocationSystemPermissionStatus new_status) override;
-  void OnPermissionManagerShuttingDown() override;
 
  private:
   SystemPermissionChangedCallback callback_;

@@ -1,10 +1,12 @@
 # TAHAI Browser 2.0.33.0 — candidate
 
-Status: source changes implemented; full native build, runtime tests and MSIX
-verification pending. Ported to Chromium 152.0.7977.83; see
-[the September 30 engineering record](tahai-rc-engineering-review-2026-09-30.md)
-for the newer source checks, primary references, upstream-baseline decision and
-remaining runtime/package gates. Earlier build evidence remains historical.
+Status: source integration implemented; buildability audit, full native build,
+runtime tests and MSIX verification pending. The fallback targets Chromium
+152.0.7977.158, official tag commit
+`9007248033443cbe529d18cf911d6954f5ce4f49`. The
+[semantic backport inventory](chromium-152-backport-inventory.json) records the
+retained product and reliability changes and excluded Chromium 154 repairs.
+Earlier build evidence remains historical.
 
 - Guard uses offline EasyList in Balanced mode and adds EasyPrivacy in Strict.
 - Cosmetic hiding covers ordinary CSS filters, exceptions and later DOM changes.

@@ -10,7 +10,6 @@
 #include <string_view>
 #include <vector>
 
-#include "base/containers/extend.h"
 #include "base/containers/to_vector.h"
 #include "base/feature_list.h"
 #include "base/functional/bind.h"
@@ -29,9 +28,7 @@
 #include "components/prefs/pref_service.h"
 #include "mojo/public/cpp/bindings/remote.h"
 #include "mojo/public/cpp/bindings/remote_set.h"
-#include "net/base/features.h"
 #include "net/cert/cert_verifier.h"
-#include "net/cert/x509_util.h"
 #include "net/ssl/ssl_cipher_suite_names.h"
 #include "net/ssl/ssl_config_service.h"
 #include "services/network/public/mojom/network_context.mojom.h"
@@ -153,27 +150,6 @@ SSLConfigServiceManager::SSLConfigServiceManager(PrefService* local_state) {
 
   // Populate |disabled_cipher_suites_| with the initial pref value.
   OnDisabledCipherSuitesChange(local_state);
-
-#if BUILDFLAG(CHROME_ROOT_STORE_SUPPORTED)
-  if (base::FeatureList::IsEnabled(net::features::kTLSTrustAnchorIDs)) {
-    // Populate initial trust anchor ID state from compiled-in values.
-    //
-    // Theoretically there should be some check here for whether Chrome Root
-    // Store is enabled, on builds where it is optional. That is currently
-    // configured through the GetCertVerifierServiceFactory
-    // SetUseChromeRootStore() call, so the status is not easily accessible from
-    // here. Currently the only platform where CRS is optional and disabled is
-    // android webview, which doesn't use this file, so this is okay.
-    InitializeTrustAnchorIDs(
-        base::FeatureList::IsEnabled(net::features::kNonMtcTrustAnchorIDs)
-            ? net::TrustStoreChrome::GetTrustAnchorIDsFromCompiledInRootStore()
-            : base::span<const std::vector<uint8_t>>(),
-        base::FeatureList::IsEnabled(net::features::kVerifyMTCs)
-            ? net::TrustStoreChrome::GetTrustedMtcCaIDsFromCompiledInRootStore()
-            : base::span<const std::vector<uint8_t>>(),
-        std::nullopt);
-  }
-#endif
 }
 
 SSLConfigServiceManager::~SSLConfigServiceManager() = default;
@@ -191,7 +167,8 @@ void SSLConfigServiceManager::RegisterPrefs(PrefRegistrySimple* registry) {
   registry->RegisterStringPref(prefs::kSSLVersionMax, std::string());
   registry->RegisterListPref(prefs::kCipherSuiteBlacklist);
   registry->RegisterListPref(prefs::kH2ClientCertCoalescingHosts);
-  registry->RegisterBooleanPref(prefs::kEncryptedClientHelloEnabled, true);
+  registry->RegisterBooleanPref(prefs::kEncryptedClientHelloEnabled,
+                                default_context_config.ech_enabled);
   // The following two prefs for SSL compliance policies are used here as
   // local_state prefs, but the same pref names are also used as Profile prefs
   // in certain Profiles. Their value is only used if managed.
@@ -208,43 +185,13 @@ void SSLConfigServiceManager::AddToNetworkContextParams(
   ssl_config_client_set_.Add(std::move(ssl_config_client));
 }
 
-void SSLConfigServiceManager::InitializeTrustAnchorIDs(
-    base::span<const std::vector<uint8_t>> classic_trust_anchor_ids,
-    base::span<const std::vector<uint8_t>> mtc_standalone_only_trust_anchor_ids,
-    std::optional<SSLConfigServiceMtcLandmarkInfo> mtc_landmark_info) {
-  {
-    std::vector<std::vector<uint8_t>> trust_anchor_ids;
-    base::Extend(trust_anchor_ids, classic_trust_anchor_ids);
-    base::Extend(trust_anchor_ids, mtc_standalone_only_trust_anchor_ids);
-    trust_anchor_ids_ = net::x509_util::EncodeTlsRequestedTrustAnchorIDList(
-        std::move(trust_anchor_ids));
-  }
-  if (mtc_landmark_info) {
-    std::vector<std::vector<uint8_t>> trust_anchor_ids;
-    base::Extend(trust_anchor_ids, classic_trust_anchor_ids);
-    base::Extend(
-        trust_anchor_ids,
-        mtc_landmark_info->mtc_landmark_and_standalone_trust_anchor_ids);
-    time_bound_trust_anchor_ids_ = net::TimeBoundTrustAnchorIDs{
-        .max_usable_time = mtc_landmark_info->max_usable_time,
-        .trust_anchor_ids = net::x509_util::EncodeTlsRequestedTrustAnchorIDList(
-            std::move(trust_anchor_ids))};
-  } else {
-    time_bound_trust_anchor_ids_ = std::nullopt;
-  }
-}
-
 void SSLConfigServiceManager::UpdateTrustAnchorIDs(
-    base::span<const std::vector<uint8_t>> classic_trust_anchor_ids,
-    base::span<const std::vector<uint8_t>> mtc_standalone_only_trust_anchor_ids,
-    std::optional<SSLConfigServiceMtcLandmarkInfo> mtc_landmark_info) {
-  if (!base::FeatureList::IsEnabled(net::features::kTLSTrustAnchorIDs)) {
-    return;
-  }
-
-  InitializeTrustAnchorIDs(classic_trust_anchor_ids,
-                           mtc_standalone_only_trust_anchor_ids,
-                           mtc_landmark_info);
+    std::vector<std::vector<uint8_t>> trust_anchor_ids,
+    std::vector<std::vector<uint8_t>> mtc_trust_anchor_ids,
+    int64_t mtc_update_time_seconds) {
+  trust_anchor_ids_ = std::move(trust_anchor_ids);
+  mtc_trust_anchor_ids_ = std::move(mtc_trust_anchor_ids);
+  mtc_update_time_seconds_ = mtc_update_time_seconds;
   network::mojom::SSLConfigPtr new_config = GetNewSSLConfig();
   network::mojom::SSLConfig* raw_config = new_config.get();
 
@@ -306,15 +253,14 @@ network::mojom::SSLConfigPtr SSLConfigServiceManager::GetNewSSLConfig() const {
 
   config->ech_enabled = ech_enabled_.GetValue();
 
-  config->trust_anchor_ids = trust_anchor_ids_;
-  if (time_bound_trust_anchor_ids_.has_value()) {
-    config->time_bound_trust_anchor_ids =
-        network::mojom::TimeBoundTrustAnchorIDs::New();
-    config->time_bound_trust_anchor_ids->max_usable_time =
-        time_bound_trust_anchor_ids_->max_usable_time;
-    config->time_bound_trust_anchor_ids->trust_anchor_ids =
-        time_bound_trust_anchor_ids_->trust_anchor_ids;
-  }
+#if BUILDFLAG(CHROME_ROOT_STORE_SUPPORTED)
+  config->trust_anchor_ids =
+      trust_anchor_ids_.has_value()
+          ? trust_anchor_ids_.value()
+          : net::TrustStoreChrome::GetTrustAnchorIDsFromCompiledInRootStore();
+  config->mtc_trust_anchor_ids = mtc_trust_anchor_ids_;
+  config->mtc_update_time_seconds = mtc_update_time_seconds_;
+#endif
 
   ConfigureSSLComplianceSettings(key_exchange_compliance_,
                                  tls13_cipher_compliance_, config.get());

@@ -2,15 +2,18 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include "chrome/browser/ui/webui/signin/managed_user_profile_notice_ui.h"
+
 #include <optional>
 
 #include "base/functional/callback_helpers.h"
 #include "base/no_destructor.h"
 #include "base/strings/strcat.h"
+#include "base/strings/to_string.h"
 #include "base/test/scoped_feature_list.h"
 #include "build/build_config.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/profiles/profile_ui_test_utils.h"
 #include "chrome/browser/ui/test/test_browser_ui.h"
 #include "chrome/browser/ui/views/profiles/profile_management_step_controller.h"
@@ -22,6 +25,7 @@
 #include "content/public/browser/web_ui.h"
 #include "content/public/common/content_features.h"
 #include "content/public/test/browser_test.h"
+#include "net/base/url_util.h"
 #include "ui/gfx/scoped_animation_duration_scale_mode.h"
 #include "ui/views/view_observer.h"
 
@@ -36,6 +40,7 @@ enum class ScreenVersion {
 struct ManagedUserProfileNoticePixelTestParam {
   PixelTestParam pixel_test_param;
   ScreenVersion screen_version = ScreenVersion::kOld;
+  bool use_primary_and_tonal_buttons = false;
 };
 
 std::string ParamToTestSuffix(
@@ -54,7 +59,8 @@ std::string ParamToTestSuffix(
       break;
   }
   return base::StrCat(
-      {info.param.pixel_test_param.test_suffix, screen_version_suffix});
+      {info.param.pixel_test_param.test_suffix, screen_version_suffix,
+       info.param.use_primary_and_tonal_buttons ? "Tonal" : ""});
 }
 
 std::unique_ptr<signin::EnterpriseProfileCreationDialogParams>
@@ -87,14 +93,21 @@ const std::vector<ManagedUserProfileNoticePixelTestParam>& GetTestParams() {
           for (ScreenVersion screen_version :
                {ScreenVersion::kOld, ScreenVersion::kRefreshed,
                 ScreenVersion::kRevamped}) {
-            params.push_back({.pixel_test_param = window_param,
-                              .screen_version = screen_version});
+            for (bool use_primary_and_tonal_buttons : {false, true}) {
+              params.push_back({.pixel_test_param = window_param,
+                                .screen_version = screen_version,
+                                .use_primary_and_tonal_buttons =
+                                    use_primary_and_tonal_buttons});
+            }
           }
         }
         return params;
       }());
   return *params;
 }
+
+constexpr ManagedUserProfileNoticeUI::ScreenType kProfilePickerType =
+    ManagedUserProfileNoticeUI::ScreenType::kProfilePicker;
 
 // Creates a step to represent the managed-user-profile-notice.
 class ManagedUserProfileNoticeStepControllerForTest
@@ -107,7 +120,7 @@ class ManagedUserProfileNoticeStepControllerForTest
       : ProfileManagementStepController(host),
         managed_user_notice_url_(
             use_refreshed_ui
-                ? GURL(chrome::kChromeUIManagedUserProfileNoticeRefreshURL)
+                ? ManagedUserProfileNoticeUI::GetURLForType(kProfilePickerType)
                 : GURL(chrome::kChromeUIManagedUserProfileNoticeUrl)),
         account_info_(account_info) {}
 
@@ -115,12 +128,6 @@ class ManagedUserProfileNoticeStepControllerForTest
 
   void Show(StepSwitchFinishedCallback step_shown_callback,
             bool reset_state) override {
-    ManagedUserProfileNoticeParams::CreateForWebContents(
-        host()->GetPickerContents(),
-        /*browser=*/nullptr,
-        ManagedUserProfileNoticeUI::ScreenType::kProfilePicker,
-        CreateEnterpriseProfileCreationDialogParams(account_info_));
-
     // Reload the WebUI in the picker contents.
     host()->ShowScreenInPickerContents(
         managed_user_notice_url_,
@@ -132,6 +139,18 @@ class ManagedUserProfileNoticeStepControllerForTest
 
   void OnManagedUserProfileNoticeLoaded(
       StepSwitchFinishedCallback step_shown_callback) {
+    ManagedUserProfileNoticeUI* managed_user_notice_ui =
+        host()
+            ->GetPickerContents()
+            ->GetWebUI()
+            ->GetController()
+            ->GetAs<ManagedUserProfileNoticeUI>();
+
+    CHECK(managed_user_notice_ui);
+    managed_user_notice_ui->Initialize(
+        /*browser=*/nullptr, kProfilePickerType,
+        CreateEnterpriseProfileCreationDialogParams(account_info_));
+
     if (!step_shown_callback->is_null()) {
       std::move(step_shown_callback.value()).Run(/*success=*/true);
     }
@@ -159,7 +178,9 @@ class ManagedUserProfileNoticeUIWindowPixelTest
           GetParam().screen_version == ScreenVersion::kRefreshed ||
               GetParam().screen_version == ScreenVersion::kRevamped},
          {switches::kFirstRunDesktopRevamp,
-          GetParam().screen_version == ScreenVersion::kRevamped}});
+          GetParam().screen_version == ScreenVersion::kRevamped},
+         {switches::kUsePrimaryAndTonalButtonsForPromos,
+          GetParam().use_primary_and_tonal_buttons}});
   }
 
   ~ManagedUserProfileNoticeUIWindowPixelTest() override {

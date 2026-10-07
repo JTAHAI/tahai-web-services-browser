@@ -136,5 +136,3 @@ impl fmt::Display for TryNewError {
         write!(f, "Value too large to fit within this integer type")
     }
 }
-
-impl core::error::Error for TryNewError {}

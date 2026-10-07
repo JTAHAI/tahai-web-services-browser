@@ -24,12 +24,10 @@ void CallStackProfileCollector::Create(
 }
 
 void CallStackProfileCollector::Collect(base::TimeTicks start_timestamp,
-                                        mojom::TriggerEvent trigger_event,
+                                        mojom::ProfileType profile_type,
                                         mojom::SampledProfilePtr profile) {
   CallStackProfileMetricsProvider::ReceiveSerializedProfile(
-      start_timestamp,
-      trigger_event == mojom::TriggerEvent::kPeriodicHeapCollection ||
-          trigger_event == mojom::TriggerEvent::kPeriodicHeapChurnCollection,
+      start_timestamp, profile_type == mojom::ProfileType::kHeap,
       std::move(profile));
 }
 

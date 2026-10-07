@@ -14,17 +14,17 @@
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/observer_list.h"
-#include "base/scoped_observation.h"
 #include "chrome/browser/bookmarks/bookmark_merged_surface_service.h"
 #include "chrome/browser/bookmarks/bookmark_merged_surface_service_observer.h"
 #include "chrome/browser/ui/bookmarks/bookmark_bar.h"
 #include "chrome/browser/ui/bookmarks/bookmark_stats.h"
-#include "chrome/browser/ui/bookmarks/controllers/bookmark_bar_ui_client.h"
 #include "chrome/browser/ui/tabs/tab_group_theme.h"
 #include "chrome/browser/ui/views/bookmarks/bookmark_context_menu.h"
 #include "chrome/browser/ui/views/bookmarks/bookmark_menu_controller_observer.h"
 #include "chrome/browser/ui/views/bookmarks/bookmark_menu_controller_views.h"
+#include "chrome/browser/ui/views/bookmarks/saved_tab_groups/saved_tab_group_bar.h"
 #include "components/bookmarks/browser/bookmark_node_data.h"
+#include "components/prefs/pref_change_registrar.h"
 #include "ui/accessibility/ax_action_data.h"
 #include "ui/base/metadata/metadata_header_macros.h"
 #include "ui/base/mojom/menu_source_type.mojom-forward.h"
@@ -33,26 +33,28 @@
 #include "ui/views/accessible_pane_view.h"
 #include "ui/views/animation/animation_delegate_views.h"
 #include "ui/views/context_menu_controller.h"
-#include "ui/views/controls/button/button.h"
 #include "ui/views/controls/menu/menu_types.h"
 #include "ui/views/drag_controller.h"
 #include "ui/views/view.h"
 #include "ui/views/view_observer.h"
 
-class BookmarkBarUIController;
 class BookmarkBarViewObserver;
 class BookmarkBarViewTestHelper;
 class BookmarkContextMenu;
 class BookmarkMergedSurfaceService;
 struct BookmarkParentFolder;
+class Browser;
 class BrowserView;
-class BrowserWindowInterface;
 class Profile;
 
 namespace bookmarks {
 class BookmarkNode;
 class ManagedBookmarkService;
 }  // namespace bookmarks
+
+namespace content {
+class PageNavigator;
+}
 
 namespace gfx {
 class FontList;
@@ -77,7 +79,6 @@ class LabelButton;
 // waits until the HistoryService for the profile has been loaded before
 // creating the BookmarkModel.
 class BookmarkBarView : public views::AccessiblePaneView,
-                        public BookmarkBarUIClient,
                         public BookmarkMergedSurfaceServiceObserver,
                         public views::ContextMenuController,
                         public views::DragController,
@@ -90,9 +91,7 @@ class BookmarkBarView : public views::AccessiblePaneView,
   class ButtonSeparatorView;
 
   // |browser_view| can be NULL during tests.
-  BookmarkBarView(BrowserWindowInterface* browser,
-                  std::unique_ptr<BookmarkBarUIController> controller,
-                  BrowserView* browser_view);
+  BookmarkBarView(Browser* browser, BrowserView* browser_view);
   BookmarkBarView(const BookmarkBarView&) = delete;
   BookmarkBarView& operator=(const BookmarkBarView&) = delete;
   ~BookmarkBarView() override;
@@ -102,10 +101,14 @@ class BookmarkBarView : public views::AccessiblePaneView,
   static void DisableAnimationsForTesting(bool disabled);
 
   // Returns the current browser.
-  BrowserWindowInterface* browser() const { return browser_; }
+  Browser* browser() const { return browser_; }
 
   void AddObserver(BookmarkBarViewObserver* observer);
   void RemoveObserver(BookmarkBarViewObserver* observer);
+
+  // Sets the PageNavigator that is used when the user selects an entry on
+  // the bookmark bar.
+  void SetPageNavigator(content::PageNavigator* navigator);
 
   // Sets whether the containing browser is showing an infobar.  This affects
   // layout during animation.
@@ -198,11 +201,6 @@ class BookmarkBarView : public views::AccessiblePaneView,
   // views::AnimationDelegateViews:
   void AnimationProgressed(const gfx::Animation* animation) override;
   void AnimationEnded(const gfx::Animation* animation) override;
-
-  // BookmarkBarUIClient overrides:
-  void SetAppsPageShortcutVisibility(bool visible) override;
-  void SetSavedTabGroupsVisibility(bool visible) override;
-  void SetManagedBookmarksFolderVisibility(bool visible) override;
 
   // BookmarkMenuControllerObserver:
   void BookmarkMenuControllerDeleted(
@@ -399,6 +397,14 @@ class BookmarkBarView : public views::AccessiblePaneView,
   // Updates the visibility of |bookmarks_separator_view_|.
   void UpdateBookmarksSeparatorVisibility();
 
+  // Updates the visibility of the apps shortcut based on the pref value.
+  void OnAppsPageShortcutVisibilityPrefChanged();
+
+  // Updates the visibility of the tab groups based on the pref value.
+  void OnTabGroupsVisibilityPrefChanged();
+
+  void OnShowManagedBookmarksPrefChanged();
+
   void LayoutAndPaint() {
     InvalidateLayout();
     SchedulePaint();
@@ -444,7 +450,12 @@ class BookmarkBarView : public views::AccessiblePaneView,
   bool extensive_bookmarks_changes_ongoing_ = false;
   bool needs_layout_update_after_extensive_changes_ = false;
 
-  bool managed_bookmarks_pref_visible_ = false;
+  // Needed to react to bookmark bar pref changes.
+  PrefChangeRegistrar profile_pref_registrar_;
+
+  // Used for opening urls.
+  raw_ptr<content::PageNavigator, AcrossTasksDanglingUntriaged>
+      page_navigator_ = nullptr;
 
   // `BookmarkMergedSurfaceService` that manages the entries and folders that
   // are shown in this view. This is owned by the Profile.
@@ -506,9 +517,8 @@ class BookmarkBarView : public views::AccessiblePaneView,
   raw_ptr<ButtonSeparatorView> bookmarks_separator_view_ = nullptr;
   raw_ptr<ButtonSeparatorView> saved_tab_groups_separator_view_ = nullptr;
 
-  const raw_ptr<BrowserWindowInterface> browser_;
+  const raw_ptr<Browser> browser_;
   raw_ptr<BrowserView> browser_view_;
-  std::unique_ptr<BookmarkBarUIController> controller_;
 
   // True if the owning browser is showing an infobar.
   bool infobar_visible_ = false;
@@ -523,9 +533,8 @@ class BookmarkBarView : public views::AccessiblePaneView,
   // Factory used to delay showing of the drop menu.
   base::WeakPtrFactory<BookmarkBarView> show_folder_method_factory_{this};
 
-  // Returns WeakPtrs used when showing the context menu (e.g., after clipboard
-  // checks). Used to ensure safety if BookmarkBarView is deleted before the
-  // callback runs.
+  // Returns WeakPtrs used in GetPageNavigatorGetter(). Used to ensure
+  // safety if BookmarkBarView is deleted after getting the callback.
   base::WeakPtrFactory<BookmarkBarView> weak_ptr_factory_{this};
 
   // Returns WeakPtrs used in GetDropCallback(). Used to ensure

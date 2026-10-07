@@ -60,13 +60,11 @@ android_library("java") {
   srcjar_deps = [ ":jni" ]
   deps = [
     ":java_resources",
-    "//base:build_info_java",
     "//base:callback_java",
     "//base:lifetime_java",
     "//base:metrics_java",
     "//base:supplier_java",
     "//base:tasks_java",
-    "//base:tristate_java",
     "//chrome/browser/autofill/android:java",
     "//chrome/browser/feature_engagement:java",
     "//chrome/browser/flags:java",
@@ -141,9 +139,6 @@ android_resources("java_resources") {
 java_strings_grd("java_strings_grd") {
   defines = chrome_grit_defines
   grd_file = "java/strings/android_keyboard_accessory_strings.grd"
-  inputs = process_file_template(
-          xtb_locales,
-          [ "java/strings/translations/android_keyboard_accessory_strings_{{source_name_part}}.xtb" ])
 }
 
 android_library("test_java") {

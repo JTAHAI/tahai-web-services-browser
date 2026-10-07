@@ -200,9 +200,7 @@ public class BottomBarCoordinator implements BottomBar, Destroyable {
     }
 
     @Override
-    public void setParent(@Host int host) {
-        mMediator.setParent(host);
-    }
+    public void setParent(@Host int host) {}
 
     @Override
     public boolean maybeShowPromoDialog(Profile profile) {
@@ -222,10 +220,6 @@ public class BottomBarCoordinator implements BottomBar, Destroyable {
     @Override
     public void onStartupPromoFlowFinished(boolean promoShown) {
         mMediator.onStartupPromoFlowFinished(promoShown);
-    }
-
-    /*package*/ BottomBarMediator getMediatorForTesting() {
-        return mMediator;
     }
 
     @Override

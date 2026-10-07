@@ -95,8 +95,7 @@ MessageView::MessageView(const Notification& notification)
 
   // If Aero is enabled, set shadow border.
   if (ShouldShowAeroShadowBorder()) {
-    const auto& shadow =
-        gfx::ShadowDetails::Get(/*elevation=*/2, gfx::RoundedCornersF());
+    const auto& shadow = gfx::ShadowDetails::Get(2, 0);
     gfx::Insets ninebox_insets = gfx::ShadowValue::GetBlurRegion(shadow.values);
     SetBorder(views::CreateBorderPainter(
         views::Painter::CreateImagePainter(shadow.nine_patch_image,

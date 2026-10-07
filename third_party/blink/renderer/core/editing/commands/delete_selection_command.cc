@@ -750,7 +750,9 @@ void DeleteSelectionCommand::RemoveCompletelySelectedNodes(
       // content from any descendant text nodes to ensure selectionchange
       // event fires. This handles nested contenteditable elements and
       // deeply nested text nodes.
-      if (is_root_editable) {
+      if (is_root_editable &&
+          RuntimeEnabledFeatures::
+              DeleteTextInContentEditableBeforeRemovingChildrenEnabled()) {
         HeapVector<Member<Text>> text_nodes_to_clear;
         for (Node& descendant :
              NodeTraversal::DescendantsOf(*node_to_be_removed)) {
@@ -1130,10 +1132,14 @@ void DeleteSelectionCommand::MergeParagraphs(EditingState* editing_state) {
   if (merge_destination.DeepEquivalent() == merge_origin.DeepEquivalent())
     return;
 
-  const VisiblePosition start_of_paragraph_to_move =
-      StartOfParagraphInFlatTree(merge_origin);
-  const VisiblePosition end_of_paragraph_to_move =
-      EndOfParagraphInFlatTree(merge_origin, kCanSkipOverEditingBoundary);
+  VisiblePosition start_of_paragraph_to_move = StartOfParagraph(merge_origin);
+  VisiblePosition end_of_paragraph_to_move =
+      EndOfParagraph(merge_origin, kCanSkipOverEditingBoundary);
+  if (RuntimeEnabledFeatures::TraverseFlatTreeToHandleSlotsEnabled()) {
+    start_of_paragraph_to_move = StartOfParagraphInFlatTree(merge_origin);
+    end_of_paragraph_to_move =
+        EndOfParagraphInFlatTree(merge_origin, kCanSkipOverEditingBoundary);
+  }
 
   if (merge_destination.DeepEquivalent() ==
       end_of_paragraph_to_move.DeepEquivalent())

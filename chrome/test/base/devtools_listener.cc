@@ -7,7 +7,6 @@
 #include <stddef.h>
 
 #include <map>
-#include <set>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -190,7 +189,7 @@ void DevToolsListener::StopAndStoreJSCoverage(content::DevToolsAgentHost* host,
   base::WriteFile(path, coverage);
 
   script_coverage_.clear();
-  script_hash_set_.clear();
+  script_hash_map_.clear();
   script_id_map_.clear();
   scripts_.clear();
 
@@ -275,8 +274,7 @@ void DevToolsListener::StoreScripts(content::DevToolsAgentHost* host,
   for (base::DictValue& script : scripts_) {
     std::string id;
     {
-      const std::string* id_ptr =
-          script.FindStringByDottedPath("params.scriptId");
+      std::string* id_ptr = script.FindStringByDottedPath("params.scriptId");
       CHECK(id_ptr);
       CHECK(!id_ptr->empty());
       id = *id_ptr;
@@ -284,10 +282,9 @@ void DevToolsListener::StoreScripts(content::DevToolsAgentHost* host,
 
     std::string url;
     {
-      const std::string* url_ptr = script.FindStringByDottedPath("params.url");
-      if (!url_ptr) {
+      std::string* url_ptr = script.FindStringByDottedPath("params.url");
+      if (!url_ptr)
         url_ptr = script.FindStringByDottedPath("params.sourceURL");
-      }
       if (!url_ptr || url_ptr->empty()) {
         value_.clear();
         continue;
@@ -298,7 +295,7 @@ void DevToolsListener::StoreScripts(content::DevToolsAgentHost* host,
     std::string text;
     // Scripts retrieved by `RetrieveMissingScripts()` already have their source
     // code in the `scriptSource` DictValue.
-    if (const std::string* source =
+    if (std::string* source =
             script.FindStringByDottedPath("params.scriptSource")) {
       text = *source;
     } else {
@@ -315,7 +312,7 @@ void DevToolsListener::StoreScripts(content::DevToolsAgentHost* host,
         return;
       }
 
-      const base::DictValue* result = value_.FindDict("result");
+      base::DictValue* result = value_.FindDict("result");
       // TODO(crbug.com/40180762): In some cases the v8 isolate may clear out
       // the script source during execution. This can lead to the Debugger
       // seeing a scriptId during execution but when it comes time to retrieving
@@ -326,7 +323,7 @@ void DevToolsListener::StoreScripts(content::DevToolsAgentHost* host,
                    << value_;
         return;
       }
-      const std::string* text_ptr = result->FindString("scriptSource");
+      std::string* text_ptr = result->FindString("scriptSource");
       if (!text_ptr || text_ptr->empty()) {
         value_.clear();
         continue;
@@ -336,21 +333,21 @@ void DevToolsListener::StoreScripts(content::DevToolsAgentHost* host,
 
     std::string hash;
     {
-      const std::string* hash_ptr =
-          script.FindStringByDottedPath("params.hash");
+      std::string* hash_ptr = script.FindStringByDottedPath("params.hash");
       CHECK(hash_ptr);
       hash = *hash_ptr;
     }
 
-    bool inserted = script_id_map_.try_emplace(id, hash).second;
-    CHECK(inserted) << "Duplicate script by id " << url;
+    if (script_id_map_.find(id) != script_id_map_.end())
+      LOG(FATAL) << "Duplicate script by id " << url;
 
+    script_id_map_[id] = hash;
     CHECK(!hash.empty());
-    inserted = script_hash_set_.insert(hash).second;
-    if (!inserted) {
+    if (script_hash_map_.find(hash) != script_hash_map_.end()) {
       value_.clear();
       continue;
     }
+    script_hash_map_[hash] = id;
 
     base::DictValue* params = script.FindDict("params");
     CHECK(params) << "Can't find params from script: " << script;

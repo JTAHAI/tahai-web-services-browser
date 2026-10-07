@@ -1,2 +1,3 @@
-rules:
-- "**": [autocapitalize]
+features:
+- name: autocapitalize
+  files: "**"

@@ -85,7 +85,6 @@ import org.chromium.chrome.browser.enterprise.util.DataProtectionBridge;
 import org.chromium.chrome.browser.ephemeraltab.EphemeralTabCoordinator;
 import org.chromium.chrome.browser.firstrun.FirstRunStatus;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
-import org.chromium.chrome.browser.glic.GlicEnabling;
 import org.chromium.chrome.browser.gsa.GSAUtils;
 import org.chromium.chrome.browser.incognito.IncognitoUtils;
 import org.chromium.chrome.browser.lens.LensEntryPoint;
@@ -137,7 +136,6 @@ import java.util.List;
 @DisableFeatures({
     ChromeFeatureList.LENS_OVERLAY_ANDROID,
     ChromeFeatureList.ENABLE_DOWNLOAD_SAVE_AS_CONTEXT_MENU,
-    ChromeFeatureList.CLANK_GLIC_CONTEXT_MENU,
 })
 public class ChromeContextMenuPopulatorTest {
     private static final String DATA_URL = "data:encodedstringblahblah";
@@ -343,7 +341,7 @@ public class ChromeContextMenuPopulatorTest {
         doReturn(false).when(mPopulator).shouldTriggerEphemeralTabHelpUi();
         doReturn(false).when(mPopulator).shouldTriggerReadLaterHelpUi();
         doReturn(true).when(mPopulator).shouldShowEmptySpaceContextMenu();
-        doReturn(false).when(mPopulator).shouldEnableTranslateItem();
+        doReturn(false).when(mPopulator).shouldShowTranslateItem();
         doReturn(true).when(mExternalAuthUtils).isGoogleSigned(IntentHandler.PACKAGE_GSA);
         doReturn(shouldShowDeveloperMenu).when(mPopulator).shouldShowDeveloperMenu();
         doReturn(shouldShowViewPageSourceMenu).when(mPopulator).shouldShowViewPageSourceMenu();
@@ -1169,7 +1167,10 @@ public class ChromeContextMenuPopulatorTest {
     @Test
     @SmallTest
     @UiThreadTest
-    @EnableFeatures(ChromeFeatureList.CONTEXT_MENU_COPY_VIDEO_FRAME_ANDROID)
+    @EnableFeatures({
+        ChromeFeatureList.CONTEXT_MENU_COPY_VIDEO_FRAME_ANDROID,
+        ChromeFeatureList.ENABLE_CLIPBOARD_DATA_CONTROLS_ANDROID
+    })
     @DisableFeatures({
         ChromeFeatureList.CONTEXT_MENU_PICTURE_IN_PICTURE_ANDROID,
         ChromeFeatureList.CONTEXT_MENU_DOWNLOAD_VIDEO_FRAME_ANDROID
@@ -1198,7 +1199,10 @@ public class ChromeContextMenuPopulatorTest {
     @Test
     @SmallTest
     @UiThreadTest
-    @EnableFeatures(ChromeFeatureList.CONTEXT_MENU_COPY_VIDEO_FRAME_ANDROID)
+    @EnableFeatures({
+        ChromeFeatureList.CONTEXT_MENU_COPY_VIDEO_FRAME_ANDROID,
+        ChromeFeatureList.ENABLE_CLIPBOARD_DATA_CONTROLS_ANDROID
+    })
     @DisableFeatures({
         ChromeFeatureList.CONTEXT_MENU_PICTURE_IN_PICTURE_ANDROID,
         ChromeFeatureList.CONTEXT_MENU_DOWNLOAD_VIDEO_FRAME_ANDROID
@@ -2610,12 +2614,10 @@ public class ChromeContextMenuPopulatorTest {
                 R.id.contextmenu_open_in_reading_mode,
             },
             {R.id.contextmenu_send_tab_to_self, R.id.contextmenu_create_qr_code},
-            {R.id.contextmenu_translate},
         };
-        List<Integer> expectedDisabled = Arrays.asList(R.id.contextmenu_translate);
 
         initializePopulator(ChromeContextMenuPopulator.ContextMenuMode.NORMAL, params);
-        checkMenuOptions(expectedDisabled, expected);
+        checkMenuOptions(expected);
     }
 
     @Test
@@ -2640,14 +2642,11 @@ public class ChromeContextMenuPopulatorTest {
                 R.id.contextmenu_share_page,
                 R.id.contextmenu_open_in_reading_mode,
             },
-            {R.id.contextmenu_send_tab_to_self, R.id.contextmenu_create_qr_code},
-            {R.id.contextmenu_translate},
+            {R.id.contextmenu_create_qr_code},
         };
-        List<Integer> expectedDisabled =
-                Arrays.asList(R.id.contextmenu_send_tab_to_self, R.id.contextmenu_translate);
 
         initializePopulator(ChromeContextMenuPopulator.ContextMenuMode.NORMAL, params);
-        checkMenuOptions(expectedDisabled, expected);
+        checkMenuOptions(expected);
     }
 
     @Test
@@ -2669,16 +2668,14 @@ public class ChromeContextMenuPopulatorTest {
                 R.id.contextmenu_open_in_reading_mode,
             },
             {R.id.contextmenu_send_tab_to_self, R.id.contextmenu_create_qr_code},
-            {R.id.contextmenu_translate},
         };
-        List<Integer> expectedDisabled = Arrays.asList(R.id.contextmenu_translate);
 
         initializePopulator(ChromeContextMenuPopulator.ContextMenuMode.NORMAL, params);
         // Override the default test environment to simulate AGSA not being installed/supported.
         GSAUtils.setFakePassableGsaEnvironmentForTesting(false);
         GSAUtils.setAgsaPackageInfoForTesting(null);
         when(mExternalAuthUtils.isGoogleSigned(anyString())).thenReturn(false);
-        checkMenuOptions(expectedDisabled, expected);
+        checkMenuOptions(expected);
     }
 
     @Test
@@ -2703,7 +2700,7 @@ public class ChromeContextMenuPopulatorTest {
         };
 
         initializePopulator(ChromeContextMenuPopulator.ContextMenuMode.NORMAL, params);
-        doCallRealMethod().when(mPopulator).shouldEnableTranslateItem();
+        doCallRealMethod().when(mPopulator).shouldShowTranslateItem();
         when(mTranslateBridgeMock.canManuallyTranslate(eq(mWebContents), anyBoolean()))
                 .thenReturn(true);
         when(mTranslateBridgeMock.getTargetLanguage(any())).thenReturn("en");
@@ -2729,21 +2726,19 @@ public class ChromeContextMenuPopulatorTest {
                 R.id.contextmenu_open_in_reading_mode,
             },
             {R.id.contextmenu_send_tab_to_self, R.id.contextmenu_create_qr_code},
-            {R.id.contextmenu_translate},
         };
-        List<Integer> expectedDisabled = Arrays.asList(R.id.contextmenu_translate);
 
         initializePopulator(ChromeContextMenuPopulator.ContextMenuMode.NORMAL, params);
-        checkMenuOptions(expectedDisabled, expected);
+        checkMenuOptions(expected);
 
         initializePopulator(ChromeContextMenuPopulator.ContextMenuMode.CUSTOM_TAB, params);
-        checkMenuOptions(expectedDisabled, expected);
+        checkMenuOptions(expected);
 
         initializePopulator(ChromeContextMenuPopulator.ContextMenuMode.WEB_APP, params);
-        checkMenuOptions(expectedDisabled, expected);
+        checkMenuOptions(expected);
 
         initializePopulator(ChromeContextMenuPopulator.ContextMenuMode.NETWORK_BOUND_TAB, params);
-        checkMenuOptions(expectedDisabled, expected);
+        checkMenuOptions(expected);
 
         int[][] expectedThinWebView = {{R.id.contextmenu_reload, R.id.contextmenu_print_page}};
         initializePopulator(ChromeContextMenuPopulator.ContextMenuMode.THIN_WEB_VIEW, params);
@@ -2768,33 +2763,27 @@ public class ChromeContextMenuPopulatorTest {
                 R.id.contextmenu_open_in_reading_mode,
             },
             {R.id.contextmenu_send_tab_to_self, R.id.contextmenu_create_qr_code},
-            {R.id.contextmenu_translate},
         };
 
         // All items are present and enabled.
         initializePopulator(ChromeContextMenuPopulator.ContextMenuMode.NORMAL, params);
-        checkMenuOptions(Arrays.asList(R.id.contextmenu_translate), expected);
+        checkMenuOptions(expected);
 
         // Only back is disabled.
         when(mItemDelegate.canCurrentTabGoBack()).thenReturn(false);
-        List<Integer> expectedDisabled =
-                Arrays.asList(R.id.contextmenu_back, R.id.contextmenu_translate);
+        List<Integer> expectedDisabled = Arrays.asList(R.id.contextmenu_back);
         initializePopulator(ChromeContextMenuPopulator.ContextMenuMode.NORMAL, params);
         checkMenuOptions(expectedDisabled, expected);
 
         // Both back and forward are disabled.
         when(mItemDelegate.canCurrentTabGoForward()).thenReturn(false);
-        expectedDisabled =
-                Arrays.asList(
-                        R.id.contextmenu_back,
-                        R.id.contextmenu_forward,
-                        R.id.contextmenu_translate);
+        expectedDisabled = Arrays.asList(R.id.contextmenu_back, R.id.contextmenu_forward);
         initializePopulator(ChromeContextMenuPopulator.ContextMenuMode.NORMAL, params);
         checkMenuOptions(expectedDisabled, expected);
 
         // Only forward is disabled.
         when(mItemDelegate.canCurrentTabGoBack()).thenReturn(true);
-        expectedDisabled = Arrays.asList(R.id.contextmenu_forward, R.id.contextmenu_translate);
+        expectedDisabled = Arrays.asList(R.id.contextmenu_forward);
         initializePopulator(ChromeContextMenuPopulator.ContextMenuMode.NORMAL, params);
         checkMenuOptions(expectedDisabled, expected);
     }
@@ -2817,22 +2806,20 @@ public class ChromeContextMenuPopulatorTest {
                 R.id.contextmenu_open_in_reading_mode,
             },
             {R.id.contextmenu_send_tab_to_self, R.id.contextmenu_create_qr_code},
-            {R.id.contextmenu_translate},
             {R.id.contextmenu_view_page_source, R.id.contextmenu_inspect_element},
         };
-        List<Integer> expectedDisabled = Arrays.asList(R.id.contextmenu_translate);
 
         initializePopulator(
                 ChromeContextMenuPopulator.ContextMenuMode.NORMAL, params, true, true, true);
-        checkMenuOptions(expectedDisabled, expected);
+        checkMenuOptions(expected);
 
         initializePopulator(
                 ChromeContextMenuPopulator.ContextMenuMode.CUSTOM_TAB, params, true, true, true);
-        checkMenuOptions(expectedDisabled, expected);
+        checkMenuOptions(expected);
 
         initializePopulator(
                 ChromeContextMenuPopulator.ContextMenuMode.WEB_APP, params, true, true, true);
-        checkMenuOptions(expectedDisabled, expected);
+        checkMenuOptions(expected);
 
         initializePopulator(
                 ChromeContextMenuPopulator.ContextMenuMode.NETWORK_BOUND_TAB,
@@ -2840,7 +2827,7 @@ public class ChromeContextMenuPopulatorTest {
                 true,
                 true,
                 true);
-        checkMenuOptions(expectedDisabled, expected);
+        checkMenuOptions(expected);
 
         int[][] expectedThinWebView = {
             {R.id.contextmenu_reload, R.id.contextmenu_print_page},
@@ -2871,10 +2858,8 @@ public class ChromeContextMenuPopulatorTest {
                 R.id.contextmenu_open_in_reading_mode,
             },
             {R.id.contextmenu_send_tab_to_self, R.id.contextmenu_create_qr_code},
-            {R.id.contextmenu_translate},
         };
-        List<Integer> expectedDisabled =
-                Arrays.asList(R.id.contextmenu_save_page, R.id.contextmenu_translate);
+        List<Integer> expectedDisabled = Arrays.asList(R.id.contextmenu_save_page);
 
         initializePopulator(ChromeContextMenuPopulator.ContextMenuMode.NORMAL, params);
         checkMenuOptions(expectedDisabled, expectedPage);
@@ -2906,27 +2891,23 @@ public class ChromeContextMenuPopulatorTest {
             },
             {
                 R.id.contextmenu_save_page,
-                R.id.contextmenu_print_page,
                 R.id.contextmenu_share_page,
                 R.id.contextmenu_open_in_reading_mode,
             },
             {R.id.contextmenu_send_tab_to_self, R.id.contextmenu_create_qr_code},
-            {R.id.contextmenu_translate},
         };
-        List<Integer> expectedDisabled =
-                Arrays.asList(R.id.contextmenu_print_page, R.id.contextmenu_translate);
 
         initializePopulator(
                 ChromeContextMenuPopulator.ContextMenuMode.NORMAL, params, false, false, false);
-        checkMenuOptions(expectedDisabled, expected);
+        checkMenuOptions(expected);
 
         initializePopulator(
                 ChromeContextMenuPopulator.ContextMenuMode.CUSTOM_TAB, params, false, false, false);
-        checkMenuOptions(expectedDisabled, expected);
+        checkMenuOptions(expected);
 
         initializePopulator(
                 ChromeContextMenuPopulator.ContextMenuMode.WEB_APP, params, false, false, false);
-        checkMenuOptions(expectedDisabled, expected);
+        checkMenuOptions(expected);
 
         initializePopulator(
                 ChromeContextMenuPopulator.ContextMenuMode.NETWORK_BOUND_TAB,
@@ -2934,7 +2915,7 @@ public class ChromeContextMenuPopulatorTest {
                 false,
                 false,
                 false);
-        checkMenuOptions(expectedDisabled, expected);
+        checkMenuOptions(expected);
 
         int[][] expectedThinWebView = {
             {R.id.contextmenu_reload},
@@ -2961,18 +2942,13 @@ public class ChromeContextMenuPopulatorTest {
                                 .build()));
         when(mMenuModelBridge.populateModelList()).thenReturn(modelListFromBridge);
         ContextMenuParams params = getHttpLinkParams();
-        initializePopulator(
-                ChromeContextMenuPopulator.ContextMenuMode.NORMAL,
-                params,
-                /* shouldShowDeveloperMenu= */ true,
-                /* shouldShowViewPageSourceMenu= */ false,
-                /* supportPrint= */ true);
+        initializePopulator(ChromeContextMenuPopulator.ContextMenuMode.NORMAL, params);
         List<ModelList> result = mPopulator.buildContextMenu();
-        assertEquals(3, result.size());
+        assertEquals(2, result.size());
         assertEquals(
-                "Expected the group of extension-injected items to come before developer group",
+                "Expected the group of extension-injected items to be the last group",
                 modelListFromBridge,
-                result.get(result.size() - 2));
+                result.get(result.size() - 1));
     }
 
     @Test
@@ -4021,11 +3997,6 @@ public class ChromeContextMenuPopulatorTest {
                                 context, mProfile, ChromeContextMenuItem.Item.SAVE_IMAGE, false)
                         .toString());
         assertEquals(
-                context.getString(R.string.contextmenu_save_page_as),
-                ChromeContextMenuItem.getTitle(
-                                context, mProfile, ChromeContextMenuItem.Item.SAVE_PAGE, false)
-                        .toString());
-        assertEquals(
                 context.getString(R.string.contextmenu_save_link_as),
                 ChromeContextMenuItem.getTitle(
                                 context, mProfile, ChromeContextMenuItem.Item.SAVE_LINK_AS, false)
@@ -4043,136 +4014,5 @@ public class ChromeContextMenuPopulatorTest {
                                 ChromeContextMenuItem.Item.DOWNLOAD_VIDEO_FRAME,
                                 false)
                         .toString());
-    }
-
-    @Test
-    @SmallTest
-    @DisableFeatures(ChromeFeatureList.ENABLE_DOWNLOAD_SAVE_AS_CONTEXT_MENU)
-    public void testSaveAsContextMenuStrings_Disabled() {
-        Context context = ContextUtils.getApplicationContext();
-
-        assertEquals(
-                context.getString(R.string.contextmenu_save_image),
-                ChromeContextMenuItem.getTitle(
-                                context, mProfile, ChromeContextMenuItem.Item.SAVE_IMAGE, false)
-                        .toString());
-        assertEquals(
-                context.getString(R.string.contextmenu_save_page),
-                ChromeContextMenuItem.getTitle(
-                                context, mProfile, ChromeContextMenuItem.Item.SAVE_PAGE, false)
-                        .toString());
-        assertEquals(
-                context.getString(R.string.contextmenu_save_link),
-                ChromeContextMenuItem.getTitle(
-                                context, mProfile, ChromeContextMenuItem.Item.SAVE_LINK_AS, false)
-                        .toString());
-        assertEquals(
-                context.getString(R.string.contextmenu_save_video),
-                ChromeContextMenuItem.getTitle(
-                                context, mProfile, ChromeContextMenuItem.Item.SAVE_VIDEO, false)
-                        .toString());
-    }
-
-    @Test
-    @SmallTest
-    @UiThreadTest
-    @EnableFeatures({ChromeFeatureList.CLANK_GLIC_CONTEXT_MENU, ChromeFeatureList.TAB_BOTTOM_SHEET})
-    @DisableFeatures(ChromeFeatureList.ENABLE_ANDROID_SIDE_PANEL)
-    public void testAskGeminiForLinkEligibleWhenFlagEnabled() {
-        // Bottom sheet (mobile) presentation: side panel disabled.
-        GlicEnabling.setEnabledForTesting(true);
-        ContextMenuParams params = getHttpLinkParams();
-        initializePopulator(ChromeContextMenuPopulator.ContextMenuMode.NORMAL, params);
-        if (!DeviceInfo.isAutomotive()) {
-            assertTrue(mPopulator.shouldShowAskGeminiForLink());
-        }
-    }
-
-    @Test
-    @SmallTest
-    @UiThreadTest
-    @DisableFeatures(ChromeFeatureList.CLANK_GLIC_CONTEXT_MENU)
-    public void testAskGeminiForLinkIneligibleWhenFlagDisabled() {
-        ContextMenuParams params = getHttpLinkParams();
-        initializePopulator(ChromeContextMenuPopulator.ContextMenuMode.NORMAL, params);
-        assertFalse(mPopulator.shouldShowAskGeminiForLink());
-    }
-
-    @Test
-    @SmallTest
-    @UiThreadTest
-    @EnableFeatures(ChromeFeatureList.CLANK_GLIC_CONTEXT_MENU)
-    @DisableFeatures({
-        ChromeFeatureList.ENABLE_ANDROID_SIDE_PANEL,
-        ChromeFeatureList.TAB_BOTTOM_SHEET
-    })
-    public void testAskGeminiForLinkIneligibleWhenBottomSheetDisabled() {
-        // Neither side panel (desktop Android) nor bottom sheet (mobile) available.
-        GlicEnabling.setEnabledForTesting(true);
-        ContextMenuParams params = getHttpLinkParams();
-        initializePopulator(ChromeContextMenuPopulator.ContextMenuMode.NORMAL, params);
-        assertFalse(mPopulator.shouldShowAskGeminiForLink());
-    }
-
-    @Test
-    @SmallTest
-    @UiThreadTest
-    @EnableFeatures({
-        ChromeFeatureList.CLANK_GLIC_CONTEXT_MENU,
-        ChromeFeatureList.ENABLE_ANDROID_SIDE_PANEL
-    })
-    public void testAskGeminiForLinkEligibleOnDesktopSidePanel() {
-        // Side panel (desktop Android) presentation.
-        GlicEnabling.setEnabledForTesting(true);
-        ContextMenuParams params = getHttpLinkParams();
-        initializePopulator(ChromeContextMenuPopulator.ContextMenuMode.NORMAL, params);
-        if (!DeviceInfo.isAutomotive()) {
-            assertTrue(mPopulator.shouldShowAskGeminiForLink());
-        }
-    }
-
-    @Test
-    @SmallTest
-    @UiThreadTest
-    @EnableFeatures({
-        ChromeFeatureList.CLANK_GLIC_CONTEXT_MENU + ":show_on_page/true",
-        ChromeFeatureList.ENABLE_ANDROID_SIDE_PANEL
-    })
-    public void testAskGeminiForPageEligibleOnDesktopSidePanel() {
-        // Side panel (desktop Android) presentation with the page param on.
-        GlicEnabling.setEnabledForTesting(true);
-        ContextMenuParams params = getPageParams();
-        initializePopulator(ChromeContextMenuPopulator.ContextMenuMode.NORMAL, params);
-        if (!DeviceInfo.isAutomotive()) {
-            assertTrue(mPopulator.shouldShowAskGeminiForPage());
-        }
-    }
-
-    @Test
-    @SmallTest
-    @UiThreadTest
-    @EnableFeatures(ChromeFeatureList.CLANK_GLIC_CONTEXT_MENU + ":show_on_page/true")
-    @DisableFeatures(ChromeFeatureList.ENABLE_ANDROID_SIDE_PANEL)
-    public void testAskGeminiForPageIneligibleOnMobile() {
-        // Page entry is desktop-Android (side panel) only.
-        GlicEnabling.setEnabledForTesting(true);
-        ContextMenuParams params = getPageParams();
-        initializePopulator(ChromeContextMenuPopulator.ContextMenuMode.NORMAL, params);
-        assertFalse(mPopulator.shouldShowAskGeminiForPage());
-    }
-
-    @Test
-    @SmallTest
-    @UiThreadTest
-    @EnableFeatures({
-        ChromeFeatureList.CLANK_GLIC_CONTEXT_MENU,
-        ChromeFeatureList.ENABLE_ANDROID_SIDE_PANEL
-    })
-    public void testAskGeminiForPageIneligibleWhenPageParamDisabled() {
-        // Feature on but show_on_page defaults to false.
-        GlicEnabling.setEnabledForTesting(true);
-        ContextMenuParams params = getPageParams();
-        initializePopulator(ChromeContextMenuPopulator.ContextMenuMode.NORMAL, params);
-        assertFalse(mPopulator.shouldShowAskGeminiForPage());
     }
 }

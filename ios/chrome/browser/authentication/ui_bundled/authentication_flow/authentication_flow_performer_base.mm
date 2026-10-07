@@ -41,6 +41,7 @@
 #import "ios/chrome/browser/policy/model/management_state.h"
 #import "ios/chrome/browser/policy/ui_bundled/management_util.h"
 #import "ios/chrome/browser/shared/coordinator/alert/action_sheet_coordinator.h"
+#import "ios/chrome/browser/shared/coordinator/scene/scene_controller.h"
 #import "ios/chrome/browser/shared/coordinator/scene/scene_state.h"
 #import "ios/chrome/browser/shared/model/browser/browser.h"
 #import "ios/chrome/browser/shared/model/browser/browser_provider.h"
@@ -97,7 +98,7 @@ void HandleSignoutForSnackbar(
     return;
   }
   // The regular browser should be used to execute the signout.
-  CHECK_EQ(browser->type(), Browser::Type::kRegular);
+  CHECK_EQ(browser->type(), Browser::Type::kRegular, base::NotFatalUntil::M145);
 
   base::RecordAction(
       base::UserMetricsAction("Mobile.Signin.SnackbarUndoTapped"));
@@ -193,9 +194,9 @@ void CompletePostSignInActions(PostSignInActionSet post_signin_actions,
                                id<SystemIdentity> identity,
                                Browser* browser,
                                signin_metrics::AccessPoint access_point) {
-  CHECK(browser);
+  CHECK(browser, base::NotFatalUntil::M145);
   // Sign-in related work should be done on regular browser.
-  CHECK_EQ(browser->type(), Browser::Type::kRegular);
+  CHECK_EQ(browser->type(), Browser::Type::kRegular, base::NotFatalUntil::M145);
   ProfileIOS* profile = browser->GetProfile()->GetOriginalProfile();
   syncer::SyncService* sync_service =
       SyncServiceFactory::GetForProfile(profile);
@@ -309,7 +310,7 @@ void CompletePostSignInActions(PostSignInActionSet post_signin_actions,
                         browser:(Browser*)browser {
   CHECK(browser, base::NotFatalUntil::M150);
   // Sign-in related work should be done on regular browser.
-  CHECK_EQ(browser->type(), Browser::Type::kRegular);
+  CHECK_EQ(browser->type(), Browser::Type::kRegular, base::NotFatalUntil::M145);
   [self checkNoDialog];
 
   base::RecordAction(base::UserMetricsAction(

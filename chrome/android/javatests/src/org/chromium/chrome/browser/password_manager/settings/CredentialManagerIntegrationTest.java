@@ -52,7 +52,7 @@ import org.chromium.chrome.browser.password_manager.PasswordCheckupClientHelperF
 import org.chromium.chrome.browser.password_manager.PasswordManagerBackendSupportHelper;
 import org.chromium.chrome.browser.safety_check.SafetyCheckSettingsFragment;
 import org.chromium.chrome.browser.settings.MainSettings;
-import org.chromium.chrome.browser.settings.SettingsTestRule;
+import org.chromium.chrome.browser.settings.SettingsActivityTestRule;
 import org.chromium.chrome.browser.sync.SyncTestRule;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.components.signin.base.AccountInfo;
@@ -72,12 +72,12 @@ public class CredentialManagerIntegrationTest {
     @Rule public SyncTestRule mSyncTestRule = new SyncTestRule();
 
     @Rule
-    public SettingsTestRule<MainSettings> mSettingsActivityTestRule =
-            new SettingsTestRule<>(MainSettings.class);
+    public SettingsActivityTestRule<MainSettings> mSettingsActivityTestRule =
+            new SettingsActivityTestRule<>(MainSettings.class);
 
     @Rule
-    public SettingsTestRule<SafetyCheckSettingsFragment> mSafetyCheckActivityTestRule =
-            new SettingsTestRule<>(SafetyCheckSettingsFragment.class);
+    public SettingsActivityTestRule<SafetyCheckSettingsFragment> mSafetyCheckActivityTestRule =
+            new SettingsActivityTestRule<>(SafetyCheckSettingsFragment.class);
 
     private final FakeCredentialManagerLauncherFactoryImpl mFakeLauncherFactory =
             new FakeCredentialManagerLauncherFactoryImpl();

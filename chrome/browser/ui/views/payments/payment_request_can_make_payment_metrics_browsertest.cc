@@ -5,12 +5,10 @@
 #include <vector>
 
 #include "base/test/metrics/histogram_tester.h"
-#include "base/test/scoped_feature_list.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/views/payments/payment_request_browsertest_base.h"
 #include "chrome/browser/ui/views/payments/payment_request_dialog_view_ids.h"
 #include "chrome/test/base/ui_test_utils.h"
-#include "components/payments/core/features.h"
 #include "components/payments/core/journey_logger.h"
 #include "content/public/test/browser_test.h"
 #include "content/public/test/browser_test_utils.h"
@@ -38,9 +36,7 @@ class PaymentRequestCanMakePaymentMetricsTest
 
  protected:
   PaymentRequestCanMakePaymentMetricsTest()
-      : nickpay_server_(net::EmbeddedTestServer::TYPE_HTTPS) {
-    SetBypassUserInteractionForTesting();
-  }
+      : nickpay_server_(net::EmbeddedTestServer::TYPE_HTTPS) {}
 
   void SetUpOnMainThread() override {
     PaymentRequestBrowserTestBase::SetUpOnMainThread();
@@ -67,9 +63,9 @@ class PaymentRequestCanMakePaymentMetricsTest
                                  DialogEvent::CAN_MAKE_PAYMENT_RETURNED,
                                  DialogEvent::HAS_ENROLLED_INSTRUMENT_CALLED,
                                  DialogEvent::HAS_ENROLLED_INSTRUMENT_RETURNED,
-                                 DialogEvent::LOADING_VIEW_SHOWN,
-                                 DialogEvent::DIALOG_OPENED,
-                                 DialogEvent::LOADING_VIEW_HIDDEN});
+                                 DialogEvent::PROCESSING_SPINNER_SHOWN,
+                                 DialogEvent::PROCESSING_SPINNER_HIDDEN,
+                                 DialogEvent::DIALOG_OPENED});
     ASSERT_EQ("success",
               content::EvalJs(GetActiveWebContents(),
                               content::JsReplace(
@@ -109,10 +105,6 @@ class PaymentRequestCanMakePaymentMetricsTest
   }
 
   net::EmbeddedTestServer nickpay_server_;
-
- private:
-  base::test::ScopedFeatureList feature_list_{
-      features::kPaymentRequestMandatoryPaymentAppUi};
 };
 
 IN_PROC_BROWSER_TEST_F(PaymentRequestCanMakePaymentMetricsTest,
@@ -199,9 +191,9 @@ IN_PROC_BROWSER_TEST_F(PaymentRequestCanMakePaymentMetricsTest,
                                DialogEvent::CAN_MAKE_PAYMENT_RETURNED,
                                DialogEvent::HAS_ENROLLED_INSTRUMENT_CALLED,
                                DialogEvent::HAS_ENROLLED_INSTRUMENT_RETURNED,
-                               DialogEvent::LOADING_VIEW_SHOWN,
-                               DialogEvent::DIALOG_OPENED,
-                               DialogEvent::LOADING_VIEW_HIDDEN});
+                               DialogEvent::PROCESSING_SPINNER_SHOWN,
+                               DialogEvent::PROCESSING_SPINNER_HIDDEN,
+                               DialogEvent::DIALOG_OPENED});
   // Install payment apps JIT, so HasEnrolledInstrument returns false.
   ASSERT_EQ("success",
             content::EvalJs(
@@ -216,7 +208,7 @@ IN_PROC_BROWSER_TEST_F(PaymentRequestCanMakePaymentMetricsTest,
   base::RunLoop().RunUntilIdle();
 
   ResetEventWaiterForSequence(
-      {DialogEvent::LOADING_VIEW_SHOWN, DialogEvent::DIALOG_CLOSED});
+      {DialogEvent::PROCESSING_SPINNER_SHOWN, DialogEvent::DIALOG_CLOSED});
   ClickOnDialogViewAndWait(DialogViewID::PAY_BUTTON, dialog_view());
 
   // Make sure the correct events were logged.
@@ -248,9 +240,9 @@ IN_PROC_BROWSER_TEST_F(PaymentRequestCanMakePaymentMetricsTest,
                                DialogEvent::CAN_MAKE_PAYMENT_RETURNED,
                                DialogEvent::HAS_ENROLLED_INSTRUMENT_CALLED,
                                DialogEvent::HAS_ENROLLED_INSTRUMENT_RETURNED,
-                               DialogEvent::LOADING_VIEW_SHOWN,
-                               DialogEvent::DIALOG_OPENED,
-                               DialogEvent::LOADING_VIEW_HIDDEN});
+                               DialogEvent::PROCESSING_SPINNER_SHOWN,
+                               DialogEvent::PROCESSING_SPINNER_HIDDEN,
+                               DialogEvent::DIALOG_OPENED});
   // Install payment apps JIT, so HasEnrolledInstrument returns false.
   ASSERT_EQ("success",
             content::EvalJs(
@@ -301,9 +293,9 @@ IN_PROC_BROWSER_TEST_F(PaymentRequestCanMakePaymentMetricsTest,
                                DialogEvent::CAN_MAKE_PAYMENT_RETURNED,
                                DialogEvent::HAS_ENROLLED_INSTRUMENT_CALLED,
                                DialogEvent::HAS_ENROLLED_INSTRUMENT_RETURNED,
-                               DialogEvent::LOADING_VIEW_SHOWN,
-                               DialogEvent::DIALOG_OPENED,
-                               DialogEvent::LOADING_VIEW_HIDDEN});
+                               DialogEvent::PROCESSING_SPINNER_SHOWN,
+                               DialogEvent::PROCESSING_SPINNER_HIDDEN,
+                               DialogEvent::DIALOG_OPENED});
   // Install payment apps JIT, so HasEnrolledInstrument returns false.
   ASSERT_EQ("success",
             content::EvalJs(
@@ -431,7 +423,7 @@ IN_PROC_BROWSER_TEST_F(PaymentRequestCanMakePaymentMetricsTest,
 
   // Complete the Payment Request.
   ResetEventWaiterForSequence(
-      {DialogEvent::LOADING_VIEW_SHOWN, DialogEvent::DIALOG_CLOSED});
+      {DialogEvent::PROCESSING_SPINNER_SHOWN, DialogEvent::DIALOG_CLOSED});
   ClickOnDialogViewAndWait(DialogViewID::PAY_BUTTON, dialog_view());
 
   // Make sure that no canMakePayment events were logged.

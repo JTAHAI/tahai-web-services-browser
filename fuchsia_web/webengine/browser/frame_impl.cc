@@ -14,7 +14,6 @@
 
 #include <algorithm>
 #include <limits>
-#include <utility>
 
 #include "base/command_line.h"
 #include "base/fuchsia/fuchsia_component_connect.h"
@@ -288,24 +287,18 @@ std::optional<url::Origin> ParseAndValidateWebOrigin(
   return origin;
 }
 
-int GetEffectFlagsForRenderUsage(fuchsia::media::AudioRenderUsage2 usage) {
+int GetEffectFlagsForRenderUsage(fuchsia::media::AudioRenderUsage usage) {
   switch (usage) {
-    case fuchsia::media::AudioRenderUsage2::BACKGROUND:
+    case fuchsia::media::AudioRenderUsage::BACKGROUND:
       return media::AudioParameters::FUCHSIA_RENDER_USAGE_BACKGROUND;
-    case fuchsia::media::AudioRenderUsage2::MEDIA:
+    case fuchsia::media::AudioRenderUsage::MEDIA:
       return media::AudioParameters::FUCHSIA_RENDER_USAGE_MEDIA;
-    case fuchsia::media::AudioRenderUsage2::INTERRUPTION:
+    case fuchsia::media::AudioRenderUsage::INTERRUPTION:
       return media::AudioParameters::FUCHSIA_RENDER_USAGE_INTERRUPTION;
-    case fuchsia::media::AudioRenderUsage2::SYSTEM_AGENT:
+    case fuchsia::media::AudioRenderUsage::SYSTEM_AGENT:
       return media::AudioParameters::FUCHSIA_RENDER_USAGE_SYSTEM_AGENT;
-    case fuchsia::media::AudioRenderUsage2::COMMUNICATION:
+    case fuchsia::media::AudioRenderUsage::COMMUNICATION:
       return media::AudioParameters::FUCHSIA_RENDER_USAGE_COMMUNICATION;
-    case fuchsia::media::AudioRenderUsage2::ACCESSIBILITY:
-      return media::AudioParameters::FUCHSIA_RENDER_USAGE_ACCESSIBILITY;
-    default:
-      LOG(WARNING) << "Unknown AudioRenderUsage2: "
-                   << static_cast<uint32_t>(usage);
-      return media::AudioParameters::FUCHSIA_RENDER_USAGE_UNKNOWN;
   }
 }
 
@@ -319,7 +312,7 @@ class AudioStreamBrokerFactory final
     DCHECK_CURRENTLY_ON(content::BrowserThread::IO);
   }
 
-  base::RepeatingCallback<void(fuchsia::media::AudioRenderUsage2 output_usage)>
+  base::RepeatingCallback<void(fuchsia::media::AudioRenderUsage output_usage)>
   GetSetOutputUsagerCallback() {
     DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
     return base::BindRepeating(
@@ -394,7 +387,7 @@ class AudioStreamBrokerFactory final
  private:
   static void SetOutputUsageOnUIThread(
       base::WeakPtr<AudioStreamBrokerFactory> factory,
-      fuchsia::media::AudioRenderUsage2 output_usage) {
+      fuchsia::media::AudioRenderUsage output_usage) {
     DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
     content::GetIOThreadTaskRunner({})->PostTask(
         FROM_HERE,
@@ -402,13 +395,13 @@ class AudioStreamBrokerFactory final
                        factory, output_usage));
   }
 
-  void SetOutputUsageOnIOThread(fuchsia::media::AudioRenderUsage2 output_usage) {
+  void SetOutputUsageOnIOThread(fuchsia::media::AudioRenderUsage output_usage) {
     DCHECK_CURRENTLY_ON(content::BrowserThread::IO);
     output_usage_ = output_usage;
   }
 
   std::unique_ptr<content::AudioStreamBrokerFactory> base_factory_;
-  std::optional<fuchsia::media::AudioRenderUsage2> output_usage_;
+  std::optional<fuchsia::media::AudioRenderUsage> output_usage_;
   base::WeakPtrFactory<AudioStreamBrokerFactory> weak_factory_{this};
 };
 
@@ -1250,9 +1243,9 @@ void FrameImpl::SetMediaSettings(
               perfetto::Flow::FromPointer(this));
 
   media_settings_ = std::move(media_settings);
-  if (media_settings_.has_renderer_usage2() &&
+  if (media_settings_.has_renderer_usage() &&
       set_audio_output_usage_callback_) {
-    set_audio_output_usage_callback_.Run(media_settings_.renderer_usage2());
+    set_audio_output_usage_callback_.Run(media_settings_.renderer_usage());
   }
 }
 
@@ -1596,8 +1589,8 @@ FrameImpl::CreateAudioStreamBrokerFactory(content::WebContents* web_contents) {
 
   // Save callback to use to pass renderer usage to the factory in the future.
   set_audio_output_usage_callback_ = result->GetSetOutputUsagerCallback();
-  if (media_settings_.has_renderer_usage2())
-    set_audio_output_usage_callback_.Run(media_settings_.renderer_usage2());
+  if (media_settings_.has_renderer_usage())
+    set_audio_output_usage_callback_.Run(media_settings_.renderer_usage());
 
   return result;
 }

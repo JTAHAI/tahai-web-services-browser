@@ -124,9 +124,6 @@ DeviceLocalAccountPolicyService::~DeviceLocalAccountPolicyService() {
 }
 
 void DeviceLocalAccountPolicyService::Shutdown() {
-  local_accounts_subscription_ = {};
-  weak_factory_.InvalidateWeakPtrs();
-
   session_manager_client_ = nullptr;
   device_settings_service_ = nullptr;
   cros_settings_ = nullptr;
@@ -136,14 +133,7 @@ void DeviceLocalAccountPolicyService::Shutdown() {
   // may be destroyed sooner than `DeviceLocalAccountPolicyService`.
   invalidation_listener_ = nullptr;
 
-  // Shut down extension caches without marking them as obsolete or deleting
-  // the on-disk cache directories.
-  for (auto& [user_id, broker] : policy_brokers_) {
-    if (broker->IsCacheRunning()) {
-      broker->StopCache(base::DoNothing());
-    }
-  }
-  policy_brokers_.clear();
+  DeleteBrokers(&policy_brokers_);
 }
 
 void DeviceLocalAccountPolicyService::Connect(

@@ -28,7 +28,7 @@ enum class ToastId {
   kNonMilestoneUpdate = 5,
   // kAddedToComparisonTable = 6,
   kClearBrowsingData = 7,
-  // kPlusAddressOverride = 8,
+  kPlusAddressOverride = 8,
   kSyncEsbOn = 9,
   kSyncEsbOnWithoutActionButton = 10,
   kSyncEsbOff = 11,
@@ -75,9 +75,7 @@ enum class ToastId {
   kEnterpriseCopyBlocked = 52,
   kIndigoDeleteError = 53,
   kIndigoDeleteSuccess = 54,
-  kAtMemorySpiiFetchErrorMessage = 55,
-  kDictationNoMicrophoneError = 56,
-  kMaxValue = kDictationNoMicrophoneError,
+  kMaxValue = kIndigoDeleteSuccess,
 };
 // LINT.ThenChange(/tools/metrics/histograms/metadata/toasts/enums.xml:ToastId)
 

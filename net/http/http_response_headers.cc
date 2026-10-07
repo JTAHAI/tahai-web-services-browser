@@ -1135,28 +1135,20 @@ bool HttpResponseHeaders::HasStorageAccessRetryHeader(
   }
   const std::optional<structured_headers::ParameterizedItem> item =
       structured_headers::ParseItem(*header_value);
-  if (!item) {
-    return false;
-  }
-  if (const std::string* token = item->item.GetIfToken();
-      !token || *token != "retry") {
+  if (!item || !item->item.is_token() || item->item.GetString() != "retry") {
     return false;
   }
   return std::ranges::any_of(
       item->params, [&](const auto& key_and_value) -> bool {
-        const auto& [key, value] = key_and_value;
+        const auto [key, value] = key_and_value;
         if (key != "allowed-origin") {
           return false;
         }
-        if (const std::string* token = value.GetIfToken();
-            token && *token == "*") {
+        if (value.is_token() && value.GetString() == "*") {
           return true;
         }
-        if (!expected_origin) {
-          return false;
-        }
-        const std::string* string = value.GetIfString();
-        return string && *string == *expected_origin;
+        return expected_origin && value.is_string() &&
+               value.GetString() == *expected_origin;
       });
 }
 

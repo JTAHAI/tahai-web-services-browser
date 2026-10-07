@@ -38,9 +38,9 @@ import org.chromium.chrome.R;
 import org.chromium.chrome.browser.app.ChromeActivity;
 import org.chromium.chrome.browser.omnibox.LocationBarCoordinator;
 import org.chromium.chrome.browser.profiles.ProfileManager;
+import org.chromium.chrome.browser.tab.EmptyTabObserver;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.Tab.LoadUrlResult;
-import org.chromium.chrome.browser.tab.TabObserver;
 import org.chromium.chrome.test.ChromeActivityTestRule;
 import org.chromium.chrome.test.ChromeTabbedActivityTestRule;
 import org.chromium.components.browser_ui.modaldialog.ModalDialogView;
@@ -52,6 +52,7 @@ import org.chromium.components.messages.MessagesTestHelper;
 import org.chromium.components.permissions.PermissionDialogController;
 import org.chromium.components.user_prefs.UserPrefs;
 import org.chromium.content_public.browser.WebContents;
+import org.chromium.content_public.browser.test.util.TouchCommon;
 import org.chromium.net.test.EmbeddedTestServer;
 import org.chromium.net.test.EmbeddedTestServerRule;
 import org.chromium.ui.base.WindowAndroid;
@@ -184,7 +185,7 @@ public class PermissionTestRule implements TestRule {
      * Waits till a JavaScript callback which updates the page title is called the specified number
      * of times. The page title is expected to be of the form <prefix>: <count>.
      */
-    public static class PermissionUpdateWaiter implements TabObserver {
+    public static class PermissionUpdateWaiter extends EmptyTabObserver {
         private final CallbackHelper mCallbackHelper;
         private final String mPrefix;
         private String mExpectedTitle;
@@ -373,8 +374,13 @@ public class PermissionTestRule implements TestRule {
             setUpUrl(url);
         }
 
+        // Inject a click handler to satisfy the User Gesture requirement.
+        runJavaScriptCodeInCurrentTab(
+                "window.onclick = function() { if (window.functionToRun) {"
+                        + " eval(window.functionToRun); } };");
+
         // Trigger notification permission with a gesture.
-        runJavaScriptCodeWithUserGestureInCurrentTab("Notification.requestPermission()");
+        runJavaScriptCodeInCurrentTabWithGesture("Notification.requestPermission()");
     }
 
     /** Waits for the Page Info UI to be opened. */
@@ -625,7 +631,7 @@ public class PermissionTestRule implements TestRule {
             throws Exception {
         setUpUrl(url);
         if (withGesture) {
-            runJavaScriptCodeWithUserGestureInCurrentTab(javascript);
+            runJavaScriptCodeInCurrentTabWithGesture(javascript);
         } else {
             runJavaScriptCodeInCurrentTab(javascript);
         }
@@ -653,7 +659,7 @@ public class PermissionTestRule implements TestRule {
             throws Exception {
         setUpUrl(url);
         if (withGesture) {
-            runJavaScriptCodeWithUserGestureInCurrentTab(javascript);
+            runJavaScriptCodeInCurrentTabWithGesture(javascript);
         } else {
             runJavaScriptCodeInCurrentTab(javascript);
         }
@@ -681,7 +687,7 @@ public class PermissionTestRule implements TestRule {
             throws Exception {
         setUpUrl(url);
         if (withGesture) {
-            runJavaScriptCodeWithUserGestureInCurrentTab(javascript);
+            runJavaScriptCodeInCurrentTabWithGesture(javascript);
         } else {
             runJavaScriptCodeInCurrentTab(javascript);
         }
@@ -702,6 +708,12 @@ public class PermissionTestRule implements TestRule {
         Assert.assertFalse(
                 "Modal permission prompt shown when none expected",
                 PermissionDialogController.getInstance().isDialogShownForTest());
+    }
+
+    public void runJavaScriptCodeInCurrentTabWithGesture(String javascript)
+            throws TimeoutException {
+        runJavaScriptCodeInCurrentTab("functionToRun = '" + javascript + "'");
+        TouchCommon.singleClickView(getActivityTab().getView());
     }
 
     /**

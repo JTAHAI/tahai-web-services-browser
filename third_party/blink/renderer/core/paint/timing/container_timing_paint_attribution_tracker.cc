@@ -28,7 +28,8 @@ ContainerTimingPaintAttributionTracker::UpdateOnPrePaint(
   const bool has_container_timing =
       element && element->FastHasAttribute(html_names::kContainertimingAttr);
   const bool has_ignore =
-      element && element->HasContainerTimingIgnoreAttribute();
+      element &&
+      element->FastHasAttribute(html_names::kContainertimingIgnoreAttr);
   if (element) {
     if (has_container_timing) {
       container_root_parents_.Set(
@@ -39,7 +40,7 @@ ContainerTimingPaintAttributionTracker::UpdateOnPrePaint(
       // the element was never a root, which is the common case.
       container_root_parents_.erase(element);
       if (has_ignore) {
-        // containertimingignore without containertiming stops propagation:
+        // containertiming-ignore without containertiming stops propagation:
         // this element (and its descendants, via kStopPropagation below) must
         // not be attributed to ancestor roots. Clearing the context here also
         // ensures the leaf-marking step erases any stale mapping when the

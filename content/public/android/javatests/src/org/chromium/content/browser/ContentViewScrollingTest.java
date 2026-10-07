@@ -275,19 +275,19 @@ public class ContentViewScrollingTest {
         int velocity = (int) (1000 * deviceScaleFactor);
         // Expected total fling distance calculated by FlingCurve with initial
         // velocity 1000.
-        int expectedDist = (int) (194 * deviceScaleFactor);
+        int expected_dist = (int) (194 * deviceScaleFactor);
 
         // Vertical fling to lower-left.
         fling(0, -velocity);
-        waitForScrollToPosition(0, expectedDist);
+        waitForScrollToPosition(0, expected_dist);
 
         // Horizontal fling to lower-right.
         fling(-velocity, 0);
-        waitForScrollToPosition(expectedDist, expectedDist);
+        waitForScrollToPosition(expected_dist, expected_dist);
 
         // Vertical fling to upper-right.
         fling(0, velocity);
-        waitForScrollToPosition(expectedDist, 0);
+        waitForScrollToPosition(expected_dist, 0);
 
         // Horizontal fling to top-left.
         fling(velocity, 0);

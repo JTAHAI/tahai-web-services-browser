@@ -35,7 +35,7 @@ class SelectType : public GarbageCollected<SelectType> {
   virtual void DidBlur() = 0;
   virtual void DidDetachLayoutTree();
   virtual void DidRecalcStyle(const StyleRecalcChange change);
-  virtual void DidSetSuggestedOption(HTMLOptionElement* option);
+  virtual void DidSetSuggestedOption(HTMLOptionElement* option) = 0;
   virtual void SaveLastSelection() = 0;
 
   // Update style of text in the CSS box on style or selected OPTION change.
@@ -72,7 +72,7 @@ class SelectType : public GarbageCollected<SelectType> {
   virtual bool PickerIsPopover() const = 0;
   virtual void SetIsAppearanceBasePickerForDisplayNone(bool) = 0;
   virtual HTMLSelectElement::SelectAutofillPreviewElement*
-  GetAutofillPreviewElement() const;
+  GetAutofillPreviewElement() const = 0;
   virtual Element& InnerElement() const;
   virtual void ShowPopup(PopupMenu::ShowEventType type);
   virtual void HidePopup(SelectPopupHideBehavior);
@@ -95,11 +95,7 @@ class SelectType : public GarbageCollected<SelectType> {
                                      SkipDirection direction,
                                      int skip) const;
 
-  void CreateAutofillPopover(ShadowRoot& root);
-
   const Member<HTMLSelectElement> select_;
-  Member<HTMLSelectElement::SelectAutofillPreviewElement> autofill_popover_;
-  Member<HTMLDivElement> autofill_popover_text_;
   bool will_be_destroyed_ = false;
 
  private:

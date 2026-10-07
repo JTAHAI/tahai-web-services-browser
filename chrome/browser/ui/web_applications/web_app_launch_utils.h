@@ -14,6 +14,8 @@
 #include "base/functional/callback_helpers.h"
 #include "base/memory/stack_allocated.h"
 #include "base/time/time.h"
+#include "base/values.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/web_applications/web_app_ui_manager.h"
 #include "components/services/app_service/public/cpp/app_launch_util.h"
 #include "components/webapps/common/web_app_id.h"
@@ -21,7 +23,7 @@
 #include "ui/gfx/geometry/rect.h"
 
 class Profile;
-struct BrowserWindowCreateParams;
+class Browser;
 class BrowserWindowInterface;
 class GURL;
 enum class WindowOpenDisposition;
@@ -58,8 +60,7 @@ enum class LaunchedAppType {
   kMaxValue = kCrafted,
 };
 
-std::optional<webapps::AppId> GetWebAppForActiveTab(
-    const BrowserWindowInterface* browser);
+std::optional<webapps::AppId> GetWebAppForActiveTab(const Browser* browser);
 
 // Clears navigation history prior to user entering app scope.
 void PrunePreScopeNavigationHistory(const GURL& scope,
@@ -68,8 +69,7 @@ void PrunePreScopeNavigationHistory(const GURL& scope,
 // Invokes ReparentWebContentsIntoAppBrowser() for the active tab for the
 // web app that has the tab's URL in its scope. Does nothing if there is no web
 // app in scope.
-BrowserWindowInterface* ReparentWebAppForActiveTab(
-    BrowserWindowInterface* browser);
+BrowserWindowInterface* ReparentWebAppForActiveTab(Browser* browser);
 
 // Reparents `contents` into a standalone web app window for `app_id`.
 // - If the web app has a launch_handler set to reuse existing windows and there
@@ -104,20 +104,20 @@ void MaybeAddPinnedHomeTab(BrowserWindowInterface* browser,
 // the IPH is permitted to show).
 void MaybeShowNavigationCaptureIph(webapps::AppId app_id,
                                    Profile* profile,
-                                   BrowserWindowInterface* browser);
+                                   Browser* browser);
 
 // This creates appropriate CreateParams for creating a PWA window or PWA popup
 // window.
-BrowserWindowCreateParams CreateParamsForApp(const webapps::AppId& app_id,
-                                             bool is_popup,
-                                             bool trusted_source,
-                                             const gfx::Rect& window_bounds,
-                                             Profile* profile,
-                                             bool user_gesture);
+Browser::CreateParams CreateParamsForApp(const webapps::AppId& app_id,
+                                         bool is_popup,
+                                         bool trusted_source,
+                                         const gfx::Rect& window_bounds,
+                                         Profile* profile,
+                                         bool user_gesture);
 
-BrowserWindowInterface* CreateWebAppWindowMaybeWithHomeTab(
+Browser* CreateWebAppWindowMaybeWithHomeTab(
     const webapps::AppId& app_id,
-    BrowserWindowCreateParams params);
+    const Browser::CreateParams& params);
 
 // Report UMA metrics and updates  app's last launch time, site engagement
 // stats, etc.

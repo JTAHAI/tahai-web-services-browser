@@ -4,7 +4,6 @@
 
 #include "third_party/blink/renderer/core/layout/grid/grid_layout_utils.h"
 
-#include "third_party/blink/renderer/core/frame/web_feature.h"
 #include "third_party/blink/renderer/core/layout/block_node.h"
 #include "third_party/blink/renderer/core/layout/box_fragment_builder.h"
 #include "third_party/blink/renderer/core/layout/constraint_space.h"
@@ -24,7 +23,6 @@
 #include "third_party/blink/renderer/core/layout/length_utils.h"
 #include "third_party/blink/renderer/core/layout/logical_box_fragment.h"
 #include "third_party/blink/renderer/core/style/grid_track_list.h"
-#include "third_party/blink/renderer/platform/instrumentation/use_counter.h"
 
 namespace blink {
 
@@ -141,27 +139,6 @@ void SetTrackBaseline(const GridItemData& grid_item,
   }
 }
 
-LayoutUnit GetExtraMarginForBaseline(const BoxStrut& margins,
-                                     const SubgriddedItemData& subgridded_item,
-                                     GridTrackSizingDirection track_direction,
-                                     WritingMode writing_mode) {
-  const auto& track_collection = (track_direction == kForColumns)
-                                     ? subgridded_item.Columns(writing_mode)
-                                     : subgridded_item.Rows(writing_mode);
-  const auto& [begin_set_index, end_set_index] =
-      subgridded_item->SetIndices(track_collection.Direction());
-
-  const LayoutUnit subgrid_extra_margin =
-      (subgridded_item->BaselineGroup(track_direction) == BaselineGroup::kMajor)
-          ? track_collection.StartExtraMargin(begin_set_index)
-          : track_collection.EndExtraMargin(end_set_index);
-
-  return subgrid_extra_margin +
-         (subgridded_item->IsLastBaselineSpecified(track_direction)
-              ? margins.block_end
-              : margins.block_start);
-}
-
 void StoreItemBaseline(const LogicalBoxFragment& baseline_fragment,
                        GridTrackSizingDirection track_direction,
                        FontBaseline font_baseline,
@@ -178,33 +155,6 @@ void StoreItemBaseline(const LogicalBoxFragment& baseline_fragment,
   const LayoutUnit total_baseline = extra_margin + item_baseline;
 
   SetTrackBaseline(item, track_direction, total_baseline, layout_data);
-}
-
-void MeasureAndStoreItemBaseline(const LayoutResult& result,
-                                 GridItemData& item,
-                                 const SubgriddedItemData& subgridded_item,
-                                 const ConstraintSpace& space,
-                                 GridTrackSizingDirection track_direction,
-                                 FontBaseline font_baseline,
-                                 WritingMode writing_mode,
-                                 GridLayoutData& layout_data) {
-  const LogicalBoxFragment baseline_fragment(
-      item.BaselineWritingDirection(track_direction),
-      To<PhysicalBoxFragment>(result.GetPhysicalFragment()));
-
-  item.SetAlignmentFallback(track_direction,
-                            !baseline_fragment.FirstBaseline().has_value());
-  if (!item.IsBaselineAligned(track_direction)) {
-    return;
-  }
-
-  const LayoutUnit extra_margin = GetExtraMarginForBaseline(
-      ComputeMarginsFor(space, item.node.Style(),
-                        item.BaselineWritingDirection(track_direction)),
-      subgridded_item, track_direction, writing_mode);
-
-  StoreItemBaseline(baseline_fragment, track_direction, font_baseline,
-                    extra_margin, layout_data, item);
 }
 
 LayoutUnit ComputeBaselineOffset(const GridItemData& grid_item,
@@ -239,26 +189,19 @@ LayoutUnit ComputeBaselineOffset(const GridItemData& grid_item,
 const LayoutResult* LayoutGridItemForMeasure(
     const GridItemData& grid_item,
     const ConstraintSpace& constraint_space,
-    SizingConstraint sizing_constraint,
-    bool is_measure_after_layout) {
+    SizingConstraint sizing_constraint) {
   const auto& node = grid_item.node;
 
   // Disable side effects during MinMax computation to avoid potential "MinMax
   // after layout" crashes. This is not necessary during the layout pass, and
   // would have a negative impact on performance if used there.
   //
-  // For grid-lanes subgrid baseline alignment, which measures items *after*
-  // their fragments have been stored, writing back would leave an ancestor's
-  // cached fragment referencing a fragment the box no longer owns. Those
-  // callers set `is_measure_after_layout` to keep side effects disabled.
-  //
   // TODO(ikilpatrick): For subgrid, ideally we don't want to disable side
   // effects as it may impact performance significantly; this issue can be
   // avoided by introducing additional cache slots (see crbug.com/1272533).
   std::optional<DisableLayoutSideEffectsScope> disable_side_effects;
   if (!node.GetLayoutBox()->NeedsLayout() &&
-      (is_measure_after_layout ||
-       sizing_constraint != SizingConstraint::kLayout ||
+      (sizing_constraint != SizingConstraint::kLayout ||
        grid_item.is_subgridded_to_parent_grid)) {
     disable_side_effects.emplace();
   }
@@ -710,16 +653,6 @@ LayoutUnit CalculateIntrinsicMinimumContribution(
         }
       }
 
-      // Count if the child element on the track axis would have been allowed
-      // to collapse to zero (auto) if single-axis scroll containers were
-      // disabled.
-      if (is_parallel_with_track_direction
-              ? item_style.IsOverflowValueScrollableBlock()
-              : item_style.IsOverflowValueScrollableInline()) {
-        UseCounter::Count(node.GetDocument(),
-                          WebFeature::kSingleAxisScrollerAutoMinSize);
-      }
-
       maybe_clamp = true;
       return min_content_contribution();
     }
@@ -877,6 +810,10 @@ void BuildGridSizingSubtree(const LayoutAlgorithmType& algorithm,
     const auto fragment_geometry =
         CalculateInitialFragmentGeometryForSubgrid(grid_item, space);
 
+    // TODO(almaher): Use the grid lanes algorithm if the subgrid requires it.
+    const GridLayoutAlgorithm subgrid_algorithm(
+        {grid_item.node, fragment_geometry, space});
+
     // An auto-placed subgrid of a grid-lanes container does not inherit line
     // names from that container. Line-name inheritance maps the parent's named
     // lines onto the subgrid using the subgrid's resolved area in the parent,
@@ -886,31 +823,19 @@ void BuildGridSizingSubtree(const LayoutAlgorithmType& algorithm,
     const bool can_inherit_line_names_from_parent =
         !(style.IsDisplayGridLanes() && grid_item.is_auto_placed);
 
-    auto build_subgrid_sizing_tree = [&](const auto& subgrid_algorithm) {
-      // TODO(yanlingwang): Store the filtered line resolver for grid-lanes
-      // subgrids without caching incomplete placement data, so their inherited
-      // line names remain available after sizing-tree construction.
-      const auto subgrid_line_resolver =
-          subgrid_algorithm.BuildGridLineResolver(
-              SubgriddedAreaInParent(subgridded_item), &line_resolver,
-              can_inherit_line_names_from_parent);
+    // TODO(almaher): Grid lanes will need to do the same thing once we support
+    // grid lanes subgrids.
+    const auto subgrid_line_resolver = subgrid_algorithm.BuildGridLineResolver(
+        SubgriddedAreaInParent(subgridded_item), &line_resolver,
+        can_inherit_line_names_from_parent);
 
-      BuildGridSizingSubtree(
-          subgrid_algorithm, subgrid_line_resolver, sizing_tree,
-          /*opt_oof_children=*/nullptr,
-          SubgriddedItemData(grid_item, layout_data, writing_mode),
-          &line_resolver, SizingConstraint::kLayout,
-          must_invalidate_placement_cache);
-    };
-
-    if (grid_item.node.IsGridLanes()) {
-      build_subgrid_sizing_tree(
-          GridLanesLayoutAlgorithm({grid_item.node, fragment_geometry, space}));
-    } else {
-      CHECK(grid_item.node.IsGrid());
-      build_subgrid_sizing_tree(
-          GridLayoutAlgorithm({grid_item.node, fragment_geometry, space}));
-    }
+    // TODO(almaher): Use the grid lanes algorithm if the subgrid requires it.
+    BuildGridSizingSubtree<GridLayoutAlgorithm>(
+        subgrid_algorithm, subgrid_line_resolver, sizing_tree,
+        /*opt_oof_children=*/nullptr,
+        SubgriddedItemData(grid_item, layout_data, writing_mode),
+        &line_resolver, SizingConstraint::kLayout,
+        must_invalidate_placement_cache);
 
     // After we accommodate subgridded items in their respective sizing track
     // collections, their placement indices might be incorrect, so we want to
@@ -1027,7 +952,7 @@ FragmentGeometry CalculateInitialFragmentGeometryForSubgrid(
     const GridSizingSubtree& sizing_subtree) {
   DCHECK(subgrid_data.IsSubgrid());
 
-  const auto& node = subgrid_data.node;
+  const auto& node = To<GridNode>(subgrid_data.node);
   {
     const bool subgrid_has_standalone_columns =
         subgrid_data.is_parallel_with_root_grid
@@ -1038,17 +963,11 @@ FragmentGeometry CalculateInitialFragmentGeometryForSubgrid(
     // tracks are subgridded, i.e., their sizes can't be resolved by the subgrid
     // itself, or if `sizing_subtree` is not provided, i.e., the grid sizing
     // tree it's not completed at this step of the sizing algorithm.
-    // When needed to resolve initial inline geometry, regular grid subgrids
-    // with standalone columns obtain min/max sizes from the available sizing
-    // subtree. A grid-lanes subgrid has only an inherited grid track axis; its
-    // other axis is a stacking axis whose intrinsic size is resolved during
-    // placement, so there is no standalone column track cache to use here.
-    if (node.IsGrid() && subgrid_has_standalone_columns && sizing_subtree) {
-      const auto& grid_node = To<GridNode>(node);
+    if (subgrid_has_standalone_columns && sizing_subtree) {
       return CalculateInitialFragmentGeometry(
-          space, grid_node, /* break_token */ nullptr,
+          space, node, /* break_token */ nullptr,
           [&](SizeType) -> MinMaxSizesResult {
-            return grid_node.ComputeSubgridMinMaxSizes(sizing_subtree, space);
+            return node.ComputeSubgridMinMaxSizes(sizing_subtree, space);
           });
     }
   }
@@ -1170,10 +1089,10 @@ bool HasBlockSizeDependentGridItem(const GridItems& grid_items) {
   return false;
 }
 
-bool ValidateMinMaxSizesCache(const BlockNode& node,
+bool ValidateMinMaxSizesCache(const BlockNode& grid_node,
                               const GridSizingSubtree& sizing_subtree,
                               GridTrackSizingDirection track_direction) {
-  DCHECK(sizing_subtree.HasValidRootFor(node));
+  DCHECK(sizing_subtree.HasValidRootFor(grid_node));
 
   bool should_invalidate_min_max_sizes_cache = false;
 
@@ -1186,7 +1105,7 @@ bool ValidateMinMaxSizesCache(const BlockNode& node,
 
       DCHECK(next_subgrid_subtree);
       should_invalidate_min_max_sizes_cache |= ValidateMinMaxSizesCache(
-          grid_item.node, next_subgrid_subtree,
+          To<GridNode>(grid_item.node), next_subgrid_subtree,
           grid_item.RelativeDirectionInSubgrid(track_direction));
       next_subgrid_subtree = next_subgrid_subtree.NextSibling();
     }
@@ -1194,19 +1113,16 @@ bool ValidateMinMaxSizesCache(const BlockNode& node,
 
   const auto& layout_data = sizing_subtree.LayoutData();
   if (layout_data.IsSubgridWithStandaloneAxis(track_direction)) {
-    // A grid-lanes subgrid has only one track axis, which is subgridded, so
-    // this state only applies to regular grid subgrids.
-    CHECK(node.IsGrid());
-    const auto& grid_node = To<GridNode>(node);
     // If no nested subgrid marked this subtree to be invalidated already, check
     // that the cached intrinsic sizes are reusable by the current sizing tree.
     if (!should_invalidate_min_max_sizes_cache) {
       should_invalidate_min_max_sizes_cache =
-          grid_node.ShouldInvalidateSubgridMinMaxSizesCacheFor(layout_data);
+          To<GridNode>(grid_node).ShouldInvalidateSubgridMinMaxSizesCacheFor(
+              layout_data);
     }
 
     if (should_invalidate_min_max_sizes_cache) {
-      grid_node.InvalidateSubgridMinMaxSizesCache();
+      To<GridNode>(grid_node).InvalidateSubgridMinMaxSizesCache();
     }
   }
   return should_invalidate_min_max_sizes_cache;

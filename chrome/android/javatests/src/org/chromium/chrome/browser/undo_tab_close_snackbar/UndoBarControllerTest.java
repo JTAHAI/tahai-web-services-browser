@@ -23,12 +23,10 @@ import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.DisableIf;
-import org.chromium.base.test.util.Features.DisableFeatures;
 import org.chromium.base.test.util.HistogramWatcher;
 import org.chromium.base.test.util.Restriction;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.ChromeTabbedActivity;
-import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tabmodel.TabClosureParams;
@@ -36,12 +34,12 @@ import org.chromium.chrome.browser.tabmodel.TabGroupMergeNotificationType;
 import org.chromium.chrome.browser.tabmodel.TabModel;
 import org.chromium.chrome.browser.ui.messages.snackbar.Snackbar;
 import org.chromium.chrome.browser.ui.messages.snackbar.SnackbarManager;
+import org.chromium.chrome.browser.util.ChromeAccessibilityUtil;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.chrome.test.transit.AutoResetCtaTransitTestRule;
 import org.chromium.chrome.test.transit.ChromeTransitTestRules;
 import org.chromium.chrome.test.transit.page.WebPageStation;
 import org.chromium.chrome.test.util.ChromeTabUtils;
-import org.chromium.ui.accessibility.AccessibilityStateTestHelper;
 import org.chromium.ui.base.DeviceFormFactor;
 
 import java.util.List;
@@ -52,8 +50,6 @@ import java.util.concurrent.ExecutionException;
 @RunWith(ChromeJUnit4ClassRunner.class)
 @Batch(Batch.PER_CLASS)
 @CommandLineFlags.Add({ChromeSwitches.DISABLE_FIRST_RUN_EXPERIENCE})
-// TODO(b/555414915): Update Android tests with WebUI NTP enabled on AL.
-@DisableFeatures(ChromeFeatureList.USE_WEB_UI_NTP_ANDROID)
 public class UndoBarControllerTest {
     @Rule
     public AutoResetCtaTransitTestRule mActivityTestRule =
@@ -79,7 +75,7 @@ public class UndoBarControllerTest {
     public void tearDown() {
         ThreadUtils.runOnUiThreadBlocking(
                 () -> {
-                    AccessibilityStateTestHelper.uninitializeForTesting();
+                    ChromeAccessibilityUtil.get().setAccessibilityEnabledForTesting(null);
                 });
     }
 
@@ -885,7 +881,7 @@ public class UndoBarControllerTest {
     @SmallTest
     public void testUndoSnackbarDisabled_AccessibilityEnabled() throws Exception {
         ThreadUtils.runOnUiThreadBlocking(
-                () -> AccessibilityStateTestHelper.setAccessibilityEnabledForTesting(true));
+                () -> ChromeAccessibilityUtil.get().setAccessibilityEnabledForTesting(true));
         ChromeTabUtils.newTabFromMenu(
                 InstrumentationRegistry.getInstrumentation(), mActivityTestRule.getActivity());
 
@@ -904,7 +900,7 @@ public class UndoBarControllerTest {
     @Restriction(DeviceFormFactor.PHONE)
     public void testUndoSnackbarEnabled_AccessibilityEnabled() throws Exception {
         ThreadUtils.runOnUiThreadBlocking(
-                () -> AccessibilityStateTestHelper.setAccessibilityEnabledForTesting(true));
+                () -> ChromeAccessibilityUtil.get().setAccessibilityEnabledForTesting(true));
 
         assertNull("Snack bar should be null initially", getCurrentSnackbar());
         assertEquals(

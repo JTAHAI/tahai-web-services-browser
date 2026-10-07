@@ -706,16 +706,8 @@ void ClipboardHostImpl::WriteBookmark(const std::string& url,
           DisallowActivationReasonId::kClipboard)) {
     return;
   }
-
-  GURL gurl(url);
-  // Drop file:// URLs so a renderer cannot place a local path on the clipboard
-  // via WriteBookmark and read it back via ReadFiles().
-  if (gurl.SchemeIsFile()) {
-    return;
-  }
-
   clipboard_writer_->WriteURL(
-      ui::ClipboardUrlInfo{.url = std::move(gurl), .title = title});
+      ui::ClipboardUrlInfo{.url = GURL(url), .title = title});
 }
 
 void ClipboardHostImpl::WriteImage(const SkBitmap& bitmap) {
@@ -1054,13 +1046,9 @@ void ClipboardHostImpl::ResetClipboardWriter() {
       ui::ClipboardBuffer::kCopyPaste, std::move(data_endpoint_ptr));
 }
 
-bool ClipboardHostImpl::CanSendClipboardChangeNotification() const {
-  return listening_to_clipboard_ && clipboard_listener_ &&
-         render_frame_host().IsActive();
-}
-
 void ClipboardHostImpl::OnClipboardDataChanged() {
-  if (!CanSendClipboardChangeNotification()) {
+  if (!listening_to_clipboard_ || !clipboard_listener_ ||
+      !render_frame_host().IsActive()) {
     return;
   }
 
@@ -1080,13 +1068,6 @@ void ClipboardHostImpl::OnClipboardDataChanged() {
 void ClipboardHostImpl::OnReadAvailableTypesForUpdate(
     absl::uint128 change_id,
     std::vector<std::u16string> types) {
-  // These are re-checked because ReadAvailableTypes() is asynchronous: the
-  // listener may have disconnected, or the document may have become inactive,
-  // while the read was in flight.
-  if (!CanSendClipboardChangeNotification()) {
-    return;
-  }
-
   if (change_id != GetSequenceNumberImpl(ui::ClipboardBuffer::kCopyPaste)) {
     // Clipboard changed meanwhile. There will be another notification anyway,
     // no need to retry here.

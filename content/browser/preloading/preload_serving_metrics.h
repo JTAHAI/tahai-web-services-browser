@@ -7,7 +7,6 @@
 
 #include <memory>
 #include <optional>
-#include <string_view>
 #include <vector>
 
 #include "base/time/time.h"
@@ -54,15 +53,12 @@ struct CONTENT_EXPORT PrefetchContainerMetrics final {
 
   // Timing information for metrics
   //
-  // Constraint: That earlier one is null implies that later one is null,
-  // except for `time_domain_lookup_started`, which can be null if DNS
-  // resolution was not performed (e.g. socket reuse or HTTP cache hit).
+  // Constraint: That earlier one is null implies that later one is null.
   // E.g. `time_prefetch_start` is null implies
   // `time_header_determined_successfully` is null.
   std::optional<base::TimeTicks> time_added_to_prefetch_service;
   std::optional<base::TimeTicks> time_initial_eligibility_got;
   std::optional<base::TimeTicks> time_prefetch_started;
-  std::optional<base::TimeTicks> time_first_url_request_started;
   std::optional<base::TimeTicks> time_url_request_started;
   std::optional<base::TimeTicks> time_domain_lookup_started;
   std::optional<base::TimeTicks> time_header_determined_successfully;
@@ -228,16 +224,11 @@ struct CONTENT_EXPORT PreloadServingMetrics final {
   void RecordMetricsForNonPrerenderNavigationCommitted() const;
   void RecordPreloadServingMetricsByNavigationInitiator(
       bool did_nav_use_bfcache,
-      bool is_served_by_legacy_search_prefetch,
-      std::string_view navigation_initiator_string,
+      const std::string& navigation_initiator_string,
       bool is_url_srp) const;
   void RecordMetricsForPrerenderInitialNavigationFailed() const;
   void RecordFirstContentfulPaint(
-      base::TimeDelta corrected_first_contentful_paint,
-      bool is_in_foreground,
-      bool is_served_by_legacy_search_prefetch,
-      std::string_view navigation_initiator_string,
-      bool is_url_srp) const;
+      base::TimeDelta corrected_first_contentful_paint) const;
 
   // Added per prefetch matching.
   std::vector<std::unique_ptr<PrefetchMatchMetrics>>
@@ -269,15 +260,10 @@ class CONTENT_EXPORT PreloadServingMetricsCapsuleImpl final
   void RecordMetricsForNonPrerenderNavigationCommitted() const override;
   void RecordPreloadServingMetricsByNavigationInitiator(
       bool did_nav_use_bfcache,
-      bool is_served_by_legacy_search_prefetch,
-      std::string_view navigation_initiator_string,
+      const std::string& navigation_initiator_string,
       bool is_url_srp) const override;
   void RecordFirstContentfulPaint(
-      base::TimeDelta corrected_first_contentful_paint,
-      bool is_in_foreground,
-      bool is_served_by_legacy_search_prefetch,
-      std::string_view navigation_initiator_string,
-      bool is_url_srp) const override;
+      base::TimeDelta corrected_first_contentful_paint) const override;
 
  private:
   explicit PreloadServingMetricsCapsuleImpl(

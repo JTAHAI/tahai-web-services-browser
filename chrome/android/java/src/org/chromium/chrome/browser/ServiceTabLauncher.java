@@ -72,7 +72,7 @@ public class ServiceTabLauncher {
     public static void launchTab(
             final int requestId,
             boolean incognito,
-            @JniType("GURL") GURL url,
+            GURL url,
             int disposition,
             @JniType("std::string") String referrerUrl,
             int referrerPolicy,
@@ -230,7 +230,6 @@ public class ServiceTabLauncher {
 
     @NativeMethods
     public interface Natives {
-        void onWebContentsForRequestAvailable(
-                int requestId, @JniType("content::WebContents*") @Nullable WebContents webContents);
+        void onWebContentsForRequestAvailable(int requestId, @Nullable WebContents webContents);
     }
 }

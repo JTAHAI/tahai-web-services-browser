@@ -13,8 +13,9 @@ export function getHtml(this: CertificateListElement) {
   <div id="listHeader"
       class="section-title list-title first
           ${this.getListHeaderAdditionalClass_()}"
+      role="heading"
       ?hidden="${this.hideHeader}">
-    <h3 role="heading">${this.headerText}</h3>
+    ${this.headerText}
     <div class="header-buttons">
       <cr-button ?hidden="${!this.showImport}" id="importCert"
           aria-label="${this.i18n('certificateManagerV2ImportButtonAriaLabel',

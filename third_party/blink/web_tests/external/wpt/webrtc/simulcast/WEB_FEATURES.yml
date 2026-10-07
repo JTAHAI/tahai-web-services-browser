@@ -1,2 +1,3 @@
-rules:
-- "**": [webrtc]
+features:
+- name: webrtc
+  files: '**'

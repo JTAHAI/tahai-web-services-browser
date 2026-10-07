@@ -4,7 +4,7 @@ on:
   push:
     branches: [main, 'codex/**']
   pull_request:
-    branches: [main, codex/ga-2.0.33-chromium-152]
+    branches: [main, codex/ga-2.0.33-chromium-152, codex/release-2.0.33-chromium-152.0.7977.158]
   workflow_dispatch:
 
 permissions:

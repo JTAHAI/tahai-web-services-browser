@@ -1,2 +1,3 @@
-rules:
-- "**": [ping]
+features:
+- name: ping
+  files: "**"

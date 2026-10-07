@@ -62,6 +62,7 @@ import org.chromium.chrome.browser.hub.PaneId;
 import org.chromium.chrome.browser.hub.PaneManager;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab_ui.ActionConfirmationManager;
+import org.chromium.chrome.browser.tab_ui.ActionConfirmationManager.MaybeBlockingResult;
 import org.chromium.chrome.browser.tabmodel.TabList;
 import org.chromium.chrome.browser.tabmodel.TabModel;
 import org.chromium.chrome.browser.tabmodel.TabModelObserver;
@@ -145,6 +146,9 @@ public class TabGroupListMediatorUnitTest {
             mActionConfirmationResultCallbackCaptor;
 
     @Captor
+    private ArgumentCaptor<Callback<MaybeBlockingResult>> mMaybeBlockingResultCallbackCaptor;
+
+    @Captor
     private ArgumentCaptor<SyncService.SyncStateChangedListener> mSyncStateChangedListenerCaptor;
 
     @Captor private ArgumentCaptor<Callback<Boolean>> mDeleteGroupResultCallbackCaptor;
@@ -207,14 +211,6 @@ public class TabGroupListMediatorUnitTest {
         return mediator;
     }
 
-    private static void assertTitleData(
-            TabGroupRowViewTitleData expected, TabGroupRowViewTitleData actual) {
-        assertNotNull("Expected non-null TitleData", actual);
-        assertEquals(expected.title, actual.title);
-        assertEquals(expected.numTabs, actual.numTabs);
-        assertEquals(expected.rowAccessibilityTextResId, actual.rowAccessibilityTextResId);
-    }
-
     @Test
     public void testNoTabGroups() {
         createMediator();
@@ -239,7 +235,7 @@ public class TabGroupListMediatorUnitTest {
         assertEquals(1, mModelList.size());
 
         PropertyModel model = mModelList.get(0).model;
-        assertTitleData(
+        assertEquals(
                 new TabGroupRowViewTitleData(
                         "Title", 1, R.plurals.tab_group_row_accessibility_text),
                 model.get(TITLE_DATA));
@@ -269,14 +265,14 @@ public class TabGroupListMediatorUnitTest {
         assertEquals(2, mModelList.size());
 
         PropertyModel barModel = mModelList.get(0).model;
-        assertTitleData(
+        assertEquals(
                 new TabGroupRowViewTitleData("Bar", 3, R.plurals.tab_group_row_accessibility_text),
                 barModel.get(TITLE_DATA));
         assertEquals(TabGroupColorId.RED, barModel.get(COLOR_INDEX));
 
         // Ensure the tab groups are sorted by update time and NOT creation time.
         PropertyModel fooModel = mModelList.get(1).model;
-        assertTitleData(
+        assertEquals(
                 new TabGroupRowViewTitleData("Foo", 2, R.plurals.tab_group_row_accessibility_text),
                 fooModel.get(TITLE_DATA));
         assertEquals(TabGroupColorId.BLUE, fooModel.get(COLOR_INDEX));
@@ -353,12 +349,12 @@ public class TabGroupListMediatorUnitTest {
 
         assertEquals(2, mModelList.size());
         PropertyModel model1 = mModelList.get(0).model;
-        assertTitleData(
+        assertEquals(
                 new TabGroupRowViewTitleData(
                         "in current", 1, R.plurals.tab_group_row_accessibility_text),
                 model1.get(TITLE_DATA));
         PropertyModel model2 = mModelList.get(1).model;
-        assertTitleData(
+        assertEquals(
                 new TabGroupRowViewTitleData(
                         "hidden", 1, R.plurals.tab_group_row_accessibility_text),
                 model2.get(TITLE_DATA));
@@ -852,13 +848,13 @@ public class TabGroupListMediatorUnitTest {
 
         // Ensure the tab groups are sorted by update time and NOT creation time.
         PropertyModel barModel = mModelList.get(1).model;
-        assertTitleData(
+        assertEquals(
                 new TabGroupRowViewTitleData("Bar", 3, R.plurals.tab_group_row_accessibility_text),
                 barModel.get(TITLE_DATA));
         assertEquals(TabGroupColorId.RED, barModel.get(COLOR_INDEX));
 
         PropertyModel fooModel = mModelList.get(2).model;
-        assertTitleData(
+        assertEquals(
                 new TabGroupRowViewTitleData("Foo", 2, R.plurals.tab_group_row_accessibility_text),
                 fooModel.get(TITLE_DATA));
         assertEquals(TabGroupColorId.BLUE, fooModel.get(COLOR_INDEX));
@@ -902,13 +898,13 @@ public class TabGroupListMediatorUnitTest {
 
         // Ensure the tab groups are sorted by update time and NOT creation time.
         PropertyModel fooModel = mModelList.get(1).model;
-        assertTitleData(
+        assertEquals(
                 new TabGroupRowViewTitleData("Foo", 2, R.plurals.tab_group_row_accessibility_text),
                 fooModel.get(TITLE_DATA));
         assertEquals(TabGroupColorId.BLUE, fooModel.get(COLOR_INDEX));
 
         PropertyModel barModel = mModelList.get(2).model;
-        assertTitleData(
+        assertEquals(
                 new TabGroupRowViewTitleData("Bar", 3, R.plurals.tab_group_row_accessibility_text),
                 barModel.get(TITLE_DATA));
         assertEquals(TabGroupColorId.RED, barModel.get(COLOR_INDEX));
@@ -953,14 +949,14 @@ public class TabGroupListMediatorUnitTest {
                 .clearPersistentMessage(MESSAGE_ID2, PersistentNotificationType.TOMBSTONED);
 
         PropertyModel barModel = mModelList.get(0).model;
-        assertTitleData(
+        assertEquals(
                 new TabGroupRowViewTitleData("Bar", 3, R.plurals.tab_group_row_accessibility_text),
                 barModel.get(TITLE_DATA));
         assertEquals(TabGroupColorId.RED, barModel.get(COLOR_INDEX));
 
         // Ensure the tab groups are sorted by update time and NOT creation time.
         PropertyModel fooModel = mModelList.get(1).model;
-        assertTitleData(
+        assertEquals(
                 new TabGroupRowViewTitleData("Foo", 2, R.plurals.tab_group_row_accessibility_text),
                 fooModel.get(TITLE_DATA));
         assertEquals(TabGroupColorId.BLUE, fooModel.get(COLOR_INDEX));

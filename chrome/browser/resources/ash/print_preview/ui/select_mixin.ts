@@ -29,7 +29,7 @@ export const SelectMixin = dedupingMixin(
           };
         }
 
-        declare selectedValue: string;
+        selectedValue: string;
         private debouncer_: Debouncer|null = null;
 
         onSelectChange(e: Event) {

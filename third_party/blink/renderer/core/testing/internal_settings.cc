@@ -70,8 +70,7 @@ void InternalSettings::setViewportStyle(const String& style,
   } else {
     exception_state.ThrowDOMException(
         DOMExceptionCode::kSyntaxError,
-        StrCat(
-            {"The viewport style type provided ('", style, "') is invalid."}));
+        "The viewport style type provided ('" + style + "') is invalid.");
   }
 }
 
@@ -140,8 +139,8 @@ void InternalSettings::setTextTrackKindUserPreference(
   } else {
     exception_state.ThrowDOMException(
         DOMExceptionCode::kSyntaxError,
-        StrCat({"The user preference for text track kind ", preference,
-                ")' is invalid."}));
+        "The user preference for text track kind " + preference +
+            ")' is invalid.");
     return;
   }
 
@@ -166,10 +165,9 @@ void InternalSettings::setEditingBehavior(const String& editing_behavior,
     GetSettings().SetEditingBehaviorType(
         mojom::EditingBehavior::kEditingChromeOSBehavior);
   } else {
-    exception_state.ThrowDOMException(
-        DOMExceptionCode::kSyntaxError,
-        StrCat({"The editing behavior type provided ('", editing_behavior,
-                "') is invalid."}));
+    exception_state.ThrowDOMException(DOMExceptionCode::kSyntaxError,
+                                      "The editing behavior type provided ('" +
+                                          editing_behavior + "') is invalid.");
   }
 }
 
@@ -220,7 +218,7 @@ void InternalSettings::setDisplayModeOverride(const String& display_mode,
   } else {
     exception_state.ThrowDOMException(
         DOMExceptionCode::kSyntaxError,
-        StrCat({"The display-mode token ('", token, ")' is invalid."}));
+        "The display-mode token ('" + token + ")' is invalid.");
     return;
   }
 
@@ -240,7 +238,7 @@ void InternalSettings::setPrimaryPointerType(const String& pointer,
   } else {
     exception_state.ThrowDOMException(
         DOMExceptionCode::kSyntaxError,
-        StrCat({"The pointer type token ('", token, ")' is invalid."}));
+        "The pointer type token ('" + token + ")' is invalid.");
     return;
   }
 
@@ -282,7 +280,7 @@ void InternalSettings::setPrimaryHoverType(const String& type,
   } else {
     exception_state.ThrowDOMException(
         DOMExceptionCode::kSyntaxError,
-        StrCat({"The hover type token ('", token, ")' is invalid."}));
+        "The hover type token ('" + token + ")' is invalid.");
     return;
   }
 
@@ -304,8 +302,7 @@ void InternalSettings::setImageAnimationPolicy(
   } else {
     exception_state.ThrowDOMException(
         DOMExceptionCode::kSyntaxError,
-        StrCat({"The image animation policy provided ('", policy,
-                "') is invalid."}));
+        "The image animation policy provided ('" + policy + "') is invalid.");
     return;
   }
 }
@@ -322,8 +319,7 @@ void InternalSettings::setAutoplayPolicy(const String& policy_str,
   } else {
     exception_state.ThrowDOMException(
         DOMExceptionCode::kSyntaxError,
-        StrCat({"The autoplay policy ('", policy_str, ")' is invalid."}));
-    return;
+        "The autoplay policy ('" + policy_str + ")' is invalid.");
   }
 
   GetSettings().SetAutoplayPolicy(policy);

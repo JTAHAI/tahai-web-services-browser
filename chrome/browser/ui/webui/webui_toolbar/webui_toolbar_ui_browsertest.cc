@@ -126,31 +126,10 @@ class MockToolbarUIDelegate
                ui::mojom::MenuSourceType source),
               (override));
   MOCK_METHOD(void,
-              ShowOverflowMenu,
-              (std::vector<toolbar_ui_api::mojom::OverflowMenuItemPtr> controls,
-               const gfx::RectF& bounds,
-               ui::mojom::MenuSourceType source,
-               toolbar_ui_api::mojom::ToolbarUIService::ShowOverflowMenuCallback
-                   callback),
-              (override));
-  MOCK_METHOD(void,
               ShowContentSettingsBubble,
               (::toolbar_ui_api::mojom::ContentSettingImageType type,
-               bool is_pointer_interaction,
                ::toolbar_ui_api::mojom::ToolbarUIService::
                    ShowContentSettingsBubbleCallback callback),
-              (override));
-  MOCK_METHOD(void,
-              OnContentSettingImagePointerDown,
-              (::toolbar_ui_api::mojom::ContentSettingImageType type),
-              (override));
-  MOCK_METHOD(void,
-              OnContentSettingImageAnimationEnded,
-              (::toolbar_ui_api::mojom::ContentSettingImageType),
-              (override));
-  MOCK_METHOD(void,
-              OnPageActionPointerDown,
-              (::toolbar_ui_api::mojom::PageActionId action_id),
               (override));
   MOCK_METHOD(
       void,
@@ -191,7 +170,7 @@ class MockToolbarUIDelegate
 
   MOCK_METHOD(void,
               OnLhsChipMousePressed,
-              (toolbar_ui_api::mojom::LhsChipIdentifier, bool),
+              (toolbar_ui_api::mojom::LhsChipIdentifier),
               (override));
   MOCK_METHOD(void,
               OnLhsChipClicked,
@@ -221,14 +200,6 @@ class MockToolbarUIDelegate
   MOCK_METHOD(void, OnHomeButtonDropUrl, (const GURL&), (override));
   MOCK_METHOD(void, OnHomeButtonDropFile, (const gfx::PointF&), (override));
   MOCK_METHOD(void, OnToolbarDropFile, (const gfx::PointF&), (override));
-  MOCK_METHOD(void,
-              OnPerformanceInterventionButtonClicked,
-              (bool is_mouse_interaction),
-              (override));
-  MOCK_METHOD(void,
-              OnPerformanceInterventionButtonMousePressed,
-              (),
-              (override));
   MOCK_METHOD((base::expected<std::monostate, mojo_base::mojom::ErrorPtr>),
               OnOmniboxAction,
               (toolbar_ui_api::mojom::OmniboxActionPtr action_ptr),
@@ -328,8 +299,6 @@ class WebUIToolbarUIBrowserTest : public InProcessBrowserTest,
             ->GetFeatures()
             .browser_command_controller());
   }
-
-  OmniboxController* GetOmniboxController() override { return nullptr; }
 
   content::TestWebUI* web_ui() { return web_ui_.get(); }
   WebUIToolbarUI* ui() { return ui_.get(); }

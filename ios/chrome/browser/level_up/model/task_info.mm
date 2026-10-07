@@ -5,7 +5,3 @@
 #import "ios/chrome/browser/level_up/model/task_info.h"
 
 TaskInfo::~TaskInfo() = default;
-
-bool TaskInfo::IsMulticolorIcon() const {
-  return false;
-}

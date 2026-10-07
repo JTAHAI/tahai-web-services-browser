@@ -98,7 +98,6 @@ class CONTENT_EXPORT FirstPartySetsHandler {
 
   using ParseError = IssueWithMetadata<ParseErrorType>;
   using ParseWarning = IssueWithMetadata<ParseWarningType>;
-
   virtual ~FirstPartySetsHandler() = default;
 
   // Overrides the singleton with caller-owned |test_instance|. Callers in tests
@@ -107,6 +106,19 @@ class CONTENT_EXPORT FirstPartySetsHandler {
 
   // Returns the singleton instance.
   static FirstPartySetsHandler* GetInstance();
+
+  // Validates the First-Party Sets Overrides enterprise policy in `policy`.
+  // This function returns whether the validation was successful (or an error if
+  // the policy was invalid), and a list of warnings. Warnings are returned even
+  // if the policy was invalid, in order to surface as many issues as possible
+  // at once.
+  //
+  // This validation only checks that all sets in this policy are valid
+  // First-Party Sets and disjoint from each other. It doesn't require
+  // disjointness with other sources, such as the public sets, since this policy
+  // will be used override First-Party Sets in those sources.
+  static std::pair<base::expected<void, ParseError>, std::vector<ParseWarning>>
+  ValidateEnterprisePolicy(const base::DictValue& policy);
 
   // Returns whether First-Party Sets is enabled.
   //
@@ -144,12 +156,26 @@ class CONTENT_EXPORT FirstPartySetsHandler {
       const net::SchemefulSite& site,
       const net::FirstPartySetsContextConfig& config) const = 0;
 
+  // Computes a representation of the changes that need to be made to the
+  // browser's list of First-Party Sets to respect the `policy` value of the
+  // First-Party Sets Overrides enterprise policy. If `policy` is
+  // `std::nullopt`, `callback` is immediately invoked with an empty config.
+  //
+  // Otherwise, the context config will be returned via `callback` since the
+  // context config must be computed after the list of First-Party Sets is
+  // initialized which occurs asynchronously.
+  virtual void GetContextConfigForPolicy(
+      base::optional_ref<const base::DictValue> policy,
+      base::OnceCallback<void(net::FirstPartySetsContextConfig)> callback) = 0;
+
   // Clear site state of sites that have a FPS membership change for the browser
   // context represented by `browser_context_id`. Sites joining FPSs for the
   // first time will not be cleared.
   //
   // `browser_context_getter` is needed to get a BrowsingDataRemover to handle
-  // the clearing work. `callback` will be invoked once the
+  // the clearing work. `context_config` should be the return value from
+  // `GetContextConfigForPolicy` if an Overrides enterprise policy is provided,
+  // or null if one is not provided. `callback` will be invoked once the
   // clearing is done.
   //
   // Embedder must call this before First-Party Sets queries can be answered.
@@ -158,7 +184,9 @@ class CONTENT_EXPORT FirstPartySetsHandler {
   virtual void ClearSiteDataOnChangedSetsForContext(
       base::RepeatingCallback<BrowserContext*()> browser_context_getter,
       const std::string& browser_context_id,
-      base::OnceCallback<void(net::FirstPartySetsCacheFilter)> callback) = 0;
+      net::FirstPartySetsContextConfig context_config,
+      base::OnceCallback<void(net::FirstPartySetsContextConfig,
+                              net::FirstPartySetsCacheFilter)> callback) = 0;
 
   // Computes the First-Party Set metadata related to the given request context,
   // and invokes `callback` with the result.

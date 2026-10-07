@@ -352,11 +352,8 @@ public class ToolbarLongPressMenuHandler implements ConfigurationChangedObserver
         }
     }
 
-    /** Removes all observers and dismisses any showing popup menu. */
+    /** Removes all observers. */
     public void destroy() {
-        if (mPopupMenu != null && mPopupMenu.isShowing()) {
-            mPopupMenu.dismiss();
-        }
         mLifecycleDispatcher.unregister(this);
     }
 }

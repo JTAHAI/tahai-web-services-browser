@@ -7,7 +7,6 @@
 #include "net/http/structured_headers.h"
 #include "third_party/blink/public/common/permissions_policy/document_policy_enum_values.h"
 #include "third_party/blink/public/mojom/permissions_policy/policy_value.mojom-blink.h"
-#include "third_party/blink/renderer/platform/wtf/text/format.h"
 
 namespace blink {
 namespace {
@@ -34,8 +33,8 @@ std::optional<PolicyValue> ItemToPolicyValue(
     mojom::blink::DocumentPolicyFeature feature) {
   switch (type) {
     case mojom::blink::PolicyValueType::kBool: {
-      if (const bool* value = item.GetIfBoolean()) {
-        return PolicyValue::CreateBool(*value);
+      if (item.is_boolean()) {
+        return PolicyValue::CreateBool(item.GetBoolean());
       } else {
         return std::nullopt;
       }
@@ -51,12 +50,11 @@ std::optional<PolicyValue> ItemToPolicyValue(
           return std::nullopt;
       }
     case mojom::blink::PolicyValueType::kEnum: {
-      const std::string* token = item.GetIfToken();
-      if (!token) {
+      if (item.Type() != net::structured_headers::Item::ItemType::kTokenType) {
         return std::nullopt;
       }
       std::optional<int32_t> enum_value =
-          DocumentPolicyEnumTokenToValue(feature, *token);
+          DocumentPolicyEnumTokenToValue(feature, item.GetString());
       if (!enum_value) {
         return std::nullopt;
       }
@@ -69,11 +67,9 @@ std::optional<PolicyValue> ItemToPolicyValue(
 
 std::optional<std::string> ItemToString(
     const net::structured_headers::Item& item) {
-  const std::string* token = item.GetIfToken();
-  if (!token) {
+  if (item.Type() != net::structured_headers::Item::ItemType::kTokenType)
     return std::nullopt;
-  }
-  return *token;
+  return item.GetString();
 }
 
 struct ParsedFeature {
@@ -92,9 +88,10 @@ std::optional<ParsedFeature> ParseFeature(
   const std::string& feature_name = directive.first;
   if (directive.second.member_is_inner_list) {
     logger.Warn(
-        Format("Parameter for feature {} should be single item, but get list "
-               "of items(length={}).",
-               feature_name, directive.second.member.size()));
+        String::Format("Parameter for feature %s should be single item, but "
+                       "get list of items(length=%d).",
+                       feature_name.c_str(),
+                       static_cast<uint32_t>(directive.second.member.size())));
     return std::nullopt;
   }
 
@@ -103,8 +100,8 @@ std::optional<ParsedFeature> ParseFeature(
   if (feature_iter != name_feature_map.end()) {
     parsed_feature.feature = feature_iter->second;
   } else {
-    logger.Warn(StrCat({"Unrecognized document policy feature name ",
-                        feature_name.c_str(), "."}));
+    logger.Warn(String::Format("Unrecognized document policy feature name %s.",
+                               feature_name.c_str()));
     return std::nullopt;
   }
 
@@ -115,10 +112,10 @@ std::optional<ParsedFeature> ParseFeature(
   std::optional<PolicyValue> policy_value = ItemToPolicyValue(
       item, expected_policy_value_type, parsed_feature.feature);
   if (!policy_value) {
-    logger.Warn(StrCat(
-        {"Parameter for feature ", feature_name.c_str(), " should be ",
-         PolicyValueTypeToString(expected_policy_value_type), ", not ",
-         net::structured_headers::ItemTypeToString(item.Type()).data(), "."}));
+    logger.Warn(UNSAFE_TODO(String::Format(
+        "Parameter for feature %s should be %s, not %s.", feature_name.c_str(),
+        PolicyValueTypeToString(expected_policy_value_type),
+        net::structured_headers::ItemTypeToString(item.Type()).data())));
     return std::nullopt;
   }
   parsed_feature.policy_value = *policy_value;
@@ -132,15 +129,16 @@ std::optional<ParsedFeature> ParseFeature(
     if (param_name == kReportTo) {
       parsed_feature.endpoint_group = ItemToString(param.second);
       if (!parsed_feature.endpoint_group) {
-        logger.Warn(
-            StrCat({"\"report-to\" parameter should be a token in feature ",
-                    feature_name.c_str(), "."}));
+        logger.Warn(String::Format(
+            "\"report-to\" parameter should be a token in feature %s.",
+            feature_name.c_str()));
         return std::nullopt;
       }
     } else {
       // Unrecognized param.
-      logger.Warn(StrCat({"Unrecognized parameter name ", param_name.c_str(),
-                          " for feature ", feature_name.c_str(), "."}));
+      logger.Warn(
+          String::Format("Unrecognized parameter name %s for feature %s.",
+                         param_name.c_str(), feature_name.c_str()));
     }
   }
 

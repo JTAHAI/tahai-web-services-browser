@@ -21,12 +21,11 @@
 #include "components/autofill/core/browser/data_manager/valuables/test_valuables_data_manager.h"
 #include "components/autofill/core/browser/data_manager/valuables/valuables_data_manager_test_api.h"
 #include "components/autofill/core/browser/data_model/valuables/loyalty_card.h"
-#include "components/autofill/core/browser/test_utils/valuables_data_test_util.h"
+#include "components/autofill/core/browser/test_utils/valuables_data_test_utils.h"
 #include "components/autofill/core/common/autofill_features.h"
 #include "components/password_manager/core/browser/password_form.h"
 #include "components/password_manager/core/browser/password_store/password_form_converters.h"
 #include "components/password_manager/core/browser/password_store/test_password_store.h"
-#include "components/password_manager/core/browser/password_string.h"
 #include "components/webauthn/core/browser/test_passkey_model.h"
 #include "content/public/test/browser_task_environment.h"
 #include "content/public/test/test_web_ui.h"
@@ -38,7 +37,6 @@ using autofill::LoyaltyCard;
 using autofill::TestPersonalDataManager;
 using autofill::TestValuablesDataManager;
 using password_manager::PasswordForm;
-using password_manager::PasswordString;
 using password_manager::TestPasswordStore;
 using ::testing::_;
 
@@ -117,11 +115,11 @@ TEST_F(SavedInfoHandlerTest, HandleGetPasswordCount) {
   form.url = GURL("https://example.com");
   form.signon_realm = form.url.spec();
   form.username_value = u"username";
-  form.password_value = PasswordString(u"password");
+  form.password_value = u"password";
   form.in_store = PasswordForm::Store::kProfileStore;
   profile_store()->AddLogin(password_manager::FromPasswordForm(form));
   form.username_value = u"admin";
-  form.password_value = PasswordString(u"hunter2");
+  form.password_value = u"hunter2";
   form.in_store = PasswordForm::Store::kProfileStore;
   profile_store()->AddLogin(password_manager::FromPasswordForm(form));
 
@@ -184,8 +182,12 @@ TEST_F(SavedInfoHandlerTest, HandleGetLoyaltyCardsCount) {
 }
 
 TEST_F(SavedInfoHandlerTest, RequestDataManagementSurvey) {
-  base::test::ScopedFeatureList features(
-      autofill::features::kManageYourSavedInfoPerceptionSurvey);
+  base::test::ScopedFeatureList features;
+  features.InitWithFeatures(
+      /*enabled_features=*/
+      {autofill::features::kManageYourSavedInfoPerceptionSurvey,
+       autofill::features::kYourSavedInfoSettingsPage},
+      /*disabled_features=*/{});
 
   auto handler = std::make_unique<SavedInfoHandler>(profile());
   test_api(*handler).set_web_ui(web_ui());

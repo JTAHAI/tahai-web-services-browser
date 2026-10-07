@@ -50,7 +50,9 @@ class TrustedVaultThrottlingConnectionImplTest : public testing::Test {
     storage_ =
         StandaloneTrustedVaultStorage::CreateForTesting(std::move(file_access));
     storage_->ReadDataFromDisk();
-    storage_->MutateUserVault(account_info().gaia, [](UserVault&) {});
+    if (storage_->FindUserVault(account_info().gaia) == nullptr) {
+      storage_->AddUserVault(account_info().gaia);
+    }
 
     std::unique_ptr<NiceMock<MockTrustedVaultThrottlingConnection>> delegate =
         std::make_unique<NiceMock<MockTrustedVaultThrottlingConnection>>();

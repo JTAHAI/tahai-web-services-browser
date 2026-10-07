@@ -13,7 +13,6 @@ import androidx.annotation.VisibleForTesting;
 import org.chromium.base.Callback;
 import org.chromium.base.CallbackController;
 import org.chromium.base.supplier.OneshotSupplierImpl;
-import org.chromium.base.supplier.SupplierUtils;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.customtabs.features.branding.proto.AccountMismatchData.CloseType;
@@ -129,8 +128,8 @@ public class MismatchNotificationChecker
                             deviceLockActivityLauncher,
                             profileSupplier,
                             bottomSheetControllerSupplier,
-                            SupplierUtils.of(modalDialogManager),
-                            SupplierUtils.of(snackbarManager),
+                            modalDialogManager,
+                            snackbarManager,
                             SigninAccessPoint.CCT_ACCOUNT_MISMATCH_NOTIFICATION);
         }
     }

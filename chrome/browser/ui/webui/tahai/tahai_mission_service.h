@@ -263,7 +263,8 @@ class MissionService : public KeyedService {
   // adopt an observer's newer mutation as its own dispatch authority.
   // Pin the caller's reviewed token across deadline settlement as well. When
   // omitted, use the entry snapshot, never a post-notification replacement.
-  bool BeginNativeWorkflowStep(std::string_view mission_id, size_t step_index,
+  bool BeginNativeWorkflowStep(std::string_view mission_id,
+                               size_t step_index,
                                std::string* pending_token = nullptr,
                                std::string_view expected_token = {});
   // Recheck the durable snapshot and pending attempt after notifications/I/O.
@@ -278,12 +279,15 @@ class MissionService : public KeyedService {
   // record. Never an external effect, implicit replay, or plaintext downgrade.
   // Renderer-originated callers supply their reviewed token. It is owned and
   // checked after notifying deadline settlement, not merely at UI admission.
-  bool AssignWorkflowVariable(std::string_view mission_id, size_t step_index,
+  bool AssignWorkflowVariable(std::string_view mission_id,
+                              size_t step_index,
                               std::string_view expected_token = {});
   // Start/resume or acknowledge an elapsed local wait. No automatic completion
   // or subsequent action is dispatched. Pause/restart require explicit resume.
-  bool ControlWorkflowWait(std::string_view mission_id, size_t step_index,
-                           bool complete, std::string_view expected_token = {});
+  bool ControlWorkflowWait(std::string_view mission_id,
+                           size_t step_index,
+                           bool complete,
+                           std::string_view expected_token = {});
   // Transitions only a revision-pinned operational checklist through the
   // browser-owned local state machine. It never executes a workflow action,
   // replays a command, or changes an archived Mission.
@@ -294,7 +298,8 @@ class MissionService : public KeyedService {
   // Source identity, title, timestamps, and event ledger are never restored.
   std::optional<MissionSummary> ImportSanitizedMissionCapsule(
       const TahaiMissionCapsuleImport& capsule);
-  bool ToggleStep(std::string_view mission_id, size_t step_index,
+  bool ToggleStep(std::string_view mission_id,
+                  size_t step_index,
                   std::string_view expected_token = {});
   bool ToggleValidationStep(std::string_view mission_id, size_t step_index);
   bool ToggleRollbackStep(std::string_view mission_id, size_t step_index);

@@ -16,14 +16,42 @@ namespace content {
 namespace {
 
 using ::payments::mojom::PaymentHandlerStatus;
+using ::payments::mojom::PaymentInstrument;
+using ::payments::mojom::PaymentInstrumentPtr;
 
 const char kServiceWorkerScope[] = "https://example.test/a/";
 const char kServiceWorkerScript[] = "https://example.test/a/script.js";
 const char kServiceWorkerScope2[] = "https://example.test/b/";
 const char kServiceWorkerScript2[] = "https://example.test/b/script.js";
 
-void EnableDelegationsCallback(PaymentHandlerStatus* out_status,
-                               PaymentHandlerStatus status) {
+void DeletePaymentInstrumentCallback(PaymentHandlerStatus* out_status,
+                                     PaymentHandlerStatus status) {
+  *out_status = status;
+}
+
+void KeysOfPaymentInstrumentsCallback(std::vector<std::string>* out_keys,
+                                      PaymentHandlerStatus* out_status,
+                                      const std::vector<std::string>& keys,
+                                      PaymentHandlerStatus status) {
+  *out_keys = keys;
+  *out_status = status;
+}
+
+void HasPaymentInstrumentCallback(PaymentHandlerStatus* out_status,
+                                  PaymentHandlerStatus status) {
+  *out_status = status;
+}
+
+void GetPaymentInstrumentCallback(PaymentInstrumentPtr* out_instrument,
+                                  PaymentHandlerStatus* out_status,
+                                  PaymentInstrumentPtr instrument,
+                                  PaymentHandlerStatus status) {
+  *out_instrument = std::move(instrument);
+  *out_status = status;
+}
+
+void ClearPaymentInstrumentsCallback(PaymentHandlerStatus* out_status,
+                                     PaymentHandlerStatus status) {
   *out_status = status;
 }
 
@@ -42,9 +70,41 @@ class PaymentManagerTest : public PaymentAppContentUnitTestBase {
 
   PaymentManager* payment_manager() const { return manager_; }
 
-  void EnableDelegations(PaymentHandlerStatus* out_status) {
-    manager_->EnableDelegations(
-        {}, base::BindOnce(&EnableDelegationsCallback, out_status));
+  void DeletePaymentInstrument(const std::string& instrument_key,
+                               PaymentHandlerStatus* out_status) {
+    manager_->DeletePaymentInstrument(
+        instrument_key,
+        base::BindOnce(&DeletePaymentInstrumentCallback, out_status));
+    base::RunLoop().RunUntilIdle();
+  }
+
+  void KeysOfPaymentInstruments(std::vector<std::string>* out_keys,
+                                PaymentHandlerStatus* out_status) {
+    manager_->KeysOfPaymentInstruments(base::BindOnce(
+        &KeysOfPaymentInstrumentsCallback, out_keys, out_status));
+    base::RunLoop().RunUntilIdle();
+  }
+
+  void HasPaymentInstrument(const std::string& instrument_key,
+                            PaymentHandlerStatus* out_status) {
+    manager_->HasPaymentInstrument(
+        instrument_key,
+        base::BindOnce(&HasPaymentInstrumentCallback, out_status));
+    base::RunLoop().RunUntilIdle();
+  }
+
+  void GetPaymentInstrument(const std::string& instrument_key,
+                            PaymentInstrumentPtr* out_instrument,
+                            PaymentHandlerStatus* out_status) {
+    manager_->GetPaymentInstrument(instrument_key,
+                                   base::BindOnce(&GetPaymentInstrumentCallback,
+                                                  out_instrument, out_status));
+    base::RunLoop().RunUntilIdle();
+  }
+
+  void ClearPaymentInstruments(PaymentHandlerStatus* out_status) {
+    manager_->ClearPaymentInstruments(
+        base::BindOnce(&ClearPaymentInstrumentsCallback, out_status));
     base::RunLoop().RunUntilIdle();
   }
 
@@ -53,6 +113,13 @@ class PaymentManagerTest : public PaymentAppContentUnitTestBase {
   raw_ptr<PaymentManager> manager_;
 };
 
+TEST_F(PaymentManagerTest, GetUnstoredPaymentInstrument) {
+  PaymentHandlerStatus read_status = PaymentHandlerStatus::SUCCESS;
+  PaymentInstrumentPtr read_details;
+  GetPaymentInstrument("test_key", &read_details, &read_status);
+  ASSERT_EQ(PaymentHandlerStatus::NOT_FOUND, read_status);
+}
+
 TEST_F(PaymentManagerTest, UninitializedPaymentManager) {
   manager_ = CreateUninitializedPaymentManager(GURL(kServiceWorkerScope2),
                                                GURL(kServiceWorkerScript2));
@@ -60,7 +127,20 @@ TEST_F(PaymentManagerTest, UninitializedPaymentManager) {
   // Test that calling the payment manager does not crash, and instead
   // disconnects due to the invalid state (Init not called).
   PaymentHandlerStatus status = PaymentHandlerStatus::NOT_FOUND;
-  EnableDelegations(&status);
+  DeletePaymentInstrument("test_key", &status);
+  ASSERT_EQ(PaymentHandlerStatus::NOT_FOUND, status);
+
+  PaymentInstrumentPtr instrument;
+  GetPaymentInstrument("test_key", &instrument, &status);
+  ASSERT_EQ(PaymentHandlerStatus::NOT_FOUND, status);
+
+  std::vector<std::string> keys;
+  KeysOfPaymentInstruments(&keys, &status);
+
+  HasPaymentInstrument("test_key", &status);
+  ASSERT_EQ(PaymentHandlerStatus::NOT_FOUND, status);
+
+  ClearPaymentInstruments(&status);
   ASSERT_EQ(PaymentHandlerStatus::NOT_FOUND, status);
 }
 

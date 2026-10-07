@@ -23,6 +23,7 @@ namespace cc {
 class Layer;
 class LayerImpl;
 class PictureLayerImpl;
+class RenderSurfaceImpl;
 class TreeSynchronizer;
 
 // OwnedLayerImplList handles ownership and all bookkeeping for a set of
@@ -201,10 +202,7 @@ class CC_EXPORT OwnedLayerImplList {
 using LayerList = std::vector<scoped_refptr<Layer>>;
 // RAW_PTR_EXCLUSION: Renderer performance: visible in sampling profiler stacks.
 using LayerImplList = RAW_PTR_EXCLUSION std::vector<LayerImpl*>;
-// List of effect node IDs representing render surfaces in drawing order.
-// Storing integer IDs instead of bare pointers eliminates the need for
-// RAW_PTR_EXCLUSION and avoids UAF risks across property tree updates.
-using RenderSurfaceList = std::vector<int>;
+using RenderSurfaceList = RAW_PTR_EXCLUSION std::vector<RenderSurfaceImpl*>;
 using LayerImplRange =
     OwnedLayerImplList::Range<LayerImpl, OwnedLayerImplList::MapType>;
 using PictureLayerImplRange =

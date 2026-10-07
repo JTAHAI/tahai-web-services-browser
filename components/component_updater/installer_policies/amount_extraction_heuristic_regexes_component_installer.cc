@@ -4,12 +4,7 @@
 
 #include "components/component_updater/installer_policies/amount_extraction_heuristic_regexes_component_installer.h"
 
-#include <array>
-#include <cstdint>
-#include <memory>
 #include <optional>
-#include <string>
-#include <utility>
 #include <vector>
 
 #include "base/files/file_path.h"
@@ -126,7 +121,8 @@ AmountExtractionHeuristicRegexesInstallerPolicy::GetRelativeInstallDir() const {
 
 void AmountExtractionHeuristicRegexesInstallerPolicy::GetHash(
     std::vector<uint8_t>* hash) const {
-  hash->assign_range(kAmountExtractionHeuristicRegexesPublicKeySHA256);
+  hash->assign(std::begin(kAmountExtractionHeuristicRegexesPublicKeySHA256),
+               std::end(kAmountExtractionHeuristicRegexesPublicKeySHA256));
 }
 
 std::string AmountExtractionHeuristicRegexesInstallerPolicy::GetName() const {

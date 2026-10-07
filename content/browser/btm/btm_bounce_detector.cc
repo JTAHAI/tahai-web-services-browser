@@ -13,7 +13,6 @@
 #include <vector>
 
 #include "base/check.h"
-#include "base/containers/span.h"
 #include "base/functional/bind.h"
 #include "base/location.h"
 #include "base/memory/raw_ptr.h"
@@ -213,8 +212,7 @@ BtmRedirectContext::BtmRedirectContext(
 BtmRedirectContext::~BtmRedirectContext() = default;
 
 void BtmRedirectContext::AppendClientRedirect(BtmRedirectPtr client_redirect) {
-  CHECK_EQ(client_redirect->redirect_type, BtmRedirectType::kClient,
-           base::NotFatalUntil::M158);
+  DCHECK_EQ(client_redirect->redirect_type, BtmRedirectType::kClient);
   redirectors_.insert(client_redirect->site);
   redirects_.push_back(std::move(client_redirect));
   MaybeTrimAndHandlePartialRedirectChain();
@@ -223,8 +221,7 @@ void BtmRedirectContext::AppendClientRedirect(BtmRedirectPtr client_redirect) {
 void BtmRedirectContext::AppendServerRedirects(
     std::vector<BtmRedirectPtr> server_redirects) {
   for (auto& redirect : server_redirects) {
-    CHECK_EQ(redirect->redirect_type, BtmRedirectType::kServer,
-             base::NotFatalUntil::M158);
+    DCHECK_EQ(redirect->redirect_type, BtmRedirectType::kServer);
     redirectors_.insert(redirect->site);
     redirects_.push_back(std::move(redirect));
   }
@@ -237,7 +234,7 @@ void BtmRedirectContext::MaybeTrimAndHandlePartialRedirectChain() {
     return;
   }
 
-  CHECK_GE(redirects_.size(), trim_count, base::NotFatalUntil::M158);
+  DCHECK_GE(redirects_.size(), trim_count);
 
   // Use an empty `final_url`. This processes the redirect as different from the
   // final URL, which allows recording in the BTM database.

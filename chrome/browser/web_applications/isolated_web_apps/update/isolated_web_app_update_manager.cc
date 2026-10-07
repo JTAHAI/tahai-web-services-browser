@@ -38,6 +38,8 @@
 #include "chrome/browser/web_applications/isolated_web_apps/isolated_web_app_trust_checker.h"
 #include "chrome/browser/web_applications/isolated_web_apps/isolated_web_app_url_info.h"
 #include "chrome/browser/web_applications/isolated_web_apps/key_rotation_util.h"
+#include "chrome/browser/web_applications/isolated_web_apps/policy/isolated_web_app_external_install_options.h"
+#include "chrome/browser/web_applications/isolated_web_apps/policy/isolated_web_app_policy_manager.h"
 #include "chrome/browser/web_applications/isolated_web_apps/update/isolated_web_app_update_apply_task.h"
 #include "chrome/browser/web_applications/isolated_web_apps/update/isolated_web_app_update_apply_waiter.h"
 #include "chrome/browser/web_applications/isolated_web_apps/update/isolated_web_app_update_check_and_prepare_task.h"
@@ -47,8 +49,6 @@
 #include "chrome/browser/web_applications/web_app_management_type.h"
 #include "chrome/browser/web_applications/web_app_provider.h"
 #include "chrome/browser/web_applications/web_app_registrar.h"
-#include "chrome/browser/web_applications/web_app_ui_manager.h"
-#include "chrome/common/chrome_features.h"
 #include "chrome/common/pref_names.h"
 #include "components/keep_alive_registry/keep_alive_types.h"
 #include "components/keep_alive_registry/scoped_keep_alive.h"
@@ -57,7 +57,6 @@
 #include "components/webapps/common/web_app_id.h"
 #include "components/webapps/isolated_web_apps/error/uma_logging.h"
 #include "components/webapps/isolated_web_apps/public/iwa_runtime_data_provider.h"
-#include "components/webapps/isolated_web_apps/types/isolated_web_app_external_install_options.h"
 #include "components/webapps/isolated_web_apps/types/iwa_origin.h"
 #include "components/webapps/isolated_web_apps/types/storage_location.h"
 #include "components/webapps/isolated_web_apps/types/update_channel.h"
@@ -68,7 +67,6 @@
 
 #if BUILDFLAG(IS_CHROMEOS)
 #include "chrome/browser/ash/app_mode/isolated_web_app/kiosk_iwa_policy_util.h"
-#include "chrome/browser/web_applications/isolated_web_apps/update/isolated_web_app_update_notification_service.h"
 #include "chromeos/components/kiosk/kiosk_utils.h"
 #endif
 
@@ -178,8 +176,7 @@ IwaBundleIdToUpdateOptionsMap GetForceInstalledPolicyIsolatedWebApps(
   IwaBundleIdToUpdateOptionsMap result;
 
   for (const auto& install_options :
-       ParseIwaInstallForceList(profile->GetPrefs()->GetList(
-           prefs::kIsolatedWebAppInstallForceList))) {
+       IsolatedWebAppPolicyManager::GetIwaInstallForceList(*profile)) {
     result.emplace(
         install_options.web_bundle_id(),
         IsolatedWebAppUpdateOptions(install_options.update_manifest_url(),
@@ -379,11 +376,6 @@ void IsolatedWebAppUpdateManager::Start() {
   }
 
   has_started_ = true;
-#if BUILDFLAG(IS_CHROMEOS)
-  update_notification_service_ =
-      std::make_unique<IsolatedWebAppUpdateNotificationService>(*profile_,
-                                                                *provider_);
-#endif
   install_manager_observation_.Observe(&provider_->install_manager());
   runtime_data_changed_subscription_ =
       IwaRuntimeDataProvider::GetInstance().OnRuntimeDataChanged(
@@ -443,17 +435,7 @@ void IsolatedWebAppUpdateManager::DelayedStart() {
   // browser session and were created in `IsolatedWebAppUpdateManager::Start`.
   task_queue_.MaybeStartNextTask();
 
-  if (base::FeatureList::IsEnabled(features::kIsolatedWebAppFastUpdateCheck)) {
-    base::SequencedTaskRunner::GetCurrentDefault()->PostDelayedTask(
-        FROM_HERE,
-        base::BindOnce(
-            base::IgnoreResult(&IsolatedWebAppUpdateManager::
-                                   QueueUpdateDiscoverAndPrepareTasks),
-            weak_factory_.GetWeakPtr()),
-        base::Minutes(1));
-  } else {
-    QueueUpdateDiscoverAndPrepareTasks();
-  }
+  QueueUpdateDiscoverAndPrepareTasks();
 }
 
 void IsolatedWebAppUpdateManager::Shutdown() {
@@ -465,9 +447,6 @@ void IsolatedWebAppUpdateManager::Shutdown() {
   next_update_discovery_check_.Reset();
   task_queue_.Clear();
   update_apply_waiters_.clear();
-#if BUILDFLAG(IS_CHROMEOS)
-  update_notification_service_.reset();
-#endif
 }
 
 base::Value IsolatedWebAppUpdateManager::AsDebugValue() const {
@@ -730,17 +709,11 @@ void IsolatedWebAppUpdateManager::CreateUpdateApplyWaiter(
       base::BindOnce(&IsolatedWebAppUpdateManager::OnUpdateApplyWaiterFinished,
                      weak_factory_.GetWeakPtr(), url_info,
                      std::move(on_update_apply_task_created)));
-#if BUILDFLAG(IS_CHROMEOS)
-  if (provider_->ui_manager().GetNumWindowsForApp(app_id) > 0 &&
-      update_notification_service_) {
-    update_notification_service_->ShowUpdatePendingNotification(app_id);
-  }
-#endif
 }
 
 void IsolatedWebAppUpdateManager::OnUpdateDiscoverAndPrepareTaskCompleted(
     std::unique_ptr<IsolatedWebAppUpdateCheckAndPrepareTask> task,
-    IwaUpdateCheckAndPrepareResult status) {
+    IsolatedWebAppUpdateCheckAndPrepareTask::CompletionStatus status) {
   TrackResultOfUpdateDiscoveryTask(status);
 
   for (auto& observer : task_observers_) {
@@ -754,16 +727,18 @@ void IsolatedWebAppUpdateManager::OnUpdateDiscoverAndPrepareTaskCompleted(
 
   if (status.has_value()) {
     switch (*status) {
-      case IwaUpdateCheckAndPrepareSuccess::kUpdateFoundAndSavedInDatabase:
-      case IwaUpdateCheckAndPrepareSuccess::
+      case IsolatedWebAppUpdateCheckAndPrepareTask::Success::
+          kUpdateFoundAndSavedInDatabase:
+      case IsolatedWebAppUpdateCheckAndPrepareTask::Success::
           kPinnedVersionUpdateFoundAndSavedInDatabase:
-      case IwaUpdateCheckAndPrepareSuccess::
+      case IsolatedWebAppUpdateCheckAndPrepareTask::Success::
           kDowngradeVersionFoundAndSavedInDatabase:
         CreateUpdateApplyWaiter(task->url_info());
         break;
-      case IwaUpdateCheckAndPrepareSuccess::kNoUpdateFound:
-      case IwaUpdateCheckAndPrepareSuccess::kUpdateAlreadyPending:
-      case IwaUpdateCheckAndPrepareSuccess::kUpdateFound:
+      case IsolatedWebAppUpdateCheckAndPrepareTask::Success::kNoUpdateFound:
+      case IsolatedWebAppUpdateCheckAndPrepareTask::Success::
+          kUpdateAlreadyPending:
+      case IsolatedWebAppUpdateCheckAndPrepareTask::Success::kUpdateFound:
         break;
     }
   }
@@ -772,7 +747,7 @@ void IsolatedWebAppUpdateManager::OnUpdateDiscoverAndPrepareTaskCompleted(
 }
 
 void IsolatedWebAppUpdateManager::TrackResultOfUpdateDiscoveryTask(
-    IwaUpdateCheckAndPrepareResult status) const {
+    IsolatedWebAppUpdateCheckAndPrepareTask::CompletionStatus status) const {
   if (!status.has_value()) {
     web_app::UmaLogExpectedStatus<IsolatedWebAppUpdateError>(
         "WebApp.Isolated.Update",
@@ -785,11 +760,6 @@ void IsolatedWebAppUpdateManager::OnUpdateApplyWaiterFinished(
     base::OnceClosure on_update_apply_task_created,
     std::unique_ptr<ScopedKeepAlive> keep_alive,
     std::unique_ptr<ScopedProfileKeepAlive> profile_keep_alive) {
-#if BUILDFLAG(IS_CHROMEOS)
-  if (update_notification_service_) {
-    update_notification_service_->CloseNotification(url_info.app_id());
-  }
-#endif
   update_apply_waiters_.erase(url_info.app_id());
 
   task_queue_.Push(std::make_unique<IsolatedWebAppUpdateApplyTask>(
@@ -1062,7 +1032,7 @@ bool IsolatedWebAppUpdateManager::TaskQueue::IsAnyTaskRunning() const {
 void IsolatedWebAppUpdateManager::TaskQueue::
     OnUpdateDiscoverAndPrepareTaskCompleted(
         IsolatedWebAppUpdateCheckAndPrepareTask* task_ptr,
-        IwaUpdateCheckAndPrepareResult status) {
+        IsolatedWebAppUpdateCheckAndPrepareTask::CompletionStatus status) {
   auto task_it = std::ranges::find_if(update_discovery_tasks_,
                                       base::MatchesUniquePtr(task_ptr));
   CHECK(task_it != update_discovery_tasks_.end());
@@ -1110,29 +1080,35 @@ void IsolatedWebAppUpdateManager::TaskQueue::OnUpdateApplyTaskCompleted(
 }
 
 IsolatedWebAppUpdateError IsolatedWebAppUpdateManager::FromDiscoveryTaskError(
-    const IwaUpdateCheckAndPrepareError& error) const {
+    const IsolatedWebAppUpdateCheckAndPrepareTask::Error& error) const {
   switch (error) {
-    case IwaUpdateCheckAndPrepareError::kUpdateManifestDownloadFailed:
+    case IsolatedWebAppUpdateCheckAndPrepareTask::Error::
+        kUpdateManifestDownloadFailed:
       return IsolatedWebAppUpdateError::kUpdateManifestDownloadFailed;
-    case IwaUpdateCheckAndPrepareError::kUpdateManifestInvalidJson:
+    case IsolatedWebAppUpdateCheckAndPrepareTask::Error::
+        kUpdateManifestInvalidJson:
       return IsolatedWebAppUpdateError::kUpdateManifestInvalidJson;
-    case IwaUpdateCheckAndPrepareError::kUpdateManifestInvalidManifest:
+    case IsolatedWebAppUpdateCheckAndPrepareTask::Error::
+        kUpdateManifestInvalidManifest:
       return IsolatedWebAppUpdateError::kUpdateManifestInvalidManifest;
-    case IwaUpdateCheckAndPrepareError::kUpdateManifestNoApplicableVersion:
+    case IsolatedWebAppUpdateCheckAndPrepareTask::Error::
+        kUpdateManifestNoApplicableVersion:
       return IsolatedWebAppUpdateError::kUpdateManifestNoApplicableVersion;
-    case IwaUpdateCheckAndPrepareError::kIwaNotInstalled:
+    case IsolatedWebAppUpdateCheckAndPrepareTask::Error::kIwaNotInstalled:
       return IsolatedWebAppUpdateError::kIwaNotInstalled;
-    case IwaUpdateCheckAndPrepareError::kPinnedVersionNotFoundInUpdateManifest:
+    case IsolatedWebAppUpdateCheckAndPrepareTask::Error::
+        kPinnedVersionNotFoundInUpdateManifest:
       return IsolatedWebAppUpdateError::kPinnedVersionNotFoundInUpdateManifest;
-    case IwaUpdateCheckAndPrepareError::kDowngradeNotAllowed:
+    case IsolatedWebAppUpdateCheckAndPrepareTask::Error::kDowngradetNotAllowed:
       return IsolatedWebAppUpdateError::kDowngradeNotAllowed;
-    case IwaUpdateCheckAndPrepareError::kDownloadPathCreationFailed:
+    case IsolatedWebAppUpdateCheckAndPrepareTask::Error::
+        kDownloadPathCreationFailed:
       return IsolatedWebAppUpdateError::kDownloadPathCreationFailed;
-    case IwaUpdateCheckAndPrepareError::kBundleDownloadError:
+    case IsolatedWebAppUpdateCheckAndPrepareTask::Error::kBundleDownloadError:
       return IsolatedWebAppUpdateError::kBundleDownloadError;
-    case IwaUpdateCheckAndPrepareError::kUpdateDryRunFailed:
+    case IsolatedWebAppUpdateCheckAndPrepareTask::Error::kUpdateDryRunFailed:
       return IsolatedWebAppUpdateError::kUpdateDryRunFailed;
-    case IwaUpdateCheckAndPrepareError::kSystemShutdown:
+    case IsolatedWebAppUpdateCheckAndPrepareTask::Error::kSystemShutdown:
       return IsolatedWebAppUpdateError::kSystemShutdown;
   }
 }

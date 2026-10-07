@@ -11,11 +11,8 @@
 
 #include "build/build_config.h"
 
+class Browser;
 class FullscreenController;
-
-namespace content {
-class WebContents;
-}
 
 // Utility definition for mapping enum values to strings in switch statements.
 #define ENUM_TO_STRING(enum) \
@@ -165,8 +162,8 @@ class FullscreenControllerStateTest {
 
   void TearDown();
 
-  virtual FullscreenController* GetFullscreenController() = 0;
-  virtual content::WebContents* GetActiveWebContents() = 0;
+  virtual Browser* GetBrowser() = 0;
+  FullscreenController* GetFullscreenController();
 
   // The state the FullscreenController is expected to be in.
   State state() const { return state_; }

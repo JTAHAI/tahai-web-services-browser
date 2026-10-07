@@ -6,7 +6,6 @@
 
 #include <string_view>
 
-#include "base/test/gtest_util.h"
 #include "base/values.h"
 #include "extensions/renderer/bindings/api_binding_test.h"
 #include "extensions/renderer/bindings/api_binding_test_util.h"
@@ -95,30 +94,28 @@ std::unique_ptr<APISignature> NoArgs() {
 std::unique_ptr<APISignature> IntAndCallback() {
   SpecVector specs;
   specs.push_back(ArgumentSpecBuilder(ArgumentType::INTEGER, "int").Build());
-  return std::make_unique<APISignature>(
-      std::move(specs),
-      ReturnsAsyncBuilder().DoesNotSupportPromises().MakeRequired().Build());
+  return std::make_unique<APISignature>(std::move(specs),
+                                        ReturnsAsyncBuilder().Build());
 }
 
 std::unique_ptr<APISignature> IntAndOptionalCallback() {
   SpecVector specs;
   specs.push_back(ArgumentSpecBuilder(ArgumentType::INTEGER, "int").Build());
   return std::make_unique<APISignature>(
-      std::move(specs), ReturnsAsyncBuilder().DoesNotSupportPromises().Build());
+      std::move(specs), ReturnsAsyncBuilder().MakeOptional().Build());
 }
 
 std::unique_ptr<APISignature> OptionalIntAndCallback() {
   SpecVector specs;
   specs.push_back(
       ArgumentSpecBuilder(ArgumentType::INTEGER, "int").MakeOptional().Build());
-  return std::make_unique<APISignature>(
-      std::move(specs),
-      ReturnsAsyncBuilder().DoesNotSupportPromises().MakeRequired().Build());
+  return std::make_unique<APISignature>(std::move(specs),
+                                        ReturnsAsyncBuilder().Build());
 }
 
 std::unique_ptr<APISignature> OptionalCallback() {
   return std::make_unique<APISignature>(
-      SpecVector(), ReturnsAsyncBuilder().DoesNotSupportPromises().Build());
+      SpecVector(), ReturnsAsyncBuilder().MakeOptional().Build());
 }
 
 std::unique_ptr<APISignature> IntAnyOptionalObjectOptionalCallback() {
@@ -133,7 +130,7 @@ std::unique_ptr<APISignature> IntAnyOptionalObjectOptionalCallback() {
           .MakeOptional()
           .Build());
   return std::make_unique<APISignature>(
-      std::move(specs), ReturnsAsyncBuilder().DoesNotSupportPromises().Build());
+      std::move(specs), ReturnsAsyncBuilder().MakeOptional().Build());
 }
 
 std::unique_ptr<APISignature> RefObj() {
@@ -162,7 +159,7 @@ std::unique_ptr<APISignature> OptionalObjectAndOptionalCallback() {
           .MakeOptional()
           .Build());
   return std::make_unique<APISignature>(
-      std::move(specs), ReturnsAsyncBuilder().DoesNotSupportPromises().Build());
+      std::move(specs), ReturnsAsyncBuilder().MakeOptional().Build());
 }
 
 std::unique_ptr<APISignature> OptionalIntAndNumber() {
@@ -593,7 +590,8 @@ TEST_F(APISignatureTest, ParseIgnoringSchemaWithPromises) {
   SpecVector specs;
   specs.push_back(ArgumentSpecBuilder(ArgumentType::INTEGER, "int").Build());
   auto int_and_optional_callback = std::make_unique<APISignature>(
-      std::move(specs), ReturnsAsyncBuilder().Build());
+      std::move(specs),
+      ReturnsAsyncBuilder().MakeOptional().AddPromiseSupport().Build());
 
   {
     // Test with providing an optional callback.
@@ -689,7 +687,8 @@ TEST_F(APISignatureTest, ParseArgumentsToV8WithUnspecifiedOptionalCallback) {
   SpecVector specs;
   specs.push_back(ArgumentSpecBuilder(ArgumentType::INTEGER, "int").Build());
   auto signature = std::make_unique<APISignature>(
-      std::move(specs), ReturnsAsyncBuilder().Build());
+      std::move(specs),
+      ReturnsAsyncBuilder().MakeOptional().AddPromiseSupport().Build());
 
   v8::LocalVector<v8::Value> args = StringToV8Vector(context, R"([1337])");
 
@@ -749,41 +748,48 @@ TEST_F(APISignatureTest, PromisesSupport) {
   v8::HandleScope handle_scope(isolate());
 
   {
-    // By default, async returns support promises and have optional callbacks.
-    // Parsing with no arguments should succeed with a promise-based response
-    // type.
-    auto default_signature = std::make_unique<APISignature>(
+    // Test a signature with a required callback.
+    auto required_callback_signature = std::make_unique<APISignature>(
         SpecVector(), ReturnsAsyncBuilder().Build());
-    ExpectPass(*default_signature, "[]", "[]",
+    // By default, APIs don't support promises, and passing in no arguments
+    // should fail.
+    ExpectFailure(*required_callback_signature, "[]", NoMatchingSignature());
+  }
+
+  {
+    // If we allow promises on the API, parsing the arguments should succeed
+    // (with a promise-based response type).
+    auto required_callback_signature = std::make_unique<APISignature>(
+        SpecVector(), ReturnsAsyncBuilder().AddPromiseSupport().Build());
+    ExpectPass(*required_callback_signature, "[]", "[]",
                binding::AsyncResponseType::kPromise);
 
     // Ensure that the promise support allowing the final argument to be
     // optional doesn't mean we can ignore it entirely if it doesn't match the
     // signature. See: http://crbug.com/1350315
-    ExpectFailure(*default_signature, "['foo']", NoMatchingSignature());
+    ExpectFailure(*required_callback_signature, "['foo']",
+                  NoMatchingSignature());
   }
 
   {
-    // If an API does not support promises and has a required callback,
-    // passing in no arguments should fail.
-    auto required_callback_signature = std::make_unique<APISignature>(
-        SpecVector(),
-        ReturnsAsyncBuilder().DoesNotSupportPromises().MakeRequired().Build());
-    ExpectFailure(*required_callback_signature, "[]", NoMatchingSignature());
-  }
-
-  {
-    // If an API does not support promises and has an optional callback,
-    // parsing should succeed with no async response type.
+    // Next, try an optional callback.
     auto optional_callback_signature = std::make_unique<APISignature>(
-        SpecVector(), ReturnsAsyncBuilder().DoesNotSupportPromises().Build());
+        SpecVector(), ReturnsAsyncBuilder().MakeOptional().Build());
+    // Even if promises aren't supported, parsing should succeed, because the
+    // callback is optional.
     ExpectPass(*optional_callback_signature, "[]", "[]",
                binding::AsyncResponseType::kNone);
   }
 
-  // Marking an async return as required is only valid if promises are
-  // unsupported.
-  EXPECT_CHECK_DEATH(ReturnsAsyncBuilder().MakeRequired().Build());
+  {
+    // If we allow promises on the API, parsing the arguments should succeed,
+    // with a promise-based response type.
+    auto optional_callback_signature = std::make_unique<APISignature>(
+        SpecVector(),
+        ReturnsAsyncBuilder().MakeOptional().AddPromiseSupport().Build());
+    ExpectPass(*optional_callback_signature, "[]", "[]",
+               binding::AsyncResponseType::kPromise);
+  }
 }
 
 }  // namespace extensions

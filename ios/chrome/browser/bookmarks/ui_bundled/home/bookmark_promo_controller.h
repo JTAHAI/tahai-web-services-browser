@@ -8,6 +8,7 @@
 #import <UIKit/UIKit.h>
 
 class Browser;
+@protocol SigninPresenter;
 @protocol AccountSettingsPresenter;
 @class SigninPromoViewConfigurator;
 @class SigninPromoViewMediator;
@@ -27,7 +28,8 @@ class SyncService;
 // Configures the sign-in promo view using `configurator`, and reloads the view
 // needed.
 - (void)configureSigninPromoWithConfigurator:
-    (SigninPromoViewConfigurator*)configurator;
+            (SigninPromoViewConfigurator*)configurator
+                             identityChanged:(BOOL)identityChanged;
 
 // Returns YES if the initial sync is running.
 - (BOOL)isPerformingInitialSync;

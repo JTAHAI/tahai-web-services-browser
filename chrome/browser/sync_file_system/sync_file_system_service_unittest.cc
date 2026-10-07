@@ -52,7 +52,7 @@ namespace sync_file_system {
 
 namespace {
 
-const char kOrigin[] = "chrome-extension://example";
+const char kOrigin[] = "http://example.com";
 
 template <typename R> struct AssignTrait {
   typedef const R& ArgumentType;

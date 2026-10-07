@@ -26,8 +26,8 @@
 #include "base/i18n/rtl.h"
 #include "base/memory/raw_ptr.h"
 #include "ui/color/color_provider.h"
+#include "ui/compositor/layer.h"
 #include "ui/compositor/layer_animation_sequence.h"
-#include "ui/compositor/layer_textured.h"
 #include "ui/compositor/paint_recorder.h"
 #include "ui/compositor/scoped_layer_animation_settings.h"
 #include "ui/gfx/canvas.h"
@@ -85,7 +85,7 @@ gfx::Size GetPreviewSize(
 const gfx::ShadowDetails& GetShadowDetails() {
   const gfx::Size size(GetPreviewSize());
   const int radius = std::min(size.height(), size.width()) / 2;
-  return gfx::ShadowDetails::Get(kElevation, gfx::RoundedCornersF(radius));
+  return gfx::ShadowDetails::Get(kElevation, radius);
 }
 
 // Adjust the specified `origin` for shadow margins.

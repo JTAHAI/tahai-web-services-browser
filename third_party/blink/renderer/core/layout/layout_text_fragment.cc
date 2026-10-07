@@ -60,15 +60,15 @@ LayoutTextFragment* LayoutTextFragment::Create(Node* node,
                                                   length);
 }
 
-LayoutTextFragment* LayoutTextFragment::CreateAnonymous(Document& document,
+LayoutTextFragment* LayoutTextFragment::CreateAnonymous(Document& doc,
                                                         const String& text,
                                                         unsigned start,
                                                         unsigned length) {
   LayoutTextFragment* fragment =
       LayoutTextFragment::Create(nullptr, text, start, length);
-  fragment->SetDocumentForAnonymous(document);
+  fragment->SetDocumentForAnonymous(&doc);
   if (length)
-    document.View()->IncrementVisuallyNonEmptyCharacterCount(length);
+    doc.View()->IncrementVisuallyNonEmptyCharacterCount(length);
   return fragment;
 }
 
@@ -82,12 +82,12 @@ void LayoutTextFragment::Trace(Visitor* visitor) const {
   LayoutText::Trace(visitor);
 }
 
-void LayoutTextFragment::WillBeDestroyed(const ComputedStyle* style) {
+void LayoutTextFragment::WillBeDestroyed() {
   NOT_DESTROYED();
   if (is_remaining_text_layout_object_ && first_letter_pseudo_element_)
     first_letter_pseudo_element_->ClearRemainingTextLayoutObject();
   first_letter_pseudo_element_ = nullptr;
-  LayoutText::WillBeDestroyed(style);
+  LayoutText::WillBeDestroyed();
 }
 
 String LayoutTextFragment::CompleteText() const {

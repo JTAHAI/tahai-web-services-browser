@@ -200,13 +200,8 @@ class AccountProfileMapper {
 
   std::unique_ptr<Assigner> assigner_;
 
-  // TODO(crbug.com/484371187): Investigate if reentrancy can be removed.
-  std::map<std::string,
-           base::ObserverList<
-               Observer,
-               false,
-               base::ObserverListReentrancyPolicy::kAllowReentrancyUntriaged>,
-           std::less<>>
+  // Registered observers.
+  std::map<std::string, base::ObserverList<Observer>, std::less<>>
       observer_lists_per_profile_name_;
 };
 

@@ -51,13 +51,12 @@ InteractiveFeaturePromoTestApi::InteractiveFeaturePromoTestApi(
 InteractiveFeaturePromoTestApi::~InteractiveFeaturePromoTestApi() = default;
 
 InteractiveFeaturePromoTestApi::MockTracker*
-InteractiveFeaturePromoTestApi::GetMockTrackerFor(
-    BrowserWindowInterface* browser) {
+InteractiveFeaturePromoTestApi::GetMockTrackerFor(Browser* browser) {
   return test_impl_->GetMockTrackerFor(browser);
 }
 
 void InteractiveFeaturePromoTestApi::RegisterTestFeature(
-    BrowserWindowInterface* browser,
+    Browser* browser,
     user_education::FeaturePromoSpecification spec) {
   UserEducationServiceFactory::GetForBrowserContext(browser->GetProfile())
       ->feature_promo_registry()
@@ -66,7 +65,7 @@ void InteractiveFeaturePromoTestApi::RegisterTestFeature(
 
 InteractiveFeaturePromoTestApi::MultiStep
 InteractiveFeaturePromoTestApi::WaitForFeatureEngagementReady() {
-  INTERACTIVE_TEST_TEMPORARY_VALUE(raw_ptr<BrowserWindowInterface>, kBrowser);
+  INTERACTIVE_TEST_TEMPORARY_VALUE(raw_ptr<Browser>, kBrowser);
   auto steps = Steps(
       // Ensure that the correct tracker for the current context is used.
       WithView(kBrowserViewElementId,

@@ -22,7 +22,6 @@
 #include "chrome/common/buildflags.h"
 #include "components/password_manager/core/browser/password_manager_client.h"
 #include "components/password_manager/core/browser/password_store/password_store_interface.h"
-#include "components/password_manager/core/browser/password_string.h"
 #include "components/password_manager/core/browser/ui/post_save_compromised_helper.h"
 #include "components/prefs/pref_service.h"
 #include "content/public/browser/web_contents_observer.h"
@@ -143,6 +142,10 @@ class ManagePasswordsUIController
       password_manager::PasswordStoreInterface* store,
       password_manager::ActionableError new_state) override;
 
+  // Called if the password change flow finishes successfully. It ensures the
+  // correct state after the flow.
+  void OnPasswordChangeFinishedSuccessfully();
+
   // True iff the bubble is to be opened automatically.
   bool IsAutomaticallyOpeningBubble() const {
     return bubble_status_ == BubbleStatus::SHOULD_POP_UP;
@@ -188,7 +191,7 @@ class ManagePasswordsUIController
   void OnNotNowClicked() override;
   void OnPasswordsRevealed() override;
   void SavePassword(const std::u16string& username,
-                    const password_manager::PasswordString& password) override;
+                    const std::u16string& password) override;
   void MovePasswordToAccountStore() override;
   void MovePendingPasswordToAccountStoreUsingHelper(
       const password_manager::PasswordForm& form,
@@ -248,13 +251,10 @@ class ManagePasswordsUIController
   bool IsMouseHovered() const override;
   base::WeakPtr<BubbleControllerBase> GetBubbleControllerBaseWeakPtr() override;
 
-  // PasswordsLeakDialogDelegate:
-  void NavigateToPasswordCheckup(
-      password_manager::PasswordCheckReferrer referrer) override;
-  void OnLeakDialogHidden() override;
-  void OnPasswordChangeFinishedSuccessfully() override;
+  // Opens change password bubble and passes `username` and `new_password` that
+  // should be displayed on it.
   void ShowChangePasswordBubble(const std::u16string& username,
-                                const std::u16string& new_password) override;
+                                const std::u16string& new_password);
 
   void ShowAutoSignInToast();
 
@@ -277,8 +277,8 @@ class ManagePasswordsUIController
   virtual std::unique_ptr<AccountChooserPrompt> CreateAccountChooser(
       CredentialManagerDialogController* controller);
 
-  // Called to create the auto sign-in prompt dialog. Mocked in tests.
-  virtual std::unique_ptr<AutoSigninFirstRunPrompt> CreateAutoSigninPrompt(
+  // Called to create the account chooser dialog. Mocked in tests.
+  virtual AutoSigninFirstRunPrompt* CreateAutoSigninPrompt(
       CredentialManagerDialogController* controller);
 
   // Called to create the credentials leaked dialog.
@@ -312,6 +312,11 @@ class ManagePasswordsUIController
 
   void OnReauthCompleted();
 
+  // PasswordsLeakDialogDelegate:
+  void NavigateToPasswordCheckup(
+      password_manager::PasswordCheckReferrer referrer) override;
+  void OnLeakDialogHidden() override;
+
   enum class BubbleStatus {
     NOT_SHOWN,
     // The bubble is to be popped up in the next call to
@@ -344,11 +349,6 @@ class ManagePasswordsUIController
 
   // Returns whether the current site is explicitly blocklisted.
   bool IsExplicitlyBlocklisted() const;
-
-  // Returns whether the specified store is used for saving the pending
-  // credentials.
-  bool IsStoreUsedForSavingPendingCredentials(
-      password_manager::PasswordStoreInterface* store) const;
 
   // Returns the timeout for the manual save fallback.
   static base::TimeDelta GetTimeoutForSaveFallback();
@@ -393,7 +393,7 @@ class ManagePasswordsUIController
   // because otherwise we cannot tell if the credentials were modified manually.
   void HandlePasswordRecoveryFinished(
       const std::u16string& username,
-      const password_manager::PasswordString& password,
+      const std::u16string& password,
       const std::u16string& password_backup) const;
 
   // Returns true if there exists a password manager bubble yet to be shown in

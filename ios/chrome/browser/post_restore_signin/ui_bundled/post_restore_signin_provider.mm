@@ -20,7 +20,6 @@
 #import "ios/chrome/browser/promos_manager/model/constants.h"
 #import "ios/chrome/browser/promos_manager/model/promo_config.h"
 #import "ios/chrome/browser/shared/model/profile/profile_ios.h"
-#import "ios/chrome/browser/shared/public/commands/scene_commands.h"
 #import "ios/chrome/browser/shared/public/commands/show_signin_command.h"
 #import "ios/chrome/browser/signin/model/authentication_service.h"
 #import "ios/chrome/browser/signin/model/authentication_service_factory.h"
@@ -176,7 +175,7 @@
 
 // Shows the signin / sync UI flow.
 - (void)showSignin {
-  CHECK(self.sceneHandler, base::NotFatalUntil::M160);
+  DCHECK(self.handler);
 
   __weak __typeof(self) weakSelf = self;
   SigninCoordinatorCompletionCallback completion =
@@ -194,7 +193,7 @@
             promoAction:signin_metrics::PromoAction::
                             PROMO_ACTION_NO_SIGNIN_PROMO
              completion:completion];
-  [self.sceneHandler showSignin:command baseViewController:nil];
+  [self.handler showSignin:command];
 }
 
 - (void)signinDone {

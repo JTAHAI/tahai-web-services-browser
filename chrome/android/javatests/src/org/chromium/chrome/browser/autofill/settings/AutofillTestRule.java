@@ -38,7 +38,7 @@ class AutofillTestRule extends SigninTestRule implements EditorObserverForTest, 
     final CallbackHelper mFragmentShown;
 
     private EditorDialogView mEditorDialog;
-    private Fragment mLastShownFragment;
+    private Fragment mLastestShownFragment;
 
     AutofillTestRule() {
         mClickUpdate = new CallbackHelper();
@@ -56,7 +56,6 @@ class AutofillTestRule extends SigninTestRule implements EditorObserverForTest, 
             @Override
             public void evaluate() throws Throwable {
                 NativeLibraryTestUtils.loadNativeLibraryAndInitBrowserProcess();
-                mLastShownFragment = null;
                 // If the test suit is batched, the observers are reset after every test method by
                 // the {@link ResettersForTesting}. Thus the observers must be set in the
                 // {@link TestRule#apply()} method.
@@ -85,10 +84,6 @@ class AutofillTestRule extends SigninTestRule implements EditorObserverForTest, 
     }
 
     protected void waitForFragmentToBeShown() throws TimeoutException {
-        // Return immediately if a fragment has already been shown.
-        if (mLastShownFragment != null) {
-            return;
-        }
         int callCount = mFragmentShown.getCallCount();
         mFragmentShown.waitForCallback(callCount);
     }
@@ -187,7 +182,7 @@ class AutofillTestRule extends SigninTestRule implements EditorObserverForTest, 
     }
 
     protected Fragment getLastestShownFragment() {
-        return mLastShownFragment;
+        return mLastestShownFragment;
     }
 
     @Override
@@ -224,7 +219,7 @@ class AutofillTestRule extends SigninTestRule implements EditorObserverForTest, 
     @Override
     public void onResult(Fragment fragment) {
         ThreadUtils.assertOnUiThread();
-        mLastShownFragment = fragment;
+        mLastestShownFragment = fragment;
         mFragmentShown.notifyCalled();
     }
 }

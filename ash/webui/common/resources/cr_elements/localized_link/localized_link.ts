@@ -97,7 +97,7 @@ export class LocalizedLinkElement extends PolymerElement {
    * @return localizedString formatted with additional ids, spans, and an
    *     aria-labelledby tag
    */
-  protected getAriaLabelledContent_(localizedString: string, linkUrl: string):
+  private getAriaLabelledContent_(localizedString: string, linkUrl: string):
       string {
     const tempEl = document.createElement('div');
     tempEl.innerHTML = sanitizeInnerHtml(localizedString, {attrs: ['id']});
@@ -150,7 +150,7 @@ export class LocalizedLinkElement extends PolymerElement {
     return tempEl.innerHTML;
   }
 
-  protected setContainerInnerHtml_() {
+  private setContainerInnerHtml_() {
     this.$.container.innerHTML = sanitizeInnerHtml(this.containerInnerHTML_, {
       attrs: [
         'aria-hidden',
@@ -172,7 +172,7 @@ export class LocalizedLinkElement extends PolymerElement {
     }
   }
 
-  protected onAnchorTagClick_(event: Event) {
+  private onAnchorTagClick_(event: Event) {
     if (this.linkDisabled) {
       event.preventDefault();
       return;
@@ -188,7 +188,7 @@ export class LocalizedLinkElement extends PolymerElement {
    *  Removes anchor tag from being targeted by chromeVox when link is
    *  disabled.
    */
-  protected updateAnchorTagTabIndex_() {
+  private updateAnchorTagTabIndex_() {
     const anchorTag = this.shadowRoot!.querySelector('a');
     if (!anchorTag) {
       return;

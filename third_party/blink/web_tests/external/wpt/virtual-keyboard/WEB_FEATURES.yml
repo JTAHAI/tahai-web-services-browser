@@ -1,2 +1,3 @@
-rules:
-- "**": [virtual-keyboard]
+features:
+- name: virtual-keyboard
+  files: "**"

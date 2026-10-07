@@ -35,15 +35,16 @@ ReadAnythingSoftNavigationObserver::OnPrerenderStart(
   return CONTINUE_OBSERVING;
 }
 
-void ReadAnythingSoftNavigationObserver::OnSoftNavigationFirstContentfulPaint(
-    const page_load_metrics::mojom::SoftNavigationMetrics&
-        soft_navigation_metrics) {
+void ReadAnythingSoftNavigationObserver::OnSoftNavigation() {
+  if (!features::IsImmersiveReadAnythingEnabled()) {
+    return;
+  }
+
   content::WebContents* web_contents = GetDelegate().GetWebContents();
   if (!web_contents) {
     return;
   }
-  tabs::TabInterface* tab =
-      tabs::TabInterface::MaybeGetFromContents(web_contents);
+  tabs::TabInterface* tab = tabs::TabInterface::GetFromContents(web_contents);
   if (!tab) {
     return;
   }

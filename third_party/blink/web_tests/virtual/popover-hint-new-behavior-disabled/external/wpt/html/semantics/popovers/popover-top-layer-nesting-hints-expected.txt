@@ -1,7 +1,11 @@
 This is a testharness.js-based test.
-[FAIL] Unrelated hint, target=hint with dialog
-  assert_equals: Incorrect behavior expected false but got true
-[FAIL] Unrelated hint, target=hint with fullscreen
-  assert_equals: Incorrect behavior expected false but got true
+[FAIL] Nested auto/hint ancestors, target is auto with dialog
+  assert_equals: Incorrect behavior expected true but got false
+[FAIL] Nested auto/hint ancestors, target is auto with fullscreen
+  assert_equals: Incorrect behavior expected true but got false
+[FAIL] Unrelated hint, target=auto with dialog
+  assert_equals: Incorrect behavior expected true but got false
+[FAIL] Unrelated hint, target=auto with fullscreen
+  assert_equals: Incorrect behavior expected true but got false
 Harness: the test ran to completion.
 

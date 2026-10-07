@@ -46,7 +46,6 @@ extern const char kSiteIsolationEnabled[];
 extern const char kSystemDnsServers[];
 extern const char kTrigger[];
 extern const char kUserEnrollmentDomain[];
-extern const char kVendorId[];
 extern const char kWindowsMachineDomain[];
 extern const char kWindowsUserDomain[];
 

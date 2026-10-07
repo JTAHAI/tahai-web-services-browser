@@ -49,8 +49,7 @@ bool IsPermissionGranted(
 }
 
 bool CanUseWindowingControls(LocalDOMWindow* window,
-                             ExceptionState& exception_state,
-                             bool require_user_activation) {
+                             ExceptionState& exception_state) {
   auto* frame = window->GetFrame();
   if (!frame || !frame->IsOutermostMainFrame() ||
       frame->GetPage()->IsPrerendering()) {
@@ -62,13 +61,6 @@ bool CanUseWindowingControls(LocalDOMWindow* window,
   if (!window->document()->IsInWebAppScope()) {
     exception_state.ThrowDOMException(DOMExceptionCode::kInvalidStateError,
                                       "API is only supported in web apps.");
-    return false;
-  }
-  if (require_user_activation && !window->IsIsolatedContext() &&
-      !LocalFrame::HasTransientUserActivation(frame)) {
-    exception_state.ThrowDOMException(
-        DOMExceptionCode::kNotAllowedError,
-        "API requires transient user activation.");
     return false;
   }
   return true;
@@ -114,8 +106,16 @@ ScriptPromise<IDLUndefined> MaybePromptWindowManagementPermission(
   auto permission_descriptor = PermissionDescriptor::New();
   permission_descriptor->name = PermissionName::WINDOW_MANAGEMENT;
 
-  permission_service->RequestPermission(std::move(permission_descriptor),
-                                        std::move(callback));
+  // Only allow the user prompts when the frame has a transient activation.
+  // Otherwise, resolve or reject the promise with the current permission state.
+  if (LocalFrame::HasTransientUserActivation(window->GetFrame())) {
+    LocalFrame::ConsumeTransientUserActivation(window->GetFrame());
+    permission_service->RequestPermission(std::move(permission_descriptor),
+                                          std::move(callback));
+  } else {
+    permission_service->HasPermission(std::move(permission_descriptor),
+                                      std::move(callback));
+  }
 
   return resolver->Promise();
 }
@@ -166,9 +166,6 @@ void OnMaximizePermissionRequestComplete(
   if (!IsPermissionGranted(resolver, *status)) {
     return;
   }
-  if (!window->IsIsolatedContext()) {
-    LocalFrame::ConsumeTransientUserActivation(window->GetFrame());
-  }
 
   if (IsMaximized(window)) {
     resolver->Resolve();
@@ -185,9 +182,6 @@ void OnMinimizePermissionRequestComplete(
   if (!IsPermissionGranted(resolver, *status)) {
     return;
   }
-  if (!window->IsIsolatedContext()) {
-    LocalFrame::ConsumeTransientUserActivation(window->GetFrame());
-  }
 
   if (IsMinimized(window)) {
     resolver->Resolve();
@@ -203,9 +197,6 @@ void OnRestorePermissionRequestComplete(
     mojom::blink::PermissionStatusWithDetailsPtr status) {
   if (!IsPermissionGranted(resolver, *status)) {
     return;
-  }
-  if (!window->IsIsolatedContext()) {
-    LocalFrame::ConsumeTransientUserActivation(window->GetFrame());
   }
 
   if (IsNormal(window)) {
@@ -237,8 +228,7 @@ ScriptPromise<IDLUndefined> AdditionalWindowingControls::maximize(
     ScriptState* script_state,
     LocalDOMWindow& window,
     ExceptionState& exception_state) {
-  if (!CanUseWindowingControls(&window, exception_state,
-                               /*require_user_activation=*/true)) {
+  if (!CanUseWindowingControls(&window, exception_state)) {
     return EmptyPromise();
   }
 
@@ -255,8 +245,7 @@ ScriptPromise<IDLUndefined> AdditionalWindowingControls::minimize(
     ScriptState* script_state,
     LocalDOMWindow& window,
     ExceptionState& exception_state) {
-  if (!CanUseWindowingControls(&window, exception_state,
-                               /*require_user_activation=*/true)) {
+  if (!CanUseWindowingControls(&window, exception_state)) {
     return EmptyPromise();
   }
 
@@ -273,8 +262,7 @@ ScriptPromise<IDLUndefined> AdditionalWindowingControls::restore(
     ScriptState* script_state,
     LocalDOMWindow& window,
     ExceptionState& exception_state) {
-  if (!CanUseWindowingControls(&window, exception_state,
-                               /*require_user_activation=*/true)) {
+  if (!CanUseWindowingControls(&window, exception_state)) {
     return EmptyPromise();
   }
 
@@ -292,8 +280,7 @@ ScriptPromise<IDLUndefined> AdditionalWindowingControls::setResizable(
     LocalDOMWindow& window,
     bool resizable,
     ExceptionState& exception_state) {
-  if (!CanUseWindowingControls(&window, exception_state,
-                               /*require_user_activation=*/false)) {
+  if (!CanUseWindowingControls(&window, exception_state)) {
     return EmptyPromise();
   }
 

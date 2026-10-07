@@ -4,6 +4,7 @@
 
 #include "chrome/browser/ui/views/confirm_bubble_views.h"
 
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/confirm_bubble_model.h"
 #include "chrome/browser/ui/test/test_browser_dialog.h"

@@ -104,8 +104,11 @@ TEST_P(WaylandOverlayManagerTest, FormatSupportTest) {
 namespace {
 
 void NonIntegerDisplayRectTestHelper(WaylandBufferManagerGpu* manager_gpu,
+                                     bool is_context_delegated,
                                      bool expect_candidates_handled) {
   WaylandOverlayManager manager(manager_gpu);
+  if (is_context_delegated)
+    manager.SetContextDelegated();
 
   // Candidates for output surface and single-on-top quad.
   std::vector<OverlaySurfaceCandidate> candidates = {
@@ -133,8 +136,13 @@ void NonIntegerDisplayRectTestHelper(WaylandBufferManagerGpu* manager_gpu,
 }  // namespace
 
 TEST_P(WaylandOverlayManagerTest, DoesNotSupportNonIntegerDisplayRect) {
-  NonIntegerDisplayRectTestHelper(buffer_manager_gpu_.get(),
-                                  /*expect_candidates_handled=*/false);
+  constexpr std::array<std::array<bool, 2>, 2> test_data = {
+      {{false, false}, {true, false}}};
+  for (const auto& data : test_data) {
+    NonIntegerDisplayRectTestHelper(buffer_manager_gpu_.get(),
+                                    data[0] /* is_delegated_context */,
+                                    data[1] /* expect_candidates_handled */);
+  }
 }
 
 GTEST_ALLOW_UNINSTANTIATED_PARAMETERIZED_TEST(WaylandOverlayManagerTest);

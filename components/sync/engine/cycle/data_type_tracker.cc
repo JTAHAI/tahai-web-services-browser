@@ -65,7 +65,6 @@ base::TimeDelta GetDefaultLocalChangeNudgeDelay(DataType data_type) {
       // coalescing.
       return kBigLocalChangeNudgeDelay;
     case OUTGOING_PASSWORD_SHARING_INVITATION:
-    case SEND_TAB_TO_SELF:
     case SHARING_MESSAGE:
       // Sharing messages are time-sensitive, so use a small nudge delay.
       return kMinLocalChangeNudgeDelay;
@@ -99,6 +98,7 @@ base::TimeDelta GetDefaultLocalChangeNudgeDelay(DataType data_type) {
     case PRINTERS_AUTHORIZATION_SERVERS:
     case READING_LIST:
     case USER_CONSENTS:
+    case SEND_TAB_TO_SELF:
     case SECURITY_EVENTS:
     case SHARED_TAB_GROUP_DATA:
     case WIFI_CONFIGURATIONS:
@@ -109,6 +109,8 @@ base::TimeDelta GetDefaultLocalChangeNudgeDelay(DataType data_type) {
     case WORKSPACE_DESK:
     case NIGORI:
     case WEBAUTHN_CREDENTIAL:
+    case PLUS_ADDRESS:
+    case PLUS_ADDRESS_SETTING:
     case AUTOFILL_VALUABLE:
     case AUTOFILL_VALUABLE_METADATA:
     case ACCOUNT_SETTING:
@@ -120,7 +122,6 @@ base::TimeDelta GetDefaultLocalChangeNudgeDelay(DataType data_type) {
     case GEMINI_THREAD:
     case THEMES_ANDROID:
     case NOTEBOOK:
-    case JOURNEY:
       return kMediumLocalChangeNudgeDelay;
     case UNSPECIFIED:
       NOTREACHED();
@@ -187,6 +188,8 @@ bool CanGetCommitsFromExtensions(DataType data_type) {
     case OUTGOING_PASSWORD_SHARING_INVITATION:
     case SHARED_TAB_GROUP_DATA:
     case COLLABORATION_GROUP:
+    case PLUS_ADDRESS:
+    case PLUS_ADDRESS_SETTING:
     case PRODUCT_COMPARISON:
     case COOKIES:
     case AUTOFILL_VALUABLE:
@@ -200,7 +203,6 @@ bool CanGetCommitsFromExtensions(DataType data_type) {
     case GEMINI_THREAD:
     case THEMES_ANDROID:
     case NOTEBOOK:
-    case JOURNEY:
       return false;
     case UNSPECIFIED:
       NOTREACHED();

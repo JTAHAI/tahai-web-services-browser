@@ -43,7 +43,6 @@ class PrefetchContainerAsyncObserverBase : public PrefetchContainerObserver {
   void OnDeterminedHead(const PrefetchContainer& prefetch_container) override;
   void OnPrefetchCompletedOrFailed(
       const PrefetchContainer& prefetch_container) override;
-  void OnPrefetchStale(const PrefetchContainer& prefetch_container) override;
 
  protected:
   PrefetchContainerAsyncObserverBase();

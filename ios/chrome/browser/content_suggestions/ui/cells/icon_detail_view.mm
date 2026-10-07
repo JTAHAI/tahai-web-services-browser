@@ -13,7 +13,6 @@
 #import "ios/chrome/browser/content_suggestions/ui/cells/icon_view_configuration.h"
 #import "ios/chrome/browser/ntp/ui_bundled/new_tab_page_color_palette.h"
 #import "ios/chrome/browser/ntp/ui_bundled/new_tab_page_color_updating.h"
-#import "ios/chrome/browser/ntp/ui_bundled/new_tab_page_feature.h"
 #import "ios/chrome/browser/ntp/ui_bundled/new_tab_page_trait.h"
 #import "ios/chrome/browser/shared/public/features/features.h"
 #import "ios/chrome/browser/shared/ui/elements/gradient/gradient_view.h"
@@ -103,8 +102,11 @@ UIImageView* BadgeIcon(const IconDetailViewConfig* icon_detail_view_config) {
 
   config = [config configurationByApplyingConfiguration:color_config];
 
-  UIImage* image =
-      SymbolWithConfiguration(icon_detail_view_config.badgeSymbol, config);
+  UIImage* image = icon_detail_view_config.badgeUsesDefaultSymbol
+                       ? DefaultSymbolWithConfiguration(
+                             icon_detail_view_config.badgeSymbolName, config)
+                       : CustomSymbolWithConfiguration(
+                             icon_detail_view_config.badgeSymbolName, config);
 
   if (!icon_detail_view_config.badgeColorPalette) {
     image = MakeSymbolMulticolor(image);
@@ -276,17 +278,8 @@ UIView* BadgeIconInContainer(UIImageView* icon,
 - (void)applyBackgroundColors {
   NewTabPageColorPalette* colorPalette =
       [self.traitCollection objectForNewTabPageTrait];
-
-  if (colorPalette) {
-    _imageContainerView.backgroundColor = IsNewTabPageUICleanupEnabled()
-                                              ? colorPalette.primaryColor
-                                              : colorPalette.tertiaryColor;
-  } else {
-    _imageContainerView.backgroundColor =
-        [UIColor colorNamed:IsNewTabPageUICleanupEnabled()
-                                ? kNTPRedesignTileBackgroundColor
-                                : kGrey100Color];
-  }
+  _imageContainerView.backgroundColor =
+      colorPalette.tertiaryColor ?: [UIColor colorNamed:kGrey100Color];
   _config.ntpBackgroundColorPalette = colorPalette;
 }
 
@@ -381,7 +374,7 @@ UIView* BadgeIconInContainer(UIImageView* icon,
     }
 
     // Create the Badge Icon, if applicable.
-    if (_config.badgeSymbol != SymbolNone) {
+    if (_config.badgeSymbolName.length != 0) {
       UIImageView* badge = BadgeIcon(_config);
 
       UIView* badgeWithContainer = BadgeIconInContainer(

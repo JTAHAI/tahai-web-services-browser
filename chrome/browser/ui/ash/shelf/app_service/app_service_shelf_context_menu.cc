@@ -29,6 +29,9 @@
 #include "chrome/browser/ash/guest_os/guest_os_registry_service_factory.h"
 #include "chrome/browser/ash/guest_os/guest_os_shelf_utils.h"
 #include "chrome/browser/ash/guest_os/guest_os_terminal.h"
+#include "chrome/browser/ash/plugin_vm/plugin_vm_manager.h"
+#include "chrome/browser/ash/plugin_vm/plugin_vm_manager_factory.h"
+#include "chrome/browser/ash/plugin_vm/plugin_vm_util.h"
 #include "chrome/browser/extensions/context_menu_matcher.h"
 #include "chrome/browser/extensions/launch_util.h"
 #include "chrome/browser/extensions/menu_manager.h"
@@ -38,6 +41,7 @@
 #include "chrome/browser/ui/ash/shelf/chrome_shelf_controller.h"
 #include "chrome/browser/ui/ash/shelf/chrome_shelf_controller_util.h"
 #include "chrome/browser/ui/ash/shelf/shelf_context_menu.h"
+#include "chrome/browser/ui/chrome_pages.h"
 #include "chrome/browser/ui/views/crostini/crostini_app_restart_dialog.h"
 #include "chrome/grit/generated_resources.h"
 #include "chromeos/ash/components/browser_context_helper/browser_context_helper.h"
@@ -202,6 +206,10 @@ void AppServiceShelfContextMenu::ExecuteCommand(int command_id,
       if (item().id.app_id == guest_os::kTerminalSystemAppId) {
         crostini::CrostiniManager::GetForProfile(controller()->profile())
             ->StopRunningVms(base::DoNothing());
+      } else if (item().id.app_id == plugin_vm::kPluginVmShelfAppId) {
+        plugin_vm::PluginVmManagerFactory::GetForProfile(
+            controller()->profile())
+            ->StopPluginVm(plugin_vm::kPluginVmName, /*force=*/false);
       } else {
         LOG(ERROR) << "App " << item().id.app_id
                    << " should not have a shutdown guest OS command.";

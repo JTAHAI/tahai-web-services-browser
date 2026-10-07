@@ -2,8 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "chrome/browser/ui/autofill/autofill_popup_controller.h"
-
 #include <memory>
 #include <utility>
 
@@ -11,12 +9,12 @@
 #include "build/build_config.h"
 #include "chrome/browser/autofill/autofill_uitest_util.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/ui/autofill/autofill_popup_controller.h"
 #include "chrome/browser/ui/autofill/autofill_popup_view.h"
 #include "chrome/browser/ui/autofill/autofill_suggestion_controller.h"
 #include "chrome/browser/ui/autofill/chrome_autofill_client.h"
-#include "chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_window.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/ui_test_utils.h"
@@ -24,7 +22,7 @@
 #include "components/autofill/content/browser/content_autofill_driver_factory.h"
 #include "components/autofill/core/browser/foundations/browser_autofill_manager.h"
 #include "components/autofill/core/browser/foundations/browser_autofill_manager_test_api.h"
-#include "components/autofill/core/browser/test_utils/autofill_test_util.h"
+#include "components/autofill/core/browser/test_utils/autofill_test_utils.h"
 #include "components/autofill/core/browser/ui/test_autofill_external_delegate.h"
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/web_contents.h"
@@ -78,7 +76,7 @@ class AutofillPopupControllerBrowserTest : public InProcessBrowserTest {
 
  protected:
   content::WebContents* web_contents() {
-    return browser()->GetTabStripModel()->GetActiveWebContents();
+    return browser()->tab_strip_model()->GetActiveWebContents();
   }
 
   content::RenderFrameHost* main_rfh() {
@@ -159,8 +157,7 @@ IN_PROC_BROWSER_TEST_F(AutofillPopupControllerBrowserTest,
 
   // Enter fullscreen, which should cause the popup to hide.
   ASSERT_FALSE(browser()->GetWindow()->IsFullscreen());
-  content::WebContentsDelegate* wcd =
-      BrowserWebContentsDelegate::From(browser());
+  content::WebContentsDelegate* wcd = browser();
   wcd->EnterFullscreenModeForTab(main_rfh(), {});
   ASSERT_TRUE(browser()->GetWindow()->IsFullscreen());
 
@@ -172,8 +169,7 @@ IN_PROC_BROWSER_TEST_F(AutofillPopupControllerBrowserTest,
 // crash (crbug.com/40204318).
 IN_PROC_BROWSER_TEST_F(AutofillPopupControllerBrowserTest,
                        HidePopupOnWindowExitFullscreen) {
-  content::WebContentsDelegate* wcd =
-      BrowserWebContentsDelegate::From(browser());
+  content::WebContentsDelegate* wcd = browser();
   wcd->EnterFullscreenModeForTab(main_rfh(), {});
 
   EXPECT_TRUE(GenerateTestAutofillPopup(autofill_driver(), profile(),

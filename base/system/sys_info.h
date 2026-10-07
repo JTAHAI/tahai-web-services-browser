@@ -164,9 +164,6 @@ class BASE_EXPORT SysInfo {
   // synchronously. This is only supported on Android as Windows and Linux
   // would require IO operations and other platforms are static.
   static std::string HardwareManufacturer();
-
-  // Returns true if the device has support for large process counts.
-  static bool HasLargeProcessCountSupport();
 #endif
 
 #if BUILDFLAG(IS_MAC)
@@ -305,7 +302,7 @@ class BASE_EXPORT SysInfo {
   // Call ResetChromeOSVersionInfoForTest() to restore the previous values.
   // Prefer base::test::ScopedChromeOSVersionInfo to calling this function.
   static void SetChromeOSVersionInfoForTest(const std::string& lsb_release,
-                                            Time lsb_release_time);
+                                            const Time& lsb_release_time);
 
   // Undoes the function above.
   static void ResetChromeOSVersionInfoForTest();

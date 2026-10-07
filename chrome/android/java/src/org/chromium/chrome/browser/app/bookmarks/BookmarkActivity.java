@@ -79,8 +79,7 @@ public class BookmarkActivity extends SnackbarActivity {
                 new BookmarkOpenerImpl(
                         () -> BookmarkModel.getForProfile(profile),
                         /* context= */ this,
-                        /* componentName= */ parentComponent,
-                        /* multiInstanceManager= */ null);
+                        /* componentName= */ parentComponent);
 
         ScrimManager scrimManager =
                 new ScrimManager(this, getContentView(), ScrimClient.BOOKMARK_ACTIVITY);
@@ -95,7 +94,7 @@ public class BookmarkActivity extends SnackbarActivity {
                         getWindow(),
                         getWindowAndroid().getKeyboardDelegate(),
                         () -> sheetContainer,
-                        this::getEdgeToEdgeInset,
+                        () -> getEdgeToEdgeInset(),
                         /* desktopWindowStateManager= */ null,
                         getWindowAndroid().getInsetObserver(),
                         /* enableLargeFormFactorUi= */ ChromeFeatureList

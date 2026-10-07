@@ -54,19 +54,14 @@ void RecordCompletionMetrics(
         AIMetrics::GetAISessionFirstResponseTimeMetricName(session_type),
         duration);
   }
+  // TODO(crbug.com/481347574): Add ResponseTokens metric and ensure
+  // ContextTokens is populated across all APIs.
   if (context_info) {
     base::UmaHistogramCounts1M(
         AIMetrics::GetAISessionContextTokensMetricName(session_type),
         base::saturated_cast<int>(context_info->current_tokens));
-    if (context_info->response_tokens > 0) {
-      base::UmaHistogramCounts1M(
-          AIMetrics::GetAISessionResponseTokensMetricName(session_type),
-          base::saturated_cast<int>(context_info->response_tokens));
-    }
   }
 }
-
-}  // namespace
 
 // Implementation of blink::mojom::blink::ModelStreamingResponder that
 // handles the streaming output of the model execution, and returns the full
@@ -230,7 +225,7 @@ class Responder final : public GarbageCollected<Responder>,
   int response_callback_count_ = 0;
   HeapMojoReceiver<blink::mojom::blink::ModelStreamingResponder, Responder>
       receiver_;
-  SelfKeepAlive<Responder> keep_alive_{{}, this};
+  SelfKeepAlive<Responder> keep_alive_{this};
   Member<AbortSignal> abort_signal_;
   Member<AbortSignal::AlgorithmHandle> abort_handle_;
   const AIMetrics::AISessionType session_type_;
@@ -460,6 +455,8 @@ class StreamingResponder final
   base::RepeatingClosure overflow_callback_;
   base::TimeTicks start_time_;
 };
+
+}  // namespace
 
 mojo::PendingRemote<blink::mojom::blink::ModelStreamingResponder>
 CreateModelExecutionResponder(

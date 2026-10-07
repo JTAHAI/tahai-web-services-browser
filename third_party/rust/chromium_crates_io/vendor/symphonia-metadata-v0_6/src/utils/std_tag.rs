@@ -356,11 +356,10 @@ pub fn parse_id3v2_genre(v: Arc<String>) -> StandardTagPair {
     // "<NAME>"
     // "(<NUMBER>)"
     // "(<NUMBER)<NAME>"
-    let re = Regex::new(r"^(?P<num0>[0-9]+)$|(?:\((?P<num1>[0-9]+)\))?(?P<name>.+)?$")
-        .expect("valid regex");
+    let re = Regex::new(r"^(?P<num0>[0-9]+)$|(?:\((?P<num1>[0-9]+)\))?(?P<name>.+)?$").unwrap();
 
-    // The regex always matches (even an empty string).
-    let caps = re.captures(v.as_str()).expect("regex always matches");
+    // The regex will always match an empty string, therefore unwrapping is safe.
+    let caps = re.captures(v.as_str()).unwrap();
 
     let name = if let Some(name) = caps.name("name") {
         // A user-defined genre name provided.
@@ -385,7 +384,7 @@ pub fn parse_id3v2_genre(v: Arc<String>) -> StandardTagPair {
 
 fn parse_bool(v: Arc<String>) -> Option<bool> {
     match v.to_ascii_lowercase().as_str() {
-        "1" | "true" | "yes" | "y" => Some(true),
+        "1" | "true" | "yes" | "y " => Some(true),
         "0" | "false" | "no" | "n" => Some(false),
         _ => None,
     }
@@ -395,7 +394,7 @@ fn parse_bool(v: Arc<String>) -> Option<bool> {
 fn parse_m_of_n(v: Arc<String>) -> (Option<u64>, Option<u64>) {
     use regex_lite::Regex;
 
-    let re = Regex::new(r"^(?P<m>[0-9]+)(/(?P<n>[0-9]+))?$").expect("valid regex");
+    let re = Regex::new(r"^(?P<m>[0-9]+)(/(?P<n>[0-9]+))?$").unwrap();
 
     let mut opt_m = None;
     let mut opt_n = None;

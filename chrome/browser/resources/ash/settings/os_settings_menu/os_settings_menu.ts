@@ -235,8 +235,7 @@ export class OsSettingsMenuElement extends OsSettingsMenuElementBase {
   declare private hasMouse_: boolean|undefined;
   declare private hasPointingStick_: boolean|undefined;
   declare private hasTouchpad_: boolean|undefined;
-  private inputDeviceSettingsProvider_: InputDeviceSettingsProviderInterface =
-      getInputDeviceSettingsProvider();
+  private inputDeviceSettingsProvider_: InputDeviceSettingsProviderInterface;
   private keyboardSettingsObserverReceiver_: KeyboardSettingsObserverReceiver|
       undefined;
   private mouseSettingsObserverReceiver_: MouseSettingsObserverReceiver|
@@ -247,15 +246,20 @@ export class OsSettingsMenuElement extends OsSettingsMenuElementBase {
       undefined;
 
   // Internet section members.
-  private networkConfig_: CrosNetworkConfigInterface =
-      MojoInterfaceProviderImpl.getInstance().getMojoServiceRemote();
+  private networkConfig_: CrosNetworkConfigInterface;
   declare private internetMenuItemDescription_: string;
-  private isDeviceCellularCapable_: boolean = false;
+  private isDeviceCellularCapable_: boolean;
 
   // Multidevice section members.
-  private multideviceBrowserProxy_: MultiDeviceBrowserProxy =
-      MultiDeviceBrowserProxyImpl.getInstance();
+  private multideviceBrowserProxy_: MultiDeviceBrowserProxy;
   declare private multideviceMenuItemDescription_: string;
+
+  constructor() {
+    super();
+
+    this.inputDeviceSettingsProvider_ = getInputDeviceSettingsProvider();
+    this.multideviceBrowserProxy_ = MultiDeviceBrowserProxyImpl.getInstance();
+  }
 
   override connectedCallback(): void {
     super.connectedCallback();
@@ -278,6 +282,8 @@ export class OsSettingsMenuElement extends OsSettingsMenuElementBase {
     this.observeTouchpadSettings_();
 
     // Internet menu item.
+    this.networkConfig_ =
+        MojoInterfaceProviderImpl.getInstance().getMojoServiceRemote();
     this.computeIsDeviceCellularCapable_().then(() => {
       this.updateInternetMenuItemDescription_();
     });

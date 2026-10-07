@@ -29,12 +29,10 @@
 #import "ios/chrome/browser/composebox/public/composebox_theme.h"
 #import "ios/chrome/browser/composebox/public/features.h"
 #import "ios/chrome/browser/metrics/model/activity_reporter.h"
-#import "ios/chrome/browser/ntp/model/new_tab_page_tab_helper.h"
 #import "ios/chrome/browser/shared/coordinator/scene/scene_state.h"
 #import "ios/chrome/browser/shared/coordinator/scene/state/tab_grid_state.h"
 #import "ios/chrome/browser/shared/model/browser/browser.h"
 #import "ios/chrome/browser/shared/model/profile/profile_ios.h"
-#import "ios/chrome/browser/shared/model/url/chrome_url_constants.h"
 #import "ios/chrome/browser/shared/public/commands/command_dispatcher.h"
 #import "ios/chrome/browser/shared/public/commands/open_new_tab_command.h"
 #import "ios/chrome/browser/shared/public/commands/scene_commands.h"
@@ -47,7 +45,6 @@
 #import "ios/chrome/browser/tabs/model/tab_helper_filter.h"
 #import "ios/chrome/browser/tabs/model/tab_helper_util.h"
 #import "ios/chrome/browser/url_loading/model/url_loading_browser_agent.h"
-#import "ios/chrome/browser/url_loading/model/url_loading_params.h"
 #import "ios/chrome/grit/ios_strings.h"
 #import "ios/web/public/web_state.h"
 #import "ui/base/l10n/l10n_util_mac.h"
@@ -74,17 +71,7 @@ class AssistantAIMUIStateProvider
   explicit AssistantAIMUIStateProvider(AssistantAIMCoordinator* coordinator)
       : coordinator_(coordinator) {}
 
-  bool IsAssistantHiddenByUIState(web::WebState* web_state) override {
-    if ([coordinator_ isTabGridVisible]) {
-      return true;
-    }
-    if (!web_state) {
-      return true;
-    }
-    NewTabPageTabHelper* ntp_helper =
-        NewTabPageTabHelper::FromWebState(web_state);
-    return ntp_helper && ntp_helper->ShouldShowStartSurface();
-  }
+  bool IsTabGridVisible() override { return [coordinator_ isTabGridVisible]; }
 
  private:
   __weak AssistantAIMCoordinator* coordinator_;
@@ -115,7 +102,7 @@ class AssistantAIMUIStateProvider
   self = [super initWithBaseViewController:viewController browser:browser];
   if (self) {
     _activityReporter =
-        [[ActivityReporter alloc] initWithDomain:ActivityReportDomainAssistant];
+        [[ActivityReporter alloc] initWithDomain:ActivityReportDomainCobrowse];
   }
   return self;
 }
@@ -241,7 +228,6 @@ class AssistantAIMUIStateProvider
 
 - (void)setVisible:(BOOL)visible inMinimizedState:(BOOL)minimized {
   if (visible) {
-    _isHiding = NO;
     [self dismissSnackbars];
     if (_viewController) {
       [_mediator updateContext];
@@ -268,10 +254,6 @@ class AssistantAIMUIStateProvider
     [self dismissAssistantContainerAnimated:YES completion:nil];
     [_activityReporter reportInactive];
   }
-}
-
-- (void)loadIfNecessary {
-  [_mediator loadIfNecessary];
 }
 
 #pragma mark - CobrowseBrowserAgent::UIStateProvider
@@ -332,15 +314,6 @@ class AssistantAIMUIStateProvider
 
 - (void)assistantAIMViewControllerDidChangeTraits:
     (AssistantAIMViewController*)viewController {
-  // Only consider the dark mode when the tab grid is not visible, and when the
-  // app is not backgrounded to avoid unnecessary updates.
-  if (![self isTabGridVisible]) {
-    UIApplicationState currentState =
-        [[UIApplication sharedApplication] applicationState];
-    if (currentState != UIApplicationStateBackground) {
-      [_mediator updateDarkModeState:[self isDarkMode]];
-    }
-  }
   if (IsIPhoneLandscapeLayout(viewController.traitCollection)) {
     [_containerHandler
         setAssistantContainerDetents:{
@@ -358,26 +331,6 @@ class AssistantAIMUIStateProvider
 }
 
 #pragma mark - Private
-
-// Minimizes the cobrowse container and opens the specified URL.
-- (void)minimizeAndOpenURL:(const GURL&)URL {
-  [_containerHandler
-      animateAssistantContainerToDetent:AssistantContainerDetent::kMinimized
-                               duration:kSheetDetentAnimationDuration
-                                  curve:UIViewAnimationCurveEaseInOut];
-  UrlLoadParams params = UrlLoadParams::InCurrentTab(URL);
-  UrlLoadingBrowserAgent::FromBrowser(self.browser)->Load(params);
-}
-
-// Returns whether dark mode is currently active.
-- (BOOL)isDarkMode {
-  // Only check whether the scene state's window is in dark mode, the
-  // `_viewController` is not reliable, when entering the tab grid its interface
-  // style will be detected as dark mode.
-  SceneState* scene_state = self.browser->GetSceneState();
-  return scene_state.window.traitCollection.userInterfaceStyle ==
-         UIUserInterfaceStyleDark;
-}
 
 - (void)dismissKeyboard {
   [_inputPlateCoordinator endEditing];
@@ -455,12 +408,8 @@ class AssistantAIMUIStateProvider
   };
   message.completionHandler = ^(BOOL success) {
     if (weakSelf.undoSnackbarDismissCompletion) {
-      // Capture the block locally and set the property to nil before executing
-      // it. This prevents the completion block from being recursively called or
-      // executing after teardown if another snackbar forces dismissal.
-      ProceduralBlock completion = weakSelf.undoSnackbarDismissCompletion;
+      weakSelf.undoSnackbarDismissCompletion();
       weakSelf.undoSnackbarDismissCompletion = nil;
-      completion();
     }
   };
 
@@ -581,22 +530,12 @@ class AssistantAIMUIStateProvider
                               completion:nil];
 }
 
-- (void)assistantAIMViewControllerDidTapMyActivity:
-    (AssistantAIMViewController*)viewController {
-  [self minimizeAndOpenURL:GURL(kMyActivityURL)];
-}
-
-- (void)assistantAIMViewControllerDidTapHelp:
-    (AssistantAIMViewController*)viewController {
-  [self minimizeAndOpenURL:GURL(kAssistantAIMHelpCenterURL)];
-}
-
 #pragma mark - AIMSRPDebuggerURLViewControllerDelegate
 
 - (void)debuggerURLViewController:
             (AIMSRPDebuggerURLViewController*)viewController
-                     didUpdateURL:(const GURL&)URL {
-  [_mediator loadDebugURL:URL];
+                     didUpdateURL:(const GURL&)url {
+  [_mediator loadURL:url];
 }
 
 @end

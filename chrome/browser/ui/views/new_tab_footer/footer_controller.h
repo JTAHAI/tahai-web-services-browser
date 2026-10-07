@@ -11,15 +11,12 @@
 #include "base/observer_list.h"
 #include "components/prefs/pref_change_registrar.h"
 #include "content/public/browser/web_contents_observer.h"
-#include "ui/base/unowned_user_data/scoped_unowned_user_data.h"
 
 class ContentsContainerView;
 
 namespace views {
 class WebView;
 }  // namespace views
-
-class BrowserWindowInterface;
 
 namespace new_tab_footer {
 
@@ -37,17 +34,10 @@ enum FooterNoticeItem {
 // Class used to manage the state of new tab footers.
 class NewTabFooterController {
  public:
-  DECLARE_USER_DATA(NewTabFooterController);
-
-  NewTabFooterController(
+  explicit NewTabFooterController(
       Profile* profile,
       const std::vector<raw_ptr<ContentsContainerView, DanglingUntriaged>>&
-          contents_container_views,
-      ui::UnownedUserDataHost& host);
-
-  // Returns the controller for `browser`, or null if it does not have one
-  // (e.g. the NTP footer feature is disabled, or no BrowserView).
-  static NewTabFooterController* From(BrowserWindowInterface* browser);
+          contents_container_views);
   NewTabFooterController(const NewTabFooterController&) = delete;
   NewTabFooterController& operator=(const NewTabFooterController&) = delete;
   ~NewTabFooterController();
@@ -99,7 +89,6 @@ class NewTabFooterController {
   void UpdateFooterVisibilities(bool log_on_load_metric);
 
   bool skip_error_page_check_for_testing_ = false;
-  ui::ScopedUnownedUserData<NewTabFooterController> scoped_unowned_user_data_;
   std::vector<std::unique_ptr<ContentsViewFooterCotroller>> footer_controllers_;
   PrefChangeRegistrar pref_change_registrar_;
   PrefChangeRegistrar local_state_pref_change_registrar_;

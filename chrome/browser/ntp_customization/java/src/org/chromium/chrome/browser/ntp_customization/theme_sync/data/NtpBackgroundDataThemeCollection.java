@@ -78,10 +78,9 @@ public class NtpBackgroundDataThemeCollection extends NtpBackgroundDataImageBase
         mPreviewBitmap = previewBitmap;
     }
 
-    // NtpBackgroundDataImageBase implementations.
-    @Override
-    public String getImageDirName() {
-        return NTP_THEME_COLLECTION_IMAGES_DIR;
+    /** Returns the {@link CustomBackgroundInfo}. */
+    public CustomBackgroundInfo getCustomBackgroundInfo() {
+        return mCustomBackgroundInfo;
     }
 
     @Override
@@ -89,10 +88,10 @@ public class NtpBackgroundDataThemeCollection extends NtpBackgroundDataImageBase
         return mPreviewBitmap;
     }
 
-    /** Returns the {@link CustomBackgroundInfo}. */
+    // NtpBackgroundDataImageBase implementations.
     @Override
-    public CustomBackgroundInfo getCustomBackgroundInfo() {
-        return mCustomBackgroundInfo;
+    public String getImageDirName() {
+        return NTP_THEME_COLLECTION_IMAGES_DIR;
     }
 
     // NtpBackgroundDataBase implementations.
@@ -130,17 +129,13 @@ public class NtpBackgroundDataThemeCollection extends NtpBackgroundDataImageBase
                     BackgroundImageInfo.fromJson(json.getJSONObject(BACKGROUND_IMAGE_INFO_KEY));
         }
 
-        NtpBackgroundDataThemeCollection data =
-                new NtpBackgroundDataThemeCollection(
-                        json.getInt(PLATFORM_TYPE_KEY),
-                        jsonObjectToCustomBackgroundInfo(
-                                json.getJSONObject(CUSTOM_BACKGROUND_INFO_KEY)),
-                        backgroundImageInfo,
-                        /* bitmap= */ null,
-                        json.has(PRIMARY_COLOR_KEY) ? json.getInt(PRIMARY_COLOR_KEY) : null,
-                        json.has(FILE_ID_HASH_KEY) ? json.getString(FILE_ID_HASH_KEY) : null);
-        data.setIsBitmapSavedFromJson(json);
-        return data;
+        return new NtpBackgroundDataThemeCollection(
+                json.getInt(PLATFORM_TYPE_KEY),
+                jsonObjectToCustomBackgroundInfo(json.getJSONObject(CUSTOM_BACKGROUND_INFO_KEY)),
+                backgroundImageInfo,
+                /* bitmap= */ null,
+                json.has(PRIMARY_COLOR_KEY) ? json.getInt(PRIMARY_COLOR_KEY) : null,
+                json.has(FILE_ID_HASH_KEY) ? json.getString(FILE_ID_HASH_KEY) : null);
     }
 
     private static CustomBackgroundInfo jsonObjectToCustomBackgroundInfo(JSONObject json)

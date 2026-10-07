@@ -277,9 +277,7 @@ bool OverscrollController::DispatchEventCompletesAction(
 
   if (event.GetType() == blink::WebInputEvent::Type::kGestureScrollEnd &&
       overscroll_source_ == OverscrollSource::TOUCHPAD) {
-    // TODO(crbug.com/560162453): CHECK-exclusion: Convert to a CHECK once we
-    // are confident it won't be triggered.
-    DCHECK(IsGestureEventFromTouchpad(event));
+    CHECK(IsGestureEventFromTouchpad(event), base::NotFatalUntil::M154);
     // Complete the action for a GSE with touchpad source only when it is in
     // momentumPhase.
     const blink::WebGestureEvent gesture_event =

@@ -1,2 +1,4 @@
-rules:
-- "*": [service-workers]
+features:
+- name: service-workers
+  files:
+  - '*'

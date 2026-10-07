@@ -4,11 +4,11 @@
 
 package org.chromium.chrome.browser.tasks.tab_management;
 
+import static org.chromium.build.NullUtil.assumeNonNull;
+
 import android.content.Context;
 import android.content.res.ColorStateList;
 import android.graphics.Color;
-import android.graphics.drawable.Drawable;
-import android.graphics.drawable.LayerDrawable;
 import android.util.AttributeSet;
 import android.view.Gravity;
 import android.view.View;
@@ -16,9 +16,7 @@ import android.view.ViewGroup;
 import android.widget.LinearLayout;
 
 import androidx.annotation.ColorInt;
-import androidx.annotation.DrawableRes;
 import androidx.annotation.StringRes;
-import androidx.appcompat.content.res.AppCompatResources;
 import androidx.core.widget.ImageViewCompat;
 
 import org.chromium.build.annotations.NullMarked;
@@ -43,7 +41,6 @@ class TabListEditorToolbar extends SelectableListToolbar<TabListEditorItemSelect
     private ChromeImageButton mMenuButton;
     private TabListEditorActionViewLayout mActionViewLayout;
     private @Nullable View mNextFocusableView;
-    private @Nullable TintedDrawable mNavigationIconDrawable;
     private @ColorInt int mBackgroundColor;
     private @StringRes int mBackButtonAccessibilityString;
 
@@ -87,48 +84,16 @@ class TabListEditorToolbar extends SelectableListToolbar<TabListEditorItemSelect
     }
 
     private void showNavigationButton() {
-        mNavigationIconDrawable =
+        TintedDrawable navigationIconDrawable =
                 TintedDrawable.constructTintedDrawable(
                         getContext(), R.drawable.ic_arrow_back_white_24dp);
         final @ColorInt int lightIconColor =
                 SemanticColorUtils.getDefaultIconColorInverse(getContext());
-        mNavigationIconDrawable.setTint(lightIconColor);
-        mNavigationIconDrawable.setAutoMirrored(true);
+        navigationIconDrawable.setTint(lightIconColor);
+        navigationIconDrawable.setAutoMirrored(true);
 
-        updateNavigationButton(/* isIncognito= */ false);
+        setNavigationIcon(navigationIconDrawable);
         setNavigationContentDescription(mBackButtonAccessibilityString);
-    }
-
-    private void updateNavigationButton(boolean isIncognito) {
-        if (mNavigationIconDrawable == null) return;
-
-        @DrawableRes
-        int backgroundRes =
-                isIncognito
-                        ? R.drawable.default_icon_background_baseline
-                        : R.drawable.default_icon_background;
-        Drawable backgroundDrawable = AppCompatResources.getDrawable(getContext(), backgroundRes);
-        LayerDrawable layerDrawable =
-                new LayerDrawable(new Drawable[] {backgroundDrawable, mNavigationIconDrawable});
-        int inset =
-                getResources()
-                        .getDimensionPixelSize(R.dimen.search_box_nav_button_background_inset);
-        layerDrawable.setLayerInset(1, inset, inset, inset, inset);
-
-        setNavigationIcon(layerDrawable);
-    }
-
-    /**
-     * Update the button backgrounds based on incognito state.
-     *
-     * @param isIncognito Whether the toolbar is in incognito mode.
-     */
-    public void setIsIncognito(boolean isIncognito) {
-        updateNavigationButton(isIncognito);
-        mMenuButton.setBackgroundResource(
-                isIncognito
-                        ? R.drawable.default_icon_background_baseline
-                        : R.drawable.toolbar_menu_button_ripple);
     }
 
     @Override
@@ -178,9 +143,8 @@ class TabListEditorToolbar extends SelectableListToolbar<TabListEditorItemSelect
      * @param tint New {@link ColorStateList} to use.
      */
     public void setButtonTint(ColorStateList tint) {
-        if (mNavigationIconDrawable != null) {
-            mNavigationIconDrawable.setTint(tint);
-        }
+        TintedDrawable navigation = (TintedDrawable) assumeNonNull(getNavigationIcon());
+        navigation.setTint(tint);
         ImageViewCompat.setImageTintList(mMenuButton, tint);
     }
 

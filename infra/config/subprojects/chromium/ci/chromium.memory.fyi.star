@@ -143,8 +143,7 @@ ci.builder(
     ),
     builderless = 1,
     cores = None,
-    # TODO(crbug.com/543006750): Revert to MAC_DEFAULT after arm migration.
-    os = os.MAC_15,
+    os = os.MAC_DEFAULT,
     console_view_entry = consoles.console_view_entry(
         category = "mac|ubsan",
         short_name = "ubsan",

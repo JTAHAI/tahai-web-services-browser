@@ -47,7 +47,7 @@ public class ListMenuButton extends ChromeImageButton {
 
     /**
      * Text that represents the item this menu button is related to. This will affect the content
-     * description of the view {@link #setContentDescription(CharSequence)}.
+     * description of the view {@see #setContentDescription(CharSequence)}.
      *
      * @param context The string representation of the list item this button represents.
      */
@@ -84,7 +84,7 @@ public class ListMenuButton extends ChromeImageButton {
     }
 
     /**
-     * @return The {@link ListMenuHost} of the menu.
+     * @returns The {@link ListMenuHost} of the menu.
      */
     public ListMenuHost getHost() {
         return mListMenuHost;
@@ -125,15 +125,6 @@ public class ListMenuButton extends ChromeImageButton {
      */
     public void setMenuMaxWidth(int maxWidth) {
         mListMenuHost.setMenuMaxWidth(maxWidth);
-    }
-
-    /**
-     * Set the max height of the popup menu.
-     *
-     * @param maxHeight The max height of the popup.
-     */
-    public void setMenuMaxHeight(int maxHeight) {
-        mListMenuHost.setMenuMaxHeight(maxHeight);
     }
 
     /**

@@ -12,7 +12,6 @@
 #include "base/containers/adapters.h"
 #include "base/containers/span.h"
 #include "base/feature_list.h"
-#include "base/strings/strcat.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
@@ -117,8 +116,7 @@ bool PassesLuhnCheck(std::u16string_view number) {
 
 std::u16string StripCardNumberSeparators(std::u16string_view number) {
   std::u16string stripped;
-  base::RemoveChars(number, base::StrCat({u"-.", base::kWhitespaceUTF16}),
-                    &stripped);
+  base::RemoveChars(number, u"- ", &stripped);
   return stripped;
 }
 

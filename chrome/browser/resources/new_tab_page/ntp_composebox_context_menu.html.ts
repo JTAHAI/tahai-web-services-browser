@@ -41,14 +41,11 @@ export function getHtml(this: NtpComposeboxElement) {
       .searchboxLayoutMode="${this.searchboxLayoutMode}"
       .tabSuggestions="${this.tabSuggestions}"
       .hasImageFiles="${this.hasImageFiles()}"
-      .selectedTabIds="${this.addedTabsIds}"
+      .disabledTabIds="${this.addedTabsIds}"
       .aimThreadRestoredTabs="${this.aimThreadRestoredTabs}"
-      .fileNum="${this.attachedContext.size}"
+      .fileNum="${this.files.size}"
       .sharedTabs="${this.getSharedTabs()}"
       .tabSuggestionsState="${this.tabSuggestionsState}"
-      .glifAnimationState="${this.glifAnimationState}"
-      .energyEffectAnimationEnabled="${this.energyEffectAnimationEnabled}"
-      .disableFallbackGlifAnimation="${true}"
       ?upload-button-disabled="${this.uploadButtonDisabled}"
       ?show-context-menu-description="${this.showContextMenuDescription}">
   </cr-composebox-contextual-entrypoint-and-menu>

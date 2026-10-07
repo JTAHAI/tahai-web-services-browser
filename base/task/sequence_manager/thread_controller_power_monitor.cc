@@ -6,6 +6,7 @@
 
 #include "base/feature_list.h"
 #include "base/power_monitor/power_monitor.h"
+#include "base/trace_event/trace_event.h"
 
 namespace base::sequence_manager::internal {
 
@@ -67,6 +68,10 @@ void ThreadControllerPowerMonitor::OnSuspend() {
     return;
   }
   DCHECK(!is_power_suspended_);
+
+  TRACE_EVENT_BEGIN("base", "ThreadController::Suspended",
+                    perfetto::Track(reinterpret_cast<uint64_t>(this),
+                                    perfetto::ThreadTrack::Current()));
   is_power_suspended_ = true;
 }
 
@@ -77,7 +82,12 @@ void ThreadControllerPowerMonitor::OnResume() {
 
   // It is possible a suspend was already happening before the observer was
   // added to the power monitor. Ignoring the resume notification in that case.
-  is_power_suspended_ = false;
+  if (is_power_suspended_) {
+    TRACE_EVENT_END("base" /* ThreadController::Suspended */,
+                    perfetto::Track(reinterpret_cast<uint64_t>(this),
+                                    perfetto::ThreadTrack::Current()));
+    is_power_suspended_ = false;
+  }
 }
 
 }  // namespace base::sequence_manager::internal

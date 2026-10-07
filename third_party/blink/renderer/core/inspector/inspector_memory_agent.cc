@@ -44,7 +44,6 @@
 #include "third_party/blink/renderer/core/page/page.h"
 #include "third_party/blink/renderer/platform/bindings/v8_per_isolate_data.h"
 #include "third_party/blink/renderer/platform/instrumentation/instance_counters.h"
-#include "third_party/blink/renderer/platform/wtf/text/format.h"
 #include "third_party/blink/renderer/platform/wtf/text/string_builder.h"
 
 namespace blink {
@@ -108,31 +107,20 @@ protocol::Response InspectorMemoryAgent::startSampling(
       in_sampling_interval.value_or(kDefaultNativeMemorySamplingInterval);
   if (interval <= 0)
     return protocol::Response::ServerError("Invalid sampling rate.");
+  base::SamplingHeapProfiler::Get()->SetSamplingInterval(interval);
   sampling_profile_interval_.Set(interval);
   if (in_suppressRandomness.value_or(false)) {
     randomness_suppressor_ = std::make_unique<
         base::PoissonAllocationSampler::ScopedSuppressRandomnessForTesting>();
   }
-  profiling_session_ = base::SamplingHeapProfiler::Get()->Start(
-      base::ByteSize(static_cast<uint64_t>(interval)),
-      base::SamplingHeapProfiler::Priority::kInteractive);
-  if (!profiling_session_) {
-    return protocol::Response::ServerError(
-        "Failed to start sampling profiler.");
-  }
+  profile_id_ = base::SamplingHeapProfiler::Get()->Start();
   return protocol::Response::Success();
 }
 
 protocol::Response InspectorMemoryAgent::stopSampling() {
   if (sampling_profile_interval_.Get() == 0)
     return protocol::Response::ServerError("Sampling profiler is not started.");
-  if (profiling_session_) {
-    base::SamplingHeapProfiler::Get()->Stop(*profiling_session_);
-    // Keep `profiling_session_` valid so that subsequent `getSamplingProfile`
-    // calls can still retrieve the profile for the session that just ended.
-    // We rely on `sampling_profile_interval_` being cleared to prevent
-    // double-stopping.
-  }
+  base::SamplingHeapProfiler::Get()->Stop();
   sampling_profile_interval_.Clear();
   randomness_suppressor_.reset();
   return protocol::Response::Success();
@@ -140,23 +128,22 @@ protocol::Response InspectorMemoryAgent::stopSampling() {
 
 protocol::Response InspectorMemoryAgent::getAllTimeSamplingProfile(
     std::unique_ptr<protocol::Memory::SamplingProfile>* out_profile) {
-  *out_profile = GetSamplingProfileById(std::nullopt);
+  *out_profile = GetSamplingProfileById(0);
   return protocol::Response::Success();
 }
 
 protocol::Response InspectorMemoryAgent::getSamplingProfile(
     std::unique_ptr<protocol::Memory::SamplingProfile>* out_profile) {
-  *out_profile = GetSamplingProfileById(profiling_session_);
+  *out_profile = GetSamplingProfileById(profile_id_);
   return protocol::Response::Success();
 }
 
 std::unique_ptr<protocol::Memory::SamplingProfile>
-InspectorMemoryAgent::GetSamplingProfileById(
-    std::optional<base::SamplingHeapProfiler::Session> session) {
+InspectorMemoryAgent::GetSamplingProfileById(uint32_t id) {
   base::ModuleCache module_cache;
   auto samples = std::make_unique<
       protocol::Array<protocol::Memory::SamplingProfileNode>>();
-  auto raw_samples = base::SamplingHeapProfiler::Get()->GetSamples(session);
+  auto raw_samples = base::SamplingHeapProfiler::Get()->GetSamples(id);
 
   for (auto& it : raw_samples) {
     for (const void* frame : it.stack) {
@@ -176,7 +163,7 @@ InspectorMemoryAgent::GetSamplingProfileById(
 
   // Mix in v8 main isolate heap size as a synthetic node.
   // TODO(alph): Add workers' heap sizes.
-  if (!session.has_value()) {
+  if (!id) {
     v8::HeapStatistics heap_stats;
     v8::Isolate* isolate =
         frames_->Root()->GetPage()->GetAgentGroupScheduler().Isolate();
@@ -197,7 +184,8 @@ InspectorMemoryAgent::GetSamplingProfileById(
         protocol::Memory::Module::create()
             .setName(FilePathToString(module->GetDebugBasename()))
             .setUuid(String(module->GetId()))
-            .setBaseAddress(Format("0x{:x}", module->GetBaseAddress()))
+            .setBaseAddress(
+                String::Format("0x%" PRIxPTR, module->GetBaseAddress()))
             .setSize(static_cast<double>(module->GetSize()))
             .build());
   }

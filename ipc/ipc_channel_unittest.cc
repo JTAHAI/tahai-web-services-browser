@@ -46,8 +46,10 @@
 #include "base/threading/thread.h"
 #include "build/build_config.h"
 #include "ipc/ipc_channel.h"
+#include "ipc/ipc_channel_factory.h"
 #include "ipc/ipc_channel_proxy.h"
 #include "ipc/ipc_mojo_handle_attachment.h"
+#include "ipc/ipc_sync_channel.h"
 #include "ipc/ipc_test.test-mojom.h"
 #include "ipc/mojo_param_traits.h"
 #include "ipc/param_traits_utils.h"
@@ -211,10 +213,14 @@ class ListenerThatQuits : public IPC::Listener {
 
 class ChannelProxyRunner {
  public:
-  ChannelProxyRunner(mojo::ScopedMessagePipeHandle handle, bool for_server)
+  ChannelProxyRunner(mojo::ScopedMessagePipeHandle handle,
+                     bool for_server)
       : for_server_(for_server),
         handle_(std::move(handle)),
-        io_thread_("ChannelProxyRunner IO thread") {}
+        io_thread_("ChannelProxyRunner IO thread"),
+        never_signaled_(base::WaitableEvent::ResetPolicy::MANUAL,
+                        base::WaitableEvent::InitialState::NOT_SIGNALED) {
+  }
 
   ChannelProxyRunner(const ChannelProxyRunner&) = delete;
   ChannelProxyRunner& operator=(const ChannelProxyRunner&) = delete;
@@ -224,16 +230,24 @@ class ChannelProxyRunner {
       IPC::UrgentMessageObserver* urgent_message_observer = nullptr) {
     io_thread_.StartWithOptions(
         base::Thread::Options(base::MessagePumpType::IO, 0));
-    proxy_ = std::make_unique<IPC::ChannelProxy>(
+    proxy_ = IPC::SyncChannel::Create(
         listener, io_thread_.task_runner(),
-        base::SingleThreadTaskRunner::GetCurrentDefault());
+        base::SingleThreadTaskRunner::GetCurrentDefault(), &never_signaled_);
     proxy_->SetUrgentMessageObserver(urgent_message_observer);
   }
 
   void RunProxy() {
-    IPC::Channel::Mode mode =
-        for_server_ ? IPC::Channel::MODE_SERVER : IPC::Channel::MODE_CLIENT;
-    proxy_->Init(std::move(handle_), mode, true);
+    std::unique_ptr<IPC::ChannelFactory> factory;
+    if (for_server_) {
+      factory = IPC::ChannelFactory::CreateServerFactory(
+          std::move(handle_), io_thread_.task_runner(),
+          base::SingleThreadTaskRunner::GetCurrentDefault());
+    } else {
+      factory = IPC::ChannelFactory::CreateClientFactory(
+          std::move(handle_), io_thread_.task_runner(),
+          base::SingleThreadTaskRunner::GetCurrentDefault());
+    }
+    proxy_->Init(std::move(factory), true);
   }
 
   IPC::ChannelProxy* proxy() { return proxy_.get(); }
@@ -243,6 +257,7 @@ class ChannelProxyRunner {
 
   mojo::ScopedMessagePipeHandle handle_;
   base::Thread io_thread_;
+  base::WaitableEvent never_signaled_;
   std::unique_ptr<IPC::ChannelProxy> proxy_;
 };
 

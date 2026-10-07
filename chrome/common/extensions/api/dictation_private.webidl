@@ -78,7 +78,6 @@ interface OnContextUpdateEvent : ExtensionEvent {
   static boolean hasListener(OnContextUpdateListener listener);
 };
 
-[ignoreAdditionalProperties]
 dictionary UpdateTranscriptionDetails {
   // The unique identifier of the dictation stream.
   required long streamId;
@@ -88,16 +87,9 @@ dictionary UpdateTranscriptionDetails {
   required DOMString data;
 };
 
-[ignoreAdditionalProperties]
 dictionary SetStreamStateDetails {
   required long streamId;
   required StreamState state;
-  // The numeric error code if state is "failed". It is expected that the
-  // component extension and the browser have equivalent error code
-  // definitions, and this extension API does not validate them. If the
-  // component extension sends an unrecognized error code, it is treated as a
-  // generic error.
-  long errorCode;
 };
 
 dictionary LogMessageDetails {
@@ -117,11 +109,6 @@ interface OnBrowserLogEvent : ExtensionEvent {
 
 // The dictationPrivate API is a private API used by the dictation extension.
 interface DictationPrivate {
-  // Whether unknown properties in function parameter details objects are
-  // ignored. Used to feature detect when optional parameters may be sent
-  // without causing an error.
-  const long areAdditionalPropertiesIgnored = 1;
-
   // Sends the transcription to the browser.
   static Promise<undefined> updateTranscription(
       UpdateTranscriptionDetails details);

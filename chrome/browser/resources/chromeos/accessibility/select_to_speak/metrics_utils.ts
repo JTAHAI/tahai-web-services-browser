@@ -162,21 +162,18 @@ export namespace MetricsUtils {
    * These values are persisted to logs and should not be renumbered or reused.
    * See tools/metrics/histograms/enums.xml.
    */
-  // LINT.IfChange(StartSpeechMethod)
   export enum StartSpeechMethod {
-    MOUSE = 0,
-    KEYSTROKE = 1,
-    CONTEXT_MENU = 2,
-    COUNT = CONTEXT_MENU + 1,
+    MOUSE,
+    KEYSTROKE,
+    CONTEXT_MENU,
   }
-  // LINT.ThenChange(//tools/metrics/histograms/metadata/accessibility/enums.xml:CrosSelectToSpeakStartSpeechMethod)
 
   /**
    * Constants for the start speech method metric,
    * CrosSelectToSpeakStartSpeechMethod.
    */
   export const START_SPEECH_METHOD_METRIC: EnumerationMetric = {
-    EVENT_COUNT: StartSpeechMethod.COUNT,
+    EVENT_COUNT: Object.keys(StartSpeechMethod).length,
     METRIC_NAME: 'Accessibility.CrosSelectToSpeak.StartSpeechMethod',
   };
 
@@ -185,20 +182,17 @@ export namespace MetricsUtils {
    * These values are persisted to logs and should not be renumbered or reused.
    * See tools/metrics/histograms/enums.xml.
    */
-  // LINT.IfChange(StateChangeEvent)
   export enum StateChangeEvent {
-    START_SELECTION = 0,
-    CANCEL_SPEECH = 1,
-    CANCEL_SELECTION = 2,
-    COUNT = CANCEL_SELECTION + 1,
+    START_SELECTION,
+    CANCEL_SPEECH,
+    CANCEL_SELECTION,
   }
-  // LINT.ThenChange(//tools/metrics/histograms/metadata/accessibility/enums.xml:CrosSelectToSpeakStateChangeEvent)
 
   /**
    * Constants for the state change metric, CrosSelectToSpeakStateChangeEvent.
    */
   export const STATE_CHANGE_METRIC: EnumerationMetric = {
-    EVENT_COUNT: StateChangeEvent.COUNT,
+    EVENT_COUNT: Object.keys(StateChangeEvent).length,
     METRIC_NAME: 'Accessibility.CrosSelectToSpeak.StateChangeEvent',
   };
 
@@ -207,22 +201,19 @@ export namespace MetricsUtils {
    * These values are persisted to logs and should not be renumbered or reused.
    * See tools/metrics/histograms/enums.xml.
    */
-  // LINT.IfChange(TtsEngineUsed)
   export enum TtsEngineUsed {
-    UNKNOWN = 0,
-    SYSTEM_DEFAULT = 1,
-    ESPEAK = 2,
-    GOOGLE_LOCAL = 3,
-    GOOGLE_NETWORK = 4,
-    COUNT = GOOGLE_NETWORK + 1,
+    UNKNOWN,
+    SYSTEM_DEFAULT,
+    ESPEAK,
+    GOOGLE_LOCAL,
+    GOOGLE_NETWORK,
   }
-  // LINT.ThenChange(//tools/metrics/histograms/metadata/accessibility/enums.xml:CrosSelectToSpeakTtsEngineUsed)
 
   /**
    * Constants for the TTS engine metric, CrosSelectToSpeak.TtsEngineUsed.
    */
   export const TTS_ENGINE_USED_METRIC: EnumerationMetric = {
-    EVENT_COUNT: TtsEngineUsed.COUNT,
+    EVENT_COUNT: Object.keys(TtsEngineUsed).length,
     METRIC_NAME: 'Accessibility.CrosSelectToSpeak.TtsEngineUsed',
   };
 

@@ -10,8 +10,6 @@
 
 namespace remoting {
 
-inline constexpr std::string_view kFtlResourcePrefix = "chromoting_ftl_";
-
 // Normalizes |id|. If |id| is an FTL ID then the email part will be
 // canonicalized. Otherwise it will simply convert case-insensitive parts (node
 // and domain) to lower-case.

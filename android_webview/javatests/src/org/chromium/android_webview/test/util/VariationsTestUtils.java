@@ -54,11 +54,7 @@ public class VariationsTestUtils {
         FileOutputStream stream = null;
         try {
             stream = new FileOutputStream(dest);
-            VariationsUtils.writeSeed(
-                    stream,
-                    createMockSeed(),
-                    /* lowEntropySource= */ -1,
-                    /* limitedEntropyRandomizationSource= */ null);
+            VariationsUtils.writeSeed(stream, createMockSeed(), -1);
         } finally {
             if (stream != null) stream.close();
         }

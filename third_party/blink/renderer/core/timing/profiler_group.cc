@@ -27,7 +27,6 @@
 #include "third_party/blink/renderer/platform/scheduler/public/thread_scheduler.h"
 #include "third_party/blink/renderer/platform/weborigin/security_origin.h"
 #include "third_party/blink/renderer/platform/wtf/functional.h"
-#include "third_party/blink/renderer/platform/wtf/text/format.h"
 #include "third_party/blink/renderer/platform/wtf/vector.h"
 #include "v8/include/v8-profiler.h"
 #include "v8/include/v8.h"
@@ -413,7 +412,7 @@ void ProfilerGroup::CancelProfilerImpl(String profiler_id) {
 }
 
 String ProfilerGroup::NextProfilerId() {
-  auto id = Format("blink::Profiler[{}]", next_profiler_id_);
+  auto id = String::Format("blink::Profiler[%d]", next_profiler_id_);
   ++next_profiler_id_;
   return id;
 }

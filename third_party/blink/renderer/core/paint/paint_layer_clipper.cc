@@ -58,8 +58,7 @@
 
 namespace blink {
 
-static const LayoutObject* FindActiveUnboundedAncestor(
-    const PaintLayer& layer) {
+static HTMLElement* FindActiveUnboundedAncestor(const PaintLayer& layer) {
   if (!RuntimeEnabledFeatures::UnboundedElementEnabled()) {
     return nullptr;
   }
@@ -67,14 +66,10 @@ static const LayoutObject* FindActiveUnboundedAncestor(
     return nullptr;
   }
   for (const PaintLayer* curr = &layer; curr; curr = curr->Parent()) {
-    if (curr->GetLayoutObject().StyleRef().IsUnboundedElementActive()) {
-      DCHECK(RuntimeEnabledFeatures::UnboundedElementEnabled());
-      auto* html_element =
-          DynamicTo<HTMLElement>(curr->GetLayoutObject().GetNode());
-      DCHECK(!html_element ||
-             curr->GetLayoutObject().StyleRef().IsUnboundedElementActive() ==
-                 html_element->IsUnboundedElementActive());
-      return &curr->GetLayoutObject();
+    auto* element = DynamicTo<Element>(curr->GetLayoutObject().GetNode());
+    if (auto* html_element = DynamicTo<HTMLElement>(element);
+        html_element && html_element->IsUnboundedElementActive()) {
+      return html_element;
     }
   }
   NOTREACHED();
@@ -103,7 +98,7 @@ void PaintLayerClipper::CalculateRects(const ClipRectsContext& context,
     return;
   }
 
-  layer_offset = PhysicalOffset();
+  layer_offset = context.sub_pixel_accumulation;
   if (layer_ == context.root_layer) {
     DCHECK_EQ(&fragment_data, context.root_fragment);
   } else {
@@ -156,12 +151,13 @@ void PaintLayerClipper::CalculateBackgroundClipRectInternal(
         context.root_fragment->ContentsClip());
   }
 
-  if (const auto* unbounded_ancestor = FindActiveUnboundedAncestor(*layer_)) {
+  if (auto* unbounded_ancestor = FindActiveUnboundedAncestor(*layer_)) {
     // For unbounded elements, we calculate the background clip rect relative to
     // the active unbounded ancestor's state, so these elements escape ancestor
     // clips.
     DCHECK(RuntimeEnabledFeatures::UnboundedElementEnabled());
-    const auto& unbounded_fragment = unbounded_ancestor->FirstFragment();
+    const auto& unbounded_fragment =
+        unbounded_ancestor->GetLayoutObject()->FirstFragment();
     destination_property_tree_state.SetClip(
         unbounded_fragment.LocalBorderBoxProperties().Clip());
   }
@@ -172,6 +168,12 @@ void PaintLayerClipper::CalculateBackgroundClipRectInternal(
   // paint outside of those bounds.
   // The total painting bounds includes any visual overflow (such as shadow) and
   // filter bounds.
+  //
+  // TODO(chrishtr): sourceToDestinationVisualRect and
+  // sourceToDestinationClipRect may not compute tight results in the presence
+  // of transforms. Tight results are required for most use cases of these
+  // rects, so we should add methods to GeometryMapper that guarantee there
+  // are tight results, or else signal an error.
   if ((should_apply_self_overflow_clip == kRespectOverflowClip) &&
       HasNonVisibleOverflow(*layer_)) {
     // Implement the following special case: if computing clip rects with
@@ -200,7 +202,9 @@ void PaintLayerClipper::CalculateBackgroundClipRectInternal(
   }
 
   if (!output.IsInfinite()) {
+    // TODO(chrishtr): generalize to multiple fragments.
     output.Move(-context.root_fragment->PaintOffset());
+    output.Move(context.sub_pixel_accumulation);
   }
 }
 

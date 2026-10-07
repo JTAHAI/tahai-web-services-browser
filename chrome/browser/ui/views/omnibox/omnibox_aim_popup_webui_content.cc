@@ -11,7 +11,6 @@
 #include "chrome/browser/ui/contextual_search/searchbox_context_data.h"
 #include "chrome/browser/ui/omnibox/omnibox_controller.h"
 #include "chrome/browser/ui/omnibox/omnibox_edit_model.h"
-#include "chrome/browser/ui/omnibox/omnibox_next_features.h"
 #include "chrome/browser/ui/omnibox/omnibox_tab_helper.h"
 #include "chrome/browser/ui/views/location_bar/location_bar_view.h"
 #include "chrome/browser/ui/views/omnibox/omnibox_context_menu.h"
@@ -87,13 +86,7 @@ void OmniboxAimPopupWebUIContent::SaveInputToBackgroundTab(
 
 void OmniboxAimPopupWebUIContent::ApplyInputAndCleanup(
     const std::string& input) {
-  // For the full WebUI, the WebUI omnibox will still be open when `CloseUI`
-  // is called from aim popup. The state needs to be reverted.
-  if (base::FeatureList::IsEnabled(omnibox::kWebUIOmniboxFullPopup)) {
-    controller()->edit_model()->Revert();
-  } else {
-    location_bar()->GetOmniboxView()->RevertAll();
-  }
+  location_bar()->GetOmniboxView()->RevertAll();
   if (!input.empty()) {
     location_bar()->GetOmniboxView()->SetUserText(base::UTF8ToUTF16(input),
                                                   /*update_popup=*/false);
@@ -126,22 +119,7 @@ void OmniboxAimPopupWebUIContent::UpdateLocationBarFocusForScreenReader() {
 }
 
 void OmniboxAimPopupWebUIContent::CloseUI() {
-  // If the popup state is not shown, don't take any action. Closing the UI
-  // multiple times can result in incorrect state transitions from OnClose.
-  if (!IsShown()) {
-    return;
-  }
-
-  set_is_shown(false);
-
-  // For the full WebUI, the WebUI omnibox draft state should still be open.
-  if (base::FeatureList::IsEnabled(omnibox::kWebUIOmniboxFullPopup)) {
-    controller()->popup_state_manager()->SetPopupState(
-        OmniboxPopupState::kFull);
-  } else {
-    controller()->popup_state_manager()->SetPopupState(
-        OmniboxPopupState::kNone);
-  }
+  OmniboxPopupWebUIBaseContent::CloseUI();
 }
 
 // Override of WebUIContentsWrapper::Host::HandleContextMenu. This mirrors
@@ -176,7 +154,7 @@ void OmniboxAimPopupWebUIContent::ShowUI() {
   auto* browser_window = webui::GetBrowserWindowInterface(web_contents);
   std::unique_ptr<SearchboxContextData::Context> context;
   if (browser_window) {
-    auto* context_data = SearchboxContextData::From(browser_window);
+    auto* context_data = browser_window->GetFeatures().searchbox_context_data();
     context = context_data->TakePendingContext();
   }
   if (!context) {

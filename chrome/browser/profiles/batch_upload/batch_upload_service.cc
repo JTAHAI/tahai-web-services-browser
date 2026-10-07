@@ -18,7 +18,7 @@
 #include "chrome/browser/profiles/batch_upload/batch_upload_delegate.h"
 #include "chrome/browser/signin/identity_manager_factory.h"
 #include "chrome/browser/signin/signin_promo_util.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/frame/toolbar_button_provider.h"
 #include "chrome/browser/ui/views/toolbar/avatar_toolbar_button_interface.h"
@@ -222,7 +222,7 @@ BatchUploadService::BatchUploadService(
 BatchUploadService::~BatchUploadService() = default;
 
 void BatchUploadService::OpenBatchUpload(
-    BrowserWindowInterface* browser,
+    Browser* browser,
     EntryPoint entry_point,
     base::OnceCallback<void(bool)> dialog_shown_callback,
     base::OnceCallback<void()> dialog_closed_callback) {
@@ -309,7 +309,7 @@ void BatchUploadService::OnBatchUploadDialogResult(
 
 #if BUILDFLAG(ENABLE_DICE_SUPPORT)
   // `browser` may be null in tests.
-  BrowserWindowInterface* browser = state_.dialog_state_->browser_.get();
+  Browser* browser = state_.dialog_state_->browser_.get();
   if (browser) {
     state_.saving_browser_state_ =
         std::make_unique<ResettableState::SavingBrowserState>();
@@ -342,7 +342,7 @@ bool BatchUploadService::IsUserEligibleToOpenDialog() const {
 
   // If is in Sign in pending, the user should not have access to the dialog.
   if (identity_manager_->HasAccountWithRefreshTokenInPersistentErrorState(
-          primary_account.GetAccountId())) {
+          primary_account.account_id)) {
     return false;
   }
 
@@ -350,8 +350,7 @@ bool BatchUploadService::IsUserEligibleToOpenDialog() const {
 }
 
 #if BUILDFLAG(ENABLE_DICE_SUPPORT)
-void BatchUploadService::TriggerAvatarButtonSavingDataText(
-    BrowserWindowInterface* browser) {
+void BatchUploadService::TriggerAvatarButtonSavingDataText(Browser* browser) {
   CHECK(browser);
   CHECK(state_.saving_browser_state_);
   // Show the text.

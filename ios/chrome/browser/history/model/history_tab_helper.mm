@@ -7,6 +7,7 @@
 #import "base/feature_list.h"
 #import "base/memory/ptr_util.h"
 #import "base/metrics/histogram_macros.h"
+#import "components/history/core/browser/features.h"
 #import "components/history/core/browser/history_constants.h"
 #import "components/history/core/browser/history_service.h"
 #import "components/history/core/browser/history_types.h"
@@ -117,11 +118,17 @@ history::HistoryAddPageArgs HistoryTabHelper::CreateHistoryAddPageArgs(
           ? navigation_context->GetResponseHeaders()->response_code()
           : 0;
 
-  // Visits to reachable URLs that result in a 404 response are saved to
-  // history. We don't want to count error navigations as visits when
-  // calculating the Most Visited, so we filter them out here.
+  // If `history::kVisitedLinksOn404` is enabled, visits to
+  // reachable URLs that result in a 404 response will be saved to history. We
+  // don't want to count error navigations as visits when calculating the Most
+  // Visited, so we filter them out here.
+  const bool status_code_qualifies_for_ntp_most_visited =
+      !(base::FeatureList::IsEnabled(history::kVisitedLinksOn404) &&
+        http_response_code == 404);
+
   const bool consider_for_ntp_most_visited =
-      http_response_code != 404 && !content_suggestions_navigation &&
+      status_code_qualifies_for_ntp_most_visited &&
+      !content_suggestions_navigation &&
       referrer_url != kReadingListReferrerURL;
 
   // Hide navigations that result in an error in order to prevent the omnibox
@@ -243,6 +250,16 @@ void HistoryTabHelper::DidFinishNavigation(
   UMA_HISTOGRAM_BOOLEAN("History.ShouldUpdateHistory",
                         navigation_context->GetError());
   if (navigation_context->GetError()) {
+    return;
+  }
+
+  // If `history::kVisitedLinksOn404` is enabled, record 404s in History.
+  const bool should_record_404 =
+      base::FeatureList::IsEnabled(history::kVisitedLinksOn404);
+
+  if (navigation_context->GetResponseHeaders() &&
+      navigation_context->GetResponseHeaders()->response_code() == 404 &&
+      !should_record_404) {
     return;
   }
 

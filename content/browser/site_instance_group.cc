@@ -111,8 +111,7 @@ bool SiteInstanceGroup::IsRelatedSiteInstanceGroup(SiteInstanceGroup* group) {
 }
 
 void SiteInstanceGroup::RenderProcessHostDestroyed(RenderProcessHost* host) {
-  CHECK_EQ(process_->GetDeprecatedID(), host->GetDeprecatedID(),
-           base::NotFatalUntil::M159);
+  DCHECK_EQ(process_->GetDeprecatedID(), host->GetDeprecatedID());
   process_->RemoveObserver(this);
 
   // Remove references to `this` from all SiteInstances in this group. That will

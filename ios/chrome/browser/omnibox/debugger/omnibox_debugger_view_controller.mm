@@ -78,7 +78,7 @@ UIButton* SettingsButton() {
   configuration.title = @"Open iOS Settings";
   UIImageSymbolConfiguration* config = [UIImageSymbolConfiguration
       configurationWithWeight:UIImageSymbolWeightLight];
-  configuration.image = SymbolWithConfiguration(SymbolSettings, config);
+  configuration.image = DefaultSymbolWithConfiguration(@"gear.circle", config);
   UIButton* button = [UIButton buttonWithConfiguration:configuration
                                          primaryAction:openSettings];
   button.translatesAutoresizingMaskIntoConstraints = NO;

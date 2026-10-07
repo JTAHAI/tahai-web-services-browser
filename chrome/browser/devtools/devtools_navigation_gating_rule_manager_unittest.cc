@@ -4,84 +4,68 @@
 
 #include "chrome/browser/devtools/devtools_navigation_gating_rule_manager.h"
 
-#include <memory>
-
-#include "base/test/task_environment.h"
-#include "base/test/test_future.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "url/gurl.h"
 
 namespace {
 
-class DevToolsNavigationGatingRuleManagerTest : public testing::Test {
- protected:
-  bool IsNavigationAllowed(DevToolsNavigationGatingRuleManager& manager,
-                           const GURL& url) {
-    base::test::TestFuture<bool> future;
-    manager.IsNavigationAllowed(url, future.GetCallback());
-    return future.Get();
-  }
-
-  base::test::SingleThreadTaskEnvironment task_environment_;
-};
-
-TEST_F(DevToolsNavigationGatingRuleManagerTest, EmptyRulesAllowsAll) {
+TEST(DevToolsNavigationGatingRuleManagerTest, EmptyRulesAllowsAll) {
   DevToolsNavigationGatingRuleManager manager =
       DevToolsNavigationGatingRuleManager::CreateForTesting("{}");
-  EXPECT_TRUE(IsNavigationAllowed(manager, GURL("http://a.com")));
-  EXPECT_TRUE(IsNavigationAllowed(manager, GURL("https://b.com/foo")));
+  EXPECT_TRUE(manager.IsNavigationAllowed(GURL("http://a.com")));
+  EXPECT_TRUE(manager.IsNavigationAllowed(GURL("https://b.com/foo")));
 }
 
-TEST_F(DevToolsNavigationGatingRuleManagerTest, AllowlistRestrictsNavigations) {
+TEST(DevToolsNavigationGatingRuleManagerTest, AllowlistRestrictsNavigations) {
   DevToolsNavigationGatingRuleManager manager =
       DevToolsNavigationGatingRuleManager::CreateForTesting(
           R"({"allowlist": ["https://a.com", "http://b.com"]})");
 
-  EXPECT_TRUE(IsNavigationAllowed(manager, GURL("https://a.com")));
-  EXPECT_TRUE(IsNavigationAllowed(manager, GURL("https://a.com/foo")));
-  EXPECT_TRUE(IsNavigationAllowed(manager, GURL("http://b.com:80/bar")));
+  EXPECT_TRUE(manager.IsNavigationAllowed(GURL("https://a.com")));
+  EXPECT_TRUE(manager.IsNavigationAllowed(GURL("https://a.com/foo")));
+  EXPECT_TRUE(manager.IsNavigationAllowed(GURL("http://b.com:80/bar")));
 
   EXPECT_FALSE(
-      IsNavigationAllowed(manager, GURL("http://a.com")));  // Scheme mismatch
+      manager.IsNavigationAllowed(GURL("http://a.com")));  // Scheme mismatch
   EXPECT_FALSE(
-      IsNavigationAllowed(manager, GURL("https://c.com")));  // Host mismatch
+      manager.IsNavigationAllowed(GURL("https://c.com")));  // Host mismatch
 }
 
-TEST_F(DevToolsNavigationGatingRuleManagerTest, EmptyAllowlistBlocksAll) {
+TEST(DevToolsNavigationGatingRuleManagerTest, EmptyAllowlistBlocksAll) {
   DevToolsNavigationGatingRuleManager manager =
       DevToolsNavigationGatingRuleManager::CreateForTesting(
           R"({"allowlist": []})");
 
-  EXPECT_FALSE(IsNavigationAllowed(manager, GURL("https://a.com")));
-  EXPECT_FALSE(IsNavigationAllowed(manager, GURL("https://b.com")));
+  EXPECT_FALSE(manager.IsNavigationAllowed(GURL("https://a.com")));
+  EXPECT_FALSE(manager.IsNavigationAllowed(GURL("https://b.com")));
 }
 
-TEST_F(DevToolsNavigationGatingRuleManagerTest, AllowlistWildcardDomain) {
+TEST(DevToolsNavigationGatingRuleManagerTest, AllowlistWildcardDomain) {
   DevToolsNavigationGatingRuleManager manager =
       DevToolsNavigationGatingRuleManager::CreateForTesting(
           R"({"allowlist": ["https://[*.]example.com"]})");
 
-  EXPECT_TRUE(IsNavigationAllowed(manager, GURL("https://example.com")));
-  EXPECT_TRUE(IsNavigationAllowed(manager, GURL("https://sub.example.com")));
+  EXPECT_TRUE(manager.IsNavigationAllowed(GURL("https://example.com")));
+  EXPECT_TRUE(manager.IsNavigationAllowed(GURL("https://sub.example.com")));
   EXPECT_TRUE(
-      IsNavigationAllowed(manager, GURL("https://deep.sub.example.com/foo")));
+      manager.IsNavigationAllowed(GURL("https://deep.sub.example.com/foo")));
 
-  EXPECT_FALSE(IsNavigationAllowed(manager, GURL("http://example.com")));
-  EXPECT_FALSE(IsNavigationAllowed(manager, GURL("https://notexample.com")));
+  EXPECT_FALSE(manager.IsNavigationAllowed(GURL("http://example.com")));
+  EXPECT_FALSE(manager.IsNavigationAllowed(GURL("https://notexample.com")));
 }
 
-TEST_F(DevToolsNavigationGatingRuleManagerTest, BlocklistRestrictsNavigations) {
+TEST(DevToolsNavigationGatingRuleManagerTest, BlocklistRestrictsNavigations) {
   DevToolsNavigationGatingRuleManager manager =
       DevToolsNavigationGatingRuleManager::CreateForTesting(
           R"({"blocklist": ["https://blockedsite.com"]})");
 
-  EXPECT_TRUE(IsNavigationAllowed(manager, GURL("https://allowedsite.com")));
-  EXPECT_FALSE(IsNavigationAllowed(manager, GURL("https://blockedsite.com")));
+  EXPECT_TRUE(manager.IsNavigationAllowed(GURL("https://allowedsite.com")));
+  EXPECT_FALSE(manager.IsNavigationAllowed(GURL("https://blockedsite.com")));
 }
 
-TEST_F(DevToolsNavigationGatingRuleManagerTest,
-       SpecificityBlocklistOverridesAllowlist) {
+TEST(DevToolsNavigationGatingRuleManagerTest,
+     SpecificityBlocklistOverridesAllowlist) {
   // blocklist pattern is more specific
   DevToolsNavigationGatingRuleManager manager =
       DevToolsNavigationGatingRuleManager::CreateForTesting(R"({
@@ -89,16 +73,16 @@ TEST_F(DevToolsNavigationGatingRuleManagerTest,
         "blocklist": ["https://sub.blockedsite.com"]
       })");
 
-  EXPECT_TRUE(IsNavigationAllowed(manager, GURL("https://allowedsite.com")));
-  EXPECT_TRUE(IsNavigationAllowed(manager, GURL("https://blockedsite.com")));
+  EXPECT_TRUE(manager.IsNavigationAllowed(GURL("https://allowedsite.com")));
+  EXPECT_TRUE(manager.IsNavigationAllowed(GURL("https://blockedsite.com")));
   EXPECT_TRUE(
-      IsNavigationAllowed(manager, GURL("https://another.blockedsite.com")));
+      manager.IsNavigationAllowed(GURL("https://another.blockedsite.com")));
   EXPECT_FALSE(
-      IsNavigationAllowed(manager, GURL("https://sub.blockedsite.com")));
+      manager.IsNavigationAllowed(GURL("https://sub.blockedsite.com")));
 }
 
-TEST_F(DevToolsNavigationGatingRuleManagerTest,
-       SpecificityAllowlistOverridesBlocklist) {
+TEST(DevToolsNavigationGatingRuleManagerTest,
+     SpecificityAllowlistOverridesBlocklist) {
   // allowlist pattern is more specific
   DevToolsNavigationGatingRuleManager manager =
       DevToolsNavigationGatingRuleManager::CreateForTesting(R"({
@@ -106,18 +90,18 @@ TEST_F(DevToolsNavigationGatingRuleManagerTest,
         "blocklist": ["https://[*.]blockedsite.com"]
       })");
 
-  EXPECT_FALSE(IsNavigationAllowed(manager, GURL("https://blockedsite.com")));
+  EXPECT_FALSE(manager.IsNavigationAllowed(GURL("https://blockedsite.com")));
   EXPECT_FALSE(
-      IsNavigationAllowed(manager, GURL("https://sub.blockedsite.com")));
+      manager.IsNavigationAllowed(GURL("https://sub.blockedsite.com")));
   EXPECT_TRUE(
-      IsNavigationAllowed(manager, GURL("https://allow.blockedsite.com")));
+      manager.IsNavigationAllowed(GURL("https://allow.blockedsite.com")));
 }
 
-TEST_F(DevToolsNavigationGatingRuleManagerTest,
-       MalformedJsonRulesFallbackToEmpty) {
+TEST(DevToolsNavigationGatingRuleManagerTest,
+     MalformedJsonRulesFallbackToEmpty) {
   DevToolsNavigationGatingRuleManager manager =
       DevToolsNavigationGatingRuleManager::CreateForTesting("invalid-json");
-  EXPECT_TRUE(IsNavigationAllowed(manager, GURL("https://any.com")));
+  EXPECT_TRUE(manager.IsNavigationAllowed(GURL("https://any.com")));
 }
 
 }  // namespace

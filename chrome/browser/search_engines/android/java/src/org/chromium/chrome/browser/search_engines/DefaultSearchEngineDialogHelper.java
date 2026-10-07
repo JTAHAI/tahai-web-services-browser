@@ -140,7 +140,7 @@ public class DefaultSearchEngineDialogHelper implements OnCheckedChangeListener,
     }
 
     /** Prevent the user from moving forward until they've clicked a search engine. */
-    private void updateButtonState() {
+    private final void updateButtonState() {
         mConfirmButton.setEnabled(mCurrentlySelectedKeyword != null);
     }
 }

@@ -153,7 +153,8 @@ void WebAppLaunchNavigationHandleUserData::
     BrowserWindowInterface* browser =
         tab ? tab->GetBrowserWindowInterface() : nullptr;
     if (browser) {
-      MaybeShowNavigationCaptureIph(app_id, browser->GetProfile(), browser);
+      MaybeShowNavigationCaptureIph(app_id, browser->GetProfile(),
+                                    browser->GetBrowserForMigrationOnly());
     }
   }
 }

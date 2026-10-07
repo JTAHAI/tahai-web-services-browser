@@ -20,8 +20,6 @@ std::optional<FidoTransportProtocol> ConvertToFidoTransportProtocol(
     return FidoTransportProtocol::kHybrid;
   } else if (protocol == kInternal) {
     return FidoTransportProtocol::kInternal;
-  } else if (protocol == kSmartCard) {
-    return FidoTransportProtocol::kSmartCard;
   } else {
     return std::nullopt;
   }
@@ -39,8 +37,6 @@ std::string_view ToString(FidoTransportProtocol protocol) {
       return kHybrid;
     case FidoTransportProtocol::kInternal:
       return kInternal;
-    case FidoTransportProtocol::kSmartCard:
-      return kSmartCard;
     case FidoTransportProtocol::kDeprecatedAoa:
       NOTREACHED();
   }
@@ -55,7 +51,6 @@ AuthenticatorAttachment AuthenticatorAttachmentFromTransport(
     case FidoTransportProtocol::kNearFieldCommunication:
     case FidoTransportProtocol::kBluetoothLowEnergy:
     case FidoTransportProtocol::kHybrid:
-    case FidoTransportProtocol::kSmartCard:
       return AuthenticatorAttachment::kCrossPlatform;
     case FidoTransportProtocol::kDeprecatedAoa:
       NOTREACHED();

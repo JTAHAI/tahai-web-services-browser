@@ -97,7 +97,7 @@ public class TabStateAttributes {
         // TODO(crbug.com/40242471): Should this also handle mTab.getPendingLoadParams(), and ignore
         //                      URL updates when the URL matches the pending load?
         mTab.addObserver(
-                new TabObserver() {
+                new EmptyTabObserver() {
                     @Override
                     public void onHidden(Tab tab, int reason) {
                         if (!mTab.isClosing() && mDirtinessState == DirtinessState.UNTIDY) {
@@ -261,26 +261,6 @@ public class TabStateAttributes {
         updateIsDirty(DirtinessState.CLEAN);
     }
 
-    /**
-     * Marks all registered {@link TabStateAttributes} on the tab as dirty to trigger storage
-     * persistence.
-     *
-     * @param tab The tab to mark dirty.
-     */
-    public static void setDirty(@Nullable Tab tab) {
-        if (tab == null || tab.isDestroyed() || tab.getUserDataHost() == null) {
-            return;
-        }
-        TabStateAttributesRegistry registry =
-                tab.getUserDataHost().getUserData(TabStateAttributesRegistry.class);
-        if (registry == null) {
-            return;
-        }
-        for (TabStateAttributes attr : registry.getAllAttributes()) {
-            attr.updateIsDirty(DirtinessState.DIRTY);
-        }
-    }
-
     public void destroy() {
         if (mWebContents != null) {
             cleanupWebContents(mWebContents);
@@ -353,8 +333,7 @@ public class TabStateAttributes {
     }
 
     private static boolean isNtpWithoutNavigationState(Tab tab) {
-        GURL url = tab.getUrl();
-        return url != null && UrlUtilities.isNtpUrl(url) && !tab.canGoBack() && !tab.canGoForward();
+        return UrlUtilities.isNtpUrl(tab.getUrl()) && !tab.canGoBack() && !tab.canGoForward();
     }
 
     /**

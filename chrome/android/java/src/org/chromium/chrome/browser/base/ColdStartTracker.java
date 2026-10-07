@@ -11,8 +11,6 @@ import android.app.Activity;
 import org.chromium.base.ActivityState;
 import org.chromium.base.ApplicationStatus;
 import org.chromium.base.ApplicationStatus.ActivityStateListener;
-import org.chromium.base.TriState;
-import org.chromium.base.TriStateUtils;
 import org.chromium.build.BuildConfig;
 import org.chromium.build.annotations.EnsuresNonNull;
 import org.chromium.build.annotations.NullMarked;
@@ -58,7 +56,7 @@ import org.chromium.chrome.browser.metrics.SimpleStartupForegroundSessionDetecto
 public class ColdStartTracker implements ActivityStateListener {
     private static @Nullable ColdStartTracker sColdStartTracker;
 
-    private @TriState int mStartedAsCold;
+    private @Nullable Boolean mStartedAsCold;
 
     private ColdStartTracker() {
         assert ApplicationStatus.isInitialized();
@@ -82,7 +80,7 @@ public class ColdStartTracker implements ActivityStateListener {
 
     public static void setStartedAsColdForTesting() {
         if (sColdStartTracker == null) initialize();
-        sColdStartTracker.mStartedAsCold = TriState.TRUE;
+        sColdStartTracker.mStartedAsCold = true;
     }
 
     @Override
@@ -94,9 +92,10 @@ public class ColdStartTracker implements ActivityStateListener {
     }
 
     // Must be called during onCreate() (or earlier) of the first activity created in the process.
+    @EnsuresNonNull("mStartedAsCold")
     private void detectStartedAsCold() {
-        if (mStartedAsCold != TriState.NOT_SET) return;
-        mStartedAsCold = TriStateUtils.from(isColdStartup());
+        if (mStartedAsCold != null) return;
+        mStartedAsCold = isColdStartup();
     }
 
     private boolean isColdStartup() {
@@ -137,6 +136,6 @@ public class ColdStartTracker implements ActivityStateListener {
 
     private boolean firstActivityWasColdOrDidNotGetCreatedYet() {
         detectStartedAsCold();
-        return mStartedAsCold == TriState.TRUE;
+        return mStartedAsCold;
     }
 }

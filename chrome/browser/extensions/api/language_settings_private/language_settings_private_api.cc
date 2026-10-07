@@ -15,8 +15,6 @@
 
 #include "base/containers/flat_set.h"
 #include "base/feature_list.h"
-#include "base/i18n/language_tag.h"
-#include "base/i18n/tag_converters.h"
 #include "base/strings/string_split.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
@@ -330,11 +328,7 @@ LanguageSettingsPrivateEnableLanguageFunction::Run() {
   std::unique_ptr<translate::TranslatePrefs> translate_prefs =
       CreateTranslatePrefsForBrowserContext(browser_context());
 
-  if (std::optional<base::i18n::LanguageTag> parsed_tag =
-          base::i18n::LanguageTagConverter::GetInstance().FromString(
-              language_code)) {
-    translate_prefs->AddToLanguageList(*parsed_tag, /*force_blocked=*/false);
-  }
+  translate_prefs->AddToLanguageList(language_code, /*force_blocked=*/false);
 
   return RespondNow(NoArguments());
 }
@@ -355,11 +349,7 @@ LanguageSettingsPrivateDisableLanguageFunction::Run() {
   std::unique_ptr<translate::TranslatePrefs> translate_prefs =
       CreateTranslatePrefsForBrowserContext(browser_context());
 
-  if (std::optional<base::i18n::LanguageTag> parsed_tag =
-          base::i18n::LanguageTagConverter::GetInstance().FromString(
-              language_code)) {
-    translate_prefs->RemoveFromLanguageList(*parsed_tag);
-  }
+  translate_prefs->RemoveFromLanguageList(language_code);
 
   return RespondNow(NoArguments());
 }

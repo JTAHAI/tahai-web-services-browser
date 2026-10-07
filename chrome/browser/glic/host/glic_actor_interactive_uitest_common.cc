@@ -104,15 +104,9 @@ GlicActorUiTest::GlicActorUiTest() {
 GlicActorUiTest::~GlicActorUiTest() = default;
 
 void GlicActorUiTest::SetUpOnMainThread() {
-  embedded_test_server()->ServeFilesFromSourceDirectory("components/test/data");
-  embedded_https_test_server().ServeFilesFromSourceDirectory(
-      "components/test/data");
   // Add rule for resolving cross origin host names.
   InteractiveGlicTest::SetUpOnMainThread();
   host_resolver()->AddRule("*", "127.0.0.1");
-  if (!embedded_https_test_server().Started()) {
-    ASSERT_TRUE(embedded_https_test_server().Start());
-  }
 }
 
 const actor::ActorTask* GlicActorUiTest::GetActorTask() {
@@ -288,7 +282,7 @@ MultiStep GlicActorUiTest::CreateTabAction(
     bool foreground,
     ExpectedErrorResult expected_result) {
   // Window_id is passed by value since tests currently only use one window so
-  // this allows using browser()->GetSessionID(). Once tests are exercising
+  // this allows using browser()->session_id(). Once tests are exercising
   // window creation though this will likely need to become a test-step
   // provided ref.
   auto create_tab_provider =
@@ -408,7 +402,7 @@ MultiStep GlicActorUiTest::StartActorTaskInNewTab(
       InstrumentNextTab(new_tab_id),
       CreateTask(task_id_, ""),
       CreateTabAction(task_id_,
-                      browser()->GetSessionID(),
+                      browser()->session_id(),
                       /*foreground=*/open_in_foreground),
       WaitForWebContentsReady(new_tab_id),
       InAnyContext(WithElement(new_tab_id, [this](ui::TrackedElement* el) {
@@ -634,8 +628,8 @@ MultiStep GlicActorUiTest::InitializeWithOpenGlicWindow() {
 
   // Navigate to ensure the initial tab has some valid content loaded that the
   // Glic window can observe.
-  const GURL start_url = embedded_https_test_server().GetURL(
-      "example.com", "/actor/blank.html?start");
+  const GURL start_url =
+      embedded_test_server()->GetURL("/actor/blank.html?start");
 
   return Steps(InstrumentTab(kCurrentActiveTabId),
                NavigateWebContents(kCurrentActiveTabId, start_url),

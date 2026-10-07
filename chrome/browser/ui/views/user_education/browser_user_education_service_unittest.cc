@@ -173,19 +173,14 @@ TEST(BrowserUserEducationServiceTest, CheckTutorialHistograms) {
 }
 
 TEST(BrowserUserEducationServiceTest, PreventNewHardCodedConfigurations) {
-  // LINT.IfChange(HistoricallyAllowedConfigurationWarning)
-  // ----------------------------------------------------------------
-  // To be triaged:
-  //
-  // (These are listed because they were present prior to this test being
-  // written; in the future as many as possible should be eliminated.
-  //
-  // DO NOT ADD ENTRIES TO THIS LIST, EVER.
-  // ----------------------------------------------------------------
-  // LINT.ThenChange(:HistoricallyAllowedConfigurations)
-
-  // LINT.IfChange(HistoricallyAllowedConfigurations)
   const base::Feature* const kAllowedConfigurations[] = {
+      // To be triaged:
+      //
+      // (These are listed because they were present prior to this test being
+      // written; in the future as many as possible should be eliminated, and
+      // the rest moved down to the "explicitly allowed" list below.)
+      //
+      // DO NOT ADD ENTRIES TO THIS LIST, EVER.
       &feature_engagement::kIPHBatterySaverModeFeature,
       &feature_engagement::kIPHCompanionSidePanelFeature,
       &feature_engagement::kIPHComposeMSBBSettingsFeature,
@@ -213,9 +208,14 @@ TEST(BrowserUserEducationServiceTest, PreventNewHardCodedConfigurations) {
       &feature_engagement::kIPHAutofillExternalAccountProfileSuggestionFeature,
       &feature_engagement::kIPHAutofillVirtualCardCVCSuggestionFeature,
       &feature_engagement::kIPHAutofillVirtualCardSuggestionFeature,
+      // Explicitly allowed:
+      //
+      // (These have been cleared by Frizzle Team as requiring their own
+      // specific configuration.)
+      //
+      // DO NOT ADD ENTRIES TO THIS LIST WITHOUT APPROVAL FROM
+      // components/user_education/OWNERS
   };
-  // LINT.ThenChange(:HistoricallyAllowedConfigurationWarning)
-
   std::vector<std::string> invalid_configs;
 
   user_education::FeaturePromoRegistry registry;
@@ -239,22 +239,17 @@ TEST(BrowserUserEducationServiceTest, PreventNewHardCodedConfigurations) {
 }
 
 TEST(BrowserUserEducationServiceTest, CheckFeaturePromoMetadata) {
-  // LINT.IfChange(NoMetadataAllowedWarning)
-  // ----------------------------------------------------------------
   // These promos get a pass because they are old and never had metadata
   // associated with them. All new promos should have metadata.
   //
   // DO NOT ADD ENTRIES TO THIS LIST, EVER.
-  // ----------------------------------------------------------------
-  // LINT.ThenChange(:NoMetadataAllowedList)
-
-  // LINT.IfChange(NoMetadataAllowedList)
   const base::Feature* const kExistingPromosWithoutMetadata[] = {
       &feature_engagement::kIPHComposeMSBBSettingsFeature,
       &feature_engagement::kIPHDesktopSharedHighlightingFeature,
       &feature_engagement::kIPHExplicitBrowserSigninPreferenceRememberedFeature,
       &feature_engagement::kIPHGMCCastStartStopFeature,
       &feature_engagement::kIPHGMCLocalMediaCastingFeature,
+      &feature_engagement::kIPHLiveCaptionFeature,
       &feature_engagement::kIPHTabAudioMutingFeature,
       &feature_engagement::kIPHPasswordsManagementBubbleDuringSigninFeature,
       &feature_engagement::kIPHPasswordsWebAppProfileSwitchFeature,
@@ -265,7 +260,6 @@ TEST(BrowserUserEducationServiceTest, CheckFeaturePromoMetadata) {
       &feature_engagement::kIPHReadingListInSidePanelFeature,
       &feature_engagement::kIPHProfileSwitchFeature,
       &feature_engagement::kIPHBackNavigationMenuFeature};
-  // LINT.ThenChange(:NoMetadataAllowedWarning)
 
   user_education::FeaturePromoRegistry registry;
   MaybeRegisterChromeFeaturePromos(registry);

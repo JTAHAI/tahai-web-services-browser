@@ -46,8 +46,4 @@ bool ReservedResourceIdTracker::UnrefId(ResourceId id, int count) {
   return false;
 }
 
-bool ReservedResourceIdTracker::IsTracked(ResourceId id) const {
-  return id_ref_counts_.contains(id);
-}
-
 }  // namespace viz

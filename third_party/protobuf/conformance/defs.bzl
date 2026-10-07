@@ -11,7 +11,6 @@ def conformance_test(
         failure_list = None,
         text_format_failure_list = None,
         maximum_edition = None,
-        performance = None,
         **kwargs):
     """Conformance test runner.
 
@@ -33,20 +32,16 @@ def conformance_test(
         failure_lists = failure_lists + [text_format_failure_list]
     if maximum_edition:
         args = args + ["--maximum_edition %s" % maximum_edition]
-    if performance:
-        args = args + ["--performance"]
 
     sh_test(
         name = name,
-        srcs = [
-            Label("//conformance:bazel_conformance_test_runner.sh"),
-        ],
+        srcs = ["//conformance:bazel_conformance_test_runner.sh"],
         data = [testee] + failure_lists + [
-            Label("//conformance:conformance_test_runner"),
+            "//conformance:conformance_test_runner",
         ],
         args = args,
         deps = [
-            Label("@bazel_tools//tools/bash/runfiles"),
+            "@bazel_tools//tools/bash/runfiles",
         ],
         tags = ["conformance"],
         **kwargs

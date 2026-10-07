@@ -300,8 +300,7 @@ int TextOffsetMapping::ComputeTextOffset(
                                              behavior_);
 }
 
-PositionInFlatTree TextOffsetMapping::GetPositionBefore(
-    wtf_size_t offset) const {
+PositionInFlatTree TextOffsetMapping::GetPositionBefore(unsigned offset) const {
   DCHECK_LE(offset, text16_.length());
   CharacterIteratorInFlatTree iterator(range_, behavior_);
   if (offset >= 1 && offset == text16_.length()) {
@@ -312,16 +311,15 @@ PositionInFlatTree TextOffsetMapping::GetPositionBefore(
   return iterator.GetPositionBefore();
 }
 
-PositionInFlatTree TextOffsetMapping::GetPositionAfter(
-    wtf_size_t offset) const {
+PositionInFlatTree TextOffsetMapping::GetPositionAfter(unsigned offset) const {
   DCHECK_LE(offset, text16_.length());
   CharacterIteratorInFlatTree iterator(range_, behavior_);
   iterator.Advance(offset);
   return iterator.GetPositionAfter();
 }
 
-EphemeralRangeInFlatTree TextOffsetMapping::ComputeRange(wtf_size_t start,
-                                                         wtf_size_t end) const {
+EphemeralRangeInFlatTree TextOffsetMapping::ComputeRange(unsigned start,
+                                                         unsigned end) const {
   DCHECK_LE(end, text16_.length());
   DCHECK_LE(start, end);
   if (start == end)
@@ -330,9 +328,9 @@ EphemeralRangeInFlatTree TextOffsetMapping::ComputeRange(wtf_size_t start,
                                   GetPositionAfter(end));
 }
 
-wtf_size_t TextOffsetMapping::FindNonWhitespaceCharacterFrom(
-    wtf_size_t offset) const {
-  for (wtf_size_t runner = offset; runner < text16_.length(); ++runner) {
+unsigned TextOffsetMapping::FindNonWhitespaceCharacterFrom(
+    unsigned offset) const {
+  for (unsigned runner = offset; runner < text16_.length(); ++runner) {
     if (!IsWhitespace(text16_[runner]))
       return runner;
   }

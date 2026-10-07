@@ -9,7 +9,6 @@
 #include "chrome/browser/preloading/preloading_prefs.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
-#include "chrome/browser/ui/browser_window/public/create_browser_window.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/common/pref_names.h"
 #include "chrome/test/base/in_process_browser_test.h"
@@ -73,8 +72,7 @@ class PrefetchBrowserTest : public InProcessBrowserTest {
     prefetch::SetPreloadPagesState(browser()->GetProfile()->GetPrefs(), value);
   }
 
-  bool RunPrefetchExperiment(bool expect_success,
-                             BrowserWindowInterface* browser) {
+  bool RunPrefetchExperiment(bool expect_success, Browser* browser) {
     GURL url = embedded_test_server()->GetURL(kPrefetchPage);
 
     const std::u16string expected_title =
@@ -124,8 +122,8 @@ IN_PROC_BROWSER_TEST_F(PrefetchBrowserTest, PreferenceWorks) {
 IN_PROC_BROWSER_TEST_F(PrefetchBrowserTest, IncognitoTest) {
   Profile* incognito_profile =
       browser()->GetProfile()->GetPrimaryOTRProfile(/*create_if_needed=*/true);
-  BrowserWindowInterface* incognito_browser = CreateBrowserWindow(
-      BrowserWindowCreateParams(incognito_profile, /*from_user_gesture=*/true));
+  Browser* incognito_browser =
+      Browser::Create(Browser::CreateParams(incognito_profile, true));
 
   // Navigate just to have a tab in this window, otherwise there is no
   // WebContents for the incognito browser.

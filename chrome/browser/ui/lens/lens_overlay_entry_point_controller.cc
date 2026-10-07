@@ -128,10 +128,12 @@ LensOverlayEntryPointController::LensOverlayEntryPointController(
 void LensOverlayEntryPointController::Initialize(
     BrowserWindowInterface* browser_window_interface,
     CommandUpdater* command_updater,
-    LocationBar* location_bar) {
+    views::View* location_bar) {
   browser_window_interface_ = browser_window_interface;
-  if (location_bar) {
-    location_bar_observation_.Observe(location_bar);
+  location_bar_ = location_bar;
+  if (location_bar_) {
+    focus_manager_observation_.Observe(location_bar_->GetFocusManager());
+    location_bar_->AddObserver(this);
   }
 
   pref_change_registrar_.Init(
@@ -173,7 +175,12 @@ void LensOverlayEntryPointController::Initialize(
   }
 }
 
-LensOverlayEntryPointController::~LensOverlayEntryPointController() = default;
+LensOverlayEntryPointController::~LensOverlayEntryPointController() {
+  // Initialize may not have been called (e.g. for non-normal browser windows).
+  if (location_bar_) {
+    location_bar_->RemoveObserver(this);
+  }
+}
 
 bool LensOverlayEntryPointController::IsEnabled() const {
   // This class is initialized if and only if it is subscribed.
@@ -186,16 +193,12 @@ bool LensOverlayEntryPointController::IsEnabled() const {
   }
 
   // Disable in fullscreen without top-chrome.
-  if (!lens::features::GetLensOverlayEnableInFullscreen()) {
-    auto* const exclusive_access_manager =
-        ExclusiveAccessManager::From(browser_window_interface_);
-    if (exclusive_access_manager &&
-        exclusive_access_manager->context()->IsFullscreen() &&
-        (!browser_window_interface_->IsTabStripVisible() ||
-         exclusive_access_manager->fullscreen_controller()
-             ->IsWindowFullscreenForTabOrPending())) {
-      return false;
-    }
+  if (!lens::features::GetLensOverlayEnableInFullscreen() &&
+      ExclusiveAccessManager::From(browser_window_interface_)
+          ->context()
+          ->IsFullscreen() &&
+      !browser_window_interface_->IsTabStripVisible()) {
+    return false;
   }
 
   return true;
@@ -226,11 +229,13 @@ void LensOverlayEntryPointController::UpdateEntryPointsState(
 
   CHECK(browser_window_interface_);
 
-  // `tab_interface` can be null early during browser startup.
-  if (auto* tab_interface =
-          browser_window_interface_->GetActiveTabInterface()) {
-    LensOverlayHomeworkPageActionController::From(*tab_interface)
-        ->UpdatePageActionIcon();
+  if (IsPageActionMigrated(PageActionIconType::kLensOverlayHomework)) {
+    // `tab_interface` can be null early during browser startup.
+    if (auto* tab_interface =
+            browser_window_interface_->GetActiveTabInterface()) {
+      LensOverlayHomeworkPageActionController::From(*tab_interface)
+          ->UpdatePageActionIcon();
+    }
   }
 }
 
@@ -274,8 +279,9 @@ void LensOverlayEntryPointController::InvokeAction(
     if (static_cast<page_actions::PageActionTrigger>(page_action_trigger) ==
             page_actions::PageActionTrigger::kKeyboard &&
         !lens::features::IsLensOverlayKeyboardSelectionEnabled()) {
-      lens::LensRegionSearchController::From(
-          active_tab->GetBrowserWindowInterface())
+      active_tab->GetBrowserWindowInterface()
+          ->GetFeatures()
+          .lens_region_search_controller()
           ->Start(active_tab->GetContents(), /*use_fullscreen_capture=*/true,
                   /*is_google_default_search_provider=*/true,
                   lens::AmbientSearchEntryPoint::
@@ -308,17 +314,32 @@ void LensOverlayEntryPointController::InvokeAction(
   }
 }
 
-void LensOverlayEntryPointController::OnLocationBarFocusChanged() {
+void LensOverlayEntryPointController::OnViewAddedToWidget(views::View* view) {
+  CHECK(location_bar_);
+  focus_manager_observation_.Observe(location_bar_->GetFocusManager());
+}
+
+void LensOverlayEntryPointController::OnViewRemovedFromWidget(
+    views::View* view) {
+  CHECK(location_bar_);
+  CHECK(location_bar_->GetFocusManager());
+  focus_manager_observation_.Reset();
+}
+
+void LensOverlayEntryPointController::OnDidChangeFocus(views::View* before,
+                                                       views::View* now) {
   UpdatePageActionState();
 
-  // `tab_interface` can be null early during browser startup.
-  if (auto* tab_interface =
-          browser_window_interface_->GetActiveTabInterface()) {
-    // The controller may be null during tab destruction, which triggers the
-    // focus change leading to this.
-    if (auto* controller =
-            LensOverlayHomeworkPageActionController::From(*tab_interface)) {
-      controller->UpdatePageActionIcon();
+  if (IsPageActionMigrated(PageActionIconType::kLensOverlayHomework)) {
+    // `tab_interface` can be null early during browser startup.
+    if (auto* tab_interface =
+            browser_window_interface_->GetActiveTabInterface()) {
+      // The controller may be null during tab destruction, which triggers the
+      // focus change leading to this.
+      if (auto* controller =
+              LensOverlayHomeworkPageActionController::From(*tab_interface)) {
+        controller->UpdatePageActionIcon();
+      }
     }
   }
 }
@@ -344,13 +365,12 @@ void LensOverlayEntryPointController::OnTemplateURLServiceShuttingDown() {
 actions::ActionItem* LensOverlayEntryPointController::GetToolbarEntrypoint() {
   return actions::ActionManager::Get().FindAction(
       kActionSidePanelShowLensOverlayResults,
-      /*scope=*/BrowserActions::From(browser_window_interface_)
-          ->root_action_item());
+      /*scope=*/browser_window_interface_->GetActions()->root_action_item());
 }
 
 void LensOverlayEntryPointController::UpdatePageActionState() {
   // This may not have been initialized (e.g. for non-normal browser types).
-  if (!location_bar()) {
+  if (!location_bar_) {
     return;
   }
   CHECK(browser_window_interface_);
@@ -453,7 +473,8 @@ bool LensOverlayEntryPointController::ShouldShowPageAction(
   }
 
   if (!features::IsOmniboxEntrypointAlwaysVisible() &&
-      !location_bar()->IsFocusWithin()) {
+      !location_bar_->Contains(
+          location_bar_->GetFocusManager()->GetFocusedView())) {
     return false;
   }
 

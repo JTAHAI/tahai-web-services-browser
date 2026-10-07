@@ -14,7 +14,6 @@
 #include "base/strings/stringprintf.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/test/bind.h"
-#include "base/test/run_until.h"
 #include "content/public/browser/content_browser_client.h"
 #include "content/public/browser/visibility.h"
 #include "content/public/browser/web_ui_controller.h"
@@ -35,7 +34,6 @@
 #include "ui/base/interaction/element_identifier.h"
 #include "ui/base/interaction/element_tracker.h"
 #include "ui/base/interaction/expect_call_in_scope.h"
-#include "ui/gfx/geometry/rect_conversions.h"
 #include "ui/webui/resources/js/tracked_element/tracked_element.mojom.h"
 #include "ui/webui/tracked_element/tracked_element_handler_document_singleton.h"
 #include "ui/webui/tracked_element/tracked_element_web_ui.h"
@@ -394,7 +392,8 @@ TEST_F(TrackedElementHandlerTest, DestroyHandlerCleansUpElement) {
       ui::ElementTracker::GetElementTracker()->GetElementInAnyContext(
           kTestElementIdentifier1);
   ASSERT_TRUE(element);
-  EXPECT_EQ(kTestSecondaryId1, element->GetSecondaryIdentifier());
+  EXPECT_EQ(kTestSecondaryId1,
+            element->AsA<TrackedElementWebUI>()->secondary_identifier());
   const ui::ElementContext context = element->context();
   EXPECT_TRUE(ui::ElementTracker::GetElementTracker()->IsElementVisible(
       kTestElementIdentifier1, context));
@@ -611,9 +610,7 @@ TEST_F(TrackedElementHandlerTest, VisibilityLockPreventsHiding) {
   // Release lock.
   lock.reset();
   // Now it should be hidden.
-  EXPECT_TRUE(base::test::RunUntil([&]() {
-    return !tracker->IsElementVisible(kTestElementIdentifier1, context);
-  }));
+  EXPECT_FALSE(tracker->IsElementVisible(kTestElementIdentifier1, context));
 }
 
 TEST_F(TrackedElementHandlerTest, MultipleVisibilityLocks) {
@@ -637,9 +634,7 @@ TEST_F(TrackedElementHandlerTest, MultipleVisibilityLocks) {
   EXPECT_TRUE(tracker->IsElementVisible(kTestElementIdentifier1, context));
 
   lock2.reset();
-  EXPECT_TRUE(base::test::RunUntil([&]() {
-    return !tracker->IsElementVisible(kTestElementIdentifier1, context);
-  }));
+  EXPECT_FALSE(tracker->IsElementVisible(kTestElementIdentifier1, context));
 }
 
 // Tests for multiple elements with the same ElementIdentifier but different
@@ -668,8 +663,9 @@ class TrackedElementHandlerSecondaryIdentifierTest
         tracker->GetAllMatchingElementsInAnyContext(kTestElementIdentifier1);
     ElementMap result;
     for (TrackedElement* el : elements) {
-      CHECK(el->IsA<TrackedElementWebUI>());
-      CHECK(result.emplace(el->GetSecondaryIdentifier(), el).second);
+      auto* const web_el = el->AsA<TrackedElementWebUI>();
+      CHECK(web_el);
+      CHECK(result.emplace(web_el->secondary_identifier(), web_el).second);
     }
     return result;
   }
@@ -829,67 +825,7 @@ TEST_F(TrackedElementHandlerWidgetTest, GetNativeView) {
   webview->SetWebContents(nullptr);
   widget->CloseNow();
 }
-
-TEST_F(TrackedElementHandlerWidgetTest, GetWebView) {
-  handler_remote()->TrackedElementVisibilityChanged(
-      MakeId(kTestElementIdentifier1, kTestSecondaryId1), true, kElementBounds);
-  tracked_element_handler_remote_.FlushForTesting();
-
-  auto* const element =
-      ui::ElementTracker::GetElementTracker()->GetElementInAnyContext(
-          kTestElementIdentifier1);
-  ASSERT_TRUE(element);
-  auto* const webui_element = element->AsA<TrackedElementWebUI>();
-  ASSERT_TRUE(webui_element);
-
-  // Before widget is initialized, GetWebView() should return nullptr.
-  EXPECT_EQ(nullptr, handler_->GetWebView());
-  EXPECT_EQ(nullptr, webui_element->GetWebView());
-
-  auto widget = std::make_unique<views::Widget>();
-  views::Widget::InitParams params =
-      CreateParams(views::Widget::InitParams::TYPE_WINDOW);
-  params.ownership = views::Widget::InitParams::CLIENT_OWNS_WIDGET;
-  widget->Init(std::move(params));
-  widget->Show();
-
-  auto* webview = widget->SetClientContentsView(
-      std::make_unique<views::WebView>(browser_context_.get()));
-  webview->SetWebContents(web_contents_.get());
-
-  // Should discover the WebView automatically.
-  EXPECT_EQ(webview, handler_->GetWebView());
-  EXPECT_EQ(webview, webui_element->GetWebView());
-
-  // Explicitly setting WebView should also work.
-  auto custom_webview =
-      std::make_unique<views::WebView>(browser_context_.get());
-  custom_webview->SetWebContents(web_contents_.get());
-  handler_->SetWebViewForTesting(custom_webview.get());
-  EXPECT_EQ(custom_webview.get(), handler_->GetWebView());
-  handler_->SetWebViewForTesting(webview);
-  EXPECT_EQ(webview, handler_->GetWebView());
-
-  custom_webview->SetWebContents(nullptr);
-  webview->SetWebContents(nullptr);
-  widget->CloseNow();
-}
 #endif
-
-TEST_F(TrackedElementHandlerTest, GetBoundsInWebContents) {
-  handler_remote()->TrackedElementVisibilityChanged(
-      MakeId(kTestElementIdentifier1, kTestSecondaryId1), true, kElementBounds);
-  tracked_element_handler_remote_.FlushForTesting();
-
-  auto* const element =
-      ui::ElementTracker::GetElementTracker()->GetElementInAnyContext(
-          kTestElementIdentifier1);
-  ASSERT_TRUE(element);
-  auto* const webui_element = element->AsA<TrackedElementWebUI>();
-  ASSERT_TRUE(webui_element);
-  EXPECT_EQ(gfx::ToRoundedRect(kElementBounds),
-            webui_element->GetBoundsInWebContents());
-}
 
 class TestWebUIController : public content::WebUIController {
  public:

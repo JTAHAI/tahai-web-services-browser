@@ -33,6 +33,7 @@ import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
+import org.robolectric.annotation.Config;
 
 import org.chromium.base.Token;
 import org.chromium.base.lifetime.Destroyable;
@@ -57,6 +58,7 @@ import java.util.function.Supplier;
 
 /** Tests for {@link TabListEditorAddToGroupAction}. */
 @RunWith(BaseRobolectricTestRunner.class)
+@Config(manifest = Config.NONE)
 public class TabListEditorAddToGroupActionUnitTest {
     @Rule public MockitoRule mMockitoRule = MockitoJUnit.rule();
 
@@ -102,7 +104,7 @@ public class TabListEditorAddToGroupActionUnitTest {
                         TEXT,
                         START,
                         mDrawable,
-                        (a, b, c, d, e, f, g, h, i) -> mCoordinator);
+                        (a, b, c, d, e, f, g, h) -> mCoordinator);
         mAction.configure(mTabModelSupplier, mSelectionDelegate, mActionDelegate, false);
     }
 

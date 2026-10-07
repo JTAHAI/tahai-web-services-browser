@@ -5,7 +5,6 @@
 #include "third_party/blink/renderer/bindings/core/v8/profiler_trace_builder.h"
 
 #include "base/time/time.h"
-#include "third_party/blink/public/mojom/use_counter/metrics/webdx_feature.mojom-blink.h"
 #include "third_party/blink/renderer/bindings/core/v8/v8_profiler_frame.h"
 #include "third_party/blink/renderer/bindings/core/v8/v8_profiler_marker.h"
 #include "third_party/blink/renderer/bindings/core/v8/v8_profiler_sample.h"
@@ -14,7 +13,6 @@
 #include "third_party/blink/renderer/core/execution_context/execution_context.h"
 #include "third_party/blink/renderer/core/timing/performance.h"
 #include "third_party/blink/renderer/platform/instrumentation/tracing/trace_event.h"
-#include "third_party/blink/renderer/platform/instrumentation/use_counter.h"
 #include "third_party/blink/renderer/platform/runtime_enabled_features.h"
 #include "third_party/blink/renderer/platform/weborigin/kurl.h"
 #include "third_party/blink/renderer/platform/wtf/vector.h"
@@ -66,9 +64,7 @@ void ProfilerTraceBuilder::Trace(Visitor* visitor) const {
 std::optional<V8ProfilerMarker> ProfilerTraceBuilder::GetMarker(
     const v8::EmbedderStateTag embedder_state,
     const v8::StateTag fallback_state) {
-  ExecutionContext* execution_context = ExecutionContext::From(script_state_);
-  if (!RuntimeEnabledFeatures::ExperimentalJSProfilerMarkersEnabled(
-          execution_context)) {
+  if (!RuntimeEnabledFeatures::ExperimentalJSProfilerMarkersEnabled()) {
     return std::nullopt;
   }
 
@@ -79,10 +75,6 @@ std::optional<V8ProfilerMarker> ProfilerTraceBuilder::GetMarker(
   }
   if (!is_cross_origin_isolated_) {
     marker = ProfileMarkerToPublicMarker(marker->AsEnum());
-  }
-  if (marker && execution_context) {
-    UseCounter::CountWebDXFeature(
-        execution_context, mojom::blink::WebDXFeature::kJSSelfProfilingMarkers);
   }
   return marker;
 }

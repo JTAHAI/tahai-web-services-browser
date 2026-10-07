@@ -54,11 +54,21 @@ public class SelectPopupDialog implements SelectPopup.Ui {
             mListBoxPopup.setButton(
                     DialogInterface.BUTTON_POSITIVE,
                     mListBoxPopup.getContext().getString(android.R.string.ok),
-                    (dialog, which) -> notifySelection(getSelectedIndices(listView)));
+                    new DialogInterface.OnClickListener() {
+                        @Override
+                        public void onClick(DialogInterface dialog, int which) {
+                            notifySelection(getSelectedIndices(listView));
+                        }
+                    });
             mListBoxPopup.setButton(
                     DialogInterface.BUTTON_NEGATIVE,
                     mListBoxPopup.getContext().getString(android.R.string.cancel),
-                    (dialog, which) -> notifySelection(null));
+                    new DialogInterface.OnClickListener() {
+                        @Override
+                        public void onClick(DialogInterface dialog, int which) {
+                            notifySelection(null);
+                        }
+                    });
         }
         final SelectPopupAdapter adapter =
                 new SelectPopupAdapter(

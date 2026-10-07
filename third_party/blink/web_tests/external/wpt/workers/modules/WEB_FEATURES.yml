@@ -1,3 +1,7 @@
-rules:
-- dedicated-worker-*: [js-modules-workers]
-- shared-worker-*: [js-modules-shared-workers]
+features:
+- name: js-modules-workers
+  files:
+  - dedicated-worker-*
+- name: js-modules-shared-workers
+  files:
+  - shared-worker-*

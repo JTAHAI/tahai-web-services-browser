@@ -11,7 +11,6 @@
 #include "base/test/scoped_feature_list.h"
 #include "base/test/test_future.h"
 #include "build/build_config.h"
-#include "chrome/browser/actor/actor_actions_runner.h"
 #include "chrome/browser/actor/actor_keyed_service.h"
 #include "chrome/browser/actor/actor_keyed_service_browsertest.h"
 #include "chrome/browser/actor/actor_proto_conversion.h"
@@ -20,8 +19,6 @@
 #include "chrome/browser/actor/tools/navigate_tool_request.h"
 #include "chrome/browser/optimization_guide/browser_test_util.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
-#include "chrome/browser/ui/browser_window/public/create_browser_window.h"
 #include "chrome/common/actor.mojom.h"
 #include "chrome/common/actor/action_result.h"
 #include "chrome/common/chrome_features.h"
@@ -54,6 +51,7 @@
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/profiles/profile_manager.h"
 #include "chrome/browser/profiles/profile_test_util.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_window.h"
 #endif
@@ -100,9 +98,6 @@ void ActorKeyedServiceBrowserTest::SetUpOnMainThread() {
 #endif
   PlatformBrowserTest::SetUpOnMainThread();
   host_resolver()->AddRule("*", "127.0.0.1");
-  embedded_test_server()->ServeFilesFromSourceDirectory("components/test/data");
-  embedded_https_test_server().ServeFilesFromSourceDirectory(
-      "components/test/data");
   ASSERT_TRUE(embedded_test_server()->Start());
   ASSERT_TRUE(embedded_https_test_server().Start());
 
@@ -167,8 +162,7 @@ IN_PROC_BROWSER_TEST_F(ActorKeyedServiceBrowserTest,
   EXPECT_FALSE(first_task_id.is_null());
 
   PerformActionsFuture result_future;
-  const GURL url =
-      embedded_https_test_server().GetURL("example.com", "/actor/blank.html");
+  const GURL url = embedded_https_test_server().GetURL("/actor/blank.html");
   std::unique_ptr<ToolRequest> action_request =
       std::make_unique<NavigateToolRequest>(active_tab()->GetHandle(), url);
   actor_keyed_service()->PerformActions(
@@ -237,8 +231,8 @@ IN_PROC_BROWSER_TEST_F(ActorKeyedServiceBrowserTest,
 #endif
 IN_PROC_BROWSER_TEST_F(ActorKeyedServiceBrowserTest,
                        MAYBE_RequestTabObservation_HasScreenshotInfo) {
-  const GURL url = embedded_https_test_server().GetURL(
-      "example.com", "/actor/simple_iframe.html");
+  const GURL url =
+      embedded_https_test_server().GetURL("/actor/simple_iframe.html");
   ASSERT_TRUE(chrome_test_utils::NavigateToURL(web_contents(), url));
 
   content::RenderFrameHost* main_frame = web_contents()->GetPrimaryMainFrame();
@@ -284,9 +278,8 @@ IN_PROC_BROWSER_TEST_F(ActorKeyedServiceBrowserTest,
   const auto& screenshot_info = observation.screenshot_info();
   ASSERT_EQ(screenshot_info.iframe_info_size(), 1);
   const auto& iframe_info = screenshot_info.iframe_info(0);
-  EXPECT_EQ(iframe_info.url(), embedded_https_test_server()
-                                   .GetURL("example.com", "/actor/blank.html")
-                                   .spec());
+  EXPECT_EQ(iframe_info.url(),
+            embedded_https_test_server().GetURL("/actor/blank.html").spec());
   EXPECT_TRUE(iframe_info.has_bounding_box());
   EXPECT_GE(iframe_info.bounding_box().x(), 0);
   EXPECT_GE(iframe_info.bounding_box().y(), 0);
@@ -328,7 +321,7 @@ IN_PROC_BROWSER_TEST_F(ActorKeyedServiceBrowserTest,
       TestTaskSourceInfo(), NoEnterprisePolicyChecker());
   ASSERT_TRUE(chrome_test_utils::NavigateToURL(
       web_contents(),
-      embedded_https_test_server().GetURL("example.com", "/actor/blank.html")));
+      embedded_https_test_server().GetURL("/actor/blank.html")));
 
   actor::ActorTask* task = actor_keyed_service()->GetTask(task_id);
   actor::AddTabToTask(*active_tab(), *task);
@@ -347,8 +340,7 @@ IN_PROC_BROWSER_TEST_F(ActorKeyedServiceBrowserTest,
   // Make sure we can run actions on this new tab (this also ensures all new tab
   // animations are completed).
   PerformActionsFuture result_future;
-  const GURL url =
-      embedded_https_test_server().GetURL("example.com", "/actor/simple.html");
+  const GURL url = embedded_https_test_server().GetURL("/actor/simple.html");
   std::unique_ptr<ToolRequest> action_request =
       std::make_unique<NavigateToolRequest>(new_tab->GetHandle(), url);
   actor_keyed_service()->PerformActions(task_id, ToRequestList(action_request),
@@ -368,7 +360,7 @@ IN_PROC_BROWSER_TEST_F(ActorKeyedServiceBrowserTest,
   // Navigate the active tab to a new page.
   ASSERT_TRUE(chrome_test_utils::NavigateToURL(
       web_contents(),
-      embedded_https_test_server().GetURL("example.com", "/actor/blank.html")));
+      embedded_https_test_server().GetURL("/actor/blank.html")));
 
   actor::ActorTask* task = actor_keyed_service()->GetTask(task_id);
   actor::AddTabToTask(*active_tab(), *task);
@@ -419,8 +411,7 @@ IN_PROC_BROWSER_TEST_F(ActorKeyedServiceBrowserTest,
       /*script_tool_response=*/nullptr,
       /*execution_end_time=*/base::TimeTicks::Now(),
       mojom::ScreenshotPolicy::kRequested,
-      mojom::PageContentExtractionPolicy::kRequested,
-      /*attempt_login_status=*/std::nullopt);
+      mojom::PageContentExtractionPolicy::kRequested);
   action_results.emplace_back(base::TimeTicks::Now(), base::TimeTicks::Now(),
                               std::move(fail_result));
 
@@ -467,8 +458,7 @@ IN_PROC_BROWSER_TEST_F(ActorKeyedServiceBrowserTest,
   Profile& profile2 =
       profiles::testing::CreateProfileSync(profile_manager, profile_path);
 
-  BrowserWindowInterface* browser2 = CreateBrowserWindow(
-      BrowserWindowCreateParams(&profile2, /*from_user_gesture=*/true));
+  Browser* browser2 = Browser::Create(Browser::CreateParams(&profile2, true));
   chrome::NewTab(browser2, NewTabTypes::kNoUserAction);
   tabs::TabInterface* tab2 = browser2->GetActiveTabInterface();
 
@@ -496,8 +486,7 @@ IN_PROC_BROWSER_TEST_F(ActorKeyedServiceBrowserTest,
   Profile& profile2 =
       profiles::testing::CreateProfileSync(profile_manager, profile_path);
 
-  BrowserWindowInterface* browser2 = CreateBrowserWindow(
-      BrowserWindowCreateParams(&profile2, /*from_user_gesture=*/true));
+  Browser* browser2 = Browser::Create(Browser::CreateParams(&profile2, true));
   chrome::NewTab(browser2, NewTabTypes::kNoUserAction);
   tabs::TabInterface* tab2 = browser2->GetActiveTabInterface();
 
@@ -511,30 +500,5 @@ IN_PROC_BROWSER_TEST_F(ActorKeyedServiceBrowserTest,
   browser2->GetWindow()->Close();
 }
 #endif
-
-IN_PROC_BROWSER_TEST_F(ActorKeyedServiceBrowserTest,
-                       ActorActionsRunnerExecuteWaitAction) {
-  optimization_guide::proto::Actions actions;
-  auto* action = actions.add_actions();
-  auto* wait = action->mutable_wait();
-  wait->set_wait_time_ms(10);
-  actions.set_skip_async_observation_collection(true);
-
-  base::RunLoop run_loop;
-  auto runner = std::make_unique<ActorActionsRunner>(
-      *GetProfile(), TestTaskSourceInfo(), std::move(actions),
-      run_loop.QuitClosure());
-
-  EXPECT_EQ(runner->result(), nullptr);
-  runner->Start();
-  run_loop.Run();
-
-  std::unique_ptr<optimization_guide::proto::ActionsResult> result =
-      runner->TakeResult();
-  ASSERT_TRUE(result != nullptr);
-  EXPECT_EQ(result->action_result(), 0);
-  EXPECT_EQ(runner->TakeResult(), nullptr);
-}
-
 }  // namespace
 }  // namespace actor

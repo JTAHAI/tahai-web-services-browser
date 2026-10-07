@@ -83,8 +83,8 @@ DocumentFragment* CreateFragmentFromMarkup(
     ParserContentPolicy = kAllowScriptingContent);
 DocumentFragment* CreateFragmentFromMarkupWithContext(Document&,
                                                       const String& markup,
-                                                      wtf_size_t fragment_start,
-                                                      wtf_size_t fragment_end,
+                                                      unsigned fragment_start,
+                                                      unsigned fragment_end,
                                                       const String& base_url,
                                                       ParserContentPolicy);
 DocumentFragment* CreateFragmentForTransformToFragment(
@@ -124,8 +124,8 @@ CreateMarkup(const PositionInFlatTree& start,
 CORE_EXPORT DocumentFragment*
 CreateStrictlyProcessedFragmentFromMarkupWithContext(Document&,
                                                      const String& raw_markup,
-                                                     wtf_size_t fragment_start,
-                                                     wtf_size_t fragment_end,
+                                                     unsigned fragment_start,
+                                                     unsigned fragment_end,
                                                      const String& base_url);
 
 // Processes the HTML string and strips out certain security sensitive tags if
@@ -138,8 +138,8 @@ CreateStrictlyProcessedFragmentFromMarkupWithContext(Document&,
 CORE_EXPORT String CreateStrictlyProcessedMarkupWithContext(
     Document&,
     const String& raw_markup,
-    wtf_size_t fragment_start,
-    wtf_size_t fragment_end,
+    unsigned fragment_start,
+    unsigned fragment_end,
     const String& base_url,
     ChildrenOnly = kIncludeNode,
     ResolveUrls = ResolveUrls::kNone,

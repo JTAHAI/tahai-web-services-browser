@@ -13,7 +13,6 @@
 
 #include "base/check.h"
 #include "base/containers/span.h"
-#include "base/containers/to_vector.h"
 #include "base/functional/bind.h"
 #include "base/functional/callback_helpers.h"
 #include "base/memory/scoped_refptr.h"
@@ -33,6 +32,7 @@
 #include "device/fido/ctap_make_credential_request.h"
 #include "device/fido/device_response_converter.h"
 #include "device/fido/fido_device.h"
+#include "device/fido/fido_parsing_utils.h"
 #include "device/fido/fido_test_data.h"
 #include "device/fido/large_blob.h"
 #include "device/fido/public/fido_constants.h"
@@ -55,7 +55,8 @@ using TestFuture = base::test::TestFuture<std::optional<std::vector<uint8_t>>>;
 void SendCommand(VirtualCtap2Device* device,
                  base::span<const uint8_t> command,
                  FidoDevice::DeviceCallback callback = base::DoNothing()) {
-  device->DeviceTransact(base::ToVector(command), std::move(callback));
+  device->DeviceTransact(fido_parsing_utils::Materialize(command),
+                         std::move(callback));
 }
 
 // DecodeCBOR parses a CBOR structure, ignoring the first byte of |in|, which is
@@ -294,7 +295,8 @@ TEST_F(VirtualCtap2DeviceTest, OnGetAssertionBogusSignature) {
   TestFuture future;
   device::CtapGetAssertionRequest request = CtapGetAssertionRequest(
       test_data::kRelyingPartyId, test_data::kClientDataJson);
-  std::vector<uint8_t> credential_id = base::ToVector(kCredentialId);
+  std::vector<uint8_t> credential_id =
+      fido_parsing_utils::Materialize(kCredentialId);
   PublicKeyCredentialDescriptor descriptor(
       CredentialType::kPublicKey, std::move(credential_id),
       {FidoTransportProtocol::kUsbHumanInterfaceDevice});
@@ -349,7 +351,8 @@ TEST_F(VirtualCtap2DeviceTest, OnGetAssertionUnsetUPBit) {
   TestFuture future;
   device::CtapGetAssertionRequest request = CtapGetAssertionRequest(
       test_data::kRelyingPartyId, test_data::kClientDataJson);
-  std::vector<uint8_t> credential_id = base::ToVector(kCredentialId);
+  std::vector<uint8_t> credential_id =
+      fido_parsing_utils::Materialize(kCredentialId);
   PublicKeyCredentialDescriptor descriptor(
       CredentialType::kPublicKey, std::move(credential_id),
       {FidoTransportProtocol::kUsbHumanInterfaceDevice});
@@ -385,7 +388,8 @@ TEST_F(VirtualCtap2DeviceTest, OnGetAssertionUnsetUVBit) {
   TestFuture future;
   device::CtapGetAssertionRequest request = CtapGetAssertionRequest(
       test_data::kRelyingPartyId, test_data::kClientDataJson);
-  std::vector<uint8_t> credential_id = base::ToVector(kCredentialId);
+  std::vector<uint8_t> credential_id =
+      fido_parsing_utils::Materialize(kCredentialId);
   PublicKeyCredentialDescriptor descriptor(
       CredentialType::kPublicKey, std::move(credential_id),
       {FidoTransportProtocol::kUsbHumanInterfaceDevice});
@@ -494,7 +498,8 @@ TEST_F(VirtualCtap2DeviceTest, CmtgKeyMakeCredentialUnsupported) {
   MakeDevice(state, config);
 
   PublicKeyCredentialRpEntity rp("acme.com");
-  PublicKeyCredentialUserEntity user(base::ToVector(test_data::kUserId));
+  PublicKeyCredentialUserEntity user(
+      fido_parsing_utils::Materialize(test_data::kUserId));
   CtapMakeCredentialRequest request(
       test_data::kClientDataJson, std::move(rp), std::move(user),
       PublicKeyCredentialParams({{CredentialType::kPublicKey, -7}}));
@@ -547,7 +552,8 @@ TEST_F(VirtualCtap2DeviceTest, CmtgKeySimulateFailure) {
   state->simulate_cmtg_key_failure = true;
 
   PublicKeyCredentialRpEntity rp("acme.com");
-  PublicKeyCredentialUserEntity user(base::ToVector(test_data::kUserId));
+  PublicKeyCredentialUserEntity user(
+      fido_parsing_utils::Materialize(test_data::kUserId));
   CtapMakeCredentialRequest request(
       test_data::kClientDataJson, std::move(rp), std::move(user),
       PublicKeyCredentialParams({{CredentialType::kPublicKey, -7}}));
@@ -575,7 +581,8 @@ TEST_F(VirtualCtap2DeviceTest, CmtgKeyIndexOutOfBounds) {
   MakeDevice(state, config);
 
   PublicKeyCredentialRpEntity rp("acme.com");
-  PublicKeyCredentialUserEntity user(base::ToVector(test_data::kUserId));
+  PublicKeyCredentialUserEntity user(
+      fido_parsing_utils::Materialize(test_data::kUserId));
   CtapMakeCredentialRequest request(
       test_data::kClientDataJson, std::move(rp), std::move(user),
       PublicKeyCredentialParams({{CredentialType::kPublicKey, -7}}));
@@ -626,8 +633,7 @@ TEST_F(VirtualCtap2DeviceTest, GetAssertionNoSignatureCounter) {
 
   static constexpr uint8_t kCredentialId[] = {1, 2, 3, 4};
   device::VirtualFidoDevice::RegistrationData registration(
-      std::make_unique<device::VirtualFidoDevice::PrivateKey>(
-          CoseAlgorithmIdentifier::kEs256),
+      device::VirtualFidoDevice::PrivateKey::FreshP256Key(),
       crypto::hash::Sha256(test_data::kRelyingPartyId), std::nullopt);
   device_->mutable_state()->InjectRegistration(kCredentialId,
                                                std::move(registration));
@@ -635,7 +641,8 @@ TEST_F(VirtualCtap2DeviceTest, GetAssertionNoSignatureCounter) {
   CtapGetAssertionRequest get_request(test_data::kRelyingPartyId,
                                       test_data::kClientDataJson);
   get_request.allow_list = {PublicKeyCredentialDescriptor(
-      CredentialType::kPublicKey, base::ToVector(kCredentialId))};
+      CredentialType::kPublicKey,
+      fido_parsing_utils::Materialize(kCredentialId))};
 
   TestFuture future;
   SendCommand(device_.get(),

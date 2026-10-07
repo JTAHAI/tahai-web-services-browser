@@ -177,12 +177,14 @@ IN_PROC_BROWSER_TEST_P(DumpAccessibilityEventsMenuTest, DISABLED_MenuNested) {
   views::SubmenuView* root_submenu = root_item->GetSubmenu();
   WaitForSubmenuSerialization(root_submenu);
 
-  level2_item->GetMenuController()->SelectItemAndOpenSubmenu(level2_item);
+  views::MenuController::GetActiveInstance()->SelectItemAndOpenSubmenu(
+      level2_item);
   WaitForPendingSerialization();
   views::SubmenuView* level2_submenu = level2_item->GetSubmenu();
   WaitForSubmenuSerialization(level2_submenu);
 
-  level3_item->GetMenuController()->SelectItemAndOpenSubmenu(level3_item);
+  views::MenuController::GetActiveInstance()->SelectItemAndOpenSubmenu(
+      level3_item);
   WaitForPendingSerialization();
   views::SubmenuView* level3_submenu = level3_item->GetSubmenu();
   WaitForSubmenuSerialization(level3_submenu);

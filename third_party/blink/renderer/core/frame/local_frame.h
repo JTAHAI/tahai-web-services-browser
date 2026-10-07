@@ -34,7 +34,6 @@
 
 #include "base/callback_list.h"
 #include "base/gtest_prod_util.h"
-#include "base/memory/raw_ptr.h"
 #include "base/time/default_tick_clock.h"
 #include "base/time/time.h"
 #include "base/unguessable_token.h"
@@ -101,7 +100,6 @@
 #include "third_party/blink/renderer/platform/scheduler/public/frame_scheduler.h"
 #include "third_party/blink/renderer/platform/supplementable.h"
 #include "third_party/perfetto/include/perfetto/tracing/traced_value_forward.h"
-#include "ui/gfx/geometry/rect.h"
 #include "ui/gfx/geometry/transform.h"
 #include "ui/gfx/image/image_skia.h"
 
@@ -169,7 +167,6 @@ class TextSuggestionController;
 class URLLoader;
 class VirtualKeyboardOverlayChangedObserver;
 class WebAutofillClient;
-class ExtensionScriptTracker;
 class WebContentSettingsClient;
 class WebInputEventAttribution;
 class WebPluginContainerImpl;
@@ -246,7 +243,6 @@ class CORE_EXPORT LocalFrame final
   void Init(
       Frame* opener,
       const DocumentToken& document_token,
-      const base::UnguessableToken& initiator_state_token,
       std::unique_ptr<PolicyContainer> policy_container,
       const StorageKey& storage_key,
       ukm::SourceId document_ukm_source_id,
@@ -380,14 +376,9 @@ class CORE_EXPORT LocalFrame final
   void RegisterVirtualKeyboardOverlayChangedObserver(
       VirtualKeyboardOverlayChangedObserver*);
 
-  // Update the current keyboard overlay geometry, then notify
-  // |virtual_keyboard_overlay_changed_observers_|.
-  void NotifyVirtualKeyboardOverlayRectObservers(const gfx::Rect&);
-  void SetVirtualKeyboardOverlayGeometry(const gfx::Rect&);
-  // The most recent normalized keyboard overlay geometry.
-  const gfx::Rect& VirtualKeyboardOverlayRect() const {
-    return virtual_keyboard_overlay_rect_;
-  }
+  // Notify |virtual_keyboard_overlay_changed_observers_| that keyboard overlay
+  // rect has changed.
+  void NotifyVirtualKeyboardOverlayRectObservers(const gfx::Rect&) const;
 
   // This call will "show interest" in the Element with the provided DOMNodeID,
   // which is presumed to have an `interestfor` attribute.
@@ -550,20 +541,9 @@ class CORE_EXPORT LocalFrame final
   }
   IdlenessDetector* GetIdlenessDetector() { return idleness_detector_.Get(); }
   AdTracker* GetAdTracker() { return ad_tracker_.Get(); }
-  ExtensionScriptTracker* GetExtensionScriptTracker();
   ScriptInitiationMonitor* GetScriptInitiationMonitor() const;
   ScriptInitiationMonitor* GetOrCreateScriptInitiationMonitor();
   void SetAdTrackerForTesting(AdTracker* ad_tracker);
-
-  // Configures extension script tracking for this frame if it is a local root,
-  // based on the document's ScriptInjectionPolicy and whether the feature is
-  // enabled.
-  void UpdateExtensionScriptTracking();
-
-  // Sets or overrides the ExtensionScriptTracker for testing.
-  void SetExtensionScriptTrackerForTesting(
-      ExtensionScriptTracker* extension_script_tracker);
-
   LCPScriptObserver* GetScriptObserver() { return script_observer_.Get(); }
 
   enum class LazyLoadImageSetting { kDisabled, kEnabledExplicit };
@@ -671,7 +651,9 @@ class CORE_EXPORT LocalFrame final
     return ad_evidence_;
   }
 
-  bool IsFrameCreatedByAdScript() const;
+  bool IsFrameCreatedByAdScript() const {
+    return is_frame_created_by_ad_script_;
+  }
 
   // Returns the identifier of the ad script that created this frame, if
   // applicable.
@@ -794,10 +776,6 @@ class CORE_EXPORT LocalFrame final
       network::mojom::blink::RedirectMode cross_origin_redirect_behavior,
       mojo::PendingRemote<mojom::blink::BlobURLToken> blob_url_token);
 
-  // Requests that the browser open the operating system's caption style
-  // settings page.
-  void ShowCaptionSettings();
-
   void NotifyUserActivation(
       mojom::blink::UserActivationNotificationType notification_type);
   void AddInspectorIssue(AuditsIssue issue);
@@ -842,13 +820,6 @@ class CORE_EXPORT LocalFrame final
 
   LocalFrameToken GetLocalFrameToken() const;
 
-  // A helper that returns the initiator state token from the LocalFrame's
-  // LocalDomWindow.
-  const base::UnguessableToken& GetInitiatorStateToken() const;
-
-  // A helper that returns the document token from the LocalFrame's Document.
-  DocumentToken GetDocumentToken() const;
-
   LoaderFreezeMode GetLoaderFreezeMode();
 
   // Swaps `this` LocalFrame in to replace the current frame  (e.g. in the case
@@ -869,8 +840,7 @@ class CORE_EXPORT LocalFrame final
                             WebScriptExecutionCallback,
                             BackForwardCacheAware back_forward_cache_aware,
                             mojom::blink::WantResultOption,
-                            mojom::blink::PromiseResultOption,
-                            bool is_injected_extension_script);
+                            mojom::blink::PromiseResultOption);
 
   void SetEvictCachedSessionStorageOnFreezeOrUnload();
 
@@ -1096,8 +1066,6 @@ class CORE_EXPORT LocalFrame final
                                mojom::blink::StorageTypeAccessed storage_type,
                                bool isAllowed);
 
-  void NotifyFrameAttachedToParent();
-
   std::unique_ptr<FrameScheduler> frame_scheduler_;
 
   // Holds all PauseSubresourceLoadingHandles allowing either |this| to delete
@@ -1110,9 +1078,6 @@ class CORE_EXPORT LocalFrame final
   // Keeps track of all the registered VK observers.
   HeapHashSet<WeakMember<VirtualKeyboardOverlayChangedObserver>>
       virtual_keyboard_overlay_changed_observers_;
-  // Retains normalized geometry before navigator.virtualKeyboard is created,
-  // so its boundingRect can start with the current value.
-  gfx::Rect virtual_keyboard_overlay_rect_;
 
   HeapHashSet<WeakMember<WidgetCreationObserver>> widget_creation_observers_;
 
@@ -1158,7 +1123,6 @@ class CORE_EXPORT LocalFrame final
   Member<PerformanceMonitor> performance_monitor_;
 
   Member<AdTracker> ad_tracker_;
-  Member<ExtensionScriptTracker> extension_script_tracker_;
   Member<ScriptInitiationMonitor> script_initiation_monitor_;
   Member<IdlenessDetector> idleness_detector_;
   base::OnceClosureList network_idle_callbacks_;
@@ -1171,8 +1135,7 @@ class CORE_EXPORT LocalFrame final
 
   HistoryUserActivationState history_user_activation_state_;
 
-  const raw_ptr<InterfaceRegistry, UnprotectedInRelease | DanglingUntriaged>
-      interface_registry_;
+  InterfaceRegistry* const interface_registry_;
 
   mojom::blink::ViewportIntersectionState intersection_state_;
 
@@ -1250,6 +1213,24 @@ class CORE_EXPORT LocalFrame final
   std::optional<blink::FrameAdEvidence> ad_evidence_;
 
   Member<LCPCriticalPathPredictor> lcpp_;
+
+  // True if this frame is a frame that had a script tagged as an ad on the v8
+  // stack at the time of creation. This is updated in `SetAdEvidence()`,
+  // allowing the bit to be propagated when a frame navigates cross-origin.
+  // Fenced frames do not set this bit for the initial empty document, see
+  // SubresourceFilterAgent::Initialize.
+  bool is_frame_created_by_ad_script_ = false;
+
+  // The ancestry chain of ad script identifiers leading to this frame's
+  // creation, along with the root script's filterlist rule. The ancestry chain
+  // is ordered from the most immediate script (in the frame creation stack) to
+  // more distant ancestors (that created the immediately preceding
+  // script). Kept to defer instrumentation probe call until the frame is
+  // committed.
+  //
+  // This is currently *not* populated when a frame navigates cross-origin
+  // (crbug.com/421202278).
+  AdTracker::AdScriptAncestry ad_script_ancestry_;
 
   bool evict_cached_session_storage_on_freeze_or_unload_ = false;
 

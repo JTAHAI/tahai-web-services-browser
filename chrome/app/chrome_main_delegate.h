@@ -14,6 +14,7 @@
 #include "base/time/time.h"
 #include "build/build_config.h"
 #include "chrome/app/startup_timestamps.h"
+#include "chrome/browser/startup_data.h"
 #include "chrome/common/chrome_content_client.h"
 #include "components/memory_system/memory_system.h"
 #include "content/public/app/content_main_delegate.h"
@@ -30,10 +31,6 @@ class ChromeContentBrowserClient;
 class ChromeContentUtilityClient;
 class MainThreadStackSamplingProfiler;
 
-// TODO(crbug.com/534570563): Consider refactoring ChromeMainDelegate to extract
-// a common base class (e.g. ChromeMainDelegateBase) for shared subsystem
-// initialization if a clean separation can be achieved without fragile build
-// guards (e.g. nogncheck).
 // Chrome implementation of ContentMainDelegate.
 class ChromeMainDelegate : public content::ContentMainDelegate {
  public:
@@ -101,10 +98,8 @@ class ChromeMainDelegate : public content::ContentMainDelegate {
 
   bool IsInitFeatureListEarly() override;
 
-#if !defined(BUILDING_CHROME_RENDERER)
   std::unique_ptr<ChromeContentBrowserClient> chrome_content_browser_client_;
   std::unique_ptr<ChromeContentUtilityClient> chrome_content_utility_client_;
-#endif  // !defined(BUILDING_CHROME_RENDERER)
   std::unique_ptr<tracing::TracingSamplerProfiler> tracing_sampler_profiler_;
 
   ChromeContentClient chrome_content_client_;

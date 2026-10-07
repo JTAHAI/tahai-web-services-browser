@@ -9,7 +9,6 @@ import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -35,13 +34,8 @@ import org.chromium.base.supplier.NonNullObservableSupplier;
 import org.chromium.base.supplier.ObservableSuppliers;
 import org.chromium.base.supplier.SettableNonNullObservableSupplier;
 import org.chromium.base.test.BaseRobolectricTestRunner;
-import org.chromium.base.test.util.Features.DisableFeatures;
-import org.chromium.base.test.util.Features.EnableFeatures;
-import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.profiles.Profile;
-import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tabmodel.TabModel;
-import org.chromium.chrome.browser.tabmodel.TabModelObserver;
 import org.chromium.chrome.browser.tasks.tab_management.TabListEditorCoordinator.CreationMode;
 import org.chromium.chrome.browser.tasks.tab_management.TabListEditorCoordinator.ItemPickerSelectionHandler;
 import org.chromium.chrome.browser.tasks.tab_management.TabListEditorCoordinator.NavigationProvider;
@@ -63,6 +57,7 @@ import java.util.Set;
 /** Unit tests for {@link TabListEditorMediator}. */
 @RunWith(BaseRobolectricTestRunner.class)
 public final class TabListEditorMediatorUnitTest {
+    private static final String SYNC_ID = "sync_id_test_guid";
     private static final TabListEditorItemSelectionId TAB_ID_1 =
             TabListEditorItemSelectionId.createTabId(1);
     private static final TabListEditorItemSelectionId TAB_ID_2 =
@@ -109,7 +104,6 @@ public final class TabListEditorMediatorUnitTest {
     @Captor
     private ArgumentCaptor<SelectionObserver<TabListEditorItemSelectionId>>
             mSelectionObserverCaptor;
-    @Captor private ArgumentCaptor<TabModelObserver> mTabModelObserverCaptor;
 
     private Set<TabListEditorItemSelectionId> mInitialSelectedItems;
 
@@ -246,49 +240,5 @@ public final class TabListEditorMediatorUnitTest {
 
         assertFalse(model1.get(TabProperties.IS_SELECTED));
         assertTrue(model2.get(TabProperties.IS_SELECTED));
-    }
-
-    @Test
-    @DisableFeatures(ChromeFeatureList.TAB_CLOSURE_METHOD_REFACTOR)
-    public void testWillCloseTab_GoesBackWhenNotClosable() {
-        verify(mTabModel).addObserver(mTabModelObserverCaptor.capture());
-        TabModelObserver observer = mTabModelObserverCaptor.getValue();
-
-        mMediator.setTabActionState(TabActionState.SELECTABLE);
-        observer.willCloseTab(mock(Tab.class), false);
-        verify(mNavigationProvider).goBack();
-    }
-
-    @Test
-    @EnableFeatures(ChromeFeatureList.TAB_CLOSURE_METHOD_REFACTOR)
-    public void testWillCloseTab_GoesBackWhenNotClosable_WillCloseTabs() {
-        verify(mTabModel).addObserver(mTabModelObserverCaptor.capture());
-        TabModelObserver observer = mTabModelObserverCaptor.getValue();
-
-        mMediator.setTabActionState(TabActionState.SELECTABLE);
-        observer.willCloseTabs(List.of(mock(Tab.class)), false, false);
-        verify(mNavigationProvider).goBack();
-    }
-
-    @Test
-    @DisableFeatures(ChromeFeatureList.TAB_CLOSURE_METHOD_REFACTOR)
-    public void testWillCloseTab_DoesNotGoBackWhenClosable() {
-        verify(mTabModel).addObserver(mTabModelObserverCaptor.capture());
-        TabModelObserver observer = mTabModelObserverCaptor.getValue();
-
-        mMediator.setTabActionState(TabActionState.CLOSABLE);
-        observer.willCloseTab(mock(Tab.class), false);
-        verify(mNavigationProvider, never()).goBack();
-    }
-
-    @Test
-    @EnableFeatures(ChromeFeatureList.TAB_CLOSURE_METHOD_REFACTOR)
-    public void testWillCloseTab_DoesNotGoBackWhenClosable_WillCloseTabs() {
-        verify(mTabModel).addObserver(mTabModelObserverCaptor.capture());
-        TabModelObserver observer = mTabModelObserverCaptor.getValue();
-
-        mMediator.setTabActionState(TabActionState.CLOSABLE);
-        observer.willCloseTabs(List.of(mock(Tab.class)), false, false);
-        verify(mNavigationProvider, never()).goBack();
     }
 }

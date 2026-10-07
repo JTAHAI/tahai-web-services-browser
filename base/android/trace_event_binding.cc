@@ -89,7 +89,10 @@ static void JNI_TraceEvent_RegisterEnabledObserver(JNIEnv* env) {
 }
 
 static bool JNI_TraceEvent_ViewHierarchyDumpEnabled(JNIEnv* env) {
-  return TRACE_EVENT_CATEGORY_ENABLED(kAndroidViewHierarchyTraceCategory);
+  static const unsigned char* enabled =
+      TRACE_EVENT_API_GET_CATEGORY_GROUP_ENABLED(
+          kAndroidViewHierarchyTraceCategory);
+  return *enabled;
 }
 
 static void JNI_TraceEvent_InitViewHierarchyDump(

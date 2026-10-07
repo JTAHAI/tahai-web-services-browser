@@ -29,9 +29,9 @@ public interface SelectionActionMenuDelegate {
             DefaultItem.COPY,
             DefaultItem.PASTE,
             DefaultItem.PASTE_AS_PLAIN_TEXT,
+            DefaultItem.SHARE,
             DefaultItem.SELECT_ALL,
-            DefaultItem.WEB_SEARCH,
-            DefaultItem.SHARE
+            DefaultItem.WEB_SEARCH
         };
     }
 

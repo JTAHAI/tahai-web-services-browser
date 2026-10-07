@@ -12,7 +12,6 @@
 #include "base/containers/flat_map.h"
 #include "base/containers/queue.h"
 #include "base/functional/callback_forward.h"
-#include "base/functional/function_ref.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/raw_ref.h"
 #include "base/memory/scoped_refptr.h"
@@ -120,10 +119,8 @@ class CONTENT_EXPORT Request
                         const url::Origin& expected,
                         const url::Origin& actual) override;
 
-  void OnIntentResolved(const std::string& token);
-
-  // content::webid::AutofillSource
-  const std::optional<std::vector<IdentityRequestAccountPtr>>
+  // AutofillSource:
+  const std::optional<std::vector<scoped_refptr<IdentityRequestAccount>>>
   GetAutofillSuggestions() const override;
   void NotifyAutofillSuggestionAccepted(
       const GURL& idp,
@@ -173,12 +170,6 @@ class CONTENT_EXPORT Request
   };
 
   // LINT.ThenChange(//tools/metrics/histograms/metadata/blink/enums.xml:FedCmDialogType)
-
-  void OnNativeAppResult(
-      DialogType dialog_type,
-      const GURL& idp_config_url,
-      IdentityRequestDialogController::NativeAppResult result);
-  void OnNativeAppLoginFinished(const GURL& idp_config_url);
 
   DialogType GetDialogType() const { return dialog_type_; }
 
@@ -307,9 +298,6 @@ class CONTENT_EXPORT Request
 
   // Fetch well-known, config, accounts and client metadata endpoints for
   // passed-in IdPs. Uses parameters from `token_request_get_infos_`.
-  // When retrying a single IdP whose .well-known and config endpoints are
-  // already cached in `idp_infos_`, bypasses ConfigFetcher and directly
-  // fetches the accounts endpoint.
   void FetchEndpointsForIdps(const std::set<GURL>& idp_config_urls);
 
   std::vector<blink::mojom::IdentityProviderRequestOptionsPtr>
@@ -447,11 +435,6 @@ class CONTENT_EXPORT Request
   bool IsUsingAmbient() const;
 
   blink::mojom::RpMode GetRpMode() const { return rp_mode_; }
-
-  // Shows a FedCM UI and returns true if it succeeded and the Request was not
-  // destroyed. Showing a FedCM UI may cause the tab to drop fullscreen or lose
-  // focus, during which the frame may be detached and this Request destroyed.
-  bool ShowDialog(base::FunctionRef<bool()> show_dialog_callback);
 
   // If the client metadata has not been received yet the UI may not be able to
   // show a correct title, so we need to indicate that in the RelyingPartyData.

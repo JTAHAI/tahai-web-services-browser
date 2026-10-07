@@ -8,9 +8,8 @@ import android.content.Context;
 
 import org.chromium.base.DeviceInfo;
 import org.chromium.base.ResettersForTesting;
-import org.chromium.base.TriState;
-import org.chromium.base.TriStateUtils;
 import org.chromium.build.annotations.NullMarked;
+import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.ui.base.DeviceFormFactor;
 
@@ -18,7 +17,7 @@ import org.chromium.ui.base.DeviceFormFactor;
 @NullMarked
 public class BrowserControlsUtils {
 
-    private static @TriState int sSyncMinHeightWithTotalHeightForTesting;
+    private static @Nullable Boolean sSyncMinHeightWithTotalHeightForTesting;
 
     /**
      * Disallow top browser controls from scrolling off by setting min height equal to overall
@@ -27,8 +26,8 @@ public class BrowserControlsUtils {
     // TODO(https://crbug.com/450970998): Move to TopControlsLockCoordinator after removing
     //  reference from BrowserControlsManager.
     public static boolean doSyncMinHeightWithTotalHeightV2(Context context) {
-        if (sSyncMinHeightWithTotalHeightForTesting != TriState.NOT_SET) {
-            return sSyncMinHeightWithTotalHeightForTesting == TriState.TRUE;
+        if (sSyncMinHeightWithTotalHeightForTesting != null) {
+            return sSyncMinHeightWithTotalHeightForTesting;
         }
 
         if (!ChromeFeatureList.sLockTopControlsOnLargeTabletsV2.isEnabled()) {
@@ -140,8 +139,7 @@ public class BrowserControlsUtils {
     }
 
     public static void setsSyncMinHeightWithTotalHeightForTesting(boolean override) {
-        sSyncMinHeightWithTotalHeightForTesting = TriStateUtils.from(override);
-        ResettersForTesting.register(
-                () -> sSyncMinHeightWithTotalHeightForTesting = TriState.NOT_SET);
+        sSyncMinHeightWithTotalHeightForTesting = override;
+        ResettersForTesting.register(() -> sSyncMinHeightWithTotalHeightForTesting = null);
     }
 }

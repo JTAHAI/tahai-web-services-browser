@@ -31,6 +31,7 @@
 #include "chrome/browser/ash/guest_os/guest_os_terminal.h"
 #include "chrome/browser/ash/profiles/profile_helper.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/profiles/profile_key.h"
 #include "chromeos/ash/components/dbus/attestation/attestation_client.h"
 #include "chromeos/ash/components/dbus/concierge/concierge_client.h"
 #include "chromeos/ash/components/system/statistics_provider.h"
@@ -47,7 +48,7 @@ namespace {
 // Should be synced with the value in the chromiumos repo:
 // src/platform2/vtpm/backends/attested_virtual_endorsement.cc
 constexpr char kVtpmEkLabel[] = "vtpm-ek";
-constexpr base::ByteSize kBruschettaRequiredMemory = base::GiB(12);
+constexpr base::ByteSize kBruschettaRequiredMemory = base::GiBU(12);
 
 std::unique_ptr<BruschettaInstallerImpl::Fds> OpenFdsBlocking(
     base::FilePath boot_disk_path,

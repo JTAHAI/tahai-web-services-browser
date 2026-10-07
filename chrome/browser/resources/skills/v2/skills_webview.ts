@@ -2,26 +2,21 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import '../loading_page.js';
-
 import {loadTimeData} from '//resources/js/load_time_data.js';
 import {getRequiredElement} from '//resources/js/util.js';
 
 import {ErrorType} from '../error_page.js';
-import type {Skill} from '../skill.mojom-webui.js';
 import {SkillsDialogType} from '../skill.mojom-webui.js';
-import type {PendingEditorData, SkillsPageV2Interface} from '../skills.mojom-webui.js';
-import {SkillsPageHandler, SkillsPageV2Receiver} from '../skills.mojom-webui.js';
+import {SkillsPageHandler} from '../skills.mojom-webui.js';
+import type {ToastType} from '../skills.mojom-webui.js';
 
 import type {SkillsWebviewBridgeDelegate} from './skills_webview_bridge.js';
 import {SkillsWebviewBridge} from './skills_webview_bridge.js';
-import {getChromePathForRemoteUrl, getLoadingStageHistogramName, getRemoteUrlForChromePath, HISTOGRAM_TOTAL_INIT_LATENCY, IS_SAVING_GEMINI_QUERY_PARAMETER, LoadingStage, SkillSource, SOURCE_QUERY_PARAMETER} from './skills_webview_bridge_constants.js';
+import {getChromePathForRemoteUrl, getLoadingStageHistogramName, getRemoteUrlForChromePath, HISTOGRAM_TOTAL_INIT_LATENCY, IS_SAVING_GEMINI_QUERY_PARAMETER, LoadingStage} from './skills_webview_bridge_constants.js';
 
-export class SkillsWebview implements SkillsPageV2Interface {
+export class SkillsWebview {
   protected remoteUrl: string = '';
   protected handler = SkillsPageHandler.getRemote();
-  protected pageReceiver_: SkillsPageV2Receiver =
-      new SkillsPageV2Receiver(this);
   protected webview: chrome.webviewTag.WebView|null = null;
   protected bridge: SkillsWebviewBridge|null = null;
   private promptToSend = '';
@@ -35,44 +30,23 @@ export class SkillsWebview implements SkillsPageV2Interface {
   }
 
   private isSavingGeminiQuery(): boolean {
+    if (!loadTimeData.valueExists('dialogType')) {
+      return false;
+    }
     return loadTimeData.getInteger('dialogType') === SkillsDialogType.kAdd &&
-        !loadTimeData.getString('skillId') &&
-        !!loadTimeData.getString('skillPrompt');
-  }
-
-  private isFirstPartySkill(): boolean {
-    return loadTimeData.getInteger('dialogType') === SkillsDialogType.kAdd &&
-        !!loadTimeData.getString('skillId');
-  }
-
-  private isUserSkill(): boolean {
-    return loadTimeData.getInteger('dialogType') === SkillsDialogType.kEdit;
+        !loadTimeData.getString('skillId');
   }
 
   private initializeRemoteUrl() {
     const path = window.location.pathname;
     this.remoteUrl = getRemoteUrlForChromePath(path);
 
-    const url = new URL(this.remoteUrl);
-
-    // For dialog type urls, set query parameters as necessary.
-    if (loadTimeData.valueExists('dialogType')) {
-      if (this.isSavingGeminiQuery()) {
-        url.searchParams.set(IS_SAVING_GEMINI_QUERY_PARAMETER, 'true');
-        this.promptToSend = loadTimeData.getString('skillPrompt');
-      } else if (this.isFirstPartySkill()) {
-        url.searchParams.set('id', loadTimeData.getString('skillId'));
-        url.searchParams.set(SOURCE_QUERY_PARAMETER, SkillSource.FIRST_PARTY);
-      } else if (this.isUserSkill()) {
-        const skillId = loadTimeData.getString('skillId');
-        if (skillId) {
-          url.searchParams.set('id', skillId);
-          url.searchParams.set(SOURCE_QUERY_PARAMETER, SkillSource.USER);
-        }
-      }
+    if (this.isSavingGeminiQuery()) {
+      const url = new URL(this.remoteUrl);
+      url.searchParams.set(IS_SAVING_GEMINI_QUERY_PARAMETER, 'true');
+      this.remoteUrl = url.toString();
+      this.promptToSend = loadTimeData.getString('skillPrompt');
     }
-
-    this.remoteUrl = url.toString();
   }
 
   getInitStartTimeForTesting(searchParams: URLSearchParams): number {
@@ -91,14 +65,6 @@ export class SkillsWebview implements SkillsPageV2Interface {
     }
     this.webview = getRequiredElement<chrome.webviewTag.WebView>('webview');
 
-    if (loadTimeData.valueExists('isSkillsEnabled') &&
-        !loadTimeData.getBoolean('isSkillsEnabled')) {
-      this.showError(ErrorType.SKILLS_DISABLED);
-      return;
-    }
-
-    this.handler.setPage(this.pageReceiver_.$.bindNewPipeAndPassRemote());
-
     // Wait for cookie sync to complete before setting src
     const success = await this.syncCookiesAndRecordMetric();
 
@@ -107,45 +73,13 @@ export class SkillsWebview implements SkillsPageV2Interface {
       return;
     }
 
-    // If we are opening an editor page, check if we have pending prompt data to
-    // send.
-    let pendingData: PendingEditorData|null = null;
-    if (window.location.pathname === '/editor') {
-      const {data} = await this.handler.getPendingEditorData();
-      pendingData = data;
-      if (pendingData) {
-        this.remoteUrl = pendingData.url;
-      }
-    }
-
-    const {skills} = await this.handler.getProvidedSkills();
-
     const delegate: SkillsWebviewBridgeDelegate = {
       onError: () => this.showError(ErrorType.REMOTE_AUTHORITY_UNREACHABLE),
-      onShowSaveToast: () => this.handler.showSaveToast(),
-      onShowSaveAndInvokeToast: (
-          skillId: string, skillName: string, skillIcon: string) =>
-          this.handler.showSaveAndInvokeToast(skillId, skillName, skillIcon),
-      onShowDeleteToast: (skillId: string) =>
-          this.handler.showDeleteToast(skillId),
-      onInvokeSkill: (skillId: string, skillName: string, skillIcon: string) =>
-          this.handler.invokeSkill(skillId, skillName, skillIcon),
+      onShowToast: (toastType: ToastType) => this.handler.showToast(toastType),
+      onInvokeSkill: (skillId: string) => this.handler.invokeSkill(skillId),
       onUrlChanged: (url: URL) => this.handleUrlChanged(url),
-      onCloseDialog: () => this.handler.closeDialog(null),
-      onHandshakeStarted: () => this.showLoading(),
-      onHandshakeComplete: () => {
-        this.hideLoading();
-        this.recordTotalInitLatencyMetric();
-      },
-      onSendPrompt: (prompt: string) => this.handler.sendPrompt(prompt),
-      onCloseDialogAndOpenEditor: (data: PendingEditorData) =>
-          this.handler.closeDialog(data),
-      onGetProvidedSkill: async (skillId: string) => {
-        const {skill} = await this.handler.getProvidedSkill(skillId);
-        if (this.bridge) {
-          this.bridge.sendProvidedSkillInfo(skill);
-        }
-      },
+      onCloseDialog: () => this.handler.closeDialog(),
+      onHandshakeComplete: () => this.recordTotalInitLatencyMetric(),
     };
 
     // Initiate handshake. Show error page on failure.
@@ -160,32 +94,13 @@ export class SkillsWebview implements SkillsPageV2Interface {
         this.bridge?.sendGeminiPrompt(this.promptToSend);
         this.promptToSend = '';
       }
-      if (pendingData) {
-        this.bridge?.sendSkillDialogInfo({
-          skillIcon: pendingData.icon,
-          skillName: pendingData.name,
-          skillDescription: pendingData.description,
-          skillInstructions: pendingData.instructions,
-        });
-      }
-      if (skills) {
-        this.loadProvidedSkills(skills);
-      }
     });
 
     // Manually handle clicks on forward and back buttons.
     window.addEventListener('popstate', () => this.syncWebviewToPath());
   }
 
-  private setEditorStatus(path: string = window.location.pathname) {
-    const loadingPage = document.querySelector('loading-page');
-    if (loadingPage && !loadingPage.dialog) {
-      loadingPage.editor = path === '/editor';
-    }
-  }
-
   private syncWebviewToPath() {
-    this.setEditorStatus();
     const remoteUrl = getRemoteUrlForChromePath(window.location.pathname);
     if (this.webview && this.webview.getAttribute('src') !== remoteUrl) {
       this.webview.setAttribute('src', remoteUrl);
@@ -196,7 +111,6 @@ export class SkillsWebview implements SkillsPageV2Interface {
     this.recordInitialNavigationMetric();
 
     const chromePath = getChromePathForRemoteUrl(url);
-    this.setEditorStatus(chromePath);
     if (window.location.pathname === chromePath) {
       return;
     }
@@ -205,28 +119,12 @@ export class SkillsWebview implements SkillsPageV2Interface {
   }
 
   protected showError(errorType: ErrorType) {
-    this.hideLoading();
     const errorPage = document.querySelector('error-page');
     if (errorPage) {
       errorPage.errorType = errorType;
       errorPage.removeAttribute('hidden');
     }
     this.webview?.setAttribute('hidden', 'true');
-  }
-
-  protected showLoading() {
-    this.setEditorStatus();
-    const loadingPage = document.querySelector('loading-page');
-    if (loadingPage) {
-      loadingPage.removeAttribute('hidden');
-    }
-  }
-
-  protected hideLoading() {
-    const loadingPage = document.querySelector('loading-page');
-    if (loadingPage) {
-      loadingPage.setAttribute('hidden', 'true');
-    }
   }
 
   private async syncCookiesAndRecordMetric(): Promise<boolean> {
@@ -256,9 +154,5 @@ export class SkillsWebview implements SkillsPageV2Interface {
           Math.floor(navDuration));
       this.isInitialNavigation_ = false;
     }
-  }
-
-  loadProvidedSkills(skills: Skill[]) {
-    this.bridge?.sendProvidedSkills(skills);
   }
 }

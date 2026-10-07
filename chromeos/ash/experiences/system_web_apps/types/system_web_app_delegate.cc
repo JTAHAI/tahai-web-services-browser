@@ -120,14 +120,18 @@ gfx::Rect SystemWebAppDelegate::GetDefaultBounds(
   return {};
 }
 
-std::optional<base::flat_set<tabs::TabContextMenuCommand>>
-SystemWebAppDelegate::GetAllowedTabMenuCommands() const {
-  return std::nullopt;
+bool SystemWebAppDelegate::HasCustomTabMenuModel() const {
+  return false;
+}
+
+std::unique_ptr<ui::SimpleMenuModel> SystemWebAppDelegate::GetTabMenuModel(
+    ui::SimpleMenuModel::Delegate* delegate) const {
+  return nullptr;
 }
 
 bool SystemWebAppDelegate::ShouldShowTabContextMenuShortcut(
     Profile* profile,
-    tabs::TabContextMenuCommand command) const {
+    int command_id) const {
   return true;
 }
 

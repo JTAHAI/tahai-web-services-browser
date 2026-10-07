@@ -467,23 +467,6 @@ class ReadAnythingAppControllerTest : public ChromeRenderViewTest {
         is_pdf, is_docs, model().GetCurrentlyVisibleNodes());
   }
 
-  struct V8Environment {
-    explicit V8Environment(blink::WebLocalFrame* frame)
-        : isolate(frame->GetAgentGroupScheduler()->Isolate()),
-          handle_scope(isolate),
-          context(frame->MainWorldScriptContext()),
-          context_scope(context) {}
-
-    raw_ptr<v8::Isolate> isolate;
-    v8::HandleScope handle_scope;
-    v8::Local<v8::Context> context;
-    v8::Context::Scope context_scope;
-  };
-
-  std::unique_ptr<V8Environment> SetUpV8Environment() {
-    return std::make_unique<V8Environment>(GetMainFrame());
-  }
-
   static constexpr ui::AXNodeID kId1 = 2;
   static constexpr ui::AXNodeID kId2 = 3;
   static constexpr ui::AXNodeID kId3 = 4;
@@ -1686,55 +1669,6 @@ TEST_F(ReadAnythingAppControllerTest,
   EXPECT_EQ(u"", controller().GetTextContent(3));
 }
 
-// Verifies that when Google Docs is opened, the controller falls back from
-// Readability to Screen2x distillation and does not recompute display nodes
-// during draw.
-TEST_F(ReadAnythingAppControllerTest,
-       Draw_DoNotRecomputeDisplayNodesForDocs_Screen2xFallback) {
-  ui::AXTreeUpdate update;
-  ui::AXTreeID id_1 = ui::AXTreeID::CreateNewAXTreeID();
-  test::SetUpdateTreeID(&update, id_1);
-  ui::AXNodeData node;
-  node.id = 2;
-
-  ui::AXNodeData root = test::LinkNode(/* id= */ 1, DOCS_URL);
-  root.child_ids = {node.id};
-  update.root_id = root.id;
-  update.nodes = {std::move(root), std::move(node)};
-
-  EXPECT_CALL(*distiller_, Distill).Times(1);
-  ui::AXEvent load_complete(0, ax::mojom::Event::kLoadComplete);
-  AccessibilityEventReceived({std::move(update)}, {std::move(load_complete)});
-
-  // Populate display_node_ids_ for tree_id_.
-  model().Reset({3});
-  model().ComputeDisplayNodeIdsForDistilledTree();
-
-  controller().OnActiveAXTreeIDChanged(id_1, ukm::kInvalidSourceId, false);
-  EXPECT_TRUE(controller().IsGoogleDocs());
-  EXPECT_TRUE(model().display_node_ids().contains(1));
-  EXPECT_FALSE(model().display_node_ids().contains(2));
-  EXPECT_TRUE(model().display_node_ids().contains(3));
-  Mock::VerifyAndClearExpectations(distiller_);
-
-  ui::AXNodeData node1;
-  node1.id = 4;
-
-  // This update changes the structure of the tree. When the controller receives
-  // it in AccessibilityEventReceived, it will re-distill the tree.
-  ui::AXTreeUpdate update2;
-  test::SetUpdateTreeID(&update2, id_1);
-  update2.nodes = {std::move(node1)};
-  AccessibilityEventReceived({std::move(update2)});
-
-  model().Reset({3, 4});
-  controller().Draw(/* recompute_display_nodes= */ true);
-  EXPECT_FALSE(model().display_node_ids().contains(1));
-  EXPECT_FALSE(model().display_node_ids().contains(2));
-  EXPECT_FALSE(model().display_node_ids().contains(3));
-  EXPECT_FALSE(model().display_node_ids().contains(4));
-}
-
 TEST_F(ReadAnythingAppControllerTest,
        GetTextContent_UseNameAttributeTextIfGoogleDocs) {
   std::u16string text_content = u"Hello";
@@ -1906,22 +1840,6 @@ TEST_F(ReadAnythingAppControllerTest, ShouldBold) {
   EXPECT_EQ(true, controller().ShouldBold(4));
 }
 
-TEST_F(ReadAnythingAppControllerTest, ShouldBold_PDFFontWeight) {
-  base::test::ScopedFeatureList feature_list;
-  feature_list.InitAndEnableFeature(
-      features::kPdfAccessibilityHeuristicEnhancements);
-  model().set_is_pdf(true);
-
-  ui::AXNodeData semibold_node;
-  semibold_node.id = 3;
-  semibold_node.AddFloatAttribute(ax::mojom::FloatAttribute::kFontWeight, 600);
-
-  SendUpdateWithNodes({std::move(semibold_node)});
-  OnAXTreeDistilled(tree_id_, {});
-
-  EXPECT_TRUE(controller().ShouldBold(3));
-}
-
 TEST_F(ReadAnythingAppControllerTest, IsOverline) {
   ui::AXNodeData overline_node;
   overline_node.id = 2;
@@ -1935,73 +1853,6 @@ TEST_F(ReadAnythingAppControllerTest, IsOverline) {
   OnAXTreeDistilled(tree_id_, {});
   EXPECT_EQ(true, controller().IsOverline(2));
   EXPECT_EQ(false, controller().IsOverline(3));
-}
-
-TEST_F(ReadAnythingAppControllerTest, GetTextDirection) {
-  ui::AXNodeData node1;
-  node1.id = 2;
-  node1.AddIntAttribute(
-      ax::mojom::IntAttribute::kTextDirection,
-      static_cast<int32_t>(ax::mojom::WritingDirection::kLtr));
-
-  ui::AXNodeData node2;
-  node2.id = 3;
-  node2.AddIntAttribute(
-      ax::mojom::IntAttribute::kTextDirection,
-      static_cast<int32_t>(ax::mojom::WritingDirection::kRtl));
-
-  ui::AXNodeData node3;
-  node3.id = 4;
-  node3.AddIntAttribute(
-      ax::mojom::IntAttribute::kTextDirection,
-      static_cast<int32_t>(ax::mojom::WritingDirection::kTtb));
-
-  ui::AXNodeData node4;
-  node4.id = 5;
-  node4.AddIntAttribute(
-      ax::mojom::IntAttribute::kTextDirection,
-      static_cast<int32_t>(ax::mojom::WritingDirection::kBtt));
-
-  ui::AXNodeData node5;
-  node5.id = 6;
-
-  ui::AXNodeData root;
-  root.id = 1;
-  root.child_ids = {node1.id, node2.id, node3.id, node4.id, node5.id};
-  SendUpdateWithNodes({std::move(root), std::move(node1), std::move(node2),
-                       std::move(node3), std::move(node4), std::move(node5)});
-
-  OnAXTreeDistilled(tree_id_, {});
-  EXPECT_EQ("ltr", controller().GetTextDirection(2));
-  EXPECT_EQ("rtl", controller().GetTextDirection(3));
-  EXPECT_EQ("auto", controller().GetTextDirection(4));
-  EXPECT_EQ("auto", controller().GetTextDirection(5));
-  EXPECT_EQ("", controller().GetTextDirection(6));
-}
-
-TEST_F(ReadAnythingAppControllerTest, GetLanguage) {
-  ui::AXNodeData node1;
-  node1.id = 2;
-  node1.AddStringAttribute(ax::mojom::StringAttribute::kLanguage, "en");
-
-  ui::AXNodeData node2;
-  node2.id = 3;
-  node2.AddStringAttribute(ax::mojom::StringAttribute::kLanguage, "es");
-
-  ui::AXNodeData node3;
-  node3.id = 4;
-
-  ui::AXNodeData root;
-  root.id = 1;
-  root.AddStringAttribute(ax::mojom::StringAttribute::kLanguage, "zh");
-  root.child_ids = {node1.id, node2.id, node3.id};
-  SendUpdateWithNodes(
-      {std::move(root), std::move(node1), std::move(node2), std::move(node3)});
-
-  ProcessDisplayNodes({2, 3, 4});
-  EXPECT_EQ("en", controller().GetLanguage(2));
-  EXPECT_EQ("es", controller().GetLanguage(3));
-  EXPECT_EQ("zh", controller().GetLanguage(4));
 }
 
 TEST_F(ReadAnythingAppControllerTest, IsLeafNode) {
@@ -2237,7 +2088,7 @@ TEST_F(ReadAnythingAppControllerTest, IsGoogleDocs) {
       model().tree_infos_for_testing().at(id_1)->is_url_information_set);
   OnAXTreeDistilled(tree_id_, {1});
 
-  EXPECT_CALL(*distiller_, Distill).Times(0);
+  ExpectDistill(1);
   controller().OnActiveAXTreeIDChanged(id_1, ukm::kInvalidSourceId, false);
   EXPECT_FALSE(controller().IsGoogleDocs());
   Mock::VerifyAndClearExpectations(distiller_);
@@ -2252,7 +2103,7 @@ TEST_F(ReadAnythingAppControllerTest, IsGoogleDocs) {
       model().tree_infos_for_testing().at(tree_id_)->is_url_information_set);
   OnAXTreeDistilled(tree_id_, {1});
 
-  EXPECT_CALL(*distiller_, Distill).Times(1);
+  ExpectDistill(1);
   controller().OnActiveAXTreeIDChanged(tree_id_, ukm::kInvalidSourceId, false);
   EXPECT_TRUE(controller().IsGoogleDocs());
   Mock::VerifyAndClearExpectations(distiller_);
@@ -2432,7 +2283,10 @@ TEST_F(ReadAnythingAppControllerTest, GetImageBitmap_ValidNode) {
   bitmap.allocN32Pixels(10, 10);
   controller().OnImageDataDownloaded(tree_id_, 2, bitmap);
 
-  auto v8_env = SetUpV8Environment();
+  v8::Isolate* isolate = GetMainFrame()->GetAgentGroupScheduler()->Isolate();
+  v8::HandleScope handle_scope(isolate);
+  v8::Local<v8::Context> context = GetMainFrame()->MainWorldScriptContext();
+  v8::Context::Scope context_scope(context);
 
   v8::Local<v8::Value> result = controller().GetImageBitmap(2);
   EXPECT_FALSE(result->IsUndefined());
@@ -2440,6 +2294,9 @@ TEST_F(ReadAnythingAppControllerTest, GetImageBitmap_ValidNode) {
 }
 
 TEST_F(ReadAnythingAppControllerTest, RequestImageData) {
+  base::test::ScopedFeatureList scoped_feature_list;
+  scoped_feature_list.InitWithFeatures(
+      {features::kReadAnythingImagesViaAlgorithm}, {});
   ui::AXNodeID ax_node_id = 2;
   EXPECT_CALL(page_handler_, OnImageDataRequested(tree_id_, ax_node_id))
       .Times(1);
@@ -2970,6 +2827,8 @@ TEST_F(
       read_anything::mojom::ReadAnythingDistillationState::
           kDistillationWithContent);
 
+  VerifyAndClearPageHandlerExpectations();
+
   EXPECT_CALL(page_handler_, GetDependencyParserModel(testing::_))
       .Times(1)
       .WillOnce(base::test::RunOnceCallback<0>(base::File()));
@@ -2991,6 +2850,8 @@ TEST_F(ReadAnythingAppControllerTest,
   feature_list.InitAndDisableFeature(
       features::kReadAnythingReadAloudPhraseHighlighting);
 
+
+  VerifyAndClearPageHandlerExpectations();
   EXPECT_CALL(page_handler_, GetDependencyParserModel(testing::_)).Times(0);
   EXPECT_CALL(page_handler_, OnDistillationStateChanged(testing::_)).Times(0);
 
@@ -3001,6 +2862,9 @@ TEST_F(ReadAnythingAppControllerTest,
 
 TEST_F(ReadAnythingAppControllerTest,
        OnStringAttributeChanged_NonImageNode_DoesNothing) {
+  base::test::ScopedFeatureList feature_list;
+  feature_list.InitAndEnableFeature(features::kReadAnythingImagesViaAlgorithm);
+
   static constexpr ui::AXNodeID kLinkNodeId = 2;
   std::string placeholder_url = "data:image/svg+xml,...";
   ui::AXNodeData link_node = test::LinkNode(kLinkNodeId, placeholder_url);
@@ -3014,7 +2878,24 @@ TEST_F(ReadAnythingAppControllerTest,
 }
 
 TEST_F(ReadAnythingAppControllerTest,
+       OnStringAttributeChanged_ImageFlagDisabled_DoesNothing) {
+  base::test::ScopedFeatureList feature_list;
+  feature_list.InitAndDisableFeature(features::kReadAnythingImagesViaAlgorithm);
+  static constexpr ui::AXNodeID kImageNodeId = 2;
+  std::string placeholder_src = "data:image/svg+xml,...";
+  ui::AXNodeData image_node = test::ImageNode(kImageNodeId, placeholder_src);
+  SendUpdateAndDistillNodes({std::move(image_node)});
+  std::string final_src = "https://example.com/real_image.png";
+  ui::AXNodeData updated_image_node = test::ImageNode(kImageNodeId, final_src);
+  SendUpdateAndDistillNodes({std::move(updated_image_node)});
+
+  EXPECT_CALL(page_handler_, OnImageDataRequested).Times(0);
+}
+
+TEST_F(ReadAnythingAppControllerTest,
        OnStringAttributeChanged_ReadabilityDistillation_DoesNothing) {
+  base::test::ScopedFeatureList feature_list;
+  feature_list.InitAndEnableFeature(features::kReadAnythingImagesViaAlgorithm);
   model().set_current_content_distillation_method(
       ReadAnythingAppModel::DistillationMethod::kReadability);
   model().set_next_distillation_method(
@@ -3127,8 +3008,6 @@ TEST_F(ReadAnythingAppControllerTest,
   controller().OnAXTreeDestroyed(tree_id_);
   ASSERT_FALSE(model().ContainsActiveTree());
 
-  model().set_next_distillation_method(
-      ReadAnythingAppModel::DistillationMethod::kScreen2x);
   model().set_reset_draw_timer(true);
   model().set_requires_distillation(false);
 
@@ -3143,8 +3022,6 @@ TEST_F(ReadAnythingAppControllerTest,
   // There's already an Active tree from Setup() so we don't need to create it.
   ASSERT_TRUE(model().ContainsActiveTree());
 
-  model().set_next_distillation_method(
-      ReadAnythingAppModel::DistillationMethod::kScreen2x);
   model().set_reset_draw_timer(true);
   model().set_requires_distillation(false);
 
@@ -3154,19 +3031,30 @@ TEST_F(ReadAnythingAppControllerTest,
   EXPECT_FALSE(model().reset_draw_timer());
 }
 
-class ReadAnythingAppControllerScreen2xTest
+class ReadAnythingAppControllerImmersiveTest
     : public ReadAnythingAppControllerTest {
  public:
-  ReadAnythingAppControllerScreen2xTest() {
+  void SetUp() override {
+    ReadAnythingAppControllerTest::SetUp();
+    scoped_feature_list_.Reset();
+    scoped_feature_list_.InitWithFeatures({features::kImmersiveReadAnything},
+                                          {});
+    page_handler_.FlushForTesting();
+    Mock::VerifyAndClearExpectations(&page_handler_);
+  }
+};
+
+class ReadAnythingAppControllerImmersiveScreen2xTest
+    : public ReadAnythingAppControllerImmersiveTest {
+ public:
+  ReadAnythingAppControllerImmersiveScreen2xTest() {
     forced_distillation_method_ =
         ReadAnythingAppModel::DistillationMethod::kScreen2x;
   }
-  ~ReadAnythingAppControllerScreen2xTest() override = default;
+  ~ReadAnythingAppControllerImmersiveScreen2xTest() override = default;
 };
-TEST_F(ReadAnythingAppControllerScreen2xTest,
+TEST_F(ReadAnythingAppControllerImmersiveScreen2xTest,
        OnDistillationStateChanged_CalledAfterDistillationEmpty) {
-  page_handler_.FlushForTesting();
-  Mock::VerifyAndClearExpectations(&page_handler_);
   model().set_distillation_state(
       read_anything::mojom::ReadAnythingDistillationState::kNotAttempted);
 
@@ -3179,10 +3067,8 @@ TEST_F(ReadAnythingAppControllerScreen2xTest,
   page_handler_.FlushForTesting();
 }
 
-TEST_F(ReadAnythingAppControllerScreen2xTest,
+TEST_F(ReadAnythingAppControllerImmersiveScreen2xTest,
        OnDistillationStateChanged_CalledAfterDistillationWithContent) {
-  page_handler_.FlushForTesting();
-  Mock::VerifyAndClearExpectations(&page_handler_);
   EXPECT_CALL(page_handler_,
               OnDistillationStateChanged(
                   read_anything::mojom::ReadAnythingDistillationState::
@@ -3192,10 +3078,8 @@ TEST_F(ReadAnythingAppControllerScreen2xTest,
   page_handler_.FlushForTesting();
 }
 
-TEST_F(ReadAnythingAppControllerScreen2xTest,
+TEST_F(ReadAnythingAppControllerImmersiveScreen2xTest,
        OnActiveAXTreeIDChanged_SetsDistillationInProgress) {
-  page_handler_.FlushForTesting();
-  Mock::VerifyAndClearExpectations(&page_handler_);
   EXPECT_CALL(page_handler_,
               OnDistillationStateChanged(
                   read_anything::mojom::ReadAnythingDistillationState::
@@ -3206,9 +3090,8 @@ TEST_F(ReadAnythingAppControllerScreen2xTest,
   page_handler_.FlushForTesting();
 }
 
-TEST_F(ReadAnythingAppControllerTest, Distill_SetsDistillationInProgress) {
-  page_handler_.FlushForTesting();
-  Mock::VerifyAndClearExpectations(&page_handler_);
+TEST_F(ReadAnythingAppControllerImmersiveTest,
+       Distill_SetsDistillationInProgress) {
   EXPECT_CALL(page_handler_,
               OnDistillationStateChanged(
                   read_anything::mojom::ReadAnythingDistillationState::
@@ -3218,7 +3101,7 @@ TEST_F(ReadAnythingAppControllerTest, Distill_SetsDistillationInProgress) {
   page_handler_.FlushForTesting();
 }
 
-TEST_F(ReadAnythingAppControllerTest,
+TEST_F(ReadAnythingAppControllerImmersiveTest,
        ReadingModeHidden_UpdateProcessingPaused) {
   // Hide reading mode
   controller().OnGetPresentationState(
@@ -3226,10 +3109,8 @@ TEST_F(ReadAnythingAppControllerTest,
   EXPECT_TRUE(controller().IsUpdateProcessingPaused());
 }
 
-TEST_F(ReadAnythingAppControllerScreen2xTest,
+TEST_F(ReadAnythingAppControllerImmersiveScreen2xTest,
        ImmersiveModeWithGoodDistillation_UpdateProcessingPaused) {
-  page_handler_.FlushForTesting();
-  Mock::VerifyAndClearExpectations(&page_handler_);
   // Set to Immersive.
   controller().OnGetPresentationState(
       read_anything::mojom::ReadAnythingPresentationState::kInImmersiveOverlay);
@@ -3249,10 +3130,8 @@ TEST_F(ReadAnythingAppControllerScreen2xTest,
   EXPECT_TRUE(controller().IsUpdateProcessingPaused());
 }
 
-TEST_F(ReadAnythingAppControllerScreen2xTest,
+TEST_F(ReadAnythingAppControllerImmersiveScreen2xTest,
        SidePanelWithGoodDistillation_DoesNotPauseUpdateProcessing) {
-  page_handler_.FlushForTesting();
-  Mock::VerifyAndClearExpectations(&page_handler_);
   // Set to Side Panel.
   controller().OnGetPresentationState(
       read_anything::mojom::ReadAnythingPresentationState::kInSidePanel);
@@ -3272,10 +3151,8 @@ TEST_F(ReadAnythingAppControllerScreen2xTest,
   EXPECT_FALSE(controller().IsUpdateProcessingPaused());
 }
 
-TEST_F(ReadAnythingAppControllerScreen2xTest,
+TEST_F(ReadAnythingAppControllerImmersiveScreen2xTest,
        ImmersiveModeWithEmptyDistillation_DoesNotPauseUpdateProcessing) {
-  page_handler_.FlushForTesting();
-  Mock::VerifyAndClearExpectations(&page_handler_);
   // Set to Immersive
   controller().OnGetPresentationState(
       read_anything::mojom::ReadAnythingPresentationState::kInImmersiveOverlay);
@@ -3297,10 +3174,8 @@ TEST_F(ReadAnythingAppControllerScreen2xTest,
   EXPECT_FALSE(controller().IsUpdateProcessingPaused());
 }
 
-TEST_F(ReadAnythingAppControllerScreen2xTest,
+TEST_F(ReadAnythingAppControllerImmersiveScreen2xTest,
        DistillationPausedInImmersive_ResumesOnSwitchToSidePanel) {
-  page_handler_.FlushForTesting();
-  Mock::VerifyAndClearExpectations(&page_handler_);
   // Set to Immersive.
   controller().OnGetPresentationState(
       read_anything::mojom::ReadAnythingPresentationState::kInImmersiveOverlay);
@@ -3336,10 +3211,8 @@ TEST_F(ReadAnythingAppControllerScreen2xTest,
   Mock::VerifyAndClearExpectations(distiller_);
 }
 
-TEST_F(ReadAnythingAppControllerScreen2xTest,
+TEST_F(ReadAnythingAppControllerImmersiveScreen2xTest,
        DistillationPausedInImmersive_ResumesOnTreeChange) {
-  page_handler_.FlushForTesting();
-  Mock::VerifyAndClearExpectations(&page_handler_);
   // Set to Immersive.
   controller().OnGetPresentationState(
       read_anything::mojom::ReadAnythingPresentationState::kInImmersiveOverlay);
@@ -3382,10 +3255,8 @@ TEST_F(ReadAnythingAppControllerScreen2xTest,
   Mock::VerifyAndClearExpectations(distiller_);
 }
 
-TEST_F(ReadAnythingAppControllerScreen2xTest,
+TEST_F(ReadAnythingAppControllerImmersiveScreen2xTest,
        ImmersiveMode_UnpausesOnReopenWithPendingSelection) {
-  page_handler_.FlushForTesting();
-  Mock::VerifyAndClearExpectations(&page_handler_);
   // 1. Start in immersive overlay with a good distillation.
   controller().OnGetPresentationState(
       read_anything::mojom::ReadAnythingPresentationState::kInImmersiveOverlay);
@@ -3433,10 +3304,8 @@ TEST_F(ReadAnythingAppControllerScreen2xTest,
   EXPECT_TRUE(controller().IsUpdateProcessingPaused());
 }
 
-TEST_F(ReadAnythingAppControllerScreen2xTest,
+TEST_F(ReadAnythingAppControllerImmersiveScreen2xTest,
        ImmersiveMode_ResetsReadingModeSelectionCountOnUserSelection) {
-  page_handler_.FlushForTesting();
-  Mock::VerifyAndClearExpectations(&page_handler_);
   // 1. Start in immersive overlay with a good distillation.
   controller().OnGetPresentationState(
       read_anything::mojom::ReadAnythingPresentationState::kInImmersiveOverlay);
@@ -3488,7 +3357,7 @@ TEST_F(ReadAnythingAppControllerScreen2xTest,
   EXPECT_EQ(model().unprocessed_selections_from_reading_mode(), 0);
 }
 
-TEST_F(ReadAnythingAppControllerTest,
+TEST_F(ReadAnythingAppControllerImmersiveTest,
        OnAXTreeDistilled_PdfDebouncerRunning_DoesNotSetDistillationState) {
   controller().OnGetPresentationState(
       read_anything::mojom::ReadAnythingPresentationState::kInImmersiveOverlay);
@@ -3511,7 +3380,7 @@ TEST_F(ReadAnythingAppControllerTest,
   page_handler_.FlushForTesting();
 }
 
-TEST_F(ReadAnythingAppControllerTest,
+TEST_F(ReadAnythingAppControllerImmersiveTest,
        OnPdfDebounceFinished_UpdatesDistillationState) {
   controller().OnGetPresentationState(
       read_anything::mojom::ReadAnythingPresentationState::kInImmersiveOverlay);
@@ -3544,7 +3413,7 @@ TEST_F(ReadAnythingAppControllerTest,
   page_handler_.FlushForTesting();
 }
 
-TEST_F(ReadAnythingAppControllerTest,
+TEST_F(ReadAnythingAppControllerImmersiveTest,
        OnActiveAXTreeIDChanged_StartsDebouncerIfHidden) {
   // Start in inactive state (hidden).
   controller().OnGetPresentationState(
@@ -3570,7 +3439,7 @@ TEST_F(ReadAnythingAppControllerTest,
   page_handler_.FlushForTesting();
 }
 
-TEST_F(ReadAnythingAppControllerTest,
+TEST_F(ReadAnythingAppControllerImmersiveTest,
        OnPdfDebounceFinished_DoesNotDrawOrUpdateStateIfHidden) {
   // Start in immersive overlay (not hidden).
   controller().OnGetPresentationState(
@@ -4916,8 +4785,6 @@ TEST_F(ReadAnythingAppControllerReadabilityTest,
             ReadAnythingAppModel::DistillationMethod::kReadability);
   EXPECT_EQ(model().next_distillation_method(),
             ReadAnythingAppModel::DistillationMethod::kReadability);
-
-  EXPECT_TRUE(model().readability_distillation_complete_for_current_tree());
 }
 
 TEST_F(ReadAnythingAppControllerReadabilityTest,
@@ -4934,37 +4801,6 @@ TEST_F(ReadAnythingAppControllerReadabilityTest,
 
   EXPECT_EQ(model().next_distillation_method(),
             ReadAnythingAppModel::DistillationMethod::kScreen2x);
-
-  EXPECT_EQ(model().current_content_distillation_method(),
-            ReadAnythingAppModel::DistillationMethod::kReadability);
-}
-
-TEST_F(ReadAnythingAppControllerReadabilityTest,
-       UpdateContent_SpeechPlaying_DefersDistillation) {
-  base::test::ScopedFeatureList scoped_feature_list;
-  scoped_feature_list.InitWithFeatures({features::kReadAnythingWithReadability,
-                                        features::kReadAnythingImprovedUi},
-                                       {});
-
-  model().set_requires_readability_distillation(false);
-  read_aloud_model().SetSpeechPlaying(true);
-
-  controller().UpdateContent("Title", "Some valid content");
-
-  EXPECT_TRUE(model().requires_readability_distillation());
-}
-
-TEST_F(ReadAnythingAppControllerReadabilityTest,
-       UpdateContent_SpeechNotPlaying_DoesNotDeferDistillation) {
-  base::test::ScopedFeatureList scoped_feature_list;
-  scoped_feature_list.InitWithFeatures({features::kReadAnythingWithReadability,
-                                        features::kReadAnythingImprovedUi},
-                                       {});
-
-  model().set_requires_readability_distillation(false);
-  read_aloud_model().SetSpeechPlaying(false);
-
-  controller().UpdateContent("Title", "Some valid content");
 
   EXPECT_EQ(model().current_content_distillation_method(),
             ReadAnythingAppModel::DistillationMethod::kReadability);
@@ -5223,87 +5059,21 @@ TEST_F(
   EXPECT_TRUE(model().requires_post_process_selection());
 }
 
-TEST_F(ReadAnythingAppControllerReadabilityTest,
-       GetDomDistillerAnchors_ReturnsCorrectMapping) {
-  std::string url = "https://www.google.com";
-  std::string link_text = "Google Homepage";
-  std::string title_text = "Google Search Tooltip";
-  std::string text_before = "Visit ";
-  std::string text_after = " now.";
+// Explicitly tests behavior when Screen2x is the next distillation method.
+class ReadAnythingAppControllerScreen2xTest
+    : public ReadAnythingAppControllerTest {
+ public:
+  ReadAnythingAppControllerScreen2xTest() {
+    scoped_feature_list_.InitWithFeatures(
+        {features::kReadAnythingWithReadability}, {});
+    forced_distillation_method_ =
+        ReadAnythingAppModel::DistillationMethod::kScreen2x;
+  }
+  ~ReadAnythingAppControllerScreen2xTest() override = default;
 
-  ui::AXNodeData text_prev;
-  text_prev.id = 2;
-  text_prev.role = ax::mojom::Role::kStaticText;
-  text_prev.SetName(text_before);
-
-  ui::AXNodeData link_node;
-  link_node.id = 3;
-  link_node.role = ax::mojom::Role::kLink;
-  link_node.SetName(link_text);
-  link_node.AddStringAttribute(ax::mojom::StringAttribute::kUrl, url);
-  link_node.AddStringAttribute(ax::mojom::StringAttribute::kHtmlId,
-                               "link-id-1");
-  link_node.AddStringAttribute(ax::mojom::StringAttribute::kLinkTarget,
-                               "_blank");
-  link_node.AddStringAttribute(ax::mojom::StringAttribute::kTooltip,
-                               title_text);
-
-  ui::AXNodeData text_next;
-  text_next.id = 4;
-  text_next.role = ax::mojom::Role::kStaticText;
-  text_next.SetName(text_after);
-
-  ui::AXNodeData root;
-  root.id = 1;
-  root.role = ax::mojom::Role::kRootWebArea;
-  root.child_ids = {text_prev.id, link_node.id, text_next.id};
-
-  SendUpdateWithNodes({std::move(root), std::move(text_prev),
-                       std::move(link_node), std::move(text_next)});
-  model().set_should_extract_anchors_from_tree_for_readability(true);
-  model().ProcessAXTreeAnchors();
-  auto v8_env = SetUpV8Environment();
-  v8::MicrotasksScope microtasks_scope(
-      v8_env->isolate, v8_env->context->GetMicrotaskQueue(),
-      v8::MicrotasksScope::kDoNotRunMicrotasks);
-
-  v8::Local<v8::Value> result = controller().GetDomDistillerAnchors();
-
-  // Verify that the result is a V8 object mapping URLs to arrays of anchor
-  // objects extracted from the active accessibility tree.
-  ASSERT_TRUE(result->IsObject());
-  v8::Local<v8::Object> result_obj = result.As<v8::Object>();
-  gin::Dictionary result_dict(v8_env->isolate, result_obj);
-  v8::Local<v8::Value> array_val;
-
-  // Verify that the object contains an entry for the anchor URL.
-  EXPECT_TRUE(result_dict.Get(url, &array_val));
-  ASSERT_TRUE(array_val->IsArray());
-  v8::Local<v8::Array> array = array_val.As<v8::Array>();
-  EXPECT_EQ(array->Length(), 1u);
-
-  // Verify that the link object properties match the AX node data.
-  v8::Local<v8::Value> item = array->Get(v8_env->context, 0).ToLocalChecked();
-  ASSERT_TRUE(item->IsObject());
-  v8::Local<v8::Object> link_obj = item.As<v8::Object>();
-  gin::Dictionary link_dict(v8_env->isolate, link_obj);
-  int axId;
-  EXPECT_TRUE(link_dict.Get("axId", &axId));
-  EXPECT_EQ(axId, 3);
-  std::string htmlId, target, title, text, textBefore, textAfter;
-  EXPECT_TRUE(link_dict.Get("htmlId", &htmlId));
-  EXPECT_EQ(htmlId, "link-id-1");
-  EXPECT_TRUE(link_dict.Get("target", &target));
-  EXPECT_EQ(target, "_blank");
-  EXPECT_TRUE(link_dict.Get("title", &title));
-  EXPECT_EQ(title, title_text);
-  EXPECT_TRUE(link_dict.Get("text", &text));
-  EXPECT_EQ(text, link_text);
-  EXPECT_TRUE(link_dict.Get("textBefore", &textBefore));
-  EXPECT_EQ(textBefore, text_before);
-  EXPECT_TRUE(link_dict.Get("textAfter", &textAfter));
-  EXPECT_EQ(textAfter, text_after);
-}
+ private:
+  base::test::ScopedFeatureList scoped_feature_list_;
+};
 
 TEST_F(ReadAnythingAppControllerScreen2xTest,
        AccessibilityReceivedAfterDistillingOnSameTree_DoesNotCrash) {
@@ -5653,6 +5423,9 @@ TEST_F(ReadAnythingAppControllerScreen2xTest, DisplayNodes_WithMultipleTrees) {
 
 TEST_F(ReadAnythingAppControllerScreen2xTest,
        OnStringAttributeChanged_ImageSrcChange_RequestsImageData) {
+  base::test::ScopedFeatureList feature_list;
+  feature_list.InitAndEnableFeature(features::kReadAnythingImagesViaAlgorithm);
+
   // Create an image node with a placeholder "data:" URL, mimicking a
   // lazy-loaded image.
   static constexpr ui::AXNodeID kImageNodeId = 2;
@@ -5685,6 +5458,9 @@ TEST_F(ReadAnythingAppControllerScreen2xTest,
 
 TEST_F(ReadAnythingAppControllerScreen2xTest,
        Screen2xDistillationStatus_LogsIfClosedBeforeTimer) {
+  base::test::ScopedFeatureList scoped_feature_list;
+  scoped_feature_list.InitAndEnableFeature(features::kImmersiveReadAnything);
+
   // Set to active (visible)
   controller().OnGetPresentationState(
       read_anything::mojom::ReadAnythingPresentationState::kInImmersiveOverlay);
@@ -5718,6 +5494,46 @@ TEST_F(ReadAnythingAppControllerScreen2xTest, Draw_RecomputeDisplayNodes) {
   EXPECT_FALSE(model().display_node_ids().contains(2));
   EXPECT_TRUE(model().display_node_ids().contains(3));
   EXPECT_TRUE(model().display_node_ids().contains(4));
+}
+
+TEST_F(ReadAnythingAppControllerScreen2xTest,
+       Draw_DoNotRecomputeDisplayNodesForDocs) {
+  model().set_current_content_distillation_method(
+      ReadAnythingAppModel::DistillationMethod::kScreen2x);
+  ui::AXTreeUpdate update;
+  ui::AXTreeID id_1 = ui::AXTreeID::CreateNewAXTreeID();
+  test::SetUpdateTreeID(&update, id_1);
+  ui::AXNodeData node;
+  node.id = 2;
+
+  ui::AXNodeData root = test::LinkNode(/* id= */ 1, DOCS_URL);
+  root.child_ids = {node.id};
+  update.root_id = root.id;
+  update.nodes = {std::move(root), std::move(node)};
+
+  ExpectDistill(1);
+  ui::AXEvent load_complete(0, ax::mojom::Event::kLoadComplete);
+  AccessibilityEventReceived({std::move(update)}, {std::move(load_complete)});
+  OnAXTreeDistilled(tree_id_, {3});
+  controller().OnActiveAXTreeIDChanged(id_1, ukm::kInvalidSourceId, false);
+  EXPECT_TRUE(controller().IsGoogleDocs());
+  EXPECT_TRUE(model().display_node_ids().contains(1));
+  EXPECT_FALSE(model().display_node_ids().contains(2));
+  EXPECT_TRUE(model().display_node_ids().contains(3));
+  Mock::VerifyAndClearExpectations(distiller_);
+
+  ui::AXNodeData node1;
+  node1.id = 4;
+
+  // This update changes the structure of the tree. When the controller receives
+  // it in AccessibilityEventReceived, it will re-distill the tree.
+  SendUpdateWithNodes({std::move(node1)});
+  model().Reset({3, 4});
+  controller().Draw(/* recompute_display_nodes= */ true);
+  EXPECT_FALSE(model().display_node_ids().contains(1));
+  EXPECT_FALSE(model().display_node_ids().contains(2));
+  EXPECT_FALSE(model().display_node_ids().contains(3));
+  EXPECT_FALSE(model().display_node_ids().contains(4));
 }
 
 TEST_F(ReadAnythingAppControllerScreen2xTest,
@@ -6073,10 +5889,13 @@ TEST_F(ReadAnythingAppControllerReadabilitySelectTextTest,
 
   controller().OnRenderedTextBlocksAvailable({u"Hello world"});
 
-  auto v8_env = SetUpV8Environment();
+  v8::Isolate* isolate = GetMainFrame()->GetAgentGroupScheduler()->Isolate();
+  v8::HandleScope handle_scope(isolate);
+  v8::Local<v8::Context> context = GetMainFrame()->MainWorldScriptContext();
+  v8::Context::Scope context_scope(context);
 
   v8::MicrotasksScope microtasks_scope(
-      v8_env->isolate, v8_env->context->GetMicrotaskQueue(),
+      isolate, context->GetMicrotaskQueue(),
       v8::MicrotasksScope::kDoNotRunMicrotasks);
 
   v8::Local<v8::Value> result = controller().GetAXMapping(0);
@@ -6086,10 +5905,10 @@ TEST_F(ReadAnythingAppControllerReadabilitySelectTextTest,
   EXPECT_EQ(array->Length(), 1u);
 
   // Verify the dictionary contents
-  v8::Local<v8::Value> item = array->Get(v8_env->context, 0).ToLocalChecked();
+  v8::Local<v8::Value> item = array->Get(context, 0).ToLocalChecked();
   ASSERT_TRUE(item->IsObject());
   v8::Local<v8::Object> obj = item.As<v8::Object>();
-  gin::Dictionary dict(v8_env->isolate, obj);
+  gin::Dictionary dict(isolate, obj);
   int axNodeId, start, end, axNodeOffset;
   EXPECT_TRUE(dict.Get("axNodeId", &axNodeId));
   EXPECT_TRUE(dict.Get("start", &start));
@@ -6132,7 +5951,6 @@ TEST_F(ReadAnythingAppControllerReadabilitySelectTextTest,
   std::string stale_content = "<div>Old stale article content</div>";
   controller().UpdateContent("Old Title", stale_content);
   model().set_requires_readability_distillation(true);
-  model().set_readability_distillation_complete_for_current_tree(false);
 
   // Sanity check: Ensure content is actually there before we start.
   ASSERT_EQ(controller().GetDomDistillerContentHtml(), stale_content);
@@ -6145,86 +5963,10 @@ TEST_F(ReadAnythingAppControllerReadabilitySelectTextTest,
   EXPECT_TRUE(controller().GetDomDistillerContentHtml().empty());
 }
 
-TEST_F(ReadAnythingAppControllerReadabilitySelectTextTest,
-       ProcessModelUpdates_Readability_AvoidsRedundantDistillation) {
-  // Set up an active tree with a valid URL.
-  ui::AXTreeUpdate update;
-  test::SetUpdateTreeID(&update, tree_id_);
-  ui::AXNodeData root;
-  root.id = 1;
-  root.role = ax::mojom::Role::kRootWebArea;
-  root.AddStringAttribute(ax::mojom::StringAttribute::kUrl,
-                          "https://example.com/page");
-  update.root_id = root.id;
-  update.nodes = {std::move(root)};
-  AccessibilityEventReceived({std::move(update)});
-
-  // Complete a readability distillation on this tree.
-  controller().UpdateContent("Title", "<div>Some distilled content</div>");
-  ASSERT_TRUE(model().readability_distillation_complete_for_current_tree());
-
-  // Now, request readability distillation again (mimicking kLoadComplete).
-  model().set_requires_readability_distillation(true);
-
-  // Since the URL of the active tree is still "https://example.com/page",
-  // RequestReadabilityDistillation() should NOT be called.
-  EXPECT_CALL(page_handler_, RequestReadabilityDistillation()).Times(0);
-
-  ProcessModelUpdates();
-
-  // The model's completed flag remains true.
-  EXPECT_TRUE(model().readability_distillation_complete_for_current_tree());
-}
-
-TEST_F(
-    ReadAnythingAppControllerReadabilitySelectTextTest,
-    ProcessModelUpdates_Readability_SameDocumentNavigationTriggersDistillation) {
-  // Set up an active tree with URL Page 1.
-  ui::AXTreeUpdate update1;
-  test::SetUpdateTreeID(&update1, tree_id_);
-  ui::AXNodeData root1;
-  root1.id = 1;
-  root1.role = ax::mojom::Role::kRootWebArea;
-  root1.AddStringAttribute(ax::mojom::StringAttribute::kUrl,
-                           "https://example.com/page1");
-  update1.root_id = root1.id;
-  update1.nodes = {std::move(root1)};
-  AccessibilityEventReceived({std::move(update1)});
-
-  // Complete a readability distillation on Page 1.
-  controller().UpdateContent("Title 1", "<div>Page 1 content</div>");
-  ASSERT_TRUE(model().readability_distillation_complete_for_current_tree());
-
-  // Simulate a same-document / SPA navigation to Page 2.
-  // The AXTree ID (tree_id_) remains the same, but the URL on the root node is
-  // updated.
-  ui::AXTreeUpdate update2;
-  test::SetUpdateTreeID(&update2, tree_id_);
-  ui::AXNodeData root2;
-  root2.id = 1;
-  root2.role = ax::mojom::Role::kRootWebArea;
-  root2.AddStringAttribute(ax::mojom::StringAttribute::kUrl,
-                           "https://example.com/page2");
-  update2.root_id = root2.id;
-  update2.nodes = {std::move(root2)};
-  AccessibilityEventReceived({std::move(update2)});
-
-  // Set readability distillation to required again (e.g.,
-  // kDocumentTitleChanged/etc).
-  model().set_requires_readability_distillation(true);
-
-  // Since the URL changed to "https://example.com/page2",
-  // RequestReadabilityDistillation() SHOULD be called.
-  EXPECT_CALL(page_handler_, RequestReadabilityDistillation()).Times(1);
-
-  ProcessModelUpdates();
-
-  // The model requires_readability_distillation should be reset back to false.
-  EXPECT_FALSE(model().requires_readability_distillation());
-}
-
 TEST_F(ReadAnythingAppControllerTest,
        OnIsSpeechActiveChanged_LogsPlaybackContext) {
+  base::test::ScopedFeatureList scoped_feature_list;
+  scoped_feature_list.InitAndEnableFeature(features::kImmersiveReadAnything);
   base::HistogramTester histograms;
   const char* histogram_name =
       "Accessibility.ReadAnything.ReadAloud.PlaybackContext";
@@ -6246,6 +5988,18 @@ TEST_F(ReadAnythingAppControllerTest,
       histogram_name,
       ReadAloudAppModel::ReadAnythingPlaybackContext::kImmersive, 1);
   histograms.ExpectTotalCount(histogram_name, 2);
+}
+
+TEST_F(ReadAnythingAppControllerTest,
+       OnIsSpeechActiveChanged_NoLogWhenFeatureDisabled) {
+  base::test::ScopedFeatureList scoped_feature_list;
+  scoped_feature_list.InitAndDisableFeature(features::kImmersiveReadAnything);
+  base::HistogramTester histograms;
+  const char* histogram_name =
+      "Accessibility.ReadAnything.ReadAloud.PlaybackContext";
+
+  controller().OnIsSpeechActiveChanged(true);
+  histograms.ExpectTotalCount(histogram_name, 0);
 }
 
 TEST_F(ReadAnythingAppControllerTest, LogPageDuration_PdfInSidePanel) {
@@ -6294,6 +6048,9 @@ TEST_F(ReadAnythingAppControllerTest, LogPageDuration_NoStartTimeNoLog) {
 
 TEST_F(ReadAnythingAppControllerTest,
        Screen2xDistillationStatus_NotLoggedWhenHidden) {
+  base::test::ScopedFeatureList scoped_feature_list;
+  scoped_feature_list.InitAndEnableFeature(features::kImmersiveReadAnything);
+
   // Set to inactive (hidden)
   controller().OnGetPresentationState(
       read_anything::mojom::ReadAnythingPresentationState::kInactive);
@@ -6312,6 +6069,9 @@ TEST_F(ReadAnythingAppControllerTest,
 
 TEST_F(ReadAnythingAppControllerTest,
        Screen2xDistillationStatus_DoesNotRelogOnReopenWithoutRedistillation) {
+  base::test::ScopedFeatureList scoped_feature_list;
+  scoped_feature_list.InitAndEnableFeature(features::kImmersiveReadAnything);
+
   // 1. Open RM
   controller().OnGetPresentationState(
       read_anything::mojom::ReadAnythingPresentationState::kInImmersiveOverlay);
@@ -6372,6 +6132,9 @@ TEST_F(ReadAnythingAppControllerTest,
 
 TEST_F(ReadAnythingAppControllerTest,
        Screen2xDistillationStatus_LogsOnReopenOnNewPage) {
+  base::test::ScopedFeatureList scoped_feature_list;
+  scoped_feature_list.InitAndEnableFeature(features::kImmersiveReadAnything);
+
   // 1. Open RM on first page (Page A)
   controller().OnGetPresentationState(
       read_anything::mojom::ReadAnythingPresentationState::kInSidePanel);
@@ -6531,8 +6294,6 @@ TEST_F(ReadAnythingAppControllerTest,
 
 TEST_F(ReadAnythingAppControllerTest,
        OnNodeWillBeDeleted_InactiveTree_Ignored) {
-  model().set_next_distillation_method(
-      ReadAnythingAppModel::DistillationMethod::kScreen2x);
   // Create an inactive tree.
   ui::AXTreeID inactive_tree_id = ui::AXTreeID::CreateNewAXTreeID();
 
@@ -6578,8 +6339,6 @@ TEST_F(ReadAnythingAppControllerTest,
 
 TEST_F(ReadAnythingAppControllerTest,
        OnNodeWillBeDeleted_ActiveTree_Processed) {
-  model().set_next_distillation_method(
-      ReadAnythingAppModel::DistillationMethod::kScreen2x);
   // Create a node with ID 2 in the active tree, and mark it as visible.
   ui::AXTreeUpdate update;
   test::SetUpdateTreeID(&update, tree_id_);
@@ -6606,10 +6365,4 @@ TEST_F(ReadAnythingAppControllerTest,
 
   // Verify that node ID 2 WAS added to displayed_nodes_pending_deletion_.
   EXPECT_TRUE(IsNodePendingDeletion(2));
-}
-
-TEST_F(ReadAnythingAppControllerTest, ScreenAIServiceReady_UpdatesModel) {
-  EXPECT_FALSE(model().is_screen_ai_service_ready());
-  controller().ScreenAIServiceReady();
-  EXPECT_TRUE(model().is_screen_ai_service_ready());
 }

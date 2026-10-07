@@ -57,8 +57,8 @@ using storage::FileSystemURLSet;
 namespace sync_file_system {
 
 namespace {
-const char kOrigin1[] = "chrome-extension://example";
-const char kOrigin2[] = "chrome-extension://anotherexample";
+const char kOrigin1[] = "http://example.com";
+const char kOrigin2[] = "http://chromium.org";
 }  // namespace
 
 class LocalFileSyncContextTest : public testing::Test {

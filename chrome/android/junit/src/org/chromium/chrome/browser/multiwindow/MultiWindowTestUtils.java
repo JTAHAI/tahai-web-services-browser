@@ -43,7 +43,6 @@ public class MultiWindowTestUtils {
         ChromeMultiInstancePersistentStore.writeTabCount(
                 instanceId, tabCount, /* incognitoTabCount= */ 0);
         ChromeMultiInstancePersistentStore.writeTaskId(instanceId, taskId);
-        ChromeMultiInstancePersistentStore.writeIsRecoverable(instanceId, true);
         if (taskId != -1) MultiWindowUtils.addAppTaskIdForTesting(taskId);
     }
 

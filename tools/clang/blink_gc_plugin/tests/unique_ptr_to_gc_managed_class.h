@@ -28,4 +28,4 @@ class HeapObject : public GarbageCollected<HeapObject> {
 };
 }
 
-#endif  // OWN_PTR_TO_GC_MANAGED_CLASS_H_
+#endif

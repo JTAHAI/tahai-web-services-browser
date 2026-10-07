@@ -35,16 +35,16 @@ test(() => {
   assert_true(internals.isUseCounted(document, kContainerTimingAttributeHasRootName),
               "named containertiming should count kContainerTimingAttributeHasRootName.");
 
-  // containertimingignore counts kContainerTimingIgnoreAttribute.
+  // containertiming-ignore counts kContainerTimingIgnoreAttribute.
   assert_false(internals.isUseCounted(document, kContainerTimingIgnoreAttribute),
                "kContainerTimingIgnoreAttribute shouldn't be counted yet.");
 
   const ignore = document.createElement('div');
-  ignore.setAttribute("containertimingignore", "");
+  ignore.setAttribute("containertiming-ignore", "");
   document.body.appendChild(ignore);
 
   assert_true(internals.isUseCounted(document, kContainerTimingIgnoreAttribute),
-              "containertimingignore should count kContainerTimingIgnoreAttribute.");
+              "containertiming-ignore should count kContainerTimingIgnoreAttribute.");
 }, 'Behavior of Container Timing attribute use counters');
 
 </script>

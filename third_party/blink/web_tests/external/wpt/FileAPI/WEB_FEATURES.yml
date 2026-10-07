@@ -1,2 +1,4 @@
-rules:
-- "*": [file]
+features:
+- name: file
+  files:
+  - "*"

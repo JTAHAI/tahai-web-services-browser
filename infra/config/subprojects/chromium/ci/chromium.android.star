@@ -119,8 +119,6 @@ ci.builder(
             "has_native_resultdb_integration",
         ],
     ),
-    cores = 16,
-    ssd = True,
     free_space = builders.free_space.high,
     tree_closing = True,
     console_view_entry = consoles.console_view_entry(
@@ -767,6 +765,7 @@ ci.builder(
             config = "chromium",
             apply_configs = [
                 "android",
+                "enable_wpr_tests",
             ],
         ),
         chromium_config = builder_config.chromium_config(
@@ -1220,6 +1219,7 @@ ci.builder(
             "minimal_symbols",
             "official_optimize",
             "stable_channel",
+            "v8_release_branch",
             # Allows the bot to measure low-end arm32 and high-end arm64 using
             # a single build.
             "android_low_end_secondary_toolchain",
@@ -1907,6 +1907,53 @@ ci.thin_tester(
 )
 
 ci.thin_tester(
+    name = "android-cronet-x86-dbg-marshmallow-tests",
+    parent = "ci/android-cronet-x86-dbg",
+    builder_spec = builder_config.builder_spec(
+        execution_mode = builder_config.execution_mode.TEST,
+        gclient_config = builder_config.gclient_config(
+            config = "chromium",
+            apply_configs = [
+                "android",
+            ],
+        ),
+        chromium_config = builder_config.chromium_config(
+            config = "main_builder",
+            apply_configs = [
+                "cronet_builder",
+                "mb",
+            ],
+            build_config = builder_config.build_config.DEBUG,
+            target_arch = builder_config.target_arch.INTEL,
+            target_bits = 32,
+            target_platform = builder_config.target_platform.ANDROID,
+        ),
+        android_config = builder_config.android_config(
+            config = "base_config",
+        ),
+    ),
+    targets = targets.bundle(
+        targets = [
+            "cronet_gtests",
+        ],
+        mixins = [
+            "marshmallow-x86-emulator",
+            "emulator-4-cores",
+            "has_native_resultdb_integration",
+            "linux-jammy",
+            "x86-64",
+        ],
+    ),
+    gardener_rotations = args.ignore_default(gardener_rotations.CRONET),
+    console_view_entry = consoles.console_view_entry(
+        category = "cronet|test",
+        short_name = "m",
+    ),
+    contact_team_email = "cronet-team@google.com",
+    notifies = ["cronet"],
+)
+
+ci.thin_tester(
     name = "android-cronet-x86-dbg-nougat-tests",
     parent = "ci/android-cronet-x86-dbg",
     builder_spec = builder_config.builder_spec(
@@ -2282,6 +2329,7 @@ ci.builder(
                 # This is necessary due to this builder running the
                 # telemetry_perf_unittests suite.
                 "chromium_with_telemetry_dependencies",
+                "enable_wpr_tests",
             ],
         ),
         chromium_config = builder_config.chromium_config(
@@ -2486,6 +2534,7 @@ ci.builder(
                 # This is necessary due to this builder running the
                 # telemetry_perf_unittests suite.
                 "chromium_with_telemetry_dependencies",
+                "enable_wpr_tests",
             ],
         ),
         chromium_config = builder_config.chromium_config(
@@ -2548,10 +2597,6 @@ ci.builder(
                     shards = 2,
                 ),
             ),
-            # TODO(https://crbug.com/549938718): Re-enable on CQ
-            "android_webview_unittests": targets.mixin(
-                ci_only = True,
-            ),
             "base_unittests_android_death_tests": targets.mixin(
                 ci_only = True,
             ),
@@ -2560,9 +2605,6 @@ ci.builder(
                     "--disable-field-trial-config",
                     "--skia-gold-consider-unsupported",
                 ],
-                # Remove from CQ to save test resource. More details can be
-                # found in https://crbug.com/548722074
-                ci_only = True,
                 swarming = targets.swarming(
                     dimensions = {
                         # use 8-core to shorten runtime
@@ -3179,11 +3221,6 @@ ci.builder(
             "panther_on_14",
         ],
         per_test_modifications = {
-            "android_webview_unittests": targets.mixin(
-                # TODO(crbug.com/546581718): Re-enable on CQ once the high
-                # pending time is gone.
-                ci_only = True,
-            ),
             "android_browsertests": targets.mixin(
                 # TODO Re-enable on CQ once the high
                 # pending time is gone
@@ -3191,11 +3228,6 @@ ci.builder(
                 swarming = targets.swarming(
                     shards = 7,
                 ),
-            ),
-            "blink_platform_unittests": targets.mixin(
-                # TODO(crbug.com/546581718): Re-enable on CQ once the high
-                # pending time is gone.
-                ci_only = True,
             ),
             "cc_unittests": targets.mixin(
                 args = [
@@ -3206,21 +3238,6 @@ ci.builder(
                 args = [
                     "--test-launcher-filter-file=../../testing/buildbot/filters/android.device_14.chrome_public_test_apk.filter",
                 ],
-                ci_only = True,
-            ),
-            "chrome_public_unit_test_apk": targets.mixin(
-                # TODO(crbug.com/546581718): Re-enable on CQ once the high
-                # pending time is gone.
-                ci_only = True,
-            ),
-            "chrome_public_smoke_test": targets.mixin(
-                # TODO(crbug.com/546581718): Re-enable on CQ once the high
-                # pending time is gone.
-                ci_only = True,
-            ),
-            "chrome_public_bundle_smoke_test": targets.mixin(
-                # TODO(crbug.com/546581718): Re-enable on CQ once the high
-                # pending time is gone.
                 ci_only = True,
             ),
             "content_browsertests": targets.mixin(
@@ -3539,9 +3556,7 @@ ci.builder(
             "android_browsertests": targets.mixin(
                 args = [
                     # https://crbug.com/375086487
-                    ("--gtest_filter=-InstallableManagerBrowserTest.CheckManifestWithIconThatIsTooSmall:" +
-                     # https://crbug.com/542940281
-                     "PrerenderBrowserTest.HTTPFormActivation"),
+                    "--gtest_filter=-InstallableManagerBrowserTest.CheckManifestWithIconThatIsTooSmall",
                 ],
                 swarming = targets.swarming(
                     shards = 2,
@@ -4147,12 +4162,6 @@ ci.builder(
                     shards = 4,
                 ),
             ),
-            # TODO(https://crbug.com/549938718): Investigate the long runtime.
-            "android_webview_unittests": targets.mixin(
-                swarming = targets.swarming(
-                    shards = 4,
-                ),
-            ),
             "base_unittests": targets.mixin(
                 args = [
                     "--test-launcher-filter-file=../../testing/buildbot/filters/android.emulator_14_15_16.base_unittests.filter",
@@ -4173,7 +4182,6 @@ ci.builder(
             "chrome_public_test_apk": targets.mixin(
                 args = [
                     "--emulator-debug-tags=all",
-                    "--enable-leak-checks",
                 ],
                 swarming = targets.swarming(
                     shards = 47,

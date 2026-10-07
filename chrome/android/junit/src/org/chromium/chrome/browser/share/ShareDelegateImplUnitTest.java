@@ -37,15 +37,16 @@ import org.mockito.stubbing.Answer;
 import org.robolectric.annotation.Config;
 
 import org.chromium.base.Callback;
-import org.chromium.base.TriState;
 import org.chromium.base.supplier.ObservableSuppliers;
 import org.chromium.base.supplier.SettableMonotonicObservableSupplier;
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.base.test.RobolectricUtil;
+import org.chromium.base.test.util.Features;
 import org.chromium.base.test.util.HistogramWatcher;
 import org.chromium.chrome.browser.data_sharing.DataSharingTabManager;
 import org.chromium.chrome.browser.enterprise.util.DataProtectionBridge;
 import org.chromium.chrome.browser.feature_engagement.TrackerFactory;
+import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.lifecycle.ActivityLifecycleDispatcher;
 import org.chromium.chrome.browser.pdf.PdfUtils;
 import org.chromium.chrome.browser.profiles.Profile;
@@ -79,7 +80,9 @@ import java.util.List;
 
 /** Unit test for {@link ShareDelegateImpl} that mocked out most native class calls. */
 @RunWith(BaseRobolectricTestRunner.class)
-@Config(sdk = {BaseRobolectricTestRunner.MIN_SDK, 34})
+@Config(
+        manifest = Config.NONE,
+        sdk = {BaseRobolectricTestRunner.MIN_SDK, 34})
 public class ShareDelegateImplUnitTest {
     @Rule public MockitoRule mockitoRule = MockitoJUnit.rule();
 
@@ -279,6 +282,7 @@ public class ShareDelegateImplUnitTest {
     }
 
     @Test
+    @Features.EnableFeatures(ChromeFeatureList.ENABLE_CLIPBOARD_DATA_CONTROLS_ANDROID)
     public void testShareText_allowedByPolicy() {
         doAnswer(sShareIsAllowedByPolicy)
                 .when(mDataProtectionBridgeMock)
@@ -295,6 +299,7 @@ public class ShareDelegateImplUnitTest {
     }
 
     @Test
+    @Features.EnableFeatures(ChromeFeatureList.ENABLE_CLIPBOARD_DATA_CONTROLS_ANDROID)
     public void testShareText_notAllowedByPolicy() {
         doAnswer(sShareIsNotAllowedByPolicy)
                 .when(mDataProtectionBridgeMock)
@@ -310,6 +315,7 @@ public class ShareDelegateImplUnitTest {
     }
 
     @Test
+    @Features.EnableFeatures(ChromeFeatureList.ENABLE_CLIPBOARD_DATA_CONTROLS_ANDROID)
     public void testShareText_emptyText_bypassesPolicyCheck() {
         doAnswer(sShareIsNotAllowedByPolicy)
                 .when(mDataProtectionBridgeMock)
@@ -324,6 +330,7 @@ public class ShareDelegateImplUnitTest {
     }
 
     @Test
+    @Features.EnableFeatures(ChromeFeatureList.ENABLE_CLIPBOARD_DATA_CONTROLS_ANDROID)
     public void testShareLink_allowedByPolicy() {
         doAnswer(sShareIsAllowedByPolicy)
                 .when(mDataProtectionBridgeMock)
@@ -342,6 +349,7 @@ public class ShareDelegateImplUnitTest {
     }
 
     @Test
+    @Features.EnableFeatures(ChromeFeatureList.ENABLE_CLIPBOARD_DATA_CONTROLS_ANDROID)
     public void testShareLink_notAllowedByPolicy() {
         doAnswer(sShareIsNotAllowedByPolicy)
                 .when(mDataProtectionBridgeMock)
@@ -359,6 +367,7 @@ public class ShareDelegateImplUnitTest {
     }
 
     @Test
+    @Features.EnableFeatures(ChromeFeatureList.ENABLE_CLIPBOARD_DATA_CONTROLS_ANDROID)
     public void testShareLink_emptyUrl_bypassesPolicyCheck() {
         doAnswer(sShareIsNotAllowedByPolicy)
                 .when(mDataProtectionBridgeMock)
@@ -372,6 +381,7 @@ public class ShareDelegateImplUnitTest {
     }
 
     @Test
+    @Features.EnableFeatures(ChromeFeatureList.ENABLE_CLIPBOARD_DATA_CONTROLS_ANDROID)
     public void testShareImage_allowedByPolicy() {
         doAnswer(sShareIsAllowedByPolicy)
                 .when(mDataProtectionBridgeMock)
@@ -392,6 +402,7 @@ public class ShareDelegateImplUnitTest {
     }
 
     @Test
+    @Features.EnableFeatures(ChromeFeatureList.ENABLE_CLIPBOARD_DATA_CONTROLS_ANDROID)
     public void testShareImage_notAllowedByPolicy() {
         doAnswer(sShareIsNotAllowedByPolicy)
                 .when(mDataProtectionBridgeMock)
@@ -411,6 +422,7 @@ public class ShareDelegateImplUnitTest {
     }
 
     @Test
+    @Features.EnableFeatures(ChromeFeatureList.ENABLE_CLIPBOARD_DATA_CONTROLS_ANDROID)
     public void testShareImage_emptyUrl_bypassesPolicyCheck() {
         doAnswer(sShareIsNotAllowedByPolicy)
                 .when(mDataProtectionBridgeMock)
@@ -425,6 +437,7 @@ public class ShareDelegateImplUnitTest {
     }
 
     @Test
+    @Features.EnableFeatures(ChromeFeatureList.ENABLE_CLIPBOARD_DATA_CONTROLS_ANDROID)
     public void testShare_nullRenderFrameHost_bypassesPolicyCheck() {
         doAnswer(sShareIsNotAllowedByPolicy)
                 .when(mDataProtectionBridgeMock)
@@ -435,6 +448,23 @@ public class ShareDelegateImplUnitTest {
                 new ShareParams.Builder(mWindowAndroid, "", "").setText(shareText).build();
         ChromeShareExtras chromeShareExtras =
                 new ChromeShareExtras.Builder().setRenderFrameHost(null).build();
+
+        testShareExpectAllowed(shareParams, chromeShareExtras);
+        Assert.assertEquals(shareText, mShareParamsCaptor.getValue().getText());
+    }
+
+    @Test
+    @Features.DisableFeatures(ChromeFeatureList.ENABLE_CLIPBOARD_DATA_CONTROLS_ANDROID)
+    public void testShare_featureFlagDisabled_bypassesPolicyCheck() {
+        doAnswer(sShareIsNotAllowedByPolicy)
+                .when(mDataProtectionBridgeMock)
+                .verifyCopyTextIsAllowedByPolicy(anyString(), any(), any());
+        String shareText = "shareText";
+
+        ShareParams shareParams =
+                new ShareParams.Builder(mWindowAndroid, "", "").setText(shareText).build();
+        ChromeShareExtras chromeShareExtras =
+                new ChromeShareExtras.Builder().setRenderFrameHost(mRenderFrameHost).build();
 
         testShareExpectAllowed(shareParams, chromeShareExtras);
         Assert.assertEquals(shareText, mShareParamsCaptor.getValue().getText());
@@ -566,7 +596,7 @@ public class ShareDelegateImplUnitTest {
                                 mWindowAndroid, "", JUnitTestGURLs.TEXT_FRAGMENT_URL.getSpec())
                         .setBypassFixingDomDistillerUrl(true)
                         .setText("text")
-                        .setLinkToTextSuccessful(TriState.TRUE)
+                        .setLinkToTextSuccessful(true)
                         .build();
         extras =
                 new ChromeShareExtras.Builder()
@@ -601,7 +631,7 @@ public class ShareDelegateImplUnitTest {
                                         List.of(
                                                 Uri.parse("content://path/to/image1"),
                                                 Uri.parse("content://path/to/image2"))))
-                        .setLinkToTextSuccessful(TriState.TRUE)
+                        .setLinkToTextSuccessful(true)
                         .setFileContentType("image/png")
                         .build();
         extras =

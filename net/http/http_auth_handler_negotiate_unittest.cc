@@ -58,7 +58,7 @@ class HttpAuthHandlerNegotiateTest : public PlatformTest,
                                      public WithTaskEnvironment {
  public:
   void SetUp() override {
-    AddScopedFeatureList().InitAndEnableFeature(
+    scoped_feature_list_.InitAndEnableFeature(
         features::kPartitionConnectionsByNetworkIsolationKey);
     network_anoymization_key_ = NetworkAnonymizationKey::CreateTransient();
 #if BUILDFLAG(IS_WIN)
@@ -261,6 +261,8 @@ class HttpAuthHandlerNegotiateTest : public PlatformTest,
   }
 
  private:
+  base::test::ScopedFeatureList scoped_feature_list_;
+
   NetworkAnonymizationKey network_anoymization_key_;
 
 #if BUILDFLAG(IS_WIN)

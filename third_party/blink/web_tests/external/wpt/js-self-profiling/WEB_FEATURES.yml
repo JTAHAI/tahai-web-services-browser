@@ -1,2 +1,3 @@
-rules:
-- "**": [profiler]
+features:
+- name: profiler
+  files: "**"

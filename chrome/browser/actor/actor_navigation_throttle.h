@@ -76,13 +76,13 @@ class ActorNavigationThrottle : public content::NavigationThrottle {
   content::NavigationThrottle::ThrottleCheckResult WillStartOrRedirectRequest(
       bool is_redirection);
 
-  void OnIsAcceptableNavigationDestinationResult(
+  void OnMayActOnUrlResult(
       std::unique_ptr<AggregatedJournal::PendingAsyncEntry> journal_entry,
       MayActOnUrlBlockReason block_reason);
 
-  // Adds to the journal and resumes/cancels the navigation as needed. Must not
+  // Adds to the journal and resumes/cancels the navigation if needed. Must not
   // be called for prerendered main frame navigations.
-  void OnNavigationConfirmationDecision(MayActOnUrlBlockReason block_reason);
+  void OnNavigationConfirmationDecision(bool was_deferred, bool may_continue);
 
   // Decision handlers for navigation throttle outcomes.
   void OnUserLeaveDialogDecision(bool may_continue);

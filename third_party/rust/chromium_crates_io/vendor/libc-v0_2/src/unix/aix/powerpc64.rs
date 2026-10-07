@@ -3,7 +3,7 @@ use crate::prelude::*;
 
 // Define lock_data_instrumented as an empty enum
 extern_ty! {
-    pub type lock_data_instrumented;
+    pub enum lock_data_instrumented {}
 }
 
 s! {

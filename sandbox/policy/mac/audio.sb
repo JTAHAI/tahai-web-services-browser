@@ -43,15 +43,18 @@
 )
 
 ; Needed by ScreenCaptureKit.
-(allow mach-lookup (global-name "com.apple.replayd"))
-(allow file-read*
-  (subpath "/System/Library/CoreServices/SystemAppearance.bundle")
-  (subpath "/System/Library/CoreServices/SystemFolderLocalizations")
-)
-(allow sysctl-read
-  (sysctl-name "hw.optional.f16c")
-  (sysctl-name "hw.optional.avx512bw")
-)
+(if (>= os-version 1300)
+  (begin
+    (allow mach-lookup (global-name "com.apple.replayd"))
+    (allow file-read*
+      (subpath "/System/Library/CoreServices/SystemAppearance.bundle")
+      (subpath "/System/Library/CoreServices/SystemFolderLocalizations")
+    )
+    (allow sysctl-read
+      (sysctl-name "hw.optional.f16c")
+      (sysctl-name "hw.optional.avx512bw")
+    )
+))
 
 ; sysctls.
 (allow sysctl-read

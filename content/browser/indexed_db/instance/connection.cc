@@ -31,7 +31,6 @@
 #include "components/services/storage/indexed_db/locks/partitioned_lock_id.h"
 #include "components/services/storage/indexed_db/locks/partitioned_lock_manager.h"
 #include "components/services/storage/privileged/mojom/indexed_db_client_state_checker.mojom.h"
-#include "content/browser/indexed_db/indexed_db_reporting.h"
 #include "content/browser/indexed_db/instance/backing_store.h"
 #include "content/browser/indexed_db/instance/callback_helpers.h"
 #include "content/browser/indexed_db/instance/database_callbacks.h"
@@ -315,15 +314,12 @@ void Connection::CreateTransaction(
 
   if (mode != blink::mojom::IDBTransactionMode::ReadOnly &&
       mode != blink::mojom::IDBTransactionMode::ReadWrite) {
-    ReportBadMessage(BadMessageReason::kConnectionCreateTransactionInvalidMode,
-                     kBadTransactionMode, receiver_->GetBadMessageCallback());
+    receiver_->ReportBadMessage(kBadTransactionMode);
     return;
   }
 
   if (GetTransaction(transaction_id)) {
-    ReportBadMessage(
-        BadMessageReason::kConnectionCreateTransactionAlreadyExists,
-        kTransactionAlreadyExists, receiver_->GetBadMessageCallback());
+    receiver_->ReportBadMessage(kTransactionAlreadyExists);
     return;
   }
 
@@ -401,9 +397,7 @@ void Connection::GetAll(int64_t transaction_id,
                         blink::mojom::IDBCursorDirection direction,
                         blink::mojom::IDBDatabase::GetAllCallback callback) {
   if (max_count == 0) {
-    ReportBadMessage(BadMessageReason::kConnectionGetAllInvalidMaxCount,
-                     "max_count must be greater than 0.",
-                     receiver_->GetBadMessageCallback());
+    receiver_->ReportBadMessage("max_count must be greater than 0.");
     return;
   }
 
@@ -458,21 +452,17 @@ void Connection::OpenCursor(
   if ((*transaction)->mode() !=
           blink::mojom::IDBTransactionMode::VersionChange &&
       task_type == blink::mojom::IDBTaskType::Preemptive) {
-    ReportBadMessage(
-        BadMessageReason::kConnectionOpenCursorInvalidTaskType,
+    receiver_->ReportBadMessage(
         "OpenCursor with |Preemptive| task type must be called from a version "
-        "change transaction.",
-        receiver_->GetBadMessageCallback());
+        "change transaction.");
     return;
   }
 
   if (task_type == blink::mojom::IDBTaskType::Preemptive &&
       (index_id != IndexedDBIndexMetadata::kInvalidId || key_only)) {
-    ReportBadMessage(
-        BadMessageReason::kConnectionOpenCursorInvalidIteration,
+    receiver_->ReportBadMessage(
         "OpenCursor with |Preemptive| task type can only be called when "
-        "iterating over object store values (to populate an index).",
-        receiver_->GetBadMessageCallback());
+        "iterating over object store values (to populate an index).");
     return;
   }
 
@@ -625,10 +615,8 @@ void Connection::CreateIndex(int64_t transaction_id,
                     obj_store_iter->second.max_index_id < new_index_id) {
                   return Status::OK();
                 }
-                ReportBadMessage(
-                    BadMessageReason::kConnectionCreateIndexInvalidMetadata,
-                    "Invalid object_store_id or index_id.",
-                    std::move(report_bad_message_callback));
+                std::move(report_bad_message_callback)
+                    .Run("Invalid object_store_id or index_id.");
                 return Status::InvalidArgument(
                     "Invalid object_store_id or index_id.");
               },
@@ -764,9 +752,7 @@ Connection::GetTransactionAndVerifyState(
   if (required_mode.has_value() && (transaction->mode() != *required_mode)) {
     TRACE_EVENT_INSTANT(
         "IndexedDB", "Connection::GetTransactionAndVerifyState - Wrong mode");
-    ReportBadMessage(BadMessageReason::kConnectionWrongTransactionMode,
-                     "Called from wrong transaction type.",
-                     receiver_->GetBadMessageCallback());
+    receiver_->ReportBadMessage("Called from wrong transaction type.");
     return base::unexpected(DatabaseError(
         blink::mojom::IDBException::kUnknownError, "Wrong transaction type."));
   }

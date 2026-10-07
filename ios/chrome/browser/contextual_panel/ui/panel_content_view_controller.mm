@@ -92,7 +92,7 @@ UIImage* CloseButtonImage(BOOL highlighted) {
   }
 
   return SymbolWithPalette(
-      SymbolWithPointSize(SymbolXMarkCircleFill, kCloseButtonIconSize),
+      DefaultSymbolWithPointSize(kXMarkCircleFillSymbol, kCloseButtonIconSize),
       palette);
 }
 
@@ -199,9 +199,10 @@ UIImage* CloseButtonImage(BOOL highlighted) {
 
 #if BUILDFLAG(IOS_USE_BRANDED_ASSETS)
   UIImage* logoImage = MakeSymbolMulticolor(
-      SymbolWithPointSize(SymbolMulticolorChromeball, kLogoSize));
+      CustomSymbolWithPointSize(kMulticolorChromeballSymbol, kLogoSize));
 #else
-  UIImage* logoImage = SymbolWithPointSize(SymbolChromeProduct, kLogoSize);
+  UIImage* logoImage =
+      CustomSymbolWithPointSize(kChromeProductSymbol, kLogoSize);
 #endif  // BUILDFLAG(IOS_USE_BRANDED_ASSETS)
 
   UIImageView* logoImageView = [[UIImageView alloc] initWithImage:logoImage];

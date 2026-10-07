@@ -23,6 +23,7 @@
 #include "base/values.h"
 #include "components/payments/content/browser_binding/browser_bound_key.h"
 #include "components/payments/content/browser_binding/passkey_browser_binder.h"
+#include "components/payments/content/payment_request_spec.h"
 #include "components/payments/core/error_strings.h"
 #include "components/payments/core/features.h"
 #include "components/payments/core/method_strings.h"
@@ -73,6 +74,7 @@ SecurePaymentConfirmationApp::SecurePaymentConfirmationApp(
     std::unique_ptr<PasskeyBrowserBinder> passkey_browser_binder,
     bool device_supports_browser_bound_keys_in_hardware,
     const url::Origin& merchant_origin,
+    base::WeakPtr<PaymentRequestSpec> spec,
     mojom::SecurePaymentConfirmationRequestPtr request,
     std::unique_ptr<webauthn::InternalAuthenticator> authenticator,
     std::vector<PaymentApp::PaymentEntityLogo> payment_entities_logos,
@@ -88,6 +90,7 @@ SecurePaymentConfirmationApp::SecurePaymentConfirmationApp(
       payment_instrument_icon_(std::move(payment_instrument_icon)),
       credential_id_(std::move(credential_id)),
       merchant_origin_(merchant_origin),
+      spec_(spec),
       request_(std::move(request)),
       authenticator_(std::move(authenticator)),
       passkey_browser_binder_(std::move(passkey_browser_binder)),
@@ -102,9 +105,10 @@ SecurePaymentConfirmationApp::~SecurePaymentConfirmationApp() = default;
 
 void SecurePaymentConfirmationApp::InvokePaymentApp(
     base::WeakPtr<Delegate> delegate) {
-  if (!authenticator_) {
+  if (!authenticator_ || !spec_)
     return;
-  }
+
+  DCHECK(spec_->IsInitialized());
 
   auto options = blink::mojom::PublicKeyCredentialRequestOptions::New();
   options->relying_party_id = effective_relying_party_identity_;
@@ -236,18 +240,6 @@ SecurePaymentConfirmationApp::GetPaymentEntitiesLogos() {
   return filtered_logos;
 }
 
-void SecurePaymentConfirmationApp::SetTotal(mojom::PaymentItemPtr total) {
-  CHECK(!total_)
-      << "The total should only be set once on SecurePaymentConfirmationApp";
-  total_ = std::move(total);
-}
-
-const mojom::PaymentItemPtr& SecurePaymentConfirmationApp::GetTotalForSpc()
-    const {
-  CHECK(total_) << "SetTotal() must be called before GetTotalForSpc() is";
-  return total_;
-}
-
 bool SecurePaymentConfirmationApp::IsValidForModifier(
     const std::string& method) const {
   bool is_valid = false;
@@ -316,7 +308,8 @@ SecurePaymentConfirmationApp::SetAppSpecificResponseFields(
 
 void SecurePaymentConfirmationApp::RenderFrameDeleted(
     content::RenderFrameHost* render_frame_host) {
-  if (render_frame_host->GetGlobalId() == authenticator_frame_routing_id_) {
+  if (content::RenderFrameHost::FromID(authenticator_frame_routing_id_) ==
+      render_frame_host) {
     // The authenticator requires to be deleted before the render frame.
     authenticator_.reset();
   }
@@ -377,8 +370,8 @@ void SecurePaymentConfirmationApp::OnGetBrowserBoundKey(
         base::UTF16ToUTF8(logo.label)));
   }
   authenticator_->SetPaymentOptions(blink::mojom::PaymentOptions::New(
-      GetTotalForSpc()->amount.Clone(), std::move(instrument),
-      request_->payee_name, request_->payee_origin,
+      spec_->GetTotal(/*selected_app=*/this)->amount.Clone(),
+      std::move(instrument), request_->payee_name, request_->payee_origin,
       /*payment_entities_logos=*/std::move(payment_entities_logos),
       std::move(browser_bound_public_key)));
 

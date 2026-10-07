@@ -54,7 +54,9 @@ void GuestContentsHostImpl::Attach(
   content::RenderFrameHost* frame_to_swap =
       content::RenderFrameHost::FromFrameToken(
           content::GlobalRenderFrameHostToken(
-              outer_web_contents_->GetPrimaryMainFrame()->GetProcess()->GetID(),
+              outer_web_contents_->GetPrimaryMainFrame()
+                  ->GetProcess()
+                  ->GetDeprecatedID(),
               token_of_frame_to_swap));
 
   if (!frame_to_swap) {

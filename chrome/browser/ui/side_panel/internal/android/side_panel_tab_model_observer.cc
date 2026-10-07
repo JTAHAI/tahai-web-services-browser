@@ -78,10 +78,7 @@ void SidePanelTabModelObserver::TabRemoved(TabAndroid* tab) {
   coordinator_->OnTabReparented(tab);
 }
 
-void SidePanelTabModelObserver::WillCloseTabs(
-    const std::vector<TabAndroid*>& tabs,
-    bool is_all_tabs,
-    bool allow_undo) {
+void SidePanelTabModelObserver::AllTabsAreClosing() {
   // Usually when a tab is closed, DidSelectTab() will be called for the new
   // active tab and it will update the side panel states, including closing the
   // side panel if the new active tab doesn't need it.
@@ -109,14 +106,8 @@ void SidePanelTabModelObserver::WillCloseTabs(
   // Relying on DidSelectTab() won't meet the condition in (3), and we
   // shouldn't change (3) as it prevents holding/dereferencing an _invalid_
   // pointer to the SidePanelRegistry of the deleted tab.
-  if (is_all_tabs) {
-    coordinator_->Close(SidePanelEntryHideReason::kSidePanelClosed,
-                        /*suppress_animations=*/true);
-  }
-}
-
-void SidePanelTabModelObserver::AllTabsAreClosing() {
-  WillCloseTabs({}, /*is_all_tabs=*/true, /*allow_undo=*/false);
+  coordinator_->Close(SidePanelEntryHideReason::kSidePanelClosed,
+                      /*suppress_animations=*/true);
 }
 
 void SidePanelTabModelObserver::OnTabModelDestroyed(TabModel& tab_model) {

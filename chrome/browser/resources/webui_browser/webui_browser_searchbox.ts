@@ -28,27 +28,11 @@ export interface WebuiBrowserSearchboxElement {
   };
 }
 
-import {SearchboxSelectionMixin} from '//resources/cr_components/searchbox/searchbox_selection_mixin.js';
-
-
-const WebuiBrowserSearchboxElementBase = SearchboxMixin(
-    SearchboxSelectionMixin(I18nMixinLit(WebUiListenerMixinLit(CrLitElement))));
+const WebuiBrowserSearchboxElementBase =
+    SearchboxMixin(I18nMixinLit(WebUiListenerMixinLit(CrLitElement)));
 
 export class WebuiBrowserSearchboxElement extends
     WebuiBrowserSearchboxElementBase implements SearchboxMixinInterface {
-  override get isAimButtonVisible(): boolean {
-    return false;
-  }
-
-  override get showContextEntrypoint(): boolean {
-    return false;
-  }
-
-  override get virtualFocusEnabled(): boolean {
-    return loadTimeData.valueExists('webuiBrowserVirtualFocusNavigation') &&
-        loadTimeData.getBoolean('webuiBrowserVirtualFocusNavigation');
-  }
-
   static get is() {
     return 'webui-browser-searchbox';
   }

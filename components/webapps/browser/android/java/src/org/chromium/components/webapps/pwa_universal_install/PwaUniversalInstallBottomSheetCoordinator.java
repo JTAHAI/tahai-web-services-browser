@@ -26,7 +26,6 @@ import org.chromium.build.annotations.Nullable;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController;
 import org.chromium.components.webapps.AppType;
 import org.chromium.components.webapps.R;
-import org.chromium.components.webapps.WebappsFeatureMap;
 import org.chromium.content_public.browser.WebContents;
 import org.chromium.ui.modelutil.PropertyModelChangeProcessor;
 import org.chromium.ui.widget.Toast;
@@ -287,13 +286,11 @@ public class PwaUniversalInstallBottomSheetCoordinator {
 
         if (!mWaitingToShow) {
             RecordHistogram.recordEnumeratedHistogram(
-                    "WebApk.UniversalInstall.TimeoutWithAppType", appType, AppType.MAX_VALUE + 1);
+                    "WebApk.UniversalInstall.TimeoutWithAppType", appType, AppType.MAX_VALUE);
             // If we are not waiting to show, that means the dialog has shown already while the app
             // type was not known. This allows the metric to catch up to that fact.
             RecordHistogram.recordEnumeratedHistogram(
-                    "WebApk.UniversalInstall.DialogShownForAppType",
-                    mAppType,
-                    AppType.MAX_VALUE + 1);
+                    "WebApk.UniversalInstall.DialogShownForAppType", mAppType, AppType.MAX_VALUE);
             return;
         }
 
@@ -301,10 +298,9 @@ public class PwaUniversalInstallBottomSheetCoordinator {
         // to the install dialog. Both outcomes mean that we can stop listening for this flag.
         mWaitingToShow = false;
 
-        boolean canSkipInstallCreateShortcutDisambiguationDialog =
-                (isInstallable(mAppType) && mIsRoot) || mAppType == AppType.SHORTCUT;
-        if (!isAlwaysShowInstallDisambiguationDialogEnabled()
-                && canSkipInstallCreateShortcutDisambiguationDialog) {
+        // We haven't shown the dialog yet, so there's an opportunity to skip this dialog and
+        // redirect straight to the Install App/Create Shortcut dialog.
+        if (mAppType == AppType.SHORTCUT || (mIsRoot && isInstallable(mAppType))) {
             switch (mAppType) {
                 case AppType.SHORTCUT:
                     mAddShortcutCallback.run();
@@ -335,7 +331,7 @@ public class PwaUniversalInstallBottomSheetCoordinator {
         }
 
         RecordHistogram.recordEnumeratedHistogram(
-                "WebApk.UniversalInstall.DialogShownForAppType", mAppType, AppType.MAX_VALUE + 1);
+                "WebApk.UniversalInstall.DialogShownForAppType", mAppType, AppType.MAX_VALUE);
 
         show(/* wasTimeout= */ false);
     }
@@ -349,11 +345,6 @@ public class PwaUniversalInstallBottomSheetCoordinator {
             default:
                 return false;
         }
-    }
-
-    public boolean isAlwaysShowInstallDisambiguationDialogEnabled() {
-        return WebappsFeatureMap.isEnabled(
-                WebappsFeatureMap.ALWAYS_SHOW_INSTALL_DISAMBIGUATION_DIALOG);
     }
 
     @NativeMethods

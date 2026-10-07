@@ -55,8 +55,7 @@ FileTypePoliciesOverrideResult ShouldOverrideFileTypePolicies(
     const std::string* extension_for_this_entry =
         extension_domain_patterns_dict.FindString(kFileExtensionNameKey);
     if (extension_for_this_entry &&
-        base::EqualsCaseInsensitiveASCII(*extension_for_this_entry,
-                                         lower_extension)) {
+        base::ToLowerASCII(*extension_for_this_entry) == lower_extension) {
       const base::ListValue* domains_for_this_entry =
           extension_domain_patterns_dict.FindList(kDomainListKey);
       if (domains_for_this_entry) {

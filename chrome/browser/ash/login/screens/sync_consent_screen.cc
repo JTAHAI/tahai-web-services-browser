@@ -148,14 +148,6 @@ void SyncConsentScreen::MaybeLaunchSyncConsentSettings(Profile* profile) {
   }
 }
 
-// static
-bool SyncConsentScreen::AreCapabilitiesLoaded(
-    const AccountCapabilities& capabilities) {
-  return capabilities
-             .can_show_history_sync_opt_ins_without_minor_mode_restrictions() !=
-         signin::Tribool::kUnknown;
-}
-
 SyncConsentScreen::SyncConsentScreen(base::WeakPtr<SyncConsentScreenView> view,
                                      const ScreenExitCallback& exit_callback)
     : BaseScreen(SyncConsentScreenView::kScreenId, OobeScreenPriority::DEFAULT),

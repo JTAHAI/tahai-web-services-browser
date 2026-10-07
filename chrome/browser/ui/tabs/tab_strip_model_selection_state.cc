@@ -50,16 +50,6 @@ void TabStripModelSelectionState::Clear() {
   focused_group_ = std::nullopt;
 }
 
-bool TabStripModelSelectionState::IsTabValidInFocusedGroup(
-    const TabInterface* tab,
-    std::optional<tab_groups::TabGroupId> focused_group) {
-  if (!tab || !focused_group.has_value()) {
-    return false;
-  }
-
-  return (tab->GetGroup() == focused_group.value()) || tab->IsPinned();
-}
-
 bool TabStripModelSelectionState::IsSelected(TabInterface* tab) const {
   return selected_tabs_.contains(tab);
 }
@@ -73,7 +63,7 @@ void TabStripModelSelectionState::UpdateFocusGroupValidity() {
     return;
   }
   for (TabInterface* tab : selected_tabs_) {
-    if (!IsTabValidInFocusedGroup(tab, focused_group_)) {
+    if (!tab || tab->GetGroup() != focused_group_) {
       focused_group_ = std::nullopt;
       return;
     }
@@ -95,7 +85,7 @@ void TabStripModelSelectionState::RemoveTabFromSelection(TabInterface* tab) {
   }
 
   if (tab == anchor_tab_) {
-    anchor_tab_ = active_tab_;
+    anchor_tab_ = nullptr;
   }
 
   selected_tabs_.erase(tab);
@@ -167,7 +157,7 @@ bool TabStripModelSelectionState::Valid() const {
   }
   if (focused_group_.has_value()) {
     for (TabInterface* tab : selected_tabs_) {
-      if (!IsTabValidInFocusedGroup(tab, focused_group_)) {
+      if (!tab || tab->GetGroup() != focused_group_) {
         return false;
       }
     }

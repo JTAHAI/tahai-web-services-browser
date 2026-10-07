@@ -95,7 +95,6 @@ class VIZ_HOST_EXPORT ClientFrameSinkVideoCapturer
                     uint32_t sub_capture_target_version);
   void Stop();
   void RequestRefreshFrame();
-  void InvalidateBuffers();
 
   // Similar to FrameSinkVideoCapturer::Start, but takes in a pointer directly
   // to the FrameSinkVideoConsumer implementation class (as opposed to a

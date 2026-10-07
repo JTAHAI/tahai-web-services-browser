@@ -20,28 +20,28 @@ import org.chromium.build.annotations.NullMarked;
  */
 @NullMarked
 public class IncognitoColors {
-    /** {@link SemanticColorUtils#getColorSurface} */
+    /** {@see SemanticColorUtils#getColorSurface} */
     public static @ColorInt int getColorSurface(Context context, boolean isIncognito) {
         return isIncognito
                 ? context.getColor(R.color.gm3_baseline_surface_dark)
                 : SemanticColorUtils.getColorSurface(context);
     }
 
-    /** {@link SemanticColorUtils#getColorSurfaceBright} */
+    /** {@see SemanticColorUtils#getColorSurfaceBright} */
     public static @ColorInt int getColorSurfaceBright(Context context, boolean isIncognito) {
         return isIncognito
                 ? context.getColor(R.color.gm3_baseline_surface_bright_dark)
                 : SemanticColorUtils.getColorSurfaceBright(context);
     }
 
-    /** {@link SemanticColorUtils#getColorSurfaceContainerHigh} */
+    /** {@see SemanticColorUtils#getColorSurfaceContainerHigh} */
     public static @ColorInt int getColorSurfaceContainerHigh(Context context, boolean isIncognito) {
         return isIncognito
                 ? context.getColor(R.color.gm3_baseline_surface_container_high_dark)
                 : SemanticColorUtils.getColorSurfaceContainerHigh(context);
     }
 
-    /** {@link SemanticColorUtils#getColorSurfaceContainerHighest} */
+    /** {@see SemanticColorUtils#getColorSurfaceContainerHighest} */
     public static @ColorInt int getColorSurfaceContainerHighest(
             Context context, boolean isIncognito) {
         return isIncognito
@@ -49,14 +49,14 @@ public class IncognitoColors {
                 : SemanticColorUtils.getColorSurfaceContainerHighest(context);
     }
 
-    /** {@link SemanticColorUtils#getColorSurfaceContainerLow} */
+    /** {@see SemanticColorUtils#getColorSurfaceContainerLow} */
     public static @ColorInt int getColorSurfaceContainerLow(Context context, boolean isIncognito) {
         return isIncognito
                 ? context.getColor(R.color.gm3_baseline_surface_container_low_dark)
                 : SemanticColorUtils.getColorSurfaceContainerLow(context);
     }
 
-    /** {@link SemanticColorUtils#getInteractableChipBgColor} */
+    /** {@see SemanticColorUtils#getInteractableChipBgColor} */
     public static @ColorInt int getInteractableChipBgColor(Context context, boolean isIncognito) {
         return isIncognito
                 ? context.getColor(R.color.gm3_baseline_surface_container_high_dark)
@@ -71,49 +71,49 @@ public class IncognitoColors {
                 : SemanticColorUtils.getColorSurfaceContainerTintList(context);
     }
 
-    /** {@link SemanticColorUtils#getColorPrimaryContainer} */
+    /** {@see SemanticColorUtils#getColorPrimaryContainer} */
     public static @ColorInt int getColorPrimaryContainer(Context context, boolean isIncognito) {
         return isIncognito
                 ? context.getColor(R.color.baseline_primary_30)
                 : SemanticColorUtils.getColorPrimaryContainer(context);
     }
 
-    /** {@link SemanticColorUtils#getColorPrimary} */
+    /** {@see SemanticColorUtils#getColorPrimary} */
     public static @ColorInt int getColorPrimary(Context context, boolean isIncognito) {
         return isIncognito
                 ? context.getColor(R.color.baseline_primary_80)
                 : SemanticColorUtils.getColorPrimary(context);
     }
 
-    /** {@link SemanticColorUtils#getDefaultIconColor} */
+    /** {@see SemanticColorUtils#getDefaultIconColor} */
     public static @ColorInt int getDefaultIconColor(Context context, boolean isIncognito) {
         return isIncognito
                 ? context.getColor(R.color.baseline_neutral_90)
                 : SemanticColorUtils.getDefaultIconColor(context);
     }
 
-    /** {@link SemanticColorUtils#getDefaultIconColorSecondary} */
+    /** {@see SemanticColorUtils#getDefaultIconColorSecondary} */
     public static @ColorInt int getDefaultIconColorSecondary(Context context, boolean isIncognito) {
         return isIncognito
                 ? context.getColor(R.color.baseline_neutral_variant_80)
                 : SemanticColorUtils.getDefaultIconColorSecondary(context);
     }
 
-    /** {@link SemanticColorUtils#getColorOnSurface} */
+    /** {@see SemanticColorUtils#getColorOnSurface} */
     public static @ColorInt int getColorOnSurface(Context context, boolean isIncognito) {
         return isIncognito
                 ? context.getColor(R.color.baseline_neutral_90)
                 : SemanticColorUtils.getColorOnSurface(context);
     }
 
-    /** {@link SemanticColorUtils#getDividerLineBgColor} */
+    /** {@see SemanticColorUtils#getDividerLineBgColor} */
     public static @ColorInt int getDividerLineBgColor(Context context, boolean isIncognito) {
         return isIncognito
                 ? context.getColor(R.color.divider_color_light)
                 : SemanticColorUtils.getDividerColor(context);
     }
 
-    /** {@link SemanticColorUtils#getColorOnPrimary} */
+    /** {@see SemanticColorUtils#getColorOnPrimary} */
     public static @ColorInt int getColorOnPrimary(Context context, boolean isIncognito) {
         return isIncognito
                 ? context.getColor(R.color.baseline_primary_20)

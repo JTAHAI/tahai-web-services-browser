@@ -18,6 +18,7 @@ import android.net.NetworkInfo;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.robolectric.annotation.Config;
 
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.chrome.browser.policy.PolicyServiceFactory;
@@ -30,6 +31,7 @@ import org.chromium.components.policy.PolicyService;
  * preferences.
  */
 @RunWith(BaseRobolectricTestRunner.class)
+@Config(manifest = Config.NONE)
 public class PrivacyPreferencesManagerImplTest {
     // Parameters to simulate user- and network-permission state.
     private static final boolean CONNECTED = true;

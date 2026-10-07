@@ -143,22 +143,20 @@ void ScopedSVGPaintState::ApplyPaintPropertyState(
   auto& paint_controller = paint_info_.context.GetPaintController();
   auto state = paint_controller.CurrentPaintChunkProperties();
 
-  const EffectPaintPropertyNodeOrAlias* effect = properties.Filter();
-  const auto* filter_clip = properties.PixelMovingFilterClipExpander();
-  if (!effect) {
-    effect = properties.Effect();
-    filter_clip = nullptr;
-  }
-
-  if (paint_info_.GetPaintFlags() & PaintFlag::kPrivacyPreserving) {
-    while (effect && (effect->Unalias().IsInTaintedSubtree())) {
-      filter_clip = nullptr;
-      effect = effect->Parent();
-    }
-  }
-
-  if (effect) {
+  const auto* filter = properties.Filter();
+  if (filter && filter->Filter() && filter->Filter()->OriginTainted() &&
+      (paint_info_.GetPaintFlags() & PaintFlag::kPrivacyPreserving)) {
+    state.SetEffect(*filter->Parent());
+    filter = nullptr;
+  } else if (filter) {
+    state.SetEffect(*filter);
+  } else if (const auto* effect = properties.Effect()) {
     state.SetEffect(*effect);
+  }
+
+  const auto* filter_clip = properties.PixelMovingFilterClipExpander();
+  if (!filter) {
+    filter_clip = nullptr;
   }
 
   if (filter_clip) {

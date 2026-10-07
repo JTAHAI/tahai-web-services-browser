@@ -80,7 +80,6 @@ DesktopMediaSourceView::~DesktopMediaSourceView() = default;
 
 void DesktopMediaSourceView::SetName(const std::u16string& name) {
   label_->SetText(name);
-  SetTooltipText(name);
 }
 
 void DesktopMediaSourceView::SetThumbnail(const gfx::ImageSkia& thumbnail) {

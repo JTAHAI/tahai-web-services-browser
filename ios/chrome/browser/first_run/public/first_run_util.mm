@@ -24,6 +24,7 @@
 #import "ios/chrome/browser/shared/public/features/system_flags.h"
 #import "ios/chrome/browser/signin/model/identity_manager_factory.h"
 #import "ios/web/public/thread/web_thread.h"
+#import "ui/gfx/ios/NSString+CrStringDrawing.h"
 
 constexpr BOOL kDefaultMetricsReportingCheckboxValue = YES;
 

@@ -29,6 +29,10 @@ namespace autofill {
 class AutofillWebDataService;
 }  // namespace autofill
 
+namespace plus_addresses {
+class PlusAddressWebDataService;
+}  // namespace plus_addresses
+
 namespace base {
 class FilePath;
 class SequencedTaskRunner;
@@ -50,6 +54,7 @@ class WebDataServiceWrapper : public KeyedService {
     ERROR_LOADING_TOKEN,
     ERROR_LOADING_PASSWORD,
     ERROR_LOADING_PAYMENT_MANIFEST,
+    ERROR_LOADING_PLUS_ADDRESS,
   };
 
   // Shows an error message if a loading error occurs.
@@ -84,6 +89,8 @@ class WebDataServiceWrapper : public KeyedService {
   scoped_refptr<autofill::AutofillWebDataService> GetProfileAutofillWebData();
   scoped_refptr<autofill::AutofillWebDataService> GetAccountAutofillWebData();
   scoped_refptr<KeywordWebDataService> GetKeywordWebData();
+  scoped_refptr<plus_addresses::PlusAddressWebDataService>
+  GetPlusAddressWebData();
   scoped_refptr<TokenWebData> GetTokenWebData();
 #if BUILDFLAG(USE_BLINK)
   // Virtual for testing.
@@ -102,6 +109,8 @@ class WebDataServiceWrapper : public KeyedService {
   scoped_refptr<autofill::AutofillWebDataService> profile_autofill_web_data_;
   scoped_refptr<autofill::AutofillWebDataService> account_autofill_web_data_;
   scoped_refptr<KeywordWebDataService> keyword_web_data_;
+  scoped_refptr<plus_addresses::PlusAddressWebDataService>
+      plus_address_web_data_;
   scoped_refptr<TokenWebData> token_web_data_;
 
 #if BUILDFLAG(USE_BLINK)

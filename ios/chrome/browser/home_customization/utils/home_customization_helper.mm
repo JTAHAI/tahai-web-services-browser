@@ -73,25 +73,30 @@
   switch (type) {
       // Main page toggles.
     case CustomizationToggleType::kMostVisited:
-      return SymbolWithPointSize(SymbolHistory, kToggleIconPointSize);
+      return DefaultSymbolWithPointSize(kHistorySymbol, kToggleIconPointSize);
     case CustomizationToggleType::kMagicStack:
-      return SymbolWithPointSize(SymbolMagicStack, kToggleIconPointSize);
+      return DefaultSymbolWithPointSize(kMagicStackSymbol,
+                                        kToggleIconPointSize);
     case CustomizationToggleType::kDiscover:
-      return SymbolWithPointSize(SymbolDiscoverFeed, kToggleIconPointSize);
+      return DefaultSymbolWithPointSize(kDiscoverFeedSymbol,
+                                        kToggleIconPointSize);
 
       // Magic Stack page toggles.
     case CustomizationToggleType::kSafetyCheck:
-      return SymbolWithPointSize(SymbolCheckmarkShield, kToggleIconPointSize);
+      return DefaultSymbolWithPointSize(kCheckmarkShieldSymbol,
+                                        kToggleIconPointSize);
     case CustomizationToggleType::kTapResumption:
-      return SymbolWithPointSize(SymbolMacbookAndIPhone, kToggleIconPointSize);
+      return DefaultSymbolWithPointSize(kMacbookAndIPhoneSymbol,
+                                        kToggleIconPointSize);
     case CustomizationToggleType::kTips:
-      return SymbolWithPointSize(SymbolListBulletClipboard,
-                                 kToggleIconPointSize);
+      return DefaultSymbolWithPointSize(kListBulletClipboardSymbol,
+                                        kToggleIconPointSize);
     case CustomizationToggleType::kShopCard: {
       UIImageSymbolConfiguration* fallbackImageConfig =
           [UIImageSymbolConfiguration
               configurationWithWeight:UIImageSymbolWeightLight];
-      return SymbolWithConfiguration(SymbolDownTrend, fallbackImageConfig);
+      return CustomSymbolWithConfiguration(kDownTrendSymbol,
+                                           fallbackImageConfig);
       NOTREACHED();
     }
   }

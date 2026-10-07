@@ -5,15 +5,12 @@
 #import "ios/chrome/browser/settings/autofill/autofill_and_passwords/coordinator/identity_docs_coordinator.h"
 
 #import "base/check_op.h"
-#import "base/metrics/user_metrics.h"
 #import "components/autofill/core/browser/data_manager/autofill_ai/entity_data_manager.h"
-#import "ios/chrome/browser/autofill/model/autofill_ai_util.h"
 #import "ios/chrome/browser/autofill/model/ios_autofill_entity_data_manager_factory.h"
 #import "ios/chrome/browser/settings/autofill/autofill_ai/coordinator/autofill_ai_entity_edit_coordinator.h"
 #import "ios/chrome/browser/settings/autofill/autofill_ai/coordinator/autofill_ai_entity_edit_coordinator_delegate.h"
 #import "ios/chrome/browser/settings/autofill/autofill_and_passwords/coordinator/identity_docs_mediator.h"
 #import "ios/chrome/browser/settings/autofill/autofill_and_passwords/ui/identity_docs_table_view_controller.h"
-#import "ios/chrome/browser/settings/autofill/suggestions_from_gemini/coordinator/suggestions_from_gemini_coordinator.h"
 #import "ios/chrome/browser/shared/model/browser/browser.h"
 #import "ios/chrome/browser/shared/model/profile/profile_ios.h"
 #import "ios/chrome/browser/shared/public/commands/command_dispatcher.h"
@@ -23,8 +20,7 @@
 
 @interface IdentityDocsCoordinator () <AutofillAIBaseMediatorDelegate,
                                        AutofillAIEntityEditCoordinatorDelegate,
-                                       IdentityDocsTableViewControllerDelegate,
-                                       SuggestionsFromGeminiCoordinatorDelegate>
+                                       IdentityDocsTableViewControllerDelegate>
 @end
 
 @implementation IdentityDocsCoordinator {
@@ -36,9 +32,6 @@
 
   // Coordinator for displaying and editing a selected identity doc entity.
   AutofillAIEntityEditCoordinator* _entityEditCoordinator;
-
-  // Coordinator for Suggestions from Gemini.
-  SuggestionsFromGeminiCoordinator* _suggestionsFromGeminiCoordinator;
 }
 
 @synthesize baseNavigationController = _baseNavigationController;
@@ -71,9 +64,6 @@
   _mediator = [[IdentityDocsMediator alloc]
       initWithEntityDataManager:entityDataManager
                     prefService:self.browser->GetProfile()->GetPrefs()];
-  _mediator.shouldShowSuggestionsFromGemini =
-      autofill::ShouldShowPersonalContextAutofillSetting(
-          self.browser->GetProfile());
   _mediator.consumer = _viewController;
   _mediator.delegate = self;
   _viewController.mutator = _mediator;
@@ -84,7 +74,6 @@
 
 - (void)stop {
   [self stopEntityEditCoordinator];
-  [self stopSuggestionsFromGeminiCoordinator];
 
   [_mediator disconnect];
   _mediator = nil;
@@ -99,27 +88,6 @@
     (IdentityDocsTableViewController*)controller {
   CHECK_EQ(_viewController, controller);
   [self.delegate identityDocsCoordinatorDidRemove:self];
-}
-
-- (void)identityDocsTableViewControllerDidSelectSuggestionsFromGemini:
-    (IdentityDocsTableViewController*)controller {
-  CHECK_EQ(_viewController, controller);
-  base::RecordAction(base::UserMetricsAction(
-      "PersonalContext.Settings.EntryPoint.IdentityDocsSettings"));
-  [self stopSuggestionsFromGeminiCoordinator];
-  _suggestionsFromGeminiCoordinator = [[SuggestionsFromGeminiCoordinator alloc]
-      initWithBaseNavigationController:self.baseNavigationController
-                               browser:self.browser];
-  _suggestionsFromGeminiCoordinator.delegate = self;
-  [_suggestionsFromGeminiCoordinator start];
-}
-
-#pragma mark - SuggestionsFromGeminiCoordinatorDelegate
-
-- (void)suggestionsFromGeminiCoordinatorDidRemove:
-    (SuggestionsFromGeminiCoordinator*)coordinator {
-  CHECK_EQ(_suggestionsFromGeminiCoordinator, coordinator);
-  [self stopSuggestionsFromGeminiCoordinator];
 }
 
 #pragma mark - AutofillAIBaseMediatorDelegate
@@ -173,13 +141,6 @@
   [_entityEditCoordinator stop];
   _entityEditCoordinator.delegate = nil;
   _entityEditCoordinator = nil;
-}
-
-// Stops and disconnects the active suggestions from Gemini coordinator.
-- (void)stopSuggestionsFromGeminiCoordinator {
-  [_suggestionsFromGeminiCoordinator stop];
-  _suggestionsFromGeminiCoordinator.delegate = nil;
-  _suggestionsFromGeminiCoordinator = nil;
 }
 
 @end

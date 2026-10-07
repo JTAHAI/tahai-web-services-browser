@@ -259,9 +259,8 @@ TEST_P(VariationsSafeModeEndToEndBrowserTest, ExtendedSafeSeedEndToEnd) {
     // TODO(crbug.com/379869158): Remove after Seed File experiment is complete.
     auto local_state = LoadLocalState(local_state_file());
     local_state->SetInteger(prefs::kVariationsCrashStreak, initial_crash_count);
-    WriteSignedSeedData(local_state.get(), TestSeedData(), kSafeSeedPrefKeys);
-    WriteSignedSeedData(local_state.get(), CrashingSeedData(),
-                        kRegularSeedPrefKeys);
+    WriteSeedData(local_state.get(), TestSeedData(), kSafeSeedPrefKeys);
+    WriteSeedData(local_state.get(), CrashingSeedData(), kRegularSeedPrefKeys);
   }
 
   // The next run will be |kCrashStreakSafeSeedThreshold| crashing runs of the
@@ -314,10 +313,8 @@ TEST_P(VariationsSafeModeEndToEndBrowserTest, ExtendedNullSeedEndToEnd) {
     // TODO(crbug.com/391565578): Remove after Seed File experiment is complete.
     auto local_state = LoadLocalState(local_state_file());
     local_state->SetInteger(prefs::kVariationsCrashStreak, initial_crash_count);
-    WriteSignedSeedData(local_state.get(), CrashingSeedData(),
-                        kSafeSeedPrefKeys);
-    WriteSignedSeedData(local_state.get(), CrashingSeedData(),
-                        kRegularSeedPrefKeys);
+    WriteSeedData(local_state.get(), CrashingSeedData(), kSafeSeedPrefKeys);
+    WriteSeedData(local_state.get(), CrashingSeedData(), kRegularSeedPrefKeys);
   }
 
   // The next run will be |kCrashStreakNullSeedThreshold| crashing runs of the

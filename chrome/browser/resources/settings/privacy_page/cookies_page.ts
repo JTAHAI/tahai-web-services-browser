@@ -79,27 +79,15 @@ export class SettingsCookiesPageElement extends SettingsCookiesPageElementBase {
         value: ContentSettingsTypes.COOKIES,
       },
 
-      showUniversalOptOutSettings_: {
-        type: Boolean,
-        value: () => loadTimeData.getBoolean('showUniversalOptOutSettings'),
-      },
-
       isRelatedWebsiteSetsUiEnabled_: {
         type: Boolean,
         value: () => loadTimeData.getBoolean('isRelatedWebsiteSetsUiEnabled'),
-      },
-
-      pageTitle_: {
-        type: String,
-        computed: 'computePageTitle_(showUniversalOptOutSettings_)',
       },
     };
   }
 
   declare searchTerm: string;
-  declare private pageTitle_: string;
   declare private cookiesContentSettingType_: ContentSettingsTypes;
-  declare private showUniversalOptOutSettings_: boolean;
   declare private isRelatedWebsiteSetsUiEnabled_: boolean;
 
   private metricsBrowserProxy_: MetricsBrowserProxy =
@@ -135,13 +123,6 @@ export class SettingsCookiesPageElement extends SettingsCookiesPageElementBase {
                .value !== ThirdPartyCookieBlockingSetting.BLOCK_THIRD_PARTY;
   }
 
-  private computePageTitle_(): string {
-    return this.i18n(
-        this.showUniversalOptOutSettings_ ?
-            'thirdPartyCookiesAndSiteDataPageTitle' :
-            'thirdPartyCookiesPageTitle');
-  }
-
   // SettingsViewMixin implementation.
   override getFocusConfig() {
     return new Map([
@@ -155,6 +136,12 @@ export class SettingsCookiesPageElement extends SettingsCookiesPageElementBase {
   // SettingsViewMixin implementation.
   override focusBackButton() {
     this.shadowRoot!.querySelector('settings-subpage')!.focusBackButton();
+  }
+
+  protected getCookieIcon_(): string {
+    return loadTimeData.getBoolean('webuiRoundedIconsEnabled') ?
+        'privacy:cookie' :
+        'privacy:cookie-old';
   }
 }
 

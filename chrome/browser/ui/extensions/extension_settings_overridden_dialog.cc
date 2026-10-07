@@ -208,7 +208,7 @@ ExtensionSettingsOverriddenDialog::GetShowParams() {
   return params_.content;
 }
 
-void ExtensionSettingsOverriddenDialog::OnDialogWillBeShown() {
+void ExtensionSettingsOverriddenDialog::OnDialogShown() {
   DCHECK(ShouldShow());
   show_time_ = base::TimeTicks::Now();
 

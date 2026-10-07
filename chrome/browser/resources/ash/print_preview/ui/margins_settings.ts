@@ -60,9 +60,9 @@ export class PrintPreviewMarginsSettingsElement extends
     ];
   }
 
-  declare disabled: boolean;
-  declare state: State;
-  declare private marginsDisabled_: boolean;
+  disabled: boolean;
+  state: State;
+  private marginsDisabled_: boolean;
   private loaded_: boolean = false;
 
   private onStateChange_() {

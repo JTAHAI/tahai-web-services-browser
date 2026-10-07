@@ -147,7 +147,6 @@ export class SkillsDialogAppElement extends CrLitElement {
     imageUrl: '',
     creationTime: {internalValue: 0n},
     lastUpdateTime: {internalValue: 0n},
-    category: '',
   };
 
   protected accessor dialogTitle_: string = '';

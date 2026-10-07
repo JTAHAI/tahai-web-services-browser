@@ -29,6 +29,7 @@ import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
+import org.robolectric.annotation.Config;
 
 import org.chromium.base.ContextUtils;
 import org.chromium.base.SelectionActionMenuClientWrapper.DefaultItem;
@@ -46,6 +47,7 @@ import java.util.List;
 
 /** Unit tests for {@link SelectActionMenuHelper}. */
 @RunWith(BaseRobolectricTestRunner.class)
+@Config(manifest = Config.NONE)
 public class SelectActionMenuHelperTest {
     @Rule public MockitoRule mMockitoRule = MockitoJUnit.rule();
     @Mock private SelectActionMenuHelper.TextSelectionCapabilitiesDelegate mDelegate;
@@ -107,133 +109,33 @@ public class SelectActionMenuHelperTest {
         when(mDelegate.canCut()).thenReturn(true);
         when(mDelegate.canCopy()).thenReturn(true);
         when(mDelegate.canPaste()).thenReturn(true);
-        when(mDelegate.canSelectAll(anyInt())).thenReturn(true);
-        when(mDelegate.canWebSearch(anyInt())).thenReturn(true);
+        when(mDelegate.canSelectAll()).thenReturn(true);
+        when(mDelegate.canWebSearch()).thenReturn(true);
         when(mDelegate.canPasteAsPlainText()).thenReturn(true);
-        when(mDelegate.canShare(anyInt())).thenReturn(true);
+        when(mDelegate.canShare()).thenReturn(true);
     }
 
     @Test
     @Feature({"TextInput"})
-    public void testDefaultMenuItemsOrder_floating() {
+    public void testDefaultMenuItemsOrder() {
         PendingSelectionMenu pendingMenu = new PendingSelectionMenu(mContext);
         pendingMenu.addAll(
                 SelectActionMenuHelper.getDefaultItems(
-                        mContext,
-                        mDelegate,
-                        MenuType.FLOATING,
-                        /* isSelectionReadOnly= */ true,
-                        "test",
-                        null));
+                        mContext, mDelegate, MenuType.FLOATING, "test", null));
         List<SelectionMenuItem> menuItems = pendingMenu.getMenuItemsForTesting();
         assertEquals(7, menuItems.size());
         assertEquals(R.id.select_action_menu_cut, menuItems.get(0).id);
         assertEquals(R.id.select_action_menu_copy, menuItems.get(1).id);
         assertEquals(android.R.id.paste, menuItems.get(2).id);
         assertEquals(android.R.id.pasteAsPlainText, menuItems.get(3).id);
-        assertEquals(R.id.select_action_menu_select_all, menuItems.get(4).id);
-        assertEquals(R.id.select_action_menu_web_search, menuItems.get(5).id);
-        assertEquals(R.id.select_action_menu_share, menuItems.get(6).id);
-        assertEquals(
-                SelectionMenuItem.ItemGroupOffset.DEFAULT_ITEMS,
-                pendingMenu.determineGroup(menuItems.get(6))
-                        * SelectionMenuItem.ItemGroupOffset.DEFAULT_ITEMS);
+        assertEquals(R.id.select_action_menu_share, menuItems.get(4).id);
+        assertEquals(R.id.select_action_menu_select_all, menuItems.get(5).id);
+        assertEquals(R.id.select_action_menu_web_search, menuItems.get(6).id);
     }
 
     @Test
     @Feature({"TextInput"})
-    public void testDefaultMenuItemsAreSpacedForInterposition_floating() {
-        PendingSelectionMenu pendingMenu = new PendingSelectionMenu(mContext);
-        pendingMenu.addAll(
-                SelectActionMenuHelper.getDefaultItems(
-                        mContext,
-                        mDelegate,
-                        MenuType.FLOATING,
-                        /* isSelectionReadOnly= */ true,
-                        "test",
-                        null));
-        List<SelectionMenuItem> menuItems = pendingMenu.getMenuItemsForTesting();
-        assertEquals(7, menuItems.size());
-        // Consecutive default items are spaced out (rather than assigned consecutive integers) so
-        // that embedders can interpose their own items in the gaps between two default items at
-        // stable positions. A spacing > 1 guarantees at least one free order slot per gap.
-        for (int i = 1; i < menuItems.size(); i++) {
-            int gap = menuItems.get(i).order - menuItems.get(i - 1).order;
-            assertEquals(SelectActionMenuHelper.DEFAULT_ITEM_ORDER_SPACING, gap);
-        }
-    }
-
-    @Test
-    @Feature({"TextInput"})
-    public void testDefaultMenuItemsAreSpacedForInterposition_dropdown() {
-        PendingSelectionMenu pendingMenu = new PendingSelectionMenu(mContext);
-        pendingMenu.addAll(
-                SelectActionMenuHelper.getDefaultItems(
-                        mContext,
-                        mDelegate,
-                        MenuType.DROPDOWN,
-                        /* isSelectionReadOnly= */ true,
-                        "test",
-                        null));
-        List<SelectionMenuItem> menuItems = pendingMenu.getMenuItemsForTesting();
-        assertEquals(7, menuItems.size());
-        // Same spacing guarantee as the floating menu: consecutive default items leave a free
-        // order slot in between so embedders can interpose their own items.
-        for (int i = 1; i < menuItems.size(); i++) {
-            int gap = menuItems.get(i).order - menuItems.get(i - 1).order;
-            assertEquals(SelectActionMenuHelper.DEFAULT_ITEM_ORDER_SPACING, gap);
-        }
-    }
-
-    @Test
-    @Feature({"TextInput"})
-    public void testDefaultMenuItemsOrder_dropdown() {
-        PendingSelectionMenu pendingMenu = new PendingSelectionMenu(mContext);
-        pendingMenu.addAll(
-                SelectActionMenuHelper.getDefaultItems(
-                        mContext,
-                        mDelegate,
-                        MenuType.DROPDOWN,
-                        /* isSelectionReadOnly= */ true,
-                        "test",
-                        null));
-        List<SelectionMenuItem> menuItems = pendingMenu.getMenuItemsForTesting();
-        assertEquals(7, menuItems.size());
-        assertEquals(R.id.select_action_menu_cut, menuItems.get(0).id);
-        assertEquals(R.id.select_action_menu_copy, menuItems.get(1).id);
-        assertEquals(android.R.id.paste, menuItems.get(2).id);
-        assertEquals(android.R.id.pasteAsPlainText, menuItems.get(3).id);
-        assertEquals(R.id.select_action_menu_select_all, menuItems.get(4).id);
-        assertEquals(R.id.select_action_menu_web_search, menuItems.get(5).id);
-        assertEquals(R.id.select_action_menu_share, menuItems.get(6).id);
-    }
-
-    @Test
-    @Feature({"TextInput"})
-    public void testDefaultMenuItemsOrder_dropdown_cannotSelectAll() {
-        when(mDelegate.canSelectAll(MenuType.DROPDOWN)).thenReturn(false);
-        PendingSelectionMenu pendingMenu = new PendingSelectionMenu(mContext);
-        pendingMenu.addAll(
-                SelectActionMenuHelper.getDefaultItems(
-                        mContext,
-                        mDelegate,
-                        MenuType.DROPDOWN,
-                        /* isSelectionReadOnly= */ true,
-                        "test",
-                        null));
-        List<SelectionMenuItem> menuItems = pendingMenu.getMenuItemsForTesting();
-        assertEquals(6, menuItems.size());
-        assertEquals(R.id.select_action_menu_cut, menuItems.get(0).id);
-        assertEquals(R.id.select_action_menu_copy, menuItems.get(1).id);
-        assertEquals(android.R.id.paste, menuItems.get(2).id);
-        assertEquals(android.R.id.pasteAsPlainText, menuItems.get(3).id);
-        assertEquals(R.id.select_action_menu_web_search, menuItems.get(4).id);
-        assertEquals(R.id.select_action_menu_share, menuItems.get(5).id);
-    }
-
-    @Test
-    @Feature({"TextInput"})
-    public void testDefaultMenuItemsOrderUsingSelectionActionMenuDelegate_dropdown() {
+    public void testDefaultMenuItemsOrderUsingSelectionActionMenuDelegate() {
         SelectionActionMenuDelegate selectionActionMenuDelegate =
                 new TestSelectionActionMenuDelegate();
         PendingSelectionMenu pendingMenu = new PendingSelectionMenu(mContext);
@@ -241,8 +143,7 @@ public class SelectActionMenuHelperTest {
                 SelectActionMenuHelper.getDefaultItems(
                         mContext,
                         mDelegate,
-                        MenuType.DROPDOWN,
-                        /* isSelectionReadOnly= */ true,
+                        MenuType.FLOATING,
                         "test",
                         selectionActionMenuDelegate));
         List<SelectionMenuItem> menuItems = pendingMenu.getMenuItemsForTesting();
@@ -254,56 +155,6 @@ public class SelectActionMenuHelperTest {
         assertEquals(R.id.select_action_menu_select_all, menuItems.get(4).id);
         assertEquals(R.id.select_action_menu_share, menuItems.get(5).id);
         assertEquals(R.id.select_action_menu_web_search, menuItems.get(6).id);
-    }
-
-    @Test
-    @Feature({"TextInput"})
-    public void testDefaultMenuItemsOrderUsingSelectionActionMenuDelegate_floating() {
-        SelectionActionMenuDelegate selectionActionMenuDelegate =
-                new TestSelectionActionMenuDelegate();
-        PendingSelectionMenu pendingMenu = new PendingSelectionMenu(mContext);
-        pendingMenu.addAll(
-                SelectActionMenuHelper.getDefaultItems(
-                        mContext,
-                        mDelegate,
-                        MenuType.FLOATING,
-                        /* isSelectionReadOnly= */ true,
-                        "test",
-                        selectionActionMenuDelegate));
-        List<SelectionMenuItem> menuItems = pendingMenu.getMenuItemsForTesting();
-        assertEquals(7, menuItems.size());
-        assertEquals(R.id.select_action_menu_cut, menuItems.get(0).id);
-        assertEquals(R.id.select_action_menu_copy, menuItems.get(1).id);
-        assertEquals(android.R.id.paste, menuItems.get(2).id);
-        assertEquals(android.R.id.pasteAsPlainText, menuItems.get(3).id);
-        assertEquals(R.id.select_action_menu_select_all, menuItems.get(4).id);
-        assertEquals(R.id.select_action_menu_share, menuItems.get(5).id);
-        assertEquals(R.id.select_action_menu_web_search, menuItems.get(6).id);
-    }
-
-    @Test
-    @Feature({"TextInput"})
-    public void testDefaultMenuItemsOrder_editable() {
-        PendingSelectionMenu pendingMenu = new PendingSelectionMenu(mContext);
-        pendingMenu.addAll(
-                SelectActionMenuHelper.getDefaultItems(
-                        mContext,
-                        mDelegate,
-                        MenuType.DROPDOWN,
-                        /* isSelectionReadOnly= */ false,
-                        "test",
-                        null));
-        List<SelectionMenuItem> menuItems = pendingMenu.getMenuItemsForTesting();
-        assertEquals(7, menuItems.size());
-        assertEquals(R.id.select_action_menu_cut, menuItems.get(0).id);
-        assertEquals(R.id.select_action_menu_copy, menuItems.get(1).id);
-        assertEquals(android.R.id.paste, menuItems.get(2).id);
-        assertEquals(android.R.id.pasteAsPlainText, menuItems.get(3).id);
-        assertEquals(R.id.select_action_menu_select_all, menuItems.get(4).id);
-        assertEquals(R.id.select_action_menu_web_search, menuItems.get(5).id);
-        assertEquals(R.id.select_action_menu_share, menuItems.get(6).id);
-        assertEquals(2, pendingMenu.determineGroup(menuItems.get(5)));
-        assertEquals(2, pendingMenu.determineGroup(menuItems.get(6)));
     }
 
     @Test

@@ -4,7 +4,6 @@
 
 package org.chromium.chrome.browser.ui.side_ui;
 
-import android.util.ArrayMap;
 import android.view.View;
 import android.view.ViewGroup.LayoutParams;
 
@@ -14,15 +13,12 @@ import com.google.errorprone.annotations.DoNotMock;
 
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
-import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.ui.side_ui.SideUiCoordinator.AnchorSide;
 import org.chromium.chrome.browser.ui.side_ui.SideUiCoordinator.HeightType;
 import org.chromium.chrome.browser.ui.side_ui.SideUiCoordinator.SideUiId;
 import org.chromium.chrome.browser.ui.side_ui.SideUiCoordinator.SideUiSpecs.SideUiSize;
 import org.chromium.chrome.browser.ui.side_ui.SideUiCoordinator.UiUpdateRequest;
 import org.chromium.ui.base.ViewUtils;
-
-import java.util.Map;
 
 /** Minimum implementation of {@link SideUiContainer} to allow setting/getting width for tests. */
 @DoNotMock
@@ -33,15 +29,12 @@ public final class TestSideUiContainer implements SideUiContainer {
     /** Height type for this container. */
     public @HeightType int mHeightType = HeightType.TOOLBAR;
 
-    /** Map of {@link Tab} to whether this container has content to show for that tab. */
-    public final Map<Tab, Boolean> mHasContentForTabMap = new ArrayMap<>();
-
     /**
-     * Whether browser top controls should remain locked when this container is showing.
+     * Whether the container has content to show.
      *
-     * <p>This will be returned by {@link #shouldLockTopControls()}.
+     * <p>This will be returned by {@link #hasContentToShow()}.
      */
-    public boolean mShouldLockTopControls = true;
+    public boolean mHasContentToShow = true;
 
     /** The last {@code availableWidth} received by {@link #determineShowableSize}. */
     public @Nullable @Px Integer mLastAvailableWidth;
@@ -135,8 +128,8 @@ public final class TestSideUiContainer implements SideUiContainer {
     }
 
     @Override
-    public boolean hasContentToShow(Tab tab) {
-        return mHasContentForTabMap.getOrDefault(tab, true);
+    public boolean hasContentToShow() {
+        return mHasContentToShow;
     }
 
     @Override
@@ -144,11 +137,6 @@ public final class TestSideUiContainer implements SideUiContainer {
         LayoutParams layoutParams = mSideUiContainerView.getLayoutParams();
         layoutParams.width = width;
         mSideUiContainerView.setLayoutParams(layoutParams);
-    }
-
-    @Override
-    public boolean shouldLockTopControls() {
-        return mShouldLockTopControls;
     }
 
     @Override

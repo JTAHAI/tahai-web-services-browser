@@ -12,7 +12,6 @@
 #include "content/common/content_export.h"
 #include "content/public/browser/document_user_data.h"
 #include "content/public/browser/page_user_data.h"
-#include "content/public/browser/weak_document_ptr.h"
 #include "mojo/public/cpp/bindings/pending_receiver.h"
 #include "mojo/public/cpp/bindings/receiver_set.h"
 #include "mojo/public/cpp/bindings/remote.h"
@@ -48,7 +47,6 @@ class CONTENT_EXPORT ModelContextPageUserData
 
     blink::DocumentToken caller_token;
     blink::DocumentToken target_token;
-    WeakDocumentPtr target_document;
     std::string tool_name;
     blink::mojom::ModelContextHost::ExecuteRemoteScriptToolCallback callback;
   };
@@ -78,29 +76,33 @@ class CONTENT_EXPORT ModelContextPageUserData
   // circumstances.
   //
   // `CancelPendingScriptToolExecutionsForDocument()` removes all outstanding
-  // `PendingScriptToolExecution` structs associated with `rfh`,
+  // `PendingScriptToolExecution` structs associated with `document_token`,
   // because the document is being destroyed. This means it serves two purposes:
   //   1. It signals to the callers of all still-running tools in
-  //      `rfh` that tool execution was cancelled because the tool
+  //      `document_token` that tool execution was cancelled because the tool
   //      owner is going away (by invoking the tool execution response
   //      callback); and
   //   2. It simply cleans up all pending execution data for tools *called by*
-  //      `rfh`, when tool callers gets destroyed.
+  //      `document_token`, when tool callers gets destroyed.
   //
-  void CancelPendingScriptToolExecution(
-      const base::UnguessableToken& invocation_id);
+  // `CancelPendingScriptToolExecutionsDueToUnregistration()` is
+  // rather obviously more narrowly scoped, and is used to notify the caller of
+  // a still-running tool has been unregistered mid-execution.
+  //
+  // Note that there is no mechanism yet to signal from tool caller to tool
+  // executor that the caller has cancelled their invocation. See
+  // http://b/481899636 for this.
   void CancelPendingScriptToolExecutionsForDocument(
       const blink::DocumentToken& document_token);
+  void CancelPendingScriptToolExecutionsDueToUnregistration(
+      const blink::DocumentToken& target_document_token,
+      const std::string& tool_name);
 
   base::WeakPtr<ModelContextPageUserData> GetWeakPtr();
 
  private:
   friend class PageUserData<ModelContextPageUserData>;
   PAGE_USER_DATA_KEY_DECL();
-
-  static void SendCancelScriptToolToTarget(
-      WeakDocumentPtr target_document,
-      const base::UnguessableToken& invocation_id);
 
   std::map<base::UnguessableToken, PendingScriptToolExecution>
       pending_script_tool_executions_;
@@ -139,8 +141,6 @@ class CONTENT_EXPORT ModelContextUserData
       const std::string& name,
       const std::string& input_arguments,
       ExecuteRemoteScriptToolCallback callback) override;
-  void CancelRemoteScriptTool(
-      const base::UnguessableToken& invocation_id) override;
 
   std::vector<blink::mojom::ScriptToolPtr>& script_tools() {
     return script_tools_;
@@ -148,7 +148,6 @@ class CONTENT_EXPORT ModelContextUserData
 
  private:
   friend class DocumentUserData<ModelContextUserData>;
-  friend class ModelContextPageUserData;
 
   DOCUMENT_USER_DATA_KEY_DECL();
 

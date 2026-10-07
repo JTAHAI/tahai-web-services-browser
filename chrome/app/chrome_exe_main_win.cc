@@ -30,11 +30,8 @@
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/time/time.h"
-#include "base/types/expected_macros.h"
 #include "base/win/current_module.h"
-#include "base/win/scoped_handle.h"
 #include "base/win/win_util.h"
-#include "base/win/windows_handle_util.h"
 #include "base/win/windows_version.h"
 #include "build/build_config.h"
 #include "chrome/app/delay_load_failure_hook_win.h"
@@ -78,14 +75,11 @@ void WaitForParentProcess(base::CommandLine* command_line) {
   if (!base::StringToUint(handle_str, &handle_val) || handle_val == 0) {
     return;
   }
-
-  // `handle_val` is expected to be a handle to the parent process. Return if
-  // it's invalid or a pseudo-handle and crash if it's a handle to a different
-  // type of object altogether.
-  ASSIGN_OR_RETURN(base::win::ScopedHandle parent_handle,
-                   base::win::TakeHandleOfType(
-                       base::win::Uint32ToHandle(handle_val), L"Process"),
-                   [](auto) {});
+  base::win::ScopedHandle parent_handle(
+      base::win::Uint32ToHandle(handle_val));
+  if (base::win::IsPseudoHandle(parent_handle.get())) {
+    return;
+  }
 
   // Block synchronously for up to 60 seconds (prevents hangs if parent
   // freezes).
@@ -377,6 +371,7 @@ int main() {
   VLOG(1) << "About to load main DLL.";
   MainDllLoader* loader = MakeMainDllLoader();
   int rc = loader->Launch(instance, exe_entry_point_ticks);
+  loader->RelaunchChromeBrowserWithNewCommandLineIfNeeded();
   delete loader;
 
   // Process shutdown is hard and some process types have been crashing during

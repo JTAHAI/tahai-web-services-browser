@@ -97,6 +97,8 @@ class PLATFORM_EXPORT DOMWrapperWorld final
     // An isolated world for the inspector. The world id is generated
     // internally.
     kInspectorIsolated,
+    // A utility world that is not considered an isolated world.
+    kRegExp,
     // A utility world for context snapshotting that is not considered an
     // isolated world.
     kForV8ContextSnapshotNonMain,

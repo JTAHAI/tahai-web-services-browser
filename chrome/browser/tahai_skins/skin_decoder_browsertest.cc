@@ -41,9 +41,9 @@
 #include "chrome/browser/themes/theme_service.h"
 #include "chrome/browser/themes/theme_service_factory.h"
 #include "chrome/browser/themes/theme_service_observer.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_window.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/color/chrome_color_id.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/tahai/tahai_finder.h"
@@ -68,8 +68,8 @@
 #include "components/policy/core/browser/browser_policy_connector.h"
 #include "components/policy/core/common/mock_configuration_policy_provider.h"
 #include "components/policy/policy_constants.h"
-#include "components/prefs/pref_service.h"
 #include "components/prefs/pref_change_registrar.h"
+#include "components/prefs/pref_service.h"
 #include "components/sync_preferences/testing_pref_service_syncable.h"
 #include "components/tabs/public/tab_interface.h"
 #include "content/public/test/browser_test.h"
@@ -752,8 +752,7 @@ IN_PROC_BROWSER_TEST_F(TahaiSkinProfileBrowserTest,
   const auto other_catalog = other.Take();
   ASSERT_EQ(SkinOperationStatus::kOk, other_catalog.status);
   EXPECT_TRUE(other_catalog.catalog.empty());
-  BrowserWindowInterface* private_browser =
-      CreateIncognitoBrowser(browser()->GetProfile());
+  Browser* private_browser = CreateIncognitoBrowser(browser()->GetProfile());
   EXPECT_FALSE(
       SkinProfileServiceFactory::GetForProfile(private_browser->GetProfile()));
   SkinProfileService private_owner(private_browser->GetProfile());
@@ -1117,7 +1116,7 @@ class TahaiSkinManagerBrowserTest : public TahaiSkinProfileBrowserTest {
     ui::SelectFileDialog::SetFactory(nullptr);
     TahaiSkinProfileBrowserTest::TearDownOnMainThread();
   }
-  views::Widget* Manager(BrowserWindowInterface* parent) {
+  views::Widget* Manager(Browser* parent) {
     for (const auto& widget_ptr : views::Widget::GetAllOwnedWidgets(
              parent->GetWindow()->GetNativeWindow())) {
       views::Widget* widget = widget_ptr.get();
@@ -1781,7 +1780,8 @@ IN_PROC_BROWSER_TEST_F(TahaiOperationalModeBrowserTest,
   ASSERT_EQ(SkinOperationStatus::kOk, preview.status);
   skins->InstallPreview(preview.preview_token, result.GetCallback());
   ASSERT_EQ(SkinOperationStatus::kOk, result.Take().status);
-  skins->PreviewInstalled("decoder-fixture", Hash(archive), false, result.GetCallback());
+  skins->PreviewInstalled("decoder-fixture", Hash(archive), false,
+                          result.GetCallback());
   preview = result.Take();
   ASSERT_EQ(SkinOperationStatus::kOk, preview.status);
   auto* controller = WindowModeController::GetForBrowser(browser());
@@ -1789,19 +1789,21 @@ IN_PROC_BROWSER_TEST_F(TahaiOperationalModeBrowserTest,
   ASSERT_TRUE(controller->SelectOperationalMode("review-mode"));
   const auto workflow = controller->operational_manifest()->workflows.front();
   auto* tabs = browser()->GetTabStripModel();
-  auto* missions = MissionServiceFactory::GetForProfile(browser()->GetProfile());
+  auto* missions =
+      MissionServiceFactory::GetForProfile(browser()->GetProfile());
   for (const char* boundary : {"begin", "cancel", "scope", "retarget"}) {
     SCOPED_TRACE(boundary);
-    ASSERT_TRUE(QueueOperationalWorkflowLaunch(browser()->GetProfile(), workflow,
-                                              "decoder-fixture", Hash(archive)));
+    ASSERT_TRUE(QueueOperationalWorkflowLaunch(
+        browser()->GetProfile(), workflow, "decoder-fixture", Hash(archive)));
     ASSERT_TRUE(chrome::ExecuteCommand(browser(), IDC_TAHAI_MISSION_CONTROL));
     auto* contents = tabs->GetActiveWebContents();
     ASSERT_TRUE(content::WaitForLoadStop(contents));
-    ASSERT_GE(tabs->count(), 2);  // Keep the browser alive after closing this UI.
+    ASSERT_GE(tabs->count(),
+              2);  // Keep the browser alive after closing this UI.
     const auto id = missions->missions().back().id;
     const auto send = content::JsReplace(
-        "chrome.send('runTahaiNativeWorkflowStep', [$1, 0, $2]);",
-        id, missions->missions().back().mutation_token);
+        "chrome.send('runTahaiNativeWorkflowStep', [$1, 0, $2]);", id,
+        missions->missions().back().mutation_token);
     bool closed = false;
     PrefChangeRegistrar registrar;
     registrar.Init(browser()->GetProfile()->GetPrefs());
@@ -1813,38 +1815,52 @@ IN_PROC_BROWSER_TEST_F(TahaiOperationalModeBrowserTest,
           return missions->missions().back().steps[0].action_state == "pending";
         }));
       }
-      registrar.Add(prefs::kTahaiMissions, base::BindLambdaForTesting([&] {
-        if (closed) return;
-        const auto& state = missions->missions().back().steps[0].action_state;
-        if (state != (std::string_view(boundary) == "cancel" ? "unknown" : "pending")) return;
-        closed = true;
-        if (std::string_view(boundary) == "scope") {
-          EXPECT_TRUE(missions->AddLocalNote(id, "Changed during Begin notification"));
-          return;
-        }
-        if (std::string_view(boundary) == "retarget") {
-          EXPECT_TRUE(controller->SelectOperationalMode("second-review-mode"));
-          return;
-        }
-        tabs->CloseWebContentsAt(tabs->GetIndexOfWebContents(contents),
-                                 TabCloseTypes::CLOSE_NONE);
-      }));
+      registrar.Add(
+          prefs::kTahaiMissions, base::BindLambdaForTesting([&] {
+            if (closed) {
+              return;
+            }
+            const auto& state =
+                missions->missions().back().steps[0].action_state;
+            if (state != (std::string_view(boundary) == "cancel" ? "unknown"
+                                                                 : "pending")) {
+              return;
+            }
+            closed = true;
+            if (std::string_view(boundary) == "scope") {
+              EXPECT_TRUE(missions->AddLocalNote(
+                  id, "Changed during Begin notification"));
+              return;
+            }
+            if (std::string_view(boundary) == "retarget") {
+              EXPECT_TRUE(
+                  controller->SelectOperationalMode("second-review-mode"));
+              return;
+            }
+            tabs->CloseWebContentsAt(tabs->GetIndexOfWebContents(contents),
+                                     TabCloseTypes::CLOSE_NONE);
+          }));
       if (std::string_view(boundary) != "cancel") {
         // Synchronous teardown can abort the renderer's evaluation response.
         // Acceptance is document closure and a durable non-dispatch outcome.
         static_cast<void>(content::ExecJs(contents, send));
       } else {
-        static_cast<void>(ui_test_utils::NavigateToURL(browser(), GURL("about:blank")));
+        static_cast<void>(
+            ui_test_utils::NavigateToURL(browser(), GURL("about:blank")));
       }
       ASSERT_TRUE(base::test::RunUntil([&] { return closed; }));
       EXPECT_EQ(std::string_view(boundary) == "scope" ||
-                        std::string_view(boundary) == "retarget" ? "rejected" : "unknown",
+                        std::string_view(boundary) == "retarget"
+                    ? "rejected"
+                    : "unknown",
                 missions->missions().back().steps[0].action_state);
       registrar.RemoveAll();
     }
     base::RunLoop().RunUntilIdle();
     EXPECT_EQ(std::string_view(boundary) == "scope" ||
-                      std::string_view(boundary) == "retarget" ? "rejected" : "unknown",
+                      std::string_view(boundary) == "retarget"
+                  ? "rejected"
+                  : "unknown",
               missions->missions().back().steps[0].action_state);
     EXPECT_FALSE(tabs->GetActiveTab()->GetSplit());
   }
@@ -1872,14 +1888,14 @@ IN_PROC_BROWSER_TEST_F(TahaiOperationalModeBrowserTest,
   ASSERT_TRUE(QueueOperationalWorkflowLaunch(browser()->GetProfile(), workflow,
                                             "decoder-fixture", Hash(archive)));
   ASSERT_TRUE(chrome::ExecuteCommand(browser(), IDC_TAHAI_MISSION_CONTROL));
-  auto* contents = browser()->GetTabStripModel()->GetActiveWebContents();
+  auto* contents = browser()->tab_strip_model()->GetActiveWebContents();
   ASSERT_TRUE(content::WaitForLoadStop(contents));
   auto* missions = MissionServiceFactory::GetForProfile(browser()->GetProfile());
   ASSERT_FALSE(missions->missions().empty());
   const auto id = missions->missions().back().id;
   const auto send = content::JsReplace("chrome.send('runTahaiNativeWorkflowStep', [$1, 0, $2]);", id, missions->missions().back().mutation_token);
-  const int count = browser()->GetTabStripModel()->count();
-  ASSERT_FALSE(browser()->GetTabStripModel()->GetActiveTab()->GetSplit());
+  const int count = browser()->tab_strip_model()->count();
+  ASSERT_FALSE(browser()->tab_strip_model()->GetActiveTab()->GetSplit());
   {
     // The real UI-thread watchdog must fire even though journal work cannot
     // run or deliver a callback. No renderer request causes this expiry.
@@ -1901,8 +1917,8 @@ IN_PROC_BROWSER_TEST_F(TahaiOperationalModeBrowserTest,
       document.querySelector('[data-tahai-native-status]').textContent === 'Native action: unknown'
     )").ExtractBool();
   }));
-  EXPECT_EQ(count, browser()->GetTabStripModel()->count());
-  EXPECT_FALSE(browser()->GetTabStripModel()->GetActiveTab()->GetSplit());
+  EXPECT_EQ(count, browser()->tab_strip_model()->count());
+  EXPECT_FALSE(browser()->tab_strip_model()->GetActiveTab()->GetSplit());
   EXPECT_EQ("deadline-exceeded", missions->missions().back().steps[0].native_action_error);
   {
     content::TestNavigationObserver reload(contents, 1);
@@ -1919,8 +1935,8 @@ IN_PROC_BROWSER_TEST_F(TahaiOperationalModeBrowserTest,
   ASSERT_TRUE(content::ExecJs(contents, send));
   base::RunLoop().RunUntilIdle();
   EXPECT_EQ("unknown", missions->missions().back().steps[0].action_state);
-  EXPECT_FALSE(browser()->GetTabStripModel()->GetActiveTab()->GetSplit());
-  EXPECT_EQ(count, browser()->GetTabStripModel()->count());
+  EXPECT_FALSE(browser()->tab_strip_model()->GetActiveTab()->GetSplit());
+  EXPECT_EQ(count, browser()->tab_strip_model()->count());
 }
 
 IN_PROC_BROWSER_TEST_F(TahaiOperationalModeBrowserTest,
@@ -1945,13 +1961,13 @@ IN_PROC_BROWSER_TEST_F(TahaiOperationalModeBrowserTest,
   ASSERT_TRUE(QueueOperationalWorkflowLaunch(browser()->GetProfile(), workflow,
                                             "decoder-fixture", Hash(archive)));
   ASSERT_TRUE(chrome::ExecuteCommand(browser(), IDC_TAHAI_MISSION_CONTROL));
-  auto* contents = browser()->GetTabStripModel()->GetActiveWebContents();
+  auto* contents = browser()->tab_strip_model()->GetActiveWebContents();
   ASSERT_TRUE(content::WaitForLoadStop(contents));
   auto* missions = MissionServiceFactory::GetForProfile(browser()->GetProfile());
   ASSERT_FALSE(missions->missions().empty());
   const auto id = missions->missions().back().id;
   ASSERT_EQ("ready", missions->missions().back().steps[0].action_state);
-  ASSERT_FALSE(browser()->GetTabStripModel()->GetActiveTab()->GetSplit());
+  ASSERT_FALSE(browser()->tab_strip_model()->GetActiveTab()->GetSplit());
   const auto send = content::JsReplace("chrome.send('runTahaiNativeWorkflowStep', [$1, 0, $2]);", id, missions->missions().back().mutation_token);
   // A renderer message without a fresh gesture is not an invocation.
   ASSERT_TRUE(content::ExecJs(contents, send, content::EXECUTE_SCRIPT_NO_USER_GESTURE));
@@ -1975,18 +1991,18 @@ IN_PROC_BROWSER_TEST_F(TahaiOperationalModeBrowserTest,
   ASSERT_TRUE(base::test::RunUntil([&] {
     return missions->missions().back().steps[0].action_state == "dispatched";
   }));
-  EXPECT_TRUE(browser()->GetTabStripModel()->GetActiveTab()->GetSplit());
+  EXPECT_TRUE(browser()->tab_strip_model()->GetActiveTab()->GetSplit());
   EXPECT_FALSE(missions->missions().back().steps[0].complete);
   ASSERT_TRUE(base::test::RunUntil([&] { return content::EvalJs(contents,
       "!document.querySelector('[data-tahai-mission-action=toggle-step]').disabled").ExtractBool(); }));
   EXPECT_EQ(missions->missions().back().mutation_token, content::EvalJs(contents,
       "document.querySelector('[data-tahai-mission-action=toggle-step]').dataset.tahaiRunToken"));
-  const auto split = browser()->GetTabStripModel()->GetActiveTab()->GetSplit();
-  const int count = browser()->GetTabStripModel()->count();
+  const auto split = browser()->tab_strip_model()->GetActiveTab()->GetSplit();
+  const int count = browser()->tab_strip_model()->count();
   ASSERT_TRUE(content::ExecJs(contents, send));
   base::RunLoop().RunUntilIdle();
-  EXPECT_EQ(split, browser()->GetTabStripModel()->GetActiveTab()->GetSplit());
-  EXPECT_EQ(count, browser()->GetTabStripModel()->count());
+  EXPECT_EQ(split, browser()->tab_strip_model()->GetActiveTab()->GetSplit());
+  EXPECT_EQ(count, browser()->tab_strip_model()->count());
   EXPECT_EQ("dispatched", missions->missions().back().steps[0].action_state);
 
   // Hold journal I/O until a different mode sharing this exact workflow has
@@ -2011,8 +2027,8 @@ IN_PROC_BROWSER_TEST_F(TahaiOperationalModeBrowserTest,
   EXPECT_EQ("failed", missions->missions().back().operational_workflow->run_state);
   EXPECT_FALSE(missions->SetOperationalWorkflowRunState(changed->id, "running"));
   EXPECT_FALSE(missions->BeginNativeWorkflowStep(changed->id, 0));
-  EXPECT_EQ(split, browser()->GetTabStripModel()->GetActiveTab()->GetSplit());
-  EXPECT_EQ(count, browser()->GetTabStripModel()->count());
+  EXPECT_EQ(split, browser()->tab_strip_model()->GetActiveTab()->GetSplit());
+  EXPECT_EQ(count, browser()->tab_strip_model()->count());
 
   // Even a run-local edit while journal I/O is pending invalidates this
   // invocation through its random freshness token, not a wall-clock stamp.
@@ -2035,8 +2051,8 @@ IN_PROC_BROWSER_TEST_F(TahaiOperationalModeBrowserTest,
     return missions->missions().back().steps[0].action_state == "rejected";
   }));
   EXPECT_EQ("failed", missions->missions().back().operational_workflow->run_state);
-  EXPECT_EQ(split, browser()->GetTabStripModel()->GetActiveTab()->GetSplit());
-  EXPECT_EQ(count, browser()->GetTabStripModel()->count());
+  EXPECT_EQ(split, browser()->tab_strip_model()->GetActiveTab()->GetSplit());
+  EXPECT_EQ(count, browser()->tab_strip_model()->count());
 
   const auto fresh = missions->CreateOperationalWorkflowMission(
       workflow, "decoder-fixture", Hash(archive), true);
@@ -2048,7 +2064,7 @@ IN_PROC_BROWSER_TEST_F(TahaiOperationalModeBrowserTest,
       content::JsReplace("chrome.send('runTahaiNativeWorkflowStep', [$1, 0, $2]);", fresh->id, missions->missions().back().mutation_token)));
   base::RunLoop().RunUntilIdle();
   EXPECT_EQ("ready", missions->missions().back().steps[0].action_state);
-  EXPECT_EQ(count, browser()->GetTabStripModel()->count());
+  EXPECT_EQ(count, browser()->tab_strip_model()->count());
 }
 
 IN_PROC_BROWSER_TEST_F(TahaiOperationalModeBrowserTest,
@@ -2068,8 +2084,7 @@ IN_PROC_BROWSER_TEST_F(TahaiOperationalModeBrowserTest,
   auto* controller=WindowModeController::GetForBrowser(browser());ASSERT_TRUE(controller->ApplyReviewedWindowSkin(preview.preview_token));
   ASSERT_TRUE(controller->SelectOperationalMode("review-mode"));
   ASSERT_TRUE(QueueOperationalWorkflowLaunch(browser()->GetProfile(),controller->operational_manifest()->workflows.front(),"decoder-fixture",Hash(archive)));
-  ASSERT_TRUE(chrome::ExecuteCommand(browser(), IDC_TAHAI_MISSION_CONTROL));
-  auto* contents = browser()->GetTabStripModel()->GetActiveWebContents();
+  ASSERT_TRUE(chrome::ExecuteCommand(browser(),IDC_TAHAI_MISSION_CONTROL));auto* contents=browser()->tab_strip_model()->GetActiveWebContents();
   ASSERT_TRUE(content::WaitForLoadStop(contents));auto* service=MissionServiceFactory::GetForProfile(browser()->GetProfile());ASSERT_TRUE(service);
   ASSERT_TRUE(content::EvalJs(contents,"document.querySelector('[data-tahai-variable-assign]').disabled").ExtractBool());
   EXPECT_TRUE(content::EvalJs(contents,"document.querySelector('[data-tahai-action-status-binding]').textContent.includes('does not prove')").ExtractBool());
@@ -2126,29 +2141,27 @@ IN_PROC_BROWSER_TEST_F(TahaiOperationalModeBrowserTest,
   });
   ASSERT_NE(found.end(), mission);
   FinderResult retained = *mission;
-  BrowserWindowInterface* sibling = CreateBrowser(browser()->GetProfile());
+  Browser* sibling = CreateBrowser(browser()->GetProfile());
   EXPECT_FALSE(ActivateFinderResult(sibling, retained));
   EXPECT_FALSE(ResolveOperationalWindowActions(sibling));
   auto forged = retained;
   forged.command_id = IDC_CLOSE_WINDOW;
   EXPECT_FALSE(ActivateFinderResult(browser(), forged));
   ASSERT_TRUE(ActivateFinderResult(browser(), retained));
-  auto* mission_contents =
-      browser()->GetTabStripModel()->GetActiveWebContents();
+  auto* mission_contents = browser()->tab_strip_model()->GetActiveWebContents();
   ASSERT_TRUE(content::WaitForLoadStop(mission_contents));
-  EXPECT_EQ(GURL(kTahaiMissionURL), mission_contents->GetLastCommittedURL());
-  EXPECT_TRUE(mission_contents->GetWebUI());
+  EXPECT_EQ(GURL(kTahaiTrustedMissionURL), mission_contents->GetLastCommittedURL());
   const auto saved = controller->CapturePresentation();
   ASSERT_TRUE(controller->SetActiveMode("support"));
   EXPECT_FALSE(ActivateFinderResult(browser(), retained));
 
   // Restoring the presentation verifies the same revision, without executing
   // either declared action or enqueuing the mode's workflow again.
-  const int before_restore = browser()->GetTabStripModel()->count();
+  const int before_restore = browser()->tab_strip_model()->count();
   ASSERT_TRUE(controller->RestorePresentation(saved));
   ASSERT_TRUE(base::test::RunUntil([&] { return !controller->window_skin_restore_pending(); }));
   ASSERT_TRUE(controller->operational_manifest());
-  EXPECT_EQ(before_restore, browser()->GetTabStripModel()->count());
+  EXPECT_EQ(before_restore, browser()->tab_strip_model()->count());
   EXPECT_TRUE(CanExecuteWindowModeAction(browser(), actions->context,
                                         IDC_TAHAI_MISSION_CONTROL));
   AppMenuModel menu(nullptr, browser());
@@ -2161,14 +2174,14 @@ IN_PROC_BROWSER_TEST_F(TahaiOperationalModeBrowserTest,
   // visible native menu or retained Finder row cannot outlive that decision.
   auto invalid = OperationalTrustPolicy(key);
   invalid.FindList("keys")->Append(base::DictValue().Set("id", "incomplete"));
-  auto* active = browser()->GetTabStripModel()->GetActiveWebContents();
+  auto* active = browser()->tab_strip_model()->GetActiveWebContents();
   SetPublisherPolicy(invalid);
   EXPECT_FALSE(controller->operational_manifest());
   EXPECT_FALSE(ActivateFinderResult(browser(), retained));
   EXPECT_FALSE(menu.IsCommandIdEnabled(IDC_TAHAI_MISSION_CONTROL));
   menu.ExecuteCommand(IDC_TAHAI_MISSION_CONTROL, 0);
-  EXPECT_EQ(active, browser()->GetTabStripModel()->GetActiveWebContents());
-  EXPECT_EQ(before_restore, browser()->GetTabStripModel()->count());
+  EXPECT_EQ(active, browser()->tab_strip_model()->GetActiveWebContents());
+  EXPECT_EQ(before_restore, browser()->tab_strip_model()->count());
   const auto revoked = ResolveOperationalWindowActions(browser());
   ASSERT_TRUE(revoked);
   EXPECT_TRUE(revoked->actions.empty());
@@ -2244,12 +2257,11 @@ IN_PROC_BROWSER_TEST_F(TahaiSkinManagerBrowserTest,
   ASSERT_TRUE(manager);
   ShowSkinManager(browser());
   EXPECT_EQ(manager, Manager(browser()));
-  BrowserWindowInterface* second = CreateBrowser(browser()->GetProfile());
+  Browser* second = CreateBrowser(browser()->GetProfile());
   ShowSkinManager(second);
   EXPECT_EQ(manager, Manager(browser()));
   EXPECT_FALSE(Manager(second));
-  BrowserWindowInterface* private_browser =
-      CreateIncognitoBrowser(browser()->GetProfile());
+  Browser* private_browser = CreateIncognitoBrowser(browser()->GetProfile());
   EXPECT_FALSE(CanShowSkinManager(private_browser));
   ShowSkinManager(private_browser);
   EXPECT_FALSE(Manager(private_browser));
@@ -2544,8 +2556,8 @@ IN_PROC_BROWSER_TEST_F(TahaiSkinManagerBrowserTest,
                    .empty());
 
   auto* reset = Button(manager, kSkinManagerResetElementId);
-  // Applying refreshes the catalog asynchronously. A real user cannot press
-  // Reset until that operation releases the manager's mutation guard.
+  // Applying refreshes the catalog asynchronously. Wait for the same mutation
+  // guard that enables Reset for a real user before dispatching the click.
   ASSERT_TRUE(base::test::RunUntil([&] {
     reset = Button(manager, kSkinManagerResetElementId);
     return reset && reset->GetVisible() && reset->GetEnabled();
@@ -2606,7 +2618,7 @@ IN_PROC_BROWSER_TEST_F(TahaiSkinManagerBrowserTest,
   const auto original_profile = preferences->GetDict(prefs::kTahaiAppliedSkin).Clone();
   auto* first = WindowModeController::GetForBrowser(browser());
   ASSERT_TRUE(first);
-  BrowserWindowInterface* sibling = CreateBrowser(browser()->GetProfile());
+  Browser* sibling = CreateBrowser(browser()->GetProfile());
   auto* second = WindowModeController::GetForBrowser(sibling);
   ASSERT_TRUE(second);
 
@@ -2678,7 +2690,7 @@ IN_PROC_BROWSER_TEST_F(TahaiSkinManagerBrowserTest,
   const auto original_definition =
       SerializeTahaiCustomModeDefinition(modes->custom_modes().front());
   const auto saved_preset = first->CapturePresentation();
-  BrowserWindowInterface* sibling = CreateBrowser(browser()->GetProfile());
+  Browser* sibling = CreateBrowser(browser()->GetProfile());
   auto* second = WindowModeController::GetForBrowser(sibling);
   ASSERT_EQ(sibling, ActivateNativeCustomMode(sibling, id));
 
@@ -2732,8 +2744,8 @@ IN_PROC_BROWSER_TEST_F(TahaiSkinManagerBrowserTest,
   ASSERT_TRUE(first->SetActiveConfigurationValue("header", "minimal"));
   EXPECT_EQ(original_definition,
             SerializeTahaiCustomModeDefinition(modes->custom_modes().front()));
-  EXPECT_EQ(1, browser()->GetTabStripModel()->count());
-  EXPECT_EQ(1, sibling->GetTabStripModel()->count());
+  EXPECT_EQ(1, browser()->tab_strip_model()->count());
+  EXPECT_EQ(1, sibling->tab_strip_model()->count());
 }
 
 IN_PROC_BROWSER_TEST_F(TahaiSkinManagerBrowserTest,
@@ -2778,13 +2790,13 @@ IN_PROC_BROWSER_TEST_F(TahaiSkinManagerBrowserTest,
       .skin = WindowSkinReference{"decoder-fixture", Hash(archive)}};
   const auto profile_appearance =
       browser()->GetProfile()->GetPrefs()->GetDict(prefs::kTahaiAppliedSkin).Clone();
-  const int original_tab_count = browser()->GetTabStripModel()->count();
+  const int original_tab_count = browser()->tab_strip_model()->count();
   ASSERT_TRUE(first->RestorePresentation(saved));
   EXPECT_TRUE(first->window_skin_restore_pending());
   ASSERT_TRUE(base::test::RunUntil([&] { return !first->window_skin_restore_pending(); }));
   EXPECT_TRUE(first->window_skin_palette());
   EXPECT_EQ(saved, first->CapturePresentation());
-  EXPECT_EQ(original_tab_count, browser()->GetTabStripModel()->count());
+  EXPECT_EQ(original_tab_count, browser()->tab_strip_model()->count());
   EXPECT_EQ(profile_appearance,
             browser()->GetProfile()->GetPrefs()->GetDict(prefs::kTahaiAppliedSkin));
 
@@ -2806,7 +2818,7 @@ IN_PROC_BROWSER_TEST_F(TahaiSkinManagerBrowserTest,
   EXPECT_EQ("Unavailable skin", first->active_mode_title());
   EXPECT_EQ(saved, first->CapturePresentation());
   EXPECT_FALSE(first->operational_manifest());
-  BrowserWindowInterface* sibling = CreateBrowser(browser()->GetProfile());
+  Browser* sibling = CreateBrowser(browser()->GetProfile());
   auto* second = WindowModeController::GetForBrowser(sibling);
   ASSERT_TRUE(second);
   ASSERT_TRUE(service->ApplyBuiltIn("terminal-green"));

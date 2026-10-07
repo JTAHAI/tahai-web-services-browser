@@ -11,8 +11,6 @@
 
 #include <algorithm>
 #include <memory>
-#include <optional>
-#include <string_view>
 #include <utility>
 
 #include "base/command_line.h"
@@ -585,12 +583,10 @@ HRESULT MakeUsernameForAccount(const base::DictValue& result,
       }
     } else {
       size_t tld_length =
-          net::registry_controlled_domains::GetCanonicalHostRegistry(
+          net::registry_controlled_domains::GetCanonicalHostRegistryLength(
               gaia::ExtractDomainName(username_utf8),
               net::registry_controlled_domains::EXCLUDE_UNKNOWN_REGISTRIES,
-              net::registry_controlled_domains::INCLUDE_PRIVATE_REGISTRIES)
-              .transform(&std::string_view::size)
-              .value_or(std::string_view::npos);
+              net::registry_controlled_domains::INCLUDE_PRIVATE_REGISTRIES);
 
       // If an TLD is found strip it off, plus 1 to remove the separating dot
       // too.

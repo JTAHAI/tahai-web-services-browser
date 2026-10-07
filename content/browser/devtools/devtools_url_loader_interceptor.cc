@@ -416,7 +416,7 @@ class InterceptionJob : public network::mojom::URLLoaderClient,
 
   InterceptionJob(
       DevToolsURLLoaderInterceptor* interceptor,
-      int id_seq,
+      const std::string& id,
       const base::UnguessableToken& frame_token,
       int32_t process_id,
       const std::optional<std::string>& renderer_request_id,
@@ -551,12 +551,7 @@ class InterceptionJob : public network::mojom::URLLoaderClient,
   network::mojom::FetchResponseType CalculateResponseTainting();
   network::ResourceRequest GetResourceRequestForCookies();
 
-  perfetto::NamedTrack GetNamedTrack() const {
-    return perfetto::NamedTrack("InterceptionJob",
-                                static_cast<uint64_t>(id_seq_));
-  }
-
-  const int id_seq_;
+  const std::string id_prefix_;
   const GlobalRequestID global_req_id_;
   const base::UnguessableToken frame_token_;
   const bool report_upload_;
@@ -588,20 +583,12 @@ class InterceptionJob : public network::mojom::URLLoaderClient,
     kResponseTaken,
   };
 
-  // Tracks how far along we are in notifying the client about an intercepted
-  // request and waiting for it to resolve it.
-  enum class ResolutionState {
-    kNone,
-    kPreparingData,
-    kWaitingForClient,
-  };
-
-  State state_ = kNotStarted;
+  State state_;
   base::TimeTicks start_ticks_;
   base::Time start_time_;
 
-  ResolutionState waiting_for_resolution_ = ResolutionState::kNone;
-  int redirect_count_ = 0;
+  bool waiting_for_resolution_;
+  int redirect_count_;
   bool tainted_origin_ = false;
   bool fetch_cors_flag_ = false;
   std::string current_id_;
@@ -660,9 +647,10 @@ void DevToolsURLLoaderInterceptor::CreateJob(
 
   static int last_id = 0;
 
+  std::string id = base::StringPrintf("interception-job-%d", ++last_id);
   // This class will manage its own life time to match the loader client.
   new InterceptionJob(
-      this, ++last_id, frame_token, process_id, renderer_request_id,
+      this, std::move(id), frame_token, process_id, renderer_request_id,
       std::move(create_params), is_download, std::move(loader_receiver),
       std::move(client), std::move(target_factory), std::move(cookie_manager));
 }
@@ -924,10 +912,8 @@ DevToolsURLLoaderInterceptor::DevToolsURLLoaderInterceptor(
       weak_factory_(this) {}
 
 DevToolsURLLoaderInterceptor::~DevToolsURLLoaderInterceptor() {
-  auto jobs = std::move(jobs_);
-  for (auto const& entry : jobs) {
+  for (auto const& entry : jobs_)
     entry.second->Detach();
-  }
 }
 
 void DevToolsURLLoaderInterceptor::SetPatterns(
@@ -1034,7 +1020,7 @@ bool DevToolsURLLoaderInterceptor::CreateProxyForInterception(
 
 InterceptionJob::InterceptionJob(
     DevToolsURLLoaderInterceptor* interceptor,
-    int id_seq,
+    const std::string& id,
     const base::UnguessableToken& frame_token,
     int process_id,
     const std::optional<std::string>& renderer_request_id,
@@ -1044,7 +1030,7 @@ InterceptionJob::InterceptionJob(
     mojo::PendingRemote<network::mojom::URLLoaderClient> client,
     mojo::PendingRemote<network::mojom::URLLoaderFactory> target_factory,
     mojo::PendingRemote<network::mojom::CookieManager> cookie_manager)
-    : id_seq_(id_seq),
+    : id_prefix_(id),
       global_req_id_(ToOriginatingProcessIdUnsafe(process_id),
                      create_loader_params->request_id),
       frame_token_(frame_token),
@@ -1055,6 +1041,9 @@ InterceptionJob::InterceptionJob(
       client_(std::move(client)),
       target_factory_(std::move(target_factory)),
       cookie_manager_(std::move(cookie_manager)),
+      state_(kNotStarted),
+      waiting_for_resolution_(false),
+      redirect_count_(0),
       renderer_request_id_(renderer_request_id) {
   loader_receiver_.Bind(std::move(loader_receiver));
   loader_receiver_.set_disconnect_handler(
@@ -1079,8 +1068,7 @@ bool InterceptionJob::StartJobAndMaybeNotify() {
   start_ticks_ = base::TimeTicks::Now();
   start_time_ = base::Time::Now();
 
-  current_id_ =
-      base::StringPrintf("interception-job-%d.%d", id_seq_, redirect_count_);
+  current_id_ = id_prefix_ + base::StringPrintf(".%d", redirect_count_);
   interceptor_->AddJob(create_loader_params_->request_id, current_id_, this);
 
   const network::ResourceRequest& request = create_loader_params_->request;
@@ -1143,8 +1131,7 @@ bool InterceptionJob::CanGetResponseBody(std::string* error_reason) {
         "requests.";
     return false;
   }
-  if (state_ != State::kResponseReceived ||
-      waiting_for_resolution_ != ResolutionState::kWaitingForClient) {
+  if (state_ != State::kResponseReceived || !waiting_for_resolution_) {
     *error_reason =
         "Can only get response body on requests captured after headers "
         "received.";
@@ -1204,14 +1191,13 @@ void InterceptionJob::ContinueInterceptedRequest(
 void InterceptionJob::Detach() {
   stages_.Clear();
   interceptor_ = nullptr;
-  if (waiting_for_resolution_ == ResolutionState::kNone) {
+  if (!waiting_for_resolution_)
     return;
-  }
   if (state_ == State::kAuthRequired) {
     state_ = State::kRequestSent;
-    waiting_for_resolution_ = ResolutionState::kNone;
-    // Corresponds to the TRACE_EVENT_BEGIN in NotifyClient.
-    TRACE_EVENT_END("devtools", GetNamedTrack());
+    waiting_for_resolution_ = false;
+    // Corresponds to the TRACE_EVENT_BEGIN in CompleteNotifyingClient.
+    TRACE_EVENT_END("devtools", perfetto::Track::FromPointer(this));
     std::move(pending_auth_callback_).Run(true, std::nullopt);
     return;
   }
@@ -1220,13 +1206,13 @@ void InterceptionJob::Detach() {
 
 Response InterceptionJob::InnerContinueRequest(
     std::unique_ptr<Modifications> modifications) {
-  if (waiting_for_resolution_ == ResolutionState::kNone) {
+  if (!waiting_for_resolution_) {
     return Response::ServerError(
         "Invalid state for continueInterceptedRequest");
   }
-  waiting_for_resolution_ = ResolutionState::kNone;
-  // Corresponds to the TRACE_EVENT_BEGIN in NotifyClient.
-  TRACE_EVENT_END("devtools", GetNamedTrack());
+  waiting_for_resolution_ = false;
+  // Corresponds to the TRACE_EVENT_BEGIN in CompleteNotifyingClient.
+  TRACE_EVENT_END("devtools", perfetto::Track::FromPointer(this));
   if (modifications->intercept_response.has_value()) {
     stages_.PutOrRemove(InterceptionStage::kResponse,
                         modifications->intercept_response.value());
@@ -1655,9 +1641,8 @@ void InterceptionJob::SendResponse(scoped_refptr<base::RefCountedMemory> body,
 }
 
 void InterceptionJob::ResponseBodyComplete() {
-  if (waiting_for_resolution_ != ResolutionState::kNone) {
+  if (waiting_for_resolution_)
     return;
-  }
   // We're here only if client has already told us to proceed with unmodified
   // response.
   SendResponse(body_reader_->body(), 0);
@@ -1763,9 +1748,7 @@ void InterceptionJob::FetchCookies(base::OnceClosure callback) {
 void InterceptionJob::NotifyClient(
     std::unique_ptr<InterceptedRequestInfo> request_info) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  DCHECK_EQ(ResolutionState::kNone, waiting_for_resolution_);
-  waiting_for_resolution_ = ResolutionState::kPreparingData;
-  TRACE_EVENT_BEGIN("devtools", "Fetch.requestPaused", GetNamedTrack());
+  DCHECK(!waiting_for_resolution_);
 
   const network::ResourceRequest request = GetResourceRequestForCookies();
 
@@ -1819,17 +1802,16 @@ void InterceptionJob::OnGotRequestBodies(
 void InterceptionJob::CompleteNotifyingClient(
     std::unique_ptr<InterceptedRequestInfo> request_info) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  // The request may have been resolved, e.g. from Detach().
-  if (waiting_for_resolution_ != ResolutionState::kPreparingData ||
-      !interceptor_) {
+  if (!interceptor_)
     return;
-  }
   request_info->network_request =
       protocol::NetworkHandler::CreateRequestFromResourceRequest(
           create_loader_params_->request,
           request_cookies_.value_or(std::string()), request_bodies_);
 
-  waiting_for_resolution_ = ResolutionState::kWaitingForClient;
+  TRACE_EVENT_BEGIN("devtools", "Fetch.requestPaused",
+                    perfetto::Track::FromPointer(this));
+  waiting_for_resolution_ = true;
   interceptor_->request_intercepted_callback_.Run(std::move(request_info));
 }
 
@@ -1851,7 +1833,7 @@ void InterceptionJob::FollowRedirect(
     const std::optional<GURL>& new_url) {
   DCHECK(!new_url.has_value()) << "Redirect with modified url was not "
                                   "supported yet. crbug.com/845683";
-  DCHECK_EQ(ResolutionState::kNone, waiting_for_resolution_);
+  DCHECK(!waiting_for_resolution_);
 
   network::ResourceRequest* request = &create_loader_params_->request;
   const net::RedirectInfo& info = *response_metadata_->redirect_info;
@@ -2049,7 +2031,7 @@ void InterceptionJob::OnComplete(
   // we're in the proper state. The completion is due upon client response.
   DCHECK(state_ == State::kResponseReceived || state_ == State::kResponseTaken)
       << "Unexpected state " << static_cast<int>(state_);
-  DCHECK_NE(ResolutionState::kNone, waiting_for_resolution_);
+  DCHECK(waiting_for_resolution_);
 
   response_metadata_->status = status;
 }
@@ -2175,7 +2157,7 @@ void InterceptionJob::OnAuthRequest(
     DevToolsURLLoaderInterceptor::HandleAuthRequestCallback callback) {
   DCHECK_EQ(kRequestSent, state_);
   DCHECK(pending_auth_callback_.is_null());
-  DCHECK_EQ(ResolutionState::kNone, waiting_for_resolution_);
+  DCHECK(!waiting_for_resolution_);
 
   if (!stages_.Has(InterceptionStage::kRequest) || !interceptor_ ||
       !interceptor_->handle_auth_) {

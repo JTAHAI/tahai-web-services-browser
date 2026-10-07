@@ -18,7 +18,7 @@
 #include "content/public/browser/render_process_host.h"
 #include "testing/gmock/include/gmock/gmock.h"
 
-class BrowserWindowInterface;
+class Browser;
 
 namespace on_device_translation {
 
@@ -156,23 +156,23 @@ std::string CreateFakeDictionaryData(const std::string_view sourceLang,
 
 // Tests that the simple translation works. The dictionary data generated using
 // CreateFakeDictionaryData() must be installed to pass the test.
-void TestSimpleTranslationWorks(BrowserWindowInterface* browser,
+void TestSimpleTranslationWorks(Browser* browser,
                                 LanguagePackKey language_pack_key);
-void TestSimpleTranslationWorks(BrowserWindowInterface* browser,
+void TestSimpleTranslationWorks(Browser* browser,
                                 const std::string_view sourceLang,
                                 const std::string_view targetLang);
 
 // Tests that the createTranslator() returns the expected result.
-void TestCreateTranslator(BrowserWindowInterface* browser,
+void TestCreateTranslator(Browser* browser,
                           LanguagePackKey language_pack_key,
                           const std::string_view result);
-void TestCreateTranslator(BrowserWindowInterface* browser,
+void TestCreateTranslator(Browser* browser,
                           const std::string_view sourceLang,
                           const std::string_view targetLang,
                           const std::string_view result);
 
 // Tests that`availability()` returns the expected result.
-void TestTranslationAvailable(BrowserWindowInterface* browser,
+void TestTranslationAvailable(Browser* browser,
                               const std::string_view sourceLang,
                               const std::string_view targetLang,
                               const std::string_view result);

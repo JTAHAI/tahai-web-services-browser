@@ -13,7 +13,6 @@ import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.browserservices.InstalledWebappRegistrar;
 import org.chromium.chrome.browser.browserservices.intents.BrowserServicesIntentDataProvider;
-import org.chromium.chrome.browser.browserservices.intents.BrowserServicesIntentDataProvider.CustomTabsUiType;
 import org.chromium.chrome.browser.browserservices.ui.SharedActivityCoordinator;
 import org.chromium.chrome.browser.browserservices.ui.controller.CurrentPageVerifier;
 import org.chromium.chrome.browser.browserservices.ui.controller.CurrentPageVerifier.VerificationStatus;
@@ -55,13 +54,9 @@ public class TrustedWebActivityCoordinator {
 
         mCurrentPageVerifier.addVerificationObserver(this::onVerificationUpdate);
 
-        // Do not record a TWA launch metric for popups opened from within a running TWA,
-        // as they are child windows rather than separate user launches of the application.
-        if (intentDataProvider.getUiType() != CustomTabsUiType.POPUP) {
-            LaunchMetrics.recordTWALaunch(
-                    assumeNonNull(intentDataProvider.getUrlToLoad()),
-                    intentDataProvider.getResolvedDisplayMode());
-        }
+        LaunchMetrics.recordTWALaunch(
+                assumeNonNull(intentDataProvider.getUrlToLoad()),
+                intentDataProvider.getResolvedDisplayMode());
     }
 
     private void onVerificationUpdate() {

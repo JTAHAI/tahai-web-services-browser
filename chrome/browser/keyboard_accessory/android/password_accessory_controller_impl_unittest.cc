@@ -50,7 +50,6 @@
 #include "components/password_manager/core/browser/password_store/mock_password_store_interface.h"
 #include "components/password_manager/core/browser/password_store/password_form_converters.h"
 #include "components/password_manager/core/browser/password_store/test_password_store.h"
-#include "components/password_manager/core/browser/password_string.h"
 #include "components/password_manager/core/browser/stub_password_manager_client.h"
 #include "components/password_manager/core/browser/stub_password_manager_driver.h"
 #include "components/password_manager/core/browser/webauthn_credentials_delegate.h"
@@ -95,7 +94,6 @@ using password_manager::PasswordManagerDriver;
 using password_manager::PasswordManagerInterface;
 using password_manager::PasswordStoreBackendError;
 using password_manager::PasswordStoreInterface;
-using password_manager::PasswordString;
 using password_manager::TestPasswordStore;
 using testing::_;
 using testing::AnyNumber;
@@ -299,7 +297,7 @@ PasswordForm MakeSavedPassword() {
   form.signon_realm = std::string(kExampleSite);
   form.url = GURL(kExampleSite);
   form.username_value = kUsername;
-  form.password_value = PasswordString(kPassword);
+  form.password_value = kPassword;
   form.username_element = u"";
   form.in_store = PasswordForm::Store::kProfileStore;
   return form;
@@ -1033,6 +1031,8 @@ TEST_F(PasswordAccessoryControllerTest, AddsSaveToggleOnAnyFieldIfBlocked) {
           .Build());
 }
 
+
+
 TEST_F(PasswordAccessoryControllerTest,
        RecordsAccessoryImpressionsForBlocklisted) {
   CreateSheetController();
@@ -1295,7 +1295,7 @@ TEST_F(PasswordAccessoryControllerTest,
 
   PasswordForm form;
   form.username_value = u"Ben";
-  form.password_value = PasswordString(u"S3cur3");
+  form.password_value = u"S3cur3";
   form.signon_realm = kExampleAndroidApp;
   form.match_type = PasswordForm::MatchType::kGrouped;
   form.app_display_name = "Example android app";
@@ -1473,6 +1473,7 @@ TEST_F(PasswordAccessoryControllerTest, CancelsOngoingAuthIfDestroyed) {
 
   EXPECT_CALL(*mock_authenticator_ptr, Cancel());
 }
+
 
 TEST_F(PasswordAccessoryControllerTest, ShowCredManReentry) {
   WebAuthnCredManDelegate::override_cred_man_support_for_testing(
@@ -1671,6 +1672,8 @@ TEST_F(PasswordAccessoryControllerTest,
           .Build());
 }
 
+
+
 TEST_F(PasswordAccessoryControllerTest, ShowTrustedVaultError) {
   CreateSheetController();
   cache()->SaveCredentialsAndBlocklistedForOrigin(
@@ -1701,10 +1704,8 @@ TEST_F(PasswordAccessoryControllerTest, ShowTrustedVaultError) {
 
   EXPECT_CALL(*mock_error_message_helper_bridge_,
               StartTrustedVaultKeyRetrievalFlow(
-                  _,
-                  trusted_vault::TrustedVaultUserActionTriggerForUMA::
-                      kPasswordManagerKeyboardAccessory,
-                  _));
+                  _, trusted_vault::TrustedVaultUserActionTriggerForUMA::
+                         kPasswordManagerKeyboardAccessory));
 
   controller()->OnOptionSelected(
       autofill::AccessoryAction::RETRIEVE_TRUSTED_VAULT_KEY);

@@ -121,6 +121,7 @@ net::NetworkTrafficAnnotationTag FetchUtils::GetTrafficAnnotationTag(
     case network::mojom::RequestDestination::kFencedframe:
     case network::mojom::RequestDestination::kWebIdentity:
     case network::mojom::RequestDestination::kEmailVerification:
+    case network::mojom::RequestDestination::kSharedStorageWorklet:
       NOTREACHED();
     case network::mojom::RequestDestination::kAudio:
     case network::mojom::RequestDestination::kAudioWorklet:

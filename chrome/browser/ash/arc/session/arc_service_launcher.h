@@ -22,10 +22,6 @@ class ApplicationLocaleStorage;
 class PrefService;
 class Profile;
 
-namespace metrics {
-class MetricsService;
-}  // namespace metrics
-
 namespace ash {
 class SchedulerConfigurationManagerBase;
 }
@@ -52,13 +48,10 @@ class ArcServiceLauncher {
  public:
   // `local_state` and `application_locale_storage` must be non-null and must
   // outlive `this`.
-  // `metrics_service` may be null in tests. If non-null, it must remain valid
-  // until Shutdown() is called. `scheduler_configuration_manager` must outlive
-  // `this` object.
+  // |scheduler_configuration_manager| must outlive |this| object.
   ArcServiceLauncher(
       PrefService* local_state,
       const ApplicationLocaleStorage* application_locale_storage,
-      metrics::MetricsService* metrics_service,
       ash::SchedulerConfigurationManagerBase* scheduler_configuration_manager);
 
   ArcServiceLauncher(const ArcServiceLauncher&) = delete;
@@ -136,7 +129,6 @@ class ArcServiceLauncher {
 
   const raw_ref<PrefService> local_state_;
   const raw_ref<const ApplicationLocaleStorage> application_locale_storage_;
-  raw_ptr<metrics::MetricsService> metrics_service_ = nullptr;
 
   std::unique_ptr<ArcServiceManager> arc_service_manager_;
   // |scheduler_configuration_manager_| outlives |this|.

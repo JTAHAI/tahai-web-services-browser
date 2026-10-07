@@ -145,7 +145,8 @@ public class RecentTabsManager
                                 this::updatePromoState));
         mSyncService = assumeNonNull(SyncServiceFactory.getForProfile(mProfile));
 
-        mRecentlyClosedEntriesManager.setEntriesUpdatedCallback(this::updateRecentlyClosedEntries);
+        mRecentlyClosedEntriesManager.setEntriesUpdatedCallback(
+                (recentlyClosedEntries) -> updateRecentlyClosedEntries(recentlyClosedEntries));
         mRecentlyClosedEntriesManager.updateRecentlyClosedEntries();
 
         mForeignSessionHelper.setOnForeignSessionCallback(this::updateForeignSessions);
@@ -218,8 +219,6 @@ public class RecentTabsManager
         mPrefs = null;
 
         SessionsInvalidationManager.get(mProfile).onRecentTabsPageClosed();
-
-        mRecentlyClosedEntriesManager.setEntriesUpdatedCallback(null);
 
         mForeignSessionHelper.destroy();
         mForeignSessionHelper = null;
@@ -338,9 +337,11 @@ public class RecentTabsManager
      * @param url The url to fetch the favicon for.
      * @param size the desired favicon size.
      * @param faviconCallback the callback to be invoked when the favicon is available.
+     * @return favicon or null if favicon unavailable.
      */
-    public void getForeignFaviconForUrl(GURL url, int size, FaviconImageCallback faviconCallback) {
-        mFaviconHelper.getForeignFaviconImageForURL(
+    public boolean getForeignFaviconForUrl(
+            GURL url, int size, FaviconImageCallback faviconCallback) {
+        return mFaviconHelper.getForeignFaviconImageForURL(
                 mProfile, url, size, /* fallbackToHost= */ true, faviconCallback);
     }
 
@@ -350,9 +351,10 @@ public class RecentTabsManager
      * @param url The url to fetch a favicon for.
      * @param size the desired favicon size.
      * @param faviconCallback the callback to be invoked when the favicon is available.
+     * @return may return false if we could not fetch the favicon.
      */
-    public void getLocalFaviconForUrl(GURL url, int size, FaviconImageCallback faviconCallback) {
-        mFaviconHelper.getLocalFaviconImageForURL(
+    public boolean getLocalFaviconForUrl(GURL url, int size, FaviconImageCallback faviconCallback) {
+        return mFaviconHelper.getLocalFaviconImageForURL(
                 mProfile, url, size, /* fallbackToHost= */ true, faviconCallback);
     }
 

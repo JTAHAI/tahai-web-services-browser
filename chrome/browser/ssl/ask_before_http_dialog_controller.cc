@@ -181,12 +181,6 @@ void AskBeforeHttpDialogController::ShowDialog(
   if (!web_contents) {
     return;
   }
-#if BUILDFLAG(IS_ANDROID)
-  ui::WindowAndroid* window = web_contents->GetTopLevelNativeWindow();
-  if (!window || !window->GetModalDialogManagerBridge()) {
-    return;
-  }
-#endif
   Observe(web_contents);
   // Track the source ID for the navigation that triggered the dialog.
   navigation_source_id_ = navigation_source_id;
@@ -231,9 +225,6 @@ void AskBeforeHttpDialogController::ShowDialog(
   // dialog being dismissed for this reason doesn't trigger a "back to
   // safety" action.
   tab_dialog_params->block_new_modal = false;
-  // Ensure the dialog persists if the tab is detached and reparented into
-  // another window.
-  tab_dialog_params->close_on_detach = false;
 
   auto* tab = tabs::TabInterface::MaybeGetFromContents(web_contents);
   CHECK(tab);
@@ -250,6 +241,7 @@ void AskBeforeHttpDialogController::ShowDialog(
   focused_view->RequestFocus();
 #else
   current_dialog_model_ = dialog_model.get();
+  ui::WindowAndroid* window = web_contents->GetTopLevelNativeWindow();
   ui::ModalDialogWrapper::ShowTabModal(std::move(dialog_model), window);
 #endif
 }

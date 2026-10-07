@@ -8,7 +8,6 @@
 #include <cstddef>
 #include <cstdint>
 
-#include "base/i18n/legacy_language_tag_helpers.h"
 #include "base/metrics/field_trial.h"
 #include "base/metrics/field_trial_params.h"
 #include "base/numerics/safe_conversions.h"
@@ -71,9 +70,10 @@ bool IsSupportedLocale(const std::string& locale,
     return true;
   }
 
+  // Otherwise, the locale or the primary language subtag must match an element
+  // of the allowlist.
   return std::ranges::contains(supported, locale) ||
-         std::ranges::contains(
-             supported, base::i18n::GetLanguageSubtagUsingLanguageTag(locale));
+         std::ranges::contains(supported, l10n_util::GetLanguage(locale));
 }
 
 bool IsSupportedCountry(const std::string& country_code,
@@ -99,8 +99,15 @@ bool IsSupportedCountry(const std::string& country_code,
 
 }  // namespace
 
+// Enables page content to be annotated.
+BASE_FEATURE(kPageContentAnnotations, base::FEATURE_ENABLED_BY_DEFAULT);
+
 BASE_FEATURE(kPageContentAnnotationsValidation,
              base::FEATURE_DISABLED_BY_DEFAULT);
+
+// Enables fetching page metadata from the remote Optimization Guide service,
+// left as a killswitch.
+BASE_FEATURE(kRemotePageMetadata, base::FEATURE_ENABLED_BY_DEFAULT);
 
 BASE_FEATURE(kOptimizationGuideUseContinueOnShutdownForPageContentAnnotations,
              enabled_by_default_non_ios);
@@ -169,7 +176,7 @@ const base::FeatureParam<base::TimeDelta> kObservationDelayLcp{
     &kPageSettledMonitor, "observation-delay-lcp", base::Seconds(1)};
 
 BASE_FEATURE(kPageContentExtractionUsingPageSettledMonitor,
-             base::FEATURE_ENABLED_BY_DEFAULT);
+             base::FEATURE_DISABLED_BY_DEFAULT);
 
 const base::FeatureParam<base::TimeDelta> kPageSettledCaptureDelay{
     &kPageContentExtractionUsingPageSettledMonitor, "capture_delay",
@@ -182,21 +189,37 @@ BASE_FEATURE(kPageSettledMonitorSkipAwaitVisualStateForHiddenTabs,
              base::FEATURE_ENABLED_BY_DEFAULT);
 
 base::TimeDelta PCAServiceWaitForTitleDelayDuration() {
-  return base::Milliseconds(5000);
+  return base::Milliseconds(GetFieldTrialParamByFeatureAsInt(
+      kPageContentAnnotations,
+      "pca_service_wait_for_title_delay_in_milliseconds", 5000));
 }
 
 bool ShouldEnablePageContentAnnotations() {
-  // Remote page metadata is permanently enabled without a feature flag, so
-  // the service should always be enabled.
-  return true;
+  // Allow for the validation experiment or remote page metadata to enable the
+  // PCAService without need to enable both features.
+  return base::FeatureList::IsEnabled(kPageContentAnnotations) ||
+         base::FeatureList::IsEnabled(page_content_annotations::features::
+                                          kPageContentAnnotationsValidation) ||
+         base::FeatureList::IsEnabled(
+             page_content_annotations::features::kRemotePageMetadata) ||
+         base::FeatureList::IsEnabled(kOnDeviceCategoryClassifier);
+}
+
+bool ShouldWriteContentAnnotationsToHistoryService() {
+  return base::GetFieldTrialParamByFeatureAsBool(
+      kPageContentAnnotations, "write_to_history_service", true);
 }
 
 size_t MaxContentAnnotationRequestsCached() {
-  return 50;
+  return GetFieldTrialParamByFeatureAsInt(
+      kPageContentAnnotations, "max_content_annotation_requests_cached", 50);
 }
 
+const base::FeatureParam<bool> kContentAnnotationsExtractRelatedSearchesParam{
+    &kPageContentAnnotations, "extract_related_searches", true};
+
 bool ShouldExtractRelatedSearches() {
-  return true;
+  return kContentAnnotationsExtractRelatedSearchesParam.Get();
 }
 
 bool ShouldExecutePageVisibilityModelOnPageContent(const std::string& locale) {
@@ -227,17 +250,29 @@ bool ShouldExecuteOnDeviceCategoryClassifierOnPageContent(
                                       "US");
 }
 
+bool RemotePageMetadataEnabled(const std::string& locale,
+                               const std::string& country_code) {
+  return base::FeatureList::IsEnabled(kRemotePageMetadata) &&
+         IsSupportedLocaleForFeature(locale, kRemotePageMetadata, "*") &&
+         IsSupportedCountryForFeature(country_code, kRemotePageMetadata, "*");
+}
+
+int GetMinimumPageCategoryScoreToPersist() {
+  return GetFieldTrialParamByFeatureAsInt(kRemotePageMetadata,
+                                          "min_page_category_score", 85);
+}
+
 int NumBitsForRAPPORMetrics() {
   // The number of bits must be at least 1.
   return std::max(
-      1, GetFieldTrialParamByFeatureAsInt(kPageContentAnnotationsValidation,
+      1, GetFieldTrialParamByFeatureAsInt(kPageContentAnnotations,
                                           "num_bits_for_rappor_metrics", 4));
 }
 
 double NoiseProbabilityForRAPPORMetrics() {
   // The noise probability must be between 0 and 1.
   return std::max(0.0, std::min(1.0, GetFieldTrialParamByFeatureAsDouble(
-                                         kPageContentAnnotationsValidation,
+                                         kPageContentAnnotations,
                                          "noise_prob_for_rappor_metrics", .5)));
 }
 
@@ -247,7 +282,9 @@ size_t AnnotateVisitBatchSize() {
   // `kDefaultBatchSize` entries are annotated when new visits are synced. Set
   // the limit to 5 since up to 5 URLs are shown on tab resume module.
   constexpr int kDefaultBatchSize = 5;
-  return kDefaultBatchSize;
+  return std::max(1, GetFieldTrialParamByFeatureAsInt(
+                         kPageContentAnnotations, "annotate_visit_batch_size",
+                         kDefaultBatchSize));
 }
 
 base::TimeDelta PageContentAnnotationValidationStartupDelay() {
@@ -264,11 +301,14 @@ size_t PageContentAnnotationsValidationBatchSize() {
 }
 
 base::TimeDelta PageContentAnnotationBatchSizeTimeoutDuration() {
-  return base::Seconds(1);
+  return base::Seconds(GetFieldTrialParamByFeatureAsInt(
+      kPageContentAnnotations, "batch_annotations_timeout_seconds", 1));
 }
 
 size_t MaxVisitAnnotationCacheSize() {
-  return 50;
+  int batch_size = GetFieldTrialParamByFeatureAsInt(
+      kPageContentAnnotations, "max_visit_annotation_cache_size", 50);
+  return std::max(1, batch_size);
 }
 
 size_t MaxRelatedSearchesCacheSize() {
@@ -320,6 +360,24 @@ PageContentExtractionTriggeringMode GetPageContentExtractionTriggeringMode() {
 
 base::TimeDelta GetPageSettledCaptureDelay() {
   return kPageSettledCaptureDelay.Get();
+}
+
+bool IsSupportedLocaleForFeature(
+    const std::string& locale,
+    const base::Feature& feature,
+    const std::string& default_value = "de,en,es,fr,it,nl,pt,tr") {
+  if (!base::FeatureList::IsEnabled(feature)) {
+    return false;
+  }
+
+  std::string value =
+      base::GetFieldTrialParamValueByFeature(feature, "supported_locales");
+  if (value.empty()) {
+    // The default list of supported locales for optimization guide features.
+    value = default_value;
+  }
+
+  return IsSupportedLocale(locale, value);
 }
 
 bool IsSupportedCountryForFeature(const std::string& country_code,

@@ -13,7 +13,6 @@
 #include "base/test/task_environment.h"
 #include "components/password_manager/core/browser/fake_form_fetcher.h"
 #include "components/password_manager/core/browser/password_form.h"
-#include "components/password_manager/core/browser/password_string.h"
 #include "components/password_manager/core/browser/stub_form_saver.h"
 #include "components/password_manager/core/browser/stub_password_manager_client.h"
 #include "testing/gmock/include/gmock/gmock.h"
@@ -63,8 +62,7 @@ class MockFormSaver : public StubFormSaver {
 MATCHER_P(FormMatches, form, "") {
   return form.signon_realm == arg.signon_realm && form.url == arg.url &&
          form.username_value == arg.username_value &&
-         form.password_value.secure_value() ==
-             arg.password_value.secure_value() &&
+         form.password_value == arg.password_value &&
          form.scheme == arg.scheme && form.type == arg.type;
 }
 
@@ -76,7 +74,7 @@ class CredentialManagerPasswordFormManagerTest : public testing::Test {
     form_to_save_.url = GURL("https://example.com/path");
     form_to_save_.signon_realm = "https://example.com/";
     form_to_save_.username_value = u"user1";
-    form_to_save_.password_value = PasswordString(u"pass1");
+    form_to_save_.password_value = u"pass1";
     form_to_save_.scheme = PasswordForm::Scheme::kHtml;
     form_to_save_.type = PasswordForm::Type::kApi;
     form_to_save_.in_store = PasswordForm::Store::kProfileStore;
@@ -146,8 +144,7 @@ TEST_F(CredentialManagerPasswordFormManagerTest,
   // username/password as a submitted one.
   PasswordForm saved_match = form_to_save_;
   saved_match.username_value += u"1";
-  saved_match.password_value =
-      PasswordString(saved_match.password_value.value() + u"1");
+  saved_match.password_value += u"1";
 
   std::unique_ptr<CredentialManagerPasswordFormManager> form_manager =
       CreateFormManager(form_to_save_);
@@ -168,8 +165,7 @@ TEST_F(CredentialManagerPasswordFormManagerTest, UpdatePasswordCredentialAPI) {
   // Simulate that the submitted credential has the same username but the
   // different password from already saved one.
   PasswordForm saved_match = form_to_save_;
-  saved_match.password_value =
-      PasswordString(saved_match.password_value.value() + u"1");
+  saved_match.password_value += u"1";
   saved_match.match_type = PasswordForm::MatchType::kExact;
 
   std::unique_ptr<CredentialManagerPasswordFormManager> form_manager =

@@ -282,6 +282,7 @@ TEST_P(BoxPaintInvalidatorTest, InvalidateHitTestOnCompositingStyleChange) {
 }
 
 TEST_P(BoxPaintInvalidatorTest, GapDecorationGridChildSizeChange) {
+  ScopedCSSGapDecorationForTest scoped_gap_decoration(true);
   SetBodyInnerHTML(R"HTML(
     <style>
       #grid {
@@ -317,6 +318,7 @@ TEST_P(BoxPaintInvalidatorTest, GapDecorationGridChildSizeChange) {
 }
 
 TEST_P(BoxPaintInvalidatorTest, GapDecorationFlexChildRemoval) {
+  ScopedCSSGapDecorationForTest scoped_gap_decoration(true);
   SetBodyInnerHTML(R"HTML(
     <style>
       #flex {
@@ -350,6 +352,7 @@ TEST_P(BoxPaintInvalidatorTest, GapDecorationFlexChildRemoval) {
 }
 
 TEST_P(BoxPaintInvalidatorTest, GapDecorationNoChangeNoInvalidation) {
+  ScopedCSSGapDecorationForTest scoped_gap_decoration(true);
   SetBodyInnerHTML(R"HTML(
     <style>
       #grid {
@@ -385,6 +388,7 @@ TEST_P(BoxPaintInvalidatorTest, GapDecorationNoChangeNoInvalidation) {
 
 TEST_P(BoxPaintInvalidatorTest, GapDecorationAddedToExistingGrid) {
   ScopedPaintUnderInvalidationCheckingForTest under_invalidation_checking(true);
+  ScopedCSSGapDecorationForTest scoped_gap_decoration(true);
   SetBodyInnerHTML(R"HTML(
     <style>
       #grid {
@@ -412,6 +416,7 @@ TEST_P(BoxPaintInvalidatorTest, GapDecorationAddedToExistingGrid) {
 
 TEST_P(BoxPaintInvalidatorTest, GapDecorationRemovedFromGrid) {
   ScopedPaintUnderInvalidationCheckingForTest under_invalidation_checking(true);
+  ScopedCSSGapDecorationForTest scoped_gap_decoration(true);
   SetBodyInnerHTML(R"HTML(
     <style>
       #grid {
@@ -436,10 +441,12 @@ TEST_P(BoxPaintInvalidatorTest, GapDecorationRemovedFromGrid) {
   UpdateAllLifecyclePhasesForTest();
 }
 
-// Verify that BoxPaintInvalidator handles multicol column-rule invalidation
-// through per-fragment gap geometry comparison.
+// Verify that multicol column-rule invalidation works correctly with
+// CSSGapDecoration enabled (BoxPaintInvalidator handles gap decoration
+// invalidation via per-fragment geometry comparison).
 TEST_P(BoxPaintInvalidatorTest, GapDecorationMulticolColumnRuleInvalidation) {
   ScopedPaintUnderInvalidationCheckingForTest under_invalidation_checking(true);
+  ScopedCSSGapDecorationForTest scoped_gap_decoration(true);
   SetBodyInnerHTML(R"HTML(
     <style>
       #multicol {

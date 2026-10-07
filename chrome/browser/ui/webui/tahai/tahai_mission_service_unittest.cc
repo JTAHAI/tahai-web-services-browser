@@ -21,9 +21,9 @@
 #include "base/pickle.h"
 #include "base/run_loop.h"
 #include "base/scoped_observation.h"
-#include "base/task/sequenced_task_runner.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
+#include "base/task/sequenced_task_runner.h"
 #include "base/test/bind.h"
 #include "base/test/test_future.h"
 #include "base/uuid.h"
@@ -65,8 +65,8 @@
 #include "chrome/common/tahai_skins/tahai_operational_skin_manifest.h"
 #include "chrome/common/tahai_url_constants.h"
 #include "chrome/test/base/testing_profile.h"
-#include "components/os_crypt/async/browser/test_utils.h"
 #include "components/os_crypt/async/browser/key_provider.h"
+#include "components/os_crypt/async/browser/test_utils.h"
 #include "components/os_crypt/async/common/algorithm.mojom.h"
 #include "components/prefs/pref_change_registrar.h"
 #include "components/prefs/pref_service.h"
@@ -3373,15 +3373,16 @@ TEST_F(MissionServiceTest, LocalOiNotificationCanDeleteOwnerDuringMutation) {
     profile_.GetPrefs()->ClearPref(prefs::kTahaiLocalOiStore);
     auto local_oi = std::make_unique<TahaiLocalOiService>(&profile_);
     const auto weak = local_oi->GetWeakPtr();
-    const auto rules =
-        profile_.GetPrefs()->GetDict(prefs::kTahaiEnvironmentGuardRules).Clone();
+    const auto rules = profile_.GetPrefs()
+                           ->GetDict(prefs::kTahaiEnvironmentGuardRules)
+                           .Clone();
     bool notified = false;
     PrefChangeRegistrar registrar;
     registrar.Init(profile_.GetPrefs());
     registrar.Add(prefs::kTahaiLocalOiStore, base::BindLambdaForTesting([&] {
-      notified = true;
-      local_oi.reset();
-    }));
+                    notified = true;
+                    local_oi.reset();
+                  }));
     bool accepted = false;
     const std::string_view kind(operation);
     if (kind == "direct") {
@@ -3397,18 +3398,23 @@ TEST_F(MissionServiceTest, LocalOiNotificationCanDeleteOwnerDuringMutation) {
     } else if (kind == "sync") {
       accepted = local_oi->SyncMissions(missions.missions());
     } else if (kind == "artifact") {
-      accepted = local_oi->RecordArtifactMetadata(
-          {"Fixture", "https://example.com/download", std::string(64, 'a'), ""})
+      accepted = local_oi
+                     ->RecordArtifactMetadata({"Fixture",
+                                               "https://example.com/download",
+                                               std::string(64, 'a'), ""})
                      .has_value();
     } else {
-      accepted = local_oi->ConfigureEnvironmentClassification(
-          TahaiEnvironment::kProduction, "https://example.com").has_value();
+      accepted = local_oi
+                     ->ConfigureEnvironmentClassification(
+                         TahaiEnvironment::kProduction, "https://example.com")
+                     .has_value();
     }
     EXPECT_TRUE(notified);
     EXPECT_FALSE(accepted);
     EXPECT_FALSE(local_oi);
     EXPECT_FALSE(weak);
-    EXPECT_EQ(rules, profile_.GetPrefs()->GetDict(prefs::kTahaiEnvironmentGuardRules));
+    EXPECT_EQ(rules,
+              profile_.GetPrefs()->GetDict(prefs::kTahaiEnvironmentGuardRules));
   }
 }
 
@@ -3417,42 +3423,49 @@ TEST_F(MissionServiceTest, LocalOiNotificationShutdownOrPolicyStopsNextStage) {
     SCOPED_TRACE(boundary);
     profile_.GetPrefs()->ClearPref(prefs::kTahaiLocalOiStore);
     profile_.GetPrefs()->SetBoolean(prefs::kTahaiLocalOiEnabled, true);
-    profile_.GetPrefs()->SetBoolean(prefs::kTahaiLocalOiOpsToolIngestionEnabled, true);
+    profile_.GetPrefs()->SetBoolean(prefs::kTahaiLocalOiOpsToolIngestionEnabled,
+                                    true);
     TahaiLocalOiService local_oi(&profile_);
-    const auto rules =
-        profile_.GetPrefs()->GetDict(prefs::kTahaiEnvironmentGuardRules).Clone();
+    const auto rules = profile_.GetPrefs()
+                           ->GetDict(prefs::kTahaiEnvironmentGuardRules)
+                           .Clone();
     bool notified = false;
     PrefChangeRegistrar registrar;
     registrar.Init(profile_.GetPrefs());
     registrar.Add(prefs::kTahaiLocalOiStore, base::BindLambdaForTesting([&] {
-      if (notified) return;
-      notified = true;
-      if (std::string_view(boundary) == "shutdown") {
-        local_oi.Shutdown();
-      } else {
-        profile_.GetPrefs()->SetBoolean(
-            std::string_view(boundary) == "enabled"
-                ? prefs::kTahaiLocalOiEnabled
-                : prefs::kTahaiLocalOiOpsToolIngestionEnabled,
-            false);
-      }
-    }));
+                    if (notified) {
+                      return;
+                    }
+                    notified = true;
+                    if (std::string_view(boundary) == "shutdown") {
+                      local_oi.Shutdown();
+                    } else {
+                      profile_.GetPrefs()->SetBoolean(
+                          std::string_view(boundary) == "enabled"
+                              ? prefs::kTahaiLocalOiEnabled
+                              : prefs::kTahaiLocalOiOpsToolIngestionEnabled,
+                          false);
+                    }
+                  }));
     EXPECT_FALSE(local_oi.ConfigureEnvironmentClassification(
         TahaiEnvironment::kProduction, "https://example.com"));
     EXPECT_TRUE(notified);
-    EXPECT_EQ(rules, profile_.GetPrefs()->GetDict(prefs::kTahaiEnvironmentGuardRules));
+    EXPECT_EQ(rules,
+              profile_.GetPrefs()->GetDict(prefs::kTahaiEnvironmentGuardRules));
   }
 }
 
-TEST_F(MissionServiceTest, LocalOiReportCannotExportAfterNotificationRevokesPolicy) {
+TEST_F(MissionServiceTest,
+       LocalOiReportCannotExportAfterNotificationRevokesPolicy) {
   TahaiLocalOiService local_oi(&profile_);
   bool notified = false;
   PrefChangeRegistrar registrar;
   registrar.Init(profile_.GetPrefs());
   registrar.Add(prefs::kTahaiLocalOiStore, base::BindLambdaForTesting([&] {
-    notified = true;
-    profile_.GetPrefs()->SetBoolean(prefs::kTahaiLocalOiExportEnabled, false);
-  }));
+                  notified = true;
+                  profile_.GetPrefs()->SetBoolean(
+                      prefs::kTahaiLocalOiExportEnabled, false);
+                }));
   EXPECT_FALSE(local_oi.GenerateSafeReport(LocalOiSafeReportKind::kOverview));
   EXPECT_TRUE(notified);
 }
@@ -6242,11 +6255,14 @@ class DeferredCapsuleCrypt final : public os_crypt_async::OSCryptAsync {
 // GetInstance: its initial callback is delivered before initialization unwinds.
 class DeferredCapsuleKeyProvider final : public os_crypt_async::KeyProvider {
  public:
-  void GetKey(KeyCallback callback) override { callback_ = std::move(callback); }
+  void GetKey(KeyCallback callback) override {
+    callback_ = std::move(callback);
+  }
   bool UseForEncryption() override { return true; }
   void Release() {
     ASSERT_TRUE(callback_);
-    std::array<uint8_t, os_crypt_async::Encryptor::Key::kAES256GCMKeySize> key{};
+    std::array<uint8_t, os_crypt_async::Encryptor::Key::kAES256GCMKeySize>
+        key{};
     key.fill(0x42);
     std::move(callback_).Run(
         "TAHAITEST", os_crypt_async::Encryptor::Key(
@@ -6280,7 +6296,8 @@ TEST_F(MissionServiceTest, CapsuleKeyRealProviderStartupPreservesFifoReentry) {
                     std::optional<TahaiSyncEnvelopeKey> nested_key) {
                   EXPECT_EQ(TahaiSyncKeyResult::kOk, nested_result);
                   ASSERT_TRUE(nested_key);
-                  EXPECT_EQ(nested_key->key_id, service.GetStatus().active_key_id);
+                  EXPECT_EQ(nested_key->key_id,
+                            service.GetStatus().active_key_id);
                   completions.push_back(3);
                 }));
             // A client may pump messages before returning. It must not advance
@@ -6294,11 +6311,12 @@ TEST_F(MissionServiceTest, CapsuleKeyRealProviderStartupPreservesFifoReentry) {
     service.RotateActiveKey(complete(index));
   }
   EXPECT_TRUE(completions.empty());
-  crypt.GetInstance(base::BindLambdaForTesting(
-      [&](scoped_refptr<os_crypt_async::Encryptor>) {
+  crypt.GetInstance(
+      base::BindLambdaForTesting([&](scoped_refptr<os_crypt_async::Encryptor>) {
         // A different consumer's callback runs after our completion has posted
         // its advance, but before OSCryptAsync clears is_initializing_.
-        base::RunLoop(base::RunLoop::Type::kNestableTasksAllowed).RunUntilIdle();
+        base::RunLoop(base::RunLoop::Type::kNestableTasksAllowed)
+            .RunUntilIdle();
         EXPECT_EQ(std::vector<int>({0}), completions);
       }));
   bool released = false;
@@ -6311,7 +6329,8 @@ TEST_F(MissionServiceTest, CapsuleKeyRealProviderStartupPreservesFifoReentry) {
   base::RunLoop().RunUntilIdle();
   EXPECT_TRUE(released);
   EXPECT_EQ(std::vector<int>({0, 1, 2, 3}), completions);
-  EXPECT_EQ(kTahaiSyncKeyringMaxRetainedKeys, service.GetStatus().stored_key_count);
+  EXPECT_EQ(kTahaiSyncKeyringMaxRetainedKeys,
+            service.GetStatus().stored_key_count);
 }
 
 TEST_F(MissionServiceTest, CapsuleKeyCompletionCanDeleteOwnerWithQueuedWork) {
@@ -6462,7 +6481,8 @@ TEST_F(MissionServiceTest,
   EXPECT_FALSE(profile_.GetPrefs()->GetDict(prefs::kTahaiSyncKeyring).empty());
 }
 
-TEST_F(MissionServiceTest, CapsuleKeyPersistenceMustSurviveNotificationAndLease) {
+TEST_F(MissionServiceTest,
+       CapsuleKeyPersistenceMustSurviveNotificationAndLease) {
   for (bool rotate : {false, true}) {
     for (const char* boundary : {"clear", "replace", "managed", "lease"}) {
       SCOPED_TRACE(rotate);
@@ -6472,7 +6492,8 @@ TEST_F(MissionServiceTest, CapsuleKeyPersistenceMustSurviveNotificationAndLease)
       TahaiSyncKeyService service(profile_.GetPrefs(), &provider);
       if (rotate) {
         base::test::TestFuture<TahaiSyncKeyResult,
-                               std::optional<TahaiSyncEnvelopeKey>> initial;
+                               std::optional<TahaiSyncEnvelopeKey>>
+            initial;
         service.EnsureActiveKey(initial.GetCallback());
         provider.Release();
         ASSERT_EQ(TahaiSyncKeyResult::kOk, initial.Get<0>());
@@ -6481,47 +6502,61 @@ TEST_F(MissionServiceTest, CapsuleKeyPersistenceMustSurviveNotificationAndLease)
       const auto original =
           profile_.GetPrefs()->GetDict(prefs::kTahaiSyncKeyring).Clone();
       auto replacement = original.Clone();
-      if (replacement.empty()) replacement.Set("future-keyring", true);
+      if (replacement.empty()) {
+        replacement.Set("future-keyring", true);
+      }
       bool authorized = true;
       bool notified = false;
       PrefChangeRegistrar registrar;
       registrar.Init(profile_.GetPrefs());
-      registrar.Add(prefs::kTahaiSyncKeyring, base::BindLambdaForTesting([&] {
-        if (notified) return;
-        notified = true;
-        const std::string_view kind(boundary);
-        if (kind == "clear") {
-          profile_.GetPrefs()->ClearPref(prefs::kTahaiSyncKeyring);
-        } else if (kind == "replace") {
-          profile_.GetPrefs()->SetDict(prefs::kTahaiSyncKeyring, replacement.Clone());
-        } else if (kind == "managed") {
-          profile_.GetTestingPrefService()->SetManagedPref(
-              prefs::kTahaiSyncKeyring, base::Value(base::DictValue()));
-        } else {
-          authorized = false;
-        }
-      }));
+      registrar.Add(
+          prefs::kTahaiSyncKeyring, base::BindLambdaForTesting([&] {
+            if (notified) {
+              return;
+            }
+            notified = true;
+            const std::string_view kind(boundary);
+            if (kind == "clear") {
+              profile_.GetPrefs()->ClearPref(prefs::kTahaiSyncKeyring);
+            } else if (kind == "replace") {
+              profile_.GetPrefs()->SetDict(prefs::kTahaiSyncKeyring,
+                                           replacement.Clone());
+            } else if (kind == "managed") {
+              profile_.GetTestingPrefService()->SetManagedPref(
+                  prefs::kTahaiSyncKeyring, base::Value(base::DictValue()));
+            } else {
+              authorized = false;
+            }
+          }));
       base::test::TestFuture<TahaiSyncKeyResult,
-                             std::optional<TahaiSyncEnvelopeKey>> result;
+                             std::optional<TahaiSyncEnvelopeKey>>
+          result;
       const auto lease = base::BindLambdaForTesting([&] { return authorized; });
-      if (rotate) service.RotateActiveKey(result.GetCallback(), lease);
-      else service.EnsureActiveKey(result.GetCallback(), lease);
+      if (rotate) {
+        service.RotateActiveKey(result.GetCallback(), lease);
+      } else {
+        service.EnsureActiveKey(result.GetCallback(), lease);
+      }
       provider.Release();
       EXPECT_TRUE(notified);
       EXPECT_EQ(TahaiSyncKeyResult::kPersistenceFailed, result.Get<0>());
       EXPECT_FALSE(result.Get<1>());
       if (std::string_view(boundary) == "replace") {
-        EXPECT_EQ(replacement, profile_.GetPrefs()->GetDict(prefs::kTahaiSyncKeyring));
+        EXPECT_EQ(replacement,
+                  profile_.GetPrefs()->GetDict(prefs::kTahaiSyncKeyring));
       } else if (std::string_view(boundary) == "clear") {
-        EXPECT_FALSE(profile_.GetPrefs()->GetRawUserPrefValue(prefs::kTahaiSyncKeyring));
+        EXPECT_FALSE(
+            profile_.GetPrefs()->GetRawUserPrefValue(prefs::kTahaiSyncKeyring));
       }
       registrar.RemoveAll();
-      profile_.GetTestingPrefService()->RemoveManagedPref(prefs::kTahaiSyncKeyring);
+      profile_.GetTestingPrefService()->RemoveManagedPref(
+          prefs::kTahaiSyncKeyring);
       profile_.GetPrefs()->SetDict(prefs::kTahaiSyncKeyring, original.Clone());
       authorized = true;
       base::RunLoop().RunUntilIdle();
       base::test::TestFuture<TahaiSyncKeyResult,
-                             std::optional<TahaiSyncEnvelopeKey>> recovered;
+                             std::optional<TahaiSyncEnvelopeKey>>
+          recovered;
       service.EnsureActiveKey(recovered.GetCallback(), lease);
       provider.Release();
       EXPECT_EQ(TahaiSyncKeyResult::kOk, recovered.Get<0>());
@@ -6603,16 +6638,19 @@ TEST_F(MissionServiceTest, MissionOverQuotaStorageRemainsReadOnly) {
 
 TEST_F(MissionServiceTest, MissionUnknownNestedFixedFieldsRemainReadOnly) {
   MissionService source(&profile_);
-  const auto created = source.CreateMission("Readable fixed mission", "incident");
+  const auto created =
+      source.CreateMission("Readable fixed mission", "incident");
   ASSERT_TRUE(created);
   ASSERT_TRUE(source.AddLocalNote(created->id, "Known note"));
   ASSERT_TRUE(source.AddEvidenceMarker(created->id));
-  const auto original = profile_.GetPrefs()->GetList(prefs::kTahaiMissions).Clone();
+  const auto original =
+      profile_.GetPrefs()->GetList(prefs::kTahaiMissions).Clone();
   for (const char* key : {"steps", "validation_steps", "rollback_steps",
-                         "notes", "evidence", "timeline"}) {
+                          "notes", "evidence", "timeline"}) {
     SCOPED_TRACE(key);
     auto extended = original.Clone();
-    extended.front().GetDict().FindList(key)->front().GetDict().Set("future", true);
+    extended.front().GetDict().FindList(key)->front().GetDict().Set("future",
+                                                                    true);
     profile_.GetPrefs()->SetList(prefs::kTahaiMissions, extended.Clone());
     MissionService reloaded(&profile_);
     ASSERT_EQ(1u, reloaded.missions().size());

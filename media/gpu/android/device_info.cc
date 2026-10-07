@@ -19,10 +19,6 @@ int DeviceInfo::SdkVersion() {
   return result;
 }
 
-int DeviceInfo::SdkVersionFull() {
-  return base::android::android_info::sdk_int_full();
-}
-
 bool DeviceInfo::IsVp8DecoderAvailable() {
   static const bool result = MediaCodecUtil::IsVp8DecoderAvailable();
   return result;

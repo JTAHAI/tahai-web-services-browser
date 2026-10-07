@@ -97,7 +97,7 @@ public class PersistentStoreCleanerTest {
     @After
     public void tearDown() {
         if (mLoadedData != null) {
-            runOnUiThreadBlocking(mLoadedData::destroy);
+            destroyData(mLoadedData);
             mLoadedData = null;
         }
     }
@@ -349,10 +349,19 @@ public class PersistentStoreCleanerTest {
         return mActivityTestRule.getActivity().getTabModelOrchestratorSupplier().get();
     }
 
+    private void destroyData(StorageLoadedData data) {
+        for (StorageLoadedData.LoadedTabState lts : data.getLoadedTabStates()) {
+            if (lts.tabState != null && lts.tabState.contentsState != null) {
+                lts.tabState.contentsState.destroy();
+            }
+        }
+        data.destroy();
+    }
+
     private StorageLoadedData loadAllDataSync(String windowTag, boolean incognito)
             throws Exception {
         if (mLoadedData != null) {
-            runOnUiThreadBlocking(mLoadedData::destroy);
+            destroyData(mLoadedData);
             mLoadedData = null;
         }
         Holder<StorageLoadedData> holder = new Holder<>(null);

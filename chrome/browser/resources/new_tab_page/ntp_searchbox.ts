@@ -28,8 +28,6 @@ import {assert} from '//resources/js/assert.js';
 import {loadTimeData} from '//resources/js/load_time_data.js';
 import {CrLitElement} from '//resources/lit/v3_0/lit.rollup.js';
 import type {PropertyValues} from '//resources/lit/v3_0/lit.rollup.js';
-import type {FuseboxAction} from '//resources/mojo/components/omnibox/browser/fusebox_action.mojom-webui.js';
-import {InputSource} from '//resources/mojo/components/omnibox/browser/fusebox_action.mojom-webui.js';
 import {DriveDisclaimerStatus, SideType} from '//resources/mojo/components/omnibox/browser/searchbox.mojom-webui.js';
 import type {DriveUploadError, PageCallbackRouter, PageHandlerInterface, TabInfo} from '//resources/mojo/components/omnibox/browser/searchbox.mojom-webui.js';
 import type {InputState} from '//resources/mojo/components/omnibox/composebox/composebox_query.mojom-webui.js';
@@ -55,22 +53,12 @@ export interface NtpSearchboxElement {
   };
 }
 
-import {SearchboxSelectionMixin} from '//resources/cr_components/searchbox/searchbox_selection_mixin.js';
-
-const NtpSearchboxElementBase = SearchboxMixin(
-    SearchboxSelectionMixin(I18nMixinLit(WebUiListenerMixinLit(CrLitElement))));
+const NtpSearchboxElementBase =
+    SearchboxMixin(I18nMixinLit(WebUiListenerMixinLit(CrLitElement)));
 
 /** A search box for the NTP that behaves like the Omnibox. */
 export class NtpSearchboxElement extends NtpSearchboxElementBase implements
     DragAndDropHost, SearchboxMixinInterface {
-  override get isAimButtonVisible(): boolean {
-    return this.showComposeButton_;
-  }
-
-  override get showContextEntrypoint(): boolean {
-    return false;
-  }
-
   static get is() {
     return 'ntp-searchbox';
   }
@@ -93,8 +81,6 @@ export class NtpSearchboxElement extends NtpSearchboxElementBase implements
         reflect: true,
       },
 
-      virtualFocusEnabled: {type: Boolean},
-
       composeboxEnabled: {type: Boolean},
 
       composeButtonEnabled: {type: Boolean},
@@ -102,8 +88,6 @@ export class NtpSearchboxElement extends NtpSearchboxElementBase implements
       showComposeButton_: {type: Boolean},
 
       cyclingPlaceholders: {type: Boolean},
-
-      shareTabsFlyoutOpen: {type: Boolean},
 
       isDraggingFile: {
         reflect: true,
@@ -233,7 +217,6 @@ export class NtpSearchboxElement extends NtpSearchboxElementBase implements
   accessor composeButtonEnabled: boolean = false;
   protected accessor showComposeButton_: boolean = false;
   accessor cyclingPlaceholders: boolean = false;
-  accessor shareTabsFlyoutOpen: boolean = false;
   accessor isDraggingFile: boolean = false;
   accessor contextMenuGlifAnimationState: GlifAnimationState =
       GlifAnimationState.INELIGIBLE;
@@ -248,9 +231,6 @@ export class NtpSearchboxElement extends NtpSearchboxElementBase implements
       loadTimeData.getBoolean('searchboxCr23Theming');
   accessor searchboxSteadyStateShadow: boolean =
       loadTimeData.getBoolean('searchboxCr23SteadyStateShadow');
-  override accessor virtualFocusEnabled: boolean =
-      loadTimeData.valueExists('realboxVirtualFocusNavigation') &&
-      loadTimeData.getBoolean('realboxVirtualFocusNavigation');
   // `contextManagementInComposeboxEnabled` is also passed in from parent, but
   // adding as a backup for tests.
   accessor contextManagementInComposeboxEnabled: boolean =
@@ -388,7 +368,7 @@ export class NtpSearchboxElement extends NtpSearchboxElementBase implements
 
     if (this.cyclingPlaceholders) {
       waitForLazyRender().then(async () => {
-        const {config} = await this.pageHandler().getCyclingPlaceholderConfig();
+        const {config} = await this.pageHandler().getPlaceholderConfig();
         const texts = config.texts;
         if (texts.length < 2) {
           // Need at least 2 placeholders to cycle. If fewer, disable cycling
@@ -405,18 +385,6 @@ export class NtpSearchboxElement extends NtpSearchboxElementBase implements
     }
   }
 
-  async handleFuseboxAction(action?: FuseboxAction) {
-    if (action?.preselectedInputSource) {
-      switch (action.preselectedInputSource) {
-        case InputSource.kInputSourceTabPicker:
-          await this.openTabPicker();
-          break;
-        default:
-          break;
-      }
-    }
-  }
-
   protected shouldShowVoiceLens_(isEnabled: boolean): boolean {
     return isEnabled && this.isInputEmpty() &&
         !(this.dropdownIsVisible && this.composeButtonEnabled);
@@ -424,8 +392,23 @@ export class NtpSearchboxElement extends NtpSearchboxElementBase implements
 
   override handleKeyNavigation(e: KeyboardEvent) {
     if (this.composeButtonEnabled && e.key === 'Tab' &&
-        this.$.input === this.shadowRoot.activeElement &&
-        this.acceptInlineAutocomplete(e)) {
+        this.$.input?.lastInput()?.inline &&
+        this.$.input === this.shadowRoot.activeElement) {
+      if (e.shiftKey) {
+        this.$.input.setInput({inline: ''});
+        return;
+      }
+
+      const newText =
+          this.$.input.lastInput()!.text + this.$.input.lastInput()!.inline;
+      this.$.input.setInput({
+        text: newText,
+        inline: '',
+        moveCursorToEnd: true,
+      });
+      this.queryAutocomplete(
+          newText, /*preventInlineAutocomplete=*/ false, /*isOnFocus=*/ false);
+      e.preventDefault();
       return;
     }
 
@@ -572,10 +555,6 @@ export class NtpSearchboxElement extends NtpSearchboxElementBase implements
     // </if>
   }
 
-  protected onShareTabsFlyoutOpenChanged_(e: CustomEvent<{open: boolean}>) {
-    this.shareTabsFlyoutOpen = e.detail.open;
-  }
-
   protected onAddTabContext_(e: CustomEvent<{
     id: number,
     title: string,
@@ -644,15 +623,6 @@ export class NtpSearchboxElement extends NtpSearchboxElementBase implements
 
   protected onRequestTabSuggestionsLoad() {
     this.refreshTabSuggestions_(/*forceRefresh=*/ true);
-  }
-
-  closeContextMenu() {
-    const context =
-        this.shadowRoot?.querySelector<ContextualEntrypointAndMenuElement>(
-            '#context');
-    if (context) {
-      context.closeMenu();
-    }
   }
 
   protected onContextMenuOpened_() {
@@ -906,26 +876,6 @@ export class NtpSearchboxElement extends NtpSearchboxElementBase implements
 
   protected computePlaceholderText_(placeholderText: string): string {
     return placeholderText || '';
-  }
-
-  protected async openTabPicker() {
-    this.shareTabsFlyoutOpen = true;
-    await this.refreshTabSuggestions_(/*forceRefresh=*/ true);
-    await this.updateComplete;
-
-    const context =
-        this.shadowRoot?.querySelector<ContextualEntrypointAndMenuElement>(
-            '#context');
-    if (context) {
-      await context.updateComplete;
-      const entrypointButton =
-          context.shadowRoot?.querySelector<CrLitElement>('#entrypointButton');
-      if (entrypointButton) {
-        await entrypointButton.updateComplete;
-      }
-      entrypointButton?.shadowRoot?.querySelector<HTMLElement>('#entrypoint')
-          ?.click();
-    }
   }
 }
 

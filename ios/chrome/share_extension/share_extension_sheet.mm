@@ -250,10 +250,6 @@ NSString* const kAccountCellIdentifier = @"kAccountCellIdentifier";
   // Not used.
 }
 
-- (void)didDismissButtonStackViewController {
-  // Not used.
-}
-
 #pragma mark - Private
 
 // Sets up the content view.

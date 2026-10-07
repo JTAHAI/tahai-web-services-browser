@@ -6,7 +6,6 @@
 
 #include "base/functional/bind.h"
 #include "base/json/json_reader.h"
-#include "base/memory/weak_ptr.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/metrics/user_metrics.h"
 #include "base/strings/escape.h"
@@ -27,16 +26,11 @@
 #include "content/public/browser/navigation_handle.h"
 #include "content/public/browser/navigation_throttle_registry.h"
 #include "content/public/browser/web_contents.h"
-#include "extensions/buildflags/buildflags.h"
 #include "net/base/url_util.h"
 #include "url/gurl.h"
 #include "url/origin.h"
 #include "url/url_canon.h"
 #include "url/url_constants.h"
-
-#if BUILDFLAG(ENABLE_EXTENSIONS)
-#include "extensions/common/extension_features.h"
-#endif
 
 namespace glic {
 
@@ -110,20 +104,9 @@ GURL GetGlicWebContinuityOriginatingHostUrl() {
 // static
 void GlicNavigationThrottle::MaybeCreateAndAdd(
     content::NavigationThrottleRegistry& registry) {
-  // We won't create a throttle if:
-  // - kApiGlicAccessFromWebContinuity is enabled (as it uses the API instead of throttle).
-  // - Neither kGlicGeminiContinueURLRedirect nor kGlicWebContinuity is enabled.
-  // extensions_features (where kApiGlicAccessFromWebContinuity is defined) are
-  // not compiled on Android because extensions are disabled there. However,
-  // this file is still compiled on Android, so we must guard the usage.
-  bool api_access_enabled = false;
-#if BUILDFLAG(ENABLE_EXTENSIONS)
-  api_access_enabled = base::FeatureList::IsEnabled(
-      extensions_features::kApiGlicAccessFromWebContinuity);
-#endif
-  if (api_access_enabled ||
-      (!base::FeatureList::IsEnabled(features::kGlicGeminiContinueURLRedirect) &&
-       !base::FeatureList::IsEnabled(features::kGlicWebContinuity))) {
+  // We won't create a throttle if neither feature is enabled.
+  if (!base::FeatureList::IsEnabled(features::kGlicGeminiContinueURLRedirect) &&
+      !base::FeatureList::IsEnabled(features::kGlicWebContinuity)) {
     return;
   }
   content::NavigationHandle& handle = registry.GetNavigationHandle();
@@ -245,39 +228,22 @@ GlicNavigationThrottle::WillStartRequest() {
       }
       GlicInvokeOptions options(
           std::move(target), glic::mojom::InvocationSource::kNavigationCapture);
-      options.fre_completion_wait_mode = FreCompletionWaitMode::kNever;
-      options.supersede_if_in_progress = true;
       glic_service->Invoke(std::move(options));
     }
   }
 
-  // Navigate to the target URL asynchronously. Use a WeakPtr to avoid a
-  // heap-use-after-free if the WebContents is destroyed before the task runs.
+  // Navigate to the target URL.
+  NavigateParams params(profile, target_url, ui::PAGE_TRANSITION_AUTO_TOPLEVEL);
+  params.disposition = WindowOpenDisposition::CURRENT_TAB;
+  params.source_contents = web_contents;
+  params.initiator_origin = navigation_handle()->GetInitiatorOrigin();
+  params.is_renderer_initiated = navigation_handle()->IsRendererInitiated();
+  params.user_gesture = navigation_handle()->HasUserGesture();
+  params.original_user_gesture = navigation_handle()->HasUserGesture();
   base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
       FROM_HERE,
-      base::BindOnce(
-          [](base::WeakPtr<content::WebContents> web_contents, GURL target_url,
-             std::optional<url::Origin> initiator_origin,
-             bool is_renderer_initiated, bool user_gesture) {
-            if (!web_contents) {
-              return;
-            }
-            Profile* profile =
-                Profile::FromBrowserContext(web_contents->GetBrowserContext());
-            NavigateParams params(profile, target_url,
-                                  ui::PAGE_TRANSITION_AUTO_TOPLEVEL);
-            params.disposition = WindowOpenDisposition::CURRENT_TAB;
-            params.source_contents = web_contents.get();
-            params.initiator_origin = initiator_origin;
-            params.is_renderer_initiated = is_renderer_initiated;
-            params.user_gesture = user_gesture;
-            params.original_user_gesture = user_gesture;
-            Navigate(&params);
-          },
-          web_contents->GetWeakPtr(), target_url,
-          navigation_handle()->GetInitiatorOrigin(),
-          navigation_handle()->IsRendererInitiated(),
-          navigation_handle()->HasUserGesture()));
+      base::BindOnce([](NavigateParams params) { Navigate(&params); },
+                     std::move(params)));
   LogCaptureResult(is_glic_enabled, GeminiNavigationCaptureResult::kSuccess);
   return CANCEL;
 }

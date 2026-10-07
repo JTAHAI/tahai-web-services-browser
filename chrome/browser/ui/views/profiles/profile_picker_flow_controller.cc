@@ -14,7 +14,6 @@
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/enterprise/signin/profile_management_disclaimer_service.h"
 #include "chrome/browser/enterprise/signin/profile_management_disclaimer_service_factory.h"
-#include "chrome/browser/enterprise/signin/signals_disclaimer_metrics.h"
 #include "chrome/browser/metrics/first_web_contents_profiler_base.h"
 #include "chrome/browser/profiles/delete_profile_helper.h"
 #include "chrome/browser/profiles/profile.h"
@@ -29,11 +28,11 @@
 #include "chrome/browser/themes/theme_service.h"
 #include "chrome/browser/themes/theme_service_factory.h"
 #include "chrome/browser/ui/browser_commands.h"
+#include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/chrome_pages.h"
 #include "chrome/browser/ui/profiles/profile_customization_util.h"
-#include "chrome/browser/ui/profiles/profile_picker.h"
 #include "chrome/browser/ui/signin/signin_view_controller.h"
 #include "chrome/browser/ui/singleton_tabs.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
@@ -120,7 +119,7 @@ void ShowCustomizationBubble(std::optional<SkColor> new_profile_color,
     // For sync users, their profile color has not been applied yet. Call a
     // helper class that applies the color and shows the bubble only if there is
     // no conflict with a synced theme / color.
-    ProfileCustomizationBubbleSyncController::From(browser)
+    features.profile_customization_bubble_sync_controller()
         ->ShowOnSyncFailedOrDefaultTheme(new_profile_color.value());
   } else {
     // For non syncing users, simply show the bubble.
@@ -660,15 +659,6 @@ std::u16string ProfilePickerFlowController::GetFallbackAccessibleWindowTitle()
   return l10n_util::GetStringUTF16(IDS_PROFILE_PICKER_MAIN_VIEW_TITLE);
 }
 
-void ProfilePickerFlowController::OnWindowClosing() {
-  if (current_step() == Step::kDeviceSignalsDisclaimer &&
-      !signals_disclaimer_result_recorded_) {
-    base::UmaHistogramEnumeration(
-        kEnterpriseSignalsDisclaimerProfilePickerResult,
-        EnterpriseSignalsDisclaimerProfilePickerResult::kProfilePickerClosed);
-  }
-}
-
 std::unique_ptr<ProfilePickerPostSignInAdapter>
 ProfilePickerFlowController::CreatePostSignInAdapter(
     Profile* signed_in_profile,
@@ -763,12 +753,11 @@ void ProfilePickerFlowController::PickProfile(
       ProfilePicker::GetOpenCommandLineUrlsInNextProfileOpened();
   ProfilePicker::SetOpenCommandLineUrlsInNextProfileOpened(false);
 
-  base::OnceCallback<void(BrowserWindowInterface*)>
-      switch_to_profile_complete_callback = base::BindOnce(
-          &ProfilePickerFlowController::OnSwitchToProfileComplete,
-          weak_ptr_factory_.GetWeakPtr(), args.open_settings,
-          args.exit_flow_after_profile_picked,
-          std::move(pick_profile_complete_callback));
+  base::OnceCallback<void(Browser*)> switch_to_profile_complete_callback =
+      base::BindOnce(&ProfilePickerFlowController::OnSwitchToProfileComplete,
+                     weak_ptr_factory_.GetWeakPtr(), args.open_settings,
+                     args.exit_flow_after_profile_picked,
+                     std::move(pick_profile_complete_callback));
 
   g_browser_process->profile_manager()->CreateProfileAsync(
       profile_path,
@@ -781,7 +770,7 @@ void ProfilePickerFlowController::OnSwitchToProfileComplete(
     bool open_settings,
     bool exit_flow_after_profile_picked,
     base::OnceCallback<void(bool)> pick_profile_complete_callback,
-    BrowserWindowInterface* browser) {
+    Browser* browser) {
   if (!browser || browser->IsDeleteScheduled()) {
     // The browser is destroyed or about to be destroyed.
     if (pick_profile_complete_callback) {
@@ -901,8 +890,7 @@ ProfilePickerFlowController::RegisterPostIdentitySteps(
 
 void ProfilePickerFlowController::OnProfileLoadedForPicking(
     bool open_command_line_urls,
-    base::OnceCallback<void(BrowserWindowInterface*)>
-        pick_profile_complete_callback,
+    base::OnceCallback<void(Browser*)> pick_profile_complete_callback,
     Profile* profile) {
   CHECK(pick_profile_complete_callback);
   if (!profile) {
@@ -919,10 +907,14 @@ void ProfilePickerFlowController::OnProfileLoadedForPicking(
       UnregisterStep(Step::kDeviceSignalsDisclaimer);
     }
 
+    // Despite the name we can use these WebContents for our needs,
+    // there is nothing signout specific about them.
+    CreateSignedOutFlowWebContents(profile);
+
     RegisterStep(
         Step::kDeviceSignalsDisclaimer,
         ProfileManagementStepController::CreateForDeviceSignalsDisclaimer(
-            host(), profile,
+            host(), GetSignedOutFlowWebContents(),
             base::BindOnce(
                 &ProfilePickerFlowController::OnDeviceSignalsDisclaimerResult,
                 weak_ptr_factory_.GetWeakPtr(), profile, open_command_line_urls,
@@ -940,16 +932,10 @@ void ProfilePickerFlowController::OnProfileLoadedForPicking(
 void ProfilePickerFlowController::OnDeviceSignalsDisclaimerResult(
     Profile* profile,
     bool open_command_line_urls,
-    base::OnceCallback<void(BrowserWindowInterface*)>
-        pick_profile_complete_callback,
+    base::OnceCallback<void(Browser*)> pick_profile_complete_callback,
     signin::DeviceSignalsDisclaimerResult result) {
-  signals_disclaimer_result_recorded_ = true;
   switch (result) {
     case signin::DeviceSignalsDisclaimerResult::kAccepted:
-      base::UmaHistogramEnumeration(
-          kEnterpriseSignalsDisclaimerProfilePickerResult,
-          EnterpriseSignalsDisclaimerProfilePickerResult::kAccepted);
-
       ProfileManagementDisclaimerServiceFactory::GetForProfile(profile)
           ->OnDeviceSignalsCollectionConsentGranted();
 
@@ -958,10 +944,6 @@ void ProfilePickerFlowController::OnDeviceSignalsDisclaimerResult(
           /*is_new_profile=*/false, open_command_line_urls, profile);
       break;
     case signin::DeviceSignalsDisclaimerResult::kCanceled:
-      base::UmaHistogramEnumeration(
-          kEnterpriseSignalsDisclaimerProfilePickerResult,
-          EnterpriseSignalsDisclaimerProfilePickerResult::kDeclined);
-
       SwitchToStep(Step::kProfilePicker, /*reset_state=*/true);
       UnregisterStep(Step::kDeviceSignalsDisclaimer);
       if (pick_profile_complete_callback) {
@@ -969,15 +951,8 @@ void ProfilePickerFlowController::OnDeviceSignalsDisclaimerResult(
       }
       break;
     case signin::DeviceSignalsDisclaimerResult::kDismissed:
-      base::UmaHistogramEnumeration(
-          kEnterpriseSignalsDisclaimerProfilePickerResult,
-          EnterpriseSignalsDisclaimerProfilePickerResult::
-              kDismissedWithoutExplicitUserAction);
-
-      // kDismissed is caused by the destruction of WebUI.
-      // However it will not be trigger if `this` is destroyed because `this`
-      // owns the webcontents hosting the dialog, so by the time WebUI is
-      // destroyed the WeakPtr will already have been invalidated.
+      // signin::DeviceSignalsDisclaimerResult::kDismissed is caused by the
+      // destruction of WebUI.
       if (pick_profile_complete_callback) {
         std::move(pick_profile_complete_callback).Run(nullptr);
       }

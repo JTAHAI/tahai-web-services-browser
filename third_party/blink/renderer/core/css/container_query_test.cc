@@ -26,7 +26,6 @@
 #include "third_party/blink/renderer/core/testing/core_unit_test_helper.h"
 #include "third_party/blink/renderer/core/testing/page_test_base.h"
 #include "third_party/blink/renderer/platform/text/writing_mode.h"
-#include "third_party/blink/renderer/platform/wtf/text/format.h"
 
 namespace blink {
 
@@ -1131,7 +1130,8 @@ TEST_F(ContainerQueryTest, AllAnimationAffectingPropertiesInConditional) {
     builder.Append("#container { container-type: inline-size; }");
     builder.Append("@container (width: 100px) {");
     builder.Append("  #target {");
-    FormatTo(builder, "{}:unset;", property.GetPropertyNameString());
+    builder.Append(String::Format(
+        "%s:unset;", property.GetPropertyNameString().Utf8().c_str()));
     builder.Append("  }");
     builder.Append("}");
     builder.Append("</style>");

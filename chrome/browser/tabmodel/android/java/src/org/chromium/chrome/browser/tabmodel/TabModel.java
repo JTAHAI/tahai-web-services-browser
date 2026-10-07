@@ -57,14 +57,6 @@ public interface TabModel extends TabList {
     @TabModelType
     int getTabModelType();
 
-    /**
-     * Returns whether the given {@link TabModelType} is dormant (e.g. archived or headless, which
-     * never hold WebContents).
-     */
-    static boolean isDormantTabModel(@TabModelType int tabModelType) {
-        return tabModelType == TabModelType.ARCHIVED || tabModelType == TabModelType.HEADLESS;
-    }
-
     /** Returns the profile associated with the current model. */
     @Nullable Profile getProfile();
 
@@ -103,18 +95,6 @@ public interface TabModel extends TabList {
      * @return The id of the next tab that would be visible.
      */
     @Nullable Tab getNextTabIfClosed(@TabId int id, boolean uponExit);
-
-    /**
-     * Finds the next tab to select hierarchically (child -> sibling -> parent) when closing the
-     * given tab.
-     *
-     * @param closingTab The {@link Tab} that is closing.
-     * @param closingTabs The collection of all tabs that are closing.
-     * @return The next {@link Tab} to select, or {@code null} if no candidate is found.
-     */
-    default @Nullable Tab getHierarchicalNextTab(Tab closingTab, List<Tab> closingTabs) {
-        return null;
-    }
 
     boolean supportsPendingClosures();
 
@@ -635,10 +615,10 @@ public interface TabModel extends TabList {
     String getTabGroupTitle(Token tabGroupId);
 
     /**
-     * @see #getTabGroupTitle(Token). This looks up the tab group via {@code groupedTab}. This is
-     *     primarily to be used if the tab group has already been closed. Prefer the {@link
-     *     TabGroupTitleUtils#getDisplayableTitle} or {@link #getTabGroupTitle(Token)} method in
-     *     most cases.
+     * {@see #getTabGroupTitle(Token)}. This looks up the tab group via {@code groupedTab}. This is
+     * primarily to be used if the tab group has already been closed. Prefer the {@link
+     * TabGroupTitleUtils#getDisplayableTitle} or {@link #getTabGroupTitle(Token)} method in most
+     * cases.
      */
     String getTabGroupTitle(Tab groupedTab);
 
@@ -667,9 +647,9 @@ public interface TabModel extends TabList {
     int getTabGroupColorWithFallback(Token tabGroupId);
 
     /**
-     * @see #getTabGroupColorWithFallback(Token). This looks up the tab group via {@code
-     *     groupedTab}. This is primarily to be used if the tab group has already been closed.
-     *     Prefer the {@link #getTabGroupColorWithFallback(Token)} method in most cases.
+     * {@see #getTabGroupColorWithFallback(Token)}. This looks up the tab group via {@code
+     * groupedTab}. This is primarily to be used if the tab group has already been closed. Prefer
+     * the {@link #getTabGroupColorWithFallback(Token)} method in most cases.
      */
     @TabGroupColorId
     int getTabGroupColorWithFallback(Tab groupedTab);

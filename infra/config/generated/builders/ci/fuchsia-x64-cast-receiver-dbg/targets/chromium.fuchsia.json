@@ -1066,6 +1066,28 @@
         "test_id_prefix": "ninja://third_party/perfetto:perfetto_unittests/"
       },
       {
+        "isolate_profile_data": true,
+        "merge": {
+          "script": "//testing/merge_scripts/standard_gtest_merge.py"
+        },
+        "module_name": "//testing/rust_gtest_interop:rust_gtest_interop_unittests",
+        "module_scheme": "gtest",
+        "name": "rust_gtest_interop_unittests",
+        "resultdb": {
+          "enable": true,
+          "inv_extended_properties_dir": "${ISOLATED_OUTDIR}/invocations"
+        },
+        "swarming": {
+          "dimensions": {
+            "kvm": "1",
+            "os": "Ubuntu-22.04"
+          },
+          "service_account": "chromium-tester@chops-service-accounts.iam.gserviceaccount.com"
+        },
+        "test": "rust_gtest_interop_unittests",
+        "test_id_prefix": "ninja://testing/rust_gtest_interop:rust_gtest_interop_unittests/"
+      },
+      {
         "args": [
           "--test-launcher-filter-file=../../testing/buildbot/filters/fuchsia.services_unittests.filter"
         ],
@@ -1878,32 +1900,6 @@
         },
         "test": "telemetry_gpu_integration_test_fuchsia",
         "test_id_prefix": "ninja://content/test:telemetry_gpu_integration_test_fuchsia/"
-      },
-      {
-        "ci_only": true,
-        "isolate_profile_data": true,
-        "merge": {
-          "args": [
-            "--smoke-test-mode"
-          ],
-          "script": "//tools/perf/process_perf_results.py"
-        },
-        "module_name": "//ui/views:views_perftests_fuchsia",
-        "module_scheme": "gtest",
-        "name": "views_perftests_fuchsia",
-        "resultdb": {
-          "enable": true,
-          "inv_extended_properties_dir": "${ISOLATED_OUTDIR}/invocations"
-        },
-        "swarming": {
-          "dimensions": {
-            "kvm": "1",
-            "os": "Ubuntu-22.04"
-          },
-          "service_account": "chromium-tester@chops-service-accounts.iam.gserviceaccount.com"
-        },
-        "test": "views_perftests_fuchsia",
-        "test_id_prefix": "ninja://ui/views:views_perftests_fuchsia/"
       }
     ]
   }

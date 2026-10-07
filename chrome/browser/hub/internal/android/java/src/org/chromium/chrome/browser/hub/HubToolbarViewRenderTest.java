@@ -99,10 +99,7 @@ public class HubToolbarViewRenderTest {
         mFocusedPaneSupplier = ObservableSuppliers.createMonotonic();
         mColorMixer =
                 new HubColorMixerImpl(
-                        mActivity,
-                        ObservableSuppliers.alwaysTrue(),
-                        mFocusedPaneSupplier,
-                        ObservableSuppliers.alwaysNull());
+                        mActivity, ObservableSuppliers.alwaysTrue(), mFocusedPaneSupplier);
         mPropertyModel =
                 new PropertyModel.Builder(HubToolbarProperties.ALL_KEYS)
                         .with(COLOR_MIXER, mColorMixer)

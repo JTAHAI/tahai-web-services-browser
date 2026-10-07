@@ -10,12 +10,10 @@
 #import "base/functional/callback_helpers.h"
 #import "base/memory/ptr_util.h"
 #import "base/notreached.h"
-#import "components/supervised_user/core/browser/family_link_settings_service.h"
 #import "components/supervised_user/core/browser/supervised_user_service.h"
 #import "components/supervised_user/core/common/features.h"
 #import "ios/chrome/browser/shared/model/profile/profile_ios.h"
 #import "ios/chrome/browser/shared/public/commands/parent_access_commands.h"
-#import "ios/chrome/browser/supervised_user/model/family_link_settings_service_factory.h"
 #import "ios/chrome/browser/supervised_user/model/ios_web_content_handler_impl.h"
 #import "ios/chrome/browser/supervised_user/model/supervised_user_service_factory.h"
 #import "ios/chrome/browser/supervised_user/model/supervised_user_url_filtering_service_factory.h"
@@ -54,21 +52,28 @@ const char kSupervisedUserInterstitialType[] = "kSupervisedUserInterstitial";
 
 SupervisedUserErrorContainer::SupervisedUserErrorContainer(
     web::WebState* web_state)
-    : family_link_settings_service_(
-          *supervised_user::FamilyLinkSettingsServiceFactory::GetForProfile(
-              ProfileIOS::FromBrowserState(web_state->GetBrowserState()))),
-      supervised_user_service_(*supervised_user::SupervisedUserServiceFactory::GetForProfile(
+    : supervised_user_service_(*supervised_user::SupervisedUserServiceFactory::GetForProfile(
           ProfileIOS::FromBrowserState(web_state->GetBrowserState()))),
       supervised_user_url_filtering_service_(
           *supervised_user::SupervisedUserUrlFilteringServiceFactory::
               GetForProfile(
                   ProfileIOS::FromBrowserState(web_state->GetBrowserState()))),
       web_state_(web_state) {
-  url_filtering_service_observation_.Observe(
-      &supervised_user_url_filtering_service_.get());
+  if (base::FeatureList::IsEnabled(
+          supervised_user::kSupervisedUserUseUrlFilteringService)) {
+    url_filtering_service_observation_.Observe(
+        &supervised_user_url_filtering_service_.get());
+  } else {
+    supervised_user_service_->AddObserver(this);
+  }
 }
 
-SupervisedUserErrorContainer::~SupervisedUserErrorContainer() = default;
+SupervisedUserErrorContainer::~SupervisedUserErrorContainer() {
+  if (!base::FeatureList::IsEnabled(
+          supervised_user::kSupervisedUserUseUrlFilteringService)) {
+    supervised_user_service_->RemoveObserver(this);
+  }
+}
 
 SupervisedUserErrorContainer::SupervisedUserErrorInfo::SupervisedUserErrorInfo(
     supervised_user::WebFilteringResult filtering_result,
@@ -90,7 +95,7 @@ SupervisedUserErrorContainer::CreateSupervisedUserInterstitial(
   std::unique_ptr<supervised_user::SupervisedUserInterstitial> interstitial =
       supervised_user::SupervisedUserInterstitial::Create(
           std::move(web_content_handler), supervised_user_service_.get(),
-          family_link_settings_service_.get(), error_info.filtering_result(),
+          error_info.filtering_result(),
           // User name needed only for the local web approval flow, not
           // applicable for iOS.
           /*supervised_user_name=*/std::u16string());
@@ -164,6 +169,10 @@ void SupervisedUserErrorContainer::URLFilterCheckCallback(
                                                  /*check_for_repost=*/true);
     }
   }
+}
+
+void SupervisedUserErrorContainer::OnURLFilterChanged() {
+  OnUrlFilteringServiceChanged();
 }
 
 void SupervisedUserErrorContainer::OnUrlFilteringServiceChanged() {

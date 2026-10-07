@@ -152,7 +152,6 @@ test("native_theme_unittests") {
     "//skia",
     "//testing/gtest",
     "//ui/color",
-    "//ui/color:mixers",
     "//ui/gfx:test_support",
     "//ui/gfx/geometry",
   ]

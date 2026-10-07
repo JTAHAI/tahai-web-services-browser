@@ -19,11 +19,9 @@ import androidx.appcompat.content.res.AppCompatResources;
 import androidx.core.graphics.drawable.DrawableCompat;
 
 import org.chromium.base.CallbackController;
-import org.chromium.base.CallbackUtils;
 import org.chromium.base.DeviceInfo;
 import org.chromium.base.metrics.RecordUserAction;
 import org.chromium.base.supplier.MonotonicObservableSupplier;
-import org.chromium.base.supplier.NonNullObservableSupplier;
 import org.chromium.base.supplier.NullableObservableSupplier;
 import org.chromium.base.supplier.OneshotSupplier;
 import org.chromium.build.annotations.Contract;
@@ -62,7 +60,6 @@ import org.chromium.chrome.browser.recent_tabs.ForeignSessionHelper;
 import org.chromium.chrome.browser.share.ShareUtils;
 import org.chromium.chrome.browser.supervised_user.SupervisedUserServiceBridge;
 import org.chromium.chrome.browser.tab.Tab;
-import org.chromium.chrome.browser.tab_group_sync.TabGroupSyncServiceFactory;
 import org.chromium.chrome.browser.tabmodel.TabModelSelector;
 import org.chromium.chrome.browser.task_manager.TaskManager;
 import org.chromium.chrome.browser.toolbar.ToolbarManager;
@@ -72,6 +69,7 @@ import org.chromium.chrome.browser.ui.appmenu.AppMenuDelegate;
 import org.chromium.chrome.browser.ui.appmenu.AppMenuHandler;
 import org.chromium.chrome.browser.ui.appmenu.AppMenuItemProperties;
 import org.chromium.chrome.browser.ui.default_browser_promo.DefaultBrowserPromoUtils;
+import org.chromium.chrome.browser.ui.extensions.ExtensionUi;
 import org.chromium.chrome.browser.ui.favicon.FaviconHelper;
 import org.chromium.chrome.browser.ui.favicon.FaviconUtils;
 import org.chromium.chrome.browser.ui.lens.LensOverlayTabHelper;
@@ -84,7 +82,6 @@ import org.chromium.components.browser_ui.accessibility.PageZoomManager;
 import org.chromium.components.browser_ui.widget.RoundedIconGenerator;
 import org.chromium.components.embedder_support.util.UrlConstants;
 import org.chromium.components.embedder_support.util.UrlUtilities;
-import org.chromium.components.tab_group_sync.TabGroupSyncService;
 import org.chromium.components.user_prefs.UserPrefs;
 import org.chromium.net.ConnectionType;
 import org.chromium.ui.base.DeviceFormFactor;
@@ -120,6 +117,18 @@ public class TabbedAppMenuPropertiesDelegate extends AppMenuPropertiesDelegateIm
          * It is different from the regular menu item because it contains two separate buttons.
          */
         int NEW_INCOGNITO = AppMenuHandler.AppMenuItemType.NUM_ENTRIES + 2;
+    }
+
+    public static boolean isSubmenusEnabled(Context context) {
+        if (ChromeFeatureList.isEnabled(ChromeFeatureList.SUBMENUS_IN_APP_MENU)) {
+            return true;
+        }
+        if (ChromeFeatureList.isEnabled(ChromeFeatureList.SUBMENUS_IN_APP_MENU_LFF)
+                && DeviceFormFactor.isNonMultiDisplayContextOnTablet(context)
+                && !DeviceInfo.isFoldable()) {
+            return true;
+        }
+        return false;
     }
 
     AppMenuDelegate mAppMenuDelegate;
@@ -170,7 +179,7 @@ public class TabbedAppMenuPropertiesDelegate extends AppMenuPropertiesDelegateIm
             @Nullable OpenInAppMenuItemProvider openInAppMenuItemProvider,
             Supplier<RecentlyClosedEntriesManager> recentlyClosedEntriesManagerSupplier,
             Supplier<SideUiStateProvider> sideUiStateProviderSupplier,
-            NonNullObservableSupplier<Boolean> xrSpaceModeObservableSupplier,
+            Supplier<Boolean> isXrFullSpaceModeSupplier,
             BooleanSupplier canActivateTabLayoutToggleMenu) {
         super(
                 context,
@@ -208,8 +217,7 @@ public class TabbedAppMenuPropertiesDelegate extends AppMenuPropertiesDelegateIm
                         shouldShowIconBeforeItem(),
                         mRoundedIconGenerator,
                         mDefaultFaviconHelper,
-                        this::getFaviconHelper,
-                        this::getTabGroupSyncService);
+                        this::getFaviconHelper);
 
         mHistoryItemBuilder =
                 new HistoryItemBuilder(
@@ -231,7 +239,7 @@ public class TabbedAppMenuPropertiesDelegate extends AppMenuPropertiesDelegateIm
                         tabModelSelector,
                         isMenuIconAtStart(),
                         shouldShowIconBeforeItem(),
-                        xrSpaceModeObservableSupplier);
+                        isXrFullSpaceModeSupplier);
 
         mSaveAndShareItemBuilder =
                 new SaveAndShareItemBuilder(
@@ -307,7 +315,8 @@ public class TabbedAppMenuPropertiesDelegate extends AppMenuPropertiesDelegateIm
 
         GURL url = currentTab != null ? currentTab.getUrl() : GURL.emptyGURL();
         final boolean isNativePage =
-                UrlUtilities.isChromeScheme(url)
+                url.getScheme().equals(UrlConstants.CHROME_SCHEME)
+                        || url.getScheme().equals(UrlConstants.CHROME_NATIVE_SCHEME)
                         || (currentTab != null && currentTab.isNativePage());
         final boolean isFileScheme = url.getScheme().equals(UrlConstants.FILE_SCHEME);
         final boolean isContentScheme = url.getScheme().equals(UrlConstants.CONTENT_SCHEME);
@@ -1054,6 +1063,78 @@ public class TabbedAppMenuPropertiesDelegate extends AppMenuPropertiesDelegateIm
                         isMenuIconAtStart()));
     }
 
+    private boolean shouldShowExtensionsItem() {
+        // TODO(crbug.com/422307625): Remove this check once extensions are ready for dogfooding.
+        return ExtensionUi.isEnabled(getProfileFromTabModel());
+    }
+
+    private ListItem buildExtensionsParentItem() {
+        assert shouldShowExtensionsItem();
+
+        List<ListItem> submenuItems = new ArrayList<>();
+        submenuItems.add(buildExtensionsMenuItem(/* showIcon= */ false));
+        submenuItems.add(buildManageExtensionsItem());
+        submenuItems.add(buildChromeWebstoreItem());
+
+        return new ListItem(
+                AppMenuHandler.AppMenuItemType.MENU_ITEM_WITH_SUBMENU,
+                AppMenuItemUtils.buildModelForMenuItemWithSubmenu(
+                        mContext,
+                        getAppMenuItemTheme(),
+                        R.id.extensions_parent_menu_id,
+                        R.string.menu_extensions,
+                        shouldShowIconBeforeItem()
+                                ? R.drawable.ic_extension_24dp
+                                : Resources.ID_NULL,
+                        () -> submenuItems,
+                        isMenuIconAtStart()));
+    }
+
+    private ListItem buildExtensionsMenuItem(boolean showIcon) {
+        assert shouldShowExtensionsItem();
+
+        return AppMenuItemUtils.createStandardListItem(
+                AppMenuItemUtils.buildModelForStandardMenuItem(
+                        mContext,
+                        getAppMenuItemTheme(),
+                        R.id.extensions_menu_menu_id,
+                        R.string.menu_extensions_menu,
+                        showIcon ? R.drawable.ic_extension_24dp : Resources.ID_NULL,
+                        isMenuIconAtStart()),
+                showIcon);
+    }
+
+    private ListItem buildManageExtensionsItem() {
+        assert shouldShowExtensionsItem();
+
+        // The id {@code R.id.extensions_menu_id} is used for both when this flag is enabled and
+        // disabled but in different context.
+        assert isSubmenusEnabled(mContext);
+
+        return AppMenuItemUtils.createStandardListItem(
+                AppMenuItemUtils.buildModelForStandardMenuItem(
+                        mContext,
+                        getAppMenuItemTheme(),
+                        R.id.manage_extensions_menu_id,
+                        R.string.menu_manage_extensions,
+                        Resources.ID_NULL,
+                        isMenuIconAtStart()),
+                /* showIcon= */ false);
+    }
+
+    private ListItem buildChromeWebstoreItem() {
+        assert shouldShowExtensionsItem();
+        return AppMenuItemUtils.createStandardListItem(
+                AppMenuItemUtils.buildModelForStandardMenuItem(
+                        mContext,
+                        getAppMenuItemTheme(),
+                        R.id.extensions_webstore_menu_id,
+                        R.string.menu_chrome_webstore,
+                        Resources.ID_NULL,
+                        isMenuIconAtStart()),
+                /* showIcon= */ false);
+    }
+
     private boolean shouldShowSaveAndShareItem(
             @Nullable Tab currentTab,
             boolean isNativePage,
@@ -1716,7 +1797,7 @@ public class TabbedAppMenuPropertiesDelegate extends AppMenuPropertiesDelegateIm
             // HeadlessTabModel}.
             BookmarkModel bookmarkModel = mBookmarkModelSupplier.get();
             if (bookmarkModel != null && !bookmarkModel.isBookmarkModelLoaded()) {
-                bookmarkModel.finishLoadingBookmarkModel(CallbackUtils.emptyRunnable());
+                bookmarkModel.finishLoadingBookmarkModel(() -> {});
             }
             RecentlyClosedEntriesManager manager = mRecentlyClosedEntriesManagerSupplier.get();
             if (manager != null) {
@@ -1737,17 +1818,10 @@ public class TabbedAppMenuPropertiesDelegate extends AppMenuPropertiesDelegateIm
         }
     }
 
-    private @Nullable TabGroupSyncService getTabGroupSyncService() {
-        Profile profile = getProfileFromTabModel();
-        if (profile == null || !profile.isNativeInitialized()) {
-            return null;
-        }
-        return TabGroupSyncServiceFactory.getForProfile(profile);
-    }
-
-    @Override
-    protected Profile getProfileFromTabModel() {
-        return assumeNonNull(assumeNonNull(mTabModelSelector.getModel(false)).getProfile());
+    private Profile getProfileFromTabModel() {
+        var profile = mTabModelSelector.getModel(false).getProfile();
+        assert profile != null;
+        return profile;
     }
 
     public void setImageFetcherForTesting(BookmarkImageFetcher imageFetcher) {

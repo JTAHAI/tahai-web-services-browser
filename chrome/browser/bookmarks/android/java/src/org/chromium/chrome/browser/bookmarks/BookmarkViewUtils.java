@@ -41,18 +41,15 @@ public class BookmarkViewUtils {
         if (bookmarkId.getType() == BookmarkType.READING_LIST) {
             return UiUtils.getTintedDrawable(context, R.drawable.ic_reading_list_folder_24dp, tint);
         } else if (bookmarkId.getType() == BookmarkType.NORMAL
-                && Objects.equals(bookmarkId, bookmarkModel.getDesktopFolderId())
-                && !BookmarkUtils.isDesktopBookmarksDialogEnabled()) {
+                && Objects.equals(bookmarkId, bookmarkModel.getDesktopFolderId())) {
             return UiUtils.getTintedDrawable(context, R.drawable.ic_toolbar_24dp, tint);
         }
 
-        boolean useOutline =
-                displayPref == BookmarkRowDisplayPref.VISUAL
-                        || BookmarkUtils.isDesktopBookmarksLayoutEnabled()
-                        || BookmarkUtils.isDesktopBookmarksDialogEnabled();
         return UiUtils.getTintedDrawable(
                 context,
-                useOutline ? R.drawable.ic_folder_outline_24dp : R.drawable.ic_folder_blue_24dp,
+                displayPref == BookmarkRowDisplayPref.VISUAL
+                        ? R.drawable.ic_folder_outline_24dp
+                        : R.drawable.ic_folder_blue_24dp,
                 tint);
     }
 
@@ -129,31 +126,10 @@ public class BookmarkViewUtils {
     /** Returns the size to use when displaying an image. */
     public static int getImageIconSize(
             Resources resources, @BookmarkRowDisplayPref int displayPref) {
-        if (displayPref == BookmarkRowDisplayPref.VISUAL) {
-            return resources.getDimensionPixelSize(
-                    R.dimen.improved_bookmark_start_image_size_visual);
-        }
-        if (BookmarkUtils.isDesktopBookmarksLayoutEnabled()
-                || BookmarkUtils.isDesktopBookmarksDialogEnabled()) {
-            return resources.getDimensionPixelSize(
-                    R.dimen.improved_bookmark_start_image_size_desktop);
-        }
-        return resources.getDimensionPixelSize(R.dimen.improved_bookmark_start_image_size_compact);
-    }
-
-    /** Returns the corner radius to use when displaying an image. */
-    public static int getImageIconCornerRadius(
-            Resources resources, @BookmarkRowDisplayPref int displayPref) {
-        if (displayPref == BookmarkRowDisplayPref.VISUAL) {
-            return resources.getDimensionPixelSize(
-                    R.dimen.improved_bookmark_row_outer_corner_radius);
-        }
-        if (BookmarkUtils.isDesktopBookmarksLayoutEnabled()
-                || BookmarkUtils.isDesktopBookmarksDialogEnabled()) {
-            return resources.getDimensionPixelSize(
-                    R.dimen.improved_bookmark_start_image_corner_radius_desktop);
-        }
-        return resources.getDimensionPixelSize(R.dimen.improved_bookmark_icon_radius);
+        return displayPref == BookmarkRowDisplayPref.VISUAL
+                ? resources.getDimensionPixelSize(R.dimen.improved_bookmark_start_image_size_visual)
+                : resources.getDimensionPixelSize(
+                        R.dimen.improved_bookmark_start_image_size_compact);
     }
 
     /** Returns the size to use when displaying the favicon. */
@@ -164,8 +140,7 @@ public class BookmarkViewUtils {
     /** Return the background color for the given {@link BookmarkType}. */
     public static @ColorInt int getIconBackground(
             Context context, BookmarkModel bookmarkModel, BookmarkItem item) {
-        if (bookmarkModel.isSpecialFolder(item)
-                || BookmarkUtils.isDesktopBookmarksDialogEnabled()) {
+        if (bookmarkModel.isSpecialFolder(item)) {
             return SemanticColorUtils.getColorPrimaryContainer(context);
         } else {
             return SemanticColorUtils.getColorSurfaceContainerLow(context);
@@ -175,8 +150,7 @@ public class BookmarkViewUtils {
     /** Return the icon tint for the given {@link BookmarkType}. */
     public static ColorStateList getIconTint(
             Context context, BookmarkModel bookmarkModel, BookmarkItem item) {
-        if (bookmarkModel.isSpecialFolder(item)
-                || BookmarkUtils.isDesktopBookmarksDialogEnabled()) {
+        if (bookmarkModel.isSpecialFolder(item)) {
             return ColorStateList.valueOf(
                     SemanticColorUtils.getDefaultIconColorOnAccent1Container(context));
         } else {

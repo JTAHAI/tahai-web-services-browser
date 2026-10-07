@@ -8,8 +8,7 @@ import androidx.annotation.IntDef;
 
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.ui.modelutil.PropertyKey;
-import org.chromium.ui.modelutil.PropertyModel.WritableFloatPropertyKey;
-import org.chromium.ui.modelutil.PropertyModel.WritableIntDefPropertyKey;
+import org.chromium.ui.modelutil.PropertyModel;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -29,8 +28,9 @@ class LoadProgressProperties {
         int FINISHED_DONT_ANIMATE = 2;
     }
 
-    public static final WritableIntDefPropertyKey<CompletionState> COMPLETION_STATE =
-            new WritableIntDefPropertyKey<>(CompletionState.UNFINISHED);
-    public static final WritableFloatPropertyKey PROGRESS = new WritableFloatPropertyKey();
+    public static final PropertyModel.WritableIntPropertyKey COMPLETION_STATE =
+            new PropertyModel.WritableIntPropertyKey();
+    public static final PropertyModel.WritableFloatPropertyKey PROGRESS =
+            new PropertyModel.WritableFloatPropertyKey();
     static final PropertyKey[] ALL_KEYS = {COMPLETION_STATE, PROGRESS};
 }

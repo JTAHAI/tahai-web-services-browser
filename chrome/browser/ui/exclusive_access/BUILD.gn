@@ -74,7 +74,6 @@ source_set("exclusive_access") {
     deps += [
       "//chrome/browser:browser_process",
       "//chrome/browser/ui/blocked_content",
-      "//chrome/browser/ui/bookmarks",
     ]
   }
 }
@@ -96,10 +95,7 @@ if (!is_android) {
       "//chrome/test:test_support_ui",
       "//content/test:test_support",
     ]
-    deps = [
-      "//chrome/browser/ui/browser_web_contents_delegate",
-      "//chrome/browser/ui/views/exclusive_access",
-    ]
+    deps = [ "//chrome/browser/ui/views/exclusive_access" ]
     if (!is_chromeos) {
       public_deps += [ "//chrome/browser:fullscreen" ]
     }
@@ -132,7 +128,6 @@ if (!is_android) {
       ":test_support",
       "//chrome/browser/content_settings:content_settings_factory",
       "//chrome/browser/ui:ui_features",
-      "//chrome/browser/ui/browser_window",
       "//components/content_settings/core/browser",
       "//ui/base:ozone_buildflags",
     ]
@@ -155,8 +150,6 @@ if (!is_android) {
         "//chrome/browser/content_settings:content_settings_factory",
         "//chrome/browser/preloading:test_support",
         "//chrome/browser/ui:test_support",
-        "//chrome/browser/ui/browser_web_contents_delegate",
-        "//chrome/browser/ui/browser_window",
         "//chrome/browser/ui/fullscreen",
         "//chrome/browser/ui/test:test_support",
         "//chrome/browser/ui/web_modal:browser_window_modal_dialog_delegate",

@@ -28,16 +28,7 @@ enum class ChromeInitiatorLocation : page_load_metrics::
       kOmniboxDirectUrlInput = 3,
       kOmniboxDefaultSearchEngine = 4,
       kLinkClick = 5,
-      kForward = 6,
-      kBackward = 7,
-      kReload = 8,
-
-      // This is search navigation triggered as follows:
-      // Android: "Web search" from the text selection context menu.
-      // Desktop: "Search [default search engine] for ..." from the right-click
-      // menu on selected text.
-      kContextMenuSearch = 9,
-      kMaxValue = kContextMenuSearch
+      kMaxValue = kLinkClick
     };
 // LINT.ThenChange(//tools/metrics/histograms/metadata/navigation/enums.xml:NavigationInitiatorType)
 
@@ -68,12 +59,6 @@ void AttachOmniboxDefaultSearchEngineNavigationHandleUserData(
     content::NavigationHandle& navigation_handle);
 
 void AttachBookmarkBarNavigationHandleUserData(
-    content::NavigationHandle& navigation_handle);
-
-void AttachContextMenuSearchNavigationHandleUserData(
-    content::NavigationHandle& navigation_handle);
-
-void MarkNavigationServedBySearchPrefetch(
     content::NavigationHandle& navigation_handle);
 
 #endif  // CHROME_BROWSER_PAGE_LOAD_METRICS_CHROME_INITIATOR_LOCATION_H_

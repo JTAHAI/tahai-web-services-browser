@@ -7,7 +7,6 @@
 #import "components/affiliations/core/browser/affiliation_utils.h"
 #import "components/password_manager/core/browser/password_form.h"
 #import "components/password_manager/core/browser/password_manager_util.h"
-#import "components/password_manager/core/browser/password_string.h"
 #import "components/password_manager/core/browser/password_ui_utils.h"
 #import "ios/chrome/browser/credential_provider/model/archivable_credential+password_form.h"
 #import "ios/chrome/browser/credential_provider/model/credential_provider_util.h"
@@ -34,8 +33,7 @@ password_manager::PasswordForm PasswordFormFromCredential(
   form.url = password_manager_util::StripAuthAndParams(url);
   form.signon_realm = url::Origin::Create(form.url).GetURL().spec();
   form.username_value = SysNSStringToUTF16(credential.username);
-  form.password_value =
-      password_manager::PasswordString(SysNSStringToUTF16(credential.password));
+  form.password_value = SysNSStringToUTF16(credential.password);
   form.times_used_in_html_form = credential.rank;
   form.SetNoteWithEmptyUniqueDisplayName(SysNSStringToUTF16(credential.note));
 
@@ -104,8 +102,7 @@ password_manager::PasswordForm PasswordFormFromCredential(
                          password_manager::PasswordForm::Store::kAccountStore);
   return [self initWithFavicon:favicon
                           gaia:inAccountStore ? gaia : nil
-                      password:SysUTF16ToNSString(
-                                   passwordForm.password_value.value())
+                      password:SysUTF16ToNSString(passwordForm.password_value)
                           rank:passwordForm.times_used_in_html_form
               recordIdentifier:RecordIdentifierForPasswordForm(passwordForm)
              serviceIdentifier:serviceIdentifier

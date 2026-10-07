@@ -8,9 +8,8 @@
 #import <UIKit/UIKit.h>
 
 // Returns the color to be used for the buttons in the toolbar, in incognito or
-// not. `alpha` is the opacity multiplier applied to the background color when
-// the glass toolbar is enabled.
-UIColor* ToolbarElementBackgroundColor(BOOL incognito, CGFloat alpha = 1);
+// not.
+UIColor* ToolbarElementBackgroundColor(BOOL incognito);
 
 // Configures the `container` to have the shadow of a toolbar button, or removes
 // the existing shadow if `remove_shadow` is YES.

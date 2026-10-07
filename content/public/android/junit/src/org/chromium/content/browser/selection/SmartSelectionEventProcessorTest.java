@@ -29,6 +29,7 @@ import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
+import org.robolectric.annotation.Config;
 
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.base.test.util.Feature;
@@ -40,6 +41,7 @@ import java.text.BreakIterator;
 
 /** Unit tests for the {@link SmartSelectionEventProcessor}. */
 @RunWith(BaseRobolectricTestRunner.class)
+@Config(manifest = Config.NONE)
 public class SmartSelectionEventProcessorTest {
     @Rule public MockitoRule mMockitoRule = MockitoJUnit.rule();
     private WebContentsImpl mWebContents;

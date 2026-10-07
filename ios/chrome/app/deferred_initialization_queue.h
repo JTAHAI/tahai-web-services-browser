@@ -27,9 +27,8 @@
 // Initializes an instance with default delays.
 - (instancetype)init;
 
-// Schedules `block` to be executed asynchronously, optionally with `name`.
-- (DeferredInitializationBlock*)enqueueBlockNamed:(NSString*)name
-                                            block:(ProceduralBlock)block;
+// Schedules `block` to be executed asynchronously.
+- (DeferredInitializationBlock*)enqueueBlock:(ProceduralBlock)block;
 
 // Executes `block` immediately.
 - (void)runBlock:(DeferredInitializationBlock*)block;

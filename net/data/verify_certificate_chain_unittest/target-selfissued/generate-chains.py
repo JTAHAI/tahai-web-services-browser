@@ -6,7 +6,6 @@
 does not contain the signer cert."""
 
 import sys
-
 sys.path += ['../..']
 
 import gencerts

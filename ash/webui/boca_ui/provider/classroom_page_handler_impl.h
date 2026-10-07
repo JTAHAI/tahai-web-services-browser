@@ -36,15 +36,13 @@ class CourseWorkMaterial;
 
 namespace ash::boca {
 
-class SessionClientImpl;
-
 using StudentList = std::vector<mojom::IdentityPtr>;
 using CourseList = std::vector<mojom::CoursePtr>;
 using AssignmentList = std::vector<mojom::AssignmentPtr>;
 
 class ClassroomPageHandlerImpl {
  public:
-  explicit ClassroomPageHandlerImpl(SessionClientImpl& session_client_impl);
+  ClassroomPageHandlerImpl();
   explicit ClassroomPageHandlerImpl(
       std::unique_ptr<google_apis::RequestSender> sender);
 

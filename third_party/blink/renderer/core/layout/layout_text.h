@@ -136,8 +136,7 @@ class CORE_EXPORT LayoutText : public LayoutObject {
 
   void QuadsInAncestorInternal(Vector<gfx::QuadF>&,
                                const LayoutBoxModelObject* ancestor,
-                               MapCoordinatesFlags,
-                               BoxQuadType) const final;
+                               MapCoordinatesFlags) const final;
   void AbsoluteQuadsForRange(Vector<gfx::QuadF>&,
                              unsigned start_offset = 0,
                              unsigned end_offset = INT_MAX) const;
@@ -371,11 +370,10 @@ class CORE_EXPORT LayoutText : public LayoutObject {
 #endif
 
  protected:
-  void WillBeDestroyed(const ComputedStyle*) override;
+  void WillBeDestroyed() override;
 
   // Explicitly override so that we don't call LayoutObject::StyleWillChange.
   void StyleWillChange(StyleDifference,
-                       const ComputedStyle* old_style,
                        const ComputedStyle& new_style,
                        StyleChangeContext&) override {
     NOT_DESTROYED();
@@ -383,7 +381,6 @@ class CORE_EXPORT LayoutText : public LayoutObject {
 
   void StyleDidChange(StyleDifference,
                       const ComputedStyle* old_style,
-                      const ComputedStyle& new_style,
                       const StyleChangeContext&) override;
 
   void InLayoutNGInlineFormattingContextWillChange(bool) final;

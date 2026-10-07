@@ -54,7 +54,6 @@ public class AwContextMenuHelper {
     @VisibleForTesting
     public boolean showContextMenu(ContextMenuParams params, View view) {
         WindowAndroid windowAndroid = mWebContents.getTopLevelNativeWindow();
-        dismissContextMenu();
         mCurrentContextMenu = null;
 
         if (!params.isAnchor()
@@ -96,10 +95,7 @@ public class AwContextMenuHelper {
                         usePopupWindow,
                         hyperlinkMenuItems);
 
-        if (!mCurrentContextMenu.displayMenu()) {
-            mCurrentContextMenu = null;
-            return false;
-        }
+        mCurrentContextMenu.displayMenu();
         return true;
     }
 

@@ -83,6 +83,7 @@ public class CafMessageHandlerTest {
     private ClientRecord mClientRecord2;
     private Map<String, ClientRecord> mClientRecordMap;
     private CafMessageHandler mMessageHandler;
+    private int mNumStopApplicationCalled;
 
     @Before
     public void setUp() {

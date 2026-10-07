@@ -4,7 +4,6 @@
 
 package org.chromium.chrome.browser.tab_ui;
 
-import static org.junit.Assert.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -149,7 +148,6 @@ public class TabListFaviconProviderTest {
         TabFavicon favicon = (ResourceTabFavicon) doFetchFavicon(fetcher);
         Assert.assertEquals(
                 favicon, new ResourceTabFavicon(newDrawable(), StaticTabFaviconType.ROUNDED_GLOBE));
-        assertFaviconSize(favicon, R.dimen.tab_grid_favicon_size);
     }
 
     @Test
@@ -160,7 +158,6 @@ public class TabListFaviconProviderTest {
                 favicon,
                 new ResourceTabFavicon(
                         newDrawable(), StaticTabFaviconType.ROUNDED_GLOBE_INCOGNITO));
-        assertFaviconSize(favicon, R.dimen.tab_grid_favicon_size);
     }
 
     @Test
@@ -303,7 +300,6 @@ public class TabListFaviconProviderTest {
                         newDrawable(), StaticTabFaviconType.ROUNDED_GLOBE_FOR_VERTICAL));
         Assert.assertFalse(
                 "Vertical favicons should not recolor on select", favicon.hasSelectedState());
-        assertFaviconSize(favicon, R.dimen.default_favicon_size);
 
         // 2. Test incognito vertical default favicon
         TabFaviconFetcher otrFetcher = verticalProvider.getDefaultFaviconFetcher(true);
@@ -313,7 +309,6 @@ public class TabListFaviconProviderTest {
                 new ResourceTabFavicon(
                         newDrawable(), StaticTabFaviconType.ROUNDED_GLOBE_FOR_VERTICAL_INCOGNITO));
         Assert.assertFalse(otrFavicon.hasSelectedState());
-        assertFaviconSize(otrFavicon, R.dimen.default_favicon_size);
 
         verticalProvider.destroy();
     }
@@ -335,7 +330,6 @@ public class TabListFaviconProviderTest {
                 new ResourceTabFavicon(
                         newDrawable(), StaticTabFaviconType.ROUNDED_CHROME_FOR_VERTICAL));
         Assert.assertFalse(favicon.hasSelectedState());
-        assertFaviconSize(favicon, R.dimen.default_favicon_size);
 
         // 2. Test incognito Chrome favicon in vertical mode
         TabFavicon otrFavicon = verticalProvider.getRoundedChromeFavicon(true);
@@ -344,16 +338,8 @@ public class TabListFaviconProviderTest {
                 new ResourceTabFavicon(
                         newDrawable(), StaticTabFaviconType.ROUNDED_CHROME_FOR_VERTICAL_INCOGNITO));
         Assert.assertFalse(otrFavicon.hasSelectedState());
-        assertFaviconSize(otrFavicon, R.dimen.default_favicon_size);
 
         verticalProvider.destroy();
-    }
-
-    private void assertFaviconSize(TabFavicon favicon, int expectedSizeDimenId) {
-        int expectedSize = mActivity.getResources().getDimensionPixelSize(expectedSizeDimenId);
-        Drawable drawable = favicon.getDefaultDrawable();
-        assertEquals(expectedSize, drawable.getIntrinsicWidth());
-        assertEquals(expectedSize, drawable.getIntrinsicHeight());
     }
 
     private TabFavicon doFetchFavicon(Runnable after, TabFaviconFetcher fetcher) {

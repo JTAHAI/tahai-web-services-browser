@@ -19,6 +19,7 @@ import android.widget.RadioGroup;
 import android.widget.Spinner;
 import android.widget.TextView;
 
+import androidx.annotation.NonNull;
 import androidx.preference.PreferenceViewHolder;
 
 import com.google.android.material.textfield.TextInputLayout;
@@ -79,7 +80,7 @@ class SecureDnsProviderPreference extends ContainedRadioButtonGroupPreference
         // Indicates that secure mode is selected.
         public final boolean secure;
         // The selected or entered DoH template(s), if any.
-        public final String config;
+        public final @NonNull String config;
         // Whether the selected template is valid.
         public final boolean valid;
 

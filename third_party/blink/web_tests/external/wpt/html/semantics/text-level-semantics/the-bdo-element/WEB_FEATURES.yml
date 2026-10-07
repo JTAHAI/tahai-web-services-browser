@@ -1,2 +1,3 @@
-rules:
-- "**": [bdo]
+features:
+- name: bdo
+  files: "**"

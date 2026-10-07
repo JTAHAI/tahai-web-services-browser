@@ -10,7 +10,6 @@
 
 #import "base/containers/flat_set.h"
 #import "base/containers/span.h"
-#import "base/functional/callback_helpers.h"
 #import "base/memory/raw_ptr.h"
 #import "base/memory/raw_ref.h"
 #import "base/memory/weak_ptr.h"
@@ -113,8 +112,8 @@ class AutofillDriverIOS final : public AutofillDriver,
       const FillId& fill_id,
       bool supports_refill,
       const url::Origin& triggered_origin,
-      const absl::flat_hash_map<FieldGlobalId, FieldType>& field_type_map)
-      override;
+      const absl::flat_hash_map<FieldGlobalId, FieldType>& field_type_map,
+      const Section& section_for_clear_form_on_ios) override;
   void ApplyFieldAction(mojom::FieldActionType action_type,
                         mojom::ActionPersistence action_persistence,
                         const FieldGlobalId& field_id,
@@ -137,7 +136,6 @@ class AutofillDriverIOS final : public AutofillDriver,
   void TriggerFormExtractionInAllFrames(
       base::OnceCallback<void(bool)> form_extraction_finished_callback)
       override;
-  void ClearFormCacheInAllFrames() override;
   void ObserveFieldVisibility(
       const FieldGlobalId& field_id,
       mojo::PendingRemote<mojom::AutofillVisibilityObserver> observer) override;
@@ -150,13 +148,11 @@ class AutofillDriverIOS final : public AutofillDriver,
       uint32_t number_of_ancestor_levels_to_search,
       base::OnceCallback<void(const std::string& amount)> response_callback)
       override;
-  void GetNonceForEmailVerification(
+  void SendEmailVerificationToken(
       FieldGlobalId email_field_id,
-      base::OnceCallback<void(const std::optional<std::string>&)> callback)
-      override;
-  void SendEmailVerificationToken(FieldGlobalId email_field_id,
-                                  const std::string& email,
-                                  const std::string& token) override;
+      const std::string& email,
+      FieldGlobalId token_field_id,
+      const std::string& presentation_token) override;
   void UpdateEmailVerificationState(
       const FieldGlobalId& email_field_id,
       mojom::EmailVerificationState state) override;
@@ -221,10 +217,8 @@ class AutofillDriverIOS final : public AutofillDriver,
 
   // Scans to find all eligible forms in the frame's document. If batching is
   // enabled and `immediately` is true, runs this scan and the batch
-  // immediately altogether. `callback` is called with true if forms were
-  // extracted successfully or false otherwise upon completion.
-  void ScanForms(bool immediately = false,
-                 base::OnceCallback<void(bool)> callback = base::DoNothing());
+  // immediately altogether.
+  void ScanForms(bool immediately = false);
 
   // Fetches forms filtered by `form_name` and calls `caller_completion` with
   // the form fetch results upon completion of the fetch.

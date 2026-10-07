@@ -8,16 +8,12 @@
  * numeric values should never be reused.
  * Defined in //tools/metrics/histograms/metadata/ui/enums.xml.
  */
-// LINT.IfChange(ReloadButtonInputType)
+// TODO(crbug.com/448794588): Force syncing with C++ side once finalized.
 export enum ReloadButtonInputType {
   MOUSE_RELEASE = 0,
   KEY_PRESS = 1,
-  COUNT = 2,
+  MAX_VALUE = 2,
 }
-// LINT.ThenChange(
-//   //tools/metrics/histograms/metadata/ui/enums.xml:ReloadButtonInputType,
-//   //chrome/browser/ui/waap/waap_ui_metrics_recorder.h:ReloadButtonInputType
-// )
 
 /**
  * The visible mode of the ReloadButton.

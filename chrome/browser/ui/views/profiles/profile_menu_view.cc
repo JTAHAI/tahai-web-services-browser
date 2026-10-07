@@ -5,7 +5,6 @@
 #include "chrome/browser/ui/views/profiles/profile_menu_view.h"
 
 #include <algorithm>
-#include <optional>
 #include <string>
 #include <utility>
 
@@ -29,14 +28,12 @@
 #include "chrome/browser/profiles/batch_upload/batch_upload_service_factory.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profile_attributes_entry.h"
-#include "chrome/browser/profiles/profile_attributes_storage.h"
 #include "chrome/browser/profiles/profile_avatar_icon_util.h"
 #include "chrome/browser/profiles/profile_manager.h"
 #include "chrome/browser/profiles/profile_metrics.h"
 #include "chrome/browser/profiles/profile_window.h"
 #include "chrome/browser/profiles/profiles_state.h"
 #include "chrome/browser/signin/account_consistency_mode_manager.h"
-#include "chrome/browser/signin/account_preview_data_service_factory.h"
 #include "chrome/browser/signin/chrome_signin_client_factory.h"
 #include "chrome/browser/signin/identity_manager_factory.h"
 #include "chrome/browser/signin/signin_hats_util.h"
@@ -45,10 +42,9 @@
 #include "chrome/browser/signin/signin_util.h"
 #include "chrome/browser/subscription_eligibility/subscription_eligibility_service_factory.h"
 #include "chrome/browser/sync/sync_service_factory.h"
-#include "chrome/browser/sync/sync_ui_util.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/dialogs/browser_dialogs.h"
 #include "chrome/browser/ui/hats/survey_config.h"
 #include "chrome/browser/ui/managed_ui.h"
@@ -57,11 +53,9 @@
 #include "chrome/browser/ui/profiles/profile_colors_util.h"
 #include "chrome/browser/ui/profiles/profile_picker.h"
 #include "chrome/browser/ui/profiles/profile_view_utils.h"
-#include "chrome/browser/ui/signin/account_preview_utils.h"
 #include "chrome/browser/ui/signin/signin_view_controller.h"
 #include "chrome/browser/ui/sync/sync_passphrase_dialog.h"
 #include "chrome/browser/ui/user_education/browser_user_education_interface.h"
-#include "chrome/browser/ui/views/color_provider_browser_helper.h"
 #include "chrome/browser/ui/views/controls/hover_button.h"
 #include "chrome/browser/ui/views/profiles/avatar_badge_view.h"
 #include "chrome/browser/ui/web_applications/app_browser_controller.h"
@@ -77,8 +71,6 @@
 #include "components/autofill/core/browser/metrics/autofill_settings_metrics.h"
 #include "components/autofill/core/common/autofill_features.h"
 #include "components/feature_engagement/public/feature_constants.h"
-#include "components/prefs/pref_service.h"
-#include "components/signin/core/browser/account_preview_data_service.h"
 #include "components/signin/public/base/consent_level.h"
 #include "components/signin/public/base/signin_metrics.h"
 #include "components/signin/public/base/signin_pref_names.h"
@@ -164,11 +156,11 @@ bool ProfileMenuView::close_on_deactivate_for_testing_ = true;
 
 ProfileMenuView::ProfileMenuView(
     views::BubbleAnchor anchor_element,
-    BrowserWindowInterface* browser,
+    Browser* browser,
     signin::ProfileMenuAvatarButtonPromoInfo promo_info,
     bool from_avatar_promo)
     : ProfileMenuViewBase(anchor_element, browser),
-      browser_(raw_ref<BrowserWindowInterface>::from_ptr(browser)),
+      browser_(raw_ref<Browser>::from_ptr(browser)),
       promo_info_(promo_info),
       from_avatar_promo_(from_avatar_promo) {
   set_close_on_deactivate(close_on_deactivate_for_testing_);
@@ -384,8 +376,9 @@ void ProfileMenuView::OnSyncErrorButtonClicked(
           trusted_vault::TrustedVaultUserActionTriggerForUMA::kProfileMenu);
       break;
     case syncer::SyncService::UserActionableError::kNeedsPassphrase: {
+      Browser* browser_ptr = &browser();
       GetWidget()->CloseWithReason(views::Widget::ClosedReason::kUnspecified);
-      ShowSyncPassphraseDialogAndDecryptData(browser());
+      ShowSyncPassphraseDialogAndDecryptData(*browser_ptr);
       break;
     }
     case syncer::SyncService::UserActionableError::kNeedsSettingsConfirmation:
@@ -455,7 +448,7 @@ void ProfileMenuView::OnOtherProfileSelected(
     // associated non-webapp browser.
     profiles::SwitchToProfile(
         profile_path, /*always_create=*/false,
-        base::BindOnce([](BrowserWindowInterface* browser) {
+        base::BindOnce([](Browser* browser) {
           if (!browser) {
             return;
           }
@@ -519,6 +512,17 @@ void ProfileMenuView::OnEditProfileButtonClicked() {
     return;
   }
   chrome::ShowSettingsSubPage(&browser(), chrome::kManageProfileSubPage);
+}
+
+void ProfileMenuView::OnAutofillSettingsButtonClicked() {
+  OnActionableItemClicked(ActionableItem::kAutofillSettingsButton);
+  if (!perform_menu_actions()) {
+    return;
+  }
+  base::UmaHistogramEnumeration(
+      "Autofill.AutofillAndPasswordsSettingsPage.VisitReferrer",
+      autofill::autofill_metrics::AutofillSettingsReferrer::kProfileMenu);
+  chrome::ShowSettingsSubPage(&browser(), chrome::kAutofillSubPage);
 }
 
 void ProfileMenuView::OnYourSavedInfoSettingsButtonClicked() {
@@ -672,6 +676,7 @@ ProfileMenuView::GetIdentitySectionParams(const ProfileAttributesEntry& entry) {
       identity_manager->FindExtendedAccountInfo(primary_account_info);
   CoreAccountInfo account_info_for_signin_action = primary_account_info;
 
+
   IdentitySectionParams params;
   params.title = GetProfileIdentifier(entry);
 
@@ -771,13 +776,10 @@ ProfileMenuView::GetIdentitySectionParams(const ProfileAttributesEntry& entry) {
   switch (signin_util::GetSignedInState(identity_manager)) {
     case signin_util::SignedInState::kSignedOut:
     case signin_util::SignedInState::kWebOnlySignedIn: {
-      signin::AccountPreviewDataService* account_preview_data_service =
-          AccountPreviewDataServiceFactory::GetForProfile(&profile());
       AccountInfo account_info_for_promos =
-          signin_ui_util::GetSingleAccountForPromos(
-              identity_manager, account_preview_data_service);
-      if (!CanOfferSignin(&profile(), account_info_for_promos.GetGaiaId(),
-                          std::string(account_info_for_promos.GetEmail()),
+          signin_ui_util::GetSingleAccountForPromos(identity_manager);
+      if (!CanOfferSignin(&profile(), account_info_for_promos.gaia,
+                          account_info_for_promos.email,
                           /*allow_account_from_other_profile=*/true)
                .IsOk()) {
         break;
@@ -812,35 +814,17 @@ ProfileMenuView::GetIdentitySectionParams(const ProfileAttributesEntry& entry) {
       }
       // "Continue as" signin button.
       account_info_for_signin_action = account_info_for_promos;
-      if (account_preview_data_service) {
-        if (std::optional<
-                signin::AccountPreviewDataService::AccountPreviewPreference>
-                preferred_account =
-                    account_preview_data_service->GetPreferredAccountForPromo();
-            preferred_account.has_value() &&
-            preferred_account->gaia_id == account_info_for_promos.GetGaiaId()) {
-          if (std::optional<std::string> custom_subtitle =
-                  signin::GetAccountPreviewPromoSubtitle(*preferred_account);
-              custom_subtitle.has_value() && !custom_subtitle->empty()) {
-            params.subtitle = base::UTF8ToUTF16(*custom_subtitle);
-          }
-        }
-      }
-      if (params.subtitle.empty()) {
-        params.subtitle = l10n_util::GetStringFUTF16(
-            syncer::IsReplaceSyncPromosWithSignInPromosEnabled()
-                ? IDS_SETTINGS_PEOPLE_ACCOUNT_AWARE_SIGNIN_ACCOUNT_ROW_SUBTITLE_WITH_EMAIL_WITH_BOOKMARKS
-                : IDS_SETTINGS_PEOPLE_ACCOUNT_AWARE_SIGNIN_ACCOUNT_ROW_SUBTITLE_WITH_EMAIL,
-            base::UTF8ToUTF16(account_info_for_promos.GetEmail()));
-      }
+      params.subtitle = l10n_util::GetStringFUTF16(
+          syncer::IsReplaceSyncPromosWithSignInPromosEnabled()
+              ? IDS_SETTINGS_PEOPLE_ACCOUNT_AWARE_SIGNIN_ACCOUNT_ROW_SUBTITLE_WITH_EMAIL_WITH_BOOKMARKS
+              : IDS_SETTINGS_PEOPLE_ACCOUNT_AWARE_SIGNIN_ACCOUNT_ROW_SUBTITLE_WITH_EMAIL,
+          base::UTF8ToUTF16(account_info_for_promos.email));
       params.button_text = l10n_util::GetStringFUTF16(
           IDS_PROFILES_DICE_WEB_ONLY_SIGNIN_BUTTON,
           base::UTF8ToUTF16(account_info_for_promos.GetGivenName().value_or(
               account_info_for_promos.GetEmail())));
       gfx::Image account_image;
-      if (std::optional<gfx::Image> maybe_avatar_image =
-              account_info_for_promos.GetAvatarImage();
-          !maybe_avatar_image.has_value()) {
+      if (!account_info_for_promos.GetAvatarImage().has_value()) {
         // No account image, use a placeholder.
         ProfileAttributesEntry* profile_attributes =
             g_browser_process->profile_manager()
@@ -850,12 +834,11 @@ ProfileMenuView::GetIdentitySectionParams(const ProfileAttributesEntry& entry) {
             /*size_for_placeholder_avatar=*/kIdentityImageSizeForButton,
             /*use_high_res_file=*/true,
             GetPlaceholderAvatarIconParamsVisibleAgainstColor(
-                ColorProviderBrowserHelper::From(&browser())
-                    ->color_provider_source()
+                BrowserWindow::FromBrowser(&browser())
                     ->GetColorProvider()
                     ->GetColor(ui::kColorButtonBackgroundProminent)));
       } else {
-        account_image = *maybe_avatar_image;
+        account_image = account_info_for_promos.account_image;
       }
       params.button_image =
           ui::ImageModel::FromImage(profiles::GetSizedAvatarIcon(
@@ -1022,12 +1005,13 @@ void ProfileMenuView::BuildAutofillSettingsButton() {
   const gfx::VectorIcon& icon = features::IsRoundedIconsEnabled()
                                     ? vector_icons::kPasswordManagerIcon
                                     : vector_icons::kPasswordManagerOldIcon;
+  auto action = base::FeatureList::IsEnabled(
+                    autofill::features::kYourSavedInfoSettingsPage)
+                    ? &ProfileMenuView::OnYourSavedInfoSettingsButtonClicked
+                    : &ProfileMenuView::OnAutofillSettingsButtonClicked;
 
   AddFeatureButton(l10n_util::GetStringUTF16(message_id),
-                   base::BindRepeating(
-                       &ProfileMenuView::OnYourSavedInfoSettingsButtonClicked,
-                       base::Unretained(this)),
-                   icon);
+                   base::BindRepeating(action, base::Unretained(this)), icon);
 }
 
 void ProfileMenuView::BuildCustomizeProfileButton() {
@@ -1304,7 +1288,7 @@ void ProfileMenuView::OnCrossDeviceSigninButtonClicked() {
   if (!perform_menu_actions()) {
     return;
   }
-  BrowserWindowInterface* browser_ptr = &browser();
+  Browser* browser_ptr = &browser();
   GetWidget()->CloseWithReason(views::Widget::ClosedReason::kUnspecified);
   OpenSigninToPhoneQrCodeBubble(browser_ptr,
                                 CrossDeviceSigninPromoEntryPoint::kProfileMenu,
@@ -1359,8 +1343,7 @@ void ProfileMenuView::BuildOtherProfilesSection(
             kOtherProfileImageSize,
             /*use_high_res_file=*/true,
             GetPlaceholderAvatarIconParamsVisibleAgainstColor(
-                ColorProviderBrowserHelper::From(&browser())
-                    ->color_provider_source()
+                BrowserWindow::FromBrowser(&browser())
                     ->GetColorProvider()
                     ->GetColor(ui::kColorMenuBackground))));
     std::u16string name = profile_entry->GetName();
@@ -1371,13 +1354,11 @@ void ProfileMenuView::BuildOtherProfilesSection(
       avatar_image =
           ui::ImageModel::FromImageSkia(AddLinearGradientRingToAvatar(
               avatar_image,
-              *ColorProviderBrowserHelper::From(&browser())
-                   ->color_provider_source()
-                   ->GetColorProvider(),
+              *BrowserWindow::FromBrowser(&browser())->GetColorProvider(),
               kOtherProfileImageSize));
       if (!name.empty()) {
-        extra_accessible_text =
-            l10n_util::GetStringUTF16(IDS_PROFILE_AVATAR_AI_MEMBERSHIP);
+        extra_accessible_text = l10n_util::GetStringFUTF16(
+            IDS_PROFILE_AVATAR_NAME_WITH_AI_MEMBERSHIP, std::u16string());
       }
     } else {
       avatar_image = ProfileMenuViewBase::GetCircularSizedImage(

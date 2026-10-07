@@ -85,20 +85,11 @@ public interface DesktopWindowStateManager extends AppHeaderStateProvider {
     boolean removeObserver(AppHeaderObserver observer);
 
     /**
-     * Called when the app header background color changes to update the system UI header icon
-     * color.
+     * Updates the system UI header foreground color when the app header background color changes.
      *
      * @param backgroundColor The app header background color.
      */
-    void onBackgroundColorChanged(@ColorInt int backgroundColor);
-
-    /**
-     * Called when the scrim color applied over the app header changes to update the system UI
-     * header icon color.
-     *
-     * @param scrimColor The scrim color overlaying the app header.
-     */
-    default void onScrimColorChanged(@ColorInt int scrimColor) {}
+    void updateForegroundColor(@ColorInt int backgroundColor);
 
     /**
      * Called when app-header provided system gesture exclusion rects change.

@@ -1,5 +1,5 @@
 param(
-  [string]$BuildDirectory = 'out\tahai_rc_154_x64',
+  [string]$BuildDirectory = 'out\tahai_152_2_0_33_release_x64',
   [string]$DepotTools = 'D:\dev\depot_tools',
   # The recovered release toolchain is deliberately pinned.  Do not replace
   # either path with a discovery of the newest VS or bootstrap directory.
@@ -13,11 +13,10 @@ param(
   [string]$SourceNode = 'C:\Program Files\nodejs\node.exe',
   [string]$SourcePowerShell = 'C:\Program Files\PowerShell\7\pwsh.exe',
   # Chromium's template/plugin-heavy units can exceed several GiB each.
-  [ValidateRange(1, 6)][int]$Jobs = 1,
-  # Preserve every failed native attempt for diagnosis, then bind release
-  # evidence only to the final clean Ninja attempt. This handles transient
-  # Windows compiler process failures without hiding a source failure.
-  [ValidateRange(1, 5)][int]$MaxBuildAttempts = 1,
+  [ValidateRange(1, 4)][int]$Jobs = 1,
+  # A failed compiler process needs a recorded diagnosis before another run.
+  # Keep the existing CLI argument while requiring one attempt in this lane.
+  [ValidateRange(1, 1)][int]$MaxBuildAttempts = 1,
   # Incremental repairs can reuse the existing supported graph. Ninja still
   # regenerates when a declared build input actually changes.
   [switch]$SkipGenerate,
@@ -38,6 +37,11 @@ if (-not $nativeBuild.StartsWith($allowedBuildPrefix, [StringComparison]::Ordina
 }
 if (-not (Test-Path -LiteralPath (Join-Path $nativeBuild 'args.gn') -PathType Leaf)) {
   throw 'Prepare and review args.gn in the dedicated build directory first; refusing an implicit default/debug build.'
+}
+$nativeArgsText = Get-Content -LiteralPath (Join-Path $nativeBuild 'args.gn') -Raw
+$singleProcessSetting = '(?i)--single' + '-process|single' + '_process|run_renderer_in' + '_process'
+if ($nativeArgsText -match $singleProcessSetting) {
+  throw 'The supported TAHAI release build cannot use Chromium single-process execution.'
 }
 $runnerStartedUtc = [Diagnostics.Process]::GetCurrentProcess().StartTime.ToUniversalTime().ToString('o')
 $buildLockDirectory = Join-Path $nativeBuild '.tahai-release-build.lock'
@@ -225,26 +229,30 @@ try {
     }
   }
   $buildStarted = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
-  $buildExit = 1
-  for ($attempt = 1; $attempt -le $MaxBuildAttempts; $attempt++) {
-    $attemptLog = Join-Path $runDirectory ("build-attempt-{0}.log" -f $attempt)
-    & $python $logged --log $attemptLog -- (Join-Path $nativeSource 'third_party\ninja\ninja.exe') -C $BuildDirectory -j $Jobs chrome browser_tests tahai_mission_service_tests elevation_service elevated_tracing_service elevation_service_unittests elevated_tracing_service_unittests
+  $buildExit = 0
+  $targetResults = [Collections.Generic.List[object]]::new()
+  $buildLog = Join-Path $runDirectory 'build.log'
+  foreach ($target in @('chrome', 'tahai_mission_service_tests',
+                       'elevation_service', 'elevated_tracing_service',
+                       'elevation_service_unittests',
+                       'elevated_tracing_service_unittests', 'browser_tests')) {
+    $stage = 'build ' + $target
+    Write-UpgradeStatus 'running'
+    $targetLog = Join-Path $runDirectory ('build-target-' + $target + '.log')
+    $targetStarted = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
+    & $python $logged --log $targetLog -- (Join-Path $nativeSource 'third_party\ninja\ninja.exe') -C $BuildDirectory -j $Jobs $target
     $buildExit = $LASTEXITCODE
-    if ($buildExit -eq 0) {
-      # The evidence verifier rejects failed lines. It receives this clean,
-      # successful final attempt while the failed attempts stay beside it for
-      # transparent diagnosis.
-      Copy-Item -LiteralPath $attemptLog -Destination (Join-Path $runDirectory 'build.log') -ErrorAction Stop
-      break
-    }
-    # A compiler diagnostic will repeat unchanged. Preserve the failure and
-    # let the source be repaired before resuming, even if retries were asked
-    # for to cover a transient process-start failure.
-    if (Select-String -LiteralPath $attemptLog -Pattern '(^|\s)(fatal )?error:' -Quiet) {
+    $targetResults.Add([ordered]@{target=$target; exitCode=$buildExit;
+      startedUnixMs=$targetStarted; finishedUnixMs=[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds();
+      log=[IO.Path]::GetFileName($targetLog)})
+    # Preserve the actual output from each sequential Ninja process. The
+    # combined release log is eligible only when every target exits zero.
+    Get-Content -LiteralPath $targetLog -Raw | Add-Content -LiteralPath $buildLog -Encoding utf8
+    if ($buildExit -ne 0) {
       break
     }
   }
-  [ordered]@{buildStartedUnixMs=$buildStarted; buildFinishedUnixMs=[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds(); buildExitCode=$buildExit} |
+  [ordered]@{buildStartedUnixMs=$buildStarted; buildFinishedUnixMs=[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds(); buildExitCode=$buildExit; targets=$targetResults} |
     ConvertTo-Json | Set-Content -LiteralPath (Join-Path $runDirectory 'build-result.json') -Encoding utf8
   if ($buildExit -ne 0) { Write-UpgradeStatus 'failed' $buildExit; exit $buildExit }
   & $python (Join-Path $nativeSource 'tools\tahai\source_provenance.py') --source $nativeSource --build $nativeBuild --compare $sourceRecord

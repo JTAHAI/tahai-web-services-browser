@@ -180,8 +180,7 @@ void CreateMetadataTask::DidGetCanCreateRegistration(
     return;
   }
 
-  CHECK_EQ(error, blink::mojom::BackgroundFetchError::NONE,
-           base::NotFatalUntil::M158);
+  DCHECK_EQ(error, blink::mojom::BackgroundFetchError::NONE);
   if (!can_create) {
     FinishWithError(
         blink::mojom::BackgroundFetchError::REGISTRATION_LIMIT_EXCEEDED);
@@ -299,7 +298,7 @@ void CreateMetadataTask::DidSerializeIcon(std::string serialized_icon) {
 }
 
 void CreateMetadataTask::StoreMetadata() {
-  CHECK(metadata_proto_, base::NotFatalUntil::M158);
+  DCHECK(metadata_proto_);
   std::vector<std::pair<std::string, std::string>> entries;
   // - One BackgroundFetchPendingRequest per request
   // - DeveloperId -> UniqueID
@@ -435,7 +434,7 @@ void CreateMetadataTask::FinishWithError(
   auto registration_data = blink::mojom::BackgroundFetchRegistrationData::New();
 
   if (error == blink::mojom::BackgroundFetchError::NONE) {
-    CHECK(metadata_proto_, base::NotFatalUntil::M158);
+    DCHECK(metadata_proto_);
 
     bool converted = ToBackgroundFetchRegistration(*metadata_proto_,
                                                    registration_data.get());

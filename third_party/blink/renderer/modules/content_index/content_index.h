@@ -26,7 +26,8 @@ class ContentIndex final : public ScriptWrappable {
   DEFINE_WRAPPERTYPEINFO();
 
  public:
-  explicit ContentIndex(ServiceWorkerRegistration* registration);
+  ContentIndex(ServiceWorkerRegistration* registration,
+               scoped_refptr<base::SequencedTaskRunner> task_runner);
   ~ContentIndex() override;
 
   // Web-exposed function defined in the IDL file.
@@ -64,6 +65,7 @@ class ContentIndex final : public ScriptWrappable {
       Vector<mojom::blink::ContentDescriptionPtr> descriptions);
 
   Member<ServiceWorkerRegistration> registration_;
+  scoped_refptr<base::SequencedTaskRunner> task_runner_;
   HeapMojoRemote<mojom::blink::ContentIndexService> content_index_service_;
 };
 

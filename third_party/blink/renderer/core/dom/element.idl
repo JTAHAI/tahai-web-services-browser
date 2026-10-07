@@ -147,7 +147,6 @@ dictionary ParseHTMLUnsafeOptions {
     [Measure] DOMRectList getClientRects();
     [Affects=Nothing, Measure, RuntimeCallStatsCounter=ElementGetBoundingClientRect, ImplementedAs=GetBoundingClientRectForBinding] DOMRect getBoundingClientRect();
 
-
     [RuntimeEnabled=ElementMatchContainer, NewObject] ContainerQueryList matchContainer(DOMString query);
 
     // https://drafts.csswg.org/cssom-view/#dom-element-checkvisibility
@@ -190,14 +189,14 @@ dictionary ParseHTMLUnsafeOptions {
     // Element Timing
     [CEReactions, Reflect=elementtiming] attribute DOMString elementTiming;
     [RuntimeEnabled=ContainerTiming, CEReactions, Reflect=containertiming, Measure] attribute DOMString containerTiming;
-    [RuntimeEnabled=ContainerTiming, CEReactions, Reflect=containertimingignore, Measure] attribute boolean containerTimingIgnore;
+    [RuntimeEnabled=ContainerTiming, CEReactions, Reflect=containertiming-ignore, Measure] attribute boolean containerTimingIgnore;
 
     // Heading Offset
     [CEReactions, RuntimeEnabled=HeadingOffset] attribute unsigned long headingOffset;
     [CEReactions, RuntimeEnabled=HeadingOffset] attribute boolean headingReset;
 
     // Scoped Custom Element Registries
-    [CallWith=ScriptState] readonly attribute CustomElementRegistry? customElementRegistry;
+    [CallWith=ScriptState, RuntimeEnabled=ScopedCustomElementRegistry] readonly attribute CustomElementRegistry? customElementRegistry;
 };
 
 Element includes ParentNode;

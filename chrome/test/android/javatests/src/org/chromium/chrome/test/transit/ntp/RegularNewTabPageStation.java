@@ -7,11 +7,11 @@ package org.chromium.chrome.test.transit.ntp;
 import static androidx.test.espresso.matcher.ViewMatchers.withId;
 
 import static org.chromium.base.test.transit.Condition.whether;
+import static org.chromium.chrome.browser.url_constants.UrlConstantResolver.getOriginalNativeNtpUrl;
 
 import android.view.View;
 
 import org.chromium.base.test.transit.Element;
-import org.chromium.base.test.transit.OptionalViewElement;
 import org.chromium.base.test.transit.SimpleConditions;
 import org.chromium.base.test.transit.TripBuilder;
 import org.chromium.base.test.transit.ViewElement;
@@ -19,11 +19,8 @@ import org.chromium.chrome.R;
 import org.chromium.chrome.browser.ntp.NewTabPage;
 import org.chromium.chrome.browser.omnibox.UrlBar;
 import org.chromium.chrome.browser.suggestions.SiteSuggestion;
-import org.chromium.chrome.browser.url_constants.UrlConstantResolver;
-import org.chromium.chrome.browser.url_constants.UrlOverrideUtils;
 import org.chromium.chrome.test.transit.page.CtaPageStation;
 import org.chromium.chrome.test.transit.page.NativePageCondition;
-import org.chromium.chrome.test.transit.page.WebPageStation;
 
 import java.util.Collections;
 import java.util.List;
@@ -35,18 +32,12 @@ import java.util.Set;
  */
 public class RegularNewTabPageStation extends CtaPageStation {
     public ViewElement<View> searchBoxElement;
-    public OptionalViewElement<View> ntpMicButtonElement;
     public ViewElement<UrlBar> urlBarElement;
     public ViewElement<View> logoElement;
     public Element<NewTabPage> nativePageElement;
 
     public RegularNewTabPageStation(Config config) {
-        super(
-                config.withIncognito(false)
-                        .withExpectedUrlSubstring(
-                                UrlOverrideUtils.isWebUiNtpOverrideEnabled()
-                                        ? UrlConstantResolver.getOriginalWebUiNtpUrl()
-                                        : UrlConstantResolver.getOriginalNativeNtpUrl()));
+        super(config.withIncognito(false).withExpectedUrlSubstring(getOriginalNativeNtpUrl()));
 
         declareElementFactory(
                 mActivityElement,
@@ -58,20 +49,17 @@ public class RegularNewTabPageStation extends CtaPageStation {
                     }
                 });
 
-        if (!UrlOverrideUtils.isWebUiNtpOverrideEnabled()) {
-            logoElement = declareView(withId(R.id.search_provider_logo));
-            searchBoxElement = declareView(withId(R.id.search_box));
-            ntpMicButtonElement = declareOptionalView(withId(R.id.voice_search_button));
+        logoElement = declareView(withId(R.id.search_provider_logo));
+        searchBoxElement = declareView(withId(R.id.search_box));
 
-            nativePageElement =
-                    declareEnterConditionAsElement(
-                            new NativePageCondition<>(NewTabPage.class, loadedTabElement));
-            declareEnterCondition(
-                    SimpleConditions.uiThreadCondition(
-                            "Regular NTP is loaded",
-                            nativePageElement,
-                            nativePage -> whether(nativePage.isLoadedForTests())));
-        }
+        nativePageElement =
+                declareEnterConditionAsElement(
+                        new NativePageCondition<>(NewTabPage.class, loadedTabElement));
+        declareEnterCondition(
+                SimpleConditions.uiThreadCondition(
+                        "Regular NTP is loaded",
+                        nativePageElement,
+                        nativePage -> whether(nativePage.isLoadedForTests())));
     }
 
     public static Builder<RegularNewTabPageStation> newBuilder() {
@@ -84,7 +72,7 @@ public class RegularNewTabPageStation extends CtaPageStation {
     }
 
     /**
-     * Checks MVTs exist and returns an {@code MvtsFacility} with interactions with Most Visited
+     * Checks MVTs exist and returns an {@param MvtsFacility} with interactions with Most Visited
      * Tiles.
      *
      * @param siteSuggestions the expected SiteSuggestions to be displayed. Use fakes ones for
@@ -100,16 +88,6 @@ public class RegularNewTabPageStation extends CtaPageStation {
     /** Same as {@link #focusOnMvts(List, Set)} expecting no separatorIndices. */
     public MvtsFacility focusOnMvts(List<SiteSuggestion> siteSuggestions) {
         return focusOnMvts(siteSuggestions, Collections.emptySet());
-    }
-
-    /**
-     * Clicks the NTP mic button on the search box, expecting to navigate to a search results page.
-     *
-     * @param query the query to expect in the search URL
-     * @return the {@link WebPageStation} representing the search results page
-     */
-    public WebPageStation clickNtpMicToSearchPage(String query) {
-        return ntpMicButtonElement.clickTo().arriveAt(createSearchPageStation(query));
     }
 
     @Override

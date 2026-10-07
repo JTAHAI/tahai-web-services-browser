@@ -15,7 +15,6 @@
 #include "ui/compositor/compositor.h"
 #include "ui/compositor/layer.h"
 #include "ui/compositor/layer_animation_sequence.h"
-#include "ui/compositor/layer_with_external_texture.h"
 #include "ui/compositor/scoped_layer_animation_settings.h"
 #include "ui/compositor/test/test_compositor_host.h"
 #include "ui/compositor/test/test_context_factories.h"
@@ -36,8 +35,7 @@ class TestLayerCopyAnimator final : public LayerCopyAnimator {
   ~TestLayerCopyAnimator() final = default;
 
   // LayerCopyAnimator:
-  void OnLayerCopied(
-      std::unique_ptr<ui::LayerWithExternalTexture> new_layer) override {
+  void OnLayerCopied(std::unique_ptr<ui::Layer> new_layer) override {
     DCHECK(!copied_);
     LayerCopyAnimator::OnLayerCopied(std::move(new_layer));
     copied_ = true;
@@ -45,7 +43,7 @@ class TestLayerCopyAnimator final : public LayerCopyAnimator {
       run_loop_.Quit();
   }
 
-  ui::LayerWithExternalTexture* WaitForCopy() {
+  ui::Layer* WaitForCopy() {
     if (!copied_)
       run_loop_.Run();
     return copied_layer_for_test();
@@ -141,7 +139,7 @@ TEST_F(LayerCopyAnimatorTest, Basic) {
   auto* copied_layer = animator->WaitForCopy();
   EXPECT_TRUE(copied_layer);
 
-  EXPECT_TRUE(copied_layer->AsWithExternalTexture());
+  EXPECT_EQ(ui::LAYER_SOLID_COLOR, copied_layer->type());
   EXPECT_EQ(gfx::Size(100, 100), copied_layer->size());
 
   ui::TestLayerAnimationObserver observer;
@@ -207,7 +205,7 @@ TEST_F(LayerCopyAnimatorTest, CopyAfterAnimationRequest) {
   auto* copied_layer = animator->WaitForCopy();
   ASSERT_TRUE(copied_layer);
 
-  EXPECT_TRUE(copied_layer->AsWithExternalTexture());
+  EXPECT_EQ(ui::LAYER_SOLID_COLOR, copied_layer->type());
   EXPECT_EQ(gfx::Size(100, 100), copied_layer->size());
   ASSERT_EQ(2u, root_layer->children().size());
   EXPECT_EQ(copied_layer, root_layer->children()[1]);
@@ -280,7 +278,7 @@ TEST_F(LayerCopyAnimatorTest, CancelByStop) {
   auto* copied_layer = animator->WaitForCopy();
   ASSERT_TRUE(copied_layer);
 
-  EXPECT_TRUE(copied_layer->AsWithExternalTexture());
+  EXPECT_EQ(ui::LAYER_SOLID_COLOR, copied_layer->type());
   EXPECT_EQ(gfx::Size(100, 100), copied_layer->size());
 
   ui::TestLayerAnimationObserver observer;
@@ -328,7 +326,7 @@ TEST_F(LayerCopyAnimatorTest, NoAnimationStopImmediately) {
   auto* copied_layer = animator->WaitForCopy();
   ASSERT_TRUE(copied_layer);
 
-  EXPECT_TRUE(copied_layer->AsWithExternalTexture());
+  EXPECT_EQ(ui::LAYER_SOLID_COLOR, copied_layer->type());
   EXPECT_EQ(gfx::Size(100, 100), copied_layer->size());
 
   ui::TestLayerAnimationObserver observer;

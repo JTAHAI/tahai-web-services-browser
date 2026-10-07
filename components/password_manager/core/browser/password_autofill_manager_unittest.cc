@@ -36,7 +36,7 @@
 #include "components/autofill/core/browser/suggestions/suggestion_hiding_reason.h"
 #include "components/autofill/core/browser/suggestions/suggestion_test_helpers.h"
 #include "components/autofill/core/browser/suggestions/suggestion_type.h"
-#include "components/autofill/core/browser/test_utils/autofill_test_util.h"
+#include "components/autofill/core/browser/test_utils/autofill_test_utils.h"
 #include "components/autofill/core/browser/ui/autofill_suggestion_delegate.h"
 #include "components/autofill/core/common/aliases.h"
 #include "components/autofill/core/common/mojom/autofill_types.mojom.h"
@@ -489,15 +489,15 @@ TEST_F(PasswordAutofillManagerTest, PreviewSuggestion) {
       password_autofill_manager_->PreviewSuggestionForTest(test_username_));
 }
 
-TEST_F(PasswordAutofillManagerTest, DoNotPreviewGroupedSuggestion) {
+TEST_F(PasswordAutofillManagerTest, PreviewGroupedSuggestion) {
   fill_data().preferred_login.is_grouped_affiliation = true;
   TestPasswordManagerClient client;
   InitializePasswordAutofillManager(&client, nullptr);
 
-  // Grouped suggestions should not be previewed to avoid leaking data to the
-  // renderer without user confirmation.
-  EXPECT_CALL(*client.mock_driver(), PreviewSuggestion).Times(0);
-  EXPECT_FALSE(
+  // Grouped suggestions should be masked using an 8-character long mask.
+  EXPECT_CALL(*client.mock_driver(),
+              PreviewSuggestion(test_username_, std::u16string(8, '*')));
+  EXPECT_TRUE(
       password_autofill_manager_->PreviewSuggestionForTest(test_username_));
 }
 
@@ -2208,7 +2208,7 @@ TEST_F(PasswordAutofillManagerTest,
   // Since a passkey is selected, the popup will be updated:
   EXPECT_TRUE(updatedSuggestions[0].is_loading);
   EXPECT_FALSE(updatedSuggestions[0].IsAcceptable());
-  EXPECT_FALSE(updatedSuggestions[1].IsSelectable());
+  EXPECT_TRUE(updatedSuggestions[1].HasDeactivatedStyle());
   EXPECT_FALSE(updatedSuggestions[1].IsAcceptable());
 
   // Show suggestions again.
@@ -2222,7 +2222,7 @@ TEST_F(PasswordAutofillManagerTest,
   // Verify that the loading state persisted.
   EXPECT_TRUE(open_args.suggestions[0].is_loading);
   EXPECT_FALSE(open_args.suggestions[0].IsAcceptable());
-  EXPECT_FALSE(open_args.suggestions[1].IsSelectable());
+  EXPECT_TRUE(open_args.suggestions[1].HasDeactivatedStyle());
   EXPECT_FALSE(open_args.suggestions[1].IsAcceptable());
 
   // After calling hide callback the loading state is not persisted anymore:
@@ -2238,7 +2238,7 @@ TEST_F(PasswordAutofillManagerTest,
 
   EXPECT_FALSE(open_args.suggestions[0].is_loading);
   EXPECT_TRUE(open_args.suggestions[0].IsAcceptable());
-  EXPECT_TRUE(open_args.suggestions[1].IsSelectable());
+  EXPECT_FALSE(open_args.suggestions[1].HasDeactivatedStyle());
   EXPECT_TRUE(open_args.suggestions[1].IsAcceptable());
 }
 
@@ -2507,7 +2507,7 @@ TEST_F(PasswordAutofillManagerTest,
 }
 
 TEST_F(PasswordAutofillManagerTest,
-       PasswordRecoveryFlow_DoNotPreviewGroupedBackupSuggestion) {
+       PasswordRecoveryFlow_PreviewGroupedBackupSuggestion) {
   TestPasswordManagerClient client;
   InitializePasswordAutofillManager(&client, nullptr);
   const Suggestion::PasswordSuggestionDetails payload(
@@ -2516,9 +2516,9 @@ TEST_F(PasswordAutofillManagerTest,
   const Suggestion suggestion = autofill::test::CreateAutofillSuggestion(
       autofill::SuggestionType::kBackupPasswordEntry, test_username_, payload);
 
-  // Grouped backup suggestions should not be previewed to avoid leaking data
-  // without user confirmation.
-  EXPECT_CALL(*client.mock_driver(), PreviewSuggestion).Times(0);
+  // Grouped backup suggestions should be masked using an 8-character long mask.
+  EXPECT_CALL(*client.mock_driver(),
+              PreviewSuggestion(test_username_, std::u16string(8, '*')));
   password_autofill_manager_->DidSelectSuggestion(suggestion);
   testing::Mock::VerifyAndClearExpectations(client.mock_driver());
 

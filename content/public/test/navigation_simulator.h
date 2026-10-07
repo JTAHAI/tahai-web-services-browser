@@ -25,10 +25,6 @@ class HttpResponseHeaders;
 class SSLInfo;
 }  // namespace net
 
-namespace network {
-class ResourceRequestBody;
-}  // namespace network
-
 namespace content {
 
 class NavigationController;
@@ -264,10 +260,6 @@ class NavigationSimulator {
 
   // Sets the HTTP method for the navigation.
   virtual void SetMethod(const std::string& method) = 0;
-
-  // Sets the ResourceRequestBody for the navigation.
-  virtual void SetResourceRequestBody(
-      scoped_refptr<network::ResourceRequestBody> resource_request_body) = 0;
 
   // Sets whether this navigation originated as the result of a form submission.
   virtual void SetIsFormSubmission(bool is_form_submission) = 0;

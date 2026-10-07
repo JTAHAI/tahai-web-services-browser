@@ -92,11 +92,9 @@ class SyncerProtoUtil {
 
   // Post the message using the scm, and do some processing on the returned
   // headers. Decode the server response.
-  static bool PostAndProcessHeaders(
-      ServerConnectionManager* scm,
-      const sync_pb::ClientToServerMessage& msg,
-      sync_pb::ClientToServerResponse* response,
-      const signin::AccessTokenInfo& access_token_info);
+  static bool PostAndProcessHeaders(ServerConnectionManager* scm,
+                                    const sync_pb::ClientToServerMessage& msg,
+                                    sync_pb::ClientToServerResponse* response);
 
   // Handles the server response and returns whether there was any error.
   static SyncerError HandleClientToServerMessageResponse(
@@ -111,8 +109,6 @@ class SyncerProtoUtil {
   friend class SyncerProtoUtilTest;
   FRIEND_TEST_ALL_PREFIXES(SyncerProtoUtilTest, AddRequestBirthday);
   FRIEND_TEST_ALL_PREFIXES(SyncerProtoUtilTest, PostAndProcessHeaders);
-  FRIEND_TEST_ALL_PREFIXES(SyncerProtoUtilTest,
-                           PostAndProcessHeadersWithPropagatedToken);
   FRIEND_TEST_ALL_PREFIXES(SyncerProtoUtilTest, HandleThrottlingNoDatatypes);
   FRIEND_TEST_ALL_PREFIXES(SyncerProtoUtilTest, HandleThrottlingWithDatatypes);
 };

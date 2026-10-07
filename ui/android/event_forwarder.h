@@ -25,6 +25,8 @@ class UI_ANDROID_EXPORT EventForwarder {
    public:
     ~Observer() override = default;
 
+    virtual void OnTouchEvent(const ui::MotionEventAndroid&) {}
+
     virtual void OnMouseEvent(const ui::MotionEventAndroid&) {}
 
     virtual void OnGenericMotionEvent(const ui::MotionEventAndroid&) {}
@@ -148,6 +150,7 @@ class UI_ANDROID_EXPORT EventForwarder {
   const raw_ptr<ViewAndroid> view_;
 
   base::ObserverList<Observer> observers_;
+  bool send_touch_moves_to_observers;
 };
 
 }  // namespace ui

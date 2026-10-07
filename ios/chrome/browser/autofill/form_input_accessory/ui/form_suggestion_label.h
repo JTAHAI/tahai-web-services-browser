@@ -33,7 +33,6 @@
                              index:(NSUInteger)index
                numberOfSuggestions:(NSUInteger)numberOfSuggestions
              accessoryTrailingView:(UIView*)accessoryTrailingView
-              isContextMenuEnabled:(BOOL)isContextMenuEnabled
                           delegate:(id<FormSuggestionLabelDelegate>)delegate
     NS_DESIGNATED_INITIALIZER;
 

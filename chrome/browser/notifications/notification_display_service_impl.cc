@@ -27,9 +27,6 @@
 #include "ui/message_center/public/cpp/notification.h"
 
 #if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
-#if BUILDFLAG(IS_ANDROID)
-#include "chrome/browser/enterprise/reporting/extension_request/extension_request_notification_handler_android.h"
-#endif
 #include "chrome/browser/extensions/api/notifications/extension_notification_handler.h"
 #endif
 
@@ -93,12 +90,6 @@ NotificationDisplayServiceImpl::NotificationDisplayServiceImpl(Profile* profile)
     AddNotificationHandler(
         NotificationHandler::Type::EXTENSION,
         std::make_unique<extensions::ExtensionNotificationHandler>());
-#if BUILDFLAG(IS_ANDROID)
-    AddNotificationHandler(
-        NotificationHandler::Type::EXTENSION_REQUEST,
-        std::make_unique<
-            enterprise_reporting::ExtensionRequestNotificationHandler>());
-#endif
 #endif
 
 #if !BUILDFLAG(IS_ANDROID)

@@ -39,7 +39,6 @@
 #include "third_party/blink/renderer/core/style/computed_style.h"
 #include "third_party/blink/renderer/platform/text/platform_locale.h"
 #include "third_party/blink/renderer/platform/wtf/text/character_names.h"
-#include "third_party/blink/renderer/platform/wtf/text/format.h"
 #include "third_party/blink/renderer/platform/wtf/text/string_builder.h"
 
 namespace blink {
@@ -79,7 +78,7 @@ void PagePopupClient::AddJavaScriptString(const StringView& str,
       builder.Append("\\x3C");
     } else if (ch < 0x20 || ch == uchar::kLineSeparator ||
                ch == uchar::kParagraphSeparator) {
-      FormatTo(builder, "\\u{:04X}", ch);
+      builder.AppendFormat("\\u%04X", ch);
     } else {
       builder.Append(ch);
     }

@@ -182,7 +182,13 @@ std::unique_ptr<KeyedService> BuildTestHistoryService(
 class PageContentAnnotationsWebContentsObserverTest
     : public ChromeRenderViewHostTestHarness {
  public:
-  PageContentAnnotationsWebContentsObserverTest() = default;
+  PageContentAnnotationsWebContentsObserverTest() {
+    scoped_feature_list_.InitAndEnableFeatureWithParameters(
+        features::kPageContentAnnotations,
+        {{"extract_related_searches", "false"},
+         {"fetch_remote_page_entities", "false"},
+         {"persist_search_metadata_for_non_google_searches", "true"}});
+  }
 
   void SetUp() override {
     content::RenderViewHostTestHarness::SetUp();
@@ -247,6 +253,7 @@ class PageContentAnnotationsWebContentsObserverTest
   base::HistogramTester* histogram_tester() { return &histogram_tester_; }
 
  private:
+  base::test::ScopedFeatureList scoped_feature_list_;
   base::ScopedTempDir temp_dir_;
   base::HistogramTester histogram_tester_;
   optimization_guide::TestOptimizationGuideModelProvider
@@ -254,6 +261,44 @@ class PageContentAnnotationsWebContentsObserverTest
 };
 
 TEST_F(PageContentAnnotationsWebContentsObserverTest,
+       RequestsRelatedSearchesForMainFrameSRPUrl) {
+  // Navigate to non-Google SRP and commit.
+  content::NavigationSimulator::NavigateAndCommitFromBrowser(
+      web_contents(), GURL("http://www.foo.com/search?q=a"));
+
+  histogram_tester()->ExpectTotalCount(
+      "OptimizationGuide.PageContentAnnotationsWebContentsObserver."
+      "RelatedSearchesExtractRequest",
+      0);
+  auto last_request = service()->last_related_searches_extraction_request();
+  EXPECT_FALSE(last_request.has_value());
+
+  // Navigate to Google SRP and commit.
+  // No request should be sent since extracting related searches is disabled.
+  content::NavigationSimulator::NavigateAndCommitFromBrowser(
+      web_contents(), GURL("http://default-engine.com/search?q=a"));
+  histogram_tester()->ExpectTotalCount(
+      "OptimizationGuide.PageContentAnnotationsWebContentsObserver."
+      "RelatedSearchesExtractRequest",
+      0);
+  last_request = service()->last_related_searches_extraction_request();
+  EXPECT_FALSE(last_request.has_value());
+}
+
+class PageContentAnnotationsWebContentsObserverRelatedSearchesTest
+    : public PageContentAnnotationsWebContentsObserverTest {
+ public:
+  PageContentAnnotationsWebContentsObserverRelatedSearchesTest() {
+    scoped_feature_list_.InitAndEnableFeatureWithParameters(
+        features::kPageContentAnnotations,
+        {{"extract_related_searches", "true"}});
+  }
+
+ private:
+  base::test::ScopedFeatureList scoped_feature_list_;
+};
+
+TEST_F(PageContentAnnotationsWebContentsObserverRelatedSearchesTest,
        RequestsRelatedSearchesForMainFrameSRPUrl) {
   // Navigate to non-Google SRP and commit.
   content::NavigationSimulator::NavigateAndCommitFromBrowser(
@@ -294,8 +339,12 @@ class PageContentAnnotationsWebContentsObserverRelatedSearchesFromZPSCacheTest
     : public PageContentAnnotationsWebContentsObserverTest {
  public:
   PageContentAnnotationsWebContentsObserverRelatedSearchesFromZPSCacheTest() {
-    scoped_feature_list_.InitAndEnableFeature(
-        features::kExtractRelatedSearchesFromPrefetchedZPSResponse);
+    scoped_feature_list_.InitWithFeaturesAndParameters(
+        /*enabled_features=*/
+        {{features::kPageContentAnnotations,
+          {{"extract_related_searches", "true"}}},
+         {features::kExtractRelatedSearchesFromPrefetchedZPSResponse, {}}},
+        /*disabled_features=*/{});
   }
 
   void StoreMockZeroSuggestResponse(

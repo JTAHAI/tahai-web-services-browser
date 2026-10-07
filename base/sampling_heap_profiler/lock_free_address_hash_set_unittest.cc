@@ -14,6 +14,7 @@
 #include "base/memory/raw_ref.h"
 #include "base/synchronization/lock.h"
 #include "base/test/gtest_util.h"
+#include "base/test/scoped_feature_list.h"
 #include "base/threading/simple_thread.h"
 #include "partition_alloc/shim/allocator_shim.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -22,8 +23,13 @@ namespace base {
 
 using ContainsResult = LockFreeAddressHashSet::ContainsResult;
 
-class LockFreeAddressHashSetTest : public ::testing::Test {
+class LockFreeAddressHashSetTest : public ::testing::TestWithParam<bool> {
  public:
+  LockFreeAddressHashSetTest() {
+    scoped_feature_list_.InitWithFeatureState(kUseLockFreeBloomFilter,
+                                              GetParam());
+  }
+
   static bool IsSubset(const LockFreeAddressHashSet& superset,
                        const LockFreeAddressHashSet& subset) {
     for (const LockFreeAddressHashSet::Bucket& bucket : subset.buckets_) {
@@ -56,11 +62,21 @@ class LockFreeAddressHashSetTest : public ::testing::Test {
     }
     return count;
   }
+
+ protected:
+  base::test::ScopedFeatureList scoped_feature_list_;
 };
 
 using LockFreeAddressHashSetDeathTest = LockFreeAddressHashSetTest;
 
-TEST_F(LockFreeAddressHashSetTest, EmptySet) {
+INSTANTIATE_TEST_SUITE_P(EnableBloomFilter,
+                         LockFreeAddressHashSetTest,
+                         ::testing::Bool());
+INSTANTIATE_TEST_SUITE_P(EnableBloomFilter,
+                         LockFreeAddressHashSetDeathTest,
+                         ::testing::Bool());
+
+TEST_P(LockFreeAddressHashSetTest, EmptySet) {
   Lock lock;
   LockFreeAddressHashSet set(8, lock);
 
@@ -71,7 +87,7 @@ TEST_F(LockFreeAddressHashSetTest, EmptySet) {
   EXPECT_NE(set.Contains(&set), ContainsResult::kFound);
 }
 
-TEST_F(LockFreeAddressHashSetTest, BasicOperations) {
+TEST_P(LockFreeAddressHashSetTest, BasicOperations) {
   Lock lock;
   LockFreeAddressHashSet set(8, lock);
 
@@ -103,7 +119,7 @@ TEST_F(LockFreeAddressHashSetTest, BasicOperations) {
   }
 }
 
-TEST_F(LockFreeAddressHashSetTest, Copy) {
+TEST_P(LockFreeAddressHashSetTest, Copy) {
   Lock lock;
   LockFreeAddressHashSet set(16, lock);
 
@@ -165,7 +181,7 @@ class WriterThread : public SimpleThread {
   raw_ref<std::atomic_bool> cancel_;
 };
 
-TEST_F(LockFreeAddressHashSetTest, ConcurrentAccess) {
+TEST_P(LockFreeAddressHashSetTest, ConcurrentAccess) {
   // The purpose of this test is to make sure adding/removing keys concurrently
   // does not disrupt the state of other keys.
   Lock lock;
@@ -201,12 +217,13 @@ TEST_F(LockFreeAddressHashSetTest, ConcurrentAccess) {
             ContainsResult::kFound);
 }
 
-TEST_F(LockFreeAddressHashSetTest, BucketsUsage) {
+TEST_P(LockFreeAddressHashSetTest, BucketsUsage) {
   // Test the uniformity of buckets usage.
   size_t count = 10000;
   Lock lock;
   LockFreeAddressHashSet set(16, lock);
   AutoLock auto_lock(lock);
+  EXPECT_EQ(set.GetBucketStats().chi_squared, 1.00);
   for (size_t i = 0; i < count; ++i) {
     set.Insert(reinterpret_cast<void*>(0x10000 + 0x10 * i));
   }
@@ -216,9 +233,14 @@ TEST_F(LockFreeAddressHashSetTest, BucketsUsage) {
     EXPECT_LT(average_per_bucket * 95 / 100, usage);
     EXPECT_GT(average_per_bucket * 105 / 100, usage);
   }
+  // A good hash function should always yield chi-squared values between 0.95
+  // and 1.05. If this fails, update LockFreeAddressHashSet::Hash. (See
+  // https://en.wikipedia.org/wiki/Hash_function#Testing_and_measurement.)
+  EXPECT_GE(set.GetBucketStats().chi_squared, 0.95);
+  EXPECT_LE(set.GetBucketStats().chi_squared, 1.05);
 }
 
-TEST_F(LockFreeAddressHashSetDeathTest, LockAsserts) {
+TEST_P(LockFreeAddressHashSetDeathTest, LockAsserts) {
   Lock lock;
   LockFreeAddressHashSet set(8, lock);
   LockFreeAddressHashSet set2(8, lock);
@@ -235,12 +257,14 @@ TEST_F(LockFreeAddressHashSetDeathTest, LockAsserts) {
     set.Copy(set2);
     EXPECT_EQ(set.size(), 0u);
     EXPECT_EQ(set.load_factor(), 0.0);
+    EXPECT_EQ(set.GetBucketStats().lengths.size(), 8u);
   }
   EXPECT_DCHECK_DEATH(set.Insert(&lock));
   EXPECT_DCHECK_DEATH(set.Remove(&lock));
   EXPECT_DCHECK_DEATH(set.Copy(set2));
   EXPECT_DCHECK_DEATH(set.size());
   EXPECT_DCHECK_DEATH(set.load_factor());
+  EXPECT_DCHECK_DEATH(set.GetBucketStats());
 }
 
 }  // namespace base

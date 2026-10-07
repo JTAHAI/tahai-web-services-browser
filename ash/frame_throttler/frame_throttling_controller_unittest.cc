@@ -23,7 +23,6 @@
 #include "ui/aura/client/aura_constants.h"
 #include "ui/aura/window.h"
 #include "ui/aura/window_tree_host.h"
-#include "ui/compositor/layer_solid_color.h"
 #include "ui/gfx/geometry/rect.h"
 
 namespace ash {

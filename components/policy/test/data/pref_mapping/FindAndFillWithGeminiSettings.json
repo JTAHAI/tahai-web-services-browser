@@ -2,7 +2,6 @@
   {
     "os": [
       "android",
-      "ios",
       "linux",
       "mac",
       "win",
@@ -22,7 +21,6 @@
   {
     "os": [
       "android",
-      "ios",
       "linux",
       "mac",
       "win",

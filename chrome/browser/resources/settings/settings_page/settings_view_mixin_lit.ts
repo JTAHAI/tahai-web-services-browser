@@ -83,30 +83,25 @@ export const SettingsViewMixinLit = <T extends Constructor<CrLitElement>>(
     }
 
     private onViewEnterStart_() {
-      const currentRoute = Router.getInstance().getCurrentRoute();
-      const previousRoute =
-          this.previousRoute_ || Router.getInstance().getPreviousRoute();
-      const isNavigatingBack =
-          Router.getInstance().lastRouteChangeWasPopstate() ||
-          (!!previousRoute && previousRoute.depth > currentRoute.depth);
-
-      if (previousRoute && !isNavigatingBack) {
+      if (this.previousRoute_ &&
+          !Router.getInstance().lastRouteChangeWasPopstate()) {
         this.focusBackButton();
         return;
       }
 
-      if (!isNavigatingBack) {
+      if (!Router.getInstance().lastRouteChangeWasPopstate()) {
         return;
       }
 
-      if (!this.focusConfig_ || !previousRoute) {
+      if (!this.focusConfig_ || !this.previousRoute_) {
         return;
       }
 
-      const fromToKey = `${previousRoute.path}_${currentRoute.path}`;
+      const currentRoute = Router.getInstance().getCurrentRoute();
+      const fromToKey = `${this.previousRoute_.path}_${currentRoute.path}`;
 
       let pathConfig = this.focusConfig_.get(fromToKey) ||
-          this.focusConfig_.get(previousRoute.path);
+          this.focusConfig_.get(this.previousRoute_.path);
       if (pathConfig) {
         let handler;
         if (typeof pathConfig === 'function') {

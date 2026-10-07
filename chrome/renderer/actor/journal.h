@@ -34,10 +34,8 @@ class Journal {
    public:
     // Creation of the event is only from the Journal itself. Use
     // `Journal::CreatePendingAsyncEntry` to create this object.
-    // Holds a WeakPtr<Journal> so on-stack entries survive frame/journal
-    // destruction during synchronous DOM events without crashing.
     PendingAsyncEntry(base::PassKey<Journal>,
-                      base::WeakPtr<Journal> journal,
+                      base::SafeRef<Journal> journal,
                       TaskId task_id,
                       std::string_view event_name);
     ~PendingAsyncEntry();
@@ -55,7 +53,7 @@ class Journal {
    private:
     base::PassKey<Journal> pass_key_;
     bool terminated_ = false;
-    base::WeakPtr<Journal> journal_;
+    base::SafeRef<Journal> journal_;
     TaskId task_id_;
     std::string event_name_;
   };

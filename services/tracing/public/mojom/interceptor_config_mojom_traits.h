@@ -10,7 +10,7 @@
 
 #include <string>
 
-#include "mojo/public/cpp/bindings/optional_as_pointer.h"
+#include "base/notreached.h"
 #include "mojo/public/cpp/bindings/struct_traits.h"
 #include "services/tracing/public/mojom/perfetto_service.mojom-shared.h"
 #include "third_party/perfetto/protos/perfetto/config/interceptor_config.gen.h"
@@ -27,11 +27,12 @@ class StructTraits<tracing::mojom::InterceptorConfigDataView,
     return src.name();
   }
 
-  static mojo::OptionalAsPointer<const perfetto::protos::gen::ConsoleConfig>
-  console_config(const perfetto::protos::gen::InterceptorConfig& src) {
-    return src.has_console_config()
-               ? mojo::OptionalAsPointer(&src.console_config())
-               : nullptr;
+  static std::optional<perfetto::protos::gen::ConsoleConfig> console_config(
+      const perfetto::protos::gen::InterceptorConfig& src) {
+    if (src.has_console_config()) {
+      src.console_config();
+    }
+    return std::nullopt;
   }
 
   static bool Read(tracing::mojom::InterceptorConfigDataView data,

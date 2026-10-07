@@ -16,8 +16,6 @@ import {loadTimeData} from '//resources/js/load_time_data.js';
 import {CrLitElement} from '//resources/lit/v3_0/lit.rollup.js';
 import type {PropertyValues} from '//resources/lit/v3_0/lit.rollup.js';
 
-import type {VisualBrowserProxy} from '../app/visual_browser_proxy.js';
-import {VisualBrowserProxyImpl} from '../app/visual_browser_proxy.js';
 import {DEFAULT_SETTINGS, SettingsOption, ToolbarEvent} from '../content/read_anything_types.js';
 import type {SettingsPrefs, ShowAtConfigPrefs} from '../content/read_anything_types.js';
 import {openMenu} from '../shared/common.js';
@@ -67,8 +65,6 @@ export class MediaMenuElement extends MediaMenuElementBase implements
   protected accessor options_: SettingsItem[] = [];
 
   private logger_: ReadAnythingLogger = ReadAnythingLogger.getInstance();
-  private visualBrowserProxy_: VisualBrowserProxy =
-      VisualBrowserProxyImpl.getInstance();
 
   override willUpdate(changedProperties: PropertyValues<this>) {
     super.willUpdate(changedProperties);
@@ -117,14 +113,14 @@ export class MediaMenuElement extends MediaMenuElementBase implements
   }
 
   protected getImageItemLabels_(): string {
-    if (this.visualBrowserProxy_.isImagesEnabled()) {
+    if (chrome.readingMode.imagesEnabled) {
       return loadTimeData.getString('disableImagesLabel');
     }
     return loadTimeData.getString('enableImagesLabel');
   }
 
   protected getLinkItemLabels_(): string {
-    if (this.visualBrowserProxy_.isLinksEnabled()) {
+    if (chrome.readingMode.linksEnabled) {
       return loadTimeData.getString('disableLinksLabel');
     }
     return loadTimeData.getString('enableLinksLabel');
@@ -145,17 +141,17 @@ export class MediaMenuElement extends MediaMenuElementBase implements
     if (item.id === SettingsOption.LINKS) {
       this.logger_.logTextSettingsChange(
           ReadAnythingSettingsChange.LINKS_ENABLED_CHANGE);
-      this.visualBrowserProxy_.onLinksEnabledToggled();
+      chrome.readingMode.onLinksEnabledToggled();
       this.fire(ToolbarEvent.LINKS);
       item.ariaLabel = this.getLinkItemLabels_();
-      item.checked = this.visualBrowserProxy_.isLinksEnabled();
+      item.checked = chrome.readingMode.linksEnabled;
     } else if (item.id === SettingsOption.IMAGES) {
       this.logger_.logTextSettingsChange(
           ReadAnythingSettingsChange.IMAGES_ENABLED_CHANGE);
-      this.visualBrowserProxy_.onImagesEnabledToggled();
+      chrome.readingMode.onImagesEnabledToggled();
       this.fire(ToolbarEvent.IMAGES);
       item.ariaLabel = this.getImageItemLabels_();
-      item.checked = this.visualBrowserProxy_.isImagesEnabled();
+      item.checked = chrome.readingMode.imagesEnabled;
     }
 
     this.requestUpdate();

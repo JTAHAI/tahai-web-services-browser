@@ -30,9 +30,6 @@ constexpr const char* kSwitchesToRemoveOnAutorestart[] = {
 #endif
     switches::kGuest,
     switches::kIncognito,
-#if BUILDFLAG(IS_WIN)
-    switches::kIsolated,
-#endif
     switches::kMakeDefaultBrowser,
     switches::kNoStartupWindow,
     switches::kRestoreLastSession,

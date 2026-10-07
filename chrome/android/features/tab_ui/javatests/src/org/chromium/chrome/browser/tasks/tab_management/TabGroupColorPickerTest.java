@@ -108,6 +108,7 @@ public class TabGroupColorPickerTest {
                             root.findViewById(R.id.color_picker_container);
                     mCoordinator =
                             new TabGroupColorPickerCoordinator(
+                                    mActivityTestRule.getActivity(),
                                     colors,
                                     container,
                                     TabGroupColorPickerType.TAB_GROUP,

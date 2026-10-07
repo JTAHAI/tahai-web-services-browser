@@ -6,8 +6,8 @@
 
 #include <memory>
 #include <string>
+#include <string_view>
 
-#include "base/i18n/language_tag.h"
 #include "base/memory/weak_ptr.h"
 #include "components/live_caption/caption_bubble_settings.h"
 #include "components/live_caption/pref_names.h"
@@ -63,10 +63,8 @@ std::string LiveCaptionBubbleSettings::GetLiveCaptionLanguageCode() {
   return profile_prefs_->GetString(prefs::kLiveCaptionLanguageCode);
 }
 
-base::i18n::LanguageTag
-LiveCaptionBubbleSettings::GetLiveTranslateTargetLanguageCode() {
-  return profile_prefs_->GetLanguageTag(
-      prefs::kLiveTranslateTargetLanguageCode);
+std::string LiveCaptionBubbleSettings::GetLiveTranslateTargetLanguageCode() {
+  return profile_prefs_->GetString(prefs::kLiveTranslateTargetLanguageCode);
 }
 
 void LiveCaptionBubbleSettings::SetLiveCaptionEnabled(bool enabled) {
@@ -78,9 +76,9 @@ void LiveCaptionBubbleSettings::SetLiveCaptionBubbleExpanded(bool expanded) {
 }
 
 void LiveCaptionBubbleSettings::SetLiveTranslateTargetLanguageCode(
-    const base::i18n::LanguageTag& language_tag) {
-  profile_prefs_->SetLanguageTag(prefs::kLiveTranslateTargetLanguageCode,
-                                 language_tag);
+    std::string_view language_code) {
+  profile_prefs_->SetString(prefs::kLiveTranslateTargetLanguageCode,
+                            language_code);
 }
 
 bool LiveCaptionBubbleSettings::ShouldAdjustPositionOnExpand() {

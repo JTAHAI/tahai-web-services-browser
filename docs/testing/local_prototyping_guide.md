@@ -59,7 +59,7 @@ sh scripts/build.sh
 ```
 
 ### Generate CDDL
-Generate the CDDL by running this command (refer to [chromium-bidi README](../../third_party/chromium-bidi/README.md#prerequisites) for prerequisites):
+Generate the CDDL by running this command:
 ```shell
 scripts/cddl/generate.js
 ```
@@ -82,57 +82,60 @@ This will generate `bluetooth.cddl` in the `web-bluetooth` folder. Let its path
  be `${LOCAL_CDDL}`.
 
 ## Chromium BiDi
-[Chromium BiDi](https://chromium.googlesource.com/chromium/src/+/main/third_party/chromium-bidi/) is an
-implementation of the WebDriver BiDi protocol for Chromium, located under `third_party/chromium-bidi`.
+[Chromium BiDi](https://github.com/GoogleChromeLabs/chromium-bidi) is an
+implementation of the WebDriver BiDi protocol for Chromium.
 
 ### Regenerate BiDi types
-Generate the TypeScript types and zod schemes from the local CDDL file (refer to [chromium-bidi README](../../third_party/chromium-bidi/README.md#prerequisites) for prerequisites). Run from `third_party/chromium-bidi`:
+The TypeScript types and zod schemes are generated based on the WebDriver BiDi
+CDDL.
 ```shell
-./tools/node.py tools/generate-bidi-types.mjs --cddl-file ${LOCAL_CDDL}
-./tools/node.py node_modules/prettier/bin/prettier.cjs --cache --write .
+node tools/generate-bidi-types.mjs --cddl-file ${LOCAL_CDDL}
+npm run format
 ```
 
-### Implement the new command
-After regenerating types, implement the new commands, parameters, and events. Refer to the [chromium-bidi README](../../third_party/chromium-bidi/README.md#implement-the-new-command) for detailed instructions on:
-- Handling the command in `CommandProcessor`
-- Parsing command parameters
-- Implementing domain processor logic
-
-As a temporary workaround for local prototyping before your CDP changes are landed, cast any new CDP calls or event handlers to `any` to allow compilation.
-
+### Fix the build
+If a new BiDi command is added, add it to the
+[`CommandProcessor`](https://github.com/GoogleChromeLabs/chromium-bidi/blob/de72d10875fb77c6908cb116bb46a6b3d49491b7/src/bidiMapper/CommandProcessor.ts#L163).
 Verify the build works:
 ```shell
-autoninja -C out/Default third_party/chromium-bidi:default
+npm run build
 ```
+
+### Implement BiDi command parameters parsing
+This is another manual step requiring implementation effort. You can refer to
+[this example pull request](https://github.com/GoogleChromeLabs/chromium-bidi/pull/3544) as an
+example.
+
+### Implement the command and event
+Now, implement the logic for your new BiDi command or event. This means calling
+the new CDP methods or listening for events you added earlier. Since the
+TypeScript types for CDP in "Chromium BiDi" aren't automatically updated with
+your local changes, you'll encounter TypeScript errors. As a temporary workaround
+for prototyping, you'll need to cast your new CDP calls or event handlers to
+`any` to allow compilation.
 
 ### Add e2e tests
-Add e2e tests verifying the new BiDi command works as expected. This is expected to fail with
+Add [e2e tests](https://github.com/GoogleChromeLabs/chromium-bidi?tab=readme-ov-file#e2e-tests) verifying the new BiDi command works as expected. This is expected to fail with
 the Canary Chromium, as the required CDP changes are not present there, so you
 will need to point the tests to your local Chromium built by the `BROWSER_BIN`
-and `CHROMEDRIVER_BIN` environment variables.
-
-Build the E2E test target:
-```shell
-autoninja -C out/Default third_party/chromium-bidi:webdriver_bidi_e2e_tests
-```
-
-Test it in headless shell, headless and headful modes:
+and `LOCAL_CHROMEDRIVER_BIN` environment variables. Test it in headless shell,
+headless and headful modes:
 ```shell
 BROWSER_BIN=${LOCAL_HEADLESS_SHELL_BIN} CHROMEDRIVER_BIN=${LOCAL_CHROMEDRIVER_BIN} HEADLESS=old CHROMEDRIVER=true \
-out/Default/bin/run_webdriver_bidi_e2e_tests -- ${YOUR_TEST_PATH}
+npm run e2e -- ${YOUR_TEST_PATH}
 
 BROWSER_BIN=${LOCAL_BROWSER_BIN} CHROMEDRIVER_BIN=${LOCAL_CHROMEDRIVER_BIN} HEADLESS=true CHROMEDRIVER=true \
-out/Default/bin/run_webdriver_bidi_e2e_tests -- ${YOUR_TEST_PATH}
+npm run e2e -- ${YOUR_TEST_PATH}
 
 BROWSER_BIN=${LOCAL_BROWSER_BIN} CHROMEDRIVER_BIN=${LOCAL_CHROMEDRIVER_BIN} HEADLESS=false CHROMEDRIVER=true \
-out/Default/bin/run_webdriver_bidi_e2e_tests -- ${YOUR_TEST_PATH}
+npm run e2e -- ${YOUR_TEST_PATH}
 ```
 
 ### Build Chromium BiDi
-Build again. The path to the built Chromium BiDi script `out/Default/gen/third_party/chromium-bidi/src/mapperTab.js`
+Build again. The path to the built Chromium BiDi script `lib/iife/mapperTab.js`
 will be `${LOCAL_MAPPER_TAB_PATH}`.
 ```shell
-autoninja -C out/Default third_party/chromium-bidi:default
+npm run build
 ```
 
 ## WPT

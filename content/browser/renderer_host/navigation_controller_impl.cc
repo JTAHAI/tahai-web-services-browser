@@ -3336,7 +3336,8 @@ void NavigationControllerImpl::NavigateFromFrameProxy(
     bool is_unfenced_top_navigation,
     bool force_new_browsing_instance,
     bool is_container_initiated,
-    bool has_rel_opener) {
+    bool has_rel_opener,
+    std::optional<std::u16string> embedder_shared_storage_context) {
   SiteInstanceImpl* source_site_instance =
       initiator_navigation_state ? static_cast<InitiatorNavigationStateImpl*>(
                                        initiator_navigation_state.get())
@@ -3470,7 +3471,8 @@ void NavigationControllerImpl::NavigateFromFrameProxy(
           navigation_start_time,
           /*from_frame_proxy=*/true,
           is_embedder_initiated_fenced_frame_navigation,
-          is_unfenced_top_navigation, is_container_initiated);
+          is_unfenced_top_navigation, is_container_initiated,
+          embedder_shared_storage_context);
 
   if (!request) {
     return;
@@ -4586,7 +4588,8 @@ NavigationControllerImpl::CreateNavigationRequestFromLoadParams(
     bool from_frame_proxy,
     bool is_embedder_initiated_fenced_frame_navigation,
     bool is_unfenced_top_navigation,
-    bool is_container_initiated) {
+    bool is_container_initiated,
+    std::optional<std::u16string> embedder_shared_storage_context) {
   DCHECK_EQ(-1, GetIndexOfEntry(entry));
 
   // TODO(https://crbug.com/40467594): Add a CHECK(frame_entry) once all
@@ -4793,8 +4796,7 @@ NavigationControllerImpl::CreateNavigationRequestFromLoadParams(
           /*permissions_policy_override=*/std::nullopt,
           /*internal_scroll_to_text_fragment=*/
           params.internal_scroll_to_text_fragment,
-          /*is_secure_context_root=*/false,
-          blink::mojom::ScriptInjectionPolicy::kNone);
+          /*is_secure_context_root=*/false);
 
   // internal_scroll_to_text_fragment should only be set for browser-initiated
   // navigations.
@@ -4839,7 +4841,8 @@ NavigationControllerImpl::CreateNavigationRequestFromLoadParams(
       params.navigation_ui_data ? params.navigation_ui_data->Clone() : nullptr,
       started_with_transient_activation, params.started_by_ad,
       embedder_isolation_mode, is_embedder_initiated_fenced_frame_navigation,
-      is_container_initiated, params.has_rel_opener);
+      is_container_initiated, params.has_rel_opener,
+      embedder_shared_storage_context);
 
   if (!navigation_request) {
     return nullptr;

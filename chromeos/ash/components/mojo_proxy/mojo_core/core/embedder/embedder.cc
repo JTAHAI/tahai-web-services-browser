@@ -28,6 +28,11 @@ void Init() {
   Init(Configuration());
 }
 
+bool IsMojoIpczEnabled() {
+  // This clone is legacy Mojo Core only; ipcz is never enabled here.
+  return false;
+}
+
 void ShutDown() {
   ShutDownCore();
 }

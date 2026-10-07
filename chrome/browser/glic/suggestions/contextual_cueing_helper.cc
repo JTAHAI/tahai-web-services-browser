@@ -7,7 +7,6 @@
 #include <memory>
 
 #include "base/feature_list.h"
-#include "base/memory/ptr_util.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/strings/strcat.h"
 #include "chrome/browser/actor/actor_keyed_service.h"
@@ -37,6 +36,7 @@
 #include "chrome/browser/ui/tabs/public/tab_features.h"
 #include "chrome/common/pref_names.h"
 #include "components/feature_engagement/public/feature_constants.h"
+#include "components/history/core/browser/features.h"
 #include "components/optimization_guide/core/hints/hints_processing_util.h"
 #include "components/optimization_guide/core/hints/optimization_guide_decider.h"
 #include "components/optimization_guide/core/hints/optimization_metadata.h"
@@ -59,14 +59,14 @@
 #else
 #include "chrome/browser/contextual_tasks/contextual_tasks_side_panel_coordinator.h"  // nogncheck crbug.com/40147906
 #include "chrome/browser/glic/public/glic_side_panel_coordinator.h"
+#include "chrome/browser/ui/browser.h"
+#include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/user_education/browser_user_education_interface.h"
 #include "chrome/browser/ui/views/glic/glic_button_interface.h"  // nogncheck crbug.com/40147906
 #include "ui/views/controls/button/label_button.h"  // nogncheck crbug.com/40147906
 #endif
 
 namespace glic {
-
-DEFINE_USER_DATA(ContextualCueingHelper);
 
 ContextualCueingHelper::AutoOpenResult
 ContextualCueingHelper::RecordAutoOpenResult(GlicAutoOpenResult result) {
@@ -110,13 +110,13 @@ class ScopedNudgeDecisionRecorder {
 };
 
 ContextualCueingHelper::ContextualCueingHelper(
-    tabs::TabInterface* tab,
+    content::WebContents* web_contents,
     OptimizationGuideKeyedService* ogks,
     ContextualCueingService* ccs)
-    : content::WebContentsObserver(tab->GetContents()),
+    : content::WebContentsObserver(web_contents),
+      content::WebContentsUserData<ContextualCueingHelper>(*web_contents),
       optimization_guide_keyed_service_(ogks),
-      contextual_cueing_service_(ccs),
-      scoped_unowned_user_data_(tab->GetUnownedUserDataHost(), *this) {
+      contextual_cueing_service_(ccs) {
   if (IsContextualCueingEnabled()) {
     // LINT.IfChange(OptType)
     optimization_guide_keyed_service_->RegisterOptimizationTypes(
@@ -208,13 +208,17 @@ void ContextualCueingHelper::DidFinishNavigation(
     return;
   }
 
-  // Ignore 404 pages.
-  const int status_code =
-      navigation_handle->GetResponseHeaders()
-          ? navigation_handle->GetResponseHeaders()->response_code()
-          : 0;
-  if (status_code == 404) {
-    return;
+  // If `history::kVisitedLinksOn404` is enabled, then
+  // `navigation_handle->ShouldUpdateHistory()` will return true for reachable
+  // 404 pages. In that case, we need to ignore such pages.
+  if (base::FeatureList::IsEnabled(history::kVisitedLinksOn404)) {
+    const int status_code =
+        navigation_handle->GetResponseHeaders()
+            ? navigation_handle->GetResponseHeaders()->response_code()
+            : 0;
+    if (status_code == 404) {
+      return;
+    }
   }
 
   // We have already initiated nudging sequence for the page. Do not report page
@@ -548,37 +552,35 @@ ContextualCueingHelper::AutoOpenGlicSidePanel(
 }
 
 // static
-std::unique_ptr<ContextualCueingHelper> ContextualCueingHelper::MaybeCreate(
-    tabs::TabInterface* tab) {
+void ContextualCueingHelper::MaybeCreateForWebContents(
+    content::WebContents* web_contents) {
   if (!IsContextualCueingEnabled() && !IsZeroStateSuggestionsEnabled()) {
-    return nullptr;
+    return;
   }
 
   Profile* profile =
-      Profile::FromBrowserContext(tab->GetContents()->GetBrowserContext());
+      Profile::FromBrowserContext(web_contents->GetBrowserContext());
   if (!glic::GlicEnabling::IsProfileEligible(profile)) {
-    return nullptr;
+    return;
   }
 
   auto* optimization_guide_keyed_service =
       OptimizationGuideKeyedServiceFactory::GetForProfile(profile);
   if (!optimization_guide_keyed_service) {
-    return nullptr;
+    return;
   }
 
   auto* contextual_cueing_service =
       ContextualCueingServiceFactory::GetForProfile(profile);
   if (!contextual_cueing_service) {
-    return nullptr;
+    return;
   }
 
-  return base::WrapUnique(new ContextualCueingHelper(
-      tab, optimization_guide_keyed_service, contextual_cueing_service));
+  ContextualCueingHelper::CreateForWebContents(web_contents,
+                                               optimization_guide_keyed_service,
+                                               contextual_cueing_service);
 }
 
-// static
-ContextualCueingHelper* ContextualCueingHelper::From(tabs::TabInterface* tab) {
-  return Get(tab->GetUnownedUserDataHost());
-}
+WEB_CONTENTS_USER_DATA_KEY_IMPL(ContextualCueingHelper);
 
 }  // namespace glic

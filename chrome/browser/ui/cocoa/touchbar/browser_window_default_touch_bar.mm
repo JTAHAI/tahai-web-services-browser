@@ -20,12 +20,12 @@
 #include "chrome/browser/search_engines/template_url_service_factory.h"
 #include "chrome/browser/ui/bookmarks/bookmark_tab_helper.h"
 #include "chrome/browser/ui/bookmarks/bookmark_tab_helper_observer.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_command_controller.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #import "chrome/browser/ui/cocoa/touchbar/browser_window_touch_bar_controller.h"
 #include "chrome/browser/ui/fullscreen_util_mac.h"
-#include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/common/pref_names.h"
 #include "chrome/grit/generated_resources.h"
 #include "components/omnibox/browser/vector_icons.h"
@@ -125,14 +125,14 @@ class TouchBarNotificationBridge : public CommandObserver,
                                    public content::WebContentsObserver {
  public:
   TouchBarNotificationBridge(BrowserWindowDefaultTouchBar* owner,
-                             BrowserWindowInterface* browser)
+                             Browser* browser)
       : owner_(owner), browser_(browser), contents_(nullptr) {
     TabStripModel* const model = browser_->GetTabStripModel();
     DCHECK(model);
     model->AddObserver(this);
     UpdateWebContents(model->GetActiveWebContents());
 
-    auto* command_controller = chrome::BrowserCommandController::From(browser);
+    auto* command_controller = browser->command_controller();
     command_controller->AddCommandObserver(IDC_BACK, this);
     owner.canGoBack = command_controller->IsCommandEnabled(IDC_BACK);
     command_controller->AddCommandObserver(IDC_FORWARD, this);
@@ -164,8 +164,7 @@ class TouchBarNotificationBridge : public CommandObserver,
   ~TouchBarNotificationBridge() override {
     UpdateWebContents(nullptr);
     if (browser_) {
-      chrome::BrowserCommandController::From(browser_)->RemoveCommandObserver(
-          this);
+      browser_->command_controller()->RemoveCommandObserver(this);
     }
   }
 
@@ -199,8 +198,7 @@ class TouchBarNotificationBridge : public CommandObserver,
   // BrowserCollectionObserver:
   void OnBrowserClosed(BrowserWindowInterface* browser) override {
     if (browser == browser_) {
-      chrome::BrowserCommandController::From(browser_)->RemoveCommandObserver(
-          this);
+      browser_->command_controller()->RemoveCommandObserver(this);
       browser_ = nullptr;
     }
     if (browser == owner_.browser) {
@@ -254,8 +252,8 @@ class TouchBarNotificationBridge : public CommandObserver,
 
  private:
   BrowserWindowDefaultTouchBar* __weak owner_;
-  raw_ptr<BrowserWindowInterface> browser_;  // Weak.
-  raw_ptr<content::WebContents> contents_;   // Weak.
+  raw_ptr<Browser> browser_;                // Weak.
+  raw_ptr<content::WebContents> contents_;  // Weak.
 
   // Used to monitor the optional home button pref.
   BooleanPrefMember show_home_button_;
@@ -511,7 +509,7 @@ class TouchBarNotificationBridge : public CommandObserver,
   return touchBar;
 }
 
-- (void)setBrowser:(BrowserWindowInterface*)browser {
+- (void)setBrowser:(Browser*)browser {
   if (_browser == browser) {
     return;
   }
@@ -627,7 +625,7 @@ class TouchBarNotificationBridge : public CommandObserver,
 
 - (void)executeCommand:(id)sender {
   int command = [sender tag];
-  chrome::BrowserCommandController::From(_browser)->ExecuteCommand(command);
+  _browser->command_controller()->ExecuteCommand(command);
 }
 
 - (void)setIsPageLoading:(BOOL)isPageLoading {

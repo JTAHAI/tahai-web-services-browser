@@ -62,6 +62,5 @@ source_set("branded_navigation_item_title_view") {
   deps = [
     "//base",
     "//ios/chrome/common/ui/colors",
-    "//ios/chrome/common/ui/util",
   ]
 }

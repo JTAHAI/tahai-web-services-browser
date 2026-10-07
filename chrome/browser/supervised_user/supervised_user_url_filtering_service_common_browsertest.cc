@@ -26,14 +26,20 @@ namespace supervised_user {
 namespace {
 
 class SupervisedUserBrowserCasedTestBase
-    : public SupervisedUserBrowserTestBase {};
+    : public SupervisedUserBrowserTestBase,
+      public base::test::WithFeatureOverride {
+ protected:
+  SupervisedUserBrowserCasedTestBase()
+      : base::test::WithFeatureOverride(kSupervisedUserUseUrlFilteringService) {
+  }
+};
 
 // A suite for regular users (most of the time should assert that features are
 // initially disabled, unless users transition to supervised state).
 class RegularUserUrlFilteringServiceCommonBrowserTest
     : public SupervisedUserBrowserCasedTestBase {};
 
-IN_PROC_BROWSER_TEST_F(RegularUserUrlFilteringServiceCommonBrowserTest,
+IN_PROC_BROWSER_TEST_P(RegularUserUrlFilteringServiceCommonBrowserTest,
                        UrlFilterIsOffByDefault) {
   EXPECT_EQ(
       WebFilterType::kDisabled,
@@ -41,7 +47,7 @@ IN_PROC_BROWSER_TEST_F(RegularUserUrlFilteringServiceCommonBrowserTest,
           ->GetWebFilterType());
 }
 
-IN_PROC_BROWSER_TEST_F(RegularUserUrlFilteringServiceCommonBrowserTest,
+IN_PROC_BROWSER_TEST_P(RegularUserUrlFilteringServiceCommonBrowserTest,
                        EnablingFamilyLinkSupervisionEnablesUrlFiltering) {
   EnableParentalControls(*GetProfile()->GetPrefs());
   EXPECT_EQ(
@@ -49,6 +55,9 @@ IN_PROC_BROWSER_TEST_F(RegularUserUrlFilteringServiceCommonBrowserTest,
       SupervisedUserUrlFilteringServiceFactory::GetForProfile(GetProfile())
           ->GetWebFilterType());
 }
+
+INSTANTIATE_FEATURE_OVERRIDE_TEST_SUITE(
+    RegularUserUrlFilteringServiceCommonBrowserTest);
 
 // TODO(crbug.com/468935875) - Re-enable on ChromeOS with user type support.
 // Tests in ChromeOS require proper user account, which is not available at
@@ -67,7 +76,7 @@ class FamilyLinkUrlFilteringServiceCommonBrowserTest
   }
 };
 
-IN_PROC_BROWSER_TEST_F(FamilyLinkUrlFilteringServiceCommonBrowserTest,
+IN_PROC_BROWSER_TEST_P(FamilyLinkUrlFilteringServiceCommonBrowserTest,
                        UrlFilterIsOnByDefault) {
   EXPECT_EQ(
       WebFilterType::kTryToBlockMatureSites,
@@ -75,7 +84,7 @@ IN_PROC_BROWSER_TEST_F(FamilyLinkUrlFilteringServiceCommonBrowserTest,
           ->GetWebFilterType());
 }
 
-IN_PROC_BROWSER_TEST_F(FamilyLinkUrlFilteringServiceCommonBrowserTest,
+IN_PROC_BROWSER_TEST_P(FamilyLinkUrlFilteringServiceCommonBrowserTest,
                        UrlFilterCanBeConfiguredByParent) {
   ASSERT_EQ(
       WebFilterType::kTryToBlockMatureSites,
@@ -103,7 +112,7 @@ IN_PROC_BROWSER_TEST_F(FamilyLinkUrlFilteringServiceCommonBrowserTest,
   }
 }
 
-IN_PROC_BROWSER_TEST_F(FamilyLinkUrlFilteringServiceCommonBrowserTest,
+IN_PROC_BROWSER_TEST_P(FamilyLinkUrlFilteringServiceCommonBrowserTest,
                        DisablingFamilyLinkSupervisionDisablesUrlFiltering) {
   DisableParentalControls(*GetProfile()->GetPrefs());
   EXPECT_EQ(
@@ -112,6 +121,8 @@ IN_PROC_BROWSER_TEST_F(FamilyLinkUrlFilteringServiceCommonBrowserTest,
           ->GetWebFilterType());
 }
 
+INSTANTIATE_FEATURE_OVERRIDE_TEST_SUITE(
+    FamilyLinkUrlFilteringServiceCommonBrowserTest);
 #endif  // !BUILDFLAG(IS_CHROMEOS)
 }  // namespace
 }  // namespace supervised_user

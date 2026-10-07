@@ -13,8 +13,6 @@
 #import "ios/chrome/browser/authentication/ui_bundled/cells/signin_promo_view_delegate.h"
 #import "ios/chrome/browser/authentication/ui_bundled/cells/table_view_signin_promo_item.h"
 #import "ios/chrome/browser/autofill/model/autofill_ai_util.h"
-#import "ios/chrome/browser/bubble/ui_bundled/bubble_constants.h"
-#import "ios/chrome/browser/bubble/ui_bundled/bubble_view_controller_presenter.h"
 #import "ios/chrome/browser/settings/autofill/autofill_and_passwords/utils/autofill_and_passwords_item_utils.h"
 #import "ios/chrome/browser/settings/ui_bundled/settings_table_view_controller_constants.h"
 #import "ios/chrome/browser/shared/public/features/features.h"
@@ -22,9 +20,10 @@
 #import "ios/chrome/grit/ios_strings.h"
 #import "ui/base/l10n/l10n_util.h"
 
+@interface AutofillAndPasswordsTableViewController ()
+@end
+
 @implementation AutofillAndPasswordsTableViewController {
-  // Presenter for the Level Up Payment Methods walkthrough IPH.
-  BubbleViewControllerPresenter* _levelUpPaymentMethodsWalkthroughIPHPresenter;
   // State variables.
   BOOL _passwordsEnabled;
   BOOL _autofillCreditCardEnabled;
@@ -32,8 +31,6 @@
   BOOL _identityDocsEnabled;
   BOOL _travelInfoEnabled;
   BOOL _shoppingEnabled;
-  BOOL _suggestionsFromGeminiEnabled;
-  BOOL _shouldShowSuggestionsFromGemini;
   BOOL _shouldShowAutofillAIFeatures;
 
   // Updatable Items.
@@ -43,7 +40,6 @@
   TableViewDetailIconItem* _identityDocsDetailItem;
   TableViewDetailIconItem* _travelInfoDetailItem;
   TableViewDetailIconItem* _shoppingDetailItem;
-  TableViewDetailIconItem* _suggestionsFromGeminiDetailItem;
   BOOL _settingsAreDismissed;
 }
 
@@ -59,15 +55,8 @@
 - (void)didMoveToParentViewController:(UIViewController*)parent {
   [super didMoveToParentViewController:parent];
   if (!parent) {
-    [_levelUpPaymentMethodsWalkthroughIPHPresenter dismissAnimated:NO];
-    _levelUpPaymentMethodsWalkthroughIPHPresenter = nil;
     [self.delegate autofillAndPasswordsTableViewControllerDidRemove:self];
   }
-}
-
-- (void)viewDidAppear:(BOOL)animated {
-  [super viewDidAppear:animated];
-  [self maybeShowLevelUpWalkthroughIPH];
 }
 
 - (void)viewDidLoad {
@@ -103,18 +92,11 @@
     [model addItem:_travelInfoDetailItem
         toSectionWithIdentifier:SettingsSectionIdentifierBasics];
 
-    if (autofill::IsAutofillShoppingEnabled()) {
+    if (autofill::IsAmbientAutofillEnabled()) {
       _shoppingDetailItem = ShoppingInfoItem(_shoppingEnabled);
       [model addItem:_shoppingDetailItem
           toSectionWithIdentifier:SettingsSectionIdentifierBasics];
     }
-  }
-
-  if (_shouldShowSuggestionsFromGemini) {
-    _suggestionsFromGeminiDetailItem =
-        SuggestionsFromGeminiItem(_suggestionsFromGeminiEnabled);
-    [model addItem:_suggestionsFromGeminiDetailItem
-        toSectionWithIdentifier:SettingsSectionIdentifierBasics];
   }
 
   if (base::FeatureList::IsEnabled(
@@ -160,11 +142,6 @@
       [self.delegate
           autofillAndPasswordsTableViewControllerDidSelectShopping:self];
       break;
-    case SettingsItemTypeSuggestionsFromGemini:
-      [self.delegate
-          autofillAndPasswordsTableViewControllerDidSelectSuggestionsFromGemini:
-              self];
-      break;
     case SettingsItemTypeAutofillSettings:
       [self.delegate
           autofillAndPasswordsTableViewControllerDidSelectAutofillSettings:
@@ -186,9 +163,9 @@
   if (_passwordsDetailItem) {
     if (IsYourSavedInfoSettingsPageIosEnabled()) {
       _passwordsDetailItem.trailingDetailText =
-          DetailTextForEnabledState(enabled);
+          PasswordsItemDetailText(enabled);
     } else {
-      _passwordsDetailItem.detailText = DetailTextForEnabledState(enabled);
+      _passwordsDetailItem.detailText = PasswordsItemDetailText(enabled);
     }
     [self reconfigureCellsForItems:@[ _passwordsDetailItem ]];
   }
@@ -203,10 +180,10 @@
   if (_autofillCreditCardDetailItem) {
     if (IsYourSavedInfoSettingsPageIosEnabled()) {
       _autofillCreditCardDetailItem.trailingDetailText =
-          DetailTextForEnabledState(enabled);
+          AutofillCreditCardItemDetailText(enabled);
     } else {
       _autofillCreditCardDetailItem.detailText =
-          DetailTextForEnabledState(enabled);
+          AutofillCreditCardItemDetailText(enabled);
     }
     [self reconfigureCellsForItems:@[ _autofillCreditCardDetailItem ]];
   }
@@ -221,10 +198,10 @@
   if (_autofillProfileDetailItem) {
     if (IsYourSavedInfoSettingsPageIosEnabled()) {
       _autofillProfileDetailItem.trailingDetailText =
-          DetailTextForEnabledState(enabled);
+          AutofillProfileItemDetailText(enabled);
     } else {
       _autofillProfileDetailItem.detailText =
-          DetailTextForEnabledState(enabled);
+          AutofillProfileItemDetailText(enabled);
     }
     [self reconfigureCellsForItems:@[ _autofillProfileDetailItem ]];
   }
@@ -239,9 +216,9 @@
   if (_identityDocsDetailItem) {
     if (IsYourSavedInfoSettingsPageIosEnabled()) {
       _identityDocsDetailItem.trailingDetailText =
-          DetailTextForEnabledState(enabled);
+          IdentityDocsItemDetailText(enabled);
     } else {
-      _identityDocsDetailItem.detailText = DetailTextForEnabledState(enabled);
+      _identityDocsDetailItem.detailText = IdentityDocsItemDetailText(enabled);
     }
     [self reconfigureCellsForItems:@[ _identityDocsDetailItem ]];
   }
@@ -256,9 +233,9 @@
   if (_travelInfoDetailItem) {
     if (IsYourSavedInfoSettingsPageIosEnabled()) {
       _travelInfoDetailItem.trailingDetailText =
-          DetailTextForEnabledState(enabled);
+          TravelInfoItemDetailText(enabled);
     } else {
-      _travelInfoDetailItem.detailText = DetailTextForEnabledState(enabled);
+      _travelInfoDetailItem.detailText = TravelInfoItemDetailText(enabled);
     }
     [self reconfigureCellsForItems:@[ _travelInfoDetailItem ]];
   }
@@ -273,39 +250,11 @@
   if (_shoppingDetailItem) {
     if (IsYourSavedInfoSettingsPageIosEnabled()) {
       _shoppingDetailItem.trailingDetailText =
-          DetailTextForEnabledState(enabled);
+          ShoppingInfoItemDetailText(enabled);
     } else {
-      _shoppingDetailItem.detailText = DetailTextForEnabledState(enabled);
+      _shoppingDetailItem.detailText = ShoppingInfoItemDetailText(enabled);
     }
     [self reconfigureCellsForItems:@[ _shoppingDetailItem ]];
-  }
-}
-
-- (void)setSuggestionsFromGeminiEnabled:(BOOL)enabled {
-  if (_suggestionsFromGeminiEnabled == enabled) {
-    return;
-  }
-  _suggestionsFromGeminiEnabled = enabled;
-
-  if (_suggestionsFromGeminiDetailItem) {
-    if (IsYourSavedInfoSettingsPageIosEnabled()) {
-      _suggestionsFromGeminiDetailItem.trailingDetailText =
-          DetailTextForEnabledState(enabled);
-    } else {
-      _suggestionsFromGeminiDetailItem.detailText =
-          DetailTextForEnabledState(enabled);
-    }
-    [self reconfigureCellsForItems:@[ _suggestionsFromGeminiDetailItem ]];
-  }
-}
-
-- (void)setShouldShowSuggestionsFromGemini:(BOOL)shouldShow {
-  if (_shouldShowSuggestionsFromGemini == shouldShow) {
-    return;
-  }
-  _shouldShowSuggestionsFromGemini = shouldShow;
-  if (self.isViewLoaded) {
-    [self reloadData];
   }
 }
 
@@ -355,7 +304,8 @@
 }
 
 - (void)configureSigninPromoWithConfigurator:
-    (SigninPromoViewConfigurator*)promoConfigurator {
+            (SigninPromoViewConfigurator*)promoConfigurator
+                             identityChanged:(BOOL)identityChanged {
   TableViewModel* model = self.tableViewModel;
   if (![model hasSectionForSectionIdentifier:SettingsSectionIdentifierSignIn]) {
     return;
@@ -404,90 +354,7 @@
 - (void)settingsWillBeDismissed {
   DCHECK(!_settingsAreDismissed);
 
-  [_levelUpPaymentMethodsWalkthroughIPHPresenter dismissAnimated:NO];
-  _levelUpPaymentMethodsWalkthroughIPHPresenter = nil;
   _settingsAreDismissed = YES;
-}
-
-#pragma mark - Private
-
-// Presents the Level Up Payment Methods walkthrough IPH if needed.
-- (void)maybeShowLevelUpWalkthroughIPH {
-  if (!self.shouldShowLevelUpPaymentMethodsWalkthroughIPH ||
-      _settingsAreDismissed) {
-    return;
-  }
-
-  UIView* targetView = self.view;
-  CHECK(targetView.window);
-
-  NSIndexPath* targetIndexPath = [self.tableViewModel
-      indexPathForItemType:SettingsItemTypeAutofillCreditCard
-         sectionIdentifier:SettingsSectionIdentifierBasics];
-
-  if (!targetIndexPath) {
-    return;
-  }
-
-  CGPoint anchorPoint = CGPointZero;
-  BubbleArrowDirection arrowDirection = BubbleArrowDirectionDown;
-
-  UITableViewCell* cell =
-      [self.tableView cellForRowAtIndexPath:targetIndexPath];
-  if (cell.window) {
-    CGPoint anchorPointInCell =
-        CGPointMake(CGRectGetMidX(cell.bounds), CGRectGetMaxY(cell.bounds));
-    anchorPoint = [cell convertPoint:anchorPointInCell toView:cell.window];
-    arrowDirection = BubbleArrowDirectionUp;
-  } else {
-    anchorPoint = CGPointMake(0.5 * CGRectGetWidth(targetView.bounds),
-                              0.5 * CGRectGetHeight(targetView.bounds));
-  }
-
-  NSString* text =
-      l10n_util::GetNSString(IDS_IOS_LEVEL_UP_WALKTHROUGH_OPEN_PAYMENT_METHODS);
-
-  __weak __typeof(self) weakSelf = self;
-  CallbackWithIPHDismissalReasonType dismissalCallback =
-      ^(IPHDismissalReasonType reason) {
-        [weakSelf levelUpWalkthroughStep4DidDismissWithReason:reason];
-      };
-
-  BubbleViewControllerPresenter* presenter =
-      [[BubbleViewControllerPresenter alloc]
-                   initWithText:text
-                          title:nil
-                 arrowDirection:arrowDirection
-                      alignment:BubbleAlignmentBottomOrTrailing
-                     bubbleType:BubbleViewTypeRichWithNext
-                pageControlPage:BubblePageControlPageFourth
-          totalPageControlPages:4
-          customNextButtonTitle:l10n_util::GetNSString(IDS_IOS_IPH_BUBBLE_NEXT)
-              dismissalCallback:dismissalCallback];
-  presenter.dismissalTimerDisabled = YES;
-
-  if ([presenter canPresentInView:targetView anchorPoint:anchorPoint]) {
-    self.shouldShowLevelUpPaymentMethodsWalkthroughIPH = NO;
-    _levelUpPaymentMethodsWalkthroughIPHPresenter = presenter;
-    [presenter presentInViewController:self anchorPoint:anchorPoint];
-  }
-}
-
-// Handles dismissal of the Level Up Payment Methods walkthrough IPH.
-- (void)levelUpWalkthroughStep4DidDismissWithReason:
-    (IPHDismissalReasonType)reason {
-  _levelUpPaymentMethodsWalkthroughIPHPresenter = nil;
-  switch (reason) {
-    case IPHDismissalReasonType::kTappedNext:
-    case IPHDismissalReasonType::kTappedAnchorView:
-    case IPHDismissalReasonType::kTappedIPH:
-      [self.delegate
-          autofillAndPasswordsTableViewControllerDidSelectAutofillCreditCard:
-              self];
-      break;
-    default:
-      break;
-  }
 }
 
 @end

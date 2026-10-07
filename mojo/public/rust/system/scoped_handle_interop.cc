@@ -13,9 +13,6 @@ ScopedHandleWrapper::~ScopedHandleWrapper() = default;
 
 uintptr_t ScopedHandleWrapper::Release(
     std::unique_ptr<ScopedHandleWrapper> wrapper) {
-  if (!wrapper) {
-    return 0;
-  }
   return wrapper->handle_.release().value();
 }
 
@@ -33,9 +30,6 @@ ScopedMessagePipeHandleWrapper::~ScopedMessagePipeHandleWrapper() = default;
 
 uintptr_t ScopedMessagePipeHandleWrapper::Release(
     std::unique_ptr<ScopedMessagePipeHandleWrapper> wrapper) {
-  if (!wrapper) {
-    return 0;
-  }
   return wrapper->handle_.release().value();
 }
 
@@ -43,26 +37,6 @@ std::unique_ptr<ScopedMessagePipeHandleWrapper>
 ScopedMessagePipeHandleWrapper::Create(uintptr_t handle) {
   return std::make_unique<ScopedMessagePipeHandleWrapper>(
       mojo::ScopedMessagePipeHandle(mojo::MessagePipeHandle(handle)));
-}
-
-ScopedMessageHandleWrapper::ScopedMessageHandleWrapper(
-    mojo::ScopedMessageHandle handle)
-    : handle_(std::move(handle)) {}
-
-ScopedMessageHandleWrapper::~ScopedMessageHandleWrapper() = default;
-
-uintptr_t ScopedMessageHandleWrapper::Release(
-    std::unique_ptr<ScopedMessageHandleWrapper> wrapper) {
-  if (!wrapper) {
-    return 0;
-  }
-  return wrapper->handle_.release().value();
-}
-
-std::unique_ptr<ScopedMessageHandleWrapper> ScopedMessageHandleWrapper::Create(
-    uintptr_t handle) {
-  return std::make_unique<ScopedMessageHandleWrapper>(
-      mojo::ScopedMessageHandle(mojo::MessageHandle(handle)));
 }
 
 }  // namespace mojo::rust

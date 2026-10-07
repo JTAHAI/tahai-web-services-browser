@@ -143,10 +143,9 @@ public class ForegroundDrawableCompat
      * Determines how the foreground {@code Drawable} will be drawn in front of the {@link View}.
      * Right now the only supported types are FIT_* types and the CENTER type.
      *
-     * <p>TODO(dtrainor): Add support for more scale types.
+     * TODO(dtrainor): Add support for more scale types.
      *
-     * @param type The type of scale to apply to the {@link Drawable} (see {@link
-     *     ImageView.ScaleType}).
+     * @param type The type of scale to apply to the {@Drawable} (see {@link ImageView.ScaleType}).
      */
     public void setScaleType(ImageView.ScaleType type) {
         if (mScaleType == type) return;

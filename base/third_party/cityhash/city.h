@@ -126,4 +126,4 @@ inline uint64 Hash128to64(const uint128& x) {
 }  // namespace internal
 }  // namespace base
 
-#endif  // BASE_THIRD_PARTY_CITYHASH_CITY_H_
+#endif  // CITY_HASH_H_

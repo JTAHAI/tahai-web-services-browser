@@ -134,13 +134,7 @@ void GlicActiveTabForProfileTracker::OnBrowserActivated(
 
 void GlicActiveTabForProfileTracker::OnBrowserDeactivated(
     BrowserWindowInterface* browser) {
-  // Prevent a race condition during window drag-and-drop where a delayed
-  // OnBrowserDeactivated event from the old window could inadvertently reset
-  // the observation that was already set up for the newly activated window.
-  if (tab_list_observation_.IsObservingSource(
-          TabListInterface::From(browser))) {
-    tab_list_observation_.Reset();
-  }
+  tab_list_observation_.Reset();
 
   UpdateActiveTab();
 }

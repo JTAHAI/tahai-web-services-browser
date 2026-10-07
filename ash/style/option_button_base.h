@@ -7,7 +7,7 @@
 
 #include "ash/ash_export.h"
 #include "ash/style/typography.h"
-#include "base/functional/callback.h"
+#include "base/memory/raw_ptr.h"
 #include "ui/base/metadata/metadata_header_macros.h"
 #include "ui/gfx/font_list.h"
 #include "ui/views/controls/button/label_button.h"
@@ -22,15 +22,6 @@ class ASH_EXPORT OptionButtonBase : public views::LabelButton {
   METADATA_HEADER(OptionButtonBase, views::LabelButton)
 
  public:
-  enum class ClickBehavior {
-    kNone,
-    kSetToOn,
-    kToggle,
-  };
-
-  using ButtonSelectedCallback =
-      base::RepeatingCallback<void(OptionButtonBase* button)>;
-
   // The default padding for the button if the client doesn't explicitly set
   // one.
   static constexpr auto kDefaultPadding = gfx::Insets::TLBR(8, 12, 8, 12);
@@ -39,20 +30,29 @@ class ASH_EXPORT OptionButtonBase : public views::LabelButton {
 
   static constexpr int kImageLabelSpacingDP = 12;
 
+  // Delegate performs further actions when the button selection states change.
+  class Delegate {
+   public:
+    // Called when the button is selected.
+    virtual void OnButtonSelected(OptionButtonBase* button) = 0;
+    // Called when the button is clicked.
+    virtual void OnButtonClicked(OptionButtonBase* button) = 0;
+
+   protected:
+    virtual ~Delegate() = default;
+  };
+
   OptionButtonBase(int button_width,
                    PressedCallback callback,
                    const std::u16string& label = std::u16string(),
                    const gfx::Insets& insets = kDefaultPadding,
-                   int image_label_spacing = kImageLabelSpacingDP,
-                   ClickBehavior click_behavior = ClickBehavior::kNone);
+                   int image_label_spacing = kImageLabelSpacingDP);
   OptionButtonBase(const OptionButtonBase&) = delete;
   OptionButtonBase& operator=(const OptionButtonBase&) = delete;
   ~OptionButtonBase() override;
 
   bool selected() const { return selected_; }
-  void set_button_selected_callback(ButtonSelectedCallback callback) {
-    button_selected_callback_ = std::move(callback);
-  }
+  void set_delegate(Delegate* delegate) { delegate_ = delegate; }
 
   // Updates the `select_` state.
   void SetSelected(bool selected);
@@ -95,9 +95,7 @@ class ASH_EXPORT OptionButtonBase : public views::LabelButton {
   // True if the button is currently selected.
   bool selected_ = false;
 
-  const ClickBehavior click_behavior_;
-
-  ButtonSelectedCallback button_selected_callback_;
+  raw_ptr<Delegate> delegate_ = nullptr;
 };
 
 }  // namespace ash

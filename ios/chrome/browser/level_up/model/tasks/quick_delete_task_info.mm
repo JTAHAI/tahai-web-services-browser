@@ -24,7 +24,10 @@ class QuickDeleteTaskInfo : public TaskInfo {
   std::string GetTaskDescription() const override {
     return "Manage your history, cookies and more to protect your privacy";
   }
-  Symbol GetIconSymbol() const override { return SymbolTrash; }
+  std::string GetIconSymbolName() const override {
+    return base::SysNSStringToUTF8(kTrashSymbol);
+  }
+  bool IsCustomSymbol() const override { return false; }
   LevelUpTaskCategory GetCategory() const override {
     return LevelUpTaskCategory::kSafety;
   }
@@ -36,12 +39,11 @@ class QuickDeleteTaskInfo : public TaskInfo {
         IDS_IOS_LEVEL_UP_TASK_COMPLETED_QUICK_DELETE);
   }
   TaskInfo::NavigationAction GetNavigationAction() const override {
-    return base::BindRepeating(
-        ^(CommandDispatcher* dispatcher, Browser* browser) {
-          id<PopupMenuCommands> handler =
-              HandlerForProtocol(dispatcher, PopupMenuCommands);
-          [handler showLevelUpQuickDeleteWalkthroughIPH];
-        });
+    return base::BindRepeating(^(CommandDispatcher* dispatcher) {
+      id<PopupMenuCommands> handler =
+          HandlerForProtocol(dispatcher, PopupMenuCommands);
+      [handler showLevelUpQuickDeleteWalkthroughIPH];
+    });
   }
 };
 

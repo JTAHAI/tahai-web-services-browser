@@ -28,6 +28,10 @@ class MockAutoReauthnPermissionDelegate
               IsAutoReauthnDisabledByEmbedder,
               (WebContents*),
               (override));
+  MOCK_METHOD(base::Time,
+              GetAutoReauthnEmbargoStartTime,
+              (const url::Origin&),
+              (override));
   MOCK_METHOD(void,
               RecordEmbargoForAutoReauthn,
               (const url::Origin&),

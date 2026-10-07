@@ -14,6 +14,7 @@
 #include "chrome/browser/sessions/session_restore.h"
 #include "chrome/browser/sessions/session_service.h"
 #include "chrome/browser/sessions/session_service_factory.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_tabstrip.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
@@ -23,7 +24,6 @@
 #include "chrome/common/chrome_constants.h"
 #include "chrome/common/chrome_paths.h"
 #include "chrome/common/pref_names.h"
-#include "chrome/test/base/chrome_test_path_utils.h"
 #include "chrome/test/base/chrome_test_utils.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/testing_profile.h"
@@ -38,7 +38,6 @@
 #include "ui/events/event.h"
 #include "ui/views/bubble/bubble_dialog_delegate_view.h"
 #include "ui/views/controls/button/label_button.h"
-#include "ui/views/controls/button/md_text_button.h"
 #include "ui/views/widget/widget.h"
 
 namespace {
@@ -149,7 +148,7 @@ IN_PROC_BROWSER_TEST_F(ExitTypeServiceTest, CrashCrashNewBrowser) {
 // run last session exit status is crashed.
 IN_PROC_BROWSER_TEST_F(ExitTypeServiceTest, PRE_PRE_RestoreFromCrashBubble) {
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), GetUrl1()));
-  BrowserWindowInterface* browser2 = CreateBrowser(browser()->GetProfile());
+  Browser* browser2 = CreateBrowser(browser()->GetProfile());
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser2, GetUrl2()));
   chrome::NewTab(browser2, NewTabTypes::kNoUserAction);
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser2, GetUrl3()));

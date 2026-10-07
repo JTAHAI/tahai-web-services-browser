@@ -144,7 +144,6 @@ public class InsetObserver implements OnApplyWindowInsetsListener {
             InsetConsumerSource.EDGE_TO_EDGE_CONTROLLER_IMPL,
             InsetConsumerSource.UPLOAD_IMAGE_PREVIEW_DIALOG,
             InsetConsumerSource.WEBXR_OVERLAY,
-            InsetConsumerSource.WEB_APP_EDGE_TO_EDGE,
             InsetConsumerSource.EDGE_TO_EDGE_LAYOUT_COORDINATOR,
             InsetConsumerSource.APP_HEADER_COORDINATOR_BOTTOM,
             InsetConsumerSource.COUNT
@@ -173,17 +172,11 @@ public class InsetObserver implements OnApplyWindowInsetsListener {
             int EDGE_TO_EDGE_CONTROLLER_IMPL = 5;
             int UPLOAD_IMAGE_PREVIEW_DIALOG = 6;
             int WEBXR_OVERLAY = 7;
-
-            // Consumes system bar and display cutout insets while an installed web app draws
-            // edge-to-edge, so the EdgeToEdgeLayoutCoordinator below draws zero-height system
-            // bars instead of padding the content. Must stay directly before
-            // EDGE_TO_EDGE_LAYOUT_COORDINATOR.
-            int WEB_APP_EDGE_TO_EDGE = 8;
-            int EDGE_TO_EDGE_LAYOUT_COORDINATOR = 9;
-            int APP_HEADER_COORDINATOR_BOTTOM = 10;
+            int EDGE_TO_EDGE_LAYOUT_COORDINATOR = 8;
+            int APP_HEADER_COORDINATOR_BOTTOM = 9;
 
             // Update this whenever a consumer source is added or removed.
-            int COUNT = 11;
+            int COUNT = 10;
         }
     }
 
@@ -617,8 +610,8 @@ public class InsetObserver implements OnApplyWindowInsetsListener {
 
         mKeyboardInset = keyboardInset;
         mKeyboardInsetSupplier.set(keyboardInset);
-        for (WindowInsetObserver observer : mObservers) {
-            observer.onKeyboardInsetChanged(keyboardInset);
+        for (WindowInsetObserver mObserver : mObservers) {
+            mObserver.onKeyboardInsetChanged(keyboardInset);
         }
     }
 
@@ -663,8 +656,8 @@ public class InsetObserver implements OnApplyWindowInsetsListener {
 
         mCurrentSafeArea.set(newSafeArea);
         // Create a new rect to avoid rect being changed by observers.
-        for (WindowInsetObserver observer : mObservers) {
-            observer.onSafeAreaChanged(new Rect(mCurrentSafeArea));
+        for (WindowInsetObserver mObserver : mObservers) {
+            mObserver.onSafeAreaChanged(new Rect(mCurrentSafeArea));
         }
     }
 

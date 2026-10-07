@@ -411,7 +411,7 @@ public class DynamicMessageTest {
         DynamicMessage.newBuilder(TestMessageSet.getDescriptor())
             .setField(
                 TestMessageSetExtension2.messageSetExtension.getDescriptor(),
-                new InternalLazyField(
+                new LazyField(
                     DynamicMessage.getDefaultInstance(TestMessageSetExtension2.getDescriptor()),
                     extensionRegistry,
                     suboptimallySerializedMessageSetExtension))

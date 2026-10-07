@@ -68,9 +68,9 @@ public class NoDynamicStringsInTraceEventCheck extends BugChecker
         }
 
         List<? extends Tree> args = tree.getArguments();
-        Tree eventNameExpr = args.get(0);
+        Tree eventName_expr = args.get(0);
 
-        ParameterVisitor.Result r = eventNameExpr.accept(sVisitor, null);
+        ParameterVisitor.Result r = eventName_expr.accept(sVisitor, null);
         if (r.success) return Description.NO_MATCH;
 
         return buildDescription(tree)
@@ -108,6 +108,7 @@ public class NoDynamicStringsInTraceEventCheck extends BugChecker
                 return this;
             }
         }
+        ;
 
         @Override
         protected Result defaultAction(Tree tree, Void p) {
@@ -149,4 +150,5 @@ public class NoDynamicStringsInTraceEventCheck extends BugChecker
             return Result.createError("Unhandled identifier kind: " + node.getKind() + '.');
         }
     }
+    ;
 }

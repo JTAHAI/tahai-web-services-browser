@@ -118,7 +118,9 @@ class COMPONENT_EXPORT(DEVICE_FIDO) FakeWinWebAuthnApi : public WinWebAuthnApi {
     preferred_attachment_ = preferred_attachment;
   }
 
-  const std::map<std::vector<uint8_t>, RegistrationData, std::less<>>&
+  const std::map<std::vector<uint8_t>,
+                 RegistrationData,
+                 fido_parsing_utils::RangeLess>&
   registrations() {
     return registrations_;
   }
@@ -198,7 +200,9 @@ class COMPONENT_EXPORT(DEVICE_FIDO) FakeWinWebAuthnApi : public WinWebAuthnApi {
   // Owns lists of credentials returned by GetPlatformCredentialList().
   std::vector<std::unique_ptr<CredentialInfoList>> returned_credential_lists_;
 
-  std::map<std::vector<uint8_t>, RegistrationData, std::less<>> registrations_;
+  std::
+      map<std::vector<uint8_t>, RegistrationData, fido_parsing_utils::RangeLess>
+          registrations_;
 
   // A map of credential IDs to large blobs.
   base::flat_map<std::vector<uint8_t>, std::vector<uint8_t>> large_blobs_;

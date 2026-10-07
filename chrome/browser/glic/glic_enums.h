@@ -11,14 +11,6 @@ namespace glic {
 // also used in Mojo, it should be defined in ./glic.mojom instead (also visible
 // to external code).
 
-// The source of a zoom action (e.g., keyboard shortcut, scroll).
-enum class ZoomSource {
-  kHotkey,
-  kHotkeyWithShift,
-  kScroll,
-  kMaxValue = kScroll,
-};
-
 // Error types for when attempting to extract context from a tab.
 // LINT.IfChange(GlicGetContextFromTabError)
 enum class GlicGetContextFromTabError {
@@ -104,14 +96,6 @@ enum class GlicProcessCounterAbuseVerdictResult {
   kMaxValue = kInterstitialSkippedAllowlist,
 };
 // LINT.ThenChange(//tools/metrics/histograms/metadata/glic/enums.xml:GlicProcessCounterAbuseVerdictResult)
-
-enum class EmbedderType {
-  kUnknown,
-  kSidePanel,
-  kFloaty,
-  kTab,
-  kMaxValue = kTab,
-};
 
 }  // namespace glic
 

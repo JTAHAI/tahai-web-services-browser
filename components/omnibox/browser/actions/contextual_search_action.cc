@@ -134,8 +134,7 @@ void ContextualSearchOpenLensAction::Execute(ExecutionContext& context) const {
   } else if (context.client_->ShouldOpenCoBrowsePanel()) {
     context.client_->OpenCoBrowsePanel();
   } else {
-    context.client_->OpenLensOverlay(
-        /*show=*/true, lens::LensOverlayInvocationSource::kOmniboxPageAction);
+    context.client_->OpenLensOverlay(/*show=*/true);
   }
 }
 

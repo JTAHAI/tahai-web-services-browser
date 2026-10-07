@@ -28,6 +28,7 @@ import org.chromium.chrome.browser.user_education.IphCommandBuilder;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController.SheetState;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetObserver;
+import org.chromium.components.browser_ui.bottomsheet.EmptyBottomSheetObserver;
 import org.chromium.components.commerce.core.CommerceFeatureUtils;
 import org.chromium.components.commerce.core.ShoppingService;
 import org.chromium.components.feature_engagement.FeatureConstants;
@@ -88,7 +89,7 @@ public class PriceInsightsButtonController extends BaseButtonDataProvider {
         mPriceInsightsDelegate = priceInsightsDelegate;
 
         mBottomSheetObserver =
-                new BottomSheetObserver() {
+                new EmptyBottomSheetObserver() {
                     @Override
                     public void onSheetStateChanged(int newState, int reason) {
                         mButtonData.setEnabled(newState == SheetState.HIDDEN);

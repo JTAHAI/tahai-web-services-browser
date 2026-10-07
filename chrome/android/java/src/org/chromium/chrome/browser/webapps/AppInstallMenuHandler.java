@@ -8,17 +8,17 @@ import android.app.Activity;
 import android.content.ActivityNotFoundException;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.ResolveInfo;
 
 import org.chromium.base.ContextUtils;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.R;
+import org.chromium.chrome.browser.app.appmenu.AppMenuPropertiesDelegateImpl;
 import org.chromium.chrome.browser.banners.AppMenuVerbiage;
-import org.chromium.chrome.browser.open_in_app.OpenInAppDelegate;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetControllerProvider;
-import org.chromium.components.embedder_support.util.Origin;
 import org.chromium.components.webapk.lib.client.WebApkValidator;
 import org.chromium.components.webapps.AddToHomescreenCoordinator;
 import org.chromium.components.webapps.InstallTrigger;
@@ -59,25 +59,6 @@ public class AppInstallMenuHandler {
             Tab currentTab) {
         @Nullable WebContents webContents = currentTab.getWebContents();
         if (webContents == null) return false;
-
-        String manifestId = WebappRegistry.getManifestIdOrUrl(currentTab);
-
-        boolean isPending = WebappRegistry.getInstance().isWebApkPending(manifestId);
-        if (isPending) {
-            String appName = currentTab.getTitle();
-            android.widget.Toast.makeText(
-                            activity,
-                            activity.getString(
-                                    R.string.notification_webapk_install_in_progress, appName),
-                            android.widget.Toast.LENGTH_SHORT)
-                    .show();
-            return true;
-        }
-
-        if (WebappRegistry.getInstance().wasWebApkRecentlyInstalled(manifestId, 10000)) {
-            return doOpenWebApk(activity, currentTab);
-        }
-
         @Nullable BottomSheetController controller =
                 BottomSheetControllerProvider.from(windowAndroid);
         if (controller == null) {
@@ -94,12 +75,10 @@ public class AppInstallMenuHandler {
                     AppMenuVerbiage.APP_MENU_OPTION_INSTALL);
         }
 
-        Origin currentTabOrigin = Origin.create(currentTab.getUrl().getSpec());
+        @Nullable ResolveInfo resolveInfo =
+                AppMenuPropertiesDelegateImpl.queryWebApkResolveInfo(activity, currentTab);
         boolean webAppInstalled =
-                currentTabOrigin != null
-                        && WebappRegistry.getInstance()
-                                .getOriginsWithInstalledApp()
-                                .contains(currentTabOrigin.toString());
+                resolveInfo != null && resolveInfo.activityInfo.packageName != null;
 
         PwaUniversalInstallBottomSheetCoordinator pwaUniversalInstallBottomSheetCoordinator =
                 new PwaUniversalInstallBottomSheetCoordinator(
@@ -181,27 +160,9 @@ public class AppInstallMenuHandler {
      * @return True after the launch attempt.
      */
     public static boolean doOpenWebApk(Activity activity, Tab currentTab) {
-        OpenInAppDelegate delegate = OpenInAppDelegate.from(currentTab);
-        if (delegate != null) {
-            OpenInAppDelegate.OpenInAppInfo openInAppInfo = delegate.getCurrentOpenInAppInfo();
-            if (openInAppInfo != null && openInAppInfo.action != null) {
-                openInAppInfo.action.run();
-                return true;
-            }
-        }
-
         Context context = ContextUtils.getApplicationContext();
-        @Nullable String packageName = null;
-        @Nullable WebContents webContents = currentTab.getWebContents();
-        if (webContents != null) {
-            String manifestId = WebappRegistry.getManifestIdOrUrl(currentTab);
-            packageName = WebappRegistry.getInstance().findWebApkWithManifestId(manifestId);
-        }
-
-        if (packageName == null) {
-            packageName =
-                    WebApkValidator.queryFirstWebApkPackage(context, currentTab.getUrl().getSpec());
-        }
+        @Nullable String packageName =
+                WebApkValidator.queryFirstWebApkPackage(context, currentTab.getUrl().getSpec());
 
         if (packageName == null) {
             Toast.makeText(context, R.string.open_webapk_failed, Toast.LENGTH_SHORT).show();

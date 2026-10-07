@@ -8,10 +8,6 @@
 
 namespace enterprise_connectors {
 
-bool CustomMessageData::operator==(const CustomMessageData&) const = default;
-
-bool TagSettings::operator==(const TagSettings&) const = default;
-
 CloudAnalysisSettings::CloudAnalysisSettings() = default;
 CloudAnalysisSettings::CloudAnalysisSettings(CloudAnalysisSettings&&) = default;
 CloudAnalysisSettings& CloudAnalysisSettings::operator=(
@@ -20,8 +16,6 @@ CloudAnalysisSettings::CloudAnalysisSettings(const CloudAnalysisSettings&) =
     default;
 CloudAnalysisSettings& CloudAnalysisSettings::operator=(
     const CloudAnalysisSettings&) = default;
-bool CloudAnalysisSettings::operator==(const CloudAnalysisSettings&) const =
-    default;
 CloudAnalysisSettings::~CloudAnalysisSettings() = default;
 
 LocalAnalysisSettings::LocalAnalysisSettings() = default;
@@ -32,8 +26,6 @@ LocalAnalysisSettings::LocalAnalysisSettings(const LocalAnalysisSettings&) =
     default;
 LocalAnalysisSettings& LocalAnalysisSettings::operator=(
     const LocalAnalysisSettings&) = default;
-bool LocalAnalysisSettings::operator==(const LocalAnalysisSettings&) const =
-    default;
 LocalAnalysisSettings::~LocalAnalysisSettings() = default;
 
 CloudOrLocalAnalysisSettings::CloudOrLocalAnalysisSettings() = default;
@@ -53,8 +45,6 @@ CloudOrLocalAnalysisSettings::CloudOrLocalAnalysisSettings(
     const CloudOrLocalAnalysisSettings&) = default;
 CloudOrLocalAnalysisSettings& CloudOrLocalAnalysisSettings::operator=(
     const CloudOrLocalAnalysisSettings&) = default;
-bool CloudOrLocalAnalysisSettings::operator==(
-    const CloudOrLocalAnalysisSettings& other) const = default;
 CloudOrLocalAnalysisSettings::~CloudOrLocalAnalysisSettings() = default;
 
 bool CloudOrLocalAnalysisSettings::is_cloud_analysis() const {
@@ -120,8 +110,6 @@ size_t CloudOrLocalAnalysisSettings::max_file_size() const {
 AnalysisSettings::AnalysisSettings() = default;
 AnalysisSettings::AnalysisSettings(AnalysisSettings&&) = default;
 AnalysisSettings& AnalysisSettings::operator=(AnalysisSettings&&) = default;
-bool AnalysisSettings::operator==(const AnalysisSettings& other) const =
-    default;
 AnalysisSettings::~AnalysisSettings() = default;
 
 }  // namespace enterprise_connectors

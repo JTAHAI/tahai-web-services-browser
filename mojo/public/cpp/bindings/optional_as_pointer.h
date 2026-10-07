@@ -7,7 +7,7 @@
 
 #include <cstddef>
 
-#include "base/memory/stack_allocated.h"
+#include "base/memory/raw_ptr.h"
 
 namespace mojo {
 
@@ -40,8 +40,6 @@ namespace mojo {
 // having an actual type makes the intent more explicit.
 template <typename T>
 class OptionalAsPointer {
-  STACK_ALLOCATED();
-
  public:
   explicit OptionalAsPointer(T* ptr) : value_(ptr) {}
   OptionalAsPointer(std::nullptr_t) {}
@@ -61,7 +59,7 @@ class OptionalAsPointer {
   template <typename U>
   friend class OptionalAsPointer;
 
-  T* value_ = nullptr;
+  raw_ptr<T> value_ = nullptr;
 };
 
 template <typename T>

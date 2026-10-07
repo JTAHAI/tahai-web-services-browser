@@ -57,10 +57,10 @@ std::u16string IOSChromePasswordSavedInfoBarDelegate::GetButtonLabel(
 ui::ImageModel IOSChromePasswordSavedInfoBarDelegate::GetIcon() const {
   UIImage* image =
 #if BUILDFLAG(IS_IOS_MACCATALYST)
-      SymbolWithPointSize(SymbolPassword, kInfobarSymbolPointSize);
+      CustomSymbolWithPointSize(kPasswordSymbol, kInfobarSymbolPointSize);
 #else
-      MakeSymbolMulticolor(SymbolWithPointSize(SymbolMulticolorPassword,
-                                               kInfobarSymbolPointSize));
+      MakeSymbolMulticolor(CustomSymbolWithPointSize(kMulticolorPasswordSymbol,
+                                                     kInfobarSymbolPointSize));
 #endif  // BUILDFLAG(IS_IOS_MACCATALYST)
   return ui::ImageModel::FromImage(gfx::Image(image));
 }

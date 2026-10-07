@@ -58,8 +58,8 @@ import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.browser.omnibox.UrlBar;
 import org.chromium.chrome.browser.omnibox.UrlFocusChangeListener;
+import org.chromium.chrome.browser.tab.EmptyTabObserver;
 import org.chromium.chrome.browser.tab.Tab;
-import org.chromium.chrome.browser.tab.TabObserver;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.chrome.test.transit.AutoResetCtaTransitTestRule;
 import org.chromium.chrome.test.transit.ChromeTransitTestRules;
@@ -84,10 +84,8 @@ import org.chromium.ui.modelutil.PropertyModel;
 // TODO(http://crbug.com/495529795): Enable side panel and fix this test.
 @DisableFeatures({ChromeFeatureList.ENABLE_ANDROID_SIDE_PANEL})
 public class ChromeTabModalPresenterTest {
-    private class TestObserver
-            implements TabObserver,
-                    UrlFocusChangeListener,
-                    ModalDialogTestUtils.TestDialogDismissedObserver {
+    private class TestObserver extends EmptyTabObserver
+            implements UrlFocusChangeListener, ModalDialogTestUtils.TestDialogDismissedObserver {
         public final CallbackHelper onUrlFocusChangedCallback = new CallbackHelper();
         public final CallbackHelper onDialogDismissedCallback = new CallbackHelper();
         public final CallbackHelper onTabInteractabilityChangedCallback = new CallbackHelper();
@@ -153,7 +151,6 @@ public class ChromeTabModalPresenterTest {
     @SmallTest
     @Feature({"ModalDialog"})
     @EnableFeatures({ChromeFeatureList.ANDROID_VERTICAL_TABS})
-    @DisabledTest(message = "b/540394692")
     public void testShow_UrlBarFocused() throws Exception {
         // Show a tab modal dialog. The dialog should be shown on top of the toolbar.
         PropertyModel dialog1 = createDialog(mActivity, mManager, "1", null);
@@ -215,6 +212,7 @@ public class ChromeTabModalPresenterTest {
     @SmallTest
     @Feature({"ModalDialog"})
     @Restriction(DeviceFormFactor.PHONE)
+    @DisabledTest(message = "https://crbug.com/40895583")
     public void testSuspend_ToggleOverview() throws Exception {
         ThreadUtils.runOnUiThreadBlocking(
                 () -> mActivity.getActivityTab().addObserver(mTestObserver));
@@ -240,11 +238,8 @@ public class ChromeTabModalPresenterTest {
         ChromeModalDialogTestUtils.checkBrowserControls(mActivity, true);
         checkCurrentPresenter(mManager, ModalDialogType.TAB);
 
-        // Tab modal dialogs should be suspended on entering tab switcher.
-        int callCount = mTestObserver.onTabInteractabilityChangedCallback.getCallCount();
-        View tabSwitcherBtn = BottomBarTestUtils.findViewById(mActivity, R.id.tab_switcher_button);
-        onView(is(tabSwitcherBtn)).perform(click());
-        mTestObserver.onTabInteractabilityChangedCallback.waitForCallback(callCount);
+        //  Tab modal dialogs should be suspended on entering tab switcher.
+        onView(withId(R.id.tab_switcher_button)).perform(click());
         checkPendingSize(mManager, ModalDialogType.TAB, 2);
         onView(withId(R.id.tab_modal_dialog_container))
                 .check(
@@ -269,7 +264,7 @@ public class ChromeTabModalPresenterTest {
         checkPendingSize(mManager, ModalDialogType.TAB, 2);
 
         // Exit overview mode. The first dialog should be showing again.
-        callCount = mTestObserver.onTabInteractabilityChangedCallback.getCallCount();
+        int callCount = mTestObserver.onTabInteractabilityChangedCallback.getCallCount();
         pressBack();
         mTestObserver.onTabInteractabilityChangedCallback.waitForCallback(callCount);
 

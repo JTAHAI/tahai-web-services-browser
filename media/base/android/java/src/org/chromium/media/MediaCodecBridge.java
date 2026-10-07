@@ -425,6 +425,7 @@ class MediaCodecBridge {
             bridge.onOutputFormatChanged(format);
         }
     }
+    ;
 
     MediaCodecBridge(MediaCodec mediaCodec, boolean useAsyncApi) {
         assert mediaCodec != null;

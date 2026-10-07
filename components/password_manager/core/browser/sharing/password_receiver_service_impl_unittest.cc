@@ -22,7 +22,6 @@
 #include "components/password_manager/core/browser/password_manager_metrics_util.h"
 #include "components/password_manager/core/browser/password_store/password_form_converters.h"
 #include "components/password_manager/core/browser/password_store/test_password_store.h"
-#include "components/password_manager/core/browser/password_string.h"
 #include "components/password_manager/core/browser/sharing/incoming_password_sharing_invitation_sync_bridge.h"
 #include "components/password_manager/core/common/password_manager_pref_names.h"
 #include "components/sync/base/features.h"
@@ -32,8 +31,6 @@
 #include "components/sync/test/test_sync_service.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
-#include "url/gurl.h"
-#include "url/origin.h"
 
 namespace password_manager {
 
@@ -43,10 +40,8 @@ using testing::AllOf;
 using testing::Bool;
 using testing::Combine;
 using testing::ElementsAre;
-using testing::Eq;
 using testing::Field;
 using testing::IsEmpty;
-using testing::Property;
 using testing::ValuesIn;
 
 constexpr std::string_view kUrl = "https://www.test.com/";
@@ -87,7 +82,7 @@ PasswordForm CreatePasswordForm() {
   form.url = GURL(kUrl);
   form.signon_realm = form.url.spec();
   form.username_value = kUsername;
-  form.password_value = PasswordString(std::u16string(kPassword));
+  form.password_value = kPassword;
   return form;
 }
 
@@ -100,7 +95,7 @@ PasswordFormToIncomingSharingInvitation(const PasswordForm& form) {
   password_group_data->set_username_value(
       base::UTF16ToUTF8(form.username_value));
   password_group_data->set_password_value(
-      base::UTF16ToUTF8(form.password_value.value()));
+      base::UTF16ToUTF8(form.password_value));
 
   sync_pb::PasswordSharingInvitationData::PasswordGroupElementData*
       element_data = password_group_data->add_element_data();
@@ -259,8 +254,7 @@ TEST_F(PasswordReceiverServiceImplTest,
       ElementsAre(AllOf(
           Field(&PasswordForm::signon_realm, kUrl),
           Field(&PasswordForm::username_value, kUsername),
-          Field(&PasswordForm::password_value,
-                Property(&PasswordString::value, Eq(kPassword))),
+          Field(&PasswordForm::password_value, kPassword),
           Field(&PasswordForm::type, PasswordForm::Type::kReceivedViaSharing),
           Field(&PasswordForm::sender_email, kSenderEmail),
           Field(&PasswordForm::sender_name, kSenderName),
@@ -320,7 +314,7 @@ TEST_F(PasswordReceiverServiceImplTest,
 
   PasswordForm conflicting_password = password;
   conflicting_password.type = PasswordForm::Type::kReceivedViaSharing;
-  conflicting_password.password_value = PasswordString(u"AnotherPassword");
+  conflicting_password.password_value = u"AnotherPassword";
   conflicting_password.in_store = PasswordForm::Store::kProfileStore;
 
   AddLoginAndWait(conflicting_password, expected_password_store_for_syncing());
@@ -554,8 +548,7 @@ TEST_F(PasswordReceiverServiceImplTest,
       GetAllLoginsSync(&expected_password_store_for_syncing())
           .at(GetInvitationOrigin(invitation)),
       ElementsAre(AllOf(Field(&PasswordForm::username_value, kUsername),
-                        Field(&PasswordForm::password_value,
-                              Property(&PasswordString::value, Eq(kPassword))),
+                        Field(&PasswordForm::password_value, kPassword),
                         Field(&PasswordForm::type,
                               PasswordForm::Type::kReceivedViaSharing))));
 }
@@ -588,14 +581,13 @@ TEST_F(PasswordReceiverServiceImplTest,
   // The password value should have been updated to kNewPassword.
   ASSERT_TRUE(GetAllLoginsSync(&expected_password_store_for_syncing())
                   .contains(GetInvitationOrigin(invitation)));
-  EXPECT_THAT(GetAllLoginsSync(&expected_password_store_for_syncing())
-                  .at(GetInvitationOrigin(invitation)),
-              ElementsAre(AllOf(
-                  Field(&PasswordForm::username_value, kUsername),
-                  Field(&PasswordForm::password_value,
-                        Property(&PasswordString::value, Eq(kNewPassword))),
-                  Field(&PasswordForm::type,
-                        PasswordForm::Type::kReceivedViaSharing))));
+  EXPECT_THAT(
+      GetAllLoginsSync(&expected_password_store_for_syncing())
+          .at(GetInvitationOrigin(invitation)),
+      ElementsAre(AllOf(Field(&PasswordForm::username_value, kUsername),
+                        Field(&PasswordForm::password_value, kNewPassword),
+                        Field(&PasswordForm::type,
+                              PasswordForm::Type::kReceivedViaSharing))));
 }
 
 TEST_F(PasswordReceiverServiceImplTest, ShouldAddAllCredentialsInInvitation) {
@@ -621,13 +613,12 @@ TEST_F(PasswordReceiverServiceImplTest, ShouldAddAllCredentialsInInvitation) {
 
   ASSERT_TRUE(GetAllLoginsSync(&expected_password_store_for_syncing())
                   .contains(std::string(kUrl)));
-  EXPECT_THAT(GetAllLoginsSync(&expected_password_store_for_syncing())
-                  .at(std::string(kUrl)),
-              ElementsAre(AllOf(
-                  Field(&PasswordForm::signon_realm, std::string(kUrl)),
-                  Field(&PasswordForm::username_value, kUsername),
-                  Field(&PasswordForm::password_value,
-                        Property(&PasswordString::value, Eq(kPassword))))));
+  EXPECT_THAT(
+      GetAllLoginsSync(&expected_password_store_for_syncing())
+          .at(std::string(kUrl)),
+      ElementsAre(AllOf(Field(&PasswordForm::signon_realm, std::string(kUrl)),
+                        Field(&PasswordForm::username_value, kUsername),
+                        Field(&PasswordForm::password_value, kPassword))));
 
   ASSERT_TRUE(GetAllLoginsSync(&expected_password_store_for_syncing())
                   .contains(kPslMatchUrl));
@@ -636,8 +627,7 @@ TEST_F(PasswordReceiverServiceImplTest, ShouldAddAllCredentialsInInvitation) {
               ElementsAre(AllOf(
                   Field(&PasswordForm::signon_realm, std::string(kPslMatchUrl)),
                   Field(&PasswordForm::username_value, kUsername),
-                  Field(&PasswordForm::password_value,
-                        Property(&PasswordString::value, Eq(kPassword))))));
+                  Field(&PasswordForm::password_value, kPassword))));
 
   histogram_tester.ExpectUniqueSample(
       "PasswordManager.ProcessIncomingPasswordSharingInvitationResult",
@@ -718,65 +708,5 @@ TEST_F(PasswordReceiverServiceImplTest,
           kInvalidInvitation,
       1);
 }
-
-struct IconUrlTestCase {
-  std::string test_name;
-  std::string input_url;
-  std::string expected_url;
-};
-
-class PasswordReceiverServiceImplIconUrlTest
-    : public PasswordReceiverServiceImplTest,
-      public testing::WithParamInterface<IconUrlTestCase> {};
-
-TEST_P(PasswordReceiverServiceImplIconUrlTest, ProcessInvitation) {
-  base::HistogramTester histogram_tester;
-  sync_pb::IncomingPasswordSharingInvitationSpecifics invitation =
-      CreateIncomingSharingInvitation();
-
-  invitation.mutable_client_only_unencrypted_data()
-      ->mutable_password_group_data()
-      ->mutable_element_data(0)
-      ->set_avatar_url(GetParam().input_url);
-
-  password_receiver_service()->ProcessIncomingSharingInvitation(invitation);
-  RunUntilIdle();
-
-  ASSERT_TRUE(GetAllLoginsSync(&expected_password_store_for_syncing())
-                  .contains(GetInvitationOrigin(invitation)));
-  EXPECT_THAT(
-      GetAllLoginsSync(&expected_password_store_for_syncing())
-          .at(GetInvitationOrigin(invitation)),
-      ElementsAre(AllOf(
-          Field(&PasswordForm::signon_realm, kUrl),
-          Field(&PasswordForm::username_value, kUsername),
-          Field(&PasswordForm::password_value,
-                Property(&PasswordString::value, Eq(kPassword))),
-          Field(&PasswordForm::icon_url, GURL(GetParam().expected_url)))));
-
-  histogram_tester.ExpectUniqueSample(
-      "PasswordManager.ProcessIncomingPasswordSharingInvitationResult",
-      metrics_util::ProcessIncomingPasswordSharingInvitationResult::
-          kInvitationAutoApproved,
-      1);
-}
-
-INSTANTIATE_TEST_SUITE_P(
-    All,
-    PasswordReceiverServiceImplIconUrlTest,
-    testing::Values(
-        IconUrlTestCase{
-            .test_name = "AcceptSameOrigin",
-            .input_url = "https://www.test.com/favicon.ico",
-            .expected_url = "https://www.test.com/favicon.ico"},
-        IconUrlTestCase{.test_name = "ClearCrossOrigin",
-                        .input_url = "https://attacker-beacon.test/track.png",
-                        .expected_url = ""},
-        IconUrlTestCase{.test_name = "ClearInvalid",
-                        .input_url = "javascript:alert(1)",
-                        .expected_url = ""}),
-    [](const testing::TestParamInfo<IconUrlTestCase>& info) {
-      return info.param.test_name;
-    });
 
 }  // namespace password_manager

@@ -229,6 +229,8 @@ TEST_F(ModelQualityLogsUploaderServiceTest, TestSuccessfulResponse) {
   histogram_tester_.ExpectUniqueSample(
       "OptimizationGuide.ModelQualityLogsUploaderService.NetErrorCode",
       -net::OK, 1);
+  histogram_tester_.ExpectTotalCount(
+      "OptimizationGuide.ModelQualityLogsUploaderService.Status", 1);
   histogram_tester_.ExpectUniqueSample(
       "OptimizationGuide.ModelQualityLogsUploaderService.UploadStatus.Compose",
       ModelQualityLogsUploadStatus::kUploadSuccessful, 1);
@@ -254,6 +256,8 @@ TEST_F(ModelQualityLogsUploaderServiceTest, TestMultipleUploads) {
   histogram_tester_.ExpectUniqueSample(
       "OptimizationGuide.ModelQualityLogsUploaderService.NetErrorCode",
       -net::OK, 2);
+  histogram_tester_.ExpectTotalCount(
+      "OptimizationGuide.ModelQualityLogsUploaderService.Status", 2);
   histogram_tester_.ExpectUniqueSample(
       "OptimizationGuide.ModelQualityLogsUploaderService.UploadStatus.Compose",
       ModelQualityLogsUploadStatus::kUploadSuccessful, 2);
@@ -275,6 +279,9 @@ TEST_F(ModelQualityLogsUploaderServiceTest, TestNetErrorResponse) {
   SimulateResponse("foo response", net::HTTP_NOT_FOUND);
 
   // Make sure histograms are recorded correctly on bad response.
+  histogram_tester_.ExpectUniqueSample(
+      "OptimizationGuide.ModelQualityLogsUploaderService.Status",
+      net::HTTP_NOT_FOUND, 1);
   histogram_tester_.ExpectTotalCount(
       "OptimizationGuide.ModelQualityLogsUploaderService.NetErrorCode", 1);
 
@@ -292,6 +299,9 @@ TEST_F(ModelQualityLogsUploaderServiceTest, TestBadResponse) {
   SimulateResponse("bad response", net::HTTP_OK);
 
   // Make sure histograms are recorded correctly on bad response.
+  histogram_tester_.ExpectUniqueSample(
+      "OptimizationGuide.ModelQualityLogsUploaderService.Status", net::HTTP_OK,
+      1);
   histogram_tester_.ExpectTotalCount(
       "OptimizationGuide.ModelQualityLogsUploaderService.NetErrorCode", 1);
 }

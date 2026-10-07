@@ -23,9 +23,7 @@ enum class FormInputAccessoryViewSubitemGroup {
   // address button.
   kManualFillButtons,
   // Navigation buttons: the previous button and the next button.
-  kNavigationButtons,
-  // AtMemory button with title.
-  kAtMemoryFullButton,
+  kNavigationButtons
 };
 
 // Informs the receiver of actions in the accessory view.
@@ -72,9 +70,8 @@ enum class FormInputAccessoryViewSubitemGroup {
 
 extern NSString* const kFormInputAccessoryViewAccessibilityID;
 
-extern NSString* const kFormInputAccessoryViewAtMemoryButtonAccessibilityID;
-
-extern NSString* const kFormInputAccessoryViewAtMemoryFullButtonAccessibilityID;
+extern NSString* const
+    kFormInputAccessoryViewAtMemoryButtonAccessibilityIdentifier;
 
 extern NSString* const
     kFormInputAccessoryViewOmniboxTypingShieldAccessibilityID;
@@ -108,12 +105,10 @@ extern NSString* const
 // "addressManualFillSymbol". Nil otherwise.
 @property(nonatomic, readonly, weak) UIButton* addressManualFillButton;
 
-// The AtMemory icon button.
+// The AtMemory button if the view was set up with a navigation delegate and a
+// "atMemoryManualFillSymbol". Nil otherwise.
+// TODO(crbug.com/522326512): Verify this property.
 @property(nonatomic, readonly, weak) UIButton* atMemoryManualFillButton;
-
-// The AtMemory full button (icon + title). This button shows separately
-// when a `contenteditable` element is focused.
-@property(nonatomic, readonly, weak) UIButton* atMemoryFullButton;
 
 // The leading view.
 @property(nonatomic, readonly, weak) UIView* leadingView;

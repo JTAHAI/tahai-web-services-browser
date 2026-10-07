@@ -278,7 +278,9 @@ class TabListContainerViewBinder {
                     model.get(IS_PINNED_TAB_STRIP_ANIMATING_SUPPLIER);
             if (supplier == null) return;
             supplier.addSyncObserverAndCallIfNonNull(
-                    _ -> updateHairlineVisibility(model, hairline));
+                    _ -> {
+                        updateHairlineVisibility(model, hairline);
+                    });
         }
     }
 

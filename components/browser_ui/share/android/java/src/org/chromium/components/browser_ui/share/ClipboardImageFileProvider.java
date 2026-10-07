@@ -17,7 +17,6 @@ import org.chromium.base.StrictModeContext;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.ui.base.Clipboard;
-import org.chromium.ui.base.Clipboard.ClipboardUriMetadata;
 
 /** Implementation class for {@link Clipboard.ImageFileProvider}. */
 @NullMarked
@@ -29,16 +28,16 @@ public class ClipboardImageFileProvider implements Clipboard.ImageFileProvider {
     }
 
     @Override
-    public void storeLastCopiedImageMetadata(ClipboardUriMetadata clipboardUriMetadata) {
+    public void storeLastCopiedImageMetadata(ClipboardFileMetadata clipboardFileMetadata) {
         ContextUtils.getAppSharedPreferences()
                 .edit()
-                .putString(CLIPBOARD_SHARED_URI, clipboardUriMetadata.uri.toString())
-                .putLong(CLIPBOARD_SHARED_URI_TIMESTAMP, clipboardUriMetadata.timestamp)
+                .putString(CLIPBOARD_SHARED_URI, clipboardFileMetadata.uri.toString())
+                .putLong(CLIPBOARD_SHARED_URI_TIMESTAMP, clipboardFileMetadata.timestamp)
                 .apply();
     }
 
     @Override
-    public @Nullable ClipboardUriMetadata getLastCopiedImageMetadata() {
+    public @Nullable ClipboardFileMetadata getLastCopiedImageMetadata() {
         SharedPreferences prefs = ContextUtils.getAppSharedPreferences();
         try (StrictModeContext ignored = StrictModeContext.allowDiskReads()) {
             String uriString = prefs.getString(CLIPBOARD_SHARED_URI, null);
@@ -47,7 +46,7 @@ public class ClipboardImageFileProvider implements Clipboard.ImageFileProvider {
             Uri uri = Uri.parse(uriString);
             long timestamp = prefs.getLong(CLIPBOARD_SHARED_URI_TIMESTAMP, 0L);
 
-            return new ClipboardUriMetadata(uri, timestamp);
+            return new ClipboardFileMetadata(uri, timestamp);
         }
     }
 

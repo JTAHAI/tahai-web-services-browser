@@ -302,8 +302,7 @@ Proofreader::Proofreader(
     ScriptState* script_state,
     scoped_refptr<base::SequencedTaskRunner> task_runner,
     mojo::PendingRemote<mojom::blink::AIProofreader> pending_remote,
-    ProofreaderCreateOptions* options,
-    uint64_t /*context_window*/)
+    ProofreaderCreateOptions* options)
     : ExecutionContextClient(ExecutionContext::From(script_state)),
       remote_(GetExecutionContext()),
       options_(std::move(options)),

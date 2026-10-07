@@ -1,8 +1,5 @@
 agazal@google.com
 jinsukkim@chromium.org
 
-# Collapsed, Hover Card and Vertical spine
-spdonghao@google.com
-
 # Drag and Drop
-jthiesen@chromium.org
+per-file *TouchHelper*.java=jthiesen@chromium.org

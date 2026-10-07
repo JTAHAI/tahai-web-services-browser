@@ -5,7 +5,6 @@
 #include "components/autofill/core/browser/ml_model/field_classification_model_handler.h"
 
 #include <optional>
-#include <ranges>
 #include <vector>
 
 #include "base/base_paths.h"
@@ -17,13 +16,14 @@
 #include "base/test/scoped_feature_list.h"
 #include "base/test/task_environment.h"
 #include "base/test/test_future.h"
+#include "base/types/zip.h"
 #include "components/autofill/core/browser/field_types.h"
 #include "components/autofill/core/browser/form_structure.h"
 #include "components/autofill/core/browser/form_structure_test_api.h"
 #include "components/autofill/core/browser/heuristic_source.h"
-#include "components/autofill/core/browser/test_utils/autofill_form_test_util.h"
+#include "components/autofill/core/browser/test_utils/autofill_form_test_utils.h"
 #include "components/autofill/core/common/autofill_features.h"
-#include "components/autofill/core/common/autofill_test_util.h"
+#include "components/autofill/core/common/autofill_test_utils.h"
 #include "components/optimization_guide/core/delivery/model_info.h"
 #include "components/optimization_guide/core/delivery/test_optimization_guide_model_provider.h"
 #include "components/optimization_guide/core/optimization_guide_proto_util.h"
@@ -125,7 +125,7 @@ class FieldClassificationModelHandlerTest : public testing::Test {
         GeoIpCountryCode("US"), /*ignore_small_forms=*/true,
         future.GetCallback());
     for (auto [form_structure, predictions] :
-         std::views::zip(form_structures, future.Get())) {
+         base::zip(form_structures, future.Get())) {
       predictions.ApplyTo(form_structure->fields());
     }
   }

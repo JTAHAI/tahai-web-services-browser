@@ -390,22 +390,6 @@ void HidChooserContext::RevokeObjectPermission(const url::Origin& origin,
   // TODO(crbug.com/40627829): Record UMA (WEBHID_PERMISSION_REVOKED_EPHEMERAL).
 }
 
-std::vector<url::Origin> HidChooserContext::RevokeEphemeralPermissions(
-    const ContentSettingsPattern& primary_pattern,
-    bool unconditional) {
-  std::vector<url::Origin> revoked_origins;
-  std::erase_if(ephemeral_devices_, [&](const auto& entry) {
-    const auto& [origin, devices] = entry;
-    if (primary_pattern.Matches(origin.GetURL()) &&
-        (unconditional || !CanRequestObjectPermission(origin))) {
-      revoked_origins.push_back(origin);
-      return true;
-    }
-    return false;
-  });
-  return revoked_origins;
-}
-
 void HidChooserContext::GrantDevicePermission(
     const url::Origin& origin,
     const device::mojom::HidDeviceInfo& device,
@@ -641,8 +625,8 @@ base::WeakPtr<HidChooserContext> HidChooserContext::AsWeakPtr() {
 }
 
 void HidChooserContext::Shutdown() {
-  permissions::ObjectPermissionContextBase::Shutdown();
   FlushScheduledSaveSettingsCalls();
+  permissions::ObjectPermissionContextBase::Shutdown();
 }
 
 void HidChooserContext::DeviceAdded(device::mojom::HidDeviceInfoPtr device) {

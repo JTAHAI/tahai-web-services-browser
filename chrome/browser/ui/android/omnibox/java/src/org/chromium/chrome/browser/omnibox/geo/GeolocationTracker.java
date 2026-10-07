@@ -55,13 +55,16 @@ class GeolocationTracker {
             mLocationManager = manager;
             mHandler = new Handler();
             mCancelRunnable =
-                    () -> {
-                        try {
-                            mLocationManager.removeUpdates(this);
-                        } catch (Exception e) {
-                            if (!mRegistrationFailed) throw e;
+                    new Runnable() {
+                        @Override
+                        public void run() {
+                            try {
+                                mLocationManager.removeUpdates(SelfCancelingListener.this);
+                            } catch (Exception e) {
+                                if (!mRegistrationFailed) throw e;
+                            }
+                            sListener = null;
                         }
-                        sListener = null;
                     };
             mHandler.postDelayed(mCancelRunnable, REQUEST_TIMEOUT_MS);
         }

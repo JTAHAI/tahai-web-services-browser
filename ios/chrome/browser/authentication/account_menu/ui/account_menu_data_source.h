@@ -34,9 +34,6 @@ class GaiaId;
 // The full name of the AI tier for the primary account. May be nil.
 @property(nonatomic, readonly) NSString* primaryAccountAITierFullName;
 
-// The AI tier name of the primary account. May be nil.
-@property(nonatomic, readonly) NSString* primaryAccountAITierName;
-
 // The user full name of the primary account. May be nil.
 @property(nonatomic, readonly) NSString* primaryAccountUserFullName;
 

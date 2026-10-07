@@ -252,7 +252,10 @@ class CORE_EXPORT StyleSheetContents final
   // NOTE: “medium” must be the same as is later used for EnsureRuleSet(),
   // or the set of mixins and the rule set may be inconsistent.
   //
-  MixinMap& ExtractMixins(const MediaQueryEvaluator& medium);
+  // If mixins were not already cached, and there is or previously was
+  // at least one mixin, the generation counter will be increased.
+  MixinMap& ExtractMixins(const MediaQueryEvaluator& medium,
+                          uint64_t& mixin_generation);
 
   RuleSet& GetRuleSet() {
     DCHECK(rule_set_);

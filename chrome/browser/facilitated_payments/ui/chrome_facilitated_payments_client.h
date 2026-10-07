@@ -11,7 +11,7 @@
 
 #include "base/android/scoped_java_ref.h"
 #include "base/containers/span.h"
-#include "base/functional/callback.h"
+#include "base/functional/callback_forward.h"
 #include "chrome/browser/facilitated_payments/ui/android/facilitated_payments_controller.h"
 #include "components/facilitated_payments/android/device_delegate_android.h"
 #include "components/facilitated_payments/content/browser/content_facilitated_payments_driver_factory.h"
@@ -19,7 +19,6 @@
 #include "components/facilitated_payments/core/browser/facilitated_payments_client.h"
 #include "components/facilitated_payments/core/browser/network_api/facilitated_payments_network_interface.h"
 #include "components/facilitated_payments/core/browser/payment_link_manager.h"
-#include "components/facilitated_payments/core/browser/pix_account_linking_manager.h"
 #include "components/facilitated_payments/core/utils/facilitated_payments_ui_utils.h"
 #include "content/public/browser/web_contents_user_data.h"
 
@@ -54,8 +53,7 @@ class ChromeFacilitatedPaymentsClient
  public:
   ChromeFacilitatedPaymentsClient(
       content::WebContents* web_contents,
-      optimization_guide::OptimizationGuideDecider* optimization_guide_decider,
-      base::RepeatingCallback<bool(content::WebContents*)> is_cct_callback = {});
+      optimization_guide::OptimizationGuideDecider* optimization_guide_decider);
   ChromeFacilitatedPaymentsClient(const ChromeFacilitatedPaymentsClient&) =
       delete;
   ChromeFacilitatedPaymentsClient& operator=(
@@ -115,13 +113,12 @@ class ChromeFacilitatedPaymentsClient
       base::OnceCallback<void()> on_accepted,
       base::OnceCallback<void()> on_declined) final;
   void ShowPixAccountLinkingSuccessScreen() final;
+
   void ShowAccountLinkingPrompt(
       const payments::facilitated::AccountLinkingParams& params,
       base::OnceCallback<void()> on_accepted,
       base::OnceCallback<void()> on_declined,
       base::OnceCallback<void()> on_dismissed) final;
-  void ShowAccountLinkingFailureNotification(
-      payments::facilitated::FacilitatedPaymentsType fop_type) final;
   bool HasScreenlockOrBiometricSetup() final;
 
   // Register any allowlists with the OptimizationGuide framework, so that
@@ -142,8 +139,6 @@ class ChromeFacilitatedPaymentsClient
   // frame URL is eligible for facilitated payments.
   raw_ptr<optimization_guide::OptimizationGuideDecider>
       optimization_guide_decider_ = nullptr;
-
-  base::RepeatingCallback<bool(content::WebContents*)> is_cct_callback_;
 
   payments::facilitated::DeviceDelegateAndroid device_delegate_;
 

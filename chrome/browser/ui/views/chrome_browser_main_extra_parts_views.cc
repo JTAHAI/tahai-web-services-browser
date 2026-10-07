@@ -9,14 +9,12 @@
 #include "base/command_line.h"
 #include "base/functional/bind.h"
 #include "base/path_service.h"
-#include "build/branding_buildflags.h"
 #include "build/build_config.h"
-#include "build/buildflag.h"
 #include "chrome/browser/bookmarks/bookmark_merged_surface_service.h"
 #include "chrome/browser/bookmarks/bookmark_merged_surface_service_factory.h"
 #include "chrome/browser/browser_process.h"
-#include "chrome/browser/net/system_network_context_manager.h"
 #include "chrome/browser/ui/infobars/browser_infobar_registry.h"
+#include "chrome/browser/net/system_network_context_manager.h"
 #include "chrome/browser/ui/views/bookmarks/bookmark_account_storage_move_dialog.h"
 #include "chrome/browser/ui/views/chrome_constrained_window_views_client.h"
 #include "chrome/browser/ui/views/chrome_layout_provider.h"
@@ -116,7 +114,6 @@ void ChromeBrowserMainExtraPartsViews::PreCreateThreads() {
 }
 
 void ChromeBrowserMainExtraPartsViews::PreProfileInit() {
-  infobars::RegisterPreProfileInitInfoBars();
   if (ui_devtools::UiDevToolsServer::IsUiDevToolsEnabled(
           ui_devtools::switches::kEnableUiDevTools)) {
     base::FilePath output_dir;
@@ -182,7 +179,7 @@ void ChromeBrowserMainExtraPartsViews::PostProfileInit(
   auto* service = BookmarkMergedSurfaceServiceFactory::GetForProfile(profile);
   if (service) {
     service->SetShowMoveStorageDialogCallback(base::BindRepeating(
-        [](BrowserWindowInterface* browser, const bookmarks::BookmarkNode* node,
+        [](Browser* browser, const bookmarks::BookmarkNode* node,
            const bookmarks::BookmarkNode* target_folder, size_t index) {
           ShowBookmarkAccountStorageMoveDialog(browser, node, target_folder,
                                                index);

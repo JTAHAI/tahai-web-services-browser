@@ -22,6 +22,8 @@
 #include "base/metrics/histogram_functions.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/trace_event/trace_event.h"
+#include "chrome/browser/notifications/notification_handler.h"
+#include "chrome/browser/notifications/system_notification_helper.h"
 #include "chrome/browser/ui/ash/network/network_portal_signin_controller.h"
 #include "chrome/grit/generated_resources.h"
 #include "chromeos/ash/components/network/network_event_log.h"
@@ -32,7 +34,6 @@
 #include "components/session_manager/core/session_manager.h"
 #include "third_party/cros_system_api/dbus/service_constants.h"
 #include "ui/base/l10n/l10n_util.h"
-#include "ui/message_center/message_center.h"
 #include "ui/message_center/public/cpp/notification.h"
 #include "ui/message_center/public/cpp/notification_types.h"
 #include "ui/message_center/public/cpp/notifier_id.h"
@@ -87,9 +88,8 @@ std::unique_ptr<message_center::Notification> CreateNotification(
 }
 
 void CloseNotification() {
-  message_center::MessageCenter::Get()->RemoveNotification(
-      NetworkPortalNotificationController::kNotificationId,
-      /*by_user=*/false);
+  SystemNotificationHelper::GetInstance()->Close(
+      NetworkPortalNotificationController::kNotificationId);
 }
 
 }  // namespace
@@ -179,8 +179,7 @@ void NetworkPortalNotificationController::PortalStateChanged(
       CreateDefaultCaptivePortalNotification(network, portal_state);
   DCHECK(notification) << "Notification not created for portal state: "
                        << portal_state;
-  message_center::MessageCenter::Get()->AddNotification(
-      std::move(notification));
+  SystemNotificationHelper::GetInstance()->Display(*notification);
 }
 
 void NetworkPortalNotificationController::OnShuttingDown() {

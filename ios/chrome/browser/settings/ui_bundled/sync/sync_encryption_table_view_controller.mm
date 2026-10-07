@@ -297,7 +297,8 @@ typedef NS_ENUM(NSInteger, ItemType) {
 
 - (void)syncEncryptionPassphraseTableViewControllerDidDisappear:
     (SyncEncryptionPassphraseTableViewController*)viewController {
-  CHECK_EQ(_syncCreatePassphraseTableViewController, viewController);
+  CHECK_EQ(_syncCreatePassphraseTableViewController, viewController,
+           base::NotFatalUntil::M142);
   _syncCreatePassphraseTableViewController.presentationDelegate = nil;
   [_syncCreatePassphraseTableViewController settingsWillBeDismissed];
   _syncCreatePassphraseTableViewController = nil;

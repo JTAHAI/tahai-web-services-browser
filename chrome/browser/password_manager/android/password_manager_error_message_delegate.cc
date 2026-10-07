@@ -247,10 +247,8 @@ void PasswordManagerErrorMessageDelegate::HandleActionButtonClicked(
     case PasswordStoreBackendErrorType::kEmptySecurityDomain:
     case PasswordStoreBackendErrorType::kIrretrievableSecurityDomain:
       helper_bridge_->StartTrustedVaultKeyRetrievalFlow(
-          web_contents,
-          trusted_vault::TrustedVaultUserActionTriggerForUMA::
-              kPasswordManagerErrorMessage,
-          base::DoNothing());
+          web_contents, trusted_vault::TrustedVaultUserActionTriggerForUMA::
+                            kPasswordManagerErrorMessage);
       break;
     case PasswordStoreBackendErrorType::kUncategorized:
     case PasswordStoreBackendErrorType::kKeychainError:

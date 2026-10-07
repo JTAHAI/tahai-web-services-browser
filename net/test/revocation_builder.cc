@@ -10,10 +10,7 @@
 #include "base/functional/callback.h"
 #include "base/hash/sha1.h"
 #include "base/strings/string_util.h"
-#include "base/strings/string_view_util.h"
 #include "base/test/bind.h"
-#include "crypto/evp.h"
-#include "crypto/openssl_util.h"
 #include "net/cert/asn1_util.h"
 #include "net/cert/time_conversions.h"
 #include "net/cert/x509_util.h"
@@ -66,19 +63,28 @@ bool CBBAddGeneralizedTime(CBB* cbb, base::Time time) {
 
 // Finalizes the CBB to a std::string.
 std::string FinishCBB(CBB* cbb) {
-  if (!CBB_flush(cbb)) {
-    ADD_FAILURE() << "CBB_flush() failed";
+  size_t cbb_len;
+  uint8_t* cbb_bytes;
+
+  if (!CBB_finish(cbb, &cbb_bytes, &cbb_len)) {
+    ADD_FAILURE() << "CBB_finish() failed";
     return std::string();
   }
-  return std::string(base::as_string_view(crypto::CbbAsSpan(cbb)));
+
+  bssl::UniquePtr<uint8_t> delete_bytes(cbb_bytes);
+  return std::string(reinterpret_cast<char*>(cbb_bytes), cbb_len);
 }
 
 std::string PKeyToSPK(const EVP_PKEY* pkey) {
-  std::vector<uint8_t> spki = crypto::evp::PublicKeyToBytes(pkey);
+  bssl::ScopedCBB cbb;
+  if (!CBB_init(cbb.get(), 64) || !EVP_marshal_public_key(cbb.get(), pkey)) {
+    ADD_FAILURE();
+    return std::string();
+  }
+  std::string spki = FinishCBB(cbb.get());
 
   std::string_view spk;
-  if (!asn1::ExtractSubjectPublicKeyFromSPKI(base::as_string_view(spki),
-                                             &spk)) {
+  if (!asn1::ExtractSubjectPublicKeyFromSPKI(spki, &spk)) {
     ADD_FAILURE();
     return std::string();
   }

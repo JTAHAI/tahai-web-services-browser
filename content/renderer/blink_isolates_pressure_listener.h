@@ -5,25 +5,24 @@
 #ifndef CONTENT_RENDERER_BLINK_ISOLATES_PRESSURE_LISTENER_H_
 #define CONTENT_RENDERER_BLINK_ISOLATES_PRESSURE_LISTENER_H_
 
-#include "base/memory_coordinator/async_memory_consumer_registration.h"
-#include "base/memory_coordinator/memory_consumer.h"
+#include "base/memory/memory_pressure_listener.h"
 
 namespace content {
 
-class BlinkIsolatesPressureListener : public base::MemoryConsumer {
+class BlinkIsolatesPressureListener : public base::MemoryPressureListener {
  public:
   BlinkIsolatesPressureListener();
   ~BlinkIsolatesPressureListener() override;
 
-  // base::MemoryConsumer:
-  void OnUpdateMemoryLimit() override;
-  void OnReleaseMemory() override;
+  // base::MemoryPressureListener:
+  void OnMemoryPressure(base::MemoryPressureLevel level) override;
 
   void OnRendererVisible();
   void OnRendererHidden();
 
  private:
-  base::AsyncMemoryConsumerRegistration memory_consumer_registration_;
+  base::AsyncMemoryPressureListenerRegistration
+      memory_pressure_listener_registration_;
 
   bool is_renderer_visible_ = true;
 };

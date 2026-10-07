@@ -66,6 +66,7 @@ public final class PeriodicBackgroundSyncTest {
     public final AccountManagerTestRule mAccountManagerTestRule = new AccountManagerTestRule();
 
     private EmbeddedTestServer mTestServer;
+    private String mTestPage;
     private static final String TEST_PAGE =
             "/chrome/test/data/background_sync/background_sync_test.html";
     private static final int TITLE_UPDATE_TIMEOUT_SECONDS = (int) scaleTimeout(10);

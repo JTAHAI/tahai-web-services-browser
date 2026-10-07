@@ -1,2 +1,4 @@
-rules:
-- document-cookie.html: [cookies]
+features:
+- name: cookies
+  files:
+  - document-cookie.html

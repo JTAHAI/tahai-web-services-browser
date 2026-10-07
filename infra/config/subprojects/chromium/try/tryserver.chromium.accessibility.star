@@ -20,7 +20,6 @@ try_.defaults.set(
     execution_timeout = try_constants.DEFAULT_EXECUTION_TIMEOUT,
     experiments = {
         "chromium_tests.resultdb_module": 100,
-        "luci.buildbucket.run_in_turboci": 100,
     },
     service_account = try_constants.DEFAULT_SERVICE_ACCOUNT,
     siso_keep_going = siso.KEEP_GOING,
@@ -48,6 +47,9 @@ try_.builder(
             "ui/accessibility/.+",
         ],
     ),
+    experiments = {
+        "luci.buildbucket.run_in_turboci": 100,
+    },
 )
 
 try_.builder(
@@ -69,4 +71,7 @@ try_.builder(
             "ui/views/accessibility/.+",
         ],
     ),
+    experiments = {
+        "luci.buildbucket.run_in_turboci": 100,
+    },
 )

@@ -19,8 +19,6 @@ class Profile;
 
 namespace crostini {
 
-inline constexpr char kCrostiniSetupSourceHistogram[] = "Crostini.SetupSource";
-
 class CrostiniInstaller : public KeyedService,
                           public CrostiniManager::RestartObserver,
                           public CrostiniInstallerUIDelegate {
@@ -80,6 +78,8 @@ class CrostiniInstaller : public KeyedService,
 
   ~CrostiniInstaller() override;
   void Shutdown() override;
+
+  void ShowDialog(CrostiniUISurface ui_surface);
 
   // CrostiniInstallerUIDelegate:
   void Install(CrostiniManager::RestartOptions options,

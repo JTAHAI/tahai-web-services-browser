@@ -4,30 +4,22 @@
 
 package org.chromium.chrome.browser.tab;
 
-import android.util.ArrayMap;
-
 import org.chromium.base.UserDataHost;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.content_public.browser.WebContents;
 
-import java.util.Collection;
+import java.util.HashMap;
 import java.util.Map;
 
 /** Registry class to hold multiple TabStateAttributes mapped by Class key. */
 @NullMarked
 public class TabStateAttributesRegistry extends TabWebContentsUserData {
-    // There should be at most 2 instances of TabStateAttributes in the registry.
     private final Map<Class<? extends TabStateAttributes.StoreKey>, TabStateAttributes>
-            mAttributesMap = new ArrayMap<>(2);
+            mAttributesMap = new HashMap<>();
 
     public TabStateAttributesRegistry(Tab tab) {
         super(tab);
-    }
-
-    /** Returns all {@link TabStateAttributes} instances registered in this registry. */
-    public Collection<TabStateAttributes> getAllAttributes() {
-        return mAttributesMap.values();
     }
 
     /**

@@ -249,8 +249,7 @@ ContentLayerClientImpl::GetCanvasChildPaintRecord() const {
   if (!canvas_child_paint_state_) {
     return std::nullopt;
   }
-  gfx::Vector2dF offset = cc_picture_layer_->offset_to_transform_parent() -
-                          canvas_child_paint_state_->reference_box_offset;
+  gfx::Vector2dF offset = cc_picture_layer_->offset_to_transform_parent();
   cc::PaintRecord record;
   if (offset.IsZero()) {
     record = cc_display_item_list_->paint_op_buffer().DeepCopyAsRecord();

@@ -24,7 +24,6 @@ import org.mockito.junit.MockitoRule;
 import org.robolectric.annotation.Config;
 import org.robolectric.shadows.ShadowSystemClock;
 
-import org.chromium.base.DeviceInfo;
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.base.test.util.Features.EnableFeatures;
 import org.chromium.ui.base.TestActivity;
@@ -42,7 +41,6 @@ public class ModalDialogViewUnitTest {
     private static final int MIN_DIALOG_WIDTH = 280;
     private static final int MIN_DIALOG_HEIGHT = 500;
     private static final int MAX_DIALOG_WIDTH_TABLET = 560;
-    private static final int MAX_DIALOG_WIDTH_LFF = 480;
     private static final float MAX_DIALOG_WIDTH_PERCENT_PHONE = 0.65f;
 
     @Rule public MockitoRule mMockitoRule = MockitoJUnit.rule();
@@ -434,117 +432,5 @@ public class ModalDialogViewUnitTest {
         ShadowSystemClock.advanceBy(Duration.ofMillis(1100));
         positiveButton.performClick();
         assertEquals(ModalDialogProperties.ButtonType.POSITIVE, controller.mClickedButton);
-    }
-
-    @Test
-    @Config(qualifiers = "sw600dp")
-    @EnableFeatures(ModalDialogFeatureList.DIALOGS_ON_LARGE_FORM_FACTORS)
-    public void measure_LargeFormFactorUi_Tablet_WidthCappedAt480dp() {
-        // Wide tablet window (800x800).
-        mDisplayMetrics.widthPixels = 800;
-        mDisplayMetrics.heightPixels = 800;
-
-        createModel(mModelBuilder, 600, MIN_DIALOG_HEIGHT);
-
-        var widthMeasureSpec = MeasureSpec.makeMeasureSpec(600, MeasureSpec.AT_MOST);
-        var heightMeasureSpec = MeasureSpec.makeMeasureSpec(MIN_DIALOG_HEIGHT, MeasureSpec.AT_MOST);
-        mDialogView.measure(widthMeasureSpec, heightMeasureSpec);
-
-        assertEquals(
-                "Width should be capped at 480dp on large form factor.",
-                MAX_DIALOG_WIDTH_LFF,
-                mDialogView.getMeasuredWidth());
-    }
-
-    @Test
-    @Config(qualifiers = "sw600dp")
-    @EnableFeatures(ModalDialogFeatureList.DIALOGS_ON_LARGE_FORM_FACTORS)
-    public void measure_LargeFormFactorUi_NarrowWindow_Maintains16dpHorizontalMargin() {
-        // Narrow container (400dp wide < 480dp).
-        var containerWidth = 400;
-
-        createModel(mModelBuilder, 600, MIN_DIALOG_HEIGHT);
-
-        var widthMeasureSpec = MeasureSpec.makeMeasureSpec(containerWidth, MeasureSpec.AT_MOST);
-        var heightMeasureSpec = MeasureSpec.makeMeasureSpec(MIN_DIALOG_HEIGHT, MeasureSpec.AT_MOST);
-        mDialogView.measure(widthMeasureSpec, heightMeasureSpec);
-
-        // Expected width = containerWidth - 2 * 16dp = 400 - 32 = 368dp.
-        int expectedWidth = containerWidth - 2 * 16;
-        assertEquals(
-                "Width should maintain at least 16dp horizontal margin.",
-                expectedWidth,
-                mDialogView.getMeasuredWidth());
-    }
-
-    @Test
-    @Config(qualifiers = "sw600dp")
-    @EnableFeatures(ModalDialogFeatureList.DIALOGS_ON_LARGE_FORM_FACTORS)
-    public void
-            measure_LargeFormFactorUi_SideUiConstrainedContainer_Maintains16dpHorizontalMargin() {
-        // Wide window (1000dp), but side UI insets constrain the container to 360dp.
-        mDisplayMetrics.widthPixels = 1000;
-        mDisplayMetrics.heightPixels = 800;
-
-        int constrainedContainerWidth = 360;
-        createModel(mModelBuilder, 600, MIN_DIALOG_HEIGHT);
-
-        var widthMeasureSpec =
-                MeasureSpec.makeMeasureSpec(constrainedContainerWidth, MeasureSpec.AT_MOST);
-        var heightMeasureSpec = MeasureSpec.makeMeasureSpec(MIN_DIALOG_HEIGHT, MeasureSpec.AT_MOST);
-        mDialogView.measure(widthMeasureSpec, heightMeasureSpec);
-
-        // Expected width = constrainedContainerWidth - 2 * 16dp = 360 - 32 = 328dp.
-        int expectedWidth = constrainedContainerWidth - 2 * 16;
-        assertEquals(
-                "Width should maintain 16dp horizontal margin when container is constrained by side"
-                        + " UI.",
-                expectedWidth,
-                mDialogView.getMeasuredWidth());
-    }
-
-    @Test
-    @Config(qualifiers = "sw600dp")
-    @EnableFeatures(ModalDialogFeatureList.DIALOGS_ON_LARGE_FORM_FACTORS)
-    public void measure_LargeFormFactorUi_ShortWindow_Maintains24dpVerticalMargin() {
-        // Short container (500dp tall).
-        var containerHeight = 500;
-        mDisplayMetrics.heightPixels = containerHeight;
-
-        // Content requests 600dp height.
-        createModel(mModelBuilder, MAX_DIALOG_WIDTH_LFF, 600);
-
-        var widthMeasureSpec =
-                MeasureSpec.makeMeasureSpec(MAX_DIALOG_WIDTH_LFF, MeasureSpec.AT_MOST);
-        var heightMeasureSpec = MeasureSpec.makeMeasureSpec(containerHeight, MeasureSpec.AT_MOST);
-        mDialogView.measure(widthMeasureSpec, heightMeasureSpec);
-
-        // Expected height = containerHeight - 2 * 24dp = 500 - 48 = 452dp.
-        int expectedHeight = containerHeight - 2 * 24;
-        assertEquals(
-                "Height should maintain at least 24dp vertical margin.",
-                expectedHeight,
-                mDialogView.getMeasuredHeight());
-    }
-
-    @Test
-    @Config(qualifiers = "sw600dp")
-    @EnableFeatures(ModalDialogFeatureList.DIALOGS_ON_LARGE_FORM_FACTORS)
-    public void measure_LargeFormFactorUi_Desktop_WidthCappedAt480dp() {
-        DeviceInfo.setIsDesktopForTesting(true);
-
-        mDisplayMetrics.widthPixels = 1200;
-        mDisplayMetrics.heightPixels = 800;
-
-        createModel(mModelBuilder, 600, MIN_DIALOG_HEIGHT);
-
-        var widthMeasureSpec = MeasureSpec.makeMeasureSpec(600, MeasureSpec.AT_MOST);
-        var heightMeasureSpec = MeasureSpec.makeMeasureSpec(MIN_DIALOG_HEIGHT, MeasureSpec.AT_MOST);
-        mDialogView.measure(widthMeasureSpec, heightMeasureSpec);
-
-        assertEquals(
-                "Width should be capped at 480dp on desktop.",
-                MAX_DIALOG_WIDTH_LFF,
-                mDialogView.getMeasuredWidth());
     }
 }

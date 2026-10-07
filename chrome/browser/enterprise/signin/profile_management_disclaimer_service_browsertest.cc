@@ -194,9 +194,8 @@ const ManagementDisclaimerTestParam kManagementDisclaimerTestParams[] = {
     // - Profile creation is enforced by policy
     // - No User choice
     {
-#if BUILDFLAG(IS_MAC) || (BUILDFLAG(IS_WIN) && defined(ADDRESS_SANITIZER))
-        // TODO(crbug.com/505194363): Re-enable on Mac once deflaked.
-        // TODO(crbug.com/549938845): Flaky on Win ASan.
+#if BUILDFLAG(IS_MAC)
+        // TODO(crbug.com/505194363): Re-enable once deflaked.
         .test_name = "DISABLED_Managed_EnforcedByPolicy_Dismiss",
 #else
         .test_name = "Managed_EnforcedByPolicy_Dismiss",

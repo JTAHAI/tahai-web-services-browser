@@ -5,20 +5,16 @@
 package org.chromium.chrome.browser.gesturenav;
 
 import org.chromium.build.annotations.NullMarked;
-import org.chromium.chrome.browser.gesturenav.NavigationHandler.GestureAction;
-import org.chromium.ui.OverscrollActivationStatus;
 import org.chromium.ui.modelutil.PropertyKey;
 import org.chromium.ui.modelutil.PropertyModel.WritableBooleanPropertyKey;
 import org.chromium.ui.modelutil.PropertyModel.WritableFloatPropertyKey;
-import org.chromium.ui.modelutil.PropertyModel.WritableIntDefPropertyKey;
 import org.chromium.ui.modelutil.PropertyModel.WritableIntPropertyKey;
 
 /** Properties used for gesture navigation view model. */
 @NullMarked
 class GestureNavigationProperties {
     /** Gesture navigation action as defined in {@link NavigationHandler.GestureAction}. */
-    static final WritableIntDefPropertyKey<GestureAction> ACTION =
-            new WritableIntDefPropertyKey<>(GestureAction.RESET_BUBBLE);
+    static final WritableIntPropertyKey ACTION = new WritableIntPropertyKey();
 
     /**
      * Gesture navigation direction. {@code true} for forward navigation, {@code false} for back.
@@ -29,8 +25,7 @@ class GestureNavigationProperties {
     static final WritableIntPropertyKey EDGE = new WritableIntPropertyKey();
 
     /** Overscroll activation status as defined in {@link OverscrollActivationStatus}. */
-    static final WritableIntDefPropertyKey<OverscrollActivationStatus> ACTIVATION_STATUS =
-            new WritableIntDefPropertyKey<>(OverscrollActivationStatus.DISALLOW_ACTIVATION);
+    static final WritableIntPropertyKey ACTIVATION_STATUS = new WritableIntPropertyKey();
 
     /** Amount of total swipe gesture offset. */
     static final WritableFloatPropertyKey BUBBLE_OFFSET = new WritableFloatPropertyKey();

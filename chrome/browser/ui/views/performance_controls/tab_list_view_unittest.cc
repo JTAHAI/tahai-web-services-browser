@@ -9,17 +9,11 @@
 #include <vector>
 
 #include "chrome/browser/ui/performance_controls/tab_list_model.h"
-#include "chrome/browser/ui/tab_ui_helper.h"
-#include "chrome/browser/ui/tabs/public/tab_features.h"
-#include "chrome/browser/ui/tabs/tab_model.h"
+#include "chrome/browser/ui/views/frame/test_with_browser_view.h"
 #include "chrome/browser/ui/views/performance_controls/tab_list_row_view.h"
 #include "chrome/grit/generated_resources.h"
-#include "chrome/test/base/testing_profile.h"
-#include "chrome/test/views/chrome_views_test_base.h"
 #include "components/performance_manager/public/resource_attribution/page_context.h"
 #include "components/performance_manager/test_support/test_harness_helper.h"
-#include "content/public/test/test_renderer_host.h"
-#include "content/public/test/web_contents_tester.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/events/base_event_utils.h"
@@ -35,49 +29,26 @@
 #include "ui/views/widget/widget.h"
 #include "url/gurl.h"
 
-class TabListViewUnitTest : public ChromeViewsTestBase {
+class TabListViewUnitTest : public TestWithBrowserView {
  public:
   void SetUp() override {
-    ChromeViewsTestBase::SetUp();
+    TestWithBrowserView::SetUp();
     pm_harness_.SetUp();
-    profile_ = std::make_unique<TestingProfile>();
   }
 
   void TearDown() override {
-    tab_models_.clear();
-    profile_.reset();
     pm_harness_.TearDown();
-    ChromeViewsTestBase::TearDown();
-  }
-
-  void AddTab(const GURL& url) {
-    std::unique_ptr<content::WebContents> web_contents =
-        content::WebContentsTester::CreateTestWebContents(profile_.get(),
-                                                          nullptr);
-    // Explicitly navigate to avoid un-navigated WebContents crashes on bots.
-    content::WebContentsTester::For(web_contents.get())->NavigateAndCommit(url);
-
-    // Create a standalone TabModel (passing nullptr for TabStripModel*).
-    // This automatically initializes TabLookupFromWebContents, TabHelpers, and
-    // TabUIHelper.
-    auto tab_model =
-        std::make_unique<tabs::TabModel>(std::move(web_contents), nullptr);
-    tab_model->GetTabFeatures()->SetTabUIHelperForTesting(
-        std::make_unique<TabUIHelper>(*tab_model));
-
-    // Insert at the beginning to match BrowserWithTestWindowTest::AddTab
-    // behavior where newly added tabs are placed at index 0.
-    tab_models_.insert(tab_models_.begin(), std::move(tab_model));
+    TestWithBrowserView::TearDown();
   }
 
   std::vector<resource_attribution::PageContext> GetPageContextAtIndices(
       std::vector<int> indices) {
     std::vector<resource_attribution::PageContext> contexts = {};
+    TabStripModel* const tab_strip_model = browser()->tab_strip_model();
     for (int index : indices) {
-      CHECK_LT(static_cast<size_t>(index), tab_models_.size());
       std::optional<resource_attribution::PageContext> context =
           resource_attribution::PageContext::FromWebContents(
-              tab_models_[index]->GetContents());
+              tab_strip_model->GetWebContentsAt(index));
       CHECK(context.has_value());
       contexts.emplace_back(context.value());
     }
@@ -103,16 +74,12 @@ class TabListViewUnitTest : public ChromeViewsTestBase {
   }
 
  private:
-  const tabs::TabModel::PreventFeatureInitializationForTesting prevent_;
   performance_manager::PerformanceManagerTestHarnessHelper pm_harness_;
-  content::RenderViewHostTestEnabler rvh_test_enabler_;
-  std::unique_ptr<TestingProfile> profile_;
-  std::vector<std::unique_ptr<tabs::TabModel>> tab_models_;
 };
 
 TEST_F(TabListViewUnitTest, PopulateTabList) {
-  AddTab(GURL("https://a.com"));
-  AddTab(GURL("https://b.com"));
+  AddTab(browser(), GURL("https://a.com"));
+  AddTab(browser(), GURL("https://b.com"));
 
   auto tab_list_model =
       std::make_unique<TabListModel>(GetPageContextAtIndices({0, 1}));
@@ -133,8 +100,8 @@ TEST_F(TabListViewUnitTest, PopulateTabList) {
 }
 
 TEST_F(TabListViewUnitTest, CloseButtonRemovesListItem) {
-  AddTab(GURL("https://a.com"));
-  AddTab(GURL("https://b.com"));
+  AddTab(browser(), GURL("https://a.com"));
+  AddTab(browser(), GURL("https://b.com"));
 
   auto tab_list_model =
       std::make_unique<TabListModel>(GetPageContextAtIndices({0, 1}));
@@ -161,8 +128,8 @@ TEST_F(TabListViewUnitTest, CloseButtonRemovesListItem) {
 }
 
 TEST_F(TabListViewUnitTest, TabListRowViewAccessibleName) {
-  AddTab(GURL("https://a.com"));
-  AddTab(GURL("https://b.com"));
+  AddTab(browser(), GURL("https://a.com"));
+  AddTab(browser(), GURL("https://b.com"));
 
   auto tab_list_model =
       std::make_unique<TabListModel>(GetPageContextAtIndices({0, 1}));
@@ -214,8 +181,8 @@ TEST_F(TabListViewUnitTest, TabListRowViewAccessibleName) {
 }
 
 TEST_F(TabListViewUnitTest, TabListViewAccessibleName) {
-  AddTab(GURL("https://a.com"));
-  AddTab(GURL("https://b.com"));
+  AddTab(browser(), GURL("https://a.com"));
+  AddTab(browser(), GURL("https://b.com"));
 
   auto tab_list_model =
       std::make_unique<TabListModel>(GetPageContextAtIndices({0, 1}));
@@ -257,8 +224,8 @@ TEST_F(TabListViewUnitTest, TabListViewAccessibleName) {
 }
 
 TEST_F(TabListViewUnitTest, CloseButtonShowsAndHidesUpdate) {
-  AddTab(GURL("https://a.com"));
-  AddTab(GURL("https://b.com"));
+  AddTab(browser(), GURL("https://a.com"));
+  AddTab(browser(), GURL("https://b.com"));
 
   auto tab_list_model =
       std::make_unique<TabListModel>(GetPageContextAtIndices({0, 1}));
@@ -307,8 +274,8 @@ TEST_F(TabListViewUnitTest, CloseButtonShowsAndHidesUpdate) {
 }
 
 TEST_F(TabListViewUnitTest, CloseButtonShowsAndHidesWithFocus) {
-  AddTab(GURL("https://a.com"));
-  AddTab(GURL("https://b.com"));
+  AddTab(browser(), GURL("https://a.com"));
+  AddTab(browser(), GURL("https://b.com"));
 
   auto tab_list_model =
       std::make_unique<TabListModel>(GetPageContextAtIndices({0, 1}));
@@ -361,7 +328,7 @@ TEST_F(TabListViewUnitTest, CloseButtonShowsAndHidesWithFocus) {
 }
 
 TEST_F(TabListViewUnitTest, AccessibleProperties) {
-  AddTab(GURL("https://a.com"));
+  AddTab(browser(), GURL("https://a.com"));
 
   // TabListView accessible properties test.
   auto tab_list_model =

@@ -91,16 +91,7 @@ constexpr wchar_t kLoggingRegistryKeyName[] = L"SOFTWARE\\Chromoting\\logging";
 constexpr wchar_t kLogToFileRegistryValue[] = L"LogToFile";
 constexpr wchar_t kLogToEventLogRegistryValue[] = L"LogToEventLog";
 
-#if defined(OFFICIAL_BUILD)
-constexpr wchar_t kPeerConnectionRegistryKeyName[] =
-    L"SOFTWARE\\Google\\Chrome Remote Desktop\\peer-connection";
-#else
-constexpr wchar_t kPeerConnectionRegistryKeyName[] =
-    L"SOFTWARE\\Chromoting\\peer-connection";
-#endif
-
-constexpr wchar_t kUsePeerConnectionProcessRegistryValue[] =
-    L"UsePeerConnectionProcess";
+const char* const kCopiedSwitchNames[] = {switches::kV, switches::kVModule};
 
 }  // namespace
 
@@ -126,16 +117,13 @@ class DaemonProcessWin : public DaemonProcess {
 
   // If event logging has been configured, creates an ETW trace consumer which
   // listens for logged events from our host processes.  Tracing stops when
-  // `etw_trace_consumer_` is destroyed.  Logging destinations are configured
+  // |etw_trace_consumer_| is destroyed.  Logging destinations are configured
   // via the registry.
   void ConfigureHostLogging();
 
   // If the user has consented to crash reporting, this method will start a
   // BreakpadServer instance to handle crashes from the network process.
   void ConfigureCrashReporting();
-
-  // If configured in the registry, enables the PeerConnection process.
-  void ConfigurePeerConnectionProcess();
 
  protected:
   // DaemonProcess implementation.
@@ -144,7 +132,7 @@ class DaemonProcessWin : public DaemonProcess {
       const mojom::DesktopSessionOptions& options) override;
   void LaunchNetworkProcess() override;
   std::unique_ptr<WorkerProcessLauncher::Delegate>
-  CreatePeerConnectionProcessLauncherDelegate() override;
+  CreatePeerConnectionProcessLauncherDelegate(int terminal_id) override;
 
   bool OnInitAfterChannelConnected(int32_t peer_pid) override;
 
@@ -164,8 +152,6 @@ class DaemonProcessWin : public DaemonProcess {
   std::unique_ptr<EtwTraceConsumer> etw_trace_consumer_;
 
   base::SequenceBound<MinidumpHandler> minidump_handler_;
-
-  std::optional<bool> use_peer_connection_process_;
 };
 
 DaemonProcessWin::DaemonProcessWin(
@@ -222,21 +208,17 @@ void DaemonProcessWin::LaunchNetworkProcess() {
   target->AppendSwitchASCII(kProcessTypeSwitchName, kProcessTypeNetwork);
   target->CopySwitchesFrom(*base::CommandLine::ForCurrentProcess(),
                            kCopiedSwitchNames);
-  if (use_peer_connection_process_.has_value()) {
-    target->AppendSwitchASCII(kUsePeerConnectionProcessSwitch,
-                              *use_peer_connection_process_ ? "true" : "false");
-  }
 
   auto delegate = std::make_unique<UnprivilegedProcessDelegate>(
       io_task_runner(), std::move(target),
       UnprivilegedProcessDelegate::IntegrityLevel::kLow);
-  // TODO(joedow): Address software-backed cert issues and then configure
-  // this process to run in an app container again.
+  delegate->UseAppContainer(L"chromoting.network");
+
   SetNetworkLauncherDelegate(std::move(delegate));
 }
 
 std::unique_ptr<WorkerProcessLauncher::Delegate>
-DaemonProcessWin::CreatePeerConnectionProcessLauncherDelegate() {
+DaemonProcessWin::CreatePeerConnectionProcessLauncherDelegate(int terminal_id) {
   DCHECK(caller_task_runner()->BelongsToCurrentThread());
 
   base::FilePath host_binary;
@@ -250,11 +232,9 @@ DaemonProcessWin::CreatePeerConnectionProcessLauncherDelegate() {
   target->CopySwitchesFrom(*base::CommandLine::ForCurrentProcess(),
                            kCopiedSwitchNames);
 
-  auto delegate = std::make_unique<UnprivilegedProcessDelegate>(
+  return std::make_unique<UnprivilegedProcessDelegate>(
       io_task_runner(), std::move(target),
       UnprivilegedProcessDelegate::IntegrityLevel::kUntrusted);
-  delegate->UseAppContainer(L"chromoting.peer_connection");
-  return delegate;
 }
 
 std::unique_ptr<DaemonProcess> DaemonProcess::Create(
@@ -269,9 +249,6 @@ std::unique_ptr<DaemonProcess> DaemonProcess::Create(
 
   // Initialize crash reporting before the network process is launched.
   daemon_process->ConfigureCrashReporting();
-
-  // Check registry to see if the PeerConnection process should be enabled.
-  daemon_process->ConfigurePeerConnectionProcess();
 
   // Finishes configuring the Daemon process and launches the network process.
   daemon_process->Initialize();
@@ -405,15 +382,16 @@ void DaemonProcessWin::BindSessionServices(
 
   uint32_t peer_session_id =
       host_services_receivers().current_context()->session_id;
-  const auto& sessions = desktop_sessions();
-  auto it = std::ranges::find_if(sessions, [peer_session_id](const auto& pair) {
-    return static_cast<DesktopSessionWin*>(pair.second.get())
-               ->windows_session_id() == peer_session_id;
-  });
+  auto& sessions = desktop_sessions();
+  auto it =
+      std::ranges::find_if(sessions, [peer_session_id](DesktopSession* s) {
+        return static_cast<DesktopSessionWin*>(s)->windows_session_id() ==
+               peer_session_id;
+      });
 
-  if (it != sessions.end() && it->second->events_remote()) {
-    it->second->events_remote()->OnSessionServicesClientConnected(
-        std::move(receiver));
+  if (it != sessions.end()) {
+    desktop_session_connection_events()->OnSessionServicesClientConnected(
+        (*it)->id(), std::move(receiver));
   } else {
     LOG(WARNING) << "No desktop session found for Windows session ID "
                  << peer_session_id;
@@ -484,26 +462,6 @@ void DaemonProcessWin::ConfigureHostLogging() {
       AutoThread::CreateWithType(kEtwTracingThreadName, caller_task_runner(),
                                  base::MessagePumpType::IO),
       std::move(loggers));
-}
-
-void DaemonProcessWin::ConfigurePeerConnectionProcess() {
-  base::win::RegKey pc_reg_key;
-  LONG result = pc_reg_key.Open(HKEY_LOCAL_MACHINE,
-                                kPeerConnectionRegistryKeyName, KEY_READ);
-  if (result != ERROR_SUCCESS) {
-    return;
-  }
-
-  DWORD enabled = 0;
-  result =
-      pc_reg_key.ReadValueDW(kUsePeerConnectionProcessRegistryValue, &enabled);
-  if (result != ERROR_SUCCESS) {
-    return;
-  }
-
-  use_peer_connection_process_ = (enabled != 0);
-  HOST_LOG << (*use_peer_connection_process_ ? "Enabling" : "Disabling")
-           << " PeerConnection process via registry configuration.";
 }
 
 }  // namespace remoting

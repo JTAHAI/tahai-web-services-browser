@@ -337,7 +337,14 @@ xsltDocumentFunction(xmlXPathParserContextPtr ctxt, int nargs)
         if (base != NULL)
             xmlFree(base);
         if (URI == NULL) {
-            valuePush(ctxt, xmlXPathNewNodeSet(NULL));
+            if ((tctxt != NULL) && (tctxt->style != NULL) &&
+                (tctxt->style->doc != NULL) &&
+                (xmlStrEqual(URI, tctxt->style->doc->URL))) {
+                /* This selects the stylesheet's doc itself. */
+                valuePush(ctxt, xmlXPathNewNodeSet((xmlNodePtr) tctxt->style->doc));
+            } else {
+                valuePush(ctxt, xmlXPathNewNodeSet(NULL));
+            }
         } else {
 	    xsltDocumentFunctionLoadDocument(ctxt, URI, fragment);
 	    xmlFree(URI);

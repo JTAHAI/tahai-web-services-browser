@@ -1,2 +1,3 @@
-rules:
-- "**": [datalist]
+features:
+- name: datalist
+  files: "**"

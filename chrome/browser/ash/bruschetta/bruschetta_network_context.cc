@@ -23,6 +23,7 @@
 #include "chrome/browser/profiles/profile.h"
 #include "components/prefs/pref_service.h"
 #include "content/public/browser/browser_thread.h"
+#include "content/public/browser/content_browser_client.h"
 #include "content/public/browser/network_service_instance.h"
 #include "content/public/browser/storage_partition.h"
 #include "extensions/browser/cws_info_service.h"
@@ -40,6 +41,7 @@
 #include "net/ssl/ssl_private_key.h"
 #include "services/network/public/cpp/simple_url_loader.h"
 #include "services/network/public/mojom/network_context.mojom.h"
+#include "services/network/public/mojom/shared_storage.mojom.h"
 #include "services/network/public/mojom/url_loader_factory.mojom.h"
 #include "services/network/public/mojom/url_loader_network_service_observer.mojom.h"
 #include "url/gurl.h"
@@ -264,6 +266,14 @@ void BruschettaNetworkContext::OnDataUseUpdate(
     base::ByteSize recv_bytes,
     base::ByteSize sent_bytes) {}
 
+void BruschettaNetworkContext::OnSharedStorageHeaderReceived(
+    const url::Origin& request_origin,
+    std::vector<network::mojom::SharedStorageModifierMethodWithOptionsPtr>
+        methods_with_options,
+    const std::optional<std::string>& with_lock,
+    OnSharedStorageHeaderReceivedCallback callback) {
+  std::move(callback).Run();
+}
 
 void BruschettaNetworkContext::Clone(
     mojo::PendingReceiver<network::mojom::URLLoaderNetworkServiceObserver>

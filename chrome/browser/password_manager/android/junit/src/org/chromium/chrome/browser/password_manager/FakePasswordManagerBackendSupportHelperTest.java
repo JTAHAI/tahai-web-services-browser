@@ -12,9 +12,11 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import org.chromium.base.test.BaseRobolectricTestRunner;
+import org.chromium.base.test.util.Batch;
 
 /** Tests for {@link FakePasswordManagerBackendSupportHelper}. */
 @RunWith(BaseRobolectricTestRunner.class)
+@Batch(Batch.UNIT_TESTS)
 public class FakePasswordManagerBackendSupportHelperTest {
     private FakePasswordManagerBackendSupportHelper mFakeHelper;
 

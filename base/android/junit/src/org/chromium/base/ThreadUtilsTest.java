@@ -13,6 +13,7 @@ import org.junit.Assume;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.robolectric.annotation.Config;
 
 import org.chromium.base.ThreadUtils.ThreadChecker;
 import org.chromium.base.task.PostTask;
@@ -23,6 +24,7 @@ import org.chromium.build.BuildConfig;
 
 /** Unit tests for ThreadUtils. */
 @RunWith(BaseRobolectricTestRunner.class)
+@Config(manifest = Config.NONE)
 public class ThreadUtilsTest {
     @Before
     public void setUp() {

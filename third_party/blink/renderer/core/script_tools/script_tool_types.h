@@ -42,7 +42,6 @@ struct ScriptToolDeclaration {
   String input_schema;
   std::optional<bool> read_only;
   std::optional<bool> untrusted_content;
-  std::optional<bool> consequential;
 };
 
 using ScriptToolExecutedCallback =

@@ -386,82 +386,88 @@ void BoostingVoteAggregator::CancelBoostingVote(
   }
 }
 
-void BoostingVoteAggregator::OnVoteSet(
+void BoostingVoteAggregator::OnVoteSubmitted(
     VoterId voter_id,
     const ExecutionContext* execution_context,
-    const std::optional<Vote>& vote) {
+    const Vote& vote) {
   DCHECK(IsSetup());
   DCHECK_EQ(input_voter_id_, voter_id);
 
-  if (vote.has_value()) {
-    SetVote(execution_context, *vote);
-  } else {
-    RemoveVote(execution_context);
+  // Store the vote.
+  auto node_data_it = FindOrCreateNodeData(execution_context);
+  node_data_it->second.SetIncomingVote(vote);
+
+  NodeDataPtrSet changes;
+
+  // Update the reachability tree for the new vote if necessary.
+  if (vote.value() != base::Process::Priority::kMinValue) {
+    uint32_t layer_bit = PriorityToBit(vote.value());
+    OnVoteAdded(layer_bit, &(*node_data_it), &changes);
   }
+
+  UpstreamChanges(changes);
 }
 
-void BoostingVoteAggregator::SetVote(const ExecutionContext* execution_context,
-                                     const Vote& vote) {
-  auto node_data_it = FindOrCreateNodeData(execution_context);
-  NodeDataMap::value_type& node_pair = *node_data_it;
-  auto& node_data = node_pair.second;
+void BoostingVoteAggregator::OnVoteChanged(
+    VoterId voter_id,
+    const ExecutionContext* execution_context,
+    const Vote& new_vote) {
+  auto node_data_it = FindNodeData(execution_context);
+  auto* node_data = &(*node_data_it);
 
-  // Safe NO-OP if the vote is identical (same priority and reason).
-  if (node_data.HasIncomingVote() && node_data.incoming_vote() == vote) {
-    return;
-  }
-
+  // Remember the old and new priorities before committing any changes.
   base::Process::Priority old_priority =
-      node_data.HasIncomingVote() ? node_data.incoming_vote().value()
-                                  : base::Process::Priority::kMinValue;
-  base::Process::Priority new_priority = vote.value();
+      node_data->second.incoming_vote().value();
+  base::Process::Priority new_priority = new_vote.value();
 
-  node_data.SetIncomingVote(vote);
+  // Update the vote in place.
+  node_data->second.UpdateIncomingVote(new_vote);
 
-  // Always evaluate this node's outgoing vote. Tree operations below will
-  // discover and append any affected downstream nodes to |changes|.
   NodeDataPtrSet changes;
-  changes.insert(&node_pair);
+  changes.insert(node_data);  // This node is changing regardless.
 
-  // Remove the old vote layer from the reachability tree if needed.
+  // Update the reachability tree for the old vote if necessary.
   if (old_priority != base::Process::Priority::kMinValue) {
     uint32_t layer_bit = PriorityToBit(old_priority);
-    OnVoteRemoved(layer_bit, &node_pair, &changes);
+    OnVoteRemoved(layer_bit, node_data, &changes);
   }
 
-  // Add the new vote layer to the reachability tree if needed.
+  // Update the reachability tree for the new vote if necessary.
   if (new_priority != base::Process::Priority::kMinValue) {
     uint32_t layer_bit = PriorityToBit(new_priority);
-    OnVoteAdded(layer_bit, &node_pair, &changes);
+    OnVoteAdded(layer_bit, node_data, &changes);
   }
 
   UpstreamChanges(changes);
 }
 
-void BoostingVoteAggregator::RemoveVote(
+void BoostingVoteAggregator::OnVoteInvalidated(
+    VoterId voter_id,
     const ExecutionContext* execution_context) {
-  auto node_data_it = nodes_.find(execution_context);
-  // Safe NO-OP if the context doesn't exist or has no active incoming vote.
-  if (node_data_it == nodes_.end() || !node_data_it->second.HasIncomingVote()) {
-    return;
-  }
+  auto node_data_it = FindNodeData(execution_context);
 
-  NodeDataMap::value_type& node_pair = *node_data_it;
-  auto& node_data = node_pair.second;
+  // Remember the old priority before committing any changes.
+  base::Process::Priority old_priority =
+      node_data_it->second.incoming_vote().value();
 
-  base::Process::Priority old_priority = node_data.incoming_vote().value();
-  node_data.SetIncomingVote(std::nullopt);
+  // Update the vote.
+  node_data_it->second.RemoveIncomingVote();
 
-  // Update the reachability tree if removing an active priority layer.
   NodeDataPtrSet changes;
+
+  // Update the reachability tree for the old vote if necessary.
   if (old_priority != base::Process::Priority::kMinValue) {
     uint32_t layer_bit = PriorityToBit(old_priority);
-    OnVoteRemoved(layer_bit, &node_pair, &changes);
+    OnVoteRemoved(layer_bit, &(*node_data_it), &changes);
   }
+
   UpstreamChanges(changes);
 
-  // The node may now be eligible for deletion if it has no edges.
+  // The node may be eligible for removal after its incoming vote has been
+  // canceled.
   MaybeRemoveNode(node_data_it);
+
+  return;
 }
 
 template <typename Function>
@@ -543,15 +549,27 @@ void BoostingVoteAggregator::UpstreamVoteIfNeeded(
   // We specifically don't upstream lowest priority votes, as that is the
   // default priority level of every execution context in the absence of any
   // specific higher votes.
-  std::optional<Vote> new_vote;
-  if (priority != base::Process::Priority::kMinValue) {
-    new_vote.emplace(priority, GetVoteReason(node));
+  if (priority == base::Process::Priority::kMinValue) {
+    if (node_data->HasOutgoingVote()) {
+      node_data->CancelOutgoingVote();
+      channel_.InvalidateVote(execution_context);
+    }
+    return;
   }
 
-  if (node_data->outgoing_vote() != new_vote) {
-    node_data->SetOutgoingVote(new_vote);
-    channel_.SetVote(execution_context, new_vote);
+  const Vote vote(priority, GetVoteReason(node));
+
+  // Update the vote if the node already has one. If it changed, the new vote
+  // must be upstreamed.
+  if (node_data->HasOutgoingVote()) {
+    if (node_data->UpdateOutgoingVote(vote))
+      channel_.ChangeVote(execution_context, vote);
+    return;
   }
+
+  // Create an outgoing vote.
+  node_data->SetOutgoingVote(vote);
+  channel_.SubmitVote(execution_context, vote);
 }
 
 void BoostingVoteAggregator::UpstreamChanges(const NodeDataPtrSet& changes) {
@@ -696,6 +714,8 @@ void BoostingVoteAggregator::ReprocessSubtree(uint32_t layer_bit,
 void BoostingVoteAggregator::OnVoteAdded(uint32_t layer_bit,
                                          NodeDataMap::value_type* node,
                                          NodeDataPtrSet* changes) {
+  changes->insert(node);
+
   // If the node is already active then it must be active due to another
   // inbound edge. In this case the reachability spanning tree doesn't need
   // updating, but we do deactivate the incoming edge so as to always favor the

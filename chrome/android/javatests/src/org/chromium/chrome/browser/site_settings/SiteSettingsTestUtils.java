@@ -95,7 +95,6 @@ public class SiteSettingsTestUtils {
             Class<? extends Fragment> fragmentClass, Bundle fragmentArgs) {
         SettingsNavigation settingsNavigation =
                 SettingsNavigationFactory.createSettingsNavigation();
-        settingsNavigation.setUseSettingsActivityForTesting(true); // crbug.com/521895796
         Intent intent =
                 settingsNavigation.createSettingsIntent(
                         ApplicationProvider.getApplicationContext(), fragmentClass, fragmentArgs);

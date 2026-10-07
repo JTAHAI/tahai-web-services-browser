@@ -508,21 +508,10 @@ void QtUi::SetDarkTheme(bool dark) {
   // Qt::ColorScheme is only available in QT 6.5 and later.
 }
 
-void QtUi::SetColorScheme(std::optional<bool> prefer_dark) {
-  // Route the color scheme through the OS settings provider, which sources the
-  // web `NativeTheme::preferred_color_scheme()` via
-  // `UpdateVariablesForToolkitSettings()`.
-  os_settings_provider_->SetColorScheme(prefer_dark);
-}
-
 DISABLE_CFI_VCALL
 void QtUi::SetAccentColor(std::optional<SkColor> accent_color) {
   accent_color_ = accent_color;
-  // Route the accent color through the OS settings provider. This updates
-  // `NativeTheme::user_color()` (via `UpdateVariablesForToolkitSettings()`) and
-  // notifies all observing native themes, which re-runs the native color mixer
-  // above using the freshly-set `accent_color_`.
-  os_settings_provider_->SetAccentColor(accent_color);
+  native_theme_->NotifyOnNativeThemeUpdated();
 }
 
 DISABLE_CFI_VCALL
@@ -601,11 +590,6 @@ void QtUi::FontChanged() {
 
 void QtUi::ThemeChanged() {
   native_theme_->OnQtThemeChanged();
-  // Unlike GTK (which has settings signals), the Qt provider must be told to
-  // re-derive the toolkit color scheme when the Qt theme changes.
-  os_settings_provider_->OnThemeChanged();
-  // Animations enabled depends on the theme animation duration.
-  NotifyAnimationsEnabledChanged();
 }
 
 void QtUi::ScaleFactorMaybeChanged() {

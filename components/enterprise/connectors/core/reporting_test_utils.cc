@@ -32,7 +32,7 @@ namespace {
 using base::test::EqualsProto;
 
 base::ListValue CreateOptInEventsList(
-    const base::flat_map<std::string, std::vector<std::string>>&
+    const std::map<std::string, std::vector<std::string>>&
         enabled_opt_in_events) {
   base::ListValue enabled_opt_in_events_list;
   for (const auto& enabled_opt_in_event : enabled_opt_in_events) {
@@ -51,8 +51,8 @@ base::ListValue CreateOptInEventsList(
 }
 
 base::DictValue CreateSecurityEventReportingSettings(
-    const base::flat_set<std::string>& enabled_event_names,
-    const base::flat_map<std::string, std::vector<std::string>>&
+    const std::set<std::string>& enabled_event_names,
+    const std::map<std::string, std::vector<std::string>>&
         enabled_opt_in_events) {
   base::DictValue settings;
 
@@ -78,8 +78,8 @@ base::DictValue CreateSecurityEventReportingSettings(
 void SetOnSecurityEventReporting(
     PrefService* prefs,
     bool enabled,
-    const base::flat_set<std::string>& enabled_event_names,
-    const base::flat_map<std::string, std::vector<std::string>>&
+    const std::set<std::string>& enabled_event_names,
+    const std::map<std::string, std::vector<std::string>>&
         enabled_opt_in_events,
     bool machine_scope) {
   ScopedListPrefUpdate settings_list(prefs, kOnSecurityEventPref);
@@ -99,8 +99,7 @@ void SetOnSecurityEventReporting(
 
 ::chrome::cros::reporting::proto::TriggeredRuleInfo MakeTriggeredRuleInfo(
     ::chrome::cros::reporting::proto::TriggeredRuleInfo::Action action,
-    bool has_watermark,
-    bool has_screenshot_protection) {
+    bool has_watermark) {
   ::chrome::cros::reporting::proto::TriggeredRuleInfo info;
   info.set_action(action);
   info.set_rule_id(123);
@@ -108,9 +107,6 @@ void SetOnSecurityEventReporting(
   info.set_url_category("test rule category");
   if (has_watermark) {
     info.set_has_watermarking(true);
-  }
-  if (has_screenshot_protection) {
-    info.set_has_screenshot_protection(true);
   }
   return info;
 }
@@ -136,8 +132,8 @@ safe_browsing::ReferrerChainEntry MakeReferrerChainEntry() {
 
 std::unique_ptr<policy::EmbeddedPolicyTestServer>
 CreatePolicyTestServerForSecurityEvents(
-    const base::flat_set<std::string>& enabled_event_names,
-    const base::flat_map<std::string, std::vector<std::string>>&
+    const std::set<std::string>& enabled_event_names,
+    const std::map<std::string, std::vector<std::string>>&
         enabled_opt_in_events) {
 #if BUILDFLAG(IS_FUCHSIA)
   // Policy is not supported for Fuchsia yet.
@@ -187,7 +183,8 @@ void EventReportValidatorBase::ExpectUrlFilteringInterstitialEvent(
           [this, expected_urlf_event](
               bool include_device_info,
               ::chrome::cros::reporting::proto::UploadEventsRequest request,
-              policy::CloudPolicyClient::ResultCallback callback) {
+              base::OnceCallback<void(policy::CloudPolicyClient::Result)>
+                  callback) {
             // There should only be 1 event per test.
             ASSERT_EQ(1, request.events_size());
             ASSERT_TRUE(
@@ -213,7 +210,8 @@ void EventReportValidatorBase::ExpectLoginEvent(
           [this, expected_login_event](
               bool include_device_info,
               ::chrome::cros::reporting::proto::UploadEventsRequest request,
-              policy::CloudPolicyClient::ResultCallback callback) {
+              base::OnceCallback<void(policy::CloudPolicyClient::Result)>
+                  callback) {
             // There should only be 1 event per test.
             ASSERT_EQ(1, request.events_size());
             ASSERT_TRUE(request.events().Get(0).has_login_event());
@@ -234,7 +232,8 @@ void EventReportValidatorBase::ExpectSecurityInterstitialEvent(
           [this, expected_interstitial_event](
               bool include_device_info,
               ::chrome::cros::reporting::proto::UploadEventsRequest request,
-              policy::CloudPolicyClient::ResultCallback callback) {
+              base::OnceCallback<void(policy::CloudPolicyClient::Result)>
+                  callback) {
             // There should only be 1 event per test.
             ASSERT_EQ(1, request.events_size());
             ASSERT_TRUE(request.events().Get(0).has_interstitial_event());
@@ -257,7 +256,8 @@ void EventReportValidatorBase::ExpectPasswordBreachEvent(
           [this, expected_password_breach_event](
               bool include_device_info,
               ::chrome::cros::reporting::proto::UploadEventsRequest request,
-              policy::CloudPolicyClient::ResultCallback callback) {
+              base::OnceCallback<void(policy::CloudPolicyClient::Result)>
+                  callback) {
             // There should only be 1 event per test.
             ASSERT_EQ(1, request.events_size());
             ASSERT_TRUE(request.events().Get(0).has_password_breach_event());
@@ -280,7 +280,8 @@ void EventReportValidatorBase::ExpectPasswordChangedEvent(
           [this, expected_password_changed_event](
               bool include_device_info,
               ::chrome::cros::reporting::proto::UploadEventsRequest request,
-              policy::CloudPolicyClient::ResultCallback callback) {
+              base::OnceCallback<void(policy::CloudPolicyClient::Result)>
+                  callback) {
             // There should only be 1 event per test.
             ASSERT_EQ(1, request.events_size());
             ASSERT_TRUE(request.events().Get(0).has_password_changed_event());
@@ -302,7 +303,8 @@ void EventReportValidatorBase::ExpectPasswordReuseEvent(
           [this, expected_password_reuse_event](
               bool include_device_info,
               ::chrome::cros::reporting::proto::UploadEventsRequest request,
-              policy::CloudPolicyClient::ResultCallback callback) {
+              base::OnceCallback<void(policy::CloudPolicyClient::Result)>
+                  callback) {
             // There should only be 1 event per test.
             ASSERT_EQ(1, request.events_size());
             ASSERT_TRUE(request.events().Get(0).has_password_reuse_event());
@@ -324,7 +326,8 @@ void EventReportValidatorBase::ExpectSensitiveDataEvent(
           [this, expected_sensitive_data_event](
               bool include_device_info,
               ::chrome::cros::reporting::proto::UploadEventsRequest request,
-              policy::CloudPolicyClient::ResultCallback callback) {
+              base::OnceCallback<void(policy::CloudPolicyClient::Result)>
+                  callback) {
             // There should only be 1 event per test.
             ASSERT_EQ(1, request.events_size());
             ASSERT_TRUE(request.events().Get(0).has_sensitive_data_event());
@@ -339,6 +342,99 @@ void EventReportValidatorBase::ExpectSensitiveDataEvent(
           });
 }
 
+void EventReportValidatorBase::ValidateField(
+    const base::DictValue* value,
+    const std::string& field_key,
+    const std::optional<std::string>& expected_value) {
+  if (expected_value.has_value()) {
+    ASSERT_TRUE(value->FindString(field_key))
+        << "Mismatch in field " << field_key << "\nNo value was set"
+        << "\nExpected value: " << expected_value.value();
+    ASSERT_EQ(*value->FindString(field_key), expected_value.value())
+        << "Mismatch in field " << field_key
+        << "\nActual value: " << value->FindString(field_key)
+        << "\nExpected value: " << expected_value.value();
+  } else {
+    ASSERT_EQ(nullptr, value->FindString(field_key))
+        << "Field " << field_key << " should not be populated. It has value "
+        << *value->FindString(field_key);
+  }
+}
 
+void EventReportValidatorBase::ValidateField(
+    const base::DictValue* value,
+    const std::string& field_key,
+    const std::optional<std::u16string>& expected_value) {
+  const std::string* s = value->FindString(field_key);
+  if (expected_value.has_value()) {
+    ASSERT_TRUE(s) << "Mismatch in field " << field_key << "\nNo value was set"
+                   << "\nExpected value: " << expected_value.value();
+
+    const std::u16string actual_string_value = base::UTF8ToUTF16(*s);
+    ASSERT_EQ(actual_string_value, expected_value.value())
+        << "Mismatch in field " << field_key
+        << "\nActual value: " << actual_string_value
+        << "\nExpected value: " << expected_value.value();
+  } else {
+    ASSERT_EQ(nullptr, s) << "Field " << field_key
+                          << " should not be populated. It has value "
+                          << *value->FindString(field_key);
+  }
+}
+
+void EventReportValidatorBase::ValidateField(
+    const base::DictValue* value,
+    const std::string& field_key,
+    const std::optional<int>& expected_value) {
+  if (expected_value.has_value()) {
+    ASSERT_TRUE(value->FindInt(field_key).has_value())
+        << "Mismatch in field " << field_key << "\nNo value was set"
+        << "\nExpected value: " << expected_value.value();
+    ASSERT_EQ(value->FindInt(field_key), expected_value)
+        << "Mismatch in field " << field_key
+        << "\nActual value: " << value->FindInt(field_key).value()
+        << "\nExpected value: " << expected_value.value();
+  } else {
+    ASSERT_FALSE(value->FindInt(field_key).has_value())
+        << "Field " << field_key << " should not be populated. It has value "
+        << *value->FindInt(field_key);
+  }
+}
+
+void EventReportValidatorBase::ValidateField(const base::DictValue* value,
+                                             const std::string& field_key,
+                                             int expected_value) {
+  ASSERT_TRUE(value->FindInt(field_key).has_value())
+      << "Mismatch in field " << field_key << "\nNo value was set"
+      << "\nExpected value: " << expected_value;
+  ASSERT_EQ(value->FindInt(field_key), expected_value)
+      << "Mismatch in field " << field_key
+      << "\nActual value: " << value->FindInt(field_key).value()
+      << "\nExpected value: " << expected_value;
+}
+
+void EventReportValidatorBase::ValidateField(const base::DictValue* value,
+                                             const std::string& field_key,
+                                             bool expected_value) {
+  ASSERT_TRUE(value->FindBool(field_key).has_value())
+      << "Mismatch in field " << field_key << "\nNo value was set"
+      << "\nExpected value: " << expected_value;
+  ASSERT_EQ(value->FindBool(field_key), expected_value)
+      << "Mismatch in field " << field_key
+      << "\nActual value: " << value->FindBool(field_key).value()
+      << "\nExpected value: " << expected_value;
+}
+
+void EventReportValidatorBase::ValidateField(const base::DictValue* value,
+                                             const std::string& field_key,
+                                             int64_t expected_value) {
+  ASSERT_TRUE(base::ValueToInt64(value->Find(field_key)).has_value())
+      << "Mismatch in field " << field_key << "\nNo value was set"
+      << "\nExpected value: " << expected_value;
+  ASSERT_EQ(base::ValueToInt64(value->Find(field_key)).value(), expected_value)
+      << "Mismatch in field " << field_key << "\nActual value: "
+      << base::ValueToInt64(value->Find(field_key)).value()
+      << "\nExpected value: " << expected_value;
+}
 
 }  // namespace enterprise_connectors::test

@@ -29,7 +29,6 @@ class UserCloudPolicyStatusProvider : public CloudPolicyCoreStatusProvider {
 
   // CloudPolicyCoreStatusProvider implementation.
   base::DictValue GetStatus() override;
-  policy::mojom::StatusPtr GetStatusMojo() override;
 };
 
 #endif  // CHROME_BROWSER_POLICY_STATUS_PROVIDER_USER_CLOUD_POLICY_STATUS_PROVIDER_H_

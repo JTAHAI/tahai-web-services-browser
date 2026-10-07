@@ -563,10 +563,6 @@ bool RenderWidgetHostViewIOS::HasFallbackSurface() const {
   return browser_compositor_->GetDelegatedFrameHost()->HasFallbackSurface();
 }
 
-void RenderWidgetHostViewIOS::OptOutFrameEviction() {
-  browser_compositor_->GetDelegatedFrameHost()->OptOutFrameEviction();
-}
-
 bool RenderWidgetHostViewIOS::TransformPointToCoordSpaceForView(
     const gfx::PointF& point,
     RenderWidgetHostViewInput* target_view,
@@ -610,7 +606,7 @@ void RenderWidgetHostViewIOS::SetActive(bool active) {
 }
 
 bool RenderWidgetHostViewIOS::ShouldRouteEvents() const {
-  CHECK(host(), base::NotFatalUntil::M158);
+  DCHECK(host());
   return host()->delegate() && host()->delegate()->GetInputEventRouter();
 }
 
@@ -829,8 +825,7 @@ void RenderWidgetHostViewIOS::OnTextSelectionChanged(
     TextInputManager* text_input_manager,
     RenderWidgetHostViewBase* updated_view) {
 #if !BUILDFLAG(IS_IOS_TVOS)
-  CHECK_EQ(GetTextInputManager(), text_input_manager,
-           base::NotFatalUntil::M158);
+  DCHECK_EQ(GetTextInputManager(), text_input_manager);
   const TextInputManager::TextSelection* selection =
       text_input_manager->GetTextSelection(updated_view);
   if (selection && selection->selected_text().length()) {

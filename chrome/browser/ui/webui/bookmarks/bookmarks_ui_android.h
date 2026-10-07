@@ -5,7 +5,6 @@
 #ifndef CHROME_BROWSER_UI_WEBUI_BOOKMARKS_BOOKMARKS_UI_ANDROID_H_
 #define CHROME_BROWSER_UI_WEBUI_BOOKMARKS_BOOKMARKS_UI_ANDROID_H_
 
-#include "base/memory/scoped_refptr.h"
 #include "ui/base/resource/resource_scale_factor.h"
 
 namespace base {
@@ -18,7 +17,7 @@ class BookmarksUI {
   BookmarksUI(const BookmarksUI&) = delete;
   BookmarksUI& operator=(const BookmarksUI&) = delete;
 
-  static scoped_refptr<base::RefCountedMemory> GetFaviconResourceBytes(
+  static base::RefCountedMemory* GetFaviconResourceBytes(
       ui::ResourceScaleFactor scale_factor);
 };
 

@@ -39,10 +39,9 @@ void LayoutCustom::RemoveChild(LayoutObject* child) {
 void LayoutCustom::StyleDidChange(
     StyleDifference diff,
     const ComputedStyle* old_style,
-    const ComputedStyle& new_style,
     const StyleChangeContext& style_change_context) {
   if (state_ == kUnloaded) {
-    const AtomicString& name = new_style.DisplayLayoutCustomName();
+    const AtomicString& name = StyleRef().DisplayLayoutCustomName();
     LayoutWorklet* worklet = LayoutWorklet::From(*GetDocument().domWindow());
     // Register if we'll need to reattach the layout tree when a matching
     // "layout()" is registered.
@@ -66,8 +65,7 @@ void LayoutCustom::StyleDidChange(
 
   // TODO(ikilpatrick): Investigate reducing the properties which
   // LayoutBlockFlow::StyleDidChange invalidates upon. (For example margins).
-  LayoutBlockFlow::StyleDidChange(diff, old_style, new_style,
-                                  style_change_context);
+  LayoutBlockFlow::StyleDidChange(diff, old_style, style_change_context);
 }
 
 }  // namespace blink

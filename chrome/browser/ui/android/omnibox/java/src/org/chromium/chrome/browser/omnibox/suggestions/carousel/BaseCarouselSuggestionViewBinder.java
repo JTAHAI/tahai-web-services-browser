@@ -4,8 +4,6 @@
 
 package org.chromium.chrome.browser.omnibox.suggestions.carousel;
 
-import static org.chromium.build.NullUtil.assumeNonNull;
-
 import android.graphics.Color;
 import android.view.ViewGroup.MarginLayoutParams;
 import android.view.ViewOutlineProvider;
@@ -29,9 +27,10 @@ import org.chromium.ui.modelutil.SimpleRecyclerViewAdapter;
 public class BaseCarouselSuggestionViewBinder
         implements PropertyModelChangeProcessor.ViewBinder<
                 PropertyModel, BaseCarouselSuggestionView, PropertyKey> {
+    private final OmniboxResourceProvider mResourceProvider;
 
-    private OmniboxResourceProvider getResourceProvider(PropertyModel model) {
-        return assumeNonNull(model.get(SuggestionCommonProperties.RESOURCE_PROVIDER));
+    public BaseCarouselSuggestionViewBinder(OmniboxResourceProvider resourceProvider) {
+        mResourceProvider = resourceProvider;
     }
 
     /**
@@ -39,10 +38,9 @@ public class BaseCarouselSuggestionViewBinder
      */
     @Override
     public void bind(PropertyModel model, BaseCarouselSuggestionView view, PropertyKey key) {
-        OmniboxResourceProvider resourceProvider = getResourceProvider(model);
         var adapter = (SimpleRecyclerViewAdapter) view.getAdapter();
         if (adapter == null) {
-            adapter = BaseCarouselSuggestionItemViewBuilder.createAdapter(resourceProvider);
+            adapter = BaseCarouselSuggestionItemViewBuilder.createAdapter(mResourceProvider);
             view.setAdapter(adapter);
         }
 
@@ -80,8 +78,8 @@ public class BaseCarouselSuggestionViewBinder
             // Specific values to apply if background is enabled.
             if (useBackground) {
                 // Note: this assumes carousel is not showing in the incognito mode.
-                bgColor = resourceProvider.getStandardSuggestionBackgroundColor();
-                horizontalMargin = resourceProvider.getSideSpacing();
+                bgColor = mResourceProvider.getStandardSuggestionBackgroundColor();
+                horizontalMargin = mResourceProvider.getSideSpacing();
                 outline =
                         new RoundedCornerOutlineProvider(
                                 view.getContext()

@@ -262,15 +262,14 @@ void ServiceWorkerContextWatcher::OnVersionStateChanged(
 
 void ServiceWorkerContextWatcher::OnVersionRouterRulesChanged(
     int64_t version_id,
-    const ServiceWorkerVersion::RouterRulesForDevTools& router_rules) {
+    const std::string& router_rules) {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
   auto it = version_info_map_.find(version_id);
   if (it == version_info_map_.end()) {
     return;
   }
   ServiceWorkerVersionInfo* version = it->second.get();
-  version->router_rules = router_rules.legacy_rules;
-  version->typed_router_rules = router_rules.typed_rules;
+  version->router_rules = router_rules;
   SendVersionInfo(*version);
 }
 

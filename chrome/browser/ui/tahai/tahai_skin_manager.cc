@@ -21,9 +21,9 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/tahai_skins/skin_profile_service.h"
 #include "chrome/browser/tahai_skins/skin_profile_service_factory.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_window.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/dialogs/browser_dialogs.h"
 #include "chrome/browser/ui/select_file_policy/chrome_select_file_policy.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
@@ -50,8 +50,8 @@
 #include "ui/shell_dialogs/select_file_dialog.h"
 #include "ui/shell_dialogs/selected_file_info.h"
 #include "ui/views/accessibility/view_accessibility.h"
-#include "ui/views/controls/button/checkbox.h"
 #include "ui/views/controls/button/md_text_button.h"
+#include "ui/views/controls/button/checkbox.h"
 #include "ui/views/controls/image_view.h"
 #include "ui/views/controls/label.h"
 #include "ui/views/controls/scroll_view.h"
@@ -140,13 +140,12 @@ Managers& OpenManagers() {
 class SkinManagerView final : public views::DialogDelegate,
                               public ui::SelectFileDialog::Listener {
  public:
-  explicit SkinManagerView(BrowserWindowInterface* browser)
-      : browser_(browser->GetWeakPtr()),
+  explicit SkinManagerView(Browser* browser)
+      : browser_(browser->AsWeakPtr()),
         profile_key_(browser->GetProfile()),
         service_(SkinProfileServiceFactory::GetForProfile(browser->GetProfile())
                      ->GetWeakPtr()),
-        mode_service_(
-            ModeServiceFactory::GetForProfile(browser->GetProfile())) {
+        mode_service_(ModeServiceFactory::GetForProfile(browser->GetProfile())) {
     auto contents = std::make_unique<views::View>();
     contents_ = contents.get();
     SetContentsView(std::move(contents));
@@ -297,7 +296,7 @@ class SkinManagerView final : public views::DialogDelegate,
   base::WeakPtr<SkinManagerView> GetWeakPtr() {
     return weak_factory_.GetWeakPtr();
   }
-  void SelectTargetWindow(BrowserWindowInterface* browser) {
+  void SelectTargetWindow(Browser* browser) {
     if (browser_.get() == browser) {
       return;
     }
@@ -308,7 +307,7 @@ class SkinManagerView final : public views::DialogDelegate,
       Status(IDS_TAHAI_SKINS_BUSY);
       return;
     }
-    browser_ = browser->GetWeakPtr();
+    browser_ = browser->AsWeakPtr();
     Refresh();
   }
 
@@ -707,7 +706,7 @@ class SkinManagerView final : public views::DialogDelegate,
     Controls();
     file_dialog_ = ui::SelectFileDialog::Create(
         this, std::make_unique<ChromeSelectFilePolicy>(
-                  browser_->GetTabStripModel()->GetActiveWebContents()));
+                  browser_->tab_strip_model()->GetActiveWebContents()));
     ui::SelectFileDialog::FileTypeInfo types;
     types.extensions = {{FILE_PATH_LITERAL("tahaiskin")}};
     file_dialog_->SelectFile(ui::SelectFileDialog::SELECT_OPEN_FILE,
@@ -727,7 +726,7 @@ class SkinManagerView final : public views::DialogDelegate,
     Controls();
     file_dialog_ = ui::SelectFileDialog::Create(
         this, std::make_unique<ChromeSelectFilePolicy>(
-                  browser_->GetTabStripModel()->GetActiveWebContents()));
+                  browser_->tab_strip_model()->GetActiveWebContents()));
     ui::SelectFileDialog::FileTypeInfo types;
     types.extensions = {{FILE_PATH_LITERAL("zip")}};
     file_dialog_->SelectFile(
@@ -754,7 +753,7 @@ class SkinManagerView final : public views::DialogDelegate,
     Controls();
     file_dialog_ = ui::SelectFileDialog::Create(
         this, std::make_unique<ChromeSelectFilePolicy>(
-                  browser_->GetTabStripModel()->GetActiveWebContents()));
+                  browser_->tab_strip_model()->GetActiveWebContents()));
     ui::SelectFileDialog::FileTypeInfo types;
     types.extensions = {{FILE_PATH_LITERAL("tahaiskin")}};
     file_dialog_->SelectFile(
@@ -1311,8 +1310,7 @@ class SkinManagerView final : public views::DialogDelegate,
     if (custom != mode_service_->custom_modes().end() &&
         custom->native_presentation) {
       const auto alive = weak_factory_.GetWeakPtr();
-      BrowserWindowInterface* target =
-          ActivateNativeCustomMode(browser_.get(), custom_mode_id);
+      Browser* target = ActivateNativeCustomMode(browser_.get(), custom_mode_id);
       if (!alive) {
         return;
       }
@@ -1362,7 +1360,7 @@ class SkinManagerView final : public views::DialogDelegate,
     const auto surface_design = surface->design;
     const std::string skin_id = operational->appearance.id;
     const TahaiCustomModeDefinition custom_snapshot = *custom;
-    BrowserWindowInterface* target = browser_.get();
+    Browser* target = browser_.get();
     const auto alive = weak_factory_.GetWeakPtr();
     const auto source = browser_;
     if (!custom_snapshot.workspace_id.empty()) {
@@ -1505,7 +1503,7 @@ class SkinManagerView final : public views::DialogDelegate,
     weak_factory_.InvalidateWeakPtrs();
   }
 
-  base::WeakPtr<BrowserWindowInterface> browser_;
+  base::WeakPtr<Browser> browser_;
   // Only an opaque registry key. Never dereferenced after profile shutdown.
   raw_ptr<Profile> profile_key_;
   base::WeakPtr<SkinProfileService> service_;
@@ -1558,16 +1556,15 @@ class SkinManagerView final : public views::DialogDelegate,
 };
 }  // namespace
 
-bool CanShowSkinManager(BrowserWindowInterface* browser) {
-  return browser &&
-         (browser->GetType() == BrowserWindowInterface::Type::TYPE_NORMAL) &&
+bool CanShowSkinManager(Browser* browser) {
+  return browser && browser->is_type_normal() &&
          browser->GetProfile()->IsRegularProfile() &&
          !browser->GetProfile()->IsOffTheRecord() &&
          !browser->GetProfile()->IsGuestSession() &&
          !browser->GetProfile()->IsSystemProfile();
 }
 
-void ShowSkinManager(BrowserWindowInterface* browser) {
+void ShowSkinManager(Browser* browser) {
   if (!CanShowSkinManager(browser)) {
     return;
   }

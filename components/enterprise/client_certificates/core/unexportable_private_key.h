@@ -35,9 +35,8 @@ class UnexportablePrivateKey : public PrivateKey {
                          PrivateKeySource key_source);
 
   // PrivateKey:
-  void Sign(base::span<const uint8_t> data,
-            base::OnceCallback<void(std::optional<std::vector<uint8_t>>)>
-                callback) const override;
+  std::optional<std::vector<uint8_t>> SignSlowly(
+      base::span<const uint8_t> data) const override;
   std::vector<uint8_t> GetSubjectPublicKeyInfo() const override;
   crypto::SignatureVerifier::SignatureAlgorithm GetAlgorithm() const override;
   client_certificates_pb::PrivateKey ToProto() const override;

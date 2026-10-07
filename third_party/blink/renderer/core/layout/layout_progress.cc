@@ -45,13 +45,13 @@ LayoutProgress::LayoutProgress(HTMLProgressElement& node)
 
 LayoutProgress::~LayoutProgress() = default;
 
-void LayoutProgress::WillBeDestroyed(const ComputedStyle* style) {
+void LayoutProgress::WillBeDestroyed() {
   NOT_DESTROYED();
   if (animating_) {
     animation_timer_.Stop();
     animating_ = false;
   }
-  LayoutBlockFlow::WillBeDestroyed(style);
+  LayoutBlockFlow::WillBeDestroyed();
 }
 
 void LayoutProgress::UpdateFromElement() {

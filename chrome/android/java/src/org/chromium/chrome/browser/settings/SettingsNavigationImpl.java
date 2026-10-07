@@ -13,7 +13,6 @@ import androidx.fragment.app.Fragment;
 
 import org.chromium.base.ApplicationStatus;
 import org.chromium.base.IntentUtils;
-import org.chromium.base.ResettersForTesting;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.about_settings.AboutChromeSettings;
@@ -48,6 +47,15 @@ import org.chromium.chrome.browser.prefetch.settings.StandardPreloadingSettingsF
 import org.chromium.chrome.browser.privacy.secure_dns.SecureDnsSettings;
 import org.chromium.chrome.browser.privacy.settings.DoNotTrackSettings;
 import org.chromium.chrome.browser.privacy.settings.PrivacySettings;
+import org.chromium.chrome.browser.privacy_sandbox.AdMeasurementFragment;
+import org.chromium.chrome.browser.privacy_sandbox.FledgeAllSitesFragment;
+import org.chromium.chrome.browser.privacy_sandbox.FledgeBlockedSitesFragment;
+import org.chromium.chrome.browser.privacy_sandbox.FledgeFragment;
+import org.chromium.chrome.browser.privacy_sandbox.FledgeLearnMoreFragment;
+import org.chromium.chrome.browser.privacy_sandbox.PrivacySandboxSettingsFragment;
+import org.chromium.chrome.browser.privacy_sandbox.TopicsBlockedFragment;
+import org.chromium.chrome.browser.privacy_sandbox.TopicsFragment;
+import org.chromium.chrome.browser.privacy_sandbox.TopicsManageFragment;
 import org.chromium.chrome.browser.safe_browsing.settings.EnhancedProtectionSettingsFragment;
 import org.chromium.chrome.browser.safe_browsing.settings.SafeBrowsingSettingsFragment;
 import org.chromium.chrome.browser.safe_browsing.settings.StandardProtectionSettingsFragment;
@@ -78,12 +86,12 @@ import org.chromium.components.browser_ui.site_settings.SingleCategorySettings;
 import org.chromium.components.browser_ui.site_settings.SingleWebsiteSettings;
 import org.chromium.components.browser_ui.site_settings.SiteSettings;
 import org.chromium.components.browser_ui.site_settings.StorageAccessSubpageSettings;
+import org.chromium.components.page_info.PageInfoAdPersonalizationSettings;
 import org.chromium.components.page_info.PageInfoCookiesSettings;
 
 /** Implementation class for launching a {@link SettingsActivity}. */
 @NullMarked
 public class SettingsNavigationImpl implements SettingsNavigation {
-    private boolean mUseSettingsActivityForTesting;
 
     /** Instantiated through SettingsNavigationFactory. */
     SettingsNavigationImpl() {}
@@ -111,6 +119,7 @@ public class SettingsNavigationImpl implements SettingsNavigation {
             case SettingsFragment.ACCESSIBILITY:
             case SettingsFragment.ADAPTIVE_TOOLBAR:
             case SettingsFragment.ADDRESS_BAR:
+            case SettingsFragment.AD_MEASUREMENT:
             case SettingsFragment.ALL_SITES:
             case SettingsFragment.ANDROID_PAYMENT_APPS:
             case SettingsFragment.APPEARANCE:
@@ -152,6 +161,14 @@ public class SettingsNavigationImpl implements SettingsNavigation {
             case SettingsFragment.PRELOAD_PAGES_STANDARD:
             case SettingsFragment.PRICE_NOTIFICATION:
             case SettingsFragment.PRIVACY:
+            case SettingsFragment.PRIVACY_SANDBOX_FLEDGE:
+            case SettingsFragment.PRIVACY_SANDBOX_FLEDGE_ALL_SITES:
+            case SettingsFragment.PRIVACY_SANDBOX_FLEDGE_BLOCKED_SITES:
+            case SettingsFragment.PRIVACY_SANDBOX_FLEDGE_LEARN_MORE:
+            case SettingsFragment.PRIVACY_SANDBOX_SETTINGS:
+            case SettingsFragment.PRIVACY_SANDBOX_TOPICS:
+            case SettingsFragment.PRIVACY_SANDBOX_TOPICS_BLOCKED:
+            case SettingsFragment.PRIVACY_SANDBOX_TOPICS_MANAGE:
             case SettingsFragment.SAFE_BROWSING:
             case SettingsFragment.SAFE_BROWSING_ENHANCED:
             case SettingsFragment.SAFE_BROWSING_STANDARD:
@@ -205,15 +222,13 @@ public class SettingsNavigationImpl implements SettingsNavigation {
             @Nullable Bundle fragmentArgs,
             boolean addToBackStack,
             @Nullable String tag) {
-        if (useSettingsInTab()) {
+        if (SettingsInTab.isEnabled()) {
             Activity activity = ActivityUtil.getActivityFromContext(context);
             // Some components pass a non-Activity context (e.g. AccessibilitySettings).
             if (activity == null) {
                 activity = ApplicationStatus.getLastTrackedFocusedActivity();
             }
-            // `activity` may be null in tests (e.g. Robolectric unit tests running with an
-            // Application context without a focused activity) or background services.
-            // SettingsHostFragment.get(null) will return null.
+            assert activity != null;
             SettingsHostFragment settingsHostFragment = SettingsHostFragment.get(activity);
             // SettingsHostFragment will be null if settings isn't open.
             if (settingsHostFragment != null) {
@@ -267,7 +282,7 @@ public class SettingsNavigationImpl implements SettingsNavigation {
             @Nullable String tag) {
         String fragmentName = fragment == null ? null : fragment.getName();
         return SettingsIntentUtil.createIntent(
-                context, fragmentName, fragmentArgs, addToBackStack, tag, useSettingsInTab());
+                context, fragmentName, fragmentArgs, addToBackStack, tag);
     }
 
     @Override
@@ -276,7 +291,7 @@ public class SettingsNavigationImpl implements SettingsNavigation {
         return createSettingsIntent(context, getFragmentClassFromEnum(fragment), fragmentArgs);
     }
 
-    static @Nullable Class<? extends Fragment> getFragmentClassFromEnum(
+    private static @Nullable Class<? extends Fragment> getFragmentClassFromEnum(
             @SettingsFragment int fragment) {
         switch (fragment) {
             case SettingsFragment.ABOUT_CHROME:
@@ -287,6 +302,8 @@ public class SettingsNavigationImpl implements SettingsNavigation {
                 return AdaptiveToolbarSettingsFragment.class;
             case SettingsFragment.ADDRESS_BAR:
                 return AddressBarSettingsFragment.class;
+            case SettingsFragment.AD_MEASUREMENT:
+                return AdMeasurementFragment.class;
             case SettingsFragment.ALL_SITES:
                 return AllSiteSettings.class;
             case SettingsFragment.ANDROID_PAYMENT_APPS:
@@ -353,6 +370,8 @@ public class SettingsNavigationImpl implements SettingsNavigation {
                 return ManageSyncSettings.class;
             case SettingsFragment.NON_CARD_PAYMENT_METHODS:
                 return NonCardPaymentMethodsManagementFragment.class;
+            case SettingsFragment.PAGE_INFO_AD_PERSONALIZATION:
+                return PageInfoAdPersonalizationSettings.class;
             case SettingsFragment.PAGE_INFO_COOKIES:
                 return PageInfoCookiesSettings.class;
             case SettingsFragment.PAYMENT_METHODS:
@@ -369,6 +388,22 @@ public class SettingsNavigationImpl implements SettingsNavigation {
                 return PriceNotificationSettingsFragment.class;
             case SettingsFragment.PRIVACY:
                 return PrivacySettings.class;
+            case SettingsFragment.PRIVACY_SANDBOX_FLEDGE:
+                return FledgeFragment.class;
+            case SettingsFragment.PRIVACY_SANDBOX_FLEDGE_ALL_SITES:
+                return FledgeAllSitesFragment.class;
+            case SettingsFragment.PRIVACY_SANDBOX_FLEDGE_BLOCKED_SITES:
+                return FledgeBlockedSitesFragment.class;
+            case SettingsFragment.PRIVACY_SANDBOX_FLEDGE_LEARN_MORE:
+                return FledgeLearnMoreFragment.class;
+            case SettingsFragment.PRIVACY_SANDBOX_SETTINGS:
+                return PrivacySandboxSettingsFragment.class;
+            case SettingsFragment.PRIVACY_SANDBOX_TOPICS:
+                return TopicsFragment.class;
+            case SettingsFragment.PRIVACY_SANDBOX_TOPICS_BLOCKED:
+                return TopicsBlockedFragment.class;
+            case SettingsFragment.PRIVACY_SANDBOX_TOPICS_MANAGE:
+                return TopicsManageFragment.class;
             case SettingsFragment.SAFE_BROWSING:
                 return SafeBrowsingSettingsFragment.class;
             case SettingsFragment.SAFE_BROWSING_ENHANCED:
@@ -416,7 +451,7 @@ public class SettingsNavigationImpl implements SettingsNavigation {
         if (activity == null) return;
 
         // SettingsInTab does not use SettingsActivity.
-        if (useSettingsInTab()) {
+        if (SettingsInTab.isEnabled()) {
             SettingsHostFragment settingsHostFragment = SettingsHostFragment.get(activity);
             if (settingsHostFragment != null) {
                 settingsHostFragment.finishCurrentSettings(fragment);
@@ -430,7 +465,7 @@ public class SettingsNavigationImpl implements SettingsNavigation {
     @Override
     public void executePendingNavigations(Activity activity) {
         // SettingsInTab does not use SettingsActivity.
-        if (useSettingsInTab()) {
+        if (SettingsInTab.isEnabled()) {
             SettingsHostFragment settingsHostFragment = SettingsHostFragment.get(activity);
             if (settingsHostFragment != null) {
                 settingsHostFragment.executePendingNavigations();
@@ -439,19 +474,5 @@ public class SettingsNavigationImpl implements SettingsNavigation {
         }
 
         ((SettingsActivity) activity).executePendingNavigations();
-    }
-
-    @Override
-    public void setUseSettingsActivityForTesting(boolean value) {
-        mUseSettingsActivityForTesting = value;
-        ResettersForTesting.register(() -> mUseSettingsActivityForTesting = false);
-    }
-
-    private boolean useSettingsInTab() {
-        // Always use SettingsActivity if requested by tests.
-        if (mUseSettingsActivityForTesting) {
-            return false;
-        }
-        return SettingsInTab.isEnabled();
     }
 }

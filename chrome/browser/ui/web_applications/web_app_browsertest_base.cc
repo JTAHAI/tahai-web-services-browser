@@ -18,8 +18,8 @@
 #include "chrome/browser/banners/test_app_banner_manager_desktop.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/profiles/profile_manager.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
-#include "chrome/browser/ui/browser_window/public/create_browser_window.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/web_applications/test/web_app_browsertest_util.h"
 #include "chrome/browser/web_applications/mojom/user_display_mode.mojom.h"
@@ -96,28 +96,26 @@ void WebAppBrowserTestBase::UninstallWebApp(const webapps::AppId& app_id) {
   web_app::test::UninstallWebApp(profile(), app_id);
 }
 
-BrowserWindowInterface* WebAppBrowserTestBase::LaunchWebAppBrowser(
+Browser* WebAppBrowserTestBase::LaunchWebAppBrowser(
     const webapps::AppId& app_id) {
   return web_app::LaunchWebAppBrowser(profile(), app_id);
 }
 
-BrowserWindowInterface* WebAppBrowserTestBase::LaunchWebAppBrowserAndWait(
+Browser* WebAppBrowserTestBase::LaunchWebAppBrowserAndWait(
     const webapps::AppId& app_id) {
   return web_app::LaunchWebAppBrowserAndWait(profile(), app_id);
 }
 
-BrowserWindowInterface*
-WebAppBrowserTestBase::LaunchWebAppBrowserAndAwaitInstallabilityCheck(
+Browser* WebAppBrowserTestBase::LaunchWebAppBrowserAndAwaitInstallabilityCheck(
     const webapps::AppId& app_id) {
-  BrowserWindowInterface* browser =
-      web_app::LaunchWebAppBrowserAndWait(profile(), app_id);
+  Browser* browser = web_app::LaunchWebAppBrowserAndWait(profile(), app_id);
   webapps::TestAppBannerManagerDesktop::FromWebContents(
-      browser->GetTabStripModel()->GetActiveWebContents())
+      browser->tab_strip_model()->GetActiveWebContents())
       ->WaitForInstallableCheck();
   return browser;
 }
 
-BrowserWindowInterface* WebAppBrowserTestBase::LaunchBrowserForWebAppInTab(
+Browser* WebAppBrowserTestBase::LaunchBrowserForWebAppInTab(
     const webapps::AppId& app_id) {
   return web_app::LaunchBrowserForWebAppInTab(profile(), app_id);
 }
@@ -133,18 +131,18 @@ bool WebAppBrowserTestBase::NavigateInRenderer(content::WebContents* contents,
 
 // static
 bool WebAppBrowserTestBase::NavigateAndAwaitInstallabilityCheck(
-    BrowserWindowInterface* browser,
+    Browser* browser,
     const GURL& url) {
   auto* manager = webapps::TestAppBannerManagerDesktop::FromWebContents(
-      browser->GetTabStripModel()->GetActiveWebContents());
+      browser->tab_strip_model()->GetActiveWebContents());
   EXPECT_TRUE(ui_test_utils::NavigateToURL(browser, url));
   return manager->WaitForInstallableCheck();
 }
 
-BrowserWindowInterface*
-WebAppBrowserTestBase::NavigateInNewWindowAndAwaitInstallabilityCheck(
+Browser* WebAppBrowserTestBase::NavigateInNewWindowAndAwaitInstallabilityCheck(
     const GURL& url) {
-  BrowserWindowInterface* new_browser = CreateBrowser(profile());
+  Browser* new_browser = Browser::Create(
+      Browser::CreateParams(Browser::TYPE_NORMAL, profile(), true));
   AddBlankTabAndShow(new_browser);
   NavigateAndAwaitInstallabilityCheck(new_browser, url);
   return new_browser;
@@ -156,12 +154,11 @@ std::optional<webapps::AppId> WebAppBrowserTestBase::FindAppWithUrlInScope(
       url, web_app::WebAppFilter::InstalledInChrome());
 }
 
-BrowserWindowInterface* WebAppBrowserTestBase::OpenPopupAndWait(
-    BrowserWindowInterface* browser,
-    const GURL& url,
-    const gfx::Size& popup_size) {
+Browser* WebAppBrowserTestBase::OpenPopupAndWait(Browser* browser,
+                                                 const GURL& url,
+                                                 const gfx::Size& popup_size) {
   content::WebContents* const web_contents =
-      browser->GetTabStripModel()->GetActiveWebContents();
+      browser->tab_strip_model()->GetActiveWebContents();
 
   ui_test_utils::BrowserCreatedObserver browser_created_observer;
   std::string open_window_script = base::StringPrintf(
@@ -171,11 +168,11 @@ BrowserWindowInterface* WebAppBrowserTestBase::OpenPopupAndWait(
   EXPECT_TRUE(content::ExecJs(web_contents, open_window_script));
 
   // The navigation should happen in a new window.
-  BrowserWindowInterface* popup_browser = browser_created_observer.Wait();
+  Browser* popup_browser = browser_created_observer.Wait();
   EXPECT_NE(browser, popup_browser);
 
   content::WebContents* popup_contents =
-      popup_browser->GetTabStripModel()->GetActiveWebContents();
+      popup_browser->tab_strip_model()->GetActiveWebContents();
   EXPECT_TRUE(content::WaitForLoadStop(popup_contents));
   EXPECT_EQ(popup_contents->GetLastCommittedURL(), url);
 

@@ -56,8 +56,8 @@
 }
 
 - (void)dealloc {
-  CHECK(!_identityManager);
-  CHECK(!_accountManagerService);
+  CHECK(!_identityManager, base::NotFatalUntil::M145);
+  CHECK(!_accountManagerService, base::NotFatalUntil::M145);
 }
 
 - (void)disconnect {
@@ -69,7 +69,7 @@
 #pragma mark - Properties
 
 - (void)setSelectedIdentity:(id<SystemIdentity>)identity {
-  CHECK(identity);
+  CHECK(identity, base::NotFatalUntil::M147);
   if ([_selectedIdentity isEqual:identity]) {
     return;
   }
@@ -115,7 +115,7 @@
 // Updates `configurator` based on `identity`.
 - (void)updateIdentityItemConfigurator:(IdentityItemConfigurator*)configurator
                           withIdentity:(id<SystemIdentity>)identity {
-  CHECK(identity);
+  CHECK(identity, base::NotFatalUntil::M147);
   configurator.gaiaID = identity.gaiaId;
   configurator.name = identity.userFullName;
   configurator.email = identity.userEmail;
@@ -132,7 +132,7 @@
   configurator.managed = NO;
   __weak __typeof(self) weakSelf = self;
   FetchManagedStatusForIdentity(identity, base::BindOnce(^(bool managed) {
-                                  CHECK(identity);
+                                  CHECK(identity, base::NotFatalUntil::M147);
                                   if (managed) {
                                     [weakSelf handleIdentityUpdated:identity];
                                   }
@@ -140,7 +140,7 @@
 }
 
 - (void)handleIdentityUpdated:(id<SystemIdentity>)identity {
-  CHECK(identity);
+  CHECK(identity, base::NotFatalUntil::M147);
   IdentityItemConfigurator* configurator = nil;
   for (IdentityItemConfigurator* cursor in self
            .sortedIdentityItemConfigurators) {
@@ -163,7 +163,7 @@
 - (void)extendedAccountInfoDidUpdate:(const AccountInfo&)info {
   id<SystemIdentity> identity =
       _accountManagerService->GetIdentityOnDeviceWithGaiaID(info.gaia);
-  CHECK(identity);
+  CHECK(identity, base::NotFatalUntil::M147);
   [self handleIdentityUpdated:identity];
 }
 

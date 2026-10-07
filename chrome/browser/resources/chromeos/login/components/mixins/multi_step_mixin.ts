@@ -57,7 +57,7 @@ export const MultiStepMixin = dedupingMixin(
           };
         }
 
-        declare uiStep: string;
+        uiStep: string;
 
         /*
          * List of UI states, must be replaced by implementing component.

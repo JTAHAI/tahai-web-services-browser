@@ -157,11 +157,11 @@ class flat_tree {
   // unique step takes places. This is useful if the underlying container
   // already has the required properties.
 
-  constexpr flat_tree() = default;
-  constexpr flat_tree(const flat_tree&) = default;
-  constexpr flat_tree(flat_tree&&) = default;
+  flat_tree() = default;
+  flat_tree(const flat_tree&) = default;
+  flat_tree(flat_tree&&) = default;
 
-  constexpr explicit flat_tree(const key_compare& comp);
+  explicit flat_tree(const key_compare& comp);
 
   template <class InputIterator>
     requires(std::input_iterator<InputIterator>)
@@ -209,7 +209,7 @@ class flat_tree {
             std::initializer_list<value_type> ilist,
             const key_compare& comp = key_compare());
 
-  constexpr ~flat_tree() = default;
+  ~flat_tree() = default;
 
   // --------------------------------------------------------------------------
   // Assignments.
@@ -251,21 +251,21 @@ class flat_tree {
   // Iterators follow the ordering defined by the key comparator used in
   // construction of the flat_tree.
 
-  constexpr iterator begin();
+  iterator begin();
   constexpr const_iterator begin() const;
-  constexpr const_iterator cbegin() const;
+  const_iterator cbegin() const;
 
-  constexpr iterator end();
+  iterator end();
   constexpr const_iterator end() const;
-  constexpr const_iterator cend() const;
+  const_iterator cend() const;
 
-  constexpr reverse_iterator rbegin();
-  constexpr const_reverse_iterator rbegin() const;
-  constexpr const_reverse_iterator crbegin() const;
+  reverse_iterator rbegin();
+  const_reverse_iterator rbegin() const;
+  const_reverse_iterator crbegin() const;
 
-  constexpr reverse_iterator rend();
-  constexpr const_reverse_iterator rend() const;
-  constexpr const_reverse_iterator crend() const;
+  reverse_iterator rend();
+  const_reverse_iterator rend() const;
+  const_reverse_iterator crend() const;
 
   // --------------------------------------------------------------------------
   // Insert operations.
@@ -417,7 +417,7 @@ class flat_tree {
   // Emplaces a new item into the tree that is known not to be in it. This
   // is for implementing map operator[].
   template <class... Args>
-  constexpr iterator unsafe_emplace(const_iterator position, Args&&... args);
+  iterator unsafe_emplace(const_iterator position, Args&&... args);
 
   // Attempts to emplace a new element with key |key|. Only if |key| is not yet
   // present, construct value_type from |args| and insert it. Returns an
@@ -461,7 +461,7 @@ class flat_tree {
     RAW_PTR_EXCLUSION const key_compare& comp_;
   };
 
-  constexpr iterator const_cast_it(const_iterator c_it) {
+  iterator const_cast_it(const_iterator c_it) {
     auto distance = std::distance(cbegin(), c_it);
     return std::next(begin(), distance);
   }
@@ -552,7 +552,7 @@ class flat_tree {
 // Lifetime.
 
 template <class Key, class GetKeyFromValue, class KeyCompare, class Container>
-constexpr flat_tree<Key, GetKeyFromValue, KeyCompare, Container>::flat_tree(
+flat_tree<Key, GetKeyFromValue, KeyCompare, Container>::flat_tree(
     const KeyCompare& comp)
     : comp_(comp) {}
 
@@ -714,7 +714,7 @@ constexpr bool flat_tree<Key, GetKeyFromValue, KeyCompare, Container>::empty()
 // Iterators.
 
 template <class Key, class GetKeyFromValue, class KeyCompare, class Container>
-constexpr auto flat_tree<Key, GetKeyFromValue, KeyCompare, Container>::begin()
+auto flat_tree<Key, GetKeyFromValue, KeyCompare, Container>::begin()
     -> iterator {
   return body_.begin();
 }
@@ -726,14 +726,13 @@ constexpr auto flat_tree<Key, GetKeyFromValue, KeyCompare, Container>::begin()
 }
 
 template <class Key, class GetKeyFromValue, class KeyCompare, class Container>
-constexpr auto flat_tree<Key, GetKeyFromValue, KeyCompare, Container>::cbegin()
-    const -> const_iterator {
+auto flat_tree<Key, GetKeyFromValue, KeyCompare, Container>::cbegin() const
+    -> const_iterator {
   return body_.cbegin();
 }
 
 template <class Key, class GetKeyFromValue, class KeyCompare, class Container>
-constexpr auto flat_tree<Key, GetKeyFromValue, KeyCompare, Container>::end()
-    -> iterator {
+auto flat_tree<Key, GetKeyFromValue, KeyCompare, Container>::end() -> iterator {
   return body_.end();
 }
 
@@ -744,44 +743,44 @@ constexpr auto flat_tree<Key, GetKeyFromValue, KeyCompare, Container>::end()
 }
 
 template <class Key, class GetKeyFromValue, class KeyCompare, class Container>
-constexpr auto flat_tree<Key, GetKeyFromValue, KeyCompare, Container>::cend()
-    const -> const_iterator {
+auto flat_tree<Key, GetKeyFromValue, KeyCompare, Container>::cend() const
+    -> const_iterator {
   return body_.cend();
 }
 
 template <class Key, class GetKeyFromValue, class KeyCompare, class Container>
-constexpr auto flat_tree<Key, GetKeyFromValue, KeyCompare, Container>::rbegin()
+auto flat_tree<Key, GetKeyFromValue, KeyCompare, Container>::rbegin()
     -> reverse_iterator {
   return body_.rbegin();
 }
 
 template <class Key, class GetKeyFromValue, class KeyCompare, class Container>
-constexpr auto flat_tree<Key, GetKeyFromValue, KeyCompare, Container>::rbegin()
-    const -> const_reverse_iterator {
+auto flat_tree<Key, GetKeyFromValue, KeyCompare, Container>::rbegin() const
+    -> const_reverse_iterator {
   return body_.rbegin();
 }
 
 template <class Key, class GetKeyFromValue, class KeyCompare, class Container>
-constexpr auto flat_tree<Key, GetKeyFromValue, KeyCompare, Container>::crbegin()
-    const -> const_reverse_iterator {
+auto flat_tree<Key, GetKeyFromValue, KeyCompare, Container>::crbegin() const
+    -> const_reverse_iterator {
   return body_.crbegin();
 }
 
 template <class Key, class GetKeyFromValue, class KeyCompare, class Container>
-constexpr auto flat_tree<Key, GetKeyFromValue, KeyCompare, Container>::rend()
+auto flat_tree<Key, GetKeyFromValue, KeyCompare, Container>::rend()
     -> reverse_iterator {
   return body_.rend();
 }
 
 template <class Key, class GetKeyFromValue, class KeyCompare, class Container>
-constexpr auto flat_tree<Key, GetKeyFromValue, KeyCompare, Container>::rend()
-    const -> const_reverse_iterator {
+auto flat_tree<Key, GetKeyFromValue, KeyCompare, Container>::rend() const
+    -> const_reverse_iterator {
   return body_.rend();
 }
 
 template <class Key, class GetKeyFromValue, class KeyCompare, class Container>
-constexpr auto flat_tree<Key, GetKeyFromValue, KeyCompare, Container>::crend()
-    const -> const_reverse_iterator {
+auto flat_tree<Key, GetKeyFromValue, KeyCompare, Container>::crend() const
+    -> const_reverse_iterator {
   return body_.crend();
 }
 
@@ -1055,8 +1054,7 @@ void flat_tree<Key, GetKeyFromValue, KeyCompare, Container>::swap(
 
 template <class Key, class GetKeyFromValue, class KeyCompare, class Container>
 template <class... Args>
-constexpr auto
-flat_tree<Key, GetKeyFromValue, KeyCompare, Container>::unsafe_emplace(
+auto flat_tree<Key, GetKeyFromValue, KeyCompare, Container>::unsafe_emplace(
     const_iterator position,
     Args&&... args) -> iterator {
   return body_.emplace(position, std::forward<Args>(args)...);

@@ -9,23 +9,15 @@
 #include "third_party/blink/renderer/core/frame/local_dom_window.h"
 #include "third_party/blink/renderer/core/frame/local_frame.h"
 #include "third_party/blink/renderer/core/frame/local_frame_client.h"
-#include "third_party/blink/renderer/core/page/page.h"
-#include "third_party/blink/renderer/core/workers/worker_or_worklet_global_scope.h"
 
 namespace blink {
 namespace NavigatorGlobalPrivacyControl {
 
 bool globalPrivacyControl(NavigatorBase& navigator) {
-  if (navigator.DomWindow()) {
-    return IsGlobalPrivacyControlFeatureAndSettingEnabled(
-        navigator.DomWindow()->GetFrame()->GetPage()->GetRendererPreferences());
-  } else if (WorkerOrWorkletGlobalScope* worker_scope =
-                 DynamicTo<WorkerOrWorkletGlobalScope>(
-                     navigator.GetExecutionContext())) {
-    return IsGlobalPrivacyControlFeatureAndSettingEnabled(
-        worker_scope->GetRendererPreferences());
-  }
-  return false;
+  // TODO(crbug.com/40745270): Currently, the GPC signal is controlled by a
+  // feature flag, when a user facing setting is added, this should be modified
+  // to use frame cached value.
+  return IsGlobalPrivacyControlEnabled();
 }
 
 }  // namespace NavigatorGlobalPrivacyControl

@@ -14,7 +14,6 @@
 #include <vector>
 
 #include "base/functional/callback_forward.h"
-#include "base/functional/callback_helpers.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/memory/weak_ptr.h"
@@ -33,13 +32,14 @@
 #include "remoting/host/client_session_events.h"
 #include "remoting/host/cursor_visibility_notifier.h"
 #include "remoting/host/desktop_display_info.h"
+#include "remoting/host/host_extension_session_manager.h"
 #include "remoting/host/input_pipeline.h"
 #include "remoting/host/mojom/chromoting_host_services.mojom.h"
 #include "remoting/host/mojom/remote_url_opener.mojom.h"
 #include "remoting/host/mojom/webauthn_proxy.mojom.h"
 #include "remoting/host/peer_session.h"
+#include "remoting/host/security_key/security_key_extension.h"
 #include "remoting/proto/action.pb.h"
-#include "remoting/proto/control.pb.h"
 #include "remoting/protocol/audio_sample_info.h"
 #include "remoting/protocol/clipboard_echo_filter.h"
 #include "remoting/protocol/clipboard_filter.h"
@@ -51,6 +51,7 @@
 #include "remoting/protocol/host_stub.h"
 #include "remoting/protocol/input_event_timestamps.h"
 #include "remoting/protocol/mouse_cursor_monitor.h"
+#include "remoting/protocol/pairing_registry.h"
 #include "remoting/protocol/transport.h"
 #include "remoting/protocol/video_stream.h"
 #include "third_party/webrtc/modules/desktop_capture/desktop_capture_types.h"
@@ -90,19 +91,16 @@ class PeerSessionImpl : public PeerSession,
                         public protocol::MouseCursorMonitor::Callback,
                         public mojom::ChromotingSessionServices {
  public:
-  // Maximum allowed length in bytes for a client pairing name.
-  static constexpr size_t kMaxClientNameLength = 1024;
-
-  using RequestPairingResponseCallback =
-      PeerSessionFactory::RequestPairingResponseCallback;
-  using RequestPairingCallback = PeerSessionFactory::RequestPairingCallback;
-  using RequestPairingOnceCallback =
-      PeerSessionFactory::RequestPairingOnceCallback;
-
   // `desktop_environment_factory` must outlive `this`.
+  PeerSessionImpl(
+      std::unique_ptr<protocol::IceConfigFetcher> ice_config_fetcher,
+      scoped_refptr<base::SingleThreadTaskRunner> audio_task_runner,
+      DesktopEnvironmentFactory* desktop_environment_factory,
+      scoped_refptr<protocol::PairingRegistry> pairing_registry);
+
   PeerSessionImpl(std::unique_ptr<protocol::ConnectionToClient> connection,
                   DesktopEnvironmentFactory* desktop_environment_factory,
-                  RequestPairingOnceCallback request_pairing_cb);
+                  scoped_refptr<protocol::PairingRegistry> pairing_registry);
 
   PeerSessionImpl(const PeerSessionImpl&) = delete;
   PeerSessionImpl& operator=(const PeerSessionImpl&) = delete;
@@ -113,8 +111,13 @@ class PeerSessionImpl : public PeerSession,
   void Start(PeerSession::EventHandler* event_handler,
              std::string_view client_jid,
              const DesktopEnvironmentOptions& desktop_environment_options,
+             const std::vector<HostExtension*>& extensions,
              const SessionPolicies& session_policies,
              const SessionOptions& session_options) override;
+
+  HostExtensionSessionManager* extension_manager_for_tests() const {
+    return extension_manager_.get();
+  }
 
   TerminalSessionManager* terminal_session_manager_for_tests() const {
     return terminal_session_manager_.get();
@@ -171,6 +174,7 @@ class PeerSessionImpl : public PeerSession,
 
   // ClientSessionEvents interface.
   void OnDesktopAttached() override;
+
   void OnDesktopDetached() override;
   void OnSecurityKeyConnection(
       mojo::PendingReceiver<mojom::SecurityKeyForwarder> receiver) override;
@@ -196,7 +200,7 @@ class PeerSessionImpl : public PeerSession,
       mojo::PendingReceiver<mojom::SecurityKeyForwarder> receiver) override;
 #endif
 
-  protocol::Transport* transport() override;
+  protocol::Transport* transport() const override;
 
   bool channels_connected() const { return channels_connected_; }
 
@@ -215,10 +219,6 @@ class PeerSessionImpl : public PeerSession,
 
   const SessionPolicies& effective_policies_for_tests() const {
     return effective_policies_;
-  }
-
-  void SetRequestPairingCallbackForTesting(RequestPairingOnceCallback cb) {
-    request_pairing_cb_ = std::move(cb);
   }
 
  private:
@@ -265,6 +265,8 @@ class PeerSessionImpl : public PeerSession,
       const std::string& channel_name,
       std::unique_ptr<protocol::MessagePipe> pipe);
 
+  void DestroySecurityKeyExtensionSession();
+
   void CreatePerMonitorVideoStreams();
 
   // Boosts the framerate using `capture_interval` for `boost_duration` based on
@@ -287,13 +289,6 @@ class PeerSessionImpl : public PeerSession,
   void SendTerminalOutput(int32_t terminal_id, const std::string& data);
 
   void OnTerminalExited(int32_t terminal_id);
-
-  void SendTerminalProcessInfo(int32_t terminal_id,
-                               bool is_active,
-                               std::string_view process_name);
-
-  void OnPairingResponse(
-      std::optional<protocol::PairingResponse> pairing_response);
 
   raw_ptr<PeerSession::EventHandler> event_handler_;
 
@@ -323,10 +318,15 @@ class PeerSessionImpl : public PeerSession,
   // Used to enable/disable clipboard sync and to restrict payload size.
   protocol::ClipboardFilter host_clipboard_filter_;
   protocol::ClipboardFilter client_clipboard_filter_;
+
   // Factory for weak pointers to the client clipboard stub.
   // This must appear after `clipboard_echo_filter_`, so that it won't outlive
   // it.
   base::WeakPtrFactory<protocol::ClipboardStub> client_clipboard_factory_;
+
+  // A timer that triggers a disconnect when the maximum session duration
+  // is reached.
+  base::OneShotTimer max_duration_timer_;
 
   // Objects responsible for sending video, audio.
   std::map<webrtc::ScreenId, std::unique_ptr<protocol::VideoStream>>
@@ -366,8 +366,8 @@ class PeerSessionImpl : public PeerSession,
   int default_x_dpi_ = kDefaultDpi;
   int default_y_dpi_ = kDefaultDpi;
 
-  // Callback for PIN-less authentication pairing request.
-  RequestPairingOnceCallback request_pairing_cb_;
+  // The pairing registry for PIN-less authentication.
+  scoped_refptr<protocol::PairingRegistry> pairing_registry_;
 
   // Used to dispatch new data channels to factory methods.
   protocol::DataChannelManager data_channel_manager_;
@@ -402,6 +402,9 @@ class PeerSessionImpl : public PeerSession,
   std::unique_ptr<KeyboardLayoutMonitor> keyboard_layout_monitor_;
 
   std::unique_ptr<SecurityKeyAuthHandler> security_key_auth_handler_;
+  std::unique_ptr<SecurityKeyExtension> security_key_extension_;
+  std::unique_ptr<HostExtensionSessionManager> extension_manager_;
+  std::vector<raw_ptr<HostExtension, VectorExperimental>> extensions_;
 
   base::WeakPtr<RemoteWebAuthnMessageHandler> remote_webauthn_message_handler_;
   base::WeakPtr<RemoteOpenUrlMessageHandler> remote_open_url_message_handler_;
@@ -418,9 +421,6 @@ class PeerSessionImpl : public PeerSession,
 
   std::unique_ptr<TerminalSessionManager> terminal_session_manager_;
 
-  bool pairing_request_pending_ = false;
-  std::optional<protocol::PairingResponse> pending_pairing_response_;
-
   SEQUENCE_CHECKER(sequence_checker_);
 
   // Used to disable callbacks to `this` once DisconnectSession() has been
@@ -433,26 +433,29 @@ class PeerSessionImplFactory : public PeerSessionFactory {
  public:
   using GetIceConfigFetcherCallback =
       base::RepeatingCallback<std::unique_ptr<protocol::IceConfigFetcher>()>;
-  using RequestPairingCallback = PeerSessionImpl::RequestPairingCallback;
 
   PeerSessionImplFactory(
       DesktopEnvironmentFactory* desktop_environment_factory,
       GetIceConfigFetcherCallback get_ice_config_fetcher_cb,
-      RequestPairingCallback request_pairing_cb = base::NullCallback());
+      scoped_refptr<base::SingleThreadTaskRunner> audio_task_runner,
+      scoped_refptr<protocol::PairingRegistry> pairing_registry = nullptr);
   PeerSessionImplFactory(const PeerSessionImplFactory&) = delete;
   PeerSessionImplFactory& operator=(const PeerSessionImplFactory&) = delete;
   ~PeerSessionImplFactory() override;
 
   std::unique_ptr<PeerSession> Create() override;
 
-  void set_request_pairing_callback(
-      const RequestPairingCallback& request_pairing_cb) override;
+  void set_pairing_registry(
+      scoped_refptr<protocol::PairingRegistry> pairing_registry) {
+    pairing_registry_ = std::move(pairing_registry);
+  }
 
  private:
   SEQUENCE_CHECKER(sequence_checker_);
   raw_ptr<DesktopEnvironmentFactory> desktop_environment_factory_;
   GetIceConfigFetcherCallback get_ice_config_fetcher_cb_;
-  RequestPairingCallback request_pairing_cb_;
+  scoped_refptr<base::SingleThreadTaskRunner> audio_task_runner_;
+  scoped_refptr<protocol::PairingRegistry> pairing_registry_;
 };
 
 }  // namespace remoting

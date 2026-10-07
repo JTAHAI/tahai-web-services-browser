@@ -54,14 +54,10 @@ TEST(PolicyContainerTest, UpdateReferrerPolicyIsPropagated) {
   PolicyContainer policy_container(host.BindNewEndpointAndPassDedicatedRemote(),
                                    std::move(policies));
 
-  const base::UnguessableToken initiator_state_token =
-      base::UnguessableToken::Create();
   EXPECT_CALL(host,
-              SetReferrerPolicy(network::mojom::blink::ReferrerPolicy::kNever,
-                                initiator_state_token));
+              SetReferrerPolicy(network::mojom::blink::ReferrerPolicy::kNever));
   policy_container.UpdateReferrerPolicy(
-      network::mojom::blink::ReferrerPolicy::kNever, initiator_state_token);
-
+      network::mojom::blink::ReferrerPolicy::kNever);
   EXPECT_EQ(network::mojom::blink::ReferrerPolicy::kNever,
             policy_container.GetReferrerPolicy());
 
@@ -84,13 +80,10 @@ TEST(PolicyContainerTest, AddContentSecurityPolicies) {
           network::mojom::blink::ContentSecurityPolicySource::kHTTP,
           KURL("https://example.org"));
 
-  const base::UnguessableToken initiator_state_token =
-      base::UnguessableToken::Create();
-  EXPECT_CALL(host,
-              AddContentSecurityPolicies(testing::Eq(testing::ByRef(new_csps)),
-                                         initiator_state_token));
-  policy_container.AddContentSecurityPolicies(mojo::Clone(new_csps),
-                                              initiator_state_token);
+  EXPECT_CALL(
+      host, AddContentSecurityPolicies(testing::Eq(testing::ByRef(new_csps))));
+
+  policy_container.AddContentSecurityPolicies(mojo::Clone(new_csps));
   EXPECT_EQ(new_csps, policy_container.GetPolicies().content_security_policies);
 
   // Wait for mojo messages to be received.

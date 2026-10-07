@@ -38,15 +38,14 @@ TEST_F(CentralAccountViewTest, ImageViewAndTextLabels) {
                                     avatarImage:image
                                 showsAITierRing:NO
                                  aiTierFullName:nil
-                           subscriptionChipView:nil
                                            name:mainText
                                           email:detailText
                           managementDescription:nil
                                 useLargeMargins:YES];
 
   EXPECT_NSEQ(accountView.avatarImage, image);
-  EXPECT_NSEQ(accountView.title, mainText);
-  EXPECT_NSEQ(accountView.subtitle, detailText);
+  EXPECT_NSEQ(accountView.name, mainText);
+  EXPECT_NSEQ(accountView.email, detailText);
   EXPECT_EQ(accountView.managed, false);
   EXPECT_NSEQ([accountView managementDescription], nil);
 }
@@ -65,15 +64,14 @@ TEST_F(CentralAccountViewTest, ImageViewAndTextLabelsWithoutGivenName) {
                                     avatarImage:image
                                 showsAITierRing:NO
                                  aiTierFullName:nil
-                           subscriptionChipView:nil
                                            name:nil
                                           email:mainText
                           managementDescription:nil
                                 useLargeMargins:YES];
 
   EXPECT_NSEQ(accountView.avatarImage, image);
-  EXPECT_NSEQ(accountView.title, mainText);
-  EXPECT_NSEQ(accountView.subtitle, nil);
+  EXPECT_NSEQ(accountView.name, mainText);
+  EXPECT_NSEQ(accountView.email, nil);
   EXPECT_EQ(accountView.managed, false);
   EXPECT_NSEQ([accountView managementDescription], nil);
 }
@@ -95,15 +93,14 @@ TEST_F(CentralAccountViewTest,
                                     avatarImage:image
                                 showsAITierRing:NO
                                  aiTierFullName:nil
-                           subscriptionChipView:nil
                                            name:mainText
                                           email:detailText
                           managementDescription:managementDescription
                                 useLargeMargins:YES];
 
   EXPECT_NSEQ(accountView.avatarImage, image);
-  EXPECT_NSEQ(accountView.title, mainText);
-  EXPECT_NSEQ(accountView.subtitle, detailText);
+  EXPECT_NSEQ(accountView.name, mainText);
+  EXPECT_NSEQ(accountView.email, detailText);
   EXPECT_EQ(accountView.managed, true);
   EXPECT_NSEQ([accountView managementDescription], managementDescription);
 }
@@ -124,15 +121,14 @@ TEST_F(CentralAccountViewTest, ImageViewAndTextLabelsWithMissingGivenName) {
                                     avatarImage:image
                                 showsAITierRing:NO
                                  aiTierFullName:nil
-                           subscriptionChipView:nil
                                            name:identity.userFullName
                                           email:identity.userEmail
                           managementDescription:nil
                                 useLargeMargins:YES];
 
   EXPECT_NSEQ(accountView.avatarImage, image);
-  EXPECT_NSEQ(accountView.title, identity.userFullName);
-  EXPECT_NSEQ(accountView.subtitle, identity.userEmail);
+  EXPECT_NSEQ(accountView.name, identity.userFullName);
+  EXPECT_NSEQ(accountView.email, identity.userEmail);
   EXPECT_EQ(accountView.managed, false);
 }
 
@@ -152,15 +148,14 @@ TEST_F(CentralAccountViewTest, ImageViewAndTextLabelsWithMissingNames) {
                                     avatarImage:image
                                 showsAITierRing:NO
                                  aiTierFullName:nil
-                           subscriptionChipView:nil
                                            name:identity.userFullName
                                           email:identity.userEmail
                           managementDescription:nil
                                 useLargeMargins:YES];
 
   EXPECT_NSEQ(accountView.avatarImage, image);
-  EXPECT_NSEQ(accountView.title, identity.userEmail);
-  EXPECT_NSEQ(accountView.subtitle, nil);
+  EXPECT_NSEQ(accountView.name, identity.userEmail);
+  EXPECT_NSEQ(accountView.email, nil);
   EXPECT_EQ(accountView.managed, false);
 }
 
@@ -179,7 +174,6 @@ TEST_F(CentralAccountViewTest, ImageViewAndTextLabelsWithAITierRing) {
                                     avatarImage:image
                                 showsAITierRing:YES
                                  aiTierFullName:nil
-                           subscriptionChipView:nil
                                            name:mainText
                                           email:detailText
                           managementDescription:nil
@@ -207,8 +201,8 @@ TEST_F(CentralAccountViewTest, ImageViewAndTextLabelsWithAITierRing) {
   EXPECT_TRUE(foundPremiumRing);
 
   EXPECT_NSEQ(accountView.avatarImage, image);
-  EXPECT_NSEQ(accountView.title, mainText);
-  EXPECT_NSEQ(accountView.subtitle, detailText);
+  EXPECT_NSEQ(accountView.name, mainText);
+  EXPECT_NSEQ(accountView.email, detailText);
   EXPECT_EQ(accountView.managed, false);
 }
 
@@ -227,7 +221,6 @@ TEST_F(CentralAccountViewTest, AccessibilityLabelsWithAITier) {
                                       avatarImage:image
                                   showsAITierRing:YES
                                    aiTierFullName:aiTierFullName
-                             subscriptionChipView:nil
                                              name:name
                                             email:email
                             managementDescription:managementDescription
@@ -249,7 +242,6 @@ TEST_F(CentralAccountViewTest, AccessibilityLabelsWithAITier) {
                                       avatarImage:image
                                   showsAITierRing:YES
                                    aiTierFullName:aiTierFullName
-                             subscriptionChipView:nil
                                              name:name
                                             email:email
                             managementDescription:nil
@@ -270,7 +262,6 @@ TEST_F(CentralAccountViewTest, AccessibilityLabelsWithAITier) {
                                       avatarImage:image
                                   showsAITierRing:YES
                                    aiTierFullName:aiTierFullName
-                             subscriptionChipView:nil
                                              name:nil
                                             email:email
                             managementDescription:managementDescription
@@ -292,7 +283,6 @@ TEST_F(CentralAccountViewTest, AccessibilityLabelsWithAITier) {
                                       avatarImage:image
                                   showsAITierRing:YES
                                    aiTierFullName:aiTierFullName
-                             subscriptionChipView:nil
                                              name:nil
                                             email:email
                             managementDescription:nil

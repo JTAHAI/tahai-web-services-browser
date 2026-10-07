@@ -126,8 +126,8 @@ suite('NewTabPageActionChipsTest', () => {
               preferredInventory: null,
               preselectedModel: ModelMode.kUnspecified,
               queryActionOverride: null,
-              preselectedInputSource: null,
               searchboxOverride: null,
+              preselectedInputSource: null,
               ...chip.suggestTemplateInfo.fuseboxAction,
             } :
                                                                     null,
@@ -283,53 +283,6 @@ suite('NewTabPageActionChipsTest', () => {
     const deepDiveChipTitle =
         chips.shadowRoot.querySelector<HTMLImageElement>('.chip-title');
     assertEquals(null, deepDiveChipTitle);
-  });
-
-  test('click routing based on queryActionOverride', async () => {
-    const chipsData = [
-      {
-        suggestTemplateInfo: {
-          typeIcon: IconType.kBanana,
-          primaryText: {text: 'Click fulfillment', a11yText: null},
-          secondaryText: {text: '', a11yText: null},
-          fuseboxAction: {
-            queryActionOverride: QueryActionOverride.kDefault,
-          },
-        },
-        suggestion: 'click-direct',
-        tab: null,
-      },
-      {
-        suggestTemplateInfo: {
-          typeIcon: IconType.kBanana,
-          primaryText: {text: 'Click paste', a11yText: null},
-          secondaryText: {text: '', a11yText: null},
-          fuseboxAction: {
-            queryActionOverride: QueryActionOverride.kPaste,
-          },
-        },
-        suggestion: 'click-paste',
-        tab: null,
-      },
-    ];
-
-    await initializeChips({actionChips: chipsData});
-    const chipElements =
-        chips.shadowRoot.querySelectorAll<HTMLDivElement>('.icon-type-banana');
-    assertEquals(2, chipElements.length);
-
-    const chip0 = chipElements[0] as HTMLDivElement;
-    const chip1 = chipElements[1] as HTMLDivElement;
-
-    chip0.click();
-    assertEquals(
-        'click-direct', (await handler.whenCalled('navigateToAim'))[0]);
-
-    const whenActionChipClicked = eventToPromise<ActionChipClickEvent>(
-        'action-chip-click', document.body);
-    chip1.click();
-    const event = await whenActionChipClicked;
-    assertEquals('click-paste', event.detail.suggestion);
   });
 
   suite('metrics collection', () => {

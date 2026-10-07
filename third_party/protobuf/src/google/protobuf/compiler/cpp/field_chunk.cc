@@ -99,6 +99,7 @@ uint32_t GenChunkMask(ChunkIterator it, ChunkIterator end,
   return chunk_mask;
 }
 
+
 }  // namespace cpp
 }  // namespace compiler
 }  // namespace protobuf

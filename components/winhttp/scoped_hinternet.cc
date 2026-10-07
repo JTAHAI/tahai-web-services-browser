@@ -6,21 +6,20 @@
 
 #include <windows.h>
 
-#include <string>
 #include <utility>
 
 #include "base/logging.h"
 
 namespace winhttp {
 
-ScopedHInternet CreateSessionHandle(const std::wstring& user_agent,
+ScopedHInternet CreateSessionHandle(std::wstring_view user_agent,
                                     int proxy_access_type,
-                                    const std::wstring& proxy,
-                                    const std::wstring& proxy_bypass) {
+                                    std::wstring_view proxy,
+                                    std::wstring_view proxy_bypass) {
   ScopedHInternet session_handle(::WinHttpOpen(
-      user_agent.c_str(), proxy_access_type,
-      proxy.empty() ? WINHTTP_NO_PROXY_NAME : proxy.c_str(),
-      proxy_bypass.empty() ? WINHTTP_NO_PROXY_BYPASS : proxy_bypass.c_str(),
+      user_agent.data(), proxy_access_type,
+      proxy.empty() ? WINHTTP_NO_PROXY_NAME : proxy.data(),
+      proxy_bypass.empty() ? WINHTTP_NO_PROXY_BYPASS : proxy_bypass.data(),
       WINHTTP_FLAG_ASYNC));
   if (!session_handle.is_valid()) {
     return session_handle;

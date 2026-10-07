@@ -241,7 +241,7 @@ TEST_F(SavedTabGroupConversionTest, DataToTabWithExtensionURL) {
   SavedTabGroupTab tab =
       SavedTabGroupSyncBridge::DataToSavedTabGroupTabForTest(pb_data);
 
-#if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
+#if BUILDFLAG(ENABLE_EXTENSIONS)
   EXPECT_EQ(tab.url(), GURL("chrome-extension://"
                             "gbkeeggdbebmphjfgccenjimijgnhkjj/suspended.html"));
   EXPECT_EQ(tab.title(), u"Extension URL Title");
@@ -250,27 +250,6 @@ TEST_F(SavedTabGroupConversionTest, DataToTabWithExtensionURL) {
   EXPECT_EQ(tab.url(), expected_url);
   EXPECT_EQ(tab.title(), expected_title);
 #endif
-}
-
-TEST_F(SavedTabGroupConversionTest, DataToTabWithChromeURL) {
-  proto::SavedTabGroupData pb_data;
-  sync_pb::SavedTabGroupSpecifics* pb_specific = pb_data.mutable_specifics();
-  pb_specific->set_guid(base::Uuid::GenerateRandomV4().AsLowercaseString());
-
-  int64_t time_in_micros = time_.ToDeltaSinceWindowsEpoch().InMicroseconds();
-  pb_specific->set_creation_time_windows_epoch_micros(time_in_micros);
-  pb_specific->set_update_time_windows_epoch_micros(time_in_micros);
-
-  sync_pb::SavedTabGroupTab* pb_tab = pb_specific->mutable_tab();
-  pb_tab->set_url("chrome://settings/");
-  pb_tab->set_group_guid(base::Uuid::GenerateRandomV4().AsLowercaseString());
-  pb_tab->set_title("Settings");
-
-  SavedTabGroupTab tab =
-      SavedTabGroupSyncBridge::DataToSavedTabGroupTabForTest(pb_data);
-
-  EXPECT_EQ(tab.url(), GURL("chrome://settings/"));
-  EXPECT_EQ(tab.title(), u"Settings");
 }
 
 TEST_F(SavedTabGroupConversionTest, DataToTabRetainsData) {

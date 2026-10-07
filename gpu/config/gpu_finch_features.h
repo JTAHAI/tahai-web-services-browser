@@ -43,7 +43,6 @@ GPU_CONFIG_EXPORT BASE_DECLARE_FEATURE(kDefaultEnableGpuRasterization);
 GPU_CONFIG_EXPORT BASE_DECLARE_FEATURE(kUseDynamicBackingAllocations);
 
 GPU_CONFIG_EXPORT BASE_DECLARE_FEATURE(kUseStrongRefToSharedImageInterface);
-GPU_CONFIG_EXPORT BASE_DECLARE_FEATURE(kUseAutomaticSyncTokenManagement);
 
 GPU_CONFIG_EXPORT BASE_DECLARE_FEATURE(kEnableMSAAOnNewIntelGPUs);
 
@@ -69,10 +68,6 @@ GPU_CONFIG_EXPORT BASE_DECLARE_FEATURE(kSkiaGraphiteWinIntel);
 GPU_CONFIG_EXPORT BASE_DECLARE_FEATURE(kSkiaGraphitePrecompilation);
 GPU_CONFIG_EXPORT BASE_DECLARE_FEATURE(kSkiaGraphiteUsePersistentCache);
 GPU_CONFIG_EXPORT bool SkiaGraphiteUsesPersistentCache();
-
-// Enables switching Graphite from the sort-based draw ordering to the
-// layer-based system.
-GPU_CONFIG_EXPORT BASE_DECLARE_FEATURE(kSkiaGraphiteDrawListLayer);
 
 struct GPU_CONFIG_EXPORT SkiaGraphiteFeatureParams {
   // Whether the Dawn "skip_validation" toggle is enabled for Skia Graphite.
@@ -113,9 +108,6 @@ struct GPU_CONFIG_EXPORT SkiaGraphiteFeatureParams {
   // If this param is enabled, FlushTileRasterGraphiteCommandsCHROMIUM will
   // also flush the D3D11 commands to the driver (if delay flush is enabled).
   bool flush_d3d11_tile_raster_commands_to_driver = false;
-
-  // Whether to use triple buffering for DirectComposition root surface.
-  bool triple_buffered_dcomp_root_surface = false;
 #endif
 };
 
@@ -170,9 +162,8 @@ inline bool SkiaGraphiteFlushD3D11TileRasterCommandsToDriver() {
   return GetSkiaGraphiteFeatureParams()
       .flush_d3d11_tile_raster_commands_to_driver;
 }
-inline bool SkiaGraphiteTripleBufferedDCompRootSurface() {
-  return GetSkiaGraphiteFeatureParams().triple_buffered_dcomp_root_surface;
-}
+
+GPU_CONFIG_EXPORT BASE_DECLARE_FEATURE(kSkiaGraphiteDawnUseD3D12);
 #endif
 
 GPU_CONFIG_EXPORT BASE_DECLARE_FEATURE(kSkiaGraphiteSmallPathAtlas);
@@ -227,6 +218,10 @@ GPU_CONFIG_EXPORT BASE_DECLARE_FEATURE(kIncreasedCmdBufferParseSlice);
 
 GPU_CONFIG_EXPORT BASE_DECLARE_FEATURE(kDeferredOverlaysRelease);
 
+#if BUILDFLAG(IS_WIN)
+GPU_CONFIG_EXPORT BASE_DECLARE_FEATURE(kD3DBackingUploadWithUpdateSubresource);
+#endif
+
 GPU_CONFIG_EXPORT BASE_DECLARE_FEATURE(kGPUBlockListTestGroup);
 GPU_CONFIG_EXPORT extern const base::FeatureParam<int> kGPUBlockListTestGroupId;
 GPU_CONFIG_EXPORT BASE_DECLARE_FEATURE(kGPUDriverBugListTestGroup);
@@ -259,6 +254,10 @@ GPU_CONFIG_EXPORT BASE_DECLARE_FEATURE(kSyncPointGraphValidation);
 GPU_CONFIG_EXPORT bool IsSyncPointGraphValidationEnabled();
 
 GPU_CONFIG_EXPORT BASE_DECLARE_FEATURE(kANGLEPerContextBlobCache);
+
+#if BUILDFLAG(IS_APPLE)
+GPU_CONFIG_EXPORT BASE_DECLARE_FEATURE(kIOSurfaceMultiThreading);
+#endif
 
 GPU_CONFIG_EXPORT BASE_DECLARE_FEATURE(kConfigurableGPUWatchdogTimeout);
 GPU_CONFIG_EXPORT extern const base::FeatureParam<int>

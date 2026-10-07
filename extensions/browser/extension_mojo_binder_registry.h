@@ -6,14 +6,21 @@
 #define EXTENSIONS_BROWSER_EXTENSION_MOJO_BINDER_REGISTRY_H_
 
 #include <memory>
+#include <string>
+#include <string_view>
+#include <utility>
+#include <vector>
 
+#include "base/containers/flat_map.h"
+#include "base/functional/callback.h"
+#include "base/logging.h"
+#include "base/memory/raw_ptr.h"
+#include "base/no_destructor.h"
 #include "base/sequence_checker.h"
-#include "base/thread_annotations.h"
-#include "base/types/pass_key.h"
-#include "components/keyed_service/core/keyed_service.h"
+#include "extensions/common/extension.h"
 #include "extensions/common/extension_id.h"
 #include "mojo/public/cpp/bindings/binder_map.h"
-#include "third_party/abseil-cpp/absl/container/flat_hash_map.h"
+#include "mojo/public/cpp/bindings/pending_receiver.h"
 
 namespace content {
 class BrowserContext;
@@ -25,87 +32,122 @@ namespace extensions {
 
 class Extension;
 
+// A wrapper around `mojo::BinderMapWithContext` that applies an allowlist
+// filter before registering an interface binder for an extension.
+template <typename Context>
+class ExtensionBinderMap {
+ public:
+  using AllowlistFilter =
+      base::RepeatingCallback<bool(const Extension*, std::string_view)>;
+
+  ExtensionBinderMap(mojo::BinderMapWithContext<Context>* binder_map,
+                     const Extension* extension,
+                     AllowlistFilter filter)
+      : binder_map_(binder_map),
+        extension_(extension),
+        filter_(std::move(filter)) {}
+
+  template <typename Interface>
+  void Add(
+      base::RepeatingCallback<void(Context, mojo::PendingReceiver<Interface>)>
+          binder) {
+    if (filter_.Run(extension_, Interface::Name_)) {
+      binder_map_->template Add<Interface>(std::move(binder));
+    } else {
+      DLOG(ERROR) << "Rejected attempt to register Mojo interface binder '"
+                  << Interface::Name_ << "' for component extension '"
+                  << (extension_ ? extension_->id() : "null") << "'.";
+    }
+  }
+
+  template <typename Interface>
+  void Add(void (*binder)(Context, mojo::PendingReceiver<Interface>)) {
+    if (filter_.Run(extension_, Interface::Name_)) {
+      binder_map_->template Add<Interface>(binder);
+    } else {
+      DLOG(ERROR) << "Rejected attempt to register Mojo interface binder '"
+                  << Interface::Name_ << "' for component extension '"
+                  << (extension_ ? extension_->id() : "null") << "'.";
+    }
+  }
+
+ private:
+  raw_ptr<mojo::BinderMapWithContext<Context>> binder_map_;
+  raw_ptr<const Extension> extension_;
+  AllowlistFilter filter_;
+};
+
 // An interface for features to register extension-scoped Mojo binders when an
 // extension document or service worker connects. Features should implement this
 // interface and transfer ownership of the provider instance to the
-// `ExtensionMojoBinderRegistry` KeyedService for a given BrowserContext.
+// `ExtensionMojoBinderRegistry` singleton during startup (typically inside
+// the constructors of profile keyed service factories).
 class ExtensionMojoBinderProvider {
  public:
-  explicit ExtensionMojoBinderProvider(ExtensionId extension_id);
-  virtual ~ExtensionMojoBinderProvider();
+  virtual ~ExtensionMojoBinderProvider() = default;
 
   // Returns the ID of the component extension supported by this provider.
-  const ExtensionId& extension_id() const { return extension_id_; }
+  virtual ExtensionId GetExtensionId() const = 0;
 
-  // Registers Mojo interface binders for document frames belonging to this
-  // extension.
   virtual void PopulateFrameBinders(
-      mojo::BinderMapWithContext<content::RenderFrameHost*>& binder_map,
+      ExtensionBinderMap<content::RenderFrameHost*>& binder_map,
       content::RenderFrameHost* render_frame_host,
-      const Extension& extension) {}
+      const Extension* extension) {}
 
-  // Registers Mojo interface binders for service workers belonging to this
-  // extension.
   virtual void PopulateServiceWorkerBinders(
-      mojo::BinderMapWithContext<const content::ServiceWorkerVersionBaseInfo&>&
+      ExtensionBinderMap<const content::ServiceWorkerVersionBaseInfo&>&
           binder_map,
       content::BrowserContext* browser_context,
-      const Extension& extension) {}
-
- private:
-  const ExtensionId extension_id_;
+      const Extension* extension) {}
 };
 
 // A registry for extension-scoped Mojo interface binder providers. It decouples
 // the core extensions layer from individual features by allowing features to
 // register binder providers (`ExtensionMojoBinderProvider`) that populate their
 // interfaces when extension documents or service workers request connection.
-class ExtensionMojoBinderRegistry : public KeyedService {
+class ExtensionMojoBinderRegistry {
  public:
-  ExtensionMojoBinderRegistry();
   ExtensionMojoBinderRegistry(const ExtensionMojoBinderRegistry&) = delete;
   ExtensionMojoBinderRegistry& operator=(const ExtensionMojoBinderRegistry&) =
       delete;
-  ~ExtensionMojoBinderRegistry() override;
+
+  static ExtensionMojoBinderRegistry* GetInstance();
 
   // Registers a provider for extension-scoped Mojo interface binders, taking
   // ownership of the provider instance.
-  // See specializations in extension_mojo_binder_registry.cc for approved
-  // callers and IPC review requirements.
-  template <typename T>
-  void RegisterProvider(base::PassKey<T> passkey,
-                        std::unique_ptr<ExtensionMojoBinderProvider> provider);
+  void RegisterProvider(std::unique_ptr<ExtensionMojoBinderProvider> provider);
 
-  // Populates the binder map with Mojo binders provided by the registered
-  // extension provider for the given render frame.
+  // Populates registered frame binders allowed for the extension into the map.
   void PopulateFrameBinders(
       mojo::BinderMapWithContext<content::RenderFrameHost*>* binder_map,
       content::RenderFrameHost* render_frame_host,
-      const Extension& extension);
+      const Extension* extension);
 
-  // Populates the binder map with Mojo binders provided by the registered
-  // extension provider for the given service worker.
+  // Populates registered service worker binders allowed for the extension into
+  // the map.
   void PopulateServiceWorkerBinders(
       mojo::BinderMapWithContext<const content::ServiceWorkerVersionBaseInfo&>*
           binder_map,
       content::BrowserContext* browser_context,
-      const Extension& extension);
+      const Extension* extension);
 
-  // Returns true if `extension` is allowed to use MojoJS bindings.
-  bool IsMojoJsEnabled(const Extension& extension) const;
+  bool IsAllowedInterfaceForExtension(const Extension* extension,
+                                      std::string_view interface_name) const;
 
+  void SetBypassAllowlistForTesting(bool bypass);
   void ClearProvidersForTesting();
 
  private:
-  void RegisterProviderImpl(
-      std::unique_ptr<ExtensionMojoBinderProvider> provider);
+  friend class base::NoDestructor<ExtensionMojoBinderRegistry>;
 
-  ExtensionMojoBinderProvider* GetProviderIfAllowed(
-      const Extension& extension) const;
+  ExtensionMojoBinderRegistry();
+  ~ExtensionMojoBinderRegistry();
+
+  base::flat_map<ExtensionId, std::unique_ptr<ExtensionMojoBinderProvider>>
+      providers_;
+  bool bypass_allowlist_for_testing_ = false;
 
   SEQUENCE_CHECKER(sequence_checker_);
-  absl::flat_hash_map<ExtensionId, std::unique_ptr<ExtensionMojoBinderProvider>>
-      providers_ GUARDED_BY_CONTEXT(sequence_checker_);
 };
 
 }  // namespace extensions

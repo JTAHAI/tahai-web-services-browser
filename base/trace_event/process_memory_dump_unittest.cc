@@ -42,25 +42,21 @@ constexpr std::string_view kTestDumpNameAllowlist[] = {
     "Allowlisted/TestName", "Allowlisted/TestName_0x?",
     "Allowlisted/0x?/TestName", "Allowlisted/0x?"};
 
-base::span<uint8_t> Map(size_t size) {
+void* Map(size_t size) {
 #if BUILDFLAG(IS_WIN)
-  void* ptr =
-      ::VirtualAlloc(nullptr, size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+  return ::VirtualAlloc(nullptr, size, MEM_RESERVE | MEM_COMMIT,
+                        PAGE_READWRITE);
 #elif BUILDFLAG(IS_POSIX) || BUILDFLAG(IS_FUCHSIA)
-  void* ptr = ::mmap(nullptr, size, PROT_READ | PROT_WRITE,
-                     MAP_PRIVATE | MAP_ANON, 0, 0);
+  return ::mmap(nullptr, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON,
+                0, 0);
 #endif
-  // SAFETY: `VirtualAlloc` and `mmap` allocate memory segments of at least
-  // `size` bytes (rounded up to page boundaries). Therefore, constructing a
-  // span over `ptr` with `size` bytes is bounds-safe.
-  return UNSAFE_BUFFERS(base::span(static_cast<uint8_t*>(ptr), size));
 }
 
-void Unmap(base::span<uint8_t> span) {
+void Unmap(void* addr, size_t size) {
 #if BUILDFLAG(IS_WIN)
-  ::VirtualFree(span.data(), 0, MEM_RELEASE);
+  ::VirtualFree(addr, 0, MEM_DECOMMIT);
 #elif BUILDFLAG(IS_POSIX) || BUILDFLAG(IS_FUCHSIA)
-  ::munmap(span.data(), span.size());
+  ::munmap(addr, size);
 #else
 #error This architecture is not (yet) supported.
 #endif
@@ -441,48 +437,25 @@ TEST(ProcessMemoryDumpTest, GuidsTest) {
 TEST(ProcessMemoryDumpTest, MAYBE_CountResidentBytes) {
   const size_t page_size = ProcessMemoryDump::GetSystemPageSize();
 
-  // Size 0 allocation check.
-  std::optional<size_t> res0 =
-      ProcessMemoryDump::CountResidentBytes(nullptr, 0);
-  ASSERT_TRUE(res0.has_value());
-  ASSERT_EQ(res0.value(), 0u);
-
   // Allocate few page of dirty memory and check if it is resident.
   const size_t size1 = 5 * page_size;
-  base::span<uint8_t> memory1 = Map(size1);
-  std::ranges::fill(memory1, 0u);
+  void* memory1 = Map(size1);
+  UNSAFE_TODO(memset(memory1, 0, size1));
   std::optional<size_t> res1 =
-      ProcessMemoryDump::CountResidentBytes(memory1.data(), memory1.size());
+      ProcessMemoryDump::CountResidentBytes(memory1, size1);
   ASSERT_TRUE(res1.has_value());
   ASSERT_EQ(res1.value(), size1);
-
-  // Unaligned pointer partway into one of the maps.
-  const uintptr_t unaligned_addr =
-      reinterpret_cast<uintptr_t>(memory1.data()) + page_size / 2;
-  std::optional<size_t> res_unaligned = ProcessMemoryDump::CountResidentBytes(
-      reinterpret_cast<void*>(unaligned_addr), page_size);
-  ASSERT_TRUE(res_unaligned.has_value());
-  ASSERT_EQ(res_unaligned.value(), page_size);
-
-  Unmap(memory1);
-
-  // Unwritten (non-resident) memory check.
-  base::span<uint8_t> memory_unwritten = Map(size1);
-  std::optional<size_t> res_unwritten = ProcessMemoryDump::CountResidentBytes(
-      memory_unwritten.data(), memory_unwritten.size());
-  ASSERT_TRUE(res_unwritten.has_value());
-  ASSERT_EQ(res_unwritten.value(), 0u);
-  Unmap(memory_unwritten);
+  Unmap(memory1, size1);
 
   // Allocate a large memory segment (> 8Mib).
   const size_t kVeryLargeMemorySize = 15 * 1024 * 1024;
-  base::span<uint8_t> memory2 = Map(kVeryLargeMemorySize);
-  std::ranges::fill(memory2, 0u);
+  void* memory2 = Map(kVeryLargeMemorySize);
+  UNSAFE_TODO(memset(memory2, 0, kVeryLargeMemorySize));
   std::optional<size_t> res2 =
-      ProcessMemoryDump::CountResidentBytes(memory2.data(), memory2.size());
+      ProcessMemoryDump::CountResidentBytes(memory2, kVeryLargeMemorySize);
   ASSERT_TRUE(res2.has_value());
   ASSERT_EQ(res2.value(), kVeryLargeMemorySize);
-  Unmap(memory2);
+  Unmap(memory2, kVeryLargeMemorySize);
 }
 
 #if BUILDFLAG(IS_FUCHSIA)
@@ -519,15 +492,7 @@ TEST(ProcessMemoryDumpTest, MAYBE_CountResidentBytesInSharedMemory) {
     std::ranges::fill(mapping_mem, 0u);
     std::optional<size_t> res1 = CountResidentBytesInSharedMemory(mapping);
     ASSERT_TRUE(res1.has_value());
-    // On Windows (where VirtualQuery returns the full region size for mapped
-    // sections) and Apple (which queries resident Mach VM pages), the mapped
-    // span granularity includes all page-aligned pages (6.0 pages total).
-    // On POSIX/Linux, exact sub-page overlap calculation returns 5.5 pages.
-#if BUILDFLAG(IS_APPLE) || BUILDFLAG(IS_WIN)
     ASSERT_EQ(res1.value(), kDirtyMemorySize + page_size);
-#else
-    ASSERT_EQ(res1.value(), kDirtyMemorySize + page_size / 2);
-#endif
   }
 
   // Allocate a large memory segment (> 8Mib).

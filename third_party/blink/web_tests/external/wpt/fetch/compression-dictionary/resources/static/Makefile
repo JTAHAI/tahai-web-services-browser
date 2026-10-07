@@ -1,13 +1,9 @@
-SHELL := /bin/bash
+#!/bin/bash
 
 BROTLI=brotli
 MIMETYPE=mimetype
 OPENSSL=openssl
 ZSTD=zstd
-
-# RFC 9842 stream headers.
-DCB_HEADER=\377DCB
-DCZ_HEADER=\136\052\115\030\040\000\000\000
 
 all: \
   self-compressed-image-001.png.dcb \
@@ -21,8 +17,9 @@ all: \
   subframe-001-compressed-by-style-001.html.dcb \
   subframe-001-compressed-by-style-001.html.dcz \
   subframe-001-compressed-by-script-001.html.dcb \
-  subframe-001-compressed-by-script-001.html.dcz \
-  dictionary-hashes.js
+  subframe-001-compressed-by-script-001.html.dcz
+
+.PHONY: hashes
 
 define generate_dcb
 	$(eval in=$(1))
@@ -33,7 +30,7 @@ define generate_dcb
 	echo 'Content-Encoding: dcb' > $(out).headers
 	echo -n 'Content-Type: ' >> $(out).headers
 	$(MIMETYPE) -b $(in) >> $(out).headers
-	printf '$(DCB_HEADER)' > $(out)
+	cp dcb-header $(out)
 	$(OPENSSL) dgst -sha256 -binary $(dict) >> $(out)
 	$(BROTLI) --stdout -D $(dict) $(in) >> $(out)
 endef
@@ -47,7 +44,7 @@ define generate_dcz
 	echo 'Content-Encoding: dcz' > $(out).headers
 	echo -n 'Content-Type: ' >> $(out).headers
 	$(MIMETYPE) -b $(in) >> $(out).headers
-	printf '$(DCZ_HEADER)' > $(out)
+	cp dcz-header $(out)
 	cp $(dict) /tmp/dcz.dict
 	$(OPENSSL) dgst -sha256 -binary /tmp/dcz.dict >> $(out)
 	$(ZSTD) -D /tmp/dcz.dict -f -o /tmp/dcz.zstd $(in)
@@ -55,7 +52,7 @@ define generate_dcz
 endef
 
 clean:
-	rm -f *compressed* *.headers dictionary-hashes.js
+	rm -f *compressed* *.headers
 
 self-compressed-%.dcb: %
 	$(call generate_dcb,$<,$<,$@)
@@ -75,12 +72,12 @@ subframe-001-compressed-by-script-001.html.dcb: subframe-001.html script-001.js
 subframe-001-compressed-by-script-001.html.dcz: subframe-001.html script-001.js
 	$(call generate_dcz,$<,$(word 2,$^),$@)
 
-dictionary-hashes.js: image-001.png script-001.js style-001.css	subframe-001.html
-	echo "// Automatically generated. Do not edit." > $@
-	echo "const kDictionaryHashes = {" >> $@
-	for file in $^; do \
-	    echo -n "  '"$$file"': ':"  >> $@; \
-	    cat $$file | $(OPENSSL) dgst -binary -sha256  | $(OPENSSL) base64 -A >> $@; \
-	    echo ":'," >> $@; \
+# Not used by the tests, but just in case one needs it...
+hashes: style-001.css script-001.js subframe-001.html image-001.png
+	@echo "{"
+	@for file in $^; do \
+	    echo -n '  "'$$file'": ":'; \
+	    cat $$file | $(OPENSSL) dgst -binary -sha256  | $(OPENSSL) base64 -A; \
+	    echo ':",'; \
 	    done
-	echo "};" >> $@
+	@echo "}"

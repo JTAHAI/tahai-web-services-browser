@@ -26,9 +26,7 @@ class ReadAnythingSoftNavigationObserver
   ObservePolicy OnPrerenderStart(content::NavigationHandle* navigation_handle,
                                  const GURL& currently_committed_url) override;
 
-  void OnSoftNavigationFirstContentfulPaint(
-      const page_load_metrics::mojom::SoftNavigationMetrics&
-          soft_navigation_metrics) override;
+  void OnSoftNavigation() override;
 };
 
 #endif  // CHROME_BROWSER_UI_READ_ANYTHING_READ_ANYTHING_SOFT_NAVIGATION_OBSERVER_H_

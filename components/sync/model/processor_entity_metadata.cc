@@ -206,12 +206,8 @@ void ProcessorEntityMetadata::RecordAcceptedRemoteUpdate(
     }
   }
   UpdateSpecificsHash(update.entity.specifics);
-  if (trimmed_specifics.ByteSizeLong() > 0) {
-    *metadata_.mutable_possibly_trimmed_base_specifics() =
-        std::move(trimmed_specifics);
-  } else {
-    metadata_.clear_possibly_trimmed_base_specifics();
-  }
+  *metadata_.mutable_possibly_trimmed_base_specifics() =
+      std::move(trimmed_specifics);
   if (unique_position) {
     *metadata_.mutable_unique_position() = std::move(unique_position.value());
   } else {
@@ -240,16 +236,12 @@ void ProcessorEntityMetadata::RecordCommitResponse(
   }
 }
 
-void ProcessorEntityMetadata::RecordLocalUpdate(
-    const EntityData& data,
-    sync_pb::EntitySpecifics trimmed_specifics,
+void ProcessorEntityMetadata::UpdateMetadataForLocalUpdate(
+    const sync_pb::EntitySpecifics& specifics,
+    base::Time modification_time,
     std::optional<sync_pb::UniquePosition> unique_position) {
-  const base::Time modification_time = !data.modification_time.is_null()
-                                           ? data.modification_time
-                                           : base::Time::Now();
-
   IncrementSequenceNumber();
-  UpdateSpecificsHash(data.specifics);
+  UpdateSpecificsHash(specifics);
   metadata_.set_modification_time(TimeToProtoTime(modification_time));
   metadata_.set_is_deleted(false);
   if (unique_position.has_value()) {
@@ -257,16 +249,23 @@ void ProcessorEntityMetadata::RecordLocalUpdate(
   } else {
     metadata_.clear_unique_position();
   }
+}
 
-  if (trimmed_specifics.ByteSizeLong() > 0) {
-    *metadata_.mutable_possibly_trimmed_base_specifics() =
-        std::move(trimmed_specifics);
-  } else {
-    metadata_.clear_possibly_trimmed_base_specifics();
-  }
+void ProcessorEntityMetadata::RecordLocalUpdate(
+    const EntityData& data,
+    sync_pb::EntitySpecifics trimmed_specifics,
+    std::optional<sync_pb::UniquePosition> unique_position) {
+  base::Time modification_time = !data.modification_time.is_null()
+                                     ? data.modification_time
+                                     : base::Time::Now();
+
+  UpdateMetadataForLocalUpdate(data.specifics, modification_time,
+                               std::move(unique_position));
+
+  SetPossiblyTrimmedBaseSpecifics(std::move(trimmed_specifics));
 
   if (!data.creation_time.is_null()) {
-    metadata_.set_creation_time(TimeToProtoTime(data.creation_time));
+    SetCreationTime(data.creation_time);
   }
 
   // Collaboration metadata is updated only on creation (i.e. for the first
@@ -308,6 +307,15 @@ void ProcessorEntityMetadata::RecordLocalDeletion(
 
   metadata_.set_deleted_by_version(
       std::string(version_info::GetVersionNumber()));
+}
+
+void ProcessorEntityMetadata::SetPossiblyTrimmedBaseSpecifics(
+    sync_pb::EntitySpecifics specifics) {
+  *metadata_.mutable_possibly_trimmed_base_specifics() = std::move(specifics);
+}
+
+void ProcessorEntityMetadata::SetCreationTime(base::Time time) {
+  metadata_.set_creation_time(TimeToProtoTime(time));
 }
 
 }  // namespace syncer

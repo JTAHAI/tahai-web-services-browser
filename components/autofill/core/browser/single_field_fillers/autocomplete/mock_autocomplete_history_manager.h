@@ -13,9 +13,6 @@ namespace autofill {
 class MockAutocompleteHistoryManager : public AutocompleteHistoryManager {
  public:
   MockAutocompleteHistoryManager();
-  explicit MockAutocompleteHistoryManager(
-      scoped_refptr<AutofillWebDataService> profile_database,
-      PrefService* pref_service = nullptr);
   ~MockAutocompleteHistoryManager() override;
 
   MOCK_METHOD(void,
@@ -30,7 +27,8 @@ class MockAutocompleteHistoryManager : public AutocompleteHistoryManager {
   MOCK_METHOD(void,
               OnWillSubmitFormWithFields,
               (const std::vector<FormFieldData>& fields,
-               const FormStructure* form),
+               const FormStructure* form,
+               bool is_autocomplete_enabled),
               (override));
   MOCK_METHOD(void, CancelPendingQuery, (), (override));
   MOCK_METHOD(void,

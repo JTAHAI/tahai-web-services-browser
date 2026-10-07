@@ -15,14 +15,7 @@ import {AvatarToolbarButtonState} from '/shared/toolbar_ui_api_data_model.mojom-
 import {getCss} from './avatar_button.css.js';
 import {getHtml} from './avatar_button.html.js';
 import {BrowserProxyImpl} from './browser_proxy.js';
-import {HelpBubbleAnchorMixin, setHasHelpBubble} from './toolbar_button.js';
-import type {ToolbarChipButtonElement} from './toolbar_chip_button.js';
-
-export interface AvatarButtonElement {
-  $: {
-    button: ToolbarChipButtonElement,
-  };
-}
+import {HelpBubbleAnchorMixin} from './toolbar_button.js';
 
 const AvatarButtonElementBase = HelpBubbleAnchorMixin(CrLitElement);
 
@@ -44,22 +37,6 @@ export class AvatarButtonElement extends AvatarButtonElementBase {
       ...super.properties,
       state: {type: Object},
     };
-  }
-
-  override connectedCallback() {
-    super.connectedCallback();
-    this.registerHelpBubble('kToolbarAvatarButtonElementId', this.$.button, {
-      onHighlightChanged: (highlighted: boolean) => {
-        this.classList.toggle('anchor-highlight', highlighted);
-      },
-      onHelpBubbleShown: () => setHasHelpBubble(this, true),
-      onHelpBubbleHidden: () => setHasHelpBubble(this, false),
-    });
-  }
-
-  override disconnectedCallback() {
-    super.disconnectedCallback();
-    this.unregisterHelpBubble('kToolbarAvatarButtonElementId');
   }
 
   override updated(changedProperties: PropertyValues<this>) {
@@ -91,27 +68,19 @@ export class AvatarButtonElement extends AvatarButtonElementBase {
   }
 
   protected getButtonClass_(): string {
-    const classes = [];
-    if (this.hasHelpBubble) {
-      classes.push('help-anchor-highlight');
+    if (!this.state.text) {
+      return '';
     }
-    if (this.state.text) {
-      switch (this.state.state) {
-        case AvatarToolbarButtonState.kSyncError:
-          classes.push('highlight-sync-error');
-          break;
-        case AvatarToolbarButtonState.kGuestSession:
-          classes.push('highlight-guest');
-          break;
-        case AvatarToolbarButtonState.kIncognitoProfile:
-          classes.push('highlight-incognito');
-          break;
-        default:
-          classes.push('highlight-default');
-          break;
-      }
+    switch (this.state.state) {
+      case AvatarToolbarButtonState.kSyncError:
+        return 'highlight-sync-error';
+      case AvatarToolbarButtonState.kGuestSession:
+        return 'highlight-guest';
+      case AvatarToolbarButtonState.kIncognitoProfile:
+        return 'highlight-incognito';
+      default:
+        return 'highlight-default';
     }
-    return classes.join(' ');
   }
 
   protected onClick_(_: Event) {

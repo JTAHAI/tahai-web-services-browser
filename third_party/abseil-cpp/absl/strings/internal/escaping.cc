@@ -14,7 +14,6 @@
 
 #include "absl/strings/internal/escaping.h"
 
-#include <cstddef>
 #include <limits>
 
 #include "absl/base/internal/endian.h"

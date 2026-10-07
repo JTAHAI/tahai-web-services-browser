@@ -34,7 +34,6 @@
 #include <memory>
 
 #include "base/memory/raw_ptr.h"
-#include "base/memory/scoped_refptr.h"
 #include "gin/public/context_holder.h"
 #include "gin/public/gin_embedders.h"
 #include "third_party/blink/renderer/platform/bindings/scoped_persistent.h"
@@ -50,10 +49,6 @@
 
 namespace blink {
 
-namespace scheduler {
-class EventLoop;
-}  // namespace scheduler
-
 class V8DOMActivityLogger;
 class V8PerContextData;
 struct WrapperTypeInfo;
@@ -63,7 +58,7 @@ struct WrapperTypeInfo;
 class PLATFORM_EXPORT V8PerContextData final
     : public GarbageCollected<V8PerContextData> {
  public:
-  V8PerContextData(v8::Local<v8::Context>, scoped_refptr<scheduler::EventLoop>);
+  explicit V8PerContextData(v8::Local<v8::Context>);
   V8PerContextData(const V8PerContextData&) = delete;
   V8PerContextData& operator=(const V8PerContextData&) = delete;
 
@@ -71,8 +66,6 @@ class PLATFORM_EXPORT V8PerContextData final
 
   void Trace(Visitor* visitor) const;
   void Dispose();
-
-  scheduler::EventLoop* GetEventLoop() const { return event_loop_.get(); }
 
   v8::Local<v8::Context> GetContext() { return context_.NewLocal(isolate_); }
 
@@ -146,8 +139,6 @@ class PLATFORM_EXPORT V8PerContextData final
 
   using DataMap = HeapHashMap<const char*, Member<Data>>;
   DataMap data_map_;
-
-  scoped_refptr<scheduler::EventLoop> event_loop_;
 };
 
 }  // namespace blink

@@ -24,7 +24,6 @@ import androidx.fragment.app.FragmentManager;
 
 import org.chromium.base.Callback;
 import org.chromium.base.supplier.MonotonicObservableSupplier;
-import org.chromium.base.supplier.SupplierUtils;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.R;
@@ -42,6 +41,8 @@ import org.chromium.chrome.browser.omnibox.ChromeAutocompleteSchemeClassifier;
 import org.chromium.chrome.browser.paint_preview.TabbedPaintPreview;
 import org.chromium.chrome.browser.pdf.PdfUtils;
 import org.chromium.chrome.browser.pdf.PdfUtils.PdfPageType;
+import org.chromium.chrome.browser.privacy_sandbox.PrivacySandboxReferrer;
+import org.chromium.chrome.browser.privacy_sandbox.PrivacySandboxSettingsBaseFragment;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.settings.SettingsNavigationFactory;
 import org.chromium.chrome.browser.site_settings.ChromeSiteSettingsDelegate;
@@ -60,6 +61,7 @@ import org.chromium.components.content_settings.CookieControlsBridge;
 import org.chromium.components.content_settings.CookieControlsObserver;
 import org.chromium.components.embedder_support.util.UrlUtilities;
 import org.chromium.components.feature_engagement.EventConstants;
+import org.chromium.components.page_info.PageInfoAdPersonalizationController;
 import org.chromium.components.page_info.PageInfoController;
 import org.chromium.components.page_info.PageInfoControllerDelegate;
 import org.chromium.components.page_info.PageInfoMainController;
@@ -169,18 +171,17 @@ public class ChromePageInfoControllerDelegate extends PageInfoControllerDelegate
             PageInfoView.Params viewParams, Consumer<Runnable> runAfterDismiss) {
         if (isShowingOfflinePage() && OfflinePageUtils.isConnected()) {
             viewParams.openOnlineButtonClickCallback =
-                    () ->
-                            runAfterDismiss.accept(
-                                    () -> {
-                                        // Attempt to reload to an online version of the viewed
-                                        // offline
-                                        // web page.
-                                        // This attempt might fail if the user is offline, in which
-                                        // case
-                                        // an offline copy will be reloaded.
-                                        OfflinePageUtils.reload(
-                                                mWebContents, mOfflinePageLoadUrlDelegate);
-                                    });
+                    () -> {
+                        runAfterDismiss.accept(
+                                () -> {
+                                    // Attempt to reload to an online version of the viewed offline
+                                    // web page.
+                                    // This attempt might fail if the user is offline, in which case
+                                    // an offline copy will be reloaded.
+                                    OfflinePageUtils.reload(
+                                            mWebContents, mOfflinePageLoadUrlDelegate);
+                                });
+                    };
         } else {
             viewParams.openOnlineButtonShown = false;
         }
@@ -271,7 +272,6 @@ public class ChromePageInfoControllerDelegate extends PageInfoControllerDelegate
             return;
         }
         Tab tab = TabUtils.fromWebContents(mWebContents);
-        assert tab != null;
 
         // FEEDBACK_REPORT_TYPE: Reports for Chrome mobile must have a contextTag of the form
         // com.chrome.feed.USER_INITIATED_FEEDBACK_REPORT, or they will be discarded for not
@@ -281,9 +281,24 @@ public class ChromePageInfoControllerDelegate extends PageInfoControllerDelegate
     }
 
     @Override
+    public void showAdPersonalizationSettings() {
+        PrivacySandboxSettingsBaseFragment.launchPrivacySandboxSettings(
+                mContext, PrivacySandboxReferrer.PAGE_INFO_AD_PRIVACY_SECTION);
+    }
+
+    @Override
     public Collection<PageInfoSubpageController> createAdditionalRowViews(
             PageInfoMainController mainController, ViewGroup rowWrapper) {
         Collection<PageInfoSubpageController> controllers = new ArrayList<>();
+        if (!ChromeFeatureList.isEnabled(
+                ChromeFeatureList.PRIVACY_SANDBOX_AD_PRIVACY_UX_DEPRECATION)) {
+            var adPersonalizationRow = new PageInfoRowView(rowWrapper.getContext(), null);
+            adPersonalizationRow.setId(PageInfoAdPersonalizationController.ROW_ID);
+            rowWrapper.addView(adPersonalizationRow);
+            controllers.add(
+                    new PageInfoAdPersonalizationController(
+                            mainController, adPersonalizationRow, this));
+        }
 
         // Add history row.
         final Tab tab = TabUtils.fromWebContents(mWebContents);
@@ -292,7 +307,12 @@ public class ChromePageInfoControllerDelegate extends PageInfoControllerDelegate
         rowWrapper.addView(historyRow);
         controllers.add(
                 new PageInfoHistoryController(
-                        mainController, historyRow, this, SupplierUtils.of(tab)));
+                        mainController,
+                        historyRow,
+                        this,
+                        () -> {
+                            return tab;
+                        }));
 
         if (PageInfoAboutThisSiteController.isFeatureEnabled()
                 && (mEphemeralTabCoordinatorSupplier != null || mTabCreator != null)) {

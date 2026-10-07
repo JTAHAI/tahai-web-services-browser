@@ -11,12 +11,9 @@
 namespace enterprise_net {
 
 const char kProxyProvisioningDomains[] = "proxy_provisioning_domains";
-const char kProvisioningDomainProxyConfigs[] =
-    "provisioning_domain_proxy_configs";
 
 void RegisterProfilePrefs(PrefRegistrySimple* registry) {
   registry->RegisterListPref(kProxyProvisioningDomains);
-  registry->RegisterDictionaryPref(kProvisioningDomainProxyConfigs);
 }
 
 }  // namespace enterprise_net

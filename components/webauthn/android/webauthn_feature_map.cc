@@ -16,7 +16,6 @@ namespace {
 // Array of features exposed through the Java WebauthnFeatureMap API.
 const base::Feature* const kFeaturesExposedToJava[] = {
     &kWebAuthnAndroidCredManForDev,
-    &kWebAuthnFilterSmartCardTransport,
 };
 
 // static

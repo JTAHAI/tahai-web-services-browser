@@ -274,12 +274,16 @@ std::optional<VideoPixelFormat> GetConversionFormat(VideoCodecProfile profile,
       break;
     case VP9PROFILE_PROFILE2:
       if (format != PIXEL_FORMAT_YUV420P10 || needs_copy) {
-        return PIXEL_FORMAT_YUV420P10;
+        // VideoFrameConverter doesn't support 10bit yet, so output I420 then
+        // convert to I010.
+        return PIXEL_FORMAT_I420;
       }
       break;
     case VP9PROFILE_PROFILE3:
       if (format != PIXEL_FORMAT_YUV444P10 || needs_copy) {
-        return PIXEL_FORMAT_YUV444P10;
+        // VideoFrameConverter doesn't support 10bit yet, so output I444 then
+        // convert to I410.
+        return PIXEL_FORMAT_I444;
       }
       break;
     default:
@@ -302,6 +306,21 @@ void SetupStandardYuvPlanes(const VideoFrame& frame, vpx_image_t* vpx_image) {
   stride[VPX_PLANE_Y] = frame.stride(VideoFrame::Plane::kY);
   stride[VPX_PLANE_U] = frame.stride(VideoFrame::Plane::kU);
   stride[VPX_PLANE_V] = frame.stride(VideoFrame::Plane::kV);
+}
+
+void I444ToI410(const VideoFrame& frame, vpx_image_t* vpx_image) {
+  DCHECK_EQ(frame.format(), PIXEL_FORMAT_I444);
+  auto planes = base::span(vpx_image->planes);
+  auto stride = base::span(vpx_image->stride);
+  for (size_t i = 0; i < VideoFrame::NumPlanes(frame.format()); ++i) {
+    libyuv::Convert8To16Plane(
+        frame.visible_data(i), frame.stride(i),
+        reinterpret_cast<uint16_t*>(planes[i]), stride[i] / 2, 1024,
+        VideoFrame::Columns(i, frame.format(),
+                            frame.visible_rect().size().width()),
+        VideoFrame::Rows(i, frame.format(),
+                         frame.visible_rect().size().height()));
+  }
 }
 
 }  // namespace
@@ -642,9 +661,27 @@ void VpxVideoEncoder::Encode(scoped_refptr<VideoFrame> frame,
       break;
     }
     case VP9PROFILE_PROFILE2:
-      DCHECK_EQ(frame->format(), PIXEL_FORMAT_YUV420P10);
-      RecreateVpxImageIfNeeded(VPX_IMG_FMT_I42016, /*needs_memory=*/false);
-      SetupStandardYuvPlanes(*frame, &vpx_image_);
+      DCHECK(frame->format() == PIXEL_FORMAT_YUV420P10 ||
+             frame->format() == PIXEL_FORMAT_I420);
+      if (frame->format() == PIXEL_FORMAT_YUV420P10) {
+        RecreateVpxImageIfNeeded(VPX_IMG_FMT_I42016, /*needs_memory=*/false);
+        SetupStandardYuvPlanes(*frame, &vpx_image_);
+        break;
+      }
+      RecreateVpxImageIfNeeded(VPX_IMG_FMT_I42016, /*needs_memory=*/true);
+      libyuv::I420ToI010(frame->visible_data(VideoFrame::Plane::kY),
+                         frame->stride(VideoFrame::Plane::kY),
+                         frame->visible_data(VideoFrame::Plane::kU),
+                         frame->stride(VideoFrame::Plane::kU),
+                         frame->visible_data(VideoFrame::Plane::kV),
+                         frame->stride(VideoFrame::Plane::kV),
+                         reinterpret_cast<uint16_t*>(planes[VPX_PLANE_Y]),
+                         stride[VPX_PLANE_Y] / 2,
+                         reinterpret_cast<uint16_t*>(planes[VPX_PLANE_U]),
+                         stride[VPX_PLANE_U] / 2,
+                         reinterpret_cast<uint16_t*>(planes[VPX_PLANE_V]),
+                         stride[VPX_PLANE_V] / 2, frame->visible_rect().width(),
+                         frame->visible_rect().height());
       break;
 
     case VP9PROFILE_PROFILE1:
@@ -654,9 +691,15 @@ void VpxVideoEncoder::Encode(scoped_refptr<VideoFrame> frame,
       break;
 
     case VP9PROFILE_PROFILE3:
-      DCHECK_EQ(frame->format(), PIXEL_FORMAT_YUV444P10);
-      RecreateVpxImageIfNeeded(VPX_IMG_FMT_I44416, /*needs_memory=*/false);
-      SetupStandardYuvPlanes(*frame, &vpx_image_);
+      DCHECK(frame->format() == PIXEL_FORMAT_YUV444P10 ||
+             frame->format() == PIXEL_FORMAT_I444);
+      if (frame->format() == PIXEL_FORMAT_YUV444P10) {
+        RecreateVpxImageIfNeeded(VPX_IMG_FMT_I44416, /*needs_memory=*/false);
+        SetupStandardYuvPlanes(*frame, &vpx_image_);
+        break;
+      }
+      RecreateVpxImageIfNeeded(VPX_IMG_FMT_I44416, /*needs_memory=*/true);
+      I444ToI410(*frame, &vpx_image_);
       break;
 
     default:

@@ -32,7 +32,6 @@
 
 #include <optional>
 
-#include "base/memory/raw_ptr.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/timer/elapsed_timer.h"
 #include "services/network/public/cpp/resource_request.h"
@@ -388,9 +387,7 @@ class MultiResourcePacker : public GarbageCollected<MultiResourcePacker> {
   // This hashset is only used for de-duplicating resources to be serialized.
   HashSet<KURL> resource_urls_;
   Deque<ResourceEntry> resources_;
-  raw_ptr<WebFrameSerializer::MHTMLPartsGenerationDelegate,
-          UnprotectedInRelease | DanglingUntriaged>
-      web_delegate_;
+  WebFrameSerializer::MHTMLPartsGenerationDelegate* web_delegate_;
   // Whether `Finish()` has been called.
   bool finished_ = false;
   // Number of `ResourceWaiter`s that have completed.
@@ -1320,12 +1317,7 @@ function main(metadata) {
       case CSSRule::kFunctionRule:
       case CSSRule::kCustomMediaRule:
       case CSSRule::kContentsMixinRule:
-      case CSSRule::kLocationRule:
-        break;
-
-      case CSSRule::kPrivateRule:
-        // TODO(crbug.com/549892110): Ensure resources referenced through
-        // @private variables are included in serialization.
+      case CSSRule::kRouteRule:
         break;
 
       // FIXME(sesse): We can reference external resources in a @contents
@@ -1460,7 +1452,9 @@ String FrameSerializer::MarkOfTheWebDeclaration(const KURL& url) {
     builder.Append(ch);
   }
   std::string escaped_url = builder.ToString().Ascii();
-  return Format("saved from url=({:04}){}", escaped_url.length(), escaped_url);
+  return String::Format("saved from url=(%04d)%s",
+                        static_cast<int>(escaped_url.length()),
+                        escaped_url.c_str());
 }
 
 // static

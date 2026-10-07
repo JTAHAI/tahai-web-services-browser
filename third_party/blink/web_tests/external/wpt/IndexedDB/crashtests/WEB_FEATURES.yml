@@ -1,2 +1,3 @@
-rules:
-- "**": [indexeddb]
+features:
+- name: indexeddb
+  files: "**"

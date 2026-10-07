@@ -1,2 +1,3 @@
-rules:
-- "**": [text-shadow]
+features:
+- name: text-shadow
+  files: "**"

@@ -28,7 +28,6 @@
 
 #include <memory>
 
-#include "base/memory/raw_ptr.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/task/sequenced_task_runner.h"
 #include "base/task/single_thread_task_runner.h"
@@ -333,7 +332,7 @@ class CORE_EXPORT HTMLDocumentParser : public ScriptableDocumentParser,
   // take this preload data and send out the requests.
   scoped_refptr<PendingPreloads> pending_preloads_;
 
-  raw_ptr<ThreadScheduler, UnprotectedInRelease | DanglingUntriaged> scheduler_;
+  ThreadScheduler* scheduler_;
 
   // Set to true if PumpTokenizer() was called at least once.
   bool did_pump_tokenizer_ = false;

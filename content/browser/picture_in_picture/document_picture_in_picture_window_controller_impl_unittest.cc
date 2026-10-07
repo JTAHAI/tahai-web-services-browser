@@ -20,10 +20,6 @@ class MockPipScreenCaptureCoordinator : public PipScreenCaptureCoordinator {
   ~MockPipScreenCaptureCoordinator() override = default;
 
   MOCK_METHOD(void,
-              OnPipInitiated,
-              (const GlobalRenderFrameHostId&),
-              (override));
-  MOCK_METHOD(void,
               OnPipShown,
               (WebContents&, const GlobalRenderFrameHostId&),
               (override));
@@ -89,17 +85,6 @@ class DocumentPictureInPictureWindowControllerImplTest
       mock_pip_screen_capture_coordinator_;
   raw_ptr<DocumentPictureInPictureWindowControllerImpl> controller_;
 };
-
-TEST_F(DocumentPictureInPictureWindowControllerImplTest,
-       SetChildWebContentsNotifiesPipScreenCaptureCoordinatorOnPipInitiated) {
-  std::unique_ptr<TestWebContents> child_web_contents =
-      TestWebContents::Create(browser_context(), nullptr);
-
-  EXPECT_CALL(
-      *mock_pip_screen_capture_coordinator_,
-      OnPipInitiated(web_contents()->GetPrimaryMainFrame()->GetGlobalId()));
-  controller_->SetChildWebContents(child_web_contents.get());
-}
 
 TEST_F(DocumentPictureInPictureWindowControllerImplTest,
        OnVisibilityChangedNotifiesPipScreenCaptureCoordinator) {

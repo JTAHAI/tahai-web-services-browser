@@ -18,50 +18,6 @@
 
 namespace ui {
 
-namespace {
-
-bool IsPresentationalButtonDescendant(const BrowserAccessibility& node) {
-  if (node.IsText()) {
-    return true;
-  }
-
-  const AXNodeData& data = node.GetData();
-  if (data.IsTextField()) {
-    return false;
-  }
-  if (data.HasStringAttribute(ax::mojom::StringAttribute::kChildTreeId)) {
-    return false;
-  }
-  if (data.IsClickable() || data.HasState(ax::mojom::State::kFocusable)) {
-    return false;
-  }
-  if (data.IsRangeValueSupported()) {
-    return false;
-  }
-
-  for (const auto& child : node.PlatformChildren()) {
-    if (!IsPresentationalButtonDescendant(child)) {
-      return false;
-    }
-  }
-
-  return true;
-}
-
-bool HasOnlyPresentationalButtonDescendants(
-    const BrowserAccessibility& button) {
-  for (auto it = button.InternalChildrenBegin();
-       it != button.InternalChildrenEnd(); ++it) {
-    if (!IsPresentationalButtonDescendant(*it.get())) {
-      return false;
-    }
-  }
-
-  return true;
-}
-
-}  // namespace
-
 // static
 std::unique_ptr<BrowserAccessibility> BrowserAccessibility::Create(
     BrowserAccessibilityManager* manager,
@@ -83,21 +39,11 @@ BrowserAccessibilityCocoa* BrowserAccessibilityMac::GetNativeWrapper() const {
 }
 
 void BrowserAccessibilityMac::OnDataChanged() {
-  const bool had_native_wrapper = GetNativeWrapper() != nil;
   BrowserAccessibility::OnDataChanged();
-  if (had_native_wrapper && GetNativeWrapper() &&
-      !features::IsMacAccessibilityOptimizeChildrenChangedEnabled()) {
-    [GetNativeWrapper() childrenChanged];
-  }
-}
-
-void BrowserAccessibilityMac::UpdatePlatformNode() {
-  if (!ShouldHavePlatformNode()) {
-    platform_node_.reset();
-    return;
-  }
   if (!GetNativeWrapper()) {
     CreatePlatformNodes();
+  } else if (!features::IsMacAccessibilityOptimizeChildrenChangedEnabled()) {
+    [GetNativeWrapper() childrenChanged];
   }
 }
 
@@ -204,19 +150,6 @@ BrowserAccessibility* BrowserAccessibilityMac::PlatformGetChild(
   return nullptr;
 }
 
-bool BrowserAccessibilityMac::IsLeaf() const {
-  if (BrowserAccessibility::IsLeaf()) {
-    return true;
-  }
-
-  // TODO(https://github.com/w3c/aria/issues/2856): Reassess how buttons with
-  // non-presentational descendants are detected and treated, and whether this
-  // behavior should be platform-agnostic, once the standards discussion is
-  // resolved.
-  return GetRole() == ax::mojom::Role::kButton &&
-         HasOnlyPresentationalButtonDescendants(*this);
-}
-
 BrowserAccessibility* BrowserAccessibilityMac::PlatformGetFirstChild() const {
   return PlatformGetChild(0);
 }
@@ -232,8 +165,7 @@ BrowserAccessibility* BrowserAccessibilityMac::PlatformGetLastChild() const {
 BrowserAccessibility* BrowserAccessibilityMac::PlatformGetNextSibling() const {
   BrowserAccessibility* parent = PlatformGetParent();
   if (parent) {
-    size_t next_child_index =
-        node()->GetUnignoredIndexInParentCrossingTreeBoundary() + 1;
+    size_t next_child_index = node()->GetUnignoredIndexInParent() + 1;
     if (next_child_index >= parent->InternalChildCount() &&
         next_child_index < parent->PlatformChildCount()) {
       // Get the extra_mac_node.
@@ -249,8 +181,7 @@ BrowserAccessibility* BrowserAccessibilityMac::PlatformGetPreviousSibling()
     const {
   BrowserAccessibility* parent = PlatformGetParent();
   if (parent) {
-    size_t child_index =
-        node()->GetUnignoredIndexInParentCrossingTreeBoundary();
+    size_t child_index = node()->GetUnignoredIndexInParent();
     if (child_index > parent->InternalChildCount() &&
         child_index <= parent->PlatformChildCount()) {
       // Get the extra_mac_node.

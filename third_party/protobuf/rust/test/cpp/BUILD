@@ -18,8 +18,6 @@ load(
     "rust_cc_proto_library",
 )
 
-package(default_applicable_licenses = ["//:license"])
-
 proto_library(
     name = "debug_proto",
     testonly = True,

@@ -6,7 +6,6 @@
 
 #include "base/at_exit.h"
 #include "base/base64.h"
-#include "base/feature_list.h"
 #include "base/functional/bind.h"
 #include "base/location.h"
 #include "base/logging.h"
@@ -18,7 +17,6 @@
 #include "build/build_config.h"
 #include "components/device_event_log/device_event_log.h"
 #include "services/device/hid/hid_connection.h"
-#include "services/device/public/cpp/device_features.h"
 
 #if (BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)) && defined(USE_UDEV)
 #include "services/device/hid/hid_service_linux.h"
@@ -28,8 +26,6 @@
 #include "services/device/hid/hid_service_win.h"
 #elif BUILDFLAG(IS_FUCHSIA)
 #include "services/device/hid/hid_service_fuchsia.h"
-#elif BUILDFLAG(IS_ANDROID)
-#include "services/device/hid/hid_service_android.h"
 #endif
 
 namespace device {
@@ -78,8 +74,6 @@ std::unique_ptr<HidService> HidService::Create() {
   return std::make_unique<HidServiceWin>();
 #elif BUILDFLAG(IS_FUCHSIA)
   return std::make_unique<HidServiceFuchsia>();
-#elif BUILDFLAG(IS_ANDROID)
-  return std::make_unique<HidServiceAndroid>();
 #else
   return nullptr;
 #endif

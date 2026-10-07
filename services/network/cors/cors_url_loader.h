@@ -142,12 +142,6 @@ class COMPONENT_EXPORT(NETWORK_SERVICE) CorsURLLoader
   // and `isolation_info_`.
   std::optional<net::cookie_util::StorageAccessStatus> GetStorageAccessStatus();
 
-  // Checks if the current request is allowed to override unsafe headers.
-  bool AllowUnsafeHeaders() const;
-
-  // Validates whether `origin_header_value` is permitted for `request_`.
-  bool HasValidOriginHeader(const std::string& origin_header_value) const;
-
   void StartRequest();
 
   // Helper for `OnPreflightRequestComplete()`.
@@ -207,6 +201,29 @@ class COMPONENT_EXPORT(NETWORK_SERVICE) CorsURLLoader
   static std::optional<std::string> GetHeaderString(
       const mojom::URLResponseHead& response,
       const std::string& header_name);
+
+  // Precondition: The request is cross-origin with destination
+  // `mojom::RequestDestination::kSharedStorageWorklet`.
+  //
+  // If the "Sec-Shared-Storage-Data-Origin" request header has not been set,
+  // then returns true (as no shared storage response header is required).
+  //
+  // Otherwise, there is a value for the "Sec-Shared-Storage-Data-Origin"
+  // request header. Parses this request header value into a URL. If the parsed
+  // data origin URL is valid and cross-origin to the request's URL, returns
+  // true, as again no shared storage response header is required. (Note that
+  // regular JavaScript is unable to modify the forbidden
+  // "Sec-Shared-Storage-Data-Origin" request header, and any modifications made
+  // by extensions will not be propagated back to the request's headers here).
+  //
+  // Finally, in the case where the parsed data origin URL is valid and
+  // same-origin to the request's URL, the
+  // "Shared-Storage-Cross-Origin-Worklet-Allowed" header is required. Parses
+  // the "Shared-Storage-Cross-Origin-Worklet-Allowed" response header into a
+  // Structured Fields Boolean, and returns the result. Returns false if the
+  // header does not exist or if the parsing fails.
+  bool CheckSharedStorageCrossOriginWorkletAllowedResponseHeaderIfNeeded(
+      const mojom::URLResponseHead& response);
 
   void OnSharedDictionaryWritten(bool success);
 

@@ -154,6 +154,9 @@ class ASH_EXPORT SessionControllerImpl : public SessionController {
   // Locks the screen. The locking happens asynchronously.
   void LockScreen();
 
+  // Hides the lock screen.
+  void HideLockScreen();
+
   // Requests signing out all users, ending the current session.
   void RequestSignOut();
 

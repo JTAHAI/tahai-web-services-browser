@@ -18,7 +18,6 @@ import android.os.SystemClock;
 import androidx.annotation.VisibleForTesting;
 
 import org.chromium.base.Callback;
-import org.chromium.base.CallbackUtils;
 import org.chromium.base.CommandLine;
 import org.chromium.base.ContextUtils;
 import org.chromium.base.Log;
@@ -91,7 +90,7 @@ public class EnterpriseInfoImpl extends EnterpriseInfo {
 
         // Add a placeholder callback to avoid multiple background tasks from
         // getDeviceEnterpriseInfoSync or getDeviceEnterpriseInfo.
-        mCallbackList.add(CallbackUtils.emptyCallback());
+        mCallbackList.add(result -> {});
         if (mCallbackList.size() > 1) {
             return null;
         }

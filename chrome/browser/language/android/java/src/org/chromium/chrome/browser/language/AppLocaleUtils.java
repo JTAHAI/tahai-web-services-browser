@@ -19,10 +19,8 @@ import org.chromium.base.LocaleUtils;
 import org.chromium.build.BuildConfig;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
-import org.chromium.chrome.browser.lifetime.ApplicationLifetime;
 import org.chromium.chrome.browser.preferences.ChromePreferenceKeys;
 import org.chromium.chrome.browser.preferences.ChromeSharedPreferences;
-import org.chromium.chrome.browser.settings.SettingsInTab;
 import org.chromium.ui.base.ResourceBundle;
 
 import java.util.Arrays;
@@ -152,12 +150,6 @@ public class AppLocaleUtils {
         LanguageSplitInstaller.InstallListener wrappedListener =
                 (success) -> {
                     if (success) {
-                        // The locale change will trigger a process restart to apply the new
-                        // language and reopen chrome when SettingsInTab is enabled. See
-                        // https://crbug.com/545907093.
-                        if (SettingsInTab.isEnabled()) {
-                            ApplicationLifetime.setRestartForLocaleSwitch(true);
-                        }
                         if (shouldUseSystemManagedLocale()) {
                             setSystemManagedAppLanguage(languageName);
                         } else {

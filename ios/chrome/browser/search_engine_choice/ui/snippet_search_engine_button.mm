@@ -123,8 +123,8 @@ UIColor* GetCheckedTintColor() {
     // Add Chevron.
     _chevronButton = [[UIButton alloc] init];
     _chevronButton.translatesAutoresizingMaskIntoConstraints = NO;
-    [_chevronButton setImage:SymbolTemplateWithPointSize(
-                                 SymbolChevronDown, kSymbolAccessoryPointSize)
+    [_chevronButton setImage:DefaultSymbolTemplateWithPointSize(
+                                 kChevronDownSymbol, kSymbolAccessoryPointSize)
                     forState:UIControlStateNormal];
 
     _chevronButton.tintColor = [UIColor colorNamed:kTextQuaternaryColor];
@@ -400,11 +400,12 @@ UIColor* GetCheckedTintColor() {
 - (void)updateCircleImageView {
   UIImage* circleImage;
   if (_checked) {
-    circleImage =
-        SymbolWithPointSize(SymbolCheckmarkCircleFill, kRadioButtonImageSize);
+    circleImage = DefaultSymbolWithPointSize(kCheckmarkCircleFillSymbol,
+                                             kRadioButtonImageSize);
     _radioButtonImageView.tintColor = GetCheckedTintColor();
   } else {
-    circleImage = SymbolWithPointSize(SymbolCircle, kRadioButtonImageSize);
+    circleImage =
+        DefaultSymbolWithPointSize(kCircleSymbol, kRadioButtonImageSize);
     _radioButtonImageView.tintColor = [UIColor colorNamed:kTextQuaternaryColor];
   }
   _radioButtonImageView.image = circleImage;

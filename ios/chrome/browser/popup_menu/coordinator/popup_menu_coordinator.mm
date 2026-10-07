@@ -5,7 +5,6 @@
 #import "ios/chrome/browser/popup_menu/coordinator/popup_menu_coordinator.h"
 
 #import "base/check.h"
-#import "base/ios/block_types.h"
 #import "base/metrics/histogram_functions.h"
 #import "base/metrics/histogram_macros.h"
 #import "base/metrics/user_metrics.h"
@@ -57,7 +56,6 @@
 #import "ios/chrome/browser/shared/public/commands/cobalt_commands.h"
 #import "ios/chrome/browser/shared/public/commands/command_dispatcher.h"
 #import "ios/chrome/browser/shared/public/commands/find_in_page_commands.h"
-#import "ios/chrome/browser/shared/public/commands/fullscreen_commands.h"
 #import "ios/chrome/browser/shared/public/commands/gemini_commands.h"
 #import "ios/chrome/browser/shared/public/commands/help_commands.h"
 #import "ios/chrome/browser/shared/public/commands/lens_commands.h"
@@ -67,7 +65,6 @@
 #import "ios/chrome/browser/shared/public/commands/omnibox_commands.h"
 #import "ios/chrome/browser/shared/public/commands/overflow_menu_customization_commands.h"
 #import "ios/chrome/browser/shared/public/commands/page_info_commands.h"
-#import "ios/chrome/browser/shared/public/commands/picture_in_picture_commands.h"
 #import "ios/chrome/browser/shared/public/commands/popup_menu_commands.h"
 #import "ios/chrome/browser/shared/public/commands/price_tracked_items_commands.h"
 #import "ios/chrome/browser/shared/public/commands/qr_scanner_commands.h"
@@ -306,12 +303,10 @@ NSString* const kPreferredContentSizeKey = @"preferredContentSize";
       HandlerForProtocol(dispatcher, BrowserCoordinatorCommands);
   mediator.findInPageHandler =
       HandlerForProtocol(dispatcher, FindInPageCommands);
-  if (IsFullscreenRefactoringEnabled()) {
-    mediator.fullscreenHandler =
-        HandlerForProtocol(dispatcher, FullscreenCommands);
+  if (IsReaderModeAvailable()) {
+    mediator.readerModeHandler =
+        HandlerForProtocol(dispatcher, ReaderModeCommands);
   }
-  mediator.readerModeHandler =
-      HandlerForProtocol(dispatcher, ReaderModeCommands);
   mediator.helpHandler = HandlerForProtocol(dispatcher, HelpCommands);
   mediator.overflowMenuCustomizationHandler =
       HandlerForProtocol(dispatcher, OverflowMenuCustomizationCommands);
@@ -326,8 +321,6 @@ NSString* const kPreferredContentSizeKey = @"preferredContentSize";
       HandlerForProtocol(dispatcher, QuickDeleteCommands);
   mediator.whatsNewHandler = HandlerForProtocol(dispatcher, WhatsNewCommands);
   mediator.levelUpHandler = HandlerForProtocol(dispatcher, LevelUpCommands);
-  mediator.pictureInPictureHandler =
-      HandlerForProtocol(dispatcher, PictureInPictureCommands);
   mediator.webStateList = browser->GetWebStateList();
   mediator.navigationAgent = WebNavigationBrowserAgent::FromBrowser(browser);
   mediator.baseViewController = self.baseViewController;
@@ -451,11 +444,6 @@ NSString* const kPreferredContentSizeKey = @"preferredContentSize";
 }
 
 - (void)dismissPopupMenuAnimated:(BOOL)animated {
-  [self dismissPopupMenuAnimated:animated completion:nil];
-}
-
-- (void)dismissPopupMenuAnimated:(BOOL)animated
-                      completion:(ProceduralBlock)completion {
   if (self.toolsMenuOpenTime != 0) {
     OverflowMenuVisitedEvent event;
     base::TimeDelta elapsed = base::Seconds(
@@ -538,7 +526,7 @@ NSString* const kPreferredContentSizeKey = @"preferredContentSize";
       _menu = nil;
     }
     [self.baseViewController dismissViewControllerAnimated:animated
-                                                completion:completion];
+                                                completion:nil];
     _overflowMenuModel = nil;
     [_overflowMenuOrderer updateForMenuDisappearance];
     [_overflowMenuOrderer disconnect];
@@ -547,8 +535,6 @@ NSString* const kPreferredContentSizeKey = @"preferredContentSize";
     self.overflowMenuMediator = nil;
     self.contentBlockerMediator.consumer = nil;
     self.contentBlockerMediator = nil;
-  } else if (completion) {
-    completion();
   }
 }
 
@@ -589,10 +575,6 @@ NSString* const kPreferredContentSizeKey = @"preferredContentSize";
 
 - (void)showLevelUpPasswordCheckupWalkthroughIPH {
   [self.popupMenuHelpCoordinator showLevelUpPasswordCheckupWalkthroughIPH];
-}
-
-- (void)showLevelUpPaymentMethodsWalkthroughIPH {
-  [self.popupMenuHelpCoordinator showLevelUpPaymentMethodsWalkthroughIPH];
 }
 
 - (void)showLevelUpQuickDeleteWalkthroughIPH {

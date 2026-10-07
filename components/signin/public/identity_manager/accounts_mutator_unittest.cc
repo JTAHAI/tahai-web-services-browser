@@ -10,7 +10,6 @@
 #include "components/signin/internal/identity_manager/accounts_mutator_impl.h"
 #include "components/signin/public/base/consent_level.h"
 #include "components/signin/public/base/device_id_helper.h"
-#include "components/signin/public/base/signin_buildflags.h"
 #include "components/signin/public/base/signin_metrics.h"
 #include "components/signin/public/base/signin_switches.h"
 #include "components/signin/public/identity_manager/account_info.h"
@@ -241,10 +240,7 @@ TEST_F(AccountsMutatorTest, AddOrUpdateAccount_AddNewAccount) {
       identity_manager()->FindExtendedAccountInfoByAccountId(account_id);
   EXPECT_EQ(account_info.account_id, account_id);
   EXPECT_EQ(account_info.email, kTestEmail);
-#if BUILDFLAG(ENABLE_DICE_SUPPORT)
-  EXPECT_EQ(account_info.GetLastAuthenticationAccessPoint(),
-            signin_metrics::AccessPoint::kSettings);
-#endif
+  EXPECT_EQ(account_info.access_point, signin_metrics::AccessPoint::kSettings);
   EXPECT_EQ(identity_manager()->GetAccountsWithRefreshTokens().size(), 1U);
 }
 
@@ -316,11 +312,9 @@ TEST_F(AccountsMutatorTest, AddOrUpdateAccount_UpdateExistingAccount) {
   EXPECT_EQ(account_info.account_id, updated_account_info.account_id);
   EXPECT_EQ(account_info.gaia, updated_account_info.gaia);
   EXPECT_EQ(updated_account_info.email, maybe_updated_email);
-#if BUILDFLAG(ENABLE_DICE_SUPPORT)
   // The access point was not updated because nullopt was passed.
-  EXPECT_EQ(updated_account_info.GetLastAuthenticationAccessPoint(),
+  EXPECT_EQ(updated_account_info.access_point,
             signin_metrics::AccessPoint::kSettings);
-#endif
   if (use_gaia_as_account_id) {
     EXPECT_NE(updated_account_info.email, account_info.email);
     EXPECT_EQ(updated_account_info.email, kTestEmail2);
@@ -336,10 +330,8 @@ TEST_F(AccountsMutatorTest, AddOrUpdateAccount_UpdateExistingAccount) {
       signin_metrics::SourceForRefreshTokenOperation::kUnknown);
   updated_account_info =
       identity_manager()->FindExtendedAccountInfoByAccountId(account_id);
-#if BUILDFLAG(ENABLE_DICE_SUPPORT)
-  EXPECT_EQ(updated_account_info.GetLastAuthenticationAccessPoint(),
+  EXPECT_EQ(updated_account_info.access_point,
             signin_metrics::AccessPoint::kAvatarBubbleSignIn);
-#endif
 }
 
 TEST_F(AccountsMutatorTest,

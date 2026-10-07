@@ -30,7 +30,7 @@ const char kSharingSenderIdAuthSecret[] = "test_sender_id_auth_secret";
 const char kSharingChimeRepresentativeTargetId[] =
     "chime_representative_target_id";
 const DeviceInfo::SharingFeature kSharingEnabledFeatures[] = {
-    DeviceInfo::SharingFeature::kRemoteCopy};
+    DeviceInfo::SharingFeature::kSharedClipboardV2};
 
 using testing::NiceMock;
 using testing::NotNull;
@@ -79,10 +79,6 @@ class MockDeviceInfoSyncClient : public DeviceInfoSyncClient {
               (const override));
   MOCK_METHOD(std::optional<int>,
               GetGlicExperimentalTriggeringVersion,
-              (),
-              (const override));
-  MOCK_METHOD(std::optional<DeviceInfo::PersonalContextInfo>,
-              GetLocalPersonalContextInfo,
               (),
               (const override));
 };
@@ -348,28 +344,6 @@ TEST_F(LocalDeviceInfoProviderImplTest, SharingInfo) {
   EXPECT_EQ(enabled_features, local_sharing_info->enabled_features);
 }
 
-TEST_F(LocalDeviceInfoProviderImplTest, PersonalContextInfo) {
-  ON_CALL(device_info_sync_client_, GetLocalPersonalContextInfo())
-      .WillByDefault(Return(std::nullopt));
-
-  InitializeProvider();
-
-  ASSERT_THAT(provider_->GetLocalDeviceInfo(), NotNull());
-  EXPECT_FALSE(provider_->GetLocalDeviceInfo()->personal_context_info());
-
-  const std::vector<uint8_t> kSerializedKeyset = {1, 2, 3, 4, 5};
-  DeviceInfo::PersonalContextInfo personal_context_info{
-      .serialized_tink_keyset = kSerializedKeyset};
-  ON_CALL(device_info_sync_client_, GetLocalPersonalContextInfo())
-      .WillByDefault(Return(personal_context_info));
-
-  ASSERT_THAT(provider_->GetLocalDeviceInfo(), NotNull());
-  const std::optional<DeviceInfo::PersonalContextInfo>& local_info =
-      provider_->GetLocalDeviceInfo()->personal_context_info();
-  ASSERT_TRUE(local_info);
-  EXPECT_EQ(kSerializedKeyset, local_info->serialized_tink_keyset);
-}
-
 TEST_F(LocalDeviceInfoProviderImplTest, ShouldPopulateFCMRegistrationToken) {
   InitializeProvider();
   ASSERT_THAT(provider_->GetLocalDeviceInfo(), NotNull());
@@ -422,8 +396,7 @@ TEST_F(LocalDeviceInfoProviderImplTest, ShouldKeepStoredInvalidationFields) {
       DeviceInfo::GlicExperimentalTriggeringState::kUnavailable,
       /*glic_experimental_triggering_version=*/
       std::nullopt,
-      /*android_os_build_fingerprint_prefix=*/std::nullopt,
-      /*personal_context_info=*/std::nullopt);
+      /*android_os_build_fingerprint_prefix=*/std::nullopt);
 
   // |kFCMRegistrationToken|, |kInterestedDataTypes|,
   // and |paask_info| should be taken from |device_info_restored_from_store|

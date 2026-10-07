@@ -34,7 +34,6 @@ def _compile_edition_defaults_impl(ctx):
         inputs = sources,
         executable = ctx.executable.protoc or ctx.executable._protoc_minimal,
         arguments = [args],
-        mnemonic = "ProtobufCompileEditionDefaults",
         progress_message = "Generating edition defaults",
     )
 
@@ -77,7 +76,6 @@ def _embed_edition_defaults_impl(ctx):
         arguments = [args],
         outputs = [ctx.outputs.output],
         inputs = [ctx.file.defaults, ctx.file.template],
-        mnemonic = "ProtobufEmbedEditionDefaults",
     )
 
     return DefaultInfo(files = depset([ctx.outputs.output]))

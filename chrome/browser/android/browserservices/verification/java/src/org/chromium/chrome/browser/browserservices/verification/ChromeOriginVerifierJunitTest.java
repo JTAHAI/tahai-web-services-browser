@@ -26,8 +26,8 @@ import org.mockito.junit.MockitoRule;
 import org.mockito.quality.Strictness;
 
 import org.chromium.base.ThreadUtils;
-import org.chromium.base.TriState;
 import org.chromium.base.test.BaseRobolectricTestRunner;
+import org.chromium.base.test.util.Batch;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.profiles.ProfileManager;
 import org.chromium.components.content_relationship_verification.OriginVerifier;
@@ -41,6 +41,7 @@ import java.util.concurrent.CountDownLatch;
 
 /** Robolectric tests for ChromeOriginVerifier. */
 @RunWith(BaseRobolectricTestRunner.class)
+@Batch(ChromeOriginVerifierJunitTest.TEST_BATCH_NAME)
 public class ChromeOriginVerifierJunitTest {
     public static final String TEST_BATCH_NAME = "chrome_origin_verifier";
 
@@ -70,7 +71,7 @@ public class ChromeOriginVerifierJunitTest {
 
         @Override
         public void onOriginVerified(
-                String packageName, Origin origin, boolean verified, @TriState int online) {
+                String packageName, Origin origin, boolean verified, Boolean online) {
             mVerified = verified;
             mLatch.countDown();
         }
@@ -89,24 +90,27 @@ public class ChromeOriginVerifierJunitTest {
                 mUid);
 
         ChromeOriginVerifierJni.setInstanceForTesting(mMockChromeOriginVerifierJni);
-        Mockito.doAnswer(_ -> 100L)
+        Mockito.doAnswer(
+                        args -> {
+                            return 100L;
+                        })
                 .when(mMockChromeOriginVerifierJni)
                 .init(Mockito.any(), Mockito.any());
 
         OriginVerifierJni.setInstanceForTesting(mMockOriginVerifierJni);
         Mockito.doAnswer(
                         args -> {
-                            String[] fingerprints = args.getArgument(2);
+                            String[] fingerprints = args.getArgument(3);
                             if (fingerprints == null) {
                                 mChromeVerifier.onOriginVerificationResult(
-                                        args.getArgument(3), RelationshipCheckResult.FAILURE);
+                                        args.getArgument(4), RelationshipCheckResult.FAILURE);
                                 return false;
                             }
                             // Ensure parsing of signature works.
                             assertThat(fingerprints.length).isEqualTo(1);
                             assertThat(fingerprints[0]).isNotNull();
                             mChromeVerifier.onOriginVerificationResult(
-                                    args.getArgument(3), RelationshipCheckResult.SUCCESS);
+                                    args.getArgument(4), RelationshipCheckResult.SUCCESS);
                             return true;
                         })
                 .when(mMockOriginVerifierJni)

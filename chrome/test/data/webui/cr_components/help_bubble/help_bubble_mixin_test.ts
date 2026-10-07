@@ -135,19 +135,19 @@ enum Version {
     let container: HelpBubbleMixinTestElement|HelpBubbleMixinLitTestElement;
 
     function getId(nativeIdentifier: string): TrackedElementIdentifier {
-      const trackedElements =
-          TrackedElementManager.getInstance().getAllElementsWithNativeId(
+      const elements: HTMLElement[] =
+          TrackedElementManager.getInstance().getAllElementsWithId(
               nativeIdentifier);
       let secondaryIdentifier = UNKNOWN_SECONDARY_ID;
-      if (trackedElements.length) {
-        const trackedElement = trackedElements[0]!;
-        const id = TrackedElementManager.getElementId(trackedElement.element);
-        if (!id) {
+      if (elements.length) {
+        const element: HTMLElement = elements[0]!;
+        const tempSecondaryId = element.dataset['secondaryId'];
+        if (!tempSecondaryId) {
           console.warn(
               'Invalid or missing secondary ID for element "', nativeIdentifier,
               '"');
         } else {
-          secondaryIdentifier = id.secondaryIdentifier;
+          secondaryIdentifier = tempSecondaryId;
         }
       } else {
         console.warn('No matching HTML element for "', nativeIdentifier, '"');

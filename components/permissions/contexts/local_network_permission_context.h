@@ -23,6 +23,8 @@ class LocalNetworkPermissionContext
   LocalNetworkPermissionContext(const LocalNetworkPermissionContext&) = delete;
   LocalNetworkPermissionContext& operator=(
       const LocalNetworkPermissionContext&) = delete;
+
+  bool IsRestrictedToSecureOrigins() const override;
 };
 
 }  // namespace permissions

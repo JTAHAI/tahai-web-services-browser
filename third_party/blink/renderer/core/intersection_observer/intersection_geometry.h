@@ -5,12 +5,8 @@
 #ifndef THIRD_PARTY_BLINK_RENDERER_CORE_INTERSECTION_OBSERVER_INTERSECTION_GEOMETRY_H_
 #define THIRD_PARTY_BLINK_RENDERER_CORE_INTERSECTION_OBSERVER_INTERSECTION_GEOMETRY_H_
 
-#include <optional>
-
-#include "base/functional/callback_forward.h"
 #include "third_party/blink/renderer/core/core_export.h"
 #include "third_party/blink/renderer/core/dom/dom_high_res_time_stamp.h"
-#include "third_party/blink/renderer/core/layout/hit_test_request.h"
 #include "third_party/blink/renderer/platform/geometry/length.h"
 #include "third_party/blink/renderer/platform/graphics/dom_node_id.h"
 #include "third_party/blink/renderer/platform/heap/collection_support/heap_vector.h"
@@ -18,21 +14,12 @@
 #include "ui/gfx/geometry/transform.h"
 #include "ui/gfx/geometry/vector2d_f.h"
 
-namespace cc {
-class Region;
-}
-
-namespace gfx {
-class QuadF;
-}
-
 namespace blink {
 
 class Element;
 class LayoutBox;
 class LayoutObject;
 class Node;
-struct PhysicalRect;
 
 // Computes the intersection between an ancestor (root) node and a
 // descendant (target) element, with overflow and CSS clipping applied.
@@ -43,13 +30,6 @@ struct PhysicalRect;
 // of the target with the top-level frame viewport (AKA the "implicit root").
 class CORE_EXPORT IntersectionGeometry {
  public:
-  using HitNodeCb = base::RepeatingCallback<ListBasedHitTestBehavior(
-      const PhysicalRect& hit_rect,
-      const Node& node,
-      const PhysicalRect* physical_rect,
-      const gfx::QuadF* quad,
-      const cc::Region* region)>;
-
   // See comment of IntersectionObserver::kMinimumThreshold.
   static constexpr float kMinimumThreshold = std::numeric_limits<float>::min();
 
@@ -132,8 +112,7 @@ class CORE_EXPORT IntersectionGeometry {
                        const Vector<Length>& scroll_margin,
                        unsigned flags,
                        std::optional<RootGeometry>& root_geometry,
-                       CachedRects* cached_rects = nullptr,
-                       std::optional<HitNodeCb> hit_node_cb = std::nullopt);
+                       CachedRects* cached_rects = nullptr);
 
   IntersectionGeometry(const IntersectionGeometry&) = default;
 
@@ -266,7 +245,6 @@ class CORE_EXPORT IntersectionGeometry {
   double intersection_ratio_ = 0;
   wtf_size_t threshold_index_ = 0;
   DOMNodeId occluder_node_id_ = kInvalidDOMNodeId;
-  std::optional<HitNodeCb> hit_node_cb_;
 };
 
 }  // namespace blink

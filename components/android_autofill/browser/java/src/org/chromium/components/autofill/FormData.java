@@ -124,6 +124,8 @@ public class FormData {
                     }
                     break;
                 case FormFieldData.ControlType.TOGGLE:
+                    child.setAutofillType(View.AUTOFILL_TYPE_TOGGLE);
+                    child.setAutofillValue(AutofillValue.forToggle(field.isChecked()));
                     break;
                 case FormFieldData.ControlType.TEXT:
                 case FormFieldData.ControlType.DATALIST:

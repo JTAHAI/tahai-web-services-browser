@@ -12,7 +12,6 @@
 #include <utility>
 #include <variant>
 
-#include "base/containers/fixed_flat_set.h"
 #include "base/containers/span.h"
 #include "base/feature_list.h"
 #include "base/functional/bind.h"
@@ -98,23 +97,6 @@ const char kMissingPermissionError[] =
 const char kProhibitedByPoliciesError[] =
     "Access to the native messaging host was disabled by the system "
     "administrator.";
-#endif
-
-#if BUILDFLAG(IS_ANDROID)
-constexpr char kUnauthorizedExtensionError[] =
-    "Access to native messaging is unauthorized for this extension.";
-
-// TODO(crbug.com/555299632): Currently native messaging on desktop Android is
-// restricted to allowlisted extensions. This allowlist restriction will be
-// removed once a library is added that would allow external app developers to
-// securely audit the connection between Chrome/extensions and their app.
-constexpr auto kAndroidNativeMessagingAllowedExtensionIds =
-    base::MakeFixedFlatSet<std::string_view>({
-        // gnubbyd-v3 dev
-        "ckcendljdlmgnhghiaomidhiiclmapok",
-        // gnubbyd-v3 prod
-        "lfboplenmmjcmpbkeemecobbadnmpfhi",
-    });
 #endif
 
 LazyContextId LazyContextIdFor(content::BrowserContext* browser_context,
@@ -378,13 +360,12 @@ class MessageServiceFactory
       Source source,
       const PortId& source_port_id,
       const std::string& native_app_name,
-      const SigningCertificates& android_certificates,
       mojo::PendingAssociatedRemote<extensions::mojom::MessagePort> port,
       mojo::PendingAssociatedReceiver<extensions::mojom::MessagePortHost>
           port_host) override {
     MessageService::Get(context)->OpenChannelToNativeApp(
         GetEndpoint(context, source), source_port_id, native_app_name,
-        android_certificates, std::move(port), std::move(port_host));
+        std::move(port), std::move(port_host));
   }
 
   void OpenChannelToTab(
@@ -546,7 +527,9 @@ void MessageService::OpenChannelToExtension(
     // information (so that it's always present, even for extensions that don't
     // have an explicit key); we should.
     const ExternallyConnectableInfo* externally_connectable =
-        target_extension->GetManifestData<ExternallyConnectableInfo>();
+        static_cast<const ExternallyConnectableInfo*>(
+            target_extension->GetManifestData(
+                manifest_keys::kExternallyConnectable));
     bool is_externally_connectable = false;
 
     if (externally_connectable) {
@@ -712,7 +695,6 @@ void MessageService::OpenChannelToNativeAppImpl(
     const ChannelEndpoint& source,
     const PortId& source_port_id,
     const std::string& native_app_name,
-    const SigningCertificates& android_certificates,
     mojo::PendingAssociatedRemote<extensions::mojom::MessagePort> port,
     mojo::PendingAssociatedReceiver<extensions::mojom::MessagePortHost>
         port_host) {
@@ -737,21 +719,10 @@ void MessageService::OpenChannelToNativeAppImpl(
     BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_ANDROID)
   bool has_permission = extension->permissions_data()->HasAPIPermission(
       mojom::APIPermissionID::kNativeMessaging);
-
   if (!has_permission) {
     opener_port->DispatchOnDisconnect(kMissingPermissionError);
     return;
   }
-
-#if BUILDFLAG(IS_ANDROID)
-  if (!base::FeatureList::IsEnabled(
-          extensions_features::
-              kApiDesktopAndroidNativeMessagingBypassExtensionAllowlist) &&
-      !kAndroidNativeMessagingAllowedExtensionIds.contains(extension->id())) {
-    opener_port->DispatchOnDisconnect(kUnauthorizedExtensionError);
-    return;
-  }
-#endif
 
   // Verify that the host is not blocked by policies.
   BrowserContext* source_context = source.browser_context();
@@ -784,7 +755,7 @@ void MessageService::OpenChannelToNativeAppImpl(
           context_, weak_factory_.GetWeakPtr(), source_render_frame_host,
           extension->id(), receiver_port_id, native_app_name,
           policy_permission == MessagingDelegate::PolicyPermission::ALLOW_ALL,
-          android_certificates, &error));
+          &error));
 
   if (!receiver.get()) {
     // Abandon the channel.

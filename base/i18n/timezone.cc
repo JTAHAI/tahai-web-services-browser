@@ -8,7 +8,6 @@
 #include <string>
 
 #include "base/check.h"
-#include "base/i18n/tag_converters.h"
 #include "base/i18n/unicodestring.h"
 #include "base/memory/ptr_util.h"
 #include "base/notreached.h"
@@ -128,27 +127,21 @@ std::string TimeZone::GetRegion() const {
   return std::string();
 }
 
-// static
-TimeZone::DisplayNameOptions TimeZone::CreateDefaultDisplayNameOptions() {
-  return DisplayNameOptions{};
-}
-
-std::u16string TimeZone::GetDisplayName(
-    const LanguageTag& language_tag,
-    const DisplayNameOptions& options) const {
+std::u16string TimeZone::GetDisplayName(const LanguageTag& language_tag,
+                                        DisplayType style) const {
   icu::UnicodeString name;
-  icu::Locale locale =
-      IcuLocaleConverter::GetInstance().FromLanguageTag(language_tag);
-  impl_->icu_timezone->getDisplayName(
-      options.is_day_light, ToIcuDisplayType(options.style), locale, name);
+  UErrorCode status = U_ZERO_ERROR;
+  icu::Locale locale = icu::Locale::forLanguageTag(
+      std::string(language_tag.tag_string()).c_str(), status);
+  DCHECK(U_SUCCESS(status));
+  impl_->icu_timezone->getDisplayName(false, ToIcuDisplayType(style), locale,
+                                      name);
   return UnicodeStringToString16(name);
 }
 
-std::u16string TimeZone::GetDisplayName(
-    const DisplayNameOptions& options) const {
+std::u16string TimeZone::GetDisplayName(DisplayType style) const {
   icu::UnicodeString name;
-  impl_->icu_timezone->getDisplayName(options.is_day_light,
-                                      ToIcuDisplayType(options.style),
+  impl_->icu_timezone->getDisplayName(false, ToIcuDisplayType(style),
                                       icu::Locale::getDefault(), name);
   return UnicodeStringToString16(name);
 }

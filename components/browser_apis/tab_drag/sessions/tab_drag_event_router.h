@@ -37,7 +37,9 @@ class TabDragEventRouter : public TabDragSessionListener {
   ~TabDragEventRouter() override;
 
   // TabDragSessionListener overrides:
-  void OnSessionStarted(const TabDragSessionParams& params) override;
+  void OnSessionStarted(std::vector<tabs_api::NodeId> dragged_tabs,
+                        TabDragWindowId source_window_id,
+                        const gfx::Point& start_point) override;
   void OnTargetChanged(DropTargetId new_target,
                        const gfx::Point& screen_point) override;
   void OnDragMoved(const gfx::Point& screen_point) override;
@@ -59,7 +61,6 @@ class TabDragEventRouter : public TabDragSessionListener {
 
   const raw_ref<DropTargetRegistry> registry_;
   std::vector<tabs_api::NodeId> dragged_tabs_;
-  float mouse_to_tab_x_ratio_ = 0.0f;
   DropTargetId current_drop_target_;
   base::WeakPtrFactory<TabDragEventRouter> weak_factory_{this};
 };

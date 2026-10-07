@@ -89,12 +89,8 @@ constexpr VideoCodec kAllVideoCodecs[] = {
 #endif  // BUILDFLAG(USE_PROPRIETARY_CODECS)
     VideoCodec::kVP9, VideoCodec::kAV1};
 
-// Only a subset of audio codecs is queried here. Vorbis, FLAC and Opus are
-// intentionally excluded since the OS PlayReady CDM does not support them, and
-// there are no plans to add support because those codecs are not used by
-// content providers for encrypted content.
-#if BUILDFLAG(USE_PROPRIETARY_CODECS)
 constexpr AudioCodec kAllAudioCodecs[] = {
+#if BUILDFLAG(USE_PROPRIETARY_CODECS)
     AudioCodec::kAAC,
 #if BUILDFLAG(ENABLE_PLATFORM_AC3_EAC3_AUDIO)
     AudioCodec::kEAC3,       AudioCodec::kAC3,
@@ -105,8 +101,8 @@ constexpr AudioCodec kAllAudioCodecs[] = {
 #if BUILDFLAG(ENABLE_PLATFORM_MPEG_H_AUDIO)
     AudioCodec::kMpegHAudio,
 #endif  // BUILDFLAG(ENABLE_PLATFORM_MPEG_H_AUDIO)
-};
 #endif  // BUILDFLAG(USE_PROPRIETARY_CODECS)
+    AudioCodec::kVorbis,     AudioCodec::kFLAC, AudioCodec::kOpus};
 
 constexpr EncryptionScheme kAllEncryptionSchemes[] = {EncryptionScheme::kCenc,
                                                       EncryptionScheme::kCbcs};
@@ -170,6 +166,12 @@ std::string GetFourCCString(AudioCodec codec) {
   switch (codec) {
     case AudioCodec::kAAC:
       return "mp4a";
+    case AudioCodec::kVorbis:
+      return "vrbs";
+    case AudioCodec::kFLAC:
+      return "fLaC";
+    case AudioCodec::kOpus:
+      return "Opus";
     case AudioCodec::kEAC3:
       return "ec-3";
     case AudioCodec::kAC3:
@@ -477,7 +479,6 @@ CdmCapabilityOrStatus GetCdmCapability(
     return base::unexpected(CdmCapabilityQueryStatus::kNoSupportedVideoCodec);
   }
 
-#if BUILDFLAG(USE_PROPRIETARY_CODECS)
   // Query audio codecs.
   // Audio is usually independent to the video codec. So we use <one of the
   // supported video codecs> + <audio codec> to query the audio capability.
@@ -490,7 +491,6 @@ CdmCapabilityOrStatus GetCdmCapability(
       capability.audio_codecs.emplace(audio_codec);
     }
   }
-#endif  // BUILDFLAG(USE_PROPRIETARY_CODECS)
 
   // Query encryption scheme.
 
@@ -564,7 +564,6 @@ MediaFoundationService::~MediaFoundationService() {
 
 void MediaFoundationService::IsKeySystemSupported(
     const std::string& key_system,
-    bool is_hw_secure,
     IsKeySystemSupportedCallback callback) {
   DVLOG(1) << __func__ << ": key_system=" << key_system;
 
@@ -620,7 +619,7 @@ void MediaFoundationService::IsKeySystemSupported(
   auto sw_cdm_capability_or_status =
       base::unexpected(CdmCapabilityQueryStatus::kNoSupportedVideoCodec);
   auto hw_cdm_capability_or_status = GetCdmCapability(
-      cdm_factory, key_system, is_hw_secure,
+      cdm_factory, key_system, /*is_hw_secure=*/true,
       base::BindRepeating(&IsTypeSupported, mf_type_support, key_system));
   auto key_system_capability = KeySystemCapability(sw_cdm_capability_or_status,
                                                    hw_cdm_capability_or_status);

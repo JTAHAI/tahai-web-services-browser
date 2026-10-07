@@ -1,2 +1,3 @@
-rules:
-- "**": [clip]
+features:
+- name: clip
+  files: "**"

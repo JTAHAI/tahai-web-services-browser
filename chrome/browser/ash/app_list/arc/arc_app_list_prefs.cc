@@ -507,11 +507,7 @@ void ArcAppListPrefs::RegisterProfilePrefs(
     user_prefs::PrefRegistrySyncable* registry) {
   registry->RegisterDictionaryPref(arc::prefs::kArcApps);
   registry->RegisterDictionaryPref(arc::prefs::kArcPackages);
-  // Defaults to true as there are no in-progress app installations on a
-  // freshly created profile. This prevents ArcActivationNecessityChecker from
-  // unnecessarily activating ARC on post-OOBE user session start on 4GB
-  // devices.
-  registry->RegisterBooleanPref(arc::prefs::kArcPackagesIsUpToDate, true);
+  registry->RegisterBooleanPref(arc::prefs::kArcPackagesIsUpToDate, false);
   registry->RegisterIntegerPref(arc::prefs::kArcFrameworkVersion,
                                 -1 /* default_value */);
   registry->RegisterDictionaryPref(

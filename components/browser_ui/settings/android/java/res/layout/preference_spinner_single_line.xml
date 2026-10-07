@@ -27,7 +27,6 @@ found in the LICENSE file.
         android:layout_height="wrap_content"
         android:layout_width="match_parent"
         android:textAppearance="@style/TextAppearance.TextLarge.Primary"
-        android:paddingTop="6dp"
-        android:popupBackground="@drawable/menu_bg_tinted" />
+        android:paddingTop="6dp" />
 
 </LinearLayout>

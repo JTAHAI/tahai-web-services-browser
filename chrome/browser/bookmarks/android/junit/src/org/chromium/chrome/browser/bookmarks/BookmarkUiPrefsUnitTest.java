@@ -24,13 +24,14 @@ import org.robolectric.annotation.Config;
 import org.chromium.base.ContextUtils;
 import org.chromium.base.shared_preferences.SharedPreferencesManager;
 import org.chromium.base.test.BaseRobolectricTestRunner;
-import org.chromium.build.BuildConfig;
+import org.chromium.base.test.util.Batch;
 import org.chromium.chrome.browser.bookmarks.BookmarkUiPrefs.BookmarkRowDisplayPref;
 import org.chromium.chrome.browser.bookmarks.BookmarkUiPrefs.BookmarkRowSortOrder;
 import org.chromium.chrome.browser.preferences.ChromePreferenceKeys;
 import org.chromium.chrome.browser.preferences.ChromeSharedPreferences;
 
 /** Unit tests for {@link BookmarkUiPrefs}. */
+@Batch(Batch.UNIT_TESTS)
 @RunWith(BaseRobolectricTestRunner.class)
 @Config(manifest = Config.NONE)
 public class BookmarkUiPrefsUnitTest {
@@ -55,11 +56,8 @@ public class BookmarkUiPrefsUnitTest {
     @Test
     public void initialBookmarkRowDisplayPref() {
         // Nothing has been written to shared prefs manager.
-        int expectedDefault =
-                BuildConfig.IS_DESKTOP_ANDROID
-                        ? BookmarkRowDisplayPref.COMPACT
-                        : BookmarkRowDisplayPref.VISUAL;
-        Assert.assertEquals(expectedDefault, mBookmarkUiPrefs.getBookmarkRowDisplayPref());
+        Assert.assertEquals(
+                BookmarkRowDisplayPref.VISUAL, mBookmarkUiPrefs.getBookmarkRowDisplayPref());
     }
 
     @Test
@@ -106,11 +104,8 @@ public class BookmarkUiPrefsUnitTest {
 
     @Test
     public void testRowDisplayPref_changesInBackground() {
-        int expectedDefault =
-                BuildConfig.IS_DESKTOP_ANDROID
-                        ? BookmarkRowDisplayPref.COMPACT
-                        : BookmarkRowDisplayPref.VISUAL;
-        Assert.assertEquals(expectedDefault, mBookmarkUiPrefs.getBookmarkRowDisplayPref());
+        Assert.assertEquals(
+                BookmarkRowDisplayPref.VISUAL, mBookmarkUiPrefs.getBookmarkRowDisplayPref());
 
         mBookmarkUiPrefs.addObserver(mObserver);
         mSharedPreferencesManager.writeInt(

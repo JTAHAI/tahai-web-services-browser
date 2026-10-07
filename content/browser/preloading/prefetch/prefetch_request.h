@@ -180,8 +180,7 @@ class CONTENT_EXPORT PrefetchRequest final {
       base::WeakPtr<PreloadingAttempt> attempt = nullptr,
       PreloadingHoldbackStatus holdback_status_override =
           PreloadingHoldbackStatus::kUnspecified,
-      std::optional<base::TimeDelta> ttl = std::nullopt,
-      bool should_ignore_saver_modes = false);
+      std::optional<base::TimeDelta> ttl = std::nullopt);
 
   // For browser-initiated prefetch that doesn't depend on web
   // contents. We can pass the referring origin of prefetches via
@@ -250,7 +249,6 @@ class CONTENT_EXPORT PrefetchRequest final {
       bool should_append_variations_header,
       bool should_disable_block_until_head_timeout,
       bool should_bypass_http_cache,
-      bool should_ignore_saver_modes,
       std::variant<PrefetchRendererInitiatorInfo, PrefetchBrowserInitiatorInfo>
           info);
 
@@ -319,7 +317,6 @@ class CONTENT_EXPORT PrefetchRequest final {
   }
   // TODO(crbug.com/455296998): Remove this code for M145.
   bool should_bypass_http_cache() const { return should_bypass_http_cache_; }
-  bool should_ignore_saver_modes() const { return should_ignore_saver_modes_; }
 
   // Returns non-null if renderer-initiated/browser-initiated, respectively.
   // Exactly one of them returns non-null.
@@ -446,10 +443,6 @@ class CONTENT_EXPORT PrefetchRequest final {
   // Default value is `false`.
   // TODO(crbug.com/455296998): Remove this code for M145.
   const bool should_bypass_http_cache_;
-
-  // If true, saver modes (e.g. Battery Saver or Data Saver) will be ignored for
-  // this prefetch request.
-  const bool should_ignore_saver_modes_;
 
   const std::variant<PrefetchRendererInitiatorInfo,
                      PrefetchBrowserInitiatorInfo>

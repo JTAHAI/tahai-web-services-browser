@@ -39,8 +39,7 @@ class PathPositionMapper {
  public:
   PathPositionMapper(const Path&,
                      float computed_path_length,
-                     float start_offset,
-                     bool reverse_direction);
+                     float start_offset);
 
   enum PositionType {
     kOnPath,
@@ -55,7 +54,6 @@ class PathPositionMapper {
   Path::PositionCalculator position_calculator_;
   float path_length_;
   float path_start_offset_;
-  bool reverse_direction_;
 };
 
 class LayoutSVGTextPath final : public LayoutSVGInline {

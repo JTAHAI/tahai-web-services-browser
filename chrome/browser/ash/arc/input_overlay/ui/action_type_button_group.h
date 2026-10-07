@@ -22,7 +22,8 @@ class DisplayOverlayController;
 // layout. When one button is selected, the other buttons will be
 // unselected. The selected button will have both its icon and label
 // change color.
-class ActionTypeButtonGroup : public ash::OptionButtonGroup {
+class ActionTypeButtonGroup : public ash::OptionButtonGroup,
+                              public ash::OptionButtonBase::Delegate {
   METADATA_HEADER(ActionTypeButtonGroup, ash::OptionButtonGroup)
 
  public:
@@ -61,7 +62,9 @@ class ActionTypeButtonGroup : public ash::OptionButtonGroup {
   ActionTypeButton* AddButton(ActionTypeButton::PressedCallback callback,
                               const std::u16string& label) override;
 
-  void OnButtonSelected(ash::OptionButtonBase* button);
+  // OptionButtonBase::Delegate:
+  void OnButtonSelected(ash::OptionButtonBase* button) override;
+  void OnButtonClicked(ash::OptionButtonBase* button) override;
 
   raw_ptr<DisplayOverlayController> controller_ = nullptr;
   raw_ptr<Action, DanglingUntriaged> action_;

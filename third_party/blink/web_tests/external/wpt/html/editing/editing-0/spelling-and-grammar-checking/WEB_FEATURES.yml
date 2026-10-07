@@ -1,2 +1,3 @@
-rules:
-- "**": [spellcheck]
+features:
+- name: spellcheck
+  files: "**"

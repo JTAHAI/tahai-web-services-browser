@@ -321,11 +321,11 @@ async function TestSandwich(suspend) {
 }
 
 promise_test(async () => {
-  await TestSandwich(true);
+  TestSandwich(true);
 }, "Test sandwich with suspension");
 
 promise_test(async () => {
-  await TestSandwich(false);
+  TestSandwich(false);
 }, "Test sandwich with no suspension");
 
 test(() => {

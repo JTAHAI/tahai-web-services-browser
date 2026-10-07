@@ -4,45 +4,51 @@
 
 import 'chrome://settings/settings.js';
 
+import {flush} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 import type {CrIconButtonElement} from 'chrome://settings/lazy_load.js';
-import type {ExceptionEditDialogElement, ExceptionEntryElement, ExceptionListElement, ExceptionTabbedAddDialogElement, SettingsPerformancePageElement, SettingsToggleButtonElement} from 'chrome://settings/settings.js';
-import {convertDateToWindowsEpoch, DISCARD_RING_PREF, MemorySaverModeExceptionListAction, PERFORMANCE_INTERVENTION_NOTIFICATION_PREF, PerformanceBrowserProxyImpl, PerformanceMetricsProxyImpl, PrefsBrowserProxy, PrefService, TAB_DISCARD_EXCEPTIONS_MANAGED_PREF, TAB_DISCARD_EXCEPTIONS_OVERFLOW_SIZE, TAB_DISCARD_EXCEPTIONS_PREF} from 'chrome://settings/settings.js';
+import type {ExceptionEditDialogElement, ExceptionEntryElement, ExceptionListElement, ExceptionTabbedAddDialogElement, SettingsCheckboxListEntryElement, SettingsPerformancePageElement, SettingsToggleButtonElement} from 'chrome://settings/settings.js';
+import {convertDateToWindowsEpoch, DISCARD_RING_PREF, MemorySaverModeExceptionListAction, PERFORMANCE_INTERVENTION_NOTIFICATION_PREF, PerformanceBrowserProxyImpl, PerformanceMetricsProxyImpl, TAB_DISCARD_EXCEPTIONS_MANAGED_PREF, TAB_DISCARD_EXCEPTIONS_OVERFLOW_SIZE, TAB_DISCARD_EXCEPTIONS_PREF} from 'chrome://settings/settings.js';
 import {assertDeepEquals, assertEquals, assertFalse, assertTrue} from 'chrome://webui-test/chai_assert.js';
-import {eventToPromise, microtasksFinished} from 'chrome://webui-test/test_util.js';
+import {eventToPromise} from 'chrome://webui-test/test_util.js';
 
 import {TestPerformanceBrowserProxy} from './test_performance_browser_proxy.js';
 import {TestPerformanceMetricsProxy} from './test_performance_metrics_proxy.js';
-import {TestPrefsBrowserProxy} from './test_prefs_browser_proxy.js';
 
-const INITIAL_PREFS: chrome.settingsPrivate.PrefObject[] = [
-  {
-    key: DISCARD_RING_PREF,
-    type: chrome.settingsPrivate.PrefType.BOOLEAN,
-    value: false,
+const discardRingStateMockPrefs = {
+  discard_ring_treatment: {
+    enabled: {
+      type: chrome.settingsPrivate.PrefType.BOOLEAN,
+      value: false,
+    },
   },
-  {
-    key: TAB_DISCARD_EXCEPTIONS_PREF,
-    type: chrome.settingsPrivate.PrefType.DICTIONARY,
-    value: {},
-  },
-  {
-    key: TAB_DISCARD_EXCEPTIONS_MANAGED_PREF,
-    type: chrome.settingsPrivate.PrefType.LIST,
-    value: [],
-  },
-  {
-    key: PERFORMANCE_INTERVENTION_NOTIFICATION_PREF,
-    type: chrome.settingsPrivate.PrefType.BOOLEAN,
-    value: false,
-  },
-];
+};
+
+/**
+ * Constructs mock prefs for tab discarding. Needs to be a function so that
+ * list pref values are recreated and not shared between test suites.
+ */
+function tabDiscardingMockPrefs(): Record<
+    string, Record<string, Omit<chrome.settingsPrivate.PrefObject, 'key'>>> {
+  return {
+    tab_discarding: {
+      exceptions_with_time: {
+        type: chrome.settingsPrivate.PrefType.DICTIONARY,
+        value: {},
+      },
+      exceptions_managed: {
+        enforcement: chrome.settingsPrivate.Enforcement.ENFORCED,
+        controlledBy: chrome.settingsPrivate.ControlledBy.USER_POLICY,
+        type: chrome.settingsPrivate.PrefType.LIST,
+        value: [],
+      },
+    },
+  };
+}
 
 suite('DiscardIndicator', function() {
   let performancePage: SettingsPerformancePageElement;
   let performanceMetricsProxy: TestPerformanceMetricsProxy;
   let discardRingTreatmentToggleButton: SettingsToggleButtonElement;
-  let prefsBrowserProxy: TestPrefsBrowserProxy;
-  let prefService: PrefService;
 
   /**
    * Used to get elements from the performance page that may or may not exist,
@@ -52,82 +58,88 @@ suite('DiscardIndicator', function() {
    */
   function getPerformancePageElement<T extends HTMLElement = HTMLElement>(
       id: string): T {
-    const el = performancePage.shadowRoot.querySelector<T>(`#${id}`);
+    const el = performancePage.shadowRoot!.querySelector<T>(`#${id}`);
     assertTrue(!!el);
     assertTrue(el instanceof HTMLElement);
     return el;
   }
 
-  setup(async function() {
+  setup(function() {
     document.body.innerHTML = window.trustedTypes!.emptyHTML;
 
     performanceMetricsProxy = new TestPerformanceMetricsProxy();
     PerformanceMetricsProxyImpl.setInstance(performanceMetricsProxy);
 
-    prefsBrowserProxy = new TestPrefsBrowserProxy(INITIAL_PREFS);
-    PrefsBrowserProxy.setInstance(prefsBrowserProxy);
-    PrefService.resetInstanceForTesting();
-    prefService = PrefService.getInstance();
-    await prefService.whenInitialized();
-
     performancePage = document.createElement('settings-performance-page');
+    performancePage.set('prefs', {
+      performance_tuning: {
+        ...discardRingStateMockPrefs,
+        ...tabDiscardingMockPrefs(),
+      },
+    });
     document.body.appendChild(performancePage);
-    await microtasksFinished();
+    flush();
 
     discardRingTreatmentToggleButton =
         getPerformancePageElement('discardRingTreatmentToggleButton');
   });
 
   test('DiscardTingTreatmentChangeState', async function() {
-    await prefService.setPrefValue(DISCARD_RING_PREF, false);
+    performancePage.setPrefValue(DISCARD_RING_PREF, false);
 
     discardRingTreatmentToggleButton.click();
     const enabled = await performanceMetricsProxy.whenCalled(
         'recordDiscardRingTreatmentEnabledChanged');
     assertTrue(enabled);
-    assertEquals(prefService.getPref(DISCARD_RING_PREF).value, true);
+    assertEquals(performancePage.getPref(DISCARD_RING_PREF).value, true);
   });
 });
 
 suite('PerformanceIntervention', function() {
   let performancePage: SettingsPerformancePageElement;
   let performanceMetricsProxy: TestPerformanceMetricsProxy;
-  let prefsBrowserProxy: TestPrefsBrowserProxy;
-  let prefService: PrefService;
 
-  setup(async function() {
+  setup(function() {
     performanceMetricsProxy = new TestPerformanceMetricsProxy();
     PerformanceMetricsProxyImpl.setInstance(performanceMetricsProxy);
 
-    prefsBrowserProxy = new TestPrefsBrowserProxy(INITIAL_PREFS);
-    PrefsBrowserProxy.setInstance(prefsBrowserProxy);
-    PrefService.resetInstanceForTesting();
-    prefService = PrefService.getInstance();
-    await prefService.whenInitialized();
-
     document.body.innerHTML = window.trustedTypes!.emptyHTML;
     performancePage = document.createElement('settings-performance-page');
+    performancePage.set('prefs', {
+      performance_tuning: {
+        ...{
+          intervention_notification: {
+            enabled: {
+              type: chrome.settingsPrivate.PrefType.BOOLEAN,
+              value: false,
+            },
+          },
+          ...tabDiscardingMockPrefs(),
+        },
+      },
+    });
     document.body.appendChild(performancePage);
-    await microtasksFinished();
+    flush();
   });
 
   test('PerformanceInterventionChangeState', async function() {
-    await prefService.setPrefValue(
+    performancePage.setPrefValue(
         PERFORMANCE_INTERVENTION_NOTIFICATION_PREF, false);
-    const toggle = performancePage.shadowRoot.querySelector<HTMLElement>(
+    const toggle = performancePage.shadowRoot!.querySelector<HTMLElement>(
         '#performanceInterventionToggleButton');
     assertTrue(!!toggle);
     toggle.click();
     assertTrue(await performanceMetricsProxy.whenCalled(
         'recordPerformanceInterventionToggleButtonChanged'));
-    assertTrue(
-        prefService.getPref<boolean>(PERFORMANCE_INTERVENTION_NOTIFICATION_PREF)
-            .value);
+    assertTrue(performancePage
+                   .getPref<boolean>(PERFORMANCE_INTERVENTION_NOTIFICATION_PREF)
+                   .value);
     toggle.click();
     assertTrue(await performanceMetricsProxy.whenCalled(
         'recordPerformanceInterventionToggleButtonChanged'));
     assertFalse(
-        prefService.getPref<boolean>(PERFORMANCE_INTERVENTION_NOTIFICATION_PREF)
+        performancePage
+            .getPref<boolean>(PERFORMANCE_INTERVENTION_NOTIFICATION_PREF)
             .value);
   });
 });
@@ -140,8 +152,6 @@ suite('TabDiscardExceptionList', function() {
   let performanceBrowserProxy: TestPerformanceBrowserProxy;
   let performanceMetricsProxy: TestPerformanceMetricsProxy;
   let exceptionList: ExceptionListElement;
-  let prefsBrowserProxy: TestPrefsBrowserProxy;
-  let prefService: PrefService;
 
   suiteSetup(function() {
     // Without this, cr-policy-pref-indicator will not have any text, making it
@@ -149,7 +159,7 @@ suite('TabDiscardExceptionList', function() {
     Object.assign(window, {CrPolicyStrings});
   });
 
-  setup(async function() {
+  setup(function() {
     document.body.innerHTML = window.trustedTypes!.emptyHTML;
 
     performanceBrowserProxy = new TestPerformanceBrowserProxy();
@@ -158,50 +168,39 @@ suite('TabDiscardExceptionList', function() {
     performanceMetricsProxy = new TestPerformanceMetricsProxy();
     PerformanceMetricsProxyImpl.setInstance(performanceMetricsProxy);
 
-    prefsBrowserProxy = new TestPrefsBrowserProxy(INITIAL_PREFS);
-    PrefsBrowserProxy.setInstance(prefsBrowserProxy);
-    PrefService.resetInstanceForTesting();
-    prefService = PrefService.getInstance();
-    await prefService.whenInitialized();
-
     performancePage = document.createElement('settings-performance-page');
+    performancePage.set('prefs', {
+      performance_tuning: tabDiscardingMockPrefs(),
+    });
     document.body.appendChild(performancePage);
-    await microtasksFinished();
+    flush();
 
     exceptionList = performancePage.$.exceptionList;
   });
 
   function assertExceptionListEquals(rules: string[], message?: string) {
     const actual =
-        [
-          ...exceptionList.shadowRoot.querySelectorAll<ExceptionEntryElement>(
-              'tab-discard-exception-entry'),
-        ].map(entry => entry.entry.site)
+        exceptionList.$.list.items!.concat(exceptionList.$.overflowList.items!)
+            .map(entry => entry.site)
             .reverse();
     assertDeepEquals(rules, actual, message);
   }
 
-  async function setupExceptionListEntries(
-      rules: string[], managedRules?: string[]) {
+  function setupExceptionListEntries(rules: string[], managedRules?: string[]) {
     if (managedRules) {
-      prefsBrowserProxy.fakeApi.sendPrefChanges([{
-        key: TAB_DISCARD_EXCEPTIONS_MANAGED_PREF,
-        value: managedRules,
-        enforcement: chrome.settingsPrivate.Enforcement.ENFORCED,
-        controlledBy: chrome.settingsPrivate.ControlledBy.USER_POLICY,
-      }]);
-      await microtasksFinished();
+      performancePage.setPrefValue(
+          TAB_DISCARD_EXCEPTIONS_MANAGED_PREF, managedRules);
     }
-    await prefService.setPrefValue(
+    performancePage.setPrefValue(
         TAB_DISCARD_EXCEPTIONS_PREF,
         Object.fromEntries(rules.map(r => [r, convertDateToWindowsEpoch()])));
-    await microtasksFinished();
+    flush();
     assertExceptionListEquals([...managedRules ?? [], ...rules]);
   }
 
   function getExceptionListEntry(idx: number): ExceptionEntryElement {
     const entries =
-        [...exceptionList.shadowRoot.querySelectorAll<ExceptionEntryElement>(
+        [...exceptionList.shadowRoot!.querySelectorAll<ExceptionEntryElement>(
             'tab-discard-exception-entry')];
     const entry = entries[entries.length - 1 - idx];
     assertTrue(!!entry);
@@ -210,7 +209,7 @@ suite('TabDiscardExceptionList', function() {
 
   function clickMoreActionsButton(entry: ExceptionEntryElement) {
     const button: CrIconButtonElement|null =
-        entry.shadowRoot.querySelector('cr-icon-button');
+        entry.shadowRoot!.querySelector('cr-icon-button');
     assertTrue(!!button);
     button.click();
   }
@@ -229,29 +228,29 @@ suite('TabDiscardExceptionList', function() {
     button.click();
   }
 
-  test('ExceptionList', async function() {
+  test('ExceptionList', function() {
     // no sites added message should be shown when list is empty
     assertFalse(exceptionList.$.noSitesAdded.hidden);
     assertExceptionListEquals([]);
 
     // list should be updated when pref is changed
-    await setupExceptionListEntries(['foo', 'bar']);
+    setupExceptionListEntries(['foo', 'bar']);
     assertTrue(exceptionList.$.noSitesAdded.hidden);
   });
 
   test('ManagedExceptionList', async () => {
     const userRules = 3;
     const managedRules = 3;
-    await setupExceptionListEntries(
+    setupExceptionListEntries(
         [...Array(userRules).keys()].map(index => `user.rule${index}`),
         [...Array(managedRules).keys()].map(index => `managed.rule${index}`));
 
     const managedRule = getExceptionListEntry(0);
     assertTrue(managedRule.entry.managed);
     const indicator =
-        managedRule.shadowRoot.querySelector('cr-policy-pref-indicator');
+        managedRule.shadowRoot!.querySelector('cr-policy-pref-indicator');
     assertTrue(!!indicator);
-    assertFalse(!!managedRule.shadowRoot.querySelector('cr-icon-button'));
+    assertFalse(!!managedRule.shadowRoot!.querySelector('cr-icon-button'));
 
     const tooltip = exceptionList.$.tooltip.$.tooltip;
     assertTrue(!!tooltip);
@@ -259,7 +258,6 @@ suite('TabDiscardExceptionList', function() {
     const onShowTooltip = eventToPromise('show-tooltip', exceptionList);
     indicator.dispatchEvent(new Event('focus'));
     await onShowTooltip;
-    await microtasksFinished();
     assertEquals(
         CrPolicyStrings.controlledSettingPolicy,
         exceptionList.$.tooltip.textContent.trim());
@@ -269,16 +267,16 @@ suite('TabDiscardExceptionList', function() {
     const userRule = getExceptionListEntry(managedRules);
     assertFalse(userRule.entry.managed);
     assertFalse(
-        !!userRule.shadowRoot.querySelector('cr-policy-pref-indicator'));
-    assertTrue(!!userRule.shadowRoot.querySelector('cr-icon-button'));
+        !!userRule.shadowRoot!.querySelector('cr-policy-pref-indicator'));
+    assertTrue(!!userRule.shadowRoot!.querySelector('cr-icon-button'));
   });
 
   test('ExceptionListDelete', async function() {
-    await setupExceptionListEntries(['foo', 'bar']);
+    setupExceptionListEntries(['foo', 'bar']);
 
     clickMoreActionsButton(getExceptionListEntry(0));
     clickDeleteMenuItem();
-    await microtasksFinished();
+    flush();
     assertExceptionListEquals(['bar']);
     assertEquals(
         MemorySaverModeExceptionListAction.REMOVE,
@@ -286,21 +284,21 @@ suite('TabDiscardExceptionList', function() {
 
     clickMoreActionsButton(getExceptionListEntry(0));
     clickDeleteMenuItem();
-    await microtasksFinished();
+    flush();
     assertExceptionListEquals([]);
   });
 
   async function getTabbedAddDialog():
       Promise<ExceptionTabbedAddDialogElement> {
     await performanceBrowserProxy.whenCalled('getCurrentOpenSites');
-    const dialog = exceptionList.shadowRoot.querySelector(
+    const dialog = exceptionList.shadowRoot!.querySelector(
         'tab-discard-exception-tabbed-add-dialog');
     assertTrue(!!dialog);
     return dialog;
   }
 
   function getEditDialog(): ExceptionEditDialogElement {
-    const dialog = exceptionList.shadowRoot.querySelector(
+    const dialog = exceptionList.shadowRoot!.querySelector(
         'tab-discard-exception-edit-dialog');
     assertTrue(!!dialog);
     return dialog;
@@ -309,13 +307,13 @@ suite('TabDiscardExceptionList', function() {
   function assertTabbedAddDialogDoesNotExist() {
     assertEquals(
         0, performanceBrowserProxy.getCallCount('getCurrentOpenSites'));
-    const dialog = exceptionList.shadowRoot.querySelector(
+    const dialog = exceptionList.shadowRoot!.querySelector(
         'tab-discard-exception-tabbed-add-dialog');
     assertFalse(!!dialog);
   }
 
   function assertEditDialogDoesNotExist() {
-    const dialog = exceptionList.shadowRoot.querySelector(
+    const dialog = exceptionList.shadowRoot!.querySelector(
         'tab-discard-exception-edit-dialog');
     assertFalse(!!dialog);
   }
@@ -328,18 +326,15 @@ suite('TabDiscardExceptionList', function() {
     await dialog.$.input.$.input.updateComplete;
     dialog.$.input.$.input.dispatchEvent(new CustomEvent('input'));
     await inputEvent;
-    await performanceBrowserProxy.whenCalled('validateTabDiscardExceptionRule');
-    performanceBrowserProxy.resetResolver('validateTabDiscardExceptionRule');
-    await microtasksFinished();
     dialog.$.actionButton.click();
   }
 
   test('ExceptionListAdd', async function() {
-    await setupExceptionListEntries(['foo']);
+    setupExceptionListEntries(['foo']);
     assertTabbedAddDialogDoesNotExist();
 
     exceptionList.$.addButton.click();
-    await microtasksFinished();
+    flush();
 
     const addDialog = await getTabbedAddDialog();
     assertTrue(addDialog.$.dialog.open);
@@ -352,13 +347,13 @@ suite('TabDiscardExceptionList', function() {
   });
 
   test('ExceptionListEdit', async function() {
-    await setupExceptionListEntries(['foo', 'bar']);
+    setupExceptionListEntries(['foo', 'bar']);
     const entry = getExceptionListEntry(1);
     assertEditDialogDoesNotExist();
 
     clickMoreActionsButton(entry);
     clickEditMenuItem();
-    await microtasksFinished();
+    flush();
 
     const editDialog = getEditDialog();
     assertTrue(editDialog.$.dialog.open);
@@ -371,10 +366,10 @@ suite('TabDiscardExceptionList', function() {
   });
 
   test('ExceptionListAddAfterMenuClick', async function() {
-    await setupExceptionListEntries(['foo']);
+    setupExceptionListEntries(['foo']);
     clickMoreActionsButton(getExceptionListEntry(0));
     exceptionList.$.addButton.click();
-    await microtasksFinished();
+    flush();
 
     const addDialog = await getTabbedAddDialog();
     assertEquals('', addDialog.$.input.$.input.value);
@@ -386,7 +381,7 @@ suite('TabDiscardExceptionList', function() {
     const entries = [
       ...Array(TAB_DISCARD_EXCEPTIONS_OVERFLOW_SIZE + 1).keys(),
     ].map(index => `rule${index}`);
-    await setupExceptionListEntries([...entries]);
+    setupExceptionListEntries([...entries]);
     assertFalse(exceptionList.$.collapse.opened);
     assertFalse(exceptionList.$.expandButton.hidden);
 
@@ -399,7 +394,7 @@ suite('TabDiscardExceptionList', function() {
     assertFalse(exceptionList.$.collapse.opened);
 
     exceptionList.$.addButton.click();
-    await microtasksFinished();
+    flush();
 
     const newRule = `rule${TAB_DISCARD_EXCEPTIONS_OVERFLOW_SIZE + 1}`;
     const addDialog = await getTabbedAddDialog();
@@ -410,78 +405,73 @@ suite('TabDiscardExceptionList', function() {
 
   test('ExceptionListAddExceptionsOverflow', async function() {
     const existingEntry = 'www.foo.com';
-    await setupExceptionListEntries([existingEntry]);
+    setupExceptionListEntries([existingEntry]);
     const entries = [
       ...Array(TAB_DISCARD_EXCEPTIONS_OVERFLOW_SIZE).keys(),
     ].map(index => `rule${index}`);
     performanceBrowserProxy.setCurrentOpenSites(entries);
     exceptionList.$.addButton.click();
-    await microtasksFinished();
+    flush();
 
     const addDialog = await getTabbedAddDialog();
-    await microtasksFinished();
+    await eventToPromise('iron-resize', addDialog);
+    flush();
 
-    const listEntries = addDialog.$.list.$.list.querySelectorAll<HTMLElement>(
-        'cr-checkbox:not([hidden])');
+    const listEntries = addDialog.$.list.$.list
+                            .querySelectorAll<SettingsCheckboxListEntryElement>(
+                                'settings-checkbox-list-entry:not([hidden])');
     for (const entry of listEntries) {
-      entry.click();
-      await microtasksFinished();
+      entry.$.checkbox.click();
+      await entry.$.checkbox.updateComplete;
     }
 
     assertFalse(addDialog.$.actionButton.disabled);
     addDialog.$.actionButton.click();
-    await microtasksFinished();
+    flush();
 
     assertFalse(exceptionList.$.collapse.opened);
     assertExceptionListEquals([existingEntry, ...entries]);
   });
 
-  // TODO(crbug.com/542289420): Flaky test.
-  // <if expr="not is_linux">
   test('ExceptionListOverflowEdit', async function() {
     const entries = [
       ...Array(TAB_DISCARD_EXCEPTIONS_OVERFLOW_SIZE + 1).keys(),
     ].map(index => `rule${index}`);
-    await setupExceptionListEntries([...entries]);
+    setupExceptionListEntries([...entries]);
 
     const entry = getExceptionListEntry(TAB_DISCARD_EXCEPTIONS_OVERFLOW_SIZE);
     clickMoreActionsButton(entry);
     clickEditMenuItem();
-    await microtasksFinished();
+    flush();
     const editDialog = getEditDialog();
     assertEquals(entry.entry.site, editDialog.$.input.$.input.value);
     await inputDialog(editDialog, 'foo');
-    await microtasksFinished();
     assertExceptionListEquals([...entries.slice(0, -1), 'foo']);
 
-    const updatedEntry =
-        getExceptionListEntry(TAB_DISCARD_EXCEPTIONS_OVERFLOW_SIZE);
-    clickMoreActionsButton(updatedEntry);
+    clickMoreActionsButton(entry);
     clickEditMenuItem();
-    await microtasksFinished();
-    await inputDialog(getEditDialog(), getExceptionListEntry(0).entry.site);
-    await microtasksFinished();
+    flush();
+    await inputDialog(editDialog, getExceptionListEntry(0).entry.site);
     assertExceptionListEquals(entries.slice(0, -1));
   });
-  // </if>
 
-  test('ExceptionListOverflowDelete', async function() {
+  test('ExceptionListOverflowDelete', function() {
     const entries = [
       ...Array(TAB_DISCARD_EXCEPTIONS_OVERFLOW_SIZE + 2).keys(),
     ].map(index => `rule${index}`);
-    await setupExceptionListEntries([...entries]);
+    setupExceptionListEntries([...entries]);
 
     let entry =
         getExceptionListEntry(TAB_DISCARD_EXCEPTIONS_OVERFLOW_SIZE + 1);
     clickMoreActionsButton(entry);
     clickDeleteMenuItem();
-    await microtasksFinished();
+    flush();
     assertExceptionListEquals(entries.slice(0, -1));
 
     entry = getExceptionListEntry(TAB_DISCARD_EXCEPTIONS_OVERFLOW_SIZE);
     clickMoreActionsButton(entry);
     clickDeleteMenuItem();
-    await microtasksFinished();
+    flush();
     assertExceptionListEquals(entries.slice(0, -2));
   });
 });

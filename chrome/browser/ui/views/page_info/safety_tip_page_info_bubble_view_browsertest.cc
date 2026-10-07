@@ -14,7 +14,6 @@
 #include "base/run_loop.h"
 #include "base/test/metrics/histogram_tester.h"
 #include "base/test/scoped_feature_list.h"
-#include "base/test/test_future.h"
 #include "build/build_config.h"
 #include "chrome/browser/history/history_service_factory.h"
 #include "chrome/browser/history/history_test_utils.h"
@@ -26,11 +25,9 @@
 #include "chrome/browser/lookalikes/safety_tip_web_contents_observer.h"
 #include "chrome/browser/preloading/scoped_prewarm_feature_list.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
-#include "chrome/browser/ui/browser_window/public/create_browser_window.h"
 #include "chrome/browser/ui/navigator/browser_navigator.h"
-#include "chrome/browser/ui/navigator/browser_navigator_params.h"
 #include "chrome/browser/ui/omnibox/omnibox_next_features.h"
 #include "chrome/browser/ui/tabs/split_tab_metrics.h"
 #include "chrome/browser/ui/test/test_browser_dialog.h"
@@ -38,7 +35,7 @@
 #include "chrome/browser/ui/views/frame/contents_container_outline.h"
 #include "chrome/browser/ui/views/frame/contents_container_view.h"
 #include "chrome/browser/ui/views/frame/multi_contents_view.h"
-#include "chrome/browser/ui/views/location_bar/location_icon_test_accessor.h"
+#include "chrome/browser/ui/views/location_bar/location_icon_view.h"
 #include "chrome/browser/ui/views/page_info/page_info_bubble_view.h"
 #include "chrome/browser/ui/views/page_info/page_info_bubble_view_base.h"
 #include "chrome/browser/ui/views/page_info/page_info_view_factory.h"
@@ -111,13 +108,13 @@ std::string GetInteractionHistogram(const char* name) {
 // least LOW.
 //
 // This function waits for safety tip checks to complete.
-void NavigateToURL(BrowserWindowInterface* browser,
+void NavigateToURL(Browser* browser,
                    const GURL& url,
                    WindowOpenDisposition disposition) {
   // If we plan to use an existing tab, ensure that it's latch is reset.
   if (disposition == WindowOpenDisposition::CURRENT_TAB) {
     content::WebContents* contents =
-        browser->GetTabStripModel()->GetActiveWebContents();
+        browser->tab_strip_model()->GetActiveWebContents();
     // Null web contents happen when you first create an incognito browser,
     // since it doesn't create the tab until first navigation.
     if (contents) {
@@ -175,22 +172,19 @@ void CloseWarningIgnore(views::Widget::ClosedReason reason) {
 }
 
 // Sets the absolute Site Engagement |score| for the testing origin.
-void SetEngagementScore(BrowserWindowInterface* browser,
-                        const GURL& url,
-                        double score) {
+void SetEngagementScore(Browser* browser, const GURL& url, double score) {
   site_engagement::SiteEngagementService::Get(browser->GetProfile())
       ->ResetBaseScoreForURL(url, score);
-  // Make sure the setting we want gets applied; it might not if background
-  // load of a WebUI queried things before it got called.
-  base::test::TestFuture<const std::vector<lookalikes::DomainInfo>&> configured;
-  LookalikeUrlServiceFactory::GetForProfile(browser->GetProfile())
-      ->ForceUpdateEngagedSites(configured.GetCallback());
-  EXPECT_TRUE(configured.Wait());
 }
 
 // Clicks the location icon to open the page info bubble.
-void OpenPageInfoBubble(BrowserWindowInterface* browser) {
-  LocationIconTestAccessor(browser).ShowBubble();
+void OpenPageInfoBubble(Browser* browser) {
+  BrowserView* browser_view = BrowserView::GetBrowserViewForBrowser(browser);
+  LocationIconView* location_icon_view =
+      browser_view->toolbar()->location_bar_view()->location_icon_view();
+  ASSERT_TRUE(location_icon_view);
+  ui::test::TestEvent event;
+  location_icon_view->ShowBubble(event);
   views::BubbleDialogDelegateView* page_info =
       PageInfoBubbleViewBase::GetPageInfoBubbleForTesting();
   EXPECT_NE(nullptr, page_info);
@@ -199,11 +193,11 @@ void OpenPageInfoBubble(BrowserWindowInterface* browser) {
 
 // Switches the tab at |tab_index| to the foreground, and waits for the
 // OnVisibilityChanged safety tip check to complete.
-void SwitchToTabAndWait(BrowserWindowInterface* browser, int tab_index) {
+void SwitchToTabAndWait(Browser* browser, int tab_index) {
   base::RunLoop loop;
-  auto* tab_strip = browser->GetTabStripModel();
+  auto* tab_strip = browser->tab_strip_model();
   auto* bg_tab = tab_strip->GetWebContentsAt(tab_index);
-  EXPECT_NE(browser->GetTabStripModel()->active_index(), tab_index);
+  EXPECT_NE(browser->tab_strip_model()->active_index(), tab_index);
   SafetyTipWebContentsObserver* safety_tip_observer =
       SafetyTipWebContentsObserver::FromWebContents(bg_tab);
 
@@ -313,7 +307,7 @@ class SafetyTipPageInfoBubbleViewBrowserTest : public InProcessBrowserTest {
     EXPECT_FALSE(bubble->leave_button_);
   }
 
-  void CloseWarningLeaveSite(BrowserWindowInterface* browser) {
+  void CloseWarningLeaveSite(Browser* browser) {
     // Wait for a Safety Tip bubble to be destroyed. Navigating away from a page
     // with a safety tip destroys the safety tip, but waiting for the navigation
     // to complete is racy.
@@ -331,7 +325,7 @@ class SafetyTipPageInfoBubbleViewBrowserTest : public InProcessBrowserTest {
   }
 
   void CheckPageInfoShowsSafetyTipInfo(
-      BrowserWindowInterface* browser,
+      Browser* browser,
       security_state::SafetyTipStatus expected_safety_tip_status,
       const GURL& expected_safe_url) {
     OpenPageInfoBubble(browser);
@@ -363,7 +357,7 @@ class SafetyTipPageInfoBubbleViewBrowserTest : public InProcessBrowserTest {
               new_tab_observer.GetWebContents()->GetVisibleURL());
   }
 
-  void CheckPageInfoDoesNotShowSafetyTipInfo(BrowserWindowInterface* browser) {
+  void CheckPageInfoDoesNotShowSafetyTipInfo(Browser* browser) {
     OpenPageInfoBubble(browser);
     auto* page_info = static_cast<PageInfoBubbleViewBase*>(
         PageInfoBubbleViewBase::GetPageInfoBubbleForTesting());
@@ -434,10 +428,9 @@ IN_PROC_BROWSER_TEST_F(SafetyTipPageInfoBubbleViewBrowserTest,
 // Ensure normal sites with low engagement are not blocked in incognito.
 IN_PROC_BROWSER_TEST_F(SafetyTipPageInfoBubbleViewBrowserTest,
                        NoShowOnLowEngagementIncognito) {
-  BrowserWindowInterface* incognito_browser = CreateBrowserWindow(
-      BrowserWindowCreateParams(browser()->GetProfile()->GetPrimaryOTRProfile(
-                                    /*create_if_needed=*/true),
-                                /*from_user_gesture=*/true));
+  Browser* incognito_browser = Browser::Create(Browser::CreateParams(
+      browser()->GetProfile()->GetPrimaryOTRProfile(/*create_if_needed=*/true),
+      true));
   auto kNavigatedUrl = GetURL("site1.com");
   SetEngagementScore(incognito_browser, kNavigatedUrl, kLowEngagement);
   NavigateToURL(incognito_browser, kNavigatedUrl,
@@ -465,10 +458,9 @@ IN_PROC_BROWSER_TEST_F(SafetyTipPageInfoBubbleViewBrowserTest,
 // Ensure blocked sites with high engagement are not blocked in incognito.
 IN_PROC_BROWSER_TEST_F(SafetyTipPageInfoBubbleViewBrowserTest,
                        NoShowOnHighEngagementIncognito) {
-  BrowserWindowInterface* incognito_browser = CreateBrowserWindow(
-      BrowserWindowCreateParams(browser()->GetProfile()->GetPrimaryOTRProfile(
-                                    /*create_if_needed=*/true),
-                                /*from_user_gesture=*/true));
+  Browser* incognito_browser = Browser::Create(Browser::CreateParams(
+      browser()->GetProfile()->GetPrimaryOTRProfile(/*create_if_needed=*/true),
+      true));
   const GURL kNavigatedUrl = GetURL("accounts-google.com");
   SetEngagementScore(incognito_browser, kNavigatedUrl, kHighEngagement);
   NavigateToURL(incognito_browser, kNavigatedUrl,
@@ -517,10 +509,9 @@ IN_PROC_BROWSER_TEST_F(SafetyTipPageInfoBubbleViewBrowserTest,
                        DISABLED_ShowOnBlockIncognito) {
   auto kNavigatedUrl = GetURL("accounts-google.com");
   SetEngagementScore(browser(), kNavigatedUrl, kLowEngagement);
-  BrowserWindowInterface* incognito_browser = CreateBrowserWindow(
-      BrowserWindowCreateParams(browser()->GetProfile()->GetPrimaryOTRProfile(
-                                    /*create_if_needed=*/true),
-                                /*from_user_gesture=*/true));
+  Browser* incognito_browser = Browser::Create(Browser::CreateParams(
+      browser()->GetProfile()->GetPrimaryOTRProfile(/*create_if_needed=*/true),
+      true));
   NavigateToURL(incognito_browser, kNavigatedUrl,
                 WindowOpenDisposition::CURRENT_TAB);
   EXPECT_TRUE(IsUIShowing());
@@ -596,7 +587,7 @@ IN_PROC_BROWSER_TEST_F(SafetyTipPageInfoBubbleViewBrowserTest,
   CloseWarningLeaveSite(browser());
   EXPECT_FALSE(IsUIShowing());
   EXPECT_NE(kNavigatedUrl, browser()
-                               ->GetTabStripModel()
+                               ->tab_strip_model()
                                ->GetActiveWebContents()
                                ->GetLastCommittedURL());
 
@@ -641,7 +632,7 @@ IN_PROC_BROWSER_TEST_F(SafetyTipPageInfoBubbleViewBrowserTest,
 
   EXPECT_TRUE(IsUIShowing());
   EXPECT_EQ(kNavigatedUrl, browser()
-                               ->GetTabStripModel()
+                               ->tab_strip_model()
                                ->GetActiveWebContents()
                                ->GetLastCommittedURL());
 
@@ -663,7 +654,7 @@ IN_PROC_BROWSER_TEST_F(SafetyTipPageInfoBubbleViewBrowserTest,
   CloseWarningIgnore(views::Widget::ClosedReason::kCloseButtonClicked);
   EXPECT_FALSE(IsUIShowing());
   EXPECT_EQ(kNavigatedUrl, browser()
-                               ->GetTabStripModel()
+                               ->tab_strip_model()
                                ->GetActiveWebContents()
                                ->GetLastCommittedURL());
 
@@ -688,7 +679,7 @@ IN_PROC_BROWSER_TEST_F(SafetyTipPageInfoBubbleViewBrowserTest,
   NavigateToURL(browser(), kNavigatedUrl, WindowOpenDisposition::CURRENT_TAB);
   EXPECT_FALSE(IsUIShowing());
   EXPECT_EQ(kNavigatedUrl, browser()
-                               ->GetTabStripModel()
+                               ->tab_strip_model()
                                ->GetActiveWebContents()
                                ->GetLastCommittedURL());
   ASSERT_NO_FATAL_FAILURE(CheckPageInfoShowsSafetyTipInfo(
@@ -735,7 +726,7 @@ IN_PROC_BROWSER_TEST_F(SafetyTipPageInfoBubbleViewBrowserTest,
   EXPECT_FALSE(IsUIShowing());
 
   SwitchToTabAndWait(browser(),
-                     browser()->GetTabStripModel()->active_index() + 1);
+                     browser()->tab_strip_model()->active_index() + 1);
   EXPECT_TRUE(IsUIShowing());
   ASSERT_NO_FATAL_FAILURE(CheckPageInfoShowsSafetyTipInfo(
       browser(), security_state::SafetyTipStatus::kLookalike,
@@ -754,7 +745,7 @@ IN_PROC_BROWSER_TEST_F(SafetyTipPageInfoBubbleViewBrowserTest,
   EXPECT_FALSE(IsUIShowing());
 
   SwitchToTabAndWait(browser(),
-                     browser()->GetTabStripModel()->active_index() + 1);
+                     browser()->tab_strip_model()->active_index() + 1);
   EXPECT_FALSE(IsUIShowing());
   ASSERT_NO_FATAL_FAILURE(CheckPageInfoDoesNotShowSafetyTipInfo(browser()));
 
@@ -1136,7 +1127,7 @@ IN_PROC_BROWSER_TEST_F(SafetyTipPageInfoBubbleViewBrowserTest,
                 WindowOpenDisposition::NEW_FOREGROUND_TAB);
   SafetyTipWebContentsObserver* safety_tip_observer =
       SafetyTipWebContentsObserver::FromWebContents(
-          browser()->GetTabStripModel()->GetActiveWebContents());
+          browser()->tab_strip_model()->GetActiveWebContents());
 
   // Trigger the warning in the prepped web contents.
   auto kNavigatedUrl = GetURL("accounts3-google.com");
@@ -1168,7 +1159,7 @@ IN_PROC_BROWSER_TEST_F(SafetyTipPageInfoBubbleViewBrowserTest,
   // Prep the web contents for later observing.
   SafetyTipWebContentsObserver* safety_tip_observer =
       SafetyTipWebContentsObserver::FromWebContents(
-          browser()->GetTabStripModel()->GetActiveWebContents());
+          browser()->tab_strip_model()->GetActiveWebContents());
   base::RunLoop loop;
   safety_tip_observer->RegisterSafetyTipCloseCallbackForTesting(
       loop.QuitClosure());
@@ -1199,7 +1190,7 @@ IN_PROC_BROWSER_TEST_F(SafetyTipPageInfoBubbleViewBrowserTest,
   // Prep the web contents for later observing.
   SafetyTipWebContentsObserver* safety_tip_observer =
       SafetyTipWebContentsObserver::FromWebContents(
-          browser()->GetTabStripModel()->GetActiveWebContents());
+          browser()->tab_strip_model()->GetActiveWebContents());
   base::RunLoop loop;
   safety_tip_observer->RegisterSafetyTipCloseCallbackForTesting(
       loop.QuitClosure());
@@ -1648,7 +1639,7 @@ class SafetyTipPageInfoBubbleViewPrerenderBrowserTest
   }
 
   content::WebContents* web_contents() {
-    return browser()->GetTabStripModel()->GetActiveWebContents();
+    return browser()->tab_strip_model()->GetActiveWebContents();
   }
 
   content::test::PrerenderTestHelper* prerender_helper() {
@@ -1753,7 +1744,7 @@ class SafetyTipPageInfoBubbleViewDialogTest : public DialogBrowserTest {
       status = security_state::SafetyTipStatus::kLookalike;
     }
 
-    ShowSafetyTipDialog(browser()->GetTabStripModel()->GetActiveWebContents(),
+    ShowSafetyTipDialog(browser()->tab_strip_model()->GetActiveWebContents(),
                         status, GURL("https://www.google.tld"),
                         base::DoNothing());
   }
@@ -1769,7 +1760,7 @@ IN_PROC_BROWSER_TEST_F(SafetyTipPageInfoBubbleViewBrowserTest,
   // Create a split tab.
   ASSERT_TRUE(AddTabAtIndex(0, GetURL("example.com"),
                             ui::PageTransition::PAGE_TRANSITION_TYPED));
-  TabStripModel* const tab_strip_model = browser()->GetTabStripModel();
+  TabStripModel* const tab_strip_model = browser()->tab_strip_model();
   tab_strip_model->ActivateTabAt(0);
   tab_strip_model->AddToNewSplit(
       {1}, split_tabs::SplitTabVisualData(),

@@ -174,19 +174,12 @@ export class TextClick {
       return;
     }
     // Make decoration not inert and find if the actual target should be an
-    // annotation. On standard touches, CHROME_ANNOTATION has pointer-events:
-    // none, so event.target is the underlying element. On accessibility
-    // activations (e.g. VoiceOver), CHROME_ANNOTATION is targeted directly.
+    // annotation. This way CHROME_ANNOTATION are never target in an Event.
     let annotation = this.annotationForTest;
     if (!annotation) {
-      if (event.target instanceof HTMLElement &&
-          event.target.tagName === 'CHROME_ANNOTATION') {
-        annotation = event.target;
-      } else {
-        this.toggleDecorationsPointerEvents('all');
-        annotation = document.elementFromPoint(event.clientX, event.clientY);
-        this.toggleDecorationsPointerEvents('none');
-      }
+      this.toggleDecorationsPointerEvents('all');
+      annotation = document.elementFromPoint(event.clientX, event.clientY);
+      this.toggleDecorationsPointerEvents('none');
     }
 
     if (annotation instanceof HTMLElement &&

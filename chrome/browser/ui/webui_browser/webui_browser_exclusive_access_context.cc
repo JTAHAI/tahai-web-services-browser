@@ -7,6 +7,8 @@
 #include "base/notimplemented.h"
 #include "base/task/single_thread_task_runner.h"
 #include "chrome/browser/platform_util.h"
+#include "chrome/browser/ui/browser.h"
+#include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/exclusive_access/exclusive_access_manager.h"
@@ -25,14 +27,6 @@
 // TODO(webium): Support immersive mode on Mac and honor platform preferences
 // like "Always show toolbar in fullscreen" on macOS and other platforms.
 
-DEFINE_USER_DATA(WebUIBrowserExclusiveAccessContext);
-
-// static
-WebUIBrowserExclusiveAccessContext* WebUIBrowserExclusiveAccessContext::From(
-    BrowserWindowInterface* browser) {
-  return Get(browser->GetUnownedUserDataHost());
-}
-
 WebUIBrowserExclusiveAccessContext::WebUIBrowserExclusiveAccessContext(
     Profile* profile,
     BrowserWindowInterface* browser,
@@ -43,8 +37,7 @@ WebUIBrowserExclusiveAccessContext::WebUIBrowserExclusiveAccessContext(
       browser_(browser),
       tab_strip_model_(tab_strip_model),
       widget_(widget),
-      accelerator_provider_(accelerator_provider),
-      scoped_unowned_user_data_(browser->GetUnownedUserDataHost(), *this) {}
+      accelerator_provider_(accelerator_provider) {}
 
 WebUIBrowserExclusiveAccessContext::~WebUIBrowserExclusiveAccessContext() =
     default;
@@ -84,7 +77,8 @@ void WebUIBrowserExclusiveAccessContext::UpdateExclusiveAccessBubble(
   bool should_close_bubble = false;
 #if BUILDFLAG(IS_CHROMEOS)
   // Trusted pinned mode does not allow to escape. So do not show the bubble.
-  should_close_bubble = platform_util::IsBrowserLockedFullscreen(browser_);
+  should_close_bubble = platform_util::IsBrowserLockedFullscreen(
+      browser_->GetBrowserForMigrationOnly());
 #endif
   if (!params.has_download) {
     // ...TYPE_NONE indicates deleting the bubble, except when used with
@@ -162,7 +156,8 @@ bool WebUIBrowserExclusiveAccessContext::CanUserEnterFullscreen() const {
 
 bool WebUIBrowserExclusiveAccessContext::CanUserExitFullscreen() const {
 #if BUILDFLAG(IS_CHROMEOS)
-  return !platform_util::IsBrowserLockedFullscreen(browser_);
+  return !platform_util::IsBrowserLockedFullscreen(
+      browser_->GetBrowserForMigrationOnly());
 #else
   return true;
 #endif

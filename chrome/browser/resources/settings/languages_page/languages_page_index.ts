@@ -3,6 +3,7 @@
 // found in the LICENSE file.
 
 import 'chrome://resources/cr_elements/cr_view_manager/cr_view_manager.js';
+import '/shared/settings/prefs/prefs.js';
 import '../settings_shared.css.js';
 import './languages_page.js';
 import './spell_check_page.js';
@@ -46,6 +47,7 @@ export class SettingsLanguagesPageIndexElement extends
 
   static get properties() {
     return {
+      prefs: Object,
       languages: Object,
 
       routes_: {
@@ -55,6 +57,7 @@ export class SettingsLanguagesPageIndexElement extends
     };
   }
 
+  declare prefs: Record<string, unknown>;
   declare languages?: LanguagesModel;
   declare private routes_: SettingsRoutes;
 

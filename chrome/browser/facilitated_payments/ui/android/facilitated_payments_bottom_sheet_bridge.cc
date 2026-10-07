@@ -118,15 +118,14 @@ void FacilitatedPaymentsBottomSheetBridge::Dismiss() {
 }
 
 void FacilitatedPaymentsBottomSheetBridge::ShowPixAccountLinkingPrompt(
-    int strike_count,
-    const std::string& account_email) {
+    int strike_count) {
   if (!GetJavaBridge()) {
     return;
   }
 
+  JNIEnv* env = base::android::AttachCurrentThread();
   Java_FacilitatedPaymentsPaymentMethodsViewBridge_showPixAccountLinkingPrompt(
-      base::android::AttachCurrentThread(), GetJavaBridge(), strike_count,
-      account_email);
+      env, GetJavaBridge(), strike_count);
 }
 
 void FacilitatedPaymentsBottomSheetBridge::
@@ -152,17 +151,6 @@ bool FacilitatedPaymentsBottomSheetBridge::ShowAccountLinkingPrompt(
       env, GetJavaBridge(), static_cast<int>(params.fop_type),
       params.fop_display_name, params.strike_count);
   return true;
-}
-
-void FacilitatedPaymentsBottomSheetBridge::
-    ShowAccountLinkingFailureNotification(FacilitatedPaymentsType fop_type) {
-  if (!GetJavaBridge()) {
-    return;
-  }
-
-  JNIEnv* env = base::android::AttachCurrentThread();
-  Java_FacilitatedPaymentsPaymentMethodsViewBridge_showAccountLinkingFailureNotification(
-      env, GetJavaBridge(), static_cast<int>(fop_type));
 }
 
 base::android::ScopedJavaLocalRef<jobject>

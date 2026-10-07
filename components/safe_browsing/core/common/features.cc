@@ -74,11 +74,7 @@ constexpr base::FeatureParam<std::string> kClientSideDetectionBypassTiersList{
     /*default_value=*/""};
 
 BASE_FEATURE(kClientSideDetectionClipboardCopyApi,
-#if BUILDFLAG(IS_IOS) || BUILDFLAG(IS_ANDROID)
-             base::FEATURE_DISABLED_BY_DEFAULT);
-#else
              base::FEATURE_ENABLED_BY_DEFAULT);
-#endif
 constexpr base::FeatureParam<double> kCsdClipboardCopyApiHCAcceptanceRate{
     &kClientSideDetectionClipboardCopyApi, "HCAcceptanceRate",
     /*default_value=*/1.0};
@@ -101,7 +97,7 @@ const base::FeatureParam<std::string> kCsdClipboardCopyApiLoaders{
     &kClientSideDetectionClipboardCopyApi, "Loaders",
     /*default_value=*/
     "curl,wget,invoke-webrequest,iwr,invoke-restmethod,irm,certutil,"
-    "bitsadmin,echo,cat,finger,gc"};
+    "bitsadmin,echo,cat,finger"};
 const base::FeatureParam<std::string> kCsdClipboardCopyApiRunners{
     &kClientSideDetectionClipboardCopyApi, "Runners",
     /*default_value=*/
@@ -146,11 +142,6 @@ const base::FeatureParam<bool> kCsdCreditCardFormEnableInteractionTrigger{
 const base::FeatureParam<bool> kCsdCreditCardFormEnableDetectionTrigger{
     &kClientSideDetectionCreditCardForm, "EnableDetectionTrigger",
     /*default_value=*/false};
-
-BASE_FEATURE(kClientSideDetectionEnabledIos, base::FEATURE_DISABLED_BY_DEFAULT);
-const base::FeatureParam<bool> kCsdEnforceIos{&kClientSideDetectionEnabledIos,
-                                              "CsdEnforceIos",
-                                              /*default_value=*/false};
 
 BASE_FEATURE(kClientSideDetectionForcedLlamaRedirectChainKillswitch,
              base::FEATURE_DISABLED_BY_DEFAULT);
@@ -199,33 +190,12 @@ constexpr base::FeatureParam<int> kClientSideDetectionServerModelMaxScansPerDay{
     &kClientSideDetectionServerModelForScamDetectionAndroid,
     "MaxIntelligentScansPerDay",
     /*default_value=*/5};
-#endif
 
-#if !BUILDFLAG(IS_ANDROID)
-BASE_FEATURE(kClientSideDetectionServerModelForScamDetectionDesktop,
-             base::FEATURE_DISABLED_BY_DEFAULT);
-constexpr base::FeatureParam<int>
-    kClientSideDetectionServerModelMaxScansPerDayDesktop{
-        &kClientSideDetectionServerModelForScamDetectionDesktop,
-        "MaxIntelligentScansPerDayDesktop",
-        /*default_value=*/5};
-#endif
-
-#if BUILDFLAG(IS_ANDROID)
 BASE_FEATURE(kClientSideDetectionServerModelRolloutAndroid,
              base::FEATURE_DISABLED_BY_DEFAULT);
 constexpr base::FeatureParam<int>
     kClientSideDetectionServerModelRolloutVersionAndroid{
         &kClientSideDetectionServerModelRolloutAndroid, "ModelVersion",
-        /*default_value=*/1000};
-#endif
-
-#if !BUILDFLAG(IS_ANDROID)
-BASE_FEATURE(kClientSideDetectionServerModelRolloutDesktop,
-             base::FEATURE_DISABLED_BY_DEFAULT);
-constexpr base::FeatureParam<int>
-    kClientSideDetectionServerModelRolloutVersionDesktop{
-        &kClientSideDetectionServerModelRolloutDesktop, "ModelVersion",
         /*default_value=*/1000};
 #endif
 
@@ -306,7 +276,7 @@ BASE_FEATURE(kExtendedReportingRemovePrefDependency,
              base::FEATURE_ENABLED_BY_DEFAULT);
 
 BASE_FEATURE(kExtensionBlocklistSkipNetworkQuery,
-             base::FEATURE_ENABLED_BY_DEFAULT);
+             base::FEATURE_DISABLED_BY_DEFAULT);
 
 BASE_FEATURE(kExtensionTelemetryConfiguration,
              "SafeBrowsingExtensionTelemetryConfiguration",
@@ -364,7 +334,7 @@ constexpr base::FeatureParam<std::string> kHashPrefixRealTimeLookupsKeyFetchUrl{
     &kHashPrefixRealTimeLookups,
     "SafeBrowsingHashPrefixRealTimeLookupsKeyFetchUrl",
     /*default_value=*/
-    "https://www.gstatic.com/ohttp_gateway/hpke_public_keys/v1/sbc_prod"};
+    "https://www.gstatic.com/ohttp_gateway/hpke_public_keys/sbc_prod"};
 constexpr base::FeatureParam<std::string>
     kHashPrefixRealTimeLookupsKeyFetchKeyTypeHeader{
         &kHashPrefixRealTimeLookups,
@@ -450,18 +420,6 @@ constexpr base::FeatureParam<std::string> kRedWarningSurveyDidProceedFilter{
     &kRedWarningSurvey, "RedWarningSurveyDidProceedFilter",
     /*default_value=*/"TRUE,FALSE"};
 
-BASE_FEATURE(kRedWarningSurveyAndroid, base::FEATURE_DISABLED_BY_DEFAULT);
-constexpr base::FeatureParam<std::string> kRedWarningSurveyAndroidTriggerId{
-    &kRedWarningSurveyAndroid, "RedWarningSurveyAndroidTriggerId",
-    /*default_value=*/""};
-constexpr base::FeatureParam<std::string>
-    kRedWarningSurveyAndroidProceedTriggerId{
-        &kRedWarningSurveyAndroid, "RedWarningSurveyAndroidProceedTriggerId",
-        /*default_value=*/""};
-constexpr base::FeatureParam<std::string> kRedWarningSurveyAndroidHeedTriggerId{
-    &kRedWarningSurveyAndroid, "RedWarningSurveyAndroidHeedTriggerId",
-    /*default_value=*/""};
-
 BASE_FEATURE(kRelaunchNotificationForAdvancedProtection,
              base::FEATURE_ENABLED_BY_DEFAULT);
 
@@ -516,21 +474,6 @@ BASE_FEATURE(kSkipImageClassificationScoringForNonPageLoadTriggers,
 BASE_FEATURE(kSuspiciousSiteTriggerQuotaFeature,
              "SafeBrowsingSuspiciousSiteTriggerQuota",
              base::FEATURE_ENABLED_BY_DEFAULT);
-
-BASE_FEATURE(kSuspiciousSiteWarningSurvey, base::FEATURE_DISABLED_BY_DEFAULT);
-constexpr base::FeatureParam<std::string> kSuspiciousSiteWarningSurveyTriggerId{
-    &kSuspiciousSiteWarningSurvey, "SuspiciousSiteWarningSurveyTriggerId",
-    /*default_value=*/""};
-constexpr base::FeatureParam<std::string>
-    kSuspiciousSiteWarningSurveyProceedTriggerId{
-        &kSuspiciousSiteWarningSurvey,
-        "SuspiciousSiteWarningSurveyProceedTriggerId",
-        /*default_value=*/"HguD8vrc50tK1KeaPYj0R37AzmWa"};
-constexpr base::FeatureParam<std::string>
-    kSuspiciousSiteWarningSurveyHeedTriggerId{
-        &kSuspiciousSiteWarningSurvey,
-        "SuspiciousSiteWarningSurveyHeedTriggerId",
-        /*default_value=*/"LZD24fmuf0tK1KeaPYj0Z79hw2qC"};
 
 BASE_FEATURE(kSuspiciousSiteWarnings, base::FEATURE_DISABLED_BY_DEFAULT);
 

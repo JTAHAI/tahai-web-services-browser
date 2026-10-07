@@ -47,7 +47,6 @@
 .cproject
 .dir-locals.el
 .emulator_sdk
-.env
 .gdb_history
 .gdbinit
 .jetskicli
@@ -56,7 +55,6 @@
 .project
 .projectile
 .pydevproject
-.ruff_cache
 /.scratch
 .siso_failed_targets
 *.class
@@ -91,6 +89,9 @@ vs-chromium-project.txt
 # VS Code Bazel Extension
 /MODULE.bazel
 /MODULE.bazel.lock
+# Github Copilot
+.github/copilot-instructions.md
+.github/**/user*.md
 # .mypy_cache created by Python tools (e.g. in tools/metrics)
 .mypy_cache
 

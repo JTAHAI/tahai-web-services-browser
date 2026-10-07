@@ -154,10 +154,12 @@ void EventRewriterControllerImpl::Initialize(
   AddEventRewriter(std::move(keyboard_modifier_event_rewriter));
   // CapsLock event rewriter must come after modifier rewriting as it can effect
   // its result.
-  AddEventRewriter(std::make_unique<ui::CapsLockEventRewriter>(
-      ui::KeyboardLayoutEngineManager::GetKeyboardLayoutEngine(),
-      Shell::Get()->keyboard_capability(),
-      ash::input_method::InputMethodManager::Get()->GetImeKeyboard()));
+  if (features::IsModifierSplitEnabled()) {
+    AddEventRewriter(std::make_unique<ui::CapsLockEventRewriter>(
+        ui::KeyboardLayoutEngineManager::GetKeyboardLayoutEngine(),
+        Shell::Get()->keyboard_capability(),
+        ash::input_method::InputMethodManager::Get()->GetImeKeyboard()));
+  }
   AddEventRewriter(std::move(peripheral_customization_event_rewriter));
   AddEventRewriter(std::move(prerewritten_event_forwarder));
   // Accessibility rewriter is applied between modifier event rewriters and
@@ -168,7 +170,9 @@ void EventRewriterControllerImpl::Initialize(
   AddEventRewriter(std::move(accessibility_event_rewriter));
   AddEventRewriter(std::move(keyboard_driven_event_rewriter));
   AddEventRewriter(std::move(event_rewriter_ash));
-  AddEventRewriter(std::make_unique<ui::DiscardKeyEventRewriter>());
+  if (features::IsModifierSplitEnabled()) {
+    AddEventRewriter(std::make_unique<ui::DiscardKeyEventRewriter>());
+  }
 }
 
 void EventRewriterControllerImpl::AddEventRewriter(

@@ -33,7 +33,6 @@ ChromeLabs*UiTest.*
 ChromeSignoutConfirmationPromptPixelTest.*
 ChromeSignoutConfirmationPromptWithExtensionsPixelTest.*
 ConfirmBubbleTest.*
-ComposeboxDriveSignInPromoViewPixelTest.*
 ContentAnalysysDialogUiTest.*
 ContentSettingBubbleDialogTest.*
 CookieClearOnExitMigrationNoticePixelTest.*
@@ -53,8 +52,6 @@ DeleteAddressProfileDialogControllerImplTest.InvokeUi_*
 DesktopBnplUiDelegateBrowserTest.*
 DesktopMediaPickerViewsBrowserTest.*
 DesktopPaymentsWindowManagerInteractiveUiTest*
-*DeviceSignalsDisclaimerModalPixelTest.*
-*DeviceSignalsDisclaimerProfilePickerPixelTest.*
 DocumentPictureInPicturePixelTest.*
 EditAddressProfileDialogControllerImplTest.InvokeUi_*
 *EmbeddedPermissionPromptUiTest.InvokeUi_*
@@ -127,7 +124,6 @@ PasswordBubbleInteractiveUiTest.NavigateToManagementDetailsViewAndTakeScreenshot
 PasswordBubbleInteractiveUiTest.NavigateToManagementDetailsViewWithMoveFooterVisibleAndTakeScreenshot
 *PasswordBubbleWithManagePasswordButtonInteractiveUiTest.*
 PasswordReuseModalWarningTest.*
-*PaymentsChurnedUsersBubbleViewsBrowserTest*
 PaymentsWindowUserConsentDialogBrowserTest*
 PerformanceInterventionInteractiveTest.InterventionToolbarButton
 PermissionChipKombuchaInteractiveUITest.PermissionChipClickTest
@@ -136,7 +132,11 @@ PermissionChipKombuchaInteractiveUITest.QuietestPermissionChipClickTest
 PermissionRequestChipBrowserUiTest.*
 *PermissionPromptBubble*View*BrowserTest.InvokeUi_*
 PermissionPromptPreviewBrowserTest.InvokeUi_*
+*PlusAddressCreationDialogUiVariationsTest*
+*PlusAddressCreationDialogUiVariationsOnboardingTest*
+PlusAddressCreationDialogWithNoticeTest.ShowNoticeAndCancel
 *PopupViewViewsBrowsertest*
+*PopupViewViewsPlusAddressSuggestionBrowsertest*
 PriceTrackingBubbleDialogViewBrowserTest.*
 ProfileMenuViewPixelTest.*
 ProfilePickerSigninToolbarUIPixelTest.*

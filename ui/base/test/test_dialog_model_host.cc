@@ -99,10 +99,6 @@ ElementIdentifier TestDialogModelHost::GetInitiallyFocusedField() {
   return dialog_model_->initially_focused_field(DialogModelHost::GetPassKey());
 }
 
-bool TestDialogModelHost::GetEnableInputProtection() {
-  return dialog_model_->enable_input_protection(DialogModelHost::GetPassKey());
-}
-
 void TestDialogModelHost::Close() {
   // For now, TestDialogModelHost::Close() is the expected interface to close.
   NOTREACHED();

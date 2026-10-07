@@ -52,12 +52,6 @@ void AccountCapabilitiesTestMutator::
 }
 #endif
 
-void AccountCapabilitiesTestMutator::set_can_override_account_info(
-    bool value) {
-  capabilities_->capabilities_map_[kCanOverrideAccountInfoCapabilityName] =
-      value;
-}
-
 #if !BUILDFLAG(IS_IOS)
 void AccountCapabilitiesTestMutator::set_can_run_chrome_privacy_sandbox_trials(
     bool value) {
@@ -220,12 +214,6 @@ void AccountCapabilitiesTestMutator::set_is_subject_to_enterprise_features(
 void AccountCapabilitiesTestMutator::set_is_subject_to_parental_controls(
     bool value) {
   capabilities_->capabilities_map_[kIsSubjectToParentalControlsCapabilityName] =
-      value;
-}
-
-void AccountCapabilitiesTestMutator::set_is_subject_to_universal_opt_out(
-    bool value) {
-  capabilities_->capabilities_map_[kIsSubjectToUniversalOptOutCapabilityName] =
       value;
 }
 

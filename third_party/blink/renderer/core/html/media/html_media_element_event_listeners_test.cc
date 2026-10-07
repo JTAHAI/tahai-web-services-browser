@@ -5,7 +5,6 @@
 #include <algorithm>
 #include <memory>
 
-#include "base/memory/raw_ptr.h"
 #include "base/time/time.h"
 #include "base/time/time_override.h"
 #include "testing/gmock/include/gmock/gmock.h"
@@ -129,7 +128,7 @@ class FakeWebMediaPlayer final : public EmptyWebMediaPlayer {
     context_->GetAgent()->event_loop()->PerformMicrotaskCheckpoint();
   }
 
-  raw_ptr<MediaPlayerClient, UnprotectedInRelease | DanglingUntriaged> client_;
+  MediaPlayerClient* client_;
   WeakPersistent<ExecutionContext> context_;
   mutable double current_time_ = 0;
   bool playing_ = false;

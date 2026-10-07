@@ -71,7 +71,6 @@
 #include "third_party/blink/renderer/core/loader/document_loader.h"
 #include "third_party/blink/renderer/core/loader/frame_loader_types.h"
 #include "third_party/blink/renderer/core/loader/navigation_policy.h"
-#include "third_party/blink/renderer/core/timing/performance_timeline_entry_id_generator.h"
 #include "third_party/blink/renderer/platform/loader/fetch/resource_load_priority.h"
 #include "third_party/blink/renderer/platform/loader/fetch/resource_loader_options.h"
 #include "third_party/blink/renderer/platform/network/content_security_policy_parsers.h"
@@ -197,8 +196,6 @@ class CORE_EXPORT LocalFrameClient : public FrameClient {
       base::TimeTicks actual_navigation_start,
       const String& href_translate,
       const LocalFrameToken* initiator_frame_token,
-      const base::UnguessableToken& initiator_state_token,
-      const DocumentToken& initiator_document_token,
       SourceLocation* source_location,
       mojo::PendingRemote<mojom::blink::NavigationStateKeepAliveHandle>
           initiator_navigation_state_keep_alive_handle,
@@ -231,8 +228,7 @@ class CORE_EXPORT LocalFrameClient : public FrameClient {
       base::TimeTicks max_event_processing_start,
       base::TimeTicks max_event_commit_finish,
       base::TimeTicks max_event_end,
-      PerformanceTimelineEntryIdInfo interaction_id,
-      PerformanceTimelineEntryIdInfo navigation_id) {}
+      uint64_t interaction_offset) {}
 
   // Will be called when |CpuTiming| events are updated
   virtual void DidChangeCpuTiming(base::TimeDelta time) {}
@@ -257,21 +253,14 @@ class CORE_EXPORT LocalFrameClient : public FrameClient {
   virtual void DidObserveSoftNavigation(
       SoftNavigationMetricsForReporting metrics) {}
 
-  // A new First Contentful Paint was observed for a soft navigation.
-  virtual void DidObserveSoftNavigationFirstContentfulPaint(
-      uint64_t performance_timeline_navigation_id,
-      base::TimeDelta first_contentful_paint) {}
-
   // A new largest contentful paint candidate relating to the most recent
   // soft navigation was observed. Also see DidObserveSoftNavigation().
   virtual void DidObserveSoftLargestContentfulPaint(
       const LargestContentfulPaintDetailsForReporting& lcp) {}
 
   // Reports that visible elements in the frame shifted (bit.ly/lsm-explainer).
-  virtual void DidObserveLayoutShift(
-      double score,
-      bool after_input_or_scroll,
-      PerformanceTimelineEntryIdInfo navigation_id) {}
+  virtual void DidObserveLayoutShift(double score, bool after_input_or_scroll) {
+  }
 
   // Transmits the change in the set of watched CSS selectors property that
   // match any element on the frame.
@@ -324,6 +313,7 @@ class CORE_EXPORT LocalFrameClient : public FrameClient {
                                       int32_t world_id) = 0;
   virtual void WillReleaseScriptContext(v8::Local<v8::Context>,
                                         int32_t world_id) = 0;
+  virtual bool AllowScriptExtensions() = 0;
 
   virtual void DidChangeScrollOffset() {}
 

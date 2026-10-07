@@ -8,17 +8,14 @@
 #include <utility>
 #include <vector>
 
+#include "ash/frame_sink/ui_resource_manager.h"
 #include "ash/rounded_display/rounded_display_gutter.h"
 #include "ash/rounded_display/rounded_display_gutter_factory.h"
 #include "ash/test/ash_test_base.h"
 #include "ash/test/ash_test_helper.h"
-#include "base/task/single_thread_task_runner.h"
-#include "cc/resources/resource_pool.h"
-#include "components/viz/client/client_resource_provider.h"
 #include "components/viz/common/quads/compositor_frame.h"
 #include "components/viz/common/quads/quad_list.h"
 #include "components/viz/common/quads/texture_draw_quad.h"
-#include "components/viz/common/resources/returned_resource.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "ui/aura/window_tree_host.h"
@@ -28,21 +25,24 @@
 namespace ash {
 namespace {
 
+constexpr viz::SharedImageFormat kTestSharedImageFormat =
+    SK_B32_SHIFT ? viz::SinglePlaneFormat::kRGBA_8888
+                 : viz::SinglePlaneFormat::kBGRA_8888;
 constexpr gfx::Size kTestDisplaySize(1920, 1080);
 constexpr gfx::RoundedCornersF kTestPanelRadii(10);
 
 using RoundedDisplayMasksInfo = viz::TextureDrawQuad::RoundedDisplayMasksInfo;
 
-class RoundedDisplayFrameFactoryTestBase : public AshTestBase {
+class RoundedDisplayFrameFactoryTest : public AshTestBase {
  public:
-  RoundedDisplayFrameFactoryTestBase() = default;
+  RoundedDisplayFrameFactoryTest() = default;
 
-  RoundedDisplayFrameFactoryTestBase(
-      const RoundedDisplayFrameFactoryTestBase&) = delete;
-  RoundedDisplayFrameFactoryTestBase& operator=(
-      const RoundedDisplayFrameFactoryTestBase&) = delete;
+  RoundedDisplayFrameFactoryTest(const RoundedDisplayFrameFactoryTest&) =
+      delete;
+  RoundedDisplayFrameFactoryTest& operator=(
+      const RoundedDisplayFrameFactoryTest&) = delete;
 
-  ~RoundedDisplayFrameFactoryTestBase() override = default;
+  ~RoundedDisplayFrameFactoryTest() override = default;
 
   // AshTestBase:
   void SetUp() override {
@@ -61,7 +61,8 @@ class RoundedDisplayFrameFactoryTestBase : public AshTestBase {
   void TearDown() override {
     auto* root_window = ash_test_helper()->GetHost()->window();
     root_window->RemoveChild(host_window_.get());
-    client_resource_provider_.ShutdownAndReleaseAllResources();
+    resource_manager_.LostExportedResources();
+    resource_manager_.ClearAvailableResources();
     AshTestBase::TearDown();
   }
 
@@ -104,18 +105,9 @@ class RoundedDisplayFrameFactoryTestBase : public AshTestBase {
   std::unique_ptr<RoundedDisplayGutterFactory> gutter_factory_;
   std::unique_ptr<RoundedDisplayFrameFactory> frame_factory_;
   std::vector<std::unique_ptr<RoundedDisplayGutter>> gutters_;
-  viz::ClientResourceProvider client_resource_provider_;
-  std::unique_ptr<cc::ResourcePool> resource_pool_ =
-      std::make_unique<cc::ResourcePool>(
-          &client_resource_provider_,
-          nullptr,
-          base::SingleThreadTaskRunner::GetCurrentDefault(),
-          cc::ResourcePool::kDefaultExpirationDelay,
-          false);
+  UiResourceManager resource_manager_;
   std::unique_ptr<aura::Window> host_window_;
 };
-
-using RoundedDisplayFrameFactoryTest = RoundedDisplayFrameFactoryTestBase;
 
 // TODO(zoraiznaeem): Add more unittest coverage.
 TEST_F(RoundedDisplayFrameFactoryTest, CompositorFrameHasCorrectStructure) {
@@ -125,7 +117,7 @@ TEST_F(RoundedDisplayFrameFactoryTest, CompositorFrameHasCorrectStructure) {
 
   auto frame = frame_factory_->CreateCompositorFrame(
       viz::BeginFrameAck::CreateManualAckWithDamage(), *host_window_,
-      client_resource_provider_, *resource_pool_, gutters);
+      resource_manager_, gutters);
 
   // We should only have the root render pass.
   EXPECT_EQ(frame->render_pass_list.size(), 1u);
@@ -134,10 +126,7 @@ TEST_F(RoundedDisplayFrameFactoryTest, CompositorFrameHasCorrectStructure) {
 
   // We should have a resource for each gutter.
   EXPECT_EQ(frame->resource_list.size(), gutters.size());
-
-  EXPECT_EQ(client_resource_provider_.num_resources_for_testing(),
-            gutters.size());
-  EXPECT_EQ(resource_pool_->GetBusyResourceCountForTesting(), gutters.size());
+  EXPECT_EQ(resource_manager_.exported_resources_count(), gutters.size());
 
   auto& quad_list = frame->render_pass_list.front()->quad_list;
 
@@ -171,7 +160,7 @@ TEST_F(RoundedDisplayFrameFactoryTest,
 
   auto frame = frame_factory_->CreateCompositorFrame(
       viz::BeginFrameAck::CreateManualAckWithDamage(), *host_window_,
-      client_resource_provider_, *resource_pool_, GetGutters());
+      resource_manager_, GetGutters());
 
   const viz::QuadList& quad_list = frame->render_pass_list.front()->quad_list;
   ASSERT_EQ(quad_list.size(), 1u);
@@ -195,7 +184,7 @@ TEST_F(RoundedDisplayFrameFactoryTest,
 
   auto frame = frame_factory_->CreateCompositorFrame(
       viz::BeginFrameAck::CreateManualAckWithDamage(), *host_window_,
-      client_resource_provider_, *resource_pool_, GetGutters());
+      resource_manager_, GetGutters());
 
   const viz::QuadList& quad_list = frame->render_pass_list.front()->quad_list;
   ASSERT_EQ(quad_list.size(), 1u);
@@ -219,7 +208,7 @@ TEST_F(RoundedDisplayFrameFactoryTest,
 
   auto frame = frame_factory_->CreateCompositorFrame(
       viz::BeginFrameAck::CreateManualAckWithDamage(), *host_window_,
-      client_resource_provider_, *resource_pool_, GetGutters());
+      resource_manager_, GetGutters());
 
   const viz::QuadList& quad_list = frame->render_pass_list.front()->quad_list;
   ASSERT_EQ(quad_list.size(), 1u);
@@ -233,38 +222,56 @@ TEST_F(RoundedDisplayFrameFactoryTest,
                       /*is_horizontally_positioned=*/true)));
 }
 
-TEST_F(RoundedDisplayFrameFactoryTest, ResourcePoolReusesReclaimedResources) {
+TEST_F(RoundedDisplayFrameFactoryTest, OnlyCreateNewResourcesWhenNecessary) {
   AppendVerticalOverlayGutters(kTestDisplaySize, kTestPanelRadii);
+
   const auto& gutters = GetGutters();
 
-  auto frame1 = frame_factory_->CreateCompositorFrame(
-      viz::BeginFrameAck::CreateManualAckWithDamage(), *host_window_,
-      client_resource_provider_, *resource_pool_, gutters);
-
-  ASSERT_EQ(frame1->resource_list.size(), gutters.size());
-  EXPECT_EQ(resource_pool_->GetTotalResourceCountForTesting(), gutters.size());
-  EXPECT_EQ(resource_pool_->GetBusyResourceCountForTesting(), gutters.size());
-
-  // Reclaim the resources.
-  std::vector<viz::ReturnedResource> returned_resources;
-  for (const auto& resource : frame1->resource_list) {
-    returned_resources.push_back(resource.ToReturnedResource());
+  // Populate resources in the resource manager.
+  for (const auto* gutter : gutters) {
+    resource_manager_.OfferResourceForTesting(
+        RoundedDisplayFrameFactory::CreateUiResource(gutter->bounds().size(),
+                                                     kTestSharedImageFormat,
+                                                     gutter->ui_source_id(),
+                                                     /*is_overlay=*/false));
   }
-  client_resource_provider_.ReceiveReturnsFromParent(
-      std::move(returned_resources));
 
-  // The resources are now available for reuse in the resource pool.
-  EXPECT_EQ(resource_pool_->GetBusyResourceCountForTesting(), 0u);
+  EXPECT_EQ(resource_manager_.available_resources_count(), 2u);
 
-  auto frame2 = frame_factory_->CreateCompositorFrame(
+  frame_factory_->CreateCompositorFrame(
       viz::BeginFrameAck::CreateManualAckWithDamage(), *host_window_,
-      client_resource_provider_, *resource_pool_, gutters);
+      resource_manager_, gutters);
 
-  ASSERT_EQ(frame2->resource_list.size(), gutters.size());
-  // Total resource count in pool should not increase because resources were
-  // reused.
-  EXPECT_EQ(resource_pool_->GetTotalResourceCountForTesting(), gutters.size());
-  EXPECT_EQ(resource_pool_->GetBusyResourceCountForTesting(), gutters.size());
+  // Should have reused all the resources.
+  EXPECT_EQ(resource_manager_.available_resources_count(), 0u);
+  // Should have exported two resources as we have two gutters.
+  EXPECT_EQ(resource_manager_.exported_resources_count(), 2u);
+
+  resource_manager_.LostExportedResources();
+
+  // Adding more resources.
+  for (int index : {0, 0}) {
+    const auto* gutter = gutters.at(index);
+    resource_manager_.OfferResourceForTesting(
+        RoundedDisplayFrameFactory::CreateUiResource(gutter->bounds().size(),
+                                                     kTestSharedImageFormat,
+                                                     gutter->ui_source_id(),
+                                                     /*is_overlay=*/false));
+  }
+
+  EXPECT_EQ(resource_manager_.available_resources_count(), 2u);
+
+  frame_factory_->CreateCompositorFrame(
+      viz::BeginFrameAck::CreateManualAckWithDamage(), *host_window_,
+      resource_manager_, gutters);
+
+  // We end up using the available resources and are left with the extra
+  // resource that was available. We also must have created resources for
+  // gutter for which we did not have any available resources.
+  EXPECT_EQ(resource_manager_.available_resources_count(), 1u);
+
+  // Should have exported two resources as we have two gutters.
+  EXPECT_EQ(resource_manager_.exported_resources_count(), 2u);
 }
 
 }  // namespace

@@ -131,7 +131,6 @@ class CORE_EXPORT HTMLInputElement
   bool HasBeenPasswordField() const;
   void MaybeSetHasBeenPasswordField();
 
-  bool IsSwitch() const;
   bool IsCheckable() const;
   bool checkedForBinding() const { return Checked(); }
   void setCheckedForBinding(bool);

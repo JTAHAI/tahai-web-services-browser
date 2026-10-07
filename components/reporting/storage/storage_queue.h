@@ -43,10 +43,6 @@ namespace reporting {
 
 BASE_DECLARE_FEATURE(kReportingStorageDegradationFeature);
 
-// Feature flag to safely roll out the forced wiping of corrupted legacy queues
-// unblocking the ERP migration (see b/458321208).
-BASE_DECLARE_FEATURE(kEraseLegacyQueueOnDataLoss);
-
 namespace test {
 
 // Storage Queue operation kind used to associate operations with failures for

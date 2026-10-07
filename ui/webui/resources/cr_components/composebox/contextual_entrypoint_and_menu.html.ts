@@ -30,7 +30,7 @@ export function getHtml(this: ContextualEntrypointAndMenuElement) {
         .fileNum="${this.fileNum}"
         .nonTabFileNum="${this.nonTabFileNum}"
         .isSidePanel="${this.isSidePanel}"
-        .selectedTabIds="${this.selectedTabIds}"
+        .disabledTabIds="${this.disabledTabIds}"
         .aimThreadRestoredTabs="${this.aimThreadRestoredTabs}"
         .tabSuggestions="${this.tabSuggestions}"
         .recentTabId="${this.recentTabId}"
@@ -41,7 +41,6 @@ export function getHtml(this: ContextualEntrypointAndMenuElement) {
         .disableAutoReposition="${this.disableAutoReposition}"
         .uploadButtonDisabled="${this.uploadButtonDisabled}"
         .shareTabsFlyoutOpen="${this.shareTabsFlyoutOpen}"
-        .unboundedMenuEnabled="${this.unboundedMenuEnabled}"
         @close="${this.onMenuClose_}">
     </cr-composebox-contextual-action-menu>
   <!--_html_template_end_-->`;

@@ -8,6 +8,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assume.assumeTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
@@ -22,6 +23,7 @@ import static org.mockito.Mockito.when;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 import android.net.Network;
+import android.os.Build;
 
 import androidx.test.core.app.ApplicationProvider;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
@@ -58,6 +60,8 @@ public class CronetAdaptiveNetworkBidirectionalStreamTest {
 
     @Before
     public void setUp() throws Exception {
+        // We need java.util.stream.Stream to be available for these tests.
+        assumeTrue(Build.VERSION.SDK_INT >= Build.VERSION_CODES.N);
         mMockScheduledExecutorService = mock(ScheduledExecutorService.class);
         doReturn(mock(ScheduledFuture.class))
                 .when(mMockScheduledExecutorService)
@@ -96,12 +100,16 @@ public class CronetAdaptiveNetworkBidirectionalStreamTest {
     @Test
     @SmallTest
     public void missingPrimaryStream_throwsException() {
+        // We need java.util.stream.Stream to be available for these tests.
+        assumeTrue(Build.VERSION.SDK_INT >= Build.VERSION_CODES.N);
         assertThrows(NullPointerException.class, () -> mAdaptiveStream.start());
     }
 
     @Test
     @SmallTest
     public void start_startsPrimaryStreamAndSchedulesFailover() {
+        // We need java.util.stream.Stream to be available for these tests.
+        assumeTrue(Build.VERSION.SDK_INT >= Build.VERSION_CODES.N);
         mAdaptiveStream.setPrimaryStream(mPrimaryStream);
         mAdaptiveStream.start();
 
@@ -113,6 +121,8 @@ public class CronetAdaptiveNetworkBidirectionalStreamTest {
     @Test
     @SmallTest
     public void failover_startsFallbackStream() {
+        // We need java.util.stream.Stream to be available for these tests.
+        assumeTrue(Build.VERSION.SDK_INT >= Build.VERSION_CODES.N);
         mAdaptiveStream.setPrimaryStream(mPrimaryStream);
 
         ArgumentCaptor<Runnable> failoverRunnableCaptor = ArgumentCaptor.forClass(Runnable.class);
@@ -128,6 +138,8 @@ public class CronetAdaptiveNetworkBidirectionalStreamTest {
     @Test
     @SmallTest
     public void failover_afterPrimaryReady_doesNotStartFallbackStream() {
+        // We need java.util.stream.Stream to be available for these tests.
+        assumeTrue(Build.VERSION.SDK_INT >= Build.VERSION_CODES.N);
         mAdaptiveStream.setPrimaryStream(mPrimaryStream);
 
         ArgumentCaptor<Runnable> failoverRunnableCaptor = ArgumentCaptor.forClass(Runnable.class);
@@ -145,6 +157,8 @@ public class CronetAdaptiveNetworkBidirectionalStreamTest {
     @Test
     @SmallTest
     public void onStreamReady_onPrimary_callsCallbackAndCancelsFallback() {
+        // We need java.util.stream.Stream to be available for these tests.
+        assumeTrue(Build.VERSION.SDK_INT >= Build.VERSION_CODES.N);
         mAdaptiveStream.setPrimaryStream(mPrimaryStream);
         mAdaptiveStream.start();
         mAdaptiveStream.getCallback().onStreamReady(mPrimaryStream);
@@ -156,6 +170,8 @@ public class CronetAdaptiveNetworkBidirectionalStreamTest {
     @Test
     @SmallTest
     public void onStreamReady_onFallback_switchesActiveStreamAndCancelsPrimary() {
+        // We need java.util.stream.Stream to be available for these tests.
+        assumeTrue(Build.VERSION.SDK_INT >= Build.VERSION_CODES.N);
         mAdaptiveStream.setPrimaryStream(mPrimaryStream);
 
         mAdaptiveStream.getCallback().onStreamReady(mFallbackStream);
@@ -174,6 +190,8 @@ public class CronetAdaptiveNetworkBidirectionalStreamTest {
     @Test
     @SmallTest
     public void onStreamReady_onFallback_reportsFallbackUsed() {
+        // We need java.util.stream.Stream to be available for these tests.
+        assumeTrue(Build.VERSION.SDK_INT >= Build.VERSION_CODES.N);
         mAdaptiveStream.setPrimaryStream(mPrimaryStream);
 
         long networkHandle = 123456789L;
@@ -188,6 +206,8 @@ public class CronetAdaptiveNetworkBidirectionalStreamTest {
     @Test
     @SmallTest
     public void onStreamReady_onFallback_defaultNetwork_reportsFallbackUsed() {
+        // We need java.util.stream.Stream to be available for these tests.
+        assumeTrue(Build.VERSION.SDK_INT >= Build.VERSION_CODES.N);
         mAdaptiveStream.setPrimaryStream(mPrimaryStream);
 
         long networkHandle = CronetEngineBase.DEFAULT_NETWORK_HANDLE;
@@ -202,6 +222,8 @@ public class CronetAdaptiveNetworkBidirectionalStreamTest {
     @Test
     @SmallTest
     public void onStreamReady_onPrimary_doesNotReportFallbackUsed() {
+        // We need java.util.stream.Stream to be available for these tests.
+        assumeTrue(Build.VERSION.SDK_INT >= Build.VERSION_CODES.N);
         mAdaptiveStream.setPrimaryStream(mPrimaryStream);
         long networkHandle = 987654321L;
         when(mPrimaryStream.getTargetNetworkHandle()).thenReturn(networkHandle);
@@ -215,6 +237,8 @@ public class CronetAdaptiveNetworkBidirectionalStreamTest {
     @Test
     @SmallTest
     public void onResponseHeadersReceived_forwardsToCallback() {
+        // We need java.util.stream.Stream to be available for these tests.
+        assumeTrue(Build.VERSION.SDK_INT >= Build.VERSION_CODES.N);
         mAdaptiveStream.setPrimaryStream(mPrimaryStream);
         mAdaptiveStream.start();
         mAdaptiveStream.getCallback().onStreamReady(mPrimaryStream);
@@ -228,6 +252,8 @@ public class CronetAdaptiveNetworkBidirectionalStreamTest {
     @Test
     @SmallTest
     public void onReadCompleted_forwardsToCallback() {
+        // We need java.util.stream.Stream to be available for these tests.
+        assumeTrue(Build.VERSION.SDK_INT >= Build.VERSION_CODES.N);
         mAdaptiveStream.setPrimaryStream(mPrimaryStream);
         mAdaptiveStream.start();
         mAdaptiveStream.getCallback().onStreamReady(mPrimaryStream);
@@ -242,6 +268,8 @@ public class CronetAdaptiveNetworkBidirectionalStreamTest {
     @Test
     @SmallTest
     public void onWriteCompleted_forwardsToCallback() {
+        // We need java.util.stream.Stream to be available for these tests.
+        assumeTrue(Build.VERSION.SDK_INT >= Build.VERSION_CODES.N);
         mAdaptiveStream.setPrimaryStream(mPrimaryStream);
         mAdaptiveStream.start();
         mAdaptiveStream.getCallback().onStreamReady(mPrimaryStream);
@@ -256,6 +284,8 @@ public class CronetAdaptiveNetworkBidirectionalStreamTest {
     @Test
     @SmallTest
     public void onResponseTrailersReceived_forwardsToCallback() {
+        // We need java.util.stream.Stream to be available for these tests.
+        assumeTrue(Build.VERSION.SDK_INT >= Build.VERSION_CODES.N);
         mAdaptiveStream.setPrimaryStream(mPrimaryStream);
         mAdaptiveStream.start();
         mAdaptiveStream.getCallback().onStreamReady(mPrimaryStream);
@@ -270,6 +300,8 @@ public class CronetAdaptiveNetworkBidirectionalStreamTest {
     @Test
     @SmallTest
     public void onSucceeded_forwardsToCallback() {
+        // We need java.util.stream.Stream to be available for these tests.
+        assumeTrue(Build.VERSION.SDK_INT >= Build.VERSION_CODES.N);
         mAdaptiveStream.setPrimaryStream(mPrimaryStream);
         mAdaptiveStream.start();
         mAdaptiveStream.getCallback().onStreamReady(mPrimaryStream);
@@ -283,6 +315,8 @@ public class CronetAdaptiveNetworkBidirectionalStreamTest {
     @Test
     @SmallTest
     public void onFailed_forwardsToCallbackForActiveStream() {
+        // We need java.util.stream.Stream to be available for these tests.
+        assumeTrue(Build.VERSION.SDK_INT >= Build.VERSION_CODES.N);
         mAdaptiveStream.setPrimaryStream(mPrimaryStream);
         mAdaptiveStream.start();
         mAdaptiveStream.getCallback().onStreamReady(mPrimaryStream);
@@ -299,6 +333,8 @@ public class CronetAdaptiveNetworkBidirectionalStreamTest {
     @Test
     @SmallTest
     public void onFailed_ignoresInactiveStream() {
+        // We need java.util.stream.Stream to be available for these tests.
+        assumeTrue(Build.VERSION.SDK_INT >= Build.VERSION_CODES.N);
         mAdaptiveStream.setPrimaryStream(mPrimaryStream);
         mAdaptiveStream.getCallback().onStreamReady(mFallbackStream);
         UrlResponseInfo info = mock(UrlResponseInfo.class);
@@ -312,6 +348,8 @@ public class CronetAdaptiveNetworkBidirectionalStreamTest {
     @Test
     @SmallTest
     public void onCanceled_forwardsToCallbackForActiveStream() {
+        // We need java.util.stream.Stream to be available for these tests.
+        assumeTrue(Build.VERSION.SDK_INT >= Build.VERSION_CODES.N);
         mAdaptiveStream.setPrimaryStream(mPrimaryStream);
         mAdaptiveStream.start();
         mAdaptiveStream.getCallback().onStreamReady(mPrimaryStream);
@@ -327,6 +365,8 @@ public class CronetAdaptiveNetworkBidirectionalStreamTest {
     @Test
     @SmallTest
     public void onCanceledPrimaryOnly_noop() {
+        // We need java.util.stream.Stream to be available for these tests.
+        assumeTrue(Build.VERSION.SDK_INT >= Build.VERSION_CODES.N);
         mAdaptiveStream.setPrimaryStream(mPrimaryStream);
         UrlResponseInfo info = mock(UrlResponseInfo.class);
 
@@ -340,6 +380,8 @@ public class CronetAdaptiveNetworkBidirectionalStreamTest {
     @Test
     @SmallTest
     public void onCanceledBothStreams_forwardsToCallback() {
+        // We need java.util.stream.Stream to be available for these tests.
+        assumeTrue(Build.VERSION.SDK_INT >= Build.VERSION_CODES.N);
         mAdaptiveStream.setPrimaryStream(mPrimaryStream);
         UrlResponseInfo info = mock(UrlResponseInfo.class);
 
@@ -355,6 +397,8 @@ public class CronetAdaptiveNetworkBidirectionalStreamTest {
     @Test
     @SmallTest
     public void onCanceled_ignoresInactiveStream() {
+        // We need java.util.stream.Stream to be available for these tests.
+        assumeTrue(Build.VERSION.SDK_INT >= Build.VERSION_CODES.N);
         mAdaptiveStream.setPrimaryStream(mPrimaryStream);
         mAdaptiveStream.start();
         mAdaptiveStream.getCallback().onStreamReady(mPrimaryStream);
@@ -370,6 +414,8 @@ public class CronetAdaptiveNetworkBidirectionalStreamTest {
     @Test
     @SmallTest
     public void read_forwardsToActiveStream() {
+        // We need java.util.stream.Stream to be available for these tests.
+        assumeTrue(Build.VERSION.SDK_INT >= Build.VERSION_CODES.N);
         mAdaptiveStream.setPrimaryStream(mPrimaryStream);
         mAdaptiveStream.start();
         mAdaptiveStream.getCallback().onStreamReady(mPrimaryStream);
@@ -381,6 +427,8 @@ public class CronetAdaptiveNetworkBidirectionalStreamTest {
     @Test
     @SmallTest
     public void write_forwardsToActiveStream() {
+        // We need java.util.stream.Stream to be available for these tests.
+        assumeTrue(Build.VERSION.SDK_INT >= Build.VERSION_CODES.N);
         mAdaptiveStream.setPrimaryStream(mPrimaryStream);
         mAdaptiveStream.start();
         mAdaptiveStream.getCallback().onStreamReady(mPrimaryStream);
@@ -392,6 +440,8 @@ public class CronetAdaptiveNetworkBidirectionalStreamTest {
     @Test
     @SmallTest
     public void flush_forwardsToActiveStream() {
+        // We need java.util.stream.Stream to be available for these tests.
+        assumeTrue(Build.VERSION.SDK_INT >= Build.VERSION_CODES.N);
         mAdaptiveStream.setPrimaryStream(mPrimaryStream);
         mAdaptiveStream.start();
         mAdaptiveStream.getCallback().onStreamReady(mPrimaryStream);
@@ -402,6 +452,8 @@ public class CronetAdaptiveNetworkBidirectionalStreamTest {
     @Test
     @SmallTest
     public void cancel_forwardsToBothStreams() {
+        // We need java.util.stream.Stream to be available for these tests.
+        assumeTrue(Build.VERSION.SDK_INT >= Build.VERSION_CODES.N);
         mAdaptiveStream.setPrimaryStream(mPrimaryStream);
         mAdaptiveStream.start();
         mAdaptiveStream.cancel();
@@ -415,6 +467,8 @@ public class CronetAdaptiveNetworkBidirectionalStreamTest {
     @Test
     @SmallTest
     public void isDone_forwardsToActiveStream() {
+        // We need java.util.stream.Stream to be available for these tests.
+        assumeTrue(Build.VERSION.SDK_INT >= Build.VERSION_CODES.N);
         mAdaptiveStream.setPrimaryStream(mPrimaryStream);
         mAdaptiveStream.start();
         mAdaptiveStream.getCallback().onStreamReady(mPrimaryStream);
@@ -426,6 +480,8 @@ public class CronetAdaptiveNetworkBidirectionalStreamTest {
     @Test
     @SmallTest
     public void isDone_withoutActiveStream_returnsFalse() {
+        // We need java.util.stream.Stream to be available for these tests.
+        assumeTrue(Build.VERSION.SDK_INT >= Build.VERSION_CODES.N);
         mAdaptiveStream.setPrimaryStream(mPrimaryStream);
         assertEquals(false, mAdaptiveStream.isDone());
     }
@@ -433,6 +489,8 @@ public class CronetAdaptiveNetworkBidirectionalStreamTest {
     @Test
     @SmallTest
     public void failsWithoutActiveStreamFallbackNotStarted_isNoOp() {
+        // We need java.util.stream.Stream to be available for these tests.
+        assumeTrue(Build.VERSION.SDK_INT >= Build.VERSION_CODES.N);
         mAdaptiveStream.setPrimaryStream(mPrimaryStream);
 
         UrlResponseInfo info = mock(UrlResponseInfo.class);
@@ -446,6 +504,8 @@ public class CronetAdaptiveNetworkBidirectionalStreamTest {
     @Test
     @SmallTest
     public void bothStreamsFailed_signalsFailed() {
+        // We need java.util.stream.Stream to be available for these tests.
+        assumeTrue(Build.VERSION.SDK_INT >= Build.VERSION_CODES.N);
         mAdaptiveStream.setPrimaryStream(mPrimaryStream);
 
         UrlResponseInfo info = mock(UrlResponseInfo.class);
@@ -463,6 +523,8 @@ public class CronetAdaptiveNetworkBidirectionalStreamTest {
     @Test
     @SmallTest
     public void failsActiveStream_signalsFailed() {
+        // We need java.util.stream.Stream to be available for these tests.
+        assumeTrue(Build.VERSION.SDK_INT >= Build.VERSION_CODES.N);
         mAdaptiveStream.setPrimaryStream(mPrimaryStream);
         mAdaptiveStream.getCallback().onStreamReady(mFallbackStream);
 
@@ -479,6 +541,8 @@ public class CronetAdaptiveNetworkBidirectionalStreamTest {
     @Test
     @SmallTest
     public void testComputeAlternativeNetwork_noNetworks_returnsNull() {
+        // We need java.util.stream.Stream to be available for these tests.
+        assumeTrue(Build.VERSION.SDK_INT >= Build.VERSION_CODES.N);
         ConnectivityManagerWrapper mockConnectivityManagerWrapper =
                 mock(ConnectivityManagerWrapper.class);
         when(mockConnectivityManagerWrapper.getAllNetworks(null)).thenReturn(new Network[0]);
@@ -497,6 +561,8 @@ public class CronetAdaptiveNetworkBidirectionalStreamTest {
     @Test
     @SmallTest
     public void testComputeAlternativeNetwork_onlyDefaultNetwork_returnsNull() {
+        // We need java.util.stream.Stream to be available for these tests.
+        assumeTrue(Build.VERSION.SDK_INT >= Build.VERSION_CODES.N);
         ConnectivityManagerWrapper mockConnectivityManagerWrapper =
                 mock(ConnectivityManagerWrapper.class);
         Network defaultNetwork = mock(Network.class);
@@ -517,6 +583,8 @@ public class CronetAdaptiveNetworkBidirectionalStreamTest {
     @Test
     @SmallTest
     public void testComputeAlternativeNetwork_alternativeNetworkAvailable_returnsAlternative() {
+        // We need java.util.stream.Stream to be available for these tests.
+        assumeTrue(Build.VERSION.SDK_INT >= Build.VERSION_CODES.N);
         ConnectivityManagerWrapper mockConnectivityManagerWrapper =
                 mock(ConnectivityManagerWrapper.class);
         Network defaultNetwork = mock(Network.class);
@@ -542,6 +610,8 @@ public class CronetAdaptiveNetworkBidirectionalStreamTest {
     @Test
     @SmallTest
     public void cancel_beforeFailoverRuns_cancelsFutureAndDoesNotStartFallback() {
+        // We need java.util.stream.Stream to be available for these tests.
+        assumeTrue(Build.VERSION.SDK_INT >= Build.VERSION_CODES.N);
         mAdaptiveStream.setPrimaryStream(mPrimaryStream);
 
         ArgumentCaptor<Runnable> failoverRunnableCaptor = ArgumentCaptor.forClass(Runnable.class);
@@ -571,6 +641,8 @@ public class CronetAdaptiveNetworkBidirectionalStreamTest {
     @Test
     @SmallTest
     public void onStreamReady_beforeFailoverRuns_cancelsFutureAndDoesNotStartFallback() {
+        // We need java.util.stream.Stream to be available for these tests.
+        assumeTrue(Build.VERSION.SDK_INT >= Build.VERSION_CODES.N);
         mAdaptiveStream.setPrimaryStream(mPrimaryStream);
 
         ArgumentCaptor<Runnable> failoverRunnableCaptor = ArgumentCaptor.forClass(Runnable.class);
@@ -594,6 +666,8 @@ public class CronetAdaptiveNetworkBidirectionalStreamTest {
     @Test
     @SmallTest
     public void cancel_whenFutureCannotBeCanceled_schedulesFallbackCancel() {
+        // We need java.util.stream.Stream to be available for these tests.
+        assumeTrue(Build.VERSION.SDK_INT >= Build.VERSION_CODES.N);
         mAdaptiveStream.setPrimaryStream(mPrimaryStream);
 
         ScheduledFuture<?> mockFuture = mock(ScheduledFuture.class);
@@ -617,6 +691,8 @@ public class CronetAdaptiveNetworkBidirectionalStreamTest {
     @Test
     @SmallTest
     public void testFastIdempotent_writeBeforeReady_buffers() {
+        // We need java.util.stream.Stream to be available for these tests.
+        assumeTrue(Build.VERSION.SDK_INT >= Build.VERSION_CODES.N);
         mAdaptiveStream =
                 new CronetAdaptiveNetworkBidirectionalStream(
                         mMockCallback,
@@ -638,6 +714,8 @@ public class CronetAdaptiveNetworkBidirectionalStreamTest {
     @Test
     @SmallTest
     public void testFastIdempotent_onStreamReady_replaysWrites() {
+        // We need java.util.stream.Stream to be available for these tests.
+        assumeTrue(Build.VERSION.SDK_INT >= Build.VERSION_CODES.N);
         mAdaptiveStream =
                 new CronetAdaptiveNetworkBidirectionalStream(
                         mMockCallback,
@@ -670,6 +748,8 @@ public class CronetAdaptiveNetworkBidirectionalStreamTest {
     @Test
     @SmallTest
     public void testFastIdempotent_onBothStreamsReady_replaysToBoth() {
+        // We need java.util.stream.Stream to be available for these tests.
+        assumeTrue(Build.VERSION.SDK_INT >= Build.VERSION_CODES.N);
         mAdaptiveStream =
                 new CronetAdaptiveNetworkBidirectionalStream(
                         mMockCallback,
@@ -695,6 +775,8 @@ public class CronetAdaptiveNetworkBidirectionalStreamTest {
     @Test
     @SmallTest
     public void testFastIdempotent_onResponseHeaders_setsActiveStreamAndCancelsOther() {
+        // We need java.util.stream.Stream to be available for these tests.
+        assumeTrue(Build.VERSION.SDK_INT >= Build.VERSION_CODES.N);
         mAdaptiveStream =
                 new CronetAdaptiveNetworkBidirectionalStream(
                         mMockCallback,
@@ -724,6 +806,8 @@ public class CronetAdaptiveNetworkBidirectionalStreamTest {
     @Test
     @SmallTest
     public void testFastIdempotent_onWriteCompleted_withReusedByteBuffer() {
+        // We need java.util.stream.Stream to be available for these tests.
+        assumeTrue(Build.VERSION.SDK_INT >= Build.VERSION_CODES.N);
         mAdaptiveStream =
                 new CronetAdaptiveNetworkBidirectionalStream(
                         mMockCallback,
@@ -773,6 +857,8 @@ public class CronetAdaptiveNetworkBidirectionalStreamTest {
     @Test
     @SmallTest
     public void testFastIdempotent_onWriteCompleted_forwardsOriginal() {
+        // We need java.util.stream.Stream to be available for these tests.
+        assumeTrue(Build.VERSION.SDK_INT >= Build.VERSION_CODES.N);
         mAdaptiveStream =
                 new CronetAdaptiveNetworkBidirectionalStream(
                         mMockCallback,
@@ -811,6 +897,8 @@ public class CronetAdaptiveNetworkBidirectionalStreamTest {
     @Test
     @SmallTest
     public void testFastIdempotent_onWriteCompleted_reportsOnlyOnce() {
+        // We need java.util.stream.Stream to be available for these tests.
+        assumeTrue(Build.VERSION.SDK_INT >= Build.VERSION_CODES.N);
         mAdaptiveStream =
                 new CronetAdaptiveNetworkBidirectionalStream(
                         mMockCallback,
@@ -863,6 +951,8 @@ public class CronetAdaptiveNetworkBidirectionalStreamTest {
     // This is a regression test for
     // https://crrev.com/c/7771809/15/components/cronet/android/java/src/org/chromium/net/impl/CronetAdaptiveNetworkBidirectionalStream.java#90
     public void testFastIdempotent_byteBufferCannotBeCorrupted() {
+        // We need java.util.stream.Stream to be available for these tests.
+        assumeTrue(Build.VERSION.SDK_INT >= Build.VERSION_CODES.N);
         mAdaptiveStream =
                 new CronetAdaptiveNetworkBidirectionalStream(
                         mMockCallback,
@@ -917,6 +1007,8 @@ public class CronetAdaptiveNetworkBidirectionalStreamTest {
     @Test
     @SmallTest
     public void onSucceeded_onFallback_forwardsToCallback() {
+        // We need java.util.stream.Stream to be available for these tests.
+        assumeTrue(Build.VERSION.SDK_INT >= Build.VERSION_CODES.N);
         mAdaptiveStream.setPrimaryStream(mPrimaryStream);
         mAdaptiveStream.start();
         mAdaptiveStream.getCallback().onStreamReady(mFallbackStream);
@@ -930,6 +1022,8 @@ public class CronetAdaptiveNetworkBidirectionalStreamTest {
     @Test
     @SmallTest
     public void isDone_withoutActiveStream_returnsTrueIfBothDone() {
+        // We need java.util.stream.Stream to be available for these tests.
+        assumeTrue(Build.VERSION.SDK_INT >= Build.VERSION_CODES.N);
         mAdaptiveStream.setPrimaryStream(mPrimaryStream);
         when(mPrimaryStream.isDone()).thenReturn(true);
         when(mFallbackStream.isDone()).thenReturn(true);
@@ -939,6 +1033,7 @@ public class CronetAdaptiveNetworkBidirectionalStreamTest {
     @Test
     @SmallTest
     public void start_registersWithContext() {
+        assumeTrue(Build.VERSION.SDK_INT >= Build.VERSION_CODES.N);
         mAdaptiveStream.setPrimaryStream(mPrimaryStream);
         mAdaptiveStream.start();
 
@@ -948,6 +1043,7 @@ public class CronetAdaptiveNetworkBidirectionalStreamTest {
     @Test
     @SmallTest
     public void onFailed_terminal_unregistersFromContext() {
+        assumeTrue(Build.VERSION.SDK_INT >= Build.VERSION_CODES.N);
         mAdaptiveStream.setPrimaryStream(mPrimaryStream);
         mAdaptiveStream.start();
 
@@ -970,6 +1066,7 @@ public class CronetAdaptiveNetworkBidirectionalStreamTest {
     @Test
     @SmallTest
     public void onCanceled_terminal_unregistersFromContext() {
+        assumeTrue(Build.VERSION.SDK_INT >= Build.VERSION_CODES.N);
         mAdaptiveStream.setPrimaryStream(mPrimaryStream);
         mAdaptiveStream.start();
 
@@ -991,6 +1088,7 @@ public class CronetAdaptiveNetworkBidirectionalStreamTest {
     @Test
     @SmallTest
     public void reportOtherStreamFallback_matchingHostAndNetwork_triggersFailover() {
+        assumeTrue(Build.VERSION.SDK_INT >= Build.VERSION_CODES.N);
         mAdaptiveStream.setPrimaryStream(mPrimaryStream);
 
         ScheduledFuture<?> mockFuture = mock(ScheduledFuture.class);
@@ -1014,6 +1112,7 @@ public class CronetAdaptiveNetworkBidirectionalStreamTest {
     @Test
     @SmallTest
     public void reportOtherStreamFallback_differentHost_ignored() {
+        assumeTrue(Build.VERSION.SDK_INT >= Build.VERSION_CODES.N);
         mAdaptiveStream.setPrimaryStream(mPrimaryStream);
         mAdaptiveStream.start();
 
@@ -1029,6 +1128,7 @@ public class CronetAdaptiveNetworkBidirectionalStreamTest {
     @Test
     @SmallTest
     public void reportOtherStreamFallback_differentNetwork_ignored() {
+        assumeTrue(Build.VERSION.SDK_INT >= Build.VERSION_CODES.N);
         mAdaptiveStream.setPrimaryStream(mPrimaryStream);
         mAdaptiveStream.start();
 
@@ -1043,6 +1143,7 @@ public class CronetAdaptiveNetworkBidirectionalStreamTest {
     @Test
     @SmallTest
     public void reportOtherStreamFallback_calledTwice_triggersFailoverOnlyOnce() {
+        assumeTrue(Build.VERSION.SDK_INT >= Build.VERSION_CODES.N);
         mAdaptiveStream.setPrimaryStream(mPrimaryStream);
 
         ScheduledFuture<?> mockFuture = mock(ScheduledFuture.class);
@@ -1067,6 +1168,7 @@ public class CronetAdaptiveNetworkBidirectionalStreamTest {
     @Test
     @SmallTest
     public void reportOtherStreamFallback_afterTimerFires_ignored() {
+        assumeTrue(Build.VERSION.SDK_INT >= Build.VERSION_CODES.N);
         mAdaptiveStream.setPrimaryStream(mPrimaryStream);
 
         ArgumentCaptor<Runnable> failoverRunnableCaptor = ArgumentCaptor.forClass(Runnable.class);

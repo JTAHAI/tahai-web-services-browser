@@ -346,7 +346,10 @@ public class SelectFileDialog implements WindowAndroid.IntentCallback, PhotoPick
             @JniType("std::string") String defaultDirectory,
             @JniType("std::string") String suggestedName,
             WindowAndroid window) {
-        mIntentAction = intentAction;
+        mIntentAction =
+                UiAndroidFeatureMap.isEnabled(UiAndroidFeatures.SELECT_FILE_OPEN_DOCUMENT)
+                        ? intentAction
+                        : Intent.ACTION_GET_CONTENT;
         mFileTypes = new ArrayList<>(Arrays.asList(fileTypes));
         mMimeTypes = convertToSupportedMimeTypes(mFileTypes);
         mCapture = capture;
@@ -414,7 +417,7 @@ public class SelectFileDialog implements WindowAndroid.IntentCallback, PhotoPick
             if (!preferAndroidMediaPicker() && !window.hasPermission(storagePermission)) {
                 missingPermissions.add(storagePermission);
             }
-        } else if (!DeviceInfo.isDesktop()) {
+        } else {
             if (((mSupportsImageCapture && shouldShowImageTypes())
                             || (mSupportsVideoCapture && shouldShowVideoTypes()))
                     && !window.hasPermission(Manifest.permission.CAMERA)) {
@@ -724,10 +727,6 @@ public class SelectFileDialog implements WindowAndroid.IntentCallback, PhotoPick
      * valid Android Activity associated with the file request.
      */
     private boolean shouldUsePhotoPicker() {
-        if (DeviceInfo.isDesktop()) {
-            return false;
-        }
-
         boolean isSupportedVideoType =
                 !UiAndroidFeatureMap.isEnabled(
                                 UiAndroidFeatures.DISABLE_PHOTO_PICKER_FOR_VIDEO_CAPTURE)
@@ -1051,16 +1050,18 @@ public class SelectFileDialog implements WindowAndroid.IntentCallback, PhotoPick
                 onFileNotSelected();
                 return;
             }
-            ContentResolver cr = ContextUtils.getApplicationContext().getContentResolver();
-            try {
-                cr.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
-            } catch (SecurityException e) {
-                Log.w(TAG, "No persisted read permission for " + uri);
-            }
-            try {
-                cr.takePersistableUriPermission(uri, Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
-            } catch (SecurityException e) {
-                Log.w(TAG, "No persisted write permission for " + uri);
+            if (UiAndroidFeatureMap.isEnabled(UiAndroidFeatures.SELECT_FILE_OPEN_DOCUMENT)) {
+                ContentResolver cr = ContextUtils.getApplicationContext().getContentResolver();
+                try {
+                    cr.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                } catch (SecurityException e) {
+                    Log.w(TAG, "No persisted read permission for " + uri);
+                }
+                try {
+                    cr.takePersistableUriPermission(uri, Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+                } catch (SecurityException e) {
+                    Log.w(TAG, "No persisted write permission for " + uri);
+                }
             }
             GetDisplayNameTask task =
                     new GetDisplayNameTask(

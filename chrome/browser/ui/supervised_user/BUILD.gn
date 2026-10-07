@@ -6,10 +6,7 @@ import("//extensions/buildflags/buildflags.gni")
 
 source_set("supervised_user") {
   if (enable_extensions_core) {
-    sources = [
-      "extension_install_blocked_by_parent_dialog.cc",
-      "extension_install_blocked_by_parent_dialog.h",
-    ]
+    sources = [ "extension_install_blocked_by_parent_dialog.cc" ]
     public_deps = [
       "//base",
       "//ui/base/interaction",

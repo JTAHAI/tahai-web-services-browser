@@ -24,11 +24,6 @@ BASE_DECLARE_FEATURE(kSearchPrefetchWithNoVarySearchDiskCache);
 
 BASE_DECLARE_FEATURE(kSearchPrefetchBeaconLogging);
 
-BASE_DECLARE_FEATURE(kSearchPrefetchPreloadServingMetrics);
-
-// Whether to record legacy search prefetch in PreloadServingMetrics.
-bool IsSearchPrefetchPreloadServingMetricsEnabled();
-
 // Whether the search prefetch service actually initiates prefetches.
 bool SearchPrefetchServicePrefetchingIsEnabled();
 
@@ -82,6 +77,13 @@ bool IsSearchMouseDownPrefetchEnabled();
 // Search suggestion. This is for Android only.
 bool IsTouchDownPrefetchEnabled();
 
+// Allows the top selection to be prefetched by navigation prefetch strategies.
+bool AllowTopNavigationPrefetch();
+
+// Allows search history suggestions to be prefetched by navigation prefetch
+// strategies.
+bool PrefetchSearchHistorySuggestions();
+
 // Whether Omnibox prefetch and prerender should be restricted to the suggestion
 // being the default match.
 bool OnlyAllowDefaultMatchPreloading();
@@ -123,16 +125,5 @@ extern const base::FeatureParam<std::string> kUnsupportedSearchPrefetchModes;
 
 bool ShouldSuppressPrefetchForUnsupportedMode(const AutocompleteMatch& match);
 bool ShouldSuppressPrefetchForUnsupportedMode(const GURL& url);
-
-// Returns true iff preloading should be suppressed for unsupported search modes
-// specified in `unsupported_modes_param`.
-//
-// Internal helper function shared by `SearchPrefetch` and `SearchPreload`.
-bool ShouldSuppressPreloadForUnsupportedModeInternal(
-    const AutocompleteMatch& match,
-    std::string_view unsupported_modes_param);
-bool ShouldSuppressPreloadForUnsupportedModeInternal(
-    const GURL& url,
-    std::string_view unsupported_modes_param);
 
 #endif  // CHROME_BROWSER_PRELOADING_PREFETCH_SEARCH_PREFETCH_FIELD_TRIAL_SETTINGS_H_

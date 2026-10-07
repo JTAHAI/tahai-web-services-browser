@@ -36,12 +36,18 @@ std::optional<auto_deletion::ScheduledFile> ScheduledFileFromValue(
     return std::nullopt;
   }
 
+  const std::string* maybe_hash = dict.FindString("hash");
+  if (!maybe_hash) {
+    return std::nullopt;
+  }
+
   const std::string* maybe_path = dict.FindString("path");
   if (!maybe_path) {
     return std::nullopt;
   }
 
-  return auto_deletion::ScheduledFile(base::FilePath(*maybe_path), *maybe_time);
+  return auto_deletion::ScheduledFile(base::FilePath(*maybe_path), *maybe_hash,
+                                      *maybe_time);
 }
 
 }  // namespace
@@ -105,6 +111,7 @@ void Scheduler::ScheduleFile(ScheduledFile file) {
                               prefs::kDownloadAutoDeletionScheduledFiles);
   update->Append(base::DictValue()
                      .Set("path", file.filepath().AsUTF8Unsafe())
+                     .Set("hash", file.hash())
                      .Set("time", base::TimeToValue(file.download_time())));
 }
 

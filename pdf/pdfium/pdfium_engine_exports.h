@@ -39,8 +39,6 @@
 
 namespace chrome_pdf {
 
-class PdfWatermarkOverlayer;
-
 #if BUILDFLAG(IS_CHROMEOS) && BUILDFLAG(ENABLE_SCREEN_AI_SERVICE)
 class PdfProgressiveSearchifier;
 #endif  // BUILDFLAG(IS_CHROMEOS) && BUILDFLAG(ENABLE_SCREEN_AI_SERVICE)
@@ -142,10 +140,6 @@ class PDFiumEngineExports {
   std::optional<gfx::SizeF> GetPDFPageSizeByIndex(
       base::span<const uint8_t> pdf_buffer,
       int page_index);
-
-  // See the definition of CreatePdfWatermarkOverlayer in pdf.h for details.
-  std::unique_ptr<PdfWatermarkOverlayer> CreatePdfWatermarkOverlayer(
-      base::span<const uint8_t> pdf_buffer);
 
 #if BUILDFLAG(IS_CHROMEOS) && BUILDFLAG(ENABLE_SCREEN_AI_SERVICE)
   // Converts an inaccessible PDF to a searchable PDF. See `Searchify` in pdf.h

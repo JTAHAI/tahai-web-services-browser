@@ -39,7 +39,6 @@ import android.widget.TextView;
 import androidx.annotation.LayoutRes;
 import androidx.annotation.StringRes;
 import androidx.core.view.MarginLayoutParamsCompat;
-import androidx.fragment.app.FragmentManager;
 
 import org.chromium.base.Callback;
 import org.chromium.base.ResettersForTesting;
@@ -98,7 +97,6 @@ public abstract class EditorViewBase extends AlwaysDismissedDialog
 
     private final Activity mActivity;
     private final Context mContext;
-    private final @Nullable FragmentManager mFragmentManager;
 
     private final View mContainerView;
     private final ViewGroup mContentView;
@@ -135,14 +133,7 @@ public abstract class EditorViewBase extends AlwaysDismissedDialog
 
     private @Nullable UiConfig mUiConfig;
 
-    /**
-     * Constructs the {@code EditorViewBase}.
-     *
-     * @param activity The current activity to show the editor for.
-     * @param fragmentManager The fragment manager associated with the activity. This can be {@code
-     *     null} if the editor is not going to show any date fields.
-     */
-    public EditorViewBase(Activity activity, @Nullable FragmentManager fragmentManager) {
+    public EditorViewBase(Activity activity) {
         super(
                 activity,
                 R.style.ThemeOverlay_BrowserUI_Fullscreen,
@@ -150,7 +141,6 @@ public abstract class EditorViewBase extends AlwaysDismissedDialog
         // Sets transparent background for animating content view.
         assumeNonNull(getWindow()).setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
         mActivity = activity;
-        mFragmentManager = fragmentManager;
         if (ChromeFeatureList.sAndroidSettingsContainment.isEnabled()) {
             // TODO(crbug.com/439911511): Set the style directly in the layout instead.
             mContext =
@@ -622,11 +612,8 @@ public abstract class EditorViewBase extends AlwaysDismissedDialog
                 }
             case DATE:
                 {
-                    assert mFragmentManager != null
-                            : "Fragment manager must be set for editors that show date fields";
                     DateFieldView dateField =
-                            new DateFieldView(
-                                    getStyledContext(), mFragmentManager, editorItem.model);
+                            new DateFieldView(getStyledContext(), editorItem.model);
                     mDateFieldMCPs.add(
                             PropertyModelChangeProcessor.create(
                                     editorItem.model,

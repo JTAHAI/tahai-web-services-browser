@@ -55,7 +55,6 @@ import org.chromium.base.supplier.ObservableSuppliers;
 import org.chromium.base.supplier.OneshotSupplierImpl;
 import org.chromium.base.supplier.SettableMonotonicObservableSupplier;
 import org.chromium.base.supplier.SettableNonNullObservableSupplier;
-import org.chromium.base.supplier.SupplierUtils;
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.base.test.RobolectricUtil;
 import org.chromium.base.test.util.Features.DisableFeatures;
@@ -240,7 +239,7 @@ public class TabSwitcherPaneUnitTest {
         mTabList.add(mock(Tab.class));
         when(mTabModel.getRepresentativeTabList()).thenReturn(mTabList);
 
-        Supplier<Boolean> gridDialogVisibilitySupplier = SupplierUtils.alwaysFalse();
+        Supplier<Boolean> gridDialogVisibilitySupplier = () -> false;
         when(mTabSwitcherPaneCoordinator.getTabSwitcherCustomViewManagerDelegate())
                 .thenReturn(mCustomViewManagerDelegate);
         when(mTabSwitcherPaneCoordinator.getTabGridDialogVisibilitySupplier())
@@ -1066,7 +1065,7 @@ public class TabSwitcherPaneUnitTest {
         when(mTabGroupSyncService.isRemoteDevice(any())).thenReturn(true);
         when(mTabSwitcherPaneCoordinator.getViewByIndex(anyInt())).thenReturn(mAnchorView);
         when(mTabSwitcherPaneCoordinator.getTabGridDialogVisibilitySupplier())
-                .thenReturn(SupplierUtils.alwaysTrue());
+                .thenReturn(() -> true);
 
         mTabSwitcherPane.notifyLoadHint(LoadHint.HOT);
         RobolectricUtil.runAllBackgroundAndUiIncludingDelayed();

@@ -8,6 +8,7 @@ import android.content.Context;
 import android.graphics.drawable.Drawable;
 import android.view.View;
 
+import org.chromium.base.FeatureList;
 import org.chromium.base.metrics.RecordUserAction;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
@@ -134,6 +135,7 @@ public class VoiceToolbarButtonController extends BaseButtonDataProvider {
 
     /** Returns whether the feature flags allow showing the mic icon in the toolbar. */
     public static boolean isToolbarMicEnabled() {
+        if (!FeatureList.isInitialized()) return false;
         return AdaptiveToolbarFeatures.isCustomizationEnabled();
     }
 }

@@ -13,8 +13,6 @@
 #include "base/test/mock_callback.h"
 #include "chrome/app/chrome_command_ids.h"
 #include "chrome/browser/ui/browser_commands.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
-#include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/common/url_constants.h"
 #include "chrome/test/interaction/interactive_browser_test.h"
 #include "content/public/test/browser_test.h"
@@ -54,7 +52,7 @@ IN_PROC_BROWSER_TEST_F(SyncPassphraseDialogBrowserTest, PixelTest) {
   const std::u16string_view kPassphrase = u"Passphrase";
 
   base::MockRepeatingCallback<bool(std::u16string_view)> decrypt_callback;
-  BrowserWindowInterface* browser_ptr = browser();
+  Browser* browser_ptr = browser();
   views::Textfield* textfield = nullptr;
 
   // Reject the first passphrase, and accept the second.
@@ -102,7 +100,7 @@ IN_PROC_BROWSER_TEST_F(SyncPassphraseDialogBrowserTest, PixelTest) {
 }
 
 IN_PROC_BROWSER_TEST_F(SyncPassphraseDialogBrowserTest, FooterLink) {
-  BrowserWindowInterface* browser_ptr = browser();
+  Browser* browser_ptr = browser();
   RunTestSequence(
       // Show the dialog.
       Do([browser_ptr] {
@@ -129,14 +127,14 @@ IN_PROC_BROWSER_TEST_F(SyncPassphraseDialogBrowserTest, FooterLink) {
 
   // The sync settings page is open and active.
   GURL active_url =
-      browser()->GetTabStripModel()->GetActiveWebContents()->GetVisibleURL();
+      browser()->tab_strip_model()->GetActiveWebContents()->GetVisibleURL();
   EXPECT_TRUE(base::StartsWith(active_url.spec(),
                                chrome::kNewSyncGoogleDashboardURL))
       << "active_url: " << active_url;
 }
 
 IN_PROC_BROWSER_TEST_F(SyncPassphraseDialogBrowserTest, BrowserCommand) {
-  BrowserWindowInterface* browser_ptr = browser();
+  Browser* browser_ptr = browser();
   RunTestSequence(
       // Show the dialog through the browser command.
       Do([browser_ptr] {

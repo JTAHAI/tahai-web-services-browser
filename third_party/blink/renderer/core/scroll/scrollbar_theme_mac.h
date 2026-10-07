@@ -37,7 +37,7 @@ class CORE_EXPORT ScrollbarThemeMac : public ScrollbarTheme {
   ~ScrollbarThemeMac() override;
 
   void RegisterScrollbar(Scrollbar&) override;
-  bool IsScrollbarRegistered(Scrollbar&) const override;
+  bool IsScrollbarRegistered(Scrollbar&) const;
 
   // On Mac, the painting code itself animates the opacity so there's no need
   // to disable in order to make the scrollbars invisible. In fact,
@@ -71,7 +71,6 @@ class CORE_EXPORT ScrollbarThemeMac : public ScrollbarTheme {
   void UpdateEnabledState(const Scrollbar&) override;
   int ScrollbarThickness(float scale_from_dip,
                          EScrollbarWidth scrollbar_width) const override;
-  using ScrollbarTheme::OverlayScrollbarsEnabled;
   bool UsesOverlayScrollbars() const override;
 
   void SetNewPainterForScrollbar(Scrollbar&);
@@ -82,10 +81,13 @@ class CORE_EXPORT ScrollbarThemeMac : public ScrollbarTheme {
 
   float Opacity(const Scrollbar&) const override;
 
+  static bool PreferOverlayScrollerStyle();
+
   // See WebScrollbarTheme for parameters description.
   static void UpdateScrollbarsWithNSDefaults(
       std::optional<float> initial_button_delay,
       std::optional<float> autoscroll_button_delay,
+      bool prefer_overlay_scroller_style,
       bool redraw,
       bool jump_on_track_click);
 

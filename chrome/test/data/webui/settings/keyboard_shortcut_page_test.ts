@@ -42,8 +42,6 @@ suite('KeyboardShortcutPageTest', function() {
     page = document.createElement('settings-keyboard-shortcut-page');
     document.body.appendChild(page);
 
-    // settings-dropdown-menu updates its DOM in updated(), so we need
-    // to wait an extra cycle.
     await microtasksFinished();
   });
 

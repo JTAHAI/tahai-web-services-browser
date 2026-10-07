@@ -358,6 +358,10 @@ class PageContentAnnotationsService
   // |OnURLsModified|.
   void OnWaitForTitleDone(const GURL& url);
 
+  // The minimum score that an allowlisted page category must have for it to be
+  // persisted.
+  const int min_page_category_score_to_persist_;
+
   // The history service to write content annotations to. Not owned. Guaranteed
   // to outlive |this|.
   const raw_ptr<history::HistoryService> history_service_;

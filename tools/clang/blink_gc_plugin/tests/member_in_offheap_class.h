@@ -61,4 +61,4 @@ class DerivedPartObject : public PartObject {
 };
 }
 
-#endif  // MEMBER_IN_OFFHEAP_CLASS_H_
+#endif

@@ -6,7 +6,6 @@
 CA=true"""
 
 import sys
-
 sys.path += ['../..']
 
 import gencerts

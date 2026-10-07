@@ -9,66 +9,65 @@ from pylib import constants
 from pylib.base import test_instance
 
 
-_SINGLE_EVENT_TIMEOUT = 100  # Milliseconds
-
+_SINGLE_EVENT_TIMEOUT = 100 # Milliseconds
 
 class MonkeyTestInstance(test_instance.TestInstance):
-    def __init__(self, args, _):
-        super().__init__()
 
-        self._categories = args.categories
-        self._event_count = args.event_count
-        self._seed = args.seed or random.randint(1, 100)
-        self._throttle = args.throttle
-        self._verbose_count = args.verbose_count
+  def __init__(self, args, _):
+    super().__init__()
 
-        self._package = constants.PACKAGE_INFO[args.browser].package
-        self._activity = constants.PACKAGE_INFO[args.browser].activity
+    self._categories = args.categories
+    self._event_count = args.event_count
+    self._seed = args.seed or random.randint(1, 100)
+    self._throttle = args.throttle
+    self._verbose_count = args.verbose_count
 
-        self._timeout_s = (
-            self.event_count * (self.throttle + _SINGLE_EVENT_TIMEOUT)
-        ) / 1000
+    self._package = constants.PACKAGE_INFO[args.browser].package
+    self._activity = constants.PACKAGE_INFO[args.browser].activity
 
-    # override
-    def TestType(self):
-        return 'monkey'
+    self._timeout_s = (
+        self.event_count * (self.throttle + _SINGLE_EVENT_TIMEOUT)) / 1000
 
-    # override
-    def SetUp(self):
-        pass
+  #override
+  def TestType(self):
+    return 'monkey'
 
-    # override
-    def TearDown(self):
-        pass
+  #override
+  def SetUp(self):
+    pass
 
-    @property
-    def activity(self):
-        return self._activity
+  #override
+  def TearDown(self):
+    pass
 
-    @property
-    def categories(self):
-        return self._categories
+  @property
+  def activity(self):
+    return self._activity
 
-    @property
-    def event_count(self):
-        return self._event_count
+  @property
+  def categories(self):
+    return self._categories
 
-    @property
-    def package(self):
-        return self._package
+  @property
+  def event_count(self):
+    return self._event_count
 
-    @property
-    def seed(self):
-        return self._seed
+  @property
+  def package(self):
+    return self._package
 
-    @property
-    def throttle(self):
-        return self._throttle
+  @property
+  def seed(self):
+    return self._seed
 
-    @property
-    def timeout(self):
-        return self._timeout_s
+  @property
+  def throttle(self):
+    return self._throttle
 
-    @property
-    def verbose_count(self):
-        return self._verbose_count
+  @property
+  def timeout(self):
+    return self._timeout_s
+
+  @property
+  def verbose_count(self):
+    return self._verbose_count

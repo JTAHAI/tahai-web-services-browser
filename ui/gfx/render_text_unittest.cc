@@ -1399,9 +1399,11 @@ TEST_F(RenderTextTest, ObscuredText) {
       u"hop on pop",  // Check LTR word boundaries.
       u"אב אג בג",    // Check RTL word boundaries.
   });
-  for (auto* text : texts) {
-    TestVisualCursorMotionInObscuredField(render_text, text, SELECTION_NONE);
-    TestVisualCursorMotionInObscuredField(render_text, text, SELECTION_RETAIN);
+  for (size_t i = 0; i < std::size(texts); ++i) {
+    TestVisualCursorMotionInObscuredField(render_text, texts[i],
+                                          SELECTION_NONE);
+    TestVisualCursorMotionInObscuredField(render_text, texts[i],
+                                          SELECTION_RETAIN);
   }
 }
 
@@ -3679,10 +3681,11 @@ TEST_F(RenderTextTest, GetDisplayTextDirection) {
     SetRTL(!base::i18n::IsRTL());
 
     // Ensure that directionality modes yield the correct text directions.
-    for (auto c : cases) {
-      render_text->SetText(c.text);
+    for (size_t j = 0; j < std::size(cases); j++) {
+      render_text->SetText(cases[j].text);
       render_text->SetDirectionalityMode(DIRECTIONALITY_FROM_TEXT);
-      EXPECT_EQ(render_text->GetDisplayTextDirection(), c.text_direction);
+      EXPECT_EQ(render_text->GetDisplayTextDirection(),
+                cases[j].text_direction);
       render_text->SetDirectionalityMode(DIRECTIONALITY_FORCE_LTR);
       EXPECT_EQ(render_text->GetDisplayTextDirection(),
                 base::i18n::LEFT_TO_RIGHT);
@@ -4456,9 +4459,9 @@ TEST_F(RenderTextTest, EdgeSelectionModels) {
   });
 
   RenderText* render_text = GetRenderText();
-  for (const auto& c : cases) {
-    render_text->SetText(c.text);
-    bool ltr = (c.expected_text_direction == base::i18n::LEFT_TO_RIGHT);
+  for (size_t i = 0; i < std::size(cases); i++) {
+    render_text->SetText(cases[i].text);
+    bool ltr = (cases[i].expected_text_direction == base::i18n::LEFT_TO_RIGHT);
 
     SelectionModel start_edge =
         test_api()->EdgeSelectionModel(ltr ? CURSOR_LEFT : CURSOR_RIGHT);
@@ -4466,7 +4469,7 @@ TEST_F(RenderTextTest, EdgeSelectionModels) {
 
     SelectionModel end_edge =
         test_api()->EdgeSelectionModel(ltr ? CURSOR_RIGHT : CURSOR_LEFT);
-    EXPECT_EQ(end_edge, SelectionModel(c.text.length(), CURSOR_FORWARD));
+    EXPECT_EQ(end_edge, SelectionModel(cases[i].text.length(), CURSOR_FORWARD));
   }
 }
 
@@ -4488,8 +4491,8 @@ TEST_F(RenderTextTest, SelectAll) {
     EXPECT_EQ(render_text->selection_model(), SelectionModel());
 
     // Test the weak, LTR, RTL, and Bidi string cases.
-    for (auto* c : cases) {
-      render_text->SetText(c);
+    for (size_t j = 0; j < std::size(cases); j++) {
+      render_text->SetText(cases[j]);
       render_text->SelectAll(false);
       EXPECT_EQ(render_text->selection_model(), expected_forwards);
       render_text->SelectAll(true);
@@ -4772,9 +4775,8 @@ TEST_F(RenderTextTest, MAYBE_MoveLeftRightByWordInBidiText) {
       u" abc def hij \u05E1\u05E2\u05E3 \u05E4\u05E5\u05E6"
       u" \u05E7\u05E8\u05E9");
 
-  for (auto& i : test) {
-    MoveLeftRightByWordVerifier(render_text, i);
-  }
+  for (size_t i = 0; i < test.size(); ++i)
+    MoveLeftRightByWordVerifier(render_text, test[i]);
 }
 
 TEST_F(RenderTextTest, MoveLeftRightByWordInBidiText_TestEndOfText) {
@@ -5434,11 +5436,11 @@ TEST_F(RenderTextTest, StringSizeHeight) {
   const FontList& larger_font_list = default_font_list.DeriveWithSizeDelta(24);
   EXPECT_GT(larger_font_list.GetHeight(), default_font_list.GetHeight());
 
-  for (const auto& i : cases) {
+  for (size_t i = 0; i < std::size(cases); i++) {
     ResetRenderTextInstance();
     RenderText* render_text = GetRenderText();
     render_text->SetFontList(default_font_list);
-    render_text->SetText(i);
+    render_text->SetText(cases[i]);
 
     const int height1 = render_text->GetStringSize().height();
     EXPECT_GT(height1, 0);
@@ -5684,9 +5686,9 @@ TEST_F(RenderTextTest, SetDisplayOffset) {
       {ALIGN_CENTER, kEnlargement},
   });
 
-  for (auto small_content_case : small_content_cases) {
-    render_text->SetHorizontalAlignment(small_content_case.alignment);
-    render_text->SetDisplayOffset(small_content_case.offset);
+  for (size_t i = 0; i < std::size(small_content_cases); i++) {
+    render_text->SetHorizontalAlignment(small_content_cases[i].alignment);
+    render_text->SetDisplayOffset(small_content_cases[i].offset);
     EXPECT_EQ(0, render_text->GetUpdatedDisplayOffset().x());
   }
 
@@ -5720,10 +5722,10 @@ TEST_F(RenderTextTest, SetDisplayOffset) {
       {ALIGN_CENTER, kEnlargement, (kEnlargement - 1) / 2},
   });
 
-  for (auto large_content_case : large_content_cases) {
-    render_text->SetHorizontalAlignment(large_content_case.alignment);
-    render_text->SetDisplayOffset(large_content_case.offset);
-    EXPECT_EQ(large_content_case.expected_offset,
+  for (size_t i = 0; i < std::size(large_content_cases); i++) {
+    render_text->SetHorizontalAlignment(large_content_cases[i].alignment);
+    render_text->SetDisplayOffset(large_content_cases[i].offset);
+    EXPECT_EQ(large_content_cases[i].expected_offset,
               render_text->GetUpdatedDisplayOffset().x());
   }
 }
@@ -5768,16 +5770,16 @@ TEST_F(RenderTextTest, SameFontForParentheses) {
   });
 
   RenderText* render_text = GetRenderText();
-  for (const auto& i : cases) {
-    const size_t start_paren_char_index = i.find('(');
+  for (size_t i = 0; i < std::size(cases); ++i) {
+    const size_t start_paren_char_index = cases[i].find('(');
     ASSERT_NE(std::u16string::npos, start_paren_char_index);
-    const size_t end_paren_char_index = i.find(')');
+    const size_t end_paren_char_index = cases[i].find(')');
     ASSERT_NE(std::u16string::npos, end_paren_char_index);
 
-    for (auto punctuation_pair : punctuation_pairs) {
-      std::u16string text = i;
-      text[start_paren_char_index] = punctuation_pair.left_char;
-      text[end_paren_char_index] = punctuation_pair.right_char;
+    for (size_t j = 0; j < std::size(punctuation_pairs); ++j) {
+      std::u16string text = cases[i];
+      text[start_paren_char_index] = punctuation_pairs[j].left_char;
+      text[end_paren_char_index] = punctuation_pairs[j].right_char;
       render_text->SetText(text);
 
       const std::vector<FontSpan> spans = GetFontSpans();
@@ -5839,10 +5841,10 @@ TEST_F(RenderTextTest, SelectWord) {
       {16, 13, 16},
   });
 
-  for (const auto& i : cases) {
-    render_text->SetCursorPosition(i.cursor);
+  for (size_t i = 0; i < std::size(cases); ++i) {
+    render_text->SetCursorPosition(cases[i].cursor);
     render_text->SelectWord();
-    EXPECT_EQ(Range(i.selection_start, i.selection_end),
+    EXPECT_EQ(Range(cases[i].selection_start, cases[i].selection_end),
               render_text->selection());
   }
 }
@@ -6007,8 +6009,8 @@ TEST_F(RenderTextTest, SelectionKeepsLigatures) {
   RenderText* render_text = GetRenderText();
   render_text->set_selection_color(SK_ColorGREEN);
 
-  for (auto* test_string : kTestStrings) {
-    render_text->SetText(test_string);
+  for (size_t i = 0; i < std::size(kTestStrings); ++i) {
+    render_text->SetText(kTestStrings[i]);
     const int expected_width = render_text->GetStringSize().width();
     render_text->SelectRange({0, 1});
     EXPECT_EQ(expected_width, render_text->GetStringSize().width());
@@ -7497,8 +7499,8 @@ TEST_F(RenderTextTest, GlyphBounds) {
       {u"asdf 1234 qwer", u"\u0647\u0654", u"\u0645\u0631\u062D\u0628\u0627"});
   RenderText* render_text = GetRenderText();
 
-  for (auto* test_string : kTestStrings) {
-    render_text->SetText(test_string);
+  for (size_t i = 0; i < std::size(kTestStrings); ++i) {
+    render_text->SetText(kTestStrings[i]);
 
     for (size_t j = 0; j < render_text->text().length(); ++j)
       EXPECT_FALSE(render_text->GetCursorSpan(Range(j, j + 1)).is_empty());

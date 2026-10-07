@@ -38,7 +38,6 @@ class MockWebContentsObserver : public WebContentsObserver {
               (RenderFrameHost* render_frame_host),
               (override));
   MOCK_METHOD(void, PrimaryPageChanged, (Page & page), (override));
-  MOCK_METHOD(void, PrimaryPageWillBeDeactivated, (Page & page), (override));
   MOCK_METHOD(void,
               RenderFrameHostChanged,
               (RenderFrameHost* old_host, RenderFrameHost* new_host),

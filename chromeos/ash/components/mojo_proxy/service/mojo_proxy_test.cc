@@ -45,6 +45,7 @@
 #include "chromeos/ash/components/mojo_proxy/service/mojo_proxy_test.test-mojom-test-utils.h"
 #include "chromeos/ash/components/mojo_proxy/service/mojo_proxy_test.test-mojom.h"
 #include "chromeos/ash/components/mojo_proxy/service/switches.h"
+#include "mojo/core/embedder/embedder.h"
 #include "mojo/core/ipcz_api.h"
 #include "mojo/core/test/test_switches.h"
 #include "mojo/public/c/system/thunks.h"
@@ -208,6 +209,11 @@ class MojoProxyTest : public testing::Test {
 // Used to launch a test child process which will run a legacy Mojo app.
 class LegacyAppLauncher {
  public:
+  LegacyAppLauncher() {
+    // Make sure we're always launching from a process with ipcz enabled.
+    CHECK(mojo::core::IsMojoIpczEnabled());
+  }
+
   ~LegacyAppLauncher() {
     initial_remotes_.clear();
     if (app_process_.IsValid()) {

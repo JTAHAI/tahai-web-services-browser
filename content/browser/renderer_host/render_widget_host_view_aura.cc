@@ -62,7 +62,6 @@
 #include "third_party/blink/public/mojom/widget/record_content_to_visible_time_request.mojom.h"
 #include "ui/accessibility/aura/aura_window_properties.h"
 #include "ui/accessibility/platform/ax_platform_node.h"
-#include "ui/accessibility/platform/ax_platform_node_delegate.h"
 #include "ui/accessibility/platform/browser_accessibility_manager.h"
 #include "ui/aura/client/aura_constants.h"
 #include "ui/aura/client/cursor_client.h"
@@ -89,8 +88,7 @@
 #include "ui/base/ui_base_features.h"
 #include "ui/base/ui_base_switches.h"
 #include "ui/base/ui_base_types.h"
-#include "ui/compositor/layer_solid_color.h"
-#include "ui/compositor/layer_surface.h"
+#include "ui/compositor/layer.h"
 #include "ui/display/screen.h"
 #include "ui/events/blink/blink_event_util.h"
 #include "ui/events/blink/did_overscroll_params.h"
@@ -605,20 +603,14 @@ RenderFrameHostImpl* RenderWidgetHostViewAura::GetFocusedFrame() const {
 }
 
 void RenderWidgetHostViewAura::HandleBoundsInRootChanged() {
-  const gfx::Rect bounds_in_root = window_->GetBoundsInRootWindow();
-  // `bounds_in_root` can be empty when the window has empty bounds, or when it
-  // has been removed from the window tree (or is in a transient state during
-  // reparenting across root windows before its layer is attached).
-  if (bounds_in_root.IsEmpty()) {
-    return;
-  }
 #if BUILDFLAG(IS_WIN)
   if (legacy_render_widget_host_HWND_) {
     // `SetBounds()` calls ::SetWindowPos which can spin a nested message loop
     // on Windows, potentially destroying `this`.
     base::WeakPtr<RenderWidgetHostViewAura> weak_this(
         weak_ptr_factory_.GetWeakPtr());
-    legacy_render_widget_host_HWND_->SetBounds(bounds_in_root);
+    legacy_render_widget_host_HWND_->SetBounds(
+        window_->GetBoundsInRootWindow());
     if (!weak_this) {
       return;
     }
@@ -868,10 +860,8 @@ gfx::Rect RenderWidgetHostViewAura::GetViewBoundsWithoutTransform() {
 void RenderWidgetHostViewAura::UpdateBackgroundColor() {
   CHECK(GetBackgroundColor());
 
-  SkColor4f background_color =
-      SkColor4f::FromColor(GetBackgroundColor().value());
-  window_->layer()->SetFillsBoundsOpaquely(background_color.isOpaque());
-  window_->layer()->AsSurface()->SetFallbackBackgroundColor(background_color);
+  SkColor color = *GetBackgroundColor();
+  window_->layer()->AsSolidColor()->SetColor(SkColor4f::FromColor(color));
 }
 
 #if BUILDFLAG(IS_WIN)
@@ -1505,16 +1495,6 @@ RenderWidgetHostViewAura::AccessibilityGetNativeViewAccessible() {
   }
 
   return nullptr;
-}
-
-ui::AXTreeID RenderWidgetHostViewAura::AccessibilityGetParentAXTreeID() {
-  ui::AXPlatformNode* parent = ui::AXPlatformNode::FromNativeViewAccessible(
-      GetParentNativeViewAccessible());
-  if (!parent || parent->IsDestroyed() || !parent->GetDelegate()) {
-    return ui::AXTreeIDUnknown();
-  }
-
-  return parent->GetDelegate()->GetTreeData().tree_id;
 }
 
 void RenderWidgetHostViewAura::SetMainFrameAXTreeID(ui::AXTreeID id) {
@@ -2535,11 +2515,6 @@ bool RenderWidgetHostViewAura::HasFallbackSurface() const {
   return delegated_frame_host_->HasFallbackSurface();
 }
 
-void RenderWidgetHostViewAura::OptOutFrameEviction() {
-  CHECK(delegated_frame_host_) << "Cannot be invoked during destruction.";
-  delegated_frame_host_->OptOutFrameEviction();
-}
-
 bool RenderWidgetHostViewAura::TransformPointToCoordSpaceForView(
     const gfx::PointF& point,
     input::RenderWidgetHostViewInput* target_view,
@@ -2572,12 +2547,6 @@ viz::SurfaceId RenderWidgetHostViewAura::GetCurrentSurfaceId() const {
 
 bool RenderWidgetHostViewAura::HasSavedCompositorFrame() const {
   return delegated_frame_host_ && delegated_frame_host_->HasSavedFrame();
-}
-
-void RenderWidgetHostViewAura::SetEvictOnHide(bool evict_on_hide) {
-  if (delegated_frame_host_) {
-    delegated_frame_host_->SetEvictOnHide(evict_on_hide);
-  }
 }
 
 void RenderWidgetHostViewAura::FocusedNodeChanged(
@@ -2933,7 +2902,6 @@ RenderWidgetHostViewAura::~RenderWidgetHostViewAura() {
   delegated_frame_host_.reset();
   window_observer_.reset();
   if (window_) {
-    aura::client::SetFocusChangeObserver(window_, nullptr);
     if (window_->GetHost())
       window_->GetHost()->RemoveObserver(this);
     UnlockPointer();
@@ -2980,11 +2948,9 @@ void RenderWidgetHostViewAura::CreateAuraWindow(aura::client::WindowType type) {
   display_observer_.emplace(this);
 
   window_->SetType(type);
-  window_->Init(ui::LAYER_SURFACE);
-  SkColor4f background_color = SkColor4f::FromColor(
-      GetBackgroundColor() ? *GetBackgroundColor() : SK_ColorWHITE);
-  window_->layer()->SetFillsBoundsOpaquely(background_color.isOpaque());
-  window_->layer()->AsSurface()->SetFallbackBackgroundColor(background_color);
+  window_->Init(ui::LAYER_SOLID_COLOR);
+  window_->layer()->AsSolidColor()->SetColor(SkColor4f::FromColor(
+      GetBackgroundColor() ? *GetBackgroundColor() : SK_ColorWHITE));
   UpdateFrameSinkIdRegistration();
 }
 

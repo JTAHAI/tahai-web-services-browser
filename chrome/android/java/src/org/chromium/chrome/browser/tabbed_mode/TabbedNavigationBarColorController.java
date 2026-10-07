@@ -38,6 +38,7 @@ import org.chromium.chrome.browser.layouts.LayoutStateProvider;
 import org.chromium.chrome.browser.layouts.LayoutStateProvider.LayoutStateObserver;
 import org.chromium.chrome.browser.layouts.LayoutType;
 import org.chromium.chrome.browser.omnibox.suggestions.OmniboxSuggestionsVisualState;
+import org.chromium.chrome.browser.tab.EmptyTabObserver;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.TabObserver;
 import org.chromium.chrome.browser.tabmodel.TabModel;
@@ -199,7 +200,7 @@ class TabbedNavigationBarColorController
                 .getCurrentTabModelSupplier()
                 .addSyncObserverAndPostIfNonNull(mCurrentTabModelObserver);
         mTabObserver =
-                new TabObserver() {
+                new EmptyTabObserver() {
                     @Override
                     public void onBackgroundColorChanged(Tab tab, int color) {
                         updateNavigationBarColor(

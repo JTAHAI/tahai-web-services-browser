@@ -56,6 +56,8 @@ public class HardwareDraw {
      * part of the Renderer runs on a dedicated thread.
      */
     private static class Renderer implements ImageReader.OnImageAvailableListener {
+        private final ThreadUtils.ThreadChecker mUiThreadChecker;
+
         private final @CaptureResult.Destination int mResultDestination;
 
         // An ImageReader requires a listener to run in a separate thread.
@@ -85,7 +87,12 @@ public class HardwareDraw {
          * first instance created will also create a thread to acquire rendered images and a thread
          * to issue hardware accelerated render requests to the OS.
          */
-        private Renderer(int width, int height, @CaptureResult.Destination int resultDestination) {
+        private Renderer(
+                ThreadUtils.ThreadChecker uiThreadChecker,
+                int width,
+                int height,
+                @CaptureResult.Destination int resultDestination) {
+            mUiThreadChecker = uiThreadChecker;
             mResultDestination = resultDestination;
             if (sHardwareCallbackThreadHandler == null) {
                 HandlerThread thread = new HandlerThread("HardwareDrawCallbackThread");
@@ -130,7 +137,7 @@ public class HardwareDraw {
         // Posts a single draw request to the thread pool. It should only be called once.
         private void requestDraw(
                 RenderNode renderNode, Callback<@Nullable CaptureResult> onCapture) {
-            ThreadUtils.assertOnUiThread();
+            mUiThreadChecker.assertOnValidThread();
             assert mOnCapture == null;
             mOnCapture = onCapture;
             assumeNonNull(sHardwareRequestThreadExecutor)
@@ -229,6 +236,8 @@ public class HardwareDraw {
         }
     }
 
+    private final ThreadUtils.ThreadChecker mUiThreadChecker = new ThreadUtils.ThreadChecker();
+
     private @Nullable Renderer mRenderer;
 
     private boolean mPendingDraw;
@@ -254,7 +263,7 @@ public class HardwareDraw {
             Callback<@Nullable CaptureResult> onCapture,
             @CaptureResult.Destination int destination) {
         try (TraceEvent e = TraceEvent.scoped("HardwareDraw::startBitmapCapture")) {
-            ThreadUtils.assertOnUiThread();
+            mUiThreadChecker.assertOnValidThread();
             if (view.getWidth() == 0 || view.getHeight() == 0) {
                 // We haven't actually laid out this view yet no point in requesting a screenshot.
                 return false;
@@ -265,7 +274,7 @@ public class HardwareDraw {
             }
             int scaledWidth = (int) (view.getWidth() * scale);
             int scaledHeight = (int) (height * scale);
-            mRenderer = new Renderer(scaledWidth, scaledHeight, destination);
+            mRenderer = new Renderer(mUiThreadChecker, scaledWidth, scaledHeight, destination);
 
             RenderNode renderNode = new RenderNode("bitmapRenderNode");
             renderNode.setPosition(0, 0, view.getWidth(), height);
@@ -285,7 +294,7 @@ public class HardwareDraw {
                 mRenderer.requestDraw(
                         renderNode,
                         (@Nullable CaptureResult result) -> {
-                            ThreadUtils.assertOnUiThread();
+                            mUiThreadChecker.assertOnValidThread();
                             onCapture.onResult(result);
                             mPendingDraw = false;
                         });

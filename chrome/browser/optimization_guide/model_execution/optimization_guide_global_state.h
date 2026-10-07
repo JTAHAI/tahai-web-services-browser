@@ -30,6 +30,8 @@ namespace optimization_guide {
 
 BASE_DECLARE_FEATURE(kOptimizationGuideManifestBroker);
 
+class ChromeModelComponentStateManagerObserver;
+class ModelBrokerState;
 class OptimizationGuideGlobalFeature;
 class OptimizationGuideGlobalStateTest;
 
@@ -57,8 +59,8 @@ class ChromePredictionManager {
   ChromeProfileDownloadServiceTracker profile_download_service_tracker_;
 };
 
-// This holds the ManifestBrokerState and other common objects shared between
-// profiles. Since some of the members hold raw_ptr to browser process level
+// This holds the ModelBrokerState and other common objects shared between
+// profiles. Since some of the membersit hold raw_ptr to browser process level
 // objects, such as local state prefs, profile manager, it must not outlive the
 // browser process, so each profile holds a ref to it in
 // OptimizationGuideKeyedService to keep it alive until all profiles are
@@ -68,6 +70,12 @@ class OptimizationGuideGlobalState final
  public:
   // Retrieves or creates the instance.
   static scoped_refptr<OptimizationGuideGlobalState> CreateOrGet();
+
+#if BUILDFLAG(USE_ON_DEVICE_MODEL_SERVICE)
+  // This accessor is mainly for the chrome://on-device-internals page and
+  // tests.
+  ModelBrokerState* model_broker_state();
+#endif  // BUILDFLAG(USE_ON_DEVICE_MODEL_SERVICE)
 
   OnDeviceCapability& on_device_capability() { return *on_device_capability_; }
 
@@ -115,6 +123,10 @@ class OptimizationGuideGlobalState final
               base::BindRepeating(&RegisterPredictionModelComponent));
 
   std::unique_ptr<OnDeviceCapability> on_device_capability_;
+#if BUILDFLAG(USE_ON_DEVICE_MODEL_SERVICE)
+  std::unique_ptr<ChromeModelComponentStateManagerObserver>
+      component_state_manager_observer_;
+#endif  // BUILDFLAG(USE_ON_DEVICE_MODEL_SERVICE)
 
   base::WeakPtrFactory<OptimizationGuideGlobalState> weak_ptr_factory_{this};
 };

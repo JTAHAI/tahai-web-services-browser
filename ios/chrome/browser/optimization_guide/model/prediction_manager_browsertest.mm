@@ -12,10 +12,11 @@
 #import "components/component_updater/pref_names.h"
 #import "components/download/internal/background_service/ios/background_download_task_helper.h"
 #import "components/optimization_guide/core/delivery/optimization_target_model_observer.h"
+#import "components/optimization_guide/core/optimization_guide_constants.h"
 #import "components/optimization_guide/core/optimization_guide_enums.h"
 #import "components/optimization_guide/core/optimization_guide_features.h"
 #import "components/optimization_guide/core/optimization_guide_prefs.h"
-#import "components/optimization_guide/core/optimization_guide_permissions_util.h"
+#import "components/optimization_guide/core/optimization_guide_switches.h"
 #import "components/sync_preferences/pref_service_syncable.h"
 #import "components/sync_preferences/testing_pref_service_syncable.h"
 #import "components/variations/hashing.h"
@@ -180,10 +181,9 @@ class PredictionManagerTestBase : public TestWithProfile {
     cmd->AppendSwitch("enable-spdy-proxy-auth");
 
     cmd->AppendSwitch(
-        optimization_guide::kGoogleApiKeyConfigurationCheckOverrideSwitch);
+        optimization_guide::switches::kGoogleApiKeyConfigurationCheckOverride);
     cmd->AppendSwitchASCII(
-        optimization_guide::features::
-            kOptimizationGuideServiceGetModelsURLSwitch,
+        optimization_guide::switches::kOptimizationGuideServiceGetModelsURL,
         models_server_->GetURL("/").spec());
 
     cmd->AppendSwitchASCII("force-variation-ids", "4");

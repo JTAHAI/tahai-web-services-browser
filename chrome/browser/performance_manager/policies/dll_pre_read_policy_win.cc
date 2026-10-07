@@ -93,12 +93,14 @@ bool ShouldPreReadDllInChild() {
   // likely pre-read the DLL recently and pre-reading again is likely not
   // needed, even if there is a seek penalty.
   if (g_chrome_dll_on_ssd.load(std::memory_order_relaxed) !=
-      ChromeDllOnSsd::kNotOnFixedSsd) {
+          ChromeDllOnSsd::kNotOnFixedSsd &&
+      base::FeatureList::IsEnabled(features::kNoPreReadMainDllIfSsd)) {
     return false;
   }
 
   // `NoPreReadMainDllStartup` may only select a group for users which are not
-  // in `NoPreReadMainDll` AND have a seek penalty.
+  // in `NoPreReadMainDll` AND (have a seek penalty OR are not in
+  // `NoPreReadMainDllIfSsd`).
   if (base::FeatureList::IsEnabled(features::kNoPreReadMainDllStartup) &&
       !StartupPrefetchTimeoutElapsed(base::TimeTicks::Now())) {
     return false;

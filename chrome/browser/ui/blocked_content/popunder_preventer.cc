@@ -7,6 +7,7 @@
 #include <set>
 
 #include "base/stl_util.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
 #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
@@ -50,9 +51,7 @@ PopunderPreventer::~PopunderPreventer() {
         (browser->GetType() == BrowserWindowInterface::Type::TYPE_APP ||
          browser->GetType() == BrowserWindowInterface::Type::TYPE_POPUP ||
          browser->GetType() == BrowserWindowInterface::Type::TYPE_APP_POPUP)) {
-      if (popup->GetDelegate()) {
-        popup->GetDelegate()->ActivateContents(popup.get());
-      }
+      browser->GetBrowserForMigrationOnly()->ActivateContents(popup.get());
     }
   }
 }

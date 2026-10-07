@@ -1,2 +1,4 @@
-rules:
-- "*": [anchor-positioning]
+features:
+- name: anchor-positioning
+  files:
+  - "*"

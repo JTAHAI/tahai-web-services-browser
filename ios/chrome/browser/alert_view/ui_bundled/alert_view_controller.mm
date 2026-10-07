@@ -165,12 +165,14 @@ void AddSeparatorToStackView(UIStackView* stackView) {
     [separator.widthAnchor
         constraintEqualToConstant:GetPixelLength(stackView.traitCollection)]
         .active = YES;
-    AddSameConstraintsToSides(stackView, separator, LayoutSides::kVertical);
+    AddSameConstraintsToSides(stackView, separator,
+                              LayoutSides::kTop | LayoutSides::kBottom);
   } else {
     [separator.heightAnchor
         constraintEqualToConstant:GetPixelLength(stackView.traitCollection)]
         .active = YES;
-    AddSameConstraintsToSides(stackView, separator, LayoutSides::kHorizontal);
+    AddSameConstraintsToSides(stackView, separator,
+                              LayoutSides::kTrailing | LayoutSides::kLeading);
   }
 }
 
@@ -495,8 +497,9 @@ UIButton* GetButtonForAction(AlertAction* action) {
                                                 kTitleHorizontalInset);
     }
 
-    AddSameConstraintsToSidesWithInsets(titleLabel, self.contentView,
-                                        LayoutSides::kHorizontal, titleInsets);
+    AddSameConstraintsToSidesWithInsets(
+        titleLabel, self.contentView,
+        LayoutSides::kTrailing | LayoutSides::kLeading, titleInsets);
   }
 
   if (self.shouldShowActivityIndicator) {
@@ -568,9 +571,9 @@ UIButton* GetButtonForAction(AlertAction* action) {
                                                   kMessageHorizontalInset);
     }
 
-    AddSameConstraintsToSidesWithInsets(messageLabel, self.contentView,
-                                        LayoutSides::kHorizontal,
-                                        messageInsets);
+    AddSameConstraintsToSidesWithInsets(
+        messageLabel, self.contentView,
+        LayoutSides::kTrailing | LayoutSides::kLeading, messageInsets);
   }
 
   if (self.imageLottieName) {
@@ -606,7 +609,8 @@ UIButton* GetButtonForAction(AlertAction* action) {
         NSDirectionalEdgeInsetsMake(0, kTextfieldStackInsetLeading, 0,
                                     kTextfieldStackInsetTrailing);
     AddSameConstraintsToSidesWithInsets(
-        self.textFieldStackHolder, self.contentView, LayoutSides::kHorizontal,
+        self.textFieldStackHolder, self.contentView,
+        LayoutSides::kTrailing | LayoutSides::kLeading,
         stackHolderContentInsets);
   }
 
@@ -629,9 +633,10 @@ UIButton* GetButtonForAction(AlertAction* action) {
           0, kButtonHorizontalInset, 0, kButtonHorizontalInset);
     }
 
-    AddSameConstraintsToSidesWithInsets(buttonStackView, self.contentView,
-                                        LayoutSides::kHorizontal,
-                                        buttonStackHorizontalInsets);
+    AddSameConstraintsToSidesWithInsets(
+        buttonStackView, self.contentView,
+        LayoutSides::kLeading | LayoutSides::kTrailing,
+        buttonStackHorizontalInsets);
   }
 
   [[NSNotificationCenter defaultCenter]
@@ -741,7 +746,8 @@ UIButton* GetButtonForAction(AlertAction* action) {
       NSDirectionalEdgeInsets fieldInsets = NSDirectionalEdgeInsetsMake(
           0.0, kTextfieldInset, 0.0, kTextfieldInset);
       AddSameConstraintsToSidesWithInsets(
-          textField, fieldStack, LayoutSides::kHorizontal, fieldInsets);
+          textField, fieldStack, LayoutSides::kTrailing | LayoutSides::kLeading,
+          fieldInsets);
     }
   }
   return _textFieldStackHolder;
@@ -823,7 +829,7 @@ UIButton* GetButtonForAction(AlertAction* action) {
     newButtonStackContainer.tag = kButtonStackViewTag;
     [mainContentStackView addArrangedSubview:newButtonStackContainer];
     AddSameConstraintsToSides(newButtonStackContainer, self.contentView,
-                              LayoutSides::kHorizontal);
+                              (LayoutSides::kTrailing | LayoutSides::kLeading));
   }
 }
 
@@ -1037,15 +1043,16 @@ UIButton* GetButtonForAction(AlertAction* action) {
         [button.widthAnchor constraintEqualToAnchor:firstButton.widthAnchor]
             .active = YES;
         AddSameConstraintsToSides(button, buttonsStackView,
-                                  LayoutSides::kVertical);
+                                  (LayoutSides::kTop | LayoutSides::kBottom));
       } else {
-        AddSameConstraintsToSides(button, buttonsStackView,
-                                  LayoutSides::kHorizontal);
+        AddSameConstraintsToSides(
+            button, buttonsStackView,
+            (LayoutSides::kTrailing | LayoutSides::kLeading));
       }
     }
     [verticalStackView addArrangedSubview:buttonsStackView];
     AddSameConstraintsToSides(buttonsStackView, verticalStackView,
-                              LayoutSides::kHorizontal);
+                              (LayoutSides::kTrailing | LayoutSides::kLeading));
   }
   return verticalStackView;
 }

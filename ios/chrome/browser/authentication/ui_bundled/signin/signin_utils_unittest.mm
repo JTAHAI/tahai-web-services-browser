@@ -71,7 +71,7 @@ class SigninUtilsTest : public PlatformTest {
     builder.SetPrefService(CreatePrefService());
     builder.AddTestingFactory(
         AuthenticationServiceFactory::GetInstance(),
-        AuthenticationServiceFactory::GetFactoryWithDelegateForTesting(
+        AuthenticationServiceFactory::GetFactoryWithDelegate(
             std::make_unique<FakeAuthenticationServiceDelegate>()));
     builder.AddTestingFactory(SyncServiceFactory::GetInstance(),
                               SyncServiceFactory::GetDefaultFactory());
@@ -527,8 +527,8 @@ TEST_F(SigninUtilsTest, TestWillNotShowIfFirstRunAfterPostRestore) {
   ASSERT_TRUE(
       signin::ShouldPresentUserSigninUpgrade(profile_.get(), version_1_0));
 
-  AccountInfo accountInfo =
-      AccountInfo::Builder(GaiaId("gaia"), "foo@bar.com").Build();
+  AccountInfo accountInfo;
+  accountInfo.email = "foo@bar.com";
   StorePreRestoreIdentity(GetProfilePrefs(), accountInfo,
                           /*history_sync_enabled=*/false);
   EXPECT_FALSE(

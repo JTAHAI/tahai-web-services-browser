@@ -18,7 +18,6 @@ import org.chromium.base.Log;
 import org.chromium.build.annotations.Contract;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
-import org.chromium.components.embedder_support.util.UrlUtilities;
 import org.chromium.components.payments.PaymentManifestVerifier.ManifestVerifyCallback;
 import org.chromium.components.payments.intent.WebPaymentIntentHelper;
 import org.chromium.payments.mojom.PaymentDetailsModifier;
@@ -272,7 +271,7 @@ public class AndroidPaymentAppFinder implements ManifestVerifyCallback {
         for (GURL appStoreUriMethod : mAppStores.values()) {
             assert appStoreUriMethod != null;
             assert appStoreUriMethod.isValid();
-            String appStoreMethod = UrlUtilities.stripTrailingSlash(appStoreUriMethod.getSpec());
+            String appStoreMethod = removeTrailingSlash(appStoreUriMethod.getSpec());
             assert appStoreMethod != null;
             if (!mFactoryDelegate.getParams().getMethodData().containsKey(appStoreMethod)) continue;
             if (!paymentAppSupportsUriMethod(twaApp, appStoreUriMethod)) continue;
@@ -963,14 +962,19 @@ public class AndroidPaymentAppFinder implements ManifestVerifyCallback {
      * whereas "https://google.com/pay/" is incorrect. This is important because matching payment
      * apps to payment requests happens by string equality. Note that GURL.getSpec() can append
      * trailing slashes in some instances.
-     *
      * @param url The URL to stringify.
      * @return The URL string without a trailing slash, or null if the input parameter is null.
      */
     @Contract("!null -> !null")
     private static @Nullable String urlToStringWithoutTrailingSlash(@Nullable GURL url) {
         if (url == null) return null;
-        return UrlUtilities.stripTrailingSlash(url.getSpec());
+        return removeTrailingSlash(url.getSpec());
+    }
+
+    @Contract("!null -> !null")
+    private static @Nullable String removeTrailingSlash(@Nullable String string) {
+        if (string == null) return null;
+        return string.endsWith("/") ? string.substring(0, string.length() - 1) : string;
     }
 
     /**

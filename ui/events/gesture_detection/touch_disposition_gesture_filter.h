@@ -83,8 +83,6 @@ class GESTURE_DETECTION_EXPORT TouchDispositionGestureFilter {
   static AckTimestampOverride OverrideReferenceTimestampForTesting(
       base::TimeTicks reference_timestamp);
 
-  void DisableScrollUpdateCompensation();
-
  private:
   // A single GestureSequence corresponds to all gestures created
   // between the first finger down and the last finger up, including gestures

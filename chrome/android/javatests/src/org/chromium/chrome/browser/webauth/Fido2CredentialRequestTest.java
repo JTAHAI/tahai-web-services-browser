@@ -40,7 +40,6 @@ import org.mockito.junit.MockitoRule;
 
 import org.chromium.base.ContextUtils;
 import org.chromium.base.Log;
-import org.chromium.base.TriState;
 import org.chromium.base.test.params.ParameterAnnotations.UseMethodParameter;
 import org.chromium.base.test.params.ParameterAnnotations.UseRunnerDelegate;
 import org.chromium.base.test.params.ParameterProvider;
@@ -327,7 +326,7 @@ public class Fido2CredentialRequestTest {
 
         CredManSupportProvider.setupForTesting(
                 /* overrideAndroidVersion= */ Build.VERSION_CODES.TIRAMISU,
-                /* overrideForcesGpm= */ TriState.FALSE);
+                /* overrideForcesGpm= */ false);
     }
 
     private void handleMakeCredentialRequestTestHelper(

@@ -512,14 +512,14 @@ IN_PROC_BROWSER_TEST_F(ContentVerifierTestWithForcedHashes,
 
   // ... And we should have recorded metrics for where we found the corruption.
   histogram_tester.ExpectUniqueSample(
-      "Extensions.ContentVerification.VerifyFailedOnFile."
+      "Extensions.ContentVerification.VerifyFailedOnFileMV3."
       "ServiceWorkerScript",
       ContentVerifyJob::HASH_MISMATCH, 1);
   // We hard-code the script type here to avoid exposing it publicly from the
   // class.
   constexpr int kServiceWorkerScriptFileType = 3;
   histogram_tester.ExpectUniqueSample(
-      "Extensions.ContentVerification.VerifyFailedOnFileType",
+      "Extensions.ContentVerification.VerifyFailedOnFileTypeMV3",
       kServiceWorkerScriptFileType, 1);
 }
 
@@ -669,14 +669,14 @@ IN_PROC_BROWSER_TEST_F(ContentVerifierTest, TestServiceWorker_AcrossSession) {
 
   // ... And we should have recorded metrics for where we found the corruption.
   histogram_tester.ExpectUniqueSample(
-      "Extensions.ContentVerification.VerifyFailedOnFile."
+      "Extensions.ContentVerification.VerifyFailedOnFileMV3."
       "ServiceWorkerScript",
       ContentVerifyJob::HASH_MISMATCH, 1);
   // We hard-code the script type here to avoid exposing it publicly from the
   // class.
   constexpr int kServiceWorkerScriptFileType = 3;
   histogram_tester.ExpectUniqueSample(
-      "Extensions.ContentVerification.VerifyFailedOnFileType",
+      "Extensions.ContentVerification.VerifyFailedOnFileTypeMV3",
       kServiceWorkerScriptFileType, 1);
 }
 
@@ -1306,9 +1306,8 @@ IN_PROC_BROWSER_TEST_F(ContentVerifierPolicyTest,
 
   // Wait for the extension to be installed by policy we set up in
   // SetUpInProcessBrowserTestFixture.
-  if (!registry->GetInstalledExtension(id_)) {
+  if (!registry->GetInstalledExtension(id_))
     EXPECT_TRUE(registry_observer.WaitForExtensionInstalled());
-  }
 
   // Simulate corruption of the extension so that we can test what happens
   // at startup in the non-PRE test.

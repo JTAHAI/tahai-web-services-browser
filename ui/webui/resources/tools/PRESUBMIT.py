@@ -2,8 +2,7 @@
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
-webui_sources = set(
-  [
+webui_sources = set([
     'bundle_js.py',
     'generate_grd.py',
     'minify_js.py',
@@ -16,19 +15,15 @@ webui_sources = set(
     'lit_template_formatter/main.js',
     'lit_template_formatter/process_lit_template.js',
     'lit_template_formatter/serialize_html.js',
-  ]
-)
+])
 
-webui_tests = set(
-  [
+webui_tests = set([
     'bundle_js_test.py',
     'generate_grd_test.py',
     'lit_template_formatter_test.py',
     'minify_js_test.py',
     'stylelint_test.py',
-  ]
-)
-
+])
 
 def _CheckChangeOnUploadOrCommit(input_api, output_api):
   results = []

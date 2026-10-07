@@ -14,7 +14,6 @@ import android.view.View;
 import android.widget.ImageView;
 import android.widget.TextView;
 
-import androidx.core.widget.NestedScrollView;
 import androidx.recyclerview.widget.RecyclerView;
 
 import org.chromium.build.annotations.NullMarked;
@@ -101,11 +100,6 @@ public class PwaInstallBottomSheetView {
     // Since toolbar is merged into content this is required for peeking state.
     int getPeekHeight() {
         return mContentView.findViewById(R.id.toolbar).getHeight();
-    }
-
-    public int getVerticalScrollOffset() {
-        NestedScrollView scrollView = mContentView.findViewById(R.id.scroll_view);
-        return scrollView != null ? scrollView.getScrollY() : 0;
     }
 
     void setOnClickListener(View.OnClickListener listener) {

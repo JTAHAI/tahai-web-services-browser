@@ -15,8 +15,6 @@
                     (NSString*)previousButtonAccessibilityLabel
                            manualFillButtonTitle:
                                (NSString*)manualFillButtonTitle
-                         atMemoryFullButtonTitle:
-                             (NSString*)atMemoryFullButtonTitle
               manualFillButtonAccessibilityLabel:
                   (NSString*)manualFillButtonAccessibilityLabel
       passwordManualFillButtonAccessibilityLabel:
@@ -26,9 +24,7 @@
        addressManualFillButtonAccessibilityLabel:
            (NSString*)addressManualFillButtonAccessibilityLabel
       atMemoryManualFillButtonAccessibilityLabel:
-          (NSString*)atMemoryManualFillButtonAccessibilityLabel
-            atMemoryFullButtonAccessibilityLabel:
-                (NSString*)atMemoryFullButtonAccessibilityLabel {
+          (NSString*)atMemoryManualFillButtonAccessibilityLabel {
   if ((self = [super init])) {
     _closeButtonTitle = [closeButtonTitle copy];
     _closeButtonAccessibilityLabel = [closeButtonAccessibilityLabel copy];
@@ -45,9 +41,6 @@
         [addressManualFillButtonAccessibilityLabel copy];
     _atMemoryManualFillButtonAccessibilityLabel =
         [atMemoryManualFillButtonAccessibilityLabel copy];
-    _atMemoryFullButtonTitle = [atMemoryFullButtonTitle copy];
-    _atMemoryFullButtonAccessibilityLabel =
-        [atMemoryFullButtonAccessibilityLabel copy];
   }
   return self;
 }

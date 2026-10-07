@@ -32,11 +32,11 @@
 
 #include <algorithm>
 #include <array>
-#include <ranges>
 #include <utility>
 
 #include "base/metrics/histogram_functions.h"
 #include "base/rand_util.h"
+#include "base/types/zip.h"
 #include "third_party/blink/renderer/core/css/css_property_value_set.h"
 #include "third_party/blink/renderer/core/css/properties/css_property_ref.h"
 #include "third_party/blink/renderer/core/css/resolver/style_resolver_state.h"
@@ -46,13 +46,6 @@
 #include "third_party/blink/renderer/platform/wtf/text/string_hasher.h"
 
 namespace blink {
-
-namespace {
-
-// Subsampling rate for recording MPC collision metrics (1%).
-constexpr double kCollisionSamplingRate = 0.01;
-
-}  // namespace
 
 static unsigned ComputeMatchedPropertiesHash(const MatchResult& result,
                                              unsigned additional_hash) {
@@ -175,17 +168,9 @@ const CachedMatchedProperties::Entry* MatchedPropertiesCache::Find(
         continue;
       }
     } else {
-      if (style_resolver_state.ParentStyle() != entry.parent_computed_style &&
-          !style_resolver_state.ParentStyle()
+      if (!style_resolver_state.ParentStyle()
                ->InheritedEqualIncludingInheritedVariables(
                    *entry.parent_computed_style)) {
-        if (base::ShouldRecordSubsampledMetric(kCollisionSamplingRate)) {
-          base::UmaHistogramSparse(
-              "Blink.Style.MatchedPropertiesCache.InheritedCollisionReason",
-              static_cast<int>(style_resolver_state.ParentStyle()
-                                   ->FirstDifferingInheritedProperty(
-                                       *entry.parent_computed_style)));
-        }
         continue;
       }
       if (entry.HasRunStyleAdjuster() &&
@@ -206,13 +191,6 @@ const CachedMatchedProperties::Entry* MatchedPropertiesCache::Find(
           style_resolver_state.ParentStyle() != entry.parent_computed_style &&
           !style_resolver_state.ParentStyle()->NonInheritedEqual(
               *entry.parent_computed_style)) {
-        if (base::ShouldRecordSubsampledMetric(kCollisionSamplingRate)) {
-          base::UmaHistogramSparse(
-              "Blink.Style.MatchedPropertiesCache.NonInheritedCollisionReason",
-              static_cast<int>(style_resolver_state.ParentStyle()
-                                   ->FirstDifferingNonInheritedProperty(
-                                       *entry.parent_computed_style)));
-        }
         continue;
       }
     }
@@ -227,12 +205,14 @@ const CachedMatchedProperties::Entry* MatchedPropertiesCache::Find(
       // UserModify() is the initial value.
       continue;
     }
-    if (entry.parent_computed_style->IsEnsuredInDisplayNone() &&
-        !style_resolver_state.ParentStyle()->IsEnsuredInDisplayNone()) {
-      // If we cached a ComputedStyle in a display:none subtree, we would not
-      // have triggered fetches for external resources and have
-      // StylePendingImages in the ComputedStyle. Instead of having to inspect
-      // the cached ComputedStyle for such resources, don't use a cached
+    if ((entry.parent_computed_style->IsEnsuredInDisplayNone() ||
+         entry.computed_style->IsEnsuredOutsideFlatTree()) &&
+        !style_resolver_state.ParentStyle()->IsEnsuredInDisplayNone() &&
+        !style_resolver_state.IsOutsideFlatTree()) {
+      // If we cached a ComputedStyle in a display:none subtree, or outside the
+      // flat tree,  we would not have triggered fetches for external resources
+      // and have StylePendingImages in the ComputedStyle. Instead of having to
+      // inspect the cached ComputedStyle for such resources, don't use a cached
       // ComputedStyle when it was cached in display:none but is now rendered.
       continue;
     }
@@ -262,7 +242,7 @@ bool CachedMatchedProperties::CorrespondsTo(
   }
 
   for (const auto [lookup_it, cached_it] :
-       std::views::zip(lookup_properties, matched_properties)) {
+       base::zip(lookup_properties, matched_properties)) {
     CSSPropertyValueSet* cached_properties = cached_it.properties.Get();
     DCHECK(!lookup_it.properties->ModifiedSinceHashing())
         << "This should have been checked in AddMatchedProperties()";
@@ -294,7 +274,7 @@ void CachedMatchedProperties::RefreshKey(
     const MatchedPropertiesVector& lookup_properties) {
   DCHECK(CorrespondsTo(lookup_properties));
   for (auto [lookup_it, cached_it] :
-       std::views::zip(lookup_properties, matched_properties)) {
+       base::zip(lookup_properties, matched_properties)) {
     cached_it.properties = lookup_it.properties;
     cached_it.mixin_parameter_bindings = lookup_it.mixin_parameter_bindings;
   }

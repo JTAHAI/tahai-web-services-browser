@@ -103,7 +103,7 @@ spdy::SettingsMap GetHttp2Settings(
     return http2_settings;
   }
 
-  for (const auto& key_value : key_value_pairs) {
+  for (auto key_value : key_value_pairs) {
     uint32_t key;
     if (!base::StringToUint(key_value.first, &key))
       continue;

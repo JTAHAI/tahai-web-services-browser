@@ -24,6 +24,9 @@
 // Must come after all headers that specialize FromJniType() / ToJniType().
 #include "chrome/browser/download/android/jni_headers/DangerousDownloadDialogBridge_jni.h"
 
+using base::android::ConvertJavaStringToUTF8;
+using base::android::JavaRef;
+
 namespace {
 // Gets the "download domain" string shown in the dialog. Currently, this is
 // derived from the download URL.
@@ -72,7 +75,9 @@ void DangerousDownloadDialogBridge::Show(download::DownloadItem* download_item,
       env, java_object_, window_android->GetJavaObject(),
       download_item->GetGuid(),
       base::UTF8ToUTF16(download_item->GetFileNameToReportUser().value()),
-      download_item->GetTotalBytes(), GetDownloadDomain(download_item),
+      download_item->GetTotalBytes(),
+      base::android::ConvertUTF16ToJavaString(env,
+                                              GetDownloadDomain(download_item)),
       ResourceMapper::MapToJavaDrawableId(IDR_ANDROID_PERMISSION_WARNING),
       download_item->IsDangerous());
 }
@@ -86,7 +91,8 @@ void DangerousDownloadDialogBridge::OnDownloadDestroyed(
   }
 }
 
-void DangerousDownloadDialogBridge::Accepted(const std::string& download_guid) {
+void DangerousDownloadDialogBridge::Accepted(JNIEnv* env,
+                                             const std::string& download_guid) {
   download::DownloadItem* download = DownloadDialogUtils::FindAndRemoveDownload(
       &download_items_, download_guid);
   if (!download) {
@@ -105,6 +111,7 @@ void DangerousDownloadDialogBridge::Accepted(const std::string& download_guid) {
 }
 
 void DangerousDownloadDialogBridge::Cancelled(
+    JNIEnv* env,
     const std::string& download_guid) {
   download::DownloadItem* download = DownloadDialogUtils::FindAndRemoveDownload(
       &download_items_, download_guid);

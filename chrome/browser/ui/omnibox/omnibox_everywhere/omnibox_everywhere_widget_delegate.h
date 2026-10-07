@@ -8,13 +8,8 @@
 #include <optional>
 
 #include "third_party/skia/include/core/SkRegion.h"
-#include "ui/base/models/image_model.h"
 #include "ui/gfx/geometry/point.h"
 #include "ui/views/widget/widget_delegate.h"
-
-namespace gfx {
-struct VectorIcon;
-}
 
 namespace omnibox_everywhere {
 
@@ -29,20 +24,12 @@ class OmniboxEverywhereWidgetDelegate : public views::WidgetDelegate {
       const OmniboxEverywhereWidgetDelegate&) = delete;
   ~OmniboxEverywhereWidgetDelegate() override;
 
-  // Returns the vector icon for Omnibox Everywhere based on branding
-  // buildflags.
-  static const gfx::VectorIcon& GetVectorIcon();
-
   void SetDraggableRegion(std::optional<SkRegion> region);
   bool IsPointInDraggableRegion(const gfx::Point& point) const;
 
   int NonClientHitTest(const gfx::Point& point) const;
 
   // views::WidgetDelegate:
-  ui::ImageModel GetWindowIcon() override;
-  ui::ImageModel GetWindowAppIcon() override;
-  std::u16string GetWindowTitle() const override;
-
   bool ShouldDescendIntoChildForEventHandling(
       gfx::NativeView child,
       const gfx::Point& location) override;

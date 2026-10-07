@@ -20,7 +20,6 @@ import org.chromium.base.task.PostTask;
 import org.chromium.base.task.TaskTraits;
 import org.chromium.base.test.util.Criteria;
 import org.chromium.base.test.util.CriteriaHelper;
-import org.chromium.chrome.browser.multiwindow.MultiWindowUtils;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.TabTestUtils;
 import org.chromium.chrome.browser.tab.TabWebContentsDelegateAndroid;
@@ -192,37 +191,9 @@ public class FullscreenTestUtils {
                 CriteriaHelper.DEFAULT_POLLING_INTERVAL);
     }
 
-    /**
-     * Waits for the specified {@link Tab} to enter or exit fullscreen mode by verifying both
-     * Chrome's internal delegate state and the Android OS status bar window insets.
-     *
-     * @param tab The {@link Tab} to verify.
-     * @param expectStatusBarHidden Whether the status bar is expected to be hidden on screen.
-     */
-    public static void waitForFullscreen(final Tab tab, final boolean expectStatusBarHidden) {
-        final TabWebContentsDelegateAndroid delegate = TabTestUtils.getTabWebContentsDelegate(tab);
+    public static void waitForFullscreen(final Tab tab, final boolean state) {
         CriteriaHelper.pollUiThread(
-                () -> {
-                    // When expectStatusBarHidden is true, standard fullscreen is being entered, so
-                    // verify that Chrome's internal delegate state also transitioned to fullscreen.
-                    // When expectStatusBarHidden is false, this could either be an exit from
-                    // fullscreen or a custom fullscreen mode with prefersStatusBar=true (where
-                    // internal delegate state is true but status bar is visible on screen).
-                    // Thus, we only assert delegate state is true when expectStatusBarHidden is
-                    // true.
-                    if (expectStatusBarHidden) {
-                        Criteria.checkThat(
-                                "Delegate fullscreen state mismatch",
-                                delegate.isFullscreenForTabOrPending(),
-                                Matchers.is(true));
-                    }
-                    Criteria.checkThat(
-                            "Window insets fullscreen state mismatch",
-                            verifyWindowInsets(tab, expectStatusBarHidden),
-                            Matchers.is(true));
-                },
-                6000L,
-                CriteriaHelper.DEFAULT_POLLING_INTERVAL);
+                () -> isFullscreenSet(tab, state), 6000L, CriteriaHelper.DEFAULT_POLLING_INTERVAL);
     }
 
     public static void waitForHideNavigation(final Tab tab, final boolean state) {
@@ -258,31 +229,11 @@ public class FullscreenTestUtils {
         return (flags & flag) == flag;
     }
 
-    /**
-     * Verifies that the Android OS Window Manager physically hid or showed the status bar window
-     * insets on the device screen.
-     *
-     * <p>We check OS window insets in addition to {@link #waitForPersistentFullscreen} to catch UI
-     * regressions where Chrome's internal delegate state updates to fullscreen but the actual
-     * system bars fail to hide on screen.
-     *
-     * @param tab The {@link Tab} to verify.
-     * @param expectStatusBarHidden Whether the status bar is expected to be hidden on screen.
-     */
-    private static boolean verifyWindowInsets(final Tab tab, final boolean expectStatusBarHidden) {
-        Activity activity = tab.getWindowAndroid().getActivity().get();
-        if (activity != null && MultiWindowUtils.getInstance().isInMultiWindowMode(activity)) {
-            // In multi-window/freeform mode, status bars are always invisible, so window insets
-            // cannot be used to verify fullscreen state. Return true because we will rely on
-            // waitForPersistentFullscreen to verify the internal delegate state.
-            return true;
-        }
-
+    private static boolean isFullscreenSet(final Tab tab, final boolean state) {
         View view = tab.getContentView();
         WindowInsetsCompat windowInsets =
                 WindowInsetsCompat.toWindowInsetsCompat(view.getRootWindowInsets(), view);
-        return !windowInsets.isVisible(WindowInsetsCompat.Type.statusBars())
-                == expectStatusBarHidden;
+        return !windowInsets.isVisible(WindowInsetsCompat.Type.statusBars()) == state;
     }
 
     private static boolean isHideNavigationSet(final Tab tab, final boolean state) {

@@ -48,7 +48,6 @@ import org.chromium.base.ThreadUtils;
 import org.chromium.build.annotations.MonotonicNonNull;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
-import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.toolbar.R;
 import org.chromium.chrome.browser.toolbar.ToolbarVariationUtils;
 import org.chromium.chrome.browser.toolbar.adaptive.AdaptiveToolbarButtonVariant;
@@ -132,12 +131,15 @@ class OptionalButtonView extends FrameLayout implements TransitionListener {
     private @Nullable OnBeforeWidthTransitionCallback mOnBeforeWidthTransitionCallback;
     private @Nullable BooleanSupplier mIsAnimationAllowedPredicate;
     private final Runnable mCollapseActionChipRunnable =
-            () -> {
-                assumeNonNull(mIsAnimationAllowedPredicate);
-                if (mIsAnimationAllowedPredicate.getAsBoolean()) {
-                    animateActionChipCollapse();
-                } else {
-                    showIcon(false);
+            new Runnable() {
+                @Override
+                public void run() {
+                    assumeNonNull(mIsAnimationAllowedPredicate);
+                    if (mIsAnimationAllowedPredicate.getAsBoolean()) {
+                        animateActionChipCollapse();
+                    } else {
+                        showIcon(false);
+                    }
                 }
             };
 
@@ -1218,19 +1220,13 @@ class OptionalButtonView extends FrameLayout implements TransitionListener {
 
     @Override
     public boolean hasOverlappingRendering() {
-        if (ChromeFeatureList.sOptionalButtonNoHardwareLayerKillswitch.isEnabled()) {
-            return false;
-        } else {
-            return super.hasOverlappingRendering();
-        }
+        return false;
     }
 
     @Override
     public void setLayerType(int layerType, @Nullable Paint paint) {
-        if (ChromeFeatureList.sOptionalButtonNoHardwareLayerKillswitch.isEnabled()) {
-            if (layerType == LAYER_TYPE_HARDWARE && (getWidth() <= 0 || getHeight() <= 0)) {
-                layerType = LAYER_TYPE_NONE;
-            }
+        if (layerType == LAYER_TYPE_HARDWARE && (getWidth() <= 0 || getHeight() <= 0)) {
+            layerType = LAYER_TYPE_NONE;
         }
         super.setLayerType(layerType, paint);
     }
@@ -1238,10 +1234,8 @@ class OptionalButtonView extends FrameLayout implements TransitionListener {
     @Override
     protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
         super.onLayout(changed, left, top, right, bottom);
-        if (ChromeFeatureList.sOptionalButtonNoHardwareLayerKillswitch.isEnabled()) {
-            if (getLayerType() == LAYER_TYPE_HARDWARE && (getWidth() <= 0 || getHeight() <= 0)) {
-                super.setLayerType(LAYER_TYPE_NONE, null);
-            }
+        if (getLayerType() == LAYER_TYPE_HARDWARE && (getWidth() <= 0 || getHeight() <= 0)) {
+            super.setLayerType(LAYER_TYPE_NONE, null);
         }
     }
 }

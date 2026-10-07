@@ -40,7 +40,6 @@
 #include "third_party/blink/renderer/modules/webaudio/script_processor_handler.h"
 #include "third_party/blink/renderer/platform/bindings/exception_messages.h"
 #include "third_party/blink/renderer/platform/bindings/exception_state.h"
-#include "third_party/blink/renderer/platform/wtf/text/format.h"
 #include "third_party/blink/renderer/platform/wtf/text/strcat.h"
 
 #if DEBUG_AUDIONODE_REFERENCES
@@ -206,13 +205,17 @@ AudioNode* AudioNode::connect(AudioNode* destination,
     return nullptr;
   }
 
-  SendLogMessage(__func__,
-                 Format("({{output=[index:{}, type:{}, handler:0x{:X}]}} --> "
-                        "{{input=[index:{}, type:{}, handler:0x{:X}]}})",
-                        output_index, Handler().NodeTypeName(),
-                        reinterpret_cast<uintptr_t>(&Handler()), input_index,
-                        destination->Handler().NodeTypeName(),
-                        reinterpret_cast<uintptr_t>(&destination->Handler())));
+  SendLogMessage(
+      __func__,
+      StrCat(
+          {"({output=[index:", String::Number(output_index),
+           ", type:", Handler().NodeTypeName(), ", handler:0x",
+           String::Format("%" PRIXPTR, reinterpret_cast<uintptr_t>(&Handler())),
+           "]} --> {input=[index:", String::Number(input_index),
+           ", type:", destination->Handler().NodeTypeName(), ", handler:0x",
+           String::Format("%" PRIXPTR,
+                          reinterpret_cast<uintptr_t>(&destination->Handler())),
+           "]})"}));
 
   AudioNodeWiring::Connect(Handler().Output(output_index),
                            destination->Handler().Input(input_index));
@@ -624,7 +627,9 @@ void AudioNode::DidAddOutput(unsigned number_of_outputs) {
 
 void AudioNode::SendLogMessage(const String& function_name,
                                const String& message) {
-  WebRtcLogMessage(StrCat({"[WA]AN::", function_name, " ", message}).Utf8());
+  WebRtcLogMessage(String::Format("[WA]AN::%s %s", function_name.Utf8().c_str(),
+                                  message.Utf8().c_str())
+                       .Utf8());
 }
 
 }  // namespace blink

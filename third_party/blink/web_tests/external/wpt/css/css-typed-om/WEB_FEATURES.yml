@@ -1,3 +1,6 @@
-rules:
-- factory-*: [numeric-factory-functions, css-typed-om]
-- "**": [css-typed-om]
+features:
+- name: css-typed-om
+  files: "**"
+- name: numeric-factory-functions
+  files:
+  - factory-*

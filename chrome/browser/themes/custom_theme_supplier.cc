@@ -31,7 +31,7 @@ gfx::Image CustomThemeSupplier::GetImageNamed(int id) const {
   return gfx::Image();
 }
 
-scoped_refptr<base::RefCountedMemory> CustomThemeSupplier::GetRawData(
+base::RefCountedMemory* CustomThemeSupplier::GetRawData(
     int idr_id,
     ui::ResourceScaleFactor scale_factor) const {
   return nullptr;

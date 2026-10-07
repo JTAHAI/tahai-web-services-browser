@@ -7,7 +7,6 @@
 
 #include <optional>
 #include <string>
-#include <string_view>
 
 #include "base/functional/callback.h"
 #include "base/memory/scoped_refptr.h"
@@ -41,8 +40,6 @@ class UpdateManifestFetcher {
     kInvalidJson,
     kInvalidManifest,
   };
-
-  static std::string_view ErrorToString(Error error);
 
   using FetchCallback =
       base::OnceCallback<void(base::expected<UpdateManifest, Error>)>;

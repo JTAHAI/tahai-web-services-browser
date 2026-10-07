@@ -7,7 +7,6 @@ package org.chromium.base;
 import androidx.annotation.VisibleForTesting;
 
 import org.chromium.build.annotations.NullMarked;
-import org.chromium.build.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -51,8 +50,7 @@ public class ObserverList<E> implements Iterable<E> {
         void rewind();
     }
 
-    // Lazily initialized with capacity 4 as many lists remain empty or hold < 4 observers.
-    @VisibleForTesting @Nullable List<E> mObservers;
+    @VisibleForTesting final List<E> mObservers = new ArrayList<E>();
     private final ThreadUtils.ThreadChecker mThreadChecker;
     private int mIterationDepth;
     private int mCount;
@@ -83,13 +81,7 @@ public class ObserverList<E> implements Iterable<E> {
         assertSameThreadUsed();
 
         // TODO(agrieve): Remove null check once codebase is fully null-annotated.
-        if (obs == null) {
-            return false;
-        }
-
-        if (mObservers == null) {
-            mObservers = new ArrayList<>(4);
-        } else if (mObservers.contains(obs)) {
+        if (obs == null || mObservers.contains(obs)) {
             return false;
         }
 
@@ -111,7 +103,7 @@ public class ObserverList<E> implements Iterable<E> {
         assertSameThreadUsed();
 
         // TODO(agrieve): Remove null check once codebase is fully null-annotated.
-        if (obs == null || mObservers == null) {
+        if (obs == null) {
             return false;
         }
 
@@ -130,27 +122,28 @@ public class ObserverList<E> implements Iterable<E> {
         --mCount;
         assert mCount >= 0;
 
-        if (mCount == 0 && mIterationDepth == 0) {
-            mObservers = null;
-        }
-
         return true;
     }
 
     public boolean hasObserver(E obs) {
         assertSameThreadUsed();
-        return mObservers != null && mObservers.contains(obs);
+        return mObservers.contains(obs);
     }
 
     public void clear() {
         assertSameThreadUsed();
 
         mCount = 0;
+
         if (mIterationDepth == 0) {
-            mObservers = null;
-        } else if (mObservers != null) {
-            mNeedsCompact = true;
-            Collections.fill(mObservers, null);
+            mObservers.clear();
+            return;
+        }
+
+        int size = mObservers.size();
+        mNeedsCompact |= size != 0;
+        for (int i = 0; i < size; i++) {
+            mObservers.set(i, null);
         }
     }
 
@@ -209,18 +202,12 @@ public class ObserverList<E> implements Iterable<E> {
 
     /**
      * Compact the underlying list be removing null elements.
-     *
-     * <p>Should only be called when mIterationDepth is zero.
+     * <p/>
+     * Should only be called when mIterationDepth is zero.
      */
     private void compact() {
         assert mIterationDepth == 0;
-        if (mObservers != null) {
-            if (mCount == 0) {
-                mObservers = null;
-            } else {
-                mObservers.removeAll(Collections.singleton(null));
-            }
-        }
+        mObservers.removeAll(Collections.singleton(null));
     }
 
     private void incrementIterationDepth() {
@@ -237,15 +224,14 @@ public class ObserverList<E> implements Iterable<E> {
     }
 
     /**
-     * Returns the size of the underlying storage of the ObserverList. It will take into account the
-     * empty spaces inside |mObservers|.
+     * Returns the size of the underlying storage of the ObserverList.
+     * It will take into account the empty spaces inside |mObservers|.
      */
     private int capacity() {
-        return mObservers == null ? 0 : mObservers.size();
+        return mObservers.size();
     }
 
-    private @Nullable E getObserverAt(int index) {
-        assert mObservers != null;
+    private E getObserverAt(int index) {
         return mObservers.get(index);
     }
 
@@ -308,9 +294,7 @@ public class ObserverList<E> implements Iterable<E> {
                 throw new NoSuchElementException();
             }
 
-            E observer = ObserverList.this.getObserverAt(mNextValidIndex++);
-            assert observer != null;
-            return observer;
+            return ObserverList.this.getObserverAt(mNextValidIndex++);
         }
 
         @Override

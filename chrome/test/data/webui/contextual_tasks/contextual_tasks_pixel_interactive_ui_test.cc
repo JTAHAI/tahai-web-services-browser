@@ -33,12 +33,12 @@
 #include "build/build_config.h"
 #include "chrome/browser/autocomplete/aim_eligibility_service_factory.h"
 #include "chrome/browser/contextual_tasks/contextual_tasks_cookie_synchronizer.h"
-#include "chrome/browser/contextual_tasks/contextual_tasks_eligibility_manager.h"
 #include "chrome/browser/contextual_tasks/contextual_tasks_ui_service.h"
 #include "chrome/browser/contextual_tasks/contextual_tasks_ui_service_factory.h"
 #include "chrome/browser/contextual_tasks/mock_contextual_tasks_ui_service_delegate.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/signin/identity_test_environment_profile_adaptor.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/omnibox/omnibox_next_features.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/common/webui_url_constants.h"
@@ -47,7 +47,6 @@
 #include "components/keyed_service/content/browser_context_dependency_manager.h"
 #include "components/omnibox/browser/mock_aim_eligibility_service.h"
 #include "components/signin/public/identity_manager/identity_test_utils.h"
-#include "services/network/public/cpp/shared_url_loader_factory.h"
 #include "third_party/omnibox_proto/aim_eligibility_response.pb.h"
 #include "ui/gfx/scoped_animation_duration_scale_mode.h"
 #include "ui/views/widget/widget.h"
@@ -81,7 +80,8 @@ class ContextualTasksPixelTestBase : public WebUIComposeBoxPixelTest {
         {{contextual_tasks::kContextualTasks,
           {{"ContextualTasksExpandButtonOptions", "toolbar-close-button"}}},
          {contextual_tasks::kContextualTasksForceEntryPointEligibility, {}},
-         {contextual_tasks::kContextualTasksContextMenu, {}}},
+         {contextual_tasks::kContextualTasksContextMenu, {}},
+         {contextual_tasks::kContextualTasksUseStratusDarkModeColors, {}}},
         /*disabled_features=*/
         {contextual_tasks::kContextualTasksAnimatedCaret,
          // TODO(crbug.com/452061489): Fix tests that fail when the WebUI
@@ -266,6 +266,7 @@ IN_PROC_BROWSER_TEST_P(ContextualTasksComposeBoxPixelTest,
                 el.isZeroState_ = true;
                 el.isInputHidden_ = false;
                 el.isComposeboxHidden_ = () => false;
+                el.useStratusDarkModeColors_ = true;
                 if (el.requestUpdate) el.requestUpdate();
 
                 const inputState = {
@@ -471,6 +472,7 @@ IN_PROC_BROWSER_TEST_P(ContextualTasksAppPixelTest, MAYBE_Screenshots) {
                              "  el.isZeroState_ = %s; "
                              "  el.isAiPage_ = %s; "
                              "  el.isGhostLoaderVisible_ = %s; "
+                             "  el.useStratusDarkModeColors_ = true; "
                              "  el.requestUpdate(); "
                              "}",
                              GetParam().is_side_panel ? "false" : "true",

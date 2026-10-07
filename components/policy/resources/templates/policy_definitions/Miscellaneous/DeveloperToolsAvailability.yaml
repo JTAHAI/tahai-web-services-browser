@@ -26,6 +26,7 @@ features:
   dynamic_refresh: true
   per_profile: true
 future_on:
+- android
 - fuchsia
 items:
 - caption: Disallow usage of the Developer Tools on apps and extensions
@@ -52,6 +53,5 @@ schema:
 supported_on:
 - chrome.*:68-
 - chrome_os:68-
-- android:154-
 tags: []
 type: int-enum

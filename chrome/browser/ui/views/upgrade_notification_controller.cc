@@ -5,6 +5,7 @@
 #include "chrome/browser/ui/views/upgrade_notification_controller.h"
 
 #include "base/check_deref.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/dialogs/outdated_upgrade_bubble.h"
@@ -18,11 +19,13 @@
 UpgradeNotificationController::~UpgradeNotificationController() = default;
 
 void UpgradeNotificationController::OnOutdatedInstall() {
-  ShowOutdatedUpgradeBubble(&browser_.get(), &browser_.get(), true);
+  Browser* const browser = browser_->GetBrowserForMigrationOnly();
+  ShowOutdatedUpgradeBubble(browser, browser, true);
 }
 
 void UpgradeNotificationController::OnOutdatedInstallNoAutoUpdate() {
-  ShowOutdatedUpgradeBubble(&browser_.get(), &browser_.get(), false);
+  Browser* const browser = browser_->GetBrowserForMigrationOnly();
+  ShowOutdatedUpgradeBubble(browser, browser, false);
 }
 
 void UpgradeNotificationController::OnCriticalUpgradeInstalled() {

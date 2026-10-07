@@ -11,7 +11,6 @@
 #include <memory>
 #include <set>
 #include <string>
-#include <string_view>
 #include <vector>
 
 #include "base/containers/flat_map.h"
@@ -45,7 +44,7 @@ class PermissionsInfo {
 
   // Returns the permission with the given `name`, and NULL if none
   // exists.
-  const APIPermissionInfo* GetByName(std::string_view name) const;
+  const APIPermissionInfo* GetByName(const std::string& name) const;
 
   // Returns a set containing all valid api permission ids.
   APIPermissionSet GetAllForTest() const;
@@ -79,7 +78,7 @@ class PermissionsInfo {
                                std::unique_ptr<APIPermissionInfo>>;
 
   // Maps names and aliases to permissions. Doesn't own the permissions.
-  using NameMap = std::map<std::string, APIPermissionInfo*, std::less<>>;
+  using NameMap = std::map<std::string, APIPermissionInfo*>;
 
   IDMap id_map_;
   NameMap name_map_;

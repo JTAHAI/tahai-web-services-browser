@@ -35,8 +35,7 @@ MultiStep GlicActorMediaControlToolUiTest::MediaControlAction(
 
 IN_PROC_BROWSER_TEST_F(GlicActorMediaControlToolUiTest, NoMedia) {
   DEFINE_LOCAL_ELEMENT_IDENTIFIER_VALUE(kNewActorTabId);
-  const GURL url =
-      embedded_https_test_server().GetURL("example.com", "/actor/blank.html");
+  const GURL url = embedded_test_server()->GetURL("/actor/blank.html");
   RunTestSequence(
       InitializeWithOpenGlicWindow(),
       StartActorTaskInNewTab(url, kNewActorTabId),
@@ -46,8 +45,7 @@ IN_PROC_BROWSER_TEST_F(GlicActorMediaControlToolUiTest, NoMedia) {
 
 IN_PROC_BROWSER_TEST_F(GlicActorMediaControlToolUiTest, PauseAndPlayMedia) {
   DEFINE_LOCAL_ELEMENT_IDENTIFIER_VALUE(kNewActorTabId);
-  const GURL url =
-      embedded_https_test_server().GetURL("example.com", "/actor/media.html");
+  const GURL url = embedded_test_server()->GetURL("/actor/media.html");
   RunTestSequence(
       InitializeWithOpenGlicWindow(),
       StartActorTaskInNewTab(url, kNewActorTabId),
@@ -61,8 +59,7 @@ IN_PROC_BROWSER_TEST_F(GlicActorMediaControlToolUiTest, PauseAndPlayMedia) {
 
 IN_PROC_BROWSER_TEST_F(GlicActorMediaControlToolUiTest, SeekMedia) {
   DEFINE_LOCAL_ELEMENT_IDENTIFIER_VALUE(kNewActorTabId);
-  const GURL url =
-      embedded_https_test_server().GetURL("example.com", "/actor/media.html");
+  const GURL url = embedded_test_server()->GetURL("/actor/media.html");
   RunTestSequence(
       InitializeWithOpenGlicWindow(),
       StartActorTaskInNewTab(url, kNewActorTabId),

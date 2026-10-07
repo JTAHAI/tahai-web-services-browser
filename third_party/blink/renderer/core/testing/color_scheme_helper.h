@@ -5,7 +5,6 @@
 #ifndef THIRD_PARTY_BLINK_RENDERER_CORE_TESTING_COLOR_SCHEME_HELPER_H_
 #define THIRD_PARTY_BLINK_RENDERER_CORE_TESTING_COLOR_SCHEME_HELPER_H_
 
-#include "base/memory/raw_ref.h"
 #include "third_party/blink/public/mojom/css/preferred_color_scheme.mojom-shared.h"
 #include "third_party/blink/public/mojom/css/preferred_contrast.mojom-shared.h"
 
@@ -37,7 +36,7 @@ class ColorSchemeHelper {
   void SetEmulatedForcedColors(Document& document, bool is_dark_theme);
 
  private:
-  const raw_ref<Settings, UnprotectedInRelease | DanglingUntriaged> settings_;
+  Settings& settings_;
   mojom::PreferredColorScheme default_preferred_root_scrollbar_color_scheme_ =
       mojom::PreferredColorScheme::kLight;
   mojom::PreferredColorScheme default_preferred_color_scheme_ =

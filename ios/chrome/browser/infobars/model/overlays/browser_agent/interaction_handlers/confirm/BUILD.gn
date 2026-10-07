@@ -18,6 +18,7 @@ source_set("confirm") {
     "//ios/chrome/browser/overlays/model",
     "//ios/chrome/browser/overlays/model/public/infobar_banner",
     "//ios/chrome/browser/overlays/model/public/infobar_modal",
+    "//ios/chrome/browser/shared/model/browser",
     "//ios/chrome/browser/shared/public/commands",
   ]
 }

@@ -348,24 +348,12 @@ void BaseFile::Cancel() {
   Detach();
 }
 
-std::unique_ptr<crypto::SecureHash> BaseFile::Finish(int64_t expected_size) {
+std::unique_ptr<crypto::SecureHash> BaseFile::Finish() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
   // TODO(qinmin): verify that all the holes have been filled.
-  if (is_sparse_file_) {
-    // Determine the target physical size to truncate to.
-    // If expected_size is provided (> 0), use that; otherwise fall back to
-    // bytes_so_far_.
-    int64_t target_size = (expected_size > 0) ? expected_size : bytes_so_far_;
-
-    // Calculate hash over the logical prefix
+  if (is_sparse_file_)
     CalculatePartialHash(std::string());
-
-    // Truncate trailing unverified bytes past the target size
-    if (file_.IsValid() && file_.GetLength() > target_size) {
-      file_.SetLength(target_size);
-    }
-  }
   Close();
   return std::move(secure_hash_);
 }
@@ -628,10 +616,8 @@ DownloadInterruptReason QuarantineFileResultToReason(
 }  // namespace
 
 // static
-GURL BaseFile::GetEffectiveAuthorityURL(
-    const GURL& source_url,
-    const GURL& referrer_url,
-    const std::optional<url::Origin>& request_initiator) {
+GURL BaseFile::GetEffectiveAuthorityURL(const GURL& source_url,
+                                        const GURL& referrer_url) {
   if (source_url.is_valid()) {
     // http{,s} has an authority and are supported.
     if (source_url.SchemeIsHTTPOrHTTPS())
@@ -651,16 +637,6 @@ GURL BaseFile::GetEffectiveAuthorityURL(
 
     if (source_url.SchemeIs(url::kBlobScheme))
       return url::Origin::Create(source_url).GetURL();
-  }
-
-  // The request initiator is validated by the browser process, so prefer it
-  // over the referrer (which may have been supplied by the renderer) when the
-  // source URL itself doesn't carry a usable authority. If an initiator was
-  // provided but isn't HTTP/S (e.g. it is opaque), the referrer from the same
-  // requesting context won't be a more reliable signal, so skip it as well.
-  if (request_initiator) {
-    GURL initiator_url = request_initiator->GetURL();
-    return initiator_url.SchemeIsHTTPOrHTTPS() ? initiator_url : GURL();
   }
 
   if (referrer_url.is_valid() && referrer_url.SchemeIsHTTPOrHTTPS())
@@ -694,8 +670,7 @@ void BaseFile::AnnotateWithSourceInformation(
     const std::optional<url::Origin>& request_initiator,
     mojo::PendingRemote<quarantine::mojom::Quarantine> remote_quarantine,
     OnAnnotationDoneCallback on_annotation_done_callback) {
-  GURL authority_url =
-      GetEffectiveAuthorityURL(source_url, referrer_url, request_initiator);
+  GURL authority_url = GetEffectiveAuthorityURL(source_url, referrer_url);
   if (!remote_quarantine) {
 #if BUILDFLAG(IS_WIN)
     quarantine::mojom::QuarantineFileResult result =

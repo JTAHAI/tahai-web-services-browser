@@ -135,7 +135,7 @@ public class TabGridDialogCoordinator implements TabGridDialogMediator.DialogCon
             Supplier<@Nullable TabBookmarker> tabBookmarkerSupplier,
             Supplier<@Nullable ShareDelegate> shareDelegateSupplier,
             Callback<@Nullable View> attachViewCallback) {
-        try (TraceEvent _ = TraceEvent.scoped("TabGridDialogCoordinator.constructor")) {
+        try (TraceEvent e = TraceEvent.scoped("TabGridDialogCoordinator.constructor")) {
             mActivity = activity;
             int componentId =
                     animationSourceViewProvider == null
@@ -209,9 +209,10 @@ public class TabGridDialogCoordinator implements TabGridDialogMediator.DialogCon
             }
 
             Runnable showTabGroupColorPickerPopupRunnable =
-                    () ->
-                            showTabGroupColorPickerPopup(
-                                    mDialogView.findViewById(R.id.tab_group_color_icon));
+                    () -> {
+                        showTabGroupColorPickerPopup(
+                                mDialogView.findViewById(R.id.tab_group_color_icon));
+                    };
 
             mMediator =
                     new TabGridDialogMediator(
@@ -305,7 +306,7 @@ public class TabGridDialogCoordinator implements TabGridDialogMediator.DialogCon
                                     toolbarView, recyclerView, mDialogView),
                             TabGridDialogViewBinder::bind);
             mBackPressChangedSupplier.set(isVisible());
-            mModel.addObserver((_, _) -> mBackPressChangedSupplier.set(isVisible()));
+            mModel.addObserver((source, key) -> mBackPressChangedSupplier.set(isVisible()));
 
             // This is always created post-native so calling these immediately is safe.
             // TODO(crbug.com/40894893): Consider inlining these behaviors in their respective
@@ -395,25 +396,28 @@ public class TabGridDialogCoordinator implements TabGridDialogMediator.DialogCon
 
     private void showTabGroupColorPickerPopup(View anchorView) {
         PopupWindow.OnDismissListener onDismissListener =
-                () -> {
-                    assumeNonNull(mTabGroupColorPickerCoordinator);
-                    mMediator.setSelectedTabGroupColor(
-                            assertNonNull(
-                                    mTabGroupColorPickerCoordinator
-                                            .getSelectedColorSupplier()
-                                            .get()));
+                new PopupWindow.OnDismissListener() {
+                    @Override
+                    public void onDismiss() {
+                        assumeNonNull(mTabGroupColorPickerCoordinator);
+                        mMediator.setSelectedTabGroupColor(
+                                assertNonNull(
+                                        mTabGroupColorPickerCoordinator
+                                                .getSelectedColorSupplier()
+                                                .get()));
 
-                    // Only require a refresh of the tab list if accessed from the GTS,
-                    // skip if this is reached from the tab strip as the color will
-                    // refresh upon re-entering the tab switcher.
-                    if (mTabSwitcherResetHandler != null) {
-                        // Refresh the TabSwitcher's tab list to reflect the last
-                        // selected color in the color picker when it is dismissed. This
-                        // call will be invoked for both Grid and List modes on the GTS.
-                        TabModel tabModel = mCurrentTabModelSupplier.get();
-                        assumeNonNull(tabModel);
-                        mTabSwitcherResetHandler.resetWithListOfTabs(
-                                tabModel.getRepresentativeTabList());
+                        // Only require a refresh of the tab list if accessed from the GTS,
+                        // skip if this is reached from the tab strip as the color will
+                        // refresh upon re-entering the tab switcher.
+                        if (mTabSwitcherResetHandler != null) {
+                            // Refresh the TabSwitcher's tab list to reflect the last
+                            // selected color in the color picker when it is dismissed. This
+                            // call will be invoked for both Grid and List modes on the GTS.
+                            TabModel tabModel = mCurrentTabModelSupplier.get();
+                            assumeNonNull(tabModel);
+                            mTabSwitcherResetHandler.resetWithListOfTabs(
+                                    tabModel.getRepresentativeTabList());
+                        }
                     }
                 };
 
@@ -424,6 +428,7 @@ public class TabGridDialogCoordinator implements TabGridDialogMediator.DialogCon
         TabGroupColorPickerContainer container = root.findViewById(R.id.color_picker_container);
         mTabGroupColorPickerCoordinator =
                 new TabGroupColorPickerCoordinator(
+                        mActivity,
                         colors,
                         container,
                         TabGroupColorPickerType.TAB_GROUP,
@@ -511,6 +516,13 @@ public class TabGridDialogCoordinator implements TabGridDialogMediator.DialogCon
 
     void waitForLayoutWithTab(int tabId, Runnable r) {
         mTabListCoordinator.waitForLayoutWithTab(tabId, r);
+    }
+
+    Rect getGlobalLocationOfCurrentThumbnail() {
+        Rect thumbnail = mTabListCoordinator.getThumbnailLocationOfCurrentTab();
+        Rect recyclerViewLocation = mTabListCoordinator.getRecyclerViewLocation();
+        thumbnail.offset(recyclerViewLocation.left, recyclerViewLocation.top);
+        return thumbnail;
     }
 
     TabGridDialogMediator.DialogController getDialogController() {

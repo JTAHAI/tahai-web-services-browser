@@ -61,87 +61,15 @@ void FetchHandler::Wire(UberDispatcher* dispatcher) {
   Fetch::Dispatcher::wire(dispatcher, this);
 }
 
-std::optional<DevToolsURLLoaderInterceptor::InterceptionStage>
-RequestStageToInterceptorStage(const Fetch::RequestStage& stage) {
+DevToolsURLLoaderInterceptor::InterceptionStage RequestStageToInterceptorStage(
+    const Fetch::RequestStage& stage) {
   if (stage == Fetch::RequestStageEnum::Request) {
     return DevToolsURLLoaderInterceptor::kRequest;
   }
   if (stage == Fetch::RequestStageEnum::Response) {
     return DevToolsURLLoaderInterceptor::kResponse;
   }
-  return std::nullopt;
-}
-
-bool AddInterceptedResourceType(
-    const std::string& resource_type,
-    base::flat_set<blink::mojom::ResourceType>* intercepted_resource_types) {
-  if (resource_type == protocol::Network::ResourceTypeEnum::Document) {
-    intercepted_resource_types->insert(blink::mojom::ResourceType::kMainFrame);
-    intercepted_resource_types->insert(blink::mojom::ResourceType::kSubFrame);
-    return true;
-  }
-  if (resource_type == protocol::Network::ResourceTypeEnum::Stylesheet) {
-    intercepted_resource_types->insert(blink::mojom::ResourceType::kStylesheet);
-    return true;
-  }
-  if (resource_type == protocol::Network::ResourceTypeEnum::Image) {
-    intercepted_resource_types->insert(blink::mojom::ResourceType::kImage);
-    return true;
-  }
-  if (resource_type == protocol::Network::ResourceTypeEnum::Media) {
-    intercepted_resource_types->insert(blink::mojom::ResourceType::kMedia);
-    return true;
-  }
-  if (resource_type == protocol::Network::ResourceTypeEnum::Font) {
-    intercepted_resource_types->insert(
-        blink::mojom::ResourceType::kFontResource);
-    return true;
-  }
-  if (resource_type == protocol::Network::ResourceTypeEnum::Script) {
-    intercepted_resource_types->insert(blink::mojom::ResourceType::kScript);
-    return true;
-  }
-
-  // Map several fetch-like CDP resource types to the underlying `kXhr` Blink
-  // resource type. This is necessary because Blink's loader subsystem, where
-  // interception occurs, does not differentiate between these types at a
-  // protocol level. This mapping provides a functional interception mechanism
-  // and resolves the issue where filtering for 'Fetch' or 'EventSource' would
-  // silently fail. See https://crbug.com/40256663#comment10 for context.
-  if (resource_type == protocol::Network::ResourceTypeEnum::XHR ||
-      resource_type == protocol::Network::ResourceTypeEnum::Fetch ||
-      resource_type == protocol::Network::ResourceTypeEnum::EventSource) {
-    intercepted_resource_types->insert(blink::mojom::ResourceType::kXhr);
-    if (resource_type == protocol::Network::ResourceTypeEnum::Fetch) {
-      intercepted_resource_types->insert(blink::mojom::ResourceType::kPrefetch);
-    }
-    return true;
-  }
-
-  if (resource_type ==
-      protocol::Network::ResourceTypeEnum::CSPViolationReport) {
-    intercepted_resource_types->insert(blink::mojom::ResourceType::kCspReport);
-    return true;
-  }
-  if (resource_type == protocol::Network::ResourceTypeEnum::Ping) {
-    intercepted_resource_types->insert(blink::mojom::ResourceType::kPing);
-    return true;
-  }
-  if (resource_type == protocol::Network::ResourceTypeEnum::Other) {
-    intercepted_resource_types->insert(
-        blink::mojom::ResourceType::kSubResource);
-    intercepted_resource_types->insert(blink::mojom::ResourceType::kObject);
-    intercepted_resource_types->insert(blink::mojom::ResourceType::kWorker);
-    intercepted_resource_types->insert(
-        blink::mojom::ResourceType::kSharedWorker);
-    intercepted_resource_types->insert(blink::mojom::ResourceType::kFavicon);
-    intercepted_resource_types->insert(
-        blink::mojom::ResourceType::kServiceWorker);
-    intercepted_resource_types->insert(
-        blink::mojom::ResourceType::kPluginResource);
-    return true;
-  }
-  return false;
+  NOTREACHED();
 }
 
 Response ToInterceptionPatterns(
@@ -157,21 +85,17 @@ Response ToInterceptionPatterns(
     base::flat_set<blink::mojom::ResourceType> resource_types;
     std::string resource_type = pattern->GetResourceType("");
     if (!resource_type.empty()) {
-      if (!AddInterceptedResourceType(resource_type, &resource_types)) {
+      if (!NetworkHandler::AddInterceptedResourceType(resource_type,
+                                                      &resource_types)) {
         return Response::InvalidParams(
             base::StringPrintf("Unknown resource type in fetch filter: '%s'",
                                resource_type.c_str()));
       }
     }
-    auto stage = RequestStageToInterceptorStage(
-        pattern->GetRequestStage(Fetch::RequestStageEnum::Request));
-    if (!stage.has_value()) {
-      return Response::InvalidParams(
-          base::StringPrintf("Unsupported request stage '%s'",
-                             pattern->GetRequestStage("").c_str()));
-    }
-    result->emplace_back(pattern->GetUrlPattern("*"), std::move(resource_types),
-                         stage.value());
+    result->emplace_back(
+        pattern->GetUrlPattern("*"), std::move(resource_types),
+        RequestStageToInterceptorStage(
+            pattern->GetRequestStage(Fetch::RequestStageEnum::Request)));
   }
   return Response::Success();
 }
@@ -290,55 +214,6 @@ bool ValidateHeadersForRequest(
   }
   return true;
 }
-
-net::Error NetErrorFromString(const std::string& error, bool* ok) {
-  *ok = true;
-  if (error == Network::ErrorReasonEnum::Failed) {
-    return net::ERR_FAILED;
-  }
-  if (error == Network::ErrorReasonEnum::Aborted) {
-    return net::ERR_ABORTED;
-  }
-  if (error == Network::ErrorReasonEnum::TimedOut) {
-    return net::ERR_TIMED_OUT;
-  }
-  if (error == Network::ErrorReasonEnum::AccessDenied) {
-    return net::ERR_ACCESS_DENIED;
-  }
-  if (error == Network::ErrorReasonEnum::ConnectionClosed) {
-    return net::ERR_CONNECTION_CLOSED;
-  }
-  if (error == Network::ErrorReasonEnum::ConnectionReset) {
-    return net::ERR_CONNECTION_RESET;
-  }
-  if (error == Network::ErrorReasonEnum::ConnectionRefused) {
-    return net::ERR_CONNECTION_REFUSED;
-  }
-  if (error == Network::ErrorReasonEnum::ConnectionAborted) {
-    return net::ERR_CONNECTION_ABORTED;
-  }
-  if (error == Network::ErrorReasonEnum::ConnectionFailed) {
-    return net::ERR_CONNECTION_FAILED;
-  }
-  if (error == Network::ErrorReasonEnum::NameNotResolved) {
-    return net::ERR_NAME_NOT_RESOLVED;
-  }
-  if (error == Network::ErrorReasonEnum::InternetDisconnected) {
-    return net::ERR_INTERNET_DISCONNECTED;
-  }
-  if (error == Network::ErrorReasonEnum::AddressUnreachable) {
-    return net::ERR_ADDRESS_UNREACHABLE;
-  }
-  if (error == Network::ErrorReasonEnum::BlockedByClient) {
-    return net::ERR_BLOCKED_BY_CLIENT;
-  }
-  if (error == Network::ErrorReasonEnum::BlockedByResponse) {
-    return net::ERR_BLOCKED_BY_RESPONSE;
-  }
-  *ok = false;
-  return net::ERR_FAILED;
-}
-
 }  // namespace
 
 void FetchHandler::FailRequest(const String& requestId,
@@ -349,7 +224,7 @@ void FetchHandler::FailRequest(const String& requestId,
     return;
   }
   bool ok = false;
-  net::Error reason = NetErrorFromString(errorReason, &ok);
+  net::Error reason = NetworkHandler::NetErrorFromString(errorReason, &ok);
   if (!ok) {
     callback->sendFailure(Response::InvalidParams("Unknown errorReason"));
     return;
@@ -455,7 +330,7 @@ void FetchHandler::ContinueRequest(
           std::move(url), std::move(method), std::move(postData),
           std::move(request_headers), std::move(interceptResponse));
   interceptor_->ContinueInterceptedRequest(requestId, std::move(modifications),
-                                           std::move(callback));
+                                           WrapCallback(std::move(callback)));
 }
 
 void FetchHandler::ContinueWithAuth(
@@ -471,14 +346,14 @@ void FetchHandler::ContinueWithAuth(
       DevToolsURLLoaderInterceptor::AuthChallengeResponse;
   std::unique_ptr<AuthChallengeResponse> auth_response;
   std::string type = authChallengeResponse->GetResponse();
-  if (type == Fetch::AuthChallengeResponse::ResponseEnum::Default) {
+  if (type == Network::AuthChallengeResponse::ResponseEnum::Default) {
     auth_response = std::make_unique<AuthChallengeResponse>(
         AuthChallengeResponse::kDefault);
-  } else if (type == Fetch::AuthChallengeResponse::ResponseEnum::CancelAuth) {
+  } else if (type == Network::AuthChallengeResponse::ResponseEnum::CancelAuth) {
     auth_response = std::make_unique<AuthChallengeResponse>(
         AuthChallengeResponse::kCancelAuth);
   } else if (type ==
-             Fetch::AuthChallengeResponse::ResponseEnum::ProvideCredentials) {
+             Network::AuthChallengeResponse::ResponseEnum::ProvideCredentials) {
     auth_response = std::make_unique<AuthChallengeResponse>(
         base::UTF8ToUTF16(authChallengeResponse->GetUsername("")),
         base::UTF8ToUTF16(authChallengeResponse->GetPassword("")));
@@ -534,7 +409,11 @@ void FetchHandler::GetResponseBody(
     callback->sendFailure(Response::ServerError("Fetch domain is not enabled"));
     return;
   }
-  interceptor_->GetResponseBody(requestId, std::move(callback));
+  auto wrapped_callback = std::make_unique<CallbackWrapper<
+      GetResponseBodyCallback,
+      DevToolsURLLoaderInterceptor::GetResponseBodyForInterceptionCallback,
+      const std::string&, bool>>(std::move(callback));
+  interceptor_->GetResponseBody(requestId, std::move(wrapped_callback));
 }
 
 void FetchHandler::TakeResponseBodyAsStream(
@@ -603,8 +482,8 @@ void FetchHandler::RequestIntercepted(
     auto auth_challenge =
         Fetch::AuthChallenge::Create()
             .SetSource(info->auth_challenge->is_proxy
-                           ? Fetch::AuthChallenge::SourceEnum::Proxy
-                           : Fetch::AuthChallenge::SourceEnum::Server)
+                           ? Network::AuthChallenge::SourceEnum::Proxy
+                           : Network::AuthChallenge::SourceEnum::Server)
             .SetOrigin(info->auth_challenge->challenger.Serialize())
             .SetScheme(info->auth_challenge->scheme)
             .SetRealm(info->auth_challenge->realm)

@@ -120,7 +120,7 @@ constexpr CGFloat kHelpSymbolSize = 20;
       initWithRootViewController:_promoViewController];
 
   _helpButton = [[UIBarButtonItem alloc]
-      initWithImage:SymbolWithPointSize(SymbolHelp, kHelpSymbolSize)
+      initWithImage:DefaultSymbolWithPointSize(kHelpSymbol, kHelpSymbolSize)
               style:UIBarButtonItemStylePlain
              target:self
              action:@selector(showLearnMoreView)];

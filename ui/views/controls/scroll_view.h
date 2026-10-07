@@ -312,8 +312,9 @@ class VIEWS_EXPORT ScrollView : public View, public ScrollBarController {
     return horiz_sb_->is_scrolling() || vert_sb_->is_scrolling();
   }
 
-  bool GetUseContentsPreferredSize() const;
-  void SetUseContentsPreferredSize(bool use_contents_preferred_size);
+  void SetUseContentsPreferredSize(bool use_contents_preferred_size) {
+    use_contents_preferred_size_ = use_contents_preferred_size;
+  }
 
  private:
   friend class test::ScrollViewTestApi;

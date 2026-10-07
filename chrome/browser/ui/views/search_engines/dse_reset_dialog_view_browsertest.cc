@@ -6,7 +6,7 @@
 #include "base/test/scoped_feature_list.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/search_engines/template_url_service_factory.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/test/test_browser_dialog.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/frame/toolbar_button_provider.h"
@@ -37,8 +37,7 @@
 namespace {
 
 // Returns the DSE reset bubble if it is currently showing, otherwise nullptr.
-views::BubbleDialogDelegate* GetDseResetBubble(
-    BrowserWindowInterface* browser) {
+views::BubbleDialogDelegate* GetDseResetBubble(Browser* browser) {
   BrowserView* browser_view = BrowserView::GetBrowserViewForBrowser(browser);
   if (!browser_view || !browser_view->toolbar_button_provider()) {
     return nullptr;
@@ -61,6 +60,7 @@ views::BubbleDialogDelegate* GetDseResetBubble(
   }
   return nullptr;
 }
+
 
 }  // namespace
 
@@ -139,7 +139,7 @@ IN_PROC_BROWSER_TEST_F(DseResetDialogBrowserTest,
 
   views::BubbleDialogDelegate* bubble = GetDseResetBubble(browser());
   content::LoadStopObserver observer(
-      browser()->GetTabStripModel()->GetActiveWebContents());
+      browser()->tab_strip_model()->GetActiveWebContents());
 
   // The "Search settings" button is the dialog's Cancel button.
   bubble->CancelDialog();
@@ -147,7 +147,7 @@ IN_PROC_BROWSER_TEST_F(DseResetDialogBrowserTest,
   observer.Wait();
 
   content::WebContents* new_tab =
-      browser()->GetTabStripModel()->GetActiveWebContents();
+      browser()->tab_strip_model()->GetActiveWebContents();
 
   GURL current_url = new_tab->GetVisibleURL();
   bool is_valid_url = (current_url == GURL("chrome://settings/searchEngines") ||

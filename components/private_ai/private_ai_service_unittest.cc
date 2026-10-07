@@ -80,7 +80,7 @@ class PrivateAiServiceTest : public testing::Test {
         /*use_token_attestation=*/false,
         std::make_unique<FakePrivateAiNetworkDriver>(),
         std::make_unique<FakePrivateAiOakSessionDriver>(),
-        std::move(test_bsa_factory), version_info::Channel::STABLE);
+        std::move(test_bsa_factory));
   }
 
   void TearDown() override {

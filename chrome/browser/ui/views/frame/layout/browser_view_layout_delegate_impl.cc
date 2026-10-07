@@ -4,23 +4,18 @@
 
 #include "chrome/browser/ui/views/frame/layout/browser_view_layout_delegate_impl.h"
 
-#include "base/callback_list.h"
 #include "base/feature_list.h"
 #include "build/build_config.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/ui/animation/browser_animation_controller.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
 #include "chrome/browser/ui/find_bar/find_bar.h"
 #include "chrome/browser/ui/find_bar/find_bar_controller.h"
 #include "chrome/browser/ui/tabs/features.h"
-#include "chrome/browser/ui/tabs/tab_model.h"
-#include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/tabs/tab_strip_prefs.h"
 #include "chrome/browser/ui/tabs/vertical_tab_strip_state_controller.h"
 #include "chrome/browser/ui/views/frame/browser_frame_view.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/frame/browser_widget.h"
-#include "chrome/browser/ui/views/frame/glass_frame_service.h"
 #include "chrome/browser/ui/views/infobars/infobar_container_view.h"
 #include "chrome/browser/ui/views/tabs/organizer/organizer_panel_utils.h"
 #include "chrome/browser/ui/views/toolbar/toolbar_view.h"
@@ -52,19 +47,11 @@ BrowserViewLayoutDelegateImpl::BrowserViewLayoutDelegateImpl(
 BrowserViewLayoutDelegateImpl::~BrowserViewLayoutDelegateImpl() = default;
 
 bool BrowserViewLayoutDelegateImpl::ShouldDrawTabStrip() const {
-  if (IsInVerticalTabsMode() && ContentFullscreenOverridesShowTabstrip()) {
-    return false;
-  }
   return browser_view_->ShouldDrawTabStrip();
 }
 
 bool BrowserViewLayoutDelegateImpl::ShouldDrawVerticalTabStrip() const {
-  // Because we don't want to duplicate effort and because content fullscreen
-  // needs to be factored in (see https://crbug.com/554652531), do a slightly
-  // different calculation here than in
-  // BrowserView::ShouldDrawVerticalTabStrip().
-  return browser_view_->ShouldDrawTabStrip() && IsInVerticalTabsMode() &&
-         !ContentFullscreenOverridesShowTabstrip();
+  return browser_view_->ShouldDrawVerticalTabStrip();
 }
 
 bool BrowserViewLayoutDelegateImpl::IsVerticalTabStripCollapsed() const {
@@ -164,7 +151,7 @@ bool BrowserViewLayoutDelegateImpl::IsActiveTabSplit() const {
   // inconsistency would cause unnecessary re-layout of content view during
   // tab switch.
   auto* const active_tab =
-      browser_view_->browser()->GetTabStripModel()->GetActiveTab();
+      browser_view_->browser()->tab_strip_model()->GetActiveTab();
   return active_tab && active_tab->IsSplit();
 }
 
@@ -177,7 +164,7 @@ bool BrowserViewLayoutDelegateImpl::IsActiveTabAtLeadingWindowEdge() const {
     // of leading edge of horizontal tab strip.
     has_leading_search_button &= tab_search_pinned_to_tab_strip_;
     if (!frame->CaptionButtonsOnLeadingEdge() && !has_leading_search_button) {
-      return browser_view_->browser()->GetTabStripModel()->IsTabInForeground(0);
+      return browser_view_->browser()->tab_strip_model()->IsTabInForeground(0);
     }
   }
   return false;
@@ -186,11 +173,6 @@ bool BrowserViewLayoutDelegateImpl::IsActiveTabAtLeadingWindowEdge() const {
 const ImmersiveModeController*
 BrowserViewLayoutDelegateImpl::GetImmersiveModeController() const {
   return ImmersiveModeController::From(browser_view_->browser());
-}
-
-BrowserAnimationController*
-BrowserViewLayoutDelegateImpl::GetAnimationController() const {
-  return BrowserAnimationController::From(browser_view_->browser());
 }
 
 ExclusiveAccessBubbleViews*
@@ -267,7 +249,8 @@ int BrowserViewLayoutDelegateImpl::GetExtraInfobarOffset() const {
 }
 
 bool BrowserViewLayoutDelegateImpl::IsOrganizerPanelVisible() const {
-  return organizer_panel::IsOrganizerPanelFeatureEnabled();
+  return organizer_panel::IsOrganizerPanelVisibleForProfile(
+      browser_view_->GetProfile());
 }
 
 const BrowserFrameView* BrowserViewLayoutDelegateImpl::GetFrameView() const {
@@ -280,45 +263,4 @@ void BrowserViewLayoutDelegateImpl::OnTabSearchPinnedStateChanged() {
   tab_search_pinned_to_tab_strip_ =
       browser_view_->GetProfile()->GetPrefs()->GetBoolean(
           prefs::kTabSearchPinnedToTabstrip);
-}
-
-base::CallbackListSubscription
-BrowserViewLayoutDelegateImpl::AddOnGlassModeChangedCallback(
-    base::RepeatingCallback<void(bool)> callback,
-    bool* current_state_out) {
-  if (auto* const glass_frame_service = GlassFrameService::GetInstance()) {
-    auto* const browser = browser_view_->browser();
-    if (current_state_out) {
-      *current_state_out =
-          glass_frame_service->IsBrowserWindowEligible(browser);
-    }
-    return glass_frame_service->RegisterGlassFrameEligibilityChangedCallback(
-        browser, std::move(callback));
-  }
-  if (current_state_out) {
-    *current_state_out = false;
-  }
-  return base::CallbackListSubscription();
-}
-
-bool BrowserViewLayoutDelegateImpl::IsInVerticalTabsMode() const {
-  auto* const controller =
-      tabs::VerticalTabStripStateController::From(browser_view_->browser());
-  return controller && controller->ShouldDisplayVerticalTabs() &&
-         browser_view_->browser()->GetType() ==
-             BrowserWindowInterface::Type::TYPE_NORMAL;
-}
-
-bool BrowserViewLayoutDelegateImpl::ContentFullscreenOverridesShowTabstrip()
-    const {
-#if BUILDFLAG(IS_MAC)
-  // Do not lay out the vertical tabstrip in content-fullscreen on Mac. This
-  // check cannot be done in BrowserView because the immersive mode controller
-  // itself relies on BrowserView reporting which tab strip it *would* draw,
-  // creating a circular dependency/race condition.
-  if (fullscreen_utils::IsInContentFullscreen(browser_view_->browser())) {
-    return true;
-  }
-#endif
-  return false;
 }

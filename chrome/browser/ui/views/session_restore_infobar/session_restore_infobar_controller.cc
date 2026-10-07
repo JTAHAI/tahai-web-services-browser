@@ -12,6 +12,7 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/sessions/session_restore.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/views/session_restore_infobar/session_restore_infobar_delegate.h"
 #include "chrome/browser/ui/views/session_restore_infobar/session_restore_infobar_manager.h"
 #include "chrome/browser/ui/views/session_restore_infobar/session_restore_infobar_model.h"
 #include "chrome/browser/ui/views/session_restore_infobar/session_restore_infobar_prefs.h"
@@ -42,7 +43,7 @@ void SessionRestoreInfobarController::MaybeShowInfoBar(
   }
 
   model_ = std::make_unique<SessionRestoreInfobarModel>(profile,
-                                                         is_post_crash_launch);
+                                                        is_post_crash_launch);
 
   if (InfoBarShownMaxTimes(profile.GetPrefs())) {
     return;
@@ -57,7 +58,8 @@ void SessionRestoreInfobarController::MaybeShowInfoBar(
   if (!model_->ShouldShowOnStartup()) {
     return;
   }
-  if (GetInfobarMessageType() == InfobarMessageType::kNone) {
+  if (GetInfobarMessageType() ==
+      SessionRestoreInfoBarDelegate::InfobarMessageType::kNone) {
     return;
   }
 
@@ -71,19 +73,22 @@ SessionRestoreInfobarController* SessionRestoreInfobarController::From(
   return Get(browser->GetUnownedUserDataHost());
 }
 
-InfobarMessageType SessionRestoreInfobarController::GetInfobarMessageType() {
+SessionRestoreInfoBarDelegate::InfobarMessageType
+SessionRestoreInfobarController::GetInfobarMessageType() {
   switch (model_->GetSessionRestoreMessageValue()) {
     case SessionRestoreInfobarModel::SessionRestoreMessageValue::
         kContinueWhereLeftOff:
-      return InfobarMessageType::kTurnOffFromRestart;
+        return SessionRestoreInfoBarDelegate::InfobarMessageType::
+            kTurnOffFromRestart;
     case SessionRestoreInfobarModel::SessionRestoreMessageValue::kOpenNewTabPage:
       if (model_->IsDefaultSessionRestorePref()) {
-        return InfobarMessageType::kTurnOnSessionRestore;
+        return SessionRestoreInfoBarDelegate::InfobarMessageType::
+            kTurnOnSessionRestore;
       }
-      return InfobarMessageType::kNone;
+      return SessionRestoreInfoBarDelegate::InfobarMessageType::kNone;
     case SessionRestoreInfobarModel::SessionRestoreMessageValue::
         kOpenSpecificPages:
-      return InfobarMessageType::kNone;
+      return SessionRestoreInfoBarDelegate::InfobarMessageType::kNone;
   }
   NOTREACHED();
 }

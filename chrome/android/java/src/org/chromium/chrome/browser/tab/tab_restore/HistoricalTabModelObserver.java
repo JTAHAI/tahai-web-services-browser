@@ -7,7 +7,6 @@ package org.chromium.chrome.browser.tab.tab_restore;
 import static org.chromium.build.NullUtil.assumeNonNull;
 
 import android.text.TextUtils;
-import android.util.ArrayMap;
 
 import androidx.annotation.VisibleForTesting;
 
@@ -27,8 +26,8 @@ import org.chromium.components.tab_group_sync.TabGroupSyncService;
 import org.chromium.components.tab_groups.TabGroupColorId;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
 
@@ -91,7 +90,7 @@ public class HistoricalTabModelObserver implements TabModelObserver {
     }
 
     private void buildGroupsAndCreateClosure(List<Tab> tabs) {
-        Map<Token, HistoricalEntry> tabGroupIdToGroup = new ArrayMap<>();
+        HashMap<Token, HistoricalEntry> tabGroupIdToGroup = new HashMap<>();
         List<HistoricalEntry> entries = new ArrayList<>();
 
         Profile profile = assumeNonNull(mTabModel.getProfile());

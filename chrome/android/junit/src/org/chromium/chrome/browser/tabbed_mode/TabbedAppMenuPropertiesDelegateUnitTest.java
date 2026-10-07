@@ -32,7 +32,6 @@ import static org.chromium.chrome.browser.url_constants.UrlConstantResolver.getO
 
 import android.content.Context;
 import android.content.pm.PackageManager;
-import android.text.Spannable;
 import android.view.ContextThemeWrapper;
 import android.view.View;
 
@@ -58,7 +57,6 @@ import org.chromium.base.ContextUtils;
 import org.chromium.base.DeviceInfo;
 import org.chromium.base.ThreadUtils;
 import org.chromium.base.Token;
-import org.chromium.base.TriState;
 import org.chromium.base.UserDataHost;
 import org.chromium.base.supplier.ObservableSuppliers;
 import org.chromium.base.supplier.OneshotSupplierImpl;
@@ -70,7 +68,6 @@ import org.chromium.base.test.util.Features.EnableFeatures;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.ActivityTabProvider;
 import org.chromium.chrome.browser.RecentlyClosedEntriesManager;
-import org.chromium.chrome.browser.app.appmenu.AppMenuItemTheme;
 import org.chromium.chrome.browser.app.appmenu.AppMenuPropertiesDelegateImpl.MenuGroup;
 import org.chromium.chrome.browser.app.tabwindow.TabWindowManagerSingleton;
 import org.chromium.chrome.browser.bookmarks.BookmarkImageFetcher;
@@ -78,7 +75,6 @@ import org.chromium.chrome.browser.bookmarks.BookmarkModel;
 import org.chromium.chrome.browser.bookmarks.BookmarkUtils;
 import org.chromium.chrome.browser.bookmarks.FakeBookmarkModel;
 import org.chromium.chrome.browser.bookmarks.PowerBookmarkUtils;
-import org.chromium.chrome.browser.bookmarks.bar.BookmarkBarUtils;
 import org.chromium.chrome.browser.commerce.ShoppingServiceFactory;
 import org.chromium.chrome.browser.device.DeviceConditions;
 import org.chromium.chrome.browser.enterprise.util.ManagedBrowserUtils;
@@ -139,7 +135,6 @@ import org.chromium.chrome.browser.ui.messages.snackbar.SnackbarManager;
 import org.chromium.chrome.browser.ui.native_page.NativePage;
 import org.chromium.chrome.browser.ui.side_ui.SideUiCoordinator.SideUiId;
 import org.chromium.chrome.browser.ui.side_ui.SideUiStateProvider;
-import org.chromium.chrome.browser.ui.vertical_tabs.VerticalTabUtils;
 import org.chromium.chrome.test.OverrideContextWrapperTestRule;
 import org.chromium.components.bookmarks.BookmarkId;
 import org.chromium.components.browser_ui.accessibility.PageZoomManager;
@@ -171,7 +166,7 @@ import org.chromium.content_public.browser.WebContents;
 import org.chromium.google_apis.gaia.GoogleServiceAuthError;
 import org.chromium.google_apis.gaia.GoogleServiceAuthErrorState;
 import org.chromium.net.ConnectionType;
-import org.chromium.ui.accessibility.AccessibilityStateTestHelper;
+import org.chromium.ui.accessibility.AccessibilityState;
 import org.chromium.ui.modaldialog.ModalDialogManager;
 import org.chromium.ui.modelutil.MVCListAdapter;
 import org.chromium.ui.modelutil.MVCListAdapter.ListItem;
@@ -193,7 +188,6 @@ import java.util.Set;
 
 @RunWith(BaseRobolectricTestRunner.class)
 @DisableFeatures({
-    ChromeFeatureList.ENABLE_DOWNLOAD_SAVE_AS_CONTEXT_MENU,
     ChromeFeatureList.FEED_AUDIO_OVERVIEWS,
     ChromeFeatureList.LENS_OVERLAY_ANDROID,
     ChromeFeatureList.TASK_MANAGER_CLANK,
@@ -325,8 +319,6 @@ public class TabbedAppMenuPropertiesDelegateUnitTest {
         Context context =
                 new ContextThemeWrapper(
                         ContextUtils.getApplicationContext(), R.style.Theme_BrowserUI_DayNight);
-        BookmarkBarUtils.setActivityStateBookmarkBarCompatibleForTesting(true);
-        BookmarkBarUtils.setDeviceBookmarkBarCompatibleForTesting(true);
 
         mShadowPackageManager = Shadows.shadowOf(context.getPackageManager());
 
@@ -364,7 +356,7 @@ public class TabbedAppMenuPropertiesDelegateUnitTest {
         IdentityServicesProvider.setInstanceForTests(mIdentityService);
         when(mIdentityService.getIdentityManager(any(Profile.class))).thenReturn(mIdentityManager);
         when(mIdentityManager.hasPrimaryAccount()).thenReturn(true);
-        PageZoomUtils.setShouldShowMenuItemForTesting(TriState.FALSE);
+        PageZoomUtils.setShouldShowMenuItemForTesting(false);
         FeedFeatures.setFakePrefsForTest(mPrefService);
         FeedServiceBridgeJni.setInstanceForTesting(mFeedServiceBridgeJniMock);
         when(mSyncService.getAuthError())
@@ -447,8 +439,7 @@ public class TabbedAppMenuPropertiesDelegateUnitTest {
                         /* recentlyClosedEntriesManagerSupplier= */ () ->
                                 mRecentlyClosedEntriesManager,
                         () -> mSideUiStateProvider,
-                        /* xrSpaceModeObservableSupplier= */ ObservableSuppliers.createNonNull(
-                                false),
+                        /* isXrFullSpaceModeSupplier= */ () -> false,
                         /* canActivateTabLayoutToggleMenu= */ () ->
                                 mCanActivateTabLayoutToggleMenu);
         RobolectricUtil.runAllBackgroundAndUi();
@@ -478,12 +469,9 @@ public class TabbedAppMenuPropertiesDelegateUnitTest {
 
     @After
     public void tearDown() {
-        AccessibilityStateTestHelper.setIsKnownScreenReaderEnabledForTesting(false);
+        AccessibilityState.setIsKnownScreenReaderEnabledForTesting(false);
         BookmarkUtils.setReadingListSupportedForTesting(null);
         WebappsUtils.setAddToHomeIntentSupportedForTesting(null);
-        ChromeSharedPreferences.getInstance()
-                .removeKey(ChromePreferenceKeys.VERTICAL_TABS_LAYOUT_TOGGLE_VIEW_COUNT);
-        ChromeSharedPreferences.getInstance().removeKey(ChromePreferenceKeys.VERTICAL_TABS_ENABLED);
     }
 
     @Nullable
@@ -1035,8 +1023,6 @@ public class TabbedAppMenuPropertiesDelegateUnitTest {
     @Test
     @Config(qualifiers = "sw600dp")
     public void testPageMenuItems_Tablet_RegularPage() {
-        // Suppress the New badge for full-menu structural tests so they expect standard titles.
-        VerticalTabUtils.markNewBadgeAsDismissed();
         testPageMenuItems_RegularPage();
     }
 
@@ -1356,8 +1342,6 @@ public class TabbedAppMenuPropertiesDelegateUnitTest {
     @Test
     @Config(qualifiers = "sw600dp")
     public void testPageMenuItems_Tablet_IncognitoPage() {
-        // Suppress the New badge for full-menu structural tests so they expect standard titles.
-        VerticalTabUtils.markNewBadgeAsDismissed();
         testPageMenuItems_IncognitoPage();
     }
 
@@ -2144,7 +2128,7 @@ public class TabbedAppMenuPropertiesDelegateUnitTest {
 
         // Test specific setup
         ThreadUtils.hasSubtleSideEffectsSetThreadAssertsDisabledForTesting(true);
-        AccessibilityStateTestHelper.setIsKnownScreenReaderEnabledForTesting(true);
+        AccessibilityState.setIsKnownScreenReaderEnabledForTesting(true);
 
         ModelList modelList = mTabbedAppMenuPropertiesDelegate.getMenuItems();
 
@@ -2236,7 +2220,7 @@ public class TabbedAppMenuPropertiesDelegateUnitTest {
 
         // Test specific setup
         ThreadUtils.hasSubtleSideEffectsSetThreadAssertsDisabledForTesting(true);
-        AccessibilityStateTestHelper.setIsKnownScreenReaderEnabledForTesting(true);
+        AccessibilityState.setIsKnownScreenReaderEnabledForTesting(true);
 
         ModelList modelList = mTabbedAppMenuPropertiesDelegate.getMenuItems();
 
@@ -2765,23 +2749,15 @@ public class TabbedAppMenuPropertiesDelegateUnitTest {
                 "Vertical tabs menu item should exist in More tools",
                 isMenuVisible(moreToolsSubmenu, R.id.toggle_tab_layout_menu_id));
 
-        // Retrieve the item and inspect its model.
-        ListItem item = findItemById(moreToolsSubmenu, R.id.toggle_tab_layout_menu_id);
-        assertNotNull("Toggle layout item should be present", item);
-
-        CharSequence title = item.model.get(AppMenuItemProperties.TITLE);
-        assertNotNull("Title should not be null", title);
-
-        // Verify the title text contains "Show tabs vertically" and the "New" badge.
+        // Verify that it has the correct title in the submenu.
         assertTrue(
-                "Title should contain 'Show tabs vertically'",
-                title.toString()
-                        .contains(
-                                ContextUtils.getApplicationContext()
-                                        .getString(
-                                                org.chromium.chrome.tab_ui.R.string
-                                                        .show_tabs_vertically)));
-        assertTrue("Title should carry New badge spans", title instanceof Spannable);
+                "Title should match",
+                isMenuVisibleWithCorrectTitle(
+                        moreToolsSubmenu,
+                        R.id.toggle_tab_layout_menu_id,
+                        ContextUtils.getApplicationContext()
+                                .getString(
+                                        org.chromium.chrome.tab_ui.R.string.show_tabs_vertically)));
     }
 
     @Test
@@ -2825,104 +2801,6 @@ public class TabbedAppMenuPropertiesDelegateUnitTest {
         assertFalse(
                 "Vertical tabs item should be disabled when not showable.",
                 item.model.get(AppMenuItemProperties.ENABLED));
-    }
-
-    @Test
-    @EnableFeatures({ChromeFeatureList.ANDROID_VERTICAL_TABS})
-    @Config(qualifiers = "sw600dp")
-    public void tabLayoutToggleItem_showsNewBadgeAndIncrementsCount() {
-        ChromeSharedPreferences.getInstance()
-                .writeInt(ChromePreferenceKeys.VERTICAL_TABS_LAYOUT_TOGGLE_VIEW_COUNT, 0);
-
-        ModelList moreToolsSubmenu =
-                setUpPageMenuAndGetMoreToolsSubmenu(/* isVerticalTabsEnabled= */ false);
-
-        ListItem item = findItemById(moreToolsSubmenu, R.id.toggle_tab_layout_menu_id);
-        assertNotNull("Toggle layout menu item should be present", item);
-
-        CharSequence title = item.model.get(AppMenuItemProperties.TITLE);
-        assertNotNull(title);
-        assertTrue(
-                "Title should contain 'Show tabs vertically'",
-                title.toString()
-                        .contains(
-                                ContextUtils.getApplicationContext()
-                                        .getString(
-                                                org.chromium.chrome.tab_ui.R.string
-                                                        .show_tabs_vertically)));
-
-        assertTrue("Title should carry New badge spans", title instanceof Spannable);
-
-        // Verify shared count incremented from 0 to 1.
-        assertEquals(1, VerticalTabUtils.getNewBadgeViewCount());
-    }
-
-    @Test
-    @EnableFeatures({ChromeFeatureList.ANDROID_VERTICAL_TABS})
-    @Config(qualifiers = "sw600dp")
-    public void tabLayoutToggleItem_suppressesBadgeWhenVerticalActive() {
-        ChromeSharedPreferences.getInstance()
-                .writeInt(ChromePreferenceKeys.VERTICAL_TABS_LAYOUT_TOGGLE_VIEW_COUNT, 0);
-
-        // When vertical tabs are active, the option switches to horizontal, so the "New" badge
-        // should not show.
-        ModelList moreToolsSubmenu =
-                setUpPageMenuAndGetMoreToolsSubmenu(/* isVerticalTabsEnabled= */ true);
-
-        ListItem item = findItemById(moreToolsSubmenu, R.id.toggle_tab_layout_menu_id);
-        assertNotNull(item);
-
-        CharSequence title = item.model.get(AppMenuItemProperties.TITLE);
-        assertNotNull(title);
-        assertTrue(
-                title.toString()
-                        .contains(
-                                ContextUtils.getApplicationContext()
-                                        .getString(
-                                                org.chromium.chrome.tab_ui.R.string
-                                                        .show_tabs_horizontally)));
-
-        // Verify the title is a plain String without the badge spans attached.
-        assertFalse("Title should not contain New text", title.toString().contains("New"));
-        // View count remains 0 because switching to horizontal does not trigger the badge.
-        assertEquals(0, VerticalTabUtils.getNewBadgeViewCount());
-    }
-
-    @Test
-    @EnableFeatures({ChromeFeatureList.ANDROID_VERTICAL_TABS})
-    @Config(qualifiers = "sw600dp")
-    public void tabLayoutToggleItem_DesktopDevice_SuppressesNewBadge() {
-        ChromeSharedPreferences.getInstance()
-                .writeInt(ChromePreferenceKeys.VERTICAL_TABS_LAYOUT_TOGGLE_VIEW_COUNT, 0);
-
-        // Mock device form factor as Desktop.
-        DeviceInfo.setIsDesktopForTesting(true);
-
-        ModelList moreToolsSubmenu =
-                setUpPageMenuAndGetMoreToolsSubmenu(/* isVerticalTabsEnabled= */ false);
-
-        ListItem item = findItemById(moreToolsSubmenu, R.id.toggle_tab_layout_menu_id);
-        assertNotNull("Toggle layout menu item should be present", item);
-
-        CharSequence title = item.model.get(AppMenuItemProperties.TITLE);
-        assertNotNull("Title should not be null", title);
-        assertTrue(
-                title.toString()
-                        .contains(
-                                ContextUtils.getApplicationContext()
-                                        .getString(
-                                                org.chromium.chrome.tab_ui.R.string
-                                                        .show_tabs_vertically)));
-
-        // Verify the title is a plain String without the badge spans attached.
-        assertFalse(
-                "Title should not contain New text on Desktop", title.toString().contains("New"));
-        assertFalse(
-                "Title should not carry badge spans on Desktop",
-                title instanceof android.text.Spannable);
-
-        // View count should remain 0 because Desktop suppresses the badge.
-        assertEquals(0, VerticalTabUtils.getNewBadgeViewCount());
     }
 
     @Test
@@ -2989,7 +2867,7 @@ public class TabbedAppMenuPropertiesDelegateUnitTest {
     @Test
     public void pageZoomMenuOption_NotVisibleInReadingMode() {
         setUpMocksForPageMenu();
-        PageZoomUtils.setShouldShowMenuItemForTesting(TriState.TRUE);
+        PageZoomUtils.setShouldShowMenuItemForTesting(true);
         when(mTab.getUrl()).thenReturn(JUnitTestGURLs.CHROME_DISTILLER_EXAMPLE_URL);
         when(mDomDistillerUrlUtilsJni.isDistilledPage(any())).thenReturn(true);
 
@@ -4332,68 +4210,6 @@ public class TabbedAppMenuPropertiesDelegateUnitTest {
                         R.id.bookmark_folder_menu_id,
                         item(R.id.bookmark_menu_id),
                         item(R.id.bookmark_menu_id)));
-    }
-
-    @Test
-    @DisableFeatures(ChromeFeatureList.ENABLE_DOWNLOAD_SAVE_AS_CONTEXT_MENU)
-    public void testDownloadActionModel_SaveAsDisabled() {
-        setUpMocksForPageMenu();
-        ModelList modelList = mTabbedAppMenuPropertiesDelegate.getMenuItems();
-        ListItem iconRow = findItemById(modelList, R.id.icon_row_menu_id);
-        ListItem item =
-                findItemById(
-                        iconRow.model.get(AppMenuItemProperties.ADDITIONAL_ICONS),
-                        R.id.offline_page_id);
-        assertEquals(
-                ContextUtils.getApplicationContext().getString(R.string.download_page),
-                item.model.get(AppMenuItemProperties.TITLE));
-    }
-
-    @Test
-    @EnableFeatures(ChromeFeatureList.ENABLE_DOWNLOAD_SAVE_AS_CONTEXT_MENU)
-    public void testDownloadActionModel_SaveAsEnabled() {
-        setUpMocksForPageMenu();
-        ModelList modelList = mTabbedAppMenuPropertiesDelegate.getMenuItems();
-        ListItem iconRow = findItemById(modelList, R.id.icon_row_menu_id);
-        ListItem item =
-                findItemById(
-                        iconRow.model.get(AppMenuItemProperties.ADDITIONAL_ICONS),
-                        R.id.offline_page_id);
-        assertEquals(
-                ContextUtils.getApplicationContext().getString(R.string.menu_save_page_as),
-                item.model.get(AppMenuItemProperties.TITLE));
-    }
-
-    @Test
-    @DisableFeatures(ChromeFeatureList.ENABLE_DOWNLOAD_SAVE_AS_CONTEXT_MENU)
-    public void testDownloadPageItemTitle_SaveAsDisabled() {
-        SaveAndShareItemBuilder builder =
-                new SaveAndShareItemBuilder(
-                        ContextUtils.getApplicationContext(),
-                        new AppMenuItemTheme(
-                                ContextUtils.getApplicationContext(), mTabModelSelector),
-                        /* isMenuIconAtStart= */ false,
-                        mTabModelSelector);
-        ListItem item = builder.buildDownloadPageItem(/* showIcon= */ true);
-        assertEquals(
-                ContextUtils.getApplicationContext().getString(R.string.menu_download_page),
-                item.model.get(AppMenuItemProperties.TITLE));
-    }
-
-    @Test
-    @EnableFeatures(ChromeFeatureList.ENABLE_DOWNLOAD_SAVE_AS_CONTEXT_MENU)
-    public void testDownloadPageItemTitle_SaveAsEnabled() {
-        SaveAndShareItemBuilder builder =
-                new SaveAndShareItemBuilder(
-                        ContextUtils.getApplicationContext(),
-                        new AppMenuItemTheme(
-                                ContextUtils.getApplicationContext(), mTabModelSelector),
-                        /* isMenuIconAtStart= */ false,
-                        mTabModelSelector);
-        ListItem item = builder.buildDownloadPageItem(/* showIcon= */ true);
-        assertEquals(
-                ContextUtils.getApplicationContext().getString(R.string.menu_save_page_as),
-                item.model.get(AppMenuItemProperties.TITLE));
     }
 
     private MenuItem getExpectedBookmarksParentMenuTitle() {

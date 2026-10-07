@@ -12,7 +12,6 @@
 
 #include "base/memory/weak_ptr.h"
 #include "base/types/expected.h"
-#include "chrome/browser/actor/tools/actor_login_flow_verifier.h"
 #include "chrome/browser/actor/tools/attempt_otp_filling_tool_request.h"
 #include "chrome/browser/actor/tools/tool.h"
 #include "chrome/browser/actor/tools/tool_delegate.h"
@@ -25,6 +24,8 @@
 #include "components/one_time_tokens/core/browser/one_time_token_retrieval_error.h"
 
 namespace actor {
+
+class ActorLoginFlowVerifier;
 
 // A tool that attempts to retrieve a one-time password (OTP) and fill it into
 // the specified fields on the page. (One field or many smaller ones.)
@@ -61,17 +62,12 @@ class AttemptOtpFillingTool : public Tool {
  private:
   void OnGmailOtpOptInResponse(ToolCallback callback,
                                webui::mojom::GmailOtpOptInResultPtr response);
-  void OnGmailOtpConfirmationResponse(
-      ToolCallback callback,
-      std::string otp,
-      webui::mojom::GmailOtpConfirmationResultPtr response);
   void OnOtpRetrieved(
       ToolCallback callback,
       base::expected<std::string, one_time_tokens::OneTimeTokenRetrievalError>
           result);
   void OnOtpFilled(ToolCallback callback, bool success);
-  void OnActorLoginFlowChecked(ToolCallback callback,
-                               ActorLoginFlowVerifier::Result result);
+  void OnActorLoginFlowChecked(ToolCallback callback, bool is_actor_login);
 
   void LogJournalEvent(std::string_view event_name,
                        std::vector<mojom::JournalDetailsPtr> journal_details);
@@ -82,7 +78,6 @@ class AttemptOtpFillingTool : public Tool {
   bool for_signin_;
   AttemptOtpFillingToolRequest::OtpType predicted_otp_type_;
 
-  bool requires_confirmation_ = false;
   std::unique_ptr<ActorLoginFlowVerifier> actor_login_flow_verifier_;
 
   base::WeakPtrFactory<AttemptOtpFillingTool> weak_factory_{this};

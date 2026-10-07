@@ -8,17 +8,12 @@
 #include "base/feature_list.h"
 #include "base/metrics/field_trial_params.h"
 #include "base/time/time.h"
-#include "url/gurl.h"
 
 namespace browser_actuator {
 
 // Features and params internal to the browser_actuator implementation:
 // kill switches and tuning knobs that are not part of the embedder
 // contract (the embedder-facing feature lives in public/features.h).
-
-// Controls whether the background transport channel is enabled. If disabled,
-// no connection will be made.
-BASE_DECLARE_FEATURE(kBrowserActuatorChannelEnabled);
 
 // The server→client push transport backed by the Rust StreamBody framing
 // parser. On by default; serves as a kill switch and as the anchor for
@@ -37,12 +32,6 @@ BASE_DECLARE_FEATURE_PARAM(base::TimeDelta, kProtoStreamStallTimeout);
 
 // Maximum number of concurrent active transport sessions.
 BASE_DECLARE_FEATURE_PARAM(int, kMaxTransportSessions);
-
-// Returns the full endpoint URL for sendSessionMessage.
-GURL GetSendSessionMessageEndpoint();
-
-// Returns the full endpoint URL for watchSessions.
-GURL GetWatchSessionsEndPoint();
 
 }  // namespace browser_actuator
 

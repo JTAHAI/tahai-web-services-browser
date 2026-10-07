@@ -40,7 +40,7 @@ void BackgroundFetchServiceImpl::CreateForWorker(
     mojo::PendingReceiver<blink::mojom::BackgroundFetchService> receiver) {
   // TODO(rayankans): Remove `network_isolation_key` parameter since it's no
   // longer used.
-  CHECK_CURRENTLY_ON(BrowserThread::UI, base::NotFatalUntil::M158);
+  DCHECK_CURRENTLY_ON(BrowserThread::UI);
   RenderProcessHost* render_process_host =
       RenderProcessHost::FromID(info.process_id);
 
@@ -77,8 +77,8 @@ void BackgroundFetchServiceImpl::CreateForWorker(
 void BackgroundFetchServiceImpl::CreateForFrame(
     RenderFrameHost* render_frame_host,
     mojo::PendingReceiver<blink::mojom::BackgroundFetchService> receiver) {
-  CHECK_CURRENTLY_ON(BrowserThread::UI, base::NotFatalUntil::M158);
-  CHECK(render_frame_host, base::NotFatalUntil::M158);
+  DCHECK_CURRENTLY_ON(BrowserThread::UI);
+  DCHECK(render_frame_host);
 
   if (render_frame_host->IsNestedWithinFencedFrame()) {
     // The renderer should have checked and disallowed the request for fenced
@@ -95,7 +95,7 @@ void BackgroundFetchServiceImpl::CreateForFrame(
 
   auto* rfhi = static_cast<RenderFrameHostImpl*>(render_frame_host);
   RenderProcessHost* render_process_host = rfhi->GetProcess();
-  CHECK(render_process_host, base::NotFatalUntil::M158);
+  DCHECK(render_process_host);
 
   scoped_refptr<BackgroundFetchContext> context =
       WrapRefCounted(static_cast<StoragePartitionImpl*>(
@@ -119,9 +119,9 @@ BackgroundFetchServiceImpl::BackgroundFetchServiceImpl(
       isolation_info_(std::move(isolation_info)),
       rph_id_(rph->GetDeprecatedID()),
       rfh_id_(rfh ? rfh->GetGlobalId() : GlobalRenderFrameHostId()) {
-  CHECK_CURRENTLY_ON(BrowserThread::UI, base::NotFatalUntil::M158);
+  DCHECK_CURRENTLY_ON(BrowserThread::UI);
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  CHECK(background_fetch_context_, base::NotFatalUntil::M158);
+  DCHECK(background_fetch_context_);
 }
 
 BackgroundFetchServiceImpl::~BackgroundFetchServiceImpl() {
@@ -220,24 +220,6 @@ bool BackgroundFetchServiceImpl::ValidateRequests(
   if (requests.empty()) {
     mojo::ReportBadMessage("Invalid requests");
     return false;
-  }
-
-  // Ensure all requests are valid and use the HTTP or HTTPS scheme.
-  for (const auto& request : requests) {
-    if (!request) {
-      mojo::ReportBadMessage("Null request");
-      return false;
-    }
-
-    if (!request->url.is_valid()) {
-      mojo::ReportBadMessage("Invalid request URL");
-      return false;
-    }
-
-    if (!request->url.SchemeIsHTTPOrHTTPS()) {
-      mojo::ReportBadMessage("Invalid request URL scheme");
-      return false;
-    }
   }
 
   return true;

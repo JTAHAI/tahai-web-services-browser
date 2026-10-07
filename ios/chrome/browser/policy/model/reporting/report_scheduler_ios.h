@@ -7,19 +7,13 @@
 
 #include "base/memory/raw_ptr.h"
 #include "components/enterprise/browser/reporting/report_scheduler.h"
-#include "components/enterprise/browser/reporting/user_security_signals_service.h"
 
 class ProfileIOS;
 
-namespace network::mojom {
-class CookieManager;
-}
-
 namespace enterprise_reporting {
 
-// iOS implementation of the ReportScheduler delegate.
-class ReportSchedulerIOS : public ReportScheduler::Delegate,
-                           public UserSecuritySignalsService::Delegate {
+// Desktop implementation of the ReportScheduler delegate.
+class ReportSchedulerIOS : public ReportScheduler::Delegate {
  public:
   // Used for profile reporting if `profile` is non-null.
   explicit ReportSchedulerIOS(ProfileIOS* profile = nullptr);
@@ -35,12 +29,11 @@ class ReportSchedulerIOS : public ReportScheduler::Delegate,
                                     base::TimeDelta upload_interval) override;
   void StopWatchingUpdates() override;
   void OnBrowserVersionUploaded() override;
+  bool AreSecurityReportsEnabled() override;
+  bool UseCookiesInUploads() override;
+  void OnSecuritySignalsUploaded() override;
   policy::DMToken GetProfileDMToken() override;
   std::string GetProfileClientId() override;
-
-  // UserSecuritySignalsService::Delegate implementation.
-  void OnReportEventTriggered(SecurityReportTrigger trigger) override;
-  network::mojom::CookieManager* GetCookieManager() override;
 
  private:
   raw_ptr<ProfileIOS> profile_;

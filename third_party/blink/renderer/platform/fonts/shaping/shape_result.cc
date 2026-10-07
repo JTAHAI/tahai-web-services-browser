@@ -50,7 +50,6 @@
 #include "third_party/blink/renderer/platform/runtime_enabled_features.h"
 #include "third_party/blink/renderer/platform/text/text_break_iterator.h"
 #include "third_party/blink/renderer/platform/wtf/size_assertions.h"
-#include "third_party/blink/renderer/platform/wtf/text/format.h"
 #include "third_party/blink/renderer/platform/wtf/text/string_builder.h"
 #include "ui/gfx/geometry/skia_conversions.h"
 
@@ -91,9 +90,9 @@ struct SameSizeAsRunInfo {
 
    public:
     HeapVector<int> glyphs;
-    Member<void*> rare_data;
+    Member<void*> offsets;
   } glyph_data;
-  Member<void*> font_data;
+  Member<void*> pointer2[2];
   int integers[5];
 };
 
@@ -174,14 +173,13 @@ float ShapeResultRun::XPositionForVisualOffset(
 }
 
 unsigned ShapeResultRun::NumGraphemes(unsigned start, unsigned end) const {
-  const auto* graphemes = glyph_data_.Graphemes();
-  if (!graphemes || start >= num_characters_) {
+  if (!graphemes_ || start >= num_characters_) {
     return 0;
   }
   CHECK_LT(start, end);
   CHECK_LE(end, num_characters_);
-  CHECK_EQ(num_characters_, graphemes->size());
-  return (*graphemes)[end - 1] - (*graphemes)[start] + 1;
+  CHECK_EQ(num_characters_, graphemes_->size());
+  return (*graphemes_)[end - 1] - (*graphemes_)[start] + 1;
 }
 
 void ShapeResult::EnsureGraphemes(const StringView& text) const {
@@ -192,12 +190,12 @@ void ShapeResult::EnsureGraphemes(const StringView& text) const {
   if (runs_.empty())
     return;
 
-  const bool is_computed = runs_.front()->glyph_data_.HasGraphemes();
+  const bool is_computed = runs_.front()->graphemes_;
 #if EXPENSIVE_DCHECKS_ARE_ON()
   for (const auto& run : runs_) {
-    DCHECK_EQ(is_computed, run->glyph_data_.HasGraphemes());
-    if (const auto* graphemes = run->glyph_data_.Graphemes()) {
-      DCHECK_EQ(run->num_characters_, graphemes->size());
+    DCHECK_EQ(is_computed, !!run->graphemes_);
+    if (run->graphemes_) {
+      DCHECK_EQ(run->num_characters_, run->graphemes_->size());
     }
   }
 #endif
@@ -209,12 +207,12 @@ void ShapeResult::EnsureGraphemes(const StringView& text) const {
     if (!run)
       continue;
     DCHECK_GE(run->start_index_, result_start_index);
-    run->glyph_data_.SetGraphemes(
-        MakeGarbageCollected<GCedHeapVector<unsigned>>(run->num_characters_));
+    run->graphemes_ =
+        MakeGarbageCollected<GCedHeapVector<unsigned>>(run->num_characters_);
     GraphemesClusterList(
         StringView(text, run->start_index_ - result_start_index,
                    run->num_characters_),
-        *run->glyph_data_.Graphemes());
+        *run->graphemes_);
   }
 }
 
@@ -2080,7 +2078,7 @@ void ShapeResult::ToString(StringBuilder* output) const {
     output->AppendNumber(run.num_characters_);
     output->Append(", dir=");
     output->AppendNumber(run.hb_direction_);
-    FormatTo(*output, ", script={}{}{}{}", HB_UNTAG(run.script_));
+    output->AppendFormat(", script=%c%c%c%c", HB_UNTAG(run.script_));
     output->Append(", glyphs[");
     output->AppendNumber(run.glyph_data_.size());
     output->Append("]{");

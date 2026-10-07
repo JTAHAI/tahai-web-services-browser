@@ -25,7 +25,7 @@
 
 static_assert(BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX));
 
-class BrowserWindowInterface;
+class Browser;
 class ExtensionEnableFlow;
 
 namespace content {
@@ -118,7 +118,7 @@ class AppHomePageHandler
   app_home::mojom::AppInfoPtr GetApp(const webapps::AppId& app_id);
 
  private:
-  BrowserWindowInterface* GetCurrentBrowser();
+  Browser* GetCurrentBrowser();
 
   // Used to load the deprecated apps dialog if a chrome app is launched from
   // the command line.

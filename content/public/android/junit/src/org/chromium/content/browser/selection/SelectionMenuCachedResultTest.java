@@ -20,6 +20,7 @@ import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
+import org.robolectric.annotation.Config;
 
 import org.chromium.base.SelectionActionMenuClientWrapper.MenuType;
 import org.chromium.base.test.BaseRobolectricTestRunner;
@@ -32,6 +33,7 @@ import org.chromium.ui.base.Clipboard;
 
 /** Unit tests for {@link SelectionMenuCachedResult}. */
 @RunWith(BaseRobolectricTestRunner.class)
+@Config(manifest = Config.NONE)
 public class SelectionMenuCachedResultTest {
     @Rule public MockitoRule mMockitoRule = MockitoJUnit.rule();
     @Mock private TextClassification mTextClassification1;

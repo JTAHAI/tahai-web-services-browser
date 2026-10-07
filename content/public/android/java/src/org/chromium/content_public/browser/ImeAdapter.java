@@ -108,11 +108,10 @@ public interface ImeAdapter {
 
     /**
      * Replace the currently composing text with the given text, and set the new cursor position.
-     *
      * @param text The composing text.
      * @param newCursorPosition The new cursor position around the text.
      */
-    void setComposingTextForTest(CharSequence text, int newCursorPosition);
+    void setComposingTextForTest(final CharSequence text, final int newCursorPosition);
 
     /**
      * Call this when we get result from ResultReceiver passed in calling showSoftInput().

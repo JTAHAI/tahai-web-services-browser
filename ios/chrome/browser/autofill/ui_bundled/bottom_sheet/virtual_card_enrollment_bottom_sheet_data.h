@@ -6,7 +6,7 @@
 #define IOS_CHROME_BROWSER_AUTOFILL_UI_BUNDLED_BOTTOM_SHEET_VIRTUAL_CARD_ENROLLMENT_BOTTOM_SHEET_DATA_H_
 
 #import "ios/chrome/browser/autofill/model/credit_card/credit_card_data.h"
-#import "ios/chrome/browser/autofill/model/message/autofill_legal_message_line.h"
+#import "ios/chrome/browser/autofill/model/message/save_card_message_with_links.h"
 
 // A value object of properties shown in the enrollment prompt.
 @interface VirtualCardEnrollmentBottomSheetData : NSObject
@@ -31,12 +31,14 @@
 @property(readonly, copy) NSString* learnMoreLinkText;
 
 // The legal message from the payment server.
+// TODO(crbug.com/40282545): Rename SaveCardMessageWithLinks to
+// LegalMessageLine.
 @property(readonly, strong)
-    NSArray<AutofillLegalMessageLine*>* paymentServerLegalMessageLines;
+    NSArray<SaveCardMessageWithLinks*>* paymentServerLegalMessageLines;
 
 // The legal message from the issuer.
 @property(readonly, strong)
-    NSArray<AutofillLegalMessageLine*>* issuerLegalMessageLines;
+    NSArray<SaveCardMessageWithLinks*>* issuerLegalMessageLines;
 
 - (instancetype)init NS_UNAVAILABLE;
 
@@ -48,9 +50,9 @@
                   cancelActionText:(NSString*)cancelActionText
                  learnMoreLinkText:(NSString*)learnMoreLinkText
            googleLegalMessageLines:
-               (NSArray<AutofillLegalMessageLine*>*)googleLegalMessageLines
+               (NSArray<SaveCardMessageWithLinks*>*)googleLegalMessageLines
            issuerLegalMessageLines:
-               (NSArray<AutofillLegalMessageLine*>*)issuerLegalMessageLines
+               (NSArray<SaveCardMessageWithLinks*>*)issuerLegalMessageLines
     NS_DESIGNATED_INITIALIZER;
 
 @end

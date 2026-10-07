@@ -7,7 +7,6 @@
 
 #include <limits>
 #include <map>
-#include <optional>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -68,13 +67,10 @@ class CallStackProfileBuilder : public base::ProfileBuilder {
   ~CallStackProfileBuilder() override;
 
   // Both weight and count are used by the heap profiler only.
-  // |resident_bytes| indicates how many bytes of the heap allocation are
-  // resident in physical memory.
   void OnSampleCompleted(std::vector<base::Frame> frames,
                          base::TimeTicks sample_timestamp,
                          size_t weight,
-                         size_t count,
-                         std::optional<size_t> resident_bytes = std::nullopt);
+                         size_t count);
 
   // base::ProfileBuilder:
   base::ModuleCache* GetModuleCache() override;

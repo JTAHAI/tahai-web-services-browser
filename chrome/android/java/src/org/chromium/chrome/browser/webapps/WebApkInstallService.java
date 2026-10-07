@@ -15,7 +15,6 @@ import org.jni_zero.CalledByNative;
 import org.jni_zero.JniType;
 
 import org.chromium.base.ContextUtils;
-import org.chromium.base.DeviceInfo;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.R;
@@ -48,7 +47,7 @@ public class WebApkInstallService {
     /** Displays a notification when a WebAPK is successfully installed. */
     @CalledByNative
     @VisibleForTesting
-    static void showInstalledNotificationAndMaybeLaunch(
+    static void showInstalledNotification(
             @JniType("std::string") String webApkPackage,
             @JniType("std::string") String notificationId,
             @JniType("std::u16string") String shortName,
@@ -64,8 +63,6 @@ public class WebApkInstallService {
                 PendingIntentProvider.getActivity(
                         context, /* requestCode= */ 0, intent, PendingIntent.FLAG_UPDATE_CURRENT);
 
-        maybeLaunchWebApp(context, intent);
-
         if (isIconMaskable) {
             icon = WebappsIconUtils.generateAdaptiveIconBitmap(icon);
         }
@@ -78,17 +75,6 @@ public class WebApkInstallService {
                 icon,
                 context.getString(R.string.notification_webapk_installed),
                 clickPendingIntent);
-    }
-
-    private static void maybeLaunchWebApp(Context context, Intent intent) {
-        if (!DeviceInfo.isDesktop()) return;
-
-        try {
-            // Auto-launch the installed WebAPK in its own standalone window on Desktop Android.
-            context.startActivity(intent);
-        } catch (Exception e) {
-            org.chromium.base.Log.e("WebApkInstallService", "Failed to launch installed WebAPK", e);
-        }
     }
 
     /** Display a notification when an install starts. */

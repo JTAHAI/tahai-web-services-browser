@@ -285,7 +285,10 @@ bool IsValidTurnURL(const KURL& url) {
 
 // Determines if the current context disallows WebRTC. Corresponds to the
 // algorithm in https://www.w3.org/TR/CSP3/#should-block-rtc-connection.
-bool AreIceCandidatesAdministrativelyProhibited(ExecutionContext* context) {
+// To avoid redundant Reporting API triggers and UMA pings, we only set
+// send_report when constructing an actual RTCPeerConnection.
+bool AreIceCandidatesAdministrativelyProhibited(ExecutionContext* context,
+                                                bool send_report = false) {
   const network::ConnectionAllowlists& connection_allowlists =
       context->GetPolicyContainer()->GetPolicies().connection_allowlists;
 
@@ -725,7 +728,8 @@ RTCPeerConnection::RTCPeerConnection(
       encoded_insertable_streams_(encoded_insertable_streams) {
   LocalDOMWindow* window = To<LocalDOMWindow>(context);
 
-  if (AreIceCandidatesAdministrativelyProhibited(context)) {
+  if (AreIceCandidatesAdministrativelyProhibited(context,
+                                                 /*send_report=*/true)) {
     are_ice_candidates_administratively_prohibited_ = true;
   }
   MaybeReportConnectionAllowlistViolation(context);
@@ -1439,14 +1443,14 @@ RTCConfiguration* RTCPeerConnection::getConfiguration(
     url_vector.reserve(
         base::checked_cast<wtf_size_t>(webrtc_server.urls.size()));
     for (const auto& url : webrtc_server.urls) {
-      url_vector.emplace_back(url);
+      url_vector.emplace_back(url.c_str());
     }
     auto* urls = MakeGarbageCollected<V8UnionStringOrStringSequence>(
         std::move(url_vector));
 
     ice_server->setUrls(urls);
-    ice_server->setUsername(String(webrtc_server.username));
-    ice_server->setCredential(String(webrtc_server.password));
+    ice_server->setUsername(webrtc_server.username.c_str());
+    ice_server->setCredential(webrtc_server.password.c_str());
     ice_servers.push_back(ice_server);
   }
   result->setIceServers(ice_servers);
@@ -2214,7 +2218,7 @@ RTCDataChannel* RTCPeerConnection::createDataChannel(
   }
   init.protocol = data_channel_dict->protocol().Utf8();
   init.negotiated = data_channel_dict->negotiated();
-  if (init.negotiated && data_channel_dict->hasId()) {
+  if (data_channel_dict->hasId()) {
     init.id = data_channel_dict->id();
   }
   if (data_channel_dict->hasPriority()) {
@@ -2772,11 +2776,6 @@ void RTCPeerConnection::DidModifyTransceivers(
     auto* track_event = MakeGarbageCollected<RTCTrackEvent>(
         transceiver->receiver(), transceiver->receiver()->track(),
         transceiver->receiver()->streams(), transceiver);
-    // Only log events that are actually dispatched to JavaScript, matching
-    // the condition in MaybeDispatchEvent().
-    if (!suppress_events_) {
-      peer_handler_->TrackOnTrack(*track_event);
-    }
     MaybeDispatchEvent(track_event);
   }
 
@@ -3115,8 +3114,8 @@ void RTCPeerConnection::CloseInternal() {
   if (sctp_transport_) {
     sctp_transport_->Close();
   }
-  // Closing a transport can invalidate its weak map entry, so iterate over a
-  // copy of the transports list.
+  // Since Close() can trigger JS-level callbacks, iterate over a copy
+  // of the transports list.
   auto dtls_transports_copy = dtls_transports_by_native_transport_;
   for (auto& dtls_transport_iter : dtls_transports_copy) {
     // Since "value" is a WeakPtr, check if it's still valid.

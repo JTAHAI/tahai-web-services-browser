@@ -17,7 +17,8 @@ mod macro_utils;
 #[macro_use]
 mod impl_panicfmt;
 
-pub(crate) mod unwrapping;
+#[macro_use]
+mod unwrapping;
 
 #[doc(hidden)]
 #[macro_export]

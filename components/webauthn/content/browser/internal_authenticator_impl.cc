@@ -82,17 +82,17 @@ void InternalAuthenticatorImpl::IsUserVerifyingPlatformAuthenticatorAvailable(
 }
 
 bool InternalAuthenticatorImpl::IsGetMatchingCredentialIdsSupported() {
-  return authenticator_common_->IsGetMatchingCredentialIdsSupported();
+  // TODO(crbug.com/40868539): Not yet supported on any desktop platform.
+  return false;
 }
 
 void InternalAuthenticatorImpl::GetMatchingCredentialIds(
-    std::string_view relying_party_id,
-    base::span<const std::vector<uint8_t>> credential_ids,
+    const std::string& relying_party_id,
+    const std::vector<std::vector<uint8_t>>& credential_ids,
     bool require_third_party_payment_bit,
     webauthn::GetMatchingCredentialIdsCallback callback) {
-  authenticator_common_->GetMatchingCredentialIds(
-      relying_party_id, credential_ids, require_third_party_payment_bit,
-      std::move(callback));
+  // Not yet supported on any desktop platform.
+  NOTREACHED();
 }
 
 void InternalAuthenticatorImpl::Cancel() {

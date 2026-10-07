@@ -80,15 +80,12 @@ void AXCanvasAnnotator::CancelAnnotations() {
   OnOcrDisconnected();
 }
 
-bool AXCanvasAnnotator::ConnectOcrIfNeeded() {
-  // If remote is already bound and connected, reuse it. If bound but
-  // disconnected (e.g., OCR service restarted or disconnected), falling through
-  // to reset() safely resets the remote so it can be rebound.
-  if (annotator_remote_.is_bound() && annotator_remote_.is_connected()) {
-    return true;
+void AXCanvasAnnotator::ConnectOcrIfNeeded() {
+  if (annotator_remote_.is_connected()) {
+    return;
   }
   if (!render_accessibility_->render_frame()) {
-    return false;
+    return;
   }
   annotator_remote_.reset();
   render_accessibility_->render_frame()
@@ -97,7 +94,6 @@ bool AXCanvasAnnotator::ConnectOcrIfNeeded() {
   annotator_remote_->SetClientType(screen_ai::mojom::OcrClientType::kCanvas);
   annotator_remote_.set_disconnect_handler(base::BindOnce(
       &AXCanvasAnnotator::OnOcrDisconnected, weak_factory_.GetWeakPtr()));
-  return true;
 }
 
 void AXCanvasAnnotator::OnOcrDisconnected() {
@@ -142,19 +138,23 @@ void AXCanvasAnnotator::AddCanvasAnnotationForNode(blink::WebAXObject& src,
     // guarantees in-order response delivery, so the latest request's output
     // will always overwrite any stale responses when it arrives. OCR service
     // does not support canceling a request.
+    canvas_annotations_.erase(src.AxID());
     src.ClearHasRequestedOCR();
   }
 
   auto it = canvas_annotations_.find(src.AxID());
-  if (it != canvas_annotations_.end() && !it->second.text.empty()) {
-    // If an annotation text exists, attach it to the AX node data. If a new OCR
-    // request is initiated below, this preserves existing annotation text while
-    // the new request runs asynchronously.
-    dst.AddStringAttribute(ax::mojom::StringAttribute::kCanvasAnnotation,
-                           it->second.text);
+  if (it != canvas_annotations_.end()) {
+    if (it->second.is_pending) {
+      return;
+    }
+    if (!it->second.text.empty()) {
+      dst.AddStringAttribute(ax::mojom::StringAttribute::kCanvasAnnotation,
+                             it->second.text);
+    }
+    return;
   }
 
-  // Do not initiate image extraction if OCR was not requested for this canvas.
+  // Do not initiate image extraction if OCR has not been requested.
   if (!ocr_requested) {
     return;
   }
@@ -167,36 +167,22 @@ void AXCanvasAnnotator::AddCanvasAnnotationForNode(blink::WebAXObject& src,
   blink::WebElement element = node.To<blink::WebElement>();
   SkBitmap bitmap = element.ImageContents();
 
-  // Drop processing for massive canvases to avoid OOM or empty bitmaps.
+  // Drop processing for massive canvases to avoid OOM.
   // TODO(crbug.com/498093320): Consider high-quality downsampling for large
   // canvases in the future instead of dropping them completely.
   bool is_too_large = bitmap.width() > kMaxCanvasDimension ||
                       bitmap.height() > kMaxCanvasDimension;
   if (is_too_large || bitmap.drawsNothing()) {
-    if (it != canvas_annotations_.end()) {
-      it->second.text.clear();
-      it->second.is_pending = false;
-    } else {
-      canvas_annotations_.emplace(src.AxID(), CanvasAnnotationInfo{});
-    }
+    canvas_annotations_[src.AxID()] = {.text = "", .is_pending = false};
     return;
   }
 
-  // Screen AI Mojo interface requires skia.mojom.BitmapN32, which enforces
-  // kN32_SkColorType. Non-empty bitmaps from WebElement::ImageContents()
-  // are guaranteed to have N32 color type.
-  CHECK_EQ(bitmap.colorType(), kN32_SkColorType);
-
-  if (!ConnectOcrIfNeeded()) {
+  ConnectOcrIfNeeded();
+  if (!annotator_remote_.is_connected()) {
     return;
   }
 
-  if (it != canvas_annotations_.end()) {
-    it->second.is_pending = true;
-  } else {
-    canvas_annotations_.emplace(
-        src.AxID(), CanvasAnnotationInfo{.text = "", .is_pending = true});
-  }
+  canvas_annotations_[src.AxID()] = {.text = "", .is_pending = true};
 
   annotator_remote_->PerformOcrAndReturnAnnotation(
       bitmap, base::BindOnce(&AXCanvasAnnotator::OnCanvasAnnotated,
@@ -230,15 +216,7 @@ void AXCanvasAnnotator::OnCanvasAnnotated(
 
   canvas_annotations_[canvas.AxID()] = {.text = std::move(text),
                                         .is_pending = false};
-
-  // Mark the canvas object dirty and fire kChildrenChanged with immediate
-  // serialization. Unlike static images, canvas OCR annotations update
-  // dynamically and require immediate IPC dispatch to update the browser-side
-  // tree snapshot, as well as kChildrenChanged notifications for screen
-  // readers.
   render_accessibility_->MarkWebAXObjectDirty(canvas);
-  render_accessibility_->HandleAXEvent(
-      ui::AXEvent(canvas.AxID(), ax::mojom::Event::kChildrenChanged));
 }
 
 void AXCanvasAnnotator::PruneStaleAnnotations(

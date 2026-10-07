@@ -9,13 +9,15 @@
 #include "base/functional/callback_helpers.h"
 #include "base/notreached.h"
 #include "base/test/test_future.h"
+#include "base/test/with_feature_override.h"
 #include "chrome/browser/ui/autofill/autofill_ai/entity_attribute_update_details.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/test/test_browser_dialog.h"
 #include "chrome/test/base/ui_test_utils.h"
 #include "components/autofill/core/browser/data_model/autofill_ai/entity_instance.h"
 #include "components/autofill/core/browser/foundations/autofill_client.h"
-#include "components/autofill/core/browser/test_utils/entity_data_test_util.h"
+#include "components/autofill/core/browser/test_utils/entity_data_test_utils.h"
+#include "components/autofill/core/common/autofill_features.h"
 #include "content/public/browser/visibility.h"
 #include "content/public/test/browser_test.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -40,9 +42,13 @@ std::pair<EntityInstance, EntityInstance> GetUpdateEntities() {
   return std::make_pair(new_entity, old_entity);
 }
 }  // namespace
-class AutofillAiImportDataControllerImplTest : public DialogBrowserTest {
+class AutofillAiImportDataControllerImplTest
+    : public DialogBrowserTest,
+      public base::test::WithFeatureOverride {
  public:
-  AutofillAiImportDataControllerImplTest() = default;
+  AutofillAiImportDataControllerImplTest()
+      : base::test::WithFeatureOverride(
+            features::kAutofillShowBubblesBasedOnPriorities) {}
 
   AutofillAiImportDataControllerImplTest(
       const AutofillAiImportDataControllerImplTest&) = delete;
@@ -85,6 +91,8 @@ class AutofillAiImportDataControllerImplTest : public DialogBrowserTest {
     DialogBrowserTest::TearDownOnMainThread();
   }
 
+  bool IsBubbleManagerEnabled() const { return GetParam(); }
+
   AutofillAiImportDataControllerImpl* controller() { return controller_; }
 
   // Used in the save prompt case, this method can be called to set specific
@@ -100,7 +108,7 @@ class AutofillAiImportDataControllerImplTest : public DialogBrowserTest {
   raw_ptr<AutofillAiImportDataControllerImpl> controller_ = nullptr;
 };
 
-IN_PROC_BROWSER_TEST_F(AutofillAiImportDataControllerImplTest,
+IN_PROC_BROWSER_TEST_P(AutofillAiImportDataControllerImplTest,
                        UpdatedAttributesDetails_UpdateEntity) {
   ShowUi("UpdateEntity");
   std::vector<EntityAttributeUpdateDetails> update_details =
@@ -117,7 +125,7 @@ IN_PROC_BROWSER_TEST_F(AutofillAiImportDataControllerImplTest,
       AutofillClient::AutofillAiBubbleResult::kAccepted);
 }
 
-IN_PROC_BROWSER_TEST_F(AutofillAiImportDataControllerImplTest,
+IN_PROC_BROWSER_TEST_P(AutofillAiImportDataControllerImplTest,
                        UpdatedAttributesDetails_SaveNewEntity) {
   ShowUi("SaveNewEntity");
   std::vector<EntityAttributeUpdateDetails> update_details =
@@ -131,10 +139,32 @@ IN_PROC_BROWSER_TEST_F(AutofillAiImportDataControllerImplTest,
       AutofillClient::AutofillAiBubbleResult::kAccepted);
 }
 
+// When clicking a link in the bubble the user is navigated to a new tab, which
+// leads to the bubble to be closed. This test checks that when the user
+// navigates back to the tab where the bubble was first shown, the bubble
+// reapears.
+IN_PROC_BROWSER_TEST_P(AutofillAiImportDataControllerImplTest,
+                       LinkClicked_WebContentsBecomesVisible_ReshowBubble) {
+  if (GetParam()) {
+    GTEST_SKIP() << "BubbleManager doesn't get informed of the tab changes";
+  }
+
+  SetNewEntitiesOptions(
+      {.record_type = EntityInstance::RecordType::kServerWallet});
+  ShowUi("SaveNewEntity");
+
+  ASSERT_TRUE(controller()->IsShowingBubble());
+  controller()->OnGoToWalletLinkClicked();
+  ASSERT_FALSE(controller()->IsShowingBubble());
+
+  controller()->OnVisibilityChanged(content::Visibility::VISIBLE);
+  EXPECT_TRUE(controller()->IsShowingBubble());
+}
+
 // Differently from when clicking on a link in the bubble, which leads to the
 // bubble being closed. Other reasons for closing it should not lead to the
 // bubble being re-shown when the webcontents becomes visible again.
-IN_PROC_BROWSER_TEST_F(AutofillAiImportDataControllerImplTest,
+IN_PROC_BROWSER_TEST_P(AutofillAiImportDataControllerImplTest,
                        BubbleDeclined_WebContentsBecomesVisible_DoNotReshowWh) {
   ShowUi("SaveNewEntity");
 
@@ -147,7 +177,7 @@ IN_PROC_BROWSER_TEST_F(AutofillAiImportDataControllerImplTest,
   EXPECT_FALSE(controller()->IsShowingBubble());
 }
 
-IN_PROC_BROWSER_TEST_F(AutofillAiImportDataControllerImplTest,
+IN_PROC_BROWSER_TEST_P(AutofillAiImportDataControllerImplTest,
                        WalletableEntity) {
   SetNewEntitiesOptions(
       {.record_type = EntityInstance::RecordType::kServerWallet});
@@ -155,7 +185,7 @@ IN_PROC_BROWSER_TEST_F(AutofillAiImportDataControllerImplTest,
   EXPECT_TRUE(controller()->IsWalletableEntity());
 }
 
-IN_PROC_BROWSER_TEST_F(AutofillAiImportDataControllerImplTest,
+IN_PROC_BROWSER_TEST_P(AutofillAiImportDataControllerImplTest,
                        IsNotWalletableEntity) {
   SetNewEntitiesOptions({.record_type = EntityInstance::RecordType::kLocal});
   ShowUi("SaveNewEntity");
@@ -164,7 +194,7 @@ IN_PROC_BROWSER_TEST_F(AutofillAiImportDataControllerImplTest,
 
 // Tests that calling `ShowPrompt()` when a bubble is already visible result in
 // the prompt closed callback being called with the `kUnknown` reason.
-IN_PROC_BROWSER_TEST_F(AutofillAiImportDataControllerImplTest,
+IN_PROC_BROWSER_TEST_P(AutofillAiImportDataControllerImplTest,
                        ShowPrompt_BubbleAlreadyVisible) {
   ShowUi("SaveNewEntity");
   ASSERT_TRUE(controller()->IsShowingBubble());
@@ -182,7 +212,7 @@ IN_PROC_BROWSER_TEST_F(AutofillAiImportDataControllerImplTest,
 
 // Tests that if the prompt is configured to not close on accept, clicking the
 // save button does not close the bubble.
-IN_PROC_BROWSER_TEST_F(AutofillAiImportDataControllerImplTest,
+IN_PROC_BROWSER_TEST_P(AutofillAiImportDataControllerImplTest,
                        AcceptPrompt_DoNotCloseBubble) {
   ShowUi("SaveNewEntity_NoCloseOnAccept");
 
@@ -196,5 +226,7 @@ IN_PROC_BROWSER_TEST_F(AutofillAiImportDataControllerImplTest,
   controller()->OnBubbleClosed(
       AutofillClient::AutofillAiBubbleResult::kAccepted);
 }
+
+INSTANTIATE_FEATURE_OVERRIDE_TEST_SUITE(AutofillAiImportDataControllerImplTest);
 
 }  // namespace autofill

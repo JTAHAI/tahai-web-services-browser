@@ -77,7 +77,7 @@ TEST_F(AllowlistCheckerClientTest, TestCsdListMatch) {
   EXPECT_CALL(*database_manager_, CheckCsdAllowlistUrl(target_url_, _))
       .WillOnce(Return(AsyncMatch::MATCH));
   MockBoolCallback callback;
-  EXPECT_CALL(callback, Run(/*did_match_allowlist=*/true));
+  EXPECT_CALL(callback, Run(true /* did_match_allowlist */));
   AllowlistCheckerClient::StartCheckCsdAllowlist(database_manager_, target_url_,
                                                  callback.Get());
   histogram_tester.ExpectUniqueSample(
@@ -92,37 +92,12 @@ TEST_F(AllowlistCheckerClientTest, TestCsdListNoMatch) {
   EXPECT_CALL(*database_manager_, CheckCsdAllowlistUrl(target_url_, _))
       .WillOnce(Return(AsyncMatch::NO_MATCH));
   MockBoolCallback callback;
-  EXPECT_CALL(callback, Run(/*did_match_allowlist=*/false));
+  EXPECT_CALL(callback, Run(false /* did_match_allowlist */));
   AllowlistCheckerClient::StartCheckCsdAllowlist(database_manager_, target_url_,
                                                  callback.Get());
   histogram_tester.ExpectUniqueSample(
       "SafeBrowsing.ClientSidePhishingDetection.AllowlistMatchResult",
       /*sample=*/AsyncMatch::NO_MATCH, /*expected_bucket_count=*/1);
-  histogram_tester.ExpectTotalCount(
-      "SafeBrowsing.ClientSidePhishingDetection.AllowlistCheckDuration", 1);
-}
-
-TEST_F(AllowlistCheckerClientTest, TestCsdListAsyncMatch) {
-  base::HistogramTester histogram_tester;
-  SafeBrowsingDatabaseManager::Client* client;
-  EXPECT_CALL(*database_manager_, CheckCsdAllowlistUrl(target_url_, _))
-      .WillOnce(DoAll(SaveArg<1>(&client), Return(AsyncMatch::ASYNC)));
-
-  MockBoolCallback callback;
-  AllowlistCheckerClient::StartCheckCsdAllowlist(database_manager_, target_url_,
-                                                 callback.Get());
-  histogram_tester.ExpectUniqueSample(
-      "SafeBrowsing.ClientSidePhishingDetection.AllowlistMatchResult",
-      /*sample=*/AsyncMatch::ASYNC, /*expected_bucket_count=*/1);
-  // Callback should not be called yet.
-
-  EXPECT_CALL(callback, Run(/*did_match_allowlist=*/true));
-  // The self-owned client deletes itself here.
-  client->OnCheckAllowlistUrlResult(/*did_match_allowlist=*/true);
-  histogram_tester.ExpectUniqueSample(
-      "SafeBrowsing.ClientSidePhishingDetection.AllowlistAsyncMatchResult",
-      /*sample=*/AllowlistCheckerClient::AllowlistAsyncMatchResult::kMatch,
-      /*expected_bucket_count=*/1);
   histogram_tester.ExpectTotalCount(
       "SafeBrowsing.ClientSidePhishingDetection.AllowlistCheckDuration", 1);
 }
@@ -141,9 +116,9 @@ TEST_F(AllowlistCheckerClientTest, TestCsdListAsyncNoMatch) {
       /*sample=*/AsyncMatch::ASYNC, /*expected_bucket_count=*/1);
   // Callback should not be called yet.
 
-  EXPECT_CALL(callback, Run(/*did_match_allowlist=*/false));
+  EXPECT_CALL(callback, Run(false /* did_match_allowlist */));
   // The self-owned client deletes itself here.
-  client->OnCheckAllowlistUrlResult(/*did_match_allowlist=*/false);
+  client->OnCheckAllowlistUrlResult(false);
   histogram_tester.ExpectUniqueSample(
       "SafeBrowsing.ClientSidePhishingDetection.AllowlistAsyncMatchResult",
       /*sample=*/AllowlistCheckerClient::AllowlistAsyncMatchResult::kNoMatch,
@@ -168,7 +143,7 @@ TEST_F(AllowlistCheckerClientTest, TestCsdListAsyncTimeout) {
   task_environment_.FastForwardBy(base::Seconds(1));
   // No callback yet.
 
-  EXPECT_CALL(callback, Run(/*did_match_allowlist=*/true));
+  EXPECT_CALL(callback, Run(true /* did_match_allowlist */));
   task_environment_.FastForwardBy(base::Seconds(5));
   histogram_tester.ExpectUniqueSample(
       "SafeBrowsing.ClientSidePhishingDetection.AllowlistAsyncMatchResult",

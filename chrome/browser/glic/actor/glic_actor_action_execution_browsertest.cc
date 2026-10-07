@@ -39,8 +39,8 @@ IN_PROC_BROWSER_TEST_F(GlicActorActionExecutionFunctionalBrowserTest,
       CreateTaskCompletionSubscription(task_id, task_completion_state);
 
   // Construct the Actions proto.
-  const GURL target_url = embedded_https_test_server().GetURL(
-      "example.com", "/actor/blank.html?target");
+  const GURL target_url =
+      embedded_test_server()->GetURL("/actor/blank.html?target");
   Actions action = ::actor::MakeNavigate(active_tab()->GetHandle(),
                                          target_url.spec(), task_id);
 
@@ -61,10 +61,8 @@ IN_PROC_BROWSER_TEST_F(GlicActorActionExecutionFunctionalBrowserTest,
 IN_PROC_BROWSER_TEST_F(GlicActorActionExecutionFunctionalBrowserTest,
                        PerformClickAction) {
   // Set up the initial page with a link to the target page.
-  const GURL initial_url =
-      embedded_https_test_server().GetURL("example.com", "/actor/link.html");
-  const GURL target_url =
-      embedded_https_test_server().GetURL("example.com", "/actor/blank.html");
+  const GURL initial_url = embedded_test_server()->GetURL("/actor/link.html");
+  const GURL target_url = embedded_test_server()->GetURL("/actor/blank.html");
   ASSERT_TRUE(content::NavigateToURL(web_contents(), initial_url));
   EXPECT_TRUE(content::ExecJs(web_contents(),
                               content::JsReplace("setLink($1);", target_url)));
@@ -163,10 +161,8 @@ class GlicActorClickActionExecutionErrorBrowserTest
 IN_PROC_BROWSER_TEST_P(GlicActorClickActionExecutionErrorBrowserTest,
                        PerformClickActionErrors) {
   // Set up the initial page with a link to the target page.
-  const GURL initial_url =
-      embedded_https_test_server().GetURL("example.com", "/actor/link.html");
-  const GURL target_url =
-      embedded_https_test_server().GetURL("example.com", "/actor/blank.html");
+  const GURL initial_url = embedded_test_server()->GetURL("/actor/link.html");
+  const GURL target_url = embedded_test_server()->GetURL("/actor/blank.html");
   ASSERT_TRUE(content::NavigateToURL(web_contents(), initial_url));
   EXPECT_TRUE(content::ExecJs(web_contents(),
                               content::JsReplace("setLink($1);", target_url)));
@@ -266,12 +262,12 @@ IN_PROC_BROWSER_TEST_F(GlicActorActionExecutionFunctionalBrowserTest,
       tabs::TabHandle tab_1,
       CreateActorTab(task_id_1, /*open_in_background=*/false,
                      base::ToString(active_tab()->GetHandle().raw_value()),
-                     base::ToString(browser()->GetSessionID().id())));
+                     base::ToString(browser()->session_id().id())));
   ASSERT_OK_AND_ASSIGN(
       tabs::TabHandle tab_2,
       CreateActorTab(task_id_2, /*open_in_background=*/false,
                      base::ToString(active_tab()->GetHandle().raw_value()),
-                     base::ToString(browser()->GetSessionID().id())));
+                     base::ToString(browser()->session_id().id())));
 
   // Perform two WaitActions where the first resolves after the second
   Actions action_1 = ::actor::MakeWait(kShortWaitTime * 2, tab_1, task_id_1);
@@ -323,8 +319,9 @@ IN_PROC_BROWSER_TEST_F(GlicActorActionExecutionFunctionalBrowserTest,
       ui_test_utils::BROWSER_TEST_WAIT_FOR_LOAD_STOP);
 
   // Close the active web contents.
-  browser()->tab_strip_model()->CloseWebContents(web_contents(),
-                                                 TabCloseTypes::CLOSE_NONE);
+  browser()->tab_strip_model()->CloseWebContentsAt(
+      browser()->tab_strip_model()->GetIndexOfWebContents(web_contents()),
+      TabCloseTypes::CLOSE_NONE);
 
   // After an acting tab is closed, the task should be cancelled and the
   // corresponding action have a result code of kTaskWentAway.
@@ -371,8 +368,7 @@ IN_PROC_BROWSER_TEST_F(GlicActorActionExecutionFunctionalBrowserTest,
 
   ASSERT_OK_AND_ASSIGN(TaskId task_id, CreateTask());
   ASSERT_NE(task_id, TaskId());
-  const GURL target_url =
-      embedded_https_test_server().GetURL("example.com", "/title1.html");
+  const GURL target_url = embedded_test_server()->GetURL("/title1.html");
   content::TestNavigationManager navigation_manager(web_contents(), target_url);
 
   Actions action = ::actor::MakeNavigate(active_tab()->GetHandle(),

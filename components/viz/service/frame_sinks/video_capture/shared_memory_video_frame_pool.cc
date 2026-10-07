@@ -126,7 +126,7 @@ scoped_refptr<VideoFrame> SharedMemoryVideoFramePool::WrapBuffer(
   frame->AddDestructionObserver(
       base::BindOnce(&SharedMemoryVideoFramePool::OnFrameWrapperDestroyed,
                      weak_factory_.GetWeakPtr(), base::Unretained(frame.get()),
-                     pool_generation_, std::move(pooled_buffer.mapping)));
+                     std::move(pooled_buffer.mapping)));
   if (format == media::PIXEL_FORMAT_I420 ||
       format == media::PIXEL_FORMAT_NV12) {
     frame->set_color_space(gfx::ColorSpace::CreateREC709());
@@ -142,21 +142,17 @@ scoped_refptr<VideoFrame> SharedMemoryVideoFramePool::WrapBuffer(
 
 void SharedMemoryVideoFramePool::OnFrameWrapperDestroyed(
     const VideoFrame* frame,
-    uint32_t frame_pool_generation,
     base::WritableSharedMemoryMapping mapping) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   CHECK(mapping.IsValid());
 
-  const auto it = utilized_buffers_.find(frame);
-  CHECK(it != utilized_buffers_.end());
-
   // Return the buffer to the pool by moving the PooledBuffer back into
   // |available_buffers_|.
-  if (frame_pool_generation == pool_generation_) {
-    available_buffers_.emplace_back(
-        PooledBuffer{std::move(it->second), std::move(mapping)});
-    CHECK(available_buffers_.back().IsValid());
-  }
+  const auto it = utilized_buffers_.find(frame);
+  CHECK(it != utilized_buffers_.end());
+  available_buffers_.emplace_back(
+      PooledBuffer{std::move(it->second), std::move(mapping)});
+  CHECK(available_buffers_.back().IsValid());
   utilized_buffers_.erase(it);
   CHECK_LE(available_buffers_.size() + utilized_buffers_.size(), capacity());
 }
@@ -170,12 +166,6 @@ bool SharedMemoryVideoFramePool::CanLogSharedMemoryFailure() {
     return true;
   }
   return false;
-}
-
-void SharedMemoryVideoFramePool::InvalidateBuffers() {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  pool_generation_++;
-  available_buffers_.clear();
 }
 
 }  // namespace viz

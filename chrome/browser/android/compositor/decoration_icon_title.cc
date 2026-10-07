@@ -70,7 +70,9 @@ gfx::Size DecorationIconTitle::calculateSize(int icon_width) {
 
 void DecorationIconTitle::handleIconResource(
     ui::AndroidResourceType resource_type) {
-  if (!icon_needs_refresh_) {
+  if (!icon_needs_refresh_ &&
+      base::FeatureList::IsEnabled(
+          chrome::android::kReloadTabUiResourcesIfChanged)) {
     return;
   }
   if (icon_resource_id_ != ui::Resource::kInvalidResourceId) {
@@ -103,6 +105,10 @@ void DecorationIconTitle::SetShouldHideIcon(bool should_hide_icon) {
   should_hide_icon_ = should_hide_icon;
 }
 
+void DecorationIconTitle::SetIconOffsetX(float offset) {
+  icon_offset_x_ = offset;
+}
+
 void DecorationIconTitle::setBounds(const gfx::Size& bounds) {
   // Place icon.
   int icon_space =
@@ -115,7 +121,7 @@ void DecorationIconTitle::setBounds(const gfx::Size& bounds) {
   if (should_hide_icon_) {
     layer_icon_->SetIsDrawable(false);
   } else if (icon_resource_id_ != ui::Resource::kInvalidResourceId) {
-    int icon_x = icon_start_padding_;
+    int icon_x = icon_start_padding_ + icon_offset_x_;
     if (sys_rtl) {
       icon_x = bounds.width() - icon_size_.width() - icon_x;
     }

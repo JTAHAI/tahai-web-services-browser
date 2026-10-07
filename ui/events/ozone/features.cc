@@ -6,6 +6,8 @@
 
 namespace ui {
 
+BASE_FEATURE(kEnableHeatmapPalmDetection, base::FEATURE_DISABLED_BY_DEFAULT);
+
 BASE_FEATURE(kEnableHeuristicPalmDetectionFilter,
              base::FEATURE_DISABLED_BY_DEFAULT);
 

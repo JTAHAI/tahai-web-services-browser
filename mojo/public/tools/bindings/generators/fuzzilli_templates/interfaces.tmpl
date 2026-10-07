@@ -1,5 +1,3 @@
-{%- import "macros.tmpl" as macros -%}
-
 extension ILType {
 {%- for remote in interface_remotes %}
     // {{remote.name}}
@@ -11,7 +9,7 @@ extension ILType {
             "{{method.name}}",
             {%- endfor %}
         ])
-    fileprivate static let js{{remote|format_unique_name}}RemoteWrapper: ILType = .object(
+    fileprivate static let {{remote|format_il_type}}Wrapper: ILType = .object(
         ofGroup: "{{remote|fully_qualified_name}}RemoteWrapper",
         withMethods: ["close", "isBound", "associateAndPassReceiver"])
     fileprivate static let js{{remote|format_unique_name}}PendingReceiver: ILType = .object(
@@ -34,7 +32,7 @@ extension ILType {
     fileprivate static let {{receiver|format_il_type}}: ILType = .object(
         ofGroup: "{{receiver|fully_qualified_name}}Remote",
         withProperties: ["$"])
-    fileprivate static let js{{receiver|format_unique_name}}RemoteWrapper: ILType = .object(
+    fileprivate static let {{receiver|format_il_type}}Wrapper: ILType = .object(
         ofGroup: "{{receiver|fully_qualified_name}}RemoteWrapper",
         withMethods: ["close", "isBound", "associateAndPassReceiver"])
     fileprivate static let js{{receiver|format_unique_name}}PendingReceiver: ILType = .object(
@@ -54,25 +52,22 @@ extension ObjectGroup {
     fileprivate static let {{remote|format_unique_name|to_camel(True)}}Remote = ObjectGroup(
         name: "{{remote|fully_qualified_name}}Remote",
         instanceType: .{{remote|format_il_type}},
-        properties: ["$": .js{{remote|format_unique_name}}RemoteWrapper],
+        properties: ["$": .{{remote|format_il_type}}Wrapper],
         {%- if remote.methods %}
         methods: [
         {%- for method in remote.methods %}
             "{{method.name}}": [
             {%- for parameter in method.parameters %}
-                {{ macros.to_fuzzilli_parameter(parameter) }}
+                .plain(.{{parameter.kind|format_il_type}}),
             {%- endfor %}
+            {#- TODO(crbug.com/522372048): Set return type appropriately for synchronous methods #}
             {#-
                 The `{{ "" }}` preserves a whitespace between `=>` and the return type. The
                 whitespace is necessary to avoid a syntax error.
             #}
             ] => {{ "" }}
-            {%- if method.response_param_struct -%}
-                {%- if method|is_synchronous_method -%}
-                .{{method.response_param_struct|format_il_type}}
-                {%- else -%}
-                .jsPromise(resolvingTo: .{{method.response_param_struct|format_il_type}})
-                {%- endif -%}
+            {%- if method.response_parameters -%}
+                .jsPromise
             {%- else -%}
                 .undefined
             {%- endif %},
@@ -85,7 +80,7 @@ extension ObjectGroup {
 
     fileprivate static let {{remote|format_unique_name|to_camel(True)}}RemoteWrapper = ObjectGroup(
         name: "{{remote|fully_qualified_name}}RemoteWrapper",
-        instanceType: .js{{remote|format_unique_name}}RemoteWrapper,
+        instanceType: .{{remote|format_il_type}}Wrapper,
         properties: [:],
         methods: [
             "close": [] => .undefined,
@@ -137,7 +132,7 @@ extension ObjectGroup {
                     .function(
                         [
                         {%- for parameter in method.parameters %}
-                            {{ macros.to_fuzzilli_parameter(parameter) }}
+                            .plain(.{{parameter.kind|format_il_type}}),
                         {%- endfor %}
                         ] => .undefined))
             ] => .integer,
@@ -147,13 +142,13 @@ extension ObjectGroup {
     fileprivate static let {{receiver|format_unique_name|to_camel(True)}}Remote = ObjectGroup(
         name: "{{receiver|fully_qualified_name}}Remote",
         instanceType: .{{receiver|format_il_type}},
-        properties: ["$": .js{{receiver|format_unique_name}}RemoteWrapper],
+        properties: ["$": .{{receiver|format_il_type}}Wrapper],
         methods: [:]
     )
 
     fileprivate static let {{receiver|format_unique_name|to_camel(True)}}RemoteWrapper = ObjectGroup(
         name: "{{receiver|fully_qualified_name}}RemoteWrapper",
-        instanceType: .js{{receiver|format_unique_name}}RemoteWrapper,
+        instanceType: .{{receiver|format_il_type}}Wrapper,
         properties: [:],
         methods: [
             "close": [] => .undefined,
@@ -165,7 +160,7 @@ extension ObjectGroup {
 
     fileprivate static let {{receiver|format_unique_name|to_camel(True)}}PendingReceiver = ObjectGroup(
         name: "{{receiver|fully_qualified_name}}PendingReceiver",
-        instanceType: .js{{receiver|format_unique_name}}PendingReceiver,
+        instanceType: .{{receiver|format_il_type}}PendingReceiver,
         properties: [:],
         methods: [:]
     )

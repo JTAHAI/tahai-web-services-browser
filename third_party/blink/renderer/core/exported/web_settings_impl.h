@@ -31,7 +31,6 @@
 #ifndef THIRD_PARTY_BLINK_RENDERER_CORE_EXPORTED_WEB_SETTINGS_IMPL_H_
 #define THIRD_PARTY_BLINK_RENDERER_CORE_EXPORTED_WEB_SETTINGS_IMPL_H_
 
-#include "base/memory/raw_ptr.h"
 #include "third_party/blink/public/mojom/v8_cache_options.mojom-blink.h"
 #include "third_party/blink/public/mojom/webpreferences/web_preferences.mojom-blink.h"
 #include "third_party/blink/public/web/web_settings.h"
@@ -266,7 +265,7 @@ class CORE_EXPORT WebSettingsImpl final : public WebSettings {
   bool MockGestureTapHighlightsEnabled() const;
 
  private:
-  raw_ptr<Settings, UnprotectedInRelease | DanglingUntriaged> settings_;
+  Settings* settings_;
   Persistent<DevToolsEmulator> dev_tools_emulator_;
   bool render_v_sync_notification_enabled_;
   bool auto_zoom_focused_editable_to_legible_scale_;

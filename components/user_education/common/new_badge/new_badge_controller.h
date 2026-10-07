@@ -23,29 +23,31 @@ using DisplayNewBadge = ui::IsNewFeatureAtValue;
 // Controls display of "New" Badge based on approved parameters.
 class NewBadgeController {
  public:
-  NewBadgeController() = default;
+  NewBadgeController(NewBadgeRegistry& registry,
+                     UserEducationStorageService& storage_service,
+                     std::unique_ptr<NewBadgePolicy> policy);
   NewBadgeController(const NewBadgeController&) = delete;
   void operator=(const NewBadgeController&) = delete;
-  virtual ~NewBadgeController() = default;
+  virtual ~NewBadgeController();
 
   // Called after registration of "New" Badges to ensure that all data is
   // consistent.
-  virtual void InitData() = 0;
+  void InitData();
 
   // Call when a UI element that could have a "New" Badge will be shown to the
   // user. Returns true if the badge should be shown. Note that successfully
   // calling this method a number of times will permanently disable the badge,
   // so do not call this method unless the badge will actually be displayed.
-  virtual DisplayNewBadge MaybeShowNewBadge(const base::Feature& feature) = 0;
+  DisplayNewBadge MaybeShowNewBadge(const base::Feature& feature);
 
   // Notifies that the `feature` associated with the badge has been shown. After
   // a certain (but low) number of uses, the badge will disappear. Fails if
   // there is no new badge registered for this feature.
-  virtual void NotifyFeatureUsed(const base::Feature& feature) = 0;
+  void NotifyFeatureUsed(const base::Feature& feature);
 
   // As NotifyFeatureUsed, but if there is no new badge registered for the given
   // feature or it is not enabled, does not generate an error.
-  virtual void NotifyFeatureUsedIfValid(const base::Feature& feature) = 0;
+  void NotifyFeatureUsedIfValid(const base::Feature& feature);
 
   // Disables "New" Badges for tests - specifically pixel tests, where the
   // presence of a badge could disrupt the expected image.
@@ -54,29 +56,6 @@ class NewBadgeController {
   // test; badges are only disabled while the returned object is alive.
   using TestLock = std::unique_ptr<base::AutoReset<bool>>;
   [[nodiscard]] static TestLock DisableNewBadgesForTesting();
-
- protected:
-  static bool disable_new_badges() { return disable_new_badges_; }
-
-  static base::PassKey<NewBadgeController> GetPassKey();
-
- private:
-  static bool disable_new_badges_;
-};
-
-// Implementation of NewBadgeController.
-class NewBadgeControllerImpl : public NewBadgeController {
- public:
-  NewBadgeControllerImpl(NewBadgeRegistry& registry,
-                         UserEducationStorageService& storage_service,
-                         std::unique_ptr<NewBadgePolicy> policy);
-  ~NewBadgeControllerImpl() override;
-
-  // NewBadgeController:
-  void InitData() override;
-  DisplayNewBadge MaybeShowNewBadge(const base::Feature& feature) override;
-  void NotifyFeatureUsed(const base::Feature& feature) override;
-  void NotifyFeatureUsedIfValid(const base::Feature& feature) override;
 
  private:
   void NotifyFeatureUsedImpl(const base::Feature& feature,
@@ -91,6 +70,7 @@ class NewBadgeControllerImpl : public NewBadgeController {
   const raw_ref<NewBadgeRegistry> registry_;
   const raw_ref<UserEducationStorageService> storage_service_;
   const std::unique_ptr<NewBadgePolicy> policy_;
+  static bool disable_new_badges_;
 };
 
 }  // namespace user_education

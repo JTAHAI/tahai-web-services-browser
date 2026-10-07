@@ -9,9 +9,6 @@
 
 #include "base/byte_size.h"
 #include "base/check_is_test.h"
-#include "base/debug/crash_logging.h"
-#include "base/debug/dump_without_crashing.h"
-#include "base/feature_list.h"
 #include "base/memory/ptr_util.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
@@ -57,9 +54,6 @@ BASE_FEATURE(kServiceWorkerBackgroundUpdateForFindRegistrationForClientUrl,
 
 BASE_FEATURE(kReduceCallingServiceWorkerRegisteredStorageKeysOnStartup,
              base::FEATURE_ENABLED_BY_DEFAULT);
-
-BASE_FEATURE(kServiceWorkerDumpWithoutCrashingOnStorageKeyMismatch,
-             base::FEATURE_DISABLED_BY_DEFAULT);
 
 bool ReduceCallingServiceWorkerRegisteredStorageKeysOnStartupEnabled() {
   static const bool enabled = base::FeatureList::IsEnabled(
@@ -1201,21 +1195,7 @@ ServiceWorkerRegistry::GetOrCreateRegistration(
   scoped_refptr<ServiceWorkerRegistration> registration =
       context_->GetLiveRegistration(data.registration_id);
   if (registration) {
-    const bool key_matched = (registration->key() == data.key);
-    base::UmaHistogramBoolean("ServiceWorker.LiveRegistrationKeyMatched",
-                              key_matched);
-    if (!key_matched &&
-        base::FeatureList::IsEnabled(
-            kServiceWorkerDumpWithoutCrashingOnStorageKeyMismatch)) {
-      // TODO(crbug.com/539155958): Investigate why the StorageKey of the live
-      // registration does not match `data.key`.
-      SCOPED_CRASH_KEY_STRING256("SWRegistry", "live_reg_key",
-                                 registration->key().GetDebugString());
-      SCOPED_CRASH_KEY_STRING256("SWRegistry", "data_key",
-                                 data.key.GetDebugString());
-      SCOPED_CRASH_KEY_NUMBER("SWRegistry", "reg_id", data.registration_id);
-      base::debug::DumpWithoutCrashing();
-    }
+    CHECK_EQ(registration->key(), data.key);
     return registration;
   }
 
@@ -1232,19 +1212,7 @@ ServiceWorkerRegistry::GetOrCreateRegistration(
   scoped_refptr<ServiceWorkerVersion> version =
       context_->GetLiveVersion(data.version_id);
   if (version) {
-    if (version->key() != data.key &&
-        base::FeatureList::IsEnabled(
-            kServiceWorkerDumpWithoutCrashingOnStorageKeyMismatch)) {
-      // TODO(crbug.com/539155958): Investigate why the StorageKey of the live
-      // version does not match `data.key`.
-      SCOPED_CRASH_KEY_STRING256("SWRegistry", "live_ver_key",
-                                 version->key().GetDebugString());
-      SCOPED_CRASH_KEY_STRING256("SWRegistry", "data_key",
-                                 data.key.GetDebugString());
-      SCOPED_CRASH_KEY_NUMBER("SWRegistry", "ver_id", data.version_id);
-      SCOPED_CRASH_KEY_NUMBER("SWRegistry", "reg_id", data.registration_id);
-      base::debug::DumpWithoutCrashing();
-    }
+    CHECK_EQ(version->key(), data.key);
   } else {
     version = base::MakeRefCounted<ServiceWorkerVersion>(
         registration.get(), data.script, data.script_type, data.version_id,

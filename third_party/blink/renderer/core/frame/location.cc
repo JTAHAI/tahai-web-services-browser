@@ -39,7 +39,7 @@
 #include "third_party/blink/renderer/core/loader/frame_load_request.h"
 #include "third_party/blink/renderer/core/loader/frame_loader.h"
 #include "third_party/blink/renderer/core/url/dom_origin.h"
-#include "third_party/blink/renderer/core/url/url_utils_read_only.h"
+#include "third_party/blink/renderer/core/url/dom_url_utils_read_only.h"
 #include "third_party/blink/renderer/platform/bindings/exception_state.h"
 #include "third_party/blink/renderer/platform/bindings/v8_dom_activity_logger.h"
 #include "third_party/blink/renderer/platform/bindings/v8_dom_wrapper.h"
@@ -98,31 +98,31 @@ String Location::href() const {
 }
 
 String Location::protocol() const {
-  return UrlUtilsReadOnly::protocol(Url());
+  return DOMURLUtilsReadOnly::protocol(Url());
 }
 
 String Location::host() const {
-  return UrlUtilsReadOnly::host(Url());
+  return DOMURLUtilsReadOnly::host(Url());
 }
 
 String Location::hostname() const {
-  return UrlUtilsReadOnly::hostname(Url());
+  return DOMURLUtilsReadOnly::hostname(Url());
 }
 
 String Location::port() const {
-  return UrlUtilsReadOnly::port(Url());
+  return DOMURLUtilsReadOnly::port(Url());
 }
 
 String Location::pathname() const {
-  return UrlUtilsReadOnly::pathname(Url());
+  return DOMURLUtilsReadOnly::pathname(Url());
 }
 
 String Location::search() const {
-  return UrlUtilsReadOnly::search(Url());
+  return DOMURLUtilsReadOnly::search(Url());
 }
 
 String Location::origin() const {
-  return UrlUtilsReadOnly::origin(Url());
+  return DOMURLUtilsReadOnly::origin(Url());
 }
 
 DOMStringList* Location::ancestorOrigins() {
@@ -151,7 +151,7 @@ String Location::toString() const {
 }
 
 String Location::hash() const {
-  return UrlUtilsReadOnly::hash(Url());
+  return DOMURLUtilsReadOnly::hash(Url());
 }
 
 void Location::setHref(v8::Isolate* isolate,
@@ -333,6 +333,9 @@ void Location::SetLocation(const String& url,
   }
 
   ResourceRequestHead resource_request(completed_url);
+  resource_request.SetHasUserGesture(
+      LocalFrame::HasTransientUserActivation(incumbent_window->GetFrame()));
+
   FrameLoadRequest request(incumbent_window, resource_request);
   request.SetClientNavigationReason(ClientNavigationReason::kFrameNavigation);
   WebFrameLoadType frame_load_type = WebFrameLoadType::kStandard;

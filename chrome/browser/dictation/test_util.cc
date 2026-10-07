@@ -8,7 +8,6 @@
 #include "base/path_service.h"
 #include "base/run_loop.h"
 #include "base/test/bind.h"
-#include "base/values.h"
 #include "chrome/browser/dictation/dictation_keyed_service.h"
 #include "chrome/browser/dictation/dictation_multiplexer.h"
 #include "chrome/browser/dictation/features.h"
@@ -39,23 +38,7 @@ TargetDetails DefaultInPageTarget(content::WebContents* web_contents) {
 base::test::ScopedFeatureList CreateEnablingFeatureList() {
   base::test::ScopedFeatureList feature_list;
   feature_list.InitWithFeaturesAndParameters(
-      {{kDictation,
-        {{"use_component_extension", "false"},
-         {"auto_session_end_delay", "0ms"}}},
-       {blink::features::kPopulateDOMNodeIdInFocusedNodeDetails, {}}},
-      {});
-  return feature_list;
-}
-
-base::test::ScopedFeatureList CreateEnablingFeatureList(
-    bool session_ends_on_stream_end) {
-  base::test::ScopedFeatureList feature_list;
-  feature_list.InitWithFeaturesAndParameters(
-      {{kDictation,
-        {{"use_component_extension", "false"},
-         {"session_ends_on_stream_end",
-          session_ends_on_stream_end ? "true" : "false"},
-         {"auto_session_end_delay", "0ms"}}},
+      {{kDictation, {{"use_component_extension", "false"}}},
        {blink::features::kPopulateDOMNodeIdInFocusedNodeDetails, {}}},
       {});
   return feature_list;
@@ -121,27 +104,22 @@ void ExtensionSendTranscriptUpdate(
 void ExtensionSendStreamStateUpdate(
     Profile* profile,
     DictationMultiplexer::StreamId stream_id,
-    extensions::api::dictation_private::StreamState state,
-    std::optional<int> error_code) {
-  base::DictValue details;
-  details.Set("streamId", stream_id.value());
-  details.Set("state", extensions::api::dictation_private::ToString(state));
-  if (error_code.has_value()) {
-    details.Set("errorCode", *error_code);
-  }
-
+    extensions::api::dictation_private::StreamState state) {
   std::string script = content::JsReplace(
       R"JS(
     (async function() {
       try {
-        await chrome.dictationPrivate.setStreamState($1);
+        await chrome.dictationPrivate.setStreamState({
+            streamId: $1,
+            state: $2
+        });
         chrome.test.sendScriptResult('success');
       } catch (e) {
         chrome.test.sendScriptResult('error: ' + e.message);
       }
     })();
       )JS",
-      std::move(details));
+      stream_id.value(), extensions::api::dictation_private::ToString(state));
 
   base::Value result =
       extensions::browsertest_util::ExecuteScriptInBackgroundPage(

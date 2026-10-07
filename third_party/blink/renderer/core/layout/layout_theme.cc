@@ -565,6 +565,12 @@ void LayoutTheme::AdjustInnerSpinButtonStyle(
 }
 
 void LayoutTheme::AdjustMenuListStyle(ComputedStyleBuilder& builder) const {
+  if (!RuntimeEnabledFeatures::SelectUsesUAClipEnabled()) {
+    // Menulists should have visible overflow
+    // https://bugs.webkit.org/show_bug.cgi?id=21287
+    builder.SetOverflowX(EOverflow::kVisible);
+    builder.SetOverflowY(EOverflow::kVisible);
+  }
   // Height is locked to auto on all browsers.
   builder.ResetLineHeight();
 }

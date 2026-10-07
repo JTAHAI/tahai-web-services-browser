@@ -13,6 +13,10 @@ namespace content {
 class BrowserContext;
 }  // namespace content
 
+namespace user_prefs {
+class PrefRegistrySyncable;
+}  // namespace user_prefs
+
 namespace first_party_sets {
 
 class FirstPartySetsPolicyService;
@@ -52,6 +56,8 @@ class FirstPartySetsPolicyServiceFactory : public ProfileKeyedServiceFactory {
   std::unique_ptr<KeyedService> BuildServiceInstanceForBrowserContext(
       content::BrowserContext* context) const override;
   bool ServiceIsCreatedWithBrowserContext() const override;
+  void RegisterProfilePrefs(
+      user_prefs::PrefRegistrySyncable* registry) override;
 };
 
 }  // namespace first_party_sets

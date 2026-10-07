@@ -21,9 +21,9 @@ import org.chromium.build.annotations.EnsuresNonNull;
 import org.chromium.build.annotations.MonotonicNonNull;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
+import org.chromium.chrome.browser.tab.EmptyTabObserver;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.TabHidingType;
-import org.chromium.chrome.browser.tab.TabObserver;
 import org.chromium.chrome.browser.tab.TabSelectionType;
 import org.chromium.chrome.browser.tabmodel.TabModelObserver;
 import org.chromium.chrome.browser.tabmodel.TabModelSelector;
@@ -56,8 +56,8 @@ import java.util.Map;
  * listening to network changes.
  */
 @NullMarked
-public class OfflinePageTabObserver
-        implements TabObserver, NetworkChangeNotifier.ConnectionTypeObserver {
+public class OfflinePageTabObserver extends EmptyTabObserver
+        implements NetworkChangeNotifier.ConnectionTypeObserver {
     private static final String TAG = "OfflinePageTO";
 
     /** Class for keeping the state of observed tabs. */
@@ -172,7 +172,7 @@ public class OfflinePageTabObserver
         mIsObservingNetworkChanges = false;
     }
 
-    // Methods from TabObserver
+    // Methods from EmptyTabObserver
     @Override
     public void onPageLoadFinished(Tab tab, GURL url) {
         Log.d(TAG, "onPageLoadFinished");

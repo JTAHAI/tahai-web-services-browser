@@ -6,7 +6,6 @@
 
 #include <optional>
 
-#include "base/base64.h"
 #include "base/base64url.h"
 #include "base/containers/span.h"
 #include "base/containers/span_reader.h"
@@ -26,7 +25,6 @@
 #include "chrome/browser/lens/core/mojom/geometry.mojom.h"
 #include "chrome/browser/lens/core/mojom/overlay_object.mojom-forward.h"
 #include "chrome/browser/lens/core/mojom/text.mojom.h"
-#include "chrome/browser/lens/lens_identity_delegation_helper.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/lens/lens_overlay_gen204_controller.h"
 #include "chrome/browser/ui/lens/lens_overlay_image_helper.h"
@@ -37,7 +35,6 @@
 #include "chrome/common/channel_info.h"
 #include "components/base32/base32.h"
 #include "components/endpoint_fetcher/endpoint_fetcher.h"
-#include "components/google/core/common/google_util.h"
 #include "components/lens/lens_features.h"
 #include "components/lens/lens_overlay_mime_type.h"
 #include "components/lens/lens_overlay_permission_utils.h"
@@ -75,7 +72,6 @@
 #include "third_party/lens_server_proto/lens_overlay_polygon.pb.h"
 #include "third_party/lens_server_proto/lens_overlay_request_id.pb.h"
 #include "third_party/lens_server_proto/lens_overlay_request_type.pb.h"
-#include "third_party/lens_server_proto/lens_overlay_selection_type.pb.h"
 #include "third_party/lens_server_proto/lens_overlay_service_deps.pb.h"
 #include "third_party/lens_server_proto/lens_overlay_surface.pb.h"
 #include "third_party/lens_server_proto/lens_overlay_visual_search_interaction_data.pb.h"
@@ -100,9 +96,6 @@ constexpr char kSessionIdQueryParameterKey[] = "gsessionid";
 constexpr char kGen204IdentifierQueryParameter[] = "plla";
 constexpr char kVisualSearchInteractionDataQueryParameterKey[] = "vsint";
 constexpr char kVisualInputTypeQueryParameterKey[] = "vit";
-constexpr char kEncodeResponseIfExecutableHeader[] =
-    "X-Goog-Encode-Response-If-Executable";
-constexpr char kBase64Value[] = "base64";
 inline constexpr char kModeParameterKey[] = "udm";
 inline constexpr char kAimModeParameterValue[] = "50";
 
@@ -244,7 +237,6 @@ LenOverlayEntryPointFromInvocationSource(
     case lens::LensOverlayInvocationSource::kContextualTasksComposebox:
     case lens::LensOverlayInvocationSource::kCobrowseToolbarButton:
     case lens::LensOverlayInvocationSource::kCobrowsePinnedToolbarButton:
-    case lens::LensOverlayInvocationSource::kOmniboxPopupButton:
       // TODO(crbug.com/469463485): This should be contextual tasks specific,
       // not unknown.
       return lens::LensOverlayClientLogs::UNKNOWN_ENTRY_POINT;
@@ -311,6 +303,13 @@ lens::Payload CreatePageContentPayload(
 }
 
 }  // namespace
+
+PageContent::PageContent() : content_type_(lens::MimeType::kUnknown) {}
+PageContent::PageContent(std::vector<uint8_t> bytes,
+                         lens::MimeType content_type)
+    : bytes_(bytes), content_type_(content_type) {}
+PageContent::PageContent(const PageContent& other) = default;
+PageContent::~PageContent() = default;
 
 LensOverlayQueryController::LensOverlayQueryController(
     LensOverlayFullImageResponseCallback full_image_callback,
@@ -656,10 +655,8 @@ std::unique_ptr<lens::LensOverlayRequestId>
 LensOverlayQueryController::GetNextRequestId(
     RequestIdUpdateMode update_mode,
     lens::LensOverlayRequestId::MediaType media_type) {
-  // LensOverlay uploads are all considered implicit uploads and include Chrome
-  // tab data.
+  // LensOverlay uploads are all considered implicit uploads.
   request_id_generator_->SetIsImplicitUpload(true);
-  request_id_generator_->SetHasChromeTabData(true);
   std::unique_ptr<lens::LensOverlayRequestId> request_id =
       request_id_generator_->GetNextRequestId(update_mode, media_type);
   latest_request_id_ = *request_id.get();
@@ -704,13 +701,6 @@ LensOverlayQueryController::CreateEndpointFetcher(
     const std::vector<std::string>& request_headers,
     const std::vector<std::string>& cors_exempt_headers,
     UploadProgressCallback upload_progress_callback) {
-  std::vector<std::string> headers = request_headers;
-  if (lens::features::UseIdentityDelegationForLensComposeboxRequests()) {
-    // Request base64-encoded response from ESP safely.
-    headers.push_back(kEncodeResponseIfExecutableHeader);
-    headers.push_back(kBase64Value);
-  }
-
   return std::make_unique<EndpointFetcher>(
       /*url_loader_factory=*/profile_
           ? profile_->GetURLLoaderFactory().get()
@@ -723,7 +713,7 @@ LensOverlayQueryController::CreateEndpointFetcher(
           .SetContentType(kContentType)
           .SetCorsExemptHeaders(cors_exempt_headers)
           .SetCredentialsMode(CredentialsMode::kInclude)
-          .SetHeaders(headers)
+          .SetHeaders(request_headers)
           .SetPostData(std::move(request_string))
           .SetSetSiteForCookies(true)
           .SetTimeout(timeout)
@@ -767,10 +757,8 @@ LensOverlayQueryController::LensServerFetchRequest::~LensServerFetchRequest() =
     default;
 
 std::string LensOverlayQueryController::GetVsridForNewTab() {
-  // LensOverlay search urls are all considered to use implicit uploads and
-  // Chrome tab data.
+  // LensOverlay search urls are all considered to use implicit uploads.
   request_id_generator_->SetIsImplicitUpload(true);
-  request_id_generator_->SetHasChromeTabData(true);
   std::unique_ptr<lens::LensOverlayRequestId> request_id =
       request_id_generator_->GetNextRequestId(
           RequestIdUpdateMode::kOpenInNewTab,
@@ -855,14 +843,7 @@ void LensOverlayQueryController::ClusterInfoFetchResponseHandler(
   }
 
   lens::LensOverlayServerClusterInfoResponse server_response;
-  std::string response_string = response->response;
-  if (lens::features::UseIdentityDelegationForLensComposeboxRequests()) {
-    std::string decoded_response;
-    if (base::Base64Decode(response_string, &decoded_response)) {
-      response_string = decoded_response;
-    }
-  }
-  if (!server_response.ParseFromString(response_string)) {
+  if (!server_response.ParseFromString(response->response)) {
     // If there was an error with the cluster info request, we should still try
     // and send the full image request as a fallback.
     PrepareAndFetchFullImageRequest();
@@ -1152,14 +1133,7 @@ void LensOverlayQueryController::FullImageFetchResponseHandler(
   }
 
   lens::LensOverlayServerResponse server_response;
-  std::string response_string = response->response;
-  if (lens::features::UseIdentityDelegationForLensComposeboxRequests()) {
-    std::string decoded_response;
-    if (base::Base64Decode(response_string, &decoded_response)) {
-      response_string = decoded_response;
-    }
-  }
-  if (!server_response.ParseFromString(response_string)) {
+  if (!server_response.ParseFromString(response->response)) {
     RunFullImageCallbackForError();
     return;
   }
@@ -1404,15 +1378,9 @@ void LensOverlayQueryController::PageContentResponseHandler(
 
 bool LensOverlayQueryController::MaybeRetryPageContentUpload(
     std::unique_ptr<EndpointResponse> response) {
-  if (upload_chunker_) {
-    std::string response_string = response->response;
-    if (lens::features::UseIdentityDelegationForLensComposeboxRequests()) {
-      std::string decoded_response;
-      if (base::Base64Decode(response_string, &decoded_response)) {
-        response_string = decoded_response;
-      }
-    }
-    return upload_chunker_->HandlePageContentResponse(response_string);
+  if (upload_chunker_ &&
+      upload_chunker_->HandlePageContentResponse(response->response)) {
+    return true;
   }
   return false;
 }
@@ -1920,14 +1888,7 @@ void LensOverlayQueryController::InteractionFetchResponseHandler(
   }
 
   lens::LensOverlayServerResponse server_response;
-  std::string response_string = response->response;
-  if (lens::features::UseIdentityDelegationForLensComposeboxRequests()) {
-    std::string decoded_response;
-    if (base::Base64Decode(response_string, &decoded_response)) {
-      response_string = decoded_response;
-    }
-  }
-  if (!server_response.ParseFromString(response_string)) {
+  if (!server_response.ParseFromString(response->response)) {
     RunInteractionCallbackForError();
     return;
   }
@@ -2127,15 +2088,6 @@ LensOverlayQueryController::CreateClientContext() {
 std::unique_ptr<signin::PrimaryAccountAccessTokenFetcher>
 LensOverlayQueryController::CreateOAuthHeadersAndContinue(
     OAuthHeadersCreatedCallback callback) {
-  if (lens::features::UseIdentityDelegationForLensComposeboxRequests()) {
-    // The Lens overlay flow always uses the default (first) signed-in user in
-    // the cookie jar (authuser=0).
-    lens::FetchIdentityDelegationHeaders(
-        profile_, identity_manager_, google_util::kGoogleHomepageURL,
-        /*authuser_index=*/0, std::move(callback));
-    return nullptr;
-  }
-
   // Use OAuth if the flag is enabled and the user is logged in.
   if (lens::features::UseOauthForLensOverlayRequests() && identity_manager_ &&
       identity_manager_->HasPrimaryAccount(signin::ConsentLevel::kSignin)) {

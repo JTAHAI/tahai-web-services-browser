@@ -8,7 +8,6 @@
 #include <utility>
 
 #include "base/check.h"
-#include "base/containers/flat_set.h"
 #include "base/files/file_path.h"
 #include "base/functional/bind.h"
 #include "base/location.h"
@@ -150,7 +149,11 @@ void SubresourceFilterSharedBrowserTest::NavigateFrame(const char* frame_name,
 
 // ======================= SubresourceFilterBrowserTest =======================
 
-SubresourceFilterBrowserTest::SubresourceFilterBrowserTest() = default;
+SubresourceFilterBrowserTest::SubresourceFilterBrowserTest() {
+  scoped_feature_list_.InitWithFeatures(
+      /*enabled_features=*/{kAdTagging},
+      /*disabled_features=*/{features::kHttpsUpgrades});
+}
 
 SubresourceFilterBrowserTest::~SubresourceFilterBrowserTest() = default;
 
@@ -162,38 +165,7 @@ bool SubresourceFilterBrowserTest::AdsBlockedInContentSettings(
   return content_settings->IsContentBlocked(ContentSettingsType::ADS);
 }
 
-base::flat_set<base::test::FeatureRef>
-SubresourceFilterBrowserTest::GetSubresourceFilterEnabledFeatures() const {
-  return {};
-}
-
-base::flat_set<base::test::FeatureRef>
-SubresourceFilterBrowserTest::GetSubresourceFilterDisabledFeatures() const {
-  return {};
-}
-
 void SubresourceFilterBrowserTest::SetUp() {
-  base::flat_set<base::test::FeatureRef> enabled_features = {kAdTagging};
-  base::flat_set<base::test::FeatureRef> disabled_features = {
-      features::kHttpsUpgrades};
-
-  if (UseV5().has_value()) {
-    if (UseV5().value()) {
-      enabled_features.insert(safe_browsing::kLocalListsUseSBv5);
-    } else {
-      disabled_features.insert(safe_browsing::kLocalListsUseSBv5);
-    }
-  }
-
-  for (const auto& feature : GetSubresourceFilterEnabledFeatures()) {
-    enabled_features.insert(feature);
-  }
-  for (const auto& feature : GetSubresourceFilterDisabledFeatures()) {
-    disabled_features.insert(feature);
-  }
-
-  scoped_feature_list_.InitWithFeatures(std::move(enabled_features).extract(),
-                                        std::move(disabled_features).extract());
   database_helper_ = CreateTestDatabase();
   SubresourceFilterSharedBrowserTest::SetUp();
 }
@@ -203,7 +175,6 @@ void SubresourceFilterBrowserTest::TearDown() {
   // Unregister test factories after PlatformBrowserTest::TearDown
   // (which destructs SafeBrowsingService).
   database_helper_.reset();
-  scoped_feature_list_.Reset();
 }
 
 void SubresourceFilterBrowserTest::SetUpOnMainThread() {
@@ -228,44 +199,27 @@ SubresourceFilterBrowserTest::CreateTestDatabase() {
 void SubresourceFilterBrowserTest::ConfigureAsPhishingURL(const GURL& url) {
   safe_browsing::ThreatMetadata metadata;
   database_helper_->AddFullHashToDbAndFullHashCache(
-      url, safe_browsing::GetUrlSocEngId(), metadata,
-      safe_browsing::V5::ThreatType::SOCIAL_ENGINEERING,
-      /*is_warn_only=*/false,
-      Profile::FromBrowserContext(web_contents()->GetBrowserContext()));
+      url, safe_browsing::GetUrlSocEngId(), metadata);
+}
+
+void SubresourceFilterBrowserTest::ConfigureAsSubresourceFilterOnlyURL(
+    const GURL& url) {
+  safe_browsing::ThreatMetadata metadata;
+  database_helper_->AddFullHashToDbAndFullHashCache(
+      url, safe_browsing::GetUrlSubresourceFilterId(), metadata);
 }
 
 void SubresourceFilterBrowserTest::ConfigureURLWithWarning(
     const GURL& url,
-    safe_browsing::SubresourceFilterType filter_type) {
+    std::vector<safe_browsing::SubresourceFilterType> filter_types) {
   safe_browsing::ThreatMetadata metadata;
-  metadata.subresource_filter_match[filter_type] =
-      safe_browsing::SubresourceFilterLevel::WARN;
 
-  safe_browsing::V5::ThreatType threat_type =
-      (filter_type == safe_browsing::SubresourceFilterType::ABUSIVE)
-          ? safe_browsing::V5::ThreatType::ABUSIVE_EXPERIENCE_VIOLATION
-          : safe_browsing::V5::ThreatType::BETTER_ADS_VIOLATION;
+  for (auto type : filter_types) {
+    metadata.subresource_filter_match[type] =
+        safe_browsing::SubresourceFilterLevel::WARN;
+  }
   database_helper_->AddFullHashToDbAndFullHashCache(
-      url, safe_browsing::GetUrlSubresourceFilterId(), metadata, threat_type,
-      /*is_warn_only=*/true,
-      Profile::FromBrowserContext(web_contents()->GetBrowserContext()));
-}
-
-void SubresourceFilterBrowserTest::ConfigureURLWithEnforcement(
-    const GURL& url,
-    safe_browsing::SubresourceFilterType filter_type) {
-  safe_browsing::ThreatMetadata metadata;
-  metadata.subresource_filter_match[filter_type] =
-      safe_browsing::SubresourceFilterLevel::ENFORCE;
-
-  safe_browsing::V5::ThreatType threat_type =
-      (filter_type == safe_browsing::SubresourceFilterType::ABUSIVE)
-          ? safe_browsing::V5::ThreatType::ABUSIVE_EXPERIENCE_VIOLATION
-          : safe_browsing::V5::ThreatType::BETTER_ADS_VIOLATION;
-  database_helper_->AddFullHashToDbAndFullHashCache(
-      url, safe_browsing::GetUrlSubresourceFilterId(), metadata, threat_type,
-      /*is_warn_only=*/false,
-      Profile::FromBrowserContext(web_contents()->GetBrowserContext()));
+      url, safe_browsing::GetUrlSubresourceFilterId(), metadata);
 }
 
 bool SubresourceFilterBrowserTest::IsDynamicScriptElementLoaded(
@@ -376,33 +330,6 @@ SubresourceFilterPrerenderingBrowserTest::
 void SubresourceFilterPrerenderingBrowserTest::SetUp() {
   prerender_helper_.RegisterServerRequestMonitor(embedded_test_server());
   SubresourceFilterListInsertingBrowserTest::SetUp();
-}
-
-std::optional<bool> SubresourceFilterBrowserTest::UseV5() const {
-  return std::nullopt;
-}
-
-std::optional<bool> SubresourceFilterBrowserTestWithV4V5Param::UseV5() const {
-  return GetParam();
-}
-
-std::optional<bool>
-SubresourceFilterListInsertingBrowserTestWithV4V5Param::UseV5() const {
-  return GetParam();
-}
-
-std::optional<bool> SubresourceFilterPrerenderingBrowserTest::UseV5() const {
-  return GetParam();
-}
-
-SubresourceFilterFencedFrameBrowserTest::
-    SubresourceFilterFencedFrameBrowserTest() = default;
-
-SubresourceFilterFencedFrameBrowserTest::
-    ~SubresourceFilterFencedFrameBrowserTest() = default;
-
-std::optional<bool> SubresourceFilterFencedFrameBrowserTest::UseV5() const {
-  return GetParam();
 }
 
 }  // namespace subresource_filter

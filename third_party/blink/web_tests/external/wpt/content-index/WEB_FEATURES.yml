@@ -1,2 +1,3 @@
-rules:
-- "**": [content-index]
+features:
+- name: content-index
+  files: "**"

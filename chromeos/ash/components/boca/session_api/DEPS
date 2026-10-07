@@ -1,5 +1,4 @@
 include_rules = [
   "+google_apis/common",
-  "+components/signin/public/base/oauth_consumer_id.h",
-  "+components/signin/public/identity_manager",
+  "+components/signin/public/identity_manager"
 ]

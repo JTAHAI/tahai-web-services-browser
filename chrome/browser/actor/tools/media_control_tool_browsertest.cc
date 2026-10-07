@@ -28,7 +28,7 @@ class ActorMediaControlToolBrowserTest : public ActorToolsTest {
 
   void SetUpOnMainThread() override {
     ActorToolsTest::SetUpOnMainThread();
-    ASSERT_TRUE(embedded_https_test_server().Start());
+    ASSERT_TRUE(embedded_test_server()->Start());
   }
 
  private:
@@ -36,8 +36,7 @@ class ActorMediaControlToolBrowserTest : public ActorToolsTest {
 };
 
 IN_PROC_BROWSER_TEST_F(ActorMediaControlToolBrowserTest, NoMedia) {
-  const GURL url =
-      embedded_https_test_server().GetURL("example.com", "/actor/blank.html");
+  const GURL url = embedded_test_server()->GetURL("/actor/blank.html");
   ASSERT_TRUE(content::NavigateToURL(web_contents(), url));
   ASSERT_TRUE(WaitForLoadStop(web_contents()));
 
@@ -49,8 +48,7 @@ IN_PROC_BROWSER_TEST_F(ActorMediaControlToolBrowserTest, NoMedia) {
 }
 
 IN_PROC_BROWSER_TEST_F(ActorMediaControlToolBrowserTest, PauseAndPlayMedia) {
-  const GURL url =
-      embedded_https_test_server().GetURL("example.com", "/actor/media.html");
+  const GURL url = embedded_test_server()->GetURL("/actor/media.html");
   ASSERT_TRUE(content::NavigateToURL(web_contents(), url));
   ASSERT_TRUE(WaitForLoadStop(web_contents()));
 
@@ -75,8 +73,7 @@ IN_PROC_BROWSER_TEST_F(ActorMediaControlToolBrowserTest, PauseAndPlayMedia) {
 }
 
 IN_PROC_BROWSER_TEST_F(ActorMediaControlToolBrowserTest, SeekMedia) {
-  const GURL url =
-      embedded_https_test_server().GetURL("example.com", "/actor/media.html");
+  const GURL url = embedded_test_server()->GetURL("/actor/media.html");
   ASSERT_TRUE(content::NavigateToURL(web_contents(), url));
   ASSERT_TRUE(WaitForLoadStop(web_contents()));
 

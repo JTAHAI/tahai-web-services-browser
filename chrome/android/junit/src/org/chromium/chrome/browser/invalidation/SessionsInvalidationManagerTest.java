@@ -18,6 +18,7 @@ import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
 import org.robolectric.Robolectric;
+import org.robolectric.annotation.Config;
 
 import org.chromium.base.ActivityState;
 import org.chromium.base.ApplicationState;
@@ -29,6 +30,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /** Tests for the {@link SessionsInvalidationManager}. */
 @RunWith(BaseRobolectricTestRunner.class)
+@Config(manifest = Config.NONE)
 public class SessionsInvalidationManagerTest {
     @Rule public final MockitoRule mMockitoRule = MockitoJUnit.rule();
     @Mock private ResumableDelayedTaskRunner mResumableDelayedTaskRunner;

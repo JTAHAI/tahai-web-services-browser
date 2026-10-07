@@ -232,7 +232,7 @@ class SpdySessionTest : public PlatformTest, public WithTaskEnvironment {
              /*disable_cert_verification_network_fetches=*/false,
              handles::kInvalidNetworkHandle),
         ssl_(SYNCHRONOUS, OK) {
-    AddScopedFeatureList().InitAndDisableFeature(
+    feature_list_.InitAndDisableFeature(
         features::kTcpSocketPoolLimitRandomization);
   }
 
@@ -414,6 +414,7 @@ class SpdySessionTest : public PlatformTest, public WithTaskEnvironment {
   const url::SchemeHostPort test_server_;
   SpdySessionKey key_;
   SSLSocketDataProvider ssl_;
+  base::test::ScopedFeatureList feature_list_;
 };
 
 class SpdySessionTestWithMockTime : public SpdySessionTest {
@@ -2075,13 +2076,16 @@ class SpdySessionParametrizedTest : public SpdySessionTest,
  public:
   SpdySessionParametrizedTest() {
     if (GetParam()) {
-      AddScopedFeatureList().InitAndEnableFeature(
+      feature_list_.InitAndEnableFeature(
           features::kDrainSpdySessionSynchronouslyOnRemoteEndpointDisconnect);
     } else {
-      AddScopedFeatureList().InitAndDisableFeature(
+      feature_list_.InitAndDisableFeature(
           features::kDrainSpdySessionSynchronouslyOnRemoteEndpointDisconnect);
     }
   }
+
+ private:
+  base::test::ScopedFeatureList feature_list_;
 };
 
 }  // namespace
@@ -6343,9 +6347,10 @@ TEST_F(AltSvcFrameTest, ProcessAltSvcFrameOnActiveStream) {
 
 TEST_F(AltSvcFrameTest,
        ProcessAltSvcFrameOnActiveStreamWithNetworkAnonymizationKey) {
+  base::test::ScopedFeatureList feature_list;
   // Need to partition connections by NetworkAnonymizationKey for
   // SpdySessionKeys to include NetworkAnonymizationKeys.
-  AddScopedFeatureList().InitAndEnableFeature(
+  feature_list.InitAndEnableFeature(
       features::kPartitionConnectionsByNetworkIsolationKey);
 
   // Since HttpServerProperties caches the feature value, have to create a new

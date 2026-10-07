@@ -64,8 +64,6 @@ void ChromeViewsTestBase::SetUp() {
 }
 
 void ChromeViewsTestBase::TearDown() {
-  WebUIContentsPreloadManager::GetInstance()->ReenableNavigationForTesting();
-
 #if BUILDFLAG(IS_CHROMEOS)
   views::ViewsTestHelperAura::SetAuraTestHelperFactory(nullptr);
 #endif

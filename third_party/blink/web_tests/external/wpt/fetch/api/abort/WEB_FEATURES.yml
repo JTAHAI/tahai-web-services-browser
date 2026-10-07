@@ -1,2 +1,3 @@
-rules:
-- "**": [abortable-fetch]
+features:
+- name: abortable-fetch
+  files: "**"

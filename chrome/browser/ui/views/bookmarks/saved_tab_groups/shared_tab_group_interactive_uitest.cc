@@ -7,9 +7,9 @@
 #include "chrome/browser/data_sharing/data_sharing_service_factory.h"
 #include "chrome/browser/signin/identity_manager_factory.h"
 #include "chrome/browser/tab_group_sync/tab_group_sync_service_factory.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_element_identifiers.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/tabs/saved_tab_groups/saved_tab_group_metrics.h"
 #include "chrome/browser/ui/tabs/tab_group_model.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
@@ -56,7 +56,8 @@ class SharedTabGroupInteractiveUiTest
 
   void SetUp() override {
     std::vector<base::test::FeatureRefAndParams> enabled_features = {
-        {data_sharing::features::kDataSharingFeature, {}}};
+        {data_sharing::features::kDataSharingFeature, {}},
+        {features::kTabGroupMenuMoreEntryPoints, {}}};
 
     scoped_feature_list_.InitWithFeaturesAndParameters(enabled_features, {});
     InProcessBrowserTest::SetUp();
@@ -97,7 +98,7 @@ class SharedTabGroupInteractiveUiTest
   TabGroupId CreateNewTabGroup() {
     EXPECT_TRUE(
         AddTabAtIndex(0, GURL(url::kAboutBlankURL), ui::PAGE_TRANSITION_TYPED));
-    return browser()->GetTabStripModel()->AddToNewGroup({0});
+    return browser()->tab_strip_model()->AddToNewGroup({0});
   }
 
   void ShareTabGroup(TabGroupId group_id,
@@ -264,8 +265,8 @@ IN_PROC_BROWSER_TEST_F(SharedTabGroupInteractiveUiTest,
   // TODO(crbug.com/380088920): Manually trigger a layout until we have a way to
   // know when the entity tracker is initialized.
   TabGroup* tab_group =
-      browser()->GetTabStripModel()->group_model()->GetTabGroup(group_id);
-  browser()->GetTabStripModel()->ChangeTabGroupVisuals(
+      browser()->tab_strip_model()->group_model()->GetTabGroup(group_id);
+  browser()->tab_strip_model()->ChangeTabGroupVisuals(
       group_id, *tab_group->visual_data());
 
   RunTestSequence(WaitForShow(kTabGroupHeaderElementId),
@@ -312,7 +313,7 @@ IN_PROC_BROWSER_TEST_F(SharedTabGroupInteractiveUiTest,
                 data_sharing::MemberRole::kOwner, /*should_sign_in=*/false);
 
   // Close the tab group.
-  browser()->GetTabStripModel()->CloseAllTabsInGroup(group_id);
+  browser()->tab_strip_model()->CloseAllTabsInGroup(group_id);
 
   RunTestSequence(FinishTabstripAnimations(), ShowBookmarksBar(),
                   EnsurePresent(kSavedTabGroupButtonElementId),
@@ -337,11 +338,13 @@ IN_PROC_BROWSER_TEST_F(SharedTabGroupInteractiveUiTest,
                 data_sharing::MemberRole::kOwner, /*should_sign_in=*/false);
 
   // Close the tab group.
-  browser()->GetTabStripModel()->CloseAllTabsInGroup(group_id);
+  browser()->tab_strip_model()->CloseAllTabsInGroup(group_id);
 
   RunTestSequence(FinishTabstripAnimations(), ShowBookmarksBar(),
                   PressButton(kSavedTabGroupOverflowButtonElementId),
                   SelectMenuItem(STGEverythingMenu::kTabGroup),
+                  WaitForShow(STGTabsMenuModel::kOpenGroup),
+                  SelectMenuItem(STGTabsMenuModel::kOpenGroup),
                   WaitForShow(kTabGroupHeaderElementId),
                   // Close the everything menu to prevent flakes on mac.
                   HoverTabAt(0), ClickMouse(),
@@ -350,7 +353,7 @@ IN_PROC_BROWSER_TEST_F(SharedTabGroupInteractiveUiTest,
   histogram_tester.ExpectUniqueSample(
       kRecallHistogram,
       saved_tab_groups::metrics::SharedTabGroupRecallTypeDesktop::
-          kOpenedFromEverythingMenu,
+          kOpenedFromSubmenuFromEverythingMenu,
       1);
 }
 
@@ -365,7 +368,7 @@ IN_PROC_BROWSER_TEST_F(SharedTabGroupInteractiveUiTest,
                 data_sharing::MemberRole::kOwner, /*should_sign_in=*/false);
 
   // Close the tab group.
-  browser()->GetTabStripModel()->CloseAllTabsInGroup(group_id);
+  browser()->tab_strip_model()->CloseAllTabsInGroup(group_id);
 
   RunTestSequence(FinishTabstripAnimations(), ShowBookmarksBar(),
                   PressButton(kToolbarAppMenuButtonElementId),
@@ -509,7 +512,7 @@ IN_PROC_BROWSER_TEST_F(SharedTabGroupInteractiveUiTest, GroupCloseLastTab) {
   RunTestSequence(
       WaitForShow(kTabGroupHeaderElementId), FinishTabstripAnimations(),
       Do([&]() {
-        browser()->GetTabStripModel()->ActivateTabAt(0);
+        browser()->tab_strip_model()->ActivateTabAt(0);
         chrome::CloseTab(browser());
       }),
       WaitForShow(kDataSharingSigninPromptDialogCancelButtonElementId),

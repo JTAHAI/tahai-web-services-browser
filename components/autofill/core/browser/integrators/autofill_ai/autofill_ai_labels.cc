@@ -22,12 +22,13 @@
 #include "base/containers/to_vector.h"
 #include "base/strings/string_util.h"
 #include "base/types/optional_ref.h"
+#include "base/types/zip.h"
 #include "components/autofill/core/browser/autofill_format_string.h"
-#include "components/autofill/core/browser/data_model/addresses/autofill_normalization_util.h"
+#include "components/autofill/core/browser/data_model/addresses/autofill_normalization_utils.h"
 #include "components/autofill/core/browser/data_model/autofill_ai/entity_instance.h"
 #include "components/autofill/core/browser/data_model/autofill_ai/entity_type.h"
 #include "components/autofill/core/browser/data_model/autofill_ai/entity_type_names.h"
-#include "components/autofill/core/browser/data_model/data_model_util.h"
+#include "components/autofill/core/browser/data_model/data_model_utils.h"
 #include "components/autofill/core/browser/filling/field_filling_util.h"
 #include "components/autofill/core/browser/geo/autofill_country.h"
 #include "components/autofill/core/browser/proto/server.pb.h"
@@ -105,6 +106,8 @@ std::pair<std::u16string, DenseSet<AttributeType>> GetValueAndTypesForLabel(
     if (!attribute) {
       return {u"", {type}};
     }
+    std::optional<std::u16string> localized_pattern =
+        data_util::LocalizePattern(date_format, app_locale);
     AutofillFormatString format_string(
         data_util::LocalizePattern(date_format, app_locale)
             .value_or(date_format),
@@ -191,7 +194,7 @@ void ExpandEntityLabels(AttributeType type,
                         bool only_add_to_empty_labels,
                         bool obfuscate_sensitive_types,
                         std::string_view app_locale) {
-  for (auto [entity, label] : std::views::zip(entities, labels)) {
+  for (auto [entity, label] : base::zip(entities, labels)) {
     if (label.size() == kMaxNumberOfLabels) {
       // No more labels can be added for this particular entity.
       continue;
@@ -284,7 +287,7 @@ std::vector<EntityLabel> GetLabelsForEntities(
     // Map the entity to its corresponding label so that the function is able to
     // reconstruct the list of `EntityLabel`s according to the ordering provided
     // by `entities`.
-    for (auto [entity, label] : std::views::zip(entities_for_type, labels)) {
+    for (auto [entity, label] : base::zip(entities_for_type, labels)) {
       labels_for_entity[entity] = std::move(label);
     }
   }

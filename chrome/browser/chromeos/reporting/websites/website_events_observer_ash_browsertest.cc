@@ -13,8 +13,6 @@
 #include "chrome/browser/ash/profiles/profile_helper.h"
 #include "chrome/browser/chromeos/reporting/metric_reporting_prefs.h"
 #include "chrome/browser/policy/dm_token_utils.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
-#include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chromeos/dbus/missive/missive_client_test_observer.h"
 #include "components/content_settings/core/common/content_settings_pattern.h"
@@ -215,7 +213,7 @@ IN_PROC_BROWSER_TEST_F(WebsiteEventsObserverBrowserTest, ReportAllUrlClosed) {
   website_metrics_browser_test_mixin_.NavigateActiveTab(browser, kTestUrl);
   ::chromeos::MissiveClientTestObserver missive_observer(
       base::BindRepeating(&IsMetricEventOfType, MetricEventType::URL_CLOSED));
-  browser->GetTabStripModel()->CloseAllTabs();
+  browser->tab_strip_model()->CloseAllTabs();
 
   // Verify data being enqueued.
   const auto [priority, record] = missive_observer.GetNextEnqueuedRecord();
@@ -254,7 +252,7 @@ IN_PROC_BROWSER_TEST_F(WebsiteEventsObserverBrowserTest,
   website_metrics_browser_test_mixin_.InsertForegroundTab(browser, kTestUrl);
   ::chromeos::MissiveClientTestObserver missive_observer(
       base::BindRepeating(&IsMetricEventOfType, MetricEventType::URL_CLOSED));
-  browser->GetTabStripModel()->CloseAllTabs();
+  browser->tab_strip_model()->CloseAllTabs();
 
   // Verify only event with allowlisted URL is being enqueued.
   const auto [priority, record] = missive_observer.GetNextEnqueuedRecord();
@@ -290,7 +288,7 @@ IN_PROC_BROWSER_TEST_F(WebsiteEventsObserverBrowserTest, DisallowAllUrlClosed) {
   website_metrics_browser_test_mixin_.NavigateActiveTab(browser, kTestUrl);
   ::chromeos::MissiveClientTestObserver missive_observer(
       base::BindRepeating(&IsMetricEventOfType, MetricEventType::URL_CLOSED));
-  browser->GetTabStripModel()->CloseAllTabs();
+  browser->tab_strip_model()->CloseAllTabs();
 
   // Verify data is not enqueued.
   EXPECT_FALSE(missive_observer.HasNewEnqueuedRecord());

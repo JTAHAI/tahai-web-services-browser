@@ -261,12 +261,9 @@ suite(`NewTabPageComposeboxUploadFileTest`, () => {
                   id, fileUploadStatus as ContextUploadStatus,
                   fileUploadErrorType as ContextUploadErrorType | null);
           await testProxy.searchboxCallbackRouterRemote.$.flushForTesting();
-          await microtasksFinished();
 
           // Assert no files in the carousel.
           assertFalse(!!$$<HTMLElement>(testProxy.element, '#carousel'));
-          // Assert submit button is hidden when no files or input text remain.
-          assertFalse(testProxy.element.submitEnabled);
 
           if (fileUploadErrorType !== null) {
             assertEquals(
@@ -275,60 +272,6 @@ suite(`NewTabPageComposeboxUploadFileTest`, () => {
           }
         });
   });
-
-  test(
-      'autocomplete matches and submit button are cleared when file upload ' +
-          'expires',
-      async () => {
-        testSupport.createComposeboxElement(testProxy);
-        const id = testSupport.generateZeroId();
-        const file = new File(['foo'], 'foo.jpg', {type: 'image/jpeg'});
-        await testSupport.uploadFileAndVerify(testProxy, id, file);
-
-        // Simulate autocomplete returning zero-state matches during upload.
-        const matches = [createSearchMatchForTesting({
-          allowedToBeDefaultMatch: false,
-        })];
-        testProxy.searchboxCallbackRouterRemote.autocompleteResultChanged(
-            createAutocompleteResultForTesting({
-              queryId: testProxy.element.activeQueryId,
-              input: '',
-              matches,
-            }));
-        await testProxy.searchboxCallbackRouterRemote.$.flushForTesting();
-        await microtasksFinished();
-
-        assertTrue(testProxy.element.submitEnabled);
-        assertEquals(-1, testProxy.element.selectedMatchIndex);
-
-        const initialStopAcCalls =
-            testProxy.searchboxHandler.getCallCount('stopAutocomplete');
-        const initialQueryAcCalls =
-            testProxy.searchboxHandler.getCallCount('queryAutocomplete');
-
-        // Trigger upload expiration.
-        testProxy.searchboxCallbackRouterRemote.onContextualInputStatusChanged(
-            id, ContextUploadStatus.kUploadExpired, null);
-        await testProxy.searchboxCallbackRouterRemote.$.flushForTesting();
-        await microtasksFinished();
-
-        // Verify matches are purged, selection reset, and submit button hidden.
-        assertFalse(!!$$<HTMLElement>(testProxy.element, '#carousel'));
-        assertFalse(testProxy.element.submitEnabled);
-        assertEquals(-1, testProxy.element.selectedMatchIndex);
-        assertEquals(null, testProxy.element.result);
-        assertEquals(
-            1, testProxy.searchboxHandler.getCallCount('deleteContext'));
-        assertEquals(
-            id, testProxy.searchboxHandler.getArgs('deleteContext')[0][0]);
-        assertEquals(
-            initialStopAcCalls + 1,
-            testProxy.searchboxHandler.getCallCount('stopAutocomplete'));
-        // Fresh zero-state suggestions are queried upon file upload expiration.
-        assertEquals(
-            initialQueryAcCalls + 1,
-            testProxy.searchboxHandler.getCallCount('queryAutocomplete'));
-      });
 
   test('upload pdf', async () => {
     testSupport.createComposeboxElement(testProxy);
@@ -502,13 +445,13 @@ suite(`NewTabPageComposeboxUploadFileTest`, () => {
         };
 
         // Manually populate frontend state variables with the tab file.
-        testProxy.element.attachedContext = new Map([[uuid, tabFile]]);
+        testProxy.element.files = new Map([[uuid, tabFile]]);
         testProxy.element.addedTabsIds = new Map([[1, uuid]]);
         await testProxy.element.updateComplete;
 
         // Verify that the tab is initially selected.
-        assertEquals(1, testProxy.element.attachedContext.size);
-        assertTrue(testProxy.element.attachedContext.has(uuid));
+        assertEquals(1, testProxy.element.files.size);
+        assertTrue(testProxy.element.files.has(uuid));
 
         // Mock getRecentTabs to return empty list (simulates tab
         // closure).
@@ -522,9 +465,9 @@ suite(`NewTabPageComposeboxUploadFileTest`, () => {
         await microtasksFinished();
 
         // Verify the closed tab context has been removed.
-        assertEquals(0, testProxy.element.attachedContext.size);
+        assertEquals(0, testProxy.element.files.size);
         assertEquals(0, testProxy.element.addedTabsIds.size);
-        assertFalse(testProxy.element.attachedContext.has(uuid));
+        assertFalse(testProxy.element.files.has(uuid));
       });
 
   test('image upload button clicks file input', () => {
@@ -856,8 +799,7 @@ suite(`NewTabPageComposeboxUploadPasteTest`, () => {
             testSupport.ADD_FILE_CONTEXT_FN));
   });
 
-  test(
-      'pasting only text does not call addFiles or prevent default',
+    test('pasting only text does not call addFiles or prevent default',
       async () => {
         // Arrange.
         testSupport.createComposeboxElement(testProxy);
@@ -1188,8 +1130,7 @@ suite(`NewTabPageComposeboxUploadToolModeTest`, () => {
         testProxy.element, testProxy.searchboxCallbackRouterRemote));
 
     // Query autocomplete with image present to get verbatim match.
-    (testProxy.element.getInputElement().$.input as HTMLTextAreaElement).value =
-        'T';
+    testProxy.element.getInputElement().$.input.value = 'T';
     testProxy.element.getInputElement().$.input.dispatchEvent(
         new Event('input'));
     await microtasksFinished();
@@ -1273,8 +1214,7 @@ suite(`NewTabPageComposeboxUploadContextTest`, () => {
     await testProxy.element.updateComplete;
     await microtasksFinished();
 
-    assertEquals(
-        1, testProxy.element.attachedContext.size, 'Tab should be added');
+    assertEquals(1, testProxy.element.files.size, 'Tab should be added');
 
     const bad_token = testSupport.FAKE_TOKEN_STRING_2;
     testProxy.searchboxCallbackRouterRemote.onContextualInputStatusChanged(
@@ -1284,9 +1224,7 @@ suite(`NewTabPageComposeboxUploadContextTest`, () => {
     );
     await testProxy.element.updateComplete;
     await microtasksFinished();
-    assertEquals(
-        2, testProxy.element.attachedContext.size,
-        'Ghost file should be added');
+    assertEquals(2, testProxy.element.files.size, 'Ghost file should be added');
   });
 
   test('does not add tab context of ghost file', async () => {
@@ -1298,8 +1236,7 @@ suite(`NewTabPageComposeboxUploadContextTest`, () => {
     await microtasksFinished();
 
 
-    assertEquals(
-        1, testProxy.element.attachedContext.size, 'Tab should be added');
+    assertEquals(1, testProxy.element.files.size, 'Tab should be added');
     const bad_token = testSupport.FAKE_TOKEN_STRING_2;
     testProxy.searchboxCallbackRouterRemote.onContextualInputStatusChanged(
         bad_token,
@@ -1309,8 +1246,7 @@ suite(`NewTabPageComposeboxUploadContextTest`, () => {
     await testProxy.element.updateComplete;
     await microtasksFinished();
     assertEquals(
-        1, testProxy.element.attachedContext.size,
-        'Ghost file should not be added');
+        1, testProxy.element.files.size, 'Ghost file should not be added');
   });
 
 
@@ -1365,7 +1301,7 @@ suite(`NewTabPageComposeboxUploadContextTest`, () => {
         await testProxy.element.updateComplete;
         await microtasksFinished();
 
-        assertEquals(testProxy.element.attachedContext.size, 1);
+        assertEquals(testProxy.element.files.size, 1);
 
         // Update InputState to disallow images and tabs.
         const newInputState = {
@@ -1379,7 +1315,7 @@ suite(`NewTabPageComposeboxUploadContextTest`, () => {
         await microtasksFinished();
 
         // Ensure the file is deleted.
-        assertEquals(testProxy.element.attachedContext.size, 0);
+        assertEquals(testProxy.element.files.size, 0);
         assertEquals(
             testProxy.searchboxHandler.getCallCount('deleteContext'), 1);
       });
@@ -1405,8 +1341,7 @@ suite('CrComposeboxUploadContextTest', () => {
         createCrComposeboxElement();
 
         assertEquals(
-            testProxy.element.attachedContext.size, 0,
-            'Should be 0 starting test');
+            testProxy.element.files.size, 0, 'Should be 0 starting test');
         const tab = {
           tabId: 1,
           title: 'Tab 1',
@@ -1431,7 +1366,7 @@ suite('CrComposeboxUploadContextTest', () => {
         await microtasksFinished();
 
         assertEquals(
-            testProxy.element.attachedContext.size, 1,
+            testProxy.element.files.size, 1,
             'Attached files should be 1 after adding first tab.');
 
         testProxy.element.clearAllInputs(
@@ -1442,8 +1377,7 @@ suite('CrComposeboxUploadContextTest', () => {
         await microtasksFinished();
 
         assertEquals(
-            testProxy.element.attachedContext.size, 0,
-            'Should be 0 after clearing all.');
+            testProxy.element.files.size, 0, 'Should be 0 after clearing all.');
 
         testProxy.searchboxHandler.resetResolver(
             testSupport.ADD_TAB_CONTEXT_FN);
@@ -1456,7 +1390,7 @@ suite('CrComposeboxUploadContextTest', () => {
         await microtasksFinished();
 
         assertEquals(
-            testProxy.element.attachedContext.size, 1,
+            testProxy.element.files.size, 1,
             'Attached files should be 1 after adding a second auto ' +
                 'chip, and having cleared the first one.');
       });
@@ -1467,7 +1401,7 @@ suite('CrComposeboxUploadContextTest', () => {
         createCrComposeboxElement();
 
         assertEquals(
-            testProxy.element.attachedContext.size, 0,
+            testProxy.element.files.size, 0,
             'Attached files should be 0 at start.');
 
         const tab = {
@@ -1495,7 +1429,7 @@ suite('CrComposeboxUploadContextTest', () => {
         await microtasksFinished();
 
         assertEquals(
-            testProxy.element.attachedContext.size, 0,
+            testProxy.element.files.size, 0,
             'Attached files should be 0 after failed callback' +
                 'does not return for an auto chip.');
 
@@ -1518,7 +1452,7 @@ suite('CrComposeboxUploadContextTest', () => {
         await microtasksFinished();
 
         assertEquals(
-            testProxy.element.attachedContext.size, 0,
+            testProxy.element.files.size, 0,
             'Attached files should still be 0 since the first' +
                 'callback corrupted, but the same auto chip' +
                 'context is added again.');
@@ -1547,7 +1481,7 @@ suite('CrComposeboxUploadContextTest', () => {
 
         // New auto chip added since is different from tab 1.
         assertEquals(
-            testProxy.element.attachedContext.size, 1,
+            testProxy.element.files.size, 1,
             'Attached files should be 1 after adding a second auto ' +
                 'chip, and having the first one be corrupted.');
       });
@@ -1559,8 +1493,7 @@ suite('CrComposeboxUploadContextTest', () => {
         createCrComposeboxElement();
 
         assertEquals(
-            testProxy.element.attachedContext.size, 0,
-            'Should be 0 starting test');
+            testProxy.element.files.size, 0, 'Should be 0 starting test');
         const tab = {
           tabId: 1,
           title: 'Tab 1',
@@ -1585,7 +1518,7 @@ suite('CrComposeboxUploadContextTest', () => {
         await microtasksFinished();
 
         assertEquals(
-            testProxy.element.attachedContext.size, 0,
+            testProxy.element.files.size, 0,
             'First tab should not be added since callback fails');
 
         testProxy.element.clearAllInputs(
@@ -1596,8 +1529,7 @@ suite('CrComposeboxUploadContextTest', () => {
         await microtasksFinished();
 
         assertEquals(
-            testProxy.element.attachedContext.size, 0,
-            'Should be 0 after clearing all.');
+            testProxy.element.files.size, 0, 'Should be 0 after clearing all.');
 
         testProxy.searchboxHandler.resetResolver(
             testSupport.ADD_TAB_CONTEXT_FN);
@@ -1612,7 +1544,7 @@ suite('CrComposeboxUploadContextTest', () => {
         await microtasksFinished();
 
         assertEquals(
-            testProxy.element.attachedContext.size, 1,
+            testProxy.element.files.size, 1,
             'Same tab should be added back after clearing all.');
       });
 });

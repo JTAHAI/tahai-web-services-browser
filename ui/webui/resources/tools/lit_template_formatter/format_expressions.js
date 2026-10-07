@@ -66,21 +66,15 @@ const ExpressionConfig = {
   },
 };
 
-/**
- * Computes the column limit for clang-format for an expression.
- * For attributes (e.g. attr="${expr}"), the initial limit accounts for the
- * attribute indentation (WRAPPED_LINE_INDENT_SIZE) but not the attribute name
- * itself, since subsequent lines of multiline expressions are aligned with the
- * attribute indent rather than the attribute name. If the first line of the
- * formatted expression exceeds the space available with the attribute name, it
- * will be wrapped to a new line after "${".
- */
 function computeColumnLimit(value, type) {
   const indent = value.indent || 0;
   const attrName = value.attrName;
   const config = ExpressionConfig[type];
-  const baseIndent = indent + (attrName ? WRAPPED_LINE_INDENT_SIZE : 0);
-  return 80 - baseIndent + config.columnLimitAdjustment;
+  let limit = 80 - indent + config.columnLimitAdjustment;
+  if (attrName) {
+    limit = limit - attrName.length - 4;
+  }
+  return limit;
 }
 
 /**
@@ -110,10 +104,10 @@ export async function formatTsExpressions(
     } else if (code.startsWith('${') && code.endsWith('}')) {
       type = ExpressionType.EXPRESSION;
     } else if (code.startsWith('${')) {
-      if (/\?\s*html`$/.test(code)) {
+      if (code.endsWith('? html`')) {
         type = ExpressionType.TERNARY;
       } else {
-        assert.ok(/=>\s*html`$/.test(code));
+        assert.ok(code.endsWith('=> html`'));
         type = ExpressionType.ARROW;
       }
     }
@@ -143,18 +137,12 @@ export async function formatTsExpressions(
 
     let baseIndent =
         (value.indent || 0) + (value.attrName ? WRAPPED_LINE_INDENT_SIZE : 0);
-    // For attributes (e.g. attr="${expr}"), the opening line has the attribute
-    // name, '="' (2 chars), and the closing '"' (1 char). Subtract the
-    // additional characters beyond what columnLimitAdjustment (-3 for '${' and
-    // '}') already accounts for to check if the first line fits with the
-    // attribute name. If not, put the expression on a new line after "${".
-    const firstLineLimit =
-        value.attrName ? limit - (value.attrName.length + 3) : limit;
-    if (value.attrName &&
-        formattedCode.split('\n')[0].length > firstLineLimit) {
+    // If the first line exceeds the column limit for an attribute, try again
+    // after putting the expression on a new line after the "${".
+    if (value.attrName && formattedCode.split('\n')[0].length > limit) {
       baseIndent += WRAPPED_LINE_INDENT_SIZE;
       const newLimit = 80 - baseIndent + config.columnLimitAdjustment;
-      if (newLimit !== limit) {
+      if (newLimit > limit) {
         const newStyle = `{BasedOnStyle: Chromium, ColumnLimit: ${newLimit}}`;
         formattedCode = await runClangFormat(
             clangFormatPath, ['-assume-filename=f.ts', `-style=${newStyle}`],

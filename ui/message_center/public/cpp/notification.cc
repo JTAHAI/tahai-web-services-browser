@@ -34,6 +34,9 @@ unsigned g_next_serial_number = 0;
 constexpr char kNotificationImageMemorySizeHistogram[] =
     "Ash.Notification.ImageMemorySizeInKB";
 
+constexpr char kNotificationSmallImageMemorySizeHistogram[] =
+    "Ash.Notification.SmallImageMemorySizeInKB";
+
 // Helpers ---------------------------------------------------------------------
 
 // Returns the byte size of `image` on the 1.0 scale factor, based on the
@@ -231,6 +234,12 @@ void Notification::SetImage(const gfx::Image& image) {
 }
 
 void Notification::SetSmallImage(const gfx::Image& image) {
+#if BUILDFLAG(IS_CHROMEOS)
+  // Record the memory size of `image` in KB.
+  base::UmaHistogramMemoryKB(kNotificationSmallImageMemorySizeHistogram,
+                             CalculateImageByteSize(image) / 1024);
+#endif  // BUILDFLAG(IS_CHROMEOS)
+
   optional_fields_.small_image = image;
 }
 

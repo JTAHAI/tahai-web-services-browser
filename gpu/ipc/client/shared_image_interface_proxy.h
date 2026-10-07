@@ -102,9 +102,6 @@ class SharedImageInterfaceProxy {
   void AddReferenceToSharedImage(const SyncToken& sync_token,
                                  const Mailbox& mailbox);
 
-  void SignalSyncToken(std::vector<SyncToken> sync_tokens,
-                       base::OnceClosure callback);
-
   SyncToken GenVerifiedSyncToken();
   SyncToken GenUnverifiedSyncToken();
   void VerifySyncToken(SyncToken& sync_token);

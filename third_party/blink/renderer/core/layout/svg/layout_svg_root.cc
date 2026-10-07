@@ -24,6 +24,8 @@
 #include "third_party/blink/renderer/core/layout/svg/layout_svg_root.h"
 
 #include "base/auto_reset.h"
+#include "base/feature_list.h"
+#include "third_party/blink/public/common/features.h"
 #include "third_party/blink/renderer/core/editing/position_with_affinity.h"
 #include "third_party/blink/renderer/core/frame/frame_owner.h"
 #include "third_party/blink/renderer/core/frame/local_frame.h"
@@ -55,7 +57,12 @@
 
 namespace blink {
 
-LayoutSVGRoot::LayoutSVGRoot(SVGElement* node) : LayoutReplaced(node) {}
+LayoutSVGRoot::LayoutSVGRoot(SVGElement* node)
+    : LayoutReplaced(node),
+      needs_transform_update_(true),
+      container_scale_changed_(false),
+      has_non_isolated_blending_descendants_(false),
+      has_non_isolated_blending_descendants_dirty_(false) {}
 
 LayoutSVGRoot::~LayoutSVGRoot() = default;
 
@@ -252,10 +259,10 @@ void LayoutSVGRoot::PaintReplaced(const PaintInfo& paint_info,
   SVGRootPainter(*this).PaintReplaced(paint_info, paint_offset);
 }
 
-void LayoutSVGRoot::WillBeDestroyed(const ComputedStyle* style) {
+void LayoutSVGRoot::WillBeDestroyed() {
   NOT_DESTROYED();
-  SVGResources::ClearEffects(*this, style);
-  LayoutReplaced::WillBeDestroyed(style);
+  SVGResources::ClearEffects(*this);
+  LayoutReplaced::WillBeDestroyed();
 }
 
 bool LayoutSVGRoot::IntrinsicSizeIsFontMetricsDependent() const {
@@ -279,7 +286,9 @@ bool LayoutSVGRoot::StyleChangeAffectsIntrinsicSize(
   // any other font-relative unit), any changes to the font may change said
   // dimensions.
   if (IntrinsicSizeIsFontMetricsDependent() &&
-      !base::ValuesEquivalent(old_style.GetFont(), style.GetFont())) {
+      (base::FeatureList::IsEnabled(blink::features::kCSSFontComparisonFix)
+           ? !base::ValuesEquivalent(old_style.GetFont(), style.GetFont())
+           : old_style.GetFont() != style.GetFont())) {
     return true;
   }
   return false;
@@ -301,19 +310,16 @@ void LayoutSVGRoot::IntrinsicSizingInfoChanged() {
 void LayoutSVGRoot::StyleDidChange(
     StyleDifference diff,
     const ComputedStyle* old_style,
-    const ComputedStyle& new_style,
     const StyleChangeContext& style_change_context) {
   NOT_DESTROYED();
-  LayoutReplaced::StyleDidChange(diff, old_style, new_style,
-                                 style_change_context);
+  LayoutReplaced::StyleDidChange(diff, old_style, style_change_context);
 
   if (old_style && StyleChangeAffectsIntrinsicSize(*old_style))
     IntrinsicSizingInfoChanged();
 
   SVGResources::UpdateEffects(*this, diff, old_style);
 
-  if (!RuntimeEnabledFeatures::SvgIgnoreOuterTransformsEnabled() &&
-      diff.transform_changed) {
+  if (diff.transform_changed) {
     for (auto& svg_text : text_set_) {
       svg_text->SetNeedsLayout(layout_invalidation_reason::kStyleChange,
                                kMarkContainerChain);
@@ -462,24 +468,6 @@ AffineTransform LayoutSVGRoot::LocalToSVGParentTransform() const {
          local_to_border_box_transform_;
 }
 
-void LayoutSVGRoot::SetContainerScale(const gfx::Vector2dF& container_scale) {
-  NOT_DESTROYED();
-  // Only update the scale factors and trigger relayout if descendants use
-  // non-scaling-stroke. The flag is computed during layout and reflects the
-  // previous layout pass; style changes that add/remove non-scaling-stroke
-  // trigger layout independently via style invalidation.
-  if (!View()->ContainsNonScalingStroke()) {
-    return;
-  }
-  if (container_scale_ == container_scale) {
-    return;
-  }
-  container_scale_ = container_scale;
-  container_scale_changed_ = true;
-  SetNeedsLayoutAndFullPaintInvalidation(
-      layout_invalidation_reason::kSvgChanged);
-}
-
 gfx::RectF LayoutSVGRoot::ViewBoxRect() const {
   return To<SVGSVGElement>(*GetNode())
       .CurrentViewBoxRect(NoZoomWillBeSvgObjectZoom(StyleRef()));
@@ -532,14 +520,12 @@ void LayoutSVGRoot::IntersectChildren(HitTestResult& result,
 
 void LayoutSVGRoot::AddSvgTextDescendant(LayoutSVGText& svg_text) {
   NOT_DESTROYED();
-  DCHECK(!RuntimeEnabledFeatures::SvgIgnoreOuterTransformsEnabled());
   DCHECK(!text_set_.Contains(&svg_text));
   text_set_.insert(&svg_text);
 }
 
 void LayoutSVGRoot::RemoveSvgTextDescendant(LayoutSVGText& svg_text) {
   NOT_DESTROYED();
-  DCHECK(!RuntimeEnabledFeatures::SvgIgnoreOuterTransformsEnabled());
   DCHECK(text_set_.Contains(&svg_text));
   text_set_.erase(&svg_text);
 }

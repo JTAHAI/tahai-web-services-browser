@@ -4,6 +4,7 @@
 # found in the LICENSE file.
 """Prints if the the terminal is likely to understand ANSI codes."""
 
+
 import os
 
 # Add more terminals here as needed.

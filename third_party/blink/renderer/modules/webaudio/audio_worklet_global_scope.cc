@@ -16,7 +16,6 @@
 #include "third_party/blink/renderer/bindings/modules/v8/v8_audio_worklet_processor.h"
 #include "third_party/blink/renderer/bindings/modules/v8/v8_blink_audio_worklet_process_callback.h"
 #include "third_party/blink/renderer/bindings/modules/v8/v8_blink_audio_worklet_processor_constructor.h"
-#include "third_party/blink/renderer/core/messaging/message_port.h"
 #include "third_party/blink/renderer/core/workers/global_scope_creation_params.h"
 #include "third_party/blink/renderer/core/workers/worker_backing_thread.h"
 #include "third_party/blink/renderer/core/workers/worker_thread.h"
@@ -284,10 +283,6 @@ void AudioWorkletGlobalScope::SetSampleRate(float sample_rate) {
   sample_rate_ = sample_rate;
 }
 
-void AudioWorkletGlobalScope::SetPort(MessagePort* port) {
-  port_ = port;
-}
-
 void AudioWorkletGlobalScope::SetRenderQuantumSize(
     uint32_t render_quantum_size) {
   render_quantum_size_ = render_quantum_size;
@@ -305,7 +300,6 @@ void AudioWorkletGlobalScope::SetObjectProxy(
 
 void AudioWorkletGlobalScope::Trace(Visitor* visitor) const {
   visitor->Trace(processor_definition_map_);
-  visitor->Trace(port_);
   WorkletGlobalScope::Trace(visitor);
 }
 

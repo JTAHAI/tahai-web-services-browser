@@ -14,15 +14,13 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/resource_coordinator/tab_lifecycle_unit_external.h"
 #include "chrome/browser/tab_group_sync/tab_group_sync_service_factory.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_window.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
-#include "chrome/browser/ui/browser_window/public/create_browser_window.h"
 #include "chrome/browser/ui/tabs/saved_tab_groups/tab_group_sync_service_initialized_observer.h"
 #include "chrome/browser/ui/tabs/tab_group_model.h"
 #include "chrome/browser/ui/tabs/tab_strip_model_test_utils.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/ui_test_utils.h"
-#include "components/split_tabs/split_tab_id.h"
 #include "components/tab_groups/tab_group_id.h"
 #include "components/tab_groups/tab_group_visual_data.h"
 #include "components/tabs/public/tab_group.h"
@@ -152,10 +150,8 @@ MATCHER_P(MatchesTab, expected_url, "") {
 // Creates `num_tabs` tabs and sets their WebContents IDs to match their
 // index with an optional `offset` which is useful if this method is called on
 // multiple browser windows within a single test to prevent duplicate IDs.
-void SetupTabs(BrowserWindowInterface* browser,
-               size_t num_tabs,
-               size_t offset = 0u) {
-  TabStripModel* tab_strip_model = browser->GetTabStripModel();
+void SetupTabs(Browser* browser, size_t num_tabs, size_t offset = 0u) {
+  TabStripModel* tab_strip_model = browser->tab_strip_model();
   ASSERT_TRUE(tab_strip_model);
 
   for (auto i = 0u; i < num_tabs; i++) {
@@ -389,7 +385,7 @@ IN_PROC_BROWSER_TEST_F(TabListBridgeBrowserTest, GetIndexOfTab) {
   EXPECT_EQ(1, tab_list_interface->GetIndexOfTab(tab1->GetHandle()));
   EXPECT_EQ(2, tab_list_interface->GetIndexOfTab(tab2->GetHandle()));
 
-  BrowserWindowInterface* new_browser = CreateBrowser(browser()->GetProfile());
+  Browser* new_browser = CreateBrowser(browser()->GetProfile());
   TabListInterface* new_tab_list_interface = TabListBridge::From(new_browser);
   ASSERT_TRUE(new_tab_list_interface);
 
@@ -525,8 +521,7 @@ IN_PROC_BROWSER_TEST_F(TabListBridgeBrowserTest, MoveTabToWindow) {
   ASSERT_TRUE(source_list_interface);
 
   // Create a second browser.
-  BrowserWindowInterface* second_browser =
-      CreateBrowser(browser()->GetProfile());
+  Browser* second_browser = CreateBrowser(browser()->GetProfile());
   TabListInterface* destination_list_interface =
       TabListInterface::From(second_browser);
   ASSERT_TRUE(destination_list_interface);
@@ -537,7 +532,7 @@ IN_PROC_BROWSER_TEST_F(TabListBridgeBrowserTest, MoveTabToWindow) {
   // Move the second tab from the first browser to the second.
   tabs::TabInterface* tab_to_move = source_list_interface->GetTab(1);
   source_list_interface->MoveTabToWindow(tab_to_move->GetHandle(),
-                                         second_browser->GetSessionID(), 1);
+                                         second_browser->session_id(), 1);
 
   // Verify the tabs are in the correct places.
   EXPECT_EQ(1, source_list_interface->GetTabCount());
@@ -663,15 +658,15 @@ IN_PROC_BROWSER_TEST_F(TabListBridgeBrowserTest, HighlightTabs) {
 IN_PROC_BROWSER_TEST_F(TabListBridgeBrowserTest,
                        ContainsTabGroupWhenTabGroupsNotSupported) {
   // App windows don't allow tab groups.
-  BrowserWindowCreateParams params = BrowserWindowCreateParams::CreateForApp(
-      "some app",
-      /*trusted_source=*/false, gfx::Rect(), browser()->GetProfile(),
-      /*user_gesture=*/true);
+  Browser::CreateParams params =
+      Browser::CreateParams::CreateForApp("some app", /*trusted_source=*/false,
+                                          gfx::Rect(), browser()->GetProfile(),
+                                          /*user_gesture=*/true);
   // params.window = window2.release();
-  BrowserWindowInterface* browser2 = CreateBrowserWindow(std::move(params));
+  Browser* browser2 = Browser::Create(params);
   ui_test_utils::DeprecatedFakeActivateBrowser(browser2);
 
-  ASSERT_FALSE(browser2->GetTabStripModel()->SupportsTabGroups());
+  ASSERT_FALSE(browser2->tab_strip_model()->SupportsTabGroups());
 
   TabListInterface* tab_list_interface = TabListInterface::From(browser2);
   ASSERT_TRUE(tab_list_interface);
@@ -999,65 +994,6 @@ IN_PROC_BROWSER_TEST_F(TabListBridgeBrowserTest,
             GetTabStripStateString(tab_strip_model, /*annotate_groups=*/true));
 }
 
-IN_PROC_BROWSER_TEST_F(TabListBridgeBrowserTest, CreateSplit) {
-  SetupTabs(browser(), 5);
-
-  TabStripModel* tab_strip_model = browser()->tab_strip_model();
-  ASSERT_TRUE(tab_strip_model);
-  EXPECT_EQ("0 1 2 3 4",
-            GetTabStripStateString(tab_strip_model, /*annotate_groups=*/true));
-
-  TabListInterface* tab_list_interface = TabListInterface::From(browser());
-  ASSERT_TRUE(tab_list_interface);
-
-  // Splitting adjacent tabs (index 0 and index 1).
-  std::optional<split_tabs::SplitTabId> split_id1 =
-      tab_list_interface->CreateSplit(
-          {tab_list_interface->GetTab(0)->GetHandle(),
-           tab_list_interface->GetTab(1)->GetHandle()});
-  ASSERT_TRUE(split_id1.has_value());
-  EXPECT_EQ("0s 1s 2 3 4",
-            GetTabStripStateString(tab_strip_model, /*annotate_groups=*/true));
-  EXPECT_EQ(split_id1, tab_list_interface->GetTab(0)->GetSplit());
-  EXPECT_EQ(split_id1, tab_list_interface->GetTab(1)->GetSplit());
-
-  // Splitting non-adjacent tabs (index 2 and index 4) repositions them so they
-  // become contiguous. This behavior is consistent with the underlying
-  // TabStripModel::AddToNewSplit implementation.
-  std::optional<split_tabs::SplitTabId> split_id2 =
-      tab_list_interface->CreateSplit(
-          {tab_list_interface->GetTab(2)->GetHandle(),
-           tab_list_interface->GetTab(4)->GetHandle()});
-  ASSERT_TRUE(split_id2.has_value());
-  EXPECT_EQ("0s 1s 2s 4s 3",
-            GetTabStripStateString(tab_strip_model, /*annotate_groups=*/true));
-  EXPECT_EQ(split_id2, tab_list_interface->GetTab(2)->GetSplit());
-  EXPECT_EQ(split_id2, tab_list_interface->GetTab(3)->GetSplit());
-}
-
-IN_PROC_BROWSER_TEST_F(TabListBridgeBrowserTest, Unsplit) {
-  SetupTabs(browser(), 3);
-
-  TabStripModel* tab_strip_model = browser()->tab_strip_model();
-  ASSERT_TRUE(tab_strip_model);
-  TabListInterface* tab_list_interface = TabListInterface::From(browser());
-  ASSERT_TRUE(tab_list_interface);
-
-  std::optional<split_tabs::SplitTabId> split_id =
-      tab_list_interface->CreateSplit(
-          {tab_list_interface->GetTab(0)->GetHandle(),
-           tab_list_interface->GetTab(1)->GetHandle()});
-  ASSERT_TRUE(split_id.has_value());
-  EXPECT_EQ("0s 1s 2",
-            GetTabStripStateString(tab_strip_model, /*annotate_groups=*/true));
-
-  tab_list_interface->Unsplit(*split_id);
-  EXPECT_EQ("0 1 2",
-            GetTabStripStateString(tab_strip_model, /*annotate_groups=*/true));
-  EXPECT_FALSE(tab_list_interface->GetTab(0)->GetSplit().has_value());
-  EXPECT_FALSE(tab_list_interface->GetTab(1)->GetSplit().has_value());
-}
-
 IN_PROC_BROWSER_TEST_F(TabListBridgeBrowserTest, OpenTab) {
   const GURL url1("about:blank?q=1");
   const GURL url2("about:blank?q=2");
@@ -1166,10 +1102,9 @@ IN_PROC_BROWSER_TEST_F(TabListBridgeBrowserTest, MoveTabGroupToWindow) {
   ASSERT_EQ("0 1 2",
             GetTabStripStateString(source_model, /*annotate_groups=*/true));
 
-  BrowserWindowInterface* second_browser =
-      CreateBrowser(browser()->GetProfile());
+  Browser* second_browser = CreateBrowser(browser()->GetProfile());
   SetupTabs(second_browser, 3, /*offset=*/3);
-  TabStripModel* destination_model = second_browser->GetTabStripModel();
+  TabStripModel* destination_model = second_browser->tab_strip_model();
   ASSERT_TRUE(destination_model);
 
   ASSERT_EQ("3 4 5", GetTabStripStateString(destination_model,
@@ -1187,7 +1122,7 @@ IN_PROC_BROWSER_TEST_F(TabListBridgeBrowserTest, MoveTabGroupToWindow) {
             GetTabStripStateString(source_model, /*annotate_groups=*/true));
 
   EXPECT_TRUE(source_list_interface->MoveTabGroupToWindow(
-      *group_id, second_browser->GetSessionID(), 1));
+      *group_id, second_browser->session_id(), 1));
 
   // Verify that the group has been moved to the destination window.
   EXPECT_EQ("2",
@@ -1204,8 +1139,7 @@ IN_PROC_BROWSER_TEST_F(TabListBridgeBrowserTest,
   // WebContents ID.
   SetupTabs(browser(), 3);
 
-  BrowserWindowInterface* second_browser =
-      CreateBrowser(browser()->GetProfile());
+  Browser* second_browser = CreateBrowser(browser()->GetProfile());
   SetupTabs(second_browser, 3, /*offset=*/3);
 
   TabListInterface* source_list_interface = TabListInterface::From(browser());
@@ -1237,7 +1171,7 @@ IN_PROC_BROWSER_TEST_F(TabListBridgeBrowserTest,
   // end since the closest valid index that isn't in the middle of another tab
   // group is 3.
   EXPECT_TRUE(source_list_interface->MoveTabGroupToWindow(
-      *group_id, second_browser->GetSessionID(), 2));
+      *group_id, second_browser->session_id(), 2));
 
   EXPECT_EQ("2",
             GetTabStripStateString(source_model, /*annotate_groups=*/true));
@@ -1315,8 +1249,8 @@ IN_PROC_BROWSER_TEST_F(TabListBridgeBrowserTest, Observer_OnTabMoved) {
 IN_PROC_BROWSER_TEST_F(TabListBridgeBrowserTest, IsTabListEditable) {
   // Use two tab lists, which means two browsers.
   Profile* profile = browser()->GetProfile();
-  BrowserWindowInterface* browser1 = browser();
-  BrowserWindowInterface* browser2 = CreateBrowser(profile);
+  Browser* browser1 = browser();
+  Browser* browser2 = CreateBrowser(profile);
 
   TabListInterface* tab_list1 = TabListInterface::From(browser1);
   TabListInterface* tab_list2 = TabListInterface::From(browser2);
@@ -1372,8 +1306,8 @@ IN_PROC_BROWSER_TEST_F(TabListBridgeWebContentsDiscardDisabledBrowserTest,
   content::WebContents* new_contents_ptr = new_contents.get();
 
   // Replace the WebContents.
-  auto discarded_contents = tab_strip_model->DiscardWebContents(
-      old_contents, std::move(new_contents));
+  auto discarded_contents =
+      tab_strip_model->DiscardWebContentsAt(0, std::move(new_contents));
 
   // We should have received one TAB_REPLACED event.
   auto event = observer.ReadEvent(Event::Type::TAB_REPLACED);

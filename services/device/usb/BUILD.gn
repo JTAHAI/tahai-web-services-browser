@@ -17,7 +17,6 @@ static_library("usb") {
   visibility = [
     ":*",
     "//services/device:*",
-    "//services/device/serial:*",
     "//services/device/usb/mojo:*",
   ]
 

@@ -7,6 +7,7 @@
 
 #include "base/task/single_thread_task_executor.h"
 #include "mojo/core/channel.h"
+#include "mojo/core/entrypoints.h"
 #include "mojo/core/ipcz_driver/envelope.h"
 
 namespace mojo::core {
@@ -34,9 +35,12 @@ class FakeChannelDelegate : public mojo::core::Channel::Delegate {
   const bool is_ipcz_transport_;
 };
 
-// Provides the IO task executor that a Channel requires.
+// Message deserialization may register handles in the global handle table. We
+// need to initialize Core for that to be OK.
 struct Environment {
-  Environment() : main_thread_task_executor(base::MessagePumpType::IO) {}
+  Environment() : main_thread_task_executor(base::MessagePumpType::IO) {
+    mojo::core::InitializeCore();
+  }
 
   base::SingleThreadTaskExecutor main_thread_task_executor;
 };

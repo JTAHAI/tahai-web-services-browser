@@ -1,3 +1,7 @@
-rules:
-- color-scheme-*: [color-scheme]
-- print-color-adjust.html: [print-color-adjust]
+features:
+- name: color-scheme
+  files:
+  - color-scheme-*
+- name: print-color-adjust
+  files:
+  - print-color-adjust.html

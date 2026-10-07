@@ -67,11 +67,11 @@ public final class QuicTestServer {
         QuicTestServerJni.get().delayResponse(path, delayInSeconds);
     }
 
-    public static String getServerCert() {
+    public static final String getServerCert() {
         return CERT_USED;
     }
 
-    public static String getServerCertKey() {
+    public static final String getServerCertKey() {
         return KEY_USED;
     }
 

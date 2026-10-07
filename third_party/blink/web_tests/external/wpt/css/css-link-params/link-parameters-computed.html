@@ -1,4 +1,6 @@
 <!DOCTYPE html>
+<html>
+<head>
 <meta charset="utf-8">
 <title>CSS Linked Parameters Module Level 1: getComputedStyle().linkParameters</title>
 <link rel="author" title="Tyler Thrailkill" href="mailto:tyler@programming.dev">
@@ -7,11 +9,7 @@
 <script src="/resources/testharness.js"></script>
 <script src="/resources/testharnessreport.js"></script>
 <script src="/css/support/computed-testcommon.js"></script>
-<style>
-:root {
-  --custom: 1;
-}
-</style>
+</head>
 <body>
 <div id="target"></div>
 <script>
@@ -22,6 +20,6 @@
 
     test_computed_value("link-parameters", "param(--a, )");
     test_computed_value("link-parameters", "param(--a, ), param(--b, )");
-
-    test_computed_value("link-parameters", "param(--a, var(--custom))", "param(--a, 1)");
 </script>
+</body>
+</html>

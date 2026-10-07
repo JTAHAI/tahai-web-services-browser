@@ -99,7 +99,6 @@ public class KeyboardShortcuts {
         KeyboardShortcutsSemanticMeaning.KEYBOARD_FOCUS_TOOLBAR,
         KeyboardShortcutsSemanticMeaning.KEYBOARD_FOCUS_BOOKMARKS,
         KeyboardShortcutsSemanticMeaning.KEYBOARD_FOCUS_SWITCH_ROW_OF_TOP_ELEMENTS,
-        KeyboardShortcutsSemanticMeaning.KEYBOARD_FOCUS_SWITCH_ROW_OF_TOP_ELEMENTS_REVERSE,
         KeyboardShortcutsSemanticMeaning.FOCUSED_TAB_STRIP_ITEM_OPEN_CONTEXT_MENU,
         KeyboardShortcutsSemanticMeaning.FOCUSED_TAB_STRIP_ITEM_REORDER_LEFT,
         KeyboardShortcutsSemanticMeaning.FOCUSED_TAB_STRIP_ITEM_REORDER_RIGHT,
@@ -254,11 +253,8 @@ public class KeyboardShortcuts {
         // Tab search start anchored side UI.
         int TAB_SEARCH_SIDE_UI = 66;
 
-        // Top controls switch row reverse.
-        int KEYBOARD_FOCUS_SWITCH_ROW_OF_TOP_ELEMENTS_REVERSE = 67;
-
         // Max value.
-        int MAX_VALUE = 68;
+        int MAX_VALUE = 67;
     }
 
     // LINT.ThenChange(//tools/metrics/histograms/metadata/accessibility/enums.xml:KeyboardShortcutsSemanticMeaning, //tools/metrics/histograms/metadata/accessibility/histograms.xml:KeyboardShortcutsSemanticMeaning)
@@ -658,9 +654,6 @@ public class KeyboardShortcuts {
                 KeyboardShortcutsSemanticMeaning.KEYBOARD_FOCUS_SWITCH_ROW_OF_TOP_ELEMENTS,
                 new KeyCombo(KeyEvent.KEYCODE_F6, NO_MODIFIER));
         new KeyboardShortcutDefinition(
-                KeyboardShortcutsSemanticMeaning.KEYBOARD_FOCUS_SWITCH_ROW_OF_TOP_ELEMENTS_REVERSE,
-                new KeyCombo(KeyEvent.KEYCODE_F6, KeyEvent.META_SHIFT_ON));
-        new KeyboardShortcutDefinition(
                 KeyboardShortcutsSemanticMeaning.FOCUSED_TAB_STRIP_ITEM_OPEN_CONTEXT_MENU,
                 new KeyCombo(KeyEvent.KEYCODE_F10, KeyEvent.META_SHIFT_ON));
         new KeyboardShortcutDefinition(
@@ -841,12 +834,6 @@ public class KeyboardShortcuts {
             return null;
         }
 
-        if (KeyEvent.isGamepadButton(keyCode)) {
-            if (GamepadList.isGamepadAPIActive()) {
-                return null;
-            }
-        }
-
         switch (keyCode) {
             case KeyEvent.KEYCODE_SEARCH:
                 if (event.getAction() == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0) {
@@ -886,11 +873,8 @@ public class KeyboardShortcuts {
                 break;
             case KeyEvent.KEYCODE_F6:
                 if (event.getAction() == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0) {
-                    int actionId =
-                            event.isShiftPressed()
-                                    ? R.id.switch_keyboard_focus_row_reverse
-                                    : R.id.switch_keyboard_focus_row;
-                    if (menuOrKeyboardActionController.onMenuOrKeyboardAction(actionId, false)) {
+                    if (menuOrKeyboardActionController.onMenuOrKeyboardAction(
+                            R.id.switch_keyboard_focus_row, false)) {
                         return true;
                     }
                 }
@@ -902,31 +886,6 @@ public class KeyboardShortcuts {
                         return true;
                     }
                 }
-                return true;
-            case KeyEvent.KEYCODE_TAB:
-            case KeyEvent.KEYCODE_PAGE_DOWN:
-            case KeyEvent.KEYCODE_PAGE_UP:
-            case KeyEvent.KEYCODE_BUTTON_R1:
-            case KeyEvent.KEYCODE_BUTTON_L1:
-                @KeyboardShortcutsSemanticMeaning int meaning = getKeyboardSemanticMeaning(event);
-
-                if (meaning != KeyboardShortcutsSemanticMeaning.MOVE_TO_TAB_RIGHT
-                        && meaning != KeyboardShortcutsSemanticMeaning.MOVE_TO_TAB_LEFT) {
-                    break;
-                }
-
-                if (event.getAction() != KeyEvent.ACTION_DOWN || event.getRepeatCount() != 0) {
-                    return true;
-                }
-
-                if (meaning == KeyboardShortcutsSemanticMeaning.MOVE_TO_TAB_RIGHT) {
-                    menuOrKeyboardActionController.onMenuOrKeyboardAction(
-                            R.id.select_next_tab, false);
-                } else {
-                    menuOrKeyboardActionController.onMenuOrKeyboardAction(
-                            R.id.select_previous_tab, false);
-                }
-
                 return true;
             case KeyEvent.KEYCODE_TV:
             case KeyEvent.KEYCODE_GUIDE:
@@ -1121,10 +1080,10 @@ public class KeyboardShortcuts {
 
         RecordHistogram.recordEnumeratedHistogram(
                 AccessibilityState.isKnownScreenReaderEnabled()
-                        ? "Accessibility.Android.KeyboardShortcut.ScreenReaderRunning8"
-                        : "Accessibility.Android.KeyboardShortcut.NoScreenReader8",
+                        ? "Accessibility.Android.KeyboardShortcut.ScreenReaderRunning6"
+                        : "Accessibility.Android.KeyboardShortcut.NoScreenReader6",
                 semanticMeaning,
-                KeyboardShortcuts.KeyboardShortcutsSemanticMeaning.MAX_VALUE + 1);
+                KeyboardShortcuts.KeyboardShortcutsSemanticMeaning.MAX_VALUE);
 
         switch (semanticMeaning) {
             case KeyboardShortcutsSemanticMeaning.OPEN_RECENTLY_CLOSED_TAB:
@@ -1237,6 +1196,19 @@ public class KeyboardShortcuts {
                         TabModelUtils.setIndex(currentTabModel, tabCount - 1);
                     }
                     return true;
+                case KeyboardShortcutsSemanticMeaning.MOVE_TO_TAB_RIGHT:
+                    if (tabSwitchingEnabled && tabCount > 1) {
+                        TabModelUtils.setIndex(
+                                currentTabModel, (currentTabModel.index() + 1) % tabCount);
+                    }
+                    return true;
+                case KeyboardShortcutsSemanticMeaning.MOVE_TO_TAB_LEFT:
+                    if (tabSwitchingEnabled && tabCount > 1) {
+                        TabModelUtils.setIndex(
+                                currentTabModel,
+                                (currentTabModel.index() + tabCount - 1) % tabCount);
+                    }
+                    return true;
                 case KeyboardShortcutsSemanticMeaning.CLOSE_TAB:
                     List<Tab> tabsToClose = currentTabModel.getOrderedMultiSelectedTabs();
                     Tab tab = TabModelUtils.getCurrentTab(currentTabModel);
@@ -1245,7 +1217,10 @@ public class KeyboardShortcuts {
                         // bulk selection or already confirmed by the manager.
                         boolean canClose =
                                 PinnedTabClosureManagerFactory.getInstance()
-                                        .shouldCloseTab(tabModelSelector, tab, tabsToClose);
+                                        .shouldCloseTab(
+                                                tabModelSelector,
+                                                tab,
+                                                /* isBulkClose= */ tabsToClose.size() > 1);
                         if (canClose) {
                             currentTabModel
                                     .getTabRemover()
@@ -1299,13 +1274,13 @@ public class KeyboardShortcuts {
                     menuOrKeyboardActionController.onMenuOrKeyboardAction(R.id.print_id, false);
                     return true;
                 case KeyboardShortcutsSemanticMeaning.ZOOM_IN:
-                    ZoomController.zoomInPage(currentTab);
+                    ZoomController.zoomInPage(currentWebContents);
                     return true;
                 case KeyboardShortcutsSemanticMeaning.ZOOM_OUT:
-                    ZoomController.zoomOutPage(currentTab);
+                    ZoomController.zoomOutPage(currentWebContents);
                     return true;
                 case KeyboardShortcutsSemanticMeaning.ZOOM_RESET:
-                    ZoomController.zoomResetPage(currentTab, browserContextHandle);
+                    ZoomController.zoomResetPage(currentWebContents, browserContextHandle);
                     return true;
                 case KeyboardShortcutsSemanticMeaning.RELOAD_TAB:
                     if (currentTab != null) {

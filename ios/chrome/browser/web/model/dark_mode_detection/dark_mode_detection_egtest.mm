@@ -14,8 +14,6 @@
 #import "net/test/embedded_test_server/http_request.h"
 #import "net/test/embedded_test_server/http_response.h"
 
-using chrome_test_util::GREYAssertErrorNil;
-
 namespace {
 
 const char kPlainPath[] = "/plain";
@@ -71,12 +69,12 @@ std::unique_ptr<net::test_server::HttpResponse> HandleRequest(
                  @"EmbeddedTestServer failed to start.");
 
   NSError* error = [MetricsAppInterface setupHistogramTester];
-  GREYAssertErrorNil(error, @"Failed to setup histogram tester");
+  GREYAssertNil(error, @"Failed to setup histogram tester: %@", error);
 }
 
 - (void)tearDownHelper {
   NSError* error = [MetricsAppInterface releaseHistogramTester];
-  GREYAssertErrorNil(error, @"Failed to release histogram tester");
+  GREYAssertNil(error, @"Failed to release histogram tester: %@", error);
   [super tearDownHelper];
 }
 
@@ -110,13 +108,13 @@ std::unique_ptr<net::test_server::HttpResponse> HandleRequest(
       expectUniqueSampleWithCount:1
                         forBucket:meta ? supported_bucket : not_supported_bucket
                      forHistogram:@"IOS.DarkModeDetection.SupportsViaMeta"];
-  GREYAssertErrorNil(error, @"SupportsViaMeta assertion failed");
+  GREYAssertNil(error, @"SupportsViaMeta assertion failed: %@", error);
 
   error = [MetricsAppInterface
       expectUniqueSampleWithCount:1
                         forBucket:css ? supported_bucket : not_supported_bucket
                      forHistogram:@"IOS.DarkModeDetection.SupportsViaCss"];
-  GREYAssertErrorNil(error, @"SupportsViaCss assertion failed");
+  GREYAssertNil(error, @"SupportsViaCss assertion failed: %@", error);
 
   error = [MetricsAppInterface
       expectUniqueSampleWithCount:1
@@ -124,14 +122,14 @@ std::unique_ptr<net::test_server::HttpResponse> HandleRequest(
                                              : not_supported_bucket
                      forHistogram:
                          @"IOS.DarkModeDetection.SupportsViaMediaQuery"];
-  GREYAssertErrorNil(error, @"SupportsViaMediaQuery assertion failed");
+  GREYAssertNil(error, @"SupportsViaMediaQuery assertion failed: %@", error);
 
   error = [MetricsAppInterface
       expectUniqueSampleWithCount:1
                         forBucket:overall ? supported_bucket
                                           : not_supported_bucket
                      forHistogram:@"IOS.DarkModeDetection.SupportsDarkMode"];
-  GREYAssertErrorNil(error, @"SupportsDarkMode assertion failed");
+  GREYAssertNil(error, @"SupportsDarkMode assertion failed: %@", error);
 }
 
 // Tests that loading a plain page reports no dark mode support.

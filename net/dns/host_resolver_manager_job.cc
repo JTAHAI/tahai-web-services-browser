@@ -23,7 +23,6 @@
 #include "base/task/sequenced_task_runner.h"
 #include "base/time/time.h"
 #include "net/base/address_family.h"
-#include "net/base/ech_mode.h"
 #include "net/base/features.h"
 #include "net/base/network_anonymization_key.h"
 #include "net/base/network_handle.h"
@@ -180,13 +179,6 @@ handles::NetworkHandle HostResolverManager::JobKey::GetTargetNetwork() const {
   // Otherwise, we are in the "new way of doing multi-networking" scenario. We
   // can just rely on the target_network field in the JobKey.
   return target_network;
-}
-
-EchMode HostResolverManager::JobKey::GetEchMode() const {
-  if (!resolve_context) {
-    return EchMode::kOpportunistic;
-  }
-  return resolve_context->GetEchMode(host.GetHostnameWithoutBrackets());
 }
 
 // static
@@ -854,7 +846,6 @@ void HostResolverManager::Job::StartDnsTask(
     secure_dns_attempted_ = true;
   }
   if (base::FeatureList::IsEnabled(features::kEnableIntermediateDnsResults) ||
-      base::FeatureList::IsEnabled(features::kAsyncDnsQuicJob) ||
       resolver_->IsHappyEyeballsV3Enabled()) {
     dns_task_results_manager_ = std::make_unique<DnsTaskResultsManager>(
         this, key_.host, key_.query_types, net_log_);
@@ -1215,8 +1206,7 @@ void HostResolverManager::Job::RecordJobHttpsHistograms() {
       if (!resolver_->dns_client_) {
         return HttpsNotAttemptedReason::kNoDnsClient;
       }
-      if (resolver_->dns_client_->FallbackFromInsecureTransactionPreferred(
-              key_.GetEchMode())) {
+      if (resolver_->dns_client_->FallbackFromInsecureTransactionPreferred()) {
         return HttpsNotAttemptedReason::
             kFallbackFromInsecureTransactionPreferred;
       }

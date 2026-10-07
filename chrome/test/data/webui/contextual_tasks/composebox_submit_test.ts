@@ -25,7 +25,7 @@ import {MockTimer} from 'chrome://webui-test/mock_timer.js';
 import {TestMock} from 'chrome://webui-test/test_mock.js';
 import {isVisible, microtasksFinished} from 'chrome://webui-test/test_util.js';
 
-import {assertStyle, createCtComposeboxApp, deleteLastFile, FAKE_TOKEN_STRING, FAKE_TOKEN_STRING_2, fixtureUrl, getInputValue, getSubmitButton, getSubmitContainer, installMock, simulateUserInput} from './contextual_tasks_test_utils.js';
+import {assertStyle, createCtComposeboxApp, deleteLastFile, FAKE_TOKEN_STRING, FAKE_TOKEN_STRING_2, fixtureUrl, getSubmitButton, getSubmitContainer, installMock, simulateUserInput} from './contextual_tasks_test_utils.js';
 import type {CtComposeboxAppParts} from './contextual_tasks_test_utils.js';
 import {TestContextualTasksBrowserProxy} from './test_contextual_tasks_browser_proxy.js';
 import {ADD_TAB_CONTEXT_FN, setupAutocompleteResults, uploadFileAndVerify} from './test_searchbox_utils.js';
@@ -358,7 +358,7 @@ suite('ContextualTasksComposeboxSubmitTest', () => {
     await composebox.updateComplete;
     await microtasksFinished();
 
-    assertEquals(0, composebox.attachedContext.size);
+    assertEquals(0, composebox.files.size);
 
     // Should be no longer `EXPANDING` after successful upload and submit click.
     assertNotEquals(composebox.animationState, GlowAnimationState.EXPANDING);
@@ -555,7 +555,7 @@ suite('ContextualTasksComposeboxSubmitTest', () => {
     await composebox.updateComplete;
     await microtasksFinished();
 
-    assertEquals(0, composebox.attachedContext.size);
+    assertEquals(0, composebox.files.size);
 
     // Should be no longer `EXPANDING` after successful upload and submit click.
     assertNotEquals(composebox.animationState, GlowAnimationState.EXPANDING);
@@ -563,7 +563,7 @@ suite('ContextualTasksComposeboxSubmitTest', () => {
 
   test('Composebox submit button disabled when uploading tabs', async () => {
     const callback = (file: ComposeboxFile) => {
-      composebox.attachedContext.set(file.uuid, file);
+      composebox.files.set(file.uuid, file);
       composebox.contextFilesSize_ += 1;
       composebox.submitEnabled_ = composebox.computeSubmitEnabled_();
       composebox.requestUpdate();
@@ -653,7 +653,7 @@ suite('ContextualTasksComposeboxSubmitTest', () => {
     await composebox.updateComplete;
     await microtasksFinished();
 
-    assertEquals(0, composebox.attachedContext.size);
+    assertEquals(0, composebox.files.size);
 
     // Should be no longer `EXPANDING` after successful upload and submit click.
     assertNotEquals(composebox.animationState, GlowAnimationState.EXPANDING);
@@ -714,7 +714,7 @@ suite('ContextualTasksComposeboxSubmitTest', () => {
         composebox.animationState, GlowAnimationState.SUBMITTING,
         'Query is submitted but animation is suppressed on first submit');
 
-    assertEquals(0, composebox.attachedContext.size);
+    assertEquals(0, composebox.files.size);
   });
 
   test('Composebox zero state open triggers animation', async () => {
@@ -784,7 +784,7 @@ suite('ContextualTasksComposeboxSubmitTest', () => {
 
   test('delayed tabs do not delay submission', async () => {
     const callback = (file: any) => {
-      composebox.attachedContext.set(file.uuid, file);
+      composebox.files.set(file.uuid, file);
       composebox.contextFilesSize_ = 1;
       composebox.submitEnabled_ = composebox.computeSubmitEnabled_();
       composebox.requestUpdate();
@@ -1137,9 +1137,8 @@ suite('ContextualTasksComposeboxSubmitTest', () => {
           await app.updateComplete;
 
           assertEquals(
-              '', getInputValue(inputElement),
-              'Input should be cleared, but input = ' +
-                  getInputValue(inputElement));
+              '', inputElement.value,
+              'Input should be cleared, but input = ' + inputElement.value);
         });
 
         test('ComposeboxSubmitSendsQueryAndClearsInput', async () => {
@@ -1179,9 +1178,8 @@ suite('ContextualTasksComposeboxSubmitTest', () => {
           await app.updateComplete;
 
           assertEquals(
-              '', getInputValue(inputElement),
-              'Input should be cleared, but input = ' +
-                  getInputValue(inputElement));
+              '', inputElement.value,
+              'Input should be cleared, but input = ' + inputElement.value);
           assertEquals(
               null, innerComposebox.getDropdownElement().result,
               'Matches should be cleared');
@@ -1429,9 +1427,8 @@ suite('ContextualTasksComposeboxSubmitTest', () => {
               FAKE_TOKEN_STRING, ContextUploadStatus.kProcessing, null);
           await flushAndSettle();
           assertTrue(
-              innerComposebox.attachedContext.get(FAKE_TOKEN_STRING) !==
-                  undefined,
-              'The pending file should be tracked in `attachedContext`');
+              innerComposebox.files.get(FAKE_TOKEN_STRING) !== undefined,
+              'The pending file should be tracked in `files`');
           assertFalse(
               innerComposebox.fileUploadsComplete,
               'The processing upload should be pending');
@@ -1518,8 +1515,7 @@ suite('ContextualTasksComposeboxSubmitTest', () => {
           // Verify input is set.
           assertEquals(TEST_QUERY, innerComposebox.input);
           assertEquals(
-              TEST_QUERY,
-              getInputValue(innerComposebox.getInputElement().$.input));
+              TEST_QUERY, innerComposebox.getInputElement().$.input.value);
 
           // Verify `submitQuery` was not called.
           assertEquals(
@@ -1544,7 +1540,7 @@ suite('ContextualTasksComposeboxSubmitTest', () => {
           });
           await innerComposebox.updateComplete;
 
-          const file = innerComposebox.attachedContext.get(FAKE_TOKEN_STRING);
+          const file = innerComposebox.files.get(FAKE_TOKEN_STRING);
           assertTrue(file !== undefined, 'The injected file should exist');
           assertEquals(FAKE_TOKEN_STRING, file.uuid);
           assertEquals('injected title', file.name);
@@ -1583,7 +1579,7 @@ suite('ContextualTasksComposeboxSubmitTest', () => {
               'The non-submit injection should query autocomplete once');
           const queryArgs =
               mockSearchboxPageHandler.getArgs(QUERY_AUTOCOMPLETE_FN);
-          assertEquals(TEST_QUERY, queryArgs[queryArgs.length - 1][2]);
+          assertEquals(TEST_QUERY, queryArgs[queryArgs.length - 1][1]);
           const activeQueryId = innerComposebox.activeQueryId;
           assertTrue(activeQueryId >= 0, 'A live query id should be active');
 
@@ -1698,7 +1694,7 @@ suite('ContextualTasksComposeboxSubmitTest', () => {
                   'The empty injection should issue one ZPS query');
               const queryArgs =
                   mockSearchboxPageHandler.getArgs(QUERY_AUTOCOMPLETE_FN);
-              assertEquals('', queryArgs[queryArgs.length - 1][2]);
+              assertEquals('', queryArgs[queryArgs.length - 1][1]);
               const staleQueryId = innerComposebox.activeQueryId;
               assertTrue(staleQueryId >= 0, 'The ZPS query should be live');
 
@@ -1876,8 +1872,7 @@ suite('ContextualTasksComposeboxSubmitTest', () => {
 
               // Anchor the injected file: text alone enables the button, so
               // a no-op injectInput would otherwise pass this test.
-              const file =
-                  innerComposebox.attachedContext.get(FAKE_TOKEN_STRING);
+              const file = innerComposebox.files.get(FAKE_TOKEN_STRING);
               assertTrue(file !== undefined, 'The injected file should exist');
               assertFalse(
                   file.supportsUnimodal,
@@ -1967,8 +1962,7 @@ suite('ContextualTasksComposeboxSubmitTest', () => {
               await innerComposebox.updateComplete;
               await microtasksFinished();
 
-              const file =
-                  innerComposebox.attachedContext.get(FAKE_TOKEN_STRING);
+              const file = innerComposebox.files.get(FAKE_TOKEN_STRING);
               assertTrue(file !== undefined, 'The injected file should exist');
               assertEquals('quoteFilled', file.iconName);
 

@@ -84,13 +84,13 @@ class TestPermissionRequestHandlerClient
   const Permission& canceled_permission() { return canceled_permission_; }
 
   void Grant() {
-    request_->OnAccept(true);
+    request_->OnAccept(nullptr, true);
     request_->DeleteThis();
     request_ = nullptr;
   }
 
   void Deny() {
-    request_->OnAccept(false);
+    request_->OnAccept(nullptr, false);
     request_->DeleteThis();
     request_ = nullptr;
   }

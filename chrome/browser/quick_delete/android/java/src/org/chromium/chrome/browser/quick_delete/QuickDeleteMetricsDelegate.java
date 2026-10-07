@@ -66,13 +66,13 @@ public class QuickDeleteMetricsDelegate {
      */
     public static void recordHistogram(@QuickDeleteAction int quickDeleteAction) {
         RecordHistogram.recordEnumeratedHistogram(
-                HISTOGRAM_NAME, quickDeleteAction, QuickDeleteAction.MAX_VALUE + 1);
+                HISTOGRAM_NAME, quickDeleteAction, QuickDeleteAction.MAX_VALUE);
 
         if (quickDeleteAction == QuickDeleteAction.DELETE_CLICKED) {
             RecordHistogram.recordEnumeratedHistogram(
                     "Privacy.DeleteBrowsingData.Action",
                     DeleteBrowsingDataAction.QUICK_DELETE,
-                    DeleteBrowsingDataAction.MAX_VALUE + 1);
+                    DeleteBrowsingDataAction.MAX_VALUE);
         }
     }
 }

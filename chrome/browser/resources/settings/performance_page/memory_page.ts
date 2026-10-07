@@ -6,21 +6,21 @@ import '../controls/controlled_radio_button.js';
 import '../controls/settings_radio_group.js';
 import '../controls/settings_toggle_button.js';
 import 'chrome://resources/cr_elements/cr_collapse/cr_collapse.js';
+import 'chrome://resources/cr_elements/cr_shared_style.css.js';
 import '../settings_page/settings_section.js';
+import '../settings_shared.css.js';
 
-import {PrefService} from '/shared/settings/prefs2/pref_service.js';
-import {PrefServiceObserverMixinLit} from '/shared/settings/prefs2/pref_service_observer_mixin_lit.js';
+import {PrefsMixin} from '/shared/settings/prefs/prefs_mixin.js';
 import {OpenWindowProxyImpl} from 'chrome://resources/js/open_window_proxy.js';
-import {CrLitElement} from 'chrome://resources/lit/v3_0/lit.rollup.js';
+import {PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
 import type {SettingsToggleButtonElement} from '../controls/settings_toggle_button.js';
 import {loadTimeData} from '../i18n_setup.js';
 
-import {getCss} from './memory_page.css.js';
-import {getHtml} from './memory_page.html.js';
+import {getTemplate} from './memory_page.html.js';
 import {PerformanceBrowserProxyImpl, PerformanceFeedbackCategory} from './performance_browser_proxy.js';
 import type {PerformanceMetricsProxy} from './performance_metrics_proxy.js';
-import {MemorySaverModeState, PerformanceMetricsProxyImpl} from './performance_metrics_proxy.js';
+import {MemorySaverModeAggressiveness, MemorySaverModeState, PerformanceMetricsProxyImpl} from './performance_metrics_proxy.js';
 
 export const MEMORY_SAVER_MODE_PREF =
     'performance_tuning.high_efficiency_mode.state';
@@ -28,7 +28,7 @@ export const MEMORY_SAVER_MODE_PREF =
 export const MEMORY_SAVER_MODE_AGGRESSIVENESS_PREF =
     'performance_tuning.high_efficiency_mode.aggressiveness';
 
-const SettingsMemoryPageElementBase = PrefServiceObserverMixinLit(CrLitElement);
+const SettingsMemoryPageElementBase = PrefsMixin(PolymerElement);
 
 export interface SettingsMemoryPageElement {
   $: {
@@ -41,79 +41,61 @@ export class SettingsMemoryPageElement extends SettingsMemoryPageElementBase {
     return 'settings-memory-page';
   }
 
-  static override get styles() {
-    return getCss();
+  static get template() {
+    return getTemplate();
   }
 
-  override render() {
-    return getHtml.bind(this)();
-  }
-
-  static override get properties() {
+  static get properties() {
     return {
-      numericUncheckedValues_: {type: Array},
-      numericCheckedValue_: {type: Number},
-      memorySaverStatePref_: {type: Object},
+      memorySaverModeAggressivenessEnum_: {
+        readOnly: true,
+        type: Object,
+        value: MemorySaverModeAggressiveness,
+      },
+
+      numericUncheckedValues_: {
+        type: Array,
+        value: () => [MemorySaverModeState.DISABLED],
+      },
+
+      numericCheckedValue_: {
+        type: Number,
+        value: () => MemorySaverModeState.ENABLED,
+      },
     };
   }
 
-  protected accessor numericUncheckedValues_: MemorySaverModeState[] =
-      [MemorySaverModeState.DISABLED];
-  protected accessor numericCheckedValue_: MemorySaverModeState =
-      MemorySaverModeState.ENABLED;
-  protected accessor memorySaverStatePref_: chrome.settingsPrivate.PrefObject|
-      undefined;
-
+  declare private numericUncheckedValues_: MemorySaverModeState[];
+  declare private numericCheckedValue_: MemorySaverModeState[];
   private metricsProxy_: PerformanceMetricsProxy =
       PerformanceMetricsProxyImpl.getInstance();
 
-  override connectedCallback() {
-    super.connectedCallback();
-    this.mirrorPref(MEMORY_SAVER_MODE_PREF, 'memorySaverStatePref_');
-  }
-
-  protected onMemorySaverModeChange_() {
+  private onMemorySaverModeChange_() {
     this.metricsProxy_.recordMemorySaverModeChanged(
-        PrefService.getInstance()
-            .getPref<number>(MEMORY_SAVER_MODE_PREF)
-            .value);
+        this.getPref<number>(MEMORY_SAVER_MODE_PREF).value);
   }
 
-  protected onMemorySaverModeAggressivenessChange_() {
+  private onMemorySaverModeAggressivenessChange_() {
     this.metricsProxy_.recordMemorySaverModeAggressivenessChanged(
-        PrefService.getInstance()
-            .getPref<number>(MEMORY_SAVER_MODE_AGGRESSIVENESS_PREF)
-            .value);
+        this.getPref<number>(MEMORY_SAVER_MODE_AGGRESSIVENESS_PREF).value);
   }
 
-  protected isMemorySaverModeEnabled_(): boolean {
-    if (!this.memorySaverStatePref_) {
-      return false;
-    }
-    return this.memorySaverStatePref_.value !== MemorySaverModeState.DISABLED;
+  private isMemorySaverModeEnabled_(value: number): boolean {
+    return value !== MemorySaverModeState.DISABLED;
   }
 
-  protected onMemorySaverSubLabelLinkClicked_() {
+  private onMemorySaverLearnMoreLinkClick_() {
     OpenWindowProxyImpl.getInstance().openUrl(
         loadTimeData.getString('memorySaverLearnMoreUrl'));
   }
 
-  protected showSendFeedbackButton_(): boolean {
-    // <if expr="_google_chrome">
-    return true;
-    // </if>
-    // <if expr="not _google_chrome">
-    return false;
-    // </if>
-  }
-
-  protected onSendFeedback_(_e: Event) {
-    // <if expr="_google_chrome">
-    _e.stopPropagation();
+  // <if expr="_google_chrome">
+  private onSendFeedbackClick_(e: Event) {
+    e.stopPropagation();
     PerformanceBrowserProxyImpl.getInstance().openFeedbackDialog(
         PerformanceFeedbackCategory.TABS);
-    // </if>
   }
+  // </if>
 }
 
 declare global {

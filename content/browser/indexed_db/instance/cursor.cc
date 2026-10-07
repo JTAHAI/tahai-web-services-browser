@@ -19,7 +19,6 @@
 #include "base/trace_event/trace_event.h"
 #include "content/browser/indexed_db/indexed_db_database_error.h"
 #include "content/browser/indexed_db/indexed_db_external_object.h"
-#include "content/browser/indexed_db/indexed_db_reporting.h"
 #include "content/browser/indexed_db/indexed_db_value.h"
 #include "content/browser/indexed_db/instance/bucket_context.h"
 #include "content/browser/indexed_db/instance/callback_helpers.h"
@@ -104,8 +103,7 @@ void Cursor::Advance(uint32_t count,
 
   if (count == 0) {
     std::move(callback).Run(CreateInvalidArgumentErrorResult());
-    ReportBadMessage(BadMessageReason::kCursorAdvanceInvalidCount,
-                     "Invalid count", receiver_.GetBadMessageCallback());
+    receiver_.ReportBadMessage("Invalid count");
     return;
   }
 
@@ -191,9 +189,7 @@ void Cursor::Continue(IndexedDBKey key,
        type_.direction == blink::mojom::IDBCursorDirection::PrevNoDuplicate) &&
       primary_key.IsValid()) {
     std::move(callback).Run(CreateInvalidArgumentErrorResult());
-    ReportBadMessage(BadMessageReason::kCursorContinueInvalidPrimaryKey,
-                     "Primary key not allowed",
-                     receiver_.GetBadMessageCallback());
+    receiver_.ReportBadMessage("Primary key not allowed");
     return;
   }
 
@@ -386,9 +382,8 @@ void Cursor::PrefetchReset(int used_prefetches) {
     return;
   }
 
-  auto on_bad_message = [this](BadMessageReason reason,
-                               const std::string& message) {
-    ReportBadMessage(reason, message, receiver_.GetBadMessageCallback());
+  auto on_bad_message = [this](const std::string& message) {
+    receiver_.ReportBadMessage(message);
     cursor_.reset();
   };
 
@@ -402,8 +397,7 @@ void Cursor::PrefetchReset(int used_prefetches) {
 
   // First prefetched result is always used.
   if (used_prefetches <= 0) {
-    on_bad_message(BadMessageReason::kCursorPrefetchResetInvalidCount,
-                   "used_prefetches <= 0");
+    on_bad_message("used_prefetches <= 0");
     return;
   }
 
@@ -411,8 +405,7 @@ void Cursor::PrefetchReset(int used_prefetches) {
   Status s = cursor_->TryResetToLastSavedPosition();
   if (!s.ok()) {
     if (s.IsInvalidArgument()) {
-      on_bad_message(BadMessageReason::kCursorPrefetchResetFailedToReset,
-                     s.ToString());
+      on_bad_message(s.ToString());
     } else {
       on_db_error(s);
     }
@@ -427,8 +420,7 @@ void Cursor::PrefetchReset(int used_prefetches) {
   if (!result.has_value()) {
     on_db_error(result.error());
   } else if (!*result) {
-    on_bad_message(BadMessageReason::kCursorPrefetchResetInvalidUsedPrefetches,
-                   "Invalid used_prefetches");
+    on_bad_message("Invalid used_prefetches");
   }
 }
 

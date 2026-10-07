@@ -6,11 +6,11 @@
 #define THIRD_PARTY_BLINK_RENDERER_CORE_HTML_HTML_CAMERA_ELEMENT_H_
 
 #include "third_party/blink/renderer/core/core_export.h"
-#include "third_party/blink/renderer/core/html/html_media_track_element_base.h"
+#include "third_party/blink/renderer/core/html/html_media_capture_element_base.h"
 
 namespace blink {
 
-class CORE_EXPORT HTMLCameraElement : public HTMLMediaTrackElementBase {
+class CORE_EXPORT HTMLCameraElement : public HTMLMediaCaptureElementBase {
   DEFINE_WRAPPERTYPEINFO();
 
  public:
@@ -20,6 +20,8 @@ class CORE_EXPORT HTMLCameraElement : public HTMLMediaTrackElementBase {
     return ElementType::kHTMLCameraElement;
   }
   bool IsHTMLCameraElement() const final { return true; }
+
+  void ApplyDefaultConstraints() override;
 };
 
 template <>

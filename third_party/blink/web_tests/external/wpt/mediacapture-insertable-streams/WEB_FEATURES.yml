@@ -1,2 +1,3 @@
-rules:
-- "**": [insertable-streams]
+features:
+- name: insertable-streams
+  files: "**"

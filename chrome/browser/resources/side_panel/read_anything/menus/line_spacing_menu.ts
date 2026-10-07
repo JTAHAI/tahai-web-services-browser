@@ -8,8 +8,6 @@ import {WebUiListenerMixinLit} from '//resources/cr_elements/web_ui_listener_mix
 import {loadTimeData} from '//resources/js/load_time_data.js';
 import {CrLitElement} from '//resources/lit/v3_0/lit.rollup.js';
 
-import type {VisualBrowserProxy} from '../app/visual_browser_proxy.js';
-import {VisualBrowserProxyImpl} from '../app/visual_browser_proxy.js';
 import {ToolbarEvent} from '../content/read_anything_types.js';
 import type {SettingsPrefs, ShowAtConfigPrefs} from '../content/read_anything_types.js';
 import {DEFAULT_SETTINGS} from '../content/read_anything_types.js';
@@ -51,24 +49,21 @@ export class LineSpacingMenuElement extends LineSpacingMenuElementBase
   accessor settingsPrefs: SettingsPrefs = DEFAULT_SETTINGS;
   accessor nonModal: boolean = false;
 
-  private visualBrowserProxy_: VisualBrowserProxy =
-      VisualBrowserProxyImpl.getInstance();
-
   protected accessor options_: Array<MenuStateItem<number>> = [
     {
       title: loadTimeData.getString('lineSpacingStandardTitle'),
       icon: 'read-anything:line-spacing-standard-custom',
-      data: this.visualBrowserProxy_.getStandardLineSpacing(),
+      data: chrome.readingMode.standardLineSpacing,
     },
     {
       title: loadTimeData.getString('lineSpacingLooseTitle'),
       icon: 'read-anything:line-spacing-loose-custom',
-      data: this.visualBrowserProxy_.getLooseLineSpacing(),
+      data: chrome.readingMode.looseLineSpacing,
     },
     {
       title: loadTimeData.getString('lineSpacingVeryLooseTitle'),
       icon: 'read-anything:line-spacing-very-loose-custom',
-      data: this.visualBrowserProxy_.getVeryLooseLineSpacing(),
+      data: chrome.readingMode.veryLooseLineSpacing,
     },
   ];
 
@@ -87,7 +82,7 @@ export class LineSpacingMenuElement extends LineSpacingMenuElementBase
   }
 
   protected onLineSpacingChange_(event: CustomEvent<{data: number}>) {
-    this.visualBrowserProxy_.onLineSpacingChange(event.detail.data);
+    chrome.readingMode.onLineSpacingChange(event.detail.data);
     this.logger_.logTextSettingsChange(
         ReadAnythingSettingsChange.LINE_HEIGHT_CHANGE);
     this.fire(ToolbarEvent.CLOSE_ALL_MENUS);

@@ -8,8 +8,6 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-#include <array>
-
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
 #include "base/files/scoped_file.h"
@@ -37,25 +35,25 @@ base::ScopedFD OpenTestStatFile(const std::string& name) {
 }  // namespace
 
 TEST_F(ArcSystemStatCollectorTest, Parse) {
-  std::array<int64_t, 3> zram_values;
+  int64_t zram_values[3];
   EXPECT_TRUE(ParseStatFile(OpenTestStatFile("zram_stat").get(),
                             ArcSystemStatCollector::kZramStatColumns,
-                            zram_values.data()));
+                            zram_values));
   EXPECT_EQ(2384, zram_values[0]);
   EXPECT_EQ(56696, zram_values[1]);
   EXPECT_EQ(79, zram_values[2]);
 
-  std::array<int64_t, 2> mem_values;
+  int64_t mem_values[2];
   EXPECT_TRUE(ParseStatFile(OpenTestStatFile("proc_meminfo").get(),
                             ArcSystemStatCollector::kMemInfoColumns,
-                            mem_values.data()));
+                            mem_values));
   EXPECT_EQ(8058940, mem_values[0]);
   EXPECT_EQ(2714260, mem_values[1]);
 
-  std::array<int64_t, 2> gem_values;
+  int64_t gem_values[2];
   EXPECT_TRUE(ParseStatFile(OpenTestStatFile("gem_objects").get(),
                             ArcSystemStatCollector::kGemInfoColumns,
-                            gem_values.data()));
+                            gem_values));
   EXPECT_EQ(853, gem_values[0]);
   EXPECT_EQ(458256384, gem_values[1]);
 

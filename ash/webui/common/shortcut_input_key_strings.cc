@@ -99,8 +99,14 @@ void AddShortcutInputKeyStrings(content::WebUIDataSource* html_source) {
       {"inputKeyPlaceholder", IDS_SHORTCUT_CUSTOMIZATION_INPUT_KEY_PLACEHOLDER},
   };
 
-  html_source->AddLocalizedString("iconLabelQuickInsert",
-                                  IDS_KEYBOARD_QUICK_INSERT_LABEL);
+  if (features::IsModifierSplitEnabled()) {
+    html_source->AddLocalizedString("iconLabelQuickInsert",
+                                    IDS_KEYBOARD_QUICK_INSERT_LABEL);
+  } else {
+    html_source->AddLocalizedString(
+        "iconLabelQuickInsert",
+        IDS_SHORTCUT_CUSTOMIZATION_INPUT_KEY_PLACEHOLDER);
+  }
 
   html_source->AddLocalizedStrings(kLocalizedStrings);
   html_source->UseStringsJs();

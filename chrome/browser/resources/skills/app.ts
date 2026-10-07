@@ -39,7 +39,6 @@ export interface SkillsAppElement {
     userSkillsPage: UserSkillsPageElement,
     discoverSkillsPage: DiscoverSkillsPageElement,
     drawer: CrDrawerElement,
-    drawerMenu: SkillsSidebarElement,
   };
 }
 

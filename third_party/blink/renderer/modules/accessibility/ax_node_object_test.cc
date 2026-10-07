@@ -16,29 +16,6 @@
 namespace blink {
 namespace test {
 
-namespace {
-
-void ExpectNativeLabelNameAndSourceText(const AXObject* ax_object,
-                                        const String& expected_name) {
-  ax::mojom::blink::NameFrom name_from;
-  AXObject::NameSources name_sources;
-  EXPECT_EQ(expected_name,
-            ax_object->GetName(name_from, nullptr, &name_sources));
-
-  const NameSource* native_label_source = nullptr;
-  for (const NameSource& source : name_sources) {
-    if (source.native_source == kAXTextFromNativeHTMLLabelFor ||
-        source.native_source == kAXTextFromNativeHTMLLabelWrapped) {
-      native_label_source = &source;
-      break;
-    }
-  }
-  ASSERT_NE(nullptr, native_label_source);
-  EXPECT_EQ(expected_name, native_label_source->text);
-}
-
-}  // namespace
-
 TEST_F(AccessibilityTest, ColorValueSupportsCSSColorSyntax) {
   ScopedInputTypeColorEnhancementsForTest color_enhancements(true);
   SetBodyInnerHTML(R"HTML(
@@ -153,50 +130,6 @@ TEST_F(AccessibilityTest, TextAlternativeFromInterestForAttribute) {
   ASSERT_EQ("Button", ax_button->ComputedName());
 }
 
-TEST_F(AccessibilityTest, NativeLabelNameStripsLeadingAndTrailingWhitespace) {
-  SetBodyInnerHTML(R"HTML(
-      <label><input id="leading"> foo</label>
-      <label>bar <input id="trailing"> </label>
-      <label><input id="internal">ok go</label>)HTML");
-
-  const AXObject* leading = GetAXObjectByElementId("leading");
-  EXPECT_EQ("foo", leading->ComputedName());
-  ExpectNativeLabelNameAndSourceText(leading, "foo");
-
-  const AXObject* trailing = GetAXObjectByElementId("trailing");
-  EXPECT_EQ("bar", trailing->ComputedName());
-  ExpectNativeLabelNameAndSourceText(trailing, "bar");
-
-  const AXObject* internal = GetAXObjectByElementId("internal");
-  EXPECT_EQ("ok go", internal->ComputedName());
-  ExpectNativeLabelNameAndSourceText(internal, "ok go");
-}
-
-TEST_F(AccessibilityTest, NativeLabelNameStripsASCIIWhitespace) {
-  SetBodyInnerHTML(R"HTML(
-      <label><input id="input">&#9;&#10;&#12;&#13;foo&#9;&#10;&#12;&#13;</label>
-  )HTML");
-
-  const AXObject* input = GetAXObjectByElementId("input");
-  EXPECT_EQ("foo", input->ComputedName());
-  ExpectNativeLabelNameAndSourceText(input, "foo");
-}
-
-TEST_F(AccessibilityTest, NativeLabelNamePreservesNonASCIIWhitespace) {
-  SetBodyInnerHTML(R"HTML(
-      <label><input id="nbsp">&nbsp;foo&nbsp;</label>
-      <label><input id="ideographic">&#x3000;foo&#x3000;</label>
-  )HTML");
-
-  const AXObject* nbsp = GetAXObjectByElementId("nbsp");
-  EXPECT_EQ(String(u"\u00A0foo\u00A0"), nbsp->ComputedName());
-  ExpectNativeLabelNameAndSourceText(nbsp, String(u"\u00A0foo\u00A0"));
-
-  const AXObject* ideographic = GetAXObjectByElementId("ideographic");
-  EXPECT_EQ(String(u"\u3000foo\u3000"), ideographic->ComputedName());
-  ExpectNativeLabelNameAndSourceText(ideographic, String(u"\u3000foo\u3000"));
-}
-
 TEST_F(AccessibilityTest, TextAlternativeFromPopoverTargetAttribute) {
   SetBodyInnerHTML(R"HTML(
       <div id="hint" popover="hint">Tooltip text</div>
@@ -208,48 +141,6 @@ TEST_F(AccessibilityTest, TextAlternativeFromPopoverTargetAttribute) {
 
   // Verify the button's computed name doesn't include the tooltip
   ASSERT_EQ("Button", ax_button->ComputedName());
-}
-
-// Regression test for the symbols() function in the counter() alt-text path.
-// The CSS alt text uses the inline symbols() counter style, not the 'decimal'
-// fallback.
-TEST_F(AccessibilityTest, CSSAltTextCounterWithSymbolsFunction) {
-  ScopedCSSCounterStyleSymbolsFunctionForTest scoped_feature(true);
-  SetBodyInnerHTML(R"HTML(
-      <style>
-        #target { counter-reset: c 1; }
-        #target::before {
-          content: "x" / counter(c, symbols('A' 'B' 'C'));
-        }
-      </style>
-      <div id="target"></div>)HTML");
-
-  const AXObject* before = GetAXObjectByElementId("target", kPseudoIdBefore);
-  ASSERT_NE(nullptr, before);
-  // With counter value 1 and the symbolic system, the alt text is "A". If the
-  // symbols() style were ignored (resolving to 'decimal'), it would be "1".
-  EXPECT_EQ("A", before->ComputedName());
-}
-
-// Regression test for the symbols() function in the counters() alt-text path.
-// counters() (with a separator) also uses the inline symbols() counter style,
-// not the 'decimal' fallback.
-TEST_F(AccessibilityTest, CSSAltTextCountersWithSymbolsFunction) {
-  ScopedCSSCounterStyleSymbolsFunctionForTest scoped_feature(true);
-  SetBodyInnerHTML(R"HTML(
-      <style>
-        #target { counter-reset: c 2; }
-        #target::before {
-          content: "x" / counters(c, '.', symbols('A' 'B' 'C'));
-        }
-      </style>
-      <div id="target"></div>)HTML");
-
-  const AXObject* before = GetAXObjectByElementId("target", kPseudoIdBefore);
-  ASSERT_NE(nullptr, before);
-  // With counter value 2 and the symbolic system, the alt text is "B". If the
-  // symbols() style were ignored (resolving to 'decimal'), it would be "2".
-  EXPECT_EQ("B", before->ComputedName());
 }
 
 TEST_F(AccessibilityTest, TextOffsetInFormattingContextWithLayoutBr) {

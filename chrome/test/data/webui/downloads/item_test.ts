@@ -119,8 +119,7 @@ suite('ItemTest', function() {
       dangerType: DangerType.kSensitiveContentBlock,
     });
     await microtasksFinished();
-    assertEquals(
-        'cr:error-filled', item.shadowRoot.querySelector('cr-icon')!.icon);
+    assertEquals('cr:error', item.shadowRoot.querySelector('cr-icon')!.icon);
     assertTrue(item.$.fileIcon.hidden);
     assertEquals(
         'red',
@@ -133,8 +132,7 @@ suite('ItemTest', function() {
     });
     await microtasksFinished();
 
-    assertEquals(
-        'cr:warning-filled', item.shadowRoot.querySelector('cr-icon')!.icon);
+    assertEquals('cr:warning', item.shadowRoot.querySelector('cr-icon')!.icon);
     assertTrue(item.$.fileIcon.hidden);
     assertEquals(
         'grey',
@@ -148,8 +146,7 @@ suite('ItemTest', function() {
     });
     await microtasksFinished();
 
-    assertEquals(
-        'cr:warning-filled', item.shadowRoot.querySelector('cr-icon')!.icon);
+    assertEquals('cr:warning', item.shadowRoot.querySelector('cr-icon')!.icon);
     assertTrue(item.$.fileIcon.hidden);
     assertEquals(
         'grey',
@@ -164,8 +161,7 @@ suite('ItemTest', function() {
     });
     await microtasksFinished();
 
-    assertEquals(
-        'cr:warning-filled', item.shadowRoot.querySelector('cr-icon')!.icon);
+    assertEquals('cr:warning', item.shadowRoot.querySelector('cr-icon')!.icon);
     assertTrue(item.$.fileIcon.hidden);
     assertEquals(
         'grey',
@@ -180,8 +176,7 @@ suite('ItemTest', function() {
     });
     await microtasksFinished();
 
-    assertEquals(
-        'cr:warning-filled', item.shadowRoot.querySelector('cr-icon')!.icon);
+    assertEquals('cr:warning', item.shadowRoot.querySelector('cr-icon')!.icon);
     assertTrue(item.$.fileIcon.hidden);
     assertEquals(
         'grey',
@@ -194,8 +189,7 @@ suite('ItemTest', function() {
     });
     await microtasksFinished();
 
-    assertEquals(
-        'cr:warning-filled', item.shadowRoot.querySelector('cr-icon')!.icon);
+    assertEquals('cr:warning', item.shadowRoot.querySelector('cr-icon')!.icon);
     assertTrue(item.$.fileIcon.hidden);
     assertEquals(
         'grey',
@@ -208,10 +202,9 @@ suite('ItemTest', function() {
     });
     await microtasksFinished();
 
-    const iconName = loadTimeData.getBoolean('webuiRoundedIconsEnabled') ?
-        'downloads:dangerous-filled' :
-        'downloads:dangerous-old';
-    assertEquals(iconName, item.shadowRoot.querySelector('cr-icon')!.icon);
+    assertEquals(
+        'downloads:dangerous-old',
+        item.shadowRoot.querySelector('cr-icon')!.icon);
     assertTrue(item.$.fileIcon.hidden);
     assertEquals(
         'red',
@@ -224,7 +217,9 @@ suite('ItemTest', function() {
     });
     await microtasksFinished();
 
-    assertEquals(iconName, item.shadowRoot.querySelector('cr-icon')!.icon);
+    assertEquals(
+        'downloads:dangerous-old',
+        item.shadowRoot.querySelector('cr-icon')!.icon);
     assertTrue(item.$.fileIcon.hidden);
     assertEquals(
         'red',
@@ -468,7 +463,7 @@ suite('ItemTest', function() {
     const icon = item.shadowRoot.querySelector<CrIconElement>(
         'cr-icon[icon-color=grey]');
     assertTrue(!!icon);
-    assertEquals('cr:warning-filled', icon.icon);
+    assertEquals('cr:warning', icon.icon);
     assertEquals(
         loadTimeData.getString('controlLocalPasswordScan'),
         item.shadowRoot.querySelector<HTMLElement>(

@@ -21,7 +21,7 @@
 #include "mojo/public/cpp/bindings/remote.h"
 #include "url/gurl.h"
 
-class BrowserWindowInterface;
+class Browser;
 
 namespace bookmarks {
 class BookmarkModel;
@@ -36,7 +36,7 @@ class WebUIBrowserBookmarkBarPageHandler
       mojo::PendingReceiver<bookmark_bar::mojom::PageHandler> receiver,
       mojo::PendingRemote<bookmark_bar::mojom::Page> page,
       content::WebUI* web_ui,
-      BrowserWindowInterface* browser);
+      Browser* browser);
   WebUIBrowserBookmarkBarPageHandler(
       const WebUIBrowserBookmarkBarPageHandler&) = delete;
   WebUIBrowserBookmarkBarPageHandler& operator=(
@@ -79,7 +79,7 @@ class WebUIBrowserBookmarkBarPageHandler
   mojo::Receiver<bookmark_bar::mojom::PageHandler> receiver_;
   mojo::Remote<bookmark_bar::mojom::Page> page_;
   const raw_ptr<content::WebUI> web_ui_;
-  const raw_ptr<BrowserWindowInterface> browser_;
+  const raw_ptr<Browser> browser_;
 
   BookmarkBar::State bookmark_bar_state_ = BookmarkBar::HIDDEN;
 

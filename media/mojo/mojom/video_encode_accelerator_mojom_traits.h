@@ -5,8 +5,6 @@
 #ifndef MEDIA_MOJO_MOJOM_VIDEO_ENCODE_ACCELERATOR_MOJOM_TRAITS_H_
 #define MEDIA_MOJO_MOJOM_VIDEO_ENCODE_ACCELERATOR_MOJOM_TRAITS_H_
 
-#include <optional>
-
 #include "base/notreached.h"
 #include "media/base/bitrate.h"
 #include "media/base/ipc/media_param_traits.h"
@@ -96,16 +94,6 @@ struct StructTraits<
   static bool supports_gpu_shared_images(
       const media::VideoEncodeAccelerator::SupportedProfile& profile) {
     return profile.supports_gpu_shared_images;
-  }
-
-  static std::optional<media::VideoChromaSampling> chroma_sampling(
-      const media::VideoEncodeAccelerator::SupportedProfile& profile) {
-    return profile.chroma_sampling;
-  }
-
-  static std::optional<uint8_t> bit_depth(
-      const media::VideoEncodeAccelerator::SupportedProfile& profile) {
-    return profile.bit_depth;
   }
 
   static bool Read(
@@ -254,19 +242,19 @@ class StructTraits<media::mojom::BitstreamBufferMetadataDataView,
       const media::BitstreamBufferMetadata& bbm) {
     return bbm;
   }
-  static const std::optional<media::SVCGenericMetadata>& svc_generic(
+  static std::optional<media::SVCGenericMetadata> svc_generic(
       const media::BitstreamBufferMetadata& bbm) {
     return bbm.svc_generic;
   }
-  static const std::optional<gfx::Size>& encoded_size(
+  static std::optional<gfx::Size> encoded_size(
       const media::BitstreamBufferMetadata& bbm) {
     return bbm.encoded_size;
   }
-  static const std::optional<gfx::ColorSpace>& encoded_color_space(
+  static std::optional<gfx::ColorSpace> encoded_color_space(
       const media::BitstreamBufferMetadata& bbm) {
     return bbm.encoded_color_space;
   }
-  static const std::optional<media::YuvPsnr>& yuv_psnr(
+  static std::optional<media::YuvPsnr> yuv_psnr(
       const media::BitstreamBufferMetadata& bbm) {
     return bbm.yuv_psnr;
   }

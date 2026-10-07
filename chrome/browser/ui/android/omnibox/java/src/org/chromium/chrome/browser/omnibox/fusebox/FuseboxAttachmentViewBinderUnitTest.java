@@ -54,21 +54,19 @@ public class FuseboxAttachmentViewBinderUnitTest {
     private PropertyModel mModel;
     private View mView;
     private Context mContext;
-    private FuseboxAttachmentViewBinder mBinder;
 
     @Before
     public void setUp() {
+        OmniboxResourceProvider.invalidateDrawableCache();
         mActivityController = Robolectric.buildActivity(TestActivity.class).setup();
         Activity activity = mActivityController.get();
         mModel = new PropertyModel(FuseboxAttachmentProperties.ALL_KEYS);
+        mModel.set(FuseboxAttachmentProperties.COLOR_SCHEME, BrandedColorScheme.APP_DEFAULT);
         mView =
                 LayoutInflater.from(activity)
                         .inflate(R.layout.fusebox_attachment_layout, /* root= */ null);
         mView.setLayoutParams(new LayoutParams(100, 100));
-        var resourceProvider =
-                new OmniboxResourceProvider(activity, BrandedColorScheme.APP_DEFAULT);
-        mBinder = new FuseboxAttachmentViewBinder(resourceProvider);
-        PropertyModelChangeProcessor.create(mModel, mView, mBinder::bind);
+        PropertyModelChangeProcessor.create(mModel, mView, FuseboxAttachmentViewBinder::bind);
         mContext = mView.getContext();
     }
 
@@ -108,7 +106,7 @@ public class FuseboxAttachmentViewBinderUnitTest {
         mModel.set(FuseboxAttachmentProperties.ATTACHMENT, attachment);
         assertEquals(View.INVISIBLE, textView.getVisibility());
         attachment.setUploadIsComplete();
-        mBinder.bind(mModel, mView, FuseboxAttachmentProperties.ATTACHMENT);
+        FuseboxAttachmentViewBinder.bind(mModel, mView, FuseboxAttachmentProperties.ATTACHMENT);
         assertEquals(View.VISIBLE, textView.getVisibility());
     }
 
@@ -201,7 +199,7 @@ public class FuseboxAttachmentViewBinderUnitTest {
         assertEquals(View.INVISIBLE, textView.getVisibility());
 
         attachment.setUploadIsComplete();
-        mBinder.bind(mModel, mView, FuseboxAttachmentProperties.ATTACHMENT);
+        FuseboxAttachmentViewBinder.bind(mModel, mView, FuseboxAttachmentProperties.ATTACHMENT);
 
         assertEquals(View.GONE, spinner.getVisibility());
         assertEquals(View.VISIBLE, imageView.getVisibility());
@@ -228,7 +226,7 @@ public class FuseboxAttachmentViewBinderUnitTest {
         int initialWidth = mView.getMeasuredWidth();
 
         attachment.setUploadIsComplete();
-        mBinder.bind(mModel, mView, FuseboxAttachmentProperties.ATTACHMENT);
+        FuseboxAttachmentViewBinder.bind(mModel, mView, FuseboxAttachmentProperties.ATTACHMENT);
 
         mView.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED);
         int finalWidth = mView.getMeasuredWidth();
@@ -267,7 +265,8 @@ public class FuseboxAttachmentViewBinderUnitTest {
                         SystemClock.elapsedRealtime(),
                         FuseboxAttachmentButtonType.FILES);
 
-        Drawable thumbnail = mBinder.getThumbnailDrawable(mModel, attachment, mContext);
+        Drawable thumbnail =
+                FuseboxAttachmentViewBinder.getThumbnailDrawable(mModel, attachment, mContext);
 
         assertNotNull(thumbnail);
         assertEquals(R.drawable.ic_attach_file_24dp, shadowOf(thumbnail).getCreatedFromResId());
@@ -284,7 +283,8 @@ public class FuseboxAttachmentViewBinderUnitTest {
                         SystemClock.elapsedRealtime(),
                         FuseboxAttachmentButtonType.FILES);
 
-        Drawable thumbnail = mBinder.getThumbnailDrawable(mModel, attachment, mContext);
+        Drawable thumbnail =
+                FuseboxAttachmentViewBinder.getThumbnailDrawable(mModel, attachment, mContext);
 
         assertNotNull(thumbnail);
         assertEquals(R.drawable.ic_attach_file_24dp, shadowOf(thumbnail).getCreatedFromResId());
@@ -301,7 +301,8 @@ public class FuseboxAttachmentViewBinderUnitTest {
                         SystemClock.elapsedRealtime(),
                         FuseboxAttachmentButtonType.CAMERA);
 
-        Drawable thumbnail = mBinder.getThumbnailDrawable(mModel, attachment, mContext);
+        Drawable thumbnail =
+                FuseboxAttachmentViewBinder.getThumbnailDrawable(mModel, attachment, mContext);
 
         assertEquals(mDrawable, thumbnail);
     }
@@ -317,7 +318,8 @@ public class FuseboxAttachmentViewBinderUnitTest {
                         SystemClock.elapsedRealtime(),
                         FuseboxAttachmentButtonType.CAMERA);
 
-        Drawable thumbnail = mBinder.getThumbnailDrawable(mModel, attachment, mContext);
+        Drawable thumbnail =
+                FuseboxAttachmentViewBinder.getThumbnailDrawable(mModel, attachment, mContext);
 
         assertNull(thumbnail);
     }
@@ -333,7 +335,8 @@ public class FuseboxAttachmentViewBinderUnitTest {
                         SystemClock.elapsedRealtime(),
                         FuseboxAttachmentButtonType.FILES);
 
-        Drawable thumbnail = mBinder.getThumbnailDrawable(mModel, attachment, mContext);
+        Drawable thumbnail =
+                FuseboxAttachmentViewBinder.getThumbnailDrawable(mModel, attachment, mContext);
 
         assertNotNull(thumbnail);
         assertEquals(R.drawable.ic_attach_pdf_24dp, shadowOf(thumbnail).getCreatedFromResId());
@@ -350,7 +353,8 @@ public class FuseboxAttachmentViewBinderUnitTest {
                         SystemClock.elapsedRealtime(),
                         FuseboxAttachmentButtonType.FILES);
 
-        Drawable thumbnail = mBinder.getThumbnailDrawable(mModel, attachment, mContext);
+        Drawable thumbnail =
+                FuseboxAttachmentViewBinder.getThumbnailDrawable(mModel, attachment, mContext);
 
         assertNotNull(thumbnail);
         assertEquals(R.drawable.ic_attach_pdf_24dp, shadowOf(thumbnail).getCreatedFromResId());
@@ -372,7 +376,8 @@ public class FuseboxAttachmentViewBinderUnitTest {
                         FuseboxAttachmentButtonType.TAB_PICKER,
                         /* isSuggestedTab= */ false);
 
-        Drawable thumbnail = mBinder.getThumbnailDrawable(mModel, attachment, mContext);
+        Drawable thumbnail =
+                FuseboxAttachmentViewBinder.getThumbnailDrawable(mModel, attachment, mContext);
 
         assertNotNull(thumbnail);
     }
@@ -390,7 +395,8 @@ public class FuseboxAttachmentViewBinderUnitTest {
                         FuseboxAttachmentButtonType.TAB_PICKER,
                         /* isSuggestedTab= */ false);
 
-        Drawable thumbnail = mBinder.getThumbnailDrawable(mModel, attachment, mContext);
+        Drawable thumbnail =
+                FuseboxAttachmentViewBinder.getThumbnailDrawable(mModel, attachment, mContext);
 
         assertNotNull(thumbnail);
         assertEquals(R.drawable.ic_globe_24dp, shadowOf(thumbnail).getCreatedFromResId());

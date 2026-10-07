@@ -17,7 +17,6 @@
 #include "components/variations/synthetic_trials.h"
 
 class BrowserProcessImpl;
-class BrowserWindowInterface;
 class CampaignsManagerClientImpl;
 class ChromeMetricsServiceClient;
 class ChromePasswordManagerClient;
@@ -71,6 +70,10 @@ class ChromeOSPerUserMetricsBrowserTestBase;
 class UkmConsentParamBrowserTest;
 class CrOSPreChoiceMetricsManagerTest;
 }  // namespace metrics
+
+namespace multistep_filter {
+class MultistepFilterServiceFactory;
+}  // namespace multistep_filter
 
 namespace optimization_guide {
 class ChromeOnDeviceModelServiceController;
@@ -177,13 +180,14 @@ class ChromeMetricsServiceAccessor : public metrics::MetricsServiceAccessor {
   friend class ChromePasswordManagerClient;
   friend class NavigationMetricsRecorder;
   friend class ChromeBrowserMainExtraPartsGpu;
-  friend class BrowserWindowInterface;
+  friend class Browser;
   friend class BrowserProcessImpl;
   friend class GlobalFeatures;
   friend class subscription_eligibility::SubscriptionEligibilityMetricsProvider;
   friend class supervised_user::MetricsServiceAccessorDelegateImpl;
   friend class glic::GlicMetricsProvider;
   friend class glic::GlicSyntheticTrialManager;
+  friend class multistep_filter::MultistepFilterServiceFactory;
   friend class OptimizationGuideKeyedService;
   friend class optimization_guide::ChromeOnDeviceModelServiceController;
   friend class WebUITabStripFieldTrial;

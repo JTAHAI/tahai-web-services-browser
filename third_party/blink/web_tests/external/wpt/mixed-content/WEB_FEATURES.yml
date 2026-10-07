@@ -1,2 +1,3 @@
-rules:
-- "**": [mixed-content]
+features:
+- name: mixed-content
+  files: "**"

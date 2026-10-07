@@ -4,8 +4,6 @@
 
 #include "components/download/public/common/download_item.h"
 
-#include "services/network/public/cpp/shared_url_loader_factory.h"
-
 #include "base/check.h"
 #include "base/notreached.h"
 
@@ -22,9 +20,5 @@ void DownloadItem::SetStateForTesting(DownloadState state) {
 void DownloadItem::SetDownloadUrlForTesting(const GURL& url) {
   NOTREACHED();
 }
-
-void DownloadItem::SetURLLoaderFactory(
-    scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory) {}
-
 
 }  // namespace download

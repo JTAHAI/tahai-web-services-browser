@@ -30,7 +30,6 @@
 
 #include "base/auto_reset.h"
 #include "base/containers/span.h"
-#include "base/feature_list.h"
 #include "base/gtest_prod_util.h"
 #include "base/memory_coordinator/memory_consumer.h"
 #include "base/task/single_thread_task_runner.h"
@@ -72,11 +71,6 @@ class Clock;
 }
 
 namespace blink {
-
-PLATFORM_EXPORT BASE_DECLARE_FEATURE(
-    kPreventExtensionResourceFetchAcrossIsolatedWorlds);
-PLATFORM_EXPORT BASE_DECLARE_FEATURE(
-    kPreventCrossWorldServiceWorkerResourceReuse);
 
 class BackgroundResponseProcessorFactory;
 class BlobDataHandle;

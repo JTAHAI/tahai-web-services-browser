@@ -30,7 +30,6 @@
 #import "ui/base/l10n/l10n_util.h"
 #import "ui/base/l10n/l10n_util_mac.h"
 
-using chrome_test_util::GREYAssertErrorNil;
 using scanner::CameraState;
 
 // Override a QRScannerViewController voice over check, simulating voice
@@ -241,10 +240,10 @@ void TapButton(id<GREYMatcher> button) {
   NSError* error =
       [QRScannerAppInterface assertModalOfClass:@"QRScannerViewController"
                                isNotPresentedBy:bvc];
-  GREYAssertErrorNil(error);
+  GREYAssertNil(error, error.localizedDescription);
   error = [QRScannerAppInterface assertModalOfClass:@"UIAlertController"
                                    isNotPresentedBy:bvc];
-  GREYAssertErrorNil(error);
+  GREYAssertNil(error, error.localizedDescription);
 
   [QRScannerAppInterface addCameraControllerInitializationExpectations:mock];
   ShowQRScanner();
@@ -253,10 +252,10 @@ void TapButton(id<GREYMatcher> button) {
   error =
       [QRScannerAppInterface assertModalOfClass:@"UIAlertController"
                                isNotPresentedBy:[bvc presentedViewController]];
-  GREYAssertErrorNil(error);
+  GREYAssertNil(error, error.localizedDescription);
   error = [QRScannerAppInterface assertModalOfClass:@"UIAlertController"
                                    isNotPresentedBy:bvc];
-  GREYAssertErrorNil(error);
+  GREYAssertNil(error, error.localizedDescription);
 }
 
 // Closes the QR scanner by tapping the close button and waits for it to
@@ -277,7 +276,7 @@ void TapButton(id<GREYMatcher> button) {
       assertModalOfClass:@"UIAlertController"
            isPresentedBy:[QRScannerAppInterface.currentBrowserViewController
                                  presentedViewController]];
-  GREYAssertErrorNil(error);
+  GREYAssertNil(error, error.localizedDescription);
   [ChromeEarlGrey
       waitForUIElementToAppearWithMatcher:grey_text([QRScannerAppInterface
                                               dialogTitleForState:state])];
@@ -309,7 +308,7 @@ void TapButton(id<GREYMatcher> button) {
               toAppearAbove:(UIViewController*)viewController {
   NSError* error = [QRScannerAppInterface assertModalOfClass:klassString
                                                isPresentedBy:viewController];
-  GREYAssertErrorNil(error);
+  GREYAssertNil(error, error.localizedDescription);
   UIViewController* modal = [viewController presentedViewController];
   GREYCondition* modalViewLoadedCondition =
       [GREYCondition conditionWithName:@"modalViewLoadedCondition"
@@ -476,10 +475,10 @@ void TapButton(id<GREYMatcher> button) {
   NSError* error =
       [QRScannerAppInterface assertModalOfClass:@"QRScannerViewController"
                                isNotPresentedBy:bvc];
-  GREYAssertErrorNil(error);
+  GREYAssertNil(error, error.localizedDescription);
   error = [QRScannerAppInterface assertModalOfClass:@"UIAlertController"
                                    isNotPresentedBy:bvc];
-  GREYAssertErrorNil(error);
+  GREYAssertNil(error, error.localizedDescription);
 
   id cameraControllerMock = [QRScannerAppInterface
       cameraControllerMockWithAuthorizationStatus:AVAuthorizationStatusDenied];
@@ -488,7 +487,7 @@ void TapButton(id<GREYMatcher> button) {
   ShowQRScanner();
   error = [QRScannerAppInterface assertModalOfClass:@"QRScannerViewController"
                                    isNotPresentedBy:bvc];
-  GREYAssertErrorNil(error);
+  GREYAssertNil(error, error.localizedDescription);
 
   [self waitForModalOfClass:@"UIAlertController" toAppearAbove:bvc];
 
@@ -524,7 +523,7 @@ void TapButton(id<GREYMatcher> button) {
     NSError* error =
         [QRScannerAppInterface assertModalOfClass:@"UIAlertController"
                                  isNotPresentedBy:bvc];
-    GREYAssertErrorNil(error);
+    GREYAssertNil(error, error.localizedDescription);
   }
 
   [cameraControllerMock verify];
@@ -572,7 +571,7 @@ void TapButton(id<GREYMatcher> button) {
   NSError* error = [QRScannerAppInterface
       assertModalOfClass:@"UIAlertController"
         isNotPresentedBy:QRScannerAppInterface.currentBrowserViewController];
-  GREYAssertErrorNil(error);
+  GREYAssertNil(error, error.localizedDescription);
 
   [cameraControllerMock verify];
 }
@@ -633,12 +632,12 @@ void TapButton(id<GREYMatcher> button) {
 
   NSError* error = [QRScannerAppInterface
       assertQueryLoaded:base::SysUTF8ToNSString(sanitizedResult)];
-  GREYAssertErrorNil(error);
+  GREYAssertNil(error, error.localizedDescription);
 
   error = [QRScannerAppInterface
       assertModalOfClass:@"QRScannerViewController"
         isNotPresentedBy:QRScannerAppInterface.currentBrowserViewController];
-  GREYAssertErrorNil(error);
+  GREYAssertNil(error, error.localizedDescription);
 }
 
 - (void)doTestReceivingResult:(std::string)result {
@@ -678,7 +677,7 @@ void TapButton(id<GREYMatcher> button) {
 
   NSError* error = [QRScannerAppInterface
       assertQueryLoaded:base::SysUTF8ToNSString(_testURL.GetContent())];
-  GREYAssertErrorNil(error);
+  GREYAssertNil(error, error.localizedDescription);
 }
 
 // Test that the correct page is loaded if the scanner result is a URL.

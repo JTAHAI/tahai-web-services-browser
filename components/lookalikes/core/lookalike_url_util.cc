@@ -5,7 +5,6 @@
 #include "components/lookalikes/core/lookalike_url_util.h"
 
 #include <algorithm>
-#include <optional>
 #include <string_view>
 #include <utility>
 
@@ -527,19 +526,15 @@ std::string GetE2LDWithDeFactoPublicRegistries(
   }
 
   size_t registry_size =
-      net::registry_controlled_domains::PermissiveGetHostRegistry(
+      net::registry_controlled_domains::PermissiveGetHostRegistryLength(
           domain_and_registry.c_str(),
           net::registry_controlled_domains::EXCLUDE_UNKNOWN_REGISTRIES,
-          net::registry_controlled_domains::EXCLUDE_PRIVATE_REGISTRIES)
-          .transform(&std::string_view::size)
-          .value_or(std::string_view::npos);
+          net::registry_controlled_domains::EXCLUDE_PRIVATE_REGISTRIES);
   const size_t private_registry_size =
-      net::registry_controlled_domains::PermissiveGetHostRegistry(
+      net::registry_controlled_domains::PermissiveGetHostRegistryLength(
           domain_and_registry.c_str(),
           net::registry_controlled_domains::EXCLUDE_UNKNOWN_REGISTRIES,
-          net::registry_controlled_domains::INCLUDE_PRIVATE_REGISTRIES)
-          .transform(&std::string_view::size)
-          .value_or(std::string_view::npos);
+          net::registry_controlled_domains::INCLUDE_PRIVATE_REGISTRIES);
 
   // If the registry lengths are the same using public and private registries,
   // than this is just a public registry domain. Otherwise, we need to check if

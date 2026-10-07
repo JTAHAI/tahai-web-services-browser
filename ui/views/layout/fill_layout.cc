@@ -30,14 +30,6 @@ FillLayout& FillLayout::SetIncludeInsets(bool include_insets) {
   return *this;
 }
 
-FillLayout& FillLayout::SetIncludeHiddenViews(bool include_hidden_views) {
-  if (include_hidden_views_ != include_hidden_views) {
-    include_hidden_views_ = include_hidden_views;
-    InvalidateHost(true);
-  }
-  return *this;
-}
-
 ProposedLayout FillLayout::CalculateProposedLayout(
     const SizeBounds& size_bounds) const {
   // Because we explicitly override GetPreferredSize and
@@ -50,7 +42,7 @@ ProposedLayout FillLayout::CalculateProposedLayout(
 
   const gfx::Rect contents_bounds = host_view()->GetContentsBounds();
   for (View* child : host_view()->children()) {
-    if (IsChildIncludedInLayout(child, include_hidden_views_)) {
+    if (!child->GetProperty(kViewIgnoredByLayoutKey)) {
       layout.child_layouts.push_back(
           ChildLayout{child, child->GetVisible(), contents_bounds,
                       SizeBounds(contents_bounds.size())});
@@ -67,7 +59,7 @@ gfx::Size FillLayout::GetPreferredSize(const View* host) const {
 
   bool has_child = false;
   for (const View* child : host->children()) {
-    if (IsChildIncludedInLayout(child, include_hidden_views_)) {
+    if (!child->GetProperty(kViewIgnoredByLayoutKey)) {
       has_child = true;
       result.SetToMax(child->GetPreferredSize(GetContentsSizeBounds(host)));
     }
@@ -94,7 +86,7 @@ gfx::Size FillLayout::GetPreferredSize(const View* host,
       include_insets_ ? available_size.Inset(host->GetInsets())
                       : available_size;
   for (const View* child : host->children()) {
-    if (IsChildIncludedInLayout(child, include_hidden_views_)) {
+    if (!child->GetProperty(kViewIgnoredByLayoutKey)) {
       has_child = true;
       result.SetToMax(child->GetPreferredSize(new_available_size));
     }
@@ -121,7 +113,7 @@ gfx::Size FillLayout::GetMinimumSize(const View* host) const {
 
   bool has_child = false;
   for (const View* child : host->children()) {
-    if (IsChildIncludedInLayout(child, include_hidden_views_)) {
+    if (!child->GetProperty(kViewIgnoredByLayoutKey)) {
       has_child = true;
       result.SetToMax(child->GetMinimumSize());
     }
@@ -144,7 +136,7 @@ int FillLayout::GetPreferredHeightForWidth(const View* host, int width) const {
   width -= insets.width();
   int height = 0;
   for (const View* child : host->children()) {
-    if (IsChildIncludedInLayout(child, include_hidden_views_)) {
+    if (!child->GetProperty(kViewIgnoredByLayoutKey)) {
       height =
           std::max(height, insets.height() + child->GetHeightForWidth(width));
     }

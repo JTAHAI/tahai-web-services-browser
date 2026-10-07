@@ -179,10 +179,9 @@ class PrintServersManagerImpl : public PrintServersManager {
 
 // static
 std::unique_ptr<PrintServersManager> PrintServersManager::Create(
-    PrefService& local_state,
     Profile* profile) {
   return std::make_unique<PrintServersManagerImpl>(
-      PrintServersPolicyProvider::Create(local_state, profile),
+      PrintServersPolicyProvider::Create(profile),
       ServerPrintersProvider::Create(profile));
 }
 

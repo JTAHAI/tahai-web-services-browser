@@ -40,8 +40,15 @@ void GeminiStepEligibilityChecker::CheckEligibility(
   }
 
   identity_manager_observation_.Observe(identity_manager);
-  variations_service_observation_.Observe(
-      g_browser_process->variations_service());
+
+  // TODO(crbug.com/524959454): Remove this workaround once Finch country
+  // available in the first run is ready.
+  // `base::Unretained(this)` is safe here because `this` owns the timer,
+  // which will be destroyed with `this`, cancelling any pending callbacks.
+  variations_country_timer_.Start(
+      FROM_HERE, base::Milliseconds(500),
+      base::BindRepeating(&GeminiStepEligibilityChecker::CheckCountry,
+                          base::Unretained(this)));
 
   CheckCountry();
   CheckAccountInfo();
@@ -70,13 +77,9 @@ void GeminiStepEligibilityChecker::OnIdentityManagerShutdown(
   }
 }
 
-void GeminiStepEligibilityChecker::OnSeedFetched() {
-  CheckCountry();
-}
-
 void GeminiStepEligibilityChecker::StopWaiting() {
   identity_manager_observation_.Reset();
-  variations_service_observation_.Reset();
+  variations_country_timer_.Stop();
 }
 
 void GeminiStepEligibilityChecker::CheckCountry() {
@@ -97,7 +100,7 @@ void GeminiStepEligibilityChecker::CheckCountry() {
   country_data_ =
       CountryData{.stored_permanent_country = stored_permanent_country,
                   .latest_country = latest_country};
-  variations_service_observation_.Reset();
+  variations_country_timer_.Stop();
   MaybeResolveEligibility();
 }
 
@@ -111,8 +114,7 @@ void GeminiStepEligibilityChecker::CheckAccountInfo() {
 
   AccountInfo account_info =
       identity_manager->FindExtendedAccountInfo(primary_account);
-  if (account_info.GetAccountCapabilities()
-          .can_use_model_execution_features() != signin::Tribool::kUnknown) {
+  if (account_info.GetAccountCapabilities().AreAllCapabilitiesKnown()) {
     account_info_ = account_info;
     identity_manager_observation_.Reset();
     MaybeResolveEligibility();

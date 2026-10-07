@@ -111,10 +111,11 @@ bool ConsiderAnimationAsIncompatible(const Animation& animation,
 }
 
 bool IsTransformRelatedCSSProperty(const PropertyHandle property) {
-  return property.GetCSSProperty().IDEquals(CSSPropertyID::kRotate) ||
-         property.GetCSSProperty().IDEquals(CSSPropertyID::kScale) ||
-         property.GetCSSProperty().IDEquals(CSSPropertyID::kTransform) ||
-         property.GetCSSProperty().IDEquals(CSSPropertyID::kTranslate);
+  return property.IsCSSProperty() &&
+         (property.GetCSSProperty().IDEquals(CSSPropertyID::kRotate) ||
+          property.GetCSSProperty().IDEquals(CSSPropertyID::kScale) ||
+          property.GetCSSProperty().IDEquals(CSSPropertyID::kTransform) ||
+          property.GetCSSProperty().IDEquals(CSSPropertyID::kTranslate));
 }
 
 bool HasNativePaintWorketReason(
@@ -192,6 +193,8 @@ bool IsNoOpVariableAnimation(const PropertyHandle& property,
 
 bool CompositedAnimationRequiresProperties(const PropertyHandle& property,
                                            LayoutObject* layout_object) {
+  if (!property.IsCSSProperty())
+    return false;
   switch (property.GetCSSProperty().PropertyID()) {
     case CSSPropertyID::kRotate:
     case CSSPropertyID::kScale:
@@ -299,6 +302,13 @@ CompositorAnimations::CheckCanStartEffectOnCompositor(
 
   // Limit to one native property and one CSS custom property per animation.
   for (const auto& property : properties) {
+    if (!property.IsCSSProperty()) {
+      // None of the below reasons make any sense if |property| isn't CSS, so we
+      // skip the rest of the loop in that case.
+      state.disposition |= kAnimationAffectsNonCSSProperties;
+      continue;
+    }
+
     if (IsTransformRelatedCSSProperty(property)) {
       // We use this later in computing element IDs too.
       if (layout_object && !layout_object->IsTransformApplicable()) {
@@ -1079,7 +1089,7 @@ void CompositorAnimations::GetAnimationOnCompositor(
         }
         target_property_id = cc::KeyframeModel::TargetPropertyId(
             cc::TargetProperty::CSS_CUSTOM_PROPERTY,
-            property.CustomPropertyName().Utf8());
+            property.CustomPropertyName().Utf8().data());
         break;
       }
       default:

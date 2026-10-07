@@ -4,22 +4,14 @@
 
 #include "extensions/common/hashed_extension_id.h"
 
-#include "base/feature_list.h"
 #include "components/crx_file/id_util.h"
-#include "extensions/common/extension_features.h"
 
 namespace extensions {
 
 HashedExtensionId::HashedExtensionId() = default;
 
-// TODO(crbug.com/455599844): Remove the dual-hash initialization and the
-// fallback to `value_sha1_` once the SHA-256 rollout is 100% complete.
 HashedExtensionId::HashedExtensionId(const ExtensionId& original_id)
-    : value_sha1_(crx_file::id_util::HashedIdInHex(original_id)),
-      value_sha256_(crx_file::id_util::HashedIdInHexSha256(original_id)),
-      use_sha256_(base::FeatureList::GetInstance() &&
-                  base::FeatureList::IsEnabled(
-                      extensions_features::kUseSha256ForExtensionHashes)) {}
+    : value_(crx_file::id_util::HashedIdInHex(original_id)) {}
 
 HashedExtensionId::HashedExtensionId(HashedExtensionId&& other) = default;
 HashedExtensionId::HashedExtensionId(const HashedExtensionId& other) = default;

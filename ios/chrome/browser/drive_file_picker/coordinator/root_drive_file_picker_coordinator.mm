@@ -17,7 +17,6 @@
 #import "ios/chrome/browser/authentication/ui_bundled/signin/signin_utils.h"
 #import "ios/chrome/browser/composebox/shared/coordinator/composebox_picker_drive_result.h"
 #import "ios/chrome/browser/composebox/shared/coordinator/composebox_picker_presenter.h"
-#import "ios/chrome/browser/composebox/shared/ui/composebox_snackbar_presenter.h"
 #import "ios/chrome/browser/drive/model/drive_list.h"
 #import "ios/chrome/browser/drive/model/drive_service_factory.h"
 #import "ios/chrome/browser/drive_file_picker/coordinator/browse_drive_file_picker_coordinator.h"
@@ -158,7 +157,6 @@ void ConfirmChangeProfileWithCompletion(
   _mediator.accountManagerService =
       ChromeAccountManagerServiceFactory::GetForProfile(profile);
   _mediator.imageFetcher = _imageFetcher.get();
-  _mediator.maxAttachmentCount = _maxAttachmentCount;
   _metricsHelper = [[DriveFilePickerMetricsHelper alloc] init];
   if (base::FeatureList::IsEnabled(kIOSChooseFromDriveSignedOut)) {
     signin::IdentityManager* identity_manager =
@@ -261,8 +259,6 @@ void ConfirmChangeProfileWithCompletion(
                              metricsHelper:_metricsHelper];
   _childBrowseCoordinator.delegate = self;
   _childBrowseCoordinator.forComposebox = _forComposebox;
-  _childBrowseCoordinator.maxAttachmentCount = _maxAttachmentCount;
-  _childBrowseCoordinator.snackbarPresenter = _snackbarPresenter;
   [_childBrowseCoordinator start];
 }
 
@@ -319,10 +315,6 @@ void ConfirmChangeProfileWithCompletion(
                                    didPickDriveItems:results];
 
   [self stopAnimated];
-}
-
-- (void)mediatorDidReachAttachmentLimit:(DriveFilePickerMediator*)mediator {
-  [_snackbarPresenter showSnackbarForAttachmentLimit:_maxAttachmentCount];
 }
 
 #pragma mark - BrowseDriveFilePickerCoordinatorDelegate
@@ -522,18 +514,16 @@ void ConfirmChangeProfileWithCompletion(
 // Shows an alert letting the user know that switching profiles will cancel the
 // current file picker operation and asking them to confirm.
 - (void)confirmChangeProfileWithCompletion:(void (^)(BOOL))completion {
+  // TODO(crbug.com/484897335): Replace placeholders with the localized string.
+  NSString* message = @"THIS_IS_A_PLACEHOLDER";
   if (_alertController) {
     [_alertController dismissViewControllerAnimated:NO completion:nil];
     _alertController = nil;
   }
-  _alertController = [UIAlertController
-      alertControllerWithTitle:
-          l10n_util::GetNSString(
-              IDS_IOS_CHOOSE_FROM_DRIVE_CONFIRM_CHANGE_PROFILE_TITLE)
-                       message:
-                           l10n_util::GetNSString(
-                               IDS_IOS_CHOOSE_FROM_DRIVE_CONFIRM_CHANGE_PROFILE_MESSAGE)
-                preferredStyle:UIAlertControllerStyleAlert];
+  _alertController =
+      [UIAlertController alertControllerWithTitle:@"THIS_IS_A_PLACEHOLDER"
+                                          message:message
+                                   preferredStyle:UIAlertControllerStyleAlert];
   __weak __typeof(self) weakSelf = self;
   UIAlertAction* cancelAction = [UIAlertAction
       actionWithTitle:l10n_util::GetNSString(IDS_CANCEL)
@@ -541,10 +531,9 @@ void ConfirmChangeProfileWithCompletion(
               handler:^(UIAlertAction* action) {
                 HandleConfirmChangeProfile(weakSelf, completion, NO);
               }];
+  // TODO(crbug.com/484897335): Replace placeholder with the localized string.
   UIAlertAction* confirmChangeProfileAction = [UIAlertAction
-      actionWithTitle:
-          l10n_util::GetNSString(
-              IDS_IOS_CHOOSE_FROM_DRIVE_CONFIRM_CHANGE_PROFILE_BUTTON)
+      actionWithTitle:@"THIS_IS_A_PLACEHOLDER"
                 style:UIAlertActionStyleDestructive
               handler:^(UIAlertAction* action) {
                 HandleConfirmChangeProfile(weakSelf, completion, YES);
@@ -566,11 +555,6 @@ void ConfirmChangeProfileWithCompletion(
                                          completion(proceed);
                                        }];
   _alertController = nil;
-  if (!proceed) {
-    id<DriveFilePickerCommands> driveFilePickerHandler = HandlerForProtocol(
-        self.browser->GetCommandDispatcher(), DriveFilePickerCommands);
-    [driveFilePickerHandler hideDriveFilePicker];
-  }
 }
 
 // Called when user interrupted a download/upload.

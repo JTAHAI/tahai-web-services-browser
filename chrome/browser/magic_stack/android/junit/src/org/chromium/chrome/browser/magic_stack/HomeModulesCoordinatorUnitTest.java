@@ -26,12 +26,12 @@ import android.content.res.Configuration;
 import android.content.res.Resources;
 import android.graphics.Color;
 import android.util.DisplayMetrics;
+import android.view.ContextMenu;
 import android.view.View;
 import android.view.View.OnCreateContextMenuListener;
 import android.view.View.OnLongClickListener;
 import android.view.ViewGroup;
 import android.view.ViewGroup.LayoutParams;
-import android.view.ViewGroup.MarginLayoutParams;
 
 import androidx.recyclerview.widget.RecyclerView;
 import androidx.test.filters.SmallTest;
@@ -55,10 +55,10 @@ import org.chromium.base.FeatureOverrides;
 import org.chromium.base.supplier.ObservableSuppliers;
 import org.chromium.base.supplier.SettableMonotonicObservableSupplier;
 import org.chromium.base.test.BaseRobolectricTestRunner;
+import org.chromium.base.test.util.Features.DisableFeatures;
 import org.chromium.base.test.util.Features.EnableFeatures;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.magic_stack.ModuleDelegate.ModuleType;
-import org.chromium.chrome.browser.ntp.NewTabPageUtils.PaddingStyle;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.profiles.ProfileManager;
 import org.chromium.chrome.browser.segmentation_platform.client_util.HomeModulesRankingHelper;
@@ -70,6 +70,7 @@ import org.chromium.components.browser_ui.widget.displaystyle.UiConfig;
 import org.chromium.components.browser_ui.widget.displaystyle.UiConfig.DisplayStyle;
 import org.chromium.components.browser_ui.widget.displaystyle.VerticalDisplayStyle;
 import org.chromium.components.segmentation_platform.ClassificationResult;
+import org.chromium.components.segmentation_platform.SegmentationPlatformService;
 import org.chromium.components.segmentation_platform.prediction_status.PredictionStatus;
 import org.chromium.ui.base.DeviceFormFactor;
 import org.chromium.ui.modelutil.MVCListAdapter.ModelList;
@@ -81,9 +82,6 @@ import java.util.Set;
 @RunWith(BaseRobolectricTestRunner.class)
 @Config(manifest = Config.NONE)
 public class HomeModulesCoordinatorUnitTest {
-    private static final int INITIAL_TOP_MARGIN = 12;
-    private static final int SMALL_TOP_MARGIN = 8;
-
     @Rule public MockitoRule mMockitoRule = MockitoJUnit.rule();
 
     @Mock private Activity mActivity;
@@ -98,6 +96,7 @@ public class HomeModulesCoordinatorUnitTest {
     @Mock private DisplayMetrics mDisplayMetrics;
     @Mock private HomeModulesConfigManager mHomeModulesConfigManager;
     @Mock private Profile mProfile;
+    @Mock SegmentationPlatformService mSegmentationPlatformService;
     @Mock private ModuleRegistry mModuleRegistry;
     @Mock private HomeModulesMediator mMediator;
     @Mock private ModelList mModel;
@@ -105,6 +104,7 @@ public class HomeModulesCoordinatorUnitTest {
     @Mock private HomeModulesRankingHelper.Natives mHomeModulesRankingHelperJniMock;
 
     @Captor private ArgumentCaptor<DisplayStyleObserver> mDisplayStyleObserver;
+    @Captor private ArgumentCaptor<Callback<Profile>> mProfileObserver;
     @Captor private ArgumentCaptor<RecyclerView.OnScrollListener> mOnScrollListener;
     @Captor private ArgumentCaptor<Callback<ClassificationResult>> mClassificationResultCaptor;
     @Captor private ArgumentCaptor<OnLongClickListener> mLongClickListenerCaptor;
@@ -483,13 +483,15 @@ public class HomeModulesCoordinatorUnitTest {
         verify(mView).setOnCreateContextMenuListener(mOnCreateContextMenuListenerCaptor.capture());
         mOnCreateContextMenuListenerCaptor
                 .getValue()
-                .onCreateContextMenu(/* menu= */ null, mView, /* menuInfo= */ null);
+                .onCreateContextMenu(
+                        mock(ContextMenu.class), mView, mock(ContextMenu.ContextMenuInfo.class));
         verify(homeModulesContextMenuManager).displayMenu(eq(mView), eq(mModuleProvider));
     }
 
     @Test
     @SmallTest
-    public void testAllCardsConfigChanged() {
+    @EnableFeatures({ChromeFeatureList.HOME_MODULE_PREF_REFACTOR})
+    public void testAllCardsConfigChanged_FeatureEnabled() {
         assertFalse(DeviceFormFactor.isNonMultiDisplayContextOnTablet(mActivity));
         when(mModuleDelegateHost.isHomeSurface()).thenReturn(true);
         mCoordinator = createCoordinator(/* skipInitProfile= */ false);
@@ -505,37 +507,19 @@ public class HomeModulesCoordinatorUnitTest {
 
     @Test
     @SmallTest
-    public void testAuroraPaddingStyle_Default() {
-        testAuroraPaddingStyleImpl(
-                PaddingStyle.DEFAULT, INITIAL_TOP_MARGIN, /* expectChange= */ false);
-    }
-
-    @Test
-    @SmallTest
-    public void testAuroraPaddingStyle_NonDefault() {
-        testAuroraPaddingStyleImpl(PaddingStyle.SMALL, SMALL_TOP_MARGIN, /* expectChange= */ true);
-    }
-
-    private void testAuroraPaddingStyleImpl(
-            int paddingStyle, int expectedTopMargin, boolean expectChange) {
-        MarginLayoutParams marginLayoutParams =
-                new MarginLayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        marginLayoutParams.topMargin = INITIAL_TOP_MARGIN;
-        when(mRecyclerView.getLayoutParams()).thenReturn(marginLayoutParams);
-        when(mResources.getDimensionPixelSize(R.dimen.ntp_section_top_margin_small))
-                .thenReturn(SMALL_TOP_MARGIN);
-
-        FeatureOverrides.overrideParam(ChromeFeatureList.NTP_AURORA, "padding_style", paddingStyle);
-
+    @DisableFeatures({ChromeFeatureList.HOME_MODULE_PREF_REFACTOR})
+    public void testAllCardsConfigChanged_FeatureDisabled() {
+        assertFalse(DeviceFormFactor.isNonMultiDisplayContextOnTablet(mActivity));
+        when(mModuleDelegateHost.isHomeSurface()).thenReturn(true);
         mCoordinator = createCoordinator(/* skipInitProfile= */ false);
 
-        assertEquals(expectedTopMargin, marginLayoutParams.topMargin);
-        if (expectChange) {
-            verify(mRecyclerView).setLayoutParams(marginLayoutParams);
-        } else {
-            verify(mRecyclerView, never()).setLayoutParams(any());
-        }
+        verify(mHomeModulesConfigManager).addListener(mHomeModulesStateListener.capture());
+
+        mHomeModulesStateListener.getValue().allCardsConfigChanged(false);
+        verify(mRecyclerView, never()).setVisibility(eq(View.GONE));
+
+        mHomeModulesStateListener.getValue().allCardsConfigChanged(true);
+        verify(mRecyclerView, never()).setVisibility(eq(View.VISIBLE));
     }
 
     private void setupAndVerifyTablets() {

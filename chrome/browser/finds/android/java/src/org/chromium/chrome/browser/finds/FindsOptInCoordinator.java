@@ -25,6 +25,7 @@ import org.chromium.chrome.browser.ui.messages.snackbar.SnackbarManager;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController.StateChangeReason;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetObserver;
+import org.chromium.components.browser_ui.bottomsheet.EmptyBottomSheetObserver;
 import org.chromium.components.browser_ui.notifications.BaseNotificationManagerProxyFactory;
 import org.chromium.components.browser_ui.notifications.channels.ChannelsInitializer;
 import org.chromium.ui.base.ViewUtils;
@@ -125,12 +126,13 @@ public class FindsOptInCoordinator {
                 });
 
         mBottomSheetObserver =
-                new BottomSheetObserver() {
+                new EmptyBottomSheetObserver() {
                     @Override
                     public void onSheetOpened(@StateChangeReason int reason) {
                         if (mBottomSheetController.getCurrentSheetContent() != mSheetContent) {
                             return;
                         }
+                        super.onSheetOpened(reason);
                         mBackPressStateChangedSupplier.set(true);
                     }
 
@@ -139,6 +141,7 @@ public class FindsOptInCoordinator {
                         if (mBottomSheetController.getCurrentSheetContent() != mSheetContent) {
                             return;
                         }
+                        super.onSheetClosed(reason);
                         mBackPressStateChangedSupplier.set(false);
 
                         if (mUserInteractionType == FindsOptInUserInteraction.DISMISSED) {

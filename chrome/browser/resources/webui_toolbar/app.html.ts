@@ -14,7 +14,7 @@ export function getHtml(this: ToolbarAppElement) {
 ${this.isBackForwardButtonEnabled_ ? html`
   <back-forward-button id="back" direction="back"
    .state="${this.navigationControlsState_.backForwardControlState.backButtonState}"
-   .windowIsMaximizedOrFullscreen="${this.navigationControlsState_.backForwardControlState.windowIsMaximizedOrFullscreen}"
+   .leadingMargin="${this.navigationControlsState_.backForwardControlState.backButtonLeadingMargin}"
    .touchUi="${this.navigationControlsState_.touchUi}">
   </back-forward-button>
   <back-forward-button id="forward" direction="forward"
@@ -43,8 +43,7 @@ ${this.isBackForwardButtonEnabled_ ? html`
   ` : ''}
   ${this.isLocationBarEnabled_ ? html`
     <location-bar id="location-bar"
-        .locationBarState="${this.navigationControlsState_.locationBarState}"
-        .touchUi="${this.navigationControlsState_.touchUi}">
+        .locationBarState="${this.navigationControlsState_.locationBarState}">
     </location-bar>
   ` : ''}
   ${this.isExtensionsContainerEnabled_ ? html`
@@ -62,24 +61,10 @@ ${this.isBackForwardButtonEnabled_ ? html`
         .hidden="${!this.navigationControlsState_.batterySaverButtonVisible}">
     </battery-saver-button>
   ` : ''}
-  ${this.isPerformanceInterventionButtonEnabled_ ? html`
-    <performance-intervention-button id="performance-intervention"
-      .state="${
-        this.navigationControlsState_.performanceInterventionControlState}"
-      .hidden="${
-        !this.navigationControlsState_.performanceInterventionControlState
-            .shouldBeShown}">
-    </performance-intervention-button>
-  ` : ''}
   ${this.isAvatarButtonEnabled_ ? html`
     <avatar-button id="avatar"
         .state="${this.navigationControlsState_.avatarControlState}">
     </avatar-button>
-  ` : ''}
-  ${this.webUIToolbarFullyEnabled_ ? html`
-    <overflow-button id="overflow" hidden
-        .getOverflowedMenuItems="${() => this.getOverflowedMenuItems()}">
-    </overflow-button>
   ` : ''}
   ${this.isAppMenuButtonEnabled_ ? html`
     <app-menu-button id="app-menu"

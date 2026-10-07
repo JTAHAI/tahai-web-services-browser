@@ -27,6 +27,8 @@ BASE_DECLARE_FEATURE(kEnableUrlRestriction);
 
 BASE_DECLARE_FEATURE(kEnableOriginatingSavedGroupCleanUp);
 
+BASE_DECLARE_FEATURE(kOrganizerPanel);
+
 extern bool IsTabGroupSyncDelegateAndroidEnabled();
 
 extern bool IsTabGroupSyncCoordinatorEnabled();
@@ -46,6 +48,8 @@ extern bool IsUrlRestrictionEnabled();
 extern bool IsOriginatingSavedGroupCleanUpEnabled();
 
 extern base::TimeDelta GetOriginatingSavedGroupCleanUpTimeInterval();
+
+extern bool IsOrganizerPanelFeatureEnabled();
 
 }  // namespace tab_groups
 

@@ -709,20 +709,9 @@ impl Span {
 
     /// Returns a new span with `offset` added to this span's `start` and `end`
     /// values.
-    ///
-    /// # Panics
-    ///
-    /// This panics if adding `offset` to either part of this `Span` would
-    /// result in overflow.
     #[inline]
     pub fn offset(&self, offset: usize) -> Span {
-        Span {
-            start: self
-                .start
-                .checked_add(offset)
-                .expect("invalid start+offset"),
-            end: self.end.checked_add(offset).expect("invalid end+offset"),
-        }
+        Span { start: self.start + offset, end: self.end + offset }
     }
 }
 
@@ -962,14 +951,15 @@ impl Match {
 
     /// Returns a new match with `offset` added to its span's `start` and `end`
     /// values.
-    ///
-    /// # Panics
-    ///
-    /// This panics if adding `offset` to either part of this match's `Span`
-    /// would result in overflow.
     #[inline]
     pub fn offset(&self, offset: usize) -> Match {
-        Match { pattern: self.pattern, span: self.span.offset(offset) }
+        Match {
+            pattern: self.pattern,
+            span: Span {
+                start: self.start() + offset,
+                end: self.end() + offset,
+            },
+        }
     }
 }
 

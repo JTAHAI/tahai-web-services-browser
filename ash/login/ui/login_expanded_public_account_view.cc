@@ -803,8 +803,7 @@ LoginExpandedPublicAccountView::LoginExpandedPublicAccountView(
       views::HighlightBorder::Type::kHighlightBorderOnShadow));
   shadow_ = SystemShadow::CreateShadowOnNinePatchLayerForView(
       this, SystemShadow::Type::kElevation12);
-  shadow_->SetRoundedCorners(
-      gfx::RoundedCornersF(kJellyRoundRectCornerRadiusDp));
+  shadow_->SetRoundedCornerRadius(kJellyRoundRectCornerRadiusDp);
 
   SetPreferredSize(GetPreferredSizeLandscape());
   SetUseDefaultFillLayout(true);

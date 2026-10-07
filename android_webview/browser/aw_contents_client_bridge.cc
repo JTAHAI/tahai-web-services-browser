@@ -32,7 +32,6 @@
 #include "net/ssl/ssl_cert_request_info.h"
 #include "net/ssl/ssl_platform_key_android.h"
 #include "net/ssl/ssl_private_key.h"
-#include "third_party/jni_zero/default_conversions.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "url/gurl.h"
 
@@ -40,9 +39,13 @@
 #include "android_webview/browser_jni_headers/AwContentsClientBridge_jni.h"
 
 using base::android::AttachCurrentThread;
+using base::android::ConvertJavaStringToUTF16;
+using base::android::ConvertUTF8ToJavaString;
+using base::android::ConvertUTF16ToJavaString;
 using base::android::HasException;
 using base::android::JavaRef;
 using base::android::ScopedJavaLocalRef;
+using base::android::ToJavaArrayOfStrings;
 using content::BrowserThread;
 using content::WebContents;
 using std::vector;
@@ -156,7 +159,9 @@ void AwContentsClientBridge::AllowCertificateError(int cert_error,
   }
 }
 
-void AwContentsClientBridge::ProceedSslError(bool proceed, int32_t id) {
+void AwContentsClientBridge::ProceedSslError(JNIEnv* env,
+                                             bool proceed,
+                                             int32_t id) {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
   CertErrorCallback* callback = pending_cert_error_callbacks_.Lookup(id);
   if (!callback || callback->is_null()) {
@@ -474,6 +479,7 @@ AwContentsClientBridge::ExtractHttpErrorInfo(
 }
 
 void AwContentsClientBridge::ConfirmJsResult(
+    JNIEnv* env,
     int id,
     std::optional<std::u16string> prompt) {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
@@ -487,7 +493,8 @@ void AwContentsClientBridge::ConfirmJsResult(
   pending_js_dialog_callbacks_.Remove(id);
 }
 
-void AwContentsClientBridge::TakeSafeBrowsingAction(int action,
+void AwContentsClientBridge::TakeSafeBrowsingAction(JNIEnv*,
+                                                    int action,
                                                     bool reporting,
                                                     int request_id) {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
@@ -502,7 +509,7 @@ void AwContentsClientBridge::TakeSafeBrowsingAction(int action,
   safe_browsing_callbacks_.Remove(request_id);
 }
 
-void AwContentsClientBridge::CancelJsResult(int id) {
+void AwContentsClientBridge::CancelJsResult(JNIEnv*, int id) {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
   content::JavaScriptDialogManager::DialogClosedCallback* callback =
       pending_js_dialog_callbacks_.Lookup(id);

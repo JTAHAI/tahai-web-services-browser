@@ -41,7 +41,7 @@ class MultiMemoryConsumerRegistration::HelperConsumer
  public:
   HelperConsumer(MultiMemoryConsumer* parent,
                  std::string_view name,
-                 MemoryConsumerTraits traits,
+                 std::optional<MemoryConsumerTraits> traits,
                  CheckUnregister check_unregister)
       : internal::ForwardingMemoryConsumer(parent, name),
         registration_(name, traits, this, check_unregister) {}
@@ -74,7 +74,7 @@ MultiMemoryConsumerRegistration::~MultiMemoryConsumerRegistration() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 }
 
-MemoryLimit MultiMemoryConsumerRegistration::GetMemoryLimit(
+int MultiMemoryConsumerRegistration::GetMemoryLimit(
     std::string_view name) const {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   auto it = consumers_.find(name);
@@ -97,7 +97,7 @@ class AsyncMultiMemoryConsumerRegistration::HelperConsumer
  public:
   HelperConsumer(MultiMemoryConsumer* parent,
                  std::string_view name,
-                 MemoryConsumerTraits traits,
+                 std::optional<MemoryConsumerTraits> traits,
                  CheckUnregister check_unregister)
       : internal::ForwardingMemoryConsumer(parent, name),
         registration_(name, traits, this, check_unregister) {}
@@ -130,7 +130,7 @@ AsyncMultiMemoryConsumerRegistration::~AsyncMultiMemoryConsumerRegistration() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 }
 
-MemoryLimit AsyncMultiMemoryConsumerRegistration::GetMemoryLimit(
+int AsyncMultiMemoryConsumerRegistration::GetMemoryLimit(
     std::string_view name) const {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   auto it = consumers_.find(name);

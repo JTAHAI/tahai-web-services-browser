@@ -124,8 +124,11 @@ class InterceptingHandshakeClient final : public WebTransportHandshakeClient {
       tracker_->OnHandshakeEstablished();
     }
 
+    // We don't need to pass headers to the renderer here.
     remote_->OnConnectionEstablished(
-        std::move(transport), std::move(client), response_headers,
+        std::move(transport), std::move(client),
+        base::MakeRefCounted<net::HttpResponseHeaders>(
+            /*raw_headers=*/""),
         selected_applicaton_protocol, std::move(initial_stats));
   }
   void OnHandshakeFailed(
@@ -189,7 +192,6 @@ void WebTransportConnectorImpl::Connect(
         anticipated_concurrent_incoming_unidirectional_streams,
     std::optional<uint16_t>
         anticipated_concurrent_incoming_bidirectional_streams,
-    std::vector<net::HttpRequestHeaders::HeaderKeyValuePair> additional_headers,
     mojo::PendingRemote<network::mojom::WebTransportHandshakeClient>
         handshake_client) {
   DCHECK(BrowserThread::CurrentlyOn(BrowserThread::UI));
@@ -212,7 +214,7 @@ void WebTransportConnectorImpl::Connect(
         url, std::move(fingerprints), application_protocols, congestion_control,
         anticipated_concurrent_incoming_unidirectional_streams,
         anticipated_concurrent_incoming_bidirectional_streams,
-        std::move(additional_headers), std::move(handshake_client)));
+        std::move(handshake_client)));
     if (result ==
         WebTransportThrottleContext::ThrottleResult::kTooManyPendingSessions) {
       if (frame_) {
@@ -231,7 +233,7 @@ void WebTransportConnectorImpl::Connect(
                    congestion_control,
                    anticipated_concurrent_incoming_unidirectional_streams,
                    anticipated_concurrent_incoming_bidirectional_streams,
-                   std::move(additional_headers), std::move(handshake_client),
+                   std::move(handshake_client),
                    /*tracker=*/nullptr);
   }
 }
@@ -246,7 +248,6 @@ void WebTransportConnectorImpl::OnThrottleDone(
         anticipated_concurrent_incoming_unidirectional_streams,
     std::optional<uint16_t>
         anticipated_concurrent_incoming_bidirectional_streams,
-    std::vector<net::HttpRequestHeaders::HeaderKeyValuePair> additional_headers,
     mojo::PendingRemote<network::mojom::WebTransportHandshakeClient>
         handshake_client,
     std::unique_ptr<WebTransportThrottleContext::Tracker> tracker) {
@@ -300,7 +301,7 @@ void WebTransportConnectorImpl::OnThrottleDone(
           application_protocols, congestion_control,
           anticipated_concurrent_incoming_unidirectional_streams,
           anticipated_concurrent_incoming_bidirectional_streams,
-          std::move(additional_headers), std::move(url_loader_network_observer),
+          std::move(url_loader_network_observer),
           client_security_state_.Clone()));
 }
 
@@ -314,7 +315,6 @@ void WebTransportConnectorImpl::OnWillCreateWebTransportCompleted(
         anticipated_concurrent_incoming_unidirectional_streams,
     std::optional<uint16_t>
         anticipated_concurrent_incoming_bidirectional_streams,
-    std::vector<net::HttpRequestHeaders::HeaderKeyValuePair> additional_headers,
     mojo::PendingRemote<network::mojom::URLLoaderNetworkServiceObserver>
         url_loader_network_observer,
     network::mojom::ClientSecurityStatePtr client_security_state,
@@ -343,9 +343,8 @@ void WebTransportConnectorImpl::OnWillCreateWebTransportCompleted(
       application_protocols, congestion_control,
       anticipated_concurrent_incoming_unidirectional_streams,
       anticipated_concurrent_incoming_bidirectional_streams,
-      std::move(additional_headers), std::move(handshake_client),
-      std::move(url_loader_network_observer), std::move(client_security_state),
-      network_restrictions_id_);
+      std::move(handshake_client), std::move(url_loader_network_observer),
+      std::move(client_security_state), network_restrictions_id_);
 }
 
 }  // namespace content

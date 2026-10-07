@@ -7,33 +7,41 @@
  * languages.
  */
 import 'chrome://resources/cr_elements/cr_button/cr_button.js';
-import 'chrome://resources/cr_elements/cr_checkbox/cr_checkbox.js';
 import 'chrome://resources/cr_elements/cr_dialog/cr_dialog.js';
 import 'chrome://resources/cr_elements/cr_search_field/cr_search_field.js';
+import 'chrome://resources/cr_elements/cr_shared_vars.css.js';
+import 'chrome://resources/polymer/v3_0/iron-list/iron-list.js';
+import '../controls/settings_checkbox_list_entry.js';
+import '../settings_shared.css.js';
 
-import type {CrCheckboxElement} from 'chrome://resources/cr_elements/cr_checkbox/cr_checkbox.js';
 import type {CrDialogElement} from 'chrome://resources/cr_elements/cr_dialog/cr_dialog.js';
 import type {CrSearchFieldElement} from 'chrome://resources/cr_elements/cr_search_field/cr_search_field.js';
-import {FindShortcutMixinLit} from 'chrome://resources/cr_elements/find_shortcut_mixin_lit.js';
-import type {I18nMixinLitInterface} from 'chrome://resources/cr_elements/i18n_mixin_lit.js';
-import {I18nMixinLit} from 'chrome://resources/cr_elements/i18n_mixin_lit.js';
-import {CrLitElement} from 'chrome://resources/lit/v3_0/lit.rollup.js';
+import {FindShortcutMixin} from 'chrome://resources/cr_elements/find_shortcut_mixin.js';
+import {I18nMixin} from 'chrome://resources/cr_elements/i18n_mixin.js';
+import {PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
-import {getCss} from './add_languages_dialog.css.js';
-import {getHtml} from './add_languages_dialog.html.js';
+import type {SettingsCheckboxListEntryElement} from '../controls/settings_checkbox_list_entry.js';
+import {ScrollableMixin} from '../scrollable_mixin.js';
+
+import {getTemplate} from './add_languages_dialog.html.js';
 import {getFullName} from './languages_util.js';
 
-export interface SettingsAddLanguagesDialogElement extends
-    I18nMixinLitInterface {
+export interface SettingsAddLanguagesDialogElement {
   $: {
     dialog: CrDialogElement,
-    list: HTMLElement,
     search: CrSearchFieldElement,
   };
 }
 
+interface Repeaterevent extends Event {
+  target: SettingsCheckboxListEntryElement;
+  model: {
+    item: chrome.languageSettingsPrivate.Language,
+  };
+}
+
 const SettingsAddLanguagesDialogElementBase =
-    FindShortcutMixinLit(I18nMixinLit(CrLitElement));
+    ScrollableMixin(FindShortcutMixin(I18nMixin(PolymerElement)));
 
 export class SettingsAddLanguagesDialogElement extends
     SettingsAddLanguagesDialogElementBase {
@@ -41,27 +49,37 @@ export class SettingsAddLanguagesDialogElement extends
     return 'settings-add-languages-dialog';
   }
 
-  static override get styles() {
-    return getCss();
+  static get template() {
+    return getTemplate();
   }
 
-  override render() {
-    return getHtml.bind(this)();
-  }
-
-  static override get properties() {
+  static get properties() {
     return {
-      languages: {type: Array},
-      languagesToAdd_: {type: Object},
-      disableActionButton_: {type: Boolean},
-      filterValue_: {type: String},
+      languages: Object,
+
+      languagesToAdd_: {
+        type: Object,
+        value() {
+          return new Set();
+        },
+      },
+
+      disableActionButton_: {
+        type: Boolean,
+        value: true,
+      },
+
+      filterValue_: {
+        type: String,
+        value: '',
+      },
     };
   }
 
-  accessor languages: chrome.languageSettingsPrivate.Language[] = [];
-  protected accessor languagesToAdd_: Set<string> = new Set();
-  protected accessor disableActionButton_: boolean = true;
-  protected accessor filterValue_: string = '';
+  declare languages: chrome.languageSettingsPrivate.Language[];
+  declare private languagesToAdd_: Set<string>;
+  declare private disableActionButton_: boolean;
+  declare private filterValue_: string;
 
   override connectedCallback() {
     super.connectedCallback();
@@ -86,12 +104,12 @@ export class SettingsAddLanguagesDialogElement extends
         this.$.search.shadowRoot.activeElement;
   }
 
-  protected onSearchChanged_(e: CustomEvent<string>) {
+  private onSearchChanged_(e: CustomEvent<string>) {
     this.filterValue_ = e.detail;
   }
 
   /** @return A list of languages to be displayed. */
-  protected getLanguages_(): chrome.languageSettingsPrivate.Language[] {
+  private getLanguages_(): chrome.languageSettingsPrivate.Language[] {
     if (!this.filterValue_) {
       return this.languages;
     }
@@ -105,11 +123,16 @@ export class SettingsAddLanguagesDialogElement extends
   }
 
   /** @return The number of languages to be displayed. */
-  protected getLanguagesCount_(): number {
+  private getLanguagesCount_(): number {
     return this.getLanguages_().length;
   }
 
-  protected getDisplayText_(language: chrome.languageSettingsPrivate.Language):
+  /** @return A 1-based index for aria-posinset. */
+  private getAriaPosinset_(index: number): number {
+    return index + 1;
+  }
+
+  private getDisplayText_(language: chrome.languageSettingsPrivate.Language):
       string {
     return getFullName(language);
   }
@@ -118,34 +141,41 @@ export class SettingsAddLanguagesDialogElement extends
    * @return Whether the user has chosen to add this language (checked its
    *     checkbox).
    */
-  protected willAdd_(languageCode: string): boolean {
+  private willAdd_(languageCode: string): boolean {
     return this.languagesToAdd_.has(languageCode);
   }
 
   /** Handler for checking or unchecking a language item. */
-  protected onLanguageCheckboxChange_(e: Event) {
-    const checkbox = e.currentTarget as CrCheckboxElement;
-    const languageCode = checkbox.dataset['code']!;
-    if (checkbox.checked) {
-      this.languagesToAdd_.add(languageCode);
+  private onLanguageCheckboxChange_(e: Repeaterevent) {
+    // Add or remove the item to the Set. No need to worry about data binding:
+    // willAdd_ is called to initialize the checkbox state (in case the
+    // iron-list re-uses a previous checkbox), and the checkbox can only be
+    // changed after that by user action.
+    const language = e.model.item;
+    if (e.target.checked) {
+      this.languagesToAdd_.add(language.code);
     } else {
-      this.languagesToAdd_.delete(languageCode);
+      this.languagesToAdd_.delete(language.code);
     }
 
     this.disableActionButton_ = !this.languagesToAdd_.size;
   }
 
-  protected onCancelButtonClick_() {
+  private onCancelButtonClick_() {
     this.$.dialog.close();
   }
 
   /** Enables the checked languages. */
-  protected onActionButtonClick_() {
-    this.fire('languages-added', Array.from(this.languagesToAdd_));
+  private onActionButtonClick_() {
+    this.dispatchEvent(new CustomEvent('languages-added', {
+      bubbles: true,
+      composed: true,
+      detail: Array.from(this.languagesToAdd_),
+    }));
     this.$.dialog.close();
   }
 
-  protected onKeydown_(e: KeyboardEvent) {
+  private onKeydown_(e: KeyboardEvent) {
     // Close dialog if 'esc' is pressed and the search box is already empty.
     if (e.key === 'Escape' && !this.$.search.getValue().trim()) {
       this.$.dialog.close();

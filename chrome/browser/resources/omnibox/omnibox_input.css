@@ -223,7 +223,7 @@ input[type=checkbox] {
 }
 
 .reset-icon {
-  background-image: url(chrome://resources/images/icon_refresh_old.svg);
+  background-image: url(chrome://resources/images/icon_refresh.svg);
 }
 
 .copy-icon {
@@ -248,8 +248,4 @@ input[type=checkbox] {
 
 .accesskey {
   text-decoration: underline;
-}
-
-:host-context([webui-rounded-icons]) .reset-icon {
-  background-image: url(chrome://resources/images/icon_refresh.svg);
 }

@@ -870,10 +870,9 @@ TEST_F(KcerNssTest, GetKeyInfoGenericAndCustomAttributes) {
   const PublicKey& public_key = generate_waiter.Get().value();
 
   KeyInfo expected_key_info;
-  // Hardware backing is a Chaps property. This test uses an NSS softoken slot
-  // (crypto::ScopedTestNSSDB), which Chaps does not provide, so nothing in it
-  // is hardware backed - same as a no-TPM device's software NSS fallback slot.
-  expected_key_info.is_hardware_backed = false;
+  // Hardware- vs software-backed indicators on real devices are provided by
+  // Chaps and are wrong in unit tests.
+  expected_key_info.is_hardware_backed = true;
   // NSS sets an empty nickname by default, this doesn't have to be like this
   // in general.
   expected_key_info.nickname = "";

@@ -79,13 +79,9 @@ void ToolbarGlicButton::AddedToWidget() {
       base::FeatureList::IsEnabled(features::kGlicToolbarButtonLocation) &&
       features::kGlicToolbarButtonLocationParam.Get() ==
           features::GlicToolbarButtonLocation::kLeftOfProfileChip;
-  if (ShouldApplyCustomThemeFallback()) {
-    SetDefaultBackgroundColorId(kColorAvatarButtonHighlightDefault);
-  } else {
-    SetDefaultBackgroundColorId(show_before_avatar
-                                    ? kColorToolbar
-                                    : kColorToolbarGlicButtonBackgroundDefault);
-  }
+  SetDefaultBackgroundColorId(show_before_avatar
+                                  ? kColorToolbar
+                                  : kColorToolbarGlicButtonBackgroundDefault);
   GlicButton<ToolbarButton>::AddedToWidget();
 }
 
@@ -149,10 +145,6 @@ void ToolbarGlicButton::UpdateStyle(bool should_match_toolbar) {
   ChromeColorIds background_color_id =
       should_match_toolbar ? kColorToolbar
                            : kColorToolbarGlicButtonBackgroundDefault;
-
-  if (ShouldApplyCustomThemeFallback()) {
-    background_color_id = kColorAvatarButtonHighlightDefault;
-  }
 
   SetDefaultBackgroundColorId(background_color_id);
   UpdateColors();
@@ -284,33 +276,6 @@ float ToolbarGlicButton::GetWidthFactor() const {
 void ToolbarGlicButton::SetWidthFactor(float factor) {
   width_factor_ = factor;
   this->PreferredSizeChanged();
-}
-
-ui::ColorId ToolbarGlicButton::GetCustomThemeForegroundId() const {
-  return kColorAvatarButtonHighlightDefaultForeground;
-}
-
-std::optional<SkColor> ToolbarGlicButton::GetHighlightTextColor() const {
-  if (ShouldApplyCustomThemeFallback() && GetColorProvider()) {
-    return GetColorProvider()->GetColor(
-        kColorAvatarButtonHighlightDefaultForeground);
-  }
-  return GlicButton<ToolbarButton>::GetHighlightTextColor();
-}
-
-void ToolbarGlicButton::OnThemeChanged() {
-  bool show_before_avatar =
-      base::FeatureList::IsEnabled(features::kGlicToolbarButtonLocation) &&
-      features::kGlicToolbarButtonLocationParam.Get() ==
-          features::GlicToolbarButtonLocation::kLeftOfProfileChip;
-  if (ShouldApplyCustomThemeFallback()) {
-    SetDefaultBackgroundColorId(kColorAvatarButtonHighlightDefault);
-  } else {
-    SetDefaultBackgroundColorId(show_before_avatar
-                                    ? kColorToolbar
-                                    : kColorToolbarGlicButtonBackgroundDefault);
-  }
-  ToolbarButton::OnThemeChanged();
 }
 
 BEGIN_METADATA(ToolbarGlicButton)

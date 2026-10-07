@@ -7,7 +7,3 @@
 int FakeOwner::GetSelectedRadioOption() {
   return selected_radio_option_;
 }
-
-void FakeOwner::CloseBubble() {
-  was_closed_ = true;
-}

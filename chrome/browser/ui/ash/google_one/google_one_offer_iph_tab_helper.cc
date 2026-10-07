@@ -4,7 +4,6 @@
 
 #include "chrome/browser/ui/ash/google_one/google_one_offer_iph_tab_helper.h"
 
-#include <memory>
 #include <optional>
 #include <string>
 
@@ -16,6 +15,8 @@
 #include "base/metrics/field_trial_params.h"
 #include "base/strings/utf_string_conversions.h"
 #include "chrome/browser/feature_engagement/tracker_factory.h"
+#include "chrome/browser/notifications/notification_display_service.h"
+#include "chrome/browser/notifications/notification_display_service_factory.h"
 #include "chrome/browser/policy/profile_policy_connector.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/ash/google_one/google_one_offer_iph_tab_helper_constants.h"
@@ -27,7 +28,6 @@
 #include "components/user_manager/user_manager.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/browser/web_contents_user_data.h"
-#include "ui/message_center/message_center.h"
 #include "ui/message_center/public/cpp/notification.h"
 #include "ui/message_center/public/cpp/notification_delegate.h"
 #include "ui/message_center/public/cpp/notification_types.h"
@@ -39,9 +39,9 @@ namespace {
 class DriveIphTabHelperNotificationDelegate
     : public message_center::NotificationDelegate {
  public:
-  explicit DriveIphTabHelperNotificationDelegate(
-      feature_engagement::Tracker* tracker)
-      : tracker_(tracker) {}
+  DriveIphTabHelperNotificationDelegate(feature_engagement::Tracker* tracker,
+                                        Profile* profile)
+      : tracker_(tracker), profile_(profile) {}
 
   // message_center::NotificationDelegate:
   void Click(const std::optional<int>& button_index,
@@ -58,14 +58,14 @@ class DriveIphTabHelperNotificationDelegate
 
     tracker_->NotifyEvent(kIPHGoogleOneOfferNotificationGetPerkEventName);
 
-    message_center::MessageCenter::Get()->RemoveNotification(
-        kIPHGoogleOneOfferNotificationId, /*by_user=*/false);
+    NotificationDisplayServiceFactory::GetForProfile(profile_)->Close(
+        NotificationHandler::Type::TRANSIENT, kIPHGoogleOneOfferNotificationId);
   }
 
   void Close(bool by_user) override {
     // If it's closed by a user, let's assume that the user intent is to dismiss
     // a notification. Record it as an IPH event. Note that the above
-    // `MessageCenter::RemoveNotification` call does not set by_user=true.
+    // `NotificationDisplayService::Close` call does not set by_user=true.
     if (by_user) {
       tracker_->NotifyEvent(kIPHGoogleOneOfferNotificationDismissEventName);
     }
@@ -81,10 +81,12 @@ class DriveIphTabHelperNotificationDelegate
   ~DriveIphTabHelperNotificationDelegate() override = default;
 
   raw_ptr<feature_engagement::Tracker, DanglingUntriaged> tracker_;
+  raw_ptr<Profile> profile_;
 };
 
-std::unique_ptr<message_center::Notification> CreateGoogleOneOfferNotification(
-    feature_engagement::Tracker* tracker) {
+message_center::Notification CreateGoogleOneOfferNotification(
+    feature_engagement::Tracker* tracker,
+    Profile* profile) {
   std::string notification_display_source =
       base::GetFieldTrialParamValueByFeature(
           feature_engagement::kIPHGoogleOneOfferNotificationFeature,
@@ -124,13 +126,14 @@ std::unique_ptr<message_center::Notification> CreateGoogleOneOfferNotification(
       kIPHGoogleOneOfferNotifierId,
       ash::NotificationCatalogName::kIPHGoogleOneOffer);
 
-  return ash::CreateSystemNotificationPtr(
+  return ash::CreateSystemNotification(
       message_center::NOTIFICATION_TYPE_SIMPLE,
       kIPHGoogleOneOfferNotificationId, base::UTF8ToUTF16(notification_title),
       base::UTF8ToUTF16(notification_message),
       base::UTF8ToUTF16(notification_display_source), GURL(), notifier_id,
       rich_notification_data,
-      base::MakeRefCounted<DriveIphTabHelperNotificationDelegate>(tracker),
+      base::MakeRefCounted<DriveIphTabHelperNotificationDelegate>(tracker,
+                                                                  profile),
       chromeos::kRedeemIcon,
       message_center::SystemNotificationWarningLevel::NORMAL);
 }
@@ -184,11 +187,10 @@ void GoogleOneOfferIphTabHelper::PrimaryPageChanged(content::Page& page) {
     return;
   }
 
-  std::unique_ptr<message_center::Notification> notification =
-      CreateGoogleOneOfferNotification(tracker);
-  notification->set_profile_id(user->GetAccountId().GetUserEmail());
-  message_center::MessageCenter::Get()->AddNotification(
-      std::move(notification));
+  const message_center::Notification notification =
+      CreateGoogleOneOfferNotification(tracker, profile);
+  NotificationDisplayServiceFactory::GetForProfile(profile)->Display(
+      NotificationHandler::Type::TRANSIENT, notification, nullptr);
 }
 
 GoogleOneOfferIphTabHelper::GoogleOneOfferIphTabHelper(

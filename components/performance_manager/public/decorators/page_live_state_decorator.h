@@ -110,10 +110,6 @@ class PageLiveStateDecorator
   static void SetGlicActuationState(content::WebContents* contents,
                                     GlicActuationState glic_actuation_state);
 
-  static void SetIsGlicPinnedToVisibleInstance(
-      content::WebContents* contents,
-      bool is_glic_pinned_to_visible_instance);
-
   // Convenience functions to look up the given properties from the
   // PageLiveStateDecorator::Data for the given `contents`.
   static bool IsConnectedToUSBDevice(content::WebContents* contents);
@@ -132,7 +128,6 @@ class PageLiveStateDecorator
   static bool IsDevToolsOpen(content::WebContents* contents);
   static GlicActuationState GetGlicActuationState(
       content::WebContents* contents);
-  static bool IsGlicPinnedToVisibleInstance(content::WebContents* contents);
   static bool UpdatedTitleOrFaviconInBackground(content::WebContents* contents);
 
  private:
@@ -184,7 +179,6 @@ class PageLiveStateDecorator::Data {
   virtual bool IsPinnedTab() const = 0;
   virtual bool IsDevToolsOpen() const = 0;
   virtual GlicActuationState GetGlicActuationState() const = 0;
-  virtual bool IsGlicPinnedToVisibleInstance() const = 0;
   virtual bool UpdatedTitleOrFaviconInBackground() const = 0;
 
   static const Data* FromPageNode(const PageNode* page_node);
@@ -205,7 +199,6 @@ class PageLiveStateDecorator::Data {
   virtual void SetIsPinnedTabForTesting(bool value) = 0;
   virtual void SetIsDevToolsOpenForTesting(bool value) = 0;
   virtual void SetGlicActuationStateForTesting(GlicActuationState value) = 0;
-  virtual void SetIsGlicPinnedToVisibleInstanceForTesting(bool value) = 0;
   virtual void SetUpdatedTitleOrFaviconInBackgroundForTesting(bool value) = 0;
 
  protected:
@@ -238,8 +231,6 @@ class PageLiveStateObserver : public base::CheckedObserver {
   virtual void OnIsDevToolsOpenChanged(const PageNode* page_node) {}
   virtual void OnGlicActuationStateChanged(const PageNode* page_node,
                                            GlicActuationState previous_state) {}
-  virtual void OnIsGlicPinnedToVisibleInstanceChanged(
-      const PageNode* page_node) {}
   virtual void OnUpdatedTitleOrFaviconInBackgroundChanged(
       const PageNode* page_node) {}
 };

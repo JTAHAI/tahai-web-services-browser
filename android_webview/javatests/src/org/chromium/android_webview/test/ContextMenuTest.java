@@ -106,10 +106,10 @@ public class ContextMenuTest extends AwParameterizedTest {
     @Before
     public void setUp() throws Exception {
         mPageUrl = new GURL("http://www.example.com/page_url");
-        TestAwContentsClient contentsClient = new TestAwContentsClient();
+        TestAwContentsClient mContentsClient = new TestAwContentsClient();
         mTestContainerView =
                 mRule.createAwTestContainerViewOnMainSync(
-                        contentsClient, false, new TestAwContentsClientTestDependencyFactory());
+                        mContentsClient, false, new TestAwContentsClientTestDependencyFactory());
 
         mAwContents = (TestAwContents) mTestContainerView.getAwContents();
         // fake onReceivedIcon overridden so that the favicon is
@@ -474,11 +474,14 @@ public class ContextMenuTest extends AwParameterizedTest {
                 () -> mHelper.showContextMenu(params, mTestContainerView));
 
         mCoordinator = mHelper.getCoordinatorForTesting();
+        Assert.assertNotNull("Coordinator should be created for links", mCoordinator);
 
         if (menuItems == DISABLED) {
-            Assert.assertNull("Coordinator should be destroyed when disabled", mCoordinator);
+            Assert.assertTrue(
+                    "Context menu should not be shown if there are no items",
+                    mCoordinator.getDialogForTesting() == null
+                            && mCoordinator.getPopupWindowForTesting() == null);
         } else {
-            Assert.assertNotNull("Coordinator should be created for links", mCoordinator);
             assertMenuItemsAreEqual(mCoordinator, expectedItems);
         }
     }

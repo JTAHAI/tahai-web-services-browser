@@ -5,15 +5,8 @@
 #include "third_party/blink/renderer/core/css/mixin_map.h"
 
 #include "third_party/blink/renderer/core/css/style_rule.h"
-#include "third_party/blink/renderer/platform/wtf/wtf.h"
 
 namespace blink {
-
-uint64_t MixinMap::AllocateMapIdentifier() {
-  DCHECK(IsMainThread());
-  static uint64_t next_map_identifier = 0;
-  return next_map_identifier++;
-}
 
 void MixinMap::Merge(const MixinMap& other) {
   for (const auto& [key, value] : other.mixins) {

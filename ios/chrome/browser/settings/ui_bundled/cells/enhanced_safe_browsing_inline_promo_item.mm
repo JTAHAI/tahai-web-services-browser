@@ -49,7 +49,7 @@ UIButton* CreateCloseButton() {
   UIButtonConfiguration* buttonConfiguration =
       [UIButtonConfiguration plainButtonConfiguration];
   buttonConfiguration.image =
-      SymbolWithConfiguration(SymbolXMark, symbolConfiguration);
+      DefaultSymbolWithConfiguration(kXMarkSymbol, symbolConfiguration);
   buttonConfiguration.baseForegroundColor =
       [UIColor colorNamed:kSolidBlackColor];
   closeButton.configuration = buttonConfiguration;

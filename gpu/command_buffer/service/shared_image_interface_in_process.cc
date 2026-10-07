@@ -64,7 +64,7 @@ struct SharedImageInterfaceInProcess::SetUpOnGpuParams {
 
 scoped_refptr<SharedImageInterfaceInProcess>
 SharedImageInterfaceInProcess::Create(
-    std::unique_ptr<SingleTaskSequence> task_sequence,
+    SingleTaskSequence* task_sequence,
     const GpuPreferences& gpu_preferences,
     const GpuDriverBugWorkarounds& gpu_workarounds,
     const GpuFeatureInfo& gpu_feature_info,
@@ -75,8 +75,7 @@ SharedImageInterfaceInProcess::Create(
     bool always_create_native_gmb_handles /*=false*/) {
   // ensure Initialize() is called before pointer returned to caller
   auto sii = base::WrapRefCounted(new SharedImageInterfaceInProcess{
-      std::move(task_sequence), shared_image_manager,
-      std::move(gpu_task_runner)});
+      task_sequence, shared_image_manager, std::move(gpu_task_runner)});
   sii->Initialize(std::make_unique<SetUpOnGpuParams>(
       gpu_preferences, gpu_workarounds, gpu_feature_info, context_state,
       shared_image_manager, is_for_display_compositor));
@@ -93,18 +92,16 @@ SharedImageInterfaceInProcess::Create(
 }
 
 SharedImageInterfaceInProcess::SharedImageInterfaceInProcess(
-    std::unique_ptr<SingleTaskSequence> task_sequence,
+    SingleTaskSequence* task_sequence,
     SharedImageManager* shared_image_manager,
     scoped_refptr<base::SingleThreadTaskRunner> gpu_task_runner)
     : SharedImageInterfaceInProcessBase(
           CommandBufferNamespace::IN_PROCESS,
           DisplayCompositorMemoryAndTaskControllerOnGpu::NextCommandBufferId(),
           /*verify_creation_sync_token=*/false),
-      task_sequence_(std::move(task_sequence)),
+      task_sequence_(task_sequence),
       gpu_task_runner_(std::move(gpu_task_runner)),
-      shared_image_manager_(shared_image_manager) {
-  CHECK(task_sequence_);
-}
+      shared_image_manager_(shared_image_manager) {}
 
 void SharedImageInterfaceInProcess::Initialize(
     std::unique_ptr<SetUpOnGpuParams> params) {
@@ -259,9 +256,7 @@ bool SharedImageInterfaceInProcess::MakeContextCurrentOnGpuThread(
 
 void SharedImageInterfaceInProcess::MarkContextLostOnGpuThread() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(gpu_sequence_checker_);
-  if (context_state_) {
-    context_state_->MarkContextLost();
-  }
+  context_state_->MarkContextLost();
 }
 
 void SharedImageInterfaceInProcess::ScheduleGpuTask(

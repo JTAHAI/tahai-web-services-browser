@@ -21,7 +21,6 @@
 #include "base/test/run_until.h"
 #include "base/test/scoped_feature_list.h"
 #include "build/build_config.h"
-#include "cc/paint/display_item_list.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/skia/include/core/SkColor.h"
 #include "ui/accessibility/accessibility_features.h"
@@ -33,7 +32,6 @@
 #include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/base/mojom/ui_base_types.mojom-shared.h"
 #include "ui/base/mojom/window_show_state.mojom.h"
-#include "ui/base/ui_base_features.h"
 #include "ui/color/color_id.h"
 #include "ui/color/color_provider.h"
 #include "ui/color/color_provider_key.h"
@@ -6787,14 +6785,12 @@ TEST_F(WidgetTest, InputProtectionDisabledByDefault) {
   std::unique_ptr<Widget> widget =
       CreateTestWidget(Widget::InitParams::CLIENT_OWNS_WIDGET);
   EXPECT_FALSE(widget->IsInputEventActivationProtectionEnabled());
-  EXPECT_EQ(widget->GetInputEventActivationProtector(), nullptr);
-  EXPECT_EQ(widget->input_protection_event_handler_for_testing(), nullptr);
+  EXPECT_EQ(widget->input_protector_for_testing(), nullptr);
 
   // Attempting to enable it when feature is disabled should be a no-op.
   widget->EnableInputEventActivationProtection();
   EXPECT_FALSE(widget->IsInputEventActivationProtectionEnabled());
-  EXPECT_EQ(widget->GetInputEventActivationProtector(), nullptr);
-  EXPECT_EQ(widget->input_protection_event_handler_for_testing(), nullptr);
+  EXPECT_EQ(widget->input_protector_for_testing(), nullptr);
 }
 
 TEST_F(WidgetTest, InputProtectionForwardsToProtector) {
@@ -6810,7 +6806,7 @@ TEST_F(WidgetTest, InputProtectionForwardsToProtector) {
 
   widget->EnableInputEventActivationProtection(std::move(mock_protector));
   EXPECT_TRUE(widget->IsInputEventActivationProtectionEnabled());
-  ASSERT_NE(widget->GetInputEventActivationProtector(), nullptr);
+  ASSERT_NE(widget->input_protector_for_testing(), nullptr);
 
   ui::MouseEvent dummy_event(ui::EventType::kMousePressed, gfx::Point(),
                              gfx::Point(), ui::EventTimeForNow(), 0, 0);
@@ -6820,240 +6816,18 @@ TEST_F(WidgetTest, InputProtectionForwardsToProtector) {
                                        testing::_, testing::_, testing::_))
       .WillOnce(testing::Return(true));
 
-  EXPECT_TRUE(widget->GetInputEventActivationProtector()
-                  ->IsPossiblyUnintendedInteraction(dummy_event,
-                                                    /*allow_key_events=*/false,
-                                                    widget->GetRootView()));
+  EXPECT_TRUE(
+      widget->input_protector_for_testing()->IsPossiblyUnintendedInteraction(
+          dummy_event, /*allow_key_events=*/false, widget->GetRootView()));
 
   // Expect that the mock protector is called and returns false.
   EXPECT_CALL(*mock_protector_ptr, IsPossiblyUnintendedInteraction(
                                        testing::_, testing::_, testing::_))
       .WillOnce(testing::Return(false));
 
-  EXPECT_FALSE(widget->GetInputEventActivationProtector()
-                   ->IsPossiblyUnintendedInteraction(dummy_event,
-                                                     /*allow_key_events=*/false,
-                                                     widget->GetRootView()));
-}
-
-TEST_F(WidgetTest, InputProtectionEventHandlerInterceptsEvents) {
-  base::test::ScopedFeatureList scoped_feature_list;
-  scoped_feature_list.InitAndEnableFeature(features::kEnableInputProtection);
-
-  std::unique_ptr<Widget> widget =
-      CreateTestWidget(Widget::InitParams::CLIENT_OWNS_WIDGET);
-  widget->SetBounds(gfx::Rect(0, 0, 400, 400));
-  EXPECT_NE(widget->input_protection_event_handler_for_testing(), nullptr);
-
-  auto* contents = widget->SetContentsView(std::make_unique<View>());
-  int click_count = 0;
-  auto button = std::make_unique<LabelButton>(
-      base::BindRepeating([](int* count) { (*count)++; }, &click_count),
-      u"Button");
-  button->SetBounds(10, 10, 100, 40);
-  auto* button_ptr = contents->AddChildView(std::move(button));
-  widget->Show();
-
-  auto mock_protector =
-      std::make_unique<testing::NiceMock<MockInputEventActivationProtector>>();
-  auto* mock_protector_ptr = mock_protector.get();
-  widget->EnableInputEventActivationProtection(std::move(mock_protector));
-
-  // When the protector blocks the event, mouse click is intercepted and
-  // dropped.
-  EXPECT_CALL(*mock_protector_ptr, IsPossiblyUnintendedInteraction(
-                                       testing::_, testing::_, testing::_))
-      .WillRepeatedly(testing::Return(true));
-
-  ui::test::EventGenerator generator(GetContext(), widget->GetNativeWindow());
-  generator.MoveMouseTo(button_ptr->GetBoundsInScreen().CenterPoint());
-  generator.PressLeftButton();
-  generator.ReleaseLeftButton();
-  EXPECT_EQ(click_count, 0);
-
-  // When the protector allows the event, mouse click goes through to the
-  // button.
-  EXPECT_CALL(*mock_protector_ptr, IsPossiblyUnintendedInteraction(
-                                       testing::_, testing::_, testing::_))
-      .WillRepeatedly(testing::Return(false));
-
-  generator.PressLeftButton();
-  generator.ReleaseLeftButton();
-  EXPECT_EQ(click_count, 1);
-}
-
-namespace {
-
-class ThemeChangeTrackingView : public View {
-  METADATA_HEADER(ThemeChangeTrackingView, View)
-
- public:
-  void OnThemeChanged() override {
-    View::OnThemeChanged();
-    ++theme_changed_count_;
-  }
-  int theme_changed_count() const { return theme_changed_count_; }
-
- private:
-  int theme_changed_count_ = 0;
-};
-
-BEGIN_METADATA(ThemeChangeTrackingView)
-END_METADATA
-
-}  // namespace
-
-TEST_F(WidgetTest, ThemeChangedShortCircuitRedundantUpdates) {
-  base::test::ScopedFeatureList feature_list(
-      ::features::kThemeChangeOptimization);
-
-  std::unique_ptr<Widget> widget =
-      CreateTestWidget(Widget::InitParams::CLIENT_OWNS_WIDGET);
-  auto* tracking_view =
-      widget->SetContentsView(std::make_unique<ThemeChangeTrackingView>());
-
-  // Initial ThemeChanged() should propagate to the view tree.
-  widget->ThemeChanged();
-  const int initial_count = tracking_view->theme_changed_count();
-  EXPECT_GT(initial_count, 0);
-
-  // Calling ThemeChanged() again with an identical ColorProviderKey should
-  // short-circuit.
-  widget->ThemeChanged();
-  EXPECT_EQ(tracking_view->theme_changed_count(), initial_count);
-
-  // Modifying the key (e.g. via color mode override) should trigger
-  // propagation.
-  widget->SetColorModeOverride(ui::ColorProviderKey::ColorMode::kDark);
-  ASSERT_TRUE(base::test::RunUntil([&]() {
-    return tracking_view->theme_changed_count() == initial_count + 1;
-  }));
-
-  // Calling ThemeChanged() again with the same override should short-circuit.
-  widget->ThemeChanged();
-  EXPECT_EQ(tracking_view->theme_changed_count(), initial_count + 1);
-
-  // Modifying user color override should trigger propagation again.
-  widget->SetUserColorOverride(SK_ColorRED);
-  ASSERT_TRUE(base::test::RunUntil([&]() {
-    return tracking_view->theme_changed_count() == initial_count + 2;
-  }));
-
-  // Redundant call should short-circuit.
-  widget->ThemeChanged();
-  EXPECT_EQ(tracking_view->theme_changed_count(), initial_count + 2);
-}
-
-TEST_F(WidgetTest, ThemeChangedDoesNotShortCircuitWhenFeatureDisabled) {
-  base::test::ScopedFeatureList feature_list;
-  feature_list.InitAndDisableFeature(::features::kThemeChangeOptimization);
-
-  std::unique_ptr<Widget> widget =
-      CreateTestWidget(Widget::InitParams::CLIENT_OWNS_WIDGET);
-  auto* tracking_view =
-      widget->SetContentsView(std::make_unique<ThemeChangeTrackingView>());
-
-  widget->ThemeChanged();
-  const int initial_count = tracking_view->theme_changed_count();
-  EXPECT_GT(initial_count, 0);
-
-  // Calling ThemeChanged() again should not short-circuit when disabled.
-  widget->ThemeChanged();
-  EXPECT_EQ(tracking_view->theme_changed_count(), initial_count + 1);
-}
-
-TEST_F(WidgetTest, ChildWidgetObservesParentThemeChanges) {
-  base::test::ScopedFeatureList feature_list(
-      ::features::kThemeChangeOptimization);
-
-  std::unique_ptr<Widget> parent_widget =
-      CreateTestWidget(Widget::InitParams::CLIENT_OWNS_WIDGET);
-
-  Widget::InitParams child_params = CreateParams(
-      Widget::InitParams::CLIENT_OWNS_WIDGET, Widget::InitParams::TYPE_POPUP);
-  child_params.parent = parent_widget->GetNativeView();
-  child_params.child = true;
-  std::unique_ptr<Widget> child_widget =
-      CreateTestWidget(std::move(child_params));
-
-  auto* child_tracking_view = child_widget->SetContentsView(
-      std::make_unique<ThemeChangeTrackingView>());
-
-  // Initial ThemeChanged() on child.
-  child_widget->ThemeChanged();
-  const int child_initial_count = child_tracking_view->theme_changed_count();
-  EXPECT_GT(child_initial_count, 0);
-
-  // Changing parent widget's color mode should automatically propagate to child
-  // widget.
-  parent_widget->SetColorModeOverride(ui::ColorProviderKey::ColorMode::kDark);
-  ASSERT_TRUE(base::test::RunUntil([&]() {
-    return child_tracking_view->theme_changed_count() ==
-           child_initial_count + 1;
-  }));
-
-  // Changing parent widget's user color should also propagate to child widget.
-  parent_widget->SetUserColorOverride(SK_ColorBLUE);
-  ASSERT_TRUE(base::test::RunUntil([&]() {
-    return child_tracking_view->theme_changed_count() ==
-           child_initial_count + 2;
-  }));
-}
-
-TEST_F(WidgetTest, ScheduleThemeChangedCoalescesUpdates) {
-  base::test::ScopedFeatureList feature_list(
-      ::features::kThemeChangeOptimization);
-
-  std::unique_ptr<Widget> widget =
-      CreateTestWidget(Widget::InitParams::CLIENT_OWNS_WIDGET);
-  auto* tracking_view =
-      widget->SetContentsView(std::make_unique<ThemeChangeTrackingView>());
-
-  widget->ThemeChanged();
-  const int initial_count = tracking_view->theme_changed_count();
-  EXPECT_GT(initial_count, 0);
-
-  // Reset cached key and schedule multiple updates asynchronously.
-  widget->ResetLastColorProviderKey();
-  widget->ScheduleThemeChanged();
-  widget->ScheduleThemeChanged();
-  widget->ScheduleThemeChanged();
-
-  // Asynchronous update has not run yet.
-  EXPECT_EQ(tracking_view->theme_changed_count(), initial_count);
-
-  // Wait for the scheduled tasks to process.
-  ASSERT_TRUE(base::test::RunUntil([&]() {
-    return tracking_view->theme_changed_count() == initial_count + 1;
-  }));
-
-  // Scheduling an update then calling ThemeChanged() synchronously should run
-  // immediately and prevent the posted task from executing again.
-  widget->ResetLastColorProviderKey();
-  widget->ScheduleThemeChanged();
-  widget->ThemeChanged();
-  EXPECT_EQ(tracking_view->theme_changed_count(), initial_count + 2);
-
-  // Ensure no duplicate deferred execution occurs.
-  EXPECT_EQ(tracking_view->theme_changed_count(), initial_count + 2);
-}
-
-TEST_F(WidgetTest, ScheduleThemeChangedRunsSynchronouslyWhenDisabled) {
-  base::test::ScopedFeatureList feature_list;
-  feature_list.InitAndDisableFeature(::features::kThemeChangeOptimization);
-
-  std::unique_ptr<Widget> widget =
-      CreateTestWidget(Widget::InitParams::CLIENT_OWNS_WIDGET);
-  auto* tracking_view =
-      widget->SetContentsView(std::make_unique<ThemeChangeTrackingView>());
-
-  widget->ThemeChanged();
-  const int initial_count = tracking_view->theme_changed_count();
-  EXPECT_GT(initial_count, 0);
-
-  widget->ScheduleThemeChanged();
-  // When feature is disabled, ScheduleThemeChanged runs synchronously.
-  EXPECT_EQ(tracking_view->theme_changed_count(), initial_count + 1);
+  EXPECT_FALSE(
+      widget->input_protector_for_testing()->IsPossiblyUnintendedInteraction(
+          dummy_event, /*allow_key_events=*/false, widget->GetRootView()));
 }
 
 }  // namespace views::test

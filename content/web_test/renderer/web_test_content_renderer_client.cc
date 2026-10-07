@@ -33,6 +33,7 @@
 #include "third_party/blink/public/web/web_frame_widget.h"
 #include "third_party/blink/public/web/web_plugin_params.h"
 #include "third_party/blink/public/web/web_testing_support.h"
+#include "ui/gfx/icc_profile.h"
 #include "v8/include/v8.h"
 
 #if BUILDFLAG(IS_FUCHSIA) || BUILDFLAG(IS_APPLE)
@@ -79,9 +80,6 @@ blink::WebFrameWidget* CreateWebTestWebFrameWidget(
 WebTestContentRendererClient::WebTestContentRendererClient()
     : ShellContentRendererClient(/*is_browsertest=*/false) {
   blink::SetWebTestMode(true);
-  blink::SetIsRunningSingleProcessWebTest(
-      base::CommandLine::ForCurrentProcess()->HasSwitch(
-          switches::kSingleProcess));
   g_client = this;
 
   // Web tests subclass these types, so we inject factory methods to replace

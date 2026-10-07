@@ -17,6 +17,7 @@
 #include "chrome/browser/apps/app_service/browser_app_launcher.h"
 #include "chrome/browser/chrome_browser_main.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "chrome/browser/ui/navigator/browser_navigator_params.h"
@@ -174,13 +175,13 @@ content::RenderFrameHost* IsolatedWebAppBrowserTestHarness::OpenApp(
 
 content::RenderFrameHost*
 IsolatedWebAppBrowserTestHarness::NavigateToURLInNewTab(
-    BrowserWindowInterface* window,
+    Browser* window,
     const GURL& url,
     WindowOpenDisposition disposition) {
   auto new_contents = content::WebContents::Create(
       content::WebContents::CreateParams(browser()->GetProfile()));
-  window->GetTabStripModel()->AppendWebContents(std::move(new_contents),
-                                                /*foreground=*/true);
+  window->tab_strip_model()->AppendWebContents(std::move(new_contents),
+                                               /*foreground=*/true);
   return ui_test_utils::NavigateToURLWithDisposition(
       window, url, disposition, ui_test_utils::BROWSER_TEST_WAIT_FOR_LOAD_STOP);
 }
@@ -200,7 +201,7 @@ UpdateDiscoveryTaskResultWaiter::~UpdateDiscoveryTaskResultWaiter() = default;
 // IsolatedWebAppUpdateManager::Observer:
 void UpdateDiscoveryTaskResultWaiter::OnUpdateDiscoverAndPrepareTaskCompleted(
     const webapps::AppId& app_id,
-    IwaUpdateCheckAndPrepareResult status) {
+    IsolatedWebAppUpdateCheckAndPrepareTask::CompletionStatus status) {
   if (app_id != expected_app_id_) {
     return;
   }

@@ -23,7 +23,6 @@ class BrowserView;
 @class BrowserWindowTouchBarController;
 @class BrowserWindowTouchBarViewsDelegate;
 namespace tabs {
-enum class VerticalTabStripCollapseState;
 class VerticalTabStripStateController;
 }  // namespace tabs
 
@@ -50,8 +49,6 @@ class BrowserNativeWidgetMac : public views::NativeWidgetMac,
   void OnFocusWindowToolbar() override;
   void OnWindowFullscreenTransitionStart() override;
   void OnWindowFullscreenTransitionComplete() override;
-  void OnWindowWillStartLiveResize() override;
-  void OnWindowDidEndLiveResize() override;
   void OnWidgetDestroyed(views::Widget* widget) override;
 
   // Overridden from BrowserNativeWidget:
@@ -99,33 +96,21 @@ class BrowserNativeWidgetMac : public views::NativeWidgetMac,
   void EnabledStateChangedForCommand(int id, bool enabled) override;
 
  private:
-  bool IsGlassEligible() const;
-  void UpdateGlassEligibility(bool is_glass_eligible);
-  void UpdateBackgroundGeometry();
-  void UpdateBackgroundColor();
-  std::optional<int> GetGlassFrameHeight() const;
-  std::optional<int> GetGlassFrameWidth() const;
+  bool IsBrowserWidgetEligible() const;
+  void UpdateBackground(bool is_eligible);
   void OnVerticalTabStripModeChanged(
       tabs::VerticalTabStripStateController* controller);
-  void OnVerticalTabStripCollapseChanged(
-      tabs::VerticalTabStripCollapseState state);
-  void OnVerticalTabStripResizingChanged(bool is_resizing);
 
   raw_ptr<BrowserView> browser_view_;  // Weak. Our ClientView.
   BrowserWindowTouchBarViewsDelegate* __strong touch_bar_delegate_;
-  NSView* __strong glass_background_view_;
+  NSView* __strong background_view_;
   NSView* __strong tint_view_;
-  NSView* __strong opaque_background_view_;
 
+  std::optional<ui::NativeTheme::PreferredColorScheme>
+      last_preferred_color_scheme_;
   std::optional<SkColor> last_theme_color_;
-  std::optional<bool> last_is_vertical_tabs_;
-  std::optional<bool> last_is_glass_eligible_;
-  bool is_window_live_resizing_ = false;
   base::CallbackListSubscription vertical_tab_subscription_;
-  base::CallbackListSubscription vertical_tab_collapse_subscription_;
-  base::CallbackListSubscription vertical_tab_resizing_subscription_;
   base::CallbackListSubscription glass_frame_service_subscription_;
-  base::CallbackListSubscription paint_as_active_subscription_;
 };
 
 #endif  // CHROME_BROWSER_UI_VIEWS_FRAME_BROWSER_NATIVE_WIDGET_MAC_H_

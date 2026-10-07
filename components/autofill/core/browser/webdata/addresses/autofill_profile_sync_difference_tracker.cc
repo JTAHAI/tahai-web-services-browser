@@ -18,6 +18,7 @@
 #include "base/notreached.h"
 #include "base/strings/utf_string_conversions.h"
 #include "components/autofill/core/browser/data_model/addresses/autofill_profile.h"
+#include "components/autofill/core/browser/data_model/addresses/autofill_profile_comparator.h"
 #include "components/autofill/core/browser/field_types.h"
 #include "components/autofill/core/browser/webdata/addresses/address_autofill_table.h"
 #include "components/autofill/core/browser/webdata/addresses/autofill_profile_sync_bridge.h"
@@ -304,20 +305,14 @@ AutofillProfileInitialSyncDifferenceTracker::MergeSimilarEntriesForInitialSync(
   // contains unmatched entries that can be safely merged with similar remote
   // entries.
 
+  AutofillProfileComparator comparator(app_locale);
   // Loop over all new remote entries to find merge candidates. Using
   // non-const reference because we want to update |remote| in place if
   // needed.
   for (AutofillProfile& remote : add_to_local_) {
-    const AutofillProfile remote_before_merge = remote;
-    const std::string* matched_storage_key = nullptr;
-    for (const auto& [storage_key, local_candidate] : *GetLocalOnlyEntries()) {
-      if (remote.MergeDataFrom(local_candidate, app_locale) !=
-          AutofillProfile::ProfileMergeResult::kMergeFailed) {
-        matched_storage_key = &storage_key;
-        break;
-      }
-    }
-    if (!matched_storage_key) {
+    optional<AutofillProfile> local =
+        FindMergeableLocalEntry(remote, comparator);
+    if (!local) {
       continue;
     }
 
@@ -328,10 +323,12 @@ AutofillProfileInitialSyncDifferenceTracker::MergeSimilarEntriesForInitialSync(
         << " already exists with a different storage key; keep the remote key"
         << GetStorageKeyFromAutofillProfile(remote)
         << ", merge local data into it and delete the local key"
-        << *matched_storage_key;
+        << GetStorageKeyFromAutofillProfile(*local);
 
     // For similar profile pairs, the local profile is always removed and its
     // content merged (if applicable) in the profile that came from sync.
+    AutofillProfile remote_before_merge = remote;
+    remote.MergeDataFrom(*local, app_locale);
     if (!remote.EqualsForLegacySyncPurposes(remote_before_merge)) {
       // We need to sync new changes in the entry back to the server.
       save_to_sync_.push_back(remote);
@@ -339,9 +336,22 @@ AutofillProfileInitialSyncDifferenceTracker::MergeSimilarEntriesForInitialSync(
       // merged version is stored to local.
     }
 
-    RETURN_IF_ERROR(DeleteFromLocal(*matched_storage_key));
+    RETURN_IF_ERROR(DeleteFromLocal(GetStorageKeyFromAutofillProfile(*local)));
   }
 
+  return std::nullopt;
+}
+
+optional<AutofillProfile>
+AutofillProfileInitialSyncDifferenceTracker::FindMergeableLocalEntry(
+    const AutofillProfile& remote,
+    const AutofillProfileComparator& comparator) {
+  DCHECK(GetLocalOnlyEntries());
+  for (const auto& [storage_key, local_candidate] : *GetLocalOnlyEntries()) {
+    if (comparator.AreMergeable(local_candidate, remote)) {
+      return local_candidate;
+    }
+  }
   return std::nullopt;
 }
 

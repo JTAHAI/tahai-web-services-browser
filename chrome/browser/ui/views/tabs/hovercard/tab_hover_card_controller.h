@@ -17,6 +17,7 @@
 #include "chrome/browser/ui/performance_controls/tab_resource_usage_collector.h"
 #include "chrome/browser/ui/views/tabs/tab_slot_controller.h"
 #include "components/prefs/pref_change_registrar.h"
+#include "ui/events/event.h"
 #include "ui/views/animation/bubble_slide_animator.h"
 #include "ui/views/animation/widget_fade_animator.h"
 #include "ui/views/view.h"
@@ -60,10 +61,6 @@ class TabHoverCardController : public views::ViewObserver,
   std::unique_ptr<ScopedHideHoverCardLock> GetHoverCardHideLock();
 
   const HoverCardAnchorTarget* target_tab() const { return target_tab_.get(); }
-
-  bool hover_card_memory_usage_enabled() const {
-    return hover_card_memory_usage_enabled_;
-  }
 
   TabHoverCardBubbleView* hover_card_for_testing() { return hover_card_.get(); }
 

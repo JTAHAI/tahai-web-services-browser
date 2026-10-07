@@ -111,15 +111,8 @@ BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE(kAndroidDesktopUAPlatform);
 // desktop Android devices, when kAndroidDesktopUAPlatform is disabled.
 BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE(kAndroidDesktopUASpoofAsChromeOS);
 
-// If enabled, the architecture in the User-Agent client hints for Android
-// desktop will report the actual device CPU architecture instead of "x86".
-BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE(kAndroidDesktopUACPUArch);
-
 // Gated prewarming of system fonts on Android to background threads.
 BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE(kAndroidSystemFontPrewarming);
-
-// Opens PDFs in iframe in standalone tabs on Android.
-BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE(kAndroidHandlePdfInIframe);
 #endif
 
 BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE(
@@ -134,10 +127,6 @@ BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE(kAudioWorkletThreadRealtimePeriodMac);
 BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE(kAudioWorkletThreadPool);
 
 BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE(kAutofillKeydownEditableElement);
-
-#if BUILDFLAG(IS_ANDROID)
-BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE(kAutoResizeMinimumPageScaleFactor);
-#endif
 
 // https://crbug.com/1472970
 BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE(kAutoSpeculationRules);
@@ -155,10 +144,6 @@ BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE(kBFCacheWithSharedWorker);
 BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE(
     kBackForwardCacheDWCOnJavaScriptExecution);
 BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE(kBackForwardCachePauseMicrotasks);
-BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE(kBackForwardCacheCCNSAllowlist);
-BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE_PARAM(
-    std::string,
-    kBackForwardCacheCCNSAllowedDomains);
 
 BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE(kBackgroundResourceFetch);
 BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE_PARAM(
@@ -170,9 +155,6 @@ BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE_PARAM(
 BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE_PARAM(
     bool,
     kBackgroundCodeCacheDecoderStart);
-BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE_PARAM(
-    bool,
-    kBackgroundResourceFetchSupportsWebUI);
 
 // A kill switch to background fetch from the service worker environment. If
 // enabled, `backgroundFetch.fetch()` from the service worker will throw an
@@ -204,6 +186,56 @@ BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE(
 BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE(
     kBoostNonRenderBlockingStyleLoadingTaskPriority);
 
+BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE(
+    kBrowsingTopicsBypassIPIsPubliclyRoutableCheck);
+BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE(kBrowsingTopicsDocumentAPI);
+BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE(kBrowsingTopicsParameters);
+BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE_PARAM(
+    base::TimeDelta,
+    kBrowsingTopicsTimePeriodPerEpoch);
+BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE_PARAM(
+    int,
+    kBrowsingTopicsNumberOfEpochsToExpose);
+BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE_PARAM(
+    int,
+    kBrowsingTopicsNumberOfTopTopicsPerEpoch);
+BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE_PARAM(
+    int,
+    kBrowsingTopicsUseRandomTopicProbabilityPercent);
+BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE_PARAM(
+    base::TimeDelta,
+    kBrowsingTopicsMaxEpochIntroductionDelay);
+BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE_PARAM(
+    base::TimeDelta,
+    kBrowsingTopicsEpochRetentionDuration);
+BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE_PARAM(
+    base::TimeDelta,
+    kBrowsingTopicsMaxEpochPhaseOutTimeOffset);
+BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE_PARAM(
+    int,
+    kBrowsingTopicsNumberOfEpochsOfObservationDataToUseForFiltering);
+BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE_PARAM(
+    int,
+    kBrowsingTopicsMaxNumberOfApiUsageContextDomainsToKeepPerTopic);
+BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE_PARAM(
+    int,
+    kBrowsingTopicsMaxNumberOfApiUsageContextEntriesToLoadPerEpoch);
+BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE_PARAM(
+    int,
+    kBrowsingTopicsMaxNumberOfApiUsageContextDomainsToStorePerPageLoad);
+BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE_PARAM(int,
+                                               kBrowsingTopicsTaxonomyVersion);
+BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE_PARAM(
+    std::string,
+    kBrowsingTopicsDisabledTopicsList);
+BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE_PARAM(
+    std::string,
+    kBrowsingTopicsPrioritizedTopicsList);
+BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE_PARAM(
+    base::TimeDelta,
+    kBrowsingTopicsFirstTimeoutRetryDelay);
+constexpr int kBrowsingTopicsTaxonomyVersionDefault = 2;
+
 BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE(kCacheStorageCodeCacheHintHeader);
 BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE_PARAM(
     std::string,
@@ -222,6 +254,9 @@ BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE(kCaptureJSExecutionLocation);
 // If enabled, the Clear-Site-Data header will handle "prefetchCache" and
 // "prerenderCache" to clear the Prefetch and Prerender caches respectively.
 BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE(kClearSiteDataPrefetchPrerenderCache);
+
+// Fix for CSS font comparison logic.
+BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE(kCSSFontComparisonFix);
 
 // We do intend to deprecate these when possible, do not remove the feature
 // until they can be disabled by default.
@@ -386,12 +421,15 @@ BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE_PARAM(
 // Enables detecting JavaScript frameworks on worker load.
 BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE(kDetectJSFrameworksOnWorker);
 
+// Enables detecting Chinese language variants in LanguageDetector.
+BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE(kDetectZhVariants);
+
 // Improves the signal-to-noise ratio of network error related messages in the
 // DevTools Console.
 // See http://crbug.com/40788570.
 BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE(kDevToolsImprovedNetworkError);
 
-BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE(kDevToolsAllowInterestForcing);
+BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE(kDevToolsAllowPopoverForcing);
 
 BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE(kDevToolsWebMCPSupport);
 
@@ -415,6 +453,8 @@ BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE(
 // quietly discarded.
 BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE(
     kDiscardInputEventsToRecentlyMovedFrames);
+
+BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE(kDropInputEventsWhilePaintHolding);
 
 BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE(
     kEnableDevtoolsDeepLinkViaExtensibilityApi);
@@ -469,6 +509,8 @@ BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE(kFencedFramesReportEventHeaderChanges);
 BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE(kFencedFramesSrcPermissionsPolicy);
 
 BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE(kFetchDestinationJsonCssModules);
+
+BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE(kFileHandlingIcons);
 
 // Switch to temporary turn back on file system url navigation.
 // TODO(https://crbug.com/1332598): Remove this feature.
@@ -1287,11 +1329,6 @@ BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE(kPath2DPaintCache);
 
 BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE(kPaintHolding);
 
-// When enabled, paint timing ignores all out-of-lifecycle paints, e.g. printing
-// paint preview, etc.
-BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE(
-    kPaintTimingIngnoreOutOfLifecyclePaints);
-
 BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE(
     kPopulateDOMNodeIdInFocusedNodeDetails);
 
@@ -1398,12 +1435,9 @@ BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE_PARAM(
 // "random_anchor_sampling_period" set to 1, and
 // kNavigationPredictorNewViewportFeatures.
 // Note: The prediction will only be preloaded if the "enact_candidates" param
-// is set to true (the default outside Android is false), otherwise it is only
-// logged for metrics purposes.
+// is set to true (false by default), otherwise it is only logged for metrics
+// purposes.
 BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE(kPreloadingModerateViewportHeuristics);
-BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE_PARAM(
-    bool,
-    kPreloadingModerateViewportHeuristicsEnactCandidates);
 
 // If enabled, preloading eligibility checks (e.g., data saver, battery saver)
 // are performed on the renderer side.
@@ -1480,6 +1514,12 @@ BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE(kForceProduceCompileHints);
 // compiling those functions when the same script is loaded again.
 BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE(kLocalCompileHints);
 
+// Whether Sec-CH-UA headers on subresource fetches that contain an empty
+// string should be quoted (`""`) as they are for navigation fetches. See
+// https://crbug.com/1416925.
+BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE(
+    kQuoteEmptySecChUaStringHeadersConsistently);
+
 BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE(kReducedReferrerGranularity);
 
 BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE(
@@ -1553,9 +1593,6 @@ BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE_PARAM(
 
 // Enables the Rust-based BMP image decoder.
 BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE(kRustyBmpFeature);
-
-// Enables the Rust-based ICO image decoder.
-BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE(kRustyIcoFeature);
 
 // When enabled, it adds Payto URI Scheme to the safe list for
 // registerProtocolHandler. This feature is disabled by default
@@ -1662,9 +1699,6 @@ BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE(
 
 BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE(kServiceWorkerSyntheticResponse);
 
-BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE(
-    kServiceWorkerDatabaseDoomOnMissingNextId);
-
 BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE_PARAM(
     bool,
     kServiceWorkerSyntheticResponseUseCacheStorageParam);
@@ -1748,11 +1782,6 @@ BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE_PARAM(
 BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE_PARAM(int,
                                                kLargeFrameSizePercentThreshold);
 
-// Enables throttling of the active (visible) page's throttleable task queues
-// (JS timers) to 1 Hz while it contains an effectively-fullscreen video, to
-// reduce CPU/power usage during fullscreen video playback.
-BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE(kThrottleFullscreenVideoActiveTab);
-
 BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE(kUACHOverrideBlank);
 
 BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE(
@@ -1823,11 +1852,6 @@ BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE(
 // This feature enables using Post-Quantum Crypto(PQC) for DTLS to improve
 // WebRTC's security.
 BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE(kWebRtcPqcForDtls);
-
-// TODO(crbug.com/501209160): Remove this kill switch after confirming the
-// standards-compliant behavior does not cause regressions.
-BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE(
-    kWebRtcSuppressDtlsStateChangeOnClose);
 
 BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE(kWebAppEnableScopeExtensionsBySite);
 BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE(

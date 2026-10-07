@@ -104,7 +104,7 @@ bool IsSuggestionHandledInPasswordManager(SuggestionType type) {
     case SuggestionType::kManageIban:
     case SuggestionType::kManageLoyaltyCard:
     case SuggestionType::kManageEnhancedAutofill:
-    case SuggestionType::kUndo:
+    case SuggestionType::kUndoOrClear:
     case SuggestionType::kDatalistEntry:
     case SuggestionType::kAutocompleteEntry:
     case SuggestionType::kComposeResumeNudge:
@@ -115,13 +115,13 @@ bool IsSuggestionHandledInPasswordManager(SuggestionType type) {
     case SuggestionType::kComposeNeverShowOnThisSiteAgain:
     case SuggestionType::kFillAutofillAi:
     case SuggestionType::kInsecureContextPaymentDisabledMessage:
+    case SuggestionType::kMixedFormMessage:
     case SuggestionType::kAddressEntryOnTyping:
     case SuggestionType::kAtMemorySearchResult:
     case SuggestionType::kAtMemoryInactivityNudge:
+    case SuggestionType::kOpenGemini:
     case SuggestionType::kAtMemoryNoConnection:
-    case SuggestionType::kAtMemoryOpenGemini:
     case SuggestionType::kAtMemoryAiDisclosure:
-    case SuggestionType::kAtMemoryFetching:
     case SuggestionType::kAtMemoryGenericError:
     case SuggestionType::kAtMemorySearchAffordance:
     case SuggestionType::kAtMemorySourceAttribution:
@@ -151,8 +151,6 @@ bool IsSuggestionHandledInPasswordManager(SuggestionType type) {
     case SuggestionType::kAutofillAiOtherOrders:
     case SuggestionType::kAutofillAiOtherShipments:
     case SuggestionType::kAutofillAiPrivateInferenceNotice:
-    case SuggestionType::kAutofillAiSourceAttribution:
-    case SuggestionType::kRemoveAutofillAi:
     case SuggestionType::kBnplFootnote:
     case SuggestionType::kAutocompleteAtMemoryButton:
     case SuggestionType::kMaximizeCreditCardBenefitsEntry:
@@ -297,12 +295,8 @@ void PasswordAutofillManager::DidSelectSuggestion(
             ->IsBiometricAuthenticationBeforeFillingEnabled()) {
       return;
     }
-    if (payload.is_cross_domain) {
-      // Do not preview backup credentials marked as cross-domain to avoid
-      // leaking sensitive data to the renderer without user confirmation.
-      return;
-    }
-    size_t password_length = payload.backup_password.value().length();
+    size_t password_length =
+        payload.is_cross_domain ? 8 : payload.backup_password.value().length();
     password_manager_driver_->PreviewSuggestion(
         payload.username, std::u16string(password_length, '*'));
     return;
@@ -859,13 +853,10 @@ bool PasswordAutofillManager::PreviewSuggestion(const std::u16string& username,
   }
   if (const autofill::PasswordAndMetadata* password_and_metadata =
           GetPasswordAndMetadataForUsername(username, type)) {
-    if (password_and_metadata->is_grouped_affiliation) {
-      // Do not preview grouped credentials (which can be cross-domain)
-      // to avoid leaking sensitive data to the renderer without user
-      // confirmation.
-      return false;
-    }
-    size_t password_length = password_and_metadata->password_value.length();
+    size_t password_length =
+        password_and_metadata->is_grouped_affiliation
+            ? 8
+            : password_and_metadata->password_value.length();
     password_manager_driver_->PreviewSuggestion(
         username, std::u16string(password_length, '*'));
     return true;

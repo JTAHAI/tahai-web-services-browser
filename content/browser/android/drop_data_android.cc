@@ -97,40 +97,31 @@ ScopedJavaLocalRef<jobject> ToJavaDropData(const DropData& drop_data) {
                                          jcustom_data, jeffect_allowed);
 }  // ToJavaDropData
 
-std::optional<base::Value> ParseCustomDataFromEvent(
-    const ui::DragEventAndroid& event) {
-  base::android::ScopedJavaLocalRef<jstring> j_custom_data =
-      event.GetJavaCustomData();
-  if (j_custom_data.is_null()) {
-    return std::nullopt;
-  }
-  JNIEnv* env = AttachCurrentThread();
-  std::string custom_data_json =
-      base::android::ConvertJavaStringToUTF8(env, j_custom_data);
-  if (custom_data_json.empty()) {
-    return std::nullopt;
-  }
-  std::optional<base::Value> value =
-      base::JSONReader::Read(custom_data_json, base::JSON_PARSE_RFC);
-  if (!value || !value->is_dict()) {
-    return std::nullopt;
-  }
-  return value;
-}
-
 namespace {
-void PopulateCustomDataFromEvent(const ui::DragEventAndroid& event,
+void PopulateCustomDataFromEvent(JNIEnv* env,
+                                 const ui::DragEventAndroid& event,
                                  DropData* drop_data) {
-  std::optional<base::Value> value = ParseCustomDataFromEvent(event);
-  if (!value) {
+  if (event.GetJavaCustomData().is_null()) {
     return;
   }
-  for (auto item : value->GetDict()) {
-    if (!item.second.is_string()) {
+  std::string custom_data_json =
+      base::android::ConvertJavaStringToUTF8(env, event.GetJavaCustomData());
+  if (custom_data_json.empty()) {
+    return;
+  }
+  std::optional<base::Value> value =
+      base::JSONReader::Read(custom_data_json, 0);
+  if (!value || !value->is_dict()) {
+    return;
+  }
+  const base::DictValue* dict = value->GetIfDict();
+  for (auto item : *dict) {
+    const std::string* str = item.second.GetIfString();
+    if (!str) {
       continue;
     }
     drop_data->custom_data.emplace(base::UTF8ToUTF16(item.first),
-                                   base::UTF8ToUTF16(item.second.GetString()));
+                                   base::UTF8ToUTF16(*str));
   }
 }
 }  // namespace
@@ -164,7 +155,7 @@ void PopulateDropDataFromEvent(const ui::DragEventAndroid& event,
   }
 
   // Handle custom data.
-  PopulateCustomDataFromEvent(event, drop_data);
+  PopulateCustomDataFromEvent(env, event, drop_data);
 
   // Handle effectAllowed.
   if (!event.GetJavaEffectAllowed().is_null()) {

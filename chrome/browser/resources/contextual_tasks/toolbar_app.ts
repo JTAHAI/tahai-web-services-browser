@@ -44,6 +44,7 @@ export class ContextualTasksToolbarAppElement extends CrLitElement {
       },
       isUserSignedIn_: {type: Boolean},
       onboardingTooltipShowing_: {type: Boolean},
+      lensSearchTooltipShowing_: {type: Boolean},
     };
   }
 
@@ -55,6 +56,7 @@ export class ContextualTasksToolbarAppElement extends CrLitElement {
   protected accessor isUserSignedIn_: boolean =
       loadTimeData.getBoolean('isSignedIn');
   protected accessor onboardingTooltipShowing_: boolean = false;
+  protected accessor lensSearchTooltipShowing_: boolean = false;
 
   private browserProxy_: BrowserProxy = BrowserProxyImpl.getInstance();
   private listenerIds_: number[] = [];

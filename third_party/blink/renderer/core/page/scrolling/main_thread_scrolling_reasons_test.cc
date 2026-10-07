@@ -26,9 +26,17 @@
 #include "third_party/blink/renderer/platform/testing/unit_test_helpers.h"
 #include "third_party/blink/renderer/platform/testing/url_loader_mock_factory.h"
 #include "third_party/blink/renderer/platform/testing/url_test_helpers.h"
-#include "third_party/blink/renderer/platform/widget/input/input_metrics.h"
 
 namespace blink {
+
+#define EXPECT_MAIN_THREAD_SCROLLING_REASON(expected, actual)             \
+  EXPECT_EQ(expected, actual)                                             \
+      << " expected: " << cc::MainThreadScrollingReason::AsText(expected) \
+      << " actual: " << cc::MainThreadScrollingReason::AsText(actual)
+
+#define EXPECT_NO_MAIN_THREAD_SCROLLING_REASON(actual)                  \
+  EXPECT_EQ(cc::MainThreadScrollingReason::kNotScrollingOnMain, actual) \
+      << " actual: " << cc::MainThreadScrollingReason::AsText(actual)
 
 class MainThreadScrollingReasonsTest : public PaintTestConfigurations,
                                        public testing::Test {
@@ -85,12 +93,11 @@ class MainThreadScrollingReasonsTest : public PaintTestConfigurations,
         .FindNodeFromElementId(scrollable_area.GetScrollElementId());
   }
 
-  cc::MainThreadRepaintReasons GetMainThreadRepaintReasons(
-      const cc::Layer* layer) const {
+  uint32_t GetMainThreadRepaintReasons(const cc::Layer* layer) const {
     return GetScrollNode(layer)->main_thread_repaint_reasons;
   }
 
-  cc::MainThreadRepaintReasons GetMainThreadRepaintReasons(
+  uint32_t GetMainThreadRepaintReasons(
       const ScrollPaintPropertyNode& scroll) const {
     return GetFrame()
         ->View()
@@ -98,7 +105,7 @@ class MainThreadScrollingReasonsTest : public PaintTestConfigurations,
         ->GetMainThreadRepaintReasons(scroll);
   }
 
-  cc::MainThreadRepaintReasons GetMainThreadRepaintReasons(
+  uint32_t GetMainThreadRepaintReasons(
       const PaintLayerScrollableArea& scrollable_area) const {
     return GetMainThreadRepaintReasons(*scrollable_area.GetLayoutBox()
                                             ->FirstFragment()
@@ -106,7 +113,7 @@ class MainThreadScrollingReasonsTest : public PaintTestConfigurations,
                                             ->Scroll());
   }
 
-  cc::MainThreadRepaintReasons GetViewMainThreadRepaintReasons() const {
+  uint32_t GetViewMainThreadRepaintReasons() const {
     return GetMainThreadRepaintReasons(*GetFrame()->View()->LayoutViewport());
   }
 
@@ -150,16 +157,14 @@ TEST_P(MainThreadScrollingReasonsTest,
   auto* inner_scroll_node =
       inner_layout_view->FirstFragment().PaintProperties()->Scroll();
   ASSERT_TRUE(inner_scroll_node);
-  EXPECT_EQ(
-      cc::MainThreadRepaintReasons{
-          cc::MainThreadRepaintReason::kHasBackgroundAttachmentFixedObjects},
+  EXPECT_MAIN_THREAD_SCROLLING_REASON(
+      cc::MainThreadScrollingReason::kHasBackgroundAttachmentFixedObjects,
       GetMainThreadRepaintReasons(*inner_scroll_node));
   const cc::Layer* inner_scroll_layer = CcLayerByCcElementId(
       root_layer, inner_scroll_node->GetCompositorElementId());
   ASSERT_TRUE(inner_scroll_layer);
-  EXPECT_EQ(
-      cc::MainThreadRepaintReasons{
-          cc::MainThreadRepaintReason::kHasBackgroundAttachmentFixedObjects},
+  EXPECT_MAIN_THREAD_SCROLLING_REASON(
+      cc::MainThreadScrollingReason::kHasBackgroundAttachmentFixedObjects,
       GetMainThreadRepaintReasons(inner_scroll_layer));
 
   // Main thread scrolling of the inner layer doesn't affect the outer layer.
@@ -170,11 +175,13 @@ TEST_P(MainThreadScrollingReasonsTest,
                                 .PaintProperties()
                                 ->Scroll();
   ASSERT_TRUE(outer_scroll_node);
-  EXPECT_TRUE(GetMainThreadRepaintReasons(*outer_scroll_node).empty());
+  EXPECT_NO_MAIN_THREAD_SCROLLING_REASON(
+      GetMainThreadRepaintReasons(*outer_scroll_node));
   const cc::Layer* outer_scroll_layer = CcLayerByCcElementId(
       root_layer, outer_scroll_node->GetCompositorElementId());
   ASSERT_TRUE(outer_scroll_layer);
-  EXPECT_TRUE(GetMainThreadRepaintReasons(outer_scroll_layer).empty());
+  EXPECT_NO_MAIN_THREAD_SCROLLING_REASON(
+      GetMainThreadRepaintReasons(outer_scroll_layer));
 
   // Remove fixed background-attachment should make the iframe scroll on cc.
   auto* content =
@@ -186,19 +193,23 @@ TEST_P(MainThreadScrollingReasonsTest,
 
   ASSERT_EQ(inner_scroll_node,
             inner_layout_view->FirstFragment().PaintProperties()->Scroll());
-  EXPECT_TRUE(GetMainThreadRepaintReasons(*inner_scroll_node).empty());
+  EXPECT_NO_MAIN_THREAD_SCROLLING_REASON(
+      GetMainThreadRepaintReasons(*inner_scroll_node));
   ASSERT_EQ(inner_scroll_layer,
             CcLayerByCcElementId(root_layer,
                                  inner_scroll_node->GetCompositorElementId()));
-  EXPECT_TRUE(GetMainThreadRepaintReasons(inner_scroll_layer).empty());
+  EXPECT_NO_MAIN_THREAD_SCROLLING_REASON(
+      GetMainThreadRepaintReasons(inner_scroll_layer));
 
   ASSERT_EQ(outer_scroll_node,
             outer_layout_view->FirstFragment().PaintProperties()->Scroll());
-  EXPECT_TRUE(GetMainThreadRepaintReasons(*outer_scroll_node).empty());
+  EXPECT_NO_MAIN_THREAD_SCROLLING_REASON(
+      GetMainThreadRepaintReasons(*outer_scroll_node));
   ASSERT_EQ(outer_scroll_layer,
             CcLayerByCcElementId(root_layer,
                                  outer_scroll_node->GetCompositorElementId()));
-  EXPECT_TRUE(GetMainThreadRepaintReasons(outer_scroll_layer).empty());
+  EXPECT_NO_MAIN_THREAD_SCROLLING_REASON(
+      GetMainThreadRepaintReasons(outer_scroll_layer));
 
   // Force main frame to scroll on main thread. All its descendants
   // should scroll on main thread as well.
@@ -215,30 +226,26 @@ TEST_P(MainThreadScrollingReasonsTest,
   // Main thread scrolling of the outer layer affects the inner layer.
   ASSERT_EQ(inner_scroll_node,
             inner_layout_view->FirstFragment().PaintProperties()->Scroll());
-  EXPECT_EQ(
-      cc::MainThreadRepaintReasons{
-          cc::MainThreadRepaintReason::kHasBackgroundAttachmentFixedObjects},
+  EXPECT_MAIN_THREAD_SCROLLING_REASON(
+      cc::MainThreadScrollingReason::kHasBackgroundAttachmentFixedObjects,
       GetMainThreadRepaintReasons(*inner_scroll_node));
   ASSERT_EQ(inner_scroll_layer,
             CcLayerByCcElementId(root_layer,
                                  inner_scroll_node->GetCompositorElementId()));
-  EXPECT_EQ(
-      cc::MainThreadRepaintReasons{
-          cc::MainThreadRepaintReason::kHasBackgroundAttachmentFixedObjects},
+  EXPECT_MAIN_THREAD_SCROLLING_REASON(
+      cc::MainThreadScrollingReason::kHasBackgroundAttachmentFixedObjects,
       GetMainThreadRepaintReasons(inner_scroll_layer));
 
   ASSERT_EQ(outer_scroll_node,
             outer_layout_view->FirstFragment().PaintProperties()->Scroll());
-  EXPECT_EQ(
-      cc::MainThreadRepaintReasons{
-          cc::MainThreadRepaintReason::kHasBackgroundAttachmentFixedObjects},
+  EXPECT_MAIN_THREAD_SCROLLING_REASON(
+      cc::MainThreadScrollingReason::kHasBackgroundAttachmentFixedObjects,
       GetMainThreadRepaintReasons(*outer_scroll_node));
   ASSERT_EQ(outer_scroll_layer,
             CcLayerByCcElementId(root_layer,
                                  outer_scroll_node->GetCompositorElementId()));
-  EXPECT_EQ(
-      cc::MainThreadRepaintReasons{
-          cc::MainThreadRepaintReason::kHasBackgroundAttachmentFixedObjects},
+  EXPECT_MAIN_THREAD_SCROLLING_REASON(
+      cc::MainThreadScrollingReason::kHasBackgroundAttachmentFixedObjects,
       GetMainThreadRepaintReasons(outer_scroll_layer));
 }
 
@@ -288,14 +295,20 @@ TEST_P(MainThreadScrollingReasonsTest, ReportBackgroundAttachmentFixed) {
   helper_.GetLayerTreeHost()->CompositeForTest(base::TimeTicks::Now(), false,
                                                base::OnceClosure());
 
-  constexpr auto expected_reason =
-      cc::MainThreadRepaintReason::kHasBackgroundAttachmentFixedObjects;
+  uint32_t expected_reason =
+      cc::MainThreadScrollingReason::kHasBackgroundAttachmentFixedObjects;
   EXPECT_THAT(
       histogram_tester.GetAllSamples(
           "Renderer4.MainThreadGestureScrollReason2"),
       testing::ElementsAre(
-          base::Bucket(kScrollingOnMainForAnyReasonBucket, 1),
-          base::Bucket(ToHistogramBucketForTesting(expected_reason), 1)));
+          base::Bucket(
+              base::HistogramBase::Sample32(
+                  cc::MainThreadScrollingReason::kScrollingOnMainForAnyReason),
+              1),
+          base::Bucket(base::HistogramBase::Sample32(
+                           cc::MainThreadScrollingReason::BucketIndexForTesting(
+                               expected_reason)),
+                       1)));
 }
 
 // Upon resizing the content size, the main thread scrolling reason
@@ -309,7 +322,7 @@ TEST_P(MainThreadScrollingReasonsTest,
   ForceFullCompositingUpdate();
 
   // When the main document is not scrollable, there should be no reasons.
-  EXPECT_TRUE(GetViewMainThreadRepaintReasons().empty());
+  EXPECT_FALSE(GetViewMainThreadRepaintReasons());
 
   // When the div forces the document to be scrollable, it should scroll on main
   // thread.
@@ -320,16 +333,15 @@ TEST_P(MainThreadScrollingReasonsTest,
                                      "background-attachment: fixed;"));
   ForceFullCompositingUpdate();
 
-  EXPECT_EQ(
-      cc::MainThreadRepaintReasons{
-          cc::MainThreadRepaintReason::kHasBackgroundAttachmentFixedObjects},
+  EXPECT_MAIN_THREAD_SCROLLING_REASON(
+      cc::MainThreadScrollingReason::kHasBackgroundAttachmentFixedObjects,
       GetViewMainThreadRepaintReasons());
 
   // The main thread scrolling reason should be reset upon the following change.
   element->setAttribute(html_names::kStyleAttr, g_empty_atom);
   ForceFullCompositingUpdate();
 
-  EXPECT_TRUE(GetViewMainThreadRepaintReasons().empty());
+  EXPECT_FALSE(GetViewMainThreadRepaintReasons());
 }
 
 TEST_P(MainThreadScrollingReasonsTest, FastScrollingForFixedPosition) {
@@ -338,7 +350,7 @@ TEST_P(MainThreadScrollingReasonsTest, FastScrollingForFixedPosition) {
   ForceFullCompositingUpdate();
 
   // Fixed position should not fall back to main thread scrolling.
-  EXPECT_TRUE(GetViewMainThreadRepaintReasons().empty());
+  EXPECT_FALSE(GetViewMainThreadRepaintReasons());
 }
 
 TEST_P(MainThreadScrollingReasonsTest, FastScrollingForStickyPosition) {
@@ -347,7 +359,7 @@ TEST_P(MainThreadScrollingReasonsTest, FastScrollingForStickyPosition) {
   ForceFullCompositingUpdate();
 
   // Sticky position should not fall back to main thread scrolling.
-  EXPECT_TRUE(GetViewMainThreadRepaintReasons().empty());
+  EXPECT_FALSE(GetViewMainThreadRepaintReasons());
 }
 
 TEST_P(MainThreadScrollingReasonsTest, FastScrollingByDefault) {
@@ -356,16 +368,18 @@ TEST_P(MainThreadScrollingReasonsTest, FastScrollingByDefault) {
   ForceFullCompositingUpdate();
 
   // Fast scrolling should be enabled by default.
-  EXPECT_TRUE(GetViewMainThreadRepaintReasons().empty());
+  EXPECT_FALSE(GetViewMainThreadRepaintReasons());
 
   const cc::Layer* visual_viewport_scroll_layer =
       GetFrame()->GetPage()->GetVisualViewport().LayerForScrolling();
-  EXPECT_TRUE(
-      GetMainThreadRepaintReasons(visual_viewport_scroll_layer).empty());
+  EXPECT_FALSE(GetMainThreadRepaintReasons(visual_viewport_scroll_layer));
 }
 
 class NonCompositedMainThreadScrollingReasonsTest
     : public MainThreadScrollingReasonsTest {
+  static const uint32_t kLCDTextRelatedReasons =
+      cc::MainThreadScrollingReason::kNotOpaqueForTextAndLCDText;
+
  protected:
   NonCompositedMainThreadScrollingReasonsTest() {
     RegisterMockedHttpURLLoad("two_scrollable_area.html");
@@ -373,7 +387,7 @@ class NonCompositedMainThreadScrollingReasonsTest
   }
 
   void TestNonCompositedReasons(const char* style_class,
-                                cc::MainThreadRepaintReasons reasons) {
+                                const uint32_t reason) {
     AtomicString style_class_string(style_class);
     GetFrame()->GetSettings()->SetPreferCompositingToLCDTextForTesting(false);
     Document* document = GetFrame()->GetDocument();
@@ -382,43 +396,48 @@ class NonCompositedMainThreadScrollingReasonsTest
 
     PaintLayerScrollableArea* scrollable_area = GetScrollableArea(*container);
     ASSERT_TRUE(scrollable_area);
-    EXPECT_TRUE(GetMainThreadRepaintReasons(*scrollable_area).empty());
+    EXPECT_NO_MAIN_THREAD_SCROLLING_REASON(
+        GetMainThreadRepaintReasons(*scrollable_area));
 
     container->classList().Add(style_class_string);
     ForceFullCompositingUpdate();
 
     ASSERT_TRUE(scrollable_area);
-    EXPECT_EQ(reasons, GetMainThreadRepaintReasons(*scrollable_area));
+    EXPECT_MAIN_THREAD_SCROLLING_REASON(
+        reason, GetMainThreadRepaintReasons(*scrollable_area));
 
     Element* container2 = document->getElementById(AtomicString("scroller2"));
     PaintLayerScrollableArea* scrollable_area2 = GetScrollableArea(*container2);
     ASSERT_TRUE(scrollable_area2);
     // Different scrollable area should remain unaffected.
-    EXPECT_TRUE(GetMainThreadRepaintReasons(*scrollable_area2).empty());
+    EXPECT_NO_MAIN_THREAD_SCROLLING_REASON(
+        GetMainThreadRepaintReasons(*scrollable_area2));
 
-    EXPECT_TRUE(GetViewMainThreadRepaintReasons().empty());
+    EXPECT_NO_MAIN_THREAD_SCROLLING_REASON(GetViewMainThreadRepaintReasons());
 
     // Remove class from the scroller 1 would lead to scroll on impl.
     container->classList().Remove(style_class_string);
     ForceFullCompositingUpdate();
 
-    EXPECT_TRUE(GetMainThreadRepaintReasons(*scrollable_area).empty());
-    EXPECT_TRUE(GetViewMainThreadRepaintReasons().empty());
+    EXPECT_NO_MAIN_THREAD_SCROLLING_REASON(
+        GetMainThreadRepaintReasons(*scrollable_area));
+    EXPECT_NO_MAIN_THREAD_SCROLLING_REASON(GetViewMainThreadRepaintReasons());
 
     // Add target attribute would again lead to scroll on main thread
     container->classList().Add(style_class_string);
     ForceFullCompositingUpdate();
 
-    EXPECT_EQ(reasons, GetMainThreadRepaintReasons(*scrollable_area));
-    EXPECT_TRUE(GetViewMainThreadRepaintReasons().empty());
+    EXPECT_MAIN_THREAD_SCROLLING_REASON(
+        reason, GetMainThreadRepaintReasons(*scrollable_area));
+    EXPECT_NO_MAIN_THREAD_SCROLLING_REASON(GetViewMainThreadRepaintReasons());
 
-    if (reasons ==
-        cc::MainThreadRepaintReasons{
-            cc::MainThreadRepaintReason::kNotOpaqueForTextAndLCDText}) {
+    if ((reason & kLCDTextRelatedReasons) &&
+        !(reason & ~kLCDTextRelatedReasons)) {
       GetFrame()->GetSettings()->SetPreferCompositingToLCDTextForTesting(true);
       ForceFullCompositingUpdate();
-      EXPECT_TRUE(GetMainThreadRepaintReasons(*scrollable_area).empty());
-      EXPECT_TRUE(GetViewMainThreadRepaintReasons().empty());
+      EXPECT_NO_MAIN_THREAD_SCROLLING_REASON(
+          GetMainThreadRepaintReasons(*scrollable_area));
+      EXPECT_NO_MAIN_THREAD_SCROLLING_REASON(GetViewMainThreadRepaintReasons());
     }
   }
 };
@@ -426,20 +445,21 @@ class NonCompositedMainThreadScrollingReasonsTest
 INSTANTIATE_PAINT_TEST_SUITE_P(NonCompositedMainThreadScrollingReasonsTest);
 
 TEST_P(NonCompositedMainThreadScrollingReasonsTest, TransparentTest) {
-  TestNonCompositedReasons("transparent", {});
+  TestNonCompositedReasons("transparent",
+                           cc::MainThreadScrollingReason::kNotScrollingOnMain);
 }
 
 TEST_P(NonCompositedMainThreadScrollingReasonsTest, TransformTest) {
-  TestNonCompositedReasons("transform", {});
+  TestNonCompositedReasons("transform",
+                           cc::MainThreadScrollingReason::kNotScrollingOnMain);
 }
 
 TEST_P(NonCompositedMainThreadScrollingReasonsTest, BackgroundNotOpaqueTest) {
   TestNonCompositedReasons(
       "background-not-opaque",
       RuntimeEnabledFeatures::RasterInducingScrollEnabled()
-          ? cc::MainThreadRepaintReasons{}
-          : cc::MainThreadRepaintReasons{
-                cc::MainThreadRepaintReason::kNotOpaqueForTextAndLCDText});
+          ? cc::MainThreadScrollingReason::kNotScrollingOnMain
+          : cc::MainThreadScrollingReason::kNotOpaqueForTextAndLCDText);
 }
 
 TEST_P(NonCompositedMainThreadScrollingReasonsTest,
@@ -447,47 +467,49 @@ TEST_P(NonCompositedMainThreadScrollingReasonsTest,
   TestNonCompositedReasons(
       "cant-paint-scrolling-background",
       RuntimeEnabledFeatures::RasterInducingScrollEnabled()
-          ? cc::MainThreadRepaintReasons{cc::MainThreadRepaintReason::
-                                             kBackgroundNeedsRepaintOnScroll}
-          : cc::MainThreadRepaintReasons{
-                cc::MainThreadRepaintReason::kBackgroundNeedsRepaintOnScroll,
-                cc::MainThreadRepaintReason::kNotOpaqueForTextAndLCDText});
+          ? cc::MainThreadScrollingReason::kBackgroundNeedsRepaintOnScroll
+          : cc::MainThreadScrollingReason::kBackgroundNeedsRepaintOnScroll |
+                cc::MainThreadScrollingReason::kNotOpaqueForTextAndLCDText);
 }
 
 TEST_P(NonCompositedMainThreadScrollingReasonsTest,
        BackgroundNeedsRepaintOnScroll) {
   TestNonCompositedReasons(
       "needs-repaint-on-scroll",
-      {cc::MainThreadRepaintReason::kBackgroundNeedsRepaintOnScroll});
+      cc::MainThreadScrollingReason::kBackgroundNeedsRepaintOnScroll);
 }
 
 TEST_P(NonCompositedMainThreadScrollingReasonsTest, ClipTest) {
-  TestNonCompositedReasons("clip", {});
+  TestNonCompositedReasons("clip",
+                           cc::MainThreadScrollingReason::kNotScrollingOnMain);
 }
 
 TEST_P(NonCompositedMainThreadScrollingReasonsTest, ClipPathTest) {
-  TestNonCompositedReasons("clip-path", {});
+  TestNonCompositedReasons("clip-path",
+                           cc::MainThreadScrollingReason::kNotScrollingOnMain);
 }
 
 TEST_P(NonCompositedMainThreadScrollingReasonsTest, BoxShadowTest) {
-  TestNonCompositedReasons("box-shadow", {});
+  TestNonCompositedReasons("box-shadow",
+                           cc::MainThreadScrollingReason::kNotScrollingOnMain);
 }
 
 TEST_P(NonCompositedMainThreadScrollingReasonsTest, InsetBoxShadowTest) {
   TestNonCompositedReasons(
       "inset-box-shadow",
       RuntimeEnabledFeatures::RasterInducingScrollEnabled()
-          ? cc::MainThreadRepaintReasons()
-          : cc::MainThreadRepaintReasons{
-                cc::MainThreadRepaintReason::kNotOpaqueForTextAndLCDText});
+          ? cc::MainThreadScrollingReason::kNotScrollingOnMain
+          : cc::MainThreadScrollingReason::kNotOpaqueForTextAndLCDText);
 }
 
 TEST_P(NonCompositedMainThreadScrollingReasonsTest, StackingContextTest) {
-  TestNonCompositedReasons("non-stacking-context", {});
+  TestNonCompositedReasons("non-stacking-context",
+                           cc::MainThreadScrollingReason::kNotScrollingOnMain);
 }
 
 TEST_P(NonCompositedMainThreadScrollingReasonsTest, BorderRadiusTest) {
-  TestNonCompositedReasons("border-radius", {});
+  TestNonCompositedReasons("border-radius",
+                           cc::MainThreadScrollingReason::kNotScrollingOnMain);
 }
 
 TEST_P(NonCompositedMainThreadScrollingReasonsTest,
@@ -505,7 +527,8 @@ TEST_P(NonCompositedMainThreadScrollingReasonsTest,
 
   PaintLayerScrollableArea* scrollable_area = GetScrollableArea(*container);
   ASSERT_TRUE(scrollable_area);
-  EXPECT_TRUE(GetMainThreadRepaintReasons(*scrollable_area).empty());
+  EXPECT_NO_MAIN_THREAD_SCROLLING_REASON(
+      GetMainThreadRepaintReasons(*scrollable_area));
 
   Element* container2 = document->getElementById(AtomicString("scroller2"));
   ASSERT_TRUE(container2);

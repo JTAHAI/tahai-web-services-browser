@@ -52,10 +52,13 @@ SelectToolJavaScriptFeature* SelectToolJavaScriptFeature::GetInstance() {
 
 void SelectToolJavaScriptFeature::Select(
     base::WeakPtr<web::WebFrame> target_frame,
-    const ActionTarget& target,
-    const std::string& value,
+    const optimization_guide::proto::SelectAction& action,
     ToolExecutionCallback callback) {
-  CHECK(target.is_valid());
+  CHECK(action.has_target());
+  CHECK(action.has_value());
+  CHECK(action.target().has_coordinate() ||
+        (action.target().has_content_node_id() &&
+         action.target().has_document_identifier()));
 
   if (!target_frame) {
     std::move(callback).Run(
@@ -64,12 +67,24 @@ void SelectToolJavaScriptFeature::Select(
   }
 
   base::ListValue parameters;
-  parameters.Append(target.ToDictValue());
-  parameters.Append(value);
+  std::string function_name;
+
+  if (action.target().has_content_node_id()) {
+    parameters.Append(action.target().content_node_id());
+    parameters.Append(action.value());
+    function_name = "select_tool.selectByNodeId";
+  } else {
+    parameters.Append(action.target().coordinate().x());
+    parameters.Append(action.target().coordinate().y());
+    parameters.Append(
+        static_cast<int>(action.target().coordinate().pixel_type()));
+    parameters.Append(action.value());
+    function_name = "select_tool.selectByCoordinate";
+  }
 
   auto [cb_for_js, cb_for_error] = base::SplitOnceCallback(std::move(callback));
   bool sent = CallJavaScriptFunction(
-      target_frame.get(), "select_tool.select", parameters,
+      target_frame.get(), function_name, parameters,
       base::BindOnce(
           [](ToolExecutionCallback callback, const base::Value* result) {
             std::move(callback).Run(ParseJavaScriptResultWithResultCode(

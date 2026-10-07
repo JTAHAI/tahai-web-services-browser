@@ -90,9 +90,6 @@ class UDIFParser {
   std::vector<uint8_t> signature_blob_;  // DMG signature.
 };
 
-// Returns a reference to the maximum chunk size used for decompression.
-size_t& GetMaxDecompressChunkSize();
-
 }  // namespace dmg
 }  // namespace safe_browsing
 

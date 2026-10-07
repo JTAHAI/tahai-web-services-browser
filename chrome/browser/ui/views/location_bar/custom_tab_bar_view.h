@@ -7,6 +7,7 @@
 
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/tabs/tab_strip_model_observer.h"
 #include "chrome/browser/ui/views/location_bar/location_bar_view.h"
 #include "chrome/browser/ui/views/location_bar/location_icon_view.h"
@@ -29,7 +30,6 @@ class ImageButton;
 }  // namespace views
 
 class BrowserView;
-class BrowserWindowInterface;
 class CustomTabBarTitleOriginView;
 
 // For Desktop PWAs, a CustomTabBarView displays a read only title and origin
@@ -65,6 +65,7 @@ class CustomTabBarView : public views::AccessiblePaneView,
 
   // TabstripModelObserver:
   void OnTabChangedAt(tabs::TabInterface* tab,
+                      int index,
                       TabChangeType change_type) override;
   void OnTabStripModelChanged(
       TabStripModel* tab_strip_model,
@@ -140,7 +141,7 @@ class CustomTabBarView : public views::AccessiblePaneView,
   raw_ptr<CustomTabBarTitleOriginView> title_origin_view_ = nullptr;
   std::unique_ptr<ui::SimpleMenuModel> context_menu_model_;
   std::unique_ptr<views::MenuRunner> context_menu_runner_;
-  raw_ptr<BrowserWindowInterface> browser_ = nullptr;
+  raw_ptr<Browser> browser_ = nullptr;
 
   raw_ptr<views::FlexLayout> layout_manager_;
 

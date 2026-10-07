@@ -13,6 +13,7 @@ import android.os.Bundle;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.robolectric.annotation.Config;
 
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.chrome.browser.IntentHandler;
@@ -22,6 +23,7 @@ import java.util.List;
 
 /** Tests for {@link MultiTabMetadata}. */
 @RunWith(BaseRobolectricTestRunner.class)
+@Config(manifest = Config.NONE)
 public class MultiTabMetadataUnitTest {
 
     private static final ArrayList<Integer> TAB_IDS = new ArrayList<>(List.of(1, 2, 3));

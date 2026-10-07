@@ -37,12 +37,12 @@
 #include "components/policy/policy_export.h"
 #include "components/policy/proto/device_management_backend.pb.h"
 
-namespace network {
-class SharedURLLoaderFactory;
-}
-
 namespace chrome::cros::reporting::proto {
 class UploadEventsRequest;
+}
+
+namespace network {
+class SharedURLLoaderFactory;
 }
 
 namespace policy {
@@ -142,30 +142,12 @@ class POLICY_EXPORT CloudPolicyClient {
   class POLICY_EXPORT Result {
    public:
     explicit Result(DeviceManagementStatus);
-    Result(DeviceManagementStatus, int);
-    Result(DeviceManagementStatus, int, base::DictValue);
+    explicit Result(DeviceManagementStatus, int);
+    explicit Result(DeviceManagementStatus, int, base::DictValue);
     explicit Result(NotRegistered);
-
-    static Result CreateForRealtimeUpload(
-        DeviceManagementStatus status,
-        int response_code,
-        base::DictValue response,
-        ::chrome::cros::reporting::proto::UploadEventsRequest upload_request);
-
-    static Result CreateForRealtimeUpload(
-        DeviceManagementStatus status,
-        int response_code,
-        ::chrome::cros::reporting::proto::UploadEventsRequest upload_request);
-
-    static Result CreateForRealtimeUpload(
-        NotRegistered not_registered,
-        ::chrome::cros::reporting::proto::UploadEventsRequest upload_request);
 
     Result(const Result& other);
     Result& operator=(const Result& other);
-    Result(Result&& other);
-    Result& operator=(Result&& other);
-    ~Result();
 
     bool IsSuccess() const;
     bool IsClientNotRegisteredError() const;
@@ -173,20 +155,17 @@ class POLICY_EXPORT CloudPolicyClient {
 
     DeviceManagementStatus GetDMServerError() const;
     int GetNetError() const;
-    int GetResponseCode() const;
-    bool operator==(const Result& other) const;
+    bool operator==(const Result& other) const {
+      return this->result_ == other.result_ && net_error_ == other.net_error_ &&
+             response_ == other.response_;
+    }
 
     const base::DictValue& GetResponse() const;
-    const ::chrome::cros::reporting::proto::UploadEventsRequest&
-    upload_events_request() const;
 
    private:
     std::variant<NotRegistered, DeviceManagementStatus> result_;
     int net_error_ = 0;
-    int response_code_ = 0;
     base::DictValue response_;
-    std::unique_ptr<::chrome::cros::reporting::proto::UploadEventsRequest>
-        upload_events_request_;
   };
 
   // A callback which receives the operations result.
@@ -500,6 +479,11 @@ class POLICY_EXPORT CloudPolicyClient {
       bool include_device_info,
       ::chrome::cros::reporting::proto::UploadEventsRequest request,
       ResultCallback callback);
+
+  // DEPRECATED: Use |UploadSecurityEvent| instead.
+  virtual void UploadSecurityEventReport(bool include_device_info,
+                                         base::DictValue report,
+                                         ResultCallback callback);
 
   // Attempts to fetch remote commands, with `last_command_id` being the ID of
   // the last command that finished execution, `command_results` being
@@ -825,14 +809,11 @@ class POLICY_EXPORT CloudPolicyClient {
                                DMServerJobResult result);
 
   // Callback for realtime report upload requests.
-  void OnRealtimeReportUploadCompleted(
-      ResultCallback callback,
-      DeviceManagementService::Job* job,
-      DeviceManagementStatus status,
-      int response_code,
-      std::optional<base::DictValue> response,
-      const ::chrome::cros::reporting::proto::UploadEventsRequest&
-          upload_request);
+  void OnRealtimeReportUploadCompleted(ResultCallback callback,
+                                       DeviceManagementService::Job* job,
+                                       DeviceManagementStatus status,
+                                       int net_error,
+                                       std::optional<base::DictValue> response);
 
   // Callback for remote command fetch requests.
   void OnRemoteCommandsFetched(RemoteCommandCallback callback,
@@ -969,6 +950,12 @@ class POLICY_EXPORT CloudPolicyClient {
       bool include_device_info,
       ResultCallback callback);
 
+  // DEPRECATED: Use CreateNewRealtimeReportingJob instead.
+  DeviceManagementService::Job* CreateNewRealtimeReportingJobDeprecated(
+      base::DictValue report,
+      const std::string& server_url,
+      bool include_device_info,
+      ResultCallback callback);
 
   void SetClientId(const std::string& client_id);
   // Fills in the common fields of a DeviceRegisterRequest for |Register| and

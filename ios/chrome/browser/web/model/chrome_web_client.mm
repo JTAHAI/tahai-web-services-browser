@@ -13,7 +13,6 @@
 #import "base/feature_list.h"
 #import "base/ios/ios_util.h"
 #import "base/ios/ns_error_util.h"
-#import "base/memory/ref_counted_memory.h"
 #import "base/metrics/histogram_functions.h"
 #import "base/no_destructor.h"
 #import "base/notreached.h"
@@ -32,7 +31,6 @@
 #import "components/language/ios/browser/language_detection_java_script_feature.h"
 #import "components/password_manager/ios/password_manager_java_script_feature.h"
 #import "components/prefs/pref_service.h"
-#import "components/safe_browsing/core/common/features.h"
 #import "components/safe_browsing/core/common/safe_browsing_prefs.h"
 #import "components/safe_browsing/core/common/utils.h"
 #import "components/strings/grit/components_strings.h"
@@ -51,7 +49,6 @@
 #import "ios/chrome/browser/flags/chrome_switches.h"
 #import "ios/chrome/browser/https_upgrades/model/https_upgrade_service_factory.h"
 #import "ios/chrome/browser/intelligence/actor/tools/model/action_target_java_script_feature.h"
-#import "ios/chrome/browser/intelligence/actor/tools/model/attempt_form_filling_tool_java_script_feature.h"
 #import "ios/chrome/browser/intelligence/actor/tools/model/click_tool_java_script_feature.h"
 #import "ios/chrome/browser/intelligence/actor/tools/model/page_stability_java_script_feature.h"
 #import "ios/chrome/browser/intelligence/actor/tools/model/scroll_tool_java_script_feature.h"
@@ -69,7 +66,6 @@
 #import "ios/chrome/browser/reader_mode/model/features.h"
 #import "ios/chrome/browser/reader_mode/model/reader_mode_java_script_feature.h"
 #import "ios/chrome/browser/reader_mode/model/reader_mode_scroll_anchor_java_script_feature.h"
-#import "ios/chrome/browser/safe_browsing/model/client_side_detection/client_side_detection_java_script_feature.h"
 #import "ios/chrome/browser/safe_browsing/model/password_protection_java_script_feature.h"
 #import "ios/chrome/browser/safe_browsing/model/safe_browsing_blocking_page.h"
 #import "ios/chrome/browser/search_engines/model/search_engine_java_script_feature.h"
@@ -376,7 +372,7 @@ std::string_view ChromeWebClient::GetDataResource(
       resource_id, scale_factor);
 }
 
-scoped_refptr<base::RefCountedMemory> ChromeWebClient::GetDataResourceBytes(
+base::RefCountedMemory* ChromeWebClient::GetDataResourceBytes(
     int resource_id) const {
   return ui::ResourceBundle::GetSharedInstance().LoadDataResourceBytes(
       resource_id);
@@ -400,10 +396,6 @@ std::vector<web::JavaScriptFeature*> ChromeWebClient::GetJavaScriptFeatures(
   static base::NoDestructor<PrintJavaScriptFeature> print_feature;
   std::vector<web::JavaScriptFeature*> features;
   features.push_back(PasswordProtectionJavaScriptFeature::GetInstance());
-  if (base::FeatureList::IsEnabled(
-          safe_browsing::kClientSideDetectionEnabledIos)) {
-    features.push_back(ClientSideDetectionJavaScriptFeature::GetInstance());
-  }
 
   ProfileIOS* profile = ProfileIOS::FromBrowserState(browser_state);
   JavaScriptConsoleFeature* java_script_console_feature =
@@ -451,8 +443,6 @@ std::vector<web::JavaScriptFeature*> ChromeWebClient::GetJavaScriptFeatures(
 
   if (base::FeatureList::IsEnabled(kActorTools)) {
     features.push_back(actor::ActionTargetJavaScriptFeature::GetInstance());
-    features.push_back(
-        actor::AttemptFormFillingToolJavaScriptFeature::GetInstance());
     features.push_back(actor::ClickToolJavaScriptFeature::GetInstance());
     features.push_back(actor::ScrollToolJavaScriptFeature::GetInstance());
     features.push_back(actor::SelectToolJavaScriptFeature::GetInstance());
@@ -465,8 +455,10 @@ std::vector<web::JavaScriptFeature*> ChromeWebClient::GetJavaScriptFeatures(
   features.push_back(
       SupervisedUserInterstitialJavaScriptFeature::GetInstance());
 
-  features.push_back(ReaderModeJavaScriptFeature::GetInstance());
-  features.push_back(ReaderModeScrollAnchorJavaScriptFeature::GetInstance());
+  if (IsReaderModeAvailable()) {
+    features.push_back(ReaderModeJavaScriptFeature::GetInstance());
+    features.push_back(ReaderModeScrollAnchorJavaScriptFeature::GetInstance());
+  }
 
   if (base::FeatureList::IsEnabled(
           kJavaScriptPermissionBasedAPIMetricsEnabled)) {
@@ -645,7 +637,8 @@ void ChromeWebClient::BuildEditMenu(web::WebState* web_state,
 
 bool ChromeWebClient::CanRunOpenPanel(web::WebState* source) const
     API_AVAILABLE(ios(18.4)) {
-  return ChooseFileTabHelper::FromWebState(source) != nullptr;
+  return base::FeatureList::IsEnabled(kIOSCustomFileUploadMenu) &&
+         ChooseFileTabHelper::FromWebState(source) != nullptr;
 }
 
 void ChromeWebClient::RunOpenPanel(
@@ -654,6 +647,7 @@ void ChromeWebClient::RunOpenPanel(
     WKFrameInfo* frame,
     base::OnceCallback<void(NSArray<NSURL*>*)> completion) const
     API_AVAILABLE(ios(18.4)) {
+  CHECK(base::FeatureList::IsEnabled(kIOSCustomFileUploadMenu));
   ChooseFileTabHelper* tab_helper = ChooseFileTabHelper::FromWebState(source);
   CHECK(tab_helper);
   tab_helper->RunOpenPanel(parameters, frame, std::move(completion));

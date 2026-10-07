@@ -124,7 +124,7 @@ TEST_F(IOSContentAnalysisRequestTest, DelayedOpening) {
 
   EXPECT_FALSE(future.IsReady());
 
-  request->OpenFile(/*is_cancelled=*/nullptr);
+  request->OpenFile();
 
   auto [result, data] = future.Take();
   EXPECT_EQ(result, ScanRequestUploadResult::kSuccess);

@@ -27,7 +27,7 @@ BrowserMemoryCoordinatorBridge::~BrowserMemoryCoordinatorBridge() {
 void BrowserMemoryCoordinatorBridge::OnConsumerGroupAdded(
     uint32_t consumer_id,
     std::string_view consumer_name,
-    base::MemoryConsumerTraits traits,
+    std::optional<base::MemoryConsumerTraits> traits,
     ProcessType process_type,
     ChildProcessId child_process_id) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
@@ -72,25 +72,6 @@ void BrowserMemoryCoordinatorBridge::UpdateConsumers(
   manager().UpdateConsumers(this, std::move(updates));
 }
 
-void BrowserMemoryCoordinatorBridge::SetOverrideLimit(uint32_t consumer_id,
-                                                      int32_t percentage) {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  manager().SetMemoryLimitOverride(consumer_id, percentage);
-}
-
-void BrowserMemoryCoordinatorBridge::ClearOverrideLimit(uint32_t consumer_id,
-                                                        int32_t policy_limit) {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  // Update this bridge's policy limit in the child policy manager with the
-  // current browser policy limit before clearing the override. This ensures
-  // that when the override is removed, the manager recomputes the aggregate
-  // limit using the latest browser limit combined with child-local policies.
-  if (groups_.contains(consumer_id)) {
-    manager().UpdateConsumers(this, {{consumer_id, policy_limit, false}});
-  }
-  manager().ClearMemoryLimitOverride(consumer_id);
-}
-
 #if BUILDFLAG(ENABLE_MEMORY_COORDINATOR_INTERNALS)
 void BrowserMemoryCoordinatorBridge::EnableDiagnosticsReporting(
     mojo::PendingRemote<mojom::MemoryCoordinatorDiagnosticsHost> host) {
@@ -110,7 +91,7 @@ void BrowserMemoryCoordinatorBridge::EnableDiagnosticsReporting(
 void BrowserMemoryCoordinatorBridge::OnMemoryLimitChanged(
     uint32_t consumer_id,
     ChildProcessId child_process_id,
-    base::MemoryLimit memory_limit) {
+    int memory_limit) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   if (diagnostics_host_) {
     diagnostics_host_->OnMemoryLimitChanged(consumer_id, memory_limit);

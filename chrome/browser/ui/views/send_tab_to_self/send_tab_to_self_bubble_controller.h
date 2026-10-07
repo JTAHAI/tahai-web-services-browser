@@ -15,6 +15,7 @@
 #include "chrome/browser/ui/views/toolbar/pinned_toolbar_actions.h"
 #include "components/send_tab_to_self/entry_point_display_reason.h"
 #include "components/send_tab_to_self/metrics_util.h"
+#include "components/send_tab_to_self/send_tab_to_self_model_observer.h"
 #include "components/sync_device_info/device_info.h"
 #include "content/public/browser/web_contents_observer.h"
 #include "content/public/browser/web_contents_user_data.h"
@@ -40,6 +41,10 @@ namespace ui {
 class Event;
 }  // namespace ui
 
+namespace user_prefs {
+class PrefRegistrySyncable;
+}  // namespace user_prefs
+
 struct AccountInfo;
 
 namespace send_tab_to_self {
@@ -49,12 +54,12 @@ class SendTabToSelfBubbleView;
 struct TargetDeviceInfo;
 
 class SendTabToSelfModel;
-class TargetDeviceListWaiter;
 
 class SendTabToSelfBubbleController
     : public content::WebContentsUserData<SendTabToSelfBubbleController>,
       public content::WebContentsObserver,
-      public views::WidgetObserver {
+      public views::WidgetObserver,
+      public send_tab_to_self::SendTabToSelfModelObserver {
  public:
   SendTabToSelfBubbleController(const SendTabToSelfBubbleController&) = delete;
   SendTabToSelfBubbleController& operator=(
@@ -88,6 +93,11 @@ class SendTabToSelfBubbleController
   // Close the bubble when the user clicks on the back button.
   void OnBackButtonPressed();
 
+  // Returns true if the initial "Send" animation that's displayed once per
+  // profile was shown.
+  bool InitialSendAnimationShown();
+  void SetInitialSendAnimationShown(bool shown);
+
   bool show_back_button() const { return show_back_button_; }
 
   std::optional<ShareEntryPoint> entry_point() const { return entry_point_; }
@@ -95,6 +105,10 @@ class SendTabToSelfBubbleController
   base::WeakPtr<SendTabToSelfBubbleController> AsWeakPtr() {
     return weak_ptr_factory_.GetWeakPtr();
   }
+
+  // Register SendTabToSelfBubbleController related prefs in the Profile prefs.
+  static void RegisterProfilePrefs(
+      user_prefs::PrefRegistrySyncable* user_prefs);
 
   void SetSelectorGenerationTimeoutForTesting(base::TimeDelta timeout);
 
@@ -105,7 +119,7 @@ class SendTabToSelfBubbleController
   friend class content::WebContentsUserData<SendTabToSelfBubbleController>;
 
   Profile* GetProfile();
-  SendTabToSelfModel* GetModel();
+  send_tab_to_self::SendTabToSelfModel* GetModel();
   virtual std::optional<EntryPointDisplayReason> GetEntryPointDisplayReason();
 
   // Prepares the anchor and initiates showing the bubble for a specific reason.
@@ -128,9 +142,17 @@ class SendTabToSelfBubbleController
   // views::WidgetObserver:
   void OnWidgetDestroying(views::Widget* widget) override;
 
-  void ShowBubbleWhenTargetDeviceListReady();
+  // send_tab_to_self::SendTabToSelfModelObserver:
+  void OnModelReady() override;
 
-  void StartWaitingForTargetDeviceList();
+  // Returns true if the user is signed in to their Chrome profile but the Send
+  // Tab to Self model is not yet ready, indicating the controller should wait
+  // and observe the model.
+  bool ShouldStartWaitingForModel();
+
+  // Registers the controller as an observer to listen for the
+  // Send Tab to Self model's readiness.
+  void StartWaitingForModel();
 
   // Weak reference. Will be nullptr if no bubble is currently shown.
   raw_ptr<SendTabToSelfBubbleView> send_tab_to_self_bubble_view_ = nullptr;
@@ -144,8 +166,9 @@ class SendTabToSelfBubbleController
   base::ScopedObservation<views::Widget, views::WidgetObserver>
       widget_observation_{this};
 
-  // Non-null while waiting for the target device list to be ready after sign-in.
-  std::unique_ptr<TargetDeviceListWaiter> target_device_list_waiter_;
+  base::ScopedObservation<send_tab_to_self::SendTabToSelfModel,
+                          send_tab_to_self::SendTabToSelfModelObserver>
+      model_observation_{this};
 
   base::WeakPtrFactory<SendTabToSelfBubbleController> weak_ptr_factory_{this};
 

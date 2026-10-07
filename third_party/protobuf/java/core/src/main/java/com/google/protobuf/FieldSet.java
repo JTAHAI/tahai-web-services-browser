@@ -9,13 +9,12 @@ package com.google.protobuf;
 
 import static com.google.protobuf.Internal.checkNotNull;
 
-import com.google.protobuf.InternalLazyField.LazyIterator;
+import com.google.protobuf.LazyField.LazyIterator;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
 
@@ -211,8 +210,8 @@ final class FieldSet<T extends FieldSet.FieldDescriptorLite<T>> {
       Map<T, Object> map, Map.Entry<T, Object> entry, boolean copyList, boolean resolveLazyFields) {
     T key = entry.getKey();
     Object value = entry.getValue();
-    if (resolveLazyFields && value instanceof InternalLazyField) {
-      map.put(key, ((InternalLazyField) value).getValue());
+    if (resolveLazyFields && value instanceof LazyField) {
+      map.put(key, ((LazyField) value).getValue());
     } else if (copyList && value instanceof List) {
       map.put(key, new ArrayList<>((List<?>) value));
     } else {
@@ -267,10 +266,16 @@ final class FieldSet<T extends FieldSet.FieldDescriptorLite<T>> {
    */
   public Object getField(final T descriptor) {
     Object o = fields.get(descriptor);
-    if (o instanceof InternalLazyField) {
-      return ((InternalLazyField) o).getValue();
+    if (o instanceof LazyField) {
+      return ((LazyField) o).getValue();
     }
     return o;
+  }
+
+  /** Returns true if the field is a lazy field and it is corrupted. */
+  boolean lazyFieldCorrupted(final T descriptor) {
+    Object o = fields.get(descriptor);
+    return o instanceof LazyField && ((LazyField) o).isCorrupted();
   }
 
   /**
@@ -301,7 +306,7 @@ final class FieldSet<T extends FieldSet.FieldDescriptorLite<T>> {
       verifyType(descriptor, value);
     }
 
-    if (value instanceof InternalLazyField) {
+    if (value instanceof LazyField) {
       hasLazyField = true;
     }
     fields.put(descriptor, value);
@@ -431,7 +436,7 @@ final class FieldSet<T extends FieldSet.FieldDescriptorLite<T>> {
       case ENUM:
         return (value instanceof Integer || value instanceof Internal.EnumLite);
       case MESSAGE:
-        return (value instanceof MessageLite) || (value instanceof InternalLazyField);
+        return (value instanceof MessageLite) || (value instanceof LazyField);
     }
     return false;
   }
@@ -486,7 +491,7 @@ final class FieldSet<T extends FieldSet.FieldDescriptorLite<T>> {
       // Message fields cannot have builder values in FieldSet, but can in FieldSet.Builder, and
       // this method is used by FieldSet.Builder.isInitialized.
       return ((MessageLiteOrBuilder) value).isInitialized();
-    } else if (value instanceof InternalLazyField) {
+    } else if (value instanceof LazyField) {
       return true;
     } else {
       throw new IllegalArgumentException(
@@ -534,7 +539,7 @@ final class FieldSet<T extends FieldSet.FieldDescriptorLite<T>> {
   private void mergeFromField(final Map.Entry<T, Object> entry) {
     final T descriptor = entry.getKey();
     Object otherValue = entry.getValue();
-    boolean isLazyField = otherValue instanceof InternalLazyField;
+    boolean isLazyField = otherValue instanceof LazyField;
 
     if (descriptor.isRepeated()) {
       if (isLazyField) {
@@ -563,9 +568,9 @@ final class FieldSet<T extends FieldSet.FieldDescriptorLite<T>> {
         }
       } else {
         // There is an existing field. Need to merge the messages.
-        if (otherValue instanceof InternalLazyField) {
+        if (otherValue instanceof LazyField) {
           // Extract the actual value for lazy fields.
-          otherValue = ((InternalLazyField) otherValue).getValue();
+          otherValue = ((LazyField) otherValue).getValue();
         }
         if (descriptor.internalMessageIsImmutable(value)) {
           MessageLite.Builder builder = ((MessageLite) value).toBuilder();
@@ -633,8 +638,8 @@ final class FieldSet<T extends FieldSet.FieldDescriptorLite<T>> {
         && !descriptor.isRepeated()
         && !descriptor.isPacked()) {
       Object value = entry.getValue();
-      if (value instanceof InternalLazyField) {
-        ByteString valueBytes = ((InternalLazyField) value).toByteString();
+      if (value instanceof LazyField) {
+        ByteString valueBytes = ((LazyField) value).toByteString();
         output.writeRawMessageSetExtension(entry.getKey().getNumber(), valueBytes);
       } else {
         output.writeMessageSetExtension(entry.getKey().getNumber(), (MessageLite) value);
@@ -787,8 +792,8 @@ final class FieldSet<T extends FieldSet.FieldDescriptorLite<T>> {
         }
       }
     } else {
-      if (value instanceof InternalLazyField) {
-        writeElement(output, type, number, ((InternalLazyField) value).getValue());
+      if (value instanceof LazyField) {
+        writeElement(output, type, number, ((LazyField) value).getValue());
       } else {
         writeElement(output, type, number, value);
       }
@@ -831,9 +836,8 @@ final class FieldSet<T extends FieldSet.FieldDescriptorLite<T>> {
     if (descriptor.getLiteJavaType() == WireFormat.JavaType.MESSAGE
         && !descriptor.isRepeated()
         && !descriptor.isPacked()) {
-      if (value instanceof InternalLazyField) {
-        return ((InternalLazyField) value)
-            .computeMessageSetExtensionSize(entry.getKey().getNumber());
+      if (value instanceof LazyField) {
+        return ((LazyField) value).computeMessageSetExtensionSize(entry.getKey().getNumber());
       } else {
         return CodedOutputStream.computeMessageSetExtensionSize(
             entry.getKey().getNumber(), (MessageLite) value);
@@ -915,8 +919,8 @@ final class FieldSet<T extends FieldSet.FieldDescriptorLite<T>> {
         return CodedOutputStream.computeSInt64SizeNoTag((Long) value);
 
       case MESSAGE:
-        if (value instanceof InternalLazyField) {
-          return ((InternalLazyField) value).computeSizeNoTag();
+        if (value instanceof LazyField) {
+          return ((LazyField) value).computeSizeNoTag();
         } else {
           return CodedOutputStream.computeMessageSizeNoTag((MessageLite) value);
         }
@@ -1135,8 +1139,8 @@ final class FieldSet<T extends FieldSet.FieldDescriptorLite<T>> {
     /** Same as {@link #getField(F)}, but allow a {@link MessageLite.Builder} to be returned. */
     Object getFieldAllowBuilders(final T descriptor) {
       Object o = fields.get(descriptor);
-      if (o instanceof InternalLazyField) {
-        return ((InternalLazyField) o).getValue();
+      if (o instanceof LazyField) {
+        return ((LazyField) o).getValue();
       }
       return o;
     }
@@ -1176,7 +1180,7 @@ final class FieldSet<T extends FieldSet.FieldDescriptorLite<T>> {
         verifyType(descriptor, value);
       }
 
-      if (value instanceof InternalLazyField) {
+      if (value instanceof LazyField) {
         hasLazyField = true;
       }
       hasNestedBuilders = hasNestedBuilders || value instanceof MessageLite.Builder;
@@ -1307,9 +1311,8 @@ final class FieldSet<T extends FieldSet.FieldDescriptorLite<T>> {
         }
         throw new IllegalArgumentException(
             String.format(
-                Locale.ROOT,
                 "Wrong object type used with protocol message reflection.\n"
-                    + "Field number: %d, field java type: %s, value type: %s\n",
+                + "Field number: %d, field java type: %s, value type: %s\n",
                 descriptor.getNumber(),
                 descriptor.getLiteType().getJavaType(),
                 value.getClass().getName()));
@@ -1355,7 +1358,7 @@ final class FieldSet<T extends FieldSet.FieldDescriptorLite<T>> {
     private void mergeFromField(final Map.Entry<T, Object> entry) {
       final T descriptor = entry.getKey();
       Object otherValue = entry.getValue();
-      boolean isLazyField = otherValue instanceof InternalLazyField;
+      boolean isLazyField = otherValue instanceof LazyField;
 
       if (descriptor.isRepeated()) {
         if (isLazyField) {
@@ -1382,9 +1385,9 @@ final class FieldSet<T extends FieldSet.FieldDescriptorLite<T>> {
           }
         } else {
           // There is an existing field. Need to merge the messages.
-          if (otherValue instanceof InternalLazyField) {
+          if (otherValue instanceof LazyField) {
             // Extract the actual value for lazy fields.
-            otherValue = ((InternalLazyField) otherValue).getValue();
+            otherValue = ((LazyField) otherValue).getValue();
           }
           if (descriptor.internalMessageIsImmutable(value)) {
             MessageLite.Builder builder = ((MessageLite) value).toBuilder();

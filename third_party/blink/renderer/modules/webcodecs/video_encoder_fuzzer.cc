@@ -6,7 +6,6 @@
 
 #include <string>
 
-#include "base/check.h"
 #include "base/run_loop.h"
 #include "testing/libfuzzer/proto/lpm_interface.h"
 #include "third_party/blink/renderer/bindings/core/v8/script_promise_tester.h"
@@ -20,7 +19,6 @@
 #include "third_party/blink/renderer/core/testing/dummy_page_holder.h"
 #include "third_party/blink/renderer/modules/webcodecs/encoded_video_chunk.h"
 #include "third_party/blink/renderer/modules/webcodecs/fuzzer_inputs.pb.h"
-#include "third_party/blink/renderer/modules/webcodecs/fuzzer_inputs_fuzzable.pb.h"
 #include "third_party/blink/renderer/modules/webcodecs/fuzzer_utils.h"
 #include "third_party/blink/renderer/platform/bindings/exception_state.h"
 #include "third_party/blink/renderer/platform/bindings/script_state.h"
@@ -34,16 +32,7 @@
 namespace blink {
 
 DEFINE_TEXT_PROTO_FUZZER(
-    const fuzzable::wc_fuzzer::VideoEncoderApiInvocationSequence&
-        fuzzable_proto) {
-  std::string serialized;
-  CHECK(fuzzable_proto.SerializeToString(&serialized));
-  wc_fuzzer::VideoEncoderApiInvocationSequence proto;
-  // Recursion limits can cause parsing to fail.
-  if (!proto.ParseFromString(serialized)) {
-    return;
-  }
-
+    const wc_fuzzer::VideoEncoderApiInvocationSequence& proto) {
   if (proto.invocations().size() > kMaxFuzzerProtoLength) {
     return;
   }

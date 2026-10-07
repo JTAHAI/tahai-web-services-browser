@@ -26,7 +26,6 @@
 #include "third_party/blink/renderer/core/testing/sim/sim_test.h"
 #include "third_party/blink/renderer/platform/network/network_state_notifier.h"
 #include "third_party/blink/renderer/platform/testing/unit_test_helpers.h"
-#include "third_party/blink/renderer/platform/wtf/text/format.h"
 #include "third_party/blink/renderer/platform/wtf/text/wtf_string.h"
 #include "third_party/blink/renderer/platform/wtf/vector.h"
 #include "ui/gfx/geometry/rect_f.h"
@@ -89,10 +88,10 @@ class LazyLoadFramesParamsTest
 
     LoadURL("https://example.com/");
 
-    main_resource.Complete(Format(
+    main_resource.Complete(String::Format(
         R"HTML(
           <body onload='console.log("main body onload");'>
-          <div style='height: {}px;'></div>
+          <div style='height: %dpx;'></div>
           <iframe src='https://crossorigin.com/subframe.html'
                style='width: 400px; height: 400px;' loading='lazy'
                onload='console.log("child frame element onload");'></iframe>
@@ -123,10 +122,10 @@ TEST_P(LazyLoadFramesParamsTest, SameOriginFrame) {
 
   LoadURL("https://example.com/");
 
-  main_resource.Complete(Format(
+  main_resource.Complete(String::Format(
       R"HTML(
         <body onload='console.log("main body onload");'>
-        <div style='height: {}px;'></div>
+        <div style='height: %dpx;'></div>
         <iframe src='https://example.com/subframe.html'
              style='width: 200px; height: 200px;'
              onload='console.log("child frame element onload");'></iframe>
@@ -152,10 +151,10 @@ TEST_P(LazyLoadFramesParamsTest, AboveTheFoldFrame) {
 
   LoadURL("https://example.com/");
 
-  main_resource.Complete(Format(
+  main_resource.Complete(String::Format(
       R"HTML(
         <body onload='console.log("main body onload");'>
-        <div style='height: {}px;'></div>
+        <div style='height: %dpx;'></div>
         <iframe src='https://crossorigin.com/subframe.html'
              style='width: 200px; height: 200px;' loading='lazy'
              onload='console.log("child frame element onload");'></iframe>
@@ -180,10 +179,10 @@ TEST_P(LazyLoadFramesParamsTest, BelowTheFoldButNearViewportFrame) {
 
   LoadURL("https://example.com/");
 
-  main_resource.Complete(Format(
+  main_resource.Complete(String::Format(
       R"HTML(
         <body onload='console.log("main body onload");'>
-        <div style='height: {}px;'></div>
+        <div style='height: %dpx;'></div>
         <iframe src='https://crossorigin.com/subframe.html'
              style='width: 200px; height: 200px;' loading='lazy'
              onload='console.log("child frame element onload");'></iframe>
@@ -284,8 +283,8 @@ TEST_P(LazyLoadFramesParamsTest, NestedFrameInCrossOriginFrameFarFromViewport) {
   // loading immediately, even if LazyFrameLoading is enabled, since it's nested
   // inside a frame that was previously deferred.
   SimRequest nested_frame_resource("https://test.com/", "text/html");
-  child_frame_resource->Complete(Format(
-      "<div style='height: {}px;'></div>"
+  child_frame_resource->Complete(String::Format(
+      "<div style='height: %dpx;'></div>"
       "<iframe src='https://test.com/' style='width: 200px; height: 200px;'>"
       "</iframe>",
       kViewportHeight + GetLoadingDistanceThreshold() + 100));
@@ -306,18 +305,18 @@ TEST_P(LazyLoadFramesParamsTest, AboutBlankChildFrameNavigation) {
 
   LoadURL("https://example.com/");
 
-  main_resource.Complete(Format(
+  main_resource.Complete(String::Format(
       R"HTML(
         <body onload='BodyOnload()'>
         <script>
-          function BodyOnload() {{
+          function BodyOnload() {
             console.log('main body onload');
             document.getElementsByTagName('iframe')[0].src =
                 'https://crossorigin.com/subframe.html';
-          }}
+          }
         </script>
 
-        <div style='height: {}px;'></div>
+        <div style='height: %dpx;'></div>
         <iframe
              style='width: 200px; height: 200px;' loading='lazy'
              onload='console.log("child frame element onload");'></iframe>
@@ -352,10 +351,10 @@ TEST_P(LazyLoadFramesParamsTest, JavascriptStringFrameUrl) {
   SimRequest main_resource("https://example.com/", "text/html");
   LoadURL("https://example.com/");
 
-  main_resource.Complete(Format(
+  main_resource.Complete(String::Format(
       R"HTML(
         <body onload='console.log("main body onload");'>
-        <div style='height: {}px;'></div>
+        <div style='height: %dpx;'></div>
         <iframe src='javascript:"Hello World!";'
              style='width: 200px; height: 200px;'
              onload='console.log("child frame element onload");'></iframe>
@@ -377,10 +376,10 @@ TEST_P(LazyLoadFramesParamsTest,
 
   LoadURL("https://example.com/");
 
-  main_resource.Complete(Format(
+  main_resource.Complete(String::Format(
       R"HTML(
         <body onload='console.log("main body onload");'>
-        <div style='height: {}px;'></div>
+        <div style='height: %dpx;'></div>
         <iframe src='https://crossorigin.com/subframe.html'
              style='width: 200px; height: 200px;' loading='eager'
              onload='console.log("child frame element onload");'></iframe>
@@ -410,10 +409,10 @@ TEST_P(LazyLoadFramesParamsTest,
 
   LoadURL("https://example.com/");
 
-  main_resource.Complete(Format(
+  main_resource.Complete(String::Format(
       R"HTML(
           <body onload='console.log("main body onload");'>
-          <div style='height: {}px;'></div>
+          <div style='height: %dpx;'></div>
           <iframe src='https://example.com/subframe.html'
                style='width: 400px; height: 400px;' loading='lazy'
                onload='console.log("child frame element onload");'></iframe>
@@ -474,10 +473,10 @@ TEST_P(LazyLoadFramesParamsTest,
 
   LoadURL("https://example.com/");
 
-  main_resource.Complete(Format(
+  main_resource.Complete(String::Format(
       R"HTML(
         <body onload='console.log("main body onload");'>
-        <div style='height: {}px;'></div>
+        <div style='height: %dpx;'></div>
         <iframe id='child_frame' src='https://crossorigin.com/subframe.html'
              style='width: 400px; height: 400px;' loading='lazy'
              onload='console.log("child frame element onload");'></iframe>
@@ -530,11 +529,11 @@ TEST_P(LazyLoadFramesParamsTest,
   test::RunPendingTasks();
 
   child_frame_resource->Complete(
-      Format("<div style='height: {}px;'></div>"
-             "<iframe src='https://test.com/' loading='lazy'"
-             "     style='width: 200px; height: 200px;'>"
-             "</iframe>",
-             kViewportHeight + GetLoadingDistanceThreshold() + 100));
+      String::Format("<div style='height: %dpx;'></div>"
+                     "<iframe src='https://test.com/' loading='lazy'"
+                     "     style='width: 200px; height: 200px;'>"
+                     "</iframe>",
+                     kViewportHeight + GetLoadingDistanceThreshold() + 100));
 
   Compositor().BeginFrame();
   test::RunPendingTasks();
@@ -551,10 +550,10 @@ TEST_P(LazyLoadFramesParamsTest,
 
   LoadURL("https://example.com/");
 
-  main_resource.Complete(Format(
+  main_resource.Complete(String::Format(
       R"HTML(
         <body onload='console.log("main body onload");'>
-        <div style='height: {}px;'></div>
+        <div style='height: %dpx;'></div>
         <iframe src='https://crossorigin.com/subframe.html'
              style='width: 200px; height: 200px;' loading='eager'
              onload='console.log("child frame element onload");'></iframe>
@@ -569,11 +568,11 @@ TEST_P(LazyLoadFramesParamsTest,
       WebFeature::kLazyLoadFrameLoadingAttributeEager));
 
   child_frame_resource.Complete(
-      Format("<div style='height: {}px;'></div>"
-             "<iframe src='https://test.com/' loading='lazy'"
-             "     style='width: 200px; height: 200px;'>"
-             "</iframe>",
-             kViewportHeight + GetLoadingDistanceThreshold() + 100));
+      String::Format("<div style='height: %dpx;'></div>"
+                     "<iframe src='https://test.com/' loading='lazy'"
+                     "     style='width: 200px; height: 200px;'>"
+                     "</iframe>",
+                     kViewportHeight + GetLoadingDistanceThreshold() + 100));
 
   Compositor().BeginFrame();
   test::RunPendingTasks();
@@ -590,10 +589,10 @@ TEST_P(LazyLoadFramesParamsTest,
 
   LoadURL("https://example.com/");
 
-  main_resource.Complete(Format(
+  main_resource.Complete(String::Format(
       R"HTML(
         <body onload='console.log("main body onload");'>
-        <div style='height: {}px;'></div>
+        <div style='height: %dpx;'></div>
         <iframe src='https://crossorigin.com/subframe.html'
              style='width: 200px; height: 200px;' loading='eager'
              onload='console.log("child frame element onload");'></iframe>
@@ -611,11 +610,11 @@ TEST_P(LazyLoadFramesParamsTest,
   SimRequest nested_frame_resource("https://test.com/", "text/html");
 
   child_frame_resource.Complete(
-      Format("<div style='height: {}px;'></div>"
-             "<iframe src='https://test.com/' loading='eager'"
-             "     style='width: 200px; height: 200px;'>"
-             "</iframe>",
-             kViewportHeight + GetLoadingDistanceThreshold() + 100));
+      String::Format("<div style='height: %dpx;'></div>"
+                     "<iframe src='https://test.com/' loading='eager'"
+                     "     style='width: 200px; height: 200px;'>"
+                     "</iframe>",
+                     kViewportHeight + GetLoadingDistanceThreshold() + 100));
 
   Compositor().BeginFrame();
   test::RunPendingTasks();
@@ -679,16 +678,16 @@ class LazyLoadFramesTest : public SimTest {
                                     "text/html");
     LoadURL("https://example.com/");
 
-    main_resource.Complete(Format(
+    main_resource.Complete(UNSAFE_TODO(String::Format(
         R"HTML(
           <body onload='console.log("main body onload");'>
-          <div style='height: {}px;'></div>
+          <div style='height: %dpx;'></div>
           <iframe src='https://crossorigin.com/subframe.html'
-               style='width: 200px; height: 200px;' {}
+               style='width: 200px; height: 200px;' %s
                onload='console.log("child frame element onload");'></iframe>
           </body>)HTML",
         kViewportHeight + kLoadingDistanceThresholdPx + 100,
-        iframe_attributes));
+        iframe_attributes)));
 
     Compositor().BeginFrame();
     test::RunPendingTasks();
@@ -705,16 +704,16 @@ class LazyLoadFramesTest : public SimTest {
     SimRequest main_resource("https://example.com/", "text/html");
     LoadURL("https://example.com/");
 
-    main_resource.Complete(Format(
+    main_resource.Complete(UNSAFE_TODO(String::Format(
         R"HTML(
           <body onload='console.log("main body onload");'>
-          <div style='height: {}px;'></div>
+          <div style='height: %dpx;'></div>
           <iframe src='https://crossorigin.com/subframe.html'
-               style='width: 200px; height: 200px;' {}
+               style='width: 200px; height: 200px;' %s
                onload='console.log("child frame element onload");'></iframe>
           </body>)HTML",
         kViewportHeight + kLoadingDistanceThresholdPx + 100,
-        iframe_attributes));
+        iframe_attributes)));
 
     Compositor().BeginFrame();
     test::RunPendingTasks();
@@ -752,17 +751,17 @@ class LazyLoadFramesTest : public SimTest {
     SimRequest main_resource("https://example.com/", "text/html");
     MainFrame().StartReload(WebFrameLoadType::kReload);
 
-    main_resource.Complete(Format(
+    main_resource.Complete(UNSAFE_TODO(String::Format(
         R"HTML(
             <body onload='console.log("main body onload");'>
-            <div style='height: {}px;'></div>
-            <iframe src='https://crossorigin.com/subframe.html' {}
+            <div style='height: %dpx;'></div>
+            <iframe src='https://crossorigin.com/subframe.html' %s
                  style='width: 400px; height: 400px;'
                  onload='console.log("child frame element onload");'></iframe>
             </body>)HTML",
         LazyLoadFramesTest::kViewportHeight +
             LazyLoadFramesTest::kLoadingDistanceThresholdPx + 100,
-        iframe_attributes));
+        iframe_attributes)));
 
     if (is_deferral_expected_on_reload) {
       // The body's load event should have already fired.
@@ -806,10 +805,10 @@ TEST_F(LazyLoadFramesTest, LazyLoadFrameUnsetLoadingAttributeWithoutAutomatic) {
   SimRequest main_resource("https://example.com/", "text/html");
   LoadURL("https://example.com/");
 
-  main_resource.Complete(Format(
+  main_resource.Complete(String::Format(
       R"HTML(
         <body onload='console.log("main body onload");'>
-        <div style='height: {}px;'></div>
+        <div style='height: %dpx;'></div>
         <iframe id='child_frame' src='https://crossorigin.com/subframe.html'
              loading='lazy' style='width: 200px; height: 200px;'
              onload='console.log("child frame element onload");'></iframe>

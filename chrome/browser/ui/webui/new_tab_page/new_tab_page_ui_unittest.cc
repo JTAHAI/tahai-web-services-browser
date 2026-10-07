@@ -5,7 +5,6 @@
 #include "chrome/browser/ui/webui/new_tab_page/new_tab_page_ui.h"
 
 #include "chrome/browser/new_tab_page/prefs/ntp_pref_names.h"
-#include "chrome/browser/ui/webui/cr_components/most_visited/most_visited_pref_observer.h"
 #include "chrome/test/base/testing_profile.h"
 #include "components/ntp_tiles/tile_type.h"
 #include "components/prefs/pref_registry_simple.h"
@@ -30,7 +29,7 @@ TEST_F(NewTabPageUITest,
   PrefService* prefs = profile().GetPrefs();
   prefs->SetBoolean(ntp_prefs::kNtpUseMostVisitedTiles, true);
 
-  MostVisitedPrefObserver::MigrateDeprecatedUseMostVisitedTilesPref(prefs);
+  NewTabPageUI::MigrateDeprecatedUseMostVisitedTilesPref(prefs);
 
   EXPECT_EQ(static_cast<int>(ntp_tiles::TileType::kTopSites),
             prefs->GetInteger(ntp_prefs::kNtpShortcutsType));
@@ -44,7 +43,7 @@ TEST_F(NewTabPageUITest,
   PrefService* prefs = profile().GetPrefs();
   prefs->SetBoolean(ntp_prefs::kNtpUseMostVisitedTiles, false);
 
-  MostVisitedPrefObserver::MigrateDeprecatedUseMostVisitedTilesPref(prefs);
+  NewTabPageUI::MigrateDeprecatedUseMostVisitedTilesPref(prefs);
 
   EXPECT_EQ(static_cast<int>(ntp_tiles::TileType::kCustomLinks),
             prefs->GetInteger(ntp_prefs::kNtpShortcutsType));
@@ -61,7 +60,7 @@ TEST_F(NewTabPageUITest,
             prefs->GetUserPrefValue(ntp_prefs::kNtpUseMostVisitedTiles));
 
   // The function should not crash and should not modify the new pref.
-  MostVisitedPrefObserver::MigrateDeprecatedUseMostVisitedTilesPref(prefs);
+  NewTabPageUI::MigrateDeprecatedUseMostVisitedTilesPref(prefs);
 
   // Check that the old and new pref are not set.
   EXPECT_EQ(nullptr, prefs->GetUserPrefValue(ntp_prefs::kNtpShortcutsType));
@@ -82,7 +81,7 @@ TEST_F(
   prefs->SetInteger(ntp_prefs::kNtpShortcutsType, initial_value);
 
   // The function should not crash and should not modify the new pref.
-  MostVisitedPrefObserver::MigrateDeprecatedUseMostVisitedTilesPref(prefs);
+  NewTabPageUI::MigrateDeprecatedUseMostVisitedTilesPref(prefs);
 
   // Check that the new pref is set properly and the old pref is not set.
   EXPECT_EQ(initial_value, prefs->GetInteger(ntp_prefs::kNtpShortcutsType));
@@ -95,7 +94,7 @@ TEST_F(NewTabPageUITest, MigrateDeprecatedShortcutsTypePref_TopSites) {
   prefs->SetInteger(ntp_prefs::kNtpShortcutsType,
                     static_cast<int>(ntp_tiles::TileType::kTopSites));
 
-  MostVisitedPrefObserver::MigrateDeprecatedShortcutsTypePref(prefs);
+  NewTabPageUI::MigrateDeprecatedShortcutsTypePref(prefs);
 
   EXPECT_FALSE(prefs->GetBoolean(ntp_prefs::kNtpCustomLinksVisible));
   EXPECT_FALSE(prefs->GetBoolean(ntp_prefs::kNtpEnterpriseShortcutsVisible));
@@ -108,7 +107,7 @@ TEST_F(NewTabPageUITest, MigrateDeprecatedShortcutsTypePref_CustomLinks) {
   prefs->SetInteger(ntp_prefs::kNtpShortcutsType,
                     static_cast<int>(ntp_tiles::TileType::kCustomLinks));
 
-  MostVisitedPrefObserver::MigrateDeprecatedShortcutsTypePref(prefs);
+  NewTabPageUI::MigrateDeprecatedShortcutsTypePref(prefs);
 
   EXPECT_TRUE(prefs->GetBoolean(ntp_prefs::kNtpCustomLinksVisible));
   EXPECT_FALSE(prefs->GetBoolean(ntp_prefs::kNtpEnterpriseShortcutsVisible));
@@ -122,7 +121,7 @@ TEST_F(NewTabPageUITest, MigrateDeprecatedShortcutsTypePref_Enterprise) {
       ntp_prefs::kNtpShortcutsType,
       static_cast<int>(ntp_tiles::TileType::kEnterpriseShortcuts));
 
-  MostVisitedPrefObserver::MigrateDeprecatedShortcutsTypePref(prefs);
+  NewTabPageUI::MigrateDeprecatedShortcutsTypePref(prefs);
 
   EXPECT_FALSE(prefs->GetBoolean(ntp_prefs::kNtpCustomLinksVisible));
   EXPECT_TRUE(prefs->GetBoolean(ntp_prefs::kNtpEnterpriseShortcutsVisible));
@@ -136,7 +135,7 @@ TEST_F(NewTabPageUITest, MigrateDeprecatedShortcutsTypePref_NotSet) {
   ASSERT_EQ(nullptr, prefs->GetUserPrefValue(ntp_prefs::kNtpShortcutsType));
 
   // The function should not crash and should not modify the new pref.
-  MostVisitedPrefObserver::MigrateDeprecatedShortcutsTypePref(prefs);
+  NewTabPageUI::MigrateDeprecatedShortcutsTypePref(prefs);
 
   // Check that the new prefs are not set by the migration.
   EXPECT_EQ(nullptr,
@@ -156,7 +155,7 @@ TEST_F(NewTabPageUITest,
   prefs->SetBoolean(ntp_prefs::kNtpEnterpriseShortcutsVisible, false);
 
   // The function should not crash and should not modify the new pref.
-  MostVisitedPrefObserver::MigrateDeprecatedShortcutsTypePref(prefs);
+  NewTabPageUI::MigrateDeprecatedShortcutsTypePref(prefs);
 
   // Check that the new pref is set properly and the old pref is not set.
   ASSERT_EQ(nullptr, prefs->GetUserPrefValue(ntp_prefs::kNtpShortcutsType));

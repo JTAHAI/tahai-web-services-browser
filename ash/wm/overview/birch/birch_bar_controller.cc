@@ -240,18 +240,13 @@ void BirchBarController::ProvideFeedbackForCoral() {
           .value_or(std::string()));
 }
 
-void BirchBarController::ExecuteMenuCommand(int command_id,
-                                            bool from_chip,
-                                            views::Widget* menu_owner) {
+void BirchBarController::ExecuteMenuCommand(int command_id, bool from_chip) {
   using CommandId = BirchBarContextMenuModel::CommandId;
   switch (command_id) {
-    case std::to_underlying(CommandId::kShowSuggestions): {
+    case std::to_underlying(CommandId::kShowSuggestions):
       // Note that the menu should be dismissed before changing the show
       // suggestions pref which may destroy the chips.
-      views::MenuController* menu_controller =
-          menu_owner ? views::MenuController::GetForOwnerWidget(menu_owner)
-                     : nullptr;
-      if (menu_controller) {
+      if (auto* menu_controller = views::MenuController::GetActiveInstance()) {
         menu_controller->Cancel(views::MenuController::ExitType::kAll);
       } else if (from_chip) {
         // When tapping on the "Show suggestions" switch button, the menu
@@ -262,7 +257,6 @@ void BirchBarController::ExecuteMenuCommand(int command_id,
 
       SetShowBirchSuggestions(/*show=*/!GetShowBirchSuggestions());
       break;
-    }
     case std::to_underlying(CommandId::kWeatherSuggestions):
     case std::to_underlying(CommandId::kCalendarSuggestions):
     case std::to_underlying(CommandId::kDriveSuggestions):
@@ -271,11 +265,9 @@ void BirchBarController::ExecuteMenuCommand(int command_id,
     case std::to_underlying(CommandId::kCoralSuggestions): {
       // To avoid UAF, dismiss the menu before changing the pref which
       // would destroy current chips.
-      if (from_chip && menu_owner) {
-        if (auto* menu_controller =
-                views::MenuController::GetForOwnerWidget(menu_owner)) {
-          menu_controller->Cancel(views::MenuController::ExitType::kAll);
-        }
+      auto* menu_controller = views::MenuController::GetActiveInstance();
+      if (from_chip && menu_controller) {
+        menu_controller->Cancel(views::MenuController::ExitType::kAll);
       }
 
       const BirchSuggestionType suggestion_type =
@@ -313,7 +305,7 @@ void BirchBarController::ExecuteMenuCommand(int command_id,
 }
 
 void BirchBarController::ExecuteCommand(int command_id, int event_flags) {
-  ExecuteMenuCommand(command_id, /*from_chip=*/false, /*menu_owner=*/nullptr);
+  ExecuteMenuCommand(command_id, /*from_chip=*/false);
 }
 
 void BirchBarController::OnCoralGroupRemoved(const base::Token& group_id) {

@@ -7,7 +7,6 @@
 
 #include <optional>
 
-#include "base/memory/raw_ptr.h"
 #include "third_party/blink/public/platform/web_security_origin.h"
 #include "third_party/blink/public/platform/web_url_error.h"
 #include "third_party/blink/public/platform/web_url_response.h"
@@ -97,14 +96,11 @@ class SimRequestBase {
   bool started_ = false;
   WebURLResponse response_;
   std::optional<WebURLError> error_;
-  raw_ptr<URLLoaderClient, UnprotectedInRelease | DanglingUntriaged> client_ =
-      nullptr;
+  URLLoaderClient* client_ = nullptr;
   unsigned total_encoded_data_length_ = 0;
   HashMap<String, String> response_http_headers_;
   int response_http_status_;
-  raw_ptr<StaticDataNavigationBodyLoader,
-          UnprotectedInRelease | DanglingUntriaged>
-      navigation_body_loader_ = nullptr;
+  StaticDataNavigationBodyLoader* navigation_body_loader_ = nullptr;
 };
 
 // This request can be used as a main resource request for navigation.

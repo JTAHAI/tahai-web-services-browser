@@ -63,8 +63,7 @@ GlicLiveModeOnlyGlow
 WEBIUM_FEATURES=Webium,AttachUnownedInnerWebContents,\
 ExtensionsMenuAccessControl
 
-ENABLE_FEATURES=VerticalTabs,FeatureManagementRoundedWindows,${GLIC_FEATURES}
-DISABLE_FEATURES=
+FEATURES=VerticalTabs,FeatureManagementRoundedWindows,${GLIC_FEATURES}
 
 export XDG_RUNTIME_DIR=${USER_TMP_DIR}/xdg1
 
@@ -109,8 +108,7 @@ function build_args {
     --enable-wayland-server --ash-debug-shortcuts --overview-button-for-tests \
     --enable-ui-devtools --ash-dev-shortcuts \
     --ash-host-window-bounds=${DISPLAY_CONFIG} \
-    --enable-features=${ENABLE_FEATURES} \
-    ${DISABLE_FEATURES:+--disable-features=${DISABLE_FEATURES#,}} \
+    --enable-features=${FEATURES} \
     ${login_args} \
     ${TOUCH_DEVICE_OPTION} \
     ${EXTRA_ARGS}"
@@ -168,10 +166,8 @@ command
 
 [options]
   --ash-chrome-build-dir specifies the build directory for ash-chrome.
-  --disable=<features>   Disable features.
-  --enable=<features>    Enable features.
   --guest                start in guest mode.
-  --panel=<list of type> specifies the panel type. Valid options are:
+  --panel=<list of type> specifies the panel type. Valid opptions are:
                          wxga(1280x800 default), fwxga(1355x768), hdp(1600,900),
                          fhd(1920x1080), wuxga(1920,1200), qhd(2560,1440),
                          qhdp(3200,1800), f4k(3840,2160)
@@ -216,7 +212,7 @@ do
       export WAYLAND_DEBUG=1
       ;;
     --webium)
-      ENABLE_FEATURES=${ENABLE_FEATURES},${WEBIUM_FEATURES}
+      FEATURES=${FEATURES},${WEBIUM_FEATURES}
       ;;
     --touch-device-id=*)
       id=${1:18}
@@ -232,12 +228,6 @@ do
         echo "Unknown display panel found in '$panel'"
         help
       fi
-      ;;
-    --enable=*)
-      ENABLE_FEATURES=${ENABLE_FEATURES},${1:9}
-      ;;
-    --disable=*)
-      DISABLE_FEATURES=${DISABLE_FEATURES},${1:10}
       ;;
     --*)
       if [ -f ${ASH_CHROME_BUILD_DIR}/chrome ]; then

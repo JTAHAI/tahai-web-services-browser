@@ -44,8 +44,4 @@ bool Manager::OnPortConnected(
   return true;
 }
 
-void Manager::SetOrigin(std::string origin) {
-  origin_ = std::move(origin);
-}
-
 }  // namespace cast_api_bindings

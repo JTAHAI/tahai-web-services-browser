@@ -47,6 +47,10 @@ class ASH_EXPORT CaptureModeBarView : public views::View {
 
   bool IsEventOnSettingsButton(gfx::Point screen_location) const;
 
+  // views::View:
+  void AddedToWidget() override;
+  void OnBoundsChanged(const gfx::Rect& previous_bounds) override;
+
  protected:
   CaptureModeBarView();
 

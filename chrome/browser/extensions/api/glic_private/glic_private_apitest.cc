@@ -76,7 +76,7 @@ class GlicPrivateApiFullyEnabledTest
     : public glic::GlicBrowserTestMixin<GlicPrivateApiTest> {
  public:
   void SetUpOnMainThread() override {
-    glic::GlicBrowserTestMixin<GlicPrivateApiTest>::SetUpOnMainThread();
+    GlicPrivateApiTest::SetUpOnMainThread();
     SetupIdentityAndCapabilities();
   }
 };
@@ -116,7 +116,7 @@ class GlicPrivateApiIneligibleAccountTest
     : public glic::GlicBrowserTestMixin<GlicPrivateApiTest> {
  public:
   void SetUpOnMainThread() override {
-    glic::GlicBrowserTestMixin<GlicPrivateApiTest>::SetUpOnMainThread();
+    GlicPrivateApiTest::SetUpOnMainThread();
 
     profile()->GetPrefs()->SetInteger(
         ::glic::prefs::kGlicCompletedFre,
@@ -376,7 +376,7 @@ class GlicPrivateApiUniversalCartOnlyTest
   }
 
   void SetUpOnMainThread() override {
-    glic::GlicBrowserTestMixin<GlicPrivateApiTest>::SetUpOnMainThread();
+    GlicPrivateApiTest::SetUpOnMainThread();
     SetupIdentityAndCapabilities();
   }
 
@@ -440,7 +440,7 @@ class GlicPrivateApiPromotionPageOnlyTest
   }
 
   void SetUpOnMainThread() override {
-    glic::GlicBrowserTestMixin<GlicPrivateApiTest>::SetUpOnMainThread();
+    GlicPrivateApiTest::SetUpOnMainThread();
     SetupIdentityAndCapabilities();
   }
 
@@ -475,7 +475,7 @@ class GlicPrivateApiBothAccessDisabledTest
   }
 
   void SetUpOnMainThread() override {
-    glic::GlicBrowserTestMixin<GlicPrivateApiTest>::SetUpOnMainThread();
+    GlicPrivateApiTest::SetUpOnMainThread();
     SetupIdentityAndCapabilities();
   }
 
@@ -603,7 +603,7 @@ class GlicPrivateApiActuationDisabledTest
   }
 
   void SetUpOnMainThread() override {
-    glic::GlicBrowserTestMixin<GlicPrivateApiTestBase>::SetUpOnMainThread();
+    GlicPrivateApiTestBase::SetUpOnMainThread();
     SetupIdentityAndCapabilities();
   }
 

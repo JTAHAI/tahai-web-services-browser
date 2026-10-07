@@ -31,8 +31,6 @@ pub enum DecodeErrors {
     IllegalMagicBytes(u16),
     /// problems with the Huffman Tables in a Decoder file
     HuffmanDecode(String),
-    /// problems with the Arithmetic coding parameters in a Decoder file
-    ArithmeticDecode(String),
     /// Image has zero width
     ZeroError,
     /// Discrete Quantization Tables error
@@ -52,30 +50,11 @@ pub enum DecodeErrors {
     /// Too small output for size
     TooSmallOutput(usize, usize),
 
-    IoErrors(ZByteIoError),
-    /// Decoding was cancelled early by the cancel check.
-    ///
-    /// See [`JpegDecoder::set_cancel`](crate::JpegDecoder::set_cancel).
-    Cancelled
+    IoErrors(ZByteIoError)
 }
 
 #[cfg(feature = "std")]
 impl std::error::Error for DecodeErrors {}
-
-impl DecodeErrors {
-    /// Returns `true` when this error indicates the reader ran out of
-    /// data, as opposed to a format or data-corruption error.
-    ///
-    /// Useful for incremental decoding: feed more bytes and retry.
-    #[must_use]
-    pub fn is_recoverable_eof(&self) -> bool {
-        match self {
-            DecodeErrors::ExhaustedData => true,
-            DecodeErrors::IoErrors(io) => io.is_recoverable_eof(),
-            _ => false,
-        }
-    }
-}
 
 impl From<&'static str> for DecodeErrors {
     fn from(data: &'static str) -> Self {
@@ -99,10 +78,6 @@ impl Debug for DecodeErrors {
             {
                 write!(f, "Error decoding huffman values: {reason}")
             }
-            Self::ArithmeticDecode(ref reason) =>
-            {
-                write!(f, "Error decoding arithmetic coding conditioning values: {reason}")
-            }
             Self::ZeroError => write!(f, "Image width or height is set to zero, cannot continue"),
             Self::DqtError(ref reason) => write!(f, "Error parsing DQT segment. Reason:{reason}"),
             Self::SosError(ref reason) => write!(f, "Error parsing SOS Segment. Reason:{reason}"),
@@ -123,7 +98,6 @@ impl Debug for DecodeErrors {
             ),
             Self::TooSmallOutput(expected, found) => write!(f, "Too small output, expected buffer with at least {expected} bytes but got one with {found} bytes"),
             Self::IoErrors(error)=>write!(f,"I/O errors {error:?}"),
-            Self::Cancelled => write!(f, "Decoding cancelled by the cancel check"),
         }
     }
 }

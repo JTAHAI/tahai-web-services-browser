@@ -87,6 +87,20 @@ ProtoEventResult GetEventResult(EventResult event_result) {
   }
 }
 
+std::string ActionFromVerdictType(
+    safe_browsing::RTLookupResponse::ThreatInfo::VerdictType verdict_type) {
+  switch (verdict_type) {
+    case safe_browsing::RTLookupResponse::ThreatInfo::DANGEROUS:
+      return "BLOCK";
+    case safe_browsing::RTLookupResponse::ThreatInfo::WARN:
+      return "WARN";
+    case safe_browsing::RTLookupResponse::ThreatInfo::SAFE:
+      return "REPORT_ONLY";
+    case safe_browsing::RTLookupResponse::ThreatInfo::SUSPICIOUS:
+    case safe_browsing::RTLookupResponse::ThreatInfo::VERDICT_TYPE_UNSPECIFIED:
+      return "ACTION_UNKNOWN";
+  }
+}
 
 proto::TriggeredRuleInfo::Action ActionProtoFromVerdictType(
     safe_browsing::RTLookupResponse::ThreatInfo::VerdictType verdict_type) {
@@ -272,9 +286,6 @@ proto::TriggeredRuleInfo::Action ActionProtoFromTriggerRuleAction(
         ContentAnalysisResponse_Result_TriggeredRule_Action_BLOCK:
       return proto::TriggeredRuleInfo::BLOCK;
     case TriggeredRule::Action::
-        ContentAnalysisResponse_Result_TriggeredRule_Action_JUSTIFICATION_REQUIRED:
-      return proto::TriggeredRuleInfo::JUSTIFICATION_REQUIRED;
-    case TriggeredRule::Action::
         ContentAnalysisResponse_Result_TriggeredRule_Action_KEEP_IN_MANAGED_CHROME:
       return proto::TriggeredRuleInfo::KEEP_IN_MANAGED_CHROME;
   }
@@ -434,9 +445,37 @@ proto::TriggeredRuleInfo ConvertMatchedUrlNavigationRuleToTriggeredRuleInfo(
   triggered_rule_info.set_action(ActionProtoFromVerdictType(verdict_type));
   triggered_rule_info.set_has_watermarking(
       navigation_rule.has_watermark_message());
-  triggered_rule_info.set_has_screenshot_protection(
-      navigation_rule.block_screenshot());
   return triggered_rule_info;
+}
+
+void AddTriggeredRuleInfoToUrlFilteringInterstitialEvent(
+    const safe_browsing::RTLookupResponse& response,
+    base::DictValue& event) {
+  base::ListValue triggered_rule_info;
+
+  for (const safe_browsing::RTLookupResponse::ThreatInfo& threat_info :
+       response.threat_info()) {
+    base::DictValue triggered_rule;
+    triggered_rule.Set(kKeyTriggeredRuleName,
+                       threat_info.matched_url_navigation_rule().rule_name());
+    int rule_id = 0;
+    if (base::StringToInt(threat_info.matched_url_navigation_rule().rule_id(),
+                          &rule_id)) {
+      triggered_rule.Set(kKeyTriggeredRuleId, rule_id);
+    }
+    triggered_rule.Set(
+        kKeyUrlCategory,
+        threat_info.matched_url_navigation_rule().matched_url_category());
+    triggered_rule.Set(kKeyAction,
+                       ActionFromVerdictType(threat_info.verdict_type()));
+
+    if (threat_info.matched_url_navigation_rule().has_watermark_message()) {
+      triggered_rule.Set(kKeyHasWatermarking, true);
+    }
+
+    triggered_rule_info.Append(std::move(triggered_rule));
+  }
+  event.Set(kKeyTriggeredRuleInfo, std::move(triggered_rule_info));
 }
 
 std::optional<proto::PasswordBreachEvent> GetPasswordBreachEvent(
@@ -560,12 +599,8 @@ proto::UrlFilteringInterstitialEvent GetUrlFilteringInterstitialEvent(
     const std::string& profile_identifier,
     const std::string& profile_username,
     const std::string& active_user,
-    const ReferrerChain& referrer_chain,
-    const std::string& tab_title) {
+    const ReferrerChain& referrer_chain) {
   proto::UrlFilteringInterstitialEvent event;
-  if (!tab_title.empty()) {
-    event.set_tab_title(tab_title);
-  }
   event.set_url(url.spec());
   EventResult event_result = GetEventResultFromThreatType(threat_type);
   event.set_clicked_through(event_result == EventResult::BYPASSED);
@@ -845,6 +880,34 @@ std::vector<std::string> GetLocalIpAddresses() {
   return ip_addresses;
 }
 
+void AddReferrerChainToEvent(
+    const google::protobuf::RepeatedPtrField<safe_browsing::ReferrerChainEntry>&
+        referrer_chain,
+    base::DictValue& event) {
+  base::ListValue referrers;
+  for (const auto& referrer : referrer_chain) {
+    if (!referrer.url().empty() || !referrer.ip_addresses().empty()) {
+      base::DictValue referrer_dict;
+      referrer_dict.Set("url", referrer.url());
+      if (referrer.ip_addresses().size() > 0) {
+        referrer_dict.Set("ip", referrer.ip_addresses()[0]);
+      }
+      referrers.Append(std::move(referrer_dict));
+    }
+  }
+  event.Set(kKeyReferrers, std::move(referrers));
+}
+
+void AddFrameUrlChainToEvent(
+    const google::protobuf::RepeatedPtrField<std::string>& frame_url_chain,
+    base::DictValue& event) {
+  base::ListValue iframe_urls;
+  for (const auto& frame_url : frame_url_chain) {
+    iframe_urls.Append(frame_url);
+  }
+  event.Set(kKeyIframeUrls, std::move(iframe_urls));
+}
+
 void MaybeTruncateLongUrls(proto::Event& event_variant) {
   switch (event_variant.event_case()) {
     case proto::Event::kPasswordReuseEvent: {
@@ -904,9 +967,6 @@ void MaybeTruncateLongUrls(proto::Event& event_variant) {
     }
     case proto::Event::kUrlFilteringInterstitialEvent: {
       auto* event = event_variant.mutable_url_filtering_interstitial_event();
-      if (!event->tab_title().empty()) {
-        TRUNCATE_STRING_URL(event, tab_title);
-      }
       TRUNCATE_STRING_URL(event, url);
       TRUNCATE_URL_INFO(event, url_info);
       TRUNCATE_REPEATED_STRING_URL(event, referrer_urls);

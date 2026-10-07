@@ -6,6 +6,7 @@
 #include <string>
 
 #include "base/strings/utf_string_conversions.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/test/test_browser_dialog.h"
 #include "chrome/browser/ui/views/certificate_selector.h"
@@ -55,7 +56,7 @@ class CertificateSelectorDialogTest : public DialogBrowserTest {
     cert_2_ =
         net::ImportCertFromFile(net::GetTestCertsDirectory(), "client_2.pem");
 
-    auto* web_contents = browser()->GetTabStripModel()->GetActiveWebContents();
+    auto* web_contents = browser()->tab_strip_model()->GetActiveWebContents();
     TestCertificateSelector* dialog = new TestCertificateSelector(
         net::FakeClientCertIdentityListFromCertificateList({cert_1_, cert_2_}),
         web_contents);

@@ -19,7 +19,8 @@ interface SupportLibScriptHandlerAdapter extends ScriptHandlerBoundaryInterface 
      * ADD_DOCUMENT_START. Note: Logging and tracing API calls is the only difference between this
      * and {@code persistentJavascriptHandler}.
      */
-    static SupportLibScriptHandlerAdapter documentStartHandler(ScriptHandler scriptHandler) {
+    public static SupportLibScriptHandlerAdapter documentStartHandler(
+            final ScriptHandler scriptHandler) {
         return () -> {
             try (TraceEvent event =
                     TraceEvent.scoped("WebView.APICall.AndroidX.REMOVE_DOCUMENT_START_SCRIPT")) {
@@ -34,7 +35,8 @@ interface SupportLibScriptHandlerAdapter extends ScriptHandlerBoundaryInterface 
      * ADD_JAVA_SCRIPT_ON_EVENT. Note: Logging and tracing API calls is the only difference between
      * this and {@code documentStartHandler}.
      */
-    static SupportLibScriptHandlerAdapter persistentJavascriptHandler(ScriptHandler scriptHandler) {
+    public static SupportLibScriptHandlerAdapter persistentJavascriptHandler(
+            final ScriptHandler scriptHandler) {
         return () -> {
             try (TraceEvent event =
                     TraceEvent.scoped("WebView.APICall.AndroidX.REMOVE_JAVA_SCRIPT_ON_EVENT")) {

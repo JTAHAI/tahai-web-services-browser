@@ -20,8 +20,10 @@ import com.google.android.gms.common.api.Status;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.robolectric.annotation.Config;
 
 import org.chromium.base.test.BaseRobolectricTestRunner;
+import org.chromium.base.test.util.Batch;
 import org.chromium.chrome.browser.password_manager.PasswordStoreAndroidBackend.BackendException;
 
 /**
@@ -29,6 +31,8 @@ import org.chromium.chrome.browser.password_manager.PasswordStoreAndroidBackend.
  * password store, the settings accessor).
  */
 @RunWith(BaseRobolectricTestRunner.class)
+@Config(manifest = Config.NONE)
+@Batch(Batch.PER_CLASS)
 public class PasswordManagerAndroidBackendUtilTest {
 
     @Test

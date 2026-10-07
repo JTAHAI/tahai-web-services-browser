@@ -2934,15 +2934,18 @@ class NetworkQualityEstimatorIsPrivateHostCacheTest
  public:
   NetworkQualityEstimatorIsPrivateHostCacheTest() {
     if (IsCacheEnabled()) {
-      AddScopedFeatureList().InitAndEnableFeature(
+      feature_list_.InitAndEnableFeature(
           features::kNetworkQualityEstimatorIsPrivateHostCache);
     } else {
-      AddScopedFeatureList().InitAndDisableFeature(
+      feature_list_.InitAndDisableFeature(
           features::kNetworkQualityEstimatorIsPrivateHostCache);
     }
   }
 
   bool IsCacheEnabled() const { return GetParam(); }
+
+ private:
+  base::test::ScopedFeatureList feature_list_;
 };
 
 TEST_P(NetworkQualityEstimatorIsPrivateHostCacheTest, IsPrivateHostCaching) {

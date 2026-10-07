@@ -143,8 +143,7 @@ std::string ExperimentsManager::GetExperimentForUser(const std::string& sid,
 
 bool ExperimentsManager::GetExperimentForUserAsBool(const std::string& sid,
                                                     Experiment experiment) {
-  return base::EqualsCaseInsensitiveASCII(GetExperimentForUser(sid, experiment),
-                                          "true");
+  return base::ToLowerASCII(GetExperimentForUser(sid, experiment)) == "true";
 }
 
 bool ExperimentsManager::ExperimentsEnabled() const {

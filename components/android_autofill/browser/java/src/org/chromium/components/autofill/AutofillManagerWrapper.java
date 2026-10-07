@@ -39,7 +39,8 @@ public class AutofillManagerWrapper {
     // NOTE: As a result of the above, the tag below still references the name of this class from
     // when it was originally developed specifically for Android WebView.
     public static final String TAG = "AwAutofillManager";
-    private static final String AWG_PACKAGE_NAME = "com.google.android.gms";
+    private static final String AWG_COMPONENT_NAME =
+            "com.google.android.gms/com.google.android.gms.autofill.service.AutofillService";
 
     /** The observer of suggestion window. */
     public interface InputUiObserver {
@@ -121,7 +122,8 @@ public class AutofillManagerWrapper {
             ComponentName componentName = getAutofillServiceComponentName(mAutofillManager);
             if (componentName != null) {
                 mPackageName = componentName.getPackageName();
-                mIsAwGCurrentAutofillService = AWG_PACKAGE_NAME.equals(mPackageName);
+                mIsAwGCurrentAutofillService =
+                        AWG_COMPONENT_NAME.equals(componentName.flattenToString());
                 AutofillProviderUMA.logCurrentProvider(mPackageName);
             } else {
                 mPackageName = "";

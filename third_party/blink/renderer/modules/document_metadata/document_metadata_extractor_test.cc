@@ -15,7 +15,6 @@
 #include "third_party/blink/renderer/core/testing/page_test_base.h"
 #include "third_party/blink/renderer/platform/heap/thread_state.h"
 #include "third_party/blink/renderer/platform/json/json_values.h"
-#include "third_party/blink/renderer/platform/wtf/text/format.h"
 #include "third_party/blink/renderer/platform/wtf/text/string_builder.h"
 
 namespace blink {
@@ -589,11 +588,11 @@ TEST_F(DocumentMetadataExtractorTest, truncateTooManyValuesInField) {
 }
 
 TEST_F(DocumentMetadataExtractorTest, truncateTooManyFields) {
-  StringBuilder too_many_fields;
+  StringBuilder tooManyFields;
   for (int i = 0; i < 20; ++i) {
-    FormatTo(too_many_fields, "\"{}\": \"a\"", i);
+    tooManyFields.AppendFormat("\"%d\": \"a\"", i);
     if (i != 19) {
-      too_many_fields.Append(",\n");
+      tooManyFields.Append(",\n");
     }
   }
   SetHTMLInnerHTML(
@@ -602,7 +601,7 @@ TEST_F(DocumentMetadataExtractorTest, truncateTooManyFields) {
       "\n"
       "\n"
       "{\"@type\": \"Restaurant\"," +
-      too_many_fields.ReleaseString() +
+      tooManyFields.ToString() +
       "}\n"
       "\n"
       "</script>"

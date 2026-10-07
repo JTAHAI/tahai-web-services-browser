@@ -21,9 +21,6 @@ mod sysdeps {
     #[cfg(target_os = "linux")]
     pub(crate) mod nptl;
     pub(crate) mod unix;
-
-    // You'll notice some directories that provide a `bits` module. These are included via
-    // `path = "..."` wherever the generic implementation lives.
 }
 
 pub(crate) use posix::*;

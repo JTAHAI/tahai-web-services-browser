@@ -5,7 +5,7 @@
 #include "chrome/browser/ui/views/toolbar/toolbar_accessibility_test.h"
 
 #include "base/test/run_until.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/frame/toolbar_button_provider.h"
 #include "chrome/browser/ui/views/toolbar/toolbar_view.h"
@@ -27,8 +27,7 @@ void ToolbarAccessibilityTest::SetUpOnMainThread() {
   InteractiveBrowserTest::SetUpOnMainThread();
 }
 
-void ToolbarAccessibilityTest::WaitForInitialWebUI(
-    BrowserWindowInterface* browser) {
+void ToolbarAccessibilityTest::WaitForInitialWebUI(Browser* browser) {
   if (!browser) {
     browser = this->browser();
   }
@@ -40,8 +39,9 @@ void ToolbarAccessibilityTest::ConfigureAccessibilityForWebUITest(
   std::optional<content::AccessibilityNotificationWaiter> load_waiter;
   if (use_webui) {
     content::WebContents* toolbar_webcontents =
-        BrowserView::GetBrowserViewForBrowser(browser())
-            ->toolbar_button_provider()
+        browser()
+            ->GetBrowserView()
+            .toolbar_button_provider()
             ->GetWebUIToolbarViewForTesting()
             ->GetWebViewForTesting()
             ->GetWebContents();

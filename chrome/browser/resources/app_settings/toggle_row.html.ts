@@ -30,6 +30,8 @@ export function getHtml(this: ToggleRowElement) {
   <cr-toggle id="toggle"
       ?checked="${this.value}"
       ?disabled="${this.isDisabled_()}"
+      role="button"
+      tabindex="0"
       .ariaLabel="${this.label}">
   </cr-toggle>
 </div>

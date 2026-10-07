@@ -28,7 +28,6 @@ rm -rf src
 
 # Unzip relevant files into src directory and clean zip.
 unzip -d src -o cldr.zip common/annotations{Derived,}/{en,en_001,da,de,es,fi,fr,ja,no,sv}.xml \
-                         common/supplemental/plurals.xml \
-                         "common/bcp47/*"
+                         common/supplemental/plurals.xml
 rm -v cldr.zip
 read -p "Please update revision in README.chromium to match the new version you have downloaded"

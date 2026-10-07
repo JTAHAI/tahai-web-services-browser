@@ -15,7 +15,7 @@ class WebContents;
 }
 
 class GURL;
-class BrowserWindowInterface;
+class Browser;
 
 namespace bubble_anchor_util {
 enum class Anchor;
@@ -42,7 +42,7 @@ bool ShowPageInfoDialog(content::WebContents* web_contents,
 // displayed, the set of ignored empty storage keys must be updated. This
 // happens asynchronously and `initialized_callback` fires after it has
 // finished.
-void ShowPageInfoDialogImpl(BrowserWindowInterface* browser,
+void ShowPageInfoDialogImpl(Browser* browser,
                             content::WebContents* web_contents,
                             const GURL& virtual_url,
                             bubble_anchor_util::Anchor,

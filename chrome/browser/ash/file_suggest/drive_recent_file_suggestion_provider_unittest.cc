@@ -30,7 +30,6 @@
 #include "chromeos/ash/components/disks/fake_disk_mount_manager.h"
 #include "chromeos/ash/components/drivefs/mojom/drivefs.mojom.h"
 #include "components/drive/file_errors.h"
-#include "components/signin/public/identity_manager/identity_test_environment.h"
 #include "components/sync_preferences/pref_service_syncable.h"
 #include "components/user_manager/scoped_user_manager.h"
 #include "content/public/test/browser_task_environment.h"
@@ -227,8 +226,7 @@ class DriveRecentFileSuggestionProviderTest : public ::testing::Test {
         Profile::FromBrowserContext(context), mount_point_path);
     auto service = std::make_unique<drive::DriveIntegrationService>(
         TestingBrowserProcess::GetGlobal()->local_state(),
-        Profile::FromBrowserContext(context),
-        identity_test_env_.identity_manager(), mount_point_name,
+        Profile::FromBrowserContext(context), mount_point_name,
         base::FilePath(),
         fake_drivefs_helper_->CreateFakeDriveFsListenerFactory());
     integration_service_ = service.get();
@@ -271,7 +269,6 @@ class DriveRecentFileSuggestionProviderTest : public ::testing::Test {
   raw_ptr<disks::FakeDiskMountManager> disk_mount_manager_ = nullptr;
 
   content::BrowserTaskEnvironment task_environment_;
-  signin::IdentityTestEnvironment identity_test_env_;
   std::unique_ptr<drive::FakeDriveFsHelper> fake_drivefs_helper_;
   raw_ptr<drive::DriveIntegrationService> integration_service_ = nullptr;
 

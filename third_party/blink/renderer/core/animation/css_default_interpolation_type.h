@@ -52,7 +52,9 @@ struct DowncastTraits<CSSDefaultNonInterpolableValue> {
 class CSSDefaultInterpolationType : public InterpolationType {
  public:
   explicit CSSDefaultInterpolationType(PropertyHandle property)
-      : InterpolationType(property) {}
+      : InterpolationType(property) {
+    DCHECK(property.IsCSSProperty());
+  }
 
   InterpolationValue MaybeConvertSingle(const PropertySpecificKeyframe&,
                                         const CSSInterpolationEnvironment&,

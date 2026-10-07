@@ -17,9 +17,8 @@
 
 namespace {
 
-constexpr SkColor kColorSysSurface_Light = SkColorSetRGB(0xFF, 0xFF, 0xFF);
-constexpr SkColor kColorSysSurface1_Light = SkColorSetRGB(0xF8, 0xFA, 0xFD);
 constexpr SkColor kColorSysSurface3_Light = SkColorSetRGB(0xEF, 0xF3, 0xFA);
+constexpr SkColor kColorSysSurface_Light = SkColorSetRGB(0xFF, 0xFF, 0xFF);
 constexpr SkColor kColorSysStateHoverOnSubtle_Light = SkColorSetARGB(0x0F, 0x1F, 0x1F, 0x1F);
 constexpr SkColor kColorGemSysColorPrimary_Light =
     SkColorSetRGB(0x0B, 0x57, 0xD0);
@@ -47,8 +46,6 @@ void AddMaterialNewTabPageColorMixer(ui::ColorProvider* provider,
   mixer[kColorNewTabPageAddShortcutBackground] = {ui::kColorSysTonalContainer};
   mixer[kColorNewTabPageAddShortcutForeground] = {
       ui::kColorSysOnTonalContainer};
-  mixer[kColorNewTabPageAddShortcutBackgroundHovered] = {
-      ui::SetAlpha({ui::kColorSysOnSurface}, 0x14)};
   mixer[kColorNewTabPageBackground] = {ui::kColorSysBase};
   mixer[kColorNewTabPageBorder] = {ui::kColorSysBaseContainer};
   mixer[kColorNewTabPageButtonBackground] = {ui::kColorSysTonalContainer};
@@ -84,14 +81,6 @@ void AddMaterialNewTabPageColorMixer(ui::ColorProvider* provider,
   mixer[kColorNewTabPageActionChipTextBody] = {ui::kColorSysOnSurfaceSubtle};
   mixer[kColorNewTabPageActionChipDeepSearchIcon] = {
       ui::kColorSysOnSurfaceSubtle};
-
-  // Isolated Tab colors.
-  // The Isolated Tab Page is designed to always remain in light mode.
-  mixer[kColorIsolatedTabPageBackground] = {kColorSysSurface_Light};
-  mixer[kColorIsolatedTabPageCardBackground] = {kColorSysSurface1_Light};
-  mixer[kColorIsolatedTabPageLink] = {kColorSysPrimary_Light};
-  mixer[kColorIsolatedTabPageNoticeBorder] = {kColorSysTonalOutline_Light};
-  mixer[kColorIsolatedTabPageNoticeIcon] = {SK_ColorBLACK};
 
   // Threads rail colors.
   mixer[kColorNewTabPageThreadsRailBackground] = {ui::kColorSysSurface2};
@@ -158,10 +147,6 @@ void AddMaterialNewTabPageColorMixer(ui::ColorProvider* provider,
   // defined instead of using GM3 color variables.
   mixer[kColorNewTabPageCommonInputPlaceholder] = {SkColorSetARGB(0x60, 0x1F, 0x1F, 0x1F)};
   mixer[kColorNewTabPageRealboxNextIconHover] = {kColorSysStateHoverOnSubtle_Light};
-#if BUILDFLAG(IS_ANDROID)
-  mixer[kColorNewTabPageComposeboxSubmitButtonBackground] = {
-      SkColorSetRGB(0x0B, 0x57, 0xD0)};
-#else
   if (base::FeatureList::IsEnabled(ntp_features::kEnergyEffect)) {
     mixer[kColorNewTabPageComposeboxSubmitButtonBackground] = {
         SkColorSetRGB(0x33, 0x6E, 0xF3)};
@@ -169,7 +154,6 @@ void AddMaterialNewTabPageColorMixer(ui::ColorProvider* provider,
     mixer[kColorNewTabPageComposeboxSubmitButtonBackground] = {
         SkColorSetRGB(0x34, 0x6B, 0xF1)};
   }
-#endif
   mixer[kColorComposeboxBackground] = {SK_ColorWHITE};
   mixer[kColorComposeboxFileChipSpinner] = {kColorSysPrimary_Light};
   mixer[kColorComposeboxFont] = {

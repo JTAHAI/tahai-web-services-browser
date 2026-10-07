@@ -79,10 +79,7 @@ class TracingController {
 
   // Return a descriptor for all available tracing categories as serialized
   // perfetto.protos.TrackEventDescriptor.
-  typedef base::OnceCallback<void(std::vector<uint8_t>)>
-      GetTrackEventDescriptorDoneCallback;
-  virtual bool GetTrackEventDescriptor(
-      GetTrackEventDescriptorDoneCallback callback) = 0;
+  virtual std::vector<uint8_t> GetTrackEventDescriptor() = 0;
 
   // Start tracing (recording traces) on all processes.
   //

@@ -502,9 +502,8 @@ public class ContextualSearchUma {
 
     /**
      * Logs the primary CoCa {@link CardTag} for searches where the panel contents was seen,
-     * including {@code codeCardTag.CT_NONE} when no card or tag, and {@code codeCardTag.CT_OTHER}
-     * when it's one we do not recognize.
-     *
+     * including {@codeCardTag.CT_NONE} when no card or tag, and {@codeCardTag.CT_OTHER} when it's
+     * one we do not recognize.
      * @param wasSearchContentViewSeen Whether the panel was seen.
      * @param cardTagEnum The primary CoCa card Tag for the result seen.
      */

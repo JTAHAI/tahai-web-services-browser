@@ -18,7 +18,6 @@ import androidx.core.app.ServiceCompat;
 import org.chromium.base.ApplicationStatus;
 import org.chromium.base.Log;
 import org.chromium.base.ResettersForTesting;
-import org.chromium.base.ThreadUtils;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
@@ -27,7 +26,6 @@ import org.chromium.chrome.browser.profiles.ProfileManager;
 
 import java.util.HashSet;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 
 /**
  * Profile-scoped manager for the ActorForegroundService. Observes ActorKeyedService to start/stop
@@ -38,7 +36,7 @@ public class ActorForegroundServiceManager implements ActorKeyedService.Observer
     private static final String TAG = "ActorFgsMngr";
     public static final int INVALID_NOTIFICATION_ID = -1;
     // Delay to ensure start/stop foreground doesn't happen too quickly.
-    private static long sWaitTimeMs = TimeUnit.SECONDS.toMillis(30);
+    private static long sWaitTimeMs = 200;
 
     @Nullable private static ActorForegroundServiceManager sInstance;
 
@@ -51,11 +49,6 @@ public class ActorForegroundServiceManager implements ActorKeyedService.Observer
                     if (mKeyedService == null
                             || mKeyedService.getActiveTasksCount() == 0
                             || mActiveTaskIds.isEmpty()) {
-                        if (mNotificationService != null
-                                && mNotificationService.hasPendingDemotions()) {
-                            postMaybeStopServiceRunnable();
-                            return;
-                        }
                         stopAndUnbindService();
                     }
                 }
@@ -70,6 +63,7 @@ public class ActorForegroundServiceManager implements ActorKeyedService.Observer
     @Nullable private ActorKeyedService mKeyedService;
     @Nullable private ActorNotificationService mNotificationService;
     @Nullable private ActorTaskTimeoutManager mTimeoutManager;
+    private final ActorForegroundServiceController mServiceController;
     private int mPinnedNotificationId = INVALID_NOTIFICATION_ID;
     @Nullable private Notification mPinnedNotification;
     private final Set<Integer> mActiveTaskIds = new HashSet<>();
@@ -91,13 +85,9 @@ public class ActorForegroundServiceManager implements ActorKeyedService.Observer
         }
     }
 
-    /** Returns the singleton manager instance if initialized. */
-    public static @Nullable ActorForegroundServiceManager getInstance() {
-        return sInstance;
-    }
-
     @VisibleForTesting
     ActorForegroundServiceManager() {
+        mServiceController = ActorForegroundServiceController.get();
         mProfileObserver =
                 new ProfileManager.Observer() {
                     @Override
@@ -163,17 +153,6 @@ public class ActorForegroundServiceManager implements ActorKeyedService.Observer
     }
 
     /**
-     * Resends loud notifications for all active working tasks (e.g. when moving to background or
-     * PiP).
-     */
-    public void resendWorkingNotifications() {
-        if (mNotificationService == null) return;
-        for (int taskId : mActiveTaskIds) {
-            mNotificationService.resendWorkingNotificationLoudly(taskId);
-        }
-    }
-
-    /**
      * Updates the notification for the task and also process the task update queue.
      *
      * @param taskId The ID of the task.
@@ -203,20 +182,9 @@ public class ActorForegroundServiceManager implements ActorKeyedService.Observer
             mActiveTaskIds.add(taskId);
         } else {
             mActiveTaskIds.remove(taskId);
-            getServiceController().onTaskCompleted(taskId);
         }
 
         refreshTaskUI(taskId, newState);
-    }
-
-    @Override
-    public void onTaskStepProgressUpdated(int taskId, String stepProgress) {
-        if (!ChromeFeatureList.sActorStepProgressNotification.isEnabled()) {
-            return;
-        }
-        if (mNotificationService == null) return;
-        mNotificationService.updateNotificationForStepProgress(taskId);
-        processTaskUpdateQueue();
     }
 
     /**
@@ -226,7 +194,7 @@ public class ActorForegroundServiceManager implements ActorKeyedService.Observer
     public boolean isActivityVisibleForTask(int taskId) {
         if (mNotificationService == null) return false;
         ActorTask task = mNotificationService.getTask(taskId);
-        return task != null && getServiceController().isActivityVisibleForTabs(task.getTabs());
+        return task != null && mServiceController.isActivityVisibleForTabs(task.getTabs());
     }
 
     /** Process the current task state and initiate any needed service actions. */
@@ -242,7 +210,7 @@ public class ActorForegroundServiceManager implements ActorKeyedService.Observer
             return;
         }
 
-        if (!getServiceController().isConnected()) {
+        if (!mServiceController.isConnected()) {
             return;
         }
 
@@ -287,9 +255,7 @@ public class ActorForegroundServiceManager implements ActorKeyedService.Observer
                 }
             }
 
-            if (!mStopServiceDelayed
-                    || (mNotificationService != null
-                            && mNotificationService.hasPendingDemotions())) {
+            if (!mStopServiceDelayed) {
                 postMaybeStopServiceRunnable();
             }
         }
@@ -299,14 +265,13 @@ public class ActorForegroundServiceManager implements ActorKeyedService.Observer
     void startAndBindService() {
         mIsServiceBound = true;
         mStartForegroundCalled = false;
-        getServiceController()
-                .startAndBindService(() -> mHandler.post(this::processTaskUpdateQueue));
+        mServiceController.startAndBindService(() -> mHandler.post(this::processTaskUpdateQueue));
     }
 
     @VisibleForTesting
     void startOrUpdateForegroundService(int notificationId, @Nullable Notification notification) {
         if (notification == null
-                || !getServiceController().isConnected()
+                || !mServiceController.isConnected()
                 || notificationId == INVALID_NOTIFICATION_ID) {
             return;
         }
@@ -319,9 +284,8 @@ public class ActorForegroundServiceManager implements ActorKeyedService.Observer
                 mPinnedNotificationId != INVALID_NOTIFICATION_ID
                         && mPinnedNotificationId != notificationId;
 
-        getServiceController()
-                .startOrUpdateForegroundService(
-                        notificationId, notification, mPinnedNotificationId, killOldNotification);
+        mServiceController.startOrUpdateForegroundService(
+                notificationId, notification, mPinnedNotificationId, killOldNotification);
 
         mStartForegroundCalled = true;
         mPinnedNotificationId = notificationId;
@@ -330,80 +294,31 @@ public class ActorForegroundServiceManager implements ActorKeyedService.Observer
 
     @VisibleForTesting
     void stopAndUnbindService() {
-        stopAndUnbindService(ServiceCompat.STOP_FOREGROUND_DETACH);
-    }
-
-    @VisibleForTesting
-    void stopAndUnbindService(int flags) {
         if (!mIsServiceBound) return;
         mIsServiceBound = false;
 
-        getServiceController().stopActorForegroundService(flags);
-        getServiceController().unbindService();
+        int lastNotificationId = mPinnedNotificationId;
+
+        mServiceController.stopActorForegroundService(ServiceCompat.STOP_FOREGROUND_REMOVE);
+        mServiceController.unbindService();
 
         mStartForegroundCalled = false;
         mPinnedNotificationId = INVALID_NOTIFICATION_ID;
         mPinnedNotification = null;
+
+        if (lastNotificationId != INVALID_NOTIFICATION_ID && mNotificationService != null) {
+            mNotificationService.repostNotification(lastNotificationId);
+        }
 
         if (mStopCallbackForTesting != null) {
             mStopCallbackForTesting.run();
         }
     }
 
-    /**
-     * Handles notification dismissal when the notification click intent is handled.
-     *
-     * @param taskId The ID of the task whose notification was dismissed.
-     */
-    public void onNotificationDismissed(int taskId) {
-        boolean wasPinned = mPinnedNotificationId == taskId;
-        if (mNotificationService != null) {
-            mNotificationService.clearTaskData(taskId);
-        }
-        if (wasPinned) {
-            mPinnedNotificationId = INVALID_NOTIFICATION_ID;
-            mPinnedNotification = null;
-        }
-        maybeStopServiceNow(
-                wasPinned
-                        ? ServiceCompat.STOP_FOREGROUND_REMOVE
-                        : ServiceCompat.STOP_FOREGROUND_DETACH);
-    }
-
-    /**
-     * Stops and unbinds the foreground service if all tasks are finished and no demotions are
-     * pending.
-     */
-    public void maybeStopServiceNow() {
-        maybeStopServiceNow(ServiceCompat.STOP_FOREGROUND_DETACH);
-    }
-
-    /**
-     * Stops and unbinds the foreground service with the specified flags if all tasks are finished
-     * and no demotions are pending.
-     *
-     * @param flags ServiceCompat flags for stopping the foreground service.
-     */
-    public void maybeStopServiceNow(int flags) {
-        if (mActiveTaskIds.isEmpty()
-                && (mNotificationService == null || !mNotificationService.hasPendingDemotions())) {
-            mHandler.removeCallbacks(mMaybeStopServiceRunnable);
-            stopAndUnbindService(flags);
-        }
-    }
-
-    private ActorForegroundServiceController getServiceController() {
-        return ActorForegroundServiceController.get();
-    }
-
     @VisibleForTesting
     void postMaybeStopServiceRunnable() {
         mHandler.removeCallbacks(mMaybeStopServiceRunnable);
-        long delay =
-                (mNotificationService != null && mNotificationService.hasPendingDemotions())
-                        ? ActorNotificationService.getDemotionDelayMs()
-                        : sWaitTimeMs;
-        mHandler.postDelayed(mMaybeStopServiceRunnable, delay);
+        mHandler.postDelayed(mMaybeStopServiceRunnable, sWaitTimeMs);
         mStopServiceDelayed = true;
     }
 
@@ -422,47 +337,27 @@ public class ActorForegroundServiceManager implements ActorKeyedService.Observer
         return mIsServiceBound;
     }
 
-    public static void resetInstanceForTesting() {
-        ThreadUtils.runOnUiThreadBlocking(
-                () -> {
-                    if (sInstance != null) {
-                        ProfileManager.removeObserver(sInstance.mProfileObserver);
-                        sInstance.setKeyedService(null);
-                        sInstance = null;
-                    }
-                });
-    }
-
     static void setInstanceForTesting(ActorForegroundServiceManager instance) {
-        ThreadUtils.runOnUiThreadBlocking(
+        ActorForegroundServiceManager oldInstance = sInstance;
+        if (oldInstance != null) {
+            ProfileManager.removeObserver(oldInstance.mProfileObserver);
+        }
+
+        sInstance = instance;
+        if (instance != null) {
+            ProfileManager.addObserver(instance.mProfileObserver);
+        }
+
+        ResettersForTesting.register(
                 () -> {
-                    ActorForegroundServiceManager oldInstance = sInstance;
+                    ActorForegroundServiceManager currentInstance = sInstance;
+                    if (currentInstance != null) {
+                        ProfileManager.removeObserver(currentInstance.mProfileObserver);
+                    }
+                    sInstance = oldInstance;
                     if (oldInstance != null) {
-                        ProfileManager.removeObserver(oldInstance.mProfileObserver);
+                        ProfileManager.addObserver(oldInstance.mProfileObserver);
                     }
-
-                    sInstance = instance;
-                    if (instance != null) {
-                        ProfileManager.addObserver(instance.mProfileObserver);
-                    }
-
-                    ResettersForTesting.register(
-                            () -> {
-                                ThreadUtils.runOnUiThreadBlocking(
-                                        () -> {
-                                            ActorForegroundServiceManager currentInstance =
-                                                    sInstance;
-                                            if (currentInstance != null) {
-                                                ProfileManager.removeObserver(
-                                                        currentInstance.mProfileObserver);
-                                            }
-                                            sInstance = oldInstance;
-                                            if (oldInstance != null) {
-                                                ProfileManager.addObserver(
-                                                        oldInstance.mProfileObserver);
-                                            }
-                                        });
-                            });
                 });
     }
 
@@ -484,11 +379,6 @@ public class ActorForegroundServiceManager implements ActorKeyedService.Observer
         mPinnedNotificationId = INVALID_NOTIFICATION_ID;
         mPinnedNotification = null;
         mHandler.removeCallbacks(mMaybeStopServiceRunnable);
-    }
-
-    /** Returns the {@link ActorNotificationService} managed by this instance. */
-    public @Nullable ActorNotificationService getNotificationService() {
-        return mNotificationService;
     }
 
     void setNotificationServiceForTesting(ActorNotificationService service) {

@@ -109,26 +109,24 @@ public abstract class ListItem {
     /** A {@link ListItem} representing a divider in a group card. */
     public static class CardDividerListItem extends ListItem {
         /** The position of the divider in a group card. */
-        @IntDef({Position.TOP, Position.MIDDLE, Position.BOTTOM})
-        @Retention(RetentionPolicy.SOURCE)
-        public @interface Position {
+        public enum Position {
             /** Represents the curved border at the top of a group card. */
-            int TOP = 0;
+            TOP,
 
             /**
-             * Represents the line divider between two items in a group card. It also contains two
-             * side bars on left and right to make up for the padding between two items.
+             * Represents the line divider between two items in a group card. It also contains
+             * two side bars on left and right to make up for the padding between two items.
              */
-            int MIDDLE = 1;
+            MIDDLE,
 
             /** Represents the curved border at the bottom of a group card. */
-            int BOTTOM = 2;
+            BOTTOM
         }
 
-        public final @Position int position;
+        public final Position position;
 
         /** Creates a {@link CardDividerListItem} instance for a given position. */
-        public CardDividerListItem(long stableId, @Position int position) {
+        public CardDividerListItem(long stableId, Position position) {
             super(stableId);
             this.position = position;
         }

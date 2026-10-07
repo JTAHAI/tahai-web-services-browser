@@ -22,21 +22,18 @@ function isValidElement(element: Element): boolean {
   return !isRootElement && !hasTooManyChildren;
 }
 
-/**
- * Attempts to generate a text fragment for the target reading position in the
- * viewport.
- */
-function getLinkToTextForReadingPosition() {
+/** Attempts to generate a text fragment for the viewport center. */
+function getLinkToTextForViewportCenter() {
   // Use visualViewport if available to target the visible area (e.g. when
   // pinch-zoomed). Add offset because caretRangeFromPoint expects layout
   // viewport coordinates.
-  const kViewportYRatio = 0.35;
   const viewport = window.visualViewport;
-  const centerX = viewport ? (viewport.width / 2 + viewport.offsetLeft) :
-                             window.innerWidth / 2;
-  const centerY = viewport ?
-      (viewport.height * kViewportYRatio + viewport.offsetTop) :
-      window.innerHeight * kViewportYRatio;
+  const centerX = viewport
+      ? (viewport.width / 2 + viewport.offsetLeft)
+      : window.innerWidth / 2;
+  const centerY = viewport
+      ? (viewport.height / 2 + viewport.offsetTop)
+      : window.innerHeight / 2;
 
   const range = (document as Document & {
                   caretRangeFromPoint(x: number, y: number): Range,
@@ -104,27 +101,19 @@ function scrollRangeIntoView(range: Range) {
     span.id = 'stts-scroll-target';
     range.insertNode(span);
 
-    // Synchronize scrolling with a double requestAnimationFrame loop. The tab
-    // transition animation on foregrounding the background tab can execute the
-    // first requestAnimationFrame before WKWebView's active visual geometry
-    // has updated, which causes WebKit to silently ignore scrollIntoView.
-    // Bypassing the first frame ensures the web view completes layout first.
-    window.requestAnimationFrame(() => {
-      window.requestAnimationFrame(() => {
-        span.scrollIntoView({
-          behavior: 'auto',
-          block: 'center',
-          inline: 'nearest',
-        });
-
-        // Delay removal to allow native scroll to complete in WKWebView.
-        window.setTimeout(() => {
-          span.remove();
-        }, 1000);
-      });
+    // Find scrollable parent and scroll it into view, starting from the span.
+    span.scrollIntoView({
+      behavior: 'auto',
+      block: 'center',
+      inline: 'nearest',
     });
+
+    // Delay removal to allow native scroll to complete in WKWebView.
+    window.setTimeout(() => {
+      span.remove();
+    }, 1000);
   } catch (e: any) {
-    // Ignore errors during scroll to avoid crashing page scripts.
+    // Ignore errors during scroll; we don't want to crash page scripts.
   }
 }
 
@@ -160,9 +149,7 @@ async function scrollToTextFragment(fragment: string) {
 
 const sttsApi = new CrWebApi('stts');
 
-sttsApi.addFunction('getLinkToText', getLinkToTextForReadingPosition);
-sttsApi.addFunction('scrollToTextFragment', (fragment: string) => {
-  scrollToTextFragment(fragment);
-  return true;
-});
+sttsApi.addFunction('getLinkToText', getLinkToTextForViewportCenter);
+sttsApi.addFunction('scrollToTextFragment', scrollToTextFragment);
 gCrWeb.registerApi(sttsApi);
+

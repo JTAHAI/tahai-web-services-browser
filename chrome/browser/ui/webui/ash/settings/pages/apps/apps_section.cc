@@ -49,6 +49,8 @@ using ::chromeos::settings::mojom::kAppParentalControlsSubpagePath;
 using ::chromeos::settings::mojom::kAppsSectionPath;
 using ::chromeos::settings::mojom::kArcVmUsbPreferencesSubpagePath;
 using ::chromeos::settings::mojom::kGooglePlayStoreSubpagePath;
+using ::chromeos::settings::mojom::kPluginVmSharedPathsSubpagePath;
+using ::chromeos::settings::mojom::kPluginVmUsbPreferencesSubpagePath;
 using ::chromeos::settings::mojom::Section;
 using ::chromeos::settings::mojom::Setting;
 using ::chromeos::settings::mojom::Subpage;
@@ -368,7 +370,7 @@ void AddAppManagementStrings(content::WebUIDataSource* html_source) {
 }
 
 void AddGuestOsStrings(content::WebUIDataSource* html_source) {
-  // These strings are shared by the supported guest environments.
+  // These strings are used for both Crostini and Plugin VM.
   static constexpr webui::LocalizedString kLocalizedStrings[] = {
       {"guestOsSharedPaths", IDS_SETTINGS_GUEST_OS_SHARED_PATHS},
       {"guestOsSharedPathsListHeading",
@@ -738,6 +740,18 @@ void AppsSection::RegisterHierarchy(HierarchyGenerator* generator) const {
                                    mojom::Subpage::kAppDetails);
   generator->RegisterNestedSetting(mojom::Setting::kAppResizeLockOnOff,
                                    mojom::Subpage::kAppDetails);
+
+  generator->RegisterNestedSubpage(
+      IDS_SETTINGS_GUEST_OS_SHARED_PATHS, mojom::Subpage::kPluginVmSharedPaths,
+      mojom::Subpage::kAppManagement, mojom::SearchResultIcon::kAppsGrid,
+      mojom::SearchResultDefaultRank::kMedium,
+      mojom::kPluginVmSharedPathsSubpagePath);
+  generator->RegisterNestedSubpage(
+      IDS_SETTINGS_GUEST_OS_SHARED_USB_DEVICES_LABEL,
+      mojom::Subpage::kPluginVmUsbPreferences, mojom::Subpage::kAppManagement,
+      mojom::SearchResultIcon::kAppsGrid,
+      mojom::SearchResultDefaultRank::kMedium,
+      mojom::kPluginVmUsbPreferencesSubpagePath);
 
   // Google Play Store.
   generator->RegisterTopLevelSubpage(IDS_OS_SETTINGS_ANDROID_APPS_LABEL,

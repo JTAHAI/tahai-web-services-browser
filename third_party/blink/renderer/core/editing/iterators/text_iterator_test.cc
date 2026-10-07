@@ -101,7 +101,7 @@ class TextIteratorTest : public EditingTestBase {
 
   Range* GetBodyRange() const;
 
-  wtf_size_t TestRangeLength(const std::string& selection_text) {
+  int TestRangeLength(const std::string& selection_text) {
     return TextIterator::RangeLength(
         SetSelectionTextToBody(selection_text).ComputeRange());
   }
@@ -150,12 +150,11 @@ Range* TextIteratorTest::GetBodyRange() const {
 }
 
 TEST_F(TextIteratorTest, BitStackOverflow) {
-  const wtf_size_t kBitsInWord = sizeof(uint32_t) * 8;
+  const unsigned kBitsInWord = sizeof(unsigned) * 8;
   BitStack bs;
 
-  for (wtf_size_t i = 0; i < kBitsInWord + 1u; ++i) {
+  for (unsigned i = 0; i < kBitsInWord + 1u; i++)
     bs.Push(true);
-  }
 
   bs.Pop();
 

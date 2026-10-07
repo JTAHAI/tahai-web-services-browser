@@ -35,4 +35,4 @@ class DerivedLeftMixin : public LeftMixin, public GarbageCollected<DerivedLeftMi
 
 }
 
-#endif  // LEFT_MOST_GC_BASE_H_
+#endif

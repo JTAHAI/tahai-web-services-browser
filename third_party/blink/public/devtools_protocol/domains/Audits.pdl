@@ -341,9 +341,6 @@ experimental domain Audits
       InvalidAllowlistItemType
       ReportingEndpointNotToken
       InvalidUrlPattern
-      IFrameAttributeLoosensEmbeddingRequirement
-      InvalidAllowConnectionAllowlistFrom
-      EmbeddingRequirementNotSatisfied
 
 # Details for issues about documents in Quirks Mode
 # or Limited Quirks Mode that affects page layouting.
@@ -471,7 +468,6 @@ experimental domain Audits
       TooManyRequests
       WellKnownHttpNotFound
       WellKnownNoResponse
-      WellKnownBlockedByConnectionAllowlist
       WellKnownInvalidResponse
       WellKnownListEmpty
       WellKnownInvalidContentType
@@ -479,7 +475,6 @@ experimental domain Audits
       WellKnownTooBig
       ConfigHttpNotFound
       ConfigNoResponse
-      ConfigBlockedByConnectionAllowlist
       ConfigInvalidResponse
       ConfigInvalidContentType
       IdpNotPotentiallyTrustworthy
@@ -489,13 +484,11 @@ experimental domain Audits
       InvalidSigninResponse
       AccountsHttpNotFound
       AccountsNoResponse
-      AccountsBlockedByConnectionAllowlist
       AccountsInvalidResponse
       AccountsListEmpty
       AccountsInvalidContentType
       IdTokenHttpNotFound
       IdTokenNoResponse
-      IdTokenBlockedByConnectionAllowlist
       IdTokenInvalidResponse
       IdTokenIdpErrorResponse
       IdTokenCrossSiteIdpErrorResponse
@@ -599,7 +592,6 @@ experimental domain Audits
       TokenVerificationKbInvalidSdHash
       TokenVerificationKbMissingCnf
       TokenVerificationKbSignatureFailed
-      CrossOriginIframeNotSupported
 
   # This issue tracks client hints related issues. It's used to deprecate old
   # features, encourage the use of new ones, and provide general guidance.

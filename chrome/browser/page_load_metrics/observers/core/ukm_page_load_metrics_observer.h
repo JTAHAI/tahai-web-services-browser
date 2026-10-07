@@ -108,9 +108,7 @@ class UkmPageLoadMetricsObserver
   void OnFirstContentfulPaintInPage(
       const page_load_metrics::mojom::PageLoadTiming& timing) override;
 
-  void OnSoftNavigationFirstContentfulPaint(
-      const page_load_metrics::mojom::SoftNavigationMetrics&
-          soft_navigation_metrics) override;
+  void OnSoftNavigation() override;
 
   // Whether the current page load is an Offline Preview. Must be called from
   // OnCommit. Virtual for testing.
@@ -153,6 +151,7 @@ class UkmPageLoadMetricsObserver
   // Returns the current Core Web Vital definition of Cumulative Layout Shift.
   // Returns nullopt if current value should not be reported to UKM.
   std::optional<float> GetCoreWebVitalsCLS();
+  std::optional<float> GetCoreWebVitalsSoftNavigationIntervalCLS();
 
   // Returns the current Core Web Vital definition of Largest Contentful Paint.
   // The caller needs to check whether the value should be reported to UKM based
@@ -162,6 +161,9 @@ class UkmPageLoadMetricsObserver
 
   bool PageLoadMayOriginGate(
       content::NavigationHandle* navigation_handle) const;
+
+  const page_load_metrics::ContentfulPaintTimingInfo&
+  GetSoftNavigationLargestContentfulPaint() const;
 
   void RecordLargestContentfulPaintBeforeSoftNavigation();
 

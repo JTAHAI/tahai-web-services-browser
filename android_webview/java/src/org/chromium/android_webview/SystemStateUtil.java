@@ -13,7 +13,6 @@ import android.os.UserManager;
 
 import org.jni_zero.CalledByNative;
 import org.jni_zero.JNINamespace;
-import org.jni_zero.JniType;
 
 import org.chromium.base.ApkInfo;
 import org.chromium.base.ContextUtils;
@@ -75,7 +74,6 @@ public class SystemStateUtil {
     }
 
     @CalledByNative
-    @JniType("std::string")
     public static String getProcessName() {
         return ContextUtils.getProcessName();
     }

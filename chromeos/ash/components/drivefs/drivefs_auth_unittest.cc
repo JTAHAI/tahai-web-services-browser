@@ -34,8 +34,9 @@ constexpr base::TimeDelta kTokenLifetime = base::Hours(1);
 
 class AuthDelegateImpl : public DriveFsAuth::Delegate {
  public:
-  explicit AuthDelegateImpl(const AccountId& account_id)
-      : account_id_(account_id) {}
+  AuthDelegateImpl(signin::IdentityManager* identity_manager,
+                   const AccountId& account_id)
+      : identity_manager_(identity_manager), account_id_(account_id) {}
 
   AuthDelegateImpl(const AuthDelegateImpl&) = delete;
   AuthDelegateImpl& operator=(const AuthDelegateImpl&) = delete;
@@ -48,6 +49,9 @@ class AuthDelegateImpl : public DriveFsAuth::Delegate {
       override {
     return nullptr;
   }
+  signin::IdentityManager* GetIdentityManager() override {
+    return identity_manager_;
+  }
   const AccountId& GetAccountId() override { return account_id_; }
   std::string GetObfuscatedAccountId() override {
     return "salt-" + account_id_.GetAccountIdKey();
@@ -55,6 +59,7 @@ class AuthDelegateImpl : public DriveFsAuth::Delegate {
 
   bool IsMetricsCollectionEnabled() override { return false; }
 
+  const raw_ptr<signin::IdentityManager> identity_manager_;
   const AccountId account_id_;
 };
 
@@ -73,10 +78,10 @@ class DriveFsAuthTest : public ::testing::Test {
     auto timer = std::make_unique<base::MockOneShotTimer>();
     timer_ = timer.get();
     delegate_ = std::make_unique<AuthDelegateImpl>(
+        identity_test_env_.identity_manager(),
         AccountId::FromUserEmailGaiaId(kTestEmail, GaiaId("ID")));
     auth_ = std::make_unique<DriveFsAuth>(&clock_,
                                           base::FilePath("/path/to/profile"),
-                                          identity_test_env_.identity_manager(),
                                           std::move(timer), delegate_.get());
   }
 

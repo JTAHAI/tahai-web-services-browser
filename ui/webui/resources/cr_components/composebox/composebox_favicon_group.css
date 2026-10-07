@@ -54,9 +54,3 @@
   line-height: 16px;
   margin-inline-start: 4px;
 }
-
-@media (forced-colors: active) {
-  #more-items {
-    color: ButtonText;
-  }
-}

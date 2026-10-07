@@ -156,12 +156,6 @@ class RequestManager {
   // Gets list of active request ids.
   std::vector<int> GetActiveRequestIds() const;
 
-  // Disconnects from the notification manager so that aborting the
-  // remaining requests does not update the unresponsive notification.
-  // During teardown the notification is already taken care of: an
-  // unmount removes it, and at shutdown it dies with MessageCenter.
-  void DetachNotificationManager();
-
   // Adds and removes observers.
   void AddObserver(Observer* observer);
   void RemoveObserver(Observer* observer);

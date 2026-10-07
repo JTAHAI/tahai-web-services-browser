@@ -7,7 +7,6 @@
 #include <memory>
 
 #include "base/android/device_info.h"
-#include "base/functional/callback_helpers.h"
 #include "chrome/browser/ui/android/tab_model/tab_model.h"
 #include "chrome/browser/ui/android/tab_model/tab_model_test_helper.h"
 #include "chrome/test/base/testing_profile.h"
@@ -42,7 +41,7 @@ TEST_F(TabMatcherAndroidTest, GetOpenTabs_ExcludeHeadlessOnDesktop) {
                                     chrome::android::ActivityType::kTabbed,
                                     TabModel::TabModelType::kHeadless);
 
-  TabMatcherAndroid matcher(nullptr, profile(), base::NullCallback());
+  TabMatcherAndroid matcher(nullptr, profile());
   AutocompleteInput input;
 
   // Should return empty because the only tab model is headless and we are on
@@ -61,7 +60,7 @@ TEST_F(TabMatcherAndroidTest, GetOpenTabs_IncludeHeadlessOnNonDesktop) {
                                     chrome::android::ActivityType::kTabbed,
                                     TabModel::TabModelType::kHeadless);
 
-  TabMatcherAndroid matcher(nullptr, profile(), base::NullCallback());
+  TabMatcherAndroid matcher(nullptr, profile());
   AutocompleteInput input;
 
   // On non-desktop, headless is not filtered out, so it will try to call JNI.

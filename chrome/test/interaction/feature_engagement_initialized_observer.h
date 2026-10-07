@@ -13,15 +13,14 @@ namespace feature_engagement {
 class Tracker;
 }
 
-class BrowserWindowInterface;
+class Browser;
 
 // Observes the initialization state of the `feature_engagement::Tracker`
 // associated with a browser.
 class FeatureEngagementInitializedObserver
     : public ui::test::StateObserver<bool> {
  public:
-  explicit FeatureEngagementInitializedObserver(
-      BrowserWindowInterface* browser);
+  explicit FeatureEngagementInitializedObserver(Browser* browser);
   ~FeatureEngagementInitializedObserver() override;
 
   // ui::test::StateObserver<bool>:

@@ -5,7 +5,6 @@
 #ifndef THIRD_PARTY_BLINK_RENDERER_CORE_INSPECTOR_INSPECTOR_AUDITS_AGENT_H_
 #define THIRD_PARTY_BLINK_RENDERER_CORE_INSPECTOR_INSPECTOR_AUDITS_AGENT_H_
 
-#include "base/memory/raw_ptr.h"
 #include "third_party/blink/renderer/core/core_export.h"
 #include "third_party/blink/renderer/core/dom/document.h"
 #include "third_party/blink/renderer/core/inspector/inspected_frames.h"
@@ -57,13 +56,11 @@ class CORE_EXPORT InspectorAuditsAgent final
  private:
   void InnerEnable();
 
-  const raw_ptr<InspectorIssueStorage, UnprotectedInRelease | DanglingUntriaged>
-      inspector_issue_storage_;
+  InspectorIssueStorage* const inspector_issue_storage_;
   InspectorAgentState::Boolean enabled_;
   Member<InspectorNetworkAgent> network_agent_;
   Member<InspectedFrames> inspected_frames_;
-  const raw_ptr<WebAutofillClient, UnprotectedInRelease | DanglingUntriaged>
-      web_autofill_client_ = nullptr;
+  WebAutofillClient* const web_autofill_client_ = nullptr;
 };
 
 }  // namespace blink

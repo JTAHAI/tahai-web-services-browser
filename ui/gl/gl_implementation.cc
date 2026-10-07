@@ -435,9 +435,9 @@ STDCALL GLFunctionPointerType GetGLProcAddress(const char* name) {
   DCHECK(g_gl_implementation.gl != kGLImplementationNone);
 
   if (g_libraries) {
-    for (auto& library : *g_libraries) {
+    for (size_t i = 0; i < g_libraries->size(); ++i) {
       GLFunctionPointerType proc = reinterpret_cast<GLFunctionPointerType>(
-          base::GetFunctionPointerFromNativeLibrary(library, name));
+          base::GetFunctionPointerFromNativeLibrary((*g_libraries)[i], name));
       if (proc)
         return proc;
     }

@@ -191,7 +191,6 @@ class SingleClientThemesSyncTest
       scoped_feature_list_.InitWithFeatures(
           /*enabled_features=*/{syncer::kReplaceSyncPromosWithSignInPromos,
                                 syncer::kSeparateLocalAndAccountThemes,
-                                syncer::kSeparateLocalAndAccountSearchEngines,
                                 // `kEnablePreferencesAccountStorage` is used to
                                 // enable themes in transport
                                 // mode alongside some other data types.

@@ -188,11 +188,10 @@ class PLATFORM_EXPORT PaintArtifactCompositor final
   // noncomposited nodes, and is used for Scroll Unification to generate scroll
   // nodes for noncomposited scrollers to complete the compositor's scroll
   // property tree.
-  void Update(
-      const PaintArtifact& artifact,
-      const ViewportProperties& viewport_properties,
-      const StackTransformPaintPropertyNodeVector& scroll_translation_nodes,
-      Vector<std::unique_ptr<cc::ViewTransitionRequest>> requests);
+  void Update(const PaintArtifact& artifact,
+              const ViewportProperties& viewport_properties,
+              const StackScrollTranslationVector& scroll_translation_nodes,
+              Vector<std::unique_ptr<cc::ViewTransitionRequest>> requests);
 
   bool DirectlyUpdateCompositedOpacityValue(const EffectPaintPropertyNode&);
   bool DirectlyUpdateScrollOffsetTransform(const TransformPaintPropertyNode&);
@@ -208,8 +207,7 @@ class PLATFORM_EXPORT PaintArtifactCompositor final
 
   void DropCompositorScrollDeltaNextCommit(CompositorElementId);
 
-  cc::MainThreadRepaintReasons GetMainThreadRepaintReasons(
-      const ScrollPaintPropertyNode&) const;
+  uint32_t GetMainThreadRepaintReasons(const ScrollPaintPropertyNode&) const;
   // Returns true if the scroll node is currently composited in cc.
   // TODO(crbug.com/40517276): Remove this function after launching
   // RasterInducingScroll.

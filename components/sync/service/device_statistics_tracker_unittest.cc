@@ -197,8 +197,8 @@ TEST_F(DeviceStatisticsTrackerTest,
   tracker.Start(future.GetCallback());
 
   ASSERT_EQ(fake_requests_.size(), 2u);
-  fake_requests_[primary.GetGaiaId()]->SimulateSuccess({});
-  fake_requests_[secondary.GetGaiaId()]->SimulateFailure();
+  fake_requests_[primary.gaia]->SimulateSuccess({});
+  fake_requests_[secondary.gaia]->SimulateFailure();
   EXPECT_TRUE(future.Wait());
 
   histogram_tester.ExpectUniqueSample(
@@ -235,8 +235,8 @@ TEST_F(DeviceStatisticsTrackerTest,
   tracker.Start(future.GetCallback());
 
   ASSERT_EQ(fake_requests_.size(), 2u);
-  fake_requests_[primary.GetGaiaId()]->SimulateFailure();
-  fake_requests_[secondary.GetGaiaId()]->SimulateSuccess({});
+  fake_requests_[primary.gaia]->SimulateFailure();
+  fake_requests_[secondary.gaia]->SimulateSuccess({});
   EXPECT_TRUE(future.Wait());
 
   histogram_tester.ExpectUniqueSample(
@@ -268,8 +268,8 @@ TEST_F(DeviceStatisticsTrackerTest, RecordsNoOutcomeWhenAllRequestsFail) {
   tracker.Start(future.GetCallback());
 
   ASSERT_EQ(fake_requests_.size(), 2u);
-  fake_requests_[primary.GetGaiaId()]->SimulateFailure();
-  fake_requests_[secondary.GetGaiaId()]->SimulateFailure();
+  fake_requests_[primary.gaia]->SimulateFailure();
+  fake_requests_[secondary.gaia]->SimulateFailure();
   EXPECT_TRUE(future.Wait());
 
   histogram_tester.ExpectUniqueSample(
@@ -306,8 +306,8 @@ TEST_F(DeviceStatisticsTrackerTest, RecordsNoOutcomeWhenPrimaryAccountChanges) {
   identity_test_env_.MakePrimaryAccountAvailable("another@example.com",
                                                  signin::ConsentLevel::kSignin);
 
-  fake_requests_[primary.GetGaiaId()]->SimulateSuccess({});
-  fake_requests_[secondary.GetGaiaId()]->SimulateSuccess({});
+  fake_requests_[primary.gaia]->SimulateSuccess({});
+  fake_requests_[secondary.gaia]->SimulateSuccess({});
   EXPECT_TRUE(future.Wait());
 
   histogram_tester.ExpectUniqueSample(
@@ -338,9 +338,8 @@ TEST_F(DeviceStatisticsTrackerTest, RecordsOutcomeWhenPrimaryHasOtherDevices) {
   tracker.Start(future.GetCallback());
 
   ASSERT_EQ(fake_requests_.size(), 1u);
-  fake_requests_[primary.GetGaiaId()]->SimulateSuccess(
-      CreateDeviceInfosWithPlatforms(
-          {sync_pb::SyncEnums_OsType_OS_TYPE_WINDOWS}));
+  fake_requests_[primary.gaia]->SimulateSuccess(CreateDeviceInfosWithPlatforms(
+      {sync_pb::SyncEnums_OsType_OS_TYPE_WINDOWS}));
   EXPECT_TRUE(future.Wait());
 
   histogram_tester.ExpectUniqueSample(
@@ -374,7 +373,7 @@ TEST_F(DeviceStatisticsTrackerTest,
   tracker.Start(future.GetCallback());
 
   ASSERT_EQ(fake_requests_.size(), 1u);
-  fake_requests_[primary.GetGaiaId()]->SimulateSuccess({});
+  fake_requests_[primary.gaia]->SimulateSuccess({});
   EXPECT_TRUE(future.Wait());
 
   histogram_tester.ExpectUniqueSample(
@@ -420,10 +419,9 @@ TEST_F(DeviceStatisticsTrackerTest,
   tracker.Start(future.GetCallback());
 
   ASSERT_EQ(fake_requests_.size(), 2u);
-  fake_requests_[primary.GetGaiaId()]->SimulateSuccess(
-      CreateDeviceInfosWithPlatforms(
-          {sync_pb::SyncEnums_OsType_OS_TYPE_WINDOWS}));
-  fake_requests_[secondary.GetGaiaId()]->SimulateSuccess(
+  fake_requests_[primary.gaia]->SimulateSuccess(CreateDeviceInfosWithPlatforms(
+      {sync_pb::SyncEnums_OsType_OS_TYPE_WINDOWS}));
+  fake_requests_[secondary.gaia]->SimulateSuccess(
       CreateDeviceInfosWithPlatforms({sync_pb::SyncEnums_OsType_OS_TYPE_MAC}));
   EXPECT_TRUE(future.Wait());
 
@@ -460,10 +458,9 @@ TEST_F(DeviceStatisticsTrackerTest,
   tracker.Start(future.GetCallback());
 
   ASSERT_EQ(fake_requests_.size(), 2u);
-  fake_requests_[primary.GetGaiaId()]->SimulateSuccess(
-      CreateDeviceInfosWithPlatforms(
-          {sync_pb::SyncEnums_OsType_OS_TYPE_WINDOWS}));
-  fake_requests_[secondary.GetGaiaId()]->SimulateSuccess({});
+  fake_requests_[primary.gaia]->SimulateSuccess(CreateDeviceInfosWithPlatforms(
+      {sync_pb::SyncEnums_OsType_OS_TYPE_WINDOWS}));
+  fake_requests_[secondary.gaia]->SimulateSuccess({});
   EXPECT_TRUE(future.Wait());
 
   histogram_tester.ExpectUniqueSample(
@@ -499,8 +496,8 @@ TEST_F(DeviceStatisticsTrackerTest,
   tracker.Start(future.GetCallback());
 
   ASSERT_EQ(fake_requests_.size(), 2u);
-  fake_requests_[primary.GetGaiaId()]->SimulateSuccess({});
-  fake_requests_[secondary.GetGaiaId()]->SimulateSuccess(
+  fake_requests_[primary.gaia]->SimulateSuccess({});
+  fake_requests_[secondary.gaia]->SimulateSuccess(
       CreateDeviceInfosWithPlatforms({sync_pb::SyncEnums_OsType_OS_TYPE_MAC}));
   EXPECT_TRUE(future.Wait());
 
@@ -536,8 +533,8 @@ TEST_F(DeviceStatisticsTrackerTest, RecordsOutcomeWhenNobodyHasOtherDevices) {
   tracker.Start(future.GetCallback());
 
   ASSERT_EQ(fake_requests_.size(), 2u);
-  fake_requests_[primary.GetGaiaId()]->SimulateSuccess({});
-  fake_requests_[secondary.GetGaiaId()]->SimulateSuccess({});
+  fake_requests_[primary.gaia]->SimulateSuccess({});
+  fake_requests_[secondary.gaia]->SimulateSuccess({});
   EXPECT_TRUE(future.Wait());
 
   histogram_tester.ExpectUniqueSample(
@@ -571,7 +568,7 @@ TEST_F(DeviceStatisticsTrackerTest,
   tracker.Start(future.GetCallback());
 
   ASSERT_EQ(fake_requests_.size(), 1u);
-  fake_requests_[secondary.GetGaiaId()]->SimulateSuccess({});
+  fake_requests_[secondary.gaia]->SimulateSuccess({});
   EXPECT_TRUE(future.Wait());
 
   histogram_tester.ExpectUniqueSample(
@@ -617,8 +614,8 @@ TEST_F(DeviceStatisticsTrackerTest,
   tracker.Start(future.GetCallback());
 
   ASSERT_EQ(fake_requests_.size(), 2u);
-  fake_requests_[secondary1.GetGaiaId()]->SimulateSuccess({});
-  fake_requests_[secondary2.GetGaiaId()]->SimulateFailure();
+  fake_requests_[secondary1.gaia]->SimulateSuccess({});
+  fake_requests_[secondary2.gaia]->SimulateFailure();
   EXPECT_TRUE(future.Wait());
 
   histogram_tester.ExpectUniqueSample(
@@ -678,9 +675,8 @@ TEST_F(DeviceStatisticsTrackerTest, ExcludesCurrentDevice) {
                        false)};
 
   ASSERT_EQ(fake_requests_.size(), 2u);
-  fake_requests_[primary.GetGaiaId()]->SimulateSuccess(primary_device_infos);
-  fake_requests_[secondary.GetGaiaId()]->SimulateSuccess(
-      secondary_device_infos);
+  fake_requests_[primary.gaia]->SimulateSuccess(primary_device_infos);
+  fake_requests_[secondary.gaia]->SimulateSuccess(secondary_device_infos);
   EXPECT_TRUE(future.Wait());
 
   histogram_tester.ExpectUniqueSample(
@@ -719,11 +715,11 @@ TEST_F(DeviceStatisticsTrackerTest, RecordsOtherPlatformsMetrics) {
   tracker.Start(future.GetCallback());
 
   ASSERT_EQ(fake_requests_.size(), 2u);
-  fake_requests_[primary.GetGaiaId()]->SimulateSuccess(
+  fake_requests_[primary.gaia]->SimulateSuccess(
       CreateDeviceInfosWithPlatforms({sync_pb::SyncEnums_OsType_OS_TYPE_WINDOWS,
                                       sync_pb::SyncEnums_OsType_OS_TYPE_WINDOWS,
                                       sync_pb::SyncEnums_OsType_OS_TYPE_MAC}));
-  fake_requests_[secondary.GetGaiaId()]->SimulateSuccess(
+  fake_requests_[secondary.gaia]->SimulateSuccess(
       CreateDeviceInfosWithPlatforms(
           {sync_pb::SyncEnums_OsType_OS_TYPE_IOS,
            sync_pb::SyncEnums_OsType_OS_TYPE_LINUX}));
@@ -839,7 +835,7 @@ TEST_F(DeviceStatisticsTrackerTest, RecordsMultiPlatformHistoryOptInMetrics) {
   device_infos.push_back(
       CreateDeviceInfo(kThisDeviceCacheGuid, GetLocalOsType(), true));
 
-  fake_requests_[primary.GetGaiaId()]->SimulateSuccess(device_infos);
+  fake_requests_[primary.gaia]->SimulateSuccess(device_infos);
   EXPECT_TRUE(future.Wait());
 
   int expected_other_platforms = 2;
@@ -894,7 +890,7 @@ TEST_F(DeviceStatisticsTrackerTest,
       CreateDeviceInfo(kThisDeviceCacheGuid, GetLocalOsType(), true));
 
   ASSERT_EQ(fake_requests_.size(), 1u);
-  fake_requests_[primary.GetGaiaId()]->SimulateSuccess(device_infos);
+  fake_requests_[primary.gaia]->SimulateSuccess(device_infos);
   EXPECT_TRUE(future.Wait());
 
   histogram_tester.ExpectBucketCount(
@@ -953,7 +949,7 @@ TEST_F(DeviceStatisticsTrackerTest,
       CreateDeviceInfo("other_device_diff_os", GetOtherOsType(), false));
 
   ASSERT_EQ(fake_requests_.size(), 1u);
-  fake_requests_[primary.GetGaiaId()]->SimulateSuccess(device_infos);
+  fake_requests_[primary.gaia]->SimulateSuccess(device_infos);
   EXPECT_TRUE(future.Wait());
 
   histogram_tester.ExpectBucketCount(
@@ -1016,7 +1012,7 @@ TEST_F(DeviceStatisticsTrackerTest,
       CreateDeviceInfo(kThisDeviceCacheGuid, GetLocalOsType(), false));
 
   ASSERT_EQ(fake_requests_.size(), 1u);
-  fake_requests_[primary.GetGaiaId()]->SimulateSuccess(device_infos);
+  fake_requests_[primary.gaia]->SimulateSuccess(device_infos);
   EXPECT_TRUE(future.Wait());
 
   histogram_tester.ExpectBucketCount(
@@ -1064,7 +1060,7 @@ TEST_F(DeviceStatisticsTrackerTest, RecordsHistoryMetricsWhenNoDevicesOptedIn) {
       CreateDeviceInfo(kThisDeviceCacheGuid, GetLocalOsType(), false));
 
   ASSERT_EQ(fake_requests_.size(), 1u);
-  fake_requests_[primary.GetGaiaId()]->SimulateSuccess(device_infos);
+  fake_requests_[primary.gaia]->SimulateSuccess(device_infos);
   EXPECT_TRUE(future.Wait());
 
   histogram_tester.ExpectBucketCount(
@@ -1121,7 +1117,7 @@ TEST_F(DeviceStatisticsTrackerTest, DedupesByActivityTimeRange) {
   entities[1].set_mtime(syncer::TimeToProtoTime(now - base::Days(4)));
   entities[2].set_ctime(syncer::TimeToProtoTime(now - base::Days(3)));
   entities[2].set_mtime(syncer::TimeToProtoTime(now - base::Days(2)));
-  fake_requests_[primary.GetGaiaId()]->SimulateSuccess(entities);
+  fake_requests_[primary.gaia]->SimulateSuccess(entities);
   EXPECT_TRUE(future.Wait());
 
   // Since the activity time ranges were non-overlapping, the three DeviceInfos
@@ -1154,7 +1150,7 @@ TEST_F(DeviceStatisticsTrackerTest, ExcludesIGSADevices) {
   entities[1].mutable_specifics()->mutable_device_info()->set_sync_user_agent(
       "iGSA IOS-PHONE 145.0.7632.153 (007368903b9211f2773672f5072b67f9b2afc409-"
       "refs/branch-heads/7632@{#3240}) channel(stable)");
-  fake_requests_[primary.GetGaiaId()]->SimulateSuccess(entities);
+  fake_requests_[primary.gaia]->SimulateSuccess(entities);
   EXPECT_TRUE(future.Wait());
 
   // Only the first device should have been counted.
@@ -1210,7 +1206,7 @@ TEST_F(DeviceStatisticsTrackerTest, RecordsPlatformAndFormFactorMetrics) {
                        sync_pb::SyncEnums::DEVICE_FORM_FACTOR_TV));
 
   ASSERT_EQ(fake_requests_.size(), 1u);
-  fake_requests_[primary.GetGaiaId()]->SimulateSuccess(device_infos);
+  fake_requests_[primary.gaia]->SimulateSuccess(device_infos);
   EXPECT_TRUE(future.Wait());
 
   histogram_tester.ExpectBucketCount(

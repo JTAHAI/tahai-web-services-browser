@@ -48,10 +48,6 @@ class PredictionModel;
 
 extern const char kPredictionModelOptimizationTargetCustomDataKey[];
 
-// Disables model download verification for testing.
-inline constexpr char kDisableModelDownloadVerificationForTestingSwitch[] =
-    "disable-model-download-verification";
-
 // Manages the downloads of prediction models.
 // Keep in sync with OptimizationGuidePredictionModelDownloadState in enums.xml.
 class PredictionModelDownloadManager {

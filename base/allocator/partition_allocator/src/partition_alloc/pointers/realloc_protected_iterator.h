@@ -13,33 +13,41 @@
 #include <cstdint>
 #include <iterator>
 #include <memory>
-#include <optional>
 #include <utility>
 
-#include "partition_alloc/partition_alloc_base/compiler_specific.h"
+#include "partition_alloc/partition_alloc_base/augmentations/compiler_specific.h"
 #include "partition_alloc/partition_alloc_base/component_export.h"
 #include "partition_alloc/partition_alloc_base/types/to_address.h"
 #include "partition_alloc/pointers/raw_ptr_exclusion.h"
-#include "partition_alloc/slot_address_and_size.h"
 
 namespace base {
 
 namespace internal {
 
+// Opaque handle to a PartitionAlloc slot that the wrapper has pinned.
+// `slot_size == 0` means no slot is held (either the underlying allocation
+// was not in a BRP-protected partition, or the wrapper is moved-from /
+// default-constructed). Stored by value inside ReallocProtectedIterator.
+struct WrappedBackingSlot {
+  uintptr_t slot_start = 0;
+  size_t slot_size = 0;
+
+  explicit operator bool() const { return slot_size != 0; }
+};
+
 // Pins the BRP-protected slot containing `p`, returning a handle that must
 // be released via UnwrapBackingSlot. If `p` is null or not inside a
-// BRP-protected partition, the returned handle is empty (size == 0) and
+// BRP-protected partition, the returned handle is empty (slot_size == 0) and
 // UnwrapBackingSlot is a no-op.
 PA_COMPONENT_EXPORT(RAW_PTR)
-std::optional<partition_alloc::SlotAddressAndSize> WrapBackingSlot(
-    const void* p);
+WrappedBackingSlot WrapBackingSlot(const void* p);
 
 // Releases a slot previously pinned by WrapBackingSlot. Safe to call with an
 // empty handle. CHECKs if the backing was freed while the wrapper held its
 // ref (a realloc-during-iteration UAF), turning the bug into a fail-fast
 // crash instead of a silent zapped-byte read.
 PA_COMPONENT_EXPORT(RAW_PTR)
-void UnwrapBackingSlot(std::optional<partition_alloc::SlotAddressAndSize> slot);
+void UnwrapBackingSlot(WrappedBackingSlot slot);
 
 }  // namespace internal
 
@@ -107,8 +115,8 @@ class ReallocProtectedIterator {
   }
 
   ReallocProtectedIterator(ReallocProtectedIterator&& other) noexcept
-      : inner_(other.inner_) {
-    slot_.swap(other.slot_);
+      : inner_(other.inner_), slot_(other.slot_) {
+    other.slot_ = {};
   }
 
   ~ReallocProtectedIterator() { internal::UnwrapBackingSlot(slot_); }
@@ -117,7 +125,7 @@ class ReallocProtectedIterator {
     if (this != &other) {
       internal::UnwrapBackingSlot(slot_);
       inner_ = other.inner_;
-      slot_.reset();
+      slot_ = {};
       Acquire();
     }
     return *this;
@@ -129,7 +137,7 @@ class ReallocProtectedIterator {
       internal::UnwrapBackingSlot(slot_);
       inner_ = other.inner_;
       slot_ = other.slot_;
-      other.slot_.reset();
+      other.slot_ = {};
     }
     return *this;
   }
@@ -274,7 +282,7 @@ class ReallocProtectedIterator {
   }
 
   Inner inner_{};
-  std::optional<partition_alloc::SlotAddressAndSize> slot_;
+  internal::WrappedBackingSlot slot_{};
 };
 
 // Free helpers for ergonomic opt-in at escape points.

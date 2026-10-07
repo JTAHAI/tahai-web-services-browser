@@ -58,7 +58,6 @@ class FakeLaunchedVideoCaptureDevice
                                    std::move(callback));
   }
   void RequestRefreshFrame() override { device_->RequestRefreshFrame(); }
-  void InvalidateBuffers() override { device_->InvalidateBuffers(); }
   void SetDesktopCaptureWindowIdAsync(gfx::NativeViewId window_id,
                                       base::OnceClosure done_cb) override {
     // Do nothing.
@@ -78,7 +77,7 @@ namespace content {
 FakeVideoCaptureDeviceLauncher::FakeVideoCaptureDeviceLauncher(
     media::VideoCaptureSystem* system)
     : system_(system) {
-  CHECK(system_, base::NotFatalUntil::M158);
+  DCHECK(system_);
 }
 
 FakeVideoCaptureDeviceLauncher::~FakeVideoCaptureDeviceLauncher() = default;

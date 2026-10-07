@@ -20,8 +20,6 @@
 
 namespace local_network_access {
 
-std::vector<blink::mojom::WebFeature> AllAddressSpaceFeatures();
-
 class LocalNetworkAccessBrowserTestBase : public policy::PolicyTest {
  public:
   using WebFeature = blink::mojom::WebFeature;

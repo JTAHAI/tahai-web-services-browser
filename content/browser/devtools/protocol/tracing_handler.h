@@ -54,8 +54,7 @@ class TracingHandler : public DevToolsDomainHandler, public Tracing::Backend {
  public:
   CONTENT_EXPORT TracingHandler(DevToolsAgentHostImpl* host,
                                 DevToolsIOContext* io_context,
-                                DevToolsSession* root_session,
-                                bool is_trusted);
+                                DevToolsSession* root_session);
 
   TracingHandler(const TracingHandler&) = delete;
   TracingHandler& operator=(const TracingHandler&) = delete;
@@ -89,8 +88,7 @@ class TracingHandler : public DevToolsDomainHandler, public Tracing::Backend {
              std::unique_ptr<StartCallback> callback) override;
   Response End() override;
   void GetCategories(std::unique_ptr<GetCategoriesCallback> callback) override;
-  void GetTrackEventDescriptor(
-      std::unique_ptr<GetTrackEventDescriptorCallback> callback) override;
+  Response GetTrackEventDescriptor(Binary* out_descriptor) override;
   void RequestMemoryDump(
       std::optional<bool> deterministic,
       std::optional<std::string> level_of_detail,
@@ -177,7 +175,6 @@ class TracingHandler : public DevToolsDomainHandler, public Tracing::Backend {
 
   // Session is for use in process filter and is null in browser.
   const raw_ptr<DevToolsSession> session_for_process_filter_;
-  const bool is_trusted_;
   bool did_initiate_recording_;
   bool return_as_stream_;
   bool gzip_compression_;

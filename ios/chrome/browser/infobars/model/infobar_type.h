@@ -43,7 +43,8 @@ enum class InfobarType {
   kInfobarTypeReaderMode = 17,
   // Message Infobar for Saving or Updating an Autofill AI entity.
   kInfobarTypeAutofillAiSaveEntity = 18,
-  // 19 was used for Private Inference notice, do not use.
+  // Message Infobar for Private Inference notice.
+  kInfobarTypeFormsAiPrivateInference = 19,
 };
 
 // Message "Confirm Infobars" types, these are the generic kInfobarTypeConfirm

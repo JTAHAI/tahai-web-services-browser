@@ -73,7 +73,7 @@ export class IpConfigInfoDrawerElement extends IpConfigInfoDrawerElementBase {
   declare protected nameServers: string;
   declare protected subnetMask: string;
   declare protected nameServersHeader: string;
-  private readonly browserProxy: DiagnosticsBrowserProxyImpl =
+  private browserProxy: DiagnosticsBrowserProxyImpl =
       DiagnosticsBrowserProxyImpl.getInstance();
 
   static get observers(): string[] {

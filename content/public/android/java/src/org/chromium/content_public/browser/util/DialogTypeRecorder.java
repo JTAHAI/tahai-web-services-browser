@@ -26,7 +26,7 @@ public class DialogTypeRecorder {
         DialogType.COLOR_PICKER,
         DialogType.SELECT_ELEMENT,
         DialogType.JS_POPUP,
-        DialogType.COUNT
+        DialogType.MAX
     })
     @Retention(RetentionPolicy.SOURCE)
     public @interface DialogType {
@@ -38,11 +38,11 @@ public class DialogTypeRecorder {
         int COLOR_PICKER = 5;
         int SELECT_ELEMENT = 6;
         int JS_POPUP = 7;
-        int COUNT = 8;
+        int MAX = 8;
     }
 
     public static void recordDialogType(@DialogType int type) {
-        RecordHistogram.recordEnumeratedHistogram(HISTOGRAM_NAME, type, DialogType.COUNT);
+        RecordHistogram.recordEnumeratedHistogram(HISTOGRAM_NAME, type, DialogType.MAX);
     }
 
     private DialogTypeRecorder() {}

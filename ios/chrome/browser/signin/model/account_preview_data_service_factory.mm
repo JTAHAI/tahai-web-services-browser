@@ -11,12 +11,11 @@
 #import "components/signin/core/browser/account_preview_data_service.h"
 #import "components/signin/core/browser/account_preview_data_service_impl.h"
 #import "components/signin/ios/browser/wait_for_network_callback_helper_ios.h"
+#import "components/signin/public/base/signin_pref_names.h"
 #import "components/signin/public/base/signin_switches.h"
 #import "ios/chrome/browser/metrics/model/ios_profile_metrics_service_factory.h"
-#import "ios/chrome/browser/shared/model/application_context/application_context.h"
 #import "ios/chrome/browser/shared/model/profile/profile_ios.h"
 #import "ios/chrome/browser/signin/model/identity_manager_factory.h"
-#import "ios/chrome/browser/sync/model/sync_service_factory.h"
 #import "ios/chrome/common/channel_info.h"
 #import "services/network/public/cpp/shared_url_loader_factory.h"
 
@@ -41,7 +40,6 @@ AccountPreviewDataServiceFactory::AccountPreviewDataServiceFactory()
                                     TestingCreation::kNoServiceForTests) {
   DependsOn(IdentityManagerFactory::GetInstance());
   DependsOn(IOSProfileMetricsServiceFactory::GetInstance());
-  DependsOn(SyncServiceFactory::GetInstance());
 }
 
 AccountPreviewDataServiceFactory::~AccountPreviewDataServiceFactory() = default;
@@ -49,7 +47,13 @@ AccountPreviewDataServiceFactory::~AccountPreviewDataServiceFactory() = default;
 std::unique_ptr<KeyedService>
 AccountPreviewDataServiceFactory::BuildServiceInstanceFor(
     ProfileIOS* profile) const {
-  if (!base::FeatureList::IsEnabled(switches::kEnableAccountPreviewData)) {
+  PrefService* prefs = profile->GetPrefs();
+  if (!base::FeatureList::IsEnabled(switches::kEnableAccountPreviewData) ||
+      // Since this is a managed preference, it is fine for it be checked only
+      // once per session.
+      // TODO(crbug.com/540713764): Consider moving this condition to the
+      // service itself, as well as checking the local preference value instead.
+      !prefs->GetBoolean(prefs::kSigninAllowed)) {
     return nullptr;
   }
 
@@ -57,9 +61,7 @@ AccountPreviewDataServiceFactory::BuildServiceInstanceFor(
       IOSProfileMetricsServiceFactory::GetForProfile(profile);
 
   return std::make_unique<signin::AccountPreviewDataServiceImpl>(
-      IdentityManagerFactory::GetForProfile(profile),
-      SyncServiceFactory::GetForProfile(profile),
-      GetApplicationContext()->GetLocalState(), profile->GetPrefs(),
+      IdentityManagerFactory::GetForProfile(profile), prefs,
       profile->GetSharedURLLoaderFactory(),
       std::make_unique<WaitForNetworkCallbackHelperIOS>(), ::GetChannel(),
       profile_metrics_service);

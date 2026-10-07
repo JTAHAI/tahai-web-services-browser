@@ -33,6 +33,7 @@ import org.mockito.invocation.InvocationOnMock;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
 import org.mockito.stubbing.Answer;
+import org.robolectric.annotation.Config;
 
 import org.chromium.base.ContextUtils;
 import org.chromium.base.library_loader.LibraryProcessType;
@@ -57,6 +58,7 @@ import java.util.concurrent.CountDownLatch;
 
 /** Unit tests for {@link NativeBackgroundTask}. */
 @RunWith(BaseRobolectricTestRunner.class)
+@Config(manifest = Config.NONE)
 public class NativeBackgroundTaskTest {
     @IntDef({InitializerSetup.SUCCESS, InitializerSetup.FAILURE, InitializerSetup.EXCEPTION})
     @Retention(RetentionPolicy.SOURCE)

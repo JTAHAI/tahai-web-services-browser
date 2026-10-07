@@ -13,6 +13,7 @@ import static org.chromium.chrome.browser.tasks.tab_management.color_picker.TabG
 import static org.chromium.chrome.browser.tasks.tab_management.color_picker.TabGroupColorPickerItemProperties.ON_CLICK_LISTENER;
 
 import android.content.Context;
+import android.content.res.ColorStateList;
 import android.content.res.Resources;
 import android.graphics.Color;
 import android.graphics.RectF;
@@ -90,9 +91,7 @@ public class TabGroupColorPickerItemViewBinder {
 
         // Update the color icon with the indicated color id.
         MaterialButton colorIcon = (MaterialButton) view;
-        colorIcon.setBackgroundTintList(
-                TabGroupColorPickerUtils.buildTabGroupColorPickerBackgroundTintList(
-                        context, color, isIncognito));
+        colorIcon.setBackgroundTintList(ColorStateList.valueOf(color));
         colorIcon.setRippleColor(
                 TabGroupColorPickerUtils.buildTabGroupColorPickerRippleColorStateList(
                         context, isIncognito));

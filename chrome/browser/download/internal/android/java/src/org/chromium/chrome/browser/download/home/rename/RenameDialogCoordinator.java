@@ -76,9 +76,8 @@ public class RenameDialogCoordinator {
 
     /**
      * Update rename dialog view and its sub-components, {@link ModalDialogManager}.
-     *
      * @param name The content to update the display on EditText box.
-     * @param error {@link RenameResult} Error message to display on subtitle view.
+     * @param error {@RenameResult} Error message to display on subtitle view.
      */
     public void showDialogWithErrorMessage(String name, int /*RenameResult*/ error) {
         mRenameDialogCustomView.updateToErrorView(name, error);

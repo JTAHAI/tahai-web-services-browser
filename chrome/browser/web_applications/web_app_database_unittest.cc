@@ -461,10 +461,7 @@ TEST_F(WebAppDatabaseTest, DatabaseOpenErrorPreventsSubsystemStartup) {
                    .sync_bridge_unsafe()
                    .GetDatabaseForTesting()
                    ->is_opened());
-  EXPECT_TRUE(fake_provider().on_registry_ready().is_signaled());
-  EXPECT_FALSE(fake_provider().is_registry_ready());
-  EXPECT_EQ(
-      fake_provider().command_manager().GetStartedCommandCountForTesting(), 0);
+  EXPECT_FALSE(fake_provider().on_registry_ready().is_signaled());
 }
 
 }  // namespace web_app

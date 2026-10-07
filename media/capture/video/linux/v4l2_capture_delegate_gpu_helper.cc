@@ -98,7 +98,8 @@ V4L2CaptureDelegateGpuHelper::~V4L2CaptureDelegateGpuHelper() = default;
 
 int V4L2CaptureDelegateGpuHelper::OnIncomingCapturedData(
     VideoCaptureDevice::Client* client,
-    base::span<const uint8_t> sample,
+    const uint8_t* sample,
+    size_t sample_size,
     const VideoCaptureFormat& capture_format,
     const gfx::ColorSpace& data_color_space,
     int rotation,
@@ -164,9 +165,8 @@ int V4L2CaptureDelegateGpuHelper::OnIncomingCapturedData(
   }
 
   int status = ConvertCaptureDataToNV12(
-      sample.data(), sample.size(), capture_format, dimensions,
-      data_color_space, rotation,
-      scoped_mapping->GetMemoryForPlane(VideoFrame::Plane::kY).data(),
+      sample, sample_size, capture_format, dimensions, data_color_space,
+      rotation, scoped_mapping->GetMemoryForPlane(VideoFrame::Plane::kY).data(),
       scoped_mapping->GetMemoryForPlane(VideoFrame::Plane::kUV).data(),
       scoped_mapping->Stride(VideoFrame::Plane::kY),
       scoped_mapping->Stride(VideoFrame::Plane::kUV));

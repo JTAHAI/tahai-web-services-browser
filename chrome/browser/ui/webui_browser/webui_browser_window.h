@@ -9,7 +9,6 @@
 
 #include "base/callback_list.h"
 #include "base/memory/raw_ptr.h"
-#include "chrome/browser/ui/bookmarks/bookmark_bar_controller.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/side_panel/side_panel_entry_key.h"
 #include "chrome/browser/ui/webui/webui_toolbar/icon_table.h"
@@ -28,7 +27,7 @@ class WebView;
 class Widget;
 }  // namespace views
 
-class BrowserWindowInterface;
+class Browser;
 class ExtensionsContainer;
 class WebUIToolbarExtensionsContainer;
 class WebUIBrowserModalDialogHost;
@@ -47,7 +46,7 @@ class WebUIBrowserWindow : public BrowserWindow,
                            public BookmarkBarController::Delegate,
                            public webui_toolbar::IconTable::Delegate {
  public:
-  explicit WebUIBrowserWindow(BrowserWindowInterface* browser);
+  explicit WebUIBrowserWindow(Browser* browser);
   ~WebUIBrowserWindow() override;
 
   // Returns the containing browser window for a WebContents that hosts
@@ -88,7 +87,9 @@ class WebUIBrowserWindow : public BrowserWindow,
   void OnTabDetached(content::WebContents* contents, bool was_active) override;
   gfx::Size GetContentsSize() const override;
   void SetContentsSize(const gfx::Size& size) override;
+  void UpdatePageActionIcon(PageActionIconType type) override;
   autofill::AutofillBubbleHandler* GetAutofillBubbleHandler() override;
+  void ExecutePageActionIconForTesting(PageActionIconType type) override;
   LocationBar* GetLocationBar() const override;
   void SetFocusToLocationBar(bool is_user_initiated) override;
   void UpdateReloadStopState(bool is_loading, bool force) override;
@@ -221,7 +222,7 @@ class WebUIBrowserWindow : public BrowserWindow,
   WebUIBrowserUI* GetWebUIBrowserUI() const;
   WebUIBrowserSidePanelUI* GetWebUIBrowserSidePanelUI();
 
-  BrowserWindowInterface* browser() { return browser_.get(); }
+  Browser* browser() { return browser_.get(); }
   views::Widget* widget() { return widget_.get(); }
 
   void PaintAsActiveChangedForTesting() { PaintAsActiveChanged(); }
@@ -285,7 +286,7 @@ class WebUIBrowserWindow : public BrowserWindow,
   std::optional<gfx::Size> deferred_contents_size_;
   ui::ElementTracker::Subscription contents_element_shown_subscription_;
 
-  const raw_ptr<BrowserWindowInterface> browser_;
+  const raw_ptr<Browser> browser_;
   std::unique_ptr<WebUIBrowserWebContentsDelegate> web_contents_delegate_;
   std::unique_ptr<WidgetDelegate> widget_delegate_;
   std::unique_ptr<views::Widget> widget_;

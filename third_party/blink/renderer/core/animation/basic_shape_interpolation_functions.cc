@@ -788,34 +788,33 @@ bool basic_shape_interpolation_functions::ShapesAreCompatible(
       To<BasicShapeNonInterpolableValue>(b));
 }
 
-BasicShapeInfo basic_shape_interpolation_functions::CreateBasicShape(
+BasicShape* basic_shape_interpolation_functions::CreateBasicShape(
     const InterpolableValue& interpolable_value,
     const NonInterpolableValue& untyped_non_interpolable_value,
     const CSSToLengthConversionData& conversion_data) {
   const auto& non_interpolable_value =
       To<BasicShapeNonInterpolableValue>(untyped_non_interpolable_value);
-  BasicShape* shape;
   switch (non_interpolable_value.GetShapeType()) {
     case BasicShape::kBasicShapeCircleType:
-      shape = circle_functions::CreateBasicShape(interpolable_value,
-                                                 conversion_data);
-      break;
-    case BasicShape::kBasicShapeEllipseType:
-      shape = ellipse_functions::CreateBasicShape(interpolable_value,
-                                                  conversion_data);
-      break;
-    case BasicShape::kBasicShapeInsetType:
-      shape = inset_functions::CreateBasicShape(interpolable_value,
+      return circle_functions::CreateBasicShape(interpolable_value,
                                                 conversion_data);
-      break;
+    case BasicShape::kBasicShapeEllipseType:
+      return ellipse_functions::CreateBasicShape(interpolable_value,
+                                                 conversion_data);
+    case BasicShape::kBasicShapeInsetType:
+      return inset_functions::CreateBasicShape(interpolable_value,
+                                               conversion_data);
     case BasicShape::kBasicShapePolygonType:
-      shape = polygon_functions::CreateBasicShape(
+      return polygon_functions::CreateBasicShape(
           interpolable_value, non_interpolable_value, conversion_data);
-      break;
     default:
       NOTREACHED();
   }
-  return {shape, non_interpolable_value.GetBox()};
+}
+
+ShapeReferenceBox basic_shape_interpolation_functions::GetBox(
+    const NonInterpolableValue& value) {
+  return To<BasicShapeNonInterpolableValue>(value).GetBox();
 }
 
 }  // namespace blink

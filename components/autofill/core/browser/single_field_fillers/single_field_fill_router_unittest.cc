@@ -16,7 +16,8 @@
 #include "components/autofill/core/browser/payments/test/mock_iban_manager.h"
 #include "components/autofill/core/browser/single_field_fillers/autocomplete/mock_autocomplete_history_manager.h"
 #include "components/autofill/core/browser/single_field_fillers/payments/mock_merchant_promo_code_manager.h"
-#include "components/autofill/core/browser/test_utils/autofill_test_util.h"
+#include "components/autofill/core/browser/suggestions/suggestions_context.h"
+#include "components/autofill/core/browser/test_utils/autofill_test_utils.h"
 #include "components/autofill/core/browser/webdata/mock_autofill_webdata_service.h"
 #include "components/autofill/core/common/autofill_features.h"
 #include "components/autofill/core/common/autofill_payments_features.h"
@@ -39,13 +40,16 @@ class SingleFieldFillRouterTest : public testing::Test {
  protected:
   SingleFieldFillRouterTest()
       : iban_manager_(&personal_data_manager().payments_data_manager()),
-        merchant_promo_code_manager_(&autofill_client_),
         single_field_fill_router_(&history_manager(),
                                   &iban_manager(),
                                   &promo_code_manager()) {
     prefs_ = test::PrefServiceForTesting();
 
+    // Mock such that we don't trigger the cleanup.
+    prefs_->SetInteger(prefs::kAutocompleteLastVersionRetentionPolicy,
+                       version_info::GetMajorVersionNumberAsInt());
     web_data_service_ = base::MakeRefCounted<MockAutofillWebDataService>();
+    history_manager().Init(web_data_service_, prefs_.get(), false);
 
     FormData form;
     test_api(form).Append(
@@ -110,8 +114,9 @@ TEST_F(SingleFieldFillRouterTest, RouteToAllFillers_OnWillSubmitForm) {
 
   EXPECT_CALL(history_manager(),
               OnWillSubmitFormWithFields(SizeIs(form_data.fields().size()),
-                                         &form_structure));
-  router().OnWillSubmitForm(form_data, &form_structure);
+                                         &form_structure, true));
+  router().OnWillSubmitForm(form_data, &form_structure,
+                            /*is_autocomplete_enabled=*/true);
 }
 
 // Ensure that the router routes to fillers for this CancelPendingQueries call.

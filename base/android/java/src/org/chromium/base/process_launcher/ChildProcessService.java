@@ -9,6 +9,7 @@ import static org.chromium.build.NullUtil.assumeNonNull;
 import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.ApplicationInfo;
 import android.os.Binder;
 import android.os.Build;
 import android.os.Debug;
@@ -34,8 +35,11 @@ import org.chromium.base.DeviceInfo;
 import org.chromium.base.EarlyTraceEvent;
 import org.chromium.base.JavaUtils;
 import org.chromium.base.Log;
+import org.chromium.base.MemoryPressureLevel;
+import org.chromium.base.ThreadUtils;
 import org.chromium.base.library_loader.IRelroLibInfo;
 import org.chromium.base.library_loader.LibraryLoader;
+import org.chromium.base.memory.MemoryPressureMonitor;
 import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.base.version_info.VersionConstantsBridge;
 import org.chromium.build.annotations.Initializer;
@@ -115,6 +119,17 @@ public class ChildProcessService {
         mApplicationContext = applicationContext;
     }
 
+    // These are the strings we will use to compare a child to parent process to ensure they are
+    // running the same code.
+    public static String[] convertToStrings(ApplicationInfo appInfo) {
+        String sourceDir = appInfo.sourceDir;
+        String sharedLibraryFiles = null;
+        if (appInfo.sharedLibraryFiles != null) {
+            sharedLibraryFiles = TextUtils.join(":", appInfo.sharedLibraryFiles);
+        }
+        return new String[] {sourceDir, sharedLibraryFiles};
+    }
+
     // Binder object used by clients for this service.
     private final IChildProcessService.Stub mBinder =
             new IChildProcessService.Stub() {
@@ -147,8 +162,9 @@ public class ChildProcessService {
                 }
 
                 @Override
-                public String getSourceDir() {
-                    return mApplicationContext.getApplicationInfo().sourceDir;
+                public String[] getAppInfoStrings() {
+                    ApplicationInfo appInfo = mApplicationContext.getApplicationInfo();
+                    return convertToStrings(appInfo);
                 }
 
                 @Override
@@ -193,6 +209,36 @@ public class ChildProcessService {
                 public void forceKill() {
                     assert mServiceBound;
                     Process.killProcess(Process.myPid());
+                }
+
+                @Override
+                public void onMemoryPressure(@MemoryPressureLevel int pressure) {
+                    // This method is called by the host process when the host process reports
+                    // pressure to its native side. The key difference between the host process
+                    // and its services is that the host process polls memory pressure when it
+                    // gets CRITICAL, and periodically invokes pressure listeners until pressure
+                    // subsides. (See MemoryPressureMonitor for more info.)
+                    //
+                    // Services don't poll, so this side-channel is used to notify services about
+                    // memory pressure from the host process's POV.
+                    //
+                    // However, since both host process and services listen to ComponentCallbacks2,
+                    // we can't be sure that the host process won't get better signals than their
+                    // services.
+                    // I.e. we need to watch out for a situation where a service gets CRITICAL, but
+                    // the host process gets MODERATE - in this case we need to ignore MODERATE.
+                    //
+                    // So we're ignoring pressure from the host process if it's better than the last
+                    // reported pressure. I.e. the host process can drive pressure up, but it'll go
+                    // down only when we the service get a signal through ComponentCallbacks2.
+                    ThreadUtils.postOnUiThread(
+                            () -> {
+                                if (pressure
+                                        >= MemoryPressureMonitor.INSTANCE
+                                                .getLastReportedPressure()) {
+                                    MemoryPressureMonitor.INSTANCE.notifyPressure(pressure);
+                                }
+                            });
                 }
 
                 @Override

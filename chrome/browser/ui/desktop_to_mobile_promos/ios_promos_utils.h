@@ -9,7 +9,7 @@
 #include "components/desktop_to_mobile_promos/promos_types.h"
 #include "components/sync_device_info/device_info.h"
 
-class BrowserWindowInterface;
+class Browser;
 class Profile;
 
 namespace ios_promos_utils {
@@ -20,7 +20,7 @@ namespace ios_promos_utils {
 // be shown the promo.
 void VerifyIOSPromoEligibility(
     desktop_to_mobile_promos::PromoType promo_type,
-    BrowserWindowInterface* browser,
+    Browser* browser,
     desktop_to_mobile_promos::BubbleType bubble_type =
         desktop_to_mobile_promos::BubbleType::kQRCode);
 
@@ -29,7 +29,7 @@ void VerifyIOSPromoEligibility(
 // the VCN flow callback is null. Calls the correct callback depending on
 // whether the promo will be shown or not.
 void MaybeOverrideCardConfirmationBubbleWithIOSPaymentPromo(
-    BrowserWindowInterface* browser,
+    Browser* browser,
     base::OnceClosure promo_shown_callback,
     base::OnceClosure promo_not_shown_callback);
 

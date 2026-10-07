@@ -92,7 +92,6 @@ public class HistoryManager
     private @Nullable HistoryContentManager mContentManager;
     private @Nullable SelectionDelegate<HistoryItem> mSelectionDelegate;
     private @Nullable HistoryManagerToolbar mToolbar;
-    private @Nullable HistoryDesktopNavigationCoordinator mDesktopNavigationCoordinator;
     private TextView mEmptyView;
     private final SnackbarManager mSnackbarManager;
     private final SettableMonotonicObservableSupplier<Boolean>
@@ -189,22 +188,10 @@ public class HistoryManager
 
         mRootView = new FrameLayout(mActivity);
 
-        final boolean isDesktopLayoutEnabled =
-                ChromeFeatureList.isEnabled(ChromeFeatureList.ANDROID_DESKTOP_HISTORY_LAYOUT);
-        int layoutId =
-                isDesktopLayoutEnabled ? R.layout.history_main_desktop : R.layout.history_main;
-
         // 1. Create selectable components.
-        ViewGroup mainView = (ViewGroup) LayoutInflater.from(activity).inflate(layoutId, null);
-        SelectableListLayout<HistoryItem> selectableListLayout =
-                mainView.findViewById(R.id.selectable_list);
-        // For the new desktop architecture, the selectable list is embedded in the layout, so it is
-        // found via findViewById. The fallback directly casts the mainView for the legacy mobile
-        // layout where the list acts as the root view.
         mSelectableListLayout =
-                selectableListLayout != null
-                        ? selectableListLayout
-                        : (SelectableListLayout<HistoryItem>) mainView;
+                (SelectableListLayout<HistoryItem>)
+                        LayoutInflater.from(activity).inflate(R.layout.history_main, null);
         mSelectionDelegate = new SelectionDelegate<>();
         mSelectionDelegate.addObserver(this);
 
@@ -240,16 +227,6 @@ public class HistoryManager
                 mContentManager.getAdapter(),
                 mContentManager.getRecyclerView(),
                 edgeToEdgePadAdjusterGenerator);
-
-        if (isDesktopLayoutEnabled) {
-            View navigationPane = mainView.findViewById(R.id.navigation_pane);
-            mDesktopNavigationCoordinator =
-                    new HistoryDesktopNavigationCoordinator(
-                            mActivity,
-                            navigationPane,
-                            this::showHistoryPane,
-                            this::showTabsFromOtherDevicesPane);
-        }
 
         mIsLargeFormFactorDevice = DeviceFormFactor.isNonMultiDisplayContextOnTablet(mActivity);
         if (mContentManager.showAppFilter() || mIsLargeFormFactorDevice) {
@@ -314,9 +291,7 @@ public class HistoryManager
         mToolbar.setFocusable(true);
 
         // 4. Width constrain the SelectableListLayout.
-        if (!isDesktopLayoutEnabled) {
-            mSelectableListLayout.configureWideDisplayStyle();
-        }
+        mSelectableListLayout.configureWideDisplayStyle();
 
         // 5. Initialize empty view.
         initializeEmptyView();
@@ -324,11 +299,11 @@ public class HistoryManager
         // 6. Load items.
         mContentManager.startLoadingItems();
 
-        setContentView(mainView);
+        setContentView(mSelectableListLayout);
         mRootView.addView(mContentView);
         mSelectableListLayout
                 .getHandleBackPressChangedSupplier()
-                .addSyncObserverAndPostIfNonNull(_ -> onBackPressStateChanged());
+                .addSyncObserverAndPostIfNonNull((x) -> onBackPressStateChanged());
 
         onBackPressStateChanged(); // Initialize back press State.
         mContentManager.maybeQueryApps();
@@ -483,14 +458,6 @@ public class HistoryManager
         }
     }
 
-    private void showHistoryPane() {
-        // TODO(crbug.com/546215044): embed the history pane.
-    }
-
-    private void showTabsFromOtherDevicesPane() {
-        // TODO(crbug.com/546215044): embed the cross device pane.
-    }
-
     /**
      * @return The view that shows the main browsing history UI.
      */
@@ -516,7 +483,7 @@ public class HistoryManager
         ImageButton dismissButton =
                 placeholderView.findViewById(R.id.close_history_placeholder_button);
         if (mIsSeparateActivity) {
-            dismissButton.setOnClickListener(_ -> mActivity.finish());
+            dismissButton.setOnClickListener(v -> mActivity.finish());
         } else {
             dismissButton.setVisibility(View.GONE);
         }
@@ -535,11 +502,6 @@ public class HistoryManager
         if (mIsIncognito) {
             // If Incognito placeholder is shown no need to call any destroy method.
             return;
-        }
-
-        if (mDesktopNavigationCoordinator != null) {
-            mDesktopNavigationCoordinator.destroy();
-            mDesktopNavigationCoordinator = null;
         }
 
         if (mSelectableListLayout != null) {

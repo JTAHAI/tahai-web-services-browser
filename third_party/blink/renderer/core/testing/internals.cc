@@ -48,7 +48,6 @@
 #include "third_party/blink/renderer/bindings/core/v8/script_promise.h"
 #include "third_party/blink/renderer/bindings/core/v8/script_promise_resolver.h"
 #include "third_party/blink/renderer/bindings/core/v8/v8_binding_for_core.h"
-#include "third_party/blink/renderer/core/ad_tracker/extension_script_tracker.h"
 #include "third_party/blink/renderer/core/animation/document_timeline.h"
 #include "third_party/blink/renderer/core/css/css_property_names.h"
 #include "third_party/blink/renderer/core/css/parser/css_property_parser.h"
@@ -198,7 +197,6 @@
 #include "third_party/blink/renderer/platform/wtf/cross_thread_copier_base.h"
 #include "third_party/blink/renderer/platform/wtf/cross_thread_copier_std.h"
 #include "third_party/blink/renderer/platform/wtf/dtoa.h"
-#include "third_party/blink/renderer/platform/wtf/text/format.h"
 #include "third_party/blink/renderer/platform/wtf/text/string_buffer.h"
 #include "third_party/blink/renderer/platform/wtf/text/text_encoding_registry.h"
 #include "third_party/blink/renderer/platform/wtf/threading.h"
@@ -1009,8 +1007,9 @@ uint16_t Internals::compareTreeScopePosition(
   if (!tree_scope1 || !tree_scope2) {
     exception_state.ThrowDOMException(
         DOMExceptionCode::kInvalidAccessError,
-        Format("The {} node is neither a document node, nor a shadow root.",
-               tree_scope1 ? "second" : "first"));
+        UNSAFE_TODO(String::Format(
+            "The %s node is neither a document node, nor a shadow root.",
+            tree_scope1 ? "second" : "first")));
     return 0;
   }
   return tree_scope1->ComparePosition(*tree_scope2);
@@ -1320,19 +1319,18 @@ void Internals::setMarker(Document* document,
   if (!type) {
     exception_state.ThrowDOMException(
         DOMExceptionCode::kSyntaxError,
-        StrCat({"The marker type provided ('", marker_type, "') is invalid."}));
+        "The marker type provided ('" + marker_type + "') is invalid.");
     return;
   }
 
   if (type != DocumentMarker::kSpelling && type != DocumentMarker::kGrammar &&
       type != DocumentMarker::kGlic) {
-    exception_state.ThrowDOMException(
-        DOMExceptionCode::kSyntaxError,
-        StrCat({"internals.setMarker() currently only "
-                "supports spelling, grammar and glic "
-                " markers; attempted to add marker of "
-                " type '",
-                marker_type, "'."}));
+    exception_state.ThrowDOMException(DOMExceptionCode::kSyntaxError,
+                                      "internals.setMarker() currently only "
+                                      "supports spelling, grammar and glic "
+                                      " markers; attempted to add marker of "
+                                      " type '" +
+                                          marker_type + "'.");
     return;
   }
 
@@ -1365,17 +1363,16 @@ void Internals::removeMarker(Document* document,
   if (!type) {
     exception_state.ThrowDOMException(
         DOMExceptionCode::kSyntaxError,
-        StrCat({"The marker type provided ('", marker_type, "') is invalid."}));
+        "The marker type provided ('" + marker_type + "') is invalid.");
     return;
   }
 
   if (type != DocumentMarker::kSpelling && type != DocumentMarker::kGrammar) {
-    exception_state.ThrowDOMException(
-        DOMExceptionCode::kSyntaxError,
-        StrCat({"internals.setMarker() currently only "
-                "supports spelling and grammar markers; "
-                "attempted to add marker of type '",
-                marker_type, "'."}));
+    exception_state.ThrowDOMException(DOMExceptionCode::kSyntaxError,
+                                      "internals.setMarker() currently only "
+                                      "supports spelling and grammar markers; "
+                                      "attempted to add marker of type '" +
+                                          marker_type + "'.");
     return;
   }
 
@@ -1398,7 +1395,7 @@ unsigned Internals::markerCountForNode(Text* text,
   if (!marker_types) {
     exception_state.ThrowDOMException(
         DOMExceptionCode::kSyntaxError,
-        StrCat({"The marker type provided ('", marker_type, "') is invalid."}));
+        "The marker type provided ('" + marker_type + "') is invalid.");
     return 0;
   }
 
@@ -1434,7 +1431,7 @@ DocumentMarker* Internals::MarkerAt(Text* text,
   if (!marker_types) {
     exception_state.ThrowDOMException(
         DOMExceptionCode::kSyntaxError,
-        StrCat({"The marker type provided ('", marker_type, "') is invalid."}));
+        "The marker type provided ('" + marker_type + "') is invalid.");
     return nullptr;
   }
 
@@ -1513,9 +1510,9 @@ void Internals::addTextMatchMarker(const Range* range,
   std::optional<TextMatchMarker::MatchStatus> match_status_enum =
       MatchStatusFrom(match_status);
   if (!match_status_enum) {
-    exception_state.ThrowDOMException(DOMExceptionCode::kSyntaxError,
-                                      StrCat({"The match status provided ('",
-                                              match_status, "') is invalid."}));
+    exception_state.ThrowDOMException(
+        DOMExceptionCode::kSyntaxError,
+        "The match status provided ('" + match_status + "') is invalid.");
     return;
   }
 
@@ -1597,18 +1594,17 @@ void AddStyleableMarkerHelper(const Range* range,
   if (!thickness) {
     exception_state.ThrowDOMException(
         DOMExceptionCode::kSyntaxError,
-        StrCat(
-            {"The thickness provided ('", thickness_value, "') is invalid."}));
+        "The thickness provided ('" + thickness_value + "') is invalid.");
     return;
   }
 
   std::optional<ImeTextSpanUnderlineStyle> underline_style =
       UnderlineStyleFrom(underline_style_value);
   if (!underline_style_value) {
-    exception_state.ThrowDOMException(
-        DOMExceptionCode::kSyntaxError,
-        StrCat({"The underline style provided ('", underline_style_value,
-                "') is invalid."}));
+    exception_state.ThrowDOMException(DOMExceptionCode::kSyntaxError,
+                                      "The underline style provided ('" +
+                                          underline_style_value +
+                                          "') is invalid.");
     return;
   }
 
@@ -2811,7 +2807,7 @@ void Internals::disableReferencedFilePathsVerification() const {
     return;
   GetFrame()
       ->GetDocument()
-      ->EnsureFormController()
+      ->GetFormController()
       .SetDropReferencedFilePathsForTesting();
 }
 
@@ -3727,8 +3723,7 @@ String Internals::getAgentId(DOMWindow* window) {
   // This serializes a pointer as a decimal number, which is a bit ugly, but
   // it works. Is there any utility to dump a number in a hexadecimal form?
   // I couldn't find one in WTF.
-  return StrCat(
-      {String::Number(process_id), ":", String::Number(agent_address)});
+  return String::Number(process_id) + ":" + String::Number(agent_address);
 }
 
 void Internals::useMockOverlayScrollbars() {
@@ -3907,23 +3902,6 @@ ScriptPromise<IDLString> Internals::LCPPrediction(ScriptState* script_state,
   lcpp->AddLCPPredictedCallback(
       BindOnce(&OnLCPPredicted, WrapPersistent(resolver)));
   return promise;
-}
-
-bool Internals::isExtensionScriptInStack() const {
-  if (!GetFrame()) {
-    return false;
-  }
-  return GetFrame()->GetExtensionScriptTracker() &&
-         GetFrame()->GetExtensionScriptTracker()->IsExtensionScriptInStack();
-}
-
-bool Internals::isExtensionScriptUrl(const String& url) const {
-  if (!GetFrame()) {
-    return false;
-  }
-  return GetFrame()->GetExtensionScriptTracker() &&
-         GetFrame()->GetExtensionScriptTracker()->IsExtensionScriptUrlMarked(
-             url);
 }
 
 }  // namespace blink

@@ -10,7 +10,7 @@
 namespace blink {
 namespace {
 
-ImeTextSpan CreateImeTextSpan(wtf_size_t start_offset, wtf_size_t end_offset) {
+ImeTextSpan CreateImeTextSpan(unsigned start_offset, unsigned end_offset) {
   return ImeTextSpan(ImeTextSpan::Type::kComposition, start_offset, end_offset,
                      Color::kTransparent,
                      ui::mojom::ImeTextSpanThickness::kNone,
@@ -19,8 +19,8 @@ ImeTextSpan CreateImeTextSpan(wtf_size_t start_offset, wtf_size_t end_offset) {
 }
 
 ImeTextSpan CreateImeTextSpan(
-    wtf_size_t start_offset,
-    wtf_size_t end_offset,
+    unsigned start_offset,
+    unsigned end_offset,
     ui::mojom::ImeTextSpanUnderlineStyle underline_style) {
   return ImeTextSpan(ImeTextSpan::Type::kComposition, start_offset, end_offset,
                      Color::kTransparent,
@@ -28,8 +28,8 @@ ImeTextSpan CreateImeTextSpan(
                      Color::kTransparent, Color::kTransparent);
 }
 
-ImeTextSpan CreateImeTextSpan(wtf_size_t start_offset,
-                              wtf_size_t end_offset,
+ImeTextSpan CreateImeTextSpan(unsigned start_offset,
+                              unsigned end_offset,
                               bool interim_char_selection) {
   return ImeTextSpan(
       ImeTextSpan::Type::kComposition, start_offset, end_offset,
@@ -69,24 +69,29 @@ TEST(ImeTextSpanTest, EndBeforeStart) {
 }
 
 TEST(ImeTextSpanTest, LastChar) {
-  constexpr wtf_size_t kMax = std::numeric_limits<wtf_size_t>::max();
-  ImeTextSpan ime_text_span = CreateImeTextSpan(kMax - 1, kMax);
-  EXPECT_EQ(kMax - 1, ime_text_span.StartOffset());
-  EXPECT_EQ(kMax, ime_text_span.EndOffset());
+  ImeTextSpan ime_text_span =
+      CreateImeTextSpan(std::numeric_limits<unsigned>::max() - 1,
+                        std::numeric_limits<unsigned>::max());
+  EXPECT_EQ(std::numeric_limits<unsigned>::max() - 1,
+            ime_text_span.StartOffset());
+  EXPECT_EQ(std::numeric_limits<unsigned>::max(), ime_text_span.EndOffset());
 }
 
 TEST(ImeTextSpanTest, LastCharEndBeforeStart) {
-  constexpr wtf_size_t kMax = std::numeric_limits<wtf_size_t>::max();
-  ImeTextSpan ime_text_span = CreateImeTextSpan(kMax, kMax - 1);
-  EXPECT_EQ(kMax - 1, ime_text_span.StartOffset());
-  EXPECT_EQ(kMax, ime_text_span.EndOffset());
+  ImeTextSpan ime_text_span =
+      CreateImeTextSpan(std::numeric_limits<unsigned>::max(),
+                        std::numeric_limits<unsigned>::max() - 1);
+  EXPECT_EQ(std::numeric_limits<unsigned>::max() - 1,
+            ime_text_span.StartOffset());
+  EXPECT_EQ(std::numeric_limits<unsigned>::max(), ime_text_span.EndOffset());
 }
 
 TEST(ImeTextSpanTest, LastCharEndBeforeStartZeroEnd) {
-  constexpr wtf_size_t kMax = std::numeric_limits<wtf_size_t>::max();
-  ImeTextSpan ime_text_span = CreateImeTextSpan(kMax, 0);
-  EXPECT_EQ(kMax - 1, ime_text_span.StartOffset());
-  EXPECT_EQ(kMax, ime_text_span.EndOffset());
+  ImeTextSpan ime_text_span =
+      CreateImeTextSpan(std::numeric_limits<unsigned>::max(), 0);
+  EXPECT_EQ(std::numeric_limits<unsigned>::max() - 1,
+            ime_text_span.StartOffset());
+  EXPECT_EQ(std::numeric_limits<unsigned>::max(), ime_text_span.EndOffset());
 }
 
 TEST(ImeTextSpanTest, UnderlineStyles) {

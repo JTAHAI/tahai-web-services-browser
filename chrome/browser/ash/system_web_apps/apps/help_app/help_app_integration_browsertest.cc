@@ -42,9 +42,11 @@
 #include "chrome/browser/ash/system_web_apps/system_web_app_manager.h"
 #include "chrome/browser/ash/system_web_apps/test_support/system_web_app_browsertest_base.h"
 #include "chrome/browser/ash/system_web_apps/test_support/system_web_app_integration_test.h"
+#include "chrome/browser/notifications/notification_display_service_tester.h"
 #include "chrome/browser/ui/ash/system/system_tray_client_impl.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "chrome/browser/ui/chrome_pages.h"
 #include "chrome/browser/ui/webui/ash/system_web_dialog/system_web_dialog_delegate.h"
@@ -74,7 +76,6 @@
 #include "content/public/test/test_utils.h"
 #include "net/test/embedded_test_server/embedded_test_server.h"
 #include "testing/gtest/include/gtest/gtest.h"
-#include "ui/base/base_window.h"
 #include "ui/base/idle/idle.h"
 #include "ui/base/idle/scoped_set_idle_state.h"
 #include "ui/base/l10n/l10n_util.h"
@@ -85,7 +86,6 @@
 #include "ui/gfx/color_palette.h"
 #include "ui/gfx/geometry/rect.h"
 #include "ui/gfx/geometry/size.h"
-#include "ui/message_center/message_center.h"
 #include "ui/views/widget/any_widget_observer.h"
 #include "ui/views/widget/widget.h"
 #include "url/url_constants.h"
@@ -188,7 +188,7 @@ IN_PROC_BROWSER_TEST_P(HelpAppIntegrationTest, HelpAppV2MinWindowSize) {
 // the screen.
 IN_PROC_BROWSER_TEST_P(HelpAppIntegrationTest, HelpAppV2DefaultWindowBounds) {
   WaitForTestSystemAppInstall();
-  BrowserWindowInterface* browser = nullptr;
+  Browser* browser;
   LaunchApp(SystemWebAppType::HELP, &browser);
   gfx::Rect work_area =
       display::Screen::Get()->GetDisplayForNewWindows().work_area();
@@ -373,6 +373,8 @@ IN_PROC_BROWSER_TEST_P(HelpAppIntegrationTest,
                        HelpAppV2ReleaseNotesNotificationFromBackground) {
   WaitForTestSystemAppInstall();
   content::WebContents* web_contents = LaunchApp(SystemWebAppType::HELP);
+  auto display_service =
+      std::make_unique<NotificationDisplayServiceTester>(/*profile=*/nullptr);
   base::UserActionTester user_action_tester;
   profile()->GetPrefs()->SetInteger(
       ash::help_app::prefs::kHelpAppNotificationLastShownMilestone, 20);
@@ -409,16 +411,17 @@ IN_PROC_BROWSER_TEST_P(HelpAppIntegrationTest,
   // Wait until the browser with the web contents closes.
   observer.Wait();
   // Assert that the notification really is there.
-  ASSERT_FALSE(
-      message_center::MessageCenter::Get()->FindVisibleNotificationById(
-          "show_release_notes_notification"));
+  auto notifications = display_service->GetDisplayedNotificationsForType(
+      NotificationHandler::Type::TRANSIENT);
+  ASSERT_EQ(0u, notifications.size());
 
   // Click on the notification.
   GURL expected_url = GURL("chrome://help-app/updates");
   content::TestNavigationObserver navigation_observer(expected_url);
   navigation_observer.StartWatchingNewWebContents();
-  message_center::MessageCenter::Get()->ClickOnNotification(
-      "show_release_notes_notification");
+  display_service->SimulateClick(NotificationHandler::Type::TRANSIENT,
+                                 "show_release_notes_notification",
+                                 std::nullopt, std::nullopt);
 #if !BUILDFLAG(ENABLE_CROS_HELP_APP)
   // We just have the original browser. No new app opens.
   EXPECT_EQ(1u, GlobalBrowserCollection::GetInstance()->GetSize());
@@ -434,6 +437,8 @@ IN_PROC_BROWSER_TEST_P(
   content::TestNavigationObserver navigation_observer(
       expected_trusted_frame_url);
   navigation_observer.StartWatchingNewWebContents();
+  auto display_service =
+      std::make_unique<NotificationDisplayServiceTester>(/*profile=*/nullptr);
 
   profile()->GetPrefs()->SetInteger(
       ash::help_app::prefs::kHelpAppNotificationLastShownMilestone, 20);
@@ -441,9 +446,9 @@ IN_PROC_BROWSER_TEST_P(
       ->MaybeShowReleaseNotesNotification();
 
   // The release notes notification should not appear.
-  EXPECT_FALSE(
-      message_center::MessageCenter::Get()->FindVisibleNotificationById(
-          "show_release_notes_notification"));
+  auto notifications = display_service->GetDisplayedNotificationsForType(
+      NotificationHandler::Type::TRANSIENT);
+  EXPECT_EQ(0u, notifications.size());
   // The release notes suggestion chip should not appear.
   EXPECT_EQ(profile()->GetPrefs()->GetInteger(
                 ash::prefs::kReleaseNotesSuggestionChipTimesLeftToShow),
@@ -466,6 +471,8 @@ IN_PROC_BROWSER_TEST_P(
   content::TestNavigationObserver navigation_observer(
       expected_trusted_frame_url);
   navigation_observer.StartWatchingNewWebContents();
+  auto display_service =
+      std::make_unique<NotificationDisplayServiceTester>(/*profile=*/nullptr);
 
   profile()->GetPrefs()->SetInteger(
       ash::help_app::prefs::kHelpAppNotificationLastShownMilestone, 20);
@@ -473,9 +480,9 @@ IN_PROC_BROWSER_TEST_P(
       ->MaybeShowReleaseNotesNotification();
 
   // The release notes notification should not appear.
-  EXPECT_FALSE(
-      message_center::MessageCenter::Get()->FindVisibleNotificationById(
-          "show_release_notes_notification"));
+  auto notifications = display_service->GetDisplayedNotificationsForType(
+      NotificationHandler::Type::TRANSIENT);
+  EXPECT_EQ(0u, notifications.size());
   // The release notes suggestion chip should not appear.
   EXPECT_EQ(profile()->GetPrefs()->GetInteger(
                 ash::prefs::kReleaseNotesSuggestionChipTimesLeftToShow),
@@ -502,7 +509,7 @@ IN_PROC_BROWSER_TEST_P(HelpAppIntegrationTest, HelpAppV2NavigateOnRelaunch) {
   // There should initially be a single browser window.
   EXPECT_EQ(1u, GlobalBrowserCollection::GetInstance()->GetSize());
 
-  BrowserWindowInterface* browser = nullptr;
+  Browser* browser;
   content::WebContents* web_contents =
       LaunchApp(SystemWebAppType::HELP, &browser);
 
@@ -877,7 +884,7 @@ IN_PROC_BROWSER_TEST_P(HelpAppIntegrationTest,
                                 "javascript:alert('Hello World')"};
   for (const std::string& test_url : invalid_urls) {
     // Launch a new Help app window per test URL.
-    BrowserWindowInterface* help_app_browser = nullptr;
+    Browser* help_app_browser;
     content::WebContents* web_contents =
         LaunchApp(SystemWebAppType::HELP, &help_app_browser);
 

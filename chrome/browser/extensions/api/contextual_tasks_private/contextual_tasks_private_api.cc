@@ -14,7 +14,6 @@
 #include "chrome/browser/tab_list/tab_list_interface.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/common/extensions/api/contextual_tasks_private.h"
-#include "components/contextual_search/contextual_search_session_handle.h"
 #include "components/contextual_tasks/public/contextual_tasks_service.h"
 #include "components/contextual_tasks/public/features.h"
 #include "components/contextual_tasks/public/utils.h"
@@ -169,17 +168,16 @@ ContextualTasksPrivateLaunchPanelInNewTabFunction::Run() {
 
   // Determine the target host: use the forced embedded page host if set;
   // otherwise, default to the host/origin of the one the request came from.
-  std::optional<contextual_tasks::HostOverride> forced_host =
-      contextual_tasks::GetForcedEmbeddedPageHost();
-  contextual_tasks::HostOverride target_host =
-      forced_host.value_or(contextual_tasks::HostOverride{
-          std::string(rfh->GetLastCommittedURL().host())});
+  std::string host = contextual_tasks::GetForcedEmbeddedPageHost();
+  if (host.empty()) {
+    host = rfh->GetLastCommittedURL().host();
+  }
 
   GURL default_ai_url = ui_service->GetDefaultAiPageUrl();
   GURL::Replacements replacements;
   replacements.SetSchemeStr(url::kHttpsScheme);
-  GURL base_aim_url =
-      target_host.ApplyToUrl(default_ai_url.ReplaceComponents(replacements));
+  replacements.SetHostStr(host);
+  GURL base_aim_url = default_ai_url.ReplaceComponents(replacements);
 
   GURL aim_url = AppendAimUrlParams(base_aim_url, params->details.aim_params);
   aim_url = contextual_tasks::AppendAimEntryPointParams(

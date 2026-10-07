@@ -18,7 +18,6 @@
 #include "chrome/browser/media/router/media_router_feature.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/tabs/alert/tab_alert_controller.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/tabs/tab_strip_model_delegate.h"
@@ -419,12 +418,12 @@ IN_PROC_BROWSER_TEST_F(CastMirroringServiceHostBrowserTest, TabIndicator) {
   // UI's model is sent an event that might change the indicator status.
   class IndicatorChangeObserver : public TabStripModelObserver {
    public:
-    explicit IndicatorChangeObserver(BrowserWindowInterface* browser)
-        : browser_(browser) {
-      browser_->GetTabStripModel()->AddObserver(this);
+    explicit IndicatorChangeObserver(Browser* browser) : browser_(browser) {
+      browser_->tab_strip_model()->AddObserver(this);
     }
 
     void OnTabChangedAt(tabs::TabInterface* tab,
+                        int index,
                         TabChangeType change_type) override {
       std::move(on_tab_changed_).Run();
     }
@@ -436,7 +435,7 @@ IN_PROC_BROWSER_TEST_F(CastMirroringServiceHostBrowserTest, TabIndicator) {
     }
 
    private:
-    const raw_ptr<BrowserWindowInterface> browser_;
+    const raw_ptr<Browser> browser_;
     base::OnceClosure on_tab_changed_;
   };
 

@@ -8,7 +8,6 @@
 #include <string>
 
 #include "components/password_manager/core/browser/actor_login/actor_login_service.h"
-#include "components/password_manager/core/browser/password_store/stored_credential.h"
 #include "url/gurl.h"
 #include "url/origin.h"
 
@@ -22,8 +21,9 @@ struct FormFinderResult;
 // change flow.
 class PasswordChangeFromCheckupActorLoginService : public ActorLoginService {
  public:
-  explicit PasswordChangeFromCheckupActorLoginService(
-      password_manager::StoredCredential credential);
+  PasswordChangeFromCheckupActorLoginService(std::u16string username,
+                                             std::u16string password,
+                                             GURL url);
   ~PasswordChangeFromCheckupActorLoginService() override;
 
   PasswordChangeFromCheckupActorLoginService(
@@ -54,7 +54,9 @@ class PasswordChangeFromCheckupActorLoginService : public ActorLoginService {
       CredentialsOrErrorReply callback,
       FormFinderResult form_finder_result);
 
-  password_manager::StoredCredential credential_;
+  std::u16string username_;
+  std::u16string password_;
+  GURL url_;
   std::unique_ptr<ActorLoginFormFinder> login_form_finder_;
   std::unique_ptr<AutomatedPasswordChangeCredentialFiller> credential_filler_;
   base::WeakPtrFactory<PasswordChangeFromCheckupActorLoginService>

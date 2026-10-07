@@ -4,7 +4,6 @@
 
 package org.chromium.chrome.browser.actor;
 
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -21,6 +20,7 @@ import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
+import org.robolectric.annotation.Config;
 
 import org.chromium.base.IntentUtils;
 import org.chromium.base.test.BaseRobolectricTestRunner;
@@ -34,17 +34,14 @@ import org.chromium.chrome.browser.profiles.ProfileManager;
 
 /** Unit tests for {@link ActorForegroundServiceImpl}. */
 @RunWith(BaseRobolectricTestRunner.class)
+@Config(manifest = Config.NONE)
 @DisableFeatures(ChromeFeatureList.GLIC_BACKGROUND_TRIGGERING)
 public class ActorForegroundServiceImplTest {
-    private static final String START_ACTOR_FOREGROUND_SERVICE =
-            "org.chromium.chrome.browser.actor.START_ACTOR_FOREGROUND_SERVICE";
-
     @Rule public MockitoRule mMockitoRule = MockitoJUnit.rule();
 
     @Mock private ChromeBrowserInitializer mChromeBrowserInitializer;
-    @Mock private ActorForegroundServiceControllerImpl mMockController;
+    @Mock private ActorForegroundServiceController mMockController;
     @Mock private ActorBackgroundActuationManager mMockBackgroundManager;
-    @Mock private ActorKeyedService mMockActorService;
     @Mock private Profile mMockProfile;
 
     private ActorForegroundServiceImpl mServiceImpl;
@@ -53,14 +50,13 @@ public class ActorForegroundServiceImplTest {
     @Before
     public void setUp() {
         ChromeBrowserInitializer.setForTesting(mChromeBrowserInitializer);
-        when(mMockController.getBackgroundActuationManager()).thenReturn(mMockBackgroundManager);
         ActorForegroundServiceController.setInstanceForTesting(mMockController);
         ProfileManager.setLastUsedProfileForTesting(mMockProfile);
-        ActorKeyedServiceFactory.setForTesting(mMockActorService);
         IntentUtils.setForceIsTrustedIntentForTesting(false);
 
         mServiceImpl = new ActorForegroundServiceImpl();
         mServiceImpl.setServiceForTesting(new ActorForegroundService());
+        mServiceImpl.setBackgroundManagerForTesting(mMockBackgroundManager);
         mNotification = new Notification();
     }
 
@@ -188,9 +184,7 @@ public class ActorForegroundServiceImplTest {
                                 ActorForegroundServiceUmaHelper.ForegroundLifecycle.STARTED)
                         .build();
 
-        Intent intent = new Intent();
-        intent.setAction(START_ACTOR_FOREGROUND_SERVICE);
-        mServiceImpl.onStartCommand(intent, /*flags=*/0, /*startId=*/1);
+        mServiceImpl.onStartCommand(new Intent(), /*flags=*/0, /*startId=*/1);
 
         watcher.assertExpected();
     }
@@ -202,7 +196,7 @@ public class ActorForegroundServiceImplTest {
         when(mMockController.isTabbedActivityVisible()).thenReturn(false);
 
         Intent intent = new Intent();
-        intent.setAction(START_ACTOR_FOREGROUND_SERVICE);
+        intent.setAction("org.chromium.chrome.browser.actor.START_ACTOR_FOREGROUND_SERVICE");
         intent.putExtra(
                 "org.chromium.chrome.browser.actor.EXTRA_GLIC_TRIGGER_MESSAGE_ID",
                 "test-message-id");
@@ -219,7 +213,7 @@ public class ActorForegroundServiceImplTest {
         when(mMockController.isTabbedActivityVisible()).thenReturn(true);
 
         Intent intent = new Intent();
-        intent.setAction(START_ACTOR_FOREGROUND_SERVICE);
+        intent.setAction("org.chromium.chrome.browser.actor.START_ACTOR_FOREGROUND_SERVICE");
         intent.putExtra(
                 "org.chromium.chrome.browser.actor.EXTRA_GLIC_TRIGGER_MESSAGE_ID",
                 "test-message-id");
@@ -228,6 +222,5 @@ public class ActorForegroundServiceImplTest {
 
         verify(mMockBackgroundManager, never())
                 .startBackgroundActuation(mMockProfile, "test-message-id");
-        verify(mMockActorService).notifyBackgroundSetupFailed(eq("test-message-id"));
     }
 }

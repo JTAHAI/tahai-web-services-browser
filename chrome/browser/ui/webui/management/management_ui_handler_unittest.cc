@@ -1920,8 +1920,6 @@ TEST_F(ManagementUIHandlerTests, ThreatReportingInfo) {
 #if !BUILDFLAG(IS_ANDROID)
   SetConnectorPolicyValue(policy::key::kOnBulkDataEntryEnterpriseConnector,
                           "[]", chrome_policies);
-  SetConnectorPolicyValue(policy::key::kOnDataCopiedEnterpriseConnector,
-                          "[]", chrome_policies);
   SetConnectorPolicyValue(policy::key::kOnPrintEnterpriseConnector, "[]",
                           chrome_policies);
 #endif

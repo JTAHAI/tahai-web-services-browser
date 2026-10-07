@@ -39,8 +39,7 @@ public interface ManagedBottomSheetController
     /**
      * Handle a back press event. By default this will return the bottom sheet to it's minimum /
      * peeking state if it is open. However, the sheet's content has the opportunity to intercept
-     * this event and block the default behavior {@link BottomSheetContent#handleBackPress()}.
-     *
+     * this event and block the default behavior {@see BottomSheetContent#handleBackPress()}.
      * @return {@code true} if the sheet or content handled the back press.
      */
     boolean handleBackPress();

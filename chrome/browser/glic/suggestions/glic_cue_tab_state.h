@@ -14,18 +14,13 @@
 #include "chrome/browser/contextual_cueing/cue_target.h"
 #include "components/page_content_annotations/core/page_content_annotations_service.h"
 #include "content/public/browser/web_contents_observer.h"
-#include "ui/base/unowned_user_data/scoped_unowned_user_data.h"
+#include "content/public/browser/web_contents_user_data.h"
 #include "url/gurl.h"
-
-class OptimizationGuideKeyedService;
 
 namespace content {
 class NavigationHandle;
+class WebContents;
 }  // namespace content
-
-namespace tabs {
-class TabInterface;
-}  // namespace tabs
 
 namespace glic {
 
@@ -37,18 +32,10 @@ class GlicCueTarget;
 // timeout timer.
 class GlicCueTabState
     : public content::WebContentsObserver,
+      public content::WebContentsUserData<GlicCueTabState>,
       public page_content_annotations::PageContentAnnotationsService::
           PageContentAnnotationsObserver {
  public:
-  DECLARE_USER_DATA(GlicCueTabState);
-
-  // The state is owned by `tab`'s TabFeatures.
-  explicit GlicCueTabState(tabs::TabInterface& tab);
-
-  // Returns the state owned by `tab`'s TabFeatures, or nullptr if it was
-  // not created.
-  static GlicCueTabState* From(tabs::TabInterface* tab);
-
   GlicCueTabState(const GlicCueTabState&) = delete;
   GlicCueTabState& operator=(const GlicCueTabState&) = delete;
   ~GlicCueTabState() override;
@@ -78,6 +65,10 @@ class GlicCueTabState
   }
 
  private:
+  friend class content::WebContentsUserData<GlicCueTabState>;
+
+  explicit GlicCueTabState(content::WebContents* web_contents);
+
   // Cancels `pending_check_` by firing its callback with false.
   void CancelPendingCheck();
 
@@ -90,6 +81,7 @@ class GlicCueTabState
 
   // Tracked parameters to match incoming annotations to the current navigation.
   GURL last_committed_url_;
+  base::Time last_committed_timestamp_;
 
   // The latest classification result for the current navigation.
   std::optional<page_content_annotations::PageContentAnnotationsResult>
@@ -104,14 +96,10 @@ class GlicCueTabState
 
   raw_ptr<page_content_annotations::PageContentAnnotationsService>
       annotation_service_ = nullptr;
-  // Used for logging to chrome://optimization-guide-internals with the
-  // CUEING_LOG macro.
-  raw_ptr<OptimizationGuideKeyedService> optimization_guide_keyed_service_ =
-      nullptr;
 
   base::OneShotTimer annotation_timeout_timer_;
 
-  ui::ScopedUnownedUserData<GlicCueTabState> scoped_unowned_user_data_;
+  WEB_CONTENTS_USER_DATA_KEY_DECL();
 };
 
 }  // namespace glic

@@ -5,8 +5,8 @@
 #include "chrome/browser/file_system_access/chrome_file_system_access_permission_context.h"
 #include "chrome/browser/file_system_access/file_system_access_permission_context_factory.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_tabstrip.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/test/test_browser_dialog.h"
 #include "chrome/browser/ui/ui_features.h"
 #include "chrome/browser/ui/views/file_system_access/file_system_access_usage_bubble_view.h"
@@ -20,7 +20,9 @@
 
 class FileSystemAccessUsageBubbleInteractiveUiTest : public DialogBrowserTest {
  public:
-  FileSystemAccessUsageBubbleInteractiveUiTest() = default;
+  FileSystemAccessUsageBubbleInteractiveUiTest() {
+    scoped_feature_list_.InitAndEnableFeature(features::kPageActionsMigration);
+  }
 
   ~FileSystemAccessUsageBubbleInteractiveUiTest() override = default;
 
@@ -34,7 +36,7 @@ class FileSystemAccessUsageBubbleInteractiveUiTest : public DialogBrowserTest {
     usage.writable_files.emplace_back(
         FILE_PATH_LITERAL("/foo/bar/Shapes.sketch"));
     FileSystemAccessUsageBubbleView::ShowBubble(
-        browser()->GetTabStripModel()->GetActiveWebContents(), kTestOrigin,
+        browser()->tab_strip_model()->GetActiveWebContents(), kTestOrigin,
         std::move(usage));
   }
 
@@ -64,16 +66,16 @@ IN_PROC_BROWSER_TEST_F(FileSystemAccessUsageBubbleInteractiveUiTest,
   ShowUi("default");
   ASSERT_NE(FileSystemAccessUsageBubbleView::GetBubble(), nullptr);
   content::WebContents* const initial_tab =
-      browser()->GetTabStripModel()->GetActiveWebContents();
+      browser()->tab_strip_model()->GetActiveWebContents();
 
   // Add a new tab and make sure it does not have the same active web contents.
   chrome::AddTabAt(browser(), GURL(url::kAboutBlankURL), -1, true);
-  ASSERT_NE(initial_tab, browser()->GetTabStripModel()->GetActiveWebContents());
+  ASSERT_NE(initial_tab, browser()->tab_strip_model()->GetActiveWebContents());
 
   // Switch back to the original tab.
-  browser()->GetTabStripModel()->ActivateTabAt(
-      browser()->GetTabStripModel()->GetIndexOfWebContents(initial_tab));
-  ASSERT_EQ(initial_tab, browser()->GetTabStripModel()->GetActiveWebContents());
+  browser()->tab_strip_model()->ActivateTabAt(
+      browser()->tab_strip_model()->GetIndexOfWebContents(initial_tab));
+  ASSERT_EQ(initial_tab, browser()->tab_strip_model()->GetActiveWebContents());
 
   // Invoke the bubble again.
   ShowUi("default");

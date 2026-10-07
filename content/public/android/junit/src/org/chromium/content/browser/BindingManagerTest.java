@@ -42,7 +42,7 @@ import java.util.List;
  * policies are tested.
  */
 @RunWith(BaseRobolectricTestRunner.class)
-@Config(sdk = BaseRobolectricTestRunner.MIN_SDK)
+@Config(manifest = Config.NONE, sdk = BaseRobolectricTestRunner.MIN_SDK)
 public class BindingManagerTest {
     private static final int BINDING_COUNT_LIMIT = 5;
 

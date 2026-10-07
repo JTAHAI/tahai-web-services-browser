@@ -1,3 +1,5 @@
-rules:
-- "*-ref.*": []
-- "*": [embed]
+features:
+  - name: embed
+    files:
+      - '*'
+      - '!*-ref.*'

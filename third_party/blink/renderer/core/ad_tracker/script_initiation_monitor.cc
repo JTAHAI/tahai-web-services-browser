@@ -52,18 +52,11 @@ void ScriptInitiationMonitor::RemoveObserver(Observer* observer) {
   observers_.erase(observer);
 }
 
-v8::Isolate* ScriptInitiationMonitor::GetIsolate() const {
-  if (local_root_ && local_root_->DomWindow()) {
-    return local_root_->DomWindow()->GetIsolate();
-  }
-  return v8::Isolate::TryGetCurrent();
-}
-
 void ScriptInitiationMonitor::Will(const probe::ExecuteScript& probe) {
   if (!probe.context) {
     return;
   }
-  v8::Isolate* isolate = GetIsolate();
+  v8::Isolate* isolate = v8::Isolate::TryGetCurrent();
   LazyStackTrace stack_trace(isolate);
   V8ScriptId script_id(probe.script_id);
   for (auto& observer : observers_) {
@@ -90,7 +83,7 @@ void ScriptInitiationMonitor::Will(const probe::CallFunction& probe) {
   if (!probe.context) {
     return;
   }
-  v8::Isolate* isolate = GetIsolate();
+  v8::Isolate* isolate = v8::Isolate::TryGetCurrent();
   LazyStackTrace stack_trace(isolate);
   V8ScriptId script_id;
   if (isolate && !probe.function.IsEmpty()) {
@@ -109,7 +102,7 @@ void ScriptInitiationMonitor::Did(const probe::CallFunction& probe) {
   if (!probe.context) {
     return;
   }
-  v8::Isolate* isolate = GetIsolate();
+  v8::Isolate* isolate = v8::Isolate::TryGetCurrent();
   V8ScriptId script_id;
   if (isolate && !probe.function.IsEmpty()) {
     script_id = V8ScriptId(probe.function->ScriptId());
@@ -124,7 +117,7 @@ void ScriptInitiationMonitor::Did(const probe::CallFunction& probe) {
 
 void ScriptInitiationMonitor::DidCreateAsyncTask(
     probe::AsyncTaskContext* task_context) {
-  v8::Isolate* isolate = GetIsolate();
+  v8::Isolate* isolate = v8::Isolate::TryGetCurrent();
   LazyStackTrace stack_trace(isolate);
   for (auto& observer : observers_) {
     if (observer) {
@@ -154,30 +147,11 @@ void ScriptInitiationMonitor::DidFinishAsyncTask(
 void ScriptInitiationMonitor::DidRegisterDynamicScript(
     v8::Local<v8::Context> v8_context,
     V8ScriptId script_id) {
-  v8::Isolate* isolate = GetIsolate();
+  v8::Isolate* isolate = v8::Isolate::TryGetCurrent();
   LazyStackTrace stack_trace(isolate);
   for (auto& observer : observers_) {
     if (observer) {
       observer->DidRegisterDynamicScript(v8_context, script_id, stack_trace);
-    }
-  }
-}
-
-void ScriptInitiationMonitor::DidCreateLocalFrame(LocalFrame* frame) {
-  v8::Isolate* isolate = GetIsolate();
-  LazyStackTrace stack_trace(isolate);
-  for (auto& observer : observers_) {
-    if (observer) {
-      observer->DidCreateFrame(frame, stack_trace);
-    }
-  }
-}
-
-void ScriptInitiationMonitor::DidSwapLocalFrame(LocalFrame* old_frame,
-                                                LocalFrame* new_frame) {
-  for (auto& observer : observers_) {
-    if (observer) {
-      observer->DidSwapFrame(old_frame, new_frame);
     }
   }
 }

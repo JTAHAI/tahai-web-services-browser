@@ -29,7 +29,7 @@ import android.widget.TextView;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.PictureInPictureModeChangedInfo;
 import androidx.lifecycle.Lifecycle.State;
-import androidx.test.core.app.ActivityScenario;
+import androidx.test.ext.junit.rules.ActivityScenarioRule;
 
 import org.junit.After;
 import org.junit.Before;
@@ -43,7 +43,6 @@ import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
 import org.robolectric.annotation.Config;
 
-import org.chromium.base.BaseSwitches;
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.Features.EnableFeatures;
@@ -58,8 +57,6 @@ import org.chromium.chrome.browser.lifecycle.ActivityLifecycleDispatcher;
 import org.chromium.chrome.browser.lifecycle.InflationObserver;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.TabHidingType;
-import org.chromium.chrome.browser.toolbar.top.ResourceFactory;
-import org.chromium.chrome.browser.toolbar.top.ResourceFactoryJni;
 import org.chromium.components.dom_distiller.core.DomDistillerUrlUtilsJni;
 import org.chromium.components.url_formatter.UrlFormatter;
 import org.chromium.content_public.browser.WebContents;
@@ -74,10 +71,14 @@ import java.util.function.Supplier;
 @Config(manifest = Config.NONE)
 @CommandLineFlags.Add({
     ChromeSwitches.DISABLE_FIRST_RUN_EXPERIENCE,
-    BaseSwitches.DISABLE_NATIVE_INITIALIZATION
+    ChromeSwitches.DISABLE_NATIVE_INITIALIZATION
 })
 @EnableFeatures(ChromeFeatureList.CCT_REPORT_PRERENDER_EVENTS)
 public class CustomTabMinimizationManagerUnitTest {
+    @Rule
+    public ActivityScenarioRule<CustomTabActivity> mActivityScenarioRule =
+            new ActivityScenarioRule<>(CustomTabActivity.class);
+
     @Rule public MockitoRule mMockitoRule = MockitoJUnit.rule();
 
     private static final String TITLE = "Google";
@@ -85,7 +86,6 @@ public class CustomTabMinimizationManagerUnitTest {
             UrlFormatter.formatUrlForDisplayOmitSchemePathAndTrivialSubdomains(
                     JUnitTestGURLs.SEARCH_URL);
 
-    private ActivityScenario<CustomTabActivity> mActivityScenario;
     @Spy private AppCompatActivity mActivity;
     @Mock private Tab mTab;
     @Mock private WebContents mWebContents;
@@ -94,7 +94,6 @@ public class CustomTabMinimizationManagerUnitTest {
     @Mock private CustomTabsConnection mConnection;
     @Mock private Runnable mCloseTabRunnable;
     @Mock private DomDistillerUrlUtilsJni mDomDistillerUrlUtilsJni;
-    @Mock private ResourceFactory.Natives mResourceFactoryNatives;
     @Mock private CustomTabMinimizeDelegate.Observer mMinimizationObserver;
     @Mock private CustomTabMinimizeDelegate mOtherMinimizeDelegate;
     @Mock private ActivityLifecycleDispatcher mLifecycleDispatcher;
@@ -105,11 +104,8 @@ public class CustomTabMinimizationManagerUnitTest {
 
     @Before
     public void setUp() {
+        mActivityScenarioRule.getScenario().onActivity(activity -> mActivity = spy(activity));
         DomDistillerUrlUtilsJni.setInstanceForTesting(mDomDistillerUrlUtilsJni);
-        ResourceFactoryJni.setInstanceForTesting(mResourceFactoryNatives);
-
-        mActivityScenario = ActivityScenario.launch(CustomTabActivity.class);
-        mActivityScenario.onActivity(activity -> mActivity = spy(activity));
 
         CustomTabsConnection.setInstanceForTesting(mConnection);
         mActivityTabProvider.setForTesting(mTab);
@@ -133,9 +129,6 @@ public class CustomTabMinimizationManagerUnitTest {
     @After
     public void tearDown() {
         CustomTabMinimizationManager.sLastMinimizeDelegate = null;
-        if (mActivityScenario != null) {
-            mActivityScenario.close();
-        }
     }
 
     @Test
@@ -178,7 +171,7 @@ public class CustomTabMinimizationManagerUnitTest {
         // Simulate Activity entering PiP.
         mManager.accept(new PictureInPictureModeChangedInfo(true));
         // Now, simulate PiP being dismissed by the user.
-        mActivityScenario.moveToState(State.CREATED);
+        mActivityScenarioRule.getScenario().moveToState(State.CREATED);
         mManager.accept(new PictureInPictureModeChangedInfo(false));
 
         verify(mTab, never()).show(anyInt());

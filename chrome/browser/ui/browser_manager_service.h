@@ -29,13 +29,6 @@ class BrowserManagerService : public KeyedService,
   explicit BrowserManagerService(Profile* profile);
   ~BrowserManagerService() override;
 
-  // Synchronously destroys the browser, `browser` is no longer valid after the
-  // operation completes.
-  // WARNING: Clients should generally not use this and instead prefer
-  // requesting the browser close via BrowserWindow::Close(), which happens
-  // async and allows graceful teardown of the tab strip and associated data.
-  static void SynchronouslyDestroyBrowser(BrowserWindowInterface* browser);
-
   // KeyedService:
   void Shutdown() override;
 
@@ -49,7 +42,7 @@ class BrowserManagerService : public KeyedService,
   // Destroys `browser` if owned and managed by the service. It is expected that
   // `browser` has first emitted a did-close event and `OnBrowserClosed()` is
   // called before `DeleteBrowser()`.
-  void DeleteBrowser(BrowserWindowInterface* browser);
+  void DeleteBrowser(Browser* browser);
 
   // Adds a new unowned Browser created by unit tests.
   // TODO(crbug.com/417766643): Remove this once all use of Browser in unit

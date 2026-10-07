@@ -50,9 +50,7 @@ std::ostream& operator<<(std::ostream& os,
      << ", curtain_required: " << session_policies.curtain_required
      << ", host_username_match_required: "
      << session_policies.host_username_match_required
-     << ", allow_remote_input: " << session_policies.allow_remote_input
-     << ", allow_terminal_mode: " << session_policies.allow_terminal_mode
-     << " }";
+     << ", allow_remote_input: " << session_policies.allow_remote_input << " }";
   return os;
 }
 

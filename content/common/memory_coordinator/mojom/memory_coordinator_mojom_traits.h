@@ -21,9 +21,9 @@ struct StructTraits<content::mojom::MemoryConsumerUpdateDataView,
     return input.consumer_id;
   }
 
-  static const std::optional<base::MemoryLimit>& memory_limit(
+  static std::optional<int32_t> percentage(
       const content::MemoryConsumerUpdate& input) {
-    return input.memory_limit;
+    return input.percentage;
   }
 
   static bool release_memory(const content::MemoryConsumerUpdate& input) {
@@ -33,8 +33,9 @@ struct StructTraits<content::mojom::MemoryConsumerUpdateDataView,
   static bool Read(content::mojom::MemoryConsumerUpdateDataView input,
                    content::MemoryConsumerUpdate* output) {
     output->consumer_id = input.consumer_id();
+    output->percentage = input.percentage();
     output->release_memory = input.release_memory();
-    return input.ReadMemoryLimit(&output->memory_limit);
+    return true;
   }
 };
 

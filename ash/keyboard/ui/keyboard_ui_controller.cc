@@ -645,10 +645,8 @@ void KeyboardUIController::ShowAnimationFinished() {
 void KeyboardUIController::SetContainerBehaviorInternal(ContainerType type) {
   // Reset the hit test event targeter because the hit test bounds will
   // be wrong when container type changes and may cause the UI to be unusable.
-  if (aura::Window* keyboard_window = GetKeyboardWindow()) {
-    keyboard_window->SetEventTargeter(nullptr);
-    keyboard_window->layer()->SetAlphaShape(nullptr);
-  }
+  if (GetKeyboardWindow())
+    GetKeyboardWindow()->SetEventTargeter(nullptr);
 
   switch (type) {
     case ContainerType::kFullWidth:
@@ -991,15 +989,11 @@ void KeyboardUIController::SetOccludedBounds(
 
 void KeyboardUIController::SetHitTestBounds(
     const std::vector<gfx::Rect>& bounds_in_window) {
-  aura::Window* keyboard_window = GetKeyboardWindow();
-  if (!keyboard_window) {
+  if (!GetKeyboardWindow())
     return;
-  }
 
-  keyboard_window->SetEventTargeter(
+  GetKeyboardWindow()->SetEventTargeter(
       std::make_unique<ShapedWindowTargeter>(bounds_in_window));
-  keyboard_window->layer()->SetAlphaShape(
-      std::make_unique<ui::Layer::ShapeRects>(bounds_in_window));
 }
 
 bool KeyboardUIController::SetAreaToRemainOnScreen(

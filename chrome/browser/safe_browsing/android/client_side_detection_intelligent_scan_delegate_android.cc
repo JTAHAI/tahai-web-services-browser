@@ -502,8 +502,6 @@ void ClientSideDetectionIntelligentScanDelegateAndroid::
   ScopedListPrefUpdate update(pref_.get(),
                               prefs::kSafeBrowsingCsdIntelligentScanTimestamps);
   update->Append(base::TimeToValue(base::Time::Now()));
-  base::UmaHistogramCounts100(
-      "SBClientPhishing.ServerSideModelQuotaCountOnLookup", update->size());
 }
 
 void ClientSideDetectionIntelligentScanDelegateAndroid::

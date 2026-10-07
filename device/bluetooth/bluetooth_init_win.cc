@@ -20,8 +20,7 @@ bool HasBluetoothStack() {
     SCOPED_MAY_LOAD_LIBRARY_AT_BACKGROUND_PRIORITY_REPEATEDLY();
 
     has_bluetooth_stack =
-        base::win::LoadAllImportsForDllUnchecked("bthprops.cpl")
-            .value_or(false);
+        base::win::LoadAllImportsForDll("bthprops.cpl").value_or(false);
   }
 
   return *has_bluetooth_stack;

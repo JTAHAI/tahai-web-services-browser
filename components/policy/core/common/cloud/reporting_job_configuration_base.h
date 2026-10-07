@@ -19,7 +19,6 @@
 namespace chrome::cros::reporting::proto {
 class Browser;
 class Device;
-class UploadEventsRequest;
 }  // namespace chrome::cros::reporting::proto
 
 namespace policy {
@@ -47,15 +46,7 @@ class POLICY_EXPORT ReportingJobConfigurationBase
     : public JobConfigurationBase {
  public:
   // Callback used once the job is complete.
-  using UploadCompleteCallback = base::OnceCallback<void(
-      DeviceManagementService::Job* job,
-      DeviceManagementStatus status,
-      int response_code,
-      std::optional<base::DictValue>,
-      const ::chrome::cros::reporting::proto::UploadEventsRequest&)>;
-
-  // DEPRECATED: Callback used once the job is complete (JSON format).
-  using UploadCompleteCallbackDeprecated =
+  using UploadCompleteCallback =
       base::OnceCallback<void(DeviceManagementService::Job* job,
                               DeviceManagementStatus status,
                               int response_code,
@@ -148,7 +139,7 @@ class POLICY_EXPORT ReportingJobConfigurationBase
       scoped_refptr<network::SharedURLLoaderFactory> factory,
       DMAuth auth_data,
       const std::string& server_url,
-      UploadCompleteCallbackDeprecated callback);
+      UploadCompleteCallback callback);
   ~ReportingJobConfigurationBase() override;
 
   // Allows children to determine if a retry should be done.
@@ -184,7 +175,7 @@ class POLICY_EXPORT ReportingJobConfigurationBase
   // reset.
   std::optional<base::DictValue> context_;
 
-  UploadCompleteCallbackDeprecated callback_;
+  UploadCompleteCallback callback_;
 
  private:
   // Initializes request payload except for the "device" field. If

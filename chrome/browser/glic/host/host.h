@@ -17,13 +17,11 @@
 #include "chrome/browser/glic/host/context/glic_sharing_manager_provider.h"
 #include "chrome/browser/glic/host/glic.mojom.h"
 #include "chrome/browser/glic/host/glic_web_client_access.h"
-#include "chrome/browser/glic/host/glic_webui.mojom.h"
 #include "chrome/browser/glic/public/glic_instance.h"
 #include "chrome/browser/glic/public/glic_passkeys.h"
 #include "components/autofill/core/browser/integrators/actor/actor_form_filling_types.h"
 #include "components/tabs/public/tab_interface.h"
 #include "content/public/browser/visibility.h"
-#include "mojo/public/cpp/bindings/pending_receiver.h"
 
 class Profile;
 namespace content {
@@ -33,7 +31,6 @@ class RenderProcessHost;
 namespace glic {
 class GlicKeyedService;
 class GlicPageHandler;
-class GlicWebClientManager;
 class WebUIContentsContainer;
 class GlicInstanceMetrics;
 class GlicInstanceMetricsBackwardsCompatibility;
@@ -105,8 +102,11 @@ class Host : public GlicSharingManagerProvider {
         glic::mojom::WebClientHandler::
             GetZeroStateSuggestionsForFocusedTabCallback callback) = 0;
 
-    virtual void CreateZeroStateSuggestionsHandler(
-        mojo::PendingReceiver<mojom::ZeroStateSuggestionsHandler> receiver) = 0;
+    virtual void GetZeroStateSuggestionsAndSubscribe(
+        bool has_active_subscription,
+        const mojom::ZeroStateSuggestionsOptions& options,
+        mojom::WebClientHandler::GetZeroStateSuggestionsAndSubscribeCallback
+            callback) = 0;
 
     virtual void RegisterConversation(
         glic::mojom::ConversationInfoPtr info,
@@ -114,8 +114,7 @@ class Host : public GlicSharingManagerProvider {
 
     virtual void OnWebClientCleared() = 0;
     virtual void PrepareForOpen() = 0;
-    virtual void OnUserInputSubmitted(mojom::WebClientMode mode,
-                                      mojom::PromptType prompt_type) = 0;
+    virtual void OnUserInputSubmitted(mojom::WebClientMode mode) = 0;
 
     virtual void OnInteractionModeChange(mojom::WebClientMode new_mode) = 0;
     virtual GlicInstanceMetrics& instance_metrics() = 0;
@@ -136,9 +135,6 @@ class Host : public GlicSharingManagerProvider {
     virtual void WebClientConnected() {}
     // Called when Glic is disconnected from the WebClient.
     virtual void WebClientDisconnected() {}
-
-    // Called when the web client state changes.
-    virtual void WebClientStateChanged(mojom::WebClientState state) {}
 
     // Called when the client is ready to show, invoked sometime after
     // `Host::PanelWillOpen()` is called.
@@ -194,11 +190,6 @@ class Host : public GlicSharingManagerProvider {
     // An override for the First Run Experience.
     mojom::FreOverride fre_override = mojom::FreOverride::kUnspecified;
   };
-
-  // Sets whether the host is visible in an embedder. This signal is debounced
-  // on hide, so it will receive a slightly delayed off signal.
-  void SetDebouncedVisibility(bool is_visible);
-
   void PanelWillOpen(mojom::InvocationSource invocation_source,
                      PanelWillOpenOptions options);
 
@@ -211,12 +202,8 @@ class Host : public GlicSharingManagerProvider {
       glic::mojom::ConversationInfoPtr info,
       mojom::WebClientHandler::SwitchConversationCallback callback);
 
-  // Wakes up the host. When awake, the host will maintain a web client.
-  void Awaken();
-  // Frees resources, no longer maintaining the web client.
-  void Hibernate();
-  // Returns true if the host should maintain the web client.
-  bool IsAwake() const;
+  // Delete the owned web contents and prepare for destruction.
+  void Shutdown();
 
   // Request panel closing.
   void Close();
@@ -226,11 +213,14 @@ class Host : public GlicSharingManagerProvider {
   // Called when the WebUI web contents has navigated.
   void OnWebContentsNavigated();
 
+  // Creates the web contents that will own the Glic WebUI.
+  void CreateContents();
+
   // Signals the glic WebUI that the glic window will be shown soon.
   void NotifyWindowIntentToShow();
 
   // Signals the glic WebUI to adjust the zoom level of its hosted webview.
-  void Zoom(mojom::ZoomAction zoom_action, ZoomSource source);
+  void Zoom(mojom::ZoomAction zoom_action);
 
   // GlicSharingManagerProvider Implementation.
   GlicSharingManagerInternal& GetSharingManagerInternal() override;
@@ -252,17 +242,14 @@ class Host : public GlicSharingManagerProvider {
 
   InstanceId GetInstanceId() const;
 
-  void OnGuestWebClientCleared(bool had_web_client);
-
   WebUIContentsContainer* contents_container() { return contents_.get(); }
   std::unique_ptr<content::WebContents> ReleaseWebContents();
   void ReclaimWebContents(std::unique_ptr<content::WebContents> web_contents);
   // Returns the WebUI web contents. May be null.
   content::WebContents* webui_contents() const;
 
-  // Sets the visibility override of the WebUI web contents.
-  void SetWebContentsVisibilityOverride(
-      std::optional<content::Visibility> visibility_override);
+  // Sets the visibility of the WebUI web contents.
+  void SetWebContentsVisibility(content::Visibility visibility);
 
   // Returns the WebClient web contents. May be null.
   content::WebContents* web_client_contents() const;
@@ -278,8 +265,7 @@ class Host : public GlicSharingManagerProvider {
   GlicPageHandler* GetPrimaryPageHandlerForTesting();
 
   // TODO(b/409332639): Hide direct access to the web client.
-  // TODO(harringtond): Rename to GetWebClient() if we can't remove this.
-  GlicWebClientAccess* GetPrimaryWebClient() const;
+  GlicWebClientAccess* GetPrimaryWebClient();
 
   void CreateWebClient(
       mojo::PendingReceiver<glic::mojom::WebClientHandler> web_client_receiver);
@@ -289,11 +275,6 @@ class Host : public GlicSharingManagerProvider {
   // Whether the primary client is alive and has returned from PanelWillOpen().
   // This transitions to false after PanelWasClosed() is called.
   bool IsPrimaryClientOpen();
-
-  mojom::WebClientState web_client_state() const;
-  bool is_web_client_ready() const {
-    return web_client_state() == mojom::WebClientState::kResponsive;
-  }
 
   // Whether the primary web client is connected. Guaranteed not to be true
   // until the initialize() handshake has completed.
@@ -321,6 +302,10 @@ class Host : public GlicSharingManagerProvider {
     return primary_webui_state_;
   }
 
+  // Informs the host that the Zero State Suggestions have changed.
+  void NotifyZeroStateSuggestion(mojom::ZeroStateSuggestionsV2Ptr suggestions,
+                                 mojom::ZeroStateSuggestionsOptions options);
+
   void NotifyInstanceActivationChanged(bool is_active);
   void OnActuatingChanged(bool actuating);
   void OnTaskTabsVisibilityChanged(bool has_visible_tab);
@@ -342,8 +327,10 @@ class Host : public GlicSharingManagerProvider {
   // Called when a login page was committed in a glic webview.
   void LoginPageCommitted(GlicPageHandler* page_handler);
 
-  void WebClientInitialized();
-  void WebClientInitializeFailed();
+  // Called when a page handler's web client is created or destroyed.
+  void SetWebClient();
+  void UnsetWebClient(GlicWebClientAccess* web_client);
+  void WebClientInitializeFailed(GlicWebClientAccess* web_client);
 
   void SetContextAccessIndicator(bool enabled);
 
@@ -369,7 +356,7 @@ class Host : public GlicSharingManagerProvider {
   // hasn't been created yet, apply this setting when it is created. No effect
   // if the widget doesn't exist or the feature flag is disabled.
   void EnableDragResize(bool enabled);
-  void HibernateImpl(bool is_destroying);
+
   void AttachPanel();
   void DetachPanel();
   void ClosePanel();
@@ -405,12 +392,8 @@ class Host : public GlicSharingManagerProvider {
   void WebUIPageHandlerRemoved(GlicPageHandler* page_handler);
 
  private:
-  friend class GlicWebClientManager;
-
-  void UnsetWebClient();
   void InvokeInternal(mojom::InvokeOptionsPtr options,
                       base::OnceClosure callback);
-  void OnWebClientStateChanged(mojom::WebClientState state);
 
   GlicKeyedService& glic_service();
   GlicPageHandler* page_handler() const;
@@ -442,10 +425,6 @@ class Host : public GlicSharingManagerProvider {
       content::WebContents* web_contents) const {
     return const_cast<Host*>(this)->FindInfoForWebUiContents(web_contents);
   }
-  GlicWebClientManager* web_client_manager();
-  const GlicWebClientManager* web_client_manager() const;
-  content::Visibility GetExpectedVisibility() const;
-  void UpdateVisibility();
 
   raw_ptr<Profile> profile_;
 
@@ -462,8 +441,6 @@ class Host : public GlicSharingManagerProvider {
   // after the panel is closed.
   std::optional<mojom::InvocationSource> invocation_source_;
   bool panel_open_ = false;
-  // Whether the host is (or was recently) showing on an embedder.
-  bool debounced_visibility_ = false;
   bool is_manually_resizing_ = false;
   std::optional<PanelWillOpenOptions> pending_panel_open_options_;
   base::flat_map<mojom::AdditionalContextSource, mojom::AdditionalContextPtr>
@@ -471,15 +448,24 @@ class Host : public GlicSharingManagerProvider {
   mojom::WebUiState primary_webui_state_ = mojom::WebUiState::kUninitialized;
   std::optional<mojom::PanelState> pending_panel_state_;
 
+  // Owns the WebUI contents. May be null for glic hosts in chrome://glic tabs.
+  // Keep profile alive as long as the glic web contents. This object should be
+  // destroyed when the profile needs to be destroyed.
   std::unique_ptr<WebUIContentsContainer> contents_;
   std::optional<PageHandlerInfo> handler_info_;
+  // Host owns at most one web client access. If a new access is created,
+  // the old one is destroyed synchronously.
+  std::unique_ptr<GlicWebClientAccess> web_client_access_;
+  // Points to `web_client_access_` once the Javascript WebUI has completed
+  // initialization and called `WebClientInitialized()`. Null before then or
+  // after the web client disconnects.
+  raw_ptr<GlicWebClientAccess> web_client_ = nullptr;
 
   raw_ptr<GlicSharingManagerProvider> sharing_manager_provider_;
 
   mojom::MicrophoneStatus microphone_status_ =
       mojom::MicrophoneStatus::kUnknown;
-  std::optional<content::Visibility> visibility_override_;
-  content::Visibility web_contents_visibility_ = content::Visibility::HIDDEN;
+
   base::WeakPtrFactory<Host> weak_ptr_factory_{this};
 };
 

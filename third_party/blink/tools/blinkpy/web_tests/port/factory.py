@@ -41,7 +41,6 @@ class PortFactory:
         'android.AndroidPort',
         'fuchsia.FuchsiaPort',
         'ios.IOSPort',
-        'tvos.TVOSPort',
         'linux.LinuxPort',
         'mac.MacPort',
         'mock_drt.MockDRTPort',

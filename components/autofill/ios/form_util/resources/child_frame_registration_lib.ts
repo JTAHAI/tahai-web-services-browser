@@ -88,6 +88,15 @@ function getRegistrationLogbook(): Map<string, number> {
 }
 
 /**
+ * Retrieves the registered 'autofill_form_features' CrWebApi
+ * instance for use in this file.
+ */
+// TODO: crbug.com/464542835 - Remove gCrWeb injections and utilizations
+// from shared library and utility files.
+const autofillFormFeaturesApi =
+  gCrWeb.getRegisteredApi('autofill_form_features');
+
+/**
  * Updates `count` of the corresponding `remoteToken` in the registration
  * logbook iff the maximal capacity wasn't reached.
  * @param remoteToken The remote token to update.
@@ -114,36 +123,16 @@ export function registerSelfWithRemoteToken(remoteId: string): void {
 }
 
 /**
- * Checks whether `source` is an ancestor window of the current frame.
- */
-function isAncestorWindow(source: MessageEventSource|null):
-    source is WindowProxy {
-  if (!source || !window.parent || window === window.parent) {
-    return false;
-  }
-  let current: WindowProxy|null = window.parent;
-  while (current) {
-    if (source === current) {
-      return true;
-    }
-    if (current === current.parent) {
-      break;
-    }
-    current = current.parent;
-  }
-  return false;
-}
-
-/**
  * Event handler for messages received via window.postMessage.
  * @param {MessageEvent} payload The data sent via postMessage.
  */
 export function processChildFrameMessage(payload: MessageEvent): void {
+  if (!autofillFormFeaturesApi.getFunction(
+          'isAutofillAcrossIframesEnabled')()) {
+    return;
+  }
   const command: unknown = payload.data?.command;
   if (command === REGISTER_AS_CHILD_FRAME_COMMAND) {
-    if (!isAncestorWindow(payload.source)) {
-      return;
-    }
     const remoteId = payload.data?.remoteFrameId;
     if (typeof remoteId === 'string') {
       registerSelfWithRemoteToken(remoteId);

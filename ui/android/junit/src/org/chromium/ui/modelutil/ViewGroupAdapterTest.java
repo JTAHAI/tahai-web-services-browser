@@ -14,6 +14,7 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.robolectric.RuntimeEnvironment;
+import org.robolectric.annotation.Config;
 
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.ui.modelutil.MVCListAdapter.ListItem;
@@ -26,6 +27,7 @@ import java.util.List;
 
 /** Tests to ensure/validate ViewGroupAdapter behavior. */
 @RunWith(BaseRobolectricTestRunner.class)
+@Config(manifest = Config.NONE)
 public class ViewGroupAdapterTest {
     private static final PropertyModel.WritableObjectPropertyKey<String> TEXT_PROPERTY =
             new PropertyModel.WritableObjectPropertyKey<>();

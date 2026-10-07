@@ -7,7 +7,6 @@
 #include <string_view>
 
 #include "base/command_line.h"
-#include "base/memory/ref_counted_memory.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/values.h"
 #include "build/build_config.h"
@@ -53,7 +52,7 @@ std::string_view ShellContentClient::GetDataResource(
       resource_id, scale_factor);
 }
 
-scoped_refptr<base::RefCountedMemory> ShellContentClient::GetDataResourceBytes(
+base::RefCountedMemory* ShellContentClient::GetDataResourceBytes(
     int resource_id) {
   return ui::ResourceBundle::GetSharedInstance().LoadDataResourceBytes(
       resource_id);

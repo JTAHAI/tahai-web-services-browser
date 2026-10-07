@@ -17,6 +17,7 @@
 #include "chrome/browser/ash/child_accounts/time_limits/app_service_wrapper.h"
 #include "chrome/browser/ash/child_accounts/time_limits/app_types.h"
 #include "chrome/browser/ash/child_accounts/time_limits/web_time_navigation_observer.h"
+#include "chrome/browser/ui/tabs/tab_strip_model_observer.h"
 
 namespace ash {
 class BrowserDelegate;
@@ -27,6 +28,8 @@ class Time;
 class UnguessableToken;
 }  // namespace base
 
+class BrowserWindowInterface;
+
 namespace ash::app_time {
 
 class AppId;
@@ -35,7 +38,7 @@ enum class ChromeAppActivityState;
 
 class WebTimeActivityProvider : public WebTimeNavigationObserver::EventListener,
                                 public ash::BrowserController::Observer,
-                                public ash::BrowserController::TabObserver,
+                                public TabStripModelObserver,
                                 public AppServiceWrapper::EventListener {
  public:
   WebTimeActivityProvider(AppTimeController* app_time_controller,
@@ -51,17 +54,14 @@ class WebTimeActivityProvider : public WebTimeNavigationObserver::EventListener,
   void WebTimeNavigationObserverDestroyed(
       WebTimeNavigationObserver* navigation_observer) override;
 
-  // ash::BrowserController::TabObserver:
-  void OnTabInserted(ash::BrowserDelegate* browser,
-                     content::WebContents* contents) override;
-  void OnTabReplaced(ash::BrowserDelegate* browser,
-                     content::WebContents* old_contents,
-                     content::WebContents* new_contents) override;
-  void OnActiveWebContentsChanged(ash::BrowserDelegate* browser,
-                                  content::WebContents* old_contents,
-                                  content::WebContents* new_contents) override;
+  // TabStripModelObserver:
+  void OnTabStripModelChanged(
+      TabStripModel* tab_strip_model,
+      const TabStripModelChange& change,
+      const TabStripSelectionChange& selection) override;
 
   // ash::BrowserController::Observer:
+  void OnBrowserCreated(ash::BrowserDelegate* browser) override;
   void OnBrowserClosed(ash::BrowserDelegate* browser) override;
 
   // AppServiceWrapper::EventListener:
@@ -77,6 +77,8 @@ class WebTimeActivityProvider : public WebTimeNavigationObserver::EventListener,
   }
 
  private:
+  void TabsInserted(const TabStripModelChange::Insert* insert);
+
   // Notifies AppActivityRegistry if there is a change in ChromeAppState.
   void MaybeNotifyStateChange(base::Time timestamp);
 
@@ -88,7 +90,7 @@ class WebTimeActivityProvider : public WebTimeNavigationObserver::EventListener,
   const raw_ptr<AppTimeController> app_time_controller_;
 
   // A set of active browser instances.
-  std::set<const ash::BrowserDelegate*> active_browsers_;
+  std::set<const BrowserWindowInterface*> active_browsers_;
 
   // The default chrome app activity state.
   ChromeAppActivityState chrome_app_activity_state_ =
@@ -99,14 +101,6 @@ class WebTimeActivityProvider : public WebTimeNavigationObserver::EventListener,
   std::map<const WebTimeNavigationObserver*,
            WebTimeNavigationObserver::NavigationInfo>
       navigation_info_map_;
-
-  base::ScopedObservation<ash::BrowserController,
-                          ash::BrowserController::Observer>
-      browser_observation_{this};
-
-  base::ScopedObservation<ash::BrowserController,
-                          ash::BrowserController::TabObserver>
-      browser_tab_observation_{this};
 
   base::ScopedObservation<AppServiceWrapper, AppServiceWrapper::EventListener>
       app_service_wrapper_observation_{this};

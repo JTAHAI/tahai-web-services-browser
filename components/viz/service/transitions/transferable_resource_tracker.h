@@ -29,7 +29,6 @@ class VIZ_SERVICE_EXPORT TransferableResourceTracker {
   // This represents a resource that is positioned somewhere on screen.
   struct VIZ_SERVICE_EXPORT PositionedResource {
     TransferableResource resource;
-    gfx::Vector2dF pixel_alignment_offset;
   };
 
   // A SurfaceSavedFrame can be converted to a ResourceFrame via
@@ -49,7 +48,7 @@ class VIZ_SERVICE_EXPORT TransferableResourceTracker {
     // A map from renderer generated ViewTransitionElementResourceId to the
     // corresponding cached resource. The resources are the same as |shared|
     // above.
-    base::flat_map<ViewTransitionElementResourceId, PositionedResource>
+    base::flat_map<ViewTransitionElementResourceId, TransferableResource>
         element_id_to_resource;
   };
 
@@ -80,8 +79,8 @@ class VIZ_SERVICE_EXPORT TransferableResourceTracker {
   void ReturnFrame(const ResourceFrame& frame);
 
   // Ref count management for the resources returned by `ImportResources`.
-  bool RefResource(ResourceId id);
-  bool UnrefResource(ResourceId id,
+  void RefResource(ResourceId id);
+  void UnrefResource(ResourceId id,
                      int count,
                      const gpu::SyncToken& sync_token);
 

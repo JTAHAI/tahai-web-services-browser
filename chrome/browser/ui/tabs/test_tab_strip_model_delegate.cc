@@ -22,7 +22,7 @@ void TestTabStripModelDelegate::AddTabAt(
     std::optional<tab_groups::TabGroupId> group,
     bool pinned) {}
 
-BrowserWindowInterface* TestTabStripModelDelegate::CreateNewStripWithTabs(
+Browser* TestTabStripModelDelegate::CreateNewStripWithTabs(
     std::vector<NewStripContents> tabs,
     const gfx::Rect& window_bounds,
     bool maximize) {
@@ -161,8 +161,3 @@ void TestTabStripModelDelegate::OnRemovingAllTabsFromGroups(
 
 void TestTabStripModelDelegate::GlicUnpinTabsFromAllConversations(
     base::span<const tabs::TabHandle> tab_handles) {}
-
-void TestTabStripModelDelegate::CloseTab(
-    const tabs::TabInterface* tab,
-    CloseTabSource source,
-    base::OnceCallback<void(CloseTabSource)> on_approved) {}

@@ -10,6 +10,7 @@ features:
   per_profile: true
 future_on:
 - fuchsia
+- android
 items:
 - caption: Allow users to file feedback
   value: true
@@ -20,7 +21,6 @@ owners:
 schema:
   type: boolean
 supported_on:
-- android:153-
 - chrome.*:77-
 - chrome_os:77-
 tags: []

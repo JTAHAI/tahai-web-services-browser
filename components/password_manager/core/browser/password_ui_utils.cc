@@ -18,7 +18,6 @@
 #include "components/password_manager/core/browser/password_form.h"
 #include "components/password_manager/core/browser/password_form_manager_for_ui.h"
 #include "components/password_manager/core/browser/password_form_metrics_recorder.h"
-#include "components/password_manager/core/browser/password_string.h"
 #include "components/password_manager/core/browser/ui/credential_ui_entry.h"
 #include "components/strings/grit/components_strings.h"
 #include "components/url_formatter/elide_url.h"
@@ -89,7 +88,7 @@ std::string GetShownOrigin(const url::Origin& origin) {
 
 void UpdatePasswordFormUsernameAndPassword(
     const std::u16string& username,
-    const PasswordString& password,
+    const std::u16string& password,
     PasswordFormManagerForUI* form_manager) {
   const auto& pending_credentials = form_manager->GetPendingCredentials();
   bool username_edited = pending_credentials.username_value != username;
@@ -191,10 +190,15 @@ SubmissionReadinessState CalculateSubmissionReadiness(
   }
 
   auto ShouldIgnoreField = [](const autofill::FormFieldData& field) {
-    // Autofill does not extract checkboxes and radio buttons anymore
-    // (crbug.com/402071086). When they are ever reintroduced, checkboxes should
-    // be ignored.
-    return !field.is_focusable();
+    if (!field.is_focusable()) {
+      return true;
+    }
+    // Don't treat a checkbox (e.g. "remember me") as an input field that may
+    // block a form submission. Note: Don't use `check_status != kNotCheckable`,
+    // a radio button is considered a "checkable" element too, but it should
+    // block a submission.
+    return field.form_control_type() ==
+           autofill::FormControlType::kInputCheckbox;
   };
 
   if (username_it < password_it) {

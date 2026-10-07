@@ -380,29 +380,29 @@ bool MSAAIsSlow(const GpuDriverBugWorkarounds& workarounds) {
 namespace {
 
 // Multiplier policy for kAggressiveShaderCacheLimits enabled.
-double GetAggressiveMemoryLimitMultiplier(base::MemoryLimit memory_limit) {
+double GetAggressiveMemoryLimitMultiplier(int memory_limit) {
 #if BUILDFLAG(IS_ANDROID)
   // Android ignores pressure notifications in aggressive mode.
   return 1.0;
 #else
   // Desktop ignores pressure above the Moderate threshold (50%).
-  if (memory_limit >= base::MemoryLimit::ModeratePressureThreshold()) {
+  if (memory_limit >= base::kModerateMemoryPressureThreshold) {
     return 1.0;
   }
   // Interpolate multiplier from 1.0 down to 0.25 between Moderate (50%) and
   // Critical (0%).
-  double t = static_cast<double>(
-                 base::MemoryLimit::ModeratePressureThreshold().percent() -
-                 memory_limit.percent()) /
-             base::MemoryLimit::ModeratePressureThreshold().percent();
+  double t = static_cast<double>(base::kModerateMemoryPressureThreshold -
+                                 memory_limit) /
+             base::kModerateMemoryPressureThreshold;
   return std::lerp(1.0, 0.25, t);
 #endif
 }
 
 // Multiplier policy for kAggressiveShaderCacheLimits disabled.
-double GetDefaultMemoryLimitMultiplier(base::MemoryLimit memory_limit) {
+double GetDefaultMemoryLimitMultiplier(int memory_limit) {
   // Scale quadratically (e.g., 25% cache size at 50% memory limit).
-  double ratio = memory_limit.ratio();
+  double ratio =
+      static_cast<double>(memory_limit) / base::kNoMemoryPressureThreshold;
   return ratio * ratio;
 }
 
@@ -411,26 +411,28 @@ double GetDefaultMemoryLimitMultiplier(base::MemoryLimit memory_limit) {
 size_t UpdateShaderCacheSizeOnMemoryPressure(
     size_t max_cache_size,
     base::MemoryPressureLevel memory_pressure_level) {
-  base::MemoryLimit memory_limit = base::MemoryLimit::NoPressureThreshold();
+  int memory_limit = base::kNoMemoryPressureThreshold;
   switch (memory_pressure_level) {
     case base::MEMORY_PRESSURE_LEVEL_NONE:
-      memory_limit = base::MemoryLimit::NoPressureThreshold();
+      memory_limit = base::kNoMemoryPressureThreshold;
       break;
     case base::MEMORY_PRESSURE_LEVEL_MODERATE:
-      memory_limit = base::MemoryLimit::ModeratePressureThreshold();
+      memory_limit = base::kModerateMemoryPressureThreshold;
       break;
     case base::MEMORY_PRESSURE_LEVEL_CRITICAL:
-      memory_limit = base::MemoryLimit::CriticalPressureThreshold();
+      memory_limit = base::kCriticalMemoryPressureThreshold;
       break;
   }
   return UpdateShaderCacheSizeOnMemoryLimit(max_cache_size, memory_limit);
 }
 
 size_t UpdateShaderCacheSizeOnMemoryLimit(size_t max_cache_size,
-                                          base::MemoryLimit memory_limit) {
+                                          int memory_limit) {
+  CHECK_GE(memory_limit, 0);
+
   // Handle limits greater than 100%. Scales linearly.
-  if (memory_limit > base::MemoryLimit::NoPressureThreshold()) {
-    return memory_limit.Scale(max_cache_size);
+  if (memory_limit > base::kNoMemoryPressureThreshold) {
+    return base::ScaleByMemoryLimit(max_cache_size, memory_limit);
   }
 
   double multiplier =

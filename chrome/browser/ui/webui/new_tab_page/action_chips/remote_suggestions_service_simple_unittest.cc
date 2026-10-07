@@ -124,7 +124,7 @@ GURL GetSuggestURL(const GetSuggestURLOptions& options,
     }
   } else {
     search_terms_args.page_classification =
-        metrics::OmniboxEventProto::NTP_ACTION_CHIPS;
+        metrics::OmniboxEventProto::NTP_ZPS_PREFETCH;
     search_terms_args.request_source =
         SearchTermsData::RequestSource::NTP_ACTION_CHIPS;
 

@@ -11,7 +11,6 @@ export function getHtml(this: ComposeboxLensSearchElement) {
   return html`
     ${this.isIcon ? html`
       <cr-icon-button id="lensIcon"
-          part="lens-icon"
           iron-icon="composebox:google-lens-2"
           title="${this.i18n('lensSearchHint')}"
           aria-label="${this.i18n('lensSearchHint')}"
@@ -19,7 +18,6 @@ export function getHtml(this: ComposeboxLensSearchElement) {
       </cr-icon-button>
     ` : html`
       <cr-button id="lensSearchPill"
-          part="lens-search-pill"
           title="${this.i18n('lensSearchHint')}"
           aria-label="${this.i18n('lensSearchHint')}"
           @click="${this.onLensSearchClick_}">

@@ -12,8 +12,7 @@
 
 namespace page_actions {
 
-FakeTabInterface::FakeTabInterface(TestingProfile* testing_profile)
-    : testing_profile_(testing_profile) {
+FakeTabInterface::FakeTabInterface(TestingProfile* testing_profile) {
   if (testing_profile) {
     web_contents_factory_ = std::make_unique<content::TestWebContentsFactory>();
     web_contents_ = web_contents_factory_->CreateWebContents(testing_profile);
@@ -34,10 +33,6 @@ base::CallbackListSubscription FakeTabInterface::RegisterWillDeactivate(
 
 content::WebContents* FakeTabInterface::GetContents() const {
   return web_contents_;
-}
-
-Profile* FakeTabInterface::GetProfile() const {
-  return testing_profile_;
 }
 
 void FakeTabInterface::Activate() {

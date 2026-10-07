@@ -11,7 +11,6 @@
 #include "base/dcheck_is_on.h"
 #include "base/feature_list.h"
 #include "base/i18n/rtl.h"
-#include "base/task/sequenced_task_runner.h"
 #include "chrome/browser/platform_util.h"
 #include "chrome/browser/themes/theme_service.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
@@ -262,14 +261,6 @@ BrowserWindowInterface* PopupBaseView::GetBrowser() {
 }
 
 bool PopupBaseView::DoShow() {
-  if (base::FeatureList::IsEnabled(features::kAutofillPopupUseDeleteSoon) &&
-      is_hiding_) {
-    return false;
-  }
-  if (!delegate_) {
-    return false;
-  }
-
   const bool initialize_widget = !GetWidget();
   if (initialize_widget) {
     // On Mac Cocoa browser, |parent_widget_| is null (the parent is not a
@@ -316,13 +307,6 @@ bool PopupBaseView::DoShow() {
 }
 
 void PopupBaseView::DoHide() {
-  if (base::FeatureList::IsEnabled(features::kAutofillPopupUseDeleteSoon)) {
-    if (is_hiding_) {
-      return;
-    }
-    is_hiding_ = true;
-  }
-
   if (is_ax_menu_start_event_fired_) {
     // Fire menu end event.
     // The menu start event is delayed until the user
@@ -366,9 +350,6 @@ void PopupBaseView::DoHide() {
     // http://crbug.com/40312043
     // NOTE: This deletes |this|.
     GetWidget()->Close();
-  } else if (base::FeatureList::IsEnabled(
-                 features::kAutofillPopupUseDeleteSoon)) {
-    base::SequencedTaskRunner::GetCurrentDefault()->DeleteSoon(FROM_HERE, this);
   } else {
     delete this;
   }
@@ -414,7 +395,7 @@ void PopupBaseView::NotifyAXSelection(views::View& selected_view) {
        "PasswordGenerationPopupViewViews::GeneratedPasswordBox", "PopupRowView",
        "PopupRowWithButtonView", "PopupRowContentView", "MdTextButton",
        "PopupBnplFootnoteView", "PopupAtMemoryAiDisclosureView",
-       "PopupNoticeView"});
+       "PopupPersonalContextNoticeView"});
   DCHECK(kDerivedClasses.contains(selected_view.GetClassName()))
       << "If you add a new derived class from AutofillPopupRowView, add it "
          "here and to onSelection(evt) in "

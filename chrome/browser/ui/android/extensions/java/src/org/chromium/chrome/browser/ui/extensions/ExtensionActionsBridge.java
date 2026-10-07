@@ -5,6 +5,7 @@
 package org.chromium.chrome.browser.ui.extensions;
 
 import org.jni_zero.JNINamespace;
+import org.jni_zero.JniType;
 import org.jni_zero.NativeMethods;
 
 import org.chromium.base.lifetime.Destroyable;
@@ -35,8 +36,18 @@ public class ExtensionActionsBridge implements Destroyable {
         LifetimeAssert.destroy(mLifetimeAssert);
     }
 
+    /**
+     * Returns whether the extensions are disabled on the profile for Desktop Android. This is
+     * temporary for until extensions are ready for dogfooding. TODO(crbug.com/422307625): Remove
+     * this check once extensions are ready for dogfooding.
+     */
+    public static boolean extensionsEnabled(Profile profile) {
+        return ExtensionActionsBridgeJni.get().extensionsEnabled(profile);
+    }
+
     @NativeMethods
     public interface Natives {
+        boolean extensionsEnabled(@JniType("Profile*") Profile profile);
 
         long init(ExtensionActionsBridge bridge, long browserWindowInterfacePtr);
 

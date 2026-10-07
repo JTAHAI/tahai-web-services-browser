@@ -22,9 +22,9 @@
 #include "chrome/browser/sync/test/integration/sync_test.h"
 #include "chrome/browser/ui/actions/chrome_action_id.h"
 #include "chrome/browser/ui/autofill/payments/save_card_bubble_controller_impl.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_window.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/location_bar/location_bar.h"
 #include "chrome/browser/ui/page_action/page_action_observer.h"
 #include "chrome/browser/ui/tabs/public/tab_features.h"
@@ -34,8 +34,10 @@
 #include "chrome/browser/ui/views/autofill/payments/save_card_manage_cards_bubble_views.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/location_bar/location_bar_view.h"
-#include "chrome/browser/ui/views/page_action/page_action_view_interface.h"
-#include "chrome/browser/ui/views/page_action/test_support/page_action_test_accessor.h"
+#include "chrome/browser/ui/views/page_action/page_action_icon_controller.h"
+#include "chrome/browser/ui/views/page_action/page_action_icon_loading_indicator_view.h"
+#include "chrome/browser/ui/views/page_action/page_action_icon_view_observer.h"
+#include "chrome/browser/ui/views/page_action/test_support/page_action_test_support.h"
 #include "chrome/browser/ui/views/toolbar/toolbar_view.h"
 #include "chrome/grit/generated_resources.h"
 #include "chrome/test/base/in_process_browser_test.h"
@@ -52,7 +54,7 @@
 #include "components/autofill/core/browser/metrics/payments/manage_cards_prompt_metrics.h"
 #include "components/autofill/core/browser/payments/credit_card_save_manager.h"
 #include "components/autofill/core/browser/payments/payments_network_interface.h"
-#include "components/autofill/core/browser/test_utils/autofill_test_util.h"
+#include "components/autofill/core/browser/test_utils/autofill_test_utils.h"
 #include "components/autofill/core/browser/test_utils/test_autofill_clock.h"
 #include "components/autofill/core/browser/test_utils/test_event_waiter.h"
 #include "components/autofill/core/common/autofill_payments_features.h"
@@ -138,6 +140,7 @@ struct SaveCardBubbleViewsBrowserTestParams {
 class SaveCardBubbleViewsFullFormBrowserTest
     : public SyncTest,
       public CreditCardSaveManager::ObserverForTest,
+      public PageActionIconViewObserver,
       public page_actions::PageActionObserver,
       public WithParamInterface<SaveCardBubbleViewsBrowserTestParams> {
  public:
@@ -341,6 +344,12 @@ class SaveCardBubbleViewsFullFormBrowserTest
     is_bubble_showing_ = true;
   }
 
+  // PageActionIconViewObserver:
+  void OnPageActionIconViewShown(PageActionIconView* view) override {
+    CHECK(!IsPageActionMigrationEnabled());
+    OnIconShown();
+  }
+
   void RegisterPageActionObserver() {
     auto* page_action_controller = GetBrowser(0)
                                        ->GetActiveTabInterface()
@@ -353,6 +362,7 @@ class SaveCardBubbleViewsFullFormBrowserTest
   // page_actions::PageActionObserver
   void OnPageActionIconShown(
       const page_actions::PageActionState& /*page_action*/) override {
+    CHECK(IsPageActionMigrationEnabled());
     OnIconShown();
   }
 
@@ -370,6 +380,10 @@ class SaveCardBubbleViewsFullFormBrowserTest
       event_waiter_->OnEvent(DialogEvent::BUBBLE_AND_ICON_SHOWN);
     }
     is_icon_showing_ = true;
+  }
+
+  bool IsPageActionMigrationEnabled() {
+    return IsPageActionMigrated(PageActionIconType::kSaveCard);
   }
 
   bool IsWalletBrandingV2Enabled() {
@@ -411,7 +425,7 @@ class SaveCardBubbleViewsFullFormBrowserTest
 
   void CloseAllTabs() {
     closed_all_tabs_ = true;
-    GetBrowser(0)->GetTabStripModel()->CloseAllTabs();
+    GetBrowser(0)->tab_strip_model()->CloseAllTabs();
   }
 
   void NavigateToAndWaitForForm(const std::string& file_path) {
@@ -795,22 +809,19 @@ class SaveCardBubbleViewsFullFormBrowserTest
     return static_cast<SaveCardBubbleViews*>(save_card_bubble_view);
   }
 
-  page_actions::PageActionTestAccessor GetSaveCardPageActionAccessor() {
-    return page_actions::PageActionTestAccessor(
-        GetBrowser(0), kActionShowPaymentsBubbleOrPage);
-  }
-
-  page_actions::PageActionViewInterface* GetSaveCardPageActionView() {
+  IconLabelBubbleView* GetSaveCardPageActionView() {
     BrowserView* browser_view =
         BrowserView::GetBrowserViewForBrowser(GetBrowser(0));
     auto* provider = browser_view->toolbar_button_provider();
-    auto* icon =
-        provider->GetPageActionViewInterface(kActionShowPaymentsBubbleOrPage);
+    IconLabelBubbleView* icon = page_actions::GetIconLabelBubbleViewForTesting(
+        provider->GetPageActionViewInterface(kActionShowPaymentsBubbleOrPage),
+        kActionShowPaymentsBubbleOrPage);
+    CHECK(browser_view->GetLocationBarView()->Contains(icon));
     return icon;
   }
 
   content::WebContents* GetActiveWebContents() {
-    return GetBrowser(0)->GetTabStripModel()->GetActiveWebContents();
+    return GetBrowser(0)->tab_strip_model()->GetActiveWebContents();
   }
 
   void ResetEventWaiterForSequence(std::list<DialogEvent> event_sequence) {
@@ -957,7 +968,30 @@ IN_PROC_BROWSER_TEST_P(SaveCardBubbleViewsFullFormBrowserTest,
   // in an UPLOAD_IN_PROGRESS state.
   ClickOnDialogViewWithId(DialogViewId::OK_BUTTON);
 
+  // Post migration, hiding the bubble will hide the page action icon, so no
+  // entrypoint will be available to open the loading bubble. So, we only close
+  // and reopen the bubble in legacy flow.
+  if (!IsPageActionMigrationEnabled()) {
+    // Focus onto the bubble view and then focus onto the main frame to hide the
+    // bubble view.
+    views::test::WidgetDestroyedWaiter destroyed_waiter(
+        GetSaveCardBubbleViews()->GetWidget());
+    GetSaveCardBubbleViews()->GetWidget()->Activate();
+    BrowserView::GetBrowserViewForBrowser(GetBrowser(0))->Activate();
+    destroyed_waiter.Wait();
 
+    // Wait for the bounds of the save payment icon view to be ready before
+    // clicking. Due to how the bounds are set asynchronously, the icon can be
+    // visible but un-clickable due to its unset bounds.
+    ui_test_utils::ViewBoundsWaiter save_card_icon_view_waiter(
+        GetSaveCardPageActionView());
+    save_card_icon_view_waiter.WaitForNonEmptyBounds();
+
+    // Click on the save card icon to reshow the bubble view.
+    ResetEventWaiterForSequence({DialogEvent::BUBBLE_SHOWN});
+    ClickSavePaymentIconView(GetSaveCardPageActionView());
+    ASSERT_TRUE(WaitForObservedEvent());
+  }
 
   EXPECT_TRUE(GetSaveCardBubbleViews()->IsDrawn());
 
@@ -988,7 +1022,88 @@ IN_PROC_BROWSER_TEST_P(SaveCardBubbleViewsFullFormBrowserTest,
   EXPECT_EQ(1, counter.GetCount(ax::mojom::Event::kAlert));
 }
 
+class SaveCardBubbleViewsFullFormBrowserTestSettings
+    : public SaveCardBubbleViewsFullFormBrowserTest {
+ public:
+  SaveCardBubbleViewsFullFormBrowserTestSettings() {
+#if BUILDFLAG(IS_CHROMEOS)
+    // OpenSettingsFromManageCardsPrompt() tries to retrieve the PhoneHubManager
+    // keyed service, whose factory implementation relies on ChromeOS having a
+    // single profile, and consequently a single service instance.
+    SetUsePrimaryUserProfile(true);
+#endif
+  }
 
+  void OpenSettingsFromManageCardsPrompt() {
+    FillForm();
+    SubmitFormAndWaitForCardLocalSaveBubble();
+
+#if !BUILDFLAG(IS_CHROMEOS)
+    ResetEventWaiterForSequence({DialogEvent::BUBBLE_SHOWN});
+#endif
+
+    // Click [Save] should close the offer-to-save bubble and show "Card saved"
+    // animation.
+    ClickOnDialogViewWithIdAndWait(DialogViewId::OK_BUTTON);
+
+    // Manage cards prompt is unreachable post migration.
+    if (IsPageActionMigrationEnabled()) {
+      return;
+    }
+
+    // Open up Manage Cards prompt.
+    ResetEventWaiterForSequence({DialogEvent::BUBBLE_SHOWN});
+    ClickSavePaymentIconView(GetSaveCardPageActionView());
+    ASSERT_TRUE(WaitForObservedEvent());
+
+    // Click on the redirect button.
+    ClickOnDialogViewWithId(
+        SaveCardManageCardsBubbleViews::kSaveCardBubbleManageCardsButtonId);
+  }
+
+ private:
+  base::test::ScopedFeatureList feature_list_;
+};
+
+// Tests the manage cards bubble. Ensures that clicking the [Manage cards]
+// button redirects properly.
+IN_PROC_BROWSER_TEST_P(SaveCardBubbleViewsFullFormBrowserTestSettings,
+                       Local_ManageCardsButtonRedirects) {
+  if (IsPageActionMigrationEnabled()) {
+    GTEST_SKIP()
+        << "Post page action migration manage card bubble is unreachable";
+  }
+  base::HistogramTester histogram_tester;
+  OpenSettingsFromManageCardsPrompt();
+
+  // Post migration, manage cards bubble is neither visible nor clicked.
+  int tab_count, manage_cards_shown_count, manage_cards_clicked_count;
+  if (IsPageActionMigrationEnabled()) {
+    // There are two initial tabs, the default one from
+    // InProcessBrowserTest/SyncTest and the one explicitly added in
+    // SetUpOnMainThread(). No additional tab is opened because the manage cards
+    // bubble is unreachable.
+    tab_count = 2;
+    manage_cards_shown_count = 0;
+    manage_cards_clicked_count = 0;
+  } else {
+    // In addition to the two initial tabs, a third tab is opened with the
+    // settings page by clicking the "Manage cards" button in the bubble.
+    tab_count = 3;
+    manage_cards_shown_count = 1;
+    manage_cards_clicked_count = 1;
+  }
+
+  EXPECT_EQ(tab_count, GetBrowser(0)->tab_strip_model()->count());
+
+  // Metrics should have been recorded correctly.
+  EXPECT_THAT(
+      histogram_tester.GetAllSamples("Autofill.ManageCardsPrompt"),
+      ElementsAre(Bucket(ManageCardsPromptMetric::kManageCardsShown,
+                         manage_cards_shown_count),
+                  Bucket(ManageCardsPromptMetric::kManageCardsManageCards,
+                         manage_cards_clicked_count)));
+}
 
 // Tests the local save bubble. Ensures that the bubble behaves correctly if
 // dismissed and then immediately torn down (e.g. by closing browser window)
@@ -1940,7 +2055,7 @@ IN_PROC_BROWSER_TEST_P(SaveCardBubbleViewsFullFormBrowserTest,
   SubmitForm();
   ASSERT_TRUE(WaitForObservedEvent());
 
-  EXPECT_FALSE(GetSaveCardPageActionAccessor().GetVisible());
+  EXPECT_FALSE(GetSaveCardPageActionView()->GetVisible());
   EXPECT_FALSE(GetSaveCardBubbleViews());
 
   // Verify that the correct histogram entry was logged.
@@ -1992,6 +2107,9 @@ IN_PROC_BROWSER_TEST_P(
       DialogEvent::REQUESTED_UPLOAD_SAVE,
       DialogEvent::RECEIVED_GET_UPLOAD_DETAILS_RESPONSE,
       DialogEvent::OFFERED_UPLOAD_SAVE};
+  if (!IsPageActionMigrationEnabled()) {
+    events.emplace_back(DialogEvent::ICON_SHOWN);
+  }
 
   ResetEventWaiterForSequence(events);
   NavigateToAndWaitForForm(kCreditCardAndAddressUploadForm);
@@ -2000,8 +2118,27 @@ IN_PROC_BROWSER_TEST_P(
   ASSERT_TRUE(WaitForObservedEvent());
 
   // Post migration, the page action will not show after max strikes.
-  EXPECT_FALSE(GetSaveCardPageActionAccessor().GetVisible());
+  if (IsPageActionMigrationEnabled()) {
+    EXPECT_FALSE(GetSaveCardPageActionView()->GetVisible());
+  } else {
+    EXPECT_TRUE(GetSaveCardPageActionView()->GetVisible());
+  }
   EXPECT_FALSE(GetSaveCardBubbleViews());
+
+  // Post migration, since the icon will not show, their is not entrypoint to
+  // the Save Card bubble.
+  if (!IsPageActionMigrationEnabled()) {
+    // Click the icon to show the bubble.
+    ResetEventWaiterForSequence({DialogEvent::BUBBLE_SHOWN});
+    ClickSavePaymentIconView(GetSaveCardPageActionView());
+    ASSERT_TRUE(WaitForObservedEvent());
+    EXPECT_TRUE(FindViewInBubbleById(DialogViewId::MAIN_CONTENT_VIEW_UPLOAD)
+                    ->GetVisible());
+    EXPECT_TRUE(
+        FindViewInBubbleById(DialogViewId::LEGAL_MESSAGE_VIEW)->GetVisible());
+
+    ClickOnCancelButton();
+  }
 
   // Verify that the correct histogram entry was logged.
   histogram_tester.ExpectBucketCount(
@@ -2186,7 +2323,7 @@ IN_PROC_BROWSER_TEST_P(SaveCardBubbleViewsFullFormBrowserTest,
   EXPECT_EQ(nullptr, GetSaveCardBubbleViews());
 
   // Entrypoint for manage card bubble will not show post migration.
-  EXPECT_FALSE(GetSaveCardPageActionAccessor().GetVisible());
+  EXPECT_FALSE(GetSaveCardPageActionView()->GetVisible());
 }
 
 // Tests the local save bubble. Ensures that the bubble always surfaces the
@@ -2216,9 +2353,22 @@ IN_PROC_BROWSER_TEST_P(SaveCardBubbleViewsFullFormBrowserTest,
   ClickOnDialogViewWithIdAndWait(DialogViewId::OK_BUTTON);
 
   base::HistogramTester histogram_tester;
+  // Manage cards entrypoint is not shown post migration.
+  if (!IsPageActionMigrationEnabled()) {
+    // Open up Manage Cards prompt.
+    ResetEventWaiterForSequence({DialogEvent::BUBBLE_SHOWN});
+    ClickSavePaymentIconView(GetSaveCardPageActionView());
+    ASSERT_TRUE(WaitForObservedEvent());
+
+    // Bubble should be showing.
+    EXPECT_TRUE(
+        FindViewInBubbleById(
+            SaveCardManageCardsBubbleViews::kSaveCardBubbleManageCardsViewId)
+            ->GetVisible());
+  }
   histogram_tester.ExpectUniqueSample(
       "Autofill.ManageCardsPrompt", ManageCardsPromptMetric::kManageCardsShown,
-      0);
+      IsPageActionMigrationEnabled() ? 0 : 1);
 }
 
 // Tests the manage cards bubble. Ensures that clicking the [Done]
@@ -2237,8 +2387,23 @@ IN_PROC_BROWSER_TEST_P(SaveCardBubbleViewsFullFormBrowserTest,
   ClickOnDialogViewWithIdAndWait(DialogViewId::OK_BUTTON);
 
   base::HistogramTester histogram_tester;
-  EXPECT_EQ(
-      0, histogram_tester.GetAllSamples("Autofill.ManageCardsPrompt").size());
+  // Manage cards entrypoint is not shown post migration.
+  if (!IsPageActionMigrationEnabled()) {
+    // Open up Manage Cards prompt.
+    ResetEventWaiterForSequence({DialogEvent::BUBBLE_SHOWN});
+    ClickSavePaymentIconView(GetSaveCardPageActionView());
+    ASSERT_TRUE(WaitForObservedEvent());
+
+    // Click on the [Done] button.
+    ClickOnDialogViewWithIdAndWait(DialogViewId::OK_BUTTON);
+    EXPECT_THAT(
+        histogram_tester.GetAllSamples("Autofill.ManageCardsPrompt"),
+        ElementsAre(Bucket(ManageCardsPromptMetric::kManageCardsShown, 1),
+                    Bucket(ManageCardsPromptMetric::kManageCardsDone, 1)));
+  } else {
+    EXPECT_EQ(
+        0, histogram_tester.GetAllSamples("Autofill.ManageCardsPrompt").size());
+  }
   // No bubble should be showing now and metrics should be recorded correctly.
   EXPECT_EQ(nullptr, GetSaveCardBubbleViews());
 }
@@ -2281,6 +2446,15 @@ INSTANTIATE_TEST_SUITE_P(
       return base::StrCat({info.param.is_wallet_branding_v2_enabled
                                ? "WalletBrandingV2Enabled"
                                : "WalletBrandingV2Disabled"});
+    });
+
+INSTANTIATE_TEST_SUITE_P(
+    ,
+    SaveCardBubbleViewsFullFormBrowserTestSettings,
+    ::testing::Values(SaveCardBubbleViewsBrowserTestParams{}),
+    [](const ::testing::TestParamInfo<
+        SaveCardBubbleViewsFullFormBrowserTestSettings::ParamType>& info) {
+      return "Default";
     });
 
 INSTANTIATE_TEST_SUITE_P(

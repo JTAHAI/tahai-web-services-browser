@@ -37,8 +37,6 @@
 /chromeos_login_manager
 /chromeos_text_input
 /cld_2/src
-/cpython3/host
-/cpython3/linux-amd64
 /cros
 /custom_tabs_client/src
 /cygwin
@@ -73,7 +71,6 @@
 /js_code_coverage/node_modules/
 /jsr-305/src
 /kotlinc/current
-/ktfmt/cipd/
 /leveldb
 /libassistant
 /libc++-static/libc++.a
@@ -93,7 +90,6 @@
 /llvm-libclang
 /mesa/src
 /microsoft_dxheaders/src
-/microsoft_multimedia_redirection/src
 /webauthn/src
 /mingw-w64
 /mkl

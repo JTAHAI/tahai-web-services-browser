@@ -71,7 +71,7 @@ import java.util.List;
 /** The PaymentRequest UI. */
 @NullMarked
 public class PaymentRequestUi
-        implements DimmingDialog.DimmingDialogObserver,
+        implements DimmingDialog.OnDismissListener,
                 View.OnClickListener,
                 PaymentRequestSection.SectionDelegate,
                 PauseResumeWithNativeObserver {
@@ -241,9 +241,6 @@ public class PaymentRequestUi
 
         /** Called when the result UI is showing. */
         void onPaymentRequestResultReady(PaymentRequestUi ui);
-
-        /** Called when the scrim is shown in the skip UI case. */
-        void onPaymentRequestScrimShown(PaymentRequestUi ui);
     }
 
     /** Helper to notify tests of an event only once. */
@@ -260,9 +257,12 @@ public class PaymentRequestUi
         public NotifierForTest(final Runnable notification) {
             mHandler = new Handler();
             mNotification =
-                    () -> {
-                        notification.run();
-                        mNotificationPending = false;
+                    new Runnable() {
+                        @Override
+                        public void run() {
+                            notification.run();
+                            mNotificationPending = false;
+                        }
                     };
         }
 
@@ -378,36 +378,43 @@ public class PaymentRequestUi
 
         mReadyToPayNotifierForTest =
                 new NotifierForTest(
-                        () -> {
-                            if (sPaymentRequestObserverForTest != null
-                                    && isAcceptingUserInput()
-                                    && mPayButton.isEnabled()) {
-                                sPaymentRequestObserverForTest.onPaymentRequestReadyToPay(
-                                        PaymentRequestUi.this);
+                        new Runnable() {
+                            @Override
+                            public void run() {
+                                if (sPaymentRequestObserverForTest != null
+                                        && isAcceptingUserInput()
+                                        && mPayButton.isEnabled()) {
+                                    sPaymentRequestObserverForTest.onPaymentRequestReadyToPay(
+                                            PaymentRequestUi.this);
+                                }
                             }
                         });
 
         // This callback will be fired if mIsClientCheckingSelection is true.
         mUpdateSectionsCallback =
-                (PaymentInformation result) -> {
-                    mIsClientCheckingSelection = false;
-                    updateOrderSummarySection(result.getShoppingCart());
-                    if (mClient.shouldShowShippingSection()) {
-                        updateSection(DataType.SHIPPING_ADDRESSES, result.getShippingAddresses());
-                        updateSection(DataType.SHIPPING_OPTIONS, result.getShippingOptions());
+                new Callback<>() {
+                    @Override
+                    public void onResult(PaymentInformation result) {
+                        mIsClientCheckingSelection = false;
+                        updateOrderSummarySection(result.getShoppingCart());
+                        if (mClient.shouldShowShippingSection()) {
+                            updateSection(
+                                    DataType.SHIPPING_ADDRESSES, result.getShippingAddresses());
+                            updateSection(DataType.SHIPPING_OPTIONS, result.getShippingOptions());
+                        }
+                        if (mClient.shouldShowContactSection()) {
+                            updateSection(DataType.CONTACT_DETAILS, result.getContactDetails());
+                        }
+                        updateSection(DataType.PAYMENT_METHODS, result.getPaymentMethods());
+                        if (mShippingAddressSectionInformation != null
+                                && mShippingAddressSectionInformation.getSelectedItem() == null) {
+                            expand(mShippingAddressSection);
+                        } else {
+                            expand(null);
+                        }
+                        updatePayButtonEnabled();
+                        notifySelectionChecked();
                     }
-                    if (mClient.shouldShowContactSection()) {
-                        updateSection(DataType.CONTACT_DETAILS, result.getContactDetails());
-                    }
-                    updateSection(DataType.PAYMENT_METHODS, result.getPaymentMethods());
-                    if (mShippingAddressSectionInformation != null
-                            && mShippingAddressSectionInformation.getSelectedItem() == null) {
-                        expand(mShippingAddressSection);
-                    } else {
-                        expand(null);
-                    }
-                    updatePayButtonEnabled();
-                    notifySelectionChecked();
                 };
 
         mShippingStrings = shippingStrings;
@@ -443,27 +450,31 @@ public class PaymentRequestUi
         mPaymentUisShowStateReconciler.showPaymentRequestDialogWhenNoBottomSheet();
         mClient.getDefaultPaymentInformation(
                 waitForUpdatedDetails,
-                (PaymentInformation result) -> {
-                    updateOrderSummarySection(result.getShoppingCart());
+                new Callback<>() {
+                    @Override
+                    public void onResult(PaymentInformation result) {
+                        updateOrderSummarySection(result.getShoppingCart());
 
-                    if (mClient.shouldShowShippingSection()) {
-                        updateSection(DataType.SHIPPING_ADDRESSES, result.getShippingAddresses());
-                        updateSection(DataType.SHIPPING_OPTIONS, result.getShippingOptions());
+                        if (mClient.shouldShowShippingSection()) {
+                            updateSection(
+                                    DataType.SHIPPING_ADDRESSES, result.getShippingAddresses());
+                            updateSection(DataType.SHIPPING_OPTIONS, result.getShippingOptions());
+                        }
+
+                        if (mClient.shouldShowContactSection()) {
+                            updateSection(DataType.CONTACT_DETAILS, result.getContactDetails());
+                        }
+
+                        mPaymentMethodSection.setDisplaySummaryInSingleLineInNormalMode(
+                                result.getPaymentMethods()
+                                        .getDisplaySelectedItemSummaryInSingleLineInNormalMode());
+                        updateSection(DataType.PAYMENT_METHODS, result.getPaymentMethods());
+                        updatePayButtonEnabled();
+
+                        // Hide the loading indicators and show the real sections.
+                        changeSpinnerVisibility(false);
+                        mRequestView.addOnLayoutChangeListener(new SheetEnlargingAnimator(false));
                     }
-
-                    if (mClient.shouldShowContactSection()) {
-                        updateSection(DataType.CONTACT_DETAILS, result.getContactDetails());
-                    }
-
-                    mPaymentMethodSection.setDisplaySummaryInSingleLineInNormalMode(
-                            result.getPaymentMethods()
-                                    .getDisplaySelectedItemSummaryInSingleLineInNormalMode());
-                    updateSection(DataType.PAYMENT_METHODS, result.getPaymentMethods());
-                    updatePayButtonEnabled();
-
-                    // Hide the loading indicators and show the real sections.
-                    changeSpinnerVisibility(false);
-                    mRequestView.addOnLayoutChangeListener(new SheetEnlargingAnimator(false));
                 });
         if (sPaymentRequestObserverForTest != null) {
             sPaymentRequestObserverForTest.onPaymentRequestUiShow(PaymentRequestUi.this);
@@ -479,8 +490,7 @@ public class PaymentRequestUi
     public void dimBackground() {
         // Intentionally do not add the bottom sheet view to mDialog so that only the scrim part of
         // the dialog will be shown.
-        mPaymentUisShowStateReconciler.showPaymentRequestDialogWhenNoBottomSheet(
-                /* delayBackground= */ true);
+        mPaymentUisShowStateReconciler.showPaymentRequestDialogWhenNoBottomSheet();
     }
 
     /**
@@ -1122,9 +1132,12 @@ public class PaymentRequestUi
         mSelectedSection = section;
         if (mSelectedSection == mOrderSummarySection) {
             mClient.getShoppingCart(
-                    (ShoppingCart result) -> {
-                        updateOrderSummarySection(result);
-                        updateSectionVisibility();
+                    new Callback<>() {
+                        @Override
+                        public void onResult(ShoppingCart result) {
+                            updateOrderSummarySection(result);
+                            updateSectionVisibility();
+                        }
                     });
         } else if (mSelectedSection == mShippingAddressSection) {
             mClient.getSectionInformation(
@@ -1203,9 +1216,12 @@ public class PaymentRequestUi
     }
 
     private Callback<SectionInformation> createUpdateSectionCallback(@DataType final int type) {
-        return (SectionInformation result) -> {
-            updateSection(type, result);
-            updateSectionVisibility();
+        return new Callback<>() {
+            @Override
+            public void onResult(SectionInformation result) {
+                updateSection(type, result);
+                updateSectionVisibility();
+            }
         };
     }
 
@@ -1257,20 +1273,13 @@ public class PaymentRequestUi
      *   <li>User closing all incognito windows with PaymentRequest UI open in an incognito window.
      * </ul>
      */
-    // DimmingDialog.DimmingDialogObserver implementation.
+    // DimmingDialog.OnDismissListener implementation.
     @Override
     public void onDismiss() {
         mIsClosing = true;
         if (mEditorDialog.isShowing()) mEditorDialog.dismiss();
         if (sEditorObserverForTest != null) sEditorObserverForTest.onEditorDismiss();
         if (!mIsClientClosing) mClient.onDismiss();
-    }
-
-    @Override
-    public void onScrimShown() {
-        if (sPaymentRequestObserverForTest != null) {
-            sPaymentRequestObserverForTest.onPaymentRequestScrimShown(this);
-        }
     }
 
     @Override
@@ -1319,10 +1328,13 @@ public class PaymentRequestUi
      */
     private void startSectionResizeAnimation() {
         Runnable animationEndRunnable =
-                () -> {
-                    mSectionAnimator = null;
-                    notifyReadyForInput();
-                    mReadyToPayNotifierForTest.run();
+                new Runnable() {
+                    @Override
+                    public void run() {
+                        mSectionAnimator = null;
+                        notifyReadyForInput();
+                        mReadyToPayNotifierForTest.run();
+                    }
                 };
 
         mSectionAnimator =
@@ -1505,22 +1517,20 @@ public class PaymentRequestUi
     }
 
     /**
-     * Show the dialog. Use {@link PaymentUisShowStateReconciler}'s
-     * showPaymentRequestDialogWhenNoBottomSheet() instead of calling this method directly.
+     * Set the visibility state of the dialog. Use {@link PaymentUisShowStateReconciler}'s
+     * showPaymentRequestDialogWhenNoBottomSheet() and hidePaymentRequestDialog() instead of calling
+     * this method directly.
      *
-     * @param delayBackground True if showing the background should be delayed.
-     * @return Whether the dialog was made visible successfully.
+     * @param visible True to show the dialog, false to hide the dialog.
+     * @return Whether setting visibility is successful.
      */
-    public boolean showDialog(boolean delayBackground) {
-        return mDialog.show(delayBackground);
-    }
-
-    /**
-     * Hide the dialog. Use {@link PaymentUisShowStateReconciler}'s hidePaymentRequestDialog()
-     * instead of calling this method directly.
-     */
-    public void hideDialog() {
-        mDialog.hide();
+    public boolean setVisible(boolean visible) {
+        if (visible) {
+            return mDialog.show();
+        } else {
+            mDialog.hide();
+            return true;
+        }
     }
 
     // Implement PauseResumeWithNativeObserver:

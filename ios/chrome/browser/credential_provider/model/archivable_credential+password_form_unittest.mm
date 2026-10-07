@@ -5,7 +5,6 @@
 #import "base/strings/sys_string_conversions.h"
 #import "base/strings/utf_string_conversions.h"
 #import "components/password_manager/core/browser/password_form.h"
-#import "components/password_manager/core/browser/password_string.h"
 #import "ios/chrome/browser/credential_provider/model/archivable_credential+password_form.h"
 #import "testing/gtest_mac.h"
 #import "testing/platform_test.h"
@@ -14,7 +13,6 @@
 namespace {
 
 using password_manager::PasswordForm;
-using password_manager::PasswordString;
 using ArchivableCredentialPasswordFormTest = PlatformTest;
 
 // Tests the creation of a credential from a password form.
@@ -29,8 +27,7 @@ TEST_F(ArchivableCredentialPasswordFormTest, Creation) {
   passwordForm.username_element = u"username_element";
   passwordForm.password_element = u"password_element";
   passwordForm.username_value = base::SysNSStringToUTF16(username);
-  passwordForm.password_value =
-      PasswordString(base::SysNSStringToUTF16(password));
+  passwordForm.password_value = base::SysNSStringToUTF16(password);
   passwordForm.url = GURL(base::SysNSStringToUTF16(url));
   ArchivableCredential* credential =
       [[ArchivableCredential alloc] initWithPasswordForm:passwordForm
@@ -53,7 +50,7 @@ TEST_F(ArchivableCredentialPasswordFormTest, AndroidCredentialCreation) {
   PasswordForm form;
   form.signon_realm = "android://hash@com.example.my.app";
   form.password_element = u"pwd";
-  form.password_value = PasswordString(u"example");
+  form.password_value = u"example";
 
   ArchivableCredential* credentialOnlyRealm =
       [[ArchivableCredential alloc] initWithPasswordForm:form
@@ -94,7 +91,7 @@ TEST_F(ArchivableCredentialPasswordFormTest, BlockedCreation) {
   PasswordForm form;
   form.signon_realm = "android://hash@com.example.my.app";
   form.password_element = u"pwd";
-  form.password_value = PasswordString(u"example");
+  form.password_value = u"example";
   form.blocked_by_user = true;
 
   ArchivableCredential* credential =
@@ -147,8 +144,7 @@ TEST_F(ArchivableCredentialPasswordFormTest, CreationWithMobileURL) {
   passwordForm.username_element = u"username_element";
   passwordForm.password_element = u"password_element";
   passwordForm.username_value = base::SysNSStringToUTF16(username);
-  passwordForm.password_value =
-      PasswordString(base::SysNSStringToUTF16(password));
+  passwordForm.password_value = base::SysNSStringToUTF16(password);
   passwordForm.url = GURL(base::SysNSStringToUTF16(url));
   ArchivableCredential* credential =
       [[ArchivableCredential alloc] initWithPasswordForm:passwordForm

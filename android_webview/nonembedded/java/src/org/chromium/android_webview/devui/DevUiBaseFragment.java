@@ -41,14 +41,7 @@ public abstract class DevUiBaseFragment extends Fragment {
                         new OnBackPressedCallback(true) {
                             @Override
                             public void handleOnBackPressed() {
-                                View navBar = requireActivity().findViewById(R.id.nav_view);
-                                if (navBarButton.hasFocus()
-                                        || (navBar != null && navBar.hasFocus())) {
-                                    // If navBar has the focus, pressing back should close the app
-                                    requireActivity().finish();
-                                } else {
-                                    navBarButton.requestFocus();
-                                }
+                                navBarButton.requestFocus();
                             }
                         });
     }

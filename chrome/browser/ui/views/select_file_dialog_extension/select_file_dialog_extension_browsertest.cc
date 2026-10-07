@@ -601,8 +601,9 @@ IN_PROC_BROWSER_TEST_P(SelectFileDialogExtensionBrowserTest,
 
 IN_PROC_BROWSER_TEST_P(SelectFileDialogExtensionBrowserTest, MultipleOpenFile) {
   // No use-after-free when OpenFile is called multiple times.
-  auto* controller =
-      BrowserSelectFileDialogController::From(browser_window_interface());
+  auto* controller = browser_window_interface()
+                         ->GetFeatures()
+                         .browser_select_file_dialog_controller();
 
   controller->OpenFile();
   controller->OpenFile();

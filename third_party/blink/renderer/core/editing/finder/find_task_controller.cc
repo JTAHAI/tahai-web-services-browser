@@ -207,6 +207,7 @@ FindTaskController::FindTaskController(WebLocalFrameImpl& owner_frame,
                                        TextFinder& text_finder)
     : owner_frame_(owner_frame),
       text_finder_(text_finder),
+      resume_finding_from_range_(nullptr),
       match_yield_check_interval_(kMatchYieldCheckIntervalStart) {}
 
 int FindTaskController::GetMatchYieldCheckInterval() const {

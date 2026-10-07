@@ -4,7 +4,6 @@
 
 #include <memory>
 
-#include "base/memory/raw_ptr.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/blink/public/mojom/frame/fullscreen.mojom-blink.h"
 #include "third_party/blink/public/mojom/webpreferences/web_preferences.mojom-blink.h"
@@ -56,7 +55,7 @@ class VideoAutoFullscreenFrameHost : public FakeLocalFrameHost {
   void set_web_view(WebViewImpl* web_view) { web_view_ = web_view; }
 
  private:
-  raw_ptr<WebViewImpl, UnprotectedInRelease | DanglingUntriaged> web_view_;
+  WebViewImpl* web_view_;
 };
 
 class VideoAutoFullscreenFrameClient

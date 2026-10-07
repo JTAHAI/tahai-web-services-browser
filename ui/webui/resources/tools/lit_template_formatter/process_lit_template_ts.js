@@ -53,11 +53,7 @@ export function processTemplate(filePath) {
     // If it is a template, we add +1 to include the opening backtick of the
     // template literal.
     const jsEnd = node.getStart(sourceFile) + (isTemplate ? 1 : 0);
-    let jsText = code.substring(jsStart, jsEnd);
-    if (prefix === FALSE_TEMPLATE_PREFIX && !isTemplate &&
-        /^\n\s*/.test(jsText)) {
-      jsText = jsText.replace(/^\n\s*/, ' ');
-    }
+    const jsText = code.substring(jsStart, jsEnd);
 
     map.set(tagName, {code: jsText, isTemplate});
     map.set(`/${tagName}`, {code: closeToken});
@@ -175,9 +171,7 @@ export function processTemplate(filePath) {
   const returnStatement = getHtmlFn.body.statements.find(ts.isReturnStatement);
   assert.ok(
       returnStatement && returnStatement.expression &&
-          ts.isTaggedTemplateExpression(returnStatement.expression),
-      `getHtml() in ${
-          filePath} must return a tagged template expression (e.g. html\`...\`)`);
+      ts.isTaggedTemplateExpression(returnStatement.expression));
   const templateNode = returnStatement.expression.template;
   result = processNode(templateNode);
   const placeholder = '<!--_html_template_placeholder_-->';

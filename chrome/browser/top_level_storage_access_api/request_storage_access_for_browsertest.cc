@@ -15,7 +15,7 @@
 #include "chrome/browser/net/storage_test_utils.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/top_level_storage_access_api/top_level_storage_access_permission_context.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/omnibox/omnibox_next_features.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/test/base/in_process_browser_test.h"
@@ -25,7 +25,6 @@
 #include "components/content_settings/core/common/content_settings.h"
 #include "components/content_settings/core/common/content_settings_types.h"
 #include "components/content_settings/core/common/cookie_settings_base.h"
-#include "components/content_settings/core/common/features.h"
 #include "components/content_settings/core/common/pref_names.h"
 #include "components/metrics/content/subprocess_metrics_provider.h"
 #include "components/permissions/test/mock_permission_prompt_factory.h"
@@ -300,7 +299,7 @@ class InsecureRequestStorageAccessForBaseBrowserTest
 
   void SetUp() override {
     features_.InitAndEnableFeature(
-        content_settings::features::kStorageAccessAPIRelatedWebsiteSets);
+        blink::features::kStorageAccessAPIRelatedWebsiteSets);
     InProcessBrowserTest::SetUp();
   }
 
@@ -443,12 +442,12 @@ IN_PROC_BROWSER_TEST_F(RequestStorageAccessForBrowserTest,
 }
 
 IN_PROC_BROWSER_TEST_F(RequestStorageAccessForBrowserTest,
-                       RsaForOriginDisabledByDefault) {
+                       RsaForOriginEnabledByDefault) {
   NavigateToPageWithFrame(kHostA);
-  // Ensure that the proposed extension is disabled by default
+  // Ensure that the proposed extension is enabled by default
   EXPECT_EQ(
       EvalJs(GetPrimaryMainFrame(), "\"requestStorageAccessFor\" in document"),
-      false);
+      true);
 }
 
 class RequestStorageAccessForEnabledBrowserTest
@@ -457,8 +456,7 @@ class RequestStorageAccessForEnabledBrowserTest
  public:
   std::vector<base::test::FeatureRefAndParams> GetEnabledFeatures()
       const override {
-    return {
-        {content_settings::features::kStorageAccessAPIRelatedWebsiteSets, {}}};
+    return {{blink::features::kStorageAccessAPIRelatedWebsiteSets, {}}};
   }
 };
 
@@ -643,8 +641,7 @@ class RequestStorageAccessForWithFirstPartySetsBrowserTest
  public:
   std::vector<base::test::FeatureRefAndParams> GetEnabledFeatures()
       const override {
-    return {
-        {content_settings::features::kStorageAccessAPIRelatedWebsiteSets, {}}};
+    return {{blink::features::kStorageAccessAPIRelatedWebsiteSets, {}}};
   }
 
   std::vector<base::test::FeatureRef> GetDisabledFeatures() const override {
@@ -677,11 +674,10 @@ class RequestStorageAccessForWithFirstPartySetsBrowserTest
                       R"(, "serviceSites": ["https://)", kHostB, R"("]})"}));
   }
 
-  permissions::MockPermissionPromptFactory MakePromptFactory(
-      BrowserWindowInterface& browser) {
+  permissions::MockPermissionPromptFactory MakePromptFactory(Browser& browser) {
     return permissions::MockPermissionPromptFactory(
         permissions::PermissionRequestManager::FromWebContents(
-            browser.GetTabStripModel()->GetActiveWebContents()));
+            browser.tab_strip_model()->GetActiveWebContents()));
   }
 
  private:

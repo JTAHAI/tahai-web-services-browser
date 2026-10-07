@@ -48,7 +48,7 @@ class RemoveCssPropertyCommand final : public SimpleEditCommand {
   Member<Element> element_;
   CSSPropertyID property_;
   String old_value_;
-  bool important_ = false;
+  bool important_;
 };
 
 }  // namespace blink

@@ -16,6 +16,8 @@
 #include "content/public/test/browser_test.h"
 #include "content/public/test/test_utils.h"
 
+class Browser;
+
 namespace policy {
 
 enum class CacheControlNoStorePagePolicy {

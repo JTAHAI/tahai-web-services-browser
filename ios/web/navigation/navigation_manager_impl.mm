@@ -39,7 +39,6 @@
 #import "ios/web/web_state/ui/crw_web_view_navigation_proxy.h"
 #import "net/base/apple/url_conversions.h"
 #import "ui/base/page_transition_types.h"
-#import "url/origin.h"
 
 namespace {
 
@@ -206,7 +205,7 @@ NavigationManagerImpl::~NavigationManagerImpl() = default;
 
 void NavigationManagerImpl::RestoreFromProto(
     const proto::NavigationStorage& storage) {
-  std::vector<std::unique_ptr<NavigationItemImpl>> items;
+  std::vector<std::unique_ptr<NavigationItem>> items;
   items.reserve(storage.items_size());
 
   for (const auto& item_storage : storage.items()) {
@@ -215,7 +214,7 @@ void NavigationManagerImpl::RestoreFromProto(
     items.push_back(std::move(item));
   }
 
-  RestoreImpl(storage.last_committed_item_index(), std::move(items));
+  Restore(storage.last_committed_item_index(), std::move(items));
 }
 
 void NavigationManagerImpl::SerializeToProto(
@@ -661,7 +660,8 @@ void NavigationManagerImpl::GoTo(GoToParams params) {
   if (!web_view_cache_.IsAttachedToWebView()) {
     // GoTo(...) from detached mode is equivalent to restoring history with
     // `last_committed_item_index` updated to `index`.
-    RestoreImpl(index, web_view_cache_.ReleaseCachedItems());
+    Restore(index, web_view_cache_.ReleaseCachedItems());
+    DCHECK(web_view_cache_.IsAttachedToWebView());
     return;
   }
 
@@ -848,10 +848,6 @@ NavigationItem* NavigationManagerImpl::GetLastCommittedItem() const {
   return GetLastCommittedItemImpl();
 }
 
-bool NavigationManagerImpl::IsRestoreSessionInProgress() const {
-  return native_restore_in_progress_;
-}
-
 NavigationItemImpl* NavigationManagerImpl::GetLastCommittedItemImpl() const {
   if (empty_window_open_item_) {
     return empty_window_open_item_.get();
@@ -981,13 +977,14 @@ void NavigationManagerImpl::LoadURLWithParams(
       // Loading a pending item from detached state is equivalent to replacing
       // all forward history after the cached current item with the new pending
       // item.
-      std::vector<std::unique_ptr<NavigationItemImpl>> cached_items =
+      std::vector<std::unique_ptr<NavigationItem>> cached_items =
           web_view_cache_.ReleaseCachedItems();
       int next_item_index = web_view_cache_.GetCurrentItemIndex() + 1;
       DCHECK_GT(next_item_index, 0);
       cached_items.resize(next_item_index + 1);
       cached_items[next_item_index] = std::move(pending_item_);
-      RestoreImpl(next_item_index, std::move(cached_items));
+      Restore(next_item_index, std::move(cached_items));
+      DCHECK(web_view_cache_.IsAttachedToWebView());
       return;
     }
     web_view_cache_.ResetToAttached();
@@ -1000,8 +997,9 @@ void NavigationManagerImpl::LoadIfNecessary() {
   if (!web_view_cache_.IsAttachedToWebView()) {
     // Loading from detached mode is equivalent to restoring cached history.
     // This can happen after clearing browsing data by removing the web view.
-    RestoreImpl(web_view_cache_.GetCurrentItemIndex(),
-                web_view_cache_.ReleaseCachedItems());
+    Restore(web_view_cache_.GetCurrentItemIndex(),
+            web_view_cache_.ReleaseCachedItems());
+    DCHECK(web_view_cache_.IsAttachedToWebView());
   } else if (!native_restore_in_progress_) {
     delegate_->LoadIfNecessary();
   }
@@ -1103,8 +1101,9 @@ void NavigationManagerImpl::Reload(ReloadType reload_type,
 
   if (!web_view_cache_.IsAttachedToWebView()) {
     // Reload from detached mode is equivalent to restoring history unchanged.
-    RestoreImpl(web_view_cache_.GetCurrentItemIndex(),
-                web_view_cache_.ReleaseCachedItems());
+    Restore(web_view_cache_.GetCurrentItemIndex(),
+            web_view_cache_.ReleaseCachedItems());
+    DCHECK(web_view_cache_.IsAttachedToWebView());
     return;
   }
 
@@ -1170,36 +1169,6 @@ std::vector<NavigationItem*> NavigationManagerImpl::GetForwardItems() const {
 void NavigationManagerImpl::Restore(
     int last_committed_item_index,
     std::vector<std::unique_ptr<NavigationItem>> items) {
-  std::vector<std::unique_ptr<NavigationItemImpl>> impl_items;
-  impl_items.reserve(items.size());
-
-  for (std::unique_ptr<NavigationItem>& item : items) {
-    // SAFETY: NavigationItemImpl is the only sub-class of NavigationItem,
-    // so the down-cast of the pointer is valid.
-    impl_items.emplace_back(static_cast<NavigationItemImpl*>(item.release()));
-  }
-
-  RestoreImpl(last_committed_item_index, std::move(impl_items));
-}
-
-void NavigationManagerImpl::RestoreImpl(
-    int last_committed_item_index,
-    std::vector<std::unique_ptr<NavigationItemImpl>> items) {
-  if (!web_view_cache_.IsAttachedToWebView() &&
-      !delegate_->GetWebState()->IsWebUsageEnabled()) {
-    // If web usage is disabled, it is not possible to create the
-    // web view. However the embedder will call LoadIfNecessary()
-    // after re-enabling the web usage, which will call Restore().
-    // So saving the items in the WKWebViewCache is equivalent to
-    // scheduling the Restore(...) on the next load.
-    //
-    // This is a fix for https://crbug.com/532898037 (which is a
-    // crash in CRWWebController when attempting to create the
-    // web view while web usage is disabled).
-    web_view_cache_.SetCachedItems(last_committed_item_index, std::move(items));
-    return;
-  }
-
   WillRestore(items.size());
 
   // Ensure that last_committed_item_index is in range [0; items.size()-1]
@@ -1250,12 +1219,12 @@ void NavigationManagerImpl::RestoreImpl(
     restored_visible_item_ = std::move(items[last_committed_item_index]);
   }
 
-  std::vector<std::unique_ptr<NavigationItemImpl>> back_items;
+  std::vector<std::unique_ptr<NavigationItem>> back_items;
   for (int index = 0; index < last_committed_item_index; index++) {
     back_items.push_back(std::move(items[index]));
   }
 
-  std::vector<std::unique_ptr<NavigationItemImpl>> forward_items;
+  std::vector<std::unique_ptr<NavigationItem>> forward_items;
   for (size_t index = last_committed_item_index + 1; index < items.size();
        index++) {
     forward_items.push_back(std::move(items[index]));
@@ -1293,7 +1262,7 @@ void NavigationManagerImpl::AppendSessionDataBlobFetcher(
 
 void NavigationManagerImpl::RestoreItemsState(
     RestoreItemListType list_type,
-    std::vector<std::unique_ptr<NavigationItemImpl>> items_restored) {
+    std::vector<std::unique_ptr<NavigationItem>> items_restored) {
   bool back_list = list_type == RestoreItemListType::kBackList;
   size_t current_item_index = web_view_cache_.GetCurrentItemIndex();
   size_t cache_offset = back_list ? 0 : current_item_index + 1;
@@ -1444,7 +1413,7 @@ bool NavigationManagerImpl::CanTrustLastCommittedItem(
   // visible.
   const GURL& web_view_origin_url =
       web_view_cache_.GetVisibleWebViewOriginURL();
-  if (url::IsSameOriginWith(web_view_origin_url, last_committed_url)) {
+  if (web_view_origin_url == last_committed_url.DeprecatedGetOriginAsURL()) {
     return true;
   }
 
@@ -1494,20 +1463,15 @@ void NavigationManagerImpl::WKWebViewCache::ResetToAttached() {
   attached_to_web_view_ = true;
 }
 
-void NavigationManagerImpl::WKWebViewCache::SetCachedItems(
-    int current_item_index,
-    std::vector<std::unique_ptr<NavigationItemImpl>> cached_items) {
-  DCHECK(!IsAttachedToWebView());
-  CHECK_GE(current_item_index, 0);
-  CHECK_LT(current_item_index, static_cast<int>(cached_items.size()));
-  cached_current_item_index_ = current_item_index;
-  cached_items_ = std::move(cached_items);
-}
-
-std::vector<std::unique_ptr<NavigationItemImpl>>
+std::vector<std::unique_ptr<NavigationItem>>
 NavigationManagerImpl::WKWebViewCache::ReleaseCachedItems() {
   DCHECK(!IsAttachedToWebView());
-  return std::exchange(cached_items_, {});
+  std::vector<std::unique_ptr<NavigationItem>> result(cached_items_.size());
+  for (size_t index = 0; index < cached_items_.size(); index++) {
+    result[index] = std::move(cached_items_[index]);
+  }
+  cached_items_.clear();
+  return result;
 }
 
 size_t NavigationManagerImpl::WKWebViewCache::GetBackForwardListItemCount()
@@ -1544,7 +1508,7 @@ const GURL& NavigationManagerImpl::WKWebViewCache::GetVisibleWebViewOriginURL()
         ![cached_visible_host_nsstring_ isEqualToString:url.host] ||
         ![cached_visible_scheme_nsstring_ isEqualToString:url.scheme]) {
       cached_visible_origin_url_ =
-          url::Origin::Create(net::GURLWithNSURL(url)).GetURL();
+          net::GURLWithNSURL(url).DeprecatedGetOriginAsURL();
       cached_visible_host_nsstring_ = url.host;
       cached_visible_scheme_nsstring_ = url.scheme;
       cached_visible_port_nsnumber_ = url.port;

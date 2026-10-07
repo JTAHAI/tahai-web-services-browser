@@ -10,7 +10,6 @@
 #include "base/check.h"
 #include "base/functional/bind.h"
 #include "base/memory/raw_ptr.h"
-#include "base/task/single_thread_task_runner.h"
 #include "build/build_config.h"
 #include "chrome/browser/content_settings/page_specific_content_settings_delegate.h"
 #include "chrome/browser/media/webrtc/media_capture_devices_dispatcher.h"
@@ -47,7 +46,7 @@
 #include "chrome/browser/ui/views/picture_in_picture/document_pip_native_widget_mac.h"
 #endif
 
-#if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
+#if BUILDFLAG(ENABLE_EXTENSIONS)
 #include "extensions/browser/extension_registry.h"
 #include "extensions/common/constants.h"
 #include "extensions/common/extension.h"
@@ -61,7 +60,7 @@ namespace {
 const extensions::Extension* GetExtensionForOrigin(
     Profile* profile,
     const GURL& security_origin) {
-#if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
+#if BUILDFLAG(ENABLE_EXTENSIONS)
   if (!security_origin.SchemeIs(extensions::kExtensionScheme)) {
     return nullptr;
   }
@@ -412,9 +411,7 @@ content::WebContents* DocumentPipHost::OpenURLFromTab(
     base::OnceCallback<void(content::NavigationHandle&)>
         navigation_handle_callback) {
   if (params.disposition == WindowOpenDisposition::CURRENT_TAB) {
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
-        FROM_HERE, base::BindOnce(&DocumentPipHost::ClosePipWindow,
-                                  weak_factory_.GetWeakPtr()));
+    ClosePipWindow();
     return nullptr;
   }
 

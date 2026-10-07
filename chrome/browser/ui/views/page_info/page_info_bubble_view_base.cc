@@ -59,12 +59,8 @@ PageInfoBubbleViewBase::PageInfoBubbleViewBase(
   SetButtons(static_cast<int>(ui::mojom::DialogButton::kNone));
   SetShowCloseButton(true);
 
-  // If anchored to a specific view, skip set_parent_window() so that
-  // BubbleDialogDelegateView automatically parents to the anchor view's widget.
-  // In Mac immersive fullscreen, this ensures the bubble is parented to the
-  // top container overlay_widget rather than the main browser window.
+  set_parent_window(parent_window);
   if (anchor.IsNull()) {
-    set_parent_window(parent_window);
     SetAnchorRect(anchor_rect);
   }
   SetProperty(views::kElementIdentifierKey, kPageInfoBubbleElementIdentifier);

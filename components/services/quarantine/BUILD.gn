@@ -84,13 +84,10 @@ source_set("test_support") {
     "test_support.h",
   ]
 
-  public_deps = [ "//testing/gtest" ]
-
   deps = [
     ":common",
     ":quarantine",
     "//base",
-    "//base/test:test_support",
     "//url",
   ]
 

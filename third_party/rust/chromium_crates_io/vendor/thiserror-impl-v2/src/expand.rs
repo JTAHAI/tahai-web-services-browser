@@ -171,7 +171,6 @@ fn impl_struct(input: Struct) -> TokenStream {
         let source_var = Ident::new("source", span);
         let body = from_initializer(from_field, backtrace_field, &source_var);
         let from_function = quote! {
-            #[allow(clippy::redundant_field_names)]
             fn from(#source_var: #from) -> Self {
                 #ty #body
             }
@@ -386,7 +385,7 @@ fn impl_enum(input: Enum) -> TokenStream {
             v.attrs
                 .display
                 .as_ref()
-                .is_some_and(|display| display.has_bonus_display)
+                .map_or(false, |display| display.has_bonus_display)
         });
         let use_as_display = use_as_display(has_bonus_display);
         let void_deref = if input.variants.is_empty() {
@@ -454,7 +453,6 @@ fn impl_enum(input: Enum) -> TokenStream {
         let source_var = Ident::new("source", span);
         let body = from_initializer(from_field, backtrace_field, &source_var);
         let from_function = quote! {
-            #[allow(clippy::redundant_field_names)]
             fn from(#source_var: #from) -> Self {
                 #ty::#variant #body
             }

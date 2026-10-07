@@ -64,8 +64,8 @@
 #include "url/origin.h"
 
 #if !BUILDFLAG(IS_ANDROID)
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_window.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"  // nogncheck crbug.com/40147906
 #include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
@@ -104,6 +104,15 @@ constexpr char
         "DisplayPersistentNotificationEvent";
 
 #if BUILDFLAG(IS_CHROMEOS)
+
+constexpr char kNotificationResourceActionIconMemorySizeHistogram[] =
+    "Ash.NotificationResource.ActionIconSizeInKB";
+
+constexpr char kNotificationResourceBadgeMemorySizeHistogram[] =
+    "Ash.NotificationResource.BadgeMemorySizeInKB";
+
+constexpr char kNotificationReourceIconMemorySizeHistogram[] =
+    "Ash.NotificationResource.IconMemorySizeInKB";
 
 constexpr char kNotificationResourceImageMemorySizeHistogram[] =
     "Ash.NotificationResource.ImageMemorySizeInKB";
@@ -576,6 +585,10 @@ PlatformNotificationServiceImpl::CreateNotificationFromData(
     // the accent color.
     optional_fields.ignore_accent_color_for_small_image = true;
   }
+
+  base::UmaHistogramMemoryKB(
+      kNotificationReourceIconMemorySizeHistogram,
+      notification_resources.notification_icon.computeByteSize() / 1024);
 #endif  // BUILDFLAG(IS_CHROMEOS)
 
   message_center::NotifierId notifier_id(
@@ -621,6 +634,10 @@ PlatformNotificationServiceImpl::CreateNotificationFromData(
   // 1x bitmap - crbug.com/41238973.
   if (const SkBitmap& badge = notification_resources.badge; !badge.isNull()) {
     notification.SetSmallImage(gfx::Image::CreateFrom1xBitmap(badge));
+#if BUILDFLAG(IS_CHROMEOS)
+    base::UmaHistogramMemoryKB(kNotificationResourceBadgeMemorySizeHistogram,
+                               badge.computeByteSize() / 1024);
+#endif  // BUILDFLAG(IS_CHROMEOS)
   }
 
   // Developer supplied action buttons.
@@ -632,6 +649,11 @@ PlatformNotificationServiceImpl::CreateNotificationFromData(
     // the 1x bitmap - crbug.com/41238973.
     const SkBitmap& action_icon = notification_resources.action_icons[i];
     button.icon = gfx::Image::CreateFrom1xBitmap(action_icon);
+#if BUILDFLAG(IS_CHROMEOS)
+    base::UmaHistogramMemoryKB(
+        kNotificationResourceActionIconMemorySizeHistogram,
+        action_icon.computeByteSize() / 1024);
+#endif  // BUILDFLAG(IS_CHROMEOS)
     if (action->type == blink::mojom::NotificationActionType::TEXT) {
       button.placeholder = action->placeholder.value_or(
           l10n_util::GetStringUTF16(IDS_NOTIFICATION_REPLY_PLACEHOLDER));

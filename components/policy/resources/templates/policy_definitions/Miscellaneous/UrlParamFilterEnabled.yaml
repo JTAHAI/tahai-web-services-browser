@@ -17,6 +17,7 @@ items:
 owners:
 - bcl@google.com
 - mreichhoff@chromium.org
+- file://chrome/browser/url_param_filter/OWNERS
 schema:
   type: boolean
 supported_on:

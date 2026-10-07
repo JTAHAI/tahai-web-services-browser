@@ -22,15 +22,6 @@ chromium-metrics-reviews@google.com.
 
 <histograms>
 
-<variants name="HardFaultCheckpoint">
-  <variant name="MessageLoopStart"
-      summary="from startup to the start of the main thread's message loop,
-               not including first runs of the browser"/>
-  <variant name="WindowFirstPaint"
-      summary="when the first browser window finishes painting, including
-               launches where ShouldLogStartupHistogram() is false"/>
-</variants>
-
 <variants name="StartActivityType">
   <variant name="Tabbed"
       summary="Chrome starts up with intent to ChromeTabbedActivity"/>
@@ -61,9 +52,6 @@ chromium-metrics-reviews@google.com.
   <variant name="" summary="All startups"/>
   <variant name=".ColdStartup"
       summary="Startup was cold (mostly hard faults)."/>
-  <variant name=".LukewarmStartup"
-      summary="Startup was lukewarm (hard-fault count between the warm and
-               cold thresholds)."/>
   <variant name=".WarmStartup"
       summary="Startup was warm (almost no hard faults)."/>
 </variants>
@@ -108,7 +96,7 @@ chromium-metrics-reviews@google.com.
 
 <histogram
     name="Startup.Android.Cold.ExperimentalProcessStart.TimeToFirstContentfulPaint.{StartActivityType}"
-    units="ms" expires_after="2027-02-14">
+    units="ms" expires_after="2026-12-16">
   <owner>nafisabedin@google.com</owner>
   <owner>pasko@chromium.org</owner>
   <improvement direction="LOWER_IS_BETTER"/>
@@ -127,7 +115,7 @@ chromium-metrics-reviews@google.com.
 
 <histogram
     name="Startup.Android.Cold.ExperimentalProcessStart.TimeToFirstNavigationCommit.{StartActivityType}"
-    units="ms" expires_after="2027-02-14">
+    units="ms" expires_after="2026-12-16">
   <owner>nafisabedin@google.com</owner>
   <owner>pasko@chromium.org</owner>
   <improvement direction="LOWER_IS_BETTER"/>
@@ -146,7 +134,7 @@ chromium-metrics-reviews@google.com.
 
 <histogram
     name="Startup.Android.Cold.ExperimentalProcessStart.TimeToFirstVisibleContent"
-    units="ms" expires_after="2027-02-14">
+    units="ms" expires_after="2026-12-16">
   <owner>nafisabedin@google.com</owner>
   <owner>pasko@chromium.org</owner>
   <improvement direction="LOWER_IS_BETTER"/>
@@ -163,7 +151,7 @@ chromium-metrics-reviews@google.com.
 </histogram>
 
 <histogram name="Startup.Android.Cold.FirstSafeBrowsingApiResponseTime2.Tabbed"
-    units="ms" expires_after="2027-02-14">
+    units="ms" expires_after="2026-12-16">
   <owner>xinghuilu@chromium.org</owner>
   <owner>nafisabedin@google.com</owner>
   <owner>chrome-counter-abuse-alerts@google.com</owner>
@@ -202,7 +190,7 @@ chromium-metrics-reviews@google.com.
 
 <histogram
     name="Startup.Android.Cold.TimeToFirstContentfulPaint3.{StartActivityType}"
-    units="ms" expires_after="2027-02-14">
+    units="ms" expires_after="2026-12-16">
   <owner>pasko@chromium.org</owner>
   <owner>nafisabedin@google.com</owner>
   <improvement direction="LOWER_IS_BETTER"/>
@@ -383,7 +371,7 @@ chromium-metrics-reviews@google.com.
 
 <histogram
     name="Startup.Android.Cold.WithPersistentState.TimeToFirstContentfulPaint3.{StartActivityType}"
-    units="ms" expires_after="2027-02-07">
+    units="ms" expires_after="2026-12-01">
   <owner>pasko@chromium.org</owner>
   <owner>nafisabedin@google.com</owner>
   <owner>clhager@google.com</owner>
@@ -493,7 +481,7 @@ chromium-metrics-reviews@google.com.
 </histogram>
 
 <histogram name="Startup.Android.Cold.{FirstDrawSurface}.TimeToFirstDraw"
-    units="ms" expires_after="2027-02-07">
+    units="ms" expires_after="2026-11-29">
   <owner>nafisabedin@google.com</owner>
   <owner>yfriedman@chromium.org</owner>
   <improvement direction="LOWER_IS_BETTER"/>
@@ -517,7 +505,7 @@ chromium-metrics-reviews@google.com.
 </histogram>
 
 <histogram name="Startup.Android.Cold.{StartupType}.TimeSpentInBinder"
-    units="ms" expires_after="2027-02-07">
+    units="ms" expires_after="2026-11-29">
   <owner>nafisabedin@google.com</owner>
   <owner>yfriedman@chromium.org</owner>
   <improvement direction="LOWER_IS_BETTER"/>
@@ -536,7 +524,7 @@ chromium-metrics-reviews@google.com.
 </histogram>
 
 <histogram name="Startup.Android.Cold.{StartupType}.TotalBinderTransactions"
-    units="counts" expires_after="2027-02-07">
+    units="counts" expires_after="2026-11-29">
   <owner>nafisabedin@google.com</owner>
   <owner>yfriedman@chromium.org</owner>
   <improvement direction="LOWER_IS_BETTER"/>
@@ -591,7 +579,7 @@ chromium-metrics-reviews@google.com.
 </histogram>
 
 <histogram name="Startup.Android.InitializeFeatureListTime" units="ms"
-    expires_after="2027-02-07">
+    expires_after="2026-12-01">
   <owner>martinkong@google.com</owner>
   <owner>agrieve@chromium.org</owner>
   <improvement direction="LOWER_IS_BETTER"/>
@@ -687,7 +675,7 @@ chromium-metrics-reviews@google.com.
 </histogram>
 
 <histogram name="Startup.Android.Temperature" enum="AndroidStartupTemperature"
-    expires_after="2027-02-07">
+    expires_after="2026-11-29">
   <owner>nafisabedin@google.com</owner>
   <owner>yfriedman@chromium.org</owner>
   <summary>
@@ -709,7 +697,7 @@ chromium-metrics-reviews@google.com.
 </histogram>
 
 <histogram name="Startup.BringToForegroundReason"
-    enum="BooleanBringToForegroundReason" expires_after="2027-02-07">
+    enum="BooleanBringToForegroundReason" expires_after="2026-11-29">
   <owner>peter@chromium.org</owner>
   <summary>
     Records the cause, each time Chrome is brought to the foreground. Currently
@@ -728,7 +716,7 @@ chromium-metrics-reviews@google.com.
 </histogram>
 
 <histogram name="Startup.BrowserMessageLoopFirstIdle{StartupTemperature}"
-    units="ms" expires_after="2027-01-31">
+    units="ms" expires_after="2026-11-29">
   <owner>gab@chromium.org</owner>
   <owner>etienneb@chromium.org</owner>
   <improvement direction="LOWER_IS_BETTER"/>
@@ -774,6 +762,41 @@ chromium-metrics-reviews@google.com.
     Startup.FirstWebContents.NonEmptyPaint3 instead.
 
     {StartupTemperature}
+  </summary>
+</histogram>
+
+<histogram name="Startup.BrowserMessageLoopStartHardFaultBytes" units="bytes"
+    expires_after="2027-07-08">
+  <owner>aattar@google.com</owner>
+  <owner>olivierli@chromium.org</owner>
+  <summary>
+    The number of bytes loaded via hard faults in the browser process from
+    startup to the start of the main thread's message loop, not including first
+    runs of the browser.
+
+    This is a normalized metric calculated as (HardFaultCount * OSPageSize) to
+    allow comparison between platforms with different page sizes (e.g. 16KB on
+    Apple Silicon Mac vs 4KB on Windows/Linux/Intel Mac).
+  </summary>
+</histogram>
+
+<histogram name="Startup.BrowserMessageLoopStartHardFaultCount" units="faults"
+    expires_after="never">
+<!-- expires-never: calibration metric for StartupTemperature, see
+     kColdStartHardFaultCountThreshold and WarmStartHardFaultCountThreshold in
+     startup_metric_utils.cc for details -->
+
+  <owner>chrisha@chromium.org</owner>
+  <owner>fdoray@chromium.org</owner>
+  <summary>
+    The number of hard faults incurred in the browser process from startup to
+    the start of the main thread's message loop, not including first runs of the
+    browser. On Windows this is derived from
+    SYSTEM_PROCESS_INFORMATION.HardFaultCount; on macOS from Mach task_info
+    (pageins); on Linux from getrusage (ru_majflt). Absolute values are not
+    directly comparable across platforms, and may not be comparable even between
+    OS versions (as changes to how the OS starts and times the startup of
+    applications can affect the metrics).
   </summary>
 </histogram>
 
@@ -830,7 +853,7 @@ chromium-metrics-reviews@google.com.
 </histogram>
 
 <histogram name="Startup.BrowserWindow.FirstPaint{StartupTemperature}"
-    units="ms" expires_after="2027-02-07">
+    units="ms" expires_after="2026-11-29">
   <owner>gab@chromium.org</owner>
 <!-- expires-never: used to diagnose regressions to Startup.FirstWebContents.NonEmptyPaint3 -->
 
@@ -880,51 +903,8 @@ chromium-metrics-reviews@google.com.
   </summary>
 </histogram>
 
-<histogram name="Startup.Browser{HardFaultCheckpoint}HardFaultBytes"
-    units="bytes" expires_after="2027-08-10">
-  <owner>aattar@google.com</owner>
-  <owner>olivierli@chromium.org</owner>
-  <improvement direction="LOWER_IS_BETTER"/>
-  <summary>
-    Approximate number of bytes loaded via hard faults in the browser process
-    {HardFaultCheckpoint}.
-
-    This is a normalized metric calculated as (HardFaultCount * OSPageSize) to
-    allow comparison between platforms with different page sizes (e.g. 16KB on
-    Apple Silicon Mac vs 4KB on Windows/Linux/Intel Mac). Note that this is a
-    lower bound since a single page-in operation can read multiple pages.
-  </summary>
-  <token key="HardFaultCheckpoint" variants="HardFaultCheckpoint"/>
-</histogram>
-
-<histogram name="Startup.Browser{HardFaultCheckpoint}HardFaultCount"
-    units="faults" expires_after="never">
-<!-- expires-never: MessageLoopStart is calibration metric for
-     StartupTemperature, see kColdStartHardFaultCountThreshold and
-     WarmStartHardFaultCountThreshold in startup_metric_utils.cc for details -->
-
-  <owner>aattar@google.com</owner>
-  <owner>olivierli@chromium.org</owner>
-  <owner>chrisha@chromium.org</owner>
-  <owner>fdoray@chromium.org</owner>
-  <improvement direction="LOWER_IS_BETTER"/>
-  <summary>
-    The cumulative number of hard faults (page-in operations) recorded in the
-    browser process {HardFaultCheckpoint}.
-
-    On Windows this is derived from SYSTEM_PROCESS_INFORMATION.HardFaultCount;
-    on macOS from Mach task_info (pageins); on Linux from getrusage (ru_majflt).
-    Absolute values are not directly comparable across platforms, and may not be
-    comparable even between OS versions (as changes to how the OS starts and
-    times the startup of applications can affect the metrics). This counts
-    OS-level page-in operations rather than individual pages. A single operation
-    may read multiple pages.
-  </summary>
-  <token key="HardFaultCheckpoint" variants="HardFaultCheckpoint"/>
-</histogram>
-
 <histogram name="Startup.ColdStartFromMain" units="ms"
-    expires_after="2027-02-14">
+    expires_after="2026-12-16">
   <owner>justincohen@chromium.org</owner>
   <owner>olivierrobin@chromium.org</owner>
   <improvement direction="LOWER_IS_BETTER"/>
@@ -974,7 +954,7 @@ chromium-metrics-reviews@google.com.
 </histogram>
 
 <histogram name="Startup.CrashBubbleShown" enum="BooleanShown"
-    expires_after="2027-02-14">
+    expires_after="2026-12-16">
   <owner>spvm@chromium.org</owner>
   <owner>etienneb@chromium.org</owner>
   <owner>catan-team@chromium.org</owner>
@@ -1194,7 +1174,7 @@ chromium-metrics-reviews@google.com.
 </histogram>
 
 <histogram name="Startup.GPU.LoadTime.ApplicationStartToGpuInitialized"
-    units="ms" expires_after="2027-02-14">
+    units="ms" expires_after="2026-12-13">
   <owner>spvm@chromium.org</owner>
   <owner>etienneb@chromium.org</owner>
   <improvement direction="LOWER_IS_BETTER"/>
@@ -1218,7 +1198,7 @@ chromium-metrics-reviews@google.com.
 </histogram>
 
 <histogram name="Startup.GPU.LoadTime.ChromeMainToGpuInitialized" units="ms"
-    expires_after="2027-02-14">
+    expires_after="2026-12-13">
   <owner>spvm@chromium.org</owner>
   <owner>etienneb@chromium.org</owner>
   <improvement direction="LOWER_IS_BETTER"/>
@@ -1351,7 +1331,7 @@ chromium-metrics-reviews@google.com.
 </histogram>
 
 <histogram name="Startup.MobileSessionStartAction"
-    enum="MobileSessionStartAction" expires_after="2027-01-31">
+    enum="MobileSessionStartAction" expires_after="2026-11-29">
   <owner>thegreenfrog@chromium.org</owner>
   <owner>olivierrobin@chromium.org</owner>
   <summary>
@@ -1361,7 +1341,7 @@ chromium-metrics-reviews@google.com.
 </histogram>
 
 <histogram name="Startup.MobileSessionStartFromApps"
-    enum="MobileSessionCallerApp" expires_after="2027-02-07">
+    enum="MobileSessionCallerApp" expires_after="2026-11-29">
   <owner>thegreenfrog@chromium.org</owner>
   <owner>olivierrobin@chromium.org</owner>
   <summary>The calling application (if any).</summary>
@@ -1394,7 +1374,7 @@ chromium-metrics-reviews@google.com.
 
 <histogram
     name="Startup.Renderer.LoadTime.ApplicationStartToRendererStartRunLoop"
-    units="ms" expires_after="2027-01-31">
+    units="ms" expires_after="2026-11-29">
   <owner>spvm@chromium.org</owner>
   <owner>etienneb@chromium.org</owner>
   <improvement direction="LOWER_IS_BETTER"/>
@@ -1412,7 +1392,7 @@ chromium-metrics-reviews@google.com.
 </histogram>
 
 <histogram name="Startup.Renderer.LoadTime.ChromeMainToRendererStartRunLoop"
-    units="ms" expires_after="2027-02-07">
+    units="ms" expires_after="2026-11-29">
   <owner>spvm@chromium.org</owner>
   <owner>etienneb@chromium.org</owner>
   <improvement direction="LOWER_IS_BETTER"/>
@@ -1428,7 +1408,7 @@ chromium-metrics-reviews@google.com.
 
 <histogram
     name="Startup.Renderer.LoadTime.ProcessCreationToRendererStartRunLoop"
-    units="ms" expires_after="2027-01-31">
+    units="ms" expires_after="2026-11-29">
   <owner>spvm@chromium.org</owner>
   <owner>etienneb@chromium.org</owner>
   <improvement direction="LOWER_IS_BETTER"/>
@@ -1443,20 +1423,18 @@ chromium-metrics-reviews@google.com.
 </histogram>
 
 <histogram name="Startup.ShowDefaultPromoFromApps"
-    enum="MobileSessionCallerApp" expires_after="2027-02-04">
+    enum="MobileSessionCallerApp" expires_after="2023-05-23">
   <owner>olivierrobin@chromium.org</owner>
   <owner>bling-pandamonium@google.com</owner>
   <summary>
     The external application requesting showing the default browser settings.
     Logged when the command is received from the external application. Histogram
     only for iOS.
-
-    Warning: This histogram expired in 2023 and was re-enabled in M153.
   </summary>
 </histogram>
 
 <histogram name="Startup.StartupBrowserCreator.LaunchBrowser" units="ms"
-    expires_after="2027-02-14">
+    expires_after="2026-12-16">
   <owner>hidehiko@chromium.org</owner>
   <owner>junis@google.com</owner>
   <owner>cros-sw-perf+metrics@google.com</owner>
@@ -1497,7 +1475,7 @@ chromium-metrics-reviews@google.com.
 </histogram>
 
 <histogram name="Startup.TimeFromMainToDidFinishLaunchingCall" units="ms"
-    expires_after="2027-02-14">
+    expires_after="2026-12-16">
   <owner>olivierrobin@chromium.org</owner>
   <owner>justincohen@chromium.org</owner>
   <improvement direction="LOWER_IS_BETTER"/>
@@ -1520,7 +1498,7 @@ chromium-metrics-reviews@google.com.
 </histogram>
 
 <histogram name="Startup.{Process}.LoadTime.PreReadFile" units="ms"
-    expires_after="2027-01-31">
+    expires_after="2026-11-29">
   <owner>spvm@chromium.org</owner>
   <owner>fdoray@chromium.org</owner>
   <owner>etienneb@chromium.org</owner>

@@ -152,7 +152,6 @@ bool IsSupportedAccessPoint(signin_metrics::AccessPoint access_point) {
     case signin_metrics::AccessPoint::kOverflowMenu:
     case signin_metrics::AccessPoint::kLevelUp:
     case signin_metrics::AccessPoint::kSignoutUndoSnackbar:
-    case signin_metrics::AccessPoint::kComposeboxDriveContextMenuOptionBubble:
       return false;
   }
 }
@@ -269,7 +268,6 @@ void RecordImpressionsTilSigninButtonsHistogramForAccessPoint(
     case signin_metrics::AccessPoint::kOverflowMenu:
     case signin_metrics::AccessPoint::kLevelUp:
     case signin_metrics::AccessPoint::kSignoutUndoSnackbar:
-    case signin_metrics::AccessPoint::kComposeboxDriveContextMenuOptionBubble:
       NOTREACHED() << "Unexpected value for access point "
                    << static_cast<int>(access_point);
   }
@@ -387,7 +385,6 @@ void RecordImpressionsTilXButtonHistogramForAccessPoint(
     case signin_metrics::AccessPoint::kOverflowMenu:
     case signin_metrics::AccessPoint::kLevelUp:
     case signin_metrics::AccessPoint::kSignoutUndoSnackbar:
-    case signin_metrics::AccessPoint::kComposeboxDriveContextMenuOptionBubble:
       NOTREACHED() << "Unexpected value for access point "
                    << static_cast<int>(access_point);
   }
@@ -490,7 +487,6 @@ const char* DisplayedCountPreferenceKey(
     case signin_metrics::AccessPoint::kOverflowMenu:
     case signin_metrics::AccessPoint::kLevelUp:
     case signin_metrics::AccessPoint::kSignoutUndoSnackbar:
-    case signin_metrics::AccessPoint::kComposeboxDriveContextMenuOptionBubble:
       return nullptr;
   }
 }
@@ -592,7 +588,6 @@ const char* AlreadySeenSigninViewPreferenceKey(
     case signin_metrics::AccessPoint::kOverflowMenu:
     case signin_metrics::AccessPoint::kLevelUp:
     case signin_metrics::AccessPoint::kSignoutUndoSnackbar:
-    case signin_metrics::AccessPoint::kComposeboxDriveContextMenuOptionBubble:
       return nullptr;
   }
 }
@@ -621,7 +616,7 @@ const char* AlreadySeenSigninViewPreferenceKey(
   return pref_key;
 }
 
-// See documentation of displayedIdentity property in the header.
+// See documentation of displayedIdentity property.
 id<SystemIdentity> GetDisplayedIdentity(
     AuthenticationService* authService,
     signin::IdentityManager* identityManager,
@@ -991,9 +986,11 @@ id<SystemIdentity> GetDisplayedIdentity(
   // a post task issue.
   self.initialSyncInProgress = (result == SigninCoordinatorResultSuccess) &&
                                [self shouldWaitForInitialSync];
-  CHECK_EQ(SigninPromoViewState::kUserInteracted, self.signinPromoViewState)
+  CHECK_EQ(SigninPromoViewState::kUserInteracted, self.signinPromoViewState,
+           base::NotFatalUntil::M144)
       << base::SysNSStringToUTF8([self description]);
-  CHECK_NE(self.signinInProgress, signin::Tribool::kFalse)
+  CHECK_NE(self.signinInProgress, signin::Tribool::kFalse,
+           base::NotFatalUntil::M146)
       << base::SysNSStringToUTF8([self description]);
   self.signinInProgress = signin::Tribool::kFalse;
 }
@@ -1058,7 +1055,8 @@ id<SystemIdentity> GetDisplayedIdentity(
           respondsToSelector:@selector(promoProgressStateDidChange)]) {
     [self.consumer promoProgressStateDidChange];
   }
-  [self.consumer configureSigninPromoWithConfigurator:configurator];
+  [self.consumer configureSigninPromoWithConfigurator:configurator
+                                      identityChanged:NO];
 }
 
 - (void)setInitialSyncInProgress:(BOOL)initialSyncInProgress {
@@ -1071,7 +1069,8 @@ id<SystemIdentity> GetDisplayedIdentity(
           respondsToSelector:@selector(promoProgressStateDidChange)]) {
     [self.consumer promoProgressStateDidChange];
   }
-  [self.consumer configureSigninPromoWithConfigurator:configurator];
+  [self.consumer configureSigninPromoWithConfigurator:configurator
+                                      identityChanged:NO];
 }
 
 - (void)setSigninPromoAction:(SigninPromoAction)signinPromoAction {
@@ -1080,7 +1079,8 @@ id<SystemIdentity> GetDisplayedIdentity(
   }
   _signinPromoAction = signinPromoAction;
   SigninPromoViewConfigurator* configurator = [self createConfigurator];
-  [self.consumer configureSigninPromoWithConfigurator:configurator];
+  [self.consumer configureSigninPromoWithConfigurator:configurator
+                                      identityChanged:NO];
 }
 
 #pragma mark - Private
@@ -1088,12 +1088,13 @@ id<SystemIdentity> GetDisplayedIdentity(
 // Sends the update notification to the consumer if the sign-in is not in
 // progress. This is to avoid updating the sign-in promo view in the
 // background.
-- (void)sendConsumerNotification {
+- (void)sendConsumerNotificationWithIdentityChanged:(BOOL)identityChanged {
   if (self.showSpinner) {
     return;
   }
   SigninPromoViewConfigurator* configurator = [self createConfigurator];
-  [self.consumer configureSigninPromoWithConfigurator:configurator];
+  [self.consumer configureSigninPromoWithConfigurator:configurator
+                                      identityChanged:identityChanged];
 }
 
 // Records in histogram, the number of time the sign-in promo is displayed
@@ -1176,12 +1177,12 @@ id<SystemIdentity> GetDisplayedIdentity(
     // Don't update the the sign-in promo if the sign-in is in progress,
     // to avoid flashes of the promo.
     self.displayedIdentity = displayedIdentity;
-    [self sendConsumerNotification];
+    [self sendConsumerNotificationWithIdentityChanged:YES];
   }
 }
 
 - (void)extendedAccountInfoDidUpdate:(const AccountInfo&)info {
-  [self sendConsumerNotification];
+  [self sendConsumerNotificationWithIdentityChanged:NO];
 }
 
 #pragma mark - SigninPromoViewDelegate

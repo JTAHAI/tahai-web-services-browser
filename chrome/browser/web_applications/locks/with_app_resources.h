@@ -12,6 +12,7 @@ namespace web_app {
 class ExtensionsManager;
 class OsIntegrationManager;
 class WebAppIconManager;
+class WebAppInstallFinalizer;
 class WebAppInstallManager;
 class WebAppLockManager;
 class WebAppRegistrar;
@@ -37,6 +38,8 @@ class WithAppResources {
   WebAppRegistrar& registrar();
   // Will CHECK-fail if accessed before the lock is granted.
   WebAppSyncBridge& sync_bridge();
+  // Will CHECK-fail if accessed before the lock is granted.
+  WebAppInstallFinalizer& install_finalizer();
   // Will CHECK-fail if accessed before the lock is granted.
   OsIntegrationManager& os_integration_manager();
   // Will CHECK-fail if accessed before the lock is granted.

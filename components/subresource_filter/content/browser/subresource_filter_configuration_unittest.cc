@@ -45,14 +45,14 @@ TEST_P(SubresourceFilterConfigurationTest, OneListActivation) {
   SCOPED_TRACE(::testing::Message("ActivationLevel: ") << level);
 
   const GURL url("https://example.test/");
-  ConfigureAsBetterAdsURL(url);
+  ConfigureAsSubresourceFilterOnlyURL(url);
   scoped_configuration().ResetConfiguration(
       Configuration(level, scope, activation_list));
   SimulateNavigateAndCommit(url, main_rfh());
   if (!CreateAndNavigateDisallowedSubframe(main_rfh())) {
     EXPECT_TRUE(scope == ActivationScope::ALL_SITES ||
                 (scope == ActivationScope::ACTIVATION_LIST &&
-                 activation_list == ActivationList::BETTER_ADS));
+                 activation_list == ActivationList::SUBRESOURCE_FILTER));
   }
 }
 
@@ -66,7 +66,7 @@ INSTANTIATE_TEST_SUITE_P(
         ::testing::Values(ActivationList::NONE,
                           ActivationList::SOCIAL_ENG_ADS_INTERSTITIAL,
                           ActivationList::PHISHING_INTERSTITIAL,
-                          ActivationList::BETTER_ADS),
+                          ActivationList::SUBRESOURCE_FILTER),
         ::testing::Values(ActivationLevel::kEnabled,
                           ActivationLevel::kDisabled,
                           ActivationLevel::kDryRun)));

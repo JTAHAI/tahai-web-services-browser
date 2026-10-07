@@ -244,53 +244,41 @@ class HeightTransitionHandler {
             return;
         }
 
-        mTabStripVisible = showTabStrip;
-
         // Update the min size for the control container. This is needed one-layout-before browser
         // controls start changing its height, as it assumed a fixed size control container during
         // transition. See b/324178484.
-        boolean isTabStripHeightVisible =
-                !mTabStripSuppressed && (mUpdateStripVisibility ? showTabStrip : true);
-        int tabStripHeight =
-                isTabStripHeightVisible ? (mTabStripHeightFromResource + mTopPadding) : 0;
+        int tabStripHeight = showTabStrip ? calculateTabStripHeight() : 0;
         int maxHeight =
                 tabStripHeight
                         + mControlContainer.getToolbarHeight()
                         + mControlContainer.getToolbarHairlineHeight();
         controlContainerView().setMinimumHeight(maxHeight);
 
-        boolean isCapturingDisabled = mControlContainer.isCapturingDisabled();
-        if (isCapturingDisabled || canForceTransitionDuringStartup()) {
-            updateTabStrip(tabStripHeight);
+        // When we are force an transition height update during start up, skip waiting for the
+        // toolbar capture, since the native scene layer is not ready at this point.
+        if (canForceTransitionDuringStartup()) {
+            updateTabStrip(showTabStrip);
         }
 
-        if (!isCapturingDisabled) {
-            // When we are forcing a transition height update during start up, skip waiting for the
-            // toolbar capture, since the native scene layer is not ready at this point.
-            if (canForceTransitionDuringStartup()) {
-                updateTabStrip(tabStripHeight);
-            }
+        // When transition kicked off by the BrowserControlsManager, the toolbar capture can be
+        // stale e.g. still with the previous window width. Force invalidate the toolbar capture to
+        // make sure the it's up-to-date with the latest Android view.
+        var resourceAdapter = mControlContainer.getToolbarResourceAdapter();
+        DynamicResourceReadyOnceCallback.onNext(
+                resourceAdapter, (resource) -> updateTabStrip(showTabStrip));
 
-            // When transition kicked off by the BrowserControlsManager, the toolbar capture can be
-            // stale e.g. still with the previous window width. Force invalidate the toolbar capture
-            // to make sure the it's up-to-date with the latest Android view.
-            var resourceAdapter = mControlContainer.getToolbarResourceAdapter();
-            DynamicResourceReadyOnceCallback.onNext(
-                    resourceAdapter, (resource) -> updateTabStrip(tabStripHeight));
-
-            // Post the invalidate to make sure another layout pass is done. This is to make sure
-            // the omnibox has the URL text updated to the final width of location bar after the
-            // toolbar tablet button animations.
-            // TODO(crbug.com/41493621): Trigger bitmap capture without mHandler#post.
-            // TODO(crbug.com/41494086): Remove #invalidate after CaptureObservers respect a null
-            // dirtyRect input.
-            mHandler.post(
-                    mCallbackController.makeCancelable(
-                            () -> {
-                                resourceAdapter.invalidate(null);
-                                resourceAdapter.triggerBitmapCapture();
-                            }));
-        }
+        // Post the invalidate to make sure another layout pass is done. This is to make sure the
+        // omnibox has the URL text updated to the final width of location bar after the toolbar
+        // tablet button animations.
+        // TODO(crbug.com/41493621): Trigger bitmap capture without mHandler#post.
+        // TODO(crbug.com/41494086): Remove #invalidate after CaptureObservers respect a null
+        // dirtyRect input.
+        mHandler.post(
+                mCallbackController.makeCancelable(
+                        () -> {
+                            resourceAdapter.invalidate(null);
+                            resourceAdapter.triggerBitmapCapture();
+                        }));
     }
 
     void onTabStripSizeChanged(
@@ -327,6 +315,11 @@ class HeightTransitionHandler {
         return mControlContainer.getView();
     }
 
+    /** This may differ from |mTabStripHeight| when the transition is about to start. */
+    private int calculateTabStripHeight() {
+        return mTabStripHeightFromResource + mTopPadding;
+    }
+
     /**
      * Set the new height for the tab strip. This on high level consists of 3 steps:
      *
@@ -342,13 +335,22 @@ class HeightTransitionHandler {
      *       the strip's top padding, relevant when the app header is used.
      * </ul>
      *
-     * @param targetHeight The target height for the tab strip transition.
+     * @param showTabStrip Whether the tab strip should be shown, based on the window width. Note
+     *     that this will be used and applied only when the app is not in a desktop window.
      */
-    private void updateTabStrip(int targetHeight) {
+    private void updateTabStrip(boolean showTabStrip) {
         if (mIsDestroyed) return;
 
+        mTabStripVisible = showTabStrip;
+        int newHeight =
+                !mTabStripSuppressed
+                                && ((mUpdateStripVisibility && showTabStrip)
+                                        || (!mUpdateStripVisibility && mForceUpdateHeight))
+                        ? calculateTabStripHeight()
+                        : 0;
+
         mTabStripTransitionHandler.onTransitionRequested(
-                targetHeight,
+                newHeight,
                 mTopPadding,
                 mUpdateStripVisibility,
                 mTabStripSuppressed,
@@ -358,7 +360,7 @@ class HeightTransitionHandler {
                     // for other parts of the code to update the browser UI (e.g. setting toolbar's
                     // top margin), and we do not want to preemptively change it before render
                     // responses to the change.
-                    mTabStripHeight = targetHeight;
+                    mTabStripHeight = newHeight;
                 });
     }
 

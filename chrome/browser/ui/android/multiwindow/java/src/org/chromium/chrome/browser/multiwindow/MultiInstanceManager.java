@@ -58,9 +58,7 @@ public abstract class MultiInstanceManager {
         NewWindowAppSource.DEV_TOOLS,
         NewWindowAppSource.BROWSER_WINDOW_CREATOR,
         NewWindowAppSource.ANDROID_S_UPDATE,
-        NewWindowAppSource.CRASH_RECOVERY,
-        NewWindowAppSource.RELAUNCH,
-        NewWindowAppSource.SETTINGS
+        NewWindowAppSource.CRASH_RECOVERY
     })
     public @interface NewWindowAppSource {
         int UNKNOWN = 0;
@@ -76,9 +74,7 @@ public abstract class MultiInstanceManager {
         int BROWSER_WINDOW_CREATOR = 10;
         int ANDROID_S_UPDATE = 11;
         int CRASH_RECOVERY = 12;
-        int RELAUNCH = 13;
-        int SETTINGS = 14;
-        int NUM_ENTRIES = 15;
+        int NUM_ENTRIES = 13;
     }
 
     // LINT.ThenChange(//tools/metrics/histograms/metadata/android/enums.xml)
@@ -92,9 +88,7 @@ public abstract class MultiInstanceManager {
         CloseWindowAppSource.RETENTION_PERIOD_EXPIRATION,
         CloseWindowAppSource.NO_TABS_IN_WINDOW,
         CloseWindowAppSource.RECENT_TABS,
-        CloseWindowAppSource.RECENTLY_CLOSED_LIMIT_EXCEEDED,
-        CloseWindowAppSource.KEYBOARD_SHORTCUT,
-        CloseWindowAppSource.MENU
+        CloseWindowAppSource.RECENTLY_CLOSED_LIMIT_EXCEEDED
     })
     @Retention(RetentionPolicy.SOURCE)
     public @interface CloseWindowAppSource {
@@ -104,9 +98,7 @@ public abstract class MultiInstanceManager {
         int NO_TABS_IN_WINDOW = 3;
         int RECENT_TABS = 4;
         int RECENTLY_CLOSED_LIMIT_EXCEEDED = 5;
-        int KEYBOARD_SHORTCUT = 6;
-        int MENU = 7;
-        int NUM_ENTRIES = 8;
+        int NUM_ENTRIES = 6;
     }
 
     // LINT.ThenChange(//tools/metrics/histograms/metadata/android/enums.xml)
@@ -133,36 +125,11 @@ public abstract class MultiInstanceManager {
         int INVALID_INSTANCE = 7;
     }
 
-    /**
-     * Startup policy options determined on session termination that dictate window restoration
-     * behavior on subsequent cold start when the SessionStartupPref is set to LAST* or unset.
-     */
-    @IntDef({
-        SessionStartupPolicy.DEFAULT,
-        SessionStartupPolicy.CREATE_NEW,
-        SessionStartupPolicy.RESTORE_ALL
-    })
+    @IntDef({LastSessionExitType.NORMAL, LastSessionExitType.LAST_WINDOW_CLOSED_BY_APP})
     @Retention(RetentionPolicy.SOURCE)
-    public @interface SessionStartupPolicy {
-        /**
-         * The session was terminated by an app-external trigger (e.g. system-initiated or system-UI
-         * termination triggers that do not notify the app of the explicit intent to quit). On
-         * subsequent cold start, enforce legacy behavior where Chrome opens a single window with
-         * tabs from the last accessed window if it exists.
-         */
-        int DEFAULT = 0;
-
-        /**
-         * The last active window in the session was closed by an app action (e.g. {@link
-         * #closeWindows(boolean)}). On subsequent cold start, open a single new tab/window.
-         */
-        int CREATE_NEW = 1;
-
-        /**
-         * The session was terminated by an app quit or restart action (e.g. chrome://quit,
-         * chrome://restart). On subsequent cold start, restore all previously active windows.
-         */
-        int RESTORE_ALL = 2;
+    public @interface LastSessionExitType {
+        int NORMAL = 0;
+        int LAST_WINDOW_CLOSED_BY_APP = 1;
     }
 
     /** A class that holds information about an allocated instance ID. */

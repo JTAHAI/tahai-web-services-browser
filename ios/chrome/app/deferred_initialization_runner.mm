@@ -46,11 +46,9 @@
   }
 
   __weak DeferredInitializationRunner* weakSelf = self;
-  deferredBlock = [_queue enqueueBlockNamed:name
-                                      block:^{
-                                        [weakSelf removeBlockNamed:name
-                                                        completion:block];
-                                      }];
+  deferredBlock = [_queue enqueueBlock:^{
+    [weakSelf removeBlockNamed:name completion:block];
+  }];
 
   [_blocks setObject:deferredBlock forKey:name];
 }

@@ -20,7 +20,6 @@
 #include "base/command_line.h"
 #include "base/compiler_specific.h"
 #include "base/containers/flat_map.h"
-#include "base/containers/span.h"
 #include "base/debug/crash_logging.h"
 #include "base/functional/bind.h"
 #include "base/logging.h"
@@ -31,7 +30,6 @@
 #include "base/metrics/histogram_functions.h"
 #include "base/notimplemented.h"
 #include "base/numerics/checked_math.h"
-#include "base/strings/string_view_util.h"
 #include "base/time/time.h"
 #include "base/trace_event/trace_event.h"
 #include "build/build_config.h"
@@ -881,6 +879,7 @@ class RasterDecoderImpl final : public RasterDecoder,
   bool lose_context_when_out_of_memory_ = false;
 
   std::unique_ptr<gles2::GPUTracer> gpu_tracer_;
+  raw_ptr<const unsigned char> gpu_decoder_category_;
   static constexpr int gpu_trace_level_ = 2;
   bool gpu_trace_commands_ = false;
   bool gpu_debug_commands_ = false;
@@ -1018,6 +1017,8 @@ RasterDecoderImpl::RasterDecoderImpl(
       validators_(new Validators),
       shared_image_representation_factory_(shared_image_manager,
                                            std::move(memory_tracker)),
+      gpu_decoder_category_(TRACE_EVENT_API_GET_CATEGORY_GROUP_ENABLED(
+          TRACE_DISABLED_BY_DEFAULT("gpu.decoder"))),
       font_manager_(base::MakeRefCounted<ServiceFontManager>(
           this,
           gpu_preferences_.disable_oopr_debug_crash_dump)),
@@ -1427,9 +1428,7 @@ void RasterDecoderImpl::SetIgnoreCachedStateForTest(bool ignore) {
 
 void RasterDecoderImpl::BeginDecoding() {
   gpu_tracer_->BeginDecoding();
-  gpu_trace_commands_ =
-      gpu_tracer_->IsTracing() &&
-      TRACE_EVENT_CATEGORY_ENABLED(TRACE_DISABLED_BY_DEFAULT("gpu.decoder"));
+  gpu_trace_commands_ = gpu_tracer_->IsTracing() && *gpu_decoder_category_;
   gpu_debug_commands_ = log_commands() || debug() || gpu_trace_commands_;
   query_manager_->BeginProcessingCommands();
 }
@@ -1856,12 +1855,11 @@ error::Error RasterDecoderImpl::HandleSetActiveURLCHROMIUM(
   }
 
   size_t size = url_bucket->size();
-  base::span<const uint8_t> url_bytes = url_bucket->GetDataAsByteSpan(0, size);
-  if (url_bytes.empty()) {
+  const char* url_str = url_bucket->GetDataAs<const char*>(0, size);
+  if (!url_str)
     return error::kInvalidArguments;
-  }
 
-  GURL url(base::as_string_view(url_bytes));
+  GURL url(std::string_view(url_str, size));
   client()->SetActiveURL(std::move(url));
   return error::kNoError;
 }
@@ -2713,8 +2711,6 @@ void RasterDecoderImpl::DoReadbackYUVImagePixelsINTERNAL(
 
     // TODO(crbug.com/40106956): Use COMMANDS_COMPLETED query for async readback.
     DoFinish();
-    is_context_lost =
-        !yuv_result.finished && (WasContextLost() || gr_context()->abandoned());
   }
 
   // The call above will sync up gpu and CPU, resulting in callback being run
@@ -3028,6 +3024,7 @@ void RasterDecoderImpl::DoRasterCHROMIUM(GLuint raster_shm_id,
       .strike_client = font_manager_->strike_client(),
       .scratch_buffer =
           *shared_context_state_->scratch_deserialization_buffer(),
+      .crash_dump_on_failure = !gpu_preferences_.disable_oopr_debug_crash_dump,
       .is_privileged = is_privileged_,
       .shared_image_provider = paint_op_shared_image_provider_.get()};
 

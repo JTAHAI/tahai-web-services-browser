@@ -1,2 +1,3 @@
-rules:
-- "**": [background-size]
+features:
+- name: background-size
+  files: "**"

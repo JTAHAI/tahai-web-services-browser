@@ -286,7 +286,8 @@ const LayoutResult* ColumnLayoutAlgorithm::Layout() {
   LayoutUnit column_gap_size =
       column_gap_size_until_overflow / used_column_count_;
 
-  if (Style().HasGapRule()) {
+  if (RuntimeEnabledFeatures::CSSGapDecorationEnabled() &&
+      Style().HasGapRule()) {
     gap_accumulator_.emplace(column_gap_size, row_gap_size_,
                              Style().ColumnCount(),
                              Style().HasAutoColumnCount());

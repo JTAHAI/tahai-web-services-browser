@@ -145,6 +145,11 @@ source_set("test_support") {
     "//components/prefs",
     "//components/signin/public/identity_manager",
   ]
+
+  # chrome/browser/ui/passwords/manage_passwords_test.h
+  # -> mock_optimization_guide_keyed_service.h
+  # -> chrome/test/base/testing_browser_process.h
+  allow_circular_includes_from = [ "//chrome/test:test_support" ]
 }
 
 if (!is_android) {
@@ -171,7 +176,6 @@ if (!is_android) {
       "//chrome/browser/preloading/prefetch:test_support",
       "//chrome/browser/preloading/prefetch/no_state_prefetch",
       "//chrome/browser/signin/e2e_tests:test_support",
-      "//chrome/browser/ui/browser_window",
       "//chrome/browser/ui/webauthn",
       "//chrome/test:test_support",
       "//components/metrics_services_manager",

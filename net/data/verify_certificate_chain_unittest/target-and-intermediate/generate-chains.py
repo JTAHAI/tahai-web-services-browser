@@ -7,7 +7,6 @@
 intermediate, and leaf certificate."""
 
 import sys
-
 sys.path += ['../..']
 
 import gencerts

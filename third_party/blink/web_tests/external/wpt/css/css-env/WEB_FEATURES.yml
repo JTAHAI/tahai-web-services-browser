@@ -1,2 +1,4 @@
-rules:
-- env-parsing*: [safe-area-inset]
+features:
+- name: safe-area-inset
+  files:
+  - "env-parsing*"

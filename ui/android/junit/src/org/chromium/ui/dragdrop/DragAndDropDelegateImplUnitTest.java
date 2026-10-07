@@ -47,7 +47,7 @@ import org.chromium.base.ContextUtils;
 import org.chromium.base.DeviceInfo;
 import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.base.test.BaseRobolectricTestRunner;
-import org.chromium.ui.accessibility.AccessibilityStateTestHelper;
+import org.chromium.ui.accessibility.AccessibilityState;
 import org.chromium.ui.dragdrop.DragAndDropDelegateImpl.DragTargetType;
 import org.chromium.url.JUnitTestGURLs;
 
@@ -104,8 +104,8 @@ public class DragAndDropDelegateImplUnitTest {
     @After
     public void tearDown() {
         mDropDataProviderImpl.onDragEnd(false);
-        AccessibilityStateTestHelper.setIsTouchExplorationEnabledForTesting(false);
-        AccessibilityStateTestHelper.setIsPerformGesturesEnabledForTesting(false);
+        AccessibilityState.setIsTouchExplorationEnabledForTesting(false);
+        AccessibilityState.setIsPerformGesturesEnabledForTesting(false);
     }
 
     @Test
@@ -147,6 +147,7 @@ public class DragAndDropDelegateImplUnitTest {
                 0,
                 mDragAndDropDelegateImpl.getDragShadowHeight());
         assertDragTypeRecorded(DragTargetType.TEXT);
+        assertDragOutsideWebContentHistogramsRecorded(/* dropResult= */ false);
     }
 
     @Test
@@ -189,6 +190,7 @@ public class DragAndDropDelegateImplUnitTest {
                 "Cached Image bytes should be cleaned.",
                 mDropDataProviderImpl.getImageBytesForTesting());
         assertDragTypeRecorded(DragTargetType.IMAGE);
+        assertDragOutsideWebContentHistogramsRecorded(/* dropResult= */ false);
     }
 
     @Test
@@ -233,6 +235,7 @@ public class DragAndDropDelegateImplUnitTest {
                 "Cached Image bytes should be cleaned.",
                 mDropDataProviderImpl.getImageBytesForTesting());
         assertDragTypeRecorded(DragTargetType.IMAGE);
+        assertDragOutsideWebContentHistogramsRecorded(/* dropResult= */ false);
     }
 
     @Test
@@ -275,6 +278,7 @@ public class DragAndDropDelegateImplUnitTest {
                 0,
                 mDragAndDropDelegateImpl.getDragShadowHeight());
         assertDragTypeRecorded(DragTargetType.LINK);
+        assertDragOutsideWebContentHistogramsRecorded(/* dropResult= */ false);
     }
 
     @Test
@@ -295,7 +299,7 @@ public class DragAndDropDelegateImplUnitTest {
                         /* dragObjRectWidth= */ 100,
                         /* dragObjRectHeight= */ 200));
 
-        AccessibilityStateTestHelper.setIsTouchExplorationEnabledForTesting(true);
+        AccessibilityState.setIsTouchExplorationEnabledForTesting(true);
         Assert.assertFalse(
                 "Drag and drop should not start when isTouchExplorationEnabled=true.",
                 mDragAndDropDelegateImpl.startDragAndDrop(
@@ -308,8 +312,8 @@ public class DragAndDropDelegateImplUnitTest {
                         /* dragObjRectWidth= */ 100,
                         /* dragObjRectHeight= */ 200));
 
-        AccessibilityStateTestHelper.setIsTouchExplorationEnabledForTesting(false);
-        AccessibilityStateTestHelper.setIsPerformGesturesEnabledForTesting(true);
+        AccessibilityState.setIsTouchExplorationEnabledForTesting(false);
+        AccessibilityState.setIsPerformGesturesEnabledForTesting(true);
         Assert.assertFalse(
                 "Drag and drop should not start when isPerformGesturesEnabled=true.",
                 mDragAndDropDelegateImpl.startDragAndDrop(
@@ -423,6 +427,7 @@ public class DragAndDropDelegateImplUnitTest {
                 "Cached Image bytes should not be cleaned, drag is handled.",
                 mDropDataProviderImpl.getImageBytesForTesting());
         assertDragTypeRecorded(DragTargetType.IMAGE);
+        assertDragOutsideWebContentHistogramsRecorded(/* dropResult= */ true);
     }
 
     @Test
@@ -448,6 +453,7 @@ public class DragAndDropDelegateImplUnitTest {
 
         // Drop on the same view does not lead to recording of drag duration.
         assertDragTypeNotRecorded("Drag dropped on the same view.");
+        assertDropInWebContentHistogramsRecorded();
         Assert.assertNotNull(
                 "Cached Image bytes should not be cleaned, drag is handled.",
                 mDropDataProviderImpl.getImageBytesForTesting());
@@ -459,6 +465,10 @@ public class DragAndDropDelegateImplUnitTest {
         mDragAndDropDelegateImpl.onDrag(mContainerView, mockDragEvent(DragEvent.ACTION_DRAG_ENDED));
 
         assertDragTypeNotRecorded("Drag dropped on the same view.");
+        assertHistogramRecorded(
+                "Android.DragDrop.FromWebContent.DropInWebContent.Duration",
+                false,
+                "Only tracking drag started by mDragAndDropDelegateImpl#startDragAndDrop.");
     }
 
     @Test
@@ -682,27 +692,27 @@ public class DragAndDropDelegateImplUnitTest {
 
         // A11y default setting with isTouchExplorationEnabled=false and
         // isPerformGesturesEnabled=true on XR
-        AccessibilityStateTestHelper.setIsTouchExplorationEnabledForTesting(false);
-        AccessibilityStateTestHelper.setIsPerformGesturesEnabledForTesting(true);
+        AccessibilityState.setIsTouchExplorationEnabledForTesting(false);
+        AccessibilityState.setIsPerformGesturesEnabledForTesting(true);
         Assert.assertTrue(
                 "Drag and drop should start.", calllStartDragAndDrop(shadowImage, dropData));
 
         // A11y setting with isTouchExplorationEnabled=true and isPerformGesturesEnabled=false on XR
-        AccessibilityStateTestHelper.setIsTouchExplorationEnabledForTesting(true);
-        AccessibilityStateTestHelper.setIsPerformGesturesEnabledForTesting(false);
+        AccessibilityState.setIsTouchExplorationEnabledForTesting(true);
+        AccessibilityState.setIsPerformGesturesEnabledForTesting(false);
         Assert.assertTrue(
                 "Drag and drop should start.", calllStartDragAndDrop(shadowImage, dropData));
 
         // A11y setting with isTouchExplorationEnabled=true and isPerformGesturesEnabled=true on XR
-        AccessibilityStateTestHelper.setIsTouchExplorationEnabledForTesting(true);
-        AccessibilityStateTestHelper.setIsPerformGesturesEnabledForTesting(true);
+        AccessibilityState.setIsTouchExplorationEnabledForTesting(true);
+        AccessibilityState.setIsPerformGesturesEnabledForTesting(true);
         Assert.assertTrue(
                 "Drag and drop should start.", calllStartDragAndDrop(shadowImage, dropData));
 
         // A11y setting with isTouchExplorationEnabled=false and isPerformGesturesEnabled=false on
         // XR
-        AccessibilityStateTestHelper.setIsTouchExplorationEnabledForTesting(false);
-        AccessibilityStateTestHelper.setIsPerformGesturesEnabledForTesting(false);
+        AccessibilityState.setIsTouchExplorationEnabledForTesting(false);
+        AccessibilityState.setIsPerformGesturesEnabledForTesting(false);
         Assert.assertTrue(
                 "Drag and drop should start.", calllStartDragAndDrop(shadowImage, dropData));
     }
@@ -736,6 +746,22 @@ public class DragAndDropDelegateImplUnitTest {
         final String errorMsg = "<" + histogram + "> is not recorded correctly.";
         Assert.assertEquals(
                 errorMsg, 1, RecordHistogram.getHistogramValueCountForTesting(histogram, type));
+    }
+
+    private void assertDragOutsideWebContentHistogramsRecorded(boolean dropResult) {
+        // Verify drop inside metrics not recorded.
+        assertHistogramRecorded(
+                "Android.DragDrop.FromWebContent.DropInWebContent.Duration",
+                false,
+                "Drop outside of web content.");
+    }
+
+    private void assertDropInWebContentHistogramsRecorded() {
+        // Verify drop inside metrics recorded.
+        assertHistogramRecorded(
+                "Android.DragDrop.FromWebContent.DropInWebContent.Duration",
+                true,
+                "Drop inside web content.");
     }
 
     private void assertHistogramRecorded(String histogram, boolean recorded, String reason) {

@@ -86,7 +86,6 @@ suite('SkillsDialogAppPage', function() {
       source: SkillSource.kUnknown,
       creationTime: {internalValue: 0n},
       lastUpdateTime: {internalValue: 0n},
-      category: '',
       ...overrides,
     };
   }

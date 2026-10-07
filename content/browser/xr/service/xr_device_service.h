@@ -5,6 +5,7 @@
 #ifndef CONTENT_BROWSER_XR_SERVICE_XR_DEVICE_SERVICE_H_
 #define CONTENT_BROWSER_XR_SERVICE_XR_DEVICE_SERVICE_H_
 
+#include "base/functional/callback.h"
 #include "content/common/content_export.h"
 #include "device/vr/public/mojom/isolated_xr_service.mojom.h"
 #include "mojo/public/cpp/bindings/remote.h"
@@ -21,6 +22,8 @@ GetXRDeviceService();
 CONTENT_EXPORT mojo::PendingRemote<device::mojom::XRDeviceServiceHost>
 CreateXRDeviceServiceHost();
 
+void CONTENT_EXPORT SetXRDeviceServiceStartupCallbackForTestingInternal(
+    base::RepeatingClosure callback);
 }  // namespace content
 
 #endif  // CONTENT_BROWSER_XR_SERVICE_XR_DEVICE_SERVICE_H_

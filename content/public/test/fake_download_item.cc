@@ -81,10 +81,6 @@ const std::vector<GURL>& FakeDownloadItem::GetUrlChain() const {
   return url_chain_;
 }
 
-bool FakeDownloadItem::IsUrlTruncated() const {
-  return false;
-}
-
 void FakeDownloadItem::SetLastReason(
     download::DownloadInterruptReason last_reason) {
   last_reason_ = last_reason;

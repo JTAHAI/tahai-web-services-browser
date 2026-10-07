@@ -104,7 +104,6 @@ class WebRequestProxyingURLLoaderFactory
     ~InProgressRequest() override;
 
     void Restart();
-    void AuthorizeBypassRedirectChecks();
 
     // network::mojom::URLLoader:
     void FollowRedirect(

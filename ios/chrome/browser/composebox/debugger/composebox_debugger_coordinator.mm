@@ -114,7 +114,7 @@ const CGSize kOptionsButtonSize = {80.0f, 40.0f};
       configurationWithPointSize:20
                           weight:UIImageSymbolWeightMedium];
   UIImage* icon =
-      SymbolWithConfiguration(SymbolWrenchAndScrewdriver, symbolConfig);
+      DefaultSymbolWithConfiguration(@"wrench.and.screwdriver", symbolConfig);
 
   config.image = icon;
   config.baseForegroundColor = [UIColor whiteColor];
@@ -135,13 +135,13 @@ const CGSize kOptionsButtonSize = {80.0f, 40.0f};
 
 - (void)setupOptionsMenu {
   __weak __typeof(self) weakSelf = self;
-  UIAction* breadcrumbsAction =
-      [UIAction actionWithTitle:@"Composebox logs"
-                          image:SymbolWithPointSize(SymbolBinocularsCircle, 16)
-                     identifier:nil
-                        handler:^(UIAction* action) {
-                          [weakSelf showBreadcrumbsLogs];
-                        }];
+  UIAction* breadcrumbsAction = [UIAction
+      actionWithTitle:@"Composebox logs"
+                image:DefaultSymbolWithPointSize(@"binoculars.circle", 16)
+           identifier:nil
+              handler:^(UIAction* action) {
+                [weakSelf showBreadcrumbsLogs];
+              }];
   UIAction* aimEligibilityDebuggerAction = [UIAction
       actionWithTitle:@"AIM Eligibility"
                 image:SymbolWithPointSize(SymbolMagnifyingglassSpark, 16)
@@ -152,7 +152,7 @@ const CGSize kOptionsButtonSize = {80.0f, 40.0f};
 
   UIAction* omniboxDebuggerAction = [UIAction
       actionWithTitle:@"Omnibox debugger"
-                image:SymbolWithPointSize(SymbolLadybugCircleFill, 16)
+                image:DefaultSymbolWithPointSize(@"ladybug.circle.fill", 16)
            identifier:nil
               handler:^(UIAction* action) {
                 [weakSelf

@@ -59,9 +59,10 @@ found in the LICENSE file.
             android:layout_gravity="end|center_vertical"
             android:layout_height="56dp"
             android:layout_width="56dp"
-            android:src="@drawable/material_ic_close_24dp"
+            android:src="@drawable/btn_close"
             android:contentDescription="@string/close"
-            android:background="@drawable/default_icon_background"
-            android:scaleType="center" />
+            android:background="?attr/selectableItemBackground"
+            android:scaleType="center"
+            app:tint="@color/default_icon_color_tint_list" />
     </org.chromium.chrome.browser.payments.ui.PaymentRequestHeader>
 </merge>

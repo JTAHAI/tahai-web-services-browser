@@ -29,9 +29,6 @@ namespace {
 // and needs its own constant.
 constexpr const char kNowrapToken[] = "nowrap";
 
-// "noitemcontrols" suppresses itemcontrols instead of setting a flag.
-constexpr const char kNoItemControlsToken[] = "noitemcontrols";
-
 struct FlagMapping {
   const char* token;
   FocusgroupFlags flag;
@@ -60,8 +57,6 @@ constexpr BehaviorMapping kBehaviorMap[] = {
      FocusgroupFlags::kBlock | FocusgroupFlags::kWrapBlock},
     {"menubar", FocusgroupBehavior::kMenubar, ax::mojom::blink::Role::kMenuBar,
      FocusgroupFlags::kInline | FocusgroupFlags::kWrapInline},
-    {"feed", FocusgroupBehavior::kFeed, ax::mojom::blink::Role::kFeed,
-     FocusgroupFlags::kBlock | FocusgroupFlags::kItemControls},
     {"grid", FocusgroupBehavior::kGrid, ax::mojom::blink::Role::kGrid,
      FocusgroupFlags::kNone},
     {"none", FocusgroupBehavior::kOptOut, ax::mojom::blink::Role::kUnknown,
@@ -80,7 +75,6 @@ constexpr FlagMapping kModifierMap[] = {
     {"row-flow", FocusgroupFlags::kRowFlow},
     {"col-flow", FocusgroupFlags::kColFlow},
     {"nomemory", FocusgroupFlags::kNoMemory},
-    {"itemcontrols", FocusgroupFlags::kItemControls},
 };
 
 // Returns true if a flag contains a modifier only meaningful for grid
@@ -99,18 +93,14 @@ inline bool IsGridOnlyFlag(FocusgroupFlags flag) {
 
 // Returns a string representation of all valid behavior tokens.
 String ValidBehaviorTokenListString(ExecutionContext* context) {
-  const bool is_v2_enabled =
-      RuntimeEnabledFeatures::FocusgroupV2Enabled(context);
+  const bool is_grid_enabled =
+      RuntimeEnabledFeatures::FocusgroupGridEnabled(context);
 
   std::string assembled;
   for (const auto& behavior_mapping : kBehaviorMap) {
     // Filter out grid token when grid is disabled.
-    if (!is_v2_enabled &&
+    if (!is_grid_enabled &&
         behavior_mapping.behavior == FocusgroupBehavior::kGrid) {
-      continue;
-    }
-    if (!is_v2_enabled &&
-        behavior_mapping.behavior == FocusgroupBehavior::kFeed) {
       continue;
     }
     // Filter out the opt-out token: "none".
@@ -127,16 +117,13 @@ String ValidBehaviorTokenListString(ExecutionContext* context) {
 }
 
 String ValidTokenListString(ExecutionContext* context) {
-  const bool is_v2_enabled =
-      RuntimeEnabledFeatures::FocusgroupV2Enabled(context);
+  const bool is_grid_enabled =
+      RuntimeEnabledFeatures::FocusgroupGridEnabled(context);
 
   std::string assembled;
   for (const auto& mapping : kModifierMap) {
     // Filter out grid-only tokens when grid is disabled.
-    if (!is_v2_enabled && IsGridOnlyFlag(mapping.flag)) {
-      continue;
-    }
-    if (!is_v2_enabled && mapping.flag == FocusgroupFlags::kItemControls) {
+    if (!is_grid_enabled && IsGridOnlyFlag(mapping.flag)) {
       continue;
     }
     if (!assembled.empty()) {
@@ -150,10 +137,6 @@ String ValidTokenListString(ExecutionContext* context) {
     assembled.append(", ");
   }
   assembled.append(kNowrapToken);
-  if (is_v2_enabled) {
-    assembled.append(", ");
-    assembled.append(kNoItemControlsToken);
-  }
   return String(assembled);
 }
 
@@ -200,7 +183,7 @@ FocusgroupData ParseFocusgroup(const Element* element,
   ExecutionContext* context = element->GetExecutionContext();
   DCHECK(RuntimeEnabledFeatures::FocusgroupEnabled(context));
   const bool is_grid_enabled =
-      RuntimeEnabledFeatures::FocusgroupV2Enabled(context);
+      RuntimeEnabledFeatures::FocusgroupGridEnabled(context);
 
   UseCounter::Count(context, WebFeature::kFocusgroup);
 
@@ -214,10 +197,6 @@ FocusgroupData ParseFocusgroup(const Element* element,
   bool has_col_flow = false;
   bool has_no_memory = false;
   bool has_nowrap = false;
-  bool has_itemcontrols = false;
-  bool has_no_itemcontrols = false;
-  const bool is_v2_enabled =
-      RuntimeEnabledFeatures::FocusgroupV2Enabled(context);
 
   // Helpers to avoid repeated enum boilerplate for console messages.
   auto Warn = [&](const String& msg) {
@@ -267,9 +246,6 @@ FocusgroupData ParseFocusgroup(const Element* element,
   for (unsigned i = 0; i < tokens.size(); i++) {
     FocusgroupBehavior behavior = FocusgroupBehaviorFromString(tokens[i]);
     DCHECK_NE(behavior, FocusgroupBehavior::kOptOut);
-    if (behavior == FocusgroupBehavior::kFeed && !is_v2_enabled) {
-      continue;
-    }
     if (behavior != FocusgroupBehavior::kNoBehavior) {
       data.behavior = behavior;
       behavior_index = i;
@@ -283,7 +259,9 @@ FocusgroupData ParseFocusgroup(const Element* element,
   }
 
   if (data.behavior == FocusgroupBehavior::kGrid && !is_grid_enabled) {
-    Error("Focusgroup behavior 'grid' requires Focusgroup V2.");
+    Error(
+        "Focusgroup behavior 'grid' is not supported because the "
+        "FocusgroupGrid feature is disabled.");
     return {};
   }
 
@@ -298,10 +276,6 @@ FocusgroupData ParseFocusgroup(const Element* element,
     // Handle nowrap specially (not in kModifierMap since it has no flag bits).
     if (lowercase_token == kNowrapToken) {
       has_nowrap = true;
-      continue;
-    }
-    if (lowercase_token == kNoItemControlsToken && is_v2_enabled) {
-      has_no_itemcontrols = true;
       continue;
     }
 
@@ -319,9 +293,6 @@ FocusgroupData ParseFocusgroup(const Element* element,
 
     // Try to match as a modifier token.
     FocusgroupFlags flag = FocusgroupFlagFromString(lowercase_token);
-    if (flag == FocusgroupFlags::kItemControls && !is_v2_enabled) {
-      flag = FocusgroupFlags::kNone;
-    }
     // If this is a grid-only modifier flag and the grid feature is disabled,
     // warn and ignore it (do not classify as invalid for easier to understand
     // warnings).
@@ -343,8 +314,6 @@ FocusgroupData ParseFocusgroup(const Element* element,
     // Handle other tokens.
     if (flag & FocusgroupFlags::kNoMemory) {
       has_no_memory = true;
-    } else if (flag & FocusgroupFlags::kItemControls) {
-      has_itemcontrols = true;
     } else if (flag & FocusgroupFlags::kInline) {
       has_inline = true;
     } else if (flag & FocusgroupFlags::kBlock) {
@@ -395,24 +364,6 @@ FocusgroupData ParseFocusgroup(const Element* element,
     }
   }
   DCHECK(current_behavior);
-
-  if (has_itemcontrols && has_no_itemcontrols) {
-    Error(
-        "Specifying both 'itemcontrols' and 'noitemcontrols' is an author "
-        "error; noitemcontrols takes precedence.");
-  }
-
-  const bool behavior_defaults_to_itemcontrols =
-      current_behavior->default_flags & FocusgroupFlags::kItemControls;
-  if (has_no_itemcontrols) {
-    if (!has_itemcontrols && !behavior_defaults_to_itemcontrols) {
-      Warn(
-          "Focusgroup attribute value 'noitemcontrols' has no effect because "
-          "itemcontrols is not enabled.");
-    }
-  } else if (has_itemcontrols || behavior_defaults_to_itemcontrols) {
-    data.flags |= FocusgroupFlags::kItemControls;
-  }
 
   // Validate wrap + nowrap conflict.
   if (has_wrap && has_nowrap) {
@@ -677,8 +628,6 @@ ax::mojom::blink::Role FocusgroupItemMinimumAriaRole(
     case FocusgroupBehavior::kMenu:
     case FocusgroupBehavior::kMenubar:
       return ax::mojom::blink::Role::kMenuItem;
-    case FocusgroupBehavior::kFeed:
-      return ax::mojom::blink::Role::kArticle;
     case FocusgroupBehavior::kToolbar:
     case FocusgroupBehavior::kGrid:
     case FocusgroupBehavior::kNoBehavior:
@@ -691,16 +640,13 @@ ax::mojom::blink::Role FocusgroupItemMinimumAriaRole(
 }
 
 bool IsValidFocusgroupToken(const AtomicString& token) {
-  const bool is_v2_enabled = RuntimeEnabledFeatures::FocusgroupV2Enabled();
+  const bool is_grid_enabled = RuntimeEnabledFeatures::FocusgroupGridEnabled();
 
   // Check behavior tokens.
   for (const auto& mapping : kBehaviorMap) {
     if (token == mapping.token) {
       if (mapping.behavior == FocusgroupBehavior::kGrid) {
-        return is_v2_enabled;
-      }
-      if (mapping.behavior == FocusgroupBehavior::kFeed) {
-        return is_v2_enabled;
+        return is_grid_enabled;
       }
       return true;
     }
@@ -710,10 +656,7 @@ bool IsValidFocusgroupToken(const AtomicString& token) {
   for (const auto& mapping : kModifierMap) {
     if (token == mapping.token) {
       if (IsGridOnlyFlag(mapping.flag)) {
-        return is_v2_enabled;
-      }
-      if (mapping.flag == FocusgroupFlags::kItemControls) {
-        return is_v2_enabled;
+        return is_grid_enabled;
       }
       return true;
     }
@@ -722,9 +665,6 @@ bool IsValidFocusgroupToken(const AtomicString& token) {
   // "nowrap" is valid but has no flag bits (not in kModifierMap).
   if (token == kNowrapToken) {
     return true;
-  }
-  if (token == kNoItemControlsToken) {
-    return is_v2_enabled;
   }
 
   return false;

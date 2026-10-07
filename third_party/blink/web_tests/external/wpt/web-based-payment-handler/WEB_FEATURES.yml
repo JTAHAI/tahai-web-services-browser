@@ -1,2 +1,3 @@
-rules:
-- "**": [web-based-payment-handler]
+features:
+- name: web-based-payment-handler
+  files: "**"

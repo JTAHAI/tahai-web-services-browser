@@ -67,7 +67,6 @@
 .search-highlight-hit {
   --search-highlight-hit-background-color: none;
   --search-highlight-hit-color: none;
-  --search-highlight-hit-font-weight: bold;
   font-weight: bold;
 }
 

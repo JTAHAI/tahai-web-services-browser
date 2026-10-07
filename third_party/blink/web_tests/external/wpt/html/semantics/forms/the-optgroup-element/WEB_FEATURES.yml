@@ -1,2 +1,3 @@
-rules:
-- "**": [select]
+features:
+- name: select
+  files: '**'

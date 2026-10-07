@@ -33,9 +33,6 @@ namespace {
 
 class MockDelegate : public TabGroupHeaderView::Delegate {
  public:
-  MockDelegate() {
-    ON_CALL(*this, GetTabClosingHelper).WillByDefault(testing::Return(nullptr));
-  }
   MOCK_METHOD(void,
               ToggleCollapsedState,
               (ToggleTabGroupCollapsedStateOrigin),
@@ -63,11 +60,6 @@ class MockDelegate : public TabGroupHeaderView::Delegate {
               (override));
   MOCK_METHOD(void, ShiftGroupUp, (), (override));
   MOCK_METHOD(void, ShiftGroupDown, (), (override));
-  MOCK_METHOD(bool, IsGroupFocused, (), (const, override));
-  MOCK_METHOD(HorizontalTabClosingHelper*,
-              GetTabClosingHelper,
-              (),
-              (const, override));
 };
 
 int GetPlatformDependentAccelerator() {
@@ -92,17 +84,6 @@ class TabGroupHeaderViewTest : public views::ViewsTestBase,
   }
 
   bool UseGroupHeaderHoverCards() { return GetParam(); }
-
-  void MoveMouseTo(ui::test::EventGenerator& generator,
-                   const views::View* view,
-                   bool inside_view) {
-    if (inside_view) {
-      generator.MoveMouseTo(view->GetBoundsInScreen().CenterPoint());
-    } else {
-      generator.MoveMouseTo(view->GetBoundsInScreen().bottom_right() +
-                            gfx::Vector2d(10, 10));
-    }
-  }
 
   ~TabGroupHeaderViewTest() override = default;
 
@@ -213,7 +194,7 @@ TEST_P(TabGroupHeaderViewTest, ShowHoverCardOnMouseEnter) {
   }
 
   ui::test::EventGenerator generator(GetContext(), widget->GetNativeWindow());
-  MoveMouseTo(generator, header, true);
+  generator.MoveMouseTo(header->GetBoundsInScreen().CenterPoint());
 }
 
 TEST_P(TabGroupHeaderViewTest, EditorBubbleButtonVisibilityOnHover) {
@@ -229,73 +210,31 @@ TEST_P(TabGroupHeaderViewTest, EditorBubbleButtonVisibilityOnHover) {
 
   ui::test::EventGenerator generator(GetContext(), widget->GetNativeWindow());
 
+  auto move_mouse_to = [&](bool inside_view) {
+    if (inside_view) {
+      generator.MoveMouseTo(header->GetBoundsInScreen().CenterPoint());
+    } else {
+      generator.MoveMouseTo(header->GetBoundsInScreen().bottom_right() +
+                            gfx::Vector2d(10, 10));
+    }
+  };
+
   auto check_editor_bubble_button_visible = [&](bool expected_visibility) {
     EXPECT_EQ(expected_visibility,
               header->editor_bubble_button()->GetVisible());
   };
 
   // Move mouse outside the header.
-  MoveMouseTo(generator, header, false);
+  move_mouse_to(false);
   check_editor_bubble_button_visible(false);
 
   // Move mouse over the header.
-  MoveMouseTo(generator, header, true);
+  move_mouse_to(true);
   check_editor_bubble_button_visible(true);
 
   // Move mouse outside the header again.
-  MoveMouseTo(generator, header, false);
+  move_mouse_to(false);
   check_editor_bubble_button_visible(false);
-}
-
-TEST_P(TabGroupHeaderViewTest, FocusModeVisibility) {
-  MockDelegate delegate;
-  ON_CALL(delegate, IsGroupFocused()).WillByDefault(testing::Return(true));
-
-  tab_groups::TabGroupVisualData visual_data(
-      u"Group Title", tab_groups::TabGroupColorId::kBlue, false);
-
-  std::unique_ptr<views::Widget> widget =
-      CreateTestWidget(views::Widget::InitParams::CLIENT_OWNS_WIDGET);
-  auto* header = widget->SetContentsView(std::make_unique<TabGroupHeaderView>(
-      delegate, TabStripOrientation::kVertical, nullptr, &visual_data));
-  widget->Show();
-
-  // In focus mode, the 3-dot menu should always be visible and collapse button
-  // hidden.
-  EXPECT_TRUE(header->editor_bubble_button()->GetVisible());
-  EXPECT_FALSE(header->collapse_icon_for_testing()->GetVisible());
-
-  ui::test::EventGenerator generator(GetContext(), widget->GetNativeWindow());
-
-  // Even when hovering over the header, 3-dot button is visible and collapse
-  // button is hidden.
-  MoveMouseTo(generator, header, true);
-  EXPECT_TRUE(header->editor_bubble_button()->GetVisible());
-  EXPECT_FALSE(header->collapse_icon_for_testing()->GetVisible());
-
-  // Move mouse outside the header.
-  MoveMouseTo(generator, header, false);
-  EXPECT_TRUE(header->editor_bubble_button()->GetVisible());
-  EXPECT_FALSE(header->collapse_icon_for_testing()->GetVisible());
-}
-
-TEST_P(TabGroupHeaderViewTest, LeftClickInFocusModeDoesNotToggleCollapse) {
-  MockDelegate delegate;
-  ON_CALL(delegate, IsGroupFocused()).WillByDefault(testing::Return(true));
-  EXPECT_CALL(delegate, ToggleCollapsedState(testing::_)).Times(0);
-
-  tab_groups::TabGroupVisualData visual_data(
-      u"Group Title", tab_groups::TabGroupColorId::kBlue, false);
-
-  std::unique_ptr<views::Widget> widget =
-      CreateTestWidget(views::Widget::InitParams::CLIENT_OWNS_WIDGET);
-  auto* header = widget->SetContentsView(std::make_unique<TabGroupHeaderView>(
-      delegate, TabStripOrientation::kVertical, nullptr, &visual_data));
-  widget->Show();
-
-  ui::test::EventGenerator generator(GetContext(), widget->GetNativeWindow());
-  MoveMouseTo(generator, header, true);
-  generator.ClickLeftButton();
 }
 
 TEST_P(TabGroupHeaderViewTest, OnKeyPress_ShiftUp) {

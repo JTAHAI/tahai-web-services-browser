@@ -229,8 +229,7 @@ void CheckPasswordFillingOptionIsVisible(NSString* site) {
                      manual_fill::kExpandedManualFillPasswordFaviconID)]
       assertWithMatcher:grey_sufficientlyVisible()];
 
-  [[EarlGrey
-      selectElementWithMatcher:manual_fill::PasswordCellLabelWithText(site)]
+  [[EarlGrey selectElementWithMatcher:grey_text(site)]
       assertWithMatcher:grey_sufficientlyVisible()];
 
   [[EarlGrey selectElementWithMatcher:UsernameButtonMatcher()]
@@ -314,13 +313,6 @@ void CheckKeyboardIsUpAndNotCovered() {
   // is tested in its own suite in password_suggestion_egtest.mm.
   config.features_disabled.push_back(
       password_manager::features::kIOSProactivePasswordGenerationBottomSheet);
-
-  if ([self
-          isRunningTest:
-              @selector(
-                  testNoPasswordsFoundMessageIsVisibleWhenNoPasswordSuggestions)]) {
-    config.features_disabled.push_back(kIOSPasskeyConditionalLoginWithShim);
-  }
 
   if ([self isRunningTest:@selector
             (testNoCredentialsMessageIsVisibleWhenPasskeysEnabled)] ||
@@ -641,7 +633,8 @@ void CheckKeyboardIsUpAndNotCovered() {
       assertWithMatcher:grey_sufficientlyVisible()];
 
   // Dismiss Other Passwords via swipe.
-  [[EarlGrey selectElementWithMatcher:manual_fill::PasswordTableViewMatcher()]
+  [[EarlGrey
+      selectElementWithMatcher:manual_fill::OtherPasswordsDismissMatcher()]
       performAction:grey_swipeFastInDirection(kGREYDirectionDown)];
 
   [ChromeEarlGrey waitForNotSufficientlyVisibleElementWithMatcher:
@@ -770,8 +763,7 @@ void CheckKeyboardIsUpAndNotCovered() {
   // Search for a term that shouldn't give any results.
   [[EarlGrey selectElementWithMatcher:chrome_test_util::SearchBar()]
       performAction:grey_replaceText(@"example1")];
-  [[EarlGrey selectElementWithMatcher:manual_fill::PasswordCellLabelWithText(
-                                          @"example.com")]
+  [[EarlGrey selectElementWithMatcher:grey_text(@"example.com")]
       assertWithMatcher:grey_notVisible()];
 
   // Search for a term that matches with the saved credential.

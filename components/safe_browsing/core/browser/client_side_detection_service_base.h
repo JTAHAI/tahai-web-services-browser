@@ -151,8 +151,7 @@ class ClientSideDetectionServiceBase : public KeyedService {
   // Returns the URL that will be used for phishing requests.
   static GURL GetClientReportUrl(const std::string& report_url);
 
-  // Returns true if the service is running/enabled (i.e. when Safe Browsing is
-  // enabled in user preferences).
+  // Returns true if the service is running/enabled.
   bool IsEnabled() const;
 
   // Returns the model type (protobuf or flatbuffer). Virtual so that mock
@@ -197,10 +196,6 @@ class ClientSideDetectionServiceBase : public KeyedService {
   }
 
  protected:
-  ClientSideDetectionServiceBase(
-      PrefService* prefs,
-      optimization_guide::OptimizationGuideModelProvider* opt_guide);
-
   friend class ClientSideDetectionServiceTest;
   friend class ClientSideDetectionServiceBaseTest;
 
@@ -248,15 +243,7 @@ class ClientSideDetectionServiceBase : public KeyedService {
   virtual void DidReceiveClientPhishingResponse(
       const ClientPhishingResponse& response) {}
 
-  // Called when the phishing model files are updated on disk. Subclasses should
-  // override this to process the new model files.
-  virtual void OnModelUpdated() {}
-
-  // Internal helper called when either the underlying phishing model or the
-  // service state (e.g., enabled/disabled preferences) changes. It manages
-  // subscriptions and delegates to the platform-specific `OnModelUpdated()`
-  // hook.
-  void OnModelAndServiceStateChanged();
+  virtual void OnModelAndServiceStateChanged() {}
 
   void OnURLLoaderComplete(network::SimpleURLLoader* url_loader,
                            base::Time start_time,
@@ -316,6 +303,10 @@ class ClientSideDetectionServiceBase : public KeyedService {
   std::unique_ptr<Delegate> delegate_;
 
  private:
+  ClientSideDetectionServiceBase(
+      PrefService* prefs,
+      optimization_guide::OptimizationGuideModelProvider* opt_guide);
+
   // Cache of completed requests. Used to satisfy requests for the same urls
   // as long as the next request falls within our caching window (which is
   // determined by kNegativeCacheIntervalDays and
@@ -341,8 +332,6 @@ class ClientSideDetectionServiceBase : public KeyedService {
 
   // PrefChangeRegistrar used to track when the Safe Browsing pref changes.
   PrefChangeRegistrar pref_change_registrar_;
-
-  base::CallbackListSubscription update_model_subscription_;
 
   SEQUENCE_CHECKER(sequence_checker_);
 

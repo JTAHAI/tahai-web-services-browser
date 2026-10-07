@@ -25,6 +25,8 @@ namespace blink {
 
 class ClipPaintPropertyNode;
 
+using MainThreadScrollingReasons = uint32_t;
+
 enum class CompositedScrollingPreference : uint8_t {
   kDefault,
   kPreferred,
@@ -71,7 +73,8 @@ class PLATFORM_EXPORT ScrollPaintPropertyNode final
     bool max_scroll_offset_affected_by_page_scale = false;
     CompositedScrollingPreference composited_scrolling_preference =
         CompositedScrollingPreference::kDefault;
-    cc::MainThreadRepaintReasons main_thread_repaint_reasons;
+    MainThreadScrollingReasons main_thread_repaint_reasons =
+        cc::MainThreadScrollingReason::kNotScrollingOnMain;
     // The scrolling element id is stored directly on the scroll node and not
     // on the associated TransformPaintPropertyNode used for scroll offset.
     CompositorElementId compositor_element_id;
@@ -183,13 +186,13 @@ class PLATFORM_EXPORT ScrollPaintPropertyNode final
 
   // Note that this doesn't include main-thread repaint reasons computed
   // after paint.
-  cc::MainThreadRepaintReasons GetMainThreadRepaintReasons() const {
+  MainThreadScrollingReasons GetMainThreadRepaintReasons() const {
     return state_.main_thread_repaint_reasons;
   }
 
   bool RequiresMainThreadForBackgroundAttachmentFixed() const {
-    return state_.main_thread_repaint_reasons.Has(
-        cc::MainThreadRepaintReason::kHasBackgroundAttachmentFixedObjects);
+    return state_.main_thread_repaint_reasons &
+           cc::MainThreadScrollingReason::kHasBackgroundAttachmentFixedObjects;
   }
 
   const CompositorElementId& GetCompositorElementId() const {
@@ -227,6 +230,8 @@ class PLATFORM_EXPORT ScrollPaintPropertyNode final
     DCHECK(!state_.compositor_element_id ||
            NamespaceFromCompositorElementId(state_.compositor_element_id) ==
                CompositorElementIdNamespace::kScroll);
+    DCHECK(cc::MainThreadScrollingReason::AreRepaintReasons(
+        state_.main_thread_repaint_reasons));
 #endif
   }
 

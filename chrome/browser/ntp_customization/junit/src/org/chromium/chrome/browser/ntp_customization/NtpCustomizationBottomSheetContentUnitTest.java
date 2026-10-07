@@ -9,7 +9,6 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.never;
@@ -32,7 +31,6 @@ import android.view.ContextThemeWrapper;
 import android.view.LayoutInflater;
 import android.view.View;
 
-import androidx.constraintlayout.widget.ConstraintLayout;
 import androidx.recyclerview.widget.RecyclerView;
 import androidx.test.core.app.ApplicationProvider;
 
@@ -47,13 +45,11 @@ import org.mockito.junit.MockitoRule;
 import org.robolectric.annotation.Config;
 import org.robolectric.shadows.ShadowLooper;
 
-import org.chromium.base.supplier.SupplierUtils;
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.base.test.util.Features.DisableFeatures;
 import org.chromium.base.test.util.Features.EnableFeatures;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetContent;
-import org.chromium.components.browser_ui.bottomsheet.BottomSheetController;
 
 import java.util.function.Supplier;
 
@@ -69,7 +65,8 @@ public final class NtpCustomizationBottomSheetContentUnitTest {
 
     @Mock private Runnable mBackPressRunnable;
     @Mock private Runnable mOnDestroyRunnable;
-    @Mock private BottomSheetController mBottomSheetController;
+    @Mock private Supplier<Integer> mContainerHeightSupplier;
+    @Mock private Supplier<Integer> mMaxSheetWidthSupplier;
     @Mock private RecyclerView mThemeCollectionsRecyclerView;
     @Mock private RecyclerView mSingleThemeCollectionRecyclerView;
     @Mock private RecyclerView mChromeColorsRecyclerView;
@@ -105,15 +102,15 @@ public final class NtpCustomizationBottomSheetContentUnitTest {
         when(mView.findViewById(R.id.chrome_colors_recycler_view_container))
                 .thenReturn(mChromeColorsRecyclerViewContainer);
         when(mView.findViewById(R.id.ntp_customization_view_flipper)).thenReturn(mViewFlipper);
-        when(mBottomSheetController.getContainerHeight()).thenReturn(CONTAINER_HEIGHT);
-        when(mBottomSheetController.getMaxSheetWidth()).thenReturn(MAX_SHEET_WIDTH);
-        when(mBottomSheetController.isLargeFormFactorUiEnabled(any())).thenReturn(false);
+        when(mContainerHeightSupplier.get()).thenReturn(CONTAINER_HEIGHT);
+        when(mMaxSheetWidthSupplier.get()).thenReturn(MAX_SHEET_WIDTH);
 
         mBottomSheetTypeSupplier = () -> MAIN;
         mBottomSheetContent =
                 new NtpCustomizationBottomSheetContent(
                         mView,
-                        mBottomSheetController,
+                        mContainerHeightSupplier,
+                        mMaxSheetWidthSupplier,
                         mBackPressRunnable,
                         mOnDestroyRunnable,
                         () -> mBottomSheetTypeSupplier.get());
@@ -230,6 +227,7 @@ public final class NtpCustomizationBottomSheetContentUnitTest {
     @Test
     @EnableFeatures({
         ChromeFeatureList.NEW_TAB_PAGE_CUSTOMIZATION_V2,
+        ChromeFeatureList.NEW_TAB_PAGE_CUSTOMIZATION_THEME_SYNC
     })
     public void testGetActiveRecyclerView_themeSyncEnabled() {
         // Returns the theme collections recycler view for THEME_COLLECTIONS type.
@@ -240,6 +238,9 @@ public final class NtpCustomizationBottomSheetContentUnitTest {
         mBottomSheetTypeSupplier = () -> SINGLE_THEME_COLLECTION;
         assertEquals(
                 mSingleThemeCollectionRecyclerView, mBottomSheetContent.getActiveRecyclerView());
+
+        mBottomSheetTypeSupplier = () -> MAIN;
+        assertEquals(mNtpThemeSyncHistoryRecyclerView, mBottomSheetContent.getActiveRecyclerView());
     }
 
     @Test
@@ -263,7 +264,7 @@ public final class NtpCustomizationBottomSheetContentUnitTest {
     public void testAccessibilityStrings() {
         // Verifies the expected content description and accessibility string when the current
         // bottom sheet type is null.
-        mBottomSheetContent.setCurrentBottomSheetTypeSupplierForTesting(SupplierUtils.ofNull());
+        mBottomSheetContent.setCurrentBottomSheetTypeSupplierForTesting(() -> null);
         assertEquals(
                 "Customize your new tab page bottom sheet",
                 mBottomSheetContent.getSheetContentDescription(mContext));
@@ -388,42 +389,6 @@ public final class NtpCustomizationBottomSheetContentUnitTest {
 
         mBottomSheetContent.onSheetClosed();
         assertFalse(mBottomSheetContent.getBackPressStateChangedSupplier().get());
-    }
-
-    @Test
-    public void testDesktopHeightRatiosAndConstraints() {
-        ConstraintLayout.LayoutParams layoutParams = new ConstraintLayout.LayoutParams(0, 0);
-        when(mThemeCollectionsRecyclerView.getLayoutParams()).thenReturn(layoutParams);
-        when(mBottomSheetController.isLargeFormFactorUiEnabled(any())).thenReturn(true);
-        when(mBottomSheetController.getMaxSheetHeight()).thenReturn(CONTAINER_HEIGHT);
-
-        NtpCustomizationBottomSheetContent desktopContent =
-                new NtpCustomizationBottomSheetContent(
-                        mView,
-                        mBottomSheetController,
-                        mBackPressRunnable,
-                        mOnDestroyRunnable,
-                        () -> mBottomSheetTypeSupplier.get());
-
-        mBottomSheetTypeSupplier = () -> MAIN;
-        assertEquals(
-                BottomSheetContent.HeightMode.WRAP_CONTENT,
-                desktopContent.getFullHeightRatio(),
-                FLOATING_POINT_DELTA);
-
-        mBottomSheetTypeSupplier = () -> THEME_COLLECTIONS;
-        assertEquals(
-                BottomSheetContent.HeightMode.DISABLED,
-                desktopContent.getHalfHeightRatio(),
-                FLOATING_POINT_DELTA);
-        float ratio = desktopContent.getFullHeightRatio();
-        float expectedRatio = (float) mView.getMeasuredHeight() / CONTAINER_HEIGHT;
-        assertEquals(expectedRatio, ratio, FLOATING_POINT_DELTA);
-
-        RecyclerView rv = desktopContent.getActiveRecyclerView();
-        assertEquals(mThemeCollectionsRecyclerView, rv);
-        assertEquals(ConstraintLayout.LayoutParams.PARENT_ID, layoutParams.bottomToBottom);
-        assertTrue(layoutParams.constrainedHeight);
     }
 
     @Test

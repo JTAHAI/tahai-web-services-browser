@@ -28,14 +28,12 @@ using testing::ElementsAre;
 // from BackgroundResourceFetchBrowserTest.
 class BackgroundResourceFetchBrowserTest : public ContentBrowserTest {
  public:
-  explicit BackgroundResourceFetchBrowserTest(bool supports_webui = true) {
-    scoped_feature_list_.InitWithFeaturesAndParameters(
+  BackgroundResourceFetchBrowserTest() {
+    scoped_feature_list_.InitWithFeatures(
         /*enabled_features=*/
-        {{blink::features::kBackgroundResourceFetch,
-          {{"BackgroundResourceFetchSupportsWebUI",
-            supports_webui ? "true" : "false"}}},
+        {blink::features::kBackgroundResourceFetch,
          // Needed to trigger cache-aware loading
-         {blink::features::kWebFontsCacheAwareTimeoutAdaption, {}}},
+         blink::features::kWebFontsCacheAwareTimeoutAdaption},
         /*disabled_features=*/{});
   }
   BackgroundResourceFetchBrowserTest(
@@ -96,14 +94,6 @@ class BackgroundResourceFetchBrowserTest : public ContentBrowserTest {
 
  private:
   base::test::ScopedFeatureList scoped_feature_list_;
-};
-
-class BackgroundResourceFetchWebUIBrowserTest
-    : public BackgroundResourceFetchBrowserTest,
-      public testing::WithParamInterface<bool> {
- public:
-  BackgroundResourceFetchWebUIBrowserTest()
-      : BackgroundResourceFetchBrowserTest(GetParam()) {}
 };
 
 IN_PROC_BROWSER_TEST_F(BackgroundResourceFetchBrowserTest, ScriptLoad) {
@@ -182,7 +172,7 @@ IN_PROC_BROWSER_TEST_F(BackgroundResourceFetchBrowserTest,
 }
 
 IN_PROC_BROWSER_TEST_F(BackgroundResourceFetchBrowserTest,
-                       UnsupportedSyncRequest) {
+                       UnupportedSyncRequest) {
   StartServerAndNavigateToTestPage();
   base::HistogramTester histograms;
 
@@ -209,7 +199,7 @@ IN_PROC_BROWSER_TEST_F(BackgroundResourceFetchBrowserTest,
 }
 
 IN_PROC_BROWSER_TEST_F(BackgroundResourceFetchBrowserTest,
-                       UnsupportedNonGetRequest) {
+                       UnupportedNonGetRequest) {
   StartServerAndNavigateToTestPage();
   base::HistogramTester histograms;
 
@@ -234,14 +224,12 @@ IN_PROC_BROWSER_TEST_F(BackgroundResourceFetchBrowserTest,
                                1)));
 }
 
-IN_PROC_BROWSER_TEST_P(BackgroundResourceFetchWebUIBrowserTest,
-                       WebUIUntrustedUrlRequest) {
+IN_PROC_BROWSER_TEST_F(BackgroundResourceFetchBrowserTest,
+                       UnupportedNonHttpUrlRequest) {
   StartServerAndNavigateToTestPage();
   base::HistogramTester histograms;
 
-  // Fetch chrome-untrusted://example.com/. The load itself fails (there is no
-  // such resource), but the request still reaches the background loader support
-  // check.
+  // Fetch chrome-untrusted://example.com/.
   EXPECT_EQ("failed", EvalJs(shell(), R"(
         new Promise(async (resolve) => {
             try {
@@ -254,25 +242,18 @@ IN_PROC_BROWSER_TEST_P(BackgroundResourceFetchWebUIBrowserTest,
 
   FetchHistogramsFromChildProcesses();
 
-  const auto expected_status =
-      GetParam() ? blink::BackgroundResourceFetchSupportStatus::kSupported
-                 : blink::BackgroundResourceFetchSupportStatus::
-                       kUnsupportedNonHttpUrlRequest;
-  EXPECT_THAT(histograms.GetAllSamples(
-                  blink::kBackgroundResourceFetchSupportStatusHistogramName),
-              ElementsAre(base::Bucket(expected_status, 1)));
+  // Non HTTP url request not supported. So the UnupportedNonHttpUrlRequest UMA
+  // must have been recorded.
+  EXPECT_THAT(
+      histograms.GetAllSamples(
+          blink::kBackgroundResourceFetchSupportStatusHistogramName),
+      ElementsAre(base::Bucket(blink::BackgroundResourceFetchSupportStatus::
+                                   kUnsupportedNonHttpUrlRequest,
+                               1)));
 }
 
-INSTANTIATE_TEST_SUITE_P(,
-                         BackgroundResourceFetchWebUIBrowserTest,
-                         testing::Bool(),
-                         [](const testing::TestParamInfo<bool>& info) {
-                           return info.param ? "WebUISupportEnabled"
-                                             : "WebUISupportDisabled";
-                         });
-
 IN_PROC_BROWSER_TEST_F(BackgroundResourceFetchBrowserTest,
-                       UnsupportedKeepAliveRequest) {
+                       UnupportedKeepAliveRequest) {
   StartServerAndNavigateToTestPage();
   base::HistogramTester histograms;
 
@@ -286,7 +267,7 @@ IN_PROC_BROWSER_TEST_F(BackgroundResourceFetchBrowserTest,
 
   FetchHistogramsFromChildProcesses();
 
-  // POST method is not supported. So the UnsupportedKeepAliveRequest UMA must
+  // POST method is not supported. So the UnupportedKeepAliveRequest UMA must
   // have been recorded.
   EXPECT_THAT(
       histograms.GetAllSamples(

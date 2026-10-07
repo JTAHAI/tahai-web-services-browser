@@ -16,7 +16,6 @@
 #include "base/test/bind.h"
 #include "base/test/gmock_callback_support.h"
 #include "base/test/mock_callback.h"
-#include "base/test/scoped_feature_list.h"
 #include "base/test/test_future.h"
 #include "content/browser/hid/hid_test_utils.h"
 #include "content/browser/service_worker/embedded_worker_test_helper.h"
@@ -43,7 +42,6 @@
 #include "services/device/public/cpp/test/test_report_descriptors.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
-#include "third_party/blink/public/common/features.h"
 #include "third_party/blink/public/mojom/hid/hid.mojom.h"
 
 namespace content {
@@ -248,9 +246,7 @@ class HidServiceTestHelper {
 
 class HidServiceBaseTest : public testing::Test, public HidServiceTestHelper {
  public:
-  HidServiceBaseTest() {
-    feature_list_.InitAndEnableFeature(blink::features::kWebHID);
-  }
+  HidServiceBaseTest() = default;
   HidServiceBaseTest(HidServiceBaseTest&) = delete;
   HidServiceBaseTest& operator=(HidServiceBaseTest&) = delete;
   ~HidServiceBaseTest() override = default;
@@ -353,19 +349,10 @@ class HidServiceBaseTest : public testing::Test, public HidServiceTestHelper {
   // For create hid service using service worker.
   std::unique_ptr<EmbeddedWorkerTestHelper> embedded_worker_test_helper_;
   scoped_refptr<content::ServiceWorkerVersion> worker_version_;
-  base::test::ScopedFeatureList feature_list_;
 };
 
 class HidServiceRenderFrameHostTest : public RenderViewHostImplTestHarness,
-                                      public HidServiceTestHelper {
- public:
-  HidServiceRenderFrameHostTest() {
-    scoped_feature_list_.InitAndEnableFeature(blink::features::kWebHID);
-  }
-
- private:
-  base::test::ScopedFeatureList scoped_feature_list_;
-};
+                                      public HidServiceTestHelper {};
 
 class HidServiceTest
     : public HidServiceBaseTest,
@@ -378,13 +365,8 @@ class HidServiceFidoTest : public HidServiceBaseTest,
  public:
   void SetUp() override {
     scoped_feature_list_.InitWithFeatures(
-        /*enabled_features=*/
-        {
-            features::kWebHidRecursiveFiltering,
-#if !BUILDFLAG(IS_ANDROID)
-            features::kSecurityKeyHidInterfacesAreFido,
-#endif  // !BUILDFLAG(IS_ANDROID)
-        },
+        /*enabled_features=*/{features::kSecurityKeyHidInterfacesAreFido,
+                              features::kWebHidRecursiveFiltering},
         /*disabled_features=*/{});
   }
 
@@ -392,7 +374,6 @@ class HidServiceFidoTest : public HidServiceBaseTest,
   base::test::ScopedFeatureList scoped_feature_list_;
 };
 
-#if !BUILDFLAG(IS_ANDROID)
 // Test fixture for service worker specific tests.
 class HidServiceServiceWorkerBrowserContextDestroyedTest
     : public HidServiceBaseTest {
@@ -405,7 +386,6 @@ class HidServiceServiceWorkerBrowserContextDestroyedTest
 
   void SetUp() override { GetService(kCreateUsingServiceWorkerContextCore); }
 };
-#endif  // !BUILDFLAG(IS_ANDROID)
 
 }  // namespace
 
@@ -463,9 +443,6 @@ TEST_P(HidServiceTest, RequestDevice) {
   ConnectDevice(*device_info);
 
   if (service_creation_type == kCreateUsingRenderFrameHost) {
-    static_cast<TestWebContents*>(web_contents_)
-        ->GetPrimaryMainFrame()
-        ->SimulateUserActivation();
     EXPECT_CALL(hid_delegate(), CanRequestDevicePermission)
         .WillOnce(Return(true));
     EXPECT_CALL(hid_delegate(), RunChooserInternal)
@@ -489,53 +466,6 @@ TEST_P(HidServiceTest, RequestDevice) {
   } else {
     EXPECT_EQ(0u, chosen_devices.size());
   }
-}
-
-TEST_P(HidServiceTest, RequestDeviceWithoutUserActivation) {
-  const auto& service = GetService(GetParam());
-
-  ON_CALL(hid_delegate(), CanRequestDevicePermission)
-      .WillByDefault(Return(true));
-  EXPECT_CALL(hid_delegate(), RunChooserInternal).Times(0);
-
-  base::RunLoop run_loop;
-  std::vector<device::mojom::HidDeviceInfoPtr> chosen_devices;
-  service->RequestDevice(
-      std::vector<blink::mojom::HidDeviceFilterPtr>(),
-      std::vector<blink::mojom::HidDeviceFilterPtr>(),
-      base::BindLambdaForTesting(
-          [&run_loop,
-           &chosen_devices](std::vector<device::mojom::HidDeviceInfoPtr> d) {
-            chosen_devices = std::move(d);
-            run_loop.Quit();
-          }));
-  run_loop.Run();
-  EXPECT_EQ(0u, chosen_devices.size());
-}
-
-TEST_P(HidServiceTest, RequestDeviceWhenInactive) {
-  if (GetParam() != kCreateUsingRenderFrameHost) {
-    return;
-  }
-  const auto& service = GetService(GetParam());
-
-  auto* rfh =
-      static_cast<TestWebContents*>(web_contents_)->GetPrimaryMainFrame();
-  rfh->SimulateUserActivation();
-
-  static_cast<RenderFrameHostImpl*>(rfh)->SetLifecycleState(
-      RenderFrameHostImpl::LifecycleStateImpl::kRunningUnloadHandlers);
-  EXPECT_FALSE(rfh->IsActive());
-
-  ON_CALL(hid_delegate(), CanRequestDevicePermission)
-      .WillByDefault(Return(true));
-  EXPECT_CALL(hid_delegate(), RunChooserInternal).Times(0);
-
-  TestFuture<std::vector<device::mojom::HidDeviceInfoPtr>> future;
-  service->RequestDevice(std::vector<blink::mojom::HidDeviceFilterPtr>(),
-                         std::vector<blink::mojom::HidDeviceFilterPtr>(),
-                         future.GetCallback());
-  EXPECT_EQ(0u, future.Get().size());
 }
 
 TEST_P(HidServiceTest, OpenAndCloseHidConnection) {
@@ -1600,32 +1530,21 @@ TEST_P(HidServiceTest, NestedKeyboardDeviceBlocked) {
   device_removed_loop.Run();
 }
 
-const HidServiceCreationType kServiceCreationTypes[]{
-    kCreateUsingRenderFrameHost,
-#if !BUILDFLAG(IS_ANDROID)
-    kCreateUsingServiceWorkerContextCore,
-#endif  // !BUILDFLAG(IS_ANDROID)
-};
-
 INSTANTIATE_TEST_SUITE_P(
     HidServiceTests,
     HidServiceTest,
-    testing::ValuesIn(kServiceCreationTypes),
+    testing::Values(kCreateUsingRenderFrameHost,
+                    kCreateUsingServiceWorkerContextCore),
     [](const ::testing::TestParamInfo<HidServiceCreationType>& info) {
       return HidServiceCreationTypeToString(info.param);
     });
 
-const bool kIsFidoAllowed[]{
-    false,
-#if !BUILDFLAG(IS_ANDROID)
-    true,
-#endif  // !BUILDFLAG(IS_ANDROID)
-};
-
+const bool kIsFidoAllowed[]{true, false};
 INSTANTIATE_TEST_SUITE_P(
     HidServiceFidoTests,
     HidServiceFidoTest,
-    testing::Combine(testing::ValuesIn(kServiceCreationTypes),
+    testing::Combine(testing::Values(kCreateUsingRenderFrameHost,
+                                     kCreateUsingServiceWorkerContextCore),
                      testing::ValuesIn(kIsFidoAllowed)),
     [](const ::testing::TestParamInfo<std::tuple<HidServiceCreationType, bool>>&
            info) {
@@ -1635,7 +1554,6 @@ INSTANTIATE_TEST_SUITE_P(
           std::get<1>(info.param) ? "FidoAllowed" : "FidoNotAllowed");
     });
 
-#if !BUILDFLAG(IS_ANDROID)
 TEST_F(HidServiceServiceWorkerBrowserContextDestroyedTest, GetDevices) {
   auto device_info = CreateDeviceWithOneReport();
   ConnectDevice(*device_info);
@@ -1696,7 +1614,6 @@ TEST_F(HidServiceServiceWorkerBrowserContextDestroyedTest, RejectOpaqueOrigin) {
   EXPECT_EQ(bad_message_observer.WaitForBadMessage(),
             "WebHID is not allowed from an opaque origin.");
 }
-#endif  // !BUILDFLAG(IS_ANDROID)
 
 TEST_P(HidServiceTest, ConnectionFailedWithoutPermission) {
   auto service_creation_type = GetParam();

@@ -57,6 +57,7 @@ import org.chromium.chrome.browser.lifecycle.ActivityLifecycleDispatcher;
 import org.chromium.chrome.browser.lifecycle.PauseResumeWithNativeObserver;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.profiles.ProfileProvider;
+import org.chromium.chrome.browser.tab.EmptyTabObserver;
 import org.chromium.chrome.browser.tab.RedirectHandlerTabHelper;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.TabAssociatedApp;
@@ -404,7 +405,9 @@ public class CustomTabActivityTabController implements PauseResumeWithNativeObse
         } // else we've already set the initial tab.
 
         // Listen to tab swapping and closing.
-        mActivityTabProvider.asObservable().addSyncObserverAndPostIfNonNull(mTabProvider::swapTab);
+        mActivityTabProvider
+                .asObservable()
+                .addSyncObserverAndPostIfNonNull((Callback<@Nullable Tab>) mTabProvider::swapTab);
     }
 
     private @Nullable Tab tryRestoringTab(TabModelOrchestrator tabModelOrchestrator) {
@@ -586,7 +589,7 @@ public class CustomTabActivityTabController implements PauseResumeWithNativeObse
 
         if (!tab.isOffTheRecord() && mSession != null) {
             TabObserver observer =
-                    new TabObserver() {
+                    new EmptyTabObserver() {
                         @Override
                         public void onContentChanged(Tab tab) {
                             if (tab.getWebContents() != null) {
@@ -660,23 +663,24 @@ public class CustomTabActivityTabController implements PauseResumeWithNativeObse
         tabView.setBackgroundColor(backgroundColor);
 
         // Unset the background when the page has rendered.
-        TabObserver mediaObserver =
-                new TabObserver() {
+        EmptyTabObserver mediaObserver =
+                new EmptyTabObserver() {
                     @Override
                     public void didFirstVisuallyNonEmptyPaint(final Tab tab) {
                         tab.removeObserver(this);
 
                         Runnable finishedCallback =
-                                () ->
-                                        ThreadUtils.runOnUiThread(
-                                                () -> {
-                                                    if (tab.isInitialized()
-                                                            && !ActivityUtils
-                                                                    .isActivityFinishingOrDestroyed(
-                                                                            mActivity)) {
-                                                        tabView.setBackgroundResource(0);
-                                                    }
-                                                });
+                                () -> {
+                                    ThreadUtils.runOnUiThread(
+                                            () -> {
+                                                if (tab.isInitialized()
+                                                        && !ActivityUtils
+                                                                .isActivityFinishingOrDestroyed(
+                                                                        mActivity)) {
+                                                    tabView.setBackgroundResource(0);
+                                                }
+                                            });
+                                };
                         // Blink has rendered the page by this point, but we need to wait for the
                         // compositor frame swap to avoid flash of white content.
                         assumeNonNull(mCompositorViewHolder.get())
@@ -766,7 +770,7 @@ public class CustomTabActivityTabController implements PauseResumeWithNativeObse
     private boolean delayPrepareTabBackgroundForResumption(Tab tab, @Nullable View tabView) {
         if (mResumeManager != null && tabView == null) {
             tab.addObserver(
-                    new TabObserver() {
+                    new EmptyTabObserver() {
                         @Override
                         public void onContentChanged(Tab tab) {
                             tab.removeObserver(this);

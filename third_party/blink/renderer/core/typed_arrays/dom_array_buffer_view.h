@@ -6,7 +6,6 @@
 #define THIRD_PARTY_BLINK_RENDERER_CORE_TYPED_ARRAYS_DOM_ARRAY_BUFFER_VIEW_H_
 
 #include "base/containers/span.h"
-#include "base/memory/raw_ptr.h"
 #include "base/notreached.h"
 #include "third_party/blink/renderer/core/core_export.h"
 #include "third_party/blink/renderer/core/typed_arrays/dom_array_buffer.h"
@@ -111,7 +110,7 @@ class CORE_EXPORT DOMArrayBufferView : public ScriptWrappable {
   bool IsShared() const { return dom_array_buffer_->IsShared(); }
 
   void* BaseAddressMaybeShared() const {
-    return !IsDetached() ? raw_base_address_.get() : nullptr;
+    return !IsDetached() ? raw_base_address_ : nullptr;
   }
 
   base::span<uint8_t> ByteSpanMaybeShared() const {
@@ -146,7 +145,7 @@ class CORE_EXPORT DOMArrayBufferView : public ScriptWrappable {
  private:
   // The raw_* fields may be stale after Detach. Use getters instead.
   // This is the address of the ArrayBuffer's storage, plus the byte offset.
-  raw_ptr<void, UnprotectedInRelease | DanglingUntriaged> raw_base_address_;
+  void* raw_base_address_;
   size_t raw_byte_offset_;
 
   mutable Member<DOMArrayBufferBase> dom_array_buffer_;

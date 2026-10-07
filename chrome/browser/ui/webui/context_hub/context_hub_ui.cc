@@ -34,9 +34,6 @@ ContextHubUI::ContextHubUI(content::WebUI* web_ui)
   webui::SetupWebUIDataSource(source, kContextHubResources,
                               IDR_CONTEXT_HUB_CONTEXT_HUB_HTML);
 
-  source->AddResourcePath("save_to_memory_bank",
-                          IDR_CONTEXT_HUB_SAVE_TO_MEMORY_BANK_HTML);
-
   source->AddBoolean("kAutoTabGroups",
                      base::FeatureList::IsEnabled(
                          browser::context_hub::mojom::kAutoTabGroups));
@@ -63,10 +60,9 @@ void ContextHubUI::BindInterface(
 }
 
 void ContextHubUI::CreatePageHandler(
-    mojo::PendingRemote<browser::context_hub::mojom::Page> page,
     mojo::PendingReceiver<browser::context_hub::mojom::PageHandler> handler) {
   page_handler_ = std::make_unique<ContextHubPageHandler>(
-      std::move(page), std::move(handler), Profile::FromWebUI(web_ui()),
+      std::move(handler), Profile::FromWebUI(web_ui()),
       web_ui()->GetWebContents());
 }
 

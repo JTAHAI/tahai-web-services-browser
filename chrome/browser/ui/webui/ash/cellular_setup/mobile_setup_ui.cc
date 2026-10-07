@@ -58,7 +58,8 @@ void DataRequestFailed(const std::string& service_path,
                        content::URLDataSource::GotDataCallback callback) {
   NET_LOG(ERROR) << "Data Request Failed for Mobile Setup: "
                  << NetworkPathId(service_path);
-  std::move(callback).Run(base::MakeRefCounted<base::RefCountedBytes>());
+  scoped_refptr<base::RefCountedBytes> html_bytes(new base::RefCountedBytes);
+  std::move(callback).Run(html_bytes.get());
 }
 
 // Keys for the dictionary that is set to activation UI and that contains the

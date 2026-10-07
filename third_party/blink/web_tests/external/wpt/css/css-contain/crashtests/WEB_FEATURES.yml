@@ -1,4 +1,6 @@
-rules:
-- contain-nested-crash-001.html: [contain]
-- contain-nested-crash-004.html: [contain]
-- flex-item-with-inline-block-with-contain.html: [contain]
+features:
+- name: contain
+  files:
+  - contain-nested-crash-001.html
+  - contain-nested-crash-004.html
+  - flex-item-with-inline-block-with-contain.html

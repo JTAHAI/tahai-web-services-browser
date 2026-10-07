@@ -7,7 +7,6 @@
 #include <string>
 #include <string_view>
 
-#include "base/check_deref.h"
 #include "base/memory/raw_ptr.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/metrics/user_metrics.h"
@@ -17,7 +16,6 @@
 #include "chrome/browser/actor/actor_keyed_service.h"
 #include "chrome/browser/background/glic/glic_launcher_configuration.h"
 #include "chrome/browser/browser_process.h"
-#include "chrome/browser/content_settings/host_content_settings_map_factory.h"
 #include "chrome/browser/glic/glic_pref_names.h"
 #include "chrome/browser/glic/host/context/glic_sharing_utils.h"
 #include "chrome/browser/glic/public/context/glic_sharing_manager.h"
@@ -33,9 +31,6 @@
 #include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
 #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "chrome/common/chrome_features.h"
-#include "components/content_settings/core/browser/host_content_settings_map.h"
-#include "components/content_settings/core/common/content_settings.h"
-#include "components/content_settings/core/common/content_settings_types.h"
 #include "components/metrics/profile_metrics_service.h"
 #include "components/prefs/pref_service.h"
 #include "components/startup_metric_utils/browser/startup_metric_utils.h"
@@ -49,6 +44,7 @@
 
 #if !BUILDFLAG(IS_ANDROID)
 #include "chrome/browser/glic/widget/browser_conditions.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_window/public/desktop_browser_window_capabilities.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "ui/views/widget/widget.h"
@@ -304,45 +300,8 @@ void GlicMetrics::RecordGlicProfilePreferences() {
   base::UmaHistogramBoolean(
       "Glic.Preferences.DefaultTabContextEnabled",
       profile_prefs->GetBoolean(prefs::kGlicDefaultTabContextEnabled));
-  base::UmaHistogramBoolean(
-      "Glic.Preferences.ShakeTriggerEnabled",
-      profile_prefs->GetBoolean(prefs::kGlicShakeTriggerEnabled));
   base::UmaHistogramBoolean("Glic.Preferences.ActuationOnWeb",
                             enabling_->GetUserEnabledActuationOnWeb());
-
-#if !BUILDFLAG(IS_ANDROID)
-  HostContentSettingsMap* settings_map =
-      HostContentSettingsMapFactory::GetForProfile(profile_);
-  if (settings_map) {
-    base::UmaHistogramBoolean("Glic.Selection.InlineCueMenuEnabled",
-                              settings_map->GetDefaultContentSetting(
-                                  ContentSettingsType::INLINE_CUE_MENU,
-                                  nullptr) == CONTENT_SETTING_ALLOW);
-
-    ContentSettingsForOneType exceptions = settings_map->GetSettingsForOneType(
-        ContentSettingsType::INLINE_CUE_MENU);
-    size_t site_exceptions_count = 0;
-    size_t removed_default_blocked_sites_count = 0;
-
-    for (const auto& exception : exceptions) {
-      if (exception.primary_pattern.MatchesAllHosts()) {
-        continue;
-      }
-      if (exception.GetContentSetting() == CONTENT_SETTING_BLOCK) {
-        site_exceptions_count++;
-      } else if (exception.GetContentSetting() == CONTENT_SETTING_ALLOW) {
-        // Explicit ALLOW exceptions for the inline cue menu are only created
-        // when a user unblocks a default-blocked site in Settings.
-        removed_default_blocked_sites_count++;
-      }
-    }
-    base::UmaHistogramCounts100("Glic.Selection.SiteExceptionsCount",
-                                site_exceptions_count);
-    base::UmaHistogramCounts100(
-        "Glic.Selection.RemovedDefaultBlockedSitesCount",
-        removed_default_blocked_sites_count);
-  }
-#endif  // !BUILDFLAG(IS_ANDROID)
 }
 
 void GlicMetrics::OnTrustFirstOnboardingAccept() {
@@ -422,8 +381,7 @@ void GlicMetrics::OnOptInRejected(OptInFlow flow) {
   base::UmaHistogramEnumeration("Glic.Fre.NoThanks.FlowSource", flow);
 }
 
-void GlicMetrics::OnUserInputSubmitted(mojom::WebClientMode mode,
-                                       mojom::PromptType /*prompt_type*/) {
+void GlicMetrics::OnUserInputSubmitted(mojom::WebClientMode mode) {
   if (!fre_accepted_time_.is_null()) {
     base::TimeDelta delta = base::TimeTicks::Now() - fre_accepted_time_;
     base::RecordAction(base::UserMetricsAction("Glic.Fre.InputSubmitted"));
@@ -645,7 +603,7 @@ void GlicMetrics::OnGlicWindowOpenAndReady() {
 }
 
 void GlicMetrics::OnGlicWindowShown(
-    BrowserWindowInterface* browser,
+    Browser* browser,
     std::optional<display::Display> glic_display,
     const gfx::Rect& glic_bounds) {
   GlicMetrics::OnGlicWindowSizeTimerFired();
@@ -681,7 +639,7 @@ void GlicMetrics::OnWidgetUserResizeEnded() {
                                 size_on_user_resize_ended.height());
 }
 
-void GlicMetrics::OnGlicWindowClose(BrowserWindowInterface* last_active_browser,
+void GlicMetrics::OnGlicWindowClose(Browser* last_active_browser,
                                     std::optional<display::Display> display,
                                     const gfx::Rect& glic_bounds) {
   base::RecordAction(base::UserMetricsAction("GlicSessionEnd"));
@@ -992,7 +950,7 @@ DisplayPosition GlicMetrics::GetDisplayPositionOfPoint(
 
 #if !BUILDFLAG(IS_ANDROID)
 ChromeRelativePosition GlicMetrics::GetChromeRelativePositionOfPoint(
-    BrowserWindowInterface* browser,
+    Browser* browser,
     const gfx::Point& glic_center_point) {
   if (!IsBrowserVisible(browser)) {
     return ChromeRelativePosition::kNoVisibleChromeBrowser;
@@ -1000,18 +958,14 @@ ChromeRelativePosition GlicMetrics::GetChromeRelativePositionOfPoint(
 
   // Check if the center point is on a different display
   std::optional<display::Display> browser_display =
-      CHECK_DEREF(BrowserView::GetBrowserViewForBrowser(browser))
-          .GetWidget()
-          ->GetNearestDisplay();
+      browser->GetBrowserView().GetWidget()->GetNearestDisplay();
   if (browser_display &&
       !browser_display->work_area().Contains(glic_center_point)) {
     return ChromeRelativePosition::kChromeOnOtherDisplay;
   }
 
   gfx::Rect browser_bounds =
-      CHECK_DEREF(BrowserView::GetBrowserViewForBrowser(browser))
-          .GetWidget()
-          ->GetWindowBoundsInScreen();
+      browser->GetBrowserView().GetWidget()->GetWindowBoundsInScreen();
   int x_index;
   if (glic_center_point.x() < browser_bounds.x()) {
     x_index = 0;

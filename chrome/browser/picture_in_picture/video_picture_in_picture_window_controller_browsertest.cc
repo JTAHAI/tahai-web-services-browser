@@ -21,8 +21,8 @@
 #include "chrome/browser/media/mock_media_engagement_service.h"
 #include "chrome/browser/picture_in_picture/picture_in_picture_window_manager.h"
 #include "chrome/browser/platform_util.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/views/overlay/hang_up_button.h"
 #include "chrome/browser/ui/views/overlay/playback_image_button.h"
@@ -31,7 +31,7 @@
 #include "chrome/browser/ui/views/overlay/toggle_camera_button.h"
 #include "chrome/browser/ui/views/overlay/toggle_microphone_button.h"
 #include "chrome/browser/ui/views/overlay/toggle_mute_button.h"
-#include "chrome/test/base/chrome_test_path_utils.h"
+#include "chrome/test/base/chrome_test_utils.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/ui_test_utils.h"
 #include "components/keyed_service/content/browser_context_dependency_manager.h"
@@ -284,14 +284,14 @@ class VideoPictureInPictureWindowControllerBrowserTest
     return GetOverlayWindow()->previous_track_controls_view_for_testing();
   }
 
-  void LoadTabAndEnterPictureInPicture(BrowserWindowInterface* browser,
+  void LoadTabAndEnterPictureInPicture(Browser* browser,
                                        const base::FilePath& file_path) {
     GURL test_page_url = chrome_test_utils::GetTestUrl(
         base::FilePath(base::FilePath::kCurrentDirectory), file_path);
     ASSERT_TRUE(ui_test_utils::NavigateToURL(browser, test_page_url));
 
     content::WebContents* active_web_contents =
-        browser->GetTabStripModel()->GetActiveWebContents();
+        browser->tab_strip_model()->GetActiveWebContents();
     ASSERT_NE(nullptr, active_web_contents);
 
     SetUpWindowController(active_web_contents);
@@ -394,7 +394,7 @@ IN_PROC_BROWSER_TEST_F(VideoPictureInPictureWindowControllerBrowserTest,
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), test_page_url));
 
   content::WebContents* active_web_contents =
-      browser()->GetTabStripModel()->GetActiveWebContents();
+      browser()->tab_strip_model()->GetActiveWebContents();
   ASSERT_TRUE(active_web_contents != nullptr);
 
   SetUpWindowController(active_web_contents);
@@ -578,7 +578,7 @@ IN_PROC_BROWSER_TEST_F(PictureInPicturePixelComparisonBrowserTest, VideoPlay) {
   ASSERT_TRUE(GetOverlayWindow()->IsVisible());
 
   content::WebContents* active_web_contents =
-      browser()->GetTabStripModel()->GetActiveWebContents();
+      browser()->tab_strip_model()->GetActiveWebContents();
 
   ASSERT_EQ(true, EvalJs(active_web_contents, "play();"));
 
@@ -602,7 +602,7 @@ IN_PROC_BROWSER_TEST_F(VideoPictureInPictureWindowControllerBrowserTest,
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), test_page_url));
 
   content::WebContents* active_web_contents =
-      browser()->GetTabStripModel()->GetActiveWebContents();
+      browser()->tab_strip_model()->GetActiveWebContents();
   ASSERT_TRUE(active_web_contents);
 
   // First test there is no video playing in Picture-in-Picture.
@@ -635,7 +635,7 @@ IN_PROC_BROWSER_TEST_F(VideoPictureInPictureWindowControllerBrowserTest,
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), test_page_url));
 
   content::WebContents* active_web_contents =
-      browser()->GetTabStripModel()->GetActiveWebContents();
+      browser()->tab_strip_model()->GetActiveWebContents();
   ASSERT_TRUE(active_web_contents);
 
   SetUpWindowController(active_web_contents);
@@ -660,7 +660,7 @@ IN_PROC_BROWSER_TEST_F(VideoPictureInPictureWindowControllerBrowserTest,
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), test_page_url));
 
   content::WebContents* active_web_contents =
-      browser()->GetTabStripModel()->GetActiveWebContents();
+      browser()->tab_strip_model()->GetActiveWebContents();
   ASSERT_TRUE(active_web_contents);
 
   SetUpWindowController(active_web_contents);
@@ -688,7 +688,7 @@ IN_PROC_BROWSER_TEST_F(VideoPictureInPictureWindowControllerBrowserTest,
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), test_page_url));
 
   content::WebContents* active_web_contents =
-      browser()->GetTabStripModel()->GetActiveWebContents();
+      browser()->tab_strip_model()->GetActiveWebContents();
   ASSERT_TRUE(active_web_contents);
 
   SetUpWindowController(active_web_contents);
@@ -713,7 +713,7 @@ IN_PROC_BROWSER_TEST_F(VideoPictureInPictureWindowControllerBrowserTest,
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), test_page_url));
 
   content::WebContents* active_web_contents =
-      browser()->GetTabStripModel()->GetActiveWebContents();
+      browser()->tab_strip_model()->GetActiveWebContents();
   ASSERT_TRUE(active_web_contents);
 
   SetUpWindowController(active_web_contents);
@@ -736,7 +736,7 @@ IN_PROC_BROWSER_TEST_F(VideoPictureInPictureWindowControllerBrowserTest,
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), test_page_url));
 
   content::WebContents* active_web_contents =
-      browser()->GetTabStripModel()->GetActiveWebContents();
+      browser()->tab_strip_model()->GetActiveWebContents();
   ASSERT_TRUE(active_web_contents);
 
   SetUpWindowController(active_web_contents);
@@ -766,7 +766,7 @@ IN_PROC_BROWSER_TEST_F(VideoPictureInPictureWindowControllerBrowserTest,
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), test_page_url));
 
   content::WebContents* active_web_contents =
-      browser()->GetTabStripModel()->GetActiveWebContents();
+      browser()->tab_strip_model()->GetActiveWebContents();
   ASSERT_TRUE(active_web_contents);
 
   SetUpWindowController(active_web_contents);
@@ -790,7 +790,7 @@ IN_PROC_BROWSER_TEST_F(VideoPictureInPictureWindowControllerBrowserTest,
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), test_page_url));
 
   content::WebContents* active_web_contents =
-      browser()->GetTabStripModel()->GetActiveWebContents();
+      browser()->tab_strip_model()->GetActiveWebContents();
   ASSERT_TRUE(active_web_contents);
 
   SetUpWindowController(active_web_contents);
@@ -819,7 +819,7 @@ IN_PROC_BROWSER_TEST_F(VideoPictureInPictureWindowControllerBrowserTest,
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), test_page_url));
 
   content::WebContents* active_web_contents =
-      browser()->GetTabStripModel()->GetActiveWebContents();
+      browser()->tab_strip_model()->GetActiveWebContents();
   ASSERT_TRUE(active_web_contents);
 
   SetUpWindowController(active_web_contents);
@@ -853,7 +853,7 @@ IN_PROC_BROWSER_TEST_F(VideoPictureInPictureWindowControllerBrowserTest,
   EXPECT_TRUE(GetOverlayWindow()->video_layer_for_testing()->visible());
 
   content::WebContents* active_web_contents =
-      browser()->GetTabStripModel()->GetActiveWebContents();
+      browser()->tab_strip_model()->GetActiveWebContents();
   ASSERT_TRUE(ExecJs(active_web_contents, "video.src = null;"));
 
   EXPECT_EQ(true, EvalJs(active_web_contents, "isInPictureInPicture();"));
@@ -874,7 +874,7 @@ IN_PROC_BROWSER_TEST_F(VideoPictureInPictureWindowControllerBrowserTest,
   EXPECT_TRUE(GetOverlayWindow()->video_layer_for_testing()->visible());
 
   content::WebContents* active_web_contents =
-      browser()->GetTabStripModel()->GetActiveWebContents();
+      browser()->tab_strip_model()->GetActiveWebContents();
   ASSERT_EQ(true, EvalJs(active_web_contents, "changeVideoSrc();"));
   EXPECT_EQ(true, EvalJs(active_web_contents, "isInPictureInPicture();"));
 
@@ -895,7 +895,7 @@ IN_PROC_BROWSER_TEST_F(
   EXPECT_TRUE(GetOverlayWindow()->video_layer_for_testing()->visible());
 
   content::WebContents* active_web_contents =
-      browser()->GetTabStripModel()->GetActiveWebContents();
+      browser()->tab_strip_model()->GetActiveWebContents();
   ASSERT_EQ(true,
             EvalJs(active_web_contents, "changeVideoSrcToMediaStream();"));
 
@@ -922,7 +922,7 @@ IN_PROC_BROWSER_TEST_F(VideoPictureInPictureWindowControllerBrowserTest,
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), test_page_url));
 
   content::WebContents* active_web_contents =
-      browser()->GetTabStripModel()->GetActiveWebContents();
+      browser()->tab_strip_model()->GetActiveWebContents();
   ASSERT_TRUE(active_web_contents);
 
   SetUpWindowController(active_web_contents);
@@ -940,7 +940,7 @@ IN_PROC_BROWSER_TEST_F(VideoPictureInPictureWindowControllerBrowserTest,
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), test_page_url));
 
   content::WebContents* active_web_contents =
-      browser()->GetTabStripModel()->GetActiveWebContents();
+      browser()->tab_strip_model()->GetActiveWebContents();
   ASSERT_TRUE(active_web_contents);
 
   SetUpWindowController(active_web_contents);
@@ -975,7 +975,7 @@ IN_PROC_BROWSER_TEST_F(VideoPictureInPictureWindowControllerBrowserTest,
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), test_page_url));
 
   content::WebContents* active_web_contents =
-      browser()->GetTabStripModel()->GetActiveWebContents();
+      browser()->tab_strip_model()->GetActiveWebContents();
   ASSERT_TRUE(active_web_contents != nullptr);
 
   SetUpWindowController(active_web_contents);
@@ -985,16 +985,16 @@ IN_PROC_BROWSER_TEST_F(VideoPictureInPictureWindowControllerBrowserTest,
   // Open a new tab in the browser.
   ASSERT_TRUE(AddTabAtIndex(1, test_page_url, ui::PAGE_TRANSITION_TYPED));
   ASSERT_TRUE(window_controller()->GetWindowForTesting()->IsVisible());
-  EXPECT_EQ(2, browser()->GetTabStripModel()->count());
-  EXPECT_EQ(1, browser()->GetTabStripModel()->active_index());
+  EXPECT_EQ(2, browser()->tab_strip_model()->count());
+  EXPECT_EQ(1, browser()->tab_strip_model()->active_index());
 
   // Once the initiator tab is closed, the controller should also be torn down.
-  browser()->GetTabStripModel()->CloseWebContentsAt(0, 0);
-  EXPECT_EQ(1, browser()->GetTabStripModel()->count());
-  EXPECT_EQ(0, browser()->GetTabStripModel()->active_index());
+  browser()->tab_strip_model()->CloseWebContentsAt(0, 0);
+  EXPECT_EQ(1, browser()->tab_strip_model()->count());
+  EXPECT_EQ(0, browser()->tab_strip_model()->active_index());
 
   // Open video in Picture-in-Picture mode again, on the new tab.
-  active_web_contents = browser()->GetTabStripModel()->GetActiveWebContents();
+  active_web_contents = browser()->tab_strip_model()->GetActiveWebContents();
   ASSERT_TRUE(active_web_contents != nullptr);
 
   SetUpWindowController(active_web_contents);
@@ -1012,7 +1012,7 @@ IN_PROC_BROWSER_TEST_F(VideoPictureInPictureWindowControllerBrowserTest,
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), test_page_url));
 
   content::WebContents* initial_web_contents =
-      browser()->GetTabStripModel()->GetActiveWebContents();
+      browser()->tab_strip_model()->GetActiveWebContents();
   ASSERT_TRUE(initial_web_contents != nullptr);
 
   SetUpWindowController(initial_web_contents);
@@ -1021,11 +1021,11 @@ IN_PROC_BROWSER_TEST_F(VideoPictureInPictureWindowControllerBrowserTest,
 
   // Open a new tab in the browser and starts Picture-in-Picture.
   ASSERT_TRUE(AddTabAtIndex(1, test_page_url, ui::PAGE_TRANSITION_TYPED));
-  EXPECT_EQ(2, browser()->GetTabStripModel()->count());
-  EXPECT_EQ(1, browser()->GetTabStripModel()->active_index());
+  EXPECT_EQ(2, browser()->tab_strip_model()->count());
+  EXPECT_EQ(1, browser()->tab_strip_model()->active_index());
 
   content::WebContents* new_web_contents =
-      browser()->GetTabStripModel()->GetActiveWebContents();
+      browser()->tab_strip_model()->GetActiveWebContents();
   ASSERT_TRUE(new_web_contents != nullptr);
 
   content::VideoPictureInPictureWindowController* pip_window_controller =
@@ -1038,9 +1038,9 @@ IN_PROC_BROWSER_TEST_F(VideoPictureInPictureWindowControllerBrowserTest,
 
   // Closing the initial tab should not get the new tab to leave
   // Picture-in-Picture.
-  browser()->GetTabStripModel()->CloseWebContentsAt(0, 0);
-  EXPECT_EQ(1, browser()->GetTabStripModel()->count());
-  EXPECT_EQ(0, browser()->GetTabStripModel()->active_index());
+  browser()->tab_strip_model()->CloseWebContentsAt(0, 0);
+  EXPECT_EQ(1, browser()->tab_strip_model()->count());
+  EXPECT_EQ(0, browser()->tab_strip_model()->active_index());
 
   base::RunLoop().RunUntilIdle();
 
@@ -1058,7 +1058,7 @@ IN_PROC_BROWSER_TEST_F(VideoPictureInPictureWindowControllerBrowserTest,
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), test_page_url));
 
   content::WebContents* active_web_contents =
-      browser()->GetTabStripModel()->GetActiveWebContents();
+      browser()->tab_strip_model()->GetActiveWebContents();
   ASSERT_TRUE(active_web_contents != nullptr);
 
   SetUpWindowController(active_web_contents);
@@ -1107,7 +1107,7 @@ IN_PROC_BROWSER_TEST_F(VideoPictureInPictureWindowControllerBrowserTest,
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), test_page_url));
 
   content::WebContents* active_web_contents =
-      browser()->GetTabStripModel()->GetActiveWebContents();
+      browser()->tab_strip_model()->GetActiveWebContents();
   ASSERT_TRUE(active_web_contents != nullptr);
 
   SetUpWindowController(active_web_contents);
@@ -1128,7 +1128,7 @@ IN_PROC_BROWSER_TEST_F(VideoPictureInPictureWindowControllerBrowserTest,
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), test_page_url));
 
   content::WebContents* active_web_contents =
-      browser()->GetTabStripModel()->GetActiveWebContents();
+      browser()->tab_strip_model()->GetActiveWebContents();
   ASSERT_TRUE(active_web_contents != nullptr);
 
   SetUpWindowController(active_web_contents);
@@ -1164,7 +1164,7 @@ IN_PROC_BROWSER_TEST_F(VideoPictureInPictureWindowControllerBrowserTest,
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), main_url));
 
   content::WebContents* active_web_contents =
-      browser()->GetTabStripModel()->GetActiveWebContents();
+      browser()->tab_strip_model()->GetActiveWebContents();
   ASSERT_TRUE(active_web_contents != nullptr);
 
   SetUpWindowController(active_web_contents);
@@ -1198,8 +1198,7 @@ IN_PROC_BROWSER_TEST_F(VideoPictureInPictureWindowControllerBrowserTest,
       window_controller();
   EXPECT_TRUE(first_controller->GetWindowForTesting()->IsVisible());
 
-  BrowserWindowInterface* second_browser =
-      CreateBrowser(browser()->GetProfile());
+  Browser* second_browser = CreateBrowser(browser()->GetProfile());
   LoadTabAndEnterPictureInPicture(
       second_browser, base::FilePath(kPictureInPictureWindowSizePage));
 
@@ -1217,7 +1216,7 @@ IN_PROC_BROWSER_TEST_F(VideoPictureInPictureWindowControllerBrowserTest,
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), test_page_url));
 
   content::WebContents* active_web_contents =
-      browser()->GetTabStripModel()->GetActiveWebContents();
+      browser()->tab_strip_model()->GetActiveWebContents();
   ASSERT_TRUE(active_web_contents);
 
   SetUpWindowController(active_web_contents);
@@ -1248,7 +1247,7 @@ IN_PROC_BROWSER_TEST_F(VideoPictureInPictureWindowControllerBrowserTest,
       browser(), base::FilePath(kPictureInPictureWindowSizePage));
 
   content::WebContents* active_web_contents =
-      browser()->GetTabStripModel()->GetActiveWebContents();
+      browser()->tab_strip_model()->GetActiveWebContents();
 
   ASSERT_NE(GetOverlayWindow(), nullptr);
   ASSERT_TRUE(GetOverlayWindow()->IsVisible());
@@ -1266,7 +1265,7 @@ IN_PROC_BROWSER_TEST_F(VideoPictureInPictureWindowControllerBrowserTest,
       browser(), base::FilePath(kPictureInPictureWindowSizePage));
 
   content::WebContents* active_web_contents =
-      browser()->GetTabStripModel()->GetActiveWebContents();
+      browser()->tab_strip_model()->GetActiveWebContents();
   ASSERT_TRUE(ExecJs(active_web_contents, "video.play();"));
 
   EXPECT_EQ(false, EvalJs(active_web_contents, "isPaused();"));
@@ -1284,7 +1283,7 @@ IN_PROC_BROWSER_TEST_F(VideoPictureInPictureWindowControllerBrowserTest,
   chrome::Reload(browser(), WindowOpenDisposition::CURRENT_TAB);
   observer.Wait();
 
-  active_web_contents = browser()->GetTabStripModel()->GetActiveWebContents();
+  active_web_contents = browser()->tab_strip_model()->GetActiveWebContents();
 
   ASSERT_EQ(true, EvalJs(active_web_contents, "enterPictureInPicture();"));
 
@@ -1327,7 +1326,7 @@ IN_PROC_BROWSER_TEST_F(VideoPictureInPictureWindowControllerBrowserTest,
 
   // WebContents sourced Picture-in-Picture should stop.
   ExpectLeavePictureInPicture(
-      browser()->GetTabStripModel()->GetActiveWebContents());
+      browser()->tab_strip_model()->GetActiveWebContents());
 }
 
 IN_PROC_BROWSER_TEST_F(VideoPictureInPictureWindowControllerBrowserTest,
@@ -1370,7 +1369,7 @@ IN_PROC_BROWSER_TEST_F(VideoPictureInPictureWindowControllerBrowserTest,
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), test_page_url));
 
   content::WebContents* active_web_contents =
-      browser()->GetTabStripModel()->GetActiveWebContents();
+      browser()->tab_strip_model()->GetActiveWebContents();
   ASSERT_TRUE(active_web_contents);
 
   SetUpWindowController(active_web_contents);
@@ -1395,7 +1394,7 @@ IN_PROC_BROWSER_TEST_F(VideoPictureInPictureWindowControllerBrowserTest,
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), test_page_url));
 
   content::WebContents* active_web_contents =
-      browser()->GetTabStripModel()->GetActiveWebContents();
+      browser()->tab_strip_model()->GetActiveWebContents();
   ASSERT_TRUE(active_web_contents != nullptr);
 
   SetUpWindowController(active_web_contents);
@@ -1421,12 +1420,12 @@ IN_PROC_BROWSER_TEST_F(VideoPictureInPictureWindowControllerBrowserTest,
   // Open a new tab in the browser.
   ASSERT_TRUE(AddTabAtIndex(1, GURL("about:blank"), ui::PAGE_TRANSITION_TYPED));
   ASSERT_TRUE(window_controller()->GetWindowForTesting()->IsVisible());
-  EXPECT_EQ(2, browser()->GetTabStripModel()->count());
-  EXPECT_EQ(1, browser()->GetTabStripModel()->active_index());
+  EXPECT_EQ(2, browser()->tab_strip_model()->count());
+  EXPECT_EQ(1, browser()->tab_strip_model()->active_index());
 
   // Closing the initiator should not crash Chrome.
   content::WebContentsDestroyedWatcher destroyed_watcher(active_web_contents);
-  browser()->GetTabStripModel()->CloseWebContentsAt(0, 0);
+  browser()->tab_strip_model()->CloseWebContentsAt(0, 0);
   destroyed_watcher.Wait();
 
   // Make sure the window and therefore Chrome_DevToolsADBThread shutdown
@@ -1445,7 +1444,7 @@ IN_PROC_BROWSER_TEST_F(VideoPictureInPictureWindowControllerBrowserTest,
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), test_page_url));
 
   content::WebContents* active_web_contents =
-      browser()->GetTabStripModel()->GetActiveWebContents();
+      browser()->tab_strip_model()->GetActiveWebContents();
   ASSERT_TRUE(active_web_contents);
 
   SetUpWindowController(active_web_contents);
@@ -1544,7 +1543,7 @@ IN_PROC_BROWSER_TEST_F(VideoPictureInPictureWindowControllerBrowserTest,
       browser(), base::FilePath(kPictureInPictureWindowSizePage));
 
   content::WebContents* active_web_contents =
-      browser()->GetTabStripModel()->GetActiveWebContents();
+      browser()->tab_strip_model()->GetActiveWebContents();
   ASSERT_NE(nullptr, active_web_contents);
 
   ASSERT_NE(nullptr, GetOverlayWindow());
@@ -1575,7 +1574,7 @@ IN_PROC_BROWSER_TEST_F(VideoPictureInPictureWindowControllerBrowserTest,
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), test_page_url));
 
   content::WebContents* active_web_contents =
-      browser()->GetTabStripModel()->GetActiveWebContents();
+      browser()->tab_strip_model()->GetActiveWebContents();
   ASSERT_NE(nullptr, active_web_contents);
 
   ASSERT_TRUE(
@@ -1602,7 +1601,7 @@ IN_PROC_BROWSER_TEST_F(VideoPictureInPictureWindowControllerBrowserTest,
       browser(), base::FilePath(kPictureInPictureWindowSizePage));
 
   content::WebContents* active_web_contents =
-      browser()->GetTabStripModel()->GetActiveWebContents();
+      browser()->tab_strip_model()->GetActiveWebContents();
 
   ASSERT_NE(nullptr, active_web_contents);
 
@@ -1652,7 +1651,7 @@ class PictureInPictureWindowControllerPrerenderBrowserTest
   }
 
   content::WebContents* GetWebContents() {
-    return browser()->GetTabStripModel()->GetActiveWebContents();
+    return browser()->tab_strip_model()->GetActiveWebContents();
   }
 
  private:
@@ -1711,7 +1710,7 @@ IN_PROC_BROWSER_TEST_F(PictureInPictureWindowControllerFencedFrameBrowserTest,
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), test_page_url));
 
   content::WebContents* active_web_contents =
-      browser()->GetTabStripModel()->GetActiveWebContents();
+      browser()->tab_strip_model()->GetActiveWebContents();
   ASSERT_TRUE(active_web_contents);
 
   SetUpWindowController(active_web_contents);
@@ -1763,7 +1762,7 @@ IN_PROC_BROWSER_TEST_F(
       {GetOverlayWindow()->skip_ad_controls_view_for_testing()}, false));
 
   content::WebContents* active_web_contents =
-      browser()->GetTabStripModel()->GetActiveWebContents();
+      browser()->tab_strip_model()->GetActiveWebContents();
 
   // Skip Ad button is displayed if a media session action handler has been set.
   ASSERT_TRUE(
@@ -1790,7 +1789,7 @@ IN_PROC_BROWSER_TEST_F(
   ASSERT_NE(GetOverlayWindow(), nullptr);
 
   content::WebContents* active_web_contents =
-      browser()->GetTabStripModel()->GetActiveWebContents();
+      browser()->tab_strip_model()->GetActiveWebContents();
 
   // Play/Pause button is hidden if playing video is a mediastream.
   ASSERT_EQ(true,
@@ -1844,7 +1843,7 @@ IN_PROC_BROWSER_TEST_F(
       {GetOverlayWindow()->next_track_controls_view_for_testing()}, false));
 
   content::WebContents* active_web_contents =
-      browser()->GetTabStripModel()->GetActiveWebContents();
+      browser()->tab_strip_model()->GetActiveWebContents();
 
   // Next Track button is displayed if a media session action handler has been
   // set.
@@ -1873,7 +1872,7 @@ IN_PROC_BROWSER_TEST_F(
       {GetOverlayWindow()->previous_track_controls_view_for_testing()}, false));
 
   content::WebContents* active_web_contents =
-      browser()->GetTabStripModel()->GetActiveWebContents();
+      browser()->tab_strip_model()->GetActiveWebContents();
 
   // Previous Track button is displayed if a media session action handler has
   // been set.
@@ -1902,7 +1901,7 @@ IN_PROC_BROWSER_TEST_F(
   EXPECT_NO_FATAL_FAILURE(AssertControlsVisible({GetNextSlideButton()}, false));
 
   content::WebContents* active_web_contents =
-      browser()->GetTabStripModel()->GetActiveWebContents();
+      browser()->tab_strip_model()->GetActiveWebContents();
 
   // Next Slide button is displayed if a media session action handler has been
   // set.
@@ -1929,7 +1928,7 @@ IN_PROC_BROWSER_TEST_F(
       AssertControlsVisible({GetPreviousSlideButton()}, false));
 
   content::WebContents* active_web_contents =
-      browser()->GetTabStripModel()->GetActiveWebContents();
+      browser()->tab_strip_model()->GetActiveWebContents();
 
   // Previous Slide button is displayed if a media session action handler has
   // been set.
@@ -1955,7 +1954,7 @@ IN_PROC_BROWSER_TEST_F(
   LoadTabAndEnterPictureInPicture(
       browser(), base::FilePath(kPictureInPictureWindowSizePage));
   content::WebContents* active_web_contents =
-      browser()->GetTabStripModel()->GetActiveWebContents();
+      browser()->tab_strip_model()->GetActiveWebContents();
   ASSERT_TRUE(
       ExecJs(active_web_contents, "setMediaSessionActionHandler('skipad');"));
   ASSERT_EQ(true, EvalJs(active_web_contents, "ensureVideoIsPlaying();"));
@@ -1980,7 +1979,7 @@ IN_PROC_BROWSER_TEST_F(
   LoadTabAndEnterPictureInPicture(
       browser(), base::FilePath(kPictureInPictureWindowSizePage));
   content::WebContents* active_web_contents =
-      browser()->GetTabStripModel()->GetActiveWebContents();
+      browser()->tab_strip_model()->GetActiveWebContents();
 
   // Move the second player out of the way to simplify the "active/inactive"
   // media session state handling.
@@ -2028,7 +2027,7 @@ IN_PROC_BROWSER_TEST_F(
   LoadTabAndEnterPictureInPicture(
       browser(), base::FilePath(kPictureInPictureWindowSizePage));
   content::WebContents* active_web_contents =
-      browser()->GetTabStripModel()->GetActiveWebContents();
+      browser()->tab_strip_model()->GetActiveWebContents();
   ASSERT_TRUE(ExecJs(active_web_contents,
                      "setMediaSessionActionHandler('nexttrack');"));
   ASSERT_EQ(true, EvalJs(active_web_contents, "ensureVideoIsPlaying();"));
@@ -2053,7 +2052,7 @@ IN_PROC_BROWSER_TEST_F(
   LoadTabAndEnterPictureInPicture(
       browser(), base::FilePath(kPictureInPictureWindowSizePage));
   content::WebContents* active_web_contents =
-      browser()->GetTabStripModel()->GetActiveWebContents();
+      browser()->tab_strip_model()->GetActiveWebContents();
   ASSERT_TRUE(ExecJs(active_web_contents,
                      "setMediaSessionActionHandler('previoustrack');"));
   ASSERT_EQ(true, EvalJs(active_web_contents, "ensureVideoIsPlaying();"));
@@ -2078,7 +2077,7 @@ IN_PROC_BROWSER_TEST_F(
   LoadTabAndEnterPictureInPicture(
       browser(), base::FilePath(kPictureInPictureWindowSizePage));
   content::WebContents* active_web_contents =
-      browser()->GetTabStripModel()->GetActiveWebContents();
+      browser()->tab_strip_model()->GetActiveWebContents();
   ASSERT_TRUE(ExecJs(active_web_contents,
                      "setMediaSessionActionHandler('nextslide');"));
   ASSERT_EQ(true, EvalJs(active_web_contents, "ensureVideoIsPlaying();"));
@@ -2102,7 +2101,7 @@ IN_PROC_BROWSER_TEST_F(
   LoadTabAndEnterPictureInPicture(
       browser(), base::FilePath(kPictureInPictureWindowSizePage));
   content::WebContents* active_web_contents =
-      browser()->GetTabStripModel()->GetActiveWebContents();
+      browser()->tab_strip_model()->GetActiveWebContents();
   ASSERT_TRUE(ExecJs(active_web_contents,
                      "setMediaSessionActionHandler('previousslide');"));
   ASSERT_EQ(true, EvalJs(active_web_contents, "ensureVideoIsPlaying();"));
@@ -2126,7 +2125,7 @@ IN_PROC_BROWSER_TEST_F(
   LoadTabAndEnterPictureInPicture(
       browser(), base::FilePath(kPictureInPictureWindowSizePage));
   content::WebContents* active_web_contents =
-      browser()->GetTabStripModel()->GetActiveWebContents();
+      browser()->tab_strip_model()->GetActiveWebContents();
   ASSERT_EQ(true, EvalJs(active_web_contents, "ensureVideoIsPlaying();"));
   WaitForPlaybackState(active_web_contents,
                        VideoOverlayWindowViews::PlaybackState::kPlaying);
@@ -2146,7 +2145,7 @@ IN_PROC_BROWSER_TEST_F(VideoPictureInPictureWindowControllerBrowserTest,
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), test_page_url));
 
   content::WebContents* active_web_contents =
-      browser()->GetTabStripModel()->GetActiveWebContents();
+      browser()->tab_strip_model()->GetActiveWebContents();
   ASSERT_NE(nullptr, active_web_contents);
 
   ASSERT_EQ(true, EvalJs(active_web_contents,
@@ -2175,7 +2174,7 @@ IN_PROC_BROWSER_TEST_F(VideoPictureInPictureWindowControllerBrowserTest,
       browser(), base::FilePath(kPictureInPictureWindowSizePage));
 
   content::WebContents* active_web_contents =
-      browser()->GetTabStripModel()->GetActiveWebContents();
+      browser()->tab_strip_model()->GetActiveWebContents();
   ASSERT_TRUE(
       ExecJs(active_web_contents, "video.src=''; exitPictureInPicture();"));
 
@@ -2191,7 +2190,7 @@ IN_PROC_BROWSER_TEST_F(VideoPictureInPictureWindowControllerBrowserTest,
       browser(), base::FilePath(kPictureInPictureWindowSizePage));
 
   content::WebContents* active_web_contents =
-      browser()->GetTabStripModel()->GetActiveWebContents();
+      browser()->tab_strip_model()->GetActiveWebContents();
   ASSERT_TRUE(ExecJs(active_web_contents, "video.play();"));
   ASSERT_TRUE(ExecJs(active_web_contents, "addPauseEventListener();"));
 
@@ -2216,7 +2215,7 @@ IN_PROC_BROWSER_TEST_F(VideoPictureInPictureWindowControllerBrowserTest,
   ASSERT_NE(GetOverlayWindow(), nullptr);
 
   content::WebContents* active_web_contents =
-      browser()->GetTabStripModel()->GetActiveWebContents();
+      browser()->tab_strip_model()->GetActiveWebContents();
   ToggleMicrophoneButton* toggle_microphone_button =
       GetOverlayWindow()->toggle_microphone_button_for_testing();
   ToggleCameraButton* toggle_camera_button =
@@ -2266,19 +2265,6 @@ class PictureInPictureMuteControlBrowserTest
   base::test::ScopedFeatureList scoped_feature_list_;
 };
 
-// Test fixture with kPictureInPictureMuteControl disabled.
-class PictureInPictureMuteControlDisabledBrowserTest
-    : public VideoPictureInPictureWindowControllerBrowserTest {
- public:
-  PictureInPictureMuteControlDisabledBrowserTest() {
-    scoped_feature_list_.InitWithFeatures(
-        {}, {media::kPictureInPictureMuteControl});
-  }
-
- private:
-  base::test::ScopedFeatureList scoped_feature_list_;
-};
-
 IN_PROC_BROWSER_TEST_F(PictureInPictureMuteControlBrowserTest,
                        MuteButton_VisibleAndTogglesState) {
   LoadTabAndEnterPictureInPicture(
@@ -2306,7 +2292,7 @@ IN_PROC_BROWSER_TEST_F(PictureInPictureMuteControlBrowserTest,
 }
 
 // When the feature is disabled, the mute button should not exist.
-IN_PROC_BROWSER_TEST_F(PictureInPictureMuteControlDisabledBrowserTest,
+IN_PROC_BROWSER_TEST_F(VideoPictureInPictureWindowControllerBrowserTest,
                        MuteButton_NotVisibleWhenFeatureDisabled) {
   LoadTabAndEnterPictureInPicture(
       browser(), base::FilePath(kPictureInPictureWindowSizePage));
@@ -2320,7 +2306,7 @@ IN_PROC_BROWSER_TEST_F(VideoPictureInPictureWindowControllerBrowserTest,
   LoadTabAndEnterPictureInPicture(
       browser(), base::FilePath(kPictureInPictureWindowSizePage));
   content::WebContents* active_web_contents =
-      browser()->GetTabStripModel()->GetActiveWebContents();
+      browser()->tab_strip_model()->GetActiveWebContents();
   ASSERT_TRUE(active_web_contents->GetLastCommittedURL().SchemeIsFile());
 
   // Verify that the overlay window is trusted for media playback.
@@ -2335,7 +2321,7 @@ IN_PROC_BROWSER_TEST_F(VideoPictureInPictureWindowControllerBrowserTest,
           "example.com", "/media/picture-in-picture/window-size.html")));
 
   content::WebContents* active_web_contents =
-      browser()->GetTabStripModel()->GetActiveWebContents();
+      browser()->tab_strip_model()->GetActiveWebContents();
   ASSERT_TRUE(active_web_contents);
 
   SetUpWindowController(active_web_contents);
@@ -2360,7 +2346,7 @@ IN_PROC_BROWSER_TEST_F(VideoPictureInPictureWindowControllerBrowserTest,
           "example.com", "/media/picture-in-picture/window-size.html")));
 
   content::WebContents* active_web_contents =
-      browser()->GetTabStripModel()->GetActiveWebContents();
+      browser()->tab_strip_model()->GetActiveWebContents();
   ASSERT_TRUE(active_web_contents);
 
   SetUpWindowController(active_web_contents);
@@ -2385,7 +2371,7 @@ IN_PROC_BROWSER_TEST_F(VideoPictureInPictureWindowControllerBrowserTest,
           "a.com", "/media/picture_in_picture/iframe-one-video.html")));
 
   content::WebContents* active_web_contents =
-      browser()->GetTabStripModel()->GetActiveWebContents();
+      browser()->tab_strip_model()->GetActiveWebContents();
   ASSERT_TRUE(active_web_contents);
   WaitForTitle(active_web_contents, u"iframe loaded");
 
@@ -2415,7 +2401,7 @@ IN_PROC_BROWSER_TEST_F(VideoPictureInPictureWindowControllerBrowserTest,
   LoadTabAndEnterPictureInPicture(
       browser(), base::FilePath(kPictureInPictureWindowSizePage));
   content::WebContents* const web_contents =
-      browser()->GetTabStripModel()->GetActiveWebContents();
+      browser()->tab_strip_model()->GetActiveWebContents();
 
   ASSERT_EQ(true, EvalJs(web_contents, "changeVideoSrcToMediaStream();"));
 
@@ -2441,7 +2427,7 @@ IN_PROC_BROWSER_TEST_F(VideoPictureInPictureWindowControllerBrowserTest,
           "example.com", "/media/picture-in-picture/window-size.html")));
 
   content::WebContents* active_web_contents =
-      browser()->GetTabStripModel()->GetActiveWebContents();
+      browser()->tab_strip_model()->GetActiveWebContents();
   ASSERT_TRUE(active_web_contents);
 
   SetUpWindowController(active_web_contents);
@@ -2462,7 +2448,7 @@ IN_PROC_BROWSER_TEST_F(VideoPictureInPictureWindowControllerBrowserTest,
           "example.com", "/media/picture-in-picture/window-size.html")));
 
   content::WebContents* active_web_contents =
-      browser()->GetTabStripModel()->GetActiveWebContents();
+      browser()->tab_strip_model()->GetActiveWebContents();
   ASSERT_TRUE(active_web_contents);
 
   SetUpWindowController(active_web_contents);
@@ -2493,7 +2479,7 @@ IN_PROC_BROWSER_TEST_F(VideoPictureInPictureWindowControllerBrowserTest,
           "example.com", "/media/picture-in-picture/window-size.html")));
 
   content::WebContents* active_web_contents =
-      browser()->GetTabStripModel()->GetActiveWebContents();
+      browser()->tab_strip_model()->GetActiveWebContents();
   ASSERT_TRUE(active_web_contents);
 
   SetUpWindowController(active_web_contents);
@@ -2529,7 +2515,7 @@ IN_PROC_BROWSER_TEST_F(VideoPictureInPictureWindowControllerBrowserTest,
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), sandboxed_main_url));
 
   content::WebContents* active_web_contents =
-      browser()->GetTabStripModel()->GetActiveWebContents();
+      browser()->tab_strip_model()->GetActiveWebContents();
 
   // Verify the main frame has an opaque origin.
   ASSERT_TRUE(active_web_contents->GetPrimaryMainFrame()
@@ -2566,7 +2552,7 @@ IN_PROC_BROWSER_TEST_F(VideoPictureInPictureWindowControllerBrowserTest,
   ASSERT_TRUE(ExecJs(popup_contents, script));
 
   // Wait until the Picture-in-Picture window is visible and its source title
-  // reflects the precursor origin of the opaque sandboxed frame (example.com).
+  // correctly falls back to the opener's origin (example.com).
   SetUpWindowController(popup_contents);
   ASSERT_TRUE(base::test::RunUntil([&]() {
     auto* overlay_window = GetOverlayWindow();
@@ -2590,7 +2576,7 @@ IN_PROC_BROWSER_TEST_F(VideoPictureInPictureWindowControllerBrowserTest,
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), sandboxed_main_url));
 
   content::WebContents* active_web_contents =
-      browser()->GetTabStripModel()->GetActiveWebContents();
+      browser()->tab_strip_model()->GetActiveWebContents();
 
   // Open an about:blank popup from the sandboxed main frame.
   content::WebContents* popup1_contents;
@@ -2623,7 +2609,8 @@ IN_PROC_BROWSER_TEST_F(VideoPictureInPictureWindowControllerBrowserTest,
   ASSERT_TRUE(ExecJs(popup2_contents, script));
 
   // Wait until the Picture-in-Picture window is visible and its source title
-  // reflects the inherited precursor origin of the nested popups (example.com).
+  // correctly falls back through the nested openers to the original origin
+  // (example.com).
   SetUpWindowController(popup2_contents);
   ASSERT_TRUE(base::test::RunUntil([&]() {
     auto* overlay_window = GetOverlayWindow();
@@ -2635,7 +2622,7 @@ IN_PROC_BROWSER_TEST_F(VideoPictureInPictureWindowControllerBrowserTest,
 }
 
 IN_PROC_BROWSER_TEST_F(VideoPictureInPictureWindowControllerBrowserTest,
-                       SourceTitle_InheritedFromNavigatedOpener) {
+                       SourceTitle_ClosestAncestorFallback) {
   const std::string kHost1 = "example.com";
   const std::string kHost2 = "another-site.com";
   const std::u16string kExpectedTitlePrefix = base::ASCIIToUTF16(kHost2);
@@ -2647,7 +2634,7 @@ IN_PROC_BROWSER_TEST_F(VideoPictureInPictureWindowControllerBrowserTest,
                                      "sandbox allow-scripts allow-popups");
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), url1));
   content::WebContents* active_web_contents =
-      browser()->GetTabStripModel()->GetActiveWebContents();
+      browser()->tab_strip_model()->GetActiveWebContents();
 
   // Open about:blank (Popup 1).
   content::WebContents* popup1_contents;
@@ -2691,8 +2678,7 @@ IN_PROC_BROWSER_TEST_F(VideoPictureInPictureWindowControllerBrowserTest,
       {video_url.spec()}, nullptr);
   ASSERT_TRUE(ExecJs(popup2_contents, script));
 
-  // Verify the source title reflects the opener's origin at the time of the
-  // popup's creation (another-site.com).
+  // Verify source title is Host 2 (the closest opener with a valid precursor).
   SetUpWindowController(popup2_contents);
   ASSERT_TRUE(base::test::RunUntil([&]() {
     auto* overlay_window = GetOverlayWindow();
@@ -2701,76 +2687,6 @@ IN_PROC_BROWSER_TEST_F(VideoPictureInPictureWindowControllerBrowserTest,
            base::StartsWith(overlay_window->origin_for_testing()->GetText(),
                             kExpectedTitlePrefix);
   }));
-}
-
-IN_PROC_BROWSER_TEST_F(VideoPictureInPictureWindowControllerBrowserTest,
-                       SourceTitle_AboutBlankPopupUsesInheritedOrigin) {
-  const std::string kHost1 = "example.com";
-  const std::string kHost2 = "another-site.com";
-  const std::u16string kExpectedTitlePrefix = base::ASCIIToUTF16(kHost1);
-
-  // Open a non-sandboxed page on Host 1.
-  GURL url1 = embedded_test_server()->GetURL(kHost1, "/title1.html");
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), url1));
-  content::WebContents* active_web_contents =
-      browser()->GetTabStripModel()->GetActiveWebContents();
-
-  // Open an about:blank popup. The popup's committed URL is about:blank, but
-  // its committed origin is inherited from Host 1.
-  content::WebContents* popup_contents;
-  {
-    content::WebContentsAddedObserver observer;
-    ASSERT_TRUE(ExecJs(active_web_contents, "window.open('about:blank');"));
-    popup_contents = observer.GetWebContents();
-  }
-  ASSERT_FALSE(
-      popup_contents->GetPrimaryMainFrame()->GetLastCommittedOrigin().opaque());
-  ASSERT_EQ(url::Origin::Create(url1),
-            popup_contents->GetPrimaryMainFrame()->GetLastCommittedOrigin());
-
-  // Navigate the opener cross-origin to Host 2. The popup keeps its inherited
-  // Host 1 origin and its opener relationship.
-  GURL url2 = embedded_test_server()->GetURL(kHost2, "/title1.html");
-  {
-    content::TestNavigationObserver nav_observer(active_web_contents);
-    ASSERT_TRUE(ExecJs(active_web_contents,
-                       base::StringPrintf("window.location.href = '%s';",
-                                          url2.spec().c_str())));
-    nav_observer.Wait();
-  }
-  ASSERT_EQ(active_web_contents->GetPrimaryMainFrame(),
-            popup_contents->GetOpener());
-
-  // Play video in the popup and request Picture-in-Picture.
-  GURL video_url = embedded_test_server()->GetURL(kHost1, "/media/bear.webm");
-  std::string script = base::ReplaceStringPlaceholders(
-      R"(
-        const video = document.createElement('video');
-        video.src = '$1';
-        video.loop = true;
-        document.body.appendChild(video);
-        video.play().then(() => video.requestPictureInPicture());
-      )",
-      {video_url.spec()}, nullptr);
-  ASSERT_TRUE(ExecJs(popup_contents, script));
-
-  // Wait until the Picture-in-Picture window is visible and its source title
-  // has been populated.
-  SetUpWindowController(popup_contents);
-  ASSERT_TRUE(base::test::RunUntil([&]() {
-    auto* overlay_window = GetOverlayWindow();
-    return overlay_window && overlay_window->IsVisible() &&
-           overlay_window->origin_for_testing() &&
-           !overlay_window->origin_for_testing()->GetText().empty();
-  }));
-
-  // The source title must reflect the popup's own (inherited) origin, not the
-  // opener's current origin.
-  EXPECT_TRUE(
-      base::StartsWith(GetOverlayWindow()->origin_for_testing()->GetText(),
-                       kExpectedTitlePrefix))
-      << "source title is '"
-      << GetOverlayWindow()->origin_for_testing()->GetText() << "'";
 }
 
 struct InteractionTestParam {
@@ -2826,7 +2742,7 @@ IN_PROC_BROWSER_TEST_P(
           "example.com", "/media/picture-in-picture/window-size.html")));
 
   content::WebContents* active_web_contents =
-      browser()->GetTabStripModel()->GetActiveWebContents();
+      browser()->tab_strip_model()->GetActiveWebContents();
   ASSERT_TRUE(active_web_contents);
 
   SetUpWindowController(active_web_contents);
@@ -2868,7 +2784,7 @@ IN_PROC_BROWSER_TEST_P(
           "example.com", "/media/picture-in-picture/window-size.html")));
 
   content::WebContents* active_web_contents =
-      browser()->GetTabStripModel()->GetActiveWebContents();
+      browser()->tab_strip_model()->GetActiveWebContents();
   ASSERT_TRUE(active_web_contents);
 
   SetUpWindowController(active_web_contents);

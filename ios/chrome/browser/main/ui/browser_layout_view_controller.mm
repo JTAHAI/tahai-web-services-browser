@@ -15,7 +15,7 @@
 #import "ios/chrome/browser/fullscreen/ui_bundled/fullscreen_ui_element.h"
 #import "ios/chrome/browser/fullscreen/ui_bundled/fullscreen_ui_updater.h"
 #import "ios/chrome/browser/main/ui/browser_layout_consumer.h"
-#import "ios/chrome/browser/shared/coordinator/scene/state/scene_layout_state.h"
+#import "ios/chrome/browser/shared/coordinator/scene/state/layout_state.h"
 #import "ios/chrome/browser/shared/public/features/features.h"
 #import "ios/chrome/browser/shared/ui/util/layout_guide_names.h"
 #import "ios/chrome/browser/shared/ui/util/named_guide.h"
@@ -31,7 +31,7 @@ namespace {
 constexpr CGFloat kContainedLayoutTabStripTopMargin = 4.0;
 }  // namespace
 
-@interface BrowserLayoutViewController () <SceneLayoutStateObserver>
+@interface BrowserLayoutViewController () <LayoutStateObserver>
 @end
 
 @implementation BrowserLayoutViewController {
@@ -177,7 +177,7 @@ constexpr CGFloat kContainedLayoutTabStripTopMargin = 4.0;
   // Calculate offset based on progress (0 = collapsed/hidden, 1 =
   // expanded/visible).
   CGFloat offset =
-      AlignValueToLowerPixel((1.0 - progress) * _fullscreenViewportInsetRange);
+      AlignValueToPixel((1.0 - progress) * _fullscreenViewportInsetRange);
 
   // Update frame directly for synchronous layout.
   // We don't rely on constraints here to avoid fighting with the layout system
@@ -407,7 +407,7 @@ constexpr CGFloat kContainedLayoutTabStripTopMargin = 4.0;
   _staticStatusBarView.overrideUserInterfaceStyle = style;
 }
 
-- (void)setLayoutState:(SceneLayoutState*)layoutState {
+- (void)setLayoutState:(LayoutState*)layoutState {
   if (_layoutState == layoutState) {
     return;
   }
@@ -495,9 +495,9 @@ constexpr CGFloat kContainedLayoutTabStripTopMargin = 4.0;
                               view:self.browserViewController.view];
 }
 
-#pragma mark - SceneLayoutStateObserver
+#pragma mark - LayoutStateObserver
 
-- (void)layoutState:(SceneLayoutState*)layoutState
+- (void)layoutState:(LayoutState*)layoutState
     willChangeContainedLayout:(BOOL)containedLayoutActive
     withTransitionCoordinator:(id<LayoutTransitionCoordinating>)coordinator {
   CGFloat targetTopInset =

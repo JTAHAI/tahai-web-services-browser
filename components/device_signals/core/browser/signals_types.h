@@ -12,12 +12,15 @@
 #include "base/values.h"
 #include "build/build_config.h"
 #include "components/device_signals/core/common/common_types.h"
-#include "components/enterprise/connectors/core/reporting_constants.h"
 #include "components/safe_browsing/core/common/safe_browsing_prefs.h"
 
 #if BUILDFLAG(IS_WIN)
 #include "components/device_signals/core/common/win/win_types.h"
 #endif  // BUILDFLAG(IS_WIN)
+
+namespace enterprise_connectors {
+enum EnterpriseRealTimeUrlCheckMode : int;
+}  // namespace enterprise_connectors
 
 namespace device_signals {
 
@@ -219,7 +222,6 @@ struct OsSignalsResponse : BaseSignalResponse {
   // Common to all platforms, not necessarily all being collected.
 
   std::string browser_version{};
-  std::vector<std::string> device_affiliation_ids{};
   std::optional<std::string> device_enrollment_domain = std::nullopt;
   std::string device_manufacturer{};
   std::string device_model{};
@@ -238,7 +240,6 @@ struct OsSignalsResponse : BaseSignalResponse {
   // - Linux: utsname.release, e.g 6.12.35-1rodete1-amd64
   // - Mac: <major>.<minor>.<bugfix>, e.g 15.7.0
   // - Android: The major version number, e.g 13
-  // - iOS: <major>.<minor>[.<patch>], e.g 18.2.1
   std::string os_version{};
   device_signals::SettingValue screen_lock_secured =
       device_signals::SettingValue::UNKNOWN;
@@ -255,14 +256,11 @@ struct OsSignalsResponse : BaseSignalResponse {
   std::optional<std::string> distribution_version = std::nullopt;
 
   // Android specific
-  std::optional<bool> has_potentially_harmful_apps = std::nullopt;
-  std::optional<bool> verified_apps_enabled = std::nullopt;
+  bool has_potentially_harmful_apps;
+  bool verified_apps_enabled;
   // The date when the device most recently applied a security patch, in ms
   // since epoch.
   std::optional<int64_t> security_patch_ms;
-
-  // iOS specific
-  std::optional<std::string> vendor_id = std::nullopt;
 };
 
 struct ProfileSignalsResponse : BaseSignalResponse {
@@ -275,20 +273,17 @@ struct ProfileSignalsResponse : BaseSignalResponse {
 
   ~ProfileSignalsResponse() override;
 
-  bool built_in_dns_client_enabled = false;
-  bool chrome_remote_desktop_app_blocked = false;
+  bool built_in_dns_client_enabled;
+  bool chrome_remote_desktop_app_blocked;
   std::optional<safe_browsing::PasswordProtectionTrigger>
       password_protection_warning_trigger = std::nullopt;
-  std::vector<std::string> profile_affiliation_ids{};
   std::optional<std::string> profile_enrollment_domain = std::nullopt;
-  safe_browsing::SafeBrowsingState safe_browsing_protection_level =
-      safe_browsing::SafeBrowsingState::NO_SAFE_BROWSING;
-  bool site_isolation_enabled = false;
+  safe_browsing::SafeBrowsingState safe_browsing_protection_level;
+  bool site_isolation_enabled;
   std::optional<std::string> profile_id = std::nullopt;
 
   // Enterprise cloud content analysis exclusives
-  enterprise_connectors::EnterpriseRealTimeUrlCheckMode realtime_url_check_mode =
-      enterprise_connectors::REAL_TIME_CHECK_DISABLED;
+  enterprise_connectors::EnterpriseRealTimeUrlCheckMode realtime_url_check_mode;
   std::vector<std::string> file_downloaded_providers{};
   std::vector<std::string> file_attached_providers{};
   std::vector<std::string> bulk_data_entry_providers{};

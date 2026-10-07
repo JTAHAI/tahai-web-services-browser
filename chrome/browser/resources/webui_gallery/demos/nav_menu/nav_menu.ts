@@ -51,7 +51,7 @@ export class NavMenuElement extends CrLitElement {
   protected accessor menuItems_:
       Array<{icon: string, name: string, path: string}> = [
         {
-          icon: 'cr:person-filled',
+          icon: 'cr:person',
           name: 'Menu item 1',
           path: '/path-1',
         },
@@ -61,7 +61,7 @@ export class NavMenuElement extends CrLitElement {
           path: '/path-2',
         },
         {
-          icon: 'cr:star-filled',
+          icon: 'cr:star',
           name: 'Menu item 3',
           path: '/path-3',
         },

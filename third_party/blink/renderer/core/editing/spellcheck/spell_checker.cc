@@ -549,8 +549,8 @@ bool SpellChecker::SelectionStartHasMarkerFor(
   if (!text_node)
     return false;
 
-  wtf_size_t start_offset = static_cast<wtf_size_t>(from);
-  wtf_size_t end_offset = static_cast<wtf_size_t>(from + length);
+  unsigned start_offset = static_cast<unsigned>(from);
+  unsigned end_offset = static_cast<unsigned>(from + length);
   DocumentMarkerVector markers =
       GetFrame().GetDocument()->Markers().MarkersFor(*text_node);
   for (wtf_size_t i = 0; i < markers.size(); ++i) {
@@ -682,14 +682,15 @@ std::pair<String, int> SpellChecker::FindFirstMisspelling(const Position& start,
 
         Vector<TextCheckingResult> results = FindMisspellings(paragraph_string);
 
-        for (const TextCheckingResult& result : results) {
-          if (result.location >= current_start_offset &&
-              result.location + result.length <= current_end_offset) {
-            DCHECK_GT(result.length, 0);
-            DCHECK_GE(result.location, 0);
-            spelling_location = result.location;
+        for (unsigned i = 0; i < results.size(); i++) {
+          const TextCheckingResult* result = &results[i];
+          if (result->location >= current_start_offset &&
+              result->location + result->length <= current_end_offset) {
+            DCHECK_GT(result->length, 0);
+            DCHECK_GE(result->location, 0);
+            spelling_location = result->location;
             misspelled_word =
-                paragraph_string.substr(result.location, result.length);
+                paragraph_string.substr(result->location, result->length);
             DCHECK(misspelled_word.length());
             break;
           }

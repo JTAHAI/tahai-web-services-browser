@@ -111,8 +111,7 @@ void AssociateParamsFromExperiment(
     for (const FieldTrialTestingExperimentParams& param : experiment.params) {
       params[param.key] = param.value;
     }
-    base::AssociateFieldTrialParams(study_name, experiment.name,
-                                    std::move(params));
+    base::AssociateFieldTrialParams(study_name, experiment.name, params);
   }
   base::FieldTrial* trial =
       base::FieldTrialList::CreateFieldTrial(study_name, experiment.name);

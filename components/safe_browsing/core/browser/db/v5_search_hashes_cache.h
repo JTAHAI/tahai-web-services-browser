@@ -17,7 +17,6 @@
 #include "components/history/core/browser/history_service_observer.h"
 #include "components/keyed_service/core/keyed_service.h"
 #include "components/safe_browsing/core/common/proto/safebrowsingv5.pb.h"
-#include "url/gurl.h"
 
 namespace safe_browsing {
 
@@ -76,17 +75,6 @@ class V5SearchHashesCache : public KeyedService,
   // lookups.
   void CacheArtificialV5SearchHashesLookupVerdict(const std::string& url_spec,
                                                   bool is_unsafe);
-
-  // Adds a cached verdict for a URL and threat type. If `threat_type` is a
-  // threat, preserves existing threat details for the full hash. If
-  // `threat_type` is THREAT_TYPE_UNSPECIFIED, clears existing threat details.
-  // `url` is the URL to generate the full hash for.
-  // `threat_type` is the V5 threat type to add to the cache entry.
-  // `is_warn_only` specifies whether the threat is warning-only, adding the
-  //  CANARY threat attribute if true.
-  void CacheArtificialV5SearchHashesLookupVerdict(const GURL& url,
-                                                  V5::ThreatType threat_type,
-                                                  bool is_warn_only);
 
  private:
   friend class V5SearchHashesCacheTest;

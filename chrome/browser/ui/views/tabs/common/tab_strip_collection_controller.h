@@ -8,7 +8,7 @@
 #include <optional>
 
 #include "base/callback_list.h"
-#include "chrome/browser/ui/tabs/tab_enums.h"
+#include "chrome/browser/ui/tabs/tab_menu_model_factory.h"
 #include "chrome/browser/ui/tabs/tab_strip_user_gesture_details.h"
 #include "chrome/browser/ui/tabs/vertical_tab_strip_state_controller.h"
 #include "chrome/browser/ui/views/tabs/common/tab_drag_handler.h"
@@ -17,11 +17,8 @@
 #include "components/tab_groups/tab_group_id.h"
 #include "ui/base/models/list_selection_model.h"
 
-class BrowserFrameView;
 class BrowserView;
 class ExpandOnHoverLock;
-class HorizontalTabClosingHelper;
-class RootTabCollectionNode;
 class TabCollectionNode;
 class TabGroup;
 class TabHoverCardController;
@@ -45,23 +42,19 @@ class TabStripCollectionController : public TabContextMenuController::Delegate {
  public:
   TabStripCollectionController(TabStripModel* model,
                                BrowserView* browser_view,
-                               RootTabCollectionNode& root_node,
                                TabDragHandler& drag_handler,
                                TabHoverCardController* hover_card_controller,
-                               TabStripOrientation orientation);
+                               std::unique_ptr<TabMenuModelFactory>
+                                   menu_model_factory_override = nullptr);
   TabStripCollectionController(const TabStripCollectionController&) = delete;
   TabStripCollectionController& operator=(const TabStripCollectionController&) =
       delete;
   ~TabStripCollectionController() override;
 
-  int GetTabCount() const;
-  const tabs::TabInterface* GetActiveTab() const;
-  const TabCollectionNode* GetAdjacentTab(
-      const tabs::TabInterface* tab_interface,
-      bool leading) const;
-  std::optional<tab_groups::TabGroupId> GetFocusedGroup() const;
-  std::optional<SkColor> GetGroupColor(
-      const tabs::TabInterface* tab_interface) const;
+  void ShowContextMenuForNode(TabCollectionNode* collection_node,
+                              views::View* source,
+                              const gfx::Point& point,
+                              ui::mojom::MenuSourceType source_type);
 
   void ShiftTabNext(const tabs::TabInterface* tab_interface);
   void ShiftTabPrevious(const tabs::TabInterface* tab_interface);
@@ -71,17 +64,13 @@ class TabStripCollectionController : public TabContextMenuController::Delegate {
   void MoveTabLast(const tabs::TabInterface* tab_interface);
   void SelectTab(const tabs::TabInterface* tab_interface,
                  const TabStripUserGestureDetails& event);
-  void CloseTab(const tabs::TabInterface* tab_interface, CloseTabSource source);
+  void CloseTab(const tabs::TabInterface* tab_interface);
   void ToggleSelected(const tabs::TabInterface* tab_interface);
   void AddSelectionFromAnchorTo(const tabs::TabInterface* tab_interface);
   void ExtendSelectionTo(const tabs::TabInterface* tab_interface);
   const ui::ListSelectionModel& GetSelectionModel() const;
   void ToggleTabGroupCollapsedState(const TabGroup* group,
                                     ToggleTabGroupCollapsedStateOrigin origin);
-
-  void ShowTabContextMenu(TabCollectionNode* collection_node,
-                          const gfx::Point& point,
-                          ui::mojom::MenuSourceType source_type);
   void ShowGroupEditorBubble(const TabCollectionNode* group_node);
   std::unique_ptr<views::Widget> ShowGroupEditorBubble(
       const tab_groups::TabGroupId& group_id,
@@ -98,10 +87,9 @@ class TabStripCollectionController : public TabContextMenuController::Delegate {
   }
 
   BrowserView* GetBrowserView() const { return browser_view_; }
-  BrowserFrameView* GetBrowserFrameView() const;
-  bool IsGlassFrame() const { return is_glass_frame_; }
+
+  bool IsGlassFrame() const { return is_glass_; }
   void OnGlassFrameEligibilityChanged(bool is_eligible);
-  int GetStrokeThickness() const;
 
   TabDragHandler& GetDragHandler() { return drag_handler_.get(); }
   const TabDragHandler& GetDragHandler() const { return drag_handler_.get(); }
@@ -110,30 +98,17 @@ class TabStripCollectionController : public TabContextMenuController::Delegate {
     return hover_card_controller_.get();
   }
 
-  HorizontalTabClosingHelper* tab_closing_helper() const {
-    return tab_closing_helper_.get();
-  }
+  const tabs::TabInterface* GetActiveTab() const;
 
   // Notifies BrowserCommandController that the tab with keyboard focus has
   // changed.
   void TabKeyboardFocusChangedTo(const tabs::TabInterface* tab);
 
+  std::optional<tab_groups::TabGroupId> GetFocusedGroup() const;
+
   void TabGroupFocusChanged(
       std::optional<tab_groups::TabGroupId> new_focused_group_id,
       std::optional<tab_groups::TabGroupId> old_focused_group_id);
-
-  // Updates freezing votes on all tabs when the focused group changes.
-  void UpdateAllTabsFocusFreezing();
-
-  // Updates the browser theme when focus mode is active for a tab group.
-  // Triggered when tab group focus changes or when the color of the currently
-  // focused tab group changes.
-  void UpdateFocusModeTheme(std::optional<tab_groups::TabGroupId> group_id);
-
-#if BUILDFLAG(IS_CHROMEOS)
-  // Returns true if the tab should be locked for the task and false otherwise.
-  bool IsLockedForOnTask() const;
-#endif  // BUILDFLAG(IS_CHROMEOS)
 
  private:
   // TabContextMenuController::Delegate:
@@ -162,17 +137,15 @@ class TabStripCollectionController : public TabContextMenuController::Delegate {
   void AnnounceTabRemovedFromGroup(tab_groups::TabGroupId group_id);
 
   std::unique_ptr<TabContextMenuController> context_menu_controller_;
+  std::unique_ptr<TabMenuModelFactory> menu_model_factory_;
   std::unique_ptr<ExpandOnHoverLock> expand_on_hover_lock_;
 
   raw_ptr<TabStripModel> model_;
   raw_ptr<BrowserView> browser_view_;
-  const raw_ref<RootTabCollectionNode> root_node_;
   const raw_ref<TabDragHandler> drag_handler_;
   raw_ptr<TabHoverCardController> hover_card_controller_;
 
-  std::unique_ptr<HorizontalTabClosingHelper> tab_closing_helper_;
-
-  bool is_glass_frame_ = false;
+  bool is_glass_ = false;
   base::CallbackListSubscription glass_frame_service_subscription_;
 };
 

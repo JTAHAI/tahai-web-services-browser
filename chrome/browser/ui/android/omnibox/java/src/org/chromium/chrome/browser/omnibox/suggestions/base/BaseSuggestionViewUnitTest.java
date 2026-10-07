@@ -14,6 +14,7 @@ import static org.mockito.Mockito.anyInt;
 import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.eq;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
@@ -42,12 +43,10 @@ import org.chromium.chrome.browser.omnibox.suggestions.RecyclerViewSelectionCont
 /** Tests for {@link BaseSuggestionView}. */
 @RunWith(BaseRobolectricTestRunner.class)
 public class BaseSuggestionViewUnitTest {
-    @Rule public final MockitoRule mMockitoRule = MockitoJUnit.rule();
+    public @Rule MockitoRule mMockitoRule = MockitoJUnit.rule();
 
-    @Mock private Callback<Integer> mOnActivateListener;
-    @Mock private View.OnLongClickListener mOnLongClickListener;
-    @Mock private RecyclerViewSelectionController mRecyclerViewSelectionController;
-    @Mock private Runnable mRunnable;
+    private @Mock Callback<Integer> mOnActivateListener;
+    private @Mock View.OnLongClickListener mOnLongClickListener;
 
     private Context mContext;
     private View mInnerView;
@@ -107,15 +106,16 @@ public class BaseSuggestionViewUnitTest {
 
     @Test
     public void onKeyDown_actionButtonKeysAreConsumedIfActionsArePresent() {
-        mView.actionChipsView.setSelectionControllerForTesting(mRecyclerViewSelectionController);
+        var controller = mock(RecyclerViewSelectionController.class);
+        mView.actionChipsView.setSelectionControllerForTesting(controller);
 
         // Simulate Actions consuming key stroke.
-        doReturn(true).when(mRecyclerViewSelectionController).selectNextItem();
+        doReturn(true).when(controller).selectNextItem();
         assertTrue(sendKey(KeyEvent.KEYCODE_TAB));
         verify(mView, never()).super_onKeyDown(anyInt(), any());
 
         // Simulate Actions rejecting key stroke.
-        doReturn(false).when(mRecyclerViewSelectionController).selectNextItem();
+        doReturn(false).when(controller).selectNextItem();
         assertFalse(sendKey(KeyEvent.KEYCODE_TAB));
         verify(mView).super_onKeyDown(anyInt(), any());
     }
@@ -138,17 +138,18 @@ public class BaseSuggestionViewUnitTest {
 
     @Test
     public void setSelected_withFocusListener() {
-        mView.setOnFocusViaSelectionListener(mRunnable);
+        Runnable callback = mock(Runnable.class);
+        mView.setOnFocusViaSelectionListener(callback);
 
         mView.setSelected(false);
-        verifyNoMoreInteractions(mRunnable);
+        verifyNoMoreInteractions(callback);
 
         mView.setSelected(true);
-        verify(mRunnable).run();
-        clearInvocations(mRunnable);
+        verify(callback).run();
+        clearInvocations(callback);
 
         mView.setSelected(false);
-        verifyNoMoreInteractions(mRunnable);
+        verifyNoMoreInteractions(callback);
     }
 
     @Test

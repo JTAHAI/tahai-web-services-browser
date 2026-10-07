@@ -9,11 +9,14 @@
 #include <utility>
 
 #include "ash/strings/grit/ash_strings.h"
+#include "base/functional/bind.h"
 #include "base/memory/raw_ptr.h"
-#include "base/scoped_observation.h"
 #include "base/time/time.h"
 #include "chrome/browser/ash/crostini/crostini_util.h"
+#include "chrome/browser/notifications/notification_display_service_tester.h"
+#include "chrome/browser/notifications/system_notification_helper.h"
 #include "chrome/test/base/browser_with_test_window_test.h"
+#include "chrome/test/base/testing_browser_process.h"
 #include "chromeos/ash/components/dbus/cicerone/cicerone_client.h"
 #include "chromeos/ash/components/dbus/concierge/concierge_client.h"
 #include "chromeos/ash/components/dbus/seneschal/seneschal_client.h"
@@ -22,15 +25,11 @@
 #include "components/user_manager/scoped_user_manager.h"
 #include "google_apis/gaia/gaia_id.h"
 #include "ui/base/l10n/l10n_util.h"
-#include "ui/message_center/message_center.h"
-#include "ui/message_center/message_center_observer.h"
 #include "ui/message_center/public/cpp/notification.h"
 
 namespace crostini {
 
-class CrostiniLowDiskNotificationTest
-    : public BrowserWithTestWindowTest,
-      public message_center::MessageCenterObserver {
+class CrostiniLowDiskNotificationTest : public BrowserWithTestWindowTest {
  public:
   CrostiniLowDiskNotificationTest() = default;
   ~CrostiniLowDiskNotificationTest() override = default;
@@ -45,7 +44,13 @@ class CrostiniLowDiskNotificationTest
     GetCrosSettingsHelper()->SetBoolean(
         ash::kDeviceShowLowDiskSpaceNotification, true);
 
-    message_center_observation_.Observe(message_center::MessageCenter::Get());
+    TestingBrowserProcess::GetGlobal()->SetSystemNotificationHelper(
+        std::make_unique<SystemNotificationHelper>());
+    tester_ = std::make_unique<NotificationDisplayServiceTester>(
+        nullptr /* profile */);
+    tester_->SetNotificationAddedClosure(base::BindRepeating(
+        &CrostiniLowDiskNotificationTest::OnNotificationAdded,
+        base::Unretained(this)));
     low_disk_notification_ = std::make_unique<CrostiniLowDiskNotification>();
     notification_count_ = 0;
     medium_notification_.set_free_bytes(600ll * 1024 * 1024);
@@ -56,16 +61,14 @@ class CrostiniLowDiskNotificationTest
 
   void TearDown() override {
     low_disk_notification_.reset();
-    message_center_observation_.Reset();
     ash::SeneschalClient::Shutdown();
     ash::ConciergeClient::Shutdown();
     ash::CiceroneClient::Shutdown();
     BrowserWithTestWindowTest::TearDown();
   }
 
-  const message_center::Notification* GetNotification() {
-    return message_center::MessageCenter::Get()->FindNotificationById(
-        "crostini_low_disk");
+  std::optional<message_center::Notification> GetNotification() {
+    return tester_->GetNotification("crostini_low_disk");
   }
 
   void SetNotificationThrottlingInterval(int ms) {
@@ -73,20 +76,10 @@ class CrostiniLowDiskNotificationTest
         base::Milliseconds(ms));
   }
 
-  void OnNotificationAdded(const std::string& notification_id) override {
-    if (notification_id == "crostini_low_disk") {
-      notification_count_++;
-    }
-  }
-
-  void OnNotificationUpdated(const std::string& notification_id) override {
-    OnNotificationAdded(notification_id);
-  }
+  void OnNotificationAdded() { notification_count_++; }
 
  protected:
-  base::ScopedObservation<message_center::MessageCenter,
-                          message_center::MessageCenterObserver>
-      message_center_observation_{this};
+  std::unique_ptr<NotificationDisplayServiceTester> tester_;
   std::unique_ptr<CrostiniLowDiskNotification> low_disk_notification_;
   vm_tools::cicerone::LowDiskSpaceTriggeredSignal medium_notification_;
   vm_tools::cicerone::LowDiskSpaceTriggeredSignal high_notification;
@@ -97,7 +90,7 @@ TEST_F(CrostiniLowDiskNotificationTest, MediumLevelNotification) {
   std::u16string expected_title =
       l10n_util::GetStringUTF16(IDS_CROSTINI_LOW_DISK_NOTIFICATION_TITLE);
   low_disk_notification_->OnLowDiskSpaceTriggered(medium_notification_);
-  auto* notification = GetNotification();
+  auto notification = GetNotification();
   ASSERT_TRUE(notification);
   EXPECT_EQ(expected_title, notification->title());
   EXPECT_EQ(1, notification_count_);
@@ -115,7 +108,7 @@ TEST_F(CrostiniLowDiskNotificationTest, HighLevelReplacesMedium) {
       IDS_CROSTINI_CRITICALLY_LOW_DISK_NOTIFICATION_TITLE);
   low_disk_notification_->OnLowDiskSpaceTriggered(medium_notification_);
   low_disk_notification_->OnLowDiskSpaceTriggered(high_notification);
-  auto* notification = GetNotification();
+  auto notification = GetNotification();
   ASSERT_TRUE(notification);
   EXPECT_EQ(expected_title, notification->title());
   EXPECT_EQ(2, notification_count_);

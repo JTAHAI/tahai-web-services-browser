@@ -15,6 +15,7 @@ import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
+import org.robolectric.annotation.Config;
 
 import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.base.supplier.ObservableSuppliers;
@@ -37,6 +38,7 @@ import java.util.concurrent.TimeoutException;
  * percentage of tabs used.
  */
 @RunWith(BaseRobolectricTestRunner.class)
+@Config(manifest = Config.NONE)
 public class TabUsageTrackerTest {
     @Rule public final MockitoRule mMockitoRule = MockitoJUnit.rule();
     @Mock TabModelSelector mTabModelSelector;

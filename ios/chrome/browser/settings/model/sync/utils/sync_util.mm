@@ -53,8 +53,7 @@ enum InfobarSyncError : uint8_t {
   SYNC_NEEDS_TRUSTED_VAULT_KEY = 6,
   SYNC_TRUSTED_VAULT_RECOVERABILITY_DEGRADED = 7,
   SYNC_BOOKMARKS_LIMIT_EXCEEDED = 8,
-  SYNC_DEVICE_MANAGEMENT_ERROR = 9,
-  kMaxValue = SYNC_DEVICE_MANAGEMENT_ERROR,
+  kMaxValue = SYNC_BOOKMARKS_LIMIT_EXCEEDED,
 };
 // LINT.ThenChange(/tools/metrics/histograms/metadata/sync/enums.xml:SyncErrorInfobarTypes)
 
@@ -67,8 +66,6 @@ std::optional<InfobarSyncError> InfobarSyncErrorFromUserActionableError(
       return std::nullopt;
     case syncer::SyncService::UserActionableError::kSignInNeedsUpdate:
       return SYNC_SIGN_IN_NEEDS_UPDATE;
-    case syncer::SyncService::UserActionableError::kDeviceManagementError:
-      return SYNC_DEVICE_MANAGEMENT_ERROR;
     case syncer::SyncService::UserActionableError::kNeedsPassphrase:
       return SYNC_NEEDS_PASSPHRASE;
     case syncer::SyncService::UserActionableError::
@@ -90,17 +87,13 @@ std::optional<InfobarSyncError> InfobarSyncErrorFromUserActionableError(
   }
 }
 
-// Gets the title of the identity error info bar for the given `error`.
+// Gets the the title of the identity error info bar for the given `error`.
 std::u16string GetIdentityErrorInfoBarTitle(
     syncer::SyncService::UserActionableError error) {
   switch (error) {
     case syncer::SyncService::UserActionableError::kSignInNeedsUpdate:
       return l10n_util::GetStringUTF16(
           IDS_IOS_IDENTITY_ERROR_INFOBAR_VERIFY_ITS_YOU_TITLE);
-    case syncer::SyncService::UserActionableError::kDeviceManagementError:
-      // TODO(crbug.com/538454053): Replace this temporary string with the
-      // correct string for MDM errors once it is available.
-      return u"Device Policy Alert";
     case syncer::SyncService::UserActionableError::kNeedsPassphrase:
       return l10n_util::GetStringUTF16(
           IDS_IOS_IDENTITY_ERROR_INFOBAR_ENTER_PASSPHRASE_TITLE);
@@ -140,9 +133,6 @@ NSString* GetIdentityErrorInfoBarMessage(
         kNeedsTrustedVaultKeyForEverything:
       return l10n_util::GetNSString(
           IDS_IOS_IDENTITY_ERROR_INFOBAR_KEEP_USING_YOUR_CHROME_DATA_MESSAGE);
-    case syncer::SyncService::UserActionableError::kDeviceManagementError:
-      return l10n_util::GetNSString(
-          IDS_IOS_IDENTITY_ERROR_INFOBAR_DEVICE_MANAGEMENT_SERVICES_UNAVAILABLE_MESSAGE);
     case syncer::SyncService::UserActionableError::
         kNeedsTrustedVaultKeyForPasswords: {
       return base::FeatureList::IsEnabled(
@@ -170,18 +160,12 @@ NSString* GetIdentityErrorInfoBarMessage(
   }
 }
 
-NSString* GetIdentityErrorInfoBarButtonLabel(syncer::SyncService* syncService) {
-  switch (syncService->GetUserActionableError()) {
+NSString* GetIdentityErrorInfoBarButtonLabel(
+    syncer::SyncService::UserActionableError error) {
+  switch (error) {
     case syncer::SyncService::UserActionableError::kSignInNeedsUpdate:
       return l10n_util::GetNSString(
           IDS_IOS_IDENTITY_ERROR_INFOBAR_VERIFY_BUTTON_LABEL);
-    case syncer::SyncService::UserActionableError::kDeviceManagementError: {
-      GoogleServiceAuthError auth_error = syncService->GetAuthError();
-      return l10n_util::GetNSString(
-          auth_error.IsDeviceManagementErrorUserActionable()
-              ? IDS_IOS_IDENTITY_ERROR_INFOBAR_DEVICE_MANAGEMENT_REQUIRED_FIX_NOW_BUTTON
-              : IDS_IOS_IDENTITY_ERROR_INFOBAR_DEVICE_MANAGEMENT_REQUIRED_LEARN_MORE_BUTTON);
-    }
     case syncer::SyncService::UserActionableError::kNeedsPassphrase:
       return l10n_util::GetNSString(
           IDS_IOS_IDENTITY_ERROR_INFOBAR_ENTER_BUTTON_LABEL);
@@ -231,9 +215,6 @@ NSString* GetSyncErrorDescriptionForSyncService(
       return nil;
     case syncer::SyncService::UserActionableError::kSignInNeedsUpdate:
       return l10n_util::GetNSString(IDS_IOS_SYNC_LOGIN_INFO_OUT_OF_DATE);
-    case syncer::SyncService::UserActionableError::kDeviceManagementError:
-      return l10n_util::GetNSString(
-          IDS_IOS_IDENTITY_ERROR_INFOBAR_DEVICE_MANAGEMENT_SERVICES_UNAVAILABLE_MESSAGE);
     case syncer::SyncService::UserActionableError::kNeedsPassphrase:
       return l10n_util::GetNSString(IDS_IOS_SYNC_ENCRYPTION_DESCRIPTION);
     case syncer::SyncService::UserActionableError::
@@ -295,9 +276,6 @@ NSString* GetSyncErrorMessageForProfile(ProfileIOS* profile) {
       return nil;
     case syncer::SyncService::UserActionableError::kSignInNeedsUpdate:
       return l10n_util::GetNSString(IDS_IOS_SYNC_ERROR_INFO_OUT_OF_DATE);
-    case syncer::SyncService::UserActionableError::kDeviceManagementError:
-      return l10n_util::GetNSString(
-          IDS_IOS_IDENTITY_ERROR_INFOBAR_DEVICE_MANAGEMENT_SERVICES_UNAVAILABLE_MESSAGE);
     case syncer::SyncService::UserActionableError::kNeedsPassphrase:
       return l10n_util::GetNSString(IDS_IOS_SYNC_CONFIGURE_ENCRYPTION);
     case syncer::SyncService::UserActionableError::
@@ -327,19 +305,12 @@ NSString* GetSyncErrorButtonTitleForProfile(ProfileIOS* profile) {
       syncService->GetUserActionableError();
 
   if (GetAccountErrorUIInfo(syncService) != nil) {
-    return GetIdentityErrorInfoBarButtonLabel(syncService);
+    return GetIdentityErrorInfoBarButtonLabel(error);
   }
 
   switch (error) {
     case syncer::SyncService::UserActionableError::kSignInNeedsUpdate:
       return l10n_util::GetNSString(IDS_IOS_SYNC_UPDATE_CREDENTIALS_BUTTON);
-    case syncer::SyncService::UserActionableError::kDeviceManagementError: {
-      GoogleServiceAuthError auth_error = syncService->GetAuthError();
-      return l10n_util::GetNSString(
-          auth_error.IsDeviceManagementErrorUserActionable()
-              ? IDS_IOS_IDENTITY_ERROR_INFOBAR_DEVICE_MANAGEMENT_REQUIRED_FIX_NOW_BUTTON
-              : IDS_IOS_IDENTITY_ERROR_INFOBAR_DEVICE_MANAGEMENT_REQUIRED_LEARN_MORE_BUTTON);
-    }
     case syncer::SyncService::UserActionableError::kNeedsPassphrase:
       return l10n_util::GetNSString(IDS_IOS_SYNC_ENTER_PASSPHRASE_BUTTON);
     case syncer::SyncService::UserActionableError::
@@ -376,7 +347,6 @@ bool ShouldShowSyncSettings(syncer::SyncService::UserActionableError error) {
     case syncer::SyncService::UserActionableError::
         kTrustedVaultRecoverabilityDegradedForEverything:
     case syncer::SyncService::UserActionableError::kNeedsClientUpgrade:
-    case syncer::SyncService::UserActionableError::kDeviceManagementError:
       return false;
     case syncer::SyncService::UserActionableError::kBookmarksLimitExceeded:
       return true;

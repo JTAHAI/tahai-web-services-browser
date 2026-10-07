@@ -32,6 +32,7 @@ import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
 import org.robolectric.Shadows;
+import org.robolectric.annotation.Config;
 
 import org.chromium.base.FeatureList;
 import org.chromium.base.FeatureListJni;
@@ -52,6 +53,7 @@ import java.util.concurrent.TimeUnit;
 
 /** Unit tests for {@link SmartSelectionProvider}. */
 @RunWith(BaseRobolectricTestRunner.class)
+@Config(manifest = Config.NONE)
 public class SmartSelectionProviderTest {
     @Rule public MockitoRule mMockitoRule = MockitoJUnit.rule();
 

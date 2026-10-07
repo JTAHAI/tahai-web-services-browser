@@ -20,14 +20,12 @@
 #include "components/actor/core/journal_details_builder.h"
 #include "components/actor/public/mojom/actor_types.mojom.h"
 #include "components/optimization_guide/content/browser/page_content_proto_provider.h"
-#include "components/optimization_guide/content/browser/page_content_proto_util.h"
 #include "content/public/browser/page.h"
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/browser/web_contents_user_data.h"
 #include "mojo/public/cpp/bindings/message.h"
 #include "third_party/blink/public/common/associated_interfaces/associated_interface_provider.h"
-#include "third_party/blink/public/mojom/frame/user_activation_notification_type.mojom-shared.h"
 
 namespace actor {
 
@@ -89,16 +87,21 @@ mojom::ActionResultPtr ScriptToolHost::TimeOfUseValidation(
     return MakeResult(mojom::ActionResultCode::kTabWentAway);
   }
 
-  // Check that the target Document is associated with the target tab.
-  content::RenderFrameHost* target_rfh =
-      optimization_guide::GetRenderFrameForDocumentIdentifier(
-          *tab->GetContents(), target_document_id_.ToString());
-  if (!target_rfh) {
+  // Check that the target Document is associated with the target tab. Only
+  // main frames are supported.
+  // TODO(khushalsagar): Add support for subframes.
+  auto primary_document_id = optimization_guide::DocumentIdentifierUserData::
+                                 GetOrCreateForCurrentDocument(
+                                     tab->GetContents()->GetPrimaryMainFrame())
+                                     ->token();
+  if (primary_document_id != target_document_id_) {
     return MakeResult(mojom::ActionResultCode::kTabWentAway);
   }
 
-  target_frame_tree_node_id_ = target_rfh->GetFrameTreeNodeId();
-  target_document_ = target_rfh->GetWeakDocumentPtr();
+  target_frame_tree_node_id_ =
+      tab->GetContents()->GetPrimaryMainFrame()->GetFrameTreeNodeId();
+  target_document_ =
+      tab->GetContents()->GetPrimaryMainFrame()->GetWeakDocumentPtr();
   return MakeOkResult();
 }
 
@@ -126,13 +129,6 @@ void ScriptToolHost::Invoke(ToolCallback callback) {
   InitializePendingResult();
   auto* frame = target_document_.AsRenderFrameHostIfValid();
   CHECK(frame);
-
-  // Provide transient user activation to the frame for the tool invocation.
-  if (base::FeatureList::IsEnabled(
-          actor::kActorScriptToolTransientUserActivation)) {
-    frame->NotifyUserActivation(
-        blink::mojom::UserActivationNotificationType::kActorWebMCP);
-  }
 
   AggregatedJournalRenderFrameBinder::EnsureBound(journal(), *frame);
 

@@ -134,7 +134,7 @@ typedef NS_ENUM(NSInteger, ItemType) {
       [self.tableViewModel itemAtIndexPath:indexPath]);
 
   [self.delegate addLanguageTableViewController:self
-                           didSelectLanguageTag:languageItem.languageTag];
+                          didSelectLanguageCode:languageItem.languageCode];
 }
 
 #pragma mark - UISearchResultsUpdating

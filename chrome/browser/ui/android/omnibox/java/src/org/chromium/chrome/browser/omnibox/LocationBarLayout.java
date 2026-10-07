@@ -16,9 +16,7 @@ import android.view.View;
 import android.widget.ImageButton;
 
 import androidx.annotation.CallSuper;
-import androidx.annotation.ColorInt;
 import androidx.annotation.DrawableRes;
-import androidx.annotation.Px;
 import androidx.annotation.VisibleForTesting;
 import androidx.appcompat.widget.TooltipCompat;
 import androidx.constraintlayout.widget.ConstraintLayout;
@@ -29,19 +27,16 @@ import org.chromium.base.MathUtils;
 import org.chromium.build.annotations.Initializer;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
-import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.lens.LensEntryPoint;
 import org.chromium.chrome.browser.omnibox.fusebox.FuseboxCoordinator.FuseboxLayoutMode;
 import org.chromium.chrome.browser.omnibox.fusebox.FuseboxCoordinator.FuseboxState;
 import org.chromium.chrome.browser.omnibox.status.StatusCoordinator;
 import org.chromium.chrome.browser.omnibox.status.StatusView;
-import org.chromium.chrome.browser.omnibox.styles.OmniboxResourceProvider;
 import org.chromium.chrome.browser.omnibox.suggestions.AutocompleteCoordinator;
 import org.chromium.chrome.browser.omnibox.voice.VoiceRecognitionIntentHandler;
 import org.chromium.chrome.browser.ui.theme.BrandedColorScheme;
 import org.chromium.chrome.browser.util.BrowserUiUtils;
 import org.chromium.components.browser_ui.widget.CompositeTouchDelegate;
-import org.chromium.components.browser_ui.widget.chips.ChipView;
 import org.chromium.components.embedder_support.util.UrlUtilities;
 import org.chromium.ui.base.DeviceFormFactor;
 import org.chromium.ui.base.WindowAndroid;
@@ -49,21 +44,14 @@ import org.chromium.ui.base.WindowAndroid;
 /** This class represents the location bar where the user types in URLs and search terms. */
 @NullMarked
 public class LocationBarLayout extends ConstraintLayout {
-    private static final int[][] HOVER_STATES =
-            new int[][] {
-                new int[] {android.R.attr.state_hovered}, new int[] {} // Default, must be last
-            };
-
     protected ImageButton mDeleteButton;
     protected ImageButton mMicButton;
     protected ImageButton mLensButton;
     protected ImageButton mZoomButton;
     protected ImageButton mInstallButton;
     protected final View mNavigateButton;
-    protected final ChipView mActivationChip;
     protected UrlBar mUrlBar;
     protected final View mLocationBarStatusView;
-    protected final View mFocusThief;
 
     protected UrlBarCoordinator mUrlCoordinator;
     protected AutocompleteCoordinator mAutocompleteCoordinator;
@@ -113,12 +101,7 @@ public class LocationBarLayout extends ConstraintLayout {
         mZoomButton = findViewById(R.id.zoom_button);
         mInstallButton = findViewById(R.id.install_button);
         mNavigateButton = findViewById(R.id.navigate_button);
-        mActivationChip = findViewById(R.id.fusebox_activation_chip);
-        // TODO(crbug.com/544731730): Remove this once ChipView#updateLayoutDirection is cleaned up
-        // and its render tests are updated to set layout direction on their test containers.
-        mActivationChip.setLayoutDirection(LAYOUT_DIRECTION_INHERIT);
         mMarginSpacer = findViewById(R.id.margin_spacer);
-        mFocusThief = findViewById(R.id.focus_thief);
 
         Resources res = getResources();
         mUrlActionContainerEndMargin =
@@ -142,6 +125,7 @@ public class LocationBarLayout extends ConstraintLayout {
     protected void onFinishInflate() {
         super.onFinishInflate();
 
+        mUrlBar.setAccessibilityTraversalBefore(R.id.omnibox_suggestions_dropdown);
         setLayoutTransition(null);
 
         StatusView statusView = findViewById(R.id.location_bar_status);
@@ -230,31 +214,7 @@ public class LocationBarLayout extends ConstraintLayout {
         mDeleteButton.setBackgroundResource(resourceId);
     }
 
-    /* package */ void updateVisualsForState(@BrandedColorScheme int brandedColorScheme) {
-        updateActivationChipVisuals(brandedColorScheme);
-    }
-
-    private void updateActivationChipVisuals(@BrandedColorScheme int brandedColorScheme) {
-        Context context = getContext();
-        @ColorInt
-        int buttonColor =
-                OmniboxResourceProvider.getColorSurfaceContainerHigh(context, brandedColorScheme);
-        @ColorInt
-        int buttonColorHovered =
-                OmniboxResourceProvider.getColorSurfaceContainerHighest(
-                        context, brandedColorScheme);
-        int[] backgroundColors = new int[] {buttonColorHovered, buttonColor};
-
-        mActivationChip.setBackgroundTintList(new ColorStateList(HOVER_STATES, backgroundColors));
-
-        @ColorInt
-        int colorOnSurface = OmniboxResourceProvider.getColorOnSurface(context, brandedColorScheme);
-        mActivationChip.setIconTint(ColorStateList.valueOf(colorOnSurface));
-        @ColorInt
-        int focusRingColor = OmniboxResourceProvider.getColorPrimary(context, brandedColorScheme);
-        mActivationChip.setForegroundTintList(ColorStateList.valueOf(focusRingColor));
-        mActivationChip.setTextColor(colorOnSurface);
-    }
+    /* package */ void updateVisualsForState(@BrandedColorScheme int brandedColorScheme) {}
 
     /* package */ void setLensButtonTint(ColorStateList colorStateList) {
         ImageViewCompat.setImageTintList(mLensButton, colorStateList);
@@ -467,7 +427,6 @@ public class LocationBarLayout extends ConstraintLayout {
      *     getting focused.
      * @param isUrlFocusChangeInProgress True if the url focus change is in progress.
      * @param isOnTablet True if the current page is on the tablet.
-     * @return Calculated horizontal translationX offset for the URL bar.
      */
     float getUrlBarTranslationXForFocusAndScrollAnimationOnNtp(
             float ntpSearchBoxScrollFraction,
@@ -495,14 +454,8 @@ public class LocationBarLayout extends ConstraintLayout {
                         && mSearchEngineService != null
                         && mSearchEngineService.doesDefaultSearchEngineHaveLogo();
         if (isInSingleUrlBarMode) {
-            int fakeSearchBoxStartPadding =
-                    getResources()
-                            .getDimensionPixelSize(
-                                    ChromeFeatureList.sNtpAurora.isEnabled()
-                                            ? R.dimen.fake_search_box_start_padding
-                                            : R.dimen.fake_search_box_start_padding_legacy);
             translationX +=
-                    (fakeSearchBoxStartPadding
+                    (getResources().getDimensionPixelSize(R.dimen.fake_search_box_start_padding)
                             - getResources()
                                     .getDimensionPixelSize(
                                             R.dimen.location_bar_status_icon_holding_space_size));
@@ -643,8 +596,11 @@ public class LocationBarLayout extends ConstraintLayout {
         mLocationBarStatusView.setVisibility(visibility);
     }
 
-    /** Informs the location bar whether the focus ring should be shown. */
-    void setShowFocusRing(boolean showFocusRing) {}
+    /**
+     * Informs the location bar whether the autocomplete system is in "standby" i.e. accepting input
+     * but not showing suggestions until input is received.
+     */
+    void setShowStandbyRing(boolean showStandbyRing) {}
 
     View getUrlBar() {
         return mUrlBar;
@@ -658,42 +614,7 @@ public class LocationBarLayout extends ConstraintLayout {
         return mNavigateButton;
     }
 
-    /* package */ void setActivationChipVisibility(boolean shouldShow) {
-        setButtonVisibility(mActivationChip, shouldShow);
-    }
-
-    /* package */ void setActivationChipCompact(boolean isCompact) {
-        mActivationChip.setIsCompact(isCompact);
-    }
-
-    ChipView getActivationChip() {
-        return mActivationChip;
-    }
-
     View getDeleteButton() {
         return mDeleteButton;
-    }
-
-    View getFocusThief() {
-        return mFocusThief;
-    }
-
-    /* package */ @Px
-    int getUrlBarTextWidth() {
-        return mUrlBar.getTextWidth();
-    }
-
-    /* package */ @Px
-    int getUrlBarWidth() {
-        return mUrlBar.getWidthWithoutCompoundPadding();
-    }
-
-    /* package */ @Px
-    int getActivationChipCompactWidthDelta() {
-        return mActivationChip.getCompactWidthDelta();
-    }
-
-    /* package */ boolean isActivationChipCompact() {
-        return mActivationChip.isCompact();
     }
 }

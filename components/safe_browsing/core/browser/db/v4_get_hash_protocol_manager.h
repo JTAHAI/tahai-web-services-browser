@@ -215,7 +215,6 @@ class V4GetHashProtocolManager {
                            TestParseHashResponseInconsistentThreatTypes);
   FRIEND_TEST_ALL_PREFIXES(V4GetHashProtocolManagerTest,
                            TestGetHashErrorHandlingOK);
-  FRIEND_TEST_ALL_PREFIXES(V4GetHashProtocolManagerTest, TestGetHashCachedOK);
   FRIEND_TEST_ALL_PREFIXES(V4GetHashProtocolManagerTest,
                            TestResultsNotCachedForNegativeCacheDuration);
   FRIEND_TEST_ALL_PREFIXES(V4GetHashProtocolManagerTest,

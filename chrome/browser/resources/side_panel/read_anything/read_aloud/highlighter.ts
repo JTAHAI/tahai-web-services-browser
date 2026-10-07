@@ -4,8 +4,6 @@
 
 import {assert} from '//resources/js/assert.js';
 
-import type {AudioBrowserProxy} from './audio_browser_proxy.js';
-import {AudioBrowserProxyImpl} from './audio_browser_proxy.js';
 import {MovementGranularity, PhraseHighlight, SentenceHighlight, WordHighlight} from './movement.js';
 import type {Highlight} from './movement.js';
 import {getReadAloudModel} from './read_aloud_model_browser_proxy.js';
@@ -24,8 +22,6 @@ export class ReadAloudHighlighter {
   private allowAutoScroll_ = true;
   private voiceLanguageController_ = VoiceLanguageController.getInstance();
   private readAloudModel_: ReadAloudModelBrowserProxy = getReadAloudModel();
-  private audioBrowserProxy_: AudioBrowserProxy =
-      AudioBrowserProxyImpl.getInstance();
 
   hasCurrentGranularity(): boolean {
     return !!this.currentGranularity_;
@@ -41,7 +37,7 @@ export class ReadAloudHighlighter {
       shouldUpdateSentenceHighlight: boolean): void {
     const highlightGranularity = this.getEffectiveHighlightingGranularity_();
     switch (highlightGranularity) {
-      case this.audioBrowserProxy_.getNoHighlighting():
+      case chrome.readingMode.noHighlighting:
       // Even without highlighting, we may still need to calculate the sentence
       // highlight, so that it's visible as soon as the user turns on sentence
       // highlighting. The highlight will not be visible, since the highlight
@@ -49,18 +45,18 @@ export class ReadAloudHighlighter {
       // recalculate the sentence highlights sometimes, such as during word
       // boundary events when sentence highlighting is used, since these
       // highlights have already been calculated.
-      case this.audioBrowserProxy_.getSentenceHighlighting():
+      case chrome.readingMode.sentenceHighlighting:
         if (shouldUpdateSentenceHighlight) {
           this.highlightCurrentSentence_(segments, scrollIntoView);
         }
         break;
-      case this.audioBrowserProxy_.getWordHighlighting():
+      case chrome.readingMode.wordHighlighting:
         this.highlightCurrentWordOrPhrase_(/*highlightPhrases=*/ false);
         break;
-      case this.audioBrowserProxy_.getPhraseHighlighting():
+      case chrome.readingMode.phraseHighlighting:
         this.highlightCurrentWordOrPhrase_(/*highlightPhrases=*/ true);
         break;
-      case this.audioBrowserProxy_.getAutoHighlighting():
+      case chrome.readingMode.autoHighlighting:
       default:
         // This cannot happen, but ensures the switch statement is exhaustive.
         assert(false, 'invalid value for effective highlight');
@@ -69,8 +65,7 @@ export class ReadAloudHighlighter {
 
   onWillMoveToNextGranularity(segments: Segment[]) {
     const highlightGranularity = this.getEffectiveHighlightingGranularity_();
-    if (highlightGranularity !==
-        this.audioBrowserProxy_.getSentenceHighlighting()) {
+    if (highlightGranularity !== chrome.readingMode.sentenceHighlighting) {
       // When we're about to move to the next granularity, ensure the rest of
       // the sentence we are about to skip is still highlighted with previous
       // highlight formatting.
@@ -122,9 +117,10 @@ export class ReadAloudHighlighter {
   private getEffectiveHighlightingGranularity_(): number {
     // Parse all of the conditions that control highlighting and return the
     // effective highlighting granularity.
-    const highlight = this.audioBrowserProxy_.getHighlightGranularity();
-    if (highlight === this.audioBrowserProxy_.getNoHighlighting() ||
-        highlight === this.audioBrowserProxy_.getSentenceHighlighting()) {
+    const highlight = chrome.readingMode.highlightGranularity;
+
+    if (highlight === chrome.readingMode.noHighlighting ||
+        highlight === chrome.readingMode.sentenceHighlighting) {
       return highlight;
     }
 
@@ -133,7 +129,7 @@ export class ReadAloudHighlighter {
       // Fall back where word highlighting is not possible. Since espeak
       // boundaries are different than Google TTS word boundaries, fall back
       // to sentence boundaries in that case too.
-      return this.audioBrowserProxy_.getSentenceHighlighting();
+      return chrome.readingMode.sentenceHighlighting;
     }
 
     // Until ts_model_impl supports phrase highlighting, always fallback to
@@ -141,27 +137,27 @@ export class ReadAloudHighlighter {
 
     const currentSpeechRate: number = getCurrentSpeechRate();
 
-    if (!this.audioBrowserProxy_.isPhraseHighlightingEnabled()) {
+    if (!chrome.readingMode.isPhraseHighlightingEnabled) {
       // Choose sentence highlighting for fast voices.
       if (currentSpeechRate > 1.2 &&
-          highlight === this.audioBrowserProxy_.getAutoHighlighting()) {
-        return this.audioBrowserProxy_.getSentenceHighlighting();
+          highlight === chrome.readingMode.autoHighlighting) {
+        return chrome.readingMode.sentenceHighlighting;
       }
 
       // In other cases where phrase highilghting is off, choose word
       // highlighting.
-      return this.audioBrowserProxy_.getWordHighlighting();
+      return chrome.readingMode.wordHighlighting;
     }
 
     // TODO: crbug.com/364327601 - Check that the language of the page should
     // be English for phrase highlighting.
-    if (highlight === this.audioBrowserProxy_.getAutoHighlighting()) {
+    if (highlight === chrome.readingMode.autoHighlighting) {
       if (currentSpeechRate <= 0.8) {
-        return this.audioBrowserProxy_.getWordHighlighting();
+        return chrome.readingMode.wordHighlighting;
       } else if (currentSpeechRate >= 2.0) {
-        return this.audioBrowserProxy_.getSentenceHighlighting();
+        return chrome.readingMode.sentenceHighlighting;
       } else {
-        return this.audioBrowserProxy_.getPhraseHighlighting();
+        return chrome.readingMode.phraseHighlighting;
       }
     }
 

@@ -351,7 +351,7 @@ public class OmahaBase {
         }
     }
 
-    protected void onResponseReceived(boolean succeeded) {
+    protected boolean onResponseReceived(boolean succeeded) {
         ExponentialBackoffScheduler scheduler = getBackoffScheduler();
         if (succeeded) {
             // If we've gotten this far, we've successfully sent a request.
@@ -372,6 +372,7 @@ public class OmahaBase {
         }
 
         mDelegate.onGenerateAndPostRequestDone(succeeded);
+        return succeeded;
     }
 
     /**

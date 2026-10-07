@@ -86,8 +86,8 @@ class PipeToEngine final : public GarbageCollected<PipeToEngine> {
   // asynchronously in a loop until the pipe completes.
   void HandleNextEvent();
 
-  void ReadRequestChunkStepsBody(v8::Global<v8::Value> chunk,
-                                 ScriptState* script_state);
+  void ReadRequestChunkStepsBody(ScriptState* script_state,
+                                 v8::Global<v8::Value> chunk);
 
   // If read() is in progress, then wait for it to tell us that the stream is
   // closed so that we write all the data before shutdown.

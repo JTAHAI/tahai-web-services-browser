@@ -1,2 +1,4 @@
-rules:
-- "*": [mixin]
+features:
+- name: mixin
+  files:
+  - "*"

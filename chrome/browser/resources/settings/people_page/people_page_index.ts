@@ -3,21 +3,22 @@
 // found in the LICENSE file.
 
 import 'chrome://resources/cr_elements/cr_view_manager/cr_view_manager.js';
+import '/shared/settings/prefs/prefs.js';
 import './people_page.js';
+import '../settings_shared.css.js';
 
 import type {CrViewManagerElement} from 'chrome://resources/cr_elements/cr_view_manager/cr_view_manager.js';
 import {assert} from 'chrome://resources/js/assert.js';
-import {CrLitElement} from 'chrome://resources/lit/v3_0/lit.rollup.js';
+import {PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
 import {loadTimeData} from '../i18n_setup.js';
 import {routes} from '../route.js';
-import {RouteObserverMixinLit} from '../router.js';
+import {RouteObserverMixin} from '../router.js';
 import type {Route, SettingsRoutes} from '../router.js';
 import type {SettingsPlugin} from '../settings_main/settings_plugin.js';
-import {SearchableViewContainerMixinLit} from '../settings_page/searchable_view_container_mixin_lit.js';
+import {SearchableViewContainerMixin} from '../settings_page/searchable_view_container_mixin.js';
 
-import {getCss} from './people_page_index.css.js';
-import {getHtml} from './people_page_index.html.js';
+import {getTemplate} from './people_page_index.html.js';
 
 
 export interface SettingsPeoplePageIndexElement {
@@ -27,7 +28,7 @@ export interface SettingsPeoplePageIndexElement {
 }
 
 const SettingsPeoplePageIndexElementBase =
-    SearchableViewContainerMixinLit(RouteObserverMixinLit(CrLitElement));
+    SearchableViewContainerMixin(RouteObserverMixin(PolymerElement));
 
 export class SettingsPeoplePageIndexElement extends
     SettingsPeoplePageIndexElementBase implements SettingsPlugin {
@@ -35,24 +36,31 @@ export class SettingsPeoplePageIndexElement extends
     return 'settings-people-page-index';
   }
 
-  static override get styles() {
-    return getCss();
+  static get template() {
+    return getTemplate();
   }
 
-  override render() {
-    return getHtml.bind(this)();
-  }
-
-  static override get properties() {
+  static get properties() {
     return {
-      routes_: {type: Object},
-      replaceSyncPromosWithSignInPromos_: {type: Boolean},
+      prefs: Object,
+
+      routes_: {
+        type: Object,
+        value: () => routes,
+      },
+
+      replaceSyncPromosWithSignInPromos_: {
+        type: Boolean,
+        value: () =>
+            loadTimeData.getBoolean('replaceSyncPromosWithSignInPromos'),
+      },
     };
   }
 
-  protected accessor routes_: SettingsRoutes = routes;
-  protected accessor replaceSyncPromosWithSignInPromos_: boolean =
-      loadTimeData.getBoolean('replaceSyncPromosWithSignInPromos');
+  declare prefs: Record<string, unknown>;
+  declare private routes_: SettingsRoutes;
+
+  declare private replaceSyncPromosWithSignInPromos_: boolean;
 
   override currentRouteChanged(newRoute: Route, oldRoute?: Route) {
     super.currentRouteChanged(newRoute, oldRoute);

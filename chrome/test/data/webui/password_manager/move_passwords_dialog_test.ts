@@ -27,7 +27,7 @@ suite('MovePasswordsDialogTest', function() {
   setup(function() {
     document.body.innerHTML = window.trustedTypes!.emptyHTML;
     passwordManager = new TestPasswordManagerProxy();
-    passwordManager.data.isAccountStorageActive = true;
+    passwordManager.setAccountStorageEnabled(true);
     PasswordManagerImpl.setInstance(passwordManager);
     syncProxy = new TestSyncBrowserProxy();
     SyncBrowserProxyImpl.setInstance(syncProxy);

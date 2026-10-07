@@ -38,7 +38,6 @@ public class TopControlsStacker implements BrowserControlsStateProvider.Observer
 
     private static boolean sDumpStatusLogs;
 
-    // LINT.IfChange(TopControlType)
     /** Enums that defines the types of top controls. */
     @Target(ElementType.TYPE_USE)
     @Retention(RetentionPolicy.SOURCE)
@@ -49,7 +48,6 @@ public class TopControlsStacker implements BrowserControlsStateProvider.Observer
         TopControlType.BOOKMARK_BAR,
         TopControlType.HAIRLINE,
         TopControlType.PROGRESS_BAR,
-        TopControlType.TAB_SHARING_TOOLBAR,
     })
     public @interface TopControlType {
         int STATUS_INDICATOR = 0;
@@ -58,10 +56,7 @@ public class TopControlsStacker implements BrowserControlsStateProvider.Observer
         int BOOKMARK_BAR = 3;
         int HAIRLINE = 4;
         int PROGRESS_BAR = 5;
-        int TAB_SHARING_TOOLBAR = 6;
     }
-
-    // LINT.ThenChange(:TopControlTypeName)
 
     /** Enum that defines the possible visibilities of a top control. */
     @Retention(RetentionPolicy.SOURCE)
@@ -122,7 +117,6 @@ public class TopControlsStacker implements BrowserControlsStateProvider.Observer
                 TopControlType.BOOKMARK_BAR,
                 TopControlType.HAIRLINE,
                 TopControlType.PROGRESS_BAR,
-                TopControlType.TAB_SHARING_TOOLBAR,
             };
 
     /** Helper class used to mark state for {@link #requestLayerUpdatePost(boolean).} */
@@ -218,11 +212,6 @@ public class TopControlsStacker implements BrowserControlsStateProvider.Observer
         if (mScrollingDisabled == disabled) return false;
         mScrollingDisabled = disabled;
         return true;
-    }
-
-    /** Returns whether scrolling is disabled for top controls. */
-    public boolean isScrollingDisabled() {
-        return mScrollingDisabled;
     }
 
     /**
@@ -704,23 +693,6 @@ public class TopControlsStacker implements BrowserControlsStateProvider.Observer
         return INVALID_HEIGHT;
     }
 
-    /**
-     * See {@link #getHeightFromLayerToTop(int)}. This method also includes the height of the {@code
-     * stopLayer} if it's visible.
-     */
-    public int getHeightFromLayerBottomToTop(@TopControlType int stopLayer) {
-        int height = getHeightFromLayerToTop(stopLayer);
-        if (height != INVALID_HEIGHT) {
-            TopControlLayer layer = mControls.get(stopLayer);
-            if (!isLayerHidden(layer) && layer.contributesToTotalHeight()) {
-                height += layer.getTopControlHeight();
-            }
-            return height;
-        }
-
-        return INVALID_HEIGHT;
-    }
-
     // BrowserControlsStateProvider.Observer implementation:
 
     @Override
@@ -806,7 +778,6 @@ public class TopControlsStacker implements BrowserControlsStateProvider.Observer
                         + layer.getTopControlVisibility());
     }
 
-    // LINT.IfChange(TopControlTypeName)
     private static String getName(@TopControlType int type) {
         switch (type) {
             case TopControlType.STATUS_INDICATOR:
@@ -821,11 +792,8 @@ public class TopControlsStacker implements BrowserControlsStateProvider.Observer
                 return "HAIRLINE";
             case TopControlType.PROGRESS_BAR:
                 return "PROGRESS_BAR";
-            case TopControlType.TAB_SHARING_TOOLBAR:
-                return "TAB_SHARING_TOOLBAR";
         }
         assert false : "Unknown TopControlType: " + type;
         return "";
     }
-    // LINT.ThenChange(:TopControlType)
 }

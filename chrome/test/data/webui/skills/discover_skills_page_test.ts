@@ -47,7 +47,6 @@ suite('DiscoverSkillsPage', function() {
       source: SkillSource.kFirstParty,
       creationTime: {internalValue: 0n},
       lastUpdateTime: {internalValue: 0n},
-      category: '',
       ...overrides,
     };
   }

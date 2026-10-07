@@ -154,7 +154,6 @@ public abstract class ExperimentalCronetEngine extends CronetEngine {
         }
 
         @Override
-        @Deprecated
         public Builder setLibraryLoader(LibraryLoader loader) {
             super.setLibraryLoader(loader);
             return this;

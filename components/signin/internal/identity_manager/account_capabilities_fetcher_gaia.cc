@@ -38,8 +38,7 @@ std::string_view ToUmaToken(
 
 std::string_view ToUmaToken(
     AccountCapabilitiesFetcherGaia::FetchResult result) {
-  if (result == AccountCapabilitiesFetcherGaia::FetchResult::kSuccess ||
-      result == AccountCapabilitiesFetcherGaia::FetchResult::kPartialSuccess) {
+  if (result == AccountCapabilitiesFetcherGaia::FetchResult::kSuccess) {
     return "Success";
   } else {
     return "Failure";
@@ -132,8 +131,6 @@ void AccountCapabilitiesFetcherGaia::OnGetAccountCapabilitiesResponse(
     VLOG(1) << "Failed to parse account capabilities for " << account_id()
             << ". Response body: " << account_capabilities.DebugString();
     result = FetchResult::kParseResponseFailure;
-  } else if (!parsed_capabilities->AreAllCapabilitiesKnown()) {
-    result = FetchResult::kPartialSuccess;
   }
 
   RecordFetchResultAndDuration(result);

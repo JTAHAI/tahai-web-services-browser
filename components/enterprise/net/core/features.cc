@@ -9,7 +9,6 @@
 namespace enterprise_net {
 
 BASE_FEATURE(kEnableDynamicRouteFetching, base::FEATURE_DISABLED_BY_DEFAULT);
-BASE_FEATURE(kEnterpriseProxyErrorHandling, base::FEATURE_DISABLED_BY_DEFAULT);
 
 constexpr size_t kDefaultPvdConfigMaxSizeBytes = 3 * 1024 * 1024;
 
@@ -17,26 +16,8 @@ const base::FeatureParam<int> kPvdConfigMaxSizeBytesParam{
     &kEnableDynamicRouteFetching, "pvd_config_max_size_bytes",
     static_cast<int>(kDefaultPvdConfigMaxSizeBytes)};
 
-const base::FeatureParam<int> kForcedDisguisedErrorCodeParam{
-    &kEnterpriseProxyErrorHandling, kForcedDisguisedErrorCodeParamName, 0};
-
 bool IsDynamicRouteFetchingEnabled() {
   return base::FeatureList::IsEnabled(kEnableDynamicRouteFetching);
-}
-
-bool IsEnterpriseProxyErrorHandlingEnabled() {
-  return base::FeatureList::IsEnabled(kEnterpriseProxyErrorHandling);
-}
-
-std::optional<int> GetForcedDisguisedErrorCode() {
-  if (!IsEnterpriseProxyErrorHandlingEnabled()) {
-    return std::nullopt;
-  }
-  int code = kForcedDisguisedErrorCodeParam.Get();
-  if (code > 0) {
-    return code;
-  }
-  return std::nullopt;
 }
 
 size_t GetPvdConfigMaxSizeBytes() {

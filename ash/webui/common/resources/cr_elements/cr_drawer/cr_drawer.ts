@@ -113,26 +113,26 @@ export class CrDrawerElement extends PolymerElement {
    * Stop propagation of a tap event inside the container. This will allow
    * |onDialogClick_| to only be called when clicked outside the container.
    */
-  protected onContainerClick_(event: Event) {
+  private onContainerClick_(event: Event) {
     event.stopPropagation();
   }
 
   /**
    * Close the dialog when tapped outside the container.
    */
-  protected onDialogClick_() {
+  private onDialogClick_() {
     this.cancel();
   }
 
   /**
    * Overrides the default cancel machanism to allow for a close animation.
    */
-  protected onDialogCancel_(event: Event) {
+  private onDialogCancel_(event: Event) {
     event.preventDefault();
     this.cancel();
   }
 
-  protected onDialogClose_() {
+  private onDialogClose_() {
     // Catch and re-fire the 'close' event such that it bubbles across Shadow
     // DOM v1.
     this.fire_('close');

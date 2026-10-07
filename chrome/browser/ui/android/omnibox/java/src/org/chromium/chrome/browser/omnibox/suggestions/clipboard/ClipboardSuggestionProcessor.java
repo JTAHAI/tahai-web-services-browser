@@ -172,12 +172,14 @@ public class ClipboardSuggestionProcessor extends BaseSuggestionViewProcessor {
         int icon =
                 showContent ? R.drawable.ic_visibility_off_black : R.drawable.ic_visibility_black;
         String iconString =
-                mUiContext.resourceProvider.getString(
+                OmniboxResourceProvider.getString(
+                        mContext,
                         showContent
                                 ? R.string.accessibility_omnibox_conceal_clipboard_contents
                                 : R.string.accessibility_omnibox_reveal_clipboard_contents);
         String announcementString =
-                mUiContext.resourceProvider.getString(
+                OmniboxResourceProvider.getString(
+                        mContext,
                         showContent
                                 ? R.string.accessibility_omnibox_conceal_button_announcement
                                 : R.string.accessibility_omnibox_reveal_button_announcement);
@@ -189,8 +191,7 @@ public class ClipboardSuggestionProcessor extends BaseSuggestionViewProcessor {
                 model,
                 Arrays.asList(
                         new Action(
-                                OmniboxDrawableState.forSmallIcon(
-                                        mUiContext.resourceProvider, icon, true),
+                                OmniboxDrawableState.forSmallIcon(mContext, icon, true),
                                 iconString,
                                 announcementString,
                                 action)));

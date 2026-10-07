@@ -2,8 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "chrome/browser/ui/views/location_bar/record_replay_page_action_controller.h"
-
 #include <utility>
 #include <vector>
 
@@ -11,10 +9,11 @@
 #include "base/test/bind.h"
 #include "base/time/time.h"
 #include "base/timer/timer.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_window.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/tabs/public/tab_features.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
+#include "chrome/browser/ui/views/location_bar/record_replay_page_action_controller.h"
 #include "chrome/browser/ui/views/record_replay/replay_recording_bubble_view.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/interactive_test_utils.h"
@@ -47,7 +46,7 @@ class RecordReplayPageActionControllerInteractiveTest
 
 IN_PROC_BROWSER_TEST_F(RecordReplayPageActionControllerInteractiveTest,
                        ExecuteAction_ShowsBubbleWhenRecordingExists) {
-  tabs::TabInterface* tab = browser()->GetTabStripModel()->GetActiveTab();
+  tabs::TabInterface* tab = browser()->tab_strip_model()->GetActiveTab();
   record_replay::RecordReplayClient* client =
       tab->GetTabFeatures()->record_replay_client();
   ASSERT_TRUE(client);
@@ -94,7 +93,7 @@ IN_PROC_BROWSER_TEST_F(RecordReplayPageActionControllerInteractiveTest,
 
 IN_PROC_BROWSER_TEST_F(RecordReplayPageActionControllerInteractiveTest,
                        ExecuteAction_ShowsBubbleWithMultipleRecordings) {
-  tabs::TabInterface* tab = browser()->GetTabStripModel()->GetActiveTab();
+  tabs::TabInterface* tab = browser()->tab_strip_model()->GetActiveTab();
   record_replay::RecordReplayClient* client =
       tab->GetTabFeatures()->record_replay_client();
   ASSERT_TRUE(client);

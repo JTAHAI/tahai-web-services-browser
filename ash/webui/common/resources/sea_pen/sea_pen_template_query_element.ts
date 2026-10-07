@@ -162,9 +162,8 @@ export class SeaPenTemplateQueryElement extends WithSeaPenStore {
   declare private searchButtonText_: string;
   declare private searchButtonIcon_: string;
   declare private isSelectingOptions: boolean;
-  private containerOriginalHeight_: number|null = null;
-  private resizeObserver_: ResizeObserver =
-      new ResizeObserver(() => this.animateContainerHeight_());
+  private containerOriginalHeight_: number;
+  private resizeObserver_: ResizeObserver;
   declare private seaPenUseExptTemplateEnabled_: boolean;
 
   static get observers() {
@@ -183,7 +182,9 @@ export class SeaPenTemplateQueryElement extends WithSeaPenStore {
     this.watch<SeaPenTemplateQueryElement['seaPenQuery_']>(
         'seaPenQuery_', state => state.currentSeaPenQuery);
     this.updateFromStore();
-    this.observeOptionsContainer_();
+
+    this.resizeObserver_ =
+        new ResizeObserver(() => this.animateContainerHeight());
 
     beforeNextRender(this, () => {
       this.containerOriginalHeight_ = this.$.container.scrollHeight;
@@ -198,7 +199,9 @@ export class SeaPenTemplateQueryElement extends WithSeaPenStore {
     this.removeEventListener('click', this.onClick_);
   }
 
-  private observeOptionsContainer_() {
+  // Called when there is a custom dom-change event dispatched from
+  // `sea-pen-options` element.
+  private onSeaPenOptionsDomChanged_() {
     const optionsContainer = this.shadowRoot!.querySelector('sea-pen-options');
     if (optionsContainer) {
       this.resizeObserver_.observe(optionsContainer);
@@ -206,10 +209,7 @@ export class SeaPenTemplateQueryElement extends WithSeaPenStore {
   }
 
   // Updates main container's height and applies transition style.
-  private animateContainerHeight_() {
-    if (this.containerOriginalHeight_ === null) {
-      return;
-    }
+  private animateContainerHeight() {
     const optionsContainer = this.shadowRoot!.querySelector('sea-pen-options');
     const optionsContainerHeight =
         optionsContainer ? optionsContainer.scrollHeight : 0;

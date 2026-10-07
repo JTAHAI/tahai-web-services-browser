@@ -7,12 +7,11 @@ import type {CrLitElement} from 'chrome://resources/lit/v3_0/lit.rollup.js';
 
 import {isBrowserSigninAllowed, isForceSigninEnabled, isSignInProfileCreationSupported} from './profile_picker_flags.js';
 
-// LINT.IfChange(ProfilePickerPages)
 /**
  * ProfilePickerPages enum.
  * These values are persisted to logs and should not be renumbered or
  * re-used.
- * See tools/metrics/histograms/metadata/profile/enums.xml.
+ * See tools/metrics/histograms/enums.xml.
  */
 enum Pages {
   MAIN_VIEW = 0,
@@ -21,10 +20,7 @@ enum Pages {
   LOAD_SIGNIN = 3,
   LOAD_FORCE_SIGNIN = 4,
   PROFILE_SWITCH = 5,
-  ACCOUNT_SELECTION_LACROS_DEPRECATED = 6,
-  COUNT = ACCOUNT_SELECTION_LACROS_DEPRECATED + 1,
 }
-// LINT.ThenChange(//tools/metrics/histograms/metadata/profile/enums.xml:ProfilePickerPages)
 
 /**
  * Valid route pathnames.
@@ -125,7 +121,7 @@ export function recordPageVisited(step: string) {
       assertNotReached();
   }
   chrome.metricsPrivate.recordEnumerationValue(
-      'ProfilePicker.UiVisited', page, Pages.COUNT);
+      'ProfilePicker.UiVisited', page, Object.keys(Pages).length);
 }
 
 const routeObservers: Set<NavigationMixinInterface> = new Set();

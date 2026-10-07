@@ -65,9 +65,3 @@ void FakeSafeBrowsingClient::OnSecurityInterstitialShown(
     const security_interstitials::UnsafeResource& resource) {
   on_security_interstitial_shown_called_ = true;
 }
-
-std::unique_ptr<safe_browsing::ClientSideDetectionHostBase>
-FakeSafeBrowsingClient::CreateClientSideDetectionHost(
-    web::WebState* web_state) {
-  return nullptr;
-}

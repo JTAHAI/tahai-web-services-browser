@@ -9,7 +9,6 @@ import android.content.SharedPreferences;
 import androidx.annotation.VisibleForTesting;
 
 import org.chromium.base.ContextUtils;
-import org.chromium.base.DeviceInfo;
 import org.chromium.base.ObserverList;
 import org.chromium.base.shared_preferences.SharedPreferencesManager;
 import org.chromium.base.task.PostTask;
@@ -17,7 +16,6 @@ import org.chromium.base.task.TaskTraits;
 import org.chromium.build.BuildConfig;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
-import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.preferences.ChromePreferenceKeys;
 import org.chromium.ui.base.DeviceFormFactor;
 
@@ -103,33 +101,13 @@ public class TabArchiveSettings {
         mObservers.removeObserver(obs);
     }
 
-    /** Returns whether archiving is forcefully disabled. */
-    public static boolean isArchiveForceDisabled() {
-        return DeviceInfo.isDesktop()
-                && ChromeFeatureList.sAndroidTabDeclutterArchiveOnDesktop.isEnabled()
-                && ChromeFeatureList.sAndroidTabDeclutterArchiveOnDesktopForceDisable.getValue();
-    }
-
-    public static boolean isArchiveDisabledByDefault() {
-        return DeviceInfo.isDesktop()
-                && ChromeFeatureList.sAndroidTabDeclutterArchiveOnDesktop.isEnabled()
-                && ChromeFeatureList.sAndroidTabDeclutterArchiveOnDesktopDisableByDefault
-                        .getValue();
-    }
-
     /** Returns whether archive is enabled in settings. */
     public boolean getArchiveEnabled() {
-        if (isArchiveForceDisabled()) {
-            return false;
-        }
-
-        boolean defaultValue = isArchiveDisabledByDefault() ? false : !BuildConfig.IS_FOR_TEST;
-
         // Turn off the archive feature by default for tests since we can't control when tabs
         // are created, and tabs disappearing from tests is very unexpected. For archive tests,
         // this will need to be turned on manually.
         return mPrefsManager.readBoolean(
-                ChromePreferenceKeys.TAB_DECLUTTER_ARCHIVE_ENABLED, defaultValue);
+                ChromePreferenceKeys.TAB_DECLUTTER_ARCHIVE_ENABLED, !BuildConfig.IS_FOR_TEST);
     }
 
     /** Sets whether archive is enabled in settings. */
@@ -187,7 +165,9 @@ public class TabArchiveSettings {
     /** Returns whether archiving of duplicate tabs is enabled. */
     public boolean isArchiveDuplicateTabsEnabled() {
         // Default to true for phones, false for tablets and desktop.
-        boolean defaultValue = !DeviceInfo.isDesktop() && !DeviceFormFactor.isTablet();
+        boolean defaultValue =
+                !DeviceFormFactor.isNonMultiDisplayContextOnTablet(
+                        ContextUtils.getApplicationContext());
         return getArchiveEnabled()
                 && mPrefsManager.readBoolean(
                         ChromePreferenceKeys.TAB_DECLUTTER_ARCHIVE_DUPLICATE_TABS_ENABLED,

@@ -26,7 +26,6 @@
 #include "cc/base/math_util.h"
 #include "chrome/browser/ash/accessibility/accessibility_manager.h"
 #include "chrome/browser/ui/browser_commands.h"
-#include "chrome/browser/ui/browser_window/public/create_browser_window.h"
 #include "chrome/browser/ui/ui_features.h"
 #include "chrome/browser/ui/views/bookmarks/bookmark_bar_view.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
@@ -54,7 +53,7 @@
 #include "ui/base/metadata/metadata_header_macros.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/base/mojom/window_show_state.mojom.h"
-#include "ui/compositor/layer_solid_color.h"
+#include "ui/compositor/layer.h"
 #include "ui/display/display.h"
 #include "ui/display/display_switches.h"
 #include "ui/display/screen.h"
@@ -580,14 +579,14 @@ IN_PROC_BROWSER_TEST_F(TopControlsSlideControllerTest, DisabledForHostedApps) {
   browser()->GetWindow()->Close();
 
   // Open a new app window.
-  BrowserWindowCreateParams params = BrowserWindowCreateParams::CreateForApp(
-      "test_browser_app", /*trusted_source=*/true, gfx::Rect(),
-      browser()->GetProfile(), /*user_gesture=*/true);
+  Browser::CreateParams params = Browser::CreateParams::CreateForApp(
+      "test_browser_app", true /* trusted_source */, gfx::Rect(),
+      browser()->GetProfile(), true);
   params.initial_show_state = ui::mojom::WindowShowState::kDefault;
-  BrowserWindowInterface* browser = CreateBrowserWindow(std::move(params));
+  Browser* browser = Browser::Create(params);
   AddBlankTabAndShow(browser);
 
-  ASSERT_EQ(browser->GetType(), BrowserWindowInterface::Type::TYPE_APP);
+  ASSERT_TRUE(browser->is_type_app());
 
   // No slide controller gets created for hosted apps.
   BrowserView* browser_view = BrowserView::GetBrowserViewForBrowser(browser);
@@ -706,16 +705,16 @@ IN_PROC_BROWSER_TEST_F(TopControlsSlideControllerTest,
   EXPECT_TRUE(top_controls_slide_controller()->IsEnabled());
   EXPECT_FLOAT_EQ(top_controls_slide_controller()->GetShownRatio(), 1.f);
 
-  ASSERT_EQ(browser()->GetTabStripModel()->count(), 1);
-  ASSERT_EQ(browser()->GetTabStripModel()->active_index(), 0);
+  ASSERT_EQ(browser()->tab_strip_model()->count(), 1);
+  ASSERT_EQ(browser()->tab_strip_model()->active_index(), 0);
 
   // Add a new tab (index 1), navigate it to the scrollable test page,
   // making it the active tab.
   chrome::NewTab(browser(), NewTabTypes::kNoUserAction);
   NavigateActiveTabToUrl(
       embedded_test_server()->GetURL("/top_controls_scroll.html"));
-  ASSERT_EQ(browser()->GetTabStripModel()->count(), 2);
-  ASSERT_EQ(browser()->GetTabStripModel()->active_index(), 1);
+  ASSERT_EQ(browser()->tab_strip_model()->count(), 2);
+  ASSERT_EQ(browser()->tab_strip_model()->active_index(), 1);
 
   // Scroll the active `top_controls_scroll.html` page (index 1) such that
   // top-chrome is now fully hidden.
@@ -725,8 +724,8 @@ IN_PROC_BROWSER_TEST_F(TopControlsSlideControllerTest,
   // Simulate (Ctrl + Tab) shortcut to select the next tab (NTP at index 0).
   // Top-chrome should show automatically.
   TopControlsShownRatioWaiter waiter(top_controls_slide_controller());
-  browser()->GetTabStripModel()->SelectNextTab();
-  EXPECT_EQ(browser()->GetTabStripModel()->active_index(), 0);
+  browser()->tab_strip_model()->SelectNextTab();
+  EXPECT_EQ(browser()->tab_strip_model()->active_index(), 0);
   waiter.WaitForRatio(1.f);
   EXPECT_FLOAT_EQ(top_controls_slide_controller()->GetShownRatio(), 1.f);
   CheckBrowserLayout(browser_view(), TopChromeShownState::kFullyShown);
@@ -738,8 +737,8 @@ IN_PROC_BROWSER_TEST_F(TopControlsSlideControllerTest,
 
   // Switch back to the scrollable page (index 1), it should be possible now to
   // hide top-chrome.
-  browser()->GetTabStripModel()->SelectNextTab();
-  EXPECT_EQ(browser()->GetTabStripModel()->active_index(), 1);
+  browser()->tab_strip_model()->SelectNextTab();
+  EXPECT_EQ(browser()->tab_strip_model()->active_index(), 1);
   waiter.WaitForRatio(1.f);
   EXPECT_FLOAT_EQ(top_controls_slide_controller()->GetShownRatio(), 1.f);
 
@@ -748,12 +747,12 @@ IN_PROC_BROWSER_TEST_F(TopControlsSlideControllerTest,
 
   // The `DoBrowserControlsShrinkRendererSize` bit is separately tracked for
   // each tab.
-  auto* tab_strip_model = browser()->GetTabStripModel();
+  auto* tab_strip_model = browser()->tab_strip_model();
   auto* ntp_contents = tab_strip_model->GetWebContentsAt(0);
   EXPECT_TRUE(
       browser_view()->DoBrowserControlsShrinkRendererSize(ntp_contents));
   auto* scrollable_page_contents =
-      browser()->GetTabStripModel()->GetWebContentsAt(1);
+      browser()->tab_strip_model()->GetWebContentsAt(1);
   EXPECT_FALSE(browser_view()->DoBrowserControlsShrinkRendererSize(
       scrollable_page_contents));
 }
@@ -767,7 +766,7 @@ IN_PROC_BROWSER_TEST_F(TopControlsSlideControllerTest, TestClosingATab) {
   // Navigate to our test scrollable page.
   NavigateActiveTabToUrl(
       embedded_test_server()->GetURL("/top_controls_scroll.html"));
-  ASSERT_EQ(browser()->GetTabStripModel()->count(), 1);
+  ASSERT_EQ(browser()->tab_strip_model()->count(), 1);
 
   // Scroll to fully hide top-chrome.
   ScrollAndExpectTopChromeToBe(ScrollDirection::kDown,
@@ -778,8 +777,8 @@ IN_PROC_BROWSER_TEST_F(TopControlsSlideControllerTest, TestClosingATab) {
   TopControlsShownRatioWaiter waiter(top_controls_slide_controller());
   chrome::NewTab(browser(), NewTabTypes::kNoUserAction);
   waiter.WaitForRatio(1.f);
-  EXPECT_EQ(browser()->GetTabStripModel()->active_index(), 1);
-  EXPECT_EQ(browser()->GetTabStripModel()->count(), 2);
+  EXPECT_EQ(browser()->tab_strip_model()->active_index(), 1);
+  EXPECT_EQ(browser()->tab_strip_model()->count(), 2);
   EXPECT_FLOAT_EQ(top_controls_slide_controller()->GetShownRatio(), 1.f);
   CheckBrowserLayout(browser_view(), TopChromeShownState::kFullyShown);
 
@@ -792,8 +791,8 @@ IN_PROC_BROWSER_TEST_F(TopControlsSlideControllerTest, TestClosingATab) {
   // its top-chrome shown ratio.
   chrome::CloseTab(browser());
   waiter.WaitForRatio(1.f);
-  EXPECT_EQ(browser()->GetTabStripModel()->active_index(), 0);
-  EXPECT_EQ(browser()->GetTabStripModel()->count(), 1);
+  EXPECT_EQ(browser()->tab_strip_model()->active_index(), 0);
+  EXPECT_EQ(browser()->tab_strip_model()->count(), 1);
   EXPECT_FLOAT_EQ(top_controls_slide_controller()->GetShownRatio(), 1.f);
   CheckBrowserLayout(browser_view(), TopChromeShownState::kFullyShown);
 
@@ -1056,7 +1055,7 @@ IN_PROC_BROWSER_TEST_F(TopControlsSlideControllerTest, TestDropDowns) {
   // verify below that this doesn't happen, the menu remains open, and it's
   // possible to select another option in the drop-down menu.
   content::WebContents* contents =
-      browser()->GetTabStripModel()->GetActiveWebContents();
+      browser()->tab_strip_model()->GetActiveWebContents();
   PageStateUpdateWaiter page_state_update_waiter(contents);
   page_state_update_waiter.Wait();
 
@@ -1106,8 +1105,8 @@ IN_PROC_BROWSER_TEST_F(
   NavigateActiveTabToUrl(
       embedded_test_server()->GetURL("/top_controls_scroll.html"));
   content::WebContents* active_contents =
-      browser()->GetTabStripModel()->GetActiveWebContents();
-  ASSERT_EQ(browser()->GetTabStripModel()->count(), 1);
+      browser()->tab_strip_model()->GetActiveWebContents();
+  ASSERT_EQ(browser()->tab_strip_model()->count(), 1);
   EXPECT_FLOAT_EQ(top_controls_slide_controller()->GetShownRatio(), 1.f);
   EXPECT_EQ(browser_view()->GetTopControlsHeight(), 0);
 
@@ -1471,7 +1470,7 @@ IN_PROC_BROWSER_TEST_F(TopControlsSlideControllerTest,
 
   NavigateActiveTabToUrl(
       embedded_test_server()->GetURL("/top_controls_scroll.html"));
-  ASSERT_EQ(browser()->GetTabStripModel()->count(), 1);
+  ASSERT_EQ(browser()->tab_strip_model()->count(), 1);
 
   aura::Window* browser_window = browser()->GetWindow()->GetNativeWindow();
   ui::test::EventGenerator event_generator(browser_window->GetRootWindow(),
@@ -1494,7 +1493,7 @@ IN_PROC_BROWSER_TEST_F(TopControlsSlideControllerTest,
   constexpr int kFlags = ui::EF_CONTROL_DOWN;
   event_generator.PressAndReleaseKeyAndModifierKeys(ui::VKEY_T, kFlags);
   event_generator.ReleaseTouch();
-  ASSERT_EQ(browser()->GetTabStripModel()->count(), 2);
+  ASSERT_EQ(browser()->tab_strip_model()->count(), 2);
 }
 
 // TODO(crbug.com/40638200): Add test coverage that covers using WebUITabStrip.

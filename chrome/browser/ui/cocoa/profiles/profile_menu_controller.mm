@@ -21,6 +21,7 @@
 #include "chrome/browser/profiles/profile_manager.h"
 #include "chrome/browser/profiles/profile_metrics.h"
 #include "chrome/browser/profiles/profile_window.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_window/public/browser_collection_observer.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
@@ -61,10 +62,13 @@ class Observer : public BrowserCollectionObserver, public AvatarMenuObserver {
   void OnBrowserClosed(BrowserWindowInterface* browser) override {
     BrowserWindowInterface* last_active =
         GlobalBrowserCollection::GetInstance()->GetLastActiveBrowser();
-    [controller_ activeBrowserChangedTo:last_active];
+    [controller_
+        activeBrowserChangedTo:last_active
+                                   ? last_active->GetBrowserForMigrationOnly()
+                                   : nullptr];
   }
   void OnBrowserActivated(BrowserWindowInterface* browser) override {
-    [controller_ activeBrowserChangedTo:browser];
+    [controller_ activeBrowserChangedTo:browser->GetBrowserForMigrationOnly()];
   }
 
   // AvatarMenuObserver:
@@ -257,7 +261,7 @@ class Observer : public BrowserCollectionObserver, public AvatarMenuObserver {
 
 // Notifies the controller that the active browser has changed and that the
 // menu item and menu need to be updated to reflect that.
-- (void)activeBrowserChangedTo:(BrowserWindowInterface*)browser {
+- (void)activeBrowserChangedTo:(Browser*)browser {
   // Tell the menu that the browser has changed.
   _avatarMenu->ActiveBrowserChanged(browser);
 

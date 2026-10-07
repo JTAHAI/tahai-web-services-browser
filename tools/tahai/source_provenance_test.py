@@ -14,6 +14,49 @@ from source_provenance import capture, capture_source, git as source_git, write_
 
 
 class SourceProvenanceTest(unittest.TestCase):
+    def test_output_junction_binds_its_target_and_rejects_direct_external_path(self):
+        with tempfile.TemporaryDirectory() as directory:
+            parent = Path(directory).resolve()
+            root = parent / "source"
+            (root / "out").mkdir(parents=True)
+            first = parent / "first-output"
+            second = parent / "second-output"
+            for target in (first, second):
+                target.mkdir()
+                (target / "args.gn").write_text("is_debug = false\n")
+            build = root / "out" / "release"
+
+            def link(target):
+                if os.name == "nt":
+                    subprocess.run([os.environ["COMSPEC"], "/c", "mklink", "/J",
+                                    str(build), str(target)], check=True,
+                                   stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                   creationflags=subprocess.CREATE_NO_WINDOW)
+                else:
+                    build.symlink_to(target, target_is_directory=True)
+
+            def source_record(_):
+                return {"sourceRoot": str(root), "identitySha256": "source",
+                        "identity": {}}, b""
+
+            link(first)
+            with mock.patch("source_provenance.capture_source", side_effect=source_record):
+                original, _ = capture(root, build)
+                self.assertEqual(str(build), original["buildDirectory"])
+                self.assertEqual(str(first), original["resolvedBuildDirectory"])
+                with self.assertRaises(ValueError):
+                    capture(root, first)
+                if os.name == "nt":
+                    build.rmdir()  # Remove only this fixture junction.
+                else:
+                    build.unlink()
+                link(second)
+                changed, _ = capture(root, build)
+                self.assertNotEqual(original, changed)
+                self.assertEqual(str(second), changed["resolvedBuildDirectory"])
+                with self.assertRaises(ValueError):
+                    capture(root, root / "out" / ".." / ".." / "first-output")
+
     def test_git_helpers_cannot_open_console_windows_or_read_stdin(self):
         with mock.patch("source_provenance.subprocess.run", return_value=
                         subprocess.CompletedProcess([], 0, stdout=b"fixture")) as invoked:

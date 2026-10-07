@@ -11,11 +11,11 @@
 #include "base/functional/bind.h"
 #include "base/functional/callback.h"
 #include "base/functional/callback_helpers.h"
-#include "base/memory/weak_ptr.h"
 #include "base/metrics/user_metrics.h"
 #include "base/no_destructor.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/shell_integration.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/tabs/public/tab_features.h"
@@ -48,7 +48,6 @@
 #include "components/webapps/browser/installable/ml_install_operation_tracker.h"
 #include "components/webapps/browser/installable/ml_installability_promoter.h"
 #include "components/webapps/browser/web_app_url_config.h"
-#include "content/public/browser/navigation_controller.h"
 #include "content/public/browser/navigation_entry.h"
 #include "third_party/blink/public/mojom/manifest/manifest.mojom.h"
 #include "ui/base/l10n/l10n_util.h"
@@ -76,34 +75,6 @@ constexpr int kProgressDelaySteps = 100;
 #if BUILDFLAG(IS_CHROMEOS)
 namespace cros_events = metrics::structured::events::v2::cr_os_events;
 #endif
-
-// Helper function to show the web app installation dialog. This is called
-// once the folder icon has been resolved (asynchronously on Mac, or
-// immediately on other platforms).
-void ShowWebAppInstallFlowDialog(
-    base::WeakPtr<content::WebContents> initiator_web_contents,
-    std::unique_ptr<WebAppInstallInfo> web_app_info,
-    std::unique_ptr<webapps::MlInstallOperationTracker> install_tracker,
-    WebAppInstallationAcceptanceCallback web_app_acceptance_callback,
-    PwaInProductHelpState iph_state,
-    base::WeakPtr<WebAppScreenshotFetcher> screenshot_fetcher,
-    bool show_initiating_origin,
-    InstallDialogType install_type,
-    InstallOsType os_type,
-    std::optional<ui::ImageModel> folder_image_model,
-    std::optional<std::u16string> folder_label) {
-  if (!initiator_web_contents) {
-    return;
-  }
-  auto progress_delay =
-      std::make_unique<ProgressDelay>(kProgressDelay, kProgressDelaySteps);
-  WebAppInstallFlowDialogDelegate::Show(
-      initiator_web_contents.get(), std::move(web_app_info),
-      std::move(install_tracker), std::move(web_app_acceptance_callback),
-      iph_state, std::move(screenshot_fetcher), show_initiating_origin,
-      install_type, os_type, std::move(progress_delay), folder_image_model,
-      folder_label);
-}
 
 void OnWebAppInstallShowInstallDialog(
     WebAppInstallFlow flow,
@@ -147,34 +118,23 @@ void OnWebAppInstallShowInstallDialog(
           install_type = kDiy;
         }
 
-        // Bind the standard dialog showing function. This callback accepts the
-        // folder image and label, which may be computed asynchronously on Mac.
-        auto show_dialog = base::BindOnce(
-            &ShowWebAppInstallFlowDialog, initiator_web_contents->GetWeakPtr(),
-            std::move(web_app_info), std::move(install_tracker),
-            std::move(web_app_acceptance_callback), iph_state,
-            screenshot_fetcher, show_initiating_origin, install_type, os_type);
-
+        std::optional<ui::ImageModel> folder_image_model;
+        std::optional<std::u16string> folder_label;
 #if BUILDFLAG(IS_MAC)
-        // On macOS, generating the folder icon involves heavy image
-        // manipulation (overlaying the Chrome Apps launcher icon onto the
-        // system folder icon). To avoid blocking the UI thread, we fetch this
-        // icon asynchronously on the thread pool.
-        auto show_dialog_with_image = base::BindOnce(
-            [](base::OnceCallback<void(std::optional<ui::ImageModel>,
-                                       std::optional<std::u16string>)>
-                   show_dialog_callback,
-               gfx::Image folder_image) {
-              std::move(show_dialog_callback)
-                  .Run(ui::ImageModel::FromImage(folder_image),
-                       shell_integration::GetAppShortcutsSubdirName());
-            },
-            std::move(show_dialog));
-        GetMacAppsFolderImageAsync(kLargeImageSize,
-                                   std::move(show_dialog_with_image));
-#else
-        std::move(show_dialog).Run(std::nullopt, std::nullopt);
+        // TODO(crbug.com/513676704): Move image manipulation to the thread
+        // pool.
+        folder_image_model = ui::ImageModel::FromImageSkia(
+            GetMacAppsFolderImage(kLargeImageSize).AsImageSkia());
+        folder_label = shell_integration::GetAppShortcutsSubdirName();
 #endif
+        auto progress_delay = std::make_unique<ProgressDelay>(
+            kProgressDelay, kProgressDelaySteps);
+        WebAppInstallFlowDialogDelegate::Show(
+            initiator_web_contents, std::move(web_app_info),
+            std::move(install_tracker), std::move(web_app_acceptance_callback),
+            iph_state, std::move(screenshot_fetcher), show_initiating_origin,
+            install_type, os_type, std::move(progress_delay),
+            folder_image_model, folder_label);
         return;
       }
 
@@ -245,7 +205,7 @@ void OnWebAppInstalled(WebAppInstalledCallback callback,
 
 }  // namespace
 
-bool CanCreateWebApp(BrowserWindowInterface* browser) {
+bool CanCreateWebApp(Browser* browser) {
   // Check whether user is allowed to install web app.
   if (!WebAppProvider::GetForWebApps(browser->GetProfile()) ||
       !AreWebAppsUserInstallable(browser->GetProfile())) {
@@ -273,7 +233,7 @@ bool CanPopOutWebApp(Profile* profile) {
          !profile->IsOffTheRecord();
 }
 
-void CreateWebAppFromCurrentWebContents(BrowserWindowInterface* browser,
+void CreateWebAppFromCurrentWebContents(Browser* browser,
                                         WebAppInstallFlow flow) {
   DCHECK(CanCreateWebApp(browser));
 
@@ -343,34 +303,22 @@ bool CreateWebAppFromManifest(content::WebContents* web_contents,
                               PwaInProductHelpState iph_state) {
   auto* provider = WebAppProvider::GetForWebContents(web_contents);
   if (!provider) {
-    std::move(installed_callback)
-        .Run(/*app_id=*/"",
-             webapps::InstallResultCode::kWebAppProviderNotReady);
     return false;
   }
 
   webapps::MLInstallabilityPromoter* promoter =
       webapps::MLInstallabilityPromoter::FromWebContents(web_contents);
   if (promoter->HasCurrentInstall()) {
-    std::move(installed_callback)
-        .Run(/*app_id=*/"",
-             webapps::InstallResultCode::kInstallAlreadyInProgress);
     return false;
   }
 
   if (provider->command_manager().IsInstallingForWebContents(web_contents)) {
-    std::move(installed_callback)
-        .Run(/*app_id=*/"",
-             webapps::InstallResultCode::kInstallAlreadyInProgress);
     return false;
   }
 
   webapps::AppBannerManager* app_banner_manager =
       webapps::AppBannerManager::FromWebContents(web_contents);
   if (!app_banner_manager) {
-    std::move(installed_callback)
-        .Run(/*app_id=*/"",
-             webapps::InstallResultCode::kWebAppProviderNotReady);
     return false;
   }
 
@@ -396,6 +344,27 @@ bool CreateWebAppFromManifest(content::WebContents* web_contents,
       base::BindOnce(OnWebAppInstalled, std::move(installed_callback)),
       fallback_behavior);
   return true;
+}
+
+void CreateWebAppForBackgroundInstall(
+    content::WebContents* initiating_web_contents,
+    std::unique_ptr<webapps::MlInstallOperationTracker> tracker,
+    const GURL& install_url,
+    const std::optional<GURL>& manifest_id,
+    const GURL& last_committed_url,
+    WebAppInstalledCallback installed_callback) {
+  auto* provider = WebAppProvider::GetForWebContents(initiating_web_contents);
+  CHECK(provider);
+
+  provider->scheduler().InstallAppFromUrl(
+      install_url, manifest_id, initiating_web_contents->GetWeakPtr(),
+      last_committed_url,
+      base::BindOnce(&OnWebAppInstallShowInstallDialog,
+                     WebAppInstallFlow::kInstallSite,
+                     webapps::WebappInstallSource::WEB_INSTALL,
+                     PwaInProductHelpState::kNotShown, std::move(tracker),
+                     /*show_initiating_origin=*/true),
+      std::move(installed_callback));
 }
 
 void CreateWebAppForManifestInstall(

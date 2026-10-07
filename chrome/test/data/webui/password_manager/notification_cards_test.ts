@@ -47,7 +47,6 @@ suite('PasswordsSectionTest', function() {
       id: 'test_promo',
       title: 'Hello there',
       description: 'This is a notification card.',
-      isDismissible: true,
     };
 
     const section = await createPasswordsSection();
@@ -85,7 +84,6 @@ suite('PasswordsSectionTest', function() {
       title: 'Checkup promo',
       description: 'Checkup promo description.',
       actionButtonText: 'Start check',
-      isDismissible: true,
     };
 
     const section = await createPasswordsSection();
@@ -116,7 +114,6 @@ suite('PasswordsSectionTest', function() {
       title: 'Shortcut promo',
       description: 'Shortcut promo description.',
       actionButtonText: 'Add shortcut',
-      isDismissible: true,
     };
 
     const section = await createPasswordsSection();
@@ -143,7 +140,6 @@ suite('PasswordsSectionTest', function() {
       title: 'Move passwords promo',
       description: 'Move passwords description.',
       actionButtonText: 'Move passwords',
-      isDismissible: true,
     };
     passwordManager.data.isAccountStorageActive = true;
     passwordManager.data.groups = [createCredentialGroup({
@@ -170,7 +166,6 @@ suite('PasswordsSectionTest', function() {
       title: 'Move passwords promo',
       description: 'Move passwords description.',
       actionButtonText: 'Move passwords',
-      isDismissible: true,
     };
     passwordManager.data.isAccountStorageActive = false;
     passwordManager.data.groups = [createCredentialGroup({
@@ -193,7 +188,6 @@ suite('PasswordsSectionTest', function() {
       title: 'Move passwords promo',
       description: 'Move passwords description.',
       actionButtonText: 'Move passwords',
-      isDismissible: true,
     };
     passwordManager.data.isAccountStorageActive = true;
 
@@ -225,28 +219,5 @@ suite('PasswordsSectionTest', function() {
 
     const entryPoint = await syncProxy.whenCalled('openBatchUpload');
     assertEquals(BatchUploadPasswordsEntryPoint.PROMO_CARD, entryPoint);
-  });
-
-  test('passkey unlock card', async function() {
-    notificationCardsProxy.card = {
-      id: 'passkey_unlock_promo',
-      title: 'Use your passkeys on this device',
-      description:
-          'Verify it’s you to save and use your passkeys on this device',
-      actionButtonText: 'Verify it’s you',
-      isDismissible: true,
-    };
-
-    const section = await createPasswordsSection();
-    const cardElement = section.shadowRoot!.querySelector('notification-card');
-
-    // Verify notification card and close button are shown.
-    assertTrue(!!cardElement);
-    assertTrue(isVisible(cardElement.$.actionButton));
-    assertTrue(isVisible(cardElement.$.closeButton));
-
-    cardElement.$.actionButton.click();
-    await syncProxy.whenCalled('startPasskeyUnlockFlow');
-    await flushTasks();
   });
 });

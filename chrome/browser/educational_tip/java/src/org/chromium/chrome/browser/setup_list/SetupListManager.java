@@ -276,7 +276,7 @@ public class SetupListManager
         return LazyHolder.sInstance;
     }
 
-    private static boolean isSetupListAllowed() {
+    private boolean isSetupListAllowed() {
         return ChromeFeatureList.sAndroidSetupList.isEnabled() && !isFirstRunTriggered();
     }
 
@@ -297,7 +297,7 @@ public class SetupListManager
     }
 
     /** Returns the module type list for the two-cell container. */
-    public static List<Integer> getTwoCellContainerModuleTypes() {
+    public List<Integer> getTwoCellContainerModuleTypes() {
         return List.of(TWO_CELL_CONTAINER_MODULE_TYPE);
     }
 

@@ -11,7 +11,6 @@ import {getTemplate} from './connectors_tabs.html.js';
 import {DeviceTrustConnectorElement} from './device_trust_connector.js';
 // </if>
 import {ManagedClientCertificateElement} from './managed_client_certificate.js';
-import {ProvisioningDomainConfigElement} from './provisioning_domain_config.js';
 // <if expr="not is_ios">
 import {SignalsReportingElement} from './signals_reporting.js';
 // </if>
@@ -53,11 +52,7 @@ const connectorTabs: ConnectorTab[] = [
     isEnabled: true,
   },
   // </if>
-    {
-    title: 'Provisioning Domain Config',
-    directive: ProvisioningDomainConfigElement.is,
-    isEnabled: true,
-  },
+
 ];
 
 class ConnectorsTabsElement extends CustomElement {

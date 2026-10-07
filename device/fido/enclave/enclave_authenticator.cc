@@ -25,6 +25,7 @@
 #include "device/fido/enclave/constants.h"
 #include "device/fido/enclave/metrics.h"
 #include "device/fido/enclave/types.h"
+#include "device/fido/fido_parsing_utils.h"
 #include "device/fido/large_blob.h"
 #include "device/fido/public/features.h"
 #include "device/fido/public/public_key_credential_descriptor.h"

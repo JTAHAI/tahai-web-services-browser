@@ -11,7 +11,6 @@ import './managed_user_profile_notice_value_prop.js';
 import './managed_user_profile_notice_state.js';
 import './managed_user_profile_notice_data_handling.js';
 
-import {ColorChangeUpdater} from 'chrome://resources/cr_components/color_change_listener/colors_css_updater.js';
 import type {CrButtonElement} from 'chrome://resources/cr_elements/cr_button/cr_button.js';
 import {I18nMixinLit} from 'chrome://resources/cr_elements/i18n_mixin_lit.js';
 import {WebUiListenerMixinLit} from 'chrome://resources/cr_elements/web_ui_listener_mixin_lit.js';
@@ -73,6 +72,7 @@ export class ManagedUserProfileNoticeAppRefreshElement extends
       currentState_: {type: Number},
       processingSubtitle_: {type: String},
       selectedDataHandling_: {type: String},
+      usePrimaryAndTonalButtons_: {type: Boolean},
       appMode_: {
         type: String,
         reflect: true,
@@ -112,15 +112,12 @@ export class ManagedUserProfileNoticeAppRefreshElement extends
   protected accessor processingSubtitle_: string =
       loadTimeData.getString('processingSubtitle');
   protected accessor selectedDataHandling_: BrowsingDataHandling|undefined;
+  private accessor usePrimaryAndTonalButtons_: boolean =
+      loadTimeData.getBoolean('usePrimaryAndTonalButtonsForPromos');
 
   private managedUserProfileNoticeBrowserProxy_:
       ManagedUserProfileNoticeBrowserProxy =
           ManagedUserProfileNoticeBrowserProxyImpl.getInstance();
-
-  constructor() {
-    super();
-    ColorChangeUpdater.forDocument().start();
-  }
 
   override connectedCallback() {
     super.connectedCallback();
@@ -283,7 +280,9 @@ export class ManagedUserProfileNoticeAppRefreshElement extends
     this.selectedDataHandling_ = e.detail.value;
   }
 
-
+  protected getCancelButtonClass_(): string {
+    return this.usePrimaryAndTonalButtons_ ? 'tonal-button' : '';
+  }
 
   protected isState_(state: State): boolean {
     return this.currentState_ === state;

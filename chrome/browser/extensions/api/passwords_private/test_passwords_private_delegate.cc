@@ -280,7 +280,15 @@ TestPasswordsPrivateDelegate::GetExportProgressStatus() {
 }
 
 bool TestPasswordsPrivateDelegate::IsAccountStorageActive() {
-  return false;
+  return is_account_storage_enabled_;
+}
+
+void TestPasswordsPrivateDelegate::SetAccountStorageEnabled(bool enabled) {
+  is_account_storage_enabled_ = enabled;
+}
+
+bool TestPasswordsPrivateDelegate::ShouldShowAccountStorageSettingToggle() {
+  return should_show_account_storage_setting_toggle_;
 }
 
 std::vector<api::passwords_private::PasswordUiEntry>
@@ -395,6 +403,11 @@ void TestPasswordsPrivateDelegate::RestartAuthTimer() {
 
 void TestPasswordsPrivateDelegate::SetProfile(Profile* profile) {
   profile_ = profile;
+}
+
+void TestPasswordsPrivateDelegate::SetShouldShowAccountStorageSettingToggle(
+    bool enabled) {
+  should_show_account_storage_setting_toggle_ = enabled;
 }
 
 void TestPasswordsPrivateDelegate::AddCompromisedCredential(int id) {

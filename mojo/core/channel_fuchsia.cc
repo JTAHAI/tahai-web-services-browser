@@ -13,7 +13,6 @@
 #include <zircon/syscalls.h>
 
 #include <algorithm>
-#include <array>
 #include <memory>
 #include <tuple>
 
@@ -110,7 +109,7 @@ class MessageView {
 
   size_t data_offset() const { return offset_; }
   void advance_data_offset(size_t num_bytes) {
-    DCHECK_GE(message_->data_num_bytes(), offset_ + num_bytes);
+    DCHECK_GT(message_->data_num_bytes(), offset_ + num_bytes);
     offset_ += num_bytes;
   }
 
@@ -360,40 +359,42 @@ class ChannelFuchsia : public Channel,
     }
   }
 
-  // Attempts to write a message directly to the channel. If the message payload
-  // exceeds ZX_CHANNEL_MAX_MSG_BYTES or attached handles exceed
-  // ZX_CHANNEL_MAX_MSG_HANDLES, the message and handles are chunked across
-  // consecutive zx_channel_write() calls.
+  // Attempts to write a message directly to the channel. If the full message
+  // cannot be written, it's queued and a wait is initiated to write the message
+  // ASAP on the I/O thread.
   bool WriteNoLock(MessageView message_view) {
-    std::vector<PlatformHandleInTransit> outgoing_handles =
-        message_view.TakeHandles(/*unwrap_fds=*/!is_for_ipcz());
-    size_t handles_written = 0;
-
+    uint32_t write_bytes = 0;
     do {
-      std::array<zx_handle_t, ZX_CHANNEL_MAX_MSG_HANDLES> handles = {};
-      uint32_t handles_to_send = static_cast<uint32_t>(std::min(
-          outgoing_handles.size() - handles_written, std::size(handles)));
+      message_view.advance_data_offset(write_bytes);
 
-      for (size_t i = 0; i < handles_to_send; ++i) {
-        size_t handle_idx = handles_written + i;
-        DCHECK(outgoing_handles[handle_idx].handle().is_valid());
-        handles[i] = outgoing_handles[handle_idx].handle().GetHandle().get();
+      std::vector<PlatformHandleInTransit> outgoing_handles =
+          message_view.TakeHandles(/*unwrap_fds=*/!is_for_ipcz());
+      zx_handle_t handles[ZX_CHANNEL_MAX_MSG_HANDLES] = {};
+      size_t handles_count = outgoing_handles.size();
+
+      // TODO(crbug.com/508116627): In principle messages with too many handles
+      // could be split across multiple writes. In practice we haven't
+      // encountered this situation.
+      if (handles_count > std::size(handles)) {
+        DLOG(ERROR) << "Too many handles to write";
+        return false;
       }
 
-      uint32_t write_bytes =
-          std::min(message_view.data_num_bytes(),
-                   static_cast<size_t>(ZX_CHANNEL_MAX_MSG_BYTES));
-      const void* write_data = write_bytes > 0 ? message_view.data() : nullptr;
+      for (size_t i = 0; i < handles_count; ++i) {
+        DCHECK(outgoing_handles[i].handle().is_valid());
+        UNSAFE_TODO(handles[i]) =
+            outgoing_handles[i].handle().GetHandle().get();
+      }
 
-      zx_status_t result = handle_.write(0, write_data, write_bytes,
-                                         handles.data(), handles_to_send);
+      write_bytes = std::min(message_view.data_num_bytes(),
+                             static_cast<size_t>(ZX_CHANNEL_MAX_MSG_BYTES));
+      zx_status_t result = handle_.write(0, message_view.data(), write_bytes,
+                                         handles, handles_count);
       // zx_channel_write() consumes |handles| whether or not it succeeds, so
       // release() our copies now, to avoid them being double-closed.
-      for (size_t i = 0; i < handles_to_send; ++i) {
-        outgoing_handles[handles_written + i].CompleteTransit();
+      for (auto& outgoing_handle : outgoing_handles) {
+        outgoing_handle.CompleteTransit();
       }
-      handles_written += handles_to_send;
-      message_view.advance_data_offset(write_bytes);
 
       if (result != ZX_OK) {
         // TODO(crbug.com/42050611): Handle ZX_ERR_SHOULD_WAIT flow-control
@@ -403,8 +404,7 @@ class ChannelFuchsia : public Channel,
         return false;
       }
 
-    } while (message_view.data_num_bytes() > 0 ||
-             handles_written < outgoing_handles.size());
+    } while (write_bytes < message_view.data_num_bytes());
 
     return true;
   }

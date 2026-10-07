@@ -8,7 +8,6 @@
 #include <memory>
 #include <vector>
 
-#include "base/i18n/language_tag.h"
 #include "base/memory/raw_ptr.h"
 #include "chrome/browser/lens/core/mojom/translate.mojom.h"
 #include "services/network/public/cpp/simple_url_loader.h"
@@ -54,7 +53,7 @@ class LensOverlayLanguagesController {
 
   // The locale used in the language request. Stored since technically, the
   // locale can change before a response was received.
-  base::i18n::LanguageTag locale_ = base::i18n::GetKnownLanguageTag("und");
+  std::string locale_;
 
   // A url loader to load the request to get supported languages.
   std::unique_ptr<network::SimpleURLLoader> url_loader_;

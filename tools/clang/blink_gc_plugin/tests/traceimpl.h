@@ -50,4 +50,4 @@ class TraceImplBaseExtern : public Base {
 
 }
 
-#endif  // TRACEIMPL_H_
+#endif

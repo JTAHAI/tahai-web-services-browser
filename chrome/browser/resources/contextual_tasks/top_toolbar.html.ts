@@ -25,7 +25,6 @@ export function getHtml(this: TopToolbarElement) {
     ${this.isSidePanelRearchitectureEnabled_ ? html`
       <cr-button class="top-toolbar-logo-button clickable"
           data-element-id="kContextualTasksSuperGButtonElementId"
-          @pointerdown="${this.onLogoPointerdown_}"
           @click="${this.onLogoClick_}">
         ${getLogoHtml()}
       </cr-button>
@@ -91,7 +90,8 @@ export function getHtml(this: TopToolbarElement) {
         @click="${this.onCloseButtonClick_}"
         iron-icon="cr:close"
         title="$i18n{closeTooltip}"
-        aria-label="$i18n{closeTooltip}">
+        aria-label="$i18n{closeTooltip}"
+        rounded-corner="${this.isExpandButtonEnabled ? 'false' : 'true'}">
     </cr-icon-button>
   </div>
 </div>

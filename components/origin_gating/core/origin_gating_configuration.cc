@@ -7,10 +7,9 @@
 #include <algorithm>
 #include <initializer_list>
 #include <utility>
-#include <variant>
 
 #include "base/check.h"
-#include "components/origin_gating/core/types.h"
+#include "base/functional/bind.h"
 
 namespace origin_gating {
 
@@ -27,13 +26,30 @@ CustomPredicate::CustomPredicate(AsyncPredicate predicate,
     : predicate_(std::move(predicate)), name_(name) {}
 
 CustomPredicate::CustomPredicate(SyncPredicate predicate, std::string_view name)
-    : predicate_(std::move(predicate)), name_(name) {}
+    : CustomPredicate(base::BindRepeating(
+                          [](SyncPredicate sync_pred,
+                             const GatingDecisionContext* context,
+                             const GURL& source,
+                             const GURL& destination,
+                             base::OnceCallback<void(Decision)> callback) {
+                            std::move(callback).Run(
+                                sync_pred.Run(context, source, destination));
+                          },
+                          std::move(predicate)),
+                      name) {}
 
 CustomPredicate::~CustomPredicate() = default;
 
 CustomPredicate::CustomPredicate(const CustomPredicate&) = default;
 
 CustomPredicate& CustomPredicate::operator=(const CustomPredicate&) = default;
+
+void CustomPredicate::Run(const GatingDecisionContext* context,
+                          const GURL& source,
+                          const GURL& destination,
+                          base::OnceCallback<void(Decision)> callback) const {
+  predicate_.Run(context, source, destination, std::move(callback));
+}
 
 PredicateConfiguration::PredicateConfiguration(
     Predicate predicate,

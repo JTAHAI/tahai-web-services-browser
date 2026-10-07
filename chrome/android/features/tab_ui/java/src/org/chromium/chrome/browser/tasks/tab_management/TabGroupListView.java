@@ -146,12 +146,8 @@ public class TabGroupListView extends FrameLayout {
 
     @Override
     protected void onConfigurationChanged(Configuration newConfig) {
-        if (mUiConfig != null) mUiConfig.updateDisplayStyle();
-    }
-
-    @Override
-    protected void onSizeChanged(int w, int h, int oldw, int oldh) {
-        super.onSizeChanged(w, h, oldw, oldh);
+        // TODO(crbug.com/515150822): Investigate to see whether this logic also needs to be
+        //  triggered by #onSizeChanged().
         if (mUiConfig != null) mUiConfig.updateDisplayStyle();
     }
 }

@@ -288,8 +288,8 @@ KcerFactoryAsh::BuildServiceInstanceForBrowserContext(
   // This code assumes that by the time BuildServiceInstanceForBrowserContext is
   // called, the context is initialized enough for IsPrimaryContext() to work
   // correctly.
-  Profile* profile = Profile::FromBrowserContext(context);
-  if (ash::ProfileHelper::IsPrimaryProfile(profile)) {
+  if (ash::ProfileHelper::IsPrimaryProfile(
+          Profile::FromBrowserContext(context))) {
     ExtraInstances::Get()->SetDefaultKcer(new_kcer->GetWeakPtr());
   }
 
@@ -299,7 +299,10 @@ KcerFactoryAsh::BuildServiceInstanceForBrowserContext(
       FROM_HERE,
       base::BindOnce(&KcerFactoryAsh::StartInitializingKcerInstance,
                      base::Unretained(const_cast<KcerFactoryAsh*>(this)),
-                     new_kcer->GetWeakPtr(), profile->GetWeakPtr()));
+                     new_kcer->GetWeakPtr(),
+                     // TODO(crbug.com/40061562): Remove
+                     // `UnsafeDanglingUntriaged`
+                     base::UnsafeDanglingUntriaged(context)));
 
   return std::make_unique<KcerService>(std::move(new_kcer));
 }
@@ -310,17 +313,16 @@ bool KcerFactoryAsh::UseKcerWithoutNss() const {
 
 void KcerFactoryAsh::StartInitializingKcerInstance(
     base::WeakPtr<internal::KcerImpl> kcer_service,
-    base::WeakPtr<Profile> profile) {
+    content::BrowserContext* context) {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
-  if (!kcer_service || !profile) {
+  if (!kcer_service) {
     return;
   }
 
   if (UseKcerWithoutNss()) {
-    return StartInitializingKcerWithoutNss(std::move(kcer_service),
-                                          profile.get());
+    return StartInitializingKcerWithoutNss(std::move(kcer_service), context);
   } else {
-    return StartInitializingKcerForNss(std::move(kcer_service), profile.get());
+    return StartInitializingKcerForNss(std::move(kcer_service), context);
   }
 }
 

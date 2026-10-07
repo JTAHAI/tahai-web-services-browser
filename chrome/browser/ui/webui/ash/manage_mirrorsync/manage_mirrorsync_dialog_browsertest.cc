@@ -25,14 +25,12 @@
 #include "chrome/browser/ash/file_manager/path_util.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/signin/identity_manager_factory.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/webui/ash/manage_mirrorsync/manage_mirrorsync.mojom.h"
 #include "chrome/browser/ui/webui/ash/system_web_dialog/system_web_dialog_delegate.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "components/drive/drive_pref_names.h"
 #include "components/prefs/pref_service.h"
-#include "content/public/browser/web_contents.h"
 #include "content/public/browser/web_ui.h"
 #include "content/public/test/browser_test.h"
 #include "content/public/test/browser_test_utils.h"
@@ -147,8 +145,7 @@ class ManageMirrorSyncDialogTest : public InProcessBrowserTest {
     fake_drivefs_helpers_[profile] =
         std::make_unique<drive::FakeDriveFsHelper>(profile, mount_point);
     auto* integration_service = new drive::DriveIntegrationService(
-        g_browser_process->local_state(), profile,
-        IdentityManagerFactory::GetForProfile(profile), "", mount_point,
+        g_browser_process->local_state(), profile, "", mount_point,
         fake_drivefs_helpers_[profile]->CreateFakeDriveFsListenerFactory());
     return integration_service;
   }

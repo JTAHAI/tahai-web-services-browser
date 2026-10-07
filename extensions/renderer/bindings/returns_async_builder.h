@@ -19,16 +19,16 @@ class ReturnsAsyncBuilder {
       std::vector<std::unique_ptr<ArgumentSpec>> signature);
   ~ReturnsAsyncBuilder();
 
-  ReturnsAsyncBuilder& DoesNotSupportPromises();
-  ReturnsAsyncBuilder& MakeRequired();
+  ReturnsAsyncBuilder& MakeOptional();
+  ReturnsAsyncBuilder& AddPromiseSupport();
 
   std::unique_ptr<APISignature::ReturnsAsync> Build();
 
  private:
   std::optional<std::vector<std::unique_ptr<ArgumentSpec>>> signature_;
-  bool optional_ = true;
+  bool optional_ = false;
   binding::APIPromiseSupport promise_support_ =
-      binding::APIPromiseSupport::kSupported;
+      binding::APIPromiseSupport::kUnsupported;
 };
 
 }  // namespace extensions

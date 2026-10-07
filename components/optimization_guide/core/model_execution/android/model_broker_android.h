@@ -62,10 +62,6 @@ class ModelBrokerAndroid final : public OnDeviceCapability,
   void ResetModelCrashCount() override;
   void AddObserver(
       mojo::PendingRemote<mojom::ModelBrokerDebugObserver>) override;
-  void AddAssetDownloadObserver(
-      const std::string& asset_name,
-      mojo::PendingRemote<on_device_model::mojom::DownloadObserver> observer)
-      override;
 
   mojo::Remote<on_device_model::mojom::OnDeviceModel>& GetOrCreateModelRemote(
       proto::ModelExecutionFeature feature);

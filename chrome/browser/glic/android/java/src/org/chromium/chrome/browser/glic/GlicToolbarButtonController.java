@@ -163,11 +163,10 @@ public class GlicToolbarButtonController extends BaseButtonDataProvider {
      * @param profile The current profile.
      */
     public boolean shouldForciblyShowGlicButton(Profile profile) {
-        if (!AdaptiveToolbarFeatures.isGlicEnabledForAdaptiveToolbar(
-                mActivity, profile.getOriginalProfile())) {
+        if (!AdaptiveToolbarFeatures.isGlicEnabledForAdaptiveToolbar(mActivity, profile)) {
             return false;
         }
-        mStateController.updateObservations(profile.getOriginalProfile());
+        mStateController.updateObservations(profile);
         List<ActorTask> activeTasks = mStateController.getActiveTasks();
         return mStateController.isPanelOpen() || (activeTasks != null && !activeTasks.isEmpty());
     }
@@ -177,8 +176,7 @@ public class GlicToolbarButtonController extends BaseButtonDataProvider {
         if (tab == null || UrlUtilities.isNtpUrl(tab.getUrl())) {
             return false;
         }
-        if (!AdaptiveToolbarFeatures.isGlicEnabledForAdaptiveToolbar(
-                mActivity, tab.getProfile().getOriginalProfile())) {
+        if (!AdaptiveToolbarFeatures.isGlicEnabledForAdaptiveToolbar(mActivity, tab.getProfile())) {
             return false;
         }
         return super.shouldShowButton(tab);

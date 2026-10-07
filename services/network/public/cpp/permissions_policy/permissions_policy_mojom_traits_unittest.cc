@@ -71,7 +71,7 @@ TEST(PermissionsPolicyMojomTraitsTest, Roundtrips_PermissionsPolicy) {
              /*matches_all_origins=*/false,
              /*matches_opaque_src=*/false},
             {network::mojom::PermissionsPolicyFeature::
-                 kGamepad, /*allowed_origins=*/
+                 kSharedStorage, /*allowed_origins=*/
              {*network::OriginWithPossibleWildcards::FromOrigin(
                  url::Origin::Create(GURL(kUrlA)))},
              /*self_if_matches=*/std::nullopt,

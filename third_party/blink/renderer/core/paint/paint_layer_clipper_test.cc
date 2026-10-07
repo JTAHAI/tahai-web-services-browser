@@ -21,7 +21,7 @@ class PaintLayerClipperTest : public RenderingTest {
       : RenderingTest(MakeGarbageCollected<EmptyLocalFrameClient>()) {}
 };
 
-TEST_F(PaintLayerClipperTest, ParentBackgroundClipRect) {
+TEST_F(PaintLayerClipperTest, ParentBackgroundClipRectSubpixelAccumulation) {
   SetBodyInnerHTML(R"HTML(
     <!DOCTYPE html>
     <div style="overflow: hidden; width: 300px;">
@@ -32,18 +32,19 @@ TEST_F(PaintLayerClipperTest, ParentBackgroundClipRect) {
   PaintLayer* target_paint_layer = GetPaintLayerByElementId("target");
   ClipRectsContext context(GetDocument().GetLayoutView()->Layer(),
                            &GetDocument().GetLayoutView()->FirstFragment(),
-                           kIgnoreOverlayScrollbarSize, kIgnoreOverflowClip);
+                           kIgnoreOverlayScrollbarSize, kIgnoreOverflowClip,
+                           PhysicalOffset(LayoutUnit(0.25), LayoutUnit(0.35)));
 
   ClipRect background_rect_gm;
   target_paint_layer->Clipper().CalculateBackgroundClipRect(context,
                                                             background_rect_gm);
 
-  EXPECT_EQ(PhysicalRect(LayoutUnit(8), LayoutUnit(8), LayoutUnit(300),
+  EXPECT_EQ(PhysicalRect(LayoutUnit(8.25), LayoutUnit(8.34375), LayoutUnit(300),
                          LayoutUnit(300)),
             background_rect_gm.Rect());
 }
 
-TEST_F(PaintLayerClipperTest, BackgroundClipRect) {
+TEST_F(PaintLayerClipperTest, BackgroundClipRectSubpixelAccumulation) {
   SetBodyInnerHTML(R"HTML(
     <!DOCTYPE html>
     <div id=target width=200 height=300 style='position: relative'>
@@ -52,7 +53,8 @@ TEST_F(PaintLayerClipperTest, BackgroundClipRect) {
   PaintLayer* target_paint_layer = GetPaintLayerByElementId("target");
   ClipRectsContext context(GetDocument().GetLayoutView()->Layer(),
                            &GetDocument().GetLayoutView()->FirstFragment(),
-                           kIgnoreOverlayScrollbarSize, kIgnoreOverflowClip);
+                           kIgnoreOverlayScrollbarSize, kIgnoreOverflowClip,
+                           PhysicalOffset(LayoutUnit(0.25), LayoutUnit(0.35)));
 
   ClipRect background_rect_gm;
   target_paint_layer->Clipper().CalculateBackgroundClipRect(context,
@@ -61,7 +63,7 @@ TEST_F(PaintLayerClipperTest, BackgroundClipRect) {
   EXPECT_TRUE(background_rect_gm.IsInfinite()) << background_rect_gm;
 }
 
-TEST_F(PaintLayerClipperTest, SVGBackgroundClipRect) {
+TEST_F(PaintLayerClipperTest, SVGBackgroundClipRectSubpixelAccumulation) {
   SetBodyInnerHTML(R"HTML(
     <!DOCTYPE html>
     <svg id=target width=200 height=300 style='position: relative'>
@@ -72,7 +74,8 @@ TEST_F(PaintLayerClipperTest, SVGBackgroundClipRect) {
   PaintLayer* target_paint_layer = GetPaintLayerByElementId("target");
   ClipRectsContext context(GetDocument().GetLayoutView()->Layer(),
                            &GetDocument().GetLayoutView()->FirstFragment(),
-                           kIgnoreOverlayScrollbarSize, kIgnoreOverflowClip);
+                           kIgnoreOverlayScrollbarSize, kIgnoreOverflowClip,
+                           PhysicalOffset(LayoutUnit(0.25), LayoutUnit(0.35)));
 
   ClipRect background_rect_gm;
   target_paint_layer->Clipper().CalculateBackgroundClipRect(context,
@@ -94,7 +97,8 @@ TEST_F(PaintLayerClipperTest, LayoutSVGRoot) {
   // so don't apply an overflow clip.
   ClipRectsContext context(GetDocument().GetLayoutView()->Layer(),
                            &GetDocument().GetLayoutView()->FirstFragment(),
-                           kIgnoreOverlayScrollbarSize, kIgnoreOverflowClip);
+                           kIgnoreOverlayScrollbarSize, kIgnoreOverflowClip,
+                           PhysicalOffset(LayoutUnit(0.25), LayoutUnit(0.35)));
   PhysicalOffset layer_offset;
   ClipRect background_rect, foreground_rect;
 
@@ -102,13 +106,13 @@ TEST_F(PaintLayerClipperTest, LayoutSVGRoot) {
       context, target_paint_layer->GetLayoutObject().FirstFragment(),
       layer_offset, background_rect, foreground_rect);
 
-  EXPECT_EQ(PhysicalRect(LayoutUnit(8), LayoutUnit(8), LayoutUnit(200),
+  EXPECT_EQ(PhysicalRect(LayoutUnit(8.25), LayoutUnit(8.35), LayoutUnit(200),
                          LayoutUnit(300)),
             background_rect.Rect());
-  EXPECT_EQ(PhysicalRect(LayoutUnit(8), LayoutUnit(8), LayoutUnit(200),
+  EXPECT_EQ(PhysicalRect(LayoutUnit(8.25), LayoutUnit(8.35), LayoutUnit(200),
                          LayoutUnit(300)),
             foreground_rect.Rect());
-  EXPECT_EQ(PhysicalOffset(LayoutUnit(8), LayoutUnit(8)), layer_offset);
+  EXPECT_EQ(PhysicalOffset(LayoutUnit(8.25), LayoutUnit(8.35)), layer_offset);
 }
 
 TEST_F(PaintLayerClipperTest, ControlClip) {

@@ -26,9 +26,14 @@ class RootVoteObserver : public VoteObserver {
 
  protected:
   // VoteObserver implementation:
-  void OnVoteSet(VoterId voter_id,
-                 const ExecutionContext* execution_context,
-                 const std::optional<Vote>& vote) override;
+  void OnVoteSubmitted(VoterId voter_id,
+                       const ExecutionContext* execution_context,
+                       const Vote& vote) override;
+  void OnVoteChanged(VoterId voter_id,
+                     const ExecutionContext* context,
+                     const Vote& new_vote) override;
+  void OnVoteInvalidated(VoterId voter_id,
+                         const ExecutionContext* context) override;
 
   // Provides the VotingChannel to our input voter.
   VotingChannelFactory voting_channel_factory_{this};

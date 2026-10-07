@@ -14,6 +14,7 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.robolectric.annotation.Config;
 
 import org.chromium.base.FakeTimeTestRule;
 import org.chromium.base.test.BaseRobolectricTestRunner;
@@ -21,6 +22,7 @@ import org.chromium.chrome.browser.logo.LogoBridge.Logo;
 
 /** Unit tests for the {@link DoodleCache}. */
 @RunWith(BaseRobolectricTestRunner.class)
+@Config(manifest = Config.NONE)
 public class DoodleCacheUnitTest {
     @Rule public FakeTimeTestRule mFakeTimeTestRule = new FakeTimeTestRule();
 
@@ -40,10 +42,7 @@ public class DoodleCacheUnitTest {
                         /* altText= */ null,
                         /* animatedLogoUrl= */ null,
                         /* darkAnimatedLogoUrl= */ null,
-                        /* logUrl= */ null,
-                        /* darkLogUrl= */ null,
-                        /* ctaLogUrl= */ null,
-                        /* darkCtaLogUrl= */ null);
+                        /* logUrl= */ null);
     }
 
     @After
@@ -98,10 +97,7 @@ public class DoodleCacheUnitTest {
                         /* altText= */ null,
                         /* animatedLogoUrl= */ null,
                         /* darkAnimatedLogoUrl= */ null,
-                        /* logUrl= */ null,
-                        /* darkLogUrl= */ null,
-                        /* ctaLogUrl= */ null,
-                        /* darkCtaLogUrl= */ null);
+                        /* logUrl= */ null);
 
         mDoodleCache.updateCachedDoodle(logo2, keyword);
         assertEquals(logo2, mDoodleCache.getCachedDoodle(keyword));

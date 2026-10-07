@@ -144,7 +144,7 @@ void RendererSettingsFuzz(const RendererSettings& input) {
   mojom::RendererSettings::Deserialize(
       mojom::RendererSettings::Serialize(&input), &output);
 }
-FUZZ_TEST(RendererSettingsStructTraitsFuzzTest, RendererSettingsFuzz)
+FUZZ_TEST(StructTraitsTest, RendererSettingsFuzz)
     .WithDomains(AnyRendererSettings());
 
 void DebugRendererSettingsFuzz(const DebugRendererSettings& input) {
@@ -152,14 +152,14 @@ void DebugRendererSettingsFuzz(const DebugRendererSettings& input) {
   mojom::DebugRendererSettings::Deserialize(
       mojom::DebugRendererSettings::Serialize(&input), &output);
 }
-FUZZ_TEST(RendererSettingsStructTraitsFuzzTest, DebugRendererSettingsFuzz)
+FUZZ_TEST(StructTraitsTest, DebugRendererSettingsFuzz)
     .WithDomains(AnyDebugRendererSettings());
 
 namespace {
 
-using RendererSettingsStructTraitsTest = testing::Test;
+using StructTraitsTest = testing::Test;
 
-TEST_F(RendererSettingsStructTraitsTest, RendererSettings) {
+TEST_F(StructTraitsTest, RendererSettings) {
   RendererSettings input;
 
   // Set |input| to non-default values.
@@ -201,7 +201,7 @@ TEST_F(RendererSettingsStructTraitsTest, RendererSettings) {
                 .generate_complex_occluder_for_rounded_corners);
 }
 
-TEST_F(RendererSettingsStructTraitsTest, DebugRendererSettings) {
+TEST_F(StructTraitsTest, DebugRendererSettings) {
   DebugRendererSettings input;
 
   // Set |input| to non-default values.

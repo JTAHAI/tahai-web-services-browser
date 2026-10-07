@@ -16,8 +16,6 @@ import android.os.Build.VERSION_CODES;
 import android.os.Bundle;
 import android.view.WindowMetrics;
 
-import androidx.annotation.RequiresApi;
-
 import org.chromium.base.FeatureList;
 import org.chromium.base.IntentUtils;
 import org.chromium.base.Log;
@@ -30,7 +28,6 @@ import org.chromium.chrome.browser.metrics.UmaUtils;
 import org.chromium.chrome.browser.profiles.ProfileManagerUtils;
 import org.chromium.chrome.browser.signin.FullscreenSigninAndHistorySyncActivityBase;
 import org.chromium.chrome.browser.ui.desktop_windowing.BasicAppHeaderStateProvider;
-import org.chromium.components.browser_ui.desktop_windowing.AppHeaderStateProvider;
 import org.chromium.components.browser_ui.widget.gesture.BackPressHandler;
 
 /** Base class for First Run Experience. */
@@ -62,7 +59,7 @@ public abstract class FirstRunActivityBase extends FullscreenSigninAndHistorySyn
     public static final boolean DEFAULT_METRICS_AND_CRASH_REPORTING = true;
 
     private boolean mNativeInitialized;
-    private @Nullable AppHeaderStateProvider mAppHeaderStateProvider;
+    private @Nullable BasicAppHeaderStateProvider mAppHeaderStateProvider;
 
     @Override
     protected boolean requiresFirstRunToBeCompleted(Intent intent) {
@@ -75,13 +72,8 @@ public abstract class FirstRunActivityBase extends FullscreenSigninAndHistorySyn
     public void onPostCreate() {
         super.onPostCreate();
         if (VERSION.SDK_INT >= VERSION_CODES.R) {
-            mAppHeaderStateProvider = createAppHeaderStateProvider();
+            mAppHeaderStateProvider = new BasicAppHeaderStateProvider(this, getInsetObserver());
         }
-    }
-
-    @RequiresApi(VERSION_CODES.R)
-    protected @Nullable AppHeaderStateProvider createAppHeaderStateProvider() {
-        return new BasicAppHeaderStateProvider(this, getInsetObserver());
     }
 
     @Override
@@ -144,11 +136,19 @@ public abstract class FirstRunActivityBase extends FullscreenSigninAndHistorySyn
                 // After the PendingIntent has been sent, send a first run callback to custom tabs
                 // if necessary.
                 onFinished =
-                        (_, _, _, _, _) -> {
-                            // Use {@link FirstRunActivityBase#getIntent()} instead of {@link
-                            // intent} parameter in order to use a more similar code path for
-                            // completing first run and for aborting first run.
-                            notifyCustomTabCallbackFirstRunIfNecessary(getIntent(), true);
+                        new PendingIntent.OnFinished() {
+                            @Override
+                            public void onSendFinished(
+                                    PendingIntent pendingIntent,
+                                    Intent intent,
+                                    int resultCode,
+                                    String resultData,
+                                    Bundle resultExtras) {
+                                // Use {@link FirstRunActivityBase#getIntent()} instead of {@link
+                                // intent} parameter in order to use a more similar code path for
+                                // completing first run and for aborting first run.
+                                notifyCustomTabCallbackFirstRunIfNecessary(getIntent(), true);
+                            }
                         };
             }
 

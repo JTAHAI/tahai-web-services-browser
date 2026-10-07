@@ -19,7 +19,7 @@
 #include "base/test/scoped_path_override.h"
 #endif  // BUILDFLAG(IS_WIN)
 
-class BrowserWindowInterface;
+class Browser;
 class GURL;
 class Profile;
 
@@ -42,8 +42,7 @@ class PreventCloseTestBase : public policy::PolicyTest {
       std::string_view web_app_install_force_list);
   void ClearWebAppSettings();
   void InstallPWA(const GURL& app_url, const webapps::AppId& app_id);
-  BrowserWindowInterface* LaunchPWA(const webapps::AppId& app_id,
-                                    bool launch_in_window);
+  Browser* LaunchPWA(const webapps::AppId& app_id, bool launch_in_window);
   base::Value ReturnPolicyValueFromJson(std::string_view policy);
 
   Profile* profile();

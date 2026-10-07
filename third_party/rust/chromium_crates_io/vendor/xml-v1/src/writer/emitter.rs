@@ -335,10 +335,10 @@ impl Emitter {
                 NS_NO_PREFIX => if uri == NS_EMPTY_URI {
                     Ok(())
                 } else {
-                    write!(target, " xmlns=\"{}\"", Escaped::<AttributeEscapes>::new(uri))
+                    write!(target, " xmlns=\"{uri}\"")
                 },
                 // everything else
-                prefix => write!(target, " xmlns:{prefix}=\"{}\"", Escaped::<AttributeEscapes>::new(uri)),
+                prefix => write!(target, " xmlns:{prefix}=\"{uri}\""),
             }?;
         }
         Ok(())

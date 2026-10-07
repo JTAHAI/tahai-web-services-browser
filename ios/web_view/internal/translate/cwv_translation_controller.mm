@@ -6,8 +6,6 @@
 #import <string>
 
 #import "base/check_op.h"
-#import "base/i18n/language_tag.h"
-#import "base/i18n/tag_converters.h"
 #import "base/memory/ptr_util.h"
 #import "base/notreached.h"
 #import "base/strings/sys_string_conversions.h"
@@ -232,12 +230,8 @@ CWVTranslationError CWVConvertTranslateError(translate::TranslateErrors type) {
       break;
     }
     case CWVTranslationPolicyNever: {
-      if (std::optional<base::i18n::LanguageTag> parsed_tag =
-              base::i18n::LanguageTagConverter::GetInstance().FromString(
-                  languageCode)) {
-        _translatePrefs->AddToLanguageList(*parsed_tag,
-                                           /*force_blocked=*/true);
-      }
+      _translatePrefs->AddToLanguageList(languageCode,
+                                         /*force_blocked=*/true);
       break;
     }
     case CWVTranslationPolicyAuto: {

@@ -17,7 +17,6 @@
 #include "build/build_config.h"
 #include "build/buildflag.h"
 #include "components/signin/internal/identity_manager/account_capabilities_constants.h"
-#include "components/signin/public/base/signin_buildflags.h"
 #include "components/signin/public/base/signin_metrics.h"
 #include "components/signin/public/base/signin_switches.h"
 #include "components/signin/public/identity_manager/account_capabilities.h"
@@ -65,9 +64,7 @@ constexpr std::string_view kAccountPictureURLKey = "picture_url";
 constexpr std::string_view kAccountChildAttributeKey = "is_supervised_child";
 constexpr std::string_view kAdvancedProtectionAccountStatusKey =
     "is_under_advanced_protection";
-#if BUILDFLAG(ENABLE_DICE_SUPPORT)
 constexpr std::string_view kAccountAccessPoint = "access_point";
-#endif  // BUILDFLAG(ENABLE_DICE_SUPPORT)
 constexpr std::string_view kAccountCapabilitiesKey = "accountcapabilities";
 }  // namespace local
 
@@ -268,13 +265,10 @@ base::DictValue SerializeAccountInfo(const AccountInfo& account_info) {
   result.Set(local::kAccountCapabilityOverridesKey,
              SerializeAccountCapabilityOverrides(
                  account_info.GetAccountCapabilities()));
-#if BUILDFLAG(ENABLE_DICE_SUPPORT)
-  if (account_info.GetLastAuthenticationAccessPoint().has_value()) {
+  if (account_info.access_point.has_value()) {
     result.Set(local::kAccountAccessPoint,
-               static_cast<int>(
-                   account_info.GetLastAuthenticationAccessPoint().value()));
+               static_cast<int>(account_info.access_point.value()));
   }
-#endif  // BUILDFLAG(ENABLE_DICE_SUPPORT)
   return result;
 }
 
@@ -352,7 +346,6 @@ std::optional<AccountInfo> DeserializeAccountInfo(const base::DictValue& dict) {
           dict.FindBool(local::kAdvancedProtectionAccountStatusKey)) {
     builder.SetIsUnderAdvancedProtection(*is_under_advanced_protection);
   }
-#if BUILDFLAG(ENABLE_DICE_SUPPORT)
   if (std::optional<int> access_point_value =
           dict.FindInt(local::kAccountAccessPoint)) {
     if (std::optional<signin_metrics::AccessPoint> access_point =
@@ -360,7 +353,6 @@ std::optional<AccountInfo> DeserializeAccountInfo(const base::DictValue& dict) {
       builder.SetLastAuthenticationAccessPoint(*access_point);
     }
   }
-#endif  // BUILDFLAG(ENABLE_DICE_SUPPORT)
   builder.SetIsChildAccount(
       ParseTribool(dict.FindInt(local::kAccountChildAttributeKey)));
   if (const base::DictValue* capabilities =

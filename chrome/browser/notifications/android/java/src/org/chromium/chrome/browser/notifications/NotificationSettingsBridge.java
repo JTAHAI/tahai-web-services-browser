@@ -91,18 +91,14 @@ public class NotificationSettingsBridge {
         }
 
         public NotificationChannel toChannel() {
-            int importance = NotificationManager.IMPORTANCE_DEFAULT;
-            if (mStatus == NotificationChannelStatus.BLOCKED) {
-                importance = NotificationManager.IMPORTANCE_NONE;
-            } else if (ChromeChannelDefinitions.isHighPrioritySiteNotificationsEnabled()) {
-                importance = NotificationManager.IMPORTANCE_HIGH;
-            }
             NotificationChannel channel =
                     new NotificationChannel(
                             mId,
                             UrlFormatter.formatUrlForSecurityDisplay(
                                     mOrigin, SchemeDisplay.OMIT_HTTP_AND_HTTPS),
-                            importance);
+                            mStatus == NotificationChannelStatus.BLOCKED
+                                    ? NotificationManager.IMPORTANCE_NONE
+                                    : NotificationManager.IMPORTANCE_DEFAULT);
             channel.setGroup(ChromeChannelDefinitions.ChannelGroupId.SITES);
             return channel;
         }

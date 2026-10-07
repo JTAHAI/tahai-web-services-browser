@@ -236,7 +236,6 @@ experimental domain Preload
       PrefetchIsStale
       PrefetchNotEligibleBlockedByConnectionAllowlist
       PrefetchNotEligibleBrowserContextOffTheRecord
-      PrefetchNotEligibleCrossOrigin
       PrefetchNotEligibleDataSaverEnabled
       PrefetchNotEligibleExistingProxy
       PrefetchNotEligibleHostIsNonUnique

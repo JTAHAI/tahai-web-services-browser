@@ -19,6 +19,7 @@
 #include "base/unguessable_token.h"
 #include "chrome/browser/ash/borealis/borealis_prefs.h"
 #include "chrome/browser/ash/crostini/crostini_pref_names.h"
+#include "chrome/browser/ash/plugin_vm/plugin_vm_pref_names.h"
 #include "chrome/browser/ash/video_conference/video_conference_manager_ash.h"
 #include "chrome/browser/chromeos/video_conference/video_conference_manager_client_common.h"
 #include "chrome/browser/profiles/profile_manager.h"
@@ -30,6 +31,7 @@
 namespace ash {
 
 constexpr char kCrostiniVmId[] = "Linux";
+constexpr char kPluginVmId[] = "PluginVm";
 constexpr char kBorealisId[] = "Borealis";
 
 VideoConferenceMediaAppInfo MakeMediaAppInfo(const base::UnguessableToken& id,
@@ -59,14 +61,25 @@ class VideoConferenceAshfeatureClientTest : public InProcessBrowserTest {
 
   // Update the permission of current `app_id`.
   void UpdateAppPermision(const std::string& app_id,
+                          bool has_camera_permission,
                           bool has_microphone_permission) {
     auto* prefs = ProfileManager::GetActiveUserProfile()->GetPrefs();
     if (app_id == kCrostiniVmId) {
       prefs->SetBoolean(crostini::prefs::kCrostiniMicAllowed,
                         has_microphone_permission);
+      CHECK(!has_camera_permission)
+          << "Camera is not supported for CrostiniVm yet.";
     }
     if (app_id == kBorealisId) {
       prefs->SetBoolean(borealis::prefs::kBorealisMicAllowed,
+                        has_microphone_permission);
+      CHECK(!has_camera_permission)
+          << "Camera is not supported for CrostiniVm yet.";
+    }
+    if (app_id == kPluginVmId) {
+      prefs->SetBoolean(plugin_vm::prefs::kPluginVmCameraAllowed,
+                        has_camera_permission);
+      prefs->SetBoolean(plugin_vm::prefs::kPluginVmMicAllowed,
                         has_microphone_permission);
     }
   }
@@ -115,12 +128,15 @@ IN_PROC_BROWSER_TEST_F(VideoConferenceAshfeatureClientTest, GetMediaApps) {
   }
 
   {
-    // Notifying Borealis is using the microphone.
+    // Notifying PluginVm is using Mic and Camera.
     VideoConferenceAshFeatureClient::Get()->OnVmDeviceUpdated(
-        VmCameraMicManager::VmType::kBorealis,
+        VmCameraMicManager::VmType::kPluginVm,
         VmCameraMicManager::DeviceType::kMic, true);
+    VideoConferenceAshFeatureClient::Get()->OnVmDeviceUpdated(
+        VmCameraMicManager::VmType::kPluginVm,
+        VmCameraMicManager::DeviceType::kCamera, true);
 
-    // GetMediaApps should return Borealis.
+    // GetMediaApps should return PluginVm.
     auto media_app_info = GetMediaApps();
     ASSERT_EQ(media_app_info.size(), 1u);
     const auto& info0 = media_app_info[0];
@@ -128,24 +144,22 @@ IN_PROC_BROWSER_TEST_F(VideoConferenceAshfeatureClientTest, GetMediaApps) {
     const auto expected_media_app_info = MakeMediaAppInfo(
         /*id=*/info0.id,
         /*last_activity_time=*/info0.last_activity_time,
-        /*is_capturing_camera=*/false,
+        /*is_capturing_camera=*/true,
         /*is_capturing_microphone=*/true,
-        /*title=*/base::UTF8ToUTF16(std::string(kBorealisId)),
-        /*app_type=*/VideoConferenceAppType::kBorealis);
+        /*title=*/base::UTF8ToUTF16(std::string(kPluginVmId)),
+        /*app_type=*/VideoConferenceAppType::kPluginVm);
 
     EXPECT_EQ(media_app_info[0], expected_media_app_info);
-
-    VideoConferenceAshFeatureClient::Get()->OnVmDeviceUpdated(
-        VmCameraMicManager::VmType::kBorealis,
-        VmCameraMicManager::DeviceType::kMic, false);
   }
 }
 
 IN_PROC_BROWSER_TEST_F(VideoConferenceAshfeatureClientTest,
                        HandleMediaUsageUpdate) {
   // Set initial permissions.
-  UpdateAppPermision(kCrostiniVmId, /*has_microphone_permission=*/true);
-  UpdateAppPermision(kBorealisId, /*has_microphone_permission=*/true);
+  UpdateAppPermision(kCrostiniVmId, /*has_camera_permission=*/false,
+                     /*has_microphone_permission=*/true);
+  UpdateAppPermision(kPluginVmId, /*has_camera_permission=*/true,
+                     /*has_microphone_permission=*/false);
 
   // All state should be false initially.
   VideoConferenceMediaState state = GetMediaStateInVideoConferenceManagerAsh();
@@ -169,27 +183,42 @@ IN_PROC_BROWSER_TEST_F(VideoConferenceAshfeatureClientTest,
   EXPECT_FALSE(state.has_camera_permission);
   EXPECT_FALSE(state.is_capturing_camera);
 
-  // Borealis starts using the microphone.
+  // Notifying PluginVm is using Mic.
   VideoConferenceAshFeatureClient::Get()->OnVmDeviceUpdated(
-      VmCameraMicManager::VmType::kBorealis,
+      VmCameraMicManager::VmType::kPluginVm,
       VmCameraMicManager::DeviceType::kMic, true);
 
+  // Extra permission obtained from PluginVm.
   state = GetMediaStateInVideoConferenceManagerAsh();
-  EXPECT_TRUE(state.has_microphone_permission);
-  EXPECT_TRUE(state.is_capturing_microphone);
+  EXPECT_TRUE(state.has_camera_permission);
   EXPECT_FALSE(state.is_capturing_camera);
 
-  // Crostini stops while Borealis is still using the microphone.
+  // Notifying PluginVm is using Camera.
+  VideoConferenceAshFeatureClient::Get()->OnVmDeviceUpdated(
+      VmCameraMicManager::VmType::kPluginVm,
+      VmCameraMicManager::DeviceType::kCamera, true);
+
+  // Expecting camera capturing from PluginVm.
+  state = GetMediaStateInVideoConferenceManagerAsh();
+  EXPECT_TRUE(state.has_camera_permission);
+  EXPECT_TRUE(state.is_capturing_camera);
+
+  // Notifying Stopping accessing from PluginVm.
+  VideoConferenceAshFeatureClient::Get()->OnVmDeviceUpdated(
+      VmCameraMicManager::VmType::kPluginVm,
+      VmCameraMicManager::DeviceType::kMic, false);
+  VideoConferenceAshFeatureClient::Get()->OnVmDeviceUpdated(
+      VmCameraMicManager::VmType::kPluginVm,
+      VmCameraMicManager::DeviceType::kCamera, false);
+
+  // Camera permission and capturing should be gone.
+  state = GetMediaStateInVideoConferenceManagerAsh();
+  EXPECT_FALSE(state.has_camera_permission);
+  EXPECT_FALSE(state.is_capturing_camera);
+
+  // Notifying Stopping accessing from Crostini.
   VideoConferenceAshFeatureClient::Get()->OnVmDeviceUpdated(
       VmCameraMicManager::VmType::kCrostiniVm,
-      VmCameraMicManager::DeviceType::kMic, false);
-  state = GetMediaStateInVideoConferenceManagerAsh();
-  EXPECT_TRUE(state.has_microphone_permission);
-  EXPECT_TRUE(state.is_capturing_microphone);
-
-  // Borealis stops using the microphone.
-  VideoConferenceAshFeatureClient::Get()->OnVmDeviceUpdated(
-      VmCameraMicManager::VmType::kBorealis,
       VmCameraMicManager::DeviceType::kMic, false);
 
   state = GetMediaStateInVideoConferenceManagerAsh();
@@ -229,6 +258,18 @@ IN_PROC_BROWSER_TEST_F(VideoConferenceAshfeatureClientTest,
               testing::Pair(VideoConferenceMediaDevice::kMicrophone,
                             base::UTF8ToUTF16(std::string(kCrostiniVmId))));
 
+  // Notifying PluginVm is using Camera.
+  VideoConferenceAshFeatureClient::Get()->OnVmDeviceUpdated(
+      VmCameraMicManager::VmType::kPluginVm,
+      VmCameraMicManager::DeviceType::kCamera, true);
+
+  // Another UsedWhileDisabled call should be sent to
+  // FakeVideoConferenceTrayController.
+  ASSERT_EQ(fake_try_controller->device_used_while_disabled_records().size(),
+            2u);
+  EXPECT_THAT(fake_try_controller->device_used_while_disabled_records().back(),
+              testing::Pair(VideoConferenceMediaDevice::kCamera,
+                            base::UTF8ToUTF16(std::string(kPluginVmId))));
 }
 
 }  // namespace ash

@@ -51,7 +51,6 @@ import org.chromium.base.test.util.Criteria;
 import org.chromium.base.test.util.CriteriaHelper;
 import org.chromium.base.test.util.Features.DisableFeatures;
 import org.chromium.base.test.util.Features.EnableFeatures;
-import org.chromium.base.test.util.Restriction;
 import org.chromium.base.test.util.UserActionTester;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.autofill.autofill_ai.EntityDataManager;
@@ -63,8 +62,9 @@ import org.chromium.chrome.browser.feedback.HelpAndFeedbackLauncherFactory;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.browser.preferences.Pref;
+import org.chromium.chrome.browser.settings.SettingsActivity;
+import org.chromium.chrome.browser.settings.SettingsActivityTestRule;
 import org.chromium.chrome.browser.settings.SettingsNavigationFactory;
-import org.chromium.chrome.browser.settings.SettingsTestRule;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.components.autofill.autofill_ai.EntityInstance;
 import org.chromium.components.autofill.autofill_ai.EntityInstanceWithLabels;
@@ -74,7 +74,6 @@ import org.chromium.components.browser_ui.settings.ChromeSwitchPreference;
 import org.chromium.components.browser_ui.settings.SettingsNavigation;
 import org.chromium.components.browser_ui.settings.search.SettingsIndexData;
 import org.chromium.components.user_prefs.UserPrefs;
-import org.chromium.ui.base.DeviceFormFactor;
 import org.chromium.ui.test.util.MockitoHelper;
 
 import java.util.Arrays;
@@ -93,8 +92,8 @@ import java.util.List;
 })
 public class AutofillTravelFragmentTest {
     @Rule
-    public SettingsTestRule<AutofillTravelFragment> mSettingsTestRule =
-            new SettingsTestRule<>(AutofillTravelFragment.class);
+    public SettingsActivityTestRule<AutofillTravelFragment> mSettingsActivityTestRule =
+            new SettingsActivityTestRule<>(AutofillTravelFragment.class);
 
     @Rule public MockitoRule mMockitoRule = MockitoJUnit.rule();
 
@@ -124,12 +123,14 @@ public class AutofillTravelFragmentTest {
     @Test
     @MediumTest
     public void testScreenSetup() {
-        mSettingsTestRule.startSettingsActivity();
+        mSettingsActivityTestRule.startSettingsActivity();
 
-        AutofillTravelFragment fragment = mSettingsTestRule.getFragment();
+        AutofillTravelFragment fragment = mSettingsActivityTestRule.getFragment();
         assertThat(fragment.getPageTitle().get())
                 .isEqualTo(
-                        mSettingsTestRule.getActivity().getString(R.string.autofill_travel_title));
+                        mSettingsActivityTestRule
+                                .getActivity()
+                                .getString(R.string.autofill_travel_title));
         ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     assertThat(fragment.getPreferenceScreen().shouldUseGeneratedIds()).isFalse();
@@ -138,15 +139,14 @@ public class AutofillTravelFragmentTest {
 
     @Test
     @SmallTest
-    @Restriction(DeviceFormFactor.PHONE) // Tablets and desktops don't have a help button or menu.
     public void testHelpMenuTriggersAutofillHelp() {
-        mSettingsTestRule.startSettingsActivity();
+        SettingsActivity settingsActivity = mSettingsActivityTestRule.startSettingsActivity();
 
         onView(withId(R.id.menu_id_targeted_help)).perform(click());
 
         verify(mHelpAndFeedbackLauncher)
                 .show(
-                        mSettingsTestRule.getActivity(),
+                        settingsActivity,
                         ContextUtils.getApplicationContext()
                                 .getString(R.string.help_context_autofill),
                         /* url= */ null);
@@ -155,14 +155,14 @@ public class AutofillTravelFragmentTest {
     @Test
     @SmallTest
     public void testSearchIndexWhenAllEnabled() {
-        mSettingsTestRule.startSettingsActivity();
+        mSettingsActivityTestRule.startSettingsActivity();
 
         ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     AutofillTravelFragment.SEARCH_INDEX_DATA_PROVIDER.updateDynamicPreferences(
-                            mSettingsTestRule.getActivity(),
+                            mSettingsActivityTestRule.getActivity(),
                             mSearchIndexDataMock,
-                            mSettingsTestRule.getFragment().getProfile());
+                            mSettingsActivityTestRule.getFragment().getProfile());
                 });
 
         verify(mSearchIndexDataMock, atLeastOnce())
@@ -177,14 +177,14 @@ public class AutofillTravelFragmentTest {
     @SmallTest
     @DisableFeatures(ChromeFeatureList.AUTOFILL_AI_WITH_DATA_SCHEMA)
     public void testSearchIndexEmptyWhenFeatureDisabled() {
-        mSettingsTestRule.startSettingsActivity();
+        mSettingsActivityTestRule.startSettingsActivity();
 
         ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     AutofillTravelFragment.SEARCH_INDEX_DATA_PROVIDER.updateDynamicPreferences(
-                            mSettingsTestRule.getActivity(),
+                            mSettingsActivityTestRule.getActivity(),
                             mSearchIndexDataMock,
-                            mSettingsTestRule.getFragment().getProfile());
+                            mSettingsActivityTestRule.getFragment().getProfile());
                 });
 
         verify(mSearchIndexDataMock, never()).addEntryForKey(any(), any(), anyInt(), anyInt());
@@ -210,11 +210,11 @@ public class AutofillTravelFragmentTest {
 
         when(mEntityDataManager.getInstancesToList()).thenReturn(instancesMap);
 
-        mSettingsTestRule.startSettingsActivity();
+        mSettingsActivityTestRule.startSettingsActivity();
 
         CriteriaHelper.pollUiThread(
                 () -> {
-                    AutofillTravelFragment fragment = mSettingsTestRule.getFragment();
+                    AutofillTravelFragment fragment = mSettingsActivityTestRule.getFragment();
                     Preference vehicleCategory = fragment.findPreference("Vehicle");
                     Criteria.checkThat(
                             "Vehicle entity category should exist",
@@ -251,11 +251,11 @@ public class AutofillTravelFragmentTest {
 
         when(mEntityDataManager.getEntityInstance("guid1")).thenReturn(entityInstance);
 
-        mSettingsTestRule.startSettingsActivity();
+        mSettingsActivityTestRule.startSettingsActivity();
 
         Preference vehicleEntity =
                 ThreadUtils.runOnUiThreadBlocking(
-                        () -> mSettingsTestRule.getFragment().findPreference("guid1"));
+                        () -> mSettingsActivityTestRule.getFragment().findPreference("guid1"));
 
         ThreadUtils.runOnUiThreadBlocking(vehicleEntity::performClick);
         ArgumentCaptor<Callback<Boolean>> callbackCaptor = MockitoHelper.callbackCaptor();
@@ -278,14 +278,16 @@ public class AutofillTravelFragmentTest {
         when(mEntityDataManager.getInstancesToList()).thenReturn(instancesMap);
         when(mEntityDataManager.getAutofillAiOptInStatus()).thenReturn(true);
 
-        mSettingsTestRule.startSettingsActivity();
+        mSettingsActivityTestRule.startSettingsActivity();
         setTravelTogglePreference(true);
 
         Preference addVehicle =
                 ThreadUtils.runOnUiThreadBlocking(
                         () -> {
                             PreferenceCategory category =
-                                    mSettingsTestRule.getFragment().findPreference("Vehicle");
+                                    mSettingsActivityTestRule
+                                            .getFragment()
+                                            .findPreference("Vehicle");
                             return category.findPreference("Vehicle" + " Add");
                         });
         assertNotNull(addVehicle);
@@ -305,13 +307,13 @@ public class AutofillTravelFragmentTest {
     @Test
     @MediumTest
     public void testToggle_correctStateWhenTurnedOff() {
-        mSettingsTestRule.startSettingsActivity();
+        mSettingsActivityTestRule.startSettingsActivity();
         setTravelTogglePreference(false);
 
         ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     ChromeSwitchPreference toggle =
-                            mSettingsTestRule
+                            mSettingsActivityTestRule
                                     .getFragment()
                                     .findPreference(AutofillTravelFragment.PREF_OPT_IN_TOGGLE);
                     assertNotNull(toggle);
@@ -325,13 +327,13 @@ public class AutofillTravelFragmentTest {
     @Test
     @MediumTest
     public void testToggle_correctStateWhenTurnedOn() {
-        mSettingsTestRule.startSettingsActivity();
+        mSettingsActivityTestRule.startSettingsActivity();
         setTravelTogglePreference(true);
 
         ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     ChromeSwitchPreference toggle =
-                            mSettingsTestRule
+                            mSettingsActivityTestRule
                                     .getFragment()
                                     .findPreference(AutofillTravelFragment.PREF_OPT_IN_TOGGLE);
                     assertNotNull(toggle);
@@ -345,11 +347,11 @@ public class AutofillTravelFragmentTest {
     @MediumTest
     public void testToggleDisabled_whenAutofillAiSettingsDisabled() {
         when(mEntityDataManager.canEnableOrDisableAutofillAiForType(anyInt())).thenReturn(false);
-        mSettingsTestRule.startSettingsActivity();
+        mSettingsActivityTestRule.startSettingsActivity();
 
         ThreadUtils.runOnUiThreadBlocking(
                 () -> {
-                    AutofillTravelFragment fragment = mSettingsTestRule.getFragment();
+                    AutofillTravelFragment fragment = mSettingsActivityTestRule.getFragment();
                     ChromeSwitchPreference toggle =
                             fragment.findPreference(AutofillTravelFragment.PREF_OPT_IN_TOGGLE);
                     assertNotNull(toggle);
@@ -363,7 +365,7 @@ public class AutofillTravelFragmentTest {
     @MediumTest
     public void testClickPersonalContextLaunchesPersonalContext() {
         when(mEntityDataManager.isPersonalContextPreferenceVisible()).thenReturn(true);
-        mSettingsTestRule.startSettingsActivity();
+        mSettingsActivityTestRule.startSettingsActivity();
 
         var userActionTester = new UserActionTester();
         try {
@@ -385,7 +387,7 @@ public class AutofillTravelFragmentTest {
     private void setTravelTogglePreference(boolean value) {
         ThreadUtils.runOnUiThreadBlocking(
                 () ->
-                        UserPrefs.get(mSettingsTestRule.getFragment().getProfile())
+                        UserPrefs.get(mSettingsActivityTestRule.getFragment().getProfile())
                                 .setBoolean(Pref.AUTOFILL_AI_TRAVEL_ENTITIES_ENABLED, value));
     }
 }

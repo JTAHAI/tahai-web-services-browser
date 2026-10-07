@@ -205,30 +205,16 @@ inline constexpr const char kDoomEntry_MarkDoomedResources[] =
         "bytes_usage";       // 0
 // clang-format on
 
-inline constexpr const char
-    kDeleteDoomedEntry_DeleteFromResources_SharedCacheDisabled[] =
-        // clang-format off
+inline constexpr const char kDeleteDoomedEntry_DeleteFromResources[] =
+    // clang-format off
     "DELETE FROM resources "
     "WHERE "
         "res_id=? AND "  // 0
         "doomed=1";
 // clang-format on
 
-inline constexpr const char
-    kDeleteDoomedEntry_DeleteFromResources_SharedCacheEnabled[] =
-        // clang-format off
-    "DELETE FROM resources "
-    "WHERE "
-        "res_id=? AND "  // 0
-        "doomed=1 "
-    "RETURNING "
-        "shared_cache_db_id,"   // 0
-        "shared_cache_row_id";  // 1
-// clang-format on
-
-inline constexpr const char
-    kDeleteLiveEntry_DeleteFromResources_SharedCacheDisabled[] =
-        // clang-format off
+inline constexpr const char kDeleteLiveEntry_DeleteFromResources[] =
+    // clang-format off
     "DELETE FROM resources "
     "WHERE "
         "cache_key_hash=? AND " // 0
@@ -237,21 +223,6 @@ inline constexpr const char
     "RETURNING "
         "res_id,"           // 0
         "bytes_usage";      // 1
-// clang-format on
-
-inline constexpr const char
-    kDeleteLiveEntry_DeleteFromResources_SharedCacheEnabled[] =
-        // clang-format off
-    "DELETE FROM resources "
-    "WHERE "
-        "cache_key_hash=? AND " // 0
-        "cache_key=? AND "      // 1
-        "doomed=0 "
-    "RETURNING "
-        "res_id,"               // 0
-        "bytes_usage,"          // 1
-        "shared_cache_db_id,"   // 2
-        "shared_cache_row_id";  // 3
 // clang-format on
 
 inline constexpr const char kDeleteAllEntries_DeleteFromResources[] =
@@ -272,33 +243,15 @@ inline constexpr const char kDeleteLiveEntriesBetween_SelectLiveResources[] =
         "doomed=0";
 // clang-format on
 
-inline constexpr const char
-    kDeleteResourceByResIds_DeleteFromResources_SharedCacheDisabled[] =
-        "DELETE FROM resources WHERE res_id=?";
+inline constexpr const char kDeleteResourceByResIds_DeleteFromResources[] =
+    "DELETE FROM resources WHERE res_id=?";
 
-inline constexpr const char
-    kDeleteResourceByResIds_DeleteFromResources_SharedCacheEnabled[] =
-        "DELETE FROM resources WHERE res_id=? "
-        "RETURNING shared_cache_db_id, shared_cache_row_id";
+inline constexpr const char kDeleteResourceByResIdReturnHash[] =
+    "DELETE FROM resources WHERE res_id=? RETURNING cache_key_hash";
 
-inline constexpr const char
-    kDeleteResourceByResIdReturnHash_SharedCacheDisabled[] =
-        "DELETE FROM resources WHERE res_id=? RETURNING cache_key_hash";
-
-inline constexpr const char
-    kDeleteResourceByResIdReturnHash_SharedCacheEnabled[] =
-        "DELETE FROM resources WHERE res_id=? RETURNING cache_key_hash, "
-        "shared_cache_db_id, shared_cache_row_id";
-
-inline constexpr const char
-    kDeleteLiveResourceByResIdReturnUsageAndHash_SharedCacheDisabled[] =
-        "DELETE FROM resources WHERE res_id=? AND doomed=0 RETURNING "
-        "bytes_usage, cache_key_hash";
-
-inline constexpr const char
-    kDeleteLiveResourceByResIdReturnUsageAndHash_SharedCacheEnabled[] =
-        "DELETE FROM resources WHERE res_id=? AND doomed=0 RETURNING "
-        "bytes_usage, cache_key_hash, shared_cache_db_id, shared_cache_row_id";
+inline constexpr const char kDeleteLiveResourceByResIdReturnUsageAndHash[] =
+    "DELETE FROM resources WHERE res_id=? AND doomed=0 RETURNING bytes_usage, "
+    "cache_key_hash";
 
 inline constexpr const char kUpdateEntryLastUsedByKey_UpdateResourceLastUsed[] =
     // clang-format off
@@ -763,18 +716,9 @@ inline base::cstring_view GetQuery(Query query, bool shared_cache_enabled) {
     case Query::kDoomEntry_MarkDoomedResources:
       return internal::kDoomEntry_MarkDoomedResources;
     case Query::kDeleteDoomedEntry_DeleteFromResources:
-      if (shared_cache_enabled) {
-        return internal::
-            kDeleteDoomedEntry_DeleteFromResources_SharedCacheEnabled;
-      }
-      return internal::
-          kDeleteDoomedEntry_DeleteFromResources_SharedCacheDisabled;
+      return internal::kDeleteDoomedEntry_DeleteFromResources;
     case Query::kDeleteLiveEntry_DeleteFromResources:
-      if (shared_cache_enabled) {
-        return internal::
-            kDeleteLiveEntry_DeleteFromResources_SharedCacheEnabled;
-      }
-      return internal::kDeleteLiveEntry_DeleteFromResources_SharedCacheDisabled;
+      return internal::kDeleteLiveEntry_DeleteFromResources;
     case Query::kDeleteAllEntries_DeleteFromResources:
       return internal::kDeleteAllEntries_DeleteFromResources;
     case Query::kDeleteAllEntries_DeleteFromBlobs:
@@ -782,24 +726,11 @@ inline base::cstring_view GetQuery(Query query, bool shared_cache_enabled) {
     case Query::kDeleteLiveEntriesBetween_SelectLiveResources:
       return internal::kDeleteLiveEntriesBetween_SelectLiveResources;
     case Query::kDeleteResourceByResIds_DeleteFromResources:
-      if (shared_cache_enabled) {
-        return internal::
-            kDeleteResourceByResIds_DeleteFromResources_SharedCacheEnabled;
-      }
-      return internal::
-          kDeleteResourceByResIds_DeleteFromResources_SharedCacheDisabled;
+      return internal::kDeleteResourceByResIds_DeleteFromResources;
     case Query::kDeleteResourceByResIdReturnHash:
-      if (shared_cache_enabled) {
-        return internal::kDeleteResourceByResIdReturnHash_SharedCacheEnabled;
-      }
-      return internal::kDeleteResourceByResIdReturnHash_SharedCacheDisabled;
+      return internal::kDeleteResourceByResIdReturnHash;
     case Query::kDeleteLiveResourceByResIdReturnUsageAndHash:
-      if (shared_cache_enabled) {
-        return internal::
-            kDeleteLiveResourceByResIdReturnUsageAndHash_SharedCacheEnabled;
-      }
-      return internal::
-          kDeleteLiveResourceByResIdReturnUsageAndHash_SharedCacheDisabled;
+      return internal::kDeleteLiveResourceByResIdReturnUsageAndHash;
     case Query::kUpdateEntryLastUsedByKey_UpdateResourceLastUsed:
       return internal::kUpdateEntryLastUsedByKey_UpdateResourceLastUsed;
     case Query::kInsertIntoResources:

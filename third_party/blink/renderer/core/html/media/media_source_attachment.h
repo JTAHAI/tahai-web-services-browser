@@ -6,9 +6,10 @@
 #define THIRD_PARTY_BLINK_RENDERER_CORE_HTML_MEDIA_MEDIA_SOURCE_ATTACHMENT_H_
 
 #include <memory>
-
 #include "third_party/blink/public/platform/web_time_range.h"
 #include "third_party/blink/renderer/core/core_export.h"
+#include "third_party/blink/renderer/core/fileapi/url_registry.h"
+#include "third_party/blink/renderer/core/html/media/media_source_tracer.h"
 #include "third_party/blink/renderer/platform/wtf/forward.h"
 #include "third_party/blink/renderer/platform/wtf/thread_safe_ref_counted.h"
 
@@ -16,7 +17,6 @@ namespace blink {
 
 class HTMLMediaElement;
 class MediaSourceRegistry;
-class MediaSourceTracer;
 class TrackBase;
 class WebMediaSource;
 
@@ -32,7 +32,8 @@ class WebMediaSource;
 // this interface are reference counted to ensure they are available potentially
 // cross-thread and from the registry.
 class CORE_EXPORT MediaSourceAttachment
-    : public ThreadSafeRefCounted<MediaSourceAttachment> {
+    : public URLRegistrable,
+      public ThreadSafeRefCounted<MediaSourceAttachment> {
  public:
   // Intended to be set by the MediaSourceRegistry during its singleton
   // initialization on the main thread. Caches the pointer in |registry_|.
@@ -47,15 +48,15 @@ class CORE_EXPORT MediaSourceAttachment
   MediaSourceAttachment(const MediaSourceAttachment&) = delete;
   MediaSourceAttachment& operator=(const MediaSourceAttachment&) = delete;
 
-  // This is called on the main thread when the MediaSourceRegistry unregisters
-  // the object URL for this attachment. Concrete implementation overrides
-  // should use this signal to release their strong reference to the MediaSource
-  // such that GC might collect it if there is no active attachment represented
-  // by other strong references.
+  // This is called on the main thread when the URLRegistry unregisters the
+  // objectURL for this attachment. Concrete implementation overrides should use
+  // this signal to release their strong reference to the MediaSource such that
+  // GC might collect it if there is no active attachment represented by other
+  // strong references.
   virtual void Unregister() = 0;
 
-  // Returns the registry responsible for this attachment.
-  virtual MediaSourceRegistry& Registry() const;
+  // URLRegistrable
+  URLRegistry& Registry() const override { return *registry_; }
 
   // These two methods are called in sequence when an HTMLMediaElement is
   // attempting to attach to the MediaSource object using this attachment
@@ -129,10 +130,10 @@ class CORE_EXPORT MediaSourceAttachment
  protected:
   friend class ThreadSafeRefCounted<MediaSourceAttachment>;
   MediaSourceAttachment();
-  virtual ~MediaSourceAttachment();
+  ~MediaSourceAttachment() override;
 
  private:
-  static MediaSourceRegistry* registry_;
+  static URLRegistry* registry_;
 };
 
 }  // namespace blink

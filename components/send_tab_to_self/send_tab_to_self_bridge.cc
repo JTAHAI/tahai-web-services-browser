@@ -59,9 +59,9 @@ void RecordSendResultAndRunCallback(
   std::move(callback).Run(result);
 }
 
-constexpr base::TimeDelta kDedupeTime = base::Seconds(5);
+const base::TimeDelta kDedupeTime = base::Seconds(5);
 
-constexpr base::TimeDelta kDeviceExpiration = base::Days(10);
+const base::TimeDelta kDeviceExpiration = base::Days(10);
 
 // Converts a time field from sync protobufs to a time object.
 base::Time ProtoTimeToTime(int64_t proto_t) {
@@ -78,7 +78,6 @@ bool IsActivationUserVisible(ShareActivatedEntryPoint entry_point) {
     case ShareActivatedEntryPoint::kMobileNotification:
     case ShareActivatedEntryPoint::kTabStrip:
     case ShareActivatedEntryPoint::kChromeOSBirch:
-    case ShareActivatedEntryPoint::kMobileMessageBanner:
       return true;
     case ShareActivatedEntryPoint::kTabOrBrowserClosedWithoutActivation:
     case ShareActivatedEntryPoint::kSTTSEntryExpiredWithoutActivation:
@@ -408,8 +407,6 @@ void SendTabToSelfBridge::ApplyDisableSyncChanges(
   std::vector<std::string> all_guids = GetAllGuids();
 
   entries_.clear();
-  unknown_opened_entries_.clear();
-  unknown_activated_entries_.clear();
   mru_entry_guid_.clear();
 
   commit_tracker_->OnSyncDisabled();
@@ -514,8 +511,7 @@ const SendTabToSelfEntry* SendTabToSelfBridge::SendEntry(
   if (mru_entry && url == mru_entry->GetURL() &&
       target_device_cache_guid == mru_entry->GetTargetDeviceSyncCacheGuid() &&
       shared_time - mru_entry->GetSharedTime() < kDedupeTime) {
-    send_tab_to_self::RecordNotificationStatus(
-        send_tab_to_self::NotificationStatus::kThrottled);
+    send_tab_to_self::RecordNotificationThrottled();
     std::move(commit_confirmation_with_metrics)
         .Run(SendTabToSelfResult::kSuccessThrottled);
     return mru_entry;
@@ -735,24 +731,12 @@ SendTabToSelfBridge::GetTargetDeviceInfoSortedList() {
 
   if (base::FeatureList::IsEnabled(syncer::kSyncSimplifyDeviceNaming)) {
     // Resolve display names for the filtered list by using the most user
-    // friendly name, disambiguating duplicates with release channel if enabled.
-    std::vector<const syncer::DeviceInfo*> raw_devices = base::ToVector(
-        devices,
-        [](const DeviceWithTimestamp& entry) { return entry.device.get(); });
-    // TODO(crbug.com/522788942): Consider moving TargetDeviceInfo out of
-    // send_tab_to_self (e.g. into sync_device_info or sharing) so multiple
-    // clients can share a unified struct.
-    std::vector<std::string> device_names =
-        syncer::GetDeviceDisplayNames(raw_devices, GetLocalDeviceInfo());
-    std::vector<TargetDeviceInfo> target_devices;
-    target_devices.reserve(devices.size());
-    for (size_t i = 0; i < devices.size(); ++i) {
-      target_devices.emplace_back(
-          std::move(device_names[i]), devices[i].device->guid(),
-          devices[i].device->form_factor(), devices[i].device->os_type(),
-          devices[i].last_active, devices[i].has_high_precision);
-    }
-    return target_devices;
+    // friendly name.
+    return base::ToVector(devices, [](const DeviceWithTimestamp& entry) {
+      return TargetDeviceInfo(syncer::GetDeviceDisplayName(entry.device),
+                              entry.device->guid(), entry.device->form_factor(),
+                              entry.last_active, entry.has_high_precision);
+    });
   }
 
   // TODO(crbug.com/522788942): Remove this temporary conversion when
@@ -771,8 +755,8 @@ SendTabToSelfBridge::GetTargetDeviceInfoSortedList() {
     auto it =
         std::ranges::find(devices, info.device, &DeviceWithTimestamp::device);
     return TargetDeviceInfo(info.display_name, info.device->guid(),
-                            info.device->form_factor(), info.device->os_type(),
-                            it->last_active, it->has_high_precision);
+                            info.device->form_factor(), it->last_active,
+                            it->has_high_precision);
   });
 }
 

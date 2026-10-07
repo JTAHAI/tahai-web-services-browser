@@ -78,7 +78,7 @@ class HorizontalTabStripRegionViewOld : public TabStripRegionView {
   void UpdateLoadingAnimations(const base::TimeDelta& elapsed_time) override;
   std::optional<int> GetFocusedTabIndex() const override;
   const tabs::TabData& GetTabData(const tabs::TabHandle& tab) override;
-  views::View* GetTabAnchorView(const tabs::TabHandle& tab) override;
+  views::View* GetTabAnchorViewAt(int tab_index) override;
   views::View* GetTabGroupAnchorView(
       const tab_groups::TabGroupId& group) override;
   void OnTabGroupFocusChanged(
@@ -99,7 +99,6 @@ class HorizontalTabStripRegionViewOld : public TabStripRegionView {
   void OnDragExited() override;
   void SetTabStripObserver(TabStripObserver* observer) override;
   views::View* GetTabStripView() override;
-  TabHoverCardController* GetHoverCardController() override;
   std::unique_ptr<ExpandOnHoverLock> GetExpandOnHoverLock(
       ExpandOnHoverLockType lock_type) override;
   void OnGlassFrameEligibilityChanged(bool is_eligible) override;
@@ -113,8 +112,6 @@ class HorizontalTabStripRegionViewOld : public TabStripRegionView {
 
   // Updates the left and right margins for the tab strip.
   void UpdateTabStripMargin();
-
-  void OnUnfocusButtonVisibilityChanged();
 
   // Gets called on `Layout` and adjusts the x-axis position of the `view` based
   // on `offset`. This should only used for views that show before tab strip.
@@ -133,7 +130,6 @@ class HorizontalTabStripRegionViewOld : public TabStripRegionView {
   raw_ptr<TabStripControlButton> unfocus_button_ = nullptr;
 
   std::unique_ptr<views::ActionViewController> action_view_controller_;
-  base::CallbackListSubscription unfocus_button_subscription_;
 
   const base::CallbackListSubscription subscription_ =
       ui::TouchUiController::Get()->RegisterCallback(base::BindRepeating(
@@ -156,6 +152,7 @@ class HorizontalTabStripRegionViewNew : public BaseTabStripRegionView {
   views::View::Views GetChildrenInZOrder() override;
   void Layout(PassKey) override;
 
+  Profile* profile();
   bool HasLeadingButtons() const { return false; }
 
   // TabStripRegionView:
@@ -171,16 +168,11 @@ class HorizontalTabStripRegionViewNew : public BaseTabStripRegionView {
  private:
   void OnTabStripViewSet() override;
 
-  void UpdateButtonBorders();
-
-  raw_ptr<TabStripActionContainer> tab_strip_action_container_ = nullptr;
   raw_ptr<views::View> reserved_grab_handle_space_ = nullptr;
   raw_ptr<TabStripComboButton> combo_button_ = nullptr;
   raw_ptr<views::Button> new_tab_button_ = nullptr;
 
   std::unique_ptr<views::ActionViewController> action_view_controller_;
-
-  base::CallbackListSubscription subscription_;
 };
 
 using HorizontalTabStripRegionView = HorizontalTabStripRegionViewOld;

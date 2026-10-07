@@ -184,12 +184,12 @@ export class CrRadioGroupElement extends PolymerElement {
     }
   }
 
-  protected computeSelectableRegExp_(): RegExp {
+  private computeSelectableRegExp_(): RegExp {
     const tags = this.selectableElements.split(', ').join('|');
     return new RegExp(`^(${tags})$`, 'i');
   }
 
-  protected onClick_(event: Event) {
+  private onClick_(event: Event) {
     const path = event.composedPath();
     if (path.some(target => /^a$/i.test((target as HTMLElement).tagName))) {
       return;

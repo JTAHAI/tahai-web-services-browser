@@ -58,6 +58,7 @@ public class AwShellActivity extends Activity {
     private static final String TAG = "AwShellActivity";
     private static final String INITIAL_URL = ContentUrlConstants.ABOUT_BLANK_DISPLAY_URL;
     private AwBrowserContext mBrowserContext;
+    private AwDevToolsServer mDevToolsServer;
     private AwTestContainerView mAwTestContainerView;
     private WebContents mWebContents;
     private NavigationController mNavigationController;
@@ -130,7 +131,10 @@ public class AwShellActivity extends Activity {
 
     @Override
     public void onDestroy() {
-        AwDevToolsServer.setRemoteDebuggingEnabled(false);
+        if (mDevToolsServer != null) {
+            mDevToolsServer.setRemoteDebuggingEnabled(false);
+            mDevToolsServer = null;
+        }
         super.onDestroy();
     }
 
@@ -259,7 +263,10 @@ public class AwShellActivity extends Activity {
         awSettings.setLoadWithOverviewMode(true);
         awSettings.setLayoutAlgorithm(AwSettings.LAYOUT_ALGORITHM_TEXT_AUTOSIZING);
         awSettings.setJavaScriptEnabled(true);
-        AwDevToolsServer.setRemoteDebuggingEnabled(true);
+        if (mDevToolsServer == null) {
+            mDevToolsServer = new AwDevToolsServer();
+            mDevToolsServer.setRemoteDebuggingEnabled(true);
+        }
         return testContainerView;
     }
 

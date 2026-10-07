@@ -196,6 +196,11 @@ bool PathInterpolationFunctions::PathsAreCompatible(
   return true;
 }
 
+ShapeReferenceBox PathInterpolationFunctions::GetBox(
+    const NonInterpolableValue& value) {
+  return To<SVGPathNonInterpolableValue>(value).GetBox();
+}
+
 PairwiseInterpolationValue PathInterpolationFunctions::MaybeMergeSingles(
     InterpolationValue&& start,
     InterpolationValue&& end) {
@@ -237,7 +242,7 @@ void PathInterpolationFunctions::Composite(
       value.non_interpolable_value.Get();
 }
 
-BasicShapeInfo PathInterpolationFunctions::AppliedValue(
+StylePath* PathInterpolationFunctions::AppliedValue(
     const InterpolableValue& interpolable_value,
     const NonInterpolableValue& non_interpolable_value) {
   auto& non_interpolable_path_value =
@@ -249,10 +254,8 @@ BasicShapeInfo PathInterpolationFunctions::AppliedValue(
   SVGPathByteStreamBuilder builder;
   svg_path_parser::ParsePath(source, builder);
 
-  return {
-      MakeGarbageCollected<StylePath>(
-          builder.CopyByteStream(), non_interpolable_path_value.GetWindRule()),
-      non_interpolable_path_value.GetBox()};
+  return MakeGarbageCollected<StylePath>(
+      builder.CopyByteStream(), non_interpolable_path_value.GetWindRule());
 }
 
 }  // namespace blink

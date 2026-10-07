@@ -1,2 +1,4 @@
-rules:
-- "*": [pointer-events-api]
+features:
+- name: pointer-events-api
+  files:
+  - "*"

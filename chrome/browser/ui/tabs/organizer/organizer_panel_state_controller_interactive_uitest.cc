@@ -9,11 +9,11 @@
 #include "chrome/browser/ui/tabs/organizer/organizer_panel_state_controller.h"
 #include "chrome/browser/ui/tabs/vertical_tab_strip_state_controller.h"
 #include "chrome/browser/ui/views/tabs/organizer/layout_constants.h"
-#include "chrome/browser/ui/views/tabs/organizer/organizer_panel_utils.h"
 #include "chrome/browser/ui/views/tabs/organizer/organizer_panel_view.h"
 #include "chrome/browser/ui/views/test/vertical_tabs_interactive_test_mixin.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/interaction/interactive_browser_test.h"
+#include "components/saved_tab_groups/public/features.h"
 #include "content/public/test/browser_test.h"
 #include "ui/base/interaction/element_identifier.h"
 #include "ui/views/interaction/interactive_views_test.h"
@@ -24,7 +24,10 @@ class OrganizerPanelStateControllerInteractiveUiTest
     : public InteractiveBrowserTest {
  public:
   OrganizerPanelStateControllerInteractiveUiTest() {
-    scoped_feature_list_.InitAndEnableFeature(organizer_panel::kOrganizerPanel);
+    scoped_feature_list_.InitWithFeatures(/* enabled_features */
+                                          {tabs::kVerticalTabs,
+                                           tab_groups::kOrganizerPanel},
+                                          /* disabled_features */ {});
     OrganizerPanelView::disable_animations_for_testing();
   }
   ~OrganizerPanelStateControllerInteractiveUiTest() override = default;
@@ -46,8 +49,7 @@ class OrganizerPanelStateControllerInteractiveUiTest
   base::test::ScopedFeatureList scoped_feature_list_;
 };
 
-// This test checks that we can click the tab search button to toggle the
-// organizer panel.
+// This test checks that we can click the organizer panel button.
 IN_PROC_BROWSER_TEST_F(OrganizerPanelStateControllerInteractiveUiTest,
                        VerifyOrganizerPanelButton) {
   RunTestSequence(
@@ -60,9 +62,9 @@ IN_PROC_BROWSER_TEST_F(OrganizerPanelStateControllerInteractiveUiTest,
                 ->IsOrganizerPanelVisible();
           },
           false),
-      // Click Tab Search Button and Verify Visibilities.
-      EnsurePresent(kTabSearchButtonElementId),
-      MoveMouseTo(kTabSearchButtonElementId), ClickMouse(),
+      // Click Organizer Panel Button and Verify Visibilities.
+      EnsurePresent(kVerticalTabStripOrganizerButtonElementId),
+      MoveMouseTo(kVerticalTabStripOrganizerButtonElementId), ClickMouse(),
       CheckResult(
           [this]() {
             return organizer_panel_state_controller()
@@ -82,29 +84,6 @@ IN_PROC_BROWSER_TEST_F(OrganizerPanelStateControllerInteractiveUiTest,
       Do([this]() { RunScheduledLayouts(); }),
       WaitForHide(kOrganizerPanelViewElementId),
       WaitForHide(kOrganizerPanelButtonElementId));
-}
-
-// This test checks that clicking the tab search button opens the organizer
-// panel in vertical tabs mode.
-IN_PROC_BROWSER_TEST_F(OrganizerPanelStateControllerInteractiveUiTest,
-                       VerifyTabSearchButtonInVerticalTabs) {
-  RunTestSequence(WaitForShow(kVerticalTabStripTopContainerElementId),
-                  CheckResult(
-                      [this]() {
-                        return organizer_panel_state_controller()
-                            ->IsOrganizerPanelVisible();
-                      },
-                      false),
-                  EnsurePresent(kTabSearchButtonElementId),
-                  MoveMouseTo(kTabSearchButtonElementId), ClickMouse(),
-                  CheckResult(
-                      [this]() {
-                        return organizer_panel_state_controller()
-                            ->IsOrganizerPanelVisible();
-                      },
-                      true),
-                  Do([this]() { RunScheduledLayouts(); }),
-                  WaitForShow(kOrganizerPanelViewElementId));
 }
 
 }  // namespace base::test

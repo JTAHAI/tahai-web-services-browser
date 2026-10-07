@@ -122,6 +122,7 @@ constexpr char kFileHandlerTaskType[] = "app";
 constexpr char kArcAppTaskType[] = "arc";
 constexpr char kBruschettaAppTaskType[] = "bruschetta";
 constexpr char kCrostiniAppTaskType[] = "crostini";
+constexpr char kPluginVmAppTaskType[] = "pluginvm";
 constexpr char kWebAppTaskType[] = "web";
 
 constexpr char kPdfMimeType[] = "application/pdf";
@@ -520,6 +521,7 @@ TaskType StringToTaskType(const std::string& str) {
           {kBruschettaAppTaskType,      TASK_TYPE_BRUSCHETTA_APP},
           {kCrostiniAppTaskType,        TASK_TYPE_CROSTINI_APP},
           {kWebAppTaskType,             TASK_TYPE_WEB_APP},
+          {kPluginVmAppTaskType,        TASK_TYPE_PLUGIN_VM_APP},
           // clang-format on
       });
   auto itr = kStringToTaskTypeMapping.find(str);
@@ -544,9 +546,10 @@ std::string TaskTypeToString(TaskType task_type) {
       return kCrostiniAppTaskType;
     case TASK_TYPE_WEB_APP:
       return kWebAppTaskType;
+    case TASK_TYPE_PLUGIN_VM_APP:
+      return kPluginVmAppTaskType;
     case TASK_TYPE_UNKNOWN:
     case DEPRECATED_TASK_TYPE_DRIVE_APP:
-    case DEPRECATED_TASK_TYPE_PLUGIN_VM_APP:
     case NUM_TASK_TYPE:
       break;
   }
@@ -893,7 +896,8 @@ bool ExecuteFileTask(Profile* profile,
       task.task_type == TASK_TYPE_WEB_APP ||
       task.task_type == TASK_TYPE_FILE_HANDLER ||
       task.task_type == TASK_TYPE_BRUSCHETTA_APP ||
-      task.task_type == TASK_TYPE_CROSTINI_APP) {
+      task.task_type == TASK_TYPE_CROSTINI_APP ||
+      task.task_type == TASK_TYPE_PLUGIN_VM_APP) {
     extensions::app_file_handler_util::MimeTypeCollector* mime_collector =
         new extensions::app_file_handler_util::MimeTypeCollector(profile);
     mime_collector->CollectForURLs(

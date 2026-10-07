@@ -18,6 +18,7 @@ include_rules = [
   "+chrome/browser/ash/bruschetta",
   "+chrome/browser/ash/crostini",
   "+chrome/browser/ash/guest_os",
+  "+chrome/browser/ash/plugin_vm",
   "+chrome/browser/notifications",
   "+chrome/browser/profiles",
   "+chrome/grit",

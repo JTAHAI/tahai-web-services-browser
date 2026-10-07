@@ -7,22 +7,17 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_element_identifiers.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_features.h"
-#include "chrome/browser/ui/find_bar/find_bar_controller.h"
 #include "chrome/browser/ui/interaction/browser_elements.h"
 #include "chrome/browser/ui/views/translate/translate_bubble_controller.h"
 #include "chrome/browser/ui/webui_browser/webui_browser_window.h"
-#include "chrome/browser/ui/window_feature_controller/window_feature_controller.h"
 #include "chrome/browser/ui/window_metadata/window_metadata_controller.h"
 #include "components/strings/grit/components_strings.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/views/view.h"
 #include "ui/views/widget/widget.h"
 
-FindBarOwnerWebUIBrowser::FindBarOwnerWebUIBrowser(
-    WebUIBrowserWindow* window,
-    ui::UnownedUserDataHost& host)
-    : FindBarOwner(host), window_(window) {}
+FindBarOwnerWebUIBrowser::FindBarOwnerWebUIBrowser(WebUIBrowserWindow* window)
+    : window_(window) {}
 
 FindBarOwnerWebUIBrowser::~FindBarOwnerWebUIBrowser() = default;
 
@@ -31,9 +26,8 @@ views::Widget* FindBarOwnerWebUIBrowser::GetOwnerWidget() {
 }
 
 gfx::Rect FindBarOwnerWebUIBrowser::GetFindBarBoundingBox() {
-  if (!WindowFeatureController::From(window_->browser())
-           ->SupportsWindowFeature(
-               WindowFeatureController::WindowFeature::kFeatureLocationBar)) {
+  if (!window_->browser()->SupportsWindowFeature(
+          Browser::WindowFeature::kFeatureLocationBar)) {
     return gfx::Rect();
   }
 
@@ -84,10 +78,7 @@ std::u16string FindBarOwnerWebUIBrowser::GetFindBarAccessibleWindowTitle() {
 
 void FindBarOwnerWebUIBrowser::OnFindBarVisibilityChanged(
     gfx::Rect visible_bounds) {
-  window_->browser()
-      ->GetFeatures()
-      .GetFindBarController()
-      ->OnFindBarVisibilityChanged();
+  window_->browser()->OnFindBarVisibilityChanged();
 }
 
 void FindBarOwnerWebUIBrowser::CloseOverlappingBubbles() {

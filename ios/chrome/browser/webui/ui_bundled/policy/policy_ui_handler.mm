@@ -367,19 +367,12 @@ const std::string& PolicyUIHandler::GetAppliedTestPoliciesImpl() {
 }
 
 void PolicyUIHandler::HandleGetPolicyLogs(const base::ListValue& args) {
-  CHECK_EQ(args.size(), 1u);
-  policy::PolicyLogger::GetInstance()->GetAsList(
-      base::BindOnce(&PolicyUIHandler::OnGetPolicyLogs,
-                     weak_factory_.GetWeakPtr(), args[0].Clone()));
-}
-
-void PolicyUIHandler::OnGetPolicyLogs(base::Value callback_id,
-                                      base::ListValue logs) {
-  web_ui()->ResolveJavascriptCallback(callback_id, logs);
+  web_ui()->ResolveJavascriptCallback(
+      args[0], policy::PolicyLogger::GetInstance()->GetAsList());
 }
 
 void PolicyUIHandler::GetPolicyLogs(GetPolicyLogsCallback callback) {
-  policy::PolicyLogger::GetInstance()->GetAsMojoList(std::move(callback));
+  std::move(callback).Run(policy::PolicyLogger::GetInstance()->GetAsMojoList());
 }
 
 void PolicyUIHandler::OnSchemaRegistryUpdated(bool has_new_schemas) {

@@ -12,7 +12,6 @@
 #include "components/lens/lens_features.h"
 #include "components/lens/lens_payload_construction.h"
 #include "google_apis/common/api_error_codes.h"
-#include "third_party/lens_server_proto/lens_overlay_server.pb.h"
 
 namespace lens {
 

@@ -11,7 +11,6 @@
 #include <cmath>
 #include <memory>
 #include <queue>
-#include <ranges>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -23,6 +22,7 @@
 #include "base/android/jni_string.h"
 #include "base/check.h"
 #include "base/compiler_specific.h"
+#include "base/containers/adapters.h"
 #include "base/containers/stack.h"
 #include "base/functional/bind.h"
 #include "base/i18n/string_compare.h"
@@ -72,6 +72,7 @@ using base::android::AttachCurrentThread;
 using base::android::JavaRef;
 using base::android::ScopedJavaGlobalRef;
 using base::android::ScopedJavaLocalRef;
+using base::android::ToJavaIntArray;
 using bookmarks::BookmarkModel;
 using bookmarks::BookmarkNode;
 using bookmarks::BookmarkType;
@@ -424,9 +425,8 @@ void BookmarkBridge::GetAllFoldersWithDepths(
   // Note the order to push folders to stack should be opposite to the order in
   // output.
   base::stack<std::pair<const BookmarkNode*, int>> stk;
-  for (const auto* bookmark : std::views::reverse(bookmarks)) {
+  for (const auto* bookmark : base::Reversed(bookmarks))
     stk.emplace(bookmark, 0);
-  }
 
   while (!stk.empty()) {
     const BookmarkNode* node = stk.top().first;
@@ -444,9 +444,8 @@ void BookmarkBridge::GetAllFoldersWithDepths(
     }
     std::stable_sort(bookmarks.begin(), bookmarks.end(),
                      BookmarkTitleComparer(this, collator.get()));
-    for (const auto* bookmark : std::views::reverse(bookmarks)) {
+    for (const auto* bookmark : base::Reversed(bookmarks))
       stk.emplace(bookmark, depth + 1);
-    }
   }
 }
 
@@ -896,12 +895,9 @@ void BookmarkBridge::SetPowerBookmarkMeta(JNIEnv* env,
 
   std::unique_ptr<power_bookmarks::PowerBookmarkMeta> meta =
       std::make_unique<power_bookmarks::PowerBookmarkMeta>();
-  bool parsed = false;
-  {
-    auto view = bytes.CreateViewCritical<uint8_t>(env);
-    parsed = meta->ParseFromArray(view.data(), view.size());
-  }
-  if (parsed) {
+  std::vector<uint8_t> byte_vec;
+  base::android::JavaByteArrayToByteVector(env, bytes, &byte_vec);
+  if (meta->ParseFromArray(byte_vec.data(), byte_vec.size())) {
     power_bookmarks::SetNodePowerBookmarkMeta(bookmark_model_, node,
                                               std::move(meta));
   } else {
@@ -919,9 +915,12 @@ BookmarkBridge::GetPowerBookmarkMeta(JNIEnv* env, int64_t id, int32_t type) {
     return ScopedJavaLocalRef<jbyteArray>(nullptr);
 
   size_t size = meta->ByteSizeLong();
+  std::string proto_bytes;
+  meta->SerializeToString(&proto_bytes);
   std::vector<uint8_t> data(size);
   meta->SerializeToArray(data.data(), size);
-  return jni_zero::NewArray(env, data);
+
+  return base::android::ToJavaByteArray(env, data);
 }
 
 void BookmarkBridge::DeletePowerBookmarkMeta(JNIEnv* env,
@@ -1727,16 +1726,17 @@ void BookmarkBridge::ReorderChildren(
 
   // populate a vector
   std::vector<const BookmarkNode*> ordered_nodes;
-  {
-    auto view = arr.CreateViewCritical(env);
-    CHECK(parent_node->children().size() == view.size());
+  jsize arraySize = env->GetArrayLength(arr.obj());
+  int64_t* elements = env->GetLongArrayElements(arr.obj(), 0);
 
-    // iterate through array, adding the BookmarkNode*s of the objects
-    for (int64_t id : view) {
-      const BookmarkNode* child_node = GetNodeByID(id, bookmark_type);
-      CHECK(child_node->parent() == parent_node);
-      ordered_nodes.push_back(child_node);
-    }
+  // iterate through array, adding the BookmarkNode*s of the objects
+  for (int i = 0; i < arraySize; ++i) {
+    const BookmarkNode* child_node =
+        GetNodeByID(UNSAFE_TODO(elements[i]), bookmark_type);
+    CHECK(child_node->parent() == parent_node);
+    CHECK(base::checked_cast<jsize>(parent_node->children().size()) ==
+          arraySize);
+    ordered_nodes.push_back(GetNodeByID(UNSAFE_TODO(elements[i]), 0));
   }
 
   bookmark_model_->ReorderChildren(parent_node, ordered_nodes);

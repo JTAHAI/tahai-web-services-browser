@@ -7,7 +7,6 @@
 #include "ash/public/cpp/shell_window_ids.h"
 #include "ash/shell.h"
 #include "ash/wm/window_util.h"
-#include "base/functional/bind.h"
 #include "base/logging.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/base/mojom/dialog_button.mojom.h"
@@ -29,6 +28,28 @@ const int kMinSize = 31;
 // After this duration in msec, the mode inicator will be fading out.
 const int kShowingDuration = 500;
 
+class ModeIndicatorFrameView : public views::BubbleFrameView {
+  METADATA_HEADER(ModeIndicatorFrameView, views::BubbleFrameView)
+
+ public:
+  explicit ModeIndicatorFrameView()
+      : views::BubbleFrameView(gfx::Insets(), gfx::Insets()) {}
+  ModeIndicatorFrameView(const ModeIndicatorFrameView&) = delete;
+  ModeIndicatorFrameView& operator=(const ModeIndicatorFrameView&) = delete;
+  ~ModeIndicatorFrameView() override {}
+
+ private:
+  // views::BubbleFrameView overrides:
+  gfx::Rect GetAvailableScreenBounds(const gfx::Rect& rect) const override {
+    return display::Screen::Get()
+        ->GetDisplayNearestPoint(rect.CenterPoint())
+        .bounds();
+  }
+};
+
+BEGIN_METADATA(ModeIndicatorFrameView)
+END_METADATA
+
 }  // namespace
 
 ImeModeIndicatorView::ImeModeIndicatorView(const gfx::Rect& cursor_bounds,
@@ -39,14 +60,6 @@ ImeModeIndicatorView::ImeModeIndicatorView(const gfx::Rect& cursor_bounds,
   set_accept_events(false);
   set_shadow(views::BubbleBorder::STANDARD_SHADOW);
   SetArrow(views::BubbleBorder::TOP_CENTER);
-  set_frame_margins({.title = gfx::Insets()});
-  set_available_screen_bounds_callback(
-      base::BindRepeating([](const gfx::Rect& rect) {
-        return display::Screen::Get()
-            ->GetDisplayNearestPoint(rect.CenterPoint())
-            .bounds();
-      }));
-
   // Ignore this view for accessibility purposes.
   SetAccessibleWindowRole(ax::mojom::Role::kNone);
 }
@@ -85,6 +98,17 @@ void ImeModeIndicatorView::Init() {
   AddChildViewRaw(label_view_.get());
 
   SetAnchorRect(cursor_bounds_);
+}
+
+std::unique_ptr<views::FrameView> ImeModeIndicatorView::CreateFrameView(
+    views::Widget* widget) {
+  auto frame = std::make_unique<ModeIndicatorFrameView>();
+  // arrow adjustment in BubbleDialogDelegateView is unnecessary because arrow
+  // of this bubble is always center.
+  auto border = std::make_unique<views::BubbleBorder>(arrow(), GetShadow());
+  border->SetColor(background_color());
+  frame->SetBubbleBorder(std::move(border));
+  return frame;
 }
 
 BEGIN_METADATA(ImeModeIndicatorView)

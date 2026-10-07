@@ -44,7 +44,7 @@ Response MemoryHandler::GetBrowserSamplingProfile(
   base::ModuleCache module_cache;
   auto samples = std::make_unique<Array<Memory::SamplingProfileNode>>();
   std::vector<base::SamplingHeapProfiler::Sample> raw_samples =
-      base::SamplingHeapProfiler::Get()->GetSamples(std::nullopt);
+      base::SamplingHeapProfiler::Get()->GetSamples(0);
 
   for (auto& sample : raw_samples) {
     auto stack = std::make_unique<Array<String>>();

@@ -15,9 +15,9 @@
 #include "base/memory/weak_ptr.h"
 #include "base/test/mock_callback.h"
 #include "mojo/public/cpp/bindings/receiver_set.h"
-#include "net/http/http_request_headers.h"
 #include "net/http/http_response_headers.h"
 #include "net/http/http_version.h"
+#include "services/network/public/mojom/http_response_headers.mojom-blink.h"
 #include "services/network/public/mojom/web_transport.mojom-blink.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -35,7 +35,6 @@
 #include "third_party/blink/renderer/bindings/core/v8/v8_readable_stream_byob_reader_read_options.h"
 #include "third_party/blink/renderer/bindings/core/v8/v8_readable_stream_read_result.h"
 #include "third_party/blink/renderer/bindings/core/v8/v8_union_arraybuffer_arraybufferview.h"
-#include "third_party/blink/renderer/bindings/core/v8/v8_union_bytestringbytestringrecord_bytestringsequencesequence.h"
 #include "third_party/blink/renderer/bindings/core/v8/v8_writable_stream.h"
 #include "third_party/blink/renderer/bindings/modules/v8/v8_web_transport_bidirectional_stream.h"
 #include "third_party/blink/renderer/bindings/modules/v8/v8_web_transport_close_info.h"
@@ -44,10 +43,8 @@
 #include "third_party/blink/renderer/bindings/modules/v8/v8_web_transport_hash.h"
 #include "third_party/blink/renderer/bindings/modules/v8/v8_web_transport_options.h"
 #include "third_party/blink/renderer/bindings/modules/v8/v8_web_transport_receive_stream_stats.h"
-#include "third_party/blink/renderer/bindings/modules/v8/v8_web_transport_send_options.h"
 #include "third_party/blink/renderer/bindings/modules/v8/v8_web_transport_send_stream_options.h"
 #include "third_party/blink/renderer/bindings/modules/v8/v8_web_transport_send_stream_stats.h"
-#include "third_party/blink/renderer/core/fetch/headers.h"
 #include "third_party/blink/renderer/core/frame/csp/content_security_policy.h"
 #include "third_party/blink/renderer/core/streams/readable_stream.h"
 #include "third_party/blink/renderer/core/streams/readable_stream_byob_reader.h"
@@ -61,7 +58,6 @@
 #include "third_party/blink/renderer/modules/webtransport/receive_stream.h"
 #include "third_party/blink/renderer/modules/webtransport/send_stream.h"
 #include "third_party/blink/renderer/modules/webtransport/test_utils.h"
-#include "third_party/blink/renderer/modules/webtransport/web_transport_datagrams_writable.h"
 #include "third_party/blink/renderer/modules/webtransport/web_transport_error.h"
 #include "third_party/blink/renderer/modules/webtransport/web_transport_receive_stream.h"
 #include "third_party/blink/renderer/modules/webtransport/web_transport_send_group.h"
@@ -101,7 +97,6 @@ class WebTransportConnector final : public mojom::blink::WebTransportConnector {
             anticipated_concurrent_incoming_unidirectional_streams,
         std::optional<uint16_t>
             anticipated_concurrent_incoming_bidirectional_streams,
-        net::HttpRequestHeaders::HeaderVector additional_headers,
         mojo::PendingRemote<network::mojom::blink::WebTransportHandshakeClient>
             handshake_client)
         : url(url),
@@ -112,7 +107,6 @@ class WebTransportConnector final : public mojom::blink::WebTransportConnector {
               anticipated_concurrent_incoming_unidirectional_streams),
           anticipated_concurrent_incoming_bidirectional_streams(
               anticipated_concurrent_incoming_bidirectional_streams),
-          additional_headers(std::move(additional_headers)),
           handshake_client(std::move(handshake_client)) {}
 
     KURL url;
@@ -124,7 +118,6 @@ class WebTransportConnector final : public mojom::blink::WebTransportConnector {
         anticipated_concurrent_incoming_unidirectional_streams;
     std::optional<uint16_t>
         anticipated_concurrent_incoming_bidirectional_streams;
-    net::HttpRequestHeaders::HeaderVector additional_headers;
     mojo::PendingRemote<network::mojom::blink::WebTransportHandshakeClient>
         handshake_client;
   };
@@ -139,14 +132,13 @@ class WebTransportConnector final : public mojom::blink::WebTransportConnector {
           anticipated_concurrent_incoming_unidirectional_streams,
       std::optional<uint16_t>
           anticipated_concurrent_incoming_bidirectional_streams,
-      net::HttpRequestHeaders::HeaderVector additional_headers,
       mojo::PendingRemote<network::mojom::blink::WebTransportHandshakeClient>
           handshake_client) override {
     connect_args_.push_back(ConnectArgs(
         url, std::move(fingerprints), application_protocols, congestion_control,
         anticipated_concurrent_incoming_unidirectional_streams,
         anticipated_concurrent_incoming_bidirectional_streams,
-        std::move(additional_headers), std::move(handshake_client)));
+        std::move(handshake_client)));
   }
 
   Vector<ConnectArgs> TakeConnectArgs() { return std::move(connect_args_); }
@@ -191,10 +183,6 @@ class MockWebTransport : public network::mojom::blink::WebTransport {
 
   MOCK_METHOD1(SetOutgoingDatagramExpirationDuration, void(base::TimeDelta));
   MOCK_METHOD1(GetStats, void(GetStatsCallback));
-  MOCK_METHOD2(
-      SetStreamPriority,
-      void(uint32_t stream_id,
-           network::mojom::blink::WebTransportStreamPriorityPtr priority));
   MOCK_METHOD0(Close, void());
   MOCK_METHOD2(Close, void(uint32_t, String));
 
@@ -241,10 +229,6 @@ class WebTransportTest : public ::testing::Test {
     return MakeGarbageCollected<WebTransportSendStreamOptions>();
   }
 
-  static WebTransportSendOptions* EmptySendOptions() {
-    return MakeGarbageCollected<WebTransportSendOptions>();
-  }
-
   // Creates a WebTransport object with the given |url|.
   WebTransport* Create(const V8TestingScope& scope,
                        const String& url,
@@ -264,21 +248,10 @@ class WebTransportTest : public ::testing::Test {
     test::RunPendingTasks();
   }
 
-  // Connects a WebTransport object with custom server response headers. Runs
-  // the event loop.
-  void ConnectSuccessfullyWithResponseHeaders(
-      WebTransport* web_transport,
-      scoped_refptr<net::HttpResponseHeaders> response_headers) {
-    ConnectSuccessfullyWithoutRunningPendingTasks(
-        web_transport, base::TimeDelta(), std::move(response_headers));
-    test::RunPendingTasks();
-  }
-
   void ConnectSuccessfullyWithoutRunningPendingTasks(
       WebTransport* web_transport,
       base::TimeDelta expected_outgoing_datagram_expiration_duration =
-          base::TimeDelta(),
-      scoped_refptr<net::HttpResponseHeaders> response_headers = nullptr) {
+          base::TimeDelta()) {
     DCHECK(!mock_web_transport_) << "Only one connection supported, sorry";
 
     test::RunPendingTasks();
@@ -322,10 +295,8 @@ class WebTransportTest : public ::testing::Test {
     handshake_client->OnConnectionEstablished(
         std::move(web_transport_to_pass),
         client_remote.InitWithNewPipeAndPassReceiver(),
-        response_headers ? std::move(response_headers)
-                         : net::HttpResponseHeaders::Builder(
-                               net::HttpVersion(1, 1), "200 OK")
-                               .Build(),
+        net::HttpResponseHeaders::Builder(net::HttpVersion(1, 1), "200 OK")
+            .Build(),
         /*selected_application_protocol=*/String(),
         network::mojom::blink::WebTransportStats::New());
     client_remote_.Bind(std::move(client_remote));
@@ -852,40 +823,6 @@ TEST_F(WebTransportTest, GarbageCollectMojoConnectionError) {
   EXPECT_TRUE(closed_tester.IsRejected());
 }
 
-TEST_F(WebTransportTest, PendingDrainingOnConnectionError) {
-  V8TestingScope scope;
-  auto* web_transport =
-      CreateAndConnectSuccessfully(scope, "https://example.com");
-
-  ScriptPromiseTester draining_tester(
-      scope.GetScriptState(), web_transport->draining(scope.GetScriptState()));
-  ScriptPromiseTester closed_tester(
-      scope.GetScriptState(), web_transport->closed(scope.GetScriptState()));
-
-  client_remote_.reset();
-  test::RunPendingTasks();
-
-  EXPECT_FALSE(draining_tester.IsFulfilled());
-  EXPECT_FALSE(draining_tester.IsRejected());
-  EXPECT_TRUE(closed_tester.IsRejected());
-  EXPECT_FALSE(web_transport->HasPendingActivity());
-}
-
-TEST_F(WebTransportTest, PendingDrainingOnContextDestroyed) {
-  V8TestingScope scope;
-  auto* web_transport =
-      CreateAndConnectSuccessfully(scope, "https://example.com");
-
-  ScriptPromiseTester draining_tester(
-      scope.GetScriptState(), web_transport->draining(scope.GetScriptState()));
-
-  scope.GetExecutionContext()->NotifyContextDestroyed();
-
-  EXPECT_FALSE(draining_tester.IsFulfilled());
-  EXPECT_FALSE(draining_tester.IsRejected());
-  EXPECT_FALSE(web_transport->HasPendingActivity());
-}
-
 TEST_F(WebTransportTest, SendDatagram) {
   V8TestingScope scope;
   auto* web_transport =
@@ -909,329 +846,6 @@ TEST_F(WebTransportTest, SendDatagram) {
   tester.WaitUntilSettled();
   EXPECT_TRUE(tester.IsFulfilled());
   EXPECT_TRUE(tester.Value().IsUndefined());
-}
-
-TEST_F(WebTransportTest, CreateDatagramsWritableDefaultsAndDistinctStreams) {
-  V8TestingScope scope;
-  auto* web_transport =
-      CreateAndConnectSuccessfully(scope, "https://example.com");
-  auto* script_state = scope.GetScriptState();
-
-  auto* writable1 = web_transport->datagrams()->createWritable(
-      script_state, EmptySendOptions(), ASSERT_NO_EXCEPTION);
-  auto* writable2 = web_transport->datagrams()->createWritable(
-      script_state, EmptySendOptions(), ASSERT_NO_EXCEPTION);
-
-  ASSERT_TRUE(writable1);
-  ASSERT_TRUE(writable2);
-  EXPECT_NE(writable1, writable2);
-  EXPECT_EQ(writable1->sendGroup(), nullptr);
-  EXPECT_EQ(writable1->sendOrder(), 0);
-  EXPECT_EQ(writable2->sendGroup(), nullptr);
-  EXPECT_EQ(writable2->sendOrder(), 0);
-
-  auto* writer = writable1->getWriter(script_state, ASSERT_NO_EXCEPTION);
-  ASSERT_TRUE(writer->GetDesiredSizeInternal().has_value());
-  EXPECT_EQ(writer->GetDesiredSizeInternal().value(), 1);
-}
-
-TEST_F(WebTransportTest, CreateDatagramsWritableUsesSendOptions) {
-  ScopedWebTransportSendGroupForTest scoped_feature(true);
-  V8TestingScope scope;
-  auto* web_transport =
-      CreateAndConnectSuccessfully(scope, "https://example.com");
-  auto* group = web_transport->createSendGroup(ASSERT_NO_EXCEPTION);
-  auto* options = EmptySendOptions();
-  options->setSendGroup(group);
-  options->setSendOrder(42);
-
-  auto* writable = web_transport->datagrams()->createWritable(
-      scope.GetScriptState(), options, ASSERT_NO_EXCEPTION);
-
-  ASSERT_TRUE(writable);
-  EXPECT_EQ(writable->sendGroup(), group);
-  EXPECT_EQ(writable->sendOrder(), 42);
-
-  writable->setSendGroup(nullptr, ASSERT_NO_EXCEPTION);
-  writable->setSendOrder(-7);
-  EXPECT_EQ(writable->sendGroup(), nullptr);
-  EXPECT_EQ(writable->sendOrder(), -7);
-}
-
-TEST_F(WebTransportTest, DatagramWritableRejectsForeignSendGroup) {
-  ScopedWebTransportSendGroupForTest scoped_feature(true);
-  V8TestingScope scope;
-  auto* web_transport =
-      CreateAndConnectSuccessfully(scope, "https://example.com");
-  auto* other_transport =
-      Create(scope, "https://other.example.com", EmptyOptions());
-  auto* other_group = other_transport->createSendGroup(ASSERT_NO_EXCEPTION);
-  auto* options = EmptySendOptions();
-  options->setSendGroup(other_group);
-
-  DummyExceptionStateForTesting create_exception_state;
-  EXPECT_FALSE(web_transport->datagrams()->createWritable(
-      scope.GetScriptState(), options, create_exception_state));
-  EXPECT_EQ(create_exception_state.CodeAs<DOMExceptionCode>(),
-            DOMExceptionCode::kInvalidStateError);
-
-  auto* writable = web_transport->datagrams()->createWritable(
-      scope.GetScriptState(), EmptySendOptions(), ASSERT_NO_EXCEPTION);
-  ASSERT_TRUE(writable);
-  DummyExceptionStateForTesting setter_exception_state;
-  writable->setSendGroup(other_group, setter_exception_state);
-  EXPECT_EQ(setter_exception_state.CodeAs<DOMExceptionCode>(),
-            DOMExceptionCode::kInvalidStateError);
-  EXPECT_EQ(writable->sendGroup(), nullptr);
-}
-
-TEST_F(WebTransportTest, MultipleDatagramWritablesSendBeforeConnect) {
-  V8TestingScope scope;
-  auto* web_transport = Create(scope, "https://example.com", EmptyOptions());
-  auto* script_state = scope.GetScriptState();
-  auto* writable1 = web_transport->datagrams()->createWritable(
-      script_state, EmptySendOptions(), ASSERT_NO_EXCEPTION);
-  auto* writable2 = web_transport->datagrams()->createWritable(
-      script_state, EmptySendOptions(), ASSERT_NO_EXCEPTION);
-  auto* writer1 = writable1->getWriter(script_state, ASSERT_NO_EXCEPTION);
-  auto* writer2 = writable2->getWriter(script_state, ASSERT_NO_EXCEPTION);
-  auto* chunk1 = DOMUint8Array::Create(1);
-  auto* chunk2 = DOMUint8Array::Create(1);
-  *chunk1->Data() = 'A';
-  *chunk2->Data() = 'B';
-  writer1->write(script_state, ScriptValue::From(script_state, chunk1),
-                 ASSERT_NO_EXCEPTION);
-  writer2->write(script_state, ScriptValue::From(script_state, chunk2),
-                 ASSERT_NO_EXCEPTION);
-
-  ConnectSuccessfullyWithoutRunningPendingTasks(web_transport);
-  EXPECT_CALL(*mock_web_transport_, SendDatagram(ElementsAre('A'), _))
-      .WillOnce([](base::span<const uint8_t>,
-                   MockWebTransport::SendDatagramCallback callback) {
-        std::move(callback).Run(true);
-      });
-  EXPECT_CALL(*mock_web_transport_, SendDatagram(ElementsAre('B'), _))
-      .WillOnce([](base::span<const uint8_t>,
-                   MockWebTransport::SendDatagramCallback callback) {
-        std::move(callback).Run(true);
-      });
-
-  test::RunPendingTasks();
-}
-
-TEST_F(WebTransportTest, ClosedDatagramWritableSendsPendingDatagram) {
-  V8TestingScope scope;
-  auto* web_transport = Create(scope, "https://example.com", EmptyOptions());
-  web_transport->datagrams()->setOutgoingMaxBufferedDatagrams(2);
-  auto* script_state = scope.GetScriptState();
-  {
-    auto* writable = web_transport->datagrams()->createWritable(
-        script_state, EmptySendOptions(), ASSERT_NO_EXCEPTION);
-    auto* writer = writable->getWriter(script_state, ASSERT_NO_EXCEPTION);
-    auto* chunk = DOMUint8Array::Create(1);
-    *chunk->Data() = 'A';
-    writer->write(script_state, ScriptValue::From(script_state, chunk),
-                  ASSERT_NO_EXCEPTION);
-
-    ScriptPromiseTester close_tester(
-        script_state, writer->close(script_state, ASSERT_NO_EXCEPTION));
-    close_tester.WaitUntilSettled();
-    ASSERT_TRUE(close_tester.IsFulfilled());
-  }
-  ThreadState::Current()->CollectAllGarbageForTesting();
-
-  ConnectSuccessfullyWithoutRunningPendingTasks(web_transport);
-  EXPECT_CALL(*mock_web_transport_, SendDatagram(ElementsAre('A'), _))
-      .WillOnce([](base::span<const uint8_t>,
-                   MockWebTransport::SendDatagramCallback callback) {
-        std::move(callback).Run(true);
-      });
-
-  test::RunPendingTasks();
-}
-
-TEST_F(WebTransportTest, PendingDatagramWritableSurvivesGarbageCollection) {
-  V8TestingScope scope;
-  auto* web_transport = Create(scope, "https://example.com", EmptyOptions());
-  auto* script_state = scope.GetScriptState();
-  {
-    auto* writable = web_transport->datagrams()->createWritable(
-        script_state, EmptySendOptions(), ASSERT_NO_EXCEPTION);
-    auto* writer = writable->getWriter(script_state, ASSERT_NO_EXCEPTION);
-    auto* chunk = DOMUint8Array::Create(1);
-    *chunk->Data() = 'A';
-    writer->write(script_state, ScriptValue::From(script_state, chunk),
-                  ASSERT_NO_EXCEPTION);
-  }
-  ThreadState::Current()->CollectAllGarbageForTesting();
-
-  ConnectSuccessfullyWithoutRunningPendingTasks(web_transport);
-  EXPECT_CALL(*mock_web_transport_, SendDatagram(ElementsAre('A'), _))
-      .WillOnce([](base::span<const uint8_t>,
-                   MockWebTransport::SendDatagramCallback callback) {
-        std::move(callback).Run(true);
-      });
-
-  test::RunPendingTasks();
-}
-
-TEST_F(WebTransportTest,
-       ConnectedDatagramWritableSurvivesGarbageCollectionWhileSending) {
-  V8TestingScope scope;
-  auto* web_transport =
-      CreateAndConnectSuccessfully(scope, "https://example.com");
-  web_transport->datagrams()->setOutgoingMaxBufferedDatagrams(2);
-  MockWebTransport::SendDatagramCallback callback;
-  EXPECT_CALL(*mock_web_transport_, SendDatagram(ElementsAre('A'), _))
-      .WillOnce([&callback](base::span<const uint8_t>,
-                            MockWebTransport::SendDatagramCallback cb) {
-        callback = std::move(cb);
-      });
-
-  WeakPersistent<WebTransportDatagramsWritable> writable;
-  auto* script_state = scope.GetScriptState();
-  {
-    writable = web_transport->datagrams()->createWritable(
-        script_state, EmptySendOptions(), ASSERT_NO_EXCEPTION);
-    auto* writer = writable->getWriter(script_state, ASSERT_NO_EXCEPTION);
-    auto* chunk = DOMUint8Array::Create(1);
-    *chunk->Data() = 'A';
-    writer->write(script_state, ScriptValue::From(script_state, chunk),
-                  ASSERT_NO_EXCEPTION);
-  }
-  test::RunPendingTasks();
-  ASSERT_TRUE(callback);
-  EXPECT_EQ(web_transport->DatagramSinksWithPendingWritesSizeForTesting(), 1u);
-
-  ThreadState::Current()->CollectAllGarbageForTesting();
-  ASSERT_TRUE(writable);
-
-  std::move(callback).Run(true);
-  test::RunPendingTasks();
-  EXPECT_EQ(web_transport->DatagramSinksWithPendingWritesSizeForTesting(), 0u);
-}
-
-TEST_F(WebTransportTest, DatagramWritableAppliesBackpressureAtBufferLimit) {
-  V8TestingScope scope;
-  auto* web_transport =
-      CreateAndConnectSuccessfully(scope, "https://example.com");
-  constexpr uint32_t kMaxBufferedDatagrams = 3;
-  web_transport->datagrams()->setOutgoingMaxBufferedDatagrams(
-      kMaxBufferedDatagrams);
-
-  Vector<MockWebTransport::SendDatagramCallback> callbacks;
-  EXPECT_CALL(*mock_web_transport_, SendDatagram(_, _))
-      .Times(kMaxBufferedDatagrams)
-      .WillRepeatedly(
-          [&callbacks](base::span<const uint8_t>,
-                       MockWebTransport::SendDatagramCallback callback) {
-            callbacks.push_back(std::move(callback));
-          });
-
-  auto* script_state = scope.GetScriptState();
-  auto* writable = web_transport->datagrams()->createWritable(
-      script_state, EmptySendOptions(), ASSERT_NO_EXCEPTION);
-  auto* writer = writable->getWriter(script_state, ASSERT_NO_EXCEPTION);
-  auto* chunk = DOMUint8Array::Create(1);
-
-  for (uint32_t i = 0; i < kMaxBufferedDatagrams - 1; ++i) {
-    writer->write(script_state, ScriptValue::From(script_state, chunk),
-                  ASSERT_NO_EXCEPTION);
-    scope.PerformMicrotaskCheckpoint();
-    EXPECT_EQ(writer->ready(script_state).V8Promise()->State(),
-              v8::Promise::kFulfilled);
-  }
-
-  writer->write(script_state, ScriptValue::From(script_state, chunk),
-                ASSERT_NO_EXCEPTION);
-  scope.PerformMicrotaskCheckpoint();
-  EXPECT_EQ(writer->ready(script_state).V8Promise()->State(),
-            v8::Promise::kPending);
-
-  test::RunPendingTasks();
-  ASSERT_EQ(callbacks.size(), kMaxBufferedDatagrams);
-  std::move(callbacks.front()).Run(true);
-  test::RunPendingTasks();
-  scope.PerformMicrotaskCheckpoint();
-  EXPECT_EQ(writer->ready(script_state).V8Promise()->State(),
-            v8::Promise::kPending);
-
-  for (wtf_size_t i = 1; i < callbacks.size(); ++i) {
-    std::move(callbacks[i]).Run(true);
-  }
-  test::RunPendingTasks();
-  scope.PerformMicrotaskCheckpoint();
-  EXPECT_EQ(writer->ready(script_state).V8Promise()->State(),
-            v8::Promise::kFulfilled);
-}
-
-TEST_F(WebTransportTest, ConnectionErrorRejectsAllDatagramWritables) {
-  V8TestingScope scope;
-  auto* web_transport =
-      CreateAndConnectSuccessfully(scope, "https://example.com");
-  MockWebTransport::SendDatagramCallback callback1;
-  MockWebTransport::SendDatagramCallback callback2;
-  EXPECT_CALL(*mock_web_transport_, SendDatagram(ElementsAre('A'), _))
-      .WillOnce([&callback1](base::span<const uint8_t>,
-                             MockWebTransport::SendDatagramCallback callback) {
-        callback1 = std::move(callback);
-      });
-  EXPECT_CALL(*mock_web_transport_, SendDatagram(ElementsAre('B'), _))
-      .WillOnce([&callback2](base::span<const uint8_t>,
-                             MockWebTransport::SendDatagramCallback callback) {
-        callback2 = std::move(callback);
-      });
-
-  auto* script_state = scope.GetScriptState();
-  auto* writable1 = web_transport->datagrams()->createWritable(
-      script_state, EmptySendOptions(), ASSERT_NO_EXCEPTION);
-  auto* writable2 = web_transport->datagrams()->createWritable(
-      script_state, EmptySendOptions(), ASSERT_NO_EXCEPTION);
-  auto* writer1 = writable1->getWriter(script_state, ASSERT_NO_EXCEPTION);
-  auto* writer2 = writable2->getWriter(script_state, ASSERT_NO_EXCEPTION);
-  auto* chunk1 = DOMUint8Array::Create(1);
-  auto* chunk2 = DOMUint8Array::Create(1);
-  *chunk1->Data() = 'A';
-  *chunk2->Data() = 'B';
-  ScriptPromiseTester tester1(
-      script_state,
-      writer1->write(script_state, ScriptValue::From(script_state, chunk1),
-                     ASSERT_NO_EXCEPTION));
-  ScriptPromiseTester tester2(
-      script_state,
-      writer2->write(script_state, ScriptValue::From(script_state, chunk2),
-                     ASSERT_NO_EXCEPTION));
-  test::RunPendingTasks();
-
-  client_remote_.reset();
-  test::RunPendingTasks();
-  ASSERT_TRUE(callback1);
-  ASSERT_TRUE(callback2);
-  std::move(callback1).Run(false);
-  std::move(callback2).Run(false);
-  mock_web_transport_.reset();
-  tester1.WaitUntilSettled();
-  tester2.WaitUntilSettled();
-
-  EXPECT_TRUE(tester1.IsRejected());
-  EXPECT_TRUE(tester2.IsRejected());
-  EXPECT_TRUE(writable1->IsErrored());
-  EXPECT_TRUE(writable2->IsErrored());
-}
-
-TEST_F(WebTransportTest, CreateDatagramsWritableAfterCloseThrows) {
-  V8TestingScope scope;
-  auto* web_transport =
-      CreateAndConnectSuccessfully(scope, "https://example.com");
-  EXPECT_CALL(*mock_web_transport_, Close());
-  web_transport->close(nullptr);
-  test::RunPendingTasks();
-
-  DummyExceptionStateForTesting exception_state;
-  EXPECT_FALSE(web_transport->datagrams()->createWritable(
-      scope.GetScriptState(), EmptySendOptions(), exception_state));
-  EXPECT_EQ(exception_state.CodeAs<DOMExceptionCode>(),
-            DOMExceptionCode::kInvalidStateError);
 }
 
 TEST_F(WebTransportTest, SendDatagramConnectionErrorWhilePending) {
@@ -2848,22 +2462,6 @@ TEST_F(WebTransportTest, SendStreamSetSendGroup) {
         std::move(callback).Run(true, 0);
       });
 
-  auto* group = web_transport->createSendGroup(ASSERT_NO_EXCEPTION);
-  ASSERT_TRUE(group);
-  EXPECT_CALL(*mock_web_transport_, SetStreamPriority(0u, _))
-      .WillOnce([&](uint32_t,
-                    network::mojom::blink::WebTransportStreamPriorityPtr p) {
-        ASSERT_TRUE(p);
-        EXPECT_EQ(p->send_group_id, std::optional<uint32_t>(group->group_id()));
-        EXPECT_EQ(p->send_order, 0);
-      })
-      .WillOnce(
-          [](uint32_t, network::mojom::blink::WebTransportStreamPriorityPtr p) {
-            ASSERT_TRUE(p);
-            EXPECT_FALSE(p->send_group_id.has_value());
-            EXPECT_EQ(p->send_order, 0);
-          });
-
   auto* script_state = scope.GetScriptState();
   auto send_stream_promise = web_transport->createUnidirectionalStream(
       script_state, EmptySendStreamOptions(), ASSERT_NO_EXCEPTION);
@@ -2877,23 +2475,16 @@ TEST_F(WebTransportTest, SendStreamSetSendGroup) {
   auto* send_stream = DynamicTo<WebTransportSendStream>(writable);
   ASSERT_TRUE(send_stream);
 
-  // Assigning a send group sends a priority update over Mojo.
-  // Re-setting the default group must not send a priority update.
-  send_stream->setSendGroup(nullptr, ASSERT_NO_EXCEPTION);
-  test::RunPendingTasks();
+  // Create a send group and assign it.
+  auto* group = web_transport->createSendGroup(ASSERT_NO_EXCEPTION);
+  ASSERT_TRUE(group);
 
   send_stream->setSendGroup(group, ASSERT_NO_EXCEPTION);
   EXPECT_EQ(send_stream->sendGroup(), group);
-  test::RunPendingTasks();
 
-  // Re-setting the current group must not send a priority update.
-  send_stream->setSendGroup(group, ASSERT_NO_EXCEPTION);
-  test::RunPendingTasks();
-
-  // Setting to null sends another update that clears the group.
+  // Setting to null should also work.
   send_stream->setSendGroup(nullptr, ASSERT_NO_EXCEPTION);
   EXPECT_EQ(send_stream->sendGroup(), nullptr);
-  test::RunPendingTasks();
 }
 
 TEST_F(WebTransportTest, SendStreamSetSendGroupCrossTransportThrows) {
@@ -2955,19 +2546,6 @@ TEST_F(WebTransportTest, SendStreamSetSendOrder) {
         std::move(callback).Run(true, 0);
       });
 
-  EXPECT_CALL(*mock_web_transport_, SetStreamPriority(0u, _))
-      .WillOnce(
-          [](uint32_t, network::mojom::blink::WebTransportStreamPriorityPtr p) {
-            ASSERT_TRUE(p);
-            EXPECT_FALSE(p->send_group_id.has_value());
-            EXPECT_EQ(p->send_order, 42);
-          })
-      .WillOnce(
-          [](uint32_t, network::mojom::blink::WebTransportStreamPriorityPtr p) {
-            ASSERT_TRUE(p);
-            EXPECT_EQ(p->send_order, -100);
-          });
-
   auto* script_state = scope.GetScriptState();
   auto send_stream_promise = web_transport->createUnidirectionalStream(
       script_state, EmptySendStreamOptions(), ASSERT_NO_EXCEPTION);
@@ -2981,22 +2559,11 @@ TEST_F(WebTransportTest, SendStreamSetSendOrder) {
   auto* send_stream = DynamicTo<WebTransportSendStream>(writable);
   ASSERT_TRUE(send_stream);
 
-  // Setting sendOrder sends a priority update over Mojo.
-  // Re-setting the default order must not send a priority update.
-  send_stream->setSendOrder(0);
-  test::RunPendingTasks();
-
   send_stream->setSendOrder(42);
   EXPECT_EQ(send_stream->sendOrder(), 42);
-  test::RunPendingTasks();
-
-  // Re-setting the current order must not send a priority update.
-  send_stream->setSendOrder(42);
-  test::RunPendingTasks();
 
   send_stream->setSendOrder(-100);
   EXPECT_EQ(send_stream->sendOrder(), -100);
-  test::RunPendingTasks();
 }
 
 TEST_F(WebTransportTest, SendStreamGetStats) {
@@ -3075,22 +2642,6 @@ TEST_F(WebTransportTest, BidirectionalStreamWritableIsSendStream) {
         std::move(callback).Run(true, 0);
       });
 
-  auto* group = web_transport->createSendGroup(ASSERT_NO_EXCEPTION);
-  ASSERT_TRUE(group);
-  EXPECT_CALL(*mock_web_transport_, SetStreamPriority(0u, _))
-      .WillOnce([&](uint32_t,
-                    network::mojom::blink::WebTransportStreamPriorityPtr p) {
-        ASSERT_TRUE(p);
-        EXPECT_EQ(p->send_group_id, std::optional<uint32_t>(group->group_id()));
-        EXPECT_EQ(p->send_order, 0);
-      })
-      .WillOnce([&](uint32_t,
-                    network::mojom::blink::WebTransportStreamPriorityPtr p) {
-        ASSERT_TRUE(p);
-        EXPECT_EQ(p->send_group_id, std::optional<uint32_t>(group->group_id()));
-        EXPECT_EQ(p->send_order, 55);
-      });
-
   auto* script_state = scope.GetScriptState();
   auto bidirectional_stream_promise = web_transport->createBidirectionalStream(
       script_state, EmptySendStreamOptions(), ASSERT_NO_EXCEPTION);
@@ -3109,17 +2660,9 @@ TEST_F(WebTransportTest, BidirectionalStreamWritableIsSendStream) {
   auto* send_stream = DynamicTo<WebTransportSendStream>(writable);
   ASSERT_TRUE(send_stream);
 
-  // Default attribute values should not be sent to the network.
+  // Default attribute values.
   EXPECT_EQ(send_stream->sendGroup(), nullptr);
   EXPECT_EQ(send_stream->sendOrder(), 0);
-
-  send_stream->setSendGroup(group, ASSERT_NO_EXCEPTION);
-  EXPECT_EQ(send_stream->sendGroup(), group);
-  test::RunPendingTasks();
-
-  send_stream->setSendOrder(55);
-  EXPECT_EQ(send_stream->sendOrder(), 55);
-  test::RunPendingTasks();
 }
 
 TEST_F(WebTransportTest, CreateSendStreamFlagOffReturnsSendStream) {
@@ -3242,7 +2785,6 @@ TEST_F(WebTransportTest, CreateUnidirectionalStreamWithSendOrderOnly) {
   auto* options = MakeGarbageCollected<WebTransportSendStreamOptions>();
   options->setSendOrder(99);
 
-  EXPECT_CALL(*mock_web_transport_, SetStreamPriority(_, _)).Times(0);
   EXPECT_CALL(*mock_web_transport_, CreateStream(_, _, _, _))
       .WillOnce(
           [](Unused, Unused,
@@ -3260,7 +2802,6 @@ TEST_F(WebTransportTest, CreateUnidirectionalStreamWithSendOrderOnly) {
 
   tester.WaitUntilSettled();
   ASSERT_TRUE(tester.IsFulfilled());
-  test::RunPendingTasks();
 
   auto* writable = V8WritableStream::ToWrappable(scope.GetIsolate(),
                                                  tester.Value().V8Value());
@@ -3925,186 +3466,6 @@ TEST_F(WebTransportTest, AnticipatedStreamsSetterStoresValue) {
       std::nullopt);
   EXPECT_EQ(web_transport->anticipatedConcurrentIncomingUnidirectionalStreams(),
             std::nullopt);
-}
-
-TEST_F(WebTransportTest, ResponseHeadersNullBeforeConnection) {
-  V8TestingScope scope;
-  AddBinder(scope);
-  auto* web_transport = WebTransport::Create(
-      scope.GetScriptState(), String("https://example.com/"), EmptyOptions(),
-      ASSERT_NO_EXCEPTION);
-  EXPECT_EQ(web_transport->responseHeaders(), nullptr);
-}
-
-TEST_F(WebTransportTest, ResponseHeadersNotNullAfterConnection) {
-  ScopedWebTransportHeadersForTest scoped_feature(true);
-  V8TestingScope scope;
-  auto* web_transport =
-      CreateAndConnectSuccessfully(scope, String("https://example.com/"));
-  // Per spec, responseHeaders should be an empty Headers object, not null,
-  // even when the server sends no custom headers.
-  EXPECT_NE(web_transport->responseHeaders(), nullptr);
-}
-
-TEST_F(WebTransportTest, AdditionalHeadersEmptyByDefault) {
-  V8TestingScope scope;
-  AddBinder(scope);
-  WebTransport::Create(scope.GetScriptState(), String("https://example.com/"),
-                       EmptyOptions(), ASSERT_NO_EXCEPTION);
-
-  test::RunPendingTasks();
-  auto args = connector_.TakeConnectArgs();
-  ASSERT_EQ(1u, args.size());
-  EXPECT_TRUE(args[0].additional_headers.empty());
-}
-
-TEST_F(WebTransportTest, AdditionalHeadersSentWhenEnabled) {
-  ScopedWebTransportHeadersForTest scoped_feature(true);
-  V8TestingScope scope;
-  AddBinder(scope);
-
-  auto* options = MakeGarbageCollected<WebTransportOptions>();
-  options->setHeaders(MakeGarbageCollected<V8HeadersInit>(
-      Vector<std::pair<String, String>>{{"X-Custom-Header", "value"}}));
-  WebTransport::Create(scope.GetScriptState(), String("https://example.com/"),
-                       options, ASSERT_NO_EXCEPTION);
-
-  test::RunPendingTasks();
-  auto args = connector_.TakeConnectArgs();
-  ASSERT_EQ(1u, args.size());
-  ASSERT_EQ(1u, args[0].additional_headers.size());
-  EXPECT_EQ(args[0].additional_headers[0].key, "X-Custom-Header");
-  EXPECT_EQ(args[0].additional_headers[0].value, "value");
-}
-
-TEST_F(WebTransportTest, AdditionalHeaderValueBytesPreserved) {
-  ScopedWebTransportHeadersForTest scoped_feature(true);
-  V8TestingScope scope;
-  AddBinder(scope);
-
-  std::array<uint8_t, 0x80> high_bytes;
-  for (size_t i = 0; i < high_bytes.size(); ++i) {
-    high_bytes[i] = static_cast<uint8_t>(0x80 + i);
-  }
-  const String value(base::as_byte_span(high_bytes));
-
-  auto* options = MakeGarbageCollected<WebTransportOptions>();
-  options->setHeaders(MakeGarbageCollected<V8HeadersInit>(
-      Vector<std::pair<String, String>>{{"x-bytes", value}}));
-  WebTransport::Create(scope.GetScriptState(), String("https://example.com/"),
-                       options, ASSERT_NO_EXCEPTION);
-
-  test::RunPendingTasks();
-  auto args = connector_.TakeConnectArgs();
-  ASSERT_EQ(1u, args.size());
-  ASSERT_EQ(1u, args[0].additional_headers.size());
-  EXPECT_EQ(args[0].additional_headers[0].key, "x-bytes");
-  EXPECT_EQ(String(base::as_byte_span(args[0].additional_headers[0].value)),
-            value);
-}
-
-TEST_F(WebTransportTest, WtAvailableProtocolsHeaderRejected) {
-  ScopedWebTransportHeadersForTest scoped_feature(true);
-  V8TestingScope scope;
-  AddBinder(scope);
-  auto& exception_state = scope.GetExceptionState();
-
-  auto* options = MakeGarbageCollected<WebTransportOptions>();
-  options->setHeaders(MakeGarbageCollected<V8HeadersInit>(
-      Vector<std::pair<String, String>>{{"wt-available-protocols", "h3"}}));
-  WebTransport::Create(scope.GetScriptState(), String("https://example.com/"),
-                       options, exception_state);
-
-  EXPECT_TRUE(exception_state.HadException());
-  EXPECT_EQ("The 'wt-available-protocols' header cannot be set.",
-            exception_state.Message());
-  test::RunPendingTasks();
-  EXPECT_TRUE(connector_.TakeConnectArgs().empty());
-}
-
-TEST_F(WebTransportTest, ForbiddenRequestHeaderDropped) {
-  ScopedWebTransportHeadersForTest scoped_feature(true);
-  V8TestingScope scope;
-  AddBinder(scope);
-
-  auto* options = MakeGarbageCollected<WebTransportOptions>();
-  // "x-allowed" is an allowed header; "host" is a forbidden header.
-  options->setHeaders(
-      MakeGarbageCollected<V8HeadersInit>(Vector<std::pair<String, String>>{
-          {"host", "evil.example"}, {"x-allowed", "ok"}}));
-  WebTransport::Create(scope.GetScriptState(), String("https://example.com/"),
-                       options, ASSERT_NO_EXCEPTION);
-
-  test::RunPendingTasks();
-  auto args = connector_.TakeConnectArgs();
-  ASSERT_EQ(1u, args.size());
-  ASSERT_EQ(1u, args[0].additional_headers.size());
-  EXPECT_EQ(args[0].additional_headers[0].key, "x-allowed");
-}
-
-TEST_F(WebTransportTest, InvalidHeaderNameRejected) {
-  ScopedWebTransportHeadersForTest scoped_feature(true);
-  V8TestingScope scope;
-  AddBinder(scope);
-  auto& exception_state = scope.GetExceptionState();
-
-  auto* options = MakeGarbageCollected<WebTransportOptions>();
-  options->setHeaders(MakeGarbageCollected<V8HeadersInit>(
-      Vector<std::pair<String, String>>{{"invalid header", "value"}}));
-  WebTransport::Create(scope.GetScriptState(), String("https://example.com/"),
-                       options, exception_state);
-
-  EXPECT_TRUE(exception_state.HadException());
-  test::RunPendingTasks();
-  EXPECT_TRUE(connector_.TakeConnectArgs().empty());
-}
-
-TEST_F(WebTransportTest, ResponseHeadersExposeServerHeaders) {
-  ScopedWebTransportHeadersForTest scoped_feature(true);
-  V8TestingScope scope;
-  auto* web_transport = Create(scope, "https://example.com/", EmptyOptions());
-
-  std::array<char, 0x80> server_bytes;
-  for (size_t i = 0; i < server_bytes.size(); ++i) {
-    server_bytes[i] = static_cast<char>(0x80 + i);
-  }
-  const std::string byte_value(server_bytes.data(), server_bytes.size());
-
-  ConnectSuccessfullyWithResponseHeaders(
-      web_transport,
-      net::HttpResponseHeaders::Builder(net::HttpVersion(1, 1), "200 OK")
-          .AddHeader("x-custom-header", "custom-value")
-          .AddHeader("x-bytes", byte_value)
-          .Build());
-
-  Headers* headers = web_transport->responseHeaders();
-  ASSERT_NE(headers, nullptr);
-  EXPECT_TRUE(headers->has("x-custom-header", ASSERT_NO_EXCEPTION));
-  EXPECT_EQ("custom-value",
-            headers->get("x-custom-header", ASSERT_NO_EXCEPTION));
-  EXPECT_EQ(headers->get("x-bytes", ASSERT_NO_EXCEPTION),
-            String(base::as_byte_span(byte_value)));
-}
-
-TEST_F(WebTransportTest, ResponseHeadersStripProtocolAndCookies) {
-  ScopedWebTransportHeadersForTest scoped_feature(true);
-  V8TestingScope scope;
-  auto* web_transport = Create(scope, "https://example.com/", EmptyOptions());
-  ConnectSuccessfullyWithResponseHeaders(
-      web_transport,
-      net::HttpResponseHeaders::Builder(net::HttpVersion(1, 1), "200 OK")
-          .AddHeader("wt-protocol", "h3")
-          .AddHeader("set-cookie", "a=b")
-          .AddHeader("set-cookie2", "c=d")
-          .AddHeader("x-visible", "yes")
-          .Build());
-
-  Headers* headers = web_transport->responseHeaders();
-  ASSERT_NE(headers, nullptr);
-  EXPECT_FALSE(headers->has("wt-protocol", ASSERT_NO_EXCEPTION));
-  EXPECT_FALSE(headers->has("set-cookie", ASSERT_NO_EXCEPTION));
-  EXPECT_FALSE(headers->has("set-cookie2", ASSERT_NO_EXCEPTION));
-  EXPECT_TRUE(headers->has("x-visible", ASSERT_NO_EXCEPTION));
 }
 
 }  // namespace

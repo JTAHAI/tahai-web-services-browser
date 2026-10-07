@@ -10,6 +10,7 @@
 #include "base/functional/bind.h"
 #include "base/functional/callback.h"
 #include "base/logging.h"
+#include "mojo/core/embedder/embedder.h"
 #include "mojo/public/cpp/bindings/pending_remote.h"
 
 namespace arc::keymint {
@@ -47,9 +48,13 @@ void CertStoreBridgeKeyMint::BindToInvitation(
     mojo::OutgoingInvitation* invitation) {
   VLOG(2) << "CertStoreBridgeKeyMint::BootstrapMojoConnection";
 
-  constexpr uint64_t kCertStorePipeAttachment = 1;
-  mojo::ScopedMessagePipeHandle pipe =
-      invitation->AttachMessagePipe(kCertStorePipeAttachment);
+  mojo::ScopedMessagePipeHandle pipe;
+  if (mojo::core::IsMojoIpczEnabled()) {
+    constexpr uint64_t kCertStorePipeAttachment = 1;
+    pipe = invitation->AttachMessagePipe(kCertStorePipeAttachment);
+  } else {
+    pipe = invitation->AttachMessagePipe("arc-cert-store-keymint-pipe");
+  }
 
   if (!pipe.is_valid()) {
     LOG(ERROR) << "CertStoreBridgeKeyMint could not bind to invitation";

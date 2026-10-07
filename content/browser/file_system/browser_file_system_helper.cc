@@ -226,12 +226,13 @@ void PrepareDropDataForChildProcess(
   // browser tab.
   // TODO(https://crbug.com/858972): This seems like it could be forged by the
   // renderer. This probably needs to check that this didn't originate from the
-  // renderer.
-  // We use GrantRequestOfExternalFileUrl to limit the permissions granted.
+  // renderer... Also, this probably can just be GrantRequestURL (which doesn't
+  // yet exist) instead of GrantCommitURL.
   if (!drop_data->url_infos.empty()) {
     const GURL& url = drop_data->url_infos.front().url;
     if (url.SchemeIs(content::kExternalFileScheme)) {
-      security_policy->GrantRequestOfExternalFileUrl(child_id, url);
+      // TODO(crbug.com/379869738) Remove GetUnsafeValue.
+      security_policy->GrantCommitURL(child_id.GetUnsafeValue(), url);
     }
   }
 #endif

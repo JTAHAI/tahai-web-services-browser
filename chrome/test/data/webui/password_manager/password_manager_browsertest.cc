@@ -4,7 +4,6 @@
 
 #include "base/test/scoped_feature_list.h"
 #include "build/branding_buildflags.h"
-#include "build/build_config.h"
 #include "chrome/test/base/web_ui_mocha_browser_test.h"
 #include "components/password_manager/content/common/web_ui_constants.h"
 #include "components/password_manager/core/common/password_manager_features.h"
@@ -21,13 +20,7 @@ IN_PROC_BROWSER_TEST_F(PasswordManagerUITest, AddPasswordDialog) {
   RunTest("password_manager/add_password_dialog_test.js", "mocha.run()");
 }
 
-// TODO(crbug.com/545478765): Flaky on Windows.
-#if BUILDFLAG(IS_WIN)
-#define MAYBE_App DISABLED_App
-#else
-#define MAYBE_App App
-#endif
-IN_PROC_BROWSER_TEST_F(PasswordManagerUITest, MAYBE_App) {
+IN_PROC_BROWSER_TEST_F(PasswordManagerUITest, App) {
   RunTest("password_manager/password_manager_app_test.js", "mocha.run()");
 }
 
@@ -161,10 +154,6 @@ IN_PROC_BROWSER_TEST_F(PasswordManagerUITest, SideBar) {
 
 IN_PROC_BROWSER_TEST_F(PasswordManagerUITest, SiteFavicon) {
   RunTest("password_manager/site_favicon_test.js", "mocha.run()");
-}
-
-IN_PROC_BROWSER_TEST_F(PasswordManagerUITest, TrustedVaultErrorDialog) {
-  RunTest("password_manager/trusted_vault_error_dialog_test.js", "mocha.run()");
 }
 
 IN_PROC_BROWSER_TEST_F(PasswordManagerUITest, UserUtilsMixin) {

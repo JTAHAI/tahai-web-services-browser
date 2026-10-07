@@ -25,14 +25,16 @@ void RawPtrBackupRefImpl<AllowDangling>::AcquireInternal(uintptr_t address) {
     PA_BUILDFLAG(ENABLE_BACKUP_REF_PTR_SLOW_CHECKS)
   PA_BASE_CHECK(UseBrp(address));
 #endif
-  const auto slot_and_size =
+  auto [slot_start, slot_size] =
       partition_alloc::SlotAddressAndSize::FromBRPPool(address);
-  auto* in_slot_metadata =
-      partition_alloc::internal::InSlotMetadata::From(slot_and_size);
   if constexpr (AllowDangling) {
-    in_slot_metadata->AcquireFromUnprotectedPtr();
+    partition_alloc::PartitionRoot::InSlotMetadataPointerFromSlotStartAndSize(
+        partition_alloc::internal::UntaggedSlotStart(slot_start), slot_size)
+        ->AcquireFromUnprotectedPtr();
   } else {
-    in_slot_metadata->Acquire();
+    partition_alloc::PartitionRoot::InSlotMetadataPointerFromSlotStartAndSize(
+        partition_alloc::internal::UntaggedSlotStart(slot_start), slot_size)
+        ->Acquire();
   }
 }
 
@@ -42,17 +44,25 @@ void RawPtrBackupRefImpl<AllowDangling>::ReleaseInternal(uintptr_t address) {
     PA_BUILDFLAG(ENABLE_BACKUP_REF_PTR_SLOW_CHECKS)
   PA_BASE_CHECK(UseBrp(address));
 #endif
-  const auto slot_and_size =
+  auto [slot_start, slot_size] =
       partition_alloc::SlotAddressAndSize::FromBRPPool(address);
-  auto* in_slot_metadata =
-      partition_alloc::internal::InSlotMetadata::From(slot_and_size);
   if constexpr (AllowDangling) {
-    if (in_slot_metadata->ReleaseFromUnprotectedPtr()) {
-      partition_alloc::PartitionRoot::FreeAfterBRPQuarantine(slot_and_size);
+    if (partition_alloc::PartitionRoot::
+            InSlotMetadataPointerFromSlotStartAndSize(
+                partition_alloc::internal::UntaggedSlotStart(slot_start),
+                slot_size)
+                ->ReleaseFromUnprotectedPtr()) {
+      partition_alloc::PartitionRoot::FreeAfterBRPQuarantine(
+          partition_alloc::internal::UntaggedSlotStart(slot_start), slot_size);
     }
   } else {
-    if (in_slot_metadata->Release()) {
-      partition_alloc::PartitionRoot::FreeAfterBRPQuarantine(slot_and_size);
+    if (partition_alloc::PartitionRoot::
+            InSlotMetadataPointerFromSlotStartAndSize(
+                partition_alloc::internal::UntaggedSlotStart(slot_start),
+                slot_size)
+                ->Release()) {
+      partition_alloc::PartitionRoot::FreeAfterBRPQuarantine(
+          partition_alloc::internal::UntaggedSlotStart(slot_start), slot_size);
     }
   }
 }
@@ -62,9 +72,10 @@ void RawPtrBackupRefImpl<AllowDangling>::ReportIfDanglingInternal(
     uintptr_t address) {
   if (partition_alloc::internal::IsUnretainedDanglingRawPtrCheckEnabled()) {
     if (IsSupportedAndNotNull(address)) {
-      const auto slot_and_size =
+      auto [slot_start, slot_size] =
           partition_alloc::SlotAddressAndSize::FromBRPPool(address);
-      partition_alloc::internal::InSlotMetadata::From(slot_and_size)
+      partition_alloc::PartitionRoot::InSlotMetadataPointerFromSlotStartAndSize(
+          partition_alloc::internal::UntaggedSlotStart(slot_start), slot_size)
           ->ReportIfDangling();
     }
   }
@@ -98,10 +109,13 @@ bool RawPtrBackupRefImpl<AllowDangling>::IsPointeeAlive(uintptr_t address) {
     PA_BUILDFLAG(ENABLE_BACKUP_REF_PTR_SLOW_CHECKS)
   PA_BASE_CHECK(UseBrp(address));
 #endif
-  const auto slot_and_size =
+  auto [slot_start, slot_size] =
       partition_alloc::SlotAddressAndSize::FromBRPPool(address);
-  return partition_alloc::internal::InSlotMetadata::From(slot_and_size)
-      ->IsAlive();
+  return partition_alloc::PartitionRoot::
+      InSlotMetadataPointerFromSlotStartAndSize(
+             partition_alloc::internal::UntaggedSlotStart(slot_start),
+             slot_size)
+          ->IsAlive();
 }
 
 // Explicitly instantiates the two BackupRefPtr variants in the .cc. This
@@ -121,7 +135,7 @@ void CheckThatAddressIsntWithinFirstPartitionPage(uintptr_t address) {
                   partition_alloc::PartitionPageSize());
   } else {
     PA_BASE_CHECK(reservation_offset_table.IsManagedByNormalBuckets(address));
-    PA_BASE_CHECK(address % partition_alloc::internal::kSuperPageSize >=
+    PA_BASE_CHECK(address % partition_alloc::kSuperPageSize >=
                   partition_alloc::PartitionPageSize());
   }
 }

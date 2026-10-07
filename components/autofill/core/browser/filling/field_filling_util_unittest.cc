@@ -9,9 +9,8 @@
 
 #include "base/strings/strcat.h"
 #include "base/strings/string_number_conversions.h"
-#include "base/test/scoped_feature_list.h"
 #include "components/autofill/core/browser/autofill_field.h"
-#include "components/autofill/core/browser/test_utils/autofill_test_util.h"
+#include "components/autofill/core/browser/test_utils/autofill_test_utils.h"
 #include "components/autofill/core/common/autofill_features.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
@@ -91,8 +90,6 @@ TEST_F(FieldFillingUtilTest, GetSelectControlByContents) {
 // TODO(crbug.com/394011769): Remove once `kAutofillAiWalletPrivatePasses` is
 // launched.
 TEST(GetObfuscatedValue, ObfuscateValueLegacy) {
-  base::test::ScopedFeatureList feature;
-  feature.InitAndDisableFeature(features::kAutofillAiWalletPrivatePasses);
   std::u16string expected = base::StrCat({kDots, kDots});
   EXPECT_EQ(GetObfuscatedValue(u"12"), expected);
 }
@@ -100,8 +97,6 @@ TEST(GetObfuscatedValue, ObfuscateValueLegacy) {
 // TODO(crbug.com/394011769): Remove once `kAutofillAiWalletPrivatePasses` is
 // launched.
 TEST(GetObfuscatedValue, ObfuscateValueWithPartialLegacy) {
-  base::test::ScopedFeatureList feature;
-  feature.InitAndDisableFeature(features::kAutofillAiWalletPrivatePasses);
   // Test partial obfuscation (keep last 2 characters).
   EXPECT_EQ(GetObfuscatedValue(u"12345", 2),
             base::StrCat({kDots, kDots, kDots, u"45"}));

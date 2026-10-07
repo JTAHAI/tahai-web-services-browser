@@ -21,7 +21,7 @@ import org.junit.runner.RunWith;
 import org.chromium.base.ContextUtils;
 import org.chromium.base.test.BaseJUnit4ClassRunner;
 import org.chromium.base.test.util.Feature;
-import org.chromium.ui.base.Clipboard.ClipboardUriMetadata;
+import org.chromium.ui.base.Clipboard.ImageFileProvider.ClipboardFileMetadata;
 
 /** Tests for ClipboardImageFileProvider. */
 @RunWith(BaseJUnit4ClassRunner.class)
@@ -46,7 +46,7 @@ public class ClipboardImageFileProviderUnitTest {
     public void testStoreLastCopiedImageMetadata() {
         long timestamp = System.currentTimeMillis();
         mClipboardImageFileProvider.storeLastCopiedImageMetadata(
-                new ClipboardUriMetadata(CONTENT_URI, timestamp));
+                new ClipboardFileMetadata(CONTENT_URI, timestamp));
 
         SharedPreferences prefs = ContextUtils.getAppSharedPreferences();
         String uriString = prefs.getString(CLIPBOARD_SHARED_URI, null);
@@ -61,9 +61,9 @@ public class ClipboardImageFileProviderUnitTest {
     public void testGetLastCopiedImageMetadata() {
         long timestamp = System.currentTimeMillis();
         mClipboardImageFileProvider.storeLastCopiedImageMetadata(
-                new ClipboardUriMetadata(CONTENT_URI, timestamp));
+                new ClipboardFileMetadata(CONTENT_URI, timestamp));
 
-        ClipboardUriMetadata metadata = mClipboardImageFileProvider.getLastCopiedImageMetadata();
+        ClipboardFileMetadata metadata = mClipboardImageFileProvider.getLastCopiedImageMetadata();
         Assert.assertTrue(CONTENT_URI.equals(metadata.uri));
         Assert.assertEquals(timestamp, metadata.timestamp);
     }
@@ -74,7 +74,7 @@ public class ClipboardImageFileProviderUnitTest {
     public void testClearLastCopiedImageMetadata() {
         long timestamp = System.currentTimeMillis();
         mClipboardImageFileProvider.storeLastCopiedImageMetadata(
-                new ClipboardUriMetadata(CONTENT_URI, timestamp));
+                new ClipboardFileMetadata(CONTENT_URI, timestamp));
 
         SharedPreferences prefs = ContextUtils.getAppSharedPreferences();
         Assert.assertTrue(prefs.contains(CLIPBOARD_SHARED_URI));

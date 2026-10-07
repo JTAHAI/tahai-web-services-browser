@@ -9,7 +9,6 @@
 #include "base/functional/callback_helpers.h"
 #include "base/run_loop.h"
 #include "base/values.h"
-#include "build/build_config.h"
 #include "chrome/browser/apps/platform_apps/app_browsertest_util.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/ash/keyboard/chrome_keyboard_controller_client.h"
@@ -449,28 +448,15 @@ IN_PROC_BROWSER_TEST_F(KeyboardControllerStateTest, OpenAndCloseAndOpen) {
 // and will not work in Multi Process Mash. TODO(stevenjb/shend): Determine
 // whether this needs to be tested in a keyboard::KeyboardController unit test.
 
-// TODO(crbug.com/547006204): Test is flaky on ChromeOS.
-#if BUILDFLAG(IS_CHROMEOS)
-#define MAYBE_StateResolvesAfterPreload DISABLED_StateResolvesAfterPreload
-#else
-#define MAYBE_StateResolvesAfterPreload StateResolvesAfterPreload
-#endif
-IN_PROC_BROWSER_TEST_F(KeyboardControllerStateTest,
-                       MAYBE_StateResolvesAfterPreload) {
+IN_PROC_BROWSER_TEST_F(KeyboardControllerStateTest, StateResolvesAfterPreload) {
   auto* controller = keyboard::KeyboardUIController::Get();
   EXPECT_EQ(controller->GetStateForTest(), keyboard::KeyboardUIState::kLoading);
   KeyboardLoadedWaiter().Wait();
   EXPECT_EQ(controller->GetStateForTest(), keyboard::KeyboardUIState::kHidden);
 }
 
-// TODO(crbug.com/547006204): Test is flaky on ChromeOS.
-#if BUILDFLAG(IS_CHROMEOS)
-#define MAYBE_OpenAndCloseAndOpenInternal DISABLED_OpenAndCloseAndOpenInternal
-#else
-#define MAYBE_OpenAndCloseAndOpenInternal OpenAndCloseAndOpenInternal
-#endif
 IN_PROC_BROWSER_TEST_F(KeyboardControllerStateTest,
-                       MAYBE_OpenAndCloseAndOpenInternal) {
+                       OpenAndCloseAndOpenInternal) {
   auto* controller = keyboard::KeyboardUIController::Get();
   controller->ShowKeyboard(false);
   // Need to wait the extension to be loaded. Hence LOADING_EXTENSION.
@@ -485,17 +471,9 @@ IN_PROC_BROWSER_TEST_F(KeyboardControllerStateTest,
   EXPECT_EQ(controller->GetStateForTest(), keyboard::KeyboardUIState::kShown);
 }
 
-// TODO(crbug.com/547006204): Test is flaky on ChromeOS.
-#if BUILDFLAG(IS_CHROMEOS)
-#define MAYBE_DisablingKeyboardGoesToInitialState \
-  DISABLED_DisablingKeyboardGoesToInitialState
-#else
-#define MAYBE_DisablingKeyboardGoesToInitialState \
-  DisablingKeyboardGoesToInitialState
-#endif
 // See crbug.com/41339286.
 IN_PROC_BROWSER_TEST_F(KeyboardControllerStateTest,
-                       MAYBE_DisablingKeyboardGoesToInitialState) {
+                       DisablingKeyboardGoesToInitialState) {
   auto* controller = keyboard::KeyboardUIController::Get();
 
   EXPECT_EQ(controller->GetStateForTest(), keyboard::KeyboardUIState::kLoading);

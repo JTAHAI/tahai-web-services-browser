@@ -15,8 +15,7 @@
 #include "chrome/browser/password_manager/factories/password_reuse_manager_factory.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/signin/identity_test_environment_profile_adaptor.h"
-#include "chrome/browser/ssl/chrome_security_state_util.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/chrome_pages.h"
 #include "chrome/browser/ui/hats/mock_trust_safety_sentiment_service.h"
 #include "chrome/browser/ui/hats/trust_safety_sentiment_service.h"
@@ -39,7 +38,6 @@
 #include "components/password_manager/core/browser/password_store/fake_password_store_backend.h"
 #include "components/password_manager/core/browser/password_store/password_form_converters.h"
 #include "components/password_manager/core/browser/password_store/test_password_store.h"
-#include "components/password_manager/core/browser/password_string.h"
 #include "components/password_manager/core/browser/ui/password_check_referrer.h"
 #include "components/password_manager/core/common/password_manager_pref_names.h"
 #include "components/prefs/pref_service.h"
@@ -50,6 +48,7 @@
 #include "components/safe_browsing/content/browser/password_protection/password_protection_test_util.h"
 #include "components/safe_browsing/core/browser/password_protection/metrics_util.h"
 #include "components/safe_browsing/core/common/safe_browsing_prefs.h"
+#include "components/security_state/content/security_state_tab_helper.h"
 #include "components/security_state/core/security_state.h"
 #include "components/signin/public/identity_manager/account_info.h"
 #include "components/signin/public/identity_manager/identity_test_environment.h"
@@ -70,7 +69,6 @@
 using password_manager::FakePasswordStoreBackend;
 using password_manager::PasswordForm;
 using password_manager::PasswordStoreInterface;
-using password_manager::PasswordString;
 using signin::constants::kNoHostedDomainFound;
 using ::testing::_;
 using ::testing::ElementsAre;
@@ -86,7 +84,7 @@ PasswordForm CreatePasswordFormWithPhishedEntry(std::string signon_realm,
   form.signon_realm = signon_realm;
   form.url = GURL(signon_realm);
   form.username_value = username;
-  form.password_value = PasswordString(u"password");
+  form.password_value = u"password";
   form.in_store = PasswordForm::Store::kProfileStore;
   form.password_issues = {
       {password_manager::InsecureType::kPhished,
@@ -167,12 +165,16 @@ class ChromePasswordProtectionServiceBrowserTest : public InProcessBrowserTest {
 
   security_state::SecurityLevel GetSecurityLevel(
       content::WebContents* web_contents) {
-    return chrome_security_state::GetSecurityLevel(web_contents);
+    SecurityStateTabHelper* helper =
+        SecurityStateTabHelper::FromWebContents(web_contents);
+    return helper->GetSecurityLevel();
   }
 
   std::unique_ptr<security_state::VisibleSecurityState> GetVisibleSecurityState(
       content::WebContents* web_contents) {
-    return chrome_security_state::GetVisibleSecurityState(web_contents);
+    SecurityStateTabHelper* helper =
+        SecurityStateTabHelper::FromWebContents(web_contents);
+    return helper->GetVisibleSecurityState();
   }
 
   void SetUpInProcessBrowserTestFixture() override {
@@ -208,9 +210,8 @@ class ChromePasswordProtectionServiceBrowserTest : public InProcessBrowserTest {
   void ConfigureEnterprisePasswordProtection(
       bool is_gsuite,
       PasswordProtectionTrigger trigger_type) {
-    if (is_gsuite) {
+    if (is_gsuite)
       SetUpPrimaryAccountWithHostedDomain("example.com");
-    }
     browser()->GetProfile()->GetPrefs()->SetInteger(
         prefs::kPasswordProtectionWarningTrigger, trigger_type);
     browser()->GetProfile()->GetPrefs()->SetString(
@@ -598,10 +599,10 @@ IN_PROC_BROWSER_TEST_F(ChromePasswordProtectionServiceBrowserTest,
                     .size());
 
   // Opens a new browser window.
-  BrowserWindowInterface* browser2 = CreateBrowser(profile);
+  Browser* browser2 = CreateBrowser(profile);
   // Shows modal dialog on this new web_contents.
   content::WebContents* new_web_contents =
-      browser2->GetTabStripModel()->GetActiveWebContents();
+      browser2->tab_strip_model()->GetActiveWebContents();
   ASSERT_TRUE(ui_test_utils::NavigateToURL(
       browser2, GURL("data:text/html,<html></html>")));
   scoped_refptr<PasswordProtectionRequest> new_request =
@@ -1078,9 +1079,8 @@ class ChromePasswordProtectionServiceNavigationDeferralBrowserTest
         /*trigger_type=*/LoginReputationClientRequest::PASSWORD_REUSE_EVENT,
         /*password_field_exists=*/true,
         /*otp_phishing_verdict_callback=*/std::nullopt);
-    if (service->get_pending_requests_for_testing().size() != 1ul) {
+    if (service->get_pending_requests_for_testing().size() != 1ul)
       return nullptr;
-    }
 
     return *service->get_pending_requests_for_testing().begin();
   }
@@ -1096,9 +1096,8 @@ class ChromePasswordProtectionServiceNavigationDeferralBrowserTest
       PasswordProtectionRequest* request) {
     auto* request_content =
         static_cast<PasswordProtectionRequestContent*>(request);
-    if (request_content->get_deferred_navigations_for_testing().size() != 1ul) {
+    if (request_content->get_deferred_navigations_for_testing().size() != 1ul)
       return nullptr;
-    }
 
     return *request_content->get_deferred_navigations_for_testing().begin();
   }
@@ -1127,9 +1126,8 @@ class ChromePasswordProtectionServiceNavigationDeferralBrowserTest
 
     // If the navigation finished, fail the test.
     EXPECT_TRUE(navigation_manager.GetNavigationHandle());
-    if (!navigation_manager.GetNavigationHandle()) {
+    if (!navigation_manager.GetNavigationHandle())
       return false;
-    }
 
     // We must be blocked on a CommitDeferringCondition, otherwise, some new
     // yield point was added after the response but before
@@ -1157,9 +1155,8 @@ class ChromePasswordProtectionServiceNavigationDeferralBrowserTest
 
     // If the navigation finished, fail the test.
     EXPECT_TRUE(navigation_manager.GetNavigationHandle());
-    if (!navigation_manager.GetNavigationHandle()) {
+    if (!navigation_manager.GetNavigationHandle())
       return false;
-    }
 
     // Ensure the navigation is deferred on the condition we expect.
     EXPECT_EQ(navigation_manager.GetNavigationHandle()
@@ -1326,9 +1323,8 @@ class ChromePasswordProtectionServiceDeferActivationBrowserTest
 
     // If the navigation finished, fail the test.
     EXPECT_TRUE(prerender_manager.GetNavigationHandle());
-    if (!prerender_manager.GetNavigationHandle()) {
+    if (!prerender_manager.GetNavigationHandle())
       return false;
-    }
 
     // If the navigation yielded on a condition before the
     // PasswordProtectionCommitDeferringCondition, continue until it is
@@ -1338,9 +1334,8 @@ class ChromePasswordProtectionServiceDeferActivationBrowserTest
 
     // If the navigation finished, fail the test.
     EXPECT_TRUE(prerender_manager.GetNavigationHandle());
-    if (!prerender_manager.GetNavigationHandle()) {
+    if (!prerender_manager.GetNavigationHandle())
       return false;
-    }
 
     // Ensure the navigation is deferred on the condition we expect.
     EXPECT_EQ(prerender_manager.GetNavigationHandle()

@@ -48,7 +48,6 @@ class AutofillClientIOS : public AutofillClient {
 
   // AutofillClient:
   std::u16string_view GetPageTitle() const override;
-  AutofillManager* GetAutofillManagerForPrimaryMainFrame() override;
 
   base::WeakPtr<AutofillClientIOS> AsWeakPtr();
 

@@ -1,8 +1,6 @@
 // Copyright 2025 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-import type {VisualBrowserProxy} from '../app/visual_browser_proxy.js';
-import {VisualBrowserProxyImpl} from '../app/visual_browser_proxy.js';
 import type {Segment} from '../read_aloud/read_aloud_types.js';
 import {SpeechController} from '../read_aloud/speech_controller.js';
 import {isForwardArrow, isLineFocusShortcut, isVerticalArrow} from '../shared/keyboard_util.js';
@@ -37,8 +35,6 @@ export class LineFocusController implements MoveModeDelegate {
   private readonly listeners_: LineFocusListener[] = [];
   private speechController_ = SpeechController.getInstance();
   private logger_ = ReadAnythingLogger.getInstance();
-  private visualBrowserProxy_: VisualBrowserProxy =
-      VisualBrowserProxyImpl.getInstance();
 
   constructor(private model_: LineFocusModel = new LineFocusModel()) {
     const styleMode =
@@ -68,12 +64,12 @@ export class LineFocusController implements MoveModeDelegate {
   }
 
   isEnabled(): boolean {
-    return this.visualBrowserProxy_.isLineFocusEnabled() &&
+    return chrome.readingMode.isLineFocusEnabled &&
         this.model_.isSessionActive();
   }
 
   onKeyDown(e: KeyboardEvent, container: HTMLElement, height: number): boolean {
-    if (!this.visualBrowserProxy_.isLineFocusEnabled()) {
+    if (!chrome.readingMode.isLineFocusEnabled) {
       return false;
     }
 
@@ -92,20 +88,20 @@ export class LineFocusController implements MoveModeDelegate {
   }
 
   onScrollEnd(newScrollTop: number) {
-    if (this.visualBrowserProxy_.isLineFocusEnabled()) {
+    if (chrome.readingMode.isLineFocusEnabled) {
       this.model_.getCurrentMoveMode().onScrollEnd(newScrollTop);
     }
   }
 
   onMouseMove(y: number) {
-    if (this.visualBrowserProxy_.isLineFocusEnabled() &&
+    if (chrome.readingMode.isLineFocusEnabled &&
         !this.speechController_.isSpeechActive()) {
       this.model_.getCurrentMoveMode().onMouseMove(y);
     }
   }
 
   onMouseMoveInToolbar(y: number) {
-    if (this.visualBrowserProxy_.isLineFocusEnabled() &&
+    if (chrome.readingMode.isLineFocusEnabled &&
         !this.speechController_.isSpeechActive()) {
       this.model_.getCurrentMoveMode().onMouseMoveInToolbar(y);
     }
@@ -121,13 +117,13 @@ export class LineFocusController implements MoveModeDelegate {
   }
 
   onWordBoundary(segments: Segment[]) {
-    if (this.visualBrowserProxy_.isLineFocusEnabled()) {
+    if (chrome.readingMode.isLineFocusEnabled) {
       this.model_.getCurrentMoveMode().onWordBoundary(segments);
     }
   }
 
   onTextLocationsChange(container: HTMLElement, height: number) {
-    if (this.visualBrowserProxy_.isLineFocusEnabled()) {
+    if (chrome.readingMode.isLineFocusEnabled) {
       this.model_.getCurrentMoveMode().onTextLocationsChange(container, height);
     }
   }
@@ -189,16 +185,16 @@ export class LineFocusController implements MoveModeDelegate {
 
   private propagateLineFocus_(
       style: LineFocusStyle, movement: LineFocusMovement) {
-    if (!this.visualBrowserProxy_.isLineFocusEnabled()) {
+    if (!chrome.readingMode.isLineFocusEnabled) {
       return;
     }
     const lineFocusValue = this.model_.isSessionActive() ?
         this.lineFocusToEnumValue_(style, movement) :
-        this.visualBrowserProxy_.getLineFocusOff();
+        chrome.readingMode.lineFocusOff;
     const lastNonDisabledLineFocus =
         this.lineFocusToEnumValue_(style, movement);
     if (lineFocusValue !== null && lastNonDisabledLineFocus !== null) {
-      this.visualBrowserProxy_.onLineFocusChanged(
+      chrome.readingMode.onLineFocusChanged(
           lineFocusValue, lastNonDisabledLineFocus);
     }
   }
@@ -214,7 +210,7 @@ export class LineFocusController implements MoveModeDelegate {
   }
 
   toggle(isOn: boolean, container: HTMLElement, height: number) {
-    if (!this.visualBrowserProxy_.isLineFocusEnabled()) {
+    if (!chrome.readingMode.isLineFocusEnabled) {
       return;
     }
     if (this.isEnabled() === isOn) {

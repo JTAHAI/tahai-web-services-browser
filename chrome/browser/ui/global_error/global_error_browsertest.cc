@@ -24,7 +24,6 @@
 #include "chrome/browser/extensions/scoped_test_mv2_enabler.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/global_error/global_error_observer.h"
 #include "chrome/browser/ui/global_error/global_error_service.h"
 #include "chrome/browser/ui/global_error/global_error_service_factory.h"
@@ -51,7 +50,7 @@
 namespace {
 
 // Shows the first GlobalError with associated UI associated with |browser|.
-void ShowPendingError(BrowserWindowInterface* browser) {
+void ShowPendingError(Browser* browser) {
   GlobalErrorService* service =
       GlobalErrorServiceFactory::GetForProfile(browser->GetProfile());
   GlobalError* error = service->GetFirstGlobalErrorWithBubbleView();

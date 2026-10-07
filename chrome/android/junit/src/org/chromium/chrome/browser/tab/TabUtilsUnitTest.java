@@ -60,6 +60,7 @@ import org.chromium.ui.display.DisplayUtil;
 
 /** Unit tests for {@link TabUtils}. */
 @RunWith(BaseRobolectricTestRunner.class)
+@Config(manifest = Config.NONE)
 public class TabUtilsUnitTest {
     @Implements(WindowMetrics.class)
     public static class ShadowWindowMetrics {

@@ -26,7 +26,6 @@
 #include "content/browser/tracing/tracing_service_controller.h"
 #include "content/common/buildflags.h"
 #include "content/common/child_process.mojom.h"
-#include "content/common/content_export.h"
 #include "content/public/browser/browser_child_process_host.h"
 #include "content/public/browser/child_process_data.h"
 #include "content/public/browser/child_process_host.h"
@@ -55,12 +54,11 @@ namespace content {
 
 class BrowserChildProcessHostIterator;
 class BrowserChildProcessObserver;
-class SandboxedProcessLauncherDelegate;
 
 // Plugins/workers and other child processes that live on the IO thread use this
 // class. RenderProcessHostImpl is the main exception that doesn't use this
 /// class because it lives on the UI thread.
-class CONTENT_EXPORT BrowserChildProcessHostImpl
+class BrowserChildProcessHostImpl
     : public BrowserChildProcessHost,
       public ChildProcessHostDelegate,
       public metrics::HistogramChildProcess,
@@ -81,11 +79,9 @@ class CONTENT_EXPORT BrowserChildProcessHostImpl
   // instance.
   static void TerminateAll();
 
-  // Launches the child process asynchronously.
-  void Launch(std::unique_ptr<SandboxedProcessLauncherDelegate> delegate,
-              std::unique_ptr<base::CommandLine> cmd_line);
-
   // BrowserChildProcessHost implementation:
+  void Launch(std::unique_ptr<SandboxedProcessLauncherDelegate> delegate,
+              std::unique_ptr<base::CommandLine> cmd_line) override;
   const ChildProcessData& GetData() override;
   ChildProcessHost* GetHost() override;
   ChildProcessTerminationInfo GetTerminationInfo(bool known_dead) override;
@@ -100,6 +96,7 @@ class CONTENT_EXPORT BrowserChildProcessHostImpl
   const base::Process& GetProcess() override;
   void BindHostReceiver(mojo::GenericPendingReceiver receiver) override;
   void OnChannelConnected(int32_t peer_pid) override;
+  void OnBadMessageReceived() override;
 
   // HistogramChildProcess implementation:
   void BindChildHistogramFetcherFactory(

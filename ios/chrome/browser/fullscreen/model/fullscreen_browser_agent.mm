@@ -10,13 +10,10 @@
 #import "base/functional/bind.h"
 #import "base/functional/callback_helpers.h"
 #import "base/metrics/histogram_functions.h"
-#import "ios/chrome/browser/fullscreen/model/fullscreen_constants.h"
 #import "ios/chrome/browser/fullscreen/public/fullscreen_metrics.h"
-#import "ios/chrome/browser/shared/public/features/features.h"
 #import "ios/chrome/common/material_timing.h"
 
 namespace {
-
 // Updates the fractional `progress` of the fullscreen UI layer by interpreting
 // a `scroll` distance. Evaluates the `scroll` as a percentage of the total
 // compressible space (`delta`) and clamps the result between 0.0 (fullscreen)
@@ -28,86 +25,6 @@ void UpdateProgress(CGFloat& progress, CGFloat scroll, CGFloat delta) {
 
   CGFloat incremental_progress = scroll / delta;
   progress = std::clamp<CGFloat>(progress - incremental_progress, 0, 1);
-}
-
-// Returns `amount` adjusted for resistance as progress approaches the
-// breakover threshold.
-CGFloat ApplyResistance(CGFloat amount,
-                        CGFloat progress,
-                        FullscreenState settled_state) {
-  if ((settled_state == FullscreenState::kUIExpanded && amount <= 0) ||
-      (settled_state == FullscreenState::kUICollapsed && amount >= 0)) {
-    return amount;
-  }
-
-  CGFloat remaining_ratio = 1.0;
-  if (settled_state == FullscreenState::kUIExpanded) {
-    remaining_ratio = (progress - kEnterFullscreenProgressThreshold) /
-                      (1.0 - kEnterFullscreenProgressThreshold);
-  } else if (settled_state == FullscreenState::kUICollapsed) {
-    remaining_ratio = (kExitFullscreenProgressThreshold - progress) /
-                      kExitFullscreenProgressThreshold;
-  }
-  remaining_ratio = std::clamp<CGFloat>(remaining_ratio, 0.0, 1.0);
-
-  CGFloat resistance_factor =
-      kEasedTransitionMinResistance +
-      (1.0 - kEasedTransitionMinResistance) * remaining_ratio;
-  return amount * resistance_factor;
-}
-
-// Animation duration and initial spring velocity for an eased transition.
-struct SpringAnimationParams {
-  base::TimeDelta duration = kEasedTransitionMaxDuration;
-  CGFloat initial_spring_velocity = 0.0;
-};
-
-// Calculates the animation duration and initial spring velocity for an eased
-// transition based on the transition trigger, starting progress, and scroll
-// velocity.
-SpringAnimationParams CalculateSpringAnimationParams(
-    FullscreenTransition transition,
-    FullscreenModeTransitionTrigger trigger,
-    CGFloat start_progress,
-    CGFloat scroll_velocity) {
-  if (trigger !=
-      FullscreenModeTransitionTrigger::kUserInitiatedFinishedByCode) {
-    return {.duration = base::Seconds(kMaterialDuration3),
-            .initial_spring_velocity = 0.0};
-  }
-
-  CGFloat progress_delta =
-      (transition == FullscreenTransition::kEnterFullscreen)
-          ? start_progress
-          : (1.0 - start_progress);
-  CGFloat remaining_distance = progress_delta * kEasedTransitionScrollDistance;
-
-  if (remaining_distance <= 0 || scroll_velocity <= 0) {
-    return {.duration = kEasedTransitionMaxDuration,
-            .initial_spring_velocity = 0.0};
-  }
-
-  CGFloat initial_spring_velocity = scroll_velocity / remaining_distance;
-  base::TimeDelta calculated_duration =
-      base::Seconds(remaining_distance / scroll_velocity);
-  base::TimeDelta duration =
-      std::clamp(calculated_duration, kEasedTransitionMinDuration,
-                 kEasedTransitionMaxDuration);
-  return {.duration = duration,
-          .initial_spring_velocity = initial_spring_velocity};
-}
-
-// Returns the target progress for a given transition.
-constexpr CGFloat TargetProgressForTransition(FullscreenTransition transition) {
-  return (transition == FullscreenTransition::kEnterFullscreen) ? 0.0 : 1.0;
-}
-
-// Returns the settled FullscreenState corresponding to a completed transition.
-constexpr FullscreenState SettledStateForTransition(
-    FullscreenTransition transition) {
-  return (transition == FullscreenTransition::kEnterFullscreen)
-             ? FullscreenState::kUICollapsed
-             : FullscreenState::kUIExpanded;
 }
 }  // namespace
 
@@ -130,43 +47,21 @@ void FullscreenBrowserAgent::RemoveObserver(
   observers_.RemoveObserver(observer);
 }
 
-void FullscreenBrowserAgent::IncrementalScroll(CGFloat amount,
-                                               CGFloat velocity,
-                                               PassKey) {
-  if (!IsEnabled() || IsForceFullscreen()) {
+void FullscreenBrowserAgent::IncrementalScroll(CGFloat amount, PassKey) {
+  if (!IsEnabled()) {
     return;
   }
-
-  if (IsFullscreenEasedTransitionsEnabled() && is_animating_) {
-    return;
-  }
-
-  scroll_velocity_ = velocity;
 
   CGFloat pre_scroll_top_progress = top_progress_;
   CGFloat pre_scroll_bottom_progress = bottom_progress_;
 
-  if (IsFullscreenEasedTransitionsEnabled()) {
-    CGFloat effective_amount =
-        ApplyResistance(amount, top_progress_, settled_state_);
-    UpdateProgress(top_progress_, effective_amount,
-                   kEasedTransitionScrollDistance);
-    if (settled_state_ == FullscreenState::kUIExpanded) {
-      top_progress_ =
-          std::max(top_progress_, kEnterFullscreenProgressThreshold);
-    } else if (settled_state_ == FullscreenState::kUICollapsed) {
-      top_progress_ = std::min(top_progress_, kExitFullscreenProgressThreshold);
-    }
-    bottom_progress_ = top_progress_;
+  CGFloat top_delta = max_insets_.top - min_insets_.top;
+  UpdateProgress(top_progress_, amount, top_delta);
+  CGFloat bottom_delta = max_insets_.bottom - min_insets_.bottom;
+  if (bottom_delta > 0) {
+    UpdateProgress(bottom_progress_, amount, bottom_delta);
   } else {
-    CGFloat top_delta = max_insets_.top - min_insets_.top;
-    UpdateProgress(top_progress_, amount, top_delta);
-    CGFloat bottom_delta = max_insets_.bottom - min_insets_.bottom;
-    if (bottom_delta > 0) {
-      UpdateProgress(bottom_progress_, amount, bottom_delta);
-    } else {
-      bottom_progress_ = top_progress_;
-    }
+    bottom_progress_ = top_progress_;
   }
 
   if (pre_scroll_top_progress == top_progress_ &&
@@ -193,8 +88,7 @@ void FullscreenBrowserAgent::EnterFullscreen(
     bool animated) {
   base::UmaHistogramEnumeration(kEnterFullscreenModeTransitionTriggerHistogram,
                                 trigger);
-  UpdateProgressAndBroadcast(FullscreenTransition::kEnterFullscreen, trigger,
-                             animated);
+  UpdateProgressAndBroadcast(FullscreenTransition::kEnterFullscreen, animated);
 }
 
 void FullscreenBrowserAgent::ExitFullscreen(
@@ -203,57 +97,38 @@ void FullscreenBrowserAgent::ExitFullscreen(
     bool animated) {
   base::UmaHistogramEnumeration(kExitFullscreenModeTransitionTriggerHistogram,
                                 trigger);
-  UpdateProgressAndBroadcast(FullscreenTransition::kExitFullscreen, trigger,
-                             animated);
+  UpdateProgressAndBroadcast(FullscreenTransition::kExitFullscreen, animated);
 }
 
 void FullscreenBrowserAgent::UpdateProgressAndBroadcast(
     FullscreenTransition transition,
-    FullscreenModeTransitionTrigger trigger,
     bool animated) {
-  CGFloat target_progress = TargetProgressForTransition(transition);
-  if (top_progress_ == target_progress && bottom_progress_ == target_progress) {
+  CGFloat top_progress =
+      (transition == FullscreenTransition::kEnterFullscreen) ? 0.0 : 1.0;
+  CGFloat bottom_progress =
+      (transition == FullscreenTransition::kEnterFullscreen) ? 0.0 : 1.0;
+
+  if (top_progress_ == top_progress && bottom_progress_ == bottom_progress) {
     return;
   }
+  top_progress_ = top_progress;
+  bottom_progress_ = bottom_progress;
 
-  CGFloat start_progress = top_progress_;
-  top_progress_ = target_progress;
-  bottom_progress_ = target_progress;
-
-  if (!animated) {
-    is_animating_ = false;
-    settled_state_ = SettledStateForTransition(transition);
+  if (animated) {
+    base::TimeDelta duration = base::Seconds(kMaterialDuration1);
+    auto update_state = base::CallbackToBlock(
+        base::BindOnce(&FullscreenBrowserAgent::NotifyObserversOfUpdatedState,
+                       weak_ptr_factory_.GetWeakPtr(), duration));
+    auto completion_block = base::CallbackToBlock(
+        base::BindOnce(&FullscreenBrowserAgent::AnimationDidComplete,
+                       weak_ptr_factory_.GetWeakPtr(), transition));
+    [UIView animateWithDuration:kMaterialDuration1
+                     animations:update_state
+                     completion:completion_block];
+  } else {
     NotifyObserversOfUpdatedState();
     NotifyFullscreenDidTransition(transition);
-    return;
   }
-
-  is_animating_ = true;
-  base::TimeDelta duration = base::Seconds(kMaterialDuration1);
-  animation_initial_velocity_ = 0.0;
-
-  if (IsFullscreenEasedTransitionsEnabled()) {
-    auto params = CalculateSpringAnimationParams(
-        transition, trigger, start_progress, scroll_velocity_);
-    duration = params.duration;
-    animation_initial_velocity_ = params.initial_spring_velocity;
-  }
-  scroll_velocity_ = 0.0;
-
-  auto update_state = base::CallbackToBlock(
-      base::BindOnce(&FullscreenBrowserAgent::NotifyObserversOfUpdatedState,
-                     weak_ptr_factory_.GetWeakPtr(), duration));
-  auto completion_block = base::CallbackToBlock(
-      base::BindOnce(&FullscreenBrowserAgent::AnimationDidComplete,
-                     weak_ptr_factory_.GetWeakPtr(), transition));
-
-  [UIView animateWithDuration:duration.InSecondsF()
-                        delay:0.0
-       usingSpringWithDamping:1.0
-        initialSpringVelocity:animation_initial_velocity_
-                      options:UIViewAnimationOptionAllowUserInteraction
-                   animations:update_state
-                   completion:completion_block];
 }
 
 void FullscreenBrowserAgent::NotifyObserversOfUpdatedState(
@@ -284,15 +159,12 @@ void FullscreenBrowserAgent::NotifyObserversOfUpdatedState(
     }
   }
   animation_duration_ = base::TimeDelta();
-  animation_initial_velocity_ = 0.0;
 }
 
 void FullscreenBrowserAgent::AnimationDidComplete(
     FullscreenTransition transition,
     bool finished) {
-  is_animating_ = false;
   if (finished) {
-    settled_state_ = SettledStateForTransition(transition);
     NotifyFullscreenDidTransition(transition);
   }
 }
@@ -327,49 +199,9 @@ void FullscreenBrowserAgent::IncrementDisabledCounter(PassKey pass_key,
   }
 }
 
-void FullscreenBrowserAgent::DecrementDisabledCounter(PassKey pass_key) {
+void FullscreenBrowserAgent::DecrementDisabledCounter(PassKey) {
   if (disabled_count_ > 0) {
     disabled_count_--;
-    if (disabled_count_ == 0 && IsForceFullscreen()) {
-      EnterFullscreen(pass_key, FullscreenModeTransitionTrigger::kForcedByCode,
-                      /*animated=*/true);
-    }
-  }
-}
-
-bool FullscreenBrowserAgent::IsForceFullscreen() const {
-  return !forced_features_.empty();
-}
-
-void FullscreenBrowserAgent::ForceFullscreen(PassKey pass_key,
-                                             bool enable,
-                                             ForceFullscreenFeature feature) {
-  const bool was_forced = IsForceFullscreen();
-  if (enable) {
-    forced_features_.Put(feature);
-  } else {
-    forced_features_.Remove(feature);
-  }
-  if (was_forced == IsForceFullscreen() || !IsEnabled()) {
-    return;
-  }
-  if (IsForceFullscreen()) {
-    EnterFullscreen(pass_key, FullscreenModeTransitionTrigger::kForcedByCode,
-                    /*animated=*/true);
-  } else {
-    ExitFullscreen(pass_key, FullscreenModeTransitionTrigger::kForcedByCode,
-                   /*animated=*/true);
-  }
-}
-
-void FullscreenBrowserAgent::ExitForceFullscreen(PassKey pass_key) {
-  if (!IsForceFullscreen()) {
-    return;
-  }
-  forced_features_.Clear();
-  if (IsEnabled()) {
-    ExitFullscreen(pass_key, FullscreenModeTransitionTrigger::kForcedByCode,
-                   /*animated=*/true);
   }
 }
 

@@ -1,2 +1,3 @@
-rules:
-- "**": [wasm-string-builtins]
+features:
+- name: wasm-string-builtins
+  files: "**"

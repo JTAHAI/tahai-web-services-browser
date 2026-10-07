@@ -8,11 +8,6 @@
 
 #include "base/check_op.h"
 #include "base/functional/bind.h"
-#include "base/metrics/histogram_functions.h"
-#include "base/strings/strcat.h"
-#include "base/task/common/task_annotator.h"
-#include "base/task/single_thread_task_runner.h"
-#include "net/base/task/task_runner.h"
 #include "services/network/cors/cors_url_loader_factory.h"
 #include "services/network/prefetch_cache.h"
 #include "services/network/prefetch_url_loader_client.h"
@@ -21,33 +16,6 @@
 #include "services/network/resource_scheduler/resource_scheduler_client.h"
 
 namespace network {
-
-namespace {
-
-void LogCreateLoaderAndStartQueueTimeHistogram(bool is_outermost_main_frame) {
-  auto* task = base::TaskAnnotator::CurrentTaskForThread();
-  // Only log non-delayed tasks with a valid queue_time.
-  if (!task || task->queue_time.is_null() ||
-      !task->delayed_run_time.is_null()) {
-    return;
-  }
-
-  base::UmaHistogramTimes(
-      base::StrCat({"NetworkService.PrefetchMatchingURLLoaderFactory.QueueTime."
-                    "CreateLoaderAndStart",
-                    is_outermost_main_frame ? ".MainFrame" : ".Subframe"}),
-      base::TimeTicks::Now() - task->queue_time);
-}
-
-const scoped_refptr<base::SingleThreadTaskRunner>& GetFactoryTaskRunner() {
-  if (base::FeatureList::IsEnabled(
-          features::kBindURLLoaderFactoryToHighPriorityTaskRunner)) {
-    return net::GetTaskRunner(net::RequestPriority::HIGHEST);
-  }
-  return base::SingleThreadTaskRunner::GetCurrentDefault();
-}
-
-}  // namespace
 
 PrefetchMatchingURLLoaderFactory::PrefetchMatchingURLLoaderFactory(
     NetworkContext* context,
@@ -67,7 +35,7 @@ PrefetchMatchingURLLoaderFactory::PrefetchMatchingURLLoaderFactory(
       cache_(cache),
       use_matches_(base::FeatureList::IsEnabled(
           features::kNetworkContextPrefetchUseMatches)) {
-  receivers_.Add(this, std::move(receiver), GetFactoryTaskRunner());
+  receivers_.Add(this, std::move(receiver));
   // This use of base::Unretained() is safe because `receivers_` won't call the
   // disconnect handler after it has been destroyed.
   receivers_.set_disconnect_handler(base::BindRepeating(
@@ -98,7 +66,6 @@ void PrefetchMatchingURLLoaderFactory::CreateLoaderAndStart(
     ResourceRequest& request,
     mojo::PendingRemote<mojom::URLLoaderClient> client,
     const net::MutableNetworkTrafficAnnotationTag& traffic_annotation) {
-  LogCreateLoaderAndStartQueueTimeHistogram(request.is_outermost_main_frame);
   // If we don't think the request should be permitted from a render process, we
   // don't try to match it and instead let CorsURLLoaderFactory deal with the
   // issue.
@@ -141,7 +108,7 @@ void PrefetchMatchingURLLoaderFactory::CreateLoaderAndStart(
 
 void PrefetchMatchingURLLoaderFactory::Clone(
     mojo::PendingReceiver<URLLoaderFactory> receiver) {
-  receivers_.Add(this, std::move(receiver), GetFactoryTaskRunner());
+  receivers_.Add(this, std::move(receiver));
 }
 
 void PrefetchMatchingURLLoaderFactory::ClearBindings() {

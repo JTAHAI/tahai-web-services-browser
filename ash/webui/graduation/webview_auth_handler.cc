@@ -11,14 +11,11 @@
 
 #include "ash/public/cpp/graduation/graduation_manager.h"
 #include "base/check.h"
-#include "base/check_deref.h"
 #include "base/functional/bind.h"
 #include "base/location.h"
 #include "base/logging.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/timer/timer.h"
-#include "chromeos/ash/components/browser_context_helper/annotated_account_id.h"
-#include "chromeos/ash/components/signin/identity_manager_provider.h"
 #include "components/signin/public/base/consent_level.h"
 #include "components/signin/public/base/multilogin_parameters.h"
 #include "components/signin/public/identity_manager/identity_manager.h"
@@ -93,8 +90,7 @@ void WebviewAuthHandler::AuthenticateWebview(OnWebviewAuth callback) {
   retry_auth_timer_.Stop();
 
   signin::IdentityManager* identity_manager =
-      IdentityManagerProvider::Get().Find(
-          CHECK_DEREF(AnnotatedAccountId::Get(context_)));
+      GraduationManager::Get()->GetIdentityManager(context_);
   CHECK(identity_manager);
 
   // We only need primary account authentication in the webview.

@@ -23,9 +23,8 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def gen_spec(
-    config: installer.InstallerConfig, spec_file: pathlib.Path
-) -> None:
+def gen_spec(config: installer.InstallerConfig,
+             spec_file: pathlib.Path) -> None:
     if spec_file.exists():
         spec_file.unlink()
 
@@ -39,9 +38,8 @@ def gen_spec(
     )
 
 
-def verify_package(
-    config: installer.InstallerConfig, rpm_file: pathlib.Path
-) -> None:
+def verify_package(config: installer.InstallerConfig,
+                   rpm_file: pathlib.Path) -> None:
     depends = config.rpm_depends
     version_output = subprocess.check_output(["rpm", "--version"])
     version_match = re.match(r'.*version ([.\d]*)', str(version_output))
@@ -87,9 +85,7 @@ def main() -> None:
     with installer.StagingContext(staging_dir, tmp_file_dir, rpm_build_dir):
         spec_file = tmp_file_dir / "chrome.spec"
 
-        config = installer.InstallerConfig.from_args(
-            args, output_dir, package_format=installer.PackageFormat.RPM
-        )
+        config = installer.InstallerConfig.from_args(args, output_dir)
         config.script_dir = script_dir
         config.staging_dir = staging_dir
         config.tmp_file_dir = tmp_file_dir
@@ -101,8 +97,7 @@ def main() -> None:
         inst.prep_staging_common()
         (staging_dir / "etc/cron.daily").mkdir(parents=True, exist_ok=True)
         (staging_dir / "etc/cron.daily").chmod(
-            installer.StandardPermissions.EXECUTABLE
-        )
+            installer.StandardPermissions.EXECUTABLE)
 
         inst.stage_install_common()
 
@@ -160,10 +155,8 @@ def main() -> None:
 
         installer.run_command(cmd)
 
-        pkg_name = (
-            f"{config.rpm_package_filename}-{config.version}-"
-            f"{config.package_release}"
-        )
+        pkg_name = (f"{config.rpm_package_filename}-{config.version}-"
+                    f"{config.package_release}")
         rpm_file = f"{pkg_name}.{args.arch}.rpm"
         src_rpm = rpm_build_dir / f"RPMS/{args.arch}/{rpm_file}"
         dst_rpm = output_dir / rpm_file

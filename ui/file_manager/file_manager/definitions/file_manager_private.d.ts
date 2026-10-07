@@ -176,6 +176,8 @@ declare global {
         MESSAGE_SENT = 'message_sent',
         FAILED = 'failed',
         EMPTY = 'empty',
+        FAILED_PLUGIN_VM_DIRECTORY_NOT_SHARED =
+            'failed_plugin_vm_directory_not_shared',
       }
 
       export enum DriveShareType {
@@ -247,6 +249,8 @@ declare global {
         DISABLE = 'disable',
         SHARE = 'share',
         UNSHARE = 'unshare',
+        DROP_FAILED_PLUGIN_VM_DIRECTORY_NOT_SHARED =
+            'drop_failed_plugin_vm_directory_not_shared',
       }
 
       export enum ProviderSource {

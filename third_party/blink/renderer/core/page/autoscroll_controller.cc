@@ -489,7 +489,9 @@ void AutoscrollController::Animate() {
         return;
       }
 
-      if (scroll_result_) {
+      if (!RuntimeEnabledFeatures::
+              SelectionUpdateOnlyAfterAutoscrollEnabled() ||
+          scroll_result_) {
         event_handler.UpdateSelectionForMouseDrag();
       }
 

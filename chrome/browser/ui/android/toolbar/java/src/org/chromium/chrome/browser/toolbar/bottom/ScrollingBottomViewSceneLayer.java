@@ -56,9 +56,6 @@ public class ScrollingBottomViewSceneLayer extends SceneOverlayLayer implements 
     /** The bottom padding of the view in px, used for EdgeToEdge. */
     private int mBottomPaddingPx;
 
-    /** The height of the unpadded content in px. */
-    private int mContentHeightPx;
-
     /**
      * Build a composited bottom view layer.
      *
@@ -128,13 +125,6 @@ public class ScrollingBottomViewSceneLayer extends SceneOverlayLayer implements 
         mBottomPaddingPx = paddingPx;
     }
 
-    /**
-     * @param contentHeightPx The view's unpadded content height in px.
-     */
-    public void setContentHeight(int contentHeightPx) {
-        mContentHeightPx = contentHeightPx;
-    }
-
     @Override
     protected void initializeNative() {
         if (mNativePtr == 0) {
@@ -161,8 +151,7 @@ public class ScrollingBottomViewSceneLayer extends SceneOverlayLayer implements 
                         viewport.height() + mCurrentYOffsetPx,
                         mShowShadow,
                         mOffsetTag,
-                        mBottomPaddingPx,
-                        mContentHeightPx);
+                        mBottomPaddingPx);
 
         return this;
     }
@@ -192,7 +181,6 @@ public class ScrollingBottomViewSceneLayer extends SceneOverlayLayer implements 
                 float yOffset,
                 boolean showShadow,
                 @Nullable OffsetTag offsetTag,
-                int bottomPadding,
-                int contentHeight);
+                int bottomPadding);
     }
 }

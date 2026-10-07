@@ -109,10 +109,8 @@ void AXVirtualView::AddChildViewAt(std::unique_ptr<AXVirtualView> view,
   added_view->OnViewHasNewAncestor(
       /* ancestor_focusable */ data().HasState(ax::mojom::State::kFocusable) ||
       has_focusable_ancestor());
-  added_view->OnOwnerViewChanged();
 
   AXUpdateNotifier::Get()->NotifyChildAdded(added_view, this);
-  added_view->OnVirtualViewAddedToWidget();
   FireLiveRegionChangedIfNeeded(LiveRegionEventTrigger::kAdditions);
 
   if (owner_view) {
@@ -166,10 +164,10 @@ std::unique_ptr<AXVirtualView> AXVirtualView::RemoveChildView(
     return {};
   }
 
-  View* owner_view = GetOwnerView();
   bool active_descendant_removed = false;
-  if (owner_view) {
-    ViewAccessibility& view_accessibility = owner_view->GetViewAccessibility();
+  if (GetOwnerView()) {
+    ViewAccessibility& view_accessibility =
+        GetOwnerView()->GetViewAccessibility();
     if (ViewAccessibility* active_view =
             view_accessibility.GetActiveDescendantView()) {
       if (Contains(static_cast<AXVirtualView*>(active_view))) {
@@ -180,20 +178,18 @@ std::unique_ptr<AXVirtualView> AXVirtualView::RemoveChildView(
 
   std::unique_ptr<AXVirtualView> child =
       std::move(virtual_children_[cur_index.value()]);
-  child->OnVirtualViewRemovedFromWidget();
   virtual_children_.erase(virtual_children_.begin() +
                           static_cast<ptrdiff_t>(cur_index.value()));
 
   FireLiveRegionChangedIfNeeded(LiveRegionEventTrigger::kRemovals);
 
   child->virtual_parent_view_ = nullptr;
-  child->OnOwnerViewChanged();
 
-  if (owner_view) {
+  if (GetOwnerView()) {
     if (active_descendant_removed) {
-      owner_view->GetViewAccessibility().ClearActiveDescendant();
+      GetOwnerView()->GetViewAccessibility().ClearActiveDescendant();
     }
-    owner_view->NotifyAccessibilityEventDeprecated(
+    GetOwnerView()->NotifyAccessibilityEventDeprecated(
         ax::mojom::Event::kChildrenChanged, true);
   }
 
@@ -304,24 +300,6 @@ void AXVirtualView::NotifyDataChanged() {
   AXUpdateNotifier::Get()->NotifyVirtualViewDataChanged(this);
 }
 
-ui::AXNodeID AXVirtualView::GetOffsetContainerId() const {
-  // Virtual view bounds are relative to the owner View, no matter how deeply
-  // the virtual view is nested.
-  // TODO(crbug.com/539373399): Make these bounds relative to the parent
-  // virtual view instead.
-  View* owner_view = GetOwnerView();
-  return owner_view ? static_cast<ui::AXNodeID>(
-                          owner_view->GetViewAccessibility().GetUniqueId())
-                    : ui::kInvalidAXNodeID;
-}
-
-void AXVirtualView::OnOwnerViewChanged() {
-  UpdateOffsetContainerId();
-  for (auto& child : virtual_children_) {
-    child->OnOwnerViewChanged();
-  }
-}
-
 // ui::AXPlatformNodeDelegate
 
 const ui::AXNodeData& AXVirtualView::GetData() const {
@@ -396,8 +374,7 @@ gfx::Rect AXVirtualView::GetBoundsRect(
     const ui::AXClippingBehavior clipping_behavior,
     ui::AXOffscreenResult* offscreen_result) const {
   // We could optionally add clipping here if ever needed.
-  // TODO(crbug.com/539373399): Implement bounds that are relative to the
-  // parent.
+  // TODO(nektar): Implement bounds that are relative to the parent.
   gfx::Rect bounds = gfx::ToEnclosingRect(GetData().relative_bounds.bounds);
   View* owner_view = GetOwnerView();
   if (owner_view && owner_view->GetWidget()) {

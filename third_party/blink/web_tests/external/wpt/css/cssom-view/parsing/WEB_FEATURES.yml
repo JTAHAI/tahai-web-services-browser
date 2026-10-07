@@ -1,2 +1,4 @@
-rules:
-- scroll-behavior-*: [scroll-behavior]
+features:
+- name: scroll-behavior
+  files:
+    - scroll-behavior-*

@@ -4,20 +4,9 @@
 
 #include "components/tabs/public/tab_interface.h"
 
-#include "components/tabs/public/tab_collection_types.h"
 #include "content/public/browser/web_contents_user_data.h"
 
 namespace tabs {
-
-void TabDeleter::operator()(TabInterface* tab) const {
-  if (tab) {
-    tab->DeleteSelf();
-  }
-}
-
-void TabInterface::DeleteSelf() {
-  delete this;
-}
 
 TabLookupFromWebContents::TabLookupFromWebContents(
     content::WebContents* contents,

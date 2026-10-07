@@ -23,14 +23,14 @@ export function getHtml(this: ComposeboxFileThumbnailElement) {
             `}
           </div>
           <p class="title" part="thumbnail-title" id="injectedInputTitle">
-            ${this.getFormattedFileName_()}
+            ${this.file.name}
           </p>
           <div class="overlay">
             <div class="gradient-protection"></div>
             ${this.file.isDeletable ? html`<cr-icon-button
                 id="removeInjectedInputIconButton"
                 class="remove-button"
-                iron-icon="cr:close"
+                iron-icon="cr:clear"
                 title="${this.file.name}"
                 aria-label="${this.getDeleteFileButtonTitle_()}"
                 @click="${this.onRemoveButtonClick_}">
@@ -53,13 +53,13 @@ export function getHtml(this: ComposeboxFileThumbnailElement) {
               </div>
             ` : ''}
           </div>
-          <p class="title" id="injectedInputTitle">${this.getFormattedFileName_()}</p>
+          <p class="title" id="injectedInputTitle">${this.file.name}</p>
           <div class="overlay">
             <div class="gradient-protection"></div>
             ${this.file.isDeletable ? html`<cr-icon-button
                 id="removeInjectedInputButton"
                 class="remove-button"
-                iron-icon="cr:close"
+                iron-icon="cr:clear"
                 title="${this.file.name}"
                 aria-label="${this.getDeleteFileButtonTitle_()}"
                 @click="${this.onRemoveButtonClick_}">
@@ -81,40 +81,13 @@ export function getHtml(this: ComposeboxFileThumbnailElement) {
           ${this.file.isDeletable ? html`<cr-icon-button
               class="img-overlay"
               id="removeInjectedInputImgButton"
-              iron-icon="cr:close"
+              iron-icon="cr:clear"
               title="${this.file.name}"
               aria-label="${this.getDeleteFileButtonTitle_()}"
               @click="${this.onRemoveButtonClick_}">
           </cr-icon-button>`: ''}
         </div>
-      ` : this.file.url ? this.isAndroid_ ? html`
-        <div id="tabChip" title="${this.file.name}"
-          ?hidden="${this.tabFaviconChipsToCoinsEnabled_}">
-          <div id="tabChipContent">
-            <div id="tabThumbnail">
-              <cr-composebox-tab-favicon .url="${this.file.url}" .size="${24}">
-              </cr-composebox-tab-favicon>
-              ${this.isUploading_ ? html`
-                <div id="spinnerOverlay">
-                  <svg role="image" class="spinner" viewBox="0 0 100 100">
-                    <circle class="spinner-circle" cx="50" cy="50" r="40" />
-                  </svg>
-                </div>
-              ` : ''}
-            </div>
-            <div part="thumbnail-title" class="title">
-              ${this.file.name}
-            </div>
-            ${this.file.isDeletable ? html`<cr-icon-button
-              id="removeTabButton"
-              iron-icon="cr:close"
-              title="${this.file.name}"
-              aria-label="${this.getDeleteFileButtonTitle_()}"
-              @click="${this.onRemoveButtonClick_}">
-              </cr-icon-button>`: ''}
-          </div>
-        </div>
-      ` : html`
+      ` : this.file.url ? html`
         <div id="tabChip" class="chip" title="${this.file.name}"
           ?hidden="${this.tabFaviconChipsToCoinsEnabled_}">
           <div id="tabThumbnail" class="thumbnail">
@@ -140,7 +113,7 @@ export function getHtml(this: ComposeboxFileThumbnailElement) {
             ${this.file.isDeletable ? html`<cr-icon-button
               id="removeTabButton"
               class="remove-button"
-              iron-icon="cr:close"
+              iron-icon="cr:clear"
               title="${this.file.name}"
               aria-label="${this.getDeleteFileButtonTitle_()}"
               @click="${this.onRemoveButtonClick_}">
@@ -149,47 +122,7 @@ export function getHtml(this: ComposeboxFileThumbnailElement) {
           <div class="chip-overlay"></div>
         </div>
       ` : (this.file.type.startsWith('image/') || this.file.objectUrl
-            || this.file.dataUrl || this.file.thumbnailUrl) ?
-          this.isAndroid_ ? html`
-        <div id="imgChip">
-          <div id="imgChipContent">
-            ${this.isUploading_ ? html`
-              <svg role="image" class="spinner" viewBox="0 0 100 100">
-                <circle class="spinner-circle" cx="50" cy="50" r="40" />
-              </svg>
-            ` : html`
-              ${this.file.thumbnailUrl ? html`
-                <img is="cr-auto-img" class="img-thumbnail"
-                  auto-src="${this.file.thumbnailUrl}"
-                  aria-label="${this.file.name}">
-              ` : this.isVideo_() && this.file.objectUrl ? html`
-                <video class="img-thumbnail"
-                  src="${this.file.objectUrl}#t=0.001"
-                  preload="metadata"
-                  muted
-                  playsinline
-                  disablepictureinpicture
-                  disableremoteplayback
-                  aria-label="${this.file.name}">
-                </video>
-              ` : html`
-              <img class="img-thumbnail"
-                src="${this.file.objectUrl || this.file.dataUrl}"
-                aria-label="${this.file.name}">
-              `}
-            `}
-            <div id="imgChipStateLayer">
-              <div id="imgChipLeadingSlot"></div>
-              ${this.file.isDeletable ? html`<cr-icon-button
-                  id="removeImgButton"
-                  iron-icon="cr:close"
-                  title="${this.file.name}"
-                  aria-label="${this.getDeleteFileButtonTitle_()}"
-                  @click="${this.onRemoveButtonClick_}">
-              </cr-icon-button>`: ''}
-            </div>
-          </div>
-        </div>` : html`
+            || this.file.dataUrl || this.file.thumbnailUrl) ? html`
         <div id="imgChip" class="img-chip">
           ${this.isUploading_ ? html`
             <svg role="image" class="spinner" viewBox="0 0 100 100">
@@ -219,45 +152,12 @@ export function getHtml(this: ComposeboxFileThumbnailElement) {
           ${this.file.isDeletable ? html`<cr-icon-button
               class="img-overlay"
               id="removeImgButton"
-              iron-icon="cr:close"
+              iron-icon="cr:clear"
               title="${this.file.name}"
               aria-label="${this.getDeleteFileButtonTitle_()}"
               @click="${this.onRemoveButtonClick_}">
           </cr-icon-button>`: ''}
-        </div>` : this.isAndroid_ ? html`
-        <div id="documentChip">
-          <div id="documentChipContent">
-            <div id="documentThumbnail">
-              ${this.isUploading_ ? html`
-                <svg role="image" class="spinner" viewBox="0 0 100 100">
-                  <circle class="spinner-circle" cx="50" cy="50" r="40" />
-                </svg>
-              ` : this.file.iconUrl ? html`
-                <img is="cr-auto-img" class="document-icon" draggable="false"
-                    auto-src="${this.file.iconUrl}">
-              ` : html`
-                <cr-icon icon="${
-                    this.shouldUsePdfIcon_() ?
-                        'thumbnail:drive-pdf' :
-                        'thumbnail:attach-file'}"
-                    class="${
-                    this.shouldUsePdfIcon_() ?
-                        'pdf-icon' :
-                        'document-icon'}"></cr-icon>
-              `}
-            </div>
-            <p class="title"
-                part="thumbnail-title" id="documentTitle">${this.file.name}</p>
-            ${this.file.isDeletable ? html`<cr-icon-button
-                id="removeDocumentButton"
-                iron-icon="cr:close"
-                title="${this.file.name}"
-                aria-label="${this.getDeleteFileButtonTitle_()}"
-                @click="${this.onRemoveButtonClick_}">
-            </cr-icon-button>`: ''}
-          </div>
-        </div>
-      ` : html`
+        </div>` : html`
         <div id="documentChip" class="chip">
           <div id="documentThumbnail" class="thumbnail" part="thumbnail">
             ${this.isUploading_ ? html`
@@ -270,8 +170,8 @@ export function getHtml(this: ComposeboxFileThumbnailElement) {
             ` : html`
               <cr-icon icon="${
                   this.shouldUsePdfIcon_() ?
-                      'thumbnail:drive-pdf' :
-                      'thumbnail:attach-file'}"
+                      'thumbnail:pdf' :
+                      'thumbnail:document'}"
                   class="${
                   this.shouldUsePdfIcon_() ?
                       'pdf-icon' :
@@ -279,13 +179,13 @@ export function getHtml(this: ComposeboxFileThumbnailElement) {
             `}
           </div>
           <p class="title"
-              part="thumbnail-title" id="documentTitle">${this.getFormattedFileName_()}</p>
+              part="thumbnail-title" id="documentTitle">${this.file.name}</p>
           <div class="overlay">
             <div class="gradient-protection"></div>
             ${this.file.isDeletable ? html`<cr-icon-button
                 id="removeDocumentButton"
                 class="remove-button"
-                iron-icon="cr:close"
+                iron-icon="cr:clear"
                 title="${this.file.name}"
                 aria-label="${this.getDeleteFileButtonTitle_()}"
                 @click="${this.onRemoveButtonClick_}">

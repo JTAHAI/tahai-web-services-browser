@@ -16,6 +16,7 @@
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
+#include "chrome/browser/ui/tabs/features.h"
 #include "chrome/browser/ui/tabs/split_tab_metrics.h"
 #include "chrome/browser/ui/tabs/tab_group_model.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
@@ -23,7 +24,6 @@
 #include "chrome/test/base/ui_test_utils.h"
 #include "components/keep_alive_registry/keep_alive_types.h"
 #include "components/keep_alive_registry/scoped_keep_alive.h"
-#include "components/sessions/core/session_id.h"
 #include "components/split_tabs/split_tab_visual_data.h"
 #include "components/tab_groups/tab_group_id.h"
 #include "content/public/test/browser_test.h"
@@ -234,8 +234,7 @@ IN_PROC_BROWSER_TEST_F(TabStripInternalsPageHandlerBrowserTest,
   ASSERT_TRUE(
       AddTabAtIndex(1, GURL(url::kAboutBlankURL), ui::PAGE_TRANSITION_TYPED));
 
-  BrowserWindowInterface* second_browser =
-      CreateBrowser(browser()->GetProfile());
+  Browser* second_browser = CreateBrowser(browser()->GetProfile());
   ASSERT_TRUE(second_browser);
   ASSERT_TRUE(AddTabAtIndexToBrowser(
       second_browser, 1, GURL(url::kAboutBlankURL), ui::PAGE_TRANSITION_TYPED));
@@ -271,8 +270,7 @@ IN_PROC_BROWSER_TEST_F(TabStripInternalsPageHandlerBrowserTest,
 // GetTabStripData: Verify snapshot includes OTR window.
 IN_PROC_BROWSER_TEST_F(TabStripInternalsPageHandlerBrowserTest,
                        GetTabStripData_IncludesOTRWindow) {
-  BrowserWindowInterface* otr_browser =
-      CreateIncognitoBrowser(browser()->GetProfile());
+  Browser* otr_browser = CreateIncognitoBrowser(browser()->GetProfile());
   ASSERT_TRUE(otr_browser);
 
   ASSERT_TRUE(AddTabAtIndexToBrowser(otr_browser, 1, GURL(url::kAboutBlankURL),
@@ -543,7 +541,7 @@ IN_PROC_BROWSER_TEST_F(TabStripInternalsPageHandlerBrowserTest,
   // Push entries into TabRestoreService.
   model->CloseAllTabsInGroup(group_id);
 
-  BrowserWindowInterface* new_browser = CreateBrowser(browser()->GetProfile());
+  Browser* new_browser = CreateBrowser(browser()->GetProfile());
   ASSERT_TRUE(new_browser);
   auto handler =
       CreateHandler(new_browser->GetTabStripModel()->GetActiveWebContents());
@@ -615,8 +613,19 @@ IN_PROC_BROWSER_TEST_F(TabStripInternalsPageHandlerBrowserTest,
   loop.Run();
 }
 
+class TabStripInternalsPageHandlerSplitBrowserTest
+    : public TabStripInternalsPageHandlerBrowserTest {
+ public:
+  TabStripInternalsPageHandlerSplitBrowserTest() {
+    feature_list_.InitAndEnableFeature(tabs::kSplitViewTabRestore);
+  }
+
+ private:
+  base::test::ScopedFeatureList feature_list_;
+};
+
 // GetTabStripData: Verify snapshot includes TabRestoreSplit entry.
-IN_PROC_BROWSER_TEST_F(TabStripInternalsPageHandlerBrowserTest,
+IN_PROC_BROWSER_TEST_F(TabStripInternalsPageHandlerSplitBrowserTest,
                        GetTabStripData_TabRestore_SplitEntryCreated) {
   ASSERT_TRUE(
       AddTabAtIndex(1, GURL(url::kAboutBlankURL), ui::PAGE_TRANSITION_TYPED));
@@ -641,7 +650,7 @@ IN_PROC_BROWSER_TEST_F(TabStripInternalsPageHandlerBrowserTest,
   // Close the split view.
   model->CloseSelectedTabs();
 
-  BrowserWindowInterface* new_browser = CreateBrowser(browser()->GetProfile());
+  Browser* new_browser = CreateBrowser(browser()->GetProfile());
   ASSERT_TRUE(new_browser);
   auto handler =
       CreateHandler(new_browser->GetTabStripModel()->GetActiveWebContents());
@@ -673,7 +682,7 @@ IN_PROC_BROWSER_TEST_F(TabStripInternalsPageHandlerBrowserTest,
 
 // GetTabStripData: Verify snapshot includes TabRestoreGroup entry containing a
 // Split view.
-IN_PROC_BROWSER_TEST_F(TabStripInternalsPageHandlerBrowserTest,
+IN_PROC_BROWSER_TEST_F(TabStripInternalsPageHandlerSplitBrowserTest,
                        GetTabStripData_TabRestore_GroupedSplitEntryCreated) {
   ASSERT_TRUE(browser()->GetTabStripModel()->SupportsTabGroups());
   ASSERT_TRUE(
@@ -695,7 +704,7 @@ IN_PROC_BROWSER_TEST_F(TabStripInternalsPageHandlerBrowserTest,
   // Close the entire group.
   model->CloseAllTabsInGroup(group_id);
 
-  BrowserWindowInterface* new_browser = CreateBrowser(browser()->GetProfile());
+  Browser* new_browser = CreateBrowser(browser()->GetProfile());
   ASSERT_TRUE(new_browser);
   auto handler =
       CreateHandler(new_browser->GetTabStripModel()->GetActiveWebContents());

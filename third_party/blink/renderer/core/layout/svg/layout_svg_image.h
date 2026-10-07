@@ -79,9 +79,8 @@ class LayoutSVGImage final : public LayoutSVGModelObject {
  protected:
   void StyleDidChange(StyleDifference,
                       const ComputedStyle* old_style,
-                      const ComputedStyle& new_style,
                       const StyleChangeContext&) override;
-  void WillBeDestroyed(const ComputedStyle*) override;
+  void WillBeDestroyed() override;
 
  private:
   gfx::RectF StrokeBoundingBox() const override {
@@ -111,11 +110,8 @@ class LayoutSVGImage final : public LayoutSVGModelObject {
 
   gfx::SizeF CalculateObjectSize() const;
 
-  // True if `local_transform_` is not up-to-date.
-  bool needs_transform_update_ : 1 = true;
-  // The transform applied to the object depends on the reference box (i.e
-  // translate(50%, 50%) or similar).
-  bool transform_uses_reference_box_ : 1 = false;
+  bool needs_transform_update_ : 1;
+  bool transform_uses_reference_box_ : 1;
   AffineTransform local_transform_;
   gfx::RectF object_bounding_box_;
   Member<LayoutImageResource> image_resource_;

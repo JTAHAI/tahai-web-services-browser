@@ -12,23 +12,6 @@
 #include "chrome/browser/ui/sync/browser_synced_tab_delegate.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "components/sync/base/features.h"
-#include "components/tabs/public/tab_interface.h"
-
-namespace {
-
-// Resets the cached last-active time of `contents`' tab, if `contents` is
-// non-null and belongs to a tab.
-void ResetTabCachedLastActiveTimeForContents(content::WebContents* contents) {
-  tabs::TabInterface* tab =
-      contents ? tabs::TabInterface::MaybeGetFromContents(contents) : nullptr;
-  BrowserSyncedTabDelegate* delegate =
-      tab ? BrowserSyncedTabDelegate::From(tab) : nullptr;
-  if (delegate) {
-    delegate->ResetCachedLastActiveTime();
-  }
-}
-
-}  // namespace
 
 BrowserSyncedWindowDelegate::BrowserSyncedWindowDelegate(
     BrowserWindowInterface* browser,
@@ -51,16 +34,25 @@ void BrowserSyncedWindowDelegate::OnTabStripModelChanged(
     const TabStripModelChange& change,
     const TabStripSelectionChange& selection) {
   if (selection.active_tab_changed()) {
-    ResetTabCachedLastActiveTimeForContents(selection.old_contents);
-    ResetTabCachedLastActiveTimeForContents(selection.new_contents);
+    if (selection.old_contents &&
+        BrowserSyncedTabDelegate::FromWebContents(selection.old_contents)) {
+      BrowserSyncedTabDelegate::FromWebContents(selection.old_contents)
+          ->ResetCachedLastActiveTime();
+    }
+
+    if (selection.new_contents &&
+        BrowserSyncedTabDelegate::FromWebContents(selection.new_contents)) {
+      BrowserSyncedTabDelegate::FromWebContents(selection.new_contents)
+          ->ResetCachedLastActiveTime();
+    }
   }
 }
 
 bool BrowserSyncedWindowDelegate::IsTabPinned(
     const sync_sessions::SyncedTabDelegate* tab) const {
-  for (tabs::TabInterface* tab_interface : *tab_strip_model_) {
+  for (const tabs::TabInterface* tab_interface : *tab_strip_model_) {
     sync_sessions::SyncedTabDelegate* current =
-        BrowserSyncedTabDelegate::From(tab_interface);
+        BrowserSyncedTabDelegate::FromWebContents(tab_interface->GetContents());
     if (tab == current) {
       return tab_interface->IsPinned();
     }
@@ -72,7 +64,8 @@ bool BrowserSyncedWindowDelegate::IsTabPinned(
 
 sync_sessions::SyncedTabDelegate* BrowserSyncedWindowDelegate::GetTabAt(
     int index) const {
-  return BrowserSyncedTabDelegate::From(tab_strip_model_->GetTabAtIndex(index));
+  return BrowserSyncedTabDelegate::FromWebContents(
+      tab_strip_model_->GetWebContentsAt(index));
 }
 
 SessionID BrowserSyncedWindowDelegate::GetTabIdAt(int index) const {

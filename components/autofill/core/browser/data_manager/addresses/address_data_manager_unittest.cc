@@ -17,15 +17,13 @@
 #include "base/test/task_environment.h"
 #include "base/time/time.h"
 #include "base/uuid.h"
-#include "base/values.h"
 #include "build/buildflag.h"
-#include "components/autofill/core/browser/data_manager/personal_data_manager_test_util.h"
+#include "components/autofill/core/browser/data_manager/personal_data_manager_test_utils.h"
 #include "components/autofill/core/browser/data_model/addresses/autofill_i18n_api.h"
 #include "components/autofill/core/browser/data_model/addresses/autofill_profile.h"
 #include "components/autofill/core/browser/data_model/addresses/autofill_profile_test_api.h"
 #include "components/autofill/core/browser/data_quality/addresses/profile_token_quality_test_api.h"
-#include "components/autofill/core/browser/test_utils/autofill_test_util.h"
-#include "components/autofill/core/browser/test_utils/autofill_testing_pref_service.h"
+#include "components/autofill/core/browser/test_utils/autofill_test_utils.h"
 #include "components/autofill/core/browser/test_utils/test_profiles.h"
 #include "components/autofill/core/browser/webdata/addresses/address_autofill_table.h"
 #include "components/autofill/core/browser/webdata/autofill_change.h"
@@ -33,7 +31,6 @@
 #include "components/autofill/core/common/autofill_features.h"
 #include "components/autofill/core/common/autofill_prefs.h"
 #include "components/os_crypt/async/browser/test_utils.h"
-#include "components/prefs/testing_pref_service.h"
 #include "components/signin/public/base/consent_level.h"
 #include "components/signin/public/base/signin_pref_names.h"
 #include "components/signin/public/base/signin_switches.h"
@@ -164,7 +161,7 @@ class AddressDataManagerTest : public testing::Test {
 
   base::test::TaskEnvironment task_environment_{
       base::test::TaskEnvironment::TimeSource::MOCK_TIME};
-  std::unique_ptr<test::AutofillTestingPrefService> prefs_;
+  std::unique_ptr<PrefService> prefs_;
   signin::IdentityTestEnvironment identity_test_env_;
   std::unique_ptr<os_crypt_async::OSCryptAsync> os_crypt_;
   syncer::TestSyncService sync_service_;
@@ -184,8 +181,8 @@ TEST_F(AddressDataManagerTest, AddProfile) {
   // Verify the addition.
   const std::vector<const AutofillProfile*>& results1 =
       address_data_manager().GetProfiles();
-  ASSERT_EQ(results1.size(), 1U);
-  EXPECT_EQ(profile0.Compare(*results1[0]), 0);
+  ASSERT_EQ(1U, results1.size());
+  EXPECT_EQ(0, profile0.Compare(*results1[0]));
 
   // Add profile with identical values.  Duplicates should not get saved.
   AutofillProfile profile0a = profile0;
@@ -195,8 +192,8 @@ TEST_F(AddressDataManagerTest, AddProfile) {
   // Verify the non-addition.
   const std::vector<const AutofillProfile*>& results2 =
       address_data_manager().GetProfiles();
-  ASSERT_EQ(results2.size(), 1U);
-  EXPECT_EQ(profile0.Compare(*results2[0]), 0);
+  ASSERT_EQ(1U, results2.size());
+  EXPECT_EQ(0, profile0.Compare(*results2[0]));
 
   // New profile with different email.
   AutofillProfile profile1 = profile0;
@@ -392,7 +389,7 @@ TEST_F(AddressDataManagerTest, GetProfilesToSuggest_ProfileAutofillDisabled) {
   const size_t expected_profiles = 1;
   EXPECT_EQ(expected_profiles, address_data_manager().GetProfiles().size());
   // Expect no autofilled values or suggestions.
-  EXPECT_EQ(address_data_manager().GetProfilesToSuggest().size(), 0U);
+  EXPECT_EQ(0U, address_data_manager().GetProfilesToSuggest().size());
 }
 
 // Test that local and server profiles are not loaded into memory on start-up if
@@ -431,7 +428,7 @@ TEST_F(AddressDataManagerTest,
   prefs::SetAutofillProfileEnabled(prefs_.get(), false);
 
   // Expect no profile values or suggestions were loaded.
-  EXPECT_EQ(address_data_manager().GetProfilesToSuggest().size(), 0U);
+  EXPECT_EQ(0U, address_data_manager().GetProfilesToSuggest().size());
 }
 
 // Test that profiles are not added if `kAutofillProfileEnabled` is set to
@@ -472,7 +469,7 @@ TEST_F(AddressDataManagerTest, AddRemoveUpdateProfileSequence) {
   WaitForOnAddressDataChanged();
 
   auto profiles = address_data_manager().GetProfiles();
-  ASSERT_EQ(profiles.size(), 0U);
+  ASSERT_EQ(0U, profiles.size());
 
   address_data_manager().AddProfile(profile);
   address_data_manager().RemoveProfile(profile.guid());
@@ -480,7 +477,7 @@ TEST_F(AddressDataManagerTest, AddRemoveUpdateProfileSequence) {
   WaitForOnAddressDataChanged();
 
   profiles = address_data_manager().GetProfiles();
-  ASSERT_EQ(profiles.size(), 0U);
+  ASSERT_EQ(0U, profiles.size());
 
   address_data_manager().AddProfile(profile);
   profile.SetRawInfo(EMAIL_ADDRESS, u"new@email.com");
@@ -488,7 +485,7 @@ TEST_F(AddressDataManagerTest, AddRemoveUpdateProfileSequence) {
   WaitForOnAddressDataChanged();
 
   profiles = address_data_manager().GetProfiles();
-  ASSERT_EQ(profiles.size(), 1U);
+  ASSERT_EQ(1U, profiles.size());
   EXPECT_EQ(profiles[0]->GetRawInfo(EMAIL_ADDRESS), u"new@email.com");
 
   profile.SetRawInfo(EMAIL_ADDRESS, u"newer@email.com");
@@ -498,7 +495,7 @@ TEST_F(AddressDataManagerTest, AddRemoveUpdateProfileSequence) {
   WaitForOnAddressDataChanged();
 
   profiles = address_data_manager().GetProfiles();
-  ASSERT_EQ(profiles.size(), 1U);
+  ASSERT_EQ(1U, profiles.size());
   EXPECT_EQ(profiles[0]->GetRawInfo(EMAIL_ADDRESS), u"newest@email.com");
 }
 
@@ -514,13 +511,13 @@ TEST_F(AddressDataManagerTest, AddProfile_BasicInformation) {
   // Verify the addition.
   const std::vector<const AutofillProfile*>& results =
       address_data_manager().GetProfiles();
-  ASSERT_EQ(results.size(), 1U);
-  EXPECT_EQ(profile.Compare(*results[0]), 0);
+  ASSERT_EQ(1U, results.size());
+  EXPECT_EQ(0, profile.Compare(*results[0]));
 
   // Make sure the use count and use date were set.
-  EXPECT_EQ(results[0]->usage_history().use_count(), 1U);
-  EXPECT_EQ(results[0]->usage_history().use_date(), kArbitraryTime);
-  EXPECT_EQ(results[0]->usage_history().modification_date(), kArbitraryTime);
+  EXPECT_EQ(1U, results[0]->usage_history().use_count());
+  EXPECT_EQ(kArbitraryTime, results[0]->usage_history().use_date());
+  EXPECT_EQ(kArbitraryTime, results[0]->usage_history().modification_date());
 }
 
 // Test filling profiles with unicode strings and crazy characters.
@@ -653,7 +650,7 @@ TEST_F(AddressDataManagerTest, AddProfile_Invalid) {
   with_invalid.SetRawInfo(PHONE_HOME_WHOLE_NUMBER, u"Invalid_Phone_Number");
 
   AddProfileToAddressDataManager(with_invalid);
-  ASSERT_EQ(address_data_manager().GetProfiles().size(), 1u);
+  ASSERT_EQ(1u, address_data_manager().GetProfiles().size());
   AutofillProfile profile = *address_data_manager().GetProfiles()[0];
   ASSERT_NE(without_invalid.GetRawInfo(PHONE_HOME_WHOLE_NUMBER),
             profile.GetRawInfo(PHONE_HOME_WHOLE_NUMBER));
@@ -901,8 +898,8 @@ TEST_F(AddressDataManagerTest, PopulateUniqueIDsOnLoad) {
   // Verify that we've loaded the profiles from the web database.
   const std::vector<const AutofillProfile*>& results2 =
       address_data_manager().GetProfiles();
-  ASSERT_EQ(results2.size(), 1U);
-  EXPECT_EQ(profile0.Compare(*results2[0]), 0);
+  ASSERT_EQ(1U, results2.size());
+  EXPECT_EQ(0, profile0.Compare(*results2[0]));
 
   // Add a new profile.
   AutofillProfile profile1(i18n_model_definition::kLegacyHierarchyCountryCode);
@@ -914,7 +911,7 @@ TEST_F(AddressDataManagerTest, PopulateUniqueIDsOnLoad) {
   // Make sure the two profiles have different GUIDs, both valid.
   const std::vector<const AutofillProfile*>& results3 =
       address_data_manager().GetProfiles();
-  ASSERT_EQ(results3.size(), 2U);
+  ASSERT_EQ(2U, results3.size());
   EXPECT_NE(results3[0]->guid(), results3[1]->guid());
   EXPECT_TRUE(base::Uuid::ParseCaseInsensitive(results3[0]->guid()).is_valid());
   EXPECT_TRUE(base::Uuid::ParseCaseInsensitive(results3[1]->guid()).is_valid());
@@ -933,7 +930,7 @@ TEST_F(AddressDataManagerTest, SetEmptyProfile) {
   RecreateAddressDataManager();
 
   // Verify that we've loaded the profiles from the web database.
-  ASSERT_EQ(address_data_manager().GetProfiles().size(), 0U);
+  ASSERT_EQ(0U, address_data_manager().GetProfiles().size());
 }
 
 TEST_F(AddressDataManagerTest, Refresh) {
@@ -1009,7 +1006,7 @@ TEST_F(AddressDataManagerTest, Refresh) {
   WaitForOnAddressDataChanged();
 
   auto results = address_data_manager().GetProfiles();
-  ASSERT_EQ(results.size(), 1U);
+  ASSERT_EQ(1U, results.size());
   EXPECT_EQ(profile0, *results[0]);
 
   profile0.SetRawInfo(NAME_FIRST, u"Mar");
@@ -1019,7 +1016,7 @@ TEST_F(AddressDataManagerTest, Refresh) {
   WaitForOnAddressDataChanged();
 
   results = address_data_manager().GetProfiles();
-  ASSERT_EQ(results.size(), 1U);
+  ASSERT_EQ(1U, results.size());
   EXPECT_EQ(profile0, *results[0]);
 }
 
@@ -1042,17 +1039,17 @@ TEST_F(AddressDataManagerTest, UpdateLanguageCodeInProfile) {
   AddProfileToAddressDataManager(profile);
 
   // Make sure everything is set up correctly.
-  EXPECT_EQ(address_data_manager().GetProfiles().size(), 1U);
-  EXPECT_EQ(address_data_manager().GetProfiles().size(), 1U);
+  EXPECT_EQ(1U, address_data_manager().GetProfiles().size());
+  EXPECT_EQ(1U, address_data_manager().GetProfiles().size());
 
   profile.set_language_code("en");
   UpdateProfileOnAddressDataManager(profile);
 
   const std::vector<const AutofillProfile*>& results =
       address_data_manager().GetProfiles();
-  ASSERT_EQ(results.size(), 1U);
-  EXPECT_EQ(profile.Compare(*results[0]), 0);
-  EXPECT_EQ(results[0]->language_code(), "en");
+  ASSERT_EQ(1U, results.size());
+  EXPECT_EQ(0, profile.Compare(*results[0]));
+  EXPECT_EQ("en", results[0]->language_code());
 }
 
 // Tests updating a profile in a way that creates a duplicate. Expect that both
@@ -1316,24 +1313,6 @@ TEST_F(AddressDataManagerTest, RemoveNameEmailProfileOnSignOutWhileLoading) {
 
   // Verify the profile is gone.
   EXPECT_TRUE(address_data_manager().GetProfiles().empty());
-}
-
-TEST_F(AddressDataManagerTest, IsAutofillProfileEnabled_EnterprisePolicy) {
-  base::test::ScopedFeatureList feature_list{
-      features::kAutofillEnableAutofillSettingsEnterprisePolicy};
-
-  EXPECT_TRUE(address_data_manager().IsAutofillProfileEnabled());
-
-  base::ListValue blocked_list;
-  base::DictValue entry;
-  entry.Set("url_pattern", "*");
-  base::ListValue blocked_types;
-  blocked_types.Append("contact_info");
-  entry.Set("blocked_types", std::move(blocked_types));
-  blocked_list.Append(std::move(entry));
-  prefs_->SetManagedPref(prefs::kAutofillTypesBlocked, std::move(blocked_list));
-
-  EXPECT_FALSE(address_data_manager().IsAutofillProfileEnabled());
 }
 
 }  // namespace

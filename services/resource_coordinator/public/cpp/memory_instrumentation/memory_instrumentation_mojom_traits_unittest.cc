@@ -28,7 +28,7 @@ using testing::Pointee;
 
 namespace {
 
-using MemoryInstrumentationStructTraitsTest = testing::Test;
+using StructTraitsTest = testing::Test;
 
 // Test StructTrait serialization and deserialization for copyable type. |input|
 // will be serialized and then deserialized into |output|.
@@ -39,7 +39,7 @@ void SerializeAndDeserialize(const Type& input, Type* output) {
 
 }  // namespace
 
-TEST_F(MemoryInstrumentationStructTraitsTest, MemoryDumpRequestArgs) {
+TEST_F(StructTraitsTest, MemoryDumpRequestArgs) {
   MemoryDumpRequestArgs input{10u, MemoryDumpType::kSummaryOnly,
                               MemoryDumpLevelOfDetail::kDetailed};
   MemoryDumpRequestArgs output;
@@ -49,7 +49,7 @@ TEST_F(MemoryInstrumentationStructTraitsTest, MemoryDumpRequestArgs) {
   EXPECT_EQ(MemoryDumpLevelOfDetail::kDetailed, output.level_of_detail);
 }
 
-TEST_F(MemoryInstrumentationStructTraitsTest, MemoryAllocatorDumpEdge) {
+TEST_F(StructTraitsTest, MemoryAllocatorDumpEdge) {
   ProcessMemoryDump::MemoryAllocatorDumpEdge input{
       MemoryAllocatorDumpGuid(42), MemoryAllocatorDumpGuid(43), -99, true};
   ProcessMemoryDump::MemoryAllocatorDumpEdge output;
@@ -62,8 +62,7 @@ TEST_F(MemoryInstrumentationStructTraitsTest, MemoryAllocatorDumpEdge) {
   EXPECT_TRUE(output.overridable);
 }
 
-TEST_F(MemoryInstrumentationStructTraitsTest,
-       MemoryAllocatorDumpEdgeWithStringIDs) {
+TEST_F(StructTraitsTest, MemoryAllocatorDumpEdgeWithStringIDs) {
   ProcessMemoryDump::MemoryAllocatorDumpEdge input{
       MemoryAllocatorDumpGuid("string1"), MemoryAllocatorDumpGuid("string2"), 0,
       false};
@@ -77,7 +76,7 @@ TEST_F(MemoryInstrumentationStructTraitsTest,
   EXPECT_FALSE(output.overridable);
 }
 
-TEST_F(MemoryInstrumentationStructTraitsTest, MemoryAllocatorDumpEntry) {
+TEST_F(StructTraitsTest, MemoryAllocatorDumpEntry) {
   MemoryAllocatorDump::Entry input1("name_uint64", "units_uint64", 42);
   MemoryAllocatorDump::Entry output1;
   SerializeAndDeserialize<mojom::RawAllocatorDumpEntry>(input1, &output1);
@@ -105,7 +104,7 @@ TEST_F(MemoryInstrumentationStructTraitsTest, MemoryAllocatorDumpEntry) {
   EXPECT_EQ("!", output1.value_string);
 }
 
-TEST_F(MemoryInstrumentationStructTraitsTest, MemoryAllocatorDump) {
+TEST_F(StructTraitsTest, MemoryAllocatorDump) {
   auto input = std::make_unique<MemoryAllocatorDump>(
       "absolute/name", MemoryDumpLevelOfDetail::kDetailed,
       MemoryAllocatorDumpGuid(42));
@@ -126,7 +125,7 @@ TEST_F(MemoryInstrumentationStructTraitsTest, MemoryAllocatorDump) {
   EXPECT_THAT(output->entries(), Contains(Eq(ByRef(expected_entry2))));
 }
 
-TEST_F(MemoryInstrumentationStructTraitsTest, ProcessMemoryDump) {
+TEST_F(StructTraitsTest, ProcessMemoryDump) {
   auto input = std::make_unique<ProcessMemoryDump>(
       MemoryDumpArgs{MemoryDumpLevelOfDetail::kDetailed});
   std::unique_ptr<ProcessMemoryDump> output;

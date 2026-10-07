@@ -18,7 +18,6 @@ import androidx.annotation.VisibleForTesting;
 
 import org.chromium.base.Callback;
 import org.chromium.base.DeviceInfo;
-import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.base.supplier.NonNullObservableSupplier;
 import org.chromium.base.supplier.ObservableSuppliers;
 import org.chromium.base.supplier.SettableNonNullObservableSupplier;
@@ -235,8 +234,8 @@ class BottomSheetControllerImpl implements ManagedBottomSheetController {
         mBottomSheetContainer.setVisibility(View.VISIBLE);
 
         var rootView = root.get();
-        int layoutId = isLargeFormFactor() ? R.layout.bottom_sheet_desktop : R.layout.bottom_sheet;
-        LayoutInflater.from(rootView.getContext()).inflate(layoutId, mBottomSheetContainer);
+        LayoutInflater.from(rootView.getContext())
+                .inflate(R.layout.bottom_sheet, mBottomSheetContainer);
         mBottomSheet = rootView.findViewById(R.id.bottom_sheet);
 
         mBottomSheet.init(
@@ -258,7 +257,7 @@ class BottomSheetControllerImpl implements ManagedBottomSheetController {
         PropertyModel scrimProperties = createScrimParams();
 
         mBottomSheet.addObserver(
-                new BottomSheetObserver() {
+                new EmptyBottomSheetObserver() {
                     /**
                      * Whether the scrim was shown for the last content. TODO(mdjones): We should
                      * try to make sure the content in the sheet is not nulled prior to the close
@@ -342,7 +341,6 @@ class BottomSheetControllerImpl implements ManagedBottomSheetController {
                         }
                         if (mBottomSheet.getCurrentSheetContent() != null
                                 && !mIsSuppressingCurrentContent) {
-                            recordBottomSheetClosedMetric(reason);
                             mBottomSheet.getCurrentSheetContent().destroy();
                         }
                         mIsSuppressingCurrentContent = false;
@@ -479,11 +477,6 @@ class BottomSheetControllerImpl implements ManagedBottomSheetController {
     @Override
     public int getMaxSheetWidth() {
         return mBottomSheet != null ? mBottomSheet.getMaxSheetWidth() : 0;
-    }
-
-    @Override
-    public @Px int getMaxSheetHeight() {
-        return mBottomSheet != null ? mBottomSheet.getMaxSheetHeight() : 0;
     }
 
     @Override
@@ -736,9 +729,6 @@ class BottomSheetControllerImpl implements ManagedBottomSheetController {
                     .addSyncObserverAndPostIfNonNull(mContentBackPressStateChangedObserver);
         }
         mBottomSheet.showContent(nextContent);
-        if (nextContent != null) {
-            recordBottomSheetShownMetric();
-        }
         mBottomSheet.setSheetState(mBottomSheet.getOpeningState(), animate);
     }
 
@@ -811,7 +801,7 @@ class BottomSheetControllerImpl implements ManagedBottomSheetController {
     }
 
     @Override
-    public boolean isLargeFormFactorUiEnabled(@Nullable BottomSheetContent content) {
+    public boolean isLargeFormFactorUiEnabled(BottomSheetContent content) {
         return isLargeFormFactor() && content != null && content.supportsLargeFormFactor();
     }
 
@@ -902,15 +892,6 @@ class BottomSheetControllerImpl implements ManagedBottomSheetController {
                                         .getBackPressStateChangedSupplier()
                                         .get()
                                 || mBottomSheet.isSheetOpen()));
-    }
-
-    private void recordBottomSheetShownMetric() {
-        RecordHistogram.recordBooleanHistogram("Android.BottomSheet.Shown", true);
-    }
-
-    private void recordBottomSheetClosedMetric(@StateChangeReason int reason) {
-        RecordHistogram.recordEnumeratedHistogram(
-                "Android.BottomSheet.Closed", reason, StateChangeReason.MAX_VALUE + 1);
     }
 
     private void onScrimClicked() {

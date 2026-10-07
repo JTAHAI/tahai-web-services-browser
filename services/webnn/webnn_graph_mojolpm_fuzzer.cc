@@ -4,7 +4,6 @@
 
 #include <cstdint>
 #include <optional>
-#include <ranges>
 
 #include "base/base_switches.h"
 #include "base/byte_size.h"
@@ -22,6 +21,7 @@
 #include "base/test/test_future.h"
 #include "base/test/test_timeouts.h"
 #include "base/types/fixed_array.h"
+#include "base/types/zip.h"
 #include "content/test/fuzzer/mojolpm_fuzzer_support.h"
 #include "mojo/public/cpp/base/big_buffer.h"
 #include "mojo/public/cpp/bindings/remote.h"
@@ -140,16 +140,6 @@ class WebnnGraphLPMFuzzer {
       return;
     }
 
-    static bool logged_backend = false;
-    if (!logged_backend) {
-      logged_backend = true;
-      for (const auto backend_name :
-           init_globals->webnn_test_environment_->GetContextBackendNames()) {
-        LOG(INFO) << "[WebNN Fuzzer] Created WebNN context with backend: "
-                  << backend_name;
-      }
-    }
-
     webnn_context_remote.Bind(
         std::move(create_context_result->get_success()->context_remote));
 
@@ -182,7 +172,7 @@ class WebnnGraphLPMFuzzer {
       // would be able to exercise larger graphs but the tradeoff is that the
       // fuzzer will not explore as many graphs when it spends too much time
       // with these large examples.
-      constexpr size_t kMaxTensorBytes = base::GiB(1).InBytes();
+      constexpr size_t kMaxTensorBytes = base::GiBU(1).InBytes();
       const size_t tensor_length = operand->descriptor.PackedByteLength();
       if (kMaxTensorBytes - total_tensor_length < tensor_length) {
         return;
@@ -223,7 +213,7 @@ class WebnnGraphLPMFuzzer {
     named_input_handles.reserve(graph_info->input_operands.size());
 
     for (auto [operand_id, remote] :
-         std::views::zip(graph_info->input_operands, input_remotes)) {
+         base::zip(graph_info->input_operands, input_remotes)) {
       const webnn::mojom::Operand& operand =
           *graph_info->operands.at(operand_id.value());
       EXPECT_TRUE(operand.name.has_value());
@@ -258,7 +248,7 @@ class WebnnGraphLPMFuzzer {
     named_output_handles.reserve(graph_info->output_operands.size());
 
     for (auto&& [operand_id, remote] :
-         std::views::zip(graph_info->output_operands, output_remotes)) {
+         base::zip(graph_info->output_operands, output_remotes)) {
       const webnn::mojom::Operand& operand =
           *graph_info->operands.at(operand_id.value());
       EXPECT_TRUE(operand.name.has_value());

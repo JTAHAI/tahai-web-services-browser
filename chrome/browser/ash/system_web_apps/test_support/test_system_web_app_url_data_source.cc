@@ -77,7 +77,8 @@ void AddTestURLDataSource(const std::string& source_name,
       base::BindLambdaForTesting(
           [](const std::string& id,
              content::WebUIDataSource::GotDataCallback callback) {
-            auto ref_contents = base::MakeRefCounted<base::RefCountedString>();
+            scoped_refptr<base::RefCountedString> ref_contents(
+                new base::RefCountedString);
             if (id == "manifest.json") {
               ref_contents->as_string() = kManifestText;
             } else if (id == "pwa.html") {
@@ -90,7 +91,7 @@ void AddTestURLDataSource(const std::string& source_name,
               NOTREACHED();
             }
 
-            std::move(callback).Run(std::move(ref_contents));
+            std::move(callback).Run(ref_contents);
           }));
 }
 

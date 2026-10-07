@@ -2,11 +2,10 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "chrome/browser/glic/glic_settings_util.h"
-
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/compose/compose_enabling.h"
 #include "chrome/browser/glic/glic_pref_names.h"
+#include "chrome/browser/glic/glic_settings_util.h"
 #include "chrome/browser/glic/test_support/interactive_glic_test.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser_commands.h"
@@ -190,9 +189,11 @@ IN_PROC_BROWSER_TEST_F(GlicSettingsUtilUiTest,
                                            kKeyboardShortcutHelpBubbleQuery)));
 }
 
-// TODO(b/453696965): Broken in multi-instance.
-IN_PROC_BROWSER_TEST_F(GlicSettingsUtilUiTest,
-                       DISABLED_OpenSettingsFromGlicUi) {
+IN_PROC_BROWSER_TEST_F(GlicSettingsUtilUiTest, OpenSettingsFromGlicUi) {
+  if (base::FeatureList::IsEnabled(features::kGlicMultiInstance)) {
+    // TODO(b/453696965): Broken in multi-instance.
+    GTEST_SKIP() << "Skipping for kGlicMultiInstance";
+  }
   RunTestSequence(
       DeprecatedOpenGlicWindow(GlicWindowMode::kAttached,
                                GlicInstrumentMode::kHostAndContents),

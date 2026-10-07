@@ -30,11 +30,11 @@
 #include "base/types/optional_util.h"
 #include "build/build_config.h"
 #include "components/autofill/content/renderer/autofill_renderer_test.h"
-#include "components/autofill/content/renderer/focus_test_util.h"
+#include "components/autofill/content/renderer/focus_test_utils.h"
 #include "components/autofill/content/renderer/form_autofill_util.h"
 #include "components/autofill/content/renderer/form_cache.h"
 #include "components/autofill/content/renderer/synchronous_form_cache.h"
-#include "components/autofill/content/renderer/test_util.h"
+#include "components/autofill/content/renderer/test_utils.h"
 #include "components/autofill/core/common/autocomplete_parsing_util.h"
 #include "components/autofill/core/common/autofill_constants.h"
 #include "components/autofill/core/common/autofill_data_validation.h"
@@ -44,7 +44,7 @@
 #include "components/autofill/core/common/form_data_test_api.h"
 #include "components/autofill/core/common/form_field_data.h"
 #include "components/autofill/core/common/mojom/autofill_types.mojom-shared.h"
-#include "components/autofill/core/common/test_utils/autofill_form_test_util.h"
+#include "components/autofill/core/common/test_utils/autofill_form_test_utils.h"
 #include "components/autofill/core/common/unique_ids.h"
 #include "content/public/renderer/render_frame.h"
 #include "content/public/test/render_view_test.h"
@@ -92,7 +92,6 @@ using ::testing::AssertionResult;
 using ::testing::AssertionSuccess;
 using ::testing::ElementsAre;
 using ::testing::ElementsAreArray;
-using ::testing::Field;
 using ::testing::IsEmpty;
 using ::testing::IsFalse;
 using ::testing::IsTrue;
@@ -289,7 +288,12 @@ class FormAutofillUtilsTest : public content::RenderViewTest {
       .last_dom_content_loaded = {},
   };
 
-  FormAutofillUtilsTest() = default;
+  FormAutofillUtilsTest() {
+    scoped_feature_list_.InitWithFeatures(
+        /*enabled_features=*/
+        {features::kAutofillIgnoreCheckableElements},
+        /*disabled_features=*/{});
+  }
   ~FormAutofillUtilsTest() override = default;
 
   WebDocument GetDocument() { return GetMainFrame()->GetDocument(); }
@@ -300,8 +304,8 @@ class FormAutofillUtilsTest : public content::RenderViewTest {
                                       /*button_titles_cache=*/nullptr);
   }
 
-  std::optional<FormAndField> FindFormAndFieldForFormControlElement(
-      WebFormControlElement control) {
+  std::optional<std::pair<FormData, raw_ref<const FormFieldData>>>
+  FindFormAndFieldForFormControlElement(WebFormControlElement control) {
     return form_util::FindFormAndFieldForFormControlElement(
         control, field_data_manager(), kCallTimerStateDummy,
         /*button_titles_cache=*/nullptr,
@@ -311,8 +315,7 @@ class FormAutofillUtilsTest : public content::RenderViewTest {
   FieldDataManager& field_data_manager() { return *field_data_manager_; }
 
  private:
-  base::test::ScopedFeatureList scoped_feature_list_{
-      features::kAutofillFixIframeOwnership};
+  base::test::ScopedFeatureList scoped_feature_list_;
   scoped_refptr<FieldDataManager> field_data_manager_ =
       base::MakeRefCounted<FieldDataManager>();
 };
@@ -625,6 +628,9 @@ const AutofillFieldUtilCase kInferLabelForElementTestCases[] = {
          <div><input id='target'></div>
        </div>)",
      u"label", u"label"},
+    {"Infer_from_next_sibling",
+     "<input id='target' type='checkbox'>hello <b>world</b>", u"hello world",
+     u"hello world"},
     // With better placeholder support, poor man's placeholder will no longer
     // be considered a label. The label will be instead based on the value
     // attribute that is available.
@@ -1200,8 +1206,8 @@ TEST_F(FormAutofillUtilsTest,
   LoadHTML("<body><form id='form1'><input id='i1'></form></body>");
   WebDocument doc = GetDocument();
   auto web_control = GetFormControlElementById(doc, "i1");
-  std::optional<FormAndField> form_and_field =
-      FindFormAndFieldForFormControlElement(web_control);
+  std::optional<std::pair<FormData, raw_ref<const FormFieldData>>>
+      form_and_field = FindFormAndFieldForFormControlElement(web_control);
 
   ASSERT_TRUE(form_and_field);
   auto& [form, field] = *form_and_field;
@@ -1213,8 +1219,8 @@ TEST_F(FormAutofillUtilsTest,
   LoadHTML("<body><input id='i1'></body>");
   WebDocument doc = GetDocument();
   auto web_control = GetFormControlElementById(doc, "i1");
-  std::optional<FormAndField> form_and_field =
-      FindFormAndFieldForFormControlElement(web_control);
+  std::optional<std::pair<FormData, raw_ref<const FormFieldData>>>
+      form_and_field = FindFormAndFieldForFormControlElement(web_control);
 
   ASSERT_TRUE(form_and_field);
   auto& [form, field] = *form_and_field;
@@ -1261,8 +1267,8 @@ TEST_F(FormAutofillUtilsTest,
       "value='2'>two</option></datalist></body>");
   WebDocument doc = GetDocument();
   auto web_control = GetElementById(doc, "i1").To<WebInputElement>();
-  std::optional<FormAndField> form_and_field =
-      FindFormAndFieldForFormControlElement(web_control);
+  std::optional<std::pair<FormData, raw_ref<const FormFieldData>>>
+      form_and_field = FindFormAndFieldForFormControlElement(web_control);
 
   ASSERT_TRUE(form_and_field);
   auto& [form, field] = *form_and_field;
@@ -1272,7 +1278,7 @@ TEST_F(FormAutofillUtilsTest,
   EXPECT_EQ(options[1].value, u"2");
   EXPECT_EQ(options[0].text, u"one");
   EXPECT_EQ(options[1].text, u"two");
-  EXPECT_EQ(field.datalist_options().size(), options.size());
+  EXPECT_EQ(field->datalist_options().size(), options.size());
 }
 
 TEST_F(FormAutofillUtilsTest,
@@ -1332,12 +1338,11 @@ TEST_F(FormAutofillUtilsTest,
   ASSERT_FALSE(is_ancestor(f1, t));
   ASSERT_EQ(t.Form(), f2);  // nocheck
 
-  EXPECT_THAT(
-      FindFormAndFieldForFormControlElement(t),
-      Optional(Field(&FormAndField::form,
-                     AllOf(HasRendererIdOf(f1),
-                           Property(&FormData::fields,
-                                    ElementsAre(HasRendererIdOf(t)))))));
+  EXPECT_THAT(FindFormAndFieldForFormControlElement(t),
+              Optional(Pair(AllOf(HasRendererIdOf(f1),
+                                  Property(&FormData::fields,
+                                           ElementsAre(HasRendererIdOf(t)))),
+                            _)));
 }
 
 // Tests the fallback mechanism where FindFormAndFieldForFormControlElement()
@@ -1361,14 +1366,14 @@ TEST_F(FormAutofillUtilsTest,
   WebFormElement form_element = GetFormElementById(doc, "f");
   WebFormControlElement control_element = GetFormControlElementById(doc, "i0");
 
-  std::optional<FormAndField> form_and_field =
-      form_util::FindFormAndFieldForFormControlElement(
+  std::optional<std::pair<FormData, raw_ref<const FormFieldData>>>
+      form_and_field = form_util::FindFormAndFieldForFormControlElement(
           control_element, field_data_manager(), kCallTimerStateDummy,
           /*button_titles_cache=*/nullptr,
           /*form_cache=*/{});
 
   ASSERT_TRUE(form_and_field);
-  const FormData& fallback_form = form_and_field->form;
+  const FormData& fallback_form = form_and_field->first;
 
   // The fallback form should represent the owning form, so its `FormRendererId`
   // should match `form_element`'s renderer ID, and the form's only field's
@@ -1540,6 +1545,22 @@ TEST_F(FormAutofillUtilsTest, IsWebElementVisibleTest) {
         <input type="text" data-visible   style="width: 100px; position: absolute; right:  -200px;" data-false="POSITIVE">
         <input type="text" data-visible   style="width: 100px; position: absolute; bottom: -200px;" data-false="POSITIVE">
 
+        <input type="checkbox" data-visible   style="">
+        <input type="checkbox" data-invisible style="display: none;">
+        <input type="checkbox" data-invisible style="visibility: hidden;">
+        <input type="checkbox" data-visible   style="width: 15px; height: 15px;">
+        <input type="checkbox" data-visible   style="width: 15px; height:  5px;">
+        <input type="checkbox" data-visible   style="width:  5px; height: 15px;">
+        <input type="checkbox" data-visible   style="width:  5px; height:  5px;">
+
+        <input type="radio" data-visible   style="">
+        <input type="radio" data-invisible style="display: none;">
+        <input type="radio" data-invisible style="visibility: hidden;">
+        <input type="radio" data-visible   style="width: 15px; height: 15px;">
+        <input type="radio" data-visible   style="width: 15px; height:  5px;">
+        <input type="radio" data-visible   style="width:  5px; height: 15px;">
+        <input type="radio" data-visible   style="width:  5px; height:  5px;">
+
         <div style="width: 10000; height: 10000"></div>
       </body>)");
 
@@ -1556,7 +1577,7 @@ TEST_F(FormAutofillUtilsTest, IsWebElementVisibleTest) {
     }
     return result;
   }();
-  ASSERT_GE(inputs.size(), 22u);
+  ASSERT_GE(inputs.size(), 36u);
 
   auto RunTestCases = [](const std::vector<WebElement>& inputs) {
     for (WebElement input : inputs) {
@@ -1589,8 +1610,8 @@ TEST_F(FormAutofillUtilsTest, IsWebElementVisibleTest) {
   }
 }
 
-// Tests `GetOutermostAncestorFormElement(element)`.
-TEST_F(FormAutofillUtilsTest, GetOutermostAncestorFormElement) {
+// Tests `GetClosestAncestorFormElement(element)`.
+TEST_F(FormAutofillUtilsTest, GetClosestAncestorFormElement) {
   LoadHTML(R"(
       <body>
         <iframe id=unowned></iframe>
@@ -1615,16 +1636,16 @@ TEST_F(FormAutofillUtilsTest, GetOutermostAncestorFormElement) {
 
   WebDocument doc = GetDocument();
   EXPECT_EQ(
-      GetOutermostAncestorFormElementForTesting(GetElementById(doc, "unowned")),
+      GetClosestAncestorFormElementForTesting(GetElementById(doc, "unowned")),
       WebFormElement());
   EXPECT_EQ(
-      GetOutermostAncestorFormElementForTesting(GetElementById(doc, "owned1")),
+      GetClosestAncestorFormElementForTesting(GetElementById(doc, "owned1")),
       GetFormElementById(doc, "outer_form"));
   EXPECT_EQ(
-      GetOutermostAncestorFormElementForTesting(GetElementById(doc, "owned2")),
-      GetFormElementById(doc, "outer_form"));
+      GetClosestAncestorFormElementForTesting(GetElementById(doc, "owned2")),
+      GetFormElementById(doc, "inner_form"));
   EXPECT_EQ(
-      GetOutermostAncestorFormElementForTesting(GetElementById(doc, "owned3")),
+      GetClosestAncestorFormElementForTesting(GetElementById(doc, "owned3")),
       GetFormElementById(doc, "outer_form"));
   EXPECT_EQ(WebFormControlElement(),
             GetFormElementById(doc, "non_existent_form", AllowNull(true)));
@@ -2389,40 +2410,10 @@ TEST_F(FormAutofillUtilsTest, FindFormForContentEditableFailures) {
          <textarea id=ce4 contenteditable><div contenteditable></textarea>
          </body>)");
   WebDocument doc = GetDocument();
-  EXPECT_FALSE(FindFormForContentEditable(doc.GetElementById("ce1")));
-  EXPECT_FALSE(FindFormForContentEditable(doc.GetElementById("ce2")));
-  EXPECT_FALSE(FindFormForContentEditable(doc.GetElementById("ce3")));
-  EXPECT_FALSE(FindFormForContentEditable(doc.GetElementById("ce4")));
-}
-
-// Tests that GetFieldRendererId() returns valid and unique `FieldRendererId`s
-// for contenteditable elements based on their DOM node ID, and that the
-// returned ID matches the `FormFieldData` renderer ID extracted by
-// FindFormForContentEditable().
-TEST_F(FormAutofillUtilsTest, GetFieldRendererId_ContentEditable) {
-  LoadHTML(
-      R"(<body>
-         <div id=editable1 contenteditable>First</div>
-         <p id=editable2 contenteditable>Second</p>
-         </body>)");
-  WebElement ce1 = GetDocument().GetElementById("editable1");
-  WebElement ce2 = GetDocument().GetElementById("editable2");
-  ASSERT_TRUE(ce1);
-  ASSERT_TRUE(ce2);
-
-  FieldRendererId id1 = GetFieldRendererId(ce1);
-  FieldRendererId id2 = GetFieldRendererId(ce2);
-
-  EXPECT_FALSE(id1.is_null());
-  EXPECT_FALSE(id2.is_null());
-  EXPECT_NE(id1, id2);
-  EXPECT_EQ(id1, FieldRendererId(ce1.GetDomNodeId()));
-  EXPECT_EQ(id2, FieldRendererId(ce2.GetDomNodeId()));
-
-  EXPECT_THAT(FindFormForContentEditable(ce1),
-              Optional(Property(
-                  &FormData::fields,
-                  ElementsAre(Property(&FormFieldData::renderer_id, id1)))));
+  ASSERT_FALSE(FindFormForContentEditable(doc.GetElementById("ce1")));
+  ASSERT_FALSE(FindFormForContentEditable(doc.GetElementById("ce2")));
+  ASSERT_FALSE(FindFormForContentEditable(doc.GetElementById("ce3")));
+  ASSERT_FALSE(FindFormForContentEditable(doc.GetElementById("ce4")));
 }
 
 TEST_F(FormAutofillUtilsTest, ExtractFormData_OwnedForm) {
@@ -3069,7 +3060,7 @@ FormData FindForm(const blink::WebFormControlElement& element) {
           kExtractFormDataCallTimerStateDummy,
           /*button_titles_cache=*/nullptr,
           /*form_cache=*/{})) {
-    return p->form;
+    return p->first;
   }
   return FormData();
 }
@@ -4839,7 +4830,7 @@ TEST_F(FormDataConversionTest, WebFormElementToFormData) {
              <input type=hidden id=notvisible value=apple>
          </form>)");
 
-  std::vector<WebFormElement> forms = GetDocument().GetOutermostForms();
+  std::vector<WebFormElement> forms = GetDocument().GetTopLevelForms();
   ASSERT_EQ(1U, forms.size());
 
   WebInputElement input_element = GetInputElementById("firstname");
@@ -4933,7 +4924,7 @@ TEST_F(FormDataConversionTest, WebFormElementToFormData_TooManyFields) {
   html += "</form>";
   LoadHTML(html.c_str());
 
-  std::vector<WebFormElement> forms = GetDocument().GetOutermostForms();
+  std::vector<WebFormElement> forms = GetDocument().GetTopLevelForms();
   ASSERT_EQ(1U, forms.size());
   std::vector<WebFormControlElement> form_controls =
       form_util::GetOwnedAutofillableFormControls(GetDocument(), forms.front());
@@ -5242,7 +5233,7 @@ TEST_F(FormDataConversionTest, WebFormElementToFormData_Autocomplete) {
              <input type=submit name='reply-send' value=Send>
            </form>)");
 
-  std::vector<WebFormElement> web_forms = GetDocument().GetOutermostForms();
+  std::vector<WebFormElement> web_forms = GetDocument().GetTopLevelForms();
   ASSERT_EQ(1U, web_forms.size());
   WebFormElement web_form = web_forms[0];
 
@@ -5266,7 +5257,7 @@ TEST_F(FormDataConversionTest, SelectOneAsText) {
       GetDocument().GetElementById("country").To<WebSelectElement>();
   select_element.SetValue(WebString("AL"));
 
-  std::vector<WebFormElement> forms = GetDocument().GetOutermostForms();
+  std::vector<WebFormElement> forms = GetDocument().GetTopLevelForms();
   ASSERT_EQ(1U, forms.size());
 
   std::optional<FormData> form = ExtractFormData(forms.front());
@@ -6174,7 +6165,7 @@ TEST_F(FormAutofillWithConstraintsTest, ThreePartPhone) {
   WebLocalFrame* frame = GetMainFrame();
   ASSERT_NE(nullptr, frame);
 
-  std::vector<WebFormElement> forms = frame->GetDocument().GetOutermostForms();
+  std::vector<WebFormElement> forms = frame->GetDocument().GetTopLevelForms();
   ASSERT_EQ(1U, forms.size());
 
   std::optional<FormData> form = ExtractFormData(forms.front());
@@ -6220,7 +6211,7 @@ TEST_F(FormAutofillWithConstraintsTest, MaxLengthFields) {
   WebLocalFrame* frame = GetMainFrame();
   ASSERT_NE(nullptr, frame);
 
-  std::vector<WebFormElement> forms = frame->GetDocument().GetOutermostForms();
+  std::vector<WebFormElement> forms = frame->GetDocument().GetTopLevelForms();
   ASSERT_EQ(1U, forms.size());
 
   std::optional<FormData> form = ExtractFormData(forms.front());
@@ -6393,89 +6384,6 @@ TEST_F(FormAutofillWithConstraintsTest, FillFormModifyValues) {
                                .value = u"AA",
                                .placeholder = u"State",
                                .is_autofilled_according_to_renderer = true})));
-}
-
-// Tests that when autofill fills a <select> whose options are replaced by a
-// JavaScript focus event handler, the detached option is not selected.
-//
-// Autofill resolves the <option> element to select and then fires a focus
-// event on the <select>. If the focus event handler replaces the select's
-// options (emulating a component which re-renders its options when focused),
-// autofill must not select the removed option, which would corrupt the
-// select's state (a detached option marked selected while the select reports
-// no selected option). Instead, it falls back to filling by value, which
-// selects the newly-created equivalent option.
-//
-// Regression test for crbug.com/535975677.
-TEST_F(FormAutofillUtilsTest, FillSelectWhoseOptionsAreReplacedOnFocus) {
-  LoadHTML(R"(<form name=TestForm action='http://example.test'>
-           <input id=firstname>
-           <select id=state name=state>
-             <option value=''>Select a state</option>
-             <option value=AL>Alabama</option>
-             <option value=CA>California</option>
-           </select>
-         </form>
-         <script>
-           const select = document.getElementById('state');
-           window.origOptions = [...select.options];
-           window.focusCount = 0;
-           select.addEventListener('focus', () => {
-             ++window.focusCount;
-             select.replaceChildren(...[...select.options].map((old) => {
-               const fresh = document.createElement('option');
-               fresh.value = old.value;
-               fresh.textContent = old.textContent;
-               return fresh;
-             }));
-           });
-         </script>)");
-
-  WebSelectElement select_element =
-      GetFormControlElementById(GetDocument(), "state")
-          .DynamicTo<WebSelectElement>();
-  ASSERT_TRUE(select_element);
-
-  FormData form = FindForm(select_element);
-  FormFieldData* state_field = test_api(form).FindFieldByNameForTest(u"state");
-  ASSERT_TRUE(state_field);
-  state_field->set_value(u"CA");
-  state_field->set_is_autofilled_according_to_renderer(true);
-
-  // Fill while the <select> is not focused, so that filling dispatches a
-  // focus event, whose handler replaces all options.
-  ExecuteJavaScriptForTests("document.getElementById('firstname').focus();");
-  std::vector<FormFieldData> fields_to_fill = {*state_field};
-  ApplyFieldsAction(GetDocument(), fields_to_fill,
-                    mojom::ActionPersistence::kFill);
-
-  // The focus event handler ran and replaced the options. If this fails
-  // because filling no longer dispatches focus events, this test needs to be
-  // revisited.
-  int focus_count = 0;
-  ASSERT_TRUE(
-      ExecuteJavaScriptAndReturnIntValue(u"window.focusCount", &focus_count));
-  ASSERT_GE(focus_count, 1);
-
-  // The fill must have selected the newly-created option, not the detached
-  // one.
-  EXPECT_EQ("CA", select_element.Value().Utf8());
-  EXPECT_TRUE(select_element.IsAutofilled());
-  // Note: the originally default-selected option ('Select a state') keeps its
-  // stale selected flag after being detached, so only check that autofill did
-  // not additionally mark the detached CA option as selected.
-  int selection_state = -1;
-  ASSERT_TRUE(ExecuteJavaScriptAndReturnIntValue(
-      uR"(window.origOptions.find((o) => o.value === 'CA').selected
-              ? 1
-              : window.origOptions.includes(
-                    document.getElementById('state').selectedOptions[0])
-                    ? 2
-                    : 3)",
-      &selection_state));
-  EXPECT_EQ(3, selection_state)
-      << "1 = the detached CA option was marked selected; "
-      << "2 = an original option is selected (options were not replaced)";
 }
 
 // Similar to test case `FillFormModifyValues`.
@@ -6667,7 +6575,7 @@ TEST_F(FormAutofillWithConstraintsTest, UndoAutofill) {
                                WebAutofillState::kAutofilled));
 
   std::vector<WebFormElement> forms =
-      GetMainFrame()->GetDocument().GetOutermostForms();
+      GetMainFrame()->GetDocument().GetTopLevelForms();
   EXPECT_EQ(1U, forms.size());
 
   std::optional<FormData> form = ExtractFormData(forms.front());

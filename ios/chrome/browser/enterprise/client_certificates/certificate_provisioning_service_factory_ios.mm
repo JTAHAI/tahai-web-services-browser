@@ -6,6 +6,7 @@
 
 #import "base/no_destructor.h"
 #import "components/enterprise/client_certificates/core/dm_server_client.h"
+#import "components/enterprise/client_certificates/core/features.h"
 #import "components/enterprise/client_certificates/core/key_upload_client.h"
 #import "components/enterprise/client_certificates/core/profile_cloud_management_delegate.h"
 #import "components/enterprise/client_certificates/ios/certificate_provisioning_service_ios.h"
@@ -62,6 +63,9 @@ CertificateProvisioningServiceFactoryIOS::
 std::unique_ptr<KeyedService>
 CertificateProvisioningServiceFactoryIOS::BuildServiceInstanceFor(
     ProfileIOS* profile) const {
+  if (!features::IsClientCertificateProvisioningOnIOSEnabled()) {
+    return nullptr;
+  }
 
   auto* certificate_store = CertificateStoreFactory::GetForProfile(profile);
   auto url_loader_factory = profile->GetSharedURLLoaderFactory();

@@ -23,8 +23,4 @@ void StartThreadPool() {
   StartBrowserThreadPool();
 }
 
-void PostFeatureListInit() {
-  BrowserTaskExecutor::PostFeatureListInit();
-}
-
 }  // namespace content

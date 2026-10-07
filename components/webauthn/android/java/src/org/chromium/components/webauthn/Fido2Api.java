@@ -97,7 +97,7 @@ public final class Fido2Api {
     public interface Calls {
         /**
          * Serialize a browser's or an app's makeCredential request to a {@link Parcel}. Apps should
-         * not set {@code origin}.
+         * not set {@param origin}.
          *
          * @param options the options passed from the renderer.
          * @param origin the origin that the request should act as.
@@ -120,7 +120,7 @@ public final class Fido2Api {
 
         /**
          * Serialize a browser's or an app's getAssertion request to a {@link Parcel}. Apps should
-         * not set {@code origin}.
+         * not set {@param origin}.
          *
          * @param options the options passed from the renderer.
          * @param origin the origin that the request should act as.
@@ -679,21 +679,11 @@ public final class Fido2Api {
             parcel.writeByteArray(cred.id);
             writeLength(z, parcel);
 
-            // Filter out unsupported transports before serializing to avoid crashing/hanging
-            // GmsCore.
-            ArrayList<String> transportStrings = new ArrayList<>(cred.transports.length);
-            for (int transport : cred.transports) {
-                String str = transportToString(transport);
-                if (str != null) {
-                    transportStrings.add(str);
-                }
-            }
-
             int c = writeHeader(4, parcel);
-            parcel.writeInt(transportStrings.size());
-            for (String transportStr : transportStrings) {
+            parcel.writeInt(cred.transports.length);
+            for (int transport : cred.transports) {
                 z = startLength(parcel);
-                parcel.writeString(transportStr);
+                parcel.writeString(transportToString(transport));
                 writeLength(z, parcel);
             }
             writeLength(c, parcel);
@@ -788,10 +778,10 @@ public final class Fido2Api {
         }
     }
 
-    private static @Nullable String transportToString(int transport) {
+    private static String transportToString(int transport) {
         // This is the closest one can get to a static assert that no new enumeration values have
         // been added.
-        assert AuthenticatorTransport.MAX_VALUE == AuthenticatorTransport.SMART_CARD;
+        assert AuthenticatorTransport.MAX_VALUE == AuthenticatorTransport.INTERNAL;
 
         switch (transport) {
             case AuthenticatorTransport.NFC:
@@ -802,13 +792,6 @@ public final class Fido2Api {
                 return "internal";
             case AuthenticatorTransport.HYBRID:
                 return "cable";
-            case AuthenticatorTransport.SMART_CARD:
-                // This is a temporary workaround for crbug.com/555599813.
-                if (WebauthnFeatureMap.getInstance()
-                        .isEnabled(WebauthnFeatures.WEBAUTHN_FILTER_SMART_CARD_TRANSPORT)) {
-                    return null;
-                }
-                return "smart-card";
             case AuthenticatorTransport.USB:
             default:
                 return "usb";
@@ -1154,8 +1137,6 @@ public final class Fido2Api {
                 pending[j++] = AuthenticatorTransport.HYBRID;
             } else if ("internal".equals(transport)) {
                 pending[j++] = AuthenticatorTransport.INTERNAL;
-            } else if ("smart-card".equals(transport)) {
-                pending[j++] = AuthenticatorTransport.SMART_CARD;
             }
         }
 

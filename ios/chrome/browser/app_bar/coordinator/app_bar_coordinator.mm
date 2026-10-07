@@ -23,7 +23,6 @@
 #import "ios/chrome/browser/search_engines/model/template_url_service_factory.h"
 #import "ios/chrome/browser/shared/coordinator/layout_guide/layout_guide_util.h"
 #import "ios/chrome/browser/shared/coordinator/scene/scene_state.h"
-#import "ios/chrome/browser/shared/coordinator/scene/state/browser_layout_state.h"
 #import "ios/chrome/browser/shared/coordinator/scene/state/tab_grid_state.h"
 #import "ios/chrome/browser/shared/model/browser/browser.h"
 #import "ios/chrome/browser/shared/model/profile/profile_ios.h"
@@ -178,12 +177,7 @@
 
   _containerViewController = [[AppBarContainerViewController alloc] init];
   [_containerViewController setAppBar:_viewController];
-  _containerViewController.regularBrowserLayoutState =
-      _regularBrowser->GetBrowserLayoutState();
-  _containerViewController.incognitoBrowserLayoutState =
-      _incognitoBrowser ? _incognitoBrowser->GetBrowserLayoutState() : nil;
-  _containerViewController.incognitoState = sceneState.incognitoState;
-  _containerViewController.sceneLayoutState =
+  _containerViewController.layoutState =
       _regularBrowser->GetSceneState().layoutState;
 
   _containerMediator = [[AppBarContainerMediator alloc]
@@ -209,10 +203,7 @@
   if (_incognitoBrowser) {
     [_incognitoBrowser->GetCommandDispatcher() stopDispatchingToTarget:self];
   }
-  _containerViewController.regularBrowserLayoutState = nil;
-  _containerViewController.incognitoBrowserLayoutState = nil;
-  _containerViewController.incognitoState = nil;
-  _containerViewController.sceneLayoutState = nil;
+  _containerViewController.layoutState = nil;
   _containerViewController = nil;
   _viewController.layoutState = nil;
   _viewController = nil;
@@ -276,8 +267,6 @@
 
 - (void)setIncognitoBrowser:(Browser*)incognitoBrowser {
   _incognitoBrowser = incognitoBrowser;
-  _containerViewController.incognitoBrowserLayoutState =
-      incognitoBrowser ? incognitoBrowser->GetBrowserLayoutState() : nil;
   [_mediator setIncognitoWebStateList:incognitoBrowser
                                           ? incognitoBrowser->GetWebStateList()
                                           : nullptr];
@@ -338,7 +327,7 @@
 
 - (void)accountMenuCoordinatorWantsToBeStopped:
     (AccountMenuCoordinator*)coordinator {
-  CHECK_EQ(_accountMenuCoordinator, coordinator);
+  CHECK_EQ(_accountMenuCoordinator, coordinator, base::NotFatalUntil::M140);
   [_accountMenuCoordinator stop];
   _accountMenuCoordinator.delegate = nil;
   _accountMenuCoordinator = nil;

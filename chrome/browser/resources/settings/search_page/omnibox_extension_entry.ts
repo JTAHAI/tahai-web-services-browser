@@ -8,16 +8,19 @@
  */
 import 'chrome://resources/cr_elements/cr_action_menu/cr_action_menu.js';
 import 'chrome://resources/cr_elements/cr_icon_button/cr_icon_button.js';
+import 'chrome://resources/cr_elements/icons.html.js';
+import './search_engine_entry.css.js';
+import '../settings_shared.css.js';
 import '../site_favicon.js';
 
 import type {ExtensionControlBrowserProxy} from '/shared/settings/extension_control_browser_proxy.js';
 import {ExtensionControlBrowserProxyImpl} from '/shared/settings/extension_control_browser_proxy.js';
 import {AnchorAlignment} from 'chrome://resources/cr_elements/cr_action_menu/cr_action_menu.js';
+import {FocusRowMixin} from 'chrome://resources/cr_elements/focus_row_mixin.js';
 import {assert} from 'chrome://resources/js/assert.js';
-import {CrLitElement} from 'chrome://resources/lit/v3_0/lit.rollup.js';
+import {PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
-import {getCss} from './omnibox_extension_entry.css.js';
-import {getHtml} from './omnibox_extension_entry.html.js';
+import {getTemplate} from './omnibox_extension_entry.html.js';
 import type {SearchEngine} from './search_engines_browser_proxy.js';
 
 export interface SettingsOmniboxExtensionEntryElement {
@@ -27,67 +30,46 @@ export interface SettingsOmniboxExtensionEntryElement {
   };
 }
 
-export class SettingsOmniboxExtensionEntryElement extends CrLitElement {
+const SettingsOmniboxExtensionEntryElementBase = FocusRowMixin(PolymerElement);
+
+export class SettingsOmniboxExtensionEntryElement extends
+    SettingsOmniboxExtensionEntryElementBase {
   static get is() {
     return 'settings-omnibox-extension-entry';
   }
 
-  static override get styles() {
-    return getCss();
+  static get template() {
+    return getTemplate();
   }
 
-  override render() {
-    return getHtml.bind(this)();
-  }
-
-  static override get properties() {
+  static get properties() {
     return {
-      engine: {type: Object},
+      engine: Object,
     };
   }
 
-  accessor engine: SearchEngine = {
-    canBeDefault: false,
-    canBeEdited: false,
-    canBeRemoved: false,
-    canBeActivated: false,
-    canBeDeactivated: false,
-    default: false,
-    displayName: '',
-    iconPath: '',
-    id: -1,
-    isManaged: false,
-    isRecommendedFromPolicy: false,
-    isOmniboxExtension: false,
-    isPrepopulated: false,
-    isStarterPack: false,
-    keyword: '',
-    name: '',
-    shouldConfirmRemoval: false,
-    url: '',
-    urlLocked: false,
-  };
+  declare engine: SearchEngine;
   private browserProxy_: ExtensionControlBrowserProxy =
       ExtensionControlBrowserProxyImpl.getInstance();
 
-  protected onManageClick_() {
+  private onManageClick_() {
     this.closePopupMenu_();
     this.browserProxy_.manageExtension(this.engine.extension!.id);
   }
 
-  protected onDisableClick_() {
+  private onDisableClick_() {
     this.closePopupMenu_();
     this.browserProxy_.disableExtension(this.engine.extension!.id);
   }
 
   private closePopupMenu_() {
-    this.shadowRoot.querySelector('cr-action-menu')!.close();
+    this.shadowRoot!.querySelector('cr-action-menu')!.close();
   }
 
-  protected onDotsClick_() {
-    const dots = this.shadowRoot.querySelector('cr-icon-button');
+  private onDotsClick_() {
+    const dots = this.shadowRoot!.querySelector('cr-icon-button');
     assert(dots);
-    this.shadowRoot.querySelector('cr-action-menu')!.showAt(dots, {
+    this.shadowRoot!.querySelector('cr-action-menu')!.showAt(dots, {
       anchorAlignmentY: AnchorAlignment.AFTER_END,
     });
   }

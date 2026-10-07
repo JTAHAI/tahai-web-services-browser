@@ -44,7 +44,6 @@ import static org.chromium.chrome.browser.facilitated_payments.FacilitatedPaymen
 import static org.chromium.chrome.browser.facilitated_payments.FacilitatedPaymentsPaymentMethodsProperties.PaymentAppProperties.ON_PAYMENT_APP_CLICK_ACTION;
 import static org.chromium.chrome.browser.facilitated_payments.FacilitatedPaymentsPaymentMethodsProperties.PaymentAppProperties.PAYMENT_APP_NAME;
 import static org.chromium.chrome.browser.facilitated_payments.FacilitatedPaymentsPaymentMethodsProperties.PixAccountLinkingPromptProperties.ACCEPT_BUTTON_CALLBACK;
-import static org.chromium.chrome.browser.facilitated_payments.FacilitatedPaymentsPaymentMethodsProperties.PixAccountLinkingPromptProperties.ACCOUNT_EMAIL;
 import static org.chromium.chrome.browser.facilitated_payments.FacilitatedPaymentsPaymentMethodsProperties.PixAccountLinkingPromptProperties.DECLINE_BUTTON_CALLBACK;
 import static org.chromium.chrome.browser.facilitated_payments.FacilitatedPaymentsPaymentMethodsProperties.PixAccountLinkingPromptProperties.DECLINE_BUTTON_TEXT_ID;
 import static org.chromium.chrome.browser.facilitated_payments.FacilitatedPaymentsPaymentMethodsProperties.PixAccountLinkingPromptProperties.SETTINGS_LINK_CALLBACK;
@@ -99,9 +98,6 @@ import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.profiles.ProfileManager;
 import org.chromium.chrome.browser.settings.SettingsNavigationFactory;
-import org.chromium.chrome.browser.signin.services.IdentityServicesProvider;
-import org.chromium.chrome.browser.ui.messages.snackbar.Snackbar;
-import org.chromium.chrome.browser.ui.messages.snackbar.SnackbarManager;
 import org.chromium.components.autofill.payments.AccountType;
 import org.chromium.components.autofill.payments.BankAccount;
 import org.chromium.components.autofill.payments.Ewallet;
@@ -117,8 +113,6 @@ import org.chromium.components.facilitated_payments.core.ui_utils.PaymentLinkFop
 import org.chromium.components.facilitated_payments.core.ui_utils.UiEvent;
 import org.chromium.components.payments.ui.InputProtector;
 import org.chromium.components.payments.ui.test_support.FakeClock;
-import org.chromium.components.signin.identitymanager.IdentityManager;
-import org.chromium.components.signin.test.util.TestAccounts;
 import org.chromium.ui.modelutil.MVCListAdapter.ModelList;
 import org.chromium.ui.modelutil.PropertyKey;
 import org.chromium.ui.modelutil.PropertyModel;
@@ -223,8 +217,6 @@ public class FacilitatedPaymentsPaymentMethodsControllerRobolectricTest {
     @Mock private AutofillImageFetcher mAutofillImageFetcher;
     @Mock private Profile mProfile;
     @Mock private SettingsNavigation mSettingsNavigation;
-    @Mock private SnackbarManager mSnackbarManager;
-    @Mock private IdentityManager mIdentityManagerMock;
 
     private final Context mContext;
     private final FacilitatedPaymentsPaymentMethodsCoordinator mCoordinator;
@@ -244,14 +236,7 @@ public class FacilitatedPaymentsPaymentMethodsControllerRobolectricTest {
                 .thenReturn(true);
         ProfileManager.setLastUsedProfileForTesting(mProfile);
         AutofillImageFetcherFactory.setInstanceForTesting(mAutofillImageFetcher);
-        IdentityServicesProvider.setIdentityManagerForTesting(mIdentityManagerMock);
-        mCoordinator.initialize(
-                mContext,
-                mBottomSheetController,
-                /* windowAndroid= */ null,
-                mDelegateMock,
-                mProfile);
-        mCoordinator.getMediatorForTesting().setSnackbarManagerForTesting(mSnackbarManager);
+        mCoordinator.initialize(mContext, mBottomSheetController, mDelegateMock, mProfile);
         mFacilitatedPaymentsPaymentMethodsModel = mCoordinator.getModelForTesting();
         mCoordinator
                 .getMediatorForTesting()
@@ -1455,7 +1440,7 @@ public class FacilitatedPaymentsPaymentMethodsControllerRobolectricTest {
 
     @Test
     public void testCreatesModelForPixAccountLinkingPrompt() {
-        mCoordinator.showPixAccountLinkingPrompt(0, TestAccounts.ACCOUNT1.getEmail());
+        mCoordinator.showPixAccountLinkingPrompt(0);
 
         // Verify that the bottom sheet model is updated to show the PIX account linking screen.
         assertThat(mFacilitatedPaymentsPaymentMethodsModel.get(VISIBLE_STATE), is(SHOWN));
@@ -1469,7 +1454,7 @@ public class FacilitatedPaymentsPaymentMethodsControllerRobolectricTest {
                         mFacilitatedPaymentsPaymentMethodsModel
                                 .get(SCREEN_VIEW_MODEL)
                                 .getAllProperties();
-        assertThat(propertyKeys, hasSize(6));
+        assertThat(propertyKeys, hasSize(5));
         assertThat(
                 propertyKeys,
                 containsInAnyOrder(
@@ -1477,24 +1462,14 @@ public class FacilitatedPaymentsPaymentMethodsControllerRobolectricTest {
                         DECLINE_BUTTON_CALLBACK,
                         SETTINGS_LINK_CALLBACK,
                         VIDEO_LINK_CALLBACK,
-                        DECLINE_BUTTON_TEXT_ID,
-                        ACCOUNT_EMAIL));
+                        DECLINE_BUTTON_TEXT_ID));
         assertThat(mFacilitatedPaymentsPaymentMethodsModel.get(SURVIVES_NAVIGATION), is(true));
-    }
-
-    @Test
-    public void testShowPixAccountLinkingPrompt_PopulatesAccountEmail() {
-        mCoordinator.showPixAccountLinkingPrompt(0, TestAccounts.ACCOUNT1.getEmail());
-
-        assertThat(
-                mFacilitatedPaymentsPaymentMethodsModel.get(SCREEN_VIEW_MODEL).get(ACCOUNT_EMAIL),
-                is(TestAccounts.ACCOUNT1.getEmail()));
     }
 
     @Test
     public void testPixAccountLinkingPrompt_DeclineButtonText() {
         // Strike count 0 -> "Not now"
-        mCoordinator.showPixAccountLinkingPrompt(0, TestAccounts.ACCOUNT1.getEmail());
+        mCoordinator.showPixAccountLinkingPrompt(0);
         assertThat(
                 mFacilitatedPaymentsPaymentMethodsModel
                         .get(SCREEN_VIEW_MODEL)
@@ -1503,7 +1478,7 @@ public class FacilitatedPaymentsPaymentMethodsControllerRobolectricTest {
 
         // Strike count 1 -> "Not now"
         mCoordinator.dismiss();
-        mCoordinator.showPixAccountLinkingPrompt(1, TestAccounts.ACCOUNT1.getEmail());
+        mCoordinator.showPixAccountLinkingPrompt(1);
         assertThat(
                 mFacilitatedPaymentsPaymentMethodsModel
                         .get(SCREEN_VIEW_MODEL)
@@ -1512,7 +1487,7 @@ public class FacilitatedPaymentsPaymentMethodsControllerRobolectricTest {
 
         // Strike count 2 -> "No thanks"
         mCoordinator.dismiss();
-        mCoordinator.showPixAccountLinkingPrompt(2, TestAccounts.ACCOUNT1.getEmail());
+        mCoordinator.showPixAccountLinkingPrompt(2);
         assertThat(
                 mFacilitatedPaymentsPaymentMethodsModel
                         .get(SCREEN_VIEW_MODEL)
@@ -1522,7 +1497,7 @@ public class FacilitatedPaymentsPaymentMethodsControllerRobolectricTest {
 
     @Test
     public void testAcceptingPixAccountLinkingPromptInformsDelegate() {
-        mCoordinator.showPixAccountLinkingPrompt(0, TestAccounts.ACCOUNT1.getEmail());
+        mCoordinator.showPixAccountLinkingPrompt(0);
 
         // Simulate clicking the accept button.
         mFacilitatedPaymentsPaymentMethodsModel
@@ -1535,7 +1510,7 @@ public class FacilitatedPaymentsPaymentMethodsControllerRobolectricTest {
 
     @Test
     public void testDecliningPixAccountLinkingPromptInformsDelegate() {
-        mCoordinator.showPixAccountLinkingPrompt(0, TestAccounts.ACCOUNT1.getEmail());
+        mCoordinator.showPixAccountLinkingPrompt(0);
 
         // Simulate clicking the accept button.
         mFacilitatedPaymentsPaymentMethodsModel
@@ -1548,7 +1523,7 @@ public class FacilitatedPaymentsPaymentMethodsControllerRobolectricTest {
 
     @Test
     public void testClickingSettingsLinkInPixAccountLinkingPromptOpensSettings() {
-        mCoordinator.showPixAccountLinkingPrompt(0, TestAccounts.ACCOUNT1.getEmail());
+        mCoordinator.showPixAccountLinkingPrompt(0);
 
         // Simulate clicking the settings link.
         mFacilitatedPaymentsPaymentMethodsModel
@@ -1891,13 +1866,6 @@ public class FacilitatedPaymentsPaymentMethodsControllerRobolectricTest {
                 .findFirst()
                 .map(item -> item.model)
                 .orElse(null);
-    }
-
-    @Test
-    public void testShowAccountLinkingFailureNotification() {
-        mCoordinator.showAccountLinkingFailureNotification(FacilitatedPaymentsType.PIX);
-
-        verify(mSnackbarManager).showSnackbar(any(Snackbar.class));
     }
 
     private static ResolveInfo createPaymentApp(String packageName, String activityName) {

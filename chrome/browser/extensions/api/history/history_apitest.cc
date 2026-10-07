@@ -11,6 +11,7 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ssl/https_upgrades_util.h"
 #include "chrome/browser/sync/sync_service_factory.h"
+#include "components/history/core/browser/features.h"
 #include "components/history/core/browser/history_backend.h"
 #include "components/history/core/browser/history_db_task.h"
 #include "components/history/core/browser/history_service.h"
@@ -87,6 +88,17 @@ class HistoryApiTest : public ExtensionApiTest {
   }
 };
 
+class HistoryApi404Test : public HistoryApiTest {
+ public:
+  HistoryApi404Test() {
+    // Allow 404s to be saved to History.
+    scoped_feature_list_.InitAndEnableFeature(history::kVisitedLinksOn404);
+  }
+
+ private:
+  base::test::ScopedFeatureList scoped_feature_list_;
+};
+
 class SyncEnabledHistoryApiTest : public HistoryApiTest {
  public:
   void SetUpBrowserContextKeyedServices(
@@ -151,7 +163,7 @@ IN_PROC_BROWSER_TEST_F(HistoryApiTest, GetVisits) {
   ASSERT_TRUE(RunExtensionTest("history/regular/get_visits")) << message_;
 }
 
-IN_PROC_BROWSER_TEST_F(HistoryApiTest, GetVisits_Excludes404Visits) {
+IN_PROC_BROWSER_TEST_F(HistoryApi404Test, GetVisits_Excludes404Visits) {
   ASSERT_TRUE(StartEmbeddedTestServer());
   history::HistoryService* history_service =
       HistoryServiceFactory::GetForProfile(profile(),

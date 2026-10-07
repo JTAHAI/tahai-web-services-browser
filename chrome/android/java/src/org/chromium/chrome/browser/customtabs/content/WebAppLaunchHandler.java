@@ -9,34 +9,28 @@ import static androidx.browser.trusted.LaunchHandlerClientMode.FOCUS_EXISTING;
 import static androidx.browser.trusted.LaunchHandlerClientMode.NAVIGATE_EXISTING;
 import static androidx.browser.trusted.LaunchHandlerClientMode.NAVIGATE_NEW;
 import static androidx.browser.trusted.TrustedWebActivityIntentBuilder.EXTRA_FILE_HANDLING_DATA;
-import static androidx.browser.trusted.TrustedWebActivityIntentBuilder.EXTRA_SHARE_DATA;
 
 import static org.chromium.build.NullUtil.assertNonNull;
 import static org.chromium.build.NullUtil.assumeNonNull;
 
 import android.annotation.SuppressLint;
 import android.app.Activity;
-import android.app.ComponentCaller;
 import android.content.ActivityNotFoundException;
 import android.content.ContentResolver;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
-import android.os.Bundle;
-import android.os.Process;
 import android.text.TextUtils;
 
 import androidx.browser.trusted.FileHandlingData;
 import androidx.browser.trusted.LaunchHandlerClientMode.ClientMode;
-import androidx.browser.trusted.sharing.ShareData;
 
 import org.jni_zero.JNINamespace;
 import org.jni_zero.JniType;
 import org.jni_zero.NativeMethods;
 
 import org.chromium.base.ContentUriUtils;
-import org.chromium.base.IntentUtils;
 import org.chromium.base.Log;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
@@ -45,12 +39,10 @@ import org.chromium.chrome.browser.browserservices.intents.BrowserServicesIntent
 import org.chromium.chrome.browser.browserservices.intents.SessionHolder;
 import org.chromium.chrome.browser.browserservices.ui.controller.CurrentPageVerifier;
 import org.chromium.chrome.browser.browserservices.ui.controller.Verifier;
-import org.chromium.chrome.browser.customtabs.CustomTabIntentDataProvider;
 import org.chromium.chrome.browser.customtabs.CustomTabsConnection;
 import org.chromium.chrome.browser.customtabs.content.WebAppLaunchHandlerHistogram.ClientModeAction;
 import org.chromium.chrome.browser.customtabs.content.WebAppLaunchHandlerHistogram.FailureReasonAction;
 import org.chromium.chrome.browser.customtabs.content.WebAppLaunchHandlerHistogram.FileHandlingAction;
-import org.chromium.chrome.browser.flags.ActivityType;
 import org.chromium.chrome.browser.renderer_host.ChromeNavigationUiData;
 import org.chromium.components.embedder_support.util.UrlUtilities;
 import org.chromium.content_public.browser.LoadUrlParams;
@@ -146,7 +138,7 @@ public class WebAppLaunchHandler {
         return true;
     }
 
-    public static boolean isValidLaunchUri(Uri uri) {
+    private static boolean isValidLaunchUri(Uri uri) {
         if (uri == null) return false;
 
         // Only content URIs are allowed. Legitimate file launching on Android should
@@ -177,9 +169,7 @@ public class WebAppLaunchHandler {
             String targetUrl,
             String packageName,
             @Nullable FileHandlingData fileHandlingData,
-            @Nullable SessionHolder<?> session,
-            @Nullable Intent intent,
-            @Nullable Object caller) {
+            @Nullable SessionHolder<?> session) {
         List<Uri> fileUris = null;
         @FileHandlingAction int action = FileHandlingAction.NO_FILES;
 
@@ -194,24 +184,13 @@ public class WebAppLaunchHandler {
         }
 
         WebAppLaunchHandlerHistogram.logFileHandling(action);
-        boolean[] canWrite = null;
+        boolean[] canWrite;
         if (fileUris != null) {
-            if (intent != null) {
-                canWrite =
-                        intent.getBooleanArrayExtra(
-                                CustomTabIntentDataProvider.EXTRA_VERIFIED_FILE_CAN_WRITE);
-            }
-            if (canWrite == null || canWrite.length != fileUris.size()) {
-                canWrite = new boolean[fileUris.size()];
-                for (int i = 0; i < fileUris.size(); i++) {
-                    canWrite[i] =
-                            doesCallerHavePermissionForUri(
-                                    mActivity,
-                                    caller,
-                                    session,
-                                    fileUris.get(i),
-                                    Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
-                }
+            canWrite = new boolean[fileUris.size()];
+            for (int i = 0; i < fileUris.size(); i++) {
+                canWrite[i] =
+                        doesCallerHavePermissionForUri(
+                                session, fileUris.get(i), Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
             }
         } else {
             canWrite = new boolean[0];
@@ -236,16 +215,7 @@ public class WebAppLaunchHandler {
             BrowserServicesIntentDataProvider intentDataProvider) {
         WebAppLaunchHandlerHistogram.logClientMode(ClientModeAction.INITIAL_INTENT);
 
-        Object caller = null;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
-            try {
-                caller = mActivity.getInitialCaller();
-            } catch (Exception e) {
-                Log.w(TAG, "Failed to get initial caller. Falling back.", e);
-            }
-        }
-
-        FileHandlingData filteredData = filterFileHandlingData(intentDataProvider, caller);
+        FileHandlingData filteredData = filterFileHandlingData(intentDataProvider);
         String urlToLoad = assertNonNull(intentDataProvider.getUrlToLoad());
         WebAppLaunchParams launchParams =
                 getLaunchParams(
@@ -253,9 +223,7 @@ public class WebAppLaunchHandler {
                         urlToLoad,
                         assertNonNull(intentDataProvider.getClientPackageName()),
                         filteredData,
-                        intentDataProvider.getSession(),
-                        intentDataProvider.getIntent(),
-                        caller);
+                        intentDataProvider.getSession());
 
         boolean isHidden = mTabProvider.getInitialTabCreationMode() == TabCreationMode.HIDDEN;
         boolean hasSpeculativeNavigation = false;
@@ -289,16 +257,7 @@ public class WebAppLaunchHandler {
         assert urlToLoad != null;
         String packageName = intentDataProvider.getClientPackageName();
 
-        Object caller = null;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
-            try {
-                caller = mActivity.getCurrentCaller();
-            } catch (Exception e) {
-                Log.w(TAG, "Failed to get current caller. Falling back.", e);
-            }
-        }
-
-        FileHandlingData filteredData = filterFileHandlingData(intentDataProvider, caller);
+        FileHandlingData filteredData = filterFileHandlingData(intentDataProvider);
 
         CurrentPageVerifier.VerificationState state = mCurrentPageVerifier.getState();
         // If the current page is not fully verified (including if verification is still PENDING),
@@ -330,9 +289,7 @@ public class WebAppLaunchHandler {
                             urlToLoad,
                             packageName,
                             filteredData,
-                            intentDataProvider.getSession(),
-                            intentDataProvider.getIntent(),
-                            caller);
+                            intentDataProvider.getSession());
 
             String speculatedUrl = mTabProvider.getSpeculatedUrl();
             boolean hasSpeculativeNavigation = TextUtils.equals(speculatedUrl, urlToLoad);
@@ -480,21 +437,7 @@ public class WebAppLaunchHandler {
      *     were denied or no file data was provided.
      */
     private @Nullable FileHandlingData filterFileHandlingData(
-            BrowserServicesIntentDataProvider intentDataProvider, @Nullable Object caller) {
-        Intent intent = intentDataProvider.getIntent();
-        if (intent != null) {
-            Bundle verifiedBundle =
-                    IntentUtils.safeGetBundleExtra(
-                            intent, CustomTabIntentDataProvider.EXTRA_VERIFIED_FILE_HANDLING_DATA);
-            if (verifiedBundle != null) {
-                try {
-                    return FileHandlingData.fromBundle(verifiedBundle);
-                } catch (Throwable e) {
-                    Log.w(TAG, "Failed to unparcel verified file handling data", e);
-                }
-            }
-        }
-
+            BrowserServicesIntentDataProvider intentDataProvider) {
         FileHandlingData fileHandlingData = intentDataProvider.getFileHandlingData();
         if (fileHandlingData == null || fileHandlingData.uris.isEmpty()) {
             return null;
@@ -502,20 +445,12 @@ public class WebAppLaunchHandler {
 
         List<Uri> filteredUris = new ArrayList<>();
         for (Uri uri : fileHandlingData.uris) {
-            if (!isValidLaunchUri(uri)) {
-                Log.w(TAG, "Invalid launch URI: " + uri);
-                continue;
-            }
-            if (!doesCallerHavePermissionForUri(
-                    mActivity,
-                    caller,
-                    intentDataProvider.getSession(),
-                    uri,
-                    Intent.FLAG_GRANT_READ_URI_PERMISSION)) {
+            if (doesCallerHavePermissionForUri(
+                    intentDataProvider.getSession(), uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)) {
+                filteredUris.add(uri);
+            } else {
                 Log.w(TAG, "Caller does not have read permission for URI: " + uri);
-                continue;
             }
-            filteredUris.add(uri);
         }
 
         if (filteredUris.isEmpty()) {
@@ -530,404 +465,45 @@ public class WebAppLaunchHandler {
     /**
      * Verifies whether the calling application holds read permission for the specified URI.
      *
-     * <p>On Android 15+ (API 35+), checks caller identity via {@link ComponentCaller}. On older
-     * Android versions or when ComponentCaller is unavailable, falls back to verifying URI
-     * permissions against the client UID.
+     * <p>On Android 15+ (API 35+), checks caller identity via {@link Activity#getCurrentCaller()}.
+     * On older Android versions, falls back to verifying URI permissions against the session UID.
      *
-     * @param activity The activity context.
-     * @param caller The caller object (ComponentCaller on Android 15+).
-     * @param clientUid The UID of the launching client application (-1 if unknown).
-     * @param clientPid The PID of the launching client application (0 if unknown).
+     * @param session The session holder associated with the launching client app.
      * @param uri The Content URI to verify.
-     * @param requestedPermission The permission flag (e.g. FLAG_GRANT_READ_URI_PERMISSION).
-     * @return True if the caller has permission for uri, false otherwise.
+     * @return True if the caller has explicit read permission for uri, false otherwise.
      */
     @SuppressLint("NewApi")
-    public static boolean doesCallerHavePermissionForUri(
-            Activity activity,
-            @Nullable Object caller,
-            int clientUid,
-            int clientPid,
-            Uri uri,
-            int requestedPermission) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM && caller != null) {
+    private boolean doesCallerHavePermissionForUri(
+            @Nullable SessionHolder<?> session, Uri uri, int requestedPermission) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
             try {
-                ComponentCaller componentCaller = (ComponentCaller) caller;
-                if (componentCaller.getUid() == Process.myUid()) {
-                    Log.d(
-                            TAG,
-                            "Caller is ourselves (trampoline launch). Falling back to UID check.");
-                } else {
-                    return componentCaller.checkContentUriPermission(uri, requestedPermission)
+                var caller = mActivity.getCurrentCaller();
+                if (caller != null) {
+                    return caller.checkContentUriPermission(uri, requestedPermission)
                             == PackageManager.PERMISSION_GRANTED;
                 }
             } catch (Exception e) {
-                Log.w(
-                        TAG,
-                        "Failed to check caller's permission via ComponentCaller. Falling back.",
-                        e);
+                Log.w(TAG, "Failed to check caller's permission via getCurrentCaller.", e);
+                return false;
             }
         }
 
-        if (clientUid != -1) {
-            try {
-                return activity.checkUriPermission(uri, clientPid, clientUid, requestedPermission)
-                        == PackageManager.PERMISSION_GRANTED;
-            } catch (Exception e) {
-                Log.w(TAG, "Failed to check URI permission for UID: " + clientUid, e);
+        // Fallback for Android versions prior to Android 15 (API < 35) or when getCurrentCaller()
+        // is unavailable. We check URI read permissions against the client UID and PID recorded
+        // when the TWA session was established.
+        if (session != null) {
+            int uid = CustomTabsConnection.getInstance().getClientUidForSession(session);
+            int pid = CustomTabsConnection.getInstance().getClientPidForSession(session);
+            if (uid != -1) {
+                try {
+                    return mActivity.checkUriPermission(uri, pid, uid, requestedPermission)
+                            == PackageManager.PERMISSION_GRANTED;
+                } catch (Exception e) {
+                    Log.w(TAG, "Failed to check URI permission for UID: " + uid, e);
+                }
             }
         }
         return false;
-    }
-
-    /**
-     * Convenience overload of {@link #doesCallerHavePermissionForUri(Activity, Object, int, int,
-     * Uri, int)} for callers with a {@link SessionHolder}. Resolves the client UID and PID from the
-     * session.
-     *
-     * @param activity The activity context.
-     * @param caller The caller object (ComponentCaller on Android 15+).
-     * @param session The session holder associated with the launching client app.
-     * @param uri The Content URI to verify.
-     * @param requestedPermission The permission flag (e.g. FLAG_GRANT_READ_URI_PERMISSION).
-     * @return True if the caller has permission for uri, false otherwise.
-     */
-    @SuppressLint("NewApi")
-    public static boolean doesCallerHavePermissionForUri(
-            Activity activity,
-            @Nullable Object caller,
-            @Nullable SessionHolder<?> session,
-            Uri uri,
-            int requestedPermission) {
-        int uid = -1;
-        int pid = 0;
-        if (session != null) {
-            uid = CustomTabsConnection.getInstance().getClientUidForSession(session);
-            pid = CustomTabsConnection.getInstance().getClientPidForSession(session);
-        }
-        return doesCallerHavePermissionForUri(activity, caller, uid, pid, uri, requestedPermission);
-    }
-
-    /**
-     * Checks caller permissions for any file URIs in sourceIntent and stashes the verified results
-     * in targetIntent.
-     *
-     * @param activity The launcher activity.
-     * @param sourceIntent The incoming intent containing client extras.
-     * @param targetIntent The launch intent being prepared for CustomTabActivity.
-     */
-    public static void copyFilePermissions(
-            Activity activity, Intent sourceIntent, Intent targetIntent) {
-        // Strip EXTRA_VERIFIED_FILE_HANDLING_DATA/EXTRA_VERIFIED_FILE_CAN_WRITE if present on
-        // targetIntent so that they cannot be set by external client apps.
-        IntentUtils.safeRemoveExtra(
-                targetIntent, CustomTabIntentDataProvider.EXTRA_VERIFIED_FILE_HANDLING_DATA);
-        IntentUtils.safeRemoveExtra(
-                targetIntent, CustomTabIntentDataProvider.EXTRA_VERIFIED_FILE_CAN_WRITE);
-
-        Bundle fileHandlingBundle =
-                IntentUtils.safeGetBundleExtra(sourceIntent, EXTRA_FILE_HANDLING_DATA);
-        if (fileHandlingBundle == null) {
-            return;
-        }
-
-        FileHandlingData fileHandlingData;
-        try {
-            fileHandlingData = FileHandlingData.fromBundle(fileHandlingBundle);
-        } catch (Throwable e) {
-            Log.w(TAG, "Failed to parse file handling data", e);
-            return;
-        }
-        if (fileHandlingData == null || fileHandlingData.uris.isEmpty()) {
-            return;
-        }
-
-        Object caller = null;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
-            try {
-                caller = activity.getInitialCaller();
-            } catch (Exception e) {
-                Log.w(TAG, "Failed to get initial caller. Falling back.", e);
-            }
-        }
-
-        SessionHolder<?> session = SessionHolder.getSessionHolderFromIntent(sourceIntent);
-        List<Uri> verifiedUris = new ArrayList<>();
-        List<Boolean> canWriteList = new ArrayList<>();
-        for (Uri uri : fileHandlingData.uris) {
-            if (!isValidLaunchUri(uri)) {
-                Log.w(TAG, "Invalid launch URI: " + uri);
-                continue;
-            }
-            if (!doesCallerHavePermissionForUri(
-                    activity, caller, session, uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)) {
-                Log.w(TAG, "Caller does not have read permission for URI: " + uri);
-                continue;
-            }
-            verifiedUris.add(uri);
-            boolean canWrite =
-                    doesCallerHavePermissionForUri(
-                            activity, caller, session, uri, Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
-            canWriteList.add(canWrite);
-        }
-
-        if (verifiedUris.isEmpty()) {
-            // All filtered out, put empty data to indicate we checked but none allowed.
-            FileHandlingData verifiedData = new FileHandlingData(new ArrayList<>());
-            targetIntent.putExtra(
-                    CustomTabIntentDataProvider.EXTRA_VERIFIED_FILE_HANDLING_DATA,
-                    verifiedData.toBundle());
-            return;
-        }
-
-        FileHandlingData verifiedData = new FileHandlingData(verifiedUris);
-        targetIntent.putExtra(
-                CustomTabIntentDataProvider.EXTRA_VERIFIED_FILE_HANDLING_DATA,
-                verifiedData.toBundle());
-        boolean[] canWriteArray = new boolean[canWriteList.size()];
-        for (int i = 0; i < canWriteList.size(); i++) {
-            canWriteArray[i] = canWriteList.get(i);
-        }
-        targetIntent.putExtra(
-                CustomTabIntentDataProvider.EXTRA_VERIFIED_FILE_CAN_WRITE, canWriteArray);
-    }
-
-    /**
-     * Checks caller permissions for any file URIs in sourceIntent's share data and stashes the
-     * verified results in targetIntent.
-     *
-     * @param activity The launcher activity.
-     * @param sourceIntent The incoming intent containing client extras.
-     * @param targetIntent The launch intent being prepared for CustomTabActivity.
-     */
-    public static void copyShareDataPermissions(
-            Activity activity, Intent sourceIntent, Intent targetIntent) {
-        // Strip EXTRA_VERIFIED_SHARE_DATA if present on targetIntent so that it cannot be set
-        // by external client apps.
-        IntentUtils.safeRemoveExtra(
-                targetIntent, CustomTabIntentDataProvider.EXTRA_VERIFIED_SHARE_DATA);
-
-        Bundle shareDataBundle = IntentUtils.safeGetBundleExtra(sourceIntent, EXTRA_SHARE_DATA);
-        if (shareDataBundle == null) {
-            return;
-        }
-
-        ShareData shareData;
-        try {
-            shareData = ShareData.fromBundle(shareDataBundle);
-        } catch (Throwable e) {
-            Log.w(TAG, "Failed to parse share data", e);
-            return;
-        }
-        if (shareData == null) {
-            return;
-        }
-        if (shareData.uris == null || shareData.uris.isEmpty()) {
-            targetIntent.putExtra(
-                    CustomTabIntentDataProvider.EXTRA_VERIFIED_SHARE_DATA, shareData.toBundle());
-            return;
-        }
-
-        Object caller = null;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
-            try {
-                caller = activity.getInitialCaller();
-            } catch (Exception e) {
-                Log.w(TAG, "Failed to get initial caller. Falling back.", e);
-            }
-        }
-
-        SessionHolder<?> session = SessionHolder.getSessionHolderFromIntent(sourceIntent);
-        List<Uri> verifiedUris = new ArrayList<>();
-        for (Uri uri : shareData.uris) {
-            if (!isValidLaunchUri(uri)) {
-                Log.w(TAG, "Invalid launch URI: " + uri);
-                continue;
-            }
-            if (!doesCallerHavePermissionForUri(
-                    activity, caller, session, uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)) {
-                Log.w(TAG, "Caller does not have read permission for share URI: " + uri);
-                continue;
-            }
-            verifiedUris.add(uri);
-        }
-
-        ShareData verifiedShareData = new ShareData(shareData.title, shareData.text, verifiedUris);
-        targetIntent.putExtra(
-                CustomTabIntentDataProvider.EXTRA_VERIFIED_SHARE_DATA,
-                verifiedShareData.toBundle());
-    }
-
-    /**
-     * Checks caller permissions for any file URIs in a WebAPK share intent and stashes the verified
-     * results in targetIntent.
-     *
-     * @param activity The launcher activity.
-     * @param sourceIntent The incoming intent containing client extras.
-     * @param targetIntent The launch intent being prepared for WebappActivity.
-     * @param webApkPackageName The package name of the WebAPK.
-     */
-    @SuppressLint("NewApi")
-    public static void copyShareDataPermissionsForWebApk(
-            Activity activity,
-            Intent sourceIntent,
-            Intent targetIntent,
-            @Nullable String webApkPackageName) {
-        // Strip EXTRA_VERIFIED_SHARE_DATA if present on targetIntent so that it cannot be set
-        // by external client apps.
-        IntentUtils.safeRemoveExtra(
-                targetIntent, CustomTabIntentDataProvider.EXTRA_VERIFIED_SHARE_DATA);
-
-        ShareData shareData = extractWebApkShareData(sourceIntent);
-        if (shareData == null) {
-            return;
-        }
-
-        if (shareData.uris == null || shareData.uris.isEmpty()) {
-            targetIntent.putExtra(
-                    CustomTabIntentDataProvider.EXTRA_VERIFIED_SHARE_DATA, shareData.toBundle());
-            return;
-        }
-
-        Object caller = null;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
-            try {
-                caller = activity.getInitialCaller();
-            } catch (Exception e) {
-                Log.w(TAG, "Failed to get initial caller. Falling back.", e);
-            }
-        }
-
-        int webApkUid = -1;
-        if (!TextUtils.isEmpty(webApkPackageName)) {
-            try {
-                webApkUid = activity.getPackageManager().getPackageUid(webApkPackageName, 0);
-            } catch (PackageManager.NameNotFoundException e) {
-                Log.w(TAG, "WebAPK package not found: " + webApkPackageName, e);
-            }
-        }
-
-        List<Uri> verifiedUris = new ArrayList<>();
-        for (Uri uri : shareData.uris) {
-            if (!isValidLaunchUri(uri)) {
-                Log.w(TAG, "Invalid launch URI: " + uri);
-                continue;
-            }
-            if (!doesCallerHavePermissionForUri(
-                    activity,
-                    caller,
-                    webApkUid,
-                    /* clientPid= */ 0,
-                    uri,
-                    Intent.FLAG_GRANT_READ_URI_PERMISSION)) {
-                Log.w(TAG, "Caller does not have read permission for share URI: " + uri);
-                continue;
-            }
-            verifiedUris.add(uri);
-        }
-
-        ShareData verifiedShareData = new ShareData(shareData.title, shareData.text, verifiedUris);
-        targetIntent.putExtra(
-                CustomTabIntentDataProvider.EXTRA_VERIFIED_SHARE_DATA,
-                verifiedShareData.toBundle());
-    }
-
-    private static @Nullable ShareData extractWebApkShareData(Intent intent) {
-        String subject = IntentUtils.safeGetStringExtra(intent, Intent.EXTRA_SUBJECT);
-        String text = IntentUtils.safeGetStringExtra(intent, Intent.EXTRA_TEXT);
-        List<Uri> files = IntentUtils.getParcelableArrayListExtra(intent, Intent.EXTRA_STREAM);
-        if (files == null) {
-            Uri file = IntentUtils.safeGetParcelableExtra(intent, Intent.EXTRA_STREAM);
-            if (file != null) {
-                files = new ArrayList<>();
-                files.add(file);
-            }
-        }
-        if (subject == null && text == null && files == null) {
-            return null;
-        }
-        return new ShareData(subject, text, files);
-    }
-
-    /**
-     * Filters incoming share data to retain only URIs that the launching client app has permission
-     * to access.
-     *
-     * @param intentDataProvider Provides incoming intent and session customization data.
-     * @param activity The activity context, if available.
-     * @param caller The caller object (e.g. ComponentCaller on Android 15+), if available.
-     * @return The filtered ShareData object containing authorized URIs, or null if input was null.
-     */
-    public static @Nullable ShareData filterShareData(
-            BrowserServicesIntentDataProvider intentDataProvider,
-            @Nullable Activity activity,
-            @Nullable Object caller) {
-        Intent intent = intentDataProvider.getIntent();
-        if (intent != null) {
-            Bundle verifiedBundle =
-                    IntentUtils.safeGetBundleExtra(
-                            intent, CustomTabIntentDataProvider.EXTRA_VERIFIED_SHARE_DATA);
-            if (verifiedBundle != null) {
-                try {
-                    return ShareData.fromBundle(verifiedBundle);
-                } catch (Throwable e) {
-                    Log.w(TAG, "Failed to unparcel verified share data", e);
-                }
-            }
-        }
-
-        ShareData shareData = intentDataProvider.getShareData();
-        if (shareData == null || shareData.uris == null || shareData.uris.isEmpty()) {
-            return shareData;
-        }
-
-        if (activity == null) {
-            return new ShareData(shareData.title, shareData.text, new ArrayList<>());
-        }
-
-        // Resolve client UID: from CCT session for TWAs, or from WebAPK package for WebAPKs.
-        // For WebAPKs, this is a defense-in-depth fallback for cases where
-        // EXTRA_VERIFIED_SHARE_DATA was not stashed by WebappLauncherActivity.
-        // Note: caller is null when invoked by TwaSharingController, so on Android 15+ this falls
-        // back to checkUriPermission against clientUid.
-        int clientUid = -1;
-        int clientPid = 0;
-        SessionHolder session = intentDataProvider.getSession();
-        if (session != null) {
-            clientUid = CustomTabsConnection.getInstance().getClientUidForSession(session);
-            clientPid = CustomTabsConnection.getInstance().getClientPidForSession(session);
-        } else if (intentDataProvider.getActivityType() == ActivityType.WEB_APK
-                && intentDataProvider.getWebApkExtras() != null) {
-            String webApkPackage = intentDataProvider.getWebApkExtras().webApkPackageName;
-            if (webApkPackage != null) {
-                try {
-                    clientUid = activity.getPackageManager().getPackageUid(webApkPackage, 0);
-                } catch (PackageManager.NameNotFoundException e) {
-                    Log.w(TAG, "WebAPK package not found: " + webApkPackage, e);
-                }
-            }
-        }
-
-        List<Uri> filteredUris = new ArrayList<>();
-        for (Uri uri : shareData.uris) {
-            if (!isValidLaunchUri(uri)) {
-                Log.w(TAG, "Invalid launch URI: " + uri);
-                continue;
-            }
-            if (!doesCallerHavePermissionForUri(
-                    activity,
-                    caller,
-                    clientUid,
-                    clientPid,
-                    uri,
-                    Intent.FLAG_GRANT_READ_URI_PERMISSION)) {
-                Log.w(TAG, "Caller does not have read permission for share URI: " + uri);
-                continue;
-            }
-            filteredUris.add(uri);
-        }
-
-        return new ShareData(shareData.title, shareData.text, filteredUris);
     }
 
     private String getScopeUrl(String url) {

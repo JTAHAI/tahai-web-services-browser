@@ -23,6 +23,7 @@
 #include "chrome/browser/signin/signin_ui_delegate_impl_dice.h"
 #include "chrome/browser/signin/signin_ui_util.h"
 #include "chrome/browser/signin/signin_util.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window/public/profile_browser_collection.h"
 #include "chrome/test/base/in_process_browser_test.h"
@@ -125,7 +126,7 @@ IN_PROC_BROWSER_TEST_P(
   const GURL sync_url = GaiaUrls::GetInstance()->signin_chrome_sync_dice();
 
   Profile* profile = browser()->GetProfile();
-  TabStripModel* tab_strip = browser()->GetTabStripModel();
+  TabStripModel* tab_strip = browser()->tab_strip_model();
   ShowExtensionSigninPrompt(profile, /*enable_sync=*/true,
                             /*email_hint=*/std::string(), kExtensionName);
   EXPECT_EQ(1, tab_strip->count());
@@ -168,7 +169,7 @@ IN_PROC_BROWSER_TEST_F(SigninUiUtilExtensionsTest,
           .GetProfileAttributesWithPath(profile->GetPath());
   ASSERT_NE(entry, nullptr);
   entry->LockForceSigninProfile(true);
-  TabStripModel* tab_strip = browser()->GetTabStripModel();
+  TabStripModel* tab_strip = browser()->tab_strip_model();
   ShowExtensionSigninPrompt(profile, /*enable_sync=*/true,
                             /*email_hint=*/std::string(), kExtensionName);
   EXPECT_EQ(1, tab_strip->count());
@@ -193,7 +194,7 @@ IN_PROC_BROWSER_TEST_F(SigninUiUtilExtensionsTest,
           GoogleServiceAuthError::InvalidGaiaCredentialsReason::UNKNOWN));
 
   Profile* profile = browser()->GetProfile();
-  TabStripModel* tab_strip = browser()->GetTabStripModel();
+  TabStripModel* tab_strip = browser()->tab_strip_model();
   EXPECT_CALL(
       mock_delegate_,
       ShowReauthUI(profile, kMainEmail, /*enable_sync=*/false,

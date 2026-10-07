@@ -277,17 +277,17 @@ void Event::SetTarget(EventTarget* target) {
 
 void Event::ReceivedTarget() {}
 
-Node* Event::Retarget(Node* node) const {
-  if (!node) {
+Element* Event::Retarget(Element* element) const {
+  if (!element) {
     return nullptr;
   }
   if (EventTarget* current_target = currentTarget()) {
     if (auto* current_target_node = current_target->ToNode()) {
-      return &current_target_node->GetTreeScope().Retarget(*node);
+      return &current_target_node->GetTreeScope().Retarget(*element);
     }
   }
   // retarget against the topmost TreeScope if there isn't a current target.
-  return &node->GetDocument().Retarget(*node);
+  return &element->GetDocument().Retarget(*element);
 }
 
 void Event::SetUnderlyingEvent(const Event* ue) {

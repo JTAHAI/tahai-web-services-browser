@@ -85,14 +85,6 @@ public class AccountCapabilities {
     }
 
     /**
-     * @return canOverrideAccountInfo capability value.
-     */
-    public @Tribool int canOverrideAccountInfo() {
-        return getCapabilityByName(
-                AccountCapabilitiesConstants.CAN_OVERRIDE_ACCOUNT_INFO_CAPABILITY_NAME);
-    }
-
-    /**
      * @return canRunChromePrivacySandboxTrials capability value.
      */
     public @Tribool int canRunChromePrivacySandboxTrials() {
@@ -205,15 +197,6 @@ public class AccountCapabilities {
     public @Tribool int isSubjectToParentalControls() {
         return getCapabilityByName(
                 AccountCapabilitiesConstants.IS_SUBJECT_TO_PARENTAL_CONTROLS_CAPABILITY_NAME);
-    }
-
-    /**
-     * @return isSubjectToUniversalOptOut capability value.
-     */
-    public @Tribool int isSubjectToUniversalOptOut() {
-        return getCapabilityByName(
-                AccountCapabilitiesConstants
-                        .IS_SUBJECT_TO_UNIVERSAL_OPT_OUT_CAPABILITY_NAME);
     }
 
     /**

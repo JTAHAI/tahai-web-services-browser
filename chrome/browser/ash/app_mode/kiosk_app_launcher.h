@@ -11,7 +11,6 @@
 #include "base/observer_list.h"
 #include "base/observer_list_types.h"
 #include "chrome/browser/ash/app_mode/kiosk_app_launch_error.h"
-#include "components/webapps/common/web_app_id.h"
 
 namespace ash {
 
@@ -56,7 +55,7 @@ class KioskAppLauncher {
     virtual void OnAppLaunching() {}
     virtual void OnAppLaunched() {}
     virtual void OnAppWindowCreated(
-        const std::optional<webapps::AppId>& app_id) {}
+        const std::optional<std::string>& app_name) {}
     virtual void OnLaunchFailed(KioskAppLaunchError::Error error) {}
   };
 
@@ -76,7 +75,7 @@ class KioskAppLauncher {
     void NotifyAppLaunching();
     void NotifyAppLaunched();
     void NotifyAppWindowCreated(
-        const std::optional<webapps::AppId>& app_id = std::nullopt);
+        const std::optional<std::string>& app_id = std::nullopt);
     void NotifyLaunchFailed(KioskAppLaunchError::Error error);
 
    private:

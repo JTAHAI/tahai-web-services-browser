@@ -26,9 +26,7 @@ use mojom_value_parser_core::{MojomType, MojomValue};
 
 use crate::interface::DynMojomInterface;
 use crate::marker_types::IsRemote;
-use crate::multiplex_router::{
-    AssociatedRouterHandle, EndpointInfo, InterfaceId, MultiplexRouterHandle,
-};
+use crate::multiplex_router::{EndpointInfo, InterfaceId, MultiplexRouterHandle};
 use crate::pending_associated_endpoint::{
     AssociatedEndpointState, AssociatedState, PendingAssociatedEndpoint,
 };
@@ -43,8 +41,8 @@ use crate::pending_associated_endpoint::{
 // themselves or their entangled endpoint during the
 // serialization/deserialization process.
 
-/// This trait abstracts over the `register_new_endpoint` function on a
-/// `RouterHandle`, since sometimes during parsing/desparsing we don't
+/// This trait abstracts over the `register_new_endpoint` from a
+/// `MultiplexRouterHandle`, since sometimes during parsing/desparsing we don't
 /// have an actual handle but we still have enough information to register an
 /// endpoint.
 pub trait Registrar: Send + Sync {
@@ -56,7 +54,7 @@ pub trait Registrar: Send + Sync {
         &self,
         interface_id: Option<InterfaceId>,
         endpoint_info: Option<EndpointInfo>,
-    ) -> Option<AssociatedRouterHandle>;
+    ) -> Option<MultiplexRouterHandle>;
 }
 
 impl Registrar for MultiplexRouterHandle {
@@ -64,8 +62,8 @@ impl Registrar for MultiplexRouterHandle {
         &self,
         interface_id: Option<InterfaceId>,
         endpoint_info: Option<EndpointInfo>,
-    ) -> Option<AssociatedRouterHandle> {
-        self.register_new_endpoint(interface_id, endpoint_info).map(AssociatedRouterHandle::Rust)
+    ) -> Option<MultiplexRouterHandle> {
+        self.register_new_endpoint(interface_id, endpoint_info)
     }
 }
 
@@ -76,7 +74,7 @@ impl Registrar for () {
         &self,
         _interface_id: Option<InterfaceId>,
         _endpoint_info: Option<EndpointInfo>,
-    ) -> Option<AssociatedRouterHandle> {
+    ) -> Option<MultiplexRouterHandle> {
         panic!("This implementation only exists for testing, and should never be called!")
     }
 }
@@ -95,8 +93,8 @@ impl Registrar for DummyRegistrarForTesting {
         &self,
         interface_id: Option<InterfaceId>,
         endpoint_info: Option<EndpointInfo>,
-    ) -> Option<AssociatedRouterHandle> {
-        self.0.register_new_endpoint(interface_id, endpoint_info).map(AssociatedRouterHandle::Rust)
+    ) -> Option<MultiplexRouterHandle> {
+        self.0.register_new_endpoint(interface_id, endpoint_info)
     }
 }
 
@@ -137,8 +135,8 @@ where
 
     fn try_from_mojom_value(value: MojomValue, context: &Context) -> anyhow::Result<Self> {
         // When we read an associated endpoint from a pipe, we need to alert the
-        // router managing the pipe that it exists, so that it knows how to route
-        // messages it receives for that interface ID.
+        // `MultiplexRouter` managing the pipe that it exists so it knows how
+        // to route messages for that interface ID.
         let is_remote = Marker::IS_REMOTE;
         let interface_id = match value {
             MojomValue::PendingAssociatedRemote(interface_id) if is_remote => interface_id,
@@ -147,12 +145,12 @@ where
             _ => anyhow::bail!("Expected PendingAssociatedReceiver, got {:?}", value),
         };
 
-        let handle =
+        let router_owned =
             context.register_new_endpoint(Some(interface_id.into()), None).ok_or_else(|| {
                 anyhow::anyhow!(
                     "Interface ID {interface_id} was already registered with the router!"
                 )
             })?;
-        Ok(Self::new_singleton(handle))
+        Ok(Self::new_singleton(router_owned))
     }
 }

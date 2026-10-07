@@ -12,7 +12,6 @@
 class AppListControllerDelegate;
 class PrefService;
 class Profile;
-class TemplateURLService;
 
 namespace ash {
 class AppListNotifier;
@@ -24,15 +23,12 @@ class SearchController;
 
 // Build a SearchController instance with the profile.
 // `local_state` must be non-null and must outlive the returned object.
-// `template_url_service` must not be nullptr and must outlive the returned
-// SearchController.
 std::unique_ptr<SearchController> CreateSearchController(
     PrefService* local_state,
     Profile* profile,
     AppListModelUpdater* model_updater,
     AppListControllerDelegate* list_controller,
-    ash::AppListNotifier* notifier,
-    TemplateURLService* template_url_service);
+    ash::AppListNotifier* notifier);
 
 // Returns a bitmask of `AutocompleteProvider::Type` for Launcher's
 // `SearchController`.

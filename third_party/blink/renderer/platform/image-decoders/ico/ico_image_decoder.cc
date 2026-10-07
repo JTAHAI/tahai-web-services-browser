@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <memory>
 
+#include "base/compiler_specific.h"
 #include "third_party/blink/renderer/platform/image-decoders/png/png_image_decoder.h"
 #include "third_party/blink/renderer/platform/wtf/text/atomic_string.h"
 
@@ -42,9 +43,10 @@ const AtomicString& ICOImageDecoder::MimeType() const {
 void ICOImageDecoder::OnSetData(scoped_refptr<SegmentReader> data) {
   fast_reader_.SetData(data);
 
-  for (auto& reader : bmp_readers_) {
-    if (reader) {
-      reader->SetData(data);
+  for (BMPReaders::iterator i(bmp_readers_.begin()); i != bmp_readers_.end();
+       UNSAFE_TODO(++i)) {
+    if (*i) {
+      (*i)->SetData(data);
     }
   }
   for (wtf_size_t i = 0; i < png_decoders_.size(); ++i) {
@@ -280,14 +282,15 @@ bool ICOImageDecoder::ProcessDirectoryEntries() {
   bmp_readers_.resize(dir_entries_count_);
   png_decoders_.resize(dir_entries_count_);
 
-  for (auto& dir_entry : dir_entries_) {
-    dir_entry = ReadDirectoryEntry();  // Updates decoded_offset_.
+  for (auto& dir_entrie : dir_entries_) {
+    dir_entrie = ReadDirectoryEntry();  // Updates decoded_offset_.
   }
 
   // Make sure the specified image offsets are past the end of the directory
   // entries.
-  for (const auto& dir_entry : dir_entries_) {
-    if (dir_entry.image_offset_ < decoded_offset_) {
+  for (IconDirectoryEntries::iterator i(dir_entries_.begin());
+       i != dir_entries_.end(); UNSAFE_TODO(++i)) {
+    if (i->image_offset_ < decoded_offset_) {
       return SetFailed();
     }
   }

@@ -7,8 +7,7 @@
 #include "ui/views/mouse_constants.h"
 #include "ui/views/widget/widget.h"
 
-WebUIBubbleReopenSuppressor::WebUIBubbleReopenSuppressor()
-    : suppression_threshold_(views::kMinimumTimeBetweenButtonClicks) {}
+WebUIBubbleReopenSuppressor::WebUIBubbleReopenSuppressor() = default;
 
 WebUIBubbleReopenSuppressor::~WebUIBubbleReopenSuppressor() = default;
 
@@ -33,25 +32,7 @@ void WebUIBubbleReopenSuppressor::Close(views::Widget::ClosedReason reason) {
   }
 }
 
-void WebUIBubbleReopenSuppressor::OnMousePressed(
-    bool extra_suppress_condition) {
-  suppress_next_bubble_show_ =
-      extra_suppress_condition || IsTimeWithinSuppressionWindow();
-}
-
-bool WebUIBubbleReopenSuppressor::ShouldSuppressBubbleShow(
-    bool is_pointer_interaction) {
-  if (is_pointer_interaction) {
-    bool suppress = suppress_next_bubble_show_;
-    suppress_next_bubble_show_ = false;
-    return suppress;
-  }
-
-  suppress_next_bubble_show_ = false;
-  return IsShowing();
-}
-
-bool WebUIBubbleReopenSuppressor::IsTimeWithinSuppressionWindow() const {
+bool WebUIBubbleReopenSuppressor::ShouldSuppress() const {
   if (IsShowing()) {
     return true;
   }
@@ -60,23 +41,22 @@ bool WebUIBubbleReopenSuppressor::IsTimeWithinSuppressionWindow() const {
     return false;
   }
 
-  return (base::TimeTicks::Now() - *last_close_time_) < suppression_threshold_;
-}
-
-void WebUIBubbleReopenSuppressor::OnWidgetDestroying(views::Widget* widget) {
-  RecordBubbleClosed();
-}
-
-void WebUIBubbleReopenSuppressor::RecordBubbleClosed() {
-  last_close_time_ = base::TimeTicks::Now();
-  observation_.Reset();
-}
-
-void WebUIBubbleReopenSuppressor::CloseForTesting() {
-  RecordBubbleClosed();
+  base::TimeDelta threshold =
+      suppression_threshold_.value_or(views::kMinimumTimeBetweenButtonClicks);
+  return (base::TimeTicks::Now() - *last_close_time_) < threshold;
 }
 
 void WebUIBubbleReopenSuppressor::SetSuppressionThresholdForTesting(  // IN-TEST
     base::TimeDelta threshold) {
   suppression_threshold_ = threshold;
+}
+
+void WebUIBubbleReopenSuppressor::OnWidgetDestroying(views::Widget* widget) {
+  last_close_time_ = base::TimeTicks::Now();
+  observation_.Reset();
+}
+
+void WebUIBubbleReopenSuppressor::CloseForTesting() {
+  last_close_time_ = base::TimeTicks::Now();
+  observation_.Reset();
 }

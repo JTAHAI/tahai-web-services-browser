@@ -200,26 +200,21 @@ TEST_F(FromGWSPageLoadMetricsObserverTest, SearchPreviousCommittedUrl1) {
   page_load_metrics::mojom::FrameRenderDataUpdate render_data;
   render_data.new_layout_shifts.emplace_back(
       page_load_metrics::mojom::LayoutShift::New(
-          current_time - base::Milliseconds(4040), 0.5, false,
-          /*navigation_id=*/1u));
+          current_time - base::Milliseconds(4040), 0.5, false));
   render_data.new_layout_shifts.emplace_back(
       page_load_metrics::mojom::LayoutShift::New(
-          current_time - base::Milliseconds(3030), 0.5, false,
-          /*navigation_id=*/1u));
+          current_time - base::Milliseconds(3030), 0.5, false));
   tester()->SimulateRenderDataUpdate(render_data);
   render_data.new_layout_shifts.clear();
   render_data.new_layout_shifts.emplace_back(
       page_load_metrics::mojom::LayoutShift::New(
-          current_time - base::Milliseconds(2020), 0.5, false,
-          /*navigation_id=*/1u));
+          current_time - base::Milliseconds(2020), 0.5, false));
   render_data.new_layout_shifts.emplace_back(
       page_load_metrics::mojom::LayoutShift::New(
-          current_time - base::Milliseconds(1010), 0.5, false,
-          /*navigation_id=*/1u));
+          current_time - base::Milliseconds(1010), 0.5, false));
   render_data.new_layout_shifts.emplace_back(
       page_load_metrics::mojom::LayoutShift::New(
-          current_time - base::Milliseconds(0), 0.5, true,
-          /*navigation_id=*/1u));
+          current_time - base::Milliseconds(0), 0.5, true));
   tester()->SimulateRenderDataUpdate(render_data);
   // Navigate again to force logging.
   tester()->NavigateToUntrackedUrl();
@@ -764,16 +759,13 @@ TEST_F(FromGWSPageLoadMetricsObserverTest,
   base::TimeTicks current_time = base::TimeTicks::Now();
   render_data.new_layout_shifts.emplace_back(
       page_load_metrics::mojom::LayoutShift::New(
-          current_time - base::Milliseconds(1500), 0.5, false,
-          /*navigation_id=*/1u));
+          current_time - base::Milliseconds(1500), 0.5, false));
   render_data.new_layout_shifts.emplace_back(
       page_load_metrics::mojom::LayoutShift::New(
-          current_time - base::Milliseconds(1200), 1.0, false,
-          /*navigation_id=*/1u));
+          current_time - base::Milliseconds(1200), 1.0, false));
   render_data.new_layout_shifts.emplace_back(
       page_load_metrics::mojom::LayoutShift::New(
-          current_time - base::Milliseconds(1000), 1.0, false,
-          /*navigation_id=*/1u));
+          current_time - base::Milliseconds(1000), 1.0, false));
   tester()->SimulateRenderDataUpdate(render_data);
 
   // If the system clock is low resolution PageLoadTracker's background_time_

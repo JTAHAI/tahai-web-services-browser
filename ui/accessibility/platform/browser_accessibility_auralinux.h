@@ -12,8 +12,7 @@
 namespace ui {
 class AXPlatformNodeAuraLinux;
 
-class COMPONENT_EXPORT(AX_PLATFORM) BrowserAccessibilityAuraLinux
-    : public BrowserAccessibility {
+class BrowserAccessibilityAuraLinux : public BrowserAccessibility {
  public:
   BrowserAccessibilityAuraLinux(BrowserAccessibilityManager* manager,
                                 AXNode* node);
@@ -30,7 +29,6 @@ class COMPONENT_EXPORT(AX_PLATFORM) BrowserAccessibilityAuraLinux
 
   // BrowserAccessibility methods.
   void OnDataChanged() override;
-  void UpdatePlatformNode() override;
 
   AXPlatformNode* GetAXPlatformNode() const override;
   std::u16string GetHypertext() const override;

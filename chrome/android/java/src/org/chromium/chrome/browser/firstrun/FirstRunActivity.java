@@ -21,7 +21,6 @@ import android.view.View;
 
 import androidx.annotation.CallSuper;
 import androidx.annotation.ColorInt;
-import androidx.annotation.RequiresApi;
 import androidx.annotation.StringRes;
 import androidx.annotation.VisibleForTesting;
 import androidx.viewpager2.widget.ViewPager2;
@@ -35,13 +34,11 @@ import org.chromium.base.Promise;
 import org.chromium.base.ResettersForTesting;
 import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.base.shared_preferences.SharedPreferencesManager;
-import org.chromium.base.supplier.ObservableSuppliers;
 import org.chromium.build.annotations.Initializer;
 import org.chromium.build.annotations.MonotonicNonNull;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.R;
-import org.chromium.chrome.browser.browser_controls.BrowserStateBrowserControlsVisibilityDelegate;
 import org.chromium.chrome.browser.customtabs.CustomTabActivity;
 import org.chromium.chrome.browser.feature_engagement.TrackerFactory;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
@@ -53,15 +50,11 @@ import org.chromium.chrome.browser.search_engines.TemplateUrlServiceFactory;
 import org.chromium.chrome.browser.signin.SigninCheckerProvider;
 import org.chromium.chrome.browser.signin.SigninFirstRunFragment;
 import org.chromium.chrome.browser.ui.default_browser_promo.DefaultBrowserPromoUtils;
-import org.chromium.chrome.browser.ui.desktop_windowing.AppHeaderCoordinator;
 import org.chromium.chrome.browser.ui.edge_to_edge.EdgeToEdgeUtils;
 import org.chromium.chrome.browser.ui.signin.DialogWhenLargeContentLayout;
 import org.chromium.chrome.browser.ui.signin.fullscreen_signin.FullscreenSigninMediator;
 import org.chromium.chrome.browser.ui.signin.history_sync.HistorySyncHelper;
 import org.chromium.chrome.browser.ui.system.StatusBarColorController;
-import org.chromium.components.browser_ui.desktop_windowing.AppHeaderState;
-import org.chromium.components.browser_ui.desktop_windowing.AppHeaderStateProvider;
-import org.chromium.components.browser_ui.desktop_windowing.DesktopWindowStateManager.AppHeaderObserver;
 import org.chromium.components.browser_ui.modaldialog.AppModalPresenter;
 import org.chromium.components.browser_ui.styles.SemanticColorUtils;
 import org.chromium.components.feature_engagement.EventConstants;
@@ -93,14 +86,13 @@ import java.util.function.BooleanSupplier;
  * The activity might be run more than once, e.g. 1) for ToS and sign-in, and 2) for intro.
  */
 @NullMarked
-public class FirstRunActivity extends FirstRunActivityBase
-        implements FirstRunPageDelegate, AppHeaderObserver {
+public class FirstRunActivity extends FirstRunActivityBase implements FirstRunPageDelegate {
 
     /**
      * A simple page transformer for transitions between successive Fragment, aiming to be as close
      * as possible to inter-Activity transitions.
      */
-    static class FirstRunPageTransformer implements ViewPager2.PageTransformer {
+    class FirstRunPageTransformer implements ViewPager2.PageTransformer {
         // The exiting page fades out, then tne entering page fades in. This is the alpha boundary
         // expressed as fraction of total animation duration.
         private static final float ALPHA_BOUNDARY_FRAC = 100f / 450f;
@@ -251,9 +243,6 @@ public class FirstRunActivity extends FirstRunActivityBase
     /** Tracks whether the History Sync page has been completed (either opted in or not). */
     private boolean mHistorySyncStepCompleted;
 
-    private @Nullable AppHeaderCoordinator mAppHeaderCoordinator;
-    private @Nullable View mContentView;
-
     private boolean isFlowKnown() {
         return mFreProperties != null;
     }
@@ -389,7 +378,9 @@ public class FirstRunActivity extends FirstRunActivityBase
             mFreProgressStates.add(MobileFreProgress.DEFAULT_BROWSER_PROMO_SHOWN);
         }
 
-        if (FirstRunUtils.shouldShowSafetyFrePromo()) {
+        if (ChromeFeatureList.sSafetyFrePromo.isEnabled()
+                && ChromeFeatureList.sSafetyFrePromoArm.getValue()
+                        == FirstRunUtils.SafetyFrePromoArm.ANIMATED_ILLUSTRATION) {
             mPages.add(new FirstRunPage<>(SafetyPromoFirstRunFragment.class, () -> true));
             mFreProgressStates.add(MobileFreProgress.SAFETY_PROMO_SHOWN);
         }
@@ -475,10 +466,8 @@ public class FirstRunActivity extends FirstRunActivityBase
 
         mPager.setId(R.id.fre_pager);
         mPager.setOffscreenPageLimit(3);
-        mContentView =
-                DialogWhenLargeContentLayout.wrapInDialogWhenLargeLayout(
-                        mPager, SemanticColorUtils.getColorSurfaceContainerLow(this));
-        return mContentView;
+        return DialogWhenLargeContentLayout.wrapInDialogWhenLargeLayout(
+                mPager, SemanticColorUtils.getColorSurfaceContainerLow(this));
     }
 
     @Override
@@ -550,9 +539,13 @@ public class FirstRunActivity extends FirstRunActivityBase
 
         assert FeatureList.isNativeInitialized()
                 : "Expected feature list to be initialized during FRE.";
-        SharedPreferencesManager prefManager = ChromeSharedPreferences.getInstance();
-        prefManager.writeBoolean(ChromePreferenceKeys.CROSS_DEVICE_IMPORTED_BOTTOM_OMNIBOX, false);
-        prefManager.writeBoolean(ChromePreferenceKeys.CROSS_DEVICE_IMPORTED_ALL_SETTINGS, false);
+        if (ChromeFeatureList.sXplatSyncedSetup.isEnabled()) {
+            SharedPreferencesManager prefManager = ChromeSharedPreferences.getInstance();
+            prefManager.writeBoolean(
+                    ChromePreferenceKeys.CROSS_DEVICE_IMPORTED_BOTTOM_OMNIBOX, false);
+            prefManager.writeBoolean(
+                    ChromePreferenceKeys.CROSS_DEVICE_IMPORTED_ALL_SETTINGS, false);
+        }
     }
 
     private void onNativeDependenciesFullyInitialized() {
@@ -600,8 +593,8 @@ public class FirstRunActivity extends FirstRunActivityBase
     }
 
     /**
-     * @param smoothScroll Whether to animate transition. This should be true for user triggered
-     *     transition, and false for quick skips by software.
+     * @param {boolean} smoothScroll Whether to animate transition. This should be true for user
+     *     triggered transition, and false for quick skips by software.
      * @return Whether advancing to the next page succeeded.
      */
     private boolean advanceToNextPageInternal(boolean smoothScroll) {
@@ -696,7 +689,8 @@ public class FirstRunActivity extends FirstRunActivityBase
 
     @VisibleForTesting(otherwise = PRIVATE)
     boolean shouldPreventTouch() {
-        return ApplicationStatus.getStateForActivity(this) != ActivityState.RESUMED;
+        if (ApplicationStatus.getStateForActivity(this) == ActivityState.RESUMED) return false;
+        return true;
     }
 
     // FirstRunPageDelegate:
@@ -746,7 +740,7 @@ public class FirstRunActivity extends FirstRunActivityBase
                     new ActivityStateListener() {
                         @Override
                         public void onActivityStateChange(Activity activity, int newState) {
-                            boolean shouldFinish;
+                            boolean shouldFinish = false;
                             if (activity == FirstRunActivity.this) {
                                 shouldFinish =
                                         (newState == ActivityState.STOPPED
@@ -812,7 +806,7 @@ public class FirstRunActivity extends FirstRunActivityBase
         }
     }
 
-    private static boolean isRtl() {
+    private boolean isRtl() {
         return LocalizationUtils.isLayoutRtl();
     }
 
@@ -859,7 +853,7 @@ public class FirstRunActivity extends FirstRunActivityBase
 
                 @Override
                 public void onAnimationUpdate(ValueAnimator animation) {
-                    float frac = (Float) animation.getAnimatedValue();
+                    float frac = ((Float) animation.getAnimatedValue()).floatValue();
                     // Get the up-to-date width, which is subject to user change, e.g., by
                     // orientation changes or window resize.
                     int width = mPager.getWidth();
@@ -983,63 +977,6 @@ public class FirstRunActivity extends FirstRunActivityBase
 
     public static void disableAnimationForTesting(boolean isAnimationDisabled) {
         sIsAnimationDisabled = isAnimationDisabled;
-    }
-
-    @Override
-    @RequiresApi(Build.VERSION_CODES.R)
-    protected @Nullable AppHeaderStateProvider createAppHeaderStateProvider() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.VANILLA_ICE_CREAM) {
-            return super.createAppHeaderStateProvider();
-        }
-
-        var delegate =
-                new BrowserStateBrowserControlsVisibilityDelegate(
-                        ObservableSuppliers.alwaysFalse());
-        mAppHeaderCoordinator =
-                new AppHeaderCoordinator(
-                        this,
-                        getWindow().getDecorView().getRootView(),
-                        delegate,
-                        getInsetObserver(),
-                        getLifecycleDispatcher(),
-                        getSavedInstanceState(),
-                        getPersistentInstanceState(),
-                        assumeNonNull(getEdgeToEdgeStateProvider()),
-                        /* windowIdSupplier= */ null);
-        mAppHeaderCoordinator.addObserver(this);
-        mAppHeaderCoordinator.onBackgroundColorChanged(
-                SemanticColorUtils.getColorSurfaceContainerLow(this));
-        if (mAppHeaderCoordinator.getAppHeaderState() != null) {
-            setCaptionBarHeight(mAppHeaderCoordinator.getAppHeaderState().getAppHeaderHeight());
-        }
-        return mAppHeaderCoordinator;
-    }
-
-    @Override
-    @SuppressWarnings("NewApi") // AppHeaderCoordinator
-    public void onAppHeaderStateChanged(AppHeaderState newState) {
-        setCaptionBarHeight(newState.getAppHeaderHeight());
-    }
-
-    private void setCaptionBarHeight(int height) {
-        if (mContentView != null) {
-            mContentView.setPadding(
-                    mContentView.getPaddingLeft(),
-                    height,
-                    mContentView.getPaddingRight(),
-                    mContentView.getPaddingBottom());
-        }
-    }
-
-    @Override
-    public void onDestroy() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
-            if (mAppHeaderCoordinator != null) {
-                mAppHeaderCoordinator.destroy();
-                mAppHeaderCoordinator = null;
-            }
-        }
-        super.onDestroy();
     }
 
     @Override

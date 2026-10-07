@@ -31,7 +31,6 @@
 #include "third_party/blink/renderer/platform/bindings/v8_per_context_data.h"
 
 #include <stdlib.h>
-
 #include <memory>
 #include <utility>
 
@@ -44,7 +43,6 @@
 #include "third_party/blink/renderer/platform/bindings/v8_object_constructor.h"
 #include "third_party/blink/renderer/platform/bindings/wrapper_type_info.h"
 #include "third_party/blink/renderer/platform/instrumentation/instance_counters.h"
-#include "third_party/blink/renderer/platform/scheduler/public/event_loop.h"
 
 namespace blink {
 
@@ -54,14 +52,11 @@ constexpr char kContextLabel[] = "V8PerContextData::context_";
 
 }  // namespace
 
-V8PerContextData::V8PerContextData(
-    v8::Local<v8::Context> context,
-    scoped_refptr<scheduler::EventLoop> event_loop)
+V8PerContextData::V8PerContextData(v8::Local<v8::Context> context)
     : isolate_(v8::Isolate::GetCurrent()),
       context_holder_(std::make_unique<gin::ContextHolder>(isolate_)),
       context_(isolate_, context),
-      activity_logger_(nullptr),
-      event_loop_(std::move(event_loop)) {
+      activity_logger_(nullptr) {
   context_holder_->SetContext(context);
   context_.Get().AnnotateStrongRetainer(kContextLabel);
 
@@ -83,7 +78,6 @@ void V8PerContextData::Dispose() {
   // strong GC roots that prevent `this` from otherwise being collected, so
   // explicitly break any potential cycles in the ownership graph now.
   context_holder_ = nullptr;
-  event_loop_.reset();
   if (!context_.IsEmpty())
     context_.SetPhantom();
 }

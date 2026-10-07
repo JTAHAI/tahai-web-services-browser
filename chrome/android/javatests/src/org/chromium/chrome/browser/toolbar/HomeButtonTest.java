@@ -31,7 +31,6 @@ import org.mockito.junit.MockitoRule;
 import org.chromium.base.ThreadUtils;
 import org.chromium.base.supplier.NonNullObservableSupplier;
 import org.chromium.base.supplier.ObservableSuppliers;
-import org.chromium.base.supplier.SupplierUtils;
 import org.chromium.base.test.BaseActivityTestRule;
 import org.chromium.base.test.util.Batch;
 import org.chromium.chrome.R;
@@ -105,7 +104,7 @@ public class HomeButtonTest {
                                     homeButton,
                                     (metaState, buttonState) -> {},
                                     HomepageManager.getInstance()::onMenuClick,
-                                    SupplierUtils.alwaysFalse(),
+                                    () -> false,
                                     mThemeColorProvider,
                                     mIncognitoStateProvider,
                                     /* actionRegistry= */ null);

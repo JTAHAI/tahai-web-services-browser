@@ -20,8 +20,7 @@ class ChromeProfileDownloadServiceTracker
     : public ProfileDownloadServiceTracker,
       public ProfileManagerObserverIOS {
  public:
-  explicit ChromeProfileDownloadServiceTracker(
-      ProfileManagerIOS* profile_manager);
+  ChromeProfileDownloadServiceTracker();
   ~ChromeProfileDownloadServiceTracker() override;
 
   ChromeProfileDownloadServiceTracker(

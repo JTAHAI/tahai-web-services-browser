@@ -26,15 +26,16 @@ import org.mockito.junit.MockitoRule;
 import org.robolectric.Robolectric;
 
 import org.chromium.base.test.BaseRobolectricTestRunner;
+import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.HistogramWatcher;
 import org.chromium.chrome.browser.touch_to_fill.common.BottomSheetFocusHelper;
 import org.chromium.chrome.browser.touch_to_fill.payments.R;
-import org.chromium.components.autofill.PopupNoticeInteractions;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetContent;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController;
 
 /** Tests for {@link TouchToFillAutofillCoordinator} and {@link TouchToFillAutofillMediator}. */
 @RunWith(BaseRobolectricTestRunner.class)
+@Batch(Batch.PER_CLASS)
 public class TouchToFillAutofillControllerRobolectricTest {
     @Rule public MockitoRule mMockitoRule = MockitoJUnit.rule();
 
@@ -62,7 +63,7 @@ public class TouchToFillAutofillControllerRobolectricTest {
         HistogramWatcher histogramWatcher =
                 HistogramWatcher.newSingleRecordWatcher(
                         TouchToFillAutofillMediator.NOTICE_INTERACTIONS_HISTOGRAM,
-                        PopupNoticeInteractions.SHOWN);
+                        TouchToFillAutofillMediator.NoticeInteraction.SHOWN);
 
         mCoordinator.show();
 
@@ -76,7 +77,7 @@ public class TouchToFillAutofillControllerRobolectricTest {
         HistogramWatcher shownWatcher =
                 HistogramWatcher.newSingleRecordWatcher(
                         TouchToFillAutofillMediator.NOTICE_INTERACTIONS_HISTOGRAM,
-                        PopupNoticeInteractions.SHOWN);
+                        TouchToFillAutofillMediator.NoticeInteraction.SHOWN);
         mCoordinator.show();
         shownWatcher.assertExpected();
 
@@ -90,7 +91,7 @@ public class TouchToFillAutofillControllerRobolectricTest {
         HistogramWatcher ackWatcher =
                 HistogramWatcher.newSingleRecordWatcher(
                         TouchToFillAutofillMediator.NOTICE_INTERACTIONS_HISTOGRAM,
-                        PopupNoticeInteractions.ACKNOWLEDGED);
+                        TouchToFillAutofillMediator.NoticeInteraction.ACKNOWLEDGED);
         okButton.performClick();
         ackWatcher.assertExpected();
 
@@ -103,7 +104,7 @@ public class TouchToFillAutofillControllerRobolectricTest {
         HistogramWatcher shownWatcher =
                 HistogramWatcher.newSingleRecordWatcher(
                         TouchToFillAutofillMediator.NOTICE_INTERACTIONS_HISTOGRAM,
-                        PopupNoticeInteractions.SHOWN);
+                        TouchToFillAutofillMediator.NoticeInteraction.SHOWN);
         mCoordinator.show();
         shownWatcher.assertExpected();
 
@@ -117,7 +118,8 @@ public class TouchToFillAutofillControllerRobolectricTest {
         HistogramWatcher settingsWatcher =
                 HistogramWatcher.newSingleRecordWatcher(
                         TouchToFillAutofillMediator.NOTICE_INTERACTIONS_HISTOGRAM,
-                        PopupNoticeInteractions.LINK_BUTTON_CLICKED);
+                        TouchToFillAutofillMediator.NoticeInteraction
+                                .MANAGE_SETTINGS_BUTTON_CLICKED);
         settingsLink.performClick();
         settingsWatcher.assertExpected();
 
@@ -130,14 +132,14 @@ public class TouchToFillAutofillControllerRobolectricTest {
         HistogramWatcher shownWatcher =
                 HistogramWatcher.newSingleRecordWatcher(
                         TouchToFillAutofillMediator.NOTICE_INTERACTIONS_HISTOGRAM,
-                        PopupNoticeInteractions.SHOWN);
+                        TouchToFillAutofillMediator.NoticeInteraction.SHOWN);
         mCoordinator.show();
         shownWatcher.assertExpected();
 
         HistogramWatcher dismissedWatcher =
                 HistogramWatcher.newSingleRecordWatcher(
                         TouchToFillAutofillMediator.NOTICE_INTERACTIONS_HISTOGRAM,
-                        PopupNoticeInteractions.DISMISSED);
+                        TouchToFillAutofillMediator.NoticeInteraction.DISMISSED);
         mCoordinator.hide();
         dismissedWatcher.assertExpected();
 

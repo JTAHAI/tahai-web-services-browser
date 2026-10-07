@@ -287,34 +287,28 @@ static std::optional<VideoFrameLayout> GetDefaultLayout(
           coded_size.width() * 4, 0, coded_size.GetArea() * 4)};
       break;
 
-    case PIXEL_FORMAT_NV12:
-    case PIXEL_FORMAT_NV12A:
-    case PIXEL_FORMAT_NV16:
-    case PIXEL_FORMAT_NV24:
-    case PIXEL_FORMAT_P010LE:
-    case PIXEL_FORMAT_P210LE:
-    case PIXEL_FORMAT_P410LE: {
-      const bool is_420 = format == PIXEL_FORMAT_NV12 ||
-                          format == PIXEL_FORMAT_NV12A ||
-                          format == PIXEL_FORMAT_P010LE;
-      const bool is_444 =
-          format == PIXEL_FORMAT_NV24 || format == PIXEL_FORMAT_P410LE;
-      int sample_bytes =
-          VideoFrame::BytesPerElement(format, VideoFrame::Plane::kY);
-      int y_stride = coded_size.width() * sample_bytes;
-      int y_size = y_stride * coded_size.height();
-      int uv_width = is_444 ? coded_size.width() : (coded_size.width() + 1) / 2;
-      int uv_height =
-          is_420 ? (coded_size.height() + 1) / 2 : coded_size.height();
-      int uv_stride = uv_width * sample_bytes * 2;
+    case PIXEL_FORMAT_NV12: {
+      int uv_width = (coded_size.width() + 1) / 2;
+      int uv_height = (coded_size.height() + 1) / 2;
+      int uv_stride = uv_width * 2;
       int uv_size = uv_stride * uv_height;
       planes = std::vector<ColorPlaneLayout>{
-          ColorPlaneLayout(y_stride, 0, y_size),
-          ColorPlaneLayout(uv_stride, y_size, uv_size),
+          ColorPlaneLayout(coded_size.width(), 0, coded_size.GetArea()),
+          ColorPlaneLayout(uv_stride, coded_size.GetArea(), uv_size),
       };
-      if (format == PIXEL_FORMAT_NV12A) {
-        planes.emplace_back(y_stride, y_size + uv_size, y_size);
-      }
+      break;
+    }
+
+    case PIXEL_FORMAT_NV12A: {
+      int uv_width = (coded_size.width() + 1) / 2;
+      int uv_height = (coded_size.height() + 1) / 2;
+      int uv_stride = uv_width * 2;
+      int uv_size = uv_stride * uv_height;
+      planes = std::vector<ColorPlaneLayout>{
+          ColorPlaneLayout(coded_size.width(), 0, coded_size.GetArea()),
+          ColorPlaneLayout(uv_stride, coded_size.GetArea(), uv_size),
+          ColorPlaneLayout(coded_size.width(), 0, coded_size.GetArea()),
+      };
       break;
     }
 
@@ -369,10 +363,6 @@ scoped_refptr<VideoFrame> VideoFrame::WrapTrackingToken(
   auto layout = VideoFrameLayout::Create(format, coded_size);
   if (!layout) {
     DLOG(ERROR) << "Invalid layout.";
-    return nullptr;
-  }
-  if (!IsValidConfig(format, StorageType::STORAGE_OPAQUE, coded_size,
-                     visible_rect, natural_size)) {
     return nullptr;
   }
   auto frame = base::MakeRefCounted<VideoFrame>(
@@ -465,7 +455,6 @@ scoped_refptr<VideoFrame> VideoFrame::WrapSharedImage(
   }
 
   frame->acquire_sync_token_ = sync_token;
-  frame->set_color_space(shared_image->color_space());
   frame->shared_image_ = shared_image->MakeUnowned();
   if (shared_image_release_cb) {
     frame->SetReleaseMailboxCB(std::move(shared_image_release_cb));
@@ -508,8 +497,8 @@ scoped_refptr<VideoFrame> VideoFrame::WrapMappableSharedImage(
   }
   uint64_t modifier = gfx::NativePixmapHandle::kNoModifier;
 #if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
-  if (shared_image->GetGpuMemoryBufferType() ==
-      gfx::GpuMemoryBufferType::NATIVE_PIXMAP) {
+  bool is_native_buffer = !shared_image->IsSharedMemoryForVideoFrame();
+  if (is_native_buffer) {
     const auto gmb_handle = shared_image->CloneGpuMemoryBufferHandle();
     if (gmb_handle.is_null() ||
         gmb_handle.native_pixmap_handle().planes.empty()) {
@@ -557,7 +546,6 @@ scoped_refptr<VideoFrame> VideoFrame::WrapMappableSharedImage(
   // Note that we cannot use |shared_image|->MakeUnowned() here since MappableSI
   // owns a MappableBuffer internally, which we cannot create an unowned
   // reference to.
-  frame->set_color_space(shared_image->color_space());
   frame->shared_image_ = std::move(shared_image);
   return frame;
 }
@@ -1307,7 +1295,7 @@ void VideoFrame::set_color_space(const gfx::ColorSpace& color_space) {
     SCOPED_CRASH_KEY_STRING256("video_frame", "si_label",
                                shared_image()->debug_label());
     CHECK_EQ(color_space, shared_image()->color_space(),
-             base::NotFatalUntil::M154);
+             base::NotFatalUntil::M153);
   }
   color_space_ = color_space;
 }

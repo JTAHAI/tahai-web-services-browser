@@ -312,7 +312,20 @@ class CONTENT_EXPORT FrameTreeNode : public RenderFrameHostOwner {
   connection_allowlist_attribute() const {
     return attributes_->required_connection_allowlist;
   }
+  // Tracks iframe's 'browsingtopics' attribute, indicating whether the
+  // navigation requests on this frame should calculate and send the
+  // `Sec-Browsing-Topics` header.
+  bool browsing_topics() const { return attributes_->browsing_topics; }
 
+  // Tracks iframe's 'sharedstoragewritable' attribute, indicating what value
+  // the the corresponding
+  // `network::ResourceRequest::shared_storage_writable_eligible` should take
+  // for the navigation(s) on this frame, pending a permissions policy check. If
+  // true, and if the permissions policy check returns "enabled", the network
+  // service will send the `Shared-Storage-Write` request header.
+  bool shared_storage_writable_opted_in() const {
+    return attributes_->shared_storage_writable_opted_in;
+  }
   const std::optional<std::string> html_id() const { return attributes_->id; }
   // This tracks iframe's 'name' attribute instead of window.name, which is
   // tracked in FrameReplicationState. See the comment for frame_name() for
@@ -650,6 +663,13 @@ class CONTENT_EXPORT FrameTreeNode : public RenderFrameHostOwner {
   // with any node.
   std::vector<const SharedStorageBudgetMetadata*>
   FindSharedStorageBudgetMetadata();
+
+  // Returns any shared storage context string that was written to a
+  // `blink::FencedFrameConfig` before navigation via
+  // `setSharedStorageContext()`, as long as the request is for a same-origin
+  // frame within the config's fenced frame tree (or a same-origin descendant of
+  // a URN iframe).
+  std::optional<std::u16string> GetEmbedderSharedStorageContextIfAllowed();
 
   // Accessor to BrowsingContextState for subframes only. Only main frame
   // navigations can change BrowsingInstances and BrowsingContextStates,

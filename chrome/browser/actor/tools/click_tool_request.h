@@ -6,10 +6,8 @@
 #define CHROME_BROWSER_ACTOR_TOOLS_CLICK_TOOL_REQUEST_H_
 
 #include <memory>
-#include <optional>
 #include <string>
 
-#include "chrome/browser/actor/tools/observation_delay_controller.h"
 #include "chrome/browser/actor/tools/page_tool_request.h"
 #include "chrome/common/actor.mojom-forward.h"
 
@@ -20,14 +18,15 @@ class ClickToolRequest : public PageToolRequest {
  public:
   static constexpr char kName[] = "Click";
 
-  ClickToolRequest(
-      tabs::TabHandle tab_handle,
-      const PageTarget& target,
-      mojom::ClickType type,
-      mojom::ClickCount count,
-      bool requires_opening_web_contents = false,
-      std::optional<ObservationDelayController::PageStabilityConfig>
-          page_stability_config = std::nullopt);
+  ClickToolRequest(tabs::TabHandle tab_handle,
+                   const PageTarget& target,
+                   mojom::ClickType type,
+                   mojom::ClickCount count);
+  ClickToolRequest(tabs::TabHandle tab_handle,
+                   const PageTarget& target,
+                   mojom::ClickType type,
+                   mojom::ClickCount count,
+                   bool requires_opening_web_contents);
   ~ClickToolRequest() override;
 
   void Apply(ToolRequestVisitorFunctor& f) const override;
@@ -55,8 +54,6 @@ class ClickToolRequest : public PageToolRequest {
   mojom::ClickType click_type_;
   mojom::ClickCount click_count_;
   bool requires_opening_web_contents_ = false;
-  std::optional<ObservationDelayController::PageStabilityConfig>
-      page_stability_config_;
 };
 
 }  // namespace actor

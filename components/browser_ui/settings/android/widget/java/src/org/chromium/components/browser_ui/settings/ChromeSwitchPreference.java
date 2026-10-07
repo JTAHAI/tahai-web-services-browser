@@ -60,8 +60,6 @@ public class ChromeSwitchPreference extends SwitchPreferenceCompat implements Co
                 parseContainmentAttributes(context, attrs);
         mBackgroundStyle = containmentAttributes.backgroundStyle;
 
-        SettingsUtils.initializePreferenceDefaults(context, attrs, this);
-
         mHasCustomLayout = ManagedPreferencesUtils.isCustomLayoutApplied(context, attrs);
         mUseSummaryAsTitle = true;
     }

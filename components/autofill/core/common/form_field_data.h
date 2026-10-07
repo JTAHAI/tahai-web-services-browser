@@ -20,6 +20,7 @@
 #include "build/build_config.h"
 #include "components/autofill/core/common/autocomplete_parsing_util.h"
 #include "components/autofill/core/common/dense_set.h"
+#include "components/autofill/core/common/html_field_types.h"
 #include "components/autofill/core/common/mojom/autofill_types.mojom-shared.h"
 #include "components/autofill/core/common/signatures.h"
 #include "components/autofill/core/common/unique_ids.h"
@@ -111,6 +112,7 @@ LogBuffer& operator<<(LogBuffer& buffer, FormControlType type);
 // at FormData.
 class FormFieldData {
  public:
+  using CheckStatus = mojom::FormFieldData_CheckStatus;
   using RoleAttribute = mojom::FormFieldData_RoleAttribute;
   using LabelSource = mojom::FormFieldData_LabelSource;
 
@@ -416,6 +418,10 @@ class FormFieldData {
     is_autofilled_according_to_renderer_ = is_autofilled_according_to_renderer;
   }
 
+  CheckStatus check_status() const { return check_status_; }
+  void set_check_status(CheckStatus check_status) {
+    check_status_ = check_status;
+  }
   bool is_focusable() const { return is_focusable_; }
   void set_is_focusable(bool is_focusable) { is_focusable_ = is_focusable; }
   bool is_visible() const { return is_visible_; }
@@ -527,6 +533,7 @@ class FormFieldData {
   int32_t form_control_ax_id_ = 0;
   uint64_t max_length_ = kDefaultMaxLength;
   bool is_autofilled_according_to_renderer_ = false;
+  CheckStatus check_status_ = CheckStatus::kNotCheckable;
   bool is_focusable_ = true;
   bool is_visible_ = true;
   bool should_autocomplete_ = true;
@@ -543,7 +550,7 @@ class FormFieldData {
   std::vector<SelectOption> datalist_options_;
   bool force_override_ = false;
   // LINT.ThenChange(form_field_data.cc:IdenticalAndEquivalentDomElements,
-  // autofill_test_util.cc:FormFieldDataEq)
+  // autofill_test_utils.cc:FormFieldDataEq)
 };
 
 // Structure containing necessary information to be sent from the browser to the

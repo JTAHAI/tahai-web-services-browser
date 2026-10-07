@@ -99,11 +99,11 @@ export class PrintPreviewDocumentInfoElement extends
     };
   }
 
-  declare documentSettings: DocumentSettings;
-  declare inFlightRequestId: number;
-  declare margins: Margins;
-  declare pageSize: Size;
-  declare printableArea: PrintableArea;
+  documentSettings: DocumentSettings;
+  inFlightRequestId: number;
+  margins: Margins;
+  pageSize: Size;
+  printableArea: PrintableArea;
   private isInitialized_: boolean = false;
 
   override connectedCallback() {

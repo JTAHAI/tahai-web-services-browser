@@ -24,6 +24,10 @@ class BrowserWindowInterface;
 class GURL;
 class Profile;
 
+#if !BUILDFLAG(IS_ANDROID)
+class Browser;  // TODO(stevenjb) eliminate this dependency.
+#endif
+
 namespace content {
 class WebContents;
 }
@@ -94,7 +98,7 @@ class WindowController {
 #if !BUILDFLAG(IS_ANDROID)
   // Returns a Browser if available. Defaults to returning NULL.
   // TODO(stevenjb): Temporary workaround. Eliminate this.
-  virtual BrowserWindowInterface* GetBrowser() const;
+  virtual Browser* GetBrowser() const;
 #endif
 
   // Returns the WebContents associated with the active tab, if any. Returns

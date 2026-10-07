@@ -10,8 +10,6 @@ import {WebUiListenerMixinLit} from '//resources/cr_elements/web_ui_listener_mix
 import {CrLitElement} from '//resources/lit/v3_0/lit.rollup.js';
 import type {PropertyValues} from '//resources/lit/v3_0/lit.rollup.js';
 
-import type {VisualBrowserProxy} from '../app/visual_browser_proxy.js';
-import {VisualBrowserProxyImpl} from '../app/visual_browser_proxy.js';
 import type {SettingsPrefs, ShowAtConfigPrefs} from '../content/read_anything_types.js';
 import {DEFAULT_SETTINGS, ToolbarEvent} from '../content/read_anything_types.js';
 import {ReadAnythingSettingsChange} from '../shared/metrics_browser_proxy.js';
@@ -59,8 +57,6 @@ export class FontMenuElement extends FontMenuElementBase implements
   accessor settingsPrefs: SettingsPrefs = DEFAULT_SETTINGS;
   accessor nonModal: boolean = false;
 
-  private visualBrowserProxy_: VisualBrowserProxy =
-      VisualBrowserProxyImpl.getInstance();
   private logger_: ReadAnythingLogger = ReadAnythingLogger.getInstance();
 
   override updated(changedProperties: PropertyValues<this>) {
@@ -68,7 +64,7 @@ export class FontMenuElement extends FontMenuElementBase implements
     if (changedProperties.has('pageLanguage') ||
         changedProperties.has('areFontsLoaded') ||
         changedProperties.has('settingsPrefs')) {
-      this.setFontOptions_(this.visualBrowserProxy_.getSupportedFonts());
+      this.setFontOptions_(chrome.readingMode.supportedFonts);
     }
   }
 
@@ -81,12 +77,11 @@ export class FontMenuElement extends FontMenuElementBase implements
   }
 
   protected currentFontIndex_(): number {
-    return getIndexOrDefault(
-        this.options_, this.visualBrowserProxy_.getFontName());
+    return getIndexOrDefault(this.options_, chrome.readingMode.fontName);
   }
 
   protected onFontChange_(event: CustomEvent<{data: string}>) {
-    this.visualBrowserProxy_.onFontChange(event.detail.data);
+    chrome.readingMode.onFontChange(event.detail.data);
     this.logger_.logTextSettingsChange(ReadAnythingSettingsChange.FONT_CHANGE);
     this.fire(ToolbarEvent.CLOSE_ALL_MENUS);
   }

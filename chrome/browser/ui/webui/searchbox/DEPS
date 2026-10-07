@@ -1,5 +1,0 @@
-specific_include_rules = {
-  ".*unittest\\..*": [
-    "+third_party/webrtc/modules/desktop_capture",
-  ],
-}

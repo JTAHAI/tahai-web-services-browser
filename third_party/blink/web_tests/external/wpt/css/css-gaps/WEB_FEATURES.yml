@@ -1,2 +1,3 @@
-rules:
-- "**": [gap-decorations]
+features:
+- name: gap-decorations
+  files: "**"

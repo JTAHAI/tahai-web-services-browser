@@ -33,7 +33,6 @@ class WebState;
 namespace actor {
 
 class ToolDelegate;
-struct CredentialWithPermission;
 
 // Tool to attempt login on a page.
 class AttemptLoginTool : public ActorTool, public web::WebStateObserver {
@@ -62,8 +61,8 @@ class AttemptLoginTool : public ActorTool, public web::WebStateObserver {
 
   void OnGetCredentials(actor_login::CredentialsOrError credentials);
   void OnCredentialSelected(
-      base::expected<std::optional<CredentialWithPermission>,
-                     ToolExecutionResult> result);
+      std::optional<actor_login::Credential> selected_credential,
+      bool should_store_permission);
   void OnAttemptLogin(actor_login::Credential selected_credential,
                       bool should_store_permission,
                       actor_login::LoginStatusResultOrError login_status);

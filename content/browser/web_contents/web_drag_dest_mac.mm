@@ -328,14 +328,11 @@ void OnWebContentsViewDelegatePerformingDropComplete(
   }
 
   // Filter |dropDataUnfiltered_| by targetRWH to populate |dropDataFiltered_|.
-  CHECK(_dropDataUnfiltered, base::NotFatalUntil::M158);
+  DCHECK(_dropDataUnfiltered);
   std::unique_ptr<DropData> dropData =
       std::make_unique<DropData>(*_dropDataUnfiltered);
   _currentRWHForDrag = targetRWH->GetWeakPtr();
   _currentRWHForDrag->FilterDropData(dropData.get());
-  if (!_dragSecurityInfo.IsImageAccessibleFromFrame()) {
-    dropData->file_contents.resize(0);
-  }
 
   NSDragOperation mask = info->operation_mask;
 
@@ -386,7 +383,7 @@ void OnWebContentsViewDelegatePerformingDropComplete(
     return;
   }
 
-  CHECK(_currentRVH, base::NotFatalUntil::M158);
+  DCHECK(_currentRVH);
   if (_currentRVH != _webContents->GetRenderViewHost()) {
     return;
   }
@@ -666,9 +663,6 @@ void OnWebContentsViewDelegatePerformingDropComplete(
     std::unique_ptr<DropData> dropData =
         std::make_unique<DropData>(*_dropDataUnfiltered);
     targetRWH->FilterDropData(dropData.get());
-    if (!_dragSecurityInfo.IsImageAccessibleFromFrame()) {
-      dropData->file_contents.resize(0);
-    }
     _dropDataFiltered.swap(dropData);
   }
 
@@ -779,7 +773,7 @@ void OnWebContentsViewDelegatePerformingDropComplete(
 namespace content {
 
 DropData PopulateDropDataFromPasteboard(NSPasteboard* pboard) {
-  CHECK(pboard, base::NotFatalUntil::M158);
+  DCHECK(pboard);
   DropData drop_data;
 
   // https://crbug.com/40050499#comment22
@@ -858,7 +852,7 @@ DropData PopulateDropDataFromPasteboard(NSPasteboard* pboard) {
       }
     }
   }
-  constexpr base::ByteSize kMaxDragBinarySize = base::MiB(256);
+  constexpr base::ByteSize kMaxDragBinarySize = base::MiBU(256);
   if (file_data.length > 0 &&
       file_data.length <= kMaxDragBinarySize.InBytes()) {
     drop_data.file_contents =
@@ -883,7 +877,7 @@ DropData PopulateDropDataFromPasteboard(NSPasteboard* pboard) {
       disposition =
           [pboard stringForType:ui::kUTTypeChromiumContentDisposition];
     }
-    constexpr base::ByteSize kMaxContentDispositionLength = base::KiB(4);
+    constexpr base::ByteSize kMaxContentDispositionLength = base::KiBU(4);
     if (disposition.length > 0 &&
         disposition.length <= kMaxContentDispositionLength.InBytes()) {
       drop_data.file_contents_content_disposition =

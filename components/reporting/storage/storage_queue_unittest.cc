@@ -22,7 +22,6 @@
 #include "base/strings/string_number_conversions.h"
 #include "base/task/sequenced_task_runner.h"
 #include "base/task/thread_pool.h"
-#include "base/test/scoped_feature_list.h"
 #include "base/test/task_environment.h"
 #include "base/threading/sequence_bound.h"
 #include "base/types/expected.h"
@@ -97,16 +96,9 @@ void EnsureDeletingFiles(FileEnumeratorParams... file_enum_params) {
 
 class StorageQueueTest
     : public ::testing::TestWithParam<
-          testing::tuple<size_t /*file_size*/, std::string /*dm_token*/, bool /*erase_legacy_queue*/>> {
+          testing::tuple<size_t /*file_size*/, std::string /*dm_token*/>> {
  protected:
-  bool is_erase_legacy_queue_enabled() const { return testing::get<2>(GetParam()); }
   void SetUp() override {
-    if (is_erase_legacy_queue_enabled()) {
-      scoped_feature_list_.InitAndEnableFeature(kEraseLegacyQueueOnDataLoss);
-    } else {
-      scoped_feature_list_.InitAndDisableFeature(kEraseLegacyQueueOnDataLoss);
-    }
-
     ASSERT_TRUE(location_.CreateUniqueTempDir());
     dm_token_ = testing::get<1>(GetParam());
     options_.set_directory(base::FilePath(location_.GetPath()));
@@ -856,7 +848,6 @@ class StorageQueueTest
   ::testing::MockFunction<StatusOr<std::unique_ptr<TestUploader>>(
       UploaderInterface::UploadReason /*reason*/)>
       set_mock_uploader_expectations_;
-  base::test::ScopedFeatureList scoped_feature_list_;
 };
 
 constexpr std::array<const char*, 3> kData = {"Rec1111", "Rec222", "Rec33"};
@@ -1051,8 +1042,7 @@ TEST_P(StorageQueueTest,
                       base::StrCat({METADATA_NAME, FILE_PATH_LITERAL(".*")}));
 
   // Avoid init resume upload upon non-empty queue restart.
-  // If we erase the legacy queue, it starts empty, so no INIT_RESUME is called.
-  if (!is_erase_legacy_queue_enabled()) {
+  {
     test::TestCallbackAutoWaiter waiter;
     EXPECT_CALL(set_mock_uploader_expectations_,
                 Call(Eq(UploaderInterface::UploadReason::INIT_RESUME)))
@@ -1067,74 +1057,11 @@ TEST_P(StorageQueueTest,
     SetExpectedUploadsCount();
     // Reopen, starting a new generation.
     CreateTestStorageQueueOrDie(BuildStorageQueueOptionsPeriodic());
-  } else {
-    // Reopen, starting a new generation. (Queue will be wiped clean).
-    CreateTestStorageQueueOrDie(BuildStorageQueueOptionsPeriodic());
   }
 
   WriteStringOrDie(kMoreData[0]);
   WriteStringOrDie(kMoreData[1]);
   WriteStringOrDie(kMoreData[2]);
-
-  // Set uploader expectations.
-  test::TestCallbackAutoWaiter waiter;
-  if (is_erase_legacy_queue_enabled()) {
-    EXPECT_CALL(set_mock_uploader_expectations_,
-                Call(Eq(UploaderInterface::UploadReason::PERIODIC)))
-        .WillOnce([&waiter, this](UploaderInterface::UploadReason reason) {
-          return TestUploader::SetUp(&waiter, this)
-              .Required(0, kMoreData[0])
-              .Required(1, kMoreData[1])
-              .Required(2, kMoreData[2])
-              .Complete();
-        })
-        .RetiresOnSaturation();
-  } else {
-    EXPECT_CALL(set_mock_uploader_expectations_,
-                Call(Eq(UploaderInterface::UploadReason::PERIODIC)))
-        .WillOnce([&waiter, this](UploaderInterface::UploadReason reason) {
-          return TestUploader::SetUp(&waiter, this)
-              .Required(0, kData[0])
-              .Required(1, kData[1])
-              .Required(2, kData[2])
-              .Required(3, kMoreData[0])
-              .Required(4, kMoreData[1])
-              .Required(5, kMoreData[2])
-              .Complete();
-        })
-        .RetiresOnSaturation();
-  }
-
-  // Trigger upload.
-  SetExpectedUploadsCount();
-  task_environment_.FastForwardBy(base::Seconds(1));
-}
-
-TEST_P(StorageQueueTest, LegacyQueueWipeOnDataLoss) {
-  base::test::ScopedFeatureList scoped_feature_list;
-  scoped_feature_list.InitAndEnableFeature(kEraseLegacyQueueOnDataLoss);
-
-  // Set directory to mimic a legacy queue without a GUID extension.
-  options_.set_directory(
-      base::FilePath(location_.GetPath()).AppendASCII("LegacyFolder"));
-
-  CreateTestStorageQueueOrDie(BuildStorageQueueOptionsPeriodic());
-  WriteStringOrDie(kData[0]);
-  WriteStringOrDie(kData[1]);
-
-  // Save copy of options.
-  const QueueOptions options = storage_queue_->options();
-  ResetTestStorageQueue();
-
-  // Delete all metadata files.
-  EnsureDeletingFiles(options.directory(),
-                      /*recursive=*/false, base::FileEnumerator::FILES,
-                      base::StrCat({METADATA_NAME, FILE_PATH_LITERAL(".*")}));
-
-  // Reopen, triggering a forced legacy reset.
-  CreateTestStorageQueueOrDie(BuildStorageQueueOptionsPeriodic());
-
-  WriteStringOrDie(kMoreData[0]);
 
   // Set uploader expectations. Previous data is all lost.
   test::TestCallbackAutoWaiter waiter;
@@ -1142,7 +1069,12 @@ TEST_P(StorageQueueTest, LegacyQueueWipeOnDataLoss) {
               Call(Eq(UploaderInterface::UploadReason::PERIODIC)))
       .WillOnce([&waiter, this](UploaderInterface::UploadReason reason) {
         return TestUploader::SetUp(&waiter, this)
-            .Required(0, kMoreData[0])
+            .Required(0, kData[0])
+            .Required(1, kData[1])
+            .Required(2, kData[2])
+            .Required(3, kMoreData[0])
+            .Required(4, kMoreData[1])
+            .Required(5, kMoreData[2])
             .Complete();
       })
       .RetiresOnSaturation();
@@ -1151,7 +1083,6 @@ TEST_P(StorageQueueTest, LegacyQueueWipeOnDataLoss) {
   SetExpectedUploadsCount();
   task_environment_.FastForwardBy(base::Seconds(1));
 }
-
 
 TEST_P(
     StorageQueueTest,
@@ -1185,8 +1116,7 @@ TEST_P(
   }
 
   // Avoid init resume upload upon non-empty queue restart.
-  // If we erase the legacy queue, it starts empty, so no INIT_RESUME is called.
-  if (!is_erase_legacy_queue_enabled()) {
+  {
     test::TestCallbackAutoWaiter waiter;
     EXPECT_CALL(set_mock_uploader_expectations_,
                 Call(Eq(UploaderInterface::UploadReason::INIT_RESUME)))
@@ -1201,43 +1131,27 @@ TEST_P(
     SetExpectedUploadsCount();
     // Reopen, starting a new generation.
     CreateTestStorageQueueOrDie(BuildStorageQueueOptionsPeriodic());
-  } else {
-    // Reopen, starting a new generation. (Queue will be wiped clean).
-    CreateTestStorageQueueOrDie(BuildStorageQueueOptionsPeriodic());
   }
 
   WriteStringOrDie(kMoreData[0]);
   WriteStringOrDie(kMoreData[1]);
   WriteStringOrDie(kMoreData[2]);
 
-  // Set uploader expectations.
+  // Set uploader expectations. Previous data is all lost.
   test::TestCallbackAutoWaiter waiter;
-  if (is_erase_legacy_queue_enabled()) {
-    EXPECT_CALL(set_mock_uploader_expectations_,
-                Call(Eq(UploaderInterface::UploadReason::PERIODIC)))
-        .WillOnce([&waiter, this](UploaderInterface::UploadReason reason) {
-          return TestUploader::SetUp(&waiter, this)
-              .Required(0, kMoreData[0])
-              .Required(1, kMoreData[1])
-              .Required(2, kMoreData[2])
-              .Complete();
-        })
-        .RetiresOnSaturation();
-  } else {
-    EXPECT_CALL(set_mock_uploader_expectations_,
-                Call(Eq(UploaderInterface::UploadReason::PERIODIC)))
-        .WillOnce([&waiter, this](UploaderInterface::UploadReason reason) {
-          return TestUploader::SetUp(&waiter, this)
-              .Required(0, kData[0])
-              .Required(1, kData[1])
-              .Required(2, kData[2])
-              .Required(3, kMoreData[0])
-              .Required(4, kMoreData[1])
-              .Required(5, kMoreData[2])
-              .Complete();
-        })
-        .RetiresOnSaturation();
-  }
+  EXPECT_CALL(set_mock_uploader_expectations_,
+              Call(Eq(UploaderInterface::UploadReason::PERIODIC)))
+      .WillOnce([&waiter, this](UploaderInterface::UploadReason reason) {
+        return TestUploader::SetUp(&waiter, this)
+            .Required(0, kData[0])
+            .Required(1, kData[1])
+            .Required(2, kData[2])
+            .Required(3, kMoreData[0])
+            .Required(4, kMoreData[1])
+            .Required(5, kMoreData[2])
+            .Complete();
+      })
+      .RetiresOnSaturation();
 
   // Trigger upload.
   SetExpectedUploadsCount();
@@ -2614,15 +2528,13 @@ TEST_P(StorageQueueTest, WriteWithNoDestination) {
       << write_result;
 }
 
-INSTANTIATE_TEST_SUITE_P
-    (
+INSTANTIATE_TEST_SUITE_P(
     VaryingFileSize,
     StorageQueueTest,
     testing::Combine(testing::Values(128 * 1024LL * 1024LL,
                                      256 /* two records in file */,
                                      1 /* single record in file */),
-                     testing::Values("DM TOKEN", ""),
-                     testing::Bool()));
+                     testing::Values("DM TOKEN", "")));
 
 }  // namespace
 }  // namespace reporting

@@ -22,6 +22,7 @@
 #include "components/optimization_guide/core/optimization_guide_features.h"
 #include "components/optimization_guide/core/optimization_guide_logger.h"
 #include "components/optimization_guide/core/optimization_guide_prefs.h"
+#include "components/optimization_guide/core/optimization_guide_switches.h"
 #include "components/optimization_guide/core/optimization_guide_util.h"
 #include "components/optimization_guide/proto/hints.pb.h"
 #include "components/prefs/pref_service.h"
@@ -96,13 +97,13 @@ void RecordRequestStatusHistogram(proto::RequestContext request_context,
 // Appends override headers as specified by the command line arguments.
 void AppendOverrideHeadersIfNeeded(network::ResourceRequest& request) {
   if (!base::CommandLine::ForCurrentProcess()->HasSwitch(
-          kOptimizationGuideLanguageOverrideSwitch)) {
+          switches::kOptimizationGuideLanguageOverride)) {
     return;
   }
   request.headers.SetHeaderIfMissing(
       kOptimizationGuideLanguageOverrideHeaderKey,
       base::CommandLine::ForCurrentProcess()->GetSwitchValueASCII(
-          kOptimizationGuideLanguageOverrideSwitch));
+          switches::kOptimizationGuideLanguageOverride));
 }
 
 }  // namespace
@@ -128,7 +129,7 @@ HintsFetcher::HintsFetcher(
   // servers.
   CHECK(optimization_guide_service_url_.SchemeIs(url::kHttpsScheme) ||
         base::CommandLine::ForCurrentProcess()->HasSwitch(
-            kOptimizationGuideServiceGetHintsURLSwitch));
+            switches::kOptimizationGuideServiceGetHintsURL));
 }
 
 HintsFetcher::~HintsFetcher() {

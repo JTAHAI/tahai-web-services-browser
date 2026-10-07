@@ -24,19 +24,17 @@
 #include "chrome/browser/actor/execution_engine.h"
 #include "chrome/browser/actor/tab_observation_strategy.h"
 #include "chrome/browser/actor/ui/event_dispatcher.h"
-#include "chrome/browser/glic/public/glic_perf_traits_tracker.h"
+#include "chrome/browser/glic/public/glic_actuation_tracker.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/common/actor.mojom-forward.h"
 #include "chrome/common/actor/action_result.h"
 #include "chrome/common/actor_webui.mojom.h"
 #include "chrome/common/chrome_features.h"
 #include "components/actor/core/actor_features.h"
-#include "components/actor/core/actor_ui_mode.h"
 #include "components/actor/core/journal_details_builder.h"
 #include "components/actor/public/mojom/actor_types.mojom.h"
 #include "components/performance_manager/public/decorators/page_live_state_decorator.h"
 #include "components/tabs/public/tab_interface.h"
-#include "content/public/browser/browser_thread.h"
 #include "content/public/browser/page.h"
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/render_widget_host.h"
@@ -214,21 +212,6 @@ base::WeakPtr<ActorTask> ActorTask::GetWeakPtr() {
 
 Profile* ActorTask::GetProfile() const {
   return service_->GetProfile();
-}
-
-#if BUILDFLAG(IS_ANDROID)
-void ActorTask::SetIsInPip(bool is_in_pip) {
-  DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
-  is_in_pip_ = is_in_pip;
-}
-#endif
-
-ActorUiMode ActorTask::GetUiMode() const {
-  DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
-  if (is_in_pip_) {
-    return ActorUiMode::kPip;
-  }
-  return has_visible_tab_ ? ActorUiMode::kForeground : ActorUiMode::kBackground;
 }
 
 void ActorTask::SetState(State new_state) {
@@ -538,14 +521,12 @@ void ActorTask::Resume() {
   SetState(State::kReflecting);
 }
 
-void ActorTask::Interrupt(bool retain_user_control,
-                          InterruptReason interrupt_reason) {
+void ActorTask::Interrupt(bool retain_user_control) {
   if (GetState() != State::kReflecting && GetState() != State::kActing) {
     return;
   }
   interrupted_task_needs_user_control_ = retain_user_control;
   execution_engine_->PauseOngoingActions();
-  interrupt_reason_ = interrupt_reason;
   SetState(State::kWaitingOnUser);
 }
 
@@ -553,7 +534,6 @@ void ActorTask::Uninterrupt(State resumed_state) {
   if (GetState() != State::kWaitingOnUser) {
     return;
   }
-  interrupt_reason_ = std::nullopt;
   interrupted_task_needs_user_control_ = false;
   SetState(resumed_state);
   execution_engine_->DidUninterruptTask();
@@ -626,7 +606,6 @@ void ActorTask::AddTab(tabs::TabHandle tab_handle,
     return;
   }
   if (controlled_tabs_.contains(tab_handle)) {
-    last_actuated_tab_ = tab_handle;
     base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
         FROM_HERE, base::BindOnce(std::move(callback), MakeOkResult()));
     return;
@@ -648,7 +627,6 @@ void ActorTask::AddTab(tabs::TabHandle tab_handle,
   controlled_tabs_.emplace(
       tab_handle,
       std::make_unique<ActorControlledTabState>(this, stop_task_on_detach));
-  last_actuated_tab_ = tab_handle;
 
   DidTabEnterActorControl(tab_handle);
 
@@ -805,8 +783,6 @@ void ActorTask::UpdateVisibilityTimes() {
 }
 
 void ActorTask::RecomputeHasVisibleTab() {
-  // TODO(crbug.com/540512932): Track full window minimization and complete
-  // window occlusion in addition to WebContents visibility.
   bool has_any_visible_tab = false;
   for (const auto& [handle, controlled_state] : controlled_tabs_) {
     if (controlled_state->web_contents() &&
@@ -824,7 +800,6 @@ void ActorTask::RecomputeHasVisibleTab() {
   if (delegate_) {
     delegate_->OnTaskTabsVisibilityChanged(id_, has_visible_tab_);
   }
-  service_->NotifyTaskVisibilityChanged(*this);
 }
 
 void ActorTask::ResetToObserveTabsSet() {
@@ -866,14 +841,6 @@ absl::flat_hash_set<tabs::TabHandle> ActorTask::GetLastActedTabs() const {
   }
 
   return last_acted_tabs;
-}
-
-tabs::TabInterface* ActorTask::GetLastActuatedTab() const {
-  return last_actuated_tab_.Get();
-}
-
-tabs::TabHandle ActorTask::GetLastActuatedTabHandle() const {
-  return last_actuated_tab_;
 }
 
 absl::flat_hash_set<tabs::TabHandle> ActorTask::GetTabs() const {
@@ -923,7 +890,7 @@ void ActorTask::DidContentsEnterActorControl(
   // prioritization of the renderer process. This will prevent the priority of
   // the tab from dropping to BestEffort when it's not visible. When it is
   // visible, the tab's priority is already boosted.
-  glic::GlicPerfTraitsTracker::GetInstance()->NotifyActuationStateChanged(
+  glic::GlicActuationTracker::GetInstance()->NotifyActuatingChanged(
       contents, glic::GlicActuationState::kActuatingOnBackgroundTab);
 #if BUILDFLAG(IS_MAC) && BUILDFLAG(USE_EXTERNAL_POPUP_MENU)
   if (base::FeatureList::IsEnabled(features::kGlicActorInternalPopups)) {
@@ -957,7 +924,7 @@ void ActorTask::DidTabExitActorControl(tabs::TabHandle handle) {
 void ActorTask::DidContentsExitActorControl(
     ActorTask::ActorControlledTabState* state,
     content::WebContents* contents) {
-  glic::GlicPerfTraitsTracker::GetInstance()->NotifyActuationStateChanged(
+  glic::GlicActuationTracker::GetInstance()->NotifyActuatingChanged(
       contents, glic::GlicActuationState::kNone);
   SetFocusState(contents, std::nullopt);
   state->SetContents(nullptr);
@@ -1020,14 +987,6 @@ std::string ToString(const ActorTask::State& state) {
 
 std::ostream& operator<<(std::ostream& os, const ActorTask::State& state) {
   return os << ToString(state);
-}
-
-void ActorTask::SetStepProgress(std::string step_progress) {
-  if (step_progress_ == step_progress) {
-    return;
-  }
-  step_progress_ = std::move(step_progress);
-  service_->NotifyTaskStepProgressChanged(*this, step_progress_);
 }
 
 // static

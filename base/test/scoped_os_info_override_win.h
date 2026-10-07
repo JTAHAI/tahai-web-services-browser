@@ -33,7 +33,6 @@ class ScopedOSInfoOverride {
     kWin10Pro,
     kWin10Home,
     kWinServer2016,
-    kWinServer2019,
     kWin11HomeN,
   };
 

@@ -68,7 +68,7 @@ public class BrowsingHistoryBridge implements HistoryProvider {
     }
 
     @CalledByNative
-    public static void addAppIdToList(List<String> items, @JniType("std::string") String appId) {
+    public static void addAppIdToList(List<String> items, String appId) {
         items.add(appId);
     }
 
@@ -104,7 +104,7 @@ public class BrowsingHistoryBridge implements HistoryProvider {
         RecordHistogram.recordEnumeratedHistogram(
                 "Privacy.DeleteBrowsingData.Action",
                 DeleteBrowsingDataAction.HISTORY_PAGE_ENTRIES,
-                DeleteBrowsingDataAction.MAX_VALUE + 1);
+                DeleteBrowsingDataAction.MAX_VALUE);
 
         BrowsingHistoryBridgeJni.get().removeItems(mNativeHistoryBridge);
     }
@@ -112,12 +112,12 @@ public class BrowsingHistoryBridge implements HistoryProvider {
     @CalledByNative
     public static void createHistoryItemAndAddToList(
             List<HistoryItem> items,
-            @JniType("GURL") GURL url,
-            @JniType("std::u16string") String domain,
-            @JniType("std::u16string") String title,
-            @JniType("std::optional<std::string>") @Nullable String appId,
+            GURL url,
+            String domain,
+            String title,
+            String appId,
             long mostRecentJavaTimestamp,
-            @JniType("std::vector<int64_t>") long[] nativeTimestamps,
+            long[] nativeTimestamps,
             boolean blockedVisit,
             boolean isActorVisit) {
         items.add(
@@ -176,23 +176,21 @@ public class BrowsingHistoryBridge implements HistoryProvider {
         void queryHistory(
                 long nativeBrowsingHistoryBridge,
                 List<HistoryItem> historyItems,
-                @JniType("std::u16string") String query,
-                @JniType("std::optional<std::string>") @Nullable String appId,
+                String query,
+                @Nullable String appId,
                 boolean hostOnly);
 
         void queryHistoryContinuation(
                 long nativeBrowsingHistoryBridge, List<HistoryItem> historyItems);
 
         void getLastVisitToHostBeforeRecentNavigations(
-                long nativeBrowsingHistoryBridge,
-                @JniType("std::string") String hostName,
-                Callback<Long> callback);
+                long nativeBrowsingHistoryBridge, String hostName, Callback<Long> callback);
 
         void markItemForRemoval(
                 long nativeBrowsingHistoryBridge,
-                @JniType("GURL") GURL url,
-                @JniType("std::optional<std::string>") @Nullable String appId,
-                @JniType("std::vector<int64_t>") long[] nativeTimestamps);
+                GURL url,
+                @Nullable String appId,
+                long[] nativeTimestamps);
 
         void removeItems(long nativeBrowsingHistoryBridge);
 

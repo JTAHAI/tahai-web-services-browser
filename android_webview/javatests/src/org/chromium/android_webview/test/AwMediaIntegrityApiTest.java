@@ -84,10 +84,10 @@ public class AwMediaIntegrityApiTest extends AwParameterizedTest {
         PlatformServiceBridge.injectInstance(mPlatformBridge);
 
         mContentsClient = new TestAwContentsClient();
-        AwTestContainerView testContainerView =
+        AwTestContainerView mTestContainerView =
                 mRule.createAwTestContainerViewOnMainSync(
                         mContentsClient, false, new TestDependencyFactory());
-        mAwContents = testContainerView.getAwContents();
+        mAwContents = mTestContainerView.getAwContents();
         AwActivityTestRule.enableJavaScriptOnUiThread(mAwContents);
 
         ThreadUtils.runOnUiThreadBlocking(

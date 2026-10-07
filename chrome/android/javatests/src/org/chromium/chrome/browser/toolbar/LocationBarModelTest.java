@@ -30,11 +30,11 @@ import org.chromium.base.test.params.ParameterAnnotations;
 import org.chromium.base.test.params.ParameterProvider;
 import org.chromium.base.test.params.ParameterSet;
 import org.chromium.base.test.params.ParameterizedRunner;
-import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.Feature;
 import org.chromium.base.test.util.Features.DisableFeatures;
 import org.chromium.base.test.util.UrlUtils;
+import org.chromium.chrome.R;
 import org.chromium.chrome.browser.ChromeTabbedActivity;
 import org.chromium.chrome.browser.browser_controls.BrowserControlsStateProvider.ControlsPosition;
 import org.chromium.chrome.browser.dom_distiller.DomDistillerTabUtils;
@@ -50,8 +50,8 @@ import org.chromium.chrome.browser.tab.TabSelectionType;
 import org.chromium.chrome.browser.toolbar.top.ToolbarLayout;
 import org.chromium.chrome.browser.url_constants.UrlConstantResolver;
 import org.chromium.chrome.test.ChromeJUnit4RunnerDelegate;
-import org.chromium.chrome.test.transit.AutoResetCtaTransitTestRule;
 import org.chromium.chrome.test.transit.ChromeTransitTestRules;
+import org.chromium.chrome.test.transit.FreshCtaTransitTestRule;
 import org.chromium.chrome.test.transit.page.WebPageStation;
 import org.chromium.chrome.test.util.ChromeTabUtils;
 import org.chromium.url.GURL;
@@ -66,15 +66,12 @@ import java.util.concurrent.atomic.AtomicReference;
 @RunWith(ParameterizedRunner.class)
 @ParameterAnnotations.UseRunnerDelegate(ChromeJUnit4RunnerDelegate.class)
 @CommandLineFlags.Add({ChromeSwitches.DISABLE_FIRST_RUN_EXPERIENCE})
-@Batch(Batch.PER_CLASS)
 public class LocationBarModelTest {
     @Rule
-    public AutoResetCtaTransitTestRule mActivityTestRule =
-            ChromeTransitTestRules.autoResetCtaActivityRule();
+    public FreshCtaTransitTestRule mActivityTestRule =
+            ChromeTransitTestRules.freshChromeTabbedActivityRule();
 
     private WebPageStation mPage;
-    private ToolbarDataProvider.Observer mToolbarObserver;
-    private LocationBarDataProvider.Observer mLocationBarObserver;
 
     @Before
     public void setUp() throws InterruptedException {
@@ -83,24 +80,7 @@ public class LocationBarModelTest {
 
     @After
     public void tearDown() {
-        if (mToolbarObserver != null || mLocationBarObserver != null) {
-            ThreadUtils.runOnUiThreadBlocking(
-                    () -> {
-                        LocationBarModel model =
-                                mActivityTestRule
-                                        .getActivity()
-                                        .getToolbarManager()
-                                        .getLocationBarModelForTesting();
-                        if (mToolbarObserver != null) {
-                            model.removeToolbarDataProviderObserver(mToolbarObserver);
-                            mToolbarObserver = null;
-                        }
-                        if (mLocationBarObserver != null) {
-                            model.removeObserver(mLocationBarObserver);
-                            mLocationBarObserver = null;
-                        }
-                    });
-        }
+        mActivityTestRule.skipWindowAndTabStateCleanup();
     }
 
     /**
@@ -197,7 +177,7 @@ public class LocationBarModelTest {
         ChromeTabbedActivity activity = mActivityTestRule.getActivity();
         LocationBarModel locationBarModel =
                 activity.getToolbarManager().getLocationBarModelForTesting();
-        mToolbarObserver =
+        ToolbarDataProvider.Observer observer =
                 new ToolbarDataProvider.Observer() {
                     @Override
                     public void onIncognitoStateChanged() {
@@ -212,7 +192,7 @@ public class LocationBarModelTest {
                             .getActivity()
                             .getTabModelSelector()
                             .selectModel(fromIncognito);
-                    locationBarModel.addToolbarDataProviderObserver(mToolbarObserver);
+                    locationBarModel.addToolbarDataProviderObserver(observer);
 
                     // Switch to an existing tab.
                     mActivityTestRule
@@ -249,13 +229,13 @@ public class LocationBarModelTest {
         ChromeTabbedActivity activity = mActivityTestRule.getActivity();
         LocationBarModel locationBarModel =
                 activity.getToolbarManager().getLocationBarModelForTesting();
-        mLocationBarObserver = mock(LocationBarDataProvider.Observer.class);
+        LocationBarDataProvider.Observer observer = mock(LocationBarDataProvider.Observer.class);
         doAnswer(
                         (invocation) -> {
                             assertEquals(toIncognito, locationBarModel.isIncognito());
                             return null;
                         })
-                .when(mLocationBarObserver)
+                .when(observer)
                 .onIncognitoStateChanged();
 
         ThreadUtils.runOnUiThreadBlocking(
@@ -264,7 +244,7 @@ public class LocationBarModelTest {
                             .getActivity()
                             .getTabModelSelector()
                             .selectModel(fromIncognito);
-                    locationBarModel.addObserver(mLocationBarObserver);
+                    locationBarModel.addObserver(observer);
 
                     // Switch to an existing tab.
                     mActivityTestRule
@@ -280,9 +260,9 @@ public class LocationBarModelTest {
 
         assertEquals(toIncognito, locationBarModel.isIncognito());
         if (fromIncognito != toIncognito) {
-            verify(mLocationBarObserver).onIncognitoStateChanged();
+            verify(observer).onIncognitoStateChanged();
         } else {
-            verify(mLocationBarObserver, times(0)).onIncognitoStateChanged();
+            verify(observer, times(0)).onIncognitoStateChanged();
         }
     }
 
@@ -301,13 +281,13 @@ public class LocationBarModelTest {
         ChromeTabbedActivity activity = mActivityTestRule.getActivity();
         LocationBarModel locationBarModel =
                 activity.getToolbarManager().getLocationBarModelForTesting();
-        mLocationBarObserver = mock(LocationBarDataProvider.Observer.class);
+        LocationBarDataProvider.Observer observer = mock(LocationBarDataProvider.Observer.class);
         doAnswer(
                         (invocation) -> {
                             assertEquals(toIncognito, locationBarModel.isIncognito());
                             return null;
                         })
-                .when(mLocationBarObserver)
+                .when(observer)
                 .onIncognitoStateChanged();
 
         ThreadUtils.runOnUiThreadBlocking(
@@ -316,7 +296,7 @@ public class LocationBarModelTest {
                             .getActivity()
                             .getTabModelSelector()
                             .selectModel(fromIncognito);
-                    locationBarModel.addObserver(mLocationBarObserver);
+                    locationBarModel.addObserver(observer);
                 });
 
         // Switch to a new tab.
@@ -324,9 +304,9 @@ public class LocationBarModelTest {
 
         assertEquals(toIncognito, locationBarModel.isIncognito());
         if (fromIncognito != toIncognito) {
-            verify(mLocationBarObserver).onIncognitoStateChanged();
+            verify(observer).onIncognitoStateChanged();
         } else {
-            verify(mLocationBarObserver, times(0)).onIncognitoStateChanged();
+            verify(observer, times(0)).onIncognitoStateChanged();
         }
     }
 
@@ -335,15 +315,15 @@ public class LocationBarModelTest {
     public void testOnSecurityStateChanged() {
         LocationBarModel locationBarModel =
                 mActivityTestRule.getActivity().getToolbarManager().getLocationBarModelForTesting();
-        mLocationBarObserver = mock(LocationBarDataProvider.Observer.class);
+        LocationBarDataProvider.Observer observer = mock(LocationBarDataProvider.Observer.class);
         ThreadUtils.runOnUiThreadBlocking(
                 () -> {
-                    locationBarModel.addObserver(mLocationBarObserver);
+                    locationBarModel.addObserver(observer);
                 });
 
         mActivityTestRule.loadUrl(UrlUtils.encodeHtmlDataUri("test content"));
 
-        verify(mLocationBarObserver, atLeast(1)).onSecurityStateChanged();
+        verify(observer, atLeast(1)).onSecurityStateChanged();
     }
 
     private void assertDisplayAndEditText(

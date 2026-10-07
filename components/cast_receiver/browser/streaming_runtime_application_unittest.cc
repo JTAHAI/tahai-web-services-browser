@@ -125,10 +125,14 @@ TEST_F(StreamingRuntimeApplicationTest, LaunchWithExtendedInput) {
                                   app_client_);
   app.SetEmbedderApplication(embedder_app_);
 
-  // With port multiplexing, only cast_transport is connected.
+  // We expect both Cast Transport and Exo Bootstrap to be connected during
+  // Launch.
   EXPECT_CALL(message_port_service_, ConnectToPortAsync(_, _)).Times(0);
   EXPECT_CALL(message_port_service_,
               ConnectToPortAsync("cast.__platform__.cast_transport", _))
+      .Times(1);
+  EXPECT_CALL(message_port_service_,
+              ConnectToPortAsync("urn:x-cast:com.google.cast.exo.bootstrap", _))
       .Times(1);
 
   base::MockCallback<RuntimeApplication::StatusCallback> callback;
@@ -146,10 +150,14 @@ TEST_F(StreamingRuntimeApplicationTest, LaunchWithExtendedInputNoDataManager) {
                                   app_client_);
   app.SetEmbedderApplication(embedder_app_);
 
-  // With port multiplexing, only cast_transport is connected.
+  // We expect both Cast Transport and Exo Bootstrap to be connected during
+  // Launch.
   EXPECT_CALL(message_port_service_, ConnectToPortAsync(_, _)).Times(0);
   EXPECT_CALL(message_port_service_,
               ConnectToPortAsync("cast.__platform__.cast_transport", _))
+      .Times(1);
+  EXPECT_CALL(message_port_service_,
+              ConnectToPortAsync("urn:x-cast:com.google.cast.exo.bootstrap", _))
       .Times(1);
 
   base::MockCallback<RuntimeApplication::StatusCallback> callback;

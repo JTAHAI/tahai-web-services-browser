@@ -120,8 +120,6 @@ class CORE_EXPORT TransformState {
   // Return the accumulated transform.
   const gfx::Transform& AccumulatedTransform() const;
 
-  TransformDirection Direction() const { return direction_; }
-
  private:
   void TranslateTransform(const PhysicalOffset&);
   void TranslateMappedCoordinates(const PhysicalOffset&);

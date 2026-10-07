@@ -42,7 +42,6 @@ const char kLinkColorChange[] = "LinkColorChange";
 const char kMediaQuery[] = "Media Query changed";
 const char kNavigationQuery[] = "Navigation Query changed";
 const char kNodeInserted[] = "Node was inserted into tree";
-const char kOverscroll[] = "Overscroll";
 const char kPictureSourceChanged[] = "PictureSourceChange";
 const char kPlatformColorChange[] = "PlatformColorChange";
 const char kPluginChanged[] = "Plugin Changed";

@@ -5,7 +5,6 @@
 #ifndef CHROME_BROWSER_UI_WEBUI_APP_HOME_APP_HOME_UI_H_
 #define CHROME_BROWSER_UI_WEBUI_APP_HOME_APP_HOME_UI_H_
 
-#include "base/memory/scoped_refptr.h"
 #include "chrome/browser/ui/webui/app_home/app_home.mojom.h"
 #include "chrome/common/webui_url_constants.h"
 #include "content/public/browser/webui_config.h"
@@ -51,7 +50,7 @@ class AppHomeUI : public ui::MojoWebUIController,
   void BindInterface(
       mojo::PendingReceiver<app_home::mojom::PageHandlerFactory> receiver);
 
-  static scoped_refptr<base::RefCountedMemory> GetFaviconResourceBytes(
+  static base::RefCountedMemory* GetFaviconResourceBytes(
       ui::ResourceScaleFactor scale_factor);
 
  private:

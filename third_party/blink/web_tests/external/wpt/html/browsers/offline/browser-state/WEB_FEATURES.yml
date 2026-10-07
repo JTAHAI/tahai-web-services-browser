@@ -1,2 +1,3 @@
-rules:
-- "**": [online]
+features:
+- name: online
+  files: "**"

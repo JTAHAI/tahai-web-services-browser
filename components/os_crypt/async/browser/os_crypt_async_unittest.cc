@@ -534,6 +534,7 @@ TEST_F(OSCryptAsyncTest, ShouldReencrypt) {
   }
 }
 
+
 using OSCryptAsyncDeathTest = OSCryptAsyncTest;
 
 TEST_F(OSCryptAsyncDeathTest, SamePrecedence) {
@@ -550,9 +551,8 @@ TEST_F(OSCryptAsyncDeathTest, SamePrecedence) {
   providers.emplace_back(
       /*precedence=*/10u,
       std::make_unique<TestKeyProvider>("D", /*use_for_encryption=*/true));
-  EXPECT_DCHECK_DEATH_WITH(
-      { OSCryptAsync factory(std::move(providers)); },
-      "Cannot have two providers with same precedence.");
+  EXPECT_DCHECK_DEATH_WITH({ OSCryptAsync factory(std::move(providers)); },
+                           "Cannot have two providers with same precedence.");
 }
 
 TEST_F(OSCryptAsyncDeathTest, SameName) {

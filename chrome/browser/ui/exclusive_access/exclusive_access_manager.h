@@ -18,13 +18,8 @@
 #include "ui/base/unowned_user_data/scoped_unowned_user_data.h"
 #include "url/origin.h"
 
-class BookmarkBarController;
 class BrowserWindowInterface;
 class ExclusiveAccessContext;
-
-namespace chrome {
-class BrowserCommandController;
-}
 
 namespace content {
 class WebContents;
@@ -41,11 +36,8 @@ class ExclusiveAccessManager {
   static const ExclusiveAccessManager* From(
       const BrowserWindowInterface* browser);
 
-  ExclusiveAccessManager(
-      BrowserWindowInterface* browser,
-      ExclusiveAccessContext* exclusive_access_context,
-      chrome::BrowserCommandController* browser_command_controller,
-      BookmarkBarController* bookmark_bar_controller);
+  ExclusiveAccessManager(BrowserWindowInterface* browser,
+                         ExclusiveAccessContext* exclusive_access_context);
 
   explicit ExclusiveAccessManager(
       ExclusiveAccessContext* exclusive_access_context);

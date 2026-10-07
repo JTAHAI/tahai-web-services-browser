@@ -95,7 +95,8 @@ import org.chromium.chrome.browser.safe_browsing.SafeBrowsingState;
 import org.chromium.chrome.browser.safety_hub.SafetyHubMetricUtils.DashboardInteractions;
 import org.chromium.chrome.browser.safety_hub.SafetyHubMetricUtils.NotificationsModuleInteractions;
 import org.chromium.chrome.browser.safety_hub.SafetyHubMetricUtils.PermissionsModuleInteractions;
-import org.chromium.chrome.browser.settings.SettingsTestRule;
+import org.chromium.chrome.browser.settings.SettingsActivity;
+import org.chromium.chrome.browser.settings.SettingsActivityTestRule;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.chrome.test.transit.ChromeTransitTestRules;
@@ -237,16 +238,16 @@ public final class SafetyHubTest {
     @Rule public MockitoRule mMockitoRule = MockitoJUnit.rule();
 
     @Rule
-    public SettingsTestRule<SafetyHubPermissionsFragment> mPermissionsFragmentTestRule =
-            new SettingsTestRule<>(SafetyHubPermissionsFragment.class);
+    public SettingsActivityTestRule<SafetyHubPermissionsFragment> mPermissionsFragmentTestRule =
+            new SettingsActivityTestRule<>(SafetyHubPermissionsFragment.class);
 
     @Rule
-    public SettingsTestRule<SafetyHubNotificationsFragment> mNotificationsFragmentTestRule =
-            new SettingsTestRule<>(SafetyHubNotificationsFragment.class);
+    public SettingsActivityTestRule<SafetyHubNotificationsFragment> mNotificationsFragmentTestRule =
+            new SettingsActivityTestRule<>(SafetyHubNotificationsFragment.class);
 
     @Rule
-    public SettingsTestRule<SafetyHubFragment> mSafetyHubFragmentTestRule =
-            new SettingsTestRule<>(SafetyHubFragment.class);
+    public SettingsActivityTestRule<SafetyHubFragment> mSafetyHubFragmentTestRule =
+            new SettingsActivityTestRule<>(SafetyHubFragment.class);
 
     @Rule
     public ChromeRenderTestRule mRenderTestRule =
@@ -506,13 +507,13 @@ public final class SafetyHubTest {
     @LargeTest
     @Feature({"SafetyHubPermissions"})
     public void testPermissionsToSiteSettings() {
-        mPermissionsFragmentTestRule.startSettingsActivity();
+        SettingsActivity activity = mPermissionsFragmentTestRule.startSettingsActivity();
         var histogramWatcher =
                 HistogramWatcher.newSingleRecordWatcher(
                         PERMISSIONS_INTERACTIONS_HISTOGRAM_NAME,
                         PermissionsModuleInteractions.GO_TO_SETTINGS);
 
-        openActionBarOverflowOrOptionsMenu(mPermissionsFragmentTestRule.getActivity());
+        openActionBarOverflowOrOptionsMenu(activity);
         onViewWaiting(withText(R.string.safety_hub_go_to_site_settings_button)).perform(click());
         onViewWaiting(withText(R.string.prefs_site_settings)).check(matches(isDisplayed()));
 
@@ -691,13 +692,13 @@ public final class SafetyHubTest {
     @LargeTest
     @Feature({"SafetyHubNotifications"})
     public void testNotificationsToNotificationSettings() {
-        mNotificationsFragmentTestRule.startSettingsActivity();
+        SettingsActivity activity = mNotificationsFragmentTestRule.startSettingsActivity();
         var histogramWatcher =
                 HistogramWatcher.newSingleRecordWatcher(
                         NOTIFICATIONS_INTERACTIONS_HISTOGRAM_NAME,
                         NotificationsModuleInteractions.GO_TO_SETTINGS);
 
-        openActionBarOverflowOrOptionsMenu(mNotificationsFragmentTestRule.getActivity());
+        openActionBarOverflowOrOptionsMenu(activity);
         onViewWaiting(withText(R.string.safety_hub_go_to_notification_settings_button))
                 .perform(click());
         onViewWaiting(
@@ -2273,7 +2274,7 @@ public final class SafetyHubTest {
 
     @Test
     @MediumTest
-    @Restriction(DeviceFormFactor.PHONE) // Tablets and desktops don't have a help button or menu.
+    @DisableIf.Device(DeviceFormFactor.DESKTOP_FREEFORM) // crbug.com/511289088
     public void testHelpCenterArticle() {
         mSafetyHubFragmentTestRule.startSettingsActivity();
         var histogramWatcher =

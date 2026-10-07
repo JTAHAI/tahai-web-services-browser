@@ -13,10 +13,6 @@
 #include "ui/gfx/image/image_skia.h"
 #include "ui/views/window/dialog_delegate.h"
 
-namespace views {
-class Label;
-}
-
 namespace policy {
 
 // The callback to be executed when the user addresses the dialog. When

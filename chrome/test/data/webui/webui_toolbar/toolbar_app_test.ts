@@ -9,10 +9,9 @@ import type {HelpBubbleHandlerInterface} from 'chrome://resources/cr_components/
 import {loadTimeData} from 'chrome://resources/js/load_time_data.js';
 import type {TrackedElementIdentifier} from 'chrome://resources/mojo/ui/webui/resources/js/tracked_element/tracked_element.mojom-webui.js';
 import {assertEquals, assertFalse, assertTrue} from 'chrome://webui-test/chai_assert.js';
-import {TestSearchboxBrowserProxy} from 'chrome://webui-test/cr_components/searchbox/test_searchbox_browser_proxy.js';
 import {TestBrowserProxy} from 'chrome://webui-test/test_browser_proxy.js';
 import {microtasksFinished} from 'chrome://webui-test/test_util.js';
-import {BrowserProxyImpl, INVALID_FOCUS_REQUEST_HANDLE, resetInitialStateForTesting, SearchboxBrowserProxy, SecurityChipRole, TrackedElementManager} from 'chrome://webui-toolbar.top-chrome/app.js';
+import {BrowserProxyImpl, INVALID_FOCUS_REQUEST_HANDLE, resetInitialStateForTesting, TrackedElementManager} from 'chrome://webui-toolbar.top-chrome/app.js';
 import type {LhsChipIdentifier, ToolbarAppElement} from 'chrome://webui-toolbar.top-chrome/app.js';
 import type {BrowserProxy, FocusRequestListener, NavigationControlsStateListener} from 'chrome://webui-toolbar.top-chrome/browser_proxy.js';
 import {AvatarToolbarButtonState} from 'chrome://webui-toolbar.top-chrome/shared/toolbar_ui_api_data_model.mojom-webui.js';
@@ -133,7 +132,7 @@ function createMockNavigationState() {
           {enabled: false, shouldBeShown: true, isContextMenuVisible: false},
       forwardButtonState:
           {enabled: false, shouldBeShown: true, isContextMenuVisible: false},
-      windowIsMaximizedOrFullscreen: false,
+      backButtonLeadingMargin: 0,
     },
     homeControlState: {
       shouldBeShown: false,
@@ -143,7 +142,6 @@ function createMockNavigationState() {
       omniboxViewState: {
         textPieces: [],
         inlineAutocompletion: '',
-        a11yFriendlySuggestionText: '',
         selection: null,
         textIsUrl: false,
       },
@@ -158,12 +156,10 @@ function createMockNavigationState() {
           icon: {handleId: 0n},
           securityLevel: 0,
           text: '',
-          tooltip: '',
           isClickable: false,
           isTextDangerous: false,
           isVisible: true,
           accessibilityState: {
-            role: SecurityChipRole.kButton,
             label: '',
             description: '',
           },
@@ -217,7 +213,6 @@ suite('ToolbarAppTest', () => {
 
     browserProxy = new TestToolbarBrowserProxy();
     BrowserProxyImpl.setInstance(browserProxy);
-    SearchboxBrowserProxy.setInstance(new TestSearchboxBrowserProxy());
 
     // Reset C++ injected values to ensure tests start in a clean state.
     const loadTimeDataData = (loadTimeData as any).data_;
@@ -728,66 +723,5 @@ suite('ToolbarAppTest', () => {
 
     await checkLinearGradientRing(false);
     await checkLinearGradientRing(true);
-  });
-
-  test('GetAvailableWidth', async () => {
-    app = document.createElement('toolbar-app');
-    document.body.appendChild(app);
-    await microtasksFinished();
-
-    assertEquals(window.innerWidth - app.clientWidth, app.getAvailableWidth());
-  });
-
-  test('AvatarButtonAnchorHighlightDoesNotPulse', async () => {
-    app = document.createElement('toolbar-app');
-    document.body.appendChild(app);
-    await microtasksFinished();
-
-    const avatarButton = app.shadowRoot.querySelector('avatar-button')!;
-    const innerChip = avatarButton.shadowRoot.querySelector('#button')!;
-    const visualTarget =
-        innerChip.shadowRoot!.querySelector('.iph-visual-target')!;
-    assertTrue(!!visualTarget);
-
-    avatarButton.classList.add('anchor-highlight');
-    await microtasksFinished();
-
-    assertEquals(
-        'none',
-        window.getComputedStyle(visualTarget, '::before').animationName);
-    assertEquals(
-        '1',
-        getComputedStyle(innerChip)
-            .getPropertyValue('--toolbar-chip-highlight-opacity')
-            .trim());
-
-    avatarButton.classList.remove('anchor-highlight');
-  });
-
-  test('AvatarButtonHelpBubbleActivatesPulseAnimation', async () => {
-    app = document.createElement('toolbar-app');
-    document.body.appendChild(app);
-    await microtasksFinished();
-
-    const avatarButton = app.shadowRoot.querySelector('avatar-button')!;
-    const innerChip = avatarButton.shadowRoot.querySelector('#button')!;
-    const visualTarget =
-        innerChip.shadowRoot!.querySelector('.iph-visual-target')!;
-    assertTrue(!!visualTarget);
-
-    avatarButton.hasHelpBubble = true;
-    await microtasksFinished();
-
-    assertTrue(innerChip.classList.contains('help-anchor-highlight'));
-    assertEquals(
-        'pulse',
-        window.getComputedStyle(visualTarget, '::before').animationName);
-    assertEquals(
-        '1', window.getComputedStyle(visualTarget, '::before').opacity);
-
-    avatarButton.hasHelpBubble = false;
-    await microtasksFinished();
-
-    assertFalse(innerChip.classList.contains('help-anchor-highlight'));
   });
 });

@@ -35,7 +35,6 @@
 #include <memory>
 
 #include "base/gtest_prod_util.h"
-#include "base/memory/raw_ptr.h"
 #include "cc/input/overscroll_behavior.h"
 #include "third_party/blink/public/common/widget/constants.h"
 #include "third_party/blink/public/mojom/input/focus_type.mojom-blink-forward.h"
@@ -301,7 +300,7 @@ class CORE_EXPORT ChromeClientImpl final : public ChromeClient {
 
   gfx::Transform GetDeviceEmulationTransform() const override;
 
-  void WillDispatchPointerDown(Node&) override;
+  void WillDispatchPointerDown(LocalFrame&) override;
   void DidDispatchMouseDown(Node&) override;
   void DidUpdateBrowserControls() const override;
 
@@ -366,8 +365,7 @@ class CORE_EXPORT ChromeClientImpl final : public ChromeClient {
       LocalFrame& frame,
       int minimum_size = blink::kMinimumWindowSize);
 
-  raw_ptr<WebViewImpl, UnprotectedInRelease | DanglingUntriaged>
-      web_view_;  // Weak pointer.
+  WebViewImpl* web_view_;  // Weak pointer.
   HeapHashSet<WeakMember<PopupOpeningObserver>> popup_opening_observers_;
   Vector<scoped_refptr<FileChooser>> file_chooser_queue_;
   ui::Cursor last_set_mouse_cursor_for_testing_;

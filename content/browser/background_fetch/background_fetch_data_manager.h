@@ -188,10 +188,6 @@ class CONTENT_EXPORT BackgroundFetchDataManager
 
   void Shutdown();
 
-  ServiceWorkerContextWrapper* service_worker_context() const {
-    return service_worker_context_.get();
-  }
-
  private:
   FRIEND_TEST_ALL_PREFIXES(BackgroundFetchDataManagerTest, Cleanup);
   friend class BackgroundFetchDataManagerTest;
@@ -199,6 +195,9 @@ class CONTENT_EXPORT BackgroundFetchDataManager
   friend class background_fetch::DatabaseTask;
 
   // Accessors for tests and DatabaseTasks.
+  ServiceWorkerContextWrapper* service_worker_context() const {
+    return service_worker_context_.get();
+  }
   std::set<std::string>& ref_counted_unique_ids() {
     return ref_counted_unique_ids_;
   }

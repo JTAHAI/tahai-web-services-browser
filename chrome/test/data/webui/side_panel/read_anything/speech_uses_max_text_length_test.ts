@@ -4,21 +4,17 @@
 import 'chrome-untrusted://read-anything-side-panel.top-chrome/read_anything.js';
 
 import type {AppElement} from 'chrome-untrusted://read-anything-side-panel.top-chrome/read_anything.js';
-import {AudioBrowserProxyImpl, ContentBrowserProxyImpl, ContentController, ContentType, MAX_SPEECH_LENGTH, NodeStore, setInstance, SpeechBrowserProxyImpl, SpeechController, ToolbarEvent, VisualBrowserProxyImpl} from 'chrome-untrusted://read-anything-side-panel.top-chrome/read_anything.js';
+import {ContentController, MAX_SPEECH_LENGTH, setInstance, SpeechBrowserProxyImpl, SpeechController, ToolbarEvent} from 'chrome-untrusted://read-anything-side-panel.top-chrome/read_anything.js';
 import {assertEquals, assertGT} from 'chrome-untrusted://webui-test/chai_assert.js';
 
-import {createApp, createSpeechSynthesisVoice, emitEvent} from './common.js';
-import {TestAudioBrowserProxy} from './test_audio_browser_proxy.js';
-import {TestContentBrowserProxy} from './test_content_browser_proxy.js';
+import {createApp, createSpeechSynthesisVoice, emitEvent, stubAnimationFrame} from './common.js';
 import {TestSpeechBrowserProxy} from './test_speech_browser_proxy.js';
-import {TestVisualBrowserProxy} from './test_visual_browser_proxy.js';
 
 suite('SpeechUsesMaxTextLength', () => {
   let app: AppElement;
   let maxSpeechLength: number;
   let speech: TestSpeechBrowserProxy;
   let speechController: SpeechController;
-  let contentBrowserProxy: TestContentBrowserProxy;
 
   const longSentence =
       'A kingdom of isolation, and it looks like I am the queen and the ' +
@@ -55,16 +51,30 @@ suite('SpeechUsesMaxTextLength', () => {
       {lang: 'en', name: 'Google Red Panda', localService: false});
 
   function setContentWithText(text: string) {
-    app.$.container.replaceChildren();
-    const node = document.createTextNode(text);
-    NodeStore.getInstance().setDomNode(node, 2);
-    app.$.container.appendChild(node);
-    ContentController.getInstance().setState(ContentType.HAS_CONTENT);
+    const axTree = {
+      rootId: 1,
+      nodes: [
+        {
+          id: 1,
+          role: 'rootWebArea',
+          htmlTag: '#document',
+          childIds: [2],
+        },
+        {
+          id: 2,
+          role: 'staticText',
+          name: text,
+        },
+      ],
+    };
+
+    chrome.readingMode.setContentForTesting(axTree, [2]);
   }
 
   async function assertSpeaksWithNumSegments(expectedNumSegments: number) {
     assertGT(expectedNumSegments, 0);
     for (let i = 0; i < expectedNumSegments; i++) {
+      console.error('waiting for speak', i);
       const spoken = await speech.whenCalled('speak');
       assertGT(maxSpeechLength, spoken.text.length);
       speech.reset();
@@ -77,11 +87,11 @@ suite('SpeechUsesMaxTextLength', () => {
   setup(async () => {
     // Clearing the DOM should always be done first.
     document.body.innerHTML = window.trustedTypes!.emptyHTML;
-    contentBrowserProxy = new TestContentBrowserProxy();
-    ContentBrowserProxyImpl.setInstance(contentBrowserProxy);
-    AudioBrowserProxyImpl.setInstance(new TestAudioBrowserProxy());
-    VisualBrowserProxyImpl.setInstance(new TestVisualBrowserProxy());
-
+    // Do not call the real `onConnected()`. As defined in
+    // ReadAnythingAppController, onConnected creates mojo pipes to connect to
+    // the rest of the Read Anything feature, which we are not testing here.
+    chrome.readingMode.onConnected = () => {};
+    stubAnimationFrame();
     setInstance(null);
     speech = new TestSpeechBrowserProxy();
     SpeechBrowserProxyImpl.setInstance(speech);
@@ -117,7 +127,7 @@ suite('SpeechUsesMaxTextLength', () => {
     assertEquals(longSentence, spoken.text);
   });
 
-  test('long sentence with remote voice uses max length', async () => {
+  test('long sentence with remote voice uses max length', () => {
     setContentWithText(longSentence);
     const expectedNumSegments =
         Math.ceil(longSentence.length / maxSpeechLength);
@@ -125,7 +135,7 @@ suite('SpeechUsesMaxTextLength', () => {
 
     emitEvent(app, ToolbarEvent.PLAY_PAUSE);
 
-    await assertSpeaksWithNumSegments(expectedNumSegments);
+    assertSpeaksWithNumSegments(expectedNumSegments);
   });
 
   test(
@@ -163,7 +173,7 @@ suite('SpeechUsesMaxTextLength', () => {
         assertEquals(expectedFirstText, spoken1.text);
         speech.reset();
         spoken1.onend();
-        await assertSpeaksWithNumSegments(expectedNumSegments);
+        assertSpeaksWithNumSegments(expectedNumSegments);
       });
 
   test(
@@ -182,7 +192,7 @@ suite('SpeechUsesMaxTextLength', () => {
   test(
       'long sentence with late commas with remote voice uses comma before max' +
           ' length',
-      async () => {
+      () => {
         // Since there are no commas within the first `maxSpeechLength`
         // characters, this will break on a word boundary. It's hard to know
         // exactly how many segments there will be, so just verify it's more
@@ -195,6 +205,6 @@ suite('SpeechUsesMaxTextLength', () => {
 
         emitEvent(app, ToolbarEvent.PLAY_PAUSE);
 
-        await assertSpeaksWithNumSegments(expectedNumSegments);
+        assertSpeaksWithNumSegments(expectedNumSegments);
       });
 });

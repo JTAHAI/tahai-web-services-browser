@@ -6,10 +6,8 @@
 
 #include "base/containers/span.h"
 #include "base/run_loop.h"
-#include "base/strings/utf_string_conversions.h"
 #include "base/test/bind.h"
 #include "base/test/scoped_feature_list.h"
-#include "base/test/test_future.h"
 #include "build/build_config.h"
 #include "chrome/browser/enterprise/connectors/analysis/page_print_request_handler.h"
 #include "chrome/browser/enterprise/connectors/common.h"
@@ -18,16 +16,14 @@
 #include "chrome/browser/enterprise/connectors/test/deep_scanning_test_utils.h"
 #include "chrome/browser/policy/dm_token_utils.h"
 #include "chrome/browser/printing/print_preview_test.h"
+#include "chrome/browser/ui/browser_commands.h"
 #include "chrome/test/base/testing_browser_process.h"
-#include "chrome/test/base/testing_profile_manager.h"
 #include "components/enterprise/buildflags/buildflags.h"
 #include "components/enterprise/connectors/core/cloud_content_scanning/common.h"
 #include "components/enterprise/connectors/core/reporting_constants.h"
 #include "components/policy/core/common/cloud/mock_cloud_policy_client.h"
 #include "components/signin/public/identity_manager/identity_test_environment.h"
-#include "content/public/browser/web_contents.h"
 #include "content/public/test/browser_task_environment.h"
-#include "content/public/test/web_contents_tester.h"
 #include "printing/printing_features.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
@@ -89,6 +85,11 @@ constexpr char16_t kUserJustification[] = u"User justification";
 scoped_refptr<base::RefCountedMemory> CreateData() {
   return base::MakeRefCounted<base::RefCountedStaticMemory>(
       base::byte_span_from_cstring(kTestData));
+}
+
+const std::set<std::string>* PrintMimeTypes() {
+  static std::set<std::string> set = {""};
+  return &set;
 }
 
 ContentAnalysisResponse::Result CreateResult(
@@ -172,17 +173,15 @@ class PrintContentAnalysisUtilsTest
     : public PrintPreviewTest,
       public testing::WithParamInterface<const char*> {
  public:
-  PrintContentAnalysisUtilsTest()
-      : profile_manager_(TestingBrowserProcess::GetGlobal()) {
+  PrintContentAnalysisUtilsTest() {
     ContentAnalysisDelegate::DisableUIForTesting();
   }
 
   const char* policy_value() const { return GetParam(); }
 
   void SetUp() override {
-    ASSERT_TRUE(profile_manager_.SetUp());
     PrintPreviewTest::SetUp();
-    content::WebContentsTester::For(web_contents())->SetTitle(u"New Tab");
+    chrome::NewTab(browser(), NewTabTypes::kNoUserAction);
 
     SetDMTokenForTesting(policy::DMToken::CreateValidToken(kDmToken));
 
@@ -216,13 +215,13 @@ class PrintContentAnalysisUtilsTest
     dbus_thread_linux::ShutdownOnDBusThreadAndBlock();
 #endif
     PrintPreviewTest::TearDown();
-    profile_manager_.DeleteAllTestingProfiles();
   }
 
-  content::WebContents* contents() { return web_contents(); }
+  content::WebContents* contents() {
+    return browser()->tab_strip_model()->GetActiveWebContents();
+  }
 
  protected:
-  TestingProfileManager profile_manager_;
   base::test::ScopedFeatureList scoped_feature_list_;
   std::unique_ptr<policy::MockCloudPolicyClient> client_;
   signin::IdentityTestEnvironment identity_test_environment_;
@@ -494,29 +493,24 @@ TEST_P(PrintContentAnalysisUtilsTest,
   base::RunLoop validator_warn_run_loop;
   enterprise_connectors::test::EventReportValidator validator(client_.get());
   validator.SetDoneClosure(validator_warn_run_loop.QuitClosure());
-  chrome::cros::reporting::proto::DlpSensitiveDataEvent event_bypass;
-  event_bypass.set_destination(kPrinterName);
-  event_bypass.set_file_name("New Tab");
-  event_bypass.set_trigger(chrome::cros::reporting::proto::PAGE_PRINT);
-  event_bypass.set_event_result(
-      chrome::cros::reporting::proto::EventResult::EVENT_RESULT_BYPASSED);
-  event_bypass.set_profile_user_name(kUserName);
-  event_bypass.set_profile_identifier(profile()->GetPath().AsUTF8Unsafe());
-  event_bypass.set_scan_id(kScanId);
-  event_bypass.set_user_justification(base::UTF16ToUTF8(kUserJustification));
-
-  chrome::cros::reporting::proto::DlpSensitiveDataEvent event_warn;
-  event_warn.set_destination(kPrinterName);
-  event_warn.set_file_name("New Tab");
-  event_warn.set_trigger(chrome::cros::reporting::proto::PAGE_PRINT);
-  event_warn.set_event_result(
-      chrome::cros::reporting::proto::EventResult::EVENT_RESULT_WARNED);
-  event_warn.set_profile_user_name(kUserName);
-  event_warn.set_profile_identifier(profile()->GetPath().AsUTF8Unsafe());
-  event_warn.set_scan_id(kScanId);
-
-  validator.ExpectSensitiveDataEventWarnThenBypass(std::move(event_warn),
-                                                   std::move(event_bypass));
+  validator.ExpectSensitiveDataEventWarnThenBypass(
+      /*url*/ "",
+      /*tab_url*/ "",
+      /*source*/ "",
+      /*destination*/ kPrinterName,
+      /*filename*/ "New Tab",
+      /*sha*/ "",
+      /*trigger*/
+      enterprise_connectors::kPagePrintDataTransferEventTrigger,
+      /*dlp_verdict*/
+      CreateResult(ContentAnalysisResponse::Result::TriggeredRule::WARN),
+      /*mimetype*/ PrintMimeTypes(),
+      /*size*/ std::nullopt,
+      /*username*/ kUserName,
+      /*profile_identifier*/ profile()->GetPath().AsUTF8Unsafe(),
+      /*scan_id*/ kScanId,
+      /*content_transfer_method*/ std::nullopt,
+      /*user_justifications*/ {std::nullopt, kUserJustification});
 
   auto data = CreateData();
   base::RunLoop run_loop;
@@ -589,12 +583,16 @@ TEST_P(PrintContentAnalysisUtilsTest, PrintIfAllowedByPolicyNullInitiator) {
   validator.ExpectNoReport();
 
   auto data = CreateData();
-  base::test::TestFuture<bool> future;
+  base::RunLoop run_loop;
+  auto on_verdict = base::BindLambdaForTesting([&run_loop](bool allowed) {
+    EXPECT_FALSE(allowed);
+    run_loop.Quit();
+  });
   PrintIfAllowedByPolicy(data, /*initiator=*/nullptr, kPrinterName,
                          PrintScanningContext::kNormalPrintAfterPreview,
-                         future.GetCallback(),
+                         std::move(on_verdict),
                          /*hide_preview=*/base::DoNothing());
-  EXPECT_FALSE(future.Get());
+  run_loop.Run();
 }
 
 INSTANTIATE_TEST_SUITE_P(
